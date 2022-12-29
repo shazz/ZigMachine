@@ -31,8 +31,8 @@ pub const ZigOS = struct {
         return .{};
     }
 
-    pub fn nop() void {
-        
+    pub fn nop(self: *ZigOS) void {
+        _ = self;
     }
 
     pub fn setResolution(self: *ZigOS, res: Resolution) void {

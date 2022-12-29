@@ -9,9 +9,8 @@ const ZigOS = @import("zigos.zig").ZigOS;
 // --------------------------------------------------------------------------
 pub const Demo = struct {
 
-    pub fn init(self: *Demo, zigos: *ZigOS) Demo { 
+    pub fn init(zigos: *ZigOS) Demo { 
         zigos.nop();
-         _ = self;
 
         return .{};
     }
