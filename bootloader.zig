@@ -30,7 +30,7 @@ export fn boot() void {
 }
 
 // The returned pointer will be used as an offset integer to the wasm memory
-export fn getPhysicialFrameBufferPointer() [*]u8 {
+export fn getPhysicalFrameBufferPointer() [*]u8 {
     return @ptrCast([*]u8, &physical_framebuffer);
 }
 

@@ -10,7 +10,7 @@ var importObject = {
     },
 };
 
-WebAssembly.instantiateStreaming(fetch("zigos.wasm"), importObject).then((result) => {
+WebAssembly.instantiateStreaming(fetch("bootloader.wasm"), importObject).then((result) => {
     const wasmMemoryArray = new Uint8Array(memory.buffer);
 
     const drawframebuffer = (canvas_id) => {
@@ -22,9 +22,9 @@ WebAssembly.instantiateStreaming(fetch("zigos.wasm"), importObject).then((result
         const imageData = context.createImageData(canvas.width, canvas.height);
         context.clearRect(0, 0, canvas.width, canvas.height);
 
-        result.instance.exports.renderPhysicialFrameBuffer(parseInt(canvas_id));
+        result.instance.exports.renderPhysicalFrameBuffer(parseInt(canvas_id));
 
-        const bufferOffset = result.instance.exports.getPhysicialFrameBufferPointer();
+        const bufferOffset = result.instance.exports.getPhysicalFrameBufferPointer();
         const imageDataArray = wasmMemoryArray.slice(
             bufferOffset,
             bufferOffset + fb_width * fb_height * 4
