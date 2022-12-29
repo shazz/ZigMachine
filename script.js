@@ -14,8 +14,8 @@ WebAssembly.instantiateStreaming(fetch("bootloader.wasm"), importObject).then((r
     const wasmMemoryArray = new Uint8Array(memory.buffer);
 
     const drawframebuffer = (canvas_id) => {
-        const fb_width = 256;
-        const fb_height = 256;
+        const fb_width = 320;
+        const fb_height = 200;
 
         const canvas = document.getElementById(canvas_id);
         const context = canvas.getContext("2d");
