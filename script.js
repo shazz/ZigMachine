@@ -35,8 +35,16 @@ WebAssembly.instantiateStreaming(fetch("zigos.wasm"), importObject).then((result
         context.putImageData(imageData, 0, 0);
     };
 
+    // boot the Zig Machine
+    result.instance.exports.boot();
+
+    // draw the first FB
     drawframebuffer("0");
+
+    // Check memory
     console.log(memory.buffer);
+
+    // Start the VBL loop
     setInterval(() => {
         drawframebuffer("0");
         drawframebuffer("1");

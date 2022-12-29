@@ -10,12 +10,13 @@ extern fn consoleLog(arg: u32) void;
 // --------------------------------------------------------------------------
 // Constants
 // --------------------------------------------------------------------------
-const fb_size: usize = 256;
+const fb_lines: usize = 256;
+const fb_columns: usize = 256;
 
 // --------------------------------------------------------------------------
 // Variables
 // --------------------------------------------------------------------------
-var physicial_framebuffer = std.mem.zeroes([fb_size][fb_size][4]u8);
+var physical_framebuffer = std.mem.zeroes([fb_columns][fb_lines][4]u8);
 var zigos: ZigOS = undefined;
 var demo: Demo = undefined;
 
@@ -30,15 +31,15 @@ export fn boot() void {
 
 // The returned pointer will be used as an offset integer to the wasm memory
 export fn getPhysicialFrameBufferPointer() [*]u8 {
-    return @ptrCast([*]u8, &physicial_framebuffer);
+    return @ptrCast([*]u8, &physical_framebuffer);
 }
 
 export fn vbl() void {
 
 }
 
-export fn renderPhysicialFrameBuffer(fb_id: u8) void {
-    for (physicial_framebuffer) |*row, y| {
+export fn renderPhysicalFrameBuffer(fb_id: u8) void {
+    for (physical_framebuffer) |*row, y| {
         for (row) |*pixel, x| {
 
             if (fb_id == 0) {
