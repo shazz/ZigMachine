@@ -9,69 +9,108 @@ pub const Color = struct {
     r: u8, g: u8, b: u8, a: u8
 };
 
+const size_t = u32;
+pub const WIDTH: size_t = 320;
+pub const HEIGHT: size_t = 200;
+pub const NB_PLANES: u8 = 4;
+
 // --------------------------------------------------------------------------
 // Variables
 // --------------------------------------------------------------------------
 
+pub const LogicalFB = struct {
+
+    fb: [WIDTH*HEIGHT]u8 = undefined,
+    palette: [256]Color = undefined,
+    back_color: u8 = 0,
+    id: u8 = 0,
+
+    pub fn create(id: u8) LogicalFB {
+        return .{ .id = id };
+    }
+
+    pub fn init(self: *LogicalFB) void {
+
+        for (self.palette) |_, i| {
+            if (i < 128) {
+                self.palette[i] = Color{.r=@intCast(u8, i*2), .g=0, .b=0, .a=128};
+            } else {
+                self.palette[i] = Color{.r=0, .g=@intCast(u8, (i-128)*2), .b=0, .a=128};
+            }
+            
+        }
+
+        // write dummy pixels
+        var i: u16 = 0;
+        while (i <= 64000) : (i += 1) {
+            if (self.id == 0) {
+                self.fb[i] = @intCast(u8, @mod(i, 128)) + 128;
+            } else {
+                self.fb[i] = @intCast(u8, @mod(i, 128));
+            }
+        }
+    }
+
+    // --------------------------------------------------------------------------
+    // Palette management
+    // --------------------------------------------------------------------------
+    pub fn setPalette(self: *LogicalFB, entries: [256]Color) void {
+        self.palette = entries;
+    }
+
+    pub fn setPaletteEntry(self: *LogicalFB, entry: u8, value: Color) void {
+        self.palette[entry] = value;
+    }
+
+    pub fn getPaletteEntry(self: *LogicalFB, entry: u8) Color {
+        return self.palette[entry];
+    }    
+
+    pub fn setFramebufferBackgroundColor(self: *LogicalFB, pal_entry: u8) void {
+        self.back_color = pal_entry;
+    }    
+
+};
 
 // --------------------------------------------------------------------------
 // Zig OS
 // --------------------------------------------------------------------------
 pub const ZigOS = struct {
 
-    back_colors: [4]Color = [4]Color{ 
-        Color{.r=0, .g=0, .b=0, .a=0}, 
-        Color{.r=0, .g=0, .b=0, .a=0}, 
-        Color{.r=0, .g=0, .b=0, .a=0}, 
-        Color{.r=0, .g=0, .b=0, .a=0} 
-    },
     resolution: Resolution = Resolution.truecolor,
-    lfb: [4]*[64000]u8 = undefined,
-    palette: [256]Color = undefined,
+    physical_framebuffer: [WIDTH][HEIGHT][4]u8 = undefined,
+    lfbs: [NB_PLANES]LogicalFB = undefined,
 
     pub fn create() ZigOS {
         return .{};
     }
 
-    pub fn init(self: *ZigOS) error{OutOfMemory}!void {
+    pub fn init(self: *ZigOS) void {
+
+        self.physical_framebuffer = std.mem.zeroes([WIDTH][HEIGHT][4]u8);
         self.resolution = Resolution.planes;
 
-        for (self.palette) |_, i| {
-            self.palette[i] = Color{.r=0, .g=@intCast(u8, i), .b=@intCast(u8, i), .a=255};
+        var plane_counter: u8 = 0;
+        while(plane_counter < NB_PLANES) {
+            var fb = LogicalFB.create(plane_counter);
+            fb.init();
+            self.lfbs[plane_counter] = fb;
+            plane_counter += 1;
         }
-
-        // get allocator
-        var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-        const allocator = gpa.allocator();
-
-        // allocate memory
-        var memory = try allocator.create([64000]u8);       
-
-        // write dummy pixels
-        var i: usize = 0;
-        while (i <= 64000) : (i += 1) {
-            memory[i] = 2;
-        }
-        // for (memory) | _, i | {
-        //     memory[i] = 1;
-        // }
-        self.lfb[0] = memory;
     }
 
-    pub fn setFrameBufferAddress(self: *ZigOS, fb_nb: u8, addr: *u32) void {
-        self.lfb[fb_nb] = addr;
-    }
-
+    // --------------------------------------------------------------------------
+    // Features
+    // --------------------------------------------------------------------------
     pub fn nop(self: *ZigOS) void {
         _ = self;
     }
 
+    // --------------------------------------------------------------------------
+    // Framebuffer management
+    // --------------------------------------------------------------------------
     pub fn setResolution(self: *ZigOS, res: Resolution) void {
         self.resolution = res;
-    }
-
-    pub fn setFramebufferBackgroundColor(self: *ZigOS, fb: u8, color: Color) void {
-        self.back_colors[fb] = color;
     }
 
 };
