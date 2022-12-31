@@ -6,11 +6,7 @@ const ZigOS = @import("zigos.zig").ZigOS;
 const PngDecoder = @import("utils/pngdecoder.zig");
 const pal_utils = @import("utils/palette.zig");
 
-extern fn consoleLogJS(ptr: [*]const u8, len: usize) void;
-
-fn consoleLog(s: []const u8) void {
-    consoleLogJS(s.ptr, s.len);
-}
+const consoleLog = @import("utils/debug.zig").consoleLog;
 
 // --------------------------------------------------------------------------
 // Constants

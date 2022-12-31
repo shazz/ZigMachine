@@ -1,11 +1,7 @@
 //
 // from https://github.com/luickk/zig-png-decoder
 //
-extern fn consoleLogJS(ptr: [*]const u8, len: usize) void;
-
-fn consoleLog(s: []const u8) void {
-    consoleLogJS(s.ptr, s.len);
-}
+const consoleLog = @import("debug.zig").consoleLog;
 
 const std = @import("std");
 

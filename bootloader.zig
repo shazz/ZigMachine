@@ -45,8 +45,6 @@ export fn boot() void {
     else |_| {
         consoleLog("Demo.init failed");
     }
-
-
 }
 
 // The returned pointer will be used as an offset integer to the wasm memory
