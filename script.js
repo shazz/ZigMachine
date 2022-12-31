@@ -5,7 +5,11 @@ var memory = new WebAssembly.Memory({
 
 var importObject = {
     env: {
-        consoleLog: (arg) => console.log(arg), // Useful for debugging on zig's side
+        // Useful for debugging on zig's side
+        consoleLogJS: (arg, len) => {
+            let arr8 = new Uint8Array(memory.buffer.slice(arg, arg+len));
+            console.log(new TextDecoder().decode(arr8));
+        },
         memory: memory,
     },
 };

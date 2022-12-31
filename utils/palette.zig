@@ -12,8 +12,7 @@ const WIDTH: usize = @import("../zigos.zig").WIDTH;
 // --------------------------------------------------------------------------
 // Structs
 // --------------------------------------------------------------------------
-pub fn convertToPaletteMode(data: *[WIDTH*HEIGHT*4]u8) [WIDTH*HEIGHT]u8 {
-    _ = data;
-    var toto: [WIDTH*HEIGHT]u8 = undefined;
-    return toto;
+pub fn convertToPaletteMode(tc_data_ptr: *[]u8, pal_data_ptr: *[]u8) void {
+    _ = tc_data_ptr;
+    _ = pal_data_ptr;
 }

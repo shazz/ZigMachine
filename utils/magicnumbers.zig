@@ -1,6 +1,11 @@
 //
 // from https://github.com/luickk/zig-png-decoder
 //
+extern fn consoleLogJS(ptr: [*]const u8, len: usize) void;
+
+fn consoleLog(s: []const u8) void {
+    consoleLogJS(s.ptr, s.len);
+}
 
 const std = @import("std");
 
@@ -33,6 +38,7 @@ pub const ColorType = enum(u8) {
             ColorType.truecolor_alpha => if (bit_depth == 8 or bit_depth == 16) return,
             else => {},
         }
+        consoleLog("Error: bit depth not supported");
         return MagicNumberErr.BitDepthColorTypeMissmatch;
     }
 };

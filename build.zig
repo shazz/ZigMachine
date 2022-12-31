@@ -3,6 +3,7 @@ const std = @import("std");
 const page_size = 65536; // in bytes
 const nb_pages = 25;
 
+
 pub fn build(b: *std.build.Builder) void {
     // Adds the option -Drelease=[bool] to create a release build, which we set to be ReleaseSmall by default.
     b.setPreferredReleaseMode(.ReleaseSmall);

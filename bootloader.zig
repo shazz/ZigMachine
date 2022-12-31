@@ -6,7 +6,11 @@ const ZigOS = @import("zigos.zig").ZigOS;
 const LogicalFB = @import("zigos.zig").LogicalFB;
 const Demo = @import("demo.zig").Demo;
 
-extern fn consoleLog(arg: u32) void;
+extern fn consoleLogJS(ptr: [*]const u8, len: usize) void;
+
+fn consoleLog(s: []const u8) void {
+    consoleLogJS(s.ptr, s.len);
+}
 
 // --------------------------------------------------------------------------
 // Types
@@ -30,9 +34,19 @@ var demo: Demo = undefined;
 // Exposed WASM functions
 // --------------------------------------------------------------------------
 export fn boot() void {
+
+    consoleLog("ZigMachine is booting.....");
+
     zigos = ZigOS.create();
     zigos.init();
-    demo = Demo.init(&zigos);
+    if (Demo.init()) |aDemo| {
+        demo = aDemo;
+    } 
+    else |_| {
+        consoleLog("Demo.init failed");
+    }
+
+
 }
 
 // The returned pointer will be used as an offset integer to the wasm memory
