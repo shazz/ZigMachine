@@ -3,10 +3,11 @@
 // --------------------------------------------------------------------------
 const std = @import("std");
 const ZigOS = @import("zigos.zig").ZigOS;
-const PngDecoder = @import("utils/pngdecoder.zig");
-const pal_utils = @import("utils/palette.zig");
+const LogicalFB = @import("zigos.zig").LogicalFB;
+const Color = @import("zigos.zig").Color;
 
-const consoleLog = @import("utils/debug.zig").consoleLog;
+
+const Console = @import("utils/debug.zig").Console;
 
 // --------------------------------------------------------------------------
 // Constants
@@ -14,6 +15,24 @@ const consoleLog = @import("utils/debug.zig").consoleLog;
 const HEIGHT: usize = @import("zigos.zig").HEIGHT;
 const WIDTH: usize = @import("zigos.zig").WIDTH;
 
+const logo_b = @embedFile("assets/logo.raw");
+
+const logo_pal: [256]Color = blk: {
+    const contents: []const u8 = @embedFile("assets/logo.pal");
+    if (contents.len != 4 * 256)
+        @compileError(std.fmt.comptimePrint("Expected 'colors.txt' to be {d} bytes, but it's {d} bytes.", .{ 4 * 256, contents.len }));
+    @setEvalBranchQuota(contents.len);
+    const arrays: *const [256][4]u8 = std.mem.bytesAsValue([256][4]u8, contents[0..]);
+    var colors: [256]Color = undefined;
+    for (arrays) |arr, i| colors[i] = .{
+        .r = arr[0],
+        .g = arr[1],
+        .b = arr[2],
+        .a = arr[3],
+    };
+    break :blk colors;
+};
+const demo_name = "starfield";
 
 // --------------------------------------------------------------------------
 // Variables
@@ -25,56 +44,55 @@ var logo_bitmap: []u8 = undefined;
 // --------------------------------------------------------------------------
 pub const Demo = struct {
 
-    pub fn init() !Demo { 
+    name: u8 = 0,
 
-        consoleLog("demo init");
+    pub fn init(zigos: *ZigOS) !Demo { 
 
-        // convert images
-        var general_purpose_allocator = std.heap.GeneralPurposeAllocator(.{}){};
-        var gpa = general_purpose_allocator.allocator();
+        Console.log("demo init", .{});
 
-        var fbs = std.io.fixedBufferStream(@embedFile("assets/logo_tc.png"));
-        const reader = fbs.reader();
-
-        var decoder = PngDecoder.PngDecoder(@TypeOf(reader)).init(gpa, reader);   
-        defer decoder.deinit();
-
-        consoleLog("Parsing PNG file");
-        var img = try decoder.parse();
-
-        consoleLog("Read decoded data");
-
-        var img_data = try img.bitmap_reader.readAllAlloc(gpa, std.math.maxInt(usize));
+        // get FB
+        var fb0: *LogicalFB = &zigos.lfbs[0];
         
-        consoleLog("Allocating buffer for palette data");
-        logo_bitmap = try gpa.alloc(u8, img.width*img.height);
+        // Set palette
+        fb0.setPalette(logo_pal);
 
-        consoleLog("Converting to palette mode");
-        pal_utils.convertToPaletteMode(&img_data, &logo_bitmap);
+        // Check
+        const pal0: Color = fb0.getPaletteEntry(0);
+        const pal1: Color = fb0.getPaletteEntry(1);
+        const pal2: Color = fb0.getPaletteEntry(2);
 
-        // var img_data: [320*200*4]u8 = undefined;
-        // var read = try img.bitmap_reader.read(&img_data);
+        Console.log("Pal 0: {d} {d} {d}", .{pal0.r, pal0.g, pal0.b});
+        Console.log("Pal 1: {d} {d} {d}", .{pal1.r, pal1.g, pal1.b});
+        Console.log("Pal 2: {d} {d} {d}", .{pal2.r, pal2.g, pal2.b});
 
-        // if (read == 0) {
-        //     pal_utils.convertToPaletteMode(&img_data, &logo_bitmap);
-        // }
+        // Copy bitmap data
+        var buffer: *[64000]u8 = &fb0.fb;
+        for (logo_b) |value, index| {
+            buffer[index] = value;
+        }
 
-        // if (decoder.parse()) |img| {
-        //     var img_data: [320*200*4]u8 = undefined;
-        //     if (img.bitmap_reader.read(&img_data)) |read| {
-        //         if (read == 0) {
-        //             logo_bitmap = pal_utils.convertToPaletteMode(&img_data);
-        //         }
-        //     }
-        //     else |_| {}
-        // } else |_| {}
+        Console.log("Pixel 0: {d} {d} {d}", .{buffer[9080], buffer[9081], buffer[9082]});
+        Console.log("demo init done!", .{});
 
         return .{ };
     }
 
+    pub fn run(self: *Demo, zigos: *ZigOS) void { 
+
+        _ = self;
+        
+        // get FB
+        var fb0: *LogicalFB = &zigos.lfbs[0];
+    
+        // Copy bitmap data
+        var buffer: *[64000]u8 = &fb0.fb;
+
+        for (logo_b) |value, index| {
+            buffer[index] = value;
+        }
+    }
+
     pub fn deinit() void {
-        var general_purpose_allocator = std.heap.GeneralPurposeAllocator(.{}){};
-        var gpa = general_purpose_allocator.allocator();
-        defer gpa.free(logo_bitmap);
+
     }
 };

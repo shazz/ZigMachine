@@ -5,12 +5,8 @@ const std = @import("std");
 const ZigOS = @import("zigos.zig").ZigOS;
 const LogicalFB = @import("zigos.zig").LogicalFB;
 const Demo = @import("demo.zig").Demo;
+const Console = @import("utils/debug.zig").Console;
 
-extern fn consoleLogJS(ptr: [*]const u8, len: usize) void;
-
-fn consoleLog(s: []const u8) void {
-    consoleLogJS(s.ptr, s.len);
-}
 
 // --------------------------------------------------------------------------
 // Types
@@ -35,15 +31,15 @@ var demo: Demo = undefined;
 // --------------------------------------------------------------------------
 export fn boot() void {
 
-    consoleLog("ZigMachine is booting.....");
+    Console.log("Helllooooo {s}\n", .{"world"});
 
     zigos = ZigOS.create();
     zigos.init();
-    if (Demo.init()) |aDemo| {
+    if (Demo.init(&zigos)) |aDemo| {
         demo = aDemo;
     } 
-    else |_| {
-        consoleLog("Demo.init failed");
+    else |err| {
+        Console.log("Demo.init failed: {s}", .{@errorName(err)});
     }
 }
 
@@ -52,10 +48,16 @@ export fn getPhysicalFrameBufferPointer() [*]u8 {
     return @ptrCast([*]u8, &zigos.physical_framebuffer);
 }
 
+export fn frame() void {
+
+    Console.log("Call demo.run()", .{});
+    demo.run(&zigos);
+}
+
 export fn renderPhysicalFrameBuffer(fb_id: u8) void {
 
     if (zigos.resolution == Resolution.truecolor) {
-
+        Console.log("This is TrueColor!", .{});
         // only one FB in truecolor
         if (fb_id == 0) {
             for (zigos.physical_framebuffer) |*row, y| {

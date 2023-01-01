@@ -1,4 +1,5 @@
 const std = @import("std");
+const Console = @import("utils/debug.zig").Console;
 
 // --------------------------------------------------------------------------
 // Types
@@ -6,7 +7,12 @@ const std = @import("std");
 pub const Resolution = enum { truecolor, planes };
 
 pub const Color = struct {
-    r: u8, g: u8, b: u8, a: u8
+    r: u8, g: u8, b: u8, a: u8,
+
+    pub fn toRGBA(self: Color) u32 {
+        const col: u32 = @as(u32, (self.r << 24)) | @as(u32, (self.g << 16)) | @as(u32, (self.b << 8)) | @as(u32, self.a);
+        return col;
+    }    
 };
 
 const size_t = u32;
@@ -31,6 +37,8 @@ pub const LogicalFB = struct {
 
     pub fn init(self: *LogicalFB) void {
 
+        Console.log("Init Logical Framebuffer {d}", .{self.id});
+
         for (self.palette) |_, i| {
             if (i < 128) {
                 self.palette[i] = Color{.r=@intCast(u8, i*2), .g=0, .b=0, .a=128};
@@ -40,6 +48,7 @@ pub const LogicalFB = struct {
             
         }
 
+        Console.log("Fill Logical Framebuffer {d} with dummy gradient", .{self.id});
         // write dummy pixels
         var i: u16 = 0;
         while (i <= 64000) : (i += 1) {
@@ -56,6 +65,8 @@ pub const LogicalFB = struct {
     // --------------------------------------------------------------------------
     pub fn setPalette(self: *LogicalFB, entries: [256]Color) void {
         self.palette = entries;
+
+        Console.log("Palette of FB {d} updated", .{self.id});
     }
 
     pub fn setPaletteEntry(self: *LogicalFB, entry: u8, value: Color) void {
@@ -77,7 +88,7 @@ pub const LogicalFB = struct {
 // --------------------------------------------------------------------------
 pub const ZigOS = struct {
 
-    resolution: Resolution = Resolution.truecolor,
+    resolution: Resolution = Resolution.planes,
     physical_framebuffer: [WIDTH][HEIGHT][4]u8 = undefined,
     lfbs: [NB_PLANES]LogicalFB = undefined,
 

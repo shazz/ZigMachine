@@ -1,7 +1,11 @@
+
 var memory = new WebAssembly.Memory({
-    initial: 25 /* pages */,
-    maximum: 25 /* pages */,
+    initial: 50 /* pages */,
+    maximum: 50 /* pages */,
 });
+
+const text_decoder = new TextDecoder();
+let console_log_buffer = "";
 
 var importObject = {
     env: {
@@ -10,12 +14,24 @@ var importObject = {
             let arr8 = new Uint8Array(memory.buffer.slice(arg, arg+len));
             console.log(new TextDecoder().decode(arr8));
         },
+        jsConsoleLogWrite: function (ptr, len) {
+            let arr8 = new Uint8Array(memory.buffer.slice(ptr, ptr+len));
+            console_log_buffer += text_decoder.decode(arr8);
+        },
+        jsConsoleLogFlush: function () {
+            console.log(console_log_buffer);
+            console_log_buffer = "";
+        },   
         memory: memory,
     },
 };
 
 WebAssembly.instantiateStreaming(fetch("bootloader.wasm"), importObject).then((result) => {
     const wasmMemoryArray = new Uint8Array(memory.buffer);
+
+    const runFrame = () => {
+        result.instance.exports.frame();
+    }
 
     const drawframebuffer = (canvas_id) => {
         const fb_width = 320;
@@ -44,12 +60,14 @@ WebAssembly.instantiateStreaming(fetch("bootloader.wasm"), importObject).then((r
 
     // draw the first FB
     drawframebuffer("0");
+    runFrame();
 
     // Check memory
     console.log(memory.buffer);
 
     // Start the VBL loop
     setInterval(() => {
+        runFrame();
         drawframebuffer("0");
         drawframebuffer("1");
     }, 20);

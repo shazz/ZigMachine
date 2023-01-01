@@ -6,22 +6,23 @@
         <script src="script.js"></script>
         <style>
             #framebuffers { position: absolute; }
-            .canva2s { position: absolute; top: 50; left: 50; image-rendering: pixelated; image-rendering: crisp-edges; width: 640px; height: 400px}
+            .canvas_debug { image-rendering: pixelated; image-rendering: crisp-edges; width: 640px; height: 400px}
+            .canvas { position: absolute; top: 50; left: 50; image-rendering: pixelated; image-rendering: crisp-edges; width: 640px; height: 400px}
         </style>
     </head>
     <body>
         <div id="framebuffers">
             <canvas
                 id="0"
-                width="256"
-                height="256"
-                class="canvas">
+                width="320"
+                height="200"
+                class="canvas_debug">
             </canvas>
             <canvas
                 id="1"
-                width="256"
-                height="256"
-                class="canvas">
+                width="320"
+                height="200"
+                class="canvas_debug">
             </canvas>  
         </div>                    
     </body>

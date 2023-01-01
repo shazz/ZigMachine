@@ -1,5 +1,8 @@
 const std = @import("std");
 
-pub fn consoleLog(s: []const u8) void {
-    std.debug.print("Trace: {s}\n", .{s});
-}
+pub const Console = struct {
+
+    pub fn log(s: []const u8) void {
+        std.debug.print("Trace: {s}\n", .{s});
+    }
+};

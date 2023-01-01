@@ -1,7 +1,7 @@
 const std = @import("std");
 
 const page_size = 65536; // in bytes
-const nb_pages = 25;
+const nb_pages = 50;
 
 
 pub fn build(b: *std.build.Builder) void {

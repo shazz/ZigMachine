@@ -1,9 +1,9 @@
 const builtin = @import("builtin");
 
-const debug_native = @import("debug_native.zig");
-const debug_wasm = @import("debug_wasm.zig");
+const console_native = @import("debug_native.zig").Console;
+const console_js = @import("JS.zig").Console;
 
-pub const consoleLog = switch(builtin.cpu.arch) {
-    .wasm32, .wasm64 => debug_wasm.consoleLog,
-    else => debug_native.consoleLog
+pub const Console = switch(builtin.cpu.arch) {
+    .wasm32, .wasm64 => console_js,
+    else => console_native
 };
