@@ -123,8 +123,9 @@ pub const Demo = struct {
             self.fade.update(false);
         }
 
-        self.frame_counter += 1;
+        if (self.frame_counter > 50*15) self.frame_counter = 0;
 
+        self.frame_counter += 1;
     }
 
     pub fn render(self: *Demo) void {
