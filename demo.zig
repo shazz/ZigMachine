@@ -9,6 +9,7 @@ const LogicalFB = @import("zigos.zig").LogicalFB;
 const Color = @import("zigos.zig").Color;
 
 const Starfield = @import("effects/starfield.zig").Starfield;
+const Fade = @import("effects/fade.zig").Fade;
 
 const Console = @import("utils/debug.zig").Console;
 
@@ -54,9 +55,11 @@ pub const Demo = struct {
     };
 
     name: u8 = 0,
+    frame_counter: u32 = 0,
     rnd: std.rand.DefaultPrng = undefined,
     low_starfield: [100]Star = undefined,
     starfield: Starfield = undefined,
+    fade: Fade = undefined,
 
     pub fn init(zigos: *ZigOS) !Demo { 
 
@@ -81,13 +84,8 @@ pub const Demo = struct {
         fb.setPalette(logo_pal);
 
         // fade out palette by alpha
-        var counter: u8 = 0;
-        while (counter < 16) : (counter += 1) {
-            var pal_color: Color = fb.getPaletteEntry(counter);
-            pal_color.a = 0;
-            fb.setPaletteEntry(counter, pal_color);
-        }
- 
+        var fade: Fade = Fade.init(fb, true, 1, 16, true);
+
         // Copy bitmap data
         var buffer: *[64000]u8 = &fb.fb;
         for (logo_b) |value, index| {
@@ -96,7 +94,7 @@ pub const Demo = struct {
 
         Console.log("demo init done!", .{});
 
-        return .{ .starfield = starfield };
+        return .{ .starfield = starfield, .fade=fade };
     }
 
     pub fn update(self: *Demo, zigos: *ZigOS) void { 
@@ -119,25 +117,13 @@ pub const Demo = struct {
         }
 
         // fade in then out then in...
-        var counter: u8 = 1;
-        while (counter < 16) : (counter += 1) {
-            var pal_color: Color = fb.getPaletteEntry(counter);
-            
-            if (fade_dir) {
-                if (pal_color.a < 255) {
-                    pal_color.a += 1;
-                } else {
-                    fade_dir = false;
-                }
-            } else {
-                if (pal_color.a > 0) {
-                    pal_color.a -= 1;
-                } else {
-                    fade_dir = true;
-                }
-            }
-            fb.setPaletteEntry(counter, pal_color);
+        if (self.frame_counter < 50*10) {
+            self.fade.update(true);
+        } else {
+            self.fade.update(false);
         }
+
+        self.frame_counter += 1;
 
     }
 
