@@ -50,8 +50,8 @@ export fn getPhysicalFrameBufferPointer() [*]u8 {
 
 export fn frame() void {
 
-    Console.log("Call demo.run()", .{});
-    demo.run(&zigos);
+    demo.update(&zigos);
+    demo.render();
 }
 
 export fn renderPhysicalFrameBuffer(fb_id: u8) void {

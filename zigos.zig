@@ -39,25 +39,14 @@ pub const LogicalFB = struct {
 
         Console.log("Init Logical Framebuffer {d}", .{self.id});
 
+        Console.log("Clear Logical Framebuffer {d} palette", .{self.id});
         for (self.palette) |_, i| {
-            if (i < 128) {
-                self.palette[i] = Color{.r=@intCast(u8, i*2), .g=0, .b=0, .a=128};
-            } else {
-                self.palette[i] = Color{.r=0, .g=@intCast(u8, (i-128)*2), .b=0, .a=128};
-            }
-            
+            self.palette[i] = Color{.r=0, .g=0, .b=0, .a=0};
         }
 
-        Console.log("Fill Logical Framebuffer {d} with dummy gradient", .{self.id});
-        // write dummy pixels
-        var i: u16 = 0;
-        while (i <= 64000) : (i += 1) {
-            if (self.id == 0) {
-                self.fb[i] = @intCast(u8, @mod(i, 128)) + 128;
-            } else {
-                self.fb[i] = @intCast(u8, @mod(i, 128));
-            }
-        }
+        Console.log("Clear Logical Framebuffer {d}", .{self.id});
+        self.clearFrameBuffer(0);
+
     }
 
     // --------------------------------------------------------------------------
@@ -80,6 +69,18 @@ pub const LogicalFB = struct {
     pub fn setFramebufferBackgroundColor(self: *LogicalFB, pal_entry: u8) void {
         self.back_color = pal_entry;
     }    
+
+    pub fn setPixelValue(self: *LogicalFB, x: u16, y: u16, pal_entry: u8) void {
+        const index: u16 = (y*320) + x; 
+        self.fb[index] = pal_entry;
+    }
+
+    pub fn clearFrameBuffer(self: *LogicalFB, pal_entry: u8) void {
+        var i: u16 = 0;
+        while (i <= 64000) : (i += 1) {
+            self.fb[i] = pal_entry;
+        }
+    }
 
 };
 

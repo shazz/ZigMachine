@@ -2,10 +2,13 @@
 // Imports
 // --------------------------------------------------------------------------
 const std = @import("std");
+const RndGen = std.rand.DefaultPrng;
+
 const ZigOS = @import("zigos.zig").ZigOS;
 const LogicalFB = @import("zigos.zig").LogicalFB;
 const Color = @import("zigos.zig").Color;
 
+const Starfield = @import("effects/starfield.zig").Starfield;
 
 const Console = @import("utils/debug.zig").Console;
 
@@ -32,64 +35,114 @@ const logo_pal: [256]Color = blk: {
     };
     break :blk colors;
 };
-const demo_name = "starfield";
 
 // --------------------------------------------------------------------------
 // Variables
 // --------------------------------------------------------------------------
 var logo_bitmap: []u8 = undefined;
+var fade_dir: bool = true;
 
 // --------------------------------------------------------------------------
 // Demo
 // --------------------------------------------------------------------------
 pub const Demo = struct {
 
+    const Star = struct {
+        x: u16 = undefined,
+        y: u16 = undefined,
+        speed: i8 = undefined,
+    };
+
     name: u8 = 0,
+    rnd: std.rand.DefaultPrng = undefined,
+    low_starfield: [100]Star = undefined,
+    starfield: Starfield = undefined,
 
     pub fn init(zigos: *ZigOS) !Demo { 
 
-        Console.log("demo init", .{});
+        Console.log("Demo init", .{});
 
-        // get FB
-        var fb0: *LogicalFB = &zigos.lfbs[0];
+        // -------------
+        // Starfied init
+        // -------------
+
+        // Get lower plance
+        var fb: *LogicalFB = &zigos.lfbs[0];
+        var starfield: Starfield = Starfield.init(fb, WIDTH, HEIGHT, 3);
+
+        // -------------
+        // Logo init
+        // -------------
+
+        // get next plane
+        fb = &zigos.lfbs[1];
         
         // Set palette
-        fb0.setPalette(logo_pal);
+        fb.setPalette(logo_pal);
 
-        // Check
-        const pal0: Color = fb0.getPaletteEntry(0);
-        const pal1: Color = fb0.getPaletteEntry(1);
-        const pal2: Color = fb0.getPaletteEntry(2);
-
-        Console.log("Pal 0: {d} {d} {d}", .{pal0.r, pal0.g, pal0.b});
-        Console.log("Pal 1: {d} {d} {d}", .{pal1.r, pal1.g, pal1.b});
-        Console.log("Pal 2: {d} {d} {d}", .{pal2.r, pal2.g, pal2.b});
-
+        // fade out palette by alpha
+        var counter: u8 = 0;
+        while (counter < 16) : (counter += 1) {
+            var pal_color: Color = fb.getPaletteEntry(counter);
+            pal_color.a = 0;
+            fb.setPaletteEntry(counter, pal_color);
+        }
+ 
         // Copy bitmap data
-        var buffer: *[64000]u8 = &fb0.fb;
+        var buffer: *[64000]u8 = &fb.fb;
         for (logo_b) |value, index| {
             buffer[index] = value;
         }
 
-        Console.log("Pixel 0: {d} {d} {d}", .{buffer[9080], buffer[9081], buffer[9082]});
         Console.log("demo init done!", .{});
 
-        return .{ };
+        return .{ .starfield = starfield };
     }
 
-    pub fn run(self: *Demo, zigos: *ZigOS) void { 
+    pub fn update(self: *Demo, zigos: *ZigOS) void { 
 
-        _ = self;
-        
-        // get FB
-        var fb0: *LogicalFB = &zigos.lfbs[0];
+        // ---------------
+        // Starfied update
+        // ---------------
+        self.starfield.update();
+
+        // ---------------
+        // Logo update
+        // ---------------
+        var fb: *LogicalFB = &zigos.lfbs[1];
     
         // Copy bitmap data
-        var buffer: *[64000]u8 = &fb0.fb;
+        var buffer: *[64000]u8 = &fb.fb;
 
         for (logo_b) |value, index| {
             buffer[index] = value;
         }
+
+        // fade in then out then in...
+        var counter: u8 = 1;
+        while (counter < 16) : (counter += 1) {
+            var pal_color: Color = fb.getPaletteEntry(counter);
+            
+            if (fade_dir) {
+                if (pal_color.a < 255) {
+                    pal_color.a += 1;
+                } else {
+                    fade_dir = false;
+                }
+            } else {
+                if (pal_color.a > 0) {
+                    pal_color.a -= 1;
+                } else {
+                    fade_dir = true;
+                }
+            }
+            fb.setPaletteEntry(counter, pal_color);
+        }
+
+    }
+
+    pub fn render(self: *Demo) void {
+        self.starfield.render();
     }
 
     pub fn deinit() void {

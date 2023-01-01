@@ -7,22 +7,22 @@
         <style>
             #framebuffers { position: absolute; }
             .canvas_debug { image-rendering: pixelated; image-rendering: crisp-edges; width: 640px; height: 400px}
-            .canvas { position: absolute; top: 50; left: 50; image-rendering: pixelated; image-rendering: crisp-edges; width: 640px; height: 400px}
+            .canvas { position: absolute; top: 50; left: 50; image-rendering: pixelated; image-rendering: crisp-edges; width: 640px; height: 400px; border: true; border-color: white}
         </style>
     </head>
-    <body>
+    <body bgcolor="#222222">
         <div id="framebuffers">
             <canvas
                 id="0"
                 width="320"
                 height="200"
-                class="canvas_debug">
+                class="canvas">
             </canvas>
             <canvas
                 id="1"
                 width="320"
                 height="200"
-                class="canvas_debug">
+                class="canvas">
             </canvas>  
         </div>                    
     </body>
