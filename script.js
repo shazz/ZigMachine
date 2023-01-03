@@ -70,5 +70,7 @@ WebAssembly.instantiateStreaming(fetch("bootloader.wasm"), importObject).then((r
         runFrame();
         drawframebuffer("0");
         drawframebuffer("1");
+        drawframebuffer("2");
+        drawframebuffer("3");
     }, 20);
 });

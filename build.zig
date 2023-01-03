@@ -3,7 +3,6 @@ const std = @import("std");
 const page_size = 65536; // in bytes
 const nb_pages = 50;
 
-
 pub fn build(b: *std.build.Builder) void {
 
     // Adds the option -Drelease=[bool] to create a release build, which we set to be ReleaseSmall by default.
@@ -27,8 +26,9 @@ pub fn build(b: *std.build.Builder) void {
             .os_tag = .freestanding,
             .abi = .musl,
         });
-        
+
         // https://github.com/ziglang/zig/issues/8633
+        // bootloader_lib.stack_size = 65536;
         bootloader_lib.import_memory = true; // import linear memory from the environment
         bootloader_lib.initial_memory = nb_pages * page_size; // initial size of the linear memory (1 page = 64kB)
         bootloader_lib.max_memory = nb_pages * page_size; // maximum size of the linear memory
@@ -36,7 +36,7 @@ pub fn build(b: *std.build.Builder) void {
 
         bootloader_lib.setOutputDir(".");
         bootloader_lib.install();
-        bootloader_step.dependOn(&bootloader_lib.step);        
+        bootloader_step.dependOn(&bootloader_lib.step);
     }
 
     if (build_native) {
@@ -48,9 +48,6 @@ pub fn build(b: *std.build.Builder) void {
         exe.setTarget(target);
         exe.setBuildMode(mode);
         exe.install();
-        exe_step.dependOn(&exe.step);    
-
+        exe_step.dependOn(&exe.step);
     }
-
-
 }
