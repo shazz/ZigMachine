@@ -13,6 +13,13 @@ const Console = @import("../utils/debug.zig").Console;
 // --------------------------------------------------------------------------
 // Constants
 // --------------------------------------------------------------------------
+const HEIGHT: u16 = @import("../zigos.zig").HEIGHT;
+const WIDTH: u16 = @import("../zigos.zig").WIDTH;
+
+pub const StarfieldDirection = enum {
+    LEFT,
+    RIGHT,
+};
 
 // --------------------------------------------------------------------------
 // Variables
@@ -23,9 +30,10 @@ const Console = @import("../utils/debug.zig").Console;
 // --------------------------------------------------------------------------
 pub const Starfield = struct {
     const Star = struct {
-        x: i16 = undefined,
-        y: i16 = undefined,
-        speed: i8 = undefined,
+        x: u16 = undefined,
+        y: u16 = undefined,
+        speed: u16 = undefined,
+        direction: StarfieldDirection = undefined,
     };
 
     rnd: std.rand.DefaultPrng = undefined,
@@ -33,9 +41,11 @@ pub const Starfield = struct {
     fb: *LogicalFB = undefined,
     width: u16 = undefined,
     height: u16 = undefined,
-    speed: i8 = undefined,
+    speed: u16 = undefined,
+    direction: StarfieldDirection = undefined,
+    
 
-    pub fn init(fb: *LogicalFB, width: u16, height: u16, speed: i8, background_transparency: u8) Starfield {
+    pub fn init(fb: *LogicalFB, width: u16, height: u16, speed: u16, direction: StarfieldDirection, background_transparency: u8) Starfield {
 
         // Set palette
         fb.setPaletteEntry(0, Color{ .r = 0, .g = 0, .b = 0, .a = background_transparency });
@@ -50,27 +60,16 @@ pub const Starfield = struct {
 
         var counter: u8 = 0;
 
-        var min: i8 = 0;
-        var max: i8 = 0;
-        if (speed > 0) {
-            min = 1;
-            max = speed;
-        } else {
-            min = speed;
-            max = -1;
-        }
-
         while (counter < 100) : (counter += 1) {
-            const x = rnd.random().int(u8);
-            const y = rnd.random().int(u8);
+            const x = rnd.random().uintAtMost(u16, WIDTH);
+            const y = rnd.random().uintAtMost(u8, HEIGHT);
 
-            if (speed > 0)
-                starfield_table[counter] = Star{ .x = x, .y = y, .speed = rnd.random().intRangeAtMost(i8, min, max) };
+            starfield_table[counter] = Star{ .x = x, .y = y, .speed = rnd.random().intRangeAtMost(u16, 1, speed), .direction=direction };
 
             fb.setPixelValue(x, y, 1);
         }
 
-        return .{ .fb = fb, .rnd = rnd, .starfield_table = starfield_table, .width = width, .height = height, .speed = speed };
+        return .{ .fb = fb, .rnd = rnd, .starfield_table = starfield_table, .width = width, .height = height, .speed = speed, .direction = direction };
     }
 
     pub fn update(self: *Starfield) void {
@@ -79,17 +78,24 @@ pub const Starfield = struct {
         var counter: u8 = 0;
         while (counter < 100) : (counter += 1) {
             var star: Star = self.starfield_table[counter];
-            if (star.speed > 0) {
-                if (star.x > self.width) {
+
+            if (self.direction == StarfieldDirection.RIGHT) {
+                const new_pos: u16 = star.x + star.speed;
+
+                if (new_pos > self.width) {
                     star.x = 0;
                 } else {
-                    star.x += @intCast(i16, star.speed);
+                    star.x = new_pos;
                 }
-            } else {
-                if (star.x > 0) {
-                    star.x += @intCast(i16, star.speed);
+
+            } 
+            if (self.direction == StarfieldDirection.LEFT) { 
+                const new_pos: i32 = @intCast(i32, star.x) - @intCast(i32, star.speed);
+
+                if (new_pos >= 0) {
+                    star.x = star.x - star.speed;
                 } else {
-                    star.x = @intCast(i16, self.width);
+                    star.x = self.width;
                 }
             }
             self.starfield_table[counter] = star;

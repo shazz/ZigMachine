@@ -1,4 +1,3 @@
-
 // --------------------------------------------------------------------------
 // Imports
 // --------------------------------------------------------------------------
@@ -23,7 +22,6 @@ const Console = @import("../utils/debug.zig").Console;
 // Demo
 // --------------------------------------------------------------------------
 pub const Fade = struct {
-
     fb: *LogicalFB = undefined,
     speed: i8 = undefined,
     use_alpha: bool = undefined,
@@ -31,8 +29,7 @@ pub const Fade = struct {
     first_pal_index: u8 = undefined,
     last_pal_index: u8 = undefined,
 
-    pub fn init(fb: *LogicalFB, use_alpha: bool, first_pal_index: u8, last_pal_index: u8, fade_in_first: bool) Fade { 
-
+    pub fn init(fb: *LogicalFB, use_alpha: bool, first_pal_index: u8, last_pal_index: u8, fade_in_first: bool) Fade {
         if (fade_in_first) {
             var counter: u8 = 0;
             while (counter < 16) : (counter += 1) {
@@ -42,15 +39,17 @@ pub const Fade = struct {
             }
         }
 
-        return .{ .fb=fb, .use_alpha=use_alpha, .is_done=false, .first_pal_index=first_pal_index, .last_pal_index=last_pal_index};
+        Console.log("Init use alpha: {}", .{use_alpha});
+
+        return .{ .fb = fb, .use_alpha = true, .is_done = false, .first_pal_index = first_pal_index, .last_pal_index = last_pal_index };
     }
 
     pub fn update(self: *Fade, fade_dir: bool) void {
-
         var counter: u8 = self.first_pal_index;
         while (counter <= self.last_pal_index) : (counter += 1) {
             var pal_color: Color = self.fb.getPaletteEntry(counter);
 
+            Console.log("use alpha: {}", .{self.use_alpha});
             if (self.use_alpha) {
                 if (fade_dir) {
                     if (pal_color.a < 255) {
@@ -67,16 +66,16 @@ pub const Fade = struct {
                         pal_color.r -= 1;
                     }
                     if (pal_color.g > 0) {
-                        pal_color.g -= 1; 
-                    }                   
+                        pal_color.g -= 1;
+                    }
                     if (pal_color.b > 0) {
                         pal_color.b -= 1;
                     }
-                } else{
-                    Console.log("Not implemented yet", .{});
+                } else {
+                    Console.log("Palette fade out not implemented yet", .{});
                 }
-            }            
-          
+            }
+
             self.fb.setPaletteEntry(counter, pal_color);
         }
     }
@@ -84,7 +83,4 @@ pub const Fade = struct {
     pub fn render(self: *Fade) void {
         _ = self;
     }
-
 };
-
-

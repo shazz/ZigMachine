@@ -9,9 +9,12 @@ const LogicalFB = @import("zigos.zig").LogicalFB;
 const Color = @import("zigos.zig").Color;
 
 const Starfield = @import("effects/starfield.zig").Starfield;
+const StarfieldDirection = @import("effects/starfield.zig").StarfieldDirection;
+
 const Fade = @import("effects/fade.zig").Fade;
 const Sprite = @import("effects/sprite.zig").Sprite;
 const Background = @import("effects/background.zig").Background;
+const Scrolltext = @import("effects/scrolltext.zig").Scrolltext;
 
 const Console = @import("utils/debug.zig").Console;
 
@@ -20,6 +23,8 @@ const Console = @import("utils/debug.zig").Console;
 // --------------------------------------------------------------------------
 const HEIGHT: u16 = @import("zigos.zig").HEIGHT;
 const WIDTH: u16 = @import("zigos.zig").WIDTH;
+
+const fonts_b = @embedFile("assets/blade_font_interlaced.raw");
 
 const back_b = @embedFile("assets/back.raw");
 
@@ -65,7 +70,6 @@ const back_pal: [256]Color = blk: {
 // --------------------------------------------------------------------------
 // Variables
 // --------------------------------------------------------------------------
-var logo_bitmap: []u8 = undefined;
 var fade_dir: bool = true;
 
 // --------------------------------------------------------------------------
@@ -81,6 +85,7 @@ pub const Demo = struct {
     back: Background = undefined,
     sprite_y_offset: u16 = undefined,
     sprite_y_dir: bool = undefined,
+    scrolltext: Scrolltext = undefined,
 
     pub fn init(zigos: *ZigOS) !Demo {
         Console.log("Demo init", .{});
@@ -99,7 +104,7 @@ pub const Demo = struct {
 
         // second plane
         fb = &zigos.lfbs[1];
-        var starfield: Starfield = Starfield.init(fb, WIDTH, HEIGHT, 3, 0);
+        var starfield: Starfield = Starfield.init(fb, WIDTH, HEIGHT, 3, StarfieldDirection.LEFT, 0);
 
         // third plane
         fb = &zigos.lfbs[2];
@@ -110,8 +115,11 @@ pub const Demo = struct {
         var fade: Fade = Fade.init(fb, true, 1, 16, true);
         var big_sprite: Sprite = Sprite.init(fb, sprite_b, sprite_width, sprite_height, sprite_xoffset, sprite_yoffset);
 
+        // 4th plane
+        // var scrolltext = try Scrolltext.init(fb, fonts_b, "ABCDEFGHIJKLMNOPQRSTUVWXYZ", 40, 34, "HELLOTHISISSHAZZFROMTRSIONTHEKEYBOARDFORAWEIRDSCROLLER", 2);
         Console.log("demo init done!", .{});
 
+        // return .{ .starfield = starfield, .fade = fade, .back = back, .big_sprite = big_sprite, .sprite_y_offset = sprite_yoffset, .sprite_y_dir = true, .scrolltext = scrolltext };
         return .{ .starfield = starfield, .fade = fade, .back = back, .big_sprite = big_sprite, .sprite_y_offset = sprite_yoffset, .sprite_y_dir = true };
     }
 

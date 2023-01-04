@@ -5,8 +5,7 @@ import itertools
 import struct
 from pathlib import Path
 
-# python tools/convert_png.py assets/logo_283x124.png assets/sprite.pal
-# python tools/convert_png.py assets/blade_font.png assets/blade_font.pal
+# python tools/convert_font.py assets/blade_font.png assets/blade_font.pal 40 34 ABCDEFGHIJKLMNOPQRSTUVWXYZ
 
 DEFAULT_ALPHA = 255
 
@@ -16,13 +15,23 @@ def grouper(iterator: Iterator, n: int) -> Iterator[list]:
         yield chunk
 
 
-parser = argparse.ArgumentParser(prog="PNG to raw converter", description="Convert a PNG file to a palette based raw image", epilog="(C) 2023 TRSi")
+parser = argparse.ArgumentParser(prog="PNG Font to raw converter", description="Convert a PNG file to a palette based raw image", epilog="(C) 2023 TRSi")
 
 parser.add_argument("png_file")
 parser.add_argument("palette_file")
+parser.add_argument("char_width")
+parser.add_argument("char_height")
+parser.add_argument("characters")
 args = parser.parse_args()
 
-output_filename = f'{args.png_file.rsplit(".")[0]}.raw'
+char_width = int(args.char_width)
+char_height = int(args.char_height)
+
+characters = args.characters
+
+output_filename = f'{args.png_file.rsplit(".")[0]}_interlaced.raw'
+
+print(f"Parsing font {args.png_file} with {len(characters)} characters of size: ({char_width},{char_height})")
 
 with Image.open(args.png_file) as im:
     print(f"Image loaded: {im.format} {im.format_description} {im.size} {im.mode}")
@@ -32,10 +41,12 @@ with Image.open(args.png_file) as im:
     if im.mode in ["P", "PA"]:
         nb_colors = 3 if im.mode == "P" else 4
 
+        assert len(characters) * char_width == im.width
+        assert char_height == im.height
+
         palette = im.getpalette()
 
         print(f"Extracting RGB(A) palette ({len(palette)//nb_colors})")
-        print(palette)
         if len(palette) // nb_colors > 256:
             raise RuntimeError(f"Current palette has more than 256 colors: {len(palette)//nb_colors}")
 
@@ -52,22 +63,37 @@ with Image.open(args.png_file) as im:
             linear_palette = palette
 
         if missing_colors > 0:
+
             filler = [0 for i in range(missing_colors * 4)]
+            print(f"Adding {missing_colors} null colors ({len(filler)} entries) to the palette of {len(linear_palette)} entries")
+
             linear_palette += filler
 
         # print(linear_palette)
 
-        assert len(linear_palette) == 256 * 4
+        assert len(linear_palette) == 256 * 4, f"palette size {len(linear_palette)} should be {256*4}"
         pal_bytes = struct.pack("{}B".format(len(linear_palette)), *linear_palette)
 
         with open(args.palette_file, "wb") as fp:
             fp.write(pal_bytes)
 
         data = list(im.getdata())
-        if len(data) != im.width * im.height:
-            raise RuntimeError(f"Data sie is expected to be {im.width*im.height} and not {len(data)}")
+        reordered_list = []
+        for idx, char in enumerate(characters):
+            print(f"Extracting character {idx}: {char}")
+            for row in range(char_height):
+                print(f"\trow: {row} of {range(char_height)}")
 
-        img_bytes = struct.pack("{}B".format(len(data)), *data)
+                row_width = row * im.width
+                start_offset = (idx * char_width) + (row_width)
+                end_offset = ((idx + 1) * char_width) + (row_width)
+
+                print(f"\t\t{row_width=} {start_offset=} {end_offset=}")
+
+                print(f"\t\tslice : [{data[start_offset:end_offset]}]")
+                reordered_list += data[start_offset:end_offset]
+
+        img_bytes = struct.pack("{}B".format(len(reordered_list)), *reordered_list)
         with open(output_filename, "wb") as fi:
             fi.write(img_bytes)
 

@@ -37,6 +37,7 @@ export fn boot() void {
         demo = aDemo;
     } else |err| {
         Console.log("Demo.init failed: {s}", .{@errorName(err)});
+        @panic("Guru meditation");
     }
 }
 

@@ -51,6 +51,7 @@ pub const Sprite = struct {
         }
 
         self.table_counter += 0.2;
+        if (self.table_counter >= std.math.inf(f16)) self.table_counter = 0.0;
     }
 
     pub fn render(self: *Sprite) void {

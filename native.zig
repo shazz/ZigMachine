@@ -1,5 +1,3 @@
-
-
 // --------------------------------------------------------------------------
 // Imports
 // --------------------------------------------------------------------------
@@ -7,7 +5,7 @@ const std = @import("std");
 const ZigOS = @import("zigos.zig").ZigOS;
 const LogicalFB = @import("zigos.zig").LogicalFB;
 const Demo = @import("demo.zig").Demo;
-const consoleLog = @import("utils/debug.zig").consoleLog;
+const Console = @import("utils/debug.zig").Console;
 
 // --------------------------------------------------------------------------
 // Types
@@ -27,17 +25,14 @@ const WIDTH: usize = @import("zigos.zig").WIDTH;
 var zigos: ZigOS = undefined;
 var demo: Demo = undefined;
 
-
 pub fn main() !void {
-
     std.debug.print("Hello, {s}!\n", .{"World"});
 
     zigos = ZigOS.create();
     zigos.init();
-    if (Demo.init()) |aDemo| {
+    if (Demo.init(&zigos)) |aDemo| {
         demo = aDemo;
-    } 
-    else |_| {
-        
+    } else |err| {
+        Console.log("Demo.init failed: {s}", .{@errorName(err)});
     }
 }
