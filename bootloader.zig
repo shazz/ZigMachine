@@ -18,6 +18,8 @@ const Color = @import("zigos.zig").Color;
 // --------------------------------------------------------------------------
 const HEIGHT: usize = @import("zigos.zig").HEIGHT;
 const WIDTH: usize = @import("zigos.zig").WIDTH;
+const NB_PLANES: u8 = @import("zigos.zig").NB_PLANES;
+const VERSION = "0.1";
 
 // --------------------------------------------------------------------------
 // Variables
@@ -26,54 +28,48 @@ var zigos: ZigOS = undefined;
 var demo: Demo = undefined;
 
 // --------------------------------------------------------------------------
+//
 // Exposed WASM functions
+//
+// --------------------------------------------------------------------------
+
+// --------------------------------------------------------------------------
+// boot!
 // --------------------------------------------------------------------------
 export fn boot() void {
-    Console.log("Helllooooo {s}\n", .{"world"});
+    Console.log("ZigMachine v. {s}\n", .{VERSION});
 
-    zigos = ZigOS.create();
     zigos.init();
-    if (Demo.init(&zigos)) |aDemo| {
-        demo = aDemo;
-    } else |err| {
-        Console.log("Demo.init failed: {s}", .{@errorName(err)});
-        @panic("Guru meditation");
-    }
+    demo.init(&zigos);
 }
 
-// The returned pointer will be used as an offset integer to the wasm memory
-export fn getPhysicalFrameBufferPointer() [*]u8 {
-    return @ptrCast([*]u8, &zigos.physical_framebuffer);
-}
-
+// --------------------------------------------------------------------------
+// compute a frame
+// --------------------------------------------------------------------------
 export fn frame() void {
     demo.update(&zigos);
     demo.render(&zigos);
 }
 
+// --------------------------------------------------------------------------
+//
+// --------------------------------------------------------------------------
+export fn getPhysicalFrameBufferNb() u8 {
+    return NB_PLANES;
+}
+
+// --------------------------------------------------------------------------
+// The returned pointer will be used as an offset integer to the wasm memory
+// --------------------------------------------------------------------------
+export fn getPhysicalFrameBufferPointer() [*]u8 {
+    return @ptrCast([*]u8, &zigos.physical_framebuffer);
+}
+// --------------------------------------------------------------------------
+// generate render buffer
+// --------------------------------------------------------------------------
 export fn renderPhysicalFrameBuffer(fb_id: u8) void {
-    if (zigos.resolution == Resolution.truecolor) {
-        Console.log("This is TrueColor!", .{});
-        // only one FB in truecolor
-        if (fb_id == 0) {
-            for (zigos.physical_framebuffer) |*row, y| {
-                // can call a HBL handler here
-                for (row) |*pixel, x| {
-                    if (fb_id == 0) {
-                        pixel.*[0] = @intCast(u8, x);
-                        pixel.*[1] = @intCast(u8, y);
-                        pixel.*[2] = @intCast(u8, y);
-                        pixel.*[3] = 128;
-                    } else {
-                        pixel.*[0] = @intCast(u8, y);
-                        pixel.*[1] = @intCast(u8, x);
-                        pixel.*[2] = @intCast(u8, y);
-                        pixel.*[3] = 128;
-                    }
-                }
-            }
-        }
-    } else {
+    if (zigos.resolution == Resolution.planes) {
+
         // get logical framebuffer
         const s_fb: LogicalFB = zigos.lfbs[fb_id];
         const palfb: [WIDTH * HEIGHT]u8 = s_fb.fb;
@@ -83,17 +79,27 @@ export fn renderPhysicalFrameBuffer(fb_id: u8) void {
 
         // can call a VBL handler here
         for (zigos.physical_framebuffer) |*row| {
+
             // can call a HBL handler here
             for (row) |*pixel| {
                 const pal_entry: u8 = palfb[i];
-                const pal_value: Color = palette[pal_entry];
+                const color: Color = palette[pal_entry];
 
-                pixel.*[0] = pal_value.r;
-                pixel.*[1] = pal_value.g;
-                pixel.*[2] = pal_value.b;
-                pixel.*[3] = pal_value.a;
+                pixel.* = color.toRGBA();
 
                 i += 1;
+            }
+        }
+    } else {
+        Console.log("This is TrueColor!", .{});
+        // only one FB in truecolor
+        if (fb_id == 0) {
+            for (zigos.physical_framebuffer) |*row, y| {
+                // can call a HBL handler here
+                for (row) |*pixel, x| {
+                    const col: Color = Color{ .r = @intCast(u8, x), .g = @intCast(u8, y), .b = @intCast(u8, y), .a = 255 };
+                    pixel.* = col.toRGBA();
+                }
             }
         }
     }

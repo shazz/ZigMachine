@@ -23,25 +23,31 @@ const Console = @import("../utils/debug.zig").Console;
 // --------------------------------------------------------------------------
 pub const Fade = struct {
     fb: *LogicalFB = undefined,
-    speed: i8 = undefined,
+    speed: i8 = 1,
     use_alpha: bool = undefined,
-    is_done: bool = undefined,
+    is_done: bool = false,
     first_pal_index: u8 = undefined,
     last_pal_index: u8 = undefined,
 
-    pub fn init(fb: *LogicalFB, use_alpha: bool, first_pal_index: u8, last_pal_index: u8, fade_in_first: bool) Fade {
+    pub fn init(self: *Fade, fb: *LogicalFB, use_alpha: bool, first_pal_index: u8, last_pal_index: u8, fade_in_first: bool) void {
+
+        self.fb = fb;
+        self.use_alpha = use_alpha;
+        self.first_pal_index = first_pal_index;
+        self.last_pal_index = last_pal_index;
+        // self.is_done = false;
+        // self.speed = 1;
+
         if (fade_in_first) {
             var counter: u8 = 0;
             while (counter < 16) : (counter += 1) {
-                var pal_color: Color = fb.getPaletteEntry(counter);
+                var pal_color: Color = self.fb.getPaletteEntry(counter);
                 pal_color.a = 0;
-                fb.setPaletteEntry(counter, pal_color);
+                self.fb.setPaletteEntry(counter, pal_color);
             }
         }
 
         Console.log("Init use alpha: {}", .{use_alpha});
-
-        return .{ .fb = fb, .use_alpha = true, .is_done = false, .first_pal_index = first_pal_index, .last_pal_index = last_pal_index };
     }
 
     pub fn update(self: *Fade, fade_dir: bool) void {

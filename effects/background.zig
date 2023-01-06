@@ -24,10 +24,11 @@ const WIDTH: usize = @import("../zigos.zig").WIDTH;
 // --------------------------------------------------------------------------
 pub const Background = struct {
     fb: *LogicalFB = undefined,
-    data: *const [64000]u8 = undefined,
+    data: []const u8 = undefined,
 
-    pub fn init(fb: *LogicalFB, data: *const [64000]u8) Background {
-        return .{ .fb = fb, .data = data };
+    pub fn init(self: *Background, fb: *LogicalFB, data: []const u8) void {
+        self.fb = fb;
+        self.data = data;
     }
 
     pub fn update(self: *Background) void {

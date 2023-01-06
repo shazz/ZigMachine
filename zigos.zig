@@ -2,23 +2,13 @@ const std = @import("std");
 const Console = @import("utils/debug.zig").Console;
 
 // --------------------------------------------------------------------------
-// Types
+// Enum
 // --------------------------------------------------------------------------
 pub const Resolution = enum { truecolor, planes };
 
-pub const Color = struct {
-    r: u8,
-    g: u8,
-    b: u8,
-    a: u8,
-
-    pub fn toRGBA(self: Color) u32 {
-        const col: u32 = @as(u32, (self.r << 24)) | @as(u32, (self.g << 16)) | @as(u32, (self.b << 8)) | @as(u32, self.a);
-        return col;
-    }
-};
-
-const size_t = u32;
+// --------------------------------------------------------------------------
+// Constants
+// --------------------------------------------------------------------------
 pub const WIDTH: u16 = 320;
 pub const HEIGHT: u16 = 200;
 pub const NB_PLANES: u8 = 4;
@@ -27,15 +17,26 @@ pub const NB_PLANES: u8 = 4;
 // Variables
 // --------------------------------------------------------------------------
 
+// --------------------------------------------------------------------------
+// Structs
+// --------------------------------------------------------------------------
+pub const Color = struct {
+    r: u8,
+    g: u8,
+    b: u8,
+    a: u8,
+
+    pub fn toRGBA(self: Color) u32 {
+        const col: u32 = (@intCast(u32, self.a) << 24) | (@intCast(u32, self.b) << 16) | (@intCast(u32, self.g) << 8) | (@intCast(u32, self.r));
+        return col;
+    }
+};
+
 pub const LogicalFB = struct {
     fb: [WIDTH * HEIGHT]u8 = undefined,
     palette: [256]Color = undefined,
     back_color: u8 = 0,
     id: u8 = 0,
-
-    pub fn create(id: u8) LogicalFB {
-        return .{ .id = id };
-    }
 
     pub fn init(self: *LogicalFB) void {
         Console.log("Init Logical Framebuffer {d}", .{self.id});
@@ -88,23 +89,16 @@ pub const LogicalFB = struct {
 // --------------------------------------------------------------------------
 pub const ZigOS = struct {
     resolution: Resolution = Resolution.planes,
-    physical_framebuffer: [WIDTH][HEIGHT][4]u8 = undefined,
+    physical_framebuffer: [WIDTH][HEIGHT]u32 = undefined,
     lfbs: [NB_PLANES]LogicalFB = undefined,
 
-    pub fn create() ZigOS {
-        return .{};
-    }
-
     pub fn init(self: *ZigOS) void {
-        self.physical_framebuffer = std.mem.zeroes([WIDTH][HEIGHT][4]u8);
+        self.physical_framebuffer = std.mem.zeroes([WIDTH][HEIGHT]u32);
         self.resolution = Resolution.planes;
 
-        var plane_counter: u8 = 0;
-        while (plane_counter < NB_PLANES) {
-            var fb = LogicalFB.create(plane_counter);
-            fb.init();
-            self.lfbs[plane_counter] = fb;
-            plane_counter += 1;
+        for (self.lfbs) |*lfb, idx| {
+            lfb.*.id = @intCast(u8, idx);
+            lfb.init();
         }
     }
 

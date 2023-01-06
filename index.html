@@ -4,38 +4,119 @@
         <meta charset="utf-8">
         <title>Zig Machine</title>
         <script src="script.js"></script>
+        <!-- <link rel="stylesheet" type="text/css" href="crt.css" media=”screen” /> -->
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/normalize/5.0.0/normalize.min.css">
+          
+<style>
+    body {
+      background: #121010;
+      color: white;
+      padding-top: 20px;
+      padding-left: 20px;
+      background-image: url("assets/overlays/sc1224_3.png");
+      background-repeat: no-repeat;
+    }
+   
+    .container {
+      background: #121010;
+      width: 640px;
+      height: 400px;
+      margin-top: 10px;
+      position: absolute;
+      top: 124px;
+      left: 150px;
+      overflow: hidden;
+      border: 2px solid #121010;
+    }
+    .container::after {
+      content: " ";
+      display: block;
+      position: absolute;
+      top: 0;
+      left: 0;
+      bottom: 0;
+      right: 0;
+      background: rgba(18, 16, 16, 0.1);
+      opacity: 0;
+      z-index: 2;
+      pointer-events: none;
+    }
+    .container::before {
+      content: " ";
+      display: block;
+      position: absolute;
+      top: 0;
+      left: 0;
+      bottom: 0;
+      right: 0;
+      background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+      z-index: 2;
+      background-size: 100% 2px, 3px 100%;
+      pointer-events: none;
+    }
+    
+    @keyframes overlay-anim {
+      0% {
+        visibility: hidden;
+      }
+      20% {
+        visibility: visible;
+      }
+      21% {
+        visibility: visible;
+      }
+      100% {
+        visibility: visible;
+      }
+    }
+    .overlay {
+      color: #00FF00;
+      position: absolute;
+      top: 0px;
+      left:  0px;
+      font-size: 60px;
+      visibility: hidden;
+      pointer-events: none;
+    }
+    
+    .container .overlay {
+      animation: overlay-anim 0.001s infinite;
+      animation-fill-mode: forwards;
+    }
+    </style>
         <style>
-            #framebuffers { position: absolute; }
             .canvas_debug { image-rendering: pixelated; image-rendering: crisp-edges; width: 640px; height: 400px}
-            .canvas { position: absolute; top: 50; left: 50; image-rendering: pixelated; image-rendering: crisp-edges; width: 640px; height: 400px; border: true; border-color: white}
+            .canvas { position: absolute; image-rendering: pixelated; image-rendering: crisp-edges; width: 640px; height: 400px; border: true; border-color: white}
         </style>
     </head>
-    <body bgcolor="#222222">
-        <div id="framebuffers">
-            <canvas
-                id="0"
-                width="320"
-                height="200"
-                class="canvas">
-            </canvas>
-            <canvas
-                id="1"
-                width="320"
-                height="200"
-                class="canvas">
-            </canvas> 
-            <canvas
-                id="2"
-                width="320"
-                height="200"
-                class="canvas">
-            </canvas> 
-            <canvas
-                id="3"
-                width="320"
-                height="200"
-                class="canvas">
-            </canvas>                          
-        </div>                    
+    <body>
+        <div class="container">
+            <div class="overlay">
+                <canvas
+                    id="0"
+                    width="320"
+                    height="200"
+                    class="canvas">
+                </canvas>
+                <canvas
+                    id="1"
+                    width="320"
+                    height="200"
+                    class="canvas">
+                </canvas> 
+                <canvas
+                    id="2"
+                    width="320"
+                    height="200"
+                    class="canvas">
+                </canvas> 
+                <canvas
+                    id="3"
+                    width="320"
+                    height="200"
+                    class="canvas">
+                </canvas>                          
+            </div> 
+        </div>                   
     </body>
 </html>

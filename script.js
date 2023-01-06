@@ -1,7 +1,7 @@
 
 var memory = new WebAssembly.Memory({
-    initial: 50 /* pages */,
-    maximum: 100 /* pages */,
+    initial: 16 /* pages */,
+    maximum: 16 /* pages */,
 });
 
 const text_decoder = new TextDecoder();
@@ -33,7 +33,7 @@ WebAssembly.instantiateStreaming(fetch("bootloader.wasm"), importObject).then((r
         result.instance.exports.frame();
     }
 
-    const drawframebuffer = (canvas_id) => {
+    const drawframebuffers = (nb_buffers) => {
         const fb_width = 320;
         const fb_height = 200;
 
@@ -41,40 +41,43 @@ WebAssembly.instantiateStreaming(fetch("bootloader.wasm"), importObject).then((r
         if(wasmMemoryArray == null)
             wasmMemoryArray = new Uint8Array(memory.buffer);        
 
-        const canvas = document.getElementById(canvas_id);
-        const context = canvas.getContext("2d");
-        const imageData = context.createImageData(canvas.width, canvas.height);
-        context.clearRect(0, 0, canvas.width, canvas.height);
+        result.instance.exports.frame();
 
-        result.instance.exports.renderPhysicalFrameBuffer(parseInt(canvas_id));
-
-        const bufferOffset = result.instance.exports.getPhysicalFrameBufferPointer();
-        const imageDataArray = wasmMemoryArray.slice(
-            bufferOffset,
-            bufferOffset + fb_width * fb_height * 4
-        );
-        imageData.data.set(imageDataArray);
-
-        context.clearRect(0, 0, canvas.width, canvas.height);
-        context.putImageData(imageData, 0, 0);
+        for(i=0; i<nb_buffers; i++) {
+            const canvas = document.getElementById(i);
+            const context = canvas.getContext("2d");
+            const imageData = context.createImageData(canvas.width, canvas.height);
+            // context.clearRect(0, 0, canvas.width, canvas.height);
+    
+            result.instance.exports.renderPhysicalFrameBuffer(i);
+    
+            const bufferOffset = result.instance.exports.getPhysicalFrameBufferPointer();
+            const imageDataArray = wasmMemoryArray.slice(
+                bufferOffset,
+                bufferOffset + fb_width * fb_height * 4
+            );
+            imageData.data.set(imageDataArray);
+    
+            // context.clearRect(0, 0, canvas.width, canvas.height);
+            context.putImageData(imageData, 0, 0);
+        }
+    
     };
-
-    // boot the Zig Machine
-    result.instance.exports.boot();
-
-    // draw the first FB
-    drawframebuffer("0");
-    runFrame();
 
     // Check memory
     console.log(memory.buffer);
 
+    // boot the Zig Machine
+    result.instance.exports.boot();
+
+    // get buffer nb
+    const nb_buffers = result.instance.exports.getPhysicalFrameBufferNb();
+
+    // draw the first FB
+    drawframebuffers(nb_buffers);
+
     // Start the VBL loop
     setInterval(() => {
-        runFrame();
-        drawframebuffer("0");
-        drawframebuffer("1");
-        drawframebuffer("2");
-        drawframebuffer("3");
+        drawframebuffers(nb_buffers);
     }, 20);
 });
