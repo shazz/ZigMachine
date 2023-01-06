@@ -49,7 +49,6 @@ pub const Fade = struct {
         while (counter <= self.last_pal_index) : (counter += 1) {
             var pal_color: Color = self.fb.getPaletteEntry(counter);
 
-            Console.log("use alpha: {}", .{self.use_alpha});
             if (self.use_alpha) {
                 if (fade_dir) {
                     if (pal_color.a < 255) {

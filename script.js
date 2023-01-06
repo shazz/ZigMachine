@@ -27,7 +27,7 @@ var importObject = {
 };
 
 WebAssembly.instantiateStreaming(fetch("bootloader.wasm"), importObject).then((result) => {
-    const wasmMemoryArray = new Uint8Array(memory.buffer);
+    var wasmMemoryArray = new Uint8Array(memory.buffer);
 
     const runFrame = () => {
         result.instance.exports.frame();
@@ -36,6 +36,10 @@ WebAssembly.instantiateStreaming(fetch("bootloader.wasm"), importObject).then((r
     const drawframebuffer = (canvas_id) => {
         const fb_width = 320;
         const fb_height = 200;
+
+        // in case WASM grew the memory due to zig heap_page dynmaic allocation calls
+        if(wasmMemoryArray == null)
+            wasmMemoryArray = new Uint8Array(memory.buffer);        
 
         const canvas = document.getElementById(canvas_id);
         const context = canvas.getContext("2d");

@@ -67,6 +67,22 @@ const back_pal: [256]Color = blk: {
     break :blk colors;
 };
 
+const font_pal: [256]Color = blk: {
+    const contents: []const u8 = @embedFile("assets/blade_font.pal");
+    if (contents.len != 4 * 256)
+        @compileError(std.fmt.comptimePrint("Expected file to be {d} bytes, but it's {d} bytes.", .{ 4 * 256, contents.len }));
+    @setEvalBranchQuota(contents.len);
+    const arrays: *const [256][4]u8 = std.mem.bytesAsValue([256][4]u8, contents[0..]);
+    var colors: [256]Color = undefined;
+    for (arrays) |arr, i| colors[i] = .{
+        .r = arr[0],
+        .g = arr[1],
+        .b = arr[2],
+        .a = arr[3],
+    };
+    break :blk colors;
+};
+
 // --------------------------------------------------------------------------
 // Variables
 // --------------------------------------------------------------------------
@@ -98,29 +114,34 @@ pub const Demo = struct {
         Console.log("u_row: {d} -> f_row: {} -> sin: {} -> u_sin: {}", .{ u_row, f_row, f_sin, u_sin });
 
         // first plane
-        var fb: *LogicalFB = &zigos.lfbs[0];
-        fb.setPalette(back_pal);
-        var back: Background = Background.init(fb, back_b);
+        var fb0: *LogicalFB = &zigos.lfbs[0];
+        fb0.setPalette(back_pal);
+        var back: Background = Background.init(fb0, back_b);
 
         // second plane
-        fb = &zigos.lfbs[1];
-        var starfield: Starfield = Starfield.init(fb, WIDTH, HEIGHT, 3, StarfieldDirection.LEFT, 0);
+        var fb1 = &zigos.lfbs[1];
+        var starfield: Starfield = Starfield.init(fb1, WIDTH, HEIGHT, 3, StarfieldDirection.LEFT, 0);
 
         // third plane
-        fb = &zigos.lfbs[2];
+        var fb2 = &zigos.lfbs[2];
         // Set palette
-        fb.setPalette(sprite_pal);
+        fb2.setPalette(sprite_pal);
 
         // fade out palette by alpha
-        var fade: Fade = Fade.init(fb, true, 1, 16, true);
-        var big_sprite: Sprite = Sprite.init(fb, sprite_b, sprite_width, sprite_height, sprite_xoffset, sprite_yoffset);
+        var fade: Fade = Fade.init(fb2, true, 1, 16, true);
+        var big_sprite: Sprite = Sprite.init(fb2, sprite_b, sprite_width, sprite_height, sprite_xoffset, sprite_yoffset, true);
 
         // 4th plane
-        // var scrolltext = try Scrolltext.init(fb, fonts_b, "ABCDEFGHIJKLMNOPQRSTUVWXYZ", 40, 34, "HELLOTHISISSHAZZFROMTRSIONTHEKEYBOARDFORAWEIRDSCROLLER", 2);
+        var fb3 = &zigos.lfbs[3];
+        // Set palette
+        fb3.setPalette(font_pal);    
+
+        var scrolltext = try Scrolltext.init(fb3, fonts_b, "ABCDEFGHIJKLMNOPQRSTUVWXYZ", 40, 34, "ABCDEFGHIJKLMNOPQRSTUVWXYZ", 2, 160);
+
         Console.log("demo init done!", .{});
 
-        // return .{ .starfield = starfield, .fade = fade, .back = back, .big_sprite = big_sprite, .sprite_y_offset = sprite_yoffset, .sprite_y_dir = true, .scrolltext = scrolltext };
-        return .{ .starfield = starfield, .fade = fade, .back = back, .big_sprite = big_sprite, .sprite_y_offset = sprite_yoffset, .sprite_y_dir = true };
+        return .{ .starfield = starfield, .fade = fade, .back = back, .big_sprite = big_sprite, .sprite_y_offset = sprite_yoffset, .sprite_y_dir = true, .scrolltext = scrolltext };
+        // return .{ .starfield = starfield, .fade = fade, .back = back, .big_sprite = big_sprite, .sprite_y_offset = sprite_yoffset, .sprite_y_dir = true };
     }
 
     pub fn update(self: *Demo, zigos: *ZigOS) void {
@@ -142,6 +163,8 @@ pub const Demo = struct {
         }
         self.big_sprite.update(null, self.sprite_y_offset);
 
+        self.scrolltext.update();
+
         // fade in then out then in...
         if (self.frame_counter < 50 * 10) {
             self.fade.update(true);
@@ -159,7 +182,9 @@ pub const Demo = struct {
         self.starfield.render();
         self.big_sprite.render();
 
-        _ = zigos;
+        const fb3 = &zigos.lfbs[3];
+        fb3.clearFrameBuffer(0);
+        self.scrolltext.render();
     }
 
     pub fn deinit() void {}
