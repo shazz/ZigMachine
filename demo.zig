@@ -15,6 +15,7 @@ const Fade = @import("effects/fade.zig").Fade;
 const Sprite = @import("effects/sprite.zig").Sprite;
 const Background = @import("effects/background.zig").Background;
 const Scrolltext = @import("effects/scrolltext.zig").Scrolltext;
+const Dots3D = @import("effects/dots3d.zig").Dots3D;
 
 const Console = @import("utils/debug.zig").Console;
 
@@ -141,6 +142,7 @@ pub const Demo = struct {
     big_sprite: SpriteEffect = undefined,
     back: Background = undefined,
     scrolltext: Scrolltext = undefined,
+    dots3D: Dots3D = undefined,
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
         Console.log("Demo init", .{});
@@ -153,6 +155,7 @@ pub const Demo = struct {
         // second plane
         fb = &zigos.lfbs[1];
         self.starfield.init(fb, WIDTH, HEIGHT, 3, StarfieldDirection.RIGHT, 0);
+        // self.dots3D.init(fb);
 
         // third plane
         fb = &zigos.lfbs[2];
@@ -173,7 +176,10 @@ pub const Demo = struct {
     }
 
     pub fn update(self: *Demo, zigos: *ZigOS) void {
-        self.starfield.update();
+
+        // self.starfield.update();
+        self.dots3D.update();
+
         self.big_sprite.update();
         self.scrolltext.update();
 
@@ -182,7 +188,9 @@ pub const Demo = struct {
 
     pub fn render(self: *Demo, zigos: *ZigOS) void {
         self.back.render();
-        self.starfield.render();
+        // self.starfield.render();
+        // self.dots3D.render();
+
         self.big_sprite.render();
         self.scrolltext.fb.clearFrameBuffer(0);
         self.scrolltext.render();

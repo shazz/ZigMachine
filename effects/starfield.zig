@@ -7,8 +7,10 @@ const RndGen = std.rand.DefaultPrng;
 const ZigOS = @import("../zigos.zig").ZigOS;
 const LogicalFB = @import("../zigos.zig").LogicalFB;
 const Color = @import("../zigos.zig").Color;
+const shapes = @import("shapes.zig");
 
 const Console = @import("../utils/debug.zig").Console;
+
 
 // --------------------------------------------------------------------------
 // Constants
@@ -58,6 +60,9 @@ pub const Starfield = struct {
         // Set palette
         fb.setPaletteEntry(0, Color{ .r = 0, .g = 0, .b = 0, .a = background_transparency });
         fb.setPaletteEntry(1, Color{ .r = 255, .g = 255, .b = 255, .a = 128 });
+        fb.setPaletteEntry(2, Color{ .r = 255, .g = 0, .b = 0, .a = 255 });
+        fb.setPaletteEntry(3, Color{ .r = 0, .g = 255, .b = 0, .a = 255 });
+        fb.setPaletteEntry(4, Color{ .r = 0, .g = 0, .b = 255, .a = 255 });
 
         // Clear
         fb.clearFrameBuffer(0);
@@ -70,6 +75,24 @@ pub const Starfield = struct {
             star.* = Star{ .x = x, .y = y, .speed = self.rnd.random().intRangeAtMost(u16, 1, speed), .direction = direction };
             fb.setPixelValue(x, y, 1);
         }
+
+        var src = shapes.Coord{ .x=10, .y=10};
+        var dest = shapes.Coord{ .x=310, .y=20};
+        shapes.drawLine(self.fb, src, dest, 1);  
+
+        src = shapes.Coord{ .x=10, .y=10};
+        dest = shapes.Coord{ .x=15, .y=150};
+        shapes.drawLine(self.fb, src, dest, 2);  
+
+        src = shapes.Coord{ .x=10, .y=10};
+        dest = shapes.Coord{ .x=310, .y=5};
+        shapes.drawLine(self.fb, src, dest, 3);       
+
+        src = shapes.Coord{ .x=10, .y=100};
+        dest = shapes.Coord{ .x=20, .y=5};
+        shapes.drawLine(self.fb, src, dest, 4);   
+
+       
     }
 
     pub fn update(self: *Starfield) void {

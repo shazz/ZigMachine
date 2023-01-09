@@ -1,9 +1,9 @@
 const std = @import("std");
 
 const page_size = 65536; // in bytes
-const min_pages = 16;
-const max_pages = 16;
-const stack_sizs = 5*page_size;
+const min_pages = 20;
+const max_pages = 20;
+const stack_sizs = 6*page_size;
 
 pub fn build(b: *std.build.Builder) void {
 

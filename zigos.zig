@@ -72,8 +72,12 @@ pub const LogicalFB = struct {
     }
 
     pub fn setPixelValue(self: *LogicalFB, x: u16, y: u16, pal_entry: u8) void {
-        const index: u32 = @as(u32, y) * @as(u32, WIDTH) + @as(u32, x);
-        self.fb[index] = pal_entry;
+
+        if( (x >= 0) and (x < WIDTH) and (y >= 0) and (y < HEIGHT) )
+        {
+            const index: u32 = @as(u32, y) * @as(u32, WIDTH) + @as(u32, x);
+            self.fb[index] = pal_entry;
+        }
     }
 
     pub fn clearFrameBuffer(self: *LogicalFB, pal_entry: u8) void {

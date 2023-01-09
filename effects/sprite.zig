@@ -58,7 +58,7 @@ pub const Sprite = struct {
             self.y_offset = new_offset;
         }
 
-        Console.log("Apply offset: {}", .{self.apply_offset});
+        // Console.log("Apply offset: {}", .{self.apply_offset});
         if (self.apply_offset == true) {
             self.table_counter += 0.2;
             if (self.table_counter >= std.math.inf(f16)) {
