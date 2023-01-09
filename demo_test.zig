@@ -16,6 +16,7 @@ const Sprite = @import("effects/sprite.zig").Sprite;
 const Background = @import("effects/background.zig").Background;
 const Scrolltext = @import("effects/scrolltext.zig").Scrolltext;
 const Dots3D = @import("effects/dots3d.zig").Dots3D;
+const Mandelbrot = @import("effects/mandelbrot.zig").Mandelbrot;
 
 const Console = @import("utils/debug.zig").Console;
 
@@ -39,36 +40,39 @@ pub const Demo = struct {
     frame_counter: u32 = 0,
     starfield: Starfield = undefined,
     dots3D: Dots3D = undefined,
+    mandelbrot: Mandelbrot = undefined,
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
         Console.log("Demo init", .{});
 
         // first plane
-        var fb: *LogicalFB = &zigos.lfbs[0];
+        // var fb: *LogicalFB = &zigos.lfbs[0];
 
-        // Set palette
-        fb.setPaletteEntry(0, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
-        fb.setPaletteEntry(1, Color{ .r = 255, .g = 255, .b = 255, .a = 255 });
-        fb.setPaletteEntry(2, Color{ .r = 255, .g = 0, .b = 0, .a = 255 });
-        fb.setPaletteEntry(3, Color{ .r = 0, .g = 255, .b = 0, .a = 255 });
-        fb.setPaletteEntry(4, Color{ .r = 0, .g = 0, .b = 255, .a = 255 });
+        // // Set palette
+        // fb.setPaletteEntry(0, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
+        // fb.setPaletteEntry(1, Color{ .r = 255, .g = 255, .b = 255, .a = 255 });
+        // fb.setPaletteEntry(2, Color{ .r = 255, .g = 0, .b = 0, .a = 255 });
+        // fb.setPaletteEntry(3, Color{ .r = 0, .g = 255, .b = 0, .a = 255 });
+        // fb.setPaletteEntry(4, Color{ .r = 0, .g = 0, .b = 255, .a = 255 });
 
-        self.dots3D.init(fb);
-        self.dots3D.render();
+        // self.dots3D.init(fb);
+
+        self.mandelbrot.init(zigos);
 
         Console.log("demo init done!", .{});
     }
 
     pub fn update(self: *Demo, zigos: *ZigOS) void {
 
-        self.dots3D.update();
+        // self.dots3D.update();
+        self.mandelbrot.update();
 
         _ = zigos;
     }
 
     pub fn render(self: *Demo, zigos: *ZigOS) void {
 
-        self.dots3D.render();
-        _ = zigos;
+        // self.dots3D.render();
+        self.mandelbrot.render(zigos);
     }
 };

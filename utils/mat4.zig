@@ -322,7 +322,6 @@ pub fn Mat4x4(comptime T: type) type {
             var up = Mat4.mulByVec4(rotate_cam, Vector4.up());
             var fw = Mat4.mulByVec4(rotate_cam, Vector4.forward());
             var right = Mat4.mulByVec4(rotate_cam, Vector4.right());
-            // var right = Mat4.mulByVec4(rotate_cam, Vector4.new(1.0, 0, 0, 0));
              
             var translate_cam = Self.identity();
             translate_cam.data[0][3] = -position.x();

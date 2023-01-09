@@ -60,13 +60,14 @@ pub const Scrolltext = struct {
         self.pos_y = pos_y;
 
         // create as many Sprites as letters
+        
         const current_text: *const[NB_FONTS]u8 = self.text[0 .. NB_FONTS];
         for (current_text) | char, idx | {
             
-            const letter: u8 = char - 65;
+            const letter: u8 = char - self.font_chars[0];
             const pos_x: u16 = @intCast(u16, idx)*self.font_width;
 
-            Console.log("Creating FontLetter {c} {} for ASCII {} at ({}, {})", .{char, idx, letter, pos_x, pos_y});
+            Console.log("Creating FontLetter {c} {} for ASCII {} at ({}, {}). Staring value: {}", .{char, idx, letter, pos_x, pos_y, self.font_chars[0]});
 
             self.fonts[idx] = FontLetter{
                 .char = char,
@@ -77,6 +78,9 @@ pub const Scrolltext = struct {
             self.fonts[idx].sprite.init(self.fb, self.font_img[letter * (self.font_width * self.font_height) .. (letter + 1) * (self.font_width * self.font_height)], self.font_width, self.font_height, pos_x, pos_y, false);
             self.text_pos = 9;
         }
+
+        // adding white space
+        
         Console.log("Scrolltext inited!", .{});
 
     }
@@ -93,7 +97,7 @@ pub const Scrolltext = struct {
                 self.text_pos += 1;
                 if(self.text_pos >= self.text.len) self.text_pos = 0;
 
-                const next_letter = self.text[self.text_pos] - 65;
+                const next_letter = self.text[self.text_pos] - self.font_chars[0];
                 font.*.sprite.data = self.font_img[next_letter * (self.font_width * self.font_height) .. (next_letter + 1)];
 
             } else {

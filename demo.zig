@@ -26,7 +26,12 @@ const HEIGHT: u16 = @import("zigos.zig").HEIGHT;
 const WIDTH: u16 = @import("zigos.zig").WIDTH;
 
 // scrolltext
-const fonts_b = @embedFile("assets/blade_font_interlaced.raw");
+const fonts_b = @embedFile("assets/ancool_font_interlaced.raw");
+const SCROLL_TEXT = "AAAAAAAAAAAAAAAAAA AAAAAAAAAAAAA AAAAAAAA"; //"ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+const SCROLL_CHAR_WIDTH = 32; // 40
+const SCROLL_CHAR_HEIGHT = 16; // 34
+const SCROLL_SPEED = 3; // 
+const SCROLL_CHARS = " !   '   -. 0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ"; //" ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
 // background
 const back_b = @embedFile("assets/back.raw");
@@ -72,7 +77,7 @@ const back_pal: [256]Color = blk: {
 };
 
 const font_pal: [256]Color = blk: {
-    const contents: []const u8 = @embedFile("assets/blade_font.pal");
+    const contents: []const u8 = @embedFile("assets/ancool_font.pal");
     if (contents.len != 4 * 256)
         @compileError(std.fmt.comptimePrint("Expected file to be {d} bytes, but it's {d} bytes.", .{ 4 * 256, contents.len }));
     @setEvalBranchQuota(contents.len);
@@ -170,7 +175,7 @@ pub const Demo = struct {
         // 4th plane
         fb = &zigos.lfbs[3];
         fb.setPalette(font_pal);
-        self.scrolltext.init(fb, fonts_b, " ABCDEFGHIJKLMNOPQRSTUVWXYZ", 40, 34, "ABCDEFGHIJKLMNOPQRSTUVWXYZ", 3, 160);
+        self.scrolltext.init(fb, fonts_b, SCROLL_CHARS, SCROLL_CHAR_WIDTH, SCROLL_CHAR_HEIGHT, SCROLL_TEXT, SCROLL_SPEED, 160);
 
         Console.log("demo init done!", .{});
     }
@@ -191,7 +196,7 @@ pub const Demo = struct {
         // self.dots3D.render();
 
         self.big_sprite.render();
-        self.scrolltext.fb.clearFrameBuffer(0);
+        self.scrolltext.fb.clearFrameBuffer(1);
         self.scrolltext.render();
 
         _ = zigos;
