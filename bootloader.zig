@@ -7,7 +7,7 @@ const LogicalFB = @import("zigos.zig").LogicalFB;
 const Console = @import("utils/debug.zig").Console;
 const waveforms = @import("sound/waveforms.zig");
 
-const Demo = @import("demo_test.zig").Demo;
+const Demo = @import("demo.zig").Demo;
 // --------------------------------------------------------------------------
 // Types
 // --------------------------------------------------------------------------
@@ -129,10 +129,9 @@ export fn renderPhysicalFrameBuffer(fb_id: u8) void {
 }
 
 // --------------------------------------------------------------------------
-// 
+//
 // --------------------------------------------------------------------------
 export fn input(dir: Direction) void {
-
     if (dir == .Up)
         Console.log("up", .{});
     if (dir == .Down)
@@ -155,7 +154,7 @@ export fn u8ArrayToF32Array(u8Array: [*]u8, u8ArrayLength: usize, f32Array: [*]f
 // generate a frame of audio
 // --------------------------------------------------------------------------
 export fn generateAudio(u8Array: [*]u8, u8ArrayLength: usize) void {
-    
+
     // set sample rate
     const sampleRate = 44100;
 
@@ -195,9 +194,9 @@ export fn generateAudio(u8Array: [*]u8, u8ArrayLength: usize) void {
             while (period_idx < period_or_end and samples_idx < samples_per_note_slice) : (period_idx += 1) {
 
                 // sample value = previous amp + (delta(current, previous)*index / nb_samples)
-                const wave_as_u4 = @intToFloat(f32, previous_note_amplitude) + 
-                                   (@intToFloat(f32, (note_amplitude - previous_note_amplitude) * samples_idx) / 
-                                    @intToFloat(f32, samples_per_note_slice));
+                const wave_as_u4 = @intToFloat(f32, previous_note_amplitude) +
+                    (@intToFloat(f32, (note_amplitude - previous_note_amplitude) * samples_idx) /
+                    @intToFloat(f32, samples_per_note_slice));
 
                 u8Array[period_idx] = @floatToInt(u8, wave_as_u4 * u4Tou8WaveTransformConstant);
                 samples_idx += 1;
@@ -209,10 +208,8 @@ export fn generateAudio(u8Array: [*]u8, u8ArrayLength: usize) void {
             // memorize last amplitude
             previous_note_amplitude = note_amplitude;
         }
-        
+
         // Advance in buffer of 1 period (44100 samples)
         array_idx += samples_per_wave;
     }
 }
-
-

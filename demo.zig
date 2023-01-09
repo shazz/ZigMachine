@@ -176,9 +176,8 @@ pub const Demo = struct {
     }
 
     pub fn update(self: *Demo, zigos: *ZigOS) void {
-
-        // self.starfield.update();
-        self.dots3D.update();
+        self.starfield.update();
+        // self.dots3D.update();
 
         self.big_sprite.update();
         self.scrolltext.update();
@@ -188,7 +187,7 @@ pub const Demo = struct {
 
     pub fn render(self: *Demo, zigos: *ZigOS) void {
         self.back.render();
-        // self.starfield.render();
+        self.starfield.render();
         // self.dots3D.render();
 
         self.big_sprite.render();

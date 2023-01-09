@@ -11,7 +11,6 @@ const shapes = @import("shapes.zig");
 
 const Console = @import("../utils/debug.zig").Console;
 
-
 // --------------------------------------------------------------------------
 // Constants
 // --------------------------------------------------------------------------
@@ -75,24 +74,6 @@ pub const Starfield = struct {
             star.* = Star{ .x = x, .y = y, .speed = self.rnd.random().intRangeAtMost(u16, 1, speed), .direction = direction };
             fb.setPixelValue(x, y, 1);
         }
-
-        var src = shapes.Coord{ .x=10, .y=10};
-        var dest = shapes.Coord{ .x=310, .y=20};
-        shapes.drawLine(self.fb, src, dest, 1);  
-
-        src = shapes.Coord{ .x=10, .y=10};
-        dest = shapes.Coord{ .x=15, .y=150};
-        shapes.drawLine(self.fb, src, dest, 2);  
-
-        src = shapes.Coord{ .x=10, .y=10};
-        dest = shapes.Coord{ .x=310, .y=5};
-        shapes.drawLine(self.fb, src, dest, 3);       
-
-        src = shapes.Coord{ .x=10, .y=100};
-        dest = shapes.Coord{ .x=20, .y=5};
-        shapes.drawLine(self.fb, src, dest, 4);   
-
-       
     }
 
     pub fn update(self: *Starfield) void {
