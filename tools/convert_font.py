@@ -6,7 +6,7 @@ import struct
 from pathlib import Path
 
 # python tools/convert_font.py assets/blade_font.png assets/blade_font.pal 40 34 ABCDEFGHIJKLMNOPQRSTUVWXYZ
-# python tools/convert_font.py assets/ancool_font.png assets/ancool_font.pal 30 16 " !   '   -. 0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+# python tools/convert_font.py assets/ancool_font.png assets/ancool_font2.pal 32 16 " !       '   -. 0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
 DEFAULT_ALPHA = 255
 
