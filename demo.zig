@@ -32,7 +32,7 @@ const offset_table_b = readU16Array(@embedFile("assets/scroll_sin.dat"));
 const SCROLL_TEXT = "         0123456789 .-'? ABCDEFGHIJKLMNOPQRSTUVWXYZ"; //"ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 const SCROLL_CHAR_WIDTH = 32; // 40
 const SCROLL_CHAR_HEIGHT = 16; // 34
-const SCROLL_SPEED = 1; // 
+const SCROLL_SPEED = 3; //
 const SCROLL_CHARS = " !   '   -. 0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ"; //" ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
 // background
@@ -53,6 +53,10 @@ const font_pal = convertU8ArraytoColors(@embedFile("assets/ancool_font.pal"));
 // --------------------------------------------------------------------------
 // Variables
 // --------------------------------------------------------------------------
+
+fn handler(zigos: *ZigOS, line: u16) void {
+    zigos.setBackgroundColor(Color{ .r = @intCast(u8, 255 - (line / 2)), .g = @intCast(u8, line / 2), .b = @intCast(u8, line / 2), .a = 255 });
+}
 
 // --------------------------------------------------------------------------
 // Demo
@@ -109,6 +113,9 @@ pub const Demo = struct {
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
         Console.log("Demo init", .{});
+
+        // HBL Handler
+        zigos.setHBLHandler(handler);
 
         // first plane
         var fb: *LogicalFB = &zigos.lfbs[0];

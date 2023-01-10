@@ -9,9 +9,13 @@ pub const Resolution = enum { truecolor, planes };
 // --------------------------------------------------------------------------
 // Constants
 // --------------------------------------------------------------------------
+pub const PHYSICAL_WIDTH: u16 = 400;
+pub const PHYSICAL_HEIGHT: u16 = 280;
 pub const WIDTH: u16 = 320;
 pub const HEIGHT: u16 = 200;
 pub const NB_PLANES: u8 = 4;
+pub const HORIZONTAL_BORDERS_WIDTH: u16 = (PHYSICAL_WIDTH - WIDTH) / 2;
+pub const VERTICAL_BORDERS_HEIGHT: u16 = (PHYSICAL_HEIGHT - HEIGHT) / 2;
 
 // --------------------------------------------------------------------------
 // Variables
@@ -72,9 +76,7 @@ pub const LogicalFB = struct {
     }
 
     pub fn setPixelValue(self: *LogicalFB, x: u16, y: u16, pal_entry: u8) void {
-
-        if( (x >= 0) and (x < WIDTH) and (y >= 0) and (y < HEIGHT) )
-        {
+        if ((x >= 0) and (x < WIDTH) and (y >= 0) and (y < HEIGHT)) {
             const index: u32 = @as(u32, y) * @as(u32, WIDTH) + @as(u32, x);
             self.fb[index] = pal_entry;
         }
@@ -93,12 +95,15 @@ pub const LogicalFB = struct {
 // --------------------------------------------------------------------------
 pub const ZigOS = struct {
     resolution: Resolution = Resolution.planes,
-    physical_framebuffer: [WIDTH][HEIGHT]u32 = undefined,
+    background_color: Color = Color{ .r = 0, .g = 0, .b = 0, .a = 0 },
+    physical_framebuffer: [PHYSICAL_HEIGHT][PHYSICAL_WIDTH]u32 = undefined,
     lfbs: [NB_PLANES]LogicalFB = undefined,
+    hbl_handler: ?*const fn (*ZigOS, u16) void = undefined,
 
     pub fn init(self: *ZigOS) void {
-        self.physical_framebuffer = std.mem.zeroes([WIDTH][HEIGHT]u32);
+        self.physical_framebuffer = std.mem.zeroes([PHYSICAL_HEIGHT][PHYSICAL_WIDTH]u32);
         self.resolution = Resolution.planes;
+        self.background_color = Color{ .r = 20, .g = 20, .b = 20, .a = 255 };
 
         for (self.lfbs) |*lfb, idx| {
             lfb.*.id = @intCast(u8, idx);
@@ -118,5 +123,17 @@ pub const ZigOS = struct {
     // --------------------------------------------------------------------------
     pub fn setResolution(self: *ZigOS, res: Resolution) void {
         self.resolution = res;
+    }
+
+    pub fn setBackgroundColor(self: *ZigOS, color: Color) void {
+        self.background_color = color;
+    }
+
+    pub fn getBackgroundColor(self: *ZigOS) Color {
+        return self.background_color;
+    }
+
+    pub fn setHBLHandler(self: *ZigOS, handler: *const fn (*ZigOS, u16) void) void {
+        self.hbl_handler = handler;
     }
 };

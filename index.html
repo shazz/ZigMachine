@@ -11,22 +11,41 @@
     body {
       background: #121010;
       color: white;
-      padding-top: 20px;
-      padding-left: 20px;
-      background-image: url("assets/overlays/sc1224_3.png");
-      background-repeat: no-repeat;
+      padding-top: 0px;
+      padding-left: 0px;
+      /* background-image: url("assets/overlays/sc1224_3.png"); */
+      /* background-repeat: no-repeat; */
     }
    
+    .monitor {
+        position: absolute;
+        top: 0;
+        left: 0;               
+        z-index: 100;
+    }
+
+    .sound_button {
+        position: absolute;
+        margin-top: 705px;       
+        margin-left: 800px;       
+        z-index: 101;
+        border-radius: 5px;
+        border-color: darkgrey;
+        color: rgb(255, 255, 255);
+        background-color: #858585;
+    }
+
     .container {
       background: #121010;
-      width: 640px;
-      height: 400px;
+      width: 800px;
+      height: 560px;
       margin-top: 10px;
       position: absolute;
-      top: 124px;
-      left: 150px;
+      top: 112px;
+      left: 130px;
       overflow: hidden;
       border: 2px solid #121010;
+      z-index: 2;
     }
     .container::after {
       content: " ";
@@ -85,39 +104,42 @@
     }
     </style>
         <style>
-            .canvas_debug { image-rendering: pixelated; image-rendering: crisp-edges; width: 640px; height: 400px}
-            .canvas { position: absolute; image-rendering: pixelated; image-rendering: crisp-edges; width: 640px; height: 400px; border: true; border-color: white}
+            .canvas_debug { image-rendering: pixelated; image-rendering: crisp-edges; width: 800px; height: 560px}
+            .canvas { position: absolute; image-rendering: pixelated; image-rendering: crisp-edges; width: 800px; height: 560px; border: true; border-color: white}
         </style>
     </head>
     <body>
-        <button onclick="main()">Sound on</button>
-        <div class="container">
-            <div class="overlay">
-                <canvas
-                    id="0"
-                    width="320"
-                    height="200"
-                    class="canvas">
-                </canvas>
-                <canvas
-                    id="1"
-                    width="320"
-                    height="200"
-                    class="canvas">
-                </canvas> 
-                <canvas
-                    id="2"
-                    width="320"
-                    height="200"
-                    class="canvas">
-                </canvas> 
-                <canvas
-                    id="3"
-                    width="320"
-                    height="200"
-                    class="canvas">
-                </canvas>                          
-            </div> 
+        <div>
+            <img src="assets/overlays/sc1224_3.png" class="monitor" alt="monitor"/>
+            <button onclick="main()" class="sound_button">Sound on</button>
+            <div class="container">
+                <div class="overlay">
+                    <canvas
+                        id="0"
+                        width="400"
+                        height="280"
+                        class="canvas">
+                    </canvas>
+                    <canvas
+                        id="1"
+                        width="400"
+                        height="280"
+                        class="canvas">
+                    </canvas> 
+                    <canvas
+                        id="2"
+                        width="400"
+                        height="280"
+                        class="canvas">
+                    </canvas> 
+                    <canvas
+                        id="3"
+                        width="400"
+                        height="280"
+                        class="canvas">
+                    </canvas>                          
+                </div> 
+            </div>
         </div>                   
     </body>
     <script src="loader.js"></script>

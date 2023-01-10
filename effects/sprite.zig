@@ -94,10 +94,10 @@ pub const Sprite = struct {
         // right clamp
         if (left_x_offset + self.width >= (WIDTH - 1)) {
             right_clamp = true;
-            if (left_x_offset >= 320) {
+            if (left_x_offset > WIDTH - 1) {
                 clamp_sprite = true;
             } else {
-                nb_cols = (WIDTH - 1) - left_x_offset;
+                nb_cols = WIDTH - left_x_offset;
             }
         }
 

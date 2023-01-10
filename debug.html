@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <title>Zig Machine</title>
+        <style>
+            body { background: #121010; }
+            .canvas { image-rendering: pixelated; image-rendering: crisp-edges; width: 400px; height: 280px}
+        </style>
+    </head>
+    <body>
+        <button onclick="main()">Sound on</button>
+        <div class="screens">
+            <canvas
+                id="0"
+                width="400"
+                height="280"
+                class="canvas">
+            </canvas>
+            <canvas
+                id="1"
+                width="400"
+                height="280"
+                class="canvas">
+            </canvas> 
+          </div>
+          <div class="screens">
+            <canvas
+                id="2"
+                width="400"
+                height="280"
+                class="canvas">
+            </canvas> 
+            <canvas
+                id="3"
+                width="400"
+                height="280"
+                class="canvas">
+            </canvas>                          
+        </div>                   
+    </body>
+    <script src="loader.js"></script>
+</html>

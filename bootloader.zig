@@ -17,9 +17,13 @@ const Color = @import("zigos.zig").Color;
 // --------------------------------------------------------------------------
 // Constants
 // --------------------------------------------------------------------------
-const HEIGHT: usize = @import("zigos.zig").HEIGHT;
+const PHYSICAL_WIDTH: usize = @import("zigos.zig").PHYSICAL_WIDTH;
+const PHYSICAL_HEIGHT: usize = @import("zigos.zig").PHYSICAL_HEIGHT;
 const WIDTH: usize = @import("zigos.zig").WIDTH;
+const HEIGHT: usize = @import("zigos.zig").HEIGHT;
 const NB_PLANES: u8 = @import("zigos.zig").NB_PLANES;
+const HORIZONTAL_BORDERS_WIDTH: u16 = @import("zigos.zig").HORIZONTAL_BORDERS_WIDTH;
+const VERTICAL_BORDERS_HEIGHT: u16 = @import("zigos.zig").VERTICAL_BORDERS_HEIGHT;
 const VERSION = "0.1";
 
 const Direction = enum(u8) {
@@ -71,14 +75,14 @@ export fn getPhysicalFrameBufferNb() u8 {
 //
 // --------------------------------------------------------------------------
 export fn getPhysicalFrameBufferWidth() usize {
-    return WIDTH;
+    return PHYSICAL_WIDTH;
 }
 
 // --------------------------------------------------------------------------
 //
 // --------------------------------------------------------------------------
 export fn getPhysicalFrameBufferHeight() usize {
-    return HEIGHT;
+    return PHYSICAL_HEIGHT;
 }
 
 // --------------------------------------------------------------------------
@@ -101,16 +105,54 @@ export fn renderPhysicalFrameBuffer(fb_id: u8) void {
         var i: u32 = 0;
 
         // can call a VBL handler here
-        for (zigos.physical_framebuffer) |*row| {
+        for (zigos.physical_framebuffer) |*row, y| {
+            if (zigos.hbl_handler) |handler| {
+                handler(&zigos, @intCast(u16, y));
+            } else {}
 
             // can call a HBL handler here
-            for (row) |*pixel| {
-                const pal_entry: u8 = palfb[i];
-                const color: Color = palette[pal_entry];
-
-                pixel.* = color.toRGBA();
-
-                i += 1;
+            switch (y) {
+                0...VERTICAL_BORDERS_HEIGHT - 1 => {
+                    // high border
+                    // Console.log("high border: {}", .{y});
+                    for (row) |*pixel| {
+                        const color: Color = zigos.getBackgroundColor();
+                        pixel.* = color.toRGBA();
+                    }
+                },
+                (PHYSICAL_HEIGHT - VERTICAL_BORDERS_HEIGHT)...PHYSICAL_HEIGHT - 1 => {
+                    // low border
+                    // Console.log("low border: {}", .{y});
+                    for (row) |*pixel| {
+                        const color: Color = zigos.background_color;
+                        pixel.* = color.toRGBA();
+                    }
+                },
+                else => {
+                    // Console.log("between borders: {}", .{y});
+                    for (row) |*pixel, x| {
+                        // within left border
+                        switch (x) {
+                            0...(HORIZONTAL_BORDERS_WIDTH - 1) => {
+                                // left border
+                                const color: Color = zigos.background_color;
+                                pixel.* = color.toRGBA();
+                            },
+                            (PHYSICAL_WIDTH - HORIZONTAL_BORDERS_WIDTH)...(PHYSICAL_WIDTH - 1) => {
+                                // right border
+                                const color: Color = zigos.background_color;
+                                pixel.* = color.toRGBA();
+                            },
+                            else => {
+                                // visible screen
+                                const pal_entry: u8 = palfb[i];
+                                const color: Color = palette[pal_entry];
+                                pixel.* = color.toRGBA();
+                                i += 1;
+                            },
+                        }
+                    }
+                },
             }
         }
     } else {

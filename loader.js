@@ -1,6 +1,6 @@
 var memory = new WebAssembly.Memory({
-    initial: 20 /* pages */,
-    maximum: 20 /* pages */,
+    initial: 21 /* pages */,
+    maximum: 21 /* pages */,
 });
 
 const text_decoder = new TextDecoder();
