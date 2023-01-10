@@ -135,17 +135,19 @@ export fn renderPhysicalFrameBuffer(fb_id: u8) void {
             }
         }
     } else {
-        Console.log("This is TrueColor!", .{});
+        // Console.log("This is TrueColor!", .{});
+        Console.log("fb bootloader: {}", .{@ptrToInt(&zigos.physical_framebuffer)});
+
         // only one FB in truecolor
-        if (fb_id == 0) {
-            for (zigos.physical_framebuffer) |*row, y| {
-                // can call a HBL handler here
-                for (row) |*pixel, x| {
-                    const col: Color = Color{ .r = @intCast(u8, x), .g = @intCast(u8, y), .b = @intCast(u8, y), .a = 255 };
-                    pixel.* = col.toRGBA();
-                }
-            }
-        }
+        // if (fb_id == 0) {
+        //     for (zigos.physical_framebuffer) |*row, y| {
+        //         // can call a HBL handler here
+        //         for (row) |*pixel, x| {
+        //             const col: Color = Color{ .r = @intCast(u8, x), .g = @intCast(u8, y), .b = @intCast(u8, y), .a = 255 };
+        //             pixel.* = col.toRGBA();
+        //         }
+        //     }
+        // }
     }
 }
 

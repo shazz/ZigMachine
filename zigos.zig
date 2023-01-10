@@ -114,6 +114,8 @@ pub const ZigOS = struct {
             lfb.*.id = @intCast(u8, idx);
             lfb.init();
         }
+
+        Console.log("fb zigos: {}", .{@ptrToInt(&self.physical_framebuffer)});
     }
 
     // --------------------------------------------------------------------------
