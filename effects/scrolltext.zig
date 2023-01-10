@@ -10,8 +10,7 @@ const Sprite = @import("sprite.zig").Sprite;
 
 const Console = @import("../utils/debug.zig").Console;
 
-const ArenaAllocator = std.heap.ArenaAllocator;
-
+const convertU8ArraytoColors = @import("../utils/loaders.zig").convertU8ArraytoColors;
 // --------------------------------------------------------------------------
 // Constants
 // --------------------------------------------------------------------------
@@ -20,40 +19,44 @@ const WIDTH: u16 = @import("../zigos.zig").WIDTH;
 
 // TODO: replace this constant by comptime font WIDTH//width
 const NB_FONTS: u8 = 11;
+const rasters_b = convertU8ArraytoColors(@embedFile("../assets/ancool/rasters.dat"));
 
 // --------------------------------------------------------------------------
 // Variables
 // --------------------------------------------------------------------------
 
+fn handler(fb: *LogicalFB, line: u16) void {
+    const back_color: Color = Color{ .r = 0, .g = 0, .b = 0, .a = 0 };
+
+    if (line > 190 and line < 230) {
+        // fb.setPaletteEntry(0, Color{ .r = 0, .g = 0, .b = @intCast(u8, (line - 200) * 8), .a = 255 });
+        fb.setPaletteEntry(0, rasters_b[line - 200]);
+    }
+    if (line > 230) {
+        fb.setPaletteEntry(0, back_color);
+    }
+}
+
 // --------------------------------------------------------------------------
 // Demo
 // --------------------------------------------------------------------------
 pub const Scrolltext = struct {
-
-    const FontLetter = struct {
-        char: u8 = undefined,
-        sprite: Sprite = undefined,
-        pos_x: i32 = undefined,
-        pos_y: i32 = undefined
-    };
+    const FontLetter = struct { char: u8 = undefined, sprite: Sprite = undefined, pos_x: i32 = undefined, pos_y: i32 = undefined };
 
     fb: *LogicalFB = undefined,
     speed: u16 = undefined,
-    text: []const u8= undefined,
-    font_chars: []const u8= undefined,
-    text_pos: u16= undefined,
-    font_width: u16= undefined,
-    font_height: u16= undefined,
-    font_img: []const u8= undefined,
-    pos_y: u16= undefined,
+    text: []const u8 = undefined,
+    font_chars: []const u8 = undefined,
+    text_pos: u16 = undefined,
+    font_width: u16 = undefined,
+    font_height: u16 = undefined,
+    font_img: []const u8 = undefined,
+    pos_y: u16 = undefined,
     fonts: [NB_FONTS]FontLetter = undefined,
     offset_table: ?[WIDTH]u16 = undefined,
     apply_offset_table: bool = false,
 
-    pub fn init(self: *Scrolltext, fb: *LogicalFB, font_img: []const u8, font_chars: []const u8, 
-                width: u16, height: u16, text: []const u8, speed: u16, pos_y: u16,
-                apply_offset_table: bool, offset_table: ?[WIDTH]u16) void {
-
+    pub fn init(self: *Scrolltext, fb: *LogicalFB, font_img: []const u8, font_chars: []const u8, width: u16, height: u16, text: []const u8, speed: u16, pos_y: u16, apply_offset_table: bool, offset_table: ?[WIDTH]u16) void {
         self.font_img = font_img;
         self.font_chars = font_chars;
         self.font_width = width;
@@ -62,32 +65,29 @@ pub const Scrolltext = struct {
         self.speed = speed;
         self.fb = fb;
         self.pos_y = pos_y;
-        if(offset_table) |table| {
+        if (offset_table) |table| {
             self.offset_table = table;
         }
         self.apply_offset_table = apply_offset_table;
-        
+
+        // HBL Handler
+        fb.setFrameBufferHBLHandler(handler);
+
         // create as many Sprites as letters shown on screen
-        const current_text: *const[NB_FONTS]u8 = self.text[0 .. NB_FONTS];
-        for (current_text) | char, idx | {
-            
+        const current_text: *const [NB_FONTS]u8 = self.text[0..NB_FONTS];
+        for (current_text) |char, idx| {
             const letter: u8 = char - self.font_chars[0];
-            const pos_x: u16 = @intCast(u16, idx)*self.font_width;
+            const pos_x: u16 = @intCast(u16, idx) * self.font_width;
 
-            Console.log("Creating FontLetter {c} {} for ASCII {} at ({}, {}). Staring value: {}", .{char, idx, letter, pos_x, pos_y, self.font_chars[0]});
+            Console.log("Creating FontLetter {c} {} for ASCII {} at ({}, {}). Staring value: {}", .{ char, idx, letter, pos_x, pos_y, self.font_chars[0] });
 
-            self.fonts[idx] = FontLetter{
-                .char = char,
-                .sprite = Sprite{},
-                .pos_x = pos_x,
-                .pos_y = pos_y
-            };
+            self.fonts[idx] = FontLetter{ .char = char, .sprite = Sprite{}, .pos_x = pos_x, .pos_y = pos_y };
 
             var char_pos_y: u16 = undefined;
-            if(self.apply_offset_table) {
-                if(self.offset_table) |table| {
-                    char_pos_y = table[pos_x];   
-                } 
+            if (self.apply_offset_table) {
+                if (self.offset_table) |table| {
+                    char_pos_y = table[pos_x];
+                }
             } else {
                 char_pos_y = self.pos_y + pos_y;
             }
@@ -97,45 +97,40 @@ pub const Scrolltext = struct {
         }
 
         // adding white space
-        
-        Console.log("Scrolltext inited!", .{});
 
+        Console.log("Scrolltext inited!", .{});
     }
 
     pub fn update(self: *Scrolltext) void {
-
         for (self.fonts) |*font, idx| {
-
             var is_out: i32 = @intCast(i32, font.pos_x) - @intCast(i32, self.speed);
-            if(is_out < -@intCast(i8, self.font_width)) {
-                font.pos_x = WIDTH-1; 
+            if (is_out < -@intCast(i8, self.font_width)) {
+                font.pos_x = WIDTH - 1;
 
                 // show new letter
-                if(self.text_pos >= self.text.len) self.text_pos = 0;
+                if (self.text_pos >= self.text.len) self.text_pos = 0;
 
                 const next_letter = self.text[self.text_pos] - self.font_chars[0];
                 font.*.sprite.data = self.font_img[next_letter * (self.font_width * self.font_height) .. (next_letter + 1)];
-                Console.log("Creating FontLetter {c} {} for ASCII {}.", .{self.text[self.text_pos], idx, next_letter+self.font_chars[0]});
+                Console.log("Creating FontLetter {c} {} for ASCII {}.", .{ self.text[self.text_pos], idx, next_letter + self.font_chars[0] });
                 self.text_pos += 1;
-
             } else {
-                font.*.pos_x -= self.speed;              
+                font.*.pos_x -= self.speed;
             }
 
             // apply y offset if set
-            if(self.apply_offset_table) {
-                if(self.offset_table) |table| {
+            if (self.apply_offset_table) {
+                if (self.offset_table) |table| {
                     if (font.pos_x < 0) {
                         const pos: u16 = @intCast(u16, WIDTH + font.pos_x);
-                        font.*.pos_y = self.pos_y + table[@intCast(u16, pos)];   
+                        font.*.pos_y = self.pos_y + table[@intCast(u16, pos)];
                     } else {
-                        font.*.pos_y = self.pos_y + table[@intCast(u16, font.pos_x)];   
+                        font.*.pos_y = self.pos_y + table[@intCast(u16, font.pos_x)];
                     }
-     
                 }
-            }              
+            }
 
-            font.*.sprite.update(font.pos_x , font.pos_y);
+            font.*.sprite.update(font.pos_x, font.pos_y);
         }
     }
 

@@ -98,61 +98,40 @@ export fn renderPhysicalFrameBuffer(fb_id: u8) void {
     if (zigos.resolution == Resolution.planes) {
 
         // get logical framebuffer
-        const s_fb: LogicalFB = zigos.lfbs[fb_id];
+        var s_fb: LogicalFB = zigos.lfbs[fb_id];
         const palfb: [WIDTH * HEIGHT]u8 = s_fb.fb;
-        const palette: [256]Color = s_fb.palette;
+        const palette: *[256]Color = &s_fb.palette;
 
         var i: u32 = 0;
 
         // can call a VBL handler here
         for (zigos.physical_framebuffer) |*row, y| {
-            if (zigos.hbl_handler) |handler| {
-                handler(&zigos, @intCast(u16, y));
-            } else {}
 
-            // can call a HBL handler here
+            // Check if a handler is defined for this logical FB
+            if (s_fb.fb_hbl_handler) |handler| {
+                handler(&s_fb, @intCast(u16, y));
+            }
+
             switch (y) {
-                0...VERTICAL_BORDERS_HEIGHT - 1 => {
-                    // high border
-                    // Console.log("high border: {}", .{y});
-                    for (row) |*pixel| {
-                        const color: Color = zigos.getBackgroundColor();
-                        pixel.* = color.toRGBA();
-                    }
-                },
-                (PHYSICAL_HEIGHT - VERTICAL_BORDERS_HEIGHT)...PHYSICAL_HEIGHT - 1 => {
-                    // low border
-                    // Console.log("low border: {}", .{y});
-                    for (row) |*pixel| {
-                        const color: Color = zigos.background_color;
-                        pixel.* = color.toRGBA();
-                    }
-                },
-                else => {
+                VERTICAL_BORDERS_HEIGHT...(PHYSICAL_HEIGHT - VERTICAL_BORDERS_HEIGHT) - 1 => {
                     // Console.log("between borders: {}", .{y});
+
                     for (row) |*pixel, x| {
                         // within left border
                         switch (x) {
-                            0...(HORIZONTAL_BORDERS_WIDTH - 1) => {
-                                // left border
-                                const color: Color = zigos.background_color;
-                                pixel.* = color.toRGBA();
-                            },
-                            (PHYSICAL_WIDTH - HORIZONTAL_BORDERS_WIDTH)...(PHYSICAL_WIDTH - 1) => {
-                                // right border
-                                const color: Color = zigos.background_color;
-                                pixel.* = color.toRGBA();
-                            },
-                            else => {
+                            HORIZONTAL_BORDERS_WIDTH...(PHYSICAL_WIDTH - HORIZONTAL_BORDERS_WIDTH - 1) => {
                                 // visible screen
                                 const pal_entry: u8 = palfb[i];
                                 const color: Color = palette[pal_entry];
                                 pixel.* = color.toRGBA();
+
                                 i += 1;
                             },
+                            else => {},
                         }
                     }
                 },
+                else => {},
             }
         }
     } else {
@@ -166,6 +145,22 @@ export fn renderPhysicalFrameBuffer(fb_id: u8) void {
                     pixel.* = col.toRGBA();
                 }
             }
+        }
+    }
+}
+
+export fn clearPhysicalFrameBuffer() void {
+
+    // can call a VBL handler here
+    for (zigos.physical_framebuffer) |*row, y| {
+        if (zigos.hbl_handler) |handler| {
+            handler(&zigos, @intCast(u16, y));
+        }
+
+        // Clear fb with background color
+        const color: Color = zigos.getBackgroundColor();
+        for (row) |*pixel| {
+            pixel.* = color.toRGBA();
         }
     }
 }

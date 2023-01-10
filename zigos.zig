@@ -41,6 +41,7 @@ pub const LogicalFB = struct {
     palette: [256]Color = undefined,
     back_color: u8 = 0,
     id: u8 = 0,
+    fb_hbl_handler: ?*const fn (*LogicalFB, u16) void,
 
     pub fn init(self: *LogicalFB) void {
         Console.log("Init Logical Framebuffer {d}", .{self.id});
@@ -59,12 +60,12 @@ pub const LogicalFB = struct {
     // --------------------------------------------------------------------------
     pub fn setPalette(self: *LogicalFB, entries: [256]Color) void {
         self.palette = entries;
-
         Console.log("Palette of FB {d} updated", .{self.id});
     }
 
     pub fn setPaletteEntry(self: *LogicalFB, entry: u8, value: Color) void {
         self.palette[entry] = value;
+        // Console.log("Palette entry {} of FB {d} updated to ({}, {}, {}, {})", .{ entry, self.id, value.r, value.g, value.b, value.a });
     }
 
     pub fn getPaletteEntry(self: *LogicalFB, entry: u8) Color {
@@ -87,6 +88,10 @@ pub const LogicalFB = struct {
         while (i < 64000) : (i += 1) {
             self.fb[i] = pal_entry;
         }
+    }
+
+    pub fn setFrameBufferHBLHandler(self: *LogicalFB, handler: *const fn (*LogicalFB, u16) void) void {
+        self.fb_hbl_handler = handler;
     }
 };
 

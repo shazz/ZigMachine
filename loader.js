@@ -15,6 +15,7 @@ var ZigMachine = {
     'getPhysicalFrameBufferHeight': null,
     'getPhysicalFrameBufferPointer': null,
     'renderPhysicalFrameBuffer': null,
+    'clearPhysicalFrameBuffer': null,
     'u8ArrayToF32Array': null,
     'generateAudio': null,
     'input': null,
@@ -39,6 +40,8 @@ var start = function() {
             wasmMemoryArray = new Uint8Array(memory.buffer);        
 
         ZigMachine.frame();
+
+        ZigMachine.clearPhysicalFrameBuffer();
 
         for(i=0; i<nb_buffers; i++) {
             const canvas = document.getElementById(i);
