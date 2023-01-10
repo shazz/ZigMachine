@@ -19,7 +19,7 @@ const HEIGHT: u16 = @import("../zigos.zig").HEIGHT;
 const WIDTH: u16 = @import("../zigos.zig").WIDTH;
 
 // TODO: replace this constant by comptime font WIDTH//width
-const NB_FONTS: u8 = 9;
+const NB_FONTS: u8 = 11;
 
 // --------------------------------------------------------------------------
 // Variables
@@ -47,8 +47,12 @@ pub const Scrolltext = struct {
     font_img: []const u8= undefined,
     pos_y: u16= undefined,
     fonts: [NB_FONTS]FontLetter = undefined,
+    offset_table: ?[WIDTH]u16 = undefined,
+    apply_offset_table: bool = false,
 
-    pub fn init(self: *Scrolltext, fb: *LogicalFB, font_img: []const u8, font_chars: []const u8, width: u16, height: u16, text: []const u8, speed: u16, pos_y: u16) void {
+    pub fn init(self: *Scrolltext, fb: *LogicalFB, font_img: []const u8, font_chars: []const u8, 
+                width: u16, height: u16, text: []const u8, speed: u16, pos_y: u16,
+                apply_offset_table: bool, offset_table: ?[WIDTH]u16) void {
 
         self.font_img = font_img;
         self.font_chars = font_chars;
@@ -58,9 +62,12 @@ pub const Scrolltext = struct {
         self.speed = speed;
         self.fb = fb;
         self.pos_y = pos_y;
-
-        // create as many Sprites as letters
+        if(offset_table) |table| {
+            self.offset_table = table;
+        }
+        self.apply_offset_table = apply_offset_table;
         
+        // create as many Sprites as letters shown on screen
         const current_text: *const[NB_FONTS]u8 = self.text[0 .. NB_FONTS];
         for (current_text) | char, idx | {
             
@@ -75,8 +82,18 @@ pub const Scrolltext = struct {
                 .pos_x = pos_x,
                 .pos_y = pos_y
             };
-            self.fonts[idx].sprite.init(self.fb, self.font_img[letter * (self.font_width * self.font_height) .. (letter + 1) * (self.font_width * self.font_height)], self.font_width, self.font_height, pos_x, pos_y, false);
-            self.text_pos = 9;
+
+            var char_pos_y: u16 = undefined;
+            if(self.apply_offset_table) {
+                if(self.offset_table) |table| {
+                    char_pos_y = table[pos_x];   
+                } 
+            } else {
+                char_pos_y = self.pos_y + pos_y;
+            }
+
+            self.fonts[idx].sprite.init(self.fb, self.font_img[letter * (self.font_width * self.font_height) .. (letter + 1) * (self.font_width * self.font_height)], self.font_width, self.font_height, pos_x, char_pos_y, false);
+            self.text_pos = NB_FONTS;
         }
 
         // adding white space
@@ -87,24 +104,38 @@ pub const Scrolltext = struct {
 
     pub fn update(self: *Scrolltext) void {
 
-        for (self.fonts) |*font| {
+        for (self.fonts) |*font, idx| {
 
             var is_out: i32 = @intCast(i32, font.pos_x) - @intCast(i32, self.speed);
             if(is_out < -@intCast(i8, self.font_width)) {
                 font.pos_x = WIDTH-1; 
 
                 // show new letter
-                self.text_pos += 1;
                 if(self.text_pos >= self.text.len) self.text_pos = 0;
 
                 const next_letter = self.text[self.text_pos] - self.font_chars[0];
                 font.*.sprite.data = self.font_img[next_letter * (self.font_width * self.font_height) .. (next_letter + 1)];
+                Console.log("Creating FontLetter {c} {} for ASCII {}.", .{self.text[self.text_pos], idx, next_letter+self.font_chars[0]});
+                self.text_pos += 1;
 
             } else {
-                font.*.pos_x -= self.speed;
+                font.*.pos_x -= self.speed;              
             }
 
-            font.*.sprite.update(font.pos_x , self.pos_y);
+            // apply y offset if set
+            if(self.apply_offset_table) {
+                if(self.offset_table) |table| {
+                    if (font.pos_x < 0) {
+                        const pos: u16 = @intCast(u16, WIDTH + font.pos_x);
+                        font.*.pos_y = self.pos_y + table[@intCast(u16, pos)];   
+                    } else {
+                        font.*.pos_y = self.pos_y + table[@intCast(u16, font.pos_x)];   
+                    }
+     
+                }
+            }              
+
+            font.*.sprite.update(font.pos_x , font.pos_y);
         }
     }
 

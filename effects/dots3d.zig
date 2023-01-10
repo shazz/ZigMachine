@@ -48,11 +48,11 @@ pub const Dots3D = struct {
     pub fn init(self: *Dots3D, fb: *LogicalFB) void {
         self.fb = fb;
 
-        fb.setPaletteEntry(0, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
-        fb.setPaletteEntry(1, Color{ .r = 255, .g = 255, .b = 255, .a = 255 });  
-        fb.setPaletteEntry(2, Color{ .r = 255, .g = 0, .b = 0, .a = 255 });        
-        fb.setPaletteEntry(3, Color{ .r = 0, .g = 255, .b = 0, .a = 255 });   
-        fb.setPaletteEntry(4, Color{ .r = 0, .g = 0, .b = 255, .a = 255 });   
+        fb.setPaletteEntry(10, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
+        fb.setPaletteEntry(11, Color{ .r = 255, .g = 255, .b = 255, .a = 255 });  
+        fb.setPaletteEntry(12, Color{ .r = 255, .g = 0, .b = 0, .a = 255 });        
+        fb.setPaletteEntry(13, Color{ .r = 0, .g = 255, .b = 0, .a = 255 });   
+        fb.setPaletteEntry(14, Color{ .r = 0, .g = 0, .b = 255, .a = 255 });   
 
         // Clear
         fb.clearFrameBuffer(0);    
@@ -129,20 +129,18 @@ pub const Dots3D = struct {
 
     pub fn render(self: *Dots3D) void {
 
-        self.fb.clearFrameBuffer(0);  
-
         for(self.faces) |face| {
                 const v1: Coord = self.projected_vertices[@floatToInt(usize, face.x())];
                 const v2: Coord = self.projected_vertices[@floatToInt(usize, face.y())];
                 const v3: Coord = self.projected_vertices[@floatToInt(usize, face.z())];
 
-                shapes.drawLine(self.fb, v1, v2, 2);   
-                shapes.drawLine(self.fb, v2, v3, 2);  
-                shapes.drawLine(self.fb, v3, v1, 2);  
+                shapes.drawLine(self.fb, v1, v2, 12);   
+                shapes.drawLine(self.fb, v2, v3, 12);  
+                shapes.drawLine(self.fb, v3, v1, 12);  
 
-                self.fb.setPixelValue(@intCast(u16, v1.x), @intCast(u16, v1.y), 1);
-                self.fb.setPixelValue(@intCast(u16, v2.x), @intCast(u16, v2.y), 1);
-                self.fb.setPixelValue(@intCast(u16, v3.x), @intCast(u16, v3.y), 1);
+                self.fb.setPixelValue(@intCast(u16, v1.x), @intCast(u16, v1.y), 11);
+                self.fb.setPixelValue(@intCast(u16, v2.x), @intCast(u16, v2.y), 11);
+                self.fb.setPixelValue(@intCast(u16, v3.x), @intCast(u16, v3.y), 11);
         }
     }
 };
