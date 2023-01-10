@@ -8,23 +8,24 @@ This project is inspired by [WAB](https://wab.com) and [CODEF](https://codef.san
 
 The specs of the ZigMachine will definitively evolve over time but for now they try to match what I would have loved to get in the 80-90s:
 
- - 2 MB of RAM
- - 4 logical linear indexed colors framebuffers (each pixel is an entry yo the 256 colors RGBA palette) of 320x200 pixels
- - 1 palette for each logical framebuffer
- - 1 physical RGBA framebuffer of 320x200 pixels. 
- - CPU frequency is what your Web Assembly browser framework can do. So pretty (too) fast. I'd love to be able to provide a restricted and stable execution speed one day if I find a way to do it.
- - Limited ZigOS for basic setup
+- 2 MB of RAM
+- 4 logical linear indexed colors framebuffers (each pixel is an entry of the 256 colors RGBA palette) of 320x200 pixels
+- 1 palette for each logical framebuffer
+- 1 physical RGBA framebuffer of 320x200 pixels.
+- CPU frequency is what your Web Assembly browser framework can do. So, pretty (too...) fast. I'd love to be able to provide a restricted and stable execution speed one day if I find a way to do it.
+- Limited ZigOS for basic setup
 
 Next in my TODO list:
- - 1 physical RGBA framebuffer of 400x280 pixels without borders, 320x200 pixels with borders. 
- - Some kind of non-interrupted VBL and HBL callbacks
- - 1 digital sound channel (44100Hz, 32 bits)
- - YM2149 emulation
- - Blitter emulation for line drawing and polyfilling.
- - Mapped memory in addition to OS functions
- - Emulated hardware scrolling
 
-For the moment
+- 1 physical RGBA framebuffer of 400x280 pixels without borders, 320x200 pixels with borders.
+- Some kind of non-interrupted VBL and HBL callbacks
+- 1 digital sound channel (44100Hz, 32 bits)
+- YM2149 emulation
+- Blitter emulation for line drawing and polyfilling.
+- Mapped memory in addition to OS functions
+- Emulated hardware scrolling
+
+For the moment, only Zig is supported to code stuff on the ZigMachine (so the name...) but maybe one days so custom 68K like assembly code. Who knows :) Want to add things?
 
 ## Screenshots
 
@@ -42,14 +43,7 @@ For Web Assembly
 % zig build -Drelease=true -Dwasm
 ```
 
-For local development
-
-```shell
-% zig build -Drelease=true -Dnative 
-```
-
-Note: `build.zig` specifies various wasm-ld parameters. For example, it sets the initial memory size
-and maximum size to be xxx pages, where each page consists of 64kB. Use the `--verbose` flag to see the complete list of flags the build uses.
+Note: `build.zig` specifies various wasm-ld parameters. For example, it sets the initial memory size and maximum size to be xxx pages, where each page consists of 64kB. Use the `--verbose` flag to see the complete list of flags the build uses.
 
 ## Run
 
@@ -60,4 +54,3 @@ python3 -m http.server 3333
 ```
 
 Go to your favorite browser and type to the URL `localhost:3333`.
-

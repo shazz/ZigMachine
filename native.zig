@@ -18,6 +18,7 @@ const Color = @import("zigos.zig").Color;
 // --------------------------------------------------------------------------
 const HEIGHT: usize = @import("zigos.zig").HEIGHT;
 const WIDTH: usize = @import("zigos.zig").WIDTH;
+const VERSION = "0.1";
 
 // --------------------------------------------------------------------------
 // Variables
@@ -26,13 +27,8 @@ var zigos: ZigOS = undefined;
 var demo: Demo = undefined;
 
 pub fn main() !void {
-    std.debug.print("Hello, {s}!\n", .{"World"});
+    Console.log("ZigMachine v. {s}\n", .{VERSION});
 
-    zigos = ZigOS.create();
     zigos.init();
-    if (Demo.init(&zigos)) |aDemo| {
-        demo = aDemo;
-    } else |err| {
-        Console.log("Demo.init failed: {s}", .{@errorName(err)});
-    }
+    demo.init(&zigos);
 }
