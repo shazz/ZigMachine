@@ -2,7 +2,8 @@
 // Imports
 // --------------------------------------------------------------------------
 const std = @import("std");
-const RndGen = std.rand.DefaultPrng;
+const readU16Array = @import("utils/loaders.zig").readU16Array;
+const convertU8ArraytoColors = @import("utils/loaders.zig").convertU8ArraytoColors;
 
 const ZigOS = @import("zigos.zig").ZigOS;
 const LogicalFB = @import("zigos.zig").LogicalFB;
@@ -27,10 +28,11 @@ const WIDTH: u16 = @import("zigos.zig").WIDTH;
 
 // scrolltext
 const fonts_b = @embedFile("assets/ancool_font_interlaced.raw");
-const SCROLL_TEXT = "AAAAAAAAAAAAAAAAAA AAAAAAAAAAAAA AAAAAAAA"; //"ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+const offset_table_b = readU16Array(@embedFile("assets/scroll_sin.dat"));
+const SCROLL_TEXT = "         0123456789 .-'? ABCDEFGHIJKLMNOPQRSTUVWXYZ"; //"ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 const SCROLL_CHAR_WIDTH = 32; // 40
 const SCROLL_CHAR_HEIGHT = 16; // 34
-const SCROLL_SPEED = 3; // 
+const SCROLL_SPEED = 1; // 
 const SCROLL_CHARS = " !   '   -. 0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ"; //" ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
 // background
@@ -44,53 +46,9 @@ const sprite_height: u16 = 124;
 const sprite_xoffset: u16 = 26;
 const sprite_yoffset: u16 = 10;
 
-const sprite_pal: [256]Color = blk: {
-    const contents: []const u8 = @embedFile("assets/sprite.pal");
-    if (contents.len != 4 * 256)
-        @compileError(std.fmt.comptimePrint("Expected file to be {d} bytes, but it's {d} bytes.", .{ 4 * 256, contents.len }));
-    @setEvalBranchQuota(contents.len);
-    const arrays: *const [256][4]u8 = std.mem.bytesAsValue([256][4]u8, contents[0..]);
-    var colors: [256]Color = undefined;
-    for (arrays) |arr, i| colors[i] = .{
-        .r = arr[0],
-        .g = arr[1],
-        .b = arr[2],
-        .a = arr[3],
-    };
-    break :blk colors;
-};
-
-const back_pal: [256]Color = blk: {
-    const contents: []const u8 = @embedFile("assets/back.pal");
-    if (contents.len != 4 * 256)
-        @compileError(std.fmt.comptimePrint("Expected file to be {d} bytes, but it's {d} bytes.", .{ 4 * 256, contents.len }));
-    @setEvalBranchQuota(contents.len);
-    const arrays: *const [256][4]u8 = std.mem.bytesAsValue([256][4]u8, contents[0..]);
-    var colors: [256]Color = undefined;
-    for (arrays) |arr, i| colors[i] = .{
-        .r = arr[0],
-        .g = arr[1],
-        .b = arr[2],
-        .a = arr[3],
-    };
-    break :blk colors;
-};
-
-const font_pal: [256]Color = blk: {
-    const contents: []const u8 = @embedFile("assets/ancool_font.pal");
-    if (contents.len != 4 * 256)
-        @compileError(std.fmt.comptimePrint("Expected file to be {d} bytes, but it's {d} bytes.", .{ 4 * 256, contents.len }));
-    @setEvalBranchQuota(contents.len);
-    const arrays: *const [256][4]u8 = std.mem.bytesAsValue([256][4]u8, contents[0..]);
-    var colors: [256]Color = undefined;
-    for (arrays) |arr, i| colors[i] = .{
-        .r = arr[0],
-        .g = arr[1],
-        .b = arr[2],
-        .a = arr[3],
-    };
-    break :blk colors;
-};
+const sprite_pal = convertU8ArraytoColors(@embedFile("assets/sprite.pal"));
+const back_pal = convertU8ArraytoColors(@embedFile("assets/back.pal"));
+const font_pal = convertU8ArraytoColors(@embedFile("assets/ancool_font.pal"));
 
 // --------------------------------------------------------------------------
 // Variables
@@ -160,7 +118,7 @@ pub const Demo = struct {
         // second plane
         fb = &zigos.lfbs[1];
         self.starfield.init(fb, WIDTH, HEIGHT, 3, StarfieldDirection.RIGHT, 0);
-        // self.dots3D.init(fb);
+        self.dots3D.init(fb);
 
         // third plane
         fb = &zigos.lfbs[2];
@@ -175,14 +133,15 @@ pub const Demo = struct {
         // 4th plane
         fb = &zigos.lfbs[3];
         fb.setPalette(font_pal);
-        self.scrolltext.init(fb, fonts_b, SCROLL_CHARS, SCROLL_CHAR_WIDTH, SCROLL_CHAR_HEIGHT, SCROLL_TEXT, SCROLL_SPEED, 160);
+
+        self.scrolltext.init(fb, fonts_b, SCROLL_CHARS, SCROLL_CHAR_WIDTH, SCROLL_CHAR_HEIGHT, SCROLL_TEXT, SCROLL_SPEED, 160, true, offset_table_b);
 
         Console.log("demo init done!", .{});
     }
 
     pub fn update(self: *Demo, zigos: *ZigOS) void {
         self.starfield.update();
-        // self.dots3D.update();
+        self.dots3D.update();
 
         self.big_sprite.update();
         self.scrolltext.update();
@@ -193,7 +152,7 @@ pub const Demo = struct {
     pub fn render(self: *Demo, zigos: *ZigOS) void {
         self.back.render();
         self.starfield.render();
-        // self.dots3D.render();
+        self.dots3D.render();
 
         self.big_sprite.render();
         self.scrolltext.fb.clearFrameBuffer(1);
