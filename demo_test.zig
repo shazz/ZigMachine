@@ -28,6 +28,9 @@ const Console = @import("utils/debug.zig").Console;
 const HEIGHT: u16 = @import("zigos.zig").HEIGHT;
 const WIDTH: u16 = @import("zigos.zig").WIDTH;
 
+pub const PHYSICAL_WIDTH: u16 = @import("zigos.zig").PHYSICAL_WIDTH;
+pub const PHYSICAL_HEIGHT: u16 = @import("zigos.zig").PHYSICAL_HEIGHT;
+
 // --------------------------------------------------------------------------
 // Variables
 // --------------------------------------------------------------------------
@@ -46,24 +49,28 @@ pub const Demo = struct {
     pub fn init(self: *Demo, zigos: *ZigOS) void {
         Console.log("Demo init", .{});
 
-        // zigos.setResolution(Resolution.truecolor);
-        // self.mandelbrot.init(fb);
-        var fb: *LogicalFB = &zigos.lfbs[0];
-        self.boot.init(fb);
+        // var fb: *LogicalFB = &zigos.lfbs[0];
+        var fb: *[PHYSICAL_HEIGHT][PHYSICAL_WIDTH]u32 = &zigos.physical_framebuffer;
+
+        zigos.setResolution(Resolution.truecolor);
+        self.mandelbrot.init(fb);
+
+        // self.boot.init(fb);
 
         Console.log("demo init done!", .{});
     }
 
     pub fn update(self: *Demo, zigos: *ZigOS) void {
-        // self.mandelbrot.update();
+        self.mandelbrot.update();
 
-        self.boot.update();
+        // self.boot.update();
         _ = zigos;
     }
 
     pub fn render(self: *Demo, zigos: *ZigOS) void {
-        // self.mandelbrot.render();
+        self.mandelbrot.render();
 
-        self.boot.render(zigos);
+        // self.boot.render(zigos);
+        _ = zigos;
     }
 };

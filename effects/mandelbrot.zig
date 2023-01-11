@@ -1,3 +1,8 @@
+//
+// Mandelbrot Zig implementation by Steve L (sleibrock)
+// https://github.com/sleibrock/zigtoys
+//
+
 // --------------------------------------------------------------------------
 // Imports
 // --------------------------------------------------------------------------
@@ -26,7 +31,7 @@ const F_HEIGHT: f32 = @intToFloat(f32, HEIGHT);
 // --------------------------------------------------------------------------
 
 // --------------------------------------------------------------------------
-// Demo
+// Mandelbrot
 // --------------------------------------------------------------------------
 pub const Mandelbrot = struct {
     pfb: *[HEIGHT][WIDTH]u32 = undefined,
@@ -43,23 +48,12 @@ pub const Mandelbrot = struct {
 
     pub fn render(self: *Mandelbrot) void {
         for (self.pfb) |*row, y| {
-            // can call a HBL handler here
             for (row) |*pixel, x| {
-                const col: Color = Color{ .r = @intCast(u8, x), .g = @intCast(u8, y), .b = @intCast(u8, y), .a = 255 };
-                pixel.* = col.toRGBA();
+                const iter: u8 = get_pixel_color(@intCast(i32, x), @intCast(i32, y));
+                const color: Color = Color{ .r = iter, .g = iter, .b = iter, .a = iter };
+                pixel.* = color.toRGBA();
             }
         }
-
-        // Copy bitmap data
-        // var y: u16 = 0;
-        // while (y < HEIGHT) : (y += 1) {
-        //     var x: u16 = 0;
-        //     while (x < WIDTH) : (x += 1) {
-        //         const iter: u8 = get_pixel_color(x, y);
-        //         const color: Color = Color{ .r = iter, .g = iter, .b = iter, .a = iter };
-        //         self.pfb[x][y] = color.toRGBA();
-        //     }
-        // }
     }
 
     fn get_pixel_color(px: i32, py: i32) u8 {
@@ -67,8 +61,10 @@ pub const Mandelbrot = struct {
 
         var x0 = @intToFloat(f32, px);
         var y0 = @intToFloat(f32, py);
+
         x0 = ((x0 / F_WIDTH) * 2.51) - 1.67;
         y0 = ((y0 / F_HEIGHT) * 2.24) - 1.12;
+
         var x: f32 = 0;
         var y: f32 = 0;
         var tmp: f32 = 0;
@@ -82,9 +78,7 @@ pub const Mandelbrot = struct {
             xsquare = x * x;
             ysquare = y * y;
         }
-        // smoothed valued
-        //     return n + 1 - log(log2(abs(z)))
-        // figure out import math first to get log/log2/abs
+
         return iterations;
     }
 };

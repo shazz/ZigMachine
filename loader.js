@@ -35,13 +35,13 @@ var start = function() {
 
     var loop = function() {
        
-        // in case WASM grew the memory due to zig heap_page dynmaic allocation calls
+        // in case WASM grew the memory due to zig heap_page dynamic allocation calls
         if(wasmMemoryArray == null)
             wasmMemoryArray = new Uint8Array(memory.buffer);        
 
-        ZigMachine.frame();
-
         ZigMachine.clearPhysicalFrameBuffer();
+
+        ZigMachine.frame();
 
         for(i=0; i<nb_buffers; i++) {
             const canvas = document.getElementById(i);

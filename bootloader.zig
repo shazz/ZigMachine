@@ -135,8 +135,8 @@ export fn renderPhysicalFrameBuffer(fb_id: u8) void {
             }
         }
     } else {
-        // Console.log("This is TrueColor!", .{});
-        Console.log("fb bootloader: {}", .{@ptrToInt(&zigos.physical_framebuffer)});
+        Console.log("This is TrueColor!", .{});
+        //Console.log("fb bootloader: {}", .{@ptrToInt(&zigos.physical_framebuffer)});
 
         // only one FB in truecolor
         // if (fb_id == 0) {
