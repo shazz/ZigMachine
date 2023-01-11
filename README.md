@@ -4,6 +4,8 @@ A [Fantasy Console](https://en.wikipedia.org/wiki/Fantasy_video_game_console) wr
 
 This project is inspired by [WAB](https://wab.com) and [CODEF](https://codef.santo.fr) by my friend NoNameNo who.. already more than 10 years ago... provided a way to code oldskool effects in the browser without Flash but only HTML5 and javascript. Time to go one step further. 0% Flash, 0% HTML, 0% Javascript, only Zig!
 
+Screenshots below!
+
 ## Specs
 
 The specs of the ZigMachine will definitively evolve over time but for now they try to match what I would have loved to get in the 80-90s:
@@ -25,11 +27,6 @@ Next in my TODO list:
 - Emulated hardware scrolling
 
 For the moment, only Zig is supported to code stuff on the ZigMachine (so the name...) but maybe one days so custom 68K like assembly code. Who knows :) Want to add things?
-
-## Screenshots
-
-![image](https://user-images.githubusercontent.com/604708/211934422-c38a40db-cdcb-48a3-9c7b-016d1e4fbe04.png)
-![image](https://user-images.githubusercontent.com/604708/211323947-a84ee3a8-88bd-4f67-a004-60baa94b65b7.png)
 
 ## Build
 
@@ -54,3 +51,8 @@ python3 -m http.server 3333
 ```
 
 Go to your favorite browser and type to the URL `localhost:3333`.
+
+## Screenshots
+
+![image](https://user-images.githubusercontent.com/604708/211934422-c38a40db-cdcb-48a3-9c7b-016d1e4fbe04.png)
+![image](https://user-images.githubusercontent.com/604708/211934911-e95d1c98-2d77-4c42-99a6-9e7a7b51ed3e.png)
