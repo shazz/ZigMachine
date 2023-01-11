@@ -7,6 +7,7 @@ from pathlib import Path
 
 # python tools/convert_png.py assets/logo_283x124.png assets/sprite.pal
 # python tools/convert_png.py assets/blade_font.png assets/blade_font.pal
+# python tools/convert_png.py assets/logo/zig_logo.png assets/logo/zig_logo.pal
 
 DEFAULT_ALPHA = 255
 
