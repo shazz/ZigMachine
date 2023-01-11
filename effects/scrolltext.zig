@@ -19,7 +19,7 @@ const WIDTH: u16 = @import("../zigos.zig").WIDTH;
 
 // TODO: replace this constant by comptime font WIDTH//width
 const NB_FONTS: u8 = 11;
-const rasters_b = convertU8ArraytoColors(@embedFile("../assets/ancool/rasters.dat"));
+const rasters_b = convertU8ArraytoColors(@embedFile("../assets/screens/scrolltext/rasters.dat"));
 
 // --------------------------------------------------------------------------
 // Variables
@@ -28,11 +28,11 @@ const rasters_b = convertU8ArraytoColors(@embedFile("../assets/ancool/rasters.da
 fn handler(fb: *LogicalFB, line: u16) void {
     const back_color: Color = Color{ .r = 0, .g = 0, .b = 0, .a = 0 };
 
-    if (line > 190 and line < 230) {
+    if (line > 100 and line < 240) {
         // fb.setPaletteEntry(0, Color{ .r = 0, .g = 0, .b = @intCast(u8, (line - 200) * 8), .a = 255 });
-        fb.setPaletteEntry(0, rasters_b[line - 200]);
+        fb.setPaletteEntry(0, rasters_b[line - 100]);
     }
-    if (line > 230) {
+    if (line > 240) {
         fb.setPaletteEntry(0, back_color);
     }
 }
@@ -92,17 +92,15 @@ pub const Scrolltext = struct {
                 char_pos_y = self.pos_y + pos_y;
             }
 
-            self.fonts[idx].sprite.init(self.fb, self.font_img[letter * (self.font_width * self.font_height) .. (letter + 1) * (self.font_width * self.font_height)], self.font_width, self.font_height, pos_x, char_pos_y, false);
+            self.fonts[idx].sprite.init(self.fb, self.font_img[letter * (self.font_width * self.font_height) .. (letter + 1) * (self.font_width * self.font_height)], self.font_width, self.font_height, pos_x, char_pos_y, false, true);
             self.text_pos = NB_FONTS;
         }
-
-        // adding white space
 
         Console.log("Scrolltext inited!", .{});
     }
 
     pub fn update(self: *Scrolltext) void {
-        for (self.fonts) |*font, idx| {
+        for (self.fonts) |*font| {
             var is_out: i32 = @intCast(i32, font.pos_x) - @intCast(i32, self.speed);
             if (is_out < -@intCast(i8, self.font_width)) {
                 font.pos_x = WIDTH - 1;
@@ -112,7 +110,7 @@ pub const Scrolltext = struct {
 
                 const next_letter = self.text[self.text_pos] - self.font_chars[0];
                 font.*.sprite.data = self.font_img[next_letter * (self.font_width * self.font_height) .. (next_letter + 1)];
-                Console.log("Creating FontLetter {c} {} for ASCII {}.", .{ self.text[self.text_pos], idx, next_letter + self.font_chars[0] });
+                // Console.log("Creating FontLetter {c} {} for ASCII {}.", .{ self.text[self.text_pos], idx, next_letter + self.font_chars[0] });
                 self.text_pos += 1;
             } else {
                 font.*.pos_x -= self.speed;

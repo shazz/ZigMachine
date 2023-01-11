@@ -17,6 +17,10 @@ pub const NB_PLANES: u8 = 4;
 pub const HORIZONTAL_BORDERS_WIDTH: u16 = (PHYSICAL_WIDTH - WIDTH) / 2;
 pub const VERTICAL_BORDERS_HEIGHT: u16 = (PHYSICAL_HEIGHT - HEIGHT) / 2;
 
+const SYSTEM_FONT = @embedFile("assets/fonts/system_font_atari_1bit.raw");
+const SYSTEM_FONT_WIDTH = 8;
+const SYSTEM_FONT_HEIGHT = 8;
+
 // --------------------------------------------------------------------------
 // Variables
 // --------------------------------------------------------------------------
@@ -104,11 +108,13 @@ pub const ZigOS = struct {
     physical_framebuffer: [PHYSICAL_HEIGHT][PHYSICAL_WIDTH]u32 = undefined,
     lfbs: [NB_PLANES]LogicalFB = undefined,
     hbl_handler: ?*const fn (*ZigOS, u16) void = undefined,
+    system_font: []const u8 = undefined,
 
     pub fn init(self: *ZigOS) void {
         self.physical_framebuffer = std.mem.zeroes([PHYSICAL_HEIGHT][PHYSICAL_WIDTH]u32);
         self.resolution = Resolution.planes;
         self.background_color = Color{ .r = 20, .g = 20, .b = 20, .a = 255 };
+        self.system_font = SYSTEM_FONT;
 
         for (self.lfbs) |*lfb, idx| {
             lfb.*.id = @intCast(u8, idx);
@@ -123,6 +129,35 @@ pub const ZigOS = struct {
     // --------------------------------------------------------------------------
     pub fn nop(self: *ZigOS) void {
         _ = self;
+    }
+
+    pub fn printText(self: *ZigOS, lfb: *LogicalFB, text: []const u8, x: u16, y: u16, fg_color_index: u8, bg_color_index: u8) void {
+
+        // pointer to logical framebuffer
+        var buffer: *[64000]u8 = &lfb.fb;
+
+        const initial_position: u16 = y * WIDTH + x;
+
+        // get character
+        for (text) |char, nb| {
+
+            // slice offsets
+            var slice_offset_start: u16 = @intCast(u16, char) * (SYSTEM_FONT_WIDTH * SYSTEM_FONT_HEIGHT) - 1;
+            var slice_offset_end: u16 = (@intCast(u16, char) + 1) * (SYSTEM_FONT_WIDTH * SYSTEM_FONT_HEIGHT);
+
+            const char_data = self.system_font[slice_offset_start..slice_offset_end];
+            var letter_pos = initial_position + (@intCast(u16, nb) * SYSTEM_FONT_WIDTH);
+
+            for (char_data) |pixel, idx| {
+                buffer[letter_pos] = if (pixel == 1) fg_color_index else bg_color_index;
+
+                if (idx > 0 and (idx % SYSTEM_FONT_WIDTH == 0)) {
+                    letter_pos += (WIDTH - SYSTEM_FONT_WIDTH + 1);
+                } else {
+                    letter_pos += 1;
+                }
+            }
+        }
     }
 
     // --------------------------------------------------------------------------

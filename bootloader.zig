@@ -7,7 +7,7 @@ const LogicalFB = @import("zigos.zig").LogicalFB;
 const Console = @import("utils/debug.zig").Console;
 const waveforms = @import("sound/waveforms.zig");
 
-const Demo = @import("demo.zig").Demo;
+const Demo = @import("demo_test.zig").Demo;
 // --------------------------------------------------------------------------
 // Types
 // --------------------------------------------------------------------------

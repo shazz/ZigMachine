@@ -17,6 +17,7 @@ const Background = @import("effects/background.zig").Background;
 const Scrolltext = @import("effects/scrolltext.zig").Scrolltext;
 const Dots3D = @import("effects/dots3d.zig").Dots3D;
 const Mandelbrot = @import("effects/mandelbrot.zig").Mandelbrot;
+const Boot = @import("effects/boot.zig").Boot;
 const Resolution = @import("zigos.zig").Resolution;
 
 const Console = @import("utils/debug.zig").Console;
@@ -40,23 +41,29 @@ pub const Demo = struct {
     starfield: Starfield = undefined,
     dots3D: Dots3D = undefined,
     mandelbrot: Mandelbrot = undefined,
+    boot: Boot = undefined,
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
         Console.log("Demo init", .{});
 
-        zigos.setResolution(Resolution.truecolor);
-        self.mandelbrot.init(&zigos.physical_framebuffer);
+        // zigos.setResolution(Resolution.truecolor);
+        // self.mandelbrot.init(fb);
+        var fb: *LogicalFB = &zigos.lfbs[0];
+        self.boot.init(fb);
 
         Console.log("demo init done!", .{});
     }
 
     pub fn update(self: *Demo, zigos: *ZigOS) void {
-        self.mandelbrot.update();
+        // self.mandelbrot.update();
+
+        self.boot.update();
         _ = zigos;
     }
 
     pub fn render(self: *Demo, zigos: *ZigOS) void {
-        self.mandelbrot.render();
-        _ = zigos;
+        // self.mandelbrot.render();
+
+        self.boot.render(zigos);
     }
 };

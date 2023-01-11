@@ -27,8 +27,8 @@ const HEIGHT: u16 = @import("zigos.zig").HEIGHT;
 const WIDTH: u16 = @import("zigos.zig").WIDTH;
 
 // scrolltext
-const fonts_b = @embedFile("assets/ancool_font_interlaced.raw");
-const offset_table_b = readU16Array(@embedFile("assets/scroll_sin.dat"));
+const fonts_b = @embedFile("assets/fonts/ancool_font_interlaced.raw");
+const offset_table_b = readU16Array(@embedFile("assets/screens/scrolltext/scroll_sin.dat"));
 const SCROLL_TEXT = "         0123456789 .-'? ABCDEFGHIJKLMNOPQRSTUVWXYZ"; //"ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 const SCROLL_CHAR_WIDTH = 32; // 40
 const SCROLL_CHAR_HEIGHT = 16; // 34
@@ -36,26 +36,26 @@ const SCROLL_SPEED = 3; //
 const SCROLL_CHARS = " !   '   -. 0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ"; //" ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
 // background
-const back_b = @embedFile("assets/back.raw");
+const back_b = @embedFile("assets/screens/background/back.raw");
 
 // big sprite
-const logo_b = @embedFile("assets/logo.raw");
-const sprite_b = @embedFile("assets/logo_283x124.raw");
+const logo_b = @embedFile("assets/screens/logo_distort/logo.raw");
+const sprite_b = @embedFile("assets/screens/logo_distort/logo_283x124.raw");
 const sprite_width: u16 = 283;
 const sprite_height: u16 = 124;
 const sprite_xoffset: u16 = 26;
 const sprite_yoffset: u16 = 10;
 
-const sprite_pal = convertU8ArraytoColors(@embedFile("assets/sprite.pal"));
-const back_pal = convertU8ArraytoColors(@embedFile("assets/back.pal"));
-const font_pal = convertU8ArraytoColors(@embedFile("assets/ancool_font.pal"));
+const sprite_pal = convertU8ArraytoColors(@embedFile("assets/screens/logo_distort/sprite.pal"));
+const back_pal = convertU8ArraytoColors(@embedFile("assets/screens/background/back.pal"));
+const font_pal = convertU8ArraytoColors(@embedFile("assets/fonts/ancool_font.pal"));
 
 // --------------------------------------------------------------------------
 // Variables
 // --------------------------------------------------------------------------
 
 fn handler(zigos: *ZigOS, line: u16) void {
-    zigos.setBackgroundColor(Color{ .r = @intCast(u8, 255 - (line / 2)), .g = @intCast(u8, line / 2), .b = @intCast(u8, line / 2), .a = 255 });
+    zigos.setBackgroundColor(Color{ .r = @intCast(u8, line / 2), .g = @intCast(u8, line / 8), .b = 0, .a = 255 });
 }
 
 // --------------------------------------------------------------------------
@@ -135,13 +135,13 @@ pub const Demo = struct {
         self.big_sprite.sprite_y_offset = sprite_yoffset;
         self.big_sprite.sprite_y_dir = true;
         self.big_sprite.fade.init(fb, true, 1, 16, true);
-        self.big_sprite.sprite.init(fb, sprite_b, sprite_width, sprite_height, sprite_xoffset, sprite_yoffset, true);
+        self.big_sprite.sprite.init(fb, sprite_b, sprite_width, sprite_height, sprite_xoffset, sprite_yoffset, true, false);
 
         // 4th plane
         fb = &zigos.lfbs[3];
         fb.setPalette(font_pal);
 
-        self.scrolltext.init(fb, fonts_b, SCROLL_CHARS, SCROLL_CHAR_WIDTH, SCROLL_CHAR_HEIGHT, SCROLL_TEXT, SCROLL_SPEED, 160, true, offset_table_b);
+        self.scrolltext.init(fb, fonts_b, SCROLL_CHARS, SCROLL_CHAR_WIDTH, SCROLL_CHAR_HEIGHT, SCROLL_TEXT, SCROLL_SPEED, 170, true, offset_table_b);
 
         Console.log("demo init done!", .{});
     }

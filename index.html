@@ -3,114 +3,12 @@
     <head>
         <meta charset="utf-8">
         <title>Zig Machine</title>
-        <!-- <script src="script.js"></script> -->
-        <!-- <link rel="stylesheet" type="text/css" href="crt.css" media=”screen” /> -->
+        <link rel="stylesheet" type="text/css" href="assets/css/crt.css" media="screen" />
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/normalize/5.0.0/normalize.min.css">
-          
-<style>
-    body {
-      background: #121010;
-      color: white;
-      padding-top: 0px;
-      padding-left: 0px;
-      /* background-image: url("assets/overlays/sc1224_3.png"); */
-      /* background-repeat: no-repeat; */
-    }
-   
-    .monitor {
-        position: absolute;
-        top: 0;
-        left: 0;               
-        z-index: 100;
-    }
-
-    .sound_button {
-        position: absolute;
-        margin-top: 705px;       
-        margin-left: 800px;       
-        z-index: 101;
-        border-radius: 5px;
-        border-color: darkgrey;
-        color: rgb(255, 255, 255);
-        background-color: #858585;
-    }
-
-    .container {
-      background: #121010;
-      width: 800px;
-      height: 560px;
-      margin-top: 10px;
-      position: absolute;
-      top: 112px;
-      left: 130px;
-      overflow: hidden;
-      border: 2px solid #121010;
-      z-index: 2;
-    }
-    .container::after {
-      content: " ";
-      display: block;
-      position: absolute;
-      top: 0;
-      left: 0;
-      bottom: 0;
-      right: 0;
-      background: rgba(18, 16, 16, 0.1);
-      opacity: 0;
-      z-index: 2;
-      pointer-events: none;
-    }
-    .container::before {
-      content: " ";
-      display: block;
-      position: absolute;
-      top: 0;
-      left: 0;
-      bottom: 0;
-      right: 0;
-      background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
-      z-index: 2;
-      background-size: 100% 2px, 3px 100%;
-      pointer-events: none;
-    }
-    
-    @keyframes overlay-anim {
-      0% {
-        visibility: hidden;
-      }
-      20% {
-        visibility: visible;
-      }
-      21% {
-        visibility: visible;
-      }
-      100% {
-        visibility: visible;
-      }
-    }
-    .overlay {
-      color: #00FF00;
-      position: absolute;
-      top: 0px;
-      left:  0px;
-      font-size: 60px;
-      visibility: hidden;
-      pointer-events: none;
-    }
-    
-    .container .overlay {
-      animation: overlay-anim 0.001s infinite;
-      animation-fill-mode: forwards;
-    }
-    </style>
-        <style>
-            .canvas_debug { image-rendering: pixelated; image-rendering: crisp-edges; width: 800px; height: 560px}
-            .canvas { position: absolute; image-rendering: pixelated; image-rendering: crisp-edges; width: 800px; height: 560px; border: true; border-color: white}
-        </style>
     </head>
     <body>
         <div>
-            <img src="assets/overlays/sc1224_3.png" class="monitor" alt="monitor"/>
+            <img src="assets/overlays/sc1224_5.png" class="monitor" alt="monitor"/>
             <button onclick="main()" class="sound_button">Sound on</button>
             <div class="container">
                 <div class="overlay">
