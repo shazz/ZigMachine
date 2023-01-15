@@ -70,6 +70,9 @@ pub const Starfield3D = struct {
         // Create palette with a alpha gradient of gray
         fb.setPaletteEntry(0, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
         var i: u8 = 0;
+        while(i < 10) : (i += 1) {
+            fb.setPaletteEntry(i+1, Color{ .r = 255, .g = 255, .b = 255, .a = 255 } );
+        }        
         while(i < GRADIENT_STEPS) : (i += 1) {
             fb.setPaletteEntry(i+1, Color{ .r = 255, .g = 255, .b = 255, .a = 255 - (i * (255/GRADIENT_STEPS-1)) } );
         }

@@ -13,7 +13,9 @@ const Color = @import("../zigos.zig").Color;
 const Starfield3D = @import("../effects/starfield_3D.zig").Starfield3D;
 
 const Scrolltext = @import("../effects/scrolltext.zig").Scrolltext;
-const Dots3D = @import("../effects/dots3d.zig").Dots3D;
+const za = @import("../utils/zalgebra.zig");
+const shapes = @import("../effects/shapes.zig");
+const Coord = shapes.Coord;
 
 const Console = @import("../utils/debug.zig").Console;
 
@@ -36,6 +38,73 @@ const g_y_offset_table_b = readI16Array(@embedFile("../assets/screens/ancool/scr
 // palettes
 const font_pal = convertU8ArraytoColors(@embedFile("../assets/fonts/ancool_font.pal"));
 const rasters_b = convertU8ArraytoColors(@embedFile("../assets/screens/ancool/rasters.dat"));
+
+const Vec2 = za.Vec2;
+const Vec3 = za.Vec3;
+const Vec4 = za.Vec4;
+const Mat4 = za.Mat4;
+
+
+var vertices = [25]Vec4{
+    // T
+    Vec4.new(-1.0, 	 0.0, 0.0, 1.0),
+    Vec4.new( 0.0, 	 0.0, 0.0, 1.0),
+    Vec4.new( 0.0, 	-0.3, 0.0, 1.0),
+    Vec4.new(-0.32, -0.3, 0.0, 1.0),
+    Vec4.new(-0.32, -1.2, 0.0, 1.0),
+    Vec4.new(-0.68, -1.2, 0.0, 1.0),
+    Vec4.new(-0.68, -0.3, 0.0, 1.0),
+    Vec4.new(-1.0, 	-0.3, 0.0, 1.0),
+    Vec4.new(-1.0, 	 0.0, 0.0, 1.0),
+    // C
+    Vec4.new( 0.2, 	 0.0, 	0.0, 1.0),
+    Vec4.new( 1.2, 	 0.0, 	0.0, 1.0),
+    Vec4.new( 1.2, 	-0.3, 	0.0, 1.0),
+    Vec4.new( 0.52, -0.3, 	0.0, 1.0),
+    Vec4.new( 0.52, -0.90, 	0.0, 1.0),
+    Vec4.new( 1.20, -0.90, 	0.0, 1.0),
+    Vec4.new( 1.20, -1.20,	0.0, 1.0),
+    Vec4.new( 0.20, -1.20,	0.0, 1.0),
+    Vec4.new( 0.20,  0.0, 	0.0, 1.0),
+    // B
+    Vec4.new( 1.40, 0.0, 	0.0, 1.0),
+    Vec4.new( 2.10, 0.0, 	0.0, 1.0),
+    Vec4.new( 2.40, -0.30, 	0.0, 1.0),
+    Vec4.new( 2.10, -0.60, 	0.0, 1.0),
+    Vec4.new( 2.40, -0.90,	0.0, 1.0),
+    Vec4.new( 2.10, -1.20,	0.0, 1.0),
+    Vec4.new( 1.40, -1.20,	0.0, 1.0),
+};
+
+const segments = [24]Vec2{
+    // T
+    Vec2.new(0, 1),
+    Vec2.new(1, 2),
+    Vec2.new(2, 3),
+    Vec2.new(3, 4),
+    Vec2.new(4, 5),
+    Vec2.new(5, 6),
+    Vec2.new(6, 7),
+    Vec2.new(7, 8),
+    Vec2.new(8, 0),
+    // C
+    Vec2.new(0+9, 1+9),
+    Vec2.new(1+9, 2+9),
+    Vec2.new(2+9, 3+9),
+    Vec2.new(3+9, 4+9),
+    Vec2.new(4+9, 5+9),
+    Vec2.new(5+9, 6+9),
+    Vec2.new(6+9, 7+9),
+    Vec2.new(7+9, 0+9),
+    // B
+    Vec2.new(0+9+9, 1+9+9),
+    Vec2.new(1+9+9, 2+9+9),
+    Vec2.new(2+9+9, 3+9+9),
+    Vec2.new(3+9+9, 4+9+9),
+    Vec2.new(4+9+9, 5+9+9),
+    Vec2.new(5+9+9, 6+9+9),
+    Vec2.new(6+9+9, 0+9+9)
+};
 
 // --------------------------------------------------------------------------
 // Variables
@@ -63,7 +132,14 @@ pub const Demo = struct {
     frame_counter: u32 = 0,
     starfield_3D: Starfield3D = undefined,
     scrolltext: Scrolltext = undefined,
-    dots3D: Dots3D = undefined,
+    projection: Mat4 = undefined,
+    camera: Mat4 = undefined,
+    screen: Mat4 = undefined,
+    projected_vertices: [25]Coord = undefined,
+    angle_y: f32 = 0.0,
+    angle_x: f32 = 0.0,
+    angle_z: f32 = 0.0,
+    zoom: f32 = 0.0,
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
         Console.log("Demo init", .{});
@@ -76,13 +152,33 @@ pub const Demo = struct {
 
         // 2nd plane
         fb = &zigos.lfbs[1];
-        self.dots3D.init(fb);
+        fb.setPaletteEntry(0, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
+        fb.setPaletteEntry(1, Color{ .r = 255, .g = 0, .b = 0, .a = 255 });
+        self.projection = za.perspective(60.0, 200.0 / 320.0, 0.1, 100.0);
+        self.camera = za.camera(Vec3.new(0.0, 0.0, -10.0), 0, 0);
+        self.screen = za.screen(320, 200);   
+        self.zoom = 0.8;
+
+        var i: u8 = 0;
+        while(i < 25) : ( i+= 1) {
+            vertices[i] = vertices[i].add(Vec4.new(0, 1.00, 2.8, 0));
+        }
+        
+        i = 9;
+        while(i < 17) : ( i+= 1) {
+            vertices[i] = vertices[i].add(Vec4.new(-0.5, 0, -0.5, 0));        
+        }
+    
+        i = 17;
+        while(i < 25) : ( i+= 1) {
+            vertices[i] = vertices[i].add(Vec4.new(-1.0, 0, -1.0, 0));
+        }        
 
         // 3rd plane
         fb = &zigos.lfbs[2];
         fb.setPalette(font_pal);
 
-        // HBL Handler
+        // HBL Handler for the raster effect
         fb.setFrameBufferHBLHandler(handler);        
 
         // table
@@ -103,8 +199,34 @@ pub const Demo = struct {
     pub fn update(self: *Demo, zigos: *ZigOS) void {
 
         self.starfield_3D.update();
-        self.dots3D.update();
         self.scrolltext.update();
+
+        for(vertices) |vertex, idx| {
+
+            const rot_scale = Mat4.fromScale(Vec3.new(self.zoom, self.zoom, self.zoom));
+            const vertex_after_scale = rot_scale.vec4mulByMat4(vertex);
+
+            const rot_mat = Mat4.fromEulerAngles(Vec3.new(self.angle_x, self.angle_y, self.angle_z));
+            const vertex_after_rot = rot_mat.vec4mulByMat4(vertex_after_scale);
+
+            const vertex_after_cam = self.camera.vec4mulByMat4(vertex_after_rot);
+            const vertex_after_proj = self.projection.vec4mulByMat4(vertex_after_cam);
+                    
+            const norm = Vec4.set(1/vertex_after_proj.w());
+            var vertex_after_norm = vertex_after_proj.mul(norm);
+
+            const vertex_after_screen = self.screen.vec4mulByMat4(vertex_after_norm);
+
+            const coord_x: i16 = @floatToInt(i16, vertex_after_screen.x()); 
+            const coord_y: i16 = @floatToInt(i16, vertex_after_screen.y()); 
+
+            self.projected_vertices[idx].x=coord_x;
+            self.projected_vertices[idx].y=coord_y;
+        }        
+   
+        self.angle_x += 3;
+        self.angle_y += 3.5;    
+        self.angle_z += 2;      
 
         if(raster_index < 150) {
             raster_index += 2;
@@ -120,12 +242,17 @@ pub const Demo = struct {
         self.starfield_3D.fb.clearFrameBuffer(0);
         self.starfield_3D.render();
 
-        self.dots3D.fb.clearFrameBuffer(0);
-        self.dots3D.render();
+        const fb = &zigos.lfbs[1];
+        fb.clearFrameBuffer(0);
+        for(segments) |segment| {
+            const v1: Coord = self.projected_vertices[@floatToInt(usize, segment.x())];
+            const v2: Coord = self.projected_vertices[@floatToInt(usize, segment.y())];
+
+            shapes.drawLine(fb, v1, v2, 1);   
+        }
 
         self.scrolltext.fb.clearFrameBuffer(1);
         self.scrolltext.render();
 
-        _ = zigos;
     }
 };
