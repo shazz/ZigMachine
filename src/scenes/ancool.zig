@@ -32,7 +32,7 @@ const SCROLL_TEXT = "    YO YO   -AN COOL- IS BACK TO BURN WITH A NEW CRACK.....
 const SCROLL_CHAR_WIDTH = 32; 
 const SCROLL_CHAR_HEIGHT = 16;
 const SCROLL_SPEED = 4;
-const SCROLL_CHARS = " !   '   -. 0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+const SCROLL_CHARS = " ! #$%&'()*+,-./0123456789:;<=>? ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 const g_y_offset_table_b = readI16Array(@embedFile("../assets/screens/ancool/scroller_sin.dat"));
 
 // palettes
@@ -148,7 +148,7 @@ pub const Demo = struct {
         var fb: *LogicalFB = &zigos.lfbs[0];
 
         fb = &zigos.lfbs[0];
-        self.starfield_3D.init(fb, WIDTH, HEIGHT, 4, false);
+        self.starfield_3D.init(fb, WIDTH, HEIGHT, 5, false);
 
         // 2nd plane
         fb = &zigos.lfbs[1];
@@ -188,10 +188,7 @@ pub const Demo = struct {
         //     y_offset_table_b[i] = -@intCast(i16, i / 6);
         // }
 
-        self.scrolltext.init(fb, fonts_b, SCROLL_CHARS, SCROLL_CHAR_WIDTH, SCROLL_CHAR_HEIGHT, SCROLL_TEXT, SCROLL_SPEED, 
-                             100, null, g_y_offset_table_b);
-        // self.scrolltext.init(fb, fonts_b, SCROLL_CHARS, SCROLL_CHAR_WIDTH, SCROLL_CHAR_HEIGHT, SCROLL_TEXT, SCROLL_SPEED, 
-        //                      170, offset_table_b, y_offset_table_b);
+        self.scrolltext.init(fb, fonts_b, SCROLL_CHARS, SCROLL_CHAR_WIDTH, SCROLL_CHAR_HEIGHT, SCROLL_TEXT, SCROLL_SPEED, 100, null, g_y_offset_table_b);
 
         Console.log("demo init done!", .{});
     }

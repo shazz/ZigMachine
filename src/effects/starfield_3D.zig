@@ -19,7 +19,7 @@ const WIDTH: u16 = @import("../zigos.zig").WIDTH;
 const HEIGHT: u16 = @import("../zigos.zig").HEIGHT;
 
 // starfield
-const NB_STARS: u32 = 400;
+const NB_STARS: u32 = 300;
 const GRADIENT_STEPS: u8 = 30;
 
 // --------------------------------------------------------------------------
@@ -79,8 +79,8 @@ pub const Starfield3D = struct {
 
         // Add NB_STARS stars
         for (self.starfield_table) |*star| {
-            const x = self.rnd.random().float(f32) * (self.width * 1.2) - self.x * 1.2;
-            const y = self.rnd.random().float(f32) * (self.height * 1.2) - self.y * 1.2;
+            const x = self.rnd.random().float(f32) * (self.width * 1.0) - self.x * 1.0;
+            const y = self.rnd.random().float(f32) * (self.height * 1.0) - self.y * 1.0;
             const z = self.rnd.random().float(f32) * self.z;
 
             star.* = Star{ 
