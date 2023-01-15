@@ -59,7 +59,7 @@ Note: `build.zig` specifies various wasm-ld parameters. For example, it sets the
 Start up the server in the html directory:
 
 ```shell
-cd html
+cd docs
 python3 -m http.server 3333
 ```
 

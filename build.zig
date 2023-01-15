@@ -36,7 +36,7 @@ pub fn build(b: *std.build.Builder) void {
         bootloader_lib.max_memory = max_pages * page_size; // maximum size of the linear memory
         bootloader_lib.global_base = 6560; // offset in linear memory to place global data
 
-        bootloader_lib.setOutputDir("html");
+        bootloader_lib.setOutputDir("docs");
         bootloader_lib.install();
         bootloader_step.dependOn(&bootloader_lib.step);
     }
