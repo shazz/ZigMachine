@@ -16,21 +16,33 @@ The specs of the ZigMachine will definitively evolve over time but for now they 
 - 1 palette for each logical framebuffer
 - CPU frequency is what your Web Assembly browser framework can do. So, pretty (too...) fast. I'd love to be able to provide a restricted and stable execution speed one day if I find a way to do it.
 - Limited ZigOS for basic setup
+- Some kind of non-interrupted VBL and HBL callbacks
+
+In addition to the fantasy console and the ZigOS, a library for classic oldsk00l demo effects is provided featuring:
+- horizontal scrolltext with offset curves
+- 2D starfield
+- 3D starfield
+- 3D transformations
+- pixel and line drawing
+- Sprites
+- Fading
+
+And so examples!
 
 Next in my TODO list:
 
-- Some kind of non-interrupted VBL and HBL callbacks
 - 1 digital sound channel (44100Hz, 32 bits)
 - YM2149 emulation
 - Blitter emulation for line drawing and polyfilling.
 - Mapped memory in addition to OS functions
 - Emulated hardware scrolling
 
-For the moment, only Zig is supported to code stuff on the ZigMachine (so the name...) but maybe one days so custom 68K like assembly code. Who knows :) Want to add things?
+For the moment, only Zig is supported to code stuff on the ZigMachine (so the name...) but maybe one days so custom 68K like assembly code or probably raw web assembly. Who knows :) 
+Want to add things? Please leave a message in the [Discussions](https://github.com/shazz/ZigMachine/discussions)
 
 ## Build
 
-The default (and only) target for this example is `wasm32-freestanding-musl`.
+The default (and only) target for this build is `wasm32-freestanding-musl`.
 
 To build the wasm module, run:
 
@@ -44,13 +56,14 @@ Note: `build.zig` specifies various wasm-ld parameters. For example, it sets the
 
 ## Run
 
-Start up the server in this repository's directory:
+Start up the server in the html directory:
 
 ```shell
+cd html
 python3 -m http.server 3333
 ```
 
-Go to your favorite browser and type to the URL `localhost:3333`.
+Go to your favorite browser and type to the URL `http://localhost:3333` or `http://localhost:3333/debug.html` for a debug view.
 
 ## Screenshots
 
