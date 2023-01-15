@@ -10,7 +10,6 @@ const Sprite = @import("sprite.zig").Sprite;
 
 const Console = @import("../utils/debug.zig").Console;
 
-const convertU8ArraytoColors = @import("../utils/loaders.zig").convertU8ArraytoColors;
 // --------------------------------------------------------------------------
 // Constants
 // --------------------------------------------------------------------------

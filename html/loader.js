@@ -10,12 +10,13 @@ let audioContext = null;
 var ZigMachine = {
     'boot': null,
     'frame': null,
-    'getPhysicalFrameBufferNb': null,
+    'getPlanesNumber': null,
     'getPhysicalFrameBufferWidth': null,
     'getPhysicalFrameBufferHeight': null,
     'getPhysicalFrameBufferPointer': null,
     'renderPhysicalFrameBuffer': null,
     'clearPhysicalFrameBuffer': null,
+    "isPlaneEnabled": null,
     'u8ArrayToF32Array': null,
     'generateAudio': null,
     'input': null,
@@ -29,7 +30,7 @@ var start = function() {
     console.log(memory.buffer);
 
     // get buffer nb
-    const nb_buffers = ZigMachine.getPhysicalFrameBufferNb();
+    const nb_buffers = ZigMachine.getPlanesNumber();
     const fb_width = ZigMachine.getPhysicalFrameBufferWidth();
     const fb_height = ZigMachine.getPhysicalFrameBufferHeight();
 
@@ -44,20 +45,23 @@ var start = function() {
         ZigMachine.frame();
 
         for(i=0; i<nb_buffers; i++) {
-            const canvas = document.getElementById(i);
-            const context = canvas.getContext("2d");
-            const imageData = context.createImageData(canvas.width, canvas.height);
-    
-            ZigMachine.renderPhysicalFrameBuffer(i);
-    
-            const bufferOffset = ZigMachine.getPhysicalFrameBufferPointer();
-            const imageDataArray = wasmMemoryArray.slice(
-                bufferOffset,
-                bufferOffset + fb_width * fb_height * 4
-            );
-            imageData.data.set(imageDataArray);
-    
-            context.putImageData(imageData, 0, 0);
+
+            if(ZigMachine.isPlaneEnabled(i)) {
+                const canvas = document.getElementById(i);
+                const context = canvas.getContext("2d");
+                const imageData = context.createImageData(canvas.width, canvas.height);
+        
+                ZigMachine.renderPhysicalFrameBuffer(i);
+        
+                const bufferOffset = ZigMachine.getPhysicalFrameBufferPointer();
+                const imageDataArray = wasmMemoryArray.slice(
+                    bufferOffset,
+                    bufferOffset + fb_width * fb_height * 4
+                );
+                imageData.data.set(imageDataArray);
+        
+                context.putImageData(imageData, 0, 0);
+            }
         }
 
         // loop to next frame
