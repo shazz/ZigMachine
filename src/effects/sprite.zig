@@ -72,7 +72,7 @@ pub const Sprite = struct {
         if (self.apply_x_offset == true) {
             self.x_offset_index += 0.2;
             if (self.x_offset_index >= std.math.inf(f16)) {
-                Console.log("reset", .{});
+                // Console.log("reset", .{});
                 self.x_offset_index = 0.0;
             }
         }

@@ -100,7 +100,7 @@ pub const Scrolltext = struct {
             if(self.y_offset_table_index > self.speed*2) {
                 self.y_offset_table_index -= self.speed*2;
             } else {
-                Console.log("Reset y offset index: {}", .{self.y_offset_table_index});
+                // Console.log("Reset y offset index: {}", .{self.y_offset_table_index});
                 self.y_offset_table_index = table.len;
             }
         }

@@ -60,23 +60,16 @@ pub const Starfield = struct {
         fb.setPaletteEntry(0, Color{ .r = 0, .g = 0, .b = 0, .a = background_transparency });
         fb.setPaletteEntry(1, Color{ .r = 255, .g = 255, .b = 255, .a = 255 });
 
-        // Clear
-        fb.clearFrameBuffer(0);
-
         // Add stars
         for (self.starfield_table) |*star| {
             const x = self.rnd.random().uintAtMost(u16, WIDTH);
             const y = self.rnd.random().uintAtMost(u8, HEIGHT);
 
             star.* = Star{ .x = x, .y = y, .speed = self.rnd.random().intRangeAtMost(u16, 1, speed), .direction = direction };
-            fb.setPixelValue(x, y, 1);
         }
     }
 
     pub fn update(self: *Starfield) void {
-
-        // clear buffer
-        self.fb.clearFrameBuffer(0);
 
         for (self.starfield_table) |*star| {
             if (self.direction == StarfieldDirection.RIGHT) {

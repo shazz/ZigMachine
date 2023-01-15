@@ -10,8 +10,7 @@ const ZigOS = @import("../zigos.zig").ZigOS;
 const LogicalFB = @import("../zigos.zig").LogicalFB;
 const Color = @import("../zigos.zig").Color;
 
-const Starfield = @import("../effects/starfield.zig").Starfield;
-const StarfieldDirection = @import("../effects/starfield.zig").StarfieldDirection;
+const Starfield3D = @import("../effects/starfield_3D.zig").Starfield3D;
 
 const Scrolltext = @import("../effects/scrolltext.zig").Scrolltext;
 const Dots3D = @import("../effects/dots3d.zig").Dots3D;
@@ -62,7 +61,7 @@ pub const Demo = struct {
   
     name: u8 = 0,
     frame_counter: u32 = 0,
-    starfield: Starfield = undefined,
+    starfield_3D: Starfield3D = undefined,
     scrolltext: Scrolltext = undefined,
     dots3D: Dots3D = undefined,
 
@@ -73,7 +72,7 @@ pub const Demo = struct {
         var fb: *LogicalFB = &zigos.lfbs[0];
 
         fb = &zigos.lfbs[0];
-        self.starfield.init(fb, WIDTH, HEIGHT, 3, StarfieldDirection.RIGHT, 0);
+        self.starfield_3D.init(fb, WIDTH, HEIGHT, 2);
 
         // 2nd plane
         fb = &zigos.lfbs[1];
@@ -102,9 +101,9 @@ pub const Demo = struct {
     }
 
     pub fn update(self: *Demo, zigos: *ZigOS) void {
-        self.starfield.update();
-        self.dots3D.update();
 
+        self.starfield_3D.update();
+        self.dots3D.update();
         self.scrolltext.update();
 
         if(raster_index < 150) {
@@ -117,7 +116,9 @@ pub const Demo = struct {
     }
 
     pub fn render(self: *Demo, zigos: *ZigOS) void {
-        self.starfield.render();
+
+        self.starfield_3D.fb.clearFrameBuffer(0);
+        self.starfield_3D.render();
 
         self.dots3D.fb.clearFrameBuffer(0);
         self.dots3D.render();
