@@ -14,6 +14,7 @@ const Console = @import("../utils/debug.zig").Console;
 // --------------------------------------------------------------------------
 const HEIGHT: u16 = @import("../zigos.zig").HEIGHT;
 const WIDTH: u16 = @import("../zigos.zig").WIDTH;
+const OFFSET_DATA_SIZE = WIDTH*4;
 
 // --------------------------------------------------------------------------
 // Variables
@@ -31,10 +32,11 @@ pub const Sprite = struct {
     data: []const u8 = undefined,
     x_offset_index: f16 = undefined,
     apply_x_offset: bool = undefined,
-    apply_y_offset: bool = undefined,
-    y_offset_table: [WIDTH]i16 = undefined,
+    y_offset_table: ?[OFFSET_DATA_SIZE]i16 = undefined,
+    y_offset_index: u16 = undefined,
 
-    pub fn init(self: *Sprite, fb: *LogicalFB, data: []const u8, width: u16, height: u16, x_position: i32, y_position: i32, apply_x_offset: bool, apply_y_offset: bool) void {
+
+    pub fn init(self: *Sprite, fb: *LogicalFB, data: []const u8, width: u16, height: u16, x_position: i32, y_position: i32, apply_x_offset: bool, y_offset_table: ?[OFFSET_DATA_SIZE]i16) void {
         self.fb = fb;
         self.width = width;
         self.height = height;
@@ -44,11 +46,10 @@ pub const Sprite = struct {
 
         self.x_offset_index = 0.0;
         self.apply_x_offset = apply_x_offset;
-        self.apply_y_offset = apply_y_offset;
 
-        var i: u16 = 0;
-        while (i < WIDTH) : (i += 1) {
-            self.y_offset_table[i] = -@intCast(i16, i / 6);
+        if(y_offset_table) |table| {
+            self.y_offset_table = table;
+            self.y_offset_index = 0;
         }
 
         // x_position_table: [255]u16;
@@ -59,7 +60,7 @@ pub const Sprite = struct {
 
     }
 
-    pub fn update(self: *Sprite, x_position: ?i32, y_position: ?i32) void {
+    pub fn update(self: *Sprite, x_position: ?i32, y_position: ?i32, y_offset_table_index: ?u16) void {
         if (x_position) |new_offset| {
             self.x_position = new_offset;
         }
@@ -74,6 +75,10 @@ pub const Sprite = struct {
                 Console.log("reset", .{});
                 self.x_offset_index = 0.0;
             }
+        }
+
+        if (y_offset_table_index) |index| {
+            self.y_offset_index = index;
         }
     }
 
@@ -140,8 +145,11 @@ pub const Sprite = struct {
 
                     // apply y offset
                     var new_offset = offset;
-                    if (self.apply_y_offset) {
-                        var off = self.y_offset_table[col_counter + left_x_position];
+                    if (self.y_offset_table) |table| {
+                        var counter: u16 = col_counter + left_x_position + self.y_offset_index;
+                        if(counter >= table.len) counter -= @intCast(u16, table.len);
+
+                        var off = table[counter];
                         if (off < 0) {
                             new_offset -= (@intCast(u16, -off) * WIDTH);
                         } else {

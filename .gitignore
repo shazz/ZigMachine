@@ -3,3 +3,4 @@ zig-out
 *.o
 *.wasm
 *.git
+.DS_Store

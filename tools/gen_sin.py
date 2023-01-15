@@ -4,24 +4,31 @@ import matplotlib.pyplot as plt
 import struct
 import os
 
-WIDTH = 320
-AMPLITUDE = 16
+NB_POINTS = 640*2
+AMPLITUDE = 40
 PERIODS = 2
 DATA_SIZE = 2
-FILE_PATH = "assets/scroll_sin.dat"
+FILE_PATH = "src/assets/screens/ancool/scroller_sin.dat"
+START = -1.2
+Y_OFFSET = 0
+RANGE = NB_POINTS
+OFFSET = 2*pi/RANGE
 
-# 100 linearly spaced numbers
-x = np.linspace(0, PERIODS*2*pi, WIDTH)
-
+# linearly spaced numbers
+x = np.linspace(0, RANGE, NB_POINTS)
+print(x, len(x))
 
 # the function, which is y = sin(x) here
-y = (1.0 + np.sin(x))*AMPLITUDE/2
+# y = (1.0 + np.sin(x*OFFSET))*AMPLITUDE/2
+y = np.sin((x+START)*OFFSET)*AMPLITUDE + Y_OFFSET
 
 fig = plt.figure()
 ax = fig.add_subplot(1, 1, 1)
 
 ax.xaxis.set_ticks_position('bottom')
 ax.yaxis.set_ticks_position('left')
+plt.ylim(-200, 200)
+plt.xlim(0, RANGE)
 
 # plot the function
 plt.plot(x, y, 'b-')
@@ -41,6 +48,6 @@ else:
 with open(FILE_PATH, "wb") as f:
     f.write(table_bytes)
 
-assert os.path.getsize(FILE_PATH) == DATA_SIZE*WIDTH, f"Expected file size: {DATA_SIZE*WIDTH} not {os.path.getsize(FILE_PATH)}"
+assert os.path.getsize(FILE_PATH) == DATA_SIZE*NB_POINTS, f"Expected file size: {DATA_SIZE*NB_POINTS} not {os.path.getsize(FILE_PATH)}"
 
 print(table_int)

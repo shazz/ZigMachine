@@ -58,10 +58,7 @@ pub const Starfield = struct {
 
         // Set palette
         fb.setPaletteEntry(0, Color{ .r = 0, .g = 0, .b = 0, .a = background_transparency });
-        fb.setPaletteEntry(1, Color{ .r = 255, .g = 255, .b = 255, .a = 128 });
-        fb.setPaletteEntry(2, Color{ .r = 255, .g = 0, .b = 0, .a = 255 });
-        fb.setPaletteEntry(3, Color{ .r = 0, .g = 255, .b = 0, .a = 255 });
-        fb.setPaletteEntry(4, Color{ .r = 0, .g = 0, .b = 255, .a = 255 });
+        fb.setPaletteEntry(1, Color{ .r = 255, .g = 255, .b = 255, .a = 255 });
 
         // Clear
         fb.clearFrameBuffer(0);

@@ -19,23 +19,13 @@ const WIDTH: u16 = @import("../zigos.zig").WIDTH;
 
 // TODO: replace this constant by comptime font WIDTH//width
 const NB_FONTS: u8 = 11;
-const rasters_b = convertU8ArraytoColors(@embedFile("../assets/screens/scrolltext/rasters.dat"));
+const OFFSET_DATA_SIZE = WIDTH*4;
 
 // --------------------------------------------------------------------------
 // Variables
 // --------------------------------------------------------------------------
 
-fn handler(fb: *LogicalFB, line: u16) void {
-    const back_color: Color = Color{ .r = 0, .g = 0, .b = 0, .a = 0 };
 
-    if (line > 100 and line < 240) {
-        // fb.setPaletteEntry(0, Color{ .r = 0, .g = 0, .b = @intCast(u8, (line - 200) * 8), .a = 255 });
-        fb.setPaletteEntry(0, rasters_b[line - 100]);
-    }
-    if (line > 240) {
-        fb.setPaletteEntry(0, back_color);
-    }
-}
 
 // --------------------------------------------------------------------------
 // Demo
@@ -55,8 +45,10 @@ pub const Scrolltext = struct {
     fonts: [NB_FONTS]FontLetter = undefined,
     offset_table: ?[WIDTH]u16 = undefined,
     apply_offset_table: bool = false,
+    y_offset_table: ?[OFFSET_DATA_SIZE]i16 = undefined,
+    y_offset_table_index: u16 = undefined,
 
-    pub fn init(self: *Scrolltext, fb: *LogicalFB, font_img: []const u8, font_chars: []const u8, width: u16, height: u16, text: []const u8, speed: u16, pos_y: u16, apply_offset_table: bool, offset_table: ?[WIDTH]u16) void {
+    pub fn init(self: *Scrolltext, fb: *LogicalFB, font_img: []const u8, font_chars: []const u8, width: u16, height: u16, text: []const u8, speed: u16, pos_y: u16, offset_table: ?[WIDTH]u16, y_offset_table: ?[OFFSET_DATA_SIZE]i16) void {
         self.font_img = font_img;
         self.font_chars = font_chars;
         self.font_width = width;
@@ -67,11 +59,13 @@ pub const Scrolltext = struct {
         self.pos_y = pos_y;
         if (offset_table) |table| {
             self.offset_table = table;
+            self.apply_offset_table = true;
         }
-        self.apply_offset_table = apply_offset_table;
 
-        // HBL Handler
-        fb.setFrameBufferHBLHandler(handler);
+        if (y_offset_table) |table| {
+            self.y_offset_table = table;
+            self.y_offset_table_index = 0;
+        }        
 
         // create as many Sprites as letters shown on screen
         const current_text: *const [NB_FONTS]u8 = self.text[0..NB_FONTS];
@@ -84,7 +78,7 @@ pub const Scrolltext = struct {
             self.fonts[idx] = FontLetter{ .char = char, .sprite = Sprite{}, .pos_x = pos_x, .pos_y = pos_y };
 
             var char_pos_y: u16 = undefined;
-            if (self.apply_offset_table) {
+            if (self.apply_offset_table) {  
                 if (self.offset_table) |table| {
                     char_pos_y = table[pos_x];
                 }
@@ -92,7 +86,7 @@ pub const Scrolltext = struct {
                 char_pos_y = self.pos_y + pos_y;
             }
 
-            self.fonts[idx].sprite.init(self.fb, self.font_img[letter * (self.font_width * self.font_height) .. (letter + 1) * (self.font_width * self.font_height)], self.font_width, self.font_height, pos_x, char_pos_y, false, true);
+            self.fonts[idx].sprite.init(self.fb, self.font_img[letter * (self.font_width * self.font_height) .. (letter + 1) * (self.font_width * self.font_height)], self.font_width, self.font_height, pos_x, char_pos_y, false, y_offset_table);
             self.text_pos = NB_FONTS;
         }
 
@@ -100,6 +94,17 @@ pub const Scrolltext = struct {
     }
 
     pub fn update(self: *Scrolltext) void {
+
+        // apply y_offset table if set
+        if (self.y_offset_table) |table| {
+            if(self.y_offset_table_index > self.speed*2) {
+                self.y_offset_table_index -= self.speed*2;
+            } else {
+                Console.log("Reset y offset index: {}", .{self.y_offset_table_index});
+                self.y_offset_table_index = table.len;
+            }
+        }
+
         for (self.fonts) |*font| {
             var is_out: i32 = @intCast(i32, font.pos_x) - @intCast(i32, self.speed);
             if (is_out < -@intCast(i8, self.font_width)) {
@@ -117,18 +122,16 @@ pub const Scrolltext = struct {
             }
 
             // apply y offset if set
-            if (self.apply_offset_table) {
-                if (self.offset_table) |table| {
-                    if (font.pos_x < 0) {
-                        const pos: u16 = @intCast(u16, WIDTH + font.pos_x);
-                        font.*.pos_y = self.pos_y + table[@intCast(u16, pos)];
-                    } else {
-                        font.*.pos_y = self.pos_y + table[@intCast(u16, font.pos_x)];
-                    }
+            if (self.offset_table) |table| {
+                if (font.pos_x < 0) {
+                    const pos: u16 = @intCast(u16, WIDTH + font.pos_x);
+                    font.*.pos_y = self.pos_y + table[@intCast(u16, pos)];
+                } else {
+                    font.*.pos_y = self.pos_y + table[@intCast(u16, font.pos_x)];
                 }
             }
 
-            font.*.sprite.update(font.pos_x, font.pos_y);
+            font.*.sprite.update(font.pos_x, font.pos_y, self.y_offset_table_index);
         }
     }
 

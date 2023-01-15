@@ -21,6 +21,21 @@ pub fn readU16Array(comptime raw: []const u8) [@divExact(raw.len, 2):0]u16 {
 }
 
 // --------------------------------------------------------------------------
+// Loader for data i16 data files
+// --------------------------------------------------------------------------
+pub fn readI16Array(comptime raw: []const u8) [@divExact(raw.len, 2):0]i16 {
+    comptime {
+        @setEvalBranchQuota(6000);
+        const len = @divExact(raw.len, 2);
+        var table: [len:0]i16 = undefined;
+        for (table) |*out, i| {
+            out.* = std.mem.readIntLittle(i16, raw[i * 2 ..][0..2]);
+        }
+        return table;
+    }
+}
+
+// --------------------------------------------------------------------------
 // Loader for u8 palette data converted to Color structs
 // --------------------------------------------------------------------------
 pub fn convertU8ArraytoColors(comptime contents: []const u8) [256]Color {

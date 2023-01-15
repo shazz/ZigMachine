@@ -20,7 +20,7 @@ pub fn build(b: *std.build.Builder) void {
         const mode = b.standardReleaseOptions();
 
         const bootloader_step = b.step("bootloader", "Compiles bootloader.zig");
-        const bootloader_lib = b.addSharedLibrary("bootloader", "./bootloader.zig", .unversioned);
+        const bootloader_lib = b.addSharedLibrary("bootloader", "src/bootloader.zig", .unversioned);
 
         bootloader_lib.setBuildMode(mode);
         bootloader_lib.setTarget(.{
@@ -36,13 +36,13 @@ pub fn build(b: *std.build.Builder) void {
         bootloader_lib.max_memory = max_pages * page_size; // maximum size of the linear memory
         bootloader_lib.global_base = 6560; // offset in linear memory to place global data
 
-        bootloader_lib.setOutputDir(".");
+        bootloader_lib.setOutputDir("html");
         bootloader_lib.install();
         bootloader_step.dependOn(&bootloader_lib.step);
     }
 
     if (build_native) {
-        const exe = b.addExecutable("bootloader", "native.zig");
+        const exe = b.addExecutable("bootloader", "src/native.zig");
         const target = b.standardTargetOptions(.{});
         const mode = b.standardReleaseOptions();
         const exe_step = b.step("bootloader", "Compiles bootloader.zig");
