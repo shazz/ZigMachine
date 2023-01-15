@@ -20,6 +20,7 @@ const HEIGHT: u16 = @import("../zigos.zig").HEIGHT;
 
 // starfield
 const NB_STARS: u32 = 400;
+const GRADIENT_STEPS: u8 = 30;
 
 // --------------------------------------------------------------------------
 // Variables
@@ -50,14 +51,16 @@ pub const Starfield3D = struct {
     z: f32 = undefined,
     star_ratio: f32 = undefined,
     color_ratio: f32 = undefined,
+    use_lines: bool = undefined,
 
-    pub fn init(self: *Starfield3D, fb: *LogicalFB, width: u16, height: u16, speed: f32) void {
+    pub fn init(self: *Starfield3D, fb: *LogicalFB, width: u16, height: u16, speed: f32, use_lines: bool) void {
         self.fb = fb;
         self.rnd = RndGen.init(0);
         self.width = @intToFloat(f32, width);
         self.height = @intToFloat(f32, height);
         self.speed = speed;
         self.star_ratio = 100;
+        self.use_lines = use_lines;
 
         self.x = self.width / 2;
         self.y = self.height / 2;
@@ -66,15 +69,15 @@ pub const Starfield3D = struct {
 
         // Create palette with a alpha gradient of gray
         fb.setPaletteEntry(0, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
-        var i: u8 = 1;
-        while(i < 50) : (i += 1) {
-            fb.setPaletteEntry(i, Color{ .r = 255, .g = 255, .b = 255, .a = 255 - (i * (255/50)) } );
+        var i: u8 = 0;
+        while(i < GRADIENT_STEPS) : (i += 1) {
+            fb.setPaletteEntry(i+1, Color{ .r = 255, .g = 255, .b = 255, .a = 255 - (i * (255/GRADIENT_STEPS-1)) } );
         }
 
         // Add NB_STARS stars
         for (self.starfield_table) |*star| {
-            const x = self.rnd.random().float(f32) * (self.width  * 2) - self.x * 2;
-            const y = self.rnd.random().float(f32) * (self.height * 2) - self.y * 2;
+            const x = self.rnd.random().float(f32) * (self.width * 1.2) - self.x * 1.2;
+            const y = self.rnd.random().float(f32) * (self.height * 1.2) - self.y * 1.2;
             const z = self.rnd.random().float(f32) * self.z;
 
             star.* = Star{ 
@@ -116,26 +119,32 @@ pub const Starfield3D = struct {
 
 	        if(star.prev_proj_x > 0 and star.prev_proj_x < self.width  and  star.prev_proj_y > 0 and star.prev_proj_y < self.height){
 
-                const pal_index = self.color_ratio * (star.z * 2) * 40;
-                // Console.log("{} => {}", .{pal_index, @floatToInt(u8, pal_index)});
+                const pal_index = 1 + self.color_ratio * star.z * 1.2 * @intToFloat(f32, GRADIENT_STEPS-1);
+                // if(@floatToInt(u8, pal_index) < 3)
+                //     Console.log("{} => {}", .{pal_index, @floatToInt(u8, pal_index)});
 
-                // self.dest.contex.lineWidth=(1-self.star_color_ratio*self.star[i][2])*2;
-                const x0: i16 = @floatToInt(i16, star.prev_proj_x);
-                const y0: i16 = @floatToInt(i16, star.prev_proj_y);
-                const x1: i16 = @floatToInt(i16, star.proj_x);
-                const y1: i16 = @floatToInt(i16, star.proj_y);
+                if(self.use_lines){
+                    const x0: i16 = @floatToInt(i16, star.prev_proj_x);
+                    const y0: i16 = @floatToInt(i16, star.prev_proj_y);
+                    const x1: i16 = @floatToInt(i16, star.proj_x);
+                    const y1: i16 = @floatToInt(i16, star.proj_y);
 
-                if(x0 != x1 and y0 != y1 ) { 
-                    const origin = Coord{ .x = x0, .y = y0 };
-                    const dest = Coord{ .x =x1, .y = y1 };
+                    if(x0 != x1 and y0 != y1) { 
+                        const origin = Coord{ .x = x0, .y = y0 };
+                        const dest = Coord{ .x =x1, .y = y1 };
 
-                    shapes.drawLine(self.fb, origin, dest, @floatToInt(u8, pal_index));  
-                }
-                else {
-                    // don't draw lines for nothing
-                    const x: u16 = @intCast(u16, x0);
-                    const y: u16 = @intCast(u16, y0);
-                    self.fb.setPixelValue(x, y, @floatToInt(u8, pal_index));
+                        shapes.drawLine(self.fb, origin, dest, @floatToInt(u8, pal_index));  
+                    }
+                    else {
+                        // don't draw lines for nothing
+                        const x: u16 = @intCast(u16, x0);
+                        const y: u16 = @intCast(u16, y0);
+                        self.fb.setPixelValue(x, y, @floatToInt(u8, pal_index));
+                    }
+                } else {
+                    const x: u16 = @floatToInt(u16, star.proj_x);
+                    const y: u16 = @floatToInt(u16, star.proj_y);
+                    self.fb.setPixelValue(x, y, @floatToInt(u8, pal_index));   
                 }
 			}
         }

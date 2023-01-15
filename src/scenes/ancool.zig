@@ -72,7 +72,7 @@ pub const Demo = struct {
         var fb: *LogicalFB = &zigos.lfbs[0];
 
         fb = &zigos.lfbs[0];
-        self.starfield_3D.init(fb, WIDTH, HEIGHT, 2);
+        self.starfield_3D.init(fb, WIDTH, HEIGHT, 4, false);
 
         // 2nd plane
         fb = &zigos.lfbs[1];
