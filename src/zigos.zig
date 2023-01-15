@@ -46,6 +46,7 @@ pub const LogicalFB = struct {
     back_color: u8 = 0,
     id: u8 = 0,
     fb_hbl_handler: ?*const fn (*LogicalFB, u16) void,
+    is_enabled: bool = undefined,
 
     pub fn init(self: *LogicalFB) void {
         Console.log("Init Logical Framebuffer {d}", .{self.id});
@@ -57,6 +58,8 @@ pub const LogicalFB = struct {
 
         Console.log("Clear Logical Framebuffer {d}", .{self.id});
         self.clearFrameBuffer(0);
+
+        self.is_enabled = false;
     }
 
     // --------------------------------------------------------------------------
@@ -97,6 +100,7 @@ pub const LogicalFB = struct {
     pub fn setFrameBufferHBLHandler(self: *LogicalFB, handler: *const fn (*LogicalFB, u16) void) void {
         self.fb_hbl_handler = handler;
     }
+
 };
 
 // --------------------------------------------------------------------------

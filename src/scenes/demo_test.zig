@@ -51,6 +51,7 @@ pub const Demo = struct {
         Console.log("Demo init", .{});
 
         var fb: *LogicalFB = &zigos.lfbs[0];
+        fb.is_enabled = true;
         self.starfield_3D.init(fb, WIDTH, HEIGHT, 2);
 
 

@@ -99,54 +99,47 @@ export fn renderPhysicalFrameBuffer(fb_id: u8) void {
 
         // get logical framebuffer
         var s_fb: LogicalFB = zigos.lfbs[fb_id];
-        const palfb: [WIDTH * HEIGHT]u8 = s_fb.fb;
-        const palette: *[256]Color = &s_fb.palette;
 
-        var i: u32 = 0;
+        if (s_fb.is_enabled) {
 
-        // can call a VBL handler here
-        for (zigos.physical_framebuffer) |*row, y| {
+            const palfb: [WIDTH * HEIGHT]u8 = s_fb.fb;
+            const palette: *[256]Color = &s_fb.palette;
 
-            // Check if a handler is defined for this logical FB
-            if (s_fb.fb_hbl_handler) |handler| {
-                handler(&s_fb, @intCast(u16, y));
-            }
+            var i: u32 = 0;
 
-            switch (y) {
-                VERTICAL_BORDERS_HEIGHT...(PHYSICAL_HEIGHT - VERTICAL_BORDERS_HEIGHT) - 1 => {
-                    // Console.log("between borders: {}", .{y});
+            // can call a VBL handler here
+            for (zigos.physical_framebuffer) |*row, y| {
 
-                    for (row) |*pixel, x| {
-                        // within left border
-                        switch (x) {
-                            HORIZONTAL_BORDERS_WIDTH...(PHYSICAL_WIDTH - HORIZONTAL_BORDERS_WIDTH - 1) => {
-                                // visible screen
-                                const pal_entry: u8 = palfb[i];
-                                const color: Color = palette[pal_entry];
-                                pixel.* = color.toRGBA();
+                // Check if a handler is defined for this logical FB
+                if (s_fb.fb_hbl_handler) |handler| {
+                    handler(&s_fb, @intCast(u16, y));
+                }
 
-                                i += 1;
-                            },
-                            else => {},
+                switch (y) {
+                    VERTICAL_BORDERS_HEIGHT...(PHYSICAL_HEIGHT - VERTICAL_BORDERS_HEIGHT) - 1 => {
+                        // Console.log("between borders: {}", .{y});
+
+                        for (row) |*pixel, x| {
+                            // within left border
+                            switch (x) {
+                                HORIZONTAL_BORDERS_WIDTH...(PHYSICAL_WIDTH - HORIZONTAL_BORDERS_WIDTH - 1) => {
+                                    // visible screen
+                                    const pal_entry: u8 = palfb[i];
+                                    const color: Color = palette[pal_entry];
+                                    pixel.* = color.toRGBA();
+
+                                    i += 1;
+                                },
+                                else => {},
+                            }
                         }
-                    }
-                },
-                else => {},
+                    },
+                    else => {},
+                }
             }
-        }
-    } else {
-        Console.log("This is TrueColor!", .{});
-        //Console.log("fb bootloader: {}", .{@ptrToInt(&zigos.physical_framebuffer)});
-
-        // only one FB in truecolor
-        // if (fb_id == 0) {
-        //     for (zigos.physical_framebuffer) |*row, y| {
-        //         // can call a HBL handler here
-        //         for (row) |*pixel, x| {
-        //             const col: Color = Color{ .r = @intCast(u8, x), .g = @intCast(u8, y), .b = @intCast(u8, y), .a = 255 };
-        //             pixel.* = col.toRGBA();
-        //         }
-        //     }
+        } 
+        // else {
+        //     Console.log("This is TrueColor!", .{});
         // }
     }
 }

@@ -119,16 +119,19 @@ pub const Demo = struct {
 
         // first plane
         var fb: *LogicalFB = &zigos.lfbs[0];
+        fb.is_enabled = true;
         fb.setPalette(back_pal);
         self.back.init(fb, back_b);
 
         // second plane
         fb = &zigos.lfbs[1];
+        fb.is_enabled = true;
         self.starfield.init(fb, WIDTH, HEIGHT, 3, StarfieldDirection.RIGHT, 0);
         self.dots3D.init(fb);
 
         // third plane
         fb = &zigos.lfbs[2];
+        fb.is_enabled = true;
         fb.setPalette(sprite_pal);
 
         // fade out palette by alpha
@@ -139,6 +142,7 @@ pub const Demo = struct {
 
         // 4th plane
         fb = &zigos.lfbs[3];
+        fb.is_enabled = true;
         fb.setPalette(font_pal);
 
         self.scrolltext.init(fb, fonts_b, SCROLL_CHARS, SCROLL_CHAR_WIDTH, SCROLL_CHAR_HEIGHT, SCROLL_TEXT, SCROLL_SPEED, 170, true, offset_table_b);
