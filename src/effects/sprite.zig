@@ -158,8 +158,11 @@ pub const Sprite = struct {
                     }
 
                     // clamp if outside buffer
-                    if ((new_offset + col_counter < self.data.len) or (new_offset + col_counter >= 0)) {
-                        buffer[new_offset + col_counter] = self.data[data_counter];
+                    const pal_entry = self.data[data_counter];
+                    if(pal_entry != 0) { 
+                        if ((new_offset + col_counter < self.data.len) or (new_offset + col_counter >= 0)) {
+                            buffer[new_offset + col_counter] = self.data[data_counter];
+                        }
                     }
                     data_counter += 1;
                 }

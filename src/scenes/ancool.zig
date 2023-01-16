@@ -26,6 +26,7 @@ const HEIGHT: u16 = @import("../zigos.zig").HEIGHT;
 const WIDTH: u16 = @import("../zigos.zig").WIDTH;
 
 // scrolltext
+pub const NB_FONTS: u8 = 11;
 const fonts_b = @embedFile("../assets/screens/ancool/fonts_pal.raw");
 const offset_table_b = readU16Array(@embedFile("../assets/screens/scrolltext/scroll_sin.dat"));
 const SCROLL_TEXT = "                       YO YO   -AN COOL- IS BACK TO BURN WITH A NEW CRACK........ AND THE NEW CRACK IS               THE GAMES......    THIS TIME -MEGA CRIBB- FROM -1 LIFE CREW- SITS BY MY SIDE AND EATS CANDY   THE INTRO IS MADE BY: -AN COOL- AND THE CRACKING IS MADE BY: -AN COOL- AND -MEGA CRIBB-          BELIVE IT OR NOT, THE MUSAXX IS MADE BY: -AN COOL-           THIS GAME IS THE BEST SPORT-GAME I'VE SEEN ON THE ATARI ST AND I HOPE YOU WILL HAVE A GREAT TIME PLAYING IT.          I'VE BEEN OF THE CRACKING MARKET FOR A WHILE, BUT IT'S BECAUSE OF THE NEW DEMO (SOWHAT) WE ARE CODING. THE DEMO WILL CONTAIN ABOUT 10 SCREENS AND ALMOST ALL IS GOOD (I THINK)...   YOU WILL SEE MORE 2D-OBJECTS AND MORE COMPLEX 2D-OBJECTS IN THE DEMO-LOADER. THE DEMO SHOULD HAVE BEEN RELEASED AT OUR COPYPARTY THE 3-6 AUG. BUT AS ALWAYS........  YEAH, YOU KNOW??????.........        A HELLO GOES TO NICK OF TCB (HE WORKS AS A SECRET AGENT FOR KREML NOW)  AND SNAKE THE  LITTLE YELLOW BIRD OF REPLICANTS.......        OK.  I THINK THAT THAT WAS ALL FOR THIS TIME.....................";
@@ -34,6 +35,7 @@ const SCROLL_CHAR_HEIGHT = 17;
 const SCROLL_SPEED = 4;
 const SCROLL_CHARS = " ! #$%&'()*+,-./0123456789:;<=>? ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 const g_y_offset_table_b = readI16Array(@embedFile("../assets/screens/ancool/scroller_sin.dat"));
+
 
 // palettes
 const font_pal = convertU8ArraytoColors(@embedFile("../assets/screens/ancool/fonts_pal.dat"));

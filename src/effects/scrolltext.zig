@@ -17,7 +17,7 @@ const HEIGHT: u16 = @import("../zigos.zig").HEIGHT;
 const WIDTH: u16 = @import("../zigos.zig").WIDTH;
 
 // TODO: replace this constant by comptime font WIDTH//width
-const NB_FONTS: u8 = 11;
+const NB_FONTS: u8 = @import("../scenes/leonard.zig").NB_FONTS;
 const OFFSET_DATA_SIZE = WIDTH*4;
 
 // --------------------------------------------------------------------------

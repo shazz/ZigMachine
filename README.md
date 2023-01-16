@@ -2,7 +2,7 @@
 
 A [Fantasy Console](https://en.wikipedia.org/wiki/Fantasy_video_game_console) written in [Zig](https://ziglang.org/) and running in the browser as a [Web Assembly](https://webassembly.org/) binary. The ZigMachine is dedicated to provide a fun sandbox to learn how to code [oldskool effects](https://www.pouet.net) as no advanced features are provided, only the basics of the 80s computers and video game consoles.
 
-This project is inspired by [WAB](https://wab.com) and [CODEF](https://codef.santo.fr) by my friend NoNameNo who.. already more than 10 years ago... provided a way to code oldskool effects in the browser without Flash but only HTML5 and javascript. Time to go one step further. 0% Flash, 0% HTML, 0% Javascript, only Zig!
+This project is inspired by [WAB](https://wab.com) and [CODEF](https://codef.santo.fr) by my friend [NoNameNo](https://github.com/N0NameN0) who... already more than 10 years ago... provided a way to code oldskool effects in the browser without Flash but only HTML5 and javascript. Time to go one step further. 0% Flash, 0% HTML, 0% Javascript, only Zig!
 
 Screenshots below!
 Live website with the latest build: [ZigMachine](https://shazz.github.io/ZigMachine/)
@@ -11,22 +11,23 @@ Live website with the latest build: [ZigMachine](https://shazz.github.io/ZigMach
 
 The specs of the ZigMachine will definitively evolve over time but for now they try to match what I would have loved to get in the 80-90s:
 
-- 2 MB of RAM
+- 2 MB of RAM (x pages of 64KB).
 - 1 physical RGBA framebuffer of 400x280 pixels without borders, 320x200 pixels with borders.
 - 4 logical linear indexed colors framebuffers (each pixel is an entry of the 256 colors RGBA palette) of 320x200 pixels
-- 1 palette for each logical framebuffer
+- 1 palette for each logical framebuffer.
 - CPU frequency is what your Web Assembly browser framework can do. So, pretty (too...) fast. I'd love to be able to provide a restricted and stable execution speed one day if I find a way to do it.
-- Limited ZigOS for basic setup
-- Some kind of non-interrupted VBL and HBL callbacks
+- Limited ZigOS for basic setup and framebuffer managemenent.
+- Some kind of non-interrupted VBL and HBL callbacks.
 
 In addition to the fantasy console and the ZigOS, a library for classic oldsk00l demo effects is provided featuring:
-- horizontal scrolltext with offset curves
-- 2D starfield
-- 3D starfield
-- 3D transformations
-- pixel and line drawing
-- Sprites
-- Fading
+- horizontal scrolltext with offset curves.
+- 2D starfield.
+- 3D starfield.
+- 3D transformations.
+- pixel and line drawing.
+- Sprites.
+- Screen fading.
+- Background image.
 
 And so examples!
 
