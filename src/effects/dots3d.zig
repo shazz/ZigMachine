@@ -34,7 +34,7 @@ pub const Dots3D = struct {
     vector: za.Vec3 = undefined,
     matrix: za.Mat4 = undefined,
     cube: [8]Vec4 = undefined,
-    faces: [12]Vec3 = undefined,
+    faces: [12]Vec4 = undefined,
     projection: Mat4 = undefined,
     camera: Mat4 = undefined,
     screen: Mat4 = undefined,
@@ -44,6 +44,7 @@ pub const Dots3D = struct {
     angle_z: f32 = 0.0,
     zoom: f32 = 0.0,
     zoom_dir: f32 = 0.0,
+    mode: u8 = undefined,
 
     pub fn init(self: *Dots3D, fb: *LogicalFB) void {
         self.fb = fb;
@@ -53,6 +54,8 @@ pub const Dots3D = struct {
         fb.setPaletteEntry(12, Color{ .r = 255, .g = 0, .b = 0, .a = 255 });        
         fb.setPaletteEntry(13, Color{ .r = 0, .g = 255, .b = 0, .a = 255 });   
         fb.setPaletteEntry(14, Color{ .r = 0, .g = 0, .b = 255, .a = 255 });   
+        fb.setPaletteEntry(15, Color{ .r = 120, .g = 120, .b = 255, .a = 255 });  
+        fb.setPaletteEntry(15, Color{ .r = 150, .g = 150, .b = 150, .a = 255 });  
 
         // Clear
         fb.clearFrameBuffer(0);    
@@ -68,24 +71,26 @@ pub const Dots3D = struct {
                 Vec4.new(-1.0,  1.0, -1.0, 1.0),
         };
 
-        self.faces = [12]Vec3{
-            Vec3.new(1, 2, 3),
-            Vec3.new(7, 6, 5),
-            Vec3.new(4, 5, 1),
-            Vec3.new(5, 6, 2),
-            Vec3.new(2, 6, 7),
-            Vec3.new(0, 3, 7),
-            Vec3.new(0, 1, 3),
-            Vec3.new(4, 7, 5),
-            Vec3.new(0, 4, 1),
-            Vec3.new(1, 5, 2),
-            Vec3.new(3, 2, 7),
-            Vec3.new(4, 0, 7),
+        self.faces = [12]Vec4{
+            Vec4.new(1, 2, 3, 16),
+            Vec4.new(7, 6, 5, 16),
+            Vec4.new(4, 5, 1, 11),
+            Vec4.new(5, 6, 2, 11),
+            Vec4.new(2, 6, 7, 12),
+            Vec4.new(0, 3, 7, 12),
+            Vec4.new(0, 1, 3, 13),
+            Vec4.new(4, 7, 5, 13),
+            Vec4.new(0, 4, 1, 14),
+            Vec4.new(1, 5, 2, 14),
+            Vec4.new(3, 2, 7, 15),
+            Vec4.new(4, 0, 7, 15),
         };
 
         self.projection = za.perspective(60.0, 200.0 / 320.0, 0.1, 100.0);
         self.camera = za.camera(Vec3.new(0.0, 0.0, -10.0), 0, 0);
-        self.screen = za.screen(320, 200);        
+        self.screen = za.screen(320, 200);     
+
+        self.mode = 1;   
 
     }
 
@@ -134,13 +139,20 @@ pub const Dots3D = struct {
                 const v2: Coord = self.projected_vertices[@floatToInt(usize, face.y())];
                 const v3: Coord = self.projected_vertices[@floatToInt(usize, face.z())];
 
-                shapes.drawLine(self.fb, v1, v2, 12);   
-                shapes.drawLine(self.fb, v2, v3, 12);  
-                shapes.drawLine(self.fb, v3, v1, 12);  
-
-                self.fb.setPixelValue(@intCast(u16, v1.x), @intCast(u16, v1.y), 11);
-                self.fb.setPixelValue(@intCast(u16, v2.x), @intCast(u16, v2.y), 11);
-                self.fb.setPixelValue(@intCast(u16, v3.x), @intCast(u16, v3.y), 11);
+                if(self.mode == 0) {
+                    shapes.drawLine(self.fb, v1, v2, 12);   
+                    shapes.drawLine(self.fb, v2, v3, 12);  
+                    shapes.drawLine(self.fb, v3, v1, 12);  
+                }
+                if(self.mode == 1) {
+                    const polygon: [3]Coord = [_]Coord{ v1, v2, v3};
+                    shapes.fillPolygon(self.fb, &polygon, @floatToInt(u8, face.w()));   
+                }
+                if(self.mode == 2) {
+                    self.fb.setPixelValue(@intCast(u16, v1.x), @intCast(u16, v1.y), 11);
+                    self.fb.setPixelValue(@intCast(u16, v2.x), @intCast(u16, v2.y), 11);
+                    self.fb.setPixelValue(@intCast(u16, v3.x), @intCast(u16, v3.y), 11);
+                }
         }
     }
 };

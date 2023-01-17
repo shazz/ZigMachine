@@ -20,6 +20,10 @@ const Mandelbrot = @import("../effects/mandelbrot.zig").Mandelbrot;
 const Boot = @import("../effects/boot.zig").Boot;
 const Resolution = @import("../zigos.zig").Resolution;
 
+const shapes = @import("../effects/shapes.zig");
+const Coord = shapes.Coord;
+
+
 const Console = @import("../utils/debug.zig").Console;
 
 // --------------------------------------------------------------------------
@@ -46,28 +50,45 @@ pub const Demo = struct {
     mandelbrot: Mandelbrot = undefined,
     boot: Boot = undefined,
     starfield_3D: Starfield3D = undefined,
+    polygon: [4]Coord = undefined,
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
         Console.log("Demo init", .{});
 
         var fb: *LogicalFB = &zigos.lfbs[0];
         fb.is_enabled = true;
-        self.starfield_3D.init(fb, WIDTH, HEIGHT, 2);
 
+        // fb.setPaletteEntry(0, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
+        // fb.setPaletteEntry(1, Color{ .r = 255, .g = 255, .b = 255, .a = 255 });   
+
+        // const p1: Coord = .{ .x=10, .y=10 };
+        // const p2: Coord = .{ .x=10, .y=150 };
+        // const p3: Coord = .{ .x=100, .y=150 };
+        // const p4: Coord = .{ .x=100, .y=10 };
+
+        // self.polygon = [_]Coord{ p1, p2, p3, p4};
+        self.dots3D.init(fb);
 
         Console.log("demo init done!", .{});
     }
 
-    pub fn update(self: *Demo, zigos: *ZigOS) void {
+    pub fn update(self: *Demo, zigos: *ZigOS, time_elapsed: f32) void {
   
-        self.starfield_3D.update();
+        self.dots3D.update();
+        // _ = self;
         _ = zigos;
+        _ = time_elapsed;
     }
 
-    pub fn render(self: *Demo, zigos: *ZigOS) void {
+    pub fn render(self: *Demo, zigos: *ZigOS, time_elapsed: f32) void {
 
-        self.starfield_3D.fb.clearFrameBuffer(0);
-        self.starfield_3D.render();
+        // var fb: *LogicalFB = &zigos.lfbs[0];
+        // fb.clearFrameBuffer(0);
+        // shapes.fillPolygon(fb, &self.polygon, 1);   
+        self.dots3D.fb.clearFrameBuffer(0);
+        self.dots3D.render();
+
         _ = zigos;
+        _ = time_elapsed;
     }
 };

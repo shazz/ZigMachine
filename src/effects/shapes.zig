@@ -159,3 +159,45 @@ pub fn drawLine(fb: *LogicalFB, src: Coord, dest: Coord, color_entry: u8) void {
     }
 }
 
+pub fn fillPolygon(fb: *LogicalFB, vertices: []const Coord, color_entry: u8) void {
+
+        var min_x: i16 = 0; //std.math.maxInt(i16);
+        var min_y: i16 = 0; //std.math.maxInt(i16);
+        var max_x: i16 = WIDTH-1; //std.math.minInt(i16);
+        var max_y: i16 = HEIGHT-1; //std.math.minInt(i16);
+
+        for (vertices) |pt| {
+            min_x = std.math.min(min_x, pt.x);
+            min_y = std.math.min(min_y, pt.y);
+            max_x = std.math.max(max_x, pt.x);
+            max_y = std.math.max(max_y, pt.y);
+        }
+
+        var y: i16 = min_y;
+        while (y <= max_y) : (y += 1) {
+            var x: i16 = min_x;
+            while (x <= max_x) : (x += 1) {
+                var inside = false;
+                const p = Coord{ .x = x, .y = y };
+
+                // free after https://stackoverflow.com/a/17490923
+
+                var j = vertices.len - 1;
+                for (vertices) |p0, i| {
+                    defer j = i;
+                    const p1 = vertices[j];
+
+                    if ((p0.y > p.y) != (p1.y > p.y) and @intToFloat(f32, p.x) < @intToFloat(f32, (p1.x - p0.x) * (p.y - p0.y)) / @intToFloat(f32, (p1.y - p0.y)) + @intToFloat(f32, p0.x))
+                    {
+                        inside = !inside;
+                    }
+                }
+                if (inside) {
+                    if(x >= 0 and x < WIDTH and y >= 0 and y < HEIGHT) {
+                        fb.setPixelValue(@intCast(u16, x), @intCast(u16, y), color_entry);
+                    }
+                }
+            }
+        }
+    }
+

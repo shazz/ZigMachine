@@ -36,10 +36,12 @@ const SCROLL_SPEED = 4;
 const SCROLL_CHARS = " ! #$%&'()*+,-./0123456789:;<=>? ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 const g_y_offset_table_b = readI16Array(@embedFile("../assets/screens/ancool/scroller_sin.dat"));
 
-
 // palettes
 const font_pal = convertU8ArraytoColors(@embedFile("../assets/screens/ancool/fonts_pal.dat"));
 const rasters_b = convertU8ArraytoColors(@embedFile("../assets/screens/ancool/rasters.dat"));
+
+// Stars
+const NB_STARS = 300;
 
 const Vec2 = za.Vec2;
 const Vec3 = za.Vec3;
@@ -132,7 +134,7 @@ pub const Demo = struct {
   
     name: u8 = 0,
     frame_counter: u32 = 0,
-    starfield_3D: Starfield3D = undefined,
+    starfield_3D: Starfield3D(NB_STARS) = undefined,
     scrolltext: Scrolltext = undefined,
     projection: Mat4 = undefined,
     camera: Mat4 = undefined,
@@ -151,7 +153,7 @@ pub const Demo = struct {
 
         fb = &zigos.lfbs[0];
         fb.is_enabled = true;
-        self.starfield_3D.init(fb, WIDTH, HEIGHT, 5, false);
+        self.starfield_3D = Starfield3D(NB_STARS).init(fb, WIDTH, HEIGHT, 5, false);
 
         // 2nd plane
         fb = &zigos.lfbs[1];

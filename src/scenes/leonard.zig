@@ -18,7 +18,6 @@ const Console = @import("../utils/debug.zig").Console;
 // Constants
 // --------------------------------------------------------------------------
 const convertU8ArraytoColors = @import("../utils/loaders.zig").convertU8ArraytoColors;
-const NB_BOBS = @import("../effects/bobs.zig").NB_BOBS;
 
 const HEIGHT: u16 = @import("../zigos.zig").HEIGHT;
 const WIDTH: u16 = @import("../zigos.zig").WIDTH;
@@ -44,6 +43,7 @@ const back_b = @embedFile("../assets/screens/leonard/back.raw");
 
 // bob
 const ball_b = @embedFile("../assets/screens/leonard/ball.raw");
+const NB_BOBS = 312;
 
 // --------------------------------------------------------------------------
 // Variables
@@ -57,7 +57,7 @@ pub const Demo = struct {
     frame_counter: u32 = 0,
     background: Background = undefined,
     scrolltext: Scrolltext = undefined,
-    bobs: Bobs = undefined,
+    bobs: Bobs(NB_BOBS) = undefined,
     lutSin: [360 * 2]i16 = undefined,
     lutCos: [360 * 2]i16 = undefined,
     lutLen: usize = 360 * 2,
@@ -81,7 +81,8 @@ pub const Demo = struct {
         fb = &zigos.lfbs[1];
         fb.is_enabled = true;
         fb.setPalette(ball_pal);
-        self.bobs.init(fb, ball_b, 16, 16);
+        // self.bobs.init(fb, ball_b, 16, 16);
+        self.bobs = Bobs(NB_BOBS).init(fb, ball_b, 16, 16);
 
         self.lutLen = self.lutSin.len;
         var i: u16 = 0;
