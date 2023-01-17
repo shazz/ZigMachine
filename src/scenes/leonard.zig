@@ -56,7 +56,7 @@ pub const Demo = struct {
     name: u8 = 0,
     frame_counter: u32 = 0,
     background: Background = undefined,
-    scrolltext: Scrolltext = undefined,
+    scrolltext: Scrolltext(NB_FONTS) = undefined,
     bobs: Bobs(NB_BOBS) = undefined,
     lutSin: [360 * 2]i16 = undefined,
     lutCos: [360 * 2]i16 = undefined,
@@ -96,7 +96,7 @@ pub const Demo = struct {
         fb = &zigos.lfbs[2];
         fb.is_enabled = true;
         fb.setPalette(font_pal);
-        self.scrolltext.init(fb, fonts_b, SCROLL_CHARS, SCROLL_CHAR_WIDTH, SCROLL_CHAR_HEIGHT, SCROLL_TEXT, SCROLL_SPEED, 194, null, null);
+        self.scrolltext = Scrolltext(NB_FONTS).init(fb, fonts_b, SCROLL_CHARS, SCROLL_CHAR_WIDTH, SCROLL_CHAR_HEIGHT, SCROLL_TEXT, SCROLL_SPEED, 194, null, null);
 
         Console.log("demo init done!", .{});
     }

@@ -135,7 +135,7 @@ pub const Demo = struct {
     name: u8 = 0,
     frame_counter: u32 = 0,
     starfield_3D: Starfield3D(NB_STARS) = undefined,
-    scrolltext: Scrolltext = undefined,
+    scrolltext: Scrolltext(NB_FONTS) = undefined,
     projection: Mat4 = undefined,
     camera: Mat4 = undefined,
     screen: Mat4 = undefined,
@@ -195,7 +195,7 @@ pub const Demo = struct {
         //     y_offset_table_b[i] = -@intCast(i16, i / 6);
         // }
 
-        self.scrolltext.init(fb, fonts_b, SCROLL_CHARS, SCROLL_CHAR_WIDTH, SCROLL_CHAR_HEIGHT, SCROLL_TEXT, SCROLL_SPEED, 100, null, &g_y_offset_table_b);
+        self.scrolltext = Scrolltext(NB_FONTS).init(fb, fonts_b, SCROLL_CHARS, SCROLL_CHAR_WIDTH, SCROLL_CHAR_HEIGHT, SCROLL_TEXT, SCROLL_SPEED, 100, null, &g_y_offset_table_b);
 
         Console.log("demo init done!", .{});
     }

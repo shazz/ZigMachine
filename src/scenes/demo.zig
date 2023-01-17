@@ -49,7 +49,7 @@ const sprite_yoffset: u16 = 10;
 const sprite_pal = convertU8ArraytoColors(@embedFile("assets/screens/logo_distort/sprite.pal"));
 const back_pal = convertU8ArraytoColors(@embedFile("assets/screens/background/back.pal"));
 const font_pal = convertU8ArraytoColors(@embedFile("assets/fonts/ancool_font.pal"));
-
+const NB_FONTS = 11;
 // --------------------------------------------------------------------------
 // Variables
 // --------------------------------------------------------------------------
@@ -108,7 +108,7 @@ pub const Demo = struct {
     starfield: Starfield = undefined,
     big_sprite: SpriteEffect = undefined,
     back: Background = undefined,
-    scrolltext: Scrolltext = undefined,
+    scrolltext: Scrolltext(NB_FONTS) = undefined,
     dots3D: Dots3D = undefined,
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
