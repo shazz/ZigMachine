@@ -24,6 +24,7 @@ var ZigMachine = {
 
 var start = function() {
 
+    var last_timestamp = 0;
     var wasmMemoryArray = new Uint8Array(memory.buffer);
 
     console.log("Main function started");
@@ -34,15 +35,20 @@ var start = function() {
     const fb_width = ZigMachine.getPhysicalFrameBufferWidth();
     const fb_height = ZigMachine.getPhysicalFrameBufferHeight();
 
-    var loop = function() {
+    var loop = function(timestamp) {
        
+        elapsed_time = (timestamp - last_timestamp);
+        last_timestamp = timestamp;
+        fps = 1000/elapsed_time;
+        document.title = "FPS:" + fps.toFixed(2);
+        
         // in case WASM grew the memory due to zig heap_page dynamic allocation calls
         if(wasmMemoryArray == null)
             wasmMemoryArray = new Uint8Array(memory.buffer);        
 
         ZigMachine.clearPhysicalFrameBuffer();
 
-        ZigMachine.frame();
+        ZigMachine.frame(elapsed_time);
 
         for(i=0; i<nb_buffers; i++) {
 
@@ -93,6 +99,7 @@ window.document.body.onload = function() {
     WebAssembly.instantiateStreaming(fetch("bootloader.wasm"), imports).then(result => {
         console.log("Loaded the WASM!");
         ZigMachine = result.instance.exports;
+        console.log(ZigMachine);
 
         // boot the Zig Machine
         ZigMachine.boot();

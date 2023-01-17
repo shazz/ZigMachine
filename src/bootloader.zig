@@ -7,7 +7,7 @@ const LogicalFB = @import("zigos.zig").LogicalFB;
 const Console = @import("utils/debug.zig").Console;
 const waveforms = @import("sound/waveforms.zig");
 
-const Demo = @import("scenes/leonard.zig").Demo;
+const Demo = @import("scenes/ancool.zig").Demo;
 // --------------------------------------------------------------------------
 // Types
 // --------------------------------------------------------------------------
@@ -59,9 +59,11 @@ export fn boot() void {
 // --------------------------------------------------------------------------
 // compute a frame
 // --------------------------------------------------------------------------
-export fn frame() void {
-    demo.update(&zigos);
-    demo.render(&zigos);
+export fn frame(timestamp: f32) void {
+    demo.update(&zigos, 0);
+    demo.render(&zigos, 0);
+
+    _ = timestamp;
 }
 
 // --------------------------------------------------------------------------
@@ -108,7 +110,6 @@ export fn renderPhysicalFrameBuffer(fb_id: u8) void {
         var s_fb: LogicalFB = zigos.lfbs[fb_id];
 
         if (s_fb.is_enabled) {
-
             const palfb: [WIDTH * HEIGHT]u8 = s_fb.fb;
             const palette: *[256]Color = &s_fb.palette;
 
@@ -144,7 +145,7 @@ export fn renderPhysicalFrameBuffer(fb_id: u8) void {
                     else => {},
                 }
             }
-        } 
+        }
         // else {
         //     Console.log("This is TrueColor!", .{});
         // }

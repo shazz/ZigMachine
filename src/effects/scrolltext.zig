@@ -17,7 +17,7 @@ const HEIGHT: u16 = @import("../zigos.zig").HEIGHT;
 const WIDTH: u16 = @import("../zigos.zig").WIDTH;
 
 // TODO: replace this constant by comptime font WIDTH//width
-const NB_FONTS: u8 = @import("../scenes/leonard.zig").NB_FONTS;
+const NB_FONTS: u8 = @import("../scenes/ancool.zig").NB_FONTS;
 const OFFSET_DATA_SIZE = WIDTH*4;
 
 // --------------------------------------------------------------------------
@@ -42,12 +42,12 @@ pub const Scrolltext = struct {
     font_img: []const u8 = undefined,
     pos_y: u16 = undefined,
     fonts: [NB_FONTS]FontLetter = undefined,
-    offset_table: ?[WIDTH]u16 = undefined,
+    offset_table: ?[]const u16 = undefined,
     apply_offset_table: bool = false,
-    y_offset_table: ?[OFFSET_DATA_SIZE]i16 = undefined,
+    y_offset_table: ?[]const i16 = undefined,
     y_offset_table_index: u16 = undefined,
 
-    pub fn init(self: *Scrolltext, fb: *LogicalFB, font_img: []const u8, font_chars: []const u8, width: u16, height: u16, text: []const u8, speed: u16, pos_y: u16, offset_table: ?[WIDTH]u16, y_offset_table: ?[OFFSET_DATA_SIZE]i16) void {
+    pub fn init(self: *Scrolltext, fb: *LogicalFB, font_img: []const u8, font_chars: []const u8, width: u16, height: u16, text: []const u8, speed: u16, pos_y: u16, offset_table: ?[]const u16, y_offset_table: ?[]const i16) void {
         self.font_img = font_img;
         self.font_chars = font_chars;
         self.font_width = width;
@@ -100,7 +100,7 @@ pub const Scrolltext = struct {
                 self.y_offset_table_index -= self.speed*2;
             } else {
                 // Console.log("Reset y offset index: {}", .{self.y_offset_table_index});
-                self.y_offset_table_index = table.len;
+                self.y_offset_table_index = @intCast(u16, table.len);
             }
         }
 

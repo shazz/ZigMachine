@@ -14,7 +14,6 @@ const Console = @import("../utils/debug.zig").Console;
 // --------------------------------------------------------------------------
 const HEIGHT: u16 = @import("../zigos.zig").HEIGHT;
 const WIDTH: u16 = @import("../zigos.zig").WIDTH;
-const OFFSET_DATA_SIZE = WIDTH*4;
 
 // --------------------------------------------------------------------------
 // Variables
@@ -32,11 +31,11 @@ pub const Sprite = struct {
     data: []const u8 = undefined,
     x_offset_index: f16 = undefined,
     apply_x_offset: bool = undefined,
-    y_offset_table: ?[OFFSET_DATA_SIZE]i16 = undefined,
+    y_offset_table: ?[] const i16 = undefined,
     y_offset_index: u16 = undefined,
 
 
-    pub fn init(self: *Sprite, fb: *LogicalFB, data: []const u8, width: u16, height: u16, x_position: i32, y_position: i32, apply_x_offset: bool, y_offset_table: ?[OFFSET_DATA_SIZE]i16) void {
+    pub fn init(self: *Sprite, fb: *LogicalFB, data: []const u8, width: u16, height: u16, x_position: i32, y_position: i32, apply_x_offset: bool, y_offset_table: ?[] const i16) void {
         self.fb = fb;
         self.width = width;
         self.height = height;

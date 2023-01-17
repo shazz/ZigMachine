@@ -193,12 +193,12 @@ pub const Demo = struct {
         //     y_offset_table_b[i] = -@intCast(i16, i / 6);
         // }
 
-        self.scrolltext.init(fb, fonts_b, SCROLL_CHARS, SCROLL_CHAR_WIDTH, SCROLL_CHAR_HEIGHT, SCROLL_TEXT, SCROLL_SPEED, 100, null, g_y_offset_table_b);
+        self.scrolltext.init(fb, fonts_b, SCROLL_CHARS, SCROLL_CHAR_WIDTH, SCROLL_CHAR_HEIGHT, SCROLL_TEXT, SCROLL_SPEED, 100, null, &g_y_offset_table_b);
 
         Console.log("demo init done!", .{});
     }
 
-    pub fn update(self: *Demo, zigos: *ZigOS) void {
+    pub fn update(self: *Demo, zigos: *ZigOS, elapsed_time: f32) void {
 
         self.starfield_3D.update();
         self.scrolltext.update();
@@ -237,9 +237,10 @@ pub const Demo = struct {
         }
 
         _ = zigos;
+        _ = elapsed_time;
     }
 
-    pub fn render(self: *Demo, zigos: *ZigOS) void {
+    pub fn render(self: *Demo, zigos: *ZigOS, elapsed_time: f32) void {
 
         self.starfield_3D.fb.clearFrameBuffer(0);
         self.starfield_3D.render();
@@ -255,6 +256,8 @@ pub const Demo = struct {
 
         self.scrolltext.fb.clearFrameBuffer(0);
         self.scrolltext.render();
+
+        _ = elapsed_time;
 
     }
 };
