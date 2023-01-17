@@ -59,11 +59,9 @@ export fn boot() void {
 // --------------------------------------------------------------------------
 // compute a frame
 // --------------------------------------------------------------------------
-export fn frame(timestamp: f32) void {
-    demo.update(&zigos, 0);
-    demo.render(&zigos, 0);
-
-    _ = timestamp;
+export fn frame(elapsed_time: f32) void {
+    demo.update(&zigos, elapsed_time);
+    demo.render(&zigos, elapsed_time);
 }
 
 // --------------------------------------------------------------------------
