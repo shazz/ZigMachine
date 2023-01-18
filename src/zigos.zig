@@ -90,6 +90,20 @@ pub const LogicalFB = struct {
         }
     }
 
+    pub fn drawScanline(self: *LogicalFB, x1: u16, x2: u16, y: u16, pal_entry: u8) void {
+        if ((x1 >= 0) and (x1 < WIDTH) and (x2 >= 0) and (x2 < WIDTH) and (y >= 0) and (y < HEIGHT)) {
+
+            const delta = x2 - x1;
+            var index: u32 = @as(u32, y) * @as(u32, WIDTH) + @as(u32, x1);
+
+            var i: u16 = 0;
+            while(i < delta) : ( i += 1) {
+                self.fb[index] = pal_entry;
+                index += 1;
+            }
+        } 
+    }    
+
     pub fn clearFrameBuffer(self: *LogicalFB, pal_entry: u8) void {
         var i: u16 = 0;
         while (i < 64000) : (i += 1) {
