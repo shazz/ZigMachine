@@ -8,18 +8,6 @@ const ZigOS = @import("../zigos.zig").ZigOS;
 const LogicalFB = @import("../zigos.zig").LogicalFB;
 const Color = @import("../zigos.zig").Color;
 
-const Starfield = @import("../effects/starfield.zig").Starfield;
-const StarfieldDirection = @import("../effects/starfield.zig").StarfieldDirection;
-const Starfield3D = @import("../effects/starfield_3D.zig").Starfield3D;
-const Fade = @import("../effects/fade.zig").Fade;
-const Sprite = @import("../effects/sprite.zig").Sprite;
-const Background = @import("../effects/background.zig").Background;
-const Scrolltext = @import("../effects/scrolltext.zig").Scrolltext;
-const Dots3D = @import("../effects/dots3d.zig").Dots3D;
-const Mandelbrot = @import("../effects/mandelbrot.zig").Mandelbrot;
-const Boot = @import("../effects/boot.zig").Boot;
-const Resolution = @import("../zigos.zig").Resolution;
-
 const shapes = @import("../effects/shapes.zig");
 const Coord = shapes.Coord;
 
@@ -42,14 +30,6 @@ pub const PHYSICAL_HEIGHT: u16 = @import("../zigos.zig").PHYSICAL_HEIGHT;
 // Demo
 // --------------------------------------------------------------------------
 pub const Demo = struct {
-    // name: u8 = 0,
-    // frame_counter: u32 = 0,
-    // starfield: Starfield = undefined,
-    // dots3D: Dots3D = undefined,
-    // mandelbrot: Mandelbrot = undefined,
-    // boot: Boot = undefined,
-    // starfield_3D: Starfield3D = undefined,
-    // polygon: [4]Coord = undefined,
     rnd: std.rand.DefaultPrng = undefined,
     colors: [2000]u8 = undefined,
 
@@ -67,8 +47,6 @@ pub const Demo = struct {
             fb.setPaletteEntry(j, Color{ .r = 0, .g = 0, .b = 255, .a = 255 - j });
         }
 
-        // self.dots3D.init(fb);
-
         var i: usize = 0;
         while (i < 1000) : (i += 1) {
             self.colors[i] = self.rnd.random().intRangeAtMost(u8, 0, 10);
@@ -78,8 +56,6 @@ pub const Demo = struct {
     }
 
     pub fn update(self: *Demo, zigos: *ZigOS, time_elapsed: f32) void {
-
-        // self.dots3D.update();
         _ = self;
         _ = zigos;
         _ = time_elapsed;
@@ -104,11 +80,6 @@ pub const Demo = struct {
             shapes.drawLine(fb, p1, p2, col);
         }
 
-        // self.dots3D.fb.clearFrameBuffer(0);
-        // self.dots3D.render();
-
-        // _ = zigos;
-        // _ = self;
         _ = time_elapsed;
     }
 };

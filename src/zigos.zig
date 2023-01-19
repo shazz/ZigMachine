@@ -93,16 +93,20 @@ pub const LogicalFB = struct {
     pub fn drawScanline(self: *LogicalFB, x1: u16, x2: u16, y: u16, pal_entry: u8) void {
         if ((x1 >= 0) and (x1 < WIDTH) and (x2 >= 0) and (x2 < WIDTH) and (y >= 0) and (y < HEIGHT)) {
 
+            // number of pixels to draw on the scanline
             const delta = x2 - x1;
+
+            // address of the first pixel in the framebuffer
             var index: u32 = @as(u32, y) * @as(u32, WIDTH) + @as(u32, x1);
 
+            // linearly set the palette entry along the scanline (at FB possition)] for delta pixels
             var i: u16 = 0;
-            while(i < delta) : ( i += 1) {
+            while (i < delta) : (i += 1) {
                 self.fb[index] = pal_entry;
                 index += 1;
             }
-        } 
-    }    
+        }
+    }
 
     pub fn clearFrameBuffer(self: *LogicalFB, pal_entry: u8) void {
         var i: u16 = 0;
@@ -114,7 +118,6 @@ pub const LogicalFB = struct {
     pub fn setFrameBufferHBLHandler(self: *LogicalFB, handler: *const fn (*LogicalFB, u16) void) void {
         self.fb_hbl_handler = handler;
     }
-
 };
 
 // --------------------------------------------------------------------------

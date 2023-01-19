@@ -83,7 +83,7 @@ window.document.body.onload = function() {
             // Useful for debugging on zig's side
             consoleLogJS: (arg, len) => {
                 let arr8 = new Uint8Array(memory.buffer.slice(arg, arg+len));
-                console.log(new TextDecoder().decode(arr8));
+                console.log(text_decoder.decode(arr8));
             },
             jsConsoleLogWrite: function (ptr, len) {
                 let arr8 = new Uint8Array(memory.buffer.slice(ptr, ptr+len));
@@ -92,7 +92,12 @@ window.document.body.onload = function() {
             jsConsoleLogFlush: function () {
                 console.log(console_log_buffer);
                 console_log_buffer = "";
-            },   
+            }, 
+            jsThrowError: function (ptr, len) {
+                let arr8 = new Uint8Array(memory.buffer.slice(ptr, ptr+len));
+                const message = text_decoder.decode(arr8);
+                throw new Error(message)
+              },              
             memory: memory,
         }
     };
