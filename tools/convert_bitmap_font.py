@@ -8,6 +8,9 @@ from pathlib import Path
 DEFAULT_ALPHA = 255
 
 # python tools/convert_bitmap_font.py src/assets/screens/ancool/fonts.png 32 17 10 60
+# python tools/convert_bitmap_font.py src/assets/screens/leonard/font.png 6 6 10 60
+# python tools/convert_bitmap_font.py src/assets/screens/empire/fonts2.png 32 32 10 60
+
 
 def grouper(iterator: Iterator, n: int) -> Iterator[list]:
     while chunk := list(itertools.islice(iterator, n)):

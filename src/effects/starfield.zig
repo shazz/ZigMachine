@@ -22,8 +22,6 @@ pub const StarfieldDirection = enum {
     RIGHT,
 };
 
-// starfield
-const NB_STARS: u32 = 90;
 
 // --------------------------------------------------------------------------
 // Variables
@@ -32,73 +30,84 @@ const NB_STARS: u32 = 90;
 // --------------------------------------------------------------------------
 // Demo
 // --------------------------------------------------------------------------
-pub const Starfield = struct {
-    const Star = struct {
-        x: u16 = undefined,
-        y: u16 = undefined,
-        speed: u16 = undefined,
+pub fn Starfield(
+    comptime nb_stars: comptime_int,
+) type {
+    return struct {
+        const Star = struct {
+            x: u16 = undefined,
+            y: u16 = undefined,
+            speed: u16 = undefined,
+            direction: StarfieldDirection = undefined,
+            color: u8 = undefined,
+        };
+
+        rnd: std.rand.DefaultPrng = undefined,
+        starfield_table: [nb_stars]Star = undefined,
+        fb: *LogicalFB = undefined,
+        width: u16 = undefined,
+        height: u16 = undefined,
+        top: u16 = undefined,
+        min_speed: u16 = undefined,
+        max_speed: u16 = undefined,
         direction: StarfieldDirection = undefined,
+        nb_colors: u8 = undefined,
+        const Self = @This();
+
+        pub fn init(fb: *LogicalFB, width: u16, height: u16, top: u16, min_speed: u16, max_speed: u16, direction: StarfieldDirection) Self {
+
+            var sf = Self{};
+            sf.fb = fb;
+            sf.rnd = RndGen.init(0);
+            sf.width = width;
+            sf.height = height;
+            sf.top = top;
+            sf.direction = direction;
+            sf.min_speed = min_speed;
+            sf.max_speed = max_speed;
+
+            // Add stars
+            for (sf.starfield_table) |*star| {
+                const x = sf.rnd.random().uintAtMost(u16, WIDTH);
+                const y = sf.rnd.random().intRangeAtMost(u16, top, top+height);
+
+                const rnd_speed = sf.rnd.random().intRangeAtMost(u16, min_speed, max_speed);
+                star.* = Star{ .x = x, .y = y, .speed = rnd_speed, .direction = direction, .color = @intCast(u8, rnd_speed) };
+            }
+
+            return sf;
+        }
+
+        pub fn update(self: *Self) void {
+
+            for (self.starfield_table) |*star| {
+                if (self.direction == StarfieldDirection.RIGHT) {
+                    const new_pos: u16 = star.x + star.speed;
+
+                    if (new_pos > self.width) {
+                        star.*.x = 0;
+                    } else {
+                        star.*.x = new_pos;
+                    }
+                }
+                if (self.direction == StarfieldDirection.LEFT) {
+                    const new_pos: i32 = @intCast(i32, star.x) - @intCast(i32, star.speed);
+
+                    if (new_pos >= 0) {
+                        star.*.x = star.x - star.speed;
+                    } else {
+                        star.*.x = self.width;
+                    }
+                }
+            }
+        }
+
+        pub fn render(self: *Self) void {
+
+            // plot pixel for each star with palette entry 1
+            for (self.starfield_table) |*star| {
+                self.fb.setPixelValue(@intCast(u16, star.x), @intCast(u16, star.y), star.color);
+            }
+        }
     };
-
-    rnd: std.rand.DefaultPrng = undefined,
-    starfield_table: [NB_STARS]Star = undefined,
-    fb: *LogicalFB = undefined,
-    width: u16 = undefined,
-    height: u16 = undefined,
-    speed: u16 = undefined,
-    direction: StarfieldDirection = undefined,
-
-    pub fn init(self: *Starfield, fb: *LogicalFB, width: u16, height: u16, speed: u16, direction: StarfieldDirection, background_transparency: u8) void {
-        self.fb = fb;
-        self.rnd = RndGen.init(0);
-        self.width = width;
-        self.height = height;
-        self.speed = speed;
-        self.direction = direction;
-
-        // Set palette
-        fb.setPaletteEntry(0, Color{ .r = 0, .g = 0, .b = 0, .a = background_transparency });
-        fb.setPaletteEntry(1, Color{ .r = 255, .g = 255, .b = 255, .a = 255 });
-
-        // Add stars
-        for (self.starfield_table) |*star| {
-            const x = self.rnd.random().uintAtMost(u16, WIDTH);
-            const y = self.rnd.random().uintAtMost(u8, HEIGHT);
-
-            star.* = Star{ .x = x, .y = y, .speed = self.rnd.random().intRangeAtMost(u16, 1, speed), .direction = direction };
-        }
-    }
-
-    pub fn update(self: *Starfield) void {
-
-        for (self.starfield_table) |*star| {
-            if (self.direction == StarfieldDirection.RIGHT) {
-                const new_pos: u16 = star.x + star.speed;
-
-                if (new_pos > self.width) {
-                    star.*.x = 0;
-                } else {
-                    star.*.x = new_pos;
-                }
-            }
-            if (self.direction == StarfieldDirection.LEFT) {
-                const new_pos: i32 = @intCast(i32, star.x) - @intCast(i32, star.speed);
-
-                if (new_pos >= 0) {
-                    star.*.x = star.x - star.speed;
-                } else {
-                    star.*.x = self.width;
-                }
-            }
-            self.fb.setPixelValue(@intCast(u16, star.x), @intCast(u16, star.y), 1);
-        }
-    }
-
-    pub fn render(self: *Starfield) void {
-
-        // plot pixel for each star with palette entry 1
-        for (self.starfield_table) |*star| {
-            self.fb.setPixelValue(@intCast(u16, star.x), @intCast(u16, star.y), 1);
-        }
-    }
-};
+}
