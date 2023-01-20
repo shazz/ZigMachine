@@ -31,7 +31,7 @@ pub const Sprite = struct {
     data: []const u8 = undefined,
     x_offset_index: f16 = undefined,
     apply_x_offset: bool = undefined,
-    y_offset_table: ?[] const i16 = undefined,
+    y_offset_table: ?[] const i16 = null,
     y_offset_index: u16 = undefined,
 
 
@@ -49,6 +49,8 @@ pub const Sprite = struct {
         if(y_offset_table) |table| {
             self.y_offset_table = table;
             self.y_offset_index = 0;
+        } else {
+            self.y_offset_table = null;
         }
 
         // x_position_table: [255]u16;
@@ -83,6 +85,8 @@ pub const Sprite = struct {
 
     pub fn render(self: *Sprite) void {
         var buffer: *[64000]u8 = &self.fb.fb;
+        const first_color: Color = self.fb.getPaletteEntry(0);
+        const is_tranparent: bool = (first_color.a == 0);
 
         var nb_cols = self.width;
         var left_clamp = false;
@@ -144,11 +148,13 @@ pub const Sprite = struct {
 
                     // apply y offset
                     var new_offset = offset;
-                    if (self.y_offset_table) |table| {
-                        var counter: u16 = col_counter + left_x_position + self.y_offset_index;
-                        if(counter >= table.len) counter -= @intCast(u16, table.len);
 
-                        var off = table[counter];
+                    if (self.y_offset_table) |y_table| {
+     
+                        var counter: u16 = col_counter + left_x_position + self.y_offset_index;
+                        if(counter >= y_table.len) counter -= @intCast(u16, y_table.len);
+
+                        var off = y_table[counter];
                         if (off < 0) {
                             new_offset -= (@intCast(u16, -off) * WIDTH);
                         } else {
@@ -158,7 +164,7 @@ pub const Sprite = struct {
 
                     // clamp if outside buffer
                     const pal_entry = self.data[data_counter];
-                    if(pal_entry != 0) { 
+                    if(!is_tranparent or pal_entry != 0) { 
                         if ((new_offset + col_counter < self.data.len) or (new_offset + col_counter >= 0)) {
                             buffer[new_offset + col_counter] = self.data[data_counter];
                         }
