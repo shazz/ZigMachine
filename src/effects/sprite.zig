@@ -31,7 +31,7 @@ pub const Sprite = struct {
     data: []const u8 = undefined,
     x_offset_index: f16 = undefined,
     apply_x_offset: bool = undefined,
-    y_offset_table: ?[] const i16 = null,
+    y_offset_table: ?[] const i16,
     y_offset_index: u16 = undefined,
 
 
@@ -49,8 +49,6 @@ pub const Sprite = struct {
         if(y_offset_table) |table| {
             self.y_offset_table = table;
             self.y_offset_index = 0;
-        } else {
-            self.y_offset_table = null;
         }
 
         // x_position_table: [255]u16;
