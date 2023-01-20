@@ -46,23 +46,26 @@ pub fn Scrolltext(
         font_img: []const u8 = undefined,
         pos_y: u16 = undefined,
         fonts: [nb_fonts]FontLetter = undefined,
-        offset_table: ?[]const u16 = undefined,
+        offset_table: ?[]const u16,
         apply_offset_table: bool = false,
-        y_offset_table: ?[]const i16 = undefined,
+        y_offset_table: ?[]const i16,
         y_offset_table_index: u16 = undefined,
         const Self = @This();
 
         pub fn init(fb: *LogicalFB, font_img: []const u8, font_chars: []const u8, width: u16, height: u16, text: []const u8, speed: u16, pos_y: u16, offset_table: ?[]const u16, y_offset_table: ?[]const i16) Self {
             
-            var scroller = Self{};
-            scroller.font_img = font_img;
-            scroller.font_chars = font_chars;
-            scroller.font_width = width;
-            scroller.font_height = height;
-            scroller.text = text;
-            scroller.speed = speed;
-            scroller.fb = fb;
-            scroller.pos_y = pos_y;
+            var scroller = Self{ 
+                .offset_table = offset_table, 
+                .y_offset_table=y_offset_table,
+                .font_img = font_img,
+                .font_chars = font_chars,
+                .font_width = width,
+                .font_height = height,
+                .text = text,
+                .speed = speed,
+                .fb = fb,
+                .pos_y = pos_y
+            };
             if (offset_table) |table| {
                 scroller.offset_table = table;
                 scroller.apply_offset_table = true;
@@ -81,7 +84,7 @@ pub fn Scrolltext(
 
                 Console.log("Creating FontLetter {c} {} for ASCII {} at ({}, {}). Staring value: {}", .{ char, idx, letter, pos_x, pos_y, scroller.font_chars[0] });
 
-                scroller.fonts[idx] = FontLetter{ .char = char, .sprite = Sprite{}, .pos_x = pos_x, .pos_y = pos_y };
+                scroller.fonts[idx] = FontLetter{ .char = char, .sprite = Sprite{ .y_offset_table=y_offset_table }, .pos_x = pos_x, .pos_y = pos_y };
 
                 var char_pos_y: u16 = undefined;
                 if (scroller.apply_offset_table) {  
