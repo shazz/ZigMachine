@@ -5,8 +5,9 @@ import itertools
 import struct
 from pathlib import Path
 
-# python tools/extract_rasters.py assets/logo_283x124.png assets/sprite.pal
-
+# python tools/extract_rasters.py src/assets/logo_283x124.png src/assets/sprite.pal
+# python tools/extract_rasters.py src/assets/screens/df/rasters.png src/assets/screens/df/rasters_pal.dat 
+# python tools/extract_rasters.py src/assets/screens/df/colorCyle.png src/assets/screens/df/top_raster_pal.dat 
 
 DEFAULT_ALPHA = 255
 
@@ -39,7 +40,7 @@ with Image.open(args.png_file) as im:
             rasters_colors.append(pixel[0])
             rasters_colors.append(pixel[1])
             rasters_colors.append(pixel[2])
-            rasters_colors.append(pixel[4] if im.mode == "RGBA" else 255)
+            rasters_colors.append(pixel[3] if im.mode == "RGBA" else 255)
 
         if len(rasters_colors) < 256 * 4:
             rasters_colors += [0 for i in range(0, 256 * 4 - len(rasters_colors))]

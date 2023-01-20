@@ -8,6 +8,7 @@ from pathlib import Path
 # python tools/convert_png.py assets/logo_283x124.png assets/sprite.pal
 # python tools/convert_png.py src/assets/screens/leonard/back.png src/assets/screens/leonard/back_pal.dat 
 # python tools/convert_png.py src/assets/screens/leonard/ball.png src/assets/screens/leonard/ball_pal.dat 
+# python tools/convert_png.py src/assets/screens/df/top_logo.png src/assets/screens/df/top_logo_pal.dat 
 
 DEFAULT_ALPHA = 255
 
