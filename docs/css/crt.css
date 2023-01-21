@@ -23,6 +23,17 @@ body {
   background-color: #858585;
 }
 
+.channel_button {
+  position: absolute;
+  margin-left: 655px;
+  margin-top: 665px;
+  z-index: 101;
+  border-radius: 5px;
+  border-color: darkgrey;
+  color: rgb(255, 255, 255);
+  background-color: #858585;
+}
+
 .container {
   background: #121010;
   width: 800px;

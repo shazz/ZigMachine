@@ -1,11 +1,14 @@
 var memory = new WebAssembly.Memory({
-    initial: 20 /* pages */,
-    maximum: 20 /* pages */,
+    initial: 19 /* pages */,
+    maximum: 19 /* pages */,
 });
 
 const text_decoder = new TextDecoder();
 let console_log_buffer = "";
 let audioContext = null;
+let wasm_file = "bootloader.wasm"
+var requestId;
+var current_channel = 1;
 
 var ZigMachine = {
     'boot': null,
@@ -22,7 +25,29 @@ var ZigMachine = {
     'input': null,
 }
 
+var next_channel = function() {
+
+    const list_channels = [ "wasm/deltaforce.wasm", "wasm/empire.wasm", "wasm/ancool.wasm", "wasm/leonard.wasm", "wasm/mandelbrot.wasm" ];
+    wasm_file = list_channels[current_channel];
+
+    onload();
+
+    current_channel += 1;
+    if(current_channel == list_channels.length) current_channel = 0;
+
+}
+
 var start = function() {
+
+    // clear current channel
+    if(requestId) {
+        window.cancelAnimationFrame(requestId);
+        for(i=0; i < 4; i++){
+            const canvas = document.getElementById(i);
+            const context = canvas.getContext("2d");
+            context.clearRect(0, 0, canvas.width, canvas.height);
+        }
+    }
 
     var last_timestamp = 0;
     var wasmMemoryArray = new Uint8Array(memory.buffer);
@@ -69,13 +94,12 @@ var start = function() {
                 context.putImageData(imageData, 0, 0);
             }
         }
-
         // loop to next frame
-        window.requestAnimationFrame(loop);
-    
+        requestId = window.requestAnimationFrame(loop);
     };
     loop();
 };
+
 
 window.document.body.onload = function() {
     var imports = { 
@@ -101,7 +125,7 @@ window.document.body.onload = function() {
             memory: memory,
         }
     };
-    WebAssembly.instantiateStreaming(fetch("bootloader.wasm"), imports).then(result => {
+    WebAssembly.instantiateStreaming(fetch(wasm_file), imports).then(result => {
         console.log("Loaded the WASM!");
         ZigMachine = result.instance.exports;
         console.log(ZigMachine);
