@@ -49,13 +49,9 @@ pub const Sprite = struct {
         if(y_offset_table) |table| {
             self.y_offset_table = table;
             self.y_offset_index = 0;
+        } else {
+            self.y_offset_table = null;
         }
-
-        // x_position_table: [255]u16;
-
-        // var f_row: f16 = @intToFloat(f16, row_counter);
-        // var f_sin: f16 = (1.0 + @sin(f_row + self.sin_counter)) * 2.0;
-        // delta = @floatToInt(u16, f_sin);
 
     }
 

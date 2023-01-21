@@ -90,7 +90,7 @@ pub const Dots3D = struct {
         self.camera = za.camera(Vec3.new(0.0, 0.0, -10.0), 0, 0);
         self.screen = za.screen(320, 200);     
 
-        self.mode = 1;   
+        self.mode = 0;   
 
     }
 
@@ -145,8 +145,8 @@ pub const Dots3D = struct {
                     shapes.drawLine(self.fb, v3, v1, 12);  
                 }
                 if(self.mode == 1) {
-                    const polygon: [3]Coord = [_]Coord{ v1, v2, v3};
-                    shapes.fillPolygon(self.fb, &polygon, @floatToInt(u8, face.w()));   
+
+                    shapes.fillFlatTriangle(self.fb, v1, v2, v3, @floatToInt(u8, face.w()));   
                 }
                 if(self.mode == 2) {
                     self.fb.setPixelValue(@intCast(u16, v1.x), @intCast(u16, v1.y), 11);
