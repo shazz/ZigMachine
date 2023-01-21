@@ -9,7 +9,7 @@ let audioContext = null;
 let wasm_file = "bootloader.wasm"
 var requestId;
 var current_channel = 1;
-const list_channels = [ "wasm/deltaforce.wasm", "wasm/empire.wasm", "wasm/ancool.wasm", "wasm/leonard.wasm", "wasm/mandelbrot.wasm" ];
+const list_channels = [ "wasm/deltaforce.wasm", "wasm/empire.wasm", "wasm/ancool.wasm", "wasm/leonard.wasm", "wasm/mandelbrot.wasm", "wasm/ics.wasm" ];
 
 var ZigMachine = {
     'boot': null,
