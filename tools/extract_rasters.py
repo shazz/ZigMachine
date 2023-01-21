@@ -7,7 +7,8 @@ from pathlib import Path
 
 # python tools/extract_rasters.py src/assets/logo_283x124.png src/assets/sprite.pal
 # python tools/extract_rasters.py src/assets/screens/df/rasters.png src/assets/screens/df/rasters_pal.dat 
-# python tools/extract_rasters.py src/assets/screens/df/colorCyle.png src/assets/screens/df/top_raster_pal.dat 
+# python tools/extract_rasters.py src/assets/screens/df/colorCycle.png src/assets/screens/df/top_raster_pal.dat 
+# python tools/extract_rasters.py src/assets/screens/ics/rast.png src/assets/screens/ics/raster_pal.dat 
 
 DEFAULT_ALPHA = 255
 

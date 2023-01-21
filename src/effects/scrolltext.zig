@@ -6,6 +6,8 @@ const std = @import("std");
 const ZigOS = @import("../zigos.zig").ZigOS;
 const LogicalFB = @import("../zigos.zig").LogicalFB;
 const Color = @import("../zigos.zig").Color;
+const RenderTarget = @import("../zigos.zig").RenderTarget;
+
 const Sprite = @import("sprite.zig").Sprite;
 
 const Console = @import("../utils/debug.zig").Console;
@@ -36,7 +38,7 @@ pub fn Scrolltext(
             pos_y: i32 = undefined 
         };
 
-        fb: *LogicalFB = undefined,
+        target: RenderTarget = undefined,
         speed: u16 = undefined,
         text: []const u8 = undefined,
         font_chars: []const u8 = undefined,
@@ -52,7 +54,7 @@ pub fn Scrolltext(
         y_offset_table_index: u16 = undefined,
         const Self = @This();
 
-        pub fn init(fb: *LogicalFB, font_img: []const u8, font_chars: []const u8, width: u16, height: u16, text: []const u8, speed: u16, pos_y: u16, offset_table: ?[]const u16, y_offset_table: ?[]const i16) Self {
+        pub fn init(target: RenderTarget, font_img: []const u8, font_chars: []const u8, width: u16, height: u16, text: []const u8, speed: u16, pos_y: u16, offset_table: ?[]const u16, y_offset_table: ?[]const i16) Self {
             
             var scroller = Self{ 
                 .offset_table = offset_table, 
@@ -63,7 +65,7 @@ pub fn Scrolltext(
                 .font_height = height,
                 .text = text,
                 .speed = speed,
-                .fb = fb,
+                .target = target,
                 .pos_y = pos_y
             };
             if (offset_table) |table| {
@@ -95,7 +97,7 @@ pub fn Scrolltext(
                     char_pos_y = scroller.pos_y + pos_y;
                 }
 
-                scroller.fonts[idx].sprite.init(scroller.fb, 
+                scroller.fonts[idx].sprite.init(scroller.target, 
                                                 scroller.font_img[letter * (scroller.font_width * scroller.font_height) .. (letter + 1) * (scroller.font_width * scroller.font_height)], 
                                                 scroller.font_width, 
                                                 scroller.font_height, 

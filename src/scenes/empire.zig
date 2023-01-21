@@ -185,7 +185,7 @@ pub const Demo = struct {
         fb.is_enabled = true;
         fb.setPalette(font_pal);
 
-        self.scrolltext = Scrolltext(NB_FONTS).init(fb, fonts_b, SCROLL_CHARS, SCROLL_CHAR_WIDTH, SCROLL_CHAR_HEIGHT, SCROLL_TEXT, SCROLL_SPEED, 0, null, null);
+        self.scrolltext = Scrolltext(NB_FONTS).init(fb.getRenderTarget(), fonts_b, SCROLL_CHARS, SCROLL_CHAR_WIDTH, SCROLL_CHAR_HEIGHT, SCROLL_TEXT, SCROLL_SPEED, 0, null, null);
 
         Console.log("demo init done!", .{});
     }
@@ -240,7 +240,7 @@ pub const Demo = struct {
             const v1: Coord = self.projected_vertices[@floatToInt(usize, segment.x())];
             const v2: Coord = self.projected_vertices[@floatToInt(usize, segment.y())];
 
-            shapes.drawLine(fb, v1, v2, 1);   
+            shapes.drawLine(fb.getRenderTarget(), v1, v2, 1);   
         }
 
         fb = &zigos.lfbs[2];

@@ -5,6 +5,7 @@ const std = @import("std");
 
 const ZigOS = @import("../zigos.zig").ZigOS;
 const LogicalFB = @import("../zigos.zig").LogicalFB;
+const RenderTarget = @import("../zigos.zig").RenderTarget;
 const Color = @import("../zigos.zig").Color;
 
 const Sprite = @import("../effects/sprite.zig").Sprite;
@@ -29,17 +30,17 @@ pub fn Bobs(
 ) type {
     return struct {
 
-        fb: *LogicalFB = undefined,
+        target: RenderTarget = undefined,
         sprite: Sprite = undefined,
         positions_x: [nb_bobs]i16 = undefined,
         positions_y: [nb_bobs]i16 = undefined,
         const Self = @This();
 
-        pub fn init(fb: *LogicalFB, sprite_img: []const u8, sprite_width: u16, sprite_height: u16) Self {
+        pub fn init(target: RenderTarget, sprite_img: []const u8, sprite_width: u16, sprite_height: u16) Self {
 
             var bobs = Self{};
-            bobs.fb = fb;
-            bobs.sprite.init(fb, sprite_img, sprite_width, sprite_height, 0, 0, false, null);
+            bobs.target = target;
+            bobs.sprite.init(target, sprite_img, sprite_width, sprite_height, 0, 0, false, null);
 
             return bobs;
         }

@@ -75,14 +75,14 @@ pub const Demo = struct {
         var fb: *LogicalFB = &zigos.lfbs[0];
         fb.is_enabled = true;
         fb.setPalette(back_pal);
-        self.background.init(fb, back_b);
+        self.background.init(fb.getRenderTarget(), back_b);
 
         // second plane
         fb = &zigos.lfbs[1];
         fb.is_enabled = true;
         fb.setPalette(ball_pal);
         // self.bobs.init(fb, ball_b, 16, 16);
-        self.bobs = Bobs(NB_BOBS).init(fb, ball_b, 16, 16);
+        self.bobs = Bobs(NB_BOBS).init(fb.getRenderTarget(), ball_b, 16, 16);
 
         self.lutLen = self.lutSin.len;
         var i: u16 = 0;
@@ -96,7 +96,7 @@ pub const Demo = struct {
         fb = &zigos.lfbs[2];
         fb.is_enabled = true;
         fb.setPalette(font_pal);
-        self.scrolltext = Scrolltext(NB_FONTS).init(fb, fonts_b, SCROLL_CHARS, SCROLL_CHAR_WIDTH, SCROLL_CHAR_HEIGHT, SCROLL_TEXT, SCROLL_SPEED, 194, null, null);
+        self.scrolltext = Scrolltext(NB_FONTS).init(fb.getRenderTarget(), fonts_b, SCROLL_CHARS, SCROLL_CHAR_WIDTH, SCROLL_CHAR_HEIGHT, SCROLL_TEXT, SCROLL_SPEED, 194, null, null);
 
         Console.log("demo init done!", .{});
     }
@@ -139,10 +139,10 @@ pub const Demo = struct {
     pub fn render(self: *Demo, zigos: *ZigOS, elapsed_time: f32) void {
         self.background.render();
 
-        self.bobs.fb.clearFrameBuffer(0);
+        self.bobs.target.clearFrameBuffer(0);
         self.bobs.render();
 
-        self.scrolltext.fb.clearFrameBuffer(0);
+        self.scrolltext.target.clearFrameBuffer(0);
         self.scrolltext.render();
 
         _ = zigos;

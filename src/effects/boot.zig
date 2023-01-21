@@ -41,7 +41,7 @@ pub const Boot = struct {
         self.counter_ram = 0;
         self.counter_boot = 0;
 
-        self.logo.init(fb, ZIG_LOGO, 65, 60, 20, 10, false, null);
+        self.logo.init(fb.getRenderTarget(), ZIG_LOGO, 65, 60, 20, 10, false, null);
 
         fb.setPalette(ZIG_LOGO_PAL);
         fb.setPaletteEntry(9, Color{ .r = 255, .g = 0, .b = 0, .a = 255 });

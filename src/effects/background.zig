@@ -5,6 +5,7 @@ const std = @import("std");
 
 const ZigOS = @import("../zigos.zig").ZigOS;
 const LogicalFB = @import("../zigos.zig").LogicalFB;
+const RenderTarget = @import("../zigos.zig").RenderTarget;
 const Color = @import("../zigos.zig").Color;
 
 const Console = @import("../utils/debug.zig").Console;
@@ -23,11 +24,11 @@ const WIDTH: usize = @import("../zigos.zig").WIDTH;
 // Demo
 // --------------------------------------------------------------------------
 pub const Background = struct {
-    fb: *LogicalFB = undefined,
+    target: RenderTarget = undefined,
     data: []const u8 = undefined,
 
-    pub fn init(self: *Background, fb: *LogicalFB, data: []const u8) void {
-        self.fb = fb;
+    pub fn init(self: *Background, target: RenderTarget, data: []const u8) void {
+        self.target = target;
         self.data = data;
     }
 
@@ -36,11 +37,21 @@ pub const Background = struct {
     }
 
     pub fn render(self: *Background) void {
-        var buffer: *[64000]u8 = &self.fb.fb;
 
-        // Copy bitmap data
-        for (self.data) |value, index| {
-            buffer[index] = value;
+        switch (self.target) {
+            .fb => |fb| {
+                var buffer: *[64000]u8 = &fb.fb;
+
+                // Copy bitmap data
+                for (self.data) |value, index| {
+                    buffer[index] = value;
+                }
+            },
+            .buffer => |buffer| {
+                for (self.data) |value, index| {
+                    buffer[index] = value;
+                }   
+            }
         }
     }
 };

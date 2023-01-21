@@ -153,7 +153,7 @@ pub const Demo = struct {
 
         fb = &zigos.lfbs[0];
         fb.is_enabled = true;
-        self.starfield_3D = Starfield3D(NB_STARS).init(fb, WIDTH, HEIGHT, 5, false);
+        self.starfield_3D = Starfield3D(NB_STARS).init(fb.getRenderTarget(), WIDTH, HEIGHT, 5, false);
 
         // 2nd plane
         fb = &zigos.lfbs[1];
@@ -195,7 +195,7 @@ pub const Demo = struct {
         //     y_offset_table_b[i] = -@intCast(i16, i / 6);
         // }
 
-        self.scrolltext = Scrolltext(NB_FONTS).init(fb, fonts_b, SCROLL_CHARS, SCROLL_CHAR_WIDTH, SCROLL_CHAR_HEIGHT, SCROLL_TEXT, SCROLL_SPEED, 100, null, &g_y_offset_table_b);
+        self.scrolltext = Scrolltext(NB_FONTS).init(fb.getRenderTarget(), fonts_b, SCROLL_CHARS, SCROLL_CHAR_WIDTH, SCROLL_CHAR_HEIGHT, SCROLL_TEXT, SCROLL_SPEED, 100, null, &g_y_offset_table_b);
 
         Console.log("demo init done!", .{});
     }
@@ -244,7 +244,7 @@ pub const Demo = struct {
 
     pub fn render(self: *Demo, zigos: *ZigOS, elapsed_time: f32) void {
 
-        self.starfield_3D.fb.clearFrameBuffer(0);
+        self.starfield_3D.target.clearFrameBuffer(0);
         self.starfield_3D.render();
 
         const fb = &zigos.lfbs[1];
@@ -253,10 +253,10 @@ pub const Demo = struct {
             const v1: Coord = self.projected_vertices[@floatToInt(usize, segment.x())];
             const v2: Coord = self.projected_vertices[@floatToInt(usize, segment.y())];
 
-            shapes.drawLine(fb, v1, v2, 1);   
+            shapes.drawLine(fb.getRenderTarget(), v1, v2, 1);   
         }
 
-        self.scrolltext.fb.clearFrameBuffer(0);
+        self.scrolltext.target.clearFrameBuffer(0);
         self.scrolltext.render();
 
         _ = elapsed_time;

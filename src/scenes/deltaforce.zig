@@ -86,7 +86,7 @@ pub const Demo = struct {
         var fb: *LogicalFB = &zigos.lfbs[0];
         fb.is_enabled = true;
         fb.setPalette(logo_pal);
-        self.logo.init(fb, logo_b);        
+        self.logo.init(fb.getRenderTarget(), logo_b);        
         
         // HBL Handler for the raster effect
         fb.setFrameBufferHBLHandler(handler_logo);   
@@ -99,7 +99,7 @@ pub const Demo = struct {
         // HBL Handler for the raster effect
         fb.setFrameBufferHBLHandler(handler_scroller);        
 
-        self.scrolltext = Scrolltext(NB_FONTS).init(fb, fonts_b, SCROLL_CHARS, SCROLL_CHAR_WIDTH, SCROLL_CHAR_HEIGHT, SCROLL_TEXT, SCROLL_SPEED, 52, null, null);
+        self.scrolltext = Scrolltext(NB_FONTS).init(fb.getRenderTarget(), fonts_b, SCROLL_CHARS, SCROLL_CHAR_WIDTH, SCROLL_CHAR_HEIGHT, SCROLL_TEXT, SCROLL_SPEED, 52, null, null);
 
         Console.log("demo init done!", .{});
     }

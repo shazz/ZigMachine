@@ -6,7 +6,9 @@ const RndGen = std.rand.DefaultPrng;
 
 const ZigOS = @import("../zigos.zig").ZigOS;
 const LogicalFB = @import("../zigos.zig").LogicalFB;
+const RenderTarget = @import("../zigos.zig").RenderTarget;
 const Color = @import("../zigos.zig").Color;
+
 const shapes = @import("shapes.zig");
 const Coord = @import("shapes.zig").Coord;
 
@@ -44,7 +46,7 @@ pub fn Starfield3D(
 
         rnd: std.rand.DefaultPrng = undefined,
         starfield_table: [nb_stars]Star = undefined,
-        fb: *LogicalFB = undefined,
+        target: RenderTarget = undefined,
         width: f32 = undefined,
         height: f32 = undefined,
         speed: f32 = undefined,
@@ -56,10 +58,10 @@ pub fn Starfield3D(
         use_lines: bool = undefined,
         const Self = @This();
 
-        pub fn init(fb: *LogicalFB, width: u16, height: u16, speed: f32, use_lines: bool) Self {
+        pub fn init(target: RenderTarget, width: u16, height: u16, speed: f32, use_lines: bool) Self {
 
             var sf = Self{};
-            sf.fb = fb;
+            sf.target = target;
             sf.rnd = RndGen.init(0);
             sf.width = @intToFloat(f32, width);
             sf.height = @intToFloat(f32, height);
@@ -72,14 +74,20 @@ pub fn Starfield3D(
             sf.z = (sf.width + sf.height) / 2;
             sf.color_ratio = 1 / sf.z;        
 
-            // Create palette with a alpha gradient of gray
-            fb.setPaletteEntry(0, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
-            var i: u8 = 0;
-            while(i < 10) : (i += 1) {
-                fb.setPaletteEntry(i+1, Color{ .r = 255, .g = 255, .b = 255, .a = 255 } );
-            }        
-            while(i < GRADIENT_STEPS) : (i += 1) {
-                fb.setPaletteEntry(i+1, Color{ .r = 255, .g = 255, .b = 255, .a = 255 - (i * (255/GRADIENT_STEPS-1)) } );
+
+            switch (sf.target) {
+                .fb => |fb| {
+                    // Create palette with a alpha gradient of gray
+                    fb.setPaletteEntry(0, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
+                    var i: u8 = 0;
+                    while(i < 10) : (i += 1) {
+                        fb.setPaletteEntry(i+1, Color{ .r = 255, .g = 255, .b = 255, .a = 255 } );
+                    }        
+                    while(i < GRADIENT_STEPS) : (i += 1) {
+                        fb.setPaletteEntry(i+1, Color{ .r = 255, .g = 255, .b = 255, .a = 255 - (i * (255/GRADIENT_STEPS-1)) } );
+                    }
+                },
+                else => {}
             }
 
             // Add NB_STARS stars
@@ -143,18 +151,18 @@ pub fn Starfield3D(
                             const origin = Coord{ .x = x0, .y = y0 };
                             const dest = Coord{ .x =x1, .y = y1 };
 
-                            shapes.drawLine(self.fb, origin, dest, @floatToInt(u8, pal_index));  
+                            shapes.drawLine(self.target, origin, dest, @floatToInt(u8, pal_index));  
                         }
                         else {
                             // don't draw lines for nothing
                             const x: u16 = @intCast(u16, x0);
                             const y: u16 = @intCast(u16, y0);
-                            self.fb.setPixelValue(x, y, @floatToInt(u8, pal_index));
+                            self.target.setPixelValue(x, y, @floatToInt(u8, pal_index));
                         }
                     } else {
                         const x: u16 = @floatToInt(u16, star.proj_x);
                         const y: u16 = @floatToInt(u16, star.proj_y);
-                        self.fb.setPixelValue(x, y, @floatToInt(u8, pal_index));   
+                        self.target.setPixelValue(x, y, @floatToInt(u8, pal_index));   
                     }
                 }
             }

@@ -7,6 +7,7 @@ const RndGen = std.rand.DefaultPrng;
 const ZigOS = @import("../zigos.zig").ZigOS;
 const LogicalFB = @import("../zigos.zig").LogicalFB;
 const Color = @import("../zigos.zig").Color;
+const RenderTarget = @import("../zigos.zig").RenderTarget;
 
 const Console = @import("../utils/debug.zig").Console;
 
@@ -22,16 +23,16 @@ const Console = @import("../utils/debug.zig").Console;
 // Demo
 // --------------------------------------------------------------------------
 pub const Fade = struct {
-    fb: *LogicalFB = undefined,
+    target: RenderTarget = undefined,
     speed: i8 = 1,
     use_alpha: bool = undefined,
     is_done: bool = false,
     first_pal_index: u8 = undefined,
     last_pal_index: u8 = undefined,
 
-    pub fn init(self: *Fade, fb: *LogicalFB, use_alpha: bool, first_pal_index: u8, last_pal_index: u8, fade_in_first: bool) void {
+    pub fn init(self: *Fade, target: RenderTarget, use_alpha: bool, first_pal_index: u8, last_pal_index: u8, fade_in_first: bool) void {
 
-        self.fb = fb;
+        self.target = target;
         self.use_alpha = use_alpha;
         self.first_pal_index = first_pal_index;
         self.last_pal_index = last_pal_index;
@@ -41,9 +42,9 @@ pub const Fade = struct {
         if (fade_in_first) {
             var counter: u8 = 0;
             while (counter < 16) : (counter += 1) {
-                var pal_color: Color = self.fb.getPaletteEntry(counter);
+                var pal_color: Color = self.target.getPaletteEntry(counter);
                 pal_color.a = 0;
-                self.fb.setPaletteEntry(counter, pal_color);
+                self.target.setPaletteEntry(counter, pal_color);
             }
         }
 
@@ -53,7 +54,7 @@ pub const Fade = struct {
     pub fn update(self: *Fade, fade_dir: bool) void {
         var counter: u8 = self.first_pal_index;
         while (counter <= self.last_pal_index) : (counter += 1) {
-            var pal_color: Color = self.fb.getPaletteEntry(counter);
+            var pal_color: Color = self.target.getPaletteEntry(counter);
 
             if (self.use_alpha) {
                 if (fade_dir) {
@@ -81,7 +82,7 @@ pub const Fade = struct {
                 }
             }
 
-            self.fb.setPaletteEntry(counter, pal_color);
+            self.target.setPaletteEntry(counter, pal_color);
         }
     }
 

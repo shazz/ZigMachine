@@ -28,6 +28,42 @@ const SYSTEM_FONT_HEIGHT = 8;
 // --------------------------------------------------------------------------
 // Structs
 // --------------------------------------------------------------------------
+pub const RenderTarget = union(enum) {
+    fb: *LogicalFB,
+    buffer: []u8,
+
+    pub fn clearFrameBuffer(self: RenderTarget, pal_entry: u8) void {
+
+        switch (self) {
+            .fb => |fb| {
+                fb.clearFrameBuffer(pal_entry);
+            },
+            .buffer => |buffer| {
+                var i: u16 = 0;
+                while (i < buffer.len) : (i += 1) {
+                    buffer[i] = pal_entry;
+                }
+            }
+        }
+
+    }      
+
+    pub fn setPixelValue(self: RenderTarget, x: u16, y: u16, pal_entry: u8) void {
+
+        switch (self) {
+            .fb => |fb| {
+                fb.setPixelValue(x, y, pal_entry);
+            },
+            .buffer => |buffer| {
+                if ((x >= 0) and (x < WIDTH) and (y >= 0) and (y < HEIGHT)) {
+                    const index: u32 = @as(u32, y) * @as(u32, WIDTH) + @as(u32, x);
+                    buffer[index] = pal_entry;
+                }
+            }
+        } 
+    }    
+};
+
 pub const Color = struct {
     r: u8,
     g: u8,
@@ -60,6 +96,10 @@ pub const LogicalFB = struct {
         self.clearFrameBuffer(0);
 
         self.is_enabled = false;
+    }
+
+    pub fn getRenderTarget(self: *LogicalFB) RenderTarget {
+        return RenderTarget{ .fb = self};
     }
 
     // --------------------------------------------------------------------------

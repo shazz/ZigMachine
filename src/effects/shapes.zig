@@ -4,6 +4,8 @@
 const std = @import("std");
 
 const LogicalFB = @import("../zigos.zig").LogicalFB;
+const RenderTarget = @import("../zigos.zig").RenderTarget;
+
 const Console = @import("../utils/debug.zig").Console;
 
 // --------------------------------------------------------------------------
@@ -56,7 +58,7 @@ pub const Edge = struct {
 // --------------------------------------------------------------------------
 // Drawline
 // --------------------------------------------------------------------------
-pub fn drawLine(fb: *LogicalFB, src: Coord, dest: Coord, color_entry: u8) void {
+pub fn drawLine(target: RenderTarget, src: Coord, dest: Coord, color_entry: u8) void {
     var coord0: Coord = undefined;
     var coord1: Coord = undefined;
 
@@ -96,7 +98,7 @@ pub fn drawLine(fb: *LogicalFB, src: Coord, dest: Coord, color_entry: u8) void {
             var x = coord0.x;
             var y = coord0.y;
 
-            fb.setPixelValue(@intCast(u16, x), @intCast(u16, y), color_entry);
+            target.setPixelValue(@intCast(u16, x), @intCast(u16, y), color_entry);
 
             while (x < coord1.x) {
                 if (dp <= 0) {
@@ -107,7 +109,7 @@ pub fn drawLine(fb: *LogicalFB, src: Coord, dest: Coord, color_entry: u8) void {
                     x += 1;
                     y += 1;
                 }
-                fb.setPixelValue(@intCast(u16, x), @intCast(u16, y), color_entry);
+                target.setPixelValue(@intCast(u16, x), @intCast(u16, y), color_entry);
             }
         } else {
             // y1 >= y0 and x1 >= x0 and dx < dy
@@ -118,7 +120,7 @@ pub fn drawLine(fb: *LogicalFB, src: Coord, dest: Coord, color_entry: u8) void {
             var x = coord0.x;
             var y = coord0.y;
 
-            fb.setPixelValue(@intCast(u16, x), @intCast(u16, y), color_entry);
+            target.setPixelValue(@intCast(u16, x), @intCast(u16, y), color_entry);
 
             while (y < coord1.y) {
                 if (dp <= 0) {
@@ -129,7 +131,7 @@ pub fn drawLine(fb: *LogicalFB, src: Coord, dest: Coord, color_entry: u8) void {
                     x += 1;
                     y += 1;
                 }
-                fb.setPixelValue(@intCast(u16, x), @intCast(u16, y), color_entry);
+                target.setPixelValue(@intCast(u16, x), @intCast(u16, y), color_entry);
             }
         }
     } else {
@@ -146,7 +148,7 @@ pub fn drawLine(fb: *LogicalFB, src: Coord, dest: Coord, color_entry: u8) void {
             var x = coord0.x;
             var y = coord0.y;
 
-            fb.setPixelValue(@intCast(u16, x), @intCast(u16, y), color_entry);
+            target.setPixelValue(@intCast(u16, x), @intCast(u16, y), color_entry);
 
             while (x > coord1.x) {
                 if (dp <= 0) {
@@ -157,7 +159,7 @@ pub fn drawLine(fb: *LogicalFB, src: Coord, dest: Coord, color_entry: u8) void {
                     x -= 1;
                     y += 1;
                 }
-                fb.setPixelValue(@intCast(u16, x), @intCast(u16, y), color_entry);
+                target.setPixelValue(@intCast(u16, x), @intCast(u16, y), color_entry);
             }
         } else {
 
@@ -169,7 +171,7 @@ pub fn drawLine(fb: *LogicalFB, src: Coord, dest: Coord, color_entry: u8) void {
             var x = coord0.x;
             var y = coord0.y;
 
-            fb.setPixelValue(@intCast(u16, x), @intCast(u16, y), color_entry);
+            target.setPixelValue(@intCast(u16, x), @intCast(u16, y), color_entry);
 
             while (y < coord1.y) {
                 if (dp <= 0) {
@@ -180,7 +182,7 @@ pub fn drawLine(fb: *LogicalFB, src: Coord, dest: Coord, color_entry: u8) void {
                     x -= 1;
                     y += 1;
                 }
-                fb.setPixelValue(@intCast(u16, x), @intCast(u16, y), color_entry);
+                target.setPixelValue(@intCast(u16, x), @intCast(u16, y), color_entry);
             }
         }
     }

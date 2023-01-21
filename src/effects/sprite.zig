@@ -4,6 +4,7 @@
 const std = @import("std");
 
 const ZigOS = @import("../zigos.zig").ZigOS;
+const RenderTarget = @import("../zigos.zig").RenderTarget;
 const LogicalFB = @import("../zigos.zig").LogicalFB;
 const Color = @import("../zigos.zig").Color;
 
@@ -15,6 +16,7 @@ const Console = @import("../utils/debug.zig").Console;
 const HEIGHT: u16 = @import("../zigos.zig").HEIGHT;
 const WIDTH: u16 = @import("../zigos.zig").WIDTH;
 
+
 // --------------------------------------------------------------------------
 // Variables
 // --------------------------------------------------------------------------
@@ -23,7 +25,7 @@ const WIDTH: u16 = @import("../zigos.zig").WIDTH;
 // Demo
 // --------------------------------------------------------------------------
 pub const Sprite = struct {
-    fb: *LogicalFB = undefined,
+    target: RenderTarget = undefined,
     width: u16 = undefined,
     height: u16 = undefined,
     x_position: i32 = undefined,
@@ -35,8 +37,8 @@ pub const Sprite = struct {
     y_offset_index: u16 = undefined,
 
 
-    pub fn init(self: *Sprite, fb: *LogicalFB, data: []const u8, width: u16, height: u16, x_position: i32, y_position: i32, apply_x_offset: bool, y_offset_table: ?[] const i16) void {
-        self.fb = fb;
+    pub fn init(self: *Sprite, target: RenderTarget, data: []const u8, width: u16, height: u16, x_position: i32, y_position: i32, apply_x_offset: bool, y_offset_table: ?[] const i16) void {
+        self.target = target;
         self.width = width;
         self.height = height;
         self.x_position = x_position;
@@ -78,9 +80,19 @@ pub const Sprite = struct {
     }
 
     pub fn render(self: *Sprite) void {
-        var buffer: *[64000]u8 = &self.fb.fb;
-        const first_color: Color = self.fb.getPaletteEntry(0);
-        const is_tranparent: bool = (first_color.a == 0);
+
+        var first_color: Color = undefined;
+        var is_tranparent: bool = undefined;
+         switch (self.target) {
+            .fb => |fb| {
+                first_color = fb.getPaletteEntry(0);
+                is_tranparent = (first_color.a == 0);
+            },
+            .buffer => |_| {
+                first_color = Color{ .r=0, .g=0, .b=0, .a=0};
+                is_tranparent = true;
+            }
+        }        
 
         var nb_cols = self.width;
         var left_clamp = false;
@@ -159,8 +171,17 @@ pub const Sprite = struct {
                     // clamp if outside buffer
                     const pal_entry = self.data[data_counter];
                     if(!is_tranparent or pal_entry != 0) { 
+
                         if ((new_offset + col_counter < self.data.len) or (new_offset + col_counter >= 0)) {
-                            buffer[new_offset + col_counter] = self.data[data_counter];
+
+                            switch (self.target) {
+                                .fb => |fb| {
+                                    fb.fb[new_offset + col_counter] = self.data[data_counter];
+                                },
+                                .buffer => |buffer| {
+                                    buffer[new_offset + col_counter] = self.data[data_counter];
+                                }
+                            }
                         }
                     }
                     data_counter += 1;
