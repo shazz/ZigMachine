@@ -9,6 +9,7 @@ let audioContext = null;
 let wasm_file = "bootloader.wasm"
 var requestId;
 var current_channel = 1;
+const list_channels = [ "wasm/deltaforce.wasm", "wasm/empire.wasm", "wasm/ancool.wasm", "wasm/leonard.wasm", "wasm/mandelbrot.wasm" ];
 
 var ZigMachine = {
     'boot': null,
@@ -25,16 +26,23 @@ var ZigMachine = {
     'input': null,
 }
 
-var next_channel = function() {
+var change_channel = function() {
 
-    const list_channels = [ "wasm/deltaforce.wasm", "wasm/empire.wasm", "wasm/ancool.wasm", "wasm/leonard.wasm", "wasm/mandelbrot.wasm" ];
     wasm_file = list_channels[current_channel];
-
     onload();
+}
+
+var next_channel = function() {
 
     current_channel += 1;
     if(current_channel == list_channels.length) current_channel = 0;
+    change_channel();
+}
+var previous_channel = function() {
 
+    current_channel -= 1;
+    if(current_channel == 0) current_channel = (list_channels.length)-1;
+    change_channel();
 }
 
 var start = function() {
