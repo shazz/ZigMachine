@@ -29,7 +29,7 @@ const fonts_b = @embedFile("../assets/screens/bladerunners/fonts_pal.raw");
 const SCROLL_TEXT = "      WELCOME TO 'DUNGEON MASTER' -- CRACKED BY THE cdefghijkl -- THIS GAME IS CRACKED FOR  THE BLADE RUNNERS  - THE ULTIMATE CRACKER CREW...HELLO BOSS,TEX,CSS,TNT-CREW,MMC,BXC,TSUNOO,1001-CREW,AND OF COURSE YOU......DUNGEON MASTER WAS A VERY GOOD PROTECTED GAME THAT TOOK A LONG TIME TO CRACK. SO IF YOU ARE REQUESTED TO PUT IN THE DUNGEON MASTER DISK JUST IGNORE THAT MESSAGE AND CONTINUE (PRESSING THE RETURN KEY) YOUR GAME...THANKS TO MMC FOR THE ORIGINAL THAT WAS AFTERWARDS NEARLY UNREADABLE! TO CHANGE THE TUNE TOGGLE WITH F1/F2 SO YOU WILL LISTEN TO BOTH OF THE RAMPAGE MUSIC PIECES AGAIN COMPOSED BY WHITTIE-BABY!...";
 const SCROLL_CHAR_WIDTH = 32; 
 const SCROLL_CHAR_HEIGHT = 32;
-const SCROLL_SPEED = 1;
+const SCROLL_SPEED = 2;
 const SCROLL_CHARS = " ! #$%&'()*+,-./0123456789:;<=>? ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]ˆ_`abcdefghijklmnopqrstuvwxyz";
 
 // palettes
@@ -48,16 +48,24 @@ var raster_index: u8 = 0;
 // --------------------------------------------------------------------------
 // Demo
 // --------------------------------------------------------------------------
+fn handler_hbl(zigos: *ZigOS, line: u16) void {
+
+    if(line >= 40 and line < 240) {
+        zigos.setBackgroundColor(back_rasters_b[(line + 12 + raster_index) % 255]);
+    }
+    else {
+        zigos.setBackgroundColor(Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
+    }        
+}
+
+
 fn handler_back(fb: *LogicalFB, zigos: *ZigOS, line: u16) void {
 
-    // fb.setPaletteEntry(0, zigos.getBackgroundColor());
-    fb.setPaletteEntry(0, back_rasters_b[(line - 40 + raster_index) % 255]);
+    if(line >= 40 and line < 240) {
+        fb.setPaletteEntry(0, back_rasters_b[(line - 40 + raster_index) % 255]);
+    }
 
     _ = zigos;
-    
-}
-fn handler_hbl(zigos: *ZigOS, line: u16) void {
-     zigos.setBackgroundColor(back_rasters_b[(line + 12 + raster_index) % 255]);
 }
 
 fn handler_scroller(fb: *LogicalFB, zigos: *ZigOS, line: u16) void {
@@ -92,7 +100,6 @@ pub const Demo = struct {
   
         // HBL Handler for the raster effect
         fb.setFrameBufferHBLHandler(handler_back); 
-        zigos.setHBLHandler(handler_hbl);   
         fb.setPaletteEntry(0, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
 
         // second plane
@@ -101,14 +108,15 @@ pub const Demo = struct {
         fb.setPalette(font_pal);
 
         // HBL Handler for the raster effect
-        fb.setFrameBufferHBLHandler(handler_scroller);        
+        fb.setFrameBufferHBLHandler(handler_scroller);      
+        zigos.setHBLHandler(handler_hbl);     
 
         var i: usize = 0;
         var counter : f32 = 0;
         while(i < 320) : ( i += 1) {
-            const f_sin: f32 = (1.0 + @sin(counter)) * 5; 
+            const f_sin: f32 = @fabs(@sin(counter)) * 14; 
             self.offset_table[i] = @floatToInt(u16, f_sin);
-            counter += 0.06;
+            counter += 0.04;
         }
 
         var buffer = [_]u8{0} ** (WIDTH * SCROLL_CHAR_HEIGHT);
@@ -144,17 +152,29 @@ pub const Demo = struct {
         self.scroller_target.clearFrameBuffer(0);
         self.scrolltext.render();
 
-        // copy scrolltext 3 times
-        var i: u16 = 0;
+        // copy scrolltext 7 times
+        var one_row: u16 = 0;
         const sine_offset: u16 = self.offset_table[self.scroller_offset];
+        var row_height: u16 = WIDTH * (SCROLL_CHAR_HEIGHT - sine_offset);
 
+        while(one_row < row_height) : ( one_row += 1) {
+            fb.fb[one_row] = self.scroller_target.buffer[one_row + (WIDTH * sine_offset)];
+        }
+
+        var i: u16 = 0;
         while(i < (WIDTH*SCROLL_CHAR_HEIGHT)) : ( i += 1) {
-            fb.fb[i + (( 0  + sine_offset ) * WIDTH)] = self.scroller_target.buffer[i];
-            fb.fb[i + (( 32 + sine_offset ) * WIDTH)] = self.scroller_target.buffer[i];
-            fb.fb[i + (( 64 + sine_offset ) * WIDTH)] = self.scroller_target.buffer[i];
-            fb.fb[i + (( 96 + sine_offset ) * WIDTH)] = self.scroller_target.buffer[i];
-            fb.fb[i + (( 128 + sine_offset ) * WIDTH)] = self.scroller_target.buffer[i];
-            fb.fb[i + (( 160 + sine_offset ) * WIDTH)] = self.scroller_target.buffer[i];
+            
+            fb.fb[i + (( 32 - sine_offset ) * WIDTH)] = self.scroller_target.buffer[i];
+            fb.fb[i + (( 64 - sine_offset ) * WIDTH)] = self.scroller_target.buffer[i];
+            fb.fb[i + (( 96 - sine_offset ) * WIDTH)] = self.scroller_target.buffer[i];
+            fb.fb[i + (( 128 - sine_offset ) * WIDTH)] = self.scroller_target.buffer[i];
+            fb.fb[i + (( 160 - sine_offset ) * WIDTH)] = self.scroller_target.buffer[i];
+        }
+
+        one_row = 0;
+        row_height = WIDTH * @min(32, 200 - (192 - sine_offset));
+        while(one_row < row_height) : ( one_row += 1) {
+            fb.fb[one_row + (( 192 - sine_offset ) * WIDTH)] = self.scroller_target.buffer[one_row];
         }
 
         _ = elapsed_time;
