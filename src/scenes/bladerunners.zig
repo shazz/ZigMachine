@@ -30,7 +30,7 @@ const SCROLL_TEXT = "      WELCOME TO 'DUNGEON MASTER' -- CRACKED BY THE cdefghi
 const SCROLL_CHAR_WIDTH = 32; 
 const SCROLL_CHAR_HEIGHT = 32;
 const SCROLL_SPEED = 1;
-const SCROLL_CHARS = " ! #$%&'()*+,-./0123456789:;<=>? ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+const SCROLL_CHARS = " ! #$%&'()*+,-./0123456789:;<=>? ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]ˆ_`abcdefghijklmnopqrstuvwxyz";
 
 // palettes
 const font_pal = convertU8ArraytoColors(@embedFile("../assets/screens/bladerunners/fonts_pal.dat"));
@@ -109,7 +109,6 @@ pub const Demo = struct {
             const f_sin: f32 = (1.0 + @sin(counter)) * 5; 
             self.offset_table[i] = @floatToInt(u16, f_sin);
             counter += 0.06;
-            Console.log("offset: {}", .{self.offset_table[i]});
         }
 
         var buffer = [_]u8{0} ** (WIDTH * SCROLL_CHAR_HEIGHT);

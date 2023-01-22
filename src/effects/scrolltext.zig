@@ -84,7 +84,7 @@ pub fn Scrolltext(
                 const letter: u8 = char - scroller.font_chars[0];
                 const pos_x: u16 = @intCast(u16, idx) * scroller.font_width;
 
-                Console.log("Creating FontLetter {c} {} for ASCII {} at ({}, {}). Staring value: {}", .{ char, idx, letter, pos_x, pos_y, scroller.font_chars[0] });
+                Console.log("Creating FontLetter {c} {} for ASCII {} => index {} at ({}, {}). Starting value: {}", .{ char, idx, char, letter, pos_x, pos_y, scroller.font_chars[0] });
 
                 scroller.fonts[idx] = FontLetter{ .char = char, .sprite = Sprite{ .y_offset_table=y_offset_table }, .pos_x = pos_x, .pos_y = pos_y };
 
@@ -98,8 +98,12 @@ pub fn Scrolltext(
                     char_pos_y = scroller.pos_y + pos_y;
                 }
 
+                const offset_start: u32 = @intCast(u32, letter) * (@intCast(u32, scroller.font_width) * @intCast(u32, scroller.font_height));
+                const offset_end: u32 = @intCast(u32, letter + 1) * (@intCast(u32, scroller.font_width) * @intCast(u32, scroller.font_height));
+                // Console.log("Position for letter {c} in fonts is : {}-{}", .{char, offset_start, offset_end});
+
                 scroller.fonts[idx].sprite.init(scroller.target, 
-                                                scroller.font_img[letter * (scroller.font_width * scroller.font_height) .. (letter + 1) * (scroller.font_width * scroller.font_height)], 
+                                                scroller.font_img[offset_start .. offset_end], 
                                                 scroller.font_width, 
                                                 scroller.font_height, 
                                                 pos_x, 
@@ -135,7 +139,12 @@ pub fn Scrolltext(
                     if (self.text_pos >= self.text.len) self.text_pos = 0;
 
                     const next_letter = self.text[self.text_pos] - self.font_chars[0];
-                    font.*.sprite.data = self.font_img[next_letter * (self.font_width * self.font_height) .. (next_letter + 1)];
+
+                    const offset_start: u32 = @intCast(u32, next_letter) * (@intCast(u32, self.font_width) * @intCast(u32, self.font_height));
+                    const offset_end: u32 = @intCast(u32, next_letter + 1) * (@intCast(u32, self.font_width) * @intCast(u32, self.font_height));
+
+                    // font.*.sprite.data = self.font_img[next_letter * (self.font_width * self.font_height) .. (next_letter + 1)];
+                    font.*.sprite.data = self.font_img[offset_start .. offset_end];
                     // Console.log("Creating FontLetter {c} {} for ASCII {}.", .{ self.text[self.text_pos], idx, next_letter + self.font_chars[0] });
                     self.text_pos += 1;
                 } else {
