@@ -9,6 +9,9 @@ from pathlib import Path
 # python tools/convert_png.py src/assets/screens/leonard/back.png src/assets/screens/leonard/back_pal.dat 
 # python tools/convert_png.py src/assets/screens/leonard/ball.png src/assets/screens/leonard/ball_pal.dat 
 # python tools/convert_png.py src/assets/screens/df/top_logo.png src/assets/screens/df/top_logo_pal.dat 
+# python tools/convert_png.py src/assets/screens/ics/grid.png src/assets/screens/ics/grid_pal.dat 
+# python tools/convert_png.py src/assets/screens/ics/grid_unit.png src/assets/screens/ics/grid_unit_pal.dat
+# python tools/convert_png.py src/assets/screens/ics/ics_logo.png src/assets/screens/ics/ics_logo_pal.dat 
 
 DEFAULT_ALPHA = 255
 

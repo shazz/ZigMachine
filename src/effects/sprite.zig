@@ -115,38 +115,46 @@ pub const Sprite = struct {
         }
 
         // right clamp
-        if (left_x_position + self.width >= (WIDTH - 1)) {
+        if (left_x_position + self.width > WIDTH) {
             right_clamp = true;
-            if (left_x_position > WIDTH - 1) {
-                clamp_sprite = true;
-            } else {
-                nb_cols = WIDTH - left_x_position;
-            }
+            // if (left_x_position > WIDTH - 1) {
+            //     clamp_sprite = true;
+            // } else {
+            //     nb_cols = WIDTH - left_x_position;
+            // }
+            nb_cols = WIDTH - left_x_position;
+            // Console.log("right clamping for x={} / {} => {}", .{left_x_position, left_x_position + self.width, nb_cols});            
         }
 
-        // TODO: top and bottom clamp
-        var clamped_y_position: u16 = 0;
+        // top and bottom clamp
+        var clamped_y_top_position: u16 = 0;
         if (self.y_position < 0) {
-            clamped_y_position = 0;
-        } else {
-            clamped_y_position = @intCast(u16, self.y_position);
-        }
+            clamped_y_top_position =  @intCast(u16, -self.y_position);
+            // Console.log("top clamping for y={} => {}", .{self.y_position, clamped_y_top_position});  
+        } 
 
-        // clamped offset in FB
-        var offset: u16 = left_x_position + (clamped_y_position * WIDTH);
+        var clamped_y_bottom_position: u16 = 0;
+        if (self.y_position + self.height > HEIGHT) {
+            clamped_y_bottom_position =  @intCast(u16, self.height + self.y_position - HEIGHT);
+            // Console.log("bottom clamping for y={} h={} => {}", .{self.y_position, self.height, clamped_y_bottom_position});  
+        } 
+
+        // offset in Framebuffer
+        var offset: u16 = left_x_position + ( (@intCast(u16, self.y_position) + clamped_y_top_position) * WIDTH );
+        // Console.log("offset in FB left: {} y: {} clamp y: {} => {}", .{left_x_position, @intCast(u16, self.y_position), clamped_y_top_position, offset});  
 
         // counter for each sprite row
         var row_counter: u16 = 0;
 
         // counter for each pixel (palette entry) of the sprite
-        var data_counter: u16 = left_x_clamped;
+        var data_counter: u32 = left_x_clamped + (clamped_y_top_position * self.width);
         var delta: u16 = 0;
 
         if (clamp_sprite == false) {
 
             // Console.log("Plotting sprite at ({}, {}) with {} cols", .{left_x_position, clamped_y_position, nb_cols});
 
-            while (row_counter < self.height) : (row_counter += 1) {
+            while (row_counter < self.height - clamped_y_top_position - clamped_y_bottom_position) : (row_counter += 1) {
 
                 // counter for each pixel of the sprite for a given row
                 var col_counter: u16 = 0;
@@ -189,11 +197,13 @@ pub const Sprite = struct {
 
                 // update pointer if right or left clamp
                 if (right_clamp == true) {
-                    data_counter += (self.width - nb_cols);
+                    data_counter += (self.width - nb_cols - left_x_clamped);
                 }
+
                 if (left_clamp == true) {
                     data_counter += left_x_clamped;
                 }
+                // Console.log("Left/Right clamp: advance pointer of {} + {} pixels", .{left_x_clamped, self.width - nb_cols - left_x_clamped});
 
                 if (self.apply_x_offset == true) {
                     var f_row: f16 = @intToFloat(f16, row_counter);
@@ -202,7 +212,7 @@ pub const Sprite = struct {
                 }
 
                 // recompute FB offset
-                offset = delta + left_x_position + (clamped_y_position * WIDTH) + (WIDTH * row_counter);
+                offset += delta + WIDTH;
             }
         }
     }

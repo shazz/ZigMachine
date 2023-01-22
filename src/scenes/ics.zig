@@ -34,14 +34,16 @@ const SCROLL_CHARS = " ! #$%&'()*+,-./0123456789:;<=>? ABCDEFGHIJKLMNOPQRSTUVWXY
 pub const NB_FONTS: u8 = WIDTH / SCROLL_CHAR_WIDTH + 1;
 
 // palettes
-const logo_pal = convertU8ArraytoColors(@embedFile("../assets/screens/ics/logo_pal.dat"));
+const logo_pal = convertU8ArraytoColors(@embedFile("../assets/screens/ics/ics_logo_pal.dat"));
+const grid_pal = convertU8ArraytoColors(@embedFile("../assets/screens/ics/grid_large_pal.dat"));
+// const grid_unit_pal = convertU8ArraytoColors(@embedFile("../assets/screens/ics/grid_unit_pal.dat"));
 
 // rasters
 const rasters_b = convertU8ArraytoColors(@embedFile("../assets/screens/ics/raster_pal.dat"));
 
 // logo
-const logo_b = @embedFile("../assets/screens/ics/ics.raw");
-const test_b = @embedFile("../assets/screens/df/top_logo.raw");
+const logo_b = @embedFile("../assets/screens/ics/ics_logo.raw");
+const grid_b = @embedFile("../assets/screens/ics/grid_large.raw");
 
 
 // --------------------------------------------------------------------------
@@ -66,24 +68,18 @@ fn handler_scroller(fb: *LogicalFB, line: u16) void {
 pub const Demo = struct {
   
     name: u8 = 0,
-    frame_counter: u32 = 0,
     scrolltext: Scrolltext(NB_FONTS) = undefined,
     logo: Sprite = undefined,
+    grid: Sprite = undefined,
     scroller_target: RenderTarget = undefined,
+    sin_counter: f32 = undefined,
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
         Console.log("Demo init", .{});
 
         // first plane
-        
         var fb: *LogicalFB = &zigos.lfbs[0];
         fb.is_enabled = true;
-        fb.setPalette(logo_pal);
-        fb.setPaletteEntry(6, Color{ .r = 252, .g = 254, .b = 252, .a = 0 });        
-        self.logo.init(fb.getRenderTarget(), logo_b, 126, 29, WIDTH/2-63, HEIGHT-29, false, null);        
-
-        fb = &zigos.lfbs[1];
-        fb.is_enabled = true; 
         fb.setPaletteEntry(0, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
 
         // HBL Handler for the raster effect
@@ -91,8 +87,33 @@ pub const Demo = struct {
 
         var buffer = [_]u8{0} ** (WIDTH * (HEIGHT-30));
         self.scroller_target = .{ .buffer = &buffer };
-        // self.scrolltext = Scrolltext(NB_FONTS).init(fb.getRenderTarget(), fonts_b, SCROLL_CHARS, SCROLL_CHAR_WIDTH, SCROLL_CHAR_HEIGHT, SCROLL_TEXT, SCROLL_SPEED, 1, null, null);
         self.scrolltext = Scrolltext(NB_FONTS).init(self.scroller_target, fonts_b, SCROLL_CHARS, SCROLL_CHAR_WIDTH, SCROLL_CHAR_HEIGHT, SCROLL_TEXT, SCROLL_SPEED, 1, null, null);
+
+        // second plane
+        fb = &zigos.lfbs[1];
+        fb.is_enabled = true; 
+
+        // set oversized grid
+        fb.setPalette(grid_pal);
+        fb.setPaletteEntry(0, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });            
+        self.grid.init(fb.getRenderTarget(), grid_b, 384, 288, 0, 0, false, null); 
+
+        // third plane
+        fb = &zigos.lfbs[2];
+        fb.is_enabled = true; 
+
+        fb.setPalette(logo_pal);
+        fb.setPaletteEntry(255, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });      
+
+        self.logo.init(fb.getRenderTarget(), logo_b, 137, 31, WIDTH/2-68, HEIGHT-29, false, null); 
+     
+        fb.clearFrameBuffer(255);
+        var i = (WIDTH*(HEIGHT-37));
+        while(i < (200*WIDTH)) : ( i+= 1) {
+            fb.fb[i] = 0;
+        }
+
+        self.sin_counter = 0;
 
         Console.log("demo init done!", .{});
     }
@@ -102,33 +123,26 @@ pub const Demo = struct {
         self.scrolltext.update();
         self.logo.update(null, null, null);
 
-        self.frame_counter += 1;
-        if (self.frame_counter == 2) {
-            raster_index += 1;
-            if (raster_index == 41) raster_index = 0;
-            
-           self.frame_counter = 0;
-        }
+        var f_sin: f32 = @sin(-self.sin_counter) * 32 * 4; 
+        var f_cos: f32 = @cos(-self.sin_counter) * 32 * 4;
+        const delta_x = -32 + @mod(@floatToInt(i16, f_sin), 32);
+        const delta_y = -32 + @mod(@floatToInt(i16, f_cos), 32);
 
+        self.grid.update(delta_x, delta_y, null);
+
+        self.sin_counter += 0.040;
         _ = zigos;
         _ = elapsed_time;
     }
 
     pub fn render(self: *Demo, zigos: *ZigOS, elapsed_time: f32) void {
 
-        self.logo.render();
-
-        // var fb0: *LogicalFB = &zigos.lfbs[0];
-        // for (self.target.buffer) |value, index| {
-        //         fb0.fb[index] = value;
-        // }  
-
-        var fb = &zigos.lfbs[1];
+        // clear the render target
         self.scroller_target.clearFrameBuffer(0);
 
         self.scrolltext.render();
 
-        // copy scrolltext 9 times
+        // copy scrolltext 9 times in the rendertarget
         var i: u16 = 0;
         while(i < (WIDTH*SCROLL_CHAR_HEIGHT)) : ( i += 1){
             self.scroller_target.buffer[i + (16*1 * WIDTH)] = self.scroller_target.buffer[i];
@@ -141,11 +155,21 @@ pub const Demo = struct {
             self.scroller_target.buffer[i + (16*8 * WIDTH)] = self.scroller_target.buffer[i];
             self.scroller_target.buffer[i + (16*9 * WIDTH)] = self.scroller_target.buffer[i];
         }
+
+        // copy the rendertarget to the fb
+        var fb = &zigos.lfbs[0];
         i = 0;
         while(i < self.scroller_target.buffer.len) : (i += 1) {
             fb.fb[i] = self.scroller_target.buffer[i];
         }
 
+        self.grid.target.clearFrameBuffer(0);
+        self.grid.render();
+
+        self.logo.render();        
+  
+        // _ = zigos;
+        // _ = self;
         _ = elapsed_time;
 
     } 
