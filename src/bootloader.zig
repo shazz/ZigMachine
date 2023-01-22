@@ -118,7 +118,7 @@ export fn renderPhysicalFrameBuffer(fb_id: u8) void {
 
                 // Check if a handler is defined for this logical FB
                 if (s_fb.fb_hbl_handler) |handler| {
-                    handler(&s_fb, @intCast(u16, y));
+                    handler(&s_fb, &zigos, @intCast(u16, y));
                 }
 
                 switch (y) {

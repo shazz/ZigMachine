@@ -95,12 +95,15 @@ pub const Sprite = struct {
         }        
 
         var nb_cols = self.width;
-        var left_clamp = false;
-        var right_clamp = false;
+        var left_clamp: bool = false;
+        var right_clamp: bool = false;
         var clamp_sprite: bool = false;
 
         var left_x_position: u16 = 0;
         var left_x_clamped: u16 = 0;
+
+        // checking is fully offscreen
+        if( (self.x_position >= WIDTH) or (self.y_position >= HEIGHT) or (self.x_position + self.width < 0) or (self.y_position + self.height < 0) ) clamp_sprite = true;
 
         // left clamp
         if (self.x_position < 0) {
@@ -117,11 +120,6 @@ pub const Sprite = struct {
         // right clamp
         if (left_x_position + self.width > WIDTH) {
             right_clamp = true;
-            // if (left_x_position > WIDTH - 1) {
-            //     clamp_sprite = true;
-            // } else {
-            //     nb_cols = WIDTH - left_x_position;
-            // }
             nb_cols = WIDTH - left_x_position;
             // Console.log("right clamping for x={} / {} => {}", .{left_x_position, left_x_position + self.width, nb_cols});            
         }

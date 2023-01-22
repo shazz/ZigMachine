@@ -49,7 +49,7 @@ var raster_index: u8 = 0;
 // --------------------------------------------------------------------------
 // Demo
 // --------------------------------------------------------------------------
-fn handler_logo(fb: *LogicalFB, line: u16) void {
+fn handler_logo(fb: *LogicalFB, zigos: *ZigOS, line: u16) void {
     const back_color: Color = Color{ .r = 0, .g = 0, .b = 0, .a = 0 };
     const current_color: Color = top_rasters_b[raster_index];
 
@@ -59,9 +59,11 @@ fn handler_logo(fb: *LogicalFB, line: u16) void {
     if (line == 60) {
         fb.setPaletteEntry(255, back_color);
     }
+
+    _ = zigos;
 }
 
-fn handler_scroller(fb: *LogicalFB, line: u16) void {
+fn handler_scroller(fb: *LogicalFB, zigos: *ZigOS, line: u16) void {
     const back_color: Color = Color{ .r = 0, .g = 0, .b = 0, .a = 0 };
 
     if (line > 52+40 and line < 240 ) {
@@ -70,6 +72,8 @@ fn handler_scroller(fb: *LogicalFB, line: u16) void {
     if (line == 240) {
         fb.setPaletteEntry(1, back_color);
     }
+
+    _ = zigos;
 }
 
 pub const Demo = struct {

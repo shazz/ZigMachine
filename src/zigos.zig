@@ -81,10 +81,11 @@ pub const LogicalFB = struct {
     palette: [256]Color = undefined,
     back_color: u8 = 0,
     id: u8 = 0,
-    fb_hbl_handler: ?*const fn (*LogicalFB, u16) void,
+    fb_hbl_handler: ?*const fn (*LogicalFB, *ZigOS, u16) void,
     is_enabled: bool = undefined,
+    zigos: *ZigOS = undefined,
 
-    pub fn init(self: *LogicalFB) void {
+    pub fn init(self: *LogicalFB, zigos: *ZigOS) void {
         Console.log("Init Logical Framebuffer {d}", .{self.id});
 
         Console.log("Clear Logical Framebuffer {d} palette", .{self.id});
@@ -95,6 +96,7 @@ pub const LogicalFB = struct {
         Console.log("Clear Logical Framebuffer {d}", .{self.id});
         self.clearFrameBuffer(0);
 
+        self.zigos = zigos;
         self.is_enabled = false;
     }
 
@@ -155,7 +157,7 @@ pub const LogicalFB = struct {
         }
     }
 
-    pub fn setFrameBufferHBLHandler(self: *LogicalFB, handler: *const fn (*LogicalFB, u16) void) void {
+    pub fn setFrameBufferHBLHandler(self: *LogicalFB, handler: *const fn (*LogicalFB, *ZigOS, u16) void) void {
         self.fb_hbl_handler = handler;
     }
 };
@@ -179,7 +181,7 @@ pub const ZigOS = struct {
 
         for (self.lfbs) |*lfb, idx| {
             lfb.*.id = @intCast(u8, idx);
-            lfb.init();
+            lfb.init(self);
         }
 
         Console.log("fb zigos: {}", .{@ptrToInt(&self.physical_framebuffer)});

@@ -90,6 +90,7 @@ pub fn Scrolltext(
 
                 var char_pos_y: u16 = undefined;
                 if (scroller.apply_offset_table) {  
+                    Console.log("Applying position offset", .{});
                     if (scroller.offset_table) |table| {
                         char_pos_y = table[pos_x];
                     }
