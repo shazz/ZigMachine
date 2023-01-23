@@ -10,6 +10,10 @@ DEFAULT_ALPHA = 255
 # python tools/convert_bitmap_font.py src/assets/screens/ancool/fonts.png 32 17 10 60
 # python tools/convert_bitmap_font.py src/assets/screens/leonard/font.png 6 6 10 60
 # python tools/convert_bitmap_font.py src/assets/screens/empire/fonts2.png 32 32 10 60
+# python tools/convert_bitmap_font.py src/assets/screens/df/fonts2.png 32 30 10 60
+# python tools/convert_bitmap_font.py src/assets/screens/ics/font_noics.png 16 16 44 94
+# python tools/convert_bitmap_font.py src/assets/screens/bladerunners/fonts.png 32 32 10 80
+# python tools/convert_bitmap_font.py src/assets/screens/reps4/fonts.png 16 16 10 60
 
 
 def grouper(iterator: Iterator, n: int) -> Iterator[list]:
