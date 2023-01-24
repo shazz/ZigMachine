@@ -109,10 +109,12 @@ export fn renderPhysicalFrameBuffer(fb_id: u8) void {
         var s_fb: *LogicalFB = &zigos.lfbs[fb_id];
 
         if (s_fb.is_enabled) {
-            const palfb: [WIDTH * HEIGHT]u8 = s_fb.fb;
+            const palfb: *[WIDTH * HEIGHT]u8 = &s_fb.fb;
             const palette: *[256]Color = &s_fb.palette;
 
             var fb_index: u32 = 0;
+            var vertical_border_opened: bool = false;
+            var horizontal_border_opened: bool = false;
 
             // can call a VBL handler here
             for (zigos.physical_framebuffer) |*row, y| {
@@ -125,36 +127,81 @@ export fn renderPhysicalFrameBuffer(fb_id: u8) void {
                 switch (y) {
                     0...(VERTICAL_BORDERS_HEIGHT - 1) => {
                         // that's the trick, if the hbl handler changed the resolution to tc, the top border is now open
-                        if(zigos.resolution == Resolution.truecolor) {
 
-                            // Console.log("border opened!", .{});
+                        if(y == 0 and zigos.resolution == Resolution.truecolor) vertical_border_opened = true;
+
+                        if(vertical_border_opened) {
+
                             for (row) |*pixel, x| {
-                            // within left border
+                                // within left border
                                 switch (x) {
+                                    0...HORIZONTAL_BORDERS_WIDTH - 1 => {
+                                        if(x == 0 and zigos.resolution == Resolution.truecolor) {
+                                            horizontal_border_opened = true;
+                                            zigos.resolution = Resolution.planes;
+                                        }   
+
+                                        if(horizontal_border_opened) {
+
+                                            const pal_entry: u8 = palfb[fb_index];
+                                            const color: Color = palette[pal_entry];
+                                            pixel.* = color.toRGBA();
+                                            fb_index += 1;
+
+                                            if(x == HORIZONTAL_BORDERS_WIDTH - 1) fb_index -= HORIZONTAL_BORDERS_WIDTH;
+                                        }
+                                    },
                                     HORIZONTAL_BORDERS_WIDTH...(PHYSICAL_WIDTH - HORIZONTAL_BORDERS_WIDTH - 1) => {
                                         // visible screen
                                         const pal_entry: u8 = palfb[fb_index];
                                         const color: Color = palette[pal_entry];
                                         pixel.* = color.toRGBA();
-
                                         fb_index += 1;
                                     },
+                                    (PHYSICAL_WIDTH - HORIZONTAL_BORDERS_WIDTH)...PHYSICAL_WIDTH - 1 => {
+         
+                                        if(horizontal_border_opened) {
+
+                                            if(x == PHYSICAL_WIDTH - HORIZONTAL_BORDERS_WIDTH) fb_index -= HORIZONTAL_BORDERS_WIDTH;
+                          
+                                            const pal_entry: u8 = palfb[fb_index];
+                                            const color: Color = palette[pal_entry];
+                                            pixel.* = color.toRGBA();
+                                            fb_index += 1;
+
+                                            if(x == PHYSICAL_WIDTH - 1) horizontal_border_opened = false;                                   
+                                        }
+                                    },                                    
                                     else => {},
                                 }
                             }
                         }
                     },
                     VERTICAL_BORDERS_HEIGHT...(PHYSICAL_HEIGHT - VERTICAL_BORDERS_HEIGHT) - 1 => {
-                        // Console.log("between borders: {}", .{y});
 
                         // reset the fb index and reolsution mode if the borders trick was used
                         if (y == VERTICAL_BORDERS_HEIGHT) {
-                            zigos.resolution = Resolution.planes;
+                            vertical_border_opened = false;
                             fb_index = 0;
                         }
                         for (row) |*pixel, x| {
                             // within left border
                             switch (x) {
+                                 0...HORIZONTAL_BORDERS_WIDTH - 1 => {
+                                    if(x == 0 and zigos.resolution == Resolution.truecolor) {
+                                        horizontal_border_opened = true;
+                                    }   
+
+                                    if(horizontal_border_opened) {
+
+                                        const pal_entry: u8 = palfb[fb_index];
+                                        const color: Color = palette[pal_entry];
+                                        pixel.* = color.toRGBA();
+                                        fb_index += 1;
+
+                                        if(x == HORIZONTAL_BORDERS_WIDTH - 1) fb_index -= HORIZONTAL_BORDERS_WIDTH;
+                                    }
+                                },                                
                                 HORIZONTAL_BORDERS_WIDTH...(PHYSICAL_WIDTH - HORIZONTAL_BORDERS_WIDTH - 1) => {
                                     // visible screen
                                     const pal_entry: u8 = palfb[fb_index];
@@ -163,32 +210,88 @@ export fn renderPhysicalFrameBuffer(fb_id: u8) void {
 
                                     fb_index += 1;
                                 },
+                                (PHYSICAL_WIDTH - HORIZONTAL_BORDERS_WIDTH)...PHYSICAL_WIDTH - 1 => {
+         
+                                    if(horizontal_border_opened) {
+
+                                        if(x == PHYSICAL_WIDTH - HORIZONTAL_BORDERS_WIDTH) fb_index -= HORIZONTAL_BORDERS_WIDTH;
+                        
+                                        const pal_entry: u8 = palfb[fb_index];
+                                        const color: Color = palette[pal_entry];
+                                        pixel.* = color.toRGBA();
+                                        fb_index += 1;
+
+                                        if(x == PHYSICAL_WIDTH - 1) {
+                                            horizontal_border_opened = false;    
+                                            zigos.resolution = Resolution.planes;
+                                        }                               
+                                    }
+                                },  
                                 else => {},
                             }
                         }
                     },
                     (PHYSICAL_HEIGHT - VERTICAL_BORDERS_HEIGHT)...(PHYSICAL_HEIGHT - 1) => {
-                        // open the low border
-                        if(zigos.resolution == Resolution.truecolor) {
-                            
-                            // go back in the fb
-                            if (y == VERTICAL_BORDERS_HEIGHT) {
-                                fb_index -= (VERTICAL_BORDERS_HEIGHT * WIDTH);
-                            }
 
+                        if(y == (PHYSICAL_HEIGHT - VERTICAL_BORDERS_HEIGHT) and zigos.resolution == Resolution.truecolor) {
+                            fb_index -= (PHYSICAL_HEIGHT - y) * WIDTH;
+                            vertical_border_opened = true;
+                        }
+
+                        // open the low border
+                        if(vertical_border_opened) {
+                            
+                            // Console.log("Bottom border opened at index {} and row {} vs {}", .{fb_index, y, palfb.len} );
                             for (row) |*pixel, x| {
-                            // within left border
+                                // within left border
                                 switch (x) {
+                                    0...HORIZONTAL_BORDERS_WIDTH - 1 => {
+                                        if(x == 0 and zigos.resolution == Resolution.truecolor) {
+                                            horizontal_border_opened = true;
+                                        }   
+
+                                        if(horizontal_border_opened) {
+
+                                            const pal_entry: u8 = palfb[fb_index];
+                                            const color: Color = palette[pal_entry];
+                                            pixel.* = color.toRGBA();
+                                            fb_index += 1;
+
+                                            if(x == HORIZONTAL_BORDERS_WIDTH - 1) fb_index -= HORIZONTAL_BORDERS_WIDTH;
+                                        }
+                                    },                                                                    
                                     HORIZONTAL_BORDERS_WIDTH...(PHYSICAL_WIDTH - HORIZONTAL_BORDERS_WIDTH - 1) => {
                                         // visible screen
                                         const pal_entry: u8 = palfb[fb_index];
                                         const color: Color = palette[pal_entry];
                                         pixel.* = color.toRGBA();
-
                                         fb_index += 1;
                                     },
+                                    (PHYSICAL_WIDTH - HORIZONTAL_BORDERS_WIDTH)...PHYSICAL_WIDTH - 1 => {
+         
+                                        if(horizontal_border_opened) {
+
+                                            if(x == PHYSICAL_WIDTH - HORIZONTAL_BORDERS_WIDTH) fb_index -= HORIZONTAL_BORDERS_WIDTH;
+                          
+                                            const pal_entry: u8 = palfb[fb_index];
+                                            const color: Color = palette[pal_entry];
+                                            pixel.* = color.toRGBA();
+                                            fb_index += 1;
+
+                                            if(x == PHYSICAL_WIDTH - 1) {
+                                                horizontal_border_opened = false;   
+                                                zigos.resolution = Resolution.planes;
+                                            }                                
+                                        }
+                                    },                                       
                                     else => {},
                                 }
+                            }
+
+                            // disable border trick at the end of the VBL
+                            if(y == PHYSICAL_HEIGHT - 1) {
+                                zigos.resolution = Resolution.planes;
+                                vertical_border_opened = false;
                             }
                         }
                     },                    

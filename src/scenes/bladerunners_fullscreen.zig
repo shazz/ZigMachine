@@ -51,29 +51,18 @@ var raster_index: u8 = 0;
 // Demo
 // --------------------------------------------------------------------------
 fn handler_hbl(zigos: *ZigOS, line: u16) void {
-
-    if(line >= 0 and line < 240) {
-        zigos.setBackgroundColor(back_rasters_b[(line + 12 + raster_index) % 255]);
-    }
-    else {
-        zigos.setBackgroundColor(Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
-    }        
+    zigos.setBackgroundColor(back_rasters_b[(line + 12 + raster_index) % 255]);     
 }
 
 
 fn handler_back(fb: *LogicalFB, zigos: *ZigOS, line: u16) void {
 
-    if(line >= 0 and line < 240) {
-        fb.setPaletteEntry(0, back_rasters_b[(line - 40 + raster_index) % 255]);
-    }
-
+    fb.setPaletteEntry(0, back_rasters_b[(line - 40 + raster_index) % 255]);
     _ = zigos;
 }
 
 fn handler_scroller(fb: *LogicalFB, zigos: *ZigOS, line: u16) void {
-    const back_color: Color = Color{ .r = 0, .g = 0, .b = 0, .a = 0 };
-
-
+    
     if(line == 0) {
         // Console.log("opening the top border", .{});
         zigos.setResolution(Resolution.truecolor);
@@ -81,15 +70,12 @@ fn handler_scroller(fb: *LogicalFB, zigos: *ZigOS, line: u16) void {
 
     if(line == 240) {
         // Console.log("opening the bottom border", .{});
-        zigos.setResolution(Resolution.planes);
+        zigos.setResolution(Resolution.truecolor);
     }    
 
-    if (line > 0 and line < 240 ) {
-        fb.setPaletteEntry(1, font_rasters_b[(line - 40) % 200]);
-    }
-    if (line == 240) {
-        fb.setPaletteEntry(1, back_color);
-    }
+    // Console.log("opening the left and right border", .{});
+    zigos.setResolution(Resolution.truecolor);    
+    fb.setPaletteEntry(1, font_rasters_b[(line - 40) % 200]);
 
     // _ = zigos;
 }
