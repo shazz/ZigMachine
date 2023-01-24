@@ -81,7 +81,8 @@ pub const LogicalFB = struct {
     palette: [256]Color = undefined,
     back_color: u8 = 0,
     id: u8 = 0,
-    fb_hbl_handler: ?*const fn (*LogicalFB, *ZigOS, u16) void,
+    fb_hbl_handler: ?*const fn (*LogicalFB, *ZigOS, u16, u16) void,
+    fb_hbl_handler_position: u16 = undefined,
     is_enabled: bool = undefined,
     zigos: *ZigOS = undefined,
 
@@ -157,8 +158,10 @@ pub const LogicalFB = struct {
         }
     }
 
-    pub fn setFrameBufferHBLHandler(self: *LogicalFB, handler: *const fn (*LogicalFB, *ZigOS, u16) void) void {
+    pub fn setFrameBufferHBLHandler(self: *LogicalFB, position: u16, handler: *const fn (*LogicalFB, *ZigOS, u16, u16) void) void {
         self.fb_hbl_handler = handler;
+        self.fb_hbl_handler_position = position;
+        // Console.log("HBL Handler set for position: {}", .{self.fb_hbl_handler_position});
     }
 };
 

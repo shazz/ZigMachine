@@ -119,28 +119,41 @@ export fn renderPhysicalFrameBuffer(fb_id: u8) void {
             // can call a VBL handler here
             for (zigos.physical_framebuffer) |*row, y| {
 
-                // Check if a handler is defined for this logical FB
-                if (s_fb.fb_hbl_handler) |handler| {
-                    handler(s_fb, &zigos, @intCast(u16, y));
-                }
-
                 switch (y) {
                     0...(VERTICAL_BORDERS_HEIGHT - 1) => {
                         // that's the trick, if the hbl handler changed the resolution to tc, the top border is now open
 
-                        if(y == 0 and zigos.resolution == Resolution.truecolor) vertical_border_opened = true;
-
-                        if(vertical_border_opened) {
-
-                            for (row) |*pixel, x| {
+                        for (row) |*pixel, x| {
                                 // within left border
+
+                            // Check if a handler is defined for this logical FB
+                            if (s_fb.fb_hbl_handler) |handler| {
+                                if(x == s_fb.fb_hbl_handler_position) handler(s_fb, &zigos, @intCast(u16, y), @intCast(u16, x));
+                            }
+
+                            // open top border
+                            if(y == 0 and x >= HORIZONTAL_BORDERS_WIDTH and zigos.resolution == Resolution.truecolor) {
+                                vertical_border_opened = true;
+                                zigos.resolution = Resolution.planes;
+                                Console.log("Top border opened!", .{});
+                            }
+
+                            // open left border
+                            if(x == 0 and zigos.resolution == Resolution.truecolor) {
+
+                                if(vertical_border_opened) {
+                                    horizontal_border_opened = true;
+                                    Console.log("Top Left border opened!", .{});
+                                } 
+                                zigos.resolution = Resolution.planes;
+                            }                               
+
+                            if(vertical_border_opened) {                            
+
                                 switch (x) {
                                     0...HORIZONTAL_BORDERS_WIDTH - 1 => {
-                                        if(x == 0 and zigos.resolution == Resolution.truecolor) {
-                                            horizontal_border_opened = true;
-                                            zigos.resolution = Resolution.planes;
-                                        }   
 
+                                        // top left border
                                         if(horizontal_border_opened) {
 
                                             const pal_entry: u8 = palfb[fb_index];
@@ -152,7 +165,11 @@ export fn renderPhysicalFrameBuffer(fb_id: u8) void {
                                         }
                                     },
                                     HORIZONTAL_BORDERS_WIDTH...(PHYSICAL_WIDTH - HORIZONTAL_BORDERS_WIDTH - 1) => {
-                                        // visible screen
+                                        
+                                        // top middle border
+                                        zigos.resolution = Resolution.planes;
+                                        horizontal_border_opened = false;
+
                                         const pal_entry: u8 = palfb[fb_index];
                                         const color: Color = palette[pal_entry];
                                         pixel.* = color.toRGBA();
@@ -160,6 +177,7 @@ export fn renderPhysicalFrameBuffer(fb_id: u8) void {
                                     },
                                     (PHYSICAL_WIDTH - HORIZONTAL_BORDERS_WIDTH)...PHYSICAL_WIDTH - 1 => {
          
+                                        // top right border
                                         if(horizontal_border_opened) {
 
                                             if(x == PHYSICAL_WIDTH - HORIZONTAL_BORDERS_WIDTH) fb_index -= HORIZONTAL_BORDERS_WIDTH;
@@ -185,13 +203,23 @@ export fn renderPhysicalFrameBuffer(fb_id: u8) void {
                             fb_index = 0;
                         }
                         for (row) |*pixel, x| {
-                            // within left border
+
+                            // Check if a handler is defined for this logical FB
+                            if (s_fb.fb_hbl_handler) |handler| {
+                                if(x == s_fb.fb_hbl_handler_position) handler(s_fb, &zigos, @intCast(u16, y), @intCast(u16, x));
+                            }
+
+                            // open left border
+                            if(x == 0 and zigos.resolution == Resolution.truecolor) {
+                                horizontal_border_opened = true;
+                                zigos.resolution = Resolution.planes;
+                                Console.log("Middle Left border opened!", .{});
+                            }                                   
+
                             switch (x) {
                                  0...HORIZONTAL_BORDERS_WIDTH - 1 => {
-                                    if(x == 0 and zigos.resolution == Resolution.truecolor) {
-                                        horizontal_border_opened = true;
-                                    }   
 
+                                    // middle left border
                                     if(horizontal_border_opened) {
 
                                         const pal_entry: u8 = palfb[fb_index];
@@ -199,10 +227,15 @@ export fn renderPhysicalFrameBuffer(fb_id: u8) void {
                                         pixel.* = color.toRGBA();
                                         fb_index += 1;
 
-                                        if(x == HORIZONTAL_BORDERS_WIDTH - 1) fb_index -= HORIZONTAL_BORDERS_WIDTH;
+                                        if(x == HORIZONTAL_BORDERS_WIDTH - 1) {
+                                            fb_index -= HORIZONTAL_BORDERS_WIDTH;
+                                            zigos.resolution = Resolution.planes;
+                                            horizontal_border_opened = false;
+                                        }
                                     }
                                 },                                
                                 HORIZONTAL_BORDERS_WIDTH...(PHYSICAL_WIDTH - HORIZONTAL_BORDERS_WIDTH - 1) => {
+
                                     // visible screen
                                     const pal_entry: u8 = palfb[fb_index];
                                     const color: Color = palette[pal_entry];
@@ -212,7 +245,10 @@ export fn renderPhysicalFrameBuffer(fb_id: u8) void {
                                 },
                                 (PHYSICAL_WIDTH - HORIZONTAL_BORDERS_WIDTH)...PHYSICAL_WIDTH - 1 => {
          
+                                    // middle right border
                                     if(horizontal_border_opened) {
+
+                                        Console.log("Poueeet!", .{});
 
                                         if(x == PHYSICAL_WIDTH - HORIZONTAL_BORDERS_WIDTH) fb_index -= HORIZONTAL_BORDERS_WIDTH;
                         
@@ -233,16 +269,36 @@ export fn renderPhysicalFrameBuffer(fb_id: u8) void {
                     },
                     (PHYSICAL_HEIGHT - VERTICAL_BORDERS_HEIGHT)...(PHYSICAL_HEIGHT - 1) => {
 
-                        if(y == (PHYSICAL_HEIGHT - VERTICAL_BORDERS_HEIGHT) and zigos.resolution == Resolution.truecolor) {
-                            fb_index -= (PHYSICAL_HEIGHT - y) * WIDTH;
-                            vertical_border_opened = true;
-                        }
+                         // Console.log("Bottom border opened at index {} and row {} vs {}", .{fb_index, y, palfb.len} );
+                        for (row) |*pixel, x| {
 
-                        // open the low border
-                        if(vertical_border_opened) {
-                            
-                            // Console.log("Bottom border opened at index {} and row {} vs {}", .{fb_index, y, palfb.len} );
-                            for (row) |*pixel, x| {
+                            // Check if a handler is defined for this logical FB
+                            if (s_fb.fb_hbl_handler) |handler| {
+                                if(x == s_fb.fb_hbl_handler_position) handler(s_fb, &zigos, @intCast(u16, y), @intCast(u16, x));
+                            }
+
+                            // open low border
+                            if(y == (PHYSICAL_HEIGHT - VERTICAL_BORDERS_HEIGHT) and x >= HORIZONTAL_BORDERS_WIDTH and zigos.resolution == Resolution.truecolor) {
+                                fb_index -= (PHYSICAL_HEIGHT - y) * WIDTH;
+                                vertical_border_opened = true;
+                                zigos.resolution = Resolution.planes;
+                                Console.log("Bottom border opened!", .{});
+                            }
+
+                            // open left border
+                            if(x == 0 and zigos.resolution == Resolution.truecolor) {
+
+                                if(vertical_border_opened) {
+                                    horizontal_border_opened = true;
+                                    Console.log("Bottom Left border opened!", .{});
+                                } 
+                                zigos.resolution = Resolution.planes;
+
+                            }                                  
+
+                            // open the low border
+                            if(vertical_border_opened) {                            
+
                                 // within left border
                                 switch (x) {
                                     0...HORIZONTAL_BORDERS_WIDTH - 1 => {
@@ -262,6 +318,10 @@ export fn renderPhysicalFrameBuffer(fb_id: u8) void {
                                     },                                                                    
                                     HORIZONTAL_BORDERS_WIDTH...(PHYSICAL_WIDTH - HORIZONTAL_BORDERS_WIDTH - 1) => {
                                         // visible screen
+
+                                        zigos.resolution = Resolution.planes;
+                                        horizontal_border_opened = false;
+
                                         const pal_entry: u8 = palfb[fb_index];
                                         const color: Color = palette[pal_entry];
                                         pixel.* = color.toRGBA();
@@ -288,10 +348,11 @@ export fn renderPhysicalFrameBuffer(fb_id: u8) void {
                                 }
                             }
 
-                            // disable border trick at the end of the VBL
+                            // disable border tricks at the end of the VBL
                             if(y == PHYSICAL_HEIGHT - 1) {
                                 zigos.resolution = Resolution.planes;
                                 vertical_border_opened = false;
+                                horizontal_border_opened = false;
                             }
                         }
                     },                    
