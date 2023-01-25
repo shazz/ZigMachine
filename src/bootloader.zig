@@ -132,18 +132,18 @@ export fn renderPhysicalFrameBuffer(fb_id: u8) void {
                             }
 
                             // open top border
-                            if(y == 0 and x >= HORIZONTAL_BORDERS_WIDTH and zigos.resolution == Resolution.truecolor) {
+                            if(y == 0 and x >= HORIZONTAL_BORDERS_WIDTH and zigos.resolution == Resolution.truecolor and !vertical_border_opened) {
                                 vertical_border_opened = true;
                                 zigos.resolution = Resolution.planes;
-                                Console.log("Top border opened!", .{});
+                                // Console.log("Top border opened!", .{});
                             }
 
-                            // open left border
-                            if(x == 0 and zigos.resolution == Resolution.truecolor) {
+                            // open left or right border
+                            if( (x == 0 or x == (WIDTH + HORIZONTAL_BORDERS_WIDTH) ) and zigos.resolution == Resolution.truecolor) {
 
                                 if(vertical_border_opened) {
                                     horizontal_border_opened = true;
-                                    Console.log("Top Left border opened!", .{});
+                                    // Console.log("Top Left or Right border opened! at {}", .{x});
                                 } 
                                 zigos.resolution = Resolution.planes;
                             }                               
@@ -167,8 +167,10 @@ export fn renderPhysicalFrameBuffer(fb_id: u8) void {
                                     HORIZONTAL_BORDERS_WIDTH...(PHYSICAL_WIDTH - HORIZONTAL_BORDERS_WIDTH - 1) => {
                                         
                                         // top middle border
-                                        zigos.resolution = Resolution.planes;
-                                        horizontal_border_opened = false;
+                                        if( x == HORIZONTAL_BORDERS_WIDTH) {
+                                            zigos.resolution = Resolution.planes;
+                                            horizontal_border_opened = false;
+                                        }
 
                                         const pal_entry: u8 = palfb[fb_index];
                                         const color: Color = palette[pal_entry];
@@ -180,7 +182,10 @@ export fn renderPhysicalFrameBuffer(fb_id: u8) void {
                                         // top right border
                                         if(horizontal_border_opened) {
 
-                                            if(x == PHYSICAL_WIDTH - HORIZONTAL_BORDERS_WIDTH) fb_index -= HORIZONTAL_BORDERS_WIDTH;
+                                            if(x == PHYSICAL_WIDTH - HORIZONTAL_BORDERS_WIDTH) {
+                                                fb_index -= HORIZONTAL_BORDERS_WIDTH;
+                                                // Console.log("Reset fb_index to {} on line {}", .{fb_index, y});
+                                            }
                           
                                             const pal_entry: u8 = palfb[fb_index];
                                             const color: Color = palette[pal_entry];
@@ -208,12 +213,12 @@ export fn renderPhysicalFrameBuffer(fb_id: u8) void {
                             if (s_fb.fb_hbl_handler) |handler| {
                                 if(x == s_fb.fb_hbl_handler_position) handler(s_fb, &zigos, @intCast(u16, y), @intCast(u16, x));
                             }
-
-                            // open left border
-                            if(x == 0 and zigos.resolution == Resolution.truecolor) {
+                          
+                            // open left and right border
+                            if( (x == 0 or x == (WIDTH + HORIZONTAL_BORDERS_WIDTH) ) and zigos.resolution == Resolution.truecolor) {
                                 horizontal_border_opened = true;
                                 zigos.resolution = Resolution.planes;
-                                Console.log("Middle Left border opened!", .{});
+                                // Console.log("Middle Left or Right border opened!", .{});
                             }                                   
 
                             switch (x) {
@@ -248,8 +253,6 @@ export fn renderPhysicalFrameBuffer(fb_id: u8) void {
                                     // middle right border
                                     if(horizontal_border_opened) {
 
-                                        Console.log("Poueeet!", .{});
-
                                         if(x == PHYSICAL_WIDTH - HORIZONTAL_BORDERS_WIDTH) fb_index -= HORIZONTAL_BORDERS_WIDTH;
                         
                                         const pal_entry: u8 = palfb[fb_index];
@@ -278,67 +281,66 @@ export fn renderPhysicalFrameBuffer(fb_id: u8) void {
                             }
 
                             // open low border
-                            if(y == (PHYSICAL_HEIGHT - VERTICAL_BORDERS_HEIGHT) and x >= HORIZONTAL_BORDERS_WIDTH and zigos.resolution == Resolution.truecolor) {
-                                fb_index -= (PHYSICAL_HEIGHT - y) * WIDTH;
+                            if(y == (PHYSICAL_HEIGHT - VERTICAL_BORDERS_HEIGHT) and x >= HORIZONTAL_BORDERS_WIDTH and zigos.resolution == Resolution.truecolor and !vertical_border_opened) {
+                                fb_index -= VERTICAL_BORDERS_HEIGHT * WIDTH;
                                 vertical_border_opened = true;
                                 zigos.resolution = Resolution.planes;
-                                Console.log("Bottom border opened!", .{});
+                                // Console.log("Bottom border opened!", .{});
                             }
 
-                            // open left border
-                            if(x == 0 and zigos.resolution == Resolution.truecolor) {
+                            // open left and right border
+                            if(vertical_border_opened) {
 
-                                if(vertical_border_opened) {
+                                if( (x == 0 or x == (WIDTH + HORIZONTAL_BORDERS_WIDTH) ) and zigos.resolution == Resolution.truecolor) {
+
                                     horizontal_border_opened = true;
-                                    Console.log("Bottom Left border opened!", .{});
-                                } 
-                                zigos.resolution = Resolution.planes;
-
-                            }                                  
-
-                            // open the low border
-                            if(vertical_border_opened) {                            
+                                    zigos.resolution = Resolution.planes;
+                                    // Console.log("Bottom Left border opened!", .{});
+                                }                        
 
                                 // within left border
                                 switch (x) {
                                     0...HORIZONTAL_BORDERS_WIDTH - 1 => {
-                                        if(x == 0 and zigos.resolution == Resolution.truecolor) {
-                                            horizontal_border_opened = true;
-                                        }   
-
+       
                                         if(horizontal_border_opened) {
+
+                                            // Console.log("filling low left border from fb at {} on line  {}", .{fb_index, y});
 
                                             const pal_entry: u8 = palfb[fb_index];
                                             const color: Color = palette[pal_entry];
                                             pixel.* = color.toRGBA();
                                             fb_index += 1;
 
-                                            if(x == HORIZONTAL_BORDERS_WIDTH - 1) fb_index -= HORIZONTAL_BORDERS_WIDTH;
+                                            if(x == (HORIZONTAL_BORDERS_WIDTH - 1) ) {
+                                                fb_index -= HORIZONTAL_BORDERS_WIDTH;
+                                                zigos.resolution = Resolution.planes;
+                                                horizontal_border_opened = false;
+                                            }
                                         }
                                     },                                                                    
                                     HORIZONTAL_BORDERS_WIDTH...(PHYSICAL_WIDTH - HORIZONTAL_BORDERS_WIDTH - 1) => {
                                         // visible screen
 
-                                        zigos.resolution = Resolution.planes;
-                                        horizontal_border_opened = false;
-
                                         const pal_entry: u8 = palfb[fb_index];
                                         const color: Color = palette[pal_entry];
                                         pixel.* = color.toRGBA();
+
                                         fb_index += 1;
                                     },
-                                    (PHYSICAL_WIDTH - HORIZONTAL_BORDERS_WIDTH)...PHYSICAL_WIDTH - 1 => {
-         
+                                    (PHYSICAL_WIDTH - HORIZONTAL_BORDERS_WIDTH)...PHYSICAL_WIDTH - 1 => { 
+
                                         if(horizontal_border_opened) {
 
-                                            if(x == PHYSICAL_WIDTH - HORIZONTAL_BORDERS_WIDTH) fb_index -= HORIZONTAL_BORDERS_WIDTH;
+                                            if(x == (PHYSICAL_WIDTH - HORIZONTAL_BORDERS_WIDTH) ) 
+                                                fb_index -= HORIZONTAL_BORDERS_WIDTH;
                           
                                             const pal_entry: u8 = palfb[fb_index];
                                             const color: Color = palette[pal_entry];
                                             pixel.* = color.toRGBA();
+
                                             fb_index += 1;
 
-                                            if(x == PHYSICAL_WIDTH - 1) {
+                                            if(x == (PHYSICAL_WIDTH - 1) ) {
                                                 horizontal_border_opened = false;   
                                                 zigos.resolution = Resolution.planes;
                                             }                                

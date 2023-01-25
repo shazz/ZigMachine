@@ -56,7 +56,7 @@ fn handler_back(fb: *LogicalFB, zigos: *ZigOS, line: u16, column: u16) void {
     // Open top border and use top buffer to fill the space
     if(line == 0 and column == 40) {
 
-        Console.log("opening top border!", .{});
+        // Console.log("opening top border!", .{});
         zigos.setResolution(Resolution.truecolor);
     }
 
@@ -88,8 +88,26 @@ fn handler_back(fb: *LogicalFB, zigos: *ZigOS, line: u16, column: u16) void {
             }   
 
             // set the mark to open the next border
-            fb.setFrameBufferHBLHandler(0, handler_back); 
+            fb.setFrameBufferHBLHandler(320+40, handler_back); 
         }
+
+        if(column == 320+40) {
+            zigos.setResolution(Resolution.truecolor);
+
+            // copy right buffer to framebuffer
+            var i: usize = 0;
+            const right_offset: u16 = line * 40;
+            const fb_offset: u16 = (line * WIDTH) + (320 - 40);
+
+            // Console.log("Copy right buffer to visible space at {} in left border at line: {} and column {}", .{ fb_offset, line, column });
+
+            while(i < 40) : (i += 1) {
+                fb.fb[fb_offset + i] = right_b[right_offset + i];
+            }   
+
+            // mark the end of the left border
+            fb.setFrameBufferHBLHandler(0, handler_back); 
+        }          
     }
 
     // -------------------------------------------------------------------------------
@@ -134,8 +152,30 @@ fn handler_back(fb: *LogicalFB, zigos: *ZigOS, line: u16, column: u16) void {
             }  
 
             // set the mark to open the next border
-            fb.setFrameBufferHBLHandler(0, handler_back); 
+            fb.setFrameBufferHBLHandler(320+40, handler_back); 
         }
+
+        if(column == 320+40) {
+            zigos.setResolution(Resolution.truecolor);
+
+            // copy right buffer to framebuffer
+            var i: usize = 0;
+            const right_offset: u16 = line * 40;
+            const fb_offset: u16 = ( (line - 40) * WIDTH) + (320 - 40);
+
+            // Console.log("Copy right buffer to visible space at {} in left border at line: {} and column {}", .{ fb_offset, line, column });
+
+            while(i < 40) : (i += 1) {
+                fb.fb[fb_offset + i] = right_b[right_offset + i];
+            }   
+
+            // mark the end of the left border
+            if(line == 239) {
+                fb.setFrameBufferHBLHandler(40, handler_back);
+            } else { 
+                fb.setFrameBufferHBLHandler(0, handler_back); 
+            }
+        }             
     }
 
     // -------------------------------------------------------------------------------
@@ -143,25 +183,37 @@ fn handler_back(fb: *LogicalFB, zigos: *ZigOS, line: u16, column: u16) void {
     // -------------------------------------------------------------------------------
 
     // Open low border
-    if(line == 240 and column == 40) {
-
-        Console.log("Opening bottom border!", .{});
-        zigos.setResolution(Resolution.truecolor);
-    }
-
-    // Open left border and use left buffer to fill the space
     if(line >= 240 and line < 279) {
+        if(line == 240 and column == 40) {
+
+            // Console.log("Opening bottom border!", .{});
+            zigos.setResolution(Resolution.truecolor);
+
+            var i: u16 = 0;
+            const fb_offset: u16 =  (line - 80) * WIDTH; 
+            const bottom_offset: u16 = (line - 240) * WIDTH;
+
+            while(i < WIDTH * 40) : (i += 1) {
+                fb.fb[i + fb_offset] = bottom_b[i + bottom_offset];
+            }   
+
+
+            fb.setFrameBufferHBLHandler(0, handler_back); 
+        }
+
+    // // Open left border and use left buffer to fill the space
         if(column == 0) {
             zigos.setResolution(Resolution.truecolor);
 
             // copy left buffer to framebuffer
-            // Console.log("Copy left buffer to visible space in left border at line: {} and column {}", .{ line, column });
-            var i: usize = 0;
-            const left_offset = line * 40;
-            const fb_offset = (line - 80) * WIDTH;
+            var i: u16 = 0;
+            const fb_offset: u16 = (line - 80) * WIDTH;
+            const left_offset: u16 = line * 40;
+
+            // Console.log("Copy left buffer to {} in left border at line: {} and column {}", .{ fb_offset, line, column });
 
             while(i < 40) : (i += 1) {
-                fb.fb[fb_offset + i] = left_b[left_offset + i];
+                fb.fb[i + fb_offset] = left_b[left_offset + i];
             }   
 
             // mark the end of the left border
@@ -180,8 +232,28 @@ fn handler_back(fb: *LogicalFB, zigos: *ZigOS, line: u16, column: u16) void {
             }   
 
             // set the mark to open the next border
+            fb.setFrameBufferHBLHandler(320 + 40, handler_back); 
+        }
+
+        // open right low border
+        if(column == 320+40) {
+            zigos.setResolution(Resolution.truecolor);
+
+            // copy right buffer to framebuffer
+            var i: u16 = 0;
+            const right_offset: u16 = line * 40;
+            const fb_offset: u16 = ( (line - 80) * WIDTH) + (320 - 40);
+
+            // Console.log("Copy low right buffer to visible space at {} in left border at line: {} and column {}", .{ fb_offset, line, column });
+
+            while(i < 40) : (i += 1) {
+                fb.fb[i + fb_offset] = right_b[right_offset + i];
+            }   
+
+            // mark the end of the left border
             fb.setFrameBufferHBLHandler(0, handler_back); 
         }
+                
     }
 
     // -------------------------------------------------------------------------------
@@ -190,7 +262,7 @@ fn handler_back(fb: *LogicalFB, zigos: *ZigOS, line: u16, column: u16) void {
 
     if (line == 279) {
         // reset handler 
-        Console.log("Reset handler", .{});
+        // Console.log("Reset handler", .{});
         fb.setFrameBufferHBLHandler(40, handler_back); 
 
         // reset low fb
