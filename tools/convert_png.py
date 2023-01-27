@@ -15,7 +15,13 @@ from pathlib import Path
 # python tools/convert_png.py src/assets/screens/reps4/back_bottom.png src/assets/screens/reps4/back_bottom_pal.dat
 # python tools/convert_png.py src/assets/screens/reps4/back_top.png src/assets/screens/reps4/back_top_pal.dat
 # python tools/convert_png.py src/assets/screens/reps4/logo.png src/assets/screens/reps4/logo_pal.dat
-# python tools/convert_png.py src/assets/screens/fullscreen/modmate.png src/assets/screens/fullscreen/modmate_pal.dat
+
+# python tools/convert_png.py src/assets/screens/fullscreen/center.png src/assets/screens/fullscreen/center_pal.dat
+# python tools/convert_png.py src/assets/screens/fullscreen/top.png src/assets/screens/fullscreen/top_pal.dat
+# python tools/convert_png.py src/assets/screens/fullscreen/bottom.png src/assets/screens/fullscreen/bottom_pal.dat
+# python tools/convert_png.py src/assets/screens/fullscreen/left.png src/assets/screens/fullscreen/left_pal.dat
+# python tools/convert_png.py src/assets/screens/fullscreen/right.png src/assets/screens/fullscreen/right_pal.dat
+
 
 DEFAULT_ALPHA = 255
 

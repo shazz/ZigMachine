@@ -34,6 +34,8 @@ const SCROLL_CHAR_WIDTH = 32;
 const SCROLL_CHAR_HEIGHT = 17;
 const SCROLL_SPEED = 2;
 const SCROLL_CHARS = " ! #$%&'()*+,-./0123456789:;<=>? ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+const SCROLL_POS: u16 = 146;
+const BACK_POS: u16 = 200-87;
 
 // palettes
 const logo_pal = convertU8ArraytoColors(@embedFile("../assets/screens/the_union/logo_pal.dat"));
@@ -45,7 +47,7 @@ const logo_b = @embedFile("../assets/screens/the_union/logo.raw");
 const back_b = @embedFile("../assets/screens/the_union/back.raw");
 
 // bob
-const delta_b = @embedFile("../assets/screens/the_union/delta.raw");
+const delta_b = @embedFile("../assets/screens/the_union/delta.raw.new");
 const NB_BOBS = 10;
 
 // --------------------------------------------------------------------------
@@ -63,7 +65,6 @@ pub const Demo = struct {
     scrolltext: Scrolltext(NB_FONTS) = undefined,
     logo: Sprite = undefined,
     back: Sprite = undefined,
-    blue_back: Sprite = undefined,
     starfield: Starfield(NB_STARS) = undefined,
     bobs: Bobs(NB_BOBS) = undefined,
     bobs_pos: [NB_BOBS]f32 = undefined,
@@ -89,7 +90,7 @@ pub const Demo = struct {
         fb.setPaletteEntry(0, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
         fb.setPaletteEntry(255, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
         self.logo.init(fb.getRenderTarget(), logo_b, 208, 97, WIDTH/2-104, 0, null, null);      
-        self.bobs = Bobs(NB_BOBS).init(fb.getRenderTarget(), delta_b, 15, 8);
+        self.bobs = Bobs(NB_BOBS).init(fb.getRenderTarget(), delta_b, 16, 8);
 
         var i: usize = 0;
         while (i < NB_BOBS) : (i += 1) {
@@ -99,22 +100,20 @@ pub const Demo = struct {
         // 3rd plane
         fb = &zigos.lfbs[2];
         fb.is_enabled = true;           
-        fb.setPalette(blue_back_pal);
+        fb.setPalette(back_pal);
         fb.setPaletteEntry(0, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
         fb.setPaletteEntry(255, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
-        self.back.init(fb.getRenderTarget(), back_b, 320, 87, 0, 100, null, null);    
+        self.back.init(fb.getRenderTarget(), back_b, 320, 87, 0, BACK_POS, null, null);    
    
         // 4th plane
         fb = &zigos.lfbs[3];
         fb.is_enabled = true;           
         // fb.setPalette(font_pal);
-        fb.setPalette(back_pal);
+        fb.setPalette(blue_back_pal);
         fb.setPaletteEntry(0, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
-        fb.setPaletteEntry(1, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
-        // fb.setPaletteEntry(255, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
-        self.blue_back.init(fb.getRenderTarget(), back_b, 320, 87, 0, 100, null, null);          
+        fb.setPaletteEntry(255, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
 
-        self.scrolltext = Scrolltext(NB_FONTS).init(fb.getRenderTarget(), fonts_b, SCROLL_CHARS, SCROLL_CHAR_WIDTH, SCROLL_CHAR_HEIGHT, SCROLL_TEXT, SCROLL_SPEED, 130, null, null);
+        self.scrolltext = Scrolltext(NB_FONTS).init(fb.getRenderTarget(), fonts_b, SCROLL_CHARS, SCROLL_CHAR_WIDTH, SCROLL_CHAR_HEIGHT, SCROLL_TEXT, SCROLL_SPEED, SCROLL_POS, null, null);
 
         Console.log("demo init done!", .{});
     }
@@ -158,12 +157,21 @@ pub const Demo = struct {
 
         self.back.render();
 
+        var fb = &zigos.lfbs[3];
         self.scrolltext.target.clearFrameBuffer(0);
-        self.blue_back.render();
-        self.scrolltext.render();        
+        self.scrolltext.render();     
+
+
+        var i: usize = SCROLL_POS * WIDTH;
+        var tx: usize = (SCROLL_POS - BACK_POS) * WIDTH;
+        while(i < (SCROLL_POS * WIDTH) + (WIDTH * SCROLL_CHAR_HEIGHT)) : ( i += 1) {
+            if(fb.fb[i] == 1) {
+                fb.fb[i] =  back_b[tx];
+            }
+            tx += 1;
+        }           
 
         _ = elapsed_time;
-        _ = zigos;
 
     }
 };
