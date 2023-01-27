@@ -8,16 +8,7 @@ const ZigOS = @import("../zigos.zig").ZigOS;
 const LogicalFB = @import("../zigos.zig").LogicalFB;
 const Color = @import("../zigos.zig").Color;
 
-const Starfield = @import("../effects/starfield.zig").Starfield;
-const StarfieldDirection = @import("../effects/starfield.zig").StarfieldDirection;
-
-const Fade = @import("../effects/fade.zig").Fade;
-const Sprite = @import("../effects/sprite.zig").Sprite;
-const Background = @import("../effects/background.zig").Background;
-const Scrolltext = @import("../effects/scrolltext.zig").Scrolltext;
-const Dots3D = @import("../effects/dots3d.zig").Dots3D;
 const Mandelbrot = @import("../effects/mandelbrot.zig").Mandelbrot;
-const Boot = @import("../effects/boot.zig").Boot;
 const Resolution = @import("../zigos.zig").Resolution;
 
 const Console = @import("../utils/debug.zig").Console;

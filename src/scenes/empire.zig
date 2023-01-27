@@ -158,7 +158,7 @@ pub const Demo = struct {
 
         fb = &zigos.lfbs[0];
         fb.is_enabled = true;
-        self.starfield = Starfield(NB_STARS).init(fb, WIDTH, HEIGHT-64, 32, 1, 4, StarfieldDirection.LEFT);
+        self.starfield = Starfield(NB_STARS).init(fb.getRenderTarget(), WIDTH, HEIGHT-64, 32, 1, 4, StarfieldDirection.LEFT);
 
         fb.setPaletteEntry(0, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
         fb.setPaletteEntry(4, Color{ .r = 0xF0, .g = 0xF0, .b = 0xF0, .a = 255 });
@@ -231,7 +231,7 @@ pub const Demo = struct {
 
     pub fn render(self: *Demo, zigos: *ZigOS, elapsed_time: f32) void {
 
-        self.starfield.fb.clearFrameBuffer(0);
+        self.starfield.target.clearFrameBuffer(0);
         self.starfield.render();
 
         var fb = &zigos.lfbs[1];
