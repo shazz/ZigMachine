@@ -40,7 +40,7 @@ pub fn Bobs(
 
             var bobs = Self{};
             bobs.target = target;
-            bobs.sprite.init(target, sprite_img, sprite_width, sprite_height, 0, 0, false, null);
+            bobs.sprite.init(target, sprite_img, sprite_width, sprite_height, 0, 0, null, null);
 
             return bobs;
         }
@@ -55,7 +55,7 @@ pub fn Bobs(
 
             var i: u16 = 0;
             while(i < nb_bobs) : (i += 1) {
-                self.sprite.update(self.positions_x[i], self.positions_y[i], null);
+                self.sprite.update(self.positions_x[i], self.positions_y[i], null, null);
                 self.sprite.render();
             }
         }

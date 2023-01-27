@@ -41,7 +41,7 @@ pub const Boot = struct {
         self.counter_ram = 0;
         self.counter_boot = 0;
 
-        self.logo.init(fb.getRenderTarget(), ZIG_LOGO, 65, 60, 20, 10, false, null);
+        self.logo.init(fb.getRenderTarget(), ZIG_LOGO, 65, 60, 20, 10, null, null);
 
         fb.setPalette(ZIG_LOGO_PAL);
         fb.setPaletteEntry(9, Color{ .r = 255, .g = 0, .b = 0, .a = 255 });
@@ -53,7 +53,7 @@ pub const Boot = struct {
         if (self.counter_ram < 16) self.counter_ram += 1;
         if (self.counter_ram == 16 and self.counter_boot < 35) self.counter_boot += 1;
 
-        self.logo.update(null, null, null);
+        self.logo.update(null, null, null, null);
     }
 
     pub fn render(self: *Boot, zigos: *ZigOS) void {

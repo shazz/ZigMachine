@@ -54,7 +54,7 @@ var raster_index: u8 = 0;
 // --------------------------------------------------------------------------
 // Demo
 // --------------------------------------------------------------------------
-fn handler_scroller(fb: *LogicalFB, zigos: *ZigOS, line: u16) void {
+fn handler_scroller(fb: *LogicalFB, zigos: *ZigOS, line: u16, col: u16) void {
     const back_color: Color = Color{ .r = 0, .g = 0, .b = 0, .a = 0 };
 
     if (line > 40 and line < 165+40 ) {
@@ -65,6 +65,7 @@ fn handler_scroller(fb: *LogicalFB, zigos: *ZigOS, line: u16) void {
     }
 
     _ = zigos;
+    _ = col;
 }
 
 pub const Demo = struct {
@@ -85,7 +86,7 @@ pub const Demo = struct {
         fb.setPaletteEntry(0, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
 
         // HBL Handler for the raster effect
-        fb.setFrameBufferHBLHandler(handler_scroller);        
+        fb.setFrameBufferHBLHandler(0, handler_scroller);        
 
         var buffer = [_]u8{0} ** (WIDTH * (HEIGHT-30));
         self.scroller_target = .{ .buffer = &buffer };
@@ -98,7 +99,7 @@ pub const Demo = struct {
         // set oversized grid
         fb.setPalette(grid_pal);
         fb.setPaletteEntry(0, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });            
-        self.grid.init(fb.getRenderTarget(), grid_b, 384, 288, 0, 0, false, null); 
+        self.grid.init(fb.getRenderTarget(), grid_b, 384, 288, 0, 0, null, null); 
 
         // third plane
         fb = &zigos.lfbs[2];
@@ -107,7 +108,7 @@ pub const Demo = struct {
         fb.setPalette(logo_pal);
         fb.setPaletteEntry(255, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });      
 
-        self.logo.init(fb.getRenderTarget(), logo_b, 137, 31, WIDTH/2-68, HEIGHT-29, false, null); 
+        self.logo.init(fb.getRenderTarget(), logo_b, 137, 31, WIDTH/2-68, HEIGHT-29, null, null); 
      
         fb.clearFrameBuffer(255);
         var i = (WIDTH*(HEIGHT-37));
@@ -123,16 +124,16 @@ pub const Demo = struct {
     pub fn update(self: *Demo, zigos: *ZigOS, elapsed_time: f32) void {
 
         self.scrolltext.update();
-        self.logo.update(null, null, null);
+        self.logo.update(null, null, null, null);
 
         var f_sin: f32 = @sin(-self.sin_counter) * 32 * 4; 
         var f_cos: f32 = @cos(-self.sin_counter) * 32 * 4;
         const delta_x = -32 + @mod(@floatToInt(i16, f_sin), 32);
         const delta_y = -32 + @mod(@floatToInt(i16, f_cos), 32);
 
-        self.grid.update(delta_x, delta_y, null);
+        self.grid.update(delta_x, delta_y, null, null);
 
-        self.sin_counter += 0.040;
+        self.sin_counter += 0.035;
         _ = zigos;
         _ = elapsed_time;
     }

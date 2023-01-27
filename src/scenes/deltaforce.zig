@@ -49,7 +49,7 @@ var raster_index: u8 = 0;
 // --------------------------------------------------------------------------
 // Demo
 // --------------------------------------------------------------------------
-fn handler_logo(fb: *LogicalFB, zigos: *ZigOS, line: u16) void {
+fn handler_logo(fb: *LogicalFB, zigos: *ZigOS, line: u16, col: u16) void {
     const back_color: Color = Color{ .r = 0, .g = 0, .b = 0, .a = 0 };
     const current_color: Color = top_rasters_b[raster_index];
 
@@ -61,9 +61,10 @@ fn handler_logo(fb: *LogicalFB, zigos: *ZigOS, line: u16) void {
     }
 
     _ = zigos;
+    _ = col;
 }
 
-fn handler_scroller(fb: *LogicalFB, zigos: *ZigOS, line: u16) void {
+fn handler_scroller(fb: *LogicalFB, zigos: *ZigOS, line: u16, col: u16) void {
     const back_color: Color = Color{ .r = 0, .g = 0, .b = 0, .a = 0 };
 
     if (line > 52+40 and line < 240 ) {
@@ -74,6 +75,7 @@ fn handler_scroller(fb: *LogicalFB, zigos: *ZigOS, line: u16) void {
     }
 
     _ = zigos;
+    _ = col;
 }
 
 pub const Demo = struct {
@@ -93,7 +95,7 @@ pub const Demo = struct {
         self.logo.init(fb.getRenderTarget(), logo_b);        
         
         // HBL Handler for the raster effect
-        fb.setFrameBufferHBLHandler(handler_logo);   
+        fb.setFrameBufferHBLHandler(0, handler_logo);   
 
 
         fb = &zigos.lfbs[1];
@@ -101,7 +103,7 @@ pub const Demo = struct {
         fb.setPalette(font_pal);
 
         // HBL Handler for the raster effect
-        fb.setFrameBufferHBLHandler(handler_scroller);        
+        fb.setFrameBufferHBLHandler(0, handler_scroller);        
 
         self.scrolltext = Scrolltext(NB_FONTS).init(fb.getRenderTarget(), fonts_b, SCROLL_CHARS, SCROLL_CHAR_WIDTH, SCROLL_CHAR_HEIGHT, SCROLL_TEXT, SCROLL_SPEED, 52, null, null);
 

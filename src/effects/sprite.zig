@@ -31,22 +31,19 @@ pub const Sprite = struct {
     x_position: i32 = undefined,
     y_position: i32 = undefined,
     data: []const u8 = undefined,
-    x_offset_index: f16 = undefined,
-    apply_x_offset: bool = undefined,
+    x_offset_table: ?[] const i16,
+    x_offset_index: u16 = undefined,
     y_offset_table: ?[] const i16,
     y_offset_index: u16 = undefined,
 
 
-    pub fn init(self: *Sprite, target: RenderTarget, data: []const u8, width: u16, height: u16, x_position: i32, y_position: i32, apply_x_offset: bool, y_offset_table: ?[] const i16) void {
+    pub fn init(self: *Sprite, target: RenderTarget, data: []const u8, width: u16, height: u16, x_position: i32, y_position: i32, x_offset_table: ?[] const i16, y_offset_table: ?[] const i16) void {
         self.target = target;
         self.width = width;
         self.height = height;
         self.x_position = x_position;
         self.y_position = y_position;
         self.data = data;
-
-        self.x_offset_index = 0.0;
-        self.apply_x_offset = apply_x_offset;
 
         if(y_offset_table) |table| {
             self.y_offset_table = table;
@@ -55,9 +52,16 @@ pub const Sprite = struct {
             self.y_offset_table = null;
         }
 
+        if(x_offset_table) |table| {
+            self.x_offset_table = table;
+            self.x_offset_index = 0;
+        } else {
+            self.x_offset_table = null;
+        }        
+
     }
 
-    pub fn update(self: *Sprite, x_position: ?i32, y_position: ?i32, y_offset_table_index: ?u16) void {
+    pub fn update(self: *Sprite, x_position: ?i32, y_position: ?i32, x_offset_table_index: ?u16, y_offset_table_index: ?u16) void {
         if (x_position) |new_offset| {
             self.x_position = new_offset;
         }
@@ -65,18 +69,13 @@ pub const Sprite = struct {
             self.y_position = new_offset;
         }
 
-        // Console.log("Apply offset: {}", .{self.apply_x_offset});
-        if (self.apply_x_offset == true) {
-            self.x_offset_index += 0.2;
-            if (self.x_offset_index >= std.math.inf(f16)) {
-                // Console.log("reset", .{});
-                self.x_offset_index = 0.0;
-            }
+        if (x_offset_table_index) |index| {
+            self.x_offset_index = index;
         }
 
         if (y_offset_table_index) |index| {
             self.y_offset_index = index;
-        }
+        }        
     }
 
     pub fn render(self: *Sprite) void {
@@ -146,7 +145,6 @@ pub const Sprite = struct {
 
         // counter for each pixel (palette entry) of the sprite
         var data_counter: u32 = left_x_clamped + (clamped_y_top_position * self.width);
-        var delta: u16 = 0;
 
         if (clamp_sprite == false) {
 
@@ -203,14 +201,17 @@ pub const Sprite = struct {
                 }
                 // Console.log("Left/Right clamp: advance pointer of {} + {} pixels", .{left_x_clamped, self.width - nb_cols - left_x_clamped});
 
-                if (self.apply_x_offset == true) {
-                    var f_row: f16 = @intToFloat(f16, row_counter);
-                    var f_sin: f16 = (1.0 + @sin(f_row + self.x_offset_index)) * 1.1;
-                    delta = @floatToInt(u16, f_sin);
-                }
-
                 // recompute FB offset
-                offset += delta + WIDTH;
+                if(self.x_offset_table) |table| {
+                    var delta: i16 = table[(self.x_offset_index + row_counter) % table.len];
+                    if(delta < 0) {
+                        offset = offset - @intCast(u16, -delta) + WIDTH;
+                    } else {
+                        offset = offset + @intCast(u16, delta) + WIDTH;
+                    }                    
+                } else {
+                    offset += WIDTH;
+                }
             }
         }
     }

@@ -57,6 +57,8 @@ const logo_b = @embedFile("../assets/screens/reps4/logo.raw");
 // Variables
 // --------------------------------------------------------------------------
 var raster_index: u8 = 0;
+var logo_raster_pos: i16 = 0;
+var logo_raster_dir: i16 = 1;
 
 pub const Raster = struct {
     position: u16 = undefined,
@@ -81,7 +83,7 @@ var rasters: [4]Raster = undefined;
 // }
 
 
-fn handler_rasterbars(fb: *LogicalFB, zigos: *ZigOS, line: u16) void {
+fn handler_rasterbars(fb: *LogicalFB, zigos: *ZigOS, line: u16, col: u16) void {
 
     const back_color: Color = Color{ .r = 0, .g = 0, .b = 0, .a = 0 };
 
@@ -91,27 +93,31 @@ fn handler_rasterbars(fb: *LogicalFB, zigos: *ZigOS, line: u16) void {
         (line >= rasters[3].position and line < rasters[3].position + 11) ) {
 
         for(rasters) |raster| {
-            if(line >= raster.position and line < raster.position + 11) 
-            fb.setPaletteEntry(0, raster.colors[line - raster.position]);
+            if(line >= raster.position and line < raster.position + 11) {
+                fb.setPaletteEntry(0, raster.colors[line - raster.position]);
+                fb.setPaletteEntry(255, raster.colors[line - raster.position]);
+            }
         }
     } else {
         fb.setPaletteEntry(0, back_color);
+        fb.setPaletteEntry(255, back_color);
     }
 
-
+    _ = col;
     _ = zigos;
 }
 
-fn handler_logo(fb: *LogicalFB, zigos: *ZigOS, line: u16) void {
+fn handler_logo(fb: *LogicalFB, zigos: *ZigOS, line: u16, col: u16) void {
     const back_color: Color = Color{ .r = 0, .g = 0, .b = 0, .a = 0 };
 
-    if (line >= 40+40 and line < 40+40+105 ) {
-        fb.setPaletteEntry(1, logo_rasters_b[(line - 40+105) % 30]);
+    if (line >= 40+logo_raster_pos and line < 40+29+logo_raster_pos ) {
+        fb.setPaletteEntry(1, logo_rasters_b[(line + @intCast(u16, logo_raster_pos)) % 30]);
     }
-    if (line == 240) {
+    else {
         fb.setPaletteEntry(1, back_color);
     }
 
+    _ = col;
     _ = zigos;
 }
 
@@ -124,6 +130,8 @@ pub const Demo = struct {
     back_bottom: Sprite = undefined,
     back_bottom_mask: Sprite = undefined,
     logo: Sprite = undefined,
+    logo_offset_table: [256]i16 = undefined,
+    table_index: u16 = 0,
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
         Console.log("Demo init", .{});
@@ -133,28 +141,38 @@ pub const Demo = struct {
         fb.is_enabled = true;
   
         fb.setPalette(back_top_pal);
-        fb.setPaletteEntry(0, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });      
-        self.back_top.init(fb.getRenderTarget(), back_top_b, 320, 31, 0, 0, false, null); 
-        self.back_bottom.init(fb.getRenderTarget(), back_bottom_b, 320, 53, 0, 200-54, false, null); 
+        fb.setPaletteEntry(255, Color{ .r = 255, .g = 255, .b = 255, .a = 0 });
+        self.back_top.init(fb.getRenderTarget(), back_top_b, 320, 31, 0, 0, null, null); 
+        self.back_bottom.init(fb.getRenderTarget(), back_bottom_b, 320, 53, 0, 200-54, null, null); 
 
         // HBL Handler for the raster effect
-        fb.setFrameBufferHBLHandler(handler_rasterbars); 
-        fb.setPaletteEntry(0, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
+        fb.setFrameBufferHBLHandler(0, handler_rasterbars); 
 
-        rasters[0] = Raster{.position=40+25+0,   .direction=1, .colors=blue_rasters_b};
-        rasters[1] = Raster{.position=40+25+50,  .direction=1, .colors=pink_rasters_b};
-        rasters[2] = Raster{.position=40+25+100, .direction=1, .colors=yellow_rasters_b};
-        rasters[3] = Raster{.position=40+96, .direction=-1, .colors=gray_rasters_b};        
+        rasters[0] = Raster{.position=40+25+0,   .direction=1,  .colors=blue_rasters_b};
+        rasters[1] = Raster{.position=40+25+50,  .direction=1,  .colors=pink_rasters_b};
+        rasters[2] = Raster{.position=40+25+100, .direction=1,  .colors=yellow_rasters_b};
+        rasters[3] = Raster{.position=40+96,     .direction=-1, .colors=gray_rasters_b};        
 
         // second plane for backs and logo
         fb = &zigos.lfbs[1];
         fb.is_enabled = true; 
-        
-        fb.setPaletteEntry(1, Color{ .r = 128, .g = 128, .b = 128, .a = 128 }); 
-        self.logo.init(fb.getRenderTarget(), logo_b, 268, 105, (320-268)/2, 40, false, null); 
+       
+        var i: usize = 0;
+        const f_per: f32 = @intToFloat(f32, self.logo_offset_table.len);
+        var f_inc: f32 = 0;
+
+        while(i < self.logo_offset_table.len) : ( i += 1) {
+            const f_sin: f32 = 2 * @sin(f_per*2*std.math.pi + f_inc);
+            self.logo_offset_table[i] = @floatToInt(i16, f_sin);
+            f_inc += 0.15;
+            Console.log("{}", .{f_sin});
+        }
+            
+        fb.setPaletteEntry(1, Color{ .r = 0, .g = 0, .b = 0, .a = 0 }); 
+        self.logo.init(fb.getRenderTarget(), logo_b, 268, 105, (320-268)/2, 35, &self.logo_offset_table, null); 
 
         // HBL Handler for the raster effect
-        fb.setFrameBufferHBLHandler(handler_logo);      
+        fb.setFrameBufferHBLHandler(0, handler_logo);      
         // zigos.setHBLHandler(handler_hbl);     
 
         fb = &zigos.lfbs[2];
@@ -169,7 +187,9 @@ pub const Demo = struct {
         fb.setPalette(back_mask_pal);
         fb.setPaletteEntry(0, Color{ .r = 0, .g = 0, .b = 0, .a = 0 }); 
         fb.setPaletteEntry(255, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });       
-        self.back_bottom_mask.init(fb.getRenderTarget(), back_bottom_mask_b, 320, 53, 0, 200-54, false, null); 
+        self.back_bottom_mask.init(fb.getRenderTarget(), back_bottom_mask_b, 320, 53, 0, 200-54, null, null); 
+
+        self.table_index = 0;
 
         Console.log("demo init done!", .{});
     }
@@ -178,10 +198,14 @@ pub const Demo = struct {
 
         self.scrolltext.update();
 
+        if (self.table_index == self.logo_offset_table.len) self.table_index = 0;
+        self.logo.update(null, null, self.table_index, null);
+        
         self.frame_counter += 1;
         if (self.frame_counter == 2) {
             raster_index += 1;
             self.frame_counter = 0;
+            self.table_index += 1;
         }
 
         for(rasters) |*raster| {
@@ -193,6 +217,10 @@ pub const Demo = struct {
                 if (raster.position < 25+40) raster.direction = 1;
             }
         }
+
+        logo_raster_pos += logo_raster_dir;
+        if(logo_raster_pos == 140) logo_raster_dir = -1;
+        if(logo_raster_pos == 0) logo_raster_dir = 1;
 
 
         _ = zigos;
@@ -206,6 +234,8 @@ pub const Demo = struct {
 
         self.back_top.render();
         self.back_bottom.render();
+
+        self.logo.target.clearFrameBuffer(0);
         self.logo.render();
 
         fb = &zigos.lfbs[2];
@@ -220,12 +250,8 @@ pub const Demo = struct {
             }
             tx += 1;
         }
-        // var s : Sprite = undefined;
-        // s.init(fb.getRenderTarget(), fonts_mask_b, 320, 53, 0, 200-44, false, null); 
-        // s.render();
 
         self.back_bottom_mask.render();
-
 
         _ = elapsed_time;
 

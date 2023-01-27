@@ -86,7 +86,7 @@ pub fn Scrolltext(
 
                 Console.log("Creating FontLetter {c} {} for ASCII {} => index {} at ({}, {}). Starting value: {}", .{ char, idx, char, letter, pos_x, pos_y, scroller.font_chars[0] });
 
-                scroller.fonts[idx] = FontLetter{ .char = char, .sprite = Sprite{ .y_offset_table=y_offset_table }, .pos_x = pos_x, .pos_y = pos_y };
+                scroller.fonts[idx] = FontLetter{ .char = char, .sprite = Sprite{ .x_offset_table=null, .y_offset_table=y_offset_table }, .pos_x = pos_x, .pos_y = pos_y };
 
                 var char_pos_y: u16 = undefined;
                 if (scroller.apply_offset_table) {  
@@ -108,7 +108,7 @@ pub fn Scrolltext(
                                                 scroller.font_height, 
                                                 pos_x, 
                                                 char_pos_y, 
-                                                false, 
+                                                null, 
                                                 y_offset_table);
                 scroller.text_pos = nb_fonts;
             }
@@ -161,7 +161,7 @@ pub fn Scrolltext(
                     }
                 }
 
-                font.*.sprite.update(font.pos_x, font.pos_y, self.y_offset_table_index);
+                font.*.sprite.update(font.pos_x, font.pos_y, null, self.y_offset_table_index);
             }
         }
 

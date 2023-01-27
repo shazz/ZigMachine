@@ -119,7 +119,7 @@ var raster_index: u16 = 0;
 // Demo
 // --------------------------------------------------------------------------
 
-fn handler(fb: *LogicalFB, zigos: *ZigOS, line: u16) void {
+fn handler(fb: *LogicalFB, zigos: *ZigOS, line: u16, col: u16) void {
     const back_color: Color = Color{ .r = 0, .g = 0, .b = 0, .a = 0 };
 
     if (line > 40 and line < 240 ) {
@@ -130,6 +130,7 @@ fn handler(fb: *LogicalFB, zigos: *ZigOS, line: u16) void {
     }
 
     _ = zigos;
+    _ = col;
 }
 
 pub const Demo = struct {
@@ -188,7 +189,7 @@ pub const Demo = struct {
         fb.setPalette(font_pal);
 
         // HBL Handler for the raster effect
-        fb.setFrameBufferHBLHandler(handler);        
+        fb.setFrameBufferHBLHandler(0, handler);        
 
         // table
         // var i: u16 = 0;
