@@ -6,6 +6,7 @@ const RndGen = std.rand.DefaultPrng;
 
 const ZigOS = @import("../zigos.zig").ZigOS;
 const LogicalFB = @import("../zigos.zig").LogicalFB;
+const RenderTarget = @import("../zigos.zig").RenderTarget;
 const Color = @import("../zigos.zig").Color;
 const shapes = @import("shapes.zig");
 
@@ -44,7 +45,7 @@ pub fn Starfield(
 
         rnd: std.rand.DefaultPrng = undefined,
         starfield_table: [nb_stars]Star = undefined,
-        fb: *LogicalFB = undefined,
+        target: RenderTarget = undefined,
         width: u16 = undefined,
         height: u16 = undefined,
         top: u16 = undefined,
@@ -54,10 +55,10 @@ pub fn Starfield(
         nb_colors: u8 = undefined,
         const Self = @This();
 
-        pub fn init(fb: *LogicalFB, width: u16, height: u16, top: u16, min_speed: u16, max_speed: u16, direction: StarfieldDirection) Self {
+        pub fn init(target: RenderTarget, width: u16, height: u16, top: u16, min_speed: u16, max_speed: u16, direction: StarfieldDirection) Self {
 
             var sf = Self{};
-            sf.fb = fb;
+            sf.target = target;
             sf.rnd = RndGen.init(0);
             sf.width = width;
             sf.height = height;
@@ -106,7 +107,7 @@ pub fn Starfield(
 
             // plot pixel for each star with palette entry 1
             for (self.starfield_table) |*star| {
-                self.fb.setPixelValue(@intCast(u16, star.x), @intCast(u16, star.y), star.color);
+                self.target.setPixelValue(@intCast(u16, star.x), @intCast(u16, star.y), star.color);
             }
         }
     };
