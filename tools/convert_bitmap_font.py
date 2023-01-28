@@ -19,8 +19,7 @@ DEFAULT_ALPHA = 255
 # python tools/convert_bitmap_font.py -i src/assets/screens/the_union/fonts.png -r src/assets/screens/the_union/fonts.raw -cw 32 -ch 17 -cpr 10 -nb 60 -m -tmp
 # python tools/convert_bitmap_font.py -i src/assets/screens/stcs/font40x34_c1.png -r src/assets/screens/stcs/font40x34_c1.raw -p src/assets/screens/stcs/font40x34_c1_pal.dat -cw 40 -ch 34 -cpr 8 -nb 64 -tmp
 # python tools/convert_bitmap_font.py -i src/assets/screens/stcs/font40x34_c2.png -p src/assets/screens/stcs/font40x34_c2_pal.dat -cw 40 -ch 34 -cpr 8 -nb 64
-# python tools/convert_bitmap_font.py -i src/assets/screens/stcs/font40x34_c2.png -p src/assets/screens/stcs/font40x34_c2_pal.dat -cw 40 -ch 34 -cpr 8 -nb 64
-
+# python tools/convert_bitmap_font.py -i src/assets/screens/stcs/font40x34_c3.png -p src/assets/screens/stcs/font40x34_c3_pal.dat -cw 40 -ch 34 -cpr 8 -nb 64
 
 def grouper(iterator: Iterator, n: int) -> Iterator[list]:
     while chunk := list(itertools.islice(iterator, n)):
