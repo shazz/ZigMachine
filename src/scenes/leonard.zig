@@ -26,7 +26,7 @@ pub const PHYSICAL_WIDTH: u16 = @import("../zigos.zig").PHYSICAL_WIDTH;
 pub const PHYSICAL_HEIGHT: u16 = @import("../zigos.zig").PHYSICAL_HEIGHT;
 
 pub const NB_FONTS: u8 = 320 / 6 + 1;
-const fonts_b = @embedFile("../assets/screens/leonard/font_pal.raw");
+const fonts_b = @embedFile("../assets/screens/leonard/font.raw");
 const SCROLL_TEXT = "                                                                                            HI EVERYBODY ! ULTRA OPTIMISATION RULES, EVEN FOR STUPID RECORD ! I NEVER THOUGH I COULD DISPLAY 312 SPRITES ONE YEAR AGO !  I TOTALLY REWRITE MY PC DATABUILDER TO IMPLEMENT NEW STUFF. THEN, I CHANGE THE CLEARING DATA FORMAT TO GET SOME MEMORY LEFT AND THAT IS !THAT DISK SHOULD (I HOPE) RUN ON 520-STF,MEGASTE,TT,FALCON AND EVEN CT60. GREETINGS ARE SENT TO PHANTOM, GUNSTICK AND SOTE. YOU ALL ARE COOL OPTIMIZERS !  LEONARD/OXYGENE, 17.03.2005";
 const SCROLL_CHAR_WIDTH = 6;
 const SCROLL_CHAR_HEIGHT = 6;
@@ -44,6 +44,7 @@ const back_b = @embedFile("../assets/screens/leonard/back.raw");
 // bob
 const ball_b = @embedFile("../assets/screens/leonard/ball.raw");
 const NB_BOBS = 312;
+const bobs_images: [NB_BOBS][]const u8 = [_][]const u8{ball_b} ** NB_BOBS;
 
 // --------------------------------------------------------------------------
 // Variables
@@ -81,8 +82,7 @@ pub const Demo = struct {
         fb = &zigos.lfbs[1];
         fb.is_enabled = true;
         fb.setPalette(ball_pal);
-        // self.bobs.init(fb, ball_b, 16, 16);
-        self.bobs = Bobs(NB_BOBS).init(fb.getRenderTarget(), ball_b, 16, 16);
+        self.bobs = Bobs(NB_BOBS).init(fb.getRenderTarget(), bobs_images, 16, 16);
 
         self.lutLen = self.lutSin.len;
         var i: u16 = 0;
@@ -96,7 +96,7 @@ pub const Demo = struct {
         fb = &zigos.lfbs[2];
         fb.is_enabled = true;
         fb.setPalette(font_pal);
-        self.scrolltext = Scrolltext(NB_FONTS).init(fb.getRenderTarget(), fonts_b, SCROLL_CHARS, SCROLL_CHAR_WIDTH, SCROLL_CHAR_HEIGHT, SCROLL_TEXT, SCROLL_SPEED, 194, null, null);
+        self.scrolltext = Scrolltext(NB_FONTS).init(fb.getRenderTarget(), fonts_b, SCROLL_CHARS, SCROLL_CHAR_WIDTH, SCROLL_CHAR_HEIGHT, SCROLL_TEXT, SCROLL_SPEED, 194, null, null, null);
 
         Console.log("demo init done!", .{});
     }

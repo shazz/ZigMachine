@@ -8,12 +8,13 @@ from pathlib import Path
 DEFAULT_ALPHA = 255
 
 # python tools/convert_bitmap_font.py src/assets/screens/ancool/fonts.png 32 17 10 60
-# python tools/convert_bitmap_font.py src/assets/screens/leonard/font.png 6 6 10 60
+
 # python tools/convert_bitmap_font.py src/assets/screens/empire/fonts2.png 32 32 10 60
 # python tools/convert_bitmap_font.py src/assets/screens/df/fonts2.png 32 30 10 60
 # python tools/convert_bitmap_font.py src/assets/screens/ics/font_noics.png 16 16 44 94
 # python tools/convert_bitmap_font.py src/assets/screens/bladerunners/fonts.png 32 32 10 80
 
+# python tools/convert_bitmap_font.py -i src/assets/screens/leonard/font.png -r src/assets/screens/leonard/font.raw -cw 6 -ch 6 -cpr 10 -nb 60 -tmp
 # python tools/convert_bitmap_font.py -i src/assets/screens/reps4/fonts.png -r src/assets/screens/reps4/fonts.raw -cw 16 -ch 16 -cpr 10 -nb 60 -m -tmp
 # python tools/convert_bitmap_font.py -i src/assets/screens/the_union/fonts.png -r src/assets/screens/the_union/fonts.raw -cw 32 -ch 17 -cpr 10 -nb 60 -m -tmp
 

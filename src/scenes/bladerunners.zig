@@ -59,19 +59,20 @@ fn handler_hbl(zigos: *ZigOS, line: u16) void {
 }
 
 
-fn handler_back(fb: *LogicalFB, zigos: *ZigOS, line: u16) void {
+fn handler_back(fb: *LogicalFB, zigos: *ZigOS, line: u16, col: u16) void {
 
     if(line >= 40 and line < 240) {
         fb.setPaletteEntry(0, back_rasters_b[(line - 40 + raster_index) % 255]);
     }
 
     _ = zigos;
+    _ = col;
 }
 
-fn handler_scroller(fb: *LogicalFB, zigos: *ZigOS, line: u16) void {
+fn handler_scroller(fb: *LogicalFB, zigos: *ZigOS, line: u16, col: u16) void {
     const back_color: Color = Color{ .r = 0, .g = 0, .b = 0, .a = 0 };
 
-    if (line > 40 and line < 240 ) {
+    if (line >= 40 and line < 240 ) {
         fb.setPaletteEntry(1, font_rasters_b[(line - 40) % 200]);
     }
     if (line == 240) {
@@ -79,6 +80,7 @@ fn handler_scroller(fb: *LogicalFB, zigos: *ZigOS, line: u16) void {
     }
 
     _ = zigos;
+    _ = col;
 }
 
 pub const Demo = struct {
@@ -99,7 +101,7 @@ pub const Demo = struct {
         fb.is_enabled = true;
   
         // HBL Handler for the raster effect
-        fb.setFrameBufferHBLHandler(handler_back); 
+        fb.setFrameBufferHBLHandler(0, handler_back); 
         fb.setPaletteEntry(0, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
 
         // second plane
@@ -108,7 +110,7 @@ pub const Demo = struct {
         fb.setPalette(font_pal);
 
         // HBL Handler for the raster effect
-        fb.setFrameBufferHBLHandler(handler_scroller);      
+        fb.setFrameBufferHBLHandler(0, handler_scroller);      
         zigos.setHBLHandler(handler_hbl);     
 
         var i: usize = 0;
@@ -122,7 +124,7 @@ pub const Demo = struct {
         var buffer = [_]u8{0} ** (WIDTH * SCROLL_CHAR_HEIGHT);
         self.scroller_target = .{ .buffer = &buffer };
 
-        self.scrolltext = Scrolltext(NB_FONTS).init(self.scroller_target, fonts_b, SCROLL_CHARS, SCROLL_CHAR_WIDTH, SCROLL_CHAR_HEIGHT, SCROLL_TEXT, SCROLL_SPEED, 0, null, null);
+        self.scrolltext = Scrolltext(NB_FONTS).init(self.scroller_target, fonts_b, SCROLL_CHARS, SCROLL_CHAR_WIDTH, SCROLL_CHAR_HEIGHT, SCROLL_TEXT, SCROLL_SPEED, 0, null, null, null);
         self.scroller_offset = 0;
         
         Console.log("demo init done!", .{});
