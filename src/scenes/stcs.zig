@@ -264,9 +264,6 @@ pub const Demo = struct {
             }  
         }            
 
-        if( self.frame_counter > 50*40) 
-            self.frame_counter = 0;
-
         _ = elapsed_time;
 
     }
