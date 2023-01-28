@@ -145,10 +145,16 @@ pub fn Scrolltext(
 
             }
 
-            for (self.fonts) |*font| {
+            for (self.fonts) |*font, idx| {
                 var is_out: i32 = @intCast(i32, font.pos_x) - @intCast(i32, self.speed);
                 if (is_out < -@intCast(i8, self.font_width)) {
-                    font.pos_x = WIDTH - 1;
+                    
+                    // set new sprite at the right of the previous one
+                    if(idx > 0) {
+                        font.pos_x = self.fonts[idx-1].pos_x + self.font_width;  //WIDTH - 1;
+                    } else {
+                        font.pos_x = self.fonts[self.fonts.len-1].pos_x + self.font_width; 
+                    }
 
                     // show new letter
                     if (self.text_pos >= self.text.len) self.text_pos = 0;

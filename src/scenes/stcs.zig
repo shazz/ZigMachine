@@ -25,10 +25,10 @@ const WIDTH: u16 = @import("../zigos.zig").WIDTH;
 // scrolltext
 
 const fonts_b = @embedFile("../assets/screens/stcs/font40x34_c1.raw");
-const SCROLL_TEXT = "            PLEASE, READ ALL THIS SCROLL !!!           THE S.T.C.S. STRIKES BACK WITH THIS MEGA-NEWS CALLED                -- STARGOOSE --            CRACKED ON 22-09-88 BY RATBOY FROM S.T.C.S.      THIS VERY NICE NEW INTRO WAS CODED AND DESIGNED BY RATBOY.    THE BLADERUNNERS ACRONYM WAS DESIGNED BY NINJA.     NEW ?     YOU THINK !                         YES, NEW !!!    NOW, THERE IS NO MORE ROOM FOR DOUBT CONCERNING THE FACT THAT THE S.T.C.S IS THE BEST COMPUTER GROUP EVER MADE IN FRANCE ON THE ATARI-ST.   SO, I WANT TO PRESENT YOU HIS 8 MEMBERS...                                   ACTARUS WHO CREATED THE GROUP AND WHO IS PERHAPS (CERTAINLY !) THE BEST SWAPPER IN EUROPE ON THE ATARI AND I WANT TO GREET HIM FOR HIS MORAL SUPPORT...         NINJA, THE NEW MEMBER WHO IS A VERY GOOD SWAPPER TOO (AND DESIGNER !!!)...     KICKSTART WHO SWAPS VERY WELL...    WHEN HE DOESN'T SLEEP  (THINK TO THE CSS CONVENTION !)...                     THE S.T.C.S. WAS COMPOSED BY ONE DEMOS PROGRAMMER CALLED BILLY OCTET AND BY FOUR CRACKERS TOO:       THE LORD,   BANZAI (WHO CRACKS VERY WELL WHEN HE DOESN'T SLEEP TOO !),  JABBERWOCKY AND RATBOY.       NOW IT'S TIME TO GREET SOME OTHER PEOPLE WHO MAKE A LOT OF GOOD THINGS ON THE ST.                                          MEGA-GIGA GREETINGS TO:   - THE BLADERUNNERS (ALL MEMBERS !) - TSUNOO -                      NORMAL GREETINGS TO:    -  THE UNION (HOWDY, ES, XXX INTERNATIONAL)  -  THE REPLICANTS (DO YOU KNOW WHAT THE WORD  'NEWS'  MEANS ?)  -  MCA  -  AH-A  -  THE BIG FOUR  -  WAS (NOT WAS)  -  FIRE CRACKERS  -  CSS  -  B.O.S.S  -                          FUCKING GREETINGS TO ALL VIRUS PROGRAMMERS, TEXT CHANGERS, CRACKED PROGRAMS SELLERS...              HAVE FUN WITH THIS NICE GAME.             PRESS THE SPACE BAR TO BEGIN.            BYE, BYE..........                 ";
+const SCROLL_TEXT = "                  PLEASE, READ ALL THIS SCROLL !!!           THE S.T.C.S. STRIKES BACK WITH THIS MEGA-NEWS CALLED                -- STARGOOSE --                  CRACKED ON 22-09-88 BY RATBOY FROM S.T.C.S.      THIS VERY NICE NEW INTRO WAS CODED AND DESIGNED BY RATBOY.    THE BLADERUNNERS ACRONYM WAS DESIGNED BY NINJA.     NEW ?     YOU THINK !                         YES, NEW !!!    NOW, THERE IS NO MORE ROOM FOR DOUBT CONCERNING THE FACT THAT THE S.T.C.S IS THE BEST COMPUTER GROUP EVER MADE IN FRANCE ON THE ATARI-ST.   SO, I WANT TO PRESENT YOU HIS 8 MEMBERS...                                   ACTARUS WHO CREATED THE GROUP AND WHO IS PERHAPS (CERTAINLY !) THE BEST SWAPPER IN EUROPE ON THE ATARI AND I WANT TO GREET HIM FOR HIS MORAL SUPPORT...         NINJA, THE NEW MEMBER WHO IS A VERY GOOD SWAPPER TOO (AND DESIGNER !!!)...     KICKSTART WHO SWAPS VERY WELL...    WHEN HE DOESN'T SLEEP  (THINK TO THE CSS CONVENTION !)...                     THE S.T.C.S. WAS COMPOSED BY ONE DEMOS PROGRAMMER CALLED BILLY OCTET AND BY FOUR CRACKERS TOO:       THE LORD,   BANZAI (WHO CRACKS VERY WELL WHEN HE DOESN'T SLEEP TOO !),  JABBERWOCKY AND RATBOY.       NOW IT'S TIME TO GREET SOME OTHER PEOPLE WHO MAKE A LOT OF GOOD THINGS ON THE ST.                                          MEGA-GIGA GREETINGS TO:   - THE BLADERUNNERS (ALL MEMBERS !) - TSUNOO -                      NORMAL GREETINGS TO:    -  THE UNION (HOWDY, ES, XXX INTERNATIONAL)  -  THE REPLICANTS (DO YOU KNOW WHAT THE WORD  'NEWS'  MEANS ?)  -  MCA  -  AH-A  -  THE BIG FOUR  -  WAS (NOT WAS)  -  FIRE CRACKERS  -  CSS  -  B.O.S.S  -                          FUCKING GREETINGS TO ALL VIRUS PROGRAMMERS, TEXT CHANGERS, CRACKED PROGRAMS SELLERS...              HAVE FUN WITH THIS NICE GAME.             PRESS THE SPACE BAR TO BEGIN.            BYE, BYE..........                 ";
 const SCROLL_CHAR_WIDTH = 40; 
 const SCROLL_CHAR_HEIGHT = 34;
-const SCROLL_SPEED = 4;
+const SCROLL_SPEED = 8;
 const SCROLL_CHARS = " ! #$%&'()*+,-./0123456789:;<=>? ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 pub const NB_FONTS: u8 = (WIDTH/SCROLL_CHAR_WIDTH) + 1;
 const SCROLL_TOP_POS = 84;
@@ -123,6 +123,8 @@ pub const Demo = struct {
     scrolltext: Scrolltext(NB_FONTS) = undefined,
     scroller_target: RenderTarget = undefined,
     logo: Background = undefined,
+    scroller_y_pos: i16 = 0,
+    scroller_y_dir: i16 = 1,
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
         Console.log("Demo init", .{});
@@ -148,6 +150,8 @@ pub const Demo = struct {
 
         self.scrolltext = Scrolltext(NB_FONTS).init(self.scroller_target, fonts_b, SCROLL_CHARS, SCROLL_CHAR_WIDTH, SCROLL_CHAR_HEIGHT, SCROLL_TEXT, SCROLL_SPEED, 0, null, null, null);
         fb.setFrameBufferHBLHandler(0, handler_scroller);   
+        self.scroller_y_pos = 0;
+        self.scroller_y_dir = 1;
 
         Console.log("demo init done!", .{});
     }
@@ -159,12 +163,17 @@ pub const Demo = struct {
 
         self.frame_counter += 1;
 
+        // scroller_period = ScrollerPeriods.threelines;
         switch (self.frame_counter) {
-            50*0...(50*9) - 1 => scroller_period = ScrollerPeriods.threelines,
-            50*9...(50*22) - 1 => scroller_period = ScrollerPeriods.big_font,
-            50*22...(50*28) - 1 => scroller_period = ScrollerPeriods.interlaced_big_font,
-            50*28...(50*38) - 1 => scroller_period = ScrollerPeriods.inverted,
-            50*38...(50*48) - 1 => scroller_period = ScrollerPeriods.inverted_mirror,
+            60*0...(60*10) - 1 => scroller_period = ScrollerPeriods.threelines,
+            60*10...(60*13) - 1 => scroller_period = ScrollerPeriods.big_font,
+            60*13...(60*30) - 1 => scroller_period = ScrollerPeriods.threelines,
+            60*30...(60*50) - 1 => scroller_period = ScrollerPeriods.big_font,
+            60*50...(60*80) - 1 => scroller_period = ScrollerPeriods.interlaced_mirror,
+            60*80...(60*106) - 1 => scroller_period = ScrollerPeriods.interlaced_big_font,
+            60*106...(60*116) - 1 => scroller_period = ScrollerPeriods.inverted,
+            60*116...(60*137) - 1 => scroller_period = ScrollerPeriods.interlaced_steam,
+            60*137...(60*157) - 1 => scroller_period = ScrollerPeriods.inverted_mirror,
             else => self.frame_counter = 0
         }
 
@@ -200,13 +209,19 @@ pub const Demo = struct {
         if( scroller_period == ScrollerPeriods.big_font ) {
         
             // big font
-            const top_pos: u16 = 104*WIDTH;
+            self.scroller_y_pos += self.scroller_y_dir ;
+            if(self.scroller_y_pos > 55) self.scroller_y_dir = -1;
+            if(self.scroller_y_pos <= 0) self.scroller_y_dir = 1;
+
+            const top_pos: u16 = (78 + @intCast(u16, self.scroller_y_pos))*WIDTH;
             var y: u16 = 0;
             while(y < SCROLL_CHAR_HEIGHT) : (y += 1) {
                 var x: u16 = 0;
                 while(x < WIDTH) : (x += 1) { 
                     const pos = x + (y * WIDTH);
                     const pal_entry = self.scroller_target.buffer[pos];
+
+                    // double height font and sinus incr/decr on 16 pixels
                     fb.fb[x + top_pos + ((2*y) * WIDTH)] = pal_entry;
                     fb.fb[x + top_pos + ((2*y+1) * WIDTH)] = pal_entry;
                 }
@@ -216,7 +231,11 @@ pub const Demo = struct {
         if( scroller_period == ScrollerPeriods.interlaced_big_font) {
 
             // big interlaced font
-            const top_pos: u16 = 104*WIDTH;
+            self.scroller_y_pos += self.scroller_y_dir ;
+            if(self.scroller_y_pos > 55) self.scroller_y_dir = -1;
+            if(self.scroller_y_pos <= 0) self.scroller_y_dir = 1;
+
+            const top_pos: u16 = (78 + @intCast(u16, self.scroller_y_pos))*WIDTH;
             var y: u16 = 0;
             while(y < SCROLL_CHAR_HEIGHT) : (y += 1) {
                 var x: u16 = 0;
@@ -229,37 +248,89 @@ pub const Demo = struct {
 
         }
 
-        if( scroller_period == ScrollerPeriods.inverted) {
+        if( scroller_period == ScrollerPeriods.interlaced_mirror) {
 
-            const top_pos: u16 = (140-SCROLL_CHAR_HEIGHT)*WIDTH;
+            // big interlaced font mirrored
+            const top_pos: u16 = 88*WIDTH;
             var y: u16 = 0;
             while(y < SCROLL_CHAR_HEIGHT) : (y += 1) {
                 var x: u16 = 0;
                 while(x < WIDTH) : (x += 1) { 
                     const pos = x + (y * WIDTH);
                     const pal_entry = self.scroller_target.buffer[pos];
+
+                    // normal line
+                    fb.fb[x + top_pos + (y * WIDTH) - ((x / 16) * WIDTH)] = pal_entry;
+
+                    // mirrored interlaced
+                    fb.fb[x + top_pos + (((SCROLL_CHAR_HEIGHT)+5)*WIDTH) + (((2*SCROLL_CHAR_HEIGHT)-(2*y)) * WIDTH) - ((x / 16) * WIDTH)] = pal_entry;
+                }
+            }     
+        }
+
+        if( scroller_period == ScrollerPeriods.interlaced_steam) {
+
+            // big interlaced font mirrored
+            const top_pos: u16 = 164*WIDTH;
+            var y: u16 = 0;
+            while(y < SCROLL_CHAR_HEIGHT) : (y += 1) {
+                var x: u16 = 0;
+                while(x < WIDTH) : (x += 1) { 
+                    const pos = x + (y * WIDTH);
+                    const pal_entry = self.scroller_target.buffer[pos];
+
+                    // normal line
                     fb.fb[x + top_pos + (y * WIDTH)] = pal_entry;
-                    fb.fb[x + top_pos + ((SCROLL_CHAR_HEIGHT+5)*WIDTH) + ((SCROLL_CHAR_HEIGHT-y) * WIDTH)] = pal_entry;
+
+                    // mirrored interlaced
+                    fb.fb[x + (76*WIDTH) + ((2*y) * WIDTH) + ((x / 16) * 2 * WIDTH)] = pal_entry;
+                }
+            }     
+        }        
+
+        if( scroller_period == ScrollerPeriods.inverted) {
+
+            const top_pos: u16 = 86*WIDTH;
+            var y: u16 = 0;
+            while(y < SCROLL_CHAR_HEIGHT) : (y += 1) {
+                var x: u16 = 0;
+                while(x < WIDTH) : (x += 1) { 
+                    const pos = x + (y * WIDTH);
+                    const pal_entry = self.scroller_target.buffer[pos];
+                    // top line with 16 pixel increment
+                    fb.fb[x + top_pos + (y * WIDTH) + ((x / 16) * WIDTH)] = pal_entry;
+
+                    // bottom line reversed with 16 pixel decrement
+                    fb.fb[x + (156*WIDTH) + ((SCROLL_CHAR_HEIGHT-y) * WIDTH) - ((x / 16) * WIDTH)] = pal_entry;
                 }
             }  
         }
 
         if(scroller_period == ScrollerPeriods.inverted_mirror) {
 
-            const top_pos: u16 = SCROLL_TOP_POS*WIDTH;
             var y: u16 = 0;
             while(y < SCROLL_CHAR_HEIGHT) : (y += 1) {
                 var x: u16 = 0;
                 while(x < WIDTH) : (x += 1) { 
                     const pos = x + (y * WIDTH);
                     const pal_entry = self.scroller_target.buffer[pos];
-                    fb.fb[x + top_pos + (y * WIDTH)] = pal_entry;
 
-                    // 2nd line inverted
-                    fb.fb[x + top_pos + (SCROLL_CHAR_HEIGHT*WIDTH) + ((SCROLL_CHAR_HEIGHT-y) * WIDTH)] = pal_entry;
+                    // 1st line 16 pixel decrement then increment
+                    if(x < 160) {
+                        fb.fb[x + (90*WIDTH) + (y * WIDTH) - ((x / 16) * WIDTH)] = pal_entry;
+                    } else {
+                        fb.fb[x + (80*WIDTH) + (y * WIDTH) + (((x-160) / 16) * WIDTH)] = pal_entry;
+                    }
+
+                    // 2nd line inverted 16 pixel increment then decrement
+                    if(x < 160) {
+                        fb.fb[x + (110*WIDTH) + ((SCROLL_CHAR_HEIGHT-y) * WIDTH) + ((x / 16) * WIDTH)] = pal_entry;
+                    } else {
+                        fb.fb[x + (120*WIDTH) + ((SCROLL_CHAR_HEIGHT-y) * WIDTH) - (((x-160) / 16) * WIDTH)] = pal_entry;
+                    }                    
 
                     // last line normal
-                    fb.fb[x + top_pos + ((2*(SCROLL_CHAR_HEIGHT+5))*WIDTH) + (y * WIDTH)] = pal_entry;
+                    fb.fb[x + (160*WIDTH) + (y * WIDTH)] = pal_entry;
                 }
             }  
         }            
