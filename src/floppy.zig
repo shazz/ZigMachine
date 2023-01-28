@@ -3,7 +3,8 @@
 // --------------------------------------------------------------------------
 
 // pub const Demo = @import("scenes/ancool.zig").Demo;
-pub const Demo = @import("scenes/tex.zig").Demo;
+// pub const Demo = @import("scenes/tex.zig").Demo;
+pub const Demo = @import("scenes/stcs.zig").Demo;
 // pub const Demo = @import("scenes/fullscreen.zig").Demo;
 // pub const Demo = @import("scenes/replicants.zig").Demo;
 // pub const Demo = @import("scenes/ics.zig").Demo;

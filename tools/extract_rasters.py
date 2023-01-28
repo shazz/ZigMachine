@@ -9,8 +9,16 @@ from pathlib import Path
 # python tools/extract_rasters.py src/assets/screens/df/rasters.png src/assets/screens/df/rasters_pal.dat 
 # python tools/extract_rasters.py src/assets/screens/df/colorCycle.png src/assets/screens/df/top_raster_pal.dat 
 # python tools/extract_rasters.py src/assets/screens/ics/rast.png src/assets/screens/ics/raster_pal.dat 
-# python tools/extract_rasters.py src/assets/screens/bladerunners/raster_back.png src/assets/screens/ics/raster_back_pal.dat 
-# python tools/extract_rasters.py src/assets/screens/bladerunners/raster_font.png src/assets/screens/ics/raster_font_pal.dat 
+# python tools/extract_rasters.py src/assets/screens/bladerunners/raster_back.png src/assets/screens/bladerunners/raster_back_pal.dat 
+# python tools/extract_rasters.py src/assets/screens/bladerunners/raster_font.png src/assets/screens/bladerunners/raster_font_pal.dat 
+
+# python tools/extract_rasters.py src/assets/screens/reps4/rasterGray.png src/assets/screens/reps4/rasterGray_pal.dat 
+# python tools/extract_rasters.py src/assets/screens/reps4/rasterPink.png src/assets/screens/reps4/rasterPink_pal.dat 
+# python tools/extract_rasters.py src/assets/screens/reps4/rasterBlue.png src/assets/screens/reps4/rasterBlue_pal.dat 
+# python tools/extract_rasters.py src/assets/screens/reps4/rasterYellow.png src/assets/screens/reps4/rasterYellow_pal.dat 
+# python tools/extract_rasters.py src/assets/screens/reps4/rasterFonts.png src/assets/screens/reps4/rasterFonts_pal.dat 
+
+# python tools/extract_rasters.py src/assets/screens/stcs/rasters.png src/assets/screens/stcs/rasters.dat 
 
 DEFAULT_ALPHA = 255
 

@@ -20,6 +20,7 @@ const list_channels = [
     "wasm/bladerunners.wasm", 
     "wasm/replicants.wasm",
     "wasm/fullscreen.wasm",
+    "wasm/stcs.wasm",
     "wasm/boot.wasm"
 ];
 

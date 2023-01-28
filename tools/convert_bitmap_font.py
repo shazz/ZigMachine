@@ -17,6 +17,9 @@ DEFAULT_ALPHA = 255
 # python tools/convert_bitmap_font.py -i src/assets/screens/leonard/font.png -r src/assets/screens/leonard/font.raw -cw 6 -ch 6 -cpr 10 -nb 60 -tmp
 # python tools/convert_bitmap_font.py -i src/assets/screens/reps4/fonts.png -r src/assets/screens/reps4/fonts.raw -cw 16 -ch 16 -cpr 10 -nb 60 -m -tmp
 # python tools/convert_bitmap_font.py -i src/assets/screens/the_union/fonts.png -r src/assets/screens/the_union/fonts.raw -cw 32 -ch 17 -cpr 10 -nb 60 -m -tmp
+# python tools/convert_bitmap_font.py -i src/assets/screens/stcs/font40x34_c1.png -r src/assets/screens/stcs/font40x34_c1.raw -p src/assets/screens/stcs/font40x34_c1_pal.dat -cw 40 -ch 34 -cpr 8 -nb 64 -tmp
+# python tools/convert_bitmap_font.py -i src/assets/screens/stcs/font40x34_c2.png -p src/assets/screens/stcs/font40x34_c2_pal.dat -cw 40 -ch 34 -cpr 8 -nb 64
+# python tools/convert_bitmap_font.py -i src/assets/screens/stcs/font40x34_c2.png -p src/assets/screens/stcs/font40x34_c2_pal.dat -cw 40 -ch 34 -cpr 8 -nb 64
 
 
 def grouper(iterator: Iterator, n: int) -> Iterator[list]:
@@ -64,7 +67,7 @@ parser = argparse.ArgumentParser(prog="PNG Font to raw converter", description="
 
 parser.add_argument("-i",   "--png_file", metavar = "IMAGE", help="Path to your input PNG file in palette mode", required=True)
 parser.add_argument("-p",   "--palette_file", metavar="PALETTE", help="Path to the output palette file", required=False)
-parser.add_argument("-r",   "--raw_file", metavar="RAW", help="Path to the output raw image file", required=True)
+parser.add_argument("-r",   "--raw_file", metavar="RAW", help="Path to the output raw image file", required=False)
 parser.add_argument("-cw",   "--char_width", metavar="WIDTH", help="Character width", required=True)
 parser.add_argument("-ch",   "--char_height", metavar="HEIGHT", help="Character height", required=True)
 parser.add_argument("-cpr", "--chars_per_row", metavar="ROW", help="Characters per row", required=True)
@@ -125,9 +128,10 @@ with Image.open(args.png_file) as im:
         print(data[0: char_width*char_height], len(data))
         print(data[char_width*char_height: char_width*char_height*2], len(data))
 
-        img_bytes = struct.pack("{}B".format(len(data)), *data)
-        with open(args.raw_file, "wb") as fi:
-            fi.write(img_bytes)
+        if args.raw_file:
+            img_bytes = struct.pack("{}B".format(len(data)), *data)
+            with open(args.raw_file, "wb") as fi:
+                fi.write(img_bytes)
 
         if args.palette_file:
             extract_palette(im2, im2.mode, args.palette_file)

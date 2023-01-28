@@ -37,7 +37,7 @@ DEFAULT_ALPHA = 255
 # python tools/convert_png.py -i src/assets/screens/the_union/D.png -r src/assets/screens/the_union/d.raw 
 # python tools/convert_png.py -i src/assets/screens/the_union/Y.png -r src/assets/screens/the_union/y.raw 
 
-
+# python tools/convert_png.py -i src/assets/screens/stcs/logoY.png -r src/assets/screens/stcs/logo.raw -p src/assets/screens/stcs/logo_pal.dat
 
 def grouper(iterator: Iterator, n: int) -> Iterator[list]:
     while chunk := list(itertools.islice(iterator, n)):
