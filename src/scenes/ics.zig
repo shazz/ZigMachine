@@ -29,14 +29,14 @@ const fonts_b = @embedFile("../assets/screens/ics/font_noics_pal.raw");
 const SCROLL_TEXT = "    ICS PRESENTS YOU:         BUMPY'S     GAME CRACKED BY THE THREAT        ORIGINAL BY SLASH OF FRANCE       THIS INTRO WAS CODED, DESIGNED FOR I.C.S. BY  -EL PISTOLERO-..... (MANY THANKS!)     JUST AFTER THIS LITTLE INTRO YOU CAN READ A MESSAGE SENT TO SLASH BY SLEDGE, I THINK YOU'LL BE SURPRISED...           I WANT TO SAID A BIG HI TO  'NUKE' OUR NEW CRACKER, HE LIVES IN FRANCE LIKE A LOT OF MEMBERS OF ICS.      BIG HELLO TO SKINHEAD FROM GERMANY WHO GIVE US VERY HOT ORIGINALS (LIKE STONE AGE).      BIG HI TO SLASH AND BELGARION WHO ARE VERY GOOD/COOL GUYS!!!      AND OF COURSE I DON'T FORGET MR.FLY.        GREETINGS TO: SCSI, CYNIX, POMPEY PIRATES, DANNY FROM SINGAPORE, FUZION, THE REPLICANTS, AND YOU, IF YOU WANT!!!        WE LOOOKING FOR SUPPLIERS ALL OVER THE WORLD, IF YOU ARE INTRESTED WRITE TO THE P.O. BOX OR CALL ONE OF OUR BOARD.       THIS ALL FOR THIS TIME, SEE YOU SOON....              ";
 const SCROLL_CHAR_WIDTH = 16; 
 const SCROLL_CHAR_HEIGHT = 16;
-const SCROLL_SPEED = 4;
+const SCROLL_SPEED = 3;
 const SCROLL_CHARS = " ! #$%&'()*+,-./0123456789:;<=>? ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 pub const NB_FONTS: u8 = WIDTH / SCROLL_CHAR_WIDTH + 1;
+const g_y_offset_table_b = readI16Array(@embedFile("../assets/screens/ics/scroller_sin.dat"));
 
 // palettes
 const logo_pal = convertU8ArraytoColors(@embedFile("../assets/screens/ics/ics_logo_pal.dat"));
 const grid_pal = convertU8ArraytoColors(@embedFile("../assets/screens/ics/grid_large_pal.dat"));
-// const grid_unit_pal = convertU8ArraytoColors(@embedFile("../assets/screens/ics/grid_unit_pal.dat"));
 
 // rasters
 const rasters_b = convertU8ArraytoColors(@embedFile("../assets/screens/ics/raster_pal.dat"));
@@ -88,9 +88,9 @@ pub const Demo = struct {
         // HBL Handler for the raster effect
         fb.setFrameBufferHBLHandler(0, handler_scroller);        
 
-        var buffer = [_]u8{0} ** (WIDTH * (HEIGHT-30));
+        var buffer = [_]u8{0} ** (WIDTH * HEIGHT);
         self.scroller_target = .{ .buffer = &buffer };
-        self.scrolltext = Scrolltext(NB_FONTS).init(self.scroller_target, fonts_b, SCROLL_CHARS, SCROLL_CHAR_WIDTH, SCROLL_CHAR_HEIGHT, SCROLL_TEXT, SCROLL_SPEED, 1, null, null);
+        self.scrolltext = Scrolltext(NB_FONTS).init(self.scroller_target, fonts_b, SCROLL_CHARS, SCROLL_CHAR_WIDTH, SCROLL_CHAR_HEIGHT, SCROLL_TEXT, SCROLL_SPEED, 0, null, &g_y_offset_table_b, false);
 
         // second plane
         fb = &zigos.lfbs[1];
@@ -147,23 +147,18 @@ pub const Demo = struct {
 
         // copy scrolltext 9 times in the rendertarget
         var i: u16 = 0;
-        while(i < (WIDTH*SCROLL_CHAR_HEIGHT)) : ( i += 1){
-            self.scroller_target.buffer[i + (16*1 * WIDTH)] = self.scroller_target.buffer[i];
-            self.scroller_target.buffer[i + (16*2 * WIDTH)] = self.scroller_target.buffer[i];
-            self.scroller_target.buffer[i + (16*3 * WIDTH)] = self.scroller_target.buffer[i];
-            self.scroller_target.buffer[i + (16*4 * WIDTH)] = self.scroller_target.buffer[i];
-            self.scroller_target.buffer[i + (16*5 * WIDTH)] = self.scroller_target.buffer[i];
-            self.scroller_target.buffer[i + (16*6 * WIDTH)] = self.scroller_target.buffer[i];
-            self.scroller_target.buffer[i + (16*7 * WIDTH)] = self.scroller_target.buffer[i];
-            self.scroller_target.buffer[i + (16*8 * WIDTH)] = self.scroller_target.buffer[i];
-            self.scroller_target.buffer[i + (16*9 * WIDTH)] = self.scroller_target.buffer[i];
+        while(i < (WIDTH * HEIGHT)) : ( i += 1){
+            const pix_entry = self.scroller_target.buffer[i];
+            if (pix_entry != 0) {
+                self.scroller_target.buffer[i + (16*1 * WIDTH)] = pix_entry;
+            }
         }
 
         // copy the rendertarget to the fb
         var fb = &zigos.lfbs[0];
         i = 0;
-        while(i < self.scroller_target.buffer.len) : (i += 1) {
-            fb.fb[i] = self.scroller_target.buffer[i];
+        while(i < self.scroller_target.buffer.len - (40*WIDTH)) : (i += 1) {
+            fb.fb[i] = self.scroller_target.buffer[i + (40*WIDTH)];
         }
 
         self.grid.target.clearFrameBuffer(0);
@@ -171,8 +166,6 @@ pub const Demo = struct {
 
         self.logo.render();        
   
-        // _ = zigos;
-        // _ = self;
         _ = elapsed_time;
 
     } 

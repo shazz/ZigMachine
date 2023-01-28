@@ -52,9 +52,10 @@ pub fn Scrolltext(
         apply_offset_table: bool = false,
         y_offset_table: ?[]const i16,
         y_offset_table_index: u16 = undefined,
+        y_offset_table_index_dir: bool = undefined,
         const Self = @This();
 
-        pub fn init(target: RenderTarget, font_img: []const u8, font_chars: []const u8, width: u16, height: u16, text: []const u8, speed: u16, pos_y: u16, offset_table: ?[]const u16, y_offset_table: ?[]const i16) Self {
+        pub fn init(target: RenderTarget, font_img: []const u8, font_chars: []const u8, width: u16, height: u16, text: []const u8, speed: u16, pos_y: u16, offset_table: ?[]const u16, y_offset_table: ?[]const i16, y_offset_table_direction: ?bool) Self {
             
             var scroller = Self{ 
                 .offset_table = offset_table, 
@@ -76,6 +77,11 @@ pub fn Scrolltext(
             if (y_offset_table) |table| {
                 scroller.y_offset_table = table;
                 scroller.y_offset_table_index = 0;
+                if (y_offset_table_direction) |dir| {
+                    scroller.y_offset_table_index_dir = dir;
+                } else {
+                     scroller.y_offset_table_index_dir = true;
+                }
             }        
 
             // create as many Sprites as letters shown on screen
@@ -122,12 +128,21 @@ pub fn Scrolltext(
 
             // apply y_offset table if set
             if (self.y_offset_table) |table| {
-                if(self.y_offset_table_index > self.speed*2) {
-                    self.y_offset_table_index -= self.speed*2;
+
+                if(self.y_offset_table_index_dir) {
+                    if(self.y_offset_table_index > self.speed*2) {
+                        self.y_offset_table_index -= self.speed*2;
+                    } else {
+                        self.y_offset_table_index = @intCast(u16, table.len);
+                    }
                 } else {
-                    // Console.log("Reset y offset index: {}", .{self.y_offset_table_index});
-                    self.y_offset_table_index = @intCast(u16, table.len);
+                    if(self.y_offset_table_index < @intCast(u16, table.len)) {
+                        self.y_offset_table_index += self.speed*2;
+                    } else {
+                        self.y_offset_table_index = 0;
+                    }
                 }
+
             }
 
             for (self.fonts) |*font| {
