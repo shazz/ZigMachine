@@ -11,6 +11,7 @@ var requestId;
 var current_channel = 1;
 const list_channels = [ 
     "wasm/deltaforce.wasm", 
+    "wasm/the_union.wasm",
     "wasm/empire.wasm", 
     "wasm/ancool.wasm", 
     "wasm/leonard.wasm", 
