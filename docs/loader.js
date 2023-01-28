@@ -19,7 +19,8 @@ const list_channels = [
     "wasm/ics.wasm", 
     "wasm/bladerunners.wasm", 
     "wasm/replicants.wasm",
-    "wasm/fullscreen.wasm"
+    "wasm/fullscreen.wasm",
+    "wasm/boot.wasm"
 ];
 
 var ZigMachine = {

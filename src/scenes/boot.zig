@@ -31,6 +31,8 @@ pub const Demo = struct {
     pub fn init(self: *Demo, zigos: *ZigOS) void {
         Console.log("hello init", .{});
 
+        zigos.setBackgroundColor(Color{ .r=255, .g=255, .b=255, .a=255});
+
         // Use first logical framebuffer and enable it
         var fb: *LogicalFB = &zigos.lfbs[0];
         fb.is_enabled = true;
