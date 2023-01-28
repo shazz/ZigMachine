@@ -95,4 +95,10 @@ Go to your favorite browser and type to the URL `http://localhost:3333` or `http
 
 ## Screenshots
 
-![image](https://user-images.githubusercontent.com/604708/211934422-c38a40db-cdcb-48a3-9c7b-016d1e4fbe04.png) ![image](https://user-images.githubusercontent.com/604708/211934911-e95d1c98-2d77-4c42-99a6-9e7a7b51ed3e.png)
+![image](https://user-images.githubusercontent.com/604708/215280926-3705f596-1b46-426a-ae2e-cede1a5f4e1d.png)
+![image](https://user-images.githubusercontent.com/604708/215281094-e26adf7d-2582-4f45-8826-25e11ff84fcd.png)
+![image](https://user-images.githubusercontent.com/604708/215281318-dea95451-233b-4fe5-b7fb-7a4da2e33c7b.png)
+
+
+
+
