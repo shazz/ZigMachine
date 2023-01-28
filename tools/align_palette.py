@@ -7,7 +7,12 @@ from pathlib import Path
 
 DEFAULT_ALPHA = 255
 
-# python tools/align_palette.py src/assets/screens/the_union/DELTA.png src/assets/screens/the_union/logo_pal.dat src/assets/screens/the_union/DELTA.raw
+# python tools/align_palette.py -i src/assets/screens/the_union/DELTA.png -p src/assets/screens/the_union/logo_pal.dat -r src/assets/screens/the_union/DELTA.raw
+# python tools/align_palette.py -i src/assets/screens/the_union/H.png -p src/assets/screens/the_union/logo_pal.dat -r src/assets/screens/the_union/H.raw
+# python tools/align_palette.py -i src/assets/screens/the_union/O.png -p src/assets/screens/the_union/logo_pal.dat -r src/assets/screens/the_union/O.raw
+# python tools/align_palette.py -i src/assets/screens/the_union/W.png -p src/assets/screens/the_union/logo_pal.dat -r src/assets/screens/the_union/W.raw
+# python tools/align_palette.py -i src/assets/screens/the_union/D.png -p src/assets/screens/the_union/logo_pal.dat -r src/assets/screens/the_union/D.raw
+# python tools/align_palette.py -i src/assets/screens/the_union/Y.png -p src/assets/screens/the_union/logo_pal.dat -r src/assets/screens/the_union/Y.raw
 
 
 def grouper(iterator: Iterator, n: int) -> Iterator[list]:
@@ -17,12 +22,10 @@ def grouper(iterator: Iterator, n: int) -> Iterator[list]:
 
 parser = argparse.ArgumentParser(prog="PNG Palette aligner", description="Convert a PNG file to a palette based raw image", epilog="(C) 2023 TRSi")
 
-parser.add_argument("png_file")
-parser.add_argument("palette_file")
-parser.add_argument("raw_file")
+parser.add_argument("-i", "--png_file", metavar = "IMAGE", help="Path to your input PNG file in palette mode", required=True)
+parser.add_argument("-p", "--palette_file", metavar="PALETTE", help="Path to the input palette file to use for alignment", required=True)
+parser.add_argument("-r", "--raw_file", metavar="RAW", help="Path to the raw image file to modify", required=True)
 args = parser.parse_args()
-
-output_filename = f'{args.png_file.rsplit(".")[0]}.raw'
 
 with open(args.palette_file, "rb") as pal_file:
     target_palette = pal_file.read()
@@ -71,6 +74,7 @@ with Image.open(args.png_file) as im:
 
         print(mapping)
 
+        print(f"Opening pixel raw file: {args.raw_file}")
         with open(args.raw_file, "rb") as raw_file:
             raw_data = raw_file.read()
 
@@ -80,7 +84,8 @@ with Image.open(args.png_file) as im:
             pal_entries[idx] = mapping[entry]
 
         entries_bytes = struct.pack("{}B".format(len(pal_entries)), *pal_entries)
-        with open(args.raw_file + ".new", "wb") as modified_raw_file:
+        print(f"Saving pixel raw file: {args.raw_file}")
+        with open(args.raw_file, "wb") as modified_raw_file:
             modified_raw_file.write(entries_bytes)
 
     else:

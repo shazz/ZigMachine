@@ -25,6 +25,8 @@ const WIDTH: usize = @import("../zigos.zig").WIDTH;
 // --------------------------------------------------------------------------
 // Demo
 // --------------------------------------------------------------------------
+
+
 pub fn Bobs(
     comptime nb_bobs: comptime_int,
 ) type {
@@ -34,13 +36,15 @@ pub fn Bobs(
         sprite: Sprite = undefined,
         positions_x: [nb_bobs]i16 = undefined,
         positions_y: [nb_bobs]i16 = undefined,
+        images: [nb_bobs][]const u8 = undefined,
         const Self = @This();
 
-        pub fn init(target: RenderTarget, sprite_img: []const u8, sprite_width: u16, sprite_height: u16) Self {
+        pub fn init(target: RenderTarget, sprite_imgs: [nb_bobs][]const u8, sprite_width: u16, sprite_height: u16) Self {
 
             var bobs = Self{};
+            bobs.images = sprite_imgs;
             bobs.target = target;
-            bobs.sprite.init(target, sprite_img, sprite_width, sprite_height, 0, 0, null, null);
+            bobs.sprite.init(target, sprite_imgs[0], sprite_width, sprite_height, 0, 0, null, null);
 
             return bobs;
         }
@@ -55,6 +59,7 @@ pub fn Bobs(
 
             var i: u16 = 0;
             while(i < nb_bobs) : (i += 1) {
+                self.sprite.data = self.images[i];
                 self.sprite.update(self.positions_x[i], self.positions_y[i], null, null);
                 self.sprite.render();
             }

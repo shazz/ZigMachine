@@ -34,7 +34,7 @@ const SCROLL_CHAR_WIDTH = 32;
 const SCROLL_CHAR_HEIGHT = 17;
 const SCROLL_SPEED = 2;
 const SCROLL_CHARS = " ! #$%&'()*+,-./0123456789:;<=>? ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-const SCROLL_POS: u16 = 146;
+const SCROLL_POS: u16 = 142;
 const BACK_POS: u16 = 200-87;
 
 // palettes
@@ -47,8 +47,14 @@ const logo_b = @embedFile("../assets/screens/the_union/logo.raw");
 const back_b = @embedFile("../assets/screens/the_union/back.raw");
 
 // bob
-const delta_b = @embedFile("../assets/screens/the_union/delta.raw.new");
-const NB_BOBS = 10;
+const bob_h_b = @embedFile("../assets/screens/the_union/h.raw");
+const bob_o_b = @embedFile("../assets/screens/the_union/o.raw");
+const bob_w_b = @embedFile("../assets/screens/the_union/w.raw");
+const bob_d_b = @embedFile("../assets/screens/the_union/d.raw");
+const bob_y_b = @embedFile("../assets/screens/the_union/y.raw");
+const bob_delta_b = @embedFile("../assets/screens/the_union/delta.raw");
+const NB_BOBS = 11;
+const bobs_images: [NB_BOBS][]const u8 = [_][]const u8{ bob_delta_b, bob_delta_b, bob_delta_b, bob_h_b, bob_o_b, bob_w_b, bob_d_b, bob_y_b, bob_delta_b, bob_delta_b, bob_delta_b };
 
 // --------------------------------------------------------------------------
 // Variables
@@ -90,12 +96,14 @@ pub const Demo = struct {
         fb.setPaletteEntry(0, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
         fb.setPaletteEntry(255, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
         self.logo.init(fb.getRenderTarget(), logo_b, 208, 97, WIDTH/2-104, 0, null, null);      
-        self.bobs = Bobs(NB_BOBS).init(fb.getRenderTarget(), delta_b, 16, 8);
 
         var i: usize = 0;
         while (i < NB_BOBS) : (i += 1) {
             self.bobs_pos[i] = 0.3*(@intToFloat(f32, i+1));
         }
+        self.bobs = Bobs(NB_BOBS).init(fb.getRenderTarget(), bobs_images, 16, 8);
+
+
 
         // 3rd plane
         fb = &zigos.lfbs[2];
@@ -108,7 +116,6 @@ pub const Demo = struct {
         // 4th plane
         fb = &zigos.lfbs[3];
         fb.is_enabled = true;           
-        // fb.setPalette(font_pal);
         fb.setPalette(blue_back_pal);
         fb.setPaletteEntry(0, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
         fb.setPaletteEntry(255, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
