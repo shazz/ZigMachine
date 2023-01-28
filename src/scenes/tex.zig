@@ -28,8 +28,8 @@ const NB_STARS = 100;
 
 // scrolltext
 pub const NB_FONTS: u8 = WIDTH/SCROLL_CHAR_WIDTH + 1;
-const fonts_b = @embedFile("../assets/screens/the_union/fonts_pal.raw");
-const SCROLL_TEXT = "             THE EXCEPTIONS PROUDLY PRESENT THIS NEW GAME CRACKED BY HOWDY FROM THE EXCEPTIONS MEMBER OF THE UNION     LET WRAP      ";
+const fonts_b = @embedFile("../assets/screens/the_union/fonts.raw");
+const SCROLL_TEXT = "            THE EXCEPTIONS PROUDLY PRESENT THIS NEW GAME CRACKED BY HOWDY FROM THE EXCEPTIONS MEMBER OF THE UNION     LET WRAP      ";
 const SCROLL_CHAR_WIDTH = 32; 
 const SCROLL_CHAR_HEIGHT = 17;
 const SCROLL_SPEED = 2;
@@ -103,8 +103,6 @@ pub const Demo = struct {
         }
         self.bobs = Bobs(NB_BOBS).init(fb.getRenderTarget(), bobs_images, 16, 8);
 
-
-
         // 3rd plane
         fb = &zigos.lfbs[2];
         fb.is_enabled = true;           
@@ -118,7 +116,6 @@ pub const Demo = struct {
         fb.is_enabled = true;           
         fb.setPalette(blue_back_pal);
         fb.setPaletteEntry(0, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
-        fb.setPaletteEntry(255, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
 
         self.scrolltext = Scrolltext(NB_FONTS).init(fb.getRenderTarget(), fonts_b, SCROLL_CHARS, SCROLL_CHAR_WIDTH, SCROLL_CHAR_HEIGHT, SCROLL_TEXT, SCROLL_SPEED, SCROLL_POS, null, null);
 
@@ -168,13 +165,10 @@ pub const Demo = struct {
         self.scrolltext.target.clearFrameBuffer(0);
         self.scrolltext.render();     
 
-
         var i: usize = SCROLL_POS * WIDTH;
         var tx: usize = (SCROLL_POS - BACK_POS) * WIDTH;
         while(i < (SCROLL_POS * WIDTH) + (WIDTH * SCROLL_CHAR_HEIGHT)) : ( i += 1) {
-            if(fb.fb[i] == 1) {
-                fb.fb[i] =  back_b[tx];
-            }
+            fb.fb[i] = fb.fb[i] & back_b[tx];
             tx += 1;
         }           
 

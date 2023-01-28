@@ -13,7 +13,9 @@ DEFAULT_ALPHA = 255
 # python tools/convert_bitmap_font.py src/assets/screens/df/fonts2.png 32 30 10 60
 # python tools/convert_bitmap_font.py src/assets/screens/ics/font_noics.png 16 16 44 94
 # python tools/convert_bitmap_font.py src/assets/screens/bladerunners/fonts.png 32 32 10 80
-# python tools/convert_bitmap_font.py src/assets/screens/reps4/fonts.png 16 16 10 60
+
+# python tools/convert_bitmap_font.py -i src/assets/screens/reps4/fonts.png -r src/assets/screens/reps4/fonts.raw -cw 16 -ch 16 -cpr 10 -nb 60 -m -tmp
+# python tools/convert_bitmap_font.py -i src/assets/screens/the_union/fonts.png -r src/assets/screens/the_union/fonts.raw -cw 32 -ch 17 -cpr 10 -nb 60 -m -tmp
 
 
 def grouper(iterator: Iterator, n: int) -> Iterator[list]:
@@ -56,21 +58,27 @@ def extract_palette(image, mode, filename):
     with open(filename, "wb") as fp:
         fp.write(pal_bytes)
 
-parser = argparse.ArgumentParser(prog="PNG Font to raw converter", description="Convert a PNG file to a palette based raw image", epilog="(C) 2023 TRSi")
+parser = argparse.ArgumentParser(prog="PNG Font to raw converter", description="Convert a PNG file to a palette based font image", epilog="(C) 2023 TRSi")
 
-parser.add_argument("png_file")
-parser.add_argument("char_width")
-parser.add_argument("char_height")
-parser.add_argument("chars_per_row")
-parser.add_argument("nb_chars")
+
+parser.add_argument("-i",   "--png_file", metavar = "IMAGE", help="Path to your input PNG file in palette mode", required=True)
+parser.add_argument("-p",   "--palette_file", metavar="PALETTE", help="Path to the output palette file", required=False)
+parser.add_argument("-r",   "--raw_file", metavar="RAW", help="Path to the output raw image file", required=True)
+parser.add_argument("-cw",   "--char_width", metavar="WIDTH", help="Character width", required=True)
+parser.add_argument("-ch",   "--char_height", metavar="HEIGHT", help="Character height", required=True)
+parser.add_argument("-cpr", "--chars_per_row", metavar="ROW", help="Characters per row", required=True)
+parser.add_argument("-nb",  "--nb_chars", metavar="TOTAL", help="Characters total number", required=True)
+parser.add_argument("-m",   "--mask", help="generate mask", action='store_true')
+parser.add_argument("-tmp", "--tmp_png", help="save temporary png", action='store_true')
 args = parser.parse_args()
+
 
 char_width = int(args.char_width)
 char_height = int(args.char_height)
 nb_chars = int(args.nb_chars)
 chars_per_row = int(args.chars_per_row)
+gen_mask = bool(args.mask)
 
-output_filename = f'{args.png_file.rsplit(".")[0]}_pal'
 
 print(f"Parsing font {args.png_file} with {nb_chars} characters of size: ({char_width},{char_height})")
 
@@ -84,7 +92,7 @@ with Image.open(args.png_file) as im:
         data = list(im.getdata())
         reordered_data = []
 
-        # print(data, len(data))
+        print(data, len(data))
 
         for char in range(0, nb_chars):
             for y in range(0, char_height):
@@ -105,16 +113,23 @@ with Image.open(args.png_file) as im:
         im2.putdata(reordered_data)
 
         data = list(im2.getdata())
-        im2.save(output_filename + ".png", "PNG")
+        if args.tmp_png:
+            im2.save(args.raw_file + ".png", "PNG")
+
+        if gen_mask:
+            if len(im.getcolors()) > 2:
+                raise Exception(f"Cannot generate mask for more than 1 color: {im.getcolors()}")
+            data = [0 if entry == 0 else 255 for entry in data]
 
         print(data[0: char_width*char_height], len(data))
         print(data[char_width*char_height: char_width*char_height*2], len(data))
 
         img_bytes = struct.pack("{}B".format(len(data)), *data)
-        with open(output_filename + ".raw", "wb") as fi:
+        with open(args.raw_file, "wb") as fi:
             fi.write(img_bytes)
 
-        extract_palette(im2, im2.mode, output_filename + ".dat")
+        if args.palette_file:
+            extract_palette(im2, im2.mode, args.palette_file)
 
     else:
         raise RuntimeError(f"Unsupported image mode: {im.mode}")

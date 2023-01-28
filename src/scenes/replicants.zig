@@ -24,8 +24,8 @@ const HEIGHT: u16 = @import("../zigos.zig").HEIGHT;
 const WIDTH: u16 = @import("../zigos.zig").WIDTH;
 
 // scrolltext
-const fonts_b = @embedFile("../assets/screens/reps4/fonts_pal.raw");
-const SCROLL_TEXT = "        THE UNION PRESENTS : - GARFIELD - CRACKED BY DOM FROM THE REPLICANTS MEMBER OF THE UNION. MEMBERS OF THE REPLICANTS ARE : ELWOOD(NEW MEMBER!!),DOM,<R.AL>,SNAKE,COBRA,KNIGHT 2OO1,GO HAINE,EXCALIBUR,RANK-XEROX,HANNIBAL,GOLDORAK...... HI TO : LOCKBUSTERS,THE BLADE RUNNERS,B.O.S.S,WAS (NOT WAS),MCA,THE PREDATORS     A SPECIAL HI TO ALL MEMBERS OF THE MICRO CLUB LILLOIS!!!!!!!!........BYE BYE.......SEE YOU A NEXT TIME....      ";
+const fonts_b = @embedFile("../assets/screens/reps4/fonts.raw");
+const SCROLL_TEXT = "                       THE UNION PRESENTS : - GARFIELD - CRACKED BY DOM FROM THE REPLICANTS MEMBER OF THE UNION. MEMBERS OF THE REPLICANTS ARE : ELWOOD(NEW MEMBER!!),DOM,<R.AL>,SNAKE,COBRA,KNIGHT 2OO1,GO HAINE,EXCALIBUR,RANK-XEROX,HANNIBAL,GOLDORAK...... HI TO : LOCKBUSTERS,THE BLADE RUNNERS,B.O.S.S,WAS (NOT WAS),MCA,THE PREDATORS     A SPECIAL HI TO ALL MEMBERS OF THE MICRO CLUB LILLOIS!!!!!!!!........BYE BYE.......SEE YOU A NEXT TIME....";
 const SCROLL_CHAR_WIDTH = 16; 
 const SCROLL_CHAR_HEIGHT = 16;
 const SCROLL_SPEED = 2;
@@ -72,17 +72,6 @@ var rasters: [4]Raster = undefined;
 // --------------------------------------------------------------------------
 // Demo
 // --------------------------------------------------------------------------
-// fn handler_hbl(zigos: *ZigOS, line: u16) void {
-
-//     if(line >= 40 and line < 240) {
-//         zigos.setBackgroundColor(back_rasters_b[(line + 12 + raster_index) % 255]);
-//     }
-//     else {
-//         zigos.setBackgroundColor(Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
-//     }        
-// }
-
-
 fn handler_rasterbars(fb: *LogicalFB, zigos: *ZigOS, line: u16, col: u16) void {
 
     const back_color: Color = Color{ .r = 0, .g = 0, .b = 0, .a = 0 };
@@ -173,13 +162,11 @@ pub const Demo = struct {
 
         // HBL Handler for the raster effect
         fb.setFrameBufferHBLHandler(0, handler_logo);      
-        // zigos.setHBLHandler(handler_hbl);     
 
         fb = &zigos.lfbs[2];
         fb.is_enabled = true; 
         fb.setPalette(fonts_mask_pal);
         fb.setPaletteEntry(0, Color{ .r = 0, .g = 0, .b = 0, .a = 0 }); 
-        fb.setPaletteEntry(7, Color{ .r = 0, .g = 0, .b = 0, .a = 0 }); 
         self.scrolltext = Scrolltext(NB_FONTS).init(fb.getRenderTarget(), fonts_b, SCROLL_CHARS, SCROLL_CHAR_WIDTH, SCROLL_CHAR_HEIGHT, SCROLL_TEXT, SCROLL_SPEED, SCROLL_POS, null, null);
 
         fb = &zigos.lfbs[3];
@@ -239,15 +226,13 @@ pub const Demo = struct {
         self.logo.render();
 
         fb = &zigos.lfbs[2];
-        fb.clearFrameBuffer(7);
+        fb.clearFrameBuffer(0);
         self.scrolltext.render();
 
         var i: usize = SCROLL_POS * WIDTH;
         var tx: usize = (SCROLL_POS - 159) * WIDTH;
-        while(i < (165 * WIDTH) + (WIDTH * SCROLL_CHAR_HEIGHT)) : ( i += 1) {
-            if(fb.fb[i] == 1) {
-                fb.fb[i] = fonts_mask_b[tx];
-            }
+        while(i < (SCROLL_POS * WIDTH) + (WIDTH * SCROLL_CHAR_HEIGHT)) : ( i += 1) {         
+            fb.fb[i] = fb.fb[i] & fonts_mask_b[tx];
             tx += 1;
         }
 
