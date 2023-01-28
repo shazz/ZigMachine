@@ -4,7 +4,7 @@ A [Fantasy Console](https://en.wikipedia.org/wiki/Fantasy_video_game_console) (o
 
 This project is inspired by [WAB](https://wab.com) and [CODEF](https://codef.santo.fr) by my friend [NoNameNo](https://github.com/N0NameN0) who... already more than 10 years ago... provided a way to code oldskool effects in the browser without Flash but only HTML5 and javascript. Time to go one step further. 0% Flash, 0% HTML, 0% Javascript, only Zig!
 
-Screenshots below! Live website with the latest build: [ZigMachine](https://shazz.github.io/ZigMachine/)
+Screenshots below! Live website with the latest build: [ZigMachine](https://shazz.github.io/ZigMachine/) (Click on the + and - buttons to change channels!)
 
 ## Specs
 
