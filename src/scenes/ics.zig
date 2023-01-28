@@ -126,14 +126,14 @@ pub const Demo = struct {
         self.scrolltext.update();
         self.logo.update(null, null, null, null);
 
-        var f_sin: f32 = @sin(-self.sin_counter) * 32 * 4; 
-        var f_cos: f32 = @cos(-self.sin_counter) * 32 * 4;
+        var f_sin: f32 = @sin(-self.sin_counter) * 32 * 3.2; 
+        var f_cos: f32 = @cos(-self.sin_counter) * 32 * 3.2;
         const delta_x = -32 + @mod(@floatToInt(i16, f_sin), 32);
         const delta_y = -32 + @mod(@floatToInt(i16, f_cos), 32);
 
         self.grid.update(delta_x, delta_y, null, null);
 
-        self.sin_counter += 0.035;
+        self.sin_counter += 0.034;
         _ = zigos;
         _ = elapsed_time;
     }
@@ -157,8 +157,8 @@ pub const Demo = struct {
         // copy the rendertarget to the fb
         var fb = &zigos.lfbs[0];
         i = 0;
-        while(i < self.scroller_target.buffer.len - (40*WIDTH)) : (i += 1) {
-            fb.fb[i] = self.scroller_target.buffer[i + (40*WIDTH)];
+        while(i < self.scroller_target.buffer.len - (32*WIDTH)) : (i += 1) {
+            fb.fb[i] = self.scroller_target.buffer[i + (32*WIDTH)];
         }
 
         self.grid.target.clearFrameBuffer(0);
