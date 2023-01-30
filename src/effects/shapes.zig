@@ -44,9 +44,9 @@ pub const Edge = struct {
 
     fn init(x1: i16, y1: i16, c1: u8, x2: i16, y2: i16, c2: u8) Span {
         if (y1 < y2) {
-            return Edge{ .x1 = x1, .y1 = y1, .c1 = c1, .x2 = x2, .x2 = x2, .c2 = c2 };
+            return Edge{ .x1 = x1, .y1 = y1, .c1 = c1, .x2 = x2, .y2 = y2, .c2 = c2 };
         } else {
-            return Edge{ .x1 = x2, .y1 = y2, .c1 = c2, .x2 = x1, .x2 = x1, .c2 = c1 };
+            return Edge{ .x1 = x2, .y1 = y2, .c1 = c2, .x2 = x1, .y2 = y1, .c2 = c1 };
         }
     }
 };
@@ -260,20 +260,20 @@ fn drawSpansBetweenEdges(fb: *LogicalFB, e1: *const Edge, e2: *const Edge) void 
 
     // calculate difference between the y coordinates
     // of the first edge and return if 0
-    var e1ydiff: f32 = @intToFloat(f32, (e1.y2 - e1.y1));
+    var e1ydiff: f32 = @intToFloat(f32, e1.y2) - @intToFloat(f32, e1.y1);
     if (e1ydiff == 0.0)
         return;
 
     // calculate difference between the y coordinates
     // of the second edge and return if 0
-    var e2ydiff: f32 = @intToFloat(f32, (e2.y2 - e2.y1));
+    var e2ydiff: f32 = @intToFloat(f32, e2.y2) - @intToFloat(f32, e2.y1);
     if (e2ydiff == 0.0)
         return;
 
     // calculate differences between the x coordinates
     // and colors of the points of the edges
-    var e1xdiff = @intToFloat(f32, (e1.x2 - e1.x1));
-    var e2xdiff = @intToFloat(f32, (e2.x2 - e2.x1));
+    var e1xdiff = @intToFloat(f32, e1.x2)  - @intToFloat(f32, e1.x1);
+    var e2xdiff = @intToFloat(f32, e2.x2) - @intToFloat(f32, e2.x1);
 
     // color gradient
     // Color e1colordiff = (e1.Color2 - e1.Color1);
@@ -282,7 +282,7 @@ fn drawSpansBetweenEdges(fb: *LogicalFB, e1: *const Edge, e2: *const Edge) void 
     // calculate factors to use for interpolation
     // with the edges and the step values to increase
     // them by after drawing each span
-    var factor1 = @intToFloat(f32, (e2.y1 - e1.y1)) / e1ydiff;
+    var factor1 = (@intToFloat(f32, e2.y1) -  @intToFloat(f32, e1.y1)) / e1ydiff;
     var factorStep1: f32 = 1.0 / e1ydiff;
     var factor2: f32 = 0.0;
     var factorStep2: f32 = 1.0 / e2ydiff;
@@ -292,11 +292,24 @@ fn drawSpansBetweenEdges(fb: *LogicalFB, e1: *const Edge, e2: *const Edge) void 
     while (y < e2.y2) : (y += 1) {
 
         // create and draw span
+
+        const x1 = e1.x1 + @floatToInt(i16, e1xdiff * factor1);
+        const x2 = e2.x1 + @floatToInt(i16, e2xdiff * factor2);
+        if (x1 > 400) {
+            Console.log("e1.x1 {} e1xdiff {} * factor1 {} = {}", .{e1.x1, e1xdiff, factor1, e1xdiff * factor1});
+            Console.log("x1 {}", .{x1});
+            Console.log("x2 {}", .{x2});
+            Console.log("factor1 = {} - {} / {} = {}", .{@intToFloat(f32, e2.y1), @intToFloat(f32, e1.y1), e1ydiff, factor1});
+        }
+
+
         var span = Span.init(e1.x1 + @floatToInt(i16, e1xdiff * factor1), e1.c1, e2.x1 + @floatToInt(i16, e2xdiff * factor2), e2.c1);
         // Span span(e1.Color1 + (e1colordiff * factor1),
         //           e1.X1 + (int)(e1xdiff * factor1),
         //           e2.Color1 + (e2colordiff * factor2),
         //           e2.X1 + (int)(e2xdiff * factor2));
+
+        // Console.log("DrawSpan : from {} to {}", .{ span.x1, span.x2});
         drawSpan(fb, &span, y);
 
         // increase factors
@@ -320,6 +333,7 @@ fn drawSpan(fb: *LogicalFB, span: *const Span, y: i16) void {
     // float factorStep = 1.0f / (float)xdiff;
 
     // draw each pixel in the span
+    // Console.log("drawScanline: from {} ({}) to {} ({}) at {}", .{@intCast(u16, span.x1), span.x1, @intCast(u16, span.x2), span.x2, @intCast(u16, y)});
     fb.drawScanline(@intCast(u16, span.x1), @intCast(u16, span.x2), @intCast(u16, y), span.c1);
 
     // var x = span.x1;

@@ -26,10 +26,12 @@ const WIDTH: usize = @import("../zigos.zig").WIDTH;
 pub const Background = struct {
     target: RenderTarget = undefined,
     data: []const u8 = undefined,
+    pos_y: u16 = 0,
 
-    pub fn init(self: *Background, target: RenderTarget, data: []const u8) void {
+    pub fn init(self: *Background, target: RenderTarget, data: []const u8, pos_y: u16) void {
         self.target = target;
         self.data = data;
+        self.pos_y = pos_y;
     }
 
     pub fn update(self: *Background) void {
@@ -41,15 +43,15 @@ pub const Background = struct {
         switch (self.target) {
             .fb => |fb| {
                 var buffer: *[64000]u8 = &fb.fb;
-
+                
                 // Copy bitmap data
                 for (self.data) |value, index| {
-                    buffer[index] = value;
+                    buffer[index + (self.pos_y * WIDTH)] = value;
                 }
             },
             .buffer => |buffer| {
                 for (self.data) |value, index| {
-                    buffer[index] = value;
+                    buffer[index + (self.pos_y * WIDTH)] = value;
                 }   
             }
         }

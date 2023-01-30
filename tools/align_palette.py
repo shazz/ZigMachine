@@ -13,6 +13,7 @@ DEFAULT_ALPHA = 255
 # python tools/align_palette.py -i src/assets/screens/the_union/W.png -p src/assets/screens/the_union/logo_pal.dat -r src/assets/screens/the_union/W.raw
 # python tools/align_palette.py -i src/assets/screens/the_union/D.png -p src/assets/screens/the_union/logo_pal.dat -r src/assets/screens/the_union/D.raw
 # python tools/align_palette.py -i src/assets/screens/the_union/Y.png -p src/assets/screens/the_union/logo_pal.dat -r src/assets/screens/the_union/Y.raw
+# python tools/align_palette.py -i src/assets/screens/equinox/backscroll.png -p src/assets/screens/equinox/backtop_pal.dat -r src/assets/screens/equinox/backscroll.raw
 
 
 def grouper(iterator: Iterator, n: int) -> Iterator[list]:

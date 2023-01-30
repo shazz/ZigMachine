@@ -37,7 +37,22 @@ DEFAULT_ALPHA = 255
 # python tools/convert_png.py -i src/assets/screens/the_union/D.png -r src/assets/screens/the_union/d.raw 
 # python tools/convert_png.py -i src/assets/screens/the_union/Y.png -r src/assets/screens/the_union/y.raw 
 
-# python tools/convert_png.py -i src/assets/screens/stcs/logoY.png -r src/assets/screens/stcs/logo.raw -p src/assets/screens/stcs/logo_pal.dat
+# python tools/convert_png.py -i src/assets/screens/stcs/logo.png -r src/assets/screens/stcs/logo.raw -p src/assets/screens/stcs/logo_pal.dat
+
+# python tools/convert_png.py -i src/assets/screens/equinox/backtop.png -r src/assets/screens/equinox/backtop.raw -p src/assets/screens/equinox/backtop_pal.dat
+# python tools/convert_png.py -i src/assets/screens/equinox/backscroll.png -r src/assets/screens/equinox/backscroll.raw -p src/assets/screens/equinox/backscroll_pal.dat
+# python tools/convert_png.py -i src/assets/screens/equinox/logo.png -r src/assets/screens/equinox/logo.raw
+# python tools/convert_png.py -i src/assets/screens/equinox/road1.png -r src/assets/screens/equinox/road1.raw -p src/assets/screens/equinox/road1_pal.dat
+# python tools/convert_png.py -i src/assets/screens/equinox/road2.png -r src/assets/screens/equinox/road2.raw 
+# python tools/convert_png.py -i src/assets/screens/equinox/dragon1.png -r src/assets/screens/equinox/bob1.raw -p src/assets/screens/equinox/bobs_pal.dat
+# python tools/convert_png.py -i src/assets/screens/equinox/dragon2.png -r src/assets/screens/equinox/bob2.raw 
+# python tools/convert_png.py -i src/assets/screens/equinox/dragon3.png -r src/assets/screens/equinox/bob3.raw 
+# python tools/convert_png.py -i src/assets/screens/equinox/dragon4.png -r src/assets/screens/equinox/bob4.raw 
+# python tools/convert_png.py -i src/assets/screens/equinox/dragon5.png -r src/assets/screens/equinox/bob5.raw
+# python tools/convert_png.py -i src/assets/screens/equinox/dragon6.png -r src/assets/screens/equinox/bob6.raw 
+# python tools/convert_png.py -i src/assets/screens/equinox/dragon7.png -r src/assets/screens/equinox/bob7.raw 
+# python tools/convert_png.py -i src/assets/screens/equinox/dragon8.png -r src/assets/screens/equinox/bob8.raw
+
 
 def grouper(iterator: Iterator, n: int) -> Iterator[list]:
     while chunk := list(itertools.islice(iterator, n)):

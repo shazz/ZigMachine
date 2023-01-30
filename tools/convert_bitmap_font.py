@@ -21,6 +21,8 @@ DEFAULT_ALPHA = 255
 # python tools/convert_bitmap_font.py -i src/assets/screens/stcs/font40x34_c2.png -p src/assets/screens/stcs/font40x34_c2_pal.dat -cw 40 -ch 34 -cpr 8 -nb 64
 # python tools/convert_bitmap_font.py -i src/assets/screens/stcs/font40x34_c3.png -p src/assets/screens/stcs/font40x34_c3_pal.dat -cw 40 -ch 34 -cpr 8 -nb 64
 
+# python tools/convert_bitmap_font.py -i src/assets/screens/equinox/fonts.png -r src/assets/screens/equinox/fonts.raw -p src/assets/screens/equinox/fonts_pal.dat -cw 32 -ch 26 -cpr 10 -nb 60
+
 def grouper(iterator: Iterator, n: int) -> Iterator[list]:
     while chunk := list(itertools.islice(iterator, n)):
         yield chunk
