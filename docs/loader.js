@@ -22,6 +22,7 @@ const list_channels = [
     "wasm/fullscreen.wasm",
     "wasm/stcs.wasm",
     "wasm/equinox.wasm",
+    "wasm/maxi.wasm",
     "wasm/boot.wasm"
 ];
 

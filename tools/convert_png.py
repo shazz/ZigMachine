@@ -43,7 +43,7 @@ DEFAULT_ALPHA = 255
 # python tools/convert_png.py -i src/assets/screens/equinox/backscroll.png -r src/assets/screens/equinox/backscroll.raw -p src/assets/screens/equinox/backscroll_pal.dat
 # python tools/convert_png.py -i src/assets/screens/equinox/logo.png -r src/assets/screens/equinox/logo.raw
 # python tools/convert_png.py -i src/assets/screens/equinox/road1.png -r src/assets/screens/equinox/road1.raw -p src/assets/screens/equinox/road1_pal.dat
-# python tools/convert_png.py -i src/assets/screens/equinox/road2.png -r src/assets/screens/equinox/road2.raw 
+# python tools/convert_png.py -i src/assets/screens/equinox/road2.png -r src/assets/screens/equinox/road2.raw -p src/assets/screens/equinox/road2_pal.dat
 # python tools/convert_png.py -i src/assets/screens/equinox/dragon1.png -r src/assets/screens/equinox/bob1.raw -p src/assets/screens/equinox/bobs_pal.dat
 # python tools/convert_png.py -i src/assets/screens/equinox/dragon2.png -r src/assets/screens/equinox/bob2.raw 
 # python tools/convert_png.py -i src/assets/screens/equinox/dragon3.png -r src/assets/screens/equinox/bob3.raw 
@@ -53,6 +53,7 @@ DEFAULT_ALPHA = 255
 # python tools/convert_png.py -i src/assets/screens/equinox/dragon7.png -r src/assets/screens/equinox/bob7.raw 
 # python tools/convert_png.py -i src/assets/screens/equinox/dragon8.png -r src/assets/screens/equinox/bob8.raw
 
+# python tools/convert_png.py -i src/assets/screens/reps/font.png -r src/assets/screens/reps/font.raw
 
 def grouper(iterator: Iterator, n: int) -> Iterator[list]:
     while chunk := list(itertools.islice(iterator, n)):
