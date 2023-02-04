@@ -23,6 +23,7 @@ const list_channels = [
     "wasm/stcs.wasm",
     "wasm/equinox.wasm",
     "wasm/maxi.wasm",
+    "wasm/fallen_angels.wasm",
     "wasm/boot.wasm"
 ];
 

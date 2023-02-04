@@ -130,7 +130,6 @@ pub const Demo = struct {
         self.logo_sinx += 0.13;
         self.logo_inc += 0.008;
 
-	    // logo.draw(mycanvas,320 + Math.sin(logosinx)*(100*Math.sin(logoInc)),194/2);
         var x_pos: f32 = @sin(self.logo_sinx) * (50 * @sin(self.logo_inc));
         self.logo.update(52 + @floatToInt(i16, x_pos), null, null, null);
 

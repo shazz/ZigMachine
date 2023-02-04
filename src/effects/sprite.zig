@@ -82,14 +82,21 @@ pub const Sprite = struct {
 
         var first_color: Color = undefined;
         var is_tranparent: bool = undefined;
-         switch (self.target) {
+        var screen_width: u16 = 0;
+        var screen_height: u16 = 0;
+
+        switch (self.target) {
             .fb => |fb| {
                 first_color = fb.getPaletteEntry(0);
                 is_tranparent = (first_color.a == 0);
+                screen_width = WIDTH;
+                screen_height = HEIGHT;
             },
-            .render_buffer => |_| {
+            .render_buffer => |rbuf| {
                 first_color = Color{ .r=0, .g=0, .b=0, .a=0};
                 is_tranparent = true;
+                screen_width = rbuf.width;
+                screen_height = rbuf.height;
             }
         }        
 
@@ -102,7 +109,7 @@ pub const Sprite = struct {
         var left_x_clamped: u16 = 0;
 
         // checking is fully offscreen
-        if( (self.x_position >= WIDTH) or (self.y_position >= HEIGHT) or (self.x_position + self.width < 0) or (self.y_position + self.height < 0) ) clamp_sprite = true;
+        if( (self.x_position >= screen_width) or (self.y_position >= screen_height) or (self.x_position + self.width < 0) or (self.y_position + self.height < 0) ) clamp_sprite = true;
 
         // left clamp
         if (self.x_position < 0) {
@@ -117,9 +124,9 @@ pub const Sprite = struct {
         }
 
         // right clamp
-        if (left_x_position + self.width > WIDTH) {
+        if (left_x_position + self.width > screen_width) {
             right_clamp = true;
-            nb_cols = WIDTH - left_x_position;
+            nb_cols = screen_width - left_x_position;
             // Console.log("right clamping for x={} / {} => {}", .{left_x_position, left_x_position + self.width, nb_cols});            
         }
 
@@ -131,13 +138,13 @@ pub const Sprite = struct {
         } 
 
         var clamped_y_bottom_position: u16 = 0;
-        if (self.y_position + self.height > HEIGHT) {
-            clamped_y_bottom_position =  @intCast(u16, self.height + self.y_position - HEIGHT);
+        if (self.y_position + self.height > screen_height) {
+            clamped_y_bottom_position =  @intCast(u16, self.height + self.y_position - screen_height);
             // Console.log("bottom clamping for y={} h={} => {}", .{self.y_position, self.height, clamped_y_bottom_position});  
         } 
 
         // offset in Framebuffer
-        var offset: u16 = left_x_position + ( (@intCast(u16, self.y_position) + clamped_y_top_position) * WIDTH );
+        var offset: u16 = left_x_position + ( (@intCast(u16, self.y_position) + clamped_y_top_position) * screen_width );
         // Console.log("offset in FB left: {} y: {} clamp y: {} => {}", .{left_x_position, @intCast(u16, self.y_position), clamped_y_top_position, offset});  
 
         // counter for each sprite row
@@ -166,9 +173,9 @@ pub const Sprite = struct {
 
                         var off = y_table[counter];
                         if (off < 0) {
-                            new_offset -= (@intCast(u16, -off) * WIDTH);
+                            new_offset -= (@intCast(u16, -off) * screen_width);
                         } else {
-                            new_offset += (@intCast(u16, off) * WIDTH);
+                            new_offset += (@intCast(u16, off) * screen_width);
                         }
                     }
 
@@ -205,12 +212,12 @@ pub const Sprite = struct {
                 if(self.x_offset_table) |table| {
                     var delta: i16 = table[(self.x_offset_index + row_counter) % table.len];
                     if(delta < 0) {
-                        offset = offset - @intCast(u16, -delta) + WIDTH;
+                        offset = offset - @intCast(u16, -delta) + screen_width;
                     } else {
-                        offset = offset + @intCast(u16, delta) + WIDTH;
+                        offset = offset + @intCast(u16, delta) + screen_width;
                     }                    
                 } else {
-                    offset += WIDTH;
+                    offset += screen_width;
                 }
             }
         }

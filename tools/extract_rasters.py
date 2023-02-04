@@ -19,6 +19,7 @@ from pathlib import Path
 # python tools/extract_rasters.py src/assets/screens/reps4/rasterFonts.png src/assets/screens/reps4/rasterFonts_pal.dat 
 
 # python tools/extract_rasters.py src/assets/screens/stcs/rasters.png src/assets/screens/stcs/rasters.dat 
+# python tools/extract_rasters.py src/assets/screens/fallen_angels/rasters.png src/assets/screens/fallen_angels/rasters.dat 
 
 DEFAULT_ALPHA = 255
 
