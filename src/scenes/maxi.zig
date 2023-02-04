@@ -230,38 +230,37 @@ pub const Demo = struct {
     angle_z: f32 = 0.0,
     text: Text = undefined,
     render_target: RenderTarget = undefined,
+    pos_x: f32 = 0,
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
         Console.log("Demo init", .{});
 
-        // first plane
+        // only one plane needed
         var fb: *LogicalFB = &zigos.lfbs[0];
 
         fb = &zigos.lfbs[0];
         fb.is_enabled = true;
-        // fb.setPalette(font_pal);
         fb.setPaletteEntry(0, Color{ .r=0, .g=0, .b=0, .a=0});
         fb.setPaletteEntry(1, Color{ .r=0, .g=0, .b=255, .a=255});
 
-        // HBL Handler for the raster effect
+        // HBL Handler for overscan effect
         fb.setFrameBufferHBLHandler(40, handler_vertical_borders);         
 
         // create text buffer
         self.render_target = .{ .buffer = &overcan_buffer };        
-
         self.text.init(self.render_target, fonts_b, fonts_chars, 8, 8);
 
         var i: usize = 0;
         while(i < vertices_rectangle.len) : ( i += 1) {
-		    vertices_rectangle[i] = vertices_rectangle[i].add(Vec4.new(-1.2, -0.4, -0.0, 0.0));
+		    vertices_rectangle[i] = vertices_rectangle[i].add(Vec4.new(-1.2, -0.5, -0.0, 0.0));
 	    }
         i = 0;
         while(i < vertices_yellow.len) : ( i += 1) {
-		    vertices_yellow[i] = vertices_yellow[i].add(Vec4.new(-1.2, -0.4, 0.3, 0.0));
+		    vertices_yellow[i] = vertices_yellow[i].add(Vec4.new(-1.2, -0.5, 0.35, 0.0));
 	    }
         i = 0;
         while(i < vertices_red.len) : ( i += 1) {
-		    vertices_red[i] = vertices_red[i].add(Vec4.new(-1.2, -0.4, 0.3, 0.0));
+		    vertices_red[i] = vertices_red[i].add(Vec4.new(-1.2, -0.5, 0.35, 0.0));
 	    }                     
 
         // set lines colors
@@ -271,7 +270,7 @@ pub const Demo = struct {
         fb.setPaletteEntry(4, Color{ .r = 0xf0, .g = 0xf0, .b = 0xf0, .a = 255 });
 
         self.projection = za.perspective(40.0, 200.0 / 320.0, 1, 1000);
-        self.camera = za.camera(Vec3.new(0.0, 0.4, -4.5), 0, 0);
+        self.camera = za.camera(Vec3.new(0.0, 0.4, -5.0), 0, 0);
         self.screen = za.screen(320, 200);   
 
         Console.log("demo init done!", .{});
@@ -279,96 +278,17 @@ pub const Demo = struct {
 
     pub fn update(self: *Demo, zigos: *ZigOS, elapsed_time: f32) void {
 
-        for(vertices_rectangle) |vertex, idx| {
+        self.pos_x += 0.06;
+        const f_sin: f32 = @sin(self.pos_x) * 0.60; 
 
-            // const rot_scale = Mat4.fromScale(Vec3.new(self.zoom, self.zoom, self.zoom));
-            // const vertex_after_scale = rot_scale.vec4mulByMat4(vertex);
+        const base_incr = 0.55;
+        self.angle_x -= (base_incr * 1);
+        self.angle_y -= (base_incr * 2);
+        self.angle_z -= (base_incr * 4);
 
-            const rot_matx = Mat4.fromEulerAngles(Vec3.new(self.angle_x, 0, 0));
-            const vertex_after_rotx = rot_matx.vec4mulByMat4(vertex);
-
-            const rot_maty = Mat4.fromEulerAngles(Vec3.new(0, self.angle_y, 0));
-            const vertex_after_roty = rot_maty.vec4mulByMat4(vertex_after_rotx);
-
-            const rot_matz = Mat4.fromEulerAngles(Vec3.new(0, 0, self.angle_z));
-            const vertex_after_rotz = rot_matz.vec4mulByMat4(vertex_after_roty);            
-
-            const vertex_after_cam = self.camera.vec4mulByMat4(vertex_after_rotz);
-            const vertex_after_proj = self.projection.vec4mulByMat4(vertex_after_cam);
-                    
-            const norm = Vec4.set(1/vertex_after_proj.w());
-            var vertex_after_norm = vertex_after_proj.mul(norm);
-
-            const vertex_after_screen = self.screen.vec4mulByMat4(vertex_after_norm);
-
-            const coord_x: i16 = @floatToInt(i16, vertex_after_screen.x()); 
-            const coord_y: i16 = @floatToInt(i16, vertex_after_screen.y()); 
-
-            self.projected_vertices_rectangle[idx].x=coord_x;
-            self.projected_vertices_rectangle[idx].y=coord_y;
-        }        
-
-        for(vertices_yellow) |vertex, idx| {
-
-            // const rot_scale = Mat4.fromScale(Vec3.new(self.zoom, self.zoom, self.zoom));
-            // const vertex_after_scale = rot_scale.vec4mulByMat4(vertex);
-
-            const rot_matx = Mat4.fromEulerAngles(Vec3.new(self.angle_x, 0, 0));
-            const vertex_after_rotx = rot_matx.vec4mulByMat4(vertex);
-
-            const rot_maty = Mat4.fromEulerAngles(Vec3.new(0, self.angle_y, 0));
-            const vertex_after_roty = rot_maty.vec4mulByMat4(vertex_after_rotx);
-
-            const rot_matz = Mat4.fromEulerAngles(Vec3.new(0, 0, self.angle_z));
-            const vertex_after_rotz = rot_matz.vec4mulByMat4(vertex_after_roty);            
-
-            const vertex_after_cam = self.camera.vec4mulByMat4(vertex_after_rotz);
-            const vertex_after_proj = self.projection.vec4mulByMat4(vertex_after_cam);
-                    
-            const norm = Vec4.set(1/vertex_after_proj.w());
-            var vertex_after_norm = vertex_after_proj.mul(norm);
-
-            const vertex_after_screen = self.screen.vec4mulByMat4(vertex_after_norm);
-
-            const coord_x: i16 = @floatToInt(i16, vertex_after_screen.x()); 
-            const coord_y: i16 = @floatToInt(i16, vertex_after_screen.y()); 
-
-            self.projected_vertices_yellow[idx].x=coord_x;
-            self.projected_vertices_yellow[idx].y=coord_y;
-        }             
-
-        for(vertices_red) |vertex, idx| {
-
-            // const rot_scale = Mat4.fromScale(Vec3.new(self.zoom, self.zoom, self.zoom));
-            // const vertex_after_scale = rot_scale.vec4mulByMat4(vertex);
-
-            const rot_matx = Mat4.fromEulerAngles(Vec3.new(self.angle_x, 0, 0));
-            const vertex_after_rotx = rot_matx.vec4mulByMat4(vertex);
-
-            const rot_maty = Mat4.fromEulerAngles(Vec3.new(0, self.angle_y, 0));
-            const vertex_after_roty = rot_maty.vec4mulByMat4(vertex_after_rotx);
-
-            const rot_matz = Mat4.fromEulerAngles(Vec3.new(0, 0, self.angle_z));
-            const vertex_after_rotz = rot_matz.vec4mulByMat4(vertex_after_roty);            
-
-            const vertex_after_cam = self.camera.vec4mulByMat4(vertex_after_rotz);
-            const vertex_after_proj = self.projection.vec4mulByMat4(vertex_after_cam);
-                    
-            const norm = Vec4.set(1/vertex_after_proj.w());
-            var vertex_after_norm = vertex_after_proj.mul(norm);
-
-            const vertex_after_screen = self.screen.vec4mulByMat4(vertex_after_norm);
-
-            const coord_x: i16 = @floatToInt(i16, vertex_after_screen.x()); 
-            const coord_y: i16 = @floatToInt(i16, vertex_after_screen.y()); 
-
-            self.projected_vertices_red[idx].x=coord_x;
-            self.projected_vertices_red[idx].y=coord_y;
-        }              
-   
-        self.angle_x += 0.8;
-        self.angle_y += 1.6;   
-        self.angle_z += 3.2;   
+        self.transform_object(self.angle_x, self.angle_y, self.angle_z, f_sin, &vertices_rectangle, &self.projected_vertices_rectangle);
+        self.transform_object(self.angle_x, self.angle_y, self.angle_z, f_sin, &vertices_yellow, &self.projected_vertices_yellow);
+        self.transform_object(self.angle_x, self.angle_y, self.angle_z, f_sin, &vertices_red, &self.projected_vertices_red);
 
         _ = zigos;
         _ = elapsed_time;
@@ -379,26 +299,9 @@ pub const Demo = struct {
         self.render_target.clearFrameBuffer(0);
         self.render_text();
 
-        for(segments_rectangle) |segment| {
-            const v1: Coord = self.projected_vertices_rectangle[@floatToInt(usize, segment.x())];
-            const v2: Coord = self.projected_vertices_rectangle[@floatToInt(usize, segment.y())];
-
-            shapes.drawLine(self.render_target, v1, v2, 2);   
-        }
-
-        for(segments_yellow) |segment| {
-            const v1: Coord = self.projected_vertices_yellow[@floatToInt(usize, segment.x())];
-            const v2: Coord = self.projected_vertices_yellow[@floatToInt(usize, segment.y())];
-
-            shapes.drawLine(self.render_target, v1, v2, 3);   
-        }
-
-        for(segments_red) |segment| {
-            const v1: Coord = self.projected_vertices_red[@floatToInt(usize, segment.x())];
-            const v2: Coord = self.projected_vertices_red[@floatToInt(usize, segment.y())];
-
-            shapes.drawLine(self.render_target, v1, v2, 4);   
-        }
+        self.render_object(&segments_rectangle, &self.projected_vertices_rectangle, 2);
+        self.render_object(&segments_yellow, &self.projected_vertices_yellow, 3);
+        self.render_object(&segments_red, &self.projected_vertices_red, 4);
 
         _ = elapsed_time;
         _ = zigos;
@@ -441,4 +344,46 @@ pub const Demo = struct {
         self.text.render("****************************************",0,33 * 8);
 
     }
+
+    fn transform_object(self: *Demo, angle_x: f32, angle_y: f32, angle_z: f32, trans_x: f32, vertices: []Vec4, projected_vertices: []Coord) void {
+
+        for(vertices) |vertex, idx| {
+
+            const rot_matx = Mat4.fromEulerAngles(Vec3.new(angle_x, 0, 0));
+            const vertex_after_rotx = rot_matx.vec4mulByMat4(vertex);
+
+            const rot_maty = Mat4.fromEulerAngles(Vec3.new(0, angle_y, 0));
+            const vertex_after_roty = rot_maty.vec4mulByMat4(vertex_after_rotx);
+
+            const rot_matz = Mat4.fromEulerAngles(Vec3.new(0, 0, angle_z));
+            const vertex_after_rotz = rot_matz.vec4mulByMat4(vertex_after_roty); 
+
+            const translated_vertex = vertex_after_rotz.add(Vec4.new(trans_x, 0.0, 0.0, 0.0));           
+
+            const vertex_after_cam = self.camera.vec4mulByMat4(translated_vertex);
+            const vertex_after_proj = self.projection.vec4mulByMat4(vertex_after_cam);
+                    
+            const norm = Vec4.set(1/vertex_after_proj.w());
+            var vertex_after_norm = vertex_after_proj.mul(norm);
+
+            const vertex_after_screen = self.screen.vec4mulByMat4(vertex_after_norm);
+
+            const coord_x: i16 = @floatToInt(i16, vertex_after_screen.x()); 
+            const coord_y: i16 = @floatToInt(i16, vertex_after_screen.y()); 
+
+            projected_vertices[idx].x=coord_x;
+            projected_vertices[idx].y=coord_y;
+        }     
+    }  
+
+    fn render_object(self: *Demo, segments: []const Vec2, projected_vertices: []Coord, pal_entry: u8) void {
+
+        for(segments) |segment| {
+            const v1: Coord = projected_vertices[@floatToInt(usize, segment.x())];
+            const v2: Coord = projected_vertices[@floatToInt(usize, segment.y())];
+
+            shapes.drawLine(self.render_target, v1, v2, pal_entry);   
+        }
+    }
+
 };
