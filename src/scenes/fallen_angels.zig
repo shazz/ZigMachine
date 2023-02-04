@@ -295,7 +295,7 @@ pub const Demo = struct {
         fb.clearFrameBuffer(1);
         self.logo.render();        
 
-        if(self.time_counter > 0) { //16*60*6) {
+        if(self.time_counter > 16*60*6) {
             fb = &zigos.lfbs[2];
             fb.clearFrameBuffer(0);
             self.render_object(fb.getRenderTarget(), &grid_segments, &self.grid_projected_vertices, 1);
