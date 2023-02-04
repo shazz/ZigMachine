@@ -55,7 +55,7 @@ pub const RenderTarget = union(enum) {
                 fb.setPixelValue(x, y, pal_entry);
             },
             .buffer => |buffer| {
-                if ((x >= 0) and (x < WIDTH) and (y >= 0) and (y < HEIGHT)) {
+                if ((x >= 0) and (x < WIDTH) and (y >= 0)) { //} and (y < HEIGHT)) {
                     const index: u32 = @as(u32, y) * @as(u32, WIDTH) + @as(u32, x);
                     buffer[index] = pal_entry;
                 }

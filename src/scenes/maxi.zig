@@ -166,9 +166,7 @@ const segments_red = [_]Vec2{
 // --------------------------------------------------------------------------
 // Variables
 // --------------------------------------------------------------------------
-var buffer_top = [_]u8{0} ** (320 * 40);
-var buffer_middle = [_]u8{0} ** (320 * 200);
-var buffer_bottom = [_]u8{0} ** (320 * 40);
+var overcan_buffer = [_]u8{0} ** (320 * 280);
 
 // --------------------------------------------------------------------------
 // Demo
@@ -189,30 +187,30 @@ fn handler_vertical_borders(fb: *LogicalFB, zigos: *ZigOS, line: u16, column: u1
         zigos.setResolution(Resolution.truecolor);
 
         var i: usize = 0;
-        while(i < 40 * 320) : (i += 1) {
-            fb.fb[i] = buffer_top[i];
+        while(i < 40 * WIDTH) : (i += 1) {
+            fb.fb[i] = overcan_buffer[i];
         }   
     }
 
     if(line == 40) {
         // copy text to fb
         var i: u16 = 0;
+        const offset: u16 = 40 * WIDTH;
         while(i < WIDTH * HEIGHT) : ( i += 1){
-            fb.fb[i] = buffer_middle[i];
+            fb.fb[i] = overcan_buffer[i + offset];
         }
     }
     
     // Open low border and copy low buffer
     if(line == 240 and column == 40) {
-        // Console.log("Opening bottom border!", .{});
         zigos.setResolution(Resolution.truecolor);
 
         // copy text to fb
         var i: u16 = WIDTH * (HEIGHT - 40);
-        var j: u16 = 0;
+        const offset: u16 = 80 * WIDTH;
+
         while(i < WIDTH * HEIGHT) : ( i += 1){
-            fb.fb[i] = buffer_bottom[j];
-            j += 1;
+            fb.fb[i] = overcan_buffer[i + offset];
         }
     }
 
@@ -231,9 +229,7 @@ pub const Demo = struct {
     angle_x: f32 = 0.0,
     angle_z: f32 = 0.0,
     text: Text = undefined,
-    text_target_top: RenderTarget = undefined,
-    text_target_middle: RenderTarget = undefined,
-    text_target_bottom: RenderTarget = undefined,
+    render_target: RenderTarget = undefined,
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
         Console.log("Demo init", .{});
@@ -251,51 +247,9 @@ pub const Demo = struct {
         fb.setFrameBufferHBLHandler(40, handler_vertical_borders);         
 
         // create text buffer
-        self.text_target_top = .{ .buffer = &buffer_top };        
-        self.text_target_middle = .{ .buffer = &buffer_middle };  
-        self.text_target_bottom = .{ .buffer = &buffer_bottom };  
+        self.render_target = .{ .buffer = &overcan_buffer };        
 
-        self.text.init(self.text_target_top, fonts_b, fonts_chars, 8, 8);
-
-        self.text.render("****************************************",0, 0 * 8);
-        self.text.render(" **   THE REPLICANTS AND ST AMIGOS   ** ",0, 1 * 8);
-        self.text.render("    **   BRING YOU AN HOT STUFF   **    ",0, 2 * 8);
-        self.text.render("       **************************       ",0, 3 * 8);
-        
-        self.text.init(self.text_target_middle, fonts_b, fonts_chars, 8, 8);
-
-        self.text.render("   SAVAGELY BROKEN AN TRAINED BY MAXI",0, 0 * 8);
-        self.text.render("  ------------------------------------",0, 1 * 8);
-        self.text.render("  DIS BOOT WAS ALSO FAST CODED BY MAXI",0, 2 * 8);
-        self.text.render(" --------------------------------------",0, 3 * 8);
-        
-        self.text.render("       COPY IN 2 SIDES 10 SECTORS",0, 5 * 8);
-        self.text.render("   THE MAGIC KEY FOR THE TRAINER IS *",0, 6 * 8);
-        self.text.render("SORRY FOR DIS LITTLE LAME CODE ,COZ THAT",0, 7 * 8);
-        self.text.render("IS NOT MY BEST 3D LINE ROUT ,SO FAR NOT.",0, 8 * 8);
-        self.text.render("THAT IS MY SHORTER ONE ! BUT IN 3 PLANES",0, 9 * 8);
-        self.text.render("THE GOOD IS RATHER MY UPPER BORDER ROUT!",0, 10 * 8); 
-        
-        self.text.render("VERY SPECIAL REGARDS GO TO :",0, 14 * 8);
-        self.text.render(" THOR - AVB - ST WAIKIKI- MINIMAX - ZAE",0, 15 * 8);
-        self.text.render(" MAD VISION  - FUZION - LITTLESWAP -FOF",0, 16 * 8);
-        self.text.render("  BAD BOYS - MCA - ACB - THE REDUCTORS",0, 17 * 8);
-        self.text.render("  RCA AND ALL THE MEMBERS OF THE UNION",0, 18 * 8);
-        
-        self.text.render("I SEND THE NORMAL GREETINGS TO :",0, 20 * 8);
-        self.text.render(" ST CONNEXION-IMAGINA-PHALANC-FF-TELLER",0, 21 * 8);
-        self.text.render(" 2 LIVE CREW-PENDRAGONS-DRAGON-FRAISINE",0, 22 * 8);
-        self.text.render(" DIMITRI-EQUINOX-TGE-SEWER SOFT-ACF-BMT",0, 23 * 8);
-        self.text.render(" MEDWAY BOYS-OVR-MCS-TDA-LOST BOYS-NEXT",0, 24 * 8);
-
-        self.text.init(self.text_target_bottom, fonts_b, fonts_chars, 8, 8);        
-        self.text.render(" ULM-PARADOX-SYNC-OMEGA-INNER CIRCLE-MU",0, 1 * 8);
-        self.text.render("ENJOY THE VIOLENCE..THE REPLICANTS RULEZ",0, 2 * 8);
-        self.text.render("****************************************",0, 3 * 8);
-
-        // 2nd plane
-        fb = &zigos.lfbs[1];
-        fb.is_enabled = true;
+        self.text.init(self.render_target, fonts_b, fonts_chars, 8, 8);
 
         var i: usize = 0;
         while(i < vertices_rectangle.len) : ( i += 1) {
@@ -310,12 +264,14 @@ pub const Demo = struct {
 		    vertices_red[i] = vertices_red[i].add(Vec4.new(-1.2, -0.4, 0.3, 0.0));
 	    }                     
 
+        // set lines colors
         fb.setPaletteEntry(0, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
-        fb.setPaletteEntry(1, Color{ .r = 0xf0, .g = 0x10, .b = 0x10, .a = 255 });
-        fb.setPaletteEntry(2, Color{ .r = 0xf0, .g = 0xf0, .b = 0x10, .a = 255 });
-        fb.setPaletteEntry(3, Color{ .r = 0xf0, .g = 0xf0, .b = 0xf0, .a = 255 });
+        fb.setPaletteEntry(2, Color{ .r = 0xf0, .g = 0x10, .b = 0x10, .a = 255 });
+        fb.setPaletteEntry(3, Color{ .r = 0xf0, .g = 0xf0, .b = 0x10, .a = 255 });
+        fb.setPaletteEntry(4, Color{ .r = 0xf0, .g = 0xf0, .b = 0xf0, .a = 255 });
+
         self.projection = za.perspective(40.0, 200.0 / 320.0, 1, 1000);
-        self.camera = za.camera(Vec3.new(0.0, -0.2, -4.5), 0, 0);
+        self.camera = za.camera(Vec3.new(0.0, 0.4, -4.5), 0, 0);
         self.screen = za.screen(320, 200);   
 
         Console.log("demo init done!", .{});
@@ -420,31 +376,69 @@ pub const Demo = struct {
 
     pub fn render(self: *Demo, zigos: *ZigOS, elapsed_time: f32) void {
 
-        var fb: *LogicalFB = &zigos.lfbs[1];
-        fb.clearFrameBuffer(0);
+        self.render_target.clearFrameBuffer(0);
+        self.render_text();
+
         for(segments_rectangle) |segment| {
             const v1: Coord = self.projected_vertices_rectangle[@floatToInt(usize, segment.x())];
             const v2: Coord = self.projected_vertices_rectangle[@floatToInt(usize, segment.y())];
 
-            shapes.drawLine(fb.getRenderTarget(), v1, v2, 1);   
+            shapes.drawLine(self.render_target, v1, v2, 2);   
         }
 
         for(segments_yellow) |segment| {
             const v1: Coord = self.projected_vertices_yellow[@floatToInt(usize, segment.x())];
             const v2: Coord = self.projected_vertices_yellow[@floatToInt(usize, segment.y())];
 
-            shapes.drawLine(fb.getRenderTarget(), v1, v2, 2);   
+            shapes.drawLine(self.render_target, v1, v2, 3);   
         }
 
         for(segments_red) |segment| {
             const v1: Coord = self.projected_vertices_red[@floatToInt(usize, segment.x())];
             const v2: Coord = self.projected_vertices_red[@floatToInt(usize, segment.y())];
 
-            shapes.drawLine(fb.getRenderTarget(), v1, v2, 3);   
+            shapes.drawLine(self.render_target, v1, v2, 4);   
         }
 
-
         _ = elapsed_time;
+        _ = zigos;
+
+    }
+
+    fn render_text(self: *Demo) void {
+
+        self.text.render("****************************************",0, 0 * 8);
+        self.text.render(" **   THE REPLICANTS AND ST AMIGOS   ** ",0, 1 * 8);
+        self.text.render("    **   BRING YOU AN HOT STUFF   **    ",0, 2 * 8);
+        self.text.render("       **************************       ",0, 3 * 8);
+        
+        self.text.render("   SAVAGELY BROKEN AN TRAINED BY MAXI",   0, 5 * 8);
+        self.text.render("  ------------------------------------",  0, 6 * 8);
+        self.text.render("  DIS BOOT WAS ALSO FAST CODED BY MAXI",  0, 7 * 8);
+        self.text.render(" --------------------------------------", 0, 8 * 8);
+        
+        self.text.render("       COPY IN 2 SIDES 10 SECTORS",       0, 10 * 8);
+        self.text.render("   THE MAGIC KEY FOR THE TRAINER IS *",   0, 11 * 8);
+        self.text.render("SORRY FOR DIS LITTLE LAME CODE ,COZ THAT",0, 12 * 8);
+        self.text.render("IS NOT MY BEST 3D LINE ROUT ,SO FAR NOT.",0, 13 * 8);
+        self.text.render("THAT IS MY SHORTER ONE ! BUT IN 3 PLANES",0, 14 * 8);
+        self.text.render("THE GOOD IS RATHER MY UPPER BORDER ROUT!",0, 15 * 8); 
+        
+        self.text.render("VERY SPECIAL REGARDS GO TO :",            0, 19 * 8);
+        self.text.render(" THOR - AVB - ST WAIKIKI- MINIMAX - ZAE", 0, 20 * 8);
+        self.text.render(" MAD VISION  - FUZION - LITTLESWAP -FOF", 0, 21 * 8);
+        self.text.render("  BAD BOYS - MCA - ACB - THE REDUCTORS",  0, 22 * 8);
+        self.text.render("  RCA AND ALL THE MEMBERS OF THE UNION",  0, 23 * 8);
+        
+        self.text.render("I SEND THE NORMAL GREETINGS TO :",       0, 25 * 8);
+        self.text.render(" ST CONNEXION-IMAGINA-PHALANC-FF-TELLER",0, 26 * 8);
+        self.text.render(" 2 LIVE CREW-PENDRAGONS-DRAGON-FRAISINE",0, 27 * 8);
+        self.text.render(" DIMITRI-EQUINOX-TGE-SEWER SOFT-ACF-BMT",0, 28 * 8);
+        self.text.render(" MEDWAY BOYS-OVR-MCS-TDA-LOST BOYS-NEXT",0, 29 * 8);
+        self.text.render(" ULM-PARADOX-SYNC-OMEGA-INNER CIRCLE-MU",0, 30 * 8);
+
+        self.text.render("ENJOY THE VIOLENCE..THE REPLICANTS RULEZ",0,32 * 8);
+        self.text.render("****************************************",0,33 * 8);
 
     }
 };
