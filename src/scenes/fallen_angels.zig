@@ -31,23 +31,7 @@ const WIDTH: u16 = @import("../zigos.zig").WIDTH;
 // scrolltext
 
 const fonts_b = @embedFile("../assets/screens/fallen_angels/fonts.raw");
-const SCROLL_TEXT = "                                                                                                                       "
-    ++ "THE EMPIRE PRESENTS : MEAN STREET,CRACKED BY ILLEGAL FROM THE FALLEN ANGELS ... DIS GREAT INTRO WAS CODED FOR ME BY -PROTEUS- HEHE !"
-	++ ". LIGHTMAN SAYS : THANX TO THE ST AMIGOS TO HAVE RELEASED A PROTECTED ORIGINAL,IT IS MAYBE BECAUSE THE REPLICANTS ARE NOT ABLE TO CRACK IT !"
-	++ "  AS USUAL,BEFORE YOU GO FURTHER,HERE IS WHAT WE ARE : THE EMPIRE IS COMPOSED OF  THE FALLEN ANGELS,THE MARVELLOUS V8,NOKTURNAL AND MY "
-	++ "GREETINGS ARE SENT TO : INNERCIRCLE ( GREAT MUZAK ! ),THE UNION,AUTOMATION ( GREAT PACKS ! ),HOTLINE ( LOTUS KEEP IT ON ! ),EQUINOX,MCODER,"
-	++ "ST CONNEXION,RFA ALLIANCE,PHALANX,ZAE,THE MASTERS ( HI MASTER GIN !,YOU ARE ATTRACTIVE ! ). ONE DAY,I HAD ZAE AT THE PHONE,ZAE ! I WANNA MAKE"
-	++ " MY OWN CHARTS AND HERE THEY ARE : BEST DEMOS : 1-CUDDLY DEMOS ( IT IS THE BEST IN ITS CONTEXT ),2-MIND BOMB,3-DELIRIOUS II,4-INNERCIRCLE,5-UNION"
-	++ " DEMO ( THE FIRST WHICH WAS ABLE TO ENTER A TOP FIVE ).BEST GRAPHIXX ( FOR THE GUYS I KNOW THE GRAPHIXX ) : 1-ES ( BEST SPRITES WITH A FEW COLORS"
-	++ " ),2-KRAZY REX I DO NOT KNOW FOR THE OTHERS...,BEST PACKERS : 1-AUTOMATION,2-MEDWAY BOYZ,3-POMPEY PIRATES,4-RIPPED OFF ,BEST MUZAK MAKERS 1-MAD MAX"
-	++ " ( OF COURSE ! ),2-JOARD ( YES,I THINK YOUR MUSIXX ARE GREAT ),3- COUNT ZERO ( GREAT PLAYER ),4-CRISPY NOODLE,5-CHRIS MAD BEST GAME DESIGNERS :"
-	++ " 1-THALION SOFTWARE,2-PSYGNOSYS,3-HEWSON ( I LIKE ELIMINATOR OR NEBULUS,THE JMP GAMES. ),4-RAINBOW ARTS,5-OCEAN ( I THINK I FORGOT NONE BEFORE"
-	++ " OCEAN BUT I WILL THINK ABOUT IT AGAIN ... ).... AND I WILL NOT GIVE YA A CRACKERS CLASSEMENT BECAUSE AS I AM A CRACKER,I CANNOT GIVE MY"
-	++ " OPINION..THAT WAS ALL FOR ZAE.NOW HERE ARE THE MESSAGES : FIRST,HI TO WEREWOLF WHO HAS ENTERED TM V8.OK AND I UNDERSTAND IT,WEREWOLF ( I WOULD"
-	++ " HAVE DONE IT TOO AT YOUR POSITION,GUILLAUME ! ).HI TO ZARATHUSTRA ( REMEMBER THE NIGHT WHEN YOU WERE TRYING TO MAKE ( YOUR ) KEYBOARD WORK ( ... )"
-	++ " ) AND ALTAIR. HI TO KRUEGER AND STEPRATE ( EVEN WITH YOUR JACKET,YOU ARE THE SAME ),CHECKSUM ( WILL TRY TO INSTALL MY LOADERS ON SIDE 2 ! )."
-	++ " CONSTELLATIONS ( ELYSEE TU ABUSES... ),BLACK CATS ( FIND YOU ATTRACTIVE ! ) ST CONNEXION ( TRY TO DECODE IT : CHELONCH MARLONCH MAGNE TECH FECH"
-	++ " ),PROTEUS ( LA NOUVELLE MARQUE DE BOULES DE BAINS ). OK NOW I AM TIRED AND I WANNA SLEEP SO SCHLUPZ !!!!!!!      ";
+const SCROLL_TEXT = "                                                                                                               THE EMPIRE PRESENTS : GOLDEN AXE,CRACKED,FILES,PACKED AND TRAINED BY ILLEGAL FROM THE FALLEN ANGELS ... DIS GREAT INTRO WAS CODED FOR ME BY -PROTEUS- HEHE !. THE EMPIRE IS COMPOSED OF  THE FALLEN ANGELS,THE MARVELLOUS V8,NOKTURNAL (HI RICK) AND MY GREETINGS ARE SENT TO : INNERCIRCLE ( GREAT MUZAK ! ),THE UNION,AUTOMATION ( GREAT PACKS ! ),HOTLINE ( LOTUS KEEP IT ON ! ),EQUINOX,MCODER,ST CONNEXION,RFA ALLIANCE,PHALANX,ZAE. ENJOY THIS GAME.FRENCH MESSAGE TO STEPRATE : OREILIEN FILS DE RIEN,PETIT FILS DE RIEN ETC....                                                       ?!?                                  AS YOU WANNA STAY,HERE IS A GAME FOR YOU , DECODE IT : 4954204953204F4256494F55532054484154204C414D4552532048494444454E20494E2054484520464F4C4C4F57494E4720574F524453204F4620544845205343524F4C4C5445585420284F4E4C5920534F4D45204D454D42455253204C494B45204652454444592C4D415A4F555420414E4420434F2E2E2E29  ( I THINK I DID NOT MISS THE CODES ),HEY REPLICANTS,ARE YOU SLEEPING ?.                                                          ";
 const SCROLL_CHAR_WIDTH = 8; 
 const SCROLL_CHAR_HEIGHT = 7;
 const SCROLL_SPEED = 3;
@@ -64,11 +48,9 @@ const rasters_b = convertU8ArraytoColors(@embedFile("../assets/screens/fallen_an
 // logo
 const logo_b = @embedFile("../assets/screens/fallen_angels/logo.raw");
 
-
 // --------------------------------------------------------------------------
 // Variables
 // --------------------------------------------------------------------------
-var raster_index: u8 = 0;
 
 // --------------------------------------------------------------------------
 // Demo
@@ -178,7 +160,7 @@ pub const Demo = struct {
     sin_counter: f32 = undefined,
     logo_sinx: f32 = 0,
     scroll_sinx: f32 = 0,
-    scroll_sinx_incr: f32 = 50,
+    scroll_sinx_incr: f32 = 0,
     projection: Mat4 = undefined,
     camera: Mat4 = undefined,
     screen: Mat4 = undefined,
@@ -205,6 +187,9 @@ pub const Demo = struct {
         var render_buffer: RenderBuffer = .{ .buffer = &buffer, .width = WIDTH * 2, .height = HEIGHT };  
         self.scroller_target = .{ .render_buffer = &render_buffer };   
         self.scrolltext = Scrolltext(NB_FONTS).init(self.scroller_target, fonts_b, SCROLL_CHARS, SCROLL_CHAR_WIDTH, SCROLL_CHAR_HEIGHT, SCROLL_TEXT, SCROLL_SPEED, 0, null, null, false);
+
+        self.scroll_sinx = 20;
+        self.scroll_sinx_incr = 20;
 
         // second plane
         fb = &zigos.lfbs[1];
@@ -237,10 +222,12 @@ pub const Demo = struct {
         const x_pos: f32 = @sin(self.logo_sinx) * 116;
         self.logo.update(160 - 45 + @floatToInt(i16, x_pos), HEIGHT-16, null, null);
 
-        self.scroll_sinx += 0.1;
-        self.scroll_sinx_incr -= 0.02;
-        if(self.scroll_sinx_incr <= 2) self.scroll_sinx_incr = 50.0;
-
+        if(self.time_counter > 7*16*50) {
+            self.scroll_sinx += 0.1;
+            self.scroll_sinx_incr += 0.02;
+            if(self.scroll_sinx_incr >= 50) self.scroll_sinx_incr = 2.0;
+        }
+        
         self.scrolltext.update();
 
         const base_incr = 0.55;
@@ -282,11 +269,20 @@ pub const Demo = struct {
             var y: u16 = 0;
             while(y < 8) : (y += 1){
                 var x: u16 = 0;
-                const f_sin: f32 = self.scroll_sinx_incr + (@sin(self.scroll_sinx + (@intToFloat(f32, i)/5.0)) * self.scroll_sinx_incr);
-                const offset_x: u16 = @floatToInt(u16, f_sin);
 
-                while(x < WIDTH) : (x += 1) {
-                    fb.fb[x + y*WIDTH + (i*8*WIDTH)] = self.scroller_target.render_buffer.buffer[offset_x + x + y*WIDTH*2];
+                // no sin at the beginning just decrement
+                if(self.time_counter > 7*16*50) {
+                    const f_sin: f32 = self.scroll_sinx_incr + (@sin(self.scroll_sinx + (@intToFloat(f32, i)/5.0)) * self.scroll_sinx_incr);
+                    const offset_x: u16 = @floatToInt(u16, f_sin);
+
+                    while(x < WIDTH) : (x += 1) {
+                        fb.fb[x + y*WIDTH + (i*8*WIDTH)] = self.scroller_target.render_buffer.buffer[offset_x + x + y*WIDTH*2];
+                    }
+                } else {
+                    const offset_x: u16 = i*3;
+                    while(x < WIDTH) : (x += 1) {
+                        fb.fb[x + y*WIDTH + (i*8*WIDTH)] = self.scroller_target.render_buffer.buffer[offset_x + x + y*WIDTH*2];
+                    }
                 }
             }
         }
