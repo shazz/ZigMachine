@@ -92,7 +92,7 @@ pub const Demo = struct {
         var fb: *LogicalFB = &zigos.lfbs[0];
         fb.is_enabled = true;
         fb.setPalette(logo_pal);
-        self.logo.init(fb.getRenderTarget(), logo_b);        
+        self.logo.init(fb.getRenderTarget(), logo_b, 0);        
         
         // HBL Handler for the raster effect
         fb.setFrameBufferHBLHandler(0, handler_logo);   

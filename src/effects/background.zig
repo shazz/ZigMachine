@@ -49,9 +49,9 @@ pub const Background = struct {
                     buffer[index + (self.pos_y * WIDTH)] = value;
                 }
             },
-            .buffer => |buffer| {
+            .render_buffer => |rbuf| {
                 for (self.data) |value, index| {
-                    buffer[index + (self.pos_y * WIDTH)] = value;
+                    rbuf.buffer[index + (self.pos_y * rbuf.width)] = value;
                 }   
             }
         }

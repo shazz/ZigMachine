@@ -9,6 +9,7 @@ const convertU8ArraytoColors = @import("../utils/loaders.zig").convertU8ArraytoC
 const ZigOS = @import("../zigos.zig").ZigOS;
 const LogicalFB = @import("../zigos.zig").LogicalFB;
 const RenderTarget = @import("../zigos.zig").RenderTarget;
+const RenderBuffer = @import("../zigos.zig").RenderBuffer;
 const Color = @import("../zigos.zig").Color;
 
 const Scrolltext = @import("../effects/scrolltext.zig").Scrolltext;
@@ -88,8 +89,9 @@ pub const Demo = struct {
         // HBL Handler for the raster effect
         fb.setFrameBufferHBLHandler(0, handler_scroller);        
 
-        var buffer = [_]u8{0} ** (WIDTH * HEIGHT);
-        self.scroller_target = .{ .buffer = &buffer };
+        var buffer = [_]u8{0} ** (WIDTH * HEIGHT); 
+        var render_buffer: RenderBuffer = .{ .buffer = &buffer, .width = WIDTH, .height = HEIGHT };  
+        self.scroller_target = .{ .render_buffer = &render_buffer };   
         self.scrolltext = Scrolltext(NB_FONTS).init(self.scroller_target, fonts_b, SCROLL_CHARS, SCROLL_CHAR_WIDTH, SCROLL_CHAR_HEIGHT, SCROLL_TEXT, SCROLL_SPEED, 0, null, &g_y_offset_table_b, false);
 
         // second plane
@@ -147,18 +149,21 @@ pub const Demo = struct {
 
         // copy scrolltext 9 times in the rendertarget
         var i: u16 = 0;
-        while(i < (WIDTH * HEIGHT)) : ( i += 1){
-            const pix_entry = self.scroller_target.buffer[i];
+        const width: u16 = self.scroller_target.render_buffer.width;
+        const height: u16 = self.scroller_target.render_buffer.height-SCROLL_CHAR_HEIGHT;
+
+        while(i < width * height) : ( i += 1){
+            const pix_entry = self.scroller_target.render_buffer.buffer[i];
             if (pix_entry != 0) {
-                self.scroller_target.buffer[i + (16*1 * WIDTH)] = pix_entry;
+                self.scroller_target.render_buffer.buffer[i + (16*1 * width)] = pix_entry;
             }
         }
 
         // copy the rendertarget to the fb
         var fb = &zigos.lfbs[0];
         i = 0;
-        while(i < self.scroller_target.buffer.len - (32*WIDTH)) : (i += 1) {
-            fb.fb[i] = self.scroller_target.buffer[i + (32*WIDTH)];
+        while(i < self.scroller_target.render_buffer.buffer.len - (32*width)) : (i += 1) {
+            fb.fb[i] = self.scroller_target.render_buffer.buffer[i + (32*width)];
         }
 
         self.grid.target.clearFrameBuffer(0);

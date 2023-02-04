@@ -10,7 +10,7 @@ const ZigOS = @import("../zigos.zig").ZigOS;
 const LogicalFB = @import("../zigos.zig").LogicalFB;
 const Color = @import("../zigos.zig").Color;
 const RenderTarget = @import("../zigos.zig").RenderTarget;
-
+const RenderBuffer = @import("../zigos.zig").RenderBuffer;
 
 const Scrolltext = @import("../effects/scrolltext.zig").Scrolltext;
 const Background = @import("../effects/background.zig").Background;
@@ -122,7 +122,8 @@ pub const Demo = struct {
         }
 
         var buffer = [_]u8{0} ** (WIDTH * SCROLL_CHAR_HEIGHT);
-        self.scroller_target = .{ .buffer = &buffer };
+        var render_buffer: RenderBuffer = .{ .buffer = &buffer, .width = WIDTH, .height = SCROLL_CHAR_HEIGHT };   
+        self.scroller_target = .{ .render_buffer = &render_buffer };  
 
         self.scrolltext = Scrolltext(NB_FONTS).init(self.scroller_target, fonts_b, SCROLL_CHARS, SCROLL_CHAR_WIDTH, SCROLL_CHAR_HEIGHT, SCROLL_TEXT, SCROLL_SPEED, 0, null, null, null);
         self.scroller_offset = 0;
@@ -160,23 +161,23 @@ pub const Demo = struct {
         var row_height: u16 = WIDTH * (SCROLL_CHAR_HEIGHT - sine_offset);
 
         while(one_row < row_height) : ( one_row += 1) {
-            fb.fb[one_row] = self.scroller_target.buffer[one_row + (WIDTH * sine_offset)];
+            fb.fb[one_row] = self.scroller_target.render_buffer.buffer[one_row + (WIDTH * sine_offset)];
         }
 
         var i: u16 = 0;
         while(i < (WIDTH*SCROLL_CHAR_HEIGHT)) : ( i += 1) {
             
-            fb.fb[i + (( 32 - sine_offset ) * WIDTH)] = self.scroller_target.buffer[i];
-            fb.fb[i + (( 64 - sine_offset ) * WIDTH)] = self.scroller_target.buffer[i];
-            fb.fb[i + (( 96 - sine_offset ) * WIDTH)] = self.scroller_target.buffer[i];
-            fb.fb[i + (( 128 - sine_offset ) * WIDTH)] = self.scroller_target.buffer[i];
-            fb.fb[i + (( 160 - sine_offset ) * WIDTH)] = self.scroller_target.buffer[i];
+            fb.fb[i + (( 32 - sine_offset ) * WIDTH)] = self.scroller_target.render_buffer.buffer[i];
+            fb.fb[i + (( 64 - sine_offset ) * WIDTH)] = self.scroller_target.render_buffer.buffer[i];
+            fb.fb[i + (( 96 - sine_offset ) * WIDTH)] = self.scroller_target.render_buffer.buffer[i];
+            fb.fb[i + (( 128 - sine_offset ) * WIDTH)] = self.scroller_target.render_buffer.buffer[i];
+            fb.fb[i + (( 160 - sine_offset ) * WIDTH)] = self.scroller_target.render_buffer.buffer[i];
         }
 
         one_row = 0;
         row_height = WIDTH * @min(32, 200 - (192 - sine_offset));
         while(one_row < row_height) : ( one_row += 1) {
-            fb.fb[one_row + (( 192 - sine_offset ) * WIDTH)] = self.scroller_target.buffer[one_row];
+            fb.fb[one_row + (( 192 - sine_offset ) * WIDTH)] = self.scroller_target.render_buffer.buffer[one_row];
         }
 
         _ = elapsed_time;

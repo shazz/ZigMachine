@@ -28,9 +28,16 @@ const SYSTEM_FONT_HEIGHT = 8;
 // --------------------------------------------------------------------------
 // Structs
 // --------------------------------------------------------------------------
+
+pub const RenderBuffer = struct {
+    buffer: []u8 = undefined,
+    width: u16 = undefined,
+    height: u16 = undefined,
+};
+
 pub const RenderTarget = union(enum) {
     fb: *LogicalFB,
-    buffer: []u8,
+    render_buffer: *RenderBuffer,
 
     pub fn clearFrameBuffer(self: RenderTarget, pal_entry: u8) void {
 
@@ -38,14 +45,13 @@ pub const RenderTarget = union(enum) {
             .fb => |fb| {
                 fb.clearFrameBuffer(pal_entry);
             },
-            .buffer => |buffer| {
+            .render_buffer => |rbuf| {
                 var i: u16 = 0;
-                while (i < buffer.len) : (i += 1) {
-                    buffer[i] = pal_entry;
+                while (i < rbuf.buffer.len) : (i += 1) {
+                    rbuf.buffer[i] = pal_entry;
                 }
             }
         }
-
     }      
 
     pub fn setPixelValue(self: RenderTarget, x: u16, y: u16, pal_entry: u8) void {
@@ -54,10 +60,10 @@ pub const RenderTarget = union(enum) {
             .fb => |fb| {
                 fb.setPixelValue(x, y, pal_entry);
             },
-            .buffer => |buffer| {
-                if ((x >= 0) and (x < WIDTH) and (y >= 0)) { //} and (y < HEIGHT)) {
-                    const index: u32 = @as(u32, y) * @as(u32, WIDTH) + @as(u32, x);
-                    buffer[index] = pal_entry;
+            .render_buffer => |rbuf| {
+                if ((x >= 0) and (x < rbuf.width) and (y >= 0) and (y < rbuf.height)) {
+                    const index: u32 = @as(u32, y) * @as(u32, rbuf.width) + @as(u32, x);
+                    rbuf.buffer[index] = pal_entry;
                 }
             }
         } 

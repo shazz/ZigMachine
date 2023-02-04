@@ -87,7 +87,7 @@ pub const Sprite = struct {
                 first_color = fb.getPaletteEntry(0);
                 is_tranparent = (first_color.a == 0);
             },
-            .buffer => |_| {
+            .render_buffer => |_| {
                 first_color = Color{ .r=0, .g=0, .b=0, .a=0};
                 is_tranparent = true;
             }
@@ -182,8 +182,8 @@ pub const Sprite = struct {
                                 .fb => |fb| {
                                     fb.fb[new_offset + col_counter] = self.data[data_counter];
                                 },
-                                .buffer => |buffer| {
-                                    buffer[new_offset + col_counter] = self.data[data_counter];
+                                .render_buffer => |rbuf| {
+                                    rbuf.buffer[new_offset + col_counter] = self.data[data_counter];
                                 }
                             }
                         }

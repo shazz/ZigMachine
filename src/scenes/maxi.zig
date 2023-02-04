@@ -10,6 +10,7 @@ const ZigOS = @import("../zigos.zig").ZigOS;
 const LogicalFB = @import("../zigos.zig").LogicalFB;
 const Color = @import("../zigos.zig").Color;
 const RenderTarget = @import("../zigos.zig").RenderTarget;
+const RenderBuffer = @import("../zigos.zig").RenderBuffer;
 const Resolution = @import("../zigos.zig").Resolution;
 
 const Text = @import("../effects/text.zig").Text;
@@ -167,6 +168,7 @@ const segments_red = [_]Vec2{
 // Variables
 // --------------------------------------------------------------------------
 var overcan_buffer = [_]u8{0} ** (320 * 280);
+var render_buffer: RenderBuffer = .{ .buffer = &overcan_buffer, .width = 320, .height = 280 };   
 
 // --------------------------------------------------------------------------
 // Demo
@@ -247,7 +249,9 @@ pub const Demo = struct {
         fb.setFrameBufferHBLHandler(40, handler_vertical_borders);         
 
         // create text buffer
-        self.render_target = .{ .buffer = &overcan_buffer };        
+        self.render_target = .{ .render_buffer = &render_buffer };  
+        self.render_target.clearFrameBuffer(0); 
+
         self.text.init(self.render_target, fonts_b, fonts_chars, 8, 8);
 
         var i: usize = 0;

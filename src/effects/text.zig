@@ -80,13 +80,13 @@ pub const Text = struct {
                     }
                 },
 
-                .buffer => |buffer| {
+                .render_buffer => |rbuf| {
 
                     for (char_data) |pixel, idx| {
-                        buffer[letter_pos] = pixel;
+                        rbuf.buffer[letter_pos] = pixel;
 
                         if (idx > 0 and (idx % self.font_width == 0)) {
-                            letter_pos += (@intCast(u32, (WIDTH) - @intCast(u32, self.font_width) + 1));
+                            letter_pos += (@intCast(u32, (rbuf.width) - @intCast(u32, self.font_width) + 1));
                         } else {
                             letter_pos += 1;
                         }

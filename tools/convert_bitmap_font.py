@@ -14,7 +14,7 @@ DEFAULT_ALPHA = 255
 # python tools/convert_bitmap_font.py src/assets/screens/ics/font_noics.png 16 16 44 94
 # python tools/convert_bitmap_font.py src/assets/screens/bladerunners/fonts.png 32 32 10 80
 
-# python tools/convert_bitmap_font.py -i src/assets/screens/leonard/font.png -r src/assets/screens/leonard/font.raw -cw 6 -ch 6 -cpr 10 -nb 60 -tmp
+# python tools/convert_bitmap_font.py -i src/assets/screens/leonard/font.png -r src/assets/screens/leonard/font.raw -p src/assets/screens/leonard/font_pal.dat -cw 6 -ch 6 -cpr 10 -nb 60 -tmp
 # python tools/convert_bitmap_font.py -i src/assets/screens/reps4/fonts.png -r src/assets/screens/reps4/fonts.raw -cw 16 -ch 16 -cpr 10 -nb 60 -m -tmp
 # python tools/convert_bitmap_font.py -i src/assets/screens/the_union/fonts.png -r src/assets/screens/the_union/fonts.raw -cw 32 -ch 17 -cpr 10 -nb 60 -m -tmp
 # python tools/convert_bitmap_font.py -i src/assets/screens/stcs/font40x34_c1.png -r src/assets/screens/stcs/font40x34_c1.raw -p src/assets/screens/stcs/font40x34_c1_pal.dat -cw 40 -ch 34 -cpr 8 -nb 64 -tmp

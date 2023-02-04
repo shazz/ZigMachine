@@ -76,7 +76,7 @@ pub const Demo = struct {
         var fb: *LogicalFB = &zigos.lfbs[0];
         fb.is_enabled = true;
         fb.setPalette(back_pal);
-        self.background.init(fb.getRenderTarget(), back_b);
+        self.background.init(fb.getRenderTarget(), back_b, 0);
 
         // second plane
         fb = &zigos.lfbs[1];

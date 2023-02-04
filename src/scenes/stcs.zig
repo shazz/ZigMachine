@@ -10,6 +10,7 @@ const ZigOS = @import("../zigos.zig").ZigOS;
 const LogicalFB = @import("../zigos.zig").LogicalFB;
 const Color = @import("../zigos.zig").Color;
 const RenderTarget = @import("../zigos.zig").RenderTarget;
+const RenderBuffer = @import("../zigos.zig").RenderBuffer;
 
 const Scrolltext = @import("../effects/scrolltext.zig").Scrolltext;
 const Background = @import("../effects/background.zig").Background;
@@ -135,7 +136,7 @@ pub const Demo = struct {
         var fb: *LogicalFB = &zigos.lfbs[0];
         fb.is_enabled = true;
         fb.setPalette(logo_pal);
-        self.logo.init(fb.getRenderTarget(), logo_b);        
+        self.logo.init(fb.getRenderTarget(), logo_b, 0);        
         
         // HBL Handler for the raster effect
         fb.setFrameBufferHBLHandler(0, handler);   
@@ -146,7 +147,8 @@ pub const Demo = struct {
         fb.setPaletteEntry(0, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
 
         var buffer = [_]u8{0} ** (WIDTH * SCROLL_CHAR_HEIGHT);
-        self.scroller_target = .{ .buffer = &buffer };
+        var render_buffer: RenderBuffer = .{ .buffer = &buffer, .width = WIDTH, .height = SCROLL_CHAR_HEIGHT };   
+        self.scroller_target = .{ .render_buffer = &render_buffer };  
 
         self.scrolltext = Scrolltext(NB_FONTS).init(self.scroller_target, fonts_b, SCROLL_CHARS, SCROLL_CHAR_WIDTH, SCROLL_CHAR_HEIGHT, SCROLL_TEXT, SCROLL_SPEED, 0, null, null, null);
         fb.setFrameBufferHBLHandler(0, handler_scroller);   
@@ -197,7 +199,7 @@ pub const Demo = struct {
             const top_pos: u16 = SCROLL_TOP_POS*WIDTH;
             var i: u16 = 0;
             while(i < (WIDTH*SCROLL_CHAR_HEIGHT)) : ( i += 1){
-                const pal_entry = self.scroller_target.buffer[i];
+                const pal_entry = self.scroller_target.render_buffer.buffer[i];
                 fb.fb[top_pos + i] = pal_entry;
                 fb.fb[top_pos + i + ((SCROLL_CHAR_HEIGHT+SCROLL_CHAR_HEIGHT+10) * WIDTH)] = pal_entry;            
                 fb.fb[top_pos + i + ((SCROLL_CHAR_HEIGHT+5) * WIDTH)] = pal_entry;
@@ -219,7 +221,7 @@ pub const Demo = struct {
                 var x: u16 = 0;
                 while(x < WIDTH) : (x += 1) { 
                     const pos = x + (y * WIDTH);
-                    const pal_entry = self.scroller_target.buffer[pos];
+                    const pal_entry = self.scroller_target.render_buffer.buffer[pos];
 
                     // double height font and sinus incr/decr on 16 pixels
                     fb.fb[x + top_pos + ((2*y) * WIDTH)] = pal_entry;
@@ -241,7 +243,7 @@ pub const Demo = struct {
                 var x: u16 = 0;
                 while(x < WIDTH) : (x += 1) { 
                     const pos = x + (y * WIDTH);
-                    const pal_entry = self.scroller_target.buffer[pos];
+                    const pal_entry = self.scroller_target.render_buffer.buffer[pos];
                     fb.fb[x + top_pos + ((2*y) * WIDTH)] = pal_entry;
                 }
             }     
@@ -257,7 +259,7 @@ pub const Demo = struct {
                 var x: u16 = 0;
                 while(x < WIDTH) : (x += 1) { 
                     const pos = x + (y * WIDTH);
-                    const pal_entry = self.scroller_target.buffer[pos];
+                    const pal_entry = self.scroller_target.render_buffer.buffer[pos];
 
                     // normal line
                     fb.fb[x + top_pos + (y * WIDTH) - ((x / 16) * WIDTH)] = pal_entry;
@@ -277,7 +279,7 @@ pub const Demo = struct {
                 var x: u16 = 0;
                 while(x < WIDTH) : (x += 1) { 
                     const pos = x + (y * WIDTH);
-                    const pal_entry = self.scroller_target.buffer[pos];
+                    const pal_entry = self.scroller_target.render_buffer.buffer[pos];
 
                     // normal line
                     fb.fb[x + top_pos + (y * WIDTH)] = pal_entry;
@@ -296,7 +298,7 @@ pub const Demo = struct {
                 var x: u16 = 0;
                 while(x < WIDTH) : (x += 1) { 
                     const pos = x + (y * WIDTH);
-                    const pal_entry = self.scroller_target.buffer[pos];
+                    const pal_entry = self.scroller_target.render_buffer.buffer[pos];
                     // top line with 16 pixel increment
                     fb.fb[x + top_pos + (y * WIDTH) + ((x / 16) * WIDTH)] = pal_entry;
 
@@ -313,7 +315,7 @@ pub const Demo = struct {
                 var x: u16 = 0;
                 while(x < WIDTH) : (x += 1) { 
                     const pos = x + (y * WIDTH);
-                    const pal_entry = self.scroller_target.buffer[pos];
+                    const pal_entry = self.scroller_target.render_buffer.buffer[pos];
 
                     // 1st line 16 pixel decrement then increment
                     if(x < 160) {
