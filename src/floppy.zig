@@ -2,7 +2,8 @@
 // Uncomment the scene to run
 // --------------------------------------------------------------------------
 
-pub const Demo = @import("scenes/fallen_angels.zig").Demo;
+pub const Demo = @import("scenes/deltaforce2.zig").Demo;
+// pub const Demo = @import("scenes/fallen_angels.zig").Demo;
 // pub const Demo = @import("scenes/maxi.zig").Demo;
 // pub const Demo = @import("scenes/equinox.zig").Demo;
 // pub const Demo = @import("scenes/ancool.zig").Demo;

@@ -24,6 +24,7 @@ const list_channels = [
     "wasm/equinox.wasm",
     "wasm/maxi.wasm",
     "wasm/fallen_angels.wasm",
+    "wasm/deltaforce2.wasm",
     "wasm/boot.wasm"
 ];
 

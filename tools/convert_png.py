@@ -53,7 +53,9 @@ DEFAULT_ALPHA = 255
 # python tools/convert_png.py -i src/assets/screens/equinox/dragon7.png -r src/assets/screens/equinox/bob7.raw 
 # python tools/convert_png.py -i src/assets/screens/equinox/dragon8.png -r src/assets/screens/equinox/bob8.raw
 
-# python tools/convert_png.py -i src/assets/screens/reps/font.png -r src/assets/screens/reps/font.raw
+# python tools/convert_png.py -i src/assets/screens/reps/font.png -r src/assets/screens/reps/font.raw -p src/assets/screens/reps/font_pal.dat
+# python tools/convert_png.py -i src/assets/screens/fallen_angels/logo.png -r src/assets/screens/fallen_angels/logo.raw -p src/assets/screens/fallen_angels/logo_pal.dat
+# python tools/convert_png.py -i src/assets/screens/df2/rasterbars.png -r src/assets/screens/df2/rasterbars.raw -p src/assets/screens/df2/rasterbars_pal.dat
 
 def grouper(iterator: Iterator, n: int) -> Iterator[list]:
     while chunk := list(itertools.islice(iterator, n)):
