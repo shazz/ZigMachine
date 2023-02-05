@@ -58,7 +58,7 @@ pub const Boot = struct {
 
     pub fn render(self: *Boot, zigos: *ZigOS) void {
 
-        self.logo.render();
+        self.logo.render(null);
 
         const atari: [2]u8 = [2]u8{ 14, 15 };
         const top: u16 = 74;

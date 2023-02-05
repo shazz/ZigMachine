@@ -137,6 +137,8 @@ pub const Demo = struct {
         // HBL Handler for the raster effect
         fb.setFrameBufferHBLHandler(0, handler_rasterbars); 
 
+
+
         rasters[0] = Raster{.position=40+25+0,   .direction=1,  .colors=blue_rasters_b};
         rasters[1] = Raster{.position=40+25+50,  .direction=1,  .colors=pink_rasters_b};
         rasters[2] = Raster{.position=40+25+100, .direction=1,  .colors=yellow_rasters_b};
@@ -219,11 +221,11 @@ pub const Demo = struct {
         var fb = &zigos.lfbs[0];
         fb.clearFrameBuffer(0);
 
-        self.back_top.render();
-        self.back_bottom.render();
+        self.back_top.render(null);
+        self.back_bottom.render(null);
 
         self.logo.target.clearFrameBuffer(0);
-        self.logo.render();
+        self.logo.render(null);
 
         fb = &zigos.lfbs[2];
         fb.clearFrameBuffer(0);
@@ -236,7 +238,7 @@ pub const Demo = struct {
             tx += 1;
         }
 
-        self.back_bottom_mask.render();
+        self.back_bottom_mask.render(null);
 
         _ = elapsed_time;
 

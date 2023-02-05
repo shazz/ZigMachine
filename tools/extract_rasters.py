@@ -22,6 +22,7 @@ from pathlib import Path
 # python tools/extract_rasters.py src/assets/screens/fallen_angels/rasters.png src/assets/screens/fallen_angels/rasters.dat 
 # python tools/extract_rasters.py src/assets/screens/df2/rasters.png src/assets/screens/df2/rasters.dat 
 # python tools/extract_rasters.py src/assets/screens/df2/scrollrasters.png src/assets/screens/df2/scrollrasters.dat 
+# python tools/extract_rasters.py src/assets/screens/dbug/rasters.png src/assets/screens/dbug/rasters.dat 
 
 DEFAULT_ALPHA = 255
 

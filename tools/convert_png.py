@@ -57,6 +57,8 @@ DEFAULT_ALPHA = 255
 # python tools/convert_png.py -i src/assets/screens/fallen_angels/logo.png -r src/assets/screens/fallen_angels/logo.raw -p src/assets/screens/fallen_angels/logo_pal.dat
 # python tools/convert_png.py -i src/assets/screens/df2/rasterbars.png -r src/assets/screens/df2/rasterbars.raw -p src/assets/screens/df2/rasterbars_pal.dat
 
+# python tools/convert_png.py -i src/assets/screens/dbug/logo.png -r src/assets/screens/dbug/logo.raw -p src/assets/screens/dbug/logo_pal.dat -ps 100
+
 def grouper(iterator: Iterator, n: int) -> Iterator[list]:
     while chunk := list(itertools.islice(iterator, n)):
         yield chunk
@@ -67,6 +69,7 @@ parser = argparse.ArgumentParser(prog="PNG to raw converter", description="Conve
 parser.add_argument("-i", "--png_file", metavar = "IMAGE", help="Path to your input PNG file in palette mode", required=True)
 parser.add_argument("-p", "--palette_file", metavar="PALETTE", help="Path to the output palette file", required=False)
 parser.add_argument("-r", "--raw_file", metavar="RAW", help="Path to the output raw image file", required=False)
+parser.add_argument("-ps", "--palette_start", metavar="START", help="offset to apply to the palette", required=False, type=int)
 args = parser.parse_args()
 
 
@@ -117,6 +120,10 @@ with Image.open(args.png_file) as im:
 
         if args.raw_file:
             print(f"Saving pixel raw file: {args.raw_file}")
+
+            if args.palette_start:
+                data = [entry + args.palette_start for entry in data]
+
             img_bytes = struct.pack("{}B".format(len(data)), *data)
             with open(args.raw_file, "wb") as fi:
                 fi.write(img_bytes)

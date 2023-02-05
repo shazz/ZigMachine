@@ -78,12 +78,19 @@ pub const Sprite = struct {
         }        
     }
 
-    pub fn render(self: *Sprite) void {
+    pub fn render(self: *Sprite, except_color: ?u8) void {
 
         var first_color: Color = undefined;
         var is_tranparent: bool = undefined;
         var screen_width: u16 = 0;
         var screen_height: u16 = 0;
+        var transparent_color: u8 = undefined;
+
+        if(except_color) |entry| {
+            transparent_color = entry;
+        } else {
+            transparent_color = 0;
+        }
 
         switch (self.target) {
             .fb => |fb| {
@@ -181,7 +188,7 @@ pub const Sprite = struct {
 
                     // clamp if outside buffer
                     const pal_entry = self.data[data_counter];
-                    if(!is_tranparent or pal_entry != 0) { 
+                    if(!is_tranparent or pal_entry != transparent_color) { 
 
                         if ((new_offset + col_counter < self.data.len) or (new_offset + col_counter >= 0)) {
 

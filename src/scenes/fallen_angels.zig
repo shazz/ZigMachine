@@ -289,7 +289,7 @@ pub const Demo = struct {
 
         fb = &zigos.lfbs[1];
         fb.clearFrameBuffer(1);
-        self.logo.render();        
+        self.logo.render(null);        
 
         if(self.time_counter > 16*60*6) {
             fb = &zigos.lfbs[2];

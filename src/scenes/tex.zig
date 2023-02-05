@@ -155,10 +155,10 @@ pub const Demo = struct {
         self.starfield.render();
 
         self.bobs.target.clearFrameBuffer(0);
-        self.logo.render();
+        self.logo.render(null);
         self.bobs.render();
 
-        self.back.render();
+        self.back.render(null);
 
         var fb = &zigos.lfbs[3];
         self.scrolltext.target.clearFrameBuffer(0);

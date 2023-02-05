@@ -61,7 +61,7 @@ pub fn Bobs(
             while(i < nb_bobs) : (i += 1) {
                 self.sprite.data = self.images[i];
                 self.sprite.update(self.positions_x[i], self.positions_y[i], null, null);
-                self.sprite.render();
+                self.sprite.render(null);
             }
         }
     };

@@ -167,9 +167,9 @@ pub const Demo = struct {
         }
 
         self.grid.target.clearFrameBuffer(0);
-        self.grid.render();
+        self.grid.render(null);
 
-        self.logo.render();        
+        self.logo.render(null);        
   
         _ = elapsed_time;
 

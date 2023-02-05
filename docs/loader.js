@@ -1,6 +1,6 @@
 var memory = new WebAssembly.Memory({
-    initial: 20 /* pages */,
-    maximum: 20 /* pages */,
+    initial: 32 /* pages */,
+    maximum: 32 /* pages */,
 });
 
 const text_decoder = new TextDecoder();
@@ -25,6 +25,7 @@ const list_channels = [
     "wasm/maxi.wasm",
     "wasm/fallen_angels.wasm",
     "wasm/deltaforce2.wasm",
+    "wasm/dbug.wasm",
     "wasm/boot.wasm"
 ];
 

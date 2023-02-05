@@ -188,7 +188,7 @@ pub fn Scrolltext(
 
         pub fn render(self: *Self) void {
             for (self.fonts) |*font| {
-                font.sprite.render();
+                font.sprite.render(null);
             }
         }
     };
