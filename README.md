@@ -4,7 +4,11 @@ A [Fantasy Console](https://en.wikipedia.org/wiki/Fantasy_video_game_console) (o
 
 This project is inspired by [WAB](https://wab.com) and [CODEF](https://codef.santo.fr) by my friend [NoNameNo](https://github.com/N0NameN0) who... already more than 10 years ago... provided a way to code oldskool effects in the browser without Flash but only HTML5 and javascript. Time to go one step further. 0% Flash, 0% HTML, 0% Javascript, only Zig!
 
-Screenshots below! Live website with the latest build: [ZigMachine](https://shazz.github.io/ZigMachine/) (Click on the + and - buttons to change channels!)
+Screenshots and live version below! 
+
+## Live version
+
+Live website with the latest build: [ZigMachine](https://shazz.github.io/ZigMachine/) (Click on the + and - buttons to change channels!)
 
 ## Specs
 
@@ -12,7 +16,7 @@ The specs of the ZigMachine will definitively evolve over time but for now they 
 
 #### Memory / CPU
 
-- 2 MB of RAM available (x pages of 64KB).
+- 2 MB of RAM available (32 pages of 64KB).
 - CPU frequency is what your Web Assembly browser framework can do. So, pretty (too...) fast. I'd love to be able to provide a restricted and stable execution speed one day if I find a way to do it. Currently my not-that-optimized flat shaded triangle routine can display around 1000 triangles/frame.
 
 #### Graphics
@@ -21,14 +25,16 @@ The specs of the ZigMachine will definitively evolve over time but for now they 
 - 4 logical linear indexed colors framebuffers (each pixel is an entry of the 256 colors RGBA palette) of 320x200 pixels
 - 1 palette of 256 colors (RGBA, 8 bits per component) for each logical framebuffer.
 - Blocking VBL and HBL callbacks on logical framebuffers and on the physical framebuffer.
+- Overscan possible but a little tricky to set up else no fun!
 
 #### Sound
 
-- Nothing yet!
+- Nothing yet! Soon! (Hopefully)
 
 #### OS
 
 - Limited ZigOS for basic setup and framebuffer managemenent.
+- 8x8 sytem font with print capability
 
 #### Demo framework
 
@@ -43,8 +49,9 @@ In addition to the fantasy console and the ZigOS, a library for classic oldsk00l
 - Bobs
 - Screen fading
 - Background image
+- Static text display
 
-I started to port some of my favorites Atari and Amiga cracktros (from WAB) to show how to use the ZigMachine.
+I started to port some of my favorites Atari and Amiga cracktros (from WAB) to show how to use the ZigMachine. Check the source code and the channels in the live demo.
 
 #### Next in my TODO list:
 
