@@ -23,6 +23,7 @@ from pathlib import Path
 # python tools/extract_rasters.py src/assets/screens/df2/rasters.png src/assets/screens/df2/rasters.dat 
 # python tools/extract_rasters.py src/assets/screens/df2/scrollrasters.png src/assets/screens/df2/scrollrasters.dat 
 # python tools/extract_rasters.py src/assets/screens/dbug/rasters.png src/assets/screens/dbug/rasters.dat 
+# python tools/extract_rasters.py src/assets/screens/fullscreen/rasters.png src/assets/screens/fullscreen/rasters.dat 
 
 DEFAULT_ALPHA = 255
 
@@ -57,10 +58,12 @@ with Image.open(args.png_file) as im:
             rasters_colors.append(pixel[2])
             rasters_colors.append(pixel[3] if im.mode == "RGBA" else 255)
 
-        if len(rasters_colors) < 256 * 4:
+        print(f"colors: {len(rasters_colors)}")
+        if len(rasters_colors) < 256*4:
             rasters_colors += [0 for i in range(0, 256 * 4 - len(rasters_colors))]
 
-        assert len(rasters_colors) == 256 * 4
+
+        assert len(rasters_colors) == 256 * 4, f"colors: {len(rasters_colors)}"
 
         color_bytes = struct.pack("{}B".format(len(rasters_colors)), *rasters_colors)
 

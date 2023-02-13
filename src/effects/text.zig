@@ -43,7 +43,7 @@ pub const Text = struct {
         _ = self;
     }    
 
-    pub fn render(self: *Text, text: []const u8, x: u16, y: u16) void {
+    pub fn render(self: *Text, text: []const u8, x: u16, y: u16, transparent_color: ?u8) void {
 
         // pointer to logical framebuffer
         const initial_position: u32 = @intCast(u32, y) * @intCast(u32, WIDTH) + @intCast(u32, x);
@@ -70,7 +70,12 @@ pub const Text = struct {
                     var buffer: *[64000]u8 = &fb.fb;
 
                     for (char_data) |pixel, idx| {
-                        buffer[letter_pos] = pixel;
+
+                        if(transparent_color) |color| {
+                            if(pixel != color) buffer[letter_pos] = pixel;
+                        } else {
+                            buffer[letter_pos] = pixel;
+                        }
 
                         if (idx > 0 and (idx % self.font_width == 0)) {
                             letter_pos += (WIDTH - self.font_width + 1);

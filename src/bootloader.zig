@@ -25,6 +25,7 @@ const NB_PLANES: u8 = @import("zigos.zig").NB_PLANES;
 const HORIZONTAL_BORDERS_WIDTH: u16 = @import("zigos.zig").HORIZONTAL_BORDERS_WIDTH;
 const VERTICAL_BORDERS_HEIGHT: u16 = @import("zigos.zig").VERTICAL_BORDERS_HEIGHT;
 const VERSION = "0.1";
+const AUDIO_BUFFER_SIZE = 256;
 
 const Direction = enum(u8) {
     Up = 0,
@@ -33,6 +34,24 @@ const Direction = enum(u8) {
     Right = 3,
     Null = 4,
 };
+
+// --------------------------------------------------------------------------
+// Audio
+// --------------------------------------------------------------------------
+const wave_b = @embedFile("assets/audio/therehegoes_i8_10026.smp");
+const gen_wave: bool = false;
+var wav_index: u32 = 0;
+
+// Declare an enum.
+const SamplingFrequency = enum(u32) {
+    f_8K = 8820,
+    f_11K = 11025,
+    f_22K = 22050,
+    f_44K = 44100
+};
+const sampling_freq = SamplingFrequency.f_11K;
+var sound_left_buffer: [AUDIO_BUFFER_SIZE]f32 = std.mem.zeroes([AUDIO_BUFFER_SIZE]f32);
+var sound_right_buffer: [AUDIO_BUFFER_SIZE]f32 = std.mem.zeroes([AUDIO_BUFFER_SIZE]f32);
 
 // --------------------------------------------------------------------------
 // Variables
@@ -98,6 +117,26 @@ export fn getPhysicalFrameBufferHeight() usize {
 export fn getPhysicalFrameBufferPointer() [*]u8 {
     return @ptrCast([*]u8, &zigos.physical_framebuffer);
 }
+
+// --------------------------------------------------------------------------
+// The returned pointer will be used as an offset integer to the wasm memory
+// --------------------------------------------------------------------------
+export fn getLeftSoundBufferPointer() [*]f32 {
+    return @ptrCast([*]f32, &sound_left_buffer);
+}
+
+export fn getRightSoundBufferPointer() [*]f32 {
+    return @ptrCast([*]f32, &sound_right_buffer);
+}
+
+// --------------------------------------------------------------------------
+// Get Audio buffer size
+// --------------------------------------------------------------------------
+export fn getAudioBufferSize() u32 {
+    return AUDIO_BUFFER_SIZE;
+}
+
+
 
 // --------------------------------------------------------------------------
 // generate render buffer
@@ -399,73 +438,32 @@ export fn input(dir: Direction) void {
 }
 
 // --------------------------------------------------------------------------
-// Convert u8 to f32 buffer
-// --------------------------------------------------------------------------
-export fn u8ArrayToF32Array(u8Array: [*]u8, u8ArrayLength: usize, f32Array: [*]f32, f32ArrayLength: usize) void {
-    const size = @min(u8ArrayLength, f32ArrayLength);
-    for (u8Array[0..size]) |b, i| f32Array[i] = @intToFloat(f32, b) / 128.0 - 1;
-}
-
-// --------------------------------------------------------------------------
 // generate a frame of audio
 // --------------------------------------------------------------------------
-export fn generateAudio(u8Array: [*]u8, u8ArrayLength: usize) void {
+export fn generateAudio() void {
 
-    // set sample rate
-    const sampleRate = 44100;
-
-    const u4Tou8WaveTransformConstant: f32 = 255.0 / 15.0;
-    const Note = struct {
-        waveform: *[32]u4,
-        hz: u16,
-    };
-
-    // retrieve Note data
-    const note: Note = Note{
-        .waveform = &waveforms.SineWave,
-        .hz = 440,
-    };
-
-    // Set previous amplitude to mid amplitude (0 signed I guess)
-    var previous_note_amplitude: i32 = 0;
-    var note_period: u8 = 0;
-    var samples_per_wave = sampleRate / note.hz;
+    const resample_multiplier: u32 = @enumToInt(SamplingFrequency.f_44K) / @enumToInt(sampling_freq);
 
     var array_idx: usize = 0;
-    while (array_idx < u8ArrayLength) {
-        const period_or_end = @min(u8ArrayLength, array_idx + samples_per_wave);
-        var period_idx: usize = array_idx;
-
-        // Generating 1 period as defined by the note frequency and sampling rate
-        while (period_idx < period_or_end) {
-
-            // one period == the 32 amplitude values of the waveform
-            const samples_per_note_slice = samples_per_wave / note.waveform.len;
-            var samples_idx: i32 = 0;
-
-            // Get waveform amplitude
-            const note_amplitude: i32 = note.waveform[note_period];
-
-            // convert each waveform value and fill the buffer
-            while (period_idx < period_or_end and samples_idx < samples_per_note_slice) : (period_idx += 1) {
-
-                // sample value = previous amp + (delta(current, previous)*index / nb_samples)
-                const wave_as_u4 = @intToFloat(f32, previous_note_amplitude) +
-                    (@intToFloat(f32, (note_amplitude - previous_note_amplitude) * samples_idx) /
-                    @intToFloat(f32, samples_per_note_slice));
-
-                u8Array[period_idx] = @floatToInt(u8, wave_as_u4 * u4Tou8WaveTransformConstant);
-                samples_idx += 1;
-            }
-
-            // get next index of amplitude
-            note_period = (note_period + 1) % @intCast(u8, note.waveform.len);
-
-            // memorize last amplitude
-            previous_note_amplitude = note_amplitude;
+    var resample_index: usize = 0;
+    while (array_idx < AUDIO_BUFFER_SIZE) {
+        
+        var val: u8 = 0;
+        if(resample_index + wav_index < wave_b.len) {
+            val = wave_b[resample_index + wav_index] + 127;
         }
 
-        // Advance in buffer of 1 period (44100 samples)
-        array_idx += samples_per_wave;
+        var i: u32 = 0;
+        while(i < resample_multiplier) {
+            sound_left_buffer[array_idx + i] = @intToFloat(f32, val) / 128.0 - 1;
+
+            i += 1;
+        }
+        array_idx += resample_multiplier;
+        resample_index += 1;
     }
+    
+    wav_index += AUDIO_BUFFER_SIZE/4;
+    if(wav_index > wave_b.len)
+        wav_index = 0;
 }

@@ -116,7 +116,7 @@ pub const LogicalFB = struct {
     // --------------------------------------------------------------------------
     pub fn setPalette(self: *LogicalFB, entries: [256]Color) void {
         self.palette = entries;
-        Console.log("Palette of FB {d} updated", .{self.id});
+        // Console.log("Palette of FB {d} updated", .{self.id});
     }
 
     pub fn setPaletteEntry(self: *LogicalFB, entry: u8, value: Color) void {
@@ -250,4 +250,8 @@ pub const ZigOS = struct {
     pub fn setHBLHandler(self: *ZigOS, handler: *const fn (*ZigOS, u16) void) void {
         self.hbl_handler = handler;
     }
+
+    pub fn removeHBLHandler(self: *ZigOS) void {
+        self.hbl_handler = null;
+    }    
 };
