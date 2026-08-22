@@ -181,6 +181,9 @@ pub const ZigOS = struct {
     lfbs: [NB_PLANES]LogicalFB = undefined,
     hbl_handler: ?*const fn (*ZigOS, u16) void = undefined,
     system_font: []const u8 = undefined,
+    // Mirror of the audio thread's YM2149 registers, pushed in from JS so scenes
+    // can visualize the chip. 0..13 are the standard PSG registers.
+    ym_regs: [16]u8 = [_]u8{0} ** 16,
 
     pub fn init(self: *ZigOS) void {
         self.physical_framebuffer = std.mem.zeroes([PHYSICAL_HEIGHT][PHYSICAL_WIDTH]u32);

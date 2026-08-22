@@ -139,6 +139,14 @@ export fn getAudioBufferSize() u32 {
     return AUDIO_BUFFER_SIZE;
 }
 
+// --------------------------------------------------------------------------
+// Pointer to the ZigOS YM register mirror. JS copies the audio thread's YM2149
+// registers here each frame so scenes can visualize the chip.
+// --------------------------------------------------------------------------
+export fn getYmRegsPointer() [*]u8 {
+    return @ptrCast(&zigos.ym_regs);
+}
+
 
 
 // --------------------------------------------------------------------------

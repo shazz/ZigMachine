@@ -88,6 +88,11 @@ export fn audioYmStop() void {
     ym.stop();
 }
 
+// Pointer to the live YM2149 register array, so the worklet can mirror it to JS.
+export fn audioYmRegsPtr() [*]u8 {
+    return @ptrCast(&engine.ym.regs);
+}
+
 // --- raw sample streamer ---
 export fn audioPlayRaw(len: u32, rate: f32, is_unsigned: bool) void {
     mod.stop();

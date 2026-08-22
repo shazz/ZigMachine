@@ -173,6 +173,11 @@ window.document.body.addEventListener('keydown', function(evt){
 	    ZigMachine.input(2);
     if ((evt.key === "d" || evt.key === "ArrowRight"))
 	    ZigMachine.input(3);
+
+    // Music debug: 1/2/3 test MOD / YM / sample (starts audio on first press).
+    if (evt.key === "1") playMod("music/lollapalooza.mod");
+    if (evt.key === "2") playYm("music/concerto.ymraw");
+    if (evt.key === "3") playRaw("music/smp1.raw", 12517, false);
 });
 
 // --------------------------------------------------------------------------
@@ -181,68 +186,78 @@ window.document.body.addEventListener('keydown', function(evt){
 // --------------------------------------------------------------------------
 let audioCtx = null;
 let audioNode = null;
+let audioReady = null; // promise, resolves once the worklet is ready
 
+// Start the AudioContext + worklet once (idempotent). Must be called from a user
+// gesture (button click or keydown). Does NOT auto-play anything.
+function startAudio() {
+    if (audioReady) return audioReady;
+    audioReady = (async () => {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 44100 });
+        const wasmBytes = await fetch("audio.wasm").then(r => r.arrayBuffer());
+        await audioCtx.audioWorklet.addModule("audio-worklet.js");
+        audioNode = new AudioWorkletNode(audioCtx, "zig-audio", {
+            numberOfInputs: 0,
+            numberOfOutputs: 1,
+            outputChannelCount: [2],
+            processorOptions: { wasmBytes: wasmBytes },
+        });
+        await new Promise((resolve) => {
+            audioNode.port.onmessage = (event) => {
+                const msg = event.data;
+                if (msg.type === "ready") { console.log("Audio worklet ready"); resolve(); }
+                else if (msg.type === "error") console.error("Audio worklet error:", msg.message);
+                else if (msg.type === "ymRegs") {
+                    // mirror the chip registers into the scene's wasm memory for the scope
+                    if (ZigMachine.getYmRegsPointer) {
+                        const view = new Uint8Array(memory.buffer, ZigMachine.getYmRegsPointer(), 16);
+                        view.set(msg.regs);
+                    }
+                } else if (msg.type === "modLoaded" || msg.type === "ymLoaded" || msg.type === "rawLoaded")
+                    console.log(msg.type, msg);
+            };
+        });
+        audioNode.connect(audioCtx.destination);
+        await audioCtx.resume();
+    })();
+    return audioReady;
+}
+
+// "Sound on" button: toggle audio; when turning on, default to the MOD.
 async function main() {
     const button = document.querySelector('.sound_button');
-
-    // toggle off
     if (audioCtx) {
         try { await audioCtx.close(); } catch (e) {}
-        audioCtx = null;
-        audioNode = null;
+        audioCtx = null; audioNode = null; audioReady = null;
         if (button) button.textContent = "Sound on";
         return;
     }
-
-    audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 44100 });
-    const [wasmBytes, modBytes] = await Promise.all([
-        fetch("audio.wasm").then(r => r.arrayBuffer()),
-        fetch("music/lollapalooza.mod").then(r => r.arrayBuffer()),
-    ]);
-    await audioCtx.audioWorklet.addModule("audio-worklet.js");
-
-    audioNode = new AudioWorkletNode(audioCtx, "zig-audio", {
-        numberOfInputs: 0,
-        numberOfOutputs: 1,
-        outputChannelCount: [2],
-        processorOptions: { wasmBytes: wasmBytes },
-    });
-    audioNode.port.onmessage = (event) => {
-        const msg = event.data;
-        if (msg.type === "ready") {
-            console.log("Audio worklet ready — loading MOD");
-            // hand the song to the audio thread and start playback
-            audioNode.port.postMessage({ type: "loadMod", bytes: modBytes }, [modBytes]);
-        } else if (msg.type === "modLoaded") {
-            console.log("MOD loaded:", msg.ok, msg.len, "bytes");
-        } else if (msg.type === "error") {
-            console.error("Audio worklet error:", msg.message);
-        }
-    };
-    audioNode.connect(audioCtx.destination);
-    await audioCtx.resume();
-
+    await startAudio();
+    await playMod("music/lollapalooza.mod");
     if (button) button.textContent = "Sound off";
 }
 window.main = main;
 
-// Switch tunes at runtime (audio must be started). Players are exclusive:
-// loading a MOD stops the YM and vice-versa.
+// Play helpers — each ensures audio is started first, so they work straight from
+// a keypress. Players are exclusive (loading one stops the others).
 async function playMod(url) {
-    if (!audioNode) return;
+    await startAudio();
     const bytes = await fetch(url).then(r => r.arrayBuffer());
     audioNode.port.postMessage({ type: "loadMod", bytes: bytes }, [bytes]);
+    const b = document.querySelector('.sound_button'); if (b) b.textContent = "Sound off";
 }
 async function playYm(url) {
-    if (!audioNode) return;
+    await startAudio();
     const bytes = await fetch(url).then(r => r.arrayBuffer());
     audioNode.port.postMessage({ type: "loadYm", bytes: bytes }, [bytes]);
+    const b = document.querySelector('.sound_button'); if (b) b.textContent = "Sound off";
 }
 // Stream a raw 8-bit PCM file (guess rate by ear). unsigned=true for 0..255 data.
 async function playRaw(url, rate, unsigned) {
-    if (!audioNode) return;
+    await startAudio();
     const bytes = await fetch(url).then(r => r.arrayBuffer());
     audioNode.port.postMessage({ type: "loadRaw", bytes: bytes, rate: rate || 12517, unsigned: !!unsigned }, [bytes]);
+    const b = document.querySelector('.sound_button'); if (b) b.textContent = "Sound off";
 }
 window.playMod = playMod;
 window.playYm = playYm;
