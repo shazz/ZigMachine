@@ -121,7 +121,7 @@ const MESSAGE =
     "REAL HARDWARE RASTERS, PAULA SAMPLE CHANNELS AND A YM2149 EMULATION ....   " ++
     "PRESS 1 FOR MOD, 2 FOR YM CHIPTUNE, 3 FOR A DIGI SAMPLE STREAM ....   " ++
     "THE SCOPE FOLLOWS THE ACTIVE PLAYER ....   " ++
-    "GREETINGS TO MATT AND ALL THE SCENERS OUT THERE ....   " ++
+    "GREETINGS TO ALL TRSI MEMBERS AND ALL THE SCENERS OUT THERE ....   " ++
     "AND NOW... LET IT WRAP !                   ";
 
 var raster_offset: u16 = 0;
@@ -282,7 +282,7 @@ pub const Demo = struct {
         drawText8(p2, "1  MOD     LOLLAPALOOZA", 44, 92, WHITE, 2.5, self.phase);
         drawText8(p2, "2  YM2149  CONCERTO", 44, 106, WHITE, 2.5, self.phase + 0.4);
         drawText8(p2, "3  SAMPLE  DIGI STREAM", 44, 120, WHITE, 2.5, self.phase + 0.8);
-        drawText8(p2, "PRESS 1  2  3", 108, 140, WHITE, 2.5, self.phase + 1.2);
+        drawText8(p2, "PRESS 1  2  3", 44, 140, WHITE, 2.5, self.phase + 1.2);
         self.drawScroller(zigos, p2);
 
         // plane 3: logo with a 3-frame darkening trail (oldest/darkest first)
