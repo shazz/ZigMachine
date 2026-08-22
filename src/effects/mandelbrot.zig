@@ -24,8 +24,8 @@ const HEIGHT: usize = @import("../zigos.zig").PHYSICAL_HEIGHT;
 const WIDTH: usize = @import("../zigos.zig").PHYSICAL_WIDTH;
 
 const MAX_ITER: u8 = 255;
-const F_WIDTH: f32 = @intToFloat(f32, WIDTH);
-const F_HEIGHT: f32 = @intToFloat(f32, HEIGHT);
+const F_WIDTH: f32 = @as(f32, @floatFromInt(WIDTH));
+const F_HEIGHT: f32 = @as(f32, @floatFromInt(HEIGHT));
 // --------------------------------------------------------------------------
 // Variables
 // --------------------------------------------------------------------------
@@ -39,7 +39,7 @@ pub const Mandelbrot = struct {
     pub fn init(self: *Mandelbrot, fb: *[HEIGHT][WIDTH]u32) void {
         self.pfb = fb;
 
-        Console.log("fb: {}", .{@ptrToInt(self.pfb)});
+        Console.log("fb: {}", .{@intFromPtr(self.pfb)});
     }
 
     pub fn update(self: *Mandelbrot) void {
@@ -47,9 +47,9 @@ pub const Mandelbrot = struct {
     }
 
     pub fn render(self: *Mandelbrot) void {
-        for (self.pfb) |*row, y| {
-            for (row) |*pixel, x| {
-                const iter: u8 = get_pixel_color(@intCast(i32, x), @intCast(i32, y));
+        for (self.pfb, 0..) |*row, y| {
+            for (row, 0..) |*pixel, x| {
+                const iter: u8 = get_pixel_color(@as(i32, @intCast(x)), @as(i32, @intCast(y)));
                 const color: Color = Color{ .r = iter, .g = iter, .b = iter, .a = iter };
                 pixel.* = color.toRGBA();
             }
@@ -59,8 +59,8 @@ pub const Mandelbrot = struct {
     fn get_pixel_color(px: i32, py: i32) u8 {
         var iterations: u8 = 0;
 
-        var x0 = @intToFloat(f32, px);
-        var y0 = @intToFloat(f32, py);
+        var x0 = @as(f32, @floatFromInt(px));
+        var y0 = @as(f32, @floatFromInt(py));
 
         x0 = ((x0 / F_WIDTH) * 2.51) - 1.67;
         y0 = ((y0 / F_HEIGHT) * 2.24) - 1.12;

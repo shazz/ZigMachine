@@ -288,7 +288,7 @@ pub const Demo = struct {
         fb.is_enabled = true;
         fb.setPalette(modmate_pal);
   
-        for(center_b) |pal_entry, idx| {
+        for(center_b, 0..) |pal_entry, idx| {
             fb.fb[idx] = pal_entry;
         }
 
@@ -311,7 +311,7 @@ pub const Demo = struct {
     pub fn render(self: *Demo, zigos: *ZigOS, elapsed_time: f32) void {
 
         var fb = &zigos.lfbs[0];
-        for(center_b) |pal_entry, idx| {
+        for(center_b, 0..) |pal_entry, idx| {
             fb.fb[idx] = pal_entry;
         }
 

@@ -351,7 +351,7 @@ pub const Demo = struct {
 
     fn transform_object(self: *Demo, angle_x: f32, angle_y: f32, angle_z: f32, trans_x: f32, vertices: []Vec4, projected_vertices: []Coord) void {
 
-        for(vertices) |vertex, idx| {
+        for(vertices, 0..) |vertex, idx| {
 
             const rot_matx = Mat4.fromEulerAngles(Vec3.new(angle_x, 0, 0));
             const vertex_after_rotx = rot_matx.vec4mulByMat4(vertex);
@@ -372,8 +372,8 @@ pub const Demo = struct {
 
             const vertex_after_screen = self.screen.vec4mulByMat4(vertex_after_norm);
 
-            const coord_x: i16 = @floatToInt(i16, vertex_after_screen.x()); 
-            const coord_y: i16 = @floatToInt(i16, vertex_after_screen.y()); 
+            const coord_x: i16 = @as(i16, @intFromFloat(vertex_after_screen.x())); 
+            const coord_y: i16 = @as(i16, @intFromFloat(vertex_after_screen.y())); 
 
             projected_vertices[idx].x=coord_x;
             projected_vertices[idx].y=coord_y;
@@ -383,8 +383,8 @@ pub const Demo = struct {
     fn render_object(self: *Demo, segments: []const Vec2, projected_vertices: []Coord, pal_entry: u8) void {
 
         for(segments) |segment| {
-            const v1: Coord = projected_vertices[@floatToInt(usize, segment.x())];
-            const v2: Coord = projected_vertices[@floatToInt(usize, segment.y())];
+            const v1: Coord = projected_vertices[@as(usize, @intFromFloat(segment.x()))];
+            const v2: Coord = projected_vertices[@as(usize, @intFromFloat(segment.y()))];
 
             shapes.drawLine(self.render_target, v1, v2, pal_entry);   
         }

@@ -73,7 +73,7 @@ pub fn Starfield(
                 const y = sf.rnd.random().intRangeAtMost(u16, top, top+height);
 
                 const rnd_speed = sf.rnd.random().intRangeAtMost(u16, min_speed, max_speed);
-                star.* = Star{ .x = x, .y = y, .speed = rnd_speed, .direction = direction, .color = @intCast(u8, rnd_speed) };
+                star.* = Star{ .x = x, .y = y, .speed = rnd_speed, .direction = direction, .color = @as(u8, @intCast(rnd_speed)) };
             }
 
             return sf;
@@ -92,7 +92,7 @@ pub fn Starfield(
                     }
                 }
                 if (self.direction == StarfieldDirection.LEFT) {
-                    const new_pos: i32 = @intCast(i32, star.x) - @intCast(i32, star.speed);
+                    const new_pos: i32 = @as(i32, @intCast(star.x)) - @as(i32, @intCast(star.speed));
 
                     if (new_pos >= 0) {
                         star.*.x = star.x - star.speed;
@@ -107,7 +107,7 @@ pub fn Starfield(
 
             // plot pixel for each star with palette entry 1
             for (self.starfield_table) |*star| {
-                self.target.setPixelValue(@intCast(u16, star.x), @intCast(u16, star.y), star.color);
+                self.target.setPixelValue(@as(u16, @intCast(star.x)), @as(u16, @intCast(star.y)), star.color);
             }
         }
     };

@@ -215,7 +215,7 @@ pub const Demo = struct {
             if(self.scroller_y_pos > 55) self.scroller_y_dir = -1;
             if(self.scroller_y_pos <= 0) self.scroller_y_dir = 1;
 
-            const top_pos: u16 = (78 + @intCast(u16, self.scroller_y_pos))*WIDTH;
+            const top_pos: u16 = (78 + @as(u16, @intCast(self.scroller_y_pos)))*WIDTH;
             var y: u16 = 0;
             while(y < SCROLL_CHAR_HEIGHT) : (y += 1) {
                 var x: u16 = 0;
@@ -237,7 +237,7 @@ pub const Demo = struct {
             if(self.scroller_y_pos > 55) self.scroller_y_dir = -1;
             if(self.scroller_y_pos <= 0) self.scroller_y_dir = 1;
 
-            const top_pos: u16 = (78 + @intCast(u16, self.scroller_y_pos))*WIDTH;
+            const top_pos: u16 = (78 + @as(u16, @intCast(self.scroller_y_pos)))*WIDTH;
             var y: u16 = 0;
             while(y < SCROLL_CHAR_HEIGHT) : (y += 1) {
                 var x: u16 = 0;

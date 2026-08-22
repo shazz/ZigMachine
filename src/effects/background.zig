@@ -45,12 +45,12 @@ pub const Background = struct {
                 var buffer: *[64000]u8 = &fb.fb;
                 
                 // Copy bitmap data
-                for (self.data) |value, index| {
+                for (self.data, 0..) |value, index| {
                     buffer[index + (self.pos_y * WIDTH)] = value;
                 }
             },
             .render_buffer => |rbuf| {
-                for (self.data) |value, index| {
+                for (self.data, 0..) |value, index| {
                     rbuf.buffer[index + (self.pos_y * rbuf.width)] = value;
                 }   
             }

@@ -63,8 +63,8 @@ pub fn Starfield3D(
             var sf = Self{};
             sf.target = target;
             sf.rnd = RndGen.init(0);
-            sf.width = @intToFloat(f32, width);
-            sf.height = @intToFloat(f32, height);
+            sf.width = @as(f32, @floatFromInt(width));
+            sf.height = @as(f32, @floatFromInt(height));
             sf.speed = speed;
             sf.star_ratio = 100;
             sf.use_lines = use_lines;
@@ -137,32 +137,32 @@ pub fn Starfield3D(
 
                 if(star.prev_proj_x > 0 and star.prev_proj_x < self.width  and  star.prev_proj_y > 0 and star.prev_proj_y < self.height){
 
-                    const pal_index = 1 + self.color_ratio * star.z * 1.2 * @intToFloat(f32, GRADIENT_STEPS-1);
-                    // if(@floatToInt(u8, pal_index) < 3)
-                    //     Console.log("{} => {}", .{pal_index, @floatToInt(u8, pal_index)});
+                    const pal_index = 1 + self.color_ratio * star.z * 1.2 * @as(f32, @floatFromInt(GRADIENT_STEPS-1));
+                    // if(@as(u8, @intFromFloat(pal_index)) < 3)
+                    //     Console.log("{} => {}", .{pal_index, @as(u8, @intFromFloat(pal_index))});
 
                     if(self.use_lines){
-                        const x0: i16 = @floatToInt(i16, star.prev_proj_x);
-                        const y0: i16 = @floatToInt(i16, star.prev_proj_y);
-                        const x1: i16 = @floatToInt(i16, star.proj_x);
-                        const y1: i16 = @floatToInt(i16, star.proj_y);
+                        const x0: i16 = @as(i16, @intFromFloat(star.prev_proj_x));
+                        const y0: i16 = @as(i16, @intFromFloat(star.prev_proj_y));
+                        const x1: i16 = @as(i16, @intFromFloat(star.proj_x));
+                        const y1: i16 = @as(i16, @intFromFloat(star.proj_y));
 
                         if(x0 != x1 and y0 != y1) { 
                             const origin = Coord{ .x = x0, .y = y0 };
                             const dest = Coord{ .x =x1, .y = y1 };
 
-                            shapes.drawLine(self.target, origin, dest, @floatToInt(u8, pal_index));  
+                            shapes.drawLine(self.target, origin, dest, @as(u8, @intFromFloat(pal_index)));  
                         }
                         else {
                             // don't draw lines for nothing
-                            const x: u16 = @intCast(u16, x0);
-                            const y: u16 = @intCast(u16, y0);
-                            self.target.setPixelValue(x, y, @floatToInt(u8, pal_index));
+                            const x: u16 = @as(u16, @intCast(x0));
+                            const y: u16 = @as(u16, @intCast(y0));
+                            self.target.setPixelValue(x, y, @as(u8, @intFromFloat(pal_index)));
                         }
                     } else {
-                        const x: u16 = @floatToInt(u16, star.proj_x);
-                        const y: u16 = @floatToInt(u16, star.proj_y);
-                        self.target.setPixelValue(x, y, @floatToInt(u8, pal_index));   
+                        const x: u16 = @as(u16, @intFromFloat(star.proj_x));
+                        const y: u16 = @as(u16, @intFromFloat(star.proj_y));
+                        self.target.setPixelValue(x, y, @as(u8, @intFromFloat(pal_index)));   
                     }
                 }
             }

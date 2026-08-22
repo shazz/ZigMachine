@@ -77,7 +77,7 @@ pub const Color = struct {
     a: u8,
 
     pub fn toRGBA(self: Color) u32 {
-        const col: u32 = (@intCast(u32, self.a) << 24) | (@intCast(u32, self.b) << 16) | (@intCast(u32, self.g) << 8) | (@intCast(u32, self.r));
+        const col: u32 = (@as(u32, @intCast(self.a)) << 24) | (@as(u32, @intCast(self.b)) << 16) | (@as(u32, @intCast(self.g)) << 8) | (@as(u32, @intCast(self.r)));
         return col;
     }
 };
@@ -96,7 +96,7 @@ pub const LogicalFB = struct {
         Console.log("Init Logical Framebuffer {d}", .{self.id});
 
         Console.log("Clear Logical Framebuffer {d} palette", .{self.id});
-        for (self.palette) |_, i| {
+        for (self.palette, 0..) |_, i| {
             self.palette[i] = Color{ .r = 0, .g = 0, .b = 0, .a = 0 };
         }
 
@@ -188,12 +188,12 @@ pub const ZigOS = struct {
         self.background_color = Color{ .r = 20, .g = 20, .b = 20, .a = 255 };
         self.system_font = SYSTEM_FONT;
 
-        for (self.lfbs) |*lfb, idx| {
-            lfb.*.id = @intCast(u8, idx);
+        for (&self.lfbs, 0..) |*lfb, idx| {
+            lfb.*.id = @as(u8, @intCast(idx));
             lfb.init(self);
         }
 
-        Console.log("fb zigos: {}", .{@ptrToInt(&self.physical_framebuffer)});
+        Console.log("fb zigos: {}", .{@intFromPtr(&self.physical_framebuffer)});
     }
 
     // --------------------------------------------------------------------------
@@ -211,16 +211,16 @@ pub const ZigOS = struct {
         const initial_position: u16 = y * WIDTH + x;
 
         // get character
-        for (text) |char, nb| {
+        for (text, 0..) |char, nb| {
 
             // slice offsets
-            var slice_offset_start: u16 = @intCast(u16, char) * (SYSTEM_FONT_WIDTH * SYSTEM_FONT_HEIGHT) - 1;
-            var slice_offset_end: u16 = (@intCast(u16, char) + 1) * (SYSTEM_FONT_WIDTH * SYSTEM_FONT_HEIGHT);
+            const slice_offset_start: u16 = @as(u16, @intCast(char)) * (SYSTEM_FONT_WIDTH * SYSTEM_FONT_HEIGHT) - 1;
+            const slice_offset_end: u16 = (@as(u16, @intCast(char)) + 1) * (SYSTEM_FONT_WIDTH * SYSTEM_FONT_HEIGHT);
 
             const char_data = self.system_font[slice_offset_start..slice_offset_end];
-            var letter_pos = initial_position + (@intCast(u16, nb) * SYSTEM_FONT_WIDTH);
+            var letter_pos = initial_position + (@as(u16, @intCast(nb)) * SYSTEM_FONT_WIDTH);
 
-            for (char_data) |pixel, idx| {
+            for (char_data, 0..) |pixel, idx| {
                 buffer[letter_pos] = if (pixel == 1) fg_color_index else bg_color_index;
 
                 if (idx > 0 and (idx % SYSTEM_FONT_WIDTH == 0)) {

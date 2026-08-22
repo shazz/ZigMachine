@@ -100,7 +100,7 @@ fn handler_logo(fb: *LogicalFB, zigos: *ZigOS, line: u16, col: u16) void {
     const back_color: Color = Color{ .r = 0, .g = 0, .b = 0, .a = 0 };
 
     if (line >= 40+logo_raster_pos and line < 40+29+logo_raster_pos ) {
-        fb.setPaletteEntry(1, logo_rasters_b[(line + @intCast(u16, logo_raster_pos)) % 30]);
+        fb.setPaletteEntry(1, logo_rasters_b[(line + @as(u16, @intCast(logo_raster_pos))) % 30]);
     }
     else {
         fb.setPaletteEntry(1, back_color);
@@ -149,12 +149,12 @@ pub const Demo = struct {
         fb.is_enabled = true; 
        
         var i: usize = 0;
-        const f_per: f32 = @intToFloat(f32, self.logo_offset_table.len);
+        const f_per: f32 = @as(f32, @floatFromInt(self.logo_offset_table.len));
         var f_inc: f32 = 0;
 
         while(i < self.logo_offset_table.len) : ( i += 1) {
             const f_sin: f32 = 2 * @sin(f_per*2*std.math.pi + f_inc);
-            self.logo_offset_table[i] = @floatToInt(i16, f_sin);
+            self.logo_offset_table[i] = @as(i16, @intFromFloat(f_sin));
             f_inc += 0.15;
             Console.log("{}", .{f_sin});
         }

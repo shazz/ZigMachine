@@ -333,7 +333,7 @@ pub inline fn splat(comptime T: type, value: f32) T {
     return @splat(veclen(T), value);
 }
 pub inline fn splatInt(comptime T: type, value: u32) T {
-    return @splat(veclen(T), @bitCast(f32, value));
+    return @splat(veclen(T), @as(f32, @bitCast(value)));
 }
 pub inline fn usplat(comptime T: type, value: u32) T {
     return @splat(veclen(T), value);
@@ -536,9 +536,9 @@ pub inline fn isInBounds(
     // 2 x cmpleps, xorps, load, andps
     const b0 = v <= bounds;
     const b1 = (bounds * splat(T, -1.0)) <= v;
-    const b0u = @bitCast(Tu, b0);
-    const b1u = @bitCast(Tu, b1);
-    return @bitCast(Tr, b0u & b1u);
+    const b0u = @as(Tu, @bitCast(b0));
+    const b1u = @as(Tu, @bitCast(b1));
+    return @as(Tr, @bitCast(b0u & b1u));
 }
 test "zmath.isInBounds" {
     {
@@ -561,20 +561,20 @@ test "zmath.isInBounds" {
 pub inline fn andInt(v0: anytype, v1: anytype) @TypeOf(v0, v1) {
     const T = @TypeOf(v0, v1);
     const Tu = @Vector(veclen(T), u32);
-    const v0u = @bitCast(Tu, v0);
-    const v1u = @bitCast(Tu, v1);
-    return @bitCast(T, v0u & v1u); // andps
+    const v0u = @as(Tu, @bitCast(v0));
+    const v1u = @as(Tu, @bitCast(v1));
+    return @as(T, @bitCast(v0u & v1u)); // andps
 }
 test "zmath.andInt" {
     {
-        const v0 = f32x4(0, @bitCast(f32, ~@as(u32, 0)), 0, @bitCast(f32, ~@as(u32, 0)));
+        const v0 = f32x4(0, @as(f32, @bitCast(~@as(u32, 0))), 0, @as(f32, @bitCast(~@as(u32, 0))));
         const v1 = f32x4(1.0, 2.0, 3.0, math.inf_f32);
         const v = andInt(v0, v1);
         try expect(v[3] == math.inf_f32);
         try expect(approxEqAbs(v, f32x4(0.0, 2.0, 0.0, math.inf_f32), 0.0));
     }
     {
-        const v0 = f32x8(0, 0, 0, 0, 0, @bitCast(f32, ~@as(u32, 0)), 0, @bitCast(f32, ~@as(u32, 0)));
+        const v0 = f32x8(0, 0, 0, 0, 0, @as(f32, @bitCast(~@as(u32, 0))), 0, @as(f32, @bitCast(~@as(u32, 0))));
         const v1 = f32x8(0, 0, 0, 0, 1.0, 2.0, 3.0, math.inf_f32);
         const v = andInt(v0, v1);
         try expect(v[7] == math.inf_f32);
@@ -585,20 +585,20 @@ test "zmath.andInt" {
 pub inline fn andNotInt(v0: anytype, v1: anytype) @TypeOf(v0, v1) {
     const T = @TypeOf(v0, v1);
     const Tu = @Vector(veclen(T), u32);
-    const v0u = @bitCast(Tu, v0);
-    const v1u = @bitCast(Tu, v1);
-    return @bitCast(T, ~v0u & v1u); // andnps
+    const v0u = @as(Tu, @bitCast(v0));
+    const v1u = @as(Tu, @bitCast(v1));
+    return @as(T, @bitCast(~v0u & v1u)); // andnps
 }
 test "zmath.andNotInt" {
     {
         const v0 = F32x4{ 1.0, 2.0, 3.0, 4.0 };
-        const v1 = F32x4{ 0, @bitCast(f32, ~@as(u32, 0)), 0, @bitCast(f32, ~@as(u32, 0)) };
+        const v1 = F32x4{ 0, @as(f32, @bitCast(~@as(u32, 0))), 0, @as(f32, @bitCast(~@as(u32, 0))) };
         const v = andNotInt(v1, v0);
         try expect(approxEqAbs(v, F32x4{ 1.0, 0.0, 3.0, 0.0 }, 0.0));
     }
     {
         const v0 = F32x8{ 0, 0, 0, 0, 1.0, 2.0, 3.0, 4.0 };
-        const v1 = F32x8{ 0, 0, 0, 0, 0, @bitCast(f32, ~@as(u32, 0)), 0, @bitCast(f32, ~@as(u32, 0)) };
+        const v1 = F32x8{ 0, 0, 0, 0, 0, @as(f32, @bitCast(~@as(u32, 0))), 0, @as(f32, @bitCast(~@as(u32, 0))) };
         const v = andNotInt(v1, v0);
         try expect(approxEqAbs(v, F32x8{ 0, 0, 0, 0, 1.0, 0.0, 3.0, 0.0 }, 0.0));
     }
@@ -607,26 +607,26 @@ test "zmath.andNotInt" {
 pub inline fn orInt(v0: anytype, v1: anytype) @TypeOf(v0, v1) {
     const T = @TypeOf(v0, v1);
     const Tu = @Vector(veclen(T), u32);
-    const v0u = @bitCast(Tu, v0);
-    const v1u = @bitCast(Tu, v1);
-    return @bitCast(T, v0u | v1u); // orps
+    const v0u = @as(Tu, @bitCast(v0));
+    const v1u = @as(Tu, @bitCast(v1));
+    return @as(T, @bitCast(v0u | v1u)); // orps
 }
 test "zmath.orInt" {
     {
-        const v0 = F32x4{ 0, @bitCast(f32, ~@as(u32, 0)), 0, 0 };
+        const v0 = F32x4{ 0, @as(f32, @bitCast(~@as(u32, 0))), 0, 0 };
         const v1 = F32x4{ 1.0, 2.0, 3.0, 4.0 };
         const v = orInt(v0, v1);
         try expect(v[0] == 1.0);
-        try expect(@bitCast(u32, v[1]) == ~@as(u32, 0));
+        try expect(@as(u32, @bitCast(v[1])) == ~@as(u32, 0));
         try expect(v[2] == 3.0);
         try expect(v[3] == 4.0);
     }
     {
-        const v0 = F32x8{ 0, 0, 0, 0, 0, @bitCast(f32, ~@as(u32, 0)), 0, 0 };
+        const v0 = F32x8{ 0, 0, 0, 0, 0, @as(f32, @bitCast(~@as(u32, 0))), 0, 0 };
         const v1 = F32x8{ 0, 0, 0, 0, 1.0, 2.0, 3.0, 4.0 };
         const v = orInt(v0, v1);
         try expect(v[4] == 1.0);
-        try expect(@bitCast(u32, v[5]) == ~@as(u32, 0));
+        try expect(@as(u32, @bitCast(v[5])) == ~@as(u32, 0));
         try expect(v[6] == 3.0);
         try expect(v[7] == 4.0);
     }
@@ -635,34 +635,34 @@ test "zmath.orInt" {
 pub inline fn norInt(v0: anytype, v1: anytype) @TypeOf(v0, v1) {
     const T = @TypeOf(v0, v1);
     const Tu = @Vector(veclen(T), u32);
-    const v0u = @bitCast(Tu, v0);
-    const v1u = @bitCast(Tu, v1);
-    return @bitCast(T, ~(v0u | v1u)); // por, pcmpeqd, pxor
+    const v0u = @as(Tu, @bitCast(v0));
+    const v1u = @as(Tu, @bitCast(v1));
+    return @as(T, @bitCast(~(v0u | v1u))); // por, pcmpeqd, pxor
 }
 
 pub inline fn xorInt(v0: anytype, v1: anytype) @TypeOf(v0, v1) {
     const T = @TypeOf(v0, v1);
     const Tu = @Vector(veclen(T), u32);
-    const v0u = @bitCast(Tu, v0);
-    const v1u = @bitCast(Tu, v1);
-    return @bitCast(T, v0u ^ v1u); // xorps
+    const v0u = @as(Tu, @bitCast(v0));
+    const v1u = @as(Tu, @bitCast(v1));
+    return @as(T, @bitCast(v0u ^ v1u)); // xorps
 }
 test "zmath.xorInt" {
     {
-        const v0 = F32x4{ 1.0, @bitCast(f32, ~@as(u32, 0)), 0, 0 };
+        const v0 = F32x4{ 1.0, @as(f32, @bitCast(~@as(u32, 0))), 0, 0 };
         const v1 = F32x4{ 1.0, 0, 0, 0 };
         const v = xorInt(v0, v1);
         try expect(v[0] == 0.0);
-        try expect(@bitCast(u32, v[1]) == ~@as(u32, 0));
+        try expect(@as(u32, @bitCast(v[1])) == ~@as(u32, 0));
         try expect(v[2] == 0.0);
         try expect(v[3] == 0.0);
     }
     {
-        const v0 = F32x8{ 0, 0, 0, 0, 1.0, @bitCast(f32, ~@as(u32, 0)), 0, 0 };
+        const v0 = F32x8{ 0, 0, 0, 0, 1.0, @as(f32, @bitCast(~@as(u32, 0))), 0, 0 };
         const v1 = F32x8{ 0, 0, 0, 0, 1.0, 0, 0, 0 };
         const v = xorInt(v0, v1);
         try expect(v[4] == 0.0);
-        try expect(@bitCast(u32, v[5]) == ~@as(u32, 0));
+        try expect(@as(u32, @bitCast(v[5])) == ~@as(u32, 0));
         try expect(v[6] == 0.0);
         try expect(v[7] == 0.0);
     }
@@ -888,7 +888,7 @@ test "zmath.round" {
         try expect(approxEqAbs(vr, fr, 0.0));
         try expect(approxEqAbs(vr8, fr8, 0.0));
         try expect(approxEqAbs(vr16, fr16, 0.0));
-        f += 0.12345 * @intToFloat(f32, i);
+        f += 0.12345 * @as(f32, @floatFromInt(i));
     }
 }
 
@@ -977,7 +977,7 @@ test "zmath.trunc" {
         try expect(approxEqAbs(vr, fr, 0.0));
         try expect(approxEqAbs(vr8, fr8, 0.0));
         try expect(approxEqAbs(vr16, fr16, 0.0));
-        f += 0.12345 * @intToFloat(f32, i);
+        f += 0.12345 * @as(f32, @floatFromInt(i));
     }
 }
 
@@ -1069,7 +1069,7 @@ test "zmath.floor" {
         try expect(approxEqAbs(vr, fr, 0.0));
         try expect(approxEqAbs(vr8, fr8, 0.0));
         try expect(approxEqAbs(vr16, fr16, 0.0));
-        f += 0.12345 * @intToFloat(f32, i);
+        f += 0.12345 * @as(f32, @floatFromInt(i));
     }
 }
 
@@ -1161,7 +1161,7 @@ test "zmath.ceil" {
         try expect(approxEqAbs(vr, fr, 0.0));
         try expect(approxEqAbs(vr8, fr8, 0.0));
         try expect(approxEqAbs(vr16, fr16, 0.0));
-        f += 0.12345 * @intToFloat(f32, i);
+        f += 0.12345 * @as(f32, @floatFromInt(i));
     }
 }
 
@@ -1294,7 +1294,7 @@ pub inline fn swizzle(
     comptime z: F32x4Component,
     comptime w: F32x4Component,
 ) F32x4 {
-    return @shuffle(f32, v, undefined, [4]i32{ @enumToInt(x), @enumToInt(y), @enumToInt(z), @enumToInt(w) });
+    return @shuffle(f32, v, undefined, [4]i32{ @intFromEnum(x), @intFromEnum(y), @intFromEnum(z), @intFromEnum(w) });
 }
 
 pub inline fn mod(v0: anytype, v1: anytype) @TypeOf(v0, v1) {
@@ -1396,7 +1396,7 @@ test "zmath.sin" {
         try expect(approxEqAbs(vr, fr, epsilon));
         try expect(approxEqAbs(vr8, fr8, epsilon));
         try expect(approxEqAbs(vr16, fr16, epsilon));
-        f += 0.12345 * @intToFloat(f32, i);
+        f += 0.12345 * @as(f32, @floatFromInt(i));
     }
 }
 
@@ -1444,7 +1444,7 @@ test "zmath.cos" {
         try expect(approxEqAbs(vr, fr, epsilon));
         try expect(approxEqAbs(vr8, fr8, epsilon));
         try expect(approxEqAbs(vr16, fr16, epsilon));
-        f += 0.12345 * @intToFloat(f32, i);
+        f += 0.12345 * @as(f32, @floatFromInt(i));
     }
 }
 
@@ -1541,7 +1541,7 @@ test "zmath.sincos32xN" {
         try expect(approxEqAbs(sc[1], c4, epsilon));
         try expect(approxEqAbs(sc8[1], c8, epsilon));
         try expect(approxEqAbs(sc16[1], c16, epsilon));
-        f += 0.12345 * @intToFloat(f32, i);
+        f += 0.12345 * @as(f32, @floatFromInt(i));
     }
 }
 
@@ -1652,7 +1652,7 @@ pub fn atan2(vy: anytype, vx: anytype) @TypeOf(vx, vy) {
     const Tu = @Vector(veclen(T), u32);
 
     const vx_is_positive =
-        (@bitCast(Tu, vx) & @splat(veclen(T), @as(u32, 0x8000_0000))) == @splat(veclen(T), @as(u32, 0));
+        (@as(Tu, @bitCast(vx)) & @splat(veclen(T), @as(u32, 0x8000_0000))) == @splat(veclen(T), @as(u32, 0));
 
     const vy_sign = andInt(vy, splatNegativeZero(T));
     const c0_25pi = orInt(vy_sign, splat(T, 0.25 * math.pi));
@@ -1666,7 +1666,7 @@ pub fn atan2(vy: anytype, vx: anytype) @TypeOf(vx, vy) {
     const r4 = select(vx_is_positive, c0_25pi, c0_75pi);
     const r5 = select(isInf(vx), r4, c0_50pi);
     const result = select(isInf(vy), r5, r3);
-    const result_valid = @bitCast(Tu, result) == @splat(veclen(T), @as(u32, 0xffff_ffff));
+    const result_valid = @as(Tu, @bitCast(result)) == @splat(veclen(T), @as(u32, 0xffff_ffff));
 
     const v = vy / vx;
     const r0 = atan(v);
@@ -1821,7 +1821,7 @@ pub inline fn cross3(v0: Vec, v1: Vec) Vec {
     xmm0 = swizzle(xmm0, .y, .z, .x, .w);
     xmm1 = swizzle(xmm1, .z, .x, .y, .w);
     result = result - xmm0 * xmm1;
-    return @bitCast(F32x4, @bitCast(U32x4, result) & u32x4_mask3);
+    return @as(F32x4, @bitCast(@as(U32x4, @bitCast(result)) & u32x4_mask3));
 }
 test "zmath.cross3" {
     {
@@ -2428,7 +2428,7 @@ pub fn matFromNormAxisAngle(axis: Vec, angle: f32) Mat {
     const r1 = c0 * axis + v0;
     var r2 = v0 - c0 * axis;
 
-    v0 = @bitCast(F32x4, @bitCast(U32x4, r0) & u32x4_mask3);
+    v0 = @as(F32x4, @bitCast(@as(U32x4, @bitCast(r0)) & u32x4_mask3));
 
     var v1 = @shuffle(f32, r1, r2, [4]i32{ 0, 2, ~@as(i32, 1), ~@as(i32, 2) });
     v1 = swizzle(v1, .y, .z, .w, .x);
@@ -2489,10 +2489,10 @@ pub fn matFromQuat(quat: Quat) Mat {
     var q1 = quat * q0;
 
     var v0 = swizzle(q1, .y, .x, .x, .w);
-    v0 = @bitCast(F32x4, @bitCast(U32x4, v0) & u32x4_mask3);
+    v0 = @as(F32x4, @bitCast(@as(U32x4, @bitCast(v0)) & u32x4_mask3));
 
     var v1 = swizzle(q1, .z, .z, .y, .w);
-    v1 = @bitCast(F32x4, @bitCast(U32x4, v1) & u32x4_mask3);
+    v1 = @as(F32x4, @bitCast(@as(U32x4, @bitCast(v1)) & u32x4_mask3));
 
     var r0 = (f32x4(1.0, 1.0, 1.0, 0.0) - v0) - v1;
 
@@ -2631,7 +2631,7 @@ pub inline fn asFloats(ptr: anytype) [*]const f32 {
     comptime assert(@typeInfo(@TypeOf(ptr)) == .Pointer);
     const T = std.meta.Child(@TypeOf(ptr));
     comptime assert(T == Mat or T == F32x4 or T == F32x8 or T == F32x16);
-    return @ptrCast([*]const f32, ptr);
+    return @as([*]const f32, @ptrCast(ptr));
 }
 test "asFloats" {
     {
@@ -2826,7 +2826,7 @@ pub fn slerpV(q0: Quat, q1: Quat, t: F32x4) Quat {
     const omega = atan2(sin_omega, cos_omega);
 
     var v01 = t;
-    v01 = @bitCast(F32x4, (@bitCast(U32x4, v01) & u32x4_mask2) ^ u32x4_sign_mask1);
+    v01 = @as(F32x4, @bitCast((@as(U32x4, @bitCast(v01)) & u32x4_mask2) ^ u32x4_sign_mask1));
     v01 = f32x4(1.0, 0.0, 0.0, 0.0) + v01;
 
     var s0 = sin(v01 * omega) / sin_omega;
@@ -3086,7 +3086,7 @@ pub fn hsvToRgb(hsv: F32x4) F32x4 {
     const q = v * (f32x4s(1.0) - f * s);
     const t = v * (f32x4s(1.0) - (f32x4s(1.0) - f) * s);
 
-    const ii = @floatToInt(i32, mod(i, f32x4s(6.0))[0]);
+    const ii = @as(i32, @intFromFloat(mod(i, f32x4s(6.0))[0]));
     const rgb = switch (ii) {
         0 => blk: {
             const vt = select(boolx4(true, false, false, false), v, t);
@@ -3325,7 +3325,7 @@ test "zmath.sincos32" {
         try expect(math.approxEqAbs(f32, sc[1], c, epsilon));
         try expect(math.approxEqAbs(f32, s0, s, epsilon));
         try expect(math.approxEqAbs(f32, c0, c, epsilon));
-        f += 0.12345 * @intToFloat(f32, i);
+        f += 0.12345 * @as(f32, @floatFromInt(i));
     }
 }
 
@@ -3379,7 +3379,7 @@ test "zmath.asin32" {
         try expect(approxEqAbs(r4, splat(F32x4, r1), epsilon));
         try expect(approxEqAbs(r8, splat(F32x8, r1), epsilon));
         try expect(approxEqAbs(r16, splat(F32x16, r1), epsilon));
-        f += 0.09 * @intToFloat(f32, i);
+        f += 0.09 * @as(f32, @floatFromInt(i));
     }
 }
 
@@ -3433,14 +3433,14 @@ test "zmath.acos32" {
         try expect(approxEqAbs(r4, splat(F32x4, r1), epsilon));
         try expect(approxEqAbs(r8, splat(F32x8, r1), epsilon));
         try expect(approxEqAbs(r16, splat(F32x16, r1), epsilon));
-        f += 0.09 * @intToFloat(f32, i);
+        f += 0.09 * @as(f32, @floatFromInt(i));
     }
 }
 
 pub fn modAngle32(in_angle: f32) f32 {
     const angle = in_angle + math.pi;
     var temp: f32 = @fabs(angle);
-    temp = temp - (2.0 * math.pi * @intToFloat(f32, @floatToInt(i32, temp / math.pi)));
+    temp = temp - (2.0 * math.pi * @as(f32, @floatFromInt(@as(i32, @intFromFloat(temp / math.pi)))));
     temp = temp - math.pi;
     if (angle < 0.0) {
         temp = -temp;
@@ -3826,7 +3826,7 @@ test "zmath.fftN" {
             -32.000000, 0.000000, -38.992113,  0.000000, -47.891384,  0.000000, -59.867789,  0.000000,
             -77.254834, 0.000000, -105.489863, 0.000000, -160.874864, 0.000000, -324.901452, 0.000000,
         };
-        for (expected) |e, ie| {
+        for (expected, 0..) |e, ie| {
             try expect(std.math.approxEqAbs(f32, e, im[(ie / 4)][ie % 4], epsilon));
         }
     }
@@ -3889,7 +3889,7 @@ test "zmath.fftN" {
             -154.509668, 0.000000, 0.000000, 0.000000, -210.979725, 0.000000, 0.000000, 0.000000,
             -321.749727, 0.000000, 0.000000, 0.000000, -649.802905, 0.000000, 0.000000, 0.000000,
         };
-        for (expected) |e, ie| {
+        for (expected, 0..) |e, ie| {
             try expect(std.math.approxEqAbs(f32, e, im[(ie / 4)][ie % 4], epsilon));
         }
     }
@@ -3905,7 +3905,7 @@ fn fftUnswizzle(input: []const F32x4, output: []F32x4) void {
 
     const length = input.len;
 
-    const f32_output = @ptrCast([*]f32, output.ptr)[0 .. output.len * 4];
+    const f32_output = @as([*]f32, @ptrCast(output.ptr))[0 .. output.len * 4];
 
     const static = struct {
         const swizzle_table = [256]u8{
@@ -3929,31 +3929,31 @@ fn fftUnswizzle(input: []const F32x4, output: []F32x4) void {
     };
 
     if ((log2_length & 1) == 0) {
-        const rev32 = @intCast(u6, 32 - log2_length);
+        const rev32 = @as(u6, @intCast(32 - log2_length));
         var index: usize = 0;
         while (index < length) : (index += 1) {
             const n = index * 4;
             const addr =
-                (@intCast(usize, static.swizzle_table[n & 0xff]) << 24) |
-                (@intCast(usize, static.swizzle_table[(n >> 8) & 0xff]) << 16) |
-                (@intCast(usize, static.swizzle_table[(n >> 16) & 0xff]) << 8) |
-                @intCast(usize, static.swizzle_table[(n >> 24) & 0xff]);
+                (@as(usize, @intCast(static.swizzle_table[n & 0xff])) << 24) |
+                (@as(usize, @intCast(static.swizzle_table[(n >> 8) & 0xff])) << 16) |
+                (@as(usize, @intCast(static.swizzle_table[(n >> 16) & 0xff])) << 8) |
+                @as(usize, @intCast(static.swizzle_table[(n >> 24) & 0xff]));
             f32_output[addr >> rev32] = input[index][0];
             f32_output[(0x40000000 | addr) >> rev32] = input[index][1];
             f32_output[(0x80000000 | addr) >> rev32] = input[index][2];
             f32_output[(0xC0000000 | addr) >> rev32] = input[index][3];
         }
     } else {
-        const rev7 = @as(usize, 1) << @intCast(u6, log2_length - 3);
-        const rev32 = @intCast(u6, 32 - (log2_length - 3));
+        const rev7 = @as(usize, 1) << @as(u6, @intCast(log2_length - 3));
+        const rev32 = @as(u6, @intCast(32 - (log2_length - 3)));
         var index: usize = 0;
         while (index < length) : (index += 1) {
             const n = index / 2;
             var addr =
-                (((@intCast(usize, static.swizzle_table[n & 0xff]) << 24) |
-                (@intCast(usize, static.swizzle_table[(n >> 8) & 0xff]) << 16) |
-                (@intCast(usize, static.swizzle_table[(n >> 16) & 0xff]) << 8) |
-                (@intCast(usize, static.swizzle_table[(n >> 24) & 0xff]))) >> rev32) |
+                (((@as(usize, @intCast(static.swizzle_table[n & 0xff])) << 24) |
+                (@as(usize, @intCast(static.swizzle_table[(n >> 8) & 0xff])) << 16) |
+                (@as(usize, @intCast(static.swizzle_table[(n >> 16) & 0xff])) << 8) |
+                (@as(usize, @intCast(static.swizzle_table[(n >> 24) & 0xff])))) >> rev32) |
                 ((index & 1) * rev7 * 4);
             f32_output[addr] = input[index][0];
             addr += rev7;
@@ -3974,7 +3974,7 @@ pub fn fftInitUnityTable(out_unity_table: []F32x4) void {
 
     const v0123 = f32x4(0.0, 1.0, 2.0, 3.0);
     var length = out_unity_table.len / 4;
-    var vlstep = f32x4s(0.5 * math.pi / @intToFloat(f32, length));
+    var vlstep = f32x4s(0.5 * math.pi / @as(f32, @floatFromInt(length)));
 
     while (true) {
         length /= 4;
@@ -4013,7 +4013,7 @@ pub fn fftInitUnityTable(out_unity_table: []F32x4) void {
 }
 
 pub fn fft(re: []F32x4, im: []F32x4, unity_table: []const F32x4) void {
-    const length = @intCast(u32, re.len * 4);
+    const length = @as(u32, @intCast(re.len * 4));
     assert(std.math.isPowerOfTwo(length));
     assert(length >= 4 and length <= 512);
     assert(re.len == im.len);
@@ -4042,7 +4042,7 @@ pub fn fft(re: []F32x4, im: []F32x4, unity_table: []const F32x4) void {
 }
 
 pub fn ifft(re: []F32x4, im: []const F32x4, unity_table: []const F32x4) void {
-    const length = @intCast(u32, re.len * 4);
+    const length = @as(u32, @intCast(re.len * 4));
     assert(std.math.isPowerOfTwo(length));
     assert(length >= 4 and length <= 512);
     assert(re.len == im.len);
@@ -4052,10 +4052,10 @@ pub fn ifft(re: []F32x4, im: []const F32x4, unity_table: []const F32x4) void {
     var re_temp = re_temp_storage[0..re.len];
     var im_temp = im_temp_storage[0..im.len];
 
-    const rnp = f32x4s(1.0 / @intToFloat(f32, length));
-    const rnm = f32x4s(-1.0 / @intToFloat(f32, length));
+    const rnp = f32x4s(1.0 / @as(f32, @floatFromInt(length)));
+    const rnm = f32x4s(-1.0 / @as(f32, @floatFromInt(length)));
 
-    for (re) |_, i| {
+    for (re, 0..) |_, i| {
         re_temp[i] = re[i] * rnp;
         im_temp[i] = im[i] * rnm;
     }
@@ -4122,23 +4122,23 @@ test "zmath.ifft" {
         var re: [128]F32x4 = undefined;
         var im = [_]F32x4{f32x4s(0.0)} ** 128;
 
-        for (re) |*v, i| {
-            const f = @intToFloat(f32, i * 4);
+        for (re, 0..) |*v, i| {
+            const f = @as(f32, @floatFromInt(i * 4));
             v.* = f32x4(f + 1.0, f + 2.0, f + 3.0, f + 4.0);
         }
 
         fftInitUnityTable(unity_table[0..512]);
         fft(re[0..], im[0..], unity_table[0..512]);
 
-        for (re) |v, i| {
-            const f = @intToFloat(f32, i * 4);
+        for (re, 0..) |v, i| {
+            const f = @as(f32, @floatFromInt(i * 4));
             try expect(!approxEqAbs(v, f32x4(f + 1.0, f + 2.0, f + 3.0, f + 4.0), epsilon));
         }
 
         ifft(re[0..], im[0..], unity_table[0..512]);
 
-        for (re) |v, i| {
-            const f = @intToFloat(f32, i * 4);
+        for (re, 0..) |v, i| {
+            const f = @as(f32, @floatFromInt(i * 4));
             try expect(approxEqAbs(v, f32x4(f + 1.0, f + 2.0, f + 3.0, f + 4.0), epsilon));
         }
     }
@@ -4158,13 +4158,13 @@ const u32x4_mask2: U32x4 = U32x4{ 0xffff_ffff, 0xffff_ffff, 0, 0 };
 const u32x4_sign_mask1: U32x4 = U32x4{ 0x8000_0000, 0, 0, 0 };
 
 inline fn splatNegativeZero(comptime T: type) T {
-    return @splat(veclen(T), @bitCast(f32, @as(u32, 0x8000_0000)));
+    return @splat(veclen(T), @as(f32, @bitCast(@as(u32, 0x8000_0000))));
 }
 inline fn splatNoFraction(comptime T: type) T {
     return @splat(veclen(T), @as(f32, 8_388_608.0));
 }
 inline fn splatAbsMask(comptime T: type) T {
-    return @splat(veclen(T), @bitCast(f32, @as(u32, 0x7fff_ffff)));
+    return @splat(veclen(T), @as(f32, @bitCast(@as(u32, 0x7fff_ffff))));
 }
 
 fn floatToIntAndBack(v: anytype) @TypeOf(v) {
@@ -4178,14 +4178,14 @@ fn floatToIntAndBack(v: anytype) @TypeOf(v) {
     comptime var i: u32 = 0;
     // vcvttps2dq
     inline while (i < len) : (i += 1) {
-        vi32[i] = @floatToInt(i32, v[i]);
+        vi32[i] = @as(i32, @intFromFloat(v[i]));
     }
 
     var vf32: [len]f32 = undefined;
     i = 0;
     // vcvtdq2ps
     inline while (i < len) : (i += 1) {
-        vf32[i] = @intToFloat(f32, vi32[i]);
+        vf32[i] = @as(f32, @floatFromInt(vi32[i]));
     }
 
     return vf32;

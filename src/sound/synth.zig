@@ -7,7 +7,7 @@ fn print_(text: [:0]const u8) void {
 
 export fn u8ArrayToF32Array(u8Array: [*]u8, u8ArrayLength: usize, f32Array: [*]f32, f32ArrayLength: usize) void {
     const size = @min(u8ArrayLength, f32ArrayLength);
-    for (u8Array[0..size]) |b, i| f32Array[i] = @intToFloat(f32, b) / 128.0 - 1;
+    for (u8Array[0..size], 0..) |b, i| f32Array[i] = @as(f32, @floatFromInt(b)) / 128.0 - 1;
 }
 
 /// generates 3 periods of each note starting near middle c (256hz, 0xf7)
@@ -54,16 +54,16 @@ export fn sfxBuffer(u8Array: [*]u8, u8ArrayLength: usize) void {
             while (period_idx < period_or_end and samples_idx < samples_per_note_slice) : (period_idx += 1) {
 
                 // sample value = previous amp + (delta(current, previous)*index / nb_samples)
-                const wave_as_u4 = @intToFloat(f32, previous_note_amplitude) + 
-                                   (@intToFloat(f32, (note_amplitude - previous_note_amplitude) * samples_idx) / 
-                                    @intToFloat(f32, samples_per_note_slice));
+                const wave_as_u4 = @as(f32, @floatFromInt(previous_note_amplitude)) + 
+                                   (@as(f32, @floatFromInt((note_amplitude - previous_note_amplitude) * samples_idx)) / 
+                                    @as(f32, @floatFromInt(samples_per_note_slice)));
 
-                u8Array[period_idx] = @floatToInt(u8, wave_as_u4 * u4Tou8WaveTransformConstant);
+                u8Array[period_idx] = @as(u8, @intFromFloat(wave_as_u4 * u4Tou8WaveTransformConstant));
                 samples_idx += 1;
             }
 
             // get next index of amplitude
-            note_period = (note_period + 1) % @intCast(u8, note.waveform.len);
+            note_period = (note_period + 1) % @as(u8, @intCast(note.waveform.len));
 
             // memorize last amplitude
             previous_note_amplitude = note_amplitude;

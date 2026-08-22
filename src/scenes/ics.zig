@@ -130,8 +130,8 @@ pub const Demo = struct {
 
         var f_sin: f32 = @sin(-self.sin_counter) * 32 * 3.2; 
         var f_cos: f32 = @cos(-self.sin_counter) * 32 * 3.2;
-        const delta_x = -32 + @mod(@floatToInt(i16, f_sin), 32);
-        const delta_y = -32 + @mod(@floatToInt(i16, f_cos), 32);
+        const delta_x = -32 + @mod(@as(i16, @intFromFloat(f_sin)), 32);
+        const delta_y = -32 + @mod(@as(i16, @intFromFloat(f_cos)), 32);
 
         self.grid.update(delta_x, delta_y, null, null);
 

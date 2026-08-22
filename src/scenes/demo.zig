@@ -55,7 +55,7 @@ const NB_FONTS = 11;
 // --------------------------------------------------------------------------
 
 fn handler(zigos: *ZigOS, line: u16) void {
-    zigos.setBackgroundColor(Color{ .r = @intCast(u8, line / 2), .g = @intCast(u8, line / 8), .b = 0, .a = 255 });
+    zigos.setBackgroundColor(Color{ .r = @as(u8, @intCast(line / 2)), .g = @as(u8, @intCast(line / 8)), .b = 0, .a = 255 });
 }
 
 // --------------------------------------------------------------------------

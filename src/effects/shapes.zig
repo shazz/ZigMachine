@@ -63,7 +63,7 @@ pub fn drawLine(target: RenderTarget, src: Coord, dest: Coord, color_entry: u8) 
     var coord1: Coord = undefined;
 
     if (dest.y < src.y) {
-        // coord0 = Coord{ .x=@min(dest.x, @intCast(i16, WIDTH)), .y=@min(dest.y, @intCast(i16, HEIGHT))};
+        // coord0 = Coord{ .x=@min(dest.x, @as(i16, @intCast(WIDTH))), .y=@min(dest.y, @as(i16, @intCast(HEIGHT)))};
         coord0 = Coord{ .x = dest.x, .y = dest.y };
         coord1 = Coord{ .x = src.x, .y = src.y };
     } else {
@@ -98,7 +98,7 @@ pub fn drawLine(target: RenderTarget, src: Coord, dest: Coord, color_entry: u8) 
             var x = coord0.x;
             var y = coord0.y;
 
-            target.setPixelValue(@intCast(u16, x), @intCast(u16, y), color_entry);
+            target.setPixelValue(@as(u16, @intCast(x)), @as(u16, @intCast(y)), color_entry);
 
             while (x < coord1.x) {
                 if (dp <= 0) {
@@ -109,7 +109,7 @@ pub fn drawLine(target: RenderTarget, src: Coord, dest: Coord, color_entry: u8) 
                     x += 1;
                     y += 1;
                 }
-                target.setPixelValue(@intCast(u16, x), @intCast(u16, y), color_entry);
+                target.setPixelValue(@as(u16, @intCast(x)), @as(u16, @intCast(y)), color_entry);
             }
         } else {
             // y1 >= y0 and x1 >= x0 and dx < dy
@@ -120,7 +120,7 @@ pub fn drawLine(target: RenderTarget, src: Coord, dest: Coord, color_entry: u8) 
             var x = coord0.x;
             var y = coord0.y;
 
-            target.setPixelValue(@intCast(u16, x), @intCast(u16, y), color_entry);
+            target.setPixelValue(@as(u16, @intCast(x)), @as(u16, @intCast(y)), color_entry);
 
             while (y < coord1.y) {
                 if (dp <= 0) {
@@ -131,7 +131,7 @@ pub fn drawLine(target: RenderTarget, src: Coord, dest: Coord, color_entry: u8) 
                     x += 1;
                     y += 1;
                 }
-                target.setPixelValue(@intCast(u16, x), @intCast(u16, y), color_entry);
+                target.setPixelValue(@as(u16, @intCast(x)), @as(u16, @intCast(y)), color_entry);
             }
         }
     } else {
@@ -148,7 +148,7 @@ pub fn drawLine(target: RenderTarget, src: Coord, dest: Coord, color_entry: u8) 
             var x = coord0.x;
             var y = coord0.y;
 
-            target.setPixelValue(@intCast(u16, x), @intCast(u16, y), color_entry);
+            target.setPixelValue(@as(u16, @intCast(x)), @as(u16, @intCast(y)), color_entry);
 
             while (x > coord1.x) {
                 if (dp <= 0) {
@@ -159,7 +159,7 @@ pub fn drawLine(target: RenderTarget, src: Coord, dest: Coord, color_entry: u8) 
                     x -= 1;
                     y += 1;
                 }
-                target.setPixelValue(@intCast(u16, x), @intCast(u16, y), color_entry);
+                target.setPixelValue(@as(u16, @intCast(x)), @as(u16, @intCast(y)), color_entry);
             }
         } else {
 
@@ -171,7 +171,7 @@ pub fn drawLine(target: RenderTarget, src: Coord, dest: Coord, color_entry: u8) 
             var x = coord0.x;
             var y = coord0.y;
 
-            target.setPixelValue(@intCast(u16, x), @intCast(u16, y), color_entry);
+            target.setPixelValue(@as(u16, @intCast(x)), @as(u16, @intCast(y)), color_entry);
 
             while (y < coord1.y) {
                 if (dp <= 0) {
@@ -182,7 +182,7 @@ pub fn drawLine(target: RenderTarget, src: Coord, dest: Coord, color_entry: u8) 
                     x -= 1;
                     y += 1;
                 }
-                target.setPixelValue(@intCast(u16, x), @intCast(u16, y), color_entry);
+                target.setPixelValue(@as(u16, @intCast(x)), @as(u16, @intCast(y)), color_entry);
             }
         }
     }
@@ -211,17 +211,17 @@ pub fn fillPolygon(fb: *LogicalFB, vertices: []const Coord, color_entry: u8) voi
             // free after https://stackoverflow.com/a/17490923
 
             var j = vertices.len - 1;
-            for (vertices) |p0, i| {
+            for (vertices, 0..) |p0, i| {
                 defer j = i;
                 const p1 = vertices[j];
 
-                if ((p0.y > p.y) != (p1.y > p.y) and @intToFloat(f32, p.x) < @intToFloat(f32, (p1.x - p0.x) * (p.y - p0.y)) / @intToFloat(f32, (p1.y - p0.y)) + @intToFloat(f32, p0.x)) {
+                if ((p0.y > p.y) != (p1.y > p.y) and @as(f32, @floatFromInt(p.x)) < @as(f32, @floatFromInt((p1.x - p0.x) * (p.y - p0.y))) / @as(f32, @floatFromInt((p1.y - p0.y))) + @as(f32, @floatFromInt(p0.x))) {
                     inside = !inside;
                 }
             }
             if (inside) {
                 if (x >= 0 and x < WIDTH and y >= 0 and y < HEIGHT) {
-                    fb.setPixelValue(@intCast(u16, x), @intCast(u16, y), color_entry);
+                    fb.setPixelValue(@as(u16, @intCast(x)), @as(u16, @intCast(y)), color_entry);
                 }
             }
         }
@@ -240,7 +240,7 @@ pub fn fillFlatTriangle(fb: *LogicalFB, v1: Coord, v2: Coord, v3: Coord, pal_ent
 
     // find edge with the greatest length in the y axis
     while (i < 3) : (i += 1) {
-        var length: usize = @intCast(usize, edges[i].y2 - edges[i].y1);
+        var length: usize = @as(usize, @intCast(edges[i].y2 - edges[i].y1));
         if (length > max_length) {
             max_length = length;
             long_edge = i;
@@ -260,20 +260,20 @@ fn drawSpansBetweenEdges(fb: *LogicalFB, e1: *const Edge, e2: *const Edge) void 
 
     // calculate difference between the y coordinates
     // of the first edge and return if 0
-    var e1ydiff: f32 = @intToFloat(f32, e1.y2) - @intToFloat(f32, e1.y1);
+    var e1ydiff: f32 = @as(f32, @floatFromInt(e1.y2)) - @as(f32, @floatFromInt(e1.y1));
     if (e1ydiff == 0.0)
         return;
 
     // calculate difference between the y coordinates
     // of the second edge and return if 0
-    var e2ydiff: f32 = @intToFloat(f32, e2.y2) - @intToFloat(f32, e2.y1);
+    var e2ydiff: f32 = @as(f32, @floatFromInt(e2.y2)) - @as(f32, @floatFromInt(e2.y1));
     if (e2ydiff == 0.0)
         return;
 
     // calculate differences between the x coordinates
     // and colors of the points of the edges
-    var e1xdiff = @intToFloat(f32, e1.x2)  - @intToFloat(f32, e1.x1);
-    var e2xdiff = @intToFloat(f32, e2.x2) - @intToFloat(f32, e2.x1);
+    var e1xdiff = @as(f32, @floatFromInt(e1.x2))  - @as(f32, @floatFromInt(e1.x1));
+    var e2xdiff = @as(f32, @floatFromInt(e2.x2)) - @as(f32, @floatFromInt(e2.x1));
 
     // color gradient
     // Color e1colordiff = (e1.Color2 - e1.Color1);
@@ -282,7 +282,7 @@ fn drawSpansBetweenEdges(fb: *LogicalFB, e1: *const Edge, e2: *const Edge) void 
     // calculate factors to use for interpolation
     // with the edges and the step values to increase
     // them by after drawing each span
-    var factor1 = (@intToFloat(f32, e2.y1) -  @intToFloat(f32, e1.y1)) / e1ydiff;
+    var factor1 = (@as(f32, @floatFromInt(e2.y1)) -  @as(f32, @floatFromInt(e1.y1))) / e1ydiff;
     var factorStep1: f32 = 1.0 / e1ydiff;
     var factor2: f32 = 0.0;
     var factorStep2: f32 = 1.0 / e2ydiff;
@@ -293,17 +293,17 @@ fn drawSpansBetweenEdges(fb: *LogicalFB, e1: *const Edge, e2: *const Edge) void 
 
         // create and draw span
 
-        const x1 = e1.x1 + @floatToInt(i16, e1xdiff * factor1);
-        const x2 = e2.x1 + @floatToInt(i16, e2xdiff * factor2);
+        const x1 = e1.x1 + @as(i16, @intFromFloat(e1xdiff * factor1));
+        const x2 = e2.x1 + @as(i16, @intFromFloat(e2xdiff * factor2));
         if (x1 > 400) {
             Console.log("e1.x1 {} e1xdiff {} * factor1 {} = {}", .{e1.x1, e1xdiff, factor1, e1xdiff * factor1});
             Console.log("x1 {}", .{x1});
             Console.log("x2 {}", .{x2});
-            Console.log("factor1 = {} - {} / {} = {}", .{@intToFloat(f32, e2.y1), @intToFloat(f32, e1.y1), e1ydiff, factor1});
+            Console.log("factor1 = {} - {} / {} = {}", .{@as(f32, @floatFromInt(e2.y1)), @as(f32, @floatFromInt(e1.y1)), e1ydiff, factor1});
         }
 
 
-        var span = Span.init(e1.x1 + @floatToInt(i16, e1xdiff * factor1), e1.c1, e2.x1 + @floatToInt(i16, e2xdiff * factor2), e2.c1);
+        var span = Span.init(e1.x1 + @as(i16, @intFromFloat(e1xdiff * factor1)), e1.c1, e2.x1 + @as(i16, @intFromFloat(e2xdiff * factor2)), e2.c1);
         // Span span(e1.Color1 + (e1colordiff * factor1),
         //           e1.X1 + (int)(e1xdiff * factor1),
         //           e2.Color1 + (e2colordiff * factor2),
@@ -333,13 +333,13 @@ fn drawSpan(fb: *LogicalFB, span: *const Span, y: i16) void {
     // float factorStep = 1.0f / (float)xdiff;
 
     // draw each pixel in the span
-    // Console.log("drawScanline: from {} ({}) to {} ({}) at {}", .{@intCast(u16, span.x1), span.x1, @intCast(u16, span.x2), span.x2, @intCast(u16, y)});
-    fb.drawScanline(@intCast(u16, span.x1), @intCast(u16, span.x2), @intCast(u16, y), span.c1);
+    // Console.log("drawScanline: from {} ({}) to {} ({}) at {}", .{@as(u16, @intCast(span.x1)), span.x1, @as(u16, @intCast(span.x2)), span.x2, @as(u16, @intCast(y))});
+    fb.drawScanline(@as(u16, @intCast(span.x1)), @as(u16, @intCast(span.x2)), @as(u16, @intCast(y)), span.c1);
 
     // var x = span.x1;
     // while(x < span.x2) : ( x += 1 ) {
     //     // Console.log("setPixelValue at ({}, {}) in color {}", .{x, y, span.c1});
-    //     fb.setPixelValue(@intCast(u16, x), @intCast(u16, y), span.c1);
+    //     fb.setPixelValue(@as(u16, @intCast(x)), @as(u16, @intCast(y)), span.c1);
 
     // 	// SetPixel(x, y, span.Color1 + (colordiff * factor));
     // 	// factor += factorStep;

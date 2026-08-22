@@ -11,19 +11,13 @@ pub fn panic(message: []const u8, _: ?*builtin.StackTrace, _: ?usize) noreturn {
 }
 
 pub const Console = struct {
-    pub const Logger = struct {
-        pub const Error = error{};
-        pub const Writer = std.io.Writer(void, Error, write);
+    // Zig 0.16 removed std.io.Writer (Writergate); format into a stack buffer
+    // and push it across the JS boundary. Oversized messages are truncated.
+    var buf: [2048]u8 = undefined;
 
-        fn write(_: void, bytes: []const u8) Error!usize {
-            jsConsoleLogWrite(bytes.ptr, bytes.len);
-            return bytes.len;
-        }
-    };
-
-    const logger = Logger.Writer{ .context = {} };
     pub fn log(comptime format: []const u8, args: anytype) void {
-        logger.print(format, args) catch return;
+        const msg = std.fmt.bufPrint(&buf, format, args) catch buf[0..];
+        jsConsoleLogWrite(msg.ptr, msg.len);
         jsConsoleLogFlush();
     }
 };

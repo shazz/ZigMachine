@@ -96,7 +96,7 @@ pub const Dots3D = struct {
 
     pub fn update(self: *Dots3D) void {
 
-        for(self.cube) |cube_point, idx| {
+        for(self.cube, 0..) |cube_point, idx| {
 
             const rot_scale = Mat4.fromScale(Vec3.new(self.zoom, self.zoom, self.zoom));
             const point_after_scale = rot_scale.vec4mulByMat4(cube_point);
@@ -112,8 +112,8 @@ pub const Dots3D = struct {
 
             const point_after_screen = self.screen.vec4mulByMat4(point_after_norm);
 
-            const coord_x: i16 = @floatToInt(i16, point_after_screen.x()); 
-            const coord_y: i16 = @floatToInt(i16, point_after_screen.y()); 
+            const coord_x: i16 = @as(i16, @intFromFloat(point_after_screen.x())); 
+            const coord_y: i16 = @as(i16, @intFromFloat(point_after_screen.y())); 
 
             self.projected_vertices[idx].x=coord_x;
             self.projected_vertices[idx].y=coord_y;
@@ -135,9 +135,9 @@ pub const Dots3D = struct {
     pub fn render(self: *Dots3D) void {
 
         for(self.faces) |face| {
-                const v1: Coord = self.projected_vertices[@floatToInt(usize, face.x())];
-                const v2: Coord = self.projected_vertices[@floatToInt(usize, face.y())];
-                const v3: Coord = self.projected_vertices[@floatToInt(usize, face.z())];
+                const v1: Coord = self.projected_vertices[@as(usize, @intFromFloat(face.x()))];
+                const v2: Coord = self.projected_vertices[@as(usize, @intFromFloat(face.y()))];
+                const v3: Coord = self.projected_vertices[@as(usize, @intFromFloat(face.z()))];
 
                 if(self.mode == 0) {
                     shapes.drawLine(self.fb, v1, v2, 12);   
@@ -146,12 +146,12 @@ pub const Dots3D = struct {
                 }
                 if(self.mode == 1) {
 
-                    shapes.fillFlatTriangle(self.fb, v1, v2, v3, @floatToInt(u8, face.w()));   
+                    shapes.fillFlatTriangle(self.fb, v1, v2, v3, @as(u8, @intFromFloat(face.w())));   
                 }
                 if(self.mode == 2) {
-                    self.fb.setPixelValue(@intCast(u16, v1.x), @intCast(u16, v1.y), 11);
-                    self.fb.setPixelValue(@intCast(u16, v2.x), @intCast(u16, v2.y), 11);
-                    self.fb.setPixelValue(@intCast(u16, v3.x), @intCast(u16, v3.y), 11);
+                    self.fb.setPixelValue(@as(u16, @intCast(v1.x)), @as(u16, @intCast(v1.y)), 11);
+                    self.fb.setPixelValue(@as(u16, @intCast(v2.x)), @as(u16, @intCast(v2.y)), 11);
+                    self.fb.setPixelValue(@as(u16, @intCast(v3.x)), @as(u16, @intCast(v3.y)), 11);
                 }
         }
     }

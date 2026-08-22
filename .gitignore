@@ -1,5 +1,9 @@
 zig-cache
+.zig-cache
 zig-out
 *.o
 *.git
 .DS_Store
+code-index.db
+.claude/
+docs/.claude/

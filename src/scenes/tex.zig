@@ -99,7 +99,7 @@ pub const Demo = struct {
 
         var i: usize = 0;
         while (i < NB_BOBS) : (i += 1) {
-            self.bobs_pos[i] = 0.3*(@intToFloat(f32, i+1));
+            self.bobs_pos[i] = 0.3*(@as(f32, @floatFromInt(i+1)));
         }
         self.bobs = Bobs(NB_BOBS).init(fb.getRenderTarget(), bobs_images, 16, 8);
 
@@ -131,15 +131,15 @@ pub const Demo = struct {
         self.logo_inc += 0.008;
 
         var x_pos: f32 = @sin(self.logo_sinx) * (50 * @sin(self.logo_inc));
-        self.logo.update(52 + @floatToInt(i16, x_pos), null, null, null);
+        self.logo.update(52 + @as(i16, @intFromFloat(x_pos)), null, null, null);
 
         var i: usize = 0;
         while (i < NB_BOBS) : (i += 1) {
 
             const x_idx: f32 = 152 + 153 * @sin(self.bobs_pos[i]);
             const y_idx: f32 = 43 + 42 * @cos(self.bobs_pos[i]*1.5);
-            const x: i16 = @floatToInt(i16, x_idx);
-            const y: i16 = @floatToInt(i16, y_idx);
+            const x: i16 = @as(i16, @intFromFloat(x_idx));
+            const y: i16 = @as(i16, @intFromFloat(y_idx));
             self.bobs_pos[i] += 0.04;            
 
             self.bobs.update(i, x, y);

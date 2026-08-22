@@ -38,7 +38,10 @@ const Direction = enum(u8) {
 // --------------------------------------------------------------------------
 // Audio
 // --------------------------------------------------------------------------
-const wave_b = @embedFile("assets/audio/therehegoes_i8_10026.smp");
+// TODO(audio): the whole audio pipeline is being rethought. The old approach
+// embedded a raw i8 sample ("assets/audio/therehegoes_i8_10026.smp") which is
+// lost. Until the new design lands, generateAudio() outputs silence so the
+// exported audio surface (buffers + getters) stays intact for the JS loaders.
 const gen_wave: bool = false;
 var wav_index: u32 = 0;
 
@@ -115,18 +118,18 @@ export fn getPhysicalFrameBufferHeight() usize {
 // The returned pointer will be used as an offset integer to the wasm memory
 // --------------------------------------------------------------------------
 export fn getPhysicalFrameBufferPointer() [*]u8 {
-    return @ptrCast([*]u8, &zigos.physical_framebuffer);
+    return @as([*]u8, @ptrCast(&zigos.physical_framebuffer));
 }
 
 // --------------------------------------------------------------------------
 // The returned pointer will be used as an offset integer to the wasm memory
 // --------------------------------------------------------------------------
 export fn getLeftSoundBufferPointer() [*]f32 {
-    return @ptrCast([*]f32, &sound_left_buffer);
+    return @as([*]f32, @ptrCast(&sound_left_buffer));
 }
 
 export fn getRightSoundBufferPointer() [*]f32 {
-    return @ptrCast([*]f32, &sound_right_buffer);
+    return @as([*]f32, @ptrCast(&sound_right_buffer));
 }
 
 // --------------------------------------------------------------------------
@@ -156,18 +159,18 @@ export fn renderPhysicalFrameBuffer(fb_id: u8) void {
             var horizontal_border_opened: bool = false;
 
             // can call a VBL handler here
-            for (zigos.physical_framebuffer) |*row, y| {
+            for (&zigos.physical_framebuffer, 0..) |*row, y| {
 
                 switch (y) {
                     0...(VERTICAL_BORDERS_HEIGHT - 1) => {
                         // that's the trick, if the hbl handler changed the resolution to tc, the top border is now open
 
-                        for (row) |*pixel, x| {
+                        for (row, 0..) |*pixel, x| {
                                 // within left border
 
                             // Check if a handler is defined for this logical FB
                             if (s_fb.fb_hbl_handler) |handler| {
-                                if(x == s_fb.fb_hbl_handler_position) handler(s_fb, &zigos, @intCast(u16, y), @intCast(u16, x));
+                                if(x == s_fb.fb_hbl_handler_position) handler(s_fb, &zigos, @as(u16, @intCast(y)), @as(u16, @intCast(x)));
                             }
 
                             // open top border
@@ -246,11 +249,11 @@ export fn renderPhysicalFrameBuffer(fb_id: u8) void {
                             vertical_border_opened = false;
                             fb_index = 0;
                         }
-                        for (row) |*pixel, x| {
+                        for (row, 0..) |*pixel, x| {
 
                             // Check if a handler is defined for this logical FB
                             if (s_fb.fb_hbl_handler) |handler| {
-                                if(x == s_fb.fb_hbl_handler_position) handler(s_fb, &zigos, @intCast(u16, y), @intCast(u16, x));
+                                if(x == s_fb.fb_hbl_handler_position) handler(s_fb, &zigos, @as(u16, @intCast(y)), @as(u16, @intCast(x)));
                             }
                           
                             // open left and right border
@@ -312,11 +315,11 @@ export fn renderPhysicalFrameBuffer(fb_id: u8) void {
                     (PHYSICAL_HEIGHT - VERTICAL_BORDERS_HEIGHT)...(PHYSICAL_HEIGHT - 1) => {
 
                          // Console.log("Bottom border opened at index {} and row {} vs {}", .{fb_index, y, palfb.len} );
-                        for (row) |*pixel, x| {
+                        for (row, 0..) |*pixel, x| {
 
                             // Check if a handler is defined for this logical FB
                             if (s_fb.fb_hbl_handler) |handler| {
-                                if(x == s_fb.fb_hbl_handler_position) handler(s_fb, &zigos, @intCast(u16, y), @intCast(u16, x));
+                                if(x == s_fb.fb_hbl_handler_position) handler(s_fb, &zigos, @as(u16, @intCast(y)), @as(u16, @intCast(x)));
                             }
 
                             // open low border
@@ -410,9 +413,9 @@ export fn renderPhysicalFrameBuffer(fb_id: u8) void {
 export fn clearPhysicalFrameBuffer() void {
 
     // can call a VBL handler here
-    for (zigos.physical_framebuffer) |*row, y| {
+    for (&zigos.physical_framebuffer, 0..) |*row, y| {
         if (zigos.hbl_handler) |handler| {
-            handler(&zigos, @intCast(u16, y));
+            handler(&zigos, @as(u16, @intCast(y)));
         }
 
         // Clear fb with background color
@@ -442,28 +445,9 @@ export fn input(dir: Direction) void {
 // --------------------------------------------------------------------------
 export fn generateAudio() void {
 
-    const resample_multiplier: u32 = @enumToInt(SamplingFrequency.f_44K) / @enumToInt(sampling_freq);
-
-    var array_idx: usize = 0;
-    var resample_index: usize = 0;
-    while (array_idx < AUDIO_BUFFER_SIZE) {
-        
-        var val: u8 = 0;
-        if(resample_index + wav_index < wave_b.len) {
-            val = wave_b[resample_index + wav_index] + 127;
-        }
-
-        var i: u32 = 0;
-        while(i < resample_multiplier) {
-            sound_left_buffer[array_idx + i] = @intToFloat(f32, val) / 128.0 - 1;
-
-            i += 1;
-        }
-        array_idx += resample_multiplier;
-        resample_index += 1;
-    }
-    
-    wav_index += AUDIO_BUFFER_SIZE/4;
-    if(wav_index > wave_b.len)
-        wav_index = 0;
+    // Audio pipeline is being redesigned: emit silence for now.
+    _ = &wav_index;
+    _ = sampling_freq;
+    sound_left_buffer = std.mem.zeroes([AUDIO_BUFFER_SIZE]f32);
+    sound_right_buffer = std.mem.zeroes([AUDIO_BUFFER_SIZE]f32);
 }

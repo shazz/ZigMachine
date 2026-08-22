@@ -87,9 +87,9 @@ pub const Demo = struct {
         self.lutLen = self.lutSin.len;
         var i: u16 = 0;
         while (i < self.lutLen) : (i += 1) {
-            const a: f32 = (@intToFloat(f32, i) * 2.0 * math.pi) * (1.0 / @intToFloat(f32, self.lutLen));
-            self.lutSin[i] = @floatToInt(i16, 32767 * math.sin(a));
-            self.lutCos[i] = @floatToInt(i16, 32767 * math.cos(a));
+            const a: f32 = (@as(f32, @floatFromInt(i)) * 2.0 * math.pi) * (1.0 / @as(f32, @floatFromInt(self.lutLen)));
+            self.lutSin[i] = @as(i16, @intFromFloat(32767 * math.sin(a)));
+            self.lutCos[i] = @as(i16, @intFromFloat(32767 * math.cos(a)));
         }
 
         // third plane
@@ -108,11 +108,11 @@ pub const Demo = struct {
         var pyb2 = self.pya2;
         var i: usize = 0;
         while (i < NB_BOBS) : (i += 1) {
-            const x_idx: i32 = (160 - 8) + ((76 * @intCast(i32, self.lutCos[@mod(pxb1, self.lutLen)]) + 76 * @intCast(i32, self.lutSin[@mod(pxb2, self.lutLen)])) >> 15);
-            const y_idx: i32 = (100 - 8) + ((44 * @intCast(i32, self.lutCos[@mod(pyb1, self.lutLen)]) + 44 * @intCast(i32, self.lutSin[@mod(pyb2, self.lutLen)])) >> 15);
+            const x_idx: i32 = (160 - 8) + ((76 * @as(i32, @intCast(self.lutCos[@mod(pxb1, self.lutLen)])) + 76 * @as(i32, @intCast(self.lutSin[@mod(pxb2, self.lutLen)]))) >> 15);
+            const y_idx: i32 = (100 - 8) + ((44 * @as(i32, @intCast(self.lutCos[@mod(pyb1, self.lutLen)])) + 44 * @as(i32, @intCast(self.lutSin[@mod(pyb2, self.lutLen)]))) >> 15);
 
-            const x: i16 = @intCast(i16, x_idx);
-            const y: i16 = @intCast(i16, y_idx);
+            const x: i16 = @as(i16, @intCast(x_idx));
+            const y: i16 = @as(i16, @intCast(y_idx));
 
             // Console.log("x({}) = {} y({}) = {}", .{ idx, x, idx, y});
 

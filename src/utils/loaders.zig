@@ -7,13 +7,13 @@ const Color = @import("../zigos.zig").Color;
 // --------------------------------------------------------------------------
 // Loader for data u16 data files
 // better than hardcore casting:         
-// var table: *const [WIDTH]u16 = @ptrCast(*const [WIDTH]u16, @alignCast(2, offset_table_b));
+// var table: *const [WIDTH]u16 = @as(*const [WIDTH]u16, @ptrCast(@alignCast(2, offset_table_b)));
 // --------------------------------------------------------------------------
 pub fn readU16Array(comptime raw: []const u8) [@divExact(raw.len, 2):0]u16 {
     comptime {
         const len = @divExact(raw.len, 2);
-        var table: [len:0]u16 = undefined;
-        for (table) |*out, i| {
+        const table: [len:0]u16 = undefined;
+        for (table, 0..) |*out, i| {
             out.* = std.mem.readIntLittle(u16, raw[i * 2 ..][0..2]);
         }
         return table;
@@ -27,8 +27,8 @@ pub fn readI16Array(comptime raw: []const u8) [@divExact(raw.len, 2):0]i16 {
     comptime {
         @setEvalBranchQuota(6000);
         const len = @divExact(raw.len, 2);
-        var table: [len:0]i16 = undefined;
-        for (table) |*out, i| {
+        const table: [len:0]i16 = undefined;
+        for (table, 0..) |*out, i| {
             out.* = std.mem.readIntLittle(i16, raw[i * 2 ..][0..2]);
         }
         return table;
@@ -45,7 +45,7 @@ pub fn convertU8ArraytoColors(comptime contents: []const u8) [256]Color {
         @setEvalBranchQuota(contents.len);
         const arrays: *const [256][4]u8 = std.mem.bytesAsValue([256][4]u8, contents[0..]);
         var colors: [256]Color = undefined;
-        for (arrays) |arr, i| colors[i] = .{
+        for (arrays, 0..) |arr, i| colors[i] = .{
             .r = arr[0],
             .g = arr[1],
             .b = arr[2],

@@ -5,51 +5,56 @@ const min_pages = 32;
 const max_pages = 32;
 const stack_size = 6 * page_size;
 
-pub fn build(b: *std.build.Builder) void {
-
-    // Adds the option -Drelease=[bool] to create a release build, which we set to be ReleaseSmall by default.
-    b.setPreferredReleaseMode(.ReleaseSmall);
-
+pub fn build(b: *std.Build) void {
     const build_native = b.option(bool, "native", "Build the native executable.") orelse false;
     const build_wasm = b.option(bool, "wasm", "Build the wasm library.") orelse false;
+    // Kept for compatibility with the old `-Drelease=true` invocation.
+    const release = b.option(bool, "release", "Build in ReleaseSmall mode.") orelse false;
+    const optimize: std.builtin.OptimizeMode = if (release) .ReleaseSmall else b.standardOptimizeOption(.{});
 
     if (build_wasm) {
-
-        // Standard release options allow the person running `zig build` to select
-        // between Debug, ReleaseSafe, ReleaseFast, and ReleaseSmall.
-        const mode = b.standardReleaseOptions();
-
-        const bootloader_step = b.step("bootloader", "Compiles bootloader.zig");
-        const bootloader_lib = b.addSharedLibrary("bootloader", "src/bootloader.zig", .unversioned);
-
-        bootloader_lib.setBuildMode(mode);
-        bootloader_lib.setTarget(.{
+        const wasm_target = b.resolveTargetQuery(.{
             .cpu_arch = .wasm32,
             .os_tag = .freestanding,
             .abi = .musl,
         });
 
-        // https://github.com/ziglang/zig/issues/8633
-        bootloader_lib.stack_size = stack_size;
-        bootloader_lib.import_memory = true; // import linear memory from the environment
-        bootloader_lib.initial_memory = min_pages * page_size; // initial size of the linear memory (1 page = 64kB)
-        bootloader_lib.max_memory = max_pages * page_size; // maximum size of the linear memory
-        bootloader_lib.global_base = 6560; // offset in linear memory to place global data
+        const bootloader = b.addExecutable(.{
+            .name = "bootloader",
+            .root_module = b.createModule(.{
+                .root_source_file = b.path("src/bootloader.zig"),
+                .target = wasm_target,
+                .optimize = optimize,
+            }),
+        });
 
-        bootloader_lib.setOutputDir("docs");
-        bootloader_lib.install();
-        bootloader_step.dependOn(&bootloader_lib.step);
+        // Freestanding wasm "reactor": no _start entry, export decls, import env memory.
+        bootloader.entry = .disabled;
+        bootloader.rdynamic = true;
+        bootloader.import_memory = true;
+        bootloader.stack_size = stack_size;
+        bootloader.initial_memory = min_pages * page_size;
+        bootloader.max_memory = max_pages * page_size;
+
+        const install = b.addInstallArtifact(bootloader, .{
+            .dest_dir = .{ .override = .{ .custom = "../docs" } },
+        });
+        b.getInstallStep().dependOn(&install.step);
+
+        const bootloader_step = b.step("bootloader", "Compiles bootloader.zig");
+        bootloader_step.dependOn(&install.step);
     }
 
     if (build_native) {
-        const exe = b.addExecutable("bootloader", "src/native.zig");
         const target = b.standardTargetOptions(.{});
-        const mode = b.standardReleaseOptions();
-        const exe_step = b.step("bootloader", "Compiles bootloader.zig");
-
-        exe.setTarget(target);
-        exe.setBuildMode(mode);
-        exe.install();
-        exe_step.dependOn(&exe.step);
+        const exe = b.addExecutable(.{
+            .name = "bootloader",
+            .root_module = b.createModule(.{
+                .root_source_file = b.path("src/native.zig"),
+                .target = target,
+                .optimize = optimize,
+            }),
+        });
+        b.installArtifact(exe);
     }
 }

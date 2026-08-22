@@ -124,10 +124,10 @@ pub const Sprite = struct {
             left_clamp = true;
             left_x_position = 0;
 
-            left_x_clamped = @intCast(u16, -self.x_position);
+            left_x_clamped = @as(u16, @intCast(-self.x_position));
             nb_cols = self.width - left_x_clamped;
         } else {
-            left_x_position = @intCast(u16, self.x_position);
+            left_x_position = @as(u16, @intCast(self.x_position));
         }
 
         // right clamp
@@ -140,19 +140,19 @@ pub const Sprite = struct {
         // top and bottom clamp
         var clamped_y_top_position: u16 = 0;
         if (self.y_position < 0) {
-            clamped_y_top_position =  @intCast(u16, -self.y_position);
+            clamped_y_top_position =  @as(u16, @intCast(-self.y_position));
             // Console.log("top clamping for y={} => {}", .{self.y_position, clamped_y_top_position});  
         } 
 
         var clamped_y_bottom_position: u16 = 0;
         if (self.y_position + self.height > screen_height) {
-            clamped_y_bottom_position =  @intCast(u16, self.height + self.y_position - screen_height);
+            clamped_y_bottom_position =  @as(u16, @intCast(self.height + self.y_position - screen_height));
             // Console.log("bottom clamping for y={} h={} => {}", .{self.y_position, self.height, clamped_y_bottom_position});  
         } 
 
         // offset in Framebuffer
-        var offset: u16 = left_x_position + ( (@intCast(u16, self.y_position) + clamped_y_top_position) * screen_width );
-        // Console.log("offset in FB left: {} y: {} clamp y: {} => {}", .{left_x_position, @intCast(u16, self.y_position), clamped_y_top_position, offset});  
+        var offset: u16 = left_x_position + ( (@as(u16, @intCast(self.y_position)) + clamped_y_top_position) * screen_width );
+        // Console.log("offset in FB left: {} y: {} clamp y: {} => {}", .{left_x_position, @as(u16, @intCast(self.y_position)), clamped_y_top_position, offset});  
 
         // counter for each sprite row
         var row_counter: u16 = 0;
@@ -176,13 +176,13 @@ pub const Sprite = struct {
                     if (self.y_offset_table) |y_table| {
      
                         var counter: u16 = col_counter + left_x_position + self.y_offset_index;
-                        if(counter >= y_table.len) counter -= @intCast(u16, y_table.len);
+                        if(counter >= y_table.len) counter -= @as(u16, @intCast(y_table.len));
 
-                        var off = y_table[counter];
+                        const off = y_table[counter];
                         if (off < 0) {
-                            new_offset -= (@intCast(u16, -off) * screen_width);
+                            new_offset -= (@as(u16, @intCast(-off)) * screen_width);
                         } else {
-                            new_offset += (@intCast(u16, off) * screen_width);
+                            new_offset += (@as(u16, @intCast(off)) * screen_width);
                         }
                     }
 
@@ -217,11 +217,11 @@ pub const Sprite = struct {
 
                 // recompute FB offset
                 if(self.x_offset_table) |table| {
-                    var delta: i16 = table[(self.x_offset_index + row_counter) % table.len];
+                    const delta: i16 = table[(self.x_offset_index + row_counter) % table.len];
                     if(delta < 0) {
-                        offset = offset - @intCast(u16, -delta) + screen_width;
+                        offset = offset - @as(u16, @intCast(-delta)) + screen_width;
                     } else {
-                        offset = offset + @intCast(u16, delta) + screen_width;
+                        offset = offset + @as(u16, @intCast(delta)) + screen_width;
                     }                    
                 } else {
                     offset += screen_width;

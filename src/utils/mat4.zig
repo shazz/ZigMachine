@@ -75,8 +75,8 @@ pub fn Mat4x4(comptime T: type) type {
         /// Negate the given matrix.
         pub fn negate(self: Self) Self {
             var result = self;
-            for (result.data) |_, column| {
-                for (result.data[column]) |_, row| {
+            for (result.data, 0..) |_, column| {
+                for (result.data[column], 0..) |_, row| {
                     result.data[column][row] = -result.data[column][row];
                 }
             }
@@ -86,7 +86,7 @@ pub fn Mat4x4(comptime T: type) type {
         /// Transpose the given matrix.
         pub fn transpose(self: Self) Self {
             var result = self;
-            for (result.data) |_, column| {
+            for (result.data, 0..) |_, column| {
                 var row: usize = column;
                 while (row < 4) : (row += 1) {
                     std.mem.swap(T, &result.data[column][row], &result.data[row][column]);
@@ -97,7 +97,7 @@ pub fn Mat4x4(comptime T: type) type {
 
         /// Return a pointer to the inner data of the matrix.
         pub fn getData(self: *const Self) *const T {
-            return @ptrCast(*const T, &self.data);
+            return @as(*const T, @ptrCast(&self.data));
         }
 
         /// Return true if two matrices are equals.
@@ -379,11 +379,11 @@ pub fn Mat4x4(comptime T: type) type {
         /// Produce a new matrix from given two matrices.
         pub fn mul(left: Self, right: Self) Self {
             var result = Self.identity();
-            for (result.data) |_, column| {
-                for (result.data[column]) |_, row| {
+            for (result.data, 0..) |_, column| {
+                for (result.data[column], 0..) |_, row| {
                     var sum: T = 0;
 
-                    for (left.data) |_, left_column| {
+                    for (left.data, 0..) |_, left_column| {
                         sum += left.data[left_column][row] * right.data[column][left_column];
                     }
 
@@ -532,8 +532,8 @@ pub fn Mat4x4(comptime T: type) type {
             }
 
             var result: Mat4x4(dest_type) = undefined;
-            for (result.data) |_, column| {
-                for (result.data[column]) |_, row| {
+            for (result.data, 0..) |_, column| {
+                for (result.data[column], 0..) |_, row| {
                     result.data[column][row] = @floatCast(dest_type, self.data[column][row]);
                 }
             }

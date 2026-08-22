@@ -220,7 +220,7 @@ pub const Demo = struct {
         self.logo_sinx += 0.05;
 
         const x_pos: f32 = @sin(self.logo_sinx) * 116;
-        self.logo.update(160 - 45 + @floatToInt(i16, x_pos), HEIGHT-16, null, null);
+        self.logo.update(160 - 45 + @as(i16, @intFromFloat(x_pos)), HEIGHT-16, null, null);
 
         if(self.time_counter > 7*16*50) {
             self.scroll_sinx += 0.1;
@@ -272,8 +272,8 @@ pub const Demo = struct {
 
                 // no sin at the beginning just decrement
                 if(self.time_counter > 7*16*50) {
-                    const f_sin: f32 = self.scroll_sinx_incr + (@sin(self.scroll_sinx + (@intToFloat(f32, i)/5.0)) * self.scroll_sinx_incr);
-                    const offset_x: u16 = @floatToInt(u16, f_sin);
+                    const f_sin: f32 = self.scroll_sinx_incr + (@sin(self.scroll_sinx + (@as(f32, @floatFromInt(i))/5.0)) * self.scroll_sinx_incr);
+                    const offset_x: u16 = @as(u16, @intFromFloat(f_sin));
 
                     while(x < WIDTH) : (x += 1) {
                         fb.fb[x + y*WIDTH + (i*8*WIDTH)] = self.scroller_target.render_buffer.buffer[offset_x + x + y*WIDTH*2];
@@ -302,7 +302,7 @@ pub const Demo = struct {
 
  fn transform_object(self: *Demo, angle_x: f32, angle_y: f32, angle_z: f32, vertices: []Vec4, projected_vertices: []Coord) void {
 
-        for(vertices) |vertex, idx| {
+        for(vertices, 0..) |vertex, idx| {
 
             const rot_matx = Mat4.fromEulerAngles(Vec3.new(angle_x, 0, 0));
             const vertex_after_rotx = rot_matx.vec4mulByMat4(vertex);
@@ -321,8 +321,8 @@ pub const Demo = struct {
 
             const vertex_after_screen = self.screen.vec4mulByMat4(vertex_after_norm);
 
-            const coord_x: i16 = @floatToInt(i16, vertex_after_screen.x()); 
-            const coord_y: i16 = @floatToInt(i16, vertex_after_screen.y()); 
+            const coord_x: i16 = @as(i16, @intFromFloat(vertex_after_screen.x())); 
+            const coord_y: i16 = @as(i16, @intFromFloat(vertex_after_screen.y())); 
 
             projected_vertices[idx].x=coord_x;
             projected_vertices[idx].y=coord_y;
@@ -332,10 +332,10 @@ pub const Demo = struct {
     fn render_object(self: *Demo, render_target: RenderTarget, segments: []const Vec4, projected_vertices: []Coord, pal_entry: u8) void {
 
         for(segments) |segment| {
-            const v1: Coord = projected_vertices[@floatToInt(usize, segment.x())];
-            const v2: Coord = projected_vertices[@floatToInt(usize, segment.y())];
-            const v3: Coord = projected_vertices[@floatToInt(usize, segment.z())];
-            const v4: Coord = projected_vertices[@floatToInt(usize, segment.w())];
+            const v1: Coord = projected_vertices[@as(usize, @intFromFloat(segment.x()))];
+            const v2: Coord = projected_vertices[@as(usize, @intFromFloat(segment.y()))];
+            const v3: Coord = projected_vertices[@as(usize, @intFromFloat(segment.z()))];
+            const v4: Coord = projected_vertices[@as(usize, @intFromFloat(segment.w()))];
 
             shapes.drawLine(render_target, v1, v2, pal_entry);   
             shapes.drawLine(render_target, v2, v3, pal_entry);   

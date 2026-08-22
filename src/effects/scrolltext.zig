@@ -86,9 +86,9 @@ pub fn Scrolltext(
 
             // create as many Sprites as letters shown on screen
             const current_text: *const [nb_fonts]u8 = scroller.text[0..nb_fonts];
-            for (current_text) |char, idx| {
+            for (current_text, 0..) |char, idx| {
                 const letter: u8 = char - scroller.font_chars[0];
-                const pos_x: u16 = @intCast(u16, idx) * scroller.font_width;
+                const pos_x: u16 = @as(u16, @intCast(idx)) * scroller.font_width;
 
                 Console.log("Creating FontLetter {c} {} for ASCII {} => index {} at ({}, {}). Starting value: {}", .{ char, idx, char, letter, pos_x, pos_y, scroller.font_chars[0] });
 
@@ -104,8 +104,8 @@ pub fn Scrolltext(
                     char_pos_y = scroller.pos_y + pos_y;
                 }
 
-                const offset_start: u32 = @intCast(u32, letter) * (@intCast(u32, scroller.font_width) * @intCast(u32, scroller.font_height));
-                const offset_end: u32 = @intCast(u32, letter + 1) * (@intCast(u32, scroller.font_width) * @intCast(u32, scroller.font_height));
+                const offset_start: u32 = @as(u32, @intCast(letter)) * (@as(u32, @intCast(scroller.font_width)) * @as(u32, @intCast(scroller.font_height)));
+                const offset_end: u32 = @as(u32, @intCast(letter + 1)) * (@as(u32, @intCast(scroller.font_width)) * @as(u32, @intCast(scroller.font_height)));
                 // Console.log("Position for letter {c} in fonts is : {}-{}", .{char, offset_start, offset_end});
 
                 scroller.fonts[idx].sprite.init(scroller.target, 
@@ -133,10 +133,10 @@ pub fn Scrolltext(
                     if(self.y_offset_table_index > self.speed*2) {
                         self.y_offset_table_index -= self.speed*2;
                     } else {
-                        self.y_offset_table_index = @intCast(u16, table.len);
+                        self.y_offset_table_index = @as(u16, @intCast(table.len));
                     }
                 } else {
-                    if(self.y_offset_table_index < @intCast(u16, table.len)) {
+                    if(self.y_offset_table_index < @as(u16, @intCast(table.len))) {
                         self.y_offset_table_index += self.speed*2;
                     } else {
                         self.y_offset_table_index = 0;
@@ -145,9 +145,9 @@ pub fn Scrolltext(
 
             }
 
-            for (self.fonts) |*font, idx| {
-                var is_out: i32 = @intCast(i32, font.pos_x) - @intCast(i32, self.speed);
-                if (is_out < -@intCast(i8, self.font_width)) {
+            for (&self.fonts, 0..) |*font, idx| {
+                const is_out: i32 = @as(i32, @intCast(font.pos_x)) - @as(i32, @intCast(self.speed));
+                if (is_out < -@as(i8, @intCast(self.font_width))) {
                     
                     // set new sprite at the right of the previous one
                     if(idx > 0) {
@@ -161,8 +161,8 @@ pub fn Scrolltext(
 
                     const next_letter = self.text[self.text_pos] - self.font_chars[0];
 
-                    const offset_start: u32 = @intCast(u32, next_letter) * (@intCast(u32, self.font_width) * @intCast(u32, self.font_height));
-                    const offset_end: u32 = @intCast(u32, next_letter + 1) * (@intCast(u32, self.font_width) * @intCast(u32, self.font_height));
+                    const offset_start: u32 = @as(u32, @intCast(next_letter)) * (@as(u32, @intCast(self.font_width)) * @as(u32, @intCast(self.font_height)));
+                    const offset_end: u32 = @as(u32, @intCast(next_letter + 1)) * (@as(u32, @intCast(self.font_width)) * @as(u32, @intCast(self.font_height)));
 
                     // font.*.sprite.data = self.font_img[next_letter * (self.font_width * self.font_height) .. (next_letter + 1)];
                     font.*.sprite.data = self.font_img[offset_start .. offset_end];
@@ -175,10 +175,10 @@ pub fn Scrolltext(
                 // apply y offset if set
                 if (self.offset_table) |table| {
                     if (font.pos_x < 0) {
-                        const pos: u16 = @intCast(u16, WIDTH + font.pos_x);
-                        font.*.pos_y = self.pos_y + table[@intCast(u16, pos)];
+                        const pos: u16 = @as(u16, @intCast(WIDTH + font.pos_x));
+                        font.*.pos_y = self.pos_y + table[@as(u16, @intCast(pos))];
                     } else {
-                        font.*.pos_y = self.pos_y + table[@intCast(u16, font.pos_x)];
+                        font.*.pos_y = self.pos_y + table[@as(u16, @intCast(font.pos_x))];
                     }
                 }
 
@@ -187,7 +187,7 @@ pub fn Scrolltext(
         }
 
         pub fn render(self: *Self) void {
-            for (self.fonts) |*font| {
+            for (&self.fonts) |*font| {
                 font.sprite.render(null);
             }
         }

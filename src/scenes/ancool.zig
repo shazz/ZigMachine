@@ -195,7 +195,7 @@ pub const Demo = struct {
         // var i: u16 = 0;
         // var y_offset_table_b: [WIDTH*2]i16 = undefined;
         // while (i < WIDTH*2) : (i += 1) {
-        //     y_offset_table_b[i] = -@intCast(i16, i / 6);
+        //     y_offset_table_b[i] = -@as(i16, @intCast(i / 6));
         // }
 
         self.scrolltext = Scrolltext(NB_FONTS).init(fb.getRenderTarget(), fonts_b, SCROLL_CHARS, SCROLL_CHAR_WIDTH, SCROLL_CHAR_HEIGHT, SCROLL_TEXT, SCROLL_SPEED, 100, null, &g_y_offset_table_b, true);
@@ -208,7 +208,7 @@ pub const Demo = struct {
         self.starfield_3D.update();
         self.scrolltext.update();
 
-        for(vertices) |vertex, idx| {
+        for(vertices, 0..) |vertex, idx| {
 
             const rot_scale = Mat4.fromScale(Vec3.new(self.zoom, self.zoom, self.zoom));
             const vertex_after_scale = rot_scale.vec4mulByMat4(vertex);
@@ -224,8 +224,8 @@ pub const Demo = struct {
 
             const vertex_after_screen = self.screen.vec4mulByMat4(vertex_after_norm);
 
-            const coord_x: i16 = @floatToInt(i16, vertex_after_screen.x()); 
-            const coord_y: i16 = @floatToInt(i16, vertex_after_screen.y()); 
+            const coord_x: i16 = @as(i16, @intFromFloat(vertex_after_screen.x())); 
+            const coord_y: i16 = @as(i16, @intFromFloat(vertex_after_screen.y())); 
 
             self.projected_vertices[idx].x=coord_x;
             self.projected_vertices[idx].y=coord_y;
@@ -253,8 +253,8 @@ pub const Demo = struct {
         const fb = &zigos.lfbs[1];
         fb.clearFrameBuffer(0);
         for(segments) |segment| {
-            const v1: Coord = self.projected_vertices[@floatToInt(usize, segment.x())];
-            const v2: Coord = self.projected_vertices[@floatToInt(usize, segment.y())];
+            const v1: Coord = self.projected_vertices[@as(usize, @intFromFloat(segment.x()))];
+            const v2: Coord = self.projected_vertices[@as(usize, @intFromFloat(segment.y()))];
 
             shapes.drawLine(fb.getRenderTarget(), v1, v2, 1);   
         }

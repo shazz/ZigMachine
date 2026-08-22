@@ -184,8 +184,8 @@ pub const Demo = struct {
         self.scrolltext.update();
         self.logo.update(null, null, null, null);
 
-        const f_sin: f32 = @fabs(@sin(self.scroller_y)) * 88.0; 
-        start_raster_line = @floatToInt(u16, 88.0 - f_sin);
+        const f_sin: f32 = @abs(@sin(self.scroller_y)) * 88.0; 
+        start_raster_line = @as(u16, @intFromFloat(88.0 - f_sin));
         // start_raster_line = 38;
 
         self.scroller_y += 0.04;
@@ -195,11 +195,11 @@ pub const Demo = struct {
         if(start_raster_line >= 86 and self.bounce == 0) self.bounce = 1;
 
         if(self.bounce > 0) {
-            const fac: f32 = @intToFloat(f32, self.bounce);
+            const fac: f32 = @as(f32, @floatFromInt(self.bounce));
             const f_attsin: f32 = 5 * (@sin(fac)/self.bounce_att);
             self.bounce += 1;
             self.bounce_att += 0.2;
-            offset_y = @floatToInt(i32, f_attsin);
+            offset_y = @as(i32, @intFromFloat(f_attsin));
 
             if(self.bounce_att > 10) {
                 self.bounce = 0;
@@ -255,18 +255,18 @@ pub const Demo = struct {
 
     fn render_text(self: *Demo, y_offset: u16) void {
 
-        self.text.render("********************",0, y_offset +  0 * 14);
-        self.text.render("*                  *",0, y_offset +  1 * 14);
-        self.text.render("*    CODE, FONT    *",0, y_offset +  2 * 14);
-        self.text.render("*   AND MUSIC BY   *",0, y_offset +  3 * 14);
-        self.text.render("*   ------------   *",0, y_offset +  4 * 14);
-        self.text.render("* !CUBE/AGGRESSION *",0, y_offset +  5 * 14);
-        self.text.render("*                  *",0, y_offset +  6 * 14);
-        self.text.render("*     LOGO BY      *",0, y_offset +  7 * 14);
-        self.text.render("*     -------      *",0, y_offset +  8 * 14);
-        self.text.render("*   RANDOM/DHFC    *",0, y_offset +  9 * 14);
-        self.text.render("*                  *",0, y_offset + 10 * 14);
-        self.text.render("********************",0, y_offset + 11 * 14);
+        self.text.render("********************",0, y_offset +  0 * 14, null);
+        self.text.render("*                  *",0, y_offset +  1 * 14, null);
+        self.text.render("*    CODE, FONT    *",0, y_offset +  2 * 14, null);
+        self.text.render("*   AND MUSIC BY   *",0, y_offset +  3 * 14, null);
+        self.text.render("*   ------------   *",0, y_offset +  4 * 14, null);
+        self.text.render("* !CUBE/AGGRESSION *",0, y_offset +  5 * 14, null);
+        self.text.render("*                  *",0, y_offset +  6 * 14, null);
+        self.text.render("*     LOGO BY      *",0, y_offset +  7 * 14, null);
+        self.text.render("*     -------      *",0, y_offset +  8 * 14, null);
+        self.text.render("*   RANDOM/DHFC    *",0, y_offset +  9 * 14, null);
+        self.text.render("*                  *",0, y_offset + 10 * 14, null);
+        self.text.render("********************",0, y_offset + 11 * 14, null);
     }
 };
 
