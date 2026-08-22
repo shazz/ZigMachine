@@ -38,8 +38,10 @@ const YELLOW: u8 = 2;
 const GREEN: u8 = 3;
 const CYAN: u8 = 4;
 const DIM: u8 = 5;
-// plane 0 (scope) palette entries (0 = raster, set per scanline)
+const SCROLL: u8 = 10; // scrolltext colour, raster-cycled per scanline
+// plane 0 (scope) palette entries
 const SCOPE = [4]u8{ 6, 7, 8, 9 };
+const BGCOL = Color{ .r = 0, .g = 0, .b = 0, .a = 255 };
 
 const RASTER_STEP: u16 = 2;
 const SCROLL_SPEED: f32 = 2.0;
@@ -71,15 +73,12 @@ const MESSAGE =
 
 var raster_offset: u16 = 0;
 
-fn rasterHandler(fb: *LogicalFB, zigos: *ZigOS, line: u16, col: u16) void {
+// Per-scanline HBL handler on the text plane: cycles the scrolltext colour
+// through the copper gradient so the letters are raster-filled.
+fn scrollRasterHandler(fb: *LogicalFB, zigos: *ZigOS, line: u16, col: u16) void {
     _ = zigos;
     _ = col;
-    fb.setPaletteEntry(0, COPPER[(line + raster_offset) % 256]);
-}
-
-fn borderRasterHandler(zigos: *ZigOS, line: u16) void {
-    // clear() runs before update(); +RASTER_STEP predicts this frame's offset.
-    zigos.setBackgroundColor(COPPER[(line + raster_offset + RASTER_STEP) % 256]);
+    fb.setPaletteEntry(SCROLL, COPPER[(line + raster_offset) % 256]);
 }
 
 fn hashRand(x: usize, seed: u32) f32 {
@@ -122,13 +121,12 @@ pub const Demo = struct {
         self.scroll_x = @floatFromInt(WIDTH);
         self.phase = 0.0;
         raster_offset = 0;
+        zigos.setBackgroundColor(BGCOL); // black borders
 
-        // plane 0: rasters + scope
+        // plane 0: scope on a black background
         var p0: *LogicalFB = &zigos.lfbs[0];
         p0.is_enabled = true;
-        p0.setFrameBufferHBLHandler(0, rasterHandler);
-        zigos.setHBLHandler(borderRasterHandler);
-        p0.setPaletteEntry(0, COPPER[0]);
+        p0.setPaletteEntry(0, BGCOL);
         p0.setPaletteEntry(SCOPE[0], Color{ .r = 250, .g = 250, .b = 255, .a = 255 });
         p0.setPaletteEntry(SCOPE[1], Color{ .r = 150, .g = 255, .b = 130, .a = 255 });
         p0.setPaletteEntry(SCOPE[2], Color{ .r = 120, .g = 220, .b = 255, .a = 255 });
@@ -144,6 +142,8 @@ pub const Demo = struct {
         p1.setPaletteEntry(GREEN, Color{ .r = 130, .g = 240, .b = 150, .a = 255 });
         p1.setPaletteEntry(CYAN, Color{ .r = 130, .g = 210, .b = 250, .a = 255 });
         p1.setPaletteEntry(DIM, Color{ .r = 190, .g = 190, .b = 210, .a = 255 });
+        p1.setPaletteEntry(SCROLL, COPPER[0]);
+        p1.setFrameBufferHBLHandler(0, scrollRasterHandler); // raster-fill the scroller
         p1.clearFrameBuffer(CLEAR);
 
         // plane 2: TRSI logo (its own palette, index 0 transparent)
@@ -186,7 +186,7 @@ pub const Demo = struct {
 
     fn drawTrsiLogo(self: *Demo, fb: *LogicalFB) void {
         const start_x: i32 = @intCast((WIDTH - LOGO_W) / 2);
-        const base_y: i32 = 6;
+        const base_y: i32 = 0; // higher up the screen
         var px: usize = 0;
         while (px < LOGO_W) : (px += 1) {
             const wob: f32 = @sin(@as(f32, @floatFromInt(px)) * 0.03 + self.phase) * LOGO_AMP;
@@ -209,7 +209,7 @@ pub const Demo = struct {
         for (MESSAGE, 0..) |char, i| {
             const cx: i32 = base_x + @as(i32, @intCast(i * 16));
             if (cx <= -16 or cx >= WIDTH) continue;
-            drawGlyph(font16_raw, 20, 16, char, cx, y0, CYAN, fb);
+            drawGlyph(font16_raw, 20, 16, char, cx, y0, SCROLL, fb);
         }
     }
 
