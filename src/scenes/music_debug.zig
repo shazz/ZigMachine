@@ -238,7 +238,7 @@ pub const Demo = struct {
         drawText8(p2, "1  MOD     LOLLAPALOOZA", 44, 92, WHITE, 2.5, self.phase);
         drawText8(p2, "2  YM2149  CONCERTO", 44, 106, WHITE, 2.5, self.phase + 0.4);
         drawText8(p2, "3  SAMPLE  DIGI STREAM", 44, 120, WHITE, 2.5, self.phase + 0.8);
-        drawText8(p2, "PRESS 1  2  3", 108, 140, GREEN, 2.5, self.phase + 1.2);
+        drawText8(p2, "PRESS 1  2  3", 108, 140, WHITE, 2.5, self.phase + 1.2);
         self.drawScroller(zigos, p2);
 
         // plane 3: logo (top)
