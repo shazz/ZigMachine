@@ -60,8 +60,8 @@ const LOGO_AMP: f32 = 8.0;
 const FLOW_BASE: u8 = 16; // first of FLOW_N gradient palette entries on the scope plane
 const FLOW_N: usize = 48;
 const FLOW_BAND: f32 = 24.0; // half-width of the moving band (~48px pulse)
-const FLOW_PERIOD: u32 = 600; // ~10s at 60fps
-const FLOW_PULSE: u32 = 150; // frames the band takes to cross
+const FLOW_PERIOD: u32 = 300; // ~5s at 60fps
+const FLOW_PULSE: u32 = 45; // frames the band takes to cross (fast)
 
 // The moving band's colour: a single black -> lava -> black pulse (no repeat).
 const FLOWGRAD = blk: {
