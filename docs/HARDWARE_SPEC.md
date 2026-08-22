@@ -1,6 +1,7 @@
 # ZigMachine — Sealed Hardware Spec (Option A: memory-mapped)
 
-Status: **draft / proposal**. Date: 2026-08-22.
+Status: **video + audio layers IMPLEMENTED & proven in-browser** (repo reorg
+pending). Date: 2026-08-22. See §12 for what's built vs. deferred.
 
 Goal: distribute the ZigMachine "fake hardware" as a **compiled, un-editable
 binary** with a **memory-mapped ABI**, so coders can write effects and improve
@@ -295,4 +296,92 @@ they clone the SDK, not the machine repo.
 
 Distribution to coders = **`sdk/` + `zigos/` + `effects/` + `scenes/` + `demo/` +
 `web/`**, minus `machine/`.
+
+---
+
+## 12. Implementation status (2026-08-22)
+
+**Both halves of the seal are built and proven in the browser**: `music_debug`
+runs **unchanged** against the sealed video+audio machine at ~60fps. MOD, YM and
+raw-sample players all render through the sealed chips (register/setter ABI), with
+the 4-channel oscilloscope reflecting real chip output. Verified via
+`docs/sealed.html`.
+
+### Built
+
+| Piece | File(s) | Notes |
+|---|---|---|
+| Memory map (the ABI, single source of truth) | `src/sdk/memmap.zig` | geometry, register/region offsets, `HW_VIDEO_BASE`, version |
+| Published API header | `src/sdk/hardware.zig` | `extern` hw* decls + re-exported constants |
+| **Sealed** video hardware | `src/machine/video.zig`, `src/machine_video.zig` | render pipeline + border/raster/overscan, ported 1:1 → `machine-video.wasm` |
+| ZigOS over the ABI | `src/zigos.zig` | LogicalFB/palette/PFB are now **views** into the shared region; **public API unchanged** so scenes/effects compile as-is |
+| **Open** demo entry | `src/demo_main.zig` | `boot/frame/hblDispatch/isPlaneEnabled` + audio-mirror pointers → `demo.wasm` |
+| Two-target build | `build.zig` (`zig build -Dwasm`, or `zig build sealed`) | machine + demo share one memory; demo linked at `--global-base=0x100000` |
+| Dual-module host | `docs/sealed.html`, `docs/sealed-loader.js` | instantiates both over one `WebAssembly.Memory`; routes `env.hblDispatch` → demo |
+| Audio ABI header | `src/sdk/audio.zig` | `extern` chip ops + song-RAM map + constants |
+| **Sealed** audio chips | `src/machine_audio.zig` (reuses `src/audio/engine.zig` = Paula, `src/audio/ym.zig` = YM2149) | → `machine-audio.wasm`; exposes `machinePaula*` / `machineYmWrite` / mix ops |
+| **Open** audio players | `src/audio/mod.zig`, `src/audio/ym_player.zig`, `src/demo_audio_main.zig` | MOD/YM/raw rewritten to drive the chips via the ABI → `demo-audio.wasm` |
+| Dual-module audio worklet | `docs/audio-worklet-sealed.js` | machine-audio + demo-audio share one memory on the audio thread |
+
+**How the audio seal holds:** the two audio modules share one memory on the
+worklet thread; the open players drive the sealed chips through imported
+`machinePaula*`/`machineYmWrite`/`machineMix*` ops (mirroring the video
+`hblDispatch` inversion), handing PCM by absolute offset into a reserved shared
+**song RAM** (`0x200000`, 1 MiB). Chip DSP math (`engine.zig`, `ym.zig`) is reused
+verbatim, so the sound is preserved; only the player↔chip coupling changed from
+struct-field pokes to ABI calls.
+
+**How the seal actually holds (key decisions taken):**
+- **Two wasm modules, one `WebAssembly.Memory`.** The video region is *not*
+  linker-allocated by either module; it lives at a fixed reserved address
+  (`HW_VIDEO_BASE = 0x200000`) **above** both modules' data+stacks, so they
+  never collide. This is the "you get the memory map, not the schematics" feel
+  (§10's fixed-address question) *and* base-pointer simplicity (`hwVideoBase()`).
+- **HBL dispatch inversion.** The sealed render loop calls the host import
+  `env.hblDispatch(id, plane, line, x)`, routed back into `demo.hblDispatch`,
+  which switches on the integer id to the registered Zig handler. **Only ints
+  cross the boundary** — the nice `*const fn` handler API stays inside ZigOS.
+- **`hwRenderPlane(plane)` instead of a no-arg `hwRender()`** (a refinement of
+  §5): the front-end composites 4 transparent stacked canvases, so the machine
+  renders one plane at a time — this keeps `music_debug` pixel-identical.
+- **The overscan PFB poke** (`music_debug` writes `zigos.physical_framebuffer`
+  for the border scroller) is kept working as an **out-of-ABI escape hatch**:
+  `physical_framebuffer` is a view into the shared PFB. This is exactly what §2
+  ("memory is not sealed, only code is") permits, and is why the scene runs
+  unchanged. Replacing it with the sanctioned RESOLUTION+HBL overscan is still
+  the open item from §3/§10.
+
+### Deferred (next steps, in priority order)
+
+1. **Physical repo reorg** into root-level `hw/` (sealed machine + SDK headers),
+   `zigos/` (open OS library + players + effects + math), `apps/` (scenes + demo
+   entries + web host). The architecture/ABI split is done; this is the mechanical
+   file move + the private-`hw/` distribution boundary + a CI import-guard.
+2. **Rebuild the prebuilt channels** (`docs/wasm/*.wasm`) against the sealed
+   loader, or keep the legacy `index.html`/`loader.js` for them. The new
+   `sealed.html` currently runs the single compiled-in scene (`floppy.zig`).
+3. **Replace the overscan PFB hack** in `music_debug`'s scroller with the
+   RESOLUTION+border-HBL mechanism, so the ABI's "PFB is R-only" holds literally.
+4. **Retire the legacy monolithic path**: `src/bootloader.zig` and
+   `src/audio_main.zig` are superseded (no longer built) and now reference the
+   pre-seal APIs; delete them once the legacy `index.html` is migrated to the
+   sealed modules (its committed `bootloader.wasm`/`audio.wasm` still serve it).
+5. Minor: `text.zig`/`background.zig`/`sprite.zig` use `&fb.fb` as `*[64000]u8`;
+   they need a one-line tweak (`fb.fb` is now `[*]u8`) when those scenes are
+   rebuilt. `music_debug`/`starfield_3D` don't, so the current demo is unaffected.
+
+> **Note — sound not hear-verified.** The audio split was verified by scope +
+> clean console (MOD/YM/sample all render); the chip DSP is reused verbatim so it
+> *should* be identical, but give it a listen to confirm pitch/quality.
+
+### Build & run
+
+```
+export PATH="$HOME/.local/zig/0.16.0:$PATH"
+zig build -Drelease=true -Dwasm      # -> docs/machine-video.wasm, docs/demo.wasm, docs/audio.wasm
+cd docs && python3 -m http.server 3333   # open /sealed.html  (hard-reload after rebuilds)
+```
+
+The legacy monolithic path (`index.html` + `loader.js` + the old committed
+`bootloader.wasm`) is left untouched for A/B comparison.
 

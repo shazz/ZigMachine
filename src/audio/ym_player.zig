@@ -1,11 +1,11 @@
 const std = @import("std");
-const engine_mod = @import("engine.zig");
-const Engine = engine_mod.Engine;
+const audio = @import("../sdk/audio.zig");
 
 // --------------------------------------------------------------------------
-// YM register-dump player (YM5!/YM6!) — a ZigOS PLAYER driving the machine's
-// YM2149 chip. Parses a depacked .ym image and writes the 14 registers to the
-// chip once per player frame (typically 50 Hz), sample-accurately.
+// YM register-dump player (YM5!/YM6!) — an OPEN ZigOS player driving the SEALED
+// YM2149 chip. Parses a depacked .ym image from the shared song RAM and writes
+// the 14 registers to the chip once per player frame (typically 50 Hz), sample-
+// accurately, via the sdk/audio.zig chip API.
 //
 // Digidrums are not handled yet (tunes with drums > 0 will miss those hits).
 // --------------------------------------------------------------------------
@@ -42,13 +42,11 @@ pub const YmPlayer = struct {
         const fut = be16(data, 32);
 
         var off: usize = 34 + fut;
-        // skip digidrum samples (4-byte BE size + data each)
         var d: usize = 0;
         while (d < ndrums) : (d += 1) {
             if (off + 4 > data.len) return false;
             off += 4 + be32(data, off);
         }
-        // skip 3 null-terminated strings (name, author, comment)
         var s: usize = 0;
         while (s < 3) : (s += 1) {
             while (off < data.len and data[off] != 0) off += 1;
@@ -60,7 +58,7 @@ pub const YmPlayer = struct {
         self.reg_data = data[off .. off + needed];
 
         const r: f32 = @floatFromInt(if (rate == 0) 50 else rate);
-        self.samples_per_frame = @intFromFloat(engine_mod.SAMPLE_RATE / r);
+        self.samples_per_frame = @intFromFloat(audio.SAMPLE_RATE / r);
         return true;
     }
 
@@ -82,31 +80,31 @@ pub const YmPlayer = struct {
         return self.reg_data[idx];
     }
 
-    fn writeFrame(self: *YmPlayer, eng: *Engine) void {
+    fn writeFrame(self: *YmPlayer) void {
         if (self.frame >= self.nb_frames) {
             self.frame = if (self.loop_frame < self.nb_frames) self.loop_frame else 0;
         }
         var reg: usize = 0;
         while (reg < 14) : (reg += 1) {
-            eng.ym.writeReg(@intCast(reg), self.regValue(reg, self.frame));
+            audio.machineYmWrite(@intCast(reg), self.regValue(reg, self.frame));
         }
         self.frame += 1;
     }
 
-    pub fn renderStereo(self: *YmPlayer, eng: *Engine, frames: usize) void {
-        const n = @min(frames, engine_mod.MAX_FRAMES);
-        eng.clearBus(n);
+    pub fn renderStereo(self: *YmPlayer, frames: usize) void {
+        const n = @min(frames, audio.MAX_FRAMES);
+        audio.machineClear(@intCast(n));
         var off: usize = 0;
         while (off < n) {
             if (self.frame_acc == 0) {
-                self.writeFrame(eng);
+                self.writeFrame();
                 self.frame_acc = self.samples_per_frame;
             }
             const block = @min(@as(u32, @intCast(n - off)), self.frame_acc);
-            eng.ym.render(eng.left[off .. off + block], eng.right[off .. off + block]);
+            audio.machineRenderYm(@intCast(off), block);
             self.frame_acc -= block;
             off += block;
         }
-        eng.clampBus(n);
+        audio.machineClamp(@intCast(n));
     }
 };

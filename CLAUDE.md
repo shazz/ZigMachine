@@ -13,6 +13,13 @@ A fantasy console written in **Zig**, compiled to `wasm32-freestanding-musl`, re
 
 ## Status (2026-08-22)
 
+✅ **Sealed hardware — VIDEO layer implemented & proven in-browser.** The machine
+is now two builds: sealed `machine-video.wasm` + open `demo.wasm` share ONE
+`WebAssembly.Memory` via a memory-mapped ABI (`src/sdk/`). `music_debug` runs
+**unchanged** at ~60fps against the sealed machine — open `docs/sealed.html`
+(`zig build -Dwasm` → `machine-video.wasm`, `demo.wasm`, `audio.wasm`). Audio
+module split + §11 repo reorg are the next steps. See `docs/HARDWARE_SPEC.md §12`.
+
 ✅ **Migrated from Zig 0.10 → 0.16 and building/running again.** The `dbug` scene renders
 in the browser at ~60fps; channel-switching to the prebuilt scenes works.
 
