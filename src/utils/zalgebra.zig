@@ -4,15 +4,44 @@ const std = @import("std");
 const expectEqual = std.testing.expectEqual;
 const math = std.math;
 
-pub usingnamespace @import("generic_vector.zig");
-pub usingnamespace @import("mat4.zig");
-pub usingnamespace @import("quaternion.zig");
+// Zig 0.16 removed `usingnamespace`; re-export each module's public decls explicitly.
+const generic_vector = @import("generic_vector.zig");
+const mat4 = @import("mat4.zig");
+const quaternion = @import("quaternion.zig");
+
+pub const GenericVector = generic_vector.GenericVector;
+pub const Vec2 = generic_vector.Vec2;
+pub const Vec2_f64 = generic_vector.Vec2_f64;
+pub const Vec2_i32 = generic_vector.Vec2_i32;
+pub const Vec2_usize = generic_vector.Vec2_usize;
+pub const Vec3 = generic_vector.Vec3;
+pub const Vec3_f64 = generic_vector.Vec3_f64;
+pub const Vec3_i32 = generic_vector.Vec3_i32;
+pub const Vec3_usize = generic_vector.Vec3_usize;
+pub const Vec4 = generic_vector.Vec4;
+pub const Vec4_f64 = generic_vector.Vec4_f64;
+pub const Vec4_i32 = generic_vector.Vec4_i32;
+pub const Vec4_usize = generic_vector.Vec4_usize;
+
+pub const Mat4 = mat4.Mat4;
+pub const Mat4_f64 = mat4.Mat4_f64;
+pub const Mat4x4 = mat4.Mat4x4;
+pub const perspective = mat4.perspective;
+pub const gluperspective = mat4.gluperspective;
+pub const orthographic = mat4.orthographic;
+pub const lookAt = mat4.lookAt;
+pub const camera = mat4.camera;
+pub const screen = mat4.screen;
+
+pub const Quat = quaternion.Quat;
+pub const Quat_f64 = quaternion.Quat_f64;
+pub const Quaternion = quaternion.Quaternion;
 
 /// Convert degrees to radians.
 pub fn toRadians(degrees: anytype) @TypeOf(degrees) {
     const T = @TypeOf(degrees);
 
-    if (@typeInfo(T) != .Float) {
+    if (@typeInfo(T) != .float) {
         @compileError("Radians not implemented for " ++ @typeName(T));
     }
 
@@ -23,7 +52,7 @@ pub fn toRadians(degrees: anytype) @TypeOf(degrees) {
 pub fn toDegrees(radians: anytype) @TypeOf(radians) {
     const T = @TypeOf(radians);
 
-    if (@typeInfo(T) != .Float) {
+    if (@typeInfo(T) != .float) {
         @compileError("Radians not implemented for " ++ @typeName(T));
     }
 
@@ -33,7 +62,7 @@ pub fn toDegrees(radians: anytype) @TypeOf(radians) {
 /// Linear interpolation between two floats.
 /// `t` is used to interpolate between `from` and `to`.
 pub fn lerp(comptime T: type, from: T, to: T, t: T) T {
-    if (@typeInfo(T) != .Float) {
+    if (@typeInfo(T) != .float) {
         @compileError("Lerp not implemented for " ++ @typeName(T));
     }
 

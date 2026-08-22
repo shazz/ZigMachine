@@ -31,18 +31,39 @@ scenes) is in working shape.
 - **Verified in-browser**: the `dbug` scene renders at ~60fps; channel-switching to the
   prebuilt scenes works. Build: `zig build -Drelease=true -Dwasm`.
 
-### Remaining migration work (not yet done)
-Only the `dbug` dependency graph was compiled/verified. The mechanical transform was
-applied to *all* `src/*.zig`, but scenes not reachable from `floppy.zig` are **unverified**
-and two known 0.16 blockers live in code they pull in:
-- **`utils/zalgebra.zig` uses `pub usingnamespace`** — removed in 0.16. Needs manual
-  re-export (used by the 3D math path: `dots3d`, some scenes).
-- **`std.rand.DefaultPrng`** → renamed to `std.Random.DefaultPrng` (starfields, `demo`,
-  `shapes_tester`, `starfield_3D`).
-- Before switching `floppy.zig` to another scene, expect to fix that scene's graph
-  (mostly the two items above; the mechanical stuff is already applied).
-- `docs/wasm/*.wasm` are still the **old prebuilt** binaries — rebuild per-scene once its
-  graph compiles.
+## UPDATE 2026-08-22 (2) — all demo channels migrated & rebuilt
+
+Full per-scene migration completed. **Every scene wired as a channel now compiles on 0.16**,
+and all 16 channel binaries in `docs/wasm/*.wasm` were **rebuilt from fresh 0.16 source**
+(+ `bootloader.wasm` = dbug). `the_union.wasm` has no source scene, so it stays as the old
+prebuilt binary.
+
+Shared fixes applied beyond the first pass:
+- `utils/zalgebra.zig`: `pub usingnamespace` → explicit re-exports.
+- `utils/generic_vector.zig`: the `pub usingnamespace switch(dimensions)` method-mixin →
+  a comptime-selected `new` const + lazily-analyzed dimension helpers.
+- `@splat(N, x)` → `@splat(x)` with explicit result types where inference failed;
+  `@floatCast(T,x)` → `@as(T, @floatCast(x))`; `@fabs` → `@abs`.
+- `@typeInfo` tags lowercased (`.Float`→`.float`, `.Int`→`.int`).
+- `std.rand.*` → `std.Random.*`; `std.mem.readIntLittle` → `std.mem.readInt(T,…,.little)`.
+- `var`→`const` sweep; `&` on array-iteration for-captures (loaders, starfields, replicants).
+- One duplicate `test` name in `quaternion.zig` renamed (0.16 rejects duplicates).
+
+### Verified compiling (channels): 
+deltaforce · deltaforce2 · empire · ancool · leonard · mandelbrot · ics · bladerunners ·
+replicants · fullscreen · stcs · equinox · maxi · fallen_angels · dbug · boot
+
+### Still NOT building — but these are NOT channels and NOT migration issues:
+- **`demo.zig`, `demo_test.zig`** — scratch/test scenes left behind by the earlier
+  "everything uses RenderBuffer" refactor: they call removed APIs (`Sprite.fb`, old
+  `render`/shapes signatures, `*LogicalFB` where a `RenderTarget` is now required).
+  Genuine code rework, not mechanical. Not in the channel list.
+- **`bladerunners_fullscreen.zig`** — experimental variant of `bladerunners`; same kind of
+  stale-API drift (`RenderTarget` has no `.buffer`; a member fn arg count). Not a channel.
+- **`tex.zig`** — unfinished; `@embedFile`s a missing asset
+  `assets/screens/the_union/delta.raw` (like the lost audio `.smp`). Not a channel.
+
+These four were left as-is; resurrecting them is optional future work.
 
 ---
 

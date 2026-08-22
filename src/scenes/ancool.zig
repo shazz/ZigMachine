@@ -51,33 +51,33 @@ const Mat4 = za.Mat4;
 
 var vertices = [25]Vec4{
     // T
-    Vec4.new(-1.0, 	 0.0, 0.0, 1.0),
-    Vec4.new( 0.0, 	 0.0, 0.0, 1.0),
-    Vec4.new( 0.0, 	-0.3, 0.0, 1.0),
+    Vec4.new(-1.0,   0.0, 0.0, 1.0),
+    Vec4.new( 0.0,   0.0, 0.0, 1.0),
+    Vec4.new( 0.0,  -0.3, 0.0, 1.0),
     Vec4.new(-0.32, -0.3, 0.0, 1.0),
     Vec4.new(-0.32, -1.2, 0.0, 1.0),
     Vec4.new(-0.68, -1.2, 0.0, 1.0),
     Vec4.new(-0.68, -0.3, 0.0, 1.0),
-    Vec4.new(-1.0, 	-0.3, 0.0, 1.0),
-    Vec4.new(-1.0, 	 0.0, 0.0, 1.0),
+    Vec4.new(-1.0,  -0.3, 0.0, 1.0),
+    Vec4.new(-1.0,   0.0, 0.0, 1.0),
     // C
-    Vec4.new( 0.2, 	 0.0, 	0.0, 1.0),
-    Vec4.new( 1.2, 	 0.0, 	0.0, 1.0),
-    Vec4.new( 1.2, 	-0.3, 	0.0, 1.0),
-    Vec4.new( 0.52, -0.3, 	0.0, 1.0),
-    Vec4.new( 0.52, -0.90, 	0.0, 1.0),
-    Vec4.new( 1.20, -0.90, 	0.0, 1.0),
-    Vec4.new( 1.20, -1.20,	0.0, 1.0),
-    Vec4.new( 0.20, -1.20,	0.0, 1.0),
-    Vec4.new( 0.20,  0.0, 	0.0, 1.0),
+    Vec4.new( 0.2,   0.0,   0.0, 1.0),
+    Vec4.new( 1.2,   0.0,   0.0, 1.0),
+    Vec4.new( 1.2,  -0.3,   0.0, 1.0),
+    Vec4.new( 0.52, -0.3,   0.0, 1.0),
+    Vec4.new( 0.52, -0.90,  0.0, 1.0),
+    Vec4.new( 1.20, -0.90,  0.0, 1.0),
+    Vec4.new( 1.20, -1.20,  0.0, 1.0),
+    Vec4.new( 0.20, -1.20,  0.0, 1.0),
+    Vec4.new( 0.20,  0.0,   0.0, 1.0),
     // B
-    Vec4.new( 1.40, 0.0, 	0.0, 1.0),
-    Vec4.new( 2.10, 0.0, 	0.0, 1.0),
-    Vec4.new( 2.40, -0.30, 	0.0, 1.0),
-    Vec4.new( 2.10, -0.60, 	0.0, 1.0),
-    Vec4.new( 2.40, -0.90,	0.0, 1.0),
-    Vec4.new( 2.10, -1.20,	0.0, 1.0),
-    Vec4.new( 1.40, -1.20,	0.0, 1.0),
+    Vec4.new( 1.40, 0.0,    0.0, 1.0),
+    Vec4.new( 2.10, 0.0,    0.0, 1.0),
+    Vec4.new( 2.40, -0.30,  0.0, 1.0),
+    Vec4.new( 2.10, -0.60,  0.0, 1.0),
+    Vec4.new( 2.40, -0.90,  0.0, 1.0),
+    Vec4.new( 2.10, -1.20,  0.0, 1.0),
+    Vec4.new( 1.40, -1.20,  0.0, 1.0),
 };
 
 const segments = [24]Vec2{
@@ -220,7 +220,7 @@ pub const Demo = struct {
             const vertex_after_proj = self.projection.vec4mulByMat4(vertex_after_cam);
                     
             const norm = Vec4.set(1/vertex_after_proj.w());
-            var vertex_after_norm = vertex_after_proj.mul(norm);
+            const vertex_after_norm = vertex_after_proj.mul(norm);
 
             const vertex_after_screen = self.screen.vec4mulByMat4(vertex_after_norm);
 

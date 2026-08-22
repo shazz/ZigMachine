@@ -20,9 +20,10 @@ in the browser at ~60fps; channel-switching to the prebuilt scenes works.
 `generateAudio()` now zero-fills the buffers. The whole audio pipeline is being **rethought** —
 see `docs/REVIEW.md` § Audio.
 
-⚠️ **Only the `dbug` dependency graph was verified to compile.** Scenes not reachable from the
-current `floppy.zig` selection got the same mechanical migration but are **unverified**, and two
-known 0.16 blockers remain in code they use — see "Remaining migration work" in `docs/REVIEW.md`.
+✅ **All demo channels migrated & rebuilt.** Every scene wired as a channel compiles on 0.16;
+all 16 `docs/wasm/*.wasm` were rebuilt from fresh source (`the_union` has no source scene, kept
+as-is). Four non-channel scenes are still broken — `demo`, `demo_test`, `bladerunners_fullscreen`
+(scratch/experimental, stale API — real rework), `tex` (missing asset). See `docs/REVIEW.md`.
 
 ## Notes for future edits
 

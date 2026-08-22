@@ -22,7 +22,7 @@ pub const Quat_f64 = Quaternion(f64);
 
 /// A Quaternion for 3D rotations.
 pub fn Quaternion(comptime T: type) type {
-    if (@typeInfo(T) != .Float) {
+    if (@typeInfo(T) != .float) {
         @compileError("Quaternion not implemented for " ++ @typeName(T));
     }
 
@@ -242,7 +242,7 @@ pub fn Quaternion(comptime T: type) type {
             const radians = root.toRadians(degrees);
 
             const rot_sin = @sin(radians / 2);
-            const quat_axis = axis.norm().data * @splat(3, rot_sin);
+            const quat_axis = axis.norm().data * @as(@TypeOf(axis.norm().data), @splat(rot_sin));
             const w = @cos(radians / 2);
 
             return Self.fromVec3(w, .{ .data = quat_axis });
@@ -271,10 +271,10 @@ pub fn Quaternion(comptime T: type) type {
         // Taken from https://github.com/raysan5/raylib/blob/master/src/raymath.h#L1755
         pub fn extractAxisAngle(self: Self) struct { axis: Vector3, angle: T } {
             var copy = self;
-            if (@fabs(copy.w) > 1) copy = copy.norm();
+            if (@abs(copy.w) > 1) copy = copy.norm();
 
             var res_axis = Vector3.zero();
-            var res_angle: T = 2 * math.acos(copy.w);
+            const res_angle: T = 2 * math.acos(copy.w);
             const den: T = @sqrt(1 - copy.w * copy.w);
 
             if (den > 0.0001) {
@@ -326,7 +326,7 @@ pub fn Quaternion(comptime T: type) type {
                 // Use regular old lerp to avoid numerical instability
                 return lerp(left, right1, t);
             } else {
-                var theta = math.acos(math.clamp(cos_theta, -1, 1));
+                const theta = math.acos(math.clamp(cos_theta, -1, 1));
                 const thetap = theta * t;
                 var qperp = right1.sub(left.scale(cos_theta)).norm();
                 return left.scale(@cos(thetap)).add(qperp.scale(@sin(thetap)));
@@ -348,14 +348,14 @@ pub fn Quaternion(comptime T: type) type {
         pub fn cast(self: Self, comptime dest_type: type) Quaternion(dest_type) {
             const dest_info = @typeInfo(dest_type);
 
-            if (dest_info != .Float) {
+            if (dest_info != .float) {
                 std.debug.panic("Error, dest type should be float.\n", .{});
             }
 
-            const w = @floatCast(dest_type, self.w);
-            const x = @floatCast(dest_type, self.x);
-            const y = @floatCast(dest_type, self.y);
-            const z = @floatCast(dest_type, self.z);
+            const w = @as(dest_type, @floatCast(self.w));
+            const x = @as(dest_type, @floatCast(self.x));
+            const y = @as(dest_type, @floatCast(self.y));
+            const z = @as(dest_type, @floatCast(self.z));
             return Quaternion(dest_type).new(w, x, y, z);
         }
     };
@@ -400,7 +400,7 @@ test "zalgebra.Quaternion.fromVec3" {
     try expectEqual(q.z, 4.7);
 }
 
-test "zalgebra.Quaternion.fromVec3" {
+test "zalgebra.Quaternion.fromVec3.eql" {
     const a = Quat.fromVec3(1.5, Vec3.new(2.6, 3.7, 4.7));
     const b = Quat.fromVec3(1.5, Vec3.new(2.6, 3.7, 4.7));
     const c = Quat.fromVec3(1, Vec3.new(2.6, 3.7, 4.7));

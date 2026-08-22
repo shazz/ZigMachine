@@ -50,51 +50,51 @@ const Mat4 = za.Mat4;
 var vertices = [_]Vec4{
 
     // E
-    Vec4.new(   0, 	0, 	 0, 1.0 ),
-    Vec4.new(  1.0, 	0, 	 0, 1.0 ),
-    Vec4.new(  1.0, 	-0.5, 	 0, 1.0 ),
-    Vec4.new(   0, 	-0.5, 	 0, 1.0 ),
-    Vec4.new(	  0, 	-1.0,   0, 1.0 ),
-    Vec4.new(	 1.0, 	-1.0, 	 0, 1.0 ),
+    Vec4.new(   0,  0,   0, 1.0 ),
+    Vec4.new(  1.0,     0,   0, 1.0 ),
+    Vec4.new(  1.0,     -0.5,    0, 1.0 ),
+    Vec4.new(   0,  -0.5,    0, 1.0 ),
+    Vec4.new(     0,    -1.0,   0, 1.0 ),
+    Vec4.new(    1.0,   -1.0,    0, 1.0 ),
     // M
-    Vec4.new(  1.2, 	-1.0, 	 0, 1.0 ),
-    Vec4.new(  1.2, 	0, 	 0, 1.0 ),
-    Vec4.new(  1.7, 	0, 	 0, 1.0 ),
-    Vec4.new(  1.7, 	-1.0, 	 0, 1.0 ),
-    Vec4.new(	 2.0, 	 0, 	 0, 1.0 ),
-    Vec4.new(	 2.2, 	-0.2, 	 0, 1.0 ),
-    Vec4.new(	 2.2, 	-1.0,	 0, 1.0 ),
+    Vec4.new(  1.2,     -1.0,    0, 1.0 ),
+    Vec4.new(  1.2,     0,   0, 1.0 ),
+    Vec4.new(  1.7,     0,   0, 1.0 ),
+    Vec4.new(  1.7,     -1.0,    0, 1.0 ),
+    Vec4.new(    2.0,    0,      0, 1.0 ),
+    Vec4.new(    2.2,   -0.2,    0, 1.0 ),
+    Vec4.new(    2.2,   -1.0,    0, 1.0 ),
     // P
-    Vec4.new(  2.4, 	-1.0, 	 0, 1.0 ),
-    Vec4.new(  2.4, 	0, 	 0, 1.0 ),
-    Vec4.new(  3.2, 	0, 	 0, 1.0 ),
-    Vec4.new(  3.4, 	-0.2, 	 0, 1.0 ),
-    Vec4.new(	 3.4, 	-0.5,	 0, 1.0 ),
-    Vec4.new(	 2.4, 	-0.5,	 0, 1.0 ),
+    Vec4.new(  2.4,     -1.0,    0, 1.0 ),
+    Vec4.new(  2.4,     0,   0, 1.0 ),
+    Vec4.new(  3.2,     0,   0, 1.0 ),
+    Vec4.new(  3.4,     -0.2,    0, 1.0 ),
+    Vec4.new(    3.4,   -0.5,    0, 1.0 ),
+    Vec4.new(    2.4,   -0.5,    0, 1.0 ),
     // I
-    Vec4.new(	 3.6, 	0,	 0, 1.0 ),
-    Vec4.new(	 3.6, 	-1.0,	 0, 1.0 ),
+    Vec4.new(    3.6,   0,   0, 1.0 ),
+    Vec4.new(    3.6,   -1.0,    0, 1.0 ),
     // R
-    Vec4.new(  3.8, 	-1.0, 	 0, 1.0 ),
-    Vec4.new(  3.8, 	0, 	 0, 1.0 ),
-    Vec4.new(  4.6, 	0, 	 0, 1.0 ),
-    Vec4.new(  4.8, 	-0.2, 	 0, 1.0 ),
-    Vec4.new(	 4.8, 	-0.5,	 0, 1.0 ),
-    Vec4.new(	 3.8, 	-0.5,	 0, 1.0 ),
-    Vec4.new(	 4.4, 	-0.5,	 0, 1.0 ),
-    Vec4.new(	 4.8, 	-1.0,	 0, 1.0 ),
+    Vec4.new(  3.8,     -1.0,    0, 1.0 ),
+    Vec4.new(  3.8,     0,   0, 1.0 ),
+    Vec4.new(  4.6,     0,   0, 1.0 ),
+    Vec4.new(  4.8,     -0.2,    0, 1.0 ),
+    Vec4.new(    4.8,   -0.5,    0, 1.0 ),
+    Vec4.new(    3.8,   -0.5,    0, 1.0 ),
+    Vec4.new(    4.4,   -0.5,    0, 1.0 ),
+    Vec4.new(    4.8,   -1.0,    0, 1.0 ),
     // E
-    Vec4.new(  5.0, 	0, 	 0, 1.0 ),
-    Vec4.new(  6.0, 	0, 	 0, 1.0 ),
-    Vec4.new(  6.0, 	-0.5, 	 0, 1.0 ),
-    Vec4.new(  5.0, 	-0.5, 	 0, 1.0 ),
-    Vec4.new(	 5.0, 	-1.0,   0, 1.0 ),
-    Vec4.new(	 6.0, 	-1.0, 	 0, 1.0 ),    
+    Vec4.new(  5.0,     0,   0, 1.0 ),
+    Vec4.new(  6.0,     0,   0, 1.0 ),
+    Vec4.new(  6.0,     -0.5,    0, 1.0 ),
+    Vec4.new(  5.0,     -0.5,    0, 1.0 ),
+    Vec4.new(    5.0,   -1.0,   0, 1.0 ),
+    Vec4.new(    6.0,   -1.0,    0, 1.0 ),    
 };
 
 const segments = [_]Vec2{
 
-	// E
+    // E
     Vec2.new(0, 1),
     Vec2.new(2, 3),
     Vec2.new(3, 4),
@@ -211,7 +211,7 @@ pub const Demo = struct {
             const vertex_after_proj = self.projection.vec4mulByMat4(vertex_after_cam);
                     
             const norm = Vec4.set(1/vertex_after_proj.w());
-            var vertex_after_norm = vertex_after_proj.mul(norm);
+            const vertex_after_norm = vertex_after_proj.mul(norm);
 
             const vertex_after_screen = self.screen.vec4mulByMat4(vertex_after_norm);
 

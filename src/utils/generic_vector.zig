@@ -22,7 +22,7 @@ pub const Vec4_usize = GenericVector(4, usize);
 
 /// A generic vector.
 pub fn GenericVector(comptime dimensions: comptime_int, comptime T: type) type {
-    if (@typeInfo(T) != .Float and @typeInfo(T) != .Int) {
+    if (@typeInfo(T) != .float and @typeInfo(T) != .int) {
         @compileError("Vectors not implemented for " ++ @typeName(T));
     }
 
@@ -34,75 +34,66 @@ pub fn GenericVector(comptime dimensions: comptime_int, comptime T: type) type {
         const Self = @This();
         data: @Vector(dimensions, T),
 
-        pub usingnamespace switch (dimensions) {
-            2 => extern struct {
-                /// Construct new vector.
-                pub fn new(vx: T, vy: T) Self {
+        // Zig 0.16 removed `usingnamespace`. `new` varies its arity by dimension,
+        // so it is a comptime-selected function value. The dimension-specific
+        // helpers below are analyzed lazily (only when referenced), so defining
+        // them for all dimensions is safe as long as callers respect the shape.
+        pub const new = switch (dimensions) {
+            2 => struct {
+                fn new(vx: T, vy: T) Self {
                     return .{ .data = [2]T{ vx, vy } };
                 }
-            },
-            3 => extern struct {
-                /// Construct new vector.
-                pub fn new(vx: T, vy: T, vz: T) Self {
+            }.new,
+            3 => struct {
+                fn new(vx: T, vy: T, vz: T) Self {
                     return .{ .data = [3]T{ vx, vy, vz } };
                 }
-
-                pub fn z(self: Self) T {
-                    return self.data[2];
-                }
-
-                /// Shorthand for (0, 0, 1).
-                pub fn forward() Self {
-                    return new(0, 0, 1);
-                }
-
-                /// Shorthand for (0, 0, -1).
-                pub fn back() Self {
-                    return forward().negate();
-                }
-
-                /// Construct the cross product (as vector) from two vectors.
-                pub fn cross(first_vector: Self, second_vector: Self) Self {
-                    const x1 = first_vector.x();
-                    const y1 = first_vector.y();
-                    const z1 = first_vector.z();
-
-                    const x2 = second_vector.x();
-                    const y2 = second_vector.y();
-                    const z2 = second_vector.z();
-
-                    const result_x = (y1 * z2) - (z1 * y2);
-                    const result_y = (z1 * x2) - (x1 * z2);
-                    const result_z = (x1 * y2) - (y1 * x2);
-                    return new(result_x, result_y, result_z);
-                }
-            },
-            4 => extern struct {
-                /// Construct new vector.
-                pub fn new(vx: T, vy: T, vz: T, vw: T) Self {
+            }.new,
+            4 => struct {
+                fn new(vx: T, vy: T, vz: T, vw: T) Self {
                     return .{ .data = [4]T{ vx, vy, vz, vw } };
                 }
-
-                /// Shorthand for (0, 0, 1, 0).
-                pub fn forward() Self {
-                    return new(0, 0, 1, 0);
-                }
-
-                /// Shorthand for (0, 0, -1, 0).
-                pub fn back() Self {
-                    return forward().negate();
-                }
-
-                pub fn z(self: Self) T {
-                    return self.data[2];
-                }
-
-                pub fn w(self: Self) T {
-                    return self.data[3];
-                }
-            },
+            }.new,
             else => unreachable,
         };
+
+        pub fn z(self: Self) T {
+            return self.data[2];
+        }
+
+        pub fn w(self: Self) T {
+            return self.data[3];
+        }
+
+        /// Shorthand for the forward vector (dims 3 and 4).
+        pub fn forward() Self {
+            return switch (dimensions) {
+                3 => new(0, 0, 1),
+                4 => new(0, 0, 1, 0),
+                else => @compileError("forward() only defined for 3D/4D vectors"),
+            };
+        }
+
+        /// Shorthand for the back vector (dims 3 and 4).
+        pub fn back() Self {
+            return forward().negate();
+        }
+
+        /// Construct the cross product (as vector) from two 3D vectors.
+        pub fn cross(first_vector: Self, second_vector: Self) Self {
+            const x1 = first_vector.x();
+            const y1 = first_vector.y();
+            const z1 = first_vector.z();
+
+            const x2 = second_vector.x();
+            const y2 = second_vector.y();
+            const z2 = second_vector.z();
+
+            const result_x = (y1 * z2) - (z1 * y2);
+            const result_y = (z1 * x2) - (x1 * z2);
+            const result_z = (x1 * y2) - (y1 * x2);
+            return new(result_x, result_y, result_z);
+        }
 
         pub fn x(self: Self) T {
             return self.data[0];
@@ -114,7 +105,7 @@ pub fn GenericVector(comptime dimensions: comptime_int, comptime T: type) type {
 
         /// Set all components to the same given value.
         pub fn set(val: T) Self {
-            const result = @splat(dimensions, val);
+            const result: @Vector(dimensions, T) = @splat(val);
             return .{ .data = result };
         }
 
@@ -168,7 +159,7 @@ pub fn GenericVector(comptime dimensions: comptime_int, comptime T: type) type {
         pub fn cast(self: Self, comptime dest_type: type) GenericVector(dimensions, dest_type) {
             const dest_info = @typeInfo(dest_type);
 
-            if (dest_info != .Float and dest_info != .Int) {
+            if (dest_info != .float and dest_info != .int) {
                 panic("Error, dest type should be integer or float.\n", .{});
             }
 
@@ -215,7 +206,7 @@ pub fn GenericVector(comptime dimensions: comptime_int, comptime T: type) type {
             if (l == 0) {
                 return self;
             }
-            const result = self.data / @splat(dimensions, l);
+            const result = self.data / @as(@TypeOf(self.data), @splat(l));
             return .{ .data = result };
         }
 
@@ -256,7 +247,7 @@ pub fn GenericVector(comptime dimensions: comptime_int, comptime T: type) type {
 
         /// Construct new vector after multiplying each components by a given scalar
         pub fn scale(self: Self, scalar: T) Self {
-            const result = self.data * @splat(dimensions, scalar);
+            const result = self.data * @as(@TypeOf(self.data), @splat(scalar));
             return .{ .data = result };
         }
 
@@ -271,7 +262,7 @@ pub fn GenericVector(comptime dimensions: comptime_int, comptime T: type) type {
             const from = first_vector.data;
             const to = second_vector.data;
 
-            const result = from + (to - from) * @splat(dimensions, t);
+            const result = from + (to - from) * @as(@TypeOf(from), @splat(t));
             return .{ .data = result };
         }
     };

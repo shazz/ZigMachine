@@ -240,7 +240,7 @@ pub fn fillFlatTriangle(fb: *LogicalFB, v1: Coord, v2: Coord, v3: Coord, pal_ent
 
     // find edge with the greatest length in the y axis
     while (i < 3) : (i += 1) {
-        var length: usize = @as(usize, @intCast(edges[i].y2 - edges[i].y1));
+        const length: usize = @as(usize, @intCast(edges[i].y2 - edges[i].y1));
         if (length > max_length) {
             max_length = length;
             long_edge = i;
@@ -260,20 +260,20 @@ fn drawSpansBetweenEdges(fb: *LogicalFB, e1: *const Edge, e2: *const Edge) void 
 
     // calculate difference between the y coordinates
     // of the first edge and return if 0
-    var e1ydiff: f32 = @as(f32, @floatFromInt(e1.y2)) - @as(f32, @floatFromInt(e1.y1));
+    const e1ydiff: f32 = @as(f32, @floatFromInt(e1.y2)) - @as(f32, @floatFromInt(e1.y1));
     if (e1ydiff == 0.0)
         return;
 
     // calculate difference between the y coordinates
     // of the second edge and return if 0
-    var e2ydiff: f32 = @as(f32, @floatFromInt(e2.y2)) - @as(f32, @floatFromInt(e2.y1));
+    const e2ydiff: f32 = @as(f32, @floatFromInt(e2.y2)) - @as(f32, @floatFromInt(e2.y1));
     if (e2ydiff == 0.0)
         return;
 
     // calculate differences between the x coordinates
     // and colors of the points of the edges
-    var e1xdiff = @as(f32, @floatFromInt(e1.x2))  - @as(f32, @floatFromInt(e1.x1));
-    var e2xdiff = @as(f32, @floatFromInt(e2.x2)) - @as(f32, @floatFromInt(e2.x1));
+    const e1xdiff = @as(f32, @floatFromInt(e1.x2))  - @as(f32, @floatFromInt(e1.x1));
+    const e2xdiff = @as(f32, @floatFromInt(e2.x2)) - @as(f32, @floatFromInt(e2.x1));
 
     // color gradient
     // Color e1colordiff = (e1.Color2 - e1.Color1);
@@ -283,9 +283,9 @@ fn drawSpansBetweenEdges(fb: *LogicalFB, e1: *const Edge, e2: *const Edge) void 
     // with the edges and the step values to increase
     // them by after drawing each span
     var factor1 = (@as(f32, @floatFromInt(e2.y1)) -  @as(f32, @floatFromInt(e1.y1))) / e1ydiff;
-    var factorStep1: f32 = 1.0 / e1ydiff;
+    const factorStep1: f32 = 1.0 / e1ydiff;
     var factor2: f32 = 0.0;
-    var factorStep2: f32 = 1.0 / e2ydiff;
+    const factorStep2: f32 = 1.0 / e2ydiff;
 
     // loop through the lines between the edges and draw spans
     var y = e2.y1;
@@ -322,7 +322,7 @@ fn drawSpan(fb: *LogicalFB, span: *const Span, y: i16) void {
 
     // Console.log("drawSpan at y={} from {} to {} in color {}", .{y, span.x1, span.x2, span.c1});
 
-    var xdiff = span.x2 - span.x1;
+    const xdiff = span.x2 - span.x1;
     if (xdiff == 0) {
         // Console.log("not drawn as xdiff == {}", . {xdiff});
         return;
@@ -341,7 +341,7 @@ fn drawSpan(fb: *LogicalFB, span: *const Span, y: i16) void {
     //     // Console.log("setPixelValue at ({}, {}) in color {}", .{x, y, span.c1});
     //     fb.setPixelValue(@as(u16, @intCast(x)), @as(u16, @intCast(y)), span.c1);
 
-    // 	// SetPixel(x, y, span.Color1 + (colordiff * factor));
-    // 	// factor += factorStep;
+    //  // SetPixel(x, y, span.Color1 + (colordiff * factor));
+    //  // factor += factorStep;
     // }
 }

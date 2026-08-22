@@ -25,7 +25,7 @@ pub const screen = Mat4.screen;
 /// A column-major 4x4 matrix
 /// Note: Column-major means accessing data like m.data[COLUMN][ROW].
 pub fn Mat4x4(comptime T: type) type {
-    if (@typeInfo(T) != .Float) {
+    if (@typeInfo(T) != .float) {
         @compileError("Mat4x4 not implemented for " ++ @typeName(T));
     }
 
@@ -317,7 +317,7 @@ pub fn Mat4x4(comptime T: type) type {
         pub fn camera(position: Vec3, angle_yaw: T, angle_pitch: T) Self {
             const rotate_p = Mat4.fromRotation(angle_pitch, Vector3.new(1.0, 0.0, 0.0));
             const rotate_y = Mat4.fromRotation(angle_yaw, Vector3.new(0.0, 1.0, 0.0));
-            var rotate_cam = Mat4.mul(rotate_p, rotate_y);
+            const rotate_cam = Mat4.mul(rotate_p, rotate_y);
 
             var up = Mat4.mulByVec4(rotate_cam, Vector4.up());
             var fw = Mat4.mulByVec4(rotate_cam, Vector4.forward());
@@ -340,7 +340,7 @@ pub fn Mat4x4(comptime T: type) type {
             rotate_mat.data[2][2] = fw.z();
             rotate_mat.data[3][3] = 1;
 
-            var result = Mat4.mul(translate_cam, rotate_mat);
+            const result = Mat4.mul(translate_cam, rotate_mat);
 
             return result;
         }
@@ -527,14 +527,14 @@ pub fn Mat4x4(comptime T: type) type {
         pub fn cast(self: Self, comptime dest_type: type) Mat4x4(dest_type) {
             const dest_info = @typeInfo(dest_type);
 
-            if (dest_info != .Float) {
+            if (dest_info != .float) {
                 std.debug.panic("Error, dest type should be float.\n", .{});
             }
 
             var result: Mat4x4(dest_type) = undefined;
             for (result.data, 0..) |_, column| {
                 for (result.data[column], 0..) |_, row| {
-                    result.data[column][row] = @floatCast(dest_type, self.data[column][row]);
+                    result.data[column][row] = @as(dest_type, @floatCast(self.data[column][row]));
                 }
             }
             return result;

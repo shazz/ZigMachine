@@ -108,7 +108,7 @@ pub const Dots3D = struct {
             const point_after_proj = self.projection.vec4mulByMat4(point_after_cam);
                     
             const norm = Vec4.set(1/point_after_proj.w());
-            var point_after_norm = point_after_proj.mul(norm);
+            const point_after_norm = point_after_proj.mul(norm);
 
             const point_after_screen = self.screen.vec4mulByMat4(point_after_norm);
 

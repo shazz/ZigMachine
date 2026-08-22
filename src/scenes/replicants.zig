@@ -197,7 +197,7 @@ pub const Demo = struct {
             self.table_index += 1;
         }
 
-        for(rasters) |*raster| {
+        for(&rasters) |*raster| {
             if(raster.direction == 1) {
                 raster.position += 1;
                 if (raster.position > 135+40) raster.direction = -1;

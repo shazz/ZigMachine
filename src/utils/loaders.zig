@@ -12,9 +12,9 @@ const Color = @import("../zigos.zig").Color;
 pub fn readU16Array(comptime raw: []const u8) [@divExact(raw.len, 2):0]u16 {
     comptime {
         const len = @divExact(raw.len, 2);
-        const table: [len:0]u16 = undefined;
-        for (table, 0..) |*out, i| {
-            out.* = std.mem.readIntLittle(u16, raw[i * 2 ..][0..2]);
+        var table: [len:0]u16 = undefined;
+        for (&table, 0..) |*out, i| {
+            out.* = std.mem.readInt(u16, raw[i * 2 ..][0..2], .little);
         }
         return table;
     }
@@ -27,9 +27,9 @@ pub fn readI16Array(comptime raw: []const u8) [@divExact(raw.len, 2):0]i16 {
     comptime {
         @setEvalBranchQuota(6000);
         const len = @divExact(raw.len, 2);
-        const table: [len:0]i16 = undefined;
-        for (table, 0..) |*out, i| {
-            out.* = std.mem.readIntLittle(i16, raw[i * 2 ..][0..2]);
+        var table: [len:0]i16 = undefined;
+        for (&table, 0..) |*out, i| {
+            out.* = std.mem.readInt(i16, raw[i * 2 ..][0..2], .little);
         }
         return table;
     }

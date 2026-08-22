@@ -2,7 +2,7 @@
 // Imports
 // --------------------------------------------------------------------------
 const std = @import("std");
-const RndGen = std.rand.DefaultPrng;
+const RndGen = std.Random.DefaultPrng;
 
 const ZigOS = @import("../zigos.zig").ZigOS;
 const LogicalFB = @import("../zigos.zig").LogicalFB;
@@ -40,7 +40,7 @@ pub const Demo = struct {
         var lfb: *LogicalFB = &zigos.lfbs[0];
         lfb.is_enabled = true;
 
-        var pfb: *[PHYSICAL_HEIGHT][PHYSICAL_WIDTH]u32 = &zigos.physical_framebuffer;
+        const pfb: *[PHYSICAL_HEIGHT][PHYSICAL_WIDTH]u32 = &zigos.physical_framebuffer;
 
         zigos.setResolution(Resolution.truecolor);
         self.mandelbrot.init(pfb);

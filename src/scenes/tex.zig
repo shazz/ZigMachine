@@ -130,7 +130,7 @@ pub const Demo = struct {
         self.logo_sinx += 0.13;
         self.logo_inc += 0.008;
 
-        var x_pos: f32 = @sin(self.logo_sinx) * (50 * @sin(self.logo_inc));
+        const x_pos: f32 = @sin(self.logo_sinx) * (50 * @sin(self.logo_inc));
         self.logo.update(52 + @as(i16, @intFromFloat(x_pos)), null, null, null);
 
         var i: usize = 0;

@@ -2,7 +2,7 @@
 // Imports
 // --------------------------------------------------------------------------
 const std = @import("std");
-const RndGen = std.rand.DefaultPrng;
+const RndGen = std.Random.DefaultPrng;
 
 const ZigOS = @import("../zigos.zig").ZigOS;
 const LogicalFB = @import("../zigos.zig").LogicalFB;
@@ -44,7 +44,7 @@ pub fn Starfield3D(
             prev_proj_y: f32 = undefined,
         };
 
-        rnd: std.rand.DefaultPrng = undefined,
+        rnd: std.Random.DefaultPrng = undefined,
         starfield_table: [nb_stars]Star = undefined,
         target: RenderTarget = undefined,
         width: f32 = undefined,
@@ -91,7 +91,7 @@ pub fn Starfield3D(
             }
 
             // Add NB_STARS stars
-            for (sf.starfield_table) |*star| {
+            for (&sf.starfield_table) |*star| {
                 const x = sf.rnd.random().float(f32) * (sf.width * 1.0) - sf.x * 1.0;
                 const y = sf.rnd.random().float(f32) * (sf.height * 1.0) - sf.y * 1.0;
                 const z = sf.rnd.random().float(f32) * sf.z;
@@ -110,7 +110,7 @@ pub fn Starfield3D(
 
         pub fn update(self: *Self) void {
 
-            for (self.starfield_table) |*star| {
+            for (&self.starfield_table) |*star| {
     
                 star.*.prev_proj_x = star.proj_x;
                 star.*.prev_proj_y = star.proj_y;
@@ -133,7 +133,7 @@ pub fn Starfield3D(
 
         pub fn render(self: *Self) void {
 
-            for (self.starfield_table) |*star| {
+            for (&self.starfield_table) |*star| {
 
                 if(star.prev_proj_x > 0 and star.prev_proj_x < self.width  and  star.prev_proj_y > 0 and star.prev_proj_y < self.height){
 

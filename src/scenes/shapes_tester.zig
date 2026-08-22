@@ -2,7 +2,7 @@
 // Imports
 // --------------------------------------------------------------------------
 const std = @import("std");
-const RndGen = std.rand.DefaultPrng;
+const RndGen = std.Random.DefaultPrng;
 
 const ZigOS = @import("../zigos.zig").ZigOS;
 const LogicalFB = @import("../zigos.zig").LogicalFB;
@@ -35,7 +35,7 @@ const Mat4 = za.Mat4;
 // --------------------------------------------------------------------------
 pub const Demo = struct {
 
-    rnd: std.rand.DefaultPrng = undefined,
+    rnd: std.Random.DefaultPrng = undefined,
     vector: za.Vec3 = undefined,
     matrix: za.Mat4 = undefined,
     triangle: [3]Vec4 = undefined,
@@ -96,7 +96,7 @@ pub const Demo = struct {
             const vertex_after_proj = self.projection.vec4mulByMat4(vertex_after_cam);
                     
             const norm = Vec4.set(1/vertex_after_proj.w());
-            var vertex_after_norm = vertex_after_proj.mul(norm);
+            const vertex_after_norm = vertex_after_proj.mul(norm);
 
             const vertex_after_screen = self.screen.vec4mulByMat4(vertex_after_norm);
 

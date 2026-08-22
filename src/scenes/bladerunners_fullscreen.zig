@@ -113,7 +113,7 @@ pub const Demo = struct {
         var i: usize = 0;
         var counter : f32 = 0;
         while(i < 320) : ( i += 1) {
-            const f_sin: f32 = @fabs(@sin(counter)) * 14; 
+            const f_sin: f32 = @abs(@sin(counter)) * 14; 
             self.offset_table[i] = @as(u16, @intFromFloat(f_sin));
             counter += 0.04;
         }

@@ -2,7 +2,7 @@
 // Imports
 // --------------------------------------------------------------------------
 const std = @import("std");
-const RndGen = std.rand.DefaultPrng;
+const RndGen = std.Random.DefaultPrng;
 
 const ZigOS = @import("../zigos.zig").ZigOS;
 const LogicalFB = @import("../zigos.zig").LogicalFB;
@@ -50,7 +50,7 @@ pub const Demo = struct {
     // boot: Boot = undefined,
     // starfield_3D: Starfield3D = undefined,
     // polygon: [4]Coord = undefined,
-    rnd: std.rand.DefaultPrng = undefined,
+    rnd: std.Random.DefaultPrng = undefined,
     colors: [2000]u8 = undefined,
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {

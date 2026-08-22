@@ -106,35 +106,35 @@ var grid_vertices = [_]Vec4{
 };
 
 var grid_segments = [_]Vec4{
-		Vec4.new(0, 1, 7, 6),
-		Vec4.new(1, 2, 8, 7),
-		Vec4.new(2, 3, 9, 8),
-		Vec4.new(3, 4, 10, 9),
-		Vec4.new(4, 5, 11, 10),
+        Vec4.new(0, 1, 7, 6),
+        Vec4.new(1, 2, 8, 7),
+        Vec4.new(2, 3, 9, 8),
+        Vec4.new(3, 4, 10, 9),
+        Vec4.new(4, 5, 11, 10),
 
-		Vec4.new(6, 7, 13, 12),
-		Vec4.new(7, 8, 14, 13),
-		Vec4.new(8, 9, 15, 14),
-		Vec4.new(9, 10, 16, 15),
-		Vec4.new(10, 11, 17, 16),
+        Vec4.new(6, 7, 13, 12),
+        Vec4.new(7, 8, 14, 13),
+        Vec4.new(8, 9, 15, 14),
+        Vec4.new(9, 10, 16, 15),
+        Vec4.new(10, 11, 17, 16),
 
-		Vec4.new(12, 13, 19, 18),
-		Vec4.new(13, 14, 20, 19),
-		Vec4.new(14, 15, 21, 20),
-		Vec4.new(15, 16, 22, 21),
-		Vec4.new(16, 17, 23, 22),
+        Vec4.new(12, 13, 19, 18),
+        Vec4.new(13, 14, 20, 19),
+        Vec4.new(14, 15, 21, 20),
+        Vec4.new(15, 16, 22, 21),
+        Vec4.new(16, 17, 23, 22),
 
-		Vec4.new(18, 19, 25, 24),
-		Vec4.new(19, 20, 26, 25),
-		Vec4.new(20, 21, 27, 26),
-		Vec4.new(21, 22, 28, 27),
-		Vec4.new(22, 23, 29, 28),
+        Vec4.new(18, 19, 25, 24),
+        Vec4.new(19, 20, 26, 25),
+        Vec4.new(20, 21, 27, 26),
+        Vec4.new(21, 22, 28, 27),
+        Vec4.new(22, 23, 29, 28),
 
-		Vec4.new(24, 25, 31, 30),
-		Vec4.new(25, 26, 32, 31),
-		Vec4.new(26, 27, 33, 32),
-		Vec4.new(27, 28, 34, 33),
-		Vec4.new(28, 29, 35, 34)
+        Vec4.new(24, 25, 31, 30),
+        Vec4.new(25, 26, 32, 31),
+        Vec4.new(26, 27, 33, 32),
+        Vec4.new(27, 28, 34, 33),
+        Vec4.new(28, 29, 35, 34)
 };
 
 
@@ -240,11 +240,11 @@ pub const Demo = struct {
 
         var i: usize = 0;
         while(i < grid_vertices.len) : (i += 1) {
-			var long: f32 = std.math.sqrt((grid_vertices[i].x() * grid_vertices[i].x()) + (grid_vertices[i].y() * grid_vertices[i].y()));
-            var offset: f32 = 0.15 * @sin(self.distort - long * ((2.0 * std.math.pi) / 0.9));
+            const long: f32 = std.math.sqrt((grid_vertices[i].x() * grid_vertices[i].x()) + (grid_vertices[i].y() * grid_vertices[i].y()));
+            const offset: f32 = 0.15 * @sin(self.distort - long * ((2.0 * std.math.pi) / 0.9));
 
             grid_vertices[i] = Vec4.new(grid_vertices[i].x(), grid_vertices[i].y(), offset, 1.0);
-		}        
+        }        
 
         self.transform_object(self.angle_x, self.angle_y, self.angle_z, &grid_vertices, &self.grid_projected_vertices);        
 
@@ -317,7 +317,7 @@ pub const Demo = struct {
             const vertex_after_proj = self.projection.vec4mulByMat4(vertex_after_cam);
                     
             const norm = Vec4.set(1/vertex_after_proj.w());
-            var vertex_after_norm = vertex_after_proj.mul(norm);
+            const vertex_after_norm = vertex_after_proj.mul(norm);
 
             const vertex_after_screen = self.screen.vec4mulByMat4(vertex_after_norm);
 

@@ -104,7 +104,7 @@ pub const Demo = struct {
 
     name: u8 = 0,
     frame_counter: u32 = 0,
-    rnd: std.rand.DefaultPrng = undefined,
+    rnd: std.Random.DefaultPrng = undefined,
     starfield: Starfield(200) = undefined,
     big_sprite: SpriteEffect = undefined,
     back: Background = undefined,
