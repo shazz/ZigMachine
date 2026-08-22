@@ -53,7 +53,7 @@ const BGCOL = Color{ .r = 0, .g = 0, .b = 0, .a = 255 };
 const RASTER_SPEED: f32 = 0.6; // scrolltext raster cycle speed (lower = slower)
 const SCROLL_SPEED: f32 = 2.0;
 const SCROLL_WAVE_AMP: f32 = 6.0; // vertical wobble of the scrolltext
-const LOGO_AMP: f32 = 5.0;
+const LOGO_AMP: f32 = 8.0;
 
 // Scope "electron flow": every FLOW_PERIOD frames a gradient band sweeps the
 // curves right->left, colouring them with the chrome/lava gradient as it passes.
@@ -288,9 +288,9 @@ pub const Demo = struct {
         // plane 3: logo with a 3-frame darkening trail (oldest/darkest first)
         var p3: *LogicalFB = &zigos.lfbs[3];
         p3.clearFrameBuffer(0);
-        self.drawTrsiLogo(p3, self.logo_phase - 0.6, 96);
-        self.drawTrsiLogo(p3, self.logo_phase - 0.4, 64);
-        self.drawTrsiLogo(p3, self.logo_phase - 0.2, 32);
+        self.drawTrsiLogo(p3, self.logo_phase - 2.4, 96);
+        self.drawTrsiLogo(p3, self.logo_phase - 1.6, 64);
+        self.drawTrsiLogo(p3, self.logo_phase - 0.8, 32);
         self.drawTrsiLogo(p3, self.logo_phase, 0);
     }
 
