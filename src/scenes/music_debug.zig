@@ -18,6 +18,8 @@ const LogicalFB = @import("../zigos.zig").LogicalFB;
 const Color = @import("../zigos.zig").Color;
 const Console = @import("../utils/debug.zig").Console;
 const convertU8ArraytoColors = @import("../utils/loaders.zig").convertU8ArraytoColors;
+const Starfield3D = @import("../effects/starfield_3D.zig").Starfield3D;
+const NB_STARS = 200;
 
 const WIDTH: u16 = @import("../zigos.zig").WIDTH;
 const HEIGHT: u16 = @import("../zigos.zig").HEIGHT;
@@ -47,15 +49,16 @@ const RASTER_STEP: u16 = 2;
 const SCROLL_SPEED: f32 = 2.0;
 const LOGO_AMP: f32 = 5.0;
 
+// Full-spectrum rainbow, cycling ~every 24 entries, for the scrolltext rasters.
 const COPPER = blk: {
-    @setEvalBranchQuota(4000);
+    @setEvalBranchQuota(6000);
     var t: [256]Color = undefined;
     for (&t, 0..) |*c, i| {
-        const s = (@sin(@as(f32, @floatFromInt(i)) * 0.098) * 0.5 + 0.5);
+        const a = @as(f32, @floatFromInt(i)) * 0.2618; // 2*pi/24
         c.* = Color{
-            .r = @intFromFloat(std.math.clamp(16.0 + s * 120.0, 0, 255)),
-            .g = @intFromFloat(std.math.clamp(s * s * 44.0, 0, 255)),
-            .b = @intFromFloat(std.math.clamp(24.0 + s * s * 60.0, 0, 255)),
+            .r = @intFromFloat((@sin(a) * 0.5 + 0.5) * 255.0),
+            .g = @intFromFloat((@sin(a + 2.0944) * 0.5 + 0.5) * 255.0),
+            .b = @intFromFloat((@sin(a + 4.1888) * 0.5 + 0.5) * 255.0),
             .a = 255,
         };
     }
@@ -115,6 +118,7 @@ fn drawText8(fb: *LogicalFB, text: []const u8, x: i32, y: i32, color: u8) void {
 pub const Demo = struct {
     scroll_x: f32 = @floatFromInt(WIDTH),
     phase: f32 = 0.0,
+    starfield: Starfield3D(NB_STARS) = undefined,
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
         Console.log("music debug init", .{});
@@ -123,35 +127,42 @@ pub const Demo = struct {
         raster_offset = 0;
         zigos.setBackgroundColor(BGCOL); // black borders
 
-        // plane 0: scope on a black background
+        // plane 0: 3D starfield (back). init() sets its own brightness palette.
         var p0: *LogicalFB = &zigos.lfbs[0];
         p0.is_enabled = true;
-        p0.setPaletteEntry(0, BGCOL);
-        p0.setPaletteEntry(SCOPE[0], Color{ .r = 250, .g = 250, .b = 255, .a = 255 });
-        p0.setPaletteEntry(SCOPE[1], Color{ .r = 150, .g = 255, .b = 130, .a = 255 });
-        p0.setPaletteEntry(SCOPE[2], Color{ .r = 120, .g = 220, .b = 255, .a = 255 });
-        p0.setPaletteEntry(SCOPE[3], Color{ .r = 255, .g = 200, .b = 120, .a = 255 });
+        self.starfield = Starfield3D(NB_STARS).init(p0.getRenderTarget(), WIDTH, HEIGHT, 6, false);
+        p0.setPaletteEntry(0, BGCOL); // black background
         p0.clearFrameBuffer(0);
 
-        // plane 1: menu + scroll text
+        // plane 1: scope (transparent bg so the starfield shows through)
         var p1: *LogicalFB = &zigos.lfbs[1];
         p1.is_enabled = true;
-        p1.setPaletteEntry(CLEAR, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
-        p1.setPaletteEntry(WHITE, Color{ .r = 245, .g = 245, .b = 250, .a = 255 });
-        p1.setPaletteEntry(YELLOW, Color{ .r = 255, .g = 220, .b = 90, .a = 255 });
-        p1.setPaletteEntry(GREEN, Color{ .r = 130, .g = 240, .b = 150, .a = 255 });
-        p1.setPaletteEntry(CYAN, Color{ .r = 130, .g = 210, .b = 250, .a = 255 });
-        p1.setPaletteEntry(DIM, Color{ .r = 190, .g = 190, .b = 210, .a = 255 });
-        p1.setPaletteEntry(SCROLL, COPPER[0]);
-        p1.setFrameBufferHBLHandler(0, scrollRasterHandler); // raster-fill the scroller
-        p1.clearFrameBuffer(CLEAR);
+        p1.setPaletteEntry(0, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
+        p1.setPaletteEntry(SCOPE[0], Color{ .r = 250, .g = 250, .b = 255, .a = 255 });
+        p1.setPaletteEntry(SCOPE[1], Color{ .r = 150, .g = 255, .b = 130, .a = 255 });
+        p1.setPaletteEntry(SCOPE[2], Color{ .r = 120, .g = 220, .b = 255, .a = 255 });
+        p1.setPaletteEntry(SCOPE[3], Color{ .r = 255, .g = 200, .b = 120, .a = 255 });
+        p1.clearFrameBuffer(0);
 
-        // plane 2: TRSI logo (its own palette, index 0 transparent)
+        // plane 2: menu + scroll text
         var p2: *LogicalFB = &zigos.lfbs[2];
         p2.is_enabled = true;
-        p2.setPalette(trsi_pal);
-        p2.setPaletteEntry(0, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
-        p2.clearFrameBuffer(0);
+        p2.setPaletteEntry(CLEAR, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
+        p2.setPaletteEntry(WHITE, Color{ .r = 245, .g = 245, .b = 250, .a = 255 });
+        p2.setPaletteEntry(YELLOW, Color{ .r = 255, .g = 220, .b = 90, .a = 255 });
+        p2.setPaletteEntry(GREEN, Color{ .r = 130, .g = 240, .b = 150, .a = 255 });
+        p2.setPaletteEntry(CYAN, Color{ .r = 130, .g = 210, .b = 250, .a = 255 });
+        p2.setPaletteEntry(DIM, Color{ .r = 190, .g = 190, .b = 210, .a = 255 });
+        p2.setPaletteEntry(SCROLL, COPPER[0]);
+        p2.setFrameBufferHBLHandler(0, scrollRasterHandler); // raster-fill the scroller
+        p2.clearFrameBuffer(CLEAR);
+
+        // plane 3: TRSI logo (its own palette, index 0 transparent), on top
+        var p3: *LogicalFB = &zigos.lfbs[3];
+        p3.is_enabled = true;
+        p3.setPalette(trsi_pal);
+        p3.setPaletteEntry(0, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
+        p3.clearFrameBuffer(0);
     }
 
     pub fn update(self: *Demo, zigos: *ZigOS, time_elapsed: f32) void {
@@ -162,31 +173,40 @@ pub const Demo = struct {
         if (self.scroll_x < -total) self.scroll_x = @floatFromInt(WIDTH);
         self.phase += 0.15;
         raster_offset +%= RASTER_STEP;
+        self.starfield.update();
     }
 
     pub fn render(self: *Demo, zigos: *ZigOS, time_elapsed: f32) void {
         _ = time_elapsed;
 
+        // plane 0: starfield
         var p0: *LogicalFB = &zigos.lfbs[0];
         p0.clearFrameBuffer(0);
-        self.drawScopes(zigos, p0);
+        self.starfield.render();
 
+        // plane 1: scope
         var p1: *LogicalFB = &zigos.lfbs[1];
-        p1.clearFrameBuffer(CLEAR);
-        drawText8(p1, "1  MOD     LOLLAPALOOZA", 44, 122, WHITE);
-        drawText8(p1, "2  YM2149  CONCERTO", 44, 134, WHITE);
-        drawText8(p1, "3  SAMPLE  DIGI STREAM", 44, 146, WHITE);
-        drawText8(p1, "PRESS 1  2  3", 108, 162, GREEN);
-        self.drawScroller(p1);
+        p1.clearFrameBuffer(0);
+        self.drawScopes(zigos, p1);
 
+        // plane 2: menu (vertically centred block) + scroll text
         var p2: *LogicalFB = &zigos.lfbs[2];
-        p2.clearFrameBuffer(0);
-        self.drawTrsiLogo(p2);
+        p2.clearFrameBuffer(CLEAR);
+        drawText8(p2, "1  MOD     LOLLAPALOOZA", 44, 92, WHITE);
+        drawText8(p2, "2  YM2149  CONCERTO", 44, 106, WHITE);
+        drawText8(p2, "3  SAMPLE  DIGI STREAM", 44, 120, WHITE);
+        drawText8(p2, "PRESS 1  2  3", 108, 140, GREEN);
+        self.drawScroller(p2);
+
+        // plane 3: logo (top)
+        var p3: *LogicalFB = &zigos.lfbs[3];
+        p3.clearFrameBuffer(0);
+        self.drawTrsiLogo(p3);
     }
 
     fn drawTrsiLogo(self: *Demo, fb: *LogicalFB) void {
         const start_x: i32 = @intCast((WIDTH - LOGO_W) / 2);
-        const base_y: i32 = 0; // higher up the screen
+        const base_y: i32 = -22; // crop the logo's ~25px top padding to sit near the top
         var px: usize = 0;
         while (px < LOGO_W) : (px += 1) {
             const wob: f32 = @sin(@as(f32, @floatFromInt(px)) * 0.03 + self.phase) * LOGO_AMP;
