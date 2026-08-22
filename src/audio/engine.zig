@@ -1,4 +1,5 @@
 const std = @import("std");
+const Ym2149 = @import("ym.zig").Ym2149;
 
 // --------------------------------------------------------------------------
 // Audio engine
@@ -77,6 +78,7 @@ pub const Engine = struct {
     right: [MAX_FRAMES]f32 = std.mem.zeroes([MAX_FRAMES]f32),
 
     channels: [NUM_CHANNELS]Channel = [_]Channel{.{}} ** NUM_CHANNELS,
+    ym: Ym2149 = .{}, // YM2149 chip (machine primitive), driven by a player
 
     // diagnostics
     test_tone_on: bool = false,
@@ -89,6 +91,7 @@ pub const Engine = struct {
 
     pub fn init(self: *Engine) void {
         self.* = .{};
+        self.ym.init(SAMPLE_RATE);
         var i: usize = 0;
         while (i < self.test_sample.len) : (i += 1) {
             const ph = TAU * @as(f32, @floatFromInt(i)) / @as(f32, @floatFromInt(self.test_sample.len));

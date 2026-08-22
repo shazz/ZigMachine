@@ -52,8 +52,19 @@ class ZigAudioProcessor extends AudioWorkletProcessor {
                 const ok = ex.audioLoadMod(len);
                 if (ok) ex.audioModPlay();
                 this.port.postMessage({ type: "modLoaded", ok: !!ok, len: len });
+            } else if (msg.type === "loadYm") {
+                const cap = ex.audioSongCapacity();
+                const dst = new Uint8Array(ex.memory.buffer, ex.audioSongPtr(), cap);
+                const src = new Uint8Array(msg.bytes);
+                const len = Math.min(src.length, cap);
+                dst.set(src.subarray(0, len));
+                const ok = ex.audioLoadYm(len);
+                if (ok) ex.audioYmPlay();
+                this.port.postMessage({ type: "ymLoaded", ok: !!ok, len: len });
             } else if (msg.type === "modStop") {
                 ex.audioModStop();
+            } else if (msg.type === "ymStop") {
+                ex.audioYmStop();
             }
         };
     }

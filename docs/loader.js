@@ -225,3 +225,18 @@ async function main() {
     if (button) button.textContent = "Sound off";
 }
 window.main = main;
+
+// Switch tunes at runtime (audio must be started). Players are exclusive:
+// loading a MOD stops the YM and vice-versa.
+async function playMod(url) {
+    if (!audioNode) return;
+    const bytes = await fetch(url).then(r => r.arrayBuffer());
+    audioNode.port.postMessage({ type: "loadMod", bytes: bytes }, [bytes]);
+}
+async function playYm(url) {
+    if (!audioNode) return;
+    const bytes = await fetch(url).then(r => r.arrayBuffer());
+    audioNode.port.postMessage({ type: "loadYm", bytes: bytes }, [bytes]);
+}
+window.playMod = playMod;
+window.playYm = playYm;

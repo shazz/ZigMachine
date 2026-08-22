@@ -12,9 +12,11 @@
 const engine_mod = @import("audio/engine.zig");
 const Engine = engine_mod.Engine;
 const ModPlayer = @import("audio/mod.zig").ModPlayer;
+const YmPlayer = @import("audio/ym_player.zig").YmPlayer;
 
 var engine: Engine = undefined;
 var mod: ModPlayer = .{};
+var ym: YmPlayer = .{};
 
 // Staging RAM for a loaded song (MOD image, or raw YM later). The worklet writes
 // the file bytes here, then calls the matching loader.
@@ -23,10 +25,13 @@ var song_buf: [1 << 20]u8 = undefined; // 1 MiB
 export fn audioInit() void {
     engine.init();
     mod = .{};
+    ym = .{};
 }
 
 export fn audioRender(frames: u32) void {
-    if (mod.active) {
+    if (ym.active) {
+        ym.renderStereo(&engine, @intCast(frames));
+    } else if (mod.active) {
         mod.renderStereo(&engine, @intCast(frames));
     } else {
         engine.render(@intCast(frames));
@@ -60,11 +65,26 @@ export fn audioLoadMod(len: u32) bool {
 }
 
 export fn audioModPlay() void {
+    ym.stop();
     mod.start();
 }
 
 export fn audioModStop() void {
     mod.stop();
+}
+
+// --- YM player (ZigOS) ---
+export fn audioLoadYm(len: u32) bool {
+    return ym.load(song_buf[0..@intCast(len)]);
+}
+
+export fn audioYmPlay() void {
+    mod.stop();
+    ym.start();
+}
+
+export fn audioYmStop() void {
+    ym.stop();
 }
 
 // --- diagnostics ---
