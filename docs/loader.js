@@ -174,3 +174,44 @@ window.document.body.addEventListener('keydown', function(evt){
     if ((evt.key === "d" || evt.key === "ArrowRight"))
 	    ZigMachine.input(3);
 });
+
+// --------------------------------------------------------------------------
+// Audio: AudioWorklet running audio.wasm on the audio thread.
+// The "Sound on" button calls main() (a user gesture, required to start audio).
+// --------------------------------------------------------------------------
+let audioCtx = null;
+let audioNode = null;
+
+async function main() {
+    const button = document.querySelector('.sound_button');
+
+    // toggle off
+    if (audioCtx) {
+        try { await audioCtx.close(); } catch (e) {}
+        audioCtx = null;
+        audioNode = null;
+        if (button) button.textContent = "Sound on";
+        return;
+    }
+
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 44100 });
+    const wasmBytes = await fetch("audio.wasm").then(r => r.arrayBuffer());
+    await audioCtx.audioWorklet.addModule("audio-worklet.js");
+
+    audioNode = new AudioWorkletNode(audioCtx, "zig-audio", {
+        numberOfInputs: 0,
+        numberOfOutputs: 1,
+        outputChannelCount: [2],
+        processorOptions: { wasmBytes: wasmBytes },
+    });
+    audioNode.port.onmessage = (event) => {
+        const msg = event.data;
+        if (msg.type === "ready") console.log("Audio worklet ready");
+        else if (msg.type === "error") console.error("Audio worklet error:", msg.message);
+    };
+    audioNode.connect(audioCtx.destination);
+    await audioCtx.resume();
+
+    if (button) button.textContent = "Sound off";
+}
+window.main = main;

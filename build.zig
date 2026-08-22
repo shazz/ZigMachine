@@ -43,6 +43,28 @@ pub fn build(b: *std.Build) void {
 
         const bootloader_step = b.step("bootloader", "Compiles bootloader.zig");
         bootloader_step.dependOn(&install.step);
+
+        // Standalone audio module, instantiated inside the AudioWorklet thread.
+        // It owns its own linear memory (not imported) and has no host imports.
+        const audio = b.addExecutable(.{
+            .name = "audio",
+            .root_module = b.createModule(.{
+                .root_source_file = b.path("src/audio_main.zig"),
+                .target = wasm_target,
+                .optimize = optimize,
+            }),
+        });
+        audio.entry = .disabled;
+        audio.rdynamic = true;
+        audio.stack_size = 1 * page_size;
+        audio.initial_memory = 32 * page_size; // == max: no growth, so worklet views stay valid
+        audio.max_memory = 32 * page_size;
+
+        const audio_install = b.addInstallArtifact(audio, .{
+            .dest_dir = .{ .override = .{ .custom = "../docs" } },
+        });
+        b.getInstallStep().dependOn(&audio_install.step);
+        bootloader_step.dependOn(&audio_install.step);
     }
 
     if (build_native) {
