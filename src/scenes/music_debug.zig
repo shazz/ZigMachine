@@ -176,10 +176,12 @@ pub const Demo = struct {
         var p1: *LogicalFB = &zigos.lfbs[1];
         p1.is_enabled = true;
         p1.setPaletteEntry(0, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
-        p1.setPaletteEntry(SCOPE[0], Color{ .r = 250, .g = 250, .b = 255, .a = 255 });
-        p1.setPaletteEntry(SCOPE[1], Color{ .r = 150, .g = 255, .b = 130, .a = 255 });
-        p1.setPaletteEntry(SCOPE[2], Color{ .r = 120, .g = 220, .b = 255, .a = 255 });
-        p1.setPaletteEntry(SCOPE[3], Color{ .r = 255, .g = 200, .b = 120, .a = 255 });
+        // scope curves: medium-dark grey
+        const scope_grey = Color{ .r = 90, .g = 90, .b = 96, .a = 255 };
+        p1.setPaletteEntry(SCOPE[0], scope_grey);
+        p1.setPaletteEntry(SCOPE[1], scope_grey);
+        p1.setPaletteEntry(SCOPE[2], scope_grey);
+        p1.setPaletteEntry(SCOPE[3], scope_grey);
         p1.clearFrameBuffer(0);
 
         // plane 2: menu + scroll text
