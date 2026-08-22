@@ -11,10 +11,19 @@ const std = @import("std");
 
 pub const YM_CLOCK: f32 = 2000000.0; // Atari ST PSG clock (2 MHz)
 
-// Normalized YM/AY volume curve (16 levels, ~3 dB/step).
-const VOL_TABLE = [16]f32{
-    0.0000, 0.0137, 0.0205, 0.0291, 0.0423, 0.0618, 0.0847, 0.1369,
-    0.1691, 0.2647, 0.3527, 0.4499, 0.5704, 0.6873, 0.8482, 1.0000,
+// YM2149 has a 32-level (5-bit) DAC. Measured curve (MAME/AY), normalized to 1.0.
+// The envelope indexes all 32 levels; a fixed 4-bit volume v uses level 2*v+1.
+const VOL_TABLE = blk: {
+    const raw = [32]f32{
+        0.0,     0.0,     0.00465, 0.00658, 0.00785, 0.00932, 0.01180, 0.01393,
+        0.01895, 0.02233, 0.02988, 0.03535, 0.04697, 0.05532, 0.07322, 0.08659,
+        0.11498, 0.13584, 0.18018, 0.21287, 0.28281, 0.33417, 0.44399, 0.52471,
+        0.68753, 0.81095, 1.06210, 1.25389, 1.65437, 1.95431, 2.58200, 3.05064,
+    };
+    var t: [32]f32 = undefined;
+    const maxv = raw[31];
+    for (raw, 0..) |v, i| t[i] = v / maxv;
+    break :blk t;
 };
 
 pub const Ym2149 = struct {
@@ -112,8 +121,6 @@ pub const Ym2149 = struct {
                 self.env_acc -= 1.0;
                 self.envStep();
             }
-            const env_vol = self.env_pos >> 1;
-
             var mix: f32 = 0;
             var ch: usize = 0;
             while (ch < 3) : (ch += 1) {
@@ -128,8 +135,12 @@ pub const Ym2149 = struct {
                 const nz = (self.noise_bit == 1) or noise_off;
                 if (t and nz) {
                     const vreg = self.regs[8 + ch];
-                    const vol: u4 = if (vreg & 0x10 != 0) @intCast(env_vol) else @truncate(vreg);
-                    mix += VOL_TABLE[vol];
+                    // envelope uses the full 5-bit level; fixed 4-bit v -> 2*v+1
+                    const level: u5 = if (vreg & 0x10 != 0)
+                        self.env_pos
+                    else
+                        @intCast(@as(u8, vreg & 0x0F) * 2 + 1);
+                    mix += VOL_TABLE[level];
                 }
             }
             const out = mix * 0.33; // headroom for 3 channels summed
