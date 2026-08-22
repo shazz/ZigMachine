@@ -123,8 +123,8 @@ fn drawGlyph(sheet: []const u8, per_row: usize, cell: usize, char: u8, x0: i32, 
     }
 }
 
-fn drawText8(fb: *LogicalFB, text: []const u8, x: i32, y: i32, color: u8) void {
-    for (text, 0..) |c, i| drawGlyph(font8_raw, 40, 8, c, x + @as(i32, @intCast(i * 8)), y, color, 0, 0, fb);
+fn drawText8(fb: *LogicalFB, text: []const u8, x: i32, y: i32, color: u8, amp: f32, phase: f32) void {
+    for (text, 0..) |c, i| drawGlyph(font8_raw, 40, 8, c, x + @as(i32, @intCast(i * 8)), y, color, amp, phase, fb);
 }
 
 pub const Demo = struct {
@@ -209,10 +209,10 @@ pub const Demo = struct {
         // plane 2: menu (vertically centred block) + scroll text
         var p2: *LogicalFB = &zigos.lfbs[2];
         p2.clearFrameBuffer(CLEAR);
-        drawText8(p2, "1  MOD     LOLLAPALOOZA", 44, 92, WHITE);
-        drawText8(p2, "2  YM2149  CONCERTO", 44, 106, WHITE);
-        drawText8(p2, "3  SAMPLE  DIGI STREAM", 44, 120, WHITE);
-        drawText8(p2, "PRESS 1  2  3", 108, 140, GREEN);
+        drawText8(p2, "1  MOD     LOLLAPALOOZA", 44, 92, WHITE, 2.5, self.phase);
+        drawText8(p2, "2  YM2149  CONCERTO", 44, 106, WHITE, 2.5, self.phase + 0.4);
+        drawText8(p2, "3  SAMPLE  DIGI STREAM", 44, 120, WHITE, 2.5, self.phase + 0.8);
+        drawText8(p2, "PRESS 1  2  3", 108, 140, GREEN, 2.5, self.phase + 1.2);
         self.drawScroller(zigos, p2);
 
         // plane 3: logo (top)
