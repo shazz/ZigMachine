@@ -104,6 +104,21 @@ pub const Engine = struct {
         self.test_tone_hz = hz;
     }
 
+    // Stream a raw 8-bit-signed PCM buffer on channel 0, looped, at `rate` Hz.
+    // (A minimal "sample streamer" — the simplest player on the Paula primitive.)
+    pub fn playRaw(self: *Engine, data: []const i8, rate: f32) void {
+        for (&self.channels) |*c| c.active = false;
+        var c = &self.channels[0];
+        c.data = data;
+        c.pos = 0;
+        c.loop_start = 0;
+        c.loop_len = @intCast(data.len);
+        c.volume = 0.9;
+        c.pan = 0.0;
+        c.step = @intFromFloat(rate / SAMPLE_RATE * @as(f32, FRAC_ONE));
+        c.active = true;
+    }
+
     // Play the built-in synthetic sample on a channel, looped, at `hz` cycles/sec.
     pub fn testSampleOn(self: *Engine, ch: usize, on: bool, hz: f32) void {
         if (ch >= NUM_CHANNELS) return;

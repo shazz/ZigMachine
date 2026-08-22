@@ -238,5 +238,12 @@ async function playYm(url) {
     const bytes = await fetch(url).then(r => r.arrayBuffer());
     audioNode.port.postMessage({ type: "loadYm", bytes: bytes }, [bytes]);
 }
+// Stream a raw 8-bit PCM file (guess rate by ear). unsigned=true for 0..255 data.
+async function playRaw(url, rate, unsigned) {
+    if (!audioNode) return;
+    const bytes = await fetch(url).then(r => r.arrayBuffer());
+    audioNode.port.postMessage({ type: "loadRaw", bytes: bytes, rate: rate || 12517, unsigned: !!unsigned }, [bytes]);
+}
 window.playMod = playMod;
 window.playYm = playYm;
+window.playRaw = playRaw;

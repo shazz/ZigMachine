@@ -9,6 +9,7 @@
 //   - mod.zig     = a ZigOS PLAYER driving the machine. Players are swappable;
 //                   people can add their own by driving the same primitives.
 // --------------------------------------------------------------------------
+const std = @import("std");
 const engine_mod = @import("audio/engine.zig");
 const Engine = engine_mod.Engine;
 const ModPlayer = @import("audio/mod.zig").ModPlayer;
@@ -85,6 +86,18 @@ export fn audioYmPlay() void {
 
 export fn audioYmStop() void {
     ym.stop();
+}
+
+// --- raw sample streamer ---
+export fn audioPlayRaw(len: u32, rate: f32, is_unsigned: bool) void {
+    mod.stop();
+    ym.stop();
+    const n: usize = @intCast(len);
+    if (is_unsigned) {
+        var i: usize = 0;
+        while (i < n) : (i += 1) song_buf[i] ^= 0x80; // unsigned -> signed
+    }
+    engine.playRaw(std.mem.bytesAsSlice(i8, song_buf[0..n]), rate);
 }
 
 // --- diagnostics ---
