@@ -147,6 +147,16 @@ export fn getYmRegsPointer() [*]u8 {
     return @ptrCast(&zigos.ym_regs);
 }
 
+// Active audio player mode (0 none,1 MOD,2 YM,3 sample), pushed in from JS.
+export fn getAudioModePointer() [*]u8 {
+    return @ptrCast(&zigos.audio_mode);
+}
+
+// Per-channel scope captures (4 x SCOPE_LEN f32, flat), pushed in from JS.
+export fn getScopesPointer() [*]f32 {
+    return @ptrCast(&zigos.scopes);
+}
+
 
 
 // --------------------------------------------------------------------------

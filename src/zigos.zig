@@ -16,6 +16,7 @@ pub const HEIGHT: u16 = 200;
 pub const NB_PLANES: u8 = 4;
 pub const HORIZONTAL_BORDERS_WIDTH: u16 = (PHYSICAL_WIDTH - WIDTH) / 2;
 pub const VERTICAL_BORDERS_HEIGHT: u16 = (PHYSICAL_HEIGHT - HEIGHT) / 2;
+pub const SCOPE_LEN: usize = 128; // per-channel audio scope length (matches audio engine)
 
 const SYSTEM_FONT = @embedFile("assets/fonts/system_font_atari_1bit.raw");
 const SYSTEM_FONT_WIDTH = 8;
@@ -184,6 +185,10 @@ pub const ZigOS = struct {
     // Mirror of the audio thread's YM2149 registers, pushed in from JS so scenes
     // can visualize the chip. 0..13 are the standard PSG registers.
     ym_regs: [16]u8 = [_]u8{0} ** 16,
+    // Active audio player (0 none, 1 MOD, 2 YM, 3 sample) + per-channel scope
+    // captures, both pushed in from JS for the music scene's oscilloscope.
+    audio_mode: u8 = 0,
+    scopes: [4][SCOPE_LEN]f32 = std.mem.zeroes([4][SCOPE_LEN]f32),
 
     pub fn init(self: *ZigOS) void {
         self.physical_framebuffer = std.mem.zeroes([PHYSICAL_HEIGHT][PHYSICAL_WIDTH]u32);

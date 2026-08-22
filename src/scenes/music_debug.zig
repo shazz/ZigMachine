@@ -27,7 +27,7 @@ const GREEN: u8 = 3;
 const CYAN: u8 = 4;
 const DIM: u8 = 5;
 // plane 0 (scope) palette entries (0 = raster, set per scanline)
-const SCOPE = [3]u8{ 6, 7, 8 };
+const SCOPE = [4]u8{ 6, 7, 8, 9 };
 
 const SCROLL_SPEED: f32 = 1.5;
 const LOGO = "ZIGMACHINE";
@@ -60,7 +60,8 @@ const MESSAGE =
     "GREETINGS TO MATT AND ALL THE SCENERS OUT THERE ....   " ++
     "AND NOW... LET IT WRAP !                   ";
 
-// Animated raster scroll offset — read by the (static) HBL handler.
+// Animated raster scroll offset — read by the (static) HBL handlers.
+const RASTER_STEP: u16 = 2;
 var raster_offset: u16 = 0;
 
 // Per-plane HBL handler: rasters in the visible area (plane 0 background).
@@ -71,8 +72,11 @@ fn rasterHandler(fb: *LogicalFB, zigos: *ZigOS, line: u16, col: u16) void {
 }
 
 // Global HBL handler: same rasters in the borders (physical background color).
+// clearPhysicalFrameBuffer() (this handler) runs BEFORE frame()/update(), while
+// the per-plane visible handler runs after, so add one RASTER_STEP here to
+// predict the offset the visible area will use this frame (no border seam).
 fn borderRasterHandler(zigos: *ZigOS, line: u16) void {
-    zigos.setBackgroundColor(COPPER[(line + raster_offset) % 256]);
+    zigos.setBackgroundColor(COPPER[(line + raster_offset + RASTER_STEP) % 256]);
 }
 
 fn hashRand(x: usize, seed: u32) f32 {
@@ -100,6 +104,7 @@ pub const Demo = struct {
         p0.setPaletteEntry(SCOPE[0], Color{ .r = 250, .g = 250, .b = 255, .a = 255 }); // white
         p0.setPaletteEntry(SCOPE[1], Color{ .r = 150, .g = 255, .b = 130, .a = 255 }); // green
         p0.setPaletteEntry(SCOPE[2], Color{ .r = 120, .g = 220, .b = 255, .a = 255 }); // cyan
+        p0.setPaletteEntry(SCOPE[3], Color{ .r = 255, .g = 200, .b = 120, .a = 255 }); // orange
         p0.clearFrameBuffer(0);
 
         // plane 1: text/logo on a transparent background
@@ -121,7 +126,7 @@ pub const Demo = struct {
         const total: f32 = @floatFromInt(MESSAGE.len * 8);
         if (self.scroll_x < -total) self.scroll_x = @floatFromInt(WIDTH);
         self.phase += 0.15;
-        raster_offset +%= 2;
+        raster_offset +%= RASTER_STEP; // border handler compensates by +RASTER_STEP
     }
 
     pub fn render(self: *Demo, zigos: *ZigOS, time_elapsed: f32) void {
@@ -144,9 +149,46 @@ pub const Demo = struct {
         self.drawScroller(zigos, p1);
     }
 
+    // Scope view adapts to the active player:
+    //   YM     -> 3 register-driven traces (one per tone channel)
+    //   MOD    -> 4 waveform traces (one per Paula channel)
+    //   SAMPLE -> 1 big waveform trace (classic scope)
+    fn drawScopes(self: *Demo, zigos: *ZigOS, fb: *LogicalFB) void {
+        switch (zigos.audio_mode) {
+            2 => self.drawYmScopes(zigos, fb),
+            1 => drawWaveScopes(zigos, fb, 4),
+            3 => drawWaveScopes(zigos, fb, 1),
+            else => {},
+        }
+    }
+
+    // Draw `n` channel waveforms from zigos.scopes (n=4 for MOD rows, n=1 sample).
+    fn drawWaveScopes(zigos: *ZigOS, fb: *LogicalFB, n: usize) void {
+        const top: i32 = 42;
+        const band: i32 = @divTrunc(@as(i32, HEIGHT - 60), @as(i32, @intCast(n)));
+        const amp: f32 = if (n == 1) 46.0 else @as(f32, @floatFromInt(band)) * 0.42;
+        var ch: usize = 0;
+        while (ch < n) : (ch += 1) {
+            const cy: i32 = top + band * @as(i32, @intCast(ch)) + @divTrunc(band, 2);
+            const samples = &zigos.scopes[ch];
+            var prev: i32 = cy;
+            var x: usize = 0;
+            while (x < WIDTH) : (x += 1) {
+                const idx = x * @import("../zigos.zig").SCOPE_LEN / WIDTH;
+                const yy: i32 = cy + @as(i32, @intFromFloat(samples[idx] * amp));
+                var yl = @min(prev, yy);
+                const yh = @max(prev, yy);
+                while (yl <= yh) : (yl += 1) {
+                    if (yl >= 0 and yl < HEIGHT) fb.setPixelValue(@intCast(x), @intCast(yl), SCOPE[ch]);
+                }
+                prev = yy;
+            }
+        }
+    }
+
     // Three oscilloscope traces (one per YM tone channel), spread over the screen
     // behind the text: square for tone, jitter for noise, amplitude from volume.
-    fn drawScopes(self: *Demo, zigos: *ZigOS, fb: *LogicalFB) void {
+    fn drawYmScopes(self: *Demo, zigos: *ZigOS, fb: *LogicalFB) void {
         const cy = [3]u16{ 66, 108, 150 };
         const regs = &zigos.ym_regs;
         var ch: usize = 0;

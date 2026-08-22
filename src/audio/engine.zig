@@ -20,6 +20,7 @@ const Ym2149 = @import("ym.zig").Ym2149;
 pub const SAMPLE_RATE: f32 = 44100.0;
 pub const MAX_FRAMES: usize = 4096;
 pub const NUM_CHANNELS: usize = 4;
+pub const SCOPE_LEN: usize = 128; // per-channel oscilloscope capture length
 
 // Headroom so summed channels don't exceed [-1,1]; a final clamp guards peaks.
 const MASTER_GAIN: f32 = 0.5;
@@ -40,6 +41,11 @@ pub const Channel = struct {
     volume: f32 = 1.0, // 0..1
     pan: f32 = 0.0, // -1 = full left, +1 = full right
     active: bool = false,
+
+    // oscilloscope capture (decimated) of this channel's own output
+    scope: [SCOPE_LEN]f32 = std.mem.zeroes([SCOPE_LEN]f32),
+    scope_w: u8 = 0,
+    scope_ctr: u2 = 0,
 
     fn mixInto(self: *Channel, left: []f32, right: []f32) void {
         const n = left.len;
@@ -67,6 +73,12 @@ pub const Channel = struct {
             const s = @as(f32, @floatFromInt(self.data[idx])) * (1.0 / 128.0);
             left[i] += s * lgain;
             right[i] += s * rgain;
+            // capture a decimated copy of this channel's output for the scope
+            if (self.scope_ctr == 0) {
+                self.scope[self.scope_w] = s * self.volume;
+                self.scope_w = (self.scope_w +% 1) % @as(u8, @intCast(SCOPE_LEN));
+            }
+            self.scope_ctr +%= 1;
             p += self.step;
         }
         self.pos = p;
@@ -137,6 +149,14 @@ pub const Engine = struct {
         const rate = hz * @as(f32, @floatFromInt(self.test_sample.len));
         c.step = @intFromFloat(rate / SAMPLE_RATE * @as(f32, FRAC_ONE));
         c.active = true;
+    }
+
+    // Reset all channel oscilloscope captures (e.g. when switching player).
+    pub fn clearScopes(self: *Engine) void {
+        for (&self.channels) |*c| {
+            c.scope = std.mem.zeroes([SCOPE_LEN]f32);
+            c.scope_w = 0;
+        }
     }
 
     // Zero a stereo range [0, n).

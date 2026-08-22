@@ -28,6 +28,9 @@ class ZigAudioProcessor extends AudioWorkletProcessor {
             this.left = new Float32Array(mem.buffer, inst.exports.audioLeftPtr(), maxFrames);
             this.right = new Float32Array(mem.buffer, inst.exports.audioRightPtr(), maxFrames);
             this.ymRegs = new Uint8Array(mem.buffer, inst.exports.audioYmRegsPtr(), 16);
+            this.scopeLen = inst.exports.audioScopeLen();
+            this.scopes = [0, 1, 2, 3].map((ch) =>
+                new Float32Array(mem.buffer, inst.exports.audioScopePtr(ch), this.scopeLen));
             this.tick = 0;
 
             this.ready = true;
@@ -91,9 +94,14 @@ class ZigAudioProcessor extends AudioWorkletProcessor {
             out[1].set(this.right.subarray(0, frames));
         }
 
-        // Mirror YM registers to the main thread ~every 5 blocks (~58 Hz) for the scope.
+        // Mirror audio state to the main thread ~every 4 blocks (~85 Hz) for the scope.
         if ((this.tick++ & 3) === 0) {
-            this.port.postMessage({ type: "ymRegs", regs: Array.from(this.ymRegs.subarray(0, 14)) });
+            this.port.postMessage({
+                type: "audioState",
+                mode: this.instance.exports.audioMode(),
+                regs: Array.from(this.ymRegs.subarray(0, 14)),
+                scopes: this.scopes.map((s) => Array.from(s)),
+            });
         }
         return true;
     }

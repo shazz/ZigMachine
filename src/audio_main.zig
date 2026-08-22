@@ -67,6 +67,7 @@ export fn audioLoadMod(len: u32) bool {
 
 export fn audioModPlay() void {
     ym.stop();
+    engine.clearScopes();
     mod.start();
 }
 
@@ -81,6 +82,7 @@ export fn audioLoadYm(len: u32) bool {
 
 export fn audioYmPlay() void {
     mod.stop();
+    engine.clearScopes();
     ym.start();
 }
 
@@ -93,10 +95,28 @@ export fn audioYmRegsPtr() [*]u8 {
     return @ptrCast(&engine.ym.regs);
 }
 
+// Active player: 0 none, 1 MOD, 2 YM, 3 sample. Drives the scope view type.
+export fn audioMode() u8 {
+    if (ym.active) return 2;
+    if (mod.active) return 1;
+    if (engine.channels[0].active) return 3;
+    return 0;
+}
+
+export fn audioScopePtr(ch: u32) [*]f32 {
+    return @ptrCast(&engine.channels[@intCast(ch)].scope);
+}
+
+export fn audioScopeLen() u32 {
+    return @intCast(engine_mod.SCOPE_LEN);
+}
+
+
 // --- raw sample streamer ---
 export fn audioPlayRaw(len: u32, rate: f32, is_unsigned: bool) void {
     mod.stop();
     ym.stop();
+    engine.clearScopes();
     const n: usize = @intCast(len);
     if (is_unsigned) {
         var i: usize = 0;

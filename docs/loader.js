@@ -207,11 +207,18 @@ function startAudio() {
                 const msg = event.data;
                 if (msg.type === "ready") { console.log("Audio worklet ready"); resolve(); }
                 else if (msg.type === "error") console.error("Audio worklet error:", msg.message);
-                else if (msg.type === "ymRegs") {
-                    // mirror the chip registers into the scene's wasm memory for the scope
+                else if (msg.type === "audioState") {
+                    // mirror chip regs + player mode + per-channel scopes into the scene
                     if (ZigMachine.getYmRegsPointer) {
-                        const view = new Uint8Array(memory.buffer, ZigMachine.getYmRegsPointer(), 16);
-                        view.set(msg.regs);
+                        new Uint8Array(memory.buffer, ZigMachine.getYmRegsPointer(), 16).set(msg.regs);
+                    }
+                    if (ZigMachine.getAudioModePointer) {
+                        new Uint8Array(memory.buffer, ZigMachine.getAudioModePointer(), 1)[0] = msg.mode;
+                    }
+                    if (ZigMachine.getScopesPointer && msg.scopes) {
+                        const len = msg.scopes[0].length;
+                        const flat = new Float32Array(memory.buffer, ZigMachine.getScopesPointer(), 4 * len);
+                        for (let ch = 0; ch < 4; ch++) flat.set(msg.scopes[ch], ch * len);
                     }
                 } else if (msg.type === "modLoaded" || msg.type === "ymLoaded" || msg.type === "rawLoaded")
                     console.log(msg.type, msg);
