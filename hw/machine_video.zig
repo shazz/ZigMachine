@@ -5,7 +5,7 @@
 // the main thread, sharing ONE WebAssembly.Memory with the demo module. Imports
 // only env.memory and env.hblDispatch (routed by the host to the demo module).
 // --------------------------------------------------------------------------
-const video = @import("machine/video.zig");
+const video = @import("video.zig");
 const memmap = @import("sdk/memmap.zig");
 
 export fn hwVideoBase() i32 {

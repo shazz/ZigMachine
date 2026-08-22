@@ -15,7 +15,7 @@
 // a Zig function pointer.
 // --------------------------------------------------------------------------
 const std = @import("std");
-const memmap = @import("../sdk/memmap.zig");
+const memmap = @import("sdk/memmap.zig");
 
 // The one host import the sealed machine needs: route an HBL point to the demo.
 extern fn hblDispatch(id: u32, plane: u32, line: u32, x: u32) void;

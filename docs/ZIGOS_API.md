@@ -6,8 +6,8 @@ sealed hardware (see **HW_API.md**) and hides the raw memory map behind a small,
 stable object API. You may read and extend ZigOS freely — it is the part of the
 console that is *yours*.
 
-Source: `src/zigos.zig` (the library) and `src/audio/mod.zig` /
-`src/audio/ym_player.zig` (the players). Reference scene: `src/scenes/music_debug.zig`.
+Source: `zigos/zigos.zig` (the library) and `zigos/players/mod.zig` /
+`zigos/players/ym_player.zig` (the players). Reference scene: `apps/scenes/music_debug.zig`.
 
 ---
 

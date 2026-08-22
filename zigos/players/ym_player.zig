@@ -1,5 +1,5 @@
 const std = @import("std");
-const audio = @import("../sdk/audio.zig");
+const audio = @import("audio_hw");
 
 // --------------------------------------------------------------------------
 // YM register-dump player (YM5!/YM6!) — an OPEN ZigOS player driving the SEALED

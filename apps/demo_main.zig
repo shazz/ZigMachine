@@ -12,8 +12,9 @@
 // The machine calls back into demo.hblDispatch() at each HBL point.
 // --------------------------------------------------------------------------
 const std = @import("std");
-const ZigOS = @import("zigos.zig").ZigOS;
-const Console = @import("utils/debug.zig").Console;
+const zg = @import("zigos"); // the open ZigOS library (named module)
+const ZigOS = zg.ZigOS;
+const Console = zg.Console;
 const Demo = @import("floppy.zig").Demo;
 
 const VERSION = "0.2-sealed";

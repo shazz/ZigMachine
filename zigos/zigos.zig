@@ -11,8 +11,17 @@
 // through integer ids via dispatchHBL().
 // --------------------------------------------------------------------------
 const std = @import("std");
-const hw = @import("sdk/hardware.zig");
-const Console = @import("utils/debug.zig").Console;
+const hw = @import("hardware"); // sealed video ABI header (named module)
+
+// --------------------------------------------------------------------------
+// Re-exports so scenes (in the separate `apps` module) can reach the whole open
+// library through a single `@import("zigos")`, without relative paths escaping
+// their module. Audio players are intentionally NOT re-exported here — they pull
+// the audio chip ABI and belong only to the demo-audio build.
+// --------------------------------------------------------------------------
+pub const Console = @import("utils/debug.zig").Console;
+pub const Starfield3D = @import("effects/starfield_3D.zig").Starfield3D;
+pub const convertU8ArraytoColors = @import("utils/loaders.zig").convertU8ArraytoColors;
 
 // --------------------------------------------------------------------------
 // Enum

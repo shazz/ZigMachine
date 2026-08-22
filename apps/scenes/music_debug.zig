@@ -13,22 +13,23 @@
 // --------------------------------------------------------------------------
 const std = @import("std");
 
-const ZigOS = @import("../zigos.zig").ZigOS;
-const LogicalFB = @import("../zigos.zig").LogicalFB;
-const Color = @import("../zigos.zig").Color;
-const Console = @import("../utils/debug.zig").Console;
-const convertU8ArraytoColors = @import("../utils/loaders.zig").convertU8ArraytoColors;
-const Starfield3D = @import("../effects/starfield_3D.zig").Starfield3D;
+const zg = @import("zigos"); // the open ZigOS library (named module)
+const ZigOS = zg.ZigOS;
+const LogicalFB = zg.LogicalFB;
+const Color = zg.Color;
+const Console = zg.Console;
+const convertU8ArraytoColors = zg.convertU8ArraytoColors;
+const Starfield3D = zg.Starfield3D;
 const NB_STARS = 200;
 
-const WIDTH: u16 = @import("../zigos.zig").WIDTH;
-const HEIGHT: u16 = @import("../zigos.zig").HEIGHT;
-const SCOPE_LEN: usize = @import("../zigos.zig").SCOPE_LEN;
+const WIDTH: u16 = zg.WIDTH;
+const HEIGHT: u16 = zg.HEIGHT;
+const SCOPE_LEN: usize = zg.SCOPE_LEN;
 // border geometry, for drawing the scrolltext into the borders ("fullscreen")
-const HBORD: i32 = @import("../zigos.zig").HORIZONTAL_BORDERS_WIDTH; // 40
-const VBORD: i32 = @import("../zigos.zig").VERTICAL_BORDERS_HEIGHT; // 40
-const PW: i32 = @import("../zigos.zig").PHYSICAL_WIDTH; // 400
-const PH: i32 = @import("../zigos.zig").PHYSICAL_HEIGHT; // 280
+const HBORD: i32 = zg.HORIZONTAL_BORDERS_WIDTH; // 40
+const VBORD: i32 = zg.VERTICAL_BORDERS_HEIGHT; // 40
+const PW: i32 = zg.PHYSICAL_WIDTH; // 400
+const PH: i32 = zg.PHYSICAL_HEIGHT; // 280
 
 // TRSI logo + bitmap fonts.
 const trsi_raw = @embedFile("../assets/logo/trsi.raw");

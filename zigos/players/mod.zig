@@ -1,5 +1,5 @@
 const std = @import("std");
-const audio = @import("../sdk/audio.zig");
+const audio = @import("audio_hw");
 
 // --------------------------------------------------------------------------
 // ProTracker .MOD player (4 channels, 31 samples, "M.K.") — an OPEN ZigOS

@@ -8,9 +8,10 @@
 // / audioRender; the chip's stereo buffers + scopes are read from machine-audio.
 // --------------------------------------------------------------------------
 const std = @import("std");
-const audio = @import("sdk/audio.zig");
-const ModPlayer = @import("audio/mod.zig").ModPlayer;
-const YmPlayer = @import("audio/ym_player.zig").YmPlayer;
+const audio = @import("audio_hw"); // sealed audio chip ABI (named module)
+const players = @import("players"); // open ZigOS players (named module)
+const ModPlayer = players.ModPlayer;
+const YmPlayer = players.YmPlayer;
 
 var mod: ModPlayer = .{};
 var ym: YmPlayer = .{};

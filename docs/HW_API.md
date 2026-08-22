@@ -10,8 +10,8 @@ The **sealed machine** ABI: everything a coder gets of the hardware is the two
 > bump major. Version is exported as `hwVersion()` / `audioVersion()`
 > (`0x0001_0000` = 1.0.0).
 
-The single source of truth for the numbers below is `src/sdk/memmap.zig` (video)
-and `src/sdk/audio.zig` (audio).
+The single source of truth for the numbers below is `hw/sdk/memmap.zig` (video)
+and `hw/sdk/audio.zig` (audio).
 
 ---
 
