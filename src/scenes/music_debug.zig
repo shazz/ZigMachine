@@ -24,6 +24,11 @@ const NB_STARS = 200;
 const WIDTH: u16 = @import("../zigos.zig").WIDTH;
 const HEIGHT: u16 = @import("../zigos.zig").HEIGHT;
 const SCOPE_LEN: usize = @import("../zigos.zig").SCOPE_LEN;
+// border geometry, for drawing the scrolltext into the borders ("fullscreen")
+const HBORD: i32 = @import("../zigos.zig").HORIZONTAL_BORDERS_WIDTH; // 40
+const VBORD: i32 = @import("../zigos.zig").VERTICAL_BORDERS_HEIGHT; // 40
+const PW: i32 = @import("../zigos.zig").PHYSICAL_WIDTH; // 400
+const PH: i32 = @import("../zigos.zig").PHYSICAL_HEIGHT; // 280
 
 // TRSI logo + bitmap fonts.
 const trsi_raw = @embedFile("../assets/logo/trsi.raw");
@@ -208,7 +213,7 @@ pub const Demo = struct {
         drawText8(p2, "2  YM2149  CONCERTO", 44, 106, WHITE);
         drawText8(p2, "3  SAMPLE  DIGI STREAM", 44, 120, WHITE);
         drawText8(p2, "PRESS 1  2  3", 108, 140, GREEN);
-        self.drawScroller(p2);
+        self.drawScroller(zigos, p2);
 
         // plane 3: logo (top)
         var p3: *LogicalFB = &zigos.lfbs[3];
@@ -243,13 +248,45 @@ pub const Demo = struct {
         }
     }
 
-    fn drawScroller(self: *Demo, fb: *LogicalFB) void {
+    // "Fullscreen" scroller: the visible span is drawn on the text plane (rainbow
+    // via the HBL palette), while the parts that spill into the left/right borders
+    // are written straight into the physical framebuffer (which the per-plane
+    // render never touches) — a border-overscan hack of the machine.
+    fn drawScroller(self: *Demo, zigos: *ZigOS, fb: *LogicalFB) void {
         const y0: i32 = HEIGHT - 18;
         const base_x: i32 = @intFromFloat(self.scroll_x);
         for (MESSAGE, 0..) |char, i| {
             const cx: i32 = base_x + @as(i32, @intCast(i * 16));
-            if (cx <= -16 or cx >= WIDTH) continue;
-            drawGlyph(font16_raw, 20, 16, char, cx, y0, SCROLL, SCROLL_WAVE_AMP, self.phase, fb);
+            if (cx <= -HBORD - 16 or cx >= WIDTH + HBORD) continue;
+            self.drawScrollGlyph(zigos, fb, char, cx, y0);
+        }
+    }
+
+    fn drawScrollGlyph(self: *Demo, zigos: *ZigOS, fb: *LogicalFB, char: u8, x0: i32, y0: i32) void {
+        const count = 20 * ((font16_raw.len / 320) / 16);
+        const gidx: usize = if (char >= 32 and char < 32 + count) char - 32 else 0;
+        const scx = (gidx % 20) * 16;
+        const scy = (gidx / 20) * 16;
+        var gy: usize = 0;
+        while (gy < 16) : (gy += 1) {
+            var gx: usize = 0;
+            while (gx < 16) : (gx += 1) {
+                if (font16_raw[(scy + gy) * 320 + scx + gx] == 0) continue;
+                const lx = x0 + @as(i32, @intCast(gx));
+                const ly = y0 + @as(i32, @intCast(gy)) +
+                    @as(i32, @intFromFloat(@sin(@as(f32, @floatFromInt(lx)) * 0.05 + self.phase) * SCROLL_WAVE_AMP));
+                if (ly < 0 or ly >= HEIGHT) continue;
+                if (lx >= 0 and lx < WIDTH) {
+                    fb.setPixelValue(@intCast(lx), @intCast(ly), SCROLL); // visible: plane
+                } else if (lx >= -HBORD and lx < WIDTH + HBORD) {
+                    const phx = lx + HBORD; // borders: straight to the physical framebuffer
+                    const phy = ly + VBORD;
+                    if (phx >= 0 and phx < PW and phy >= 0 and phy < PH) {
+                        const col = COPPER[(@as(usize, @intCast(phy)) + raster_offset) % 256];
+                        zigos.physical_framebuffer[@intCast(phy)][@intCast(phx)] = col.toRGBA();
+                    }
+                }
+            }
         }
     }
 
