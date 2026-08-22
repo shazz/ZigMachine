@@ -125,6 +125,7 @@ fn drawText8(fb: *LogicalFB, text: []const u8, x: i32, y: i32, color: u8) void {
 pub const Demo = struct {
     scroll_x: f32 = @floatFromInt(WIDTH),
     phase: f32 = 0.0,
+    logo_phase: f32 = 0.0, // slow, drives the logo distortion
     starfield: Starfield3D(NB_STARS) = undefined,
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
@@ -180,6 +181,7 @@ pub const Demo = struct {
         const total: f32 = @floatFromInt(MESSAGE.len * 16);
         if (self.scroll_x < -total) self.scroll_x = @floatFromInt(WIDTH);
         self.phase += 0.15;
+        self.logo_phase += 0.045; // slower logo movement
         raster_phase += RASTER_SPEED;
         if (raster_phase >= 4096.0) raster_phase -= 4096.0;
         raster_offset = @intFromFloat(raster_phase);
@@ -217,15 +219,23 @@ pub const Demo = struct {
     fn drawTrsiLogo(self: *Demo, fb: *LogicalFB) void {
         const start_x: i32 = @intCast((WIDTH - LOGO_W) / 2);
         const base_y: i32 = -22; // crop the logo's ~25px top padding to sit near the top
+
+        // horizontal distortion amplitude breathes over time (progress/regress)
+        const hamp: f32 = (@sin(self.logo_phase * 0.7) * 0.5 + 0.5) * 10.0;
+        var hoff: [LOGO_H]i32 = undefined;
+        var r: usize = 0;
+        while (r < LOGO_H) : (r += 1) {
+            hoff[r] = @intFromFloat(@sin(@as(f32, @floatFromInt(r)) * 0.06 + self.logo_phase * 1.3) * hamp);
+        }
+
         var px: usize = 0;
         while (px < LOGO_W) : (px += 1) {
-            const wob: f32 = @sin(@as(f32, @floatFromInt(px)) * 0.03 + self.phase) * LOGO_AMP;
-            const dy: i32 = @intFromFloat(wob);
+            const dy: i32 = @intFromFloat(@sin(@as(f32, @floatFromInt(px)) * 0.03 + self.logo_phase) * LOGO_AMP);
             var py: usize = 0;
             while (py < LOGO_H) : (py += 1) {
                 const idx = trsi_raw[py * LOGO_W + px];
                 if (idx == 0) continue;
-                const sx = start_x + @as(i32, @intCast(px));
+                const sx = start_x + @as(i32, @intCast(px)) + hoff[py];
                 const sy = base_y + @as(i32, @intCast(py)) + dy;
                 if (sx < 0 or sx >= WIDTH or sy < 0 or sy >= HEIGHT) continue;
                 fb.setPixelValue(@intCast(sx), @intCast(sy), idx);
