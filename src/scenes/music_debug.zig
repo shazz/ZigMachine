@@ -55,18 +55,42 @@ const SCROLL_SPEED: f32 = 2.0;
 const SCROLL_WAVE_AMP: f32 = 6.0; // vertical wobble of the scrolltext
 const LOGO_AMP: f32 = 5.0;
 
-// Full-spectrum rainbow, cycling ~every 24 entries, for the scrolltext rasters.
+// Interpolate a colour ramp (dark..bright key colours) at t in 0..1.
+fn ramp(keys: []const [3]u8, t: f32) Color {
+    const maxf = @as(f32, @floatFromInt(keys.len - 1));
+    var ft = t * maxf;
+    if (ft < 0) ft = 0;
+    if (ft > maxf) ft = maxf;
+    const lo: usize = @intFromFloat(ft);
+    const hi = @min(keys.len - 1, lo + 1);
+    const f = ft - @as(f32, @floatFromInt(lo));
+    const a = keys[lo];
+    const b = keys[hi];
+    return Color{
+        .r = @intFromFloat(@as(f32, @floatFromInt(a[0])) * (1 - f) + @as(f32, @floatFromInt(b[0])) * f),
+        .g = @intFromFloat(@as(f32, @floatFromInt(a[1])) * (1 - f) + @as(f32, @floatFromInt(b[1])) * f),
+        .b = @intFromFloat(@as(f32, @floatFromInt(a[2])) * (1 - f) + @as(f32, @floatFromInt(b[2])) * f),
+        .a = 255,
+    };
+}
+
+// Scrolltext raster gradient matching the TRSI logo: alternating metallic
+// (teal-chrome) and lava (fire) bars, each a dark->bright->dark raster bar.
 const COPPER = blk: {
-    @setEvalBranchQuota(6000);
+    @setEvalBranchQuota(40000);
+    const metal = [_][3]u8{ .{ 12, 22, 22 }, .{ 57, 89, 90 }, .{ 146, 168, 166 }, .{ 250, 252, 251 } };
+    const lava = [_][3]u8{ .{ 40, 6, 3 }, .{ 195, 26, 4 }, .{ 214, 93, 31 }, .{ 238, 187, 71 }, .{ 255, 233, 131 } };
+    const PERIOD = 64; // 32 metal + 32 lava
     var t: [256]Color = undefined;
     for (&t, 0..) |*c, i| {
-        const a = @as(f32, @floatFromInt(i)) * 0.2618; // 2*pi/24
-        c.* = Color{
-            .r = @intFromFloat((@sin(a) * 0.5 + 0.5) * 255.0),
-            .g = @intFromFloat((@sin(a + 2.0944) * 0.5 + 0.5) * 255.0),
-            .b = @intFromFloat((@sin(a + 4.1888) * 0.5 + 0.5) * 255.0),
-            .a = 255,
-        };
+        const pos = i % PERIOD;
+        if (pos < 32) {
+            const b = @sin(@as(f32, @floatFromInt(pos)) / 31.0 * std.math.pi);
+            c.* = ramp(&metal, b);
+        } else {
+            const b = @sin(@as(f32, @floatFromInt(pos - 32)) / 31.0 * std.math.pi);
+            c.* = ramp(&lava, b);
+        }
     }
     break :blk t;
 };
@@ -253,7 +277,7 @@ pub const Demo = struct {
     // are written straight into the physical framebuffer (which the per-plane
     // render never touches) — a border-overscan hack of the machine.
     fn drawScroller(self: *Demo, zigos: *ZigOS, fb: *LogicalFB) void {
-        const y0: i32 = HEIGHT - 18;
+        const y0: i32 = HEIGHT - 28; // 10px higher than before
         const base_x: i32 = @intFromFloat(self.scroll_x);
         for (MESSAGE, 0..) |char, i| {
             const cx: i32 = base_x + @as(i32, @intCast(i * 16));
