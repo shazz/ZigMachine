@@ -40,6 +40,8 @@ class ZigAudioProcessor extends AudioWorkletProcessor {
             if (!this.instance) return;
             if (msg.type === "testTone") {
                 this.instance.exports.audioSetTestTone(msg.on ? 1 : 0, msg.hz);
+            } else if (msg.type === "testSample") {
+                this.instance.exports.audioTestSample(msg.ch | 0, msg.on ? 1 : 0, msg.hz);
             }
         };
     }
