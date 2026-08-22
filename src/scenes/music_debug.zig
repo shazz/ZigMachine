@@ -1,10 +1,13 @@
 // --------------------------------------------------------------------------
 // Music debug screen — a little demo in itself.
 //
-// Copper rasters + sine-distorted logo + a 3-trace YM oscilloscope + menu +
-// bottom scrolltext. Playback is triggered from JS (loader.js keydown 1/2/3 ->
-// playMod/playYm/playRaw); the YM registers are mirrored into zigos.ym_regs by
-// JS each frame so the scope reflects the live chip.
+// Real hardware-style rasters (per-scanline palette[0] change via an HBL
+// handler) + sine-distorted logo + a 3-trace YM oscilloscope + menu + bottom
+// scrolltext. Two planes: plane 0 = rasters + scope (behind), plane 1 = the
+// logo/menu/scroll text on top (transparent background).
+//
+// Keys 1/2/3 (handled in loader.js) play MOD / YM / sample; the YM registers
+// are mirrored into zigos.ym_regs by JS so the scope reflects the live chip.
 // --------------------------------------------------------------------------
 const std = @import("std");
 
@@ -16,31 +19,54 @@ const Console = @import("../utils/debug.zig").Console;
 const WIDTH: u16 = @import("../zigos.zig").WIDTH;
 const HEIGHT: u16 = @import("../zigos.zig").HEIGHT;
 
-// palette entries
-const BG: u8 = 0;
+// plane 1 (text) palette entries
+const CLEAR: u8 = 0;
 const WHITE: u8 = 1;
 const YELLOW: u8 = 2;
 const GREEN: u8 = 3;
 const CYAN: u8 = 4;
 const DIM: u8 = 5;
+// plane 0 (scope) palette entries (0 = raster, set per scanline)
 const SCOPE = [3]u8{ 6, 7, 8 };
-const COPPER_BASE: u8 = 100; // 16-entry copper gradient at 100..115
-const COPPER_N: u8 = 16;
 
 const SCROLL_SPEED: f32 = 1.5;
 const LOGO = "ZIGMACHINE";
 const LOGO_SCALE: usize = 3;
 const LOGO_AMP: f32 = 6.0;
-const RASTER_H: u16 = 46;
+
+// Copper gradient table (warm bars), indexed per scanline for the raster effect.
+const COPPER = blk: {
+    @setEvalBranchQuota(4000);
+    var t: [256]Color = undefined;
+    for (&t, 0..) |*c, i| {
+        const s = (@sin(@as(f32, @floatFromInt(i)) * 0.098) * 0.5 + 0.5);
+        c.* = Color{
+            .r = @intFromFloat(std.math.clamp(50.0 + s * 200.0, 0, 255)),
+            .g = @intFromFloat(std.math.clamp(s * s * 150.0, 0, 255)),
+            .b = @intFromFloat(std.math.clamp(20.0 + s * s * s * 120.0, 0, 255)),
+            .a = 255,
+        };
+    }
+    break :blk t;
+};
 
 const MESSAGE =
     "WELCOME TO THE ZIGMACHINE MUSIC DEBUG SCREEN ....   " ++
     "ZIG + WASM POWERED OLDSKOOL SOUND !   " ++
-    "PAULA SAMPLE CHANNELS AND A YM2149 EMULATION RUNNING IN AN AUDIOWORKLET ....   " ++
+    "REAL HARDWARE RASTERS, PAULA SAMPLE CHANNELS AND A YM2149 EMULATION ....   " ++
     "PRESS 1 FOR MOD, 2 FOR YM CHIPTUNE, 3 FOR A DIGI SAMPLE STREAM ....   " ++
     "WATCH THE THREE CURVES DANCE TO THE YM CHANNELS ....   " ++
     "GREETINGS TO MATT AND ALL THE SCENERS OUT THERE ....   " ++
     "AND NOW... LET IT WRAP !                   ";
+
+// Animated raster scroll offset — read by the (static) HBL handler.
+var raster_offset: u16 = 0;
+
+fn rasterHandler(fb: *LogicalFB, zigos: *ZigOS, line: u16, col: u16) void {
+    _ = zigos;
+    _ = col;
+    fb.setPaletteEntry(0, COPPER[(line + raster_offset) % 256]);
+}
 
 fn hashRand(x: usize, seed: u32) f32 {
     var h: u32 = @as(u32, @truncate(x)) *% 2654435761 +% seed *% 40503;
@@ -56,31 +82,28 @@ pub const Demo = struct {
         Console.log("music debug init", .{});
         self.scroll_x = @floatFromInt(WIDTH);
         self.phase = 0.0;
+        raster_offset = 0;
 
-        zigos.setBackgroundColor(Color{ .r = 8, .g = 10, .b = 24, .a = 255 });
+        // plane 0: rasters (palette[0] set per scanline) + scope
+        var p0: *LogicalFB = &zigos.lfbs[0];
+        p0.is_enabled = true;
+        p0.setFrameBufferHBLHandler(0, rasterHandler);
+        p0.setPaletteEntry(0, COPPER[0]);
+        p0.setPaletteEntry(SCOPE[0], Color{ .r = 245, .g = 120, .b = 130, .a = 255 });
+        p0.setPaletteEntry(SCOPE[1], Color{ .r = 140, .g = 240, .b = 150, .a = 255 });
+        p0.setPaletteEntry(SCOPE[2], Color{ .r = 150, .g = 185, .b = 250, .a = 255 });
+        p0.clearFrameBuffer(0);
 
-        var fb: *LogicalFB = &zigos.lfbs[0];
-        fb.is_enabled = true;
-        fb.setPaletteEntry(BG, Color{ .r = 8, .g = 10, .b = 24, .a = 255 });
-        fb.setPaletteEntry(WHITE, Color{ .r = 235, .g = 235, .b = 245, .a = 255 });
-        fb.setPaletteEntry(YELLOW, Color{ .r = 250, .g = 210, .b = 70, .a = 255 });
-        fb.setPaletteEntry(GREEN, Color{ .r = 120, .g = 230, .b = 140, .a = 255 });
-        fb.setPaletteEntry(CYAN, Color{ .r = 110, .g = 200, .b = 245, .a = 255 });
-        fb.setPaletteEntry(DIM, Color{ .r = 120, .g = 120, .b = 150, .a = 255 });
-        fb.setPaletteEntry(SCOPE[0], Color{ .r = 240, .g = 100, .b = 110, .a = 255 });
-        fb.setPaletteEntry(SCOPE[1], Color{ .r = 110, .g = 230, .b = 130, .a = 255 });
-        fb.setPaletteEntry(SCOPE[2], Color{ .r = 120, .g = 160, .b = 245, .a = 255 });
-
-        // copper gradient: dark-warm -> red -> orange -> yellow -> white
-        var i: u8 = 0;
-        while (i < COPPER_N) : (i += 1) {
-            const t: f32 = @as(f32, @floatFromInt(i)) / @as(f32, @floatFromInt(COPPER_N - 1));
-            const r: u8 = @intFromFloat(std.math.clamp(90.0 + t * 165.0, 0, 255));
-            const g: u8 = @intFromFloat(std.math.clamp(t * t * 230.0, 0, 255));
-            const b: u8 = @intFromFloat(std.math.clamp(t * t * t * 255.0, 0, 255));
-            fb.setPaletteEntry(COPPER_BASE + i, Color{ .r = r, .g = g, .b = b, .a = 255 });
-        }
-        fb.clearFrameBuffer(BG);
+        // plane 1: text/logo on a transparent background
+        var p1: *LogicalFB = &zigos.lfbs[1];
+        p1.is_enabled = true;
+        p1.setPaletteEntry(CLEAR, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
+        p1.setPaletteEntry(WHITE, Color{ .r = 245, .g = 245, .b = 250, .a = 255 });
+        p1.setPaletteEntry(YELLOW, Color{ .r = 255, .g = 220, .b = 90, .a = 255 });
+        p1.setPaletteEntry(GREEN, Color{ .r = 130, .g = 240, .b = 150, .a = 255 });
+        p1.setPaletteEntry(CYAN, Color{ .r = 130, .g = 210, .b = 250, .a = 255 });
+        p1.setPaletteEntry(DIM, Color{ .r = 180, .g = 180, .b = 200, .a = 255 });
+        p1.clearFrameBuffer(CLEAR);
     }
 
     pub fn update(self: *Demo, zigos: *ZigOS, time_elapsed: f32) void {
@@ -90,48 +113,40 @@ pub const Demo = struct {
         const total: f32 = @floatFromInt(MESSAGE.len * 8);
         if (self.scroll_x < -total) self.scroll_x = @floatFromInt(WIDTH);
         self.phase += 0.15;
+        raster_offset +%= 2;
     }
 
     pub fn render(self: *Demo, zigos: *ZigOS, time_elapsed: f32) void {
         _ = time_elapsed;
-        var fb: *LogicalFB = &zigos.lfbs[0];
-        fb.clearFrameBuffer(BG);
 
-        self.drawRasters(fb);
-        self.drawScopes(zigos, fb);
-        self.drawLogo(zigos, fb);
+        // plane 0: raster background (palette[0]) + scope behind everything
+        var p0: *LogicalFB = &zigos.lfbs[0];
+        p0.clearFrameBuffer(0);
+        self.drawScopes(zigos, p0);
 
-        zigos.printText(fb, "M U S I C   D E B U G", 80, 54, DIM, BG);
-        zigos.printText(fb, "1  MOD     LOLLAPALOOZA", 56, 72, WHITE, BG);
-        zigos.printText(fb, "2  YM2149  CONCERTO", 56, 88, WHITE, BG);
-        zigos.printText(fb, "3  SAMPLE  DIGI STREAM", 56, 104, WHITE, BG);
-        zigos.printText(fb, "PRESS  1   2   3", 88, 122, GREEN, BG);
-
-        self.drawScroller(zigos, fb);
+        // plane 1: logo + menu + scroll on transparent background
+        var p1: *LogicalFB = &zigos.lfbs[1];
+        p1.clearFrameBuffer(CLEAR);
+        self.drawLogo(zigos, p1);
+        zigos.printText(p1, "M U S I C   D E B U G", 80, 46, DIM, CLEAR);
+        zigos.printText(p1, "1  MOD     LOLLAPALOOZA", 56, 64, WHITE, CLEAR);
+        zigos.printText(p1, "2  YM2149  CONCERTO", 56, 80, WHITE, CLEAR);
+        zigos.printText(p1, "3  SAMPLE  DIGI STREAM", 56, 96, WHITE, CLEAR);
+        zigos.printText(p1, "PRESS  1   2   3", 88, 116, GREEN, CLEAR);
+        self.drawScroller(zigos, p1);
     }
 
-    // Copper raster bars behind the logo (top band), scrolling vertically.
-    fn drawRasters(self: *Demo, fb: *LogicalFB) void {
-        var y: u16 = 0;
-        while (y < RASTER_H) : (y += 1) {
-            const s = @sin(@as(f32, @floatFromInt(y)) * 0.20 + self.phase * 1.3);
-            const idx: u8 = COPPER_BASE + @as(u8, @intFromFloat((s * 0.5 + 0.5) * @as(f32, COPPER_N - 1)));
-            var x: u16 = 0;
-            while (x < WIDTH) : (x += 1) fb.setPixelValue(x, y, idx);
-        }
-    }
-
-    // Three oscilloscope traces (one per YM tone channel) driven by the live
-    // registers: square for tone, jitter for noise, amplitude from volume.
+    // Three oscilloscope traces (one per YM tone channel), spread over the screen
+    // behind the text: square for tone, jitter for noise, amplitude from volume.
     fn drawScopes(self: *Demo, zigos: *ZigOS, fb: *LogicalFB) void {
-        const cy = [3]u16{ 140, 154, 168 };
+        const cy = [3]u16{ 66, 108, 150 };
         const regs = &zigos.ym_regs;
         var ch: usize = 0;
         while (ch < 3) : (ch += 1) {
             const period: u16 = (@as(u16, regs[ch * 2 + 1] & 0x0F) << 8) | regs[ch * 2];
             const vreg = regs[8 + ch];
-            const vol: f32 = if (vreg & 0x10 != 0) 12.0 else @floatFromInt(vreg & 0x0F);
-            const amp = vol / 15.0 * 9.0;
+            const vol: f32 = if (vreg & 0x10 != 0) 13.0 else @floatFromInt(vreg & 0x0F);
+            const amp = vol / 15.0 * 20.0;
             const tone_on = (regs[7] >> @intCast(ch)) & 1 == 0;
             const noise_on = (regs[7] >> @intCast(ch + 3)) & 1 == 0;
             const wl = std.math.clamp(@as(f32, @floatFromInt(if (period == 0) 1 else period)) / 14.0, 3.0, 130.0);
@@ -150,7 +165,6 @@ pub const Demo = struct {
                     v = if (tone_on) v + nz * 0.4 else nz;
                 }
                 const yy: i32 = @as(i32, cy[ch]) + @as(i32, @intFromFloat(v));
-                // connect to the previous sample so the trace is continuous
                 var yl = @min(prev, yy);
                 const yh = @max(prev, yy);
                 while (yl <= yh) : (yl += 1) {
@@ -167,7 +181,7 @@ pub const Demo = struct {
         for (MESSAGE, 0..) |char, i| {
             const cx: i32 = base_x + @as(i32, @intCast(i)) * 8;
             if (cx <= -8 or cx >= WIDTH) continue;
-            drawGlyph(zigos, fb, char, cx, y0, 1, CYAN);
+            drawGlyph(zigos, fb, char, cx, y0, CYAN);
         }
     }
 
@@ -175,7 +189,7 @@ pub const Demo = struct {
     fn drawLogo(self: *Demo, zigos: *ZigOS, fb: *LogicalFB) void {
         const glyph_w = 8 * LOGO_SCALE;
         const start_x: i32 = @intCast((WIDTH - LOGO.len * glyph_w) / 2);
-        const base_y: i32 = 10;
+        const base_y: i32 = 8;
         for (LOGO, 0..) |char, ci| {
             const glyph = @as(usize, char) * 64;
             var row: usize = 0;
@@ -205,8 +219,7 @@ pub const Demo = struct {
         }
     }
 
-    fn drawGlyph(zigos: *ZigOS, fb: *LogicalFB, char: u8, x0: i32, y0: u16, scale: usize, color: u8) void {
-        _ = scale;
+    fn drawGlyph(zigos: *ZigOS, fb: *LogicalFB, char: u8, x0: i32, y0: u16, color: u8) void {
         const glyph = @as(usize, char) * 64;
         var row: usize = 0;
         while (row < 8) : (row += 1) {
