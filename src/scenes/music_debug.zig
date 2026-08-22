@@ -45,8 +45,9 @@ const SCROLL: u8 = 10; // scrolltext colour, raster-cycled per scanline
 const SCOPE = [4]u8{ 6, 7, 8, 9 };
 const BGCOL = Color{ .r = 0, .g = 0, .b = 0, .a = 255 };
 
-const RASTER_STEP: u16 = 2;
+const RASTER_SPEED: f32 = 0.6; // scrolltext raster cycle speed (lower = slower)
 const SCROLL_SPEED: f32 = 2.0;
+const SCROLL_WAVE_AMP: f32 = 6.0; // vertical wobble of the scrolltext
 const LOGO_AMP: f32 = 5.0;
 
 // Full-spectrum rainbow, cycling ~every 24 entries, for the scrolltext rasters.
@@ -75,6 +76,7 @@ const MESSAGE =
     "AND NOW... LET IT WRAP !                   ";
 
 var raster_offset: u16 = 0;
+var raster_phase: f32 = 0.0;
 
 // Per-scanline HBL handler on the text plane: cycles the scrolltext colour
 // through the copper gradient so the letters are raster-filled.
@@ -92,7 +94,9 @@ fn hashRand(x: usize, seed: u32) f32 {
 
 // One bitmap glyph from a 320-wide sheet of `cell`x`cell` cells (`per_row` cells
 // per row), ASCII starting at space. Non-zero pixels drawn in `color`, clipped.
-fn drawGlyph(sheet: []const u8, per_row: usize, cell: usize, char: u8, x0: i32, y0: i32, color: u8, fb: *LogicalFB) void {
+// Draw a glyph; `wave_amp`/`wave_phase` add a per-column vertical sine offset
+// (0 for static text).
+fn drawGlyph(sheet: []const u8, per_row: usize, cell: usize, char: u8, x0: i32, y0: i32, color: u8, wave_amp: f32, wave_phase: f32, fb: *LogicalFB) void {
     const rows = (sheet.len / 320) / cell; // sheet is 320 wide
     const count = per_row * rows;
     const idx: usize = if (char >= 32 and char < 32 + count) char - 32 else 0;
@@ -104,7 +108,10 @@ fn drawGlyph(sheet: []const u8, per_row: usize, cell: usize, char: u8, x0: i32, 
         while (gx < cell) : (gx += 1) {
             if (sheet[(cy + gy) * 320 + cx + gx] == 0) continue;
             const px = x0 + @as(i32, @intCast(gx));
-            const py = y0 + @as(i32, @intCast(gy));
+            var py = y0 + @as(i32, @intCast(gy));
+            if (wave_amp != 0) {
+                py += @intFromFloat(@sin(@as(f32, @floatFromInt(px)) * 0.05 + wave_phase) * wave_amp);
+            }
             if (px < 0 or px >= WIDTH or py < 0 or py >= HEIGHT) continue;
             fb.setPixelValue(@intCast(px), @intCast(py), color);
         }
@@ -112,7 +119,7 @@ fn drawGlyph(sheet: []const u8, per_row: usize, cell: usize, char: u8, x0: i32, 
 }
 
 fn drawText8(fb: *LogicalFB, text: []const u8, x: i32, y: i32, color: u8) void {
-    for (text, 0..) |c, i| drawGlyph(font8_raw, 40, 8, c, x + @as(i32, @intCast(i * 8)), y, color, fb);
+    for (text, 0..) |c, i| drawGlyph(font8_raw, 40, 8, c, x + @as(i32, @intCast(i * 8)), y, color, 0, 0, fb);
 }
 
 pub const Demo = struct {
@@ -125,12 +132,13 @@ pub const Demo = struct {
         self.scroll_x = @floatFromInt(WIDTH);
         self.phase = 0.0;
         raster_offset = 0;
+        raster_phase = 0.0;
         zigos.setBackgroundColor(BGCOL); // black borders
 
         // plane 0: 3D starfield (back). init() sets its own brightness palette.
         var p0: *LogicalFB = &zigos.lfbs[0];
         p0.is_enabled = true;
-        self.starfield = Starfield3D(NB_STARS).init(p0.getRenderTarget(), WIDTH, HEIGHT, 6, false);
+        self.starfield = Starfield3D(NB_STARS).init(p0.getRenderTarget(), WIDTH, HEIGHT, 2, false);
         p0.setPaletteEntry(0, BGCOL); // black background
         p0.clearFrameBuffer(0);
 
@@ -172,7 +180,9 @@ pub const Demo = struct {
         const total: f32 = @floatFromInt(MESSAGE.len * 16);
         if (self.scroll_x < -total) self.scroll_x = @floatFromInt(WIDTH);
         self.phase += 0.15;
-        raster_offset +%= RASTER_STEP;
+        raster_phase += RASTER_SPEED;
+        if (raster_phase >= 4096.0) raster_phase -= 4096.0;
+        raster_offset = @intFromFloat(raster_phase);
         self.starfield.update();
     }
 
@@ -229,7 +239,7 @@ pub const Demo = struct {
         for (MESSAGE, 0..) |char, i| {
             const cx: i32 = base_x + @as(i32, @intCast(i * 16));
             if (cx <= -16 or cx >= WIDTH) continue;
-            drawGlyph(font16_raw, 20, 16, char, cx, y0, SCROLL, fb);
+            drawGlyph(font16_raw, 20, 16, char, cx, y0, SCROLL, SCROLL_WAVE_AMP, self.phase, fb);
         }
     }
 
