@@ -34,16 +34,17 @@ const LOGO = "ZIGMACHINE";
 const LOGO_SCALE: usize = 3;
 const LOGO_AMP: f32 = 6.0;
 
-// Copper gradient table (warm bars), indexed per scanline for the raster effect.
+// Copper gradient table (dark warm bars, so the bright scope stays readable),
+// indexed per scanline for the raster effect.
 const COPPER = blk: {
     @setEvalBranchQuota(4000);
     var t: [256]Color = undefined;
     for (&t, 0..) |*c, i| {
         const s = (@sin(@as(f32, @floatFromInt(i)) * 0.098) * 0.5 + 0.5);
         c.* = Color{
-            .r = @intFromFloat(std.math.clamp(50.0 + s * 200.0, 0, 255)),
-            .g = @intFromFloat(std.math.clamp(s * s * 150.0, 0, 255)),
-            .b = @intFromFloat(std.math.clamp(20.0 + s * s * s * 120.0, 0, 255)),
+            .r = @intFromFloat(std.math.clamp(16.0 + s * 120.0, 0, 255)),
+            .g = @intFromFloat(std.math.clamp(s * s * 44.0, 0, 255)),
+            .b = @intFromFloat(std.math.clamp(24.0 + s * s * 60.0, 0, 255)),
             .a = 255,
         };
     }
@@ -62,10 +63,16 @@ const MESSAGE =
 // Animated raster scroll offset — read by the (static) HBL handler.
 var raster_offset: u16 = 0;
 
+// Per-plane HBL handler: rasters in the visible area (plane 0 background).
 fn rasterHandler(fb: *LogicalFB, zigos: *ZigOS, line: u16, col: u16) void {
     _ = zigos;
     _ = col;
     fb.setPaletteEntry(0, COPPER[(line + raster_offset) % 256]);
+}
+
+// Global HBL handler: same rasters in the borders (physical background color).
+fn borderRasterHandler(zigos: *ZigOS, line: u16) void {
+    zigos.setBackgroundColor(COPPER[(line + raster_offset) % 256]);
 }
 
 fn hashRand(x: usize, seed: u32) f32 {
@@ -87,11 +94,12 @@ pub const Demo = struct {
         // plane 0: rasters (palette[0] set per scanline) + scope
         var p0: *LogicalFB = &zigos.lfbs[0];
         p0.is_enabled = true;
-        p0.setFrameBufferHBLHandler(0, rasterHandler);
+        p0.setFrameBufferHBLHandler(0, rasterHandler); // visible-area rasters
+        zigos.setHBLHandler(borderRasterHandler); // border rasters
         p0.setPaletteEntry(0, COPPER[0]);
-        p0.setPaletteEntry(SCOPE[0], Color{ .r = 245, .g = 120, .b = 130, .a = 255 });
-        p0.setPaletteEntry(SCOPE[1], Color{ .r = 140, .g = 240, .b = 150, .a = 255 });
-        p0.setPaletteEntry(SCOPE[2], Color{ .r = 150, .g = 185, .b = 250, .a = 255 });
+        p0.setPaletteEntry(SCOPE[0], Color{ .r = 250, .g = 250, .b = 255, .a = 255 }); // white
+        p0.setPaletteEntry(SCOPE[1], Color{ .r = 150, .g = 255, .b = 130, .a = 255 }); // green
+        p0.setPaletteEntry(SCOPE[2], Color{ .r = 120, .g = 220, .b = 255, .a = 255 }); // cyan
         p0.clearFrameBuffer(0);
 
         // plane 1: text/logo on a transparent background
