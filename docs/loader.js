@@ -76,7 +76,6 @@ var start = function() {
     }
 
     var last_timestamp = 0;
-    var wasmMemoryArray = new Uint8Array(memory.buffer);
 
     console.log("Main function started");
     console.log(memory.buffer);
@@ -85,39 +84,40 @@ var start = function() {
     const nb_buffers = ZigMachine.getPlanesNumber();
     const fb_width = ZigMachine.getPhysicalFrameBufferWidth();
     const fb_height = ZigMachine.getPhysicalFrameBufferHeight();
+    const fb_len = fb_width * fb_height * 4;
+
+    // The physical framebuffer lives at a fixed address in wasm linear memory,
+    // and linear memory never grows (initial == max pages), so we can build the
+    // view and per-plane ImageData ONCE instead of every frame. This removes the
+    // old per-plane, per-frame createImageData() + Uint8Array.slice() (2 allocs +
+    // 2 copies of ~448KB each) that was capping multi-plane scenes at ~30fps.
+    const bufferOffset = ZigMachine.getPhysicalFrameBufferPointer();
+    const fbView = new Uint8Array(memory.buffer, bufferOffset, fb_len);
+
+    const contexts = [];
+    const imageDatas = [];
+    for(let p = 0; p < nb_buffers; p++) {
+        const canvas = document.getElementById(p);
+        const ctx = canvas.getContext("2d");
+        contexts.push(ctx);
+        imageDatas.push(ctx.createImageData(fb_width, fb_height));
+    }
 
     var loop = function(timestamp) {
-       
-        elapsed_time = (timestamp - last_timestamp);
+
+        const elapsed_time = (timestamp - last_timestamp);
         last_timestamp = timestamp;
-        fps = 1000/elapsed_time;
-        document.title = "FPS:" + fps.toFixed(2);
-        
-        // in case WASM grew the memory due to zig heap_page dynamic allocation calls
-        if(wasmMemoryArray == null)
-            wasmMemoryArray = new Uint8Array(memory.buffer);        
+        document.title = "FPS:" + (1000 / elapsed_time).toFixed(2);
 
         ZigMachine.clearPhysicalFrameBuffer();
-
         ZigMachine.frame(elapsed_time);
 
-        for(i=0; i<nb_buffers; i++) {
-
+        for(let i = 0; i < nb_buffers; i++) {
             if(ZigMachine.isPlaneEnabled(i)) {
-                const canvas = document.getElementById(i);
-                const context = canvas.getContext("2d");
-                const imageData = context.createImageData(canvas.width, canvas.height);
-        
                 ZigMachine.renderPhysicalFrameBuffer(i);
-        
-                const bufferOffset = ZigMachine.getPhysicalFrameBufferPointer();
-                const imageDataArray = wasmMemoryArray.slice(
-                    bufferOffset,
-                    bufferOffset + fb_width * fb_height * 4
-                );
-                imageData.data.set(imageDataArray);
-        
-                context.putImageData(imageData, 0, 0);
+                // single copy: wasm framebuffer -> this plane's ImageData
+                imageDatas[i].data.set(fbView);
+                contexts[i].putImageData(imageDatas[i], 0, 0);
             }
         }
         // loop to next frame
