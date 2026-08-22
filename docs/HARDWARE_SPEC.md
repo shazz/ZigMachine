@@ -370,17 +370,35 @@ still worth adding.
 ### Deferred (next steps, in priority order)
 
 1. **Rebuild the prebuilt channels** (`docs/wasm/*.wasm`) against the sealed
-   loader, or keep the legacy `index.html`/`loader.js` for them. The new
-   `sealed.html` currently runs the single compiled-in scene (`floppy.zig`).
-3. **Replace the overscan PFB hack** in `music_debug`'s scroller with the
-   RESOLUTION+border-HBL mechanism, so the ABI's "PFB is R-only" holds literally.
-4. **Retire the legacy monolithic path**: `legacy/bootloader.zig` and
-   `legacy/audio_main.zig` are superseded (no longer built) and now reference the
-   pre-seal APIs; delete them once the legacy `index.html` is migrated to the
-   sealed modules (its committed `bootloader.wasm`/`audio.wasm` still serve it).
-5. Minor: `text.zig`/`background.zig`/`sprite.zig` use `&fb.fb` as `*[64000]u8`;
-   they need a one-line tweak (`fb.fb` is now `[*]u8`) when those scenes are
-   rebuilt. `music_debug`/`starfield_3D` don't, so the current demo is unaffected.
+   loader. Each of the ~22 non-active scenes needs (a) its imports migrated to
+   `@import("zigos")` (one-line-per-import, the same swap `music_debug` got) and
+   (b) its own `demo.wasm` build. The new `sealed.html` currently runs the single
+   compiled-in scene selected in `apps/floppy.zig`. Several scenes had stale
+   pre-seal APIs already (`demo`, `demo_test`, `bladerunners_fullscreen`, `tex`).
+2. **Migrate the legacy `index.html`** to the sealed modules, then **delete
+   `legacy/`** (`bootloader.zig`, `audio_main.zig`, `sound/` — superseded, no
+   longer built). Until then its committed `bootloader.wasm`/`audio.wasm` serve it.
+
+### Findings that changed the plan
+
+- **The overscan PFB poke can't be "just replaced" — it needs a new machine
+  feature.** The spec (§3/§10) wanted to drop the direct-PFB border write in
+  favour of RESOLUTION+HBL overscan. But that sanctioned mechanism only re-reads
+  the 320×200 logical framebuffer *into* the borders (an edge repeat); it cannot
+  place **independent** content there. `music_debug`'s fullscreen scroller draws
+  *new* glyphs into the border region, so the PFB escape hatch is currently the
+  only way to do it. Genuinely retiring it requires a new sanctioned feature — a
+  physical-resolution overlay plane, or a border sprite layer. Until then the
+  hatch stays (documented; permitted by §2 "memory is not sealed").
+
+### Done in this pass (was deferred)
+
+- ✅ `text.zig`/`background.zig` `&fb.fb`-as-`*[64000]u8` fixed to the `[*]u8`
+  view (sprite.zig already indexed `fb.fb`, no change). These effects are dormant
+  (not in the active demo) but now compile against the sealed `LogicalFB`.
+- ✅ **Seal guard** `tools/check_seal.sh` — CI check that fails if `apps/` or
+  `zigos/` import `hw/` machine source directly (defence-in-depth on top of the
+  named-module boundary).
 
 > **Note — sound not hear-verified.** The audio split was verified by scope +
 > clean console (MOD/YM/sample all render); the chip DSP is reused verbatim so it

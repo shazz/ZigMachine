@@ -42,7 +42,7 @@ pub const Background = struct {
 
         switch (self.target) {
             .fb => |fb| {
-                var buffer: *[64000]u8 = &fb.fb;
+                const buffer = fb.fb; // [*]u8 view into the shared logical framebuffer
                 
                 // Copy bitmap data
                 for (self.data, 0..) |value, index| {

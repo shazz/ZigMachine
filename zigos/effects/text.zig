@@ -67,7 +67,7 @@ pub const Text = struct {
             
             switch (self.target) {
                 .fb => |fb| {
-                    var buffer: *[64000]u8 = &fb.fb;
+                    const buffer = fb.fb; // [*]u8 view into the shared logical framebuffer
 
                     for (char_data, 0..) |pixel, idx| {
 
