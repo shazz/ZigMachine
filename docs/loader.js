@@ -195,7 +195,10 @@ async function main() {
     }
 
     audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 44100 });
-    const wasmBytes = await fetch("audio.wasm").then(r => r.arrayBuffer());
+    const [wasmBytes, modBytes] = await Promise.all([
+        fetch("audio.wasm").then(r => r.arrayBuffer()),
+        fetch("music/lollapalooza.mod").then(r => r.arrayBuffer()),
+    ]);
     await audioCtx.audioWorklet.addModule("audio-worklet.js");
 
     audioNode = new AudioWorkletNode(audioCtx, "zig-audio", {
@@ -206,8 +209,15 @@ async function main() {
     });
     audioNode.port.onmessage = (event) => {
         const msg = event.data;
-        if (msg.type === "ready") console.log("Audio worklet ready");
-        else if (msg.type === "error") console.error("Audio worklet error:", msg.message);
+        if (msg.type === "ready") {
+            console.log("Audio worklet ready — loading MOD");
+            // hand the song to the audio thread and start playback
+            audioNode.port.postMessage({ type: "loadMod", bytes: modBytes }, [modBytes]);
+        } else if (msg.type === "modLoaded") {
+            console.log("MOD loaded:", msg.ok, msg.len, "bytes");
+        } else if (msg.type === "error") {
+            console.error("Audio worklet error:", msg.message);
+        }
     };
     audioNode.connect(audioCtx.destination);
     await audioCtx.resume();

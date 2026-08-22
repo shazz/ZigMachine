@@ -38,10 +38,22 @@ class ZigAudioProcessor extends AudioWorkletProcessor {
         this.port.onmessage = (event) => {
             const msg = event.data;
             if (!this.instance) return;
+            const ex = this.instance.exports;
             if (msg.type === "testTone") {
-                this.instance.exports.audioSetTestTone(msg.on ? 1 : 0, msg.hz);
+                ex.audioSetTestTone(msg.on ? 1 : 0, msg.hz);
             } else if (msg.type === "testSample") {
-                this.instance.exports.audioTestSample(msg.ch | 0, msg.on ? 1 : 0, msg.hz);
+                ex.audioTestSample(msg.ch | 0, msg.on ? 1 : 0, msg.hz);
+            } else if (msg.type === "loadMod") {
+                const cap = ex.audioSongCapacity();
+                const dst = new Uint8Array(ex.memory.buffer, ex.audioSongPtr(), cap);
+                const src = new Uint8Array(msg.bytes);
+                const len = Math.min(src.length, cap);
+                dst.set(src.subarray(0, len));
+                const ok = ex.audioLoadMod(len);
+                if (ok) ex.audioModPlay();
+                this.port.postMessage({ type: "modLoaded", ok: !!ok, len: len });
+            } else if (msg.type === "modStop") {
+                ex.audioModStop();
             }
         };
     }

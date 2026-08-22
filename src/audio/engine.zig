@@ -20,6 +20,9 @@ pub const SAMPLE_RATE: f32 = 44100.0;
 pub const MAX_FRAMES: usize = 4096;
 pub const NUM_CHANNELS: usize = 4;
 
+// Headroom so summed channels don't exceed [-1,1]; a final clamp guards peaks.
+const MASTER_GAIN: f32 = 0.5;
+
 const TAU: f32 = 2.0 * std.math.pi;
 
 // Fixed-point position: 16 fractional bits, integer part in the high bits.
@@ -37,7 +40,8 @@ pub const Channel = struct {
     pan: f32 = 0.0, // -1 = full left, +1 = full right
     active: bool = false,
 
-    fn mixInto(self: *Channel, left: []f32, right: []f32, n: usize) void {
+    fn mixInto(self: *Channel, left: []f32, right: []f32) void {
+        const n = left.len;
         if (!self.active or self.data.len == 0) return;
 
         const looping = self.loop_len > 1;
@@ -46,8 +50,8 @@ pub const Channel = struct {
         const data_end: u64 = @as(u64, self.data.len) << FRAC_BITS;
 
         // linear pan: pan -1 -> (1,0), 0 -> (1,1), +1 -> (0,1)
-        const lgain = self.volume * @min(@as(f32, 1.0), 1.0 - self.pan);
-        const rgain = self.volume * @min(@as(f32, 1.0), 1.0 + self.pan);
+        const lgain = MASTER_GAIN * self.volume * @min(@as(f32, 1.0), 1.0 - self.pan);
+        const rgain = MASTER_GAIN * self.volume * @min(@as(f32, 1.0), 1.0 + self.pan);
 
         var p = self.pos;
         var i: usize = 0;
@@ -117,26 +121,46 @@ pub const Engine = struct {
         c.active = true;
     }
 
+    // Zero a stereo range [0, n).
+    pub fn clearBus(self: *Engine, n: usize) void {
+        var i: usize = 0;
+        while (i < n) : (i += 1) {
+            self.left[i] = 0.0;
+            self.right[i] = 0.0;
+        }
+    }
+
+    // Safety clamp so nothing leaves [-1, 1] (hard limit on peaks).
+    pub fn clampBus(self: *Engine, n: usize) void {
+        var i: usize = 0;
+        while (i < n) : (i += 1) {
+            self.left[i] = std.math.clamp(self.left[i], -1.0, 1.0);
+            self.right[i] = std.math.clamp(self.right[i], -1.0, 1.0);
+        }
+    }
+
+    // Mix all Paula channels into the given stereo slices (used per sub-block by
+    // a player between ticks). Slices must be the same length.
+    pub fn mixChannels(self: *Engine, l: []f32, r: []f32) void {
+        for (&self.channels) |*c| {
+            c.mixInto(l, r);
+        }
+        // TODO(audio-ym): mix YM2149 output here
+    }
+
+    // Plain render used when no player is running: channels + diagnostic tone.
     pub fn render(self: *Engine, frames: usize) void {
         const n = @min(frames, MAX_FRAMES);
         const l = self.left[0..n];
         const r = self.right[0..n];
 
-        var i: usize = 0;
-        while (i < n) : (i += 1) {
-            l[i] = 0.0;
-            r[i] = 0.0;
-        }
+        self.clearBus(n);
+        self.mixChannels(l, r);
+        self.clampBus(n);
 
-        // Paula sample channels
-        for (&self.channels) |*c| {
-            c.mixInto(l, r, n);
-        }
-
-        // diagnostic test tone
         if (self.test_tone_on) {
             const inc = TAU * self.test_tone_hz / SAMPLE_RATE;
-            i = 0;
+            var i: usize = 0;
             while (i < n) : (i += 1) {
                 const s = @sin(self.phase) * 0.2;
                 l[i] += s;
@@ -145,7 +169,5 @@ pub const Engine = struct {
                 if (self.phase >= TAU) self.phase -= TAU;
             }
         }
-
-        // TODO(audio-ym): mix YM2149 output here
     }
 };
