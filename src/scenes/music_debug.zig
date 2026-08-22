@@ -55,6 +55,26 @@ const SCROLL_SPEED: f32 = 2.0;
 const SCROLL_WAVE_AMP: f32 = 6.0; // vertical wobble of the scrolltext
 const LOGO_AMP: f32 = 5.0;
 
+// Scope "electron flow": every FLOW_PERIOD frames a gradient band sweeps the
+// curves right->left, colouring them with the chrome/lava gradient as it passes.
+const FLOW_BASE: u8 = 16; // first of FLOW_N gradient palette entries on the scope plane
+const FLOW_N: usize = 48;
+const FLOW_BAND: f32 = 8.0; // half-width of the moving band (~16px pulse)
+const FLOW_PERIOD: u32 = 600; // ~10s at 60fps
+const FLOW_PULSE: u32 = 150; // frames the band takes to cross
+
+// The moving band's colour: a single black -> lava -> black pulse (no repeat).
+const FLOWGRAD = blk: {
+    @setEvalBranchQuota(20000);
+    const lava = [_][3]u8{ .{ 0, 0, 0 }, .{ 120, 16, 4 }, .{ 210, 40, 6 }, .{ 235, 120, 30 }, .{ 255, 210, 90 }, .{ 255, 240, 180 } };
+    var t: [FLOW_N]Color = undefined;
+    for (&t, 0..) |*c, k| {
+        const tt = @as(f32, @floatFromInt(k)) / @as(f32, FLOW_N - 1);
+        c.* = ramp(&lava, @sin(tt * std.math.pi)); // brightness 0..1..0
+    }
+    break :blk t;
+};
+
 // Interpolate a colour ramp (dark..bright key colours) at t in 0..1.
 fn ramp(keys: []const [3]u8, t: f32) Color {
     const maxf = @as(f32, @floatFromInt(keys.len - 1));
@@ -155,6 +175,9 @@ pub const Demo = struct {
     scroll_x: f32 = @floatFromInt(WIDTH),
     phase: f32 = 0.0,
     logo_phase: f32 = 0.0, // slow, drives the logo distortion
+    flow_frame: u32 = 0, // scope electron-flow timer
+    flow_pos: f32 = 0.0,
+    flow_active: bool = false,
     starfield: Starfield3D(NB_STARS) = undefined,
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
@@ -182,6 +205,11 @@ pub const Demo = struct {
         p1.setPaletteEntry(SCOPE[1], scope_grey);
         p1.setPaletteEntry(SCOPE[2], scope_grey);
         p1.setPaletteEntry(SCOPE[3], scope_grey);
+        // flow gradient (chrome/lava, sampled from COPPER) for the sweeping pulse
+        var k: usize = 0;
+        while (k < FLOW_N) : (k += 1) {
+            p1.setPaletteEntry(FLOW_BASE + @as(u8, @intCast(k)), FLOWGRAD[k]);
+        }
         p1.clearFrameBuffer(0);
 
         // plane 2: menu + scroll text
@@ -213,6 +241,7 @@ pub const Demo = struct {
         if (self.scroll_x < -total) self.scroll_x = @floatFromInt(WIDTH);
         self.phase += 0.15;
         self.logo_phase += 0.045; // slower logo movement
+        self.flow_frame +%= 1;
         raster_phase += RASTER_SPEED;
         if (raster_phase >= 4096.0) raster_phase -= 4096.0;
         raster_offset = @intFromFloat(raster_phase);
@@ -317,15 +346,33 @@ pub const Demo = struct {
     }
 
     fn drawScopes(self: *Demo, zigos: *ZigOS, fb: *LogicalFB) void {
+        // update the sweeping "electron flow" band
+        const inp = self.flow_frame % FLOW_PERIOD;
+        self.flow_active = inp < FLOW_PULSE;
+        if (self.flow_active) {
+            const p = @as(f32, @floatFromInt(inp)) / @as(f32, FLOW_PULSE);
+            // right -> left across the full width plus a band margin on each side
+            self.flow_pos = (@as(f32, WIDTH) + FLOW_BAND) - p * (@as(f32, WIDTH) + 2 * FLOW_BAND);
+        }
         switch (zigos.audio_mode) {
             2 => self.drawYmScopes(zigos, fb),
-            1 => drawWaveScopes(zigos, fb, 4),
-            3 => drawWaveScopes(zigos, fb, 1),
+            1 => self.drawWaveScopes(zigos, fb, 4),
+            3 => self.drawWaveScopes(zigos, fb, 1),
             else => {},
         }
     }
 
-    fn drawWaveScopes(zigos: *ZigOS, fb: *LogicalFB, n: usize) void {
+    // Palette entry for a scope column: grey normally, or the flowing gradient
+    // where the sweeping band currently is.
+    fn scopeColor(self: *Demo, ch: usize, x: usize) u8 {
+        if (!self.flow_active) return SCOPE[ch];
+        const d = @as(f32, @floatFromInt(x)) - self.flow_pos;
+        if (@abs(d) > FLOW_BAND) return SCOPE[ch];
+        const gi: usize = @intFromFloat((d + FLOW_BAND) / (2 * FLOW_BAND) * @as(f32, FLOW_N - 1));
+        return FLOW_BASE + @as(u8, @intCast(gi));
+    }
+
+    fn drawWaveScopes(self: *Demo, zigos: *ZigOS, fb: *LogicalFB, n: usize) void {
         const top: i32 = 42;
         const band: i32 = @divTrunc(@as(i32, HEIGHT - 60), @as(i32, @intCast(n)));
         const amp: f32 = if (n == 1) 46.0 else @as(f32, @floatFromInt(band)) * 0.42;
@@ -338,10 +385,11 @@ pub const Demo = struct {
             while (x < WIDTH) : (x += 1) {
                 const idx = x * SCOPE_LEN / WIDTH;
                 const yy: i32 = cy + @as(i32, @intFromFloat(samples[idx] * amp));
+                const col = self.scopeColor(ch, x);
                 var yl = @min(prev, yy);
                 const yh = @max(prev, yy);
                 while (yl <= yh) : (yl += 1) {
-                    if (yl >= 0 and yl < HEIGHT) fb.setPixelValue(@intCast(x), @intCast(yl), SCOPE[ch]);
+                    if (yl >= 0 and yl < HEIGHT) fb.setPixelValue(@intCast(x), @intCast(yl), col);
                 }
                 prev = yy;
             }
@@ -375,10 +423,11 @@ pub const Demo = struct {
                     v = if (tone_on) v + nz * 0.4 else nz;
                 }
                 const yy: i32 = @as(i32, cy[ch]) + @as(i32, @intFromFloat(v));
+                const col = self.scopeColor(ch, x);
                 var yl = @min(prev, yy);
                 const yh = @max(prev, yy);
                 while (yl <= yh) : (yl += 1) {
-                    if (yl >= 0 and yl < HEIGHT) fb.setPixelValue(@intCast(x), @intCast(yl), SCOPE[ch]);
+                    if (yl >= 0 and yl < HEIGHT) fb.setPixelValue(@intCast(x), @intCast(yl), col);
                 }
                 prev = yy;
             }
