@@ -230,6 +230,21 @@ pub const Demo = struct {
         p3.is_enabled = true;
         p3.setPalette(trsi_pal);
         p3.setPaletteEntry(0, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
+        // dimmed copies of the logo palette for the 3 darkening trail frames
+        const trail_bases = [3]u8{ 32, 64, 96 };
+        const trail_fac = [3]f32{ 0.5, 0.28, 0.14 };
+        for (trail_bases, trail_fac) |base, f| {
+            var i: u8 = 1;
+            while (i < 32) : (i += 1) {
+                const c = trsi_pal[i];
+                p3.setPaletteEntry(base + i, Color{
+                    .r = @intFromFloat(@as(f32, @floatFromInt(c.r)) * f),
+                    .g = @intFromFloat(@as(f32, @floatFromInt(c.g)) * f),
+                    .b = @intFromFloat(@as(f32, @floatFromInt(c.b)) * f),
+                    .a = 255,
+                });
+            }
+        }
         p3.clearFrameBuffer(0);
     }
 
@@ -270,27 +285,33 @@ pub const Demo = struct {
         drawText8(p2, "PRESS 1  2  3", 108, 140, WHITE, 2.5, self.phase + 1.2);
         self.drawScroller(zigos, p2);
 
-        // plane 3: logo (top)
+        // plane 3: logo with a 3-frame darkening trail (oldest/darkest first)
         var p3: *LogicalFB = &zigos.lfbs[3];
         p3.clearFrameBuffer(0);
-        self.drawTrsiLogo(p3);
+        self.drawTrsiLogo(p3, self.logo_phase - 0.6, 96);
+        self.drawTrsiLogo(p3, self.logo_phase - 0.4, 64);
+        self.drawTrsiLogo(p3, self.logo_phase - 0.2, 32);
+        self.drawTrsiLogo(p3, self.logo_phase, 0);
     }
 
-    fn drawTrsiLogo(self: *Demo, fb: *LogicalFB) void {
+    // Draw the logo at distortion phase `lphase`, with palette entries offset by
+    // `pal_base` (0 = full colour, 32/64/96 = the dimmer trail copies).
+    fn drawTrsiLogo(self: *Demo, fb: *LogicalFB, lphase: f32, pal_base: u8) void {
+        _ = self;
         const start_x: i32 = @intCast((WIDTH - LOGO_W) / 2);
         const base_y: i32 = -22; // crop the logo's ~25px top padding to sit near the top
 
         // horizontal distortion amplitude breathes over time (progress/regress)
-        const hamp: f32 = (@sin(self.logo_phase * 0.7) * 0.5 + 0.5) * 10.0;
+        const hamp: f32 = (@sin(lphase * 0.7) * 0.5 + 0.5) * 10.0;
         var hoff: [LOGO_H]i32 = undefined;
         var r: usize = 0;
         while (r < LOGO_H) : (r += 1) {
-            hoff[r] = @intFromFloat(@sin(@as(f32, @floatFromInt(r)) * 0.06 + self.logo_phase * 1.3) * hamp);
+            hoff[r] = @intFromFloat(@sin(@as(f32, @floatFromInt(r)) * 0.06 + lphase * 1.3) * hamp);
         }
 
         var px: usize = 0;
         while (px < LOGO_W) : (px += 1) {
-            const dy: i32 = @intFromFloat(@sin(@as(f32, @floatFromInt(px)) * 0.03 + self.logo_phase) * LOGO_AMP);
+            const dy: i32 = @intFromFloat(@sin(@as(f32, @floatFromInt(px)) * 0.03 + lphase) * LOGO_AMP);
             var py: usize = 0;
             while (py < LOGO_H) : (py += 1) {
                 const idx = trsi_raw[py * LOGO_W + px];
@@ -298,7 +319,7 @@ pub const Demo = struct {
                 const sx = start_x + @as(i32, @intCast(px)) + hoff[py];
                 const sy = base_y + @as(i32, @intCast(py)) + dy;
                 if (sx < 0 or sx >= WIDTH or sy < 0 or sy >= HEIGHT) continue;
-                fb.setPixelValue(@intCast(sx), @intCast(sy), idx);
+                fb.setPixelValue(@intCast(sx), @intCast(sy), pal_base + idx);
             }
         }
     }
