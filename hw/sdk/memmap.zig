@@ -62,8 +62,8 @@ pub const REG_FB_HBL_ID: usize = 0x20; // u16 x4 per-plane HBL handler id (0 = n
 pub const REG_FB_HBL_POS: usize = 0x28; // u16 x4 x position at which the per-plane HBL fires
 pub const REG_FRAME: usize = 0x30; // u32  (ro) frame counter
 pub const REG_FB_STRIDE: usize = 0x34; // u16 x4 per-plane row stride in pixels (Option B: 320 normal, 400 fullscreen)
-pub const REG_HSCROLL: usize = 0x3C; // u16 x4 per-plane fine horizontal scroll (pixels added to the fetch)
-pub const REG_FB_BASE: usize = 0x40; // u32 x4 per-plane framebuffer screen base (byte offset into the region)
+pub const REG_HSCROLL: usize = 0x3C; // u16 x4 per-plane fine horizontal scroll (0x3C..0x43)
+pub const REG_FB_BASE: usize = 0x44; // u32 x4 per-plane framebuffer screen base (0x44..0x53) — MUST clear HSCROLL
 
 pub const RES_PLANES: u8 = 0;
 pub const RES_TRUECOLOR: u8 = 1;
