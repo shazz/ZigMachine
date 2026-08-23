@@ -23,9 +23,17 @@ pub const VERTICAL_BORDERS_HEIGHT: u16 = (PHYSICAL_HEIGHT - HEIGHT) / 2; // 40
 // --- sizes ---
 pub const PAL_ENTRIES: usize = 256;
 pub const PAL_BYTES: usize = PAL_ENTRIES * 4; // 1024 (RGBA u32 per entry)
-pub const LFB_BYTES: usize = @as(usize, WIDTH) * @as(usize, HEIGHT); // 64000
+// Each logical-framebuffer slot is PHYSICAL-sized so a plane can go FULLSCREEN
+// (Option B: a 400-wide plane whose border columns hold independent content).
+// A normal plane uses only its first WIDTH×HEIGHT (stride 320); a fullscreen
+// plane uses the whole 400×280 (stride 400). See FB_STRIDE (§ registers).
+pub const LFB_BYTES: usize = @as(usize, PHYSICAL_WIDTH) * @as(usize, PHYSICAL_HEIGHT); // 112000
 pub const PFB_PIXELS: usize = @as(usize, PHYSICAL_WIDTH) * @as(usize, PHYSICAL_HEIGHT); // 112000
 pub const PFB_BYTES: usize = PFB_PIXELS * 4; // 448000
+
+// Per-plane row stride, in pixels: 320 (normal, visible-only) or 400 (fullscreen).
+pub const STRIDE_NORMAL: u16 = WIDTH; // 320
+pub const STRIDE_FULLSCREEN: u16 = PHYSICAL_WIDTH; // 400
 
 // --- region layout (offsets from the video hardware base) ---
 pub const OFF_REG: usize = 0x0000;
@@ -43,6 +51,7 @@ pub const REG_GLOBAL_HBL_ID: usize = 0x10; // u16  border/background HBL handler
 pub const REG_FB_HBL_ID: usize = 0x20; // u16 x4 per-plane HBL handler id (0 = none)
 pub const REG_FB_HBL_POS: usize = 0x28; // u16 x4 x position at which the per-plane HBL fires
 pub const REG_FRAME: usize = 0x30; // u32  (ro) frame counter
+pub const REG_FB_STRIDE: usize = 0x34; // u16 x4 per-plane row stride in pixels (Option B: 320 normal, 400 fullscreen)
 
 pub const RES_PLANES: u8 = 0;
 pub const RES_TRUECOLOR: u8 = 1;

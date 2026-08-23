@@ -72,6 +72,9 @@ inline fn fbHblId(plane: usize) u16 {
 inline fn fbHblPos(plane: usize) u16 {
     return r16(memmap.REG_FB_HBL_POS + plane * 2);
 }
+inline fn fbStride(plane: usize) u16 {
+    return r16(memmap.REG_FB_STRIDE + plane * 2);
+}
 
 // --------------------------------------------------------------------------
 // Entry points (wrapped as wasm exports in machine_video.zig)
@@ -89,6 +92,10 @@ pub fn reset() void {
     while (i < 256) : (i += 1) w8(memmap.OFF_REG + i, 0);
     w8(memmap.REG_NB_PLANES, memmap.NB_PLANES);
     w8(memmap.REG_RESOLUTION, memmap.RES_PLANES);
+    // Every plane starts NORMAL (320-wide, visible only). A plane opts into
+    // fullscreen by writing STRIDE_FULLSCREEN to its FB_STRIDE.
+    var p: usize = 0;
+    while (p < memmap.NB_PLANES) : (p += 1) w16(memmap.REG_FB_STRIDE + p * 2, memmap.STRIDE_NORMAL);
 }
 
 // Fill the physical framebuffer with BACKGROUND, running the global HBL handler
@@ -112,7 +119,33 @@ pub fn clear() void {
 // handlers. Ported 1:1 from the original bootloader render loop; the per-pixel
 // fb_index accounting for opened borders is delicate, so it is kept as a single
 // faithful pass rather than refactored.
+// Option B: a fullscreen plane (stride 400) is backed by a 400×280 buffer and
+// composited across the WHOLE physical frame — borders included — so independent
+// content (e.g. a fullscreen scroller) lands in the borders from a real backing
+// store, no physical-framebuffer poke. The border pixels it writes persist in the
+// PFB through the later (border-untouching) plane renders, so they reach the top
+// canvas. Transparent index (palette alpha 0) lets lower planes/background show.
+fn renderPlaneFullscreen(fb_id: usize) void {
+    const buf = lfb(fb_id); // 400×280, stride == PW
+    const palette = pal(fb_id);
+    const out = pfb();
+    const hid = fbHblId(fb_id);
+    const hpos = fbHblPos(fb_id);
+    var y: usize = 0;
+    while (y < PHu) : (y += 1) {
+        // Fire the per-plane HBL once per scanline (raster palette effects).
+        if (hid != 0) hblDispatch(hid, @intCast(fb_id), @intCast(y), @intCast(hpos));
+        const row = y * PWu;
+        var x: usize = 0;
+        while (x < PWu) : (x += 1) out[row + x] = palette[buf[row + x]];
+    }
+}
+
 pub fn renderPlane(fb_id: usize) void {
+    if (fbStride(fb_id) == memmap.STRIDE_FULLSCREEN) {
+        renderPlaneFullscreen(fb_id);
+        return;
+    }
     if (r8(memmap.REG_RESOLUTION) != memmap.RES_PLANES) return;
 
     const palfb = lfb(fb_id);

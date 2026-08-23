@@ -122,8 +122,14 @@ pub const Color = struct {
 // A LogicalFB is now a thin VIEW onto the shared video region: `fb` and `palette`
 // point into machine-owned memory. The method surface is identical to before.
 pub const LogicalFB = struct {
-    fb: [*]u8 = undefined, // -> LFB(id) in shared memory (WIDTH*HEIGHT palette indices)
+    fb: [*]u8 = undefined, // -> LFB(id) in shared memory (up to PHYSICAL_WIDTH*PHYSICAL_HEIGHT indices)
     palette: [*]u32 = undefined, // -> PAL(id) in shared memory (256 RGBA entries)
+    // Plane geometry: NORMAL is 320×200 (visible only); a plane can opt into
+    // FULLSCREEN (400×280, stride 400) so its border columns hold independent
+    // content — the sanctioned Option-B overscan (no physical-framebuffer poke).
+    stride: u16 = WIDTH,
+    fb_w: u16 = WIDTH,
+    fb_h: u16 = HEIGHT,
     back_color: u8 = 0,
     id: u8 = 0,
     fb_hbl_handler: ?*const fn (*LogicalFB, *ZigOS, u16, u16) void = null,
@@ -137,11 +143,25 @@ pub const LogicalFB = struct {
     }
 
     pub fn init(self: *LogicalFB, zigos: *ZigOS) void {
+        self.stride = WIDTH;
+        self.fb_w = WIDTH;
+        self.fb_h = HEIGHT;
         var i: usize = 0;
         while (i < 256) : (i += 1) self.palette[i] = 0;
         self.clearFrameBuffer(0);
         self.zigos = zigos;
         self.is_enabled = false;
+    }
+
+    // Turn this plane into a fullscreen (400×280) overscan plane: coordinates are
+    // now PHYSICAL (0..400, 0..280); the machine composites it across the whole
+    // frame including the borders. The visible window stays at the same place.
+    pub fn setFullscreen(self: *LogicalFB) void {
+        self.stride = PHYSICAL_WIDTH;
+        self.fb_w = PHYSICAL_WIDTH;
+        self.fb_h = PHYSICAL_HEIGHT;
+        writeU16(hw.REG_FB_STRIDE + @as(usize, self.id) * 2, hw.STRIDE_FULLSCREEN);
+        self.clearFrameBuffer(0);
     }
 
     pub fn getRenderTarget(self: *LogicalFB) RenderTarget {
@@ -166,15 +186,15 @@ pub const LogicalFB = struct {
     }
 
     pub fn setPixelValue(self: *LogicalFB, x: u16, y: u16, pal_entry: u8) void {
-        if ((x < WIDTH) and (y < HEIGHT)) {
-            self.fb[@as(u32, y) * @as(u32, WIDTH) + @as(u32, x)] = pal_entry;
+        if ((x < self.fb_w) and (y < self.fb_h)) {
+            self.fb[@as(u32, y) * @as(u32, self.stride) + @as(u32, x)] = pal_entry;
         }
     }
 
     pub fn drawScanline(self: *LogicalFB, x1: u16, x2: u16, y: u16, pal_entry: u8) void {
-        if ((x1 < WIDTH) and (x2 < WIDTH) and (y < HEIGHT)) {
+        if ((x1 < self.fb_w) and (x2 < self.fb_w) and (y < self.fb_h)) {
             const delta = x2 - x1;
-            var index: u32 = @as(u32, y) * @as(u32, WIDTH) + @as(u32, x1);
+            var index: u32 = @as(u32, y) * @as(u32, self.stride) + @as(u32, x1);
             var i: u16 = 0;
             while (i < delta) : (i += 1) {
                 self.fb[index] = pal_entry;
@@ -184,8 +204,9 @@ pub const LogicalFB = struct {
     }
 
     pub fn clearFrameBuffer(self: *LogicalFB, pal_entry: u8) void {
+        const n: u32 = @as(u32, self.fb_h) * @as(u32, self.stride);
         var i: u32 = 0;
-        while (i < hw.LFB_BYTES) : (i += 1) self.fb[i] = pal_entry;
+        while (i < n) : (i += 1) self.fb[i] = pal_entry;
     }
 
     pub fn setFrameBufferHBLHandler(self: *LogicalFB, position: u16, handler: *const fn (*LogicalFB, *ZigOS, u16, u16) void) void {
@@ -244,7 +265,7 @@ pub const ZigOS = struct {
 
     pub fn printText(self: *ZigOS, lfb: *LogicalFB, text: []const u8, x: u16, y: u16, fg_color_index: u8, bg_color_index: u8) void {
         const buffer = lfb.fb;
-        const initial_position: u16 = y * WIDTH + x;
+        const initial_position: u16 = y * lfb.stride + x;
 
         for (text, 0..) |char, nb| {
             const slice_offset_start: u16 = @as(u16, @intCast(char)) * (SYSTEM_FONT_WIDTH * SYSTEM_FONT_HEIGHT) - 1;
@@ -255,7 +276,7 @@ pub const ZigOS = struct {
             for (char_data, 0..) |pixel, idx| {
                 buffer[letter_pos] = if (pixel == 1) fg_color_index else bg_color_index;
                 if (idx > 0 and (idx % SYSTEM_FONT_WIDTH == 0)) {
-                    letter_pos += (WIDTH - SYSTEM_FONT_WIDTH + 1);
+                    letter_pos += (lfb.stride - SYSTEM_FONT_WIDTH + 1);
                 } else {
                     letter_pos += 1;
                 }

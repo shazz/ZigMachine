@@ -162,7 +162,7 @@ fn drawGlyph(sheet: []const u8, per_row: usize, cell: usize, char: u8, x0: i32, 
             if (wave_amp != 0) {
                 py += @intFromFloat(@sin(@as(f32, @floatFromInt(px)) * 0.05 + wave_phase) * wave_amp);
             }
-            if (px < 0 or px >= WIDTH or py < 0 or py >= HEIGHT) continue;
+            if (px < 0 or px >= fb.fb_w or py < 0 or py >= fb.fb_h) continue;
             fb.setPixelValue(@intCast(px), @intCast(py), color);
         }
     }
@@ -213,9 +213,12 @@ pub const Demo = struct {
         }
         p1.clearFrameBuffer(0);
 
-        // plane 2: menu + scroll text
+        // plane 2: menu + FULLSCREEN scroll text (its border columns hold the
+        // scroller that spills past the 320px screen — real Option-B overscan,
+        // no physical-framebuffer poke). Coordinates on this plane are PHYSICAL.
         var p2: *LogicalFB = &zigos.lfbs[2];
         p2.is_enabled = true;
+        p2.setFullscreen();
         p2.setPaletteEntry(CLEAR, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
         p2.setPaletteEntry(WHITE, Color{ .r = 245, .g = 245, .b = 250, .a = 255 });
         p2.setPaletteEntry(YELLOW, Color{ .r = 255, .g = 220, .b = 90, .a = 255 });
@@ -277,13 +280,15 @@ pub const Demo = struct {
         p1.clearFrameBuffer(0);
         self.drawScopes(zigos, p1);
 
-        // plane 2: menu (vertically centred block) + scroll text
+        // plane 2 is FULLSCREEN, so coordinates are physical: the visible screen
+        // sits at +HBORD,+VBORD (40,40), so menu text keeps its on-screen place.
         var p2: *LogicalFB = &zigos.lfbs[2];
         p2.clearFrameBuffer(CLEAR);
-        drawText8(p2, "1  MOD     LOLLAPALOOZA", 44, 92, WHITE, 2.5, self.phase);
-        drawText8(p2, "2  YM2149  CONCERTO", 44, 106, WHITE, 2.5, self.phase + 0.4);
-        drawText8(p2, "3  SAMPLE  DIGI STREAM", 44, 120, WHITE, 2.5, self.phase + 0.8);
-        drawText8(p2, "PRESS 1  2  3", 44, 140, WHITE, 2.5, self.phase + 1.2);
+        const mx: i32 = 44 + HBORD; // = 84
+        drawText8(p2, "1  MOD     LOLLAPALOOZA", mx, 92 + VBORD, WHITE, 2.5, self.phase);
+        drawText8(p2, "2  YM2149  CONCERTO", mx, 106 + VBORD, WHITE, 2.5, self.phase + 0.4);
+        drawText8(p2, "3  SAMPLE  DIGI STREAM", mx, 120 + VBORD, WHITE, 2.5, self.phase + 0.8);
+        drawText8(p2, "PRESS 1  2  3", mx, 140 + VBORD, WHITE, 2.5, self.phase + 1.2);
         self.drawScroller(zigos, p2);
 
         // plane 3: logo with a 3-frame darkening trail (oldest/darkest first)
@@ -325,21 +330,23 @@ pub const Demo = struct {
         }
     }
 
-    // "Fullscreen" scroller: the visible span is drawn on the text plane (rainbow
-    // via the HBL palette), while the parts that spill into the left/right borders
-    // are written straight into the physical framebuffer (which the per-plane
-    // render never touches) — a border-overscan hack of the machine.
+    // Fullscreen scroller, the SANCTIONED way (Option B): plane 2 is a fullscreen
+    // (400×280) plane, so the scroller is just drawn across the full physical
+    // width — the machine composites its border columns into the borders. No
+    // physical-framebuffer poke. Coordinates are physical; the SCROLL palette
+    // entry is raster-recoloured per scanline by scrollRasterHandler.
     fn drawScroller(self: *Demo, zigos: *ZigOS, fb: *LogicalFB) void {
-        const y0: i32 = HEIGHT - 28; // 10px higher than before
-        const base_x: i32 = @intFromFloat(self.scroll_x);
+        _ = zigos;
+        const y0: i32 = (HEIGHT - 28) + VBORD; // physical baseline
+        const base_x: i32 = @as(i32, @intFromFloat(self.scroll_x)) + HBORD; // visible-space -> physical
         for (MESSAGE, 0..) |char, i| {
             const cx: i32 = base_x + @as(i32, @intCast(i * 16));
-            if (cx <= -HBORD - 16 or cx >= WIDTH + HBORD) continue;
-            self.drawScrollGlyph(zigos, fb, char, cx, y0);
+            if (cx <= -16 or cx >= PW) continue;
+            self.drawScrollGlyph(fb, char, cx, y0);
         }
     }
 
-    fn drawScrollGlyph(self: *Demo, zigos: *ZigOS, fb: *LogicalFB, char: u8, x0: i32, y0: i32) void {
+    fn drawScrollGlyph(self: *Demo, fb: *LogicalFB, char: u8, x0: i32, y0: i32) void {
         const count = 20 * ((font16_raw.len / 320) / 16);
         const gidx: usize = if (char >= 32 and char < 32 + count) char - 32 else 0;
         const scx = (gidx % 20) * 16;
@@ -352,17 +359,8 @@ pub const Demo = struct {
                 const lx = x0 + @as(i32, @intCast(gx));
                 const ly = y0 + @as(i32, @intCast(gy)) +
                     @as(i32, @intFromFloat(@sin(@as(f32, @floatFromInt(lx)) * 0.05 + self.phase) * SCROLL_WAVE_AMP));
-                if (ly < 0 or ly >= HEIGHT) continue;
-                if (lx >= 0 and lx < WIDTH) {
-                    fb.setPixelValue(@intCast(lx), @intCast(ly), SCROLL); // visible: plane
-                } else if (lx >= -HBORD and lx < WIDTH + HBORD) {
-                    const phx = lx + HBORD; // borders: straight to the physical framebuffer
-                    const phy = ly + VBORD;
-                    if (phx >= 0 and phx < PW and phy >= 0 and phy < PH) {
-                        const col = COPPER[(@as(usize, @intCast(phy)) + raster_offset) % 256];
-                        zigos.physical_framebuffer[@intCast(phy)][@intCast(phx)] = col.toRGBA();
-                    }
-                }
+                if (lx < 0 or lx >= PW or ly < 0 or ly >= PH) continue;
+                fb.setPixelValue(@intCast(lx), @intCast(ly), SCROLL);
             }
         }
     }

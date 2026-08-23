@@ -33,9 +33,12 @@ pub const REG_BACKGROUND = memmap.REG_BACKGROUND;
 pub const REG_GLOBAL_HBL_ID = memmap.REG_GLOBAL_HBL_ID;
 pub const REG_FB_HBL_ID = memmap.REG_FB_HBL_ID;
 pub const REG_FB_HBL_POS = memmap.REG_FB_HBL_POS;
+pub const REG_FB_STRIDE = memmap.REG_FB_STRIDE;
 pub const RES_PLANES = memmap.RES_PLANES;
 pub const RES_TRUECOLOR = memmap.RES_TRUECOLOR;
 pub const HBL_GLOBAL_ID = memmap.HBL_GLOBAL_ID;
+pub const STRIDE_NORMAL = memmap.STRIDE_NORMAL;
+pub const STRIDE_FULLSCREEN = memmap.STRIDE_FULLSCREEN;
 
 // --- video hardware entry points (implemented in machine-video.wasm) ---
 pub extern fn hwVideoBase() i32; // base of the video hardware region

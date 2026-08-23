@@ -379,17 +379,30 @@ still worth adding.
    `legacy/`** (`bootloader.zig`, `audio_main.zig`, `sound/` — superseded, no
    longer built). Until then its committed `bootloader.wasm`/`audio.wasm` serve it.
 
-### Findings that changed the plan
+### Overscan (Option B) — PROTOTYPED & proven, PFB poke retired
 
-- **The overscan PFB poke can't be "just replaced" — it needs a new machine
-  feature.** The spec (§3/§10) wanted to drop the direct-PFB border write in
-  favour of RESOLUTION+HBL overscan. But that sanctioned mechanism only re-reads
-  the 320×200 logical framebuffer *into* the borders (an edge repeat); it cannot
-  place **independent** content there. `music_debug`'s fullscreen scroller draws
-  *new* glyphs into the border region, so the PFB escape hatch is currently the
-  only way to do it. Genuinely retiring it requires a new sanctioned feature — a
-  physical-resolution overlay plane, or a border sprite layer. Until then the
-  hatch stays (documented; permitted by §2 "memory is not sealed").
+The overscan finding was: the RESOLUTION+HBL trick only re-reads the 320×200 FB
+*into* the borders (edge repeat) — it can't place **independent** content there,
+so `music_debug`'s fullscreen scroller needed a new machine feature. That feature
+is now built (Fable's Option B, the ST(E) shifter idea, in prototype form):
+
+- **`FB_STRIDE[4]`** register (`hw/sdk/memmap.zig`, reset 320). A plane whose
+  stride is **400** (`STRIDE_FULLSCREEN`) is backed by a full **400×280** logical
+  framebuffer and composited by the machine across the **whole physical frame**,
+  borders included, from that real backing store — no PFB poke.
+- The LFB slots were enlarged to physical size (112000 B each; still fits 48
+  pages). `LogicalFB.setFullscreen()` (open ZigOS) flips a plane to physical
+  coordinates; a dedicated `renderPlaneFullscreen` path in `hw/video.zig` draws
+  it (the normal border-trick path is untouched).
+- `music_debug`'s scroller was migrated onto a fullscreen plane 2 and the
+  `zigos.physical_framebuffer` poke **deleted**. Proven in-browser: the scroller
+  spills into both borders, identical look, ~60fps.
+
+This is a *prototype* of Option B (per-plane physical buffer + stride), not yet
+the full VRAM-pool + `HSCROLL` version — but it validates the model and retires
+the escape hatch for the flagship scene. Remaining Option-B polish: a real VRAM
+allocator (so fullscreen is pay-per-plane, not all slots enlarged), `HSCROLL`
+fine-scroll, and per-plane `FB_BASE`.
 
 ### Done in this pass (was deferred)
 
