@@ -52,8 +52,16 @@ inline fn w32(off: usize, v: u32) void {
 inline fn pal(plane: usize) [*]u32 {
     return @ptrFromInt(memmap.HW_VIDEO_BASE + memmap.OFF_PAL + plane * memmap.PAL_BYTES);
 }
+inline fn fbBase(plane: usize) u32 {
+    return r32(memmap.REG_FB_BASE + plane * 4);
+}
+inline fn hscroll(plane: usize) u16 {
+    return r16(memmap.REG_HSCROLL + plane * 2);
+}
 inline fn lfb(plane: usize) [*]u8 {
-    return @ptrFromInt(memmap.HW_VIDEO_BASE + memmap.OFF_LFB + plane * memmap.LFB_BYTES);
+    // Screen base is the FB_BASE register (ST(E) "screen base"): a byte offset
+    // into the region, so a plane's framebuffer can live anywhere in the VRAM pool.
+    return @ptrFromInt(memmap.HW_VIDEO_BASE + @as(usize, fbBase(plane)));
 }
 inline fn pfb() [*]u32 {
     return @ptrFromInt(memmap.HW_VIDEO_BASE + memmap.OFF_PFB);
@@ -92,10 +100,16 @@ pub fn reset() void {
     while (i < 256) : (i += 1) w8(memmap.OFF_REG + i, 0);
     w8(memmap.REG_NB_PLANES, memmap.NB_PLANES);
     w8(memmap.REG_RESOLUTION, memmap.RES_PLANES);
-    // Every plane starts NORMAL (320-wide, visible only). A plane opts into
-    // fullscreen by writing STRIDE_FULLSCREEN to its FB_STRIDE.
+    // Every plane starts NORMAL: stride 320, no fine scroll, and its screen base
+    // at the legacy contiguous layout — so a binary that never touches these
+    // registers behaves exactly as before. ZigOS re-points FB_BASE via its VRAM
+    // allocator; a plane opts into fullscreen with FB_STRIDE = STRIDE_FULLSCREEN.
     var p: usize = 0;
-    while (p < memmap.NB_PLANES) : (p += 1) w16(memmap.REG_FB_STRIDE + p * 2, memmap.STRIDE_NORMAL);
+    while (p < memmap.NB_PLANES) : (p += 1) {
+        w16(memmap.REG_FB_STRIDE + p * 2, memmap.STRIDE_NORMAL);
+        w16(memmap.REG_HSCROLL + p * 2, 0);
+        w32(memmap.REG_FB_BASE + p * 4, memmap.defaultFbBase(p));
+    }
 }
 
 // Fill the physical framebuffer with BACKGROUND, running the global HBL handler
@@ -131,13 +145,14 @@ fn renderPlaneFullscreen(fb_id: usize) void {
     const out = pfb();
     const hid = fbHblId(fb_id);
     const hpos = fbHblPos(fb_id);
+    const hs: usize = @intCast(hscroll(fb_id)); // fine horizontal scroll (wraps within the row)
     var y: usize = 0;
     while (y < PHu) : (y += 1) {
         // Fire the per-plane HBL once per scanline (raster palette effects).
         if (hid != 0) hblDispatch(hid, @intCast(fb_id), @intCast(y), @intCast(hpos));
         const row = y * PWu;
         var x: usize = 0;
-        while (x < PWu) : (x += 1) out[row + x] = palette[buf[row + x]];
+        while (x < PWu) : (x += 1) out[row + x] = palette[buf[row + (x + hs) % PWu]];
     }
 }
 

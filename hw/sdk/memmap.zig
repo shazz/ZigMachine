@@ -25,9 +25,13 @@ pub const PAL_ENTRIES: usize = 256;
 pub const PAL_BYTES: usize = PAL_ENTRIES * 4; // 1024 (RGBA u32 per entry)
 // Each logical-framebuffer slot is PHYSICAL-sized so a plane can go FULLSCREEN
 // (Option B: a 400-wide plane whose border columns hold independent content).
-// A normal plane uses only its first WIDTH×HEIGHT (stride 320); a fullscreen
-// plane uses the whole 400×280 (stride 400). See FB_STRIDE (§ registers).
-pub const LFB_BYTES: usize = @as(usize, PHYSICAL_WIDTH) * @as(usize, PHYSICAL_HEIGHT); // 112000
+// Plane framebuffers live in a VRAM POOL, allocated by ZigOS (pay-per-use): a
+// NORMAL plane costs WIDTH×HEIGHT, a FULLSCREEN plane costs PHYSICAL_WIDTH×
+// PHYSICAL_HEIGHT. Each plane's screen base is the FB_BASE register (the ST(E)
+// "screen base" model) — a byte offset into the region, so a plane can point
+// anywhere in the pool (scroll-by-base, double buffering, plane sharing).
+pub const NORMAL_FB_BYTES: usize = @as(usize, WIDTH) * @as(usize, HEIGHT); // 64000
+pub const FULLSCREEN_FB_BYTES: usize = @as(usize, PHYSICAL_WIDTH) * @as(usize, PHYSICAL_HEIGHT); // 112000
 pub const PFB_PIXELS: usize = @as(usize, PHYSICAL_WIDTH) * @as(usize, PHYSICAL_HEIGHT); // 112000
 pub const PFB_BYTES: usize = PFB_PIXELS * 4; // 448000
 
@@ -38,9 +42,15 @@ pub const STRIDE_FULLSCREEN: u16 = PHYSICAL_WIDTH; // 400
 // --- region layout (offsets from the video hardware base) ---
 pub const OFF_REG: usize = 0x0000;
 pub const OFF_PAL: usize = 0x0100; // 4 x PAL_BYTES
-pub const OFF_LFB: usize = 0x1100; // 4 x LFB_BYTES
-pub const OFF_PFB: usize = OFF_LFB + NB_PLANES * LFB_BYTES; // 260352
-pub const REGION_BYTES: usize = OFF_PFB + PFB_BYTES; // 708352
+pub const OFF_VRAM: usize = 0x1100; // framebuffer pool base (ZigOS-allocated)
+pub const VRAM_BYTES: usize = 512 * 1024; // 524288 — plenty for 4 planes incl. a fullscreen
+pub const OFF_PFB: usize = OFF_VRAM + VRAM_BYTES;
+pub const REGION_BYTES: usize = OFF_PFB + PFB_BYTES;
+// Default per-plane framebuffer offsets (reset values of FB_BASE): the legacy
+// contiguous 320×200 layout, so a binary that never touches FB_BASE is unchanged.
+pub inline fn defaultFbBase(plane: usize) u32 {
+    return @intCast(OFF_VRAM + plane * NORMAL_FB_BYTES);
+}
 
 // --- registers (offsets from OFF_REG) ---
 pub const REG_RESOLUTION: usize = 0x00; // u8   0 = planes, 1 = truecolor (border-open)
@@ -52,6 +62,8 @@ pub const REG_FB_HBL_ID: usize = 0x20; // u16 x4 per-plane HBL handler id (0 = n
 pub const REG_FB_HBL_POS: usize = 0x28; // u16 x4 x position at which the per-plane HBL fires
 pub const REG_FRAME: usize = 0x30; // u32  (ro) frame counter
 pub const REG_FB_STRIDE: usize = 0x34; // u16 x4 per-plane row stride in pixels (Option B: 320 normal, 400 fullscreen)
+pub const REG_HSCROLL: usize = 0x3C; // u16 x4 per-plane fine horizontal scroll (pixels added to the fetch)
+pub const REG_FB_BASE: usize = 0x40; // u32 x4 per-plane framebuffer screen base (byte offset into the region)
 
 pub const RES_PLANES: u8 = 0;
 pub const RES_TRUECOLOR: u8 = 1;

@@ -24,16 +24,21 @@ pub const VERTICAL_BORDERS_HEIGHT = memmap.VERTICAL_BORDERS_HEIGHT;
 
 // --- memory map (offsets/sizes, for ZigOS to compute its views) ---
 pub const OFF_PAL = memmap.OFF_PAL;
-pub const OFF_LFB = memmap.OFF_LFB;
+pub const OFF_VRAM = memmap.OFF_VRAM;
 pub const OFF_PFB = memmap.OFF_PFB;
 pub const PAL_BYTES = memmap.PAL_BYTES;
-pub const LFB_BYTES = memmap.LFB_BYTES;
+pub const VRAM_BYTES = memmap.VRAM_BYTES;
+pub const NORMAL_FB_BYTES = memmap.NORMAL_FB_BYTES;
+pub const FULLSCREEN_FB_BYTES = memmap.FULLSCREEN_FB_BYTES;
+pub const defaultFbBase = memmap.defaultFbBase;
 pub const REG_RESOLUTION = memmap.REG_RESOLUTION;
 pub const REG_BACKGROUND = memmap.REG_BACKGROUND;
 pub const REG_GLOBAL_HBL_ID = memmap.REG_GLOBAL_HBL_ID;
 pub const REG_FB_HBL_ID = memmap.REG_FB_HBL_ID;
 pub const REG_FB_HBL_POS = memmap.REG_FB_HBL_POS;
 pub const REG_FB_STRIDE = memmap.REG_FB_STRIDE;
+pub const REG_FB_BASE = memmap.REG_FB_BASE;
+pub const REG_HSCROLL = memmap.REG_HSCROLL;
 pub const RES_PLANES = memmap.RES_PLANES;
 pub const RES_TRUECOLOR = memmap.RES_TRUECOLOR;
 pub const HBL_GLOBAL_ID = memmap.HBL_GLOBAL_ID;

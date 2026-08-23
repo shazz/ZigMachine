@@ -398,11 +398,24 @@ is now built (Fable's Option B, the ST(E) shifter idea, in prototype form):
   `zigos.physical_framebuffer` poke **deleted**. Proven in-browser: the scroller
   spills into both borders, identical look, ~60fps.
 
-This is a *prototype* of Option B (per-plane physical buffer + stride), not yet
-the full VRAM-pool + `HSCROLL` version — but it validates the model and retires
-the escape hatch for the flagship scene. Remaining Option-B polish: a real VRAM
-allocator (so fullscreen is pay-per-plane, not all slots enlarged), `HSCROLL`
-fine-scroll, and per-plane `FB_BASE`.
+**Option B is now the full model** (not just the enlarged-slots prototype):
+- **VRAM pool** (`OFF_VRAM`, 512 KiB) replaces fixed per-plane LFB slots; ZigOS
+  bump-allocates each plane its framebuffer (**pay-per-use**: a normal plane
+  costs 64000, a fullscreen plane 112000 — a 4-normal-plane scene now uses 256 KB,
+  not 448 KB).
+- **`FB_BASE[4]`** register (the ST(E) "screen base"): each plane's framebuffer
+  is a byte offset into the region, so a plane can point anywhere in the pool —
+  scroll-by-base, double-buffering, plane sharing all fall out. Reset value is the
+  legacy contiguous layout (`defaultFbBase`), so a binary that never touches it is
+  unchanged.
+- **`FB_STRIDE[4]`** (320/400) and **`HSCROLL[4]`** (fine horizontal scroll,
+  wraps within the row) complete the shifter model. `music_debug`'s scroller runs
+  on it with the `physical_framebuffer` poke deleted; proven in-browser, ~60fps.
+
+Still open (nice-to-have, not blocking): a `free`/compacting allocator (the bump
+allocator leaks a plane's normal buffer when it's upgraded to fullscreen — fine
+within the 512 KB pool), `VSCROLL`, and applying `HSCROLL` to the normal
+(non-fullscreen) render path (today it's wired on the fullscreen path).
 
 ### Done in this pass (was deferred)
 

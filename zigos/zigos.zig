@@ -50,6 +50,16 @@ const SYSTEM_FONT_HEIGHT = 8;
 // --------------------------------------------------------------------------
 var g_base: usize = 0;
 
+// VRAM pool bump allocator (Option B, pay-per-use): a normal plane costs 64000,
+// a fullscreen plane 112000. `vram_top` is a byte offset from the region base.
+var vram_top: usize = 0;
+
+fn vramAlloc(bytes: usize) usize {
+    const off = vram_top;
+    vram_top += (bytes + 3) & ~@as(usize, 3); // keep 4-aligned
+    return off;
+}
+
 inline fn writeU8(off: usize, v: u8) void {
     @as(*u8, @ptrFromInt(g_base + off)).* = v;
 }
@@ -137,9 +147,12 @@ pub const LogicalFB = struct {
     is_enabled: bool = false,
     zigos: *ZigOS = undefined,
 
-    fn bind(self: *LogicalFB) void {
-        self.fb = @ptrFromInt(g_base + hw.OFF_LFB + @as(usize, self.id) * hw.LFB_BYTES);
+    // Point this plane's pixel view at `fb_off` (a byte offset into the region,
+    // from the VRAM allocator) and publish it to the machine's FB_BASE register.
+    fn bind(self: *LogicalFB, fb_off: usize) void {
+        self.fb = @ptrFromInt(g_base + fb_off);
         self.palette = @ptrFromInt(g_base + hw.OFF_PAL + @as(usize, self.id) * hw.PAL_BYTES);
+        writeU32(hw.REG_FB_BASE + @as(usize, self.id) * 4, @intCast(fb_off));
     }
 
     pub fn init(self: *LogicalFB, zigos: *ZigOS) void {
@@ -161,6 +174,9 @@ pub const LogicalFB = struct {
         self.fb_w = PHYSICAL_WIDTH;
         self.fb_h = PHYSICAL_HEIGHT;
         writeU16(hw.REG_FB_STRIDE + @as(usize, self.id) * 2, hw.STRIDE_FULLSCREEN);
+        // Allocate a fresh fullscreen buffer from the pool and repoint the plane
+        // (the plane's original normal buffer is simply left unused).
+        self.bind(vramAlloc(hw.FULLSCREEN_FB_BYTES));
         self.clearFrameBuffer(0);
     }
 
@@ -251,9 +267,12 @@ pub const ZigOS = struct {
         self.background_color = Color{ .r = 20, .g = 20, .b = 20, .a = 255 };
         writeU32(hw.REG_BACKGROUND, self.background_color.toRGBA());
 
+        // Allocate each plane a normal (320×200) framebuffer from the VRAM pool.
+        // A scene upgrades a plane with setFullscreen() (allocates 400×280).
+        vram_top = hw.OFF_VRAM;
         for (&self.lfbs, 0..) |*lfb, idx| {
             lfb.id = @intCast(idx);
-            lfb.bind();
+            lfb.bind(vramAlloc(hw.NORMAL_FB_BYTES));
             lfb.init(self);
         }
     }
