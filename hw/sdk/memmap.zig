@@ -61,9 +61,14 @@ pub const REG_GLOBAL_HBL_ID: usize = 0x10; // u16  border/background HBL handler
 pub const REG_FB_HBL_ID: usize = 0x20; // u16 x4 per-plane HBL handler id (0 = none)
 pub const REG_FB_HBL_POS: usize = 0x28; // u16 x4 x position at which the per-plane HBL fires
 pub const REG_FRAME: usize = 0x30; // u32  (ro) frame counter
-pub const REG_FB_STRIDE: usize = 0x34; // u16 x4 per-plane row stride in pixels (Option B: 320 normal, 400 fullscreen)
-pub const REG_HSCROLL: usize = 0x3C; // u16 x4 per-plane fine horizontal scroll (0x3C..0x43)
-pub const REG_FB_BASE: usize = 0x44; // u32 x4 per-plane framebuffer screen base (0x44..0x53) — MUST clear HSCROLL
+pub const REG_FB_STRIDE: usize = 0x34; // u16 x4 per-plane row stride in pixels (320 normal, 400 fullscreen, or any SCROLL buffer width)
+pub const REG_HSCROLL: usize = 0x3C; // u16 x4 per-plane horizontal scroll (re-read PER SCANLINE in SCROLL mode → line distort)
+pub const REG_FB_BASE: usize = 0x44; // u32 x4 per-plane framebuffer screen base (0x44..0x53) — pan point for SCROLL mode
+pub const REG_FB_MODE: usize = 0x54; // u8 x4 per-plane render mode (0x54..0x57): 0 normal, 1 fullscreen, 2 scroll
+
+pub const FB_MODE_NORMAL: u8 = 0; // 320x200 visible plane (legacy)
+pub const FB_MODE_FULLSCREEN: u8 = 1; // 400x280 overscan plane (Option B)
+pub const FB_MODE_SCROLL: u8 = 2; // window into a bigger-than-screen buffer; pan via FB_BASE + HSCROLL
 
 pub const RES_PLANES: u8 = 0;
 pub const RES_TRUECOLOR: u8 = 1;

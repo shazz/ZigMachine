@@ -183,6 +183,33 @@ pub const LogicalFB = struct {
         self.clearFrameBuffer(0);
     }
 
+    // Turn this plane into a SCROLL plane: back it with a bigger-than-screen
+    // buffer (buf_w x buf_h). Draw into it at buffer coordinates via the normal
+    // methods; the visible 320x200 window is panned with setScroll()/setScrollFine().
+    pub fn setScrollPlane(self: *LogicalFB, buf_w: u16, buf_h: u16) void {
+        self.stride = buf_w;
+        self.fb_w = buf_w;
+        self.fb_h = buf_h;
+        writeU16(hw.REG_FB_STRIDE + @as(usize, self.id) * 2, buf_w);
+        writeU8(hw.REG_FB_MODE + @as(usize, self.id), hw.FB_MODE_SCROLL);
+        self.bind(vramAlloc(@as(usize, buf_w) * @as(usize, buf_h)));
+        self.clearFrameBuffer(0);
+    }
+
+    // Pan the visible window to buffer pixel (x, y) — coarse hardware scroll (moves
+    // the plane's read base; the backing buffer / draw origin stays put).
+    pub fn setScroll(self: *LogicalFB, x: u32, y: u32) void {
+        const origin: u32 = @intCast(@intFromPtr(self.fb) - g_base);
+        writeU32(hw.REG_FB_BASE + @as(usize, self.id) * 4, origin + y * self.stride + x);
+    }
+
+    // Per-line horizontal offset (added on top of setScroll). In SCROLL mode this
+    // is re-read every scanline, so setting it from an HBL handler distorts the
+    // image line-by-line (sine wobble / shear).
+    pub fn setScrollFine(self: *LogicalFB, hs: u16) void {
+        writeU16(hw.REG_HSCROLL + @as(usize, self.id) * 2, hs);
+    }
+
     pub fn getRenderTarget(self: *LogicalFB) RenderTarget {
         return RenderTarget{ .fb = self };
     }
@@ -234,6 +261,11 @@ pub const LogicalFB = struct {
         // Publish to the machine: a non-zero id (plane+1) + the x position.
         writeU16(hw.REG_FB_HBL_ID + @as(usize, self.id) * 2, @as(u16, self.id) + 1);
         writeU16(hw.REG_FB_HBL_POS + @as(usize, self.id) * 2, position);
+    }
+
+    pub fn clearFrameBufferHBLHandler(self: *LogicalFB) void {
+        self.fb_hbl_handler = null;
+        writeU16(hw.REG_FB_HBL_ID + @as(usize, self.id) * 2, 0);
     }
 };
 

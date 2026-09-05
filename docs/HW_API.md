@@ -66,6 +66,15 @@ memory.
 | `0x20` | `FB_HBL_ID[4]` | u16×4 | per-plane HBL handler id (`0` = none) |
 | `0x28` | `FB_HBL_POS[4]` | u16×4 | x position at which the per-plane HBL fires |
 | `0x30` | `FRAME` | u32 (ro) | frame counter (incremented by `hwClear`) |
+| `0x34` | `FB_STRIDE[4]` | u16×4 | per-plane row stride in px (320 normal · 400 fullscreen · any SCROLL buffer width) |
+| `0x3C` | `HSCROLL[4]` | u16×4 | per-plane horizontal offset — **re-read per scanline in SCROLL mode** (line distort) |
+| `0x44` | `FB_BASE[4]` | u32×4 | per-plane framebuffer screen base (byte offset into the region; the pan point) |
+| `0x54` | `FB_MODE[4]` | u8×4 | per-plane render mode: `0` normal · `1` fullscreen (overscan) · `2` scroll |
+
+**Scroll planes** (`FB_MODE = 2`): back a plane with a bigger-than-screen buffer
+(`setScrollPlane(w, h)`); the visible 320×200 window is panned by moving `FB_BASE`
+(`setScroll(x, y)` — zero per-pixel cost), and `HSCROLL` is re-read every scanline so a
+per-plane HBL handler can bend each line (`setScrollFine` → sine wobble / shear).
 
 Colours are RGBA `u32`, little-endian byte order `R,G,B,A` (i.e.
 `a<<24 | b<<16 | g<<8 | r`).

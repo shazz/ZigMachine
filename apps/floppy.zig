@@ -2,7 +2,8 @@
 // Uncomment the scene to run
 // --------------------------------------------------------------------------
 
-pub const Demo = @import("scenes/blitter_demo.zig").Demo;
+pub const Demo = @import("scenes/scroll_demo.zig").Demo;
+// pub const Demo = @import("scenes/blitter_demo.zig").Demo;
 // pub const Demo = @import("scenes/music_debug.zig").Demo;
 // pub const Demo = @import("scenes/dbug.zig").Demo;
 // pub const Demo = @import("scenes/deltaforce2.zig").Demo;

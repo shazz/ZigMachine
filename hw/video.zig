@@ -83,6 +83,9 @@ inline fn fbHblPos(plane: usize) u16 {
 inline fn fbStride(plane: usize) u16 {
     return r16(memmap.REG_FB_STRIDE + plane * 2);
 }
+inline fn fbMode(plane: usize) u8 {
+    return r8(memmap.REG_FB_MODE + plane);
+}
 
 // --------------------------------------------------------------------------
 // Entry points (wrapped as wasm exports in machine_video.zig)
@@ -156,7 +159,37 @@ fn renderPlaneFullscreen(fb_id: usize) void {
     }
 }
 
+// Composite the visible 320x200 window from a bigger-than-screen buffer (SCROLL
+// mode). FB_BASE points at the window's top-left in the buffer (coarse pan, incl.
+// vertical); HSCROLL adds a horizontal offset that is RE-READ per scanline, so a
+// per-plane HBL handler can rewrite it each line for a sine/line-shear distort
+// (the ST/Amiga "screen-offset" wobble). Borders are left untouched.
+fn renderPlaneScroll(fb_id: usize) void {
+    const buf = lfb(fb_id);
+    const stride: usize = fbStride(fb_id);
+    const palette = pal(fb_id);
+    const out = pfb();
+    const hid = fbHblId(fb_id);
+    const hpos = fbHblPos(fb_id);
+    var vy: usize = 0;
+    while (vy < memmap.HEIGHT) : (vy += 1) {
+        const py = VB + vy;
+        if (hid != 0) hblDispatch(hid, @intCast(fb_id), @intCast(vy), @intCast(hpos));
+        const hs: usize = @intCast(hscroll(fb_id)); // read AFTER the HBL so a per-line handler distorts
+        const srow = vy * stride + hs;
+        const orow = py * PWu + HB;
+        var vx: usize = 0;
+        while (vx < memmap.WIDTH) : (vx += 1) out[orow + vx] = palette[buf[srow + vx]];
+    }
+}
+
 pub fn renderPlane(fb_id: usize) void {
+    switch (fbMode(fb_id)) {
+        memmap.FB_MODE_SCROLL => return renderPlaneScroll(fb_id),
+        memmap.FB_MODE_FULLSCREEN => return renderPlaneFullscreen(fb_id),
+        else => {},
+    }
+    // Back-compat: fullscreen used to be detected purely by stride == 400.
     if (fbStride(fb_id) == memmap.STRIDE_FULLSCREEN) {
         renderPlaneFullscreen(fb_id);
         return;
