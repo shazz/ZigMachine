@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ZigMachine — Programmer's Guide</title>
+<style>
+:root { color-scheme: dark; }
+* { box-sizing: border-box; }
+body { margin: 0; background: #0e1016; color: #d7dbe6; font: 15px/1.6 system-ui, sans-serif; }
+header { padding: 32px 40px; background: linear-gradient(135deg, #1a1f2e, #0e1016); border-bottom: 1px solid #2a3142; }
+h1 { margin: 0 0 6px; font-size: 26px; letter-spacing: .5px; }
+.sub { color: #8b93a7; font-size: 13px; }
+.wrap { display: flex; gap: 28px; max-width: 1200px; margin: 0 auto; padding: 28px 40px; }
+nav { position: sticky; top: 20px; align-self: flex-start; min-width: 210px; display: flex; flex-direction: column; gap: 4px; }
+nav a { color: #9aa4bd; text-decoration: none; padding: 5px 10px; border-radius: 6px; font-size: 13px; }
+nav a:hover { background: #1a2030; color: #fff; }
+main { flex: 1; min-width: 0; }
+h2 { margin: 34px 0 14px; font-size: 19px; color: #7dd3fc; border-bottom: 1px solid #232a3a; padding-bottom: 6px; }
+h3 { margin: 20px 0 8px; font-size: 15px; color: #fbbf72; }
+.item { padding: 10px 0; border-bottom: 1px solid #191e2b; }
+.sig { display: block; color: #a5f3c0; font: 13px/1.5 ui-monospace, monospace; white-space: pre-wrap; }
+.doc { color: #9aa4bd; font-size: 13.5px; margin-top: 4px; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th, td { text-align: left; padding: 6px 10px; border-bottom: 1px solid #1c2230; vertical-align: top; }
+th { color: #7dd3fc; font-weight: 600; }
+td code, .sig, code { color: #a5f3c0; }
+pre.code { background: #12151f; border: 1px solid #232a3a; border-radius: 8px; padding: 14px 16px;
+           overflow-x: auto; font: 12.5px/1.5 ui-monospace, monospace; color: #cdd6e6; }
+.intro { background: #12151f; border: 1px solid #232a3a; border-radius: 8px; padding: 16px 18px; margin-bottom: 8px; }
+code { background: #1a2030; padding: 1px 5px; border-radius: 4px; }
+</style></head>
+<body>
+<header>
+  <h1>ZigMachine — Programmer's Guide</h1>
+  <div class="sub">Generated 2026-09-05 by tools/gen_docs.py · 10 ABI exports · 35 library methods · 47 registers</div>
+</header>
+<div class="wrap">
+  <nav><a href="#top">Overview</a><a href="#examples">Examples</a><a href="#0">Video registers</a>
+<a href="#1">Blitter registers</a>
+<a href="#2">HW ABI — machine exports</a>
+<a href="#3">ZigOS — LogicalFB (a plane)</a>
+<a href="#4">ZigOS — ZigOS (the OS)</a>
+<a href="#5">ZigOS — Blitter (2D coprocessor)</a></nav>
+  <main>
+    <section id="top"><h2>Overview</h2><div class="intro">
+ZigMachine is a fantasy console: a <b>sealed hardware</b> core (compiled to two
+<code>machine-*.wasm</code> binaries you never edit) plus an <b>open library</b>
+(ZigOS) and your <b>scene</b> code, all sharing one <code>WebAssembly.Memory</code>
+through a memory-mapped ABI. You write a scene; ZigOS gives you planes, palettes,
+a blitter, HBL rasters and hardware scrolling on top of the sealed machine.
+</div></section>
+    <section id="examples"><h2>Examples</h2><h3>A minimal scene</h3><pre class="code">// apps/scenes/my_scene.zig — select it in apps/floppy.zig:
+//   pub const Demo = @import(&quot;scenes/my_scene.zig&quot;).Demo;
+const zg = @import(&quot;zigos&quot;);
+const ZigOS = zg.ZigOS;
+const Color = zg.Color;
+
+pub const Demo = struct {
+    pub fn init(self: *Demo, os: *ZigOS) void {
+        _ = self;
+        const fb = &amp;os.lfbs[0];
+        fb.is_enabled = true;                     // show plane 0
+        fb.setPaletteEntry(1, .{ .r = 255, .g = 80, .b = 0, .a = 255 });
+    }
+    pub fn update(self: *Demo, os: *ZigOS, dt: f32) void { _ = self; _ = os; _ = dt; }
+    pub fn render(self: *Demo, os: *ZigOS, dt: f32) void {
+        _ = self; _ = dt;
+        const fb = &amp;os.lfbs[0];
+        fb.clearFrameBuffer(0);
+        fb.setPixelValue(160, 100, 1);            // one orange pixel, screen centre
+    }
+};</pre>
+<h3>Filled vectors with the blitter</h3><pre class="code">const zg = @import(&quot;zigos&quot;);
+var blit: zg.Blitter = .{};
+
+// in init: blit.init();
+// in render (fb = &amp;os.lfbs[0]):
+blit.clear(fb, 0);                                // hardware FILL
+blit.triangle(fb, .{ .x = 20, .y = 20 }, .{ .x = 300, .y = 40 }, .{ .x = 160, .y = 180 }, 1);
+// glenz (see-through) vectors: OR each single-bit face colour into the buffer
+blit.triangleEx(fb, a, b, c, 0x01, 0, .glenz);</pre>
+<h3>Per-scanline rasters (HBL)</h3><pre class="code">// A palette/background split every scanline — set a global HBL handler.
+fn raster(os: *zg.ZigOS, line: u16) void {
+    os.setBackgroundColor(.{ .r = @intCast(line), .g = 0, .b = 128, .a = 255 });
+}
+// in init: os.setHBLHandler(raster);</pre>
+<h3>Hardware scrolling</h3><pre class="code">// A window onto a bigger-than-screen buffer.
+const fb = &amp;os.lfbs[0];
+fb.setScrollPlane(640, 400);        // back plane 0 with a 640x400 buffer
+// ... draw into it at buffer coords ...
+// each frame, pan the visible 320x200 window (pure hardware, zero per-pixel cost):
+fb.setScroll(scroll_x, scroll_y);
+// bonus: in SCROLL mode HSCROLL is re-read per scanline, so a per-plane HBL
+// handler calling fb.setScrollFine(sin(line)) bends each line (wobble).</pre></section>
+    <section id="0"><h2>Video registers</h2><table><thead><tr><th>Name</th><th>Value</th><th>Meaning</th></tr></thead><tbody>
+<tr><td><code>REG_RESOLUTION</code></td><td><code>0x00</code></td><td>u8   0 = planes, 1 = truecolor (border-open)</td></tr>
+<tr><td><code>REG_NB_PLANES</code></td><td><code>0x01</code></td><td>u8   (ro) = 4</td></tr>
+<tr><td><code>REG_BACKGROUND</code></td><td><code>0x04</code></td><td>u32  border/background RGBA</td></tr>
+<tr><td><code>REG_PLANE_ENABLE</code></td><td><code>0x08</code></td><td>u8 x4 (informational in v1; host gates blits)</td></tr>
+<tr><td><code>REG_GLOBAL_HBL_ID</code></td><td><code>0x10</code></td><td>u16  border/background HBL handler id (0 = none)</td></tr>
+<tr><td><code>REG_FB_HBL_ID</code></td><td><code>0x20</code></td><td>u16 x4 per-plane HBL handler id (0 = none)</td></tr>
+<tr><td><code>REG_FB_HBL_POS</code></td><td><code>0x28</code></td><td>u16 x4 x position at which the per-plane HBL fires</td></tr>
+<tr><td><code>REG_FRAME</code></td><td><code>0x30</code></td><td>u32  (ro) frame counter</td></tr>
+<tr><td><code>REG_FB_STRIDE</code></td><td><code>0x34</code></td><td>u16 x4 per-plane row stride in pixels (320 normal, 400 fullscreen, or any SCROLL buffer width)</td></tr>
+<tr><td><code>REG_HSCROLL</code></td><td><code>0x3C</code></td><td>u16 x4 per-plane horizontal scroll (re-read PER SCANLINE in SCROLL mode → line distort)</td></tr>
+<tr><td><code>REG_FB_BASE</code></td><td><code>0x44</code></td><td>u32 x4 per-plane framebuffer screen base (0x44..0x53) — pan point for SCROLL mode</td></tr>
+<tr><td><code>REG_FB_MODE</code></td><td><code>0x54</code></td><td>u8 x4 per-plane render mode (0x54..0x57): 0 normal, 1 fullscreen, 2 scroll</td></tr>
+</tbody></table></section>
+<section id="1"><h2>Blitter registers</h2><table><thead><tr><th>Name</th><th>Value</th><th>Meaning</th></tr></thead><tbody>
+<tr><td><code>BLIT_COMMAND</code></td><td><code>OFF_BLIT + 0x00</code></td><td>u8  0 NOP 1 BLIT 2 FILL 3 LINE 4 TRIANGLE</td></tr>
+<tr><td><code>BLIT_MINTERM</code></td><td><code>OFF_BLIT + 0x01</code></td><td>u8  LF truth table of A,B,C (index = A&lt;&lt;2|B&lt;&lt;1|C)</td></tr>
+<tr><td><code>BLIT_CON</code></td><td><code>OFF_BLIT + 0x02</code></td><td>u8  control bits (see CON_* below)</td></tr>
+<tr><td><code>BLIT_STATUS</code></td><td><code>OFF_BLIT + 0x03</code></td><td>u8  (ro) bit7 BUSY</td></tr>
+<tr><td><code>BLIT_COLOR</code></td><td><code>OFF_BLIT + 0x04</code></td><td>u8  foreground index</td></tr>
+<tr><td><code>BLIT_BG_COLOR</code></td><td><code>OFF_BLIT + 0x05</code></td><td>u8  halftone background index</td></tr>
+<tr><td><code>BLIT_COLOR_KEY</code></td><td><code>OFF_BLIT + 0x06</code></td><td>u8  transparent index (KEY_EN cookie-cut)</td></tr>
+<tr><td><code>BLIT_A_BASE</code></td><td><code>OFF_BLIT + 0x08</code></td><td>u32 channel A source base</td></tr>
+<tr><td><code>BLIT_A_STRIDE</code></td><td><code>OFF_BLIT + 0x0C</code></td><td>u16 channel A row stride</td></tr>
+<tr><td><code>BLIT_B_BASE</code></td><td><code>OFF_BLIT + 0x10</code></td><td>u32 channel B source base</td></tr>
+<tr><td><code>BLIT_B_STRIDE</code></td><td><code>OFF_BLIT + 0x14</code></td><td>u16 channel B row stride</td></tr>
+<tr><td><code>BLIT_C_BASE</code></td><td><code>OFF_BLIT + 0x18</code></td><td>u32 channel C source base</td></tr>
+<tr><td><code>BLIT_C_STRIDE</code></td><td><code>OFF_BLIT + 0x1C</code></td><td>u16 channel C row stride</td></tr>
+<tr><td><code>BLIT_D_BASE</code></td><td><code>OFF_BLIT + 0x20</code></td><td>u32 channel D destination base</td></tr>
+<tr><td><code>BLIT_D_STRIDE</code></td><td><code>OFF_BLIT + 0x24</code></td><td>u16 channel D row stride</td></tr>
+<tr><td><code>BLIT_W</code></td><td><code>OFF_BLIT + 0x28</code></td><td>u16 blit width  (BLIT/FILL)</td></tr>
+<tr><td><code>BLIT_H</code></td><td><code>OFF_BLIT + 0x2A</code></td><td>u16 blit height (BLIT/FILL)</td></tr>
+<tr><td><code>BLIT_X0</code></td><td><code>OFF_BLIT + 0x2C</code></td><td>i16 dst x0 / line start / tri v0</td></tr>
+<tr><td><code>BLIT_Y0</code></td><td><code>OFF_BLIT + 0x2E</code></td><td>i16</td></tr>
+<tr><td><code>BLIT_X1</code></td><td><code>OFF_BLIT + 0x30</code></td><td>i16 line end / tri v1</td></tr>
+<tr><td><code>BLIT_Y1</code></td><td><code>OFF_BLIT + 0x32</code></td><td>i16</td></tr>
+<tr><td><code>BLIT_X2</code></td><td><code>OFF_BLIT + 0x34</code></td><td>i16 tri v2</td></tr>
+<tr><td><code>BLIT_Y2</code></td><td><code>OFF_BLIT + 0x36</code></td><td>i16</td></tr>
+<tr><td><code>BLIT_CLIP_X</code></td><td><code>OFF_BLIT + 0x38</code></td><td>u16 clip rect origin x</td></tr>
+<tr><td><code>BLIT_CLIP_Y</code></td><td><code>OFF_BLIT + 0x3A</code></td><td>u16 clip rect origin y</td></tr>
+<tr><td><code>BLIT_CLIP_W</code></td><td><code>OFF_BLIT + 0x3C</code></td><td>u16 clip rect width</td></tr>
+<tr><td><code>BLIT_CLIP_H</code></td><td><code>OFF_BLIT + 0x3E</code></td><td>u16 clip rect height</td></tr>
+<tr><td><code>BLIT_HALFTONE</code></td><td><code>OFF_BLIT + 0x40</code></td><td>u16 x16 1-bit halftone pattern</td></tr>
+<tr><td><code>BLIT_CYCLES</code></td><td><code>OFF_BLIT + 0x60</code></td><td>u32 (ro) estimated cost of last op</td></tr>
+<tr><td><code>BLIT_CMD_NOP</code></td><td><code>0</code></td><td></td></tr>
+<tr><td><code>BLIT_CMD_BLIT</code></td><td><code>1</code></td><td></td></tr>
+<tr><td><code>BLIT_CMD_FILL</code></td><td><code>2</code></td><td></td></tr>
+<tr><td><code>BLIT_CMD_LINE</code></td><td><code>3</code></td><td></td></tr>
+<tr><td><code>BLIT_CMD_TRIANGLE</code></td><td><code>4</code></td><td></td></tr>
+<tr><td><code>BLIT_STATUS_BUSY</code></td><td><code>1 &lt;&lt; 7</code></td><td></td></tr>
+</tbody></table></section>
+<section id="2"><h2>HW ABI — machine exports</h2><div class="item"><code class="sig">hwVideoBase() i32</code><div class="doc">base of the video hardware region</div></div>
+<div class="item"><code class="sig">hwInit() void</code><div class="doc">reset registers/planes</div></div>
+<div class="item"><code class="sig">hwClear() void</code><div class="doc">fill PFB with BACKGROUND, run GLOBAL_HBL per row</div></div>
+<div class="item"><code class="sig">hwRenderPlane(plane: u32) void</code><div class="doc">composite one enabled LFB -&gt; PFB</div></div>
+<div class="item"><code class="sig">hwBlit() void</code><div class="doc">execute the blitter COMMAND in the register block</div></div>
+<div class="item"><code class="sig">hwPhysicalPtr() i32</code><div class="doc">pointer to PFB for the host to blit</div></div>
+<div class="item"><code class="sig">hwPlanesNumber() u8</code></div>
+<div class="item"><code class="sig">hwPhysWidth() u32</code></div>
+<div class="item"><code class="sig">hwPhysHeight() u32</code></div>
+<div class="item"><code class="sig">hwVersion() u32</code><div class="doc">ZM_HW_VERSION</div></div></section>
+<section id="3"><h2>ZigOS — LogicalFB (a plane)</h2><div class="item"><code class="sig">init(self: *LogicalFB, zigos: *ZigOS) void</code></div>
+<div class="item"><code class="sig">setFullscreen(self: *LogicalFB) void</code><div class="doc">Turn this plane into a fullscreen (400×280) overscan plane: coordinates are now PHYSICAL (0..400, 0..280); the machine composites it across the whole frame including the borders. The visible window stays at the same place.</div></div>
+<div class="item"><code class="sig">setScrollPlane(self: *LogicalFB, buf_w: u16, buf_h: u16) void</code><div class="doc">Turn this plane into a SCROLL plane: back it with a bigger-than-screen buffer (buf_w x buf_h). Draw into it at buffer coordinates via the normal methods; the visible 320x200 window is panned with setScroll()/setScrollFine().</div></div>
+<div class="item"><code class="sig">setScroll(self: *LogicalFB, x: u32, y: u32) void</code><div class="doc">Pan the visible window to buffer pixel (x, y) — coarse hardware scroll (moves the plane&#x27;s read base; the backing buffer / draw origin stays put).</div></div>
+<div class="item"><code class="sig">setScrollFine(self: *LogicalFB, hs: u16) void</code><div class="doc">Per-line horizontal offset (added on top of setScroll). In SCROLL mode this is re-read every scanline, so setting it from an HBL handler distorts the image line-by-line (sine wobble / shear).</div></div>
+<div class="item"><code class="sig">getRenderTarget(self: *LogicalFB) RenderTarget</code></div>
+<div class="item"><code class="sig">setPalette(self: *LogicalFB, entries: [256]Color) void</code><div class="doc">--- Palette management ---</div></div>
+<div class="item"><code class="sig">setPaletteEntry(self: *LogicalFB, entry: u8, value: Color) void</code></div>
+<div class="item"><code class="sig">getPaletteEntry(self: *LogicalFB, entry: u8) Color</code></div>
+<div class="item"><code class="sig">setFramebufferBackgroundColor(self: *LogicalFB, pal_entry: u8) void</code></div>
+<div class="item"><code class="sig">setPixelValue(self: *LogicalFB, x: u16, y: u16, pal_entry: u8) void</code></div>
+<div class="item"><code class="sig">drawScanline(self: *LogicalFB, x1: u16, x2: u16, y: u16, pal_entry: u8) void</code></div>
+<div class="item"><code class="sig">clearFrameBuffer(self: *LogicalFB, pal_entry: u8) void</code></div>
+<div class="item"><code class="sig">setFrameBufferHBLHandler(self: *LogicalFB, position: u16, handler: *const fn (*LogicalFB, *ZigOS, u16, u16) void) void</code></div>
+<div class="item"><code class="sig">clearFrameBufferHBLHandler(self: *LogicalFB) void</code></div></section>
+<section id="4"><h2>ZigOS — ZigOS (the OS)</h2><div class="item"><code class="sig">init(self: *ZigOS) void</code></div>
+<div class="item"><code class="sig">nop(self: *ZigOS) void</code><div class="doc">--- Features ---</div></div>
+<div class="item"><code class="sig">printText(self: *ZigOS, lfb: *LogicalFB, text: []const u8, x: u16, y: u16, fg_color_index: u8, bg_color_index: u8) void</code></div>
+<div class="item"><code class="sig">setResolution(self: *ZigOS, res: Resolution) void</code><div class="doc">--- Framebuffer / register management ---</div></div>
+<div class="item"><code class="sig">setBackgroundColor(self: *ZigOS, color: Color) void</code></div>
+<div class="item"><code class="sig">getBackgroundColor(self: *ZigOS) Color</code></div>
+<div class="item"><code class="sig">setHBLHandler(self: *ZigOS, handler: *const fn (*ZigOS, u16) void) void</code></div>
+<div class="item"><code class="sig">removeHBLHandler(self: *ZigOS) void</code></div>
+<div class="item"><code class="sig">dispatchHBL(self: *ZigOS, id: u32, plane: u32, line: u32, x: u32) void</code><div class="doc">Called (via the demo module&#x27;s exported hblDispatch) by the sealed machine when the render pipeline reaches an HBL point. Integer ids in, Zig handler calls out — the machine never holds a function pointer.</div></div></section>
+<section id="5"><h2>ZigOS — Blitter (2D coprocessor)</h2><div class="item"><code class="sig">init(self: *Blitter) void</code></div>
+<div class="item"><code class="sig">fill(self: *Blitter, fb: *LogicalFB, x: i16, y: i16, w: u16, h: u16, color: u8) void</code><div class="doc">--- primitives ---</div></div>
+<div class="item"><code class="sig">clear(self: *Blitter, fb: *LogicalFB, color: u8) void</code></div>
+<div class="item"><code class="sig">line(self: *Blitter, fb: *LogicalFB, x0: i16, y0: i16, x1: i16, y1: i16, color: u8, mt: Minterm) void</code></div>
+<div class="item"><code class="sig">triangle(self: *Blitter, fb: *LogicalFB, v0: Vec2, v1: Vec2, v2: Vec2, color: u8) void</code><div class="doc">Flat solid triangle (COLOR straight into dest).</div></div>
+<div class="item"><code class="sig">triangleEx(self: *Blitter, fb: *LogicalFB, v0: Vec2, v1: Vec2, v2: Vec2, fg: u8, bg: u8, mt: Minterm) void</code><div class="doc">General triangle: fill with `fg` combined into the destination via `mt` (`.copy` = flat, `.glenz` = OR transparency). When a halftone pattern is loaded (setHalftone), pixels alternate `fg`/`bg` for dithered shading.</div></div>
+<div class="item"><code class="sig">setHalftone(self: *Blitter, pattern: [16]u16) void</code><div class="doc">Load / clear the 16x16 1-bit halftone pattern (bit set -&gt; COLOR, clear -&gt; BG_COLOR).</div></div>
+<div class="item"><code class="sig">clearHalftone(self: *Blitter) void</code></div>
+<div class="item"><code class="sig">blitCopy(self: *Blitter, dst: *LogicalFB, dx: i16, dy: i16, src: *LogicalFB, sx: i16, sy: i16, w: u16, h: u16) void</code><div class="doc">Plain block copy of a w×h region of `src` at (sx,sy) onto `dst` at (dx,dy), no colour key. Firing this once per row with a per-row `dx` is the classic strip-blit deformation (sine wobble / rubber / shear).</div></div>
+<div class="item"><code class="sig">bob(self: *Blitter, dst: *LogicalFB, dx: i16, dy: i16, src: *LogicalFB, sx: i16, sy: i16, w: u16, h: u16, key: u8) void</code><div class="doc">Cookie-cut bob: copy a w×h region of `src` at (sx,sy) onto `dst` at (dx,dy), skipping pixels equal to `key` (the chunky one-channel cookie-cut).</div></div>
+<div class="item"><code class="sig">cycles(self: *Blitter) u32</code><div class="doc">Estimated cost of the last op (pixels touched + setup), for VBL budgeting.</div></div></section>
+  </main>
+</div>
+</body></html>
