@@ -68,7 +68,10 @@ async function boot() {
             hwBlit: machine.hwBlit, // sealed 2D blitter (execute COMMAND register)
         },
     };
-    const demoMod = await WebAssembly.instantiateStreaming(fetch("demo.wasm"), demoImports);
+    // Which open scene to load: ?demo=demo-scroll.wasm etc. (default demo.wasm),
+    // so one page can show any of the compiled scenes in a separate tab.
+    const demoWasm = new URLSearchParams(window.location.search).get("demo") || "demo.wasm";
+    const demoMod = await WebAssembly.instantiateStreaming(fetch(demoWasm), demoImports);
     demo = demoMod.instance.exports;
     console.log("Open demo.wasm loaded");
 
