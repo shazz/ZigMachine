@@ -56,6 +56,12 @@ export fn setShadeMode(mode: u32) void {
     if (@hasDecl(Demo, "setShadeMode")) demo.setShadeMode(mode);
 }
 
+// Pointer state from the host (mouse over the canvas), in 320x200 visible coords.
+// Only scenes that declare pointer() react (e.g. the GEM windowing app).
+export fn pointer(x: i32, y: i32, buttons: u32) void {
+    if (@hasDecl(Demo, "pointer")) demo.pointer(x, y, buttons);
+}
+
 export fn input(dir: Direction) void {
     switch (dir) {
         .Up => Console.log("up", .{}),

@@ -144,6 +144,33 @@ window.document.body.addEventListener('keydown', function (evt) {
 });
 
 // --------------------------------------------------------------------------
+// Pointer input: map mouse events on the (scaled) canvas to the 320x200 visible
+// area and forward to demo.pointer(x, y, buttons) — for GEM-style windowed apps.
+// The physical framebuffer is 400x280 with a 40px border, so visible = phys - 40.
+// --------------------------------------------------------------------------
+(function () {
+    const HB = 40, VB = 40;                 // border widths (see memmap)
+    const surface = window.document.getElementById("3"); // topmost stacked canvas
+    surface.style.pointerEvents = "auto";   // re-enable: .overlay sets pointer-events:none
+    let buttons = 0;
+    function send(evt) {
+        if (!demo || !demo.pointer) return;
+        const r = surface.getBoundingClientRect();
+        const px = (evt.clientX - r.left) * (400 / r.width);
+        const py = (evt.clientY - r.top) * (280 / r.height);
+        demo.pointer(Math.round(px - HB), Math.round(py - VB), buttons);
+    }
+    surface.addEventListener('mousemove', send);
+    surface.addEventListener('mousedown', function (e) { buttons = 1; send(e); e.preventDefault(); });
+    // Defer the release by one animation frame so a fast click (down+up within a
+    // single frame) is still seen as "pressed" for at least one render.
+    window.addEventListener('mouseup', function (e) {
+        send(e);
+        window.requestAnimationFrame(function () { buttons = 0; });
+    });
+})();
+
+// --------------------------------------------------------------------------
 // Audio: AudioWorklet running audio.wasm on the audio thread (unchanged). JS
 // mirrors chip state into the demo module for the scene's oscilloscope.
 // --------------------------------------------------------------------------

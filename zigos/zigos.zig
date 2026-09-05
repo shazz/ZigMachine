@@ -26,6 +26,7 @@ pub const Blitter = @import("blitter.zig").Blitter;
 pub const BlitVec2 = @import("blitter.zig").Vec2;
 pub const Minterm = @import("blitter.zig").Minterm;
 pub const obj = @import("utils/obj_loader.zig");
+pub const gui = @import("gui.zig");
 
 // --------------------------------------------------------------------------
 // Enum
