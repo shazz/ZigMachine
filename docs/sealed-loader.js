@@ -65,6 +65,7 @@ async function boot() {
             jsThrowError: throwError,
             consoleLogJS: consoleLogJS,
             hwVideoBase: machine.hwVideoBase,
+            hwBlit: machine.hwBlit, // sealed 2D blitter (execute COMMAND register)
         },
     };
     const demoMod = await WebAssembly.instantiateStreaming(fetch("demo.wasm"), demoImports);
@@ -131,9 +132,15 @@ window.document.body.addEventListener('keydown', function (evt) {
     if ((evt.key === "a") || (evt.key === "ArrowLeft")) demo.input(2);
     if ((evt.key === "d" || evt.key === "ArrowRight")) demo.input(3);
 
-    if (evt.key === "1") playMod("music/lollapalooza.mod");
-    if (evt.key === "2") playYm("music/concerto.ymraw");
-    if (evt.key === "3") playRaw("music/smp1.raw", 12517, false);
+    // Keys 1-4: if the active scene exposes a shading/mode switch, drive that;
+    // otherwise fall back to the audio player shortcuts (music_debug etc.).
+    if (demo && demo.setShadeMode && "1234567".includes(evt.key)) {
+        demo.setShadeMode(Number(evt.key) - 1);
+    } else {
+        if (evt.key === "1") playMod("music/lollapalooza.mod");
+        if (evt.key === "2") playYm("music/concerto.ymraw");
+        if (evt.key === "3") playRaw("music/smp1.raw", 12517, false);
+    }
 });
 
 // --------------------------------------------------------------------------

@@ -22,6 +22,9 @@ const hw = @import("hardware"); // sealed video ABI header (named module)
 pub const Console = @import("utils/debug.zig").Console;
 pub const Starfield3D = @import("effects/starfield_3D.zig").Starfield3D;
 pub const convertU8ArraytoColors = @import("utils/loaders.zig").convertU8ArraytoColors;
+pub const Blitter = @import("blitter.zig").Blitter;
+pub const BlitVec2 = @import("blitter.zig").Vec2;
+pub const Minterm = @import("blitter.zig").Minterm;
 
 // --------------------------------------------------------------------------
 // Enum

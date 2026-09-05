@@ -79,6 +79,7 @@ hwVideoBase() i32        // base address of the video hardware region
 hwInit() void            // reset the register block
 hwClear() void           // fill PFB with BACKGROUND, fire the global HBL per row, FRAME++
 hwRenderPlane(plane) void // composite one logical FB -> PFB (border/raster/plane trick)
+hwBlit() void            // execute the 2D blitter COMMAND (see §4b + BLITTER_HW_SPEC.md)
 hwPhysicalPtr() i32      // pointer to the PFB, for the host to blit
 hwPlanesNumber() u8      // 4
 hwPhysWidth() u32        // 400
@@ -105,6 +106,32 @@ hwClear()  →  demo.frame(dt)  →  for each enabled plane: hwRenderPlane(i); b
 `hwRenderPlane` takes a plane id (a refinement of the spec's no-arg `hwRender`)
 because the front-end composites four transparent stacked canvases — one per
 plane — so each plane is rendered and blitted individually.
+
+---
+
+## 4b. Blitter (2D coprocessor — exports of `machine-video.wasm`)
+
+A fixed-function chunky-8bpp blitter living in the video module. The open layer
+sets a register block, then calls `hwBlit()` to execute it (synchronous, v1).
+Full model in `docs/BLITTER_HW_SPEC.md`; drive it via `zigos/blitter.zig`
+(`Blitter.fill/clear/line/triangle/triangleEx/bob/setHalftone`).
+
+- **Register block** at region offset `OFF_BLIT` (`0x80`, below the palettes).
+  `COMMAND` (`0` NOP `1` BLIT `2` FILL `3` LINE `4` TRIANGLE), `MINTERM` (256-way
+  A/B/C truth table), `CON` (channel enables · `KEY_EN` cookie-cut · `DESC` ·
+  `CLIP_EN`), `COLOR`/`BG_COLOR`/`COLOR_KEY`, four `BASE`+`STRIDE` channels
+  (A,B,C sources, D dest), `W`/`H`, `X0..Y2`, `CLIP_*`, a 16×16 `HALFTONE`
+  pattern, and `CYCLES` (ro cost estimate). See `hw/sdk/memmap.zig` for offsets.
+- **Ops (v1):** FILL (solid or halftone-dithered), BLIT (3-source minterm +
+  colour-key cookie-cut + descending copy), LINE (Bresenham combined via
+  minterm), TRIANGLE (deterministic odd-even scanline fill, combined via minterm
+  so `MT_B` = flat and `MT_OR_BC` = additive **glenz-vector** transparency).
+- **Deferred (v2):** raw area fill (`CON.IFE`/`EFE`) and an async/DMA
+  cycle-budgeted mode.
+
+```
+demo.frame(dt): set blitter regs → hwBlit() (per primitive) → hwRenderPlane(i)
+```
 
 ---
 

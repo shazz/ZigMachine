@@ -6,6 +6,7 @@
 // only env.memory and env.hblDispatch (routed by the host to the demo module).
 // --------------------------------------------------------------------------
 const video = @import("video.zig");
+const blitter = @import("blitter.zig");
 const memmap = @import("sdk/memmap.zig");
 
 export fn hwVideoBase() i32 {
@@ -19,6 +20,9 @@ export fn hwClear() void {
 }
 export fn hwRenderPlane(plane: u32) void {
     video.renderPlane(@intCast(plane));
+}
+export fn hwBlit() void {
+    blitter.execute();
 }
 export fn hwPhysicalPtr() i32 {
     return @intCast(video.pfbBytePtr());

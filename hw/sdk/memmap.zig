@@ -68,6 +68,77 @@ pub const REG_FB_BASE: usize = 0x44; // u32 x4 per-plane framebuffer screen base
 pub const RES_PLANES: u8 = 0;
 pub const RES_TRUECOLOR: u8 = 1;
 
+// --------------------------------------------------------------------------
+// Blitter register block (see docs/BLITTER_HW_SPEC.md).
+//
+// A fixed-function 2D coprocessor living inside machine-video.wasm. ZigOS sets
+// these registers then calls the sealed `hwBlit()` export to execute COMMAND.
+// The block sits above the video registers and below the palettes (OFF_PAL =
+// 0x100), so it is covered by reset()'s 256-byte register clear (COMMAND -> NOP).
+// Offsets are region-relative (OFF_REG == 0); the layout matches the spec's
+// per-block offsets shifted by OFF_BLIT.
+// --------------------------------------------------------------------------
+pub const OFF_BLIT: usize = 0x80; // blitter block base
+
+pub const BLIT_COMMAND: usize = OFF_BLIT + 0x00; // u8  0 NOP 1 BLIT 2 FILL 3 LINE 4 TRIANGLE
+pub const BLIT_MINTERM: usize = OFF_BLIT + 0x01; // u8  LF truth table of A,B,C (index = A<<2|B<<1|C)
+pub const BLIT_CON: usize = OFF_BLIT + 0x02; // u8  control bits (see CON_* below)
+pub const BLIT_STATUS: usize = OFF_BLIT + 0x03; // u8  (ro) bit7 BUSY
+pub const BLIT_COLOR: usize = OFF_BLIT + 0x04; // u8  foreground index
+pub const BLIT_BG_COLOR: usize = OFF_BLIT + 0x05; // u8  halftone background index
+pub const BLIT_COLOR_KEY: usize = OFF_BLIT + 0x06; // u8  transparent index (KEY_EN cookie-cut)
+pub const BLIT_A_BASE: usize = OFF_BLIT + 0x08; // u32 channel A source base
+pub const BLIT_A_STRIDE: usize = OFF_BLIT + 0x0C; // u16 channel A row stride
+pub const BLIT_B_BASE: usize = OFF_BLIT + 0x10; // u32 channel B source base
+pub const BLIT_B_STRIDE: usize = OFF_BLIT + 0x14; // u16 channel B row stride
+pub const BLIT_C_BASE: usize = OFF_BLIT + 0x18; // u32 channel C source base
+pub const BLIT_C_STRIDE: usize = OFF_BLIT + 0x1C; // u16 channel C row stride
+pub const BLIT_D_BASE: usize = OFF_BLIT + 0x20; // u32 channel D destination base
+pub const BLIT_D_STRIDE: usize = OFF_BLIT + 0x24; // u16 channel D row stride
+pub const BLIT_W: usize = OFF_BLIT + 0x28; // u16 blit width  (BLIT/FILL)
+pub const BLIT_H: usize = OFF_BLIT + 0x2A; // u16 blit height (BLIT/FILL)
+pub const BLIT_X0: usize = OFF_BLIT + 0x2C; // i16 dst x0 / line start / tri v0
+pub const BLIT_Y0: usize = OFF_BLIT + 0x2E; // i16
+pub const BLIT_X1: usize = OFF_BLIT + 0x30; // i16 line end / tri v1
+pub const BLIT_Y1: usize = OFF_BLIT + 0x32; // i16
+pub const BLIT_X2: usize = OFF_BLIT + 0x34; // i16 tri v2
+pub const BLIT_Y2: usize = OFF_BLIT + 0x36; // i16
+pub const BLIT_CLIP_X: usize = OFF_BLIT + 0x38; // u16 clip rect origin x
+pub const BLIT_CLIP_Y: usize = OFF_BLIT + 0x3A; // u16 clip rect origin y
+pub const BLIT_CLIP_W: usize = OFF_BLIT + 0x3C; // u16 clip rect width
+pub const BLIT_CLIP_H: usize = OFF_BLIT + 0x3E; // u16 clip rect height
+pub const BLIT_HALFTONE: usize = OFF_BLIT + 0x40; // u16 x16 1-bit halftone pattern
+pub const BLIT_CYCLES: usize = OFF_BLIT + 0x60; // u32 (ro) estimated cost of last op
+
+// COMMAND values
+pub const BLIT_CMD_NOP: u8 = 0;
+pub const BLIT_CMD_BLIT: u8 = 1;
+pub const BLIT_CMD_FILL: u8 = 2;
+pub const BLIT_CMD_LINE: u8 = 3;
+pub const BLIT_CMD_TRIANGLE: u8 = 4;
+
+// CON control bits
+pub const CON_USEA: u8 = 1 << 0; // channel A enabled
+pub const CON_USEB: u8 = 1 << 1; // channel B enabled
+pub const CON_USEC: u8 = 1 << 2; // channel C enabled
+pub const CON_KEY_EN: u8 = 1 << 3; // colour-key cookie-cut (skip B == COLOR_KEY)
+pub const CON_IFE: u8 = 1 << 4; // inclusive area fill (reserved, v2)
+pub const CON_EFE: u8 = 1 << 5; // exclusive area fill (reserved, v2)
+pub const CON_DESC: u8 = 1 << 6; // descending copy (overlapping moves)
+pub const CON_CLIP_EN: u8 = 1 << 7; // clip to CLIP rect
+
+pub const BLIT_STATUS_BUSY: u8 = 1 << 7;
+
+// Useful MINTERM (LF) values, index = (A<<2)|(B<<1)|C.
+pub const MT_A: u8 = 0xF0; // D = A
+pub const MT_B: u8 = 0xCC; // D = B (plain image copy)
+pub const MT_C: u8 = 0xAA; // D = C (dest unchanged)
+pub const MT_COOKIE: u8 = 0xCA; // (A & B) | (~A & C) — cookie-cut bob
+pub const MT_XOR_BC: u8 = 0x66; // D = B ^ C (reversible draw)
+pub const MT_OR_BC: u8 = 0xEE; // D = B | C (additive — glenz vector transparency)
+pub const MT_CLEAR: u8 = 0x00;
+pub const MT_SET: u8 = 0xFF;
+
 // HBL dispatch ids. Per-plane handlers use id = plane + 1 (1..4); the global
 // border/background handler uses a distinct id. Only integer ids cross the
 // sealed boundary — the machine never sees a Zig function pointer.

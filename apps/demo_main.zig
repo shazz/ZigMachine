@@ -50,6 +50,12 @@ export fn isPlaneEnabled(id: u8) bool {
     return zigos.lfbs[id].is_enabled;
 }
 
+// Optional per-scene shading/mode switch (keys 1-4 in sealed-loader.js). Only
+// scenes that declare setShadeMode react; others ignore it (compile-time guard).
+export fn setShadeMode(mode: u32) void {
+    if (@hasDecl(Demo, "setShadeMode")) demo.setShadeMode(mode);
+}
+
 export fn input(dir: Direction) void {
     switch (dir) {
         .Up => Console.log("up", .{}),

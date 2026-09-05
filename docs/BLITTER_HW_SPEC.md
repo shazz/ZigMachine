@@ -1,7 +1,18 @@
-# ZigMachine — Blitter Hardware Spec (proposal)
+# ZigMachine — Blitter Hardware Spec
 
-Status: **draft / proposal**. Date: 2026-08-22. Companion to `HARDWARE_SPEC.md`
-(the sealed video/audio machine) and `HW_API.md` (the ABI).
+Status: **v1 IMPLEMENTED** (2026-09-05). Original proposal 2026-08-22. Companion
+to `HARDWARE_SPEC.md` (the sealed video/audio machine) and `HW_API.md` (the ABI).
+
+> **v1 implemented** — register block in `hw/sdk/memmap.zig` (base `OFF_BLIT`
+> `0x80`), sealed engine in `hw/blitter.zig`, `hwBlit()` export, open wrapper
+> `zigos/blitter.zig` (`Blitter.fill/clear/line/triangle/bob`), demo scene
+> `apps/scenes/blitter_demo.zig` (a rotating filled-vector cube, ~60fps, proven
+> in `sealed.html`). Ops live: **FILL** (solid + halftone), **BLIT** (3-source
+> minterm + colour-key cookie-cut + DESC), **LINE** (Bresenham + minterm),
+> **TRIANGLE** (deterministic odd-even scanline fill), plus `CYCLES` readback and
+> `CLIP`. **Deferred to v2:** raw area fill (`CON.IFE`/`EFE`) and the async/DMA
+> cycle-budgeted mode (§6). `TRIANGLE` currently uses a self-contained scanline
+> rasteriser rather than the LINE-mask + area-fill two-pass of §4.4.
 
 Goal: give the sealed machine an oldskool **blitter** — a fixed-function 2D
 drawing coprocessor the open ZigOS/effects drive through memory-mapped registers.
