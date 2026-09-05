@@ -155,6 +155,9 @@ window.document.body.addEventListener('keydown', function (evt) {
     const HB = 40, VB = 40;                 // border widths (see memmap)
     const surface = window.document.getElementById("3"); // topmost stacked canvas
     surface.style.pointerEvents = "auto";   // re-enable: .overlay sets pointer-events:none
+    surface.style.userSelect = "none";      // no text selection while dragging windows
+    surface.draggable = false;              // stop the browser "grab the image" drag-ghost
+    surface.addEventListener('dragstart', function (e) { e.preventDefault(); });
     let buttons = 0;
     function send(evt) {
         if (!demo || !demo.pointer) return;
