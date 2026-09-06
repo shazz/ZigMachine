@@ -23,10 +23,33 @@ const layer_b2 = @embedFile("../../assets/screens/union_main/layer_b2.raw");
 const clouds1 = @embedFile("../../assets/screens/union_main/clouds1.raw");
 const clouds2 = @embedFile("../../assets/screens/union_main/clouds2.raw");
 const clouds3 = @embedFile("../../assets/screens/union_main/clouds3.raw");
+const tileset_raw = @embedFile("../../assets/screens/union_main/tileset.raw");
+const gradtiles_raw = @embedFile("../../assets/screens/union_main/gradtiles.raw");
+const world_dat = @embedFile("../../assets/screens/union_main/world.dat");
+const anim_dat = @embedFile("../../assets/screens/union_main/anim.dat");
+const clouds_dat = @embedFile("../../assets/screens/union_main/clouds.dat");
 
 // Spare palette entries (p0.pal uses 1..36) for the solid ground bands.
 const FLOOR: u8 = 40; // pink band under the walkway
 const BOTTOM: u8 = 41; // white band to the screen bottom
+
+// gradTiles red pixels are palette-animated (RED_A idx 35, RED_B idx 36), a
+// 5-step ping-pong every 12 frames (efmain.js: 224->192->128->64->0).
+const RED_A = [5]u8{ 224, 192, 128, 64, 0 };
+const RED_B = [5]u8{ 255, 192, 128, 64, 0 };
+const GRAD_RED_A: u8 = 35;
+const GRAD_RED_B: u8 = 36;
+const WORLD_W: usize = 802;
+const SCROLL_WRAP: f32 = 778; // pinpinPos wraps here (map tail repeats the head)
+
+// Tile world: tileset (17x7 of 16x16) for world+clouds; gradTiles (8-wide) for
+// the animated rows. Faithful to efmain.js scroll (0.3 tiles/frame) + rows.
+const Tile = zg.tilemap;
+const tileset = Tile.TileSheet{ .raw = tileset_raw, .sheet_w = 272, .tw = 16, .th = 16, .cols = 17 };
+const grad = Tile.TileSheet{ .raw = gradtiles_raw, .sheet_w = 128, .tw = 16, .th = 16, .cols = 8 };
+const world_layer = Tile.Layer{ .sheet = &tileset, .map = world_dat, .map_w = WORLD_W, .rows = 9, .id_base = 1, .dst_y = 35 };
+const anim_layer = Tile.Layer{ .sheet = &grad, .map = anim_dat, .map_w = WORLD_W, .rows = 5, .id_base = 120, .dst_y = 83 };
+const clouds_layer = Tile.Layer{ .sheet = &tileset, .map = clouds_dat, .map_w = WORLD_W, .rows = 1, .id_base = 1, .dst_y = 131 };
 
 // Sky gradient: background.png horizontal bands (efmain.js). Physical row ->
 // original row = (r-5)*2; the machine re-reads palette[0] per scanline via an
@@ -74,8 +97,16 @@ const Layer = zg.parallax.Layer;
 
 pub const Demo = struct {
     px: Parallax5 = undefined,
+    pos: f32 = 0, // world scroll in tiles
+    frame: u32 = 0,
+    grad_idx: u8 = 0, // gradTiles palette-animation step
+    grad_inc: i8 = 1,
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
+        self.pos = 0;
+        self.frame = 0;
+        self.grad_idx = 0;
+        self.grad_inc = 1;
         const p0: *LogicalFB = &zigos.lfbs[0];
         p0.is_enabled = true;
         p0.setFullscreen();
@@ -94,9 +125,19 @@ pub const Demo = struct {
     }
 
     pub fn update(self: *Demo, zigos: *ZigOS, dt: f32) void {
-        _ = zigos;
         _ = dt;
         self.px.update();
+        self.pos += 0.3; // world scroll: 0.3 tiles/frame
+        if (self.pos >= SCROLL_WRAP) self.pos -= SCROLL_WRAP;
+        self.frame += 1;
+        if (self.frame % 12 == 0) { // gradTiles palette ping-pong
+            const p0: *LogicalFB = &zigos.lfbs[0];
+            p0.setPaletteEntry(GRAD_RED_A, Color{ .r = RED_A[self.grad_idx], .g = 0, .b = 0, .a = 255 });
+            p0.setPaletteEntry(GRAD_RED_B, Color{ .r = RED_B[self.grad_idx], .g = 0, .b = 0, .a = 255 });
+            if (self.grad_idx == 4) self.grad_inc = -1;
+            if (self.grad_idx == 0) self.grad_inc = 1;
+            self.grad_idx = @intCast(@as(i16, self.grad_idx) + self.grad_inc);
+        }
     }
 
     pub fn render(self: *Demo, zigos: *ZigOS, dt: f32) void {
@@ -104,9 +145,13 @@ pub const Demo = struct {
         const p0: *LogicalFB = &zigos.lfbs[0];
         p0.clearFrameBuffer(0); // index 0 = sky, recoloured per scanline by the HBL
         self.px.draw(p0, 0, @intCast(PW));
-        // Ground bands (floorback pink, bottomback white) under the (future) tiles.
+        // Ground bands (floorback pink, bottomback white) behind the tile world.
         fill(p0, 163, 211, FLOOR);
         fill(p0, 211, @intCast(PH), BOTTOM);
+        // Tile world: clouds (behind) -> animated rows -> world tiles (on top).
+        clouds_layer.draw(p0, self.pos);
+        anim_layer.draw(p0, self.pos);
+        world_layer.draw(p0, self.pos);
     }
 
     fn fill(fb: *LogicalFB, y0: i16, y1: i16, idx: u8) void {
