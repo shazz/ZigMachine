@@ -40,6 +40,7 @@ pub const Demo = struct {
         if (self.desk_medium) self.fb.setResMedium() else self.fb.setResLow();
         self.desktop.g.screen_w = if (self.desk_medium) 640 else 320;
         self.desktop.g.screen_h = 200;
+        self.desktop.clampIcons(); // keep icons on-screen at the new width
     }
 
     pub fn update(self: *Demo, os: *ZigOS, dt: f32) void {

@@ -25,10 +25,22 @@ const DESK_MENUS = [_]gui.Menu{
     .{ .title = "Options", .items = &.{ "Low Resolution", "Medium Resolution" } },
 };
 
+const GRID: i16 = 16; // icons snap to this grid on drop (GEM-style)
+
+const DeskIcon = struct { x: i16, y: i16, ic: icons.Icon, label: []const u8, is_app: bool };
+
 pub const Desktop = struct {
     g: gui.Gui = undefined,
     menubar: gui.MenuBar = .{},
-    app_icon: Rect = .{ .x = 44, .y = 30, .w = icons.CARTRIDGE.w, .h = icons.CARTRIDGE.h },
+    items: [3]DeskIcon = .{
+        .{ .x = 44, .y = 30, .ic = icons.CARTRIDGE, .label = "ST REPLAY", .is_app = true },
+        .{ .x = 580, .y = 22, .ic = icons.FLOPPY, .label = "Floppy", .is_app = false },
+        .{ .x = 580, .y = 130, .ic = icons.TRASH, .label = "Trash", .is_app = false },
+    },
+    drag: ?u8 = null,
+    grab_dx: i16 = 0,
+    grab_dy: i16 = 0,
+    moved: bool = false,
 
     pub fn init(self: *Desktop, os: *ZigOS, fb: *LogicalFB, blit: *Blitter) void {
         self.g = .{ .os = os, .fb = fb, .blit = blit, .screen_w = 640, .screen_h = 200 };
@@ -45,23 +57,59 @@ pub const Desktop = struct {
         self.g.endFrame();
     }
 
-    // Draw the desktop (res-adaptive via g.screen_w) and return the chosen action.
+    // Keep icons on-screen (called when the resolution/screen width changes).
+    pub fn clampIcons(self: *Desktop) void {
+        for (&self.items) |*it| self.clamp(it);
+    }
+    fn clamp(self: *Desktop, it: *DeskIcon) void {
+        it.x = @max(0, @min(it.x, self.g.screen_w - @as(i16, @intCast(it.ic.w))));
+        it.y = @max(gui.MENU_H + 2, @min(it.y, 200 - @as(i16, @intCast(it.ic.h)) - 10));
+    }
+
+    // Draw the desktop (res-adaptive) + handle icon drag/click; return the action.
     pub fn render(self: *Desktop) Action {
         const g = &self.g;
         const sw = g.screen_w;
+        var action: Action = .none;
+
+        // --- input: drag an icon (snap to grid on drop), or click the app icon ---
+        if (self.drag) |di| {
+            if (!g.down) {
+                if (self.moved) self.snap(di) else if (self.items[di].is_app) action = .launch;
+                self.drag = null;
+            } else {
+                const nx: i16 = @intCast(@as(i32, g.px) - self.grab_dx);
+                const ny: i16 = @intCast(@as(i32, g.py) - self.grab_dy);
+                if (@abs(nx - self.items[di].x) > 1 or @abs(ny - self.items[di].y) > 1) self.moved = true;
+                self.items[di].x = nx;
+                self.items[di].y = ny;
+            }
+        } else if (g.edge and g.py >= gui.MENU_H) {
+            for (self.items, 0..) |it, i| {
+                if (g.hit(.{ .x = it.x, .y = it.y, .w = @intCast(it.ic.w), .h = @intCast(it.ic.h) })) {
+                    self.drag = @intCast(i);
+                    self.moved = false;
+                    self.grab_dx = @intCast(@as(i32, g.px) - it.x);
+                    self.grab_dy = @intCast(@as(i32, g.py) - it.y);
+                    break;
+                }
+            }
+        }
+
+        // --- draw ---
         g.rect(.{ .x = 0, .y = 0, .w = sw, .h = 200 }, gui.DESK); // green work area
-
-        placeIcon(g, sw - 60, 22, icons.FLOPPY, "Floppy");
-        placeIcon(g, sw - 60, 130, icons.TRASH, "Trash");
-        const r = self.app_icon;
-        placeIcon(g, r.x, r.y, icons.CARTRIDGE, "ST REPLAY"); // the app = a RAM cartridge :)
-        const icon_clicked = g.edge and g.hit(r);
-
-        var action: Action = if (icon_clicked) .launch else .none;
+        for (self.items) |it| placeIcon(g, it.x, it.y, it.ic, it.label);
         if (self.menubar.process(g, &DESK_MENUS, sw, false)) |p| {
             if (p.menu == 3) action = if (p.item == 0) .res_low else .res_medium;
         }
         return action;
+    }
+
+    fn snap(self: *Desktop, di: u8) void {
+        const it = &self.items[di];
+        it.x = @divFloor(it.x + GRID / 2, GRID) * GRID;
+        it.y = @divFloor(it.y + GRID / 2, GRID) * GRID;
+        self.clamp(it);
     }
 };
 
