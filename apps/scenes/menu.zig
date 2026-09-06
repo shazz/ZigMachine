@@ -123,6 +123,15 @@ pub const Demo = struct {
         }
     }
 
+    // Song request from a running child (e.g. union main), forwarded to the host.
+    pub fn pollSong(self: *Demo) u32 {
+        if (self.state != .running) return 0;
+        switch (self.child) {
+            .none => return 0,
+            inline else => |*c| return if (@hasDecl(@TypeOf(c.*), "pollSong")) c.pollSong() else 0,
+        }
+    }
+
     // Pointer goes to a running child that wants it (e.g. the GEM desktop).
     pub fn pointer(self: *Demo, x: i32, y: i32, buttons: u32) void {
         if (self.state != .running) return;

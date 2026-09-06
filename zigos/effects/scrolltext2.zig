@@ -89,10 +89,11 @@ pub fn Scroller(comptime num_slots: usize) type {
             }
         }
 
-        // One control code (or one letter) per recycling slot per frame -
-        // exactly mirrors the original's single `if/else` at the recycle site.
+        // Recycle a slot: control codes do NOT occupy a slot, so consume ALL
+        // codes at the feed point first, then always feed a letter + reposition
+        // (consuming a code without repositioning would leave a one-glyph gap).
         fn recycle(self: *Self, x: *i32, ch: *u8, gw: i32) void {
-            if (self.text[self.text_pos] == '^' and self.text_pos + 2 < self.text.len) {
+            while (self.text[self.text_pos] == '^' and self.text_pos + 2 < self.text.len) {
                 const code = self.text[self.text_pos + 1];
                 const digit: u32 = self.text[self.text_pos + 2] - '0';
                 if (code == 'P') {
@@ -105,9 +106,12 @@ pub fn Scroller(comptime num_slots: usize) type {
                 }
                 self.text_pos += 3;
                 if (self.text_pos >= self.text.len) self.text_pos = 0;
-                return;
             }
-            x.* = @as(i32, @intCast(num_slots)) * gw + (x.* + gw);
+            // Reposition one glyph-pitch to the right of the current rightmost
+            // slot: the other slots span x+gw .. x+(num_slots-1)*gw, so the new
+            // x is x + num_slots*gw (preserving the sub-glyph overshoot). Adding
+            // an extra gw here left a one-glyph hole on every recycle.
+            x.* = x.* + @as(i32, @intCast(num_slots)) * gw;
             ch.* = self.feed();
         }
 

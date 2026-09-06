@@ -106,6 +106,7 @@ pub const Demo = struct {
     frame: u32 = 0,
     grad_idx: u8 = 0, // gradTiles palette-animation step
     grad_inc: i8 = 1,
+    song_req: u32 = 1, // track the host should start (1-based); 1 = autoplay Sharpness Buzztone
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
         self.pos = 0;
@@ -169,6 +170,18 @@ pub const Demo = struct {
         self.runner.draw(zigos); // plane 1 (actors), composited over the world
         self.balls.draw(zigos); // dragonballs on plane 1, after the runner
         self.scroller.draw(zigos); // plane 2 (scrolltext) on top
+    }
+
+    // Host song bridge: returns the track to start (1-based) then clears it.
+    pub fn pollSong(self: *Demo) u32 {
+        const r = self.song_req;
+        self.song_req = 0;
+        return r;
+    }
+
+    // Keys 1-6 switch the YM tune (mode 0-5 -> track 1-6).
+    pub fn setShadeMode(self: *Demo, mode: u32) void {
+        if (mode < 6) self.song_req = mode + 1;
     }
 
     fn fill(fb: *LogicalFB, y0: i16, y1: i16, idx: u8) void {

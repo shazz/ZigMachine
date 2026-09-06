@@ -52,13 +52,18 @@ pub const Dragonballs = struct {
 
     pub fn draw(self: *Dragonballs, zigos: *ZigOS) void {
         self.renderBall();
+        // Squash the WHOLE ball (stars + disc together) at blit time — matches
+        // the original (scale the composited sprite), so star tips never poke
+        // outside the disc when it shrinks.
+        const sx = 1.0 + @sin(self.u) / 6.0;
+        const sy = 1.0 + @sin(self.u + 10.0) / 6.0;
         const p1: *LogicalFB = &zigos.lfbs[1];
         var i: usize = 0;
         while (i < 6) : (i += 1) {
             const fi: f32 = @floatFromInt(i);
             const cx = 40.0 + 64.0 * fi;
             const cy = 307.0 - 64.0 * @abs(@sin(self.angle + 0.25 * fi));
-            blitBall(p1, cx, cy);
+            blitBall(p1, cx, cy, sx, sy);
         }
     }
 
@@ -78,7 +83,7 @@ pub const Dragonballs = struct {
         }
 
         drawStars(&proj, false); // back-facing first (under the disc)
-        drawDisc(self.u);
+        drawDisc(); // fixed-size disc; the squash is applied to the whole ball at blit time
         drawStars(&proj, true); // front-facing on top, opaque
     }
 
@@ -95,17 +100,13 @@ pub const Dragonballs = struct {
         }
     }
 
-    fn drawDisc(u: f32) void {
-        const sx = 1.0 + @sin(u) / 6.0;
-        const sy = 1.0 + @sin(u + 10.0) / 6.0;
-        const rx = DISC_R * sx;
-        const ry = DISC_R * sy;
+    fn drawDisc() void {
         var y: usize = 0;
         while (y < BS) : (y += 1) {
-            const dy = (@as(f32, @floatFromInt(y)) + 0.5 - gm.CENTER) / ry;
+            const dy = (@as(f32, @floatFromInt(y)) + 0.5 - gm.CENTER) / DISC_R;
             var x: usize = 0;
             while (x < BS) : (x += 1) {
-                const dx = (@as(f32, @floatFromInt(x)) + 0.5 - gm.CENTER) / rx;
+                const dx = (@as(f32, @floatFromInt(x)) + 0.5 - gm.CENTER) / DISC_R;
                 if (dx * dx + dy * dy > 1.0) continue;
                 const idx = y * BS + x;
                 ball_buf[idx] = switch (ball_buf[idx]) {
@@ -118,24 +119,31 @@ pub const Dragonballs = struct {
     }
 };
 
-// Blit the BSxBS ball sprite centred at (cx,cy) onto `fb`, clipped to bounds;
-// index 0 is transparent (skipped).
-fn blitBall(fb: *LogicalFB, cx: f32, cy: f32) void {
-    const x0: i32 = @intFromFloat(@round(cx - gm.CENTER));
-    const y0: i32 = @intFromFloat(@round(cy - gm.CENTER));
+// Blit the BSxBS ball sprite centred at (cx,cy), scaled by (sx,sy) about its
+// centre (the squash), onto `fb`, clipped to bounds; index 0 is transparent.
+// Inverse-mapped (iterate dest, sample source) so there are no gaps.
+fn blitBall(fb: *LogicalFB, cx: f32, cy: f32, sx: f32, sy: f32) void {
     const pw: i32 = @intCast(fb.fb_w);
     const ph: i32 = @intCast(fb.fb_h);
-    var ry: i32 = 0;
-    while (ry < BS) : (ry += 1) {
-        const py = y0 + ry;
+    const hw_ = gm.CENTER * sx; // scaled half-width
+    const hh_ = gm.CENTER * sy;
+    const px0: i32 = @intFromFloat(@floor(cx - hw_));
+    const px1: i32 = @intFromFloat(@ceil(cx + hw_));
+    const py0: i32 = @intFromFloat(@floor(cy - hh_));
+    const py1: i32 = @intFromFloat(@ceil(cy + hh_));
+    var py: i32 = py0;
+    while (py < py1) : (py += 1) {
         if (py < 0 or py >= ph) continue;
-        const srow = @as(usize, @intCast(ry)) * BS;
+        const svy = gm.CENTER + (@as(f32, @floatFromInt(py)) + 0.5 - cy) / sy;
+        if (svy < 0 or svy >= @as(f32, BS)) continue;
+        const srow = @as(usize, @intFromFloat(svy)) * BS;
         const drow = @as(usize, @intCast(py)) * fb.stride;
-        var rx: i32 = 0;
-        while (rx < BS) : (rx += 1) {
-            const px = x0 + rx;
+        var px: i32 = px0;
+        while (px < px1) : (px += 1) {
             if (px < 0 or px >= pw) continue;
-            const idx = ball_buf[srow + @as(usize, @intCast(rx))];
+            const svx = gm.CENTER + (@as(f32, @floatFromInt(px)) + 0.5 - cx) / sx;
+            if (svx < 0 or svx >= @as(f32, BS)) continue;
+            const idx = ball_buf[srow + @as(usize, @intFromFloat(svx))];
             if (idx == 0) continue;
             fb.fb[drow + @as(usize, @intCast(px))] = idx;
         }

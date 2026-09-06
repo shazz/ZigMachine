@@ -14,6 +14,17 @@
 // --------------------------------------------------------------------------
 
 const SHARED_PAGES = 79; // must match hw/sdk/memmap.zig SHARED_PAGES (v1.1: 2 MiB demo window + 1 MiB VRAM)
+
+// Union main-screen YM tunes (depacked to docs/music/union/), keyed by the
+// scene's 1-based song id (track 1 = Jess's "Sharpness Buzztone", autoplayed).
+const UNION_YM = [
+    "music/union/SharpnessBuzztone.ymraw",
+    "music/union/150mph.ymraw",
+    "music/union/Androids.ymraw",
+    "music/union/Drooling.ymraw",
+    "music/union/Lap33.ymraw",
+    "music/union/Reality.ymraw",
+];
 const memory = new WebAssembly.Memory({ initial: SHARED_PAGES, maximum: SHARED_PAGES });
 
 const text_decoder = new TextDecoder();
@@ -144,6 +155,13 @@ function start() {
 
         machine.hwClear();          // sealed: clear PFB + global HBL
         demo.frame(elapsed_time);   // open: scene draws into shared LFBs (+ overscan poke)
+
+        // Song-request bridge: once audio is running, let the active scene pick a
+        // YM tune (union main autoplays track 1, keys 1-6 switch).
+        if (audioCtx && demo.pollSongRequest) {
+            const song = demo.pollSongRequest();
+            if (song > 0 && UNION_YM[song - 1]) playYm(UNION_YM[song - 1]);
+        }
 
         for (let i = 0; i < nb_planes; i++) {
             if (demo.isPlaneEnabled(i)) {
@@ -295,7 +313,9 @@ async function main() {
         return;
     }
     await startAudio();
-    await playMod("music/lollapalooza.mod");
+    // Don't force a track here — the active scene picks the music via
+    // pollSongRequest (union main autoplays Sharpness Buzztone; music_debug uses
+    // keys 1-3). Sound on just enables the audio engine.
     if (button) button.textContent = "Sound off";
 }
 window.main = main;

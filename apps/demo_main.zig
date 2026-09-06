@@ -104,6 +104,15 @@ export fn getSampleBufLen() u32 {
     return 0;
 }
 
+// Song-request bridge: a scene that declares pollSong() returns a track id
+// (1-based) it wants the host to start, or 0 for none. The loader polls this
+// once audio is running and plays the matching tune. (Union main autoplays
+// track 1 and switches on keys 1-6 via setShadeMode.)
+export fn pollSongRequest() u32 {
+    if (booted and @hasDecl(Cart, "pollSong")) return cart.pollSong();
+    return 0;
+}
+
 // Directional / action input from the host. Forwarded to scenes that declare
 // input() (e.g. the effects menu: arrows move, Fire launches, Back returns).
 export fn input(dir: Direction) void {
