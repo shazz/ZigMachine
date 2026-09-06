@@ -1,72 +1,82 @@
 # Session Handoff
 
-**Date:** 2026-08-22 (evening)
-**Branch:** `feat/sealed-hardware` (off `main`; `main` still 29 ahead of origin, unpushed)
-**Author:** matt-grain (+ Anima)
+**Date:** 2026-09-05 (evening → night)
+**Branch:** `feat/sealed-hardware` — NOT merged to `main`, NOT pushed. Tree is clean
+(only the pre-existing `assets/` → `apps/assets/` move is still uncommitted, untouched here).
+**Author:** matt-grain (+ Claude)
 
-## What Was Done — the hardware is SEALED
+## Branch Status
 
-Turned the sealed-hardware **spec** into a **working, in-browser-proven** reality.
-`music_debug` runs **unchanged** at ~60fps against a sealed machine binary, with
-MOD/YM/sample audio + the 4-channel oscilloscope. Verified at `docs/sealed.html`.
+Stable and proven in-browser. Every commit below builds clean
+(`~/.local/zig/0.16.0/zig build -Drelease=true -Dwasm`) and was verified in `docs/sealed.html`.
+`zig fmt --check` clean on all touched files.
 
-### Commits on this branch (newest first)
-1. `Reorg into hw/ zigos/ apps/ legacy/` — the physical split (below).
-2. `docs: add HW_API and ZIGOS_API` — the two reference docs.
-3. `Seal the hardware: memory-mapped video + audio ABI` — the feature.
-   *(this-pass cleanup — seal guard + effect fixes — committed on top)*
+## What Was Done — GEM desktop authenticity + Set Preferences
 
-### The architecture
-- **Two sealed binaries**, each sharing ONE `WebAssembly.Memory` with the open
-  coder module on its thread:
-  - main thread: `machine-video.wasm` (sealed render pipeline) + `demo.wasm` (ZigOS+scene)
-  - worklet thread: `machine-audio.wasm` (Paula+YM2149) + `demo-audio.wasm` (players)
-- **Memory-mapped ABI**, single source of truth: `hw/sdk/memmap.zig` (video),
-  `hw/sdk/audio.zig` (audio). Published headers: `hw/sdk/hardware.zig` + `audio.zig`.
-- **Callback inversion** (only ints cross the seal): video `env.hblDispatch`,
-  audio `machinePaula*`/`machineYmWrite`/`machineMix*`.
-- **Reserved address trick**: the video region lives at a fixed `0x200000` above
-  both modules' data (demo `--global-base=0x100000`), so two wasm modules share
-  one memory with zero collision. Same idea for audio (song RAM at `0x200000`).
+This session made the ZigGEM desktop look and behave like the real Atari ST GEM, driven by
+authentic references Matt supplied (`window.png`, `icons.gif`, `floppyA.png`, frno7/font BDFs,
+the estyjs emulator, and a SET PREFERENCES screenshot).
 
-### Repo layout (the reorg)
-```
-hw/     SEALED — video.zig + pipeline, machine_{video,audio}.zig, audio/{engine,ym}.zig, sdk/
-zigos/  OPEN   — zigos.zig, effects/, players/{mod,ym_player}, utils/ (+math), assets/fonts/
-apps/   OPEN   — scenes/, demo_main.zig, demo_audio_main.zig, floppy.zig, assets/
-legacy/ retired pre-seal monolith (bootloader.zig, audio_main.zig, sound/)
-docs/   web host: sealed.html + sealed-loader.js + audio-worklet-sealed.js + the 4 .wasm
-```
-Cross-folder deps via Zig **named modules** in `build.zig` (`zigos`, `players`,
-`hardware`, `audio_hw`). Seal enforced structurally + by `tools/check_seal.sh`.
+### Commits (newest first, this session)
+- `04d80e5` **Set Preferences dialog** (Options menu): resolution + RGB desktop background
+  (default teal 1,160,164) with live-preview swatch; `Gui.buttonThick` (1/2/3px borders);
+  dialogs get a GEM double frame + NO shadow; About/file-selector share the look.
+- `ba20cc8` **BOOT_DIRECT** scene flag (boot straight into an app, skip the desktop); real
+  `floppyA.png` icon re-extract; info line +1px.
+- `13fd544` **Authentic ST fonts**: 8x8 (menus/titles/dialogs) + 6x6 (icon labels), from
+  public-domain frno7/font BDFs via `tools/gen_font.py`; fixed-width white icon-label boxes
+  (11 chars + margins); window drop shadow restored; cascaded multi-windows (MAX_WIN=7) +
+  info line; File>Open on selection; hover-drop menus; flat buttons.
+- `5cf928d` Real 12x11 window gadgets extracted from `window.png` (`tools/gen_glyphs.py` →
+  `zigos/gem_glyphs.zig`, blitted by `Gui.gadget`); single-click select (inverse video),
+  double-click open via the browser `dblclick` event (loader → `Desktop.requestOpenAt`).
 
-## Current State
-- [x] `zig build -Drelease=true -Dwasm` green → `docs/{machine-video,demo,machine-audio,demo-audio}.wasm`
-- [x] `music_debug` runs unchanged at ~60fps with audio + scope (`docs/sealed.html`)
-- [x] `tools/check_seal.sh` passes
-- [x] Legacy `index.html`/`loader.js` + committed `bootloader.wasm`/`audio.wasm` untouched (A/B)
+### Key mechanisms (where to look)
+- **GUI toolkit**: `zigos/gui.zig` — `Gui` (primitives incl. `gadget`, `hatch`, `textSmall`,
+  `button`/`buttonEx`/`buttonThick`), `Wm` (windows, `drawChrome`/`titleBar`/`scrollbars`,
+  drop shadow), `MenuBar` (hover-drop), `Dialog` (alert/file-selector, double frame, no shadow).
+- **Desktop / ROM**: `zigos/gem.zig` — `Desktop` (icons, selection, double-click open, File>Open,
+  cascaded windows), `Prefs` (Set Preferences modal), `placeIcon` (transparent icon + 6x6 label
+  box). `apps/scenes/gem_desktop.zig` = boot router (hosts `st_replay.App`; honours `BOOT_DIRECT`).
+- **Fonts**: `zigos/zigos.zig` `printText` (8x8) + `printTextSmall` (6x6); raws in
+  `zigos/assets/fonts/`, regen via `tools/gen_font.py <in.bdf> <out.raw>`.
+- **Loader**: `docs/sealed-loader.js` — mouse → `demo.pointer`; `dblclick` → buttons bit 1.
 
-## Docs
-- `docs/HW_API.md` — the sealed hardware ABI (memory map, registers, entry points, audio ops).
-- `docs/ZIGOS_API.md` — the open library scenes/effects are written against.
-- `docs/HARDWARE_SPEC.md` §12 — full built-vs-deferred status + design refinements.
+## Next Session — Matt's plan ("more gem polishing, better ui component library, grid, finish ST Replay")
 
-## Blockers & Open Questions
-- [ ] **Give the audio a listen.** Verified by scope + clean console (chip DSP
-      reused verbatim, so it *should* be identical) but NOT hear-verified.
-- [ ] Push? `main` is 29 ahead of origin; this work is on `feat/sealed-hardware`
-      (not merged to `main`, not pushed).
+1. **More GEM polishing** — remaining authenticity gaps (see below).
+2. **Better UI component library** — `zigos/gui.zig` is growing organically; factor a cleaner
+   reusable widget set (buttons with border thickness, labeled steppers, radio groups, a generic
+   dialog builder with grid layout) so dialogs like `Prefs` aren't hand-laid pixel by pixel.
+3. **Grid** — a layout grid for dialogs/windows (rows/cols with consistent margins) so components
+   place automatically instead of the current manual `dy+NN` offsets. Matt cares a lot about even
+   margins and alignment (spent this session nudging pixels — mechanize it).
+4. **Finish ST Replay** — the app (`apps/scenes/st_replay.zig`) is a real GEM app (menus,
+   dialogs, real audio on PLAY, waveform, sample switch) but not "finished": wire File>Save,
+   real sample edit (selection/loop/freq), and polish the transport/loop to feel complete.
 
-## Next Session (remaining deferred, priority order)
-1. **Migrate the other ~22 scenes** to `@import("zigos")` + build each as a
-   channel against the sealed loader (music_debug is the worked example).
-2. **Retire `legacy/`** once `index.html` is moved to the sealed modules.
-3. **Overscan**: the PFB border-poke can't be trivially replaced — it needs a new
-   sanctioned machine feature (physical-res overlay / border sprite layer). See
-   HARDWARE_SPEC §12 "Findings".
+### Known follow-ups (from the Fable review, not yet done)
+- GEM opens on the 2nd **press**; ours opens on the browser `dblclick` (after 2nd release) — feels
+  right but not identical.
+- File>Open not greyed when nothing selected; no rubber-band or shift-click multi-select.
+- Window text not clipped to the window rect (title/info can overflow narrow windows).
+- Live drag/resize (GEM shows a rubber-band outline, moves on release).
+- Scrollbar sliders are always full (no scroll model yet).
 
-**Build:** `export PATH="$HOME/.local/zig/0.16.0:$PATH" && zig build -Drelease=true -Dwasm`
-then `cd docs && python3 -m http.server 3333` → `/sealed.html` (hard-reload after rebuilds).
+### Notes / gotchas
+- **Hard-reload after every wasm rebuild** when testing (the loader fetches `demo.wasm` without a
+  cache-buster; a `?v=` on `sealed.html` busts the HTML but browsers may cache the wasm).
+- The MCP browser tab pauses rAF when hidden (FPS:NaN) — drive `demo.pointer` directly or keep the
+  tab visible when automating.
+- Emulator (estyjs.azurewebsites.net) loads but sits on a boot scan-line after Reset — needs a
+  disk/keypress to reach the desktop; comparison so far used the authentic reference images.
+- The active scene is `apps/floppy.zig` → `gem_desktop`. Scene variants served via `sealed.html?demo=`.
+
+## Recommended Starting Point
+
+`/wakeup`, then pick #2/#3 (UI component library + layout grid) — it unblocks faster, cleaner GEM
+polishing and makes finishing ST Replay much less pixel-nudging. Memory: [[zigmachine-gem-pending-todo]],
+[[zigmachine-state]].
 
 ---
-*Generated for the next session — the seal is done; the tail is scene migration.*
+*Run `/handoff` before ending the next session.*
