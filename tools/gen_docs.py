@@ -231,6 +231,7 @@ def build() -> str:
     blitter = parse_struct_methods(ROOT / "zigos" / "blitter.zig", "Blitter")
     gui = parse_struct_methods(ROOT / "zigos" / "gui.zig", "Gui")
     wm = parse_struct_methods(ROOT / "zigos" / "gui.zig", "Wm")
+    menubar = parse_struct_methods(ROOT / "zigos" / "gui.zig", "MenuBar")
     mesh = parse_struct_methods(ROOT / "zigos" / "utils" / "obj_loader.zig", "Mesh")
 
     groups = [
@@ -245,13 +246,14 @@ def build() -> str:
         ("ZigOS — Blitter (2D coprocessor)", render_items(blitter)),
         ("ZigOS — GUI toolkit (Gui)", render_items(gui)),
         ("ZigOS — Window manager (Wm)", render_items(wm)),
+        ("ZigOS — Menu bar (MenuBar)", render_items(menubar)),
         ("ZigOS — OBJ loader (Mesh)", render_items(mesh)),
     ]
     nav = "\n".join(f'<a href="#{i}">{esc(t)}</a>' for i, (t, _) in enumerate(groups))
     sections = "\n".join(
         f'<section id="{i}"><h2>{esc(t)}</h2>{body}</section>' for i, (t, body) in enumerate(groups)
     )
-    methods = len(lfb) + len(zos) + len(blitter) + len(gui) + len(wm) + len(mesh)
+    methods = len(lfb) + len(zos) + len(blitter) + len(gui) + len(wm) + len(menubar) + len(mesh)
     consts = len(geometry) + len(modes) + len(regs) + len(blit_regs) + len(blit_ctl)
     counts = f"{len(abi)} ABI exports · {methods} library methods · {consts} constants/registers"
 

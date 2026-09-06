@@ -23,6 +23,13 @@ const PLAY_FRAMES: f32 = 60.0; // smp1 is ~1s (12517 @ 12517Hz), i.e. ~60 frames
 const SW: i16 = 640; // medium-res screen width
 const SH: i16 = 200;
 
+const MENUS = [_]gui.Menu{
+    .{ .title = "Desk", .items = &.{"About ST Replay"} },
+    .{ .title = "File", .items = &.{ "Load...", "Save...", "Quit" } },
+    .{ .title = "Sound", .items = &.{ "Play", "Stop", "Loop" } },
+    .{ .title = "Options", .items = &.{ "8 bit", "12.5 kHz" } },
+};
+
 // Host audio bridge (wired in sealed-loader.js): play/stop the sample worklet.
 extern fn audioPlay() void;
 extern fn audioStop() void;
@@ -31,6 +38,7 @@ pub const Demo = struct {
     blit: Blitter = .{},
     g: gui.Gui = undefined,
     wm: gui.Wm = .{},
+    menubar: gui.MenuBar = .{},
     w_sample: u8 = 0,
     w_transport: u8 = 0,
     sample: [WAVE_LEN]u8 = [_]u8{128} ** WAVE_LEN, // signed 8-bit (128=zero); host fills from smp1.raw
@@ -84,7 +92,6 @@ pub const Demo = struct {
         _ = dt;
         const g = &self.g;
         g.rect(.{ .x = 0, .y = 0, .w = SW, .h = SH }, gui.DESK); // desktop
-        self.menuBar();
 
         var i: usize = 0;
         while (i < self.wm.n) : (i += 1) {
@@ -94,14 +101,25 @@ pub const Demo = struct {
             const content = self.wm.drawChrome(g, id, active);
             if (id == self.w_sample) self.drawWave(content) else self.drawTransport(content);
         }
+        // menu bar LAST so an open drop-down overlays the windows
+        if (self.menubar.process(g, &MENUS, SW)) |pick| self.onMenu(pick);
         g.endFrame();
     }
 
-    fn menuBar(self: *Demo) void {
-        const g = &self.g;
-        g.rect(.{ .x = 0, .y = 0, .w = SW, .h = 11 }, gui.WHITE);
-        g.blit.fill(g.fb, 0, 11, @intCast(SW), 1, gui.BLACK);
-        g.text("  Desk    File    Sound    Options", 6, 2, gui.BLACK, gui.WHITE);
+    fn onMenu(self: *Demo, pick: gui.MenuPick) void {
+        if (pick.menu == 2) switch (pick.item) { // Sound
+            0 => {
+                self.playing = true;
+                self.playhead = 0;
+                audioPlay();
+            },
+            1 => {
+                self.playing = false;
+                audioStop();
+            },
+            2 => self.looping = !self.looping,
+            else => {},
+        };
     }
 
     fn drawWave(self: *Demo, c: Rect) void {

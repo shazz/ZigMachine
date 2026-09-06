@@ -198,3 +198,79 @@ pub const Wm = struct {
         return self.order[self.n - 1];
     }
 };
+
+// --------------------------------------------------------------------------
+// Menu bar — GEM-style pull-down menus. Click a title to drop it, click an item
+// to pick it (returns {menu,item}), click away to close. Draw it LAST each frame
+// so an open drop-down overlays the windows.
+// --------------------------------------------------------------------------
+pub const MENU_H: i16 = 11;
+pub const Menu = struct { title: []const u8, items: []const []const u8 };
+pub const MenuPick = struct { menu: u8, item: u8 };
+
+pub const MenuBar = struct {
+    open: i16 = -1, // index of the dropped menu, -1 = none
+
+    pub fn process(self: *MenuBar, g: *Gui, menus: []const Menu, bar_w: i16) ?MenuPick {
+        g.rect(.{ .x = 0, .y = 0, .w = bar_w, .h = MENU_H }, WHITE);
+        g.blit.fill(g.fb, 0, MENU_H, @intCast(bar_w), 1, BLACK);
+
+        var x: i16 = 8;
+        var pick: ?MenuPick = null;
+        for (menus, 0..) |m, i| {
+            const w: i16 = @as(i16, @intCast(m.title.len)) * 8 + 12;
+            const hot = self.open == @as(i16, @intCast(i));
+            if (hot) g.rect(.{ .x = x - 4, .y = 0, .w = w, .h = MENU_H }, BLACK);
+            g.text(m.title, x, 2, if (hot) WHITE else BLACK, if (hot) BLACK else WHITE);
+            if (g.edge and g.px >= x - 4 and g.px < x - 4 + w and g.py < MENU_H)
+                self.open = if (hot) -1 else @intCast(i);
+            if (self.open == @as(i16, @intCast(i))) pick = self.drop(g, m, i, x - 4);
+            x += w + 6;
+        }
+        // click anywhere outside the bar and the open menu closes it
+        if (g.edge and self.open >= 0 and g.py >= MENU_H and pick == null and !self.overDrop(g, menus, x))
+            self.open = -1;
+        if (pick != null) self.open = -1;
+        return pick;
+    }
+
+    fn dropWidth(m: Menu) i16 {
+        var w: i16 = 0;
+        for (m.items) |it| w = @max(w, @as(i16, @intCast(it.len)));
+        return w * 8 + 16;
+    }
+
+    fn drop(self: *MenuBar, g: *Gui, m: Menu, mi: usize, dx: i16) ?MenuPick {
+        _ = self;
+        const dw = dropWidth(m);
+        const dh: i16 = @as(i16, @intCast(m.items.len)) * MENU_H + 2;
+        g.rect(.{ .x = dx, .y = MENU_H, .w = dw, .h = dh }, WHITE);
+        g.frame(.{ .x = dx, .y = MENU_H, .w = dw, .h = dh }, BLACK);
+        var pick: ?MenuPick = null;
+        for (m.items, 0..) |it, j| {
+            const iy = MENU_H + 1 + @as(i16, @intCast(j)) * MENU_H;
+            const hover = g.px >= dx and g.px < dx + dw and g.py >= iy and g.py < iy + MENU_H;
+            if (hover) g.rect(.{ .x = dx + 1, .y = iy, .w = dw - 2, .h = MENU_H }, BLACK);
+            g.text(it, dx + 8, iy + 2, if (hover) WHITE else BLACK, if (hover) BLACK else WHITE);
+            if (g.edge and hover) pick = .{ .menu = @intCast(mi), .item = @intCast(j) };
+        }
+        return pick;
+    }
+
+    // Is the pointer over the currently-open drop-down (so a click shouldn't close)?
+    fn overDrop(self: *MenuBar, g: *Gui, menus: []const Menu, bar_end_x: i16) bool {
+        _ = bar_end_x;
+        if (self.open < 0) return false;
+        var x: i16 = 8;
+        for (menus, 0..) |m, i| {
+            const w: i16 = @as(i16, @intCast(m.title.len)) * 8 + 12;
+            if (self.open == @as(i16, @intCast(i))) {
+                const dw = dropWidth(m);
+                const dh: i16 = @as(i16, @intCast(m.items.len)) * MENU_H + 2;
+                return g.px >= x - 4 and g.px < x - 4 + dw and g.py >= MENU_H and g.py < MENU_H + dh;
+            }
+            x += w + 6;
+        }
+        return false;
+    }
+};
