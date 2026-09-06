@@ -133,7 +133,8 @@ pub const Gui = struct {
     pub fn button(self: *Gui, r: Rect, label: []const u8, active: bool) bool {
         return self.buttonEx(r, label, active, false);
     }
-    // `default` = the alert's default exit button: GEM draws it with a 2px border.
+    // `default` = the GEM default exit button: a solid 2px border (the outer
+    // frame plus a second frame 1px inside it).
     pub fn buttonEx(self: *Gui, r: Rect, label: []const u8, active: bool, default: bool) bool {
         const held = active or (self.down and self.hit(r));
         const ink: u8 = if (held) WHITE else BLACK;
@@ -141,6 +142,21 @@ pub const Gui = struct {
         self.rect(r, paper);
         self.frame(r, BLACK);
         if (default) self.frame(.{ .x = r.x + 1, .y = r.y + 1, .w = r.w - 2, .h = r.h - 2 }, BLACK);
+        const tx = r.x + @divTrunc(r.w - @as(i16, @intCast(label.len)) * 8, 2);
+        self.text(label, tx, r.y + @divTrunc(r.h - 8, 2), ink, paper);
+        return self.edge and self.hit(r);
+    }
+    // A flat GEM button with an explicit border thickness (nested frames). GEM
+    // dialogs use 1px for multi-choice buttons, 2px for a normal exit button,
+    // 3px for the default (OK). Inverse-video while pressed or `active`.
+    pub fn buttonThick(self: *Gui, r: Rect, label: []const u8, active: bool, border: i16) bool {
+        const held = active or (self.down and self.hit(r));
+        const ink: u8 = if (held) WHITE else BLACK;
+        const paper: u8 = if (held) BLACK else WHITE;
+        self.rect(r, paper);
+        var i: i16 = 0;
+        while (i < border) : (i += 1)
+            self.frame(.{ .x = r.x + i, .y = r.y + i, .w = r.w - 2 * i, .h = r.h - 2 * i }, BLACK);
         const tx = r.x + @divTrunc(r.w - @as(i16, @intCast(label.len)) * 8, 2);
         self.text(label, tx, r.y + @divTrunc(r.h - 8, 2), ink, paper);
         return self.edge and self.hit(r);
@@ -388,7 +404,6 @@ pub const Dialog = struct {
 
     const ROW_H: i16 = 8; // one char cell per list row (GEM item selector)
     const BTN_H: i16 = 12; // GEM alert buttons are one char row + border
-    const SHADOW: i16 = 2; // GEM SHADOWED objects: black, offset right + bottom
 
     // GEM alerts have no title bar — `title` is drawn as the first text line.
     pub fn alert(self: *Dialog, title: []const u8, msg: []const u8) void {
@@ -402,11 +417,12 @@ pub const Dialog = struct {
         self.want_h = @as(i16, @intCast(items.len)) * ROW_H + 44;
     }
 
-    // Box: white, 1px black frame, black drop shadow (the ONE place GEM shadows).
+    // Box: white with a GEM double frame (outer + inner), no shadow — dialogs are
+    // flat; only windows cast a drop shadow.
     fn box(g: *Gui, b: Rect) void {
-        g.rect(.{ .x = b.x + SHADOW, .y = b.y + SHADOW, .w = b.w, .h = b.h }, BLACK);
         g.rect(b, WHITE);
         g.frame(b, BLACK);
+        g.frame(.{ .x = b.x + 3, .y = b.y + 3, .w = b.w - 6, .h = b.h - 6 }, BLACK);
     }
 
     pub fn process(self: *Dialog, g: *Gui) DlgResult {
@@ -421,8 +437,8 @@ pub const Dialog = struct {
 
     fn alertBody(self: *Dialog, g: *Gui, b: Rect) DlgResult {
         g.text(self.msg, b.x + 8, b.y + 20, BLACK, WHITE);
-        const ok = Rect{ .x = b.x + @divTrunc(b.w - 40, 2), .y = b.y + b.h - BTN_H - 8, .w = 40, .h = BTN_H };
-        return if (g.buttonEx(ok, "OK", false, true)) .{ .ok = 0 } else .none;
+        const ok = Rect{ .x = b.x + @divTrunc(b.w - 56, 2), .y = b.y + b.h - 22, .w = 56, .h = 14 };
+        return if (g.buttonThick(ok, "OK", false, 3)) .{ .ok = 0 } else .none;
     }
 
     // List rows: plain text, inverse video only while the button is held over
@@ -437,7 +453,7 @@ pub const Dialog = struct {
             if (g.edge and held) res = .{ .ok = @intCast(j) };
         }
         const cancel = Rect{ .x = b.x + b.w - 64, .y = b.y + b.h - BTN_H - 8, .w = 56, .h = BTN_H };
-        if (g.buttonEx(cancel, "Cancel", false, true)) res = .cancel;
+        if (g.buttonThick(cancel, "Cancel", false, 2)) res = .cancel;
         return res;
     }
 };
