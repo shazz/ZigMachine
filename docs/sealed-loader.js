@@ -174,6 +174,10 @@ window.document.body.addEventListener('keydown', function (evt) {
 (function () {
     const surface = window.document.getElementById("3"); // topmost stacked canvas
     surface.style.pointerEvents = "auto";   // re-enable: .overlay sets pointer-events:none
+    // The decorative monitor bezel <img> has z-index:100 and sits OVER the canvas,
+    // swallowing every click — make it click-through so events reach the surface.
+    const bezel = window.document.querySelector(".monitor");
+    if (bezel) bezel.style.pointerEvents = "none";
     surface.style.userSelect = "none";      // no text selection while dragging windows
     surface.draggable = false;              // stop the browser "grab the image" drag-ghost
     surface.addEventListener('dragstart', function (e) { e.preventDefault(); });
