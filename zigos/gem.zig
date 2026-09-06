@@ -39,8 +39,8 @@ pub const Desktop = struct {
     floppy_win: u8 = 0,
     items: [3]DeskIcon = .{
         .{ .x = 44, .y = 30, .ic = icons.CARTRIDGE, .label = "ST REPLAY", .is_app = true },
-        .{ .x = 580, .y = 22, .ic = icons.FLOPPY, .label = "Floppy", .is_app = false },
-        .{ .x = 580, .y = 130, .ic = icons.TRASH, .label = "Trash", .is_app = false },
+        .{ .x = 580, .y = 22, .ic = icons.FLOPPY, .label = "FLOPPY", .is_app = false },
+        .{ .x = 580, .y = 130, .ic = icons.TRASH, .label = "TRASH", .is_app = false },
     },
     drag: ?u8 = null,
     grab_dx: i16 = 0,
@@ -156,16 +156,23 @@ pub const Desktop = struct {
     }
 };
 
-// Blit a 1bpp icon (bit set = black, clear = white) at (x,y) with a centred label.
+// Draw a GEM icon with TRANSPARENCY (ink=black, body=white, outside=transparent,
+// so the desktop shows through the icon's silhouette) and a caps label beneath.
 fn placeIcon(g: *gui.Gui, x: i16, y: i16, ic: icons.Icon, label: []const u8) void {
     const rowbytes: usize = (@as(usize, ic.w) + 7) / 8;
     var row: u16 = 0;
     while (row < ic.h) : (row += 1) {
         var col: u16 = 0;
         while (col < ic.w) : (col += 1) {
-            const byte = ic.bits[row * rowbytes + col / 8];
-            const ink = (byte >> @intCast(7 - (col % 8))) & 1 != 0;
-            g.fb.setPixelValue(@intCast(x + @as(i16, @intCast(col))), @intCast(y + @as(i16, @intCast(row))), if (ink) gui.BLACK else gui.WHITE);
+            const idx = row * rowbytes + col / 8;
+            const sh: u3 = @intCast(7 - (col % 8));
+            const px: u16 = @intCast(x + @as(i16, @intCast(col)));
+            const py: u16 = @intCast(y + @as(i16, @intCast(row)));
+            if ((ic.ink[idx] >> sh) & 1 != 0) {
+                g.fb.setPixelValue(px, py, gui.BLACK);
+            } else if ((ic.body[idx] >> sh) & 1 != 0) {
+                g.fb.setPixelValue(px, py, gui.WHITE); // enclosed body
+            } // else: outside the silhouette -> leave transparent (desktop shows)
         }
     }
     const lw: i16 = @as(i16, @intCast(label.len)) * 8;
