@@ -18,7 +18,9 @@ const LogicalFB = zg.LogicalFB;
 const Child = union(enum) {
     none,
     union_intro: @import("union_intro.zig").Demo,
-    union_main: @import("union/main.zig").Demo,
+    // The main screen is hosted by the doors launcher (walk to a door + Fire to
+    // enter a real scene; ESC on the main screen bubbles wants_quit back here).
+    union_main: @import("union/doors.zig").Doors,
     music: @import("music_debug.zig").Demo,
     blitter: @import("blitter_demo.zig").Demo,
     scroll: @import("scroll_demo.zig").Demo,
@@ -98,11 +100,18 @@ pub const Demo = struct {
     // Host input ids from demo_main: 0 up, 1 down, 2 left, 3 right, 5 fire, 6 back.
     pub fn input(self: *Demo, dir: u8) void {
         if (self.state == .running) {
-            if (dir == 6) {
-                self.back();
-            } else switch (self.child) {
+            switch (self.child) {
                 .none => {},
-                inline else => |*c| if (@hasDecl(@TypeOf(c.*), "input")) c.input(dir),
+                inline else => |*c| {
+                    const C = @TypeOf(c.*);
+                    if (@hasField(C, "wants_quit")) {
+                        // Child owns its Back handling; it bubbles wants_quit to exit.
+                        if (@hasDecl(C, "input")) c.input(dir);
+                        if (c.wants_quit) self.back();
+                    } else if (dir == 6) {
+                        self.back();
+                    } else if (@hasDecl(C, "input")) c.input(dir);
+                },
             }
             return;
         }

@@ -25,11 +25,14 @@ pub fn Parallax(comptime n: usize) type {
         const Self = @This();
         layers: [n]Layer,
 
-        pub fn update(self: *Self) void {
+        // `scale` multiplies every layer's advance this frame (1.0 = nominal
+        // speed); a host can slow/accelerate the whole parallax with it.
+        pub fn update(self: *Self, scale: f32) void {
             for (&self.layers) |*l| {
-                l.pos += l.speed;
+                l.pos += l.speed * scale;
                 const w: f32 = @floatFromInt(l.w);
                 while (l.pos >= w) l.pos -= w;
+                while (l.pos < 0) l.pos += w;
             }
         }
 

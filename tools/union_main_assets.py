@@ -207,8 +207,23 @@ def convert_plane0() -> None:
 
 PLANE1_SIMPLE = [
     ("sprites", "sprites.png", (448, 56), (224, 28)),
-    ("credits", "font_credits.png", (576, 60), (288, 30)),
 ]
+
+
+def load_white_glyph_mask(path: Path, expected_src: tuple[int, int], exp_out: tuple[int, int]) -> tuple[tuple[int, int], Pixels]:
+    """font_credits.png is a clean single-colour white glyph on a black field, but
+    the source palette carries the field as BOTH idx 0 and an opaque idx 255 black.
+    Keep ONLY the white glyph pixels as ink (everything else transparent) so the
+    mask stays one ink index — otherwise the black field prints as a second ink and
+    fattens every glyph (the "blurry, multiple white prints" artefact)."""
+    with Image.open(path) as im:
+        if im.size != expected_src:
+            raise RuntimeError(f"{path.name}: expected size {expected_src}, got {im.size}")
+        rgb = half_scale_nearest(im.convert("RGB"))
+    if rgb.size != exp_out:
+        raise RuntimeError(f"{path.name}: expected scaled {exp_out}, got {rgb.size}")
+    pixels: Pixels = [(r, g, b) if (r > 160 and g > 160 and b > 160) else None for (r, g, b) in rgb.getdata()]
+    return rgb.size, pixels
 
 
 def convert_plane1() -> None:
@@ -220,6 +235,10 @@ def convert_plane1() -> None:
         if size != exp_out:
             raise RuntimeError(f"{fname}: expected scaled size {exp_out}, got {size}")
         merger.add(outbase, size, pixels)
+
+    # credits font: clean white-only 1-ink mask (see load_white_glyph_mask).
+    size, pixels = load_white_glyph_mask(SRC_GFX / "font_credits.png", (576, 60), (288, 30))
+    merger.add("credits", size, pixels)
 
     pal_out = OUT_SCREEN / "p1.pal"
     pal_out.write_bytes(merger.palette_bytes())

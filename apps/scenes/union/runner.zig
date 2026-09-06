@@ -55,7 +55,10 @@ pub const Runner = struct {
         if (self.nb > 7) self.nb = 0;
     }
 
-    pub fn draw(self: *Runner, zigos: *ZigOS) void {
+    // `scale` (1.0 = full speed) attenuates the ghost trail: as it → 0 the ghosts
+    // collapse toward the runner's own position/size and vanish under it, so a
+    // slowed-down sprite loses its speed streak.
+    pub fn draw(self: *Runner, zigos: *ZigOS, scale: f32) void {
         const p1: *LogicalFB = &zigos.lfbs[1];
         p1.clearFrameBuffer(0);
         const f: usize = @intFromFloat(self.nb);
@@ -64,7 +67,9 @@ pub const Runner = struct {
         var g: usize = 4;
         while (g > 0) {
             g -= 1;
-            blitStretch(p1, f, CENTER_X + GHOST_CX[g], Y0, GHOST_Z[g], GHOST_BASE + @as(u8, @intCast(g)) * 8);
+            const cx = CENTER_X + GHOST_CX[g] * scale;
+            const z = 1.0 + (GHOST_Z[g] - 1.0) * scale;
+            blitStretch(p1, f, cx, Y0, z, GHOST_BASE + @as(u8, @intCast(g)) * 8);
         }
         blitFrame(p1, f, X0, Y0, 0);
     }

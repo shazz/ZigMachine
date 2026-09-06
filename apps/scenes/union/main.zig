@@ -105,6 +105,7 @@ pub const Demo = struct {
     scroller: Scroller = .{},
     credits: Credits = .{},
     pos: f32 = 0, // world scroll in tiles
+    speed: f32 = 0.3, // scroll tiles/frame; host may slow it (0.3 = nominal)
     frame: u32 = 0,
     grad_idx: u8 = 0, // gradTiles palette-animation step
     grad_inc: i8 = 1,
@@ -138,8 +139,8 @@ pub const Demo = struct {
 
     pub fn update(self: *Demo, zigos: *ZigOS, dt: f32) void {
         _ = dt;
-        self.px.update();
-        self.pos += 0.3; // world scroll: 0.3 tiles/frame
+        self.px.update(self.speed / 0.3); // parallax follows the scroll speed
+        self.pos += self.speed; // world scroll (nominal 0.3 tiles/frame)
         if (self.pos >= SCROLL_WRAP) self.pos -= SCROLL_WRAP;
         self.frame += 1;
         if (self.frame % 12 == 0) { // gradTiles palette ping-pong
@@ -171,7 +172,7 @@ pub const Demo = struct {
         clouds_layer.draw(p0, self.pos);
         anim_layer.draw(p0, self.pos);
         world_layer.draw(p0, self.pos);
-        self.runner.draw(zigos); // plane 1 (actors), composited over the world
+        self.runner.draw(zigos, self.speed / 0.3); // ghost trail scales with speed
         self.balls.draw(zigos); // dragonballs on plane 1, after the runner
         self.credits.draw(zigos); // credits pages on plane 1 (top area)
         self.scroller.draw(zigos); // plane 2 (scrolltext) on top
