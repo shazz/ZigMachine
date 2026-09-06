@@ -9,6 +9,7 @@
 // --------------------------------------------------------------------------
 const zsrc = @import("zigos.zig");
 pub const gui = @import("gui.zig"); // the ROM's GUI libraries (apps link this)
+pub const icons = @import("gem_icons.zig"); // 1bpp icons ripped from a GEM icon sheet
 
 const ZigOS = zsrc.ZigOS;
 const LogicalFB = zsrc.LogicalFB;
@@ -17,7 +18,7 @@ const Rect = gui.Rect;
 
 pub const Desktop = struct {
     g: gui.Gui = undefined,
-    app_icon: Rect = .{ .x = 40, .y = 40, .w = 64, .h = 50 },
+    app_icon: Rect = .{ .x = 44, .y = 30, .w = icons.CARTRIDGE.w, .h = icons.CARTRIDGE.h },
 
     pub fn init(self: *Desktop, os: *ZigOS, fb: *LogicalFB, blit: *Blitter) void {
         self.g = .{ .os = os, .fb = fb, .blit = blit, .screen_w = 640, .screen_h = 200 };
@@ -33,42 +34,32 @@ pub const Desktop = struct {
     // Draw the desktop; return true on the frame the ST Replay icon is clicked.
     pub fn render(self: *Desktop) bool {
         const g = &self.g;
-        g.rect(.{ .x = 0, .y = 0, .w = 640, .h = 200 }, gui.DESK);
+        g.rect(.{ .x = 0, .y = 0, .w = 640, .h = 200 }, gui.DESK); // green work area
         g.rect(.{ .x = 0, .y = 0, .w = 640, .h = gui.MENU_H }, gui.WHITE);
         g.blit.fill(g.fb, 0, gui.MENU_H, 640, 1, gui.BLACK);
         g.text("  Desk     File     View     Options", 6, 2, gui.BLACK, gui.WHITE);
 
-        diskIcon(g, .{ .x = 560, .y = 22, .w = 52, .h = 44 }, "Floppy");
-        trashIcon(g, .{ .x = 560, .y = 130, .w = 52, .h = 44 }, "Trash");
-        g.text("ZigGEM desktop  -  double-click an app to open it", 40, 178, gui.WHITE, gui.DESK);
+        placeIcon(g, 566, 24, icons.FLOPPY, "Floppy");
+        placeIcon(g, 566, 130, icons.TRASH, "Trash");
 
-        return self.appIcon();
-    }
-
-    // The ST Replay application icon (a little cassette). Returns clicked.
-    fn appIcon(self: *Desktop) bool {
-        const g = &self.g;
         const r = self.app_icon;
-        const hover = g.hit(.{ .x = r.x - 2, .y = r.y - 2, .w = r.w + 4, .h = r.h + 14 });
-        // cassette body
-        g.bevel(.{ .x = r.x, .y = r.y, .w = r.w, .h = 34 }, if (hover) gui.LGRAY else gui.WHITE, true);
-        g.rect(.{ .x = r.x + 6, .y = r.y + 6, .w = r.w - 12, .h = 10 }, gui.BLACK); // tape window
-        g.blit.fill(g.fb, r.x + 12, r.y + 22, 6, 6, gui.BLACK); // reels
-        g.blit.fill(g.fb, r.x + r.w - 18, r.y + 22, 6, 6, gui.BLACK);
-        g.text("ST REPLAY", r.x - 12, r.y + 38, gui.WHITE, gui.DESK);
-        return g.edge and g.hit(.{ .x = r.x, .y = r.y, .w = r.w, .h = 34 });
+        placeIcon(g, r.x, r.y, icons.CARTRIDGE, "ST REPLAY"); // the app = a RAM cartridge :)
+        return g.edge and g.hit(r);
     }
 };
 
-fn diskIcon(g: *gui.Gui, r: Rect, label: []const u8) void {
-    g.bevel(.{ .x = r.x, .y = r.y, .w = r.w, .h = 34 }, gui.LGRAY, true);
-    g.rect(.{ .x = r.x + r.w - 16, .y = r.y + 4, .w = 10, .h = 12 }, gui.BLACK); // shutter
-    g.rect(.{ .x = r.x + 8, .y = r.y + 20, .w = r.w - 16, .h = 8 }, gui.WHITE); // label strip
-    g.text(label, r.x + 2, r.y + 36, gui.WHITE, gui.DESK);
-}
-
-fn trashIcon(g: *gui.Gui, r: Rect, label: []const u8) void {
-    g.bevel(.{ .x = r.x + 8, .y = r.y, .w = r.w - 16, .h = 34 }, gui.MGRAY, true);
-    g.blit.fill(g.fb, r.x + 6, r.y, @intCast(r.w - 12), 4, gui.BLACK); // lid
-    g.text(label, r.x + 6, r.y + 36, gui.WHITE, gui.DESK);
+// Blit a 1bpp icon (bit set = black, clear = white) at (x,y) with a centred label.
+fn placeIcon(g: *gui.Gui, x: i16, y: i16, ic: icons.Icon, label: []const u8) void {
+    const rowbytes: usize = (@as(usize, ic.w) + 7) / 8;
+    var row: u16 = 0;
+    while (row < ic.h) : (row += 1) {
+        var col: u16 = 0;
+        while (col < ic.w) : (col += 1) {
+            const byte = ic.bits[row * rowbytes + col / 8];
+            const ink = (byte >> @intCast(7 - (col % 8))) & 1 != 0;
+            g.fb.setPixelValue(@intCast(x + @as(i16, @intCast(col))), @intCast(y + @as(i16, @intCast(row))), if (ink) gui.BLACK else gui.WHITE);
+        }
+    }
+    const lw: i16 = @as(i16, @intCast(label.len)) * 8;
+    g.text(label, x + @divTrunc(@as(i16, @intCast(ic.w)) - lw, 2), y + @as(i16, @intCast(ic.h)) + 2, gui.WHITE, gui.DESK);
 }

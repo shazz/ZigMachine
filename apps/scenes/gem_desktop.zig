@@ -28,7 +28,7 @@ pub const Demo = struct {
         self.fb.is_enabled = true;
         self.fb.setMediumPlane(); // the whole GEM (desktop + apps) is medium-res
         gem.gui.installPalette(self.fb); // one shared palette for desktop AND apps
-        os.setBackgroundColor(.{ .r = 0, .g = 150, .b = 90, .a = 255 });
+        os.setBackgroundColor(.{ .r = 255, .g = 255, .b = 255, .a = 255 }); // GEM: border/overscan is WHITE (desktop area is green)
         self.blit.init();
         self.desktop.init(os, self.fb, &self.blit);
         self.app.init(os); // set up (but do not show) the app; host fills its sample
