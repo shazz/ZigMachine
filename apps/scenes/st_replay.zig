@@ -37,7 +37,7 @@ extern fn loadSample(id: u32) void;
 
 const FILES = [_][]const u8{ "SMP1.RAW", "SMP2.RAW" };
 
-pub const Demo = struct {
+pub const App = struct {
     blit: Blitter = .{},
     g: gui.Gui = undefined,
     wm: gui.Wm = .{},
@@ -50,34 +50,35 @@ pub const Demo = struct {
     looping: bool = false,
     recording: bool = false,
     playhead: f32 = 0,
+    wants_quit: bool = false, // set by File > Quit; the host (GEM desktop) returns to the desktop
 
     // Exposed to the host so it can copy the real sample in for display.
-    pub fn sampleBuf(self: *Demo) [*]u8 {
+    pub fn sampleBuf(self: *App) [*]u8 {
         return &self.sample;
     }
     pub fn sampleLen() usize {
         return WAVE_LEN;
     }
 
-    pub fn init(self: *Demo, os: *ZigOS) void {
+    // The GEM desktop (host) owns the medium plane, palette and background; the app
+    // just sets up its GUI + windows. Called once; launching only flips it visible.
+    pub fn init(self: *App, os: *ZigOS) void {
         const fb = &os.lfbs[0];
-        fb.is_enabled = true;
-        fb.setMediumPlane(); // crisp 640x200, 1:1 (no pixel doubling) — the GEM look
         self.blit.init();
-        gui.installPalette(fb);
-        os.setBackgroundColor(.{ .r = 0, .g = 150, .b = 90, .a = 255 }); // desktop green in the border
         self.g = .{ .os = os, .fb = fb, .blit = &self.blit, .screen_w = SW, .screen_h = SH };
-
-        self.w_sample = self.wm.add(.{ .r = .{ .x = 16, .y = 26, .w = 440, .h = 120 }, .title = "SAMPLE.SPL" });
-        self.w_transport = self.wm.add(.{ .r = .{ .x = 380, .y = 150, .w = 236, .h = 44 }, .title = "Transport" });
-        // the sample buffer starts silent; the host fills it from smp1.raw (see sampleBuf()).
+        self.wants_quit = false;
+        self.playing = false;
+        if (self.wm.n == 0) { // add windows once
+            self.w_sample = self.wm.add(.{ .r = .{ .x = 16, .y = 26, .w = 440, .h = 120 }, .title = "SAMPLE.SPL" });
+            self.w_transport = self.wm.add(.{ .r = .{ .x = 380, .y = 150, .w = 236, .h = 44 }, .title = "Transport" });
+        }
     }
 
-    pub fn pointer(self: *Demo, x: i32, y: i32, buttons: u32) void {
+    pub fn pointer(self: *App, x: i32, y: i32, buttons: u32) void {
         self.g.setPointer(x, y, buttons);
     }
 
-    pub fn update(self: *Demo, os: *ZigOS, dt: f32) void {
+    pub fn update(self: *App, os: *ZigOS, dt: f32) void {
         _ = os;
         _ = dt;
         self.g.beginFrame();
@@ -91,7 +92,7 @@ pub const Demo = struct {
         }
     }
 
-    pub fn render(self: *Demo, os: *ZigOS, dt: f32) void {
+    pub fn render(self: *App, os: *ZigOS, dt: f32) void {
         _ = os;
         _ = dt;
         const g = &self.g;
@@ -117,12 +118,12 @@ pub const Demo = struct {
         g.endFrame();
     }
 
-    fn onMenu(self: *Demo, pick: gui.MenuPick) void {
+    fn onMenu(self: *App, pick: gui.MenuPick) void {
         switch (pick.menu) {
             0 => self.dialog.alert("About", "ST Replay - ZigMachine GEM"), // Desk
             1 => switch (pick.item) { // File
                 0 => self.dialog.openFiles("Load Sample", &FILES),
-                2 => self.dialog.alert("ST Replay", "Nothing to quit :)"),
+                2 => self.wants_quit = true, // Quit -> back to the GEM desktop (eject the cartridge)
                 else => {},
             },
             2 => switch (pick.item) { // Sound
@@ -142,7 +143,7 @@ pub const Demo = struct {
         }
     }
 
-    fn drawWave(self: *Demo, c: Rect) void {
+    fn drawWave(self: *App, c: Rect) void {
         const g = &self.g;
         g.rect(c, gui.BLACK); // scope background
         const mid = c.y + @divTrunc(c.h, 2);
@@ -162,7 +163,7 @@ pub const Demo = struct {
         }
     }
 
-    fn drawTransport(self: *Demo, c: Rect) void {
+    fn drawTransport(self: *App, c: Rect) void {
         const g = &self.g;
         const bw: i16 = 52;
         const y = c.y + 6;

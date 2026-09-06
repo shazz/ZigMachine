@@ -233,6 +233,7 @@ def build() -> str:
     wm = parse_struct_methods(ROOT / "zigos" / "gui.zig", "Wm")
     menubar = parse_struct_methods(ROOT / "zigos" / "gui.zig", "MenuBar")
     dialog = parse_struct_methods(ROOT / "zigos" / "gui.zig", "Dialog")
+    desktop = parse_struct_methods(ROOT / "zigos" / "gem.zig", "Desktop")
     mesh = parse_struct_methods(ROOT / "zigos" / "utils" / "obj_loader.zig", "Mesh")
 
     groups = [
@@ -249,13 +250,14 @@ def build() -> str:
         ("ZigOS — Window manager (Wm)", render_items(wm)),
         ("ZigOS — Menu bar (MenuBar)", render_items(menubar)),
         ("ZigOS — Dialog (modal alert / file selector)", render_items(dialog)),
+        ("ZigGEM ROM — Desktop (boot shell / app launcher)", render_items(desktop)),
         ("ZigOS — OBJ loader (Mesh)", render_items(mesh)),
     ]
     nav = "\n".join(f'<a href="#{i}">{esc(t)}</a>' for i, (t, _) in enumerate(groups))
     sections = "\n".join(
         f'<section id="{i}"><h2>{esc(t)}</h2>{body}</section>' for i, (t, body) in enumerate(groups)
     )
-    methods = len(lfb) + len(zos) + len(blitter) + len(gui) + len(wm) + len(menubar) + len(dialog) + len(mesh)
+    methods = len(lfb) + len(zos) + len(blitter) + len(gui) + len(wm) + len(menubar) + len(dialog) + len(desktop) + len(mesh)
     consts = len(geometry) + len(modes) + len(regs) + len(blit_regs) + len(blit_ctl)
     counts = f"{len(abi)} ABI exports · {methods} library methods · {consts} constants/registers"
 

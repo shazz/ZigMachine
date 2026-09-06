@@ -31,7 +31,7 @@ code { background: #1a2030; padding: 1px 5px; border-radius: 4px; }
 <body>
 <header>
   <h1>ZigMachine — Programmer's Guide</h1>
-  <div class="sub">Generated 2026-09-05 by tools/gen_docs.py · 12 ABI exports · 55 library methods · 90 constants/registers</div>
+  <div class="sub">Generated 2026-09-05 by tools/gen_docs.py · 12 ABI exports · 59 library methods · 90 constants/registers</div>
 </header>
 <div class="wrap">
   <nav><a href="#top">Overview</a><a href="#examples">Examples</a><a href="#0">Geometry &amp; resolution</a>
@@ -47,7 +47,8 @@ code { background: #1a2030; padding: 1px 5px; border-radius: 4px; }
 <a href="#10">ZigOS — Window manager (Wm)</a>
 <a href="#11">ZigOS — Menu bar (MenuBar)</a>
 <a href="#12">ZigOS — Dialog (modal alert / file selector)</a>
-<a href="#13">ZigOS — OBJ loader (Mesh)</a></nav>
+<a href="#13">ZigGEM ROM — Desktop (boot shell / app launcher)</a>
+<a href="#14">ZigOS — OBJ loader (Mesh)</a></nav>
   <main>
     <section id="top"><h2>Overview</h2><div class="intro">
 ZigMachine is a fantasy console: a <b>sealed hardware</b> core (compiled to two
@@ -289,7 +290,11 @@ if (g.button(.{ .x=content.x+4, .y=content.y+4, .w=48, .h=18 }, &quot;OK&quot;, 
 <section id="12"><h2>ZigOS — Dialog (modal alert / file selector)</h2><div class="item"><code class="sig">alert(self: *Dialog, title: []const u8, msg: []const u8) void</code></div>
 <div class="item"><code class="sig">openFiles(self: *Dialog, title: []const u8, items: []const []const u8) void</code></div>
 <div class="item"><code class="sig">process(self: *Dialog, g: *Gui) DlgResult</code></div></section>
-<section id="13"><h2>ZigOS — OBJ loader (Mesh)</h2><div class="item"><code class="sig">load(self: *Mesh, text: []const u8) void</code></div></section>
+<section id="13"><h2>ZigGEM ROM — Desktop (boot shell / app launcher)</h2><div class="item"><code class="sig">init(self: *Desktop, os: *ZigOS, fb: *LogicalFB, blit: *Blitter) void</code></div>
+<div class="item"><code class="sig">setPointer(self: *Desktop, x: i32, y: i32, buttons: u32) void</code></div>
+<div class="item"><code class="sig">beginFrame(self: *Desktop) void</code></div>
+<div class="item"><code class="sig">render(self: *Desktop) bool</code><div class="doc">Draw the desktop; return true on the frame the ST Replay icon is clicked.</div></div></section>
+<section id="14"><h2>ZigOS — OBJ loader (Mesh)</h2><div class="item"><code class="sig">load(self: *Mesh, text: []const u8) void</code></div></section>
   </main>
 </div>
 </body></html>
