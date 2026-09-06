@@ -1,82 +1,121 @@
 # Session Handoff
 
-**Date:** 2026-09-05 (evening → night)
-**Branch:** `feat/sealed-hardware` — NOT merged to `main`, NOT pushed. Tree is clean
-(only the pre-existing `assets/` → `apps/assets/` move is still uncommitted, untouched here).
-**Author:** matt-grain (+ Claude)
+**Date:** 2026-09-06 (evening)
+**Branch:** feat/effects-menu
+**Author:** matt-grain
 
-## Branch Status
+## What Was Done
 
-Stable and proven in-browser. Every commit below builds clean
-(`~/.local/zig/0.16.0/zig build -Drelease=true -Dwasm`) and was verified in `docs/sealed.html`.
-`zig fmt --check` clean on all touched files.
+The **UNION INTRO is now the full Union experience end-to-end**: `trsi → wab →
+placement → main(doors)` as one continuous flow, driveable on a phone, with the
+effect-fidelity fixes Matt spotted while testing live. Plus a real host bug fix
+(stale planes leaking over the menu).
 
-## What Was Done — GEM desktop authenticity + Set Preferences
+### Commits (this session)
+- `7bb4642` **union intro: chain into main screen + effect-fidelity fixes**
+- `5d8ef5d` **sealed-loader: touch gamepad, wasm cache-bust, clear disabled plane canvases**
+- `3673272` **union intro: wire placement (efmain_intro) into the intro SEQ**
 
-This session made the ZigGEM desktop look and behave like the real Atari ST GEM, driven by
-authentic references Matt supplied (`window.png`, `icons.gif`, `floppyA.png`, frno7/font BDFs,
-the estyjs emulator, and a SET PREFERENCES screenshot).
+### Key Changes
+- **Placement wired into the intro** (`3673272`) — added `placement` to
+  `union_intro.zig`'s `Active` union + SEQ; committed the previously-untracked
+  `union/placement{,_strips}.zig` + assets + `tools/union_intro_assets.py`.
+- **Intro → main chaining** (`union_intro.zig`, `7bb4642`) — `union_intro.Demo`
+  now runs the SEQ then flows straight into `doors.Doors` (the main screen).
+  Placement literally assembles the main-screen image, so the hand-off is
+  seamless. ESC during the intro OR on the main screen bubbles `wants_quit` to
+  the menu (same contract menu.zig uses for the standalone UNION MAIN entry).
+  New forwards: `input`/`setShadeMode`/`pollSong` while `in_main`.
+- **TRSI entry acceleration** (`trsi.zig`) — was a constant-speed lerp (every
+  tile drifted a fixed 60 frames). Now faithful to `codef_animatedtiles.js`:
+  every tile arrives at `ENDVBL (=60)`, so late-starting tiles get a bigger
+  per-frame step and visibly **accelerate into place**, snapping together at 60.
+  `ENTRY_END` 115 → 60. Logo **fade-out sped up** `ALPHA_INCR` 0.005 → 0.02
+  (Matt's call; JS base is 0.005).
+- **Scroller lead-in** (`scroller.zig`) — 5 → 13 leading spaces. `scrolltext2`
+  primes all `NUM_SLOTS` across the visible strip at init, so the text needs a
+  full strip of blanks to **enter from the right edge** instead of appearing
+  mid-screen.
+- **Door-name title removed** (`doors.zig`) — its fade wasn't well synced to the
+  door. `pickTitle` still tracks the enterable door (`self.titled`) so **Space
+  still enters the door in front**; names will return as **tiles below the door**
+  (Matt's follow-up).
+- **Touch gamepad** (`sealed-loader.js`) — on-screen D-pad + Fire + Esc wired to
+  the same `demo.input()` codes as keydown, so the whole thing is driveable on a
+  phone with no keyboard. D-pad repeats while held (hold-Left slowdown works).
+- **Cache-bust** (`sealed-loader.js` + `sealed.html`) — every wasm fetch gets
+  `?t=<load-time>`; loader `<script>` is `?v=4`. A rebuilt `demo.wasm`/loader is
+  now always picked up on reload instead of the browser serving the stale blob.
+- **Plane-canvas clear bug FIXED** (`sealed-loader.js`) — the render loop only
+  ever painted an *enabled* plane, so a multi-plane scene returning to the menu
+  left its stale layers composited on top ("leftover logos over the menu"). Now
+  a plane going dark has its canvas cleared once. Verified in-browser: menu is
+  clean after MUSIC DEBUG → ESC. Fixes any scene→fewer-planes transition.
 
-### Commits (newest first, this session)
-- `04d80e5` **Set Preferences dialog** (Options menu): resolution + RGB desktop background
-  (default teal 1,160,164) with live-preview swatch; `Gui.buttonThick` (1/2/3px borders);
-  dialogs get a GEM double frame + NO shadow; About/file-selector share the look.
-- `ba20cc8` **BOOT_DIRECT** scene flag (boot straight into an app, skip the desktop); real
-  `floppyA.png` icon re-extract; info line +1px.
-- `13fd544` **Authentic ST fonts**: 8x8 (menus/titles/dialogs) + 6x6 (icon labels), from
-  public-domain frno7/font BDFs via `tools/gen_font.py`; fixed-width white icon-label boxes
-  (11 chars + margins); window drop shadow restored; cascaded multi-windows (MAX_WIN=7) +
-  info line; File>Open on selection; hover-drop menus; flat buttons.
-- `5cf928d` Real 12x11 window gadgets extracted from `window.png` (`tools/gen_glyphs.py` →
-  `zigos/gem_glyphs.zig`, blitted by `Gui.gadget`); single-click select (inverse video),
-  double-click open via the browser `dblclick` event (loader → `Desktop.requestOpenAt`).
+### Decisions Made
+- **UNION INTRO chains into the main screen** rather than stopping; UNION MAIN
+  stays as the direct-to-main shortcut. Rationale: placement assembles the main
+  image, so intro→main is the authentic Union flow.
+- **Door title removed, not fixed** — Matt will replace it with name tiles
+  *below* the door (better than a floating credits-font label whose fade was
+  hard to sync to the door's motion).
+- **Fade rate is a tunable, not a port constant** — bumped past the JS 0.005 on
+  the author's live judgement.
 
-### Key mechanisms (where to look)
-- **GUI toolkit**: `zigos/gui.zig` — `Gui` (primitives incl. `gadget`, `hatch`, `textSmall`,
-  `button`/`buttonEx`/`buttonThick`), `Wm` (windows, `drawChrome`/`titleBar`/`scrollbars`,
-  drop shadow), `MenuBar` (hover-drop), `Dialog` (alert/file-selector, double frame, no shadow).
-- **Desktop / ROM**: `zigos/gem.zig` — `Desktop` (icons, selection, double-click open, File>Open,
-  cascaded windows), `Prefs` (Set Preferences modal), `placeIcon` (transparent icon + 6x6 label
-  box). `apps/scenes/gem_desktop.zig` = boot router (hosts `st_replay.App`; honours `BOOT_DIRECT`).
-- **Fonts**: `zigos/zigos.zig` `printText` (8x8) + `printTextSmall` (6x6); raws in
-  `zigos/assets/fonts/`, regen via `tools/gen_font.py <in.bdf> <out.raw>`.
-- **Loader**: `docs/sealed-loader.js` — mouse → `demo.pointer`; `dblclick` → buttons bit 1.
+## Current State
 
-## Next Session — Matt's plan ("more gem polishing, better ui component library, grid, finish ST Replay")
+### Branch Status
+- Build: `zig build -Drelease=true -Dwasm` **clean** (EXIT=0). `demo.wasm`
+  1,904,168 B — fits the 2 MiB window (~193 KB headroom).
+- Line caps OK: `doors.zig` 197, `union_intro.zig` 93, `trsi.zig` 160.
+- **Uncommitted (pre-existing, NOT this session):** the big `assets/ →
+  apps/assets/` relocation (D old / ?? new) + `assets/bugs/` — left as-is, as at
+  session start. `HANDOFF.md` is the only file this session leaves modified.
+- Local server running on `0.0.0.0:8123` (a pre-existing instance).
 
-1. **More GEM polishing** — remaining authenticity gaps (see below).
-2. **Better UI component library** — `zigos/gui.zig` is growing organically; factor a cleaner
-   reusable widget set (buttons with border thickness, labeled steppers, radio groups, a generic
-   dialog builder with grid layout) so dialogs like `Prefs` aren't hand-laid pixel by pixel.
-3. **Grid** — a layout grid for dialogs/windows (rows/cols with consistent margins) so components
-   place automatically instead of the current manual `dy+NN` offsets. Matt cares a lot about even
-   margins and alignment (spent this session nudging pixels — mechanize it).
-4. **Finish ST Replay** — the app (`apps/scenes/st_replay.zig`) is a real GEM app (menus,
-   dialogs, real audio on PLAY, waveform, sample switch) but not "finished": wire File>Save,
-   real sample edit (selection/loop/freq), and polish the transport/loop to feel complete.
+### Validated
+- **In-browser (desktop):** plane-clear fix (menu clean after a multi-plane
+  scene), touch gamepad renders + drives the menu.
+- **Live on Matt's phone:** the full intro→entrance→main flow, which is how Matt
+  produced the fidelity feedback below.
+- ⚠️ Desktop *end-to-end* replay of the intro was inconclusive — Chrome throttles
+  rAF in the unfocused automation tab, so screenshots froze mid-animation. Not a
+  code issue; the phone run is the real validation.
 
-### Known follow-ups (from the Fable review, not yet done)
-- GEM opens on the 2nd **press**; ours opens on the browser `dblclick` (after 2nd release) — feels
-  right but not identical.
-- File>Open not greyed when nothing selected; no rubber-band or shift-click multi-select.
-- Window text not clipped to the window rect (title/info can overflow narrow windows).
-- Live drag/resize (GEM shows a rubber-band outline, moves on release).
-- Scrollbar sliders are always full (no scroll model yet).
+## Blockers & Open Questions
+- [ ] **Entrance ghost trail still MISSING** (Matt's "in the entrance the good
+      effect is missing / Ghost"). The original `efmain_intro.js` (lines 161-165)
+      draws the runner with a **4-copy x-zoom ghost trail** (x-8/-16/-18/-26,
+      alpha 0.7/0.5/0.3/0.1, x-zoom 1.2→1.5). `placement.zig` blits only the solid
+      sprite. NOT done this session — it needs the runner on its **own alpha
+      plane** (like the main screen's `runner.zig` GHOST_CX/Z/A technique), since
+      placement composites everything onto one indexed plane 0 with no per-pixel
+      alpha. See Next Session.
 
-### Notes / gotchas
-- **Hard-reload after every wasm rebuild** when testing (the loader fetches `demo.wasm` without a
-  cache-buster; a `?v=` on `sealed.html` busts the HTML but browsers may cache the wasm).
-- The MCP browser tab pauses rAF when hidden (FPS:NaN) — drive `demo.pointer` directly or keep the
-  tab visible when automating.
-- Emulator (estyjs.azurewebsites.net) loads but sits on a boot scan-line after Reset — needs a
-  disk/keypress to reach the desktop; comparison so far used the authentic reference images.
-- The active scene is `apps/floppy.zig` → `gem_desktop`. Scene variants served via `sealed.html?demo=`.
+## Next Session
 
-## Recommended Starting Point
+### Recommended Starting Point
+**Add the entrance ghost trail to `placement.zig`**, mirroring `runner.zig`'s
+`blitStretch` + dimmed-alpha-palette ghost (GHOST_CX/GHOST_Z/GHOST_A), fed by the
+JS spec in `efmain_intro.js:161-165`. Likely means promoting the runner strip to
+its own plane so alpha compositing works.
 
-`/wakeup`, then pick #2/#3 (UI component library + layout grid) — it unblocks faster, cleaner GEM
-polishing and makes finishing ST Replay much less pixel-nudging. Memory: [[zigmachine-gem-pending-todo]],
-[[zigmachine-state]].
+### Also Matt-owned (his follow-ups)
+- Tune the **scroller** text / spacing.
+- Add **name tiles below the doors** (replacing the removed floating title).
+- **A new idea for next session** — Matt has one he's excited about; ask him.
+
+### Context to Load
+**Must read:**
+- `apps/scenes/union/placement.zig` — where the ghost trail goes.
+- `apps/scenes/union/runner.zig` — the ghost technique to reuse (alpha palette).
+- `apps/scenes/union_intro.zig` — the intro→main chaining.
+- `apps/scenes/union/doors.zig` — title removed; `pickTitle`/`titled` gate entry.
+
+**Helpful background:**
+- `assets/oldies/UnionDemoCracktro/intro/efmain_intro.js` (ghost spec 161-165),
+  `lib/codef_animatedtiles.js` (tile motion), `eflogo.js` (fade).
+- `docs/sealed-loader.js` — touch pad, cache-bust, plane-clear loop.
 
 ---
-*Run `/handoff` before ending the next session.*
+*Generated by `/handoff` — for team members without conversation history*
