@@ -245,6 +245,27 @@ pub const LogicalFB = struct {
         self.clearFrameBuffer(0);
     }
 
+    // Switch an already-medium plane (setMediumPlane) between LOW (320, drawn
+    // pixel-doubled) and MEDIUM (640, 1:1) at runtime WITHOUT reallocating: the
+    // 640-wide buffer holds a 320 image too (stride 320 uses its first columns).
+    // Redraw after switching (content is stride-dependent).
+    pub fn setResLow(self: *LogicalFB) void {
+        self.stride = WIDTH;
+        self.fb_w = WIDTH;
+        self.fb_h = HEIGHT;
+        writeU16(hw.REG_FB_STRIDE + @as(usize, self.id) * 2, WIDTH);
+        writeU8(hw.REG_FB_MODE + @as(usize, self.id), hw.FB_MODE_NORMAL);
+        writeU8(hw.REG_RESOLUTION, hw.RES_PLANES);
+    }
+    pub fn setResMedium(self: *LogicalFB) void {
+        self.stride = MEDIUM_WIDTH;
+        self.fb_w = MEDIUM_WIDTH;
+        self.fb_h = MEDIUM_HEIGHT;
+        writeU16(hw.REG_FB_STRIDE + @as(usize, self.id) * 2, MEDIUM_WIDTH);
+        writeU8(hw.REG_FB_MODE + @as(usize, self.id), hw.FB_MODE_MEDIUM);
+        writeU8(hw.REG_RESOLUTION, hw.RES_MEDIUM);
+    }
+
     pub fn getRenderTarget(self: *LogicalFB) RenderTarget {
         return RenderTarget{ .fb = self };
     }

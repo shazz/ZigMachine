@@ -16,12 +16,23 @@ const LogicalFB = zsrc.LogicalFB;
 const Blitter = zsrc.Blitter;
 const Rect = gui.Rect;
 
+pub const Action = enum { none, launch, res_low, res_medium };
+
+const DESK_MENUS = [_]gui.Menu{
+    .{ .title = "Desk", .items = &.{"About ZigGEM"} },
+    .{ .title = "File", .items = &.{"Open"} },
+    .{ .title = "View", .items = &.{"Icons"} },
+    .{ .title = "Options", .items = &.{ "Low Resolution", "Medium Resolution" } },
+};
+
 pub const Desktop = struct {
     g: gui.Gui = undefined,
+    menubar: gui.MenuBar = .{},
     app_icon: Rect = .{ .x = 44, .y = 30, .w = icons.CARTRIDGE.w, .h = icons.CARTRIDGE.h },
 
     pub fn init(self: *Desktop, os: *ZigOS, fb: *LogicalFB, blit: *Blitter) void {
         self.g = .{ .os = os, .fb = fb, .blit = blit, .screen_w = 640, .screen_h = 200 };
+        self.menubar = .{};
     }
 
     pub fn setPointer(self: *Desktop, x: i32, y: i32, buttons: u32) void {
@@ -30,21 +41,27 @@ pub const Desktop = struct {
     pub fn beginFrame(self: *Desktop) void {
         self.g.beginFrame();
     }
+    pub fn endFrame(self: *Desktop) void {
+        self.g.endFrame();
+    }
 
-    // Draw the desktop; return true on the frame the ST Replay icon is clicked.
-    pub fn render(self: *Desktop) bool {
+    // Draw the desktop (res-adaptive via g.screen_w) and return the chosen action.
+    pub fn render(self: *Desktop) Action {
         const g = &self.g;
-        g.rect(.{ .x = 0, .y = 0, .w = 640, .h = 200 }, gui.DESK); // green work area
-        g.rect(.{ .x = 0, .y = 0, .w = 640, .h = gui.MENU_H }, gui.WHITE);
-        g.blit.fill(g.fb, 0, gui.MENU_H, 640, 1, gui.BLACK);
-        g.text("  Desk     File     View     Options", 6, 2, gui.BLACK, gui.WHITE);
+        const sw = g.screen_w;
+        g.rect(.{ .x = 0, .y = 0, .w = sw, .h = 200 }, gui.DESK); // green work area
 
-        placeIcon(g, 566, 24, icons.FLOPPY, "Floppy");
-        placeIcon(g, 566, 130, icons.TRASH, "Trash");
-
+        placeIcon(g, sw - 60, 22, icons.FLOPPY, "Floppy");
+        placeIcon(g, sw - 60, 130, icons.TRASH, "Trash");
         const r = self.app_icon;
         placeIcon(g, r.x, r.y, icons.CARTRIDGE, "ST REPLAY"); // the app = a RAM cartridge :)
-        return g.edge and g.hit(r);
+        const icon_clicked = g.edge and g.hit(r);
+
+        var action: Action = if (icon_clicked) .launch else .none;
+        if (self.menubar.process(g, &DESK_MENUS, sw, false)) |p| {
+            if (p.menu == 3) action = if (p.item == 0) .res_low else .res_medium;
+        }
+        return action;
     }
 };
 
