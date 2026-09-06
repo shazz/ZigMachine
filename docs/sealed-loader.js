@@ -13,7 +13,7 @@
 // thread; JS mirrors its YM regs / player mode / scopes into the demo module.
 // --------------------------------------------------------------------------
 
-const SHARED_PAGES = 55; // must match hw/sdk/memmap.zig SHARED_PAGES (grew for the 800x280 raster)
+const SHARED_PAGES = 79; // must match hw/sdk/memmap.zig SHARED_PAGES (v1.1: 2 MiB demo window + 1 MiB VRAM)
 const memory = new WebAssembly.Memory({ initial: SHARED_PAGES, maximum: SHARED_PAGES });
 
 const text_decoder = new TextDecoder();

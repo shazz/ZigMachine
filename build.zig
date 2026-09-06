@@ -4,7 +4,7 @@ const page_size = 65536; // in bytes
 
 // Video shared main-thread memory (see hw/sdk/memmap.zig): machine-video.wasm +
 // demo.wasm import the SAME WebAssembly.Memory; demo linked above the machine.
-const video_shared_bytes = 55 * page_size; // 3.6 MiB (holds the 800x280 raster PFB; see memmap SHARED_PAGES)
+const video_shared_bytes = 79 * page_size; // ~5.2 MiB (2 MiB demo window + 1 MiB VRAM + PFB; see memmap SHARED_PAGES)
 const demo_global_base: u64 = 0x100000; // 1 MiB
 const machine_stack = 1 * page_size;
 const demo_stack = 6 * page_size;

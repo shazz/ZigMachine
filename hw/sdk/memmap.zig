@@ -64,7 +64,7 @@ pub const STRIDE_FULLSCREEN: u16 = PHYSICAL_WIDTH; // 400
 pub const OFF_REG: usize = 0x0000;
 pub const OFF_PAL: usize = 0x0100; // 4 x PAL_BYTES
 pub const OFF_VRAM: usize = 0x1100; // framebuffer pool base (ZigOS-allocated)
-pub const VRAM_BYTES: usize = 512 * 1024; // 524288 — plenty for 4 planes incl. a fullscreen
+pub const VRAM_BYTES: usize = 1024 * 1024; // 1 MiB — holds 3 fullscreen planes + effect sheets
 pub const OFF_PFB: usize = OFF_VRAM + VRAM_BYTES;
 pub const REGION_BYTES: usize = OFF_PFB + PFB_BYTES;
 // Default per-plane framebuffer offsets (reset values of FB_BASE): the legacy
@@ -182,14 +182,18 @@ pub const HBL_GLOBAL_ID: u16 = 5;
 // is the "you get the memory map, not the schematics" contract, and it gives
 // the authentic fixed-address feel the spec's §10 asks about.
 //
-// Layout of the 48-page (3 MiB) shared memory:
+// Layout of the shared memory (v1.1 — demo window raised to 2 MiB):
 //   [0x000000 .. 0x100000)  machine module data + stack  (global-base 0x400)
-//   [0x100000 .. 0x200000)  demo module data + stack     (global-base 0x100000)
-//   [0x200000 .. 0x2AD000)  video hardware region        (this base)
+//   [0x100000 .. 0x300000)  demo module data + stack     (global-base 0x100000) — 2 MiB
+//   [0x300000 .. ~0x4DC000) video hardware region        (this base)
+// The demo window grew from 1 MiB to 2 MiB: a full cart (code + all @embedFile'd
+// assets + 6-page stack) was overflowing 1 MiB into the video region (silent
+// corruption of the top of the stack). VRAM also grew to 1 MiB so 3 fullscreen
+// planes + effect sheets fit the pool.
 // --------------------------------------------------------------------------
-pub const HW_VIDEO_BASE: usize = 0x200000; // 2 MiB
-// Region now ends at OFF_PFB + PFB_BYTES = 528640 + 896000 = 1424640 above the base;
-// 2 MiB base + 1424640 needs 54 pages, so 55 (3.6 MiB) gives headroom. initial == max.
-pub const SHARED_PAGES: u32 = 55;
+pub const HW_VIDEO_BASE: usize = 0x300000; // 3 MiB (demo cart gets [0x100000..0x300000))
+// Region ends at OFF_PFB + PFB_BYTES = 1052768 + 896000 = 1948768 above the base;
+// 3 MiB base + 1948768 needs ~78 pages, so 79 (~5.2 MiB) gives headroom. initial == max.
+pub const SHARED_PAGES: u32 = 79;
 
-pub const ZM_HW_VERSION: u32 = 0x0001_0000; // 1.0.0
+pub const ZM_HW_VERSION: u32 = 0x0001_0100; // 1.1.0 — demo window + VRAM enlarged
