@@ -70,11 +70,18 @@ parser.add_argument("-i", "--png_file", metavar = "IMAGE", help="Path to your in
 parser.add_argument("-p", "--palette_file", metavar="PALETTE", help="Path to the output palette file", required=False)
 parser.add_argument("-r", "--raw_file", metavar="RAW", help="Path to the output raw image file", required=False)
 parser.add_argument("-ps", "--palette_start", metavar="START", help="offset to apply to the palette", required=False, type=int)
+parser.add_argument("-s", "--scale", metavar="FACTOR", help="nearest-neighbour rescale factor (e.g. 0.5 for half size)", required=False, type=float)
 args = parser.parse_args()
 
 
 with Image.open(args.png_file) as im:
     print(f"Image loaded: {im.format} {im.format_description} {im.size} {im.mode}")
+
+    if args.scale and args.scale != 1.0:
+        new_size = (round(im.width * args.scale), round(im.height * args.scale))
+        # NEAREST preserves palette indices (no interpolation into new colours).
+        im = im.resize(new_size, Image.NEAREST)
+        print(f"Rescaled x{args.scale} -> {im.size}")
 
     linear_palette = []
 
