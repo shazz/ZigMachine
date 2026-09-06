@@ -15,6 +15,11 @@
 
 const SHARED_PAGES = 79; // must match hw/sdk/memmap.zig SHARED_PAGES (v1.1: 2 MiB demo window + 1 MiB VRAM)
 
+// Cache-bust every wasm fetch with the page-load time, so a rebuilt .wasm is
+// always picked up on reload (mobile browsers cache the 1.9 MB blob hard and
+// otherwise keep serving the stale one). See notes/zigmachine-workflow-cache.
+const BUST = "?t=" + Date.now();
+
 // Union main-screen YM tunes (depacked to docs/music/union/), keyed by the
 // scene's 1-based song id (track 1 = Jess's "Sharpness Buzztone", autoplayed).
 const UNION_YM = [
@@ -63,7 +68,7 @@ async function boot() {
             hblDispatch: (id, plane, line, x) => demo.hblDispatch(id, plane, line, x),
         },
     };
-    const machineMod = await WebAssembly.instantiateStreaming(fetch("machine-video.wasm"), machineImports);
+    const machineMod = await WebAssembly.instantiateStreaming(fetch("machine-video.wasm" + BUST), machineImports);
     machine = machineMod.instance.exports;
     console.log("Sealed machine-video.wasm loaded, HW version 0x" + machine.hwVersion().toString(16));
 
@@ -85,7 +90,7 @@ async function boot() {
     // Which open scene to load: ?demo=demo-scroll.wasm etc. (default demo.wasm),
     // so one page can show any of the compiled scenes in a separate tab.
     const demoWasm = new URLSearchParams(window.location.search).get("demo") || "demo.wasm";
-    const demoMod = await WebAssembly.instantiateStreaming(fetch(demoWasm), demoImports);
+    const demoMod = await WebAssembly.instantiateStreaming(fetch(demoWasm + BUST), demoImports);
     demo = demoMod.instance.exports;
     console.log("Open demo.wasm loaded");
 
@@ -147,6 +152,11 @@ function start() {
         imageDatas.push(ctx.createImageData(fb_width, fb_height));
     }
 
+    // Track which plane canvases currently hold pixels, so a plane that goes
+    // from enabled -> disabled (e.g. a multi-plane scene returning to the menu)
+    // gets its stale layer cleared ONCE, instead of leaving the old image on top.
+    const planeDirty = new Array(nb_planes).fill(false);
+
     let last_timestamp = 0;
     const loop = function (timestamp) {
         const elapsed_time = (timestamp - last_timestamp);
@@ -168,6 +178,10 @@ function start() {
                 machine.hwRenderPlane(i);       // sealed: composite LFB[i] -> PFB
                 imageDatas[i].data.set(fbView); // single copy PFB -> plane i's canvas
                 contexts[i].putImageData(imageDatas[i], 0, 0);
+                planeDirty[i] = true;
+            } else if (planeDirty[i]) {
+                contexts[i].clearRect(0, 0, fb_width, fb_height); // blank the stale layer
+                planeDirty[i] = false;
             }
         }
         requestId = window.requestAnimationFrame(loop);
@@ -254,6 +268,62 @@ window.document.body.addEventListener('keydown', function (evt) {
 })();
 
 // --------------------------------------------------------------------------
+// Touch gamepad: on-screen D-pad + Fire + Esc for phones (no keyboard). Wired
+// to the SAME demo.input(N) codes as keydown (0=up 1=down 2=left 3=right
+// 5=fire/enter 6=esc). D-pad repeats while held so "hold-Left to slow" works;
+// Fire/Esc are single-press. Purely page input — the sealed pipeline is untouched.
+// --------------------------------------------------------------------------
+(function () {
+    const S = document.createElement("style");
+    S.textContent = ".tpad{position:fixed;bottom:12px;left:0;right:0;display:flex;" +
+        "justify-content:space-between;padding:0 14px;z-index:1000;pointer-events:none;" +
+        "user-select:none;-webkit-user-select:none}" +
+        ".tpad>div{display:grid;gap:6px;pointer-events:none}" +
+        ".dpad{grid-template-columns:repeat(3,52px);grid-template-rows:repeat(3,52px)}" +
+        ".tpad button{pointer-events:auto;touch-action:none;font:700 20px system-ui;" +
+        "color:#eee;background:rgba(20,20,28,.55);border:1px solid rgba(255,255,255,.25);" +
+        "border-radius:10px;width:52px;height:52px}.tpad button:active{background:rgba(90,120,200,.7)}" +
+        ".act{align-content:end}.act button{width:64px;height:64px;border-radius:50%}";
+    document.head.appendChild(S);
+
+    const pad = document.createElement("div");
+    pad.className = "tpad";
+    // grid cells: ""=empty; [label,input,repeat]
+    const D = { "↑": [0, 1], "←": [2, 1], "→": [3, 1], "↓": [1, 1], "⏎": [5, 0], "␛": [6, 0] };
+    function btn(label) {
+        const b = document.createElement("button");
+        b.textContent = label;
+        const code = D[label][0], repeat = D[label][1];
+        let timer = null;
+        const press = (e) => {
+            e.preventDefault();
+            if (!demo || !demo.input) return;
+            if (label === "␛" && demo.skipBoot) demo.skipBoot();
+            demo.input(code);
+            if (repeat && timer === null) timer = setInterval(() => demo.input(code), 70);
+        };
+        const release = () => { if (timer !== null) { clearInterval(timer); timer = null; } };
+        b.addEventListener("pointerdown", press);
+        b.addEventListener("pointerup", release);
+        b.addEventListener("pointercancel", release);
+        b.addEventListener("pointerleave", release);
+        return b;
+    }
+    const dpad = document.createElement("div");
+    dpad.className = "dpad";
+    for (const cell of ["", "↑", "", "←", "", "→", "", "↓", ""]) {
+        dpad.appendChild(cell ? btn(cell) : document.createElement("span"));
+    }
+    const act = document.createElement("div");
+    act.className = "act";
+    act.appendChild(btn("␛"));
+    act.appendChild(btn("⏎"));
+    pad.appendChild(dpad);
+    pad.appendChild(act);
+    document.body.appendChild(pad);
+})();
+
+// --------------------------------------------------------------------------
 // Audio: AudioWorklet running audio.wasm on the audio thread (unchanged). JS
 // mirrors chip state into the demo module for the scene's oscilloscope.
 // --------------------------------------------------------------------------
@@ -268,8 +338,8 @@ function startAudio() {
         // Sealed audio: two modules (machine-audio + demo-audio) share one memory
         // inside the worklet, mirroring the video seal.
         const [machineBytes, demoBytes] = await Promise.all([
-            fetch("machine-audio.wasm").then(r => r.arrayBuffer()),
-            fetch("demo-audio.wasm").then(r => r.arrayBuffer()),
+            fetch("machine-audio.wasm" + BUST).then(r => r.arrayBuffer()),
+            fetch("demo-audio.wasm" + BUST).then(r => r.arrayBuffer()),
         ]);
         await audioCtx.audioWorklet.addModule("audio-worklet-sealed.js");
         audioNode = new AudioWorkletNode(audioCtx, "zig-audio-sealed", {
