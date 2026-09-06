@@ -94,10 +94,14 @@ fn skyHandler(fb: *LogicalFB, zigos: *ZigOS, line: u16, x: u16) void {
 
 const Parallax5 = zg.parallax.Parallax(5);
 const Runner = @import("runner.zig").Runner;
+const Dragonballs = @import("dragonball.zig").Dragonballs;
+const Scroller = @import("scroller.zig").Scroller;
 
 pub const Demo = struct {
     px: Parallax5 = undefined,
     runner: Runner = .{},
+    balls: Dragonballs = .{},
+    scroller: Scroller = .{},
     pos: f32 = 0, // world scroll in tiles
     frame: u32 = 0,
     grad_idx: u8 = 0, // gradTiles palette-animation step
@@ -117,6 +121,8 @@ pub const Demo = struct {
         p0.setPaletteEntry(BOTTOM, Color{ .r = 224, .g = 224, .b = 224, .a = 255 });
         p0.setFrameBufferHBLHandler(0, skyHandler); // per-scanline sky gradient
         self.runner.init(zigos); // sets up plane 1 (actors)
+        self.balls.init(zigos); // dragonballs share plane 1, own palette slots
+        self.scroller.init(zigos); // sets up plane 2 (scrolltext)
         self.px = .{ .layers = .{
             .{ .raw = layer_b1, .w = 384, .h = 16, .y = 195, .speed = 11 },
             .{ .raw = layer_b2, .w = 384, .h = 16, .y = 179, .speed = 7 },
@@ -141,6 +147,8 @@ pub const Demo = struct {
             self.grad_idx = @intCast(@as(i16, self.grad_idx) + self.grad_inc);
         }
         self.runner.update();
+        self.balls.update();
+        self.scroller.update();
     }
 
     pub fn render(self: *Demo, zigos: *ZigOS, dt: f32) void {
@@ -148,14 +156,19 @@ pub const Demo = struct {
         const p0: *LogicalFB = &zigos.lfbs[0];
         p0.clearFrameBuffer(0); // index 0 = sky, recoloured per scanline by the HBL
         self.px.draw(p0, 0, @intCast(PW));
-        // Ground bands (floorback pink, bottomback white) behind the tile world.
-        fill(p0, 163, 211, FLOOR);
+        // Ground: floorback is a 16px pink strip (behind world row 8); the
+        // scrolling layer_b1/b2 parallax fills 179..211 below it; bottomback
+        // white to the screen bottom. (Don't over-fill and hide the floor
+        // parallax.)
+        fill(p0, 163, 179, FLOOR);
         fill(p0, 211, @intCast(PH), BOTTOM);
         // Tile world: clouds (behind) -> animated rows -> world tiles (on top).
         clouds_layer.draw(p0, self.pos);
         anim_layer.draw(p0, self.pos);
         world_layer.draw(p0, self.pos);
         self.runner.draw(zigos); // plane 1 (actors), composited over the world
+        self.balls.draw(zigos); // dragonballs on plane 1, after the runner
+        self.scroller.draw(zigos); // plane 2 (scrolltext) on top
     }
 
     fn fill(fb: *LogicalFB, y0: i16, y1: i16, idx: u8) void {

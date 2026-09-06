@@ -20,7 +20,9 @@ const Y0: i16 = 119;
 const sprites = @embedFile("../../assets/screens/union_main/sprites.raw");
 const p1_pal = convertU8ArraytoColors(@embedFile("../../assets/screens/union_main/p1.pal"));
 
-const GHOST_DX = [4]i16{ -1, -2, -4, -5 };
+const CENTER_X: f32 = 216; // X0 + FW/2 (the runner is drawn centred here)
+const GHOST_CX = [4]f32{ -1, -2.5, -4, -5.5 }; // ghost centre offset (efmain.js -2/-5/-8/-11, halved)
+const GHOST_Z = [4]f32{ 1.2, 1.3, 1.4, 1.5 }; // horizontal x-zoom → the speed streak
 const GHOST_A = [4]u8{ 179, 128, 77, 26 }; // 0.7/0.5/0.3/0.1
 const GHOST_BASE: u8 = 16; // ghost g uses palette [GHOST_BASE + g*8 + idx]
 
@@ -54,15 +56,42 @@ pub const Runner = struct {
         const p1: *LogicalFB = &zigos.lfbs[1];
         p1.clearFrameBuffer(0);
         const f: usize = @intFromFloat(self.nb);
-        // Ghosts outermost (dimmest) first, then the opaque runner on top.
+        // Ghosts outermost (dimmest) first — each horizontally x-zoomed about its
+        // centre for the speed streak — then the opaque runner on top.
         var g: usize = 4;
         while (g > 0) {
             g -= 1;
-            blitFrame(p1, f, X0 + GHOST_DX[g], Y0, GHOST_BASE + @as(u8, @intCast(g)) * 8);
+            blitStretch(p1, f, CENTER_X + GHOST_CX[g], Y0, GHOST_Z[g], GHOST_BASE + @as(u8, @intCast(g)) * 8);
         }
         blitFrame(p1, f, X0, Y0, 0);
     }
 };
+
+// Blit sprite frame `f` centred at x=cx, stretched horizontally by `z` (the
+// ghost speed-streak); non-zero pixel idx -> palette (base + idx).
+fn blitStretch(fb: *LogicalFB, f: usize, cx: f32, y: i16, z: f32, base: u8) void {
+    const pw: i16 = @intCast(fb.fb_w);
+    const ph: i16 = @intCast(fb.fb_h);
+    const scaled: f32 = @as(f32, @floatFromInt(FW)) * z;
+    const x0: i16 = @intFromFloat(cx - scaled * 0.5);
+    const cols: i16 = @intFromFloat(@ceil(scaled));
+    const sx0: usize = f * @as(usize, @intCast(FW));
+    var dc: i16 = 0;
+    while (dc < cols) : (dc += 1) {
+        const src: usize = @intFromFloat(@as(f32, @floatFromInt(dc)) / z);
+        if (src >= @as(usize, @intCast(FW))) break;
+        const px = x0 + dc;
+        if (px < 0 or px >= pw) continue;
+        var ry: i16 = 0;
+        while (ry < FH) : (ry += 1) {
+            const py = y + ry;
+            if (py < 0 or py >= ph) continue;
+            const idx = sprites[@as(usize, @intCast(ry)) * SW + sx0 + src];
+            if (idx == 0) continue;
+            fb.fb[@as(usize, @intCast(py)) * fb.stride + @as(usize, @intCast(px))] = base + idx;
+        }
+    }
+}
 
 // Blit sprite frame `f` at (x,y); non-zero pixel idx -> palette (base + idx).
 fn blitFrame(fb: *LogicalFB, f: usize, x: i16, y: i16, base: u8) void {

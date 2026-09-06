@@ -24,6 +24,7 @@ pub const Starfield3D = @import("effects/starfield_3D.zig").Starfield3D;
 pub const Boot = @import("effects/boot.zig").Boot;
 pub const parallax = @import("effects/parallax.zig"); // Parallax(n) + Layer
 pub const tilemap = @import("effects/tilemap.zig"); // TileSheet + Layer
+pub const scrolltext2 = @import("effects/scrolltext2.zig"); // stride-agnostic scrolltext
 pub const convertU8ArraytoColors = @import("utils/loaders.zig").convertU8ArraytoColors;
 pub const Blitter = @import("blitter.zig").Blitter;
 pub const BlitVec2 = @import("blitter.zig").Vec2;
