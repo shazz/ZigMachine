@@ -31,7 +31,7 @@ code { background: #1a2030; padding: 1px 5px; border-radius: 4px; }
 <body>
 <header>
   <h1>ZigMachine — Programmer's Guide</h1>
-  <div class="sub">Generated 2026-09-05 by tools/gen_docs.py · 10 ABI exports · 35 library methods · 47 registers</div>
+  <div class="sub">Generated 2026-09-05 by tools/gen_docs.py · 12 ABI exports · 36 library methods · 47 registers</div>
 </header>
 <div class="wrap">
   <nav><a href="#top">Overview</a><a href="#examples">Examples</a><a href="#0">Video registers</a>
@@ -147,6 +147,8 @@ fb.setScroll(scroll_x, scroll_y);
 <div class="item"><code class="sig">hwClear() void</code><div class="doc">fill PFB with BACKGROUND, run GLOBAL_HBL per row</div></div>
 <div class="item"><code class="sig">hwRenderPlane(plane: u32) void</code><div class="doc">composite one enabled LFB -&gt; PFB</div></div>
 <div class="item"><code class="sig">hwBlit() void</code><div class="doc">execute the blitter COMMAND in the register block</div></div>
+<div class="item"><code class="sig">hwBorderX() u32</code><div class="doc">physical border width (host pointer mapping)</div></div>
+<div class="item"><code class="sig">hwBorderY() u32</code></div>
 <div class="item"><code class="sig">hwPhysicalPtr() i32</code><div class="doc">pointer to PFB for the host to blit</div></div>
 <div class="item"><code class="sig">hwPlanesNumber() u8</code></div>
 <div class="item"><code class="sig">hwPhysWidth() u32</code></div>
@@ -157,6 +159,7 @@ fb.setScroll(scroll_x, scroll_y);
 <div class="item"><code class="sig">setScrollPlane(self: *LogicalFB, buf_w: u16, buf_h: u16) void</code><div class="doc">Turn this plane into a SCROLL plane: back it with a bigger-than-screen buffer (buf_w x buf_h). Draw into it at buffer coordinates via the normal methods; the visible 320x200 window is panned with setScroll()/setScrollFine().</div></div>
 <div class="item"><code class="sig">setScroll(self: *LogicalFB, x: u32, y: u32) void</code><div class="doc">Pan the visible window to buffer pixel (x, y) — coarse hardware scroll (moves the plane&#x27;s read base; the backing buffer / draw origin stays put).</div></div>
 <div class="item"><code class="sig">setScrollFine(self: *LogicalFB, hs: u16) void</code><div class="doc">Per-line horizontal offset (added on top of setScroll). In SCROLL mode this is re-read every scanline, so setting it from an HBL handler distorts the image line-by-line (sine wobble / shear).</div></div>
+<div class="item"><code class="sig">setMediumPlane(self: *LogicalFB) void</code><div class="doc">Turn this plane into a MEDIUM-res plane (640x200, 1:1 into the raster). Coordinates are 0..640 / 0..200; the machine composites it crisply (no pixel doubling). Use 2 medium planes for a 4-colour GEM-style screen.</div></div>
 <div class="item"><code class="sig">getRenderTarget(self: *LogicalFB) RenderTarget</code></div>
 <div class="item"><code class="sig">setPalette(self: *LogicalFB, entries: [256]Color) void</code><div class="doc">--- Palette management ---</div></div>
 <div class="item"><code class="sig">setPaletteEntry(self: *LogicalFB, entry: u8, value: Color) void</code></div>
