@@ -4,9 +4,10 @@
 // parts in order, advancing to the next when a part reports it is finished.
 // Each part lives in apps/scenes/union/ and shares plane 0.
 //
-//   trsi  — TRSI logo: tile fly-in -> turning animation -> fade
-//   wab   — WAB logo: rotating tile fly-in -> fade   (art -> ZigMachine later)
-//   (next: efmain_intro placement, then the main running-character screen)
+//   trsi       — TRSI logo: tile fly-in -> turning animation -> fade
+//   wab        — WAB logo: rotating tile fly-in -> fade   (art -> ZigMachine later)
+//   placement  — efmain_intro: 17 back_layer strips slide/fade in -> main screen
+//   (next: the main running-character screen)
 // --------------------------------------------------------------------------
 const std = @import("std");
 const zg = @import("zigos");
@@ -15,9 +16,10 @@ const ZigOS = zg.ZigOS;
 const Active = union(enum) {
     trsi: @import("union/trsi.zig").Part,
     wab: @import("union/wab.zig").Part,
+    placement: @import("union/placement.zig").Placement,
 };
 const Tag = std.meta.Tag(Active);
-const SEQ = [_]Tag{ .trsi, .wab };
+const SEQ = [_]Tag{ .trsi, .wab, .placement };
 
 pub const Demo = struct {
     idx: usize = 0,
