@@ -66,6 +66,8 @@ async function boot() {
             consoleLogJS: consoleLogJS,
             hwVideoBase: machine.hwVideoBase,
             hwBlit: machine.hwBlit, // sealed 2D blitter (execute COMMAND register)
+            audioPlay: () => playRaw("music/smp1.raw", 12517, false), // ST Replay PLAY -> real sound
+            audioStop: stopRaw,
         },
     };
     // Which open scene to load: ?demo=demo-scroll.wasm etc. (default demo.wasm),
@@ -77,7 +79,23 @@ async function boot() {
 
     machine.hwInit();
     demo.boot();
+
+    // If the scene displays a sample (ST Replay), copy a real sample into it so
+    // the waveform on screen is the one PLAY will play.
+    if (demo.getSampleBufLen && demo.getSampleBufPtr) {
+        const n = demo.getSampleBufLen();
+        if (n > 0) loadSampleForDisplay("music/smp1.raw", n);
+    }
     start();
+}
+
+// Fetch a raw 8-bit sample and down-sample it into the scene's display buffer.
+async function loadSampleForDisplay(url, n) {
+    try {
+        const raw = new Uint8Array(await (await fetch(url)).arrayBuffer());
+        const dst = new Uint8Array(memory.buffer, demo.getSampleBufPtr(), n);
+        for (let i = 0; i < n; i++) dst[i] = raw[Math.floor(i * raw.length / n)] ?? 128;
+    } catch (e) { console.warn("sample display load failed:", e); }
 }
 
 // --------------------------------------------------------------------------
@@ -256,6 +274,13 @@ async function playYm(url) {
     audioNode.port.postMessage({ type: "loadYm", bytes: bytes }, [bytes]);
     const b = document.querySelector('.sound_button'); if (b) b.textContent = "Sound off";
 }
+// Stop a raw sample by (re)loading a tiny silent buffer onto the channel — the
+// sealed chip has no raw-stop, so this overwrites it with silence.
+function stopRaw() {
+    if (audioNode) audioNode.port.postMessage(
+        { type: "loadRaw", bytes: new Uint8Array([128, 128, 128, 128]).buffer, rate: 12517, unsigned: true });
+}
+
 async function playRaw(url, rate, unsigned) {
     await startAudio();
     const bytes = await fetch(url).then(r => r.arrayBuffer());

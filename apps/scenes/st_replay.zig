@@ -18,9 +18,14 @@ const Blitter = zg.Blitter;
 const gui = zg.gui;
 const Rect = gui.Rect;
 
-const WAVE_LEN: usize = 1024;
+const WAVE_LEN: usize = 1280; // display resolution of the sample (host downsamples smp1.raw into it)
+const PLAY_FRAMES: f32 = 60.0; // smp1 is ~1s (12517 @ 12517Hz), i.e. ~60 frames at 60fps
 const SW: i16 = 640; // medium-res screen width
 const SH: i16 = 200;
+
+// Host audio bridge (wired in sealed-loader.js): play/stop the sample worklet.
+extern fn audioPlay() void;
+extern fn audioStop() void;
 
 pub const Demo = struct {
     blit: Blitter = .{},
@@ -28,11 +33,19 @@ pub const Demo = struct {
     wm: gui.Wm = .{},
     w_sample: u8 = 0,
     w_transport: u8 = 0,
-    sample: [WAVE_LEN]f32 = undefined,
+    sample: [WAVE_LEN]u8 = [_]u8{128} ** WAVE_LEN, // signed 8-bit (128=zero); host fills from smp1.raw
     playing: bool = false,
     looping: bool = false,
     recording: bool = false,
     playhead: f32 = 0,
+
+    // Exposed to the host so it can copy the real sample in for display.
+    pub fn sampleBuf(self: *Demo) [*]u8 {
+        return &self.sample;
+    }
+    pub fn sampleLen() usize {
+        return WAVE_LEN;
+    }
 
     pub fn init(self: *Demo, os: *ZigOS) void {
         const fb = &os.lfbs[0];
@@ -45,16 +58,7 @@ pub const Demo = struct {
 
         self.w_sample = self.wm.add(.{ .r = .{ .x = 16, .y = 26, .w = 440, .h = 120 }, .title = "SAMPLE.SPL" });
         self.w_transport = self.wm.add(.{ .r = .{ .x = 380, .y = 150, .w = 236, .h = 44 }, .title = "Transport" });
-        self.genSample();
-    }
-
-    // A synthetic sample: a couple of decaying sine bursts (something to draw).
-    fn genSample(self: *Demo) void {
-        for (&self.sample, 0..) |*s, i| {
-            const t: f32 = @floatFromInt(i);
-            const env = @exp(-t / 380.0) + 0.5 * @exp(-@abs(t - 520.0) / 90.0);
-            s.* = env * (@sin(t * 0.10) + 0.4 * @sin(t * 0.31));
-        }
+        // the sample buffer starts silent; the host fills it from smp1.raw (see sampleBuf()).
     }
 
     pub fn pointer(self: *Demo, x: i32, y: i32, buttons: u32) void {
@@ -67,10 +71,10 @@ pub const Demo = struct {
         self.g.beginFrame();
         self.wm.handle(&self.g);
         if (self.playing) {
-            self.playhead += 6.0;
+            self.playhead += @as(f32, WAVE_LEN) / PLAY_FRAMES; // scrub in sync with the ~1s sample
             if (self.playhead >= WAVE_LEN) {
                 self.playhead = 0;
-                if (!self.looping) self.playing = false;
+                if (self.looping) audioPlay() else self.playing = false; // loop = re-trigger
             }
         }
     }
@@ -108,7 +112,8 @@ pub const Demo = struct {
         var x: i16 = 0;
         while (x < c.w) : (x += 1) {
             const si: usize = @intCast(@divTrunc(@as(i32, x) * @as(i32, WAVE_LEN), c.w));
-            const amp: i16 = @intFromFloat(self.sample[si] * @as(f32, @floatFromInt(@divTrunc(c.h, 2) - 2)));
+            const s8: i32 = @as(i8, @bitCast(self.sample[si])); // signed 8-bit sample (-128..127)
+            const amp: i16 = @intCast(@divTrunc(s8 * @as(i32, @divTrunc(c.h, 2) - 2), 128));
             const y0 = @min(mid, mid - amp);
             const h = @abs(amp) + 1;
             g.blit.fill(g.fb, c.x + x, y0, 1, @intCast(h), gui.WAVE);
@@ -126,9 +131,11 @@ pub const Demo = struct {
         if (g.button(.{ .x = c.x + 4, .y = y, .w = bw, .h = 20 }, "PLAY", self.playing)) {
             self.playing = true;
             self.playhead = 0;
+            audioPlay(); // real sound via the sample worklet
         }
         if (g.button(.{ .x = c.x + 4 + bw + 2, .y = y, .w = bw, .h = 20 }, "STOP", false)) {
             self.playing = false;
+            audioStop();
         }
         if (g.button(.{ .x = c.x + 4 + (bw + 2) * 2, .y = y, .w = bw, .h = 20 }, "REC", self.recording)) {
             self.recording = !self.recording;

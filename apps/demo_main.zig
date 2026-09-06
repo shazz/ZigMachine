@@ -62,6 +62,18 @@ export fn pointer(x: i32, y: i32, buttons: u32) void {
     if (@hasDecl(Demo, "pointer")) demo.pointer(x, y, buttons);
 }
 
+// Sample-buffer bridge: a scene (e.g. ST Replay) that declares sampleBuf() lets
+// the host copy a real sample into it for display. Scenes without it report len 0.
+var g_no_sample: [1]u8 = .{0};
+export fn getSampleBufPtr() [*]u8 {
+    if (@hasDecl(Demo, "sampleBuf")) return demo.sampleBuf();
+    return &g_no_sample;
+}
+export fn getSampleBufLen() u32 {
+    if (@hasDecl(Demo, "sampleBuf")) return @intCast(Demo.sampleLen());
+    return 0;
+}
+
 export fn input(dir: Direction) void {
     switch (dir) {
         .Up => Console.log("up", .{}),
