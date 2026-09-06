@@ -18,6 +18,7 @@ const LogicalFB = zg.LogicalFB;
 const Child = union(enum) {
     none,
     union_intro: @import("union_intro.zig").Demo,
+    union_main: @import("union/main.zig").Demo,
     music: @import("music_debug.zig").Demo,
     blitter: @import("blitter_demo.zig").Demo,
     scroll: @import("scroll_demo.zig").Demo,
@@ -29,6 +30,7 @@ const Tag = std.meta.Tag(Child);
 const Entry = struct { name: []const u8, tag: Tag };
 const ENTRIES = [_]Entry{
     .{ .name = "UNION INTRO", .tag = .union_intro },
+    .{ .name = "UNION MAIN", .tag = .union_main },
     .{ .name = "MUSIC DEBUG", .tag = .music },
     .{ .name = "BLITTER DEMO", .tag = .blitter },
     .{ .name = "SCROLL DEMO", .tag = .scroll },
