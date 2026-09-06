@@ -14,6 +14,7 @@ const ZigOS = zsrc.ZigOS;
 const LogicalFB = zsrc.LogicalFB;
 const Blitter = zsrc.Blitter;
 const Color = zsrc.Color;
+const glyphs = @import("gem_glyphs.zig"); // GEM window-control bitmaps (close/full/arrows/size)
 
 // GEM-ish palette (installed on the plane by installPalette).
 pub const BLACK: u8 = 0;
@@ -91,6 +92,31 @@ pub const Gui = struct {
     }
     pub fn text(self: *Gui, s: []const u8, x: i16, y: i16, ink: u8, paper: u8) void {
         self.os.printText(self.fb, s, @intCast(x), @intCast(y), ink, paper);
+    }
+
+    // Draw an 11x11 GEM glyph centred in box r; only ink pixels are written so
+    // the box face shows through (0 = transparent).
+    pub fn glyph(self: *Gui, r: Rect, gl: [glyphs.GH]u16, ink: u8) void {
+        const ox = r.x + @divTrunc(r.w - @as(i16, glyphs.GW), 2);
+        const oy = r.y + @divTrunc(r.h - @as(i16, glyphs.GH), 2);
+        for (gl, 0..) |bits, row| {
+            var col: u4 = 0;
+            while (col < glyphs.GW) : (col += 1) {
+                if ((bits >> @intCast(10 - col)) & 1 != 0)
+                    self.fb.setPixelValue(@intCast(ox + col), @intCast(oy + @as(i16, @intCast(row))), ink);
+            }
+        }
+    }
+
+    // 50% checkerboard fill — the GEM title-bar "drag" hatch.
+    pub fn hatch(self: *Gui, r: Rect, ink: u8, paper: u8) void {
+        self.rect(r, paper);
+        var yy: i16 = 0;
+        while (yy < r.h) : (yy += 1) {
+            var xx: i16 = @mod(yy, 2);
+            while (xx < r.w) : (xx += 2)
+                self.fb.setPixelValue(@intCast(r.x + xx), @intCast(r.y + yy), ink);
+        }
     }
 
     pub fn hit(self: *Gui, r: Rect) bool {
@@ -225,31 +251,65 @@ pub const Wm = struct {
         }
     }
 
-    // Draw a window's frame + title bar (close left, full right) + scrollbar
-    // gutters + size box; returns the interior content rect (inside the bars).
+    // Draw a window's drop shadow + frame + title bar (close left, full right) +
+    // scrollbars + size box; returns the interior content rect (inside the bars).
     pub fn drawChrome(self: *Wm, g: *Gui, id: u8, active: bool) Rect {
         const w = self.wins[id];
+        // GEM drop shadow (2px, right + bottom), drawn first so the window overlays it.
+        g.rect(.{ .x = w.r.x + w.r.w, .y = w.r.y + 2, .w = 2, .h = w.r.h }, DGRAY);
+        g.rect(.{ .x = w.r.x + 2, .y = w.r.y + w.r.h, .w = w.r.w, .h = 2 }, DGRAY);
         g.rect(w.r, WHITE);
         g.frame(w.r, BLACK);
-        const bar = Rect{ .x = w.r.x, .y = w.r.y, .w = w.r.w, .h = TITLE_H };
-        g.rect(.{ .x = bar.x + 1, .y = bar.y + 1, .w = bar.w - 2, .h = bar.h - 1 }, if (active) LGRAY else WHITE);
-        g.blit.fill(g.fb, bar.x, bar.y + bar.h - 1, @intCast(bar.w), 1, BLACK); // title underline
-        // close box (left)
-        const cb = closeBox(&w);
-        g.bevel(cb, WHITE, true);
-        g.blit.fill(g.fb, cb.x + 3, cb.y + 3, SCROLL - 6, 3, BLACK);
-        // full box (right)
-        const fbx = fullBox(&w);
-        g.bevel(fbx, WHITE, true);
-        g.frame(.{ .x = fbx.x + 2, .y = fbx.y + 2, .w = SCROLL - 4, .h = TITLE_H - 6 }, BLACK);
-        g.text(w.title, bar.x + 16, bar.y + 3, BLACK, if (active) LGRAY else WHITE);
-        // scrollbar gutters (right + bottom) + size box
-        g.rect(.{ .x = w.r.x + w.r.w - SCROLL, .y = w.r.y + TITLE_H, .w = SCROLL, .h = w.r.h - TITLE_H - SCROLL }, LGRAY);
-        g.rect(.{ .x = w.r.x + 1, .y = w.r.y + w.r.h - SCROLL, .w = w.r.w - 2 - SCROLL, .h = SCROLL }, LGRAY);
-        const sb = sizeBox(&w);
-        g.bevel(sb, WHITE, true);
-        g.blit.fill(g.fb, sb.x + 3, sb.y + 3, SCROLL - 5, SCROLL - 5, BLACK);
+        titleBar(g, &w, active);
+        scrollbars(g, &w);
         return .{ .x = w.r.x + 1, .y = w.r.y + TITLE_H, .w = w.r.w - 2 - SCROLL, .h = w.r.h - TITLE_H - SCROLL };
+    }
+
+    // Title bar: 50% hatch (drag handle) + close bowtie left, full diamond right,
+    // title over a clear patch in the middle.
+    fn titleBar(g: *Gui, w: *const Window, active: bool) void {
+        const bar = Rect{ .x = w.r.x + 1, .y = w.r.y + 1, .w = w.r.w - 2, .h = TITLE_H - 1 };
+        if (active) g.hatch(bar, BLACK, WHITE) else g.rect(bar, WHITE);
+        g.blit.fill(g.fb, w.r.x, w.r.y + TITLE_H - 1, @intCast(w.r.w), 1, BLACK); // underline
+        const cb = closeBox(w);
+        g.bevel(cb, WHITE, true);
+        g.glyph(cb, glyphs.CLOSE, BLACK);
+        const fbx = fullBox(w);
+        g.bevel(fbx, WHITE, true);
+        g.glyph(fbx, glyphs.FULL, BLACK);
+        const tw: i16 = @as(i16, @intCast(w.title.len)) * 8;
+        const tx = w.r.x + @divTrunc(w.r.w - tw, 2);
+        g.rect(.{ .x = tx - 4, .y = w.r.y + 1, .w = tw + 8, .h = TITLE_H - 2 }, WHITE); // clear patch
+        g.text(w.title, tx, w.r.y + 3, BLACK, WHITE);
+    }
+
+    // Right + bottom scrollbars: arrow boxes at the ends, a light track, a raised
+    // slider, and the diagonal size box in the corner.
+    fn scrollbars(g: *Gui, w: *const Window) void {
+        const rx = w.r.x + w.r.w - SCROLL;
+        const by = w.r.y + w.r.h - SCROLL;
+        // right: up box, track, down box
+        const up = Rect{ .x = rx, .y = w.r.y + TITLE_H, .w = SCROLL, .h = SCROLL };
+        const dn = Rect{ .x = rx, .y = by - SCROLL, .w = SCROLL, .h = SCROLL };
+        g.rect(.{ .x = rx, .y = up.y + SCROLL, .w = SCROLL, .h = dn.y - up.y - SCROLL }, LGRAY);
+        g.bevel(up, WHITE, true);
+        g.glyph(up, glyphs.UP, BLACK);
+        g.bevel(dn, WHITE, true);
+        g.glyph(dn, glyphs.DOWN, BLACK);
+        g.bevel(.{ .x = rx, .y = up.y + SCROLL + 1, .w = SCROLL, .h = SCROLL }, WHITE, true); // slider
+        // bottom: left box, track, right box
+        const lf = Rect{ .x = w.r.x + 1, .y = by, .w = SCROLL, .h = SCROLL };
+        const rt = Rect{ .x = rx - SCROLL, .y = by, .w = SCROLL, .h = SCROLL };
+        g.rect(.{ .x = lf.x + SCROLL, .y = by, .w = rt.x - lf.x - SCROLL, .h = SCROLL }, LGRAY);
+        g.bevel(lf, WHITE, true);
+        g.glyph(lf, glyphs.LEFT, BLACK);
+        g.bevel(rt, WHITE, true);
+        g.glyph(rt, glyphs.RIGHT, BLACK);
+        g.bevel(.{ .x = lf.x + SCROLL + 1, .y = by, .w = SCROLL, .h = SCROLL }, WHITE, true); // slider
+        // size / grow box in the corner
+        const sb = sizeBox(w);
+        g.bevel(sb, WHITE, true);
+        g.glyph(sb, glyphs.SIZE, BLACK);
     }
 
     pub fn topId(self: *Wm) u8 {
