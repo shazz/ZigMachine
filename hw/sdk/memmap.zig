@@ -41,6 +41,8 @@ pub const MEDIUM_WIDTH: u16 = 640; // logical medium visible width
 pub const MEDIUM_HEIGHT: u16 = 200;
 pub const MEDIUM_PLANES: u8 = 2;
 pub const MEDIUM_FB_BYTES: usize = @as(usize, MEDIUM_WIDTH) * @as(usize, MEDIUM_HEIGHT); // 128000
+// A medium OVERSCAN plane covers the whole raster (borders included): 800x280 logical.
+pub const MEDIUM_FULL_FB_BYTES: usize = @as(usize, RASTER_WIDTH) * @as(usize, RASTER_HEIGHT); // 224000
 
 // --- the physical RASTER (actual PFB the host blits) ---
 // Low-res doubles horizontally (not vertically — low & medium are both 200 lines).

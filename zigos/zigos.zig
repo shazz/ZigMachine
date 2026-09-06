@@ -230,6 +230,20 @@ pub const LogicalFB = struct {
         self.clearFrameBuffer(0);
     }
 
+    // Medium OVERSCAN plane: an 800x280 buffer covering the WHOLE raster, borders
+    // included (coordinates are physical; the visible window is at 80,40). Lets a
+    // medium screen draw into the borders — the medium twin of setFullscreen().
+    pub fn setMediumFullscreen(self: *LogicalFB) void {
+        self.stride = RASTER_WIDTH;
+        self.fb_w = RASTER_WIDTH;
+        self.fb_h = RASTER_HEIGHT;
+        writeU16(hw.REG_FB_STRIDE + @as(usize, self.id) * 2, RASTER_WIDTH);
+        writeU8(hw.REG_FB_MODE + @as(usize, self.id), hw.FB_MODE_MEDIUM);
+        writeU8(hw.REG_RESOLUTION, hw.RES_MEDIUM);
+        self.bind(vramAlloc(hw.MEDIUM_FULL_FB_BYTES));
+        self.clearFrameBuffer(0);
+    }
+
     pub fn getRenderTarget(self: *LogicalFB) RenderTarget {
         return RenderTarget{ .fb = self };
     }

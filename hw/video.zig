@@ -121,22 +121,25 @@ pub fn reset() void {
 // scanline (so a per-line handler paints the border/background rasters).
 pub fn clear() void {
     const gid = r16(memmap.REG_GLOBAL_HBL_ID);
-    const out = pfb();
+    const out64: [*]u64 = @ptrCast(@alignCast(pfb()));
     var y: usize = 0;
     while (y < RH) : (y += 1) {
         if (gid != 0) hblDispatch(gid, 0, @intCast(y), 0);
         const bg = r32(memmap.REG_BACKGROUND); // re-read after the HBL (per-line colour)
-        var x: usize = 0;
-        const row = y * RW;
-        while (x < RW) : (x += 1) out[row + x] = bg;
+        const pair = @as(u64, bg) | (@as(u64, bg) << 32);
+        const row64 = (y * RW) >> 1;
+        var i: usize = 0;
+        while (i < RW / 2) : (i += 1) out64[row64 + i] = pair; // fill 2 pixels/write
     }
     w32(memmap.REG_FRAME, r32(memmap.REG_FRAME) +% 1);
 }
 
-// Write one logical pixel, DOUBLED, at physical (px..px+1, py).
+// Write one logical pixel DOUBLED at physical (px..px+1, py) as a single 64-bit
+// store (px is always even in the doubled paths, and the raster is 8-aligned), so
+// low-res compositing costs one write per logical pixel, not two.
 inline fn put2(out: [*]u32, py: usize, px: usize, c: u32) void {
-    out[py * RW + px] = c;
-    out[py * RW + px + 1] = c;
+    const out64: [*]u64 = @ptrCast(@alignCast(out));
+    out64[(py * RW + px) >> 1] = @as(u64, c) | (@as(u64, c) << 32);
 }
 
 // Composite one logical framebuffer into the physical framebuffer, honouring
@@ -192,6 +195,8 @@ fn renderPlaneNormal(fb_id: usize) void {
 // handler can switch resolution mid-screen (the ST shifter trick): a MEDIUM line
 // draws 640 pixels 1:1; a low (RES_PLANES) line draws the first 320 columns
 // pixel-doubled — both land on the same raster.
+// A MEDIUM plane whose stride is the full raster width (800) is an OVERSCAN plane:
+// it covers the whole frame including the borders (the medium twin of Option B).
 fn renderPlaneMedium(fb_id: usize) void {
     const buf = lfb(fb_id);
     const stride: usize = fbStride(fb_id);
@@ -199,18 +204,24 @@ fn renderPlaneMedium(fb_id: usize) void {
     const out = pfb();
     const hid = fbHblId(fb_id);
     const hpos = fbHblPos(fb_id);
+    const overscan = stride >= RW;
+    const rows: usize = if (overscan) RH else memmap.MEDIUM_HEIGHT;
+    const oy: usize = if (overscan) 0 else BY;
+    const ox: usize = if (overscan) 0 else BX;
+    const medcols: usize = if (overscan) RW else memmap.MEDIUM_WIDTH; // 800 or 640
+    const lowcols: usize = if (overscan) memmap.PHYSICAL_WIDTH else memmap.WIDTH; // 400 or 320
     var ly: usize = 0;
-    while (ly < memmap.MEDIUM_HEIGHT) : (ly += 1) {
-        const py = BY + ly;
+    while (ly < rows) : (ly += 1) {
+        const py = oy + ly;
         if (hid != 0) hblDispatch(hid, @intCast(fb_id), @intCast(ly), @intCast(hpos));
         const srow = ly * stride;
         if (r8(memmap.REG_RESOLUTION) == memmap.RES_MEDIUM) {
-            const orow = py * RW + BX;
+            const orow = py * RW + ox;
             var lx: usize = 0;
-            while (lx < memmap.MEDIUM_WIDTH) : (lx += 1) out[orow + lx] = palette[buf[srow + lx]];
+            while (lx < medcols) : (lx += 1) out[orow + lx] = palette[buf[srow + lx]];
         } else {
             var lx: usize = 0;
-            while (lx < memmap.WIDTH) : (lx += 1) put2(out, py, BX + lx * 2, palette[buf[srow + lx]]);
+            while (lx < lowcols) : (lx += 1) put2(out, py, ox + lx * 2, palette[buf[srow + lx]]);
         }
     }
 }

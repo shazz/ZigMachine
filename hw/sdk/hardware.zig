@@ -49,6 +49,7 @@ pub const MEDIUM_WIDTH = memmap.MEDIUM_WIDTH;
 pub const MEDIUM_HEIGHT = memmap.MEDIUM_HEIGHT;
 pub const MEDIUM_PLANES = memmap.MEDIUM_PLANES;
 pub const MEDIUM_FB_BYTES = memmap.MEDIUM_FB_BYTES;
+pub const MEDIUM_FULL_FB_BYTES = memmap.MEDIUM_FULL_FB_BYTES;
 pub const RASTER_WIDTH = memmap.RASTER_WIDTH;
 pub const RASTER_HEIGHT = memmap.RASTER_HEIGHT;
 pub const RASTER_VIS_WIDTH = memmap.RASTER_VIS_WIDTH;
