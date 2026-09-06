@@ -21,8 +21,11 @@ const sprites = @embedFile("../../assets/screens/union_main/sprites.raw");
 const p1_pal = convertU8ArraytoColors(@embedFile("../../assets/screens/union_main/p1.pal"));
 
 const CENTER_X: f32 = 216; // X0 + FW/2 (the runner is drawn centred here)
-const GHOST_CX = [4]f32{ -1, -2.5, -4, -5.5 }; // ghost centre offset (efmain.js -2/-5/-8/-11, halved)
-const GHOST_Z = [4]f32{ 1.2, 1.3, 1.4, 1.5 }; // horizontal x-zoom → the speed streak
+// Trailing ghost copies: progressively further left and MORE x-zoomed than the
+// literal efmain.js values (which, under an opaque main, barely showed) so the
+// speed streak reads clearly. Centre offset + horizontal zoom + alpha per copy.
+const GHOST_CX = [4]f32{ -4, -10, -17, -25 };
+const GHOST_Z = [4]f32{ 1.5, 2.0, 2.5, 3.0 };
 const GHOST_A = [4]u8{ 179, 128, 77, 26 }; // 0.7/0.5/0.3/0.1
 const GHOST_BASE: u8 = 16; // ghost g uses palette [GHOST_BASE + g*8 + idx]
 
