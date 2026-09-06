@@ -116,13 +116,20 @@ pub const Window = struct {
     r: Rect,
     title: []const u8,
     open: bool = true,
+    full: bool = false, // toggled by the full box
+    saved: Rect = .{ .x = 0, .y = 0, .w = 0, .h = 0 }, // rect to restore from full
 };
+
+pub const SCROLL: i16 = 11; // scrollbar gutter / control size
+const MIN_W: i16 = 64;
+const MIN_H: i16 = 44;
 
 pub const Wm = struct {
     wins: [MAX_WIN]Window = undefined,
     order: [MAX_WIN]u8 = undefined, // back-to-front draw order (indices into wins)
     n: u8 = 0,
     drag: ?u8 = null,
+    resize: ?u8 = null,
     grab_dx: i16 = 0,
     grab_dy: i16 = 0,
 
@@ -134,39 +141,65 @@ pub const Wm = struct {
         return id;
     }
 
-    fn toFront(self: *Wm, id: u8) void {
+    pub fn toFront(self: *Wm, id: u8) void {
         var i: usize = 0;
         while (i < self.n and self.order[i] != id) : (i += 1) {}
         while (i + 1 < self.n) : (i += 1) self.order[i] = self.order[i + 1];
         self.order[self.n - 1] = id;
     }
 
-    // Process pointer: start/continue/stop dragging, handle close boxes. Call
-    // once per frame before drawing.
+    // GEM window control boxes: close (title left), full (title right), size
+    // (bottom-right corner, over the scrollbars).
+    fn closeBox(w: *const Window) Rect {
+        return .{ .x = w.r.x + 1, .y = w.r.y + 1, .w = SCROLL, .h = TITLE_H - 2 };
+    }
+    fn fullBox(w: *const Window) Rect {
+        return .{ .x = w.r.x + w.r.w - SCROLL - 1, .y = w.r.y + 1, .w = SCROLL, .h = TITLE_H - 2 };
+    }
+    fn sizeBox(w: *const Window) Rect {
+        return .{ .x = w.r.x + w.r.w - SCROLL, .y = w.r.y + w.r.h - SCROLL, .w = SCROLL, .h = SCROLL };
+    }
+
+    // Process pointer: dragging, resizing, and the close / full / size controls.
     pub fn handle(self: *Wm, g: *Gui) void {
         if (self.drag) |id| {
-            if (!g.down) {
-                self.drag = null;
-            } else {
+            if (!g.down) self.drag = null else {
                 self.wins[id].r.x = @intCast(@as(i32, g.px) - self.grab_dx);
                 self.wins[id].r.y = @intCast(@as(i32, g.py) - self.grab_dy);
             }
             return;
         }
+        if (self.resize) |id| {
+            if (!g.down) self.resize = null else {
+                const w = &self.wins[id];
+                w.r.w = @max(MIN_W, @as(i16, @intCast(@as(i32, g.px) + self.grab_dx - w.r.x)));
+                w.r.h = @max(MIN_H, @as(i16, @intCast(@as(i32, g.py) + self.grab_dy - w.r.y)));
+            }
+            return;
+        }
         if (!g.edge) return;
-        // Top-most window under the pointer wins the press.
         var k: i32 = @as(i32, self.n) - 1;
         while (k >= 0) : (k -= 1) {
             const id = self.order[@intCast(k)];
             const w = &self.wins[id];
             if (!w.open) continue;
-            const titleBar = Rect{ .x = w.r.x, .y = w.r.y, .w = w.r.w, .h = TITLE_H };
-            const closeBox = Rect{ .x = w.r.x + 1, .y = w.r.y + 1, .w = 10, .h = TITLE_H - 2 };
-            if (inRect(closeBox, g.px, g.py)) {
+            if (inRect(closeBox(w), g.px, g.py)) {
                 w.open = false;
                 return;
             }
-            if (inRect(titleBar, g.px, g.py)) {
+            if (inRect(fullBox(w), g.px, g.py)) {
+                self.toFront(id);
+                self.toggleFull(id, g);
+                return;
+            }
+            if (inRect(sizeBox(w), g.px, g.py)) {
+                self.toFront(id);
+                self.resize = id;
+                self.grab_dx = (w.r.x + w.r.w) - @as(i16, @intCast(g.px));
+                self.grab_dy = (w.r.y + w.r.h) - @as(i16, @intCast(g.py));
+                return;
+            }
+            if (inRect(.{ .x = w.r.x, .y = w.r.y, .w = w.r.w, .h = TITLE_H }, g.px, g.py)) {
                 self.toFront(id);
                 self.drag = id;
                 self.grab_dx = @intCast(@as(i32, g.px) - w.r.x);
@@ -180,8 +213,20 @@ pub const Wm = struct {
         }
     }
 
-    // Draw a window's frame + title bar; returns the interior content rect. Draw
-    // your content into it after calling this. `active` = topmost/focused window.
+    fn toggleFull(self: *Wm, id: u8, g: *Gui) void {
+        const w = &self.wins[id];
+        if (w.full) {
+            w.r = w.saved;
+            w.full = false;
+        } else {
+            w.saved = w.r;
+            w.r = .{ .x = 1, .y = TITLE_H + 1, .w = g.screen_w - 2, .h = 200 - TITLE_H - 2 };
+            w.full = true;
+        }
+    }
+
+    // Draw a window's frame + title bar (close left, full right) + scrollbar
+    // gutters + size box; returns the interior content rect (inside the bars).
     pub fn drawChrome(self: *Wm, g: *Gui, id: u8, active: bool) Rect {
         const w = self.wins[id];
         g.rect(w.r, WHITE);
@@ -189,11 +234,22 @@ pub const Wm = struct {
         const bar = Rect{ .x = w.r.x, .y = w.r.y, .w = w.r.w, .h = TITLE_H };
         g.rect(.{ .x = bar.x + 1, .y = bar.y + 1, .w = bar.w - 2, .h = bar.h - 1 }, if (active) LGRAY else WHITE);
         g.blit.fill(g.fb, bar.x, bar.y + bar.h - 1, @intCast(bar.w), 1, BLACK); // title underline
-        // close box
-        g.bevel(.{ .x = bar.x + 1, .y = bar.y + 1, .w = 10, .h = TITLE_H - 2 }, WHITE, true);
-        g.blit.fill(g.fb, bar.x + 4, bar.y + 5, 4, 2, BLACK);
+        // close box (left)
+        const cb = closeBox(&w);
+        g.bevel(cb, WHITE, true);
+        g.blit.fill(g.fb, cb.x + 3, cb.y + 3, SCROLL - 6, 3, BLACK);
+        // full box (right)
+        const fbx = fullBox(&w);
+        g.bevel(fbx, WHITE, true);
+        g.frame(.{ .x = fbx.x + 2, .y = fbx.y + 2, .w = SCROLL - 4, .h = TITLE_H - 6 }, BLACK);
         g.text(w.title, bar.x + 16, bar.y + 3, BLACK, if (active) LGRAY else WHITE);
-        return .{ .x = w.r.x + 1, .y = w.r.y + TITLE_H, .w = w.r.w - 2, .h = w.r.h - TITLE_H - 1 };
+        // scrollbar gutters (right + bottom) + size box
+        g.rect(.{ .x = w.r.x + w.r.w - SCROLL, .y = w.r.y + TITLE_H, .w = SCROLL, .h = w.r.h - TITLE_H - SCROLL }, LGRAY);
+        g.rect(.{ .x = w.r.x + 1, .y = w.r.y + w.r.h - SCROLL, .w = w.r.w - 2 - SCROLL, .h = SCROLL }, LGRAY);
+        const sb = sizeBox(&w);
+        g.bevel(sb, WHITE, true);
+        g.blit.fill(g.fb, sb.x + 3, sb.y + 3, SCROLL - 5, SCROLL - 5, BLACK);
+        return .{ .x = w.r.x + 1, .y = w.r.y + TITLE_H, .w = w.r.w - 2 - SCROLL, .h = w.r.h - TITLE_H - SCROLL };
     }
 
     pub fn topId(self: *Wm) u8 {

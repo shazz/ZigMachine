@@ -29,9 +29,14 @@ const GRID: i16 = 16; // icons snap to this grid on drop (GEM-style)
 
 const DeskIcon = struct { x: i16, y: i16, ic: icons.Icon, label: []const u8, is_app: bool };
 
+const IC_APP = 0;
+const IC_FLOPPY = 1;
+
 pub const Desktop = struct {
     g: gui.Gui = undefined,
     menubar: gui.MenuBar = .{},
+    wm: gui.Wm = .{},
+    floppy_win: u8 = 0,
     items: [3]DeskIcon = .{
         .{ .x = 44, .y = 30, .ic = icons.CARTRIDGE, .label = "ST REPLAY", .is_app = true },
         .{ .x = 580, .y = 22, .ic = icons.FLOPPY, .label = "Floppy", .is_app = false },
@@ -40,11 +45,16 @@ pub const Desktop = struct {
     drag: ?u8 = null,
     grab_dx: i16 = 0,
     grab_dy: i16 = 0,
+    grab_px: i16 = 0, // press point, to tell a click from a drag
+    grab_py: i16 = 0,
     moved: bool = false,
 
     pub fn init(self: *Desktop, os: *ZigOS, fb: *LogicalFB, blit: *Blitter) void {
         self.g = .{ .os = os, .fb = fb, .blit = blit, .screen_w = 640, .screen_h = 200 };
         self.menubar = .{};
+        self.wm = .{};
+        self.floppy_win = self.wm.add(.{ .r = .{ .x = 40, .y = 40, .w = 180, .h = 110 }, .title = "FLOPPY DISK" });
+        self.wm.wins[self.floppy_win].open = false; // opens when the Floppy icon is clicked
     }
 
     pub fn setPointer(self: *Desktop, x: i32, y: i32, buttons: u32) void {
@@ -66,29 +76,47 @@ pub const Desktop = struct {
         it.y = @max(gui.MENU_H + 2, @min(it.y, 200 - @as(i16, @intCast(it.ic.h)) - 10));
     }
 
-    // Draw the desktop (res-adaptive) + handle icon drag/click; return the action.
+    fn overWindow(self: *Desktop) bool {
+        for (self.wins()) |w| {
+            if (w.open and self.g.px >= w.r.x and self.g.px < w.r.x + w.r.w and
+                self.g.py >= w.r.y and self.g.py < w.r.y + w.r.h) return true;
+        }
+        return false;
+    }
+    fn wins(self: *Desktop) []const gui.Window {
+        return self.wm.wins[0..self.wm.n];
+    }
+
+    // Draw the desktop (res-adaptive) + windows; handle icon drag/click; return action.
     pub fn render(self: *Desktop) Action {
         const g = &self.g;
         const sw = g.screen_w;
         var action: Action = .none;
 
-        // --- input: drag an icon (snap to grid on drop), or click the app icon ---
+        // Windows sit above icons and take input first.
+        self.wm.handle(g);
+        const busy = self.wm.drag != null or self.wm.resize != null or self.overWindow();
+
+        // --- icon drag (snap on drop) / click (launch app, or open the floppy window) ---
         if (self.drag) |di| {
             if (!g.down) {
-                if (self.moved) self.snap(di) else if (self.items[di].is_app) action = .launch;
+                if (self.moved) self.snap(di) else self.clickIcon(di, &action);
                 self.drag = null;
             } else {
-                const nx: i16 = @intCast(@as(i32, g.px) - self.grab_dx);
-                const ny: i16 = @intCast(@as(i32, g.py) - self.grab_dy);
-                if (@abs(nx - self.items[di].x) > 1 or @abs(ny - self.items[di].y) > 1) self.moved = true;
-                self.items[di].x = nx;
-                self.items[di].y = ny;
+                if (@abs(@as(i16, @intCast(g.px)) - self.grab_px) > 3 or @abs(@as(i16, @intCast(g.py)) - self.grab_py) > 3) self.moved = true;
+                if (self.moved) {
+                    self.items[di].x = @intCast(@as(i32, g.px) - self.grab_dx);
+                    self.items[di].y = @intCast(@as(i32, g.py) - self.grab_dy);
+                    self.clamp(&self.items[di]); // keep the icon inside the desktop while dragging
+                }
             }
-        } else if (g.edge and g.py >= gui.MENU_H) {
+        } else if (!busy and g.edge and g.py >= gui.MENU_H) {
             for (self.items, 0..) |it, i| {
                 if (g.hit(.{ .x = it.x, .y = it.y, .w = @intCast(it.ic.w), .h = @intCast(it.ic.h) })) {
                     self.drag = @intCast(i);
                     self.moved = false;
+                    self.grab_px = @intCast(g.px);
+                    self.grab_py = @intCast(g.py);
                     self.grab_dx = @intCast(@as(i32, g.px) - it.x);
                     self.grab_dy = @intCast(@as(i32, g.py) - it.y);
                     break;
@@ -96,13 +124,28 @@ pub const Desktop = struct {
             }
         }
 
-        // --- draw ---
+        // --- draw: desktop, icons, windows, menu (top) ---
         g.rect(.{ .x = 0, .y = 0, .w = sw, .h = 200 }, gui.DESK); // green work area
         for (self.items) |it| placeIcon(g, it.x, it.y, it.ic, it.label);
-        if (self.menubar.process(g, &DESK_MENUS, sw, false)) |p| {
+        var i: usize = 0;
+        while (i < self.wm.n) : (i += 1) {
+            const id = self.wm.order[i];
+            if (!self.wm.wins[id].open) continue;
+            _ = self.wm.drawChrome(g, id, id == self.wm.topId()); // empty window (white interior)
+        }
+        if (self.menubar.process(g, &DESK_MENUS, sw, self.overWindow())) |p| {
             if (p.menu == 3) action = if (p.item == 0) .res_low else .res_medium;
         }
         return action;
+    }
+
+    fn clickIcon(self: *Desktop, di: u8, action: *Action) void {
+        if (self.items[di].is_app) {
+            action.* = .launch;
+        } else if (di == IC_FLOPPY) {
+            self.wm.wins[self.floppy_win].open = true; // open the disk window
+            self.wm.toFront(self.floppy_win);
+        }
     }
 
     fn snap(self: *Desktop, di: u8) void {
