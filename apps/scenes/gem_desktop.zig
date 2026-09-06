@@ -87,7 +87,13 @@ pub const Demo = struct {
         // is always medium.
         const medium = self.running or self.desk_medium;
         const lx = if (medium) x else @divTrunc(x, 2);
-        if (self.running) self.app.pointer(lx, y, buttons) else self.desktop.setPointer(lx, y, buttons);
+        if (self.running) {
+            self.app.pointer(lx, y, buttons);
+        } else if (buttons & 2 != 0) {
+            self.desktop.requestOpenAt(lx, y); // native double-click pulse from the loader
+        } else {
+            self.desktop.setPointer(lx, y, buttons);
+        }
     }
 
     // Forward the sample-display bridge to the hosted app so the host can fill it.

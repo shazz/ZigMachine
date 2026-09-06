@@ -48,6 +48,8 @@ pub const Desktop = struct {
     grab_px: i16 = 0, // press point, to tell a click from a drag
     grab_py: i16 = 0,
     moved: bool = false,
+    sel_icon: i16 = -1, // currently selected icon (drawn inverse video), -1 = none
+    pending_open: i16 = -1, // icon to open (set by a native double-click), -1 = none
 
     pub fn init(self: *Desktop, os: *ZigOS, fb: *LogicalFB, blit: *Blitter) void {
         self.g = .{ .os = os, .fb = fb, .blit = blit, .screen_w = 640, .screen_h = 200 };
@@ -97,10 +99,17 @@ pub const Desktop = struct {
         self.wm.handle(g);
         const busy = self.wm.drag != null or self.wm.resize != null or self.overWindow();
 
-        // --- icon drag (snap on drop) / click (launch app, or open the floppy window) ---
+        // A native double-click (routed via requestOpenAt) opens/launches now.
+        if (self.pending_open >= 0) {
+            self.clickIcon(@intCast(self.pending_open), &action);
+            self.pending_open = -1;
+        }
+
+        // --- icon interaction: single click selects (inverse video); a native
+        // double-click opens (see requestOpenAt); drag moves the icon. ---
         if (self.drag) |di| {
-            if (!g.down) {
-                if (self.moved) self.snap(di) else self.clickIcon(di, &action);
+            if (!g.down) { // release: select on a clean click, snap after a drag
+                if (self.moved) self.snap(di) else self.sel_icon = @intCast(di);
                 self.drag = null;
             } else {
                 if (@abs(@as(i16, @intCast(g.px)) - self.grab_px) > 3 or @abs(@as(i16, @intCast(g.py)) - self.grab_py) > 3) self.moved = true;
@@ -111,22 +120,12 @@ pub const Desktop = struct {
                 }
             }
         } else if (!busy and g.edge and g.py >= gui.MENU_H) {
-            for (self.items, 0..) |it, i| {
-                if (g.hit(.{ .x = it.x, .y = it.y, .w = @intCast(it.ic.w), .h = @intCast(it.ic.h) })) {
-                    self.drag = @intCast(i);
-                    self.moved = false;
-                    self.grab_px = @intCast(g.px);
-                    self.grab_py = @intCast(g.py);
-                    self.grab_dx = @intCast(@as(i32, g.px) - it.x);
-                    self.grab_dy = @intCast(@as(i32, g.py) - it.y);
-                    break;
-                }
-            }
+            self.pressIcon(g);
         }
 
         // --- draw: desktop, icons, windows, menu (top) ---
         g.rect(.{ .x = 0, .y = 0, .w = sw, .h = 200 }, gui.DESK); // green work area
-        for (self.items) |it| placeIcon(g, it.x, it.y, it.ic, it.label);
+        for (self.items, 0..) |it, i| placeIcon(g, it.x, it.y, it.ic, it.label, self.sel_icon == @as(i16, @intCast(i)));
         var i: usize = 0;
         while (i < self.wm.n) : (i += 1) {
             const id = self.wm.order[i];
@@ -137,6 +136,43 @@ pub const Desktop = struct {
             if (p.menu == 3) action = if (p.item == 0) .res_low else .res_medium;
         }
         return action;
+    }
+
+    // A press landed on the desktop (below the menu, no window busy): begin a
+    // select/drag candidate on the icon hit, or deselect on empty desktop.
+    // (Opening is a separate native double-click — see requestOpenAt.)
+    fn pressIcon(self: *Desktop, g: *gui.Gui) void {
+        for (self.items, 0..) |it, i| {
+            if (!g.hit(.{ .x = it.x, .y = it.y, .w = @intCast(it.ic.w), .h = @intCast(it.ic.h) })) continue;
+            self.drag = @intCast(i);
+            self.moved = false;
+            self.grab_px = @intCast(g.px);
+            self.grab_py = @intCast(g.py);
+            self.grab_dx = @intCast(@as(i32, g.px) - it.x);
+            self.grab_dy = @intCast(@as(i32, g.py) - it.y);
+            return;
+        }
+        self.sel_icon = -1; // pressed empty desktop → deselect
+    }
+
+    // The loader detected a native double-click at (x,y) (logical coords): open
+    // the icon under the cursor. Windows open here directly; launching an app
+    // needs an Action, so that is deferred to the next render via pending_open.
+    pub fn requestOpenAt(self: *Desktop, x: i32, y: i32) void {
+        for (self.items, 0..) |it, i| {
+            if (x >= it.x and x < it.x + @as(i16, @intCast(it.ic.w)) and
+                y >= it.y and y < it.y + @as(i16, @intCast(it.ic.h)))
+            {
+                self.sel_icon = @intCast(i);
+                if (it.is_app) {
+                    self.pending_open = @intCast(i); // launch handled in render()
+                } else if (i == IC_FLOPPY) {
+                    self.wm.wins[self.floppy_win].open = true;
+                    self.wm.toFront(self.floppy_win);
+                }
+                return;
+            }
+        }
     }
 
     fn clickIcon(self: *Desktop, di: u8, action: *Action) void {
@@ -158,7 +194,11 @@ pub const Desktop = struct {
 
 // Draw a GEM icon with TRANSPARENCY (ink=black, body=white, outside=transparent,
 // so the desktop shows through the icon's silhouette) and a caps label beneath.
-fn placeIcon(g: *gui.Gui, x: i16, y: i16, ic: icons.Icon, label: []const u8) void {
+// When `sel`, the icon is drawn inverse-video (GEM selection): silhouette pixels
+// swap ink/body and the label sits in a black highlight box.
+fn placeIcon(g: *gui.Gui, x: i16, y: i16, ic: icons.Icon, label: []const u8, sel: bool) void {
+    const ink_c: u8 = if (sel) gui.WHITE else gui.BLACK;
+    const body_c: u8 = if (sel) gui.BLACK else gui.WHITE;
     const rowbytes: usize = (@as(usize, ic.w) + 7) / 8;
     var row: u16 = 0;
     while (row < ic.h) : (row += 1) {
@@ -169,12 +209,15 @@ fn placeIcon(g: *gui.Gui, x: i16, y: i16, ic: icons.Icon, label: []const u8) voi
             const px: u16 = @intCast(x + @as(i16, @intCast(col)));
             const py: u16 = @intCast(y + @as(i16, @intCast(row)));
             if ((ic.ink[idx] >> sh) & 1 != 0) {
-                g.fb.setPixelValue(px, py, gui.BLACK);
+                g.fb.setPixelValue(px, py, ink_c);
             } else if ((ic.body[idx] >> sh) & 1 != 0) {
-                g.fb.setPixelValue(px, py, gui.WHITE); // enclosed body
+                g.fb.setPixelValue(px, py, body_c); // enclosed body
             } // else: outside the silhouette -> leave transparent (desktop shows)
         }
     }
     const lw: i16 = @as(i16, @intCast(label.len)) * 8;
-    g.text(label, x + @divTrunc(@as(i16, @intCast(ic.w)) - lw, 2), y + @as(i16, @intCast(ic.h)) + 2, gui.WHITE, gui.DESK);
+    const lx = x + @divTrunc(@as(i16, @intCast(ic.w)) - lw, 2);
+    const ly = y + @as(i16, @intCast(ic.h)) + 2;
+    if (sel) g.rect(.{ .x = lx - 1, .y = ly - 1, .w = lw + 2, .h = 10 }, gui.BLACK);
+    g.text(label, lx, ly, gui.WHITE, if (sel) gui.BLACK else gui.DESK);
 }

@@ -94,16 +94,14 @@ pub const Gui = struct {
         self.os.printText(self.fb, s, @intCast(x), @intCast(y), ink, paper);
     }
 
-    // Draw an 11x11 GEM glyph centred in box r; only ink pixels are written so
-    // the box face shows through (0 = transparent).
-    pub fn glyph(self: *Gui, r: Rect, gl: [glyphs.GH]u16, ink: u8) void {
-        const ox = r.x + @divTrunc(r.w - @as(i16, glyphs.GW), 2);
-        const oy = r.y + @divTrunc(r.h - @as(i16, glyphs.GH), 2);
-        for (gl, 0..) |bits, row| {
+    // Blit a GEM control gadget (a GWxGH box lifted verbatim from the ST GEM
+    // reference: frame + background + symbol) opaquely at (x,y). 1 = ink, 0 = paper.
+    pub fn gadget(self: *Gui, x: i16, y: i16, box: [glyphs.GH]u16, ink: u8, paper: u8) void {
+        for (box, 0..) |bits, row| {
             var col: u4 = 0;
             while (col < glyphs.GW) : (col += 1) {
-                if ((bits >> @intCast(10 - col)) & 1 != 0)
-                    self.fb.setPixelValue(@intCast(ox + col), @intCast(oy + @as(i16, @intCast(row))), ink);
+                const on = (bits >> @intCast(glyphs.GW - 1 - col)) & 1 != 0;
+                self.fb.setPixelValue(@intCast(x + col), @intCast(y + @as(i16, @intCast(row))), if (on) ink else paper);
             }
         }
     }
@@ -146,7 +144,7 @@ pub const Window = struct {
     saved: Rect = .{ .x = 0, .y = 0, .w = 0, .h = 0 }, // rect to restore from full
 };
 
-pub const SCROLL: i16 = 11; // scrollbar gutter / control size
+pub const SCROLL: i16 = glyphs.GW; // scrollbar gutter / gadget size (matches the extracted 12px boxes)
 const MIN_W: i16 = 64;
 const MIN_H: i16 = 44;
 
@@ -177,13 +175,13 @@ pub const Wm = struct {
     // GEM window control boxes: close (title left), full (title right), size
     // (bottom-right corner, over the scrollbars).
     fn closeBox(w: *const Window) Rect {
-        return .{ .x = w.r.x + 1, .y = w.r.y + 1, .w = SCROLL, .h = TITLE_H - 2 };
+        return .{ .x = w.r.x, .y = w.r.y, .w = glyphs.GW, .h = glyphs.GH };
     }
     fn fullBox(w: *const Window) Rect {
-        return .{ .x = w.r.x + w.r.w - SCROLL - 1, .y = w.r.y + 1, .w = SCROLL, .h = TITLE_H - 2 };
+        return .{ .x = w.r.x + w.r.w - glyphs.GW, .y = w.r.y, .w = glyphs.GW, .h = glyphs.GH };
     }
     fn sizeBox(w: *const Window) Rect {
-        return .{ .x = w.r.x + w.r.w - SCROLL, .y = w.r.y + w.r.h - SCROLL, .w = SCROLL, .h = SCROLL };
+        return .{ .x = w.r.x + w.r.w - glyphs.GW, .y = w.r.y + w.r.h - glyphs.GH, .w = glyphs.GW, .h = glyphs.GH };
     }
 
     // Process pointer: dragging, resizing, and the close / full / size controls.
@@ -265,51 +263,41 @@ pub const Wm = struct {
         return .{ .x = w.r.x + 1, .y = w.r.y + TITLE_H, .w = w.r.w - 2 - SCROLL, .h = w.r.h - TITLE_H - SCROLL };
     }
 
-    // Title bar: 50% hatch (drag handle) + close bowtie left, full diamond right,
-    // title over a clear patch in the middle.
+    // Title bar: 50% hatch (drag handle) + close bowtie left, full diamond right
+    // (real ST gadget boxes), title over a clear patch in the middle.
     fn titleBar(g: *Gui, w: *const Window, active: bool) void {
         const bar = Rect{ .x = w.r.x + 1, .y = w.r.y + 1, .w = w.r.w - 2, .h = TITLE_H - 1 };
         if (active) g.hatch(bar, BLACK, WHITE) else g.rect(bar, WHITE);
         g.blit.fill(g.fb, w.r.x, w.r.y + TITLE_H - 1, @intCast(w.r.w), 1, BLACK); // underline
-        const cb = closeBox(w);
-        g.bevel(cb, WHITE, true);
-        g.glyph(cb, glyphs.CLOSE, BLACK);
-        const fbx = fullBox(w);
-        g.bevel(fbx, WHITE, true);
-        g.glyph(fbx, glyphs.FULL, BLACK);
         const tw: i16 = @as(i16, @intCast(w.title.len)) * 8;
         const tx = w.r.x + @divTrunc(w.r.w - tw, 2);
         g.rect(.{ .x = tx - 4, .y = w.r.y + 1, .w = tw + 8, .h = TITLE_H - 2 }, WHITE); // clear patch
-        g.text(w.title, tx, w.r.y + 3, BLACK, WHITE);
+        g.text(w.title, tx, w.r.y + 2, BLACK, WHITE);
+        g.gadget(w.r.x, w.r.y, glyphs.CLOSE, BLACK, WHITE);
+        g.gadget(w.r.x + w.r.w - glyphs.GW, w.r.y, glyphs.FULL, BLACK, WHITE);
     }
 
-    // Right + bottom scrollbars: arrow boxes at the ends, a light track, a raised
-    // slider, and the diagonal size box in the corner.
+    // Right + bottom scrollbars: real ST arrow gadgets at the ends, a light
+    // track with a raised slider, and the diagonal size gadget in the corner.
     fn scrollbars(g: *Gui, w: *const Window) void {
-        const rx = w.r.x + w.r.w - SCROLL;
-        const by = w.r.y + w.r.h - SCROLL;
-        // right: up box, track, down box
-        const up = Rect{ .x = rx, .y = w.r.y + TITLE_H, .w = SCROLL, .h = SCROLL };
-        const dn = Rect{ .x = rx, .y = by - SCROLL, .w = SCROLL, .h = SCROLL };
-        g.rect(.{ .x = rx, .y = up.y + SCROLL, .w = SCROLL, .h = dn.y - up.y - SCROLL }, LGRAY);
-        g.bevel(up, WHITE, true);
-        g.glyph(up, glyphs.UP, BLACK);
-        g.bevel(dn, WHITE, true);
-        g.glyph(dn, glyphs.DOWN, BLACK);
-        g.bevel(.{ .x = rx, .y = up.y + SCROLL + 1, .w = SCROLL, .h = SCROLL }, WHITE, true); // slider
-        // bottom: left box, track, right box
-        const lf = Rect{ .x = w.r.x + 1, .y = by, .w = SCROLL, .h = SCROLL };
-        const rt = Rect{ .x = rx - SCROLL, .y = by, .w = SCROLL, .h = SCROLL };
-        g.rect(.{ .x = lf.x + SCROLL, .y = by, .w = rt.x - lf.x - SCROLL, .h = SCROLL }, LGRAY);
-        g.bevel(lf, WHITE, true);
-        g.glyph(lf, glyphs.LEFT, BLACK);
-        g.bevel(rt, WHITE, true);
-        g.glyph(rt, glyphs.RIGHT, BLACK);
-        g.bevel(.{ .x = lf.x + SCROLL + 1, .y = by, .w = SCROLL, .h = SCROLL }, WHITE, true); // slider
-        // size / grow box in the corner
-        const sb = sizeBox(w);
-        g.bevel(sb, WHITE, true);
-        g.glyph(sb, glyphs.SIZE, BLACK);
+        const rx = w.r.x + w.r.w - glyphs.GW;
+        const by = w.r.y + w.r.h - glyphs.GH;
+        // right gutter: up gadget, track + slider, down gadget
+        const uy = w.r.y + TITLE_H;
+        const dy = by - glyphs.GH;
+        g.rect(.{ .x = rx, .y = uy + glyphs.GH, .w = glyphs.GW, .h = dy - uy - glyphs.GH }, LGRAY);
+        g.bevel(.{ .x = rx, .y = uy + glyphs.GH + 1, .w = glyphs.GW, .h = glyphs.GH }, WHITE, true); // slider
+        g.gadget(rx, uy, glyphs.UP, BLACK, WHITE);
+        g.gadget(rx, dy, glyphs.DOWN, BLACK, WHITE);
+        // bottom gutter: left gadget, track + slider, right gadget
+        const lx = w.r.x;
+        const rrx = rx - glyphs.GW;
+        g.rect(.{ .x = lx + glyphs.GW, .y = by, .w = rrx - lx - glyphs.GW, .h = glyphs.GH }, LGRAY);
+        g.bevel(.{ .x = lx + glyphs.GW + 1, .y = by, .w = glyphs.GW, .h = glyphs.GH }, WHITE, true); // slider
+        g.gadget(lx, by, glyphs.LEFT, BLACK, WHITE);
+        g.gadget(rrx, by, glyphs.RIGHT, BLACK, WHITE);
+        // size / grow gadget in the corner
+        g.gadget(rx, by, glyphs.SIZE, BLACK, WHITE);
     }
 
     pub fn topId(self: *Wm) u8 {

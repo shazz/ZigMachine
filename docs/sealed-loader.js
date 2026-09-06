@@ -210,6 +210,12 @@ window.document.body.addEventListener('keydown', function (evt) {
         send(e);
         window.requestAnimationFrame(function () { buttons = 0; });
     });
+    // Double-click: use the browser's own dblclick (honours the OS double-click
+    // speed) and pulse buttons bit 1 (=2) so the app opens the item under the
+    // cursor — frame-sampling can't reliably see two fast presses as two edges.
+    surface.addEventListener('dblclick', function (e) {
+        const save = buttons; buttons = 2; send(e); buttons = save;
+    });
 })();
 
 // --------------------------------------------------------------------------
