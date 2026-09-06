@@ -57,11 +57,11 @@ def _trailing_doc(line: str) -> str:
     return m.group(1).strip() if m else ""
 
 
-def parse_consts(path: Path, prefix: str) -> list[Item]:
-    """`pub const <PREFIX>... : type = value; // doc` register/constant lines."""
+def parse_consts(path: Path, name_re: str) -> list[Item]:
+    """`pub const <name> : type = value; // doc` lines whose name matches name_re."""
     items: list[Item] = []
     for line in path.read_text().splitlines():
-        m = re.match(rf"\s*pub const ({prefix}\w+)\s*:[^=]+=\s*([^;]+);", line)
+        m = re.match(rf"\s*pub const ({name_re})\s*:[^=]+=\s*([^;]+);", line)
         if m:
             items.append(Item(m.group(1), m.group(2).strip(), _trailing_doc(line)))
     return items
@@ -105,7 +105,11 @@ ZigMachine is a fantasy console: a <b>sealed hardware</b> core (compiled to two
 <code>machine-*.wasm</code> binaries you never edit) plus an <b>open library</b>
 (ZigOS) and your <b>scene</b> code, all sharing one <code>WebAssembly.Memory</code>
 through a memory-mapped ABI. You write a scene; ZigOS gives you planes, palettes,
-a blitter, HBL rasters and hardware scrolling on top of the sealed machine.
+a <b>2D blitter</b>, HBL rasters, <b>hardware scrolling</b>, <b>low & medium
+resolution</b> (with per-scanline resolution switching), a <b>GEM-style GUI
+toolkit</b>, and a <b>Wavefront OBJ loader</b> on top of the sealed machine.
+A scene is a struct with <code>init/update/render</code> (see the first example);
+select it in <code>apps/floppy.zig</code>.
 """
 
 EXAMPLES = [
@@ -155,6 +159,28 @@ fb.setScrollPlane(640, 400);        // back plane 0 with a 640x400 buffer
 fb.setScroll(scroll_x, scroll_y);
 // bonus: in SCROLL mode HSCROLL is re-read per scanline, so a per-plane HBL
 // handler calling fb.setScrollFine(sin(line)) bends each line (wobble)."""),
+
+    ("Medium resolution + per-HBL res switch", """// Medium = 640x200, crisp 1:1 (low-res is 320, pixel-doubled onto the same
+// 800-wide raster). setMediumPlane defaults the screen to medium.
+const fb = &os.lfbs[0];
+fb.setMediumPlane();                 // 640x200 crisp; setMediumFullscreen() for overscan
+fb.setFrameBufferHBLHandler(0, resHBL);
+
+// An HBL handler flips RESOLUTION per scanline -> low & medium on one screen:
+fn resHBL(fb: *zg.LogicalFB, os: *zg.ZigOS, line: u16, x: u16) void {
+    _ = fb; _ = x;
+    os.setResolution(if (line >= 80 and line < 130) .planes else .medium);
+}"""),
+
+    ("A GEM window (gui toolkit)", """const gui = zg.gui;
+var g: gui.Gui = .{ .os = os, .fb = &os.lfbs[0], .blit = &blit };
+var wm: gui.Wm = .{};
+// in init: gui.installPalette(fb); _ = wm.add(.{ .r = .{ .x=16,.y=26,.w=200,.h=90 }, .title = "FILE" });
+// in update: g.beginFrame(); wm.handle(&g);
+// in render: draw desktop, then each window's chrome + your content:
+const content = wm.drawChrome(&g, id, id == wm.topId());
+if (g.button(.{ .x=content.x+4, .y=content.y+4, .w=48, .h=18 }, "OK", false)) { /* clicked */ }
+// pointer state arrives via demo.pointer(x,y,buttons) (see sealed-loader.js)."""),
 ]
 
 
@@ -193,26 +219,41 @@ def render_examples() -> str:
 
 def build() -> str:
     sdk = ROOT / "hw" / "sdk"
-    regs = parse_consts(sdk / "memmap.zig", "REG_")
-    blit_regs = parse_consts(sdk / "memmap.zig", "BLIT_")
+    mm = sdk / "memmap.zig"
+    geometry = parse_consts(mm, r"(?:WIDTH|HEIGHT|NB_PLANES|PHYSICAL_\w+|RASTER_\w+|MEDIUM_\w+|HORIZONTAL_\w+|VERTICAL_\w+|STRIDE_\w+)")
+    modes = parse_consts(mm, r"(?:RES_\w+|FB_MODE_\w+)")
+    regs = parse_consts(mm, r"REG_\w+")
+    blit_regs = parse_consts(mm, r"BLIT_[A-Z_]+")
+    blit_ctl = parse_consts(mm, r"(?:CON_\w+|MT_\w+|BLIT_CMD_\w+|BLIT_STATUS_\w+)")
     abi = parse_externs(sdk / "hardware.zig")
     lfb = parse_struct_methods(ROOT / "zigos" / "zigos.zig", "LogicalFB")
     zos = parse_struct_methods(ROOT / "zigos" / "zigos.zig", "ZigOS")
     blitter = parse_struct_methods(ROOT / "zigos" / "blitter.zig", "Blitter")
+    gui = parse_struct_methods(ROOT / "zigos" / "gui.zig", "Gui")
+    wm = parse_struct_methods(ROOT / "zigos" / "gui.zig", "Wm")
+    mesh = parse_struct_methods(ROOT / "zigos" / "utils" / "obj_loader.zig", "Mesh")
 
     groups = [
+        ("Geometry & resolution", render_consts(geometry)),
+        ("Resolution & plane modes", render_consts(modes)),
         ("Video registers", render_consts(regs)),
         ("Blitter registers", render_consts(blit_regs)),
+        ("Blitter commands / control / minterms", render_consts(blit_ctl)),
         ("HW ABI — machine exports", render_items(abi)),
         ("ZigOS — LogicalFB (a plane)", render_items(lfb)),
         ("ZigOS — ZigOS (the OS)", render_items(zos)),
         ("ZigOS — Blitter (2D coprocessor)", render_items(blitter)),
+        ("ZigOS — GUI toolkit (Gui)", render_items(gui)),
+        ("ZigOS — Window manager (Wm)", render_items(wm)),
+        ("ZigOS — OBJ loader (Mesh)", render_items(mesh)),
     ]
     nav = "\n".join(f'<a href="#{i}">{esc(t)}</a>' for i, (t, _) in enumerate(groups))
     sections = "\n".join(
         f'<section id="{i}"><h2>{esc(t)}</h2>{body}</section>' for i, (t, body) in enumerate(groups)
     )
-    counts = f"{len(abi)} ABI exports · {len(lfb)+len(zos)+len(blitter)} library methods · {len(regs)+len(blit_regs)} registers"
+    methods = len(lfb) + len(zos) + len(blitter) + len(gui) + len(wm) + len(mesh)
+    consts = len(geometry) + len(modes) + len(regs) + len(blit_regs) + len(blit_ctl)
+    counts = f"{len(abi)} ABI exports · {methods} library methods · {consts} constants/registers"
 
     return TEMPLATE.format(
         css=CSS,

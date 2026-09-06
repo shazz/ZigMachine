@@ -31,22 +31,32 @@ code { background: #1a2030; padding: 1px 5px; border-radius: 4px; }
 <body>
 <header>
   <h1>ZigMachine — Programmer's Guide</h1>
-  <div class="sub">Generated 2026-09-05 by tools/gen_docs.py · 12 ABI exports · 36 library methods · 47 registers</div>
+  <div class="sub">Generated 2026-09-05 by tools/gen_docs.py · 12 ABI exports · 51 library methods · 90 constants/registers</div>
 </header>
 <div class="wrap">
-  <nav><a href="#top">Overview</a><a href="#examples">Examples</a><a href="#0">Video registers</a>
-<a href="#1">Blitter registers</a>
-<a href="#2">HW ABI — machine exports</a>
-<a href="#3">ZigOS — LogicalFB (a plane)</a>
-<a href="#4">ZigOS — ZigOS (the OS)</a>
-<a href="#5">ZigOS — Blitter (2D coprocessor)</a></nav>
+  <nav><a href="#top">Overview</a><a href="#examples">Examples</a><a href="#0">Geometry &amp; resolution</a>
+<a href="#1">Resolution &amp; plane modes</a>
+<a href="#2">Video registers</a>
+<a href="#3">Blitter registers</a>
+<a href="#4">Blitter commands / control / minterms</a>
+<a href="#5">HW ABI — machine exports</a>
+<a href="#6">ZigOS — LogicalFB (a plane)</a>
+<a href="#7">ZigOS — ZigOS (the OS)</a>
+<a href="#8">ZigOS — Blitter (2D coprocessor)</a>
+<a href="#9">ZigOS — GUI toolkit (Gui)</a>
+<a href="#10">ZigOS — Window manager (Wm)</a>
+<a href="#11">ZigOS — OBJ loader (Mesh)</a></nav>
   <main>
     <section id="top"><h2>Overview</h2><div class="intro">
 ZigMachine is a fantasy console: a <b>sealed hardware</b> core (compiled to two
 <code>machine-*.wasm</code> binaries you never edit) plus an <b>open library</b>
 (ZigOS) and your <b>scene</b> code, all sharing one <code>WebAssembly.Memory</code>
 through a memory-mapped ABI. You write a scene; ZigOS gives you planes, palettes,
-a blitter, HBL rasters and hardware scrolling on top of the sealed machine.
+a <b>2D blitter</b>, HBL rasters, <b>hardware scrolling</b>, <b>low & medium
+resolution</b> (with per-scanline resolution switching), a <b>GEM-style GUI
+toolkit</b>, and a <b>Wavefront OBJ loader</b> on top of the sealed machine.
+A scene is a struct with <code>init/update/render</code> (see the first example);
+select it in <code>apps/floppy.zig</code>.
 </div></section>
     <section id="examples"><h2>Examples</h2><h3>A minimal scene</h3><pre class="code">// apps/scenes/my_scene.zig — select it in apps/floppy.zig:
 //   pub const Demo = @import(&quot;scenes/my_scene.zig&quot;).Demo;
@@ -90,8 +100,59 @@ fb.setScrollPlane(640, 400);        // back plane 0 with a 640x400 buffer
 // each frame, pan the visible 320x200 window (pure hardware, zero per-pixel cost):
 fb.setScroll(scroll_x, scroll_y);
 // bonus: in SCROLL mode HSCROLL is re-read per scanline, so a per-plane HBL
-// handler calling fb.setScrollFine(sin(line)) bends each line (wobble).</pre></section>
-    <section id="0"><h2>Video registers</h2><table><thead><tr><th>Name</th><th>Value</th><th>Meaning</th></tr></thead><tbody>
+// handler calling fb.setScrollFine(sin(line)) bends each line (wobble).</pre>
+<h3>Medium resolution + per-HBL res switch</h3><pre class="code">// Medium = 640x200, crisp 1:1 (low-res is 320, pixel-doubled onto the same
+// 800-wide raster). setMediumPlane defaults the screen to medium.
+const fb = &amp;os.lfbs[0];
+fb.setMediumPlane();                 // 640x200 crisp; setMediumFullscreen() for overscan
+fb.setFrameBufferHBLHandler(0, resHBL);
+
+// An HBL handler flips RESOLUTION per scanline -&gt; low &amp; medium on one screen:
+fn resHBL(fb: *zg.LogicalFB, os: *zg.ZigOS, line: u16, x: u16) void {
+    _ = fb; _ = x;
+    os.setResolution(if (line &gt;= 80 and line &lt; 130) .planes else .medium);
+}</pre>
+<h3>A GEM window (gui toolkit)</h3><pre class="code">const gui = zg.gui;
+var g: gui.Gui = .{ .os = os, .fb = &amp;os.lfbs[0], .blit = &amp;blit };
+var wm: gui.Wm = .{};
+// in init: gui.installPalette(fb); _ = wm.add(.{ .r = .{ .x=16,.y=26,.w=200,.h=90 }, .title = &quot;FILE&quot; });
+// in update: g.beginFrame(); wm.handle(&amp;g);
+// in render: draw desktop, then each window&#x27;s chrome + your content:
+const content = wm.drawChrome(&amp;g, id, id == wm.topId());
+if (g.button(.{ .x=content.x+4, .y=content.y+4, .w=48, .h=18 }, &quot;OK&quot;, false)) { /* clicked */ }
+// pointer state arrives via demo.pointer(x,y,buttons) (see sealed-loader.js).</pre></section>
+    <section id="0"><h2>Geometry &amp; resolution</h2><table><thead><tr><th>Name</th><th>Value</th><th>Meaning</th></tr></thead><tbody>
+<tr><td><code>PHYSICAL_WIDTH</code></td><td><code>400</code></td><td></td></tr>
+<tr><td><code>PHYSICAL_HEIGHT</code></td><td><code>280</code></td><td></td></tr>
+<tr><td><code>WIDTH</code></td><td><code>320</code></td><td></td></tr>
+<tr><td><code>HEIGHT</code></td><td><code>200</code></td><td></td></tr>
+<tr><td><code>NB_PLANES</code></td><td><code>4</code></td><td></td></tr>
+<tr><td><code>HORIZONTAL_BORDERS_WIDTH</code></td><td><code>(PHYSICAL_WIDTH - WIDTH) / 2</code></td><td>40</td></tr>
+<tr><td><code>VERTICAL_BORDERS_HEIGHT</code></td><td><code>(PHYSICAL_HEIGHT - HEIGHT) / 2</code></td><td>40</td></tr>
+<tr><td><code>MEDIUM_WIDTH</code></td><td><code>640</code></td><td>logical medium visible width</td></tr>
+<tr><td><code>MEDIUM_HEIGHT</code></td><td><code>200</code></td><td></td></tr>
+<tr><td><code>MEDIUM_PLANES</code></td><td><code>2</code></td><td></td></tr>
+<tr><td><code>MEDIUM_FB_BYTES</code></td><td><code>@as(usize, MEDIUM_WIDTH) * @as(usize, MEDIUM_HEIGHT)</code></td><td>128000</td></tr>
+<tr><td><code>MEDIUM_FULL_FB_BYTES</code></td><td><code>@as(usize, RASTER_WIDTH) * @as(usize, RASTER_HEIGHT)</code></td><td>224000</td></tr>
+<tr><td><code>RASTER_WIDTH</code></td><td><code>PHYSICAL_WIDTH * 2</code></td><td>800</td></tr>
+<tr><td><code>RASTER_HEIGHT</code></td><td><code>PHYSICAL_HEIGHT</code></td><td>280</td></tr>
+<tr><td><code>RASTER_BORDER_X</code></td><td><code>HORIZONTAL_BORDERS_WIDTH * 2</code></td><td>80</td></tr>
+<tr><td><code>RASTER_BORDER_Y</code></td><td><code>VERTICAL_BORDERS_HEIGHT</code></td><td>40</td></tr>
+<tr><td><code>RASTER_VIS_WIDTH</code></td><td><code>WIDTH * 2</code></td><td>640 (physical visible)</td></tr>
+<tr><td><code>RASTER_VIS_HEIGHT</code></td><td><code>HEIGHT</code></td><td>200</td></tr>
+<tr><td><code>STRIDE_NORMAL</code></td><td><code>WIDTH</code></td><td>320</td></tr>
+<tr><td><code>STRIDE_FULLSCREEN</code></td><td><code>PHYSICAL_WIDTH</code></td><td>400</td></tr>
+</tbody></table></section>
+<section id="1"><h2>Resolution &amp; plane modes</h2><table><thead><tr><th>Name</th><th>Value</th><th>Meaning</th></tr></thead><tbody>
+<tr><td><code>FB_MODE_NORMAL</code></td><td><code>0</code></td><td>320x200 low-res plane (pixel-doubled into the raster)</td></tr>
+<tr><td><code>FB_MODE_FULLSCREEN</code></td><td><code>1</code></td><td>400x280 low-res overscan plane (Option B, doubled)</td></tr>
+<tr><td><code>FB_MODE_SCROLL</code></td><td><code>2</code></td><td>window into a bigger-than-screen buffer; pan via FB_BASE + HSCROLL</td></tr>
+<tr><td><code>FB_MODE_MEDIUM</code></td><td><code>3</code></td><td>640x200 medium-res plane (1:1 into the raster)</td></tr>
+<tr><td><code>RES_PLANES</code></td><td><code>0</code></td><td></td></tr>
+<tr><td><code>RES_TRUECOLOR</code></td><td><code>1</code></td><td></td></tr>
+<tr><td><code>RES_MEDIUM</code></td><td><code>2</code></td><td>640x200, 2 planes, no border (ST-medium style)</td></tr>
+</tbody></table></section>
+<section id="2"><h2>Video registers</h2><table><thead><tr><th>Name</th><th>Value</th><th>Meaning</th></tr></thead><tbody>
 <tr><td><code>REG_RESOLUTION</code></td><td><code>0x00</code></td><td>u8   0 = planes, 1 = truecolor (border-open)</td></tr>
 <tr><td><code>REG_NB_PLANES</code></td><td><code>0x01</code></td><td>u8   (ro) = 4</td></tr>
 <tr><td><code>REG_BACKGROUND</code></td><td><code>0x04</code></td><td>u32  border/background RGBA</td></tr>
@@ -105,7 +166,7 @@ fb.setScroll(scroll_x, scroll_y);
 <tr><td><code>REG_FB_BASE</code></td><td><code>0x44</code></td><td>u32 x4 per-plane framebuffer screen base (0x44..0x53) — pan point for SCROLL mode</td></tr>
 <tr><td><code>REG_FB_MODE</code></td><td><code>0x54</code></td><td>u8 x4 per-plane render mode (0x54..0x57): 0 normal, 1 fullscreen, 2 scroll</td></tr>
 </tbody></table></section>
-<section id="1"><h2>Blitter registers</h2><table><thead><tr><th>Name</th><th>Value</th><th>Meaning</th></tr></thead><tbody>
+<section id="3"><h2>Blitter registers</h2><table><thead><tr><th>Name</th><th>Value</th><th>Meaning</th></tr></thead><tbody>
 <tr><td><code>BLIT_COMMAND</code></td><td><code>OFF_BLIT + 0x00</code></td><td>u8  0 NOP 1 BLIT 2 FILL 3 LINE 4 TRIANGLE</td></tr>
 <tr><td><code>BLIT_MINTERM</code></td><td><code>OFF_BLIT + 0x01</code></td><td>u8  LF truth table of A,B,C (index = A&lt;&lt;2|B&lt;&lt;1|C)</td></tr>
 <tr><td><code>BLIT_CON</code></td><td><code>OFF_BLIT + 0x02</code></td><td>u8  control bits (see CON_* below)</td></tr>
@@ -123,12 +184,6 @@ fb.setScroll(scroll_x, scroll_y);
 <tr><td><code>BLIT_D_STRIDE</code></td><td><code>OFF_BLIT + 0x24</code></td><td>u16 channel D row stride</td></tr>
 <tr><td><code>BLIT_W</code></td><td><code>OFF_BLIT + 0x28</code></td><td>u16 blit width  (BLIT/FILL)</td></tr>
 <tr><td><code>BLIT_H</code></td><td><code>OFF_BLIT + 0x2A</code></td><td>u16 blit height (BLIT/FILL)</td></tr>
-<tr><td><code>BLIT_X0</code></td><td><code>OFF_BLIT + 0x2C</code></td><td>i16 dst x0 / line start / tri v0</td></tr>
-<tr><td><code>BLIT_Y0</code></td><td><code>OFF_BLIT + 0x2E</code></td><td>i16</td></tr>
-<tr><td><code>BLIT_X1</code></td><td><code>OFF_BLIT + 0x30</code></td><td>i16 line end / tri v1</td></tr>
-<tr><td><code>BLIT_Y1</code></td><td><code>OFF_BLIT + 0x32</code></td><td>i16</td></tr>
-<tr><td><code>BLIT_X2</code></td><td><code>OFF_BLIT + 0x34</code></td><td>i16 tri v2</td></tr>
-<tr><td><code>BLIT_Y2</code></td><td><code>OFF_BLIT + 0x36</code></td><td>i16</td></tr>
 <tr><td><code>BLIT_CLIP_X</code></td><td><code>OFF_BLIT + 0x38</code></td><td>u16 clip rect origin x</td></tr>
 <tr><td><code>BLIT_CLIP_Y</code></td><td><code>OFF_BLIT + 0x3A</code></td><td>u16 clip rect origin y</td></tr>
 <tr><td><code>BLIT_CLIP_W</code></td><td><code>OFF_BLIT + 0x3C</code></td><td>u16 clip rect width</td></tr>
@@ -142,7 +197,31 @@ fb.setScroll(scroll_x, scroll_y);
 <tr><td><code>BLIT_CMD_TRIANGLE</code></td><td><code>4</code></td><td></td></tr>
 <tr><td><code>BLIT_STATUS_BUSY</code></td><td><code>1 &lt;&lt; 7</code></td><td></td></tr>
 </tbody></table></section>
-<section id="2"><h2>HW ABI — machine exports</h2><div class="item"><code class="sig">hwVideoBase() i32</code><div class="doc">base of the video hardware region</div></div>
+<section id="4"><h2>Blitter commands / control / minterms</h2><table><thead><tr><th>Name</th><th>Value</th><th>Meaning</th></tr></thead><tbody>
+<tr><td><code>BLIT_CMD_NOP</code></td><td><code>0</code></td><td></td></tr>
+<tr><td><code>BLIT_CMD_BLIT</code></td><td><code>1</code></td><td></td></tr>
+<tr><td><code>BLIT_CMD_FILL</code></td><td><code>2</code></td><td></td></tr>
+<tr><td><code>BLIT_CMD_LINE</code></td><td><code>3</code></td><td></td></tr>
+<tr><td><code>BLIT_CMD_TRIANGLE</code></td><td><code>4</code></td><td></td></tr>
+<tr><td><code>CON_USEA</code></td><td><code>1 &lt;&lt; 0</code></td><td>channel A enabled</td></tr>
+<tr><td><code>CON_USEB</code></td><td><code>1 &lt;&lt; 1</code></td><td>channel B enabled</td></tr>
+<tr><td><code>CON_USEC</code></td><td><code>1 &lt;&lt; 2</code></td><td>channel C enabled</td></tr>
+<tr><td><code>CON_KEY_EN</code></td><td><code>1 &lt;&lt; 3</code></td><td>colour-key cookie-cut (skip B == COLOR_KEY)</td></tr>
+<tr><td><code>CON_IFE</code></td><td><code>1 &lt;&lt; 4</code></td><td>inclusive area fill (reserved, v2)</td></tr>
+<tr><td><code>CON_EFE</code></td><td><code>1 &lt;&lt; 5</code></td><td>exclusive area fill (reserved, v2)</td></tr>
+<tr><td><code>CON_DESC</code></td><td><code>1 &lt;&lt; 6</code></td><td>descending copy (overlapping moves)</td></tr>
+<tr><td><code>CON_CLIP_EN</code></td><td><code>1 &lt;&lt; 7</code></td><td>clip to CLIP rect</td></tr>
+<tr><td><code>BLIT_STATUS_BUSY</code></td><td><code>1 &lt;&lt; 7</code></td><td></td></tr>
+<tr><td><code>MT_A</code></td><td><code>0xF0</code></td><td>D = A</td></tr>
+<tr><td><code>MT_B</code></td><td><code>0xCC</code></td><td>D = B (plain image copy)</td></tr>
+<tr><td><code>MT_C</code></td><td><code>0xAA</code></td><td>D = C (dest unchanged)</td></tr>
+<tr><td><code>MT_COOKIE</code></td><td><code>0xCA</code></td><td>(A &amp; B) | (~A &amp; C) — cookie-cut bob</td></tr>
+<tr><td><code>MT_XOR_BC</code></td><td><code>0x66</code></td><td>D = B ^ C (reversible draw)</td></tr>
+<tr><td><code>MT_OR_BC</code></td><td><code>0xEE</code></td><td>D = B | C (additive — glenz vector transparency)</td></tr>
+<tr><td><code>MT_CLEAR</code></td><td><code>0x00</code></td><td></td></tr>
+<tr><td><code>MT_SET</code></td><td><code>0xFF</code></td><td></td></tr>
+</tbody></table></section>
+<section id="5"><h2>HW ABI — machine exports</h2><div class="item"><code class="sig">hwVideoBase() i32</code><div class="doc">base of the video hardware region</div></div>
 <div class="item"><code class="sig">hwInit() void</code><div class="doc">reset registers/planes</div></div>
 <div class="item"><code class="sig">hwClear() void</code><div class="doc">fill PFB with BACKGROUND, run GLOBAL_HBL per row</div></div>
 <div class="item"><code class="sig">hwRenderPlane(plane: u32) void</code><div class="doc">composite one enabled LFB -&gt; PFB</div></div>
@@ -154,12 +233,13 @@ fb.setScroll(scroll_x, scroll_y);
 <div class="item"><code class="sig">hwPhysWidth() u32</code></div>
 <div class="item"><code class="sig">hwPhysHeight() u32</code></div>
 <div class="item"><code class="sig">hwVersion() u32</code><div class="doc">ZM_HW_VERSION</div></div></section>
-<section id="3"><h2>ZigOS — LogicalFB (a plane)</h2><div class="item"><code class="sig">init(self: *LogicalFB, zigos: *ZigOS) void</code></div>
+<section id="6"><h2>ZigOS — LogicalFB (a plane)</h2><div class="item"><code class="sig">init(self: *LogicalFB, zigos: *ZigOS) void</code></div>
 <div class="item"><code class="sig">setFullscreen(self: *LogicalFB) void</code><div class="doc">Turn this plane into a fullscreen (400×280) overscan plane: coordinates are now PHYSICAL (0..400, 0..280); the machine composites it across the whole frame including the borders. The visible window stays at the same place.</div></div>
 <div class="item"><code class="sig">setScrollPlane(self: *LogicalFB, buf_w: u16, buf_h: u16) void</code><div class="doc">Turn this plane into a SCROLL plane: back it with a bigger-than-screen buffer (buf_w x buf_h). Draw into it at buffer coordinates via the normal methods; the visible 320x200 window is panned with setScroll()/setScrollFine().</div></div>
 <div class="item"><code class="sig">setScroll(self: *LogicalFB, x: u32, y: u32) void</code><div class="doc">Pan the visible window to buffer pixel (x, y) — coarse hardware scroll (moves the plane&#x27;s read base; the backing buffer / draw origin stays put).</div></div>
 <div class="item"><code class="sig">setScrollFine(self: *LogicalFB, hs: u16) void</code><div class="doc">Per-line horizontal offset (added on top of setScroll). In SCROLL mode this is re-read every scanline, so setting it from an HBL handler distorts the image line-by-line (sine wobble / shear).</div></div>
 <div class="item"><code class="sig">setMediumPlane(self: *LogicalFB) void</code><div class="doc">Turn this plane into a MEDIUM-res plane (640x200, 1:1 into the raster). Coordinates are 0..640 / 0..200; the machine composites it crisply (no pixel doubling). Use 2 medium planes for a 4-colour GEM-style screen.</div></div>
+<div class="item"><code class="sig">setMediumFullscreen(self: *LogicalFB) void</code><div class="doc">Medium OVERSCAN plane: an 800x280 buffer covering the WHOLE raster, borders included (coordinates are physical; the visible window is at 80,40). Lets a medium screen draw into the borders — the medium twin of setFullscreen().</div></div>
 <div class="item"><code class="sig">getRenderTarget(self: *LogicalFB) RenderTarget</code></div>
 <div class="item"><code class="sig">setPalette(self: *LogicalFB, entries: [256]Color) void</code><div class="doc">--- Palette management ---</div></div>
 <div class="item"><code class="sig">setPaletteEntry(self: *LogicalFB, entry: u8, value: Color) void</code></div>
@@ -170,7 +250,7 @@ fb.setScroll(scroll_x, scroll_y);
 <div class="item"><code class="sig">clearFrameBuffer(self: *LogicalFB, pal_entry: u8) void</code></div>
 <div class="item"><code class="sig">setFrameBufferHBLHandler(self: *LogicalFB, position: u16, handler: *const fn (*LogicalFB, *ZigOS, u16, u16) void) void</code></div>
 <div class="item"><code class="sig">clearFrameBufferHBLHandler(self: *LogicalFB) void</code></div></section>
-<section id="4"><h2>ZigOS — ZigOS (the OS)</h2><div class="item"><code class="sig">init(self: *ZigOS) void</code></div>
+<section id="7"><h2>ZigOS — ZigOS (the OS)</h2><div class="item"><code class="sig">init(self: *ZigOS) void</code></div>
 <div class="item"><code class="sig">nop(self: *ZigOS) void</code><div class="doc">--- Features ---</div></div>
 <div class="item"><code class="sig">printText(self: *ZigOS, lfb: *LogicalFB, text: []const u8, x: u16, y: u16, fg_color_index: u8, bg_color_index: u8) void</code></div>
 <div class="item"><code class="sig">setResolution(self: *ZigOS, res: Resolution) void</code><div class="doc">--- Framebuffer / register management ---</div></div>
@@ -179,7 +259,7 @@ fb.setScroll(scroll_x, scroll_y);
 <div class="item"><code class="sig">setHBLHandler(self: *ZigOS, handler: *const fn (*ZigOS, u16) void) void</code></div>
 <div class="item"><code class="sig">removeHBLHandler(self: *ZigOS) void</code></div>
 <div class="item"><code class="sig">dispatchHBL(self: *ZigOS, id: u32, plane: u32, line: u32, x: u32) void</code><div class="doc">Called (via the demo module&#x27;s exported hblDispatch) by the sealed machine when the render pipeline reaches an HBL point. Integer ids in, Zig handler calls out — the machine never holds a function pointer.</div></div></section>
-<section id="5"><h2>ZigOS — Blitter (2D coprocessor)</h2><div class="item"><code class="sig">init(self: *Blitter) void</code></div>
+<section id="8"><h2>ZigOS — Blitter (2D coprocessor)</h2><div class="item"><code class="sig">init(self: *Blitter) void</code></div>
 <div class="item"><code class="sig">fill(self: *Blitter, fb: *LogicalFB, x: i16, y: i16, w: u16, h: u16, color: u8) void</code><div class="doc">--- primitives ---</div></div>
 <div class="item"><code class="sig">clear(self: *Blitter, fb: *LogicalFB, color: u8) void</code></div>
 <div class="item"><code class="sig">line(self: *Blitter, fb: *LogicalFB, x0: i16, y0: i16, x1: i16, y1: i16, color: u8, mt: Minterm) void</code></div>
@@ -190,6 +270,20 @@ fb.setScroll(scroll_x, scroll_y);
 <div class="item"><code class="sig">blitCopy(self: *Blitter, dst: *LogicalFB, dx: i16, dy: i16, src: *LogicalFB, sx: i16, sy: i16, w: u16, h: u16) void</code><div class="doc">Plain block copy of a w×h region of `src` at (sx,sy) onto `dst` at (dx,dy), no colour key. Firing this once per row with a per-row `dx` is the classic strip-blit deformation (sine wobble / rubber / shear).</div></div>
 <div class="item"><code class="sig">bob(self: *Blitter, dst: *LogicalFB, dx: i16, dy: i16, src: *LogicalFB, sx: i16, sy: i16, w: u16, h: u16, key: u8) void</code><div class="doc">Cookie-cut bob: copy a w×h region of `src` at (sx,sy) onto `dst` at (dx,dy), skipping pixels equal to `key` (the chunky one-channel cookie-cut).</div></div>
 <div class="item"><code class="sig">cycles(self: *Blitter) u32</code><div class="doc">Estimated cost of the last op (pixels touched + setup), for VBL budgeting.</div></div></section>
+<section id="9"><h2>ZigOS — GUI toolkit (Gui)</h2><div class="item"><code class="sig">setPointer(self: *Gui, x: i32, y: i32, buttons: u32) void</code></div>
+<div class="item"><code class="sig">beginFrame(self: *Gui) void</code></div>
+<div class="item"><code class="sig">endFrame(self: *Gui) void</code></div>
+<div class="item"><code class="sig">rect(self: *Gui, r: Rect, color: u8) void</code><div class="doc">--- primitives ---</div></div>
+<div class="item"><code class="sig">frame(self: *Gui, r: Rect, color: u8) void</code></div>
+<div class="item"><code class="sig">bevel(self: *Gui, r: Rect, face: u8, raised: bool) void</code><div class="doc">A raised (or sunken) 3D bevel box — the GEM button look.</div></div>
+<div class="item"><code class="sig">text(self: *Gui, s: []const u8, x: i16, y: i16, ink: u8, paper: u8) void</code></div>
+<div class="item"><code class="sig">hit(self: *Gui, r: Rect) bool</code></div>
+<div class="item"><code class="sig">button(self: *Gui, r: Rect, label: []const u8, active: bool) bool</code><div class="doc">A clickable bevel button; returns true on the frame the press lands inside.</div></div></section>
+<section id="10"><h2>ZigOS — Window manager (Wm)</h2><div class="item"><code class="sig">add(self: *Wm, w: Window) u8</code></div>
+<div class="item"><code class="sig">handle(self: *Wm, g: *Gui) void</code><div class="doc">Process pointer: start/continue/stop dragging, handle close boxes. Call once per frame before drawing.</div></div>
+<div class="item"><code class="sig">drawChrome(self: *Wm, g: *Gui, id: u8, active: bool) Rect</code><div class="doc">Draw a window&#x27;s frame + title bar; returns the interior content rect. Draw your content into it after calling this. `active` = topmost/focused window.</div></div>
+<div class="item"><code class="sig">topId(self: *Wm) u8</code></div></section>
+<section id="11"><h2>ZigOS — OBJ loader (Mesh)</h2><div class="item"><code class="sig">load(self: *Mesh, text: []const u8) void</code></div></section>
   </main>
 </div>
 </body></html>
