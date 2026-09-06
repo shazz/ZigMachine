@@ -18,7 +18,7 @@ const FW: usize = 180;
 const FH: usize = 42;
 const FRAMES: usize = 26;
 const FRAME_HOLD: u32 = 8;
-const ALPHA_INCR: f32 = 0.005;
+const ALPHA_INCR: f32 = 0.02; // faster logo fade-out (author's call; JS base is 0.005)
 const turn_raw = @embedFile("../../assets/screens/union_intro/trsi_turn.raw");
 const turn_pal = convertU8ArraytoColors(@embedFile("../../assets/screens/union_intro/trsi_turn_pal.dat"));
 
@@ -30,9 +30,13 @@ const TH: usize = 6;
 const NX: usize = FW / TW;
 const NY: usize = FH / TH;
 const NT: usize = NX * NY; // 210
-const MOVE: f32 = 60.0;
-const STAGGER: u16 = 40;
-const ENTRY_END: u32 = 115;
+// Faithful to codef_animatedtiles.js: every tile arrives at endvbl (= aSpeed),
+// so a tile that starts late (bigger svbl) has a shorter travel window and a
+// bigger per-frame step — the blocks visibly accelerate and snap into place
+// together at ENDVBL, instead of each drifting a fixed MOVE frames.
+const ENDVBL: f32 = 60.0;
+const STAGGER: u16 = 40; // ~ Math.ceil(40*Math.random())
+const ENTRY_END: u32 = 60; // all tiles home by ENDVBL -> straight into the turn
 
 const BG = Color{ .r = 0, .g = 0, .b = 0, .a = 255 };
 
@@ -105,7 +109,7 @@ pub const Part = struct {
             const ty = i / NX;
             const home_x: f32 = @floatFromInt(OX + @as(i32, @intCast(tx * TW)));
             const home_y: f32 = @floatFromInt(OY + @as(i32, @intCast(ty * TH)));
-            var p: f32 = @as(f32, @floatFromInt(self.t - self.svbl[i])) / MOVE;
+            var p: f32 = @as(f32, @floatFromInt(self.t - self.svbl[i])) / (ENDVBL - @as(f32, @floatFromInt(self.svbl[i])));
             if (p > 1.0) p = 1.0;
             const cx: i32 = @intFromFloat(self.sx[i] + (home_x - self.sx[i]) * p);
             const cy: i32 = @intFromFloat(self.sy[i] + (home_y - self.sy[i]) * p);

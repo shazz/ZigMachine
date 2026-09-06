@@ -121,12 +121,10 @@ pub const Doors = struct {
             return;
         }
         self.main.render(zigos, dt);
-        if (self.titled >= 0 and self.title_alpha > 0) {
-            const p1 = &zigos.lfbs[1];
-            p1.setPaletteEntry(TITLE_IDX, Color{ .r = 255, .g = 255, .b = 255, .a = @intFromFloat(self.title_alpha * 255.0) });
-            const name = DOORS[@intCast(self.titled)].name;
-            cf.drawLine(p1, name, self.title_cx - @divTrunc(cf.width(name), 2), TITLE_Y, TITLE_IDX);
-        }
+        // Door-name title removed (its fade wasn't well synced to the door). The
+        // enterable door is still tracked by pickTitle -> self.titled (so Space
+        // still enters the door in front); names will return as tiles below the
+        // door. See notes/zigmachine-gem-pending-todo / next-session idea.
     }
 
     // Host input: 0-3 dirs, 5 Fire (Space), 6 Back (see demo_main.zig Direction).
