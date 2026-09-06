@@ -82,7 +82,7 @@ pub const App = struct {
         _ = os;
         _ = dt;
         self.g.beginFrame();
-        if (!self.dialog.active) self.wm.handle(&self.g); // dialog is modal
+        if (!self.dialog.active) _ = self.wm.handle(&self.g); // dialog is modal
         if (self.playing) {
             self.playhead += @as(f32, WAVE_LEN) / PLAY_FRAMES; // scrub in sync with the ~1s sample
             if (self.playhead >= WAVE_LEN) {

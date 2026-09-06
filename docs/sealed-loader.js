@@ -206,9 +206,12 @@ window.document.body.addEventListener('keydown', function (evt) {
     surface.addEventListener('mousedown', function (e) { buttons = 1; send(e); e.preventDefault(); });
     // Defer the release by one animation frame so a fast click (down+up within a
     // single frame) is still seen as "pressed" for at least one render.
+    // The deferred release must itself be SENT: without a mousemove afterwards
+    // the module would still believe the button is down (e.g. right after a
+    // double-click), leaving an icon latched to the pointer until the next click.
     window.addEventListener('mouseup', function (e) {
         send(e);
-        window.requestAnimationFrame(function () { buttons = 0; });
+        window.requestAnimationFrame(function () { buttons = 0; send(e); });
     });
     // Double-click: use the browser's own dblclick (honours the OS double-click
     // speed) and pulse buttons bit 1 (=2) so the app opens the item under the

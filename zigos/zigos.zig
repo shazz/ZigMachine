@@ -54,6 +54,11 @@ const SYSTEM_FONT = @embedFile("assets/fonts/system_font_atari_1bit.raw");
 const SYSTEM_FONT_WIDTH = 8;
 const SYSTEM_FONT_HEIGHT = 8;
 
+// The authentic ST 6x6 system font (used for icon labels, like GEM).
+const SYSTEM_FONT_6 = @embedFile("assets/fonts/system_font_atari_6x6.raw");
+pub const SMALL_FONT_WIDTH = 6;
+pub const SMALL_FONT_HEIGHT = 6;
+
 // --------------------------------------------------------------------------
 // Video hardware base — discovered from the sealed machine at init, then used
 // to compute all framebuffer/palette/register addresses in shared memory.
@@ -337,6 +342,7 @@ pub const ZigOS = struct {
     lfbs: [NB_PLANES]LogicalFB = undefined,
     hbl_handler: ?*const fn (*ZigOS, u16) void = null,
     system_font: []const u8 = undefined,
+    system_font_6: []const u8 = undefined, // 6x6 (icon labels)
     // Mirror of the audio thread's YM2149 registers, pushed in from JS so scenes
     // can visualize the chip. 0..13 are the standard PSG registers.
     ym_regs: [16]u8 = [_]u8{0} ** 16,
@@ -351,6 +357,7 @@ pub const ZigOS = struct {
 
         self.physical_framebuffer = @ptrFromInt(g_base + hw.OFF_PFB);
         self.system_font = SYSTEM_FONT;
+        self.system_font_6 = SYSTEM_FONT_6;
         self.hbl_handler = null;
 
         // default registers
@@ -391,6 +398,24 @@ pub const ZigOS = struct {
                 } else {
                     letter_pos += 1;
                 }
+            }
+        }
+    }
+
+    // Draw text in the 6x6 system font (icon labels). Clean row-major blit,
+    // 1 byte/pixel; glyph N lives at N*(6*6) in the raw font.
+    pub fn printTextSmall(self: *ZigOS, lfb: *LogicalFB, text: []const u8, x: u16, y: u16, fg_color_index: u8, bg_color_index: u8) void {
+        const buffer = lfb.fb;
+        const cell = SMALL_FONT_WIDTH * SMALL_FONT_HEIGHT;
+        for (text, 0..) |char, nb| {
+            const g0: u32 = @as(u32, char) * cell;
+            var pos: u32 = @as(u32, y) * @as(u32, lfb.stride) + x + @as(u32, @intCast(nb)) * SMALL_FONT_WIDTH;
+            var r: u32 = 0;
+            while (r < SMALL_FONT_HEIGHT) : (r += 1) {
+                var c: u32 = 0;
+                while (c < SMALL_FONT_WIDTH) : (c += 1)
+                    buffer[pos + c] = if (self.system_font_6[g0 + r * SMALL_FONT_WIDTH + c] == 1) fg_color_index else bg_color_index;
+                pos += lfb.stride;
             }
         }
     }
