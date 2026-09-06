@@ -96,12 +96,14 @@ const Parallax5 = zg.parallax.Parallax(5);
 const Runner = @import("runner.zig").Runner;
 const Dragonballs = @import("dragonball.zig").Dragonballs;
 const Scroller = @import("scroller.zig").Scroller;
+const Credits = @import("credits.zig").Credits;
 
 pub const Demo = struct {
     px: Parallax5 = undefined,
     runner: Runner = .{},
     balls: Dragonballs = .{},
     scroller: Scroller = .{},
+    credits: Credits = .{},
     pos: f32 = 0, // world scroll in tiles
     frame: u32 = 0,
     grad_idx: u8 = 0, // gradTiles palette-animation step
@@ -123,6 +125,7 @@ pub const Demo = struct {
         p0.setFrameBufferHBLHandler(0, skyHandler); // per-scanline sky gradient
         self.runner.init(zigos); // sets up plane 1 (actors)
         self.balls.init(zigos); // dragonballs share plane 1, own palette slots
+        self.credits.init(zigos); // credits pages on plane 1 (top, faded)
         self.scroller.init(zigos); // sets up plane 2 (scrolltext)
         self.px = .{ .layers = .{
             .{ .raw = layer_b1, .w = 384, .h = 16, .y = 195, .speed = 11 },
@@ -149,6 +152,7 @@ pub const Demo = struct {
         }
         self.runner.update();
         self.balls.update();
+        self.credits.update(zigos);
         self.scroller.update();
     }
 
@@ -169,6 +173,7 @@ pub const Demo = struct {
         world_layer.draw(p0, self.pos);
         self.runner.draw(zigos); // plane 1 (actors), composited over the world
         self.balls.draw(zigos); // dragonballs on plane 1, after the runner
+        self.credits.draw(zigos); // credits pages on plane 1 (top area)
         self.scroller.draw(zigos); // plane 2 (scrolltext) on top
     }
 
