@@ -331,7 +331,7 @@ pub const Wm = struct {
     // GEM info line: plain text, one char row, closed by a 1px line.
     fn infoLine(g: *Gui, w: *const Window) void {
         const y = w.r.y + TITLE_H;
-        g.text(w.info, w.r.x + 2, y, BLACK, WHITE);
+        g.text(w.info, w.r.x + 2, y + 1, BLACK, WHITE); // 1px lower, like the title
         g.blit.fill(g.fb, w.r.x, y + INFO_H - 1, @intCast(w.r.w), 1, BLACK);
     }
 

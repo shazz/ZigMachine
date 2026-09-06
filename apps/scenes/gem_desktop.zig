@@ -33,7 +33,20 @@ pub const Demo = struct {
         self.blit.init();
         self.desktop.init(os, self.fb, &self.blit);
         self.app.init(os); // set up (but do not show) the app; host fills its sample
-        self.applyDeskRes(); // start at the desktop's resolution (low)
+        // A scene can opt to boot straight into the app (skip the GEM desktop) by
+        // declaring `pub const BOOT_DIRECT = true;`. File > Quit still drops back
+        // to the desktop. Default: show the desktop first.
+        if (@hasDecl(st_replay, "BOOT_DIRECT") and st_replay.BOOT_DIRECT) {
+            self.launchApp(os);
+        } else {
+            self.applyDeskRes(); // start at the desktop's resolution (low)
+        }
+    }
+
+    fn launchApp(self: *Demo, os: *ZigOS) void {
+        self.running = true;
+        self.fb.setResMedium(); // ST Replay is a medium-res app
+        self.app.init(os); // reset transport/quit flag, keep windows + sample
     }
 
     fn applyDeskRes(self: *Demo) void {
@@ -64,11 +77,7 @@ pub const Demo = struct {
         const action = self.desktop.render();
         self.desktop.endFrame();
         switch (action) {
-            .launch => {
-                self.running = true;
-                self.fb.setResMedium(); // ST Replay is a medium-res app
-                self.app.init(os); // reset transport/quit flag, keep windows + sample
-            },
+            .launch => self.launchApp(os),
             .res_low => {
                 self.desk_medium = false;
                 self.applyDeskRes();

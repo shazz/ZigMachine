@@ -37,6 +37,11 @@ extern fn loadSample(id: u32) void;
 
 const FILES = [_][]const u8{ "SMP1.RAW", "SMP2.RAW" };
 
+// Boot mode (read by scenes/gem_desktop.zig): false = show the GEM desktop and
+// launch this app from its icon; true = boot straight into the app (skip the
+// desktop). File > Quit returns to the desktop either way.
+pub const BOOT_DIRECT = false;
+
 pub const App = struct {
     blit: Blitter = .{},
     g: gui.Gui = undefined,
