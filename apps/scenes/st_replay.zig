@@ -30,15 +30,19 @@ const MENUS = [_]gui.Menu{
     .{ .title = "Options", .items = &.{ "8 bit", "12.5 kHz" } },
 };
 
-// Host audio bridge (wired in sealed-loader.js): play/stop the sample worklet.
+// Host audio bridge (wired in sealed-loader.js): play/stop/select the sample.
 extern fn audioPlay() void;
 extern fn audioStop() void;
+extern fn loadSample(id: u32) void;
+
+const FILES = [_][]const u8{ "SMP1.RAW", "SMP2.RAW" };
 
 pub const Demo = struct {
     blit: Blitter = .{},
     g: gui.Gui = undefined,
     wm: gui.Wm = .{},
     menubar: gui.MenuBar = .{},
+    dialog: gui.Dialog = .{},
     w_sample: u8 = 0,
     w_transport: u8 = 0,
     sample: [WAVE_LEN]u8 = [_]u8{128} ** WAVE_LEN, // signed 8-bit (128=zero); host fills from smp1.raw
@@ -62,7 +66,7 @@ pub const Demo = struct {
         self.blit.init();
         gui.installPalette(fb);
         os.setBackgroundColor(.{ .r = 0, .g = 150, .b = 90, .a = 255 }); // desktop green in the border
-        self.g = .{ .os = os, .fb = fb, .blit = &self.blit };
+        self.g = .{ .os = os, .fb = fb, .blit = &self.blit, .screen_w = SW, .screen_h = SH };
 
         self.w_sample = self.wm.add(.{ .r = .{ .x = 16, .y = 26, .w = 440, .h = 120 }, .title = "SAMPLE.SPL" });
         self.w_transport = self.wm.add(.{ .r = .{ .x = 380, .y = 150, .w = 236, .h = 44 }, .title = "Transport" });
@@ -77,7 +81,7 @@ pub const Demo = struct {
         _ = os;
         _ = dt;
         self.g.beginFrame();
-        self.wm.handle(&self.g);
+        if (!self.dialog.active) self.wm.handle(&self.g); // dialog is modal
         if (self.playing) {
             self.playhead += @as(f32, WAVE_LEN) / PLAY_FRAMES; // scrub in sync with the ~1s sample
             if (self.playhead >= WAVE_LEN) {
@@ -101,25 +105,41 @@ pub const Demo = struct {
             const content = self.wm.drawChrome(g, id, active);
             if (id == self.w_sample) self.drawWave(content) else self.drawTransport(content);
         }
-        // menu bar LAST so an open drop-down overlays the windows
-        if (self.menubar.process(g, &MENUS, SW)) |pick| self.onMenu(pick);
+        // menu bar (inert while a dialog is up), then any modal dialog on top.
+        if (self.menubar.process(g, &MENUS, SW, self.dialog.active)) |pick| self.onMenu(pick);
+        switch (self.dialog.process(g)) {
+            .ok => |sel| if (self.dialog.filesel) {
+                loadSample(sel); // the host swaps the sample + refreshes the display
+                self.playing = false;
+            },
+            else => {},
+        }
         g.endFrame();
     }
 
     fn onMenu(self: *Demo, pick: gui.MenuPick) void {
-        if (pick.menu == 2) switch (pick.item) { // Sound
-            0 => {
-                self.playing = true;
-                self.playhead = 0;
-                audioPlay();
+        switch (pick.menu) {
+            0 => self.dialog.alert("About", "ST Replay - ZigMachine GEM"), // Desk
+            1 => switch (pick.item) { // File
+                0 => self.dialog.openFiles("Load Sample", &FILES),
+                2 => self.dialog.alert("ST Replay", "Nothing to quit :)"),
+                else => {},
             },
-            1 => {
-                self.playing = false;
-                audioStop();
+            2 => switch (pick.item) { // Sound
+                0 => {
+                    self.playing = true;
+                    self.playhead = 0;
+                    audioPlay();
+                },
+                1 => {
+                    self.playing = false;
+                    audioStop();
+                },
+                2 => self.looping = !self.looping,
+                else => {},
             },
-            2 => self.looping = !self.looping,
             else => {},
-        };
+        }
     }
 
     fn drawWave(self: *Demo, c: Rect) void {

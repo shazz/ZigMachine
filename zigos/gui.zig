@@ -49,6 +49,8 @@ pub const Gui = struct {
     os: *ZigOS,
     fb: *LogicalFB,
     blit: *Blitter,
+    screen_w: i16 = 320, // set to 640 for a medium-res app (centres dialogs etc.)
+    screen_h: i16 = 200,
     px: i32 = -1,
     py: i32 = -1,
     down: bool = false,
@@ -200,6 +202,59 @@ pub const Wm = struct {
 };
 
 // --------------------------------------------------------------------------
+// Modal dialog — a centred GEM box: an alert (message + OK) or a file selector
+// (a list + Cancel). While active it owns all input; process() returns a result
+// on the frame the user chooses. Draw it LAST, over everything.
+// --------------------------------------------------------------------------
+pub const DlgResult = union(enum) { none, ok: u8, cancel };
+
+pub const Dialog = struct {
+    active: bool = false,
+    filesel: bool = false,
+    title: []const u8 = "",
+    msg: []const u8 = "",
+    items: []const []const u8 = &.{},
+    want_w: i16 = 0,
+    want_h: i16 = 0,
+
+    pub fn alert(self: *Dialog, title: []const u8, msg: []const u8) void {
+        self.* = .{ .active = true, .filesel = false, .title = title, .msg = msg };
+        self.want_w = @max(@as(i16, @intCast(msg.len)), @as(i16, @intCast(title.len))) * 8 + 40;
+        self.want_h = 62;
+    }
+    pub fn openFiles(self: *Dialog, title: []const u8, items: []const []const u8) void {
+        self.* = .{ .active = true, .filesel = true, .title = title, .items = items };
+        self.want_w = 220;
+        self.want_h = @as(i16, @intCast(items.len)) * MENU_H + 52;
+    }
+
+    pub fn process(self: *Dialog, g: *Gui) DlgResult {
+        if (!self.active) return .none;
+        const b = Rect{ .x = @divTrunc(g.screen_w - self.want_w, 2), .y = @divTrunc(g.screen_h - self.want_h, 2), .w = self.want_w, .h = self.want_h };
+        g.bevel(b, WHITE, true);
+        g.rect(.{ .x = b.x + 1, .y = b.y + 1, .w = b.w - 2, .h = 9 }, LGRAY);
+        g.text(self.title, b.x + 6, b.y + 2, BLACK, LGRAY);
+        var res: DlgResult = .none;
+        if (self.filesel) {
+            for (self.items, 0..) |it, j| {
+                const iy = b.y + 13 + @as(i16, @intCast(j)) * MENU_H;
+                const row = Rect{ .x = b.x + 4, .y = iy, .w = b.w - 8, .h = MENU_H };
+                const hover = g.hit(row);
+                if (hover) g.rect(row, ACCENT);
+                g.text(it, b.x + 8, iy + 2, if (hover) WHITE else BLACK, if (hover) ACCENT else WHITE);
+                if (g.edge and hover) res = .{ .ok = @intCast(j) };
+            }
+            if (g.button(.{ .x = b.x + b.w - 60, .y = b.y + b.h - 20, .w = 52, .h = 15 }, "Cancel", false)) res = .cancel;
+        } else {
+            g.text(self.msg, b.x + 12, b.y + 22, BLACK, WHITE);
+            if (g.button(.{ .x = b.x + @divTrunc(b.w - 40, 2), .y = b.y + b.h - 20, .w = 40, .h = 15 }, "OK", false)) res = .{ .ok = 0 };
+        }
+        if (res != .none) self.active = false;
+        return res;
+    }
+};
+
+// --------------------------------------------------------------------------
 // Menu bar — GEM-style pull-down menus. Click a title to drop it, click an item
 // to pick it (returns {menu,item}), click away to close. Draw it LAST each frame
 // so an open drop-down overlays the windows.
@@ -211,9 +266,18 @@ pub const MenuPick = struct { menu: u8, item: u8 };
 pub const MenuBar = struct {
     open: i16 = -1, // index of the dropped menu, -1 = none
 
-    pub fn process(self: *MenuBar, g: *Gui, menus: []const Menu, bar_w: i16) ?MenuPick {
+    pub fn process(self: *MenuBar, g: *Gui, menus: []const Menu, bar_w: i16, locked: bool) ?MenuPick {
+        if (locked) self.open = -1; // a modal dialog owns input — bar is inert
         g.rect(.{ .x = 0, .y = 0, .w = bar_w, .h = MENU_H }, WHITE);
         g.blit.fill(g.fb, 0, MENU_H, @intCast(bar_w), 1, BLACK);
+        if (locked) {
+            var x: i16 = 8;
+            for (menus) |m| {
+                g.text(m.title, x, 2, BLACK, WHITE);
+                x += @as(i16, @intCast(m.title.len)) * 8 + 12 + 6;
+            }
+            return null;
+        }
 
         var x: i16 = 8;
         var pick: ?MenuPick = null;

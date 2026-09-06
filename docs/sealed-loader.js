@@ -66,8 +66,9 @@ async function boot() {
             consoleLogJS: consoleLogJS,
             hwVideoBase: machine.hwVideoBase,
             hwBlit: machine.hwBlit, // sealed 2D blitter (execute COMMAND register)
-            audioPlay: () => playRaw("music/smp1.raw", 12517, false), // ST Replay PLAY -> real sound
+            audioPlay: () => playRaw(SAMPLES[curSample].url, SAMPLES[curSample].rate, false), // PLAY -> real sound
             audioStop: stopRaw,
+            loadSample: (id) => selectSample(id), // File > Load: switch the current sample
         },
     };
     // Which open scene to load: ?demo=demo-scroll.wasm etc. (default demo.wasm),
@@ -82,11 +83,21 @@ async function boot() {
 
     // If the scene displays a sample (ST Replay), copy a real sample into it so
     // the waveform on screen is the one PLAY will play.
-    if (demo.getSampleBufLen && demo.getSampleBufPtr) {
-        const n = demo.getSampleBufLen();
-        if (n > 0) loadSampleForDisplay("music/smp1.raw", n);
-    }
+    if (demo.getSampleBufLen && demo.getSampleBufPtr && demo.getSampleBufLen() > 0) selectSample(0);
     start();
+}
+
+// The selectable samples (File > Load in ST Replay) + the current one.
+const SAMPLES = [
+    { name: "SMP1.RAW", url: "music/smp1.raw", rate: 12517 },
+    { name: "SMP2.RAW", url: "music/smp2.raw", rate: 12517 },
+];
+let curSample = 0;
+
+function selectSample(id) {
+    curSample = (id >= 0 && id < SAMPLES.length) ? id : 0;
+    if (demo && demo.getSampleBufLen && demo.getSampleBufLen() > 0)
+        loadSampleForDisplay(SAMPLES[curSample].url, demo.getSampleBufLen());
 }
 
 // Fetch a raw 8-bit sample and down-sample it into the scene's display buffer.
