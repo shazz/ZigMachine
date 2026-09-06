@@ -2,27 +2,28 @@
 // Imports
 // --------------------------------------------------------------------------
 const std = @import("std");
-const readU16Array = @import("../utils/loaders.zig").readU16Array;
-const readI16Array = @import("../utils/loaders.zig").readI16Array;
-const convertU8ArraytoColors = @import("../utils/loaders.zig").convertU8ArraytoColors;
+const zg = @import("zigos");
+const readU16Array = zg.readU16Array;
+const readI16Array = zg.readI16Array;
+const convertU8ArraytoColors = zg.convertU8ArraytoColors;
 
-const ZigOS = @import("../zigos.zig").ZigOS;
-const LogicalFB = @import("../zigos.zig").LogicalFB;
-const Color = @import("../zigos.zig").Color;
+const ZigOS = zg.ZigOS;
+const LogicalFB = zg.LogicalFB;
+const Color = zg.Color;
 
-const Scrolltext = @import("../effects/scrolltext.zig").Scrolltext;
-const Bobs = @import("../effects/bobs.zig").Bobs;
-const Starfield = @import("../effects/starfield.zig").Starfield;
-const Sprite = @import("../effects/sprite.zig").Sprite;
-const StarfieldDirection = @import("../effects/starfield.zig").StarfieldDirection;
+const Scrolltext = zg.Scrolltext;
+const Bobs = zg.Bobs;
+const Starfield = zg.Starfield;
+const Sprite = zg.Sprite;
+const StarfieldDirection = zg.StarfieldDirection;
 
-const Console = @import("../utils/debug.zig").Console;
+const Console = zg.Console;
 
 // --------------------------------------------------------------------------
 // Constants
 // --------------------------------------------------------------------------
-const HEIGHT: u16 = @import("../zigos.zig").HEIGHT;
-const WIDTH: u16 = @import("../zigos.zig").WIDTH;
+const HEIGHT: u16 = zg.HEIGHT;
+const WIDTH: u16 = zg.WIDTH;
 
 const NB_STARS = 100;
 

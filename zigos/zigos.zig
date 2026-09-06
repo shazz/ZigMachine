@@ -26,12 +26,28 @@ pub const parallax = @import("effects/parallax.zig"); // Parallax(n) + Layer
 pub const tilemap = @import("effects/tilemap.zig"); // TileSheet + Layer
 pub const scrolltext2 = @import("effects/scrolltext2.zig"); // stride-agnostic scrolltext
 pub const convertU8ArraytoColors = @import("utils/loaders.zig").convertU8ArraytoColors;
+pub const readU16Array = @import("utils/loaders.zig").readU16Array;
+pub const readI16Array = @import("utils/loaders.zig").readI16Array;
 pub const Blitter = @import("blitter.zig").Blitter;
 pub const BlitVec2 = @import("blitter.zig").Vec2;
 pub const Minterm = @import("blitter.zig").Minterm;
 pub const obj = @import("utils/obj_loader.zig");
 pub const gui = @import("gui.zig");
 pub const gem = @import("gem.zig");
+pub const za = @import("utils/zalgebra.zig"); // vector/matrix math (Vec2/3/4, Mat4, perspective/camera/screen)
+
+// Migrated-scenes re-exports (added for apps/scenes/* pre-reorg-import migration).
+pub const Scrolltext = @import("effects/scrolltext.zig").Scrolltext;
+pub const Background = @import("effects/background.zig").Background;
+pub const Sprite = @import("effects/sprite.zig").Sprite;
+pub const Bobs = @import("effects/bobs.zig").Bobs;
+pub const Text = @import("effects/text.zig").Text;
+pub const Fade = @import("effects/fade.zig").Fade;
+pub const Starfield = @import("effects/starfield.zig").Starfield;
+pub const StarfieldDirection = @import("effects/starfield.zig").StarfieldDirection;
+pub const Dots3D = @import("effects/dots3d.zig").Dots3D;
+pub const shapes = @import("effects/shapes.zig");
+pub const Mandelbrot = @import("effects/mandelbrot.zig").Mandelbrot;
 
 // --------------------------------------------------------------------------
 // Enum

@@ -2,25 +2,26 @@
 // Imports
 // --------------------------------------------------------------------------
 const std = @import("std");
+const zg = @import("zigos");
 const RndGen = std.Random.DefaultPrng;
 
-const ZigOS = @import("../zigos.zig").ZigOS;
-const LogicalFB = @import("../zigos.zig").LogicalFB;
-const Color = @import("../zigos.zig").Color;
+const ZigOS = zg.ZigOS;
+const LogicalFB = zg.LogicalFB;
+const Color = zg.Color;
 
-const Mandelbrot = @import("../effects/mandelbrot.zig").Mandelbrot;
-const Resolution = @import("../zigos.zig").Resolution;
+const Mandelbrot = zg.Mandelbrot;
+const Resolution = zg.Resolution;
 
-const Console = @import("../utils/debug.zig").Console;
+const Console = zg.Console;
 
 // --------------------------------------------------------------------------
 // Constants
 // --------------------------------------------------------------------------
-const HEIGHT: u16 = @import("../zigos.zig").HEIGHT;
-const WIDTH: u16 = @import("../zigos.zig").WIDTH;
+const HEIGHT: u16 = zg.HEIGHT;
+const WIDTH: u16 = zg.WIDTH;
 
-pub const PHYSICAL_WIDTH: u16 = @import("../zigos.zig").PHYSICAL_WIDTH;
-pub const PHYSICAL_HEIGHT: u16 = @import("../zigos.zig").PHYSICAL_HEIGHT;
+pub const PHYSICAL_WIDTH: u16 = zg.PHYSICAL_WIDTH;
+pub const PHYSICAL_HEIGHT: u16 = zg.PHYSICAL_HEIGHT;
 
 // --------------------------------------------------------------------------
 // Variables

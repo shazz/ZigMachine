@@ -2,24 +2,25 @@
 // Imports
 // --------------------------------------------------------------------------
 const std = @import("std");
-const readU16Array = @import("../utils/loaders.zig").readU16Array;
-const readI16Array = @import("../utils/loaders.zig").readI16Array;
-const convertU8ArraytoColors = @import("../utils/loaders.zig").convertU8ArraytoColors;
+const zg = @import("zigos");
+const readU16Array = zg.readU16Array;
+const readI16Array = zg.readI16Array;
+const convertU8ArraytoColors = zg.convertU8ArraytoColors;
 
-const ZigOS = @import("../zigos.zig").ZigOS;
-const LogicalFB = @import("../zigos.zig").LogicalFB;
-const Color = @import("../zigos.zig").Color;
+const ZigOS = zg.ZigOS;
+const LogicalFB = zg.LogicalFB;
+const Color = zg.Color;
 
-const Scrolltext = @import("../effects/scrolltext.zig").Scrolltext;
-const Background = @import("../effects/background.zig").Background;
+const Scrolltext = zg.Scrolltext;
+const Background = zg.Background;
 
-const Console = @import("../utils/debug.zig").Console;
+const Console = zg.Console;
 
 // --------------------------------------------------------------------------
 // Constants
 // --------------------------------------------------------------------------
-const HEIGHT: u16 = @import("../zigos.zig").HEIGHT;
-const WIDTH: u16 = @import("../zigos.zig").WIDTH;
+const HEIGHT: u16 = zg.HEIGHT;
+const WIDTH: u16 = zg.WIDTH;
 
 // scrolltext
 pub const NB_FONTS: u8 = 11;

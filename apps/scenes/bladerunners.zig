@@ -2,26 +2,27 @@
 // Imports
 // --------------------------------------------------------------------------
 const std = @import("std");
-const readU16Array = @import("../utils/loaders.zig").readU16Array;
-const readI16Array = @import("../utils/loaders.zig").readI16Array;
-const convertU8ArraytoColors = @import("../utils/loaders.zig").convertU8ArraytoColors;
+const zg = @import("zigos");
+const readU16Array = zg.readU16Array;
+const readI16Array = zg.readI16Array;
+const convertU8ArraytoColors = zg.convertU8ArraytoColors;
 
-const ZigOS = @import("../zigos.zig").ZigOS;
-const LogicalFB = @import("../zigos.zig").LogicalFB;
-const Color = @import("../zigos.zig").Color;
-const RenderTarget = @import("../zigos.zig").RenderTarget;
-const RenderBuffer = @import("../zigos.zig").RenderBuffer;
+const ZigOS = zg.ZigOS;
+const LogicalFB = zg.LogicalFB;
+const Color = zg.Color;
+const RenderTarget = zg.RenderTarget;
+const RenderBuffer = zg.RenderBuffer;
 
-const Scrolltext = @import("../effects/scrolltext.zig").Scrolltext;
-const Background = @import("../effects/background.zig").Background;
+const Scrolltext = zg.Scrolltext;
+const Background = zg.Background;
 
-const Console = @import("../utils/debug.zig").Console;
+const Console = zg.Console;
 
 // --------------------------------------------------------------------------
 // Constants
 // --------------------------------------------------------------------------
-const HEIGHT: u16 = @import("../zigos.zig").HEIGHT;
-const WIDTH: u16 = @import("../zigos.zig").WIDTH;
+const HEIGHT: u16 = zg.HEIGHT;
+const WIDTH: u16 = zg.WIDTH;
 
 // scrolltext
 pub const NB_FONTS: u8 = 11;
@@ -92,6 +93,11 @@ pub const Demo = struct {
     offset_table: [320]u16 = undefined,
     scroller_offset: u16 = 0,
     scroller_target: RenderTarget = undefined,
+    // Backing store for scroller_target's render_buffer view. Was previously a
+    // stack-local in init() (dangling pointer once init() returned) — must live
+    // as long as the Demo instance, so it is a struct field now.
+    scroller_buffer: [WIDTH * SCROLL_CHAR_HEIGHT]u8 = undefined,
+    scroller_render_buffer: RenderBuffer = undefined,
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
         Console.log("Demo init", .{});
@@ -121,9 +127,9 @@ pub const Demo = struct {
             counter += 0.04;
         }
 
-        var buffer = [_]u8{0} ** (WIDTH * SCROLL_CHAR_HEIGHT);
-        var render_buffer: RenderBuffer = .{ .buffer = &buffer, .width = WIDTH, .height = SCROLL_CHAR_HEIGHT };   
-        self.scroller_target = .{ .render_buffer = &render_buffer };  
+        self.scroller_buffer = [_]u8{0} ** (WIDTH * SCROLL_CHAR_HEIGHT);
+        self.scroller_render_buffer = .{ .buffer = &self.scroller_buffer, .width = WIDTH, .height = SCROLL_CHAR_HEIGHT };
+        self.scroller_target = .{ .render_buffer = &self.scroller_render_buffer };
 
         self.scrolltext = Scrolltext(NB_FONTS).init(self.scroller_target, fonts_b, SCROLL_CHARS, SCROLL_CHAR_WIDTH, SCROLL_CHAR_HEIGHT, SCROLL_TEXT, SCROLL_SPEED, 0, null, null, null);
         self.scroller_offset = 0;
