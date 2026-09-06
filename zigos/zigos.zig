@@ -31,7 +31,7 @@ pub const gui = @import("gui.zig");
 // --------------------------------------------------------------------------
 // Enum
 // --------------------------------------------------------------------------
-pub const Resolution = enum { truecolor, planes };
+pub const Resolution = enum { truecolor, planes, medium };
 
 // --------------------------------------------------------------------------
 // Constants (re-exported from the SDK header so scenes keep their import paths)
@@ -225,6 +225,7 @@ pub const LogicalFB = struct {
         self.fb_h = MEDIUM_HEIGHT;
         writeU16(hw.REG_FB_STRIDE + @as(usize, self.id) * 2, MEDIUM_WIDTH);
         writeU8(hw.REG_FB_MODE + @as(usize, self.id), hw.FB_MODE_MEDIUM);
+        writeU8(hw.REG_RESOLUTION, hw.RES_MEDIUM); // default the screen to medium (HBL can switch per line)
         self.bind(vramAlloc(hw.MEDIUM_FB_BYTES));
         self.clearFrameBuffer(0);
     }
@@ -361,7 +362,11 @@ pub const ZigOS = struct {
     // --- Framebuffer / register management ---
     pub fn setResolution(self: *ZigOS, res: Resolution) void {
         _ = self;
-        writeU8(hw.REG_RESOLUTION, if (res == .planes) hw.RES_PLANES else hw.RES_TRUECOLOR);
+        writeU8(hw.REG_RESOLUTION, switch (res) {
+            .planes => hw.RES_PLANES,
+            .truecolor => hw.RES_TRUECOLOR,
+            .medium => hw.RES_MEDIUM,
+        });
     }
 
     pub fn setBackgroundColor(self: *ZigOS, color: Color) void {

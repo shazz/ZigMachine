@@ -187,7 +187,11 @@ fn renderPlaneNormal(fb_id: usize) void {
     }
 }
 
-// MEDIUM plane: 640x200 logical, composited 1:1 into the visible window.
+// MEDIUM plane: a 640-wide buffer composited into the visible window. The global
+// RESOLUTION register is RE-READ per scanline (after the per-plane HBL), so a
+// handler can switch resolution mid-screen (the ST shifter trick): a MEDIUM line
+// draws 640 pixels 1:1; a low (RES_PLANES) line draws the first 320 columns
+// pixel-doubled — both land on the same raster.
 fn renderPlaneMedium(fb_id: usize) void {
     const buf = lfb(fb_id);
     const stride: usize = fbStride(fb_id);
@@ -200,9 +204,14 @@ fn renderPlaneMedium(fb_id: usize) void {
         const py = BY + ly;
         if (hid != 0) hblDispatch(hid, @intCast(fb_id), @intCast(ly), @intCast(hpos));
         const srow = ly * stride;
-        const orow = py * RW + BX;
-        var lx: usize = 0;
-        while (lx < memmap.MEDIUM_WIDTH) : (lx += 1) out[orow + lx] = palette[buf[srow + lx]];
+        if (r8(memmap.REG_RESOLUTION) == memmap.RES_MEDIUM) {
+            const orow = py * RW + BX;
+            var lx: usize = 0;
+            while (lx < memmap.MEDIUM_WIDTH) : (lx += 1) out[orow + lx] = palette[buf[srow + lx]];
+        } else {
+            var lx: usize = 0;
+            while (lx < memmap.WIDTH) : (lx += 1) put2(out, py, BX + lx * 2, palette[buf[srow + lx]]);
+        }
     }
 }
 
