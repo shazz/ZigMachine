@@ -43,6 +43,16 @@ pub const REG_FB_MODE = memmap.REG_FB_MODE;
 pub const FB_MODE_NORMAL = memmap.FB_MODE_NORMAL;
 pub const FB_MODE_FULLSCREEN = memmap.FB_MODE_FULLSCREEN;
 pub const FB_MODE_SCROLL = memmap.FB_MODE_SCROLL;
+pub const FB_MODE_MEDIUM = memmap.FB_MODE_MEDIUM;
+pub const RES_MEDIUM = memmap.RES_MEDIUM;
+pub const MEDIUM_WIDTH = memmap.MEDIUM_WIDTH;
+pub const MEDIUM_HEIGHT = memmap.MEDIUM_HEIGHT;
+pub const MEDIUM_PLANES = memmap.MEDIUM_PLANES;
+pub const MEDIUM_FB_BYTES = memmap.MEDIUM_FB_BYTES;
+pub const RASTER_WIDTH = memmap.RASTER_WIDTH;
+pub const RASTER_HEIGHT = memmap.RASTER_HEIGHT;
+pub const RASTER_VIS_WIDTH = memmap.RASTER_VIS_WIDTH;
+pub const RASTER_VIS_HEIGHT = memmap.RASTER_VIS_HEIGHT;
 pub const RES_PLANES = memmap.RES_PLANES;
 pub const RES_TRUECOLOR = memmap.RES_TRUECOLOR;
 pub const HBL_GLOBAL_ID = memmap.HBL_GLOBAL_ID;
@@ -108,6 +118,8 @@ pub extern fn hwInit() void; // reset registers/planes
 pub extern fn hwClear() void; // fill PFB with BACKGROUND, run GLOBAL_HBL per row
 pub extern fn hwRenderPlane(plane: u32) void; // composite one enabled LFB -> PFB
 pub extern fn hwBlit() void; // execute the blitter COMMAND in the register block
+pub extern fn hwBorderX() u32; // physical border width (host pointer mapping)
+pub extern fn hwBorderY() u32;
 pub extern fn hwPhysicalPtr() i32; // pointer to PFB for the host to blit
 pub extern fn hwPlanesNumber() u8;
 pub extern fn hwPhysWidth() u32;

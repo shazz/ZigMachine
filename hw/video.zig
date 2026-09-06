@@ -20,10 +20,12 @@ const memmap = @import("sdk/memmap.zig");
 // The one host import the sealed machine needs: route an HBL point to the demo.
 extern fn hblDispatch(id: u32, plane: u32, line: u32, x: u32) void;
 
-const PWu: usize = memmap.PHYSICAL_WIDTH; // 400
-const PHu: usize = memmap.PHYSICAL_HEIGHT; // 280
-const HB: usize = memmap.HORIZONTAL_BORDERS_WIDTH; // 40
-const VB: usize = memmap.VERTICAL_BORDERS_HEIGHT; // 40
+// The physical RASTER the PFB holds (see memmap): 800x280. Low-res is composited
+// pixel-DOUBLED horizontally into it, medium 1:1, so both share one dot grid.
+const RW: usize = memmap.RASTER_WIDTH; // 800
+const RH: usize = memmap.RASTER_HEIGHT; // 280
+const BX: usize = memmap.RASTER_BORDER_X; // 80 (physical border; = 2 * logical 40)
+const BY: usize = memmap.RASTER_BORDER_Y; // 40
 
 // --------------------------------------------------------------------------
 // Region accessors (typed views into the reserved hardware address space)
@@ -115,20 +117,26 @@ pub fn reset() void {
     }
 }
 
-// Fill the physical framebuffer with BACKGROUND, running the global HBL handler
-// once per scanline (as the old clearPhysicalFrameBuffer did).
+// Fill the RASTER with BACKGROUND, running the global HBL handler once per
+// scanline (so a per-line handler paints the border/background rasters).
 pub fn clear() void {
     const gid = r16(memmap.REG_GLOBAL_HBL_ID);
-    const bg = r32(memmap.REG_BACKGROUND);
     const out = pfb();
     var y: usize = 0;
-    while (y < PHu) : (y += 1) {
+    while (y < RH) : (y += 1) {
         if (gid != 0) hblDispatch(gid, 0, @intCast(y), 0);
+        const bg = r32(memmap.REG_BACKGROUND); // re-read after the HBL (per-line colour)
         var x: usize = 0;
-        const row = y * PWu;
-        while (x < PWu) : (x += 1) out[row + x] = bg;
+        const row = y * RW;
+        while (x < RW) : (x += 1) out[row + x] = bg;
     }
     w32(memmap.REG_FRAME, r32(memmap.REG_FRAME) +% 1);
+}
+
+// Write one logical pixel, DOUBLED, at physical (px..px+1, py).
+inline fn put2(out: [*]u32, py: usize, px: usize, c: u32) void {
+    out[py * RW + px] = c;
+    out[py * RW + px + 1] = c;
 }
 
 // Composite one logical framebuffer into the physical framebuffer, honouring
@@ -143,19 +151,58 @@ pub fn clear() void {
 // PFB through the later (border-untouching) plane renders, so they reach the top
 // canvas. Transparent index (palette alpha 0) lets lower planes/background show.
 fn renderPlaneFullscreen(fb_id: usize) void {
-    const buf = lfb(fb_id); // 400×280, stride == PW
+    const buf = lfb(fb_id); // 400x280 logical, stride 400
+    const stride: usize = fbStride(fb_id);
     const palette = pal(fb_id);
     const out = pfb();
     const hid = fbHblId(fb_id);
     const hpos = fbHblPos(fb_id);
     const hs: usize = @intCast(hscroll(fb_id)); // fine horizontal scroll (wraps within the row)
     var y: usize = 0;
-    while (y < PHu) : (y += 1) {
-        // Fire the per-plane HBL once per scanline (raster palette effects).
+    while (y < RH) : (y += 1) {
         if (hid != 0) hblDispatch(hid, @intCast(fb_id), @intCast(y), @intCast(hpos));
-        const row = y * PWu;
-        var x: usize = 0;
-        while (x < PWu) : (x += 1) out[row + x] = palette[buf[row + (x + hs) % PWu]];
+        const srow = y * stride;
+        var lx: usize = 0;
+        while (lx < memmap.PHYSICAL_WIDTH) : (lx += 1) // 400 logical -> 800 physical (doubled)
+            put2(out, y, lx * 2, palette[buf[srow + (lx + hs) % stride]]);
+    }
+}
+
+// Low-res NORMAL plane: 320x200 logical, composited pixel-doubled into the visible
+// 640x200 physical window. Borders are left to the background (clear).
+fn renderPlaneNormal(fb_id: usize) void {
+    const buf = lfb(fb_id);
+    const stride: usize = fbStride(fb_id);
+    const palette = pal(fb_id);
+    const out = pfb();
+    const hid = fbHblId(fb_id);
+    const hpos = fbHblPos(fb_id);
+    var ly: usize = 0;
+    while (ly < memmap.HEIGHT) : (ly += 1) {
+        const py = BY + ly;
+        if (hid != 0) hblDispatch(hid, @intCast(fb_id), @intCast(ly), @intCast(hpos));
+        const srow = ly * stride;
+        var lx: usize = 0;
+        while (lx < memmap.WIDTH) : (lx += 1) put2(out, py, BX + lx * 2, palette[buf[srow + lx]]);
+    }
+}
+
+// MEDIUM plane: 640x200 logical, composited 1:1 into the visible window.
+fn renderPlaneMedium(fb_id: usize) void {
+    const buf = lfb(fb_id);
+    const stride: usize = fbStride(fb_id);
+    const palette = pal(fb_id);
+    const out = pfb();
+    const hid = fbHblId(fb_id);
+    const hpos = fbHblPos(fb_id);
+    var ly: usize = 0;
+    while (ly < memmap.MEDIUM_HEIGHT) : (ly += 1) {
+        const py = BY + ly;
+        if (hid != 0) hblDispatch(hid, @intCast(fb_id), @intCast(ly), @intCast(hpos));
+        const srow = ly * stride;
+        const orow = py * RW + BX;
+        var lx: usize = 0;
+        while (lx < memmap.MEDIUM_WIDTH) : (lx += 1) out[orow + lx] = palette[buf[srow + lx]];
     }
 }
 
@@ -173,13 +220,12 @@ fn renderPlaneScroll(fb_id: usize) void {
     const hpos = fbHblPos(fb_id);
     var vy: usize = 0;
     while (vy < memmap.HEIGHT) : (vy += 1) {
-        const py = VB + vy;
+        const py = BY + vy;
         if (hid != 0) hblDispatch(hid, @intCast(fb_id), @intCast(vy), @intCast(hpos));
         const hs: usize = @intCast(hscroll(fb_id)); // read AFTER the HBL so a per-line handler distorts
         const srow = vy * stride + hs;
-        const orow = py * PWu + HB;
         var vx: usize = 0;
-        while (vx < memmap.WIDTH) : (vx += 1) out[orow + vx] = palette[buf[srow + vx]];
+        while (vx < memmap.WIDTH) : (vx += 1) put2(out, py, BX + vx * 2, palette[buf[srow + vx]]);
     }
 }
 
@@ -187,173 +233,10 @@ pub fn renderPlane(fb_id: usize) void {
     switch (fbMode(fb_id)) {
         memmap.FB_MODE_SCROLL => return renderPlaneScroll(fb_id),
         memmap.FB_MODE_FULLSCREEN => return renderPlaneFullscreen(fb_id),
+        memmap.FB_MODE_MEDIUM => return renderPlaneMedium(fb_id),
         else => {},
     }
-    // Back-compat: fullscreen used to be detected purely by stride == 400.
-    if (fbStride(fb_id) == memmap.STRIDE_FULLSCREEN) {
-        renderPlaneFullscreen(fb_id);
-        return;
-    }
-    if (r8(memmap.REG_RESOLUTION) != memmap.RES_PLANES) return;
-
-    const palfb = lfb(fb_id);
-    const palette = pal(fb_id);
-    const out = pfb();
-    const hid = fbHblId(fb_id);
-    const hpos = fbHblPos(fb_id);
-
-    var fb_index: u32 = 0;
-    var vertical_border_opened: bool = false;
-    var horizontal_border_opened: bool = false;
-
-    var y: usize = 0;
-    while (y < PHu) : (y += 1) {
-        const row = y * PWu;
-        switch (y) {
-            0...(VB - 1) => {
-                var x: usize = 0;
-                while (x < PWu) : (x += 1) {
-                    if (hid != 0 and x == hpos) hblDispatch(hid, @intCast(fb_id), @intCast(y), @intCast(x));
-
-                    if (y == 0 and x >= HB and isTruecolor() and !vertical_border_opened) {
-                        vertical_border_opened = true;
-                        setPlanes();
-                    }
-                    if ((x == 0 or x == (memmap.WIDTH + HB)) and isTruecolor()) {
-                        if (vertical_border_opened) horizontal_border_opened = true;
-                        setPlanes();
-                    }
-
-                    if (vertical_border_opened) {
-                        switch (x) {
-                            0...(HB - 1) => {
-                                if (horizontal_border_opened) {
-                                    out[row + x] = palette[palfb[fb_index]];
-                                    fb_index += 1;
-                                    if (x == HB - 1) fb_index -= @intCast(HB);
-                                }
-                            },
-                            HB...(PWu - HB - 1) => {
-                                if (x == HB) {
-                                    setPlanes();
-                                    horizontal_border_opened = false;
-                                }
-                                out[row + x] = palette[palfb[fb_index]];
-                                fb_index += 1;
-                            },
-                            (PWu - HB)...(PWu - 1) => {
-                                if (horizontal_border_opened) {
-                                    if (x == PWu - HB) fb_index -= @intCast(HB);
-                                    out[row + x] = palette[palfb[fb_index]];
-                                    fb_index += 1;
-                                    if (x == PWu - 1) horizontal_border_opened = false;
-                                }
-                            },
-                            else => {},
-                        }
-                    }
-                }
-            },
-            VB...(PHu - VB - 1) => {
-                if (y == VB) {
-                    vertical_border_opened = false;
-                    fb_index = 0;
-                }
-                var x: usize = 0;
-                while (x < PWu) : (x += 1) {
-                    if (hid != 0 and x == hpos) hblDispatch(hid, @intCast(fb_id), @intCast(y), @intCast(x));
-
-                    if ((x == 0 or x == (memmap.WIDTH + HB)) and isTruecolor()) {
-                        horizontal_border_opened = true;
-                        setPlanes();
-                    }
-
-                    switch (x) {
-                        0...(HB - 1) => {
-                            if (horizontal_border_opened) {
-                                out[row + x] = palette[palfb[fb_index]];
-                                fb_index += 1;
-                                if (x == HB - 1) {
-                                    fb_index -= @intCast(HB);
-                                    setPlanes();
-                                    horizontal_border_opened = false;
-                                }
-                            }
-                        },
-                        HB...(PWu - HB - 1) => {
-                            out[row + x] = palette[palfb[fb_index]];
-                            fb_index += 1;
-                        },
-                        (PWu - HB)...(PWu - 1) => {
-                            if (horizontal_border_opened) {
-                                if (x == PWu - HB) fb_index -= @intCast(HB);
-                                out[row + x] = palette[palfb[fb_index]];
-                                fb_index += 1;
-                                if (x == PWu - 1) {
-                                    horizontal_border_opened = false;
-                                    setPlanes();
-                                }
-                            }
-                        },
-                        else => {},
-                    }
-                }
-            },
-            (PHu - VB)...(PHu - 1) => {
-                var x: usize = 0;
-                while (x < PWu) : (x += 1) {
-                    if (hid != 0 and x == hpos) hblDispatch(hid, @intCast(fb_id), @intCast(y), @intCast(x));
-
-                    if (y == (PHu - VB) and x >= HB and isTruecolor() and !vertical_border_opened) {
-                        fb_index -= @intCast(VB * memmap.WIDTH);
-                        vertical_border_opened = true;
-                        setPlanes();
-                    }
-
-                    if (vertical_border_opened) {
-                        if ((x == 0 or x == (memmap.WIDTH + HB)) and isTruecolor()) {
-                            horizontal_border_opened = true;
-                            setPlanes();
-                        }
-                        switch (x) {
-                            0...(HB - 1) => {
-                                if (horizontal_border_opened) {
-                                    out[row + x] = palette[palfb[fb_index]];
-                                    fb_index += 1;
-                                    if (x == HB - 1) {
-                                        fb_index -= @intCast(HB);
-                                        setPlanes();
-                                        horizontal_border_opened = false;
-                                    }
-                                }
-                            },
-                            HB...(PWu - HB - 1) => {
-                                out[row + x] = palette[palfb[fb_index]];
-                                fb_index += 1;
-                            },
-                            (PWu - HB)...(PWu - 1) => {
-                                if (horizontal_border_opened) {
-                                    if (x == PWu - HB) fb_index -= @intCast(HB);
-                                    out[row + x] = palette[palfb[fb_index]];
-                                    fb_index += 1;
-                                    if (x == PWu - 1) {
-                                        horizontal_border_opened = false;
-                                        setPlanes();
-                                    }
-                                }
-                            },
-                            else => {},
-                        }
-                    }
-
-                    if (y == PHu - 1) {
-                        setPlanes();
-                        vertical_border_opened = false;
-                        horizontal_border_opened = false;
-                    }
-                }
-            },
-            else => {},
-        }
-    }
+    // Back-compat: fullscreen was once detected purely by stride == 400.
+    if (fbStride(fb_id) == memmap.STRIDE_FULLSCREEN) return renderPlaneFullscreen(fb_id);
+    renderPlaneNormal(fb_id);
 }

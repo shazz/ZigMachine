@@ -31,10 +31,18 @@ export fn hwPlanesNumber() u8 {
     return memmap.NB_PLANES;
 }
 export fn hwPhysWidth() u32 {
-    return memmap.PHYSICAL_WIDTH;
+    return memmap.RASTER_WIDTH; // 800 — the actual raster the host blits
 }
 export fn hwPhysHeight() u32 {
-    return memmap.PHYSICAL_HEIGHT;
+    return memmap.RASTER_HEIGHT; // 280
+}
+// Physical border widths, so the host can map a mouse position into the visible
+// area (physical-visible coords 0..RASTER_VIS_WIDTH / 0..RASTER_VIS_HEIGHT).
+export fn hwBorderX() u32 {
+    return memmap.RASTER_BORDER_X; // 80
+}
+export fn hwBorderY() u32 {
+    return memmap.RASTER_BORDER_Y; // 40
 }
 export fn hwVersion() u32 {
     return memmap.ZM_HW_VERSION;

@@ -38,6 +38,10 @@ pub const Resolution = enum { truecolor, planes };
 // --------------------------------------------------------------------------
 pub const PHYSICAL_WIDTH: u16 = hw.PHYSICAL_WIDTH;
 pub const PHYSICAL_HEIGHT: u16 = hw.PHYSICAL_HEIGHT;
+pub const RASTER_WIDTH: u16 = hw.RASTER_WIDTH;
+pub const RASTER_HEIGHT: u16 = hw.RASTER_HEIGHT;
+pub const MEDIUM_WIDTH: u16 = hw.MEDIUM_WIDTH;
+pub const MEDIUM_HEIGHT: u16 = hw.MEDIUM_HEIGHT;
 pub const WIDTH: u16 = hw.WIDTH;
 pub const HEIGHT: u16 = hw.HEIGHT;
 pub const NB_PLANES: u8 = hw.NB_PLANES;
@@ -212,6 +216,19 @@ pub const LogicalFB = struct {
         writeU16(hw.REG_HSCROLL + @as(usize, self.id) * 2, hs);
     }
 
+    // Turn this plane into a MEDIUM-res plane (640x200, 1:1 into the raster).
+    // Coordinates are 0..640 / 0..200; the machine composites it crisply (no
+    // pixel doubling). Use 2 medium planes for a 4-colour GEM-style screen.
+    pub fn setMediumPlane(self: *LogicalFB) void {
+        self.stride = MEDIUM_WIDTH;
+        self.fb_w = MEDIUM_WIDTH;
+        self.fb_h = MEDIUM_HEIGHT;
+        writeU16(hw.REG_FB_STRIDE + @as(usize, self.id) * 2, MEDIUM_WIDTH);
+        writeU8(hw.REG_FB_MODE + @as(usize, self.id), hw.FB_MODE_MEDIUM);
+        self.bind(vramAlloc(hw.MEDIUM_FB_BYTES));
+        self.clearFrameBuffer(0);
+    }
+
     pub fn getRenderTarget(self: *LogicalFB) RenderTarget {
         return RenderTarget{ .fb = self };
     }
@@ -279,7 +296,7 @@ pub const ZigOS = struct {
     // View onto the shared physical framebuffer. Writing it is the out-of-ABI
     // "overscan" escape hatch (§2: memory is not sealed, only code is); the
     // sanctioned way to reach the borders is RESOLUTION + a border HBL handler.
-    physical_framebuffer: *[PHYSICAL_HEIGHT][PHYSICAL_WIDTH]u32 = undefined,
+    physical_framebuffer: *[RASTER_HEIGHT][RASTER_WIDTH]u32 = undefined,
     lfbs: [NB_PLANES]LogicalFB = undefined,
     hbl_handler: ?*const fn (*ZigOS, u16) void = null,
     system_font: []const u8 = undefined,
@@ -321,18 +338,19 @@ pub const ZigOS = struct {
 
     pub fn printText(self: *ZigOS, lfb: *LogicalFB, text: []const u8, x: u16, y: u16, fg_color_index: u8, bg_color_index: u8) void {
         const buffer = lfb.fb;
-        const initial_position: u16 = y * lfb.stride + x;
+        // u32: a medium-res (640-wide) buffer exceeds u16 offsets (y*stride+x > 65535).
+        const initial_position: u32 = @as(u32, y) * @as(u32, lfb.stride) + x;
 
         for (text, 0..) |char, nb| {
             const slice_offset_start: u16 = @as(u16, @intCast(char)) * (SYSTEM_FONT_WIDTH * SYSTEM_FONT_HEIGHT) - 1;
             const slice_offset_end: u16 = (@as(u16, @intCast(char)) + 1) * (SYSTEM_FONT_WIDTH * SYSTEM_FONT_HEIGHT);
             const char_data = self.system_font[slice_offset_start..slice_offset_end];
-            var letter_pos = initial_position + (@as(u16, @intCast(nb)) * SYSTEM_FONT_WIDTH);
+            var letter_pos: u32 = initial_position + @as(u32, @intCast(nb)) * SYSTEM_FONT_WIDTH;
 
             for (char_data, 0..) |pixel, idx| {
                 buffer[letter_pos] = if (pixel == 1) fg_color_index else bg_color_index;
                 if (idx > 0 and (idx % SYSTEM_FONT_WIDTH == 0)) {
-                    letter_pos += (lfb.stride - SYSTEM_FONT_WIDTH + 1);
+                    letter_pos += (@as(u32, lfb.stride) - SYSTEM_FONT_WIDTH + 1);
                 } else {
                     letter_pos += 1;
                 }

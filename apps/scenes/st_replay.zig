@@ -19,6 +19,8 @@ const gui = zg.gui;
 const Rect = gui.Rect;
 
 const WAVE_LEN: usize = 1024;
+const SW: i16 = 640; // medium-res screen width
+const SH: i16 = 200;
 
 pub const Demo = struct {
     blit: Blitter = .{},
@@ -35,13 +37,14 @@ pub const Demo = struct {
     pub fn init(self: *Demo, os: *ZigOS) void {
         const fb = &os.lfbs[0];
         fb.is_enabled = true;
+        fb.setMediumPlane(); // crisp 640x200, 1:1 (no pixel doubling) — the GEM look
         self.blit.init();
         gui.installPalette(fb);
         os.setBackgroundColor(.{ .r = 0, .g = 150, .b = 90, .a = 255 }); // desktop green in the border
         self.g = .{ .os = os, .fb = fb, .blit = &self.blit };
 
-        self.w_sample = self.wm.add(.{ .r = .{ .x = 8, .y = 24, .w = 210, .h = 96 }, .title = "SAMPLE.SPL" });
-        self.w_transport = self.wm.add(.{ .r = .{ .x = 150, .y = 128, .w = 160, .h = 58 }, .title = "Transport" });
+        self.w_sample = self.wm.add(.{ .r = .{ .x = 16, .y = 26, .w = 440, .h = 120 }, .title = "SAMPLE.SPL" });
+        self.w_transport = self.wm.add(.{ .r = .{ .x = 380, .y = 150, .w = 236, .h = 44 }, .title = "Transport" });
         self.genSample();
     }
 
@@ -76,7 +79,7 @@ pub const Demo = struct {
         _ = os;
         _ = dt;
         const g = &self.g;
-        g.rect(.{ .x = 0, .y = 0, .w = 320, .h = 200 }, gui.DESK); // desktop
+        g.rect(.{ .x = 0, .y = 0, .w = SW, .h = SH }, gui.DESK); // desktop
         self.menuBar();
 
         var i: usize = 0;
@@ -92,9 +95,9 @@ pub const Demo = struct {
 
     fn menuBar(self: *Demo) void {
         const g = &self.g;
-        g.rect(.{ .x = 0, .y = 0, .w = 320, .h = 10 }, gui.WHITE);
-        g.blit.fill(g.fb, 0, 10, 320, 1, gui.BLACK);
-        g.text(" Desk  File  Sound  Options", 4, 1, gui.BLACK, gui.WHITE);
+        g.rect(.{ .x = 0, .y = 0, .w = SW, .h = 11 }, gui.WHITE);
+        g.blit.fill(g.fb, 0, 11, @intCast(SW), 1, gui.BLACK);
+        g.text("  Desk    File    Sound    Options", 6, 2, gui.BLACK, gui.WHITE);
     }
 
     fn drawWave(self: *Demo, c: Rect) void {
@@ -118,7 +121,7 @@ pub const Demo = struct {
 
     fn drawTransport(self: *Demo, c: Rect) void {
         const g = &self.g;
-        const bw: i16 = 34;
+        const bw: i16 = 52;
         const y = c.y + 6;
         if (g.button(.{ .x = c.x + 4, .y = y, .w = bw, .h = 20 }, "PLAY", self.playing)) {
             self.playing = true;

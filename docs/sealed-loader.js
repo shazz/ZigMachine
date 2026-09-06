@@ -13,7 +13,7 @@
 // thread; JS mirrors its YM regs / player mode / scopes into the demo module.
 // --------------------------------------------------------------------------
 
-const SHARED_PAGES = 48; // must match src/sdk/memmap.zig SHARED_PAGES
+const SHARED_PAGES = 55; // must match hw/sdk/memmap.zig SHARED_PAGES (grew for the 800x280 raster)
 const memory = new WebAssembly.Memory({ initial: SHARED_PAGES, maximum: SHARED_PAGES });
 
 const text_decoder = new TextDecoder();
@@ -100,6 +100,8 @@ function start() {
     const imageDatas = [];
     for (let p = 0; p < nb_planes; p++) {
         const canvas = document.getElementById(p);
+        canvas.width = fb_width;    // match the raster (800x280); CSS scales to 800x560
+        canvas.height = fb_height;
         const ctx = canvas.getContext("2d");
         contexts.push(ctx);
         imageDatas.push(ctx.createImageData(fb_width, fb_height));
@@ -152,19 +154,20 @@ window.document.body.addEventListener('keydown', function (evt) {
 // The physical framebuffer is 400x280 with a 40px border, so visible = phys - 40.
 // --------------------------------------------------------------------------
 (function () {
-    const HB = 40, VB = 40;                 // border widths (see memmap)
     const surface = window.document.getElementById("3"); // topmost stacked canvas
     surface.style.pointerEvents = "auto";   // re-enable: .overlay sets pointer-events:none
     surface.style.userSelect = "none";      // no text selection while dragging windows
     surface.draggable = false;              // stop the browser "grab the image" drag-ghost
     surface.addEventListener('dragstart', function (e) { e.preventDefault(); });
     let buttons = 0;
+    // Send PHYSICAL-VISIBLE coordinates (0..RASTER_VIS_WIDTH / 0..RASTER_VIS_HEIGHT):
+    // for a medium screen those ARE the logical coords; a low-res scene halves x.
     function send(evt) {
-        if (!demo || !demo.pointer) return;
+        if (!demo || !demo.pointer || !machine) return;
         const r = surface.getBoundingClientRect();
-        const px = (evt.clientX - r.left) * (400 / r.width);
-        const py = (evt.clientY - r.top) * (280 / r.height);
-        demo.pointer(Math.round(px - HB), Math.round(py - VB), buttons);
+        const px = (evt.clientX - r.left) * (machine.hwPhysWidth() / r.width) - machine.hwBorderX();
+        const py = (evt.clientY - r.top) * (machine.hwPhysHeight() / r.height) - machine.hwBorderY();
+        demo.pointer(Math.round(px), Math.round(py), buttons);
     }
     surface.addEventListener('mousemove', send);
     surface.addEventListener('mousedown', function (e) { buttons = 1; send(e); e.preventDefault(); });

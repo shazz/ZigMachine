@@ -32,8 +32,27 @@ pub const PAL_BYTES: usize = PAL_ENTRIES * 4; // 1024 (RGBA u32 per entry)
 // anywhere in the pool (scroll-by-base, double buffering, plane sharing).
 pub const NORMAL_FB_BYTES: usize = @as(usize, WIDTH) * @as(usize, HEIGHT); // 64000
 pub const FULLSCREEN_FB_BYTES: usize = @as(usize, PHYSICAL_WIDTH) * @as(usize, PHYSICAL_HEIGHT); // 112000
-pub const PFB_PIXELS: usize = @as(usize, PHYSICAL_WIDTH) * @as(usize, PHYSICAL_HEIGHT); // 112000
-pub const PFB_BYTES: usize = PFB_PIXELS * 4; // 448000
+// Medium resolution (ST-medium-style): 640x200 chunky, 2 planes. It is drawn 1:1
+// into the shared physical RASTER; low-res is drawn pixel-DOUBLED into that same
+// raster (320 logical -> 640 physical), so both land on one dot grid and an HBL
+// can switch resolution per scanline (the ST shifter model). Scenes keep drawing
+// in LOGICAL coordinates (WIDTH/PHYSICAL_WIDTH); the doubling lives in the machine.
+pub const MEDIUM_WIDTH: u16 = 640; // logical medium visible width
+pub const MEDIUM_HEIGHT: u16 = 200;
+pub const MEDIUM_PLANES: u8 = 2;
+pub const MEDIUM_FB_BYTES: usize = @as(usize, MEDIUM_WIDTH) * @as(usize, MEDIUM_HEIGHT); // 128000
+
+// --- the physical RASTER (actual PFB the host blits) ---
+// Low-res doubles horizontally (not vertically — low & medium are both 200 lines).
+pub const RASTER_WIDTH: u16 = PHYSICAL_WIDTH * 2; // 800
+pub const RASTER_HEIGHT: u16 = PHYSICAL_HEIGHT; // 280
+pub const RASTER_BORDER_X: u16 = HORIZONTAL_BORDERS_WIDTH * 2; // 80
+pub const RASTER_BORDER_Y: u16 = VERTICAL_BORDERS_HEIGHT; // 40
+pub const RASTER_VIS_WIDTH: u16 = WIDTH * 2; // 640 (physical visible)
+pub const RASTER_VIS_HEIGHT: u16 = HEIGHT; // 200
+
+pub const PFB_PIXELS: usize = @as(usize, RASTER_WIDTH) * @as(usize, RASTER_HEIGHT); // 224000
+pub const PFB_BYTES: usize = PFB_PIXELS * 4; // 896000
 
 // Per-plane row stride, in pixels: 320 (normal, visible-only) or 400 (fullscreen).
 pub const STRIDE_NORMAL: u16 = WIDTH; // 320
@@ -66,12 +85,14 @@ pub const REG_HSCROLL: usize = 0x3C; // u16 x4 per-plane horizontal scroll (re-r
 pub const REG_FB_BASE: usize = 0x44; // u32 x4 per-plane framebuffer screen base (0x44..0x53) — pan point for SCROLL mode
 pub const REG_FB_MODE: usize = 0x54; // u8 x4 per-plane render mode (0x54..0x57): 0 normal, 1 fullscreen, 2 scroll
 
-pub const FB_MODE_NORMAL: u8 = 0; // 320x200 visible plane (legacy)
-pub const FB_MODE_FULLSCREEN: u8 = 1; // 400x280 overscan plane (Option B)
+pub const FB_MODE_NORMAL: u8 = 0; // 320x200 low-res plane (pixel-doubled into the raster)
+pub const FB_MODE_FULLSCREEN: u8 = 1; // 400x280 low-res overscan plane (Option B, doubled)
 pub const FB_MODE_SCROLL: u8 = 2; // window into a bigger-than-screen buffer; pan via FB_BASE + HSCROLL
+pub const FB_MODE_MEDIUM: u8 = 3; // 640x200 medium-res plane (1:1 into the raster)
 
 pub const RES_PLANES: u8 = 0;
 pub const RES_TRUECOLOR: u8 = 1;
+pub const RES_MEDIUM: u8 = 2; // 640x200, 2 planes, no border (ST-medium style)
 
 // --------------------------------------------------------------------------
 // Blitter register block (see docs/BLITTER_HW_SPEC.md).
@@ -165,6 +186,8 @@ pub const HBL_GLOBAL_ID: u16 = 5;
 //   [0x200000 .. 0x2AD000)  video hardware region        (this base)
 // --------------------------------------------------------------------------
 pub const HW_VIDEO_BASE: usize = 0x200000; // 2 MiB
-pub const SHARED_PAGES: u32 = 48; // 3 MiB, initial == max (no growth; views stay valid)
+// Region now ends at OFF_PFB + PFB_BYTES = 528640 + 896000 = 1424640 above the base;
+// 2 MiB base + 1424640 needs 54 pages, so 55 (3.6 MiB) gives headroom. initial == max.
+pub const SHARED_PAGES: u32 = 55;
 
 pub const ZM_HW_VERSION: u32 = 0x0001_0000; // 1.0.0
