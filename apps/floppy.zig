@@ -2,7 +2,8 @@
 // Uncomment the scene to run
 // --------------------------------------------------------------------------
 
-pub const Demo = @import("scenes/gem_desktop.zig").Demo;
+pub const Demo = @import("scenes/menu.zig").Demo;
+// pub const Demo = @import("scenes/gem_desktop.zig").Demo;
 // pub const Demo = @import("scenes/obj_demo.zig").Demo;
 // pub const Demo = @import("scenes/scroll_demo.zig").Demo;
 // pub const Demo = @import("scenes/blitter_demo.zig").Demo;
@@ -25,4 +26,3 @@ pub const Demo = @import("scenes/gem_desktop.zig").Demo;
 // pub const Demo = @import("scenes/boot.zig").Demo;
 // pub const Demo = @import("scenes/bladerunners.zig").Demo;
 // pub const Demo = @import("scenes/shapes_tester.zig").Demo;
-
