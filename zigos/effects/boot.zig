@@ -30,16 +30,22 @@ const BLACK_ENTRY: u8 = 0;
 // --------------------------------------------------------------------------
 // Demo
 // --------------------------------------------------------------------------
+// Advance the memory-test counters once every RAM_STEP frames (a higher value
+// makes the fake mem check run slower).
+const RAM_STEP: u16 = 3;
+
 pub const Boot = struct {
     fb: *LogicalFB = undefined,
     counter_ram: u16 = undefined,
     counter_boot: u16 = undefined,
+    tick: u16 = undefined,
     logo: Sprite = undefined,
 
     pub fn init(self: *Boot, fb: *LogicalFB) void {
         self.fb = fb;
         self.counter_ram = 0;
         self.counter_boot = 0;
+        self.tick = 0;
 
         self.logo.init(fb.getRenderTarget(), ZIG_LOGO, 65, 60, 20, 10, null, null);
 
@@ -49,15 +55,16 @@ pub const Boot = struct {
     }
 
     pub fn update(self: *Boot) void {
-
-        if (self.counter_ram < 16) self.counter_ram += 1;
-        if (self.counter_ram == 16 and self.counter_boot < 35) self.counter_boot += 1;
+        self.tick +%= 1;
+        if (self.tick % RAM_STEP == 0) {
+            if (self.counter_ram < 16) self.counter_ram += 1;
+            if (self.counter_ram == 16 and self.counter_boot < 35) self.counter_boot += 1;
+        }
 
         self.logo.update(null, null, null, null);
     }
 
     pub fn render(self: *Boot, zigos: *ZigOS) void {
-
         self.logo.render(null);
 
         const atari: [2]u8 = [2]u8{ 14, 15 };

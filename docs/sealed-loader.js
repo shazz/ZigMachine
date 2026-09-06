@@ -161,10 +161,24 @@ window.document.body.onload = boot;
 
 window.document.body.addEventListener('keydown', function (evt) {
     if (!demo) return;
+    // Stop the browser's default for keys we handle (Space scrolling the page,
+    // Enter re-triggering the focused "Sound on" button, arrows scrolling).
+    if (["Escape", "Enter", " ", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(evt.key)) {
+        evt.preventDefault();
+    }
+    // ESC skips the boot screen (if still booting) and returns from a running
+    // scene to the menu (Back = 6).
+    if (evt.key === "Escape") {
+        if (demo.skipBoot) demo.skipBoot();
+        if (demo.input) demo.input(6);
+        return;
+    }
     if ((evt.key == "w") || (evt.key == "ArrowUp")) demo.input(0);
     if ((evt.key == "s") || (evt.key === "ArrowDown")) demo.input(1);
     if ((evt.key === "a") || (evt.key === "ArrowLeft")) demo.input(2);
     if ((evt.key === "d" || evt.key === "ArrowRight")) demo.input(3);
+    // Enter/Space = Fire (5): launch the highlighted menu entry.
+    if (evt.key === "Enter" || evt.key === " ") demo.input(5);
 
     // Keys 1-4: if the active scene exposes a shading/mode switch, drive that;
     // otherwise fall back to the audio player shortcuts (music_debug etc.).

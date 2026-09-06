@@ -21,6 +21,7 @@ const hw = @import("hardware"); // sealed video ABI header (named module)
 // --------------------------------------------------------------------------
 pub const Console = @import("utils/debug.zig").Console;
 pub const Starfield3D = @import("effects/starfield_3D.zig").Starfield3D;
+pub const Boot = @import("effects/boot.zig").Boot;
 pub const convertU8ArraytoColors = @import("utils/loaders.zig").convertU8ArraytoColors;
 pub const Blitter = @import("blitter.zig").Blitter;
 pub const BlitVec2 = @import("blitter.zig").Vec2;
@@ -370,6 +371,31 @@ pub const ZigOS = struct {
         vram_top = hw.OFF_VRAM;
         for (&self.lfbs, 0..) |*lfb, idx| {
             lfb.id = @intCast(idx);
+            lfb.bind(vramAlloc(hw.NORMAL_FB_BYTES));
+            lfb.init(self);
+        }
+    }
+
+    // Reset the machine to a freshly-booted state so a DIFFERENT scene can be
+    // started at runtime (the boot->cart hand-off and the effects menu use this).
+    // Like init() but without re-discovering the video base, and it ALSO clears
+    // the per-plane hardware mode/stride/scroll/HBL registers a previous scene
+    // may have set (plain init() leaves those stale, which would corrupt the
+    // next scene). Safe only after init() has run once (sets base/fonts).
+    pub fn resetForScene(self: *ZigOS) void {
+        self.removeHBLHandler();
+
+        writeU8(hw.REG_RESOLUTION, hw.RES_PLANES);
+        self.background_color = Color{ .r = 20, .g = 20, .b = 20, .a = 255 };
+        writeU32(hw.REG_BACKGROUND, self.background_color.toRGBA());
+
+        vram_top = hw.OFF_VRAM;
+        for (&self.lfbs, 0..) |*lfb, idx| {
+            lfb.id = @intCast(idx);
+            writeU8(hw.REG_FB_MODE + idx, hw.FB_MODE_NORMAL);
+            writeU16(hw.REG_FB_STRIDE + idx * 2, WIDTH);
+            writeU16(hw.REG_HSCROLL + idx * 2, 0);
+            lfb.clearFrameBufferHBLHandler();
             lfb.bind(vramAlloc(hw.NORMAL_FB_BYTES));
             lfb.init(self);
         }

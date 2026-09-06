@@ -3,20 +3,22 @@
 // --------------------------------------------------------------------------
 const std = @import("std");
 
-const ZigOS = @import("../zigos.zig").ZigOS;
-const LogicalFB = @import("../zigos.zig").LogicalFB;
-const Color = @import("../zigos.zig").Color;
-const Resolution = @import("../zigos.zig").Resolution;
+// Migrated to the named `zigos` module (was pre-reorg relative imports).
+const zg = @import("zigos");
+const ZigOS = zg.ZigOS;
+const LogicalFB = zg.LogicalFB;
+const Color = zg.Color;
+const Resolution = zg.Resolution;
 
-const Boot = @import("../effects/boot.zig").Boot;
+const Boot = zg.Boot;
 
-const Console = @import("../utils/debug.zig").Console;
+const Console = zg.Console;
 
 // --------------------------------------------------------------------------
 // Constants
 // --------------------------------------------------------------------------
-const HEIGHT: u16 = @import("../zigos.zig").HEIGHT;
-const WIDTH: u16 = @import("../zigos.zig").WIDTH;
+const HEIGHT: u16 = zg.HEIGHT;
+const WIDTH: u16 = zg.WIDTH;
 
 // --------------------------------------------------------------------------
 // Variables
@@ -31,7 +33,7 @@ pub const Demo = struct {
     pub fn init(self: *Demo, zigos: *ZigOS) void {
         Console.log("hello init", .{});
 
-        zigos.setBackgroundColor(Color{ .r=255, .g=255, .b=255, .a=255});
+        zigos.setBackgroundColor(Color{ .r = 255, .g = 255, .b = 255, .a = 255 });
 
         // Use first logical framebuffer and enable it
         var fb: *LogicalFB = &zigos.lfbs[0];
@@ -60,7 +62,3 @@ pub const Demo = struct {
         _ = time_elapsed;
     }
 };
-
-
-
-
