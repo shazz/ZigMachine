@@ -4,8 +4,8 @@
 // desktop background colour. Mouse-only: each RGB channel has -/+ steppers (±8,
 // clamped 0..255); the colour previews live via the DESK palette entry.
 //
-// Split out of gem.zig unchanged. Phase 4 of the GUI refactor re-expresses this
-// on the grid engine; for now it stays hand-laid.
+// Laid out on the 8px character-cell grid engine (gui.Grid / gui.hspread) so the
+// margins and button row are even instead of hand-tuned pixels.
 // --------------------------------------------------------------------------
 const std = @import("std");
 const gui = @import("../gui.zig");
@@ -18,8 +18,8 @@ pub const Prefs = struct {
     medium: bool = false,
 
     pub const Result = enum { none, ok, cancel };
-    const W: i16 = 252;
-    const H: i16 = 152;
+    const W: i16 = 256; // 32 cells
+    const H: i16 = 152; // 19 cells
 
     pub fn open(self: *Prefs, r: u8, g: u8, b: u8, medium: bool) void {
         self.* = .{ .active = true, .cr = r, .cg = g, .cb = b, .medium = medium };
@@ -43,26 +43,33 @@ pub const Prefs = struct {
     pub fn process(self: *Prefs, g: *gui.Gui) Result {
         const dx = @divTrunc(g.screen_w - W, 2);
         const dy = @divTrunc(@as(i16, 200) - H, 2);
+        const grid = gui.Grid{ .ox = dx, .oy = dy };
+
         g.rect(.{ .x = dx, .y = dy, .w = W, .h = H }, gui.WHITE); // no shadow (dialogs are flat; only windows cast one)
         g.frame(.{ .x = dx, .y = dy, .w = W, .h = H }, gui.BLACK); // GEM double frame:
         g.frame(.{ .x = dx + 3, .y = dy + 3, .w = W - 6, .h = H - 6 }, gui.BLACK); // outer + inner
-        title(g, "SET PREFERENCES", dx, dy + 10, W);
+        title(g, "SET PREFERENCES", dx, grid.y(1) + 2, W);
 
-        // Background colour: R/G/B steppers on a grid + a live swatch.
-        g.text("Background colour:", dx + 22, dy + 32, gui.BLACK, gui.WHITE);
-        self.cr = channel(g, dx + 30, dy + 50, "R", self.cr);
-        self.cg = channel(g, dx + 30, dy + 68, "G", self.cg);
-        self.cb = channel(g, dx + 30, dy + 86, "B", self.cb);
+        // Background colour: R/G/B steppers on the cell grid (pitch 2 cells) + swatch.
+        g.text("Background colour:", grid.x(3), grid.y(4), gui.BLACK, gui.WHITE);
+        self.cr = channel(g, grid.x(4), grid.y(6), "R", self.cr);
+        self.cg = channel(g, grid.x(4), grid.y(8), "G", self.cg);
+        self.cb = channel(g, grid.x(4), grid.y(10), "B", self.cb);
         g.fb.setPaletteEntry(gui.DESK, .{ .r = self.cr, .g = self.cg, .b = self.cb, .a = 255 }); // live preview
-        g.rect(.{ .x = dx + 158, .y = dy + 50, .w = 66, .h = 48 }, gui.DESK); // swatch
-        g.frame(.{ .x = dx + 158, .y = dy + 50, .w = 66, .h = 48 }, gui.BLACK);
+        const sw = gui.Rect{ .x = grid.x(20), .y = grid.y(6), .w = grid.w(9), .h = grid.h(6) };
+        g.rect(sw, gui.DESK); // swatch
+        g.frame(sw, gui.BLACK);
 
-        g.text("Resolution:", dx + 22, dy + 110, gui.BLACK, gui.WHITE);
-        if (g.button(.{ .x = dx + 116, .y = dy + 108, .w = 44, .h = 12 }, "Low", !self.medium)) self.medium = false;
-        if (g.button(.{ .x = dx + 166, .y = dy + 108, .w = 60, .h = 12 }, "Medium", self.medium)) self.medium = true;
+        g.text("Resolution:", grid.x(3), grid.y(13) + 2, gui.BLACK, gui.WHITE);
+        if (g.button(.{ .x = grid.x(14), .y = grid.y(13), .w = 44, .h = 12 }, "Low", !self.medium)) self.medium = false;
+        if (g.button(.{ .x = grid.x(20), .y = grid.y(13), .w = 60, .h = 12 }, "Medium", self.medium)) self.medium = true;
 
-        if (g.buttonThick(.{ .x = dx + 52, .y = dy + 128, .w = 56, .h = 14 }, "OK", false, 3)) return .ok;
-        if (g.buttonThick(.{ .x = dx + 138, .y = dy + 128, .w = 70, .h = 14 }, "Cancel", false, 2)) return .cancel;
+        // OK / Cancel: even margins + gap across the 3-cell-margin content width.
+        const bw: i16 = 64;
+        const cw = W - grid.w(6);
+        const oky = grid.y(16);
+        if (g.buttonThick(.{ .x = gui.hspread(grid.x(3), cw, 2, bw, 0), .y = oky, .w = bw, .h = 14 }, "OK", false, 3)) return .ok;
+        if (g.buttonThick(.{ .x = gui.hspread(grid.x(3), cw, 2, bw, 1), .y = oky, .w = bw, .h = 14 }, "Cancel", false, 2)) return .cancel;
         return .none;
     }
 };

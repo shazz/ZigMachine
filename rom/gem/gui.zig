@@ -21,6 +21,7 @@ const core = @import("gui/core.zig");
 const window = @import("gui/window.zig");
 const dialog = @import("gui/dialog.zig");
 const menu = @import("gui/menu.zig");
+const grid = @import("gui/grid.zig");
 
 // --- palette ---
 pub const BLACK = types.BLACK;
@@ -36,6 +37,11 @@ pub const installPalette = types.installPalette;
 // --- geometry + metrics ---
 pub const Rect = types.Rect;
 pub const inRect = types.inRect;
+// grid layout (8px character cells) for dialogs
+pub const CELL = grid.CELL;
+pub const Grid = grid.Grid;
+pub const hspread = grid.hspread;
+pub const gcenter = grid.center;
 pub const MENU_H = types.MENU_H;
 pub const ITEM_H = types.ITEM_H;
 pub const TITLE_H = types.TITLE_H;
