@@ -8,6 +8,7 @@ const zsrc = @import("zigos");
 const gui = @import("../gui.zig");
 const icons = @import("../gem_icons.zig");
 const prefs = @import("prefs.zig");
+const about_mod = @import("about.zig");
 const desk_icons = @import("desk_icons.zig");
 
 const ZigOS = zsrc.ZigOS;
@@ -70,6 +71,7 @@ pub const Desktop = struct {
     sel_file: i16 = -1, // currently selected file in a FLOPPY window, -1 = none
     pending_open: i16 = -1, // icon to open (set by a native double-click), -1 = none
     prefs: prefs.Prefs = .{}, // Options > Set Preferences dialog
+    about: about_mod.About = .{}, // Desk > Desktop Info... dialog
     bg_r: u8 = 1, // desktop background colour (Prefs); GEM default here is a teal
     bg_g: u8 = 160,
     bg_b: u8 = 164,
@@ -82,6 +84,7 @@ pub const Desktop = struct {
         self.wm = .{};
         self.dlg = .{};
         self.prefs = .{};
+        self.about = .{};
         self.applyBg(); // paint the desktop palette with the configured background
     }
 
@@ -118,7 +121,7 @@ pub const Desktop = struct {
     pub fn render(self: *Desktop) Action {
         const g = &self.g;
         var action: Action = .none;
-        const modal = self.dlg.active or self.prefs.active; // a dialog owns all input
+        const modal = self.dlg.active or self.prefs.active or self.about.active; // a dialog owns all input
         const menu_open = self.menubar.open >= 0;
         // Windows sit above icons and take input first; a press the windows (or
         // an open drop-down menu) consumed never reaches the icons.
@@ -344,11 +347,12 @@ pub const Desktop = struct {
     }
 
     fn runDialogs(self: *Desktop, g: *gui.Gui, action: *Action) void {
-        const modal = self.dlg.active or self.prefs.active;
+        const modal = self.dlg.active or self.prefs.active or self.about.active;
         var buf: MenuBuf = undefined;
         const menus = self.buildMenus(&buf);
         if (self.menubar.process(g, &menus, g.screen_w, modal or self.overWindow())) |p| self.menuPick(p, action);
         _ = self.dlg.process(g);
+        _ = self.about.process(g); // Desktop Info... (modal while active)
         // Set Preferences dialog (live-previews the background colour).
         if (self.prefs.active) switch (self.prefs.process(g)) {
             .ok => {
@@ -368,7 +372,7 @@ pub const Desktop = struct {
 
     fn menuPick(self: *Desktop, p: gui.MenuPick, action: *Action) void {
         switch (p.menu) {
-            MENU_DESK => self.dlg.alert("GEM Desktop", "ZigGEM - a GEM-style ROM for ZigMachine."), // TODO #7: TOS-style dialog
+            MENU_DESK => self.about.open(), // Desktop Info...
             MENU_FILE => switch (p.item) {
                 0 => self.openSelection(action), // Open
                 1 => self.showInfo(), // Show Info...
