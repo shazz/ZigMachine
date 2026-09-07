@@ -10,6 +10,7 @@ const icons = @import("../gem_icons.zig");
 const prefs = @import("prefs.zig");
 const about_mod = @import("about.zig");
 const trash_mod = @import("trash.zig");
+const info_mod = @import("info.zig");
 const desk_icons = @import("desk_icons.zig");
 
 const ZigOS = zsrc.ZigOS;
@@ -89,6 +90,7 @@ pub const Desktop = struct {
     prefs: prefs.Prefs = .{}, // Options > Set Preferences dialog
     about: about_mod.About = .{}, // Desk > Desktop Info... dialog
     trash: trash_mod.DeleteDlg = .{}, // DELETE FILE(S) confirm (file dropped on TRASH)
+    info: info_mod.Info = .{}, // Show Info... (DISK/FILE/FOLDER INFORMATION)
     file_drag: i16 = -1, // file being dragged out of a window, -1 = none
     file_moved: bool = false, // the file drag has moved past the initial press
     trash_target: i16 = -1, // file awaiting the DELETE FILE(S) confirm
@@ -115,6 +117,7 @@ pub const Desktop = struct {
         self.prefs = .{};
         self.about = .{};
         self.trash = .{};
+        self.info = .{};
         self.n_folders = 0;
         self.new_seq = 0;
         self.win_dir = [_]i16{WIN_NONE} ** gui.MAX_WIN;
@@ -154,7 +157,7 @@ pub const Desktop = struct {
     pub fn render(self: *Desktop) Action {
         const g = &self.g;
         var action: Action = .none;
-        const modal = self.dlg.active or self.prefs.active or self.about.active or self.trash.active; // a dialog owns all input
+        const modal = self.dlg.active or self.prefs.active or self.about.active or self.trash.active or self.info.active; // a dialog owns all input
         const menu_open = self.menubar.open >= 0;
         // Windows sit above icons and take input first; a press the windows (or
         // an open drop-down menu) consumed never reaches the icons.
@@ -605,7 +608,7 @@ pub const Desktop = struct {
     }
 
     fn runDialogs(self: *Desktop, g: *gui.Gui, action: *Action) void {
-        const modal = self.dlg.active or self.prefs.active or self.about.active or self.trash.active;
+        const modal = self.dlg.active or self.prefs.active or self.about.active or self.trash.active or self.info.active;
         var buf: MenuBuf = undefined;
         const menus = self.buildMenus(&buf);
         // Only a modal dialog locks the bar. (Don't lock on overWindow: a drop-down
@@ -622,6 +625,7 @@ pub const Desktop = struct {
             .cancel => self.trash_target = -1,
             .none => {},
         }
+        _ = self.info.process(g); // Show Info... (DISK/FILE/FOLDER INFORMATION)
         // Set Preferences dialog (live-previews the background colour).
         if (self.prefs.active) switch (self.prefs.process(g)) {
             .ok => {
@@ -679,10 +683,16 @@ pub const Desktop = struct {
     // this is informational.
     fn showInfo(self: *Desktop) void {
         if (self.sel_folder >= 0) {
-            self.dlg.alert(self.folderName(@intCast(self.sel_folder)), "Kind: Folder");
+            self.info.openFile(self.folderName(@intCast(self.sel_folder)), 0, 0, true);
         } else if (self.sel_file >= 0) {
-            const kind = if (self.diskType(@intCast(self.sel_file)) == 0) "Kind: Program" else "Kind: Document";
-            self.dlg.alert(self.diskName(@intCast(self.sel_file)), kind);
+            const f: u8 = @intCast(self.sel_file);
+            self.info.openFile(self.diskName(f), self.diskSize(f), self.diskDate(f), false);
+        } else if (self.sel_icon == desk_icons.IC_FLOPPY) {
+            var used: u32 = 0; // DISK INFORMATION for drive A: (ref: real TOS)
+            var i: u8 = 0;
+            while (i < self.n_disk) : (i += 1) used += self.diskSize(i);
+            const cap: u32 = 726528; // a 3.5" DS floppy
+            self.info.openDisk(@intCast(self.dirFolderCount(WIN_ROOT)), self.n_disk, used, if (cap > used) cap - used else 0);
         } else if (self.sel_icon >= 0) {
             self.dlg.alert(self.items[@intCast(self.sel_icon)].label, "Kind: Desktop icon");
         }
