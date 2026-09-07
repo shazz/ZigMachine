@@ -131,6 +131,10 @@ pub const Desktop = struct {
     pub fn setPointer(self: *Desktop, x: i32, y: i32, buttons: u32) void {
         self.g.setPointer(x, y, buttons);
     }
+    // Character keyboard: feeds the Show Info rename field while it's open.
+    pub fn key(self: *Desktop, cp: u32) void {
+        if (self.info.active) self.info.key(cp);
+    }
     pub fn beginFrame(self: *Desktop) void {
         self.g.beginFrame();
     }
@@ -631,7 +635,10 @@ pub const Desktop = struct {
             .cancel => self.trash_target = -1,
             .none => {},
         }
-        _ = self.info.process(g); // Show Info... (DISK/FILE/FOLDER INFORMATION)
+        switch (self.info.process(g)) { // Show Info... (DISK/FILE/FOLDER INFORMATION)
+            .ok => self.applyRename(),
+            else => {},
+        }
         // Set Preferences dialog (live-previews the background colour).
         if (self.prefs.active) switch (self.prefs.process(g)) {
             .ok => {
@@ -701,6 +708,30 @@ pub const Desktop = struct {
             self.info.openDisk(@intCast(self.dirFolderCount(WIN_ROOT)), self.n_disk, used, if (cap > used) cap - used else 0);
         } else if (self.sel_icon >= 0) {
             self.dlg.alert(self.items[@intCast(self.sel_icon)].label, "Kind: Desktop icon");
+        }
+    }
+
+    // Apply the (keyboard-edited) name from the Show Info dialog to the selection.
+    fn applyRename(self: *Desktop) void {
+        const nm = self.info.name[0..self.info.nlen];
+        if (nm.len == 0) return;
+        if (self.sel_folder >= 0) {
+            const f = &self.folders[@intCast(self.sel_folder)];
+            const n = @min(nm.len, f.name.len);
+            @memcpy(f.name[0..n], nm[0..n]);
+            f.nlen = @intCast(n);
+            if (f.parent == WIN_ROOT) {
+                const t = std.fmt.bufPrint(&f.title, "A:\\{s}", .{f.name[0..f.nlen]}) catch "A:\\";
+                f.tlen = @intCast(t.len);
+            } else {
+                const par = self.folders[@intCast(f.parent)];
+                const t = std.fmt.bufPrint(&f.title, "{s}\\{s}", .{ par.title[0..par.tlen], f.name[0..f.nlen] }) catch "A:\\";
+                f.tlen = @intCast(t.len);
+            }
+        } else if (self.sel_file >= 0) {
+            const b = @as(usize, @intCast(self.sel_file)) * FILE_ENT;
+            var i: usize = 0;
+            while (i < 16) : (i += 1) self.disk_dir[b + i] = if (i < nm.len) nm[i] else 0;
         }
     }
 

@@ -105,6 +105,10 @@ pub const Demo = struct {
         }
     }
 
+    pub fn key(self: *Demo, cp: u32) void {
+        if (!self.running) self.desktop.key(cp); // text entry (rename) on the desktop
+    }
+
     // Forward the sample-display bridge to the hosted app so the host can fill it.
     pub fn sampleBuf(self: *Demo) [*]u8 {
         return self.app.sampleBuf();

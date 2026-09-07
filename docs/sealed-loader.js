@@ -438,6 +438,14 @@ window.document.body.addEventListener('keydown', function (evt) {
     // Keys 1-7 → the scene's own mode/song switch. Scenes OWN the behaviour
     // (shading, or a song request via zigos.requestSong); the host only forwards.
     if ("1234567".includes(evt.key) && demo.setShadeMode) demo.setShadeMode(Number(evt.key) - 1);
+
+    // Text entry (GEM rename etc.): forward printable keys + Backspace/Enter to the
+    // app via demo.key(codepoint). 8 = Backspace, 13 = Enter.
+    if (demo.key) {
+        if (evt.key === "Backspace") { evt.preventDefault(); demo.key(8); }
+        else if (evt.key === "Enter") demo.key(13);
+        else if (evt.key.length === 1) demo.key(evt.key.charCodeAt(0));
+    }
 });
 
 // --------------------------------------------------------------------------

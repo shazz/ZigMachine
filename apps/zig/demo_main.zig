@@ -153,6 +153,12 @@ export fn input(dir: Direction) void {
     if (dir == .Back and !@hasDecl(Cart, "pollCart")) want_menu = true;
 }
 
+// Character keyboard input (printable + 8=Backspace, 13=Enter). For text entry
+// like GEM rename. Forwarded to scenes that declare key() (e.g. the desktop).
+export fn key(cp: u32) void {
+    if (booted and @hasDecl(Cart, "key")) cart.key(cp);
+}
+
 // Cartridge swap. The menu launcher asks the host to boot a scene disk; a scene
 // cart asks to return to the menu (ESC). The host polls this each frame and, on a
 // request, swaps the demo module over the shared memory (see sealed-loader.js).

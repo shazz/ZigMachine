@@ -18,9 +18,27 @@ pub const Info = struct {
     avail: u32 = 0,
     size: u32 = 0,
     date: u32 = 0,
+    enter: bool = false, // Enter key pressed -> apply (= OK)
 
     pub const Kind = enum { disk, file, folder };
-    pub const Result = enum { none, ok };
+    pub const Result = enum { none, ok, cancel };
+
+    // Edit the name field (file/folder rename, 8.3). cp: 8=Backspace, 13=Enter.
+    pub fn key(self: *Info, cp: u32) void {
+        if (self.kind == .disk) return; // disk-label rename not wired
+        if (cp == 8) {
+            if (self.nlen > 0) self.nlen -= 1;
+        } else if (cp == 13) {
+            self.enter = true;
+        } else if (cp >= 32 and cp < 127 and self.nlen < self.name.len) {
+            var c: u8 = @intCast(cp);
+            if (c >= 'a' and c <= 'z') c -= 32; // TOS 8.3 is upper-case
+            if ((c >= 'A' and c <= 'Z') or (c >= '0' and c <= '9') or c == '.' or c == '_') {
+                self.name[self.nlen] = c;
+                self.nlen += 1;
+            }
+        }
+    }
 
     const W: i16 = 336; // 42 cells
     const H: i16 = 168; // 21 cells
@@ -39,6 +57,11 @@ pub const Info = struct {
 
     pub fn process(self: *Info, g: *gui.Gui) Result {
         if (!self.active) return .none;
+        if (self.enter) { // Enter key = OK (apply)
+            self.enter = false;
+            self.active = false;
+            return .ok;
+        }
         const dx = @divTrunc(g.screen_w - W, 2);
         const dy = @divTrunc(@as(i16, 200) - H, 2);
         const grid = gui.Grid{ .ox = dx, .oy = dy };
@@ -59,7 +82,7 @@ pub const Info = struct {
             self.label(g, grid, "Drive Identifier:", 4);
             g.text("A:", grid.x(LABR) + 16, grid.y(4), gui.BLACK, gui.WHITE);
             self.label(g, grid, "Disk Label:", 6);
-            self.field83(g, grid, "", 0, 6); // empty (unnamed) disk label — editable later
+            self.field83(g, grid, "", 0, 6, false); // empty (unnamed) disk label
             self.label(g, grid, "Number of Folders:", 8);
             self.num(g, grid, std.fmt.bufPrint(&buf, "{d}", .{self.folders}) catch "?", 8);
             self.label(g, grid, "Number of Items:", 10);
@@ -70,7 +93,7 @@ pub const Info = struct {
             self.num(g, grid, std.fmt.bufPrint(&buf, "{d}", .{self.avail}) catch "?", 14);
         } else {
             self.label(g, grid, "Name:", 4);
-            self.field83(g, grid, self.name[0..self.nlen], self.nlen, 4);
+            self.field83(g, grid, self.name[0..self.nlen], self.nlen, 4, true); // editable (rename)
             if (self.kind == .file) {
                 self.label(g, grid, "Size in bytes:", 6);
                 self.num(g, grid, std.fmt.bufPrint(&buf, "{d}", .{self.size}) catch "?", 6);
@@ -91,7 +114,7 @@ pub const Info = struct {
         }
         if (self.kind != .disk and g.buttonThick(.{ .x = dx + W - bw - grid.w(2), .y = grid.y(H_ROWS), .w = bw, .h = 14 }, "Cancel", false, 2)) {
             self.active = false;
-            return .ok;
+            return .cancel;
         }
         return .none;
     }
@@ -113,7 +136,7 @@ pub const Info = struct {
     }
     // The 8.3 name/label field: NAME padded to 8 + '.' + EXT padded to 3, blanks as
     // underscores (the classic TOS editable field; typing edits it once wired).
-    fn field83(self: *Info, g: *gui.Gui, grid: gui.Grid, name: []const u8, len: u8, row: i16) void {
+    fn field83(self: *Info, g: *gui.Gui, grid: gui.Grid, name: []const u8, len: u8, row: i16, edit: bool) void {
         _ = self;
         var base: []const u8 = name[0..len];
         var ext: []const u8 = "";
@@ -128,5 +151,8 @@ pub const Info = struct {
         i = 0;
         while (i < 3) : (i += 1) f[9 + i] = if (i < ext.len) ext[i] else '_';
         g.text(&f, grid.x(LABR) + 16, grid.y(row), gui.BLACK, gui.WHITE);
+        if (edit) { // a caret after the 8.3 field (the field is being typed into)
+            g.blit.fill(g.fb, grid.x(LABR) + 16 + 12 * 8, grid.y(row) - 1, 2, 9, gui.BLACK);
+        }
     }
 };
