@@ -16,7 +16,7 @@ const zg = @import("zigos"); // the open ZigOS library (named module)
 const ZigOS = zg.ZigOS;
 const Console = zg.Console;
 const Cart = @import("floppy.zig").Demo; // the selected RAM cart (scene)
-const BootRom = @import("scenes/boot.zig").Demo; // the ZigMachine boot screen (Falcon-style)
+const BootRom = @import("boot_rom").Boot; // the machine boot ROM (POST screen), HW-ABI only
 
 const VERSION = "0.2-sealed";
 
@@ -40,7 +40,7 @@ var boot_frames: u32 = 0;
 export fn boot() void {
     Console.log("ZigMachine demo v.{s}\n", .{VERSION});
     zigos.init();
-    boot_rom.init(&zigos); // ZigMachine boot screen first — cart is inserted after it
+    boot_rom.init(); // machine boot ROM (POST screen) — HW-ABI only; cart inserted after it
 }
 
 // Reset the machine to a clean state and insert & start the selected RAM cart.
@@ -55,8 +55,8 @@ fn startCart() void {
 // the selected RAM cart. ESC (see skipBoot) ends the boot screen early.
 export fn frame(elapsed_time: f32) void {
     if (!booted) {
-        boot_rom.update(&zigos, elapsed_time);
-        boot_rom.render(&zigos, elapsed_time);
+        boot_rom.update();
+        boot_rom.render();
         boot_frames += 1;
         if (boot_frames >= BOOT_FRAMES) startCart();
         return;
@@ -77,6 +77,7 @@ export fn hblDispatch(id: u32, plane: u32, line: u32, x: u32) void {
 
 // The host gates blits on this (the machine renders a plane unconditionally).
 export fn isPlaneEnabled(id: u8) bool {
+    if (!booted) return id == 0; // boot ROM draws on plane 0 only
     return zigos.lfbs[id].is_enabled;
 }
 

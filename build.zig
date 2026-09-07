@@ -65,6 +65,15 @@ pub fn build(b: *std.Build) void {
             .{ .name = "hardware", .module = sdk_video },
         },
     });
+    // machine/boot.zig — the boot ROM (POST screen). Machine firmware: depends
+    // ONLY on the HW ABI, no libs. App-linked into the demo for now; will move
+    // into machine-video.wasm when the machine renders its own boot (Phase 2).
+    const boot_rom_mod = b.createModule(.{
+        .root_source_file = b.path("machine/boot.zig"),
+        .target = wasm_target,
+        .optimize = optimize,
+        .imports = &.{.{ .name = "hardware", .module = sdk_video }},
+    });
 
     const sealed_step = b.step("sealed", "Compiles the sealed machine + open demo wasm");
 
@@ -123,6 +132,7 @@ pub fn build(b: *std.Build) void {
             .imports = &.{
                 .{ .name = "zigos", .module = zigos_mod },
                 .{ .name = "rom", .module = rom_mod },
+                .{ .name = "boot_rom", .module = boot_rom_mod },
             },
         }),
     });

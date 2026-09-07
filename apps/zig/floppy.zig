@@ -23,6 +23,6 @@ pub const Demo = @import("scenes/menu.zig").Demo;
 // pub const Demo = @import("scenes/empire.zig").Demo;
 // pub const Demo = @import("scenes/mandelbrot.zig").Demo;
 // pub const Demo = @import("scenes/deltaforce.zig").Demo;
-// pub const Demo = @import("scenes/boot.zig").Demo;
+// (boot ROM moved to machine/boot.zig — @import("boot_rom").Boot, driven by demo_main)
 // pub const Demo = @import("scenes/bladerunners.zig").Demo;
 // pub const Demo = @import("scenes/shapes_tester.zig").Demo;
