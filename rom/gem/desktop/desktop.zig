@@ -9,6 +9,7 @@ const gui = @import("../gui.zig");
 const icons = @import("../gem_icons.zig");
 const prefs = @import("prefs.zig");
 const about_mod = @import("about.zig");
+const trash_mod = @import("trash.zig");
 const desk_icons = @import("desk_icons.zig");
 
 const ZigOS = zsrc.ZigOS;
@@ -72,6 +73,10 @@ pub const Desktop = struct {
     pending_open: i16 = -1, // icon to open (set by a native double-click), -1 = none
     prefs: prefs.Prefs = .{}, // Options > Set Preferences dialog
     about: about_mod.About = .{}, // Desk > Desktop Info... dialog
+    trash: trash_mod.DeleteDlg = .{}, // DELETE FILE(S) confirm (file dropped on TRASH)
+    file_drag: i16 = -1, // file being dragged out of a window, -1 = none
+    file_moved: bool = false, // the file drag has moved past the initial press
+    trash_target: i16 = -1, // file awaiting the DELETE FILE(S) confirm
     bg_r: u8 = 1, // desktop background colour (Prefs); GEM default here is a teal
     bg_g: u8 = 160,
     bg_b: u8 = 164,
@@ -85,6 +90,7 @@ pub const Desktop = struct {
         self.dlg = .{};
         self.prefs = .{};
         self.about = .{};
+        self.trash = .{};
         self.applyBg(); // paint the desktop palette with the configured background
     }
 
@@ -121,7 +127,7 @@ pub const Desktop = struct {
     pub fn render(self: *Desktop) Action {
         const g = &self.g;
         var action: Action = .none;
-        const modal = self.dlg.active or self.prefs.active or self.about.active; // a dialog owns all input
+        const modal = self.dlg.active or self.prefs.active or self.about.active or self.trash.active; // a dialog owns all input
         const menu_open = self.menubar.open >= 0;
         // Windows sit above icons and take input first; a press the windows (or
         // an open drop-down menu) consumed never reaches the icons.
@@ -145,6 +151,23 @@ pub const Desktop = struct {
         // press); a double-click then opens it (requestOpenAt -> launch).
         if (!modal and self.drag == null and g.edge and self.overWindow()) {
             self.selectFileAt(@intCast(g.px), @intCast(g.py));
+            self.file_drag = self.sel_file; // arm a possible drag onto the desktop (TRASH)
+            self.file_moved = false;
+        }
+        // File drag: once it has moved, a release over the TRASH asks to delete it.
+        if (!modal and self.file_drag >= 0) {
+            if (g.down) {
+                if (!g.edge) self.file_moved = true;
+            } else {
+                // Released over the TRASH after a press on a window file = a drag to
+                // delete (the press was over the window, so reaching the trash is a drag).
+                if (self.items[desk_icons.IC_TRASH].hitAt(@intCast(g.px), @intCast(g.py))) {
+                    self.trash_target = self.file_drag;
+                    self.trash.open(0, 1); // 0 folders, 1 file
+                }
+                self.file_drag = -1;
+                self.file_moved = false;
+            }
         }
 
         self.drawScene(g);
@@ -272,6 +295,26 @@ pub const Desktop = struct {
             const content = self.wm.drawChrome(g, id, id == self.wm.topId());
             if (self.isFloppyWin(id)) self.drawFiles(g, content);
         }
+        // Drag ghost: the file being dragged toward the TRASH follows the pointer.
+        if (self.file_drag >= 0 and self.file_moved) {
+            const bmp = if (self.diskType(@intCast(self.file_drag)) == 0) icons.PROGRAM else icons.DOCUMENT;
+            const iw: i16 = @intCast(bmp.w);
+            const ih: i16 = @intCast(bmp.h);
+            var ghost = Icon{ .x = @as(i16, @intCast(g.px)) - @divTrunc(iw, 2), .y = @as(i16, @intCast(g.py)) - @divTrunc(ih, 2), .bmp = bmp, .label = "", .is_app = false };
+            ghost.draw(g, false);
+        }
+    }
+
+    // Remove a file from the in-memory FAT (the mounted disk itself is read-only).
+    fn removeFile(self: *Desktop, idx: usize) void {
+        var i = idx;
+        while (i + 1 < self.n_disk) : (i += 1) {
+            const dst = i * FILE_ENT;
+            const src = (i + 1) * FILE_ENT;
+            @memcpy(self.disk_dir[dst .. dst + FILE_ENT], self.disk_dir[src .. src + FILE_ENT]);
+        }
+        if (self.n_disk > 0) self.n_disk -= 1;
+        self.sel_file = -1;
     }
 
     // A FLOPPY window's files, in the current view + sort order.
@@ -347,12 +390,20 @@ pub const Desktop = struct {
     }
 
     fn runDialogs(self: *Desktop, g: *gui.Gui, action: *Action) void {
-        const modal = self.dlg.active or self.prefs.active or self.about.active;
+        const modal = self.dlg.active or self.prefs.active or self.about.active or self.trash.active;
         var buf: MenuBuf = undefined;
         const menus = self.buildMenus(&buf);
         if (self.menubar.process(g, &menus, g.screen_w, modal or self.overWindow())) |p| self.menuPick(p, action);
         _ = self.dlg.process(g);
         _ = self.about.process(g); // Desktop Info... (modal while active)
+        switch (self.trash.process(g)) { // DELETE FILE(S) confirm
+            .ok => {
+                if (self.trash_target >= 0) self.removeFile(@intCast(self.trash_target));
+                self.trash_target = -1;
+            },
+            .cancel => self.trash_target = -1,
+            .none => {},
+        }
         // Set Preferences dialog (live-previews the background colour).
         if (self.prefs.active) switch (self.prefs.process(g)) {
             .ok => {
