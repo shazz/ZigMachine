@@ -41,6 +41,8 @@ let demoImports = null; // env wired to machine + host — reused on cart swap
 let swapping = false; // a cartridge swap (disk boot) is in flight
 let sampleLoaded = false; // fed the running scene its sample yet (once per cart)
 let diskApp = false; // GEM was booted for an app-disk -> FLOPPY opens the app
+let diskInfoSet = false; // handed GEM the FAT listing for the FLOPPY window yet
+const text_encoder = new TextEncoder();
 let requestId = null;
 
 // --- console/env imports shared by both modules ---
@@ -144,6 +146,7 @@ async function swapCart(req) {
         demo.boot();
         if (req === 1) demo.skipBoot(); // scene or data-disk→GEM: straight in (no boot ROM)
         diskApp = !bootable;            // data disk → GEM's FLOPPY opens its app
+        diskInfoSet = false;            // re-hand GEM the new disk's FAT listing
         sampleLoaded = false;           // the loop feeds the new cart its sample when ready
     } catch (e) {
         console.error("cart swap failed:", e);
@@ -295,6 +298,17 @@ function start() {
         // Tell GEM whether an app-disk is inserted (idempotent; takes effect once
         // the cart is booted) so its FLOPPY icon opens the app.
         if (demo.insertDisk) demo.insertDisk(diskApp ? 1 : 0);
+
+        // Hand GEM the mounted disk's FAT listing for its FLOPPY window (once booted).
+        if (!diskInfoSet && diskApp && mountedDisk && demo.diskInfoPtr &&
+            demo.getSampleBufLen && demo.getSampleBufLen() > 0) {
+            const names = Object.keys(mountedDisk.files);
+            const s = names.length + " item(s):  " + names.join("   ");
+            const bytes = text_encoder.encode(s).subarray(0, 95);
+            new Uint8Array(memory.buffer, demo.diskInfoPtr(), bytes.length).set(bytes);
+            demo.setDiskInfoLen(bytes.length);
+            diskInfoSet = true;
+        }
 
         // Song-request bridge: once audio is running, let the active scene pick a
         // YM tune (union main autoplays track 1, keys 1-6 switch).

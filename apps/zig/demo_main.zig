@@ -106,9 +106,16 @@ export fn pointer(x: i32, y: i32, buttons: u32) void {
 }
 
 // The host reports whether an app-disk is inserted (e.g. GEM booted for the ST
-// Replay data disk). Only the GEM desktop reacts.
+// Replay data disk) and fills the FAT listing shown in GEM's FLOPPY window.
 export fn insertDisk(present: u32) void {
     if (booted and @hasDecl(Cart, "insertDisk")) cart.insertDisk(present);
+}
+export fn diskInfoPtr() [*]u8 {
+    if (booted and @hasDecl(Cart, "diskInfoPtr")) return cart.diskInfoPtr();
+    return &g_no_tag;
+}
+export fn setDiskInfoLen(n: u32) void {
+    if (booted and @hasDecl(Cart, "setDiskInfoLen")) cart.setDiskInfoLen(n);
 }
 
 // Sample-buffer bridge: a scene (e.g. ST Replay) that declares sampleBuf() lets

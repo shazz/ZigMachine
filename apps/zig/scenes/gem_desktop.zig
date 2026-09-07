@@ -113,9 +113,15 @@ pub const Demo = struct {
         return st_replay.App.sampleLen();
     }
 
-    // The host reports whether an app-disk is inserted; if so the desktop's FLOPPY
-    // icon opens the app (ST Replay) instead of a plain disk window.
+    // The host reports whether an app-disk is inserted, and fills the FAT listing
+    // shown in the FLOPPY window (diskInfoPtr = a 96-byte buffer, setDiskInfoLen).
     pub fn insertDisk(self: *Demo, present: u32) void {
         self.desktop.disk_app = present != 0;
+    }
+    pub fn diskInfoPtr(self: *Demo) [*]u8 {
+        return @ptrCast(&self.desktop.disk_info_buf);
+    }
+    pub fn setDiskInfoLen(self: *Demo, n: u32) void {
+        self.desktop.disk_info_len = @intCast(@min(n, self.desktop.disk_info_buf.len));
     }
 };

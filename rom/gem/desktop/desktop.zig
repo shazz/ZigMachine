@@ -40,7 +40,9 @@ pub const Desktop = struct {
         .{ .x = 580, .y = 22, .bmp = icons.FLOPPY, .label = "FLOPPY", .is_app = false },
         .{ .x = 580, .y = 130, .bmp = icons.TRASH, .label = "TRASH", .is_app = false },
     },
-    disk_app: bool = false, // an app-disk is inserted -> FLOPPY opens it (host sets this)
+    disk_app: bool = false, // an app-disk is inserted (host sets this)
+    disk_info_buf: [96]u8 = [_]u8{0} ** 96, // the mounted disk's FAT listing (host fills)
+    disk_info_len: u16 = 0, // 0 = no disk -> the default "empty" info line
     drag: ?u8 = null,
     grab_dx: i16 = 0,
     grab_dy: i16 = 0,

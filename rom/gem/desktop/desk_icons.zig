@@ -79,10 +79,10 @@ pub fn requestOpenAt(d: *Desktop, x: i32, y: i32) void {
 }
 
 pub fn openIcon(d: *Desktop, di: u8, action: *Action) void {
-    if (d.items[di].is_app or (di == IC_FLOPPY and d.disk_app)) {
-        action.* = .launch; // an app icon, or FLOPPY with an app-disk inserted
+    if (d.items[di].is_app) {
+        action.* = .launch;
     } else if (di == IC_FLOPPY) {
-        openFloppy(d); // no disk -> the usual FLOPPY window
+        openFloppy(d); // opens a window listing the disk's FAT (files inside open the app)
     }
 }
 
@@ -91,7 +91,11 @@ pub fn openIcon(d: *Desktop, di: u8, action: *Action) void {
 // the screen. Over the cap, GEM raises the "no more windows" alert.
 pub fn openFloppy(d: *Desktop) void {
     const r = d.next_win;
-    if (d.wm.tryAdd(.{ .r = r, .title = "FLOPPY DISK", .info = "0 bytes used in 0 items." }) == null) {
+    const info: []const u8 = if (d.disk_info_len > 0)
+        d.disk_info_buf[0..d.disk_info_len]
+    else
+        "0 bytes used in 0 items.";
+    if (d.wm.tryAdd(.{ .r = r, .title = "FLOPPY DISK", .info = info }) == null) {
         d.dlg.alert("The Desktop has no more windows.", "Please close a window first.");
         return;
     }
