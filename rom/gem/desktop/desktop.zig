@@ -35,6 +35,19 @@ const MAX_FILES: usize = 12;
 const FILE_ENT: usize = 25;
 const FLOPPY_TITLE = "A:\\";
 
+// In-memory folders (the mounted disk is a flat read-only FAT; folders live only
+// in RAM). A folder has a parent (-1 = root disk) and a window-title path.
+const MAX_FOLDERS: usize = 8;
+const Folder = struct {
+    name: [12]u8 = [_]u8{0} ** 12,
+    nlen: u8 = 0,
+    parent: i16 = -1, // -1 = root, else a folder index
+    title: [40]u8 = [_]u8{0} ** 40, // "A:\FOO\BAR" for the window title
+    tlen: u8 = 0,
+};
+const WIN_NONE: i16 = -2; // win_dir sentinel: not a FLOPPY/folder window
+const WIN_ROOT: i16 = -1; // win_dir: the root disk (A:\)
+
 // Menus are built per-frame (buildMenus) so ticks/disabled track live state.
 const MENU_DESK = 0;
 const MENU_FILE = 1;
@@ -84,6 +97,11 @@ pub const Desktop = struct {
     bg_b: u8 = 164,
     view: ViewMode = .icons, // View menu: show FLOPPY contents as icons or text
     sort: SortKey = .name, // View menu: sort order for FLOPPY contents
+    folders: [MAX_FOLDERS]Folder = [_]Folder{.{}} ** MAX_FOLDERS,
+    n_folders: u8 = 0,
+    win_dir: [gui.MAX_WIN]i16 = [_]i16{WIN_NONE} ** gui.MAX_WIN, // per-window directory
+    sel_folder: i16 = -1, // selected folder in the top window, -1 = none
+    new_seq: u8 = 0, // auto-name counter for New Folder
 
     pub fn init(self: *Desktop, os: *ZigOS, fb: *LogicalFB, blit: *Blitter) void {
         self.g = .{ .os = os, .fb = fb, .blit = blit, .screen_w = 640, .screen_h = 200 };
@@ -93,6 +111,9 @@ pub const Desktop = struct {
         self.prefs = .{};
         self.about = .{};
         self.trash = .{};
+        self.n_folders = 0;
+        self.new_seq = 0;
+        self.win_dir = [_]i16{WIN_NONE} ** gui.MAX_WIN;
         self.applyBg(); // paint the desktop palette with the configured background
     }
 
@@ -152,8 +173,8 @@ pub const Desktop = struct {
         // A press over a window selects the file icon under it (GEM selects on
         // press); a double-click then opens it (requestOpenAt -> launch).
         if (!modal and self.drag == null and g.edge and self.overWindow()) {
-            self.selectFileAt(@intCast(g.px), @intCast(g.py));
-            self.file_drag = self.sel_file; // arm a possible drag onto the desktop (TRASH)
+            self.selectAt(@intCast(g.px), @intCast(g.py));
+            self.file_drag = self.sel_file; // arm a possible drag onto the desktop (TRASH; files only)
             self.file_moved = false;
         }
         // File drag: once it has moved, a release over the TRASH asks to delete it.
@@ -262,42 +283,157 @@ pub const Desktop = struct {
         return .{ .x = content.x, .y = content.y + s * TROW_H, .w = content.w, .h = TROW_H };
     }
 
-    // Actual file index under (x,y) in the topmost open FLOPPY window, honouring the
-    // current view (icon or text) and sort order; -1 if none / not over a window.
-    pub fn fileAt(self: *Desktop, x: i16, y: i16) i16 {
+    // --- folders (in-memory directory tree over the flat read-only disk) ---
+    fn folderName(self: *const Desktop, fidx: u8) []const u8 {
+        return self.folders[fidx].name[0..self.folders[fidx].nlen];
+    }
+    fn dirFileCount(self: *const Desktop, dir: i16) usize {
+        return if (dir == WIN_ROOT) self.n_disk else 0; // disk files exist only at root
+    }
+    fn dirFolderCount(self: *const Desktop, dir: i16) usize {
+        var n: usize = 0;
+        var k: u8 = 0;
+        while (k < self.n_folders) : (k += 1) {
+            if (self.folders[k].parent == dir) n += 1;
+        }
+        return n;
+    }
+    fn dirNthFolder(self: *const Desktop, dir: i16, rank: usize) u8 {
+        var seen: usize = 0;
+        var k: u8 = 0;
+        while (k < self.n_folders) : (k += 1) {
+            if (self.folders[k].parent == dir) {
+                if (seen == rank) return k;
+                seen += 1;
+            }
+        }
+        return 0;
+    }
+    // A folder icon laid out at DISPLAY SLOT (folders follow the files).
+    fn folderIconSlot(self: *const Desktop, slot: usize, fidx: u8, content: Rect) Icon {
+        const bmp = icons.FOLDER;
+        const cols: i16 = @max(1, @divTrunc(content.w, icon_mod.CELL_W));
+        const s: i16 = @intCast(slot);
+        const iw: i16 = @intCast(bmp.w);
+        const ih: i16 = @intCast(bmp.h);
+        return .{
+            .x = content.x + @mod(s, cols) * icon_mod.CELL_W + @divTrunc(icon_mod.CELL_W - iw, 2),
+            .y = content.y + @divTrunc(s, cols) * icon_mod.CELL_H + (4 + 30) - ih,
+            .bmp = bmp,
+            .label = self.folderName(fidx),
+            .is_app = false,
+            .bounds = content,
+        };
+    }
+
+    const Hit = union(enum) { none, file: u8, folder: u8 };
+
+    // What a window's directory shows under (x,y): a file, a folder, or nothing.
+    pub fn dirHitAt(self: *Desktop, dir: i16, content: Rect, x: i16, y: i16) Hit {
+        const nf = self.dirFileCount(dir);
+        if (dir == WIN_ROOT) {
+            const ord = self.fileOrder();
+            var p: usize = 0;
+            while (p < self.n_disk) : (p += 1) {
+                const a = ord[p];
+                const hit = if (self.view == .icons) self.fileIconSlot(p, a, content).hitAt(x, y) else gui.inRect(fileRowRect(p, content), x, y);
+                if (hit) return .{ .file = a };
+            }
+        }
+        const fc = self.dirFolderCount(dir);
+        var rank: usize = 0;
+        while (rank < fc) : (rank += 1) {
+            const fidx = self.dirNthFolder(dir, rank);
+            const hit = if (self.view == .icons) self.folderIconSlot(nf + rank, fidx, content).hitAt(x, y) else gui.inRect(fileRowRect(nf + rank, content), x, y);
+            if (hit) return .{ .folder = fidx };
+        }
+        return .none;
+    }
+    // The topmost open FLOPPY/folder window (the one a press just raised).
+    pub fn topFloppy(self: *Desktop) ?struct { id: u8, dir: i16, content: Rect } {
         var wi: usize = self.wm.n;
         while (wi > 0) {
             wi -= 1;
             const id = self.wm.order[wi];
             if (!self.wm.wins[id].open or !self.isFloppyWin(id)) continue;
-            const content = self.wm.contentRect(id);
-            const ord = self.fileOrder();
-            var p: usize = 0;
-            while (p < self.n_disk) : (p += 1) {
-                const a = ord[p];
-                const hit = if (self.view == .icons)
-                    self.fileIconSlot(p, a, content).hitAt(x, y)
-                else
-                    gui.inRect(fileRowRect(p, content), x, y);
-                if (hit) return @intCast(a);
-            }
-            return -1; // the topmost floppy window consumed the point
+            return .{ .id = id, .dir = self.win_dir[id], .content = self.wm.contentRect(id) };
         }
-        return -1;
+        return null;
     }
     pub fn isFloppyWin(self: *const Desktop, id: u8) bool {
-        return std.mem.eql(u8, self.wm.wins[id].title, FLOPPY_TITLE);
+        return self.win_dir[id] != WIN_NONE;
+    }
+    // Nothing mounted and no folders yet -> opening A:\ is an error (no disk).
+    pub fn rootEmpty(self: *const Desktop) bool {
+        return self.n_disk == 0 and self.dirFolderCount(WIN_ROOT) == 0;
     }
 
-    // Single-click a file in a FLOPPY window -> select it (inverse video), like a
-    // desktop icon; clicking away clears the file selection.
-    fn selectFileAt(self: *Desktop, x: i16, y: i16) void {
-        const a = self.fileAt(x, y);
-        if (a >= 0) {
-            self.sel_file = a;
-            self.sel_icon = -1; // file + desktop selections are exclusive
-        } else {
+    // Single-click a file/folder in a window -> select it (inverse video); clicking
+    // empty space clears the selection.
+    fn selectAt(self: *Desktop, x: i16, y: i16) void {
+        self.sel_file = -1;
+        self.sel_folder = -1;
+        if (self.topFloppy()) |w| switch (self.dirHitAt(w.dir, w.content, x, y)) {
+            .file => |a| {
+                self.sel_file = a;
+                self.sel_icon = -1;
+            },
+            .folder => |f| {
+                self.sel_folder = f;
+                self.sel_icon = -1;
+            },
+            .none => {},
+        };
+    }
+
+    // New Folder... : create an (auto-named) folder in the top window's directory,
+    // or at root if no window is open. Rename waits on the keyboard ABI.
+    fn newFolder(self: *Desktop) void {
+        if (self.n_folders >= MAX_FOLDERS) {
+            self.dlg.alert("Too many folders.", "Delete one and try again.");
+            return;
+        }
+        const dir: i16 = if (self.topFloppy()) |w| w.dir else WIN_ROOT;
+        const f = &self.folders[self.n_folders];
+        f.* = .{ .parent = dir };
+        self.new_seq += 1;
+        const nm = std.fmt.bufPrint(&f.name, "NEWDIR{d}", .{self.new_seq}) catch "NEWDIR";
+        f.nlen = @intCast(nm.len);
+        const t = if (dir == WIN_ROOT)
+            std.fmt.bufPrint(&f.title, "A:\\{s}", .{nm}) catch "A:\\"
+        else blk: {
+            const par = self.folders[@intCast(dir)];
+            break :blk std.fmt.bufPrint(&f.title, "{s}\\{s}", .{ par.title[0..par.tlen], nm }) catch "A:\\";
+        };
+        f.tlen = @intCast(t.len);
+        self.n_folders += 1;
+    }
+
+    // Open a NEW window on a folder (GEM opens each folder in its own window;
+    // closing it goes back to the parent).
+    pub fn openFolderWindow(self: *Desktop, fidx: u8) void {
+        const f = self.folders[fidx];
+        self.addFloppyWindow(f.title[0..f.tlen], @intCast(fidx));
+    }
+
+    // Shared open: a FLOPPY/folder window with cascade + the one-icon min size.
+    pub fn addFloppyWindow(self: *Desktop, title: []const u8, dir: i16) void {
+        const r = self.next_win;
+        const min_w = icon_mod.CELL_W + 2 + gui.SCROLL;
+        const min_h = gui.TITLE_H + gui.INFO_H + icon_mod.CELL_H + gui.SCROLL;
+        if (self.wm.tryAdd(.{ .r = r, .title = title, .min_w = min_w, .min_h = min_h })) |id| {
+            self.win_dir[id] = dir;
             self.sel_file = -1;
+            self.sel_folder = -1;
+            var nx = r.x + 16;
+            var ny = r.y + 12;
+            if (nx + r.w > self.g.screen_w or ny + r.h > 200) {
+                nx = desk_icons.WIN_X0;
+                ny = desk_icons.WIN_Y0;
+            }
+            self.next_win = .{ .x = nx, .y = ny, .w = r.w, .h = r.h };
+        } else {
+            self.dlg.alert("The Desktop has no more windows.", "Please close a window first.");
         }
     }
 
@@ -311,7 +447,7 @@ pub const Desktop = struct {
             const id = self.wm.order[i];
             if (!self.wm.wins[id].open) continue;
             const content = self.wm.drawChrome(g, id, id == self.wm.topId());
-            if (self.isFloppyWin(id)) self.drawFiles(g, content);
+            if (self.isFloppyWin(id)) self.drawDir(g, self.win_dir[id], content);
         }
         // Drag ghost: the file being dragged toward the TRASH follows the pointer.
         if (self.file_drag >= 0 and self.file_moved) {
@@ -335,19 +471,40 @@ pub const Desktop = struct {
         self.sel_file = -1;
     }
 
-    // A FLOPPY window's files, in the current view + sort order.
-    fn drawFiles(self: *Desktop, g: *gui.Gui, content: Rect) void {
-        const ord = self.fileOrder();
-        var p: usize = 0;
-        while (p < self.n_disk) : (p += 1) {
-            const a = ord[p];
-            if (self.view == .icons) {
-                var ic = self.fileIconSlot(p, a, content);
-                ic.draw(g, self.sel_file == @as(i16, @intCast(a)));
-            } else {
-                self.drawFileRow(g, p, a, content);
+    // A window's directory: disk files (root only) then folders, in view + sort order.
+    fn drawDir(self: *Desktop, g: *gui.Gui, dir: i16, content: Rect) void {
+        const nf = self.dirFileCount(dir);
+        if (dir == WIN_ROOT) {
+            const ord = self.fileOrder();
+            var p: usize = 0;
+            while (p < self.n_disk) : (p += 1) {
+                const a = ord[p];
+                if (self.view == .icons) {
+                    var ic = self.fileIconSlot(p, a, content);
+                    ic.draw(g, self.sel_file == @as(i16, @intCast(a)));
+                } else self.drawFileRow(g, p, a, content);
             }
         }
+        const fc = self.dirFolderCount(dir);
+        var rank: usize = 0;
+        while (rank < fc) : (rank += 1) {
+            const fidx = self.dirNthFolder(dir, rank);
+            const sel = self.sel_folder == @as(i16, @intCast(fidx));
+            if (self.view == .icons) {
+                var ic = self.folderIconSlot(nf + rank, fidx, content);
+                ic.draw(g, sel);
+            } else self.drawFolderRow(g, nf + rank, fidx, content, sel);
+        }
+    }
+
+    fn drawFolderRow(self: *Desktop, g: *gui.Gui, slot: usize, fidx: u8, content: Rect, sel: bool) void {
+        const r = gui.Rect{ .x = content.x, .y = content.y + @as(i16, @intCast(slot)) * TROW_H, .w = content.w, .h = TROW_H };
+        if (r.y + TROW_H > content.y + content.h) return;
+        if (sel) g.rect(r, gui.BLACK);
+        const ink: u8 = if (sel) gui.WHITE else gui.BLACK;
+        const paper: u8 = if (sel) gui.BLACK else gui.WHITE;
+        g.text(self.folderName(fidx), content.x + 4, r.y + 1, ink, paper);
+        g.text("<DIR>", content.x + content.w - 6 * 8 - 2, r.y + 1, ink, paper);
     }
 
     // One text-view row: NAME | SIZE | DATE (ref TOS text view). Size/Date columns
@@ -383,7 +540,7 @@ pub const Desktop = struct {
     // Build the desktop menus for THIS frame so ticks (view/sort) and disabled
     // states (no selection, Format) reflect live desktop state.
     fn buildMenus(self: *const Desktop, buf: *MenuBuf) [4]gui.Menu {
-        const has_sel = self.sel_icon >= 0 or self.sel_file >= 0;
+        const has_sel = self.sel_icon >= 0 or self.sel_file >= 0 or self.sel_folder >= 0;
         buf.desk = .{.{ .label = "Desktop Info..." }};
         buf.file = .{
             .{ .label = "Open", .disabled = !has_sel },
@@ -417,7 +574,10 @@ pub const Desktop = struct {
         const modal = self.dlg.active or self.prefs.active or self.about.active or self.trash.active;
         var buf: MenuBuf = undefined;
         const menus = self.buildMenus(&buf);
-        if (self.menubar.process(g, &menus, g.screen_w, modal or self.overWindow())) |p| self.menuPick(p, action);
+        // Only a modal dialog locks the bar. (Don't lock on overWindow: a drop-down
+        // that overlaps a window must still accept item clicks — the drop-on-hover
+        // guard already blocks menus opening mid window-drag.)
+        if (self.menubar.process(g, &menus, g.screen_w, modal)) |p| self.menuPick(p, action);
         _ = self.dlg.process(g);
         _ = self.about.process(g); // Desktop Info... (modal while active)
         switch (self.trash.process(g)) { // DELETE FILE(S) confirm
@@ -451,7 +611,7 @@ pub const Desktop = struct {
             MENU_FILE => switch (p.item) {
                 0 => self.openSelection(action), // Open
                 1 => self.showInfo(), // Show Info...
-                3 => self.dlg.alert("New Folder", "Not available on a read-only disk."), // TODO: needs keyboard entry
+                3 => self.newFolder(), // New Folder... (auto-named; rename via keyboard later)
                 4, 5 => self.closeTopWindow(), // Close / Close Window
                 else => {}, // separators + Format... (disabled)
             },
@@ -472,7 +632,9 @@ pub const Desktop = struct {
     // Open the current selection: a desktop icon opens its window/app; a selected
     // file launches it if it's a program (GEM: no-op with nothing selected).
     fn openSelection(self: *Desktop, action: *Action) void {
-        if (self.sel_icon >= 0) {
+        if (self.sel_folder >= 0) {
+            self.openFolderWindow(@intCast(self.sel_folder));
+        } else if (self.sel_icon >= 0) {
             desk_icons.openIcon(self, @intCast(self.sel_icon), action);
         } else if (self.sel_file >= 0 and self.diskType(@intCast(self.sel_file)) == 0) {
             self.launch_req = true;
@@ -482,7 +644,9 @@ pub const Desktop = struct {
     // Show Info... for the current selection (name + kind). Disk is read-only, so
     // this is informational.
     fn showInfo(self: *Desktop) void {
-        if (self.sel_file >= 0) {
+        if (self.sel_folder >= 0) {
+            self.dlg.alert(self.folderName(@intCast(self.sel_folder)), "Kind: Folder");
+        } else if (self.sel_file >= 0) {
             const kind = if (self.diskType(@intCast(self.sel_file)) == 0) "Kind: Program" else "Kind: Document";
             self.dlg.alert(self.diskName(@intCast(self.sel_file)), kind);
         } else if (self.sel_icon >= 0) {

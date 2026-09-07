@@ -67,12 +67,20 @@ pub fn pressIcon(d: *Desktop, g: *gui.Gui) void {
 pub fn requestOpenAt(d: *Desktop, x: i32, y: i32) void {
     if (d.dlg.active) return;
     d.drag = null; // the double-click's presses armed a drag — a double-click is not a drag
-    // Windows sit above the desktop: a file inside an open FLOPPY window opens
-    // first (icon or text view, current sort). Double-clicking a program launches it.
-    const a = d.fileAt(@intCast(x), @intCast(y));
-    if (a >= 0) {
-        if (d.diskType(@intCast(a)) == 0) d.launch_req = true;
-        return; // the file (program or document) consumed the double-click
+    // Windows sit above the desktop: an item inside the top FLOPPY/folder window
+    // opens first. A program launches; a folder opens in its own window.
+    if (d.topFloppy()) |w| {
+        switch (d.dirHitAt(w.dir, w.content, @intCast(x), @intCast(y))) {
+            .file => |a| {
+                if (d.diskType(a) == 0) d.launch_req = true;
+                return;
+            },
+            .folder => |f| {
+                d.openFolderWindow(f);
+                return;
+            },
+            .none => {},
+        }
     }
     for (&d.items, 0..) |*it, i| {
         if (!it.hitAt(x, y)) continue;
@@ -98,21 +106,9 @@ pub fn openIcon(d: *Desktop, di: u8, action: *Action) void {
 // cascaded right + down from the previous, wrapping back when it would leave
 // the screen. Over the cap, GEM raises the "no more windows" alert.
 pub fn openFloppy(d: *Desktop) void {
-    const r = d.next_win;
-    // The window body lists the disk's files as icons (see desktop.drawScene).
-    const info: []const u8 = if (d.n_disk == 0) "0 bytes used in 0 items." else "";
-    // Never resize smaller than one icon cell (plus chrome + scrollbar).
-    const min_w = icon.CELL_W + 2 + gui.SCROLL;
-    const min_h = gui.TITLE_H + gui.INFO_H + icon.CELL_H + gui.SCROLL;
-    if (d.wm.tryAdd(.{ .r = r, .title = "A:\\", .info = info, .min_w = min_w, .min_h = min_h }) == null) {
-        d.dlg.alert("The Desktop has no more windows.", "Please close a window first.");
+    if (d.rootEmpty()) { // no disk/cart loaded -> GEM error alert
+        d.dlg.alert("Drive A: is empty.", "Insert a disk and try again.");
         return;
     }
-    var nx = r.x + CASCADE_DX;
-    var ny = r.y + CASCADE_DY;
-    if (nx + r.w > d.g.screen_w or ny + r.h > 200) {
-        nx = WIN_X0;
-        ny = WIN_Y0;
-    }
-    d.next_win = .{ .x = nx, .y = ny, .w = r.w, .h = r.h };
+    d.addFloppyWindow("A:\\", -1); // opens the root window (cascade + one-icon min size)
 }
