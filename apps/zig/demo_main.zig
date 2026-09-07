@@ -110,12 +110,12 @@ export fn pointer(x: i32, y: i32, buttons: u32) void {
 export fn insertDisk(present: u32) void {
     if (booted and @hasDecl(Cart, "insertDisk")) cart.insertDisk(present);
 }
-export fn diskInfoPtr() [*]u8 {
-    if (booted and @hasDecl(Cart, "diskInfoPtr")) return cart.diskInfoPtr();
+export fn diskDirPtr() [*]u8 {
+    if (booted and @hasDecl(Cart, "diskDirPtr")) return cart.diskDirPtr();
     return &g_no_tag;
 }
-export fn setDiskInfoLen(n: u32) void {
-    if (booted and @hasDecl(Cart, "setDiskInfoLen")) cart.setDiskInfoLen(n);
+export fn setDiskFileCount(n: u32) void {
+    if (booted and @hasDecl(Cart, "setDiskFileCount")) cart.setDiskFileCount(n);
 }
 
 // Sample-buffer bridge: a scene (e.g. ST Replay) that declares sampleBuf() lets

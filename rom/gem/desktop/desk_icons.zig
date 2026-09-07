@@ -66,6 +66,20 @@ pub fn pressIcon(d: *Desktop, g: *gui.Gui) void {
 pub fn requestOpenAt(d: *Desktop, x: i32, y: i32) void {
     if (d.dlg.active) return;
     d.drag = null; // the double-click's presses armed a drag — a double-click is not a drag
+    // Windows sit above the desktop: a file inside an open FLOPPY window opens
+    // first. Double-clicking a program (type 0) launches it.
+    var wi: usize = 0;
+    while (wi < d.wm.n) : (wi += 1) {
+        const id = d.wm.order[wi];
+        if (!d.wm.wins[id].open or !d.isFloppyWin(id)) continue;
+        var f: usize = 0;
+        while (f < d.n_disk) : (f += 1) {
+            if (d.fileIcon(f, d.wm.wins[id].r).hitAt(x, y) and d.diskType(f) == 0) {
+                d.launch_req = true;
+                return;
+            }
+        }
+    }
     for (&d.items, 0..) |*it, i| {
         if (!it.hitAt(x, y)) continue;
         d.sel_icon = @intCast(i);
@@ -91,10 +105,8 @@ pub fn openIcon(d: *Desktop, di: u8, action: *Action) void {
 // the screen. Over the cap, GEM raises the "no more windows" alert.
 pub fn openFloppy(d: *Desktop) void {
     const r = d.next_win;
-    const info: []const u8 = if (d.disk_info_len > 0)
-        d.disk_info_buf[0..d.disk_info_len]
-    else
-        "0 bytes used in 0 items.";
+    // The window body lists the disk's files as icons (see desktop.drawScene).
+    const info: []const u8 = if (d.n_disk == 0) "0 bytes used in 0 items." else "";
     if (d.wm.tryAdd(.{ .r = r, .title = "FLOPPY DISK", .info = info }) == null) {
         d.dlg.alert("The Desktop has no more windows.", "Please close a window first.");
         return;

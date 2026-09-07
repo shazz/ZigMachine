@@ -41,7 +41,7 @@ let demoImports = null; // env wired to machine + host — reused on cart swap
 let swapping = false; // a cartridge swap (disk boot) is in flight
 let sampleLoaded = false; // fed the running scene its sample yet (once per cart)
 let diskApp = false; // GEM was booted for an app-disk -> FLOPPY opens the app
-let diskInfoSet = false; // handed GEM the FAT listing for the FLOPPY window yet
+let diskDirSet = false; // handed GEM the FAT directory for the FLOPPY window yet
 const text_encoder = new TextEncoder();
 let requestId = null;
 
@@ -90,7 +90,7 @@ async function mountDisk(url) {
     for (let i = 0; i < nFiles; i++) {
         const e = 0x300 + i * 32;
         const name = text_decoder.decode(buf.subarray(e, e + 16)).replace(/\0.*$/, "");
-        files[name] = { start: dv.getUint32(e + 0x10, true), len: dv.getUint32(e + 0x14, true) };
+        files[name] = { start: dv.getUint32(e + 0x10, true), len: dv.getUint32(e + 0x14, true), type: buf[e + 0x18] };
     }
     mountedDisk = { buf, files };
     const start = bootBlock * blockSize;
@@ -146,7 +146,7 @@ async function swapCart(req) {
         demo.boot();
         if (req === 1) demo.skipBoot(); // scene or data-disk→GEM: straight in (no boot ROM)
         diskApp = !bootable;            // data disk → GEM's FLOPPY opens its app
-        diskInfoSet = false;            // re-hand GEM the new disk's FAT listing
+        diskDirSet = false;            // re-hand GEM the new disk's FAT listing
         sampleLoaded = false;           // the loop feeds the new cart its sample when ready
     } catch (e) {
         console.error("cart swap failed:", e);
@@ -299,15 +299,19 @@ function start() {
         // the cart is booted) so its FLOPPY icon opens the app.
         if (demo.insertDisk) demo.insertDisk(diskApp ? 1 : 0);
 
-        // Hand GEM the mounted disk's FAT listing for its FLOPPY window (once booted).
-        if (!diskInfoSet && diskApp && mountedDisk && demo.diskInfoPtr &&
+        // Hand GEM the mounted disk's FAT directory for its FLOPPY window (once
+        // booted): per file a 16-byte name + 1 type byte (0=program, 1=data).
+        if (!diskDirSet && diskApp && mountedDisk && demo.diskDirPtr &&
             demo.getSampleBufLen && demo.getSampleBufLen() > 0) {
-            const names = Object.keys(mountedDisk.files);
-            const s = names.length + " item(s):  " + names.join("   ");
-            const bytes = text_encoder.encode(s).subarray(0, 95);
-            new Uint8Array(memory.buffer, demo.diskInfoPtr(), bytes.length).set(bytes);
-            demo.setDiskInfoLen(bytes.length);
-            diskInfoSet = true;
+            const names = Object.keys(mountedDisk.files).slice(0, 12);
+            const dir = new Uint8Array(memory.buffer, demo.diskDirPtr(), names.length * 17);
+            dir.fill(0);
+            names.forEach((name, i) => {
+                dir.set(text_encoder.encode(name).subarray(0, 16), i * 17);
+                dir[i * 17 + 16] = mountedDisk.files[name].type & 0xff;
+            });
+            demo.setDiskFileCount(names.length);
+            diskDirSet = true;
         }
 
         // Song-request bridge: once audio is running, let the active scene pick a

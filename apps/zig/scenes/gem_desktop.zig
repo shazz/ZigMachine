@@ -118,10 +118,12 @@ pub const Demo = struct {
     pub fn insertDisk(self: *Demo, present: u32) void {
         self.desktop.disk_app = present != 0;
     }
-    pub fn diskInfoPtr(self: *Demo) [*]u8 {
-        return @ptrCast(&self.desktop.disk_info_buf);
+    // The host packs the FAT into disk_dir (per file: 16-byte name + 1 type byte)
+    // and sets the count; GEM shows them as icons in the FLOPPY window.
+    pub fn diskDirPtr(self: *Demo) [*]u8 {
+        return @ptrCast(&self.desktop.disk_dir);
     }
-    pub fn setDiskInfoLen(self: *Demo, n: u32) void {
-        self.desktop.disk_info_len = @intCast(@min(n, self.desktop.disk_info_buf.len));
+    pub fn setDiskFileCount(self: *Demo, n: u32) void {
+        self.desktop.n_disk = @intCast(@min(n, self.desktop.disk_dir.len / 17));
     }
 };

@@ -15,8 +15,16 @@ const LogicalFB = zsrc.LogicalFB;
 const Blitter = zsrc.Blitter;
 const Rect = gui.Rect;
 const Icon = @import("icon.zig").Icon;
+const std = @import("std");
 
 pub const Action = enum { none, launch, res_low, res_medium };
+
+// The mounted disk's FAT, packed by the host into `disk_dir`: per file a 16-byte
+// NUL-padded name + 1 type byte (0 = program/cart, 1 = data). Shown as icons in
+// the FLOPPY window; double-clicking a program launches it.
+const MAX_FILES: usize = 12;
+const FILE_ENT: usize = 17;
+const FLOPPY_TITLE = "FLOPPY DISK";
 
 const DESK_MENUS = [_]gui.Menu{
     .{ .title = "Desk", .items = &.{ "About ZigGEM", "------------" } },
@@ -41,8 +49,9 @@ pub const Desktop = struct {
         .{ .x = 580, .y = 130, .bmp = icons.TRASH, .label = "TRASH", .is_app = false },
     },
     disk_app: bool = false, // an app-disk is inserted (host sets this)
-    disk_info_buf: [96]u8 = [_]u8{0} ** 96, // the mounted disk's FAT listing (host fills)
-    disk_info_len: u16 = 0, // 0 = no disk -> the default "empty" info line
+    disk_dir: [MAX_FILES * FILE_ENT]u8 = [_]u8{0} ** (MAX_FILES * FILE_ENT), // host-filled FAT
+    n_disk: u8 = 0, // number of files in the mounted disk's FAT
+    launch_req: bool = false, // a program file in a FLOPPY window was double-clicked
     drag: ?u8 = null,
     grab_dx: i16 = 0,
     grab_dy: i16 = 0,
@@ -119,10 +128,40 @@ pub const Desktop = struct {
 
         self.drawScene(g);
         self.runDialogs(g, &action);
+        if (self.launch_req) { // a program file in a FLOPPY window was double-clicked
+            self.launch_req = false;
+            action = .launch;
+        }
         return action;
     }
 
-    // Draw order: desktop work area, icons, then windows (back-to-front).
+    // The i-th disk file's name / type / icon (laid out inside a window's rect).
+    pub fn diskName(self: *const Desktop, i: usize) []const u8 {
+        const s = self.disk_dir[i * FILE_ENT .. i * FILE_ENT + 16];
+        var n: usize = 0;
+        while (n < 16 and s[n] != 0) : (n += 1) {}
+        return s[0..n];
+    }
+    pub fn diskType(self: *const Desktop, i: usize) u8 {
+        return self.disk_dir[i * FILE_ENT + 16];
+    }
+    pub fn fileIcon(self: *const Desktop, i: usize, wr: Rect) Icon {
+        const col: i16 = @intCast(i % 2);
+        const rowi: i16 = @intCast(i / 2);
+        return .{
+            .x = wr.x + 12 + col * 100,
+            .y = wr.y + 26 + rowi * 42, // below the window's title + info bars
+            .bmp = if (self.diskType(i) == 0) icons.CARTRIDGE else icons.PROGRAM,
+            .label = self.diskName(i),
+            .is_app = self.diskType(i) == 0,
+        };
+    }
+    pub fn isFloppyWin(self: *const Desktop, id: u8) bool {
+        return std.mem.eql(u8, self.wm.wins[id].title, FLOPPY_TITLE);
+    }
+
+    // Draw order: desktop work area, icons, then windows (back-to-front). A FLOPPY
+    // window also shows the mounted disk's files as icons.
     fn drawScene(self: *Desktop, g: *gui.Gui) void {
         g.rect(.{ .x = 0, .y = 0, .w = g.screen_w, .h = 200 }, gui.DESK); // green work area
         for (&self.items, 0..) |*it, i| it.draw(g, self.sel_icon == @as(i16, @intCast(i)));
@@ -130,7 +169,14 @@ pub const Desktop = struct {
         while (i < self.wm.n) : (i += 1) {
             const id = self.wm.order[i];
             if (!self.wm.wins[id].open) continue;
-            _ = self.wm.drawChrome(g, id, id == self.wm.topId()); // empty window (white interior)
+            _ = self.wm.drawChrome(g, id, id == self.wm.topId());
+            if (self.isFloppyWin(id)) {
+                var f: usize = 0;
+                while (f < self.n_disk) : (f += 1) {
+                    var ic = self.fileIcon(f, self.wm.wins[id].r);
+                    ic.draw(g, false);
+                }
+            }
         }
     }
 
