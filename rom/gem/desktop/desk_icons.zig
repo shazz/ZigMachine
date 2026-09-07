@@ -16,8 +16,8 @@ pub const IC_TRASH = 1;
 // Disk windows: first one here, each further one cascaded right + down.
 pub const WIN_X0: i16 = 24;
 pub const WIN_Y0: i16 = 24;
-pub const WIN_W: i16 = 213; // the reference low-res disk window is 213x99
-pub const WIN_H: i16 = 99;
+pub const WIN_W: i16 = 320; // wide enough for the TOS text-view columns (name/ext/size/date/time)
+pub const WIN_H: i16 = 120;
 const CASCADE_DX: i16 = 16;
 const CASCADE_DY: i16 = 12;
 

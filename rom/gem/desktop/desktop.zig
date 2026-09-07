@@ -544,9 +544,9 @@ pub const Desktop = struct {
         g.text("<DIR>", content.x + content.w - 6 * 8 - 2, r.y + 1, ink, paper);
     }
 
-    // One text-view row: NAME | SIZE | DATE (ref TOS text view). Size/Date columns
-    // are pinned to the window's right edge and the name is truncated to what's left,
-    // so a row never draws past the window (columns drop out on a narrow window).
+    // One text-view row, TOS columns: NAME(8) EXT(3) SIZE DATE(MM-DD-YY) TIME.
+    // Columns sit at fixed cell offsets; each is drawn only if it fits the window,
+    // so a narrow window drops the right columns instead of overflowing.
     fn drawFileRow(self: *Desktop, g: *gui.Gui, slot: usize, fidx: u8, content: Rect) void {
         const r = gui.Rect{ .x = content.x, .y = content.y + @as(i16, @intCast(slot)) * TROW_H, .w = content.w, .h = TROW_H };
         if (r.y + TROW_H > content.y + content.h) return; // clip below the window
@@ -555,22 +555,28 @@ pub const Desktop = struct {
         const ink: u8 = if (sel) gui.WHITE else gui.BLACK;
         const paper: u8 = if (sel) gui.BLACK else gui.WHITE;
         const y = r.y + 1;
+        const right = content.x + content.w;
+        const cx = content.x + 4;
 
-        const date_x = content.x + content.w - 8 * 8 - 2; // "YY-MM-DD" pinned right
-        const size_x = date_x - 9 * 8; // up to 8-char size to its left
-        const wide = size_x > content.x + 6 * 8; // room for a name plus both columns
         const name = self.diskName(fidx);
-        const name_cells: usize = if (wide)
-            @intCast(@max(0, @divTrunc(size_x - (content.x + 4), 8) - 1)) // -1 cell: gap before size
-        else
-            @intCast(@max(0, @divTrunc(content.w, 8) - 1));
-        g.text(name[0..@min(name.len, name_cells)], content.x + 4, y, ink, paper);
-        if (wide) {
-            var sb: [12]u8 = undefined;
-            var db: [12]u8 = undefined;
-            g.text(fmtSize(&sb, self.diskSize(fidx)), size_x, y, ink, paper);
-            g.text(fmtDate(&db, self.diskDate(fidx)), date_x, y, ink, paper);
+        var base = name;
+        var ext: []const u8 = "";
+        if (std.mem.lastIndexOfScalar(u8, name, '.')) |dot| {
+            base = name[0..dot];
+            ext = name[dot + 1 ..];
         }
+        g.text(base[0..@min(base.len, 8)], cx, y, ink, paper); // NAME (8)
+        if (cx + 12 * 8 <= right) g.text(ext[0..@min(ext.len, 3)], cx + 9 * 8, y, ink, paper); // EXT (3)
+        if (cx + 20 * 8 <= right) { // SIZE, right-aligned at col 20
+            var sb: [12]u8 = undefined;
+            const s = fmtSize(&sb, self.diskSize(fidx));
+            g.text(s, cx + 20 * 8 - @as(i16, @intCast(s.len)) * 8, y, ink, paper);
+        }
+        if (cx + 30 * 8 <= right) { // DATE (MM-DD-YY) at col 22
+            var db: [12]u8 = undefined;
+            g.text(fmtDate(&db, self.diskDate(fidx)), cx + 22 * 8, y, ink, paper);
+        }
+        if (cx + 38 * 8 <= right) g.text("12:00am", cx + 31 * 8, y, ink, paper); // TIME (host FAT has none)
     }
 
     // Menu bar + modal alert + Set Preferences, drawn last (over everything).
@@ -734,7 +740,7 @@ fn dottedFrame(g: *gui.Gui, r: gui.Rect, c: u8) void {
 fn fmtSize(buf: []u8, n: u32) []const u8 {
     return std.fmt.bufPrint(buf, "{d}", .{n}) catch "?";
 }
-fn fmtDate(buf: []u8, d: u32) []const u8 { // YYYYMMDD -> "YY-MM-DD"
+fn fmtDate(buf: []u8, d: u32) []const u8 { // YYYYMMDD -> "MM-DD-YY" (TOS text view)
     if (d == 0) return "--------";
-    return std.fmt.bufPrint(buf, "{d:0>2}-{d:0>2}-{d:0>2}", .{ (d / 10000) % 100, (d / 100) % 100, d % 100 }) catch "?";
+    return std.fmt.bufPrint(buf, "{d:0>2}-{d:0>2}-{d:0>2}", .{ (d / 100) % 100, d % 100, (d / 10000) % 100 }) catch "?";
 }
