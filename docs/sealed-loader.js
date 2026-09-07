@@ -39,6 +39,7 @@ let machine = null;   // machine-video.wasm exports
 let demo = null;      // demo.wasm exports
 let demoImports = null; // env wired to machine + host — reused on cart swap
 let swapping = false; // a cartridge swap (disk boot) is in flight
+let sampleLoaded = false; // fed the running scene its sample yet (once per cart)
 let requestId = null;
 
 // --- console/env imports shared by both modules ---
@@ -62,6 +63,8 @@ function consoleLogJS(ptr, len) {
 // executable boot sector ($1234 checksum, ST-style), and return the boot cart's
 // wasm bytes. v1 reads the whole image up front; block streaming comes later.
 // --------------------------------------------------------------------------
+let mountedDisk = null; // { buf, files: {NAME: {start,len}} } — the currently inserted disk
+
 async function mountDisk(url) {
     const buf = new Uint8Array(await fetch(url + BUST).then((r) => r.arrayBuffer()));
     if (String.fromCharCode(...buf.subarray(0, 6)) !== "ZMDISK")
@@ -75,10 +78,41 @@ async function mountDisk(url) {
     const blockSize = dv.getUint16(0x08, true);
     const bootBlock = dv.getUint32(0x0e, true);
     const bootLen = dv.getUint32(0x12, true);
-    const title = new TextDecoder().decode(buf.subarray(0x200, 0x240)).replace(/\0.*$/, "");
+    const title = text_decoder.decode(buf.subarray(0x200, 0x240)).replace(/\0.*$/, "");
+    // FAT: flat file table at $300 (see docs/FLOPPY_DISK.md).
+    const nFiles = dv.getUint16(0x2e4, true);
+    const files = {};
+    for (let i = 0; i < nFiles; i++) {
+        const e = 0x300 + i * 32;
+        const name = text_decoder.decode(buf.subarray(e, e + 16)).replace(/\0.*$/, "");
+        files[name] = { start: dv.getUint32(e + 0x10, true), len: dv.getUint32(e + 0x14, true) };
+    }
+    mountedDisk = { buf, files };
+    console.log(`Mounted "${title}" — boot ${bootLen} B @ block ${bootBlock}, ${nFiles} FAT file(s), $1234 OK`);
     const start = bootBlock * blockSize;
-    console.log(`Mounted "${title}" — boot cart ${bootLen} B @ block ${bootBlock}, $1234 OK`);
     return buf.buffer.slice(start, start + bootLen);
+}
+
+// Read a named file from the mounted disk's FAT (streaming a whole file for now).
+function diskFile(name) {
+    if (!mountedDisk || !mountedDisk.files[name]) return null;
+    const { start, len } = mountedDisk.files[name];
+    return mountedDisk.buf.subarray(start, start + len);
+}
+
+// Feed a scene's sample-display buffer: prefer the mounted disk's SAMPLE.RAW,
+// else fall back to the bundled samples. Only scenes with sampleBuf() react.
+function loadSceneSample() {
+    if (!demo.getSampleBufLen || !demo.getSampleBufPtr || demo.getSampleBufLen() === 0) return;
+    const n = demo.getSampleBufLen();
+    const raw = diskFile("SAMPLE.RAW");
+    if (raw) {
+        const dst = new Uint8Array(memory.buffer, demo.getSampleBufPtr(), n);
+        for (let i = 0; i < n; i++) dst[i] = raw[Math.floor(i * raw.length / n)] ?? 128;
+        console.log("ST Replay: waveform loaded from disk SAMPLE.RAW");
+    } else {
+        selectSample(0); // bundled fallback
+    }
 }
 
 // Swap the running cartridge: the menu launcher asks to boot a scene's floppy
@@ -103,6 +137,7 @@ async function swapCart(req) {
         machine.hwInit();
         demo.boot();
         if (req === 1) demo.skipBoot(); // scenes go straight in; the menu shows the boot ROM
+        sampleLoaded = false;           // the loop feeds the new cart its sample when ready
     } catch (e) {
         console.error("cart swap failed:", e);
     }
@@ -160,9 +195,8 @@ async function boot() {
     machine.hwInit();
     demo.boot();
 
-    // If the scene displays a sample (ST Replay), copy a real sample into it so
-    // the waveform on screen is the one PLAY will play.
-    if (demo.getSampleBufLen && demo.getSampleBufPtr && demo.getSampleBufLen() > 0) selectSample(0);
+    // The sample is fed by the render loop once the running cart exposes its
+    // buffer (after the boot ROM / immediately on a scene swap) — see the loop.
     start();
 }
 
@@ -234,6 +268,13 @@ function start() {
         if (!swapping && demo.pollCartRequest) {
             const req = demo.pollCartRequest();
             if (req !== 0) swapCart(req);
+        }
+
+        // Feed a sample-displaying scene (ST Replay) its waveform once its buffer
+        // is live (after the boot ROM, or straight away on a swap).
+        if (!sampleLoaded && demo.getSampleBufLen && demo.getSampleBufLen() > 0) {
+            loadSceneSample();
+            sampleLoaded = true;
         }
 
         // Song-request bridge: once audio is running, let the active scene pick a

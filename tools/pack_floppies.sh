@@ -12,8 +12,11 @@ for w in docs/demo.wasm docs/demo-*.wasm; do
     [ -f "$w" ] || continue
     base=$(basename "$w" .wasm)                 # demo | demo-<tag>
     title=$([ "$base" = demo ] && echo "ZigMachine Menu" || echo "${base#demo-}")
+    # ST Replay is a multi-file disk: its FAT carries a sample it plays/displays.
+    extra=""
+    [ "$base" = "demo-st_replay" ] && extra="--file SAMPLE.RAW=docs/music/smp1.raw"
     python3 tools/mkdisk.py "$w" -o "docs/$base.zmd" \
-        --title "$title" --author "ZigMachine" --date 20260906 >/dev/null
+        --title "$title" --author "ZigMachine" --date 20260906 $extra >/dev/null
     n=$((n + 1))
 done
 echo "packed $n floppies -> docs/*.zmd"

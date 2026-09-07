@@ -19,10 +19,27 @@ def _put_str(buf: bytearray, off: int, s: str, size: int) -> None:
     buf[off:off + len(b)] = b  # rest stays NUL
 
 
-def build(wasm: bytes, title: str, author: str, desc: str, date: int) -> bytes:
+def build(wasm: bytes, title: str, author: str, desc: str, date: int,
+          files: list | None = None, boot_name: str = "BOOT.WSM") -> bytes:
+    files = files or []                       # extra FAT files: (name, bytes, type)
     boot_block = DATA_START // BLOCK          # 3
     boot_len = len(wasm)
-    data = wasm + b"\x00" * ((-len(wasm)) % BLOCK)   # pad to a block
+
+    # --- data area: boot cart, then each extra file, each block-aligned ---
+    data = bytearray()
+    fat = []                                  # (name, abs_start, length, type)
+    def place(name, blob, ftype, in_fat):
+        start = DATA_START + len(data)
+        data.extend(blob)
+        data.extend(b"\x00" * ((-len(blob)) % BLOCK))
+        if in_fat:
+            fat.append((name, start, len(blob), ftype))
+    # A single-cart disk keeps an EMPTY FAT (boot pointer only); a multi-file disk
+    # lists the executable + its files.
+    multi = bool(files)
+    place(boot_name, wasm, 0, multi)          # the executable (type 0 = wasm cart)
+    for name, blob, ftype in files:
+        place(name, blob, ftype, True)
     total_blocks = (DATA_START + len(data)) // BLOCK
 
     # --- boot sector (512 B) ---
@@ -47,9 +64,19 @@ def build(wasm: bytes, title: str, author: str, desc: str, date: int) -> bytes:
     _put_str(d, 0x40, author, 32)     # $240
     _put_str(d, 0x60, desc, 128)      # $260
     struct.pack_into("<I", d, 0xE0, date)   # $2E0 YYYYMMDD
-    struct.pack_into("<H", d, 0xE4, 0)      # $2E4 file count (0 = FAT empty)
+    # FAT: file table at $300 (d offset 0x100), 32-byte entries. Empty for a plain
+    # single-cart disk; here it always lists at least the boot cart.
+    struct.pack_into("<H", d, 0xE4, len(fat))   # $2E4 file count
+    if len(fat) > 24:
+        raise SystemExit("FAT overflow: max 24 files in the 1 KB region")
+    for i, (name, start, length, ftype) in enumerate(fat):
+        e = 0x100 + i * 32
+        _put_str(d, e, name, 16)
+        struct.pack_into("<I", d, e + 0x10, start)
+        struct.pack_into("<I", d, e + 0x14, length)
+        d[e + 0x18] = ftype
 
-    return bytes(bs) + bytes(d) + data
+    return bytes(bs) + bytes(d) + bytes(data)
 
 
 def main() -> None:
@@ -60,11 +87,18 @@ def main() -> None:
     ap.add_argument("--author", default="")
     ap.add_argument("--desc", default="")
     ap.add_argument("--date", type=int, default=0, help="YYYYMMDD")
+    ap.add_argument("--file", action="append", default=[], metavar="NAME=PATH",
+                    help="add an extra file to the FAT (repeatable), e.g. SAMPLE.RAW=docs/music/smp1.raw")
     a = ap.parse_args()
 
     with open(a.wasm, "rb") as f:
         wasm = f.read()
-    img = build(wasm, a.title, a.author, a.desc, a.date)
+    files = []
+    for spec in a.file:
+        name, _, path = spec.partition("=")
+        with open(path, "rb") as fh:
+            files.append((name, fh.read(), 1))  # type 1 = raw asset
+    img = build(wasm, a.title, a.author, a.desc, a.date, files=files)
     with open(a.out, "wb") as f:
         f.write(img)
 
