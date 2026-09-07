@@ -34,11 +34,13 @@ pub const Desktop = struct {
     wm: gui.Wm = .{},
     dlg: gui.Dialog = .{},
     next_win: Rect = .{ .x = desk_icons.WIN_X0, .y = desk_icons.WIN_Y0, .w = desk_icons.WIN_W, .h = desk_icons.WIN_H },
-    items: [3]Icon = .{
-        .{ .x = 44, .y = 30, .bmp = icons.CARTRIDGE, .label = "ST REPLAY", .is_app = true },
+    // No app icon: GEM is generic. A mounted app-disk (e.g. ST Replay) turns the
+    // FLOPPY icon into that app's launcher — see disk_app + desk_icons.openIcon.
+    items: [2]Icon = .{
         .{ .x = 580, .y = 22, .bmp = icons.FLOPPY, .label = "FLOPPY", .is_app = false },
         .{ .x = 580, .y = 130, .bmp = icons.TRASH, .label = "TRASH", .is_app = false },
     },
+    disk_app: bool = false, // an app-disk is inserted -> FLOPPY opens it (host sets this)
     drag: ?u8 = null,
     grab_dx: i16 = 0,
     grab_dy: i16 = 0,

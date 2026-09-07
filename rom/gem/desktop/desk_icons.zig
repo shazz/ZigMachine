@@ -9,8 +9,8 @@ const dt = @import("desktop.zig");
 const Desktop = dt.Desktop;
 const Action = dt.Action;
 
-pub const IC_APP = 0;
-pub const IC_FLOPPY = 1;
+pub const IC_FLOPPY = 0;
+pub const IC_TRASH = 1;
 
 // Disk windows: first one here, each further one cascaded right + down.
 pub const WIN_X0: i16 = 24;
@@ -69,20 +69,20 @@ pub fn requestOpenAt(d: *Desktop, x: i32, y: i32) void {
     for (&d.items, 0..) |*it, i| {
         if (!it.hitAt(x, y)) continue;
         d.sel_icon = @intCast(i);
-        if (it.is_app) {
-            d.pending_open = @intCast(i); // launch handled in render()
-        } else if (i == IC_FLOPPY) {
-            openFloppy(d);
+        // Route FLOPPY through render too, so openIcon can decide launch-vs-window
+        // (an app-disk turns FLOPPY into the app launcher).
+        if (it.is_app or i == IC_FLOPPY) {
+            d.pending_open = @intCast(i); // resolved in render() -> openIcon()
         }
         return;
     }
 }
 
 pub fn openIcon(d: *Desktop, di: u8, action: *Action) void {
-    if (d.items[di].is_app) {
-        action.* = .launch;
+    if (d.items[di].is_app or (di == IC_FLOPPY and d.disk_app)) {
+        action.* = .launch; // an app icon, or FLOPPY with an app-disk inserted
     } else if (di == IC_FLOPPY) {
-        openFloppy(d);
+        openFloppy(d); // no disk -> the usual FLOPPY window
     }
 }
 

@@ -105,6 +105,12 @@ export fn pointer(x: i32, y: i32, buttons: u32) void {
     if (booted and @hasDecl(Cart, "pointer")) cart.pointer(x, y, buttons);
 }
 
+// The host reports whether an app-disk is inserted (e.g. GEM booted for the ST
+// Replay data disk). Only the GEM desktop reacts.
+export fn insertDisk(present: u32) void {
+    if (booted and @hasDecl(Cart, "insertDisk")) cart.insertDisk(present);
+}
+
 // Sample-buffer bridge: a scene (e.g. ST Replay) that declares sampleBuf() lets
 // the host copy a real sample into it for display. Scenes without it report len 0.
 var g_no_sample: [1]u8 = .{0};

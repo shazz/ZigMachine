@@ -40,6 +40,7 @@ let demo = null;      // demo.wasm exports
 let demoImports = null; // env wired to machine + host — reused on cart swap
 let swapping = false; // a cartridge swap (disk boot) is in flight
 let sampleLoaded = false; // fed the running scene its sample yet (once per cart)
+let diskApp = false; // GEM was booted for an app-disk -> FLOPPY opens the app
 let requestId = null;
 
 // --- console/env imports shared by both modules ---
@@ -142,6 +143,7 @@ async function swapCart(req) {
         machine.hwInit();
         demo.boot();
         if (req === 1) demo.skipBoot(); // scene or data-disk→GEM: straight in (no boot ROM)
+        diskApp = !bootable;            // data disk → GEM's FLOPPY opens its app
         sampleLoaded = false;           // the loop feeds the new cart its sample when ready
     } catch (e) {
         console.error("cart swap failed:", e);
@@ -195,6 +197,7 @@ async function boot() {
             // A data disk isn't bootable — bring up the OS (GEM); the disk stays
             // mounted so GEM can open its app + read its files (e.g. SAMPLE.RAW).
             demoMod = await WebAssembly.instantiateStreaming(fetch("demo-gem.wasm" + BUST), demoImports);
+            diskApp = true; // GEM's FLOPPY icon opens this disk's app
             console.log("Data disk inserted → booting GEM");
         }
     } else {
@@ -288,6 +291,10 @@ function start() {
             loadSceneSample();
             sampleLoaded = true;
         }
+
+        // Tell GEM whether an app-disk is inserted (idempotent; takes effect once
+        // the cart is booted) so its FLOPPY icon opens the app.
+        if (demo.insertDisk) demo.insertDisk(diskApp ? 1 : 0);
 
         // Song-request bridge: once audio is running, let the active scene pick a
         // YM tune (union main autoplays track 1, keys 1-6 switch).

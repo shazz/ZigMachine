@@ -19,7 +19,7 @@ pub const ENTRIES = [_]Entry{
     .{ .name = "BLITTER DEMO", .tag = "blitter" },
     .{ .name = "SCROLL DEMO", .tag = "scroll" },
     .{ .name = "OBJ DEMO", .tag = "obj" },
-    .{ .name = "GEM DESKTOP", .tag = "gem" },
+    .{ .name = "EXIT TO GEM", .tag = "gem" },
     .{ .name = "ST REPLAY", .tag = "st_replay" },
     .{ .name = "ANCOOL", .tag = "ancool" },
     .{ .name = "BLADERUNNERS", .tag = "bladerunners" },

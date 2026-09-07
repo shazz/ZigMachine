@@ -112,4 +112,10 @@ pub const Demo = struct {
     pub fn sampleLen() usize {
         return st_replay.App.sampleLen();
     }
+
+    // The host reports whether an app-disk is inserted; if so the desktop's FLOPPY
+    // icon opens the app (ST Replay) instead of a plain disk window.
+    pub fn insertDisk(self: *Demo, present: u32) void {
+        self.desktop.disk_app = present != 0;
+    }
 };
