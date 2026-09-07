@@ -24,7 +24,7 @@ pub const Action = enum { none, launch, res_low, res_medium };
 // the FLOPPY window; double-clicking a program launches it.
 const MAX_FILES: usize = 12;
 const FILE_ENT: usize = 17;
-const FLOPPY_TITLE = "FLOPPY DISK";
+const FLOPPY_TITLE = "A:\\";
 
 const DESK_MENUS = [_]gui.Menu{
     .{ .title = "Desk", .items = &.{ "About ZigGEM", "------------" } },
@@ -56,7 +56,8 @@ pub const Desktop = struct {
     grab_dx: i16 = 0,
     grab_dy: i16 = 0,
     moved: bool = false,
-    sel_icon: i16 = -1, // currently selected icon (drawn inverse video), -1 = none
+    sel_icon: i16 = -1, // currently selected desktop icon (inverse video), -1 = none
+    sel_file: i16 = -1, // currently selected file in a FLOPPY window, -1 = none
     pending_open: i16 = -1, // icon to open (set by a native double-click), -1 = none
     prefs: prefs.Prefs = .{}, // Options > Set Preferences dialog
     bg_r: u8 = 1, // desktop background colour (Prefs); GEM default here is a teal
@@ -125,6 +126,11 @@ pub const Desktop = struct {
         } else if (!busy and g.edge and g.py > gui.MENU_H) {
             desk_icons.pressIcon(self, g);
         }
+        // A press over a window selects the file icon under it (GEM selects on
+        // press); a double-click then opens it (requestOpenAt -> launch).
+        if (!modal and self.drag == null and g.edge and self.overWindow()) {
+            self.selectFileAt(@intCast(g.px), @intCast(g.py));
+        }
 
         self.drawScene(g);
         self.runDialogs(g, &action);
@@ -151,13 +157,33 @@ pub const Desktop = struct {
         return .{
             .x = wr.x + 12 + col * 100,
             .y = wr.y + 26 + rowi * 42, // below the window's title + info bars
-            .bmp = if (self.diskType(i) == 0) icons.CARTRIDGE else icons.DOCUMENT,
+            .bmp = if (self.diskType(i) == 0) icons.PROGRAM else icons.DOCUMENT,
             .label = self.diskName(i),
             .is_app = self.diskType(i) == 0,
         };
     }
     pub fn isFloppyWin(self: *const Desktop, id: u8) bool {
         return std.mem.eql(u8, self.wm.wins[id].title, FLOPPY_TITLE);
+    }
+
+    // Single-click a file icon in a FLOPPY window -> select it (inverse video),
+    // like a desktop icon; clicking away clears the file selection.
+    fn selectFileAt(self: *Desktop, x: i16, y: i16) void {
+        var wi: usize = self.wm.n;
+        while (wi > 0) {
+            wi -= 1;
+            const id = self.wm.order[wi];
+            if (!self.wm.wins[id].open or !self.isFloppyWin(id)) continue;
+            var f: usize = 0;
+            while (f < self.n_disk) : (f += 1) {
+                if (self.fileIcon(f, self.wm.wins[id].r).hitAt(x, y)) {
+                    self.sel_file = @intCast(f);
+                    self.sel_icon = -1; // file + desktop selections are exclusive
+                    return;
+                }
+            }
+        }
+        self.sel_file = -1;
     }
 
     // Draw order: desktop work area, icons, then windows (back-to-front). A FLOPPY
@@ -174,7 +200,7 @@ pub const Desktop = struct {
                 var f: usize = 0;
                 while (f < self.n_disk) : (f += 1) {
                     var ic = self.fileIcon(f, self.wm.wins[id].r);
-                    ic.draw(g, false);
+                    ic.draw(g, self.sel_file == @as(i16, @intCast(f)));
                 }
             }
         }

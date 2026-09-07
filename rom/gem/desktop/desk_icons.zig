@@ -107,7 +107,7 @@ pub fn openFloppy(d: *Desktop) void {
     const r = d.next_win;
     // The window body lists the disk's files as icons (see desktop.drawScene).
     const info: []const u8 = if (d.n_disk == 0) "0 bytes used in 0 items." else "";
-    if (d.wm.tryAdd(.{ .r = r, .title = "FLOPPY DISK", .info = info }) == null) {
+    if (d.wm.tryAdd(.{ .r = r, .title = "A:\\", .info = info }) == null) {
         d.dlg.alert("The Desktop has no more windows.", "Please close a window first.");
         return;
     }
