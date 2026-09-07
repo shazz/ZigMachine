@@ -54,9 +54,14 @@ so the simplest disk needs no FAT at all — see below. A multi-file disk still 
 from this pointer and uses the FAT for its other (asset) files.
 
 **Executable-boot rule (kept from the ST):** the sum of all 256 big-endian 16-bit
-words of the boot sector must equal `$1234 (mod 65536)`; the last word is the
-adjustment. `mkdisk` writes it; the machine verifies it before booting — homage + a
-real "valid bootable disk" integrity check.
+words of the boot sector determines the disk kind — `$1234` = **bootable** (run this
+disk's cart), `$0000` = a **data disk** (not bootable: the machine boots the OS —
+GEM — instead, with the disk mounted so GEM can open its app + read its files). The
+last word is the adjustment; `mkdisk` writes it (`--no-boot` for a data disk), and
+the machine verifies it before booting — homage + a real integrity/kind check. This
+is how the **ST Replay** disk works: a non-bootable data disk whose FAT carries the
+app + a `SAMPLE.RAW`; inserting it brings up GEM, which runs ST Replay reading the
+sample off the disk.
 
 **Simplest disk (our demo carts):** boot sector → 1 KB descriptor (FAT empty, file
 count 0) → the cart wasm as one contiguous data run. The machine reads block 0, checks

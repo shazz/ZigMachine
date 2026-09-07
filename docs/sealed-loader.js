@@ -69,11 +69,13 @@ async function mountDisk(url) {
     const buf = new Uint8Array(await fetch(url + BUST).then((r) => r.arrayBuffer()));
     if (String.fromCharCode(...buf.subarray(0, 6)) !== "ZMDISK")
         throw new Error("not a ZigMachine disk: " + url);
-    // Executability: the 256 big-endian 16-bit words of the boot sector sum to $1234.
+    // Executability (ST-style): boot sector's 256 big-endian words sum to 0x1234 for
+    // a BOOTABLE disk; a DATA disk sums to 0x0000 and boots the OS (GEM) instead.
     let sum = 0;
     for (let i = 0; i < 256; i++) sum = (sum + ((buf[2 * i] << 8) | buf[2 * i + 1])) & 0xFFFF;
-    if (sum !== 0x1234)
-        throw new Error("disk not bootable: boot-sector checksum 0x" + sum.toString(16) + " != 0x1234");
+    const bootable = sum === 0x1234;
+    if (!bootable && sum !== 0x0000)
+        throw new Error("disk corrupt: boot-sector checksum 0x" + sum.toString(16));
     const dv = new DataView(buf.buffer);
     const blockSize = dv.getUint16(0x08, true);
     const bootBlock = dv.getUint32(0x0e, true);
@@ -88,9 +90,9 @@ async function mountDisk(url) {
         files[name] = { start: dv.getUint32(e + 0x10, true), len: dv.getUint32(e + 0x14, true) };
     }
     mountedDisk = { buf, files };
-    console.log(`Mounted "${title}" — boot ${bootLen} B @ block ${bootBlock}, ${nFiles} FAT file(s), $1234 OK`);
     const start = bootBlock * blockSize;
-    return buf.buffer.slice(start, start + bootLen);
+    console.log(`Mounted "${title}" — ${bootable ? "bootable" : "DATA disk"}, ${nFiles} FAT file(s)`);
+    return { bootable, cart: bootable ? buf.buffer.slice(start, start + bootLen) : null };
 }
 
 // Read a named file from the mounted disk's FAT (streaming a whole file for now).
@@ -132,11 +134,14 @@ async function swapCart(req) {
         } else {
             url = "demo.zmd"; // back to the menu
         }
-        const cartBytes = await mountDisk(url);
-        demo = (await WebAssembly.instantiate(cartBytes, demoImports)).instance.exports;
+        const { bootable, cart } = await mountDisk(url);
+        // A data disk (e.g. ST Replay) isn't bootable — bring up GEM, which opens
+        // its app + reads its files. A bootable disk runs its own cart.
+        const bytes = bootable ? cart : await fetch("demo-gem.wasm" + BUST).then((r) => r.arrayBuffer());
+        demo = (await WebAssembly.instantiate(bytes, demoImports)).instance.exports;
         machine.hwInit();
         demo.boot();
-        if (req === 1) demo.skipBoot(); // scenes go straight in; the menu shows the boot ROM
+        if (req === 1) demo.skipBoot(); // scene or data-disk→GEM: straight in (no boot ROM)
         sampleLoaded = false;           // the loop feeds the new cart its sample when ready
     } catch (e) {
         console.error("cart swap failed:", e);
@@ -182,9 +187,16 @@ async function boot() {
     const diskUrl = params.get("disk");
     let demoMod;
     if (diskUrl) {
-        const cartBytes = await mountDisk(diskUrl);
-        demoMod = await WebAssembly.instantiate(cartBytes, demoImports);
-        console.log("Booted cart from disk:", diskUrl);
+        const { bootable, cart } = await mountDisk(diskUrl);
+        if (bootable) {
+            demoMod = await WebAssembly.instantiate(cart, demoImports);
+            console.log("Booted cart from disk:", diskUrl);
+        } else {
+            // A data disk isn't bootable — bring up the OS (GEM); the disk stays
+            // mounted so GEM can open its app + read its files (e.g. SAMPLE.RAW).
+            demoMod = await WebAssembly.instantiateStreaming(fetch("demo-gem.wasm" + BUST), demoImports);
+            console.log("Data disk inserted → booting GEM");
+        }
     } else {
         const demoWasm = params.get("demo") || "demo.wasm";
         demoMod = await WebAssembly.instantiateStreaming(fetch(demoWasm + BUST), demoImports);
