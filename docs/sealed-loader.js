@@ -56,6 +56,30 @@ function consoleLogJS(ptr, len) {
 }
 
 // --------------------------------------------------------------------------
+// Floppy drive: mount a ZigMachine disk image (docs/FLOPPY_DISK.md), verify the
+// executable boot sector ($1234 checksum, ST-style), and return the boot cart's
+// wasm bytes. v1 reads the whole image up front; block streaming comes later.
+// --------------------------------------------------------------------------
+async function mountDisk(url) {
+    const buf = new Uint8Array(await fetch(url + BUST).then((r) => r.arrayBuffer()));
+    if (String.fromCharCode(...buf.subarray(0, 6)) !== "ZMDISK")
+        throw new Error("not a ZigMachine disk: " + url);
+    // Executability: the 256 big-endian 16-bit words of the boot sector sum to $1234.
+    let sum = 0;
+    for (let i = 0; i < 256; i++) sum = (sum + ((buf[2 * i] << 8) | buf[2 * i + 1])) & 0xFFFF;
+    if (sum !== 0x1234)
+        throw new Error("disk not bootable: boot-sector checksum 0x" + sum.toString(16) + " != 0x1234");
+    const dv = new DataView(buf.buffer);
+    const blockSize = dv.getUint16(0x08, true);
+    const bootBlock = dv.getUint32(0x0e, true);
+    const bootLen = dv.getUint32(0x12, true);
+    const title = new TextDecoder().decode(buf.subarray(0x200, 0x240)).replace(/\0.*$/, "");
+    const start = bootBlock * blockSize;
+    console.log(`Mounted "${title}" — boot cart ${bootLen} B @ block ${bootBlock}, $1234 OK`);
+    return buf.buffer.slice(start, start + bootLen);
+}
+
+// --------------------------------------------------------------------------
 // Instantiate the sealed machine, then the demo (wired to it via shared memory).
 // --------------------------------------------------------------------------
 async function boot() {
@@ -87,12 +111,21 @@ async function boot() {
             loadSample: (id) => selectSample(id), // File > Load: switch the current sample
         },
     };
-    // Which open scene to load: ?demo=demo-scroll.wasm etc. (default demo.wasm),
-    // so one page can show any of the compiled scenes in a separate tab.
-    const demoWasm = new URLSearchParams(window.location.search).get("demo") || "demo.wasm";
-    const demoMod = await WebAssembly.instantiateStreaming(fetch(demoWasm + BUST), demoImports);
+    // What to boot: ?disk=X.zmd boots a cart from a ZigMachine disk image (see
+    // docs/FLOPPY_DISK.md); ?demo=X.wasm loads a raw cart; default is demo.wasm.
+    const params = new URLSearchParams(window.location.search);
+    const diskUrl = params.get("disk");
+    let demoMod;
+    if (diskUrl) {
+        const cartBytes = await mountDisk(diskUrl);
+        demoMod = await WebAssembly.instantiate(cartBytes, demoImports);
+        console.log("Booted cart from disk:", diskUrl);
+    } else {
+        const demoWasm = params.get("demo") || "demo.wasm";
+        demoMod = await WebAssembly.instantiateStreaming(fetch(demoWasm + BUST), demoImports);
+        console.log("Open demo.wasm loaded");
+    }
     demo = demoMod.instance.exports;
-    console.log("Open demo.wasm loaded");
 
     machine.hwInit();
     demo.boot();

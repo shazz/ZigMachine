@@ -1,7 +1,10 @@
 # ZigMachine Disk — design
 
-**Status:** proposed (design; not yet built). Replaces the interim "one big
-`demo.wasm` links every scene" approach, which overflows the 2 MiB demo window.
+**Status:** MVP working — `tools/mkdisk.py` packs a cart into a `.zmd`, and
+`sealed.html?disk=X.zmd` verifies the `$1234` boot sector and boots the cart (phases
+B–D of the plan). Still to do: FAT/multi-file, disk-browser menu, block streaming.
+Replaces the interim "one big `demo.wasm` links every scene" approach, which
+overflows the 2 MiB demo window.
 
 A simplified, ST-*flavored* disk: an **executable boot block** (the part worth
 keeping from the ST floppy) on top of a **flat, linear-block** layout — no
