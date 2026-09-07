@@ -61,19 +61,25 @@ fn handler_hbl(zigos: *ZigOS, line: u16) void {
 
     const back_color: Color = Color{ .r = 0, .g = 0, .b = 0, .a = 0 };
 
-    if (line > 40+66 and line < 40+200) {
-        zigos.setBackgroundColor(rasters_b[line - 40 - 66]);
+    // GLOBAL HBL — fires on PHYSICAL lines 0..279 (borders included). The raster
+    // gradient runs 107..239, then HOLDS its last colour on into the low border
+    // (240..279) instead of going black. Above the raster stays black.
+    if (line > 40 + 66) {
+        const idx: usize = line - 40 - 66; // 1..
+        zigos.setBackgroundColor(rasters_b[@min(idx, 133)]);
     } else {
         zigos.setBackgroundColor(back_color);
-    }      
+    }
 }
 
 
 fn handler(fb: *LogicalFB, zigos: *ZigOS, line: u16, col: u16) void {
     const back_color: Color = Color{ .r = 0, .g = 0, .b = 0, .a = 0 };
 
-    if (line > 40+66 and line < 40+200) {
-        fb.setPaletteEntry(0, rasters_b[line - 40 - 66]);
+    // Per-plane HBL: sealed machine fires it on LOGICAL lines 0..199 (was physical
+    // 40..239), so drop the +40. Rasters cover visible rows 66..199.
+    if (line > 66 and line < 200) {
+        fb.setPaletteEntry(0, rasters_b[line - 66]);
     } else {
         fb.setPaletteEntry(0, back_color);
     }
@@ -87,7 +93,7 @@ fn handler_scroller(fb: *LogicalFB, zigos: *ZigOS, line: u16, col: u16) void {
     switch(scroller_period) {
 
         .threelines => {
-            switch(line - 40) {
+            switch(line) {
                 84...84 + SCROLL_CHAR_HEIGHT + 5  => fb.setPalette(font_pal1),
                 84 + SCROLL_CHAR_HEIGHT + 5 + 1...84 + 2*(SCROLL_CHAR_HEIGHT + 5)   => fb.setPalette(font_pal2),
                 84 + 2*(SCROLL_CHAR_HEIGHT + 5) + 1...200 => fb.setPalette(font_pal3),
@@ -95,7 +101,7 @@ fn handler_scroller(fb: *LogicalFB, zigos: *ZigOS, line: u16, col: u16) void {
             }
         },
         .inverted_mirror => {
-            switch(line - 40) {
+            switch(line) {
                 84...117 => fb.setPalette(font_pal1),
                 118...150 => fb.setPalette(font_pal2),
                 151...200 => fb.setPalette(font_pal3),
@@ -103,7 +109,7 @@ fn handler_scroller(fb: *LogicalFB, zigos: *ZigOS, line: u16, col: u16) void {
             }
         },
         .inverted => {
-            switch(line - 40) {
+            switch(line) {
                 84...140 => fb.setPalette(font_pal1),
                 141...200 => fb.setPalette(font_pal2),
                 else => fb.setPalette(font_pal1),

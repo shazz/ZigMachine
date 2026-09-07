@@ -36,6 +36,7 @@ const scene = switch (opts.index) {
     23 => @import("scenes/shapes_tester.zig"),
     24 => @import("scenes/stcs.zig"),
     25 => @import("scenes/tex.zig"),
+    26 => @import("scenes/badflicker.zig"),
     else => @compileError("bad cart index"),
 };
 

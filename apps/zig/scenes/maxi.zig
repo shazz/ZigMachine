@@ -175,48 +175,14 @@ var render_buffer: RenderBuffer = .{ .buffer = &overcan_buffer, .width = 320, .h
 // Demo
 // --------------------------------------------------------------------------
 fn handler_vertical_borders(fb: *LogicalFB, zigos: *ZigOS, line: u16, column: u16) void {
-    
-    // _ = zigos;
-    //_ = column;
-    // _ = fb;    
+    _ = zigos;
+    _ = column;
 
-    // -------------------------------------------------------------------------------
-    // Top border part
-    // -------------------------------------------------------------------------------
-
-    // Open top border and use top buffer to fill the space
-    if(line == 0 and column == 40) {
-        // Console.log("opening top border!", .{});
-        zigos.setResolution(Resolution.truecolor);
-
-        var i: usize = 0;
-        while(i < 40 * WIDTH) : (i += 1) {
-            fb.fb[i] = overcan_buffer[i];
-        }   
-    }
-
-    if(line == 40) {
-        // copy text to fb
-        var i: u16 = 0;
-        const offset: u16 = 40 * WIDTH;
-        while(i < WIDTH * HEIGHT) : ( i += 1){
-            fb.fb[i] = overcan_buffer[i + offset];
-        }
-    }
-    
-    // Open low border and copy low buffer
-    if(line == 240 and column == 40) {
-        zigos.setResolution(Resolution.truecolor);
-
-        // copy text to fb
-        var i: u16 = WIDTH * (HEIGHT - 40);
-        const offset: u16 = 80 * WIDTH;
-
-        while(i < WIDTH * HEIGHT) : ( i += 1){
-            fb.fb[i] = overcan_buffer[i + offset];
-        }
-    }
-
+    // Overscan plane: this per-plane HBL fires on PHYSICAL lines 0..279. MAXI's
+    // content is 320-wide (no side borders), so open only the TOP and BOTTOM borders
+    // by flickering the resolution register in those bands (see docs/HW_API.md). The
+    // frame content is blitted into the plane in render() with a +40 x offset.
+    if (line < 40 or line >= 240) fb.flickerBorder();
 }
 
 pub const Demo = struct {
@@ -243,11 +209,12 @@ pub const Demo = struct {
 
         fb = &zigos.lfbs[0];
         fb.is_enabled = true;
+        fb.setOverscanBuffer(); // 400×280 plane; top/bottom borders opened via the trick
         fb.setPaletteEntry(0, Color{ .r=0, .g=0, .b=0, .a=0});
         fb.setPaletteEntry(1, Color{ .r=0, .g=0, .b=255, .a=255});
 
-        // HBL Handler for overscan effect
-        fb.setFrameBufferHBLHandler(40, handler_vertical_borders);         
+        // HBL: open the top/bottom borders (must fire at the magic column)
+        fb.setFrameBufferHBLHandler(zg.OVERSCAN_MAGIC_X, handler_vertical_borders);
 
         // create text buffer
         self.render_target = .{ .render_buffer = &render_buffer };  
@@ -308,9 +275,20 @@ pub const Demo = struct {
         self.render_object(&segments_yellow, &self.projected_vertices_yellow, 3);
         self.render_object(&segments_red, &self.projected_vertices_red, 4);
 
-        _ = elapsed_time;
-        _ = zigos;
+        // Blit the 320-wide overscan buffer into the 400-wide plane, centred (x+40) so
+        // the visible window lines up; side borders stay closed (black).
+        const fb = &zigos.lfbs[0];
+        const pw: usize = zg.PHYSICAL_WIDTH;
+        const ph: usize = zg.PHYSICAL_HEIGHT;
+        const vw: usize = WIDTH;
+        const border: usize = zg.OVERSCAN_MAGIC_X;
+        var y: usize = 0;
+        while (y < ph) : (y += 1) {
+            var x: usize = 0;
+            while (x < vw) : (x += 1) fb.fb[y * pw + x + border] = overcan_buffer[y * vw + x];
+        }
 
+        _ = elapsed_time;
     }
 
     fn render_text(self: *Demo) void {

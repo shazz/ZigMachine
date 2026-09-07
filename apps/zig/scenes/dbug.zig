@@ -59,67 +59,19 @@ var off_buffer = [_]u8{0} ** (400 * 280);
 // --------------------------------------------------------------------------
 // Demo
 // --------------------------------------------------------------------------
-fn handler_scroller(fb: *LogicalFB, zigos: *ZigOS, line: u16, col: u16) void {    
+fn handler_scroller(fb: *LogicalFB, zigos: *ZigOS, line: u16, col: u16) void {
+    _ = zigos;
+    _ = col;
 
+    // Overscan plane: this per-plane HBL fires on PHYSICAL lines 0..279. The zoomed
+    // scroller fills the whole 400-wide buffer, so open ALL borders by flickering the
+    // resolution register every line (the authentic trick; see docs/HW_API.md).
+    fb.flickerBorder();
 
-    // Open top border and use top buffer to fill the space
-    if(line == 0 and col == 0) {
-
-        var y: u16 = 0;
-        while( y < 40) : ( y += 1) {
-            var x: u16 = 0;
-            while( x < WIDTH) : ( x += 1) {
-                fb.fb[x + (y * WIDTH)] = off_buffer[x + (y * WIDTH) + (80 * y)];
-            }
-        }
-        fb.setFrameBufferHBLHandler(40, handler_scroller);   
-    }
-
-    // Open top border and use top buffer to fill the space
-    if(line == 0 and col == 40) {
-        // Console.log("opening top border!", .{});
-        zigos.setResolution(Resolution.truecolor);
-        fb.setFrameBufferHBLHandler(0, handler_scroller);   
-    }
-
-    if(line == 40 and col == 0) {
-        // render to FB the top-left part of the offscreen buffer
-        var y: u32 = 0;
-        while( y < HEIGHT) : ( y += 1) {
-            var x: u32 = 0;
-            const buf_offset: u32 = ((y + 40) * WIDTH) + (80 * (y + 40));
-            const scr_offset: u32 = y * WIDTH;
-
-            while( x < WIDTH) : ( x += 1) {
-                fb.fb[x + scr_offset] = off_buffer[x + buf_offset];
-            }
-        }
-    }
-
-    if(line == 240 and col == 0) {
-        var y: u32 = 0;
-        while( y < 40) : ( y += 1) {
-            var x: u32 = 0;
-            const offscreen_offset: u32 = (240 * 400) + (y * WIDTH);
-
-            while(x < WIDTH) : ( x += 1) {
-                fb.fb[x + ( (y + 160) * WIDTH)] = off_buffer[x + offscreen_offset + (80 * y)];
-            }
-        }
-        fb.setFrameBufferHBLHandler(40, handler_scroller); 
-    }  
-
-    // Open top border and use top buffer to fill the space
-    if(line == 240 and col == 40) {
-        // Console.log("opening low border!", .{});
-        zigos.setResolution(Resolution.truecolor);
-        fb.setFrameBufferHBLHandler(0, handler_scroller); 
-    }    
-
-    if (line > start_raster_line and line < start_raster_line + 192 ) {
+    // Raster bars behind the scroller (physical line numbering — unchanged).
+    if (line > start_raster_line and line < start_raster_line + 192) {
         fb.setPaletteEntry(7, rasters_b[(line - start_raster_line)]);
     }
-
 }
 
 pub const Demo = struct {
@@ -138,14 +90,15 @@ pub const Demo = struct {
     pub fn init(self: *Demo, zigos: *ZigOS) void {
         Console.log("Demo init", .{});
 
-        // first plane
+        // first plane — overscan (400×280); borders opened by the flicker trick
         var fb: *LogicalFB = &zigos.lfbs[0];
-        fb.is_enabled = true; 
+        fb.is_enabled = true;
+        fb.setOverscanBuffer();
         fb.setPalette(font_pal);
-        fb.setPaletteEntry(7, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });    
+        fb.setPaletteEntry(7, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
 
-        // HBL Handler for the raster effect
-        fb.setFrameBufferHBLHandler(0, handler_scroller);        
+        // HBL: open the borders + raster bars (must fire at the magic column)
+        fb.setFrameBufferHBLHandler(zg.OVERSCAN_MAGIC_X, handler_scroller);
 
         // only a 50 pixels wide buffer is needed as it will be zoomed 8 times (320+80 / 8)
         var buffer = [_]u8{0} ** (50 * SCROLL_CHAR_HEIGHT); 
@@ -164,7 +117,7 @@ pub const Demo = struct {
         fb.setPaletteEntry(101, logo_pal[1]);
         fb.setPaletteEntry(102, logo_pal[2]);
         fb.setPaletteEntry(103, logo_pal[3]);
-        self.logo.init(self.overscan_target, logo_b, 253, 38, WIDTH/2-126, 20, null, null);  
+        self.logo.init(self.overscan_target, logo_b, 253, 38, zg.PHYSICAL_WIDTH / 2 - 126, 20, null, null); // centre in the 400-wide overscan
         self.bounce = 0;
         self.bounce_att = 1;
 
@@ -249,8 +202,12 @@ pub const Demo = struct {
 
         self.render_text(32);
 
+        // Blit the finished 400×280 overscan buffer into the plane (borders included;
+        // renderPlaneOverscan shows the border rows only where the trick opened them).
+        const fb = &zigos.lfbs[0];
+        @memcpy(fb.fb[0 .. 400 * 280], off_buffer[0 .. 400 * 280]);
+
         _ = elapsed_time;
-        _ = zigos;
 
     }
 

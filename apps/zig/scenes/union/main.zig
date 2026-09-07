@@ -86,10 +86,16 @@ const SKY: [PH]Color = blk: {
     break :blk t;
 };
 
+// Merged with the overscan trick: the parallax/tile world spans the full
+// 400-wide plane, so borders must stay open every line too. Both effects are
+// per-scanline palette/latch writes with no pixel-column sensitivity, so they
+// share one HBL handler registered at OVERSCAN_MAGIC_X (a single per-plane
+// handler slot — see docs/HW_API.md "Opening the borders").
 fn skyHandler(fb: *LogicalFB, zigos: *ZigOS, line: u16, x: u16) void {
     _ = zigos;
     _ = x;
     if (line < PH) fb.setPaletteEntry(0, SKY[line]);
+    fb.flickerBorder();
 }
 
 const Parallax5 = zg.parallax.Parallax(5);
@@ -109,21 +115,30 @@ pub const Demo = struct {
     frame: u32 = 0,
     grad_idx: u8 = 0, // gradTiles palette-animation step
     grad_inc: i8 = 1,
-    song_req: u32 = 1, // track the host should start (1-based); 1 = autoplay Sharpness Buzztone
+    // This scene OWNS its playlist (host holds none): YM tunes under docs/music/.
+    const TRACKS = [_][]const u8{
+        "union/SharpnessBuzztone.ymraw",
+        "union/150mph.ymraw",
+        "union/Androids.ymraw",
+        "union/Drooling.ymraw",
+        "union/Lap33.ymraw",
+        "union/Reality.ymraw",
+    };
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
         self.pos = 0;
         self.frame = 0;
         self.grad_idx = 0;
         self.grad_inc = 1;
+        zg.requestSong(TRACKS[0]); // autoplay track 1 (host plays it by name)
         const p0: *LogicalFB = &zigos.lfbs[0];
         p0.is_enabled = true;
-        p0.setFullscreen();
+        p0.setOverscanBuffer();
         p0.setPalette(p0_pal);
         p0.setPaletteEntry(0, SKY[0]);
         p0.setPaletteEntry(FLOOR, Color{ .r = 192, .g = 96, .b = 128, .a = 255 });
         p0.setPaletteEntry(BOTTOM, Color{ .r = 224, .g = 224, .b = 224, .a = 255 });
-        p0.setFrameBufferHBLHandler(0, skyHandler); // per-scanline sky gradient
+        p0.setFrameBufferHBLHandler(zg.OVERSCAN_MAGIC_X, skyHandler); // sky gradient + overscan flicker
         self.runner.init(zigos); // sets up plane 1 (actors)
         self.balls.init(zigos); // dragonballs share plane 1, own palette slots
         self.credits.init(zigos); // credits pages on plane 1 (top, faded)
@@ -178,16 +193,10 @@ pub const Demo = struct {
         self.scroller.draw(zigos); // plane 2 (scrolltext) on top
     }
 
-    // Host song bridge: returns the track to start (1-based) then clears it.
-    pub fn pollSong(self: *Demo) u32 {
-        const r = self.song_req;
-        self.song_req = 0;
-        return r;
-    }
-
-    // Keys 1-6 switch the YM tune (mode 0-5 -> track 1-6).
+    // Keys 1-6 switch the YM tune — request the track BY NAME (host plays it).
     pub fn setShadeMode(self: *Demo, mode: u32) void {
-        if (mode < 6) self.song_req = mode + 1;
+        _ = self;
+        if (mode < TRACKS.len) zg.requestSong(TRACKS[mode]);
     }
 
     fn fill(fb: *LogicalFB, y0: i16, y1: i16, idx: u8) void {

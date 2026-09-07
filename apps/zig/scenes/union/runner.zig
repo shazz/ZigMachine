@@ -17,6 +17,17 @@ const FH: i16 = 28; // frame h
 const X0: i16 = 200; // fixed top-left on the fullscreen plane (centre 216,133)
 const Y0: i16 = 119;
 
+// Plane 1 is shared with dragonball.zig (balls squash-scale past x=360 into
+// the right border) and credits.zig (top credit line sits at y=23, inside
+// the top border), so this plane's borders must stay open too — flicker
+// every line at OVERSCAN_MAGIC_X (see docs/HW_API.md "Opening the borders").
+fn handlerOverscan(fb: *LogicalFB, zigos: *ZigOS, line: u16, col: u16) void {
+    _ = zigos;
+    _ = line;
+    _ = col;
+    fb.flickerBorder();
+}
+
 const sprites = @embedFile("../../assets/screens/union_main/sprites.raw");
 const p1_pal = convertU8ArraytoColors(@embedFile("../../assets/screens/union_main/p1.pal"));
 
@@ -36,7 +47,8 @@ pub const Runner = struct {
         self.nb = 0;
         const p1: *LogicalFB = &zigos.lfbs[1];
         p1.is_enabled = true;
-        p1.setFullscreen();
+        p1.setOverscanBuffer();
+        p1.setFrameBufferHBLHandler(zg.OVERSCAN_MAGIC_X, handlerOverscan);
         p1.setPalette(p1_pal);
         p1.setPaletteEntry(0, Color{ .r = 0, .g = 0, .b = 0, .a = 0 }); // transparent
         // Dimmed/alpha copies of the 7 sprite colours for the ghost trail.

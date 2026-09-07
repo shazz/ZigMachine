@@ -65,6 +65,8 @@ pub const MEDIUM_WIDTH: u16 = hw.MEDIUM_WIDTH;
 pub const MEDIUM_HEIGHT: u16 = hw.MEDIUM_HEIGHT;
 pub const WIDTH: u16 = hw.WIDTH;
 pub const HEIGHT: u16 = hw.HEIGHT;
+pub const OVERSCAN_MAGIC_X: u16 = hw.OVERSCAN_MAGIC_X; // register the overscan HBL here
+pub const OVERSCAN_X_TOL: u16 = hw.OVERSCAN_X_TOL;
 pub const NB_PLANES: u8 = hw.NB_PLANES;
 pub const HORIZONTAL_BORDERS_WIDTH: u16 = hw.HORIZONTAL_BORDERS_WIDTH;
 pub const VERTICAL_BORDERS_HEIGHT: u16 = hw.VERTICAL_BORDERS_HEIGHT;
@@ -104,8 +106,37 @@ inline fn writeU16(off: usize, v: u16) void {
 inline fn writeU32(off: usize, v: u32) void {
     std.mem.writeInt(u32, @as(*[4]u8, @ptrFromInt(g_base + off)), v, .little);
 }
+inline fn readU16(off: usize) u16 {
+    return std.mem.readInt(u16, @as(*[2]u8, @ptrFromInt(g_base + off)), .little);
+}
 inline fn readU32(off: usize) u32 {
     return std.mem.readInt(u32, @as(*[4]u8, @ptrFromInt(g_base + off)), .little);
+}
+
+// --- Host song bridge ------------------------------------------------------
+// Scenes request a tune BY NAME (a path under docs/music/) so the host stays
+// generic — no per-scene playlist baked into the loader. The host polls
+// takeSongRequest() and, when set, plays the file at songName* by extension.
+var g_song_name: [64]u8 = [_]u8{0} ** 64;
+var g_song_len: usize = 0;
+var g_song_pending: bool = false;
+
+pub fn requestSong(name: []const u8) void {
+    const n = @min(name.len, g_song_name.len);
+    @memcpy(g_song_name[0..n], name[0..n]);
+    g_song_len = n;
+    g_song_pending = true;
+}
+pub fn takeSongRequest() bool {
+    const p = g_song_pending;
+    g_song_pending = false;
+    return p;
+}
+pub fn songNamePtr() [*]u8 {
+    return &g_song_name;
+}
+pub fn songNameLen() usize {
+    return g_song_len;
 }
 
 // --------------------------------------------------------------------------
@@ -201,18 +232,32 @@ pub const LogicalFB = struct {
         self.is_enabled = false;
     }
 
-    // Turn this plane into a fullscreen (400×280) overscan plane: coordinates are
-    // now PHYSICAL (0..400, 0..280); the machine composites it across the whole
-    // frame including the borders. The visible window stays at the same place.
-    pub fn setFullscreen(self: *LogicalFB) void {
+    // Turn this plane into an OVERSCAN plane: a 400×280 buffer in PHYSICAL coords
+    // (0..400, 0..280). The borders stay CLOSED — only the visible 320×200 window
+    // shows — until the scene "opens" a border with the authentic resolution-flicker
+    // trick: call flickerBorder() from this plane's HBL handler, at OVERSCAN_MAGIC_X,
+    // on the scanline of the border you want. See docs/HW_API.md "Opening the borders".
+    pub fn setOverscanBuffer(self: *LogicalFB) void {
         self.stride = PHYSICAL_WIDTH;
         self.fb_w = PHYSICAL_WIDTH;
         self.fb_h = PHYSICAL_HEIGHT;
         writeU16(hw.REG_FB_STRIDE + @as(usize, self.id) * 2, hw.STRIDE_FULLSCREEN);
-        // Allocate a fresh fullscreen buffer from the pool and repoint the plane
-        // (the plane's original normal buffer is simply left unused).
+        writeU8(hw.REG_FB_MODE + @as(usize, self.id), hw.FB_MODE_OVERSCAN);
         self.bind(vramAlloc(hw.FULLSCREEN_FB_BYTES));
         self.clearFrameBuffer(0);
+    }
+
+    // Open a border, ST-style, from THIS plane's per-plane HBL handler: flicker the
+    // resolution register (RES_MEDIUM -> RES_PLANES). The sealed machine can't trap
+    // writes to shared memory, so we also bump REG_RES_FLICKER — the latch it samples
+    // once per scanline. The plane's HBL must fire at OVERSCAN_MAGIC_X (± tolerance)
+    // or that line's border shows garbage — a mistimed trick, exactly as on real HW.
+    // Flicker in a border band (top/bottom) opens it from that row down; flicker on a
+    // visible line opens both side borders for that line (re-open sides every line).
+    pub fn flickerBorder(_: *LogicalFB) void {
+        writeU8(hw.REG_RESOLUTION, hw.RES_MEDIUM);
+        writeU8(hw.REG_RESOLUTION, hw.RES_PLANES);
+        writeU16(hw.REG_RES_FLICKER, readU16(hw.REG_RES_FLICKER) +% 1);
     }
 
     // Turn this plane into a SCROLL plane: back it with a bigger-than-screen
@@ -253,20 +298,6 @@ pub const LogicalFB = struct {
         writeU8(hw.REG_FB_MODE + @as(usize, self.id), hw.FB_MODE_MEDIUM);
         writeU8(hw.REG_RESOLUTION, hw.RES_MEDIUM); // default the screen to medium (HBL can switch per line)
         self.bind(vramAlloc(hw.MEDIUM_FB_BYTES));
-        self.clearFrameBuffer(0);
-    }
-
-    // Medium OVERSCAN plane: an 800x280 buffer covering the WHOLE raster, borders
-    // included (coordinates are physical; the visible window is at 80,40). Lets a
-    // medium screen draw into the borders — the medium twin of setFullscreen().
-    pub fn setMediumFullscreen(self: *LogicalFB) void {
-        self.stride = RASTER_WIDTH;
-        self.fb_w = RASTER_WIDTH;
-        self.fb_h = RASTER_HEIGHT;
-        writeU16(hw.REG_FB_STRIDE + @as(usize, self.id) * 2, RASTER_WIDTH);
-        writeU8(hw.REG_FB_MODE + @as(usize, self.id), hw.FB_MODE_MEDIUM);
-        writeU8(hw.REG_RESOLUTION, hw.RES_MEDIUM);
-        self.bind(vramAlloc(hw.MEDIUM_FULL_FB_BYTES));
         self.clearFrameBuffer(0);
     }
 
@@ -386,7 +417,7 @@ pub const ZigOS = struct {
         writeU32(hw.REG_BACKGROUND, self.background_color.toRGBA());
 
         // Allocate each plane a normal (320×200) framebuffer from the VRAM pool.
-        // A scene upgrades a plane with setFullscreen() (allocates 400×280).
+        // A scene upgrades a plane with setOverscanBuffer() (allocates 400×280).
         vram_top = hw.OFF_VRAM;
         for (&self.lfbs, 0..) |*lfb, idx| {
             lfb.id = @intCast(idx);

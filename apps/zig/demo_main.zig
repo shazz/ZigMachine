@@ -130,13 +130,19 @@ export fn getSampleBufLen() u32 {
     return 0;
 }
 
-// Song-request bridge: a scene that declares pollSong() returns a track id
-// (1-based) it wants the host to start, or 0 for none. The loader polls this
-// once audio is running and plays the matching tune. (Union main autoplays
-// track 1 and switches on keys 1-6 via setShadeMode.)
+// Song-request bridge (by NAME — the host holds no playlists). A scene calls
+// zigos.requestSong("<file under docs/music/>"); the host polls this each frame
+// (1 = a new request is pending), reads the filename from songName*, and plays
+// it by extension. (Union main autoplays its first track + switches on keys 1-6;
+// Music Debug maps keys 1/2/3 — both via setShadeMode → zigos.requestSong.)
 export fn pollSongRequest() u32 {
-    if (booted and @hasDecl(Cart, "pollSong")) return cart.pollSong();
-    return 0;
+    return if (booted and zg.takeSongRequest()) 1 else 0;
+}
+export fn songNamePtr() [*]u8 {
+    return zg.songNamePtr();
+}
+export fn songNameLen() u32 {
+    return @intCast(zg.songNameLen());
 }
 
 // Directional / action input from the host. Forwarded to scenes that declare

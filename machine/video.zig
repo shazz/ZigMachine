@@ -171,6 +171,80 @@ fn renderPlaneFullscreen(fb_id: usize) void {
     }
 }
 
+// --- overscan (border-opening trick) helpers -------------------------------
+// True when the flicker landed within tolerance of the magic column (hpos is the
+// per-plane HBL fire position, in logical coords 0..PHYSICAL_WIDTH).
+inline fn overscanHit(hpos: u16) bool {
+    const d: i32 = @as(i32, hpos) - @as(i32, memmap.OVERSCAN_MAGIC_X);
+    return (if (d < 0) -d else d) <= @as(i32, memmap.OVERSCAN_X_TOL);
+}
+// Composite logical columns [x0, x1) of one buffer row, pixel-doubled into the raster.
+fn compRow(out: [*]u32, buf: [*]u8, palette: [*]u32, y: usize, srow: usize, x0: usize, x1: usize) void {
+    var lx = x0;
+    while (lx < x1) : (lx += 1) put2(out, y, lx * 2, palette[buf[srow + lx]]);
+}
+// Botched-timing corruption: frame-animated colour noise in a border region.
+fn noiseRow(out: [*]u32, palette: [*]u32, y: usize, x0: usize, x1: usize, seed: usize) void {
+    var lx = x0;
+    while (lx < x1) : (lx += 1) {
+        const idx: u8 = @truncate(lx *% 37 +% y *% 101 +% seed *% 7);
+        put2(out, y, lx * 2, palette[idx]);
+    }
+}
+// A full-width border-band row: buffer content if the band is open, noise on a
+// mistimed flicker, otherwise untouched (background from clear()).
+fn bandRow(out: [*]u32, buf: [*]u8, palette: [*]u32, y: usize, srow: usize, open: bool, flick: bool, seed: usize) void {
+    if (open) compRow(out, buf, palette, y, srow, 0, memmap.PHYSICAL_WIDTH) else if (flick) noiseRow(out, palette, y, 0, memmap.PHYSICAL_WIDTH, seed);
+}
+// A visible row: the 320 window is always drawn; the two side borders open (from
+// the buffer) on a well-timed flicker, or show noise on a mistimed one.
+fn visibleRow(out: [*]u32, buf: [*]u8, palette: [*]u32, y: usize, srow: usize, sides: bool, flick: bool, seed: usize) void {
+    const l: usize = memmap.HORIZONTAL_BORDERS_WIDTH; // 40
+    const r: usize = l + memmap.WIDTH; // 360
+    compRow(out, buf, palette, y, srow, l, r);
+    if (sides) {
+        compRow(out, buf, palette, y, srow, 0, l);
+        compRow(out, buf, palette, y, srow, r, memmap.PHYSICAL_WIDTH);
+    } else if (flick) {
+        noiseRow(out, palette, y, 0, l, seed);
+        noiseRow(out, palette, y, r, memmap.PHYSICAL_WIDTH, seed);
+    }
+}
+
+// OVERSCAN plane: a 400×280 buffer whose borders stay CLOSED until the scene
+// "opens" them with the resolution-flicker trick (see memmap OVERSCAN_*). The
+// per-plane HBL fires on EVERY scanline (border bands included) so the handler
+// can flicker there; the machine observes the (untrappable) flicker via the
+// REG_RES_FLICKER latch bumped by the SDK. Opening is causal top-to-bottom.
+fn renderPlaneOverscan(fb_id: usize) void {
+    const buf = lfb(fb_id);
+    const stride: usize = fbStride(fb_id);
+    const palette = pal(fb_id);
+    const out = pfb();
+    const hid = fbHblId(fb_id);
+    const hpos = fbHblPos(fb_id);
+    const seed: usize = @intCast(r32(memmap.REG_FRAME));
+    var top_open = false;
+    var bottom_open = false;
+    var y: usize = 0;
+    while (y < RH) : (y += 1) {
+        const before = r16(memmap.REG_RES_FLICKER);
+        if (hid != 0) hblDispatch(hid, @intCast(fb_id), @intCast(y), @intCast(hpos));
+        const flick = r16(memmap.REG_RES_FLICKER) != before;
+        const hit = flick and overscanHit(hpos);
+        const srow = y * stride;
+        if (y < BY) {
+            if (hit) top_open = true;
+            bandRow(out, buf, palette, y, srow, top_open, flick, seed);
+        } else if (y < BY + memmap.HEIGHT) {
+            visibleRow(out, buf, palette, y, srow, hit, flick, seed);
+        } else {
+            if (hit) bottom_open = true;
+            bandRow(out, buf, palette, y, srow, bottom_open, flick, seed);
+        }
+    }
+}
+
 // Low-res NORMAL plane: 320x200 logical, composited pixel-doubled into the visible
 // 640x200 physical window. Borders are left to the background (clear).
 fn renderPlaneNormal(fb_id: usize) void {
@@ -253,6 +327,7 @@ pub fn renderPlane(fb_id: usize) void {
     switch (fbMode(fb_id)) {
         memmap.FB_MODE_SCROLL => return renderPlaneScroll(fb_id),
         memmap.FB_MODE_FULLSCREEN => return renderPlaneFullscreen(fb_id),
+        memmap.FB_MODE_OVERSCAN => return renderPlaneOverscan(fb_id),
         memmap.FB_MODE_MEDIUM => return renderPlaneMedium(fb_id),
         else => {},
     }

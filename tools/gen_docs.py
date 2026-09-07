@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """ZigMachine documentation generator.
 
-Parses the sealed HW ABI headers (hw/sdk/*.zig) and the open ZigOS library
-(zigos/*.zig) for their public surface + doc comments, and emits a single
+Parses the sealed HW ABI headers (machine/sdk/*.zig) and the open ZigOS library
+(libs/zig/*.zig) for their public surface + doc comments, and emits a single
 self-contained programmer's guide (docs/ZIGMACHINE_GUIDE.html) with a register
-map, an ABI/library reference, and hand-written examples.
+map, an ABI/library reference, hand-written examples, and the disk/cart-format
+prose rendered from docs/FLOPPY_DISK.md.
 
 The reference is generated from source so signatures never drift; the prose and
 examples live in EXAMPLES below. Run: `python3 tools/gen_docs.py` (from repo root
@@ -18,7 +19,15 @@ from dataclasses import dataclass, field
 from datetime import date
 from pathlib import Path
 
+import markdown  # renders docs/FLOPPY_DISK.md (disk/cart format) into the guide
+
 ROOT = Path(__file__).resolve().parent.parent
+
+
+def render_markdown_file(rel: str) -> str:
+    """Render a repo markdown file to HTML (fenced code + tables) for a guide section."""
+    text = (ROOT / rel).read_text()
+    return markdown.markdown(text, extensions=["fenced_code", "tables"])
 
 
 # --------------------------------------------------------------------------
@@ -218,7 +227,7 @@ def render_examples() -> str:
 
 
 def build() -> str:
-    sdk = ROOT / "hw" / "sdk"
+    sdk = ROOT / "machine" / "sdk"
     mm = sdk / "memmap.zig"
     geometry = parse_consts(mm, r"(?:WIDTH|HEIGHT|NB_PLANES|PHYSICAL_\w+|RASTER_\w+|MEDIUM_\w+|HORIZONTAL_\w+|VERTICAL_\w+|STRIDE_\w+)")
     modes = parse_consts(mm, r"(?:RES_\w+|FB_MODE_\w+)")
@@ -226,15 +235,15 @@ def build() -> str:
     blit_regs = parse_consts(mm, r"BLIT_[A-Z_]+")
     blit_ctl = parse_consts(mm, r"(?:CON_\w+|MT_\w+|BLIT_CMD_\w+|BLIT_STATUS_\w+)")
     abi = parse_externs(sdk / "hardware.zig")
-    lfb = parse_struct_methods(ROOT / "zigos" / "zigos.zig", "LogicalFB")
-    zos = parse_struct_methods(ROOT / "zigos" / "zigos.zig", "ZigOS")
-    blitter = parse_struct_methods(ROOT / "zigos" / "blitter.zig", "Blitter")
-    gui = parse_struct_methods(ROOT / "zigos" / "gui.zig", "Gui")
-    wm = parse_struct_methods(ROOT / "zigos" / "gui.zig", "Wm")
-    menubar = parse_struct_methods(ROOT / "zigos" / "gui.zig", "MenuBar")
-    dialog = parse_struct_methods(ROOT / "zigos" / "gui.zig", "Dialog")
-    desktop = parse_struct_methods(ROOT / "zigos" / "gem.zig", "Desktop")
-    mesh = parse_struct_methods(ROOT / "zigos" / "utils" / "obj_loader.zig", "Mesh")
+    lfb = parse_struct_methods(ROOT / "libs" / "zig" / "zigos.zig", "LogicalFB")
+    zos = parse_struct_methods(ROOT / "libs" / "zig" / "zigos.zig", "ZigOS")
+    blitter = parse_struct_methods(ROOT / "libs" / "zig" / "blitter.zig", "Blitter")
+    gui = parse_struct_methods(ROOT / "rom" / "gem" / "gui.zig", "Gui")
+    wm = parse_struct_methods(ROOT / "rom" / "gem" / "gui.zig", "Wm")
+    menubar = parse_struct_methods(ROOT / "rom" / "gem" / "gui.zig", "MenuBar")
+    dialog = parse_struct_methods(ROOT / "rom" / "gem" / "gui.zig", "Dialog")
+    desktop = parse_struct_methods(ROOT / "rom" / "gem" / "gem.zig", "Desktop")
+    mesh = parse_struct_methods(ROOT / "libs" / "zig" / "utils" / "obj_loader.zig", "Mesh")
 
     groups = [
         ("Geometry & resolution", render_consts(geometry)),
@@ -243,6 +252,7 @@ def build() -> str:
         ("Blitter registers", render_consts(blit_regs)),
         ("Blitter commands / control / minterms", render_consts(blit_ctl)),
         ("HW ABI — machine exports", render_items(abi)),
+        ("Disk / cart format + boot sectors", render_markdown_file("docs/FLOPPY_DISK.md")),
         ("ZigOS — LogicalFB (a plane)", render_items(lfb)),
         ("ZigOS — ZigOS (the OS)", render_items(zos)),
         ("ZigOS — Blitter (2D coprocessor)", render_items(blitter)),
@@ -293,8 +303,11 @@ table { width: 100%; border-collapse: collapse; font-size: 13px; }
 th, td { text-align: left; padding: 6px 10px; border-bottom: 1px solid #1c2230; vertical-align: top; }
 th { color: #7dd3fc; font-weight: 600; }
 td code, .sig, code { color: #a5f3c0; }
-pre.code { background: #12151f; border: 1px solid #232a3a; border-radius: 8px; padding: 14px 16px;
+pre.code, main pre { background: #12151f; border: 1px solid #232a3a; border-radius: 8px; padding: 14px 16px;
            overflow-x: auto; font: 12.5px/1.5 ui-monospace, monospace; color: #cdd6e6; }
+/* markdown-rendered sections (FLOPPY_DISK.md): give its own headings the guide look */
+main h1 { font-size: 21px; color: #7dd3fc; border-bottom: 1px solid #232a3a; padding-bottom: 6px; margin: 30px 0 14px; }
+main pre code { background: none; padding: 0; }
 .intro { background: #12151f; border: 1px solid #232a3a; border-radius: 8px; padding: 16px 18px; margin-bottom: 8px; }
 code { background: #1a2030; padding: 1px 5px; border-radius: 4px; }
 """

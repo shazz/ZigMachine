@@ -13,3 +13,5 @@ assets/oldies/
 
 # Local reference material & scratch prototypes (oldies cracktro JS, bug repros)
 prototypes/
+.archview/
+__pycache__/

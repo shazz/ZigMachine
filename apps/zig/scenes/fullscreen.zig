@@ -27,23 +27,32 @@ const modmate_pal = convertU8ArraytoColors(@embedFile("../assets/screens/fullscr
 // --------------------------------------------------------------------------
 // Demo
 // --------------------------------------------------------------------------
-// Overscan is done the sanctioned Option-B way: the plane is switched to
-// FULLSCREEN (a 400x280 buffer the machine composites across the whole raster,
-// borders included). The older per-scanline "open the border with
-// RES_TRUECOLOR from an HBL handler" trick is no longer implemented by the
-// sealed machine (renderPlaneNormal only ever paints the visible 320x200 and
-// fires its HBL for logical lines 0..199), so it cannot fill any border.
+// Overscan is EARNED, ST-style: the plane holds a 400x280 buffer whose borders
+// stay closed until we "open" them with the resolution-flicker trick. A per-plane
+// HBL handler registered at OVERSCAN_MAGIC_X fires on every scanline and calls
+// flickerBorder() — flickering in the top/bottom bands opens them, flickering on a
+// visible line opens both side borders. Miss the magic column and the border shows
+// garbage (see docs/HW_API.md "Opening the borders (overscan)").
+fn handler_overscan(fb: *LogicalFB, zigos: *ZigOS, line: u16, col: u16) void {
+    _ = zigos;
+    _ = line;
+    _ = col;
+    fb.flickerBorder();
+}
+
 pub const Demo = struct {
     name: u8 = 0,
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
         Console.log("Demo init", .{});
 
-        // first plane, fullscreen (physical coordinates 0..400 x 0..280)
+        // first plane, overscan (physical coordinates 0..400 x 0..280)
         var fb: *LogicalFB = &zigos.lfbs[0];
         fb.is_enabled = true;
-        fb.setFullscreen();
+        fb.setOverscanBuffer();
         fb.setPalette(modmate_pal);
+        // Do the border-opening trick every scanline at the magic column.
+        fb.setFrameBufferHBLHandler(zg.OVERSCAN_MAGIC_X, handler_overscan);
 
         comptime std.debug.assert(modmate_b.len == @as(usize, PHYSICAL_WIDTH) * @as(usize, PHYSICAL_HEIGHT));
         for (modmate_b, 0..) |pal_entry, idx| {

@@ -59,10 +59,13 @@ var raster_index: u8 = 0;
 fn handler_scroller(fb: *LogicalFB, zigos: *ZigOS, line: u16, col: u16) void {
     const back_color: Color = Color{ .r = 0, .g = 0, .b = 0, .a = 0 };
 
-    if (line > 40 and line < 165+40 ) {
-        fb.setPaletteEntry(1, rasters_b[(line - 40)]);
+    // The sealed machine fires this HBL on LOGICAL lines 0..199 (not the old
+    // physical 40..239), so index the raster palette by `line` directly. Rasters
+    // cover the grid/scroller area (0..164); entry 1 is blanked for the logo below.
+    if (line < 165) {
+        fb.setPaletteEntry(1, rasters_b[line]);
     }
-    if (line == 165+40) {
+    if (line == 165) {
         fb.setPaletteEntry(1, back_color);
     }
 

@@ -30,10 +30,11 @@ pub const ENTRIES = [_]Entry{
     .{ .name = "EQUINOX", .tag = "equinox" },
     .{ .name = "FALLEN ANGELS", .tag = "fallen_angels" },
     .{ .name = "FULLSCREEN", .tag = "fullscreen" },
+    .{ .name = "BAD FLICKER", .tag = "badflicker" },
     .{ .name = "ICS", .tag = "ics" },
     .{ .name = "LEONARD", .tag = "leonard" },
     .{ .name = "MAXI", .tag = "maxi" },
-    .{ .name = "MED OVERSCAN", .tag = "medium_overscan" },
+    // MED OVERSCAN excluded — pending migration (called removed setMediumFullscreen()).
     .{ .name = "RES SWITCH", .tag = "res_switch" },
     .{ .name = "SHAPES", .tag = "shapes" },
     .{ .name = "STCS", .tag = "stcs" },

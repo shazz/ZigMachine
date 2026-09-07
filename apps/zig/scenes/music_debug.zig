@@ -129,11 +129,16 @@ var raster_offset: u16 = 0;
 var raster_phase: f32 = 0.0;
 
 // Per-scanline HBL handler on the text plane: cycles the scrolltext colour
-// through the copper gradient so the letters are raster-filled.
+// through the copper gradient so the letters are raster-filled. Merged with
+// the overscan trick: the scroller spills past 320px into the borders, so
+// they must stay open every line too — both are per-scanline palette/latch
+// writes with no pixel-column sensitivity, so they share this one HBL slot,
+// registered at OVERSCAN_MAGIC_X (see docs/HW_API.md "Opening the borders").
 fn scrollRasterHandler(fb: *LogicalFB, zigos: *ZigOS, line: u16, col: u16) void {
     _ = zigos;
     _ = col;
     fb.setPaletteEntry(SCROLL, COPPER[(line + raster_offset) % 256]);
+    fb.flickerBorder();
 }
 
 fn hashRand(x: usize, seed: u32) f32 {
@@ -218,7 +223,7 @@ pub const Demo = struct {
         // no physical-framebuffer poke). Coordinates on this plane are PHYSICAL.
         var p2: *LogicalFB = &zigos.lfbs[2];
         p2.is_enabled = true;
-        p2.setFullscreen();
+        p2.setOverscanBuffer();
         p2.setPaletteEntry(CLEAR, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
         p2.setPaletteEntry(WHITE, Color{ .r = 245, .g = 245, .b = 250, .a = 255 });
         p2.setPaletteEntry(YELLOW, Color{ .r = 255, .g = 220, .b = 90, .a = 255 });
@@ -226,7 +231,7 @@ pub const Demo = struct {
         p2.setPaletteEntry(CYAN, Color{ .r = 130, .g = 210, .b = 250, .a = 255 });
         p2.setPaletteEntry(DIM, Color{ .r = 190, .g = 190, .b = 210, .a = 255 });
         p2.setPaletteEntry(SCROLL, COPPER[0]);
-        p2.setFrameBufferHBLHandler(0, scrollRasterHandler); // raster-fill the scroller
+        p2.setFrameBufferHBLHandler(zg.OVERSCAN_MAGIC_X, scrollRasterHandler); // raster-fill + overscan flicker
         p2.clearFrameBuffer(CLEAR);
 
         // plane 3: TRSI logo (its own palette, index 0 transparent), on top
@@ -265,6 +270,14 @@ pub const Demo = struct {
         if (raster_phase >= 4096.0) raster_phase -= 4096.0;
         raster_offset = @intFromFloat(raster_phase);
         self.starfield.update();
+    }
+
+    // Keys 1/2/3 pick MOD / YM / sample — request BY NAME (host plays it, no
+    // per-scene playlist in the glass). Files live under docs/music/.
+    const TUNES = [_][]const u8{ "lollapalooza.mod", "concerto.ymraw", "smp1.raw" };
+    pub fn setShadeMode(self: *Demo, mode: u32) void {
+        _ = self;
+        if (mode < TUNES.len) zg.requestSong(TUNES[mode]);
     }
 
     pub fn render(self: *Demo, zigos: *ZigOS, time_elapsed: f32) void {

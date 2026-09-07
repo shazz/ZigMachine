@@ -54,10 +54,11 @@ fn handler_logo(fb: *LogicalFB, zigos: *ZigOS, line: u16, col: u16) void {
     const back_color: Color = Color{ .r = 0, .g = 0, .b = 0, .a = 0 };
     const current_color: Color = top_rasters_b[raster_index];
 
-    if (line > 40+5 and line < 40+19 ) {
+    // Per-plane HBL: sealed machine fires on LOGICAL lines 0..199 (was physical 40..239), so drop the +40.
+    if (line > 5 and line < 19 ) {
         fb.setPaletteEntry(255, current_color);
     }
-    if (line == 60) {
+    if (line == 20) {
         fb.setPaletteEntry(255, back_color);
     }
 
@@ -68,10 +69,11 @@ fn handler_logo(fb: *LogicalFB, zigos: *ZigOS, line: u16, col: u16) void {
 fn handler_scroller(fb: *LogicalFB, zigos: *ZigOS, line: u16, col: u16) void {
     const back_color: Color = Color{ .r = 0, .g = 0, .b = 0, .a = 0 };
 
-    if (line > 52+40 and line < 240 ) {
-        fb.setPaletteEntry(1, rasters_b[(line - 40 - 52)]);
+    // Per-plane HBL: sealed machine fires on LOGICAL lines 0..199 (was physical 40..239), so drop the +40.
+    if (line > 52 and line < 200 ) {
+        fb.setPaletteEntry(1, rasters_b[(line - 52)]);
     }
-    if (line == 240) {
+    if (line == 200) {
         fb.setPaletteEntry(1, back_color);
     }
 

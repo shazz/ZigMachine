@@ -20,16 +20,6 @@ const SHARED_PAGES = 79; // must match hw/sdk/memmap.zig SHARED_PAGES (v1.1: 2 M
 // otherwise keep serving the stale one). See notes/zigmachine-workflow-cache.
 const BUST = "?t=" + Date.now();
 
-// Union main-screen YM tunes (depacked to docs/music/union/), keyed by the
-// scene's 1-based song id (track 1 = Jess's "Sharpness Buzztone", autoplayed).
-const UNION_YM = [
-    "music/union/SharpnessBuzztone.ymraw",
-    "music/union/150mph.ymraw",
-    "music/union/Androids.ymraw",
-    "music/union/Drooling.ymraw",
-    "music/union/Lap33.ymraw",
-    "music/union/Reality.ymraw",
-];
 const memory = new WebAssembly.Memory({ initial: SHARED_PAGES, maximum: SHARED_PAGES });
 
 const text_decoder = new TextDecoder();
@@ -70,6 +60,10 @@ let mountedDisk = null; // { buf, files: {NAME: {start,len}} } — the currently
 
 async function mountDisk(url) {
     const buf = new Uint8Array(await fetch(url + BUST).then((r) => r.arrayBuffer()));
+    // Format v2: block 0 is an EXECUTABLE boot sector — a wasm module (\0asm), with the
+    // descriptor at $400 (see docs/FLOPPY_DISK.md). v1 has the "ZMDISK" descriptor at $0.
+    if (buf[0] === 0x00 && buf[1] === 0x61 && buf[2] === 0x73 && buf[3] === 0x6d)
+        return mountDiskV2(url, buf);
     if (String.fromCharCode(...buf.subarray(0, 6)) !== "ZMDISK")
         throw new Error("not a ZigMachine disk: " + url);
     // Executability (ST-style): boot sector's 256 big-endian words sum to 0x1234 for
@@ -96,6 +90,35 @@ async function mountDisk(url) {
     const start = bootBlock * blockSize;
     console.log(`Mounted "${title}" — ${bootable ? "bootable" : "DATA disk"}, ${nFiles} FAT file(s)`);
     return { bootable, cart: bootable ? buf.buffer.slice(start, start + bootLen) : null };
+}
+
+// Format v2: the 1 KB boot sector IS an executable wasm module (its 512 big-endian
+// words sum to $1234). We hand the loader those 1 KB to instantiate FIRST; the boot
+// program then asks (pollCartRequest() == 2) to CHAINLOAD the real cart, whose pointer
+// lives in the descriptor at $400. Regions: boot [0,1K) · descriptor [1K,2K) · FAT
+// [2K,3K) · data [3K,). Streaming stays 512-byte blocks.
+function mountDiskV2(url, buf) {
+    let sum = 0;
+    for (let i = 0; i < 512; i++) sum = (sum + ((buf[2 * i] << 8) | buf[2 * i + 1])) & 0xFFFF;
+    const bootable = sum === 0x1234; // else: not executable -> treat as a data disk (GEM)
+    const dv = new DataView(buf.buffer);
+    if (String.fromCharCode(...buf.subarray(0x400, 0x406)) !== "ZMDISK")
+        throw new Error("v2 disk: bad descriptor magic");
+    const cartBlock = dv.getUint32(0x408, true);
+    const cartLen = dv.getUint32(0x40c, true);
+    const title = text_decoder.decode(buf.subarray(0x410, 0x450)).replace(/\0.*$/, "");
+    const nFiles = dv.getUint16(0x4f4, true);
+    const files = {}; // FAT at $800, same 32-byte entries as v1
+    for (let i = 0; i < nFiles; i++) {
+        const e = 0x800 + i * 32;
+        const name = text_decoder.decode(buf.subarray(e, e + 16)).replace(/\0.*$/, "");
+        files[name] = { start: dv.getUint32(e + 0x10, true), len: dv.getUint32(e + 0x14, true), type: buf[e + 0x18] };
+    }
+    const cartStart = cartBlock * 512;
+    mountedDisk = { buf, files, v2: true, chainCart: { start: cartStart, len: cartLen } };
+    console.log(`Mounted v2 "${title}" — ${bootable ? "executable boot sector" : "data disk"}, ${nFiles} FAT file(s)`);
+    // Run the 1 KB boot sector first; it chainloads the cart (swapCart req 2).
+    return { bootable, v2: true, cart: bootable ? buf.buffer.slice(0, 1024) : null };
 }
 
 // Read a named file from the mounted disk's FAT (streaming a whole file for now).
@@ -129,6 +152,20 @@ async function swapCart(req) {
     if (swapping) return;
     swapping = true;
     try {
+        // req 2 = CHAINLOAD (format v2): the boot sector is done — instantiate this
+        // disk's cart (pointer in the descriptor, already parsed) over the same memory.
+        if (req === 2 && mountedDisk && mountedDisk.chainCart) {
+            beepStop(); // silence the boot-sector tone before the cart takes over
+            const { start, len } = mountedDisk.chainCart;
+            const bytes = mountedDisk.buf.buffer.slice(start, start + len);
+            demo = (await WebAssembly.instantiate(bytes, demoImports)).instance.exports;
+            machine.hwInit();
+            demo.boot();
+            if (demo.skipBoot) demo.skipBoot(); // straight into the cart (boot sector already showed)
+            sampleLoaded = false;
+            swapping = false;
+            return;
+        }
         let url;
         if (req === 1) {
             const tag = text_decoder.decode(
@@ -184,6 +221,7 @@ async function boot() {
             audioPlay: () => playRaw(SAMPLES[curSample].url, SAMPLES[curSample].rate, false), // PLAY -> real sound
             audioStop: stopRaw,
             loadSample: (id) => selectSample(id), // File > Load: switch the current sample
+            beep: () => beep(), // boot-sector YM2149 tone (see novirus.zig)
         },
     };
     // What to boot: ?disk=X.zmd boots a cart from a ZigMachine disk image (see
@@ -314,11 +352,11 @@ function start() {
             diskDirSet = true;
         }
 
-        // Song-request bridge: once audio is running, let the active scene pick a
-        // YM tune (union main autoplays track 1, keys 1-6 switch).
-        if (audioCtx && demo.pollSongRequest) {
-            const song = demo.pollSongRequest();
-            if (song > 0 && UNION_YM[song - 1]) playYm(UNION_YM[song - 1]);
+        // Song bridge: the active scene requests a tune BY NAME (zigos.requestSong);
+        // the host just plays it. No per-scene playlist lives here.
+        if (audioCtx && demo.pollSongRequest && demo.pollSongRequest()) {
+            playSongByName(text_decoder.decode(
+                new Uint8Array(memory.buffer, demo.songNamePtr(), demo.songNameLen())));
         }
 
         for (let i = 0; i < nb_planes; i++) {
@@ -360,17 +398,9 @@ window.document.body.addEventListener('keydown', function (evt) {
     // Enter/Space = Fire (5): launch the highlighted menu entry.
     if (evt.key === "Enter" || evt.key === " ") demo.input(5);
 
-    // Keys 1-7: give the running scene first refusal on a shading/mode switch;
-    // setShadeMode returns whether it consumed the key. If not (e.g. music_debug,
-    // which has no mode switch), fall back to the audio player shortcuts.
-    if ("1234567".includes(evt.key)) {
-        const handled = demo.setShadeMode ? demo.setShadeMode(Number(evt.key) - 1) : false;
-        if (!handled) {
-            if (evt.key === "1") playMod("music/lollapalooza.mod");
-            if (evt.key === "2") playYm("music/concerto.ymraw");
-            if (evt.key === "3") playRaw("music/smp1.raw", 12517, false);
-        }
-    }
+    // Keys 1-7 → the scene's own mode/song switch. Scenes OWN the behaviour
+    // (shading, or a song request via zigos.requestSong); the host only forwards.
+    if ("1234567".includes(evt.key) && demo.setShadeMode) demo.setShadeMode(Number(evt.key) - 1);
 });
 
 // --------------------------------------------------------------------------
@@ -491,7 +521,7 @@ function startAudio() {
             fetch("machine-audio.wasm" + BUST).then(r => r.arrayBuffer()),
             fetch("demo-audio.wasm" + BUST).then(r => r.arrayBuffer()),
         ]);
-        await audioCtx.audioWorklet.addModule("audio-worklet-sealed.js");
+        await audioCtx.audioWorklet.addModule("audio-worklet-sealed.js" + BUST);
         audioNode = new AudioWorkletNode(audioCtx, "zig-audio-sealed", {
             numberOfInputs: 0,
             numberOfOutputs: 1,
@@ -564,6 +594,26 @@ async function playRaw(url, rate, unsigned) {
     const bytes = await fetch(url).then(r => r.arrayBuffer());
     audioNode.port.postMessage({ type: "loadRaw", bytes: bytes, rate: rate || 12517, unsigned: !!unsigned }, [bytes]);
     const b = document.querySelector('.sound_button'); if (b) b.textContent = "Sound off";
+}
+// Play a scene-requested music file BY NAME (a path under music/). The extension
+// picks the player — the host keeps no per-scene playlist. Name comes from wasm
+// (zigos.requestSong), so reject a path escape defensively.
+function playSongByName(name) {
+    if (!name || name.includes("..") || name.startsWith("/")) return;
+    const url = "music/" + name;
+    if (name.endsWith(".mod")) playMod(url);
+    else if (name.endsWith(".ymraw")) playYm(url);
+    else if (name.endsWith(".raw")) playRaw(url, 12517, false);
+}
+
+// Boot-sector beep: a raw YM2149 tone (no song player). Exposed to the boot program
+// as the `beep` import; the host stops it (beepStop) when the cart chainloads.
+async function beep() {
+    await startAudio();
+    if (audioNode) audioNode.port.postMessage({ type: "beep" });
+}
+function beepStop() {
+    if (audioNode) audioNode.port.postMessage({ type: "beepStop" });
 }
 window.playMod = playMod;
 window.playYm = playYm;

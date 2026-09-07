@@ -89,6 +89,17 @@ class ZigAudioSealedProcessor extends AudioWorkletProcessor {
                 d.audioModStop();
             } else if (msg.type === "ymStop") {
                 d.audioYmStop();
+            } else if (msg.type === "beep") {
+                // Boot-sector "bo-bip!": YM2149 channel A plays a low note then a higher
+                // one, ~80 ms each, then auto-silences. process() advances the timing.
+                const m = this.machine;
+                m.machineYmWrite(0, 0x70); m.machineYmWrite(1, 0x04); // note 1 (low): period ~0x470
+                m.machineYmWrite(7, 0x3e);                            // mixer: tone A on, noise off
+                m.machineYmWrite(8, 0x0c);                            // amplitude (fixed)
+                this.beep = true; this.bip = 0; this.bipNote = 1;
+            } else if (msg.type === "beepStop") {
+                this.machine.machineYmWrite(8, 0); // silence channel A
+                this.beep = false;
             }
         };
     }
@@ -98,10 +109,26 @@ class ZigAudioSealedProcessor extends AudioWorkletProcessor {
 
         const out = outputs[0];
         const frames = out[0].length; // typically 128
-        this.demo.audioRender(frames);
+        if (this.beep) {
+            // "bo-bip!": render ONLY the PSG (no song player) from our YM regs. Advance
+            // the two-note timing: note 2 (higher) after ~80 ms, silence after ~160 ms.
+            const m = this.machine;
+            if (this.bip >= 3600 && this.bipNote === 1) { // ~80 ms @ 44.1 kHz
+                m.machineYmWrite(0, 0x30); m.machineYmWrite(1, 0x02); // note 2 (high): period ~0x230
+                this.bipNote = 2;
+            }
+            m.machineClear(frames);
+            m.machineRenderYm(0, frames);
+            m.machineClamp(frames);
+            this.bip += frames;
+            if (this.bip >= 7200) { m.machineYmWrite(8, 0); this.beep = false; } // ~160 ms → done
+        } else {
+            this.demo.audioRender(frames);
+        }
 
         out[0].set(this.left.subarray(0, frames));
-        if (out.length > 1) out[1].set(this.right.subarray(0, frames));
+        // YM is mono → feed both channels from left while beeping.
+        if (out.length > 1) out[1].set((this.beep ? this.left : this.right).subarray(0, frames));
 
         if ((this.tick++ & 3) === 0) {
             this.port.postMessage({

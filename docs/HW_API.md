@@ -69,12 +69,41 @@ memory.
 | `0x34` | `FB_STRIDE[4]` | u16×4 | per-plane row stride in px (320 normal · 400 fullscreen · any SCROLL buffer width) |
 | `0x3C` | `HSCROLL[4]` | u16×4 | per-plane horizontal offset — **re-read per scanline in SCROLL mode** (line distort) |
 | `0x44` | `FB_BASE[4]` | u32×4 | per-plane framebuffer screen base (byte offset into the region; the pan point) |
-| `0x54` | `FB_MODE[4]` | u8×4 | per-plane render mode: `0` normal · `1` fullscreen (overscan) · `2` scroll |
+| `0x54` | `FB_MODE[4]` | u8×4 | per-plane render mode: `0` normal · `1` fullscreen (always-open overscan) · `2` scroll · `3` medium · `4` overscan (trick-gated) |
+| `0x58` | `RES_FLICKER` | u16 | overscan-trick latch: the SDK bumps it on a `RES_MEDIUM`→`RES_PLANES` flicker so the machine can observe the (untrappable) poke once per scanline |
 
 **Scroll planes** (`FB_MODE = 2`): back a plane with a bigger-than-screen buffer
 (`setScrollPlane(w, h)`); the visible 320×200 window is panned by moving `FB_BASE`
 (`setScroll(x, y)` — zero per-pixel cost), and `HSCROLL` is re-read every scanline so a
 per-plane HBL handler can bend each line (`setScrollFine` → sine wobble / shear).
+
+### Opening the borders (overscan) — the ST timing trick
+
+Overscan is not a flag — you **earn** it, the way real ST demos do, by abusing the
+video timing. A plane in **overscan mode** (`setOverscanBuffer()`, `FB_MODE = 4`) holds
+a full 400×280 buffer but the machine draws **only the visible 320×200 window** until
+you *open* a border with the **resolution-flicker trick**:
+
+- From that plane's **per-plane HBL handler**, call `flickerBorder()` — it flickers the
+  resolution register (`RES_MEDIUM` → `RES_PLANES`) and bumps `RES_FLICKER` so the
+  sealed machine can see the otherwise-untrappable poke. The handler must be registered
+  at the **magic column** `OVERSCAN_MAGIC_X` (= 40; tolerance `OVERSCAN_X_TOL` = 4). The
+  machine samples `RES_FLICKER` once per scanline and checks the plane's `FB_HBL_POS`.
+- **Which border opens depends on the row you flicker on** (causal, top-to-bottom):
+  - flicker in the **top band** (rows 0–39) → top border opens **from that row down**;
+  - flicker on a **visible line** (rows 40–239) → **both side borders** open for that
+    line (sides must be re-opened every line, as on real hardware);
+  - flicker in the **bottom band** (rows 240–279) → bottom border opens from that row down.
+- **Miss the magic column** (outside tolerance) and that scanline's border shows
+  **garbage** — a mistimed trick, exactly like botching the cycle on a real ST. Not
+  flickering at all leaves the border closed (background shows).
+
+To open the whole screen (a static full-overscan picture), register one HBL at
+`OVERSCAN_MAGIC_X` that calls `flickerBorder()` on every scanline — top opens at row 0,
+both sides every visible line, bottom at row 240. See `apps/zig/scenes/fullscreen.zig`.
+
+> `FB_MODE = 1` (`setFullscreen`, always-open) has been **removed**; overscan is only
+> ever the trick-gated mode 4. (The mode-1 render path lingers for legacy back-compat.)
 
 Colours are RGBA `u32`, little-endian byte order `R,G,B,A` (i.e.
 `a<<24 | b<<16 | g<<8 | r`).

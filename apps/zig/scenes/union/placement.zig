@@ -37,6 +37,16 @@ const RUNNER_STEP: f32 = 17.0 * 0.08;
 const placement_pal = convertU8ArraytoColors(@embedFile("../../assets/screens/union_intro/placement/placement.pal"));
 const BG = Color{ .r = 0, .g = 0, .b = 0, .a = 255 };
 
+// Strips fly in from off-screen across the full 400-wide canvas, so the
+// borders must stay open for the whole animation — flicker every line, at
+// OVERSCAN_MAGIC_X, ST-style (see docs/HW_API.md "Opening the borders").
+fn handlerOverscan(fb: *LogicalFB, zigos: *ZigOS, line: u16, col: u16) void {
+    _ = zigos;
+    _ = line;
+    _ = col;
+    fb.flickerBorder();
+}
+
 pub const Placement = struct {
     pos_x: [N]f32 = undefined,
     pos_y: [N]f32 = undefined,
@@ -55,7 +65,8 @@ pub const Placement = struct {
         zigos.setBackgroundColor(BG);
         const p0: *LogicalFB = &zigos.lfbs[0];
         p0.is_enabled = true;
-        p0.setFullscreen();
+        p0.setOverscanBuffer();
+        p0.setFrameBufferHBLHandler(zg.OVERSCAN_MAGIC_X, handlerOverscan);
         p0.setPalette(placement_pal);
         p0.clearFrameBuffer(0);
     }

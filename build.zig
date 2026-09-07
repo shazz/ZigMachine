@@ -129,16 +129,24 @@ pub fn build(b: *std.Build) void {
     // with apps/zig/scenes/catalog.zig (menu list) and tools/pack_floppies.sh.
     // Cart names, index-aligned with the switch in apps/zig/cart.zig and the tags
     // in apps/zig/scenes/catalog.zig. Index 0 is the menu launcher (demo.wasm).
+    // An "" entry is EXCLUDED from the build (index kept for alignment): union_intro,
+    // union_main and music have been migrated to the overscan-flicker trick and are
+    // re-enabled below. medium_overscan still calls the removed setMediumFullscreen()
+    // — it returns once a setMediumOverscan() twin exists (separate sealed-HW work).
     const cart_names = [_][]const u8{
-        "demo",              "demo-union_intro", "demo-union_main", "demo-music",
+        "demo",              "demo-union_intro",
+        "demo-union_main",   "demo-music",
         "demo-blitter",      "demo-scroll",      "demo-obj",        "demo-gem",
         "demo-st_replay",    "demo-ancool",      "demo-bladerunners", "demo-dbug",
         "demo-deltaforce",   "demo-deltaforce2", "demo-empire",     "demo-equinox",
         "demo-fallen_angels", "demo-fullscreen", "demo-ics",        "demo-leonard",
-        "demo-maxi",         "demo-medium_overscan", "demo-res_switch", "demo-shapes",
+        "demo-maxi",         "", // medium_overscan (excluded)
+        "demo-res_switch",   "demo-shapes",
         "demo-stcs",         "demo-tex",
+        "demo-badflicker", // 26 — overscan trick done wrong (raw pokes, off-column)
     };
     for (cart_names, 0..) |name, idx| {
+        if (name.len == 0) continue; // excluded cart (see note above)
         const cart_opts = b.addOptions();
         cart_opts.addOption(usize, "index", idx);
         const cart_mod = b.createModule(.{
@@ -148,6 +156,9 @@ pub fn build(b: *std.Build) void {
             .imports = &.{
                 .{ .name = "zigos", .module = zigos_mod },
                 .{ .name = "rom", .module = rom_mod },
+                // The HW ABI header (not machine source) — lets a scene poke sealed
+                // registers directly, ST-style (e.g. scenes/badflicker.zig).
+                .{ .name = "hardware", .module = sdk_video },
                 .{ .name = "cart_opts", .module = cart_opts.createModule() },
             },
         });
@@ -163,6 +174,30 @@ pub fn build(b: *std.Build) void {
                     .{ .name = "boot_rom", .module = boot_rom_mod },
                     .{ .name = "cart", .module = cart_mod },
                 },
+            }),
+        });
+        exe.entry = .disabled;
+        exe.rdynamic = true;
+        exe.import_memory = true;
+        exe.stack_size = demo_stack;
+        exe.initial_memory = video_shared_bytes;
+        exe.max_memory = video_shared_bytes;
+        exe.global_base = demo_global_base;
+        installTo(b, exe, sealed_step);
+    }
+
+    // Executable boot-sector programs (ZigCart format v2): bare wasm — no ZigOS/ROM,
+    // they poke the sealed video ABI directly and must stay tiny (≤ 1 KB boot sector).
+    // Packed into a disk's block 0 by mkdisk (which tunes the $1234 checksum word).
+    const boot_progs = [_][]const u8{"novirus"};
+    for (boot_progs) |bp| {
+        const exe = b.addExecutable(.{
+            .name = b.fmt("boot-{s}", .{bp}),
+            .root_module = b.createModule(.{
+                .root_source_file = b.path(b.fmt("apps/zig/boot/{s}.zig", .{bp})),
+                .target = wasm_target,
+                .optimize = optimize,
+                .imports = &.{.{ .name = "hardware", .module = sdk_video }},
             }),
         });
         exe.entry = .disabled;

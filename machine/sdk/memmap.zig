@@ -85,16 +85,30 @@ pub const REG_FRAME: usize = 0x30; // u32  (ro) frame counter
 pub const REG_FB_STRIDE: usize = 0x34; // u16 x4 per-plane row stride in pixels (320 normal, 400 fullscreen, or any SCROLL buffer width)
 pub const REG_HSCROLL: usize = 0x3C; // u16 x4 per-plane horizontal scroll (re-read PER SCANLINE in SCROLL mode → line distort)
 pub const REG_FB_BASE: usize = 0x44; // u32 x4 per-plane framebuffer screen base (0x44..0x53) — pan point for SCROLL mode
-pub const REG_FB_MODE: usize = 0x54; // u8 x4 per-plane render mode (0x54..0x57): 0 normal, 1 fullscreen, 2 scroll
+pub const REG_FB_MODE: usize = 0x54; // u8 x4 per-plane render mode (0x54..0x57): 0 normal, 1 fullscreen, 2 scroll, 3 medium, 4 overscan
+pub const REG_RES_FLICKER: usize = 0x58; // u16  overscan-trick latch: the SDK bumps it on a RES_MEDIUM->RES_PLANES flicker so the (untrappable) poke is observable per scanline (0x58..0x59; 0x5A..0x7F free below OFF_BLIT)
 
 pub const FB_MODE_NORMAL: u8 = 0; // 320x200 low-res plane (pixel-doubled into the raster)
 pub const FB_MODE_FULLSCREEN: u8 = 1; // 400x280 low-res overscan plane (Option B, doubled)
 pub const FB_MODE_SCROLL: u8 = 2; // window into a bigger-than-screen buffer; pan via FB_BASE + HSCROLL
 pub const FB_MODE_MEDIUM: u8 = 3; // 640x200 medium-res plane (1:1 into the raster)
+pub const FB_MODE_OVERSCAN: u8 = 4; // 400x280 buffer, borders CLOSED until opened by the resolution-flicker trick (see OVERSCAN_* below)
 
 pub const RES_PLANES: u8 = 0;
 pub const RES_TRUECOLOR: u8 = 1;
 pub const RES_MEDIUM: u8 = 2; // 640x200, 2 planes, no border (ST-medium style)
+
+// --- overscan / border-opening trick (authentic ST timing exploit) ---
+// A FB_MODE_OVERSCAN plane draws only its visible 320x200 window until the scene
+// "opens" a border by FLICKERING the resolution register (RES_MEDIUM->RES_PLANES)
+// from a per-plane HBL handler at the magic column, on the scanline of the border
+// it wants. The flicker must land within OVERSCAN_X_TOL of OVERSCAN_MAGIC_X (the
+// HBL fires at REG_FB_HBL_POS) or the border shows GARBAGE that line — like botching
+// the timing on real hardware. Opening is causal top-to-bottom: a flicker at row k
+// in a border band opens that band from row k down; a flicker on a visible line
+// opens both side borders for that line (sides must be re-opened every line).
+pub const OVERSCAN_MAGIC_X: u16 = HORIZONTAL_BORDERS_WIDTH; // 40 — the visible-window left edge (logical coords)
+pub const OVERSCAN_X_TOL: u16 = 4; // +/- tolerance the flicker column must hit
 
 // --------------------------------------------------------------------------
 // Blitter register block (see docs/BLITTER_HW_SPEC.md).

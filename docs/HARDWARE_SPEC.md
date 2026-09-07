@@ -417,6 +417,23 @@ allocator leaks a plane's normal buffer when it's upgraded to fullscreen — fin
 within the 512 KB pool), `VSCROLL`, and applying `HSCROLL` to the normal
 (non-fullscreen) render path (today it's wired on the fullscreen path).
 
+### Overscan v2 — borders are EARNED via the resolution-flicker trick (2026-09-07)
+
+The always-open `setFullscreen()`/`setMediumFullscreen()` API was *beeeeh* — overscan on
+a real ST is a **timing exploit**, not a capability flag. Replaced by a trick-gated mode:
+
+- New `FB_MODE_OVERSCAN` (4) + `REG_RES_FLICKER` latch (`0x58`) + `OVERSCAN_MAGIC_X`/
+  `OVERSCAN_X_TOL` constants in `machine/sdk/memmap.zig`.
+- `setOverscanBuffer()` allocates the 400×280 buffer but keeps borders **closed**; a scene
+  opens them by calling `flickerBorder()` (flick `RES_MEDIUM`→`RES_PLANES`, bump the latch)
+  from its per-plane HBL, at the magic column, on the border's scanline. Causal
+  top-to-bottom; **garbage on a mistimed (off-column) flicker**. Machine side:
+  `renderPlaneOverscan` in `machine/video.zig`. Full how-to in `docs/HW_API.md`.
+- `setFullscreen()`/`setMediumFullscreen()` **deleted**. First proven on
+  `apps/zig/scenes/fullscreen.zig` (in-browser, ~60fps). The scenes that called the old
+  API (union*, music_debug, medium_overscan) are migrated to the trick;
+  `medium_overscan` awaits a `setMediumOverscan()` medium twin (follow-up).
+
 ### Done in this pass (was deferred)
 
 - ✅ `text.zig`/`background.zig` `&fb.fb`-as-`*[64000]u8` fixed to the `[*]u8`
