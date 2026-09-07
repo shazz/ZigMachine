@@ -108,7 +108,14 @@ pub const MenuBar = struct {
             const selectable = !sep and !it.disabled;
             const hover = g.hit(row) and selectable;
             if (hover) g.rect(row, BLACK);
-            const ink: u8 = if (it.disabled or sep) MGRAY else if (hover) WHITE else BLACK;
+            if (sep) {
+                // Authentic TOS separator: a dotted rule across the drop-down.
+                const yy = row.y + @divTrunc(ITEM_H, 2);
+                var xx: i16 = d.x + 3;
+                while (xx < d.x + d.w - 3) : (xx += 2) g.fb.setPixelValue(@intCast(xx), @intCast(yy), MGRAY);
+                continue;
+            }
+            const ink: u8 = if (it.disabled) MGRAY else if (hover) WHITE else BLACK;
             const paper: u8 = if (hover) BLACK else WHITE;
             if (it.tick) drawCheck(g, row.x + 4, row.y, ink);
             g.text(it.label, row.x + LMARGIN, row.y, ink, paper);
