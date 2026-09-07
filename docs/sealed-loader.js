@@ -37,6 +37,8 @@ let console_log_buffer = "";
 
 let machine = null;   // machine-video.wasm exports
 let demo = null;      // demo.wasm exports
+let demoImports = null; // env wired to machine + host — reused on cart swap
+let swapping = false; // a cartridge swap (disk boot) is in flight
 let requestId = null;
 
 // --- console/env imports shared by both modules ---
@@ -79,6 +81,34 @@ async function mountDisk(url) {
     return buf.buffer.slice(start, start + bootLen);
 }
 
+// Swap the running cartridge: the menu launcher asks to boot a scene's floppy
+// (req 1 + a tag), a scene asks to return to the menu (req -1). We mount the disk
+// and re-instantiate the demo module over the SAME shared memory (audio untouched);
+// scenes skip the boot ROM. The render loop keeps drawing the old cart until this
+// resolves, so there's no black frame.
+async function swapCart(req) {
+    if (swapping) return;
+    swapping = true;
+    try {
+        let url;
+        if (req === 1) {
+            const tag = text_decoder.decode(
+                new Uint8Array(memory.buffer, demo.getCartTagPtr(), demo.getCartTagLen()));
+            url = "demo-" + tag + ".zmd";
+        } else {
+            url = "demo.zmd"; // back to the menu
+        }
+        const cartBytes = await mountDisk(url);
+        demo = (await WebAssembly.instantiate(cartBytes, demoImports)).instance.exports;
+        machine.hwInit();
+        demo.boot();
+        if (req === 1) demo.skipBoot(); // scenes go straight in; the menu shows the boot ROM
+    } catch (e) {
+        console.error("cart swap failed:", e);
+    }
+    swapping = false;
+}
+
 // --------------------------------------------------------------------------
 // Instantiate the sealed machine, then the demo (wired to it via shared memory).
 // --------------------------------------------------------------------------
@@ -97,7 +127,7 @@ async function boot() {
     console.log("Sealed machine-video.wasm loaded, HW version 0x" + machine.hwVersion().toString(16));
 
     // The demo imports the machine's hwVideoBase (to discover the region) + console.
-    const demoImports = {
+    demoImports = {
         env: {
             memory,
             jsConsoleLogWrite: consoleWrite,
@@ -198,6 +228,13 @@ function start() {
 
         machine.hwClear();          // sealed: clear PFB + global HBL
         demo.frame(elapsed_time);   // open: scene draws into shared LFBs (+ overscan poke)
+
+        // Cartridge swap: the menu boots a scene's floppy; a scene returns to the
+        // menu. Async (fetch the disk) — the loop keeps running the current cart.
+        if (!swapping && demo.pollCartRequest) {
+            const req = demo.pollCartRequest();
+            if (req !== 0) swapCart(req);
+        }
 
         // Song-request bridge: once audio is running, let the active scene pick a
         // YM tune (union main autoplays track 1, keys 1-6 switch).

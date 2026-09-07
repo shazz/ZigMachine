@@ -15,8 +15,14 @@ const std = @import("std");
 const zg = @import("zigos"); // the open ZigOS library (named module)
 const ZigOS = zg.ZigOS;
 const Console = zg.Console;
-const Cart = @import("floppy.zig").Demo; // the selected RAM cart (scene)
+// The cart is the menu launcher (demo.wasm) or one scene (demo-<tag>.wasm),
+// selected at build time. `cart.zig` (rooted in apps/zig/ so scene @embedFiles
+// resolve) picks the scene and exposes it uniformly as `Cart`.
+const Cart = @import("cart").Cart;
 const BootRom = @import("boot_rom").Boot; // the machine boot ROM (POST screen), HW-ABI only
+
+var want_menu: bool = false; // a scene cart asked to return to the menu (ESC)
+var g_no_tag = [_]u8{0};
 
 const VERSION = "0.2-sealed";
 
@@ -86,7 +92,10 @@ export fn isPlaneEnabled(id: u8) bool {
 // Returns whether the running scene consumed the mode switch. The host falls
 // back to its audio shortcuts (keys 1/2/3 = MOD/YM/sample) when it didn't.
 export fn setShadeMode(mode: u32) bool {
-    if (booted and @hasDecl(Cart, "setShadeMode")) return cart.setShadeMode(mode);
+    if (booted and @hasDecl(Cart, "setShadeMode")) {
+        cart.setShadeMode(mode);
+        return true;
+    }
     return false;
 }
 
@@ -121,6 +130,34 @@ export fn pollSongRequest() u32 {
 // input() (e.g. the effects menu: arrows move, Fire launches, Back returns).
 export fn input(dir: Direction) void {
     if (booted and @hasDecl(Cart, "input")) cart.input(@intFromEnum(dir));
+    // A scene cart (no launcher) returns to the menu on Back/ESC.
+    if (dir == .Back and !@hasDecl(Cart, "pollCart")) want_menu = true;
+}
+
+// Cartridge swap. The menu launcher asks the host to boot a scene disk; a scene
+// cart asks to return to the menu (ESC). The host polls this each frame and, on a
+// request, swaps the demo module over the shared memory (see sealed-loader.js).
+//   1  = load the tag from getCartTag* (a scene disk)
+//  -1  = load the menu disk
+//   0  = no request
+export fn pollCartRequest() i32 {
+    if (!booted) return 0;
+    if (@hasDecl(Cart, "pollCart")) return cart.pollCart(); // menu launcher
+    if (want_menu) {
+        want_menu = false;
+        return -1;
+    }
+    if (@hasField(Cart, "wants_quit") and cart.wants_quit) return -1;
+    return 0;
+}
+// The scene tag the launcher wants booted (host maps tag -> demo-<tag>.zmd).
+export fn getCartTagPtr() [*]const u8 {
+    if (booted and @hasDecl(Cart, "cartTag")) return cart.cartTag().ptr;
+    return &g_no_tag;
+}
+export fn getCartTagLen() u32 {
+    if (booted and @hasDecl(Cart, "cartTag")) return @intCast(cart.cartTag().len);
+    return 0;
 }
 
 // --------------------------------------------------------------------------

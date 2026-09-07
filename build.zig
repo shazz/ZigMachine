@@ -123,27 +123,57 @@ pub fn build(b: *std.Build) void {
     // ----------------------------------------------------------------------
     // apps/zig/ — OPEN coder binaries (import zigos / rom / players / audio_hw)
     // ----------------------------------------------------------------------
-    const demo = b.addExecutable(.{
-        .name = "demo",
-        .root_module = b.createModule(.{
-            .root_source_file = b.path("apps/zig/demo_main.zig"),
+    // Cartridge matrix: the menu launcher (demo.wasm) + one cart per scene
+    // (demo-<tag>.wasm). Each shares apps/zig/demo_main.zig; its `cart` module is
+    // the scene (or the menu), whose entry demo_main auto-detects. Keep in sync
+    // with apps/zig/scenes/catalog.zig (menu list) and tools/pack_floppies.sh.
+    // Cart names, index-aligned with the switch in apps/zig/cart.zig and the tags
+    // in apps/zig/scenes/catalog.zig. Index 0 is the menu launcher (demo.wasm).
+    const cart_names = [_][]const u8{
+        "demo",              "demo-union_intro", "demo-union_main", "demo-music",
+        "demo-blitter",      "demo-scroll",      "demo-obj",        "demo-gem",
+        "demo-st_replay",    "demo-ancool",      "demo-bladerunners", "demo-dbug",
+        "demo-deltaforce",   "demo-deltaforce2", "demo-empire",     "demo-equinox",
+        "demo-fallen_angels", "demo-fullscreen", "demo-ics",        "demo-leonard",
+        "demo-maxi",         "demo-medium_overscan", "demo-res_switch", "demo-shapes",
+        "demo-stcs",         "demo-tex",
+    };
+    for (cart_names, 0..) |name, idx| {
+        const cart_opts = b.addOptions();
+        cart_opts.addOption(usize, "index", idx);
+        const cart_mod = b.createModule(.{
+            .root_source_file = b.path("apps/zig/cart.zig"),
             .target = wasm_target,
             .optimize = optimize,
             .imports = &.{
                 .{ .name = "zigos", .module = zigos_mod },
                 .{ .name = "rom", .module = rom_mod },
-                .{ .name = "boot_rom", .module = boot_rom_mod },
+                .{ .name = "cart_opts", .module = cart_opts.createModule() },
             },
-        }),
-    });
-    demo.entry = .disabled;
-    demo.rdynamic = true;
-    demo.import_memory = true;
-    demo.stack_size = demo_stack;
-    demo.initial_memory = video_shared_bytes;
-    demo.max_memory = video_shared_bytes;
-    demo.global_base = demo_global_base;
-    installTo(b, demo, sealed_step);
+        });
+        const exe = b.addExecutable(.{
+            .name = name,
+            .root_module = b.createModule(.{
+                .root_source_file = b.path("apps/zig/demo_main.zig"),
+                .target = wasm_target,
+                .optimize = optimize,
+                .imports = &.{
+                    .{ .name = "zigos", .module = zigos_mod },
+                    .{ .name = "rom", .module = rom_mod },
+                    .{ .name = "boot_rom", .module = boot_rom_mod },
+                    .{ .name = "cart", .module = cart_mod },
+                },
+            }),
+        });
+        exe.entry = .disabled;
+        exe.rdynamic = true;
+        exe.import_memory = true;
+        exe.stack_size = demo_stack;
+        exe.initial_memory = video_shared_bytes;
+        exe.max_memory = video_shared_bytes;
+        exe.global_base = demo_global_base;
+        installTo(b, exe, sealed_step);
+    }
 
     const demo_audio = b.addExecutable(.{
         .name = "demo-audio",
