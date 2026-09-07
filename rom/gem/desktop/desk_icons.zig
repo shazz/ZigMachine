@@ -67,6 +67,7 @@ pub fn pressIcon(d: *Desktop, g: *gui.Gui) void {
 pub fn requestOpenAt(d: *Desktop, x: i32, y: i32) void {
     if (d.dlg.active) return;
     d.drag = null; // the double-click's presses armed a drag — a double-click is not a drag
+    d.open_src = .{ .x = @as(i16, @intCast(x)) - 16, .y = @as(i16, @intCast(y)) - 12, .w = 32, .h = 24 }; // zoom-box origin
     // Windows sit above the desktop: an item inside the top FLOPPY/folder window
     // opens first. A program launches; a folder opens in its own window.
     if (d.topFloppy()) |w| {

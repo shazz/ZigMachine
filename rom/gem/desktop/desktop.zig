@@ -102,6 +102,10 @@ pub const Desktop = struct {
     win_dir: [gui.MAX_WIN]i16 = [_]i16{WIN_NONE} ** gui.MAX_WIN, // per-window directory
     sel_folder: i16 = -1, // selected folder in the top window, -1 = none
     new_seq: u8 = 0, // auto-name counter for New Folder
+    grow_a: Rect = .{ .x = 0, .y = 0, .w = 0, .h = 0 }, // zoom-box: from
+    grow_b: Rect = .{ .x = 0, .y = 0, .w = 0, .h = 0 }, // zoom-box: to
+    grow_t: u8 = 0, // zoom-box frames remaining (0 = idle)
+    open_src: Rect = .{ .x = 0, .y = 0, .w = 0, .h = 0 }, // source rect for the next window open
 
     pub fn init(self: *Desktop, os: *ZigOS, fb: *LogicalFB, blit: *Blitter) void {
         self.g = .{ .os = os, .fb = fb, .blit = blit, .screen_w = 640, .screen_h = 200 };
@@ -425,6 +429,7 @@ pub const Desktop = struct {
             self.win_dir[id] = dir;
             self.sel_file = -1;
             self.sel_folder = -1;
+            self.startGrow(self.open_src, r); // GEM zoom-box: dotted frame grows icon -> window
             var nx = r.x + 16;
             var ny = r.y + 12;
             if (nx + r.w > self.g.screen_w or ny + r.h > 200) {
@@ -437,11 +442,37 @@ pub const Desktop = struct {
         }
     }
 
+    const GROW_STEPS: u8 = 6;
+    fn startGrow(self: *Desktop, from: Rect, to: Rect) void {
+        self.grow_a = from;
+        self.grow_b = to;
+        self.grow_t = GROW_STEPS;
+    }
+    // GEM zoom-box: a dotted frame interpolated from grow_a to grow_b over a few frames.
+    fn drawGrow(self: *Desktop, g: *gui.Gui) void {
+        if (self.grow_t == 0) return;
+        const n: i16 = GROW_STEPS;
+        const k: i16 = n - @as(i16, @intCast(self.grow_t)) + 1; // 1..n
+        const a = self.grow_a;
+        const b = self.grow_b;
+        dottedFrame(g, .{
+            .x = a.x + @divTrunc((b.x - a.x) * k, n),
+            .y = a.y + @divTrunc((b.y - a.y) * k, n),
+            .w = a.w + @divTrunc((b.w - a.w) * k, n),
+            .h = a.h + @divTrunc((b.h - a.h) * k, n),
+        }, gui.BLACK);
+        self.grow_t -= 1;
+    }
+
     // Draw order: desktop work area, icons, then windows (back-to-front). A FLOPPY
     // window also shows the mounted disk's files as icons.
     fn drawScene(self: *Desktop, g: *gui.Gui) void {
         g.rect(.{ .x = 0, .y = 0, .w = g.screen_w, .h = 200 }, gui.DESK); // green work area
-        for (&self.items, 0..) |*it, i| it.draw(g, self.sel_icon == @as(i16, @intCast(i)));
+        for (&self.items, 0..) |*it, i| {
+            // A dragged file over the TRASH highlights it as a valid drop target.
+            const drop_hot = i == desk_icons.IC_TRASH and self.file_drag >= 0 and it.hitAt(@intCast(g.px), @intCast(g.py));
+            it.draw(g, self.sel_icon == @as(i16, @intCast(i)) or drop_hot);
+        }
         var i: usize = 0;
         while (i < self.wm.n) : (i += 1) {
             const id = self.wm.order[i];
@@ -449,14 +480,17 @@ pub const Desktop = struct {
             const content = self.wm.drawChrome(g, id, id == self.wm.topId());
             if (self.isFloppyWin(id)) self.drawDir(g, self.win_dir[id], content);
         }
-        // Drag ghost: the file being dragged toward the TRASH follows the pointer.
+        // Drag ghost: a GEM dotted OUTLINE (icon box + label box) follows the pointer.
         if (self.file_drag >= 0 and self.file_moved) {
             const bmp = if (self.diskType(@intCast(self.file_drag)) == 0) icons.PROGRAM else icons.DOCUMENT;
             const iw: i16 = @intCast(bmp.w);
             const ih: i16 = @intCast(bmp.h);
-            var ghost = Icon{ .x = @as(i16, @intCast(g.px)) - @divTrunc(iw, 2), .y = @as(i16, @intCast(g.py)) - @divTrunc(ih, 2), .bmp = bmp, .label = "", .is_app = false };
-            ghost.draw(g, false);
+            const gx = @as(i16, @intCast(g.px)) - @divTrunc(iw, 2);
+            const gy = @as(i16, @intCast(g.py)) - @divTrunc(ih, 2);
+            dottedFrame(g, .{ .x = gx, .y = gy, .w = iw, .h = ih }, gui.BLACK); // icon outline
+            dottedFrame(g, .{ .x = gx - 8, .y = gy + ih + 2, .w = iw + 16, .h = 8 }, gui.BLACK); // label box
         }
+        self.drawGrow(g); // window-open zoom-box
     }
 
     // Remove a file from the in-memory FAT (the mounted disk itself is read-only).
@@ -668,6 +702,24 @@ pub const Desktop = struct {
         desk_icons.requestOpenAt(self, x, y);
     }
 };
+
+// A single pixel, clipped to the visible area (dotted overlays can run to an edge).
+fn plot(g: *gui.Gui, x: i16, y: i16, c: u8) void {
+    if (x >= 0 and x < g.screen_w and y >= 0 and y < 200) g.fb.setPixelValue(@intCast(x), @intCast(y), c);
+}
+// A GEM dotted rectangle outline (every-other pixel) — zoom-box + drag ghost.
+fn dottedFrame(g: *gui.Gui, r: gui.Rect, c: u8) void {
+    var x: i16 = r.x;
+    while (x < r.x + r.w) : (x += 2) {
+        plot(g, x, r.y, c);
+        plot(g, x, r.y + r.h - 1, c);
+    }
+    var y: i16 = r.y;
+    while (y < r.y + r.h) : (y += 2) {
+        plot(g, r.x, y, c);
+        plot(g, r.x + r.w - 1, y, c);
+    }
+}
 
 fn fmtSize(buf: []u8, n: u32) []const u8 {
     return std.fmt.bufPrint(buf, "{d}", .{n}) catch "?";
