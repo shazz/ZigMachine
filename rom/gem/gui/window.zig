@@ -157,6 +157,14 @@ pub const Wm = struct {
         return chrome.draw(g, &self.wins[id], active);
     }
 
+    // The interior content rect WITHOUT drawing (same math as drawChrome's return),
+    // for laying out / hit-testing a window's contents.
+    pub fn contentRect(self: *Wm, id: u8) Rect {
+        const w = &self.wins[id];
+        const top = types.topBarsH(w);
+        return .{ .x = w.r.x + 1, .y = w.r.y + top, .w = w.r.w - 2 - types.SCROLL, .h = w.r.h - top - types.SCROLL };
+    }
+
     pub fn topId(self: *Wm) u8 {
         return self.order[self.n - 1];
     }

@@ -22,8 +22,8 @@ const LABEL_H: i16 = 6 + 2; // 6x6 font + 1px top/bottom
 // (GEM allows perfect overlap; it just never leaves icons half-covering).
 // 72x40 is the authentic GEM icon cell (320x200): 70px label box + margin wide,
 // tallest icon (~30) + 8px label tall.
-const CELL_W: i16 = 72;
-const CELL_H: i16 = 40;
+pub const CELL_W: i16 = 72;
+pub const CELL_H: i16 = 40;
 const FOOT: i16 = 10; // label headroom kept below the icon when clamping
 
 pub const Icon = struct {
@@ -32,16 +32,20 @@ pub const Icon = struct {
     bmp: icons.Icon, // the 1bpp icon bitmap (ink + body silhouette)
     label: []const u8,
     is_app: bool = false,
+    bounds: ?Rect = null, // clip/clamp region (a window's content); null = whole screen
 
     // The icon bitmap's bounding rect (not including the label).
     pub fn rect(self: *const Icon) Rect {
         return .{ .x = self.x, .y = self.y, .w = @intCast(self.bmp.w), .h = @intCast(self.bmp.h) };
     }
 
-    // The fixed-width label box, centred under the icon and kept on-screen.
+    // The fixed-width label box, centred under the icon and kept inside `bounds`
+    // (a window's content rect) or, by default, on-screen.
     pub fn labelBox(self: *const Icon, screen_w: i16) Rect {
         const cx = self.x + @divTrunc(@as(i16, @intCast(self.bmp.w)), 2);
-        const bx = @max(0, @min(cx - @divTrunc(LABEL_W, 2), screen_w - LABEL_W));
+        const lo: i16 = if (self.bounds) |b| b.x else 0;
+        const hi: i16 = if (self.bounds) |b| b.x + b.w - LABEL_W else screen_w - LABEL_W;
+        const bx = @max(lo, @min(cx - @divTrunc(LABEL_W, 2), hi));
         return .{ .x = bx, .y = self.y + @as(i16, @intCast(self.bmp.h)) + 2, .w = LABEL_W, .h = LABEL_H };
     }
 
@@ -91,8 +95,13 @@ pub const Icon = struct {
             while (col < ic.w) : (col += 1) {
                 const idx = row * rowbytes + col / 8;
                 const sh: u3 = @intCast(7 - (col % 8));
-                const px: u16 = @intCast(self.x + @as(i16, @intCast(col)));
-                const py: u16 = @intCast(self.y + @as(i16, @intCast(row)));
+                const sx = self.x + @as(i16, @intCast(col));
+                const sy = self.y + @as(i16, @intCast(row));
+                if (self.bounds) |b| { // clip to the window's content — never draw outside
+                    if (sx < b.x or sx >= b.x + b.w or sy < b.y or sy >= b.y + b.h) continue;
+                }
+                const px: u16 = @intCast(sx);
+                const py: u16 = @intCast(sy);
                 if ((ic.ink[idx] >> sh) & 1 != 0) {
                     g.fb.setPixelValue(px, py, ink_c);
                 } else if ((ic.body[idx] >> sh) & 1 != 0) {

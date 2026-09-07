@@ -74,7 +74,7 @@ pub fn requestOpenAt(d: *Desktop, x: i32, y: i32) void {
         if (!d.wm.wins[id].open or !d.isFloppyWin(id)) continue;
         var f: usize = 0;
         while (f < d.n_disk) : (f += 1) {
-            if (d.fileIcon(f, d.wm.wins[id].r).hitAt(x, y) and d.diskType(f) == 0) {
+            if (d.fileIcon(f, d.wm.contentRect(id)).hitAt(x, y) and d.diskType(f) == 0) {
                 d.launch_req = true;
                 return;
             }

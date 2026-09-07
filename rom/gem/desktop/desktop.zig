@@ -14,7 +14,8 @@ const ZigOS = zsrc.ZigOS;
 const LogicalFB = zsrc.LogicalFB;
 const Blitter = zsrc.Blitter;
 const Rect = gui.Rect;
-const Icon = @import("icon.zig").Icon;
+const icon_mod = @import("icon.zig");
+const Icon = icon_mod.Icon;
 const std = @import("std");
 
 pub const Action = enum { none, launch, res_low, res_medium };
@@ -151,15 +152,24 @@ pub const Desktop = struct {
     pub fn diskType(self: *const Desktop, i: usize) u8 {
         return self.disk_dir[i * FILE_ENT + 16];
     }
-    pub fn fileIcon(self: *const Desktop, i: usize, wr: Rect) Icon {
-        const col: i16 = @intCast(i % 2);
-        const rowi: i16 = @intCast(i / 2);
+    // Lay the i-th file out on the window's 72x40 icon grid (same cell as the
+    // desktop), centred in its cell, clipped/clamped to the content rect.
+    pub fn fileIcon(self: *const Desktop, i: usize, content: Rect) Icon {
+        const bmp = if (self.diskType(i) == 0) icons.PROGRAM else icons.DOCUMENT;
+        const cols: i16 = @max(1, @divTrunc(content.w, icon_mod.CELL_W));
+        const ii: i16 = @intCast(i);
+        const col = @mod(ii, cols);
+        const row = @divTrunc(ii, cols);
+        const iw: i16 = @intCast(bmp.w);
+        const ih: i16 = @intCast(bmp.h);
+        const baseline: i16 = 4 + 30; // top margin + tallest icon; icon BOTTOMS align
         return .{
-            .x = wr.x + 12 + col * 100,
-            .y = wr.y + 26 + rowi * 42, // below the window's title + info bars
-            .bmp = if (self.diskType(i) == 0) icons.PROGRAM else icons.DOCUMENT,
+            .x = content.x + col * icon_mod.CELL_W + @divTrunc(icon_mod.CELL_W - iw, 2),
+            .y = content.y + row * icon_mod.CELL_H + baseline - ih, // bottom-align -> labels align
+            .bmp = bmp,
             .label = self.diskName(i),
             .is_app = self.diskType(i) == 0,
+            .bounds = content,
         };
     }
     pub fn isFloppyWin(self: *const Desktop, id: u8) bool {
@@ -176,7 +186,7 @@ pub const Desktop = struct {
             if (!self.wm.wins[id].open or !self.isFloppyWin(id)) continue;
             var f: usize = 0;
             while (f < self.n_disk) : (f += 1) {
-                if (self.fileIcon(f, self.wm.wins[id].r).hitAt(x, y)) {
+                if (self.fileIcon(f, self.wm.contentRect(id)).hitAt(x, y)) {
                     self.sel_file = @intCast(f);
                     self.sel_icon = -1; // file + desktop selections are exclusive
                     return;
@@ -195,11 +205,11 @@ pub const Desktop = struct {
         while (i < self.wm.n) : (i += 1) {
             const id = self.wm.order[i];
             if (!self.wm.wins[id].open) continue;
-            _ = self.wm.drawChrome(g, id, id == self.wm.topId());
+            const content = self.wm.drawChrome(g, id, id == self.wm.topId());
             if (self.isFloppyWin(id)) {
                 var f: usize = 0;
                 while (f < self.n_disk) : (f += 1) {
-                    var ic = self.fileIcon(f, self.wm.wins[id].r);
+                    var ic = self.fileIcon(f, content);
                     ic.draw(g, self.sel_file == @as(i16, @intCast(f)));
                 }
             }
