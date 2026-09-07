@@ -397,8 +397,11 @@ window.document.body.onload = boot;
 // FIRST interaction anywhere (click / key / touch) — no need to find the button.
 (function () {
     let started = false;
-    const go = () => {
+    const go = (e) => {
         if (started) return;
+        // The Sound-on button has its own handler (main); skip it here so a single
+        // tap doesn't start audio on pointerdown AND toggle it back off on click.
+        if (e && e.target && e.target.closest && e.target.closest('.sound_button')) return;
         started = true;
         startAudio();
         const b = document.querySelector('.sound_button'); if (b) b.textContent = "Sound off";
@@ -539,6 +542,9 @@ window.document.body.addEventListener('keydown', function (evt) {
 let audioCtx = null;
 let audioNode = null;
 let audioReady = null;
+let streamRate = null;     // active stream scene's sample rate (set by the scene), or null
+let streamStarted = false; // have we issued streamStart to the CURRENT audioNode yet?
+let recentChunks = [];     // rolling copies of recent fed blocks, to pre-fill the ring on (re)start
 
 function startAudio() {
     if (audioReady) return audioReady;
@@ -579,6 +585,7 @@ function startAudio() {
         });
         audioNode.connect(audioCtx.destination);
         await audioCtx.resume();
+        flushPendingStream(); // a scene may have requested streaming before audio was enabled
     })();
     return audioReady;
 }
@@ -588,6 +595,7 @@ async function main() {
     if (audioCtx) {
         try { await audioCtx.close(); } catch (e) {}
         audioCtx = null; audioNode = null; audioReady = null;
+        streamStarted = false; // the ring player died with the context; re-arm for next start
         if (button) button.textContent = "Sound on";
         return;
     }
@@ -648,13 +656,33 @@ function beepStop() {
 // Streaming raw audio: a scene starts a ring player then feeds it chunks it pulls
 // off the disk (see STREAM scene). The host only relays — the ring lives in the
 // worklet (audio-worklet-sealed.js), fed at the play rate so it never fills.
-async function hostAudioStreamStart(rate) {
-    await startAudio();
-    if (audioNode) audioNode.port.postMessage({ type: "streamStart", rate });
+// Remember the scene's stream request. We must NOT create the AudioContext here:
+// that only succeeds inside a user gesture (Sound-on / first interaction), otherwise
+// the browser opens it suspended and silent. startAudio() flushes this once audio is live.
+function hostAudioStreamStart(rate) {
+    streamRate = rate;
+    streamStarted = false;
+    flushPendingStream(); // no-op until audio is enabled, then startAudio() calls it
+}
+// Issue streamStart to the worklet and pre-fill the ring from the most-recent audio so
+// playback starts buffered (no underrun/noise even if the scene began streaming before
+// the user turned sound on). Idempotent per audioNode via streamStarted.
+function flushPendingStream() {
+    if (streamRate === null || !audioNode || streamStarted) return;
+    streamStarted = true;
+    audioNode.port.postMessage({ type: "streamStart", rate: streamRate });
+    for (const chunk of recentChunks) {
+        const bytes = chunk.slice().buffer;
+        audioNode.port.postMessage({ type: "streamFeed", bytes }, [bytes]);
+    }
 }
 function hostAudioFeed(ptr, len) {
-    if (!audioNode || len <= 0) return;
-    const bytes = memory.buffer.slice(ptr, ptr + len); // copy out of wasm memory (transferable)
+    if (len <= 0) return;
+    const src = new Uint8Array(memory.buffer, ptr, len); // live view into wasm memory
+    recentChunks.push(src.slice()); // keep a copy for the ring pre-fill (transfer detaches)
+    if (recentChunks.length > 32) recentChunks.shift(); // ~32 blocks = 16 KiB = half the ring
+    if (!audioNode || !streamStarted) return; // audio not live / stream not started yet
+    const bytes = src.slice().buffer; // transferable copy
     audioNode.port.postMessage({ type: "streamFeed", bytes }, [bytes]);
 }
 window.playMod = playMod;
