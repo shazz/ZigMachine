@@ -91,6 +91,7 @@ pub const Desktop = struct {
     about: about_mod.About = .{}, // Desk > Desktop Info... dialog
     trash: trash_mod.DeleteDlg = .{}, // DELETE FILE(S) confirm (file dropped on TRASH)
     info: info_mod.Info = .{}, // Show Info... (DISK/FILE/FOLDER INFORMATION)
+    copy: trash_mod.DeleteDlg = .{}, // COPY FOLDERS / ITEMS confirm (file dropped on a folder)
     file_drag: i16 = -1, // file being dragged out of a window, -1 = none
     file_moved: bool = false, // the file drag has moved past the initial press
     trash_target: i16 = -1, // file awaiting the DELETE FILE(S) confirm
@@ -103,6 +104,11 @@ pub const Desktop = struct {
     n_folders: u8 = 0,
     win_dir: [gui.MAX_WIN]i16 = [_]i16{WIN_NONE} ** gui.MAX_WIN, // per-window directory
     sel_folder: i16 = -1, // selected folder in the top window, -1 = none
+    sel_files: u16 = 0, // rubber-band multi-select: bit per file
+    sel_folders: u16 = 0, // rubber-band multi-select: bit per folder
+    band: bool = false, // rubber-band marquee in progress
+    band_x: i16 = 0,
+    band_y: i16 = 0,
     new_seq: u8 = 0, // auto-name counter for New Folder
     grow_a: Rect = .{ .x = 0, .y = 0, .w = 0, .h = 0 }, // zoom-box: from
     grow_b: Rect = .{ .x = 0, .y = 0, .w = 0, .h = 0 }, // zoom-box: to
@@ -118,6 +124,11 @@ pub const Desktop = struct {
         self.about = .{};
         self.trash = .{};
         self.info = .{};
+        self.copy = .{};
+        self.band = false;
+        self.sel_files = 0;
+        self.sel_folders = 0;
+        self.sel_folder = -1;
         self.n_folders = 0;
         self.new_seq = 0;
         self.win_dir = [_]i16{WIN_NONE} ** gui.MAX_WIN;
@@ -161,7 +172,7 @@ pub const Desktop = struct {
     pub fn render(self: *Desktop) Action {
         const g = &self.g;
         var action: Action = .none;
-        const modal = self.dlg.active or self.prefs.active or self.about.active or self.trash.active or self.info.active; // a dialog owns all input
+        const modal = self.dlg.active or self.prefs.active or self.about.active or self.trash.active or self.info.active or self.copy.active; // a dialog owns all input
         const menu_open = self.menubar.open >= 0;
         // Windows sit above icons and take input first; a press the windows (or
         // an open drop-down menu) consumed never reaches the icons.
@@ -184,21 +195,20 @@ pub const Desktop = struct {
         // A press over a window selects the file icon under it (GEM selects on
         // press); a double-click then opens it (requestOpenAt -> launch).
         if (!modal and self.drag == null and g.edge and self.overWindow()) {
-            self.selectAt(@intCast(g.px), @intCast(g.py));
-            self.file_drag = self.sel_file; // arm a possible drag onto the desktop (TRASH; files only)
-            self.file_moved = false;
+            self.pressInWindow(@intCast(g.px), @intCast(g.py));
         }
-        // File drag: once it has moved, a release over the TRASH asks to delete it.
+        // Rubber-band: while dragging, the marquee grows (drawn in drawScene); on
+        // release, every item it touches becomes selected.
+        if (self.band and !g.down) {
+            self.bandSelect();
+            self.band = false;
+        }
+        // File drag: release over the TRASH deletes; release over a folder copies.
         if (!modal and self.file_drag >= 0) {
             if (g.down) {
                 if (!g.edge) self.file_moved = true;
             } else {
-                // Released over the TRASH after a press on a window file = a drag to
-                // delete (the press was over the window, so reaching the trash is a drag).
-                if (self.items[desk_icons.IC_TRASH].hitAt(@intCast(g.px), @intCast(g.py))) {
-                    self.trash_target = self.file_drag;
-                    self.trash.open(0, 1); // 0 folders, 1 file
-                }
+                self.dropFileDrag(@intCast(g.px), @intCast(g.py));
                 self.file_drag = -1;
                 self.file_moved = false;
             }
@@ -381,19 +391,82 @@ pub const Desktop = struct {
 
     // Single-click a file/folder in a window -> select it (inverse video); clicking
     // empty space clears the selection.
-    fn selectAt(self: *Desktop, x: i16, y: i16) void {
-        self.sel_file = -1;
-        self.sel_folder = -1;
+    // A press in a window: single-select the item under it (arming a file drag), or
+    // start a rubber-band on empty content.
+    fn pressInWindow(self: *Desktop, x: i16, y: i16) void {
         if (self.topFloppy()) |w| switch (self.dirHitAt(w.dir, w.content, x, y)) {
             .file => |a| {
+                self.clearSel();
                 self.sel_file = a;
-                self.sel_icon = -1;
+                self.file_drag = a; // arm a drag (TRASH = delete, folder = copy)
+                self.file_moved = false;
             },
             .folder => |f| {
+                self.clearSel();
                 self.sel_folder = f;
-                self.sel_icon = -1;
             },
-            .none => {},
+            .none => {
+                self.clearSel();
+                if (gui.inRect(w.content, x, y)) { // empty content -> rubber-band
+                    self.band = true;
+                    self.band_x = x;
+                    self.band_y = y;
+                }
+            },
+        };
+    }
+    fn clearSel(self: *Desktop) void {
+        self.sel_file = -1;
+        self.sel_folder = -1;
+        self.sel_icon = -1;
+        self.sel_files = 0;
+        self.sel_folders = 0;
+    }
+    fn fileSelected(self: *const Desktop, a: u8) bool {
+        return self.sel_file == @as(i16, @intCast(a)) or (self.sel_files >> @intCast(a)) & 1 != 0;
+    }
+    fn folderSelected(self: *const Desktop, f: u8) bool {
+        return self.sel_folder == @as(i16, @intCast(f)) or (self.sel_folders >> @intCast(f)) & 1 != 0;
+    }
+    fn bandRect(self: *const Desktop) Rect {
+        const px: i16 = @intCast(self.g.px);
+        const py: i16 = @intCast(self.g.py);
+        const x0 = @min(self.band_x, px);
+        const y0 = @min(self.band_y, py);
+        return .{ .x = x0, .y = y0, .w = @max(self.band_x, px) - x0, .h = @max(self.band_y, py) - y0 };
+    }
+    // On marquee release: select every item its rect overlaps.
+    fn bandSelect(self: *Desktop) void {
+        const br = self.bandRect();
+        const w = self.topFloppy() orelse return;
+        const nf = self.dirFileCount(w.dir);
+        if (w.dir == WIN_ROOT) {
+            const ord = self.fileOrder();
+            var p: usize = 0;
+            while (p < self.n_disk) : (p += 1) {
+                const a = ord[p];
+                const ir = if (self.view == .icons) self.fileIconSlot(p, a, w.content).rect() else fileRowRect(p, w.content);
+                if (overlap(br, ir)) self.sel_files |= @as(u16, 1) << @intCast(a);
+            }
+        }
+        var rank: usize = 0;
+        const fc = self.dirFolderCount(w.dir);
+        while (rank < fc) : (rank += 1) {
+            const fidx = self.dirNthFolder(w.dir, rank);
+            const ir = if (self.view == .icons) self.folderIconSlot(nf + rank, fidx, w.content).rect() else fileRowRect(nf + rank, w.content);
+            if (overlap(br, ir)) self.sel_folders |= @as(u16, 1) << @intCast(fidx);
+        }
+    }
+    // Resolve a file drag's drop: TRASH = delete, a folder = copy (COPY dialog).
+    fn dropFileDrag(self: *Desktop, x: i16, y: i16) void {
+        if (self.items[desk_icons.IC_TRASH].hitAt(x, y)) {
+            self.trash_target = self.file_drag;
+            self.trash.open(0, 1);
+            return;
+        }
+        if (self.topFloppy()) |w| switch (self.dirHitAt(w.dir, w.content, x, y)) {
+            .folder => self.copy.openCopy(0, 1), // COPY FOLDERS / ITEMS (cosmetic: disk read-only)
+            else => {},
         };
     }
 
@@ -498,6 +571,7 @@ pub const Desktop = struct {
             dottedFrame(g, .{ .x = gx - 8, .y = gy + ih + 2, .w = iw + 16, .h = 8 }, gui.BLACK); // label box
         }
         self.drawGrow(g); // window-open zoom-box
+        if (self.band) dottedFrame(g, self.bandRect(), gui.BLACK); // rubber-band marquee
     }
 
     // Remove a file from the in-memory FAT (the mounted disk itself is read-only).
@@ -522,7 +596,7 @@ pub const Desktop = struct {
                 const a = ord[p];
                 if (self.view == .icons) {
                     var ic = self.fileIconSlot(p, a, content);
-                    ic.draw(g, self.sel_file == @as(i16, @intCast(a)));
+                    ic.draw(g, self.fileSelected(a));
                 } else self.drawFileRow(g, p, a, content);
             }
         }
@@ -530,7 +604,7 @@ pub const Desktop = struct {
         var rank: usize = 0;
         while (rank < fc) : (rank += 1) {
             const fidx = self.dirNthFolder(dir, rank);
-            const sel = self.sel_folder == @as(i16, @intCast(fidx));
+            const sel = self.folderSelected(fidx);
             if (self.view == .icons) {
                 var ic = self.folderIconSlot(nf + rank, fidx, content);
                 ic.draw(g, sel);
@@ -554,7 +628,7 @@ pub const Desktop = struct {
     fn drawFileRow(self: *Desktop, g: *gui.Gui, slot: usize, fidx: u8, content: Rect) void {
         const r = gui.Rect{ .x = content.x, .y = content.y + @as(i16, @intCast(slot)) * TROW_H, .w = content.w, .h = TROW_H };
         if (r.y + TROW_H > content.y + content.h) return; // clip below the window
-        const sel = self.sel_file == @as(i16, @intCast(fidx));
+        const sel = self.fileSelected(fidx);
         if (sel) g.rect(r, gui.BLACK);
         const ink: u8 = if (sel) gui.WHITE else gui.BLACK;
         const paper: u8 = if (sel) gui.BLACK else gui.WHITE;
@@ -639,6 +713,7 @@ pub const Desktop = struct {
             .ok => self.applyRename(),
             else => {},
         }
+        _ = self.copy.process(g); // COPY FOLDERS / ITEMS (cosmetic; disk is read-only)
         // Set Preferences dialog (live-previews the background colour).
         if (self.prefs.active) switch (self.prefs.process(g)) {
             .ok => {
@@ -754,7 +829,10 @@ pub const Desktop = struct {
 fn plot(g: *gui.Gui, x: i16, y: i16, c: u8) void {
     if (x >= 0 and x < g.screen_w and y >= 0 and y < 200) g.fb.setPixelValue(@intCast(x), @intCast(y), c);
 }
-// A GEM dotted rectangle outline (every-other pixel) — zoom-box + drag ghost.
+fn overlap(a: gui.Rect, b: gui.Rect) bool {
+    return a.x < b.x + b.w and a.x + a.w > b.x and a.y < b.y + b.h and a.y + a.h > b.y;
+}
+// A GEM dotted rectangle outline (every-other pixel) — zoom-box + drag ghost + marquee.
 fn dottedFrame(g: *gui.Gui, r: gui.Rect, c: u8) void {
     var x: i16 = r.x;
     while (x < r.x + r.w) : (x += 2) {

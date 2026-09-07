@@ -9,13 +9,18 @@ pub const DeleteDlg = struct {
     active: bool = false,
     folders: u16 = 0,
     files: u16 = 0,
+    mode: Mode = .delete,
 
-    const W: i16 = 240; // 30 cells
+    const W: i16 = 248; // 31 cells
     const H: i16 = 112; // 14 cells
+    pub const Mode = enum { delete, copy };
     pub const Result = enum { none, ok, cancel };
 
     pub fn open(self: *DeleteDlg, folders: u16, files: u16) void {
-        self.* = .{ .active = true, .folders = folders, .files = files };
+        self.* = .{ .active = true, .folders = folders, .files = files, .mode = .delete };
+    }
+    pub fn openCopy(self: *DeleteDlg, folders: u16, files: u16) void {
+        self.* = .{ .active = true, .folders = folders, .files = files, .mode = .copy };
     }
 
     pub fn process(self: *DeleteDlg, g: *gui.Gui) Result {
@@ -27,12 +32,21 @@ pub const DeleteDlg = struct {
         g.rect(.{ .x = dx, .y = dy, .w = W, .h = H }, gui.WHITE);
         g.frame(.{ .x = dx, .y = dy, .w = W, .h = H }, gui.BLACK);
         g.frame(.{ .x = dx + 3, .y = dy + 3, .w = W - 6, .h = H - 6 }, gui.BLACK);
-        title(g, "DELETE FILE(S)", dx, grid.y(1) + 2, W);
+        const heading = if (self.mode == .copy) "COPY FOLDERS / ITEMS" else "DELETE FILE(S)";
+        title(g, heading, dx, grid.y(1) + 2, W);
 
         var b1: [32]u8 = undefined;
         var b2: [32]u8 = undefined;
-        g.text(std.fmt.bufPrint(&b1, "Number of Folders: {d}", .{self.folders}) catch "", grid.x(3), grid.y(4), gui.BLACK, gui.WHITE);
-        g.text(std.fmt.bufPrint(&b2, "Number of Files: {d}", .{self.files}) catch "", grid.x(3), grid.y(6), gui.BLACK, gui.WHITE);
+        const s1 = if (self.mode == .copy)
+            std.fmt.bufPrint(&b1, "Folders to Copy: {d}", .{self.folders}) catch ""
+        else
+            std.fmt.bufPrint(&b1, "Number of Folders: {d}", .{self.folders}) catch "";
+        const s2 = if (self.mode == .copy)
+            std.fmt.bufPrint(&b2, "Items to Copy: {d}", .{self.files}) catch ""
+        else
+            std.fmt.bufPrint(&b2, "Number of Files: {d}", .{self.files}) catch "";
+        g.text(s1, grid.x(3), grid.y(4), gui.BLACK, gui.WHITE);
+        g.text(s2, grid.x(3), grid.y(6), gui.BLACK, gui.WHITE);
 
         const bw: i16 = 64;
         const cw = W - grid.w(6);
