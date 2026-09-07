@@ -10,3 +10,6 @@ docs/.claude/
 
 # Codef remakes local mirror (tools/crawl_codef.sh) — bulk third-party reference, not committed
 assets/oldies/
+
+# Local reference material & scratch prototypes (oldies cracktro JS, bug repros)
+prototypes/

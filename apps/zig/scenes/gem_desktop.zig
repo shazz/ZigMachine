@@ -12,7 +12,7 @@ const zg = @import("zigos");
 const ZigOS = zg.ZigOS;
 const LogicalFB = zg.LogicalFB;
 const Blitter = zg.Blitter;
-const gem = zg.gem;
+const gem = @import("rom").gem;
 const st_replay = @import("st_replay.zig");
 
 pub const Demo = struct {

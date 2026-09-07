@@ -15,7 +15,7 @@ const zg = @import("zigos");
 const ZigOS = zg.ZigOS;
 const LogicalFB = zg.LogicalFB;
 const Blitter = zg.Blitter;
-const gui = zg.gui;
+const gui = @import("rom").gui;
 const Rect = gui.Rect;
 
 const WAVE_LEN: usize = 1280; // display resolution of the sample (host downsamples smp1.raw into it)

@@ -4,7 +4,7 @@
 // prefs.zig; this file owns the Desktop state and the per-frame render loop.
 // Split out of the former monolithic gem.zig with no behaviour change.
 // --------------------------------------------------------------------------
-const zsrc = @import("../zigos.zig");
+const zsrc = @import("zigos");
 const gui = @import("../gui.zig");
 const icons = @import("../gem_icons.zig");
 const prefs = @import("prefs.zig");

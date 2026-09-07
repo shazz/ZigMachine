@@ -2,14 +2,14 @@ const std = @import("std");
 
 const page_size = 65536; // in bytes
 
-// Video shared main-thread memory (see hw/sdk/memmap.zig): machine-video.wasm +
+// Video shared main-thread memory (see machine/sdk/memmap.zig): machine-video.wasm +
 // demo.wasm import the SAME WebAssembly.Memory; demo linked above the machine.
 const video_shared_bytes = 79 * page_size; // ~5.2 MiB (2 MiB demo window + 1 MiB VRAM + PFB; see memmap SHARED_PAGES)
 const demo_global_base: u64 = 0x100000; // 1 MiB
 const machine_stack = 1 * page_size;
 const demo_stack = 6 * page_size;
 
-// Audio shared worklet-thread memory (see hw/sdk/audio.zig).
+// Audio shared worklet-thread memory (see machine/sdk/audio.zig).
 const audio_bytes = 48 * page_size;
 const audio_demo_base: u64 = 0x100000;
 
@@ -30,29 +30,40 @@ pub fn build(b: *std.Build) void {
     // ----------------------------------------------------------------------
     // Shared modules — the SEAL is enforced here: the open `apps`/`zigos` code
     // reaches the machine ONLY through the `hardware`/`audio_hw` SDK headers
-    // (hw/sdk/*), never hw/ machine source.
+    // (machine/sdk/*), never machine/ source.
     // ----------------------------------------------------------------------
     const sdk_video = b.createModule(.{
-        .root_source_file = b.path("hw/sdk/hardware.zig"),
+        .root_source_file = b.path("machine/sdk/hardware.zig"),
         .target = wasm_target,
         .optimize = optimize,
     });
     const sdk_audio = b.createModule(.{
-        .root_source_file = b.path("hw/sdk/audio.zig"),
+        .root_source_file = b.path("machine/sdk/audio.zig"),
         .target = wasm_target,
         .optimize = optimize,
     });
     const zigos_mod = b.createModule(.{
-        .root_source_file = b.path("zigos/zigos.zig"),
+        .root_source_file = b.path("libs/zig/zigos.zig"),
         .target = wasm_target,
         .optimize = optimize,
         .imports = &.{.{ .name = "hardware", .module = sdk_video }},
     });
     const players_mod = b.createModule(.{
-        .root_source_file = b.path("zigos/players/players.zig"),
+        .root_source_file = b.path("libs/zig/players/players.zig"),
         .target = wasm_target,
         .optimize = optimize,
         .imports = &.{.{ .name = "audio_hw", .module = sdk_audio }},
+    });
+    // rom/ — reference system software (GEM). Statically linked into the demo for
+    // now; cut into its own rom.wasm later. Uses ZigOS helpers + the HW ABI.
+    const rom_mod = b.createModule(.{
+        .root_source_file = b.path("rom/rom.zig"),
+        .target = wasm_target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "zigos", .module = zigos_mod },
+            .{ .name = "hardware", .module = sdk_video },
+        },
     });
 
     const sealed_step = b.step("sealed", "Compiles the sealed machine + open demo wasm");
@@ -66,12 +77,12 @@ pub fn build(b: *std.Build) void {
     }.add;
 
     // ----------------------------------------------------------------------
-    // hw/ — SEALED machine binaries (single module root each; no SDK imports)
+    // machine/ — SEALED machine binaries (single module root each; no SDK imports)
     // ----------------------------------------------------------------------
     const machine_video = b.addExecutable(.{
         .name = "machine-video",
         .root_module = b.createModule(.{
-            .root_source_file = b.path("hw/machine_video.zig"),
+            .root_source_file = b.path("machine/machine_video.zig"),
             .target = wasm_target,
             .optimize = optimize,
         }),
@@ -87,7 +98,7 @@ pub fn build(b: *std.Build) void {
     const machine_audio = b.addExecutable(.{
         .name = "machine-audio",
         .root_module = b.createModule(.{
-            .root_source_file = b.path("hw/machine_audio.zig"),
+            .root_source_file = b.path("machine/machine_audio.zig"),
             .target = wasm_target,
             .optimize = optimize,
         }),
@@ -101,15 +112,18 @@ pub fn build(b: *std.Build) void {
     installTo(b, machine_audio, sealed_step);
 
     // ----------------------------------------------------------------------
-    // apps/ — OPEN coder binaries (import zigos / players / audio_hw modules)
+    // apps/zig/ — OPEN coder binaries (import zigos / rom / players / audio_hw)
     // ----------------------------------------------------------------------
     const demo = b.addExecutable(.{
         .name = "demo",
         .root_module = b.createModule(.{
-            .root_source_file = b.path("apps/demo_main.zig"),
+            .root_source_file = b.path("apps/zig/demo_main.zig"),
             .target = wasm_target,
             .optimize = optimize,
-            .imports = &.{.{ .name = "zigos", .module = zigos_mod }},
+            .imports = &.{
+                .{ .name = "zigos", .module = zigos_mod },
+                .{ .name = "rom", .module = rom_mod },
+            },
         }),
     });
     demo.entry = .disabled;
@@ -124,7 +138,7 @@ pub fn build(b: *std.Build) void {
     const demo_audio = b.addExecutable(.{
         .name = "demo-audio",
         .root_module = b.createModule(.{
-            .root_source_file = b.path("apps/demo_audio_main.zig"),
+            .root_source_file = b.path("apps/zig/demo_audio_main.zig"),
             .target = wasm_target,
             .optimize = optimize,
             .imports = &.{

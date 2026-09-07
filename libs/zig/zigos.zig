@@ -32,8 +32,8 @@ pub const Blitter = @import("blitter.zig").Blitter;
 pub const BlitVec2 = @import("blitter.zig").Vec2;
 pub const Minterm = @import("blitter.zig").Minterm;
 pub const obj = @import("utils/obj_loader.zig");
-pub const gui = @import("gui.zig");
-pub const gem = @import("gem.zig");
+// GEM desktop + GUI toolkit moved to the ROM (rom/gem/); apps reach them via
+// @import("rom"), keeping the machine < libs < ROM < apps layering clean.
 pub const za = @import("utils/zalgebra.zig"); // vector/matrix math (Vec2/3/4, Mat4, perspective/camera/screen)
 
 // Migrated-scenes re-exports (added for apps/scenes/* pre-reorg-import migration).

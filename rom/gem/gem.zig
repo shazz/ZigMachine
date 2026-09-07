@@ -14,6 +14,6 @@
 pub const gui = @import("gui.zig"); // the ROM's GUI libraries (apps link this)
 pub const icons = @import("gem_icons.zig"); // 1bpp icons ripped from a GEM icon sheet
 
-const desktop = @import("gem/desktop.zig");
+const desktop = @import("desktop/desktop.zig");
 pub const Action = desktop.Action;
 pub const Desktop = desktop.Desktop;

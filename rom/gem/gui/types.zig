@@ -4,7 +4,7 @@
 // Split out of the former monolithic gui.zig so every widget/window/menu file
 // shares one Rect, one palette and one set of GEM metrics. No behaviour change.
 // --------------------------------------------------------------------------
-const zsrc = @import("../zigos.zig");
+const zsrc = @import("zigos");
 const LogicalFB = zsrc.LogicalFB;
 const glyphs = @import("../gem_glyphs.zig"); // GEM window-control bitmaps
 

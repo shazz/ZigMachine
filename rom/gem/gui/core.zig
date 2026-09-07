@@ -3,7 +3,7 @@
 // Immediate-mode drawing over the blitter (fast fills) + ZigOS text. Pointer
 // state comes from the host via demo.pointer() (see sealed-loader.js).
 // --------------------------------------------------------------------------
-const zsrc = @import("../zigos.zig");
+const zsrc = @import("zigos");
 const ZigOS = zsrc.ZigOS;
 const LogicalFB = zsrc.LogicalFB;
 const Blitter = zsrc.Blitter;
