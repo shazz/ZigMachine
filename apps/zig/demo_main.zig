@@ -83,8 +83,11 @@ export fn isPlaneEnabled(id: u8) bool {
 
 // Optional per-scene shading/mode switch (keys 1-4 in sealed-loader.js). Only
 // scenes that declare setShadeMode react; others ignore it (compile-time guard).
-export fn setShadeMode(mode: u32) void {
-    if (booted and @hasDecl(Cart, "setShadeMode")) cart.setShadeMode(mode);
+// Returns whether the running scene consumed the mode switch. The host falls
+// back to its audio shortcuts (keys 1/2/3 = MOD/YM/sample) when it didn't.
+export fn setShadeMode(mode: u32) bool {
+    if (booted and @hasDecl(Cart, "setShadeMode")) return cart.setShadeMode(mode);
+    return false;
 }
 
 // Pointer state from the host (mouse over the canvas), in 320x200 visible coords.
