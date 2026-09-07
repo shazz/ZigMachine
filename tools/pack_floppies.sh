@@ -16,6 +16,8 @@ for w in docs/demo.wasm docs/demo-*.wasm; do
     # inserting it brings up GEM, which opens ST Replay and reads its SAMPLE.RAW.
     extra=""
     [ "$base" = "demo-st_replay" ] && extra="--no-boot --file SAMPLE.RAW=docs/music/smp1.raw"
+    # STREAM block-streams a sample off its own disk — bundle MICROMIX.RAW as a FAT file.
+    [ "$base" = "demo-stream" ] && extra="--file MICROMIX.RAW=docs/music/micromix30.raw"
     python3 tools/mkdisk.py "$w" -o "docs/$base.zmd" \
         --title "$title" --author "ZigMachine" --date 20260906 $extra >/dev/null
     n=$((n + 1))

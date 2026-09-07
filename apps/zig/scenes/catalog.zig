@@ -39,4 +39,5 @@ pub const ENTRIES = [_]Entry{
     .{ .name = "SHAPES", .tag = "shapes" },
     .{ .name = "STCS", .tag = "stcs" },
     .{ .name = "TEX", .tag = "tex" },
+    .{ .name = "STREAM", .tag = "stream" },
 };

@@ -144,6 +144,7 @@ pub fn build(b: *std.Build) void {
         "demo-res_switch",   "demo-shapes",
         "demo-stcs",         "demo-tex",
         "demo-badflicker", // 26 — overscan trick done wrong (raw pokes, off-column)
+        "demo-stream", // 27 — block-streams a sample off the disk
     };
     for (cart_names, 0..) |name, idx| {
         if (name.len == 0) continue; // excluded cart (see note above)

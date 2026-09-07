@@ -16,6 +16,7 @@ class ZigAudioSealedProcessor extends AudioWorkletProcessor {
         super();
         this.ready = false;
         this.tick = 0;
+        this.ringWrite = 0; // streamFeed write cursor into the 32 KiB ring at SONG_BASE
 
         const { machineBytes, demoBytes } = options.processorOptions;
         (async () => {
@@ -85,6 +86,19 @@ class ZigAudioSealedProcessor extends AudioWorkletProcessor {
                 const len = writeSong(msg.bytes);
                 d.audioPlayRaw(len, msg.rate, msg.unsigned ? 1 : 0);
                 this.port.postMessage({ type: "rawLoaded", len: len });
+            } else if (msg.type === "streamStart") {
+                d.audioStreamStart(msg.rate);
+                this.ringWrite = 0;
+            } else if (msg.type === "streamFeed") {
+                // Append signed-8-bit bytes into the ring at SONG_BASE, wrapping at
+                // RING (must match STREAM_RING in demo_audio_main.zig).
+                const RING = 32768;
+                const ring = new Uint8Array(mem.buffer, d.audioSongPtr(), RING);
+                const src = new Uint8Array(msg.bytes);
+                for (let i = 0; i < src.length; i++) {
+                    ring[this.ringWrite] = src[i];
+                    this.ringWrite = (this.ringWrite + 1) % RING;
+                }
             } else if (msg.type === "modStop") {
                 d.audioModStop();
             } else if (msg.type === "ymStop") {

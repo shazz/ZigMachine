@@ -128,6 +128,19 @@ function diskFile(name) {
     return mountedDisk.buf.subarray(start, start + len);
 }
 
+// Disk DRIVE: copy one 512-byte block from the mounted disk into shared memory at
+// dstOff (a raw wasm address = byte offset). The machine never holds the disk — it
+// asks the drive for a block at a time (docs/FLOPPY_DISK.md "Drive ABI"). Returns
+// bytes copied (0 = past end / no disk).
+function diskReadBlock(block, dstOff) {
+    if (!mountedDisk) return 0;
+    const start = block * 512;
+    const src = mountedDisk.buf.subarray(start, start + 512);
+    if (src.length === 0) return 0;
+    new Uint8Array(memory.buffer, dstOff, src.length).set(src);
+    return src.length;
+}
+
 // Feed a scene's sample-display buffer: prefer the mounted disk's SAMPLE.RAW,
 // else fall back to the bundled samples. Only scenes with sampleBuf() react.
 function loadSceneSample() {
@@ -222,6 +235,9 @@ async function boot() {
             audioStop: stopRaw,
             loadSample: (id) => selectSample(id), // File > Load: switch the current sample
             beep: () => beep(), // boot-sector YM2149 tone (see novirus.zig)
+            diskReadBlock: (block, dst) => diskReadBlock(block, dst), // drive: 512 B block -> RAM
+            hostAudioStreamStart: (rate) => hostAudioStreamStart(rate), // begin ring streaming
+            hostAudioFeed: (ptr, len) => hostAudioFeed(ptr, len), // append samples to the ring
         },
     };
     // What to boot: ?disk=X.zmd boots a cart from a ZigMachine disk image (see
@@ -376,6 +392,19 @@ function start() {
 }
 
 window.document.body.onload = boot;
+
+// Sound on by default: browsers block audio until a user gesture, so resume on the
+// FIRST interaction anywhere (click / key / touch) — no need to find the button.
+(function () {
+    let started = false;
+    const go = () => {
+        if (started) return;
+        started = true;
+        startAudio();
+        const b = document.querySelector('.sound_button'); if (b) b.textContent = "Sound off";
+    };
+    for (const ev of ["pointerdown", "keydown", "touchstart"]) window.addEventListener(ev, go);
+})();
 
 window.document.body.addEventListener('keydown', function (evt) {
     if (!demo) return;
@@ -614,6 +643,19 @@ async function beep() {
 }
 function beepStop() {
     if (audioNode) audioNode.port.postMessage({ type: "beepStop" });
+}
+
+// Streaming raw audio: a scene starts a ring player then feeds it chunks it pulls
+// off the disk (see STREAM scene). The host only relays — the ring lives in the
+// worklet (audio-worklet-sealed.js), fed at the play rate so it never fills.
+async function hostAudioStreamStart(rate) {
+    await startAudio();
+    if (audioNode) audioNode.port.postMessage({ type: "streamStart", rate });
+}
+function hostAudioFeed(ptr, len) {
+    if (!audioNode || len <= 0) return;
+    const bytes = memory.buffer.slice(ptr, ptr + len); // copy out of wasm memory (transferable)
+    audioNode.port.postMessage({ type: "streamFeed", bytes }, [bytes]);
 }
 window.playMod = playMod;
 window.playYm = playYm;

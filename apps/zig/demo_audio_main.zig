@@ -109,3 +109,25 @@ export fn audioPlayRaw(len: u32, rate: f32, is_unsigned: bool) void {
     audio.machinePaulaSetVolume(0, 0.9);
     current_mode = 3;
 }
+
+// --- streaming raw sample (Amiga-style refill-ahead ring) ---
+// A Paula channel loops forever over a fixed ring at the start of song RAM; the
+// host keeps writing fresh signed-8-bit samples ahead of the read cursor, paced
+// to the play rate, so samples far larger than SONG_CAP can play.
+pub const STREAM_RING: usize = 32768; // ring size, at SONG_BASE
+
+export fn audioStreamStart(rate: f32) void {
+    mod.stop();
+    ym.stop();
+    audio.machinePaulaClearScopes();
+    // Zero the ring so an under-fed start is silence, not garbage.
+    const buf: [*]u8 = @ptrFromInt(audio.SONG_BASE);
+    var i: usize = 0;
+    while (i < STREAM_RING) : (i += 1) buf[i] = 0;
+    var ch: u32 = 1;
+    while (ch < audio.NUM_CHANNELS) : (ch += 1) audio.machinePaulaSetActive(ch, 0);
+    audio.machinePaulaTrigger(0, audio.songAddr(0), STREAM_RING, 0, STREAM_RING, 0.0); // loop the whole ring
+    audio.machinePaulaSetStep(0, @intFromFloat(rate / audio.SAMPLE_RATE * audio.FRAC_ONE));
+    audio.machinePaulaSetVolume(0, 0.9);
+    current_mode = 3;
+}

@@ -139,6 +139,29 @@ pub fn songNameLen() usize {
     return g_song_len;
 }
 
+// --- Disk drive (block reads) + streaming audio (docs/FLOPPY_DISK.md) ----------
+// The mounted disk lives in the host; these bridges let a scene STREAM a file off
+// it block-by-block into RAM (never holding it whole) and feed it to the audio
+// ring. Addresses passed to the host are raw wasm addresses = byte offsets into
+// the shared memory buffer.
+extern fn diskReadBlock(block: u32, dst_off: u32) i32; // copy one 512 B block -> dst; returns bytes read (0 = none)
+extern fn hostAudioStreamStart(rate: f32) void; // begin streaming raw playback (ring in song RAM)
+extern fn hostAudioFeed(ptr: u32, len: u32) void; // append signed-8-bit samples to the ring
+
+pub const DISK_BLOCK: usize = 512;
+
+// Read one 512-byte disk block into dst (>= 512 bytes). Returns bytes read.
+pub fn readBlock(block: u32, dst: []u8) i32 {
+    return diskReadBlock(block, @intCast(@intFromPtr(dst.ptr)));
+}
+// Start streaming raw audio at `rate` Hz (signed 8-bit mono), then feed() chunks.
+pub fn audioStreamStart(rate: f32) void {
+    hostAudioStreamStart(rate);
+}
+pub fn audioFeed(bytes: []const u8) void {
+    hostAudioFeed(@intCast(@intFromPtr(bytes.ptr)), @intCast(bytes.len));
+}
+
 // --------------------------------------------------------------------------
 // Structs
 // --------------------------------------------------------------------------
