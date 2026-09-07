@@ -18,12 +18,41 @@ const WHITE = types.WHITE;
 
 const TITLE_X0: i16 = 8; // first title starts one char cell in
 const PAD: i16 = 8; // one char cell each side of a title (its highlight box)
-pub const Menu = struct { title: []const u8, items: []const []const u8 };
+const LMARGIN: i16 = 16; // drop-down: 2-char left margin (the tick lives here)
+const RMARGIN: i16 = 8; // drop-down: 1-char right margin after the longest label
+const MGRAY = types.MGRAY; // disabled item / separator ink
+
+// A menu item: a label plus GEM state — `tick` shows a left checkmark (the
+// selected option in a group), `disabled` greys it and blocks selection.
+pub const MenuItem = struct { label: []const u8, tick: bool = false, disabled: bool = false };
+pub const Menu = struct { title: []const u8, items: []const MenuItem };
 pub const MenuPick = struct { menu: u8, item: u8 };
 
-// An item beginning with '-' is a GEM separator ("--------"): drawn, never picked.
-pub fn isSeparator(item: []const u8) bool {
-    return item.len > 0 and item[0] == '-';
+// An item whose label begins with '-' is a GEM separator ("--------"): drawn,
+// never picked.
+pub fn isSeparator(it: MenuItem) bool {
+    return it.label.len > 0 and it.label[0] == '-';
+}
+
+// A small 8x8 GEM checkmark, blitted in the left gutter of a ticked item.
+const CHECK = [8]u8{
+    0b00000000,
+    0b00000010,
+    0b00000100,
+    0b10001000,
+    0b01010000,
+    0b00100000,
+    0b00000000,
+    0b00000000,
+};
+fn drawCheck(g: *Gui, x: i16, y: i16, ink: u8) void {
+    for (CHECK, 0..) |bits, row| {
+        var col: u4 = 0;
+        while (col < 8) : (col += 1) {
+            if ((bits >> @intCast(7 - col)) & 1 != 0)
+                g.fb.setPixelValue(@intCast(x + col), @intCast(y + @as(i16, @intCast(row))), ink);
+        }
+    }
 }
 
 pub const MenuBar = struct {
@@ -61,8 +90,8 @@ pub const MenuBar = struct {
 
     fn dropWidth(m: Menu) i16 {
         var w: i16 = 0;
-        for (m.items) |it| w = @max(w, @as(i16, @intCast(it.len)));
-        return w * 8 + 2 * PAD;
+        for (m.items) |it| w = @max(w, @as(i16, @intCast(it.label.len)));
+        return w * 8 + LMARGIN + RMARGIN;
     }
     fn dropRect(m: Menu, dx: i16) Rect {
         return .{ .x = dx, .y = MENU_H, .w = dropWidth(m), .h = @as(i16, @intCast(m.items.len)) * ITEM_H + 2 };
@@ -75,9 +104,14 @@ pub const MenuBar = struct {
         var pick: ?MenuPick = null;
         for (m.items, 0..) |it, j| {
             const row = Rect{ .x = d.x + 1, .y = d.y + 1 + @as(i16, @intCast(j)) * ITEM_H, .w = d.w - 2, .h = ITEM_H };
-            const hover = g.hit(row) and !isSeparator(it);
+            const sep = isSeparator(it);
+            const selectable = !sep and !it.disabled;
+            const hover = g.hit(row) and selectable;
             if (hover) g.rect(row, BLACK);
-            g.text(it, row.x + PAD - 1, row.y, if (hover) WHITE else BLACK, if (hover) BLACK else WHITE);
+            const ink: u8 = if (it.disabled or sep) MGRAY else if (hover) WHITE else BLACK;
+            const paper: u8 = if (hover) BLACK else WHITE;
+            if (it.tick) drawCheck(g, row.x + 4, row.y, ink);
+            g.text(it.label, row.x + LMARGIN, row.y, ink, paper);
             if (g.edge and hover) pick = .{ .menu = @intCast(mi), .item = @intCast(j) };
         }
         return pick;

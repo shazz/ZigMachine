@@ -90,8 +90,8 @@ pub const Wm = struct {
         const id = self.resize.?;
         if (!g.down) self.resize = null else {
             const w = &self.wins[id];
-            w.r.w = @max(MIN_W, @as(i16, @intCast(@as(i32, g.px) + self.grab_dx - w.r.x)));
-            w.r.h = @max(MIN_H, @as(i16, @intCast(@as(i32, g.py) + self.grab_dy - w.r.y)));
+            w.r.w = @max(w.min_w, @as(i16, @intCast(@as(i32, g.px) + self.grab_dx - w.r.x)));
+            w.r.h = @max(w.min_h, @as(i16, @intCast(@as(i32, g.py) + self.grab_dy - w.r.y)));
         }
         return true;
     }

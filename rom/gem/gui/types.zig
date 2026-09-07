@@ -56,6 +56,8 @@ pub const Window = struct {
     open: bool = true,
     full: bool = false, // toggled by the full box
     saved: Rect = .{ .x = 0, .y = 0, .w = 0, .h = 0 }, // rect to restore from full
+    min_w: i16 = MIN_W, // resize floor (a content window raises it to fit one cell)
+    min_h: i16 = MIN_H,
 };
 
 pub fn topBarsH(w: *const Window) i16 {

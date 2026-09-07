@@ -6,6 +6,7 @@
 // --------------------------------------------------------------------------
 const gui = @import("../gui.zig");
 const dt = @import("desktop.zig");
+const icon = @import("icon.zig");
 const Desktop = dt.Desktop;
 const Action = dt.Action;
 
@@ -67,18 +68,11 @@ pub fn requestOpenAt(d: *Desktop, x: i32, y: i32) void {
     if (d.dlg.active) return;
     d.drag = null; // the double-click's presses armed a drag — a double-click is not a drag
     // Windows sit above the desktop: a file inside an open FLOPPY window opens
-    // first. Double-clicking a program (type 0) launches it.
-    var wi: usize = 0;
-    while (wi < d.wm.n) : (wi += 1) {
-        const id = d.wm.order[wi];
-        if (!d.wm.wins[id].open or !d.isFloppyWin(id)) continue;
-        var f: usize = 0;
-        while (f < d.n_disk) : (f += 1) {
-            if (d.fileIcon(f, d.wm.contentRect(id)).hitAt(x, y) and d.diskType(f) == 0) {
-                d.launch_req = true;
-                return;
-            }
-        }
+    // first (icon or text view, current sort). Double-clicking a program launches it.
+    const a = d.fileAt(@intCast(x), @intCast(y));
+    if (a >= 0) {
+        if (d.diskType(@intCast(a)) == 0) d.launch_req = true;
+        return; // the file (program or document) consumed the double-click
     }
     for (&d.items, 0..) |*it, i| {
         if (!it.hitAt(x, y)) continue;
@@ -107,7 +101,10 @@ pub fn openFloppy(d: *Desktop) void {
     const r = d.next_win;
     // The window body lists the disk's files as icons (see desktop.drawScene).
     const info: []const u8 = if (d.n_disk == 0) "0 bytes used in 0 items." else "";
-    if (d.wm.tryAdd(.{ .r = r, .title = "A:\\", .info = info }) == null) {
+    // Never resize smaller than one icon cell (plus chrome + scrollbar).
+    const min_w = icon.CELL_W + 2 + gui.SCROLL;
+    const min_h = gui.TITLE_H + gui.INFO_H + icon.CELL_H + gui.SCROLL;
+    if (d.wm.tryAdd(.{ .r = r, .title = "A:\\", .info = info, .min_w = min_w, .min_h = min_h }) == null) {
         d.dlg.alert("The Desktop has no more windows.", "Please close a window first.");
         return;
     }

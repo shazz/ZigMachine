@@ -24,10 +24,10 @@ const SW: i16 = 640; // medium-res screen width
 const SH: i16 = 200;
 
 const MENUS = [_]gui.Menu{
-    .{ .title = "Desk", .items = &.{"About ST Replay"} },
-    .{ .title = "File", .items = &.{ "Load...", "Save...", "Quit" } },
-    .{ .title = "Sound", .items = &.{ "Play", "Stop", "Loop" } },
-    .{ .title = "Options", .items = &.{ "8 bit", "12.5 kHz" } },
+    .{ .title = "Desk", .items = &.{.{ .label = "About ST Replay" }} },
+    .{ .title = "File", .items = &.{ .{ .label = "Load..." }, .{ .label = "Save..." }, .{ .label = "Quit" } } },
+    .{ .title = "Sound", .items = &.{ .{ .label = "Play" }, .{ .label = "Stop" }, .{ .label = "Loop" } } },
+    .{ .title = "Options", .items = &.{ .{ .label = "8 bit" }, .{ .label = "12.5 kHz" } } },
 };
 
 // Host audio bridge (wired in sealed-loader.js): play/stop/select the sample.

@@ -35,6 +35,7 @@ pub const installPalette = types.installPalette;
 
 // --- geometry + metrics ---
 pub const Rect = types.Rect;
+pub const inRect = types.inRect;
 pub const MENU_H = types.MENU_H;
 pub const ITEM_H = types.ITEM_H;
 pub const TITLE_H = types.TITLE_H;
@@ -49,6 +50,7 @@ pub const Wm = window.Wm;
 pub const DlgResult = dialog.DlgResult;
 pub const Dialog = dialog.Dialog;
 pub const Menu = menu.Menu;
+pub const MenuItem = menu.MenuItem;
 pub const MenuPick = menu.MenuPick;
 pub const MenuBar = menu.MenuBar;
 pub const isSeparator = menu.isSeparator;
