@@ -1,15 +1,21 @@
 // --------------------------------------------------------------------------
 // Desk > Desktop Info... — a modal "about" box modelled on the classic Atari TOS
-// "GEM Desktop" dialog: a centred double-framed box with an emblem, a heading,
-// credit/version lines and an OK button. Laid out on the 8px cell grid.
+// "GEM Desktop" dialog: a centred double-framed box with the machine's boot logo,
+// a heading, version/credit lines and an OK button. Laid out on the 8px cell grid.
 // --------------------------------------------------------------------------
 const gui = @import("../gui.zig");
+
+// The same logo the boot ROM shows (machine/assets/logo), drawn here at half size.
+const LOGO = @embedFile("../assets/logo/zig_logo.raw"); // 65x60, 8-bit indexed
+const LOGO_PAL = @embedFile("../assets/logo/zig_logo.pal"); // 256 x [r,g,b,a]
+const LOGO_W: usize = 65;
+const LOGO_H: usize = 60;
 
 pub const About = struct {
     active: bool = false,
 
-    const W: i16 = 256; // 32 cells
-    const H: i16 = 136; // 17 cells
+    const W: i16 = 224; // 28 cells
+    const H: i16 = 112; // 14 cells
 
     pub fn open(self: *About) void {
         self.active = true;
@@ -27,19 +33,16 @@ pub const About = struct {
         g.frame(.{ .x = dx, .y = dy, .w = W, .h = H }, gui.BLACK); // GEM double frame
         g.frame(.{ .x = dx + 3, .y = dy + 3, .w = W - 6, .h = H - 6 }, gui.BLACK);
 
-        // Emblem (left) + heading/credits (right), TOS-style.
-        drawZ(g, grid.x(3), grid.y(2), 40, gui.BLACK);
-        g.text("GEM Desktop", grid.x(11), grid.y(2), gui.BLACK, gui.WHITE);
-        g.text("Version 1.0", grid.x(11), grid.y(4), gui.BLACK, gui.WHITE);
-        g.text("(c) 2026 shazz", grid.x(11), grid.y(6), gui.BLACK, gui.WHITE);
+        drawLogo(g, grid.x(3), grid.y(2)); // boot logo (left), ~32x30
+        g.text("GEM Desktop", grid.x(9), grid.y(2), gui.BLACK, gui.WHITE);
+        g.text("Version 1.0", grid.x(9), grid.y(4), gui.BLACK, gui.WHITE);
+        g.text("(c) 2026 shazz", grid.x(9), grid.y(6), gui.BLACK, gui.WHITE);
 
-        g.frame(.{ .x = grid.x(3), .y = grid.y(9), .w = grid.w(26), .h = 1 }, gui.BLACK); // rule
-        title(g, "A GEM-style ROM for ZigMachine", dx, grid.y(10), W);
-        title(g, "Running on ZigOS", dx, grid.y(11), W);
+        g.frame(.{ .x = grid.x(3), .y = grid.y(8), .w = grid.w(22), .h = 1 }, gui.BLACK); // rule
+        title(g, "A GEM ROM for ZigMachine", dx, grid.y(9), W);
 
         const bw: i16 = 64;
-        const okx = gui.gcenter(dx, W, bw);
-        if (g.buttonThick(.{ .x = okx, .y = grid.y(13), .w = bw, .h = 14 }, "OK", false, 3)) {
+        if (g.buttonThick(.{ .x = gui.gcenter(dx, W, bw), .y = grid.y(11), .w = bw, .h = 14 }, "OK", false, 3)) {
             self.active = false;
             return .ok;
         }
@@ -47,15 +50,18 @@ pub const About = struct {
     }
 };
 
-// A blocky ZigMachine "Z" emblem: top + bottom bars joined by a diagonal band.
-fn drawZ(g: *gui.Gui, x: i16, y: i16, s: i16, color: u8) void {
-    const t: i16 = @max(4, @divTrunc(s, 5)); // bar / band thickness
-    g.rect(.{ .x = x, .y = y, .w = s, .h = t }, color); // top bar
-    g.rect(.{ .x = x, .y = y + s - t, .w = s, .h = t }, color); // bottom bar
-    var row: i16 = t;
-    while (row < s - t) : (row += 1) {
-        const dxp = x + (s - t) - @divTrunc((row - t) * (s - t), s - 2 * t); // right->left
-        g.blit.fill(g.fb, dxp, y + row, @intCast(t), 1, color);
+// Blit the indexed boot logo at half size: dark palette entries become ink, light
+// ones stay transparent so the white dialog shows through (a black "Z1" mark).
+fn drawLogo(g: *gui.Gui, x: i16, y: i16) void {
+    var sy: usize = 0;
+    while (sy < LOGO_H) : (sy += 2) {
+        var sx: usize = 0;
+        while (sx < LOGO_W) : (sx += 2) {
+            const idx: usize = LOGO[sy * LOGO_W + sx];
+            const sum: u16 = @as(u16, LOGO_PAL[idx * 4]) + LOGO_PAL[idx * 4 + 1] + LOGO_PAL[idx * 4 + 2];
+            if (sum < 300) // dark -> ink
+                g.fb.setPixelValue(@intCast(x + @as(i16, @intCast(sx / 2))), @intCast(y + @as(i16, @intCast(sy / 2))), gui.BLACK);
+        }
     }
 }
 

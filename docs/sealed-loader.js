@@ -115,7 +115,8 @@ function mountDiskV2(url, buf) {
         files[name] = { start: dv.getUint32(e + 0x10, true), len: dv.getUint32(e + 0x14, true), type: buf[e + 0x18] };
     }
     const cartStart = cartBlock * 512;
-    mountedDisk = { buf, files, v2: true, chainCart: { start: cartStart, len: cartLen } };
+    const date = dv.getUint32(0x4f0, true); // descriptor $4F0 YYYYMMDD (disk build date)
+    mountedDisk = { buf, files, date, v2: true, chainCart: { start: cartStart, len: cartLen } };
     console.log(`Mounted v2 "${title}" — ${bootable ? "executable boot sector" : "data disk"}, ${nFiles} FAT file(s)`);
     // Run the 1 KB boot sector first; it chainloads the cart (swapCart req 2).
     return { bootable, v2: true, cart: bootable ? buf.buffer.slice(0, 1024) : null };
@@ -357,12 +358,16 @@ function start() {
         // booted): per file a 16-byte name + 1 type byte (0=program, 1=data).
         if (!diskDirSet && diskApp && mountedDisk && demo.diskDirPtr &&
             demo.getSampleBufLen && demo.getSampleBufLen() > 0) {
+            const ENT = 25; // 16 name + 1 type + 4 size + 4 date (must match desktop.zig FILE_ENT)
             const names = Object.keys(mountedDisk.files).slice(0, 12);
-            const dir = new Uint8Array(memory.buffer, demo.diskDirPtr(), names.length * 17);
+            const dir = new Uint8Array(memory.buffer, demo.diskDirPtr(), names.length * ENT);
             dir.fill(0);
+            const ddv = new DataView(dir.buffer, dir.byteOffset, dir.byteLength);
             names.forEach((name, i) => {
-                dir.set(text_encoder.encode(name).subarray(0, 16), i * 17);
-                dir[i * 17 + 16] = mountedDisk.files[name].type & 0xff;
+                dir.set(text_encoder.encode(name).subarray(0, 16), i * ENT);
+                dir[i * ENT + 16] = mountedDisk.files[name].type & 0xff;
+                ddv.setUint32(i * ENT + 17, (mountedDisk.files[name].len || 0) >>> 0, true); // size
+                ddv.setUint32(i * ENT + 21, (mountedDisk.date || 0) >>> 0, true); // date YYYYMMDD
             });
             demo.setDiskFileCount(names.length);
             diskDirSet = true;

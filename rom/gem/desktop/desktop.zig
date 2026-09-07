@@ -30,7 +30,9 @@ pub const SortKey = enum { name, date, size, type };
 // NUL-padded name + 1 type byte (0 = program/cart, 1 = data). Shown as icons in
 // the FLOPPY window; double-clicking a program launches it.
 const MAX_FILES: usize = 12;
-const FILE_ENT: usize = 17;
+// Host-packed directory entry: 16-byte name · 1 type · 4 size (u32 LE) · 4 date
+// (u32 LE, YYYYMMDD). Must match the packer in docs/sealed-loader.js.
+const FILE_ENT: usize = 25;
 const FLOPPY_TITLE = "A:\\";
 
 // Menus are built per-frame (buildMenus) so ticks/disabled track live state.
@@ -189,31 +191,47 @@ pub const Desktop = struct {
     pub fn diskType(self: *const Desktop, i: usize) u8 {
         return self.disk_dir[i * FILE_ENT + 16];
     }
+    pub fn diskSize(self: *const Desktop, i: usize) u32 {
+        return std.mem.readInt(u32, self.disk_dir[i * FILE_ENT + 17 ..][0..4], .little);
+    }
+    pub fn diskDate(self: *const Desktop, i: usize) u32 { // YYYYMMDD
+        return std.mem.readInt(u32, self.disk_dir[i * FILE_ENT + 21 ..][0..4], .little);
+    }
     // The display order of the disk's files for the current sort (a permutation of
-    // 0..n_disk). Name/Type sort on real data; Date/Size keep FAT order (the FAT the
-    // host packs carries no date or size yet — the menu still ticks the choice).
+    // 0..n_disk). All four keys sort on real host-packed data.
     pub fn fileOrder(self: *const Desktop) [MAX_FILES]u8 {
         var ord: [MAX_FILES]u8 = undefined;
         var i: u8 = 0;
         while (i < self.n_disk) : (i += 1) ord[i] = i;
-        if (self.sort == .name or self.sort == .type) {
-            var a: usize = 1; // insertion sort (n_disk <= 12)
-            while (a < self.n_disk) : (a += 1) {
-                const v = ord[a];
-                var b: usize = a;
-                while (b > 0 and self.sortLess(v, ord[b - 1])) : (b -= 1) ord[b] = ord[b - 1];
-                ord[b] = v;
-            }
+        var a: usize = 1; // insertion sort (n_disk <= 12)
+        while (a < self.n_disk) : (a += 1) {
+            const v = ord[a];
+            var b: usize = a;
+            while (b > 0 and self.sortLess(v, ord[b - 1])) : (b -= 1) ord[b] = ord[b - 1];
+            ord[b] = v;
         }
         return ord;
     }
     fn sortLess(self: *const Desktop, x: u8, y: u8) bool {
-        if (self.sort == .type) {
-            const tx = self.diskType(x);
-            const ty = self.diskType(y);
-            if (tx != ty) return tx < ty; // programs (0) before documents (1)
+        switch (self.sort) {
+            .type => {
+                const tx = self.diskType(x);
+                const ty = self.diskType(y);
+                if (tx != ty) return tx < ty; // programs (0) before documents (1)
+            },
+            .size => {
+                const sx = self.diskSize(x);
+                const sy = self.diskSize(y);
+                if (sx != sy) return sx > sy; // largest first
+            },
+            .date => {
+                const dx = self.diskDate(x);
+                const dy = self.diskDate(y);
+                if (dx != dy) return dx > dy; // newest first
+            },
+            .name => {},
         }
-        return std.mem.lessThan(u8, self.diskName(x), self.diskName(y)); // name (also type tie-break)
+        return std.mem.lessThan(u8, self.diskName(x), self.diskName(y)); // name (and tie-break)
     }
 
     // Lay a file out on the window's 72x40 icon grid by DISPLAY SLOT (so sorting
@@ -332,8 +350,9 @@ pub const Desktop = struct {
         }
     }
 
-    // One text-view row: NAME | EXT | SIZE | DATE (ref TOS text view). The host FAT
-    // carries only name+type today, so size/date show placeholders for now.
+    // One text-view row: NAME | SIZE | DATE (ref TOS text view). Size/Date columns
+    // are pinned to the window's right edge and the name is truncated to what's left,
+    // so a row never draws past the window (columns drop out on a narrow window).
     fn drawFileRow(self: *Desktop, g: *gui.Gui, slot: usize, fidx: u8, content: Rect) void {
         const r = gui.Rect{ .x = content.x, .y = content.y + @as(i16, @intCast(slot)) * TROW_H, .w = content.w, .h = TROW_H };
         if (r.y + TROW_H > content.y + content.h) return; // clip below the window
@@ -341,18 +360,23 @@ pub const Desktop = struct {
         if (sel) g.rect(r, gui.BLACK);
         const ink: u8 = if (sel) gui.WHITE else gui.BLACK;
         const paper: u8 = if (sel) gui.BLACK else gui.WHITE;
-        const name = self.diskName(fidx);
-        var base = name;
-        var ext: []const u8 = "";
-        if (std.mem.lastIndexOfScalar(u8, name, '.')) |dot| {
-            base = name[0..dot];
-            ext = name[dot + 1 ..];
-        }
         const y = r.y + 1;
-        g.text(base, r.x + 4, y, ink, paper); // name
-        g.text(ext, r.x + 4 + 9 * 8, y, ink, paper); // ext
-        g.text("----", r.x + 4 + 13 * 8, y, ink, paper); // size (host FAT has none yet)
-        g.text("--/--/--", r.x + 4 + 18 * 8, y, ink, paper); // date (host FAT has none yet)
+
+        const date_x = content.x + content.w - 8 * 8 - 2; // "YY-MM-DD" pinned right
+        const size_x = date_x - 9 * 8; // up to 8-char size to its left
+        const wide = size_x > content.x + 6 * 8; // room for a name plus both columns
+        const name = self.diskName(fidx);
+        const name_cells: usize = if (wide)
+            @intCast(@max(0, @divTrunc(size_x - (content.x + 4), 8) - 1)) // -1 cell: gap before size
+        else
+            @intCast(@max(0, @divTrunc(content.w, 8) - 1));
+        g.text(name[0..@min(name.len, name_cells)], content.x + 4, y, ink, paper);
+        if (wide) {
+            var sb: [12]u8 = undefined;
+            var db: [12]u8 = undefined;
+            g.text(fmtSize(&sb, self.diskSize(fidx)), size_x, y, ink, paper);
+            g.text(fmtDate(&db, self.diskDate(fidx)), date_x, y, ink, paper);
+        }
     }
 
     // Menu bar + modal alert + Set Preferences, drawn last (over everything).
@@ -480,3 +504,11 @@ pub const Desktop = struct {
         desk_icons.requestOpenAt(self, x, y);
     }
 };
+
+fn fmtSize(buf: []u8, n: u32) []const u8 {
+    return std.fmt.bufPrint(buf, "{d}", .{n}) catch "?";
+}
+fn fmtDate(buf: []u8, d: u32) []const u8 { // YYYYMMDD -> "YY-MM-DD"
+    if (d == 0) return "--------";
+    return std.fmt.bufPrint(buf, "{d:0>2}-{d:0>2}-{d:0>2}", .{ (d / 10000) % 100, (d / 100) % 100, d % 100 }) catch "?";
+}

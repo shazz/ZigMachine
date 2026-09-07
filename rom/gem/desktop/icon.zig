@@ -110,6 +110,11 @@ pub const Icon = struct {
             }
         }
         const box = self.labelBox(g.screen_w);
+        // Clip the label to the window: at minimum size the icon fits but the label
+        // (below it) can fall outside the content — don't draw it past the edge.
+        if (self.bounds) |b| {
+            if (box.y < b.y or box.y + box.h > b.y + b.h) return;
+        }
         const box_bg: u8 = if (sel) gui.BLACK else gui.WHITE;
         g.rect(box, box_bg);
         const lw: i16 = @as(i16, @intCast(self.label.len)) * LABEL_FW;
