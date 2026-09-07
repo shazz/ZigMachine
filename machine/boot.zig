@@ -79,24 +79,21 @@ pub const Boot = struct {
         }
     }
 
-    // Faithful port of ZigOS printText: 8x8, 1 byte/pixel, the char*64-1 slice
-    // offset preserved so glyph shapes match exactly.
+    // Clean 8x8 glyph blit: 1 byte/pixel, one exact square cell per character.
+    // (ZigOS printText had a char*64-1 slice + a per-row over-advance that bled a
+    // 9th column, leaving the first inverse-video cell non-square — fixed here.)
     fn text(self: *Boot, s: []const u8, x: u16, y: u16, fg: u8, bg: u8) void {
         const f = self.fb();
-        const stride: u32 = @intCast(W);
-        const initial: u32 = @as(u32, y) * stride + x;
         for (s, 0..) |char, nb| {
             if (char == 0) continue;
-            const start: usize = @as(usize, char) * (GLYPH * GLYPH) - 1;
-            const end: usize = (@as(usize, char) + 1) * (GLYPH * GLYPH);
-            const cd = FONT[start..end];
-            var lp: u32 = initial + @as(u32, @intCast(nb)) * GLYPH;
-            for (cd, 0..) |pixel, idx| {
-                f[lp] = if (pixel == 1) fg else bg;
-                if (idx > 0 and idx % GLYPH == 0) {
-                    lp += stride - GLYPH + 1;
-                } else {
-                    lp += 1;
+            const glyph = @as(usize, char) * (GLYPH * GLYPH);
+            const cx: usize = @as(usize, x) + nb * GLYPH;
+            var row: usize = 0;
+            while (row < GLYPH) : (row += 1) {
+                const dst = (@as(usize, y) + row) * W + cx;
+                var col: usize = 0;
+                while (col < GLYPH) : (col += 1) {
+                    f[dst + col] = if (FONT[glyph + row * GLYPH + col] == 1) fg else bg;
                 }
             }
         }
