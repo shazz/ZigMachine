@@ -151,7 +151,7 @@ pub const Desktop = struct {
         return .{
             .x = wr.x + 12 + col * 100,
             .y = wr.y + 26 + rowi * 42, // below the window's title + info bars
-            .bmp = if (self.diskType(i) == 0) icons.CARTRIDGE else icons.PROGRAM,
+            .bmp = if (self.diskType(i) == 0) icons.CARTRIDGE else icons.DOCUMENT,
             .label = self.diskName(i),
             .is_app = self.diskType(i) == 0,
         };
