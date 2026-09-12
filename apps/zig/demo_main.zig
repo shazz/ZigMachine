@@ -125,6 +125,11 @@ export fn getSampleBufPtr() [*]u8 {
     if (booted and @hasDecl(Cart, "sampleBuf")) return cart.sampleBuf();
     return &g_no_sample;
 }
+// How many bytes the loaded sample really is; the display buffer above is only a
+// downsampled view of it, so the app cannot infer the count from its own length.
+export fn setSampleBytes(n: u32, hz: u32) void {
+    if (booted and @hasDecl(Cart, "setSampleBytes")) cart.setSampleBytes(n, hz);
+}
 export fn getSampleBufLen() u32 {
     if (booted and @hasDecl(Cart, "sampleBuf")) return @intCast(Cart.sampleLen());
     return 0;

@@ -109,9 +109,10 @@ pub const Demo = struct {
         if (self.running) self.app.key(cp) else self.desktop.key(cp);
     }
 
-    // Arrow keys: on the desktop they drive the caret in an open name field.
+    // Arrow keys: the running app moves its selection; on the desktop they drive
+    // the caret in an open name field.
     pub fn input(self: *Demo, dir: u32) void {
-        if (!self.running) self.desktop.input(dir);
+        if (self.running) self.app.input(dir) else self.desktop.input(dir);
     }
 
     // Forward the sample-display bridge to the hosted app so the host can fill it.
@@ -120,6 +121,9 @@ pub const Demo = struct {
     }
     pub fn sampleLen() usize {
         return st_replay.App.sampleLen();
+    }
+    pub fn setSampleBytes(self: *Demo, n: u32, hz: u32) void {
+        self.app.setSampleBytes(n, hz);
     }
 
     // The host reports whether an app-disk is inserted, and fills the FAT listing

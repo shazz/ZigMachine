@@ -19,12 +19,14 @@ const ZigOS = zg.ZigOS;
 const Blitter = zg.Blitter;
 const gui = @import("rom").gui;
 const ui = @import("st_replay_ui.zig");
+const draw = @import("st_replay_draw.zig");
 const Rect = gui.Rect;
 
 const WAVE_LEN: usize = 1280; // display resolution (host downsamples the .raw into it)
-const PLAY_FRAMES: f32 = 60.0; // the bundled sample is ~1s, i.e. ~60 frames at 60fps
 
-extern fn audioPlay() void;
+// The host plays the loaded sample at the rate we ask for, so f1..f6 really do
+// change the replay frequency (0 would mean "the sample's own rate").
+extern fn audioPlay(hz: u32) void;
 extern fn audioStop() void;
 extern fn loadSample(id: u32) void;
 
@@ -45,6 +47,11 @@ pub const App = struct {
     marked: bool = false,
     low: u32 = 0,
     high: u32 = 0,
+    // The REAL length of the loaded sample in bytes. The host downsamples it
+    // into `sample` for display, so the display buffer's size says nothing about
+    // the sample — every count the panel reports comes from here.
+    bytes: u32 = 0,
+    hz: u32 = 0, // its playback rate, so the view has a real TIME axis
     playhead: f32 = 0,
     wants_quit: bool = false,
 
@@ -53,6 +60,23 @@ pub const App = struct {
     }
     pub fn sampleLen() usize {
         return WAVE_LEN;
+    }
+    // The host reports what the loaded sample really is — its byte count and its
+    // playback rate (see loadSampleForDisplay in docs/sealed-loader.js). Both are
+    // needed: the panel counts bytes, and the playhead has to cross the display
+    // in the sample's own DURATION rather than in some fixed number of frames.
+    pub fn setSampleBytes(self: *App, n: u32, hz: u32) void {
+        self.bytes = n;
+        self.hz = hz;
+        self.high = n;
+        self.low = 0;
+    }
+
+    // Seconds of audio in the loaded sample (0 when nothing is loaded).
+    fn duration(self: *const App) f32 {
+        const hz = ui.RATES[self.rate]; // replaying faster makes the sample shorter
+        if (self.bytes == 0 or hz == 0) return 0;
+        return @as(f32, @floatFromInt(self.bytes)) / @as(f32, @floatFromInt(hz));
     }
 
     pub fn init(self: *App, os: *ZigOS) void {
@@ -68,7 +92,23 @@ pub const App = struct {
         self.wants_quit = false;
         self.playing = false;
         self.rate = 2; // 10 KHz, as the original boots
-        self.high = WAVE_LEN;
+        self.high = self.bytes;
+    }
+
+    // Everything the screen needs to draw itself, and nothing else.
+    fn view(self: *const App) draw.View {
+        return .{
+            .rate = self.rate,
+            .looping = self.looping,
+            .monitor = self.monitor,
+            .marked = self.marked,
+            .playing = self.playing,
+            .playhead = self.playhead,
+            .low = self.low,
+            .high = self.high,
+            .bytes = self.bytes,
+            .sample = &self.sample,
+        };
     }
 
     pub fn pointer(self: *App, x: i32, y: i32, buttons: u32) void {
@@ -83,15 +123,29 @@ pub const App = struct {
             'q', 'Q' => self.looping = !self.looping,
             'l', 'L' => self.dialog.openFiles("Load from disc", &FILES),
             's', 'S' => self.dialog.alert("Save to disc", "The disc is read-only."),
-            'x', 'X' => self.wants_quit = true,
+            'x', 'X' => { // eXit: never leave the sound running behind us
+                self.stop();
+                self.wants_quit = true;
+            },
             'r', 'R' => self.reverse(),
             'w', 'W' => self.wipe(),
             ui.K_UNDO => { // RESET cursors
                 self.low = 0;
-                self.high = WAVE_LEN;
+                self.high = self.bytes;
                 self.marked = false;
             },
             ui.K_ESC => self.stop(),
+            else => {},
+        }
+    }
+
+    // Arrow keys walk the selection — the highlighted replay rate — the way the
+    // function keys jump straight to one. Wraps, so holding a direction cycles.
+    pub fn input(self: *App, dir: u32) void {
+        if (self.dialog.active) return;
+        switch (dir) {
+            0 => self.rate = (self.rate + ui.RATE_ROWS - 1) % ui.RATE_ROWS, // up
+            1 => self.rate = (self.rate + 1) % ui.RATE_ROWS, // down
             else => {},
         }
     }
@@ -107,10 +161,13 @@ pub const App = struct {
         }
     }
 
+    // Nothing to replay until a sample has been loaded — Replay is a no-op on an
+    // empty machine rather than a silent "playing" state.
     fn play(self: *App) void {
+        if (self.bytes == 0) return;
         self.playing = true;
         self.playhead = 0;
-        audioPlay();
+        audioPlay(ui.RATES[self.rate]);
     }
     fn stop(self: *App) void {
         self.playing = false;
@@ -132,14 +189,17 @@ pub const App = struct {
 
     pub fn update(self: *App, os: *ZigOS, dt: f32) void {
         _ = os;
-        _ = dt;
         self.g.beginFrame();
         self.clicks();
         if (!self.playing) return;
-        self.playhead += @as(f32, WAVE_LEN) / PLAY_FRAMES;
+        // The playhead crosses the display in the sample's own running time, so
+        // the view's x axis really is the sample's time axis. `dt` is in ms.
+        const secs = self.duration();
+        if (secs <= 0) return;
+        self.playhead += @as(f32, WAVE_LEN) * (dt / 1000.0) / secs;
         if (self.playhead < WAVE_LEN) return;
         self.playhead = 0;
-        if (self.looping) audioPlay() else self.playing = false;
+        if (self.looping) audioPlay(ui.RATES[self.rate]) else self.playing = false;
     }
 
     // Every binding row is also a BUTTON: a click on it dispatches the row's own
@@ -162,10 +222,7 @@ pub const App = struct {
         _ = os;
         _ = dt;
         const g = &self.g;
-        ui.desktop(g);
-        self.drawPanel();
-        self.drawStatus();
-        self.drawWave();
+        draw.screen(g, self.view());
         switch (self.dialog.process(g)) {
             .ok => |sel| if (self.dialog.filesel) {
                 loadSample(sel); // the host swaps the sample + refreshes the display
@@ -176,72 +233,4 @@ pub const App = struct {
         g.endFrame();
     }
 
-    fn drawPanel(self: *App) void {
-        const g = &self.g;
-        ui.panel(g, ui.PANEL);
-        const cx = ui.PANEL.x + @divTrunc(ui.PANEL.w, 2);
-        ui.centred(g, "ST Replay / Editor - ZigMachine", cx, ui.TITLE_ROW);
-
-        var row: usize = 0;
-        while (row < ui.ROWS) : (row += 1) {
-            const y = ui.rowY(row);
-            ui.binding(g, ui.LEFT[row], ui.COL_EQ[0], y, row == self.rate);
-            ui.binding(g, self.rightRow(row), ui.COL_EQ[2], y, false);
-        }
-        ui.centred(g, ui.MID_HEADING, ui.COL_EQ[1] + 24, ui.rowY(0));
-        for (ui.MID, 0..) |b, i| ui.binding(g, b, ui.COL_EQ[1], ui.rowY(ui.MID_ROW0 + i), false);
-    }
-
-    // The Loop row reports its state in the label, as the original does.
-    fn rightRow(self: *const App, row: usize) ui.Binding {
-        if (row != 0) return ui.RIGHT[row];
-        return .{
-            .key = ui.RIGHT[0].key,
-            .what = if (self.looping) "Loop mode (ON)" else "Loop mode (OFF)",
-            .cp = ui.RIGHT[0].cp,
-        };
-    }
-
-    // The status strip: five fields, the 2nd and 4th in inverse video.
-    fn drawStatus(self: *App) void {
-        const g = &self.g;
-        ui.panel(g, ui.STATUS);
-        var buf: [40]u8 = undefined;
-        var x = ui.STATUS.x + 3;
-        const y = ui.STATUS.y + 2;
-        const cell = @divTrunc(ui.STATUS.w - 6, 5);
-        const fields = [5][]const u8{
-            std.fmt.bufPrint(buf[0..12], "LOW : {d:>5}", .{self.low}) catch "LOW :",
-            if (self.marked) "MARKED" else "UNMARKED",
-            std.fmt.bufPrint(buf[12..26], "SIZE: {d:>7}", .{WAVE_LEN}) catch "SIZE:",
-            if (self.monitor) "MONITOR" else "INTERNAL",
-            std.fmt.bufPrint(buf[26..40], "HIGH: {d:>7}", .{self.high}) catch "HIGH:",
-        };
-        for (fields, 0..) |f, i| {
-            const inv = i % 2 == 1;
-            if (inv) g.rect(.{ .x = x, .y = y, .w = cell, .h = 8 }, gui.BLACK);
-            g.text(f, x + 2, y, if (inv) gui.WHITE else gui.BLACK, if (inv) gui.BLACK else gui.WHITE);
-            x += cell;
-        }
-    }
-
-    fn drawWave(self: *App) void {
-        const g = &self.g;
-        ui.panel(g, ui.WAVE);
-        const c = Rect{ .x = ui.WAVE.x + 2, .y = ui.WAVE.y + 2, .w = ui.WAVE.w - 4, .h = ui.WAVE.h - 4 };
-        const half = @divTrunc(c.h, 2) - 1;
-        var x: i16 = 0;
-        while (x < c.w) : (x += 1) {
-            const si: usize = @intCast(@divTrunc(@as(i32, x) * @as(i32, WAVE_LEN), c.w));
-            const s8: i32 = @as(i8, @bitCast(self.sample[si]));
-            const amp: i16 = @intCast(@divTrunc(s8 * @as(i32, half), 128));
-            if (amp == 0) continue;
-            const y0 = @min(ui.WAVE_MID, ui.WAVE_MID - amp);
-            g.blit.fill(g.fb, c.x + x, y0, 1, @intCast(@abs(amp)), gui.BLACK);
-        }
-        g.blit.fill(g.fb, c.x, ui.WAVE_MID, @intCast(c.w), 1, ui.RED); // centre line
-        if (!self.playing) return;
-        const hx = c.x + @as(i16, @intFromFloat(self.playhead / @as(f32, WAVE_LEN) * @as(f32, @floatFromInt(c.w))));
-        g.blit.fill(g.fb, hx, c.y, 1, @intCast(c.h), ui.RED); // playhead
-    }
 };

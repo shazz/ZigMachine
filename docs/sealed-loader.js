@@ -151,6 +151,9 @@ function loadSceneSample() {
     if (raw) {
         const dst = new Uint8Array(memory.buffer, demo.getSampleBufPtr(), n);
         for (let i = 0; i < n; i++) dst[i] = raw[Math.floor(i * raw.length / n)] ?? 128;
+        // The app reports counts for the REAL sample and needs its rate to give
+        // the waveform display a true time axis — not for this view of it.
+        if (demo.setSampleBytes) demo.setSampleBytes(raw.length, SAMPLES[curSample].rate);
         console.log("ST Replay: waveform loaded from disk SAMPLE.RAW");
     } else {
         selectSample(0); // bundled fallback
@@ -232,7 +235,9 @@ async function boot() {
             consoleLogJS: consoleLogJS,
             hwVideoBase: machine.hwVideoBase,
             hwBlit: machine.hwBlit, // sealed 2D blitter (execute COMMAND register)
-            audioPlay: () => playRaw(SAMPLES[curSample].url, SAMPLES[curSample].rate, false), // PLAY -> real sound
+            // Replay at the rate the app asks for (0 = the sample's own rate), so
+            // ST Replay's f1..f6 change the pitch the way the real thing does.
+            audioPlay: (hz) => playRaw(SAMPLES[curSample].url, hz || SAMPLES[curSample].rate, false),
             audioStop: stopRaw,
             loadSample: (id) => selectSample(id), // File > Load: switch the current sample
             beep: () => beep(), // boot-sector YM2149 tone (see novirus.zig)
@@ -292,6 +297,9 @@ async function loadSampleForDisplay(url, n) {
         const raw = new Uint8Array(await (await fetch(url)).arrayBuffer());
         const dst = new Uint8Array(memory.buffer, demo.getSampleBufPtr(), n);
         for (let i = 0; i < n; i++) dst[i] = raw[Math.floor(i * raw.length / n)] ?? 128;
+        // The app reports counts for the REAL sample and needs its rate to give
+        // the waveform display a true time axis — not for this view of it.
+        if (demo.setSampleBytes) demo.setSampleBytes(raw.length, SAMPLES[curSample].rate);
     } catch (e) { console.warn("sample display load failed:", e); }
 }
 
