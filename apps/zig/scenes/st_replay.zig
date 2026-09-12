@@ -23,6 +23,10 @@ const draw = @import("st_replay_draw.zig");
 const Rect = gui.Rect;
 
 const WAVE_LEN: usize = 1280; // display resolution (host downsamples the .raw into it)
+// How long to sweep the playhead when the host has not told us the sample's real
+// length. Only a display fallback — it never gates playback.
+const FALLBACK_SECS: f32 = 1.0;
+const SILENCE: u8 = 128; // the zero level of an unsigned 8-bit sample
 
 // The host plays the loaded sample at the rate we ask for, so f1..f6 really do
 // change the replay frequency (0 would mean "the sample's own rate").
@@ -39,7 +43,7 @@ pub const App = struct {
     blit: Blitter = .{},
     g: gui.Gui = undefined,
     dialog: gui.Dialog = .{},
-    sample: [WAVE_LEN]u8 = [_]u8{128} ** WAVE_LEN, // signed 8-bit, 128 = zero
+    sample: [WAVE_LEN]u8 = [_]u8{SILENCE} ** WAVE_LEN, // unsigned 8-bit view of the sample
     rate: usize = 2, // index into ui.RATES; the real thing boots at 10 KHz
     playing: bool = false,
     looping: bool = false,
@@ -72,10 +76,22 @@ pub const App = struct {
         self.low = 0;
     }
 
-    // Seconds of audio in the loaded sample (0 when nothing is loaded).
+    // Is there anything to play? The host reports the byte count, but that is an
+    // extra ABI call that an older host (or a cached loader) may not make — so
+    // fall back to asking the display buffer itself, which the host always
+    // fills. Silence is 128; anything else means a sample arrived.
+    fn loaded(self: *const App) bool {
+        if (self.bytes > 0) return true;
+        for (self.sample) |v| {
+            if (v != SILENCE) return true;
+        }
+        return false;
+    }
+
+    // Seconds of audio in the loaded sample.
     fn duration(self: *const App) f32 {
         const hz = ui.RATES[self.rate]; // replaying faster makes the sample shorter
-        if (self.bytes == 0 or hz == 0) return 0;
+        if (self.bytes == 0 or hz == 0) return FALLBACK_SECS; // count not reported
         return @as(f32, @floatFromInt(self.bytes)) / @as(f32, @floatFromInt(hz));
     }
 
@@ -91,6 +107,10 @@ pub const App = struct {
         ui.installPalette(fb);
         self.wants_quit = false;
         self.playing = false;
+        // The cart lives in `undefined` memory until init, so the display buffer
+        // has to be silenced explicitly — otherwise the leftover bytes read as a
+        // loaded sample (SILENCE is 128, not 0).
+        @memset(&self.sample, SILENCE);
         self.rate = 2; // 10 KHz, as the original boots
         self.high = self.bytes;
     }
@@ -134,6 +154,7 @@ pub const App = struct {
                 self.high = self.bytes;
                 self.marked = false;
             },
+            ' ' => self.stop(), // space halts the replay
             ui.K_ESC => self.stop(),
             else => {},
         }
@@ -164,7 +185,7 @@ pub const App = struct {
     // Nothing to replay until a sample has been loaded — Replay is a no-op on an
     // empty machine rather than a silent "playing" state.
     fn play(self: *App) void {
-        if (self.bytes == 0) return;
+        if (!self.loaded()) return;
         self.playing = true;
         self.playhead = 0;
         audioPlay(ui.RATES[self.rate]);
@@ -174,7 +195,7 @@ pub const App = struct {
         audioStop();
     }
     fn wipe(self: *App) void {
-        @memset(&self.sample, 128);
+        @memset(&self.sample, SILENCE);
         self.marked = false;
         self.stop();
     }
