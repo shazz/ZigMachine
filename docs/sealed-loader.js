@@ -29,7 +29,6 @@ let machine = null;   // machine-video.wasm exports
 let demo = null;      // demo.wasm exports
 let demoImports = null; // env wired to machine + host — reused on cart swap
 let swapping = false; // a cartridge swap (disk boot) is in flight
-let sampleLoaded = false; // fed the running scene its sample yet (once per cart)
 let diskApp = false; // GEM was booted for an app-disk -> FLOPPY opens the app
 let diskDirSet = false; // handed GEM the FAT directory for the FLOPPY window yet
 const text_encoder = new TextEncoder();
@@ -142,23 +141,6 @@ function diskReadBlock(block, dstOff) {
     return src.length;
 }
 
-// Feed a scene's sample-display buffer: prefer the mounted disk's SAMPLE.RAW,
-// else fall back to the bundled samples. Only scenes with sampleBuf() react.
-function loadSceneSample() {
-    if (!demo.getSampleBufLen || !demo.getSampleBufPtr || demo.getSampleBufLen() === 0) return;
-    const n = demo.getSampleBufLen();
-    const raw = diskFile("SAMPLE.RAW");
-    if (raw) {
-        const dst = new Uint8Array(memory.buffer, demo.getSampleBufPtr(), n);
-        for (let i = 0; i < n; i++) dst[i] = raw[Math.floor(i * raw.length / n)] ?? 128;
-        // The app reports counts for the REAL sample and needs its rate to give
-        // the waveform display a true time axis — not for this view of it.
-        if (demo.setSampleBytes) demo.setSampleBytes(raw.length, SAMPLES[curSample].rate);
-        console.log("ST Replay: waveform loaded from disk SAMPLE.RAW");
-    } else {
-        selectSample(0); // bundled fallback
-    }
-}
 
 // Swap the running cartridge: the menu launcher asks to boot a scene's floppy
 // (req 1 + a tag), a scene asks to return to the menu (req -1). We mount the disk
@@ -179,7 +161,6 @@ async function swapCart(req) {
             machine.hwInit();
             demo.boot();
             if (demo.skipBoot) demo.skipBoot(); // straight into the cart (boot sector already showed)
-            sampleLoaded = false;
             swapping = false;
             return;
         }
@@ -201,7 +182,6 @@ async function swapCart(req) {
         if (req === 1) demo.skipBoot(); // scene or data-disk→GEM: straight in (no boot ROM)
         diskApp = !bootable;            // data disk → GEM's FLOPPY opens its app
         diskDirSet = false;            // re-hand GEM the new disk's FAT listing
-        sampleLoaded = false;           // the loop feeds the new cart its sample when ready
     } catch (e) {
         console.error("cart swap failed:", e);
     }
@@ -235,11 +215,6 @@ async function boot() {
             consoleLogJS: consoleLogJS,
             hwVideoBase: machine.hwVideoBase,
             hwBlit: machine.hwBlit, // sealed 2D blitter (execute COMMAND register)
-            // Replay at the rate the app asks for (0 = the sample's own rate), so
-            // ST Replay's f1..f6 change the pitch the way the real thing does.
-            audioPlay: (hz) => playRaw(SAMPLES[curSample].url, hz || SAMPLES[curSample].rate, false),
-            audioStop: stopRaw,
-            loadSample: (id) => selectSample(id), // File > Load: switch the current sample
             beep: () => beep(), // boot-sector YM2149 tone (see novirus.zig)
             diskReadBlock: (block, dst) => diskReadBlock(block, dst), // drive: 512 B block -> RAM
             hostAudioStreamStart: (rate) => hostAudioStreamStart(rate), // begin ring streaming
@@ -278,30 +253,6 @@ async function boot() {
     start();
 }
 
-// The selectable samples (File > Load in ST Replay) + the current one.
-const SAMPLES = [
-    { name: "SMP1.RAW", url: "music/smp1.raw", rate: 12517 },
-    { name: "SMP2.RAW", url: "music/smp2.raw", rate: 12517 },
-];
-let curSample = 0;
-
-function selectSample(id) {
-    curSample = (id >= 0 && id < SAMPLES.length) ? id : 0;
-    if (demo && demo.getSampleBufLen && demo.getSampleBufLen() > 0)
-        loadSampleForDisplay(SAMPLES[curSample].url, demo.getSampleBufLen());
-}
-
-// Fetch a raw 8-bit sample and down-sample it into the scene's display buffer.
-async function loadSampleForDisplay(url, n) {
-    try {
-        const raw = new Uint8Array(await (await fetch(url)).arrayBuffer());
-        const dst = new Uint8Array(memory.buffer, demo.getSampleBufPtr(), n);
-        for (let i = 0; i < n; i++) dst[i] = raw[Math.floor(i * raw.length / n)] ?? 128;
-        // The app reports counts for the REAL sample and needs its rate to give
-        // the waveform display a true time axis — not for this view of it.
-        if (demo.setSampleBytes) demo.setSampleBytes(raw.length, SAMPLES[curSample].rate);
-    } catch (e) { console.warn("sample display load failed:", e); }
-}
 
 // --------------------------------------------------------------------------
 // Render loop
@@ -349,13 +300,6 @@ function start() {
         if (!swapping && demo.pollCartRequest) {
             const req = demo.pollCartRequest();
             if (req !== 0) swapCart(req);
-        }
-
-        // Feed a sample-displaying scene (ST Replay) its waveform once its buffer
-        // is live (after the boot ROM, or straight away on a swap).
-        if (!sampleLoaded && demo.getSampleBufLen && demo.getSampleBufLen() > 0) {
-            loadSceneSample();
-            sampleLoaded = true;
         }
 
         // Tell GEM whether an app-disk is inserted (idempotent; takes effect once

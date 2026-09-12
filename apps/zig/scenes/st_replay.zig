@@ -15,6 +15,7 @@
 const std = @import("std");
 
 const zg = @import("zigos");
+const disk = @import("zigos").disk;
 const ZigOS = zg.ZigOS;
 const Blitter = zg.Blitter;
 const gui = @import("rom").gui;
@@ -26,15 +27,13 @@ const WAVE_LEN: usize = 1280; // display resolution (host downsamples the .raw i
 // How long to sweep the playhead when the host has not told us the sample's real
 // length. Only a display fallback — it never gates playback.
 const FALLBACK_SECS: f32 = 1.0;
-const SILENCE: u8 = 128; // the zero level of an unsigned 8-bit sample
+const SILENCE: u8 = 0; // .raw samples are SIGNED 8-bit, so silence is zero
+// The sample lives in the machine's own RAM. The drive hands over blocks; the
+// program does the loading, the downsampling and the playback itself.
+const MAX_PCM: usize = 128 * 1024;
+const FRAME_HZ: u32 = 60;
 
-// The host plays the loaded sample at the rate we ask for, so f1..f6 really do
-// change the replay frequency (0 would mean "the sample's own rate").
-extern fn audioPlay(hz: u32) void;
-extern fn audioStop() void;
-extern fn loadSample(id: u32) void;
-
-const FILES = [_][]const u8{ "SMP1.RAW", "SMP2.RAW" };
+const FILES = [_][]const u8{ "SAMPLE.RAW", "SMP1.RAW", "SMP2.RAW" };
 
 // Boot mode (read by scenes/gem_desktop.zig): false = launch from the desktop.
 pub const BOOT_DIRECT = false;
@@ -43,7 +42,9 @@ pub const App = struct {
     blit: Blitter = .{},
     g: gui.Gui = undefined,
     dialog: gui.Dialog = .{},
-    sample: [WAVE_LEN]u8 = [_]u8{SILENCE} ** WAVE_LEN, // unsigned 8-bit view of the sample
+    sample: [WAVE_LEN]u8 = [_]u8{SILENCE} ** WAVE_LEN, // the display view, built here
+    pcm: [MAX_PCM]u8 = [_]u8{SILENCE} ** MAX_PCM, // the sample itself, in machine RAM
+    pos: usize = 0, // how far the replay has fed the audio ring
     rate: usize = 2, // index into ui.RATES; the real thing boots at 10 KHz
     playing: bool = false,
     looping: bool = false,
@@ -59,21 +60,38 @@ pub const App = struct {
     playhead: f32 = 0,
     wants_quit: bool = false,
 
-    pub fn sampleBuf(self: *App) [*]u8 {
-        return &self.sample;
-    }
-    pub fn sampleLen() usize {
-        return WAVE_LEN;
-    }
-    // The host reports what the loaded sample really is — its byte count and its
-    // playback rate (see loadSampleForDisplay in docs/sealed-loader.js). Both are
-    // needed: the panel counts bytes, and the playhead has to cross the display
-    // in the sample's own DURATION rather than in some fixed number of frames.
-    pub fn setSampleBytes(self: *App, n: u32, hz: u32) void {
-        self.bytes = n;
-        self.hz = hz;
-        self.high = n;
+    // Load a file off the mounted floppy into machine RAM, through the drive, one
+    // block at a time — then build the display view from it here. Nothing about
+    // the sample passes through the page.
+    fn loadFromDisc(self: *App, name: []const u8) void {
+        const lay = disk.mount() orelse return self.dlg("Load from disc", "No disc in drive A:.");
+        const ent = disk.find(lay, name) orelse return self.dlg("Load from disc", "File not found.");
+        self.stop();
+        const n = disk.read(ent, &self.pcm);
+        @memset(self.pcm[n..], SILENCE);
+        self.bytes = @intCast(n);
         self.low = 0;
+        self.high = self.bytes;
+        self.pos = 0;
+        self.buildView();
+        if (n < ent.len) self.dlg("Load from disc", "Sample truncated to fit RAM.");
+    }
+
+    fn dlg(self: *App, title: []const u8, msg: []const u8) void {
+        self.dialog.alert(title, msg);
+    }
+
+    // Downsample the loaded PCM into the display buffer. A sample shorter than
+    // the display is shown at its true width, the rest silent, so the box always
+    // reads as a time axis over the whole buffer.
+    fn buildView(self: *App) void {
+        @memset(&self.sample, SILENCE);
+        if (self.bytes == 0) return;
+        var i: usize = 0;
+        while (i < WAVE_LEN) : (i += 1) {
+            const si = i * @as(usize, self.bytes) / WAVE_LEN;
+            self.sample[i] = self.pcm[si];
+        }
     }
 
     // Is there anything to play? The host reports the byte count, but that is an
@@ -188,11 +206,13 @@ pub const App = struct {
         if (!self.loaded()) return;
         self.playing = true;
         self.playhead = 0;
-        audioPlay(ui.RATES[self.rate]);
+        self.pos = 0;
+        zg.audioStreamStart(@floatFromInt(ui.RATES[self.rate])); // the speaker, nothing more
     }
+    // Silence is simply feeding nothing more; the ring drains on its own.
     fn stop(self: *App) void {
         self.playing = false;
-        audioStop();
+        self.pos = 0;
     }
     fn wipe(self: *App) void {
         @memset(&self.sample, SILENCE);
@@ -212,15 +232,24 @@ pub const App = struct {
         _ = os;
         self.g.beginFrame();
         self.clicks();
-        if (!self.playing) return;
-        // The playhead crosses the display in the sample's own running time, so
-        // the view's x axis really is the sample's time axis. `dt` is in ms.
-        const secs = self.duration();
-        if (secs <= 0) return;
-        self.playhead += @as(f32, WAVE_LEN) * (dt / 1000.0) / secs;
-        if (self.playhead < WAVE_LEN) return;
-        self.playhead = 0;
-        if (self.looping) audioPlay(ui.RATES[self.rate]) else self.playing = false;
+        _ = dt;
+        if (self.playing) self.feed();
+    }
+
+    // One frame of replay: hand the speaker the next slice of OUR sample. At the
+    // selected rate that is rate/60 bytes a frame — the pace is the machine's, so
+    // f1..f6 change the pitch simply by changing how much we feed.
+    fn feed(self: *App) void {
+        const chunk: usize = @as(usize, ui.RATES[self.rate]) / FRAME_HZ;
+        const end = @min(self.pos + chunk, @as(usize, self.bytes));
+        if (end > self.pos) {
+            zg.audioFeed(self.pcm[self.pos..end]);
+            self.pos = end;
+        }
+        self.playhead = @as(f32, @floatFromInt(self.pos)) /
+            @as(f32, @floatFromInt(@max(self.bytes, 1))) * @as(f32, WAVE_LEN);
+        if (self.pos < self.bytes) return;
+        if (self.looping) self.play() else self.playing = false;
     }
 
     // Every binding row is also a BUTTON: a click on it dispatches the row's own
@@ -245,10 +274,7 @@ pub const App = struct {
         const g = &self.g;
         draw.screen(g, self.view());
         switch (self.dialog.process(g)) {
-            .ok => |sel| if (self.dialog.filesel) {
-                loadSample(sel); // the host swaps the sample + refreshes the display
-                self.stop();
-            },
+            .ok => |sel| if (self.dialog.filesel and sel < FILES.len) self.loadFromDisc(FILES[sel]),
             else => {},
         }
         g.endFrame();

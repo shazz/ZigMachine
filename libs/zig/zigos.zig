@@ -150,6 +150,9 @@ extern fn hostAudioFeed(ptr: u32, len: u32) void; // append signed-8-bit samples
 
 pub const DISK_BLOCK: usize = 512;
 
+// The machine-side disk reader (FAT lookup + file streaming) built on readBlock.
+pub const disk = @import("disk.zig");
+
 // Read one 512-byte disk block into dst (>= 512 bytes). Returns bytes read.
 pub fn readBlock(block: u32, dst: []u8) i32 {
     return diskReadBlock(block, @intCast(@intFromPtr(dst.ptr)));
