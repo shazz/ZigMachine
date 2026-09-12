@@ -10,13 +10,16 @@ const LOGO = @embedFile("../assets/logo/zig_logo.raw"); // 65x60, 8-bit indexed
 const LOGO_PAL = @embedFile("../assets/logo/zig_logo.pal"); // 256 x [r,g,b,a]
 const LOGO_W: usize = 65;
 const LOGO_H: usize = 60;
+const LOGO_DRAW_H: i16 = LOGO_H / 2; // blitted at half size
 
 pub const About = struct {
     active: bool = false,
     phase: u16 = 0, // advances every frame -> the logo's colours scroll
 
-    const W: i16 = 264; // 33 cells
-    const H: i16 = 136; // 17 cells
+    const W: i16 = 296; // 37 cells
+    const H: i16 = 128; // 16 cells
+    const DENSE: i16 = 10; // consecutive text lines (8px glyph + leading)
+    const RULE_CHARS: usize = 31; // the underscore rule, 3 cells in from each side
 
     pub fn open(self: *About) void {
         self.active = true;
@@ -39,18 +42,23 @@ pub const About = struct {
         title(g, "GEM", dx, grid.y(1) + 2, W);
         title(g, "Graphics Environment Manager", dx, grid.y(2) + 2, W);
         title(g, "TOS", dx, grid.y(4), W);
-        g.frame(.{ .x = grid.x(3), .y = grid.y(6), .w = grid.w(27), .h = 1 }, gui.BLACK); // rule
+        // TOS draws the rule as a ROW OF UNDERSCORES in the system font, not as a
+        // hairline — the character's own bar, with its cell's leading above it.
+        const rule = [_]u8{'_'} ** RULE_CHARS;
+        g.text(&rule, grid.x(3), grid.y(5), gui.BLACK, gui.WHITE);
 
-        self.phase +%= 1;
-        drawLogo(g, grid.x(3), grid.y(7), self.phase); // the rainbow "Z1" mark
         const tx = grid.x(9);
-        g.text("Copyright (c) 2026", tx, grid.y(7), gui.BLACK, gui.WHITE);
-        g.text("ATARI CORP.", tx, grid.y(9), gui.BLACK, gui.WHITE);
-        g.text("Digital Research, Inc.", tx, grid.y(11), gui.BLACK, gui.WHITE);
-        g.text("All Rights Reserved.", tx, grid.y(13), gui.BLACK, gui.WHITE);
+        const cy = grid.y(7); // the copyright block runs on CONSECUTIVE lines
+        self.phase +%= 1;
+        // Centre the mark on the block of text beside it.
+        drawLogo(g, grid.x(3), cy + @divTrunc(4 * DENSE - LOGO_DRAW_H, 2), self.phase);
+        g.text("Copyright (c) 2026", tx, cy, gui.BLACK, gui.WHITE);
+        g.text("ATARI CORP.", tx, cy + DENSE, gui.BLACK, gui.WHITE);
+        g.text("Digital Research, Inc.", tx, cy + 2 * DENSE, gui.BLACK, gui.WHITE);
+        g.text("All Rights Reserved.", tx, cy + 3 * DENSE, gui.BLACK, gui.WHITE);
 
         const bw: i16 = 64;
-        if (g.buttonThick(.{ .x = gui.gcenter(dx, W, bw), .y = grid.y(15), .w = bw, .h = 14 }, "OK", false, 3)) {
+        if (g.buttonThick(.{ .x = gui.gcenter(dx, W, bw), .y = grid.y(13), .w = bw, .h = 14 }, "OK", false, 3)) {
             self.active = false;
             return .ok;
         }
