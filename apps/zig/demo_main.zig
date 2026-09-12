@@ -205,10 +205,16 @@ export fn key(cp: u32) void {
     if (cp == K_ESC and !@hasDecl(Cart, "pollCart")) want_menu = true;
 }
 
-// Cartridge swap. The menu launcher asks the host to boot a scene disk; a scene
-// cart asks to return to the menu (ESC). The host polls this each frame and, on a
-// request, swaps the demo module over the shared memory (see sealed-loader.js).
-//   1  = load the tag from getCartTag* (a scene disk)
+// Cartridge swap. The host polls this each frame and, on a request, swaps the
+// demo module over the shared memory (see sealed-loader.js).
+//   1  = load the tag from getCartTag* as a scene DISK (demo-<tag>.zmd)
+//   2  = chainload this disk's cart (format v2 boot sector, host-side)
+//   3  = RUN A PROGRAM off the mounted disk: getCartTag* is a FILENAME in its
+//        FAT. This is GEM launching an app the way TOS does — the program is a
+//        file on the floppy, not something linked into the desktop.
+//   4  = return to the OS: reload the system disk's desktop, disk still mounted.
+//        An app quitting goes here, NOT to -1: it was launched from GEM and GEM
+//        is where it belongs. -1 would drop the user at the menu instead.
 //  -1  = load the menu disk
 //   0  = no request
 export fn pollCartRequest() i32 {

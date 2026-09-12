@@ -21,10 +21,15 @@ const DBLCLICK = 2; // pointer buttons bit 1 = the loader's synthesised double-c
 export async function bootGem() {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
     const dec = new TextDecoder();
-    let demo;
+    // A HOLDER, not a plain `let`: the machine's hblDispatch import is wired once at
+    // instantiation and lives for the whole session, but the cart underneath it is
+    // replaced on every launch (step 2.3b). Closing over a variable the swap
+    // reassigns would keep routing raster interrupts into the cart that just left.
+    const live = { demo: null };
     const machineImports = {
-        env: { memory, hblDispatch: (id, p, l, x) => demo.hblDispatch(id, p, l, x) },
+        env: { memory, hblDispatch: (id, p, l, x) => live.demo.hblDispatch(id, p, l, x) },
     };
+    let demo;
     const machine = (await WebAssembly.instantiate(
         await readFile("docs/machine-video.wasm"), machineImports)).instance.exports;
 
@@ -57,8 +62,10 @@ export async function bootGem() {
             hostAudioStreamStop: noop,
         },
     };
-    const cart = await readFile("docs/demo-gem.wasm");
+    const gemBytes = await readFile("docs/demo-gem.wasm");
+    const cart = gemBytes;
     demo = (await WebAssembly.instantiate(cart, demoImports)).instance.exports;
+    live.demo = demo;
     // Same declaration the browser loader makes, so hwRamFree() reports the real
     // numbers headlessly too (this harness is how a cart overrunning the window
     // gets caught before it reaches a browser).
@@ -68,15 +75,21 @@ export async function bootGem() {
     demo.boot();
     demo.skipBoot();
     demo.insertDisk(1);
-    return new Gem(memory, machine, demo);
+    return new Gem(memory, machine, demo, demoImports, gemBytes, live, rom);
 }
 
 // A booted GEM: pointer gestures in, screenshots out.
 class Gem {
-    constructor(memory, machine, demo) {
+    constructor(memory, machine, demo, demoImports, gemBytes, live, rom) {
         this.memory = memory;
         this.machine = machine;
         this.demo = demo;
+        this.demoImports = demoImports;
+        this.gemBytes = gemBytes;
+        this.live = live;     // the holder the machine's hblDispatch reads through
+        this.rom = rom;
+        this.programs = {};   // FAT name -> cart bytes, for the launch swap
+        this.swaps = 0;       // how many times a program was actually run
         this.w = machine.hwPhysWidth();
         this.h = machine.hwPhysHeight();
         this.bx = machine.hwBorderX();
@@ -87,7 +100,46 @@ class Gem {
         for (let i = 0; i < 30; i++) this.frame(); // let the desktop settle
     }
 
-    frame() { this.demo.frame(16.6); }
+    // One frame, then SERVICE THE CART-SWAP PROTOCOL exactly as sealed-loader.js
+    // does. Without this the harness cannot launch anything: since step 2.3b a
+    // program is a file on the disk that the HOST instantiates, so a harness that
+    // only calls frame() tests a desktop that can never start an app.
+    frame() {
+        this.demo.frame(16.6);
+        if (!this.demo.pollCartRequest) return;
+        const req = this.demo.pollCartRequest();
+        if (req === 3) this.runProgram();
+        else if (req === 4) this.backToOs();
+    }
+
+    // req 3: run the named program off the "disk".
+    runProgram() {
+        const name = new TextDecoder().decode(new Uint8Array(
+            this.memory.buffer, this.demo.getCartTagPtr(), this.demo.getCartTagLen()));
+        const bytes = this.programs[name];
+        if (!bytes) throw new Error(`GEM asked to run "${name}", which this harness has no bytes for`);
+        this.swap(bytes);
+        this.swaps++;
+    }
+
+    // req 4: back to the OS, disk still mounted.
+    backToOs() {
+        this.swap(this.gemBytes);
+        this.demo.insertDisk(1);
+        this.diskCache && this.mount(this.diskCache);
+    }
+
+    swap(bytes) {
+        const mod = new WebAssembly.Module(bytes);
+        this.demo = new WebAssembly.Instance(mod, this.demoImports).exports;
+        this.live.demo = this.demo; // route the machine's HBL calls at the NEW cart
+        this.rom.romReset();        // the outgoing program cannot free its own handles
+        this.machine.hwSetCartHigh(cartRam(bytes).high ?? 0);
+        this.machine.hwInit();
+        this.demo.boot();
+        this.demo.skipBoot();
+        for (let i = 0; i < 4; i++) this.demo.frame(16.6); // let it settle
+    }
     point(x, y, buttons) { this.demo.pointer(x, y, buttons); this.frame(); }
     click(x, y) { this.point(x, y, 0); this.point(x, y, 1); this.point(x, y, 0); }
     open(x, y) { this.point(x, y, 0); this.point(x, y, DBLCLICK); this.point(x, y, 0); }
@@ -104,6 +156,7 @@ class Gem {
 
     // Hand GEM a FAT so its FLOPPY window has contents (mirrors sealed-loader.js).
     mount(files) {
+        this.diskCache = files;
         const ENT = 25; // 16 name + 1 type + 4 size + 4 date — must match FILE_ENT
         const enc = new TextEncoder();
         const dir = new Uint8Array(this.memory.buffer, this.demo.diskDirPtr(), files.length * ENT);
@@ -202,17 +255,25 @@ const SCENARIOS = {
     // but the ITEM SELECTOR stopped opening. So: launch it repeatedly, then check
     // the selector still responds to its key.
     "rom-handle-reuse": async (gem, out) => {
+        // Since step 2.3b this is a REAL launch: GEM asks the host to run a program
+        // off the disk and the harness instantiates it as the next cart, exactly as
+        // sealed-loader.js does. So this covers the swap protocol as well as the
+        // handle tables — and it is the only test that does.
+        gem.programs["ALPHA.PRG"] = await readFile("docs/demo-st_replay.wasm");
         const LAUNCHES = 4; // > MAX_FSEL in rom/sdk/rom.zig, so a leak runs out
         for (let i = 0; i < LAUNCHES; i++) {
             gem.open(...FLOPPY);                 // open the FLOPPY window
             for (let f = 0; f < 6; f++) gem.frame();
-            gem.open(...FIRST_FILE);             // launch it (ALPHA.PRG is type 0)
+            gem.open(...FIRST_FILE);             // double-click ALPHA.PRG (type 0)
             for (let f = 0; f < 6; f++) gem.frame();
             if (i < LAUNCHES - 1) {
                 gem.key(0x78);                   // 'x' — eXit programme, back to GEM
-                for (let f = 0; f < 6; f++) gem.frame();
+                for (let f = 0; f < 8; f++) gem.frame();
             }
         }
+        if (gem.swaps !== LAUNCHES)
+            throw new Error(`GEM ran ${gem.swaps} program(s), expected ${LAUNCHES} — ` +
+                            `the launch request never reached the host`);
         const before = gem.hash();
         gem.key(0x6c); // 'l' — Load from disc: opens the ITEM SELECTOR
         for (let f = 0; f < 4; f++) gem.frame();
@@ -221,7 +282,7 @@ const SCENARIOS = {
         if (before === after)
             throw new Error(`ITEM SELECTOR did not open after ${LAUNCHES} launches ` +
                             `— the ROM's handles were leaked (screen unchanged)`);
-        console.log(`  selector still opens after ${LAUNCHES} launches`);
+        console.log(`  ${LAUNCHES} real launches off the disk; selector still opens`);
     },
 };
 

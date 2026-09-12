@@ -53,6 +53,25 @@ var dialog_used: [MAX_DIALOG]bool = [_]bool{false} ** MAX_DIALOG;
 var fsels: [MAX_FSEL]gem.FileSel = undefined;
 var fsel_used: [MAX_FSEL]bool = [_]bool{false} ** MAX_FSEL;
 
+/// Reclaim everything the previous program held. The HOST calls this when it
+/// swaps a cart in, before boot().
+///
+/// A program cannot release its own handles when it is replaced: the host tears
+/// the cart down and instantiates the next one, so the app is simply gone and its
+/// close() calls never happen. The ROM would keep those slots marked used, and
+/// after MAX_GUI launches every open() would return 0 and every call on it would
+/// silently do nothing — an app that draws perfectly and whose dialogs never
+/// appear. That is precisely what step 2.3b's real launches turned up.
+///
+/// This is what a real OS does when a program terminates: the resources go back.
+/// It deliberately does NOT touch the desktop, which outlives any one program and
+/// re-inits itself when the shell restarts.
+export fn romReset() void {
+    gui_used = [_]bool{false} ** MAX_GUI;
+    dialog_used = [_]bool{false} ** MAX_DIALOG;
+    fsel_used = [_]bool{false} ** MAX_FSEL;
+}
+
 fn guiAt(h: u32) ?*gui.Gui {
     if (h == 0 or h > MAX_GUI or !gui_used[h - 1]) return null;
     return &guis[h - 1];
@@ -298,6 +317,19 @@ export fn deskDirPtr() u32 {
 }
 export fn deskDirCap() u32 {
     return @intCast(desk.disk_dir.len);
+}
+/// The program a `.launch` action refers to, copied into the caller's buffer;
+/// returns its length, 0 if the disk holds no program. A name, not an index:
+/// the HOST is the one that has to find it in the mounted disk's FAT and
+/// instantiate it, and it reads the FAT by name.
+export fn deskLaunchName(out: u32, out_cap: u32) u32 {
+    if (!desk_ready or out == 0) return 0;
+    const name = desk.launchName();
+    const n = @min(name.len, out_cap);
+    if (n == 0) return 0;
+    const dst: [*]u8 = @ptrFromInt(out);
+    @memcpy(dst[0..n], name[0..n]);
+    return @intCast(n);
 }
 export fn deskSetFileCount(n: u32) void {
     if (desk_ready) desk.n_disk = @intCast(@min(n, desk.disk_dir.len / 17));

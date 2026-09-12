@@ -147,9 +147,31 @@ de-risking step**: change the call *shape* first, the module boundary second.
   (`pollCartRequest` / `getCartTagPtr`). GEM gains the same request path.
 - This also closes the HANDOFF blocker *"the launch double-click leaks into the
   newly-launched app"*: a fresh instantiation cannot inherit a pointer state.
+- *Done in two halves.* **2.3a**: the desktop moved into `rom.wasm` as a
+  singleton (14 entry points), and `gem_desktop.zig` became a shell that forwards
+  frames and input. **2.3b**: launching became a host-side cart swap — the shell
+  asks for request 3 with a FILENAME, and the host reads that file out of the
+  mounted disk's FAT and instantiates it as the next cart. Request 4 is an app
+  quitting back to the OS, with its disk still in the drive.
+- **The launch double-click leak is dead**, as predicted: the app used to be
+  already resident, so the second click of the double-click landed in it (it kept
+  opening ST Replay's ITEM SELECTOR). A freshly instantiated cart has no pointer
+  state to inherit. Verified in-browser: launching now gives a clean panel at the
+  10 KHz default with no phantom dialog.
+- `demo-gem.wasm` dropped from 1445 KB to **418 KB** of its window — it no longer
+  contains ST Replay at all. THAT is where the RAM went; 2.3a's 8 KB was the
+  desktop's own data, which was never the cost.
+- **A thing the design forced, and it is the interesting one.** A program cannot
+  release its ROM handles when it is replaced: the host tears the cart down and
+  the app is simply gone, so its `close()` calls never happen. The ROM kept those
+  slots marked used and, after `MAX_GUI` launches, every `open()` returned 0 and
+  every call on it silently did nothing. So the ROM gained `romReset()`, which the
+  HOST calls on every cart instantiation — the machine reclaiming a program's
+  resources when it ends, which is what a real OS does. The `rom-handle-reuse`
+  scenario now does four REAL launches through the swap protocol and would catch
+  it again.
 - **Land `tools/mkdisks.sh` first.** Every `.zmd` freezes its cart's import list
-  at pack time, and this step changes it. Regenerating disks must be a command,
-  not an archaeology exercise (see HANDOFF's first blocker).
+  at pack time, and this step changes it. (It did: every disk was repacked.)
 
 ### 2.4 — spend the RAM
 - Re-measure with `node apps/check_fits.mjs docs/demo-*.wasm`, then raise

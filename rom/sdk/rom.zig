@@ -34,6 +34,9 @@ pub const Result = enum(u32) { none = 0, ok = 1, cancel = 2 };
 // --------------------------------------------------------------------------
 // Entry points — exports of rom.wasm. Signatures ARE the ABI.
 // --------------------------------------------------------------------------
+/// Host-only: reclaim every handle the previous program held (see rom_main.zig).
+pub extern fn romReset() void;
+
 pub extern fn guiOpen(os_ptr: u32, fb_ptr: u32, screen_w: i32, screen_h: i32) u32;
 pub extern fn guiClose(h: u32) void;
 pub extern fn guiResize(h: u32, screen_w: i32, screen_h: i32) void;
@@ -82,6 +85,7 @@ pub extern fn deskSetDiskApp(present: u32) void;
 pub extern fn deskDirPtr() u32;
 pub extern fn deskDirCap() u32;
 pub extern fn deskSetFileCount(n: u32) void;
+pub extern fn deskLaunchName(out: u32, out_cap: u32) u32;
 
 /// The desktop, as a shell cart drives it.
 pub const Desktop = struct {
@@ -120,6 +124,11 @@ pub const Desktop = struct {
     }
     pub fn setFileCount(n: u32) void {
         deskSetFileCount(n);
+    }
+    /// Fills `out` with the program a .launch refers to; empty if the disk has none.
+    pub fn launchName(out: []u8) []const u8 {
+        const n = deskLaunchName(@intCast(@intFromPtr(out.ptr)), @intCast(out.len));
+        return out[0..n];
     }
 };
 

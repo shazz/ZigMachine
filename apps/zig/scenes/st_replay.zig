@@ -67,9 +67,6 @@ const FRAME_HZ: u32 = 60;
 var pcm: [MAX_PCM]u8 = undefined;
 
 
-// Boot mode (read by scenes/gem_desktop.zig): false = launch from the desktop.
-pub const BOOT_DIRECT = false;
-
 pub const App = struct {
     blit: Blitter = .{},
     // Handles into the ROM, not structures of our own: the toolkit's state lives
@@ -162,10 +159,15 @@ pub const App = struct {
 
     pub fn init(self: *App, os: *ZigOS) void {
         const fb = &os.lfbs[0];
-        // The ROM owns the context (and brings its own blitter) — we hold a handle.
-        // init() runs again on EVERY launch, so release the previous handles first:
-        // leaking them exhausts the ROM's tables and every call then silently does
-        // nothing. close() is safe on a zero or stale handle.
+        // A STANDALONE cart since step 2.3b: GEM no longer contains this app, the
+        // host instantiates it off the floppy. So the plane is ours to bring up —
+        // nobody has enabled it or allocated its buffer for us.
+        fb.is_enabled = true;
+        fb.setMediumPlane(); // the 640-wide buffer the medium layout needs
+        // The ROM owns the drawing context (and brings its own blitter) — we hold
+        // a handle. close() first: a cart swap reuses the memory, so a stale
+        // handle may be sitting in these fields, and leaking the ROM's handles
+        // exhausts its tables until every call silently does nothing.
         self.g.close();
         self.dialog.close();
         self.fsel.close();
@@ -211,6 +213,14 @@ pub const App = struct {
             .free = hw.hwRamFree(),
             .sample = &self.sample,
         };
+    }
+
+    // The host's cart-swap protocol (see demo_main.zig): 4 = return to the OS.
+    // An app launched from GEM quits back to GEM, not to the menu — the disk it
+    // came from is still in the drive, and -1 would drop the user at a menu they
+    // never came from.
+    pub fn pollCart(self: *App) i32 {
+        return if (self.wants_quit) 4 else 0;
     }
 
     pub fn pointer(self: *App, x: i32, y: i32, buttons: u32) void {

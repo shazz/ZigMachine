@@ -1,15 +1,19 @@
 // --------------------------------------------------------------------------
-// The GEM shell — a cart that BOOTS the desktop, and almost nothing else.
+// The GEM shell — a cart that boots the desktop and launches programs off the
+// floppy. It is not much more than that, which is the point.
 //
-// Phase 2, step 2.3: the desktop itself now lives in rom.wasm. This file used to
-// be GEM's top level AND the container for the app it launched (it embedded
-// st_replay.App outright, so every app GEM could launch was linked into GEM's own
-// binary). Now it forwards frames and input across the ROM ABI and owns exactly
-// two pieces of state: which resolution the desktop is in, and whether an app is
-// running.
+// Phase 2, step 2.3:
+//   (a) the desktop itself moved into rom.wasm, so this links no GEM;
+//   (b) launching moved to the HOST. This file used to embed st_replay.App
+//       outright — every app GEM could launch was linked into GEM's own binary,
+//       which does not scale past one app and is why the launch double-click
+//       leaked into the app it had just started (the app was already there, so
+//       the second click of the double-click landed in it).
 //
-// It links NO GEM: `rom_sdk` is a header of extern declarations. That is the
-// whole point — the toolkit exists once, in the chip.
+// Now a program is a FILE on the mounted disk. The desktop reports which one was
+// double-clicked, this shell asks the host to run it (request 3), and the host
+// instantiates it as the next cart over the same memory. That is what TOS does,
+// and a freshly instantiated cart cannot inherit a pointer press.
 //
 // Select in apps/zig/floppy.zig.
 // --------------------------------------------------------------------------
@@ -17,45 +21,28 @@ const zg = @import("zigos");
 const ZigOS = zg.ZigOS;
 const LogicalFB = zg.LogicalFB;
 const rom = @import("rom_sdk");
-const st_replay = @import("st_replay.zig");
 
 pub const Demo = struct {
-    app: st_replay.App = .{},
-    running: bool = false,
     desk_medium: bool = false, // desktop resolution (Options menu); GEM defaults to LOW
     fb: *LogicalFB = undefined,
+    // The program the desktop asked us to run, held until the host polls for it.
+    // 16 bytes because that is a FAT entry's name field (docs/FLOPPY_DISK.md).
+    run_name: [16]u8 = [_]u8{0} ** 16,
+    run_len: u8 = 0,
 
     pub fn init(self: *Demo, os: *ZigOS) void {
-        // Field defaults WITHOUT `self.* = .{}`: Demo embeds st_replay.App, whose
-        // sample buffer would then be emitted a SECOND time as a data segment.
-        // That cost 517 KB of the cart's RAM window until 2026-09-12.
-        self.running = false;
         self.desk_medium = false;
+        self.run_len = 0;
         self.fb = &os.lfbs[0];
         self.fb.is_enabled = true;
         self.fb.setMediumPlane(); // allocate the 640-wide buffer once (serves LOW and MEDIUM)
         rom.installPalette(@intCast(@intFromPtr(self.fb))); // one palette for desktop AND apps
         os.setBackgroundColor(.{ .r = 255, .g = 255, .b = 255, .a = 255 }); // border white
         rom.Desktop.init(os, self.fb);
-        self.app.init(os); // set up (but do not show) the app
-        // A scene can opt to boot straight into the app (skip the GEM desktop) by
-        // declaring `pub const BOOT_DIRECT = true;`. File > Quit still drops back
-        // to the desktop. Default: show the desktop first.
-        if (@hasDecl(st_replay, "BOOT_DIRECT") and st_replay.BOOT_DIRECT) {
-            self.launchApp(os);
-        } else {
-            self.applyDeskRes(); // start at the desktop's resolution (low)
-        }
+        self.applyDeskRes();
     }
 
-    fn launchApp(self: *Demo, os: *ZigOS) void {
-        self.running = true;
-        self.fb.setResMedium(); // ST Replay is a medium-res app
-        self.app.init(os); // reset transport/quit flag, keep windows + sample
-    }
-
-    // GEM and anything it launches bind their own keys — Esc stops ST Replay's
-    // replay, Space is its transport — so the host must forward, not interpret.
+    // GEM binds its own keys, so the host must forward rather than interpret.
     pub fn ownsKeyboard(self: *Demo) u32 {
         _ = self;
         return 1;
@@ -67,27 +54,19 @@ pub const Demo = struct {
     }
 
     pub fn update(self: *Demo, os: *ZigOS, dt: f32) void {
-        if (self.running) {
-            self.app.update(os, dt);
-            if (self.app.wants_quit) { // ejected -> back to the desktop (its resolution)
-                self.running = false;
-                self.applyDeskRes();
-                rom.Desktop.beginFrame();
-            }
-        } else {
-            rom.Desktop.beginFrame();
-        }
+        _ = self;
+        _ = os;
+        _ = dt;
+        rom.Desktop.beginFrame();
     }
 
     pub fn render(self: *Demo, os: *ZigOS, dt: f32) void {
-        if (self.running) {
-            self.app.render(os, dt);
-            return;
-        }
+        _ = os;
+        _ = dt;
         const action = rom.Desktop.render();
         rom.Desktop.endFrame();
         switch (action) {
-            .launch => self.launchApp(os),
+            .launch => self.requestRun(),
             .res_low => {
                 self.desk_medium = false;
                 self.applyDeskRes();
@@ -100,15 +79,29 @@ pub const Demo = struct {
         }
     }
 
+    // Ask the host to run the program the desktop picked. A disk with no program
+    // on it is a no-op rather than a request the host cannot satisfy — GEM would
+    // otherwise ask again every frame, which reads as a freeze.
+    fn requestRun(self: *Demo) void {
+        const name = rom.Desktop.launchName(&self.run_name);
+        self.run_len = @intCast(name.len);
+    }
+
+    // --- the host's cart-swap protocol (see demo_main.zig) ---
+    // 3 = run getCartTag* as a FILE on the mounted disk.
+    pub fn pollCart(self: *Demo) i32 {
+        if (self.run_len == 0) return 0;
+        return 3; // the name stays put until cartTag() is read, in this same poll
+    }
+    pub fn cartTag(self: *Demo) []const u8 {
+        return self.run_name[0..self.run_len];
+    }
+
     pub fn pointer(self: *Demo, x: i32, y: i32, buttons: u32) void {
         // The host sends physical-visible coords (0..640). Medium logical is 640
-        // (1:1); low logical is 320, so halve X. Y is 200 in both. The running app
-        // is always medium.
-        const medium = self.running or self.desk_medium;
-        const lx = if (medium) x else @divTrunc(x, 2);
-        if (self.running) {
-            self.app.pointer(lx, y, buttons);
-        } else if (buttons & 2 != 0) {
+        // (1:1); low logical is 320, so halve X. Y is 200 in both.
+        const lx = if (self.desk_medium) x else @divTrunc(x, 2);
+        if (buttons & 2 != 0) {
             rom.Desktop.requestOpenAt(lx, y); // native double-click pulse from the loader
         } else {
             rom.Desktop.setPointer(lx, y, buttons);
@@ -116,13 +109,14 @@ pub const Demo = struct {
     }
 
     pub fn key(self: *Demo, cp: u32) void {
-        if (self.running) self.app.key(cp) else rom.Desktop.key(cp);
+        _ = self;
+        rom.Desktop.key(cp);
     }
 
-    // Arrow keys: the running app moves its selection; on the desktop they drive
-    // the caret in an open name field.
+    // Arrow keys drive the caret in an open name field.
     pub fn input(self: *Demo, dir: u32) void {
-        if (self.running) self.app.input(dir) else rom.Desktop.input(dir);
+        _ = self;
+        rom.Desktop.input(dir);
     }
 
     // The host reports whether an app-disk is inserted, and packs the mounted

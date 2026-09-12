@@ -173,6 +173,41 @@ async function swapCart(req) {
             swapping = false;
             return;
         }
+        // req 3 = RUN A PROGRAM off the mounted disk. GEM launching an app the way
+        // TOS does: the program is a FILE in the floppy's FAT, not something linked
+        // into the desktop. The disk stays mounted, so the app can read its own data
+        // files (ST Replay reads the .RAW sitting next to it).
+        //
+        // This is also what stops the launch double-click leaking into the app it
+        // started: the app used to be already resident, so the second click landed
+        // in it. A freshly instantiated cart has no pointer state to inherit.
+        if (req === 3) {
+            const name = text_decoder.decode(
+                new Uint8Array(memory.buffer, demo.getCartTagPtr(), demo.getCartTagLen()));
+            const entry = mountedDisk && mountedDisk.files[name];
+            if (!entry) throw new Error(`no program "${name}" on the mounted disk`);
+            const bytes = mountedDisk.buf.buffer.slice(entry.start, entry.start + entry.len);
+            demo = (await instantiateCart(bytes, `${name} (from the disk)`)).instance.exports;
+            machine.hwInit();
+            demo.boot();
+            demo.skipBoot(); // GEM already booted the machine; no second boot screen
+            swapping = false;
+            return;
+        }
+        // req 4 = back to the OS. An app quitting returns to the desktop it was
+        // launched from, with its disk still in the drive — NOT to the menu.
+        if (req === 4) {
+            demo = (await instantiateCart(
+                await fetch("demo-gem.wasm" + BUST).then((r) => r.arrayBuffer()),
+                "demo-gem.wasm (back to the OS)")).instance.exports;
+            machine.hwInit();
+            demo.boot();
+            demo.skipBoot();
+            diskApp = true;      // the disk is still mounted: FLOPPY still opens it
+            diskDirSet = false;  // re-hand GEM the FAT listing
+            swapping = false;
+            return;
+        }
         if (req === 1) {
             const tag = text_decoder.decode(
                 new Uint8Array(memory.buffer, demo.getCartTagPtr(), demo.getCartTagLen()));
@@ -253,6 +288,11 @@ async function instantiateCart(bytes, what) {
     try {
         const mod = await WebAssembly.instantiate(bytes, demoImports);
         declareCartRam(bytes, what);
+        // The outgoing program cannot release its ROM handles — it is already gone.
+        // So the machine reclaims them, the way an OS does when a program ends.
+        // Without this, MAX_GUI launches exhaust the tables and every ROM call
+        // silently becomes a no-op: the app draws, and its dialogs never appear.
+        if (rom && rom.romReset) rom.romReset();
         return mod;
     } catch (e) {
         console.error(`Cannot start ${what}: ${e.message}`);
