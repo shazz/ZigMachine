@@ -12,7 +12,6 @@ const Rect = rom.Rect;
 pub const View = struct {
     rate: usize,
     looping: bool,
-    monitor: bool,
     marked: bool,
     playing: bool,
     playhead: f32,
@@ -72,7 +71,11 @@ fn statusBar(g: rom.Gui, v: View) void {
         std.fmt.bufPrint(buf[0..12], "LOW : {d:>5}", .{v.low}) catch "LOW :",
         if (v.marked) "MARKED" else "UNMARKED",
         std.fmt.bufPrint(buf[12..26], "SIZE: {d:>7}", .{v.bytes}) catch "SIZE:",
-        if (v.monitor) "MONITOR" else "INTERNAL",
+        // The original toggles this cell to MONITOR while monitoring its audio
+        // INPUT. There is no input here and the Monitor key is gone, so the
+        // source is always the machine itself. The cell stays: the five-field
+        // strip is measured off the real 3.01 screen.
+        "INTERNAL",
         std.fmt.bufPrint(buf[26..40], "HIGH: {d:>7}", .{v.high}) catch "HIGH:",
     };
     for (fields, 0..) |f, i| {

@@ -483,23 +483,31 @@ window.document.body.addEventListener('keydown', function (evt) {
     if (["Escape", "Enter", " ", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(evt.key)) {
         evt.preventDefault();
     }
-    // ESC skips the boot screen (if still booting) and returns from a running
-    // scene to the menu (Back = 6).
-    if (evt.key === "Escape") {
-        if (demo.skipBoot) demo.skipBoot();
-        if (demo.input) demo.input(6);
-        return;
-    }
-    if ((evt.key == "w") || (evt.key == "ArrowUp")) demo.input(0);
-    if ((evt.key == "s") || (evt.key === "ArrowDown")) demo.input(1);
-    if ((evt.key === "a") || (evt.key === "ArrowLeft")) demo.input(2);
-    if ((evt.key === "d" || evt.key === "ArrowRight")) demo.input(3);
+    // Does the cart own the keyboard? A GEM-style application binds every key
+    // itself, so the host's own shortcuts below (Space/Enter = Fire, WASD =
+    // movement, 1-7 = shading) must NOT fire — they are for navigating a demo
+    // scene, and W would both Wipe and move the rate ladder. Carts that do not
+    // declare it keep the old behaviour.
+    const owns = demo.ownsKeyboard ? demo.ownsKeyboard() !== 0 : false;
+
+    // Escape is NOT a host shortcut. It used to skip the boot screen and return
+    // any running scene to the menu, which meant no screen could ever bind it —
+    // ST Replay's "Esc = stop" rebooted the machine instead. It is now forwarded
+    // like every other key (KEY_CODES below) and the MACHINE decides: the boot ROM
+    // skips, a screen that handles keys owns it, and a plain scene cart falls back
+    // to the menu. See apps/zig/demo_main.zig.
+    // The ARROWS stay movement even for an owning app (ST Replay walks its rate
+    // ladder with them); WASD does not, or W would wipe AND move at once.
+    if ((!owns && evt.key == "w") || (evt.key == "ArrowUp")) demo.input(0);
+    if ((!owns && evt.key == "s") || (evt.key === "ArrowDown")) demo.input(1);
+    if ((!owns && evt.key === "a") || (evt.key === "ArrowLeft")) demo.input(2);
+    if ((!owns && evt.key === "d") || (evt.key === "ArrowRight")) demo.input(3);
     // Enter/Space = Fire (5): launch the highlighted menu entry.
-    if (evt.key === "Enter" || evt.key === " ") demo.input(5);
+    if (!owns && (evt.key === "Enter" || evt.key === " ")) demo.input(5);
 
     // Keys 1-7 → the scene's own mode/song switch. Scenes OWN the behaviour
     // (shading, or a song request via zigos.requestSong); the host only forwards.
-    if ("1234567".includes(evt.key) && demo.setShadeMode) demo.setShadeMode(Number(evt.key) - 1);
+    if (!owns && "1234567".includes(evt.key) && demo.setShadeMode) demo.setShadeMode(Number(evt.key) - 1);
 
     // Text entry (GEM rename etc.): forward printable keys + Backspace/Enter to the
     // app via demo.key(codepoint). 8 = Backspace, 13 = Enter.

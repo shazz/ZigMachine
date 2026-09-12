@@ -82,7 +82,6 @@ pub const App = struct {
     rate: usize = 2, // index into ui.RATES; the real thing boots at 10 KHz
     playing: bool = false,
     looping: bool = false,
-    monitor: bool = false,
     marked: bool = false,
     low: u32 = 0,
     high: u32 = 0,
@@ -191,7 +190,6 @@ pub const App = struct {
         self.bytes = 0;
         self.low = 0;
         self.looping = false;
-        self.monitor = false;
         self.marked = false;
         @memset(&self.sample, SILENCE);
         @memset(&pcm, SILENCE); // .bss, and the cart swap reuses memory — see above
@@ -204,7 +202,6 @@ pub const App = struct {
         return .{
             .rate = self.rate,
             .looping = self.looping,
-            .monitor = self.monitor,
             .marked = self.marked,
             .playing = self.playing,
             .playhead = self.playhead,
@@ -240,7 +237,9 @@ pub const App = struct {
                 self.high = self.bytes;
                 self.marked = false;
             },
-            ' ' => self.stop(), // space halts the replay
+            // Space is the transport: play if stopped, stop if playing. Esc only
+            // ever STOPS — a panic key should never start something.
+            ' ' => if (self.playing) self.stop() else self.play(),
             ui.K_ESC => self.stop(),
             else => {},
         }
@@ -257,14 +256,13 @@ pub const App = struct {
         }
     }
 
-    // f1..f6 pick the sample rate; f8 monitors; f10 replays.
+    // f1..f8 pick the replay rate; f10 replays.
     fn fkey(self: *App, n: usize) void {
         if (n < ui.RATE_ROWS) {
             self.rate = n;
         } else switch (n) {
-            7 => self.monitor = !self.monitor, // f8
             9 => self.play(), // f10 = Replay
-            else => {}, // f7 Magnify / f9 Sample need an input source we have none of
+            else => {}, // f9 Magnify needs a zoomable view we do not have yet
         }
     }
 

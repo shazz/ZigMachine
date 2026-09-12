@@ -59,21 +59,28 @@ pub const K_HELP: u32 = 0xE011;
 pub const K_ESC: u32 = 0xE012;
 pub const K_ALT: u32 = 0xE013;
 
-// The left column selects the sample rate (f1..f6) and the machine's modes.
+// The left column selects the replay rate (f1..f8), then the machine's modes.
+//
+// Monitor and Sample are GONE. Both drove the original's audio INPUT — monitoring
+// the incoming signal and recording from the cartridge port — and this machine has
+// no input to monitor or sample, so they were two keys that could never do
+// anything. Their rows went to the two rates the ladder was missing: 12.5 KHz, and
+// 44 KHz at the top, which is the one rate that needs no resampling at all (the
+// audio worklet runs at 44100).
 pub const LEFT = [ROWS]Binding{
     .{ .key = "f1", .what = "5 KHz", .cp = K_F1 + 0 },
     .{ .key = "f2", .what = "7.5 KHz", .cp = K_F1 + 1 },
     .{ .key = "f3", .what = "10 KHz", .cp = K_F1 + 2 },
-    .{ .key = "f4", .what = "15 KHz", .cp = K_F1 + 3 },
-    .{ .key = "f5", .what = "20 KHz", .cp = K_F1 + 4 },
-    .{ .key = "f6", .what = "31 KHz", .cp = K_F1 + 5 },
-    .{ .key = "f7", .what = "Magnify", .cp = K_F1 + 6 },
-    .{ .key = "f8", .what = "Monitor", .cp = K_F1 + 7 },
-    .{ .key = "f9", .what = "Sample", .cp = K_F1 + 8 },
+    .{ .key = "f4", .what = "12.5 KHz", .cp = K_F1 + 3 },
+    .{ .key = "f5", .what = "15 KHz", .cp = K_F1 + 4 },
+    .{ .key = "f6", .what = "20 KHz", .cp = K_F1 + 5 },
+    .{ .key = "f7", .what = "31 KHz", .cp = K_F1 + 6 },
+    .{ .key = "f8", .what = "44 KHz", .cp = K_F1 + 7 },
+    .{ .key = "f9", .what = "Magnify", .cp = K_F1 + 8 },
     .{ .key = "f10", .what = "Replay", .cp = K_F1 + 9 },
 };
-pub const RATE_ROWS: usize = 6; // f1..f6 are the selectable sample rates
-pub const RATES = [RATE_ROWS]u32{ 5000, 7500, 10000, 15000, 20000, 31000 };
+pub const RATE_ROWS: usize = 8; // f1..f8 are the selectable replay rates
+pub const RATES = [RATE_ROWS]u32{ 5000, 7500, 10000, 12500, 15000, 20000, 31000, 44100 };
 
 // The middle column is headed EDITOR CONTROLS and starts two rows down.
 pub const MID_HEADING = "EDITOR CONTROLS";

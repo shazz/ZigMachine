@@ -59,6 +59,13 @@ pub const Demo = struct {
         self.app.init(os); // reset transport/quit flag, keep windows + sample
     }
 
+    // GEM and anything it launches bind their own keys — Esc stops ST Replay's
+    // replay, Space is its transport — so the host must forward, not interpret.
+    pub fn ownsKeyboard(self: *Demo) u32 {
+        _ = self;
+        return 1;
+    }
+
     fn applyDeskRes(self: *Demo) void {
         if (self.desk_medium) self.fb.setResMedium() else self.fb.setResLow();
         self.desktop.g.screen_w = if (self.desk_medium) 640 else 320;

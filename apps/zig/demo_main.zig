@@ -21,7 +21,7 @@ const Console = zg.Console;
 const Cart = @import("cart").Cart;
 const BootRom = @import("boot_rom").Boot; // the machine boot ROM (POST screen), HW-ABI only
 
-var want_menu: bool = false; // a scene cart asked to return to the menu (ESC)
+var want_menu: bool = false; // a scene cart asked to return to the menu
 var g_no_tag = [_]u8{0};
 
 const VERSION = "0.2-sealed";
@@ -77,6 +77,23 @@ export fn frame(elapsed_time: f32) void {
 // stopped needing one.
 export fn isBooted() bool {
     return booted;
+}
+
+// Does the running cart OWN the keyboard?
+//
+// The host has its own shortcuts — Escape returns to the menu, Space/Enter is
+// Fire, WASD and the arrows are movement, 1-7 switch shading. Those are for a
+// DEMO scene the viewer is navigating. A GEM-style application is the opposite:
+// every key is its own, and a host that quietly keeps Escape means the app can
+// never bind it (ST Replay's Esc = stop rebooted the machine instead).
+//
+// So a cart may declare `ownsKeyboard`, and the host then forwards keys instead
+// of interpreting them. Always 0 while the boot ROM is up, so Escape still skips
+// the boot screen. Old carts do not declare it and keep the old behaviour.
+export fn ownsKeyboard() u32 {
+    if (!booted) return 0;
+    if (@hasDecl(Cart, "ownsKeyboard")) return cart.ownsKeyboard();
+    return 0;
 }
 
 // Skip the boot screen (ESC in the loader): jump straight to the RAM cart.
@@ -162,14 +179,30 @@ export fn songNameLen() u32 {
 // input() (e.g. the effects menu: arrows move, Fire launches, Back returns).
 export fn input(dir: Direction) void {
     if (booted and @hasDecl(Cart, "input")) cart.input(@intFromEnum(dir));
-    // A scene cart (no launcher) returns to the menu on Back/ESC.
+    // A scene cart (no launcher) returns to the menu on Back (joystick/Back key).
     if (dir == .Back and !@hasDecl(Cart, "pollCart")) want_menu = true;
 }
 
 // Character keyboard input (printable + 8=Backspace, 13=Enter). For text entry
 // like GEM rename. Forwarded to scenes that declare key() (e.g. the desktop).
+// The ST keyboard's ESCAPE. The host FORWARDS it like any other key and no longer
+// decides what it means — it used to eat Escape for "back to the menu", so a
+// screen could never bind it (ST Replay's Esc = stop rebooted the machine).
+const K_ESC: u32 = 0xE012;
+
 export fn key(cp: u32) void {
-    if (booted and @hasDecl(Cart, "key")) cart.key(cp);
+    // The boot ROM's own way out, while it is the thing on screen.
+    if (!booted) {
+        if (cp == K_ESC) skipBoot();
+        return;
+    }
+    // A screen that handles keys owns EVERY key, Escape included. It decides how
+    // (and whether) to leave — see gem_desktop.zig / st_replay.zig.
+    if (@hasDecl(Cart, "key")) return cart.key(cp);
+    // A screen that handles no keys at all still needs a way out, and for a plain
+    // scene cart that is the menu it was launched from. A launcher cart (one with
+    // pollCart) has nowhere to go back TO, so Escape does nothing there.
+    if (cp == K_ESC and !@hasDecl(Cart, "pollCart")) want_menu = true;
 }
 
 // Cartridge swap. The menu launcher asks the host to boot a scene disk; a scene
