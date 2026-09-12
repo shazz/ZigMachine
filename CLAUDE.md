@@ -31,6 +31,18 @@ can call GEM.
 
 ✅ **Migrated from Zig 0.10 → 0.16 and building/running again.**
 
+## Hard Rules — project overrides
+
+- **The global "no file over 200 lines" rule does NOT apply to Zig sources here.**
+  Zig's unit of encapsulation is the file-as-struct, and this codebase's long
+  files are long for a reason: `machine/video.zig` is one faithful render pass
+  whose per-pixel border/overscan accounting must not be split, `machine/sdk/*`
+  is a single ABI source of truth, and a scene is one coherent program. Splitting
+  those to hit a line count buys nothing and risks the sealed pipeline. Judge Zig
+  files on cohesion instead — one clear responsibility per file, split when a
+  file starts doing two jobs (as `st_replay` already splits state / ui / draw).
+  Every other stack in this repo (JS host, Python tools) keeps the 200-line rule.
+
 ## Notes for future edits
 
 - This is now **Zig 0.16** source. Install: `~/.local/zig/0.16.0/zig`, symlinked to
