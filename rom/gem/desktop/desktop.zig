@@ -738,11 +738,13 @@ pub const Desktop = struct {
         const cols = self.win_cols[id];
         return @divTrunc(items + cols - 1, cols); // ceil
     }
-    // Pixels the content is wide: the frozen icon grid, or the fixed TOS column
+    // Pixels the content is wide: the OCCUPIED part of the frozen icon grid (a
+    // half-empty grid is not something to scroll across), or the fixed TOS column
     // layout of the text view.
     fn contentWidth(self: *const Desktop, id: u8, n: usize) i16 {
         if (n == 0) return 0;
-        return if (self.view == .icons) self.win_cols[id] * icon_mod.CELL_W else TOS_COLS * 8;
+        if (self.view != .icons) return TOS_COLS * 8;
+        return @min(self.win_cols[id], @as(i16, @intCast(n))) * icon_mod.CELL_W;
     }
 
     // What fraction of `total` is visible, in per mille, clamped to a full track.
@@ -823,15 +825,9 @@ pub const Desktop = struct {
         textCol(g, v, stamp.DEFAULT_TIME, cx + 31 * 8, y, ink, paper); // TIME (host FAT has none)
     }
 
-    // One text-view column, drawn only if it lies WHOLLY inside the window. The
-    // columns are character-cell aligned, so dropping a column that would spill
-    // past either edge reads as deliberate — and is how a narrow (or scrolled)
-    // window sheds columns instead of painting over its own frame.
+    // One text-view column, clipped to the window's content span.
     fn textCol(g: *gui.Gui, v: View, s: []const u8, x: i16, y: i16, ink: u8, paper: u8) void {
-        if (s.len == 0) return;
-        const w = @as(i16, @intCast(s.len)) * 8;
-        if (x < v.clip.x or x + w > v.clip.x + v.clip.w) return;
-        g.text(s, x, y, ink, paper);
+        g.textIn(s, x, y, ink, paper, v.clip.x, v.clip.x + v.clip.w);
     }
 
     // Menu bar + modal alert + Set Preferences, drawn last (over everything).

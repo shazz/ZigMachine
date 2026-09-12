@@ -68,6 +68,31 @@ pub const Gui = struct {
         self.os.printTextSmall(self.fb, s, x, y, ink, paper);
     }
 
+    // Text clipped to the horizontal span [lo, hi) a CHARACTER at a time: the
+    // part that fits is drawn and the rest is cut off, so a name slides out of a
+    // window letter by letter instead of vanishing whole. Cell-aligned layouts
+    // (and cell-stepped scrolling) keep the trimmed text on the grid.
+    pub fn textIn(self: *Gui, s: []const u8, x: i16, y: i16, ink: u8, paper: u8, lo: i16, hi: i16) void {
+        const c = hClip(s, x, 8, lo, hi);
+        if (c.s.len > 0) self.text(c.s, c.x, y, ink, paper);
+    }
+    // The same, in the 6x6 system font (icon labels).
+    pub fn textSmallIn(self: *Gui, s: []const u8, x: i16, y: i16, ink: u8, paper: u8, lo: i16, hi: i16) void {
+        const c = hClip(s, x, 6, lo, hi);
+        if (c.s.len > 0) self.textSmall(c.s, c.x, y, ink, paper);
+    }
+    fn hClip(s: []const u8, x: i16, fw: i16, lo: i16, hi: i16) struct { s: []const u8, x: i16 } {
+        var str = s;
+        var px = x;
+        while (str.len > 0 and px < lo) { // characters off the left edge
+            str = str[1..];
+            px += fw;
+        }
+        while (str.len > 0 and px + @as(i16, @intCast(str.len)) * fw > hi) // off the right
+            str = str[0 .. str.len - 1];
+        return .{ .s = str, .x = px };
+    }
+
     // A single pixel, clipped to the framebuffer. Everything that plots directly
     // (gadgets, hatch, icons, dotted overlays) goes through here: a window can be
     // dragged past an edge, and an unclipped write there wraps onto the

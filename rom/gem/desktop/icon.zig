@@ -94,7 +94,6 @@ pub const Icon = struct {
         const ink_c: u8 = if (sel) gui.WHITE else gui.BLACK;
         const body_c: u8 = if (sel) gui.BLACK else gui.WHITE;
         const ic = self.bmp;
-        const iw: i16 = @intCast(ic.w);
         const rowbytes: usize = (@as(usize, ic.w) + 7) / 8;
         var row: u16 = 0;
         while (row < ic.h) : (row += 1) {
@@ -114,18 +113,25 @@ pub const Icon = struct {
                 } // else: outside the silhouette -> transparent (desktop shows)
             }
         }
-        const box = self.labelBox(g.screen_w);
-        // Drop the label when the unit does not FIT the window: the label box is
-        // clamped inside the content, so drawing it for an icon that is itself cut
-        // off at the edge would slide the name across its neighbour's.
+        var box = self.labelBox(g.screen_w);
+        var lo: i16 = 0;
+        var hi: i16 = g.screen_w;
         if (self.bounds) |b| {
+            // A label is a whole row, so a partly visible ROW is dropped; across
+            // the window's edges it is CUT instead — the name loses its last (or
+            // first) letters as it scrolls, rather than disappearing outright.
             if (box.y < b.y or box.y + box.h > b.y + b.h) return;
-            if (self.x < b.x or self.x + iw > b.x + b.w) return;
-            if (box.x < b.x or box.x + box.w > b.x + b.w) return;
+            lo = b.x;
+            hi = b.x + b.w;
+            const x0 = @max(box.x, lo);
+            const x1 = @min(box.x + box.w, hi);
+            if (x1 <= x0) return;
+            box = .{ .x = x0, .y = box.y, .w = x1 - x0, .h = box.h };
         }
         const box_bg: u8 = if (sel) gui.BLACK else gui.WHITE;
         g.rect(box, box_bg);
+        const full = self.labelBox(g.screen_w);
         const lw: i16 = @as(i16, @intCast(self.label.len)) * LABEL_FW;
-        g.textSmall(self.label, box.x + @divTrunc(box.w - lw, 2), box.y + LABEL_PAD_TOP, if (sel) gui.WHITE else gui.BLACK, box_bg);
+        g.textSmallIn(self.label, full.x + @divTrunc(full.w - lw, 2), full.y + LABEL_PAD_TOP, if (sel) gui.WHITE else gui.BLACK, box_bg, lo, hi);
     }
 };
