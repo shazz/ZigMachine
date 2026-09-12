@@ -677,6 +677,13 @@ function startAudio() {
                 const msg = event.data;
                 if (msg.type === "ready") { console.log("Audio worklet ready"); resolve(); }
                 else if (msg.type === "error") console.error("Audio worklet error:", msg.message);
+                // An SNDH can fail in ways only its own 68000 knows about, so say so.
+                else if (msg.type === "sndhLoaded") {
+                    const hex = (v) => "$" + (v >>> 0).toString(16);
+                    console.log(msg.ok
+                        ? `SNDH playing (${msg.len} bytes staged)`
+                        : `SNDH REJECTED (${msg.len} bytes) stuckPc=${hex(msg.stuckPc)} trap=${hex(msg.trap)}`);
+                }
                 else if (msg.type === "audioState") {
                     if (demo && demo.getYmRegsPointer) {
                         new Uint8Array(memory.buffer, demo.getYmRegsPointer(), 16).set(msg.regs);
@@ -695,6 +702,10 @@ function startAudio() {
                 }
             };
         });
+        // A processor that throws is DISABLED by the browser, and the exception
+        // never reaches the console: the only symptom is that the sound stops.
+        audioNode.onprocessorerror = (e) =>
+            console.error("Audio worklet processor died — sound has stopped:", e);
         audioNode.connect(audioCtx.destination);
         await audioCtx.resume();
         flushPendingStream(); // a scene may have requested streaming before audio was enabled

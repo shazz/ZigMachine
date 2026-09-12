@@ -160,7 +160,7 @@ class ZigAudioSealedProcessor extends AudioWorkletProcessor {
                 type: "audioState",
                 mode: this.demo.audioMode(),
                 regs: Array.from(this.ymRegs.subarray(0, 14)),
-                songMs: d.audioSndhPositionMs ? d.audioSndhPositionMs() : 0,
+                songMs: this.demo.audioSndhPositionMs ? this.demo.audioSndhPositionMs() : 0,
                 scopes: this.scopes.map((s) => Array.from(s)),
             });
         }
