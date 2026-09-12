@@ -24,6 +24,7 @@ const RMARGIN: i16 = 8; // drop-down: 1-char right margin after the longest labe
 // rect (d.x + 1, inside the frame) — otherwise the frame steals a pixel and the
 // right margin comes out one short of a full character cell.
 const MGRAY = types.MGRAY; // disabled item / separator ink
+const MAX_SEP: usize = 40; // widest separator rule a drop-down can need
 
 // A menu item: a label plus GEM state — `tick` shows a left checkmark (the
 // selected option in a group), `disabled` greys it and blocks selection.
@@ -112,10 +113,14 @@ pub const MenuBar = struct {
             const hover = g.hit(row) and selectable;
             if (hover) g.rect(row, BLACK);
             if (sep) {
-                // Authentic TOS separator: a dotted rule across the drop-down.
-                const yy = row.y + @divTrunc(ITEM_H, 2);
-                var xx: i16 = d.x + 3;
-                while (xx < d.x + d.w - 3) : (xx += 2) g.plot(xx, yy, MGRAY);
+                // TOS draws a separator as a row of UNDERSCORE characters in the
+                // system font — the glyph's own bar — in the DISABLED ink, since
+                // a separator is never a thing you can pick.
+                // Inset a pixel each side so the rule does not run into the
+                // drop-down's own frame.
+                const bar: [MAX_SEP]u8 = [_]u8{'_'} ** MAX_SEP;
+                const n: usize = @intCast(@max(0, @min(@divTrunc(d.w - 2, 8), @as(i16, MAX_SEP))));
+                g.text(bar[0..n], d.x + 1, row.y - 1, MGRAY, WHITE);
                 continue;
             }
             const ink: u8 = if (it.disabled) MGRAY else if (hover) WHITE else BLACK;

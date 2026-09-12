@@ -13,6 +13,7 @@ const trash_mod = @import("trash.zig");
 const info_mod = @import("info.zig");
 const desk_icons = @import("desk_icons.zig");
 const stamp = @import("stamp.zig");
+const deskinf = @import("deskinf.zig");
 
 const ZigOS = zsrc.ZigOS;
 const LogicalFB = zsrc.LogicalFB;
@@ -54,6 +55,11 @@ const Folder = struct {
 // re-wrapping them (GEM keeps a directory's layout put).
 pub const View = struct { clip: Rect, org: Rect, cols: i16 };
 
+// win_geom is indexed by directory: WIN_ROOT (-1) first, then folder 0..N-1.
+fn geomSlot(dir: i16) usize {
+    return @intCast(dir + 1);
+}
+
 const WIN_NONE: i16 = -2; // win_dir sentinel: not a FLOPPY/folder window
 const WIN_ROOT: i16 = -1; // win_dir: the root disk (A:\)
 
@@ -69,7 +75,7 @@ const MenuBuf = struct {
     desk: [1]gui.MenuItem = undefined,
     file: [8]gui.MenuItem = undefined,
     view: [7]gui.MenuItem = undefined,
-    opt: [1]gui.MenuItem = undefined,
+    opt: [3]gui.MenuItem = undefined,
 };
 
 pub const Desktop = struct {
@@ -80,9 +86,10 @@ pub const Desktop = struct {
     next_win: Rect = .{ .x = desk_icons.WIN_X0, .y = desk_icons.WIN_Y0, .w = desk_icons.WIN_W, .h = desk_icons.WIN_H },
     // No app icon: GEM is generic. A mounted app-disk (e.g. ST Replay) turns the
     // FLOPPY icon into that app's launcher — see disk_app + desk_icons.openIcon.
+    // Positions are set on the desktop grid in init() — see placeDefaultIcons.
     items: [2]Icon = .{
-        .{ .x = 8, .y = 24, .bmp = icons.FLOPPY, .label = "FLOPPY", .is_app = false }, // top-left
-        .{ .x = 8, .y = 136, .bmp = icons.TRASH, .label = "TRASH", .is_app = false }, // bottom-left
+        .{ .x = 0, .y = 0, .bmp = icons.FLOPPY, .label = "FLOPPY DISK", .is_app = false },
+        .{ .x = 0, .y = 0, .bmp = icons.TRASH, .label = "TRASH", .is_app = false },
     },
     disk_app: bool = false, // an app-disk is inserted (host sets this)
     disk_dir: [MAX_FILES * FILE_ENT]u8 = [_]u8{0} ** (MAX_FILES * FILE_ENT), // host-filled FAT
@@ -114,6 +121,11 @@ pub const Desktop = struct {
     n_folders: u8 = 0,
     win_dir: [gui.MAX_WIN]i16 = [_]i16{WIN_NONE} ** gui.MAX_WIN, // per-window directory
     win_cols: [gui.MAX_WIN]i16 = [_]i16{1} ** gui.MAX_WIN, // icon grid width, fixed at open
+    // Each DIRECTORY remembers where its window was and how big, so closing and
+    // reopening it puts it back rather than restarting the cascade. Indexed by
+    // dir + 1 (WIN_ROOT is -1); w == 0 means "never opened".
+    inf_buf: [deskinf.MAX_BYTES]u8 = [_]u8{0} ** deskinf.MAX_BYTES, // DESKTOP.INF text
+    win_geom: [MAX_FOLDERS + 1]Rect = [_]Rect{.{ .x = 0, .y = 0, .w = 0, .h = 0 }} ** (MAX_FOLDERS + 1),
     // Backing store for each window's GEM info line ("N bytes used in M items.").
     // Window.info is a slice, and Desktop is static, so it may point in here.
     win_info: [gui.MAX_WIN][32]u8 = [_][32]u8{[_]u8{0} ** 32} ** gui.MAX_WIN,
@@ -146,6 +158,7 @@ pub const Desktop = struct {
         self.n_folders = 0;
         self.new_seq = 0;
         self.win_dir = [_]i16{WIN_NONE} ** gui.MAX_WIN;
+        self.placeDefaultIcons();
         self.applyBg(); // paint the desktop palette with the configured background
     }
 
@@ -475,6 +488,69 @@ pub const Desktop = struct {
             },
         };
     }
+    // Options > Save Desktop: serialise the desktop (icon cells, open windows,
+    // resolution, background) into DESKTOP.INF on the boot disk, the way TOS
+    // does. The mounted disk is read-only, so the file is written into the
+    // in-memory FAT — it shows up in the FLOPPY window like any other file.
+    fn saveDesktop(self: *Desktop) void {
+        var open_wins: [gui.MAX_WIN]deskinf.Win = undefined;
+        var n: usize = 0;
+        var i: usize = 0;
+        while (i < self.wm.n) : (i += 1) {
+            const id = self.wm.order[i];
+            if (!self.wm.wins[id].open or !self.isFloppyWin(id)) continue;
+            const w = &self.wm.wins[id];
+            open_wins[n] = .{
+                .x = w.r.x,
+                .y = w.r.y,
+                .w = w.r.w,
+                .h = w.r.h,
+                .text_view = self.view == .text,
+                .path = w.title,
+            };
+            n += 1;
+        }
+        const drive = &self.items[desk_icons.IC_FLOPPY];
+        const trash = &self.items[desk_icons.IC_TRASH];
+        const text = deskinf.write(&self.inf_buf, .{
+            .medium = self.g.screen_w == 640,
+            .bg = .{ self.bg_r, self.bg_g, self.bg_b },
+            .drive = .{ .col = drive.cellCol(), .row = drive.cellRow(), .label = drive.label },
+            .trash = .{ .col = trash.cellCol(), .row = trash.cellRow(), .label = trash.label },
+            .wins = open_wins[0..n],
+        });
+        if (!self.putFile(deskinf.NAME, @intCast(text.len)))
+            self.dlg.alert("Cannot save the desktop.", "The disk directory is full.");
+    }
+
+    // Add (or update) a data file in the in-memory FAT. Returns false when the
+    // directory is full — the caller must NOT report a save that did not happen.
+    fn putFile(self: *Desktop, name: []const u8, size: u32) bool {
+        var i: u8 = 0;
+        while (i < self.n_disk) : (i += 1) {
+            if (std.mem.eql(u8, self.diskName(i), name)) break;
+        }
+        if (i == self.n_disk) {
+            if (self.n_disk >= MAX_FILES) return false;
+            self.n_disk += 1;
+        }
+        const e = @as(usize, i) * FILE_ENT;
+        @memset(self.disk_dir[e .. e + FILE_ENT], 0);
+        @memcpy(self.disk_dir[e .. e + name.len], name);
+        self.disk_dir[e + 16] = 1; // data file
+        std.mem.writeInt(u32, self.disk_dir[e + 17 ..][0..4], size, .little);
+        std.mem.writeInt(u32, self.disk_dir[e + 21 ..][0..4], stamp.DEFAULT_DATE, .little);
+        return true;
+    }
+
+    // GEM's default desktop: the drive in the top-left cell, the trash in the
+    // bottom one of the same column.
+    fn placeDefaultIcons(self: *Desktop) void {
+        const rows = @divTrunc(self.g.screen_h - icon_mod.GRID_Y0, icon_mod.CELL_H);
+        self.items[desk_icons.IC_FLOPPY].place(0, 0, self.g.screen_w, self.g.screen_h);
+        self.items[desk_icons.IC_TRASH].place(0, rows - 1, self.g.screen_w, self.g.screen_h);
+    }
+
     pub fn clearSel(self: *Desktop) void {
         self.sel_file = -1;
         self.sel_folder = -1;
@@ -578,7 +654,11 @@ pub const Desktop = struct {
 
     // Shared open: a FLOPPY/folder window with cascade + the one-icon min size.
     pub fn addFloppyWindow(self: *Desktop, title: []const u8, dir: i16) void {
-        var r = self.next_win;
+        // A directory that has been open before reopens exactly where it was;
+        // a new one takes the next cascade slot.
+        const saved = self.win_geom[geomSlot(dir)];
+        const remembered = saved.w > 0;
+        var r = if (remembered) saved else self.next_win;
         // The default width is sized for the TOS text columns, which is as wide as
         // a 320px low-res screen — so pull the window LEFT before narrowing it.
         // Both edges (and the size gadget with them) must open on screen, and the
@@ -596,6 +676,7 @@ pub const Desktop = struct {
             self.sel_file = -1;
             self.sel_folder = -1;
             self.startGrow(self.open_src, r); // GEM zoom-box: dotted frame grows icon -> window
+            if (remembered) return; // reusing a remembered spot does not consume one
             var nx = r.x + 16;
             var ny = r.y + 12;
             if (nx + r.w > self.g.screen_w or ny + r.h > 200) {
@@ -612,6 +693,8 @@ pub const Desktop = struct {
     // (the FLOPPY drive), the mirror of the box that grew when it opened.
     fn shrinkClosed(self: *Desktop) void {
         const id = self.wm.takeClosed() orelse return;
+        // Remember where this directory's window was before it goes away.
+        if (self.isFloppyWin(id)) self.win_geom[geomSlot(self.win_dir[id])] = self.wm.wins[id].r;
         const to = if (self.isFloppyWin(id))
             self.items[desk_icons.IC_FLOPPY].rect()
         else
@@ -859,7 +942,7 @@ pub const Desktop = struct {
             .{ .label = "Sort by Size", .tick = self.sort == .size },
             .{ .label = "Sort by Type", .tick = self.sort == .type },
         };
-        buf.opt = .{.{ .label = "Set Preferences" }};
+        buf.opt = .{ .{ .label = "Set Preferences" }, .{ .label = "----------" }, .{ .label = "Save Desktop" } };
         return .{
             .{ .title = "Desk", .items = &buf.desk },
             .{ .title = "File", .items = &buf.file },
@@ -927,7 +1010,11 @@ pub const Desktop = struct {
                 6 => self.sort = .type,
                 else => {}, // separator
             },
-            MENU_OPTIONS => self.prefs.open(self.bg_r, self.bg_g, self.bg_b, self.g.screen_w == 640),
+            MENU_OPTIONS => switch (p.item) {
+                0 => self.prefs.open(self.bg_r, self.bg_g, self.bg_b, self.g.screen_w == 640),
+                2 => self.saveDesktop(), // Save Desktop -> A:\DESKTOP.INF
+                else => {},
+            },
             else => {},
         }
     }

@@ -28,7 +28,13 @@ pub const LABEL_H: i16 = LABEL_PAD_TOP + 6 + 1;
 // tallest icon (~30) + 8px label tall.
 pub const CELL_W: i16 = 72;
 pub const CELL_H: i16 = 40;
-const FOOT: i16 = 10; // label headroom kept below the icon when clamping
+// The desktop's own grid of those cells: column 0 at the left edge, row 0 just
+// under the menu bar. An icon sits CENTRED in its cell with its bottom on the
+// cell's baseline — the same placement a window gives its file icons — so the
+// fixed-width label always lands inside the cell and lines up column to column.
+pub const GRID_X0: i16 = 0;
+pub const GRID_Y0: i16 = gui.MENU_H + 1;
+const BASELINE: i16 = 30; // tallest icon; icon BOTTOMS align within a cell
 
 pub const Icon = struct {
     x: i16,
@@ -68,13 +74,27 @@ pub const Icon = struct {
     // Keep the icon AND its (wider) label box on-screen — the label stays
     // centred over the icon at the border instead of clamping independently.
     pub fn clampInto(self: *Icon, screen_w: i16, screen_h: i16) void {
+        self.place(self.cellCol(), self.cellRow(), screen_w, screen_h);
+    }
+
+    // Put the icon in desktop cell (col,row), clamped to the cells that fit.
+    pub fn place(self: *Icon, want_col: i16, want_row: i16, screen_w: i16, screen_h: i16) void {
         const iw: i16 = @intCast(self.bmp.w);
-        const half_ic = @divTrunc(iw, 2);
-        const half_lbl = @divTrunc(LABEL_W, 2);
-        const low = @max(0, half_lbl - half_ic);
-        const high = @min(screen_w - iw, screen_w - half_lbl - half_ic);
-        self.x = @max(low, @min(self.x, high));
-        self.y = @max(gui.MENU_H + 1, @min(self.y, screen_h - @as(i16, @intCast(self.bmp.h)) - FOOT));
+        const ih: i16 = @intCast(self.bmp.h);
+        const cols = @max(1, @divTrunc(screen_w - GRID_X0, CELL_W));
+        const rows = @max(1, @divTrunc(screen_h - GRID_Y0, CELL_H));
+        const c = @max(0, @min(want_col, cols - 1));
+        const r = @max(0, @min(want_row, rows - 1));
+        self.x = GRID_X0 + c * CELL_W + @divTrunc(CELL_W - iw, 2);
+        self.y = GRID_Y0 + r * CELL_H + BASELINE - ih;
+    }
+
+    // Which cell the icon's CENTRE currently falls in.
+    pub fn cellCol(self: *const Icon) i16 {
+        return @divFloor(self.x + @divTrunc(@as(i16, @intCast(self.bmp.w)), 2) - GRID_X0, CELL_W);
+    }
+    pub fn cellRow(self: *const Icon) i16 {
+        return @divFloor(self.y + @divTrunc(@as(i16, @intCast(self.bmp.h)), 2) - GRID_Y0, CELL_H);
     }
 
     // Magnet-snap to the nearest grid cell on drop (icons align to a whole-cell
@@ -82,9 +102,7 @@ pub const Icon = struct {
     // two into the same cell stacks them exactly — it just never leaves an icon
     // half-covering another off the grid.
     pub fn snap(self: *Icon, screen_w: i16, screen_h: i16) void {
-        self.x = @divFloor(self.x + CELL_W / 2, CELL_W) * CELL_W;
-        self.y = @divFloor(self.y + CELL_H / 2, CELL_H) * CELL_H;
-        self.clampInto(screen_w, screen_h);
+        self.place(self.cellCol(), self.cellRow(), screen_w, screen_h);
     }
 
     // Draw the icon with TRANSPARENCY (ink=black, body=white, outside=clear so
