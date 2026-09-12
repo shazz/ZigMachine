@@ -28,7 +28,8 @@ cd docs && python3 -m http.server 3333   # sealed.html -> menu -> GEM DESKTOP
 
 > **Phase 2** — cut GEM into its own `rom.wasm` (linked to `machine/sdk/`,
 > exporting a flat app-facing ABI in `rom/sdk/`), wired by the loader like the
-> machine is, so a C or Rust app can call the Zig GEM ROM. **Not started.** Until
-> it is, GEM's ~525 KB of statics sit inside the *app's* 2 MiB window and cap what
-> an app can allocate — ask `hwRamFree()` and see. Planned in
+> machine is, so a C or Rust app can call the Zig GEM ROM. **Not started**, and
+> that polyglot claim is currently untested — the seam is a Zig API, not a wasm
+> ABI. (It is NOT a RAM problem: `gem.Desktop` is 2332 bytes. Ask `hwRamFree()`
+> before believing otherwise.) Planned in
 > [`docs/PHASE2_ROM_CHIP.md`](../docs/PHASE2_ROM_CHIP.md).

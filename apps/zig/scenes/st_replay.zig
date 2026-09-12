@@ -38,12 +38,12 @@ const SILENCE: u8 = 0; // .raw samples are SIGNED 8-bit, so silence is zero
 // trapped on boot (caught by apps/gem_headless.mjs), so the sampler takes half a
 // meg.
 //
-// The ceiling is no longer guesswork: hwRamFree() reports what is actually left,
-// and the panel shows it. Today GEM's own statics are what cap this, not the 2 MB
-// — which is why the real headroom arrives with the ROM moving into rom.wasm, not
-// by growing this constant. `node apps/check_fits.mjs docs/demo-gem.wasm` is the
-// number to watch before touching it.
-const MAX_PCM: usize = 512 * 1024;
+// It was never GEM's statics: `gem.Desktop` is 2332 bytes. It was one line in
+// gem_desktop.zig — `self.* = .{}` — whose comptime-known `Demo{}` embedded THIS
+// buffer, so the linker emitted a second 526 KB blob of zeros to memcpy over the
+// global. Removing that gave 514 KB back and the megabyte fits, with ~590 KB still
+// free by hwRamFree()'s own count (shown on the panel, gated by build.sh).
+const MAX_PCM: usize = 1024 * 1024;
 const FRAME_HZ: u32 = 60;
 
 

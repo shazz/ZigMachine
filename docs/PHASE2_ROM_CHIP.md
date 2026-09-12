@@ -5,27 +5,38 @@ machine `hwRamFree()` and the numbers below stopped being guesses.
 
 ## Why
 
-A cart's RAM window is `[0x100000, 0x300000)` — 2 MiB — and *everything the cart
-statically links* lives in it. GEM is statically linked (`build.zig`: "rom/ …
-Statically linked into the demo for now"), and `apps/zig/scenes/gem_desktop.zig`
-goes further: it embeds `st_replay.App` outright. So `demo-gem.wasm` is the
-desktop **plus** the sampler **plus** the boot ROM, sharing one window:
+**Not for RAM.** That was the original reason and it turned out to be wrong:
+`gem.Desktop` measures **2332 bytes**. What capped ST Replay's sample buffer at
+512 KB was one line in `apps/zig/scenes/gem_desktop.zig` — `self.* = .{}`, whose
+comptime-known `Demo{}` embedded the 526 KB sample buffer, so the linker emitted a
+second 526 KB blob of zeros as its own data segment. Removing it gave 517 KB back
+and the megabyte fits (commit that follows `690b2c3`). Ask `hwRamFree()` before
+believing any story about where a cart's window went.
+
+What remains, and is reason enough:
+
+1. **The polyglot claim is untested.** `rom/README.md` says a ROM is "just a
+   module linked against the HW ABI", so **a C or Rust app should be able to call
+   the Zig GEM ROM**. It cannot today — the seam is a Zig API (`@import("rom")`),
+   not a wasm ABI. That is the whole point of the machine/rom split and nothing
+   currently exercises it.
+2. **The desktop is a cart that CONTAINS its apps.** `gem_desktop.zig` embeds
+   `st_replay.App` outright, so every app GEM can launch is linked into GEM's own
+   binary. That does not scale past one app, and it is why the launch
+   double-click leaks into the newly-launched app (HANDOFF blocker).
+3. **RAM, secondarily.** Once several apps exist, linking them all into the
+   desktop puts every app's buffers in one window again — the duplicate-blob bug
+   was the acute form of a chronic shape.
+
+For reference, the window as it stands (`node apps/check_fits.mjs docs/demo-*.wasm`):
 
 | cart | used | free |
 |---|---|---|
 | `demo.wasm` (menu, no GEM) | 419 KB | 1629 KB |
-| `demo-st_replay.wasm` | 935 KB | 1113 KB |
-| **`demo-gem.wasm`** | **1456 KB** | **592 KB** |
+| `demo-st_replay.wasm` | 1447 KB | 601 KB |
+| `demo-gem.wasm` | 1454 KB | 594 KB |
 
-That 592 KB is why the sampler is capped at a 512 KB buffer: a 1 MB one ran past
-the top of the window, which does not trap — it corrupts the video region, and
-the machine died later inside `skipBoot()` (`56de690`). GEM's own contribution is
-roughly **525 KB** (1456 − 419 menu baseline − 512 sample buffer). Moving it out
-is the only way ST Replay gets near the ~1.9 MB the real thing reports.
-
-The second reason is the promise in `rom/README.md`: a ROM is "just a module
-linked against the HW ABI", so **a C or Rust app should be able to call the Zig
-GEM ROM**. It cannot today — the seam is a Zig API, not a wasm ABI.
+Most of both is now the 1 MB sample buffer, as it should be.
 
 ## The shape of the change
 
@@ -80,7 +91,9 @@ de-risking step**: change the call *shape* first, the module boundary second.
   machine's exports (it links `machine/sdk/` directly), and the app's `env` to
   the ROM's exports.
 - Delete `rom_mod` from every cart's imports. The shim becomes the real thing.
-- *Done when:* `demo-gem.wasm` drops by ~525 KB and `hwRamFree()` says so.
+- *Done when:* `demo-gem.wasm` drops by GEM's real footprint (small — a few KB
+  of state plus whatever code-adjacent data moves) and `hwRamFree()` says so.
+  Do not expect a large number here; see Why.
 
 ### 2.3 — the desktop stops being a cart that contains apps
 - `gem_desktop.zig` embedding `st_replay.App` has to go: the desktop lives in

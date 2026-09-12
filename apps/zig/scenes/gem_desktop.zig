@@ -24,7 +24,17 @@ pub const Demo = struct {
     fb: *LogicalFB = undefined,
 
     pub fn init(self: *Demo, os: *ZigOS) void {
-        self.* = .{}; // demo_main declares `var demo: Demo = undefined` — apply field defaults
+        // Apply field defaults WITHOUT `self.* = .{}`. A whole-struct default needs
+        // a comptime-known `Demo{}`, and Demo embeds st_replay.App (526 KB, nearly
+        // all of it the sample buffer) — so the linker emitted a SECOND 526 KB blob
+        // of literal zeros as a data segment just to memcpy it over this global.
+        // That one line cost 517 KB of the cart's 2 MB RAM window. Set the small
+        // fields; `app.init(os)` below sets every one of the App's own scalars
+        // explicitly (it has to — the cart lives in `undefined` memory until init).
+        self.blit = .{};
+        self.desktop = .{};
+        self.running = false;
+        self.desk_medium = false;
         self.fb = &os.lfbs[0];
         self.fb.is_enabled = true;
         self.fb.setMediumPlane(); // allocate the 640-wide buffer once (serves both LOW and MEDIUM)
