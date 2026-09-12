@@ -728,6 +728,13 @@ async function playYm(url) {
     audioNode.port.postMessage({ type: "loadYm", bytes: bytes }, [bytes]);
     const b = document.querySelector('.sound_button'); if (b) b.textContent = "Sound off";
 }
+async function playSndh(url, tune) {
+    await startAudio();
+    const bytes = await fetch(url).then(r => r.arrayBuffer());
+    audioNode.port.postMessage({ type: "loadSndh", bytes: bytes, tune: tune || 0 }, [bytes]);
+    const b = document.querySelector('.sound_button'); if (b) b.textContent = "Sound off";
+}
+
 // Stop a raw sample by (re)loading a tiny silent buffer onto the channel — the
 // sealed chip has no raw-stop, so this overwrites it with silence.
 function stopRaw() {
@@ -749,6 +756,7 @@ function playSongByName(name) {
     const url = "music/" + name;
     if (name.endsWith(".mod")) playMod(url);
     else if (name.endsWith(".ymraw")) playYm(url);
+    else if (name.endsWith(".sndh")) playSndh(url);
     else if (name.endsWith(".raw")) playRaw(url, 12517, false);
 }
 

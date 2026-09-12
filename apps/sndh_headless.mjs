@@ -84,11 +84,15 @@ if (trap) console.log(`  unanswered TRAP #${trap >> 16}, function $${(trap & 0xf
 // A second of audio, a block at a time, the way the worklet asks for it.
 const BLOCK = 1024, SECOND = 44100;
 const left = new Float32Array(memory.buffer, machine.audioLeftPtr(), BLOCK);
+const ymRegs = new Uint8Array(memory.buffer, machine.audioYmRegsPtr(), 16);
 let peak = 0;
+const seen = [new Set(), new Set(), new Set()]; // volumes reached per channel
 for (let done = 0; done < SECOND; done += BLOCK) {
     demo.audioRender(BLOCK);
     for (const v of left) peak = Math.max(peak, Math.abs(v));
+    for (let ch = 0; ch < 3; ch++) seen[ch].add(ymRegs[8 + ch]);
 }
+console.log(`  volumes seen  : A=${[...seen[0]].join(",")}  B=${[...seen[1]].join(",")}  C=${[...seen[2]].join(",")}`);
 
 // Did the 68000's writes reach the sealed chip?
 const regs = new Uint8Array(memory.buffer, machine.audioYmRegsPtr(), 16);

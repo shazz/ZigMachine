@@ -82,6 +82,14 @@ class ZigAudioSealedProcessor extends AudioWorkletProcessor {
                 const ok = d.audioLoadYm(len);
                 if (ok) d.audioYmPlay();
                 this.port.postMessage({ type: "ymLoaded", ok: !!ok, len: len });
+            } else if (msg.type === "loadSndh") {
+                // An SNDH is 68000 code; the cart depacks it (Pack-Ice) and runs
+                // it on its own CPU. Subtune numbers count from 1.
+                const len = writeSong(msg.bytes);
+                const ok = d.audioLoadSndh(len);
+                if (ok) d.audioSndhPlay(msg.tune || 0);
+                this.port.postMessage({ type: "sndhLoaded", ok: !!ok, len: len,
+                                        stuckPc: d.audioSndhStuckPc(), trap: d.audioSndhUnhandledTrap() });
             } else if (msg.type === "loadRaw") {
                 const len = writeSong(msg.bytes);
                 d.audioPlayRaw(len, msg.rate, msg.unsigned ? 1 : 0);

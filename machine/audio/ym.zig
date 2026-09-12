@@ -114,9 +114,14 @@ pub const Ym2149 = struct {
                 self.noise_bit = @truncate(self.noise_lfsr);
             }
 
-            // advance envelope
+            // Advance the envelope. clock/(256*EP) is the frequency of a COMPLETE
+            // 32-step envelope, so one STEP comes 32 times as often — clock/(8*EP).
+            // Getting this wrong runs the envelope 32x slow, which is inaudible on
+            // a long sweep but silences the buzzer bass the ST is known for: a
+            // replay that retriggers r13 every 50 Hz frame (as most do) never gets
+            // past the first step or two of the ramp.
             const ep: f32 = @floatFromInt(@max(@as(u16, 1), (@as(u16, self.regs[12]) << 8) | self.regs[11]));
-            self.env_acc += (YM_CLOCK / (256.0 * ep)) / self.sr;
+            self.env_acc += (YM_CLOCK / (8.0 * ep)) / self.sr;
             while (self.env_acc >= 1.0) {
                 self.env_acc -= 1.0;
                 self.envStep();
