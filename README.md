@@ -4,101 +4,118 @@ A [Fantasy Console](https://en.wikipedia.org/wiki/Fantasy_video_game_console) (o
 
 This project is inspired by [WAB](https://wab.com) and [CODEF](https://codef.santo.fr) by my friend [NoNameNo](https://github.com/N0NameN0) who... already more than 10 years ago... provided a way to code oldskool effects in the browser without Flash but only HTML5 and javascript. Time to go one step further. 0% Flash, 0% HTML, 0% Javascript, only Zig!
 
-Screenshots and live version below! 
+Screenshots and live version below!
 
 ## Live version
 
 Live website with the latest build: [ZigMachine](https://shazz.github.io/ZigMachine/) (Click on the + and - buttons to change channels!)
 
+## The machine is sealed
+
+The big idea, and the thing that makes this more than a demo loop: **the hardware is a separate binary from the software running on it.**
+
+The browser loads four wasm modules that share ONE `WebAssembly.Memory`:
+
+| module | thread | what it is |
+|---|---|---|
+| `machine-video.wasm` | main | the sealed video hardware — shifter, borders, blitter |
+| `machine-audio.wasm` | worklet | the sealed sound hardware — YM2149 + 4 sample channels |
+| `demo.wasm` | main | **your** code: the cart currently in the slot |
+| `demo-audio.wasm` | worklet | **your** players, driving the sound chips |
+
+They talk through a memory-mapped register ABI (`machine/sdk/`), exactly like poking hardware registers on a real machine. The app cannot reach inside the hardware, and the hardware cannot see the app — so the machine can be handed to someone else and still behave.
+
+A fifth module, `rom.wasm`, is the system software (GEM — a desktop, windows, dialogs and a file manager), which carts call through a flat handle-based ABI rather than linking it.
+
+The host JavaScript is deliberately dumb: it is glass and a speaker. It blits the framebuffer, forwards input, and plays the file a scene asks for. Everything else happens in wasm.
+
 ## Specs
 
-The specs of the ZigMachine will definitively evolve over time but for now they try to match what I would have loved to get in the 80-90s:
+The specs will keep evolving, but they try to match what I would have loved to get in the 80-90s:
 
 #### Memory / CPU
 
-- 2 MB of RAM available (32 pages of 64KB).
-- CPU frequency is what your Web Assembly browser framework can do. So, pretty (too...) fast. I'd love to be able to provide a restricted and stable execution speed one day if I find a way to do it. Currently my not-that-optimized flat shaded triangle routine can display around 1000 triangles/frame.
+- 7 MB of shared linear memory (112 pages of 64 KB), of which a cart gets a **2 MB window** for its code, data and stack — and the build fails if it overruns.
+- CPU frequency is whatever your browser's WebAssembly can do. So, pretty (too...) fast.
+- Assets can be **ZX0-packed** and depacked into free cart RAM at run time (~38% of raw across the whole shelf).
 
 #### Graphics
 
-- 1 physical RGBA framebuffer of 400x280 pixels without borders, 320x200 pixels with borders.
-- 4 logical linear indexed colors framebuffers (each pixel is an entry of the 256 colors RGBA palette) of 320x200 pixels
-- 1 palette of 256 colors (RGBA, 8 bits per component) for each logical framebuffer.
-- Blocking VBL and HBL callbacks on logical framebuffers and on the physical framebuffer.
-- Overscan possible but a little tricky to set up else no fun!
+- 1 physical RGBA framebuffer, 400x280 with borders, 320x200 visible.
+- 4 logical indexed framebuffers (each pixel an entry in a 256-colour RGBA palette), composited as stacked layers — palette entry alpha 0 is transparent.
+- 1 palette of 256 colours (RGBA, 8 bits per component) per logical framebuffer.
+- Per-scanline (HBL) and per-frame (VBL) callbacks, per-plane and global — this is how you do copper bars.
+- **Overscan the honest way**: there is no "fullscreen" flag. You open a border by flickering the resolution register from an HBL handler at exactly the right column, as on real hardware. Miss the column and you get garbage on that line.
+- Blitter, hardware scrolling, and a `copper` helper for per-line palette tables.
 
 #### Sound
 
-- Nothing yet! Soon! (Hopefully)
+- **YM2149 PSG** + 4 Paula-style sample channels, both sealed hardware.
+- Players (the open half): ProTracker MOD, YM register dumps, raw PCM streaming off a disk, and **SNDH — which runs the tune's own 68000 replay code on an emulated Motorola 68000** (Musashi), trapping its PSG writes to the sealed chip. The chip music is genuinely being played by the original driver.
+- A scene just asks for a tune by name; the machine reclaims the sound chip when a program ends.
 
 #### OS
 
-- Limited ZigOS for basic setup and framebuffer managemenent.
-- 8x8 sytem font with print capability
+- **ZigOS**, the open library layer: planes, palettes, HBL handlers, blitting, text.
+- **GEM** in `rom.wasm`: a TOS-1.00-style desktop with windows, icons, dialogs, drag and drop, rename, and `DESKTOP.INF`.
+- Programs live on **floppies** (`.zmd`) with a FAT and a bootable sector; GEM can launch one off the disk, and an app can quit back to the desktop.
 
 #### Demo framework
 
-In addition to the fantasy console and the ZigOS, a library for classic oldsk00l demo effects is provided featuring:
+Reusable oldskool effects: scrolltexts (with X/Y offset tables), 2D/3D starfields, 3D transforms, triangle/line/pixel drawing, sprites, bobs, fades, tile engines, parallax, and a clipped signed-coordinate blitter.
 
-- Horizontal scrolltext with offset tables in X and Y
-- 2D starfield
-- 3D starfield
-- 3D transformations
-- Triangle, line and pixel drawing
-- Sprites
-- Bobs
-- Screen fading
-- Background image
-- Static text display
+## Any language, not just Zig
 
-I started to port some of my favorites Atari and Amiga cracktros (from WAB) to show how to use the ZigMachine. Check the source code and the channels in the live demo.
+The seal is a **wasm ABI, not a Zig API**, so a cart can be written in anything that compiles to wasm. `apps/c/` and `apps/rust/` hold working carts — including a full cracktro port in C that opens the borders with the same resolution-flicker trick, driven entirely by register pokes and an exported HBL callback from C.
 
-#### Next in my TODO list:
+```
+apps/zig/scenes/    the Zig scenes (one cart each)
+apps/c/scenes/      C carts        apps/rust/   Rust carts
+machine/            the sealed hardware + its SDK headers
+rom/                system software (GEM)
+libs/{zig,c,rust}/  reusable libraries (ZigOS lives in libs/zig)
+docs/               the web root, the built wasm, and the API docs
+```
 
-- Stero digital sound channel (44100Hz, 32 bits).
-- Soundchip (YM2149 probably) emulation.
-- Blitter emulation for line drawing and polyfilling.
-- Mapped memory in addition to OS functions.
-- Emulated hardware scrolling.
-- Z-Buffer, face culling, Gouraud shading.
-- 3D Objects loader.
+## The channels
 
-For the moment, only Zig is supported to code stuff on the ZigMachine (so the name...) but maybe one day, some custom 68K like assembly code or probably inline Web Assembly. Who knows :) Want to add things? Please leave a message in the [Discussions](https://github.com/shazz/ZigMachine/discussions)
+34 screens ship as cartridges, most of them ports of Atari ST cracktros and demo screens from [WAB](https://wab.com)'s CODEF remakes. The `+` / `−` buttons on the monitor step through them like TV channels, with an analogue-noise transition; the boot menu lists them all.
 
-### Project status
+**Credit belongs to the originals.** Each scene's source header names the demo, its coders, graphicians and musicians, and the author of the CODEF remake it was read from. CODEF itself is MIT-licensed. The music is from the [SNDH archive](https://sndh.atari.org). If you are one of the original authors and would rather your work were not here, please open an issue.
 
-The project status is available here: https://github.com/users/shazz/projects/2/
+## Docs
+
+- `docs/HW_API.md` — the sealed hardware ABI
+- `docs/ZIGOS_API.md` — the open library
+- `docs/HARDWARE_SPEC.md` — design and status
+- `docs/FLOPPY_DISK.md` — the disk format
+- `decisions.md` — architecture decision records
 
 ## Build
 
 ### Prerequisites
 
-- [Zig 0.10.0+ ](https://github.com/ziglang/zig/wiki/Install-Zig-from-a-Package-Manager)
-- [Python 3+](https://www.python.org/downloads/), pretty nice to preprocess images and host the wasm with one line
-- Optional VScode with Zig extensions
+- [Zig 0.16.0](https://ziglang.org/download/)
+- [Python 3](https://www.python.org/downloads/) for the asset tools and the dev server
+- Node (optional) for the headless test harnesses
 
-The default (and only) target for this build is `wasm32-freestanding-musl`.
-
-To build the wasm module, run:
-
-For Web Assembly
+The only target is `wasm32-freestanding-musl`.
 
 ```shell
-% zig build -Drelease=true -Dwasm
+./build.sh
 ```
 
-Note: `build.zig` specifies various wasm-ld parameters. For example, it sets the initial memory size and maximum size to be xxx pages, where each page consists of 64kB. Use the `--verbose` flag to see the complete list of flags the build uses.
+That builds every module and cart, then runs the gate: RAM-window checks, the native tests, a repack of every floppy, and headless harnesses that drive the real machine end to end. Use it instead of a bare `zig build` — the failures it catches are the silent ones, like a cart overrunning its window and corrupting the video region instead of trapping.
 
 ## Run
 
-Start up the server in the html directory:
-
 ```shell
-cd docs
-python3 -m http.server 3333
+./serve.sh          # serves docs/ with no-store caching
 ```
 
-Go to your favorite browser and type to the URL `http://localhost:3333` or `http://localhost:3333/debug.html` for a debug view of each logical framebuffer.
+Then open `http://localhost:3333`. Hard-reload (Ctrl+Shift+R) after a rebuild.
+
+To boot straight into one cart: `http://localhost:3333/?demo=demo-dbug.wasm`
 
 ## Screenshots
 
@@ -106,6 +123,4 @@ Go to your favorite browser and type to the URL `http://localhost:3333` or `http
 ![image](https://user-images.githubusercontent.com/604708/215281094-e26adf7d-2582-4f45-8826-25e11ff84fcd.png)
 ![image](https://user-images.githubusercontent.com/604708/215281318-dea95451-233b-4fe5-b7fb-7a4da2e33c7b.png)
 
-
-
-
+Want to add things? Please leave a message in the [Discussions](https://github.com/shazz/ZigMachine/discussions).

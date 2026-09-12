@@ -1,0 +1,95 @@
+/* The "what is this?" panel beside the monitor (docs/index.html).
+   The monitor overlay is a fixed 1030x824 image at the top-left, so the panel
+   starts just right of it, and drops below it on windows too narrow for both. */
+
+.info {
+  --ink: #d8e6d0;
+  --dim: #8fa38a;
+  --accent: #7dff9b;
+  --edge: #2b3a2c;
+  position: absolute;
+  top: 48px;
+  left: 1054px;
+  width: min(420px, calc(100vw - 1054px - 24px));
+  max-height: calc(100vh - 72px);
+  overflow-y: auto;
+  box-sizing: border-box;
+  padding: 18px 20px 16px;
+  background: rgba(10, 14, 10, 0.72);
+  border: 1px solid var(--edge);
+  border-radius: 6px;
+  color: var(--ink);
+  font: 13px/1.55 ui-monospace, "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace;
+  z-index: 1;
+}
+
+.info h1 {
+  margin: 0 0 2px;
+  font-size: 20px;
+  letter-spacing: 0.08em;
+  color: var(--accent);
+  text-shadow: 0 0 6px rgba(125, 255, 155, 0.35);
+}
+
+.info .tagline {
+  margin: 0 0 12px;
+  color: var(--dim);
+}
+
+.info h2 {
+  margin: 14px 0 4px;
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.info p { margin: 0 0 8px; }
+
+.info ul {
+  margin: 0 0 8px;
+  padding-left: 16px;
+}
+
+.info li { margin: 2px 0; }
+
+.info kbd {
+  padding: 0 5px;
+  border: 1px solid var(--edge);
+  border-radius: 3px;
+  background: #1b241b;
+  font: inherit;
+}
+
+.info a { color: var(--accent); }
+.info a:hover { color: #fff; }
+
+.info .links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.info .links a {
+  padding: 5px 10px;
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  text-decoration: none;
+}
+
+.info .credits {
+  margin-top: 12px;
+  font-size: 11px;
+  color: var(--dim);
+}
+
+/* Not enough room beside the monitor: sit under it instead. */
+@media (max-width: 1380px) {
+  .info {
+    top: 840px;
+    left: 16px;
+    width: min(1000px, calc(100vw - 32px));
+    max-height: none;
+  }
+}

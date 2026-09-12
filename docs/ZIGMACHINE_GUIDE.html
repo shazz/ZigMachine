@@ -34,7 +34,7 @@ code { background: #1a2030; padding: 1px 5px; border-radius: 4px; }
 <body>
 <header>
   <h1>ZigMachine — Programmer's Guide</h1>
-  <div class="sub">Generated 2026-09-07 by tools/gen_docs.py · 12 ABI exports · 42 library methods · 92 constants/registers</div>
+  <div class="sub">Generated 2026-09-12 by tools/gen_docs.py · 22 ABI exports · 47 library methods · 94 constants/registers</div>
 </header>
 <div class="wrap">
   <nav><a href="#top">Overview</a><a href="#examples">Examples</a><a href="#0">Geometry &amp; resolution</a>
@@ -173,7 +173,9 @@ if (g.button(.{ .x=content.x+4, .y=content.y+4, .w=48, .h=18 }, &quot;OK&quot;, 
 <tr><td><code>REG_HSCROLL</code></td><td><code>0x3C</code></td><td>u16 x4 per-plane horizontal scroll (re-read PER SCANLINE in SCROLL mode → line distort)</td></tr>
 <tr><td><code>REG_FB_BASE</code></td><td><code>0x44</code></td><td>u32 x4 per-plane framebuffer screen base (0x44..0x53) — pan point for SCROLL mode</td></tr>
 <tr><td><code>REG_FB_MODE</code></td><td><code>0x54</code></td><td>u8 x4 per-plane render mode (0x54..0x57): 0 normal, 1 fullscreen, 2 scroll, 3 medium, 4 overscan</td></tr>
-<tr><td><code>REG_RES_FLICKER</code></td><td><code>0x58</code></td><td>u16  overscan-trick latch: the SDK bumps it on a RES_MEDIUM-&gt;RES_PLANES flicker so the (untrappable) poke is observable per scanline (0x58..0x59; 0x5A..0x7F free below OFF_BLIT)</td></tr>
+<tr><td><code>REG_RES_FLICKER</code></td><td><code>0x58</code></td><td>u16  overscan-trick latch: the SDK bumps it on a RES_MEDIUM-&gt;RES_PLANES flicker so the (untrappable) poke is observable per scanline (0x58..0x59; 0x5A..0x5B free)</td></tr>
+<tr><td><code>REG_CART_HIGH</code></td><td><code>0x5C</code></td><td>u32  (0x5C..0x5F)</td></tr>
+<tr><td><code>REG_ROM_HIGH</code></td><td><code>0x60</code></td><td>u32  (0x60..0x63; 0x64..0x7F free below OFF_BLIT)</td></tr>
 </tbody></table></section>
 <section id="3"><h2>Blitter registers</h2><table><thead><tr><th>Name</th><th>Value</th><th>Meaning</th></tr></thead><tbody>
 <tr><td><code>BLIT_COMMAND</code></td><td><code>OFF_BLIT + 0x00</code></td><td>u8  0 NOP 1 BLIT 2 FILL 3 LINE 4 TRIANGLE</td></tr>
@@ -241,8 +243,26 @@ if (g.button(.{ .x=content.x+4, .y=content.y+4, .w=48, .h=18 }, &quot;OK&quot;, 
 <div class="item"><code class="sig">hwPlanesNumber() u8</code></div>
 <div class="item"><code class="sig">hwPhysWidth() u32</code></div>
 <div class="item"><code class="sig">hwPhysHeight() u32</code></div>
-<div class="item"><code class="sig">hwVersion() u32</code><div class="doc">ZM_HW_VERSION</div></div></section>
+<div class="item"><code class="sig">hwVersion() u32</code><div class="doc">ZM_HW_VERSION</div></div>
+<div class="item"><code class="sig">hwRamBase() u32</code><div class="doc">first byte of the cart&#x27;s window (0x100000)</div></div>
+<div class="item"><code class="sig">hwRamTop() u32</code><div class="doc">first byte ABOVE it (= the video region)</div></div>
+<div class="item"><code class="sig">hwRamSize() u32</code><div class="doc">the whole window, in bytes (2 MiB)</div></div>
+<div class="item"><code class="sig">hwRamUsed() u32</code><div class="doc">this cart&#x27;s static data + stack</div></div>
+<div class="item"><code class="sig">hwRamFree() u32</code><div class="doc">what is left below the video region</div></div>
+<div class="item"><code class="sig">hwRomRamBase() u32</code></div>
+<div class="item"><code class="sig">hwRomRamTop() u32</code></div>
+<div class="item"><code class="sig">hwRomRamSize() u32</code></div>
+<div class="item"><code class="sig">hwRomRamUsed() u32</code></div>
+<div class="item"><code class="sig">hwRomRamFree() u32</code></div></section>
 <section id="6"><h2>Disk / cart format + boot sectors</h2><h1>ZigMachine Disk — design</h1>
+<blockquote>
+<p><strong>Packing the shelf:</strong> <code>tools/mkdisks.sh</code> repacks every disk in <code>docs/</code> from the
+built carts (run by <code>build.sh</code>; only repacks what is stale, <code>-f</code> forces). It is
+the recipe the images used to lack — they drifted a week behind the wasm and
+froze an import list the host no longer had. <code>node apps/disk_check.mjs</code> then
+mounts every image and instantiates its cart against the host's real <code>env</code>,
+which is the check that would have caught that.</p>
+</blockquote>
 <p><strong>Status:</strong> MVP working — <code>tools/mkdisk.py</code> packs a cart into a <code>.zmd</code>, and
 <code>sealed.html?disk=X.zmd</code> verifies the <code>$1234</code> boot sector and boots the cart (phases
 B–D of the plan). Still to do: FAT/multi-file, disk-browser menu, block streaming.
@@ -680,10 +700,13 @@ export fn pollCartRequest() i32 { return if (frame_count &gt;= 120) 2 else 0; } 
 <section id="7"><h2>ZigOS — LogicalFB (a plane)</h2><div class="item"><code class="sig">init(self: *LogicalFB, zigos: *ZigOS) void</code></div>
 <div class="item"><code class="sig">setOverscanBuffer(self: *LogicalFB) void</code><div class="doc">Turn this plane into an OVERSCAN plane: a 400×280 buffer in PHYSICAL coords (0..400, 0..280). The borders stay CLOSED — only the visible 320×200 window shows — until the scene &quot;opens&quot; a border with the authentic resolution-flicker trick: call flickerBorder() from this plane&#x27;s HBL handler, at OVERSCAN_MAGIC_X, on the scanline of the border you want. See docs/HW_API.md &quot;Opening the borders&quot;.</div></div>
 <div class="item"><code class="sig">flickerBorder(_: *LogicalFB) void</code><div class="doc">Open a border, ST-style, from THIS plane&#x27;s per-plane HBL handler: flicker the resolution register (RES_MEDIUM -&gt; RES_PLANES). The sealed machine can&#x27;t trap writes to shared memory, so we also bump REG_RES_FLICKER — the latch it samples once per scanline. The plane&#x27;s HBL must fire at OVERSCAN_MAGIC_X (± tolerance) or that line&#x27;s border shows garbage — a mistimed trick, exactly as on real HW. Flicker in a border band (top/bottom) opens it from that row down; flicker on a visible line opens both side borders for that line (re-open sides every line).</div></div>
+<div class="item"><code class="sig">openBorders(self: *LogicalFB, which: Borders) void</code><div class="doc">Make this an overscan plane and open its borders with the flicker trick: .all flickers every line (top, sides, bottom), .top_bottom only the border bands (MAXI). Replaces this plane&#x27;s HBL handler; a scene that also needs per-line rasters uses copper.install(fb, entries, .{ .flicker = true }). Every enabled overscan plane needs this for itself: the machine replays a plane&#x27;s HBLs while rendering THAT plane.</div></div>
+<div class="item"><code class="sig">hblLinesArePhysical(self: *const LogicalFB) bool</code><div class="doc">True when this plane&#x27;s per-plane HBL receives PHYSICAL lines 0..279 (overscan, fullscreen, full-raster medium), false for LOGICAL lines 0..199 (normal, scroll, medium) — machine/video.zig&#x27;s renderPlane* loops.</div></div>
 <div class="item"><code class="sig">setScrollPlane(self: *LogicalFB, buf_w: u16, buf_h: u16) void</code><div class="doc">Turn this plane into a SCROLL plane: back it with a bigger-than-screen buffer (buf_w x buf_h). Draw into it at buffer coordinates via the normal methods; the visible 320x200 window is panned with setScroll()/setScrollFine().</div></div>
 <div class="item"><code class="sig">setScroll(self: *LogicalFB, x: u32, y: u32) void</code><div class="doc">Pan the visible window to buffer pixel (x, y) — coarse hardware scroll (moves the plane&#x27;s read base; the backing buffer / draw origin stays put).</div></div>
 <div class="item"><code class="sig">setScrollFine(self: *LogicalFB, hs: u16) void</code><div class="doc">Per-line horizontal offset (added on top of setScroll). In SCROLL mode this is re-read every scanline, so setting it from an HBL handler distorts the image line-by-line (sine wobble / shear).</div></div>
 <div class="item"><code class="sig">setMediumPlane(self: *LogicalFB) void</code><div class="doc">Turn this plane into a MEDIUM-res plane (640x200, 1:1 into the raster). Coordinates are 0..640 / 0..200; the machine composites it crisply (no pixel doubling). Use 2 medium planes for a 4-colour GEM-style screen.</div></div>
+<div class="item"><code class="sig">setMediumOverscan(self: *LogicalFB) void</code><div class="doc">Turn this plane into a MEDIUM-res plane covering the WHOLE 800x280 raster, borders included — the medium twin of the low-res Option-B overscan. The visible window is the centre 640x200 at (80,40); coordinates here are PHYSICAL, so (0,0) is the top-left of the border.  The sealed machine already does this: renderPlaneMedium() switches to full-raster compositing when a plane&#x27;s stride reaches RASTER_WIDTH, which is the only signal it gets. So this is a plain ZigOS helper, not HW work — it replaces the deleted setMediumFullscreen(), whose removal during the overscan rework is what parked apps/zig/scenes/medium_overscan.zig.</div></div>
 <div class="item"><code class="sig">setResLow(self: *LogicalFB) void</code><div class="doc">Switch an already-medium plane (setMediumPlane) between LOW (320, drawn pixel-doubled) and MEDIUM (640, 1:1) at runtime WITHOUT reallocating: the 640-wide buffer holds a 320 image too (stride 320 uses its first columns). Redraw after switching (content is stride-dependent).</div></div>
 <div class="item"><code class="sig">setResMedium(self: *LogicalFB) void</code></div>
 <div class="item"><code class="sig">getRenderTarget(self: *LogicalFB) RenderTarget</code></div>
@@ -696,11 +719,13 @@ export fn pollCartRequest() i32 { return if (frame_count &gt;= 120) 2 else 0; } 
 <div class="item"><code class="sig">clearFrameBuffer(self: *LogicalFB, pal_entry: u8) void</code></div>
 <div class="item"><code class="sig">setFrameBufferHBLHandler(self: *LogicalFB, position: u16, handler: *const fn (*LogicalFB, *ZigOS, u16, u16) void) void</code></div>
 <div class="item"><code class="sig">clearFrameBufferHBLHandler(self: *LogicalFB) void</code></div></section>
-<section id="8"><h2>ZigOS — ZigOS (the OS)</h2><div class="item"><code class="sig">init(self: *ZigOS) void</code></div>
+<section id="8"><h2>ZigOS — ZigOS (the OS)</h2><div class="item"><code class="sig">initTextOnly(self: *ZigOS) void</code><div class="doc">Bind the system fonts and NOTHING else — no registers, no VRAM allocation.  For a consumer that needs to DRAW TEXT over a framebuffer somebody else owns: the ROM chip does this so it can render GEM widgets for an app written in C or Rust, which has no ZigOS of its own to lend. Calling the full init() there would reset the machine&#x27;s registers and reallocate every plane out from under the running app.</div></div>
+<div class="item"><code class="sig">init(self: *ZigOS) void</code></div>
 <div class="item"><code class="sig">resetForScene(self: *ZigOS) void</code><div class="doc">Reset the machine to a freshly-booted state so a DIFFERENT scene can be started at runtime (the boot-&gt;cart hand-off and the effects menu use this). Like init() but without re-discovering the video base, and it ALSO clears the per-plane hardware mode/stride/scroll/HBL registers a previous scene may have set (plain init() leaves those stale, which would corrupt the next scene). Safe only after init() has run once (sets base/fonts).</div></div>
 <div class="item"><code class="sig">nop(self: *ZigOS) void</code><div class="doc">--- Features ---</div></div>
-<div class="item"><code class="sig">printText(self: *ZigOS, lfb: *LogicalFB, text: []const u8, x: u16, y: u16, fg_color_index: u8, bg_color_index: u8) void</code></div>
-<div class="item"><code class="sig">printTextSmall(self: *ZigOS, lfb: *LogicalFB, text: []const u8, x: u16, y: u16, fg_color_index: u8, bg_color_index: u8) void</code><div class="doc">Draw text in the 6x6 system font (icon labels). Clean row-major blit, 1 byte/pixel; glyph N lives at N*(6*6) in the raw font.</div></div>
+<div class="item"><code class="sig">printText(self: *ZigOS, lfb: *LogicalFB, text: []const u8, x: i16, y: i16, fg_color_index: u8, bg_color_index: u8) void</code><div class="doc">Draw text in the 8x8 system font. x/y are SIGNED: GUI text can start off the left/top edge (a window dragged past the border) and must be cut, not wrapped onto the neighbouring scanline.</div></div>
+<div class="item"><code class="sig">printTextClipped(self: *ZigOS, lfb: *LogicalFB, text: []const u8, x: i16, y: i16, fg_color_index: u8, bg_color_index: u8, clip: Clip) void</code><div class="doc">Draw text in the 8x8 font, confined to `clip` — for text whose glyph cell has to overlap its neighbours (a menu separator&#x27;s underscore sits low in its cell, so the cell reaches up into the row above).</div></div>
+<div class="item"><code class="sig">printTextSmall(self: *ZigOS, lfb: *LogicalFB, text: []const u8, x: i16, y: i16, fg_color_index: u8, bg_color_index: u8) void</code><div class="doc">Draw text in the 6x6 system font (icon labels).</div></div>
 <div class="item"><code class="sig">setResolution(self: *ZigOS, res: Resolution) void</code><div class="doc">--- Framebuffer / register management ---</div></div>
 <div class="item"><code class="sig">setBackgroundColor(self: *ZigOS, color: Color) void</code></div>
 <div class="item"><code class="sig">getBackgroundColor(self: *ZigOS) Color</code></div>
