@@ -20,5 +20,8 @@
             </div>
         </div>
     </body>
-    <script src="sealed-loader.js?v=25"></script>
+    <!-- Measures a cart's RAM high-water for hwSetCartHigh; module, so it must
+         come first (it publishes globalThis.ZMRam for the classic loader). -->
+    <script type="module" src="wasm_hiwater.js?v=26"></script>
+    <script src="sealed-loader.js?v=26"></script>
 </html>

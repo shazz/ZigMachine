@@ -13,6 +13,7 @@
 // Coordinates are PHYSICAL-VISIBLE (0..639 x, 0..199 y), the same frame the loader
 // sends; GEM halves x itself for its 320-wide low-res logical screen.
 import { readFile, writeFile } from "node:fs/promises";
+import { cartRam } from "../docs/wasm_hiwater.js";
 
 const PAGES = 79; // must match SHARED_PAGES in machine/sdk/memmap.zig
 const DBLCLICK = 2; // pointer buttons bit 1 = the loader's synthesised double-click
@@ -35,13 +36,21 @@ export async function bootGem() {
             consoleLogJS: (p, l) => console.log("[wasm]", dec.decode(new Uint8Array(memory.buffer, p, l))),
             hwVideoBase: machine.hwVideoBase,
             hwBlit: machine.hwBlit,
+            hwRamBase: machine.hwRamBase, hwRamTop: machine.hwRamTop,
+            hwRamSize: machine.hwRamSize, hwRamUsed: machine.hwRamUsed,
+            hwRamFree: machine.hwRamFree,
             // GEM touches none of these headlessly, but the import list must match.
             audioPlay: noop, audioStop: noop, loadSample: noop, beep: noop,
             diskReadBlock: noop, hostAudioStreamStart: noop, hostAudioFeed: noop,
             hostAudioStreamStop: noop,
         },
     };
-    demo = (await WebAssembly.instantiate(await readFile("docs/demo-gem.wasm"), demoImports)).instance.exports;
+    const cart = await readFile("docs/demo-gem.wasm");
+    demo = (await WebAssembly.instantiate(cart, demoImports)).instance.exports;
+    // Same declaration the browser loader makes, so hwRamFree() reports the real
+    // numbers headlessly too (this harness is how a cart overrunning the window
+    // gets caught before it reaches a browser).
+    machine.hwSetCartHigh(cartRam(cart).high ?? 0);
 
     machine.hwInit();
     demo.boot();

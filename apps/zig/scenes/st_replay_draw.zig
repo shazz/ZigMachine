@@ -19,6 +19,7 @@ pub const View = struct {
     low: u32,
     high: u32,
     bytes: u32,
+    free: u32, // machine RAM still available, straight from hwRamFree()
     sample: []const u8,
 };
 
@@ -33,6 +34,12 @@ fn panelBox(g: *gui.Gui, v: View) void {
     ui.panel(g, ui.PANEL);
     const cx = ui.PANEL.x + @divTrunc(ui.PANEL.w, 2);
     ui.centred(g, "ST Replay / Editor - ZigMachine", cx, ui.TITLE_ROW);
+    // The original reports the machine's free memory on the title line. Ours is
+    // the real number the hardware hands back, not a constant: a cart's window is
+    // shared with the ROM's statics, so it differs per build.
+    var mem: [24]u8 = undefined;
+    const free = std.fmt.bufPrint(&mem, "{d} BYTES FREE", .{v.free}) catch "";
+    ui.rightAligned(g, free, ui.PANEL.x + ui.PANEL.w - 6, ui.TITLE_ROW);
 
     var row: usize = 0;
     while (row < ui.ROWS) : (row += 1) {

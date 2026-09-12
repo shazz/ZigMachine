@@ -30,6 +30,9 @@ pub const PAL_BYTES = memmap.PAL_BYTES;
 pub const VRAM_BYTES = memmap.VRAM_BYTES;
 pub const NORMAL_FB_BYTES = memmap.NORMAL_FB_BYTES;
 pub const FULLSCREEN_FB_BYTES = memmap.FULLSCREEN_FB_BYTES;
+pub const CART_RAM_BASE = memmap.CART_RAM_BASE;
+pub const CART_RAM_TOP = memmap.CART_RAM_TOP;
+pub const CART_RAM_BYTES = memmap.CART_RAM_BYTES;
 pub const defaultFbBase = memmap.defaultFbBase;
 pub const REG_RESOLUTION = memmap.REG_RESOLUTION;
 pub const REG_BACKGROUND = memmap.REG_BACKGROUND;
@@ -130,3 +133,16 @@ pub extern fn hwPlanesNumber() u8;
 pub extern fn hwPhysWidth() u32;
 pub extern fn hwPhysHeight() u32;
 pub extern fn hwVersion() u32; // ZM_HW_VERSION
+
+// --- RAM instructions ---
+// How much of the cart's RAM window [CART_RAM_BASE, CART_RAM_TOP) is left. The
+// window holds this cart's static data AND its stack, and running past the top
+// corrupts the video region silently instead of trapping — so size big buffers
+// against hwRamFree() rather than a constant. hwRamFree() returns 0 when the
+// host has not declared the cart's high-water (an old loader), which is
+// deliberately indistinguishable from "full": treat 0 as "take nothing".
+pub extern fn hwRamBase() u32; // first byte of the cart's window (0x100000)
+pub extern fn hwRamTop() u32; // first byte ABOVE it (= the video region)
+pub extern fn hwRamSize() u32; // the whole window, in bytes (2 MiB)
+pub extern fn hwRamUsed() u32; // this cart's static data + stack
+pub extern fn hwRamFree() u32; // what is left below the video region

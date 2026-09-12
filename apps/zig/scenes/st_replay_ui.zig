@@ -144,5 +144,10 @@ pub fn centred(g: *gui.Gui, s: []const u8, cx: i16, y: i16) void {
     g.text(s, cx - @as(i16, @intCast(s.len)) * 4, y, gui.BLACK, gui.WHITE);
 }
 
+// Right edge at rx, so a number that grows leftwards stays inside the panel.
+pub fn rightAligned(g: *gui.Gui, s: []const u8, rx: i16, y: i16) void {
+    g.text(s, rx - @as(i16, @intCast(s.len)) * 8, y, gui.BLACK, gui.WHITE);
+}
+
 pub const COL_EQ = [3]i16{ LEFT_EQ, MID_EQ, RIGHT_EQ };
 pub const TITLE_ROW = TITLE_Y;

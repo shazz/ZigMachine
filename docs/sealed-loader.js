@@ -212,12 +212,42 @@ function tolerantEnv(env) {
     });
 }
 
+// Tell the machine where this cart's static data + stack end, so hwRamFree()
+// can answer truthfully for it (see machine/sdk/memmap.zig REG_CART_HIGH). Only
+// the host can know: the number is baked into the cart binary by the linker.
+// Every failure here is non-fatal — an undeclared high-water makes hwRamFree()
+// report 0 ("take nothing"), which is the safe answer, and never blocks a boot.
+function declareCartRam(bytes, what) {
+    if (!machine || !machine.hwSetCartHigh) return; // pre-1.2.0 machine
+    if (!globalThis.ZMRam) {
+        console.warn("wasm_hiwater.js not loaded — hwRamFree() will report 0");
+        return;
+    }
+    try {
+        const ram = globalThis.ZMRam.cartRam(bytes);
+        machine.hwSetCartHigh(ram.known ? ram.high : 0);
+        if (ram.over) {
+            console.error(`${what}: OVERRUNS the cart RAM window — data+stack end at ` +
+                          `0x${ram.high.toString(16)}, past 0x${globalThis.ZMRam.CART_RAM_TOP.toString(16)}. ` +
+                          `It will corrupt the video region. Shrink its statics.`);
+        } else if (ram.known) {
+            console.log(`${what}: RAM ${(ram.used / 1024) | 0} KB used, ` +
+                        `${(ram.free / 1024) | 0} KB free of 2048 KB`);
+        }
+    } catch (e) {
+        console.warn(`Cannot measure ${what}'s RAM high-water: ${e.message}`);
+        machine.hwSetCartHigh(0);
+    }
+}
+
 // Instantiate a cart, turning a link failure into a REPORT rather than a freeze.
 // A disk packed against an older host import surface fails here; saying which
 // import is missing beats a black screen.
 async function instantiateCart(bytes, what) {
     try {
-        return await WebAssembly.instantiate(bytes, demoImports);
+        const mod = await WebAssembly.instantiate(bytes, demoImports);
+        declareCartRam(bytes, what);
+        return mod;
     } catch (e) {
         console.error(`Cannot start ${what}: ${e.message}`);
         alert(`ZigMachine: cannot start ${what}.\n\n${e.message}\n\n` +
@@ -253,6 +283,13 @@ async function boot() {
             consoleLogJS: consoleLogJS,
             hwVideoBase: machine.hwVideoBase,
             hwBlit: machine.hwBlit, // sealed 2D blitter (execute COMMAND register)
+            // RAM instructions: how much of the cart window is left (see
+            // declareCartRam above, which tells the machine where this cart ends).
+            hwRamBase: machine.hwRamBase,
+            hwRamTop: machine.hwRamTop,
+            hwRamSize: machine.hwRamSize,
+            hwRamUsed: machine.hwRamUsed,
+            hwRamFree: machine.hwRamFree,
             beep: () => beep(), // boot-sector YM2149 tone (see novirus.zig)
             diskReadBlock: (block, dst) => diskReadBlock(block, dst), // drive: 512 B block -> RAM
             hostAudioStreamStart: (rate) => hostAudioStreamStart(rate), // begin ring streaming
@@ -282,13 +319,15 @@ async function boot() {
         } else {
             // A data disk isn't bootable — bring up the OS (GEM); the disk stays
             // mounted so GEM can open its app + read its files (e.g. SAMPLE.RAW).
-            demoMod = await WebAssembly.instantiateStreaming(fetch("demo-gem.wasm" + BUST), demoImports);
+            demoMod = await instantiateCart(
+                await fetch("demo-gem.wasm" + BUST).then((r) => r.arrayBuffer()), "demo-gem.wasm");
             diskApp = true; // GEM's FLOPPY icon opens this disk's app
             console.log("Data disk inserted → booting GEM");
         }
     } else {
         const demoWasm = params.get("demo") || "demo.wasm";
-        demoMod = await WebAssembly.instantiateStreaming(fetch(demoWasm + BUST), demoImports);
+        demoMod = await instantiateCart(
+            await fetch(demoWasm + BUST).then((r) => r.arrayBuffer()), demoWasm);
         console.log("Open demo.wasm loaded");
     }
     demo = demoMod.instance.exports;

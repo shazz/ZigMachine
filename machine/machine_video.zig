@@ -47,3 +47,27 @@ export fn hwBorderY() u32 {
 export fn hwVersion() u32 {
     return memmap.ZM_HW_VERSION;
 }
+
+// --- RAM instructions (see video.zig / memmap.REG_CART_HIGH) ---
+// The host declares the loaded cart's data+stack high-water once, at load time;
+// the cart then asks the machine how much of its window is left instead of
+// guessing (which is how a 1 MB sample buffer silently ran into the video region
+// and trapped the machine on boot).
+export fn hwSetCartHigh(high: u32) void {
+    video.setCartHigh(high);
+}
+export fn hwRamBase() u32 {
+    return memmap.CART_RAM_BASE;
+}
+export fn hwRamTop() u32 {
+    return memmap.CART_RAM_TOP;
+}
+export fn hwRamSize() u32 {
+    return memmap.CART_RAM_BYTES;
+}
+export fn hwRamUsed() u32 {
+    return video.ramUsed();
+}
+export fn hwRamFree() u32 {
+    return video.ramFree();
+}

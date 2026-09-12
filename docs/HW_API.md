@@ -8,7 +8,7 @@ The **sealed machine** ABI: everything a coder gets of the hardware is the two
 > the entry points, not the schematics. The constraints *are* the console.
 > Everything here is stable ABI — additive changes bump minor, layout changes
 > bump major. Version is exported as `hwVersion()` / `audioVersion()`
-> (`0x0001_0000` = 1.0.0).
+> (`0x0001_0200` = 1.2.0).
 
 The single source of truth for the numbers below is `hw/sdk/memmap.zig` (video)
 and `hw/sdk/audio.zig` (audio).
@@ -71,6 +71,7 @@ memory.
 | `0x44` | `FB_BASE[4]` | u32×4 | per-plane framebuffer screen base (byte offset into the region; the pan point) |
 | `0x54` | `FB_MODE[4]` | u8×4 | per-plane render mode: `0` normal · `1` fullscreen (always-open overscan) · `2` scroll · `3` medium · `4` overscan (trick-gated) |
 | `0x58` | `RES_FLICKER` | u16 | overscan-trick latch: the SDK bumps it on a `RES_MEDIUM`→`RES_PLANES` flicker so the machine can observe the (untrappable) poke once per scanline |
+| `0x5C` | `CART_HIGH` | u32 | the running cart's data+stack high-water, declared by the host at load time (`hwSetCartHigh`). Survives `hwInit`. `0` = undeclared. Backs the RAM instructions in §4c |
 
 **Scroll planes** (`FB_MODE = 2`): back a plane with a bigger-than-screen buffer
 (`setScrollPlane(w, h)`); the visible 320×200 window is panned by moving `FB_BASE`
@@ -122,7 +123,7 @@ hwPhysicalPtr() i32      // pointer to the PFB, for the host to blit
 hwPlanesNumber() u8      // 4
 hwPhysWidth() u32        // 400
 hwPhysHeight() u32       // 280
-hwVersion() u32          // 0x0001_0000
+hwVersion() u32          // 0x0001_0200
 ```
 
 **Import it requires** (provided by the host, routed to the open demo module):
@@ -170,6 +171,41 @@ Full model in `docs/BLITTER_HW_SPEC.md`; drive it via `zigos/blitter.zig`
 ```
 demo.frame(dt): set blitter regs → hwBlit() (per primitive) → hwRenderPlane(i)
 ```
+
+---
+
+## 4c. RAM instructions (exports of `machine-video.wasm`) — since 1.2.0
+
+A cart's window is `[0x100000, 0x300000)` — **2 MiB shared** between its own
+statics, its stack, and every ROM/library it links (GEM alone takes ~1 MiB). Run
+past the top and there is **no trap**: you are writing into the video region, and
+the machine dies later, somewhere else. So ask, do not guess:
+
+```zig
+hwRamBase() u32          // 0x100000 — first byte of the cart's window
+hwRamTop()  u32          // 0x300000 — first byte ABOVE it (= the video region)
+hwRamSize() u32          // 0x200000 — the whole window
+hwRamUsed() u32          // this cart's static data + stack
+hwRamFree() u32          // what is left below the video region
+```
+
+`hwRamFree()` returns **0** when the host has not declared the cart's high-water
+(an older loader). That is deliberately indistinguishable from "full": treat `0`
+as *take nothing*, never as *unknown, so assume plenty*.
+
+**How the machine knows.** It owns the memory map but not the cart binary, and
+the high-water is baked in by the linker — so the **host** measures it once at
+load time (`docs/wasm_hiwater.js`, the same parser `apps/check_fits.mjs` uses)
+and declares it:
+
+```js
+hwSetCartHigh(high)      // host-only; writes REG_CART_HIGH
+```
+
+Language-agnostic: a C or Rust cart imports `hwRamFree` from `env` like any other
+entry point. `node apps/ram_check.mjs` tests the instructions against the host
+measurement; `node apps/check_fits.mjs <cart.wasm>` reports the same numbers
+offline and fails the build if a cart overruns the window.
 
 ---
 

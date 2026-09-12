@@ -99,10 +99,41 @@ pub fn pfbBytePtr() usize {
     return memmap.HW_VIDEO_BASE + memmap.OFF_PFB;
 }
 
+// --------------------------------------------------------------------------
+// RAM instructions. The machine owns the memory map, so it answers "how much is
+// left?" — but only the LOADER knows where a given cart's static data + stack
+// end, because that is baked into the cart wasm. The host measures it once at
+// load time and declares it here; everything below is arithmetic on the map.
+// --------------------------------------------------------------------------
+pub fn setCartHigh(high: u32) void {
+    w32(memmap.REG_CART_HIGH, high);
+}
+pub fn cartHigh() u32 {
+    return r32(memmap.REG_CART_HIGH);
+}
+// Bytes the cart may still take below the video region. 0 means either "full"
+// or "the host never declared it" — a cart that wants to tell those apart reads
+// cartHigh() itself. Never guesses: an undeclared or out-of-range high-water
+// reports 0 rather than a number the cart would size a buffer from.
+pub fn ramFree() u32 {
+    const high = cartHigh();
+    if (high < memmap.CART_RAM_BASE or high >= memmap.CART_RAM_TOP) return 0;
+    return @intCast(memmap.CART_RAM_TOP - high);
+}
+pub fn ramUsed() u32 {
+    const high = cartHigh();
+    if (high < memmap.CART_RAM_BASE or high >= memmap.CART_RAM_TOP) return 0;
+    return @intCast(high - memmap.CART_RAM_BASE);
+}
+
 // Reset the register block; leave palettes/LFBs to the demo's boot.
 pub fn reset() void {
+    // REG_CART_HIGH describes the CART, not the video state, and the host may
+    // declare it either side of hwInit() — so it survives the wipe.
+    const high = cartHigh();
     var i: usize = 0;
     while (i < 256) : (i += 1) w8(memmap.OFF_REG + i, 0);
+    w32(memmap.REG_CART_HIGH, high);
     w8(memmap.REG_NB_PLANES, memmap.NB_PLANES);
     w8(memmap.REG_RESOLUTION, memmap.RES_PLANES);
     // Every plane starts NORMAL: stride 320, no fine scroll, and its screen base

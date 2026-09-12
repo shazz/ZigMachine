@@ -86,7 +86,13 @@ pub const REG_FB_STRIDE: usize = 0x34; // u16 x4 per-plane row stride in pixels 
 pub const REG_HSCROLL: usize = 0x3C; // u16 x4 per-plane horizontal scroll (re-read PER SCANLINE in SCROLL mode → line distort)
 pub const REG_FB_BASE: usize = 0x44; // u32 x4 per-plane framebuffer screen base (0x44..0x53) — pan point for SCROLL mode
 pub const REG_FB_MODE: usize = 0x54; // u8 x4 per-plane render mode (0x54..0x57): 0 normal, 1 fullscreen, 2 scroll, 3 medium, 4 overscan
-pub const REG_RES_FLICKER: usize = 0x58; // u16  overscan-trick latch: the SDK bumps it on a RES_MEDIUM->RES_PLANES flicker so the (untrappable) poke is observable per scanline (0x58..0x59; 0x5A..0x7F free below OFF_BLIT)
+pub const REG_RES_FLICKER: usize = 0x58; // u16  overscan-trick latch: the SDK bumps it on a RES_MEDIUM->RES_PLANES flicker so the (untrappable) poke is observable per scanline (0x58..0x59; 0x5A..0x5B free)
+// The first byte of the cart's RAM window the cart does NOT own: its static
+// data + stack high-water, measured off the cart wasm by the host at load time
+// and written here (see hwSetCartHigh). 0 = the host never told us, which the
+// hwRam* instructions report as "unknown" rather than guessing. Survives
+// hwInit() — it describes the loaded cart, not the video state.
+pub const REG_CART_HIGH: usize = 0x5C; // u32  (0x5C..0x5F; 0x60..0x7F free below OFF_BLIT)
 
 pub const FB_MODE_NORMAL: u8 = 0; // 320x200 low-res plane (pixel-doubled into the raster)
 pub const FB_MODE_FULLSCREEN: u8 = 1; // 400x280 low-res overscan plane (Option B, doubled)
@@ -206,8 +212,14 @@ pub const HBL_GLOBAL_ID: u16 = 5;
 // planes + effect sheets fit the pool.
 // --------------------------------------------------------------------------
 pub const HW_VIDEO_BASE: usize = 0x300000; // 3 MiB (demo cart gets [0x100000..0x300000))
+// The cart's RAM window, as reported by the hwRam* instructions. The ceiling is
+// HW_VIDEO_BASE: one byte past it is the video region, and a cart that runs into
+// it corrupts VRAM silently rather than trapping.
+pub const CART_RAM_BASE: usize = 0x100000; // = build.zig demo_global_base
+pub const CART_RAM_TOP: usize = HW_VIDEO_BASE;
+pub const CART_RAM_BYTES: usize = CART_RAM_TOP - CART_RAM_BASE; // 2 MiB
 // Region ends at OFF_PFB + PFB_BYTES = 1052768 + 896000 = 1948768 above the base;
 // 3 MiB base + 1948768 needs ~78 pages, so 79 (~5.2 MiB) gives headroom. initial == max.
 pub const SHARED_PAGES: u32 = 79;
 
-pub const ZM_HW_VERSION: u32 = 0x0001_0100; // 1.1.0 — demo window + VRAM enlarged
+pub const ZM_HW_VERSION: u32 = 0x0001_0200; // 1.2.0 — hwRam* instructions (REG_CART_HIGH)

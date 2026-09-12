@@ -18,6 +18,7 @@ const zg = @import("zigos");
 const disk = @import("zigos").disk;
 const ZigOS = zg.ZigOS;
 const Blitter = zg.Blitter;
+const hw = @import("hardware");
 const gui = @import("rom").gui;
 const gem = @import("rom").gem;
 const ui = @import("st_replay_ui.zig");
@@ -35,7 +36,13 @@ const SILENCE: u8 = 0; // .raw samples are SIGNED 8-bit, so silence is zero
 // competes for: [0x100000,0x300000) also holds the 384 KB stack and every static
 // in GEM, the boot ROM and this app. A megabyte overran it and the machine
 // trapped on boot (caught by apps/gem_headless.mjs), so the sampler takes half a
-// meg. Raising it means measuring the real ceiling, not guessing again.
+// meg.
+//
+// The ceiling is no longer guesswork: hwRamFree() reports what is actually left,
+// and the panel shows it. Today GEM's own statics are what cap this, not the 2 MB
+// — which is why the real headroom arrives with the ROM moving into rom.wasm, not
+// by growing this constant. `node apps/check_fits.mjs docs/demo-gem.wasm` is the
+// number to watch before touching it.
 const MAX_PCM: usize = 512 * 1024;
 const FRAME_HZ: u32 = 60;
 
@@ -176,6 +183,7 @@ pub const App = struct {
             .low = self.low,
             .high = self.high,
             .bytes = self.bytes,
+            .free = hw.hwRamFree(),
             .sample = &self.sample,
         };
     }

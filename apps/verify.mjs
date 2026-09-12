@@ -3,6 +3,7 @@
 // and assert it (a) enabled plane 0, (b) wrote an opaque palette, (c) drew pixels
 // that ANIMATE. Proves the polyglot app talks to the ABI — no browser needed.
 import { readFile } from "node:fs/promises";
+import { cartRam, CART_RAM_BASE, CART_RAM_TOP } from "../docs/wasm_hiwater.js";
 
 const PAGES = 79;
 const VIDEO_BASE = 0x300000; // hwVideoBase() return value (HW_VIDEO_BASE)
@@ -12,12 +13,21 @@ async function check(path) {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
     const dec = new TextDecoder();
     let logged = "";
+    const cart = await readFile(path);
+    // The RAM instructions are part of the sealed ABI, so a foreign cart may call
+    // them. Answer them here the way machine-video.wasm would for this binary.
+    const ram = cartRam(cart);
     const env = {
         memory,
         hwVideoBase: () => VIDEO_BASE,
         consoleLogJS: (ptr, len) => { logged = dec.decode(new Uint8Array(memory.buffer, ptr, len)); },
+        hwRamBase: () => CART_RAM_BASE,
+        hwRamTop: () => CART_RAM_TOP,
+        hwRamSize: () => CART_RAM_TOP - CART_RAM_BASE,
+        hwRamUsed: () => ram.used,
+        hwRamFree: () => ram.free,
     };
-    const { instance } = await WebAssembly.instantiate(await readFile(path), { env });
+    const { instance } = await WebAssembly.instantiate(cart, { env });
     const x = instance.exports;
 
     x.boot();
