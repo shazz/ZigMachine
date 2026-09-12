@@ -16,9 +16,11 @@ const Color = zg.Color;
 
 const Scrolltext = zg.Scrolltext;
 const Sprite = zg.Sprite;
-const Text = zg.Text;
 
 const Console = zg.Console;
+
+const credits = @import("dbug_credits.zig");
+const draw = @import("dbug_draw.zig");
 
 // --------------------------------------------------------------------------
 // Constants
@@ -35,9 +37,8 @@ const SCROLL_SPEED = 1;
 const SCROLL_CHARS = " ! #$%&'()*+,-./0123456789:;<=>? ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 pub const NB_FONTS: u8 = WIDTH / SCROLL_CHAR_WIDTH + 1;
 
-// text
+// credit panel (see dbug_credits.zig for the geometry and the four texts)
 const text_fonts_b = @embedFile("../assets/screens/dbug/fonts_16x14.raw");
-const TEXT_CHARS = " ! #$%&'()*+,-./0123456789:;<=>? ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
 // palettes
 const font_pal = convertU8ArraytoColors(@embedFile("../assets/screens/dbug/fonts_32x24_pal.dat"));
@@ -82,7 +83,7 @@ pub const Demo = struct {
     logo: Sprite = undefined,
     scroller_target: RenderTarget = undefined,
     overscan_target: RenderTarget = undefined,
-    text: Text = undefined,
+    panel: zg.charpanel.Panel(credits.MAX_LIVE) = undefined,
     scroller_y: f32 = 0.0,
     bounce: i32 = 0,
     bounce_att: f32 = 0.0,
@@ -121,12 +122,14 @@ pub const Demo = struct {
         self.bounce = 0;
         self.bounce_att = 1;
 
-        // text
+        // credit panel — it writes itself into this plane one cell per frame and
+        // never redraws a settled letter, so the plane is cleared ONCE, here.
         fb = &zigos.lfbs[1];
         fb.is_enabled = true;
         fb.setPalette(text_font_pal);
-        fb.setPaletteEntry(0, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });    
-        self.text.init(fb.getRenderTarget(), text_fonts_b, TEXT_CHARS, 16, 14);
+        fb.setPaletteEntry(0, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
+        fb.clearFrameBuffer(0);
+        self.panel.init(credits.config(text_fonts_b));
 
         Console.log("demo init done!", .{});
 
@@ -137,6 +140,7 @@ pub const Demo = struct {
 
         self.scrolltext.update();
         self.logo.update(null, null, null, null);
+        self.panel.update();
 
         const f_sin: f32 = @abs(@sin(self.scroller_y)) * 88.0; 
         start_raster_line = @as(u16, @intFromFloat(88.0 - f_sin));
@@ -173,34 +177,13 @@ pub const Demo = struct {
 
         // draw the zoomed scrolltext on a overscan buffer
         self.overscan_target.clearFrameBuffer(0);
-        const start_line: u32 = start_raster_line * 400;
-
-        var char_row: u32  = 0;
-        while(char_row < SCROLL_CHAR_HEIGHT) : ( char_row += 1) {
-            
-            const buffer_offset: u32 = char_row * self.scroller_target.render_buffer.width;
-
-            var row: u32 = 0;
-            while(row < 8) : ( row += 1) {
-                const screen_offset: u32 = start_line + (row * 400) + (char_row * 8 * 400);
-
-                var col: u32 = 0;
-                while(col < 50) : ( col += 1){
-                    const pal_entry = self.scroller_target.render_buffer.buffer[buffer_offset + col];
-                    self.overscan_target.render_buffer.buffer[screen_offset + (8 * col) + 0] = pal_entry;
-                    self.overscan_target.render_buffer.buffer[screen_offset + (8 * col) + 1] = pal_entry;
-                    self.overscan_target.render_buffer.buffer[screen_offset + (8 * col) + 2] = pal_entry;
-                    self.overscan_target.render_buffer.buffer[screen_offset + (8 * col) + 3] = pal_entry;
-                    self.overscan_target.render_buffer.buffer[screen_offset + (8 * col) + 4] = pal_entry;
-                    self.overscan_target.render_buffer.buffer[screen_offset + (8 * col) + 5] = pal_entry;
-                    self.overscan_target.render_buffer.buffer[screen_offset + (8 * col) + 6] = pal_entry;
-                    self.overscan_target.render_buffer.buffer[screen_offset + (8 * col) + 7] = pal_entry;
-                }
-            }
-        }
+        draw.zoomScroller(self.overscan_target, self.scroller_target, start_raster_line, SCROLL_CHAR_HEIGHT);
         self.logo.render(100);
 
-        self.render_text(32);
+        // The credit panel paints only the cells that moved this frame, straight
+        // into its own plane — everything already standing stays put.
+        const text_fb = &zigos.lfbs[1];
+        self.panel.render(text_fb.fb[0 .. @as(u32, WIDTH) * HEIGHT], WIDTH, credits.X, credits.Y);
 
         // Blit the finished 400×280 overscan buffer into the plane (borders included;
         // renderPlaneOverscan shows the border rows only where the trick opened them).
@@ -210,48 +193,4 @@ pub const Demo = struct {
         _ = elapsed_time;
 
     }
-
-    fn render_text(self: *Demo, y_offset: u16) void {
-
-        self.text.render("********************",0, y_offset +  0 * 14, null);
-        self.text.render("*                  *",0, y_offset +  1 * 14, null);
-        self.text.render("*    CODE, FONT    *",0, y_offset +  2 * 14, null);
-        self.text.render("*   AND MUSIC BY   *",0, y_offset +  3 * 14, null);
-        self.text.render("*   ------------   *",0, y_offset +  4 * 14, null);
-        self.text.render("* !CUBE/AGGRESSION *",0, y_offset +  5 * 14, null);
-        self.text.render("*                  *",0, y_offset +  6 * 14, null);
-        self.text.render("*     LOGO BY      *",0, y_offset +  7 * 14, null);
-        self.text.render("*     -------      *",0, y_offset +  8 * 14, null);
-        self.text.render("*   RANDOM/DHFC    *",0, y_offset +  9 * 14, null);
-        self.text.render("*                  *",0, y_offset + 10 * 14, null);
-        self.text.render("********************",0, y_offset + 11 * 14, null);
-    }
 };
-
-
-        // const start_line: u16 = start_raster_line * WIDTH;
-
-        // var char_row: u16 = 0;
-        // while(char_row < SCROLL_CHAR_HEIGHT) : ( char_row += 1) {
-            
-        //     // 5 is the 40 left overscan pixels
-        //     const buffer_offset: u16 = 5 + (char_row * self.scroller_target.render_buffer.width);
-
-        //     var row:u16 = 0;
-        //     while(row < 8) : ( row += 1) {
-        //         const screen_offset: u16 = start_line + (row * WIDTH) + (char_row * 8 * WIDTH);
-
-        //         var col: u16 = 0;
-        //         while(col < 40) : ( col += 1){
-        //             const pal_entry = self.scroller_target.render_buffer.buffer[buffer_offset + col];
-        //             fb.fb[screen_offset + (8 * col) + 0] = pal_entry;
-        //             fb.fb[screen_offset + (8 * col) + 1] = pal_entry;
-        //             fb.fb[screen_offset + (8 * col) + 2] = pal_entry;
-        //             fb.fb[screen_offset + (8 * col) + 3] = pal_entry;
-        //             fb.fb[screen_offset + (8 * col) + 4] = pal_entry;
-        //             fb.fb[screen_offset + (8 * col) + 5] = pal_entry;
-        //             fb.fb[screen_offset + (8 * col) + 6] = pal_entry;
-        //             fb.fb[screen_offset + (8 * col) + 7] = pal_entry;
-        //         }
-        //     }
-        // }

@@ -25,6 +25,7 @@ pub const Boot = @import("effects/boot.zig").Boot;
 pub const parallax = @import("effects/parallax.zig"); // Parallax(n) + Layer
 pub const tilemap = @import("effects/tilemap.zig"); // TileSheet + Layer
 pub const scrolltext2 = @import("effects/scrolltext2.zig"); // stride-agnostic scrolltext
+pub const charpanel = @import("effects/charpanel.zig"); // self-writing character panel
 pub const convertU8ArraytoColors = @import("utils/loaders.zig").convertU8ArraytoColors;
 pub const readU16Array = @import("utils/loaders.zig").readU16Array;
 pub const readI16Array = @import("utils/loaders.zig").readI16Array;
