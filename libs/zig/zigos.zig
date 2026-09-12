@@ -481,6 +481,18 @@ pub const ZigOS = struct {
     /// its animation is written against the music rather than the frame count.
     song_ms: u32 = 0,
 
+    // Bind the system fonts and NOTHING else — no registers, no VRAM allocation.
+    //
+    // For a consumer that needs to DRAW TEXT over a framebuffer somebody else
+    // owns: the ROM chip does this so it can render GEM widgets for an app
+    // written in C or Rust, which has no ZigOS of its own to lend. Calling the
+    // full init() there would reset the machine's registers and reallocate every
+    // plane out from under the running app.
+    pub fn initTextOnly(self: *ZigOS) void {
+        self.system_font = SYSTEM_FONT;
+        self.system_font_6 = SYSTEM_FONT_6;
+    }
+
     pub fn init(self: *ZigOS) void {
         g_base = @intCast(hw.hwVideoBase());
         Console.log("ZigOS: video hardware base @ {x}", .{g_base});

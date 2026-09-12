@@ -38,6 +38,13 @@ pub const Result = enum(u32) { none = 0, ok = 1, cancel = 2 };
 pub extern fn romReset() void;
 
 pub extern fn guiOpen(os_ptr: u32, fb_ptr: u32, screen_w: i32, screen_h: i32) u32;
+/// Open a context over a PLANE, for a caller with no ZigOS of its own — which is
+/// every app not written in Zig. The ROM reads the plane's framebuffer base out of
+/// the video registers and lends its own text renderer. This is the entry point
+/// that makes "any language can call GEM" true rather than merely flat.
+pub extern fn guiOpenPlane(plane: u32, screen_w: i32, screen_h: i32) u32;
+/// Install GEM's palette into a plane — the companion to guiOpenPlane.
+pub extern fn romInstallPalettePlane(plane: u32) void;
 pub extern fn guiClose(h: u32) void;
 pub extern fn guiResize(h: u32, screen_w: i32, screen_h: i32) void;
 pub extern fn guiSetPointer(h: u32, x: i32, y: i32, buttons: u32) void;

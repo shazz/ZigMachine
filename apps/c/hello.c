@@ -27,6 +27,29 @@ extern int hwVideoBase(void);
 __attribute__((import_module("env"), import_name("consoleLogJS")))
 extern void consoleLogJS(const char *ptr, int len);
 
+// --- the ROM chip: GEM, called from C (rom/sdk/rom.zig) ---
+//
+// This is the claim the machine/rom split rests on — that a ROM is a module
+// linked against the HW ABI, so ANY language can call it. Nothing but numbers
+// crosses: a u32 handle, coordinates, a (pointer, length) for text.
+//
+// guiOpenPlane is what makes that true. The Zig entry point, guiOpen, wants the
+// addresses of the caller's ZigOS and LogicalFB — which quietly requires the
+// caller to BE a Zig program. C has neither, so it names a PLANE instead and the
+// ROM reads that plane's framebuffer out of the video registers itself.
+#define ROM_IMPORT(name) __attribute__((import_module("env"), import_name(name)))
+ROM_IMPORT("guiOpenPlane") extern unsigned guiOpenPlane(unsigned plane, int w, int h);
+ROM_IMPORT("romInstallPalettePlane") extern void romInstallPalettePlane(unsigned plane);
+ROM_IMPORT("guiRect")  extern void guiRect(unsigned h, int x, int y, int w, int hh, unsigned color);
+ROM_IMPORT("guiFrame") extern void guiFrame(unsigned h, int x, int y, int w, int hh, unsigned color);
+ROM_IMPORT("guiText")  extern void guiText(unsigned h, const char *p, unsigned len,
+                                           int x, int y, unsigned ink, unsigned paper);
+
+#define GEM_BLACK 0
+#define GEM_WHITE 1
+
+static unsigned gui = 0;           // the ROM handle; 0 = no context
+
 static int   video_base = 0;       // base of the shared video hardware region
 static u8    tri[256];             // triangle-wave LUT (a libm-free "sine")
 static u8    plane0_on = 0;
@@ -70,6 +93,42 @@ void boot(void) {
     build_rainbow();
     for (int i = 0; i < 256; i++) tri[i] = (u8)(i < 128 ? i * 2 : (255 - i) * 2);
     plane0_on = 1;                                     // enable plane 0
+
+    // Ask the ROM for a drawing context over plane 0. From here on this C program
+    // draws GEM widgets with the same toolkit the Zig desktop uses, in the same
+    // binary, over the shared memory — no ZigOS, no Zig, just the flat ABI.
+    gui = guiOpenPlane(0, WIDTH, HEIGHT);
+    if (gui) {
+        // GEM draws in PALETTE INDICES (0 = black, 1 = white), so a caller with
+        // its own palette gets correct pixels in the wrong colours — this app's
+        // rainbow renders the whole panel solid red. Let the ROM install GEM's
+        // entries. It only writes the ones GEM owns, so the plasma keeps the rest.
+        romInstallPalettePlane(0);
+        const char ok[] = "C app opened a GEM context from the ROM chip";
+        consoleLogJS(ok, (int)sizeof(ok) - 1);
+    } else {
+        const char bad[] = "C app could NOT open a GEM context";
+        consoleLogJS(bad, (int)sizeof(bad) - 1);
+    }
+}
+
+// A GEM panel drawn BY THE ROM, on top of the plasma this program rendered
+// itself. Everything inside comes from rom.wasm: the fills, the double border
+// GEM draws round a panel, and the 8x8 system font.
+static void draw_rom_panel(void) {
+    if (!gui) return;
+    const char title[] = "GEM FROM C";
+    const char line1[] = "rom.wasm drew this panel";
+    const char line2[] = "and this text, for a C app";
+    const int x = 40, y = 68, w = 240, h = 64;
+
+    guiRect(gui, x, y, w, h, GEM_WHITE);                 // panel face
+    guiFrame(gui, x, y, w, h, GEM_BLACK);                // GEM's double border
+    guiFrame(gui, x + 1, y + 1, w - 2, h - 2, GEM_BLACK);
+    guiRect(gui, x + 3, y + 3, w - 6, 10, GEM_BLACK);    // title bar, inverse
+    guiText(gui, title, sizeof(title) - 1, x + 8, y + 4, GEM_WHITE, GEM_BLACK);
+    guiText(gui, line1, sizeof(line1) - 1, x + 8, y + 22, GEM_BLACK, GEM_WHITE);
+    guiText(gui, line2, sizeof(line2) - 1, x + 8, y + 34, GEM_BLACK, GEM_WHITE);
 }
 
 __attribute__((export_name("frame")))
@@ -86,6 +145,7 @@ void frame(float elapsed_ms) {
             fb[y * WIDTH + x] = (u8)((v >> 2) & 255);  // plasma -> palette index
         }
     }
+    draw_rom_panel(); // ...then let the ROM draw GEM over the top
 }
 
 // The host gates blits on this — plane 0 only.

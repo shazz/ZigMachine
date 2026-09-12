@@ -17,6 +17,7 @@
 // --------------------------------------------------------------------------
 const std = @import("std");
 const zg = @import("zigos");
+const hw = @import("hardware");
 const gem = @import("rom").gem;
 const gui = @import("rom").gui;
 
@@ -95,6 +96,65 @@ fn slice(ptr: u32, len: u32) []const u8 {
 // --------------------------------------------------------------------------
 // Entry points. Signatures are the ABI: only u32/i32 cross.
 // --------------------------------------------------------------------------
+
+// --------------------------------------------------------------------------
+// Opening a context WITHOUT a ZigOS (step 2.3c — the polyglot half of the split).
+//
+// guiOpen() below takes the addresses of the caller's ZigOS and LogicalFB, which
+// quietly means "the caller must be a Zig program that links ZigOS". A C or Rust
+// app has neither: it writes palette indices straight into the video region. So
+// the ABI was flat in its argument TYPES and not in their MEANINGS, and the claim
+// that any language can call GEM was false in a way no amount of u32 could fix.
+//
+// The fix is to name a PLANE instead of a pointer. The ROM links the sealed HW
+// ABI, so it can read that plane's framebuffer base and stride out of the video
+// registers — which is the authoritative answer anyway, since ZigOS's VRAM
+// allocator moves FB_BASE around. The ROM then lends its OWN ZigOS (fonts only;
+// see initTextOnly) and its own LogicalFB wrapper.
+//
+// One raw context at a time: an app has one screen, and a second caller would
+// silently repoint the first one's framebuffer.
+var raw_os: zg.ZigOS = .{};
+var raw_fb: zg.LogicalFB = .{};
+
+// Point raw_fb at a plane by reading the SEALED registers — FB_BASE is where the
+// VRAM allocator actually put it, which is the only correct answer, and it works
+// the same whether the plane was set up by ZigOS or by a C program.
+fn bindRawFb(plane: u32, screen_h: i32) bool {
+    if (plane >= hw.NB_PLANES) return false;
+    const base: usize = @intCast(hw.hwVideoBase());
+    const regs: [*]u8 = @ptrFromInt(base);
+    const fb_off = std.mem.readInt(u32, regs[hw.REG_FB_BASE + plane * 4 ..][0..4], .little);
+    const stride = std.mem.readInt(u16, regs[hw.REG_FB_STRIDE + plane * 2 ..][0..2], .little);
+    raw_os.initTextOnly();
+    raw_fb = .{
+        .fb = @ptrFromInt(base + fb_off),
+        .palette = @ptrFromInt(base + hw.OFF_PAL + @as(usize, plane) * hw.PAL_BYTES),
+        .stride = stride,
+        .fb_w = stride,
+        .fb_h = @intCast(screen_h),
+        .id = @intCast(plane),
+        .zigos = &raw_os,
+    };
+    return true;
+}
+
+/// Open a drawing context over PLANE `plane`, for a caller with no ZigOS of its
+/// own. Returns a handle exactly like guiOpen, or 0 if none is free.
+export fn guiOpenPlane(plane: u32, screen_w: i32, screen_h: i32) u32 {
+    if (!bindRawFb(plane, screen_h)) return 0;
+    return guiOpen(@intCast(@intFromPtr(&raw_os)), @intCast(@intFromPtr(&raw_fb)), screen_w, screen_h);
+}
+
+/// Install GEM's palette into a PLANE — the companion to guiOpenPlane, and for
+/// the same reason: romInstallPalette wants a *LogicalFB, which a non-Zig app
+/// cannot produce. Without this a C app's GEM widgets come out in whatever colours
+/// its own palette happens to have at indices 0 and 1 (a plasma rainbow renders
+/// the panel solid red — correct pixels, unreadable result).
+export fn romInstallPalettePlane(plane: u32) void {
+    if (!bindRawFb(plane, @intCast(raw_fb.fb_h))) return;
+    gui.installPalette(&raw_fb);
+}
 
 /// Open a drawing context over a framebuffer. `os_ptr`/`fb_ptr` are addresses in
 /// the ONE shared linear memory — which is why they can be passed at all. The
