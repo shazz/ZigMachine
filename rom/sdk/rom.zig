@@ -91,6 +91,8 @@ pub extern fn deskInput(dir: u32) void;
 pub extern fn deskSetDiskApp(present: u32) void;
 pub extern fn deskDirPtr() u32;
 pub extern fn deskDirCap() u32;
+pub extern fn deskDirMaxFiles() u32;
+pub extern fn deskDirEntryBytes() u32;
 pub extern fn deskSetFileCount(n: u32) void;
 pub extern fn deskLaunchName(out: u32, out_cap: u32) u32;
 

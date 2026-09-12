@@ -71,6 +71,11 @@ export fn romReset() void {
     gui_used = [_]bool{false} ** MAX_GUI;
     dialog_used = [_]bool{false} ** MAX_DIALOG;
     fsel_used = [_]bool{false} ** MAX_FSEL;
+    // The desktop holds the SHELL CART's ZigOS and LogicalFB addresses, which are
+    // in the cart window. Once the host swaps another program into that window
+    // those point at the new program's memory, so a desk* call would make the ROM
+    // draw through garbage. Invalidate it: the shell re-inits on every boot.
+    desk_ready = false;
 }
 
 fn guiAt(h: u32) ?*gui.Gui {
@@ -375,8 +380,17 @@ export fn deskDirPtr() u32 {
     if (!desk_ready) return 0;
     return @intCast(@intFromPtr(&desk.disk_dir));
 }
+/// The FAT buffer's size in BYTES, so the host can size its write.
 export fn deskDirCap() u32 {
     return @intCast(desk.disk_dir.len);
+}
+/// Its capacity in RECORDS, and the record size — so the host derives its cap and
+/// its struct stride from the ROM instead of mirroring both as literals.
+export fn deskDirMaxFiles() u32 {
+    return @intCast(gem.MAX_FILES);
+}
+export fn deskDirEntryBytes() u32 {
+    return @intCast(gem.FILE_ENT);
 }
 /// The program a `.launch` action refers to, copied into the caller's buffer;
 /// returns its length, 0 if the disk holds no program. A name, not an index:
@@ -392,7 +406,12 @@ export fn deskLaunchName(out: u32, out_cap: u32) u32 {
     return @intCast(n);
 }
 export fn deskSetFileCount(n: u32) void {
-    if (desk_ready) desk.n_disk = @intCast(@min(n, desk.disk_dir.len / 17));
+    // Clamp by the RECORD SIZE, not by 17. disk_dir is MAX_FILES * FILE_ENT bytes
+    // (12 * 25 = 300); dividing by 17 admitted 17 records into a 12-record buffer,
+    // and diskName() slices it unchecked in ReleaseSmall. Only ever masked because
+    // the host happens to cap at 12 with a literal of its own — which is exactly
+    // why the cap is published as deskDirCap() for the host to derive.
+    if (desk_ready) desk.n_disk = @intCast(@min(n, gem.MAX_FILES));
 }
 
 inline fn rectOf(x: i32, y: i32, w: i32, h: i32) Rect {

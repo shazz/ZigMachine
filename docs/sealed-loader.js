@@ -480,8 +480,15 @@ function start() {
         // booted): per file a 16-byte name + 1 type byte (0=program, 1=data).
         if (!diskDirSet && diskApp && mountedDisk && demo.diskDirPtr &&
             demo.isBooted && demo.isBooted()) {
-            const ENT = 25; // 16 name + 1 type + 4 size + 4 date (must match desktop.zig FILE_ENT)
-            const names = Object.keys(mountedDisk.files).slice(0, 12);
+            // The record layout and the cap come FROM THE ROM, not from literals
+            // here. They used to be `25` and `12` mirrored by hand against
+            // desktop.zig, with a comment as the only contract — and the ROM's own
+            // clamp had drifted to a THIRD number (/17), which would have admitted
+            // 17 records into a 12-record buffer the moment the host stopped
+            // capping. Ask, don't mirror.
+            const ENT = (rom && rom.deskDirEntryBytes) ? rom.deskDirEntryBytes() : 25;
+            const MAXF = (rom && rom.deskDirMaxFiles) ? rom.deskDirMaxFiles() : 12;
+            const names = Object.keys(mountedDisk.files).slice(0, MAXF);
             const dir = new Uint8Array(memory.buffer, demo.diskDirPtr(), names.length * ENT);
             dir.fill(0);
             const ddv = new DataView(dir.buffer, dir.byteOffset, dir.byteLength);
@@ -656,17 +663,29 @@ window.document.body.addEventListener('keydown', function (evt) {
 
     const pad = document.createElement("div");
     pad.className = "tpad";
-    // grid cells: ""=empty; [label,input,repeat]
-    const D = { "↑": [0, 1], "←": [2, 1], "→": [3, 1], "↓": [1, 1], "⏎": [5, 0], "␛": [6, 0] };
+    // grid cells: ""=empty; [label,input,repeat] — a DIRECTION, sent as input().
+    const D = { "↑": [0, 1], "←": [2, 1], "→": [3, 1], "↓": [1, 1], "⏎": [5, 0] };
+    // Esc is not a direction, it is a KEY, and it is forwarded exactly as the
+    // keyboard forwards it so the MACHINE decides what it means (see
+    // demo_main.zig: the boot ROM skips, a screen that binds keys owns it, a
+    // plain scene cart falls back to the menu).
+    //
+    // It used to call skipBoot() and send input(6) = Back straight from here,
+    // which bypassed that decision AND ownsKeyboard — so Escape did different
+    // things on a touchscreen and on a keyboard: in ST Replay it went back to
+    // the menu instead of stopping playback.
+    const KEYS = { "␛": KEY_CODES.Escape };
     function btn(label) {
         const b = document.createElement("button");
         b.textContent = label;
-        const code = D[label][0], repeat = D[label][1];
+        const key = KEYS[label];
+        const [code, repeat] = D[label] || [0, 0];
         let timer = null;
         const press = (e) => {
             e.preventDefault();
-            if (!demo || !demo.input) return;
-            if (label === "␛" && demo.skipBoot) demo.skipBoot();
+            if (!demo) return;
+            if (key !== undefined) { if (demo.key) demo.key(key); return; }
+            if (!demo.input) return;
             demo.input(code);
             if (repeat && timer === null) timer = setInterval(() => demo.input(code), 70);
         };

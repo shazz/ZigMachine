@@ -72,8 +72,8 @@ pub fn build(b: *std.Build) void {
     // YM chip. Musashi's opcode table is machine-generated, so m68kmake is built
     // for the HOST and run here rather than checking 800 KB of C into the repo.
     addMusashi(b, players_mod);
-    // rom/ — reference system software (GEM). Statically linked into the demo for
-    // now; cut into its own rom.wasm later. Uses ZigOS helpers + the HW ABI.
+    // rom/ — reference system software (GEM). Linked into rom.wasm (rom_chip
+    // below), NOT into carts: a cart gets rom_sdk, the flat ABI header.
     const rom_mod = b.createModule(.{
         .root_source_file = b.path("rom/rom.zig"),
         .target = wasm_target,
@@ -213,7 +213,10 @@ pub fn build(b: *std.Build) void {
             .optimize = optimize,
             .imports = &.{
                 .{ .name = "zigos", .module = zigos_mod },
-                .{ .name = "rom", .module = rom_mod },
+                // NO `rom`: a cart links the ROM's flat ABI header, never its
+                // internals — those live in rom.wasm now. Handing rom_mod to carts
+                // made the separation a convention that one @import("rom") could
+                // silently undo, re-linking the whole toolkit into that cart.
                 .{ .name = "rom_sdk", .module = rom_sdk_mod },
                 // The HW ABI header (not machine source) — lets a scene poke sealed
                 // registers directly, ST-style (e.g. scenes/badflicker.zig).
@@ -229,8 +232,7 @@ pub fn build(b: *std.Build) void {
                 .optimize = optimize,
                 .imports = &.{
                     .{ .name = "zigos", .module = zigos_mod },
-                    .{ .name = "rom", .module = rom_mod },
-                    .{ .name = "rom_sdk", .module = rom_sdk_mod },
+                    .{ .name = "rom_sdk", .module = rom_sdk_mod }, // the ABI, not the ROM
                     .{ .name = "boot_rom", .module = boot_rom_mod },
                     .{ .name = "cart", .module = cart_mod },
                 },

@@ -32,10 +32,10 @@ pub const SortKey = enum { name, date, size, type };
 // The mounted disk's FAT, packed by the host into `disk_dir`: per file a 16-byte
 // NUL-padded name + 1 type byte (0 = program/cart, 1 = data). Shown as icons in
 // the FLOPPY window; double-clicking a program launches it.
-const MAX_FILES: usize = 12;
+pub const MAX_FILES: usize = 12;
 // Host-packed directory entry: 16-byte name · 1 type · 4 size (u32 LE) · 4 date
 // (u32 LE, YYYYMMDD). Must match the packer in docs/sealed-loader.js.
-const FILE_ENT: usize = 25;
+pub const FILE_ENT: usize = 25;
 const FLOPPY_TITLE = "A:\\";
 
 // In-memory folders (the mounted disk is a flat read-only FAT; folders live only

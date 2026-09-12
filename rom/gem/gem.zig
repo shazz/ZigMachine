@@ -17,6 +17,11 @@ pub const icons = @import("gem_icons.zig"); // 1bpp icons ripped from a GEM icon
 const desktop = @import("desktop/desktop.zig");
 pub const Action = desktop.Action;
 pub const Desktop = desktop.Desktop;
+// The FAT record layout the host packs into Desktop.disk_dir. Published
+// because the ROM clamps against it and the host must derive its own cap
+// from it rather than mirroring the number (see deskDirCap).
+pub const FILE_ENT = desktop.FILE_ENT;
+pub const MAX_FILES = desktop.MAX_FILES;
 
 // GEM services an app can put on screen itself. The ITEM SELECTOR is the box
 // every TOS program opens for "Load from disc".
