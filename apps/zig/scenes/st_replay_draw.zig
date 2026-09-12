@@ -5,9 +5,9 @@
 // nothing it can change.
 // --------------------------------------------------------------------------
 const std = @import("std");
-const gui = @import("rom").gui;
+const rom = @import("rom_sdk");
 const ui = @import("st_replay_ui.zig");
-const Rect = gui.Rect;
+const Rect = rom.Rect;
 
 pub const View = struct {
     rate: usize,
@@ -23,14 +23,14 @@ pub const View = struct {
     sample: []const u8,
 };
 
-pub fn screen(g: *gui.Gui, v: View) void {
+pub fn screen(g: rom.Gui, v: View) void {
     ui.desktop(g);
     panelBox(g, v);
     statusBar(g, v);
     waveBox(g, v);
 }
 
-fn panelBox(g: *gui.Gui, v: View) void {
+fn panelBox(g: rom.Gui, v: View) void {
     ui.panel(g, ui.PANEL);
     const cx = ui.PANEL.x + @divTrunc(ui.PANEL.w, 2);
     ui.centred(g, "ST Replay / Editor - ZigMachine", cx, ui.TITLE_ROW);
@@ -62,7 +62,7 @@ fn rightRow(v: View, row: usize) ui.Binding {
 }
 
 // The status strip: five fields, the 2nd and 4th in inverse video.
-fn statusBar(g: *gui.Gui, v: View) void {
+fn statusBar(g: rom.Gui, v: View) void {
     ui.panel(g, ui.STATUS);
     var buf: [40]u8 = undefined;
     var x = ui.STATUS.x + 3;
@@ -77,13 +77,13 @@ fn statusBar(g: *gui.Gui, v: View) void {
     };
     for (fields, 0..) |f, i| {
         const inv = i % 2 == 1;
-        if (inv) g.rect(.{ .x = x, .y = y, .w = cell, .h = 8 }, gui.BLACK);
-        g.text(f, x + 2, y, if (inv) gui.WHITE else gui.BLACK, if (inv) gui.BLACK else gui.WHITE);
+        if (inv) g.rect(.{ .x = x, .y = y, .w = cell, .h = 8 }, rom.BLACK);
+        g.text(f, x + 2, y, if (inv) rom.WHITE else rom.BLACK, if (inv) rom.BLACK else rom.WHITE);
         x += cell;
     }
 }
 
-fn waveBox(g: *gui.Gui, v: View) void {
+fn waveBox(g: rom.Gui, v: View) void {
     ui.panel(g, ui.WAVE);
     const c = Rect{ .x = ui.WAVE.x + 2, .y = ui.WAVE.y + 2, .w = ui.WAVE.w - 4, .h = ui.WAVE.h - 4 };
     const half = @divTrunc(c.h, 2) - 1;
@@ -94,11 +94,11 @@ fn waveBox(g: *gui.Gui, v: View) void {
         const amp: i16 = @intCast(@divTrunc(s8 * @as(i32, half), 128));
         if (amp == 0) continue;
         const y0 = @min(ui.WAVE_MID, ui.WAVE_MID - amp);
-        g.blit.fill(g.fb, c.x + x, y0, 1, @intCast(@abs(amp)), gui.BLACK);
+        g.fill(c.x + x, y0, 1, @intCast(@abs(amp)), rom.BLACK);
     }
-    g.blit.fill(g.fb, c.x, ui.WAVE_MID, @intCast(c.w), 1, ui.RED); // centre line
+    g.fill(c.x, ui.WAVE_MID, @intCast(c.w), 1, ui.RED); // centre line
     if (!v.playing) return;
     const span = @as(f32, @floatFromInt(v.sample.len));
     const hx = c.x + @as(i16, @intFromFloat(v.playhead / span * @as(f32, @floatFromInt(c.w))));
-    g.blit.fill(g.fb, hx, c.y, 1, @intCast(c.h), ui.RED); // playhead
+    g.fill(hx, c.y, 1, @intCast(c.h), ui.RED); // playhead
 }

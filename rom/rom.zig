@@ -14,3 +14,8 @@
 // --------------------------------------------------------------------------
 pub const gem = @import("gem/gem.zig");
 pub const gui = @import("gem/gui.zig");
+// The flat, app-facing ABI lives in rom/sdk/rom.zig and is published as its OWN
+// named module, `rom_sdk` — deliberately NOT re-exported here. An app imports
+// rom_sdk and never `rom`: .gem/.gui are the ROM's internals and stop being
+// reachable once GEM moves into rom.wasm (Phase 2 step 2.2). rom_sdk depends on
+// rom, so re-exporting it would also be a module cycle.

@@ -79,7 +79,7 @@ de-risking step**: change the call *shape* first, the module boundary second.
   why `tools/mkdisks.sh` had to land first — step 2.3 changes the host `env` and
   will do the same thing again.
 
-### 2.1 — a flat ABI, still statically linked
+### 2.1 — a flat ABI, still statically linked ✅ DONE
 - `rom/sdk/rom.zig`: the app-facing ABI as `extern fn` declarations only —
   **handles, not pointers**: `romWindowOpen(...) u32`, `romDesktopFrame(dt) void`,
   `romText(handle, ptr, len, x, y) void`, … Only i32/f32 cross.
@@ -89,8 +89,27 @@ de-risking step**: change the call *shape* first, the module boundary second.
 - Behind it, a shim that still calls today's Zig API in-process.
 - Migrate the five call sites (`gem_desktop.zig`, `st_replay{,_ui,_draw}.zig`) off
   `@import("rom").gui` / `.gem` onto the flat calls.
-- *Done when:* the desktop and ST Replay behave identically with zero module
-  boundary crossed yet — `apps/gem_headless.mjs` is the judge.
+- *Done:* `rom/sdk/rom.zig` is the ABI, published as the named module `rom_sdk`.
+  ST Replay (`st_replay{,_ui,_draw}.zig`) no longer imports `rom` at all — it
+  holds `u32` handles and every call passes only numbers. Identical on screen,
+  verified in-browser end to end (panel, ITEM SELECTOR, 773120-byte load).
+  `gem_desktop.zig` is deliberately NOT migrated: it *becomes* the ROM at 2.3, so
+  it keeps using the internals.
+- **What the exercise was for, and it paid immediately.** Two things only showed
+  up by changing the call shape:
+  1. `st_replay_draw.zig` reached THROUGH the context — `g.blit.fill(g.fb, …)` —
+     for the waveform spans. Across a module boundary that is impossible, because
+     the ROM's code and the app's are different binaries. It is now `guiFill`, a
+     verb of its own. The app also stopped owning a `Blitter` for the toolkit's
+     benefit: the ROM brings its own.
+  2. **Handles need a lifecycle.** ST Replay re-opened its Gui/Dialog/FileSel on
+     every launch without closing them, so after two launches the ROM's tables
+     were exhausted and every call silently became a no-op — the app still drew,
+     but the ITEM SELECTOR stopped opening. Guarded now by the `rom-handle-reuse`
+     scenario, which launches the app 4 times (> table size) and asserts the
+     selector still responds. Verified to fail without the fix.
+  The tables are deliberately tiny for exactly that reason: a leak has to surface
+  in seconds, not on someone's fifth window.
 
 ### 2.2 — build `rom.wasm`
 - `build.zig`: a real `addExecutable` for `rom/rom.zig`, `import_memory`,

@@ -107,6 +107,22 @@ class Gem {
         for (let i = 0; i < 5; i++) this.frame();
     }
 
+    // A cheap fingerprint of the visible screen, for scenarios that assert
+    // "something changed" rather than eyeballing a PPM.
+    hash() {
+        this.machine.hwRenderPlane(0);
+        let h = 0x811c9dc5;
+        for (let y = 0; y < this.vh; y++) {
+            for (let x = 0; x < this.vw; x += 3) {
+                const s = ((y + this.by) * this.w + x + this.bx) * 4;
+                h = Math.imul(h ^ this.pfb[s], 0x01000193) >>> 0;
+            }
+        }
+        return h;
+    }
+
+    key(cp) { this.demo.key(cp); this.frame(); }
+
     // Composite plane 0 and write the VISIBLE screen (borders cropped) as a PPM.
     async shot(path) {
         this.machine.hwRenderPlane(0);
@@ -134,6 +150,9 @@ const DISK = [
     { name: "GAMMA.DAT", type: 1, size: 40960, date: 20260912 },
 ];
 const FLOPPY = [70, 40]; // the FLOPPY desktop icon, physical-visible coords
+// The first file icon inside an opened FLOPPY window (measured off a headless
+// shot: the icon box is x 48..104, y 54..84).
+const FIRST_FILE = [75, 66];
 
 const SCENARIOS = {
     // Dragging a desktop icon must leave the original in place and show a dotted
@@ -164,14 +183,53 @@ const SCENARIOS = {
         for (let i = 0; i < 3; i++) gem.frame();
         await gem.shot(`${out}/disk-info.ppm`);
     },
+    // The ROM's handle tables must survive an app being launched over and over.
+    // ST Replay opens a Gui, a Dialog and a FileSel from the ROM on EVERY init;
+    // when it leaked them (Phase 2 step 2.1) the tables were exhausted after two
+    // launches and every ROM call silently became a no-op — the app still drew,
+    // but the ITEM SELECTOR stopped opening. So: launch it repeatedly, then check
+    // the selector still responds to its key.
+    "rom-handle-reuse": async (gem, out) => {
+        const LAUNCHES = 4; // > MAX_FSEL in rom/sdk/rom.zig, so a leak runs out
+        for (let i = 0; i < LAUNCHES; i++) {
+            gem.open(...FLOPPY);                 // open the FLOPPY window
+            for (let f = 0; f < 6; f++) gem.frame();
+            gem.open(...FIRST_FILE);             // launch it (ALPHA.PRG is type 0)
+            for (let f = 0; f < 6; f++) gem.frame();
+            if (i < LAUNCHES - 1) {
+                gem.key(0x78);                   // 'x' — eXit programme, back to GEM
+                for (let f = 0; f < 6; f++) gem.frame();
+            }
+        }
+        const before = gem.hash();
+        gem.key(0x6c); // 'l' — Load from disc: opens the ITEM SELECTOR
+        for (let f = 0; f < 4; f++) gem.frame();
+        const after = gem.hash();
+        await gem.shot(`${out}/rom-handle-reuse.ppm`);
+        if (before === after)
+            throw new Error(`ITEM SELECTOR did not open after ${LAUNCHES} launches ` +
+                            `— the ROM's handles were leaked (screen unchanged)`);
+        console.log(`  selector still opens after ${LAUNCHES} launches`);
+    },
 };
 
 if (import.meta.url === `file://${process.argv[1]}`) {
     const out = process.argv[2] || ".";
+    let failed = 0;
     for (const [name, run] of Object.entries(SCENARIOS)) {
         console.log(name);
         const gem = await bootGem();
         gem.mount(DISK);
-        await run(gem, out);
+        try {
+            await run(gem, out);
+        } catch (e) {
+            console.log(`  FAIL: ${e.message}`);
+            failed++;
+        }
     }
+    if (failed) {
+        console.log(`\n${failed} scenario(s) FAILED ❌`);
+        process.exit(1);
+    }
+    console.log("\nall scenarios pass ✅");
 }

@@ -18,3 +18,7 @@ node apps/check_fits.mjs docs/demo-*.wasm
 node apps/ram_check.mjs
 tools/mkdisks.sh
 node apps/disk_check.mjs
+# The GEM/ROM regression scenarios. Shots go to a scratch dir so a build does
+# not litter the repo; each scenario guards a specific fixed bug and the run
+# exits non-zero if one regresses.
+node apps/gem_headless.mjs "$(mktemp -d)"

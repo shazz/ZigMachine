@@ -13,8 +13,8 @@
 // Split from st_replay.zig so the app file stays state + input and this one is
 // the picture. The binding tables are data: one row each, laid out by column.
 // --------------------------------------------------------------------------
-const gui = @import("rom").gui;
-const Rect = gui.Rect;
+const rom = @import("rom_sdk");
+const Rect = rom.Rect;
 
 pub const SW: i16 = 640;
 pub const SH: i16 = 200;
@@ -107,7 +107,7 @@ pub fn rowY(row: usize) i16 {
 }
 
 // The green stippled desktop the panels sit on.
-pub fn desktop(g: *gui.Gui) void {
+pub fn desktop(g: rom.Gui) void {
     g.rect(.{ .x = 0, .y = 0, .w = SW, .h = SH }, GREEN);
     var y: i16 = 0;
     while (y < SH) : (y += 2) {
@@ -117,10 +117,10 @@ pub fn desktop(g: *gui.Gui) void {
 }
 
 // A white box with the 2px black border every panel on this screen has.
-pub fn panel(g: *gui.Gui, r: Rect) void {
-    g.rect(r, gui.WHITE);
-    g.frame(r, gui.BLACK);
-    g.frame(.{ .x = r.x + 1, .y = r.y + 1, .w = r.w - 2, .h = r.h - 2 }, gui.BLACK);
+pub fn panel(g: rom.Gui, r: Rect) void {
+    g.rect(r, rom.WHITE);
+    g.frame(r, rom.BLACK);
+    g.frame(.{ .x = r.x + 1, .y = r.y + 1, .w = r.w - 2, .h = r.h - 2 }, rom.BLACK);
 }
 
 // One binding row: key right-aligned onto the '=' column, description after it.
@@ -130,23 +130,23 @@ pub fn bindingRect(b: Binding, eq: i16, y: i16) Rect {
     return .{ .x = kx - 4, .y = y, .w = (eq + 16 - kx) + @as(i16, @intCast(b.what.len)) * 8 + 8, .h = 8 };
 }
 
-pub fn binding(g: *gui.Gui, b: Binding, eq: i16, y: i16, sel: bool) void {
-    const ink: u8 = if (sel) gui.WHITE else gui.BLACK;
-    const paper: u8 = if (sel) gui.BLACK else gui.WHITE;
+pub fn binding(g: rom.Gui, b: Binding, eq: i16, y: i16, sel: bool) void {
+    const ink: u8 = if (sel) rom.WHITE else rom.BLACK;
+    const paper: u8 = if (sel) rom.BLACK else rom.WHITE;
     const r = bindingRect(b, eq, y);
-    if (sel) g.rect(r, gui.BLACK);
+    if (sel) g.rect(r, rom.BLACK);
     g.text(b.key, r.x + 4, y, ink, paper);
     g.text("=", eq, y, ink, paper);
     g.text(b.what, eq + 16, y, ink, paper);
 }
 
-pub fn centred(g: *gui.Gui, s: []const u8, cx: i16, y: i16) void {
-    g.text(s, cx - @as(i16, @intCast(s.len)) * 4, y, gui.BLACK, gui.WHITE);
+pub fn centred(g: rom.Gui, s: []const u8, cx: i16, y: i16) void {
+    g.text(s, cx - @as(i16, @intCast(s.len)) * 4, y, rom.BLACK, rom.WHITE);
 }
 
 // Right edge at rx, so a number that grows leftwards stays inside the panel.
-pub fn rightAligned(g: *gui.Gui, s: []const u8, rx: i16, y: i16) void {
-    g.text(s, rx - @as(i16, @intCast(s.len)) * 8, y, gui.BLACK, gui.WHITE);
+pub fn rightAligned(g: rom.Gui, s: []const u8, rx: i16, y: i16) void {
+    g.text(s, rx - @as(i16, @intCast(s.len)) * 8, y, rom.BLACK, rom.WHITE);
 }
 
 pub const COL_EQ = [3]i16{ LEFT_EQ, MID_EQ, RIGHT_EQ };

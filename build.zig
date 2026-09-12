@@ -68,6 +68,22 @@ pub fn build(b: *std.Build) void {
     // machine/boot.zig — the boot ROM (POST screen). Machine firmware: depends
     // ONLY on the HW ABI, no libs. App-linked into the demo for now; will move
     // into machine-video.wasm when the machine renders its own boot (Phase 2).
+    // rom/sdk/ — the FLAT, app-facing ROM ABI (Phase 2 step 2.1). Apps import this
+    // as `rom_sdk`; only numbers cross its entry points, so the bodies can move
+    // into rom.wasm at step 2.2 without touching a single app.
+    const rom_sdk_mod = b.createModule(.{
+        .root_source_file = b.path("rom/sdk/rom.zig"),
+        .target = wasm_target,
+        .optimize = optimize,
+        .imports = &.{
+            .{ .name = "zigos", .module = zigos_mod },
+            .{ .name = "hardware", .module = sdk_video },
+            // Reaches GEM through the NAMED module, never a relative path: a file
+            // may belong to only one module, and rom/gem/* belong to `rom`.
+            .{ .name = "rom", .module = rom_mod },
+        },
+    });
+
     const boot_rom_mod = b.createModule(.{
         .root_source_file = b.path("machine/boot.zig"),
         .target = wasm_target,
@@ -157,6 +173,7 @@ pub fn build(b: *std.Build) void {
             .imports = &.{
                 .{ .name = "zigos", .module = zigos_mod },
                 .{ .name = "rom", .module = rom_mod },
+                .{ .name = "rom_sdk", .module = rom_sdk_mod },
                 // The HW ABI header (not machine source) — lets a scene poke sealed
                 // registers directly, ST-style (e.g. scenes/badflicker.zig).
                 .{ .name = "hardware", .module = sdk_video },
@@ -172,6 +189,7 @@ pub fn build(b: *std.Build) void {
                 .imports = &.{
                     .{ .name = "zigos", .module = zigos_mod },
                     .{ .name = "rom", .module = rom_mod },
+                    .{ .name = "rom_sdk", .module = rom_sdk_mod },
                     .{ .name = "boot_rom", .module = boot_rom_mod },
                     .{ .name = "cart", .module = cart_mod },
                 },

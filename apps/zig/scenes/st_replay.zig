@@ -19,11 +19,13 @@ const disk = @import("zigos").disk;
 const ZigOS = zg.ZigOS;
 const Blitter = zg.Blitter;
 const hw = @import("hardware");
-const gui = @import("rom").gui;
-const gem = @import("rom").gem;
+// The app talks to the ROM ONLY through its flat ABI — no @import("rom"),
+// which is the ROM's internals and stops being reachable once GEM moves into
+// rom.wasm (Phase 2 step 2.2). See rom/sdk/rom.zig.
+const rom = @import("rom_sdk");
 const ui = @import("st_replay_ui.zig");
 const draw = @import("st_replay_draw.zig");
-const Rect = gui.Rect;
+const Rect = rom.Rect;
 
 const WAVE_LEN: usize = 1280; // display resolution (host downsamples the .raw into it)
 // How long to sweep the playhead when the host has not told us the sample's real
@@ -70,9 +72,11 @@ pub const BOOT_DIRECT = false;
 
 pub const App = struct {
     blit: Blitter = .{},
-    g: gui.Gui = undefined,
-    dialog: gui.Dialog = .{},
-    fsel: gem.FileSel = .{}, // GEM's ITEM SELECTOR, opened by "Load from disc"
+    // Handles into the ROM, not structures of our own: the toolkit's state lives
+    // on the ROM's side of the ABI (and, after step 2.2, in the ROM's RAM window).
+    g: rom.Gui = .{},
+    dialog: rom.Dialog = .{},
+    fsel: rom.FileSel = .{}, // GEM's ITEM SELECTOR, opened by "Load from disc"
     sample: [WAVE_LEN]u8 = [_]u8{SILENCE} ** WAVE_LEN, // the display view, built here
     pos: usize = 0, // how far the replay has fed the audio ring
     rate: usize = 2, // index into ui.RATES; the real thing boots at 10 KHz
@@ -94,7 +98,7 @@ pub const App = struct {
     // mounted floppy — the FAT is walked here, by the machine, not handed over by
     // the page.
     fn openSelector(self: *App) void {
-        self.fsel.open("*.RAW");
+        self.fsel.show("*.RAW");
         const lay = disk.mount() orelse return self.dlg("Load from disc", "No disc in drive A:.");
         var i: u16 = 0;
         while (i < lay.count) : (i += 1) {
@@ -159,13 +163,19 @@ pub const App = struct {
 
     pub fn init(self: *App, os: *ZigOS) void {
         const fb = &os.lfbs[0];
-        self.blit.init();
-        self.g = .{ .os = os, .fb = fb, .blit = &self.blit, .screen_w = ui.SW, .screen_h = ui.SH };
+        // The ROM owns the context (and brings its own blitter) — we hold a handle.
+        // init() runs again on EVERY launch, so release the previous handles first:
+        // leaking them exhausts the ROM's tables and every call then silently does
+        // nothing. close() is safe on a zero or stale handle.
+        self.g.close();
+        self.dialog.close();
+        self.fsel.close();
+        self.g = rom.Gui.open(os, fb, ui.SW, ui.SH);
         // The app owns the whole screen: put the plane in MEDIUM res (the layout
         // is 640 wide) and install both palettes itself rather than inheriting
         // whatever the desktop left behind.
         fb.setResMedium();
-        gui.installPalette(fb);
+        rom.installPalette(@intCast(@intFromPtr(fb)));
         ui.installPalette(fb);
         self.wants_quit = false;
         self.playing = false;
@@ -174,8 +184,8 @@ pub const App = struct {
         // loaded sample (SILENCE is 128, not 0).
         // The cart lives in `undefined` memory until init: every flag has to be
         // set, not assumed. A garbage `fsel.active` swallowed the keyboard.
-        self.fsel = .{};
-        self.dialog = .{};
+        self.fsel = rom.FileSel.open();
+        self.dialog = rom.Dialog.open();
         self.playhead = 0;
         self.pos = 0;
         self.bytes = 0;
@@ -212,8 +222,8 @@ pub const App = struct {
 
     // The whole program is the keyboard. Unknown keys are ignored, as in TOS.
     pub fn key(self: *App, cp: u32) void {
-        if (self.fsel.active) return self.fsel.key(cp); // the selector owns typing
-        if (self.dialog.active) return; // a dialog owns input while it is up
+        if (self.fsel.active()) return self.fsel.key(cp); // the selector owns typing
+        if (self.dialog.active()) return; // a dialog owns input while it is up
         if (cp >= ui.K_F1 and cp < ui.K_F1 + ui.ROWS) return self.fkey(cp - ui.K_F1);
         switch (cp) {
             'q', 'Q' => self.looping = !self.looping,
@@ -239,7 +249,7 @@ pub const App = struct {
     // Arrow keys walk the selection — the highlighted replay rate — the way the
     // function keys jump straight to one. Wraps, so holding a direction cycles.
     pub fn input(self: *App, dir: u32) void {
-        if (self.dialog.active) return;
+        if (self.dialog.active()) return;
         switch (dir) {
             0 => self.rate = (self.rate + ui.RATE_ROWS - 1) % ui.RATE_ROWS, // up
             1 => self.rate = (self.rate + 1) % ui.RATE_ROWS, // down
@@ -321,7 +331,7 @@ pub const App = struct {
     // key, so mouse and keyboard cannot drift apart (the frequency rows behaved
     // this way already; now the whole panel does).
     fn clicks(self: *App) void {
-        if (!self.g.edge or self.dialog.active or self.fsel.active) return;
+        if (!self.g.edge() or self.dialog.active() or self.fsel.active()) return;
         var row: usize = 0;
         while (row < ui.ROWS) : (row += 1) {
             const y = ui.rowY(row);
@@ -336,16 +346,18 @@ pub const App = struct {
     pub fn render(self: *App, os: *ZigOS, dt: f32) void {
         _ = os;
         _ = dt;
-        const g = &self.g;
+        const g = self.g; // a handle, copied by value — there is nothing to alias
         draw.screen(g, self.view());
         _ = self.dialog.process(g);
         switch (self.fsel.process(g)) {
             .ok => {
+                // chosen() copies into OUR buffer: a slice cannot cross the ABI,
+                // and a pointer into the ROM's storage would be a lifetime we
+                // could not reason about. It also keeps the copy loadFromDisc
+                // needs anyway, since that reopens dialogs.
                 var pick: [16]u8 = undefined;
-                const name = self.fsel.chosen();
-                const n = @min(name.len, pick.len);
-                @memcpy(pick[0..n], name[0..n]); // copy: loadFromDisc reopens dialogs
-                if (n > 0) self.loadFromDisc(pick[0..n]);
+                const name = self.fsel.chosen(&pick);
+                if (name.len > 0) self.loadFromDisc(name);
             },
             else => {},
         }
