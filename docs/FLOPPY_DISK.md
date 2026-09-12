@@ -1,5 +1,12 @@
 # ZigMachine Disk — design
 
+> **Packing the shelf:** `tools/mkdisks.sh` repacks every disk in `docs/` from the
+> built carts (run by `build.sh`; only repacks what is stale, `-f` forces). It is
+> the recipe the images used to lack — they drifted a week behind the wasm and
+> froze an import list the host no longer had. `node apps/disk_check.mjs` then
+> mounts every image and instantiates its cart against the host's real `env`,
+> which is the check that would have caught that.
+
 **Status:** MVP working — `tools/mkdisk.py` packs a cart into a `.zmd`, and
 `sealed.html?disk=X.zmd` verifies the `$1234` boot sector and boots the cart (phases
 B–D of the plan). Still to do: FAT/multi-file, disk-browser menu, block streaming.

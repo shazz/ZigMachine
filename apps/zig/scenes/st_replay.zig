@@ -46,6 +46,24 @@ const SILENCE: u8 = 0; // .raw samples are SIGNED 8-bit, so silence is zero
 const MAX_PCM: usize = 1024 * 1024;
 const FRAME_HZ: u32 = 60;
 
+// The sample itself, in machine RAM. Module-level, NOT a field of App — which is
+// about safety, not size: a struct carrying a megabyte array is a landmine, because
+// any `x = .{}` on it makes the linker materialise a WHOLE SECOND copy as a data
+// segment. That is precisely what `self.* = .{}` in gem_desktop.zig did, and it
+// cost 517 KB of the cart's RAM window until 2026-09-12. Out here, it cannot
+// happen again.
+//
+// It does NOT shrink the wasm. The cart imports its memory (build.zig), and
+// wasm-lld cannot assume imported memory is zeroed, so it materialises .bss as
+// explicit zero data segments regardless — the megabyte is in the file either
+// way (measured: file size tracks MAX_PCM 1:1). Serve the carts gzipped if that
+// matters; a megabyte of zeros compresses to nothing.
+//
+// `undefined` + an explicit memset in init() rather than a zero initialiser,
+// because the loader swaps carts over ONE shared memory: never assume a fresh
+// cart's RAM is clean. Same reason every scalar in init() is set, not assumed.
+var pcm: [MAX_PCM]u8 = undefined;
+
 
 // Boot mode (read by scenes/gem_desktop.zig): false = launch from the desktop.
 pub const BOOT_DIRECT = false;
@@ -56,7 +74,6 @@ pub const App = struct {
     dialog: gui.Dialog = .{},
     fsel: gem.FileSel = .{}, // GEM's ITEM SELECTOR, opened by "Load from disc"
     sample: [WAVE_LEN]u8 = [_]u8{SILENCE} ** WAVE_LEN, // the display view, built here
-    pcm: [MAX_PCM]u8 = [_]u8{SILENCE} ** MAX_PCM, // the sample itself, in machine RAM
     pos: usize = 0, // how far the replay has fed the audio ring
     rate: usize = 2, // index into ui.RATES; the real thing boots at 10 KHz
     playing: bool = false,
@@ -94,8 +111,8 @@ pub const App = struct {
         const lay = disk.mount() orelse return self.dlg("Load from disc", "No disc in drive A:.");
         const ent = disk.find(lay, name) orelse return self.dlg("Load from disc", "File not found.");
         self.stop();
-        const n = disk.read(ent, &self.pcm);
-        @memset(self.pcm[n..], SILENCE);
+        const n = disk.read(ent, &pcm);
+        @memset(pcm[n..], SILENCE);
         self.bytes = @intCast(n);
         self.low = 0;
         self.high = self.bytes;
@@ -117,7 +134,7 @@ pub const App = struct {
         var i: usize = 0;
         while (i < WAVE_LEN) : (i += 1) {
             const si = i * @as(usize, self.bytes) / WAVE_LEN;
-            self.sample[i] = self.pcm[si];
+            self.sample[i] = pcm[si];
         }
     }
 
@@ -167,6 +184,7 @@ pub const App = struct {
         self.monitor = false;
         self.marked = false;
         @memset(&self.sample, SILENCE);
+        @memset(&pcm, SILENCE); // .bss, and the cart swap reuses memory — see above
         self.rate = 2; // 10 KHz, as the original boots
         self.high = self.bytes;
     }
@@ -258,7 +276,7 @@ pub const App = struct {
     // rest of the app's state — an editor command edits, it does not reboot.
     fn wipe(self: *App) void {
         @memset(&self.sample, SILENCE);
-        @memset(&self.pcm, SILENCE);
+        @memset(&pcm, SILENCE);
         self.bytes = 0;
         self.low = 0;
         self.high = 0;
@@ -290,7 +308,7 @@ pub const App = struct {
         const chunk: usize = @as(usize, ui.RATES[self.rate]) / FRAME_HZ;
         const end = @min(self.pos + chunk, @as(usize, self.bytes));
         if (end > self.pos) {
-            zg.audioFeed(self.pcm[self.pos..end]);
+            zg.audioFeed(pcm[self.pos..end]);
             self.pos = end;
         }
         self.playhead = @as(f32, @floatFromInt(self.pos)) /
