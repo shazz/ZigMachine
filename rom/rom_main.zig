@@ -117,26 +117,29 @@ fn slice(ptr: u32, len: u32) []const u8 {
 // allocator moves FB_BASE around. The ROM then lends its OWN ZigOS (fonts only;
 // see initTextOnly) and its own LogicalFB wrapper.
 //
-// One raw context at a time: an app has one screen, and a second caller would
-// silently repoint the first one's framebuffer.
+// The ROM lends its own ZigOS (fonts only — initTextOnly touches no hardware) and
+// its own LogicalFB per context. One LogicalFB PER SLOT, not one shared: a second
+// caller used to silently repoint the first one's framebuffer.
 var raw_os: zg.ZigOS = .{};
-var raw_fb: zg.LogicalFB = .{};
+var raw_fbs: [MAX_GUI]zg.LogicalFB = undefined;
 
-// Point raw_fb at a plane by reading the SEALED registers — FB_BASE is where the
-// VRAM allocator actually put it, which is the only correct answer, and it works
-// the same whether the plane was set up by ZigOS or by a C program.
-fn bindRawFb(plane: u32, screen_h: i32) bool {
+// Point `fb` at a plane by reading the SEALED registers. FB_BASE is where the VRAM
+// allocator actually put it and FB_STRIDE is what the machine reads per row — the
+// only correct answers, and they change under you: setResLow/setResMedium rewrite
+// the stride register on the same buffer. So anything holding a bound context has
+// to re-bind when the resolution changes (see deskSetScreen).
+fn bindFb(fb: *zg.LogicalFB, plane: u32, screen_h: i32) bool {
     if (plane >= hw.NB_PLANES) return false;
     const base: usize = @intCast(hw.hwVideoBase());
     const regs: [*]u8 = @ptrFromInt(base);
     const fb_off = std.mem.readInt(u32, regs[hw.REG_FB_BASE + plane * 4 ..][0..4], .little);
     const stride = std.mem.readInt(u16, regs[hw.REG_FB_STRIDE + plane * 2 ..][0..2], .little);
     raw_os.initTextOnly();
-    raw_fb = .{
+    fb.* = .{
         .fb = @ptrFromInt(base + fb_off),
         .palette = @ptrFromInt(base + hw.OFF_PAL + @as(usize, plane) * hw.PAL_BYTES),
         .stride = stride,
-        .fb_w = stride,
+        .fb_w = stride, // the clip bound Gui.plot uses; the register is the truth
         .fb_h = @intCast(screen_h),
         .id = @intCast(plane),
         .zigos = &raw_os,
@@ -144,38 +147,18 @@ fn bindRawFb(plane: u32, screen_h: i32) bool {
     return true;
 }
 
-/// Open a drawing context over PLANE `plane`, for a caller with no ZigOS of its
-/// own. Returns a handle exactly like guiOpen, or 0 if none is free.
+/// Open a drawing context over PLANE `plane`. THE way to get a context: naming a
+/// plane works from any language, where handing over a *ZigOS and a *LogicalFB
+/// only worked from Zig. Returns a handle, or 0 if no context is free.
 export fn guiOpenPlane(plane: u32, screen_w: i32, screen_h: i32) u32 {
-    if (!bindRawFb(plane, screen_h)) return 0;
-    return guiOpen(@intCast(@intFromPtr(&raw_os)), @intCast(@intFromPtr(&raw_fb)), screen_w, screen_h);
-}
-
-/// Install GEM's palette into a PLANE — the companion to guiOpenPlane, and for
-/// the same reason: romInstallPalette wants a *LogicalFB, which a non-Zig app
-/// cannot produce. Without this a C app's GEM widgets come out in whatever colours
-/// its own palette happens to have at indices 0 and 1 (a plasma rainbow renders
-/// the panel solid red — correct pixels, unreadable result).
-export fn romInstallPalettePlane(plane: u32) void {
-    if (!bindRawFb(plane, @intCast(raw_fb.fb_h))) return;
-    gui.installPalette(&raw_fb);
-}
-
-/// Open a drawing context over a framebuffer. `os_ptr`/`fb_ptr` are addresses in
-/// the ONE shared linear memory — which is why they can be passed at all. The
-/// ROM's code is a different binary from the app's, but the MEMORY is common, so
-/// the ROM's own ZigOS reads the app's ZigOS/framebuffer structs directly, no
-/// copy and no serialisation. Same compiler, same source, same layout.
-/// Returns 0 if no context is free. Note there is no blitter argument: the ROM
-/// brings its own, so an app no longer has to own one for the toolkit's benefit.
-export fn guiOpen(os_ptr: u32, fb_ptr: u32, screen_w: i32, screen_h: i32) u32 {
     for (&gui_used, 0..) |*used, i| {
         if (used.*) continue;
+        if (!bindFb(&raw_fbs[i], plane, screen_h)) return 0;
         blits[i] = .{};
         blits[i].init();
         guis[i] = .{
-            .os = @ptrFromInt(os_ptr),
-            .fb = @ptrFromInt(fb_ptr),
+            .os = &raw_os,
+            .fb = &raw_fbs[i],
             .blit = &blits[i],
             .screen_w = @intCast(screen_w),
             .screen_h = @intCast(screen_h),
@@ -185,6 +168,21 @@ export fn guiOpen(os_ptr: u32, fb_ptr: u32, screen_w: i32, screen_h: i32) u32 {
     }
     return 0;
 }
+
+/// Install GEM's palette into a PLANE — the companion to guiOpenPlane, and for
+/// the same reason: romInstallPalette wants a *LogicalFB, which a non-Zig app
+/// cannot produce. Without this a C app's GEM widgets come out in whatever colours
+/// its own palette happens to have at indices 0 and 1 (a plasma rainbow renders
+/// the panel solid red — correct pixels, unreadable result).
+export fn romInstallPalettePlane(plane: u32) void {
+    var tmp: zg.LogicalFB = undefined;
+    if (!bindFb(&tmp, plane, memmapScreenH)) return;
+    gui.installPalette(&tmp);
+}
+// installPalette only writes palette entries, so the height it is bound with is
+// irrelevant; name it rather than pass a meaningless argument through the ABI.
+const memmapScreenH: i32 = 200;
+
 export fn guiClose(h: u32) void {
     if (h != 0 and h <= MAX_GUI) gui_used[h - 1] = false;
 }
@@ -232,11 +230,6 @@ export fn guiFill(h: u32, x: i32, y: i32, w: i32, hh: i32, color: u32) void {
     const g = guiAt(h) orelse return;
     g.blit.fill(g.fb, @intCast(x), @intCast(y), @intCast(w), @intCast(hh), @intCast(color));
 }
-/// Install the ROM's shared palette into a framebuffer (address, as above).
-export fn romInstallPalette(fb_ptr: u32) void {
-    gui.installPalette(@ptrFromInt(fb_ptr));
-}
-
 export fn dialogOpen() u32 {
     for (&dialog_used, 0..) |*used, i| {
         if (used.*) continue;
@@ -324,19 +317,30 @@ export fn fileSelChosen(h: u32, out: u32, out_cap: u32) u32 {
 // --------------------------------------------------------------------------
 var desk: gem.Desktop = .{};
 var desk_blit: zg.Blitter = .{};
+var desk_fb: zg.LogicalFB = undefined;
+var desk_plane: u32 = 0;
 var desk_ready: bool = false;
 
-/// Bring up the desktop over a framebuffer (addresses, as with guiOpen).
-export fn deskInit(os_ptr: u32, fb_ptr: u32) void {
+/// Bring up the desktop over PLANE `plane`. Same reasoning as guiOpenPlane: a
+/// shell written in C could not have called the pointer form.
+export fn deskInitPlane(plane: u32, screen_w: i32, screen_h: i32) void {
+    if (!bindFb(&desk_fb, plane, screen_h)) return;
+    desk_plane = plane;
     desk = .{};
     desk_blit = .{};
     desk_blit.init();
-    desk.init(@ptrFromInt(os_ptr), @ptrFromInt(fb_ptr), &desk_blit);
+    desk.init(&raw_os, &desk_fb, &desk_blit);
+    desk.g.screen_w = @intCast(screen_w);
+    desk.g.screen_h = @intCast(screen_h);
     desk_ready = true;
 }
 /// The desktop's screen changed size (the Options menu switches LOW/MEDIUM).
 export fn deskSetScreen(w: i32, h: i32) void {
     if (!desk_ready) return;
+    // RE-BIND: switching LOW/MEDIUM rewrites the plane's stride register on the
+    // same buffer, and our LogicalFB copy would keep the old one — drawing at the
+    // wrong pitch, which looks like a shear rather than like a bug.
+    _ = bindFb(&desk_fb, desk_plane, h);
     desk.g.screen_w = @intCast(w);
     desk.g.screen_h = @intCast(h);
     desk.clampIcons(); // keep icons on-screen at the new width

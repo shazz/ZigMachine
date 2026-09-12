@@ -37,7 +37,6 @@ pub const Result = enum(u32) { none = 0, ok = 1, cancel = 2 };
 /// Host-only: reclaim every handle the previous program held (see rom_main.zig).
 pub extern fn romReset() void;
 
-pub extern fn guiOpen(os_ptr: u32, fb_ptr: u32, screen_w: i32, screen_h: i32) u32;
 /// Open a context over a PLANE, for a caller with no ZigOS of its own — which is
 /// every app not written in Zig. The ROM reads the plane's framebuffer base out of
 /// the video registers and lends its own text renderer. This is the entry point
@@ -57,7 +56,6 @@ pub extern fn guiFrame(h: u32, x: i32, y: i32, w: i32, hh: i32, color: u32) void
 pub extern fn guiPlot(h: u32, x: i32, y: i32, color: u32) void;
 pub extern fn guiText(h: u32, ptr: u32, len: u32, x: i32, y: i32, ink: u32, paper: u32) void;
 pub extern fn guiFill(h: u32, x: i32, y: i32, w: i32, hh: i32, color: u32) void;
-pub extern fn romInstallPalette(fb_ptr: u32) void;
 
 pub extern fn dialogOpen() u32;
 pub extern fn dialogClose(h: u32) void;
@@ -79,7 +77,7 @@ pub extern fn fileSelChosen(h: u32, out: u32, out_cap: u32) u32;
 // Action flat — see DeskAction.
 pub const DeskAction = enum(u32) { none = 0, launch = 1, res_low = 2, res_medium = 3 };
 
-pub extern fn deskInit(os_ptr: u32, fb_ptr: u32) void;
+pub extern fn deskInitPlane(plane: u32, screen_w: i32, screen_h: i32) void;
 pub extern fn deskSetScreen(w: i32, h: i32) void;
 pub extern fn deskBeginFrame() void;
 pub extern fn deskEndFrame() void;
@@ -98,8 +96,8 @@ pub extern fn deskLaunchName(out: u32, out_cap: u32) u32;
 
 /// The desktop, as a shell cart drives it.
 pub const Desktop = struct {
-    pub fn init(os: *zg.ZigOS, fb: *zg.LogicalFB) void {
-        deskInit(@intCast(@intFromPtr(os)), @intCast(@intFromPtr(fb)));
+    pub fn initPlane(plane: u32, w: i32, ht: i32) void {
+        deskInitPlane(plane, w, ht);
     }
     pub fn setScreen(w: i32, h: i32) void {
         deskSetScreen(w, h);
@@ -141,8 +139,9 @@ pub const Desktop = struct {
     }
 };
 
-pub fn installPalette(fb_ptr: u32) void {
-    romInstallPalette(fb_ptr);
+/// GEM's palette into a plane. See romInstallPalettePlane.
+pub fn installPalette(plane: u32) void {
+    romInstallPalettePlane(plane);
 }
 
 // --------------------------------------------------------------------------
@@ -154,8 +153,11 @@ pub fn installPalette(fb_ptr: u32) void {
 pub const Gui = struct {
     h: u32 = 0,
 
-    pub fn open(os: *zg.ZigOS, fb: *zg.LogicalFB, w: i32, ht: i32) Gui {
-        return .{ .h = guiOpen(@intCast(@intFromPtr(os)), @intCast(@intFromPtr(fb)), w, ht) };
+    /// Open a context over a PLANE. There is deliberately no pointer form: one
+    /// shape, callable from any language. The plane must already be configured
+    /// (resolution/buffer) — the ROM reads its stride from the registers.
+    pub fn openPlane(plane: u32, w: i32, ht: i32) Gui {
+        return .{ .h = guiOpenPlane(plane, w, ht) };
     }
     pub fn close(self: Gui) void {
         guiClose(self.h);

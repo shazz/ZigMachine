@@ -47,6 +47,7 @@ const SILENCE: u8 = 0; // .raw samples are SIGNED 8-bit, so silence is zero
 // free by hwRamFree()'s own count (shown on the panel, gated by build.sh).
 const MAX_PCM: usize = 1024 * 1024;
 const FRAME_HZ: u32 = 60;
+const PLANE: u32 = 0; // the app owns plane 0
 
 // The sample itself, in machine RAM. Module-level, NOT a field of App — which is
 // about safety, not size: a struct carrying a megabyte array is a landmine, because
@@ -162,8 +163,13 @@ pub const App = struct {
         // A STANDALONE cart since step 2.3b: GEM no longer contains this app, the
         // host instantiates it off the floppy. So the plane is ours to bring up —
         // nobody has enabled it or allocated its buffer for us.
+        // Bring the plane up FIRST: the ROM binds a context by reading that
+        // plane's registers, so the resolution and buffer have to be settled
+        // before we ask for one. The app owns the whole screen and installs both
+        // palettes itself rather than inheriting whatever the desktop left.
         fb.is_enabled = true;
         fb.setMediumPlane(); // the 640-wide buffer the medium layout needs
+        fb.setResMedium();
         // The ROM owns the drawing context (and brings its own blitter) — we hold
         // a handle. close() first: a cart swap reuses the memory, so a stale
         // handle may be sitting in these fields, and leaking the ROM's handles
@@ -171,12 +177,8 @@ pub const App = struct {
         self.g.close();
         self.dialog.close();
         self.fsel.close();
-        self.g = rom.Gui.open(os, fb, ui.SW, ui.SH);
-        // The app owns the whole screen: put the plane in MEDIUM res (the layout
-        // is 640 wide) and install both palettes itself rather than inheriting
-        // whatever the desktop left behind.
-        fb.setResMedium();
-        rom.installPalette(@intCast(@intFromPtr(fb)));
+        self.g = rom.Gui.openPlane(PLANE, ui.SW, ui.SH);
+        rom.installPalette(PLANE);
         ui.installPalette(fb);
         self.wants_quit = false;
         self.playing = false;

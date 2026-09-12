@@ -22,6 +22,8 @@ const ZigOS = zg.ZigOS;
 const LogicalFB = zg.LogicalFB;
 const rom = @import("rom_sdk");
 
+const PLANE: u32 = 0; // GEM owns plane 0
+
 pub const Demo = struct {
     desk_medium: bool = false, // desktop resolution (Options menu); GEM defaults to LOW
     fb: *LogicalFB = undefined,
@@ -36,9 +38,12 @@ pub const Demo = struct {
         self.fb = &os.lfbs[0];
         self.fb.is_enabled = true;
         self.fb.setMediumPlane(); // allocate the 640-wide buffer once (serves LOW and MEDIUM)
-        rom.installPalette(@intCast(@intFromPtr(self.fb))); // one palette for desktop AND apps
+        rom.installPalette(PLANE); // one palette for desktop AND apps
         os.setBackgroundColor(.{ .r = 255, .g = 255, .b = 255, .a = 255 }); // border white
-        rom.Desktop.init(os, self.fb);
+        // The ROM binds the desktop to a PLANE and reads its registers; applyDeskRes
+        // below switches the resolution, which rewrites the stride, and deskSetScreen
+        // re-binds. So the order here is: configure the plane, bind, then set the res.
+        rom.Desktop.initPlane(PLANE, 640, 200);
         self.applyDeskRes();
     }
 
