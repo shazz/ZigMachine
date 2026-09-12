@@ -11,26 +11,44 @@ const WHITE = types.WHITE;
 
 pub const DlgResult = union(enum) { none, ok: u8, cancel };
 
+pub const MAX_LINES = 5; // GEM alerts are at most 5 lines
+
 pub const Dialog = struct {
     active: bool = false,
     filesel: bool = false,
     title: []const u8 = "",
-    msg: []const u8 = "",
+    lines: [MAX_LINES][]const u8 = [_][]const u8{""} ** MAX_LINES,
+    nlines: u8 = 0,
+    warn: bool = false, // draw the GEM warning sign in the left gutter
     items: []const []const u8 = &.{},
     want_w: i16 = 0,
     want_h: i16 = 0,
 
     const ROW_H: i16 = 8; // one char cell per list row (GEM item selector)
     const BTN_H: i16 = 12; // GEM alert buttons are one char row + border
+    const LINE_H: i16 = 10; // alert text lines (8px font + leading)
+    const SIGN_W: i16 = 40; // left gutter the warning sign lives in
 
-    // GEM alerts have no title bar — `title` is drawn as the first text line.
+    // GEM alerts have no title bar — every line is body text.
     pub fn alert(self: *Dialog, title: []const u8, msg: []const u8) void {
-        self.* = .{ .active = true, .filesel = false, .title = title, .msg = msg };
-        self.want_w = @max(@as(i16, @intCast(msg.len)), @as(i16, @intCast(title.len))) * 8 + 32;
-        self.want_h = 56;
+        self.alertLines(&.{ title, msg }, false);
+    }
+    // A multi-line GEM alert, optionally with the warning sign on the left.
+    pub fn alertLines(self: *Dialog, lines: []const []const u8, warn: bool) void {
+        self.* = .{ .active = true, .filesel = false, .warn = warn };
+        var widest: i16 = 0;
+        for (lines, 0..) |l, i| {
+            if (i >= MAX_LINES) break;
+            self.lines[i] = l;
+            self.nlines = @intCast(i + 1);
+            widest = @max(widest, @as(i16, @intCast(l.len)));
+        }
+        self.want_w = widest * 8 + 32 + (if (warn) SIGN_W else 0);
+        self.want_h = @as(i16, self.nlines) * LINE_H + 44;
     }
     pub fn openFiles(self: *Dialog, title: []const u8, items: []const []const u8) void {
         self.* = .{ .active = true, .filesel = true, .title = title, .items = items };
+        self.nlines = 0;
         self.want_w = 220;
         self.want_h = @as(i16, @intCast(items.len)) * ROW_H + 44;
     }
@@ -45,18 +63,40 @@ pub const Dialog = struct {
 
     pub fn process(self: *Dialog, g: *Gui) DlgResult {
         if (!self.active) return .none;
-        const b = Rect{ .x = @divTrunc(g.screen_w - self.want_w, 2), .y = @divTrunc(g.screen_h - self.want_h, 2), .w = self.want_w, .h = self.want_h };
+        // A dialog never hangs off the screen, however long its text is.
+        const bw = @min(self.want_w, g.screen_w - 8);
+        const b = Rect{ .x = @divTrunc(g.screen_w - bw, 2), .y = @divTrunc(g.screen_h - self.want_h, 2), .w = bw, .h = self.want_h };
         box(g, b);
-        g.text(self.title, b.x + 8, b.y + 8, BLACK, WHITE);
+        if (self.filesel) g.text(self.title, b.x + 8, b.y + 8, BLACK, WHITE);
         const res = if (self.filesel) self.fileList(g, b) else self.alertBody(g, b);
         if (res != .none) self.active = false;
         return res;
     }
 
     fn alertBody(self: *Dialog, g: *Gui, b: Rect) DlgResult {
-        g.text(self.msg, b.x + 8, b.y + 20, BLACK, WHITE);
+        const tx = b.x + 8 + (if (self.warn) SIGN_W else 0);
+        var i: u8 = 0;
+        while (i < self.nlines) : (i += 1)
+            g.text(self.lines[i], tx, b.y + 10 + @as(i16, i) * LINE_H, BLACK, WHITE);
+        if (self.warn) warnSign(g, b.x + 12, b.y + 12);
         const ok = Rect{ .x = b.x + @divTrunc(b.w - 56, 2), .y = b.y + b.h - 22, .w = 56, .h = 14 };
         return if (g.buttonThick(ok, "OK", false, 3)) .{ .ok = 0 } else .none;
+    }
+
+    // The GEM alert warning sign: an exclamation mark inside a triangle, drawn
+    // dot by dot (24x22) rather than shipped as a bitmap.
+    fn warnSign(g: *Gui, x: i16, y: i16) void {
+        const H: i16 = 22;
+        const HALF: i16 = 12;
+        var row: i16 = 0;
+        while (row < H) : (row += 1) { // the two sloping edges
+            const half = @divTrunc(row * HALF, H - 1);
+            g.plot(x + HALF - half, y + row, BLACK);
+            g.plot(x + HALF + half, y + row, BLACK);
+        }
+        g.rect(.{ .x = x, .y = y + H - 1, .w = 2 * HALF + 1, .h = 1 }, BLACK); // base
+        g.rect(.{ .x = x + HALF - 1, .y = y + 8, .w = 3, .h = 7 }, BLACK); // the "!" stem
+        g.rect(.{ .x = x + HALF - 1, .y = y + 17, .w = 3, .h = 2 }, BLACK); // its dot
     }
 
     // List rows: plain text, inverse video only while the button is held over a

@@ -68,7 +68,7 @@ pub const Boot = struct {
         self.logo.render(null);
 
         const atari: [2]u8 = [2]u8{ 14, 15 };
-        const top: u16 = 74;
+        const top: i16 = 74;
 
         zigos.printText(self.fb, "Memory Test:", 8, top + 0, BLACK_ENTRY, WHITE_ENTRY);
         zigos.printText(self.fb, "WASM RAM:", 8, top + 10, BLACK_ENTRY, WHITE_ENTRY);
@@ -76,7 +76,7 @@ pub const Boot = struct {
 
         var i: u16 = 0;
         while (i < self.counter_ram) : (i += 1) {
-            zigos.printText(self.fb, "-", 8 + 12 * 8 + (i * 8), top + 10, WHITE_ENTRY, BLACK_ENTRY);
+            zigos.printText(self.fb, "-", @intCast(8 + 12 * 8 + (i * 8)), top + 10, WHITE_ENTRY, BLACK_ENTRY);
         }
 
         if (self.counter_ram == 16) {
@@ -85,7 +85,7 @@ pub const Boot = struct {
 
             i = 0;
             while (i < self.counter_boot) : (i += 1) {
-                zigos.printText(self.fb, " ", 8 + (i * 8), 74 + 30, WHITE_ENTRY, BLACK_ENTRY);
+                zigos.printText(self.fb, " ", @intCast(8 + (i * 8)), 74 + 30, WHITE_ENTRY, BLACK_ENTRY);
             }
         }
 

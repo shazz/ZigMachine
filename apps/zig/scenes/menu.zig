@@ -48,8 +48,8 @@ pub const Demo = struct {
             const on = (i == self.sel);
             const col = i / ROWS;
             const row = i % ROWS;
-            const x: u16 = @intCast(16 + col * 152);
-            const y: u16 = @intCast(22 + row * 11);
+            const x: i16 = @intCast(16 + col * 152);
+            const y: i16 = @intCast(22 + row * 11);
             const fg: u8 = if (on) HILITE else INK;
             os.printText(fb, if (on) ">" else " ", x, y, fg, BG);
             os.printText(fb, e.name, x + 12, y, fg, BG);

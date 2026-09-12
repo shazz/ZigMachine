@@ -20,6 +20,9 @@ const TITLE_X0: i16 = 8; // first title starts one char cell in
 const PAD: i16 = 8; // one char cell each side of a title (its highlight box)
 const LMARGIN: i16 = 16; // drop-down: 2-char left margin (the tick lives here)
 const RMARGIN: i16 = 8; // drop-down: 1-char right margin after the longest label
+// Labels are laid out from the drop-down's own left edge (d.x), NOT from the row
+// rect (d.x + 1, inside the frame) — otherwise the frame steals a pixel and the
+// right margin comes out one short of a full character cell.
 const MGRAY = types.MGRAY; // disabled item / separator ink
 
 // A menu item: a label plus GEM state — `tick` shows a left checkmark (the
@@ -50,7 +53,7 @@ fn drawCheck(g: *Gui, x: i16, y: i16, ink: u8) void {
         var col: u4 = 0;
         while (col < 8) : (col += 1) {
             if ((bits >> @intCast(7 - col)) & 1 != 0)
-                g.fb.setPixelValue(@intCast(x + col), @intCast(y + @as(i16, @intCast(row))), ink);
+                g.plot(x + col, y + @as(i16, @intCast(row)), ink);
         }
     }
 }
@@ -112,13 +115,13 @@ pub const MenuBar = struct {
                 // Authentic TOS separator: a dotted rule across the drop-down.
                 const yy = row.y + @divTrunc(ITEM_H, 2);
                 var xx: i16 = d.x + 3;
-                while (xx < d.x + d.w - 3) : (xx += 2) g.fb.setPixelValue(@intCast(xx), @intCast(yy), MGRAY);
+                while (xx < d.x + d.w - 3) : (xx += 2) g.plot(xx, yy, MGRAY);
                 continue;
             }
             const ink: u8 = if (it.disabled) MGRAY else if (hover) WHITE else BLACK;
             const paper: u8 = if (hover) BLACK else WHITE;
-            if (it.tick) drawCheck(g, row.x + 4, row.y, ink);
-            g.text(it.label, row.x + LMARGIN, row.y, ink, paper);
+            if (it.tick) drawCheck(g, d.x + 4, row.y, ink);
+            g.text(it.label, d.x + LMARGIN, row.y, ink, paper);
             if (g.edge and hover) pick = .{ .menu = @intCast(mi), .item = @intCast(j) };
         }
         return pick;

@@ -13,9 +13,10 @@ const LOGO_H: usize = 60;
 
 pub const About = struct {
     active: bool = false,
+    phase: u16 = 0, // advances every frame -> the logo's colours scroll
 
-    const W: i16 = 224; // 28 cells
-    const H: i16 = 112; // 14 cells
+    const W: i16 = 264; // 33 cells
+    const H: i16 = 136; // 17 cells
 
     pub fn open(self: *About) void {
         self.active = true;
@@ -23,6 +24,8 @@ pub const About = struct {
 
     pub const Result = enum { none, ok };
 
+    // The TOS 1.00 "GEM Desktop" box: the product line, TOS, a rule, then the
+    // logo with the copyright block beside it — everything centred but the logo.
     pub fn process(self: *About, g: *gui.Gui) Result {
         if (!self.active) return .none;
         const dx = @divTrunc(g.screen_w - W, 2);
@@ -33,16 +36,21 @@ pub const About = struct {
         g.frame(.{ .x = dx, .y = dy, .w = W, .h = H }, gui.BLACK); // GEM double frame
         g.frame(.{ .x = dx + 3, .y = dy + 3, .w = W - 6, .h = H - 6 }, gui.BLACK);
 
-        drawLogo(g, grid.x(3), grid.y(2)); // boot logo (left), ~32x30
-        g.text("GEM Desktop", grid.x(9), grid.y(2), gui.BLACK, gui.WHITE);
-        g.text("Version 1.0", grid.x(9), grid.y(4), gui.BLACK, gui.WHITE);
-        g.text("(c) 2026 shazz", grid.x(9), grid.y(6), gui.BLACK, gui.WHITE);
+        title(g, "GEM", dx, grid.y(1) + 2, W);
+        title(g, "Graphics Environment Manager", dx, grid.y(2) + 2, W);
+        title(g, "TOS", dx, grid.y(4), W);
+        g.frame(.{ .x = grid.x(3), .y = grid.y(6), .w = grid.w(27), .h = 1 }, gui.BLACK); // rule
 
-        g.frame(.{ .x = grid.x(3), .y = grid.y(8), .w = grid.w(22), .h = 1 }, gui.BLACK); // rule
-        title(g, "A GEM ROM for ZigMachine", dx, grid.y(9), W);
+        self.phase +%= 1;
+        drawLogo(g, grid.x(3), grid.y(7), self.phase); // the rainbow "Z1" mark
+        const tx = grid.x(9);
+        g.text("Copyright (c) 2026", tx, grid.y(7), gui.BLACK, gui.WHITE);
+        g.text("ATARI CORP.", tx, grid.y(9), gui.BLACK, gui.WHITE);
+        g.text("Digital Research, Inc.", tx, grid.y(11), gui.BLACK, gui.WHITE);
+        g.text("All Rights Reserved.", tx, grid.y(13), gui.BLACK, gui.WHITE);
 
         const bw: i16 = 64;
-        if (g.buttonThick(.{ .x = gui.gcenter(dx, W, bw), .y = grid.y(11), .w = bw, .h = 14 }, "OK", false, 3)) {
+        if (g.buttonThick(.{ .x = gui.gcenter(dx, W, bw), .y = grid.y(15), .w = bw, .h = 14 }, "OK", false, 3)) {
             self.active = false;
             return .ok;
         }
@@ -50,17 +58,25 @@ pub const About = struct {
     }
 };
 
-// Blit the indexed boot logo at half size: dark palette entries become ink, light
-// ones stay transparent so the white dialog shows through (a black "Z1" mark).
-fn drawLogo(g: *gui.Gui, x: i16, y: i16) void {
+// Blit the indexed boot logo at half size. Light source pixels stay transparent
+// so the white dialog shows through; the dark ones — the "Z1" mark itself — are
+// painted from the spectrum ramp indexed by SCANLINE, and `phase` walks that
+// index every frame, so the rainbow scrolls up through the logo the way an ST
+// intro's raster bars do.
+const RAINBOW_SPEED: u16 = 4; // frames per colour step (~15 steps/second at 60fps)
+
+fn drawLogo(g: *gui.Gui, x: i16, y: i16, phase: u16) void {
+    const shift: u16 = (phase / RAINBOW_SPEED) % gui.RAINBOW_N;
     var sy: usize = 0;
     while (sy < LOGO_H) : (sy += 2) {
+        const band: u16 = (@as(u16, @intCast(sy / 2)) + shift) % gui.RAINBOW_N;
+        const c: u8 = gui.RAINBOW0 + @as(u8, @intCast(band));
         var sx: usize = 0;
         while (sx < LOGO_W) : (sx += 2) {
             const idx: usize = LOGO[sy * LOGO_W + sx];
             const sum: u16 = @as(u16, LOGO_PAL[idx * 4]) + LOGO_PAL[idx * 4 + 1] + LOGO_PAL[idx * 4 + 2];
-            if (sum < 300) // dark -> ink
-                g.fb.setPixelValue(@intCast(x + @as(i16, @intCast(sx / 2))), @intCast(y + @as(i16, @intCast(sy / 2))), gui.BLACK);
+            if (sum < 300) // dark -> a band of the spectrum
+                g.plot(x + @as(i16, @intCast(sx / 2)), y + @as(i16, @intCast(sy / 2)), c);
         }
     }
 }

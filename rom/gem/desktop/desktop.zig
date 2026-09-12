@@ -12,6 +12,7 @@ const about_mod = @import("about.zig");
 const trash_mod = @import("trash.zig");
 const info_mod = @import("info.zig");
 const desk_icons = @import("desk_icons.zig");
+const stamp = @import("stamp.zig");
 
 const ZigOS = zsrc.ZigOS;
 const LogicalFB = zsrc.LogicalFB;
@@ -46,6 +47,13 @@ const Folder = struct {
     title: [40]u8 = [_]u8{0} ** 40, // "A:\FOO\BAR" for the window title
     tlen: u8 = 0,
 };
+// A directory window's layout frame. `clip` is the real content rectangle (all
+// that may be painted); `org` is where item (0,0) is placed — `clip` shifted by
+// the window's scroll offset; `cols` is the icon grid's width in cells, FIXED
+// when the window opened, so resizing the window SCROLLS the icons instead of
+// re-wrapping them (GEM keeps a directory's layout put).
+pub const View = struct { clip: Rect, org: Rect, cols: i16 };
+
 const WIN_NONE: i16 = -2; // win_dir sentinel: not a FLOPPY/folder window
 const WIN_ROOT: i16 = -1; // win_dir: the root disk (A:\)
 
@@ -94,6 +102,8 @@ pub const Desktop = struct {
     copy: trash_mod.DeleteDlg = .{}, // COPY FOLDERS / ITEMS confirm (file dropped on a folder)
     file_drag: i16 = -1, // file being dragged out of a window, -1 = none
     file_moved: bool = false, // the file drag has moved past the initial press
+    file_gx: i16 = 0, // grab offset inside the dragged file's icon (see armFileGrab)
+    file_gy: i16 = 0,
     trash_target: i16 = -1, // file awaiting the DELETE FILE(S) confirm
     bg_r: u8 = 1, // desktop background colour (Prefs); GEM default here is a teal
     bg_g: u8 = 160,
@@ -103,6 +113,10 @@ pub const Desktop = struct {
     folders: [MAX_FOLDERS]Folder = [_]Folder{.{}} ** MAX_FOLDERS,
     n_folders: u8 = 0,
     win_dir: [gui.MAX_WIN]i16 = [_]i16{WIN_NONE} ** gui.MAX_WIN, // per-window directory
+    win_cols: [gui.MAX_WIN]i16 = [_]i16{1} ** gui.MAX_WIN, // icon grid width, fixed at open
+    // Backing store for each window's GEM info line ("N bytes used in M items.").
+    // Window.info is a slice, and Desktop is static, so it may point in here.
+    win_info: [gui.MAX_WIN][32]u8 = [_][32]u8{[_]u8{0} ** 32} ** gui.MAX_WIN,
     sel_folder: i16 = -1, // selected folder in the top window, -1 = none
     sel_files: u16 = 0, // rubber-band multi-select: bit per file
     sel_folders: u16 = 0, // rubber-band multi-select: bit per folder
@@ -278,30 +292,30 @@ pub const Desktop = struct {
 
     // Lay a file out on the window's 72x40 icon grid by DISPLAY SLOT (so sorting
     // reorders the layout); content (name/icon) comes from the actual file index.
-    pub fn fileIconSlot(self: *const Desktop, slot: usize, fidx: u8, content: Rect) Icon {
+    pub fn fileIconSlot(self: *const Desktop, slot: usize, fidx: u8, v: View) Icon {
         const bmp = if (self.diskType(fidx) == 0) icons.PROGRAM else icons.DOCUMENT;
-        const cols: i16 = @max(1, @divTrunc(content.w, icon_mod.CELL_W));
         const s: i16 = @intCast(slot);
-        const col = @mod(s, cols);
-        const row = @divTrunc(s, cols);
+        const col = @mod(s, v.cols);
+        const row = @divTrunc(s, v.cols);
         const iw: i16 = @intCast(bmp.w);
         const ih: i16 = @intCast(bmp.h);
         const baseline: i16 = 4 + 30; // top margin + tallest icon; icon BOTTOMS align
         return .{
-            .x = content.x + col * icon_mod.CELL_W + @divTrunc(icon_mod.CELL_W - iw, 2),
-            .y = content.y + row * icon_mod.CELL_H + baseline - ih, // bottom-align -> labels align
+            .x = v.org.x + col * icon_mod.CELL_W + @divTrunc(icon_mod.CELL_W - iw, 2),
+            .y = v.org.y + row * icon_mod.CELL_H + baseline - ih, // bottom-align -> labels align
             .bmp = bmp,
             .label = self.diskName(fidx),
             .is_app = self.diskType(fidx) == 0,
-            .bounds = content,
+            .bounds = v.clip,
         };
     }
 
     // Text-view: one row per file (DISPLAY SLOT), name + a right type tag.
     const TROW_H: i16 = 10;
-    pub fn fileRowRect(slot: usize, content: Rect) Rect {
+    const TOS_COLS: i16 = 37; // NAME(8) EXT(3) SIZE DATE TIME — see drawFileRow
+    pub fn fileRowRect(slot: usize, v: View) Rect {
         const s: i16 = @intCast(slot);
-        return .{ .x = content.x, .y = content.y + s * TROW_H, .w = content.w, .h = TROW_H };
+        return .{ .x = v.clip.x, .y = v.org.y + s * TROW_H, .w = v.clip.w, .h = TROW_H };
     }
 
     // --- folders (in-memory directory tree over the flat read-only disk) ---
@@ -331,33 +345,32 @@ pub const Desktop = struct {
         return 0;
     }
     // A folder icon laid out at DISPLAY SLOT (folders follow the files).
-    fn folderIconSlot(self: *const Desktop, slot: usize, fidx: u8, content: Rect) Icon {
+    fn folderIconSlot(self: *const Desktop, slot: usize, fidx: u8, v: View) Icon {
         const bmp = icons.FOLDER;
-        const cols: i16 = @max(1, @divTrunc(content.w, icon_mod.CELL_W));
         const s: i16 = @intCast(slot);
         const iw: i16 = @intCast(bmp.w);
         const ih: i16 = @intCast(bmp.h);
         return .{
-            .x = content.x + @mod(s, cols) * icon_mod.CELL_W + @divTrunc(icon_mod.CELL_W - iw, 2),
-            .y = content.y + @divTrunc(s, cols) * icon_mod.CELL_H + (4 + 30) - ih,
+            .x = v.org.x + @mod(s, v.cols) * icon_mod.CELL_W + @divTrunc(icon_mod.CELL_W - iw, 2),
+            .y = v.org.y + @divTrunc(s, v.cols) * icon_mod.CELL_H + (4 + 30) - ih,
             .bmp = bmp,
             .label = self.folderName(fidx),
             .is_app = false,
-            .bounds = content,
+            .bounds = v.clip,
         };
     }
 
     const Hit = union(enum) { none, file: u8, folder: u8 };
 
     // What a window's directory shows under (x,y): a file, a folder, or nothing.
-    pub fn dirHitAt(self: *Desktop, dir: i16, content: Rect, x: i16, y: i16) Hit {
+    pub fn dirHitAt(self: *Desktop, dir: i16, v: View, x: i16, y: i16) Hit {
         const nf = self.dirFileCount(dir);
         if (dir == WIN_ROOT) {
             const ord = self.fileOrder();
             var p: usize = 0;
             while (p < self.n_disk) : (p += 1) {
                 const a = ord[p];
-                const hit = if (self.view == .icons) self.fileIconSlot(p, a, content).hitAt(x, y) else gui.inRect(fileRowRect(p, content), x, y);
+                const hit = if (self.view == .icons) self.fileIconSlot(p, a, v).hitAt(x, y) else gui.inRect(fileRowRect(p, v), x, y);
                 if (hit) return .{ .file = a };
             }
         }
@@ -365,21 +378,47 @@ pub const Desktop = struct {
         var rank: usize = 0;
         while (rank < fc) : (rank += 1) {
             const fidx = self.dirNthFolder(dir, rank);
-            const hit = if (self.view == .icons) self.folderIconSlot(nf + rank, fidx, content).hitAt(x, y) else gui.inRect(fileRowRect(nf + rank, content), x, y);
+            const hit = if (self.view == .icons) self.folderIconSlot(nf + rank, fidx, v).hitAt(x, y) else gui.inRect(fileRowRect(nf + rank, v), x, y);
             if (hit) return .{ .folder = fidx };
         }
         return .none;
     }
     // The topmost open FLOPPY/folder window (the one a press just raised).
-    pub fn topFloppy(self: *Desktop) ?struct { id: u8, dir: i16, content: Rect } {
+    pub fn topFloppy(self: *Desktop) ?struct { id: u8, dir: i16, view: View } {
         var wi: usize = self.wm.n;
         while (wi > 0) {
             wi -= 1;
             const id = self.wm.order[wi];
             if (!self.wm.wins[id].open or !self.isFloppyWin(id)) continue;
-            return .{ .id = id, .dir = self.win_dir[id], .content = self.wm.contentRect(id) };
+            return .{ .id = id, .dir = self.win_dir[id], .view = self.viewOf(id) };
         }
         return null;
+    }
+
+    // The layout frame for window `id`: its content rect, the same rect shifted
+    // by the scroll offset, and the icon grid width frozen at open time.
+    pub fn viewOf(self: *Desktop, id: u8) View {
+        const c = self.wm.contentRect(id);
+        const w = &self.wm.wins[id];
+        return .{
+            .clip = c,
+            .org = .{
+                .x = c.x - w.hscroll * self.hStep(),
+                .y = c.y - w.vscroll * self.vStep(),
+                .w = c.w,
+                .h = c.h,
+            },
+            .cols = self.win_cols[id],
+        };
+    }
+
+    // One click of a scroll arrow moves the content by exactly one ITEM: an icon
+    // cell in icon view, a row / a character cell in text view.
+    fn vStep(self: *const Desktop) i16 {
+        return if (self.view == .icons) icon_mod.CELL_H else TROW_H;
+    }
+    fn hStep(self: *const Desktop) i16 {
+        return if (self.view == .icons) icon_mod.CELL_W else gui.CELL;
     }
     pub fn isFloppyWin(self: *const Desktop, id: u8) bool {
         return self.win_dir[id] != WIN_NONE;
@@ -391,15 +430,36 @@ pub const Desktop = struct {
 
     // Single-click a file/folder in a window -> select it (inverse video); clicking
     // empty space clears the selection.
+    // Record where inside the dragged file's icon the pointer grabbed it, so the
+    // ghost keeps that offset (GEM never re-centres the outline on the cursor).
+    // In text view there is no icon box to grab, so fall back to centring.
+    fn armFileGrab(self: *Desktop, fidx: u8, v: View, x: i16, y: i16) void {
+        const bmp = if (self.diskType(fidx) == 0) icons.PROGRAM else icons.DOCUMENT;
+        if (self.view == .icons) {
+            const ord = self.fileOrder();
+            var p: usize = 0;
+            while (p < self.n_disk) : (p += 1) {
+                if (ord[p] != fidx) continue;
+                const ic = self.fileIconSlot(p, fidx, v);
+                self.file_gx = x - ic.x;
+                self.file_gy = y - ic.y;
+                return;
+            }
+        }
+        self.file_gx = @divTrunc(@as(i16, @intCast(bmp.w)), 2);
+        self.file_gy = @divTrunc(@as(i16, @intCast(bmp.h)), 2);
+    }
+
     // A press in a window: single-select the item under it (arming a file drag), or
     // start a rubber-band on empty content.
     fn pressInWindow(self: *Desktop, x: i16, y: i16) void {
-        if (self.topFloppy()) |w| switch (self.dirHitAt(w.dir, w.content, x, y)) {
+        if (self.topFloppy()) |w| switch (self.dirHitAt(w.dir, w.view, x, y)) {
             .file => |a| {
                 self.clearSel();
                 self.sel_file = a;
                 self.file_drag = a; // arm a drag (TRASH = delete, folder = copy)
                 self.file_moved = false;
+                self.armFileGrab(a, w.view, x, y);
             },
             .folder => |f| {
                 self.clearSel();
@@ -407,7 +467,7 @@ pub const Desktop = struct {
             },
             .none => {
                 self.clearSel();
-                if (gui.inRect(w.content, x, y)) { // empty content -> rubber-band
+                if (gui.inRect(w.view.clip, x, y)) { // empty content -> rubber-band
                     self.band = true;
                     self.band_x = x;
                     self.band_y = y;
@@ -415,7 +475,7 @@ pub const Desktop = struct {
             },
         };
     }
-    fn clearSel(self: *Desktop) void {
+    pub fn clearSel(self: *Desktop) void {
         self.sel_file = -1;
         self.sel_folder = -1;
         self.sel_icon = -1;
@@ -445,7 +505,7 @@ pub const Desktop = struct {
             var p: usize = 0;
             while (p < self.n_disk) : (p += 1) {
                 const a = ord[p];
-                const ir = if (self.view == .icons) self.fileIconSlot(p, a, w.content).rect() else fileRowRect(p, w.content);
+                const ir = if (self.view == .icons) self.fileIconSlot(p, a, w.view).rect() else fileRowRect(p, w.view);
                 if (overlap(br, ir)) self.sel_files |= @as(u16, 1) << @intCast(a);
             }
         }
@@ -453,7 +513,7 @@ pub const Desktop = struct {
         const fc = self.dirFolderCount(w.dir);
         while (rank < fc) : (rank += 1) {
             const fidx = self.dirNthFolder(w.dir, rank);
-            const ir = if (self.view == .icons) self.folderIconSlot(nf + rank, fidx, w.content).rect() else fileRowRect(nf + rank, w.content);
+            const ir = if (self.view == .icons) self.folderIconSlot(nf + rank, fidx, w.view).rect() else fileRowRect(nf + rank, w.view);
             if (overlap(br, ir)) self.sel_folders |= @as(u16, 1) << @intCast(fidx);
         }
     }
@@ -464,7 +524,7 @@ pub const Desktop = struct {
             self.trash.open(0, 1);
             return;
         }
-        if (self.topFloppy()) |w| switch (self.dirHitAt(w.dir, w.content, x, y)) {
+        if (self.topFloppy()) |w| switch (self.dirHitAt(w.dir, w.view, x, y)) {
             .folder => self.copy.openCopy(0, 1), // COPY FOLDERS / ITEMS (cosmetic: disk read-only)
             else => {},
         };
@@ -472,16 +532,32 @@ pub const Desktop = struct {
 
     // New Folder... : create an (auto-named) folder in the top window's directory,
     // or at root if no window is open. Rename waits on the keyboard ABI.
+    // File > New Folder: TOS asks for the name first (NEW FOLDER box with an 8.3
+    // field); the folder is only created when that dialog is confirmed.
     fn newFolder(self: *Desktop) void {
         if (self.n_folders >= MAX_FOLDERS) {
             self.dlg.alert("Too many folders.", "Delete one and try again.");
             return;
         }
+        self.info.openNewFolder();
+    }
+
+    // OK on the NEW FOLDER box: create it under the top window's directory with
+    // the typed name (empty -> the classic auto-name, so OK is never a dead end).
+    fn createFolder(self: *Desktop) void {
+        if (self.n_folders >= MAX_FOLDERS) return;
         const dir: i16 = if (self.topFloppy()) |w| w.dir else WIN_ROOT;
         const f = &self.folders[self.n_folders];
         f.* = .{ .parent = dir };
-        self.new_seq += 1;
-        const nm = std.fmt.bufPrint(&f.name, "NEWDIR{d}", .{self.new_seq}) catch "NEWDIR";
+        const typed = self.info.name.text();
+        const nm = if (typed.len > 0) blk: {
+            const n = @min(typed.len, f.name.len);
+            @memcpy(f.name[0..n], typed[0..n]);
+            break :blk f.name[0..n];
+        } else blk: {
+            self.new_seq += 1;
+            break :blk std.fmt.bufPrint(&f.name, "NEWDIR{d}", .{self.new_seq}) catch "NEWDIR";
+        };
         f.nlen = @intCast(nm.len);
         const t = if (dir == WIN_ROOT)
             std.fmt.bufPrint(&f.title, "A:\\{s}", .{nm}) catch "A:\\"
@@ -502,11 +578,20 @@ pub const Desktop = struct {
 
     // Shared open: a FLOPPY/folder window with cascade + the one-icon min size.
     pub fn addFloppyWindow(self: *Desktop, title: []const u8, dir: i16) void {
-        const r = self.next_win;
+        var r = self.next_win;
+        // The default width is sized for the TOS text columns, which is as wide as
+        // a 320px low-res screen — so pull the window LEFT before narrowing it.
+        // Both edges (and the size gadget with them) must open on screen, and the
+        // content must stay wide enough for the text view's last column.
+        r.w = @min(r.w, self.g.screen_w - 4);
+        r.x = @max(0, @min(r.x, self.g.screen_w - r.w - 2));
         const min_w = icon_mod.CELL_W + 2 + gui.SCROLL;
         const min_h = gui.TITLE_H + gui.INFO_H + icon_mod.CELL_H + gui.SCROLL;
         if (self.wm.tryAdd(.{ .r = r, .title = title, .min_w = min_w, .min_h = min_h })) |id| {
             self.win_dir[id] = dir;
+            // Freeze the icon grid at the width the window OPENS with; resizing
+            // then scrolls the same layout instead of re-flowing it.
+            self.win_cols[id] = @max(1, @divTrunc(self.wm.contentRect(id).w, icon_mod.CELL_W));
             self.sel_file = -1;
             self.sel_folder = -1;
             self.startGrow(self.open_src, r); // GEM zoom-box: dotted frame grows icon -> window
@@ -520,6 +605,17 @@ pub const Desktop = struct {
         } else {
             self.dlg.alert("The Desktop has no more windows.", "Please close a window first.");
         }
+    }
+
+    // A window that just closed zooms back DOWN to the desktop icon it came from
+    // (the FLOPPY drive), the mirror of the box that grew when it opened.
+    fn shrinkClosed(self: *Desktop) void {
+        const id = self.wm.takeClosed() orelse return;
+        const to = if (self.isFloppyWin(id))
+            self.items[desk_icons.IC_FLOPPY].rect()
+        else
+            Rect{ .x = self.wm.wins[id].r.x, .y = self.wm.wins[id].r.y, .w = 0, .h = 0 };
+        self.startGrow(self.wm.wins[id].r, to);
     }
 
     const GROW_STEPS: u8 = 6;
@@ -557,18 +653,35 @@ pub const Desktop = struct {
         while (i < self.wm.n) : (i += 1) {
             const id = self.wm.order[i];
             if (!self.wm.wins[id].open) continue;
-            const content = self.wm.drawChrome(g, id, id == self.wm.topId());
-            if (self.isFloppyWin(id)) self.drawDir(g, self.win_dir[id], content);
+            if (self.isFloppyWin(id)) self.updateChrome(id); // info line + scroll state
+            const v = if (self.isFloppyWin(id)) self.viewOf(id) else undefined;
+            _ = self.wm.drawChrome(g, id, id == self.wm.topOpen());
+            if (self.isFloppyWin(id)) self.drawDir(g, self.win_dir[id], v);
         }
-        // Drag ghost: a GEM dotted OUTLINE (icon box + label box) follows the pointer.
+        if (self.wm.takeZoom()) |z| self.startGrow(z.from, z.to); // full-box zoom
+        self.shrinkClosed(); // a window just closed -> zoom-box back to its icon
+        self.wm.drawGhost(g); // pending window move / resize outline
+        // Drag ghost for a file dragged out of a window. Like a desktop icon it
+        // hangs off the pointer at the offset it was GRABBED at, so the outline
+        // sits over the icon instead of jumping left of the cursor.
         if (self.file_drag >= 0 and self.file_moved) {
             const bmp = if (self.diskType(@intCast(self.file_drag)) == 0) icons.PROGRAM else icons.DOCUMENT;
-            const iw: i16 = @intCast(bmp.w);
-            const ih: i16 = @intCast(bmp.h);
-            const gx = @as(i16, @intCast(g.px)) - @divTrunc(iw, 2);
-            const gy = @as(i16, @intCast(g.py)) - @divTrunc(ih, 2);
-            dottedFrame(g, .{ .x = gx, .y = gy, .w = iw, .h = ih }, gui.BLACK); // icon outline
-            dottedFrame(g, .{ .x = gx - 8, .y = gy + ih + 2, .w = iw + 16, .h = 8 }, gui.BLACK); // label box
+            dragGhost(
+                g,
+                @intCast(@as(i32, g.px) - self.file_gx),
+                @intCast(@as(i32, g.py) - self.file_gy),
+                @intCast(bmp.w),
+                @intCast(bmp.h),
+            );
+        }
+        // The same ghost for a DESKTOP icon being dragged: the icon itself stays
+        // where it is (drawn above) until the drop.
+        if (self.drag) |di| {
+            if (self.moved) {
+                const it = &self.items[di];
+                const p = desk_icons.ghostAt(self, g);
+                dragGhost(g, p.x, p.y, @intCast(it.bmp.w), @intCast(it.bmp.h));
+            }
         }
         self.drawGrow(g); // window-open zoom-box
         if (self.band) dottedFrame(g, self.bandRect(), gui.BLACK); // rubber-band marquee
@@ -586,8 +699,59 @@ pub const Desktop = struct {
         self.sel_file = -1;
     }
 
+    // Refresh a directory window's chrome for THIS frame: the GEM info line, how
+    // much of each scroll track its slider fills, and how far it may scroll. All
+    // depend on the window's current size, so they are recomputed every frame
+    // rather than at open time — but the icon GRID is not, which is why resizing
+    // scrolls the icons instead of re-wrapping them (see View).
+    fn updateChrome(self: *Desktop, id: u8) void {
+        const dir = self.win_dir[id];
+        const n = self.dirFileCount(dir) + self.dirFolderCount(dir);
+        var used: u32 = 0;
+        if (dir == WIN_ROOT) {
+            var k: u8 = 0;
+            while (k < self.n_disk) : (k += 1) used += self.diskSize(k);
+        }
+        const w = &self.wm.wins[id];
+        w.info = std.fmt.bufPrint(&self.win_info[id], "{d} bytes used in {d} items.", .{ used, n }) catch "";
+        // The info line changes topBarsH, so measure the content AFTER setting it.
+        const c = self.wm.contentRect(id);
+        const shown = @divTrunc(c.h, self.vStep());
+        const rows = self.contentRows(id, n);
+        w.vslide = permille(shown, rows);
+        w.vmax = @max(0, rows - shown);
+        w.vscroll = @max(0, @min(w.vscroll, w.vmax));
+
+        const width = self.contentWidth(id, n);
+        w.hslide = permille(c.w, width);
+        const hs = self.hStep();
+        w.hmax = @max(0, @divTrunc(width - c.w + hs - 1, hs));
+        w.hscroll = @max(0, @min(w.hscroll, w.hmax));
+    }
+
+    // Rows the window's content occupies — icon view wraps into the window's
+    // FIXED column count, text view is one row per item.
+    fn contentRows(self: *const Desktop, id: u8, n: usize) i16 {
+        const items: i16 = @intCast(n);
+        if (self.view != .icons) return items;
+        const cols = self.win_cols[id];
+        return @divTrunc(items + cols - 1, cols); // ceil
+    }
+    // Pixels the content is wide: the frozen icon grid, or the fixed TOS column
+    // layout of the text view.
+    fn contentWidth(self: *const Desktop, id: u8, n: usize) i16 {
+        if (n == 0) return 0;
+        return if (self.view == .icons) self.win_cols[id] * icon_mod.CELL_W else TOS_COLS * 8;
+    }
+
+    // What fraction of `total` is visible, in per mille, clamped to a full track.
+    fn permille(visible: i16, total: i16) i16 {
+        if (total <= 0 or visible >= total) return 1000;
+        return @intCast(@max(1, @divTrunc(@as(i32, visible) * 1000, @as(i32, total))));
+    }
+
     // A window's directory: disk files (root only) then folders, in view + sort order.
-    fn drawDir(self: *Desktop, g: *gui.Gui, dir: i16, content: Rect) void {
+    fn drawDir(self: *Desktop, g: *gui.Gui, dir: i16, v: View) void {
         const nf = self.dirFileCount(dir);
         if (dir == WIN_ROOT) {
             const ord = self.fileOrder();
@@ -595,9 +759,9 @@ pub const Desktop = struct {
             while (p < self.n_disk) : (p += 1) {
                 const a = ord[p];
                 if (self.view == .icons) {
-                    var ic = self.fileIconSlot(p, a, content);
+                    var ic = self.fileIconSlot(p, a, v);
                     ic.draw(g, self.fileSelected(a));
-                } else self.drawFileRow(g, p, a, content);
+                } else self.drawFileRow(g, p, a, v);
             }
         }
         const fc = self.dirFolderCount(dir);
@@ -606,35 +770,40 @@ pub const Desktop = struct {
             const fidx = self.dirNthFolder(dir, rank);
             const sel = self.folderSelected(fidx);
             if (self.view == .icons) {
-                var ic = self.folderIconSlot(nf + rank, fidx, content);
+                var ic = self.folderIconSlot(nf + rank, fidx, v);
                 ic.draw(g, sel);
-            } else self.drawFolderRow(g, nf + rank, fidx, content, sel);
+            } else self.drawFolderRow(g, nf + rank, fidx, v, sel);
         }
     }
 
-    fn drawFolderRow(self: *Desktop, g: *gui.Gui, slot: usize, fidx: u8, content: Rect, sel: bool) void {
-        const r = gui.Rect{ .x = content.x, .y = content.y + @as(i16, @intCast(slot)) * TROW_H, .w = content.w, .h = TROW_H };
-        if (r.y + TROW_H > content.y + content.h) return;
+    fn drawFolderRow(self: *Desktop, g: *gui.Gui, slot: usize, fidx: u8, v: View, sel: bool) void {
+        const r = fileRowRect(slot, v);
+        if (!rowVisible(r, v)) return;
         if (sel) g.rect(r, gui.BLACK);
         const ink: u8 = if (sel) gui.WHITE else gui.BLACK;
         const paper: u8 = if (sel) gui.BLACK else gui.WHITE;
-        g.text(self.folderName(fidx), content.x + 4, r.y + 1, ink, paper);
-        g.text("<DIR>", content.x + content.w - 6 * 8 - 2, r.y + 1, ink, paper);
+        g.text(self.folderName(fidx), v.clip.x + 4, r.y + 1, ink, paper);
+        g.text("<DIR>", v.clip.x + v.clip.w - 6 * 8 - 2, r.y + 1, ink, paper);
+    }
+
+    // Is a text row inside the window? Rows scrolled off the top or bottom are
+    // simply not drawn (the row text itself is not pixel-clipped).
+    fn rowVisible(r: Rect, v: View) bool {
+        return r.y >= v.clip.y and r.y + TROW_H <= v.clip.y + v.clip.h;
     }
 
     // One text-view row, TOS columns: NAME(8) EXT(3) SIZE DATE(MM-DD-YY) TIME.
     // Columns sit at fixed cell offsets; each is drawn only if it fits the window,
     // so a narrow window drops the right columns instead of overflowing.
-    fn drawFileRow(self: *Desktop, g: *gui.Gui, slot: usize, fidx: u8, content: Rect) void {
-        const r = gui.Rect{ .x = content.x, .y = content.y + @as(i16, @intCast(slot)) * TROW_H, .w = content.w, .h = TROW_H };
-        if (r.y + TROW_H > content.y + content.h) return; // clip below the window
+    fn drawFileRow(self: *Desktop, g: *gui.Gui, slot: usize, fidx: u8, v: View) void {
+        const r = fileRowRect(slot, v);
+        if (!rowVisible(r, v)) return;
         const sel = self.fileSelected(fidx);
         if (sel) g.rect(r, gui.BLACK);
         const ink: u8 = if (sel) gui.WHITE else gui.BLACK;
         const paper: u8 = if (sel) gui.BLACK else gui.WHITE;
         const y = r.y + 1;
-        const right = content.x + content.w;
-        const cx = content.x + 4;
+        const cx = v.org.x + 4; // column 0, scrolled
 
         const name = self.diskName(fidx);
         var base = name;
@@ -643,18 +812,25 @@ pub const Desktop = struct {
             base = name[0..dot];
             ext = name[dot + 1 ..];
         }
-        g.text(base[0..@min(base.len, 8)], cx, y, ink, paper); // NAME (8)
-        if (cx + 12 * 8 <= right) g.text(ext[0..@min(ext.len, 3)], cx + 9 * 8, y, ink, paper); // EXT (3)
-        if (cx + 20 * 8 <= right) { // SIZE, right-aligned at col 20
-            var sb: [12]u8 = undefined;
-            const s = fmtSize(&sb, self.diskSize(fidx));
-            g.text(s, cx + 20 * 8 - @as(i16, @intCast(s.len)) * 8, y, ink, paper);
-        }
-        if (cx + 30 * 8 <= right) { // DATE (MM-DD-YY) at col 22
-            var db: [12]u8 = undefined;
-            g.text(fmtDate(&db, self.diskDate(fidx)), cx + 22 * 8, y, ink, paper);
-        }
-        if (cx + 38 * 8 <= right) g.text("12:00am", cx + 31 * 8, y, ink, paper); // TIME (host FAT has none)
+        var sb: [12]u8 = undefined;
+        var db: [16]u8 = undefined;
+        const size = fmtSize(&sb, self.diskSize(fidx));
+        textCol(g, v, base[0..@min(base.len, 8)], cx, y, ink, paper); // NAME (8)
+        textCol(g, v, ext[0..@min(ext.len, 3)], cx + 9 * 8, y, ink, paper); // EXT (3)
+        textCol(g, v, size, cx + 20 * 8 - @as(i16, @intCast(size.len)) * 8, y, ink, paper); // SIZE, right-aligned
+        textCol(g, v, stamp.date(&db, self.diskDate(fidx)), cx + 22 * 8, y, ink, paper); // DATE
+        textCol(g, v, stamp.DEFAULT_TIME, cx + 31 * 8, y, ink, paper); // TIME (host FAT has none)
+    }
+
+    // One text-view column, drawn only if it lies WHOLLY inside the window. The
+    // columns are character-cell aligned, so dropping a column that would spill
+    // past either edge reads as deliberate — and is how a narrow (or scrolled)
+    // window sheds columns instead of painting over its own frame.
+    fn textCol(g: *gui.Gui, v: View, s: []const u8, x: i16, y: i16, ink: u8, paper: u8) void {
+        if (s.len == 0) return;
+        const w = @as(i16, @intCast(s.len)) * 8;
+        if (x < v.clip.x or x + w > v.clip.x + v.clip.w) return;
+        g.text(s, x, y, ink, paper);
     }
 
     // Menu bar + modal alert + Set Preferences, drawn last (over everything).
@@ -709,8 +885,8 @@ pub const Desktop = struct {
             .cancel => self.trash_target = -1,
             .none => {},
         }
-        switch (self.info.process(g)) { // Show Info... (DISK/FILE/FOLDER INFORMATION)
-            .ok => self.applyRename(),
+        switch (self.info.process(g)) { // Show Info... + NEW FOLDER share the box
+            .ok => if (self.info.kind == .new_folder) self.createFolder() else self.applyRename(),
             else => {},
         }
         _ = self.copy.process(g); // COPY FOLDERS / ITEMS (cosmetic; disk is read-only)
@@ -737,7 +913,7 @@ pub const Desktop = struct {
             MENU_FILE => switch (p.item) {
                 0 => self.openSelection(action), // Open
                 1 => self.showInfo(), // Show Info...
-                3 => self.newFolder(), // New Folder... (auto-named; rename via keyboard later)
+                3 => self.newFolder(), // New Folder... -> the NEW FOLDER name dialog
                 4, 5 => self.closeTopWindow(), // Close / Close Window
                 else => {}, // separators + Format... (disabled)
             },
@@ -788,7 +964,7 @@ pub const Desktop = struct {
 
     // Apply the (keyboard-edited) name from the Show Info dialog to the selection.
     fn applyRename(self: *Desktop) void {
-        const nm = self.info.name[0..self.info.nlen];
+        const nm = self.info.name.text();
         if (nm.len == 0) return;
         if (self.sel_folder >= 0) {
             const f = &self.folders[@intCast(self.sel_folder)];
@@ -812,11 +988,20 @@ pub const Desktop = struct {
 
     // Close the topmost open window (Close / Close Window).
     fn closeTopWindow(self: *Desktop) void {
-        if (self.wm.n == 0) return;
-        const id = self.wm.topId();
-        if (self.wm.wins[id].open) {
-            self.wm.wins[id].open = false;
-            self.sel_file = -1;
+        const id = self.wm.topOpen() orelse return;
+        self.wm.close(id);
+        self.sel_file = -1;
+    }
+
+    // Directional input from the host (0=up 1=down 2=left 3=right). The desktop
+    // only uses left/right, and only to walk the caret in the name field of an
+    // open INFORMATION / NEW FOLDER box.
+    pub fn input(self: *Desktop, dir: u32) void {
+        if (!self.info.active) return;
+        switch (dir) {
+            2 => self.info.moveCaret(-1),
+            3 => self.info.moveCaret(1),
+            else => {},
         }
     }
 
@@ -827,29 +1012,47 @@ pub const Desktop = struct {
 
 // A single pixel, clipped to the visible area (dotted overlays can run to an edge).
 fn plot(g: *gui.Gui, x: i16, y: i16, c: u8) void {
-    if (x >= 0 and x < g.screen_w and y >= 0 and y < 200) g.fb.setPixelValue(@intCast(x), @intCast(y), c);
+    g.plot(x, y, c);
 }
 fn overlap(a: gui.Rect, b: gui.Rect) bool {
     return a.x < b.x + b.w and a.x + a.w > b.x and a.y < b.y + b.h and a.y + a.h > b.y;
 }
-// A GEM dotted rectangle outline (every-other pixel) — zoom-box + drag ghost + marquee.
+// A GEM drag ghost: ONE dotted contour around the whole icon+label unit — the
+// narrow icon box sitting on the wider label field traces a single "hat"
+// (inverse-T) outline, not two stacked rectangles. The label box is the full
+// fixed-width label FIELD, so the ghost is the exact footprint the icon takes
+// once dropped.
+fn dragGhost(g: *gui.Gui, x: i16, y: i16, iw: i16, ih: i16) void {
+    const lw = icon_mod.LABEL_W;
+    const lh = icon_mod.LABEL_H;
+    const lx = x + @divTrunc(iw - lw, 2);
+    const shoulder = y + ih; // the row where the icon box meets the label field
+    const c = gui.BLACK;
+    dotH(g, x, x + iw, y, c); // icon top
+    dotV(g, y, shoulder, x, c); // icon left
+    dotV(g, y, shoulder, x + iw - 1, c); // icon right
+    dotH(g, lx, x, shoulder, c); // left shoulder
+    dotH(g, x + iw, lx + lw, shoulder, c); // right shoulder
+    dotV(g, shoulder, shoulder + lh, lx, c); // label left
+    dotV(g, shoulder, shoulder + lh, lx + lw - 1, c); // label right
+    dotH(g, lx, lx + lw, shoulder + lh - 1, c); // label bottom
+}
+
+// Dotted segments (every other pixel), the pieces a GEM outline is built from.
+fn dotH(g: *gui.Gui, x0: i16, x1: i16, y: i16, c: u8) void {
+    var x: i16 = x0;
+    while (x < x1) : (x += 2) plot(g, x, y, c);
+}
+fn dotV(g: *gui.Gui, y0: i16, y1: i16, x: i16, c: u8) void {
+    var y: i16 = y0;
+    while (y < y1) : (y += 2) plot(g, x, y, c);
+}
+
+// A GEM dotted rectangle outline — zoom-box + drag ghost + marquee.
 fn dottedFrame(g: *gui.Gui, r: gui.Rect, c: u8) void {
-    var x: i16 = r.x;
-    while (x < r.x + r.w) : (x += 2) {
-        plot(g, x, r.y, c);
-        plot(g, x, r.y + r.h - 1, c);
-    }
-    var y: i16 = r.y;
-    while (y < r.y + r.h) : (y += 2) {
-        plot(g, r.x, y, c);
-        plot(g, r.x + r.w - 1, y, c);
-    }
+    g.dotted(r, c);
 }
 
 fn fmtSize(buf: []u8, n: u32) []const u8 {
     return std.fmt.bufPrint(buf, "{d}", .{n}) catch "?";
-}
-fn fmtDate(buf: []u8, d: u32) []const u8 { // YYYYMMDD -> "MM-DD-YY" (TOS text view)
-    if (d == 0) return "--------";
-    return std.fmt.bufPrint(buf, "{d:0>2}-{d:0>2}-{d:0>2}", .{ (d / 100) % 100, d % 100, (d / 10000) % 100 }) catch "?";
 }

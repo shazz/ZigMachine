@@ -15,8 +15,12 @@ const Rect = gui.Rect;
 const LABEL_FW: i16 = 6;
 const LABEL_CHARS: i16 = 11;
 const LABEL_MARGIN: i16 = 2;
-const LABEL_W: i16 = LABEL_CHARS * LABEL_FW + 2 * LABEL_MARGIN;
-const LABEL_H: i16 = 6 + 2; // 6x6 font + 1px top/bottom
+pub const LABEL_W: i16 = LABEL_CHARS * LABEL_FW + 2 * LABEL_MARGIN;
+// TOS sets an icon name down from the top of its box: TWO blank rows above the
+// 6px glyph and one below. The box sits 1px under the icon so the whole unit
+// still fits one CELL_H row of the desktop grid.
+const LABEL_PAD_TOP: i16 = 2;
+pub const LABEL_H: i16 = LABEL_PAD_TOP + 6 + 1;
 // The desktop snap grid is a whole ICON CELL, not a fine pixel grid — so a
 // dropped icon lands flush in a grid and only ever overlaps another exactly
 // (GEM allows perfect overlap; it just never leaves icons half-covering).
@@ -39,14 +43,16 @@ pub const Icon = struct {
         return .{ .x = self.x, .y = self.y, .w = @intCast(self.bmp.w), .h = @intCast(self.bmp.h) };
     }
 
-    // The fixed-width label box, centred under the icon and kept inside `bounds`
-    // (a window's content rect) or, by default, on-screen.
+    // The fixed-width label box, always centred under the icon. Inside a window
+    // it is NOT clamped: sliding it along the content edge would drift the name
+    // away from the icon it belongs to while scrolling (draw() drops the label
+    // instead when the unit does not fit). A DESKTOP icon has no content rect, so
+    // there it is still kept on-screen — the desktop cannot scroll.
     pub fn labelBox(self: *const Icon, screen_w: i16) Rect {
         const cx = self.x + @divTrunc(@as(i16, @intCast(self.bmp.w)), 2);
-        const lo: i16 = if (self.bounds) |b| b.x else 0;
-        const hi: i16 = if (self.bounds) |b| b.x + b.w - LABEL_W else screen_w - LABEL_W;
-        const bx = @max(lo, @min(cx - @divTrunc(LABEL_W, 2), hi));
-        return .{ .x = bx, .y = self.y + @as(i16, @intCast(self.bmp.h)) + 2, .w = LABEL_W, .h = LABEL_H };
+        var bx = cx - @divTrunc(LABEL_W, 2);
+        if (self.bounds == null) bx = @max(0, @min(bx, screen_w - LABEL_W));
+        return .{ .x = bx, .y = self.y + @as(i16, @intCast(self.bmp.h)) + 1, .w = LABEL_W, .h = LABEL_H };
     }
 
     // Pointer hit-test on the icon bitmap (uses the live Gui pointer).
@@ -88,6 +94,7 @@ pub const Icon = struct {
         const ink_c: u8 = if (sel) gui.WHITE else gui.BLACK;
         const body_c: u8 = if (sel) gui.BLACK else gui.WHITE;
         const ic = self.bmp;
+        const iw: i16 = @intCast(ic.w);
         const rowbytes: usize = (@as(usize, ic.w) + 7) / 8;
         var row: u16 = 0;
         while (row < ic.h) : (row += 1) {
@@ -100,24 +107,25 @@ pub const Icon = struct {
                 if (self.bounds) |b| { // clip to the window's content — never draw outside
                     if (sx < b.x or sx >= b.x + b.w or sy < b.y or sy >= b.y + b.h) continue;
                 }
-                const px: u16 = @intCast(sx);
-                const py: u16 = @intCast(sy);
                 if ((ic.ink[idx] >> sh) & 1 != 0) {
-                    g.fb.setPixelValue(px, py, ink_c);
+                    g.plot(sx, sy, ink_c);
                 } else if ((ic.body[idx] >> sh) & 1 != 0) {
-                    g.fb.setPixelValue(px, py, body_c); // enclosed body
+                    g.plot(sx, sy, body_c); // enclosed body
                 } // else: outside the silhouette -> transparent (desktop shows)
             }
         }
         const box = self.labelBox(g.screen_w);
-        // Clip the label to the window: at minimum size the icon fits but the label
-        // (below it) can fall outside the content — don't draw it past the edge.
+        // Drop the label when the unit does not FIT the window: the label box is
+        // clamped inside the content, so drawing it for an icon that is itself cut
+        // off at the edge would slide the name across its neighbour's.
         if (self.bounds) |b| {
             if (box.y < b.y or box.y + box.h > b.y + b.h) return;
+            if (self.x < b.x or self.x + iw > b.x + b.w) return;
+            if (box.x < b.x or box.x + box.w > b.x + b.w) return;
         }
         const box_bg: u8 = if (sel) gui.BLACK else gui.WHITE;
         g.rect(box, box_bg);
         const lw: i16 = @as(i16, @intCast(self.label.len)) * LABEL_FW;
-        g.textSmall(self.label, box.x + @divTrunc(box.w - lw, 2), box.y + 1, if (sel) gui.WHITE else gui.BLACK, box_bg);
+        g.textSmall(self.label, box.x + @divTrunc(box.w - lw, 2), box.y + LABEL_PAD_TOP, if (sel) gui.WHITE else gui.BLACK, box_bg);
     }
 };

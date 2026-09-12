@@ -407,6 +407,37 @@ pub const LogicalFB = struct {
 // --------------------------------------------------------------------------
 // Zig OS
 // --------------------------------------------------------------------------
+// Row-major 1 byte/pixel glyph blit, CLIPPED to the framebuffer. Glyph N of an
+// fw x fh font lives at N*(fw*fh) as one byte per pixel (1 = ink). Clipping is
+// per pixel rather than per character: text that starts off-screen still shows
+// its visible columns, and — the reason this exists — text running past the
+// right edge is CUT instead of wrapping onto the next scanline (which used to
+// spray window titles and icon labels across the desktop).
+fn blitGlyphs(lfb: *LogicalFB, text: []const u8, x: i16, y: i16, ink: u8, paper: u8, font: []const u8, fw: i16, fh: i16) void {
+    const w: i16 = @intCast(lfb.fb_w);
+    const h: i16 = @intCast(lfb.fb_h);
+    const cell: usize = @intCast(fw * fh);
+    for (text, 0..) |char, nb| {
+        const gx = x + @as(i16, @intCast(nb)) * fw;
+        if (gx >= w) return; // the rest of the string is off the right edge
+        if (gx + fw <= 0) continue; // wholly off the left edge
+        const g0 = @as(usize, char) * cell;
+        var r: i16 = 0;
+        while (r < fh) : (r += 1) {
+            const py = y + r;
+            if (py < 0 or py >= h) continue;
+            const row = @as(u32, @intCast(py)) * lfb.stride;
+            var c: i16 = 0;
+            while (c < fw) : (c += 1) {
+                const px = gx + c;
+                if (px < 0 or px >= w) continue;
+                const on = font[g0 + @as(usize, @intCast(r * fw + c))] == 1;
+                lfb.fb[row + @as(u32, @intCast(px))] = if (on) ink else paper;
+            }
+        }
+    }
+}
+
 pub const ZigOS = struct {
     background_color: Color = Color{ .r = 0, .g = 0, .b = 0, .a = 0 },
     // View onto the shared physical framebuffer. Writing it is the out-of-ABI
@@ -479,44 +510,16 @@ pub const ZigOS = struct {
         _ = self;
     }
 
-    pub fn printText(self: *ZigOS, lfb: *LogicalFB, text: []const u8, x: u16, y: u16, fg_color_index: u8, bg_color_index: u8) void {
-        const buffer = lfb.fb;
-        // u32: a medium-res (640-wide) buffer exceeds u16 offsets (y*stride+x > 65535).
-        const initial_position: u32 = @as(u32, y) * @as(u32, lfb.stride) + x;
-
-        for (text, 0..) |char, nb| {
-            const slice_offset_start: u16 = @as(u16, @intCast(char)) * (SYSTEM_FONT_WIDTH * SYSTEM_FONT_HEIGHT) - 1;
-            const slice_offset_end: u16 = (@as(u16, @intCast(char)) + 1) * (SYSTEM_FONT_WIDTH * SYSTEM_FONT_HEIGHT);
-            const char_data = self.system_font[slice_offset_start..slice_offset_end];
-            var letter_pos: u32 = initial_position + @as(u32, @intCast(nb)) * SYSTEM_FONT_WIDTH;
-
-            for (char_data, 0..) |pixel, idx| {
-                buffer[letter_pos] = if (pixel == 1) fg_color_index else bg_color_index;
-                if (idx > 0 and (idx % SYSTEM_FONT_WIDTH == 0)) {
-                    letter_pos += (@as(u32, lfb.stride) - SYSTEM_FONT_WIDTH + 1);
-                } else {
-                    letter_pos += 1;
-                }
-            }
-        }
+    // Draw text in the 8x8 system font. x/y are SIGNED: GUI text can start off
+    // the left/top edge (a window dragged past the border) and must be cut, not
+    // wrapped onto the neighbouring scanline.
+    pub fn printText(self: *ZigOS, lfb: *LogicalFB, text: []const u8, x: i16, y: i16, fg_color_index: u8, bg_color_index: u8) void {
+        blitGlyphs(lfb, text, x, y, fg_color_index, bg_color_index, self.system_font, SYSTEM_FONT_WIDTH, SYSTEM_FONT_HEIGHT);
     }
 
-    // Draw text in the 6x6 system font (icon labels). Clean row-major blit,
-    // 1 byte/pixel; glyph N lives at N*(6*6) in the raw font.
-    pub fn printTextSmall(self: *ZigOS, lfb: *LogicalFB, text: []const u8, x: u16, y: u16, fg_color_index: u8, bg_color_index: u8) void {
-        const buffer = lfb.fb;
-        const cell = SMALL_FONT_WIDTH * SMALL_FONT_HEIGHT;
-        for (text, 0..) |char, nb| {
-            const g0: u32 = @as(u32, char) * cell;
-            var pos: u32 = @as(u32, y) * @as(u32, lfb.stride) + x + @as(u32, @intCast(nb)) * SMALL_FONT_WIDTH;
-            var r: u32 = 0;
-            while (r < SMALL_FONT_HEIGHT) : (r += 1) {
-                var c: u32 = 0;
-                while (c < SMALL_FONT_WIDTH) : (c += 1)
-                    buffer[pos + c] = if (self.system_font_6[g0 + r * SMALL_FONT_WIDTH + c] == 1) fg_color_index else bg_color_index;
-                pos += lfb.stride;
-            }
-        }
+    // Draw text in the 6x6 system font (icon labels).
+    pub fn printTextSmall(self: *ZigOS, lfb: *LogicalFB, text: []const u8, x: i16, y: i16, fg_color_index: u8, bg_color_index: u8) void {
+        blitGlyphs(lfb, text, x, y, fg_color_index, bg_color_index, self.system_font_6, SMALL_FONT_WIDTH, SMALL_FONT_HEIGHT);
     }
 
     // --- Framebuffer / register management ---

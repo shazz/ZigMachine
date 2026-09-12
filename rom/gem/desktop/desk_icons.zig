@@ -26,23 +26,33 @@ pub fn clampIcons(d: *Desktop) void {
     for (&d.items) |*it| it.clampInto(d.g.screen_w, d.g.screen_h);
 }
 
-// Icon drag in progress (called from render): move the grabbed icon, or on
-// release snap it to the grid. A press selected + armed the drag in pressIcon.
+// Icon drag in progress (called from render). GEM drags a dotted GHOST, not the
+// icon: the original stays put until the button is released, when the icon jumps
+// to the ghost and magnet-snaps to the grid. The ghost itself is drawn in
+// Desktop.drawScene from `drag` + the grab offset — see ghostAt below.
 pub fn updateDrag(d: *Desktop, g: *gui.Gui, di: u8) void {
     const it = &d.items[di];
-    if (!g.down) { // release: magnet-snap to the nearest grid cell
-        if (d.moved) it.snap(d.g.screen_w, d.g.screen_h);
+    const p = ghostAt(d, g);
+    if (!g.down) { // release: the icon lands on the ghost, then snaps to the grid
+        if (d.moved) {
+            it.x = p.x;
+            it.y = p.y;
+            it.snap(d.g.screen_w, d.g.screen_h);
+        }
         d.drag = null;
         return;
     }
-    const nx: i16 = @intCast(@as(i32, g.px) - d.grab_dx);
-    const ny: i16 = @intCast(@as(i32, g.py) - d.grab_dy);
-    if (nx != it.x or ny != it.y) d.moved = true;
-    if (d.moved) {
-        it.x = nx;
-        it.y = ny;
-        it.clampInto(d.g.screen_w, d.g.screen_h); // keep the unit inside the desktop while dragging
-    }
+    if (p.x != it.x or p.y != it.y) d.moved = true;
+}
+
+// Where the dragged icon's ghost sits this frame: the pointer, less the offset
+// inside the icon at which it was grabbed (so the icon does not jump under the
+// cursor when the drag starts).
+pub fn ghostAt(d: *Desktop, g: *gui.Gui) struct { x: i16, y: i16 } {
+    return .{
+        .x = @intCast(@as(i32, g.px) - d.grab_dx),
+        .y = @intCast(@as(i32, g.py) - d.grab_dy),
+    };
 }
 
 // A press landed on the desktop (below the menu, no window busy): select the
@@ -51,6 +61,7 @@ pub fn updateDrag(d: *Desktop, g: *gui.Gui, di: u8) void {
 pub fn pressIcon(d: *Desktop, g: *gui.Gui) void {
     for (&d.items, 0..) |*it, i| {
         if (!it.hit(g)) continue;
+        d.clearSel(); // GEM has ONE selection: taking a desktop icon drops the rest
         d.sel_icon = @intCast(i);
         d.drag = @intCast(i);
         d.moved = false;
@@ -58,7 +69,7 @@ pub fn pressIcon(d: *Desktop, g: *gui.Gui) void {
         d.grab_dy = @intCast(@as(i32, g.py) - it.y);
         return;
     }
-    d.sel_icon = -1; // pressed empty desktop → deselect
+    d.clearSel(); // pressed empty desktop -> deselect everything
 }
 
 // The loader detected a native double-click at (x,y) (logical coords): open the
@@ -71,7 +82,7 @@ pub fn requestOpenAt(d: *Desktop, x: i32, y: i32) void {
     // Windows sit above the desktop: an item inside the top FLOPPY/folder window
     // opens first. A program launches; a folder opens in its own window.
     if (d.topFloppy()) |w| {
-        switch (d.dirHitAt(w.dir, w.content, @intCast(x), @intCast(y))) {
+        switch (d.dirHitAt(w.dir, w.view, @intCast(x), @intCast(y))) {
             .file => |a| {
                 if (d.diskType(a) == 0) d.launch_req = true;
                 return;
@@ -85,10 +96,11 @@ pub fn requestOpenAt(d: *Desktop, x: i32, y: i32) void {
     }
     for (&d.items, 0..) |*it, i| {
         if (!it.hitAt(x, y)) continue;
+        d.clearSel();
         d.sel_icon = @intCast(i);
         // Route FLOPPY through render too, so openIcon can decide launch-vs-window
         // (an app-disk turns FLOPPY into the app launcher).
-        if (it.is_app or i == IC_FLOPPY) {
+        if (it.is_app or i == IC_FLOPPY or i == IC_TRASH) {
             d.pending_open = @intCast(i); // resolved in render() -> openIcon()
         }
         return;
@@ -100,6 +112,15 @@ pub fn openIcon(d: *Desktop, di: u8, action: *Action) void {
         action.* = .launch;
     } else if (di == IC_FLOPPY) {
         openFloppy(d); // opens a window listing the disk's FAT (files inside open the app)
+    } else if (di == IC_TRASH) {
+        // The trash is a drop target, not a container — TOS says so verbatim.
+        d.dlg.alertLines(&.{
+            "You cannot open the trash can",
+            "icon into a window. To delete",
+            "a folder, document or",
+            "application, drag it to the",
+            "trash can.",
+        }, true);
     }
 }
 

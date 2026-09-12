@@ -61,11 +61,37 @@ pub const Gui = struct {
         self.blit.fill(self.fb, r.x + r.w - 1, r.y, 1, @intCast(r.h), lo);
     }
     pub fn text(self: *Gui, s: []const u8, x: i16, y: i16, ink: u8, paper: u8) void {
-        self.os.printText(self.fb, s, @intCast(x), @intCast(y), ink, paper);
+        self.os.printText(self.fb, s, x, y, ink, paper);
     }
     // 6x6 system font (icon labels).
     pub fn textSmall(self: *Gui, s: []const u8, x: i16, y: i16, ink: u8, paper: u8) void {
-        self.os.printTextSmall(self.fb, s, @intCast(x), @intCast(y), ink, paper);
+        self.os.printTextSmall(self.fb, s, x, y, ink, paper);
+    }
+
+    // A single pixel, clipped to the framebuffer. Everything that plots directly
+    // (gadgets, hatch, icons, dotted overlays) goes through here: a window can be
+    // dragged past an edge, and an unclipped write there wraps onto the
+    // neighbouring scanline instead of disappearing.
+    pub fn plot(self: *Gui, x: i16, y: i16, c: u8) void {
+        if (x < 0 or x >= @as(i16, @intCast(self.fb.fb_w))) return;
+        if (y < 0 or y >= @as(i16, @intCast(self.fb.fb_h))) return;
+        self.fb.setPixelValue(@intCast(x), @intCast(y), c);
+    }
+
+    // A GEM dotted rectangle outline (every other pixel) — the shape every
+    // "pending" gesture is drawn with: window move/resize, icon drag, the
+    // window-open zoom box, the rubber-band marquee.
+    pub fn dotted(self: *Gui, r: Rect, c: u8) void {
+        var x: i16 = r.x;
+        while (x < r.x + r.w) : (x += 2) {
+            self.plot(x, r.y, c);
+            self.plot(x, r.y + r.h - 1, c);
+        }
+        var y: i16 = r.y;
+        while (y < r.y + r.h) : (y += 2) {
+            self.plot(r.x, y, c);
+            self.plot(r.x + r.w - 1, y, c);
+        }
     }
 
     // Blit a GEM control gadget (a GWxGH box lifted verbatim from the ST GEM
@@ -75,7 +101,7 @@ pub const Gui = struct {
             var col: u4 = 0;
             while (col < glyphs.GW) : (col += 1) {
                 const on = (bits >> @intCast(glyphs.GW - 1 - col)) & 1 != 0;
-                self.fb.setPixelValue(@intCast(x + col), @intCast(y + @as(i16, @intCast(row))), if (on) ink else paper);
+                self.plot(x + col, y + @as(i16, @intCast(row)), if (on) ink else paper);
             }
         }
     }
@@ -90,7 +116,7 @@ pub const Gui = struct {
             if (yy & 1 != 0) continue;
             var xx: i16 = r.x | 1;
             while (xx < r.x + r.w) : (xx += 2)
-                self.fb.setPixelValue(@intCast(xx), @intCast(yy), ink);
+                self.plot(xx, yy, ink);
         }
     }
 

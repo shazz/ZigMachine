@@ -107,10 +107,11 @@ pub const App = struct {
         while (i < self.wm.n) : (i += 1) {
             const id = self.wm.order[i];
             if (!self.wm.wins[id].open) continue;
-            const active = id == self.wm.topId();
+            const active = id == self.wm.topOpen();
             const content = self.wm.drawChrome(g, id, active);
             if (id == self.w_sample) self.drawWave(content) else self.drawTransport(content);
         }
+        self.wm.drawGhost(g); // pending window move / resize outline
         // menu bar (inert while a dialog is up), then any modal dialog on top.
         if (self.menubar.process(g, &MENUS, SW, self.dialog.active)) |pick| self.onMenu(pick);
         switch (self.dialog.process(g)) {

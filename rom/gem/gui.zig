@@ -32,6 +32,8 @@ pub const DGRAY = types.DGRAY;
 pub const DESK = types.DESK;
 pub const ACCENT = types.ACCENT;
 pub const WAVE = types.WAVE;
+pub const RAINBOW0 = types.RAINBOW0; // spectrum ramp (Desktop Info logo)
+pub const RAINBOW_N = types.RAINBOW_N;
 pub const installPalette = types.installPalette;
 
 // --- geometry + metrics ---

@@ -53,9 +53,10 @@ fn titleBar(g: *Gui, w: *const Window, active: bool) void {
 // frame when the window is resized narrower than the string.
 fn infoLine(g: *Gui, w: *const Window) void {
     const y = w.r.y + TITLE_H;
-    const max_chars: usize = @intCast(@max(0, @divTrunc(w.r.w - 4, 8)));
+    const LEFT: i16 = 8; // one character cell in from the frame, like the drop-downs
+    const max_chars: usize = @intCast(@max(0, @divTrunc(w.r.w - LEFT - 2, 8)));
     const info = w.info[0..@min(w.info.len, max_chars)];
-    g.text(info, w.r.x + 2, y + 1, BLACK, WHITE); // 1px lower, like the title
+    g.text(info, w.r.x + LEFT, y + 1, BLACK, WHITE); // 1px lower, like the title
     g.blit.fill(g.fb, w.r.x, y + INFO_H - 1, @intCast(w.r.w), 1, BLACK);
 }
 
@@ -66,25 +67,30 @@ fn scrollbars(g: *Gui, w: *const Window) void {
     const rx = w.r.x + w.r.w - glyphs.GW;
     const by = w.r.y + w.r.h - glyphs.GH;
     // right gutter: up gadget shares the bar's bottom line, down gadget the size box's top line
-    const uy = w.r.y + topBarsH(w) - 1;
-    const dy = by - glyphs.GH + 1;
-    fullSlider(g, .{ .x = rx, .y = uy + glyphs.GH - 1, .w = glyphs.GW, .h = dy - uy - glyphs.GH + 2 });
-    g.gadget(rx, uy, glyphs.UP, BLACK, WHITE);
-    g.gadget(rx, dy, glyphs.DOWN, BLACK, WHITE);
+    slider(g, types.vTrack(w), w.vslide, w.vscroll, w.vmax, true);
+    g.gadget(rx, w.r.y + topBarsH(w) - 1, glyphs.UP, BLACK, WHITE);
+    g.gadget(rx, by - glyphs.GH + 1, glyphs.DOWN, BLACK, WHITE);
     // bottom gutter: left gadget shares the frame, right gadget the size box's left line
-    const lx = w.r.x;
-    const rrx = rx - glyphs.GW + 1;
-    fullSlider(g, .{ .x = lx + glyphs.GW - 1, .y = by, .w = rrx - lx - glyphs.GW + 2, .h = glyphs.GH });
-    g.gadget(lx, by, glyphs.LEFT, BLACK, WHITE);
-    g.gadget(rrx, by, glyphs.RIGHT, BLACK, WHITE);
+    slider(g, types.hTrack(w), w.hslide, w.hscroll, w.hmax, false);
+    g.gadget(w.r.x, by, glyphs.LEFT, BLACK, WHITE);
+    g.gadget(rx - glyphs.GW + 1, by, glyphs.RIGHT, BLACK, WHITE);
     g.gadget(rx, by, glyphs.SIZE, BLACK, WHITE);
 }
 
-// A scroll track whose slider box (white, 1px frame) fills it — GEM's look when
-// the content fits. The rect INCLUDES the shared frame lines of the boxes at
-// both ends, so it draws as plain white with no inner lines, as in the
-// reference. (A partial slider would sit on a hatch() grey track.)
-fn fullSlider(g: *Gui, track: Rect) void {
-    g.rect(track, WHITE);
-    g.frame(track, BLACK);
+// A GEM scroll track. `permille` of the content is visible, so the white slider
+// box fills that fraction of the track and the rest shows the grey hatch; where
+// it sits along the track is scroll/max of the remaining travel. At 1000 the
+// slider fills the whole track (GEM's "everything fits" look) and the track
+// draws as plain white with no inner lines, as in the reference. The rect
+// INCLUDES the shared frame lines of the gadget boxes at both ends.
+fn slider(g: *Gui, track: Rect, permille: i16, scroll: i16, max: i16, vertical: bool) void {
+    if (permille >= 1000) {
+        g.rect(track, WHITE);
+        g.frame(track, BLACK);
+        return;
+    }
+    g.hatch(track, BLACK, WHITE);
+    const r = types.sliderBox(track, permille, scroll, max, vertical);
+    g.rect(r, WHITE);
+    g.frame(r, BLACK);
 }

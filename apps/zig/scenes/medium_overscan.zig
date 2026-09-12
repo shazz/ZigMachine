@@ -85,8 +85,8 @@ pub const Demo = struct {
         _ = dt;
         const fb: *LogicalFB = &os.lfbs[0];
         os.printText(fb, "MEDIUM OVERSCAN 800x280 - drawing into the borders!", 8, 14, 1, 255);
-        os.printText(fb, "the visible window is the dark centre; rainbow = border", BX + 60, BY + 90, 1, 0);
-        os.printText(fb, "borders are live medium content now", BX + 140, BY + VH + 14, 1, 255);
+        os.printText(fb, "the visible window is the dark centre; rainbow = border", @intCast(BX + 60), @intCast(BY + 90), 1, 0);
+        os.printText(fb, "borders are live medium content now", @intCast(BX + 140), @intCast(BY + VH + 14), 1, 255);
     }
 };
 

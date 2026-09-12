@@ -107,7 +107,7 @@ fn paint(zigos: *ZigOS, fb: *LogicalFB) void {
     }
     var row: u16 = 24;
     while (row < BUF_H) : (row += 80) {
-        zigos.printText(fb, "ZIGMACHINE * HARDWARE SCROLL * >>>", 20, row, 64, 0);
+        zigos.printText(fb, "ZIGMACHINE * HARDWARE SCROLL * >>>", 20, @intCast(row), 64, 0);
     }
 }
 

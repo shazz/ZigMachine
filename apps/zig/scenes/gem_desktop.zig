@@ -109,6 +109,11 @@ pub const Demo = struct {
         if (!self.running) self.desktop.key(cp); // text entry (rename) on the desktop
     }
 
+    // Arrow keys: on the desktop they drive the caret in an open name field.
+    pub fn input(self: *Demo, dir: u32) void {
+        if (!self.running) self.desktop.input(dir);
+    }
+
     // Forward the sample-display bridge to the hosted app so the host can fill it.
     pub fn sampleBuf(self: *Demo) [*]u8 {
         return self.app.sampleBuf();
