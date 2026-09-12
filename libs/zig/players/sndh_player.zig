@@ -62,6 +62,8 @@ fn ram() [*]u8 {
 }
 
 var psg_latch: u8 = 0;
+/// What we last wrote to each YM register, for the chip's read-back port.
+var ym_shadow: [16]u8 = [_]u8{0} ** 16;
 var returned: bool = false;
 /// Where a call gave up, for diagnosis when a tune will not run.
 pub var stuck_pc: u32 = 0;
@@ -70,6 +72,10 @@ pub var stuck_pc: u32 = 0;
 export fn m68k_read_memory_8(address: c_uint) c_uint {
     const addr = @as(u32, @intCast(address)) & ADDRESS_MASK;
     if (addr < RAM_SIZE) return ram()[addr];
+    // $FF8800 reads back the SELECTED register — a replay that preserves the
+    // mixer's port bits does a read-modify-write through it.
+    if (addr == PSG_BASE) return ym_shadow[psg_latch];
+    if (addr >= MFP_BASE and addr < MFP_BASE + MFP_SIZE) return mfpRead(addr);
     return 0;
 }
 
@@ -94,7 +100,7 @@ export fn m68k_write_memory_8(address: c_uint, value: c_uint) void {
     if (addr < RAM_SIZE) {
         ram()[addr] = byte;
     } else {
-        psgWrite(addr, byte);
+        hwWrite(addr, byte);
     }
 }
 
@@ -104,8 +110,10 @@ export fn m68k_write_memory_16(address: c_uint, value: c_uint) void {
         ram()[addr] = @truncate(value >> 8);
         ram()[addr + 1] = @truncate(value);
     } else {
-        // Only the EVEN byte of a word reaches the chip (see psgWrite).
-        psgWrite(addr, @truncate(value >> 8));
+        // Only the EVEN byte of a word reaches the PSG (see psgWrite); the MFP
+        // is byte-wide on odd addresses, so a word write there lands on both.
+        hwWrite(addr, @truncate(value >> 8));
+        if (addr >= MFP_BASE and addr < MFP_BASE + MFP_SIZE) hwWrite(addr + 1, @truncate(value));
     }
 }
 
@@ -127,8 +135,15 @@ fn psgWrite(addr: u32, value: u8) void {
     if (addr == PSG_BASE) {
         psg_latch = value & 0x0F;
     } else if (addr == PSG_BASE + 2) {
+        ym_shadow[psg_latch] = value;
         audio.machineYmWrite(psg_latch, value);
     }
+}
+
+/// Everything above RAM: the PSG, the MFP, and silence for the rest.
+fn hwWrite(addr: u32, value: u8) void {
+    if (addr >= PSG_BASE and addr <= PSG_BASE + 3) return psgWrite(addr, value);
+    if (addr >= MFP_BASE and addr < MFP_BASE + MFP_SIZE) return mfpWrite(addr, value);
 }
 
 /// Musashi calls this before every instruction (see config/m68kconf.h). It is
@@ -138,6 +153,76 @@ export fn zmSndhInstructionHook(pc: c_uint) void {
         returned = true;
         m68k_end_timeslice();
     }
+}
+
+// --- the MFP 68901's timers ------------------------------------------------
+// A replay routine is interrupt code. The tune's header names the timer that
+// should call `play` (TC50 here) and the player provides that itself — but a
+// maxYMiser-style tune ALSO programs a second timer, usually Timer A at a few
+// kHz, whose handler feeds the volume registers to play digidrums. Without it
+// that voice never moves and the drums are simply absent.
+//
+// So the MFP's timer registers are shadowed here and any timer OTHER than the
+// one driving `play` gets its handler called at the rate it asks for.
+const MFP_BASE: u32 = 0xFFFA00;
+const MFP_SIZE: u32 = 0x40;
+const MFP_CLOCK: f32 = 2457600.0;
+/// Timer control prescalers, indexed by the low 3 bits of the control register.
+const PRESCALE = [8]u16{ 0, 4, 10, 16, 50, 64, 100, 200 };
+/// Registers, as offsets from $FFFA00 (the MFP lives on odd addresses).
+const VR = 0x17; // vector register: its top nibble is the vector base
+const TACR = 0x19;
+const TBCR = 0x1B;
+const TCDCR = 0x1D; // timer C in bits 4-6, timer D in bits 0-2
+const TADR = 0x1F;
+const TBDR = 0x21;
+const TCDR = 0x23;
+const TDDR = 0x25;
+/// A timer's interrupt channel number, which picks its vector.
+const CHANNEL = [4]u8{ 13, 8, 5, 4 }; // A, B, C, D
+/// Refuse to emulate a timer faster than this: a tune that programs a silly
+/// rate must not be able to hang the audio thread.
+const MAX_TIMER_HZ: f32 = 40000.0;
+/// A timer_acc that will never come due.
+const NEVER: u32 = 0xFFFFFFFF;
+
+var mfp: [MFP_SIZE]u8 = [_]u8{0} ** MFP_SIZE;
+
+fn mfpWrite(addr: u32, value: u8) void {
+    mfp[addr - MFP_BASE] = value;
+}
+
+fn mfpRead(addr: u32) u8 {
+    return mfp[addr - MFP_BASE];
+}
+
+/// How often timer `t` (0=A..3=D) wants its interrupt, or 0 when it is stopped.
+fn timerHz(t: usize) f32 {
+    const ctrl: u8 = switch (t) {
+        0 => mfp[TACR] & 0x0F,
+        1 => mfp[TBCR] & 0x0F,
+        2 => (mfp[TCDCR] >> 4) & 0x07,
+        else => mfp[TCDCR] & 0x07,
+    };
+    // Bit 3 is event-count mode, which counts an external signal, not the clock.
+    if (ctrl == 0 or ctrl > 7) return 0;
+    const data: u16 = switch (t) {
+        0 => mfp[TADR],
+        1 => mfp[TBDR],
+        2 => mfp[TCDR],
+        else => mfp[TDDR],
+    };
+    const count: f32 = if (data == 0) 256 else @floatFromInt(data);
+    const hz = MFP_CLOCK / (@as(f32, @floatFromInt(PRESCALE[ctrl])) * count);
+    return if (hz > MAX_TIMER_HZ) 0 else hz;
+}
+
+/// Where timer `t`'s handler lives, or 0 if the tune installed none.
+fn timerVector(t: usize) u32 {
+    const base: u32 = mfp[VR] & 0xF0;
+    const addr = (base | CHANNEL[t]) * 4;
+    const handler = readLong(addr);
+    return if (handler == 0 or handler >= RAM_SIZE) 0 else handler;
 }
 
 // --- just enough TOS -------------------------------------------------------
@@ -156,6 +241,11 @@ const STACK_ROOM: u32 = 0x10000;
 
 var heap_next: u32 = 0;
 var heap_end: u32 = 0;
+/// What rate each MFP timer is programmed at, for diagnosis (0 = stopped).
+pub fn timerRate(t: usize) u32 {
+    return if (t < 4) @intFromFloat(timerHz(t)) else 0;
+}
+
 /// The last trap we did not know how to answer, as (trap << 16) | function.
 pub var unhandled_trap: u32 = 0;
 
@@ -199,6 +289,34 @@ export fn zmSndhTrap(trap: c_int) c_int {
     return 1;
 }
 
+/// Call a timer's handler as an INTERRUPT. It ends in RTE, not RTS, so what
+/// goes on the stack is a 68000 group-2 exception frame — status register then
+/// return PC — and RTE pops both.
+const REG_SR: c_uint = 17;
+const SR_SUPERVISOR_MASKED: u32 = 0x2700;
+
+fn callInterrupt(handler: u32) bool {
+    const sp = STACK_TOP - 6;
+    writeWord(sp, @truncate(SR_SUPERVISOR_MASKED));
+    writeLong(sp + 2, RETURN_PC);
+    m68k_set_reg(REG_SP, sp);
+    m68k_set_reg(REG_SR, SR_SUPERVISOR_MASKED);
+    m68k_set_reg(REG_PC, handler);
+    return runUntilReturn();
+}
+
+fn runUntilReturn() bool {
+    returned = false;
+    var spent: u32 = 0;
+    while (spent < RUNAWAY_CYCLES) {
+        const used = m68k_execute(20_000);
+        spent += if (used > 0) @intCast(used) else 1;
+        if (returned) return true;
+    }
+    stuck_pc = m68k_get_reg(null, REG_PC);
+    return false;
+}
+
 // --- the player ------------------------------------------------------------
 pub const SndhPlayer = struct {
     active: bool = false,
@@ -206,6 +324,10 @@ pub const SndhPlayer = struct {
     tune: u8 = 1,
     samples_per_frame: u32 = 882,
     frame_acc: u32 = 0,
+    /// Per MFP timer (A..D): how many samples between interrupts, and how many
+    /// are left before the next one (NEVER = the timer is not running).
+    timer_period: [4]u32 = [_]u32{0} ** 4,
+    timer_acc: [4]u32 = [_]u32{NEVER} ** 4,
 
     /// The image is ALREADY in song RAM (the worklet staged it there), which is
     /// the 68000's RAM, so loading is just: is this really an SNDH, and will it
@@ -234,8 +356,10 @@ pub const SndhPlayer = struct {
         if (self.info.hz == 0) return;
         self.tune = if (tune >= 1 and tune <= self.info.subtunes) tune else self.info.default_tune;
         silence();
+        mfp = [_]u8{0} ** MFP_SIZE; // a fresh MFP: no timer left over from a previous tune
         self.active = self.call(sndh.INIT, self.tune);
         self.frame_acc = 0;
+        self.rearm(); // init is where a tune programs its digidrum timer
     }
 
     pub fn stop(self: *SndhPlayer) void {
@@ -244,27 +368,87 @@ pub const SndhPlayer = struct {
         silence(); // an exit routine that forgets to must not leave a note hanging
     }
 
-    /// One replay call, then the chip is rendered for the samples it covers —
-    /// the same shape as YmPlayer, so the two are interchangeable to the worklet.
+    /// Render a block, running the tune's interrupts at the right moments
+    /// inside it: `play` at the header's rate, plus any OTHER MFP timer the
+    /// tune has programmed (a digidrum timer runs at a few kHz, so it fires
+    /// many times per replay frame). Same shape as YmPlayer, so the two remain
+    /// interchangeable to the worklet.
     pub fn renderStereo(self: *SndhPlayer, frames: usize) void {
         const n = @min(frames, audio.MAX_FRAMES);
         audio.machineClear(@intCast(n));
         var off: usize = 0;
         while (off < n) {
-            if (self.frame_acc == 0) {
-                if (!self.call(sndh.PLAY, 0)) {
-                    self.active = false;
-                    silence();
-                    break;
-                }
-                self.frame_acc = self.samples_per_frame;
-            }
-            const block = @min(@as(u32, @intCast(n - off)), self.frame_acc);
+            if (!self.fireDue()) break;
+            // Render up to whichever interrupt comes first.
+            var block: u32 = @intCast(n - off);
+            block = @min(block, self.frame_acc);
+            for (self.timer_acc) |acc| if (acc != NEVER) {
+                block = @min(block, acc);
+            };
+            if (block == 0) continue; // something else is due at this very sample
             audio.machineRenderYm(@intCast(off), block);
-            self.frame_acc -= block;
+            self.advance(block);
             off += block;
         }
         audio.machineClamp(@intCast(n));
+    }
+
+    // Run every interrupt that has come due, and re-arm it. False means the
+    // tune ran away and has been stopped.
+    fn fireDue(self: *SndhPlayer) bool {
+        if (self.frame_acc == 0) {
+            if (!self.call(sndh.PLAY, 0)) return self.derail();
+            self.frame_acc = self.samples_per_frame;
+            self.rearm(); // init/play may only now have programmed the timers
+        }
+        for (&self.timer_acc, 0..) |*acc, t| {
+            if (acc.* != 0) continue;
+            const handler = timerVector(t);
+            if (handler != 0 and !callInterrupt(handler)) return self.derail();
+            acc.* = self.timer_period[t];
+        }
+        return true;
+    }
+
+    fn advance(self: *SndhPlayer, block: u32) void {
+        self.frame_acc -= block;
+        for (&self.timer_acc) |*acc| {
+            if (acc.* != NEVER) acc.* -= @min(acc.*, block);
+        }
+    }
+
+    fn derail(self: *SndhPlayer) bool {
+        self.active = false;
+        silence();
+        return false;
+    }
+
+    /// Re-read the MFP: a timer the tune has (re)programmed gets a period in
+    /// samples, and the one that drives `play` is left alone — we call that one
+    /// ourselves and must not run it twice.
+    fn rearm(self: *SndhPlayer) void {
+        const driving: ?usize = switch (self.info.timer) {
+            .a => 0,
+            .b => 1,
+            .c => 2,
+            .d => 3,
+            .vbl => null,
+        };
+        for (&self.timer_period, 0..) |*period, t| {
+            if (driving != null and driving.? == t) {
+                period.* = 0;
+                self.timer_acc[t] = NEVER;
+                continue;
+            }
+            const hz = timerHz(t);
+            const was = period.*;
+            period.* = if (hz <= 0) 0 else @intFromFloat(@max(1.0, audio.SAMPLE_RATE / hz));
+            if (period.* == 0) {
+                self.timer_acc[t] = NEVER;
+            } else if (was == 0) {
+                self.timer_acc[t] = period.*; // newly started: due one period from now
+            }
+        }
     }
 
     // Call one of the tune's three entry points as a subroutine and run the CPU
@@ -278,15 +462,7 @@ pub const SndhPlayer = struct {
         m68k_set_reg(REG_D0, d0);
         m68k_set_reg(REG_PC, entry);
 
-        returned = false;
-        var spent: u32 = 0;
-        while (spent < RUNAWAY_CYCLES) {
-            const used = m68k_execute(20_000);
-            spent += if (used > 0) @intCast(used) else 1;
-            if (returned) return true;
-        }
-        stuck_pc = m68k_get_reg(null, REG_PC);
-        return false;
+        return runUntilReturn();
     }
 };
 

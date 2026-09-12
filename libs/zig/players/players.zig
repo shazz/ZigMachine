@@ -9,6 +9,9 @@ pub const SndhPlayer = @import("sndh_player.zig").SndhPlayer;
 pub fn sndhStuckPc() u32 {
     return @import("sndh_player.zig").stuck_pc;
 }
+pub fn sndhTimerRate(t: u32) u32 {
+    return @import("sndh_player.zig").timerRate(t);
+}
 pub fn sndhUnhandledTrap() u32 {
     return @import("sndh_player.zig").unhandled_trap;
 }

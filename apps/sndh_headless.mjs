@@ -79,6 +79,8 @@ console.log(`  mode after play: ${demo.audioMode()} (4 == SNDH)`);
 if (demo.audioSndhStuckPc()) {
     console.log(`  STUCK at 68k PC $${demo.audioSndhStuckPc().toString(16)}`);
 }
+const timers = [0, 1, 2, 3].map((t) => `${"ABCD"[t]}=${demo.audioSndhTimerRate(t)}Hz`).join(" ");
+console.log(`  MFP timers    : ${timers}`);
 const trap = demo.audioSndhUnhandledTrap();
 if (trap) console.log(`  unanswered TRAP #${trap >> 16}, function $${(trap & 0xffff).toString(16)}`);
 // A second of audio, a block at a time, the way the worklet asks for it.

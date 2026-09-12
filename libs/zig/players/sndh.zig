@@ -19,10 +19,16 @@ pub const PLAY = 8;
 /// file that is not really an SNDH cannot walk us off into its code.
 const MAX_HEADER = 4096;
 
+/// Which interrupt the tune wants `play` called from. The player calls `play`
+/// itself, so this is really "the one timer NOT to run as an interrupt" — the
+/// others (a digidrum timer, typically) still have to tick.
+pub const Timer = enum { vbl, a, b, c, d };
+
 pub const Info = struct {
     /// How often `play` must be called, in Hz. 50 (the VBL) when the tune says
     /// nothing — which is what a tune without a timer tag means.
     hz: u16 = 50,
+    timer: Timer = .vbl,
     subtunes: u8 = 1,
     /// Which subtune `init` should be given. Tunes count from 1.
     default_tune: u8 = 1,
@@ -73,10 +79,13 @@ fn tag(data: []const u8, at: usize, info: *Info) usize {
     var n: u32 = 0;
     // Timer tags: TA/TB/TC/TD are the four MFP timers, !V is the VBL. All of
     // them answer the only question we ask — how often to call `play`.
-    for ([_][]const u8{ "TA", "TB", "TC", "TD", "!V" }) |t| {
+    for ([_][]const u8{ "TA", "TB", "TC", "TD", "!V" }, [_]Timer{ .a, .b, .c, .d, .vbl }) |t, which| {
         if (is(data, at, t)) {
             const p = digits(data, at + 2, &n);
-            if (n > 0 and n <= 1000) info.hz = @intCast(n);
+            if (n > 0 and n <= 1000) {
+                info.hz = @intCast(n);
+                info.timer = which;
+            }
             return skipString(data, p);
         }
     }
@@ -108,11 +117,19 @@ test "a tune with no timer tag replays at the VBL" {
     try std.testing.expectEqual(@as(u8, 1), info.subtunes);
 }
 
+test "the timer tag says WHICH timer drives the replay" {
+    const img = "\x60\x00\x00\x10\x60\x00\x00\x20\x60\x00\x00\x30SNDHTA200\x00HDNS";
+    try std.testing.expectEqual(Timer.a, parse(img).?.timer);
+    const vbl = "\x60\x00\x00\x10\x60\x00\x00\x20\x60\x00\x00\x30SNDHHDNS";
+    try std.testing.expectEqual(Timer.vbl, parse(vbl).?.timer);
+}
+
 test "the timer tag sets the replay rate and ## the subtune count" {
     const img = "\x60\x00\x00\x10\x60\x00\x00\x20\x60\x00\x00\x30SNDH" ++
         "TITLCrystallized\x00COMM!Cube\x00##04TC200\x00TIME\x00\x01\x00\x02\x00\x03\x00\x04HDNS";
     const info = parse(img).?;
     try std.testing.expectEqual(@as(u16, 200), info.hz);
+    try std.testing.expectEqual(Timer.c, info.timer);
     try std.testing.expectEqual(@as(u8, 4), info.subtunes);
 }
 

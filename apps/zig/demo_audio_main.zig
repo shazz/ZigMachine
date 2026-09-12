@@ -113,6 +113,10 @@ export fn audioSndhStop() void {
 export fn audioSndhStuckPc() u32 {
     return players.sndhStuckPc();
 }
+/// How fast MFP timer t (0=A..3=D) is programmed, in Hz (0 = stopped).
+export fn audioSndhTimerRate(t: u32) u32 {
+    return players.sndhTimerRate(t);
+}
 /// The last trap the little TOS did not know how to answer, (trap << 16) | fn.
 export fn audioSndhUnhandledTrap() u32 {
     return players.sndhUnhandledTrap();
