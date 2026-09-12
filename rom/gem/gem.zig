@@ -17,3 +17,8 @@ pub const icons = @import("gem_icons.zig"); // 1bpp icons ripped from a GEM icon
 const desktop = @import("desktop/desktop.zig");
 pub const Action = desktop.Action;
 pub const Desktop = desktop.Desktop;
+
+// GEM services an app can put on screen itself. The ITEM SELECTOR is the box
+// every TOS program opens for "Load from disc".
+pub const FileSel = @import("desktop/filesel.zig").FileSel;
+pub const FileSelResult = @import("desktop/filesel.zig").Result;

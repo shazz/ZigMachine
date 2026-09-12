@@ -19,6 +19,7 @@ const disk = @import("zigos").disk;
 const ZigOS = zg.ZigOS;
 const Blitter = zg.Blitter;
 const gui = @import("rom").gui;
+const gem = @import("rom").gem;
 const ui = @import("st_replay_ui.zig");
 const draw = @import("st_replay_draw.zig");
 const Rect = gui.Rect;
@@ -38,7 +39,6 @@ const SILENCE: u8 = 0; // .raw samples are SIGNED 8-bit, so silence is zero
 const MAX_PCM: usize = 512 * 1024;
 const FRAME_HZ: u32 = 60;
 
-const FILES = [_][]const u8{ "SAMPLE.RAW", "SMP1.RAW", "SMP2.RAW" };
 
 // Boot mode (read by scenes/gem_desktop.zig): false = launch from the desktop.
 pub const BOOT_DIRECT = false;
@@ -47,6 +47,7 @@ pub const App = struct {
     blit: Blitter = .{},
     g: gui.Gui = undefined,
     dialog: gui.Dialog = .{},
+    fsel: gem.FileSel = .{}, // GEM's ITEM SELECTOR, opened by "Load from disc"
     sample: [WAVE_LEN]u8 = [_]u8{SILENCE} ** WAVE_LEN, // the display view, built here
     pcm: [MAX_PCM]u8 = [_]u8{SILENCE} ** MAX_PCM, // the sample itself, in machine RAM
     pos: usize = 0, // how far the replay has fed the audio ring
@@ -64,6 +65,20 @@ pub const App = struct {
     hz: u32 = 0, // its playback rate, so the view has a real TIME axis
     playhead: f32 = 0,
     wants_quit: bool = false,
+
+    // "Load from disc": GEM's ITEM SELECTOR, listing what is ACTUALLY on the
+    // mounted floppy — the FAT is walked here, by the machine, not handed over by
+    // the page.
+    fn openSelector(self: *App) void {
+        self.fsel.open("*.RAW");
+        const lay = disk.mount() orelse return self.dlg("Load from disc", "No disc in drive A:.");
+        var i: u16 = 0;
+        while (i < lay.count) : (i += 1) {
+            const ent = disk.entryAt(lay, i) orelse continue;
+            const name = std.mem.sliceTo(&ent.name, 0);
+            if (std.mem.endsWith(u8, name, ".RAW")) self.fsel.add(name);
+        }
+    }
 
     // Load a file off the mounted floppy into machine RAM, through the drive, one
     // block at a time — then build the display view from it here. Nothing about
@@ -86,9 +101,9 @@ pub const App = struct {
         self.dialog.alert(title, msg);
     }
 
-    // Downsample the loaded PCM into the display buffer. A sample shorter than
-    // the display is shown at its true width, the rest silent, so the box always
-    // reads as a time axis over the whole buffer.
+    // Downsample the loaded PCM into the display buffer. Nothing else — an earlier
+    // bulk edit pasted init()'s state reset in here, which zeroed `bytes` and made
+    // every load look as though it had silently failed.
     fn buildView(self: *App) void {
         @memset(&self.sample, SILENCE);
         if (self.bytes == 0) return;
@@ -101,8 +116,8 @@ pub const App = struct {
 
     // Is there anything to play? The host reports the byte count, but that is an
     // extra ABI call that an older host (or a cached loader) may not make — so
-    // fall back to asking the display buffer itself, which the host always
-    // fills. Silence is 128; anything else means a sample arrived.
+    // fall back to asking the display buffer itself. Silence is SILENCE; anything
+    // else means a sample arrived.
     fn loaded(self: *const App) bool {
         if (self.bytes > 0) return true;
         for (self.sample) |v| {
@@ -133,6 +148,17 @@ pub const App = struct {
         // The cart lives in `undefined` memory until init, so the display buffer
         // has to be silenced explicitly — otherwise the leftover bytes read as a
         // loaded sample (SILENCE is 128, not 0).
+        // The cart lives in `undefined` memory until init: every flag has to be
+        // set, not assumed. A garbage `fsel.active` swallowed the keyboard.
+        self.fsel = .{};
+        self.dialog = .{};
+        self.playhead = 0;
+        self.pos = 0;
+        self.bytes = 0;
+        self.low = 0;
+        self.looping = false;
+        self.monitor = false;
+        self.marked = false;
         @memset(&self.sample, SILENCE);
         self.rate = 2; // 10 KHz, as the original boots
         self.high = self.bytes;
@@ -160,11 +186,12 @@ pub const App = struct {
 
     // The whole program is the keyboard. Unknown keys are ignored, as in TOS.
     pub fn key(self: *App, cp: u32) void {
+        if (self.fsel.active) return self.fsel.key(cp); // the selector owns typing
         if (self.dialog.active) return; // a dialog owns input while it is up
         if (cp >= ui.K_F1 and cp < ui.K_F1 + ui.ROWS) return self.fkey(cp - ui.K_F1);
         switch (cp) {
             'q', 'Q' => self.looping = !self.looping,
-            'l', 'L' => self.dialog.openFiles("Load from disc", &FILES),
+            'l', 'L' => self.openSelector(),
             's', 'S' => self.dialog.alert("Save to disc", "The disc is read-only."),
             'x', 'X' => { // eXit: never leave the sound running behind us
                 self.stop();
@@ -219,11 +246,18 @@ pub const App = struct {
         self.pos = 0;
         zg.audioStreamStop();
     }
+    // Wipe area: silence the sample itself. It must NOT touch the dialogs or the
+    // rest of the app's state — an editor command edits, it does not reboot.
     fn wipe(self: *App) void {
         @memset(&self.sample, SILENCE);
+        @memset(&self.pcm, SILENCE);
+        self.bytes = 0;
+        self.low = 0;
+        self.high = 0;
         self.marked = false;
         self.stop();
     }
+
     fn reverse(self: *App) void {
         var i: usize = 0;
         while (i < WAVE_LEN / 2) : (i += 1) {
@@ -261,7 +295,7 @@ pub const App = struct {
     // key, so mouse and keyboard cannot drift apart (the frequency rows behaved
     // this way already; now the whole panel does).
     fn clicks(self: *App) void {
-        if (!self.g.edge or self.dialog.active) return;
+        if (!self.g.edge or self.dialog.active or self.fsel.active) return;
         var row: usize = 0;
         while (row < ui.ROWS) : (row += 1) {
             const y = ui.rowY(row);
@@ -278,8 +312,15 @@ pub const App = struct {
         _ = dt;
         const g = &self.g;
         draw.screen(g, self.view());
-        switch (self.dialog.process(g)) {
-            .ok => |sel| if (self.dialog.filesel and sel < FILES.len) self.loadFromDisc(FILES[sel]),
+        _ = self.dialog.process(g);
+        switch (self.fsel.process(g)) {
+            .ok => {
+                var pick: [16]u8 = undefined;
+                const name = self.fsel.chosen();
+                const n = @min(name.len, pick.len);
+                @memcpy(pick[0..n], name[0..n]); // copy: loadFromDisc reopens dialogs
+                if (n > 0) self.loadFromDisc(pick[0..n]);
+            },
             else => {},
         }
         g.endFrame();
