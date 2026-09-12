@@ -309,7 +309,7 @@ function start() {
         // Hand GEM the mounted disk's FAT directory for its FLOPPY window (once
         // booted): per file a 16-byte name + 1 type byte (0=program, 1=data).
         if (!diskDirSet && diskApp && mountedDisk && demo.diskDirPtr &&
-            demo.getSampleBufLen && demo.getSampleBufLen() > 0) {
+            demo.isBooted && demo.isBooted()) {
             const ENT = 25; // 16 name + 1 type + 4 size + 4 date (must match desktop.zig FILE_ENT)
             const names = Object.keys(mountedDisk.files).slice(0, 12);
             const dir = new Uint8Array(memory.buffer, demo.diskDirPtr(), names.length * ENT);

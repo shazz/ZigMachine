@@ -71,6 +71,14 @@ export fn frame(elapsed_time: f32) void {
     cart.render(&zigos, elapsed_time);
 }
 
+// Has the RAM cart been inserted and started? The host needs an HONEST readiness
+// signal before it hands the cart anything (the FAT listing, say). It used to
+// infer this from a scene's sample buffer, which broke the moment that scene
+// stopped needing one.
+export fn isBooted() bool {
+    return booted;
+}
+
 // Skip the boot screen (ESC in the loader): jump straight to the RAM cart.
 export fn skipBoot() void {
     startCart();
