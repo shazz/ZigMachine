@@ -116,11 +116,16 @@ pub const MenuBar = struct {
                 // TOS draws a separator as a row of UNDERSCORE characters in the
                 // system font — the glyph's own bar — in the DISABLED ink, since
                 // a separator is never a thing you can pick.
-                // Inset a pixel each side so the rule does not run into the
-                // drop-down's own frame.
+                // As many whole underscore cells as fit between the frames,
+                // CENTRED both ways: horizontally the leftover pixels split
+                // evenly, and vertically the bar (glyph row 6) is lifted to the
+                // middle of the row. That lifts the glyph CELL into the item
+                // above, so the draw is clipped to this row and cannot paint over
+                // the descenders up there.
                 const bar: [MAX_SEP]u8 = [_]u8{'_'} ** MAX_SEP;
-                const n: usize = @intCast(@max(0, @min(@divTrunc(d.w - 2, 8), @as(i16, MAX_SEP))));
-                g.text(bar[0..n], d.x + 1, row.y - 1, MGRAY, WHITE);
+                const n: i16 = @max(0, @min(@divTrunc(d.w - 2, 8), @as(i16, MAX_SEP)));
+                const bx = d.x + @divTrunc(d.w - n * 8, 2);
+                g.textClipped(bar[0..@intCast(n)], bx, row.y + @divTrunc(ITEM_H, 2) - 6, MGRAY, WHITE, row);
                 continue;
             }
             const ink: u8 = if (it.disabled) MGRAY else if (hover) WHITE else BLACK;

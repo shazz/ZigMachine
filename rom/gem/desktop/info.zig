@@ -49,7 +49,13 @@ fn drawField(g: *gui.Gui, f: *const NameField, x: i16, y: i16, edit: bool) void 
 
     // The dialog must FIT the 320px low-res screen (the TOS reference shot this
     // was traced from is 640-wide, which made it 336 and hung off both edges).
-    const W: i16 = 312; // 39 cells — 4px margin each side at 320
+    // Wide enough for the widest label + value; the one-field boxes are narrower.
+    fn boxW(self: *const Info) i16 {
+        return switch (self.kind) {
+            .disk, .file => 312, // 39 cells — 4px margin each side at 320
+            .folder, .new_folder => 208, // 26 cells — just the Name row
+        };
+    }
     const LABR: i16 = 19; // label column (right edge), in cells
     const MASK: usize = 12; // value field width in cells, like the 8.3 name box
     // The box is only as tall as the rows it actually shows.
@@ -93,6 +99,7 @@ fn drawField(g: *gui.Gui, f: *const NameField, x: i16, y: i16, edit: bool) void 
             return .ok;
         }
         const H = self.boxH();
+        const W = self.boxW();
         const dx = @divTrunc(g.screen_w - W, 2);
         const dy = @divTrunc(@as(i16, 200) - H, 2);
         const grid = gui.Grid{ .ox = dx, .oy = dy };
@@ -159,7 +166,7 @@ fn drawField(g: *gui.Gui, f: *const NameField, x: i16, y: i16, edit: bool) void 
     fn buttons(self: *Info, g: *gui.Gui, grid: gui.Grid, dx: i16) Result {
         const bw: i16 = 64;
         const y = grid.y(self.btnRow());
-        const right = dx + W - bw - grid.w(2);
+        const right = dx + self.boxW() - bw - grid.w(2);
         const okr = if (self.kind == .disk) right else grid.x(3);
         if (g.buttonThick(.{ .x = okr, .y = y, .w = bw, .h = 14 }, "OK", false, 3)) {
             self.active = false;

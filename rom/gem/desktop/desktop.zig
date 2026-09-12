@@ -310,12 +310,10 @@ pub const Desktop = struct {
         const s: i16 = @intCast(slot);
         const col = @mod(s, v.cols);
         const row = @divTrunc(s, v.cols);
-        const iw: i16 = @intCast(bmp.w);
-        const ih: i16 = @intCast(bmp.h);
-        const baseline: i16 = 4 + 30; // top margin + tallest icon; icon BOTTOMS align
+        const a = icon_mod.artBox(bmp); // the ART, not the (sometimes padded) bitmap
         return .{
-            .x = v.org.x + col * icon_mod.CELL_W + @divTrunc(icon_mod.CELL_W - iw, 2),
-            .y = v.org.y + row * icon_mod.CELL_H + baseline - ih, // bottom-align -> labels align
+            .x = v.org.x + col * icon_mod.CELL_W + @divTrunc(icon_mod.CELL_W - a.w, 2) - a.x,
+            .y = v.org.y + row * icon_mod.CELL_H + ICON_BASELINE - a.y - a.h, // bottom-align -> labels align
             .bmp = bmp,
             .label = self.diskName(fidx),
             .is_app = self.diskType(fidx) == 0,
@@ -324,6 +322,9 @@ pub const Desktop = struct {
     }
 
     // Text-view: one row per file (DISPLAY SLOT), name + a right type tag.
+    // Icon BOTTOMS sit on this line inside a cell, so every label in a row lines
+    // up regardless of how tall (or how padded) the bitmap is.
+    const ICON_BASELINE: i16 = 4 + 30; // top margin + tallest icon
     const TROW_H: i16 = 10;
     const TOS_COLS: i16 = 37; // NAME(8) EXT(3) SIZE DATE TIME — see drawFileRow
     pub fn fileRowRect(slot: usize, v: View) Rect {
@@ -361,11 +362,10 @@ pub const Desktop = struct {
     fn folderIconSlot(self: *const Desktop, slot: usize, fidx: u8, v: View) Icon {
         const bmp = icons.FOLDER;
         const s: i16 = @intCast(slot);
-        const iw: i16 = @intCast(bmp.w);
-        const ih: i16 = @intCast(bmp.h);
+        const a = icon_mod.artBox(bmp);
         return .{
-            .x = v.org.x + @mod(s, v.cols) * icon_mod.CELL_W + @divTrunc(icon_mod.CELL_W - iw, 2),
-            .y = v.org.y + @divTrunc(s, v.cols) * icon_mod.CELL_H + (4 + 30) - ih,
+            .x = v.org.x + @mod(s, v.cols) * icon_mod.CELL_W + @divTrunc(icon_mod.CELL_W - a.w, 2) - a.x,
+            .y = v.org.y + @divTrunc(s, v.cols) * icon_mod.CELL_H + ICON_BASELINE - a.y - a.h,
             .bmp = bmp,
             .label = self.folderName(fidx),
             .is_app = false,
@@ -750,13 +750,7 @@ pub const Desktop = struct {
         // sits over the icon instead of jumping left of the cursor.
         if (self.file_drag >= 0 and self.file_moved) {
             const bmp = if (self.diskType(@intCast(self.file_drag)) == 0) icons.PROGRAM else icons.DOCUMENT;
-            dragGhost(
-                g,
-                @intCast(@as(i32, g.px) - self.file_gx),
-                @intCast(@as(i32, g.py) - self.file_gy),
-                @intCast(bmp.w),
-                @intCast(bmp.h),
-            );
+            dragGhost(g, @intCast(@as(i32, g.px) - self.file_gx), @intCast(@as(i32, g.py) - self.file_gy), bmp);
         }
         // The same ghost for a DESKTOP icon being dragged: the icon itself stays
         // where it is (drawn above) until the drop.
@@ -764,7 +758,7 @@ pub const Desktop = struct {
             if (self.moved) {
                 const it = &self.items[di];
                 const p = desk_icons.ghostAt(self, g);
-                dragGhost(g, p.x, p.y, @intCast(it.bmp.w), @intCast(it.bmp.h));
+                dragGhost(g, p.x, p.y, it.bmp);
             }
         }
         self.drawGrow(g); // window-open zoom-box
@@ -1110,17 +1104,21 @@ fn overlap(a: gui.Rect, b: gui.Rect) bool {
 // (inverse-T) outline, not two stacked rectangles. The label box is the full
 // fixed-width label FIELD, so the ghost is the exact footprint the icon takes
 // once dropped.
-fn dragGhost(g: *gui.Gui, x: i16, y: i16, iw: i16, ih: i16) void {
+fn dragGhost(g: *gui.Gui, x: i16, y: i16, bmp: icons.Icon) void {
+    const art = icon_mod.artBox(bmp);
+    const ax = x + art.x;
+    const iw = art.w;
     const lw = icon_mod.LABEL_W;
     const lh = icon_mod.LABEL_H;
-    const lx = x + @divTrunc(iw - lw, 2);
-    const shoulder = y + ih; // the row where the icon box meets the label field
+    const lx = ax + @divTrunc(iw - lw, 2);
+    const top = y + art.y;
+    const shoulder = top + art.h; // the row where the icon box meets the label field
     const c = gui.BLACK;
-    dotH(g, x, x + iw, y, c); // icon top
-    dotV(g, y, shoulder, x, c); // icon left
-    dotV(g, y, shoulder, x + iw - 1, c); // icon right
-    dotH(g, lx, x, shoulder, c); // left shoulder
-    dotH(g, x + iw, lx + lw, shoulder, c); // right shoulder
+    dotH(g, ax, ax + iw, top, c); // icon top
+    dotV(g, top, shoulder, ax, c); // icon left
+    dotV(g, top, shoulder, ax + iw - 1, c); // icon right
+    dotH(g, lx, ax, shoulder, c); // left shoulder
+    dotH(g, ax + iw, lx + lw, shoulder, c); // right shoulder
     dotV(g, shoulder, shoulder + lh, lx, c); // label left
     dotV(g, shoulder, shoulder + lh, lx + lw - 1, c); // label right
     dotH(g, lx, lx + lw, shoulder + lh - 1, c); // label bottom

@@ -68,6 +68,17 @@ pub const Gui = struct {
         self.os.printTextSmall(self.fb, s, x, y, ink, paper);
     }
 
+    // Text confined to `r` — clipped per PIXEL, so a glyph cell may overlap its
+    // neighbours without painting over them.
+    pub fn textClipped(self: *Gui, s: []const u8, x: i16, y: i16, ink: u8, paper: u8, r: Rect) void {
+        self.os.printTextClipped(self.fb, s, x, y, ink, paper, .{
+            .x0 = r.x,
+            .y0 = r.y,
+            .x1 = r.x + r.w,
+            .y1 = r.y + r.h,
+        });
+    }
+
     // Text clipped to the horizontal span [lo, hi) a CHARACTER at a time: the
     // part that fits is drawn and the rest is cut off, so a name slides out of a
     // window letter by letter instead of vanishing whole. Cell-aligned layouts

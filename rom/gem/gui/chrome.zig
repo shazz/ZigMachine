@@ -90,6 +90,7 @@ fn slider(g: *Gui, track: Rect, permille: i16, scroll: i16, max: i16, vertical: 
         return;
     }
     g.hatch(track, BLACK, WHITE);
+    g.frame(track, BLACK); // the gutter's own border — hatch() only fills
     const r = types.sliderBox(track, permille, scroll, max, vertical);
     g.rect(r, WHITE);
     g.frame(r, BLACK);

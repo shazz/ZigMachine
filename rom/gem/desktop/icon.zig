@@ -36,6 +36,34 @@ pub const GRID_X0: i16 = 0;
 pub const GRID_Y0: i16 = gui.MENU_H + 1;
 const BASELINE: i16 = 30; // tallest icon; icon BOTTOMS align within a cell
 
+// The tight bounding box of an icon's SILHOUETTE (ink | body), relative to the
+// bitmap's origin. The ripped icon sheet left some bitmaps much wider than their
+// art — TRASH is declared 51 px wide but draws about 25 — so anything that has
+// to line an icon up or trace its outline (cell placement, the label, the drag
+// ghost) must measure the art rather than trust w/h.
+pub fn artBox(bmp: icons.Icon) Rect {
+    const rowbytes: usize = (@as(usize, bmp.w) + 7) / 8;
+    var x0: i16 = @intCast(bmp.w);
+    var y0: i16 = @intCast(bmp.h);
+    var x1: i16 = -1;
+    var y1: i16 = -1;
+    var row: u16 = 0;
+    while (row < bmp.h) : (row += 1) {
+        var col: u16 = 0;
+        while (col < bmp.w) : (col += 1) {
+            const idx = @as(usize, row) * rowbytes + col / 8;
+            const sh: u3 = @intCast(7 - (col % 8));
+            if (((bmp.ink[idx] | bmp.body[idx]) >> sh) & 1 == 0) continue;
+            x0 = @min(x0, @as(i16, @intCast(col)));
+            y0 = @min(y0, @as(i16, @intCast(row)));
+            x1 = @max(x1, @as(i16, @intCast(col)));
+            y1 = @max(y1, @as(i16, @intCast(row)));
+        }
+    }
+    if (x1 < x0) return .{ .x = 0, .y = 0, .w = @intCast(bmp.w), .h = @intCast(bmp.h) }; // blank
+    return .{ .x = x0, .y = y0, .w = x1 - x0 + 1, .h = y1 - y0 + 1 };
+}
+
 pub const Icon = struct {
     x: i16,
     y: i16,
@@ -44,9 +72,16 @@ pub const Icon = struct {
     is_app: bool = false,
     bounds: ?Rect = null, // clip/clamp region (a window's content); null = whole screen
 
-    // The icon bitmap's bounding rect (not including the label).
+    // The icon bitmap's bounding rect (not including the label). Generous on
+    // purpose for hit-testing — the ART rect below is the tighter one.
     pub fn rect(self: *const Icon) Rect {
         return .{ .x = self.x, .y = self.y, .w = @intCast(self.bmp.w), .h = @intCast(self.bmp.h) };
+    }
+
+    // Where the icon's ART actually is on screen (see artBox).
+    pub fn artRect(self: *const Icon) Rect {
+        const a = artBox(self.bmp);
+        return .{ .x = self.x + a.x, .y = self.y + a.y, .w = a.w, .h = a.h };
     }
 
     // The fixed-width label box, always centred under the icon. Inside a window
@@ -55,10 +90,11 @@ pub const Icon = struct {
     // instead when the unit does not fit). A DESKTOP icon has no content rect, so
     // there it is still kept on-screen — the desktop cannot scroll.
     pub fn labelBox(self: *const Icon, screen_w: i16) Rect {
-        const cx = self.x + @divTrunc(@as(i16, @intCast(self.bmp.w)), 2);
+        const art = self.artRect();
+        const cx = art.x + @divTrunc(art.w, 2); // centred on the ART, not the bitmap
         var bx = cx - @divTrunc(LABEL_W, 2);
         if (self.bounds == null) bx = @max(0, @min(bx, screen_w - LABEL_W));
-        return .{ .x = bx, .y = self.y + @as(i16, @intCast(self.bmp.h)) + 1, .w = LABEL_W, .h = LABEL_H };
+        return .{ .x = bx, .y = art.y + art.h + 1, .w = LABEL_W, .h = LABEL_H };
     }
 
     // Pointer hit-test on the icon bitmap (uses the live Gui pointer).
@@ -77,24 +113,27 @@ pub const Icon = struct {
         self.place(self.cellCol(), self.cellRow(), screen_w, screen_h);
     }
 
-    // Put the icon in desktop cell (col,row), clamped to the cells that fit.
+    // Put the icon in desktop cell (col,row), clamped to the cells that fit. The
+    // ART is what gets centred in the cell — a bitmap with padding around its art
+    // (TRASH) would otherwise sit visibly off-centre next to a tight one.
     pub fn place(self: *Icon, want_col: i16, want_row: i16, screen_w: i16, screen_h: i16) void {
-        const iw: i16 = @intCast(self.bmp.w);
-        const ih: i16 = @intCast(self.bmp.h);
+        const art = artBox(self.bmp);
         const cols = @max(1, @divTrunc(screen_w - GRID_X0, CELL_W));
         const rows = @max(1, @divTrunc(screen_h - GRID_Y0, CELL_H));
         const c = @max(0, @min(want_col, cols - 1));
         const r = @max(0, @min(want_row, rows - 1));
-        self.x = GRID_X0 + c * CELL_W + @divTrunc(CELL_W - iw, 2);
-        self.y = GRID_Y0 + r * CELL_H + BASELINE - ih;
+        self.x = GRID_X0 + c * CELL_W + @divTrunc(CELL_W - art.w, 2) - art.x;
+        self.y = GRID_Y0 + r * CELL_H + BASELINE - art.y - art.h;
     }
 
-    // Which cell the icon's CENTRE currently falls in.
+    // Which cell the icon's ART centre currently falls in.
     pub fn cellCol(self: *const Icon) i16 {
-        return @divFloor(self.x + @divTrunc(@as(i16, @intCast(self.bmp.w)), 2) - GRID_X0, CELL_W);
+        const a = self.artRect();
+        return @divFloor(a.x + @divTrunc(a.w, 2) - GRID_X0, CELL_W);
     }
     pub fn cellRow(self: *const Icon) i16 {
-        return @divFloor(self.y + @divTrunc(@as(i16, @intCast(self.bmp.h)), 2) - GRID_Y0, CELL_H);
+        const a = self.artRect();
+        return @divFloor(a.y + @divTrunc(a.h, 2) - GRID_Y0, CELL_H);
     }
 
     // Magnet-snap to the nearest grid cell on drop (icons align to a whole-cell

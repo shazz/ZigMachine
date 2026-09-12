@@ -407,30 +407,42 @@ pub const LogicalFB = struct {
 // --------------------------------------------------------------------------
 // Zig OS
 // --------------------------------------------------------------------------
-// Row-major 1 byte/pixel glyph blit, CLIPPED to the framebuffer. Glyph N of an
+// A clipping rectangle for text, in framebuffer pixels. UNBOUNDED is "the whole
+// framebuffer" — blitGlyphs always clips to that as well.
+pub const Clip = struct {
+    x0: i16,
+    y0: i16,
+    x1: i16,
+    y1: i16,
+    pub const UNBOUNDED = Clip{ .x0 = 0, .y0 = 0, .x1 = 32767, .y1 = 32767 };
+};
+
+// Row-major 1 byte/pixel glyph blit, CLIPPED to `clip` and to the framebuffer. Glyph N of an
 // fw x fh font lives at N*(fw*fh) as one byte per pixel (1 = ink). Clipping is
 // per pixel rather than per character: text that starts off-screen still shows
 // its visible columns, and — the reason this exists — text running past the
 // right edge is CUT instead of wrapping onto the next scanline (which used to
 // spray window titles and icon labels across the desktop).
-fn blitGlyphs(lfb: *LogicalFB, text: []const u8, x: i16, y: i16, ink: u8, paper: u8, font: []const u8, fw: i16, fh: i16) void {
-    const w: i16 = @intCast(lfb.fb_w);
-    const h: i16 = @intCast(lfb.fb_h);
+fn blitGlyphs(lfb: *LogicalFB, text: []const u8, x: i16, y: i16, ink: u8, paper: u8, font: []const u8, fw: i16, fh: i16, clip: Clip) void {
+    const w = @min(@as(i16, @intCast(lfb.fb_w)), clip.x1);
+    const h = @min(@as(i16, @intCast(lfb.fb_h)), clip.y1);
+    const x_lo = @max(0, clip.x0);
+    const y_lo = @max(0, clip.y0);
     const cell: usize = @intCast(fw * fh);
     for (text, 0..) |char, nb| {
         const gx = x + @as(i16, @intCast(nb)) * fw;
         if (gx >= w) return; // the rest of the string is off the right edge
-        if (gx + fw <= 0) continue; // wholly off the left edge
+        if (gx + fw <= x_lo) continue; // wholly off the left edge
         const g0 = @as(usize, char) * cell;
         var r: i16 = 0;
         while (r < fh) : (r += 1) {
             const py = y + r;
-            if (py < 0 or py >= h) continue;
+            if (py < y_lo or py >= h) continue;
             const row = @as(u32, @intCast(py)) * lfb.stride;
             var c: i16 = 0;
             while (c < fw) : (c += 1) {
                 const px = gx + c;
-                if (px < 0 or px >= w) continue;
+                if (px < x_lo or px >= w) continue;
                 const on = font[g0 + @as(usize, @intCast(r * fw + c))] == 1;
                 lfb.fb[row + @as(u32, @intCast(px))] = if (on) ink else paper;
             }
@@ -514,12 +526,19 @@ pub const ZigOS = struct {
     // the left/top edge (a window dragged past the border) and must be cut, not
     // wrapped onto the neighbouring scanline.
     pub fn printText(self: *ZigOS, lfb: *LogicalFB, text: []const u8, x: i16, y: i16, fg_color_index: u8, bg_color_index: u8) void {
-        blitGlyphs(lfb, text, x, y, fg_color_index, bg_color_index, self.system_font, SYSTEM_FONT_WIDTH, SYSTEM_FONT_HEIGHT);
+        blitGlyphs(lfb, text, x, y, fg_color_index, bg_color_index, self.system_font, SYSTEM_FONT_WIDTH, SYSTEM_FONT_HEIGHT, Clip.UNBOUNDED);
+    }
+
+    // Draw text in the 8x8 font, confined to `clip` — for text whose glyph cell
+    // has to overlap its neighbours (a menu separator's underscore sits low in
+    // its cell, so the cell reaches up into the row above).
+    pub fn printTextClipped(self: *ZigOS, lfb: *LogicalFB, text: []const u8, x: i16, y: i16, fg_color_index: u8, bg_color_index: u8, clip: Clip) void {
+        blitGlyphs(lfb, text, x, y, fg_color_index, bg_color_index, self.system_font, SYSTEM_FONT_WIDTH, SYSTEM_FONT_HEIGHT, clip);
     }
 
     // Draw text in the 6x6 system font (icon labels).
     pub fn printTextSmall(self: *ZigOS, lfb: *LogicalFB, text: []const u8, x: i16, y: i16, fg_color_index: u8, bg_color_index: u8) void {
-        blitGlyphs(lfb, text, x, y, fg_color_index, bg_color_index, self.system_font_6, SMALL_FONT_WIDTH, SMALL_FONT_HEIGHT);
+        blitGlyphs(lfb, text, x, y, fg_color_index, bg_color_index, self.system_font_6, SMALL_FONT_WIDTH, SMALL_FONT_HEIGHT, Clip.UNBOUNDED);
     }
 
     // --- Framebuffer / register management ---
