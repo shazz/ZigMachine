@@ -1,10 +1,12 @@
 // --------------------------------------------------------------------------
 // machine/boot.zig — the ZigMachine boot ROM (power-on / POST screen).
 //
-// Machine firmware: it depends ONLY on the HW ABI (@import("hardware")), never
-// on the open libs — so it can eventually render from inside machine-video.wasm
-// (Phase 2). For now it is statically linked into demo.wasm and driven by the
-// app's boot phase (apps/zig/demo_main.zig). It carries its OWN system font +
+// Machine firmware: it depends ONLY on the HW ABI (@import("hardware")), never on
+// the open libs — so it COULD one day render from inside machine-video.wasm,
+// leaving a cart with no boot screen to link at all. That is still open, and it is
+// NOT the ROM-chip work (docs/PHASE2_ROM_CHIP.md), which cut GEM out into
+// rom.wasm and is done. For now the boot ROM is statically linked into every cart
+// and driven by the app's boot phase (apps/zig/demo_main.zig). It carries its OWN system font +
 // logo (machine/assets/), the way a real machine's ROM does.
 //
 // A faithful port of the old ZigOS `Boot` effect, but drawing via raw writes into

@@ -83,12 +83,9 @@ pub fn build(b: *std.Build) void {
             .{ .name = "hardware", .module = sdk_video },
         },
     });
-    // machine/boot.zig — the boot ROM (POST screen). Machine firmware: depends
-    // ONLY on the HW ABI, no libs. App-linked into the demo for now; will move
-    // into machine-video.wasm when the machine renders its own boot (Phase 2).
-    // rom/sdk/ — the FLAT, app-facing ROM ABI (Phase 2 step 2.1). Apps import this
-    // as `rom_sdk`; only numbers cross its entry points, so the bodies can move
-    // into rom.wasm at step 2.2 without touching a single app.
+    // rom/sdk/ — the FLAT, app-facing ROM ABI. Apps import this as `rom_sdk`; only
+    // numbers cross its entry points, which is what lets the bodies live in
+    // rom.wasm (see rom_chip below) and lets a C or Rust app call GEM.
     const rom_sdk_mod = b.createModule(.{
         .root_source_file = b.path("rom/sdk/rom.zig"),
         .target = wasm_target,
@@ -127,6 +124,9 @@ pub fn build(b: *std.Build) void {
     b.getInstallStep().dependOn(&b.addInstallFileWithDir(
         rom_chip.getEmittedBin(), .{ .custom = "../docs" }, "rom.wasm").step);
 
+    // machine/boot.zig — the boot ROM (POST screen). Machine firmware: depends ONLY
+    // on the HW ABI, no libs. Still app-linked into every cart; moving it inside
+    // machine-video.wasm is an open idea, unrelated to the ROM chip.
     const boot_rom_mod = b.createModule(.{
         .root_source_file = b.path("machine/boot.zig"),
         .target = wasm_target,

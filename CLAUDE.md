@@ -6,30 +6,50 @@ A fantasy console written in **Zig**, compiled to `wasm32-freestanding-musl`, re
 ## Quick Reference
 
 - **Stack:** **Zig 0.16.0** → WebAssembly + hand-written JS/HTML front-end (no bundler) + Python asset tools
-- **Build:** `zig build -Drelease=true -Dwasm` (outputs the sealed `docs/{machine-video,demo,machine-audio,demo-audio}.wasm`)
-- **Run:** `cd docs && python3 -m http.server 3333` → **`/sealed.html`** (sealed HW) or `/` (legacy)
+- **Build:** `./build.sh` — NOT bare `zig build`. It builds, then GATES: RAM windows per module, native tests, disk repack + mount/instantiate, and four headless harnesses. Everything it catches is otherwise SILENT (a cart overrunning its window corrupts the video region; a stale `.zmd` fails to instantiate). Outputs `docs/{machine-video,machine-audio,rom,demo,demo-audio,demo-*}.wasm`.
+- **Run:** `./serve.sh` (no-store; refuses a port already serving) → **`/sealed.html`**
 - **Pick a scene:** compile-time, edit `apps/zig/floppy.zig` (currently `menu`)
 - **Structure (4 areas, each with a README):** `machine/` (sealed HW + `machine/sdk/` headers — authors only) · `rom/` (system software; `rom/gem/` = reference GEM ROM — authors only) · `libs/{zig,c,rust}/` (reusable libs; `zig/` = ZigOS) · `apps/{zig,c,rust}/` (carts/scenes; `zig/` = the demo). Also `docs/` (web root + built wasm), `prototypes/` (gitignored reference material), `legacy/` (pre-seal, retired).
-- **APIs:** `docs/HW_API.md` (sealed ABI) · `docs/ZIGOS_API.md` (open library) · `docs/HARDWARE_SPEC.md` (design + status §12)
+- **APIs:** `docs/HW_API.md` (sealed HW ABI) · `rom/sdk/rom.zig` (the ROM's app-facing ABI — what an app links) · `docs/ZIGOS_API.md` (open library) · `docs/HARDWARE_SPEC.md` (design + status §12)
+- **Decisions:** `decisions.md` (ADRs) · `docs/PHASE2_ROM_CHIP.md` (the ROM-chip plan, done through 2.3)
 
-## Status (2026-08-22)
+## Status (2026-09-12)
 
-✅ **Sealed hardware — VIDEO + AUDIO implemented, reorg done, proven in-browser.**
-The machine is four builds: sealed `machine-video.wasm` + open `demo.wasm` (main
-thread), sealed `machine-audio.wasm` + open `demo-audio.wasm` (worklet thread),
-each pair sharing ONE `WebAssembly.Memory` via a memory-mapped ABI
-(`machine/sdk/`). The menu runs **unchanged** at ~60fps — open `docs/sealed.html`.
+**Five wasm modules share one memory.** Sealed `machine-video.wasm` + `rom.wasm`
++ the running cart on the main thread; sealed `machine-audio.wasm` +
+`demo-audio.wasm` on the worklet thread. The loader instantiates
+**machine → rom → cart**, each importing only from the ones before it.
 
-✅ **Repo reorganised (2026-09-06) into four ownership areas:** `machine/` (sealed
-HW), `rom/` (system software — GEM), `libs/{zig,c,rust}/`, `apps/{zig,c,rust}/`.
-See `docs/HARDWARE_SPEC.md §12`, and each area's `README.md`.
+✅ **Sealed hardware — video + audio**, memory-mapped ABI in `machine/sdk/`.
+HW **1.3.0**: the RAM instructions (`hwRamFree()` and friends) let a cart ASK how
+much of its window is left instead of guessing, and there is a second 2 MiB window
+above the video region for the ROM.
 
-✅ **Apps are polyglot** — the seal is a wasm ABI, not a Zig API. C (`apps/c/`) and
-Rust (`apps/rust/`) "hello world" apps run on the sealed machine at 60fps with
-zero host changes. Next: cut the ROM into its own `rom.wasm` chip so any language
-can call GEM.
+✅ **GEM is a ROM chip.** Its own `rom.wasm`, its own RAM, exporting a flat ABI
+(`rom/sdk/rom.zig`) where only numbers cross — handles, not pointers. The desktop
+lives there too; `apps/zig/scenes/gem_desktop.zig` is a shell that forwards frames.
+Launching is a **host cart swap**: GEM runs a program off the mounted floppy, the
+way TOS does.
 
-✅ **Migrated from Zig 0.10 → 0.16 and building/running again.**
+✅ **Any language can call GEM — tested, not claimed.** `apps/c/hello.c` draws a
+real GEM panel through `guiOpenPlane()`, and `apps/verify.mjs` reads the
+framebuffer back to prove the ROM rendered it. The Zig-only entry points
+(`guiOpen`, which wants a `*ZigOS`) are not enough on their own; see
+`decisions.md`.
+
+✅ **Disks have a recipe.** `tools/mkdisks.sh` repacks every `.zmd` from the built
+carts (stale ones only); `apps/disk_check.mjs` mounts each image and instantiates
+its cart against the host's real `env`. Both run from `build.sh`.
+
+✅ **Music: SNDH on a real 68000.** A vendored Musashi core in `demo-audio.wasm`
+runs a tune's own replay code against the sealed YM, with subtune selection.
+`machineAudioReset()` means the machine silences the chip when a program ends.
+
+✅ **Apps are polyglot** — C (`apps/c/`) and Rust (`apps/rust/`) carts run at 60fps.
+
+**Open:** the boot ROM is still linked into every cart (moving it inside
+`machine-video.wasm` is an idea, not a plan); `docs/demo-medium_overscan.wasm` is a
+stale artifact of a scene excluded from the build; the repo has never been pushed.
 
 ## Hard Rules — project overrides
 
