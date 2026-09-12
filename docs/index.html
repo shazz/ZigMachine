@@ -9,38 +9,21 @@
     <body>
         <div>
             <img src="overlays/sc1224_5.png" class="monitor" alt="monitor"/>
-            <button onclick="main()" class="sound_button">Sound on</button>
-            <button onclick="next_channel()" class="next_channel_button">&nbsp;+&nbsp;</button>
-            <button onclick="previous_channel()" class="prev_channel_button">&nbsp;-&nbsp;</button>
+            <button onclick="main(); this.blur();" class="sound_button">Sound on</button>
+            <button onclick="nextChannel(); this.blur();" class="next_channel_button">&nbsp;+&nbsp;</button>
+            <button onclick="previousChannel(); this.blur();" class="prev_channel_button">&nbsp;-&nbsp;</button>
             <div class="container">
                 <div class="overlay">
-                    <canvas
-                        id="0"
-                        width="400"
-                        height="280"
-                        class="canvas">
-                    </canvas>
-                    <canvas
-                        id="1"
-                        width="400"
-                        height="280"
-                        class="canvas">
-                    </canvas> 
-                    <canvas
-                        id="2"
-                        width="400"
-                        height="280"
-                        class="canvas">
-                    </canvas> 
-                    <canvas
-                        id="3"
-                        width="400"
-                        height="280"
-                        class="canvas">
-                    </canvas>                          
-                </div> 
+                    <canvas id="0" width="400" height="280" class="canvas"></canvas>
+                    <canvas id="1" width="400" height="280" class="canvas"></canvas>
+                    <canvas id="2" width="400" height="280" class="canvas"></canvas>
+                    <canvas id="3" width="400" height="280" class="canvas"></canvas>
+                </div>
             </div>
-        </div>                   
+        </div>
     </body>
-    <script src="loader.js"></script>
+    <!-- Measures a cart's RAM high-water for hwSetCartHigh; module, so it must
+         come first (it publishes globalThis.ZMRam for the classic loader). -->
+    <script type="module" src="wasm_hiwater.js?v=35"></script>
+    <script src="sealed-loader.js?v=35"></script>
 </html>

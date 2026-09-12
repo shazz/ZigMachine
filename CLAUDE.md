@@ -7,7 +7,7 @@ A fantasy console written in **Zig**, compiled to `wasm32-freestanding-musl`, re
 
 - **Stack:** **Zig 0.16.0** → WebAssembly + hand-written JS/HTML front-end (no bundler) + Python asset tools
 - **Build:** `./build.sh` — NOT bare `zig build`. It builds, then GATES: RAM windows per module, native tests, disk repack + mount/instantiate, and four headless harnesses. Everything it catches is otherwise SILENT (a cart overrunning its window corrupts the video region; a stale `.zmd` fails to instantiate). Outputs `docs/{machine-video,machine-audio,rom,demo,demo-audio,demo-*}.wasm`.
-- **Run:** `./serve.sh` (no-store; refuses a port already serving) → **`/sealed.html`**
+- **Run:** `./serve.sh` (no-store; refuses a port already serving) → **`/`** (`index.html` = the sealed machine; `sealed.html` redirects there)
 - **Pick a scene:** compile-time, edit `apps/zig/floppy.zig` (currently `menu`)
 - **Structure (4 areas, each with a README):** `machine/` (sealed HW + `machine/sdk/` headers — authors only) · `rom/` (system software; `rom/gem/` = reference GEM ROM — authors only) · `libs/{zig,c,rust}/` (reusable libs; `zig/` = ZigOS) · `apps/{zig,c,rust}/` (carts/scenes; `zig/` = the demo). Also `docs/` (web root + built wasm), `prototypes/` (gitignored reference material), `legacy/` (pre-seal, retired).
 - **APIs:** `docs/HW_API.md` (sealed HW ABI) · `rom/sdk/rom.zig` (the ROM's app-facing ABI — what an app links) · `docs/ZIGOS_API.md` (open library) · `docs/HARDWARE_SPEC.md` (design + status §12)
@@ -78,5 +78,5 @@ stale artifact of a scene excluded from the build; the repo has never been pushe
 - **Polyglot apps**: C/Rust build via `apps/{c,rust}/build.sh` (bundled `zig cc` /
   `rust-lld`, no system wasm-ld); headless check `node apps/verify.mjs`; run with
   `docs/sealed.html?demo=demo-c.wasm` / `?demo=demo-rust.wasm`.
-- Legacy monolithic path (`docs/index.html` + `loader.js` + committed
+- Legacy monolithic path (`docs/legacy.html` + `loader.js` + committed
   `bootloader.wasm`/`audio.wasm`, sources in `legacy/`) is kept for A/B until retired.

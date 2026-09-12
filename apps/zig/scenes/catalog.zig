@@ -8,7 +8,7 @@
 // sync with the cartridge matrix in build.zig.
 //
 // Excluded (pre-existing bit-rot vs the current ZigOS API): demo, demo_test,
-// bladerunners_fullscreen, mandelbrot, replicants.
+// bladerunners_fullscreen, mandelbrot.
 // --------------------------------------------------------------------------
 pub const Entry = struct { name: []const u8, tag: []const u8 };
 
@@ -40,4 +40,11 @@ pub const ENTRIES = [_]Entry{
     .{ .name = "STCS", .tag = "stcs" },
     .{ .name = "TEX", .tag = "tex" },
     .{ .name = "STREAM", .tag = "stream" },
+    .{ .name = "NOEXTRA", .tag = "noextra" },
+    .{ .name = "REPLICANTS DD2", .tag = "replicants_dd2" },
+    .{ .name = "SUPPLEX FS2", .tag = "supplex_fs2" },
+    .{ .name = "REPLICANTS GARFIELD", .tag = "replicants_garfield" },
+    .{ .name = "ULM SPOON DISTORTER", .tag = "ulm_spoon_distorter" },
+    .{ .name = "REPS OLD", .tag = "replicants" },
+    .{ .name = "CUDDLY STARWARS", .tag = "cuddly_starwars" },
 };

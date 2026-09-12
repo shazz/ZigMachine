@@ -39,6 +39,15 @@ var boot_rom: BootRom = undefined;
 var booted: bool = false; // false = boot screen showing; true = cart running
 var boot_frames: u32 = 0;
 
+// Channel change (+/- on the monitor): TV snow for a few frames before the cart
+// starts. Every piece of state is assigned in tuneIn(), never left to a default.
+const tvnoise = @import("tvnoise");
+const NOISE_FIRST: u8 = 0; // snow uses palette entries 0..LEVELS-1 on plane 0
+const NOISE_SEED: u32 = 0x5EED_7E1E;
+var tuning: bool = false;
+var tune_frames: u32 = 0;
+var tune_noise: tvnoise.Noise = undefined;
+
 // --------------------------------------------------------------------------
 // Boot: ZigOS discovers the machine's video base and sets up its views, then
 // the scene initialises its planes/palettes.
@@ -51,6 +60,7 @@ export fn boot() void {
 
 // Reset the machine to a clean state and insert & start the selected RAM cart.
 fn startCart() void {
+    tuning = false; // Escape during the snow lands in the cart, not back in the snow
     if (booted) return;
     zigos.resetForScene(); // clean machine state (planes/palette/registers/HBL) for the cart
     cart.init(&zigos);
@@ -60,6 +70,17 @@ fn startCart() void {
 // Compute one frame. While booting, draw the boot screen; when it's done, start
 // the selected RAM cart. ESC (see skipBoot) ends the boot screen early.
 export fn frame(elapsed_time: f32) void {
+    if (tuning) {
+        if (tune_frames > 0) {
+            tune_frames -= 1;
+            const fb = &zigos.lfbs[0];
+            tune_noise.fill(fb.fb[0 .. @as(usize, fb.stride) * fb.fb_h], fb.stride, fb.fb_h, NOISE_FIRST);
+            return;
+        }
+        // Snow is over: start the cart and give it this frame, exactly as the
+        // first frame after skipBoot() — a tuned-in scene is frame-identical.
+        startCart();
+    }
     if (!booted) {
         boot_rom.update();
         boot_rom.render();
@@ -99,6 +120,24 @@ export fn ownsKeyboard() u32 {
 // Skip the boot screen (ESC in the loader): jump straight to the RAM cart.
 export fn skipBoot() void {
     startCart();
+}
+
+// Channel change: instead of skipBoot(), show `frames` frames of TV snow over the
+// whole tube (borders open), then start the cart. Called by the host right after
+// boot() on a +/- swap; a cart that is already running ignores it.
+export fn tuneIn(frames: u32) void {
+    if (booted) return;
+    if (frames == 0) return startCart();
+    zigos.resetForScene();
+    const fb = &zigos.lfbs[0];
+    fb.openBorders(.all);
+    for (tvnoise.RAMP, 0..) |g, i| {
+        fb.setPaletteEntry(NOISE_FIRST + @as(u8, @intCast(i)), zg.Color{ .r = g, .g = g, .b = g, .a = 255 });
+    }
+    fb.is_enabled = true;
+    tune_noise = tvnoise.Noise.init(NOISE_SEED);
+    tune_frames = frames;
+    tuning = true;
 }
 
 // The sealed machine routes each HBL point here (integer ids only).

@@ -26,6 +26,24 @@ pub const parallax = @import("effects/parallax.zig"); // Parallax(n) + Layer
 pub const tilemap = @import("effects/tilemap.zig"); // TileSheet + Layer
 pub const scrolltext2 = @import("effects/scrolltext2.zig"); // stride-agnostic scrolltext
 pub const charpanel = @import("effects/charpanel.zig"); // self-writing character panel
+pub const blit = @import("effects/blit.zig"); // clipped signed blits: Dst/Image/Ink
+// per-line palette tables, one HBL per plane, always-physical rows
+pub const copper = @import("effects/copper.zig").Copper(LogicalFB, ZigOS, .{
+    .nb_planes = NB_PLANES,
+    .rows = PHYSICAL_HEIGHT,
+    .visible_top = VERTICAL_BORDERS_HEIGHT,
+    .visible_rows = HEIGHT,
+    .magic_x = OVERSCAN_MAGIC_X,
+});
+
+// Overscan HBL handlers for LogicalFB.openBorders(). On an overscan plane the
+// line is PHYSICAL 0..279; the visible band is VERTICAL_BORDERS_HEIGHT..+HEIGHT.
+pub fn flickerAllHbl(fb: *LogicalFB, _: *ZigOS, _: u16, _: u16) void {
+    fb.flickerBorder();
+}
+fn flickerBandsHbl(fb: *LogicalFB, _: *ZigOS, line: u16, _: u16) void {
+    if (line < VERTICAL_BORDERS_HEIGHT or line >= VERTICAL_BORDERS_HEIGHT + HEIGHT) fb.flickerBorder();
+}
 pub const convertU8ArraytoColors = @import("utils/loaders.zig").convertU8ArraytoColors;
 pub const readU16Array = @import("utils/loaders.zig").readU16Array;
 pub const readI16Array = @import("utils/loaders.zig").readI16Array;
@@ -303,6 +321,34 @@ pub const LogicalFB = struct {
         writeU8(hw.REG_RESOLUTION, hw.RES_MEDIUM);
         writeU8(hw.REG_RESOLUTION, hw.RES_PLANES);
         writeU16(hw.REG_RES_FLICKER, readU16(hw.REG_RES_FLICKER) +% 1);
+    }
+
+    pub const Borders = enum { all, top_bottom };
+
+    // Make this an overscan plane and open its borders with the flicker trick:
+    // .all flickers every line (top, sides, bottom), .top_bottom only the border
+    // bands (MAXI). Replaces this plane's HBL handler; a scene that also needs
+    // per-line rasters uses copper.install(fb, entries, .{ .flicker = true }).
+    // Every enabled overscan plane needs this for itself: the machine replays a
+    // plane's HBLs while rendering THAT plane.
+    pub fn openBorders(self: *LogicalFB, which: Borders) void {
+        self.setOverscanBuffer();
+        self.setFrameBufferHBLHandler(OVERSCAN_MAGIC_X, switch (which) {
+            .all => flickerAllHbl,
+            .top_bottom => flickerBandsHbl,
+        });
+    }
+
+    // True when this plane's per-plane HBL receives PHYSICAL lines 0..279 (overscan,
+    // fullscreen, full-raster medium), false for LOGICAL lines 0..199 (normal, scroll,
+    // medium) — machine/video.zig's renderPlane* loops.
+    pub fn hblLinesArePhysical(self: *const LogicalFB) bool {
+        const mode = @as(*const u8, @ptrFromInt(g_base + hw.REG_FB_MODE + @as(usize, self.id))).*;
+        return switch (mode) {
+            hw.FB_MODE_OVERSCAN, hw.FB_MODE_FULLSCREEN => true,
+            hw.FB_MODE_MEDIUM => self.stride >= RASTER_WIDTH,
+            else => false,
+        };
     }
 
     // Turn this plane into a SCROLL plane: back it with a bigger-than-screen

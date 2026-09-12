@@ -1,6 +1,17 @@
 #!/usr/bin/env bash
-# Build the C "hello world" app against the sealed ZigMachine ABI.
-# Output: docs/demo-c.wasm  ·  Run: docs/sealed.html?demo=demo-c.wasm
+# Build C carts against the sealed ZigMachine ABI.
+#
+#   bash apps/c/build.sh             # every scene in scenes/
+#   bash apps/c/build.sh screen34    # just that one
+#
+# Layout mirrors apps/zig/: one file per scene in scenes/, its generated data
+# under assets/screens/<scene>/. Each scene builds to its OWN cart, the same way
+# each Zig scene is its own cartridge.
+#
+#   scenes/hello.c     -> docs/demo-c.wasm            (the name verify.mjs and
+#                                                      CLAUDE.md already use)
+#   scenes/<name>.c    -> docs/demo-c-<name>.wasm
+#
 # Compiled with `zig cc` (bundled lld) so no system wasm-ld is needed.
 set -euo pipefail
 cd "$(dirname "$0")"
@@ -15,7 +26,21 @@ LDFLAGS=(-Wl,--no-entry -Wl,--import-memory
          -Wl,--initial-memory=$MEM -Wl,--max-memory=$MEM -Wl,--global-base=$GLOBAL_BASE)
 for e in "${EXPORTS[@]}"; do LDFLAGS+=(-Wl,--export=$e); done
 
-"$ZIG" cc -target wasm32-freestanding -O2 -ffreestanding -fno-builtin -mbulk-memory \
-    -nostdlib "${LDFLAGS[@]}" -o "$OUT/demo-c.wasm" hello.c
-ls -l "$OUT/demo-c.wasm"
-echo "OK — run docs/sealed.html?demo=demo-c.wasm  (verify: node apps/verify.mjs docs/demo-c.wasm)"
+build_one() {
+    scene=$1
+    src="scenes/$scene.c"
+    [ -f "$src" ] || { echo "no such scene: $src" >&2; return 1; }
+    # hello keeps the historic cart name; everything else is demo-c-<scene>.
+    if [ "$scene" = hello ]; then out="$OUT/demo-c.wasm"; else out="$OUT/demo-c-$scene.wasm"; fi
+
+    "$ZIG" cc -target wasm32-freestanding -O2 -ffreestanding -fno-builtin -mbulk-memory \
+        -nostdlib "${LDFLAGS[@]}" -o "$out" "$src"
+    printf '%-34s %8d bytes   ?demo=%s\n' "$src" "$(stat -c%s "$out")" "$(basename "$out")"
+}
+
+if [ $# -gt 0 ]; then
+    for s in "$@"; do build_one "$s"; done
+else
+    for src in scenes/*.c; do build_one "$(basename "$src" .c)"; done
+fi
+echo "OK — verify the ABI with: node apps/verify.mjs docs/demo-c.wasm"

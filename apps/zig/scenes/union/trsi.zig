@@ -19,7 +19,13 @@ const FH: usize = 42;
 const FRAMES: usize = 26;
 const FRAME_HOLD: u32 = 8;
 const ALPHA_INCR: f32 = 0.02; // faster logo fade-out (author's call; JS base is 0.005)
-const turn_raw = @embedFile("../../assets/screens/union_intro/trsi_turn.raw");
+// The turn animation ships ZX0-packed (build.zig packs it, with the RASTERS depack
+// effect). union_intro.zig depacks it into free cart RAM before the part starts
+// and points `turn_raw` at the result. A static buffer would not save anything:
+// with imported memory the linker writes .bss out as a zero segment.
+pub const turn_packed = @import("packed_assets").trsi_turn;
+pub const TURN_LEN = FW * FH * FRAMES;
+pub var turn_raw: []const u8 = &.{};
 const turn_pal = convertU8ArraytoColors(@embedFile("../../assets/screens/union_intro/trsi_turn_pal.dat"));
 
 const OX: i32 = (WIDTH - @as(i32, @intCast(FW))) >> 1;

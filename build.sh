@@ -18,6 +18,9 @@ node apps/check_fits.mjs docs/demo-*.wasm docs/rom.wasm
 node apps/ram_check.mjs
 node apps/rom_abi_check.mjs   # the ROM survives hostile arguments from any language
 
+# --- ZX0: pack every asset (stale only) and report the ratios per screen ------
+tools/pack_stats.sh
+
 # --- native tests ----------------------------------------------------------
 # Zig has no `test` step in build.zig, so name the files that hold tests. Add
 # yours here when you write them, or the gate will not run them.
@@ -25,7 +28,12 @@ for t in \
     libs/zig/disk.zig \
     libs/zig/players/sndh.zig \
     libs/zig/depackers/ice_test.zig \
+    libs/zig/depackers/zx0_test.zig \
+    libs/zig/depackers/depack_fx.zig \
     libs/zig/effects/charpanel_test.zig \
+    libs/zig/effects/blit_test.zig \
+    libs/zig/effects/copper_test.zig \
+    libs/zig/tvnoise/tvnoise.zig \
     apps/zig/scene_tests.zig \
     rom/gem/desktop/namefield.zig \
     rom/gem/desktop/stamp.zig \
@@ -38,6 +46,7 @@ done
 
 # --- disks: repack what is stale, then mount and instantiate every image ----
 tools/mkdisks.sh
+python3 tools/channels.py     # the monitor's +/- channel list (needs the disks)
 node apps/disk_check.mjs
 
 # --- headless harnesses: each drives the real machine end to end -----------

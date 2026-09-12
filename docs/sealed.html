@@ -2,26 +2,11 @@
 <html lang="en">
     <head>
         <meta charset="utf-8">
-        <title>Zig Machine — Sealed Hardware</title>
-        <link rel="stylesheet" type="text/css" href="css/crt.css" media="screen" />
-        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/normalize/5.0.0/normalize.min.css">
+        <title>Zig Machine</title>
+        <!-- The sealed machine is now the front page (index.html). Kept so old
+             links such as sealed.html?demo=demo-c.wasm keep working. -->
+        <script>location.replace("index.html" + location.search + location.hash);</script>
+        <noscript><meta http-equiv="refresh" content="0; url=index.html"></noscript>
     </head>
-    <body>
-        <div>
-            <img src="overlays/sc1224_5.png" class="monitor" alt="monitor"/>
-            <button onclick="main(); this.blur();" class="sound_button">Sound on</button>
-            <div class="container">
-                <div class="overlay">
-                    <canvas id="0" width="400" height="280" class="canvas"></canvas>
-                    <canvas id="1" width="400" height="280" class="canvas"></canvas>
-                    <canvas id="2" width="400" height="280" class="canvas"></canvas>
-                    <canvas id="3" width="400" height="280" class="canvas"></canvas>
-                </div>
-            </div>
-        </div>
-    </body>
-    <!-- Measures a cart's RAM high-water for hwSetCartHigh; module, so it must
-         come first (it publishes globalThis.ZMRam for the classic loader). -->
-    <script type="module" src="wasm_hiwater.js?v=34"></script>
-    <script src="sealed-loader.js?v=34"></script>
+    <body><a href="index.html">Zig Machine</a></body>
 </html>

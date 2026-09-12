@@ -16,9 +16,28 @@ const std = @import("std");
 const zg = @import("zigos");
 const ZigOS = zg.ZigOS;
 const Doors = @import("union/doors.zig").Doors;
+const trsi = @import("union/trsi.zig");
+const DepackFx = @import("depackers").depack_fx.Runner(zg, null); // rasters: no tvnoise needed
+
+const hw = @import("hardware");
+
+// The TRSI animation arrives packed; it is depacked with its effect (the RASTERS
+// flash, chosen at pack time in build.zig) before the first part starts. At 8
+// bytes per physical line it takes about 1.5 s. The runner lives at module scope
+// because its HBL handler needs a stable address.
+const DEPACK_BYTES_PER_LINE = 8;
+var depack: DepackFx = undefined;
+
+/// `len` bytes of the cart's RAM window above its statics and stack, the part
+/// the machine reports as free. Null when there is not that much left.
+fn freeRam(len: usize) ?[]u8 {
+    if (hw.hwRamFree() < len) return null;
+    const base: usize = hw.hwRamBase() + hw.hwRamUsed();
+    return @as([*]u8, @ptrFromInt(base))[0..len];
+}
 
 const Active = union(enum) {
-    trsi: @import("union/trsi.zig").Part,
+    trsi: trsi.Part,
     wab: @import("union/wab.zig").Part,
     placement: @import("union/placement.zig").Placement,
 };
@@ -31,10 +50,37 @@ pub const Demo = struct {
     in_main: bool = false,
     main: Doors = .{},
     wants_quit: bool = false,
+    depacking: bool = false,
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
         self.* = .{};
+        trsi.turn_raw = &.{};
+        const buf = freeRam(trsi.TURN_LEN) orelse return self.skipTrsi(zigos, "no free RAM to depack into");
+        if (!depack.start(zigos, trsi.turn_packed, buf, DEPACK_BYTES_PER_LINE))
+            return self.skipTrsi(zigos, "packed image unreadable");
+        trsi.turn_raw = buf;
+        self.depacking = true;
+    }
+
+    /// Skip the TRSI part rather than play it from a missing or half-written buffer.
+    fn skipTrsi(self: *Demo, zigos: *ZigOS, why: []const u8) void {
+        zg.Console.log("union_intro: TRSI animation: {s}, skipping the part", .{why});
+        trsi.turn_raw = &.{};
+        self.depacking = false;
+        self.idx = 1;
         self.startPart(zigos);
+    }
+
+    /// While the TRSI animation depacks.
+    fn updateDepack(self: *Demo, zigos: *ZigOS) void {
+        switch (depack.frame(zigos)) {
+            .more => {},
+            .done => {
+                self.depacking = false;
+                self.startPart(zigos);
+            },
+            .failed => self.skipTrsi(zigos, "depack failed"),
+        }
     }
 
     fn startPart(self: *Demo, zigos: *ZigOS) void {
@@ -53,6 +99,7 @@ pub const Demo = struct {
     }
 
     pub fn update(self: *Demo, zigos: *ZigOS, dt: f32) void {
+        if (self.depacking) return self.updateDepack(zigos);
         if (self.in_main) {
             self.main.update(zigos, dt);
             if (self.main.wants_quit) self.wants_quit = true;
@@ -67,6 +114,7 @@ pub const Demo = struct {
     }
 
     pub fn render(self: *Demo, zigos: *ZigOS, dt: f32) void {
+        if (self.depacking) return;
         if (self.in_main) return self.main.render(zigos, dt);
         switch (self.active) {
             inline else => |*p| p.render(zigos, dt),

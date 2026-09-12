@@ -38,6 +38,13 @@ const scene = switch (opts.index) {
     25 => @import("scenes/tex.zig"),
     26 => @import("scenes/badflicker.zig"),
     27 => @import("scenes/stream.zig"),
+    28 => @import("scenes/noextra.zig"),
+    29 => @import("scenes/replicants_dd2.zig"),
+    30 => @import("scenes/supplex_fs2.zig"),
+    31 => @import("scenes/replicants_garfield.zig"),
+    32 => @import("scenes/ulm_spoon_distorter.zig"),
+    33 => @import("scenes/replicants.zig"), // REPS OLD — pre-CODEF-port Replicants, kept for comparison
+    34 => @import("scenes/cuddly_starwars.zig"),
     else => @compileError("bad cart index"),
 };
 

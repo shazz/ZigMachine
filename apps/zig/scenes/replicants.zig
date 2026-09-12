@@ -126,6 +126,15 @@ pub const Demo = struct {
     pub fn init(self: *Demo, zigos: *ZigOS) void {
         Console.log("Demo init", .{});
 
+        // A cart re-entered from the menu inherits the previous cart's bytes, so
+        // struct defaults and module-scope initialisers cannot be trusted: reset here.
+        self.name = 0;
+        self.frame_counter = 0;
+        self.table_index = 0;
+        raster_index = 0;
+        logo_raster_pos = 0;
+        logo_raster_dir = 1;
+
         // first plane for rasters
         var fb: *LogicalFB = &zigos.lfbs[0];
         fb.is_enabled = true;

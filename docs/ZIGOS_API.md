@@ -127,6 +127,60 @@ Handlers write palettes/registers in the shared region; the machine reads the
 updated values for the pixels it draws after the HBL point — that's the raster.
 Your `*const fn` never leaves ZigOS; only an integer id crosses to the machine.
 
+### Copper, blit and openBorders (reusable helpers)
+
+**`zg.copper`**: per-line palette tables with one HBL per plane. Tables are
+always indexed by PHYSICAL row (0..279). The handler maps the machine's line to
+a row from the plane's mode: normal, scroll and medium planes get logical
+0..199, while overscan, fullscreen and full-raster medium planes get physical
+0..279. Calling `setOverscanBuffer()` therefore never shifts a raster.
+
+```zig
+// apps/zig/scenes/replicants_garfield.zig
+var copper_tables: [2]zg.copper.Table = undefined; // module scope: the scene owns the tables
+// in init():
+fb.setPalette(palette);
+copper.install(fb, &.{ RASTER_INK, LOGO_INK }, &copper_tables, .{}); // slot 0, slot 1; seeded from the palette
+// each frame:
+const bars = copper.visible(fb, 0); // *[200]u32, visible line 0 = physical row 40
+bars[k] = colour.toRGBA();          // copper.table(fb, slot) is the full 280-row table
+```
+
+Pass `.{ .flicker = true }` to also open every border from the same handler. It
+registers at `OVERSCAN_MAGIC_X`.
+
+**`zg.blit`**: clipped, signed-coordinate blits. The call clips once and runs
+the inner loop without bounds checks.
+
+`Dst` is the destination view:
+- `Dst.plane(fb)` uses the plane's real stride and size, in any mode.
+- `Dst.buffer(buf, w)` wraps a scratch buffer.
+- `.window(x, y, w, h)` narrows either one to a clip rectangle and moves the origin to its corner.
+
+`blit(dst, src, part, dx, dy, key, ink)` copies `part` of `src` (all of it when
+`part` is null) to `(dx, dy)`, skipping pixels equal to `key`. Ink modes:
+
+| Ink | Writes |
+|---|---|
+| `.copy` | the source pixel |
+| `.flat` | one fixed index |
+| `.offset` | the source pixel plus a base |
+| `.lut` | `lut[p]` |
+| `.row` | one index per destination row |
+| `.pattern` | the pattern image's pixel at that position (canvas `source-atop`) |
+
+```zig
+const hole = blit.Dst.plane(fb).window(SCROLL_X_ST, SCROLL_Y_ST, MASK_W, MASK_H);
+blit.blit(hole, font_img, cell, gx, TEXT_Y_ST, 0, mask_ink); // gx may be negative
+```
+
+**`fb.openBorders(.all | .top_bottom)`**: `setOverscanBuffer()` plus a flicker
+HBL at the magic column. `.all` flickers every line; `.top_bottom` flickers only
+the border bands, as MAXI does. It replaces the plane's HBL handler, so combine
+borders with rasters through `copper.install(..., .{ .flicker = true })`
+instead. Every enabled overscan plane needs its own call.
+`fb.hblLinesArePhysical()` reports which line numbering the plane's handler gets.
+
 ## 7. Overscan / the physical framebuffer
 
 `zigos.physical_framebuffer` is a direct view of the machine's output buffer. The

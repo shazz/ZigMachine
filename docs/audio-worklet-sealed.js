@@ -25,22 +25,21 @@ class ZigAudioSealedProcessor extends AudioWorkletProcessor {
             const mx = machine.exports;
 
             // Route the open players' chip imports to the sealed machine's exports.
-            const demoImports = { env: {
-                memory,
-                machineAudioInit: mx.machineAudioInit,
-                machineClear: mx.machineClear,
-                machineClamp: mx.machineClamp,
-                machineMixPaula: mx.machineMixPaula,
-                machineRenderYm: mx.machineRenderYm,
-                machineYmWrite: mx.machineYmWrite,
-                machinePaulaClearScopes: mx.machinePaulaClearScopes,
-                machinePaulaTrigger: mx.machinePaulaTrigger,
-                machinePaulaSetStep: mx.machinePaulaSetStep,
-                machinePaulaSetVolume: mx.machinePaulaSetVolume,
-                machinePaulaSetPan: mx.machinePaulaSetPan,
-                machinePaulaSetPos: mx.machinePaulaSetPos,
-                machinePaulaSetActive: mx.machinePaulaSetActive,
-            } };
+            //
+            // Spread by PREFIX rather than listing the names. This was a
+            // hand-maintained list, and it desynced the moment the audio ABI grew
+            // a function (machineAudioReset): the open module imported a name the
+            // list did not provide, so demo-audio.wasm failed to LINK and ALL
+            // sound died -- "Import #7 env machineAudioReset: requires a callable".
+            // Nothing else broke and nothing else reported, which is why it read
+            // as "audio is gone" rather than as a build error. apps/sndh_headless.mjs
+            // already built its imports this way, which is exactly why the gate
+            // stayed green while the browser was silent: the harness could not
+            // reproduce a mistake it was structurally incapable of making.
+            const demoImports = { env: { memory } };
+            for (const name of Object.keys(mx)) {
+                if (name.startsWith("machine")) demoImports.env[name] = mx[name];
+            }
             const demo = (await WebAssembly.instantiate(demoBytes, demoImports)).instance;
 
             this.machine = mx;
