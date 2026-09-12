@@ -16,6 +16,7 @@ zig build -Drelease=true -Dwasm
 # --- memory windows: every module measured against ITS OWN map -------------
 node apps/check_fits.mjs docs/demo-*.wasm docs/rom.wasm
 node apps/ram_check.mjs
+node apps/rom_abi_check.mjs   # the ROM survives hostile arguments from any language
 
 # --- native tests ----------------------------------------------------------
 # Zig has no `test` step in build.zig, so name the files that hold tests. Add

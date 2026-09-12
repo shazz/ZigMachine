@@ -18,12 +18,18 @@ pub const Dialog = struct {
     filesel: bool = false,
     title: []const u8 = "",
     lines: [MAX_LINES][]const u8 = [_][]const u8{""} ** MAX_LINES,
+    // The alert OWNS its text. It used to store the caller's slices and redraw
+    // them every frame until dismissed, which is fine for a Zig literal and
+    // garbage for a C app that passed a stack buffer — and the ROM's ABI promises
+    // a caller's memory is read, never retained. Copy in.
+    line_buf: [MAX_LINES][MAX_LINE]u8 = undefined,
     nlines: u8 = 0,
     warn: bool = false, // draw the GEM warning sign in the left gutter
     items: []const []const u8 = &.{},
     want_w: i16 = 0,
     want_h: i16 = 0,
 
+    const MAX_LINE: usize = 48; // a GEM alert line; longer is truncated, not kept
     const ROW_H: i16 = 8; // one char cell per list row (GEM item selector)
     const BTN_H: i16 = 12; // GEM alert buttons are one char row + border
     const LINE_H: i16 = 10; // alert text lines (8px font + leading)
@@ -39,9 +45,11 @@ pub const Dialog = struct {
         var widest: i16 = 0;
         for (lines, 0..) |l, i| {
             if (i >= MAX_LINES) break;
-            self.lines[i] = l;
+            const n = @min(l.len, MAX_LINE);
+            @memcpy(self.line_buf[i][0..n], l[0..n]);
+            self.lines[i] = self.line_buf[i][0..n]; // our copy, not the caller's
             self.nlines = @intCast(i + 1);
-            widest = @max(widest, @as(i16, @intCast(l.len)));
+            widest = @max(widest, @as(i16, @intCast(n)));
         }
         self.want_w = widest * 8 + 32 + (if (warn) SIGN_W else 0);
         self.want_h = @as(i16, self.nlines) * LINE_H + 44;

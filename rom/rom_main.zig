@@ -92,6 +92,26 @@ fn fselAt(h: u32) ?*gem.FileSel {
 }
 // A slice from a caller's (ptr, len). Only ever read, never retained: the caller
 // owns that memory and it is the app's window, not ours.
+// --------------------------------------------------------------------------
+// Narrowing a CALLER's integer. `-Drelease=true` is ReleaseSmall, where @intCast
+// is UNCHECKED — so a C app passing color = 256 or x = 70000 was undefined
+// behaviour inside the ROM, not a clipped pixel. The handle tables already
+// promise that a caller's bug must not become the ROM's crash; these make that
+// promise true for the numbers as well. Saturate rather than reject: a widget
+// drawn at a clamped edge is debuggable, a silently skipped one is not.
+// --------------------------------------------------------------------------
+inline fn i16Of(v: i32) i16 {
+    return @intCast(@max(@as(i32, -32768), @min(@as(i32, 32767), v)));
+}
+inline fn u8Of(v: u32) u8 {
+    return @intCast(@min(v, 255));
+}
+// A SIZE from a caller: negative means nothing, so clamp to zero rather than
+// wrapping it into a 65535-wide fill.
+inline fn u16Of(v: i32) u16 {
+    return @intCast(@max(@as(i32, 0), @min(@as(i32, 65535), v)));
+}
+
 fn slice(ptr: u32, len: u32) []const u8 {
     if (ptr == 0 or len == 0) return &.{};
     const p: [*]const u8 = @ptrFromInt(ptr);
@@ -140,7 +160,7 @@ fn bindFb(fb: *zg.LogicalFB, plane: u32, screen_h: i32) bool {
         .palette = @ptrFromInt(base + hw.OFF_PAL + @as(usize, plane) * hw.PAL_BYTES),
         .stride = stride,
         .fb_w = stride, // the clip bound Gui.plot uses; the register is the truth
-        .fb_h = @intCast(screen_h),
+        .fb_h = @intCast(@max(@as(i32, 1), @min(@as(i32, 4096), screen_h))),
         .id = @intCast(plane),
         .zigos = &raw_os,
     };
@@ -160,8 +180,8 @@ export fn guiOpenPlane(plane: u32, screen_w: i32, screen_h: i32) u32 {
             .os = &raw_os,
             .fb = &raw_fbs[i],
             .blit = &blits[i],
-            .screen_w = @intCast(screen_w),
-            .screen_h = @intCast(screen_h),
+            .screen_w = i16Of(screen_w),
+            .screen_h = i16Of(screen_h),
         };
         used.* = true;
         return @intCast(i + 1);
@@ -210,7 +230,7 @@ export fn guiTextAlign(h: u32, x: i32, y: i32, w: i32, ptr: u32, len: u32, mode:
         2 => x + w - tw,
         else => x,
     };
-    g.text(str, @intCast(tx), @intCast(y), @intCast(ink), @intCast(paper));
+    g.text(str, i16Of(tx), i16Of(y), u8Of(ink), u8Of(paper));
 }
 
 /// Install GEM's palette into a PLANE — the companion to guiOpenPlane, and for
@@ -232,8 +252,8 @@ export fn guiClose(h: u32) void {
 }
 export fn guiResize(h: u32, screen_w: i32, screen_h: i32) void {
     const g = guiAt(h) orelse return;
-    g.screen_w = @intCast(screen_w);
-    g.screen_h = @intCast(screen_h);
+    g.screen_w = i16Of(screen_w);
+    g.screen_h = i16Of(screen_h);
 }
 export fn guiSetPointer(h: u32, x: i32, y: i32, buttons: u32) void {
     (guiAt(h) orelse return).setPointer(x, y, buttons);
@@ -253,17 +273,17 @@ export fn guiHit(h: u32, x: i32, y: i32, w: i32, hh: i32) u32 {
     return if (g.hit(rectOf(x, y, w, hh))) 1 else 0;
 }
 export fn guiRect(h: u32, x: i32, y: i32, w: i32, hh: i32, color: u32) void {
-    (guiAt(h) orelse return).rect(rectOf(x, y, w, hh), @intCast(color));
+    (guiAt(h) orelse return).rect(rectOf(x, y, w, hh), u8Of(color));
 }
 export fn guiFrame(h: u32, x: i32, y: i32, w: i32, hh: i32, color: u32) void {
-    (guiAt(h) orelse return).frame(rectOf(x, y, w, hh), @intCast(color));
+    (guiAt(h) orelse return).frame(rectOf(x, y, w, hh), u8Of(color));
 }
 export fn guiPlot(h: u32, x: i32, y: i32, color: u32) void {
-    (guiAt(h) orelse return).plot(@intCast(x), @intCast(y), @intCast(color));
+    (guiAt(h) orelse return).plot(i16Of(x), i16Of(y), u8Of(color));
 }
 export fn guiText(h: u32, ptr: u32, len: u32, x: i32, y: i32, ink: u32, paper: u32) void {
     const g = guiAt(h) orelse return;
-    g.text(slice(ptr, len), @intCast(x), @intCast(y), @intCast(ink), @intCast(paper));
+    g.text(slice(ptr, len), i16Of(x), i16Of(y), u8Of(ink), u8Of(paper));
 }
 /// A raw filled span. This exists because app code used to reach THROUGH the
 /// context — `g.blit.fill(g.fb, ...)` — for spans the toolkit had no verb for
@@ -272,7 +292,7 @@ export fn guiText(h: u32, ptr: u32, len: u32, x: i32, y: i32, ink: u32, paper: u
 /// intent (a raw span, not a widget) stays legible at the call site.
 export fn guiFill(h: u32, x: i32, y: i32, w: i32, hh: i32, color: u32) void {
     const g = guiAt(h) orelse return;
-    g.blit.fill(g.fb, @intCast(x), @intCast(y), @intCast(w), @intCast(hh), @intCast(color));
+    g.blit.fill(g.fb, i16Of(x), i16Of(y), u16Of(w), u16Of(hh), u8Of(color));
 }
 export fn dialogOpen() u32 {
     for (&dialog_used, 0..) |*used, i| {
@@ -374,8 +394,8 @@ export fn deskInitPlane(plane: u32, screen_w: i32, screen_h: i32) void {
     desk_blit = .{};
     desk_blit.init();
     desk.init(&raw_os, &desk_fb, &desk_blit);
-    desk.g.screen_w = @intCast(screen_w);
-    desk.g.screen_h = @intCast(screen_h);
+    desk.g.screen_w = i16Of(screen_w);
+    desk.g.screen_h = i16Of(screen_h);
     desk_ready = true;
 }
 /// The desktop's screen changed size (the Options menu switches LOW/MEDIUM).
@@ -385,8 +405,8 @@ export fn deskSetScreen(w: i32, h: i32) void {
     // same buffer, and our LogicalFB copy would keep the old one — drawing at the
     // wrong pitch, which looks like a shear rather than like a bug.
     _ = bindFb(&desk_fb, desk_plane, h);
-    desk.g.screen_w = @intCast(w);
-    desk.g.screen_h = @intCast(h);
+    desk.g.screen_w = i16Of(w);
+    desk.g.screen_h = i16Of(h);
     desk.clampIcons(); // keep icons on-screen at the new width
 }
 export fn deskBeginFrame() void {
@@ -463,5 +483,5 @@ export fn deskSetFileCount(n: u32) void {
 }
 
 inline fn rectOf(x: i32, y: i32, w: i32, h: i32) Rect {
-    return .{ .x = @intCast(x), .y = @intCast(y), .w = @intCast(w), .h = @intCast(h) };
+    return .{ .x = i16Of(x), .y = i16Of(y), .w = i16Of(w), .h = i16Of(h) };
 }
