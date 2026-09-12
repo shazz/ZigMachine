@@ -185,8 +185,25 @@ const CHANNEL = [4]u8{ 13, 8, 5, 4 }; // A, B, C, D
 const MAX_TIMER_HZ: f32 = 40000.0;
 /// A timer_acc that will never come due.
 const NEVER: u32 = 0xFFFFFFFF;
+/// Timer accumulators are 16.16 fixed point IN SAMPLES. They have to be: a
+/// digidrum timer at 15360 Hz wants an interrupt every 2.871 samples, and
+/// rounding that to 2 would play the drum 43% sharp — which does not sound like
+/// a fast drum, it sounds like noise.
+const ONE: u32 = 1 << 16;
+
+/// TOS leaves the vector register at $40, and tunes count on it: they install
+/// their handlers at the standard addresses ($120 for Timer B, $134 for Timer A)
+/// without ever writing VR themselves. Start the MFP the way a booted ST hands
+/// it over, or the vectors are computed from a base of 0 and point into the
+/// tune's own header.
+const VR_TOS_DEFAULT: u8 = 0x40;
 
 var mfp: [MFP_SIZE]u8 = [_]u8{0} ** MFP_SIZE;
+
+fn mfpReset() void {
+    mfp = [_]u8{0} ** MFP_SIZE;
+    mfp[VR] = VR_TOS_DEFAULT;
+}
 
 fn mfpWrite(addr: u32, value: u8) void {
     mfp[addr - MFP_BASE] = value;
@@ -324,8 +341,8 @@ pub const SndhPlayer = struct {
     tune: u8 = 1,
     samples_per_frame: u32 = 882,
     frame_acc: u32 = 0,
-    /// Per MFP timer (A..D): how many samples between interrupts, and how many
-    /// are left before the next one (NEVER = the timer is not running).
+    /// Per MFP timer (A..D): samples between interrupts and samples still to
+    /// go, both 16.16 fixed point. NEVER = the timer is not running.
     timer_period: [4]u32 = [_]u32{0} ** 4,
     timer_acc: [4]u32 = [_]u32{NEVER} ** 4,
 
@@ -356,7 +373,7 @@ pub const SndhPlayer = struct {
         if (self.info.hz == 0) return;
         self.tune = if (tune >= 1 and tune <= self.info.subtunes) tune else self.info.default_tune;
         silence();
-        mfp = [_]u8{0} ** MFP_SIZE; // a fresh MFP: no timer left over from a previous tune
+        mfpReset(); // a fresh MFP, as TOS would hand it over
         self.active = self.call(sndh.INIT, self.tune);
         self.frame_acc = 0;
         self.rearm(); // init is where a tune programs its digidrum timer
@@ -383,9 +400,8 @@ pub const SndhPlayer = struct {
             var block: u32 = @intCast(n - off);
             block = @min(block, self.frame_acc);
             for (self.timer_acc) |acc| if (acc != NEVER) {
-                block = @min(block, acc);
+                block = @min(block, acc >> 16); // whole samples until it is due
             };
-            if (block == 0) continue; // something else is due at this very sample
             audio.machineRenderYm(@intCast(off), block);
             self.advance(block);
             off += block;
@@ -402,18 +418,22 @@ pub const SndhPlayer = struct {
             self.rearm(); // init/play may only now have programmed the timers
         }
         for (&self.timer_acc, 0..) |*acc, t| {
-            if (acc.* != 0) continue;
+            if (acc.* == NEVER or self.timer_period[t] == 0) continue;
             const handler = timerVector(t);
-            if (handler != 0 and !callInterrupt(handler)) return self.derail();
-            acc.* = self.timer_period[t];
+            // A timer can be due more than once inside a single sample.
+            while (acc.* < ONE) {
+                if (handler != 0 and !callInterrupt(handler)) return self.derail();
+                acc.* += self.timer_period[t];
+            }
         }
         return true;
     }
 
     fn advance(self: *SndhPlayer, block: u32) void {
         self.frame_acc -= block;
+        const ticks = block *% ONE;
         for (&self.timer_acc) |*acc| {
-            if (acc.* != NEVER) acc.* -= @min(acc.*, block);
+            if (acc.* != NEVER) acc.* -= @min(acc.*, ticks);
         }
     }
 
@@ -442,7 +462,10 @@ pub const SndhPlayer = struct {
             }
             const hz = timerHz(t);
             const was = period.*;
-            period.* = if (hz <= 0) 0 else @intFromFloat(@max(1.0, audio.SAMPLE_RATE / hz));
+            period.* = if (hz <= 0) 0 else @intFromFloat(@max(
+                @as(f32, ONE), // never less than one sample apart
+                audio.SAMPLE_RATE / hz * @as(f32, ONE),
+            ));
             if (period.* == 0) {
                 self.timer_acc[t] = NEVER;
             } else if (was == 0) {
