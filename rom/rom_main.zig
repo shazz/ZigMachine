@@ -227,6 +227,82 @@ export fn fileSelChosen(h: u32, out: u32, out_cap: u32) u32 {
     return @intCast(n);
 }
 
+// --------------------------------------------------------------------------
+// The DESKTOP (Phase 2, step 2.3). GEM's top level now lives here rather than in
+// a cart, so the toolkit exists exactly once: the shell cart is a few dozen lines
+// that forwards frames and input, and every byte of desktop state — icons, window
+// geometry, the mounted disk's FAT — sits in the ROM's window.
+//
+// A singleton, not a handle: there is one desktop, the machine has one screen,
+// and inventing a table for a thing that can only ever have one member would be
+// ceremony. `desk_ready` is the guard, so a call before deskInit() does nothing
+// instead of touching undefined memory.
+// --------------------------------------------------------------------------
+var desk: gem.Desktop = .{};
+var desk_blit: zg.Blitter = .{};
+var desk_ready: bool = false;
+
+/// Bring up the desktop over a framebuffer (addresses, as with guiOpen).
+export fn deskInit(os_ptr: u32, fb_ptr: u32) void {
+    desk = .{};
+    desk_blit = .{};
+    desk_blit.init();
+    desk.init(@ptrFromInt(os_ptr), @ptrFromInt(fb_ptr), &desk_blit);
+    desk_ready = true;
+}
+/// The desktop's screen changed size (the Options menu switches LOW/MEDIUM).
+export fn deskSetScreen(w: i32, h: i32) void {
+    if (!desk_ready) return;
+    desk.g.screen_w = @intCast(w);
+    desk.g.screen_h = @intCast(h);
+    desk.clampIcons(); // keep icons on-screen at the new width
+}
+export fn deskBeginFrame() void {
+    if (desk_ready) desk.beginFrame();
+}
+export fn deskEndFrame() void {
+    if (desk_ready) desk.endFrame();
+}
+/// Draw a frame and report what the user asked for — the Action enum, flat.
+export fn deskRender() u32 {
+    if (!desk_ready) return 0;
+    return switch (desk.render()) {
+        .none => 0,
+        .launch => 1,
+        .res_low => 2,
+        .res_medium => 3,
+    };
+}
+export fn deskSetPointer(x: i32, y: i32, buttons: u32) void {
+    if (desk_ready) desk.setPointer(x, y, buttons);
+}
+/// The host's native double-click pulse.
+export fn deskRequestOpenAt(x: i32, y: i32) void {
+    if (desk_ready) desk.requestOpenAt(x, y);
+}
+export fn deskKey(cp: u32) void {
+    if (desk_ready) desk.key(cp);
+}
+export fn deskInput(dir: u32) void {
+    if (desk_ready) desk.input(dir);
+}
+export fn deskSetDiskApp(present: u32) void {
+    if (desk_ready) desk.disk_app = present != 0;
+}
+/// Where the HOST packs the mounted disk's FAT. It is the ROM's buffer now, so
+/// the address is in the ROM's window — the host writes there directly, which is
+/// the same shared memory it always wrote to.
+export fn deskDirPtr() u32 {
+    if (!desk_ready) return 0;
+    return @intCast(@intFromPtr(&desk.disk_dir));
+}
+export fn deskDirCap() u32 {
+    return @intCast(desk.disk_dir.len);
+}
+export fn deskSetFileCount(n: u32) void {
+    if (desk_ready) desk.n_disk = @intCast(@min(n, desk.disk_dir.len / 17));
+}
+
 inline fn rectOf(x: i32, y: i32, w: i32, h: i32) Rect {
     return .{ .x = @intCast(x), .y = @intCast(y), .w = @intCast(w), .h = @intCast(h) };
 }

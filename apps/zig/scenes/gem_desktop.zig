@@ -1,48 +1,43 @@
 // --------------------------------------------------------------------------
-// ZigGEM boot — the desktop shell. This is the "boot ROM" front end: it brings
-// up the medium-res GEM desktop and hosts applications. An app (the RAM
-// cartridge, apps/scenes/st_replay.zig) is launched from a desktop icon, runs
-// full-screen using the ROM's GUI libraries (zg.gem.gui), and File > Quit ejects
-// it back to the desktop.
+// The GEM shell — a cart that BOOTS the desktop, and almost nothing else.
 //
-// This scene owns the plane/palette (once) and routes the host callbacks
-// (init/update/render/pointer) to either the desktop or the running app.
+// Phase 2, step 2.3: the desktop itself now lives in rom.wasm. This file used to
+// be GEM's top level AND the container for the app it launched (it embedded
+// st_replay.App outright, so every app GEM could launch was linked into GEM's own
+// binary). Now it forwards frames and input across the ROM ABI and owns exactly
+// two pieces of state: which resolution the desktop is in, and whether an app is
+// running.
+//
+// It links NO GEM: `rom_sdk` is a header of extern declarations. That is the
+// whole point — the toolkit exists once, in the chip.
+//
+// Select in apps/zig/floppy.zig.
 // --------------------------------------------------------------------------
 const zg = @import("zigos");
 const ZigOS = zg.ZigOS;
 const LogicalFB = zg.LogicalFB;
-const Blitter = zg.Blitter;
-const gem = @import("rom").gem;
+const rom = @import("rom_sdk");
 const st_replay = @import("st_replay.zig");
 
 pub const Demo = struct {
-    blit: Blitter = .{},
-    desktop: gem.Desktop = .{},
     app: st_replay.App = .{},
     running: bool = false,
     desk_medium: bool = false, // desktop resolution (Options menu); GEM defaults to LOW
     fb: *LogicalFB = undefined,
 
     pub fn init(self: *Demo, os: *ZigOS) void {
-        // Apply field defaults WITHOUT `self.* = .{}`. A whole-struct default needs
-        // a comptime-known `Demo{}`, and Demo embeds st_replay.App (526 KB, nearly
-        // all of it the sample buffer) — so the linker emitted a SECOND 526 KB blob
-        // of literal zeros as a data segment just to memcpy it over this global.
-        // That one line cost 517 KB of the cart's 2 MB RAM window. Set the small
-        // fields; `app.init(os)` below sets every one of the App's own scalars
-        // explicitly (it has to — the cart lives in `undefined` memory until init).
-        self.blit = .{};
-        self.desktop = .{};
+        // Field defaults WITHOUT `self.* = .{}`: Demo embeds st_replay.App, whose
+        // sample buffer would then be emitted a SECOND time as a data segment.
+        // That cost 517 KB of the cart's RAM window until 2026-09-12.
         self.running = false;
         self.desk_medium = false;
         self.fb = &os.lfbs[0];
         self.fb.is_enabled = true;
-        self.fb.setMediumPlane(); // allocate the 640-wide buffer once (serves both LOW and MEDIUM)
-        gem.gui.installPalette(self.fb); // one shared palette for desktop AND apps
-        os.setBackgroundColor(.{ .r = 255, .g = 255, .b = 255, .a = 255 }); // GEM: border white, desktop green
-        self.blit.init();
-        self.desktop.init(os, self.fb, &self.blit);
-        self.app.init(os); // set up (but do not show) the app; host fills its sample
+        self.fb.setMediumPlane(); // allocate the 640-wide buffer once (serves LOW and MEDIUM)
+        rom.installPalette(@intCast(@intFromPtr(self.fb))); // one palette for desktop AND apps
+        os.setBackgroundColor(.{ .r = 255, .g = 255, .b = 255, .a = 255 }); // border white
+        rom.Desktop.init(os, self.fb);
+        self.app.init(os); // set up (but do not show) the app
         // A scene can opt to boot straight into the app (skip the GEM desktop) by
         // declaring `pub const BOOT_DIRECT = true;`. File > Quit still drops back
         // to the desktop. Default: show the desktop first.
@@ -68,9 +63,7 @@ pub const Demo = struct {
 
     fn applyDeskRes(self: *Demo) void {
         if (self.desk_medium) self.fb.setResMedium() else self.fb.setResLow();
-        self.desktop.g.screen_w = if (self.desk_medium) 640 else 320;
-        self.desktop.g.screen_h = 200;
-        self.desktop.clampIcons(); // keep icons on-screen at the new width
+        rom.Desktop.setScreen(if (self.desk_medium) 640 else 320, 200);
     }
 
     pub fn update(self: *Demo, os: *ZigOS, dt: f32) void {
@@ -79,10 +72,10 @@ pub const Demo = struct {
             if (self.app.wants_quit) { // ejected -> back to the desktop (its resolution)
                 self.running = false;
                 self.applyDeskRes();
-                self.desktop.beginFrame();
+                rom.Desktop.beginFrame();
             }
         } else {
-            self.desktop.beginFrame();
+            rom.Desktop.beginFrame();
         }
     }
 
@@ -91,8 +84,8 @@ pub const Demo = struct {
             self.app.render(os, dt);
             return;
         }
-        const action = self.desktop.render();
-        self.desktop.endFrame();
+        const action = rom.Desktop.render();
+        rom.Desktop.endFrame();
         switch (action) {
             .launch => self.launchApp(os),
             .res_low => {
@@ -116,34 +109,35 @@ pub const Demo = struct {
         if (self.running) {
             self.app.pointer(lx, y, buttons);
         } else if (buttons & 2 != 0) {
-            self.desktop.requestOpenAt(lx, y); // native double-click pulse from the loader
+            rom.Desktop.requestOpenAt(lx, y); // native double-click pulse from the loader
         } else {
-            self.desktop.setPointer(lx, y, buttons);
+            rom.Desktop.setPointer(lx, y, buttons);
         }
     }
 
     pub fn key(self: *Demo, cp: u32) void {
-        if (self.running) self.app.key(cp) else self.desktop.key(cp);
+        if (self.running) self.app.key(cp) else rom.Desktop.key(cp);
     }
 
     // Arrow keys: the running app moves its selection; on the desktop they drive
     // the caret in an open name field.
     pub fn input(self: *Demo, dir: u32) void {
-        if (self.running) self.app.input(dir) else self.desktop.input(dir);
+        if (self.running) self.app.input(dir) else rom.Desktop.input(dir);
     }
 
-
-    // The host reports whether an app-disk is inserted, and fills the FAT listing
-    // shown in the FLOPPY window (diskInfoPtr = a 96-byte buffer, setDiskInfoLen).
+    // The host reports whether an app-disk is inserted, and packs the mounted
+    // disk's FAT into the ROM's buffer (per file: 16-byte name + 1 type + 4 size +
+    // 4 date); GEM shows them as icons in the FLOPPY window.
     pub fn insertDisk(self: *Demo, present: u32) void {
-        self.desktop.disk_app = present != 0;
+        _ = self;
+        rom.Desktop.setDiskApp(present);
     }
-    // The host packs the FAT into disk_dir (per file: 16-byte name + 1 type byte)
-    // and sets the count; GEM shows them as icons in the FLOPPY window.
     pub fn diskDirPtr(self: *Demo) [*]u8 {
-        return @ptrCast(&self.desktop.disk_dir);
+        _ = self;
+        return rom.Desktop.dirPtr();
     }
     pub fn setDiskFileCount(self: *Demo, n: u32) void {
-        self.desktop.n_disk = @intCast(@min(n, self.desktop.disk_dir.len / 17));
+        _ = self;
+        rom.Desktop.setFileCount(n);
     }
 };

@@ -64,6 +64,65 @@ pub extern fn fileSelKey(h: u32, cp: u32) void;
 pub extern fn fileSelProcess(h: u32, gui_h: u32) u32;
 pub extern fn fileSelChosen(h: u32, out: u32, out_cap: u32) u32;
 
+// --- the desktop (step 2.3) ---
+// A singleton: there is one desktop and one screen. `deskRender` returns the
+// Action flat — see DeskAction.
+pub const DeskAction = enum(u32) { none = 0, launch = 1, res_low = 2, res_medium = 3 };
+
+pub extern fn deskInit(os_ptr: u32, fb_ptr: u32) void;
+pub extern fn deskSetScreen(w: i32, h: i32) void;
+pub extern fn deskBeginFrame() void;
+pub extern fn deskEndFrame() void;
+pub extern fn deskRender() u32;
+pub extern fn deskSetPointer(x: i32, y: i32, buttons: u32) void;
+pub extern fn deskRequestOpenAt(x: i32, y: i32) void;
+pub extern fn deskKey(cp: u32) void;
+pub extern fn deskInput(dir: u32) void;
+pub extern fn deskSetDiskApp(present: u32) void;
+pub extern fn deskDirPtr() u32;
+pub extern fn deskDirCap() u32;
+pub extern fn deskSetFileCount(n: u32) void;
+
+/// The desktop, as a shell cart drives it.
+pub const Desktop = struct {
+    pub fn init(os: *zg.ZigOS, fb: *zg.LogicalFB) void {
+        deskInit(@intCast(@intFromPtr(os)), @intCast(@intFromPtr(fb)));
+    }
+    pub fn setScreen(w: i32, h: i32) void {
+        deskSetScreen(w, h);
+    }
+    pub fn beginFrame() void {
+        deskBeginFrame();
+    }
+    pub fn endFrame() void {
+        deskEndFrame();
+    }
+    pub fn render() DeskAction {
+        return @enumFromInt(deskRender());
+    }
+    pub fn setPointer(x: i32, y: i32, buttons: u32) void {
+        deskSetPointer(x, y, buttons);
+    }
+    pub fn requestOpenAt(x: i32, y: i32) void {
+        deskRequestOpenAt(x, y);
+    }
+    pub fn key(cp: u32) void {
+        deskKey(cp);
+    }
+    pub fn input(dir: u32) void {
+        deskInput(dir);
+    }
+    pub fn setDiskApp(present: u32) void {
+        deskSetDiskApp(present);
+    }
+    pub fn dirPtr() [*]u8 {
+        return @ptrFromInt(deskDirPtr());
+    }
+    pub fn setFileCount(n: u32) void {
+        deskSetFileCount(n);
+    }
+};
+
 pub fn installPalette(fb_ptr: u32) void {
     romInstallPalette(fb_ptr);
 }
