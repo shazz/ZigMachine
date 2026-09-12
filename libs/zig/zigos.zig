@@ -346,6 +346,27 @@ pub const LogicalFB = struct {
         self.clearFrameBuffer(0);
     }
 
+    // Turn this plane into a MEDIUM-res plane covering the WHOLE 800x280 raster,
+    // borders included — the medium twin of the low-res Option-B overscan. The
+    // visible window is the centre 640x200 at (80,40); coordinates here are
+    // PHYSICAL, so (0,0) is the top-left of the border.
+    //
+    // The sealed machine already does this: renderPlaneMedium() switches to
+    // full-raster compositing when a plane's stride reaches RASTER_WIDTH, which is
+    // the only signal it gets. So this is a plain ZigOS helper, not HW work — it
+    // replaces the deleted setMediumFullscreen(), whose removal during the
+    // overscan rework is what parked apps/zig/scenes/medium_overscan.zig.
+    pub fn setMediumOverscan(self: *LogicalFB) void {
+        self.stride = RASTER_WIDTH;
+        self.fb_w = RASTER_WIDTH;
+        self.fb_h = RASTER_HEIGHT;
+        writeU16(hw.REG_FB_STRIDE + @as(usize, self.id) * 2, RASTER_WIDTH); // >= 800: the machine's cue
+        writeU8(hw.REG_FB_MODE + @as(usize, self.id), hw.FB_MODE_MEDIUM);
+        writeU8(hw.REG_RESOLUTION, hw.RES_MEDIUM);
+        self.bind(vramAlloc(hw.MEDIUM_FULL_FB_BYTES)); // 224000, from the 1 MiB VRAM pool
+        self.clearFrameBuffer(0);
+    }
+
     // Switch an already-medium plane (setMediumPlane) between LOW (320, drawn
     // pixel-doubled) and MEDIUM (640, 1:1) at runtime WITHOUT reallocating: the
     // 640-wide buffer holds a 320 image too (stride 320 uses its first columns).

@@ -1,6 +1,6 @@
 // --------------------------------------------------------------------------
 // Medium OVERSCAN demo — a medium-res plane covering the WHOLE 800x280 raster,
-// borders included (LogicalFB.setMediumFullscreen). Coordinates are physical;
+// borders included (LogicalFB.setMediumOverscan). Coordinates are physical;
 // the "visible window" is the centre 640x200 at (80,40). This fills the borders
 // with crisp medium content — the medium twin of the low-res Option-B overscan.
 //
@@ -29,7 +29,7 @@ pub const Demo = struct {
         Console.log("medium_overscan init", .{});
         const fb: *LogicalFB = &os.lfbs[0];
         fb.is_enabled = true;
-        fb.setMediumFullscreen();
+        fb.setMediumOverscan();
 
         fb.setPaletteEntry(0, .{ .r = 20, .g = 20, .b = 40, .a = 255 }); // visible bg
         fb.setPaletteEntry(1, .{ .r = 235, .g = 235, .b = 245, .a = 255 }); // ink

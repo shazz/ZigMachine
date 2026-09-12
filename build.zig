@@ -188,10 +188,8 @@ pub fn build(b: *std.Build) void {
     // with apps/zig/scenes/catalog.zig (menu list) and tools/pack_floppies.sh.
     // Cart names, index-aligned with the switch in apps/zig/cart.zig and the tags
     // in apps/zig/scenes/catalog.zig. Index 0 is the menu launcher (demo.wasm).
-    // An "" entry is EXCLUDED from the build (index kept for alignment): union_intro,
-    // union_main and music have been migrated to the overscan-flicker trick and are
-    // re-enabled below. medium_overscan still calls the removed setMediumFullscreen()
-    // — it returns once a setMediumOverscan() twin exists (separate sealed-HW work).
+    // An "" entry EXCLUDES a cart from the build (the index is kept, so it stays
+    // aligned with cart.zig and catalog.zig). None are excluded today.
     const cart_names = [_][]const u8{
         "demo",              "demo-union_intro",
         "demo-union_main",   "demo-music",
@@ -199,7 +197,7 @@ pub fn build(b: *std.Build) void {
         "demo-st_replay",    "demo-ancool",      "demo-bladerunners", "demo-dbug",
         "demo-deltaforce",   "demo-deltaforce2", "demo-empire",     "demo-equinox",
         "demo-fallen_angels", "demo-fullscreen", "demo-ics",        "demo-leonard",
-        "demo-maxi",         "", // medium_overscan (excluded)
+        "demo-maxi",         "demo-medium_overscan",
         "demo-res_switch",   "demo-shapes",
         "demo-stcs",         "demo-tex",
         "demo-badflicker", // 26 — overscan trick done wrong (raw pokes, off-column)

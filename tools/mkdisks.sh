@@ -29,11 +29,7 @@ FORCE=""
 #   machine-*  sealed hardware      demo-audio  worklet module, not a cart
 #   boot-*     v2 boot sectors      demo-c/rust polyglot demos (run via ?demo=)
 #   *bootloader/audio  retired legacy monolith
-#   medium_overscan  EXCLUDED from the build (build.zig: it still calls the
-#                    removed setMediumFullscreen()), so docs/demo-medium_overscan.wasm
-#                    is a stale artifact. Packing it ships a disk that cannot
-#                    instantiate; re-add here when the scene builds again.
-SKIP="machine-video machine-audio demo-audio bootloader audio boot-novirus demo-c demo-rust medium_overscan"
+SKIP="machine-video machine-audio demo-audio bootloader audio boot-novirus demo-c demo-rust"
 
 packed=0; skipped=0
 

@@ -34,7 +34,7 @@ pub const ENTRIES = [_]Entry{
     .{ .name = "ICS", .tag = "ics" },
     .{ .name = "LEONARD", .tag = "leonard" },
     .{ .name = "MAXI", .tag = "maxi" },
-    // MED OVERSCAN excluded — pending migration (called removed setMediumFullscreen()).
+    .{ .name = "MED OVERSCAN", .tag = "medium_overscan" },
     .{ .name = "RES SWITCH", .tag = "res_switch" },
     .{ .name = "SHAPES", .tag = "shapes" },
     .{ .name = "STCS", .tag = "stcs" },
