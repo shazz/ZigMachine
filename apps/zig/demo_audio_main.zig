@@ -12,9 +12,11 @@ const audio = @import("audio_hw"); // sealed audio chip ABI (named module)
 const players = @import("players"); // open ZigOS players (named module)
 const ModPlayer = players.ModPlayer;
 const YmPlayer = players.YmPlayer;
+const SndhPlayer = players.SndhPlayer;
 
 var mod: ModPlayer = .{};
 var ym: YmPlayer = .{};
+var sndh: SndhPlayer = .{};
 // Active player: 0 none, 1 MOD, 2 YM, 3 raw sample. Drives the scope view type.
 var current_mode: u8 = 0;
 
@@ -27,12 +29,15 @@ export fn audioInit() void {
     audio.machineAudioInit();
     mod = .{};
     ym = .{};
+    sndh = .{};
     current_mode = 0;
 }
 
 export fn audioRender(frames: u32) void {
     const n: usize = @intCast(frames);
-    if (ym.active) {
+    if (sndh.active) {
+        sndh.renderStereo(n);
+    } else if (ym.active) {
         ym.renderStereo(n);
     } else if (mod.active) {
         mod.renderStereo(n);
@@ -87,6 +92,42 @@ export fn audioYmPlay() void {
 export fn audioYmStop() void {
     ym.stop();
     if (current_mode == 2) current_mode = 0;
+}
+
+// --- SNDH player (the tune's own 68000 code, on Musashi, driving the PSG) ---
+export fn audioLoadSndh(len: u32) bool {
+    return sndh.load(len);
+}
+export fn audioSndhPlay(tune: u8) void {
+    mod.stop();
+    ym.stop();
+    audio.machinePaulaClearScopes();
+    sndh.start(tune);
+    current_mode = if (sndh.active) 4 else 0;
+}
+export fn audioSndhStop() void {
+    sndh.stop();
+    if (current_mode == 4) current_mode = 0;
+}
+/// Where a replay call gave up, when a tune refuses to run. 0 means it ran.
+export fn audioSndhStuckPc() u32 {
+    return players.sndhStuckPc();
+}
+/// How far into the SNDH we are, in milliseconds (0 when none is playing).
+export fn audioSndhPositionMs() u32 {
+    return if (sndh.active) sndh.positionMs() else 0;
+}
+/// How fast MFP timer t (0=A..3=D) is programmed, in Hz (0 = stopped).
+export fn audioSndhTimerRate(t: u32) u32 {
+    return players.sndhTimerRate(t);
+}
+/// The last trap the little TOS did not know how to answer, (trap << 16) | fn.
+export fn audioSndhUnhandledTrap() u32 {
+    return players.sndhUnhandledTrap();
+}
+/// How many subtunes the loaded tune carries (0 when nothing is loaded).
+export fn audioSndhSubtunes() u8 {
+    return if (sndh.info.hz == 0) 0 else sndh.info.subtunes;
 }
 
 // --- raw 8-bit sample streamer (the simplest player on the Paula primitive) ---

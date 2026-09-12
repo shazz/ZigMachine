@@ -16,9 +16,12 @@ const Color = zg.Color;
 
 const Scrolltext = zg.Scrolltext;
 const Sprite = zg.Sprite;
-const Text = zg.Text;
 
 const Console = zg.Console;
+
+const credits = @import("dbug_credits.zig");
+const draw = @import("dbug_draw.zig");
+const Sync = @import("dbug_sync.zig").Sync;
 
 // --------------------------------------------------------------------------
 // Constants
@@ -35,9 +38,14 @@ const SCROLL_SPEED = 1;
 const SCROLL_CHARS = " ! #$%&'()*+,-./0123456789:;<=>? ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 pub const NB_FONTS: u8 = WIDTH / SCROLL_CHAR_WIDTH + 1;
 
-// text
+// credit panel (see dbug_credits.zig for the geometry and the four texts)
 const text_fonts_b = @embedFile("../assets/screens/dbug/fonts_16x14.raw");
-const TEXT_CHARS = " ! #$%&'()*+,-./0123456789:;<=>? ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+
+// music — the screen's own tune, played by its own 68000 (docs/music/)
+const MUSIC = "crystallized.sndh";
+
+// where the logo sits when its spring is at rest
+const LOGO_Y: i32 = 20;
 
 // palettes
 const font_pal = convertU8ArraytoColors(@embedFile("../assets/screens/dbug/fonts_32x24_pal.dat"));
@@ -82,13 +90,17 @@ pub const Demo = struct {
     logo: Sprite = undefined,
     scroller_target: RenderTarget = undefined,
     overscan_target: RenderTarget = undefined,
-    text: Text = undefined,
-    scroller_y: f32 = 0.0,
-    bounce: i32 = 0,
-    bounce_att: f32 = 0.0,
+    panel: zg.charpanel.Panel(credits.MAX_LIVE) = undefined,
+    sync: Sync = .{},
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
         Console.log("Demo init", .{});
+
+        // The screen's own music: !Cube's "Crystallized", the SNDH the original
+        // plays. The host fetches it by name and hands it to the cart, which
+        // depacks the Pack-Ice image and runs its 68000 (see players/sndh_player).
+        // Nothing happens until the user turns sound on — the request just waits.
+        zg.requestSong(MUSIC);
 
         // first plane — overscan (400×280); borders opened by the flicker trick
         var fb: *LogicalFB = &zigos.lfbs[0];
@@ -106,7 +118,7 @@ pub const Demo = struct {
         self.scroller_target = .{ .render_buffer = &render_buffer };   
 
         self.scrolltext = Scrolltext(NB_FONTS).init(self.scroller_target, fonts_b, SCROLL_CHARS, SCROLL_CHAR_WIDTH, SCROLL_CHAR_HEIGHT, SCROLL_TEXT, SCROLL_SPEED, 0, null, null, null);
-        self.scroller_y = 0.0;
+        self.sync = .{};
 
         // big buffer to the siz of the overscan
         var overscan_render_buffer: RenderBuffer = .{ .buffer = &off_buffer, .width = 400, .height = 280 };  
@@ -117,16 +129,16 @@ pub const Demo = struct {
         fb.setPaletteEntry(101, logo_pal[1]);
         fb.setPaletteEntry(102, logo_pal[2]);
         fb.setPaletteEntry(103, logo_pal[3]);
-        self.logo.init(self.overscan_target, logo_b, 253, 38, zg.PHYSICAL_WIDTH / 2 - 126, 20, null, null); // centre in the 400-wide overscan
-        self.bounce = 0;
-        self.bounce_att = 1;
+        self.logo.init(self.overscan_target, logo_b, 253, 38, zg.PHYSICAL_WIDTH / 2 - 126, LOGO_Y, null, null); // centre in the 400-wide overscan
 
-        // text
+        // credit panel — it writes itself into this plane one cell per frame and
+        // never redraws a settled letter, so the plane is cleared ONCE, here.
         fb = &zigos.lfbs[1];
         fb.is_enabled = true;
         fb.setPalette(text_font_pal);
-        fb.setPaletteEntry(0, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });    
-        self.text.init(fb.getRenderTarget(), text_fonts_b, TEXT_CHARS, 16, 14);
+        fb.setPaletteEntry(0, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
+        fb.clearFrameBuffer(0);
+        self.panel.init(credits.config(text_fonts_b));
 
         Console.log("demo init done!", .{});
 
@@ -134,36 +146,19 @@ pub const Demo = struct {
     }
 
     pub fn update(self: *Demo, zigos: *ZigOS, elapsed_time: f32) void {
+        _ = elapsed_time;
 
         self.scrolltext.update();
-        self.logo.update(null, null, null, null);
+        self.panel.update();
 
-        const f_sin: f32 = @abs(@sin(self.scroller_y)) * 88.0; 
-        start_raster_line = @as(u16, @intFromFloat(88.0 - f_sin));
-        // start_raster_line = 38;
-
-        self.scroller_y += 0.04;
-
-        // logo bounce
-        var offset_y: i32 = 0;
-        if(start_raster_line >= 86 and self.bounce == 0) self.bounce = 1;
-
-        if(self.bounce > 0) {
-            const fac: f32 = @as(f32, @floatFromInt(self.bounce));
-            const f_attsin: f32 = 5 * (@sin(fac)/self.bounce_att);
-            self.bounce += 1;
-            self.bounce_att += 0.2;
-            offset_y = @as(i32, @intFromFloat(f_attsin));
-
-            if(self.bounce_att > 10) {
-                self.bounce = 0;
-                self.bounce_att = 1;
-            }
-        }
-        self.logo.update(null, 20 + offset_y, null, null);
-
-        _ = zigos;
-        _ = elapsed_time;
+        // The scroller and the logo are driven by the TUNE, not by a sine: the
+        // intro is still, the scroller falls on cue and then bumps once per
+        // beat. zigos.song_ms is the playback position the host mirrors over
+        // from the audio worklet; it stays 0 until the viewer enables sound,
+        // which simply holds the intro. See dbug_sync.zig.
+        self.sync.update(zigos.song_ms);
+        start_raster_line = self.sync.y;
+        self.logo.update(null, LOGO_Y + self.sync.logo_dy, null, null);
     }
 
     pub fn render(self: *Demo, zigos: *ZigOS, elapsed_time: f32) void {
@@ -173,34 +168,13 @@ pub const Demo = struct {
 
         // draw the zoomed scrolltext on a overscan buffer
         self.overscan_target.clearFrameBuffer(0);
-        const start_line: u32 = start_raster_line * 400;
-
-        var char_row: u32  = 0;
-        while(char_row < SCROLL_CHAR_HEIGHT) : ( char_row += 1) {
-            
-            const buffer_offset: u32 = char_row * self.scroller_target.render_buffer.width;
-
-            var row: u32 = 0;
-            while(row < 8) : ( row += 1) {
-                const screen_offset: u32 = start_line + (row * 400) + (char_row * 8 * 400);
-
-                var col: u32 = 0;
-                while(col < 50) : ( col += 1){
-                    const pal_entry = self.scroller_target.render_buffer.buffer[buffer_offset + col];
-                    self.overscan_target.render_buffer.buffer[screen_offset + (8 * col) + 0] = pal_entry;
-                    self.overscan_target.render_buffer.buffer[screen_offset + (8 * col) + 1] = pal_entry;
-                    self.overscan_target.render_buffer.buffer[screen_offset + (8 * col) + 2] = pal_entry;
-                    self.overscan_target.render_buffer.buffer[screen_offset + (8 * col) + 3] = pal_entry;
-                    self.overscan_target.render_buffer.buffer[screen_offset + (8 * col) + 4] = pal_entry;
-                    self.overscan_target.render_buffer.buffer[screen_offset + (8 * col) + 5] = pal_entry;
-                    self.overscan_target.render_buffer.buffer[screen_offset + (8 * col) + 6] = pal_entry;
-                    self.overscan_target.render_buffer.buffer[screen_offset + (8 * col) + 7] = pal_entry;
-                }
-            }
-        }
+        draw.zoomScroller(self.overscan_target, self.scroller_target, start_raster_line, SCROLL_CHAR_HEIGHT);
         self.logo.render(100);
 
-        self.render_text(32);
+        // The credit panel paints only the cells that moved this frame, straight
+        // into its own plane — everything already standing stays put.
+        const text_fb = &zigos.lfbs[1];
+        self.panel.render(text_fb.fb[0 .. @as(u32, WIDTH) * HEIGHT], WIDTH, credits.X, credits.Y);
 
         // Blit the finished 400×280 overscan buffer into the plane (borders included;
         // renderPlaneOverscan shows the border rows only where the trick opened them).
@@ -210,48 +184,4 @@ pub const Demo = struct {
         _ = elapsed_time;
 
     }
-
-    fn render_text(self: *Demo, y_offset: u16) void {
-
-        self.text.render("********************",0, y_offset +  0 * 14, null);
-        self.text.render("*                  *",0, y_offset +  1 * 14, null);
-        self.text.render("*    CODE, FONT    *",0, y_offset +  2 * 14, null);
-        self.text.render("*   AND MUSIC BY   *",0, y_offset +  3 * 14, null);
-        self.text.render("*   ------------   *",0, y_offset +  4 * 14, null);
-        self.text.render("* !CUBE/AGGRESSION *",0, y_offset +  5 * 14, null);
-        self.text.render("*                  *",0, y_offset +  6 * 14, null);
-        self.text.render("*     LOGO BY      *",0, y_offset +  7 * 14, null);
-        self.text.render("*     -------      *",0, y_offset +  8 * 14, null);
-        self.text.render("*   RANDOM/DHFC    *",0, y_offset +  9 * 14, null);
-        self.text.render("*                  *",0, y_offset + 10 * 14, null);
-        self.text.render("********************",0, y_offset + 11 * 14, null);
-    }
 };
-
-
-        // const start_line: u16 = start_raster_line * WIDTH;
-
-        // var char_row: u16 = 0;
-        // while(char_row < SCROLL_CHAR_HEIGHT) : ( char_row += 1) {
-            
-        //     // 5 is the 40 left overscan pixels
-        //     const buffer_offset: u16 = 5 + (char_row * self.scroller_target.render_buffer.width);
-
-        //     var row:u16 = 0;
-        //     while(row < 8) : ( row += 1) {
-        //         const screen_offset: u16 = start_line + (row * WIDTH) + (char_row * 8 * WIDTH);
-
-        //         var col: u16 = 0;
-        //         while(col < 40) : ( col += 1){
-        //             const pal_entry = self.scroller_target.render_buffer.buffer[buffer_offset + col];
-        //             fb.fb[screen_offset + (8 * col) + 0] = pal_entry;
-        //             fb.fb[screen_offset + (8 * col) + 1] = pal_entry;
-        //             fb.fb[screen_offset + (8 * col) + 2] = pal_entry;
-        //             fb.fb[screen_offset + (8 * col) + 3] = pal_entry;
-        //             fb.fb[screen_offset + (8 * col) + 4] = pal_entry;
-        //             fb.fb[screen_offset + (8 * col) + 5] = pal_entry;
-        //             fb.fb[screen_offset + (8 * col) + 6] = pal_entry;
-        //             fb.fb[screen_offset + (8 * col) + 7] = pal_entry;
-        //         }
-        //     }
-        // }

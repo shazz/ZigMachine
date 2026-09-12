@@ -677,12 +677,22 @@ function startAudio() {
                 const msg = event.data;
                 if (msg.type === "ready") { console.log("Audio worklet ready"); resolve(); }
                 else if (msg.type === "error") console.error("Audio worklet error:", msg.message);
+                // An SNDH can fail in ways only its own 68000 knows about, so say so.
+                else if (msg.type === "sndhLoaded") {
+                    const hex = (v) => "$" + (v >>> 0).toString(16);
+                    console.log(msg.ok
+                        ? `SNDH playing (${msg.len} bytes staged)`
+                        : `SNDH REJECTED (${msg.len} bytes) stuckPc=${hex(msg.stuckPc)} trap=${hex(msg.trap)}`);
+                }
                 else if (msg.type === "audioState") {
                     if (demo && demo.getYmRegsPointer) {
                         new Uint8Array(memory.buffer, demo.getYmRegsPointer(), 16).set(msg.regs);
                     }
                     if (demo && demo.getAudioModePointer) {
                         new Uint8Array(memory.buffer, demo.getAudioModePointer(), 1)[0] = msg.mode;
+                    }
+                    if (demo && demo.getSongMsPointer) {
+                        new Uint32Array(memory.buffer, demo.getSongMsPointer(), 1)[0] = msg.songMs | 0;
                     }
                     if (demo && demo.getScopesPointer && msg.scopes) {
                         const len = msg.scopes[0].length;
@@ -692,6 +702,10 @@ function startAudio() {
                 }
             };
         });
+        // A processor that throws is DISABLED by the browser, and the exception
+        // never reaches the console: the only symptom is that the sound stops.
+        audioNode.onprocessorerror = (e) =>
+            console.error("Audio worklet processor died — sound has stopped:", e);
         audioNode.connect(audioCtx.destination);
         await audioCtx.resume();
         flushPendingStream(); // a scene may have requested streaming before audio was enabled
@@ -728,6 +742,13 @@ async function playYm(url) {
     audioNode.port.postMessage({ type: "loadYm", bytes: bytes }, [bytes]);
     const b = document.querySelector('.sound_button'); if (b) b.textContent = "Sound off";
 }
+async function playSndh(url, tune) {
+    await startAudio();
+    const bytes = await fetch(url).then(r => r.arrayBuffer());
+    audioNode.port.postMessage({ type: "loadSndh", bytes: bytes, tune: tune || 0 }, [bytes]);
+    const b = document.querySelector('.sound_button'); if (b) b.textContent = "Sound off";
+}
+
 // Stop a raw sample by (re)loading a tiny silent buffer onto the channel — the
 // sealed chip has no raw-stop, so this overwrites it with silence.
 function stopRaw() {
@@ -749,6 +770,7 @@ function playSongByName(name) {
     const url = "music/" + name;
     if (name.endsWith(".mod")) playMod(url);
     else if (name.endsWith(".ymraw")) playYm(url);
+    else if (name.endsWith(".sndh")) playSndh(url);
     else if (name.endsWith(".raw")) playRaw(url, 12517, false);
 }
 

@@ -51,12 +51,27 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
         .imports = &.{.{ .name = "hardware", .module = sdk_video }},
     });
+    // Runtime depackers (Pack-Ice &c). ST files arrive crunched, and opening one
+    // is the machine's job, not a build step's.
+    const depackers_mod = b.createModule(.{
+        .root_source_file = b.path("libs/zig/depackers/depackers.zig"),
+        .target = wasm_target,
+        .optimize = optimize,
+    });
     const players_mod = b.createModule(.{
         .root_source_file = b.path("libs/zig/players/players.zig"),
         .target = wasm_target,
         .optimize = optimize,
-        .imports = &.{.{ .name = "audio_hw", .module = sdk_audio }},
+        .imports = &.{
+            .{ .name = "audio_hw", .module = sdk_audio },
+            .{ .name = "depackers", .module = depackers_mod },
+        },
     });
+    // The SNDH player needs a 68000, because an SNDH IS 68000 code: Musashi runs
+    // it and libs/zig/players/sndh_player.zig traps its PSG writes to the sealed
+    // YM chip. Musashi's opcode table is machine-generated, so m68kmake is built
+    // for the HOST and run here rather than checking 800 KB of C into the repo.
+    addMusashi(b, players_mod);
     // rom/ — reference system software (GEM). Statically linked into the demo for
     // now; cut into its own rom.wasm later. Uses ZigOS helpers + the HW ABI.
     const rom_mod = b.createModule(.{
@@ -277,4 +292,42 @@ pub fn build(b: *std.Build) void {
     demo_audio.max_memory = audio_bytes;
     demo_audio.global_base = audio_demo_base;
     installTo(b, demo_audio, sealed_step);
+}
+
+// Musashi (kstenerud, MIT — see libs/c/musashi/README.md) compiled into a module
+// as the 68000 the SNDH player drives.
+//
+// Its opcode table is machine-generated, so m68kmake is built for the HOST and
+// run here rather than checking 800 KB of generated C into the repo. Include
+// order matters: config/ shadows upstream's m68kconf.h with our 68000-only
+// settings, freestanding/ supplies the few libc headers wasm32-freestanding
+// lacks, and the generated m68kops.h has to be findable as well.
+fn addMusashi(b: *std.Build, mod: *std.Build.Module) void {
+    const maker = b.addExecutable(.{
+        .name = "m68kmake",
+        .root_module = b.createModule(.{ .target = b.graph.host, .optimize = .ReleaseFast }),
+    });
+    maker.root_module.addCSourceFile(.{
+        .file = b.path("libs/c/musashi/upstream/m68kmake.c"),
+        .flags = &.{"-w"}, // 1998 C, and not ours to clean up
+    });
+    maker.root_module.link_libc = true;
+
+    const run = b.addRunArtifact(maker);
+    const generated = run.addOutputDirectoryArg("musashi");
+    run.addFileArg(b.path("libs/c/musashi/upstream/m68k_in.c"));
+
+    mod.addIncludePath(b.path("libs/c/musashi/config"));
+    mod.addIncludePath(b.path("libs/c/musashi/freestanding"));
+    mod.addIncludePath(b.path("libs/c/musashi/upstream"));
+    mod.addIncludePath(generated);
+
+    // Absolute: a relative -include lands in the compilation's dependency list
+    // as a path the cache cannot resolve, and every C step fails CacheCheckFailed.
+    const config_h = b.pathJoin(&.{ b.build_root.path.?, "libs/c/musashi/config/zm_musashi.h" });
+    const flags = [_][]const u8{ "-ffreestanding", "-fno-builtin", "-w", "-include", config_h };
+    mod.addCSourceFile(.{ .file = generated.path(b, "m68kops.c"), .flags = &flags });
+    mod.addCSourceFile(.{ .file = b.path("libs/c/musashi/upstream/m68kcpu.c"), .flags = &flags });
+    mod.addCSourceFile(.{ .file = b.path("libs/c/musashi/upstream/softfloat/softfloat.c"), .flags = &flags });
+    mod.addCSourceFile(.{ .file = b.path("libs/c/musashi/freestanding/stubs.c"), .flags = &flags });
 }

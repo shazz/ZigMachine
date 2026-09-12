@@ -25,6 +25,7 @@ pub const Boot = @import("effects/boot.zig").Boot;
 pub const parallax = @import("effects/parallax.zig"); // Parallax(n) + Layer
 pub const tilemap = @import("effects/tilemap.zig"); // TileSheet + Layer
 pub const scrolltext2 = @import("effects/scrolltext2.zig"); // stride-agnostic scrolltext
+pub const charpanel = @import("effects/charpanel.zig"); // self-writing character panel
 pub const convertU8ArraytoColors = @import("utils/loaders.zig").convertU8ArraytoColors;
 pub const readU16Array = @import("utils/loaders.zig").readU16Array;
 pub const readI16Array = @import("utils/loaders.zig").readI16Array;
@@ -476,6 +477,9 @@ pub const ZigOS = struct {
     // captures, both pushed in from JS for the music scene's oscilloscope.
     audio_mode: u8 = 0,
     scopes: [4][SCOPE_LEN]f32 = std.mem.zeroes([4][SCOPE_LEN]f32),
+    /// Milliseconds into the playing tune — the clock a screen syncs to when
+    /// its animation is written against the music rather than the frame count.
+    song_ms: u32 = 0,
 
     pub fn init(self: *ZigOS) void {
         g_base = @intCast(hw.hwVideoBase());
