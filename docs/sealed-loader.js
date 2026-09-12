@@ -219,6 +219,7 @@ async function boot() {
             diskReadBlock: (block, dst) => diskReadBlock(block, dst), // drive: 512 B block -> RAM
             hostAudioStreamStart: (rate) => hostAudioStreamStart(rate), // begin ring streaming
             hostAudioFeed: (ptr, len) => hostAudioFeed(ptr, len), // append samples to the ring
+            hostAudioStreamStop: () => hostAudioStreamStop(), // silence the ring
         },
     };
     // What to boot: ?disk=X.zmd boots a cart from a ZigMachine disk image (see
@@ -652,6 +653,14 @@ function flushPendingStream() {
         const bytes = chunk.slice().buffer;
         audioNode.port.postMessage({ type: "streamFeed", bytes }, [bytes]);
     }
+}
+// Silence the stream: the machine asked the speaker to stop, which the looping
+// ring will not do by itself.
+function hostAudioStreamStop() {
+    streamRate = null;
+    streamStarted = false;
+    recentChunks.length = 0; // nothing to pre-fill a restart with
+    if (audioNode) audioNode.port.postMessage({ type: "streamStop" });
 }
 function hostAudioFeed(ptr, len) {
     if (len <= 0) return;

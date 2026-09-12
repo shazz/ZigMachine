@@ -30,7 +30,11 @@ const FALLBACK_SECS: f32 = 1.0;
 const SILENCE: u8 = 0; // .raw samples are SIGNED 8-bit, so silence is zero
 // The sample lives in the machine's own RAM. The drive hands over blocks; the
 // program does the loading, the downsampling and the playback itself.
-const MAX_PCM: usize = 128 * 1024;
+// The machine has 2 MB of RAM and the cart owns that window, minus its 384 KB
+// stack and the rest of the ROM's statics — so the sampler takes a megabyte of
+// it. (The real ST Replay reports 1963200 bytes on a 2 MB machine; getting the
+// last of that would mean shrinking the stack or the desktop's statics.)
+const MAX_PCM: usize = 1024 * 1024;
 const FRAME_HZ: u32 = 60;
 
 const FILES = [_][]const u8{ "SAMPLE.RAW", "SMP1.RAW", "SMP2.RAW" };
@@ -209,10 +213,10 @@ pub const App = struct {
         self.pos = 0;
         zg.audioStreamStart(@floatFromInt(ui.RATES[self.rate])); // the speaker, nothing more
     }
-    // Silence is simply feeding nothing more; the ring drains on its own.
     fn stop(self: *App) void {
         self.playing = false;
         self.pos = 0;
+        zg.audioStreamStop();
     }
     fn wipe(self: *App) void {
         @memset(&self.sample, SILENCE);

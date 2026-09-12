@@ -147,6 +147,7 @@ pub fn songNameLen() usize {
 extern fn diskReadBlock(block: u32, dst_off: u32) i32; // copy one 512 B block -> dst; returns bytes read (0 = none)
 extern fn hostAudioStreamStart(rate: f32) void; // begin streaming raw playback (ring in song RAM)
 extern fn hostAudioFeed(ptr: u32, len: u32) void; // append signed-8-bit samples to the ring
+extern fn hostAudioStreamStop() void; // silence the ring (it loops until told otherwise)
 
 pub const DISK_BLOCK: usize = 512;
 
@@ -163,6 +164,11 @@ pub fn audioStreamStart(rate: f32) void {
 }
 pub fn audioFeed(bytes: []const u8) void {
     hostAudioFeed(@intCast(@intFromPtr(bytes.ptr)), @intCast(bytes.len));
+}
+// Stop streaming. The ring is a looping channel: it replays its contents until
+// the machine says stop, so this is not optional at the end of a sample.
+pub fn audioStreamStop() void {
+    hostAudioStreamStop();
 }
 
 // --------------------------------------------------------------------------

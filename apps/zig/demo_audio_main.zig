@@ -110,6 +110,19 @@ export fn audioPlayRaw(len: u32, rate: f32, is_unsigned: bool) void {
     current_mode = 3;
 }
 
+// Silence the stream. The ring is a LOOPING Paula channel, so it keeps replaying
+// whatever it holds until the channel is switched off — draining is not something
+// it does on its own.
+export fn audioStreamStop() void {
+    audio.machinePaulaSetActive(0, 0);
+    audio.machinePaulaSetVolume(0, 0.0);
+    const buf: [*]u8 = @ptrFromInt(audio.SONG_BASE);
+    var i: usize = 0;
+    while (i < STREAM_RING) : (i += 1) buf[i] = 0;
+    audio.machinePaulaClearScopes();
+    current_mode = 0;
+}
+
 // --- streaming raw sample (Amiga-style refill-ahead ring) ---
 // A Paula channel loops forever over a fixed ring at the start of song RAM; the
 // host keeps writing fresh signed-8-bit samples ahead of the read cursor, paced
@@ -131,3 +144,4 @@ export fn audioStreamStart(rate: f32) void {
     audio.machinePaulaSetVolume(0, 0.9);
     current_mode = 3;
 }
+

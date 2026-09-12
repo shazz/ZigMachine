@@ -89,6 +89,9 @@ class ZigAudioSealedProcessor extends AudioWorkletProcessor {
             } else if (msg.type === "streamStart") {
                 d.audioStreamStart(msg.rate);
                 this.ringWrite = 0;
+            } else if (msg.type === "streamStop") {
+                d.audioStreamStop();
+                this.ringWrite = 0;
             } else if (msg.type === "streamFeed") {
                 // Append signed-8-bit bytes into the ring at SONG_BASE, wrapping at
                 // RING (must match STREAM_RING in demo_audio_main.zig).
