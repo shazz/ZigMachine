@@ -169,6 +169,50 @@ export fn guiOpenPlane(plane: u32, screen_w: i32, screen_h: i32) u32 {
     return 0;
 }
 
+// --------------------------------------------------------------------------
+// WIDGETS. Until now the ABI exposed only drawing primitives, so an app could
+// draw but not USE the toolkit — and ST Replay reimplemented a panel box, text
+// centring and hit-testing that already existed in here, six and five times over
+// respectively. These are the ROM's own widgets, not new ones.
+// --------------------------------------------------------------------------
+
+/// A GEM panel: white face inside `inset` nested black frames. The ROM draws
+/// this in six places at two different insets (dialog 3, filesel 1, info, prefs,
+/// about) and ST Replay drew a seventh.
+export fn guiBox(h: u32, x: i32, y: i32, w: i32, hh: i32, inset: u32) void {
+    const g = guiAt(h) orelse return;
+    const r = rectOf(x, y, w, hh);
+    g.rect(r, gui.WHITE);
+    var i: i16 = 0;
+    const n: i16 = @intCast(@min(inset, 8));
+    while (i < n) : (i += 1)
+        g.frame(.{ .x = r.x + i, .y = r.y + i, .w = r.w - 2 * i, .h = r.h - 2 * i }, gui.BLACK);
+}
+
+/// A GEM button: inverse video while pressed or `active`, `border` nested frames
+/// (GEM uses 1 for multi-choice, 2 for an exit button, 3 for the default). Returns
+/// 1 on the frame the press STARTS — the caller does not need its own edge/hit
+/// bookkeeping, which is the part an app cannot reimplement correctly by eye.
+export fn guiButton(h: u32, x: i32, y: i32, w: i32, hh: i32, ptr: u32, len: u32, active: u32, border: u32) u32 {
+    const g = guiAt(h) orelse return 0;
+    const b = g.buttonThick(rectOf(x, y, w, hh), slice(ptr, len), active != 0, @intCast(@min(border, 8)));
+    return if (b) 1 else 0;
+}
+
+/// Text aligned in a box of width `w`: 0 = left, 1 = centre, 2 = right. The
+/// "x + (w - len*CELL)/2" expression appears five times inside the ROM alone.
+export fn guiTextAlign(h: u32, x: i32, y: i32, w: i32, ptr: u32, len: u32, mode: u32, ink: u32, paper: u32) void {
+    const g = guiAt(h) orelse return;
+    const str = slice(ptr, len);
+    const tw: i32 = @as(i32, @intCast(str.len)) * gui.CELL;
+    const tx: i32 = switch (mode) {
+        1 => x + @divTrunc(w - tw, 2),
+        2 => x + w - tw,
+        else => x,
+    };
+    g.text(str, @intCast(tx), @intCast(y), @intCast(ink), @intCast(paper));
+}
+
 /// Install GEM's palette into a PLANE — the companion to guiOpenPlane, and for
 /// the same reason: romInstallPalette wants a *LogicalFB, which a non-Zig app
 /// cannot produce. Without this a C app's GEM widgets come out in whatever colours

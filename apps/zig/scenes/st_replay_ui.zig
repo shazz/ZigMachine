@@ -36,9 +36,12 @@ const MID_EQ: i16 = 256;
 const RIGHT_EQ: i16 = 440;
 
 // App-local palette entries (GEM owns 0..7, the spectrum ramp starts at 16).
-pub const GREEN: u8 = 8;
-pub const GREEN_DK: u8 = 9;
-pub const RED: u8 = 10;
+// The app's own colours start where GEM's reserved block ends. These were 8, 9
+// and 10 by folklore — the reservation existed only as a comment in the ROM, so
+// an app either clashed with GEM or guessed. rom.APP_PAL0 is the contract now.
+pub const GREEN: u8 = rom.APP_PAL0 + 0;
+pub const GREEN_DK: u8 = rom.APP_PAL0 + 1;
+pub const RED: u8 = rom.APP_PAL0 + 2;
 
 pub fn installPalette(fb: *@import("zigos").LogicalFB) void {
     fb.setPaletteEntry(GREEN, .{ .r = 134, .g = 249, .b = 134, .a = 255 });
@@ -123,11 +126,10 @@ pub fn desktop(g: rom.Gui) void {
     }
 }
 
-// A white box with the 2px black border every panel on this screen has.
+// A white box with the 2px black border every panel on this screen has — the
+// ROM's own widget now (g.box), not a seventh copy of it.
 pub fn panel(g: rom.Gui, r: Rect) void {
-    g.rect(r, rom.WHITE);
-    g.frame(r, rom.BLACK);
-    g.frame(.{ .x = r.x + 1, .y = r.y + 1, .w = r.w - 2, .h = r.h - 2 }, rom.BLACK);
+    g.box(r, 2);
 }
 
 // One binding row: key right-aligned onto the '=' column, description after it.
@@ -147,13 +149,15 @@ pub fn binding(g: rom.Gui, b: Binding, eq: i16, y: i16, sel: bool) void {
     g.text(b.what, eq + 16, y, ink, paper);
 }
 
-pub fn centred(g: rom.Gui, s: []const u8, cx: i16, y: i16) void {
-    g.text(s, cx - @as(i16, @intCast(s.len)) * 4, y, rom.BLACK, rom.WHITE);
+// Centred / right-aligned within a box, via the ROM. These used to hardcode the
+// glyph width as *4 and *8; the ROM knows it as rom.CELL and does the arithmetic
+// in one place instead of in every app that wants a centred label.
+pub fn centredIn(g: rom.Gui, s: []const u8, r: Rect, y: i16) void {
+    g.textAlign(s, r.x, y, r.w, .center, rom.BLACK, rom.WHITE);
 }
 
-// Right edge at rx, so a number that grows leftwards stays inside the panel.
-pub fn rightAligned(g: rom.Gui, s: []const u8, rx: i16, y: i16) void {
-    g.text(s, rx - @as(i16, @intCast(s.len)) * 8, y, rom.BLACK, rom.WHITE);
+pub fn rightIn(g: rom.Gui, s: []const u8, r: Rect, y: i16) void {
+    g.textAlign(s, r.x, y, r.w, .right, rom.BLACK, rom.WHITE);
 }
 
 pub const COL_EQ = [3]i16{ LEFT_EQ, MID_EQ, RIGHT_EQ };

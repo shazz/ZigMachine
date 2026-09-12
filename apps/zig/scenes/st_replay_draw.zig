@@ -31,14 +31,13 @@ pub fn screen(g: rom.Gui, v: View) void {
 
 fn panelBox(g: rom.Gui, v: View) void {
     ui.panel(g, ui.PANEL);
-    const cx = ui.PANEL.x + @divTrunc(ui.PANEL.w, 2);
-    ui.centred(g, "ST Replay / Editor - ZigMachine", cx, ui.TITLE_ROW);
+    ui.centredIn(g, "ST Replay / Editor - ZigMachine", ui.PANEL, ui.TITLE_ROW);
     // The original reports the machine's free memory on the title line. Ours is
     // the real number the hardware hands back, not a constant: a cart's window is
     // shared with the ROM's statics, so it differs per build.
     var mem: [24]u8 = undefined;
     const free = std.fmt.bufPrint(&mem, "{d} BYTES FREE", .{v.free}) catch "";
-    ui.rightAligned(g, free, ui.PANEL.x + ui.PANEL.w - 6, ui.TITLE_ROW);
+    ui.rightIn(g, free, .{ .x = ui.PANEL.x, .y = ui.PANEL.y, .w = ui.PANEL.w - 6, .h = ui.PANEL.h }, ui.TITLE_ROW);
 
     var row: usize = 0;
     while (row < ui.ROWS) : (row += 1) {
@@ -46,7 +45,7 @@ fn panelBox(g: rom.Gui, v: View) void {
         ui.binding(g, ui.LEFT[row], ui.COL_EQ[0], y, row == v.rate);
         ui.binding(g, rightRow(v, row), ui.COL_EQ[2], y, false);
     }
-    ui.centred(g, ui.MID_HEADING, ui.COL_EQ[1] + 24, ui.rowY(0));
+    ui.centredIn(g, ui.MID_HEADING, .{ .x = ui.COL_EQ[1] + 24 - 100, .y = 0, .w = 200, .h = 0 }, ui.rowY(0));
     for (ui.MID, 0..) |b, i| ui.binding(g, b, ui.COL_EQ[1], ui.rowY(ui.MID_ROW0 + i), false);
 }
 

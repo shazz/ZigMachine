@@ -25,8 +25,29 @@ const zg = @import("zigos");
 // would drag the whole toolkit back into every app. These must match
 // rom/gem/gui/types.zig — they are part of the ABI, like a register offset.
 pub const Rect = struct { x: i16, y: i16, w: i16, h: i16 };
+// GEM's reserved palette. These are ABI, like a register offset — GEM draws in
+// INDICES, so an app that does not know which ones GEM owns either clashes with
+// it or guesses (ST Replay took 8, 9 and 10 on folklore). Must match
+// rom/gem/gui/types.zig.
 pub const BLACK: u8 = 0;
 pub const WHITE: u8 = 1;
+pub const LGRAY: u8 = 2;
+pub const MGRAY: u8 = 3;
+pub const DGRAY: u8 = 4;
+pub const DESK: u8 = 5;
+pub const ACCENT: u8 = 6;
+pub const WAVE: u8 = 7;
+/// The first index GEM does NOT reserve below its rainbow ramp — an app's own
+/// colours go here.
+pub const APP_PAL0: u8 = 8;
+/// GEM's spectrum ramp (the Desktop Info logo cycles it).
+pub const RAINBOW0: u8 = 16;
+pub const RAINBOW_N: u8 = 32;
+/// One character cell — the GEM layout unit. Layout in cells, not pixels.
+pub const CELL: i16 = 8;
+
+/// Text alignment for textAlign().
+pub const Align = enum(u32) { left = 0, center = 1, right = 2 };
 
 /// What a modal returned this frame.
 pub const Result = enum(u32) { none = 0, ok = 1, cancel = 2 };
@@ -56,6 +77,9 @@ pub extern fn guiFrame(h: u32, x: i32, y: i32, w: i32, hh: i32, color: u32) void
 pub extern fn guiPlot(h: u32, x: i32, y: i32, color: u32) void;
 pub extern fn guiText(h: u32, ptr: u32, len: u32, x: i32, y: i32, ink: u32, paper: u32) void;
 pub extern fn guiFill(h: u32, x: i32, y: i32, w: i32, hh: i32, color: u32) void;
+pub extern fn guiBox(h: u32, x: i32, y: i32, w: i32, hh: i32, inset: u32) void;
+pub extern fn guiButton(h: u32, x: i32, y: i32, w: i32, hh: i32, ptr: u32, len: u32, active: u32, border: u32) u32;
+pub extern fn guiTextAlign(h: u32, x: i32, y: i32, w: i32, ptr: u32, len: u32, mode: u32, ink: u32, paper: u32) void;
 
 pub extern fn dialogOpen() u32;
 pub extern fn dialogClose(h: u32) void;
@@ -192,6 +216,23 @@ pub const Gui = struct {
     pub fn text(self: Gui, s: []const u8, x: i16, y: i16, ink: u8, paper: u8) void {
         guiText(self.h, @intCast(@intFromPtr(s.ptr)), @intCast(s.len), x, y, ink, paper);
     }
+    /// A GEM panel: white face inside `inset` nested black frames.
+    pub fn box(self: Gui, r: Rect, inset: u32) void {
+        guiBox(self.h, r.x, r.y, r.w, r.h, inset);
+    }
+    /// A GEM button. Returns true on the frame the press STARTS, so the caller
+    /// needs no edge/hit bookkeeping of its own.
+    pub fn button(self: Gui, r: Rect, label: []const u8, active: bool, border: u32) bool {
+        return guiButton(self.h, r.x, r.y, r.w, r.h,
+            @intCast(@intFromPtr(label.ptr)), @intCast(label.len),
+            @intFromBool(active), border) != 0;
+    }
+    /// Text aligned within a box of width `w`.
+    pub fn textAlign(self: Gui, s: []const u8, x: i16, y: i16, w: i16, mode: Align, ink: u8, paper: u8) void {
+        guiTextAlign(self.h, x, y, w, @intCast(@intFromPtr(s.ptr)), @intCast(s.len),
+            @intFromEnum(mode), ink, paper);
+    }
+
     /// A raw span — see guiFill. Use `rect` for anything with a Rect already.
     pub fn fill(self: Gui, x: i16, y: i16, w: i16, h: i16, color: u8) void {
         guiFill(self.h, x, y, w, h, color);
