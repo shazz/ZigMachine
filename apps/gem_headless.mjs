@@ -13,7 +13,7 @@
 // Coordinates are PHYSICAL-VISIBLE (0..639 x, 0..199 y), the same frame the loader
 // sends; GEM halves x itself for its 320-wide low-res logical screen.
 import { readFile, writeFile } from "node:fs/promises";
-import { cartRam } from "../docs/wasm_hiwater.js";
+import { cartRam, romRam } from "../docs/wasm_hiwater.js";
 
 const PAGES = 112; // must match SHARED_PAGES in machine/sdk/memmap.zig
 const DBLCLICK = 2; // pointer buttons bit 1 = the loader's synthesised double-click
@@ -28,6 +28,14 @@ export async function bootGem() {
     const machine = (await WebAssembly.instantiate(
         await readFile("docs/machine-video.wasm"), machineImports)).instance.exports;
 
+    // The ROM chip, wired exactly as sealed-loader.js does it: machine -> rom ->
+    // cart, each importing only from the ones before it.
+    const romBytes = await readFile("docs/rom.wasm");
+    const rom = (await WebAssembly.instantiate(romBytes, {
+        env: { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit },
+    })).instance.exports;
+    machine.hwSetRomHigh(romRam(romBytes).high ?? 0);
+
     const noop = () => {};
     const demoImports = {
         env: {
@@ -39,6 +47,10 @@ export async function bootGem() {
             hwRamBase: machine.hwRamBase, hwRamTop: machine.hwRamTop,
             hwRamSize: machine.hwRamSize, hwRamUsed: machine.hwRamUsed,
             hwRamFree: machine.hwRamFree,
+            hwRomRamBase: machine.hwRomRamBase, hwRomRamTop: machine.hwRomRamTop,
+            hwRomRamSize: machine.hwRomRamSize, hwRomRamUsed: machine.hwRomRamUsed,
+            hwRomRamFree: machine.hwRomRamFree,
+            ...rom, // the ROM chip's flat ABI
             // GEM touches none of these headlessly, but the import list must match.
             audioPlay: noop, audioStop: noop, loadSample: noop, beep: noop,
             diskReadBlock: noop, hostAudioStreamStart: noop, hostAudioFeed: noop,

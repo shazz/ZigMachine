@@ -31,6 +31,7 @@ const text_decoder = new TextDecoder();
 let console_log_buffer = "";
 
 let machine = null;   // machine-video.wasm exports
+let rom = null;       // rom.wasm exports — the ROM chip's flat app-facing ABI
 let demo = null;      // demo.wasm exports
 let demoImports = null; // env wired to machine + host — reused on cart swap
 let swapping = false; // a cartridge swap (disk boot) is in flight
@@ -278,6 +279,25 @@ async function boot() {
     machine = machineMod.instance.exports;
     console.log("Sealed machine-video.wasm loaded, HW version 0x" + machine.hwVersion().toString(16));
 
+    // The ROM CHIP (Phase 2). Its own module in its own RAM window, linked against
+    // the machine exactly like a cart — it imports nothing but memory and two hw*
+    // calls. An app's env is wired to its exports below, so an app links none of
+    // GEM at all. Instantiation order is machine -> rom -> app, because each one
+    // only ever imports from the ones before it.
+    const romBytes = await fetch("rom.wasm" + BUST).then((r) => r.arrayBuffer());
+    const romMod = await WebAssembly.instantiate(romBytes, {
+        env: { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit },
+    });
+    rom = romMod.instance.exports;
+    // Same declaration the cart gets, for the ROM's own window (REG_ROM_HIGH), so
+    // hwRomRamFree() reports the truth instead of "no chip fitted".
+    if (globalThis.ZMRam && machine.hwSetRomHigh) {
+        const r = globalThis.ZMRam.romRam(romBytes);
+        machine.hwSetRomHigh(r.known ? r.high : 0);
+        console.log(`rom.wasm loaded — ROM RAM ${(r.used / 1024) | 0} KB used, ` +
+                    `${(r.free / 1024) | 0} KB free of 2048 KB`);
+    }
+
     // The demo imports the machine's hwVideoBase (to discover the region) + console.
     demoImports = {
         env: tolerantEnv({
@@ -302,6 +322,11 @@ async function boot() {
             hwRomRamSize: machine.hwRomRamSize,
             hwRomRamUsed: machine.hwRomRamUsed,
             hwRomRamFree: machine.hwRomRamFree,
+            // The ROM chip's flat ABI (rom/sdk/rom.zig). Spread, not listed: the
+            // ROM's exports ARE the surface, so a new entry point needs no host
+            // change — and the host cannot silently omit one and leave an app
+            // linking against a name that resolves to nothing.
+            ...rom,
             beep: () => beep(), // boot-sector YM2149 tone (see novirus.zig)
             diskReadBlock: (block, dst) => diskReadBlock(block, dst), // drive: 512 B block -> RAM
             hostAudioStreamStart: (rate) => hostAudioStreamStart(rate), // begin ring streaming

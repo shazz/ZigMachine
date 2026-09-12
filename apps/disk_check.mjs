@@ -11,7 +11,7 @@
 //
 // Usage: node apps/disk_check.mjs [disk.zmd ...]   (default: docs/*.zmd)
 import { readFile, readdir } from "node:fs/promises";
-import { cartRam, CART_RAM_TOP } from "../docs/wasm_hiwater.js";
+import { cartRam, romRam, CART_RAM_TOP } from "../docs/wasm_hiwater.js";
 
 const PAGES = 112; // memmap.SHARED_PAGES
 const dec = new TextDecoder();
@@ -50,9 +50,10 @@ function mount(buf) {
 
 // The host's env, exactly as sealed-loader.js builds it (retired names included —
 // they are an ABI and stay as no-op stubs, never deletions).
-async function hostEnv(memory, machine, demoRef) {
+async function hostEnv(memory, machine, rom) {
     const noop = () => {};
     return {
+        ...rom, // the ROM chip's flat ABI — a cart links none of GEM itself
         memory,
         jsConsoleLogWrite: noop, jsConsoleLogFlush: noop, jsThrowError: noop,
         consoleLogJS: noop,
@@ -60,6 +61,9 @@ async function hostEnv(memory, machine, demoRef) {
         hwRamBase: machine.hwRamBase, hwRamTop: machine.hwRamTop,
         hwRamSize: machine.hwRamSize, hwRamUsed: machine.hwRamUsed,
         hwRamFree: machine.hwRamFree,
+        hwRomRamBase: machine.hwRomRamBase, hwRomRamTop: machine.hwRomRamTop,
+        hwRomRamSize: machine.hwRomRamSize, hwRomRamUsed: machine.hwRomRamUsed,
+        hwRomRamFree: machine.hwRomRamFree,
         beep: noop, diskReadBlock: noop,
         hostAudioStreamStart: noop, hostAudioFeed: noop, hostAudioStreamStop: noop,
         audioPlay: noop, audioStop: noop, loadSample: noop,   // RETIRED, kept as stubs
@@ -74,7 +78,12 @@ const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
 let demo = null;
 const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"),
     { env: { memory, hblDispatch: (id, p, l, x) => demo && demo.hblDispatch(id, p, l, x) } })).instance.exports;
-const env = await hostEnv(memory, machine);
+const romBytes = await readFile("docs/rom.wasm");
+const rom = (await WebAssembly.instantiate(romBytes, {
+    env: { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit },
+})).instance.exports;
+machine.hwSetRomHigh(romRam(romBytes).high ?? 0);
+const env = await hostEnv(memory, machine, rom);
 const gem = await readFile("docs/demo-gem.wasm");
 
 let bad = 0;

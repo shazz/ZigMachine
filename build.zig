@@ -8,6 +8,9 @@ const video_shared_bytes = 112 * page_size; // 7 MiB (2 MiB demo window + VRAM +
 const demo_global_base: u64 = 0x100000; // 1 MiB
 const machine_stack = 1 * page_size;
 const demo_stack = 6 * page_size;
+// The ROM chip's own window (memmap ROM_RAM_BASE/TOP): 2 MiB at 5 MiB.
+const rom_global_base: u64 = 0x500000;
+const rom_stack = 4 * page_size;
 
 // Audio shared worklet-thread memory (see machine/sdk/audio.zig).
 const audio_bytes = 48 * page_size;
@@ -75,14 +78,39 @@ pub fn build(b: *std.Build) void {
         .root_source_file = b.path("rom/sdk/rom.zig"),
         .target = wasm_target,
         .optimize = optimize,
+        // NO `rom` import: this is a pure header of `extern` declarations now, and
+        // an app that linked the ROM's internals would defeat the whole split.
         .imports = &.{
             .{ .name = "zigos", .module = zigos_mod },
             .{ .name = "hardware", .module = sdk_video },
-            // Reaches GEM through the NAMED module, never a relative path: a file
-            // may belong to only one module, and rom/gem/* belong to `rom`.
-            .{ .name = "rom", .module = rom_mod },
         },
     });
+
+    // rom.wasm — the ROM CHIP. Its own module, its own RAM window above the video
+    // region, linked against the sealed HW ABI exactly like a cart. It exports the
+    // flat ABI declared in rom/sdk/rom.zig; the host wires an app's env to it.
+    const rom_chip = b.addExecutable(.{
+        .name = "rom",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("rom/rom_main.zig"),
+            .target = wasm_target,
+            .optimize = optimize,
+            .imports = &.{
+                .{ .name = "zigos", .module = zigos_mod },
+                .{ .name = "rom", .module = rom_mod },
+                .{ .name = "hardware", .module = sdk_video },
+            },
+        }),
+    });
+    rom_chip.entry = .disabled;
+    rom_chip.rdynamic = true;
+    rom_chip.import_memory = true;
+    rom_chip.stack_size = rom_stack;
+    rom_chip.initial_memory = video_shared_bytes;
+    rom_chip.max_memory = video_shared_bytes;
+    rom_chip.global_base = rom_global_base;
+    b.getInstallStep().dependOn(&b.addInstallFileWithDir(
+        rom_chip.getEmittedBin(), .{ .custom = "../docs" }, "rom.wasm").step);
 
     const boot_rom_mod = b.createModule(.{
         .root_source_file = b.path("machine/boot.zig"),

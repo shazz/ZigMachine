@@ -1,0 +1,232 @@
+// --------------------------------------------------------------------------
+// rom.wasm — the ROM chip's entry point (Phase 2, step 2.2).
+//
+// GEM now lives in its own wasm module with its own RAM window
+// ([ROM_RAM_BASE, ROM_RAM_TOP) — see machine/sdk/memmap.zig), linked against the
+// sealed HW ABI exactly like a cart is. It exports the flat, app-facing ABI whose
+// header is rom/sdk/rom.zig; the host wires an app's `env` to these exports.
+//
+// This is where the toolkit's STATE lives: the handle tables below are the ROM's
+// statics, so they sit in the ROM's window and an app stops paying for them. An
+// app holds a u32 and nothing else.
+//
+// Step 2.1 proved the ABI in-process before this file existed. If you are
+// changing an entry point, change rom/sdk/rom.zig's `extern` declaration in the
+// same commit — they are two halves of one wire and nothing checks them against
+// each other but the linker.
+// --------------------------------------------------------------------------
+const std = @import("std");
+const zg = @import("zigos");
+const gem = @import("rom").gem;
+const gui = @import("rom").gui;
+
+const Rect = gui.Rect;
+
+pub const Result = enum(u32) { none = 0, ok = 1, cancel = 2 };
+
+// --------------------------------------------------------------------------
+// ROM-side state. These are rom.wasm's statics, so they live in the ROM's RAM
+// window and an app pays nothing for the toolkit's state — the point of the
+// whole exercise.
+//
+// Handles are index+1 so that 0 is always invalid: a zeroed or garbage handle
+// fails closed instead of aliasing slot 0. Every entry point below tolerates a
+// bad handle by doing nothing, because a module boundary is exactly where a
+// caller's bug must not become the ROM's crash.
+// --------------------------------------------------------------------------
+// Deliberately TINY. An app is re-init'd every time it is launched, so a handle
+// leaked on re-init exhausts the table within a couple of launches and every call
+// starts silently doing nothing — which is precisely the bug this caught during
+// step 2.1 (ST Replay re-opened its Dialog and FileSel on every launch without
+// closing them). Small tables make that failure arrive in seconds instead of
+// hiding until someone opens their fifth window. Raise them for a REAL need, and
+// only after checking the caller closes what it opens.
+const MAX_GUI = 2; // one app + one desktop
+const MAX_DIALOG = 2;
+const MAX_FSEL = 2;
+
+var guis: [MAX_GUI]gui.Gui = undefined;
+var gui_used: [MAX_GUI]bool = [_]bool{false} ** MAX_GUI;
+var blits: [MAX_GUI]zg.Blitter = undefined; // the ROM's OWN blitter, one per context
+var dialogs: [MAX_DIALOG]gui.Dialog = undefined;
+var dialog_used: [MAX_DIALOG]bool = [_]bool{false} ** MAX_DIALOG;
+var fsels: [MAX_FSEL]gem.FileSel = undefined;
+var fsel_used: [MAX_FSEL]bool = [_]bool{false} ** MAX_FSEL;
+
+fn guiAt(h: u32) ?*gui.Gui {
+    if (h == 0 or h > MAX_GUI or !gui_used[h - 1]) return null;
+    return &guis[h - 1];
+}
+fn dialogAt(h: u32) ?*gui.Dialog {
+    if (h == 0 or h > MAX_DIALOG or !dialog_used[h - 1]) return null;
+    return &dialogs[h - 1];
+}
+fn fselAt(h: u32) ?*gem.FileSel {
+    if (h == 0 or h > MAX_FSEL or !fsel_used[h - 1]) return null;
+    return &fsels[h - 1];
+}
+// A slice from a caller's (ptr, len). Only ever read, never retained: the caller
+// owns that memory and it is the app's window, not ours.
+fn slice(ptr: u32, len: u32) []const u8 {
+    if (ptr == 0 or len == 0) return &.{};
+    const p: [*]const u8 = @ptrFromInt(ptr);
+    return p[0..len];
+}
+
+// --------------------------------------------------------------------------
+// Entry points. Signatures are the ABI: only u32/i32 cross.
+// --------------------------------------------------------------------------
+
+/// Open a drawing context over a framebuffer. `os_ptr`/`fb_ptr` are addresses in
+/// the ONE shared linear memory — which is why they can be passed at all. The
+/// ROM's code is a different binary from the app's, but the MEMORY is common, so
+/// the ROM's own ZigOS reads the app's ZigOS/framebuffer structs directly, no
+/// copy and no serialisation. Same compiler, same source, same layout.
+/// Returns 0 if no context is free. Note there is no blitter argument: the ROM
+/// brings its own, so an app no longer has to own one for the toolkit's benefit.
+export fn guiOpen(os_ptr: u32, fb_ptr: u32, screen_w: i32, screen_h: i32) u32 {
+    for (&gui_used, 0..) |*used, i| {
+        if (used.*) continue;
+        blits[i] = .{};
+        blits[i].init();
+        guis[i] = .{
+            .os = @ptrFromInt(os_ptr),
+            .fb = @ptrFromInt(fb_ptr),
+            .blit = &blits[i],
+            .screen_w = @intCast(screen_w),
+            .screen_h = @intCast(screen_h),
+        };
+        used.* = true;
+        return @intCast(i + 1);
+    }
+    return 0;
+}
+export fn guiClose(h: u32) void {
+    if (h != 0 and h <= MAX_GUI) gui_used[h - 1] = false;
+}
+export fn guiResize(h: u32, screen_w: i32, screen_h: i32) void {
+    const g = guiAt(h) orelse return;
+    g.screen_w = @intCast(screen_w);
+    g.screen_h = @intCast(screen_h);
+}
+export fn guiSetPointer(h: u32, x: i32, y: i32, buttons: u32) void {
+    (guiAt(h) orelse return).setPointer(x, y, buttons);
+}
+export fn guiBeginFrame(h: u32) void {
+    (guiAt(h) orelse return).beginFrame();
+}
+export fn guiEndFrame(h: u32) void {
+    (guiAt(h) orelse return).endFrame();
+}
+/// Did a press START this frame? (`Gui.edge` — a field an app used to read.)
+export fn guiEdge(h: u32) u32 {
+    return if ((guiAt(h) orelse return 0).edge) 1 else 0;
+}
+export fn guiHit(h: u32, x: i32, y: i32, w: i32, hh: i32) u32 {
+    const g = guiAt(h) orelse return 0;
+    return if (g.hit(rectOf(x, y, w, hh))) 1 else 0;
+}
+export fn guiRect(h: u32, x: i32, y: i32, w: i32, hh: i32, color: u32) void {
+    (guiAt(h) orelse return).rect(rectOf(x, y, w, hh), @intCast(color));
+}
+export fn guiFrame(h: u32, x: i32, y: i32, w: i32, hh: i32, color: u32) void {
+    (guiAt(h) orelse return).frame(rectOf(x, y, w, hh), @intCast(color));
+}
+export fn guiPlot(h: u32, x: i32, y: i32, color: u32) void {
+    (guiAt(h) orelse return).plot(@intCast(x), @intCast(y), @intCast(color));
+}
+export fn guiText(h: u32, ptr: u32, len: u32, x: i32, y: i32, ink: u32, paper: u32) void {
+    const g = guiAt(h) orelse return;
+    g.text(slice(ptr, len), @intCast(x), @intCast(y), @intCast(ink), @intCast(paper));
+}
+/// A raw filled span. This exists because app code used to reach THROUGH the
+/// context — `g.blit.fill(g.fb, ...)` — for spans the toolkit had no verb for
+/// (ST Replay's waveform). Across a module boundary that is impossible, so the
+/// verb is here instead. It is `guiRect` without the Rect, kept separate so the
+/// intent (a raw span, not a widget) stays legible at the call site.
+export fn guiFill(h: u32, x: i32, y: i32, w: i32, hh: i32, color: u32) void {
+    const g = guiAt(h) orelse return;
+    g.blit.fill(g.fb, @intCast(x), @intCast(y), @intCast(w), @intCast(hh), @intCast(color));
+}
+/// Install the ROM's shared palette into a framebuffer (address, as above).
+export fn romInstallPalette(fb_ptr: u32) void {
+    gui.installPalette(@ptrFromInt(fb_ptr));
+}
+
+export fn dialogOpen() u32 {
+    for (&dialog_used, 0..) |*used, i| {
+        if (used.*) continue;
+        dialogs[i] = .{};
+        used.* = true;
+        return @intCast(i + 1);
+    }
+    return 0;
+}
+export fn dialogClose(h: u32) void {
+    if (h != 0 and h <= MAX_DIALOG) dialog_used[h - 1] = false;
+}
+export fn dialogAlert(h: u32, title: u32, title_len: u32, msg: u32, msg_len: u32) void {
+    (dialogAt(h) orelse return).alert(slice(title, title_len), slice(msg, msg_len));
+}
+export fn dialogActive(h: u32) u32 {
+    return if ((dialogAt(h) orelse return 0).active) 1 else 0;
+}
+export fn dialogProcess(h: u32, gui_h: u32) u32 {
+    const d = dialogAt(h) orelse return @intFromEnum(Result.none);
+    const g = guiAt(gui_h) orelse return @intFromEnum(Result.none);
+    return switch (d.process(g)) {
+        .ok => @intFromEnum(Result.ok),
+        .cancel => @intFromEnum(Result.cancel),
+        else => @intFromEnum(Result.none),
+    };
+}
+
+export fn fileSelOpen() u32 {
+    for (&fsel_used, 0..) |*used, i| {
+        if (used.*) continue;
+        fsels[i] = .{};
+        used.* = true;
+        return @intCast(i + 1);
+    }
+    return 0;
+}
+export fn fileSelClose(h: u32) void {
+    if (h != 0 and h <= MAX_FSEL) fsel_used[h - 1] = false;
+}
+export fn fileSelShow(h: u32, mask: u32, mask_len: u32) void {
+    (fselAt(h) orelse return).open(slice(mask, mask_len));
+}
+export fn fileSelAdd(h: u32, name: u32, name_len: u32) void {
+    (fselAt(h) orelse return).add(slice(name, name_len));
+}
+export fn fileSelActive(h: u32) u32 {
+    return if ((fselAt(h) orelse return 0).active) 1 else 0;
+}
+export fn fileSelKey(h: u32, cp: u32) void {
+    (fselAt(h) orelse return).key(cp);
+}
+export fn fileSelProcess(h: u32, gui_h: u32) u32 {
+    const f = fselAt(h) orelse return @intFromEnum(Result.none);
+    const g = guiAt(gui_h) orelse return @intFromEnum(Result.none);
+    return switch (f.process(g)) {
+        .ok => @intFromEnum(Result.ok),
+        .cancel => @intFromEnum(Result.cancel),
+        else => @intFromEnum(Result.none),
+    };
+}
+/// Copy the chosen name into the caller's buffer; returns its length. A slice
+/// cannot cross a module boundary, and a pointer INTO the ROM's window would be
+/// a lifetime the app cannot reason about — so the app provides the storage.
+export fn fileSelChosen(h: u32, out: u32, out_cap: u32) u32 {
+    const f = fselAt(h) orelse return 0;
+    const name = f.chosen();
+    const n = @min(name.len, out_cap);
+    if (n == 0 or out == 0) return 0;
+    const dst: [*]u8 = @ptrFromInt(out);
+    @memcpy(dst[0..n], name[0..n]);
+    return @intCast(n);
+}
+
+inline fn rectOf(x: i32, y: i32, w: i32, h: i32) Rect {
+    return .{ .x = @intCast(x), .y = @intCast(y), .w = @intCast(w), .h = @intCast(h) };
+}

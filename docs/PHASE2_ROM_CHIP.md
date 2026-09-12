@@ -111,16 +111,34 @@ de-risking step**: change the call *shape* first, the module boundary second.
   The tables are deliberately tiny for exactly that reason: a leak has to surface
   in seconds, not on someone's fifth window.
 
-### 2.2 — build `rom.wasm`
+### 2.2 — build `rom.wasm` ✅ DONE
 - `build.zig`: a real `addExecutable` for `rom/rom.zig`, `import_memory`,
   `global_base = ROM_RAM_BASE`, its own stack.
 - Loader: instantiate `machine → rom → app`; wire the ROM's imports to the
   machine's exports (it links `machine/sdk/` directly), and the app's `env` to
   the ROM's exports.
 - Delete `rom_mod` from every cart's imports. The shim becomes the real thing.
-- *Done when:* `demo-gem.wasm` drops by GEM's real footprint (small — a few KB
-  of state plus whatever code-adjacent data moves) and `hwRamFree()` says so.
-  Do not expect a large number here; see Why.
+- *Done:* `rom/rom_main.zig` is the chip (27 exports, 9.8 KB), `rom/sdk/rom.zig`
+  is now a pure header of `extern` declarations that imports NOTHING from `rom` —
+  an app linking GEM's internals is a layering mistake the build no longer allows.
+  The host instantiates **machine → rom → app**, each importing only from the ones
+  before it, and an app's `env` gets the ROM's exports spread in (`...rom`), so a
+  new entry point needs no host change.
+
+  `rom.wasm` imports exactly three things: `memory`, `hwVideoBase`, `hwBlit`. It
+  sits in its own window at 258 KB used / 1789 KB free, and `hwRomRamFree()`
+  reports it. `ram_check` asserts the chip fits its window, that the hardware
+  agrees to the byte, and that the cart ends below `ROM_RAM_BASE`.
+- **The cart window barely moved (593 → 595 KB free), and that is expected.**
+  `gem_desktop.zig` still statically links GEM for the *desktop*, so the toolkit
+  exists twice right now — once in `rom.wasm` for apps, once in the cart for the
+  desktop. Step 2.3 deletes the second copy; until then the win is architectural,
+  not spatial.
+- Two things that had to be settled to make the header pure: `Rect`, `BLACK` and
+  `WHITE` are now DEFINED in the header rather than re-exported from
+  `rom/gem/gui/types.zig` (a header that imported the toolkit would drag it back
+  into every app) — they are part of the ABI now, like a register offset, and the
+  two definitions must be kept in step by hand.
 
 ### 2.3 — the desktop stops being a cart that contains apps
 - `gem_desktop.zig` embedding `st_replay.App` has to go: the desktop lives in
