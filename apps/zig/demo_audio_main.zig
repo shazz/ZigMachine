@@ -113,6 +113,10 @@ export fn audioSndhStop() void {
 export fn audioSndhStuckPc() u32 {
     return players.sndhStuckPc();
 }
+/// How far into the SNDH we are, in milliseconds (0 when none is playing).
+export fn audioSndhPositionMs() u32 {
+    return if (sndh.active) sndh.positionMs() else 0;
+}
 /// How fast MFP timer t (0=A..3=D) is programmed, in Hz (0 = stopped).
 export fn audioSndhTimerRate(t: u32) u32 {
     return players.sndhTimerRate(t);

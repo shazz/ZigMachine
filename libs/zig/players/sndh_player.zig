@@ -341,6 +341,9 @@ pub const SndhPlayer = struct {
     tune: u8 = 1,
     samples_per_frame: u32 = 882,
     frame_acc: u32 = 0,
+    /// Replay frames played since `start`. A screen that syncs its animation to
+    /// the music needs a clock, and this is the honest one: the tune's own.
+    frames_played: u32 = 0,
     /// Per MFP timer (A..D): samples between interrupts and samples still to
     /// go, both 16.16 fixed point. NEVER = the timer is not running.
     timer_period: [4]u32 = [_]u32{0} ** 4,
@@ -376,7 +379,14 @@ pub const SndhPlayer = struct {
         mfpReset(); // a fresh MFP, as TOS would hand it over
         self.active = self.call(sndh.INIT, self.tune);
         self.frame_acc = 0;
+        self.frames_played = 0;
         self.rearm(); // init is where a tune programs its digidrum timer
+    }
+
+    /// How far into the tune we are, in milliseconds.
+    pub fn positionMs(self: *const SndhPlayer) u32 {
+        if (self.info.hz == 0) return 0;
+        return self.frames_played *% 1000 / self.info.hz;
     }
 
     pub fn stop(self: *SndhPlayer) void {
@@ -414,6 +424,7 @@ pub const SndhPlayer = struct {
     fn fireDue(self: *SndhPlayer) bool {
         if (self.frame_acc == 0) {
             if (!self.call(sndh.PLAY, 0)) return self.derail();
+            self.frames_played +%= 1;
             self.frame_acc = self.samples_per_frame;
             self.rearm(); // init/play may only now have programmed the timers
         }

@@ -244,6 +244,9 @@ export fn getYmRegsPointer() [*]u8 {
 export fn getAudioModePointer() [*]u8 {
     return @ptrCast(&zigos.audio_mode);
 }
+export fn getSongMsPointer() [*]u32 {
+    return @ptrCast(&zigos.song_ms);
+}
 export fn getScopesPointer() [*]f32 {
     return @ptrCast(&zigos.scopes);
 }

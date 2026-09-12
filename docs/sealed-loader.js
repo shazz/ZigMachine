@@ -684,6 +684,9 @@ function startAudio() {
                     if (demo && demo.getAudioModePointer) {
                         new Uint8Array(memory.buffer, demo.getAudioModePointer(), 1)[0] = msg.mode;
                     }
+                    if (demo && demo.getSongMsPointer) {
+                        new Uint32Array(memory.buffer, demo.getSongMsPointer(), 1)[0] = msg.songMs | 0;
+                    }
                     if (demo && demo.getScopesPointer && msg.scopes) {
                         const len = msg.scopes[0].length;
                         const flat = new Float32Array(memory.buffer, demo.getScopesPointer(), 4 * len);

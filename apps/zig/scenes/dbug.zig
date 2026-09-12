@@ -21,6 +21,7 @@ const Console = zg.Console;
 
 const credits = @import("dbug_credits.zig");
 const draw = @import("dbug_draw.zig");
+const Sync = @import("dbug_sync.zig").Sync;
 
 // --------------------------------------------------------------------------
 // Constants
@@ -42,6 +43,9 @@ const text_fonts_b = @embedFile("../assets/screens/dbug/fonts_16x14.raw");
 
 // music — the screen's own tune, played by its own 68000 (docs/music/)
 const MUSIC = "crystallized.sndh";
+
+// where the logo sits when its spring is at rest
+const LOGO_Y: i32 = 20;
 
 // palettes
 const font_pal = convertU8ArraytoColors(@embedFile("../assets/screens/dbug/fonts_32x24_pal.dat"));
@@ -87,9 +91,7 @@ pub const Demo = struct {
     scroller_target: RenderTarget = undefined,
     overscan_target: RenderTarget = undefined,
     panel: zg.charpanel.Panel(credits.MAX_LIVE) = undefined,
-    scroller_y: f32 = 0.0,
-    bounce: i32 = 0,
-    bounce_att: f32 = 0.0,
+    sync: Sync = .{},
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
         Console.log("Demo init", .{});
@@ -116,7 +118,7 @@ pub const Demo = struct {
         self.scroller_target = .{ .render_buffer = &render_buffer };   
 
         self.scrolltext = Scrolltext(NB_FONTS).init(self.scroller_target, fonts_b, SCROLL_CHARS, SCROLL_CHAR_WIDTH, SCROLL_CHAR_HEIGHT, SCROLL_TEXT, SCROLL_SPEED, 0, null, null, null);
-        self.scroller_y = 0.0;
+        self.sync = .{};
 
         // big buffer to the siz of the overscan
         var overscan_render_buffer: RenderBuffer = .{ .buffer = &off_buffer, .width = 400, .height = 280 };  
@@ -127,9 +129,7 @@ pub const Demo = struct {
         fb.setPaletteEntry(101, logo_pal[1]);
         fb.setPaletteEntry(102, logo_pal[2]);
         fb.setPaletteEntry(103, logo_pal[3]);
-        self.logo.init(self.overscan_target, logo_b, 253, 38, zg.PHYSICAL_WIDTH / 2 - 126, 20, null, null); // centre in the 400-wide overscan
-        self.bounce = 0;
-        self.bounce_att = 1;
+        self.logo.init(self.overscan_target, logo_b, 253, 38, zg.PHYSICAL_WIDTH / 2 - 126, LOGO_Y, null, null); // centre in the 400-wide overscan
 
         // credit panel — it writes itself into this plane one cell per frame and
         // never redraws a settled letter, so the plane is cleared ONCE, here.
@@ -146,37 +146,19 @@ pub const Demo = struct {
     }
 
     pub fn update(self: *Demo, zigos: *ZigOS, elapsed_time: f32) void {
+        _ = elapsed_time;
 
         self.scrolltext.update();
-        self.logo.update(null, null, null, null);
         self.panel.update();
 
-        const f_sin: f32 = @abs(@sin(self.scroller_y)) * 88.0; 
-        start_raster_line = @as(u16, @intFromFloat(88.0 - f_sin));
-        // start_raster_line = 38;
-
-        self.scroller_y += 0.04;
-
-        // logo bounce
-        var offset_y: i32 = 0;
-        if(start_raster_line >= 86 and self.bounce == 0) self.bounce = 1;
-
-        if(self.bounce > 0) {
-            const fac: f32 = @as(f32, @floatFromInt(self.bounce));
-            const f_attsin: f32 = 5 * (@sin(fac)/self.bounce_att);
-            self.bounce += 1;
-            self.bounce_att += 0.2;
-            offset_y = @as(i32, @intFromFloat(f_attsin));
-
-            if(self.bounce_att > 10) {
-                self.bounce = 0;
-                self.bounce_att = 1;
-            }
-        }
-        self.logo.update(null, 20 + offset_y, null, null);
-
-        _ = zigos;
-        _ = elapsed_time;
+        // The scroller and the logo are driven by the TUNE, not by a sine: the
+        // intro is still, the scroller falls on cue and then bumps once per
+        // beat. zigos.song_ms is the playback position the host mirrors over
+        // from the audio worklet; it stays 0 until the viewer enables sound,
+        // which simply holds the intro. See dbug_sync.zig.
+        self.sync.update(zigos.song_ms);
+        start_raster_line = self.sync.y;
+        self.logo.update(null, LOGO_Y + self.sync.logo_dy, null, null);
     }
 
     pub fn render(self: *Demo, zigos: *ZigOS, elapsed_time: f32) void {

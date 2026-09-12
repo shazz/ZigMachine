@@ -477,6 +477,9 @@ pub const ZigOS = struct {
     // captures, both pushed in from JS for the music scene's oscilloscope.
     audio_mode: u8 = 0,
     scopes: [4][SCOPE_LEN]f32 = std.mem.zeroes([4][SCOPE_LEN]f32),
+    /// Milliseconds into the playing tune — the clock a screen syncs to when
+    /// its animation is written against the music rather than the frame count.
+    song_ms: u32 = 0,
 
     pub fn init(self: *ZigOS) void {
         g_base = @intCast(hw.hwVideoBase());
