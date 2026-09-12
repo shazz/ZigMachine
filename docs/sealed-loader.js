@@ -147,9 +147,12 @@ function diskReadBlock(block, dstOff) {
 // and re-instantiate the demo module over the SAME shared memory (audio untouched);
 // scenes skip the boot ROM. The render loop keeps drawing the old cart until this
 // resolves, so there's no black frame.
+const badCarts = new Set(); // disks that failed to start; do not retry in a loop
+
 async function swapCart(req) {
     if (swapping) return;
     swapping = true;
+    let url = null;
     try {
         // req 2 = CHAINLOAD (format v2): the boot sector is done — instantiate this
         // disk's cart (pointer in the descriptor, already parsed) over the same memory.
@@ -157,14 +160,13 @@ async function swapCart(req) {
             beepStop(); // silence the boot-sector tone before the cart takes over
             const { start, len } = mountedDisk.chainCart;
             const bytes = mountedDisk.buf.buffer.slice(start, start + len);
-            demo = (await WebAssembly.instantiate(bytes, demoImports)).instance.exports;
+            demo = (await instantiateCart(bytes, "the chainloaded cart")).instance.exports;
             machine.hwInit();
             demo.boot();
             if (demo.skipBoot) demo.skipBoot(); // straight into the cart (boot sector already showed)
             swapping = false;
             return;
         }
-        let url;
         if (req === 1) {
             const tag = text_decoder.decode(
                 new Uint8Array(memory.buffer, demo.getCartTagPtr(), demo.getCartTagLen()));
@@ -172,20 +174,39 @@ async function swapCart(req) {
         } else {
             url = "demo.zmd"; // back to the menu
         }
+        if (badCarts.has(url)) return; // already failed once: do not retry every frame
         const { bootable, cart } = await mountDisk(url);
         // A data disk (e.g. ST Replay) isn't bootable — bring up GEM, which opens
         // its app + reads its files. A bootable disk runs its own cart.
         const bytes = bootable ? cart : await fetch("demo-gem.wasm" + BUST).then((r) => r.arrayBuffer());
-        demo = (await WebAssembly.instantiate(bytes, demoImports)).instance.exports;
+        demo = (await instantiateCart(bytes, url)).instance.exports;
         machine.hwInit();
         demo.boot();
         if (req === 1) demo.skipBoot(); // scene or data-disk→GEM: straight in (no boot ROM)
         diskApp = !bootable;            // data disk → GEM's FLOPPY opens its app
         diskDirSet = false;            // re-hand GEM the new disk's FAT listing
     } catch (e) {
+        // The running cart keeps going. Without remembering the failure the menu
+        // would ask for this disk again next frame, and every frame after —
+        // which reads as a freeze rather than as an error.
+        if (url) badCarts.add(url);
         console.error("cart swap failed:", e);
     }
     swapping = false;
+}
+
+// Instantiate a cart, turning a link failure into a REPORT rather than a freeze.
+// A disk packed against an older host import surface fails here; saying which
+// import is missing beats a black screen.
+async function instantiateCart(bytes, what) {
+    try {
+        return await WebAssembly.instantiate(bytes, demoImports);
+    } catch (e) {
+        console.error(`Cannot start ${what}: ${e.message}`);
+        alert(`ZigMachine: cannot start ${what}.\n\n${e.message}\n\n` +
+              `The disk was probably packed against an older host — rebuild it with tools/mkdisk.py.`);
+        throw e;
+    }
 }
 
 // --------------------------------------------------------------------------
@@ -220,6 +241,15 @@ async function boot() {
             hostAudioStreamStart: (rate) => hostAudioStreamStart(rate), // begin ring streaming
             hostAudioFeed: (ptr, len) => hostAudioFeed(ptr, len), // append samples to the ring
             hostAudioStreamStop: () => hostAudioStreamStop(), // silence the ring
+            // RETIRED imports, kept as no-ops. The env object is an ABI: every
+            // cart ever built links against the names that existed when it was
+            // packed, and a .zmd carries its wasm frozen inside it. Dropping a
+            // name makes those disks fail to instantiate — so names leave the
+            // surface as stubs, not as deletions. (Sample loading and playback
+            // moved into the machine; see libs/zig/disk.zig.)
+            audioPlay: () => {},
+            audioStop: () => {},
+            loadSample: () => {},
         },
     };
     // What to boot: ?disk=X.zmd boots a cart from a ZigMachine disk image (see
@@ -230,7 +260,7 @@ async function boot() {
     if (diskUrl) {
         const { bootable, cart } = await mountDisk(diskUrl);
         if (bootable) {
-            demoMod = await WebAssembly.instantiate(cart, demoImports);
+            demoMod = await instantiateCart(cart, diskUrl);
             console.log("Booted cart from disk:", diskUrl);
         } else {
             // A data disk isn't bootable — bring up the OS (GEM); the disk stays
