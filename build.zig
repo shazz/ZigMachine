@@ -51,11 +51,21 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
         .imports = &.{.{ .name = "hardware", .module = sdk_video }},
     });
+    // Runtime depackers (Pack-Ice &c). ST files arrive crunched, and opening one
+    // is the machine's job, not a build step's.
+    const depackers_mod = b.createModule(.{
+        .root_source_file = b.path("libs/zig/depackers/depackers.zig"),
+        .target = wasm_target,
+        .optimize = optimize,
+    });
     const players_mod = b.createModule(.{
         .root_source_file = b.path("libs/zig/players/players.zig"),
         .target = wasm_target,
         .optimize = optimize,
-        .imports = &.{.{ .name = "audio_hw", .module = sdk_audio }},
+        .imports = &.{
+            .{ .name = "audio_hw", .module = sdk_audio },
+            .{ .name = "depackers", .module = depackers_mod },
+        },
     });
     // The SNDH player needs a 68000, because an SNDH IS 68000 code: Musashi runs
     // it and libs/zig/players/sndh_player.zig traps its PSG writes to the sealed

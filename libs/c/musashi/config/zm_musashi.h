@@ -27,6 +27,15 @@
 #define M68K_INSTRUCTION_HOOK 2
 #define M68K_INSTRUCTION_CALLBACK(pc) zmSndhInstructionHook(pc)
 
+// Tunes converted from tracker sources routinely ask TOS for a buffer at init
+// (GEMDOS Malloc). We are not running TOS, so the trap is intercepted here and
+// answered instead of vectoring through a table that holds the tune's own bytes.
+// Returning non-zero means "handled": no exception, execution simply carries on
+// after the TRAP. (2 == M68K_OPT_SPECIFY_HANDLER.)
+#define M68K_TRAP_HAS_CALLBACK 2
+#define M68K_TRAP_CALLBACK(trap) zmSndhTrap(trap)
+
 extern void zmSndhInstructionHook(unsigned int pc);
+extern int zmSndhTrap(int trap);
 
 #endif

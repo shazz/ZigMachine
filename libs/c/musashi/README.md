@@ -46,6 +46,28 @@ To update: drop a new upstream tree into `upstream/`, rebuild, run
   `m68k_execute()` genuinely calls to arm a bus-error trap and which therefore
   returns 0 for "no jump".
 
+## What the 68000 is given
+
+`libs/zig/players/sndh_player.zig` builds the world: 1 MiB of RAM (the shared
+song RAM, so a staged tune needs no copy), a PSG at `$FF8800`, and **just enough
+TOS** — a bump heap answering GEMDOS `Malloc`. That last one is not optional:
+tunes converted from tracker sources ask for a buffer at init, and with no TOS
+the TRAP vectors through a table holding the tune's own header bytes.
+
+Two things that are easy to get wrong and fail as *silence*, not as a crash:
+
+- The YM sits on the **upper half** of the data bus, so only EVEN addresses
+  reach it — `$FF8801`/`$FF8803` go nowhere. That is what lets
+  `move.l #$rr00vv00,$ffff8800` set a register in one instruction, the idiom
+  Crystallized uses throughout. Treat the odd bytes as writes and every value is
+  clobbered by the pad byte behind it.
+- A replay call has to be stopped the instant it returns, or the CPU walks off
+  the end of the routine into whatever follows. Hence the planted NOP and the
+  instruction hook.
+
+When a tune will not play, `audioSndhStuckPc()` says where its 68000 gave up and
+`audioSndhUnhandledTrap()` names the OS call we could not answer.
+
 ## What it costs
 
 `demo-audio.wasm` goes from ~40 KB to ~1.05 MB. That is the opcode table, and the

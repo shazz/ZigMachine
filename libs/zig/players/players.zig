@@ -3,3 +3,12 @@
 pub const ModPlayer = @import("mod.zig").ModPlayer;
 pub const YmPlayer = @import("ym_player.zig").YmPlayer;
 pub const SndhPlayer = @import("sndh_player.zig").SndhPlayer;
+
+/// Diagnosis for a tune that will not run: the 68000 PC where a replay call
+/// gave up (0 if none has), and the last trap the little TOS could not answer.
+pub fn sndhStuckPc() u32 {
+    return @import("sndh_player.zig").stuck_pc;
+}
+pub fn sndhUnhandledTrap() u32 {
+    return @import("sndh_player.zig").unhandled_trap;
+}

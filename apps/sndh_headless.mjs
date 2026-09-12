@@ -76,18 +76,29 @@ console.log(`  subtunes      : ${demo.audioSndhSubtunes()}`);
 
 demo.audioSndhPlay(1);
 console.log(`  mode after play: ${demo.audioMode()} (4 == SNDH)`);
-demo.audioRender(1024);
+if (demo.audioSndhStuckPc()) {
+    console.log(`  STUCK at 68k PC $${demo.audioSndhStuckPc().toString(16)}`);
+}
+const trap = demo.audioSndhUnhandledTrap();
+if (trap) console.log(`  unanswered TRAP #${trap >> 16}, function $${(trap & 0xffff).toString(16)}`);
+// A second of audio, a block at a time, the way the worklet asks for it.
+const BLOCK = 1024, SECOND = 44100;
+const left = new Float32Array(memory.buffer, machine.audioLeftPtr(), BLOCK);
+let peak = 0;
+for (let done = 0; done < SECOND; done += BLOCK) {
+    demo.audioRender(BLOCK);
+    for (const v of left) peak = Math.max(peak, Math.abs(v));
+}
 
 // Did the 68000's writes reach the sealed chip?
 const regs = new Uint8Array(memory.buffer, machine.audioYmRegsPtr(), 16);
 console.log(`  YM registers  : ${[...regs].map((r) => r.toString(16).padStart(2, "0")).join(" ")}`);
 
-// Did the chip then make a sound?
-const left = new Float32Array(memory.buffer, machine.audioLeftPtr(), 1024);
-let peak = 0;
-for (const s of left) peak = Math.max(peak, Math.abs(s));
-console.log(`  output peak   : ${peak.toFixed(4)}`);
+console.log(`  output peak   : ${peak.toFixed(4)} (over one second)`);
 
-const ok = demo.audioMode() === 4 && regs[7] === 0x3e && regs[0] === 0xd2 && peak > 0.01;
+// The built-in tune programs registers we can name; a real tune just has to
+// play. Either way the point is that its OWN 68000 code did the programming.
+const ok = demo.audioMode() === 4 && peak > 0.01 &&
+    (path !== undefined || (regs[7] === 0x3e && regs[0] === 0xd2));
 console.log(ok ? "=> PASS ✅ the tune's own 68000 code is driving the sealed YM" : "=> FAIL ❌");
 process.exit(ok ? 0 : 1);

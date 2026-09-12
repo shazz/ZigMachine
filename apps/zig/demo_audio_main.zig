@@ -109,6 +109,14 @@ export fn audioSndhStop() void {
     sndh.stop();
     if (current_mode == 4) current_mode = 0;
 }
+/// Where a replay call gave up, when a tune refuses to run. 0 means it ran.
+export fn audioSndhStuckPc() u32 {
+    return players.sndhStuckPc();
+}
+/// The last trap the little TOS did not know how to answer, (trap << 16) | fn.
+export fn audioSndhUnhandledTrap() u32 {
+    return players.sndhUnhandledTrap();
+}
 /// How many subtunes the loaded tune carries (0 when nothing is loaded).
 export fn audioSndhSubtunes() u8 {
     return if (sndh.info.hz == 0) 0 else sndh.info.subtunes;
