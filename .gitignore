@@ -15,3 +15,16 @@ assets/oldies/
 prototypes/
 .archview/
 __pycache__/
+
+# Retired pre-seal monolith: kept on disk for A/B reference, not shipped.
+legacy/
+
+# Local-only tooling (see tools/private_tools/README.md).
+tools/private_tools/
+
+# Working notes and agent instructions — local only.
+.claude
+CLAUDE.md
+TODOS.md
+HANDOFF.md
+
