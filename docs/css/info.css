@@ -10,7 +10,7 @@
   position: absolute;
   top: 48px;
   left: 1054px;
-  width: min(420px, calc(100vw - 1054px - 24px));
+  width: min(640px, calc(100vw - 1054px - 32px));
   max-height: calc(100vh - 72px);
   overflow-y: auto;
   box-sizing: border-box;
@@ -85,11 +85,11 @@
 }
 
 /* Not enough room beside the monitor: sit under it instead. */
-@media (max-width: 1380px) {
+@media (max-width: 1440px) {
   .info {
     top: 840px;
     left: 16px;
-    width: min(1000px, calc(100vw - 32px));
+    width: min(1030px, calc(100vw - 32px));
     max-height: none;
   }
 }

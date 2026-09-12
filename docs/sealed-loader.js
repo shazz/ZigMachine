@@ -252,17 +252,31 @@ const TUNE_FRAMES = 25; // frames of snow before the new channel's picture
 let channels = null;    // [tag, ...], fetched once
 let currentTag = null;  // tag of the running scene disk, null = menu / other
 
-async function changeChannel(step) {
-    if (swapping || !demo) return;
+// The channel list, fetched once. null (logged) if it cannot be had.
+async function loadChannels() {
     if (!channels) {
         try {
             channels = await fetch("channels.json" + BUST).then((r) => r.json());
         } catch (e) {
             console.error("no channel list (docs/channels.json):", e);
-            return;
+            return null;
         }
     }
-    if (!Array.isArray(channels) || channels.length === 0) return;
+    return Array.isArray(channels) && channels.length > 0 ? channels : null;
+}
+
+// The channel a fresh page tunes to: ?channel=<tag> if it is one, else the first.
+// null only when there is no channel list — the page then boots the menu.
+async function firstChannel(wanted) {
+    const list = await loadChannels();
+    if (!list) return null;
+    if (wanted && !list.includes(wanted)) console.error(`?channel=${wanted} is not a channel; tuning to ${list[0]}`);
+    return wanted && list.includes(wanted) ? wanted : list[0];
+}
+
+async function changeChannel(step) {
+    if (swapping || !demo) return;
+    if (!(await loadChannels())) return;
     const at = channels.indexOf(currentTag);
     const next = at < 0 ? 0 : (at + step + channels.length) % channels.length;
     swapCart(1, channels[next]);
@@ -424,9 +438,18 @@ async function boot() {
         }),
     };
     // What to boot: ?disk=X.zmd boots a cart from a ZigMachine disk image (see
-    // docs/FLOPPY_DISK.md); ?demo=X.wasm loads a raw cart; default is demo.wasm.
+    // docs/FLOPPY_DISK.md); ?demo=X.wasm loads a raw cart; ?menu boots the menu.
+    // With none of those the machine powers up like the TV it sits in: straight
+    // into a channel (?channel=<tag>, else the first), boot ROM first.
     const params = new URLSearchParams(window.location.search);
-    const diskUrl = params.get("disk");
+    let diskUrl = params.get("disk");
+    if (!diskUrl && !params.has("demo") && !params.has("menu")) {
+        const tag = await firstChannel(params.get("channel"));
+        if (tag) {
+            diskUrl = "demo-" + tag + ".zmd";
+            currentTag = tag;
+        }
+    }
     let demoMod;
     if (diskUrl) {
         const { bootable, cart } = await mountDisk(diskUrl);
