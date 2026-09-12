@@ -20,6 +20,14 @@ export const CART_RAM_TOP = 0x300000; // memmap.CART_RAM_TOP (= HW_VIDEO_BASE)
 export const ROM_RAM_BASE = 0x500000; // memmap.ROM_RAM_BASE  (Phase 2)
 export const ROM_RAM_TOP = 0x700000; // memmap.ROM_RAM_TOP
 
+// The AUDIO thread has its own memory and its own map (machine/sdk/audio.zig) —
+// a different, SMALLER window at the same address. A cart measured against the
+// video map would be allowed to grow a megabyte past its real ceiling and
+// silently eat SONG RAM, which is why these are separate constants and not a
+// convenient reuse of the ones above.
+export const AUDIO_RAM_BASE = 0x100000; // audio.DEMO_GLOBAL_BASE
+export const AUDIO_RAM_TOP = 0x200000; // audio.SONG_BASE — song RAM starts here
+
 function uleb(b, p) {
     let r = 0, s = 0, x;
     do { x = b[p++]; r |= (x & 0x7f) << s; s += 7; } while (x & 0x80);
@@ -100,9 +108,11 @@ export function windowRam(bytes, base, top) {
 
 export const cartRam = (bytes) => windowRam(bytes, CART_RAM_BASE, CART_RAM_TOP);
 export const romRam = (bytes) => windowRam(bytes, ROM_RAM_BASE, ROM_RAM_TOP);
+export const audioRam = (bytes) => windowRam(bytes, AUDIO_RAM_BASE, AUDIO_RAM_TOP);
 
 // docs/sealed.html loads this as a module while sealed-loader.js is a classic
 // script (it exposes main() to an inline onclick), so hand the two functions
 // over on globalThis rather than splitting the parser in two.
-globalThis.ZMRam = { cartHighWater, windowRam, cartRam, romRam,
-                     CART_RAM_BASE, CART_RAM_TOP, ROM_RAM_BASE, ROM_RAM_TOP };
+globalThis.ZMRam = { cartHighWater, windowRam, cartRam, romRam, audioRam,
+                     CART_RAM_BASE, CART_RAM_TOP, ROM_RAM_BASE, ROM_RAM_TOP,
+                     AUDIO_RAM_BASE, AUDIO_RAM_TOP };

@@ -84,7 +84,10 @@ pub fn requestOpenAt(d: *Desktop, x: i32, y: i32) void {
     if (d.topFloppy()) |w| {
         switch (d.dirHitAt(w.dir, w.view, @intCast(x), @intCast(y))) {
             .file => |a| {
-                if (d.diskType(a) == 0) d.launch_req = true;
+                if (d.diskType(a) == 0) {
+                    d.launch_file = @intCast(a); // the host launches it BY NAME
+                    d.launch_req = true;
+                }
                 return;
             },
             .folder => |f| {
@@ -109,6 +112,7 @@ pub fn requestOpenAt(d: *Desktop, x: i32, y: i32) void {
 
 pub fn openIcon(d: *Desktop, di: u8, action: *Action) void {
     if (d.items[di].is_app) {
+        d.launch_file = -1; // no file named: launchName() picks the disk's first program
         action.* = .launch;
     } else if (di == IC_FLOPPY) {
         openFloppy(d); // opens a window listing the disk's FAT (files inside open the app)

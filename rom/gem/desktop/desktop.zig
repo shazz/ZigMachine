@@ -95,6 +95,11 @@ pub const Desktop = struct {
     disk_dir: [MAX_FILES * FILE_ENT]u8 = [_]u8{0} ** (MAX_FILES * FILE_ENT), // host-filled FAT
     n_disk: u8 = 0, // number of files in the mounted disk's FAT
     launch_req: bool = false, // a program file in a FLOPPY window was double-clicked
+    // WHICH program. -1 = "the disk's app" (the FLOPPY icon acting as a launcher,
+    // which names no file), resolved by launchName() to the first program on the
+    // disk. The host needs a NAME, not an index: it reads the file out of the
+    // mounted disk's FAT and instantiates it as the next cart.
+    launch_file: i16 = -1,
     drag: ?u8 = null,
     grab_dx: i16 = 0,
     grab_dy: i16 = 0,
@@ -251,6 +256,18 @@ pub const Desktop = struct {
     }
 
     // The i-th disk file's name / type / icon (laid out inside a window's rect).
+    // The program a .launch action refers to. Empty when the disk holds none, so
+    // the caller can report "no program on this disk" instead of booting nothing.
+    pub fn launchName(self: *const Desktop) []const u8 {
+        if (self.launch_file >= 0 and self.launch_file < self.n_disk) {
+            const i: usize = @intCast(self.launch_file);
+            if (self.diskType(i) == 0) return self.diskName(i);
+        }
+        var i: usize = 0; // the FLOPPY-as-launcher case: the disk's first program
+        while (i < self.n_disk) : (i += 1) if (self.diskType(i) == 0) return self.diskName(i);
+        return &.{};
+    }
+
     pub fn diskName(self: *const Desktop, i: usize) []const u8 {
         const s = self.disk_dir[i * FILE_ENT .. i * FILE_ENT + 16];
         var n: usize = 0;
@@ -1021,6 +1038,7 @@ pub const Desktop = struct {
         } else if (self.sel_icon >= 0) {
             desk_icons.openIcon(self, @intCast(self.sel_icon), action);
         } else if (self.sel_file >= 0 and self.diskType(@intCast(self.sel_file)) == 0) {
+            self.launch_file = self.sel_file;
             self.launch_req = true;
         }
     }

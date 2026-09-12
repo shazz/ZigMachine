@@ -1,24 +1,51 @@
 #!/bin/sh
-# Build the wasm, GATE on the cart RAM window, then repack the disks.
+# Build the wasm, then GATE: RAM windows, native tests, disks, headless harnesses.
 #
-# The gate: a cart whose static data + stack runs past CART_RAM_TOP does not trap
-# — it writes into the video region and the machine dies later, somewhere
-# unrelated (a 1 MB sample buffer cost a whole debugging session that way). The
-# linker only catches an overflow past the WHOLE shared memory, so the check has
-# to happen here, on every build.
+# The gate exists because the failures it catches are SILENT. A cart whose data +
+# stack runs past its window does not trap — it writes into the video region (or,
+# on the audio thread, into song RAM) and the machine dies later, somewhere
+# unrelated. A .zmd freezes its cart's imports at pack time, so a host change
+# leaves every disk on the shelf failing to instantiate. Neither shows up as a
+# build error; both show up as a black screen an hour later.
 #
-# The disks: .zmd images used to be build output with no recipe, so they drifted a
-# week behind the wasm and froze an import list the host no longer had — every
-# disk on the shelf failed to instantiate. mkdisks.sh only repacks what is
-# actually stale, so a no-op build does not churn 29 binaries.
+# Everything here is fast and offline. Run it instead of `zig build`.
 set -e
 clear
 zig build -Drelease=true -Dwasm
-node apps/check_fits.mjs docs/demo-*.wasm
+
+# --- memory windows: every module measured against ITS OWN map -------------
+node apps/check_fits.mjs docs/demo-*.wasm docs/rom.wasm
 node apps/ram_check.mjs
+
+# --- native tests ----------------------------------------------------------
+# Zig has no `test` step in build.zig, so name the files that hold tests. Add
+# yours here when you write them, or the gate will not run them.
+for t in \
+    libs/zig/disk.zig \
+    libs/zig/players/sndh.zig \
+    libs/zig/depackers/ice_test.zig \
+    libs/zig/effects/charpanel_test.zig \
+    apps/zig/scene_tests.zig \
+    rom/gem/desktop/namefield.zig \
+    rom/gem/desktop/stamp.zig \
+    rom/gem/desktop/deskinf.zig \
+    rom/gem/gui/grid.zig
+do
+    printf '%-42s ' "$t"
+    zig test "$t" 2>&1 | tail -1
+done
+
+# --- disks: repack what is stale, then mount and instantiate every image ----
 tools/mkdisks.sh
 node apps/disk_check.mjs
-# The GEM/ROM regression scenarios. Shots go to a scratch dir so a build does
-# not litter the repo; each scenario guards a specific fixed bug and the run
-# exits non-zero if one regresses.
-node apps/gem_headless.mjs "$(mktemp -d)"
+
+# --- headless harnesses: each drives the real machine end to end -----------
+# Shots go to a scratch dir so a build does not litter the repo. These cover
+# BOTH halves of the machine — GEM/ROM and the audio/SNDH side — because a host
+# or ABI change breaks whichever one you were not thinking about.
+SHOTS=$(mktemp -d)
+node apps/verify.mjs          # the C and Rust carts still talk to the ABI
+node apps/gem_headless.mjs "$SHOTS"
+node apps/sndh_headless.mjs
+node apps/dbug_headless.mjs "$SHOTS"
+echo "shots in $SHOTS"
