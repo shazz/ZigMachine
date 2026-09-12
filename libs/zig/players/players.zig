@@ -2,3 +2,4 @@
 // (built only into demo-audio.wasm, which provides the audio chip ABI imports).
 pub const ModPlayer = @import("mod.zig").ModPlayer;
 pub const YmPlayer = @import("ym_player.zig").YmPlayer;
+pub const SndhPlayer = @import("sndh_player.zig").SndhPlayer;
