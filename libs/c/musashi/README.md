@@ -72,5 +72,16 @@ When a tune will not play, `audioSndhStuckPc()` says where its 68000 gave up and
 
 `demo-audio.wasm` goes from ~40 KB to ~1.05 MB. That is the opcode table, and the
 68000-only settings in `zm_musashi.h` already fold away the 010/020/030/040 paths.
+
+**The number that matters is not the file size — it is the RAM window.** The audio
+cart owns `[0x100000,0x200000)`, one megabyte, and SONG RAM begins at exactly
+`0x200000`, where it ends. Musashi's statics put the high-water at `0x1bad10`:
+**747 KB used, 277 KB free**, which makes it the tightest window in the machine.
+Overrun it and there is no trap — the cart writes into song RAM and the tune it
+was loading turns to noise somewhere unrelated.
+
+`apps/check_fits.mjs` measures each module against its own map and labels the line
+`[audio]`, so a build says how much is left. Watch that figure, not the megabyte.
+
 If it ever needs to shrink, the FPU and softfloat are the next things to go — they
 exist only because `m68kcpu.c` includes them unconditionally.
