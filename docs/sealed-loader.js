@@ -414,6 +414,17 @@ window.document.body.onload = boot;
     for (const ev of ["pointerdown", "keydown", "touchstart"]) window.addEventListener(ev, go);
 })();
 
+// Keys with no printable codepoint, sent to demo.key() in the Unicode PRIVATE
+// USE AREA so they can never be mistaken for typed text. Mirrored by the K_*
+// constants in apps/zig/scenes/st_replay.zig — a keyboard-driven app (the ST
+// Replay panel) needs the function keys the original was built around.
+const KEY_CODES = {
+    F1: 0xE001, F2: 0xE002, F3: 0xE003, F4: 0xE004, F5: 0xE005,
+    F6: 0xE006, F7: 0xE007, F8: 0xE008, F9: 0xE009, F10: 0xE00A,
+    Insert: 0xE00B, Delete: 0xE00C,
+    Undo: 0xE010, Help: 0xE011, Escape: 0xE012,
+};
+
 window.document.body.addEventListener('keydown', function (evt) {
     if (!demo) return;
     // Stop the browser's default for keys we handle (Space scrolling the page,
@@ -445,6 +456,7 @@ window.document.body.addEventListener('keydown', function (evt) {
         if (evt.key === "Backspace") { evt.preventDefault(); demo.key(8); }
         else if (evt.key === "Enter") demo.key(13);
         else if (evt.key.length === 1) demo.key(evt.key.charCodeAt(0));
+        else if (KEY_CODES[evt.key] !== undefined) { evt.preventDefault(); demo.key(KEY_CODES[evt.key]); }
     }
 });
 

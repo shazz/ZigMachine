@@ -106,7 +106,7 @@ pub const Demo = struct {
     }
 
     pub fn key(self: *Demo, cp: u32) void {
-        if (!self.running) self.desktop.key(cp); // text entry (rename) on the desktop
+        if (self.running) self.app.key(cp) else self.desktop.key(cp);
     }
 
     // Arrow keys: on the desktop they drive the caret in an open name field.
