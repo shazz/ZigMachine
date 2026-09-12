@@ -13,7 +13,12 @@
 // thread; JS mirrors its YM regs / player mode / scopes into the demo module.
 // --------------------------------------------------------------------------
 
-const SHARED_PAGES = 79; // must match hw/sdk/memmap.zig SHARED_PAGES (v1.1: 2 MiB demo window + 1 MiB VRAM)
+// MUST match machine/sdk/memmap.zig SHARED_PAGES. v1.3: 2 MiB cart window + 1 MiB
+// VRAM + PFB + the 2 MiB ROM window. Raising it is a BREAKING change for carts
+// packed against the old value — a cart declares the imported memory's
+// initial/max, so it refuses a memory bigger than its max. Repack with
+// tools/mkdisks.sh (node apps/disk_check.mjs catches it).
+const SHARED_PAGES = 112;
 
 // Cache-bust every wasm fetch with the page-load time, so a rebuilt .wasm is
 // always picked up on reload (mobile browsers cache the 1.9 MB blob hard and
@@ -290,6 +295,13 @@ async function boot() {
             hwRamSize: machine.hwRamSize,
             hwRamUsed: machine.hwRamUsed,
             hwRamFree: machine.hwRamFree,
+            // The ROM chip's own window (Phase 2). No rom.wasm is fitted yet, so
+            // these report 0 — which reads as "take nothing", the safe answer.
+            hwRomRamBase: machine.hwRomRamBase,
+            hwRomRamTop: machine.hwRomRamTop,
+            hwRomRamSize: machine.hwRomRamSize,
+            hwRomRamUsed: machine.hwRomRamUsed,
+            hwRomRamFree: machine.hwRomRamFree,
             beep: () => beep(), // boot-sector YM2149 tone (see novirus.zig)
             diskReadBlock: (block, dst) => diskReadBlock(block, dst), // drive: 512 B block -> RAM
             hostAudioStreamStart: (rate) => hostAudioStreamStart(rate), // begin ring streaming

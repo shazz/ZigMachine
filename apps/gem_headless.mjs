@@ -1,5 +1,5 @@
 // Headless GEM driver — boots the sealed machine + demo-gem.wasm exactly the way
-// docs/sealed-loader.js does (one shared 79-page memory, machine exports wired
+// docs/sealed-loader.js does (one shared SHARED_PAGES-page memory, machine exports wired
 // into the demo's imports), then drives the pointer frame by frame and dumps the
 // composited screen as a PPM.
 //
@@ -15,7 +15,7 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { cartRam } from "../docs/wasm_hiwater.js";
 
-const PAGES = 79; // must match SHARED_PAGES in machine/sdk/memmap.zig
+const PAGES = 112; // must match SHARED_PAGES in machine/sdk/memmap.zig
 const DBLCLICK = 2; // pointer buttons bit 1 = the loader's synthesised double-click
 
 export async function bootGem() {

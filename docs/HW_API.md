@@ -8,7 +8,7 @@ The **sealed machine** ABI: everything a coder gets of the hardware is the two
 > the entry points, not the schematics. The constraints *are* the console.
 > Everything here is stable ABI — additive changes bump minor, layout changes
 > bump major. Version is exported as `hwVersion()` / `audioVersion()`
-> (`0x0001_0200` = 1.2.0).
+> (`0x0001_0300` = 1.3.0).
 
 The single source of truth for the numbers below is `hw/sdk/memmap.zig` (video)
 and `hw/sdk/audio.zig` (audio).
@@ -72,6 +72,7 @@ memory.
 | `0x54` | `FB_MODE[4]` | u8×4 | per-plane render mode: `0` normal · `1` fullscreen (always-open overscan) · `2` scroll · `3` medium · `4` overscan (trick-gated) |
 | `0x58` | `RES_FLICKER` | u16 | overscan-trick latch: the SDK bumps it on a `RES_MEDIUM`→`RES_PLANES` flicker so the machine can observe the (untrappable) poke once per scanline |
 | `0x5C` | `CART_HIGH` | u32 | the running cart's data+stack high-water, declared by the host at load time (`hwSetCartHigh`). Survives `hwInit`. `0` = undeclared. Backs the RAM instructions in §4c |
+| `0x60` | `ROM_HIGH` | u32 | the same for the ROM module's window (`hwSetRomHigh`). `0` = no ROM chip fitted |
 
 **Scroll planes** (`FB_MODE = 2`): back a plane with a bigger-than-screen buffer
 (`setScrollPlane(w, h)`); the visible 320×200 window is panned by moving `FB_BASE`
@@ -123,7 +124,7 @@ hwPhysicalPtr() i32      // pointer to the PFB, for the host to blit
 hwPlanesNumber() u8      // 4
 hwPhysWidth() u32        // 400
 hwPhysHeight() u32       // 280
-hwVersion() u32          // 0x0001_0200
+hwVersion() u32          // 0x0001_0300
 ```
 
 **Import it requires** (provided by the host, routed to the open demo module):
@@ -206,6 +207,29 @@ Language-agnostic: a C or Rust cart imports `hwRamFree` from `env` like any othe
 entry point. `node apps/ram_check.mjs` tests the instructions against the host
 measurement; `node apps/check_fits.mjs <cart.wasm>` reports the same numbers
 offline and fails the build if a cart overruns the window.
+
+### The ROM window — since 1.3.0
+
+The ROM chip gets a **second, separate 2 MiB window ABOVE the video region**, so a
+ROM never spends the app's RAM (Phase 2 — `docs/PHASE2_ROM_CHIP.md`):
+
+```zig
+hwRomRamBase() u32       // 0x500000
+hwRomRamTop()  u32       // 0x700000
+hwRomRamSize() u32       // 0x200000
+hwRomRamUsed() u32       // the ROM module's static data + stack
+hwRomRamFree() u32       // what is left in ITS window
+hwSetRomHigh(high)       // host-only; writes REG_ROM_HIGH
+```
+
+No `rom.wasm` is fitted yet, so `hwRomRamFree()` reports **0** — the same answer
+as a full window, and for the same reason: *take nothing*.
+
+> **`SHARED_PAGES` went 79 → 112 to cover it, which is a BREAKING change for any
+> cart packed before 1.3.0.** A cart declares the imported memory's initial/max,
+> so it refuses a memory larger than its max. Everything in `docs/` was rebuilt
+> and repacked (`tools/mkdisks.sh`); `node apps/disk_check.mjs` is the check that
+> catches a disk left behind.
 
 ---
 

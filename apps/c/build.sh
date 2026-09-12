@@ -9,7 +9,7 @@ OUT=../../docs
 
 # Layout MUST match build.zig's demo module: import the machine's ONE memory,
 # keep data/stack in the 2 MiB demo window [0x100000..0x300000).
-MEM=5177344; GLOBAL_BASE=1048576                 # 79*65536 ; 0x100000
+MEM=7340032; GLOBAL_BASE=1048576                 # 112*65536 (memmap.SHARED_PAGES) ; 0x100000
 EXPORTS=(boot frame isPlaneEnabled hblDispatch skipBoot setShadeMode pointer input)
 LDFLAGS=(-Wl,--no-entry -Wl,--import-memory
          -Wl,--initial-memory=$MEM -Wl,--max-memory=$MEM -Wl,--global-base=$GLOBAL_BASE)

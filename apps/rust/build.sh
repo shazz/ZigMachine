@@ -8,7 +8,7 @@ cd "$(dirname "$0")"
 OUT=../../docs
 
 # Layout MUST match build.zig's demo module (see apps/c/build.sh for the why).
-MEM=5177344; GLOBAL_BASE=1048576                 # 79*65536 ; 0x100000
+MEM=7340032; GLOBAL_BASE=1048576                 # 112*65536 (memmap.SHARED_PAGES) ; 0x100000
 EXPORTS=(boot frame isPlaneEnabled hblDispatch skipBoot setShadeMode pointer input)
 LDFLAGS=(-C link-arg=--no-entry -C link-arg=--import-memory
          -C link-arg=--initial-memory=$MEM -C link-arg=--max-memory=$MEM

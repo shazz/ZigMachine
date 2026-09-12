@@ -71,3 +71,25 @@ export fn hwRamUsed() u32 {
 export fn hwRamFree() u32 {
     return video.ramFree();
 }
+
+// --- ROM chip RAM (Phase 2) ---
+// The ROM gets its own window ABOVE the video region, so an app's 2 MiB stays the
+// app's. Reports 0 until a rom.wasm is actually fitted and declared.
+export fn hwSetRomHigh(high: u32) void {
+    video.setRomHigh(high);
+}
+export fn hwRomRamBase() u32 {
+    return memmap.ROM_RAM_BASE;
+}
+export fn hwRomRamTop() u32 {
+    return memmap.ROM_RAM_TOP;
+}
+export fn hwRomRamSize() u32 {
+    return memmap.ROM_RAM_BYTES;
+}
+export fn hwRomRamUsed() u32 {
+    return video.romRamUsed();
+}
+export fn hwRomRamFree() u32 {
+    return video.romRamFree();
+}

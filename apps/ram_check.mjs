@@ -8,9 +8,9 @@
 //
 // Usage: node apps/ram_check.mjs      (exit 1 on any failure)
 import { readFile } from "node:fs/promises";
-import { cartRam, CART_RAM_BASE, CART_RAM_TOP } from "../docs/wasm_hiwater.js";
+import { cartRam, CART_RAM_BASE, CART_RAM_TOP, ROM_RAM_BASE, ROM_RAM_TOP } from "../docs/wasm_hiwater.js";
 
-const PAGES = 79; // memmap.SHARED_PAGES
+const PAGES = 112; // memmap.SHARED_PAGES
 let failures = 0;
 
 function check(what, got, want) {
@@ -55,6 +55,27 @@ check("hwRamFree past the ceiling", hw.hwRamFree(), 0);
 check("hwRamUsed past the ceiling", hw.hwRamUsed(), 0);
 hw.hwSetCartHigh(0x1000); // below the window (a cart linked somewhere else)
 check("hwRamFree below the window", hw.hwRamFree(), 0);
+
+console.log("the ROM window (Phase 2): its own 2 MiB ABOVE the video region");
+check("hwRomRamBase", hw.hwRomRamBase(), ROM_RAM_BASE);
+check("hwRomRamTop", hw.hwRomRamTop(), ROM_RAM_TOP);
+check("hwRomRamSize", hw.hwRomRamSize(), ROM_RAM_TOP - ROM_RAM_BASE);
+check("the ROM window starts above the cart's", ROM_RAM_BASE >= CART_RAM_TOP, true);
+console.log("no ROM chip fitted yet: reports 0, same as a full one");
+check("hwRomRamFree undeclared", hw.hwRomRamFree(), 0);
+check("hwRomRamUsed undeclared", hw.hwRomRamUsed(), 0);
+hw.hwSetRomHigh(ROM_RAM_BASE + 256 * 1024);
+check("hwRomRamUsed declared", hw.hwRomRamUsed(), 256 * 1024);
+check("hwRomRamFree declared", hw.hwRomRamFree(), ROM_RAM_TOP - ROM_RAM_BASE - 256 * 1024);
+console.log("the two windows do not alias: declaring one leaves the other alone");
+check("cart free after a ROM declaration", hw.hwRamFree(), 0); // still the past-ceiling value
+hw.hwSetCartHigh(CART_RAM_BASE + 64 * 1024);
+check("ROM used after a cart declaration", hw.hwRomRamUsed(), 256 * 1024);
+check("cart used", hw.hwRamUsed(), 64 * 1024);
+hw.hwInit();
+check("both survive hwInit: ROM", hw.hwRomRamUsed(), 256 * 1024);
+check("both survive hwInit: cart", hw.hwRamUsed(), 64 * 1024);
+hw.hwSetRomHigh(0); // no chip fitted, for the per-cart checks below
 
 console.log("the hardware agrees with the host's measurement, per cart");
 for (const f of ["docs/demo-gem.wasm", "docs/demo-st_replay.wasm", "docs/demo.wasm"]) {

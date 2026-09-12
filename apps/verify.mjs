@@ -1,11 +1,11 @@
 // Headless ABI check: instantiate each foreign demo the way sealed-loader.js
-// does (shared 79-page memory + env.hwVideoBase/consoleLogJS), run boot()+frames,
+// does (shared SHARED_PAGES-page memory + env.hwVideoBase/consoleLogJS), run boot()+frames,
 // and assert it (a) enabled plane 0, (b) wrote an opaque palette, (c) drew pixels
 // that ANIMATE. Proves the polyglot app talks to the ABI — no browser needed.
 import { readFile } from "node:fs/promises";
 import { cartRam, CART_RAM_BASE, CART_RAM_TOP } from "../docs/wasm_hiwater.js";
 
-const PAGES = 79;
+const PAGES = 112; // memmap.SHARED_PAGES
 const VIDEO_BASE = 0x300000; // hwVideoBase() return value (HW_VIDEO_BASE)
 const OFF_PAL = 0x0100, OFF_VRAM = 0x1100, W = 320, H = 200;
 

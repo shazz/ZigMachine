@@ -33,6 +33,9 @@ pub const FULLSCREEN_FB_BYTES = memmap.FULLSCREEN_FB_BYTES;
 pub const CART_RAM_BASE = memmap.CART_RAM_BASE;
 pub const CART_RAM_TOP = memmap.CART_RAM_TOP;
 pub const CART_RAM_BYTES = memmap.CART_RAM_BYTES;
+pub const ROM_RAM_BASE = memmap.ROM_RAM_BASE;
+pub const ROM_RAM_TOP = memmap.ROM_RAM_TOP;
+pub const ROM_RAM_BYTES = memmap.ROM_RAM_BYTES;
 pub const defaultFbBase = memmap.defaultFbBase;
 pub const REG_RESOLUTION = memmap.REG_RESOLUTION;
 pub const REG_BACKGROUND = memmap.REG_BACKGROUND;
@@ -146,3 +149,12 @@ pub extern fn hwRamTop() u32; // first byte ABOVE it (= the video region)
 pub extern fn hwRamSize() u32; // the whole window, in bytes (2 MiB)
 pub extern fn hwRamUsed() u32; // this cart's static data + stack
 pub extern fn hwRamFree() u32; // what is left below the video region
+
+// The ROM chip's own window, above the video region (Phase 2). Reports 0 until
+// a rom.wasm is fitted — an app asking about a ROM that is not there gets the
+// same answer as an app asking about a full one: take nothing.
+pub extern fn hwRomRamBase() u32;
+pub extern fn hwRomRamTop() u32;
+pub extern fn hwRomRamSize() u32;
+pub extern fn hwRomRamUsed() u32;
+pub extern fn hwRomRamFree() u32;

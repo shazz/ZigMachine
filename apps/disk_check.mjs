@@ -13,7 +13,7 @@
 import { readFile, readdir } from "node:fs/promises";
 import { cartRam, CART_RAM_TOP } from "../docs/wasm_hiwater.js";
 
-const PAGES = 79; // memmap.SHARED_PAGES
+const PAGES = 112; // memmap.SHARED_PAGES
 const dec = new TextDecoder();
 const str = (b, o, n) => dec.decode(b.subarray(o, o + n)).replace(/\0.*$/, "");
 

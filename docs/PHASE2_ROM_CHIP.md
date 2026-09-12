@@ -62,14 +62,22 @@ drawing straight into the framebuffers in the video region.
 Ordered so each one is separately buildable and testable. **2.1 is the
 de-risking step**: change the call *shape* first, the module boundary second.
 
-### 2.0 — carve the window
+### 2.0 — carve the window ✅ DONE (HW 1.3.0)
 - `machine/sdk/memmap.zig`: `ROM_RAM_BASE` / `ROM_RAM_TOP`, bump `SHARED_PAGES`.
 - Extend the RAM instructions: `hwRomRamFree()` / `hwRomRamUsed()`, a second
   `REG_ROM_HIGH`, declared by the host the same way (`docs/wasm_hiwater.js`
   already measures any module).
 - ABI change → **clean-rebuild both wasm modules** (`.zig-cache` too).
-- *Done when:* everything still runs and `apps/ram_check.mjs` covers the ROM
-  window as well as the cart's.
+- *Done:* `ROM_RAM_BASE/TOP` = `[0x500000, 0x700000)`, `SHARED_PAGES` 79 → 112,
+  `REG_ROM_HIGH` at 0x60, and `hwRomRam{Base,Top,Size,Used,Free}` +
+  `hwSetRomHigh`. `ram_check` covers both windows, including that they do not
+  alias and both survive `hwInit`.
+- **The breakage was real and is worth remembering:** growing the shared memory
+  invalidated every packed cart (a cart refuses a memory bigger than its declared
+  max), including the C and Rust ones, whose `build.sh` carried the page count as
+  a literal. `disk_check` caught all 28 offline in one command. This is exactly
+  why `tools/mkdisks.sh` had to land first — step 2.3 changes the host `env` and
+  will do the same thing again.
 
 ### 2.1 — a flat ABI, still statically linked
 - `rom/sdk/rom.zig`: the app-facing ABI as `extern fn` declarations only —

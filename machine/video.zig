@@ -111,29 +111,47 @@ pub fn setCartHigh(high: u32) void {
 pub fn cartHigh() u32 {
     return r32(memmap.REG_CART_HIGH);
 }
-// Bytes the cart may still take below the video region. 0 means either "full"
-// or "the host never declared it" — a cart that wants to tell those apart reads
-// cartHigh() itself. Never guesses: an undeclared or out-of-range high-water
-// reports 0 rather than a number the cart would size a buffer from.
+pub fn setRomHigh(high: u32) void {
+    w32(memmap.REG_ROM_HIGH, high);
+}
+pub fn romHigh() u32 {
+    return r32(memmap.REG_ROM_HIGH);
+}
+// Bytes still available in a window. 0 means either "full" or "never declared" —
+// a caller that wants to tell those apart reads the high-water itself. Never
+// guesses: an undeclared or out-of-range high-water reports 0 rather than a
+// number someone would size a buffer from.
+inline fn freeIn(high: u32, base: usize, top: usize) u32 {
+    if (high < base or high >= top) return 0;
+    return @intCast(top - high);
+}
+inline fn usedIn(high: u32, base: usize, top: usize) u32 {
+    if (high < base or high >= top) return 0;
+    return @intCast(high - base);
+}
 pub fn ramFree() u32 {
-    const high = cartHigh();
-    if (high < memmap.CART_RAM_BASE or high >= memmap.CART_RAM_TOP) return 0;
-    return @intCast(memmap.CART_RAM_TOP - high);
+    return freeIn(cartHigh(), memmap.CART_RAM_BASE, memmap.CART_RAM_TOP);
 }
 pub fn ramUsed() u32 {
-    const high = cartHigh();
-    if (high < memmap.CART_RAM_BASE or high >= memmap.CART_RAM_TOP) return 0;
-    return @intCast(high - memmap.CART_RAM_BASE);
+    return usedIn(cartHigh(), memmap.CART_RAM_BASE, memmap.CART_RAM_TOP);
+}
+pub fn romRamFree() u32 {
+    return freeIn(romHigh(), memmap.ROM_RAM_BASE, memmap.ROM_RAM_TOP);
+}
+pub fn romRamUsed() u32 {
+    return usedIn(romHigh(), memmap.ROM_RAM_BASE, memmap.ROM_RAM_TOP);
 }
 
 // Reset the register block; leave palettes/LFBs to the demo's boot.
 pub fn reset() void {
-    // REG_CART_HIGH describes the CART, not the video state, and the host may
-    // declare it either side of hwInit() — so it survives the wipe.
-    const high = cartHigh();
+    // The high-water registers describe the loaded MODULES, not the video state,
+    // and the host may declare them either side of hwInit() — so they survive.
+    const cart_high = cartHigh();
+    const rom_high = romHigh();
     var i: usize = 0;
     while (i < 256) : (i += 1) w8(memmap.OFF_REG + i, 0);
-    w32(memmap.REG_CART_HIGH, high);
+    w32(memmap.REG_CART_HIGH, cart_high);
+    w32(memmap.REG_ROM_HIGH, rom_high);
     w8(memmap.REG_NB_PLANES, memmap.NB_PLANES);
     w8(memmap.REG_RESOLUTION, memmap.RES_PLANES);
     // Every plane starts NORMAL: stride 320, no fine scroll, and its screen base

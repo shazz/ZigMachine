@@ -17,6 +17,8 @@
 // --------------------------------------------------------------------------
 export const CART_RAM_BASE = 0x100000; // memmap.CART_RAM_BASE
 export const CART_RAM_TOP = 0x300000; // memmap.CART_RAM_TOP (= HW_VIDEO_BASE)
+export const ROM_RAM_BASE = 0x500000; // memmap.ROM_RAM_BASE  (Phase 2)
+export const ROM_RAM_TOP = 0x700000; // memmap.ROM_RAM_TOP
 
 function uleb(b, p) {
     let r = 0, s = 0, x;
@@ -81,21 +83,26 @@ export function cartHighWater(bytes) {
     return high;
 }
 
-// What the machine's hwRam* instructions will report for this cart. Kept here
-// so the checkers and the loader agree with the hardware to the byte.
-export function cartRam(bytes) {
+// What the machine's hwRam* / hwRomRam* instructions will report for a module in
+// the given window. Kept here so the checkers and the loader agree with the
+// hardware to the byte.
+export function windowRam(bytes, base, top) {
     const high = cartHighWater(bytes);
-    const known = high !== null && high >= CART_RAM_BASE && high < CART_RAM_TOP;
+    const known = high !== null && high >= base && high < top;
     return {
         high,
         known,
-        used: known ? high - CART_RAM_BASE : 0,
-        free: known ? CART_RAM_TOP - high : 0,
-        over: high !== null && high >= CART_RAM_TOP,
+        used: known ? high - base : 0,
+        free: known ? top - high : 0,
+        over: high !== null && high >= top,
     };
 }
+
+export const cartRam = (bytes) => windowRam(bytes, CART_RAM_BASE, CART_RAM_TOP);
+export const romRam = (bytes) => windowRam(bytes, ROM_RAM_BASE, ROM_RAM_TOP);
 
 // docs/sealed.html loads this as a module while sealed-loader.js is a classic
 // script (it exposes main() to an inline onclick), so hand the two functions
 // over on globalThis rather than splitting the parser in two.
-globalThis.ZMRam = { cartHighWater, cartRam, CART_RAM_BASE, CART_RAM_TOP };
+globalThis.ZMRam = { cartHighWater, windowRam, cartRam, romRam,
+                     CART_RAM_BASE, CART_RAM_TOP, ROM_RAM_BASE, ROM_RAM_TOP };
