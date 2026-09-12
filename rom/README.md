@@ -26,6 +26,9 @@ zig build -Dwasm -Drelease=true
 cd docs && python3 -m http.server 3333   # sealed.html -> menu -> GEM DESKTOP
 ```
 
-> **Phase 2:** cut GEM into its own `rom.wasm` (linked to `machine/sdk/`, exporting
-> a flat app-facing ABI in `rom/sdk/`), wired by the loader like the machine is —
-> so a C or Rust app can call the Zig GEM ROM. See [[zigmachine-polyglot-apps]].
+> **Phase 2** — cut GEM into its own `rom.wasm` (linked to `machine/sdk/`,
+> exporting a flat app-facing ABI in `rom/sdk/`), wired by the loader like the
+> machine is, so a C or Rust app can call the Zig GEM ROM. **Not started.** Until
+> it is, GEM's ~525 KB of statics sit inside the *app's* 2 MiB window and cap what
+> an app can allocate — ask `hwRamFree()` and see. Planned in
+> [`docs/PHASE2_ROM_CHIP.md`](../docs/PHASE2_ROM_CHIP.md).
