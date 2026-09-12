@@ -5,42 +5,65 @@
         <title>Zig Machine</title>
         <link rel="stylesheet" type="text/css" href="css/crt.css" media="screen" />
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/normalize/5.0.0/normalize.min.css">
+        <link rel="stylesheet" type="text/css" href="css/info.css?v=36" media="screen" />
     </head>
     <body>
         <div>
             <img src="overlays/sc1224_5.png" class="monitor" alt="monitor"/>
-            <button onclick="main()" class="sound_button">Sound on</button>
-            <button onclick="next_channel()" class="next_channel_button">&nbsp;+&nbsp;</button>
-            <button onclick="previous_channel()" class="prev_channel_button">&nbsp;-&nbsp;</button>
+            <button onclick="main(); this.blur();" class="sound_button">Sound on</button>
+            <button onclick="nextChannel(); this.blur();" class="next_channel_button">&nbsp;+&nbsp;</button>
+            <button onclick="previousChannel(); this.blur();" class="prev_channel_button">&nbsp;-&nbsp;</button>
             <div class="container">
                 <div class="overlay">
-                    <canvas
-                        id="0"
-                        width="400"
-                        height="280"
-                        class="canvas">
-                    </canvas>
-                    <canvas
-                        id="1"
-                        width="400"
-                        height="280"
-                        class="canvas">
-                    </canvas> 
-                    <canvas
-                        id="2"
-                        width="400"
-                        height="280"
-                        class="canvas">
-                    </canvas> 
-                    <canvas
-                        id="3"
-                        width="400"
-                        height="280"
-                        class="canvas">
-                    </canvas>                          
-                </div> 
+                    <canvas id="0" width="400" height="280" class="canvas"></canvas>
+                    <canvas id="1" width="400" height="280" class="canvas"></canvas>
+                    <canvas id="2" width="400" height="280" class="canvas"></canvas>
+                    <canvas id="3" width="400" height="280" class="canvas"></canvas>
+                </div>
             </div>
-        </div>                   
+        </div>
+        <aside class="info" aria-label="About the ZigMachine">
+            <h1>ZIGMACHINE</h1>
+            <p class="tagline">A fantasy console written in Zig, running in your browser as WebAssembly.</p>
+
+            <p>A sandbox for coding oldskool effects with nothing but what an 80s
+            machine gave you: palettes, scanline interrupts, a blitter, a sound chip.
+            Inspired by <a href="https://wab.com">WAB</a> and
+            <a href="https://codef.santo.fr">CODEF</a> by NoNameNo.</p>
+
+            <h2>Try it</h2>
+            <ul>
+                <li><kbd>+</kbd> / <kbd>−</kbd> on the monitor change channel, TV-style.</li>
+                <li><kbd>↑</kbd><kbd>↓</kbd><kbd>←</kbd><kbd>→</kbd> pick a disk in the menu, <kbd>Enter</kbd> boots it, <kbd>Esc</kbd> goes back.</li>
+                <li>Sound starts on your first click or key.</li>
+            </ul>
+
+            <h2>The machine is sealed</h2>
+            <p>The hardware is a separate binary from the software on it. The video and
+            sound chips, the ROM (a GEM desktop) and your cart are separate wasm modules
+            sharing one memory, talking through memory-mapped registers — the cart can't
+            reach inside the hardware.</p>
+            <ul>
+                <li>320×200 visible, 400×280 with borders; 4 indexed planes, 256-colour palettes.</li>
+                <li>Per-scanline interrupts for copper bars; borders opened the honest way, by flickering the resolution register.</li>
+                <li>YM2149 + 4 sample channels. SNDH tunes run their own 68000 code on an emulated CPU.</li>
+                <li>2 MB per cart, floppies with a FAT, ZX0-packed assets. Carts in Zig, C or Rust.</li>
+            </ul>
+
+            <div class="links">
+                <a href="ZIGMACHINE_GUIDE.html">Programmer's guide</a>
+                <a href="https://github.com/shazz/ZigMachine">Source &amp; README</a>
+                <a href="legacy.html">Legacy page</a>
+            </div>
+
+            <p class="credits">Most channels are ports of Atari ST cracktros and demo screens
+            from WAB's CODEF remakes. Credit belongs to the original coders, graphicians
+            and musicians, named in each scene's source; music from the
+            <a href="https://sndh.atari.org">SNDH archive</a>.</p>
+        </aside>
     </body>
-    <script src="loader.js"></script>
+    <!-- Measures a cart's RAM high-water for hwSetCartHigh; module, so it must
+         come first (it publishes globalThis.ZMRam for the classic loader). -->
+    <script type="module" src="wasm_hiwater.js?v=35"></script>
+    <script src="sealed-loader.js?v=35"></script>
 </html>

@@ -1,5 +1,30 @@
 zig-cache
+.zig-cache
 zig-out
 *.o
 *.git
 .DS_Store
+code-index.db
+.claude/
+docs/.claude/
+
+# Codef remakes local mirror (tools/crawl_codef.sh) — bulk third-party reference, not committed
+assets/oldies/
+
+# Local reference material & scratch prototypes (oldies cracktro JS, bug repros)
+prototypes/
+.archview/
+__pycache__/
+
+# Retired pre-seal monolith: kept on disk for A/B reference, not shipped.
+legacy/
+
+# Local-only tooling (see tools/private_tools/README.md).
+tools/private_tools/
+
+# Working notes and agent instructions — local only.
+.claude
+CLAUDE.md
+TODOS.md
+HANDOFF.md
+

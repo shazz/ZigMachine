@@ -110,14 +110,13 @@ body {
   top: 0px;
   left: 0px;
   font-size: 60px;
-  visibility: hidden;
+  visibility: visible;
   pointer-events: none;
 }
 
-.container .overlay {
-  animation: overlay-anim 0.001s infinite;
-  animation-fill-mode: forwards;
-}
+/* NOTE: previously ran `overlay-anim 0.001s infinite`, a 1ms strobe whose
+   hidden keyframe (0-20%) got sampled at a random phase every rendered frame,
+   blanking every canvas ~20% of frames ("black for a frame"). Kept visible. */
 
 .canvas {
   position: absolute;

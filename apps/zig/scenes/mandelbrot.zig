@@ -1,0 +1,67 @@
+// --------------------------------------------------------------------------
+// Imports
+// --------------------------------------------------------------------------
+const std = @import("std");
+const zg = @import("zigos");
+const RndGen = std.Random.DefaultPrng;
+
+const ZigOS = zg.ZigOS;
+const LogicalFB = zg.LogicalFB;
+const Color = zg.Color;
+
+const Mandelbrot = zg.Mandelbrot;
+const Resolution = zg.Resolution;
+
+const Console = zg.Console;
+
+// --------------------------------------------------------------------------
+// Constants
+// --------------------------------------------------------------------------
+const HEIGHT: u16 = zg.HEIGHT;
+const WIDTH: u16 = zg.WIDTH;
+
+pub const PHYSICAL_WIDTH: u16 = zg.PHYSICAL_WIDTH;
+pub const PHYSICAL_HEIGHT: u16 = zg.PHYSICAL_HEIGHT;
+
+// --------------------------------------------------------------------------
+// Variables
+// --------------------------------------------------------------------------
+
+// --------------------------------------------------------------------------
+// Demo
+// --------------------------------------------------------------------------
+pub const Demo = struct {
+    name: u8 = 0,
+    frame_counter: u32 = 0,
+    mandelbrot: Mandelbrot = undefined,
+
+    pub fn init(self: *Demo, zigos: *ZigOS) void {
+        Console.log("Demo init", .{});
+
+        var lfb: *LogicalFB = &zigos.lfbs[0];
+        lfb.is_enabled = true;
+
+        const pfb: *[PHYSICAL_HEIGHT][PHYSICAL_WIDTH]u32 = &zigos.physical_framebuffer;
+
+        zigos.setResolution(Resolution.truecolor);
+        self.mandelbrot.init(pfb);
+
+        Console.log("demo init done!", .{});
+    }
+
+    pub fn update(self: *Demo, zigos: *ZigOS, elapsed_time: f32) void {
+
+        self.mandelbrot.update();
+
+        _ = zigos;
+        _ = elapsed_time;
+    }
+
+    pub fn render(self: *Demo, zigos: *ZigOS, elapsed_time: f32) void {
+
+        self.mandelbrot.render();
+
+        _ = zigos;
+        _ = elapsed_time;
+    }
+};
