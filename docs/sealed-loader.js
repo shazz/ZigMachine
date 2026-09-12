@@ -195,6 +195,23 @@ async function swapCart(req) {
     swapping = false;
 }
 
+// Any import a cart asks for that this host does not implement becomes a LOGGED
+// NO-OP instead of a LinkError. The alternative has now bitten three times: add
+// or retire one name and every cart built on the other side of the change dies
+// at instantiation, which surfaces as a black screen or a boot loop. A missing
+// import should cost that one feature, not the machine.
+function tolerantEnv(env) {
+    return new Proxy(env, {
+        has: () => true,
+        get(target, key) {
+            if (key in target) return target[key];
+            if (typeof key !== "string") return undefined;
+            console.warn(`host: cart imports "${key}", which this loader does not implement — stubbed`);
+            return () => 0;
+        },
+    });
+}
+
 // Instantiate a cart, turning a link failure into a REPORT rather than a freeze.
 // A disk packed against an older host import surface fails here; saying which
 // import is missing beats a black screen.
@@ -228,7 +245,7 @@ async function boot() {
 
     // The demo imports the machine's hwVideoBase (to discover the region) + console.
     demoImports = {
-        env: {
+        env: tolerantEnv({
             memory,
             jsConsoleLogWrite: consoleWrite,
             jsConsoleLogFlush: consoleFlush,
@@ -250,7 +267,7 @@ async function boot() {
             audioPlay: () => {},
             audioStop: () => {},
             loadSample: () => {},
-        },
+        }),
     };
     // What to boot: ?disk=X.zmd boots a cart from a ZigMachine disk image (see
     // docs/FLOPPY_DISK.md); ?demo=X.wasm loads a raw cart; default is demo.wasm.

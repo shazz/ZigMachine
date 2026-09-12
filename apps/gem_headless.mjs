@@ -38,6 +38,7 @@ export async function bootGem() {
             // GEM touches none of these headlessly, but the import list must match.
             audioPlay: noop, audioStop: noop, loadSample: noop, beep: noop,
             diskReadBlock: noop, hostAudioStreamStart: noop, hostAudioFeed: noop,
+            hostAudioStreamStop: noop,
         },
     };
     demo = (await WebAssembly.instantiate(await readFile("docs/demo-gem.wasm"), demoImports)).instance.exports;

@@ -30,11 +30,12 @@ const FALLBACK_SECS: f32 = 1.0;
 const SILENCE: u8 = 0; // .raw samples are SIGNED 8-bit, so silence is zero
 // The sample lives in the machine's own RAM. The drive hands over blocks; the
 // program does the loading, the downsampling and the playback itself.
-// The machine has 2 MB of RAM and the cart owns that window, minus its 384 KB
-// stack and the rest of the ROM's statics — so the sampler takes a megabyte of
-// it. (The real ST Replay reports 1963200 bytes on a 2 MB machine; getting the
-// last of that would mean shrinking the stack or the desktop's statics.)
-const MAX_PCM: usize = 1024 * 1024;
+// Sample RAM. The machine has 2 MB, but the CART's window is what this buffer
+// competes for: [0x100000,0x300000) also holds the 384 KB stack and every static
+// in GEM, the boot ROM and this app. A megabyte overran it and the machine
+// trapped on boot (caught by apps/gem_headless.mjs), so the sampler takes half a
+// meg. Raising it means measuring the real ceiling, not guessing again.
+const MAX_PCM: usize = 512 * 1024;
 const FRAME_HZ: u32 = 60;
 
 const FILES = [_][]const u8{ "SAMPLE.RAW", "SMP1.RAW", "SMP2.RAW" };
