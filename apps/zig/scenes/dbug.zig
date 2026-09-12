@@ -40,6 +40,9 @@ pub const NB_FONTS: u8 = WIDTH / SCROLL_CHAR_WIDTH + 1;
 // credit panel (see dbug_credits.zig for the geometry and the four texts)
 const text_fonts_b = @embedFile("../assets/screens/dbug/fonts_16x14.raw");
 
+// music — the screen's own tune, played by its own 68000 (docs/music/)
+const MUSIC = "crystallized.sndh";
+
 // palettes
 const font_pal = convertU8ArraytoColors(@embedFile("../assets/screens/dbug/fonts_32x24_pal.dat"));
 const text_font_pal = convertU8ArraytoColors(@embedFile("../assets/screens/dbug/fonts_16x14_pal.dat"));
@@ -90,6 +93,12 @@ pub const Demo = struct {
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
         Console.log("Demo init", .{});
+
+        // The screen's own music: !Cube's "Crystallized", the SNDH the original
+        // plays. The host fetches it by name and hands it to the cart, which
+        // depacks the Pack-Ice image and runs its 68000 (see players/sndh_player).
+        // Nothing happens until the user turns sound on — the request just waits.
+        zg.requestSong(MUSIC);
 
         // first plane — overscan (400×280); borders opened by the flicker trick
         var fb: *LogicalFB = &zigos.lfbs[0];
