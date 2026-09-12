@@ -27,6 +27,11 @@ const Console = zg.Console;
 const HEIGHT: u16 = zg.HEIGHT;
 const WIDTH: u16 = zg.WIDTH;
 
+// music — the screen's own tune, played by its own 68000 (docs/music/).
+// Count Zero, "3D Mania" from the Decade Demo (1990) — the demo's own 3D
+// screen, which is what MAXI draws.
+const MUSIC = "decade_3d_mania.sndh";
+
 // scrolltext
 const fonts_b = @embedFile("../assets/screens/reps/font.raw");
 const fonts_chars = " ! #$%&'()*+,-./0123456789:;<=>? ABCDEFGHIJKLMNOPQRSTUVWXYZ";
@@ -203,6 +208,9 @@ pub const Demo = struct {
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
         Console.log("Demo init", .{});
+
+        // Nothing happens until the user turns sound on — the request just waits.
+        zg.requestSong(MUSIC);
 
         // only one plane needed
         var fb: *LogicalFB = &zigos.lfbs[0];

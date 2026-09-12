@@ -24,6 +24,10 @@ const Console = zg.Console;
 const HEIGHT: u16 = zg.HEIGHT;
 const WIDTH: u16 = zg.WIDTH;
 
+// music — the screen's own tune, played by its own 68000 (docs/music/).
+// David Whittaker, "Rampage" (1988).
+const MUSIC = "rampage.sndh";
+
 // scrolltext
 pub const NB_FONTS: u8 = 11;
 const fonts_b = @embedFile("../assets/screens/bladerunners/fonts_pal.raw");
@@ -103,6 +107,9 @@ pub const Demo = struct {
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
         Console.log("Demo init", .{});
+
+        // Nothing happens until the user turns sound on — the request just waits.
+        zg.requestSong(MUSIC);
 
         // first plane
         var fb: *LogicalFB = &zigos.lfbs[0];

@@ -174,6 +174,11 @@ export fn songNamePtr() [*]u8 {
 export fn songNameLen() u32 {
     return @intCast(zg.songNameLen());
 }
+// Which subtune of a multi-song image to start; counts from 1, 0 = the image's
+// own default. Read by the host alongside the name.
+export fn songTune() u32 {
+    return zg.songTune();
+}
 
 // Directional / action input from the host. Forwarded to scenes that declare
 // input() (e.g. the effects menu: arrows move, Fire launches, Back returns).

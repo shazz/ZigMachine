@@ -24,6 +24,10 @@ const Console = zg.Console;
 const HEIGHT: u16 = zg.HEIGHT;
 const WIDTH: u16 = zg.WIDTH;
 
+// music — the screen's own tune, played by its own 68000 (docs/music/).
+// Rob Hubbard, "Thrust" (1988).
+const MUSIC = "thrust.sndh";
+
 // scrolltext
 
 const fonts_b = @embedFile("../assets/screens/stcs/font40x34_c1.raw");
@@ -136,6 +140,9 @@ pub const Demo = struct {
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
         Console.log("Demo init", .{});
+
+        // Nothing happens until the user turns sound on — the request just waits.
+        zg.requestSong(MUSIC);
 
         zigos.setHBLHandler(handler_hbl);
 

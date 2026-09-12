@@ -121,12 +121,24 @@ inline fn readU32(off: usize) u32 {
 var g_song_name: [64]u8 = [_]u8{0} ** 64;
 var g_song_len: usize = 0;
 var g_song_pending: bool = false;
+var g_song_tune: u8 = 0;
 
 pub fn requestSong(name: []const u8) void {
+    requestSongTune(name, 0);
+}
+
+/// Same, for a multi-subtune image: `tune` counts from 1, and 0 means "the
+/// image's own default". An SNDH can hold many songs (Leavin Teramis holds 11)
+/// and the file name alone cannot say which one a screen wants.
+pub fn requestSongTune(name: []const u8, tune: u8) void {
     const n = @min(name.len, g_song_name.len);
     @memcpy(g_song_name[0..n], name[0..n]);
     g_song_len = n;
+    g_song_tune = tune;
     g_song_pending = true;
+}
+pub fn songTune() u8 {
+    return g_song_tune;
 }
 pub fn takeSongRequest() bool {
     const p = g_song_pending;

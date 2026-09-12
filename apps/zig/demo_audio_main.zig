@@ -109,6 +109,21 @@ export fn audioSndhStop() void {
     sndh.stop();
     if (current_mode == 4) current_mode = 0;
 }
+
+/// Stop EVERYTHING — the audio half of a machine reset.
+///
+/// The host calls this on every cart instantiation, next to romReset(). A screen
+/// cannot switch its own tune off on the way out (it is already gone by then), so
+/// the machine reclaims the sound chip the way it reclaims the ROM's handles.
+/// Stopping every player rather than "the one that was playing" is deliberate:
+/// the host would have to track that, and a host that tracks state gets it wrong.
+export fn audioReset() void {
+    mod.stop();
+    ym.stop();
+    sndh.stop();
+    audio.machineAudioReset();
+    current_mode = 0;
+}
 /// Where a replay call gave up, when a tune refuses to run. 0 means it ran.
 export fn audioSndhStuckPc() u32 {
     return players.sndhStuckPc();

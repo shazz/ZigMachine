@@ -7,7 +7,7 @@
 // on the sealed YM, and did the chip then make a sound?". None of that is
 // visible from the browser except as audio. Here it is three assertions.
 //
-//   node apps/sndh_headless.mjs [tune.sndh]   # no argument: the built-in tune
+//   node apps/sndh_headless.mjs [tune.sndh] [subtune]   # no args: built-in tune
 import { readFile } from "node:fs/promises";
 
 const AUDIO_PAGES = 48; // must match AUDIO_PAGES in machine/sdk/audio.zig
@@ -62,6 +62,10 @@ async function boot() {
 }
 
 const path = process.argv[2];
+// Which subtune to start. An SNDH can hold many songs (Leavin Teramis holds 11)
+// and a screen may want a specific one, so the harness must be able to prove
+// that subtune plays -- not just subtune 1.
+const want_tune = Number(process.argv[3] || 1);
 const tune = path ? new Uint8Array(await readFile(path)) : tinySndh();
 const { memory, machine, demo } = await boot();
 
@@ -74,7 +78,8 @@ if (!demo.audioLoadSndh(tune.length)) {
 }
 console.log(`  subtunes      : ${demo.audioSndhSubtunes()}`);
 
-demo.audioSndhPlay(1);
+demo.audioSndhPlay(want_tune);
+console.log(`  playing subtune: ${want_tune}`);
 console.log(`  mode after play: ${demo.audioMode()} (4 == SNDH)`);
 if (demo.audioSndhStuckPc()) {
     console.log(`  STUCK at 68k PC $${demo.audioSndhStuckPc().toString(16)}`);
@@ -104,7 +109,25 @@ console.log(`  output peak   : ${peak.toFixed(4)} (over one second)`);
 
 // The built-in tune programs registers we can name; a real tune just has to
 // play. Either way the point is that its OWN 68000 code did the programming.
-const ok = demo.audioMode() === 4 && peak > 0.01 &&
+const played = demo.audioMode() === 4 && peak > 0.01 &&
     (path !== undefined || (regs[7] === 0x3e && regs[0] === 0xd2));
-console.log(ok ? "=> PASS ✅ the tune's own 68000 code is driving the sealed YM" : "=> FAIL ❌");
+console.log(played ? "=> PASS ✅ the tune's own 68000 code is driving the sealed YM" : "=> FAIL ❌");
+
+// The machine reclaiming the sound chip: the host calls audioReset() on every
+// cart instantiation, because a screen cannot stop its own tune on the way out.
+// Before this existed, Escape out of a screen and its music played on over the
+// next one -- and there was no way to stop an SNDH at all, since the export had
+// no message case. Prove it goes quiet and STAYS quiet.
+demo.audioReset();
+let after = 0;
+for (let done = 0; done < SECOND; done += BLOCK) {
+    demo.audioRender(BLOCK);
+    for (const v of left) after = Math.max(after, Math.abs(v));
+}
+const silent = demo.audioMode() === 0 && after === 0;
+console.log(`  after reset   : mode ${demo.audioMode()} (0 == nothing playing), peak ${after.toFixed(4)}`);
+console.log(silent ? "=> PASS ✅ the machine reclaims the sound chip when a program ends"
+                   : "=> FAIL ❌ audio survived the reset");
+
+const ok = played && silent;
 process.exit(ok ? 0 : 1);

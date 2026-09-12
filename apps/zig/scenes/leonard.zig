@@ -23,6 +23,11 @@ const convertU8ArraytoColors = zg.convertU8ArraytoColors;
 const HEIGHT: u16 = zg.HEIGHT;
 const WIDTH: u16 = zg.WIDTH;
 
+// music — the screen's own tune, played by its own 68000 (docs/music/).
+// Mad Max, "S.O.S." from the So Watt demo (1989). The ripped image tags
+// itself TITL "So Watt - TCB"; the archive files it under the screen name.
+const MUSIC = "sos.sndh";
+
 pub const PHYSICAL_WIDTH: u16 = zg.PHYSICAL_WIDTH;
 pub const PHYSICAL_HEIGHT: u16 = zg.PHYSICAL_HEIGHT;
 
@@ -70,6 +75,9 @@ pub const Demo = struct {
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
         Console.log("Demo init", .{});
+
+        // Nothing happens until the user turns sound on — the request just waits.
+        zg.requestSong(MUSIC);
 
         zigos.setBackgroundColor(Color{ .r = 28, .g = 68, .b = 140, .a = 255 });
 

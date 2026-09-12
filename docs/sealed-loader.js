@@ -293,6 +293,12 @@ async function instantiateCart(bytes, what) {
         // Without this, MAX_GUI launches exhaust the tables and every ROM call
         // silently becomes a no-op: the app draws, and its dialogs never appear.
         if (rom && rom.romReset) rom.romReset();
+        // Same reasoning for the sound chip: the outgoing program cannot stop
+        // its own music -- it is already gone -- so the machine silences it.
+        // Without this, Escape out of a screen and its tune plays on over the
+        // next one. The audio half lives on the worklet thread, so it is a
+        // message rather than a call.
+        if (audioNode) audioNode.port.postMessage({ type: "reset" });
         return mod;
     } catch (e) {
         console.error(`Cannot start ${what}: ${e.message}`);
@@ -493,7 +499,8 @@ function start() {
         // the host just plays it. No per-scene playlist lives here.
         if (audioCtx && demo.pollSongRequest && demo.pollSongRequest()) {
             playSongByName(text_decoder.decode(
-                new Uint8Array(memory.buffer, demo.songNamePtr(), demo.songNameLen())));
+                new Uint8Array(memory.buffer, demo.songNamePtr(), demo.songNameLen())),
+                demo.songTune ? demo.songTune() : 0);
         }
 
         for (let i = 0; i < nb_planes; i++) {
@@ -805,12 +812,13 @@ async function playRaw(url, rate, unsigned) {
 // Play a scene-requested music file BY NAME (a path under music/). The extension
 // picks the player — the host keeps no per-scene playlist. Name comes from wasm
 // (zigos.requestSong), so reject a path escape defensively.
-function playSongByName(name) {
+function playSongByName(name, tune) {
     if (!name || name.includes("..") || name.startsWith("/")) return;
     const url = "music/" + name;
     if (name.endsWith(".mod")) playMod(url);
     else if (name.endsWith(".ymraw")) playYm(url);
-    else if (name.endsWith(".sndh")) playSndh(url);
+    // Only an SNDH has subtunes; `tune` counts from 1, 0 = the image's default.
+    else if (name.endsWith(".sndh")) playSndh(url, tune);
     else if (name.endsWith(".raw")) playRaw(url, 12517, false);
 }
 

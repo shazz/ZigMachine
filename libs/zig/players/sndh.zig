@@ -49,11 +49,19 @@ fn digits(data: []const u8, at: usize, out: *u32) usize {
 }
 
 /// Skip a NUL-terminated tag string and the padding byte that word-aligns it.
+///
+/// The padding is skipped only when it IS padding. Forcing even alignment here
+/// (`p + (p & 1)`) silently corrupts the walk on a rip whose next tag begins at
+/// an ODD offset: Scout's "##02" starts at 0x45, so the walk landed on the
+/// second '#', read "#0", matched nothing, and left subtunes at 1 — which makes
+/// a screen's requested subtune fall back to the default without a word.
+/// Tag names are ASCII, so a NUL here can only ever be padding.
 fn skipString(data: []const u8, at: usize) usize {
     var p = at;
     while (p < data.len and data[p] != 0) p += 1;
     p += 1; // the NUL
-    return p + (p & 1);
+    if (p < data.len and data[p] == 0) p += 1; // the padding byte, if there is one
+    return p;
 }
 
 /// Returns null when `data` is not an SNDH image at all.
@@ -104,6 +112,16 @@ fn tag(data: []const u8, at: usize, info: *Info) usize {
         if (is(data, at, t)) return skipString(data, at + 4);
     }
     return at + 1;
+}
+
+test "a tag starting at an ODD offset is still found" {
+    // "Scout": YEAR's NUL lands on an even byte, so "##02" begins at an odd one.
+    // Aligning past it read "#0" and lost the subtune count.
+    const img = "\x60\x00\x00\x10\x60\x00\x00\x20\x60\x00\x00\x30" ++
+        "SNDHTITLScout\x00YEAR1988\x00##02\x00TC50\x00HDNS";
+    const info = parse(img).?;
+    try std.testing.expectEqual(@as(u8, 2), info.subtunes);
+    try std.testing.expectEqual(@as(u16, 50), info.hz); // the walk kept its footing
 }
 
 test "a file without the magic is not an SNDH" {

@@ -26,6 +26,13 @@ const Console = zg.Console;
 const HEIGHT: u16 = zg.HEIGHT;
 const WIDTH: u16 = zg.WIDTH;
 
+// music — the screen's own tune, played by its own 68000 (docs/music/).
+// AN Cool's own "AN Bass" from the So Watt demo (1989) — the demo this very
+// cracktro's scrolltext announces. NOT the So Watt loader tune: that one is
+// flagged ~a (STE DMA samples), which the SNDH player does not emulate — it
+// loads and plays silence.
+const MUSIC = "sowatt_an_bass.sndh";
+
 // scrolltext
 pub const NB_FONTS: u8 = 11;
 const fonts_b = @embedFile("../assets/screens/ancool/fonts_pal.raw");
@@ -151,6 +158,9 @@ pub const Demo = struct {
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
         Console.log("Demo init", .{});
+
+        // Nothing happens until the user turns sound on — the request just waits.
+        zg.requestSong(MUSIC);
 
         // first plane
         var fb: *LogicalFB = &zigos.lfbs[0];

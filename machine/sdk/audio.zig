@@ -28,7 +28,7 @@ pub const SONG_CAP: usize = 0x100000; // 1 MiB
 pub const AUDIO_PAGES: u32 = 48; // 3 MiB shared, initial == max
 pub const DEMO_GLOBAL_BASE: u64 = 0x100000;
 
-pub const ZM_AUDIO_VERSION: u32 = 0x0001_0000; // 1.0.0
+pub const ZM_AUDIO_VERSION: u32 = 0x0001_0100; // 1.1.0 — added machineAudioReset
 
 // --- sealed chip control surface (implemented in machine-audio.wasm) ---
 pub extern fn machineAudioInit() void;
@@ -38,6 +38,7 @@ pub extern fn machineMixPaula(off: u32, len: u32) void; // mix 4 sample channels
 pub extern fn machineRenderYm(off: u32, len: u32) void; // render the PSG into [off,off+len)
 pub extern fn machineYmWrite(reg: u32, val: u32) void; // write a YM register (retriggers env on r13)
 pub extern fn machinePaulaClearScopes() void;
+pub extern fn machineAudioReset() void; // silence the chip when a program ends
 
 // One Paula channel is (re)started from song RAM; step/volume/pan/pos are then
 // tweaked per row/tick, exactly as the pre-seal player poked the Channel struct.

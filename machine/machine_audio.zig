@@ -54,6 +54,26 @@ export fn machinePaulaClearScopes() void {
     engine.clearScopes();
 }
 
+/// Silence the sound chip — the machine reclaiming it when a program ends.
+///
+/// A cart cannot switch its own music off on the way out: the host replaces it
+/// and its stop() never runs, so the outgoing screen's tune plays on over the
+/// next one. The video half already has this (hwInit -> video.reset()); this is
+/// the audio half, and the host calls it on every cart instantiation.
+///
+/// Deliberately NOT `engine.init()`: that would zero the output bus and the
+/// scope buffers mid-render. This only quiets the chip — mixer off, the three
+/// channel volumes to zero, every Paula channel stopped — so it is safe to call
+/// between two renders on the worklet thread.
+export fn machineAudioReset() void {
+    engine.ym.writeReg(7, 0x3F); // mixer: tone AND noise off on A, B and C
+    engine.ym.writeReg(8, 0); // channel A volume (also clears envelope mode)
+    engine.ym.writeReg(9, 0); // channel B
+    engine.ym.writeReg(10, 0); // channel C
+    for (&engine.channels) |*c| c.active = false;
+    engine.clearScopes();
+}
+
 // (Re)start a channel from song RAM: mirrors the pre-seal player's trigger()
 // (sets data/pos/loop/pan/active; step & volume are set separately per row).
 export fn machinePaulaTrigger(ch: u32, data_abs: u32, data_len: u32, loop_start: u32, loop_len: u32, pan: f32) void {

@@ -122,6 +122,10 @@ class ZigAudioSealedProcessor extends AudioWorkletProcessor {
                 m.machineYmWrite(7, 0x3e);                            // mixer: tone A on, noise off
                 m.machineYmWrite(8, 0x0c);                            // amplitude (fixed)
                 this.beep = true; this.bip = 0; this.bipNote = 1;
+            } else if (msg.type === "reset") {
+                // The machine reclaiming the sound chip when a program ends.
+                // Sent by the host on every cart instantiation.
+                d.audioReset();
             } else if (msg.type === "beepStop") {
                 this.machine.machineYmWrite(8, 0); // silence channel A
                 this.beep = false;
