@@ -9,8 +9,9 @@
 //
 //   node apps/dbug_headless.mjs [outdir]
 import { readFile, writeFile } from "node:fs/promises";
+import { cartRam, romRam } from "../docs/wasm_hiwater.js";
 
-const PAGES = 79; // must match SHARED_PAGES in machine/sdk/memmap.zig
+const PAGES = 112; // must match SHARED_PAGES in machine/sdk/memmap.zig
 const PLANES = 2; // the screen composites the overscan scroller + the credit panel
 
 async function boot(cart = "docs/demo-dbug.wasm") {
@@ -21,20 +22,37 @@ async function boot(cart = "docs/demo-dbug.wasm") {
         env: { memory, hblDispatch: (id, p, l, x) => demo.hblDispatch(id, p, l, x) },
     })).instance.exports;
 
+    // machine -> rom -> cart, each importing only from the ones before it, the
+    // same chain sealed-loader.js builds.
+    const romBytes = await readFile("docs/rom.wasm");
+    const rom = (await WebAssembly.instantiate(romBytes, {
+        env: { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit },
+    })).instance.exports;
+    machine.hwSetRomHigh(romRam(romBytes).high ?? 0);
+
     const noop = () => {};
-    demo = (await WebAssembly.instantiate(await readFile(cart), {
+    const cartBytes = await readFile(cart);
+    demo = (await WebAssembly.instantiate(cartBytes, {
         env: {
             memory,
             jsConsoleLogWrite: noop, jsConsoleLogFlush: noop, jsThrowError: noop,
             consoleLogJS: (p, l) => console.log("[wasm]", dec.decode(new Uint8Array(memory.buffer, p, l))),
             hwVideoBase: machine.hwVideoBase,
             hwBlit: machine.hwBlit,
+            hwRamBase: machine.hwRamBase, hwRamTop: machine.hwRamTop,
+            hwRamSize: machine.hwRamSize, hwRamUsed: machine.hwRamUsed,
+            hwRamFree: machine.hwRamFree,
+            hwRomRamBase: machine.hwRomRamBase, hwRomRamTop: machine.hwRomRamTop,
+            hwRomRamSize: machine.hwRomRamSize, hwRomRamUsed: machine.hwRomRamUsed,
+            hwRomRamFree: machine.hwRomRamFree,
+            ...rom, // the ROM chip's flat ABI
             // The screen touches none of these, but the import list must match.
             audioPlay: noop, audioStop: noop, loadSample: noop, beep: noop,
             diskReadBlock: noop, hostAudioStreamStart: noop, hostAudioFeed: noop,
             hostAudioStreamStop: noop,
         },
     })).instance.exports;
+    machine.hwSetCartHigh(cartRam(cartBytes).high ?? 0);
 
     machine.hwInit();
     demo.boot();
