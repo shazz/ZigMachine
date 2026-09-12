@@ -589,6 +589,7 @@ pub const Desktop = struct {
         const min_h = gui.TITLE_H + gui.INFO_H + icon_mod.CELL_H + gui.SCROLL;
         if (self.wm.tryAdd(.{ .r = r, .title = title, .min_w = min_w, .min_h = min_h })) |id| {
             self.win_dir[id] = dir;
+            self.sel_icon = -1; // the window, not the icon, is now the selection
             // Freeze the icon grid at the width the window OPENS with; resizing
             // then scrolls the same layout instead of re-flowing it.
             self.win_cols[id] = @max(1, @divTrunc(self.wm.contentRect(id).w, icon_mod.CELL_W));
@@ -836,16 +837,20 @@ pub const Desktop = struct {
     // Menu bar + modal alert + Set Preferences, drawn last (over everything).
     // Build the desktop menus for THIS frame so ticks (view/sort) and disabled
     // states (no selection, Format) reflect live desktop state.
-    fn buildMenus(self: *const Desktop, buf: *MenuBuf) [4]gui.Menu {
+    fn buildMenus(self: *Desktop, buf: *MenuBuf) [4]gui.Menu {
         const has_sel = self.sel_icon >= 0 or self.sel_file >= 0 or self.sel_folder >= 0;
+        // New Folder / Close / Close Window act ON a window, so they need one to
+        // be the current thing: no open window, or a DESKTOP icon selected (the
+        // selection has moved off the window), greys all three.
+        const no_win = self.wm.topOpen() == null or self.sel_icon >= 0;
         buf.desk = .{.{ .label = "Desktop Info..." }};
         buf.file = .{
             .{ .label = "Open", .disabled = !has_sel },
             .{ .label = "Show Info...", .disabled = !has_sel },
             .{ .label = "----------" },
-            .{ .label = "New Folder..." },
-            .{ .label = "Close" },
-            .{ .label = "Close Window" },
+            .{ .label = "New Folder...", .disabled = no_win },
+            .{ .label = "Close", .disabled = no_win },
+            .{ .label = "Close Window", .disabled = no_win },
             .{ .label = "----------" },
             .{ .label = "Format...", .disabled = true },
         };
