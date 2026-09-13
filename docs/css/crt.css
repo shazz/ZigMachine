@@ -120,9 +120,14 @@ body {
 
 .canvas {
   position: absolute;
-  image-rendering: pixelated;
+  /* Nearest-neighbour, and pixelated must be the LAST declaration a browser
+     accepts: Chrome also accepts -webkit-optimize-contrast, which smooths.
+     Each plane is its own stacked canvas, so smoothing makes an edge pixel
+     half-transparent in BOTH neighbouring planes and ~25% of the black ground
+     shows through: dark seams wherever colours change plane (MPP TRUECOLOR's
+     4-plane mode, any sprite plane edge). */
   image-rendering: crisp-edges;
-  image-rendering: -webkit-optimize-contrast;
+  image-rendering: pixelated;
   width: 800px;
   height: 560px;
   border: true;
