@@ -139,6 +139,34 @@ ZigOS `fs/` wraps it: `mount(image)`, `find("NAME.WSM") -> {block,len}`,
 
 ---
 
+## Packed carts (ZX0)
+
+Every disk `tools/mkdisks.sh` writes stores its cart **ZX0-packed**: the cart
+bytes at the boot pointer (v1) or the descriptor's cart block (v2) are a
+ZigMachine ZX0 container (`"ZX0!"`, see `libs/zig/depackers/zx0.zig`), made
+by the build's own `zig-out/bin/zx0pack`. A cart's static RAM is mostly zeros,
+so disks shrink to about a tenth: the 42 carts go from 10.5 MB to 1.0 MB, and
+ST Replay from 1.6 MB to 9 KB. FAT files (samples, `SCENE1.BIN`) are NOT
+packed; they are streamed block by block and must stay raw.
+
+Unpacking is the **machine's** job, not the host's. When the host
+(`docs/sealed-loader.js`, `instantiateCart`) is handed a cart that starts with
+`ZX0!`, it:
+
+1. copies the packed image into the ROM chip's free RAM
+   (`hwRomRamBase() + hwRomRamUsed()`),
+2. calls the ROM export `romDepack(src, len, dst, cap)` with `dst` = the cart
+   window (`hwRamBase()`, `hwRamSize()`), which the outgoing program no longer
+   owns,
+3. instantiates a copy of the `n` depacked bytes.
+
+`romDepack` writes only inside the cart window and returns 0 for anything it
+cannot unpack. The host then fails loudly and does not boot a half-unpacked
+program. `apps/disk_check.mjs` unpacks every disk the same way, and
+`apps/rom_abi_check.mjs` throws truncated, oversized and out-of-window calls at
+`romDepack`. A cart that is NOT packed still loads unchanged, so older disks
+keep working.
+
 # Format v2 — the boot sector *is* executable (a wasm chainloader)
 
 **Status: designing (2026-09-07).** v1's boot sector is *metadata that points at the

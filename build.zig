@@ -154,6 +154,8 @@ pub fn build(b: *std.Build) void {
                 .{ .name = "zigos", .module = zigos_mod },
                 .{ .name = "rom", .module = rom_mod },
                 .{ .name = "hardware", .module = sdk_video },
+                // romDepack: a disk's cart is stored ZX0-packed and the ROM unpacks it.
+                .{ .name = "depackers", .module = depackers_mod },
             },
         }),
     });

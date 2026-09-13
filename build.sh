@@ -12,6 +12,12 @@
 set -e
 if [ -t 1 ]; then clear; fi # not from a git hook or a log redirect
 zig build -Drelease=true -Dwasm
+# The C and Rust carts have their own build scripts, which zig build does not run.
+# Rebuilding them here (both are byte-for-byte deterministic) is what lets the
+# pre-push hook's "docs/ matches the source" check catch a stale demo-c*.wasm or
+# demo-rust.wasm; before this, only c_music_check crashing on one found it.
+bash apps/c/build.sh > /dev/null
+if command -v rustc > /dev/null 2>&1; then bash apps/rust/build.sh > /dev/null; fi
 
 # --- memory windows: every module measured against ITS OWN map -------------
 node apps/check_fits.mjs docs/demo-*.wasm docs/rom.wasm

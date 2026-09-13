@@ -82,6 +82,55 @@ for (const [name, fn] of hostile) {
     console.log(`  ${note.padEnd(7)} ${name}`);
 }
 
+// --- romDepack: the ROM unpacks a disk's packed cart into the cart window ----
+// The host hands it absolute addresses, so this is the widest door in the ROM.
+// A real ZX0 image (made by the build's own zx0pack) must come back byte for
+// byte; every hostile call must return 0, never trap, and leave the canaries
+// around the destination untouched.
+{
+    const { execFileSync } = await import("node:child_process");
+    const { mkdtempSync, writeFileSync, readFileSync } = await import("node:fs");
+    const { tmpdir } = await import("node:os");
+    const dir = mkdtempSync(`${tmpdir()}/romdepack-`);
+    const plain = new Uint8Array(64 * 1024).map((_, i) => (i * 7 + (i >> 9)) & 0xff);
+    writeFileSync(`${dir}/in.bin`, plain);
+    execFileSync("zig-out/bin/zx0pack", [`${dir}/in.bin`, `${dir}/in.zx0`], { stdio: "ignore" });
+    const packed = new Uint8Array(readFileSync(`${dir}/in.zx0`));
+
+    const CART_BASE = machine.hwRamBase(), CART_TOP = machine.hwRamTop();
+    const SRC = machine.hwRomRamBase() + machine.hwRomRamUsed(); // the ROM's free RAM, as the loader uses it
+    const DST = CART_BASE + 0x1000;
+    const GUARD = 4096;
+    const mem = () => new Uint8Array(memory.buffer);
+    const stage = (bytes) => mem().set(bytes, SRC);
+    const canaries = () => { mem().fill(CANARY, DST - GUARD, DST); mem().fill(CANARY, DST + plain.length, DST + plain.length + GUARD); };
+    const intact = () => mem().subarray(DST - GUARD, DST).every((b) => b === CANARY) &&
+                         mem().subarray(DST + plain.length, DST + plain.length + GUARD).every((b) => b === CANARY);
+
+    const depackCases = [
+        ["romDepack a real image", () => { stage(packed); return rom.romDepack(SRC, packed.length, DST, plain.length); }, plain.length],
+        ["romDepack truncated stream", () => { stage(packed); return rom.romDepack(SRC, packed.length >> 1, DST, plain.length); }, 0],
+        ["romDepack dst too small", () => { stage(packed); return rom.romDepack(SRC, packed.length, DST, plain.length - 1); }, 0],
+        ["romDepack not a ZX0 image", () => { mem().fill(0x41, SRC, SRC + 64); return rom.romDepack(SRC, 64, DST, plain.length); }, 0],
+        ["romDepack dst in the video region", () => rom.romDepack(SRC, packed.length, VIDEO, plain.length), 0],
+        ["romDepack dst running past the cart window", () => rom.romDepack(SRC, packed.length, CART_TOP - 16, plain.length), 0],
+        ["romDepack src/dst overlap", () => rom.romDepack(DST, packed.length, DST + 8, plain.length), 0],
+        ["romDepack range past memory", () => rom.romDepack(0xfffffff0, 0xffff, DST, plain.length), 0],
+        ["romDepack null pointers", () => rom.romDepack(0, packed.length, 0, plain.length), 0],
+    ];
+    for (const [name, fn, want] of depackCases) {
+        canaries();
+        let note = "ok  ";
+        try {
+            const got = fn();
+            if (got !== want) { note = "WRONG"; failures++; }
+            else if (want && !mem().subarray(DST, DST + plain.length).every((b, i) => b === plain[i])) { note = "BADDATA"; failures++; }
+        } catch (e) { note = "TRAP"; failures++; }
+        if (!intact()) { note = "CORRUPT"; failures++; }
+        console.log(`  ${note.padEnd(7)} ${name}`);
+    }
+}
+
 console.log(failures === 0
     ? "\nROM boundary: hostile arguments stay inside the caller's plane ✅"
     : `\nROM boundary: ${failures} FAILURE(S) ❌`);

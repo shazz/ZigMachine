@@ -26,6 +26,38 @@ const Rect = gui.Rect;
 pub const Result = enum(u32) { none = 0, ok = 1, cancel = 2 };
 
 // --------------------------------------------------------------------------
+// romDepack: the machine unpacks a program it loads from a disk.
+//
+// A disk stores its cart ZX0-packed (tools/mkdisks.sh). The host is only the
+// drive: it copies the packed image into free RAM and calls this, much as a
+// Pack-Ice'd program on an ST depacked itself before running. `src`/`dst` are
+// absolute addresses in shared memory. The result may only land in the CART
+// window, the one place a loaded program belongs, so a bad `dst` can never reach
+// the video region or this ROM's own statics.
+//
+// Returns the depacked length, or 0 (having written nothing outside `dst`) when a
+// pointer is null, a range runs past memory, `dst` is not wholly inside the cart
+// window, the two ranges overlap, or the image is unreadable, corrupt or bigger
+// than `dst_cap`.
+// --------------------------------------------------------------------------
+const depackers = @import("depackers");
+
+export fn romDepack(src: u32, src_len: u32, dst: u32, dst_cap: u32) u32 {
+    const mem_len: u64 = @as(u64, @wasmMemorySize(0)) * 65536;
+    const s0: u64 = src;
+    const s1: u64 = s0 + src_len;
+    const d0: u64 = dst;
+    const d1: u64 = d0 + dst_cap;
+    if (src == 0 or dst == 0 or src_len == 0 or dst_cap == 0) return 0;
+    if (s1 > mem_len or d1 > mem_len) return 0;
+    if (d0 < hw.CART_RAM_BASE or d1 > hw.CART_RAM_TOP) return 0;
+    if (s0 < d1 and d0 < s1) return 0; // overlapping: the stream would overwrite itself
+    const in = @as([*]const u8, @ptrFromInt(src))[0..src_len];
+    const out = @as([*]u8, @ptrFromInt(dst))[0..dst_cap];
+    return depackers.zx0.depack(in, out) orelse 0;
+}
+
+// --------------------------------------------------------------------------
 // ROM-side state. These are rom.wasm's statics, so they live in the ROM's RAM
 // window and an app pays nothing for the toolkit's state — the point of the
 // whole exercise.
