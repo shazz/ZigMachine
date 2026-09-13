@@ -57,6 +57,7 @@ pub const Demo = struct {
     controls: Controls,
     hud: Hud,
     cam: i32, // viewport pos.x, 640 space
+    wrapped_once: bool, // Charly has crossed the seam: the view runs unclamped
     banner: zg.tilemap.RatioScroll,
     rasters_y: u32, // ScrollingBackgroundLayer pos.y
     clock: f32, // ms towards the next 60 Hz step (negative: carried early time)
@@ -70,6 +71,7 @@ pub const Demo = struct {
         self.charly.init(A.map.START_X, A.map.START_Y);
         self.controls.init();
         self.cam = 0;
+        self.wrapped_once = false;
         self.follow(); // follow() + setDeadzone(0, 0) both force a camera update
         self.banner = .{ .pos = 0, .last = @floatFromInt(self.cam), .ratio = BANNER_RATIO, .w = BANNER_W };
         self.rasters_y = 0;
@@ -122,7 +124,10 @@ pub const Demo = struct {
         const wrapped = self.charly.update(self.controls.state(), &A.collision);
         // round, not truncate: x - unwrapped is a street-length only up to f32
         // error, and 5599.9995 must still shift the view by 5600.
-        if (wrapped != 0) self.shiftView(@intFromFloat(@round(wrapped)));
+        if (wrapped != 0) {
+            self.shiftView(@intFromFloat(@round(wrapped)));
+            self.wrapped_once = true;
+        }
         if (self.controls.fire) {
             if (doors.touching(self.charly.box())) |d| self.enter(d);
         }
@@ -174,16 +179,21 @@ pub const Demo = struct {
         } else self.controls.key(cp);
     }
 
-    // Viewport._followH with setDeadzone(0, 0) (entities.js:49), minus its clamp
-    // to [0, map - view]: on a looping street the view keeps Charly centred
-    // across the seam. floor instead of ~~ agrees on every view melonJS could
-    // reach (>= 0) and stays continuous below 0, where the start of the street
-    // shows the end of it.
+    // Viewport._followH with setDeadzone(0, 0) (entities.js:49). Until Charly
+    // first crosses the seam the view keeps melonJS's clamp at 0, so the opening
+    // shot is the remake's (spawn x 268 wants view -52; the remake shows 0).
+    // After that it runs unclamped, so the view keeps Charly centred across the
+    // seam; below 0 the start of the street shows the end of it. Its right clamp
+    // (map - view) is never applied: it would jump the view at the seam. floor
+    // instead of ~~ agrees on every view >= 0 and stays continuous below it.
     fn follow(self: *Demo) void {
         const dz = zg.tilemap.deadzone(VIEW_W, 0);
         const rel = self.charly.x - @as(f32, @floatFromInt(self.cam));
         const edge: ?i32 = if (rel > @as(f32, @floatFromInt(dz.hi))) dz.hi else if (rel < @as(f32, @floatFromInt(dz.lo))) dz.lo else null;
-        if (edge) |e| self.cam = @intFromFloat(@floor(self.charly.x - @as(f32, @floatFromInt(e))));
+        if (edge) |e| {
+            const target: i32 = @intFromFloat(@floor(self.charly.x - @as(f32, @floatFromInt(e))));
+            self.cam = if (self.wrapped_once) target else @max(target, 0);
+        }
     }
 
     // Charly crossed an end and his x jumped a street-length: the view and the
