@@ -29,8 +29,8 @@ const FADE_STEP: f32 = 0.005;
 // 0.08 per LAYER in the JS (17 layers/frame => ~1.36/frame); we track it
 // once per frame here, which is the "simple slow frame advance" the task
 // allows in place of the exact per-layer accumulation.
-const RUNNER_FW: usize = 32;
-const RUNNER_FH: usize = 28;
+const RUNNER_FW: u16 = 32;
+const RUNNER_FH: u16 = 28;
 const RUNNER_FRAMES: f32 = 7.0;
 const RUNNER_STEP: f32 = 17.0 * 0.08;
 
@@ -48,6 +48,7 @@ fn handlerOverscan(fb: *LogicalFB, zigos: *ZigOS, line: u16, col: u16) void {
 }
 
 pub const Placement = struct {
+    blitter: zg.Blitter = .{},
     pos_x: [N]f32 = undefined,
     pos_y: [N]f32 = undefined,
     alpha: [N]f32 = undefined,
@@ -55,6 +56,7 @@ pub const Placement = struct {
     sprite_nb: f32 = 0,
 
     pub fn init(self: *Placement, zigos: *ZigOS) void {
+        self.blitter.init();
         self.frame = 0;
         self.sprite_nb = 0;
         for (STRIPS, 0..) |s, i| {
@@ -104,13 +106,13 @@ pub const Placement = struct {
         p0.clearFrameBuffer(0);
         for (STRIPS, 0..) |s, i| {
             if (s.kind == .fade) applyFade(p0, s, self.alpha[i]);
-            const dx = ORIGIN_X + @as(i32, @intFromFloat(@round(self.pos_x[i])));
-            const dy = ORIGIN_Y + @as(i32, @intFromFloat(@round(self.pos_y[i])));
+            const dx: i16 = @intCast(ORIGIN_X + @as(i32, @intFromFloat(@round(self.pos_x[i]))));
+            const dy: i16 = @intCast(ORIGIN_Y + @as(i32, @intFromFloat(@round(self.pos_y[i]))));
             if (s.kind == .anim) {
-                const f: usize = @intFromFloat(self.sprite_nb);
-                blitRect(p0, s.raw, s.w, f * RUNNER_FW, 0, RUNNER_FW, RUNNER_FH, dx, dy);
+                const f: u16 = @intFromFloat(self.sprite_nb);
+                self.blitter.blitImage(p0, dx, dy, s.raw, s.w, f * RUNNER_FW, 0, RUNNER_FW, RUNNER_FH, 0);
             } else {
-                blitRect(p0, s.raw, s.w, 0, 0, s.w, s.h, dx, dy);
+                self.blitter.blitImage(p0, dx, dy, s.raw, s.w, 0, 0, s.w, s.h, 0);
             }
         }
     }
@@ -129,27 +131,4 @@ fn clampAxis(pos: f32, dest: f32, dir: i8) f32 {
 fn applyFade(fb: *LogicalFB, s: strips.StripDef, alpha: f32) void {
     if (alpha >= 1.0) return;
     zg.palette.scaleRange(fb, placement_pal, s.lo, s.hi, alpha, .{ .alpha = .{ .set = 255 } });
-}
-
-// Blit an src_w-strided sub-rectangle (src_x,src_y,w,h) of `raw` to (dx,dy) on
-// `fb`, clipped to the framebuffer; raw bytes are final palette indices
-// (index 0 = transparent, skipped).
-fn blitRect(fb: *LogicalFB, raw: []const u8, src_w: usize, src_x: usize, src_y: usize, w: usize, h: usize, dx: i32, dy: i32) void {
-    const pw: i32 = @intCast(fb.fb_w);
-    const ph: i32 = @intCast(fb.fb_h);
-    var ry: usize = 0;
-    while (ry < h) : (ry += 1) {
-        const py = dy + @as(i32, @intCast(ry));
-        if (py < 0 or py >= ph) continue;
-        const srow = (src_y + ry) * src_w + src_x;
-        const drow = @as(usize, @intCast(py)) * fb.stride;
-        var rx: usize = 0;
-        while (rx < w) : (rx += 1) {
-            const px = dx + @as(i32, @intCast(rx));
-            if (px < 0 or px >= pw) continue;
-            const idx = raw[srow + rx];
-            if (idx == 0) continue;
-            fb.fb[drow + @as(usize, @intCast(px))] = idx;
-        }
-    }
 }

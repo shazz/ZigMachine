@@ -202,6 +202,7 @@ fn handler_overscan(fb: *LogicalFB, zigos: *ZigOS, line: u16, col: u16) void {
 // default field values are NEVER applied — the struct starts as zero bytes.
 // Every field that needs a non-zero start is set in init() below.
 pub const Demo = struct {
+    blitter: zg.Blitter = .{},
     phase: Phase = .fade_in,
 
     // intro
@@ -223,6 +224,7 @@ pub const Demo = struct {
     pub fn init(self: *Demo, zigos: *ZigOS) void {
         Console.log("NOEXTRA init", .{});
 
+        self.blitter.init();
         self.resetState();
         setupPlanes(zigos);
 
@@ -318,17 +320,17 @@ pub const Demo = struct {
             // on top of everything.
             self.showFade(fb, 1.0);
             self.renderBand(fb, top);
-            blit(fb, gradbar_b, 320, 1, BX, top + GRAD_TOP);
-            blit(fb, gradbar_b, 320, 1, BX, top + GRAD_BOTTOM);
-            blit(fb, toplogo_b, TOP_W, TOP_H, BX + TOP_X, top + TOP_Y);
-            blit(fb, bottomlogo_b, BOT_W, BOT_H, BX + BOT_X, top + BOT_Y);
+            self.blitter.blitImage(fb, @intCast(BX), @intCast(top + GRAD_TOP), gradbar_b, 320, 0, 0, 320, 1, 0);
+            self.blitter.blitImage(fb, @intCast(BX), @intCast(top + GRAD_BOTTOM), gradbar_b, 320, 0, 0, 320, 1, 0);
+            self.blitter.blitImage(fb, @intCast(BX + TOP_X), @intCast(top + TOP_Y), toplogo_b, @intCast(TOP_W), 0, 0, @intCast(TOP_W), @intCast(TOP_H), 0);
+            self.blitter.blitImage(fb, @intCast(BX + BOT_X), @intCast(top + BOT_Y), bottomlogo_b, @intCast(BOT_W), 0, 0, @intCast(BOT_W), @intCast(BOT_H), 0);
             self.renderScroll(fb, top);
         } else {
             // intro: the D.H.S. logo alone on black, mid-handled at x = 160.
             // The canvas alpha is reproduced by scaling the palette, which over
             // a black ground is the same composite.
             self.showFade(fb, @min(self.fade, 1.0));
-            blit(fb, dhs_b, DHS_W, DHS_H, BX + 160 - @divTrunc(DHS_W, 2), top + self.dhs_y - @divTrunc(DHS_H, 2));
+            self.blitter.blitImage(fb, @intCast(BX + 160 - @divTrunc(DHS_W, 2)), @intCast(top + self.dhs_y - @divTrunc(DHS_H, 2)), dhs_b, @intCast(DHS_W), 0, 0, @intCast(DHS_W), @intCast(DHS_H), 0);
         }
     }
 
@@ -406,27 +408,6 @@ fn setupPlanes(zigos: *ZigOS) void {
     fb.setPalette(screen_pal);
     fb.setPaletteEntry(0, Color{ .r = 0, .g = 0, .b = 0, .a = 255 });
     fb.setFrameBufferHBLHandler(zg.OVERSCAN_MAGIC_X, handler_overscan);
-}
-
-// Opaque-index blit into an overscan plane, clipped to the 400x280 physical
-// buffer (every border is opened, so that IS the screen). Index 0 is the
-// transparent field.
-fn blit(fb: *LogicalFB, data: []const u8, w: i32, h: i32, x: i32, y: i32) void {
-    var sy: i32 = 0;
-    while (sy < h) : (sy += 1) {
-        const dy = y + sy;
-        if (dy < 0 or dy >= PH) continue;
-        const row: usize = @as(usize, @intCast(dy)) * @as(usize, @intCast(PW));
-        const srow: usize = @as(usize, @intCast(sy)) * @as(usize, @intCast(w));
-        var sx: i32 = 0;
-        while (sx < w) : (sx += 1) {
-            const dx = x + sx;
-            if (dx < 0 or dx >= PW) continue;
-            const v = data[srow + @as(usize, @intCast(sx))];
-            if (v == 0) continue;
-            fb.fb[row + @as(usize, @intCast(dx))] = v;
-        }
-    }
 }
 
 // CODEF fades an image by drawing it with a canvas alpha. On a paletted plane

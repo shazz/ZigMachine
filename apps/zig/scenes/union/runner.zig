@@ -41,9 +41,11 @@ const GHOST_A = [4]u8{ 179, 128, 77, 26 }; // 0.7/0.5/0.3/0.1
 const GHOST_BASE: u8 = 16; // ghost g uses palette [GHOST_BASE + g*8 + idx]
 
 pub const Runner = struct {
+    blitter: zg.Blitter = .{},
     nb: f32 = 0,
 
     pub fn init(self: *Runner, zigos: *ZigOS) void {
+        self.blitter.init();
         self.nb = 0;
         const p1: *LogicalFB = &zigos.lfbs[1];
         p1.is_enabled = true;
@@ -83,7 +85,7 @@ pub const Runner = struct {
             const z = 1.0 + (GHOST_Z[g] - 1.0) * scale;
             blitStretch(p1, f, cx, Y0, z, GHOST_BASE + @as(u8, @intCast(g)) * 8);
         }
-        blitFrame(p1, f, X0, Y0, 0);
+        self.blitter.blitImage(p1, X0, Y0, sprites, @intCast(SW), @as(u16, @intCast(f)) * @as(u16, @intCast(FW)), 0, @intCast(FW), @intCast(FH), 0);
     }
 };
 
@@ -109,28 +111,6 @@ fn blitStretch(fb: *LogicalFB, f: usize, cx: f32, y: i16, z: f32, base: u8) void
             const idx = sprites[@as(usize, @intCast(ry)) * SW + sx0 + src];
             if (idx == 0) continue;
             fb.fb[@as(usize, @intCast(py)) * fb.stride + @as(usize, @intCast(px))] = base + idx;
-        }
-    }
-}
-
-// Blit sprite frame `f` at (x,y); non-zero pixel idx -> palette (base + idx).
-fn blitFrame(fb: *LogicalFB, f: usize, x: i16, y: i16, base: u8) void {
-    const pw: i16 = @intCast(fb.fb_w);
-    const ph: i16 = @intCast(fb.fb_h);
-    const sx0: usize = f * @as(usize, @intCast(FW));
-    var ry: i16 = 0;
-    while (ry < FH) : (ry += 1) {
-        const py = y + ry;
-        if (py < 0 or py >= ph) continue;
-        const srow = @as(usize, @intCast(ry)) * SW + sx0;
-        const drow = @as(usize, @intCast(py)) * fb.stride;
-        var rx: i16 = 0;
-        while (rx < FW) : (rx += 1) {
-            const px = x + rx;
-            if (px < 0 or px >= pw) continue;
-            const idx = sprites[srow + @as(usize, @intCast(rx))];
-            if (idx == 0) continue;
-            fb.fb[drow + @as(usize, @intCast(px))] = base + idx;
         }
     }
 }

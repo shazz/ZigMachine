@@ -196,6 +196,7 @@ fn rasterHbl(fb: *LogicalFB, _: *ZigOS, line: u16, _: u16) void {
 // Demo
 // --------------------------------------------------------------------------
 pub const Demo = struct {
+    blitter: zg.Blitter = .{},
     flash_counter: u32,
     fade: f64,
     rot: f64, // rotc
@@ -212,6 +213,7 @@ pub const Demo = struct {
     pub fn init(self: *Demo, zigos: *ZigOS) void {
         // A cart's Demo arrives zeroed (or holding the previous cart's bytes):
         // every field is set here, never by a declared default.
+        self.blitter.init();
         self.flash_counter = 0;
         self.fade = 0;
         self.rot = ROT_START;
@@ -296,7 +298,7 @@ pub const Demo = struct {
         const fb = &zigos.lfbs[PLANE];
         const screen = fb.fb[0 .. W * H];
         @memset(screen, BLACK);
-        self.drawLogoFlash(fb, screen);
+        self.drawLogoFlash(fb);
         self.drawStars(screen);
         self.drawStarwars(screen);
         self.buildRasterLines();
@@ -304,19 +306,13 @@ pub const Demo = struct {
         self.drawSprites(screen);
     }
 
-    fn drawLogoFlash(self: *Demo, fb: *LogicalFB, screen: []u8) void {
+    fn drawLogoFlash(self: *Demo, fb: *LogicalFB) void {
         const alpha = self.fade * FADE_ALPHA;
         if (alpha <= 0) return;
         // CODEF fades by canvas alpha; over black that is the palette's RGB
         // scaled from the base palette every frame, rounded (not truncated).
         zg.palette.scaleEntries(fb, base_pal, &LOGO_FLASH_ENTRIES, alpha, .{ .rounding = .round, .alpha = .{ .set = 255 } });
-        for (0..BG_H) |y| {
-            const src = bg_b[y * BG_W ..][0..BG_W];
-            const dst = screen[(BG_Y + y) * W + BG_X ..][0..BG_W];
-            for (src, dst) |s, *d| {
-                if (s != 0) d.* = s;
-            }
-        }
+        self.blitter.blitImage(fb, @intCast(BG_X), @intCast(BG_Y), bg_b, @intCast(BG_W), 0, 0, @intCast(BG_W), @intCast(BG_H), 0);
     }
 
     fn drawStars(self: *Demo, screen: []u8) void {
