@@ -255,6 +255,8 @@ pub fn build(b: *std.Build) void {
         "demo-replicants_kickoff2", // 35 — The Replicants / Kick Off 2 crack intro (CODEF screen 168)
         "demo-dyno_paradis3", // 36 — Dyno / ParaDis3, Parallax Distorter (CODEF screen 470)
         "demo-mandelbrot", // 37 — the fractal channel from the original gh-page
+        "", // 38 — reserved for CODEF screen 473, ported in parallel on another branch
+        "demo-elite_snooker", // 39 — ELITE / Jimmy White Snooker crack intro (CODEF screen 422)
     };
     for (cart_names, 0..) |name, idx| {
         if (name.len == 0) continue; // excluded cart (see note above)

@@ -48,6 +48,8 @@ const scene = switch (opts.index) {
     35 => @import("scenes/replicants_kickoff2.zig"),
     36 => @import("scenes/dyno_paradis3.zig"),
     37 => @import("scenes/mandelbrot.zig"),
+    // 38 is reserved for CODEF screen 473 (another branch); excluded in build.zig until it lands
+    39 => @import("scenes/elite_snooker.zig"),
     else => @compileError("bad cart index"),
 };
 

@@ -53,4 +53,5 @@ pub const ENTRIES = [_]Entry{
     .{ .name = "DYNO PARADIS3", .tag = "dyno_paradis3" },
     .{ .name = "MANDELBROT", .tag = "mandelbrot" },
     .{ .name = "REPS FRED (C)", .tag = "c-screen34" },
+    .{ .name = "ELITE SNOOKER", .tag = "elite_snooker" },
 };
