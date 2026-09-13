@@ -257,6 +257,7 @@ pub fn build(b: *std.Build) void {
         "demo-mandelbrot", // 37 — the fractal channel from the original gh-page
         "demo-stniccc", // 38 — Oxygene / STNICCC 2000, the polygon flight (scene1.bin stream)
         "demo-tex_neoshow", // 39 — The Exceptions / Super Neo Demo Show (CODEF screen 473)
+        "demo-elite_snooker", // 40 — ELITE / Jimmy White Snooker crack intro (CODEF screen 422)
     };
     for (cart_names, 0..) |name, idx| {
         if (name.len == 0) continue; // excluded cart (see note above)
