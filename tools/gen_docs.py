@@ -5,7 +5,7 @@ Parses the sealed HW ABI headers (machine/sdk/*.zig) and the open ZigOS library
 (libs/zig/*.zig) for their public surface + doc comments, and emits a single
 self-contained programmer's guide (docs/ZIGMACHINE_GUIDE.html) with a register
 map, an ABI/library reference, hand-written examples, and the disk/cart-format
-prose rendered from docs/FLOPPY_DISK.md.
+prose rendered from docs/FLOPPY_DISK.md and the music guide from docs/MUSIC.md.
 
 The reference is generated from source so signatures never drift; the prose and
 examples live in EXAMPLES below. Run: `python3 tools/gen_docs.py` (from repo root
@@ -253,6 +253,7 @@ def build() -> str:
         ("Blitter commands / control / minterms", render_consts(blit_ctl)),
         ("HW ABI — machine exports", render_items(abi)),
         ("Disk / cart format + boot sectors", render_markdown_file("docs/FLOPPY_DISK.md")),
+        ("Music — SNDH player (Zig, C, Rust)", render_markdown_file("docs/MUSIC.md")),
         ("ZigOS — LogicalFB (a plane)", render_items(lfb)),
         ("ZigOS — ZigOS (the OS)", render_items(zos)),
         ("ZigOS — Blitter (2D coprocessor)", render_items(blitter)),

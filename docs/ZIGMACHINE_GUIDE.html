@@ -42,7 +42,7 @@ code { background: #1a2030; padding: 1px 5px; border-radius: 4px; }
 <body>
 <header>
   <h1>ZigMachine — Programmer's Guide</h1>
-  <div class="sub">Generated 2026-09-12 by tools/gen_docs.py · 22 ABI exports · 47 library methods · 94 constants/registers</div>
+  <div class="sub">Generated 2026-09-13 by tools/gen_docs.py · 22 ABI exports · 50 library methods · 94 constants/registers</div>
 </header>
 <div class="wrap">
   <nav><a href="#top">Overview</a><a href="#examples">Examples</a><a href="#0">Geometry &amp; resolution</a>
@@ -52,15 +52,16 @@ code { background: #1a2030; padding: 1px 5px; border-radius: 4px; }
 <a href="#4">Blitter commands / control / minterms</a>
 <a href="#5">HW ABI — machine exports</a>
 <a href="#6">Disk / cart format + boot sectors</a>
-<a href="#7">ZigOS — LogicalFB (a plane)</a>
-<a href="#8">ZigOS — ZigOS (the OS)</a>
-<a href="#9">ZigOS — Blitter (2D coprocessor)</a>
-<a href="#10">ZigOS — GUI toolkit (Gui)</a>
-<a href="#11">ZigOS — Window manager (Wm)</a>
-<a href="#12">ZigOS — Menu bar (MenuBar)</a>
-<a href="#13">ZigOS — Dialog (modal alert / file selector)</a>
-<a href="#14">ZigGEM ROM — Desktop (boot shell / app launcher)</a>
-<a href="#15">ZigOS — OBJ loader (Mesh)</a></nav>
+<a href="#7">Music — SNDH player (Zig, C, Rust)</a>
+<a href="#8">ZigOS — LogicalFB (a plane)</a>
+<a href="#9">ZigOS — ZigOS (the OS)</a>
+<a href="#10">ZigOS — Blitter (2D coprocessor)</a>
+<a href="#11">ZigOS — GUI toolkit (Gui)</a>
+<a href="#12">ZigOS — Window manager (Wm)</a>
+<a href="#13">ZigOS — Menu bar (MenuBar)</a>
+<a href="#14">ZigOS — Dialog (modal alert / file selector)</a>
+<a href="#15">ZigGEM ROM — Desktop (boot shell / app launcher)</a>
+<a href="#16">ZigOS — OBJ loader (Mesh)</a></nav>
   <main>
     <section id="top"><h2>Overview</h2><div class="intro">
 ZigMachine is a fantasy console: a <b>sealed hardware</b> core (compiled to two
@@ -470,6 +471,31 @@ one cart + its assets is well under 24.)</p>
 <li>A <code>.zmd</code> is trivially inspectable — a hex dump shows the descriptor in clear.</li>
 </ul>
 <hr />
+<h2>Packed carts (ZX0)</h2>
+<p>Every disk <code>tools/mkdisks.sh</code> writes stores its cart <strong>ZX0-packed</strong>: the cart
+bytes at the boot pointer (v1) or the descriptor's cart block (v2) are a
+ZigMachine ZX0 container (<code>"ZX0!"</code>, see <code>libs/zig/depackers/zx0.zig</code>), made
+by the build's own <code>zig-out/bin/zx0pack</code>. A cart's static RAM is mostly zeros,
+so disks shrink to about a tenth: the 42 carts go from 10.5 MB to 1.0 MB, and
+ST Replay from 1.6 MB to 9 KB. FAT files (samples, <code>SCENE1.BIN</code>) are NOT
+packed; they are streamed block by block and must stay raw.</p>
+<p>Unpacking is the <strong>machine's</strong> job, not the host's. When the host
+(<code>docs/sealed-loader.js</code>, <code>instantiateCart</code>) is handed a cart that starts with
+<code>ZX0!</code>, it:</p>
+<ol>
+<li>copies the packed image into the ROM chip's free RAM
+   (<code>hwRomRamBase() + hwRomRamUsed()</code>),</li>
+<li>calls the ROM export <code>romDepack(src, len, dst, cap)</code> with <code>dst</code> = the cart
+   window (<code>hwRamBase()</code>, <code>hwRamSize()</code>), which the outgoing program no longer
+   owns,</li>
+<li>instantiates a copy of the <code>n</code> depacked bytes.</li>
+</ol>
+<p><code>romDepack</code> writes only inside the cart window and returns 0 for anything it
+cannot unpack. The host then fails loudly and does not boot a half-unpacked
+program. <code>apps/disk_check.mjs</code> unpacks every disk the same way, and
+<code>apps/rom_abi_check.mjs</code> throws truncated, oversized and out-of-window calls at
+<code>romDepack</code>. A cart that is NOT packed still loads unchanged, so older disks
+keep working.</p>
 <h1>Format v2 — the boot sector <em>is</em> executable (a wasm chainloader)</h1>
 <p><strong>Status: designing (2026-09-07).</strong> v1's boot sector is <em>metadata that points at the
 cart</em> — the host loads the cart. v2 makes the boot sector <strong>the boot</strong>, ST-style: it is
@@ -705,7 +731,109 @@ export fn pollCartRequest() i32 { return if (frame_count &gt;= 120) 2 else 0; } 
 - After <code>hwInit()</code> plane 0 is already a normal 320×200 plane with its default framebuffer
   base — read <code>REG_FB_BASE</code> (as above) rather than hard-coding the address.
 - Keep it small: check <code>ls -l docs/boot-&lt;name&gt;.wasm</code> ≤ 1015 B; <code>mkdisk</code> prints the headroom.</p></section>
-<section id="7"><h2>ZigOS — LogicalFB (a plane)</h2><div class="item"><code class="sig">init(self: *LogicalFB, zigos: *ZigOS) void</code></div>
+<section id="7"><h2>Music — SNDH player (Zig, C, Rust)</h2><h1>Music — the SNDH player, from Zig, C and Rust</h1>
+<p>ZigMachine plays real Atari ST music. An <strong>SNDH</strong> file carries the tune's own
+68000 replay routine; the machine runs that code on an emulated 68000 (Musashi)
+driving the sealed YM2149, exactly as the ST did. Nothing is pre-rendered, and
+an SNDH is a few KB where a register dump is hundreds.</p>
+<p><strong>A cart never links the player.</strong> It asks the host for a tune <em>by name</em>, and
+the host plays it on the audio thread. That is why the same four exports work
+from any language.</p>
+<pre><code>cart (Zig / C / Rust)           host (docs/sealed-loader.js)          audio thread
+requestSong(&quot;sos.sndh&quot;) ──►  polls pollSongRequest() every frame ──► demo-audio.wasm:
+                             reads songNamePtr/Len + songTune         68000 runs the SNDH
+                             fetches docs/music/&lt;name&gt;                 ─► sealed YM2149
+</code></pre>
+<h2>Formats</h2>
+<p>The file extension picks the player. Files live under <code>docs/music/</code>.</p>
+<table>
+<thead>
+<tr>
+<th>Extension</th>
+<th>Player</th>
+<th>Subtunes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>.sndh</code></td>
+<td>the tune's own 68000 code on the sealed YM (preferred)</td>
+<td>yes: <code>tune</code> counts from 1, 0 = the file's default</td>
+</tr>
+<tr>
+<td><code>.ymraw</code></td>
+<td>YM5!/YM6! register dump</td>
+<td>no</td>
+</tr>
+<tr>
+<td><code>.mod</code></td>
+<td>ProTracker 4-channel on the Paula channels</td>
+<td>no</td>
+</tr>
+<tr>
+<td><code>.raw</code></td>
+<td>8-bit PCM at 12517 Hz</td>
+<td>no</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Prefer SNDH.</strong> A screen plays a <code>.ymraw</code> dump only when no SNDH of the same
+tune exists. Prove a match by running both and comparing YM registers 0-5 and
+8-10 frame by frame; a real match is ~100% (screen 34's
+<code>SoWattTcbSprites.ym</code> == <code>sos.sndh</code>, 100% over 400 frames).</p>
+<h2>Zig</h2>
+<pre><code class="language-zig">const zg = @import(&quot;zigos&quot;);
+
+zg.requestSong(&quot;rings_of_medusa.sndh&quot;);          // the file's default tune
+zg.requestSongTune(&quot;leavin_teramis.sndh&quot;, 9);    // subtune 9 (counts from 1)
+</code></pre>
+<p><code>apps/zig/demo_main.zig</code> already exports the four functions the host polls.
+Request once, in <code>init()</code>: each request replaces the tune playing.</p>
+<h2>C</h2>
+<pre><code class="language-c">#include &quot;../zigmachine_music.h&quot;   // from exactly ONE .c file per cart: it DEFINES the exports
+
+void boot(void) {
+    zm_request_song(&quot;sos.sndh&quot;);                       // default tune
+    // zm_request_song_tune(&quot;leavin_teramis.sndh&quot;, 9);  // subtune 9
+}
+</code></pre>
+<p><code>apps/c/zigmachine_music.h</code> defines <code>pollSongRequest</code>, <code>songNamePtr</code>,
+<code>songNameLen</code> and <code>songTune</code> with <code>export_name</code>, so <code>apps/c/build.sh</code> needs no
+change. Build with <code>bash apps/c/build.sh</code>. Example: <code>apps/c/scenes/screen34.c</code>.</p>
+<h2>Rust</h2>
+<pre><code class="language-rust">mod zigmachine_music;                                    // once per cart: defines the exports
+
+zigmachine_music::request_song(&quot;sos.sndh&quot;);
+zigmachine_music::request_song_tune(&quot;custodian.sndh&quot;, 1);
+</code></pre>
+<p><code>apps/rust/zigmachine_music.rs</code> is the Rust twin of the C header. Build with
+<code>bash apps/rust/build.sh</code>. Example: <code>apps/rust/scenes/v8_populous.rs</code>, which
+plays David Whittaker's Custodian (<code>custodian.sndh</code>, subtune 1).</p>
+<h2>Rules and limits</h2>
+<ul>
+<li><strong>Names</strong> are paths under <code>docs/music/</code>, at most 64 bytes, no <code>..</code> and no
+  leading <code>/</code>. C and Rust calls return 0 / <code>false</code> and queue nothing for an empty
+  or over-long name or a tune above 255 (Zig truncates a long name instead).</li>
+<li><strong>Sound starts only after a user gesture</strong> (a click or key), as browsers require.
+  A request made earlier waits and plays at the first gesture.</li>
+<li><strong>The machine reclaims the sound chip</strong> when a program ends: leaving a screen
+  silences its tune.</li>
+<li><strong>STE-DMA SNDHs</strong> (<code>FLAG ~a</code>) may need the STE DMA sound chip, which this
+  machine does not have. Listen before shipping one: some still drive the YM
+  audibly (Sharpness Buzztone), others play silence.</li>
+<li><strong>Digidrum SNDHs</strong> that start their drums through XBIOS <code>Xbtimer</code> are
+  supported; a drum can begin late in the tune (Monty: 38.4 s).</li>
+</ul>
+<h2>Proving a tune plays (headless)</h2>
+<ul>
+<li><code>node apps/sndh_headless.mjs docs/music/&lt;name&gt;.sndh</code> runs an SNDH through the
+  real audio modules and reports the subtunes, timers, YM registers and the
+  output peak.</li>
+<li><code>node apps/c_music_check.mjs</code> boots the C and Rust carts, polls their request
+  the way the loader does, and plays it: it must reach SNDH mode with a non-zero
+  peak. It runs in <code>./build.sh</code>.</li>
+</ul></section>
+<section id="8"><h2>ZigOS — LogicalFB (a plane)</h2><div class="item"><code class="sig">init(self: *LogicalFB, zigos: *ZigOS) void</code></div>
 <div class="item"><code class="sig">setOverscanBuffer(self: *LogicalFB) void</code><div class="doc">Turn this plane into an OVERSCAN plane: a 400×280 buffer in PHYSICAL coords (0..400, 0..280). The borders stay CLOSED — only the visible 320×200 window shows — until the scene &quot;opens&quot; a border with the authentic resolution-flicker trick: call flickerBorder() from this plane&#x27;s HBL handler, at OVERSCAN_MAGIC_X, on the scanline of the border you want. See docs/HW_API.md &quot;Opening the borders&quot;.</div></div>
 <div class="item"><code class="sig">flickerBorder(_: *LogicalFB) void</code><div class="doc">Open a border, ST-style, from THIS plane&#x27;s per-plane HBL handler: flicker the resolution register (RES_MEDIUM -&gt; RES_PLANES). The sealed machine can&#x27;t trap writes to shared memory, so we also bump REG_RES_FLICKER — the latch it samples once per scanline. The plane&#x27;s HBL must fire at OVERSCAN_MAGIC_X (± tolerance) or that line&#x27;s border shows garbage — a mistimed trick, exactly as on real HW. Flicker in a border band (top/bottom) opens it from that row down; flicker on a visible line opens both side borders for that line (re-open sides every line).</div></div>
 <div class="item"><code class="sig">openBorders(self: *LogicalFB, which: Borders) void</code><div class="doc">Make this an overscan plane and open its borders with the flicker trick: .all flickers every line (top, sides, bottom), .top_bottom only the border bands (MAXI). Replaces this plane&#x27;s HBL handler; a scene that also needs per-line rasters uses copper.install(fb, entries, .{ .flicker = true }). Every enabled overscan plane needs this for itself: the machine replays a plane&#x27;s HBLs while rendering THAT plane.</div></div>
@@ -727,7 +855,7 @@ export fn pollCartRequest() i32 { return if (frame_count &gt;= 120) 2 else 0; } 
 <div class="item"><code class="sig">clearFrameBuffer(self: *LogicalFB, pal_entry: u8) void</code></div>
 <div class="item"><code class="sig">setFrameBufferHBLHandler(self: *LogicalFB, position: u16, handler: *const fn (*LogicalFB, *ZigOS, u16, u16) void) void</code></div>
 <div class="item"><code class="sig">clearFrameBufferHBLHandler(self: *LogicalFB) void</code></div></section>
-<section id="8"><h2>ZigOS — ZigOS (the OS)</h2><div class="item"><code class="sig">initTextOnly(self: *ZigOS) void</code><div class="doc">Bind the system fonts and NOTHING else — no registers, no VRAM allocation.  For a consumer that needs to DRAW TEXT over a framebuffer somebody else owns: the ROM chip does this so it can render GEM widgets for an app written in C or Rust, which has no ZigOS of its own to lend. Calling the full init() there would reset the machine&#x27;s registers and reallocate every plane out from under the running app.</div></div>
+<section id="9"><h2>ZigOS — ZigOS (the OS)</h2><div class="item"><code class="sig">initTextOnly(self: *ZigOS) void</code><div class="doc">Bind the system fonts and NOTHING else — no registers, no VRAM allocation.  For a consumer that needs to DRAW TEXT over a framebuffer somebody else owns: the ROM chip does this so it can render GEM widgets for an app written in C or Rust, which has no ZigOS of its own to lend. Calling the full init() there would reset the machine&#x27;s registers and reallocate every plane out from under the running app.</div></div>
 <div class="item"><code class="sig">init(self: *ZigOS) void</code></div>
 <div class="item"><code class="sig">resetForScene(self: *ZigOS) void</code><div class="doc">Reset the machine to a freshly-booted state so a DIFFERENT scene can be started at runtime (the boot-&gt;cart hand-off and the effects menu use this). Like init() but without re-discovering the video base, and it ALSO clears the per-plane hardware mode/stride/scroll/HBL registers a previous scene may have set (plain init() leaves those stale, which would corrupt the next scene). Safe only after init() has run once (sets base/fonts).</div></div>
 <div class="item"><code class="sig">nop(self: *ZigOS) void</code><div class="doc">--- Features ---</div></div>
@@ -740,7 +868,7 @@ export fn pollCartRequest() i32 { return if (frame_count &gt;= 120) 2 else 0; } 
 <div class="item"><code class="sig">setHBLHandler(self: *ZigOS, handler: *const fn (*ZigOS, u16) void) void</code></div>
 <div class="item"><code class="sig">removeHBLHandler(self: *ZigOS) void</code></div>
 <div class="item"><code class="sig">dispatchHBL(self: *ZigOS, id: u32, plane: u32, line: u32, x: u32) void</code><div class="doc">Called (via the demo module&#x27;s exported hblDispatch) by the sealed machine when the render pipeline reaches an HBL point. Integer ids in, Zig handler calls out — the machine never holds a function pointer.</div></div></section>
-<section id="9"><h2>ZigOS — Blitter (2D coprocessor)</h2><div class="item"><code class="sig">init(self: *Blitter) void</code></div>
+<section id="10"><h2>ZigOS — Blitter (2D coprocessor)</h2><div class="item"><code class="sig">init(self: *Blitter) void</code></div>
 <div class="item"><code class="sig">fill(self: *Blitter, fb: *LogicalFB, x: i16, y: i16, w: u16, h: u16, color: u8) void</code><div class="doc">--- primitives ---</div></div>
 <div class="item"><code class="sig">clear(self: *Blitter, fb: *LogicalFB, color: u8) void</code></div>
 <div class="item"><code class="sig">line(self: *Blitter, fb: *LogicalFB, x0: i16, y0: i16, x1: i16, y1: i16, color: u8, mt: Minterm) void</code></div>
@@ -750,13 +878,16 @@ export fn pollCartRequest() i32 { return if (frame_count &gt;= 120) 2 else 0; } 
 <div class="item"><code class="sig">clearHalftone(self: *Blitter) void</code></div>
 <div class="item"><code class="sig">blitCopy(self: *Blitter, dst: *LogicalFB, dx: i16, dy: i16, src: *LogicalFB, sx: i16, sy: i16, w: u16, h: u16) void</code><div class="doc">Plain block copy of a w×h region of `src` at (sx,sy) onto `dst` at (dx,dy), no colour key. Firing this once per row with a per-row `dx` is the classic strip-blit deformation (sine wobble / rubber / shear).</div></div>
 <div class="item"><code class="sig">bob(self: *Blitter, dst: *LogicalFB, dx: i16, dy: i16, src: *LogicalFB, sx: i16, sy: i16, w: u16, h: u16, key: u8) void</code><div class="doc">Cookie-cut bob: copy a w×h region of `src` at (sx,sy) onto `dst` at (dx,dy), skipping pixels equal to `key` (the chunky one-channel cookie-cut).</div></div>
+<div class="item"><code class="sig">blitImage(self: *Blitter, dst: *LogicalFB, dx: i16, dy: i16, pixels: []const u8, src_w: u16, sx: u16, sy: u16, w: u16, h: u16, key: ?u8) void</code><div class="doc">Copy a w×h region at (sx,sy) of a raw 8bpp image held ANYWHERE in the cart&#x27;s RAM (an @embedFile asset, a scratch buffer), `src_w` pixels per row, onto `dst` at (dx,dy). `key` skips that index (cookie-cut); null copies every pixel. The rectangle is clamped to `pixels`, so it never reads past the slice; the machine (HW 1.4.0, CON2.SRC_ABS) refuses a source outside the readable windows and draws nothing.</div></div>
 <div class="item"><code class="sig">cycles(self: *Blitter) u32</code><div class="doc">Estimated cost of the last op (pixels touched + setup), for VBL budgeting.</div></div></section>
-<section id="10"><h2>ZigOS — GUI toolkit (Gui)</h2></section>
-<section id="11"><h2>ZigOS — Window manager (Wm)</h2></section>
-<section id="12"><h2>ZigOS — Menu bar (MenuBar)</h2></section>
-<section id="13"><h2>ZigOS — Dialog (modal alert / file selector)</h2></section>
-<section id="14"><h2>ZigGEM ROM — Desktop (boot shell / app launcher)</h2></section>
-<section id="15"><h2>ZigOS — OBJ loader (Mesh)</h2><div class="item"><code class="sig">load(self: *Mesh, text: []const u8) void</code></div></section>
+<section id="11"><h2>ZigOS — GUI toolkit (Gui)</h2></section>
+<section id="12"><h2>ZigOS — Window manager (Wm)</h2></section>
+<section id="13"><h2>ZigOS — Menu bar (MenuBar)</h2></section>
+<section id="14"><h2>ZigOS — Dialog (modal alert / file selector)</h2></section>
+<section id="15"><h2>ZigGEM ROM — Desktop (boot shell / app launcher)</h2></section>
+<section id="16"><h2>ZigOS — OBJ loader (Mesh)</h2><div class="item"><code class="sig">load(self: *Mesh, text: []const u8) void</code></div>
+<div class="item"><code class="sig">Wire(comptime nverts: usize, comptime nedges: usize) type</code></div>
+<div class="item"><code class="sig">parseWire(comptime text: []const u8) Wire(wireCounts(text)[0], wireCounts(text)[1])</code></div></section>
   </main>
 </div>
 </body></html>
