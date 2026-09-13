@@ -227,6 +227,14 @@ export fn input(dir: Direction) void {
     if (dir == .Back and !@hasDecl(Cart, "pollCart")) want_menu = true;
 }
 
+// The release of a Direction key. OPTIONAL on both sides: a host with no key-up
+// listener never calls it (and then a scene sees only auto-repeated presses), and
+// a scene that does not declare inputRelease ignores it. Scenes that steer with a
+// HELD key need it to stop the moment the key comes up (see union_demo/controls).
+export fn inputRelease(dir: Direction) void {
+    if (booted and @hasDecl(Cart, "inputRelease")) cart.inputRelease(@intFromEnum(dir));
+}
+
 // Character keyboard input (printable + 8=Backspace, 13=Enter). For text entry
 // like GEM rename. Forwarded to scenes that declare key() (e.g. the desktop).
 // The ST keyboard's ESCAPE. The host FORWARDS it like any other key and no longer

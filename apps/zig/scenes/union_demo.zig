@@ -7,6 +7,10 @@
 // follows him horizontally; fire in front of one of the eleven doors enters a
 // demo screen. Under the playfield runs the TEX scroller.
 //
+// The street LOOPS, unlike the remake's (its viewport clamps to the map and its
+// collision stops Charly at either end): walking past one end continues from
+// the other, view, banner parallax, collision and doors included.
+//
 // Geometry: the remake's canvas is 640x480 but everything it draws sits in the
 // top 400 rows (map 25x16, HUD down to 395) — an ST 320x200 doubled. Halved
 // onto one normal 320x200 plane; no border is used.
@@ -39,10 +43,13 @@ const MUSIC = "union/alloy_run.sndh";
 const MUSIC_TUNE: u8 = 1; // the file's only subtune
 
 const VIEW_W: i32 = 640; // me.video.init('jsapp', 640, 400) (main.js:240)
-const CAM_LIMIT: i32 = @as(i32, @intCast(A.map.COLS * A.map.TILE_W)) - VIEW_W;
 const BANNER_RATIO: f32 = 0.5; // plx_banner "ratio" property (union3.tmx)
 const BANNER_W: f32 = 640; // banner4.png
 const MESSAGE_FRAMES: u16 = 120;
+const STEP_MS: f32 = 1000.0 / 60.0;
+const STEP_DUE_MS: f32 = 10;
+const STEP_DEBT_MS: f32 = 4; // STEP_DUE_MS + STEP_DEBT_MS < the shortest 60 Hz dt
+const MAX_STEPS = 4; // a stalled tab catches up 4 steps, not seconds
 const K_ESC: u32 = 0xE012;
 
 pub const Demo = struct {
@@ -52,6 +59,7 @@ pub const Demo = struct {
     cam: i32, // viewport pos.x, 640 space
     banner: zg.tilemap.RatioScroll,
     rasters_y: u32, // ScrollingBackgroundLayer pos.y
+    clock: f32, // ms towards the next 60 Hz step (negative: carried early time)
     message: ?usize, // door whose COMING SOON is showing
     message_frames: u16,
     wants_quit: bool,
@@ -65,6 +73,7 @@ pub const Demo = struct {
         self.follow(); // follow() + setDeadzone(0, 0) both force a camera update
         self.banner = .{ .pos = 0, .last = @floatFromInt(self.cam), .ratio = BANNER_RATIO, .w = BANNER_W };
         self.rasters_y = 0;
+        self.clock = 0;
         self.message = null;
         self.message_frames = 0;
         self.wants_quit = false;
@@ -78,8 +87,13 @@ pub const Demo = struct {
         menu_loader.start(zigos); // the HUD and the music wait for the graphics
     }
 
+    /// The remake updates on setInterval at me.sys.fps = 60 whatever the display
+    /// (main.js:528, useNativeAnimFrame = false), so its speeds are per 1/60 s.
+    /// The host calls once per display frame: run the 60 Hz steps that are due.
+    /// A step runs once STEP_DUE_MS has built up and at most STEP_DEBT_MS of early
+    /// time is carried, so a 60 Hz display gets exactly one step every frame (dt
+    /// jitter included) and a 144 Hz one gets 60 a second, not 144.
     pub fn update(self: *Demo, zigos: *ZigOS, dt: f32) void {
-        _ = dt;
         switch (menu_loader.step(zigos)) {
             .loading => return,
             .failed => {
@@ -92,15 +106,29 @@ pub const Demo = struct {
             },
             .running => {},
         }
+        // The loader's frames are not the street's: the clock starts on .ready, so
+        // that frame runs the street's first step, as it did before the clock.
+        self.clock += if (std.math.isNan(dt) or dt < 0) STEP_MS else @min(dt, MAX_STEPS * STEP_MS);
+        var steps: u8 = 0;
+        while (self.clock >= STEP_DUE_MS and steps < MAX_STEPS) : (steps += 1) {
+            self.step();
+            self.clock = @max(self.clock - STEP_MS, -STEP_DEBT_MS);
+        }
+    }
+
+    fn step(self: *Demo) void {
         self.rasters_y = (self.rasters_y + world.RASTER_STEP) % world.RASTER_WRAP;
         self.banner.update(@floatFromInt(self.cam));
-        self.charly.update(self.controls.state(), &A.collision);
+        const wrapped = self.charly.update(self.controls.state(), &A.collision);
+        // round, not truncate: x - unwrapped is a street-length only up to f32
+        // error, and 5599.9995 must still shift the view by 5600.
+        if (wrapped != 0) self.shiftView(@intFromFloat(@round(wrapped)));
         if (self.controls.fire) {
             if (doors.touching(self.charly.box())) |d| self.enter(d);
         }
         self.follow();
         self.hud.update();
-        self.controls.tick();
+        self.controls.tick(STEP_MS);
         self.message_frames -|= 1;
         if (self.message_frames == 0) self.message = null;
     }
@@ -123,6 +151,11 @@ pub const Demo = struct {
         if (dir == 6) self.wants_quit = true else self.controls.input(dir);
     }
 
+    /// Key-up of a Direction, from a host that sends it (demo_main.inputRelease).
+    pub fn inputRelease(self: *Demo, dir: u8) void {
+        self.controls.release(dir);
+    }
+
     /// -1 the menu, 1 a door's cart (demo_main.pollCartRequest).
     pub fn pollCart(self: *Demo) i32 {
         if (self.wants_quit) return -1;
@@ -141,9 +174,23 @@ pub const Demo = struct {
         } else self.controls.key(cp);
     }
 
+    // Viewport._followH with setDeadzone(0, 0) (entities.js:49), minus its clamp
+    // to [0, map - view]: on a looping street the view keeps Charly centred
+    // across the seam. floor instead of ~~ agrees on every view melonJS could
+    // reach (>= 0) and stays continuous below 0, where the start of the street
+    // shows the end of it.
     fn follow(self: *Demo) void {
-        const dz = zg.tilemap.deadzone(VIEW_W, 0); // setDeadzone(0, 0) (entities.js:49)
-        self.cam = zg.tilemap.followAxis(self.cam, self.charly.x, dz.lo, dz.hi, CAM_LIMIT);
+        const dz = zg.tilemap.deadzone(VIEW_W, 0);
+        const rel = self.charly.x - @as(f32, @floatFromInt(self.cam));
+        const edge: ?i32 = if (rel > @as(f32, @floatFromInt(dz.hi))) dz.hi else if (rel < @as(f32, @floatFromInt(dz.lo))) dz.lo else null;
+        if (edge) |e| self.cam = @intFromFloat(@floor(self.charly.x - @as(f32, @floatFromInt(e))));
+    }
+
+    // Charly crossed an end and his x jumped a street-length: the view and the
+    // banner's last-seen view jump with him, so neither scrolls.
+    fn shiftView(self: *Demo, by: i32) void {
+        self.cam += by;
+        self.banner.last += @floatFromInt(by);
     }
 
     // DoorEntity.onCollision: the remake changes state to the door's loader. A

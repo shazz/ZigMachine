@@ -18,7 +18,7 @@ const Map = struct {
 const map = Map{};
 
 fn run(ch: *c.Charly, in: c.Input, n: usize) void {
-    for (0..n) |_| ch.update(in, &map);
+    for (0..n) |_| _ = ch.update(in, &map);
 }
 
 test "walking right accelerates to 5 px a frame and coasts to a stop" {
@@ -63,12 +63,27 @@ test "walking up stops under the wall, walking down stops above the kerb" {
     try expectEqual(@as(f32, 209), ch.y); // ref f779
 }
 
-test "the map's left edge stops Charly dead" {
+// The one departure from the remake (whose map edge stopped him dead at x 3).
+test "walking left off the street's start continues from its end" {
     var ch: c.Charly = undefined;
     ch.init(3, 180);
-    run(&ch, .{ .left = true }, 5);
-    try expectEqual(@as(f32, 3), ch.x);
+    try expectEqual(@as(f32, c.MAP_W), ch.update(.{ .left = true }, &map));
+    try expectEqual(@as(f32, 5598.5), ch.x); // 3 - 4.5, wrapped
     try expectEqual(true, ch.flip);
+    run(&ch, .{ .left = true }, 4);
+    try expectEqual(@as(f32, 5578.5), ch.x); // no wall at the seam: 5 px a frame
+}
+
+test "walking right off the street's end reaches the first door again" {
+    var ch: c.Charly = undefined;
+    ch.init(5590, 126.5);
+    run(&ch, .{ .right = true }, 2);
+    try expectEqual(@as(f32, 5599.5), ch.x);
+    try expectEqual(@as(f32, -c.MAP_W), ch.update(.{ .right = true }, &map));
+    try expectEqual(@as(f32, 4.5), ch.x);
+    run(&ch, .{ .right = true }, 128);
+    try expectEqual(@as(f32, 644.5), ch.x);
+    try expectEqual(@as(?usize, 0), doors.touching(ch.box()));
 }
 
 test "F1 speeds the walk up to 8 px a frame for good" {

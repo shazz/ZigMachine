@@ -43,9 +43,13 @@ pub fn drawBanner(fb: *LogicalFB, scroll: f32) void {
 }
 
 /// The Foreground layer with the viewport at `cam` (640 space): a tile at x
-/// lands at ceil((x - cam) / 2) = x/2 - floor(cam/2).
+/// lands at ceil((x - cam) / 2) = x/2 - floor(cam/2). The street wraps, so a
+/// view across the seam draws the map twice, one street-length apart.
 pub fn drawForeground(fb: *LogicalFB, cam: i32) void {
-    zg.tilemap.drawGrid(fb, &A.foreground, &A.tileset, @divFloor(cam, 2), 0, 1, 0);
+    const span: i32 = @intCast(A.foreground.cols * A.tileset.tw);
+    const sx = @mod(@divFloor(cam, 2), span);
+    zg.tilemap.drawGrid(fb, &A.foreground, &A.tileset, sx, 0, 1, 0);
+    if (sx + @as(i32, fb.fb_w) > span) zg.tilemap.drawGrid(fb, &A.foreground, &A.tileset, sx - span, 0, 1, 0);
 }
 
 /// Charly's current frame, mirrored when he faces left (flipX mirrors inside
