@@ -30,6 +30,29 @@ test "text index wraps to the start" {
     try expectEqual(@as(u8, 'B'), r.upcoming());
 }
 
+test "a ring longer than its text repeats it; an empty text scrolls blanks" {
+    const r = Ring(i32, 5).init("AB", 0, 8);
+    try expectEqual([5]u8{ 'A', 'B', 'A', 'B', 'A' }, r.c);
+    try expectEqual(@as(u8, 'B'), r.upcoming());
+    const e = Ring(f32, 2).init("", 0, 8);
+    try expectEqual([2]u8{ ' ', ' ' }, e.c);
+}
+
+test "letters wrapping in the same frame take characters in array order" {
+    var r = Ring(i32, 2).init("ABCD", 0, 10);
+    r.x = .{ -9, -9 };
+    _ = r.step(1);
+    try expectEqual([2]u8{ 'C', 'D' }, r.c);
+}
+
+test "setText restarts at the new text's first character" {
+    var r = Ring(i32, 1).init("XYZ", 0, 10);
+    r.setText("Q");
+    _ = r.step(10);
+    try expectEqual(@as(u8, 'Q'), r.c[0]);
+    try expectEqual(@as(u8, 'Q'), r.upcoming());
+}
+
 test "matches the hand-written f32 ring of noextra/supplex_fs2 over 5000 frames" {
     const N = 15;
     const GW: f32 = 26;

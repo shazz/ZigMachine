@@ -19,11 +19,17 @@
 
 pub fn Ring(comptime P: type, comptime n: usize) type {
     if (n == 0) @compileError("scrollring: a ring needs at least one letter");
+    switch (@typeInfo(P)) {
+        .float => {},
+        .int => |info| if (info.signedness != .signed) @compileError("scrollring: integer positions must be signed (letters go negative)"),
+        else => @compileError("scrollring: position type must be a float or a signed integer"),
+    }
     return struct {
         const Self = @This();
 
         x: [n]P,
         c: [n]u8,
+        /// Replace it through setText(), which keeps `next` inside it.
         text: []const u8,
         /// Index in `text` of the character the next wrapping letter takes.
         next: usize,
@@ -31,9 +37,9 @@ pub fn Ring(comptime P: type, comptime n: usize) type {
         glyph_w: P,
 
         /// Letter i at `start + i * glyph_w`, carrying `text[i]`: CODEF's layout.
+        /// An empty text scrolls blanks rather than killing the cart.
         pub fn init(text: []const u8, start: P, glyph_w: P) Self {
-            if (text.len == 0) @panic("scrollring: empty text");
-            var self: Self = .{ .x = undefined, .c = undefined, .text = text, .next = 0, .start = start, .glyph_w = glyph_w };
+            var self: Self = .{ .x = undefined, .c = undefined, .text = nonEmpty(text), .next = 0, .start = start, .glyph_w = glyph_w };
             for (0..n) |i| {
                 self.x[i] = start + fromIndex(i) * glyph_w;
                 self.c[i] = self.take();
@@ -62,6 +68,16 @@ pub fn Ring(comptime P: type, comptime n: usize) type {
             return self.text[self.next];
         }
 
+        /// Carry on with another text: the next wrapping letter takes its first character.
+        pub fn setText(self: *Self, text: []const u8) void {
+            self.text = nonEmpty(text);
+            self.next = 0;
+        }
+
+        fn nonEmpty(text: []const u8) []const u8 {
+            return if (text.len == 0) " " else text;
+        }
+
         fn take(self: *Self) u8 {
             const ch = self.text[self.next];
             self.next += 1;
@@ -73,7 +89,7 @@ pub fn Ring(comptime P: type, comptime n: usize) type {
             return switch (@typeInfo(P)) {
                 .float => @floatFromInt(i),
                 .int => @intCast(i),
-                else => @compileError("scrollring: position type must be a float or an integer"),
+                else => unreachable, // rejected when the type is built
             };
         }
     };

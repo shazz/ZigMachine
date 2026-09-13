@@ -142,17 +142,10 @@ pub const Part = struct {
         }
     }
 
+    // CODEF fades by canvas alpha; over black that is the palette's RGB scaled
+    // from the base wab_pal every frame (never a compounding re-scale).
     fn applyFade(self: *Part, zigos: *ZigOS) void {
         const p0: *LogicalFB = &zigos.lfbs[0];
-        var i: usize = 1;
-        while (i < 256) : (i += 1) {
-            const c = wab_pal[i];
-            p0.setPaletteEntry(@intCast(i), Color{
-                .r = @intFromFloat(@as(f32, @floatFromInt(c.r)) * self.fade),
-                .g = @intFromFloat(@as(f32, @floatFromInt(c.g)) * self.fade),
-                .b = @intFromFloat(@as(f32, @floatFromInt(c.b)) * self.fade),
-                .a = 255,
-            });
-        }
+        zg.palette.scaleRange(p0, wab_pal, 1, 255, self.fade, .{ .alpha = .{ .set = 255 } });
     }
 };

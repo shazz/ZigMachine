@@ -465,18 +465,5 @@ fn blit(fb: *LogicalFB, data: []const u8, w: i32, h: i32, x: i32, y: i32) void {
 // of the shared palette is touched — the rainbow is not on screen during the
 // intro, and entry 0 stays the black ground.
 fn fadePalette(fb: *LogicalFB, k: f32) void {
-    var i: usize = LOGO_FIRST;
-    while (i <= LOGO_LAST) : (i += 1) {
-        const c = screen_pal[i];
-        fb.setPaletteEntry(@intCast(i), Color{
-            .r = scale(c.r, k),
-            .g = scale(c.g, k),
-            .b = scale(c.b, k),
-            .a = c.a,
-        });
-    }
-}
-
-fn scale(v: u8, k: f32) u8 {
-    return @intFromFloat(@as(f32, @floatFromInt(v)) * k);
+    zg.palette.scaleRange(fb, screen_pal, @intCast(LOGO_FIRST), @intCast(LOGO_LAST), k, .{});
 }

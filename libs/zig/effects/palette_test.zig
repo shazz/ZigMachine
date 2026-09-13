@@ -61,6 +61,20 @@ test "repeated fades scale from the base, never compound" {
     try expectEqual(@as(u8, 100), fb.pal[1].r);
 }
 
+test "edge factors: NaN clamps to 1, -0 gives 0, round at 1 keeps 255" {
+    const c = Color{ .r = 255, .g = 7, .b = 0, .a = 1 };
+    try expectEqual(c, palette.scale(c, std.math.nan(f32), .{}));
+    try expectEqual(@as(u8, 0), palette.scale(c, @as(f64, -0.0), .{}).r);
+    try expectEqual(@as(u8, 255), palette.scale(c, @as(f32, 1.0), .{ .rounding = .round }).r);
+}
+
+test "scaleRange with lo > hi writes nothing" {
+    var fb = FakeFB{};
+    const base = [_]Color{.{ .r = 0, .g = 0, .b = 0, .a = 0 }} ** 256;
+    palette.scaleRange(&fb, &base, 9, 8, @as(f32, 1.0), .{});
+    try expectEqual(@as(u32, 0), fb.writes);
+}
+
 test "scaleEntries touches only the listed entries" {
     var fb = FakeFB{};
     var base: [256]Color = undefined;

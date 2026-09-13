@@ -33,6 +33,8 @@ pub const Options = struct {
 /// `c` with its RGB scaled by `k`, clamped to [0, 1].
 pub fn scale(c: anytype, k: anytype, opts: Options) @TypeOf(c) {
     const F = @TypeOf(k);
+    if (@typeInfo(F) != .float) @compileError("palette: k must be a runtime f32 or f64 (write @as(f32, 0.5)); the float type is part of the look");
+    // @min/@max drop a NaN operand, so a NaN k clamps to 1 and never reaches @intFromFloat.
     const kk: F = @max(0, @min(1, k));
     var out = c;
     out.r = channel(F, c.r, kk, opts.rounding);
@@ -45,7 +47,8 @@ pub fn scale(c: anytype, k: anytype, opts: Options) @TypeOf(c) {
     return out;
 }
 
-/// Write entries `lo..=hi` of `fb` as `base[i]` scaled by `k`.
+/// Write entries `lo..=hi` of `fb` as `base[i]` scaled by `k`. `base` needs at
+/// least `hi + 1` entries (not bounds-checked in ReleaseSmall). `lo > hi` writes nothing.
 pub fn scaleRange(fb: anytype, base: anytype, lo: u8, hi: u8, k: anytype, opts: Options) void {
     var i: usize = lo;
     while (i <= hi) : (i += 1) {
