@@ -51,6 +51,46 @@ pub const Layer = struct {
     }
 };
 
+// --------------------------------------------------------------------------
+// 2D maps. A Grid is a whole Tiled layer addressed in pixels, for screens
+// where a camera roams a map and an entity collides with it (the Union Demo
+// menu). The pure parts (cell query, camera follow, ratio scroll) live in
+// tilegrid.zig so they test natively; drawing lives here.
+// --------------------------------------------------------------------------
+const tilegrid = @import("tilegrid.zig");
+const blit = @import("blit.zig");
+pub const Grid = tilegrid.Grid;
+pub const followAxis = tilegrid.followAxis;
+pub const deadzone = tilegrid.deadzone;
+pub const RatioScroll = tilegrid.RatioScroll;
+
+/// Draw a Grid of tile ids through `sheet`: cell v draws sheet tile v - id_base
+/// (v < id_base is empty) and `key` pixels stay clear. The geometry is the
+/// SHEET's tile size (the grid's own tw/th may be in other units, e.g. the
+/// original map pixels); `cam_x` is the view's left edge in sheet pixels, rows
+/// start at `dst_y`. Only the columns the plane can show are visited.
+pub fn drawGrid(fb: *LogicalFB, grid: *const Grid, sheet: *const TileSheet, cam_x: i32, dst_y: i32, id_base: u8, key: u8) void {
+    const tw: i32 = sheet.tw;
+    const th: i32 = sheet.th;
+    const cols: i32 = @intCast(grid.cols);
+    const c0 = @max(@divFloor(cam_x, tw), 0);
+    const c1 = @min(@divFloor(cam_x + @as(i32, fb.fb_w) - 1, tw), cols - 1);
+    if (c1 < c0) return;
+    const dst = blit.Dst.plane(fb);
+    const img = blit.Image.init(sheet.raw, sheet.sheet_w);
+    for (0..grid.rows) |r| {
+        const dy = dst_y + @as(i32, @intCast(r)) * th;
+        var c = c0;
+        while (c <= c1) : (c += 1) {
+            const v = grid.cells[r * grid.cols + @as(usize, @intCast(c))];
+            if (v < id_base) continue;
+            const tile: usize = v - id_base;
+            const part = blit.Rect{ .x = (tile % sheet.cols) * sheet.tw, .y = (tile / sheet.cols) * sheet.th, .w = sheet.tw, .h = sheet.th };
+            blit.blit(dst, img, part, c * tw - cam_x, dy, key, .copy);
+        }
+    }
+}
+
 // Blit one tile with left/right/top/bottom clipping; `key` pixels stay clear.
 fn blitTile(sheet: *const TileSheet, fb: *LogicalFB, tile: u16, dx: i16, dy: i16, key: u8) void {
     const tw: i16 = @intCast(sheet.tw);

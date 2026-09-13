@@ -6,8 +6,10 @@ reach it with `@import("zigos")`; the audio players with `@import("players")`.
 ## What's inside
 - `zigos.zig` — umbrella: `ZigOS`, `LogicalFB`, palette/`printText`, `Blitter`,
   `obj` loader, `za` (vector/matrix math), and re-exported effects.
-- `effects/` — reusable effects: scrolltext, parallax, tilemap, bobs, starfields,
-  fades, dots3d, mandelbrot, boot effect, …
+- `effects/` — reusable effects: scrolltext, parallax, tilemap (horizontal bands,
+  and 2D `Grid` maps with `drawGrid`, a collision `cellAt`, melonJS-style camera
+  `followAxis` and `RatioScroll` parallax — pure parts in `tilegrid.zig`), bobs,
+  starfields, fades, dots3d, mandelbrot, boot effect, …
 - `players/` — MOD / YM / sample players (link `@import("players")` +
   `@import("audio_hw")`).
 - `utils/` — loaders, debug `Console`, obj loader, zalgebra.

@@ -1,11 +1,12 @@
 // --------------------------------------------------------------------------
 // Union main — DOORS host. Wraps the main screen and turns its doors into a
-// launcher: as a door mapped to a real ST-demo screen scrolls in, its title
-// fades in (credits font, in the sky above the door) and out as it nears the
-// runner. Space enters the titled door; Back returns; ESC on the main screen
-// bubbles wants_quit to the outer menu. Hold Left to slow the world (and the
-// runner's ghost trail) so a door is easy to catch; release re-accelerates.
-// Faithful hook: efmain.js's posDoors (18 door columns); runner col = pos + 13.
+// launcher: as a door scrolls in, its title fades in (credits font, in the sky
+// above the door) and out as it nears the runner. Space enters the titled door;
+// Back returns; ESC bubbles wants_quit to the outer menu. Hold Left to slow the
+// world (and the runner's ghost trail) so a door is easy to catch; release
+// re-accelerates. Faithful hook: efmain.js's posDoors (18 door columns); runner
+// col = pos + 13. This cracktro is the Union Demo's PREAMBLE: every door leads
+// into the demo's main menu (union_demo.zig).
 // --------------------------------------------------------------------------
 const std = @import("std");
 const zg = @import("zigos");
@@ -33,27 +34,17 @@ const NORMAL: f32 = 0.3;
 const SLOW: f32 = 0.05;
 const HOLD: u32 = 24;
 const RAMP: f32 = 0.15;
+const K_ESC: u32 = 0xE012; // host KEY_CODES.Escape
 
-// Real screens reachable through doors (curated to fit the cart budget).
-const Door = union(enum) {
-    none,
-    bladerunners: @import("../bladerunners.zig").Demo,
-    deltaforce: @import("../deltaforce.zig").Demo,
-    fallen_angels: @import("../fallen_angels.zig").Demo,
-    ancool: @import("../ancool.zig").Demo,
-    leonard: @import("../leonard.zig").Demo,
-    empire: @import("../empire.zig").Demo,
-};
+// What a door opens: the Union Demo's main menu, whichever door it is.
+const Door = union(enum) { none, union_demo: @import("../union_demo.zig").Demo };
 const Tag = std.meta.Tag(Door);
 
-// posDoors index (0..17) -> optional scene + title.
-const Entry = struct { tag: ?Tag = null, name: []const u8 = "" };
+// posDoors index (0..17) -> scene + title (the titles the doors had before).
+const Entry = struct { tag: ?Tag = .union_demo, name: []const u8 = "" };
 const DOORS = [18]Entry{
-    .{ .tag = .bladerunners, .name = "BLADE RUNNERS" }, .{ .tag = .deltaforce, .name = "DELTA FORCE" },
-    .{}, .{},
-    .{ .tag = .fallen_angels, .name = "FALLEN ANGELS" }, .{ .tag = .ancool, .name = "ANCOOL" },
-    .{}, .{ .tag = .leonard, .name = "LEONARD" }, .{ .tag = .empire, .name = "EMPIRE" },
-    .{}, .{}, .{}, .{}, .{}, .{}, .{}, .{}, .{},
+    .{ .name = "BLADE RUNNERS" }, .{ .name = "DELTA FORCE" }, .{}, .{}, .{ .name = "FALLEN ANGELS" }, .{ .name = "ANCOOL" },
+    .{}, .{ .name = "LEONARD" }, .{ .name = "EMPIRE" }, .{}, .{}, .{}, .{}, .{}, .{}, .{}, .{}, .{},
 };
 
 pub const Doors = struct {
@@ -143,6 +134,15 @@ pub const Doors = struct {
         if (dir == 6) self.wants_quit = true; // ESC on the main screen -> outer menu
     }
 
+    // Keys reach the child (F1, door teleports). Owning key() means owning Escape:
+    // it still quits to the outer menu, as the machine did before.
+    pub fn key(self: *Doors, cp: u32) void {
+        if (cp == K_ESC) self.wants_quit = true else if (self.running) switch (self.child) {
+            .none => {},
+            inline else => |*c| if (@hasDecl(@TypeOf(c.*), "key")) c.key(cp),
+        };
+    }
+
     pub fn setShadeMode(self: *Doors, mode: u32) void {
         if (self.running) {
             switch (self.child) {
@@ -162,7 +162,8 @@ pub const Doors = struct {
         switch (DOORS[idx].tag.?) {
             .none => return, // never mapped in DOORS
             inline else => |t| {
-                self.child = @unionInit(Door, @tagName(t), .{});
+                // init() assigns every field: start from undefined, not `.{}`.
+                self.child = @unionInit(Door, @tagName(t), undefined);
                 @field(self.child, @tagName(t)).init(zigos);
             },
         }
