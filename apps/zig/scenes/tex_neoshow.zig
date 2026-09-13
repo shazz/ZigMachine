@@ -40,7 +40,10 @@ const Color = zg.Color;
 const LogicalFB = zg.LogicalFB;
 const blit = zg.blit;
 
-const MUSIC = "tex_neoshow.ymraw"; // neoshow.ym, depacked from its LHA container
+// Matt chose the SNDH over the screen's own neoshow.ym: Mad Max's 68000 replay of the
+// same tune with digidrums (FLAG ~dy), which fits the scrolltext's "fantastic drums".
+// Its drum timer starts through XBIOS Xbtimer, answered in sndh_player.zig.
+const MUSIC = "auf_weidersehen_monty_digi.sndh";
 const PLANE = 0;
 
 const SCREEN_W: usize = 416; // screen_width

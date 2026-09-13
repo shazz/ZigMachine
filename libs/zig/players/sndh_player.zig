@@ -256,6 +256,43 @@ const GEMDOS_MFREE = 0x49;
 /// Room left below the stack that the heap may not grow into.
 const STACK_ROOM: u32 = 0x10000;
 
+// XBIOS Xbtimer(timer, control, data, vector): how a digidrum tune starts its
+// MFP timer through TOS instead of poking $FFFA19 itself. Mad Max's
+// "Auf Weidersehen Monty - digidrums" does; unanswered, its drum timer never
+// ran. Program the shadowed MFP exactly as a direct write would, so rearm()
+// picks the timer up after init/play like any other, and install the handler
+// at the timer's vector.
+const TRAP_XBIOS = 14;
+const XBIOS_XBTIMER = 0x1F;
+
+fn xbtimer(sp: u32) void {
+    const t = readWord(sp + 2);
+    if (t > 3) return;
+    const ctrl: u8 = @truncate(readWord(sp + 4));
+    const data: u8 = @truncate(readWord(sp + 6));
+    const vector = readLong(sp + 8);
+    switch (t) {
+        0 => {
+            mfp[TACR] = ctrl & 0x0F;
+            mfp[TADR] = data;
+        },
+        1 => {
+            mfp[TBCR] = ctrl & 0x0F;
+            mfp[TBDR] = data;
+        },
+        2 => {
+            mfp[TCDCR] = (mfp[TCDCR] & 0x0F) | ((ctrl & 0x07) << 4);
+            mfp[TCDR] = data;
+        },
+        else => {
+            mfp[TCDCR] = (mfp[TCDCR] & 0xF0) | (ctrl & 0x07);
+            mfp[TDDR] = data;
+        },
+    }
+    const slot = ((@as(u32, mfp[VR]) & 0xF0) | CHANNEL[t]) * 4;
+    if (vector != 0 and vector < RAM_SIZE) writeLong(slot, vector);
+}
+
 var heap_next: u32 = 0;
 var heap_end: u32 = 0;
 /// What rate each MFP timer is programmed at, for diagnosis (0 = stopped).
@@ -288,6 +325,11 @@ fn malloc(size: u32) u32 {
 export fn zmSndhTrap(trap: c_int) c_int {
     const sp = m68k_get_reg(null, REG_SP);
     const func = readWord(sp);
+    if (trap == TRAP_XBIOS and func == XBIOS_XBTIMER) {
+        xbtimer(sp);
+        m68k_set_reg(REG_D0, 0);
+        return 1;
+    }
     if (trap != TRAP_GEMDOS) {
         unhandled_trap = (@as(u32, @intCast(trap)) << 16) | func;
         m68k_set_reg(REG_D0, 0);
