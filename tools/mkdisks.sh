@@ -13,8 +13,12 @@
 # Usage:  tools/mkdisks.sh [-f]     -f / --force: repack even if up to date
 #         ZMD_DATE=YYYYMMDD tools/mkdisks.sh      pin the stamped date
 #
-# Disks are repacked only when a source is NEWER than the image, so a no-op build
-# leaves the committed binaries alone instead of churning 29 files every time.
+# A disk is rewritten only when its CONTENT changes. Every image is packed again
+# with the date the existing disk already carries; if that reproduces the disk
+# byte for byte, it is left alone, so an unchanged disk keeps its bytes and date.
+# Only a disk whose cart or files really changed is stamped with today's date.
+# (This used to compare file timestamps, which a fresh checkout or worktree
+# resets, so every build re-stamped all of them and dirtied every commit.)
 set -e
 cd "$(dirname "$0")/.."
 
@@ -32,27 +36,25 @@ FORCE=""
 SKIP="machine-video machine-audio demo-audio bootloader audio boot-novirus demo-c demo-rust"
 
 packed=0; skipped=0
+TMP=$(mktemp -d)
+trap 'rm -rf "$TMP"' EXIT
 
-# stale <out> <src>... -> 0 (true) if out is missing or older than any src
-stale() {
+# repack <out.zmd> <mkdisk args...>: write out only if its content changed.
+repack() {
     out=$1; shift
-    [ -n "$FORCE" ] && return 0
-    [ -f "$out" ] || return 0
-    [ "$MK" -nt "$out" ] && return 0
-    for s in "$@"; do [ "$s" -nt "$out" ] && return 0; done
-    return 1
+    if [ -z "$FORCE" ] && [ -f "$out" ]; then
+        trial="$TMP/$(basename "$out")"
+        python3 "$MK" "$@" -o "$trial" --date "$DATE" --date-from "$out" > /dev/null
+        if cmp -s "$trial" "$out"; then skipped=$((skipped+1)); return; fi
+    fi
+    python3 "$MK" "$@" -o "$out" --date "$DATE"
+    packed=$((packed+1))
 }
 
 pack() { # pack <out.zmd> <title> <cart.wasm> [extra mkdisk args...]
     out=$1 title=$2 cart=$3; shift 3
     if [ ! -f "$cart" ]; then echo "  -- $out: no $cart, skipped"; skipped=$((skipped+1)); return; fi
-    # Asset paths appear as NAME=PATH; feed their PATH halves to the staleness check.
-    srcs="$cart"
-    for a in "$@"; do case "$a" in *=*) srcs="$srcs ${a#*=}";; esac; done
-    # shellcheck disable=SC2086  # srcs is a deliberate word-split list of paths
-    if ! stale "$out" $srcs; then skipped=$((skipped+1)); return; fi
-    python3 "$MK" "$cart" -o "$out" --title "$title" --author "$AUTHOR" --date "$DATE" "$@"
-    packed=$((packed+1))
+    repack "$out" "$cart" --title "$title" --author "$AUTHOR" "$@"
 }
 
 # --- the menu ------------------------------------------------------------
@@ -86,14 +88,8 @@ done
 
 # --- format v2: an EXECUTABLE wasm boot sector that chainloads the cart ---
 if [ -f "$OUT/boot-novirus.wasm" ] && [ -f "$OUT/demo-fullscreen.wasm" ]; then
-    if stale "$OUT/test-v2.zmd" "$OUT/boot-novirus.wasm" "$OUT/demo-fullscreen.wasm"; then
-        python3 "$MK" "$OUT/demo-fullscreen.wasm" -o "$OUT/test-v2.zmd" \
-            --title "No Virus Test" --date "$DATE" \
-            --boot-wasm "$OUT/boot-novirus.wasm"
-        packed=$((packed+1))
-    else
-        skipped=$((skipped+1))
-    fi
+    repack "$OUT/test-v2.zmd" "$OUT/demo-fullscreen.wasm" \
+        --title "No Virus Test" --boot-wasm "$OUT/boot-novirus.wasm"
 fi
 
 echo "disks: $packed packed, $skipped up to date"

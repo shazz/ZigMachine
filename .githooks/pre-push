@@ -1,0 +1,38 @@
+#!/bin/sh
+# Pre-push: nothing reaches GitHub (and so GitHub Pages) unless the full gate
+# passes AND docs/ matches the source being pushed. ./build.sh runs the native
+# tests and every headless harness on top of the rebuild. Skip once with
+# `git push --no-verify`.
+cd "$(git rev-parse --show-toplevel)" || exit 1
+
+head=$(git rev-parse HEAD)
+while read -r local_ref local_sha remote_ref remote_sha; do
+    [ "$local_sha" = "0000000000000000000000000000000000000000" ] && continue # a delete
+    if [ "$local_sha" != "$head" ]; then
+        echo "pre-push: pushing $local_ref ($local_sha), but HEAD is $head."
+        echo "Check out what you push so the gate tests it, or use --no-verify."
+        exit 1
+    fi
+done
+
+if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
+    echo "pre-push: the working tree has uncommitted changes; the gate would not test what you push."
+    exit 1
+fi
+
+echo "pre-push: running the full gate (./build.sh)"
+[ -d "$HOME/.local/zig/0.16.0" ] && PATH="$HOME/.local/zig/0.16.0:$PATH" && export PATH
+sh build.sh > /tmp/zm-pre-push.log 2>&1 || {
+    tail -40 /tmp/zm-pre-push.log
+    echo "pre-push: ./build.sh FAILED (full log: /tmp/zm-pre-push.log)"
+    exit 1
+}
+
+stale=$(git status --porcelain -- docs)
+if [ -n "$stale" ]; then
+    echo "pre-push: ./build.sh passed, but it rebuilt docs/ files this push does not contain:"
+    echo "$stale" | sed 's/^/    /'
+    echo "Commit them first, or GitHub Pages would deploy stale screens."
+    exit 1
+fi
+echo "pre-push: gate green, docs/ up to date ✅"
