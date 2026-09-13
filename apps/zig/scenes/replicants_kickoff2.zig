@@ -17,13 +17,17 @@
 // content window is 320x240 at (40,40), borders opened with the flicker trick.
 // Every number below is the original's, in canvas pixels, halved at emission.
 //
-// Three phases, frame-counted as the original's requestAnimFrame chain:
-//   1..200    AtariDecrunch(0, 100, 0, 200): random bars in 12 colours under
-//             the Automation packer logo and the busy bee
-//   201..500  prego(): the credits page, until time>=300
-//   501..     go(): music starts; picture, two vertical chrome strips, the
+// Two phases, frame-counted as the original's requestAnimFrame chain:
+//   1..300    prego(): the credits page, until time>=300
+//   301..     go(): music starts; picture, two vertical chrome strips, the
 //             black bar, a 55x26 font scroller and 11 sprites on a Lissajous
 //             orbit whose sprite set changes every 1000 frames
+//
+// The remake opens with 200 frames of AtariDecrunch(0, 100, 0, 200), the fake
+// Automation Packer v2.3r depack screen. It is not part of this scene any more:
+// it lives in the depacker as fx = automation (libs/zig/depackers/depack_fx.zig),
+// so it runs for real while a packed asset unpacks. Every frame from prego() on
+// is the one the remake draws 200 frames later.
 //
 // The PNGs are smoothly resampled 2x art drawn at both parities, so the asset
 // script box-halves each one for every parity it lands on; drawHalved() picks
@@ -56,22 +60,10 @@ const CONTENT_H: usize = 240;
 const TRANSPARENT: u8 = 0;
 const BLACK: u8 = 1;
 const FONT_GREY: u8 = 2;
-const DECRUNCH_BASE: u8 = 3;
 
 // phases
-const DECRUNCH_FRAMES: u32 = 200; // DecrunchMaxVBL
 const TITLE_FRAMES: u32 = 300; // prego: time>=300
-const MAIN_FIRST_FRAME: u32 = DECRUNCH_FRAMES + TITLE_FRAMES + 1;
-
-// AtariDecrunch
-const CANVAS_H: usize = 480;
-const DECRUNCH_BAR_MAX: f64 = 100; // MaxBarHeight
-const DECRUNCH_COLOURS: f64 = 12; // round(random*12) can give 12: no such colour, fillStyle kept
-const AUTOMATION_X: i32 = (320 - 364 / 2) / 2; // drawImage(automation, 320-w1/2, 7)
-const AUTOMATION_Y: i32 = 7 / 2; // odd: the script halved it on a row-shifted grid
-const BEE_X: i32 = 320 / 2;
-const BEE_Y: i32 = 50 / 2;
-const RNG_SEED: u64 = 0x9E3779B97F4A7C15;
+const MAIN_FIRST_FRAME: u32 = TITLE_FRAMES + 1;
 
 // prego()'s font1.print(mycanvas, text, x, y, 1, 0, 2, 2): 8x8 tiles at zoom 2
 const TitleLine = struct { x: i32, y: i32, text: []const u8 };
@@ -148,8 +140,6 @@ const main_img = blit.Image.init(@embedFile(DIR ++ "main.raw"), MAIN_W);
 const vscroll_img = blit.Image.init(@embedFile(DIR ++ "vscroll.raw"), 2 * VSCROLL_W);
 const font_img = blit.Image.init(@embedFile(DIR ++ "lowerfont.raw"), 2 * FONT_VARIANT_STEP);
 const font8_img = blit.Image.init(@embedFile(DIR ++ "font8.raw"), FONT8_COLS * FONT8);
-const automation_img = blit.Image.init(@embedFile(DIR ++ "automation.raw"), 182);
-const bee_img = blit.Image.init(@embedFile(DIR ++ "bee.raw"), 16);
 
 /// A sprite halved for all four parities: variant (ox, oy) at (ox*vw, oy*vh).
 const Sprite = struct { img: blit.Image, vw: usize, vh: usize };
@@ -179,7 +169,7 @@ comptime {
     assert(main_img.w * main_img.h == MAIN_W * 215 and main_img.h == BAR_Y / 2);
     assert(vscroll_img.h == VSCROLL_H);
     assert(font_img.h == 6 * GLYPH_CELL_H);
-    assert(font8_img.h == 3 * FONT8 and automation_img.h == 8 and bee_img.h == 16);
+    assert(font8_img.h == 3 * FONT8);
     // the scroller and the strips are only halved for the parity they are drawn at
     assert(@mod(SCROLL_Y, 2) == 1 and @mod(VSCROLL_START, 2) == 0 and @mod(VSCROLL_STEP, 2) == 0);
     for (SCROLL_TEXT) |c| assert(c >= FONT_FIRST and c - FONT_FIRST < FONT_COLS * 6);
@@ -189,7 +179,7 @@ comptime {
 }
 
 const SpriteSet = enum { letters, skulls, balls };
-const Phase = enum { decrunch, title, main };
+const Phase = enum { title, main };
 
 /// JS Math.round for the non-negative values it sees here.
 fn jsRound(x: f64) f64 {
@@ -215,9 +205,6 @@ fn fillRows(dst: blit.Dst, first: usize, end: usize, index: u8) void {
 // --------------------------------------------------------------------------
 pub const Demo = struct {
     frame: u32, // requestAnimFrame calls so far, 1-based once running
-    rng: u64,
-    bar_fill: u8, // the decrunch canvas's fillStyle, which persists across frames
-    bar_rows: [CONTENT_H]u8,
     title_drawn: bool,
     vscroll_pos: i32,
     vscroll_drawn: i32,
@@ -231,9 +218,6 @@ pub const Demo = struct {
     pub fn init(self: *Demo, zigos: *ZigOS) void {
         // A cart's Demo arrives zeroed: every field is set here, never by default.
         self.frame = 0;
-        self.rng = RNG_SEED;
-        self.bar_fill = BLACK;
-        @memset(&self.bar_rows, BLACK);
         self.title_drawn = false;
         self.vscroll_pos = VSCROLL_START;
         self.vscroll_drawn = VSCROLL_START;
@@ -257,7 +241,6 @@ pub const Demo = struct {
     }
 
     fn phase(self: *const Demo) Phase {
-        if (self.frame <= DECRUNCH_FRAMES) return .decrunch;
         if (self.frame < MAIN_FIRST_FRAME) return .title;
         return .main;
     }
@@ -266,10 +249,9 @@ pub const Demo = struct {
         _ = zigos;
         _ = dt;
         // saturating: a wrap would be UB in ReleaseSmall and would restart the
-        // decrunch and re-request the song; pinned at the top it stays in go()
+        // credits and re-request the song; pinned at the top it stays in go()
         self.frame +|= 1;
         switch (self.phase()) {
-            .decrunch => self.decrunchBars(),
             .title => {},
             .main => self.advanceMain(),
         }
@@ -280,44 +262,12 @@ pub const Demo = struct {
         const fb = &zigos.lfbs[PLANE];
         const screen = blit.Dst.plane(fb).window(CONTENT_X, CONTENT_Y, CONTENT_W, CONTENT_H);
         switch (self.phase()) {
-            .decrunch => self.drawDecrunch(screen),
             .title => if (!self.title_drawn) {
                 drawTitle(screen); // prego() redraws the same page every frame
                 self.title_drawn = true;
             },
             .main => self.drawMain(screen),
         }
-    }
-
-    /// Math.random stand-in: xorshift64*, 53 bits into [0, 1).
-    fn random(self: *Demo) f64 {
-        self.rng ^= self.rng >> 12;
-        self.rng ^= self.rng << 25;
-        self.rng ^= self.rng >> 27;
-        const bits = (self.rng *% 0x2545F4914F6CDD1D) >> 11;
-        return @as(f64, @floatFromInt(bits)) * 0x1.0p-53;
-    }
-
-    /// doDecrunch's bar loop over the 480 canvas rows; ST row k shows canvas row 2k.
-    fn decrunchBars(self: *Demo) void {
-        var canvas_rows: [CANVAS_H]u8 = undefined;
-        const tallest = 10 + jsRound(self.random() * DECRUNCH_BAR_MAX);
-        var y: usize = 0;
-        while (y <= CANVAS_H) {
-            const barh: usize = @intFromFloat(jsRound(self.random() * tallest));
-            const col = jsRound(self.random() * DECRUNCH_COLOURS);
-            if (col < DECRUNCH_COLOURS) self.bar_fill = DECRUNCH_BASE + @as(u8, @intFromFloat(col));
-            const end = @min(y + barh, CANVAS_H);
-            if (end > y) @memset(canvas_rows[y..end], self.bar_fill);
-            y += barh;
-        }
-        for (&self.bar_rows, 0..) |*row, k| row.* = canvas_rows[2 * k];
-    }
-
-    fn drawDecrunch(self: *const Demo, screen: blit.Dst) void {
-        for (self.bar_rows, 0..) |index, k| fillRows(screen, k, k + 1, index);
-        blit.blit(screen, automation_img, null, AUTOMATION_X, AUTOMATION_Y, 0, .{ .flat = BLACK });
-        blit.blit(screen, bee_img, null, BEE_X, BEE_Y, 0, .{ .flat = BLACK });
     }
 
     fn drawTitle(screen: blit.Dst) void {

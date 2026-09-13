@@ -46,13 +46,16 @@ const Arrival = struct {
 const Block = struct { kind: Kind, len: u32, offset: u32 };
 const Match = struct { offset: u32, len: u32 };
 
-pub const Error = error{ OutOfMemory, TooLarge, TextRequired, TextNotAllowed, TextTooLong, TextNotPrintable };
+pub const Error = error{ OutOfMemory, TooLarge, TextRequired, TextNotAllowed, TextTooLong, TextNotPrintable, BarsRequired, BarsNotAllowed };
 
 /// The depack effect recorded in the container (see zx0.zig).
 pub const Options = struct {
     fx: zx0.Fx = .none,
     /// Required with fx == .text, rejected otherwise.
     text: []const u8 = "",
+    /// AtariDecrunch's MaxBarHeight: required with fx == .automation, rejected
+    /// otherwise. Kick Off 2 (CODEF 168) uses 100, Elite Snooker (CODEF 422) 30.
+    bars: ?u8 = null,
 };
 
 /// The effect named on a command line, or null for a name that is not one.
@@ -61,6 +64,8 @@ pub fn parseFx(name: []const u8) ?zx0.Fx {
 }
 
 fn validate(options: Options) Error!void {
+    if (options.fx == .automation and options.bars == null) return error.BarsRequired;
+    if (options.fx != .automation and options.bars != null) return error.BarsNotAllowed;
     if (options.fx != .text) {
         if (options.text.len != 0) return error.TextNotAllowed;
         return;
@@ -85,6 +90,7 @@ pub fn pack(gpa: std.mem.Allocator, input: []const u8, options: Options) Error![
         try out.append(gpa, @intCast(options.text.len));
         try out.appendSlice(gpa, options.text);
     }
+    if (options.fx == .automation) try out.append(gpa, options.bars.?);
     if (input.len == 0) return out.toOwnedSlice(gpa);
 
     const blocks = try parse(gpa, input);

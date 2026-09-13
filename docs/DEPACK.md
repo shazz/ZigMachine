@@ -13,24 +13,26 @@ with an effect on screen while they do. Code: `libs/zig/depackers/zx0.zig`
 |---|---|---|
 | 0 | 4 | magic `ZX0!` |
 | 4 | 1 | version, `1` |
-| 5 | 1 | fx: `0` none, `1` rasters, `2` bar, `3` text, `4` fade, `5` noise |
+| 5 | 1 | fx: `0` none, `1` rasters, `2` bar, `3` text, `4` fade, `5` noise, `6` automation |
 | 6 | 4 | depacked length, u32 little-endian |
 | 10 | 1 | text length n, 1..40 (**only** when fx = text) |
 | 11 | n | message, printable ASCII (**only** when fx = text) |
+| 10 | 1 | bar height, AtariDecrunch's MaxBarHeight 0..255 (**only** when fx = automation) |
 | … | … | ZX0 v2 stream (absent when the length is 0) |
 
 Contract: the packer rejects an unknown effect, a missing, over-long or
-non-printable message, and a message with any effect but `text`. The depacker
-answers **null** on an unknown version or fx, or a malformed message, never
+non-printable message, and a message with any effect but `text`. It also rejects
+`automation` without a bar height, and a bar height with any other effect. The depacker
+answers **null** on an unknown version or fx, a malformed message or a missing bar height, never
 falling back to "no effect". Plain `zx0.depack(image, dst)` ignores fx and just
 returns the data.
 
 ### CLI
 
 ```sh
-zx0pack [--fx none|rasters|bar|text|fade|noise] [--text "MESSAGE"] <in> <out>  # packs, verifies, writes
-zx0pack [--fx F] [--text MSG] [--stats] [--force] --pairs <in> <out> [<in> <out>...]
-zx0pack [--stats] [--force] --manifest <file>    # lines: in TAB out [TAB fx [TAB text]], '#' comments
+zx0pack [--fx none|rasters|bar|text|fade|noise|automation] [--text "MESSAGE"] [--bars N] <in> <out>  # packs, verifies, writes
+zx0pack [--fx F] [--text MSG] [--bars N] [--stats] [--force] --pairs <in> <out> [<in> <out>...]
+zx0pack [--stats] [--force] --manifest <file>    # lines: in TAB out [TAB fx [TAB text|bars]], '#' comments
 zx0pack -m <file>...                                                           # measure: raw packed path
 ```
 
@@ -58,6 +60,32 @@ palette entries 0..15.
 | text | the container's message, 8×8 system font, centred |
 | fade | background steps $777 → $000 in 8 ST levels, black exactly at the last byte |
 | noise | `libs/zig/tvnoise` snow on plane 0 (ramp at entries 8..15), redrawn every frame for as long as the depack runs; tvnoise takes no progress input, so the snow does not change with progress |
+| automation | the Automation Packer v2.3r depack screen from CODEF's `AtariDecrunch`: random bars in its 12 colours over the whole plane, the Automation logo and the busy bee on top, redrawn every frame until the data is ready |
+
+**automation**, what is authentic and what is adapted. It is the fake depack
+screen that opened the Replicants' Kick Off 2 remake (CODEF screen 168,
+`prototypes/codef/168/lib/codef_decrunch.js`, `AtariDecrunch(0, 100, 0, 200)`).
+It used to be the first 200 frames of `replicants_kickoff2.zig`, and now runs
+here, over a real depack. Elite Snooker (CODEF 422) calls the same function as
+`AtariDecrunch(0, 30, 0, 100)`. The one argument that changes the look is
+MaxBarHeight (168: 100, 422: 30), so it is **parameterised** as the header's bar
+height (`--bars N`, required with this effect). DecrunchMaxVBL (200 / 100) is
+replaced by the depack's own length. DType is 0 (Automation) and
+StartDecrunchAt is 0 in both calls, and doDecrunch never reads StartDecrunchAt,
+so neither is stored. Kept as in the JS: each frame draws
+`tallest = 10 + round(rnd*MaxBarHeight)`, then bars `round(rnd*tallest)` canvas rows tall
+in `palette[round(rnd*12)]`. When that index is 12, one past the palette, the
+canvas keeps its last `fillStyle`, so the bar repeats the previous colour. It
+also keeps the 12 `#a0....` colours, and the logo at canvas `(320 - w/2, 7)` and
+the bee at `(320, 50)`, halved and inked black. The two masks are the scene's
+old assets (`libs/zig/depackers/automation/*.raw`, cut from the JS's base64
+PNGs), packed to bits at compile time: 214 bytes. Adapted: the remake ran a
+fixed 200 frames on a 320×240 canvas. Here the effect lasts exactly as long as
+the depack and fills the plane (320×200, or 400×280 with the logo placed from
+the 320×200 window at (40,40)). One plane row is drawn per two canvas rows of a
+canvas twice the plane's height. `Math.random` is xorshift64*, seeded as the
+scene was, so the bars do not change with progress. Palette entries 1 (ink) and
+3..14 (bars) of plane 0 are used, and restored afterwards.
 
 The rasters follow Jampack 4.0's `DEPICE.S:55` (`MOVE.W D7,$FFFF8240` with the
 packed byte on each bit-buffer reload). Unverified: D7's upper byte (red) is

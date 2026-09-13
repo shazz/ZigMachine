@@ -107,6 +107,9 @@ test "every effect round-trips in the header, and the data does not change" {
         .{ .fx = .text, .text = "DEPACKING THE TRSI LOGO..." },
         .{ .fx = .fade },
         .{ .fx = .noise },
+        .{ .fx = .automation, .bars = 100 }, // Kick Off 2 (CODEF 168)
+        .{ .fx = .automation, .bars = 30 }, // Elite Snooker (CODEF 422)
+        .{ .fx = .automation, .bars = 0 },
     };
     for (cases) |options| {
         const image = try zx0_pack.pack(gpa, input, options);
@@ -114,6 +117,7 @@ test "every effect round-trips in the header, and the data does not change" {
         const h = zx0.parseHeader(image).?;
         try std.testing.expectEqual(options.fx, h.fx);
         try std.testing.expectEqualStrings(options.text, h.text);
+        try std.testing.expectEqual(options.bars orelse 0, h.bars);
         try expectDepacksTo(image, input);
     }
 }
@@ -140,6 +144,10 @@ test "the packer rejects a bad effect or message" {
     try std.testing.expect(zx0_pack.parseFx("sparkles") == null);
     try std.testing.expectEqual(zx0.Fx.fade, zx0_pack.parseFx("fade").?);
     try std.testing.expectEqual(zx0.Fx.noise, zx0_pack.parseFx("noise").?);
+    try std.testing.expectEqual(zx0.Fx.automation, zx0_pack.parseFx("automation").?);
+    try std.testing.expectError(error.TextNotAllowed, zx0_pack.pack(gpa, "a", .{ .fx = .automation, .bars = 100, .text = "HI" }));
+    try std.testing.expectError(error.BarsRequired, zx0_pack.pack(gpa, "a", .{ .fx = .automation }));
+    try std.testing.expectError(error.BarsNotAllowed, zx0_pack.pack(gpa, "a", .{ .fx = .bar, .bars = 30 }));
     try std.testing.expectError(error.TextNotAllowed, zx0_pack.pack(gpa, "a", .{ .fx = .noise, .text = "HI" }));
     const long = "X" ** (zx0.MAX_TEXT + 1);
     try std.testing.expectError(error.TextTooLong, zx0_pack.pack(gpa, "a", .{ .fx = .text, .text = long }));
@@ -157,8 +165,10 @@ test "the depacker refuses an unknown effect, version or malformed message" {
     image[5] = 9; // unknown fx
     try std.testing.expect(zx0.parseHeader(image) == null);
     try std.testing.expect(zx0.depack(image, &out) == null);
-    image[5] = 6; // the first id past noise (5)
+    image[5] = 7; // the first id past automation (6)
     try std.testing.expect(zx0.depack(image, &out) == null);
+    // a header that stops where automation's bar-height byte should be
+    try std.testing.expect(zx0.parseHeader(&[_]u8{ 'Z', 'X', '0', '!', zx0.VERSION, @intFromEnum(zx0.Fx.automation), 0, 0, 0, 0 }) == null);
     image[5] = @intFromEnum(zx0.Fx.text);
 
     image[4] = 2; // unknown version

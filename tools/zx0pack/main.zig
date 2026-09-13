@@ -9,10 +9,11 @@
 //   zx0pack -m <file>...
 //       measure only, nothing written: "raw packed path" per file
 //
-// F is none|rasters|bar|text|fade|noise (the effect shown while the cart depacks);
-// --text is required with text and rejected otherwise.
+// F is none|rasters|bar|text|fade|noise|automation (the effect shown while the cart depacks);
+// --text is required with text and rejected otherwise; --bars N (AtariDecrunch's
+// MaxBarHeight, 0..255: Kick Off 2 100, Elite Snooker 30) likewise with automation.
 //
-// Manifest: one job per line, TAB-separated `in  out  [fx  [text]]`; blank
+// Manifest: one job per line, TAB-separated `in  out  [fx  [text|bars]]`; blank
 // lines and lines starting with '#' are ignored. The staleness check compares
 // file times only, so after changing a line's fx or text run with --force.
 //
@@ -87,9 +88,12 @@ fn parseArgs(init: std.process.Init, arena: std.mem.Allocator) !Cli {
             cli.force = true;
         } else if (eql(arg, "--fx")) {
             const name = args.next() orelse return usage("--fx needs a value");
-            cli.options.fx = zx0_pack.parseFx(name) orelse return usage("unknown effect (none|rasters|bar|text|fade|noise)");
+            cli.options.fx = zx0_pack.parseFx(name) orelse return usage("unknown effect (none|rasters|bar|text|fade|noise|automation)");
         } else if (eql(arg, "--text")) {
             cli.options.text = args.next() orelse return usage("--text needs a value");
+        } else if (eql(arg, "--bars")) {
+            const n = args.next() orelse return usage("--bars needs a value");
+            cli.options.bars = std.fmt.parseInt(u8, n, 10) catch return usage("--bars is 0..255");
         } else {
             try cli.paths.append(arena, arg);
         }
@@ -103,7 +107,7 @@ fn eql(a: []const u8, b: []const u8) bool {
 
 fn usage(why: []const u8) error{Usage} {
     std.debug.print("zx0pack: {s}\n" ++
-        "usage: zx0pack [--fx none|rasters|bar|text|fade|noise] [--text MSG] <in> <out>\n" ++
+        "usage: zx0pack [--fx none|rasters|bar|text|fade|noise|automation] [--text MSG] [--bars N] <in> <out>\n" ++
         "       zx0pack [--fx F] [--text MSG] [--stats] [--force] --pairs <in> <out>...\n" ++
         "       zx0pack [--stats] [--force] --manifest <file>\n" ++
         "       zx0pack -m <file>...\n", .{why});
@@ -134,7 +138,12 @@ fn manifestJobs(init: std.process.Init, arena: std.mem.Allocator, path: []const 
         var job = Job{ .in = fields.next().?, .out = fields.next() orelse "", .options = .{} };
         if (job.out.len == 0) return manifestError(path, n, "needs <in> TAB <out>");
         if (fields.next()) |fx| job.options.fx = zx0_pack.parseFx(fx) orelse return manifestError(path, n, "unknown effect");
-        if (fields.next()) |msg| job.options.text = msg;
+        if (fields.next()) |param| {
+            // the 4th field is the effect's parameter: text's message, automation's bar height
+            if (job.options.fx == .automation) {
+                job.options.bars = std.fmt.parseInt(u8, param, 10) catch return manifestError(path, n, "bar height is 0..255");
+            } else job.options.text = param;
+        }
         try jobs.append(arena, job);
     }
     return jobs.items;
