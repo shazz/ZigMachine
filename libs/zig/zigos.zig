@@ -28,6 +28,8 @@ pub const scrolltext2 = @import("effects/scrolltext2.zig"); // stride-agnostic s
 pub const charpanel = @import("effects/charpanel.zig"); // self-writing character panel
 pub const blit = @import("effects/blit.zig"); // clipped signed blits: Dst/Image/Ink
 pub const palette = @import("effects/palette.zig"); // scale colours from a base palette (fades)
+pub const scrollring = @import("effects/scrollring.zig"); // CODEF letter-ring scroller state
+pub const wave = @import("effects/wave.zig"); // CODEF FX.siny: SineSum + column-shifted strip blit
 // per-line palette tables, one HBL per plane, always-physical rows
 pub const copper = @import("effects/copper.zig").Copper(LogicalFB, ZigOS, .{
     .nb_planes = NB_PLANES,
