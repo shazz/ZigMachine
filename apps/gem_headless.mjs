@@ -218,6 +218,8 @@ const FLOPPY = [70, 40]; // the FLOPPY desktop icon, physical-visible coords
 // The first file icon inside an opened FLOPPY window (measured off a headless
 // shot: the icon box is x 48..104, y 54..84).
 const FIRST_FILE = [75, 66];
+// A folder made with New Folder lands in the 4th cell of the root window's row.
+const COPY_FOLDER = [507, 66];
 
 const SCENARIOS = {
     // Dragging a desktop icon must leave the original in place and show a dotted
@@ -247,6 +249,29 @@ const SCENARIOS = {
         gem.click(200, 23); // Show Info...
         for (let i = 0; i < 3; i++) gem.frame();
         await gem.shot(`${out}/disk-info.ppm`);
+    },
+    // A modal dialog owns the menu bar. The COPY box (a file dropped on a folder)
+    // was missing from the menu bar's copy of the modal list, so hovering a menu
+    // title dropped the menu down OVER the open dialog.
+    "copy-locks-menu": async (gem, out) => {
+        gem.open(...FLOPPY);
+        for (let i = 0; i < 10; i++) gem.frame();
+        gem.click(145, 8);  // File
+        gem.click(200, 39); // New Folder...
+        gem.key(13);        // OK with the default name
+        for (let i = 0; i < 4; i++) gem.frame();
+        const noDialog = gem.hash();
+        gem.drag(...FIRST_FILE, ...COPY_FOLDER); // ALPHA.PRG onto the new folder
+        for (let i = 0; i < 4; i++) gem.frame();
+        const copyUp = gem.hash();
+        await gem.shot(`${out}/copy-dialog.ppm`);
+        if (copyUp === noDialog)
+            throw new Error("dropping a file on a folder did not open the COPY box");
+        gem.point(145, 8, 0); // hover File: an unlocked bar drops the menu down
+        for (let i = 0; i < 3; i++) gem.frame();
+        await gem.shot(`${out}/copy-menu-hover.ppm`);
+        if (gem.hash() !== copyUp)
+            throw new Error("the menu bar reacted while the COPY box was open");
     },
     // The ROM's handle tables must survive an app being launched over and over.
     // ST Replay opens a Gui, a Dialog and a FileSel from the ROM on EVERY init;

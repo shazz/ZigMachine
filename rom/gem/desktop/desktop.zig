@@ -189,6 +189,14 @@ pub const Desktop = struct {
         desk_icons.clampIcons(self);
     }
 
+    // An open dialog owns all input: the icons, the windows AND the menu bar.
+    // ONE list, read by both render and runDialogs — two copies once drifted and
+    // left the menu bar live under the COPY box.
+    fn isModal(self: *const Desktop) bool {
+        return self.dlg.active or self.prefs.active or self.about.active or
+            self.trash.active or self.info.active or self.copy.active;
+    }
+
     fn overWindow(self: *Desktop) bool {
         for (self.wins()) |w| {
             if (w.open and self.g.px >= w.r.x and self.g.px < w.r.x + w.r.w and
@@ -204,7 +212,7 @@ pub const Desktop = struct {
     pub fn render(self: *Desktop) Action {
         const g = &self.g;
         var action: Action = .none;
-        const modal = self.dlg.active or self.prefs.active or self.about.active or self.trash.active or self.info.active or self.copy.active; // a dialog owns all input
+        const modal = self.isModal();
         const menu_open = self.menubar.open >= 0;
         // Windows sit above icons and take input first; a press the windows (or
         // an open drop-down menu) consumed never reaches the icons.
@@ -963,7 +971,7 @@ pub const Desktop = struct {
     }
 
     fn runDialogs(self: *Desktop, g: *gui.Gui, action: *Action) void {
-        const modal = self.dlg.active or self.prefs.active or self.about.active or self.trash.active or self.info.active;
+        const modal = self.isModal();
         var buf: MenuBuf = undefined;
         const menus = self.buildMenus(&buf);
         // Only a modal dialog locks the bar. (Don't lock on overWindow: a drop-down
