@@ -51,10 +51,22 @@ repack() {
     packed=$((packed+1))
 }
 
+# Every cart goes on its disk ZX0-PACKED (about a tenth of the size; ST Replay's
+# 1.6 MB of zero-filled RAM becomes 9 KB). The machine unpacks it when it loads
+# the disk: sealed-loader.js hands the bytes to the ROM chip's romDepack. Packing
+# is deterministic, so an unchanged cart still reproduces its disk byte for byte.
+ZX0PACK=zig-out/bin/zx0pack
+[ -x "$ZX0PACK" ] || { echo "mkdisks: $ZX0PACK is missing: run zig build first"; exit 1; }
+packcart() { # packcart <cart.wasm> -> prints the packed copy's path
+    dst="$TMP/$(basename "$1").zx0"
+    "$ZX0PACK" "$1" "$dst" > /dev/null
+    echo "$dst"
+}
+
 pack() { # pack <out.zmd> <title> <cart.wasm> [extra mkdisk args...]
     out=$1 title=$2 cart=$3; shift 3
     if [ ! -f "$cart" ]; then echo "  -- $out: no $cart, skipped"; skipped=$((skipped+1)); return; fi
-    repack "$out" "$cart" --title "$title" --author "$AUTHOR" "$@"
+    repack "$out" "$(packcart "$cart")" --title "$title" --author "$AUTHOR" "$@"
 }
 
 # --- the menu ------------------------------------------------------------
@@ -91,7 +103,7 @@ done
 
 # --- format v2: an EXECUTABLE wasm boot sector that chainloads the cart ---
 if [ -f "$OUT/boot-novirus.wasm" ] && [ -f "$OUT/demo-fullscreen.wasm" ]; then
-    repack "$OUT/test-v2.zmd" "$OUT/demo-fullscreen.wasm" \
+    repack "$OUT/test-v2.zmd" "$(packcart "$OUT/demo-fullscreen.wasm")" \
         --title "No Virus Test" --boot-wasm "$OUT/boot-novirus.wasm"
 fi
 

@@ -332,8 +332,28 @@ function declareCartRam(bytes, what) {
 // Instantiate a cart, turning a link failure into a REPORT rather than a freeze.
 // A disk packed against an older host import surface fails here; saying which
 // import is missing beats a black screen.
+// A disk stores its cart ZX0-packed ("ZX0!", see tools/mkdisks.sh): a tenth of
+// the size. Unpacking a program is the MACHINE's job, so the ROM chip does it.
+// The host only moves bytes: the packed image into the ROM's free RAM, then
+// romDepack unpacks it into the cart window (the outgoing program no longer owns
+// it), and a copy of the result is instantiated. Anything else passes through.
+function unpackCart(bytes, what) {
+    const u8 = new Uint8Array(bytes);
+    if (u8.length < 10 || u8[0] !== 0x5a || u8[1] !== 0x58 || u8[2] !== 0x30 || u8[3] !== 0x21) return bytes;
+    if (!rom || !rom.romDepack) throw new Error(`${what} is packed, but this ROM cannot depack it`);
+    if (u8.length > machine.hwRomRamFree())
+        throw new Error(`${what}: packed cart (${u8.length} B) does not fit the ROM's free RAM`);
+    const src = machine.hwRomRamBase() + machine.hwRomRamUsed();
+    new Uint8Array(memory.buffer, src, u8.length).set(u8);
+    const dst = machine.hwRamBase();
+    const n = rom.romDepack(src, u8.length, dst, machine.hwRamSize());
+    if (!n) throw new Error(`${what}: packed cart is corrupt or too big for the cart window`);
+    return memory.buffer.slice(dst, dst + n);
+}
+
 async function instantiateCart(bytes, what) {
     try {
+        bytes = unpackCart(bytes, what);
         const mod = await WebAssembly.instantiate(bytes, demoImports);
         declareCartRam(bytes, what);
         // The outgoing program cannot release its ROM handles — it is already gone.

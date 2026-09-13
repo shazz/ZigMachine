@@ -45,6 +45,8 @@ function mount(buf) {
     const len = dv.getUint32(0x12, true);
     return { fmt: "v1", title: str(buf, 0x200, 64), bootable,
              cart: bootable ? buf.slice(start, start + len) : null,
+             // A data disk still carries the app GEM launches off it: check that one too.
+             appCart: bootable ? null : buf.slice(start, start + len),
              nFiles: dv.getUint16(0x2e4, true) };
 }
 
@@ -84,6 +86,20 @@ const rom = (await WebAssembly.instantiate(romBytes, {
 })).instance.exports;
 machine.hwSetRomHigh(romRam(romBytes).high ?? 0);
 const env = await hostEnv(memory, machine, rom);
+
+// A disk stores its cart ZX0-packed. Unpack it exactly as sealed-loader.js's
+// unpackCart does: packed image into the ROM's free RAM, romDepack into the cart
+// window, copy out. A disk the ROM cannot unpack FAILS here, before a browser.
+function unpack(bytes, path) {
+    if (!(bytes.length >= 10 && bytes[0] === 0x5a && bytes[1] === 0x58 && bytes[2] === 0x30 && bytes[3] === 0x21)) return bytes;
+    if (bytes.length > machine.hwRomRamFree()) throw new Error(`${path}: packed cart does not fit the ROM's free RAM`);
+    const src = machine.hwRomRamBase() + machine.hwRomRamUsed();
+    new Uint8Array(memory.buffer, src, bytes.length).set(bytes);
+    const dst = machine.hwRamBase();
+    const n = rom.romDepack(src, bytes.length, dst, machine.hwRamSize());
+    if (!n) throw new Error("packed cart is corrupt or too big for the cart window (romDepack returned 0)");
+    return new Uint8Array(memory.buffer.slice(dst, dst + n));
+}
 const gem = await readFile("docs/demo-gem.wasm");
 
 let bad = 0;
@@ -92,8 +108,16 @@ for (const path of disks) {
         const d = mount(new Uint8Array(await readFile(path)));
         // A data disk is not executable on purpose: the machine boots GEM, which
         // opens the disk's app. So GEM is the binary that must instantiate.
-        const wasm = d.cart ?? gem;
-        const what = d.cart ? "cart" : "GEM (data disk)";
+        if (d.appCart && d.appCart.length) {
+            // The data disk's own app, which GEM launches: it must unpack and link too.
+            const app = unpack(d.appCart, path);
+            const appRam = cartRam(app);
+            if (appRam.over) throw new Error(`the data disk's app overruns the RAM window`);
+            await WebAssembly.instantiate(app, { env });
+        }
+        const cart = d.cart ? unpack(d.cart, path) : null;
+        const wasm = cart ?? gem;
+        const what = d.cart ? (cart.length !== d.cart.length ? `cart (packed ${(d.cart.length / 1024) | 0}KB)` : "cart") : "GEM (data disk)";
         const ram = cartRam(wasm);
         if (ram.over) throw new Error(`${what} overruns the RAM window (ends 0x${ram.high.toString(16)} >= 0x${CART_RAM_TOP.toString(16)})`);
         const inst = await WebAssembly.instantiate(wasm, { env });
