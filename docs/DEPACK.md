@@ -92,7 +92,11 @@ it commented out), is not part of the effect. Plane-0 entry 1 is the ink, restor
 afterwards. On a 400×280 plane the panel sits in the 320×200 window at (40,40).
 `apps/tex_loader_fx_headless.mjs` packs a real asset with the main menu's panel
 (`apps/zig/assets/screens/union_demo/loader_main_menu.txt`), runs it on the sealed
-machine, shoots start/middle/end and checks the depacked bytes.
+machine, shoots start/middle/end and checks the depacked bytes. The first screen
+to ship behind it is the Union Demo's TCB3 MULTIFAKE (`union_multifake`): its
+pictures (156,511 bytes) are packed with `screens/multifake/loader.js`'s panel in
+`build.zig` and depack at 6 bytes a line, 94 frames
+(`apps/union_multifake_headless.mjs`).
 
 **automation**, what is authentic and what is adapted. It is the fake depack
 screen that opened the Replicants' Kick Off 2 remake (CODEF screen 168,

@@ -80,6 +80,7 @@ node apps/gem_headless.mjs "$SHOTS"
 node apps/sndh_headless.mjs
 node apps/c_music_check.mjs   # a C cart's song request reaches the sealed YM
 node apps/union_demo_music_check.mjs   # the Union Demo menu's YM dump plays
+node apps/union_multifake_headless.mjs "$SHOTS"   # TCB3: loader depack, then screen.js replayed pixel for pixel
 node apps/dbug_headless.mjs "$SHOTS"
 node apps/fallen_angels_headless.mjs "$SHOTS"   # per-plane rasters on all 200 lines
 node apps/tex_loader_fx_headless.mjs "$SHOTS/tex_loader_fx"   # fx = tex_loader on a real asset, bytes checked

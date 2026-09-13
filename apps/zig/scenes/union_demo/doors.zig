@@ -6,8 +6,8 @@
 // loader's own target is its me.state.change (screens/*/loader.js). Titles are
 // the names the remake's index.html status table gives the screens.
 //
-// None of the twelve screens is ported yet, so `tag` (the cart a later port
-// will launch) is null everywhere and entering a door shows COMING SOON.
+// `tag` is the cart a ported screen launches; a door whose screen is not
+// ported yet (tag null) shows COMING SOON.
 // --------------------------------------------------------------------------
 const std = @import("std");
 const map = @import("../../assets/screens/union_demo/menu_map.zig"); // not assets.zig: tests natively
@@ -55,7 +55,7 @@ pub const Door = struct {
     tag: ?[]const u8 = null, // the demo-<tag> cart, once the screen is ported
 };
 
-const Route = struct { demo_name: []const u8, screen: ScreenId, title: []const u8 };
+const Route = struct { demo_name: []const u8, screen: ScreenId, title: []const u8, tag: ?[]const u8 = null };
 const ROUTES = [_]Route{
     .{ .demo_name = "BEATDIS_LOADER", .screen = .beatdis1024_screen, .title = "TCB1" }, // Space; Enter = 512 KB
     .{ .demo_name = "DELTAFORCE_LOADER", .screen = .deltaforce_screen, .title = "DELTA FORCE" },
@@ -65,7 +65,7 @@ const ROUTES = [_]Route{
     .{ .demo_name = "REPS_LOADER", .screen = .reps_screen, .title = "REPS" },
     .{ .demo_name = "TNT2_LOADER", .screen = .tnt2_screen, .title = "TNT2" },
     .{ .demo_name = "L16_LOADER", .screen = .l16_screen, .title = "L16" },
-    .{ .demo_name = "MULTIFAKE_LOADER", .screen = .multifake_screen, .title = "TCB3" },
+    .{ .demo_name = "MULTIFAKE_LOADER", .screen = .multifake_screen, .title = "TCB3", .tag = "union_multifake" },
     .{ .demo_name = "COPIER_LOADER", .screen = .copier_screen, .title = "COPIER TEX" },
     .{ .demo_name = "TEXTRACKER_LOADER", .screen = .textracker_screen, .title = "HIDDEN SCREEN" },
 };
@@ -85,6 +85,7 @@ pub const DOORS: [map.DOORS.len]Door = blk: {
             .loader = @field(ScreenId, lower(d.demo_name)),
             .screen = route.screen,
             .title = route.title,
+            .tag = route.tag,
         };
     }
     break :blk out;
