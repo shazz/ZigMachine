@@ -115,28 +115,36 @@ pub const Demo = struct {
     frame: u32 = 0,
     grad_idx: u8 = 0, // gradTiles palette-animation step
     grad_inc: i8 = 1,
-    // This scene OWNS its playlist (host holds none): YM tunes under docs/music/.
-    // Track 1 plays the real SNDH replay routine (smaller, and the authentic
-    // player, not a register-dump recording) — proof:
-    //   SharpnessBuzztone.ymraw == Jess/Sharpness_Buzztone.sndh: 99.8% of 800
-    //   frames (regs 0-5,8-10) at offset 0, tune default. FLAG ~ay verified
-    //   audible headless (peak 0.55-0.80, non-silent) despite the STE-DMA bit.
-    // Tracks 2-6 stay .ymraw: each is a straight mod2ym conversion of an Amiga
-    // module (150mph/Androids by TAO of ACF conv. Leonard, Drooling by 505
-    // conv. aldn, Reality by Big Alec conv. Oedipus, Lap33/"Lap 22" by
-    // Lap/Next conv. Senser/Vectronix). The archive's same-titled ST-native
-    // SNDHs are independent compositions/replays, not this recording: best
-    // register match over 800 frames was 150mph 73%, Androids 55%, Drooling
-    // 61%, and Big_Alec/Reality.sndh doesn't even run here (stuck PC, silent);
-    // Lap33/"Lap 22" has no SNDH in the archive at all. None clears the ~95%
-    // bar, so per Matt's rule ("no screen ... if a sndh version is available")
-    // these stay as-is: no available SNDH IS this recording.
+    // This scene OWNS its playlist (host holds none): tunes under docs/music/.
+    // Tracks 1 and 5 play the real SNDH replay routine (smaller, and the
+    // authentic player, not a register-dump recording). Proof: YM regs 0-5,8-10
+    // (volume masked 0x1f) of the SNDH vs the old .ymraw, % of register cells
+    // equal over 800 frames, offsets -50..+400, every subtune, rendered
+    // headless through the real demo-audio + machine-audio modules:
+    //   1 SharpnessBuzztone.ymraw == Jess/Sharpness_Buzztone.sndh: 99.8% at
+    //     offset 0, tune default. FLAG ~ay audible headless (peak 0.55-0.80).
+    //   5 Lap33.ymraw (header "LAP 22 (e.g. BMT screen/PYM)", Lap/Next, conv.
+    //     Senser/Vectronix) == Lap/Lap_33.sndh: 100.0% (every frame whole) at
+    //     offset -24, its only tune; FLAG ~y, peak 0.68. The "22" was a typo.
+    // Tracks 2,3,4,6 stay .ymraw (archive re-searched by TITL/COMM/filename):
+    //   150mph: Tao/Steps/150_mph.sndh derails on its first replay frame (its
+    //     timer A/D SID code writes vectors $110/$134, inside an image loaded
+    //     at $0): blocked on the SNDH relocate fix. Mmh2/150_mph ("STMYGM 2
+    //     version") scores 95.9% at 0 but is another arrangement: channel A an
+    //     octave apart, 78% of frames whole, 92.4% over 3000 frames.
+    //     TSD_STe/150_mph is STE DMA (~ey): silent here, 42.6%.
+    //   Androids: Tao/Steps/Androids.sndh 87.1% (its timer-A SID zeroes vols
+    //     9/10 between 50 Hz samples; derails at frame 768); Mmh2 version 76.8%.
+    //   Drooling: 505/Drooling.sndh 61.6% (an STE DMA replay, not this dump).
+    //   Reality: Big_Alec/Reality.sndh derails in init (stuck PC, silent; it
+    //     writes $110 inside the image): blocked on the SNDH relocate fix.
+    // Re-measure 150mph, Androids and Reality once SNDH images relocate.
     const TRACKS = [_][]const u8{
         "union/sharpness_buzztone.sndh",
         "union/150mph.ymraw",
         "union/Androids.ymraw",
         "union/Drooling.ymraw",
-        "union/Lap33.ymraw",
+        "union/lap_33.sndh",
         "union/Reality.ymraw",
     };
 
