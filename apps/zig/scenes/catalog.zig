@@ -5,10 +5,12 @@
 //
 // This is a plain string list — the menu links NO scenes (that's the whole point:
 // each scene is its own cartridge, so nothing bloats the launcher). MUST stay in
-// sync with the cartridge matrix in build.zig.
+// sync with the cartridge matrix in build.zig — except polyglot carts (tags
+// c-* / rust-*), which apps/{c,rust}/build.sh builds; tools/mkdisks.sh packs a
+// floppy for any polyglot tag listed here.
 //
 // Excluded (pre-existing bit-rot vs the current ZigOS API): demo, demo_test,
-// bladerunners_fullscreen, mandelbrot.
+// bladerunners_fullscreen.
 // --------------------------------------------------------------------------
 pub const Entry = struct { name: []const u8, tag: []const u8 };
 
@@ -47,4 +49,8 @@ pub const ENTRIES = [_]Entry{
     .{ .name = "ULM SPOON DISTORTER", .tag = "ulm_spoon_distorter" },
     .{ .name = "REPS OLD", .tag = "replicants" },
     .{ .name = "CUDDLY STARWARS", .tag = "cuddly_starwars" },
+    .{ .name = "REPLICANTS KICK OFF 2", .tag = "replicants_kickoff2" },
+    .{ .name = "DYNO PARADIS3", .tag = "dyno_paradis3" },
+    .{ .name = "MANDELBROT", .tag = "mandelbrot" },
+    .{ .name = "REPS FRED (C)", .tag = "c-screen34" },
 };
