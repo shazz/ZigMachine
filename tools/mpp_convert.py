@@ -20,18 +20,20 @@ luminance and cut into 4 contiguous runs, one per plane.
 The image area is IMAGE_H rows; the last CAPTION_H rows are the scene's caption band
 (palette: 0 transparent, 1 white ink) on plane 0.
 
-Outputs, under apps/zig/assets/screens/mpp_truecolor/:
-  m<N>_pal.bin   RGBA bytes (r,g,b,a — the plane palette's little-endian u32 packing)
-  m<N>_map.bin   4 planes x 200 lines of (u32 byte offset into m<N>_pal, u16 first entry,
-                 u16 count): the HBL copies count*4 bytes to palette[first..]
-  m1_idx.bin / m2_idx.bin   320x200 u8 indices for plane 0
-  m3_idx.bin     320x200 u16 LE: plane << 8 | index
-  counts.bin     4 x u32 LE: source, mode 1, mode 2, mode 3 distinct colours (image area)
+Two pictures, switched with Space in the scene: p0 is procedural (tools/mpp_picture.py,
+deterministic), p1 is a public-domain photo (see PARROT below).
+
+Outputs per picture <P>, under apps/zig/assets/screens/mpp_truecolor/:
+  p<P>_m<N>_pal.bin   RGBA bytes (r,g,b,a — the plane palette's little-endian u32 packing)
+  p<P>_m<N>_map.bin   4 planes x 200 lines of (u32 byte offset into the pal blob, u16
+                      first entry, u16 count): the HBL copies count*4 bytes to palette[first..]
+  p<P>_m1_idx.bin / p<P>_m2_idx.bin   320x200 u8 indices for plane 0
+  p<P>_m3_idx.bin     320x200 u16 LE: plane << 8 | index
+  p<P>_counts.bin     4 x u32 LE: source, mode 1, mode 2, mode 3 distinct colours (image area)
 
 Usage:
-  tools/mpp_convert.py [--image PNG] [--source-out PNG] [--method mediancut|libimagequant]
-With no --image, a procedural 320x180 picture is generated (deterministic, no photo:
-the repo is public). --source-out saves the source picture for comparisons.
+  tools/mpp_convert.py [--source-out DIR] [--method mediancut|libimagequant]
+--source-out saves each source picture for comparisons.
 """
 import argparse
 import struct
@@ -44,6 +46,9 @@ from mpp_picture import IMAGE_H, generate
 
 ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "apps/zig/assets/screens/mpp_truecolor"
+# "Parrot.red.macaw.1.arp.750pix.jpg" by Adrian Pingstone, public domain (Wikimedia
+# Commons): the 750x422 band from y=40 (the head), LANCZOS-resized to 320x180.
+PARROT = OUT / "parrot.png"
 W, H = 320, 200
 CAPTION_H = H - IMAGE_H
 PLANES = 4
@@ -141,37 +146,46 @@ def mode_four_planes(img):
     return m, bytes(out) + bytes(2 * W * CAPTION_H), shown
 
 
+def pictures():
+    """The pictures the scene switches between with Space, in order."""
+    return [
+        ("spheres", generate()),
+        # PARROT: already cropped and resized to 320x180, so the converter never resamples it.
+        ("parrot", Image.open(PARROT).convert("RGB")),
+    ]
+
+
+def convert(p, name, img, method, source_out):
+    if img.size != (W, IMAGE_H):
+        sys.exit(f"mpp_convert: picture {name} is {img.size}, not {W}x{IMAGE_H}")
+    if source_out:
+        img.save(Path(source_out) / f"p{p}_source.png")
+    results = [
+        mode_global(img, method),
+        mode_per_line(img, method),
+        mode_four_planes(img),
+    ]
+    counts = [len(set(img.getdata()))]
+    for n, (mode, idx, shown) in enumerate(results, 1):
+        (OUT / f"p{p}_m{n}_pal.bin").write_bytes(mode.pal)
+        (OUT / f"p{p}_m{n}_map.bin").write_bytes(mode.map_bytes())
+        (OUT / f"p{p}_m{n}_idx.bin").write_bytes(idx)
+        counts.append(len(shown))
+    (OUT / f"p{p}_counts.bin").write_bytes(struct.pack("<4I", *counts))
+    print(f"mpp_convert: {name}: source {counts[0]} colours; global {counts[1]}, per-line {counts[2]}, 4-plane {counts[3]}")
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--image", help="a truecolor picture (cropped/resized to 320x180)")
-    ap.add_argument("--source-out", help="save the source picture here (PNG)")
+    ap.add_argument("--source-out", help="save each source picture here as p<P>_source.png (a directory)")
     # libimagequant: +4.4 dB over median cut on the generated picture (global mode).
     # Needs a Pillow built with it (features.check("libimagequant")); else pass mediancut.
     ap.add_argument("--method", choices=sorted(METHODS), default="libimagequant")
     args = ap.parse_args()
 
-    if args.image:
-        img = Image.open(args.image).convert("RGB").resize((W, IMAGE_H), Image.Resampling.LANCZOS)
-    else:
-        img = generate()
-    if args.source_out:
-        img.save(args.source_out)
-    source = len(set(img.getdata()))
-
     OUT.mkdir(parents=True, exist_ok=True)
-    results = [
-        mode_global(img, args.method),
-        mode_per_line(img, args.method),
-        mode_four_planes(img),
-    ]
-    counts = [source]
-    for n, (mode, idx, shown) in enumerate(results, 1):
-        (OUT / f"m{n}_pal.bin").write_bytes(mode.pal)
-        (OUT / f"m{n}_map.bin").write_bytes(mode.map_bytes())
-        (OUT / f"m{n}_idx.bin").write_bytes(idx)
-        counts.append(len(shown))
-    (OUT / "counts.bin").write_bytes(struct.pack("<4I", *counts))
-    print(f"mpp_convert: source {counts[0]} colours; global {counts[1]}, per-line {counts[2]}, 4-plane {counts[3]}")
+    for p, (name, img) in enumerate(pictures()):
+        convert(p, name, img, args.method, args.source_out)
 
 
 if __name__ == "__main__":
