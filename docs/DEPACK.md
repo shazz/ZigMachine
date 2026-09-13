@@ -13,26 +13,32 @@ with an effect on screen while they do. Code: `libs/zig/depackers/zx0.zig`
 |---|---|---|
 | 0 | 4 | magic `ZX0!` |
 | 4 | 1 | version, `1` |
-| 5 | 1 | fx: `0` none, `1` rasters, `2` bar, `3` text, `4` fade, `5` noise, `6` automation |
+| 5 | 1 | fx: `0` none, `1` rasters, `2` bar, `3` text, `4` fade, `5` noise, `6` automation, `7` tex_loader |
 | 6 | 4 | depacked length, u32 little-endian |
 | 10 | 1 | text length n, 1..40 (**only** when fx = text) |
 | 11 | n | message, printable ASCII (**only** when fx = text) |
 | 10 | 1 | bar height, AtariDecrunch's MaxBarHeight 0..255 (**only** when fx = automation) |
+| 10 | 1 | panel columns c, 1..30 (**only** when fx = tex_loader) |
+| 11 | 1 | panel rows r, 1..24 (**only** when fx = tex_loader) |
+| 12 | c×r | the panel row by row, chars `' '`..`'['` (the loader font; no lowercase) (**only** when fx = tex_loader) |
 | … | … | ZX0 v2 stream (absent when the length is 0) |
 
 Contract: the packer rejects an unknown effect, a missing, over-long or
 non-printable message, and a message with any effect but `text`. It also rejects
-`automation` without a bar height, and a bar height with any other effect. The depacker
-answers **null** on an unknown version or fx, a malformed message or a missing bar height, never
+`automation` without a bar height, and a bar height with any other effect, and
+likewise `tex_loader` without a panel, a panel with any other effect, a panel of
+0 or more than 30 columns or 24 rows, ragged rows, or a char outside the font. The depacker
+answers **null** on an unknown version or fx, a malformed message, a missing bar height or a
+missing, misshapen, truncated or out-of-font panel, never
 falling back to "no effect". Plain `zx0.depack(image, dst)` ignores fx and just
 returns the data.
 
 ### CLI
 
 ```sh
-zx0pack [--fx none|rasters|bar|text|fade|noise|automation] [--text "MESSAGE"] [--bars N] <in> <out>  # packs, verifies, writes
-zx0pack [--fx F] [--text MSG] [--bars N] [--stats] [--force] --pairs <in> <out> [<in> <out>...]
-zx0pack [--stats] [--force] --manifest <file>    # lines: in TAB out [TAB fx [TAB text|bars]], '#' comments
+zx0pack [--fx none|rasters|bar|text|fade|noise|automation|tex_loader] [--text "MESSAGE"] [--bars N] [--panel FILE] <in> <out>  # packs, verifies, writes
+zx0pack [--fx F] [--text MSG] [--bars N] [--panel FILE] [--stats] [--force] --pairs <in> <out> [<in> <out>...]
+zx0pack [--stats] [--force] --manifest <file>    # lines: in TAB out [TAB fx [TAB text|bars|panel file]], '#' comments
 zx0pack -m <file>...                                                           # measure: raw packed path
 ```
 
@@ -61,6 +67,32 @@ palette entries 0..15.
 | fade | background steps $777 → $000 in 8 ST levels, black exactly at the last byte |
 | noise | `libs/zig/tvnoise` snow on plane 0 (ramp at entries 8..15), redrawn every frame for as long as the depack runs; tvnoise takes no progress input, so the snow does not change with progress |
 | automation | the Automation Packer v2.3r depack screen from CODEF's `AtariDecrunch`: random bars in its 12 colours over the whole plane, the Automation logo and the busy bee on top, redrawn every frame until the data is ready |
+| tex_loader | the Union Demo's TEX loader: the header's text panel assembles letter by letter in the loader font, the last letter landing with the last byte (`libs/zig/depackers/tex_loader.zig`) |
+
+**tex_loader**, what is authentic and what is adapted. Source: shazz's melonJS
+remake `Union-Demo-HTML5-Remake-0.9.8`, `loader.js` (the `TEXLoader` base
+class), panels in `menuloader.js` and `screens/*/loader.js`. Kept: the black
+screen; the `loader.png` font (60 16×16 tiles from `' '`, one colour `#C0A000`),
+halved to 8×8 with no pixel lost because every glyph is pixel-doubled (12 on an
+odd phase, each sampled at its own; `tex_loader/loader.raw`, 480 bytes of rows in
+the cart); the cells of `resetScroller` halved (top-left x = 80 + 8·col, bottom
+row at y 184, rows stacked upward); the letter order (column by column, bottom
+row first in each column); each letter's linear 50 ms flight from y 500 (246
+halved, below the window), letter k starting at 30·k ms. Adapted: the JS clock
+was `Tween.tick(140)` per frame, so the 23×20 main menu panel took 13,820 ms =
+99 frames; here the clock is `written / total` of that timeline, so the panel is
+the progress display and ends on the frame the data is ready (at 7 bytes per
+physical line a 196 KB asset takes 101 frames, the remake's pace). The panel is a
+header payload (`--panel FILE`: one `"quoted"` row per line, all the same width,
+so trailing spaces survive editors); widths differ per screen (18..25 columns,
+always 23 rows). Tiles `# * + ; < = > ? @ [` are blank in `loader.png` and draw
+nothing. The loader's music, `zik_loader` (`data/music/zik_loader.ogg`, a 44.1 kHz
+Vorbis stream the remake plays on the demo screens' loaders; `menuloader.js` has
+it commented out), is not part of the effect. Plane-0 entry 1 is the ink, restored
+afterwards. On a 400×280 plane the panel sits in the 320×200 window at (40,40).
+`apps/tex_loader_fx_headless.mjs` packs a real asset with the main menu's panel
+(`apps/zig/assets/screens/union_demo/loader_main_menu.txt`), runs it on the sealed
+machine, shoots start/middle/end and checks the depacked bytes.
 
 **automation**, what is authentic and what is adapted. It is the fake depack
 screen that opened the Replicants' Kick Off 2 remake (CODEF screen 168,

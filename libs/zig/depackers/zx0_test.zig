@@ -110,14 +110,17 @@ test "every effect round-trips in the header, and the data does not change" {
         .{ .fx = .automation, .bars = 100 }, // Kick Off 2 (CODEF 168)
         .{ .fx = .automation, .bars = 30 }, // Elite Snooker (CODEF 422)
         .{ .fx = .automation, .bars = 0 },
+        .{ .fx = .tex_loader, .panel = .{ .cols = 3, .chars = "AB CD!" } },
+        .{ .fx = .tex_loader, .panel = .{ .cols = zx0.MAX_PANEL_COLS, .chars = "[" ** (zx0.MAX_PANEL_COLS * zx0.MAX_PANEL_ROWS) } },
     };
     for (cases) |options| {
         const image = try zx0_pack.pack(gpa, input, options);
         defer gpa.free(image);
         const h = zx0.parseHeader(image).?;
         try std.testing.expectEqual(options.fx, h.fx);
-        try std.testing.expectEqualStrings(options.text, h.text);
+        try std.testing.expectEqualStrings(if (options.panel) |p| p.chars else options.text, h.text);
         try std.testing.expectEqual(options.bars orelse 0, h.bars);
+        try std.testing.expectEqual(if (options.panel) |p| p.cols else 0, h.cols);
         try expectDepacksTo(image, input);
     }
 }
@@ -165,7 +168,7 @@ test "the depacker refuses an unknown effect, version or malformed message" {
     image[5] = 9; // unknown fx
     try std.testing.expect(zx0.parseHeader(image) == null);
     try std.testing.expect(zx0.depack(image, &out) == null);
-    image[5] = 7; // the first id past automation (6)
+    image[5] = 8; // the first id past tex_loader (7)
     try std.testing.expect(zx0.depack(image, &out) == null);
     // a header that stops where automation's bar-height byte should be
     try std.testing.expect(zx0.parseHeader(&[_]u8{ 'Z', 'X', '0', '!', zx0.VERSION, @intFromEnum(zx0.Fx.automation), 0, 0, 0, 0 }) == null);
@@ -187,6 +190,71 @@ test "the depacker refuses an unknown effect, version or malformed message" {
 
     try std.testing.expect(zx0.parseHeader(image[0 .. zx0.HEADER_LEN + 3]) == null); // text cut short
     try std.testing.expect(zx0.parseHeader(image[0..zx0.HEADER_LEN]) == null); // length byte missing
+    try std.testing.expectEqual(@as(?u32, input.len), zx0.depack(image, &out));
+}
+
+// --- the TEX loader panel ----------------------------------------------------
+
+test "the packer rejects a missing, misplaced, misshapen or unprintable TEX loader panel" {
+    try std.testing.expectEqual(zx0.Fx.tex_loader, zx0_pack.parseFx("tex_loader").?);
+    const ok = zx0_pack.Panel{ .cols = 2, .chars = "ABCD" };
+    try std.testing.expectError(error.PanelRequired, zx0_pack.pack(gpa, "a", .{ .fx = .tex_loader }));
+    try std.testing.expectError(error.PanelNotAllowed, zx0_pack.pack(gpa, "a", .{ .fx = .bar, .panel = ok }));
+    try std.testing.expectError(error.TextNotAllowed, zx0_pack.pack(gpa, "a", .{ .fx = .tex_loader, .panel = ok, .text = "HI" }));
+    try std.testing.expectError(error.PanelShape, zx0_pack.pack(gpa, "a", .{ .fx = .tex_loader, .panel = .{ .cols = 0, .chars = "AB" } }));
+    try std.testing.expectError(error.PanelShape, zx0_pack.pack(gpa, "a", .{ .fx = .tex_loader, .panel = .{ .cols = 2, .chars = "ABC" } }));
+    try std.testing.expectError(error.PanelShape, zx0_pack.pack(gpa, "a", .{ .fx = .tex_loader, .panel = .{ .cols = 2, .chars = "" } }));
+    const wide = "A" ** (zx0.MAX_PANEL_COLS + 1);
+    try std.testing.expectError(error.PanelShape, zx0_pack.pack(gpa, "a", .{ .fx = .tex_loader, .panel = .{ .cols = wide.len, .chars = wide } }));
+    const tall = "A" ** (zx0.MAX_PANEL_ROWS + 1);
+    try std.testing.expectError(error.PanelShape, zx0_pack.pack(gpa, "a", .{ .fx = .tex_loader, .panel = .{ .cols = 1, .chars = tall } }));
+    try std.testing.expectError(error.PanelNotInFont, zx0_pack.pack(gpa, "a", .{ .fx = .tex_loader, .panel = .{ .cols = 2, .chars = "Ab" } }));
+    try std.testing.expectError(error.PanelNotInFont, zx0_pack.pack(gpa, "a", .{ .fx = .tex_loader, .panel = .{ .cols = 2, .chars = "A\x07" } }));
+}
+
+test "a panel file parses to the main menu's 23 rows of 20, quotes kept inside rows" {
+    var arena = std.heap.ArenaAllocator.init(gpa);
+    defer arena.deinit();
+    const a = arena.allocator();
+    const file = try readAsset("apps/zig/assets/screens/union_demo/loader_main_menu.txt");
+    defer gpa.free(file);
+    const p = try zx0_pack.parsePanel(a, file);
+    try std.testing.expectEqual(@as(u8, 20), p.cols);
+    try std.testing.expectEqual(@as(usize, 23 * 20), p.chars.len);
+    try std.testing.expectEqualStrings("    NOW LOADING     ", p.chars[2 * 20 ..][0..20]);
+    try std.testing.expectEqualStrings(" CONTROL  \"CHARLY\"  ", p.chars[16 * 20 ..][0..20]);
+    try std.testing.expectError(error.PanelShape, zx0_pack.parsePanel(a, "\"AB\"\n\"ABC\"\n"));
+    try std.testing.expectError(error.PanelSyntax, zx0_pack.parsePanel(a, "AB\n"));
+    try std.testing.expectError(error.PanelSyntax, zx0_pack.parsePanel(a, "\"AB\n"));
+    try std.testing.expectError(error.PanelShape, zx0_pack.parsePanel(a, "# only a comment\n\n"));
+    try std.testing.expectError(error.PanelNotInFont, zx0_pack.parsePanel(a, "\"ab\"\n"));
+}
+
+test "the depacker refuses a malformed TEX loader panel" {
+    const input = "payload payload payload";
+    var out: [64]u8 = undefined;
+    const image = try zx0_pack.pack(gpa, input, .{ .fx = .tex_loader, .panel = .{ .cols = 2, .chars = "ABCD" } });
+    defer gpa.free(image);
+    const h = zx0.parseHeader(image).?;
+    try std.testing.expectEqual(zx0.HEADER_LEN + 2 + 4, h.stream);
+    const cases = [_]struct { at: usize, bad: u8 }{
+        .{ .at = zx0.HEADER_LEN, .bad = 0 }, // no columns
+        .{ .at = zx0.HEADER_LEN, .bad = zx0.MAX_PANEL_COLS + 1 },
+        .{ .at = zx0.HEADER_LEN + 1, .bad = 0 }, // no rows
+        .{ .at = zx0.HEADER_LEN + 1, .bad = zx0.MAX_PANEL_ROWS + 1 },
+        .{ .at = zx0.HEADER_LEN + 3, .bad = 'b' }, // no lowercase in the font
+        .{ .at = zx0.HEADER_LEN + 3, .bad = 0x07 },
+        .{ .at = zx0.HEADER_LEN + 3, .bad = zx0.PANEL_LAST_CHAR + 1 },
+    };
+    for (cases) |c| {
+        const keep = image[c.at];
+        image[c.at] = c.bad;
+        try std.testing.expect(zx0.parseHeader(image) == null);
+        try std.testing.expect(zx0.depack(image, &out) == null);
+        image[c.at] = keep;
+    }
+    try std.testing.expect(zx0.parseHeader(image[0 .. zx0.HEADER_LEN + 1]) == null); // rows byte missing
+    try std.testing.expect(zx0.parseHeader(image[0 .. zx0.HEADER_LEN + 2 + 3]) == null); // panel cut short
     try std.testing.expectEqual(@as(?u32, input.len), zx0.depack(image, &out));
 }
 
