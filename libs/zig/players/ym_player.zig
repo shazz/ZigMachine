@@ -2,6 +2,14 @@ const std = @import("std");
 const audio = @import("audio_hw");
 
 // --------------------------------------------------------------------------
+// DEPRECATED (Matt, 2026-09-13): a screen's music is an SNDH (the tune's real
+// 68000 replay code, libs/zig/players/sndh_player.zig), never a .ym/.ymraw dump.
+// A dump samples the chip only once per frame, so mid-frame effects (SID voices,
+// digidrums, sample playback through the volume DAC) are lost or turn into
+// bleeps. Use this player ONLY as the last resort, when no SNDH of the tune
+// exists after a real search of prototypes/sndh_lf/. Say so in the scene's music
+// comment, with the best SNDH score. Do not add features to it.
+//
 // YM register-dump player (YM5!/YM6!) — an OPEN ZigOS player driving the SEALED
 // YM2149 chip. Parses a depacked .ym image from the shared song RAM and writes
 // the 14 registers to the chip once per player frame (typically 50 Hz), sample-
