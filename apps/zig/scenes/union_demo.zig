@@ -26,6 +26,7 @@ const Controls = @import("union_demo/controls.zig").Controls;
 const Hud = @import("union_demo/hud.zig").Hud;
 const world = @import("union_demo/world.zig");
 const doors = @import("union_demo/doors.zig");
+const menu_loader = @import("union_demo/loading.zig"); // menuloader.js before the street
 
 // "Union Demo MENU" is Mad Max's Alloy Run, and this is the REAL tune: the
 // archive's Mad_Max/Demos/Union_Demo/SID/Alloy_Run.sndh (SID effects on MFP
@@ -60,7 +61,6 @@ pub const Demo = struct {
     pub fn init(self: *Demo, zigos: *ZigOS) void {
         self.charly.init(A.map.START_X, A.map.START_Y);
         self.controls.init();
-        self.hud.init();
         self.cam = 0;
         self.follow(); // follow() + setDeadzone(0, 0) both force a camera update
         self.banner = .{ .pos = 0, .last = @floatFromInt(self.cam), .ratio = BANNER_RATIO, .w = BANNER_W };
@@ -75,12 +75,23 @@ pub const Demo = struct {
         fb.is_enabled = true;
         fb.setPalette(A.palette);
         fb.setPaletteEntry(0, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
-        zg.requestSongTune(MUSIC, MUSIC_TUNE);
+        menu_loader.start(zigos); // the HUD and the music wait for the graphics
     }
 
     pub fn update(self: *Demo, zigos: *ZigOS, dt: f32) void {
-        _ = zigos;
         _ = dt;
+        switch (menu_loader.step(zigos)) {
+            .loading => return,
+            .failed => {
+                self.wants_quit = true;
+                return;
+            },
+            .ready => { // PlayScreen.onResetEvent: the HUD, then the menu music
+                self.hud.init();
+                zg.requestSongTune(MUSIC, MUSIC_TUNE);
+            },
+            .running => {},
+        }
         self.rasters_y = (self.rasters_y + world.RASTER_STEP) % world.RASTER_WRAP;
         self.banner.update(@floatFromInt(self.cam));
         self.charly.update(self.controls.state(), &A.collision);
@@ -96,6 +107,7 @@ pub const Demo = struct {
 
     pub fn render(self: *Demo, zigos: *ZigOS, dt: f32) void {
         _ = dt;
+        if (menu_loader.blocking()) return; // the loader panel owns the plane
         const fb = &zigos.lfbs[0];
         world.drawRasters(fb, self.rasters_y);
         world.drawBanner(fb, self.banner.pos);

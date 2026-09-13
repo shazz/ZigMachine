@@ -90,7 +90,7 @@ async function sndhPlay(name, tune) {
 }
 
 const cart = await bootCart("docs/demo-union_demo.wasm");
-const req = firstRequest(cart, 10);
+const req = firstRequest(cart, 400); // the song starts with the street, after the ~100-frame loader panel
 const again = cart.demo.pollSongRequest();
 console.log(`union_demo request: ${req ? `"${req.name}" tune ${req.tune}` : "none"} (polled twice: ${again ? "STILL pending" : "cleared"})`);
 let ok = !!req && req.name === WANT && req.tune === WANT_TUNE && !again;

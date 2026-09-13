@@ -96,6 +96,19 @@ pub fn build(b: *std.Build) void {
     pack_multifake.addFileArg(b.path("apps/zig/assets/screens/union_multifake/loader_multifake.txt"));
     pack_multifake.addFileArg(b.path("apps/zig/assets/screens/union_multifake/multifake.bin"));
     const multifake_zx0 = pack_multifake.addOutputFileArg("union_multifake.zx0");
+    // The Union Demo intro's graphics. No effect: nothing loads before the
+    // remake's introScreen (main.js:262-265 goes straight to it on a black canvas).
+    const pack_intro = b.addRunArtifact(zx0pack);
+    pack_intro.addFileArg(b.path("apps/zig/assets/screens/union_demo_intro/intro.bin"));
+    const intro_zx0 = pack_intro.addOutputFileArg("union_demo_intro.zx0");
+    // The Union Demo main menu's graphics depack behind menuloader.js's TEX panel,
+    // as the remake's mainMenuLoader stands before the street on every entry
+    // (main.js:347, and every screen's return to MENU_LOADER).
+    const pack_menu = b.addRunArtifact(zx0pack);
+    pack_menu.addArgs(&.{ "--fx", "tex_loader", "--panel" });
+    pack_menu.addFileArg(b.path("apps/zig/assets/screens/union_demo/loader_main_menu.txt"));
+    pack_menu.addFileArg(b.path("apps/zig/assets/screens/union_demo/menu_assets.bin"));
+    const menu_zx0 = pack_menu.addOutputFileArg("union_demo_menu.zx0");
     // The Union Demo hidden screen: its picture and mice depack behind the TEX
     // loader panel of screens/textracker/loader.js.
     const pack_textracker = b.addRunArtifact(zx0pack);
@@ -107,6 +120,8 @@ pub fn build(b: *std.Build) void {
     _ = packed_files.addCopyFile(trsi_zx0, "trsi_turn.zx0");
     _ = packed_files.addCopyFile(multifake_zx0, "union_multifake.zx0");
     _ = packed_files.addCopyFile(textracker_zx0, "union_textracker.zx0");
+    _ = packed_files.addCopyFile(intro_zx0, "union_demo_intro.zx0");
+    _ = packed_files.addCopyFile(menu_zx0, "union_demo_menu.zx0");
     // MPP TRUECOLOR's gallery: one blob per picture and mode (tools/mpp_convert.py).
     // Unpacked they overflow the cart window, so the scene depacks only the one on
     // screen. MPP_PICTURES follows the converter's PICTURES list.
@@ -130,6 +145,8 @@ pub fn build(b: *std.Build) void {
             \\pub const trsi_turn = @embedFile("trsi_turn.zx0");
             \\pub const union_multifake = @embedFile("union_multifake.zx0");
             \\pub const union_textracker = @embedFile("union_textracker.zx0");
+            \\pub const union_demo_intro = @embedFile("union_demo_intro.zx0");
+            \\pub const union_demo_menu = @embedFile("union_demo_menu.zx0");
             \\{s}}};
             \\
         , .{mpp_decl})),
@@ -300,6 +317,7 @@ pub fn build(b: *std.Build) void {
         "demo-mpp_truecolor", // 43 — truecolor picture via per-line palettes on 1 and 4 planes (MPP)
         "demo-union_multifake", // 44 — The Union Demo / TCB3 MULTIFAKE scroller (melonJS remake)
         "demo-union_textracker", // 45 — The Union Demo hidden screen, TEX's Sample-Mon ST (melonJS remake)
+        "demo-union_intro_screen", // 46 — The Union Demo intro screen (melonJS remake, screens/intro): hub-only
     };
     for (cart_names, 0..) |name, idx| {
         if (name.len == 0) continue; // excluded cart (see note above)

@@ -14,6 +14,9 @@ pub const ice = @import("ice.zig");
 pub const zx0 = @import("zx0.zig");
 /// What the screen does while a ZX0 asset unpacks: `depack_fx.Runner(@import("zigos"))`.
 pub const depack_fx = @import("depack_fx.zig");
+/// The TEX loader panel on its own (draw at a tween clock), for a screen that
+/// shows one without a depack behind it (the Union Demo's demoloader.js page).
+pub const tex_loader = @import("tex_loader.zig");
 
 /// Is this ANY packed image we know how to open?
 pub fn isPacked(src: []const u8) bool {

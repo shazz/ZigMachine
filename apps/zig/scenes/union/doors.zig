@@ -2,24 +2,22 @@
 // Union main — DOORS host. Wraps the main screen and turns its doors into a
 // launcher: as a door scrolls in, its title fades in (credits font, in the sky
 // above the door) and out as it nears the runner. Space enters the titled door;
-// Back returns; ESC bubbles wants_quit to the outer menu. Hold Left to slow the
-// world (and the runner's ghost trail) so a door is easy to catch; release
-// re-accelerates. Faithful hook: efmain.js's posDoors (18 door columns); runner
-// col = pos + 13. This cracktro is the Union Demo's PREAMBLE: every door leads
-// into the demo's main menu (union_demo.zig).
+// ESC bubbles wants_quit to the outer menu. Hold Left to slow the world (and the
+// runner's ghost trail) so a door is easy to catch; release re-accelerates.
+// Faithful hook: efmain.js's posDoors (18 door columns); runner col = pos + 13.
+// This cracktro is the Union Demo's PREAMBLE: every door boots the Union Demo,
+// which opens on its intro splash (Matt, 2026-09-13: "the demo opens on it";
+// the remake's main.js:262-265), cart union_intro_screen.
 // --------------------------------------------------------------------------
-const std = @import("std");
 const zg = @import("zigos");
 const ZigOS = zg.ZigOS;
 const Color = zg.Color;
 const MainScreen = @import("main.zig").Demo;
-const cf = @import("creditfont.zig");
 const maps = @import("../../assets/screens/union_main/union_maps.zig");
 
 const RUNNER_TILE: f32 = 13.0; // sprite centre, in tiles into the window
 const RUNNER_X: f32 = 216.0; // its physical x (main.zig CENTER_X)
 const TW: f32 = 16.0; // tile size (px)
-const TITLE_Y: i16 = 46; // title baseline in the sky, above the door
 const TITLE_IDX: u8 = 0x3A; // dedicated P1 slot for the door-title glyphs
 
 // Title fade zones, in tiles the door is *ahead* of the runner (d = col-pos-13):
@@ -36,12 +34,11 @@ const HOLD: u32 = 24;
 const RAMP: f32 = 0.15;
 const K_ESC: u32 = 0xE012; // host KEY_CODES.Escape
 
-// What a door opens: the Union Demo's main menu, whichever door it is.
-const Door = union(enum) { none, union_demo: @import("../union_demo.zig").Demo };
-const Tag = std.meta.Tag(Door);
+/// The cart every door boots: the Union Demo, starting on its intro splash.
+pub const DOOR_CART = "union_intro_screen";
 
-// posDoors index (0..17) -> scene + title (the titles the doors had before).
-const Entry = struct { tag: ?Tag = .union_demo, name: []const u8 = "" };
+// posDoors index (0..17) -> whether it is a door, and the title it had.
+const Entry = struct { door: bool = true, name: []const u8 = "" };
 const DOORS = [18]Entry{
     .{ .name = "BLADE RUNNERS" }, .{ .name = "DELTA FORCE" }, .{}, .{}, .{ .name = "FALLEN ANGELS" }, .{ .name = "ANCOOL" },
     .{}, .{ .name = "LEONARD" }, .{ .name = "EMPIRE" }, .{}, .{}, .{}, .{}, .{}, .{}, .{}, .{}, .{},
@@ -49,14 +46,11 @@ const DOORS = [18]Entry{
 
 pub const Doors = struct {
     main: MainScreen = .{},
-    child: Door = .none,
-    running: bool = false,
     titled: i32 = -1, // door index whose title is currently on screen, or -1
     title_alpha: f32 = 0,
     title_cx: i16 = 0, // door centre on screen (px)
     slow: u32 = 0, // frames of "hold Left" slowdown remaining
-    pending_launch: i32 = -1,
-    pending_back: bool = false,
+    launch_pending: bool = false, // a door was entered: ask the host for DOOR_CART
     wants_quit: bool = false,
 
     pub fn init(self: *Doors, zigos: *ZigOS) void {
@@ -67,19 +61,7 @@ pub const Doors = struct {
     }
 
     pub fn update(self: *Doors, zigos: *ZigOS, dt: f32) void {
-        if (self.pending_launch >= 0) {
-            self.launch(zigos, @intCast(self.pending_launch));
-            self.pending_launch = -1;
-            return;
-        }
-        if (self.pending_back) return self.goBack(zigos);
-        if (self.running) {
-            switch (self.child) {
-                .none => {},
-                inline else => |*c| c.update(zigos, dt),
-            }
-            return;
-        }
+        if (self.launch_pending) return; // the host swaps the cart on its next poll
         // Hold-Left slowdown: ramp toward SLOW while armed, else back to NORMAL.
         const target: f32 = if (self.slow > 0) SLOW else NORMAL;
         self.main.speed += (target - self.main.speed) * RAMP;
@@ -93,7 +75,7 @@ pub const Doors = struct {
         self.titled = -1;
         self.title_alpha = 0;
         for (maps.POS_DOORS, 0..) |p, i| {
-            if (DOORS[i].tag == null) continue;
+            if (!DOORS[i].door) continue;
             const d = @as(f32, @floatFromInt(p)) - self.main.pos - RUNNER_TILE;
             const a = titleAlpha(d);
             if (a <= 0) continue;
@@ -104,13 +86,6 @@ pub const Doors = struct {
     }
 
     pub fn render(self: *Doors, zigos: *ZigOS, dt: f32) void {
-        if (self.running) {
-            switch (self.child) {
-                .none => {},
-                inline else => |*c| c.render(zigos, dt),
-            }
-            return;
-        }
         self.main.render(zigos, dt);
         // Door-name title removed (its fade wasn't well synced to the door). The
         // enterable door is still tracked by pickTitle -> self.titled (so Space
@@ -120,67 +95,35 @@ pub const Doors = struct {
 
     // Host input: 0-3 dirs, 5 Fire (Space), 6 Back (see demo_main.zig Direction).
     pub fn input(self: *Doors, dir: u8) void {
-        if (self.running) {
-            if (dir == 6) {
-                self.pending_back = true;
-            } else switch (self.child) {
-                .none => {},
-                inline else => |*c| if (@hasDecl(@TypeOf(c.*), "input")) c.input(dir),
-            }
-            return;
-        }
         if (dir == 2) self.slow = HOLD; // hold Left to slow down (auto-repeat re-arms)
-        if (dir == 5 and self.titled >= 0) self.pending_launch = self.titled; // Space enters
-        if (dir == 6) self.wants_quit = true; // ESC on the main screen -> outer menu
+        if (dir == 5 and self.titled >= 0) self.launch_pending = true; // Space enters
+        if (dir == 6) self.wants_quit = true; // Back on the main screen -> outer menu
     }
 
-    // Keys reach the child (F1, door teleports). Owning key() means owning Escape:
-    // it still quits to the outer menu, as the machine did before.
+    // Owning key() means owning Escape: it still quits to the outer menu.
     pub fn key(self: *Doors, cp: u32) void {
-        if (cp == K_ESC) self.wants_quit = true else if (self.running) switch (self.child) {
-            .none => {},
-            inline else => |*c| if (@hasDecl(@TypeOf(c.*), "key")) c.key(cp),
-        };
+        if (cp == K_ESC) self.wants_quit = true;
     }
 
     pub fn setShadeMode(self: *Doors, mode: u32) void {
-        if (self.running) {
-            switch (self.child) {
-                .none => {},
-                inline else => |*c| if (@hasDecl(@TypeOf(c.*), "setShadeMode")) c.setShadeMode(mode),
-            }
-        } else self.main.setShadeMode(mode);
+        self.main.setShadeMode(mode);
     }
 
     pub fn pollSong(self: *Doors) u32 {
-        if (self.running) return 0;
         return self.main.pollSong();
     }
 
-    fn launch(self: *Doors, zigos: *ZigOS, idx: usize) void {
-        zigos.resetForScene();
-        switch (DOORS[idx].tag.?) {
-            .none => return, // never mapped in DOORS
-            inline else => |t| {
-                // init() assigns every field: start from undefined, not `.{}`.
-                self.child = @unionInit(Door, @tagName(t), undefined);
-                @field(self.child, @tagName(t)).init(zigos);
-            },
-        }
-        self.running = true;
+    /// Cartridge swap (demo_main.pollCartRequest): -1 the menu, 1 DOOR_CART.
+    pub fn pollCart(self: *Doors) i32 {
+        if (self.wants_quit) return -1;
+        if (!self.launch_pending) return 0;
+        self.launch_pending = false;
+        return 1;
     }
 
-    fn goBack(self: *Doors, zigos: *ZigOS) void {
-        self.pending_back = false;
-        zigos.resetForScene();
-        self.child = .none;
-        self.running = false;
-        self.titled = -1;
-        self.title_alpha = 0;
-        self.slow = 0;
-        self.main.speed = NORMAL;
-        self.main.init(zigos);
-        setupOverlay(zigos);
+    pub fn cartTag(self: *Doors) []const u8 {
+        _ = self;
+        return DOOR_CART;
     }
 };
 
