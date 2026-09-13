@@ -55,5 +55,6 @@ pub const ENTRIES = [_]Entry{
     .{ .name = "STNICCC 2000", .tag = "stniccc" },
     .{ .name = "TEX NEO SHOW", .tag = "tex_neoshow" },
     .{ .name = "REPS FRED (C)", .tag = "c-screen34" },
+    .{ .name = "V8 POPULOUS (RUST)", .tag = "rust-v8_populous" },
     .{ .name = "ELITE SNOOKER", .tag = "elite_snooker" },
 };

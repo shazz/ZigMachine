@@ -8,7 +8,7 @@
 // the way the worklet does (audioLoadSndh + audioSndhPlay(tune)) and requires the
 // sealed YM to make a sound.
 //
-//   node apps/c_music_check.mjs                  # screen34 (plays) + rust hello (silent)
+//   node apps/c_music_check.mjs   # C screen34 + Rust v8_populous (play), rust hello (silent)
 import { readFile } from "node:fs/promises";
 import { cartRam, CART_RAM_BASE, CART_RAM_TOP } from "../docs/wasm_hiwater.js";
 
@@ -30,8 +30,9 @@ async function bootCart(path) {
     // A C/Rust cart is NOT rebuilt by ./build.sh: a stale docs/demo-c*.wasm has no bridge.
     const probe = new WebAssembly.Module(cart);
     const names = WebAssembly.Module.exports(probe).map((e) => e.name);
-    if (path.includes("screen34") && !names.includes("pollSongRequest")) {
-        console.log(`FAIL  ${path} has no pollSongRequest export: rebuild it with bash apps/c/build.sh`);
+    if (!names.includes("pollSongRequest")) {
+        const script = path.includes("demo-rust") ? "apps/rust/build.sh" : "apps/c/build.sh";
+        console.log(`FAIL  ${path} has no pollSongRequest export: rebuild it with bash ${script}`);
         process.exit(1);
     }
     const ram = cartRam(cart);
@@ -109,5 +110,6 @@ async function checkSilent(path) {
 }
 
 let ok = await checkPlays("docs/demo-c-screen34.wasm", "sos.sndh", 0);
+ok = (await checkPlays("docs/demo-rust-v8_populous.wasm", "custodian.sndh", 1)) && ok;
 ok = (await checkSilent("docs/demo-rust.wasm")) && ok;
 process.exit(ok ? 0 : 1);
