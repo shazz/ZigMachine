@@ -52,5 +52,6 @@ pub const ENTRIES = [_]Entry{
     .{ .name = "REPLICANTS KICK OFF 2", .tag = "replicants_kickoff2" },
     .{ .name = "DYNO PARADIS3", .tag = "dyno_paradis3" },
     .{ .name = "MANDELBROT", .tag = "mandelbrot" },
+    .{ .name = "STNICCC 2000", .tag = "stniccc" },
     .{ .name = "REPS FRED (C)", .tag = "c-screen34" },
 };

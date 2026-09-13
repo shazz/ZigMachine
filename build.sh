@@ -38,7 +38,9 @@ for t in \
     rom/gem/desktop/namefield.zig \
     rom/gem/desktop/stamp.zig \
     rom/gem/desktop/deskinf.zig \
-    rom/gem/gui/grid.zig
+    rom/gem/gui/grid.zig \
+    apps/zig/scenes/stniccc/stream.zig \
+    apps/zig/scenes/stniccc/polyfill.zig
 do
     printf '%-42s ' "$t"
     zig test "$t" 2>&1 | tail -1
