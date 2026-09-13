@@ -38,6 +38,15 @@ EXCLUDE = {
     "tutorial": "the docs/TUTORIAL.md teaching screen, not a demo",
 }
 
+# The Union Demo's screens are reached only through the union_demo hub's doors
+# (Matt, 2026-09-13), never by +/-. Every union_* tag is one, except these two.
+UNION_PREFIX = "union_"
+UNION_CHANNELS = {"union_demo", "union_intro"}  # the hub, and the cracktro leading to it
+
+
+def excluded(tag):
+    return tag in EXCLUDE or (tag.startswith(UNION_PREFIX) and tag not in UNION_CHANNELS)
+
 ENTRY = re.compile(r'\.\{\s*\.name\s*=\s*"([^"]*)"\s*,\s*\.tag\s*=\s*"([^"]*)"\s*\}')
 
 
@@ -58,7 +67,7 @@ def main():
         items = sorted(items, key=lambda e: e[0].encode())
     elif ORDER != "build":
         sys.exit(f"channels: unknown ORDER {ORDER!r}")
-    tags = [tag for _, tag in items if tag not in EXCLUDE]
+    tags = [tag for _, tag in items if not excluded(tag)]
     missing = [t for t in tags if not (ROOT / f"docs/demo-{t}.zmd").is_file()]
     if missing:
         sys.exit("channels: no disk for " + ", ".join(f"docs/demo-{t}.zmd" for t in missing))
