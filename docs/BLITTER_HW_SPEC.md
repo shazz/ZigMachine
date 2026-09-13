@@ -13,6 +13,12 @@ to `HARDWARE_SPEC.md` (the sealed video/audio machine) and `HW_API.md` (the ABI)
 > `CLIP`. **Deferred to v2:** raw area fill (`CON.IFE`/`EFE`) and the async/DMA
 > cycle-budgeted mode (§6). `TRIANGLE` currently uses a self-contained scanline
 > rasteriser rather than the LINE-mask + area-fill two-pass of §4.4.
+>
+> **1.4.0 (2026-09-13): sources may live in cart RAM.** `CON2.SRC_ABS` (§2, §3)
+> lets channels A/B read absolute addresses in the cart window, the video region
+> or the ROM window, range-checked per blit. Before it, every BASE was an offset
+> from `HW_VIDEO_BASE`, so a cart's own assets (which live below it) could only
+> be blitted after copying them into VRAM.
 
 Goal: give the sealed machine an oldskool **blitter** — a fixed-function 2D
 drawing coprocessor the open ZigOS/effects drive through memory-mapped registers.
@@ -78,6 +84,16 @@ Four channels, each with its own `BASE`/`STRIDE` (the Amiga's four DMA channels)
 or an off-screen scratch buffer, so you can blit plane→plane, cookie-cut a bob
 over a background, or accumulate a fill mask off-screen.
 
+**Where BASE points (since 1.4.0).** By default a BASE is an offset in the video
+region. With `CON2.SRC_ABS` set, `A_BASE`/`B_BASE` are **absolute** linear
+addresses, so a source can be a cart's own RAM: an `@embedFile` sprite sheet, a
+scratch buffer, a ROM-window image. The Amiga's blitter could only reach chip
+RAM; this one reads anything a program may hold, and the sealed side checks it:
+the whole `W×H` source rectangle must lie inside **one** readable window (cart
+RAM `[0x100000, 0x300000)`, the video region, ROM RAM `[0x500000, 0x700000)`),
+or the BLIT draws nothing. `D_BASE` is always a video-region offset: the blitter
+reads where a program may, and writes only video memory.
+
 ---
 
 ## 3. Register map (blitter register block)
@@ -94,6 +110,7 @@ by `hw/sdk/memmap.zig`). Word/long fields little-endian.
 | `0x04` | `COLOR` | u8 | foreground index (FILL/LINE/TRIANGLE, halftone FG) |
 | `0x05` | `BG_COLOR` | u8 | halftone / fill background index |
 | `0x06` | `COLOR_KEY` | u8 | index treated as transparent (the chunky "mask", when `KEY_EN`) |
+| `0x07` | `CON2` | u8 | control, second byte (1.4.0): bit0 `SRC_ABS` (A/B BASE are absolute addresses, range-checked, see §2) |
 | `0x08` | `A_BASE` `A_STRIDE` | u32,u16 | channel A source (mask/data) |
 | `0x10` | `B_BASE` `B_STRIDE` | u32,u16 | channel B source (image data) |
 | `0x18` | `C_BASE` `C_STRIDE` | u32,u16 | channel C source (background) |

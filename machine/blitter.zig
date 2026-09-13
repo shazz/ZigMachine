@@ -112,28 +112,27 @@ fn doFill(d: [*]u8, ds: u16, c: Clip, cost: *u32) void {
 }
 
 fn doBlit(d: [*]u8, ds: u16, c: Clip, con: u8, cost: *u32) void {
-    const s = BlitSetup.load(con); // all registers read ONCE, not per pixel
-    const mem = region();
+    const s = BlitSetup.load(con) orelse return; // all registers read ONCE, not per pixel
     var jj: u16 = 0;
     while (jj < s.h) : (jj += 1) {
         const j: u16 = if (s.desc) s.h - 1 - jj else jj;
         const py = @as(i32, s.y0) + j;
         if (py < c.y0 or py >= c.y1) continue;
         const drow = @as(usize, @intCast(py)) * ds;
-        const arow = s.a_base + @as(usize, j) * s.a_stride;
-        const brow = s.b_base + @as(usize, j) * s.b_stride;
+        const arow = @as(usize, j) * s.a_stride;
+        const brow = @as(usize, j) * s.b_stride;
         var ii: u16 = 0;
         while (ii < s.w) : (ii += 1) {
             const i: u16 = if (s.desc) s.w - 1 - ii else ii;
             const px = @as(i32, s.x0) + i;
             if (px < c.x0 or px >= c.x1) continue;
-            const b = if (s.use_b) mem[brow + i] else 0;
+            const b = if (s.use_b) s.b_src[brow + i] else 0;
             if (s.key_en and b == s.key) continue; // cookie-cut transparent pixel
             const di = drow + @as(usize, @intCast(px));
             if (s.plain) {
                 d[di] = b; // fast path: D = B (plain / keyed copy)
             } else {
-                const a = if (s.use_a) mem[arow + i] else 0;
+                const a = if (s.use_a) s.a_src[arow + i] else 0;
                 const cc = if (s.use_c) d[di] else 0;
                 d[di] = applyMinterm(a, b, cc, s.mt);
             }
@@ -142,8 +141,79 @@ fn doBlit(d: [*]u8, ds: u16, c: Clip, con: u8, cost: *u32) void {
     }
 }
 
+// Windows a SRC_ABS source may read, as [lo, hi) linear addresses. Everything a
+// program may legitimately hold pixels in; never the machine's or audio's own RAM
+// below the cart window, and never the gap between the video region and the ROM.
+const Window = struct { lo: u64, hi: u64 };
+const READABLE = [_]Window{
+    .{ .lo = memmap.CART_RAM_BASE, .hi = memmap.CART_RAM_TOP },
+    .{ .lo = memmap.HW_VIDEO_BASE, .hi = memmap.HW_VIDEO_BASE + memmap.REGION_BYTES },
+    .{ .lo = memmap.ROM_RAM_BASE, .hi = memmap.ROM_RAM_TOP },
+};
+
+// Does the w x h rectangle read at base + j*stride + i lie inside ONE window?
+// u64 so a huge stride x height cannot wrap back into range.
+fn readable(base: u32, stride: u16, w: u16, h: u16) bool {
+    const lo: u64 = base;
+    const hi: u64 = lo + @as(u64, h - 1) * stride + w; // one past the last byte read
+    for (READABLE) |win| {
+        if (lo >= win.lo and hi <= win.hi) return true;
+    }
+    return false;
+}
+
+// A channel's pixel 0, or null when its rectangle is out of bounds. Relative: an
+// offset whose rectangle must stay inside the video region (before 1.4.0 it was
+// unchecked, and a bad BASE read past the end of memory and trapped the whole
+// machine). Absolute (CON2.SRC_ABS): the address itself, inside one READABLE window.
+fn source(abs: bool, base: u32, stride: u16, w: u16, h: u16) ?[*]const u8 {
+    if (!abs) {
+        const end: u64 = @as(u64, base) + @as(u64, h - 1) * stride + w; // one past the last byte read
+        return if (end <= memmap.REGION_BYTES) region() + base else null;
+    }
+    if (!readable(base, stride, w, h)) return null;
+    return @ptrFromInt(base);
+}
+
+// Would an op touching the clipped box [x0,x1) x [y0,y1) of D write inside the
+// video region? The box is what the op can actually reach, not the plane size a
+// stride implies: a packed tile ring views a plane with a 62400-byte stride and
+// only ever writes its first rows. An empty box writes nothing and is fine.
+fn destInRegion(d_base: u32, stride: u16, x0: i32, y0: i32, x1: i32, y1: i32) bool {
+    if (x1 <= x0 or y1 <= y0) return true;
+    const last: u64 = @as(u64, @intCast(y1 - 1)) * stride + @as(u64, @intCast(x1));
+    return @as(u64, d_base) + last <= memmap.REGION_BYTES;
+}
+
+// The clipped bounding box an op can write, for destInRegion().
+fn opBox(cmd: u8, c: Clip) Clip {
+    var b = c;
+    switch (cmd) {
+        memmap.BLIT_CMD_FILL, memmap.BLIT_CMD_BLIT => {
+            const x0: i32 = ri16(memmap.BLIT_X0);
+            const y0: i32 = ri16(memmap.BLIT_Y0);
+            b = .{ .x0 = x0, .y0 = y0, .x1 = x0 + r16(memmap.BLIT_W), .y1 = y0 + r16(memmap.BLIT_H) };
+        },
+        memmap.BLIT_CMD_LINE, memmap.BLIT_CMD_TRIANGLE => {
+            const n: usize = if (cmd == memmap.BLIT_CMD_LINE) 2 else 3;
+            const xs = [3]i32{ ri16(memmap.BLIT_X0), ri16(memmap.BLIT_X1), ri16(memmap.BLIT_X2) };
+            const ys = [3]i32{ ri16(memmap.BLIT_Y0), ri16(memmap.BLIT_Y1), ri16(memmap.BLIT_Y2) };
+            b = .{ .x0 = xs[0], .y0 = ys[0], .x1 = xs[0] + 1, .y1 = ys[0] + 1 };
+            for (1..n) |k| {
+                b.x0 = @min(b.x0, xs[k]);
+                b.y0 = @min(b.y0, ys[k]);
+                b.x1 = @max(b.x1, xs[k] + 1);
+                b.y1 = @max(b.y1, ys[k] + 1);
+            }
+        },
+        else => {},
+    }
+    return .{ .x0 = @max(b.x0, c.x0), .y0 = @max(b.y0, c.y0), .x1 = @min(b.x1, c.x1), .y1 = @min(b.y1, c.y1) };
+}
+
 // One-time decode of the BLIT register block, so the inner loop touches only
 // locals. `plain` is the D = B copy fast path (skips the per-bit minterm).
+// Null when there is nothing to draw or an absolute source was refused.
 const BlitSetup = struct {
     w: u16,
     h: u16,
@@ -157,18 +227,27 @@ const BlitSetup = struct {
     use_b: bool,
     use_c: bool,
     plain: bool,
-    a_base: usize,
+    a_src: [*]const u8,
     a_stride: usize,
-    b_base: usize,
+    b_src: [*]const u8,
     b_stride: usize,
 
-    fn load(con: u8) BlitSetup {
+    fn load(con: u8) ?BlitSetup {
         const mt = r8(memmap.BLIT_MINTERM);
         const use_a = con & memmap.CON_USEA != 0;
         const use_b = con & memmap.CON_USEB != 0;
+        const w = r16(memmap.BLIT_W);
+        const h = r16(memmap.BLIT_H);
+        if (w == 0 or h == 0) return null;
+        const abs = r8(memmap.BLIT_CON2) & memmap.CON2_SRC_ABS != 0;
+        const a_stride = r16(memmap.BLIT_A_STRIDE);
+        const b_stride = r16(memmap.BLIT_B_STRIDE);
+        // an unused channel is never read: point it at the region, unchecked
+        const a_src = if (use_a) source(abs, r32(memmap.BLIT_A_BASE), a_stride, w, h) orelse return null else region();
+        const b_src = if (use_b) source(abs, r32(memmap.BLIT_B_BASE), b_stride, w, h) orelse return null else region();
         return .{
-            .w = r16(memmap.BLIT_W),
-            .h = r16(memmap.BLIT_H),
+            .w = w,
+            .h = h,
             .x0 = ri16(memmap.BLIT_X0),
             .y0 = ri16(memmap.BLIT_Y0),
             .mt = mt,
@@ -179,10 +258,10 @@ const BlitSetup = struct {
             .use_b = use_b,
             .use_c = con & memmap.CON_USEC != 0,
             .plain = mt == memmap.MT_B and use_b and !use_a,
-            .a_base = r32(memmap.BLIT_A_BASE),
-            .a_stride = r16(memmap.BLIT_A_STRIDE),
-            .b_base = r32(memmap.BLIT_B_BASE),
-            .b_stride = r16(memmap.BLIT_B_STRIDE),
+            .a_src = a_src,
+            .a_stride = a_stride,
+            .b_src = b_src,
+            .b_stride = b_stride,
         };
     }
 };
@@ -301,9 +380,18 @@ pub fn execute() void {
     const con = r8(memmap.BLIT_CON);
     const d_base: usize = r32(memmap.BLIT_D_BASE);
     const d_stride = r16(memmap.BLIT_D_STRIDE);
-    const d: [*]u8 = @ptrFromInt(memmap.HW_VIDEO_BASE + d_base);
     const clip = clipRect(con, d_stride);
     var cost: u32 = 0;
+
+    // D never leaves the video region: before 1.4.0 a bad D_BASE could scribble
+    // the ROM's RAM (it sits 2 MiB above the base) or trap past the end of memory.
+    const box = opBox(cmd, clip);
+    if (!destInRegion(r32(memmap.BLIT_D_BASE), d_stride, box.x0, box.y0, box.x1, box.y1)) {
+        w32(memmap.BLIT_CYCLES, 0);
+        w8(memmap.BLIT_STATUS, 0);
+        return;
+    }
+    const d: [*]u8 = @ptrFromInt(memmap.HW_VIDEO_BASE + d_base);
 
     switch (cmd) {
         memmap.BLIT_CMD_FILL => doFill(d, d_stride, clip, &cost),

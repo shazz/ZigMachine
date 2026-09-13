@@ -124,6 +124,7 @@ pub const Blitter = struct {
     // strip-blit deformation (sine wobble / rubber / shear).
     pub fn blitCopy(self: *Blitter, dst: *LogicalFB, dx: i16, dy: i16, src: *LogicalFB, sx: i16, sy: i16, w: u16, h: u16) void {
         self.setDest(dst);
+        self.w8(hw.BLIT_CON2, 0); // plane sources are video-region offsets
         const src_off: u32 = @intCast(@intFromPtr(src.fb) - self.base + @as(usize, @intCast(sy)) * src.stride + @as(usize, @intCast(sx)));
         self.w32(hw.BLIT_B_BASE, src_off);
         self.w16(hw.BLIT_B_STRIDE, src.stride);
@@ -141,6 +142,7 @@ pub const Blitter = struct {
     // (dx,dy), skipping pixels equal to `key` (the chunky one-channel cookie-cut).
     pub fn bob(self: *Blitter, dst: *LogicalFB, dx: i16, dy: i16, src: *LogicalFB, sx: i16, sy: i16, w: u16, h: u16, key: u8) void {
         self.setDest(dst);
+        self.w8(hw.BLIT_CON2, 0); // plane sources are video-region offsets
         const src_off: u32 = @intCast(@intFromPtr(src.fb) - self.base + @as(usize, @intCast(sy)) * src.stride + @as(usize, @intCast(sx)));
         self.w32(hw.BLIT_B_BASE, src_off);
         self.w16(hw.BLIT_B_STRIDE, src.stride);
@@ -151,6 +153,35 @@ pub const Blitter = struct {
         self.wi16(hw.BLIT_Y0, dy);
         self.w16(hw.BLIT_W, w);
         self.w16(hw.BLIT_H, h);
+        self.w8(hw.BLIT_COMMAND, hw.BLIT_CMD_BLIT);
+        hw.hwBlit();
+    }
+
+    // Copy a w×h region at (sx,sy) of a raw 8bpp image held ANYWHERE in the
+    // cart's RAM (an @embedFile asset, a scratch buffer), `src_w` pixels per
+    // row, onto `dst` at (dx,dy). `key` skips that index (cookie-cut); null
+    // copies every pixel. The rectangle is clamped to `pixels`, so it never reads
+    // past the slice; the machine (HW 1.4.0, CON2.SRC_ABS) refuses a source
+    // outside the readable windows and draws nothing.
+    pub fn blitImage(self: *Blitter, dst: *LogicalFB, dx: i16, dy: i16, pixels: []const u8, src_w: u16, sx: u16, sy: u16, w: u16, h: u16, key: ?u8) void {
+        if (src_w == 0 or sx >= src_w) return;
+        const rows = pixels.len / src_w;
+        if (sy >= rows) return;
+        const cw = @min(w, src_w - sx);
+        const ch: u16 = @intCast(@min(h, rows - sy));
+        if (cw == 0 or ch == 0) return;
+        const addr = @intFromPtr(pixels.ptr) + @as(usize, sy) * src_w + sx;
+        self.setDest(dst);
+        self.w8(hw.BLIT_CON2, hw.CON2_SRC_ABS);
+        self.w32(hw.BLIT_B_BASE, @intCast(addr));
+        self.w16(hw.BLIT_B_STRIDE, src_w);
+        self.w8(hw.BLIT_CON, if (key != null) hw.CON_USEB | hw.CON_KEY_EN else hw.CON_USEB);
+        self.w8(hw.BLIT_MINTERM, hw.MT_B);
+        self.w8(hw.BLIT_COLOR_KEY, key orelse 0);
+        self.wi16(hw.BLIT_X0, dx);
+        self.wi16(hw.BLIT_Y0, dy);
+        self.w16(hw.BLIT_W, cw);
+        self.w16(hw.BLIT_H, ch);
         self.w8(hw.BLIT_COMMAND, hw.BLIT_CMD_BLIT);
         hw.hwBlit();
     }
