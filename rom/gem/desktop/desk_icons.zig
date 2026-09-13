@@ -7,6 +7,10 @@
 const gui = @import("../gui.zig");
 const dt = @import("desktop.zig");
 const icon = @import("icon.zig");
+const dirmodel = @import("dirmodel.zig");
+const dirview = @import("dirview.zig");
+const deskwin = @import("deskwin.zig");
+const desksel = @import("desksel.zig");
 const Desktop = dt.Desktop;
 const Action = dt.Action;
 
@@ -21,6 +25,14 @@ pub const WIN_H: i16 = 120;
 const CASCADE_DX: i16 = 16;
 const CASCADE_DY: i16 = 12;
 
+// GEM's default desktop: the drive in the top-left cell, the trash in the
+// bottom one of the same column.
+pub fn placeDefaultIcons(d: *Desktop) void {
+    const rows = @divTrunc(d.g.screen_h - icon.GRID_Y0, icon.CELL_H);
+    d.items[IC_FLOPPY].place(0, 0, d.g.screen_w, d.g.screen_h);
+    d.items[IC_TRASH].place(0, rows - 1, d.g.screen_w, d.g.screen_h);
+}
+
 // Keep icons on-screen (called when the resolution/screen width changes).
 pub fn clampIcons(d: *Desktop) void {
     for (&d.items) |*it| it.clampInto(d.g.screen_w, d.g.screen_h);
@@ -29,7 +41,7 @@ pub fn clampIcons(d: *Desktop) void {
 // Icon drag in progress (called from render). GEM drags a dotted GHOST, not the
 // icon: the original stays put until the button is released, when the icon jumps
 // to the ghost and magnet-snaps to the grid. The ghost itself is drawn in
-// Desktop.drawScene from `drag` + the grab offset — see ghostAt below.
+// deskdraw.drawScene from `drag` + the grab offset — see ghostAt below.
 pub fn updateDrag(d: *Desktop, g: *gui.Gui, di: u8) void {
     const it = &d.items[di];
     const p = ghostAt(d, g);
@@ -61,7 +73,7 @@ pub fn ghostAt(d: *Desktop, g: *gui.Gui) struct { x: i16, y: i16 } {
 pub fn pressIcon(d: *Desktop, g: *gui.Gui) void {
     for (&d.items, 0..) |*it, i| {
         if (!it.hit(g)) continue;
-        d.clearSel(); // GEM has ONE selection: taking a desktop icon drops the rest
+        desksel.clearSel(d); // GEM has ONE selection: taking a desktop icon drops the rest
         d.sel_icon = @intCast(i);
         d.drag = @intCast(i);
         d.moved = false;
@@ -69,7 +81,7 @@ pub fn pressIcon(d: *Desktop, g: *gui.Gui) void {
         d.grab_dy = @intCast(@as(i32, g.py) - it.y);
         return;
     }
-    d.clearSel(); // pressed empty desktop -> deselect everything
+    desksel.clearSel(d); // pressed empty desktop -> deselect everything
 }
 
 // The loader detected a native double-click at (x,y) (logical coords): open the
@@ -81,17 +93,17 @@ pub fn requestOpenAt(d: *Desktop, x: i32, y: i32) void {
     d.open_src = .{ .x = @as(i16, @intCast(x)) - 16, .y = @as(i16, @intCast(y)) - 12, .w = 32, .h = 24 }; // zoom-box origin
     // Windows sit above the desktop: an item inside the top FLOPPY/folder window
     // opens first. A program launches; a folder opens in its own window.
-    if (d.topFloppy()) |w| {
-        switch (d.dirHitAt(w.dir, w.view, @intCast(x), @intCast(y))) {
+    if (deskwin.topFloppy(d)) |w| {
+        switch (dirview.dirHitAt(d, w.dir, w.view, @intCast(x), @intCast(y))) {
             .file => |a| {
-                if (d.diskType(a) == 0) {
+                if (d.dir.kind(a) == 0) {
                     d.launch_file = @intCast(a); // the host launches it BY NAME
                     d.launch_req = true;
                 }
                 return;
             },
             .folder => |f| {
-                d.openFolderWindow(f);
+                deskwin.openFolderWindow(d, f);
                 return;
             },
             .none => {},
@@ -99,7 +111,7 @@ pub fn requestOpenAt(d: *Desktop, x: i32, y: i32) void {
     }
     for (&d.items, 0..) |*it, i| {
         if (!it.hitAt(x, y)) continue;
-        d.clearSel();
+        desksel.clearSel(d);
         d.sel_icon = @intCast(i);
         // Route FLOPPY through render too, so openIcon can decide launch-vs-window
         // (an app-disk turns FLOPPY into the app launcher).
@@ -132,9 +144,9 @@ pub fn openIcon(d: *Desktop, di: u8, action: *Action) void {
 // cascaded right + down from the previous, wrapping back when it would leave
 // the screen. Over the cap, GEM raises the "no more windows" alert.
 pub fn openFloppy(d: *Desktop) void {
-    if (d.rootEmpty()) { // no disk/cart loaded -> GEM error alert
+    if (deskwin.rootEmpty(d)) { // no disk/cart loaded -> GEM error alert
         d.dlg.alert("Drive A: is empty.", "Insert a disk and try again.");
         return;
     }
-    d.addFloppyWindow("A:\\", -1); // opens the root window (cascade + one-icon min size)
+    deskwin.addFloppyWindow(d, "A:\\", dirmodel.ROOT); // the root window (cascade + one-icon min size)
 }

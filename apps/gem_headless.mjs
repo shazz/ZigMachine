@@ -273,6 +273,27 @@ const SCENARIOS = {
         if (gem.hash() !== copyUp)
             throw new Error("the menu bar reacted while the COPY box was open");
     },
+    // The directory paths a desktop.zig refactor moves around, as shots to diff
+    // against the previous ROM: rubber-band, text view + sort, a folder window,
+    // Save Desktop writing DESKTOP.INF into the FAT.
+    "dir-views": async (gem, out) => {
+        gem.open(...FLOPPY);
+        for (let i = 0; i < 10; i++) gem.frame();
+        gem.click(145, 8); gem.click(200, 39); gem.key(13); // New Folder, default name
+        gem.drag(60, 100, 440, 60, 6);                       // rubber-band over the icons
+        await gem.shot(`${out}/dir-band.ppm`);
+        gem.click(235, 8); gem.click(290, 23);               // View > Show as Text
+        gem.click(235, 8); gem.click(290, 55);               // View > Sort by Size
+        for (let i = 0; i < 3; i++) gem.frame();
+        await gem.shot(`${out}/dir-text-size.ppm`);
+        gem.click(360, 8); gem.click(420, 31);               // Options > Save Desktop
+        for (let i = 0; i < 3; i++) gem.frame();
+        await gem.shot(`${out}/dir-saved.ppm`);
+        gem.click(235, 8); gem.click(290, 15);               // View > Show as Icons
+        gem.open(75, 106);                                   // NEWDIR1, now on row 2: its window
+        for (let i = 0; i < 10; i++) gem.frame();
+        await gem.shot(`${out}/dir-folder-win.ppm`);
+    },
     // The ROM's handle tables must survive an app being launched over and over.
     // ST Replay opens a Gui, a Dialog and a FileSel from the ROM on EVERY init;
     // when it leaked them (Phase 2 step 2.1) the tables were exhausted after two
