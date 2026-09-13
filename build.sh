@@ -78,7 +78,7 @@ SHOTS=$(mktemp -d)
 node apps/verify.mjs          # the C and Rust carts still talk to the ABI
 node apps/gem_headless.mjs "$SHOTS"
 node apps/sndh_headless.mjs
-node apps/c_music_check.mjs   # a C cart's song request reaches the sealed YM
+timeout 180 node apps/c_music_check.mjs   # a C cart's song request reaches the sealed YM (timeout: it once hung a gate)
 node apps/union_demo_music_check.mjs   # the Union Demo menu's YM dump plays
 node apps/union_multifake_headless.mjs "$SHOTS"   # TCB3: loader depack, then screen.js replayed pixel for pixel
 node apps/dbug_headless.mjs "$SHOTS"

@@ -10,6 +10,15 @@
 //
 //   node apps/c_music_check.mjs   # C screen34 + Rust v8_populous (play), rust hello (silent)
 import { readFile } from "node:fs/promises";
+
+// WATCHDOG: this check hung the full gate twice (2026-09-13) right after its last
+// PASS line, and never reproduced standalone. Whatever the cause, a stuck check must
+// fail the gate quickly and say where it was, not hold a push for half an hour.
+let stage = "start";
+setTimeout(() => {
+    console.log(`FAIL  c_music_check: no exit after 90 s (last stage: ${stage})`);
+    process.exit(1);
+}, 90_000).unref();
 import { cartRam, CART_RAM_BASE, CART_RAM_TOP } from "../docs/wasm_hiwater.js";
 
 const PAGES = 112, VIDEO_BASE = 0x300000, AUDIO_PAGES = 48;
@@ -109,10 +118,16 @@ async function checkSilent(path) {
     return ok;
 }
 
+stage = "docs/demo-c-screen34.wasm";
 let ok = await checkPlays("docs/demo-c-screen34.wasm", "sos.sndh", 0);
+stage = "docs/demo-rust-v8_populous.wasm";
 ok = (await checkPlays("docs/demo-rust-v8_populous.wasm", "custodian.sndh", 1)) && ok;
 // docs/TUTORIAL.md step 7: the tutorial screens request So Watt in both languages.
+stage = "docs/demo-c-tutorial.wasm";
 ok = (await checkPlays("docs/demo-c-tutorial.wasm", "sos.sndh", 0)) && ok;
+stage = "docs/demo-rust-tutorial.wasm";
 ok = (await checkPlays("docs/demo-rust-tutorial.wasm", "sos.sndh", 0)) && ok;
+stage = "docs/demo-rust.wasm";
 ok = (await checkSilent("docs/demo-rust.wasm")) && ok;
+stage = "exit";
 process.exit(ok ? 0 : 1);
