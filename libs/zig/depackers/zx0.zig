@@ -17,10 +17,11 @@
 //   offset  size  field
 //   0       4     magic "ZX0!"
 //   4       1     container version, 1
-//   5       1     fx: the effect shown while depacking (see Fx; 0..5)
+//   5       1     fx: the effect shown while depacking (see Fx; 0..6)
 //   6       4     depacked length, u32 LITTLE-endian
 //   10      1     text length n, 1..MAX_TEXT, ONLY when fx == text
 //   11      n     the message, printable ASCII, ONLY when fx == text
+//   10      1     bar height (AtariDecrunch's MaxBarHeight, 0..255), ONLY when fx == automation
 //   ...           the raw ZX0 v2 stream (absent when the length is 0)
 //
 // An unknown version or fx, or a malformed message, makes the image unreadable:
@@ -57,12 +58,14 @@ pub const MAX_TEXT = 40;
 /// The largest offset the format can express: msb 255, low part 0.
 pub const MAX_OFFSET = 255 * 128;
 
-pub const Fx = enum(u8) { none = 0, rasters = 1, bar = 2, text = 3, fade = 4, noise = 5 };
+pub const Fx = enum(u8) { none = 0, rasters = 1, bar = 2, text = 3, fade = 4, noise = 5, automation = 6 };
 
 pub const Header = struct {
     fx: Fx,
     /// Empty unless fx == .text.
     text: []const u8,
+    /// AtariDecrunch's MaxBarHeight; 0 unless fx == .automation.
+    bars: u8 = 0,
     len: u32,
     /// Offset of the ZX0 stream in the image.
     stream: usize,
@@ -83,6 +86,7 @@ pub fn parseHeader(src: []const u8) ?Header {
         3 => .text,
         4 => .fade,
         5 => .noise,
+        6 => .automation,
         else => return null,
     };
     var h = Header{ .fx = fx, .text = "", .len = std.mem.readInt(u32, src[6..10], .little), .stream = HEADER_LEN };
@@ -93,6 +97,11 @@ pub fn parseHeader(src: []const u8) ?Header {
         h.text = src[HEADER_LEN + 1 ..][0..n];
         if (!isPrintable(h.text)) return null;
         h.stream += 1 + n;
+    }
+    if (fx == .automation) {
+        if (src.len <= HEADER_LEN) return null;
+        h.bars = src[HEADER_LEN];
+        h.stream += 1;
     }
     return h;
 }

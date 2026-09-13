@@ -96,8 +96,9 @@ function run(n) {
 const out = process.argv[2] || "/tmp/replicants_kickoff2";
 await mkdir(out, { recursive: true });
 if (W !== 800) console.log(`  note: physical width ${W}`);
-// decrunch, credits, go() at time1 0 / letters / skulls (time1 1001..) / balls (2001..)
-for (const f of [100, 300, 501, 800, 1700, 2700]) {
+// credits, go() at time1 0 / letters / skulls (time1 1001..) / balls (2001..)
+// (the Automation decrunch intro moved to the depacker: depack_fx, fx = automation)
+for (const f of [100, 301, 600, 1500, 2500]) {
     run(f - frames);
     await shot(`${out}/${String(f).padStart(4, "0")}.ppm`);
 }
