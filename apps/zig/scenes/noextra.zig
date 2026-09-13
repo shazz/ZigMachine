@@ -65,6 +65,10 @@ const FB_LEN: usize = @as(usize, @intCast(PW)) * @as(usize, @intCast(PH));
 // music — "Mega 4", the YM6! register dump the CODEF screen plays. Shipped as
 // .ymraw because that is the extension the host's YM player is wired to; the
 // .ym on wab.com is the same dump inside an LHA container.
+// KEPT as .ymraw (checked 2026-09-13, per "prefer SNDH over YM"): the tune's
+// own header says "Conversion of a Mod by Jester : Elysium" — a mod2ym dump of
+// an Amiga module, not an ST-native replay. The local SNDH archive has no
+// title/composer hit for "Mega 4"/Jester/Elysium; no SNDH is this recording.
 const MUSIC = "mega4.ymraw";
 
 // the rainbow distorter source: one row is enough, the image is vertically
