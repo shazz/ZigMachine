@@ -2,12 +2,13 @@
 // STNICCC 2000 scene stream decoder. The format is documented in format.txt of
 // github.com/dabadab/st-niccc-2000-html5: per frame a flags byte, an optional
 // palette update, an optional shared vertex list, then polygons until an end
-// marker. The stream is cut into 64 KB blocks and a frame never crosses one.
-// Pure (no ZigOS), so it is natively tested at the bottom of this file.
+// marker. The stream is cut into 64 KB blocks and a frame never crosses one,
+// which is what lets the ST (and this scene) load it a block at a time from
+// the disk. Pure (no ZigOS), so it is natively tested at the bottom.
 // --------------------------------------------------------------------------
 const std = @import("std");
 
-pub const BLOCK: usize = 64 * 1024;
+pub const BLOCK = 64 * 1024;
 pub const MAX_POLY_VERTS: usize = 15;
 pub const MAX_VERTS: usize = 255;
 
@@ -15,25 +16,65 @@ pub const Flags = struct { clear: bool, palette: bool, indexed: bool };
 pub const Point = struct { x: u8, y: u8 };
 pub const Poly = struct { color: u8, n: u8, pts: [MAX_POLY_VERTS]Point };
 
-pub const Error = error{ Truncated, BadVertexIndex, BadPolygon };
+pub const Error = error{ Truncated, ReadFailed, BadVertexIndex, BadPolygon };
+
+/// Where the bytes come from, one 64 KB block at a time: the disk in the scene,
+/// a byte slice in the tests. Fills `dst` with block `index` and returns how
+/// many bytes of it exist (0 = nothing there).
+pub const Source = struct {
+    ctx: *anyopaque,
+    readFn: *const fn (ctx: *anyopaque, index: u32, dst: *[BLOCK]u8) usize,
+};
+
+/// A Source over bytes already in memory.
+pub const SliceSource = struct {
+    bytes: []const u8,
+
+    pub fn source(self: *SliceSource) Source {
+        return .{ .ctx = self, .readFn = read };
+    }
+    fn read(ctx: *anyopaque, index: u32, dst: *[BLOCK]u8) usize {
+        const self: *SliceSource = @ptrCast(@alignCast(ctx));
+        const start = @as(usize, index) * BLOCK;
+        if (start >= self.bytes.len) return 0;
+        const n = @min(BLOCK, self.bytes.len - start);
+        @memcpy(dst[0..n], self.bytes[start..][0..n]);
+        return n;
+    }
+};
+
+const NONE: u32 = std.math.maxInt(u32);
 
 pub const Stream = struct {
-    data: []const u8,
-    pos: usize = 0,
+    source: Source,
+    buf: *[BLOCK]u8, // the block currently loaded
+    loaded: u32 = NONE,
+    loaded_len: usize = 0,
+    pos: u32 = 0, // absolute offset in the stream
     done: bool = false, // the $FD end-of-stream marker was read
     indexed: bool = false, // the current frame names its vertices by index
     n_verts: usize = 0,
     verts: [MAX_VERTS]Point = undefined,
 
-    pub fn rewind(self: *Stream) void {
-        self.pos = 0;
+    pub fn seek(self: *Stream, pos: u32) void {
+        self.pos = pos;
         self.done = false;
     }
 
     fn byte(self: *Stream) Error!u8 {
-        if (self.pos >= self.data.len) return error.Truncated;
-        defer self.pos += 1;
-        return self.data[self.pos];
+        const index: u32 = self.pos / BLOCK;
+        if (index != self.loaded) {
+            self.loaded_len = self.source.readFn(self.source.ctx, index, self.buf);
+            if (self.loaded_len == 0) {
+                self.loaded = NONE;
+                return error.ReadFailed;
+            }
+            self.loaded = index;
+        }
+        const within = self.pos % BLOCK;
+        if (within >= self.loaded_len) return error.Truncated;
+        self.pos += 1;
+        return self.buf[within];
     }
     fn word(self: *Stream) Error!u16 { // big endian, as the ST wrote it
         const hi = try self.byte();
@@ -71,7 +112,7 @@ pub const Stream = struct {
         switch (d) {
             0xFF => return false,
             0xFE => {
-                self.pos = std.mem.alignForward(usize, self.pos, BLOCK);
+                self.pos = std.mem.alignForward(u32, self.pos, BLOCK);
                 return false;
             },
             0xFD => {
@@ -102,6 +143,10 @@ pub const Stream = struct {
 const expect = std.testing.expect;
 const expectEqual = std.testing.expectEqual;
 
+fn testStream(src: *SliceSource, buf: *[BLOCK]u8) Stream {
+    return .{ .source = src.source(), .buf = buf };
+}
+
 test "an indexed frame with a palette, then a plain frame, then the end" {
     const data = [_]u8{
         0x07, 0x80, 0x01, 0x07, 0x77, 0x07, 0x00, // clear+palette+indexed; colours 0 and 15
@@ -109,7 +154,9 @@ test "an indexed frame with a palette, then a plain frame, then the end" {
         0x23, 0, 1, 2, 0xFF, // colour 2, 3 vertices by index; end of frame
         0x00, 0x13, 5, 6, 7, 8, 9, 10, 0xFD, // plain frame, colour 1; end of stream
     };
-    var s = Stream{ .data = &data };
+    var src = SliceSource{ .bytes = &data };
+    var buf: [BLOCK]u8 = undefined;
+    var s = testStream(&src, &buf);
     var pal = [_]u16{0} ** 16;
     var poly: Poly = undefined;
     const f = try s.beginFrame(&pal);
@@ -128,32 +175,58 @@ test "an indexed frame with a palette, then a plain frame, then the end" {
     try expect(s.done);
 }
 
-test "$FE skips to the next 64 KB block" {
-    var data = [_]u8{0} ** (BLOCK + 2);
-    data[0] = 0x00;
+test "$FE skips to the next 64 KB block, which is loaded on demand" {
+    const data = try std.testing.allocator.alloc(u8, BLOCK + 2);
+    defer std.testing.allocator.free(data);
+    @memset(data, 0);
     data[1] = 0xFE;
-    data[BLOCK] = 0x00;
     data[BLOCK + 1] = 0xFD;
-    var s = Stream{ .data = &data };
+    var src = SliceSource{ .bytes = data };
+    var buf: [BLOCK]u8 = undefined;
+    var s = testStream(&src, &buf);
     var pal = [_]u16{0} ** 16;
     var poly: Poly = undefined;
     _ = try s.beginFrame(&pal);
     try expect(!try s.nextPoly(&poly));
-    try expectEqual(BLOCK, s.pos);
+    try expectEqual(@as(u32, BLOCK), s.pos);
     _ = try s.beginFrame(&pal);
     try expect(!try s.nextPoly(&poly));
     try expect(s.done);
+    try expectEqual(@as(u32, 1), s.loaded);
 }
 
-test "a truncated frame, a bad vertex index and a 2-vertex polygon are errors" {
+test "seeking back re-reads an earlier frame" {
+    const data = [_]u8{ 0x00, 0x13, 1, 2, 3, 4, 5, 6, 0xFF, 0x00, 0x23, 7, 8, 9, 10, 11, 12, 0xFD };
+    var src = SliceSource{ .bytes = &data };
+    var buf: [BLOCK]u8 = undefined;
+    var s = testStream(&src, &buf);
     var pal = [_]u16{0} ** 16;
     var poly: Poly = undefined;
-    var cut = Stream{ .data = &[_]u8{ 0x02, 0x80 } };
+    _ = try s.beginFrame(&pal);
+    _ = try s.nextPoly(&poly);
+    _ = try s.nextPoly(&poly);
+    s.seek(0);
+    _ = try s.beginFrame(&pal);
+    try expect(try s.nextPoly(&poly));
+    try expectEqual(Point{ .x = 1, .y = 2 }, poly.pts[0]);
+}
+
+test "truncation, a missing block, a bad vertex index and a 2-vertex polygon are errors" {
+    var pal = [_]u16{0} ** 16;
+    var poly: Poly = undefined;
+    var buf: [BLOCK]u8 = undefined;
+    var cut_src = SliceSource{ .bytes = &[_]u8{ 0x02, 0x80 } };
+    var cut = testStream(&cut_src, &buf);
     try std.testing.expectError(error.Truncated, cut.beginFrame(&pal));
-    var bad = Stream{ .data = &[_]u8{ 0x04, 1, 3, 3, 0x03, 0, 1, 0 } };
+    var gone = testStream(&cut_src, &buf);
+    gone.seek(BLOCK);
+    try std.testing.expectError(error.ReadFailed, gone.beginFrame(&pal));
+    var bad_src = SliceSource{ .bytes = &[_]u8{ 0x04, 1, 3, 3, 0x03, 0, 1, 0 } };
+    var bad = testStream(&bad_src, &buf);
     _ = try bad.beginFrame(&pal);
     try std.testing.expectError(error.BadVertexIndex, bad.nextPoly(&poly));
-    var short = Stream{ .data = &[_]u8{ 0x00, 0x02, 1, 1, 2, 2 } };
+    var short_src = SliceSource{ .bytes = &[_]u8{ 0x00, 0x02, 1, 1, 2, 2 } };
+    var short = testStream(&short_src, &buf);
     _ = try short.beginFrame(&pal);
     try std.testing.expectError(error.BadPolygon, short.nextPoly(&poly));
 }
