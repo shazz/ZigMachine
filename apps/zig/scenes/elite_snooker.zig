@@ -14,13 +14,15 @@
 // The canvas is 640x400 = ST 320x200 doubled; every number below is the
 // original's, in canvas pixels, halved at emission. Phases, frame-counted as
 // the original's requestAnimFrame chain:
-//   1..100    AtariDecrunch(0, 30, 0, 100): bars in 12 colours under the
-//             Automation packer logo and the busy bee
-//   101..198  intro()/intro2(): the canvas is filled black, then a white and
+//   (skipped) the remake opens with AtariDecrunch(0, 30, 0, 100), a FAKE
+//             Automation depack screen (bars, packer logo, busy bee). Ports
+//             start where the demo starts: a real depack look belongs in
+//             libs/zig/depackers/depack_fx.zig, never in a scene.
+//   1..98     intro()/intro2(): the canvas is filled black, then a white and
 //             a black canvas are drawn over it at alpha 0, .002, .004 ...
 //             while <= .1. That is a flat grey, played here from a table
-//             MEASURED in Chrome. The music starts on frame 101.
-//   199..     go(): two 64x64 tiles wrapped over the screen and swapped every 7
+//             MEASURED in Chrome. The music starts on frame 1.
+//   99..      go(): two 64x64 tiles wrapped over the screen and swapped every 7
 //             frames, sliding on a sin/cos path; five lines of 32x32 text
 //             waving through a raster (source-in); an 8x6-cell scroller
 //             under a green raster.
@@ -50,25 +52,10 @@ const H: usize = 200;
 const TRANSPARENT: u8 = 0;
 const BLACK: u8 = 1;
 const FADE: u8 = 2; // rewritten every fade frame
-const DECRUNCH_BASE: u8 = 3;
 
 // phases
-const DECRUNCH_FRAMES: u32 = 100; // DecrunchMaxVBL
-const FADE_FIRST_FRAME: u32 = DECRUNCH_FRAMES + 1;
+const FADE_FIRST_FRAME: u32 = 1;
 const MAIN_FIRST_FRAME: u32 = FADE_FIRST_FRAME + FADE_GREYS.len;
-
-// AtariDecrunch(0, 30, 0, 100) on its 640x480 canvas, drawn scaled into 640x400
-const CANVAS_H: usize = 480;
-const DECRUNCH_BAR_MAX: f64 = 30; // MaxBarHeight
-const DECRUNCH_COLOURS: f64 = 12; // round(random*12) can give 12: no such colour, fillStyle kept
-const DECRUNCH_Y0: i32 = 3; // first ST row the logo reaches (asset script)
-const RNG_SEED: u64 = 0x9E3779B97F4A7C15;
-
-/// The canvas row ST row k shows: 480 rows scaled to 400, nearest, sampled at
-/// canvas row 2k -> floor((2k + 0.5) * 1.2).
-fn decrunchCanvasRow(k: usize) usize {
-    return (12 * k + 3) / 5;
-}
 
 /// intro() then intro2(), one entry per frame: the canvas grey Chrome shows
 /// after `mycanvaswhite.draw(mycanvas, 0, 0, fade)` (fade 0, .002 ... .098)
@@ -145,13 +132,12 @@ const palette = zg.convertU8ArraytoColors(@embedFile(DIR ++ "palette.dat"));
 const tiles = [2]*const [TILE * TILE]u8{ @embedFile(DIR ++ "elite1.raw"), @embedFile(DIR ++ "elite2.raw") };
 const font_img = blit.Image.init(@embedFile(DIR ++ "font.raw"), FONT_COLS * FONT);
 const qtx_img = blit.Image.init(@embedFile(DIR ++ "qtxfont.raw"), 59 * QTX_W);
-const decrunch_img = blit.Image.init(@embedFile(DIR ++ "decrunch.raw"), W);
 const raster_rows: *const [RASTER_ROWS]u8 = @embedFile(DIR ++ "raster_rows.dat");
 const scroll_rows: *const [SCROLL_ROWS]u8 = @embedFile(DIR ++ "scroll_rows.dat");
 
 comptime {
     @setEvalBranchQuota(20_000);
-    assert(font_img.h == 6 * FONT and qtx_img.h == SCROLL_ROWS and decrunch_img.h == 31);
+    assert(font_img.h == 6 * FONT and qtx_img.h == SCROLL_ROWS);
     assert(SCROLL_TEXT.len > SCROLL_LETTERS);
     // letter x stays a multiple of both, so drawMain's @divExact(x, 2) holds;
     // an odd constant would make it undefined behaviour in ReleaseSmall
@@ -162,7 +148,7 @@ comptime {
     }
 }
 
-const Phase = enum { decrunch, fade, main };
+const Phase = enum { fade, main };
 const Glyph = struct { x: i32, y: i32, cell: blit.Rect };
 
 /// JS Math.round: halves go up, negative values included.
@@ -179,9 +165,6 @@ fn fillRows(dst: blit.Dst, first: usize, end: usize, index: u8) void {
 // --------------------------------------------------------------------------
 pub const Demo = struct {
     frame: u32, // requestAnimFrame calls so far, 1-based once running
-    rng: u64,
-    bar_fill: u8, // the decrunch canvas's fillStyle, which persists across frames
-    bar_rows: [H]u8,
     vbl: u32, // go()'s vbl for the frame being shown
     bg_x: i32, // ST offset of the tile grid
     bg_y: i32,
@@ -194,9 +177,6 @@ pub const Demo = struct {
     pub fn init(self: *Demo, zigos: *ZigOS) void {
         // A cart's Demo arrives zeroed: every field is set here, never by default.
         self.frame = 0;
-        self.rng = RNG_SEED;
-        self.bar_fill = BLACK;
-        @memset(&self.bar_rows, BLACK);
         self.vbl = 0;
         self.bg_x = 0;
         self.bg_y = 0;
@@ -217,7 +197,6 @@ pub const Demo = struct {
     }
 
     fn phase(self: *const Demo) Phase {
-        if (self.frame <= DECRUNCH_FRAMES) return .decrunch;
         if (self.frame < MAIN_FIRST_FRAME) return .fade;
         return .main;
     }
@@ -225,10 +204,9 @@ pub const Demo = struct {
     pub fn update(self: *Demo, zigos: *ZigOS, dt: f32) void {
         _ = zigos;
         _ = dt;
-        // saturating: a wrap would restart the decrunch and re-request the song
+        // saturating: a wrap would restart the fades and re-request the song
         self.frame +|= 1;
         switch (self.phase()) {
-            .decrunch => self.decrunchBars(),
             .fade => if (self.frame == FADE_FIRST_FRAME) zg.requestSongTune(MUSIC, MUSIC_TUNE),
             .main => self.advanceMain(),
         }
@@ -239,10 +217,6 @@ pub const Demo = struct {
         const fb = &zigos.lfbs[PLANE];
         const screen = blit.Dst.plane(fb);
         switch (self.phase()) {
-            .decrunch => {
-                for (self.bar_rows, 0..) |index, k| @memset(screen.buf[k * screen.stride ..][0..screen.w], index);
-                blit.blit(screen, decrunch_img, null, 0, DECRUNCH_Y0, 0, .{ .flat = BLACK });
-            },
             .fade => {
                 const grey = FADE_GREYS[self.frame - FADE_FIRST_FRAME];
                 fb.setPaletteEntry(FADE, Color{ .r = grey, .g = grey, .b = grey, .a = 255 });
@@ -250,31 +224,6 @@ pub const Demo = struct {
             },
             .main => self.drawMain(screen),
         }
-    }
-
-    /// Math.random stand-in: xorshift64*, 53 bits into [0, 1).
-    fn random(self: *Demo) f64 {
-        self.rng ^= self.rng >> 12;
-        self.rng ^= self.rng << 25;
-        self.rng ^= self.rng >> 27;
-        const bits = (self.rng *% 0x2545F4914F6CDD1D) >> 11;
-        return @as(f64, @floatFromInt(bits)) * 0x1.0p-53;
-    }
-
-    /// doDecrunch's bar loop over the 480 canvas rows, then the scaled pick.
-    fn decrunchBars(self: *Demo) void {
-        var canvas_rows: [CANVAS_H]u8 = undefined;
-        const tallest = 10 + jsRound(self.random() * DECRUNCH_BAR_MAX);
-        var y: usize = 0;
-        while (y <= CANVAS_H) {
-            const barh: usize = @intFromFloat(jsRound(self.random() * tallest));
-            const col = jsRound(self.random() * DECRUNCH_COLOURS);
-            if (col < DECRUNCH_COLOURS) self.bar_fill = DECRUNCH_BASE + @as(u8, @intFromFloat(col));
-            const end = @min(y + barh, CANVAS_H);
-            if (end > y) @memset(canvas_rows[y..end], self.bar_fill);
-            y += barh;
-        }
-        for (&self.bar_rows, 0..) |*row, k| row.* = canvas_rows[decrunchCanvasRow(k)];
     }
 
     /// go()'s state for this frame, in its order.
