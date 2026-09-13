@@ -1,0 +1,27 @@
+# The Union Demo hidden screen's TEX loader panel (Union-Demo-HTML5-Remake-0.9.8,
+# screens/textracker/loader.js:21-43, loaderText[0..22]): 23 rows of 20. Packed by
+# build.zig with
+#   zx0pack --fx tex_loader --panel apps/zig/assets/screens/union_textracker/loader_textracker.txt <in> <out>
+"                    "
+"        TEX         "
+" THE HIDDEN SCREEN  "
+"                    "
+"THE RUMOURS ABOUT AN"
+"ST-SOUNDTRACKER ARE "
+"TRUE, SEE SCROLLTEXT"
+"LISTEN TO THE FIRST "
+"   SONG DONE WITH   "
+" THE SAMPLE-MON ST  "
+"                    "
+" MOVE THE MOUSE !!! "
+"                    "
+"  PROGRAM  BY 6719  "
+" GRAPHIX BY HEXAGON "
+"     MICE BY ES     "
+"  COMPOSITION  AND  "
+"      SOUND BY      "
+" MAD (FEED ME) MAX  "
+"                    "
+"PLEASE WAIT A MOMENT"
+"    SLEEP-MODE...   "
+"                    "
