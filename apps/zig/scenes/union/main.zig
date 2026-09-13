@@ -116,8 +116,23 @@ pub const Demo = struct {
     grad_idx: u8 = 0, // gradTiles palette-animation step
     grad_inc: i8 = 1,
     // This scene OWNS its playlist (host holds none): YM tunes under docs/music/.
+    // Track 1 plays the real SNDH replay routine (smaller, and the authentic
+    // player, not a register-dump recording) — proof:
+    //   SharpnessBuzztone.ymraw == Jess/Sharpness_Buzztone.sndh: 99.8% of 800
+    //   frames (regs 0-5,8-10) at offset 0, tune default. FLAG ~ay verified
+    //   audible headless (peak 0.55-0.80, non-silent) despite the STE-DMA bit.
+    // Tracks 2-6 stay .ymraw: each is a straight mod2ym conversion of an Amiga
+    // module (150mph/Androids by TAO of ACF conv. Leonard, Drooling by 505
+    // conv. aldn, Reality by Big Alec conv. Oedipus, Lap33/"Lap 22" by
+    // Lap/Next conv. Senser/Vectronix). The archive's same-titled ST-native
+    // SNDHs are independent compositions/replays, not this recording: best
+    // register match over 800 frames was 150mph 73%, Androids 55%, Drooling
+    // 61%, and Big_Alec/Reality.sndh doesn't even run here (stuck PC, silent);
+    // Lap33/"Lap 22" has no SNDH in the archive at all. None clears the ~95%
+    // bar, so per Matt's rule ("no screen ... if a sndh version is available")
+    // these stay as-is: no available SNDH IS this recording.
     const TRACKS = [_][]const u8{
-        "union/SharpnessBuzztone.ymraw",
+        "union/sharpness_buzztone.sndh",
         "union/150mph.ymraw",
         "union/Androids.ymraw",
         "union/Drooling.ymraw",
