@@ -35,6 +35,9 @@ let rom = null;       // rom.wasm exports — the ROM chip's flat app-facing ABI
 let demo = null;      // demo.wasm exports
 let demoImports = null; // env wired to machine + host — reused on cart swap
 let swapping = false; // a cartridge swap (disk boot) is in flight
+// A cart that trapped (e.g. memory access out of bounds) is never called again;
+// the loop stays alive so +/- and the menu can still swap in another cart.
+let cartTrapped = false;
 let diskApp = false; // GEM was booted for an app-disk -> FLOPPY opens the app
 let diskDirSet = false; // handed GEM the FAT directory for the FLOPPY window yet
 const text_encoder = new TextEncoder();
@@ -238,8 +241,12 @@ async function swapCart(req, channelTag) {
         // which reads as a freeze rather than as an error.
         if (url) badCarts.add(url);
         console.error("cart swap failed:", e);
+    } finally {
+        // Every path must release the guard: an early `return` inside the try
+        // (a disk already known bad) used to leave `swapping` set forever, and
+        // with it +/- and every later swap silently refused.
+        swapping = false;
     }
-    swapping = false;
 }
 
 // --------------------------------------------------------------------------
@@ -367,6 +374,7 @@ async function instantiateCart(bytes, what) {
         // next one. The audio half lives on the worklet thread, so it is a
         // message rather than a call.
         if (audioNode) audioNode.port.postMessage({ type: "reset" });
+        cartTrapped = false; // a fresh cart runs again
         return mod;
     } catch (e) {
         console.error(`Cannot start ${what}: ${e.message}`);
@@ -534,11 +542,16 @@ function start() {
     const planeDirty = new Array(nb_planes).fill(false);
 
     let last_timestamp = 0;
-    const loop = function (timestamp) {
+    const step = function (timestamp) {
         const elapsed_time = (timestamp - last_timestamp);
         last_timestamp = timestamp;
         document.title = "Sealed HW — FPS:" + (1000 / elapsed_time).toFixed(1);
 
+        // A swap unpacks the NEW cart into the cart RAM window (unpackCart), which
+        // is the OLD cart's statics and stack. Running the old cart meanwhile reads
+        // that half-written memory and traps. So during a swap, and after a trap,
+        // the cart is not called and the canvases keep their last picture.
+        if (swapping || cartTrapped) return;
         machine.hwClear();          // sealed: clear PFB + global HBL
         demo.frame(elapsed_time);   // open: scene draws into shared LFBs (+ overscan poke)
 
@@ -597,6 +610,16 @@ function start() {
                 contexts[i].clearRect(0, 0, fb_width, fb_height); // blank the stale layer
                 planeDirty[i] = false;
             }
+        }
+    };
+    // The rAF chain must never die: an exception out of a cart used to stop
+    // the loop for good, so no later swap could ever show a picture again.
+    const loop = function (timestamp) {
+        try {
+            step(timestamp);
+        } catch (e) {
+            cartTrapped = true;
+            console.error(`ZigMachine: the running cart trapped (${e.message}). Press + / - or pick another disk.`, e);
         }
         requestId = window.requestAnimationFrame(loop);
     };
@@ -815,6 +838,13 @@ function startAudio() {
             fetch("machine-audio.wasm" + BUST).then(r => r.arrayBuffer()),
             fetch("demo-audio.wasm" + BUST).then(r => r.arrayBuffer()),
         ]);
+        if (!audioCtx.audioWorklet) {
+            // AudioWorklet exists only in a secure context (https:// or localhost).
+            console.warn("ZigMachine: sound needs https:// or localhost; this page was opened over plain http, so audio is off.");
+            try { await audioCtx.close(); } catch (e) {}
+            audioCtx = null;
+            return;
+        }
         await audioCtx.audioWorklet.addModule("audio-worklet-sealed.js" + BUST);
         audioNode = new AudioWorkletNode(audioCtx, "zig-audio-sealed", {
             numberOfInputs: 0,
@@ -835,6 +865,9 @@ function startAudio() {
                         : `SNDH REJECTED (${msg.len} bytes) stuckPc=${hex(msg.stuckPc)} trap=${hex(msg.trap)}`);
                 }
                 else if (msg.type === "audioState") {
+                    // These write through the running cart's pointers. During a swap
+                    // those addresses belong to the cart being unpacked: skip.
+                    if (swapping || cartTrapped || !demo) return;
                     if (demo && demo.getYmRegsPointer) {
                         new Uint8Array(memory.buffer, demo.getYmRegsPointer(), 16).set(msg.regs);
                     }
@@ -882,18 +915,21 @@ window.main = main;
 
 async function playMod(url) {
     await startAudio();
+    if (!audioNode) return; // no audio in this context
     const bytes = await fetch(url).then(r => r.arrayBuffer());
     audioNode.port.postMessage({ type: "loadMod", bytes: bytes }, [bytes]);
     const b = document.querySelector('.sound_button'); if (b) b.textContent = "Sound off";
 }
 async function playYm(url) {
     await startAudio();
+    if (!audioNode) return; // no audio in this context
     const bytes = await fetch(url).then(r => r.arrayBuffer());
     audioNode.port.postMessage({ type: "loadYm", bytes: bytes }, [bytes]);
     const b = document.querySelector('.sound_button'); if (b) b.textContent = "Sound off";
 }
 async function playSndh(url, tune) {
     await startAudio();
+    if (!audioNode) return; // no audio in this context
     const bytes = await fetch(url).then(r => r.arrayBuffer());
     audioNode.port.postMessage({ type: "loadSndh", bytes: bytes, tune: tune || 0 }, [bytes]);
     const b = document.querySelector('.sound_button'); if (b) b.textContent = "Sound off";
@@ -908,6 +944,7 @@ function stopRaw() {
 
 async function playRaw(url, rate, unsigned) {
     await startAudio();
+    if (!audioNode) return; // no audio in this context
     const bytes = await fetch(url).then(r => r.arrayBuffer());
     audioNode.port.postMessage({ type: "loadRaw", bytes: bytes, rate: rate || 12517, unsigned: !!unsigned }, [bytes]);
     const b = document.querySelector('.sound_button'); if (b) b.textContent = "Sound off";
