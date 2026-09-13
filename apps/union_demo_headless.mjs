@@ -10,6 +10,9 @@
 //          144 Hz display: the street always stops moving within STOP_MS (the
 //          60 ms input window + the original's 9-step friction tail + a frame).
 //   keyup  with the host's key-up (demo.inputRelease), a 100 ms tap stops as fast.
+//          docs/sealed-loader.js sends it from its keyup listener (and releases
+//          every held direction on blur); `stop` models an older host without it.
+//          Both FAIL on a cart built before inputRelease existed.
 //   door   the hub -> door swap in the page's order (disk, ROM unpack, instantiate,
 //          romReset, hwInit, boot, skipBoot) shows the TEX loader panel.
 //

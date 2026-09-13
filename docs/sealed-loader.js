@@ -133,6 +133,7 @@ async function swapCart(req, channelTag) {
             machine.hwInit();
             demo.boot();
             if (demo.skipBoot) demo.skipBoot(); // straight into the cart (boot sector already showed)
+            heldDirs.clear(); // the new cart never saw those presses: no releases for them
             swapping = false;
             return;
         }
@@ -154,6 +155,7 @@ async function swapCart(req, channelTag) {
             machine.hwInit();
             demo.boot();
             demo.skipBoot(); // GEM already booted the machine; no second boot screen
+            heldDirs.clear(); // the new cart never saw those presses: no releases for them
             swapping = false;
             return;
         }
@@ -166,6 +168,7 @@ async function swapCart(req, channelTag) {
             machine.hwInit();
             demo.boot();
             demo.skipBoot();
+            heldDirs.clear(); // the new cart never saw those presses: no releases for them
             diskApp = true;      // the disk is still mounted: FLOPPY still opens it
             diskDirSet = false;  // re-hand GEM the FAT listing
             swapping = false;
@@ -190,6 +193,7 @@ async function swapCart(req, channelTag) {
         // Channel change: snow first (a disk packed before tuneIn existed just starts).
         if (channelTag && demo.tuneIn) demo.tuneIn(TUNE_FRAMES);
         else if (req === 1) demo.skipBoot(); // scene or data-disk→GEM: straight in (no boot ROM)
+        heldDirs.clear(); // the new cart never saw those presses: no releases for them
         currentTag = tag; // null = the menu
         diskApp = !bootable;            // data disk → GEM's FLOPPY opens its app
         diskDirSet = false;            // re-hand GEM the new disk's FAT listing
@@ -662,6 +666,56 @@ window.document.body.addEventListener('keydown', function (evt) {
         else if (KEY_CODES[evt.key] !== undefined) { evt.preventDefault(); demo.key(KEY_CODES[evt.key]); }
     }
 });
+
+// Key RELEASE: optional on both sides. A cart that declares no inputRelease/keyUp
+// is never called, so every existing disk behaves exactly as before. A scene that
+// steers with a HELD key (the Union Demo hub) otherwise has to guess the release
+// from the OS auto-repeat, and walks on after the key comes up.
+// Direction codes are the same as demo.input (0 up, 1 down, 2 left, 3 right, 5 fire),
+// with the same owns-keyboard rule as the keydown listener above.
+function directionOf(key, owns) {
+    if (key === "ArrowUp" || (!owns && key === "w")) return 0;
+    if (key === "ArrowDown" || (!owns && key === "s")) return 1;
+    if (key === "ArrowLeft" || (!owns && key === "a")) return 2;
+    if (key === "ArrowRight" || (!owns && key === "d")) return 3;
+    if (!owns && (key === "Enter" || key === " ")) return 5;
+    return -1;
+}
+const heldDirs = new Set(); // directions this page has seen go down and not up
+// Bookkeeping only; the keydown listener above still sends demo.input. Repeats
+// are counted too, so a key held across a cart swap (heldDirs cleared) is
+// tracked again for blur.
+window.document.body.addEventListener('keydown', function (evt) {
+    if (!demo) return;
+    const owns = demo.ownsKeyboard ? demo.ownsKeyboard() !== 0 : false;
+    const dir = directionOf(evt.key, owns);
+    if (dir >= 0) heldDirs.add(dir);
+});
+// No release while a swap is in flight (the cart window holds the next cart being
+// unpacked) or after a trap (that cart is never called again).
+const cartCallable = () => demo && !swapping && !cartTrapped;
+window.document.body.addEventListener('keyup', function (evt) {
+    if (!demo) return;
+    const owns = demo.ownsKeyboard ? demo.ownsKeyboard() !== 0 : false;
+    const dir = directionOf(evt.key, owns);
+    if (dir >= 0) {
+        heldDirs.delete(dir);
+        if (cartCallable() && demo.inputRelease) demo.inputRelease(dir);
+    }
+    if (cartCallable() && demo.keyUp) {
+        if (evt.key === "Backspace") demo.keyUp(8);
+        else if (evt.key === "Enter") demo.keyUp(13);
+        else if (evt.key.length === 1) demo.keyUp(evt.key.charCodeAt(0));
+        else if (KEY_CODES[evt.key] !== undefined) demo.keyUp(KEY_CODES[evt.key]);
+    }
+});
+// Focus loss swallows the keyup: release everything still held.
+function releaseAll() {
+    if (cartCallable() && demo.inputRelease) for (const d of heldDirs) demo.inputRelease(d);
+    heldDirs.clear();
+}
+window.addEventListener('blur', releaseAll);
+document.addEventListener('visibilitychange', () => { if (document.hidden) releaseAll(); });
 
 // --------------------------------------------------------------------------
 // Pointer input: map mouse events on the (scaled) canvas to the 320x200 visible
