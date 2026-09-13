@@ -27,6 +27,13 @@ async function bootCart(path) {
     machine.hwInit();
     rom.romReset();
     const cart = new Uint8Array(await readFile(path));
+    // A C/Rust cart is NOT rebuilt by ./build.sh: a stale docs/demo-c*.wasm has no bridge.
+    const probe = new WebAssembly.Module(cart);
+    const names = WebAssembly.Module.exports(probe).map((e) => e.name);
+    if (path.includes("screen34") && !names.includes("pollSongRequest")) {
+        console.log(`FAIL  ${path} has no pollSongRequest export: rebuild it with bash apps/c/build.sh`);
+        process.exit(1);
+    }
     const ram = cartRam(cart);
     const env = {
         memory, hwVideoBase: () => VIDEO_BASE, consoleLogJS: () => {},
