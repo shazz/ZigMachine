@@ -196,47 +196,7 @@ const mask_ink = blit.Ink{ .pattern = .{ .img = blit.Image.init(&fontmask_ink, M
 // The logo as horizontal ink runs, built at comptime: a window row becomes a
 // few drawScanline calls instead of 268 pixel writes.
 // --------------------------------------------------------------------------
-const Span = struct { x0: u16, x1: u16 };
-
-fn countLogoSpans() usize {
-    @setEvalBranchQuota(1_000_000);
-    var n: usize = 0;
-    for (0..LOGO_H) |y| {
-        const row = logo_b[y * LOGO_W ..][0..LOGO_W];
-        for (row, 0..) |px, x| {
-            if (px != 0 and (x == 0 or row[x - 1] == 0)) n += 1;
-        }
-    }
-    return n;
-}
-
-const LogoSpans = struct {
-    spans: [countLogoSpans()]Span,
-    row_first: [LOGO_H + 1]u16, // row y's runs are spans[row_first[y]..row_first[y + 1]]
-};
-
-const logo: LogoSpans = blk: {
-    @setEvalBranchQuota(1_000_000);
-    var out: LogoSpans = undefined;
-    var n: usize = 0;
-    for (0..LOGO_H) |y| {
-        out.row_first[y] = n;
-        const row = logo_b[y * LOGO_W ..][0..LOGO_W];
-        var x: usize = 0;
-        while (x < LOGO_W) {
-            if (row[x] == 0) {
-                x += 1;
-                continue;
-            }
-            const start = x;
-            while (x < LOGO_W and row[x] != 0) x += 1;
-            out.spans[n] = .{ .x0 = start, .x1 = x };
-            n += 1;
-        }
-    }
-    out.row_first[LOGO_H] = n;
-    break :blk out;
-};
+const logo = zg.spans.build(logo_b, LOGO_W, 0);
 
 // --------------------------------------------------------------------------
 // Demo
@@ -357,7 +317,7 @@ pub const Demo = struct {
             const prov = SIN_AMP * @sin(self.sin_drawn + SIN_INC * @as(f64, @floatFromInt(2 * s)));
             // >= 0 and run ends < WIDTH: asserted at comptime above
             const x: i32 = LOGO_X_ST + @as(i32, @intFromFloat(@floor(prov / 2.0)));
-            for (logo.spans[logo.row_first[s]..logo.row_first[s + 1]]) |span| {
+            for (logo.row(s)) |span| {
                 fb.drawScanline(@intCast(x + span.x0), @intCast(x + span.x1), @intCast(y), LOGO_INK);
             }
         }
