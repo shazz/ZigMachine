@@ -1,20 +1,21 @@
 # `apps/rust/` — hello world in Rust
 
 `hello.rs` — the same plasma as `apps/c/`, in `no_std` Rust, proving a Rust cart
-drives the sealed `machine-video.wasm`: two imports (`env.memory` +
-`hwVideoBase()`), a handful of `#[no_mangle]` exports, 8-bit palette indices into
-the shared video region.
+drives the sealed `machine-video.wasm` (8-bit palette indices into the shared
+video region) AND calls the Zig ROM chip: `rom.wasm` draws a GEM panel over the
+plasma, which `apps/verify.mjs` reads back.
 
 ## The contract this app implements
 - **Imports** (`#[link(wasm_import_module = "env")]`): `memory`, `hwVideoBase()`,
-  `consoleLogJS`.
+  `consoleLogJS`, and from the ROM (`rom/sdk/rom.zig`): `guiOpenPlane`,
+  `romInstallPalettePlane`, `guiRect`, `guiFrame`, `guiText`.
 - **Exports** (`#[no_mangle] pub extern "C"`): `boot`, `frame(f32)`,
   `isPlaneEnabled(i)->i32` (required), plus no-op
   `hblDispatch/skipBoot/setShadeMode/pointer/input`.
 - **Draw**: palette-index bytes at `hwVideoBase()+OFF_VRAM`; RGBA palette at
   `+OFF_PAL` (**alpha 255 = opaque**). Offsets mirror `machine/sdk/memmap.zig`.
 - **Link layout** (must match `build.zig`'s demo module): `--import-memory`,
-  `--initial-memory=--max-memory=5177344` (79 pages), `--global-base=0x100000`,
+  `--initial-memory=--max-memory=7340032` (112 pages), `--global-base=0x100000`,
   `--no-entry`.
 
 ## Prerequisite
