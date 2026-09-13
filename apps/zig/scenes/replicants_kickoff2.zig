@@ -231,6 +231,10 @@ pub const Demo = struct {
         self.sprite_clock = 0;
         self.sprite_set = .letters;
 
+        // The ST's border is colour 0, black here. Left at the machine's grey, the
+        // closed side borders of the visible band met the open bottom border's
+        // full-width black, so the scroller's bar jutted out past the screen.
+        zigos.setBackgroundColor(Color{ .r = 0, .g = 0, .b = 0, .a = 255 });
         const fb = &zigos.lfbs[PLANE];
         fb.is_enabled = true;
         fb.setPalette(palette);
