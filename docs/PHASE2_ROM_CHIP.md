@@ -185,7 +185,10 @@ de-risking step**: change the call *shape* first, the module boundary second.
 2. `node apps/{ram_check,check_fits,verify,gem_headless}.mjs` all pass, and
    `build.sh`'s gate still fails a cart that overruns its window.
 3. **`apps/verify.mjs` proves a C or Rust app calling a ROM entry point** — that
-   is the whole claim of the machine/rom split, and it is currently untested.
+   is the whole claim of the machine/rom split. ✅ **Met for both** (2026-09-13):
+   `apps/c` and `apps/rust` each open a GEM context on plane 0 and have `rom.wasm`
+   draw a panel, and `verify.mjs` requires GEM's own white inside it. A Rust cart
+   that imports the ROM but skips the panel FAILS the check, so the test can fail.
 4. The host `env` object gains names but loses none (a retired import becomes a
    documented no-op stub — `4c00b19` is why).
 5. `rom/README.md`, `docs/HW_API.md` and `docs/HARDWARE_SPEC.md §12` stop

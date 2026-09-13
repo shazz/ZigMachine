@@ -26,18 +26,19 @@ zig build -Dwasm -Drelease=true
 cd docs && python3 -m http.server 3333   # sealed.html -> menu -> GEM DESKTOP
 ```
 
-> **Phase 2 — steps 2.0/2.1/2.2 DONE.** GEM is its own `rom.wasm`, linked against
+> **Phase 2 — steps 2.0–2.3 DONE.** GEM is its own `rom.wasm`, linked against
 > `machine/sdk/` like a cart, living in its own RAM window
 > (`[ROM_RAM_BASE, ROM_RAM_TOP)`) and exporting the flat app-facing ABI in
 > [`sdk/rom.zig`](sdk/rom.zig). The host instantiates machine → rom → app. An APP
 > imports the named module `rom_sdk` and **never `rom`** — `.gem`/`.gui` are the
 > ROM's internals.
 >
-> Still to do (**2.3**): `apps/zig/scenes/gem_desktop.zig` still links GEM
-> statically for the DESKTOP and embeds `st_replay.App` outright, so the desktop
-> is a cart that contains its apps. Launching must become a host-side cart swap.
-> That is also what proves the polyglot claim — a C or Rust app calling the Zig
-> ROM — which nothing tests yet. See
+> The desktop is a singleton inside `rom.wasm`; `apps/zig/scenes/gem_desktop.zig`
+> is a shell, and launching a program is a HOST cart swap (the host calls
+> `romReset()` on every swap to reclaim the outgoing program's handles). The
+> polyglot claim is tested: `apps/verify.mjs` reads back a GEM panel that
+> `rom.wasm` drew for the C app (`apps/c`) and for the Rust app (`apps/rust`).
+> Left: step 2.4 (spend the freed RAM). See
 > [`docs/PHASE2_ROM_CHIP.md`](../docs/PHASE2_ROM_CHIP.md).
 
 ## Layout (chip)

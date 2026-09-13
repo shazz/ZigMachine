@@ -88,7 +88,7 @@ async function check(path) {
     let animated = false;
     for (let i = 0; i < snap1.length; i++) if (snap1[i] !== snap2[i]) { animated = true; break; }
 
-    // (d) Did the ROM draw? The C app asks GEM for a panel over plane 0: a white
+    // (d) Did the ROM draw? The C and Rust apps ask GEM for a panel over plane 0: a white
     // face with GEM's double black border and an inverse title bar. Plasma cannot
     // produce that, so require a run of pure GEM_WHITE (palette index 1) inside
     // the panel — the toolkit's own output, not the app's.
@@ -107,7 +107,7 @@ async function check(path) {
     console.log(`  palette opaque: ${alphaOpaque}`);
     console.log(`  pixels drawn  : ${drew}`);
     console.log(`  animates      : ${animated}`);
-    if (romDrew !== null) console.log(`  GEM drew      : ${romDrew}   (rom.wasm rendering for a C app)`);
+    if (romDrew !== null) console.log(`  GEM drew      : ${romDrew}   (rom.wasm rendering for this app)`);
     console.log(`  => ${ok ? "PASS ✅" : "FAIL ❌"}`);
     return ok;
 }

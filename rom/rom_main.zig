@@ -446,11 +446,11 @@ export fn deskSetDiskApp(present: u32) void {
 /// the same shared memory it always wrote to.
 export fn deskDirPtr() u32 {
     if (!desk_ready) return 0;
-    return @intCast(@intFromPtr(&desk.disk_dir));
+    return @intCast(@intFromPtr(&desk.dir.disk_dir));
 }
 /// The FAT buffer's size in BYTES, so the host can size its write.
 export fn deskDirCap() u32 {
-    return @intCast(desk.disk_dir.len);
+    return @intCast(desk.dir.disk_dir.len);
 }
 /// Its capacity in RECORDS, and the record size — so the host derives its cap and
 /// its struct stride from the ROM instead of mirroring both as literals.
@@ -479,7 +479,7 @@ export fn deskSetFileCount(n: u32) void {
     // and diskName() slices it unchecked in ReleaseSmall. Only ever masked because
     // the host happens to cap at 12 with a literal of its own — which is exactly
     // why the cap is published as deskDirCap() for the host to derive.
-    if (desk_ready) desk.n_disk = @intCast(@min(n, gem.MAX_FILES));
+    if (desk_ready) desk.dir.n_disk = @intCast(@min(n, gem.MAX_FILES));
 }
 
 inline fn rectOf(x: i32, y: i32, w: i32, h: i32) Rect {

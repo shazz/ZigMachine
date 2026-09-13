@@ -42,6 +42,7 @@ for t in \
     apps/zig/scene_tests.zig \
     rom/gem/desktop/namefield.zig \
     rom/gem/desktop/stamp.zig \
+    rom/gem/desktop/dirmodel_test.zig \
     rom/gem/desktop/deskinf.zig \
     rom/gem/gui/grid.zig
 do
