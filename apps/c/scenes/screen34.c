@@ -24,6 +24,13 @@
 // are halved here and then shifted into the 400x280 physical buffer.
 // ---------------------------------------------------------------------------
 #include "../assets/screens/screen34/data.h"
+#include "../zigmachine_music.h"
+
+// The original loads screens/034/SoWattTcbSprites.ym (prototypes/codef/34/screen.js:31),
+// a YM5 register dump converted by Leonard. Its frames match this SNDH's own
+// 68000 output register-for-register (reg 0-5, 8-10, 400 frames, offset 0), and
+// the image holds a single subtune, so the default is the right one.
+#define MUSIC "sos.sndh" // Mad Max, "So Watt - TCB" (1989)
 
 typedef unsigned char u8;
 typedef unsigned short u16;
@@ -131,6 +138,7 @@ static void blit_glyph(int glyph, int gx, int gy) {
 
 __attribute__((export_name("boot")))
 void boot(void) {
+    zm_request_song(MUSIC);
     video_base = hwVideoBase();
 
     for (int i = 0; i < 256 * 4; i++) pal()[i] = PALETTE[i];

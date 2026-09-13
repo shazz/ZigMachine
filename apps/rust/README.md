@@ -18,6 +18,24 @@ plasma, which `apps/verify.mjs` reads back.
   `--initial-memory=--max-memory=7340032` (112 pages), `--global-base=0x100000`,
   `--no-entry`.
 
+## Music: `zigmachine_music.rs`
+The Rust twin of `apps/c/zigmachine_music.h`: ask the host for a tune by name,
+the same song bridge a Zig scene uses. The SNDH player is not linked into the
+cart. It runs in `demo-audio.wasm` on the audio thread, and the loader polls
+the cart once per frame.
+
+```rust
+mod zigmachine_music;                                   // once per cart: defines the exports
+zigmachine_music::request_song("sos.sndh");             // a file under docs/music/
+zigmachine_music::request_song_tune("leavin_teramis.sndh", 9); // subtune, from 1
+```
+- Declaring the module exports `pollSongRequest` (1 = new request, cleared when
+  read), `songNamePtr`, `songNameLen`, `songTune`. `build.sh` needs no change.
+- Tune `0` = the image's default. Both calls return `false` and queue nothing for
+  an empty or >64-byte name or a tune above 255.
+- `hello.rs` declares the module but requests nothing; `apps/c_music_check.mjs`
+  checks that it exports the bridge and stays silent.
+
 ## Prerequisite
 ```bash
 rustup target add wasm32-unknown-unknown
