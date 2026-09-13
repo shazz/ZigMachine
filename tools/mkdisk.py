@@ -149,6 +149,23 @@ def build_v2(boot_wasm: bytes, cart: bytes, title: str, author: str, desc: str,
     return boot_sector_v2(boot_wasm) + bytes(d) + bytes(f) + bytes(data)
 
 
+def stamped_date(path: str) -> int:
+    """The YYYYMMDD an existing disk carries, or 0 when there is no such disk.
+
+    v1 keeps it in the descriptor at $2E0, v2 (a wasm boot sector) at $4F0.
+    """
+    try:
+        with open(path, "rb") as f:
+            img = f.read(0x500)
+    except FileNotFoundError:
+        return 0
+    if img[:4] == b"\0asm" and len(img) >= 0x4F4 and img[0x400:0x406] == b"ZMDISK":
+        return struct.unpack_from("<I", img, 0x4F0)[0]
+    if img[:6] == b"ZMDISK" and len(img) >= 0x2E4:
+        return struct.unpack_from("<I", img, 0x2E0)[0]
+    return 0
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description="Pack a wasm cart into a .zmd disk image.")
     ap.add_argument("wasm", help="input cart wasm")
@@ -157,6 +174,9 @@ def main() -> None:
     ap.add_argument("--author", default="")
     ap.add_argument("--desc", default="")
     ap.add_argument("--date", type=int, default=0, help="YYYYMMDD")
+    ap.add_argument("--date-from", metavar="ZMD",
+                    help="reuse the date stamped in this existing disk, if it has one "
+                         "(tools/mkdisks.sh packs with it to tell a real change from a re-stamp)")
     ap.add_argument("--file", action="append", default=[], metavar="NAME=PATH",
                     help="add an extra file to the FAT (repeatable), e.g. SAMPLE.RAW=docs/music/smp1.raw")
     ap.add_argument("--no-boot", action="store_true",
@@ -165,6 +185,8 @@ def main() -> None:
                     help="format v2: FILE is the executable boot-sector wasm (<= 1015 B); "
                          "the positional wasm becomes the chainloaded cart")
     a = ap.parse_args()
+    if a.date_from:
+        a.date = stamped_date(a.date_from) or a.date
 
     with open(a.wasm, "rb") as f:
         wasm = f.read()

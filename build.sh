@@ -10,7 +10,7 @@
 #
 # Everything here is fast and offline. Run it instead of `zig build`.
 set -e
-clear
+if [ -t 1 ]; then clear; fi # not from a git hook or a log redirect
 zig build -Drelease=true -Dwasm
 
 # --- memory windows: every module measured against ITS OWN map -------------
