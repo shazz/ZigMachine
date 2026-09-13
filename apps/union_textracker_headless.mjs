@@ -17,12 +17,16 @@
 // 4. Escape asks for the Union Demo menu's disk (pollCartRequest 1, tag union_demo).
 // 5. A warm frame (cart update+render and hwRenderPlane) fits well inside 60 fps.
 //
-//   node apps/union_textracker_headless.mjs [outdir] [cart.wasm] [--break trail|blend|tune|silence]
+//   node apps/union_textracker_headless.mjs [outdir] [cart.wasm] [--break trail|blend|tune|silence] [--trace regs.bin]
+// --trace writes the 35 s YM register trace (16 bytes a frame, 60 frames a second);
+// its sha256 is printed on success, so a player change (e.g. the SNDH load address)
+// can be proved not to alter what this tune does to the chip.
 // --break makes the check expect a wrong trail spacing (7), a float-rounded alpha
 // blend, tune 2 instead of 1, or renders the song without starting it: each must
 // FAIL, which is how the harness proves it can.
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { deflateSync } from "node:zlib";
+import { createHash } from "node:crypto";
 import { cartRam, romRam } from "../docs/wasm_hiwater.js";
 import { makeReplay, mouseAt, SHOTS } from "./union_textracker_replay.mjs";
 
@@ -43,6 +47,9 @@ const at = argv.indexOf("--break");
 const brk = at >= 0 ? argv[at + 1] : null;
 if (at >= 0 && !["trail", "blend", "tune", "silence"].includes(brk)) throw new Error(`--break takes trail, blend, tune or silence, not ${brk}`);
 if (at >= 0) argv.splice(at, 2);
+const traceAt = argv.indexOf("--trace");
+const tracePath = traceAt >= 0 ? argv[traceAt + 1] : null;
+if (traceAt >= 0) argv.splice(traceAt, 2);
 const outDir = argv[0] || "/tmp/union_textracker";
 const cartPath = argv[1] || "docs/demo-union_textracker.wasm";
 const TUNE = brk === "tune" ? 2 : 1;
@@ -85,9 +92,11 @@ async function playSong(name, tune, start) {
     if (loaded && start) demo.audioSndhPlay(tune);
     const regs = new Uint8Array(memory.buffer, machine.audioYmRegsPtr(), 16);
     const prev = new Uint8Array(16), volume = [0, 0, 0];
+    const trace = new Uint8Array(MUSIC_SECONDS * 60 * 16); // registers 0-15 after each frame
     let peak = 0, sq = 0, n = 0, silentSeconds = 0, second = 0, secondSq = 0;
     for (let f = 0; f < MUSIC_SECONDS * 60; f++) {
         demo.audioRender(FRAME_SAMPLES);
+        trace.set(regs, f * 16);
         for (const v of new Float32Array(memory.buffer, machine.audioLeftPtr(), FRAME_SAMPLES)) {
             peak = Math.max(peak, Math.abs(v)); sq += v * v; secondSq += v * v; n++;
         }
@@ -98,7 +107,9 @@ async function playSong(name, tune, start) {
             second = 0; secondSq = 0;
         }
     }
-    return { loaded, peak, rms: Math.sqrt(sq / n), volume, silentSeconds, mode: demo.audioMode() };
+    if (tracePath) await writeFile(tracePath, trace);
+    const traceSha = createHash("sha256").update(trace).digest("hex");
+    return { loaded, peak, rms: Math.sqrt(sq / n), volume, silentSeconds, mode: demo.audioMode(), traceSha };
 }
 
 /// The 320x200 window as the host composites it, over black.
@@ -245,5 +256,5 @@ if (errors.length) {
 }
 console.log(`union_textracker: TEX loader panel over ${depackFrames} depack frames; screen.js replay exact at frames ${SHOTS.join(",")}; ` +
     `song "${song.name}" tune ${song.tune} requested as the screen starts, played ${MUSIC_SECONDS} s: peak ${played.peak.toFixed(4)} rms ${played.rms.toFixed(4)}, ` +
-    `no silent second, YM volume changes A/B/C ${played.volume.join("/")}; Escape -> union_demo; ` +
+    `no silent second, YM volume changes A/B/C ${played.volume.join("/")}, register trace sha256 ${played.traceSha.slice(0, 16)}; Escape -> union_demo; ` +
     `warm ${perFrame.toFixed(3)} ms cart + ${perRender.toFixed(3)} ms hwRenderPlane a frame; shots in ${outDir}`);
