@@ -17,11 +17,15 @@
 //   offset  size  field
 //   0       4     magic "ZX0!"
 //   4       1     container version, 1
-//   5       1     fx: the effect shown while depacking (see Fx; 0..6)
+//   5       1     fx: the effect shown while depacking (see Fx; 0..7)
 //   6       4     depacked length, u32 LITTLE-endian
 //   10      1     text length n, 1..MAX_TEXT, ONLY when fx == text
 //   11      n     the message, printable ASCII, ONLY when fx == text
 //   10      1     bar height (AtariDecrunch's MaxBarHeight, 0..255), ONLY when fx == automation
+//   10      1     panel columns c, 1..MAX_PANEL_COLS, ONLY when fx == tex_loader
+//   11      1     panel rows r, 1..MAX_PANEL_ROWS, ONLY when fx == tex_loader
+//   12      c*r   the panel, row by row, chars in the TEX loader font (isPanelChar),
+//                 ONLY when fx == tex_loader
 //   ...           the raw ZX0 v2 stream (absent when the length is 0)
 //
 // An unknown version or fx, or a malformed message, makes the image unreadable:
@@ -54,18 +58,28 @@ pub const MAGIC = "ZX0!";
 pub const VERSION = 1;
 pub const HEADER_LEN = 10;
 pub const MAX_TEXT = 40;
+/// The TEX loader panel's limits: the widest and tallest panel that fits the
+/// 320x200 window at its fixed left edge (x 80) and bottom row (y 184), 8x8 cells.
+pub const MAX_PANEL_COLS = 30;
+pub const MAX_PANEL_ROWS = 24;
+/// The TEX loader font's range: the 60 glyphs of loader.png, ' ' to '['.
+pub const PANEL_FIRST_CHAR = 0x20;
+pub const PANEL_LAST_CHAR = 0x5B;
 
 /// The largest offset the format can express: msb 255, low part 0.
 pub const MAX_OFFSET = 255 * 128;
 
-pub const Fx = enum(u8) { none = 0, rasters = 1, bar = 2, text = 3, fade = 4, noise = 5, automation = 6 };
+pub const Fx = enum(u8) { none = 0, rasters = 1, bar = 2, text = 3, fade = 4, noise = 5, automation = 6, tex_loader = 7 };
 
 pub const Header = struct {
     fx: Fx,
-    /// Empty unless fx == .text.
+    /// The message (fx == .text) or the panel's cols*rows chars, row by row
+    /// (fx == .tex_loader); empty otherwise.
     text: []const u8,
     /// AtariDecrunch's MaxBarHeight; 0 unless fx == .automation.
     bars: u8 = 0,
+    /// The TEX loader panel's columns; 0 unless fx == .tex_loader (rows = text.len / cols).
+    cols: u8 = 0,
     len: u32,
     /// Offset of the ZX0 stream in the image.
     stream: usize,
@@ -87,6 +101,7 @@ pub fn parseHeader(src: []const u8) ?Header {
         4 => .fade,
         5 => .noise,
         6 => .automation,
+        7 => .tex_loader,
         else => return null,
     };
     var h = Header{ .fx = fx, .text = "", .len = std.mem.readInt(u32, src[6..10], .little), .stream = HEADER_LEN };
@@ -103,7 +118,25 @@ pub fn parseHeader(src: []const u8) ?Header {
         h.bars = src[HEADER_LEN];
         h.stream += 1;
     }
+    if (fx == .tex_loader) {
+        if (src.len < HEADER_LEN + 2) return null;
+        const cols = src[HEADER_LEN];
+        const rows = src[HEADER_LEN + 1];
+        if (cols == 0 or cols > MAX_PANEL_COLS or rows == 0 or rows > MAX_PANEL_ROWS) return null;
+        const n = @as(usize, cols) * rows;
+        if (src.len - HEADER_LEN - 2 < n) return null;
+        h.cols = cols;
+        h.text = src[HEADER_LEN + 2 ..][0..n];
+        if (!isPanelText(h.text)) return null;
+        h.stream += 2 + n;
+    }
     return h;
+}
+
+/// True when every char has a glyph in the TEX loader font (no lowercase).
+pub fn isPanelText(text: []const u8) bool {
+    for (text) |c| if (c < PANEL_FIRST_CHAR or c > PANEL_LAST_CHAR) return false;
+    return true;
 }
 
 pub fn isPrintable(text: []const u8) bool {

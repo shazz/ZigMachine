@@ -46,7 +46,7 @@ const Arrival = struct {
 const Block = struct { kind: Kind, len: u32, offset: u32 };
 const Match = struct { offset: u32, len: u32 };
 
-pub const Error = error{ OutOfMemory, TooLarge, TextRequired, TextNotAllowed, TextTooLong, TextNotPrintable, BarsRequired, BarsNotAllowed };
+pub const Error = error{ OutOfMemory, TooLarge, TextRequired, TextNotAllowed, TextTooLong, TextNotPrintable, BarsRequired, BarsNotAllowed, PanelRequired, PanelNotAllowed, PanelShape, PanelNotInFont };
 
 /// The depack effect recorded in the container (see zx0.zig).
 pub const Options = struct {
@@ -56,7 +56,13 @@ pub const Options = struct {
     /// AtariDecrunch's MaxBarHeight: required with fx == .automation, rejected
     /// otherwise. Kick Off 2 (CODEF 168) uses 100, Elite Snooker (CODEF 422) 30.
     bars: ?u8 = null,
+    /// The TEX loader's text panel: required with fx == .tex_loader, rejected
+    /// otherwise. See parsePanel for the file format zx0pack --panel reads.
+    panel: ?Panel = null,
 };
+
+/// `chars` holds the panel row by row, `cols` chars a row.
+pub const Panel = struct { cols: u8, chars: []const u8 };
 
 /// The effect named on a command line, or null for a name that is not one.
 pub fn parseFx(name: []const u8) ?zx0.Fx {
@@ -66,6 +72,8 @@ pub fn parseFx(name: []const u8) ?zx0.Fx {
 fn validate(options: Options) Error!void {
     if (options.fx == .automation and options.bars == null) return error.BarsRequired;
     if (options.fx != .automation and options.bars != null) return error.BarsNotAllowed;
+    if (options.fx == .tex_loader) try validatePanel(options.panel orelse return error.PanelRequired);
+    if (options.fx != .tex_loader and options.panel != null) return error.PanelNotAllowed;
     if (options.fx != .text) {
         if (options.text.len != 0) return error.TextNotAllowed;
         return;
@@ -73,6 +81,36 @@ fn validate(options: Options) Error!void {
     if (options.text.len == 0) return error.TextRequired;
     if (options.text.len > zx0.MAX_TEXT) return error.TextTooLong;
     if (!zx0.isPrintable(options.text)) return error.TextNotPrintable;
+}
+
+fn validatePanel(p: Panel) Error!void {
+    if (p.cols == 0 or p.cols > zx0.MAX_PANEL_COLS or p.chars.len == 0 or p.chars.len % p.cols != 0) return error.PanelShape;
+    if (p.chars.len / p.cols > zx0.MAX_PANEL_ROWS) return error.PanelShape;
+    if (!zx0.isPanelText(p.chars)) return error.PanelNotInFont;
+}
+
+/// A panel file: one row per line, each row between double quotes (a quote
+/// inside a row is kept: only the first and last are delimiters), every row the
+/// same length. Blank lines and lines starting with '#' are skipped. Quoting
+/// keeps the rows' significant spaces safe from editors that trim lines.
+/// Returns chars allocated in `arena`.
+pub fn parsePanel(arena: std.mem.Allocator, file: []const u8) (Error || error{PanelSyntax})!Panel {
+    var chars: std.ArrayList(u8) = .empty;
+    var cols: usize = 0;
+    var lines = std.mem.splitScalar(u8, file, '\n');
+    while (lines.next()) |raw| {
+        const line = std.mem.trim(u8, raw, " \t\r");
+        if (line.len == 0 or line[0] == '#') continue;
+        if (line.len < 2 or line[0] != '"' or line[line.len - 1] != '"') return error.PanelSyntax;
+        const row = line[1 .. line.len - 1];
+        if (cols == 0) cols = row.len;
+        if (row.len != cols or cols > zx0.MAX_PANEL_COLS) return error.PanelShape;
+        try chars.appendSlice(arena, row);
+    }
+    if (cols == 0) return error.PanelShape;
+    const panel = Panel{ .cols = @intCast(cols), .chars = chars.items };
+    try validatePanel(panel);
+    return panel;
 }
 
 /// Pack `input` into a ZigMachine ZX0 container. The caller owns the result.
@@ -91,6 +129,10 @@ pub fn pack(gpa: std.mem.Allocator, input: []const u8, options: Options) Error![
         try out.appendSlice(gpa, options.text);
     }
     if (options.fx == .automation) try out.append(gpa, options.bars.?);
+    if (options.panel) |p| {
+        try out.appendSlice(gpa, &.{ p.cols, @intCast(p.chars.len / p.cols) });
+        try out.appendSlice(gpa, p.chars);
+    }
     if (input.len == 0) return out.toOwnedSlice(gpa);
 
     const blocks = try parse(gpa, input);

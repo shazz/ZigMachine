@@ -37,6 +37,8 @@ for t in \
     libs/zig/depackers/ice_test.zig \
     libs/zig/depackers/zx0_test.zig \
     libs/zig/depackers/depack_fx.zig \
+    libs/zig/depackers/tex_loader.zig \
+    libs/zig/depackers/tex_loader_test.zig \
     libs/zig/effects/charpanel_test.zig \
     libs/zig/effects/blit_test.zig \
     libs/zig/effects/copper_test.zig \
@@ -77,4 +79,5 @@ node apps/sndh_headless.mjs
 node apps/c_music_check.mjs   # a C cart's song request reaches the sealed YM
 node apps/dbug_headless.mjs "$SHOTS"
 node apps/fallen_angels_headless.mjs "$SHOTS"   # per-plane rasters on all 200 lines
+node apps/tex_loader_fx_headless.mjs "$SHOTS/tex_loader_fx"   # fx = tex_loader on a real asset, bytes checked
 echo "shots in $SHOTS"

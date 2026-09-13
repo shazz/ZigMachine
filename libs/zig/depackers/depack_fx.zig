@@ -13,6 +13,8 @@
 //   noise    TV snow on plane 0 (libs/zig/tvnoise/tvnoise.zig), until the data is ready
 //   automation  the Automation Packer v2.3r depack screen: random colour bars under
 //            the Automation logo and the busy bee, redrawn every frame
+//   tex_loader  the Union Demo's TEX loader: the header's text panel assembles
+//            letter by letter as the data depacks (tex_loader.zig)
 //
 // AUTOMATION is CODEF's AtariDecrunch(0, 100, 0, 200) (prototypes/codef/168/
 // lib/codef_decrunch.js), the fake depack screen that opens the Replicants'
@@ -65,6 +67,7 @@
 // --------------------------------------------------------------------------
 const std = @import("std");
 const zx0 = @import("zx0.zig");
+const tex_loader = @import("tex_loader.zig");
 
 pub const Rgb = struct { r: u8, g: u8, b: u8 };
 
@@ -120,6 +123,8 @@ pub const AUTOMATION_COLOURS = [12]Rgb{
 /// Plane-0 entries: the black ink (and the canvas's initial fillStyle), then the bars.
 pub const AUTOMATION_INK = 1;
 pub const AUTOMATION_FIRST = 3;
+/// Plane-0 entry of the TEX loader's ink.
+pub const TEX_INK = 1;
 const AUTOMATION_SEED: u64 = 0x9E3779B97F4A7C15;
 const LOGO_W = 182;
 const LOGO_H = 8;
@@ -210,6 +215,8 @@ pub fn Runner(comptime zg: type, comptime tvnoise: ?type) type {
         stream: zx0.Stream,
         fx: zx0.Fx,
         text: []const u8,
+        /// The TEX loader panel's columns (its rows are text.len / cols).
+        cols: u8,
         bytes_per_line: u32,
         saved_bg: Color,
         saved_hbl: Hbl,
@@ -229,6 +236,7 @@ pub fn Runner(comptime zg: type, comptime tvnoise: ?type) type {
                 .stream = stream,
                 .fx = h.fx,
                 .text = h.text,
+                .cols = h.cols,
                 .bytes_per_line = @max(1, bytes_per_line),
                 .saved_bg = zigos.getBackgroundColor(),
                 .saved_hbl = zigos.hbl_handler,
@@ -248,7 +256,7 @@ pub fn Runner(comptime zg: type, comptime tvnoise: ?type) type {
                     active = self;
                     zigos.setHBLHandler(hbl);
                 },
-                .bar, .text, .noise, .automation => self.openPlane(zigos),
+                .bar, .text, .noise, .automation, .tex_loader => self.openPlane(zigos),
             }
             if (self.fx != .rasters) zigos.setBackgroundColor(rgba(0));
             if (self.fx == .text) printCentered(zigos, self.text);
@@ -258,6 +266,10 @@ pub fn Runner(comptime zg: type, comptime tvnoise: ?type) type {
                 for (AUTOMATION_COLOURS, 0..) |c, i|
                     p0.setPaletteEntry(AUTOMATION_FIRST + @as(u8, @intCast(i)), .{ .r = c.r, .g = c.g, .b = c.b, .a = 255 });
                 self.drawAutomation(p0);
+            }
+            if (self.fx == .tex_loader) {
+                p0.setPaletteEntry(TEX_INK, .{ .r = tex_loader.INK.r, .g = tex_loader.INK.g, .b = tex_loader.INK.b, .a = 255 });
+                self.drawTex(p0);
             }
             return true;
         }
@@ -281,6 +293,7 @@ pub fn Runner(comptime zg: type, comptime tvnoise: ?type) type {
                     self.noise.fill(fb.fb[0 .. @as(usize, fb.fb_w) * fb.fb_h], fb.fb_w, fb.fb_h, NOISE_FIRST);
                 },
                 .automation => if (progress == .more) self.drawAutomation(&zigos.lfbs[0]),
+                .tex_loader => if (progress == .more) self.drawTex(&zigos.lfbs[0]),
                 else => {},
             }
             if (progress != .more) self.finish(zigos);
@@ -313,7 +326,7 @@ pub fn Runner(comptime zg: type, comptime tvnoise: ?type) type {
                 if (self.saved_hbl) |h| zigos.setHBLHandler(h) else zigos.removeHBLHandler();
             }
             const p0 = &zigos.lfbs[0];
-            if (self.fx == .bar or self.fx == .text or self.fx == .noise or self.fx == .automation) p0.clearFrameBuffer(0);
+            if (self.fx == .bar or self.fx == .text or self.fx == .noise or self.fx == .automation or self.fx == .tex_loader) p0.clearFrameBuffer(0);
             for (self.saved_pal, 0..) |c, i| p0.setPaletteEntry(@intCast(i), c);
             for (&zigos.lfbs, self.saved_enabled) |*fb, on| fb.is_enabled = on;
             zigos.setBackgroundColor(self.saved_bg);
@@ -331,6 +344,13 @@ pub fn Runner(comptime zg: type, comptime tvnoise: ?type) type {
             const oy = (h - zg.HEIGHT) / 2;
             stamp(fb, &automation_logo, ox + (zg.WIDTH - LOGO_W) / 2, oy + LOGO_Y);
             stamp(fb, &automation_bee, ox + BEE_X, oy + BEE_Y);
+        }
+
+        /// TEX LOADER: the panel at the tween clock the depack has reached.
+        fn drawTex(self: *Self, fb: anytype) void {
+            const letters: u32 = @intCast(self.text.len);
+            const t = tex_loader.clock(self.stream.written(), self.stream.total(), letters);
+            tex_loader.draw(fb, self.text, self.cols, t, TEX_INK);
         }
 
         fn stamp(fb: anytype, mask: anytype, x0: usize, y0: usize) void {
