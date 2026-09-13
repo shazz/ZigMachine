@@ -143,18 +143,19 @@ var grid_segments = [_]Vec4{
 };
 
 
-fn handler_scroller(fb: *LogicalFB, zigos: *ZigOS, line: u16, col: u16) void {
-    const back_color: Color = Color{ .r = 0, .g = 0, .b = 0, .a = 0 };
+// Rasters: the scroller ink (plane 0, entry 1) takes rasters_b[line] on visible
+// line `line`. Played by zg.copper, whose tables are PHYSICAL rows: a per-plane
+// handler on this normal plane receives LOGICAL lines 0..199, and the old
+// hand-written handler tested physical 40..239, so the top 40 lines kept a
+// stale colour and the last five bands never showed.
+const copper = zg.copper;
+const SCROLL_INK: u8 = 1;
+var raster_tables: [1]copper.Table = undefined;
 
-    if (line >= 40 and line < 240 ) {
-        fb.setPaletteEntry(1, rasters_b[(line - 40)]);
-    }
-    if (line == 240) {
-        fb.setPaletteEntry(1, back_color);
-    }
-    _ = zigos;
-    _ = col;
-}
+// The scroller's 640x7 strip. Module scope: init() used to point the scroller at
+// a buffer on its own stack, which every later call overwrote.
+var scroll_pixels = [_]u8{0} ** (WIDTH * 2 * SCROLL_CHAR_HEIGHT);
+var scroll_buffer: RenderBuffer = .{ .buffer = &scroll_pixels, .width = WIDTH * 2, .height = SCROLL_CHAR_HEIGHT };
 
 pub const Demo = struct {
   
@@ -188,12 +189,12 @@ pub const Demo = struct {
         fb.setPalette(fonts_pal);
         fb.setPaletteEntry(0, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
         
-        // HBL Handler for the raster effect
-        fb.setFrameBufferHBLHandler(40, handler_scroller);        
+        // raster effect: the ink is transparent outside the visible band, as before
+        copper.install(fb, &.{SCROLL_INK}, &raster_tables, .{});
+        @memset(copper.table(fb, 0), (Color{ .r = 0, .g = 0, .b = 0, .a = 0 }).toRGBA());
+        for (copper.visible(fb, 0), rasters_b[0..HEIGHT]) |*row, c| row.* = c.toRGBA();
 
-        var buffer = [_]u8{0} ** (WIDTH * 2 * SCROLL_CHAR_HEIGHT); 
-        var render_buffer: RenderBuffer = .{ .buffer = &buffer, .width = WIDTH * 2, .height = HEIGHT };  
-        self.scroller_target = .{ .render_buffer = &render_buffer };   
+        self.scroller_target = .{ .render_buffer = &scroll_buffer };
         self.scrolltext = Scrolltext(NB_FONTS).init(self.scroller_target, fonts_b, SCROLL_CHARS, SCROLL_CHAR_WIDTH, SCROLL_CHAR_HEIGHT, SCROLL_TEXT, SCROLL_SPEED, 0, null, null, false);
 
         self.scroll_sinx = 20;
@@ -274,8 +275,11 @@ pub const Demo = struct {
 
         var i: u16 = 0;
         while(i < 25) : ( i += 1) {
+            // rows 0..6 come from the 7-row strip; row 7 is the gap between lines
+            // (reading it went past the strip, into whatever lay after it)
+            @memset(fb.fb[(i * 8 + SCROLL_CHAR_HEIGHT) * WIDTH ..][0..WIDTH], 0);
             var y: u16 = 0;
-            while(y < 8) : (y += 1){
+            while(y < SCROLL_CHAR_HEIGHT) : (y += 1){
                 var x: u16 = 0;
 
                 // no sin at the beginning just decrement
