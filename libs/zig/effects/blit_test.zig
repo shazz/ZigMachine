@@ -123,6 +123,27 @@ test "degenerate views draw nothing" {
     try expectUntouched(&buf);
 }
 
+test "stretchY: scale 1 is a plain blit, -1 flips, 0.5 keeps every other row, 0 draws nothing" {
+    // a 1x4 source, values 1..4, centred on row 2 of a 1-wide, 4-high view
+    const col = b.Image.init(&[_]u8{ 1, 2, 3, 4 }, 1);
+    var buf: [4]u8 = undefined;
+    @memset(&buf, BG);
+    b.stretchY(b.Dst.buffer(&buf, 1), col, 0, 2, 1, null, .copy);
+    try expectEqualSlices(u8, &.{ 1, 2, 3, 4 }, &buf);
+    @memset(&buf, BG);
+    b.stretchY(b.Dst.buffer(&buf, 1), col, 0, 2, -1, null, .copy);
+    try expectEqualSlices(u8, &.{ 4, 3, 2, 1 }, &buf);
+    @memset(&buf, BG);
+    b.stretchY(b.Dst.buffer(&buf, 1), col, 0, 2, 0.5, null, .copy);
+    try expectEqualSlices(u8, &.{ BG, 2, 4, BG }, &buf); // rows 1, 2 sample v = 1, 3
+    @memset(&buf, BG);
+    b.stretchY(b.Dst.buffer(&buf, 1), col, 0, 2, 0, null, .copy);
+    try expectEqualSlices(u8, &.{ BG, BG, BG, BG }, &buf);
+    @memset(&buf, BG);
+    b.stretchY(b.Dst.buffer(&buf, 1), col, 0, -10, 1, null, .copy); // fully above the view
+    try expectEqualSlices(u8, &.{ BG, BG, BG, BG }, &buf);
+}
+
 test "plane view uses the plane's stride" {
     const Plane = struct { fb: [*]u8, stride: u16, fb_w: u16, fb_h: u16 };
     var mem = [_]u8{BG} ** (8 * 3);

@@ -50,13 +50,19 @@ pub fn Ring(comptime P: type, comptime n: usize) type {
         /// Move every letter left by `speed`. Returns true when a letter wrapped
         /// to the back of the ring (it now carries a new character).
         pub fn step(self: *Self, speed: P) bool {
-            var wrapped = false;
+            return self.stepCount(speed) > 0;
+        }
+
+        /// step(), returning HOW MANY letters wrapped: CODEF advances each
+        /// sinparam's phase by `inc` once per wrapping letter.
+        pub fn stepCount(self: *Self, speed: P) usize {
+            var wrapped: usize = 0;
             for (&self.x, &self.c) |*x, *c| {
                 x.* -= speed;
                 if (x.* <= -self.glyph_w) {
                     x.* = self.start + (x.* + self.glyph_w);
                     c.* = self.take();
-                    wrapped = true;
+                    wrapped += 1;
                 }
             }
             return wrapped;

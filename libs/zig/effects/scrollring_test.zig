@@ -12,6 +12,15 @@ test "init lays letters out from start, one glyph apart, carrying the text in or
     try expectEqual(@as(u8, 'D'), r.upcoming());
 }
 
+test "stepCount reports how many letters wrapped, and none when nothing did" {
+    var r = Ring(i32, 3).init("ABCDEF", 64, 64);
+    r.x = .{ -60, -62, 10 };
+    try expectEqual(@as(usize, 2), r.stepCount(4)); // -64 and -66 both wrap
+    try expectEqual([3]i32{ 64, 62, 6 }, r.x);
+    try expectEqual([3]u8{ 'D', 'E', 'C' }, r.c);
+    try expectEqual(@as(usize, 0), r.stepCount(1));
+}
+
 test "a letter reaching -glyph_w rejoins at start + (x + glyph_w) with the next character" {
     var r = Ring(i32, 2).init("XYZ", 64, 64);
     r.x = .{ -60, 4 };

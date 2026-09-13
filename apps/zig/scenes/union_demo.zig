@@ -55,6 +55,8 @@ pub const Demo = struct {
     message: ?usize, // door whose COMING SOON is showing
     message_frames: u16,
     wants_quit: bool,
+    launch: ?[]const u8, // the cart a door asked for (read by cartTag)
+    launch_pending: bool, // reported to the host once, as menu.zig does
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
         self.charly.init(A.map.START_X, A.map.START_Y);
@@ -67,6 +69,8 @@ pub const Demo = struct {
         self.message = null;
         self.message_frames = 0;
         self.wants_quit = false;
+        self.launch = null;
+        self.launch_pending = false;
 
         const fb = &zigos.lfbs[0];
         fb.is_enabled = true;
@@ -102,8 +106,22 @@ pub const Demo = struct {
         if (self.message) |d| drawMessage(zigos, d);
     }
 
+    /// Back (6) leaves for the menu: with pollCart declared, demo_main no
+    /// longer does that for us.
     pub fn input(self: *Demo, dir: u8) void {
-        self.controls.input(dir);
+        if (dir == 6) self.wants_quit = true else self.controls.input(dir);
+    }
+
+    /// -1 the menu, 1 a door's cart (demo_main.pollCartRequest).
+    pub fn pollCart(self: *Demo) i32 {
+        if (self.wants_quit) return -1;
+        if (!self.launch_pending) return 0;
+        self.launch_pending = false; // the host reads cartTag in this same poll
+        return 1;
+    }
+
+    pub fn cartTag(self: *Demo) []const u8 {
+        return self.launch orelse "";
     }
 
     pub fn key(self: *Demo, cp: u32) void {
@@ -117,9 +135,15 @@ pub const Demo = struct {
         self.cam = zg.tilemap.followAxis(self.cam, self.charly.x, dz.lo, dz.hi, CAM_LIMIT);
     }
 
-    // DoorEntity.onCollision: the remake changes state to the door's loader. No
-    // screen is ported yet, so every door says so instead.
+    // DoorEntity.onCollision: the remake changes state to the door's loader. A
+    // ported screen's cart plays its own loader as it depacks; a door whose
+    // screen is not ported yet says so instead.
     fn enter(self: *Demo, d: usize) void {
+        if (doors.DOORS[d].tag) |tag| {
+            self.launch = tag;
+            self.launch_pending = true;
+            return;
+        }
         self.message = d;
         self.message_frames = MESSAGE_FRAMES;
     }
