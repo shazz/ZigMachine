@@ -69,6 +69,7 @@ pub const Starfield = @import("effects/starfield.zig").Starfield;
 pub const StarfieldDirection = @import("effects/starfield.zig").StarfieldDirection;
 pub const Dots3D = @import("effects/dots3d.zig").Dots3D;
 pub const shapes = @import("effects/shapes.zig");
+pub const wireframe = @import("effects/wireframe.zig").With(za); // 3D line objects from a .obj (obj.parseWire)
 pub const Mandelbrot = @import("effects/mandelbrot.zig").Mandelbrot;
 
 // --------------------------------------------------------------------------

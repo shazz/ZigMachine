@@ -49,93 +49,14 @@ const font_pal = convertU8ArraytoColors(@embedFile("../assets/screens/empire/fon
 // Stars
 const NB_STARS = 150;
 
-const Vec2 = za.Vec2;
 const Vec3 = za.Vec3;
 const Vec4 = za.Vec4;
 const Mat4 = za.Mat4;
+const wf = zg.wireframe;
 
-
-var vertices = [_]Vec4{
-
-    // E
-    Vec4.new(   0,  0,   0, 1.0 ),
-    Vec4.new(  1.0,     0,   0, 1.0 ),
-    Vec4.new(  1.0,     -0.5,    0, 1.0 ),
-    Vec4.new(   0,  -0.5,    0, 1.0 ),
-    Vec4.new(     0,    -1.0,   0, 1.0 ),
-    Vec4.new(    1.0,   -1.0,    0, 1.0 ),
-    // M
-    Vec4.new(  1.2,     -1.0,    0, 1.0 ),
-    Vec4.new(  1.2,     0,   0, 1.0 ),
-    Vec4.new(  1.7,     0,   0, 1.0 ),
-    Vec4.new(  1.7,     -1.0,    0, 1.0 ),
-    Vec4.new(    2.0,    0,      0, 1.0 ),
-    Vec4.new(    2.2,   -0.2,    0, 1.0 ),
-    Vec4.new(    2.2,   -1.0,    0, 1.0 ),
-    // P
-    Vec4.new(  2.4,     -1.0,    0, 1.0 ),
-    Vec4.new(  2.4,     0,   0, 1.0 ),
-    Vec4.new(  3.2,     0,   0, 1.0 ),
-    Vec4.new(  3.4,     -0.2,    0, 1.0 ),
-    Vec4.new(    3.4,   -0.5,    0, 1.0 ),
-    Vec4.new(    2.4,   -0.5,    0, 1.0 ),
-    // I
-    Vec4.new(    3.6,   0,   0, 1.0 ),
-    Vec4.new(    3.6,   -1.0,    0, 1.0 ),
-    // R
-    Vec4.new(  3.8,     -1.0,    0, 1.0 ),
-    Vec4.new(  3.8,     0,   0, 1.0 ),
-    Vec4.new(  4.6,     0,   0, 1.0 ),
-    Vec4.new(  4.8,     -0.2,    0, 1.0 ),
-    Vec4.new(    4.8,   -0.5,    0, 1.0 ),
-    Vec4.new(    3.8,   -0.5,    0, 1.0 ),
-    Vec4.new(    4.4,   -0.5,    0, 1.0 ),
-    Vec4.new(    4.8,   -1.0,    0, 1.0 ),
-    // E
-    Vec4.new(  5.0,     0,   0, 1.0 ),
-    Vec4.new(  6.0,     0,   0, 1.0 ),
-    Vec4.new(  6.0,     -0.5,    0, 1.0 ),
-    Vec4.new(  5.0,     -0.5,    0, 1.0 ),
-    Vec4.new(    5.0,   -1.0,   0, 1.0 ),
-    Vec4.new(    6.0,   -1.0,    0, 1.0 ),    
-};
-
-const segments = [_]Vec2{
-
-    // E
-    Vec2.new(0, 1),
-    Vec2.new(2, 3),
-    Vec2.new(3, 4),
-    Vec2.new(4, 5),
-    // M
-    Vec2.new(6, 7),
-    Vec2.new(7, 8),
-    Vec2.new(8, 9),
-    Vec2.new(8, 10),
-    Vec2.new(10, 11),
-    Vec2.new(11, 12),
-    // P
-    Vec2.new(13, 14),
-    Vec2.new(14, 15),
-    Vec2.new(15, 16),
-    Vec2.new(16, 17),
-    Vec2.new(17, 18),
-    // I
-    Vec2.new(19, 20),
-    // R
-    Vec2.new(21, 22),
-    Vec2.new(22, 23),
-    Vec2.new(23, 24),
-    Vec2.new(24, 25),
-    Vec2.new(25, 26),
-    Vec2.new(26, 27),
-    Vec2.new(27, 28),
-    // E
-    Vec2.new(29, 30),
-    Vec2.new(31, 32),
-    Vec2.new(32, 33),
-    Vec2.new(33, 34),    
-};
+// The EMPIRE logo (35 vertices, 27 edges), centred in init().
+const logo = zg.obj.parseWire(@embedFile("../assets/obj/empire_logo.obj"));
+var vertices = wf.vec4s(logo.verts.len, logo.verts);
 
 // --------------------------------------------------------------------------
 // Variables
@@ -151,10 +72,8 @@ pub const Demo = struct {
     frame_counter: u32 = 0,
     starfield: Starfield(NB_STARS) = undefined,
     scrolltext: Scrolltext(NB_FONTS) = undefined,
-    projection: Mat4 = undefined,
-    camera: Mat4 = undefined,
-    screen: Mat4 = undefined,
-    projected_vertices: [35]Coord = undefined,
+    cam: wf.Camera = undefined,
+    projected_vertices: [logo.verts.len]Coord = undefined,
     angle_y: f32 = 0.0,
     angle_x: f32 = 0.0,
 
@@ -182,14 +101,13 @@ pub const Demo = struct {
         fb.is_enabled = true;
         fb.setPaletteEntry(0, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
         fb.setPaletteEntry(1, Color{ .r = 255, .g = 255, .b = 255, .a = 255 });
-        self.projection = za.perspective(40.0, 200.0 / 320.0, 20, 1800);
-        self.camera = za.camera(Vec3.new(0.0, 0.0, -14.0), 0, 0);
-        self.screen = za.screen(320, 200);   
+        self.cam = .{
+            .projection = za.perspective(40.0, 200.0 / 320.0, 20, 1800),
+            .camera = za.camera(Vec3.new(0.0, 0.0, -14.0), 0, 0),
+            .screen = za.screen(320, 200),
+        };
 
-        var i: u8 = 0;
-        while(i < 35) : ( i+= 1) {
-            vertices[i] = vertices[i].add(Vec4.new(-3.0, 0.50, 0.0, 0));
-        }
+        for (&vertices) |*v| v.* = v.add(Vec4.new(-3.0, 0.50, 0.0, 0));
 
         // 3rd plane
         fb = &zigos.lfbs[2];
@@ -206,38 +124,19 @@ pub const Demo = struct {
         self.starfield.update();
         self.scrolltext.update();
 
-        for(vertices, 0..) |vertex, idx| {
+        self.cam.project(&vertices, &self.projected_vertices, self, rotateXY);
 
-            // const rot_scale = Mat4.fromScale(Vec3.new(self.zoom, self.zoom, self.zoom));
-            // const vertex_after_scale = rot_scale.vec4mulByMat4(vertex);
-
-            const rot_matx = Mat4.fromEulerAngles(Vec3.new(self.angle_x, 0, 0));
-            const vertex_after_rotx = rot_matx.vec4mulByMat4(vertex);
-
-            const rot_maty = Mat4.fromEulerAngles(Vec3.new(0, self.angle_y, 0));
-            const vertex_after_roty = rot_maty.vec4mulByMat4(vertex_after_rotx);
-
-
-            const vertex_after_cam = self.camera.vec4mulByMat4(vertex_after_roty);
-            const vertex_after_proj = self.projection.vec4mulByMat4(vertex_after_cam);
-                    
-            const norm = Vec4.set(1/vertex_after_proj.w());
-            const vertex_after_norm = vertex_after_proj.mul(norm);
-
-            const vertex_after_screen = self.screen.vec4mulByMat4(vertex_after_norm);
-
-            const coord_x: i16 = @as(i16, @intFromFloat(vertex_after_screen.x())); 
-            const coord_y: i16 = @as(i16, @intFromFloat(vertex_after_screen.y())); 
-
-            self.projected_vertices[idx].x=coord_x;
-            self.projected_vertices[idx].y=coord_y;
-        }        
-   
         self.angle_x += 3.50;
         self.angle_y += 3.50;   
 
         _ = zigos;
         _ = elapsed_time;
+    }
+
+    // The logo's own transform: rotate about X, then Y (no Z, unlike maxi).
+    fn rotateXY(self: *Demo, v: Vec4) Vec4 {
+        const after_x = Mat4.fromEulerAngles(Vec3.new(self.angle_x, 0, 0)).vec4mulByMat4(v);
+        return Mat4.fromEulerAngles(Vec3.new(0, self.angle_y, 0)).vec4mulByMat4(after_x);
     }
 
     pub fn render(self: *Demo, zigos: *ZigOS, elapsed_time: f32) void {
@@ -247,12 +146,7 @@ pub const Demo = struct {
 
         var fb = &zigos.lfbs[1];
         fb.clearFrameBuffer(0);
-        for(segments) |segment| {
-            const v1: Coord = self.projected_vertices[@as(usize, @intFromFloat(segment.x()))];
-            const v2: Coord = self.projected_vertices[@as(usize, @intFromFloat(segment.y()))];
-
-            shapes.drawLine(fb.getRenderTarget(), v1, v2, 1);   
-        }
+        wf.drawEdges(fb.getRenderTarget(), &logo.edges, &self.projected_vertices, 1, shapes.drawLine);
 
         fb = &zigos.lfbs[2];
         fb.clearFrameBuffer(0);

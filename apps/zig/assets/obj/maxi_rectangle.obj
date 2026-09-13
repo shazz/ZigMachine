@@ -1,0 +1,10 @@
+# Wireframe frame around the MAXI logo.
+# Source: apps/zig/scenes/maxi.zig (vertices_rectangle, segments_rectangle).
+# Original: MAXI's 3D line boot, The Replicants & ST Amigos crack (Atari ST).
+# Vertices are f32-exact: they parse back to the original table's bits.
+o maxi_rectangle
+v -0.02 -0.02 0
+v 2.4 -0.02 0
+v 2.4 0.6 0
+v -0.02 0.6 0
+l 1 2 3 4 1

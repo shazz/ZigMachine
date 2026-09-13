@@ -39,136 +39,25 @@ const fonts_chars = " ! #$%&'()*+,-./0123456789:;<=>? ABCDEFGHIJKLMNOPQRSTUVWXYZ
 // palettes
 const font_pal = convertU8ArraytoColors(@embedFile("../assets/screens/reps/font_pal.dat"));
 
-const Vec2 = za.Vec2;
 const Vec3 = za.Vec3;
 const Vec4 = za.Vec4;
-const Mat4 = za.Mat4;
+const wf = zg.wireframe;
 
-var vertices_rectangle = [_]Vec4{
-        Vec4.new(  -0.02,      -0.02,     0,  1.0),
-        Vec4.new(  2.40,     -0.02,     0,  1.0),
-        Vec4.new( 2.40,      0.60,     0,  1.0),
-        Vec4.new( -0.02,       0.60,     0,  1.0),
-};
+// The MAXI logo: a frame, the yellow letters and the red letters, each its own
+// .obj (drawn in its own colour), centred in init().
+const rect = zg.obj.parseWire(@embedFile("../assets/obj/maxi_rectangle.obj"));
+const yellow = zg.obj.parseWire(@embedFile("../assets/obj/maxi_yellow.obj"));
+const red = zg.obj.parseWire(@embedFile("../assets/obj/maxi_red.obj"));
+var vertices_rectangle = wf.vec4s(rect.verts.len, rect.verts);
+var vertices_yellow = wf.vec4s(yellow.verts.len, yellow.verts);
+var vertices_red = wf.vec4s(red.verts.len, red.verts);
 
-const segments_rectangle = [_]Vec2{
-        Vec2.new(0, 1),
-        Vec2.new(1, 2),
-        Vec2.new(2, 3),
-        Vec2.new(3, 0),
-};
+// Every object shares one pose per frame: spin X/Y/Z, then slide along x.
+const Pose = struct { ax: f32, ay: f32, az: f32, tx: f32 };
 
-var vertices_yellow = [_]Vec4{
-        Vec4.new(  0, 0.58, -0.10, 1.0),
-        Vec4.new(  0,  0, -0.10, 1.0),
-        Vec4.new( 0.40,  0.0, -0.30, 1.0),
-        Vec4.new( 0.40, 0.30, -0.30, 1.0),
-        Vec4.new(  0.09, 0.30, -0.13, 1.0),
-        Vec4.new(  0.20, 0.30, -0.19, 1.0),
-        Vec4.new(  0.40,  0.58, -0.30, 1.0),
-    
-        Vec4.new(  0.45, 0.58, -0.10, 1.0),
-        Vec4.new(  0.45, 0.0, -0.10, 1.0),
-        Vec4.new(  0.85, 0.0, -0.30, 1.0),
-        Vec4.new(  0.85, 0.30, -0.30, 1.0),
-        Vec4.new(  0.54, 0.30, -0.13, 1.0),
-    
-        Vec4.new(  0.97-0.13, 0.0, -0.10, 1.0),
-        Vec4.new(  1.20-0.13, 0.0, -0.20, 1.0),
-        Vec4.new(  1.10-0.13, 0.0, -0.155, 1.0),
-        Vec4.new(  1.10-0.13, 0.58, -0.155, 1.0),
-        Vec4.new(  0.97-0.13, 0.58, -0.10, 1.0),
-        Vec4.new(  1.20-0.13, 0.58, -0.20, 1.0),
-    
-        Vec4.new(  1.33-0.10, 0.58, -0.10, 1.0),
-        Vec4.new(  1.53-0.10, 0.0, -0.15, 1.0),
-        Vec4.new(  1.73-0.10, 0.58, -0.30, 1.0),
-        Vec4.new(  1.43-0.10, 0.30, -0.125, 1.0),
-        Vec4.new(  1.63-0.10, 0.30, -0.225, 1.0),
-    
-        Vec4.new(  1.81, 0.0, -0.10, 1.0),
-        Vec4.new(  2.14, 0.0, -0.30, 1.0),
-        Vec4.new(  1.98, 0.0, -0.205, 1.0),
-        Vec4.new(  1.98, 0.58, -0.205, 1.0),
-};
-
-const segments_yellow = [_]Vec2{
-        Vec2.new(0,  1 ),
-        Vec2.new(1,  2 ),
-        Vec2.new(2,  3 ),
-        Vec2.new(3,  4 ),
-        Vec2.new(5,  6 ),
-    
-        Vec2.new(7,  8 ),
-        Vec2.new(8,  9 ),
-        Vec2.new(9,  10 ),
-        Vec2.new(10,  11 ),
-    
-        Vec2.new(12,  13 ),
-        Vec2.new(14,  15 ),
-        Vec2.new(16,  17 ),
-    
-        Vec2.new(18,  19 ),
-        Vec2.new(19,  20 ),
-        Vec2.new(21,  22 ),
-
-        Vec2.new(23,  24 ),
-        Vec2.new(25,  26 ),
-};
-
-var vertices_red = [_]Vec4{
-        Vec4.new(  0.60,  0.58,  -0.30, 1.0),
-        Vec4.new(  0.20,  0.58,  -0.10, 1.0),
-        Vec4.new(  0.20,   0.0,  -0.10, 1.0),
-        Vec4.new(  0.60,   0.0,  -0.30, 1.0),
-        Vec4.new(  0.20,  0.30,  -0.10, 1.0),
-        Vec4.new(  0.50,  0.30,  -0.25, 1.0),
-    
-        Vec4.new(  1.05, 0.58,  -0.30, 1.0),
-        Vec4.new(  0.65,  0.58,  -0.10, 1.0),
-        Vec4.new(  0.65,   0.0,  -0.10, 1.0),
-    
-        Vec4.new(  1.48, 0.58,  -0.30, 1.0),
-        Vec4.new(  1.10,  0.58,  -0.10, 1.0),
-        Vec4.new(  1.10,   0.0,  -0.10, 1.0),
-        Vec4.new(  1.48,   0.0,  -0.30, 1.0),
-    
-        Vec4.new(  1.53, 0.58,  -0.10, 1.0),
-        Vec4.new(  1.53,  0.0,  -0.10, 1.0),
-        Vec4.new(  1.93,   0.58,  -0.30, 1.0),
-        Vec4.new(  1.93,   0.0,  -0.30, 1.0),
-    
-        Vec4.new(  1.98, 0.58,  -0.10, 1.0),
-        Vec4.new(  2.38,  0.58,  -0.30, 1.0),
-        Vec4.new(  2.38,   0.30,  -0.30, 1.0),
-        Vec4.new(  1.98,   0.30,  -0.10, 1.0),
-        Vec4.new(  1.98,   0.0,  -0.10, 1.0),
-        Vec4.new(  2.38,   0.0,  -0.30, 1.0),   
-};
-
-const segments_red = [_]Vec2{
-        Vec2.new(0,  1),
-        Vec2.new(1,  2),
-        Vec2.new(2,  3),
-        Vec2.new(4,  5),
-    
-        Vec2.new(6,  7),
-        Vec2.new(7,  8),
-    
-        Vec2.new(9,  10),
-        Vec2.new(10,  11),
-        Vec2.new(11,  12),
-    
-        Vec2.new(13,  14),
-        Vec2.new(14,  15),
-        Vec2.new(15,  16),
-    
-        Vec2.new(17,  18),
-        Vec2.new(18,  19),
-        Vec2.new(19,  20),
-        Vec2.new(20,  21),
-        Vec2.new(21,  22),
-};
+fn posed(p: Pose, v: Vec4) Vec4 {
+    return wf.rotateXYZ(v, p.ax, p.ay, p.az).add(Vec4.new(p.tx, 0.0, 0.0, 0.0));
+}
 
 // --------------------------------------------------------------------------
 // Variables
@@ -193,12 +82,10 @@ fn handler_vertical_borders(fb: *LogicalFB, zigos: *ZigOS, line: u16, column: u1
 pub const Demo = struct {
   
     name: u8 = 0,
-    projection: Mat4 = undefined,
-    camera: Mat4 = undefined,
-    screen: Mat4 = undefined,
-    projected_vertices_rectangle: [4]Coord = undefined,
-    projected_vertices_yellow: [30]Coord = undefined,
-    projected_vertices_red: [30]Coord = undefined,
+    cam: wf.Camera = undefined,
+    projected_vertices_rectangle: [rect.verts.len]Coord = undefined,
+    projected_vertices_yellow: [yellow.verts.len]Coord = undefined,
+    projected_vertices_red: [red.verts.len]Coord = undefined,
     angle_y: f32 = 0.0,
     angle_x: f32 = 0.0,
     angle_z: f32 = 0.0,
@@ -230,18 +117,9 @@ pub const Demo = struct {
 
         self.text.init(self.render_target, fonts_b, fonts_chars, 8, 8);
 
-        var i: usize = 0;
-        while(i < vertices_rectangle.len) : ( i += 1) {
-            vertices_rectangle[i] = vertices_rectangle[i].add(Vec4.new(-1.2, -0.5, -0.0, 0.0));
-        }
-        i = 0;
-        while(i < vertices_yellow.len) : ( i += 1) {
-            vertices_yellow[i] = vertices_yellow[i].add(Vec4.new(-1.2, -0.5, 0.35, 0.0));
-        }
-        i = 0;
-        while(i < vertices_red.len) : ( i += 1) {
-            vertices_red[i] = vertices_red[i].add(Vec4.new(-1.2, -0.5, 0.35, 0.0));
-        }                     
+        for (&vertices_rectangle) |*v| v.* = v.add(Vec4.new(-1.2, -0.5, -0.0, 0.0));
+        for (&vertices_yellow) |*v| v.* = v.add(Vec4.new(-1.2, -0.5, 0.35, 0.0));
+        for (&vertices_red) |*v| v.* = v.add(Vec4.new(-1.2, -0.5, 0.35, 0.0));
 
         // set lines colors
         fb.setPaletteEntry(0, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
@@ -249,9 +127,11 @@ pub const Demo = struct {
         fb.setPaletteEntry(3, Color{ .r = 0xf0, .g = 0xf0, .b = 0x10, .a = 255 });
         fb.setPaletteEntry(4, Color{ .r = 0xf0, .g = 0xf0, .b = 0xf0, .a = 255 });
 
-        self.projection = za.perspective(40.0, 200.0 / 320.0, 1, 1000);
-        self.camera = za.camera(Vec3.new(0.0, 0.4, -5.0), 0, 0);
-        self.screen = za.screen(320, 200);   
+        self.cam = .{
+            .projection = za.perspective(40.0, 200.0 / 320.0, 1, 1000),
+            .camera = za.camera(Vec3.new(0.0, 0.4, -5.0), 0, 0),
+            .screen = za.screen(320, 200),
+        };
 
         Console.log("demo init done!", .{});
     }
@@ -266,9 +146,10 @@ pub const Demo = struct {
         self.angle_y -= (base_incr * 2);
         self.angle_z -= (base_incr * 4);
 
-        self.transform_object(self.angle_x, self.angle_y, self.angle_z, f_sin, &vertices_rectangle, &self.projected_vertices_rectangle);
-        self.transform_object(self.angle_x, self.angle_y, self.angle_z, f_sin, &vertices_yellow, &self.projected_vertices_yellow);
-        self.transform_object(self.angle_x, self.angle_y, self.angle_z, f_sin, &vertices_red, &self.projected_vertices_red);
+        const pose: Pose = .{ .ax = self.angle_x, .ay = self.angle_y, .az = self.angle_z, .tx = f_sin };
+        self.cam.project(&vertices_rectangle, &self.projected_vertices_rectangle, pose, posed);
+        self.cam.project(&vertices_yellow, &self.projected_vertices_yellow, pose, posed);
+        self.cam.project(&vertices_red, &self.projected_vertices_red, pose, posed);
 
         _ = zigos;
         _ = elapsed_time;
@@ -279,9 +160,9 @@ pub const Demo = struct {
         self.render_target.clearFrameBuffer(0);
         self.render_text();
 
-        self.render_object(&segments_rectangle, &self.projected_vertices_rectangle, 2);
-        self.render_object(&segments_yellow, &self.projected_vertices_yellow, 3);
-        self.render_object(&segments_red, &self.projected_vertices_red, 4);
+        wf.drawEdges(self.render_target, &rect.edges, &self.projected_vertices_rectangle, 2, shapes.drawLine);
+        wf.drawEdges(self.render_target, &yellow.edges, &self.projected_vertices_yellow, 3, shapes.drawLine);
+        wf.drawEdges(self.render_target, &red.edges, &self.projected_vertices_red, 4, shapes.drawLine);
 
         // Blit the 320-wide overscan buffer into the 400-wide plane, centred (x+40) so
         // the visible window lines up; side borders stay closed (black).
@@ -335,46 +216,4 @@ pub const Demo = struct {
         self.text.render("****************************************",0,33 * 8, null);
 
     }
-
-    fn transform_object(self: *Demo, angle_x: f32, angle_y: f32, angle_z: f32, trans_x: f32, vertices: []Vec4, projected_vertices: []Coord) void {
-
-        for(vertices, 0..) |vertex, idx| {
-
-            const rot_matx = Mat4.fromEulerAngles(Vec3.new(angle_x, 0, 0));
-            const vertex_after_rotx = rot_matx.vec4mulByMat4(vertex);
-
-            const rot_maty = Mat4.fromEulerAngles(Vec3.new(0, angle_y, 0));
-            const vertex_after_roty = rot_maty.vec4mulByMat4(vertex_after_rotx);
-
-            const rot_matz = Mat4.fromEulerAngles(Vec3.new(0, 0, angle_z));
-            const vertex_after_rotz = rot_matz.vec4mulByMat4(vertex_after_roty); 
-
-            const translated_vertex = vertex_after_rotz.add(Vec4.new(trans_x, 0.0, 0.0, 0.0));           
-
-            const vertex_after_cam = self.camera.vec4mulByMat4(translated_vertex);
-            const vertex_after_proj = self.projection.vec4mulByMat4(vertex_after_cam);
-                    
-            const norm = Vec4.set(1/vertex_after_proj.w());
-            const vertex_after_norm = vertex_after_proj.mul(norm);
-
-            const vertex_after_screen = self.screen.vec4mulByMat4(vertex_after_norm);
-
-            const coord_x: i16 = @as(i16, @intFromFloat(vertex_after_screen.x())); 
-            const coord_y: i16 = @as(i16, @intFromFloat(vertex_after_screen.y())); 
-
-            projected_vertices[idx].x=coord_x;
-            projected_vertices[idx].y=coord_y;
-        }     
-    }  
-
-    fn render_object(self: *Demo, segments: []const Vec2, projected_vertices: []Coord, pal_entry: u8) void {
-
-        for(segments) |segment| {
-            const v1: Coord = projected_vertices[@as(usize, @intFromFloat(segment.x()))];
-            const v2: Coord = projected_vertices[@as(usize, @intFromFloat(segment.y()))];
-
-            shapes.drawLine(self.render_target, v1, v2, pal_entry);   
-        }
-    }
-
 };

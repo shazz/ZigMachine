@@ -1,0 +1,33 @@
+# The spinning TCB letters.
+# Source: apps/zig/scenes/ancool.zig (vertices, segments).
+# Original: AN Cool (TCB) crack intro (Atari ST).
+# Vertices are f32-exact: they parse back to the original table's bits.
+o ancool_tcb
+v -1 0 0
+v 0 0 0
+v 0 -0.3 0
+v -0.32 -0.3 0
+v -0.32 -1.2 0
+v -0.68 -1.2 0
+v -0.68 -0.3 0
+v -1 -0.3 0
+v -1 0 0
+v 0.2 0 0
+v 1.2 0 0
+v 1.2 -0.3 0
+v 0.52 -0.3 0
+v 0.52 -0.9 0
+v 1.2 -0.9 0
+v 1.2 -1.2 0
+v 0.2 -1.2 0
+v 0.2 0 0
+v 1.4 0 0
+v 2.1 0 0
+v 2.4 -0.3 0
+v 2.1 -0.6 0
+v 2.4 -0.9 0
+v 2.1 -1.2 0
+v 1.4 -1.2 0
+l 1 2 3 4 5 6 7 8 9 1
+l 10 11 12 13 14 15 16 17 10
+l 19 20 21 22 23 24 25 19

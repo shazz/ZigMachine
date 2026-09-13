@@ -181,6 +181,26 @@ borders with rasters through `copper.install(..., .{ .flicker = true })`
 instead. Every enabled overscan plane needs its own call.
 `fb.hblLinesArePhysical()` reports which line numbering the plane's handler gets.
 
+**`zg.obj.parseWire` + `zg.wireframe`**: 3D line objects. `parseWire` reads a
+`.obj` at COMPTIME: `v x y z` vertices (kept exactly as written, no recentring)
+and `l a b c ...` polylines, each consecutive pair one edge. Only the arrays the
+scene references reach the cart. `wireframe.Camera` holds the camera,
+projection and screen matrices; `project` runs your model transform, then
+camera → projection → divide by w → screen → truncate, the op order the old
+scenes used, so migrated scenes render byte-identical frames.
+
+```zig
+// apps/zig/scenes/empire.zig
+const logo = zg.obj.parseWire(@embedFile("../assets/obj/empire_logo.obj"));
+var vertices = wf.vec4s(logo.verts.len, logo.verts); // module scope, w = 1
+// in update():
+self.cam.project(&vertices, &self.projected_vertices, self, rotateXY); // fn (*Demo, Vec4) Vec4
+// in render():
+wf.drawEdges(fb.getRenderTarget(), &logo.edges, &self.projected_vertices, 1, shapes.drawLine);
+```
+
+`wf.rotateXYZ(v, ax, ay, az)` is the common model step: one matrix per axis.
+
 ## 7. Overscan / the physical framebuffer
 
 `zigos.physical_framebuffer` is a direct view of the machine's output buffer. The
