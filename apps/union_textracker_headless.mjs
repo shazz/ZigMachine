@@ -8,19 +8,19 @@
 // 2. The screen: frame by frame with the mouse path of apps/union_textracker_replay.mjs,
 //    compared pixel for pixel with the JS replay of screen.js, which in turn matches
 //    the remake running in Chrome exactly (0 px over the same 13 frames).
-// 3. The music: the cart's own .zmd is in the drive (diskReadBlock, as sealed-loader.js)
-//    and its stream calls reach the real machine-audio + demo-audio modules the way the
-//    worklet wires them (streamStart, the 32 KiB ring at audioSongPtr, audioRender).
-//    The cart must open FEEDME.RAW, feed it past its 169.6 s loop with every byte equal
-//    to the file (so the wrap goes back to its first block), and the output must not
-//    be silent.
+// 3. The music: the cart must request union/thalion_forever.sndh tune 1 when the screen
+//    starts, and that request, played by the real machine-audio + demo-audio modules
+//    (audioLoadSndh + audioSndhPlay, as the worklet does) for 35 s, must sound: a peak
+//    over 0.01, no silent second, and every YM channel's volume register moving (the
+//    tune plays Sample-Mon samples through the YM volume DAC: its tone registers stay
+//    still, so volume is the activity to demand).
 // 4. Escape asks for the Union Demo menu's disk (pollCartRequest 1, tag union_demo).
 // 5. A warm frame (cart update+render and hwRenderPlane) fits well inside 60 fps.
 //
-//   node apps/union_textracker_headless.mjs [outdir] [cart.wasm] [--break trail|blend] [--disk image.zmd]
-// --break runs the replay with a wrong trail spacing (7) or a float-rounded alpha
-// blend, --disk puts another disk in the drive: the check must then FAIL, which is
-// how the harness proves it can.
+//   node apps/union_textracker_headless.mjs [outdir] [cart.wasm] [--break trail|blend|tune|silence]
+// --break makes the check expect a wrong trail spacing (7), a float-rounded alpha
+// blend, tune 2 instead of 1, or renders the song without starting it: each must
+// FAIL, which is how the harness proves it can.
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { deflateSync } from "node:zlib";
 import { cartRam, romRam } from "../docs/wasm_hiwater.js";
@@ -28,73 +28,26 @@ import { makeReplay, mouseAt, SHOTS } from "./union_textracker_replay.mjs";
 
 const PAGES = 112; // SHARED_PAGES in machine/sdk/memmap.zig
 const AUDIO_PAGES = 48; // machine/sdk/audio.zig
-const RING = 32768; // STREAM_RING (audio-worklet-sealed.js streamFeed)
 const AUDIO_RATE = 44100, FRAME_SAMPLES = AUDIO_RATE / 60;
 const TOP = 40, LEFT = 80; // the 320x200 window in the physical frame (x doubled)
 const ASSETS = "apps/zig/assets/screens/union_textracker";
 const PANEL = `${ASSETS}/loader_textracker.txt`;
-const MUSIC_FILE = "FEEDME.RAW", MUSIC_RATE = 12517;
+const MUSIC = "union/thalion_forever.sndh";
+const MUSIC_SECONDS = 35;
+const MIN_VOLUME_CHANGES = 300; // per channel over MUSIC_SECONDS, sampled 60 times a second (measured ~1300 per 30 s)
 const INK = [0xc0, 0xa0, 0x00];
 const K_ESC = 0xe012;
 
 const argv = process.argv.slice(2);
-function flag(name, allowed) {
-    const at = argv.indexOf(name);
-    if (at < 0) return null;
-    const v = argv[at + 1];
-    if (!v || (allowed && !allowed.includes(v))) throw new Error(`${name} takes ${allowed ? allowed.join(" or ") : "a value"}, not ${v}`);
-    argv.splice(at, 2);
-    return v;
-}
-const brk = flag("--break", ["trail", "blend"]);
-const diskPath = flag("--disk") || "docs/demo-union_textracker.zmd";
+const at = argv.indexOf("--break");
+const brk = at >= 0 ? argv[at + 1] : null;
+if (at >= 0 && !["trail", "blend", "tune", "silence"].includes(brk)) throw new Error(`--break takes trail, blend, tune or silence, not ${brk}`);
+if (at >= 0) argv.splice(at, 2);
 const outDir = argv[0] || "/tmp/union_textracker";
 const cartPath = argv[1] || "docs/demo-union_textracker.wasm";
+const TUNE = brk === "tune" ? 2 : 1;
 
-/// A FAT entry off a ZigMachine disk image (v2 descriptor at $400, else v1 at $000).
-function findFile(disk, name) {
-    const dv = new DataView(disk.buffer, disk.byteOffset, disk.byteLength);
-    const magic = (off) => new TextDecoder().decode(disk.subarray(off, off + 6)) === "ZMDISK";
-    const [count, fat] = magic(0x400) ? [dv.getUint16(0x4f4, true), 0x800] : magic(0) ? [dv.getUint16(0x2e4, true), 0x300] : [0, 0];
-    for (let i = 0; i < count; i++) {
-        const e = fat + i * 32, raw = disk.subarray(e, e + 16);
-        const n = new TextDecoder().decode(raw.subarray(0, raw.indexOf(0) < 0 ? 16 : raw.indexOf(0)));
-        if (n === name) return { start: dv.getUint32(e + 0x10, true), len: dv.getUint32(e + 0x14, true) };
-    }
-    return null;
-}
-
-/// machine-audio + demo-audio over their own memory, fed like the worklet feeds them.
-async function makeAudio(file) {
-    const memory = new WebAssembly.Memory({ initial: AUDIO_PAGES, maximum: AUDIO_PAGES });
-    const machine = (await WebAssembly.instantiate(await readFile("docs/machine-audio.wasm"), { env: { memory } })).instance.exports;
-    const env = { memory };
-    for (const n of Object.keys(machine)) if (n.startsWith("machine")) env[n] = machine[n];
-    const demo = (await WebAssembly.instantiate(await readFile("docs/demo-audio.wasm"), { env })).instance.exports;
-    demo.audioInit();
-    const a = { started: false, rate: 0, ringWrite: 0, fed: 0, mismatch: -1, peak: 0, samples: 0 };
-    a.start = (rate) => { demo.audioStreamStart(rate); a.rate = rate; a.ringWrite = 0; a.started = true; };
-    a.stop = () => { demo.audioStreamStop(); a.started = false; };
-    a.feed = (bytes) => {
-        const ring = new Uint8Array(memory.buffer, demo.audioSongPtr(), RING);
-        for (const b of bytes) {
-            // the stream must be the file, byte for byte, wrapping to its start
-            if (file && a.mismatch < 0 && b !== file.bytes[a.fed % file.len]) a.mismatch = a.fed;
-            a.fed++;
-            ring[a.ringWrite] = b;
-            a.ringWrite = (a.ringWrite + 1) % RING;
-        }
-    };
-    a.render = () => {
-        if (!a.started) return;
-        demo.audioRender(FRAME_SAMPLES);
-        for (const v of new Float32Array(memory.buffer, machine.audioLeftPtr(), FRAME_SAMPLES)) a.peak = Math.max(a.peak, Math.abs(v));
-        a.samples += FRAME_SAMPLES;
-    };
-    return a;
-}
-
-async function boot(cart, disk, audio, reads) {
+async function boot(cart) {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
     let demo;
     const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), {
@@ -106,20 +59,7 @@ async function boot(cart, disk, audio, reads) {
     })).instance.exports;
     machine.hwSetRomHigh(romRam(romBytes).high ?? 0);
     const cartBytes = await readFile(cart);
-    const env = {
-        memory, ...rom,
-        // the drive, as sealed-loader.js's diskReadBlock: one 512-byte block into shared RAM
-        diskReadBlock: (block, dstOff) => {
-            const src = disk.subarray(block * 512, block * 512 + 512);
-            if (src.length === 0) return 0;
-            new Uint8Array(memory.buffer, dstOff, src.length).set(src);
-            reads.push(block);
-            return src.length;
-        },
-        hostAudioStreamStart: (rate) => audio.start(rate),
-        hostAudioFeed: (ptr, len) => audio.feed(new Uint8Array(memory.buffer, ptr, len)),
-        hostAudioStreamStop: () => audio.stop(),
-    };
+    const env = { memory, ...rom };
     for (const k of Object.keys(machine)) if (k.startsWith("hw")) env[k] = machine[k];
     for (const imp of WebAssembly.Module.imports(new WebAssembly.Module(cartBytes)))
         if (imp.module === "env" && !(imp.name in env)) env[imp.name] = () => {};
@@ -129,6 +69,36 @@ async function boot(cart, disk, audio, reads) {
     demo.boot();
     demo.skipBoot();
     return { memory, machine, demo };
+}
+
+/// Play `name` tune `tune` as the worklet would and measure it.
+async function playSong(name, tune, start) {
+    const memory = new WebAssembly.Memory({ initial: AUDIO_PAGES, maximum: AUDIO_PAGES });
+    const machine = (await WebAssembly.instantiate(await readFile("docs/machine-audio.wasm"), { env: { memory } })).instance.exports;
+    const env = { memory };
+    for (const n of Object.keys(machine)) if (n.startsWith("machine")) env[n] = machine[n];
+    const demo = (await WebAssembly.instantiate(await readFile("docs/demo-audio.wasm"), { env })).instance.exports;
+    demo.audioInit();
+    const bytes = new Uint8Array(await readFile(`docs/music/${name}`));
+    new Uint8Array(memory.buffer, demo.audioSongPtr(), bytes.length).set(bytes);
+    const loaded = !!demo.audioLoadSndh(bytes.length);
+    if (loaded && start) demo.audioSndhPlay(tune);
+    const regs = new Uint8Array(memory.buffer, machine.audioYmRegsPtr(), 16);
+    const prev = new Uint8Array(16), volume = [0, 0, 0];
+    let peak = 0, sq = 0, n = 0, silentSeconds = 0, second = 0, secondSq = 0;
+    for (let f = 0; f < MUSIC_SECONDS * 60; f++) {
+        demo.audioRender(FRAME_SAMPLES);
+        for (const v of new Float32Array(memory.buffer, machine.audioLeftPtr(), FRAME_SAMPLES)) {
+            peak = Math.max(peak, Math.abs(v)); sq += v * v; secondSq += v * v; n++;
+        }
+        for (let c = 0; c < 3; c++) if (regs[8 + c] !== prev[8 + c]) volume[c]++;
+        prev.set(regs);
+        if (++second === 60) {
+            if (Math.sqrt(secondSq / (60 * FRAME_SAMPLES)) < 0.002) silentSeconds++;
+            second = 0; secondSq = 0;
+        }
+    }
+    return { loaded, peak, rms: Math.sqrt(sq / n), volume, silentSeconds, mode: demo.audioMode() };
 }
 
 /// The 320x200 window as the host composites it, over black.
@@ -182,14 +152,14 @@ async function landedPanel() {
 
 const errors = [];
 await mkdir(outDir, { recursive: true });
-const disk = new Uint8Array(await readFile(diskPath));
-const entry = findFile(disk, MUSIC_FILE);
-if (!entry) errors.push(`${MUSIC_FILE} is not on ${diskPath}`);
-const file = entry && { ...entry, bytes: disk.subarray(entry.start, entry.start + entry.len) };
-const audio = await makeAudio(file);
-const reads = [];
-const { memory, machine, demo } = await boot(cartPath, disk, audio, reads);
-const step = () => { demo.frame(1000 / 60); audio.render(); };
+const { memory, machine, demo } = await boot(cartPath);
+let song = null;
+const step = () => {
+    demo.frame(1000 / 60);
+    if (demo.pollSongRequest()) {
+        song = { name: new TextDecoder().decode(new Uint8Array(memory.buffer, demo.songNamePtr(), demo.songNameLen())), tune: demo.songTune(), frame: depackFrames };
+    }
+};
 const replay = makeReplay(await readFile(`${ASSETS}/screen.raw`), await readFile(`${ASSETS}/pal.dat`),
     brk === "trail" ? { trailStep: 7 } : brk === "blend" ? { mix: (s, d) => Math.round(s * 0.9 + d * 0.1) } : {});
 const isMenu = (img) => { let n = 0; for (let i = 0; i < img.length; i += 3) if (img[i] === 224 && img[i + 1] === 224 && img[i + 2] === 224) n++; return n > 1000; };
@@ -212,6 +182,7 @@ for (;;) {
     if (depackFrames > 2000) { errors.push("the screen never appeared"); break; }
 }
 if (depackFrames < 30) errors.push(`the depack took ${depackFrames} frames: no TEX loader panel to speak of`);
+if (song && song.frame < depackFrames) errors.push(`the song was requested during the depack (frame ${song.frame}), not when the screen starts`);
 if (last) {
     const { ink, cols } = await landedPanel();
     let wrong = 0;
@@ -224,14 +195,12 @@ if (last) {
 
 // ---- 2. the screen against the screen.js replay ------------------------------
 let cartMs = 0, renderMs = 0, timed = 0;
-const lastShot = SHOTS[SHOTS.length - 1];
-for (let f = 1; f <= lastShot; f++) {
+for (let f = 1; f <= SHOTS[SHOTS.length - 1]; f++) {
     if (f > 1) {
         demo.pointer(...mouseAt(f), 0);
         const t0 = performance.now();
-        demo.frame(1000 / 60);
+        step();
         const t1 = performance.now();
-        audio.render();
         shot = capture(memory, machine, demo);
         if (f > 30) { cartMs += t1 - t0; renderMs += performance.now() - t1; timed++; }
     }
@@ -247,22 +216,17 @@ for (let f = 1; f <= lastShot; f++) {
     await writeFile(`${outDir}/union_textracker-${String(f).padStart(4, "0")}.png`, png(320, 200, shot.img));
 }
 
-// ---- 3. the music, played past its loop -----------------------------------------
-const PAST_LOOP = 10 * MUSIC_RATE; // 10 s beyond the file's end
-const fileBlock = (b) => entry && b * 512 >= entry.start && b * 512 < entry.start + entry.len;
-let musicFrames = 0;
-while (entry && audio.fed < entry.len + PAST_LOOP && musicFrames < 13000) { step(); musicFrames++; }
-const firstBlock = entry ? Math.floor(entry.start / 512) : -1;
-const fileReads = reads.filter(fileBlock);
-const lastBlock = entry ? Math.floor((entry.start + entry.len - 1) / 512) : -1;
-const endAt = fileReads.indexOf(lastBlock);
-const wrapped = endAt >= 0 && fileReads.indexOf(firstBlock, endAt) > endAt;
-if (entry && fileReads.length === 0) errors.push(`the cart never read ${MUSIC_FILE} (blocks ${firstBlock}..${lastBlock})`);
-if (audio.rate !== MUSIC_RATE) errors.push(`the stream started at ${audio.rate} Hz, not ${MUSIC_RATE}`);
-if (entry && audio.fed <= entry.len) errors.push(`only ${audio.fed} of ${entry.len} bytes fed: the loop was never reached`);
-if (entry && !wrapped) errors.push(`after block ${lastBlock} the cart never went back to ${MUSIC_FILE}'s first block ${firstBlock}`);
-if (audio.mismatch >= 0) errors.push(`fed byte ${audio.mismatch} differs from ${MUSIC_FILE} at offset ${audio.mismatch % entry.len}`);
-if (!(audio.peak > 0.01)) errors.push(`the output is silent (peak ${audio.peak.toFixed(4)})`);
+// ---- 3. the music the screen asks for, played -----------------------------------
+let played = null;
+if (!song) errors.push("the screen never requested a song");
+else if (song.name !== MUSIC || song.tune !== TUNE) errors.push(`song request "${song.name}" tune ${song.tune}, wanted "${MUSIC}" tune ${TUNE}`);
+else {
+    played = await playSong(song.name, song.tune, brk !== "silence");
+    if (!played.loaded || played.mode !== 4) errors.push(`${song.name} did not load as an SNDH (mode ${played.mode})`);
+    if (!(played.peak > 0.01)) errors.push(`${song.name} tune ${song.tune} is silent (peak ${played.peak.toFixed(4)})`);
+    if (played.silentSeconds) errors.push(`${played.silentSeconds} silent second(s) in ${MUSIC_SECONDS} s`);
+    played.volume.forEach((v, c) => { if (v < MIN_VOLUME_CHANGES) errors.push(`YM channel ${"ABC"[c]} volume moved only ${v} times in ${MUSIC_SECONDS} s`); });
+}
 
 // ---- 4. leaving ----------------------------------------------------------------
 if (demo.pollCartRequest() !== 0) errors.push("the screen asks for a cart before being told to leave");
@@ -270,17 +234,16 @@ demo.key(K_ESC);
 const req = demo.pollCartRequest();
 const tag = new TextDecoder().decode(new Uint8Array(memory.buffer, demo.getCartTagPtr(), demo.getCartTagLen()));
 if (req !== 1 || tag !== "union_demo") errors.push(`Escape asks for request ${req} tag "${tag}", not 1 "union_demo"`);
-if (audio.started) errors.push("Escape left the stream playing");
 
 // ---- 5. cost ---------------------------------------------------------------------
 const perFrame = cartMs / timed, perRender = renderMs / timed;
 if (perFrame > 2) errors.push(`cart update+render takes ${perFrame.toFixed(3)} ms a frame`);
 
 if (errors.length) {
-    console.error(`union_textracker: WRONG${brk ? ` (--break ${brk})` : ""}${diskPath !== "docs/demo-union_textracker.zmd" ? ` (--disk ${diskPath})` : ""}\n  ${errors.slice(0, 12).join("\n  ")}`);
+    console.error(`union_textracker: WRONG${brk ? ` (--break ${brk})` : ""}\n  ${errors.slice(0, 12).join("\n  ")}`);
     process.exit(1);
 }
 console.log(`union_textracker: TEX loader panel over ${depackFrames} depack frames; screen.js replay exact at frames ${SHOTS.join(",")}; ` +
-    `${MUSIC_FILE} (${entry.len} B, blocks ${firstBlock}..${lastBlock}) off ${diskPath}: fed ${audio.fed} B = ${(audio.fed / MUSIC_RATE).toFixed(1)} s ` +
-    `byte-exact, looped at ${(entry.len / MUSIC_RATE).toFixed(1)} s back to block ${firstBlock}, ${(audio.samples / AUDIO_RATE).toFixed(1)} s rendered, peak ${audio.peak.toFixed(4)}; ` +
-    `Escape -> union_demo, stream stopped; warm ${perFrame.toFixed(3)} ms cart + ${perRender.toFixed(3)} ms hwRenderPlane a frame; shots in ${outDir}`);
+    `song "${song.name}" tune ${song.tune} requested as the screen starts, played ${MUSIC_SECONDS} s: peak ${played.peak.toFixed(4)} rms ${played.rms.toFixed(4)}, ` +
+    `no silent second, YM volume changes A/B/C ${played.volume.join("/")}; Escape -> union_demo; ` +
+    `warm ${perFrame.toFixed(3)} ms cart + ${perRender.toFixed(3)} ms hwRenderPlane a frame; shots in ${outDir}`);

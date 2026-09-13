@@ -25,8 +25,17 @@
 //
 // The TEX loader panel (loader.js) is not drawn here: the screen's data arrives
 // ZX0-packed and depacks through zx0.Fx.tex_loader with the panel's own text.
-// "Feed Me" is 170 s of sampled tracker music, twice the song region, so it is
-// block-streamed off this cart's disk (FEEDME.RAW), looped like playTrack.
+//
+// Music: the remake plays zik_feedme3.ogg, a recording of Mad Max's "Feed Me Max"
+// as the Sample-Mon ST played it. Matt named its SNDH: Mad_Max/Demos/
+// Thalion_Forever.sndh ("Thalion Forever", Mad Max 1989, one tune, FLAG ~ay).
+// Measured against the ogg over 30 s, allowing a 0-30 s offset: centred chroma
+// 0.374 (reversed-ogg null 0.152), where four other Mad Max SNDHs score 0.017
+// (Level 16), 0.061 (Cybernoid), 0.065 (Pandora) and 0.091 (Thundercats). Its
+// 'a' is not STE DMA here: the file never addresses $FF8900-$FF8920 and plays
+// its samples through the YM's volume DAC (tone registers still, all three
+// volume registers moving ~1300 times in 30 s at 60 Hz sampling). It never goes
+// silent and loops on its own after about 182 s, as playTrack looped the ogg.
 //
 // ESC or SPACE (the remake's "exit"/"enter") go back to the Union Demo menu.
 // --------------------------------------------------------------------------
@@ -88,9 +97,8 @@ const TRAIL_STEP = 8; // tile i sits at the position i*8 frames old
 const QUAD = 4; // the 8x8 quad under tile 0, halved
 const TILE0_ALPHA = 0.9;
 
-const MUSIC_FILE = "FEEDME.RAW"; // on this cart's disk (tools/mkdisks.sh)
-const MUSIC_RATE: f32 = 12517;
-const MUSIC_PREFILL_BLOCKS = 32;
+const MUSIC = "union/thalion_forever.sndh"; // Feed Me Max (see the header)
+const MUSIC_TUNE = 1;
 const HOME_TAG = "union_demo";
 const K_ESC: u32 = 0xE012;
 const K_SPACE: u32 = ' ';
@@ -104,9 +112,6 @@ pub const Demo = struct {
     mouse: Point, // currentPosX/Y
     history: [HISTORY]Point,
     newest: u8, // history[newest] = mousePos[0]
-    song: ?zg.disk.Entry,
-    song_pos: u32,
-    song_budget: f32,
     leaving: bool,
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
@@ -116,9 +121,6 @@ pub const Demo = struct {
         self.mouse = .{ .x = 0, .y = 0 };
         self.history = [_]Point{.{ .x = 0, .y = 0 }} ** HISTORY;
         self.newest = 0;
-        self.song = null;
-        self.song_pos = 0;
-        self.song_budget = 0;
         self.leaving = false;
 
         const buf = freeRam(SCREEN_LEN) orelse return self.abandon("no free RAM to depack into");
@@ -137,6 +139,7 @@ pub const Demo = struct {
     }
 
     pub fn update(self: *Demo, zigos: *ZigOS, dt: f32) void {
+        _ = dt;
         if (self.leaving) return;
         if (self.depacking) {
             switch (depack.frame(zigos)) {
@@ -152,7 +155,6 @@ pub const Demo = struct {
         self.raster = @intCast((@as(usize, self.raster) + 1) % RASTER_COLORS.len);
         self.newest = @intCast((@as(usize, self.newest) + HISTORY - 1) % HISTORY);
         self.history[self.newest] = self.mouse;
-        self.feedMusic(dt);
     }
 
     pub fn render(self: *Demo, zigos: *ZigOS, dt: f32) void {
@@ -186,46 +188,7 @@ pub const Demo = struct {
             const e = BLEND_BASE + @as(u8, @intCast(row * FIXED + under));
             fb.setPaletteEntry(e, blend(palette[ink], palette[under]));
         };
-        self.startMusic();
-    }
-
-    // me.audio.playTrack("zik_feedMe3"): streamed, since it outgrows the song region.
-    fn startMusic(self: *Demo) void {
-        const layout = zg.disk.mount() orelse return;
-        const song = zg.disk.find(layout, MUSIC_FILE) orelse {
-            zg.Console.log("union_textracker: {s} not on the disk, no music", .{MUSIC_FILE});
-            return;
-        };
-        if (song.len == 0) return;
-        self.song = song;
-        zg.audioStreamStart(MUSIC_RATE);
-        for (0..MUSIC_PREFILL_BLOCKS) |_| self.feedBlock();
-    }
-
-    /// Top the ring up with what the audio consumed since last frame.
-    fn feedMusic(self: *Demo, dt: f32) void {
-        if (self.song == null) return;
-        self.song_budget += MUSIC_RATE * @min(dt / 1000.0, 0.05);
-        var blocks: u32 = 0;
-        while (self.song_budget >= zg.DISK_BLOCK and blocks < 8) : (blocks += 1) {
-            self.feedBlock();
-            self.song_budget -= zg.DISK_BLOCK;
-        }
-    }
-
-    fn feedBlock(self: *Demo) void {
-        const song = self.song orelse return;
-        var buf: [zg.DISK_BLOCK]u8 = undefined;
-        const rest = zg.disk.Entry{ .start = song.start + self.song_pos, .len = song.len - self.song_pos, .kind = song.kind };
-        const n = zg.disk.read(rest, &buf);
-        if (n == 0) {
-            self.song = null; // the drive ran dry: stop rather than feed silence
-            zg.audioStreamStop();
-            return;
-        }
-        zg.audioFeed(buf[0..n]);
-        self.song_pos += @intCast(n);
-        if (self.song_pos >= song.len) self.song_pos = 0; // playTrack loops
+        zg.requestSongTune(MUSIC, MUSIC_TUNE); // onResetEvent: me.audio.playTrack("zik_feedMe3")
     }
 
     // The mousemove listener (screen.js:52-57): canvas coordinates, so the
@@ -245,8 +208,6 @@ pub const Demo = struct {
     }
 
     fn leave(self: *Demo) void {
-        if (self.song != null) zg.audioStreamStop();
-        self.song = null;
         self.leaving = true;
     }
 
