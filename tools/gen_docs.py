@@ -246,6 +246,8 @@ def build() -> str:
     mesh = parse_struct_methods(ROOT / "libs" / "zig" / "utils" / "obj_loader.zig", "Mesh")
 
     groups = [
+        # Newcomers first: build a screen before reading the reference.
+        ("Tutorial — your first screen (Zig, C, Rust)", render_markdown_file("docs/TUTORIAL.md")),
         ("Geometry & resolution", render_consts(geometry)),
         ("Resolution & plane modes", render_consts(modes)),
         ("Video registers", render_consts(regs)),

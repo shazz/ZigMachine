@@ -1,5 +1,9 @@
 # `apps/` — carts / scenes (per language)
 
+**New here?** [`docs/TUTORIAL.md`](../docs/TUTORIAL.md) builds one screen from
+scratch, step by step, in Zig, C and Rust (`zig/scenes/tutorial.zig`,
+`c/scenes/tutorial.c`, `rust/scenes/tutorial.rs`).
+
 The programs that run on the machine — "cartridges". Each links the HW ABI (and
 optionally a lib and the ROM) and compiles to a wasm module the loader boots.
 One subfolder per language:

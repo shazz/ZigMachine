@@ -111,5 +111,8 @@ async function checkSilent(path) {
 
 let ok = await checkPlays("docs/demo-c-screen34.wasm", "sos.sndh", 0);
 ok = (await checkPlays("docs/demo-rust-v8_populous.wasm", "custodian.sndh", 1)) && ok;
+// docs/TUTORIAL.md step 7: the tutorial screens request So Watt in both languages.
+ok = (await checkPlays("docs/demo-c-tutorial.wasm", "sos.sndh", 0)) && ok;
+ok = (await checkPlays("docs/demo-rust-tutorial.wasm", "sos.sndh", 0)) && ok;
 ok = (await checkSilent("docs/demo-rust.wasm")) && ok;
 process.exit(ok ? 0 : 1);
