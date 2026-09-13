@@ -110,27 +110,9 @@ pub const Scroller = struct {
 // per column during the sweep but the *persisted* state only carries the
 // per-frame drift (mirrors Codef's oldvalue+offset reset after the loop).
 fn compositeSiny(p2: *LogicalFB, strip: *const [STRIP_H][STRIP_W]u8, wave_v: *f32) void {
-    const pw: i16 = @intCast(p2.fb_w);
-    const ph: i16 = @intCast(p2.fb_h);
-    var v: f32 = wave_v.*;
-    var x: i16 = 0;
-    while (x < STRIP_W) : (x += WAVE_COL) {
-        const y_off: i16 = @intFromFloat(@round(@sin(v) * WAVE_AMP));
-        const dst_y0 = BASE_Y + y_off;
-        var cx: i16 = 0;
-        while (cx < WAVE_COL and x + cx < STRIP_W) : (cx += 1) {
-            const px = x + cx;
-            if (px < 0 or px >= pw) continue;
-            var ry: u16 = 0;
-            while (ry < STRIP_H) : (ry += 1) {
-                const py = dst_y0 + @as(i16, @intCast(ry));
-                if (py < 0 or py >= ph) continue;
-                const pixel = strip[ry][@intCast(px)];
-                if (pixel == 0) continue;
-                p2.fb[@as(usize, @intCast(py)) * p2.stride + @as(usize, @intCast(px))] = pixel;
-            }
-        }
-        v += WAVE_INC;
-    }
+    const sum = zg.wave.SineSum(f32, 1){ .amp = .{WAVE_AMP}, .phase = .{wave_v.*}, .inc = .{WAVE_INC}, .rounding = .round };
+    var it = sum.sweep(0);
+    const flat = @as([*]const u8, @ptrCast(strip))[0 .. STRIP_H * STRIP_W];
+    zg.wave.siny(zg.blit.Dst.plane(p2), zg.blit.Image.init(flat, STRIP_W), null, 0, BASE_Y, WAVE_COL, &it, 0, .copy);
     wave_v.* += WAVE_DRIFT;
 }
