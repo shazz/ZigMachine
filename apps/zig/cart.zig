@@ -51,6 +51,7 @@ const scene = switch (opts.index) {
     38 => @import("scenes/stniccc.zig"),
     39 => @import("scenes/tex_neoshow.zig"),
     40 => @import("scenes/elite_snooker.zig"),
+    41 => @import("scenes/union_demo.zig"),
     else => @compileError("bad cart index"),
 };
 
