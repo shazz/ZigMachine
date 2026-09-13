@@ -67,7 +67,7 @@ const ROUTES = [_]Route{
     .{ .demo_name = "L16_LOADER", .screen = .l16_screen, .title = "L16" },
     .{ .demo_name = "MULTIFAKE_LOADER", .screen = .multifake_screen, .title = "TCB3", .tag = "union_multifake" },
     .{ .demo_name = "COPIER_LOADER", .screen = .copier_screen, .title = "COPIER TEX" },
-    .{ .demo_name = "TEXTRACKER_LOADER", .screen = .textracker_screen, .title = "HIDDEN SCREEN" },
+    .{ .demo_name = "TEXTRACKER_LOADER", .screen = .textracker_screen, .title = "HIDDEN SCREEN", .tag = "union_textracker" },
 };
 
 /// DOORS[i] is the TMX object i, joined with its route by demo_name at comptime.

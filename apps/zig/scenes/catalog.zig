@@ -61,4 +61,5 @@ pub const ENTRIES = [_]Entry{
     .{ .name = "TUTORIAL", .tag = "tutorial" },
     .{ .name = "MPP TRUECOLOR", .tag = "mpp_truecolor" },
     .{ .name = "UNION MULTIFAKE", .tag = "union_multifake" },
+    .{ .name = "UNION HIDDEN SCREEN", .tag = "union_textracker" },
 };
