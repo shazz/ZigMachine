@@ -154,7 +154,7 @@ plane — so each plane is rendered and blitted individually.
 A fixed-function chunky-8bpp blitter living in the video module. The open layer
 sets a register block, then calls `hwBlit()` to execute it (synchronous, v1).
 Full model in `docs/BLITTER_HW_SPEC.md`; drive it via `zigos/blitter.zig`
-(`Blitter.fill/clear/line/triangle/triangleEx/bob/setHalftone`).
+(`Blitter.fill/clear/line/triangle/triangleEx/bob/blitCopy/blitImage/setHalftone`).
 
 - **Register block** at region offset `OFF_BLIT` (`0x80`, below the palettes).
   `COMMAND` (`0` NOP `1` BLIT `2` FILL `3` LINE `4` TRIANGLE), `MINTERM` (256-way
@@ -166,6 +166,15 @@ Full model in `docs/BLITTER_HW_SPEC.md`; drive it via `zigos/blitter.zig`
   colour-key cookie-cut + descending copy), LINE (Bresenham combined via
   minterm), TRIANGLE (deterministic odd-even scanline fill, combined via minterm
   so `MT_B` = flat and `MT_OR_BC` = additive **glenz-vector** transparency).
+- **Sources in cart RAM — since 1.4.0.** `CON2` (`OFF_BLIT + 0x07`) bit0
+  `SRC_ABS` makes `A_BASE`/`B_BASE` absolute linear addresses, so a BLIT can read
+  a cart's own `@embedFile` assets and scratch buffers (or the ROM window) with no
+  copy into VRAM. The whole `W×H` source rectangle must lie inside ONE readable
+  window: cart RAM `[0x100000, 0x300000)`, the video region, or ROM RAM
+  `[0x500000, 0x700000)`; otherwise the BLIT draws nothing and `CYCLES` reads 0.
+  `D_BASE` stays a video-region offset (the blitter writes only video memory).
+  `hwInit()` clears `CON2`, so carts built before 1.4.0 behave exactly as before.
+  ZigOS: `Blitter.blitImage(dst, dx, dy, pixels, src_w, sx, sy, w, h, key)`.
 - **Deferred (v2):** raw area fill (`CON.IFE`/`EFE`) and an async/DMA
   cycle-budgeted mode.
 

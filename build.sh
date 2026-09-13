@@ -17,6 +17,7 @@ zig build -Drelease=true -Dwasm
 node apps/check_fits.mjs docs/demo-*.wasm docs/rom.wasm
 node apps/ram_check.mjs
 node apps/rom_abi_check.mjs   # the ROM survives hostile arguments from any language
+node apps/blitter_check.mjs   # blitter sources: plane offsets, cart RAM (SRC_ABS), refusals
 
 # --- ZX0: pack every asset (stale only) and report the ratios per screen ------
 tools/pack_stats.sh

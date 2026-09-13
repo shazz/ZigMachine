@@ -112,28 +112,27 @@ fn doFill(d: [*]u8, ds: u16, c: Clip, cost: *u32) void {
 }
 
 fn doBlit(d: [*]u8, ds: u16, c: Clip, con: u8, cost: *u32) void {
-    const s = BlitSetup.load(con); // all registers read ONCE, not per pixel
-    const mem = region();
+    const s = BlitSetup.load(con) orelse return; // all registers read ONCE, not per pixel
     var jj: u16 = 0;
     while (jj < s.h) : (jj += 1) {
         const j: u16 = if (s.desc) s.h - 1 - jj else jj;
         const py = @as(i32, s.y0) + j;
         if (py < c.y0 or py >= c.y1) continue;
         const drow = @as(usize, @intCast(py)) * ds;
-        const arow = s.a_base + @as(usize, j) * s.a_stride;
-        const brow = s.b_base + @as(usize, j) * s.b_stride;
+        const arow = @as(usize, j) * s.a_stride;
+        const brow = @as(usize, j) * s.b_stride;
         var ii: u16 = 0;
         while (ii < s.w) : (ii += 1) {
             const i: u16 = if (s.desc) s.w - 1 - ii else ii;
             const px = @as(i32, s.x0) + i;
             if (px < c.x0 or px >= c.x1) continue;
-            const b = if (s.use_b) mem[brow + i] else 0;
+            const b = if (s.use_b) s.b_src[brow + i] else 0;
             if (s.key_en and b == s.key) continue; // cookie-cut transparent pixel
             const di = drow + @as(usize, @intCast(px));
             if (s.plain) {
                 d[di] = b; // fast path: D = B (plain / keyed copy)
             } else {
-                const a = if (s.use_a) mem[arow + i] else 0;
+                const a = if (s.use_a) s.a_src[arow + i] else 0;
                 const cc = if (s.use_c) d[di] else 0;
                 d[di] = applyMinterm(a, b, cc, s.mt);
             }
@@ -142,8 +141,38 @@ fn doBlit(d: [*]u8, ds: u16, c: Clip, con: u8, cost: *u32) void {
     }
 }
 
+// Windows a SRC_ABS source may read, as [lo, hi) linear addresses. Everything a
+// program may legitimately hold pixels in; never the machine's or audio's own RAM
+// below the cart window, and never the gap between the video region and the ROM.
+const Window = struct { lo: u64, hi: u64 };
+const READABLE = [_]Window{
+    .{ .lo = memmap.CART_RAM_BASE, .hi = memmap.CART_RAM_TOP },
+    .{ .lo = memmap.HW_VIDEO_BASE, .hi = memmap.HW_VIDEO_BASE + memmap.REGION_BYTES },
+    .{ .lo = memmap.ROM_RAM_BASE, .hi = memmap.ROM_RAM_TOP },
+};
+
+// Does the w x h rectangle read at base + j*stride + i lie inside ONE window?
+// u64 so a huge stride x height cannot wrap back into range.
+fn readable(base: u32, stride: u16, w: u16, h: u16) bool {
+    const lo: u64 = base;
+    const hi: u64 = lo + @as(u64, h - 1) * stride + w; // one past the last byte read
+    for (READABLE) |win| {
+        if (lo >= win.lo and hi <= win.hi) return true;
+    }
+    return false;
+}
+
+// A channel's pixel 0. Relative (1.3.0): an unchecked offset in the video region.
+// Absolute (CON2.SRC_ABS): the address itself, null when it fails readable().
+fn source(abs: bool, base: u32, stride: u16, w: u16, h: u16) ?[*]const u8 {
+    if (!abs) return region() + base;
+    if (!readable(base, stride, w, h)) return null;
+    return @ptrFromInt(base);
+}
+
 // One-time decode of the BLIT register block, so the inner loop touches only
 // locals. `plain` is the D = B copy fast path (skips the per-bit minterm).
+// Null when there is nothing to draw or an absolute source was refused.
 const BlitSetup = struct {
     w: u16,
     h: u16,
@@ -157,18 +186,27 @@ const BlitSetup = struct {
     use_b: bool,
     use_c: bool,
     plain: bool,
-    a_base: usize,
+    a_src: [*]const u8,
     a_stride: usize,
-    b_base: usize,
+    b_src: [*]const u8,
     b_stride: usize,
 
-    fn load(con: u8) BlitSetup {
+    fn load(con: u8) ?BlitSetup {
         const mt = r8(memmap.BLIT_MINTERM);
         const use_a = con & memmap.CON_USEA != 0;
         const use_b = con & memmap.CON_USEB != 0;
+        const w = r16(memmap.BLIT_W);
+        const h = r16(memmap.BLIT_H);
+        if (w == 0 or h == 0) return null;
+        const abs = r8(memmap.BLIT_CON2) & memmap.CON2_SRC_ABS != 0;
+        const a_stride = r16(memmap.BLIT_A_STRIDE);
+        const b_stride = r16(memmap.BLIT_B_STRIDE);
+        // an unused channel is never read: point it at the region, unchecked
+        const a_src = if (use_a) source(abs, r32(memmap.BLIT_A_BASE), a_stride, w, h) orelse return null else region();
+        const b_src = if (use_b) source(abs, r32(memmap.BLIT_B_BASE), b_stride, w, h) orelse return null else region();
         return .{
-            .w = r16(memmap.BLIT_W),
-            .h = r16(memmap.BLIT_H),
+            .w = w,
+            .h = h,
             .x0 = ri16(memmap.BLIT_X0),
             .y0 = ri16(memmap.BLIT_Y0),
             .mt = mt,
@@ -179,10 +217,10 @@ const BlitSetup = struct {
             .use_b = use_b,
             .use_c = con & memmap.CON_USEC != 0,
             .plain = mt == memmap.MT_B and use_b and !use_a,
-            .a_base = r32(memmap.BLIT_A_BASE),
-            .a_stride = r16(memmap.BLIT_A_STRIDE),
-            .b_base = r32(memmap.BLIT_B_BASE),
-            .b_stride = r16(memmap.BLIT_B_STRIDE),
+            .a_src = a_src,
+            .a_stride = a_stride,
+            .b_src = b_src,
+            .b_stride = b_stride,
         };
     }
 };

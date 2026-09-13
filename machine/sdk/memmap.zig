@@ -138,6 +138,7 @@ pub const BLIT_STATUS: usize = OFF_BLIT + 0x03; // u8  (ro) bit7 BUSY
 pub const BLIT_COLOR: usize = OFF_BLIT + 0x04; // u8  foreground index
 pub const BLIT_BG_COLOR: usize = OFF_BLIT + 0x05; // u8  halftone background index
 pub const BLIT_COLOR_KEY: usize = OFF_BLIT + 0x06; // u8  transparent index (KEY_EN cookie-cut)
+pub const BLIT_CON2: usize = OFF_BLIT + 0x07; // u8  control bits, second byte (see CON2_* below) — since 1.4.0
 pub const BLIT_A_BASE: usize = OFF_BLIT + 0x08; // u32 channel A source base
 pub const BLIT_A_STRIDE: usize = OFF_BLIT + 0x0C; // u16 channel A row stride
 pub const BLIT_B_BASE: usize = OFF_BLIT + 0x10; // u32 channel B source base
@@ -177,6 +178,16 @@ pub const CON_IFE: u8 = 1 << 4; // inclusive area fill (reserved, v2)
 pub const CON_EFE: u8 = 1 << 5; // exclusive area fill (reserved, v2)
 pub const CON_DESC: u8 = 1 << 6; // descending copy (overlapping moves)
 pub const CON_CLIP_EN: u8 = 1 << 7; // clip to CLIP rect
+
+// CON2 control bits (since 1.4.0). reset() clears the byte, so a cart that never
+// writes it keeps 1.3.0 behaviour.
+// SRC_ABS: A_BASE/B_BASE are ABSOLUTE linear addresses instead of offsets in the
+// video region, so a blit can read the cart's own RAM (@embedFile assets, scratch
+// buffers) or the ROM window. The machine accepts the source only when its whole
+// W x H rectangle lies inside ONE readable window (cart RAM, video region, ROM
+// RAM); otherwise the BLIT draws nothing. D stays a video-region offset: the
+// blitter reads anywhere a program may, but writes only video memory.
+pub const CON2_SRC_ABS: u8 = 1 << 0;
 
 pub const BLIT_STATUS_BUSY: u8 = 1 << 7;
 
@@ -242,4 +253,4 @@ pub const ROM_RAM_BYTES: usize = ROM_RAM_TOP - ROM_RAM_BASE; // 2 MiB
 // tools/mkdisks.sh; node apps/disk_check.mjs is what catches it.
 pub const SHARED_PAGES: u32 = 112;
 
-pub const ZM_HW_VERSION: u32 = 0x0001_0300; // 1.3.0 — ROM window + hwRomRam* (REG_ROM_HIGH)
+pub const ZM_HW_VERSION: u32 = 0x0001_0400; // 1.4.0 — blitter CON2.SRC_ABS: sources in cart RAM / ROM window
