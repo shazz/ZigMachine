@@ -83,4 +83,5 @@ node apps/union_demo_music_check.mjs   # the Union Demo menu's YM dump plays
 node apps/dbug_headless.mjs "$SHOTS"
 node apps/fallen_angels_headless.mjs "$SHOTS"   # per-plane rasters on all 200 lines
 node apps/tex_loader_fx_headless.mjs "$SHOTS/tex_loader_fx"   # fx = tex_loader on a real asset, bytes checked
+node apps/tex_headless.mjs "$SHOTS"             # the eleven sprites on screen.js's chain
 echo "shots in $SHOTS"

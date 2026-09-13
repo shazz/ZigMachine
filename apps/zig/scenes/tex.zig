@@ -12,10 +12,10 @@ const LogicalFB = zg.LogicalFB;
 const Color = zg.Color;
 
 const Scrolltext = zg.Scrolltext;
-const Bobs = zg.Bobs;
 const Starfield = zg.Starfield;
 const Sprite = zg.Sprite;
 const StarfieldDirection = zg.StarfieldDirection;
+const blit = zg.blit;
 
 const Console = zg.Console;
 
@@ -35,7 +35,7 @@ const NB_STARS = 100;
 pub const NB_FONTS: u8 = WIDTH/SCROLL_CHAR_WIDTH + 1;
 const fonts_b = @embedFile("../assets/screens/the_union/fonts.raw");
 const SCROLL_TEXT = "            THE EXCEPTIONS PROUDLY PRESENT THIS NEW GAME CRACKED BY HOWDY FROM THE EXCEPTIONS MEMBER OF THE UNION     LET WRAP      ";
-const SCROLL_CHAR_WIDTH = 32; 
+const SCROLL_CHAR_WIDTH = 32;
 const SCROLL_CHAR_HEIGHT = 17;
 const SCROLL_SPEED = 2;
 const SCROLL_CHARS = " ! #$%&'()*+,-./0123456789:;<=>? ABCDEFGHIJKLMNOPQRSTUVWXYZ";
@@ -51,15 +51,32 @@ const blue_back_pal = convertU8ArraytoColors(@embedFile("../assets/screens/the_u
 const logo_b = @embedFile("../assets/screens/the_union/logo.raw");
 const back_b = @embedFile("../assets/screens/the_union/back.raw");
 
-// bob
-const bob_h_b = @embedFile("../assets/screens/the_union/h.raw");
-const bob_o_b = @embedFile("../assets/screens/the_union/o.raw");
-const bob_w_b = @embedFile("../assets/screens/the_union/w.raw");
-const bob_d_b = @embedFile("../assets/screens/the_union/d.raw");
-const bob_y_b = @embedFile("../assets/screens/the_union/y.raw");
-const bob_delta_b = @embedFile("../assets/screens/the_union/delta.raw");
-const NB_BOBS = 11;
-const bobs_images: [NB_BOBS][]const u8 = [_][]const u8{ bob_delta_b, bob_delta_b, bob_delta_b, bob_h_b, bob_o_b, bob_w_b, bob_d_b, bob_y_b, bob_delta_b, bob_delta_b, bob_delta_b };
+// sprites — screen.js:51-75 and go() at 114-118: eleven 32x16 images (16x8 here)
+// in one chain along x = 305 + 306*sin(p), y = 86 + 84*cos(1.5p), each 0.3 of
+// phase behind the next and all advancing 0.04 per frame. Drawn in array order,
+// after the logo and before the red font background, onto the logo's plane.
+// Index 0 of each image is transparent (tools/private_tools/tex_assets.py).
+const NB_SPRITES = 11;
+const SPRITE_W = 16;
+const SPRITE_PHASE_STEP: f64 = 0.3;
+const SPRITE_PHASE_INC: f64 = 0.04;
+const delta_img = blit.Image.init(@embedFile("../assets/screens/the_union/delta.raw"), SPRITE_W);
+const sprite_imgs = [NB_SPRITES]blit.Image{
+    delta_img, delta_img, delta_img,
+    blit.Image.init(@embedFile("../assets/screens/the_union/h.raw"), SPRITE_W),
+    blit.Image.init(@embedFile("../assets/screens/the_union/o.raw"), SPRITE_W),
+    blit.Image.init(@embedFile("../assets/screens/the_union/w.raw"), SPRITE_W),
+    blit.Image.init(@embedFile("../assets/screens/the_union/d.raw"), SPRITE_W),
+    blit.Image.init(@embedFile("../assets/screens/the_union/y.raw"), SPRITE_W),
+    delta_img, delta_img, delta_img,
+};
+
+/// A 640x400 canvas coordinate on the 320x200 screen. The browser draws an
+/// unscaled image at the ROUNDED coordinate (measured against the original), so
+/// a sprite covers 2x-pixels round(c)..; halving floors that onto the ST grid.
+fn halve(canvas_coord: f64) i32 {
+    return @divFloor(@as(i32, @intFromFloat(@round(canvas_coord))), 2);
+}
 
 // --------------------------------------------------------------------------
 // Variables
@@ -70,17 +87,20 @@ const bobs_images: [NB_BOBS][]const u8 = [_][]const u8{ bob_delta_b, bob_delta_b
 // --------------------------------------------------------------------------
 
 pub const Demo = struct {
-  
+
     name: u8 = 0,
     frame_counter: u32 = 0,
     scrolltext: Scrolltext(NB_FONTS) = undefined,
     logo: Sprite = undefined,
     back: Sprite = undefined,
     starfield: Starfield(NB_STARS) = undefined,
-    bobs: Bobs(NB_BOBS) = undefined,
-    bobs_pos: [NB_BOBS]f32 = undefined,
+    // f64 like the JS numbers, so the chain keeps the original's phase however
+    // long the screen runs (f32 drifts by 0.16 rad in ten minutes).
+    sprite_phase: [NB_SPRITES]f64 = undefined,
+    sprite_x: [NB_SPRITES]i32 = undefined,
+    sprite_y: [NB_SPRITES]i32 = undefined,
     logo_sinx: f32 = 0,
-    logo_inc: f32 = 0,   
+    logo_inc: f32 = 0,
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
         Console.log("Demo init", .{});
@@ -99,29 +119,31 @@ pub const Demo = struct {
 
         // second plane
         fb = &zigos.lfbs[1];
-        fb.is_enabled = true;         
+        fb.is_enabled = true;
         fb.setPalette(logo_pal);
         fb.setPaletteEntry(0, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
         fb.setPaletteEntry(255, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
-        self.logo.init(fb.getRenderTarget(), logo_b, 208, 97, WIDTH/2-104, 0, null, null);      
+        self.logo.init(fb.getRenderTarget(), logo_b, 208, 97, WIDTH/2-104, 0, null, null);
+        self.logo_sinx = 0;
+        self.logo_inc = 0;
 
-        var i: usize = 0;
-        while (i < NB_BOBS) : (i += 1) {
-            self.bobs_pos[i] = 0.3*(@as(f32, @floatFromInt(i+1)));
+        for (0..NB_SPRITES) |i| {
+            self.sprite_phase[i] = SPRITE_PHASE_STEP * @as(f64, @floatFromInt(i + 1));
+            self.sprite_x[i] = 0;
+            self.sprite_y[i] = 0;
         }
-        self.bobs = Bobs(NB_BOBS).init(fb.getRenderTarget(), bobs_images, 16, 8);
 
         // 3rd plane
         fb = &zigos.lfbs[2];
-        fb.is_enabled = true;           
+        fb.is_enabled = true;
         fb.setPalette(back_pal);
         fb.setPaletteEntry(0, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
         fb.setPaletteEntry(255, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
-        self.back.init(fb.getRenderTarget(), back_b, 320, 87, 0, BACK_POS, null, null);    
-   
+        self.back.init(fb.getRenderTarget(), back_b, 320, 87, 0, BACK_POS, null, null);
+
         // 4th plane
         fb = &zigos.lfbs[3];
-        fb.is_enabled = true;           
+        fb.is_enabled = true;
         fb.setPalette(blue_back_pal);
         fb.setPaletteEntry(0, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
 
@@ -141,16 +163,12 @@ pub const Demo = struct {
         const x_pos: f32 = @sin(self.logo_sinx) * (50 * @sin(self.logo_inc));
         self.logo.update(52 + @as(i16, @intFromFloat(x_pos)), null, null, null);
 
-        var i: usize = 0;
-        while (i < NB_BOBS) : (i += 1) {
-
-            const x_idx: f32 = 152 + 153 * @sin(self.bobs_pos[i]);
-            const y_idx: f32 = 43 + 42 * @cos(self.bobs_pos[i]*1.5);
-            const x: i16 = @as(i16, @intFromFloat(x_idx));
-            const y: i16 = @as(i16, @intFromFloat(y_idx));
-            self.bobs_pos[i] += 0.04;            
-
-            self.bobs.update(i, x, y);
+        // go() advances each phase BEFORE drawing (screen.js:116-117)
+        for (0..NB_SPRITES) |i| {
+            self.sprite_phase[i] += SPRITE_PHASE_INC;
+            const p = self.sprite_phase[i];
+            self.sprite_x[i] = halve(305 + 306 * @sin(p));
+            self.sprite_y[i] = halve(86 + 84 * @cos(p * 1.5));
         }
 
         _ = zigos;
@@ -162,22 +180,25 @@ pub const Demo = struct {
         self.starfield.target.clearFrameBuffer(0);
         self.starfield.render();
 
-        self.bobs.target.clearFrameBuffer(0);
+        zigos.lfbs[1].clearFrameBuffer(0);
         self.logo.render(null);
-        self.bobs.render();
+        const sprites_dst = blit.Dst.plane(&zigos.lfbs[1]);
+        for (sprite_imgs, self.sprite_x, self.sprite_y) |img, x, y| {
+            blit.blit(sprites_dst, img, null, x, y, 0, .copy);
+        }
 
         self.back.render(null);
 
         var fb = &zigos.lfbs[3];
         self.scrolltext.target.clearFrameBuffer(0);
-        self.scrolltext.render();     
+        self.scrolltext.render();
 
         var i: usize = SCROLL_POS * WIDTH;
         var tx: usize = (SCROLL_POS - BACK_POS) * WIDTH;
         while(i < (SCROLL_POS * WIDTH) + (WIDTH * SCROLL_CHAR_HEIGHT)) : ( i += 1) {
             fb.fb[i] = fb.fb[i] & back_b[tx];
             tx += 1;
-        }           
+        }
 
         _ = elapsed_time;
 
