@@ -122,6 +122,7 @@ async function swapCart(req, channelTag) {
     if (swapping) return;
     swapping = true;
     let url = null;
+    let failed = false;
     try {
         // req 2 = CHAINLOAD (format v2): the boot sector is done — instantiate this
         // disk's cart (pointer in the descriptor, already parsed) over the same memory.
@@ -203,11 +204,16 @@ async function swapCart(req, channelTag) {
         // which reads as a freeze rather than as an error.
         if (url) badCarts.add(url);
         console.error("cart swap failed:", e);
+        failed = true;
     } finally {
         // Every path must release the guard: an early `return` inside the try
         // (a disk already known bad) used to leave `swapping` set forever, and
         // with it +/- and every later swap silently refused.
         swapping = false;
+        // The old cart is still the one running: a key that came up during the
+        // swap was not released to it (the keyup listener kept it in heldDirs), so
+        // release now everything it still holds, or its scene walks on for good.
+        if (failed) releaseAll();
     }
 }
 
@@ -698,9 +704,12 @@ window.document.body.addEventListener('keyup', function (evt) {
     if (!demo) return;
     const owns = demo.ownsKeyboard ? demo.ownsKeyboard() !== 0 : false;
     const dir = directionOf(evt.key, owns);
-    if (dir >= 0) {
+    // A release the cart cannot take now stays in heldDirs: if the swap fails, the
+    // old cart keeps running and swapCart hands it the release (releaseAll); if
+    // the swap succeeds, heldDirs is cleared for the new cart.
+    if (dir >= 0 && cartCallable()) {
         heldDirs.delete(dir);
-        if (cartCallable() && demo.inputRelease) demo.inputRelease(dir);
+        if (demo.inputRelease) demo.inputRelease(dir);
     }
     if (cartCallable() && demo.keyUp) {
         if (evt.key === "Backspace") demo.keyUp(8);
