@@ -215,9 +215,7 @@ pub const Demo = struct {
     dist_a: f32 = 0.0,
     dist_b: f32 = 0.0,
     wave: f32 = 0.0,
-    scroffset: usize = 0,
-    ltr_x: [NB_LETTERS]f32 = undefined,
-    ltr_c: [NB_LETTERS]u8 = undefined,
+    ring: zg.scrollring.Ring(f32, NB_LETTERS) = undefined,
     bob_on: bool = false,
     bob_y: f32 = 0.0,
     bob_inc: f32 = -BOB_STEP, // CODEF yyinc = -3: it rises first
@@ -231,12 +229,7 @@ pub const Demo = struct {
         // "Mega 4" — nothing plays until the user turns sound on.
         zg.requestSong(MUSIC);
 
-        var i: usize = 0;
-        while (i < NB_LETTERS) : (i += 1) {
-            self.ltr_x[i] = SCROLL_START + @as(f32, @floatFromInt(i)) * @as(f32, GW);
-            self.ltr_c[i] = SCROLL_TEXT[self.scroffset];
-            self.scroffset += 1;
-        }
+        self.ring = zg.scrollring.Ring(f32, NB_LETTERS).init(SCROLL_TEXT, SCROLL_START, @as(f32, GW));
     }
 
     // Field-by-field (see the note above the struct; and `self.* = .{}` on a
@@ -251,7 +244,6 @@ pub const Demo = struct {
         self.dist_a = 0.0;
         self.dist_b = 0.0;
         self.wave = 0.0;
-        self.scroffset = 0;
         self.bob_on = false;
         self.bob_y = 0.0;
         self.bob_inc = -BOB_STEP;
@@ -299,20 +291,11 @@ pub const Demo = struct {
         self.dist_b += DIST_OFF_B;
         self.wave += WAVE_OFF;
 
-        var i: usize = 0;
-        while (i < NB_LETTERS) : (i += 1) {
-            self.ltr_x[i] -= SCROLL_SPEED;
-            if (self.ltr_x[i] <= -@as(f32, GW)) {
-                self.ltr_x[i] = SCROLL_START + (self.ltr_x[i] + @as(f32, GW));
-                self.ltr_c[i] = SCROLL_TEXT[self.scroffset];
-                self.scroffset += 1;
-                if (self.scroffset > SCROLL_TEXT.len - 1) self.scroffset = 0;
-            }
-        }
+        _ = self.ring.step(SCROLL_SPEED);
 
         // the marker: once the next character to come up is ']', the whole
         // screen bobs — and never stops (CODEF sets fx = 1 and leaves it).
-        if (SCROLL_TEXT[self.scroffset] == ']') self.bob_on = true;
+        if (self.ring.upcoming() == ']') self.bob_on = true;
 
         if (self.bob_on) {
             self.bob_y += self.bob_inc;
@@ -387,35 +370,21 @@ pub const Demo = struct {
     // one very long sine (0.001 rad per ST column — a third of a period across
     // the screen), the whole wave drifting by 0.02 rad per frame.
     fn renderScroll(self: *Demo, fb: *LogicalFB, top: i32) void {
+        const font_img = zg.blit.Image.init(font_b, FONT_SHEET_W);
+        const dst = zg.blit.Dst.plane(fb);
         var i: usize = 0;
         while (i < NB_LETTERS) : (i += 1) {
-            const c = self.ltr_c[i];
+            const c = self.ring.c[i];
             if (c < FIRST_CHAR or c > LAST_CHAR) continue; // ']' and friends: a gap
             const tile: usize = c - FIRST_CHAR;
             const sx0: usize = (tile % FONT_COLS) * @as(usize, GW);
             const sy0: usize = (tile / FONT_COLS) * @as(usize, GH);
-            const x0: i32 = @intFromFloat(@floor(self.ltr_x[i]));
-            var gx: i32 = 0;
-            while (gx < GW) : (gx += 1) {
-                self.glyphColumn(fb, sx0 + @as(usize, @intCast(gx)), sy0, x0 + gx, top);
-            }
-        }
-    }
-
-    fn glyphColumn(self: *Demo, fb: *LogicalFB, sx: usize, sy0: usize, px: i32, top: i32) void {
-        if (px < 0 or px >= PW) return;
-        // the wave's phase is measured from the ORIGINAL screen's left edge, so
-        // the visible window is untouched and the borders simply continue it
-        const fsx: f32 = @floatFromInt(px - BX);
-        const base: f32 = WAVE_MID + WAVE_AMP * @sin(self.wave + WAVE_INC * fsx);
-        const y0: i32 = top + @as(i32, @intFromFloat(base));
-        var gy: i32 = 0;
-        while (gy < GH) : (gy += 1) {
-            const py = y0 + gy;
-            if (py < 0 or py >= PH) continue;
-            const v = font_b[(sy0 + @as(usize, @intCast(gy))) * FONT_SHEET_W + sx];
-            if (v == 0) continue; // the field — see the CODEF font note
-            fb.fb[@as(usize, @intCast(py)) * @as(usize, @intCast(PW)) + @as(usize, @intCast(px))] = INK;
+            const x0: i32 = @intFromFloat(@floor(self.ring.x[i]));
+            // the wave's phase is measured from the ORIGINAL screen's left edge,
+            // so the visible window is untouched and the borders simply continue it
+            const sum = zg.wave.SineSum(f32, 1){ .base = WAVE_MID, .amp = .{WAVE_AMP}, .phase = .{self.wave}, .inc = .{WAVE_INC}, .step = .multiply };
+            var it = sum.sweep(x0 - BX);
+            zg.wave.siny(dst, font_img, .{ .x = sx0, .y = sy0, .w = @intCast(GW), .h = @intCast(GH) }, x0, top, 1, &it, 0, .{ .flat = INK });
         }
     }
 };
@@ -465,18 +434,5 @@ fn blit(fb: *LogicalFB, data: []const u8, w: i32, h: i32, x: i32, y: i32) void {
 // of the shared palette is touched — the rainbow is not on screen during the
 // intro, and entry 0 stays the black ground.
 fn fadePalette(fb: *LogicalFB, k: f32) void {
-    var i: usize = LOGO_FIRST;
-    while (i <= LOGO_LAST) : (i += 1) {
-        const c = screen_pal[i];
-        fb.setPaletteEntry(@intCast(i), Color{
-            .r = scale(c.r, k),
-            .g = scale(c.g, k),
-            .b = scale(c.b, k),
-            .a = c.a,
-        });
-    }
-}
-
-fn scale(v: u8, k: f32) u8 {
-    return @intFromFloat(@as(f32, @floatFromInt(v)) * k);
+    zg.palette.scaleRange(fb, screen_pal, @intCast(LOGO_FIRST), @intCast(LOGO_LAST), k, .{});
 }

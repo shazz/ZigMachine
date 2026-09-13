@@ -141,9 +141,7 @@ pub const Demo = struct {
     raster_y: i32 = 0,
     siny_a: f32 = 0.0,
     siny_b: f32 = 0.0,
-    scroffset: usize = 0,
-    ltr_x: [NB_LETTERS]f32 = undefined,
-    ltr_c: [NB_LETTERS]u8 = undefined,
+    ring: zg.scrollring.Ring(f32, NB_LETTERS) = undefined,
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
         Console.log("SUPPLEX FS2 init", .{});
@@ -152,18 +150,12 @@ pub const Demo = struct {
         self.raster_y = 0;
         self.siny_a = 0.0;
         self.siny_b = 0.0;
-        self.scroffset = 0;
 
         setupPlanes(zigos);
         drawBackground(&zigos.lfbs[0]);
         drawTextPanel(&zigos.lfbs[1]);
 
-        var i: usize = 0;
-        while (i < NB_LETTERS) : (i += 1) {
-            self.ltr_x[i] = SCROLL_START + @as(f32, @floatFromInt(i)) * @as(f32, GW);
-            self.ltr_c[i] = SCROLL_TEXT[self.scroffset];
-            self.scroffset += 1;
-        }
+        self.ring = zg.scrollring.Ring(f32, NB_LETTERS).init(SCROLL_TEXT, SCROLL_START, @as(f32, GW));
         // No music: the screen plays "shaolin title.hip" through UADE, an Amiga
         // Hippel/TFMX player binary the machine has no player for. See report.
     }
@@ -178,16 +170,7 @@ pub const Demo = struct {
         self.siny_a += SINY_OFF_A;
         self.siny_b += SINY_OFF_B;
 
-        var i: usize = 0;
-        while (i < NB_LETTERS) : (i += 1) {
-            self.ltr_x[i] -= SCROLL_SPEED;
-            if (self.ltr_x[i] <= -@as(f32, GW)) {
-                self.ltr_x[i] = SCROLL_START + (self.ltr_x[i] + @as(f32, GW));
-                self.ltr_c[i] = SCROLL_TEXT[self.scroffset];
-                self.scroffset += 1;
-                if (self.scroffset > SCROLL_TEXT.len - 1) self.scroffset = 0;
-            }
-        }
+        _ = self.ring.step(SCROLL_SPEED);
     }
 
     pub fn render(self: *Demo, zigos: *ZigOS, elapsed_time: f32) void {
@@ -224,9 +207,9 @@ pub const Demo = struct {
         @memset(&strip, 0);
         var i: usize = 0;
         while (i < NB_LETTERS) : (i += 1) {
-            const c = self.ltr_c[i];
+            const c = self.ring.c[i];
             if (c < FIRST_CHAR or c > LAST_CHAR) continue;
-            const x0: i32 = @intFromFloat(@floor(self.ltr_x[i]));
+            const x0: i32 = @intFromFloat(@floor(self.ring.x[i]));
             blitGlyphToStrip(c, x0);
         }
     }
@@ -234,22 +217,9 @@ pub const Demo = struct {
     // FX.siny + the flat grey fill: source column i goes to (SCROLL_X + i,
     // SINY_Y + sin(a)*15 + sin(b)*50), and every drawn pixel is index 1.
     fn blitStrip(self: *Demo, fb: *LogicalFB) void {
-        var a = self.siny_a;
-        var b = self.siny_b;
-        var i: i32 = 0;
-        while (i < STRIP_W) : (i += 1) {
-            const y0: i32 = @intFromFloat(SINY_Y + SINY_AMP_A * @sin(a) + SINY_AMP_B * @sin(b));
-            const dx = SCROLL_X + i;
-            var gy: i32 = 0;
-            while (gy < STRIP_H) : (gy += 1) {
-                const dy = y0 + gy;
-                if (dy < 0 or dy >= PH or dx < 0 or dx >= PW) continue;
-                if (strip[@intCast(gy * STRIP_W + i)] == 0) continue;
-                fb.setPixelValue(@intCast(dx), @intCast(dy), 1);
-            }
-            a += SINY_INC_A;
-            b += SINY_INC_B;
-        }
+        const sum = zg.wave.SineSum(f32, 2){ .base = SINY_Y, .amp = .{ SINY_AMP_A, SINY_AMP_B }, .phase = .{ self.siny_a, self.siny_b }, .inc = .{ SINY_INC_A, SINY_INC_B } };
+        var it = sum.sweep(0);
+        zg.wave.siny(zg.blit.Dst.plane(fb), zg.blit.Image.init(&strip, @intCast(STRIP_W)), null, SCROLL_X, 0, 1, &it, 0, .{ .flat = 1 });
     }
 };
 

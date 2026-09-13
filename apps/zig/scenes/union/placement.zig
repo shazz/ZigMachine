@@ -128,16 +128,7 @@ fn clampAxis(pos: f32, dest: f32, dir: i8) f32 {
 // already-scaled value, or the fade would compound).
 fn applyFade(fb: *LogicalFB, s: strips.StripDef, alpha: f32) void {
     if (alpha >= 1.0) return;
-    var idx: usize = s.lo;
-    while (idx <= s.hi) : (idx += 1) {
-        const c = placement_pal[idx];
-        fb.setPaletteEntry(@intCast(idx), Color{
-            .r = @intFromFloat(@as(f32, @floatFromInt(c.r)) * alpha),
-            .g = @intFromFloat(@as(f32, @floatFromInt(c.g)) * alpha),
-            .b = @intFromFloat(@as(f32, @floatFromInt(c.b)) * alpha),
-            .a = 255,
-        });
-    }
+    zg.palette.scaleRange(fb, placement_pal, s.lo, s.hi, alpha, .{ .alpha = .{ .set = 255 } });
 }
 
 // Blit an src_w-strided sub-rectangle (src_x,src_y,w,h) of `raw` to (dx,dy) on

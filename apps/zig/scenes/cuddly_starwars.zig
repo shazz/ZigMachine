@@ -55,6 +55,7 @@ const BLACK: u8 = 0;
 const RASTER_INK: u8 = 1;
 const BG_ORANGE: u8 = 8;
 const BG_GREY: u8 = 9;
+const LOGO_FLASH_ENTRIES = [_]u8{ BG_ORANGE, BG_GREY };
 const GREY_BASE: u8 = 128;
 const GREY_LEVELS: usize = 128;
 
@@ -306,10 +307,9 @@ pub const Demo = struct {
     fn drawLogoFlash(self: *Demo, fb: *LogicalFB, screen: []u8) void {
         const alpha = self.fade * FADE_ALPHA;
         if (alpha <= 0) return;
-        for ([_]u8{ BG_ORANGE, BG_GREY }) |entry| {
-            const c = base_pal[entry];
-            fb.setPaletteEntry(entry, .{ .r = scaled(c.r, alpha), .g = scaled(c.g, alpha), .b = scaled(c.b, alpha), .a = 255 });
-        }
+        // CODEF fades by canvas alpha; over black that is the palette's RGB
+        // scaled from the base palette every frame, rounded (not truncated).
+        zg.palette.scaleEntries(fb, base_pal, &LOGO_FLASH_ENTRIES, alpha, .{ .rounding = .round, .alpha = .{ .set = 255 } });
         for (0..BG_H) |y| {
             const src = bg_b[y * BG_W ..][0..BG_W];
             const dst = screen[(BG_Y + y) * W + BG_X ..][0..BG_W];
@@ -454,10 +454,6 @@ pub const Demo = struct {
 fn nextRandom(seed: *u32) f64 {
     seed.* = seed.* *% 1664525 +% 1013904223;
     return @as(f64, @floatFromInt(seed.*)) / 4294967296.0;
-}
-
-fn scaled(c: u8, alpha: f64) u8 {
-    return @intFromFloat(@round(@as(f64, @floatFromInt(c)) * alpha));
 }
 
 /// fillRect(x, y, 1, 1) at a sub-pixel position: each of the four pixels it

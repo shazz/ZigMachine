@@ -153,49 +153,10 @@ comptime {
     if (gradient_row.len != SCREEN_H) @compileError("gradient_idx.dat is not one entry per screen row");
 }
 
-/// A horizontal run of ink in the logo overlay, as an offset into a 320x200
-/// buffer and a length. The logo is 92% transparent (4942 of 64000 pixels are
-/// ink), so walking it as runs turns the per-frame overlay into ~500 copies
-/// instead of 64000 per-pixel transparency tests.
-const LogoSpan = struct { start: u32, len: u16 };
-
-/// Counted in its own pass so `logo_spans` can be sized exactly — an array with
-/// a guessed capacity would either waste space or silently drop the overflow.
-const logo_span_count = blk: {
-    @setEvalBranchQuota(2_000_000);
-    var n: usize = 0;
-    var x: usize = 0;
-    while (x < SCREEN_PIXELS) {
-        if (logo_b[x] == 0) {
-            x += 1;
-            continue;
-        }
-        // runs stop at the right edge, so a span is always within one row
-        const row_end = (x / SCREEN_W + 1) * SCREEN_W;
-        while (x < row_end and logo_b[x] != 0) x += 1;
-        n += 1;
-    }
-    break :blk n;
-};
-
-const logo_spans = blk: {
-    @setEvalBranchQuota(2_000_000);
-    var spans: [logo_span_count]LogoSpan = undefined;
-    var n: usize = 0;
-    var x: usize = 0;
-    while (x < SCREEN_PIXELS) {
-        if (logo_b[x] == 0) {
-            x += 1;
-            continue;
-        }
-        const start = x;
-        const row_end = (x / SCREEN_W + 1) * SCREEN_W;
-        while (x < row_end and logo_b[x] != 0) x += 1;
-        spans[n] = .{ .start = @intCast(start), .len = @intCast(x - start) };
-        n += 1;
-    }
-    break :blk spans;
-};
+/// The logo overlay as comptime runs of ink. The logo is 92% transparent (4942
+/// of 64000 pixels are ink), so walking it as runs turns the per-frame overlay
+/// into ~500 copies instead of 64000 per-pixel transparency tests.
+const logo_runs = zg.spans.build(logo_b, SCREEN_W, 0);
 
 // --------------------------------------------------------------------------
 // The distortion tables (extracted verbatim from the original source).
@@ -419,10 +380,11 @@ fn copyRow(row: *[SCREEN_W]u8, src: *const [STRIP_W]u8, cx: f32, mirror: bool) v
 /// The logo overlay, as precomputed runs of ink. Drawn over the scrollers but
 /// UNDER the snake, which is the original's order (see the header).
 fn drawLogo(fb: *LogicalFB) void {
-    for (logo_spans) |s| {
-        const start: usize = s.start;
-        const end = start + s.len;
-        @memcpy(fb.fb[start..end], logo_b[start..end]);
+    for (0..SCREEN_H) |y| {
+        const row = y * SCREEN_W;
+        for (logo_runs.row(y)) |s| {
+            @memcpy(fb.fb[row + s.x0 .. row + s.x1], logo_b[row + s.x0 .. row + s.x1]);
+        }
     }
 }
 
