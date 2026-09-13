@@ -35,6 +35,12 @@ const MUSIC = "stniccc_2000.sndh";
 const scene_data = @embedFile("../assets/screens/stniccc/scene1.bin");
 const ST_LEVEL = [8]u8{ 0, 36, 73, 109, 146, 182, 219, 255 }; // ST 3-bit gun -> 8 bit
 
+comptime {
+    // drawFrame copies a decoded polygon into a polyfill point list; the filler
+    // silently skips anything longer than it can hold.
+    if (stream_mod.MAX_POLY_VERTS > polyfill.MAX_VERTS) @compileError("polyfill.MAX_VERTS too small");
+}
+
 pub const Demo = struct {
     stream: stream_mod.Stream,
     pal: [16]u16,

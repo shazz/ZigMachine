@@ -14,7 +14,9 @@ pub const Point = struct { x: i32, y: i32 };
 pub const Target = struct { px: []u8, stride: usize, w: usize, h: usize, ox: usize };
 
 pub fn fill(t: Target, pts: []const Point, color: u8) void {
-    std.debug.assert(pts.len >= 3 and pts.len <= MAX_VERTS);
+    // A real branch, not std.debug.assert (gone in ReleaseSmall): an empty list
+    // would wrap `pts.len - 1` in crossings() and more than MAX_VERTS overruns `xs`.
+    if (pts.len < 3 or pts.len > MAX_VERTS) return;
     var ymin: i32 = std.math.maxInt(i32);
     var ymax: i32 = std.math.minInt(i32);
     for (pts) |p| {
@@ -94,6 +96,16 @@ test "a non-convex U leaves its notch empty" {
     try expectEqual(@as(u8, 1), px[2 * 8 + 1]); // left arm
     try expectEqual(@as(u8, 1), px[5 * 8 + 3]); // base
     try expectEqual(@as(usize, 36 - 8), count(&px, 1));
+}
+
+test "a vertex count outside 3..MAX_VERTS draws nothing" {
+    var px = [_]u8{0} ** (8 * 8);
+    const t = Target{ .px = &px, .stride = 8, .w = 8, .h = 8, .ox = 0 };
+    fill(t, &.{}, 3);
+    fill(t, &.{ .{ .x = 0, .y = 0 }, .{ .x = 8, .y = 8 } }, 3);
+    const many = [_]Point{ .{ .x = 0, .y = 0 }, .{ .x = 8, .y = 0 }, .{ .x = 8, .y = 8 } } ** 6;
+    fill(t, &many, 3);
+    try expectEqual(@as(usize, 0), count(&px, 3));
 }
 
 test "a polygon larger than the window is clipped to it, offset included" {
