@@ -66,6 +66,7 @@ done
 # --- disks: repack what is stale, then mount and instantiate every image ----
 tools/mkdisks.sh
 python3 tools/channels.py     # the monitor's +/- channel list (needs the disks)
+python3 tools/cache_bust.py   # docs/*.html ?v= = content hash of each script/CSS (stale-cache guard)
 node apps/disk_check.mjs
 
 # --- headless harnesses: each drives the real machine end to end -----------
