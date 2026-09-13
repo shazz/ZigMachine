@@ -51,72 +51,14 @@ const rasters_b = convertU8ArraytoColors(@embedFile("../assets/screens/ancool/ra
 // Stars
 const NB_STARS = 300;
 
-const Vec2 = za.Vec2;
 const Vec3 = za.Vec3;
 const Vec4 = za.Vec4;
 const Mat4 = za.Mat4;
+const wf = zg.wireframe;
 
-
-var vertices = [25]Vec4{
-    // T
-    Vec4.new(-1.0,   0.0, 0.0, 1.0),
-    Vec4.new( 0.0,   0.0, 0.0, 1.0),
-    Vec4.new( 0.0,  -0.3, 0.0, 1.0),
-    Vec4.new(-0.32, -0.3, 0.0, 1.0),
-    Vec4.new(-0.32, -1.2, 0.0, 1.0),
-    Vec4.new(-0.68, -1.2, 0.0, 1.0),
-    Vec4.new(-0.68, -0.3, 0.0, 1.0),
-    Vec4.new(-1.0,  -0.3, 0.0, 1.0),
-    Vec4.new(-1.0,   0.0, 0.0, 1.0),
-    // C
-    Vec4.new( 0.2,   0.0,   0.0, 1.0),
-    Vec4.new( 1.2,   0.0,   0.0, 1.0),
-    Vec4.new( 1.2,  -0.3,   0.0, 1.0),
-    Vec4.new( 0.52, -0.3,   0.0, 1.0),
-    Vec4.new( 0.52, -0.90,  0.0, 1.0),
-    Vec4.new( 1.20, -0.90,  0.0, 1.0),
-    Vec4.new( 1.20, -1.20,  0.0, 1.0),
-    Vec4.new( 0.20, -1.20,  0.0, 1.0),
-    Vec4.new( 0.20,  0.0,   0.0, 1.0),
-    // B
-    Vec4.new( 1.40, 0.0,    0.0, 1.0),
-    Vec4.new( 2.10, 0.0,    0.0, 1.0),
-    Vec4.new( 2.40, -0.30,  0.0, 1.0),
-    Vec4.new( 2.10, -0.60,  0.0, 1.0),
-    Vec4.new( 2.40, -0.90,  0.0, 1.0),
-    Vec4.new( 2.10, -1.20,  0.0, 1.0),
-    Vec4.new( 1.40, -1.20,  0.0, 1.0),
-};
-
-const segments = [24]Vec2{
-    // T
-    Vec2.new(0, 1),
-    Vec2.new(1, 2),
-    Vec2.new(2, 3),
-    Vec2.new(3, 4),
-    Vec2.new(4, 5),
-    Vec2.new(5, 6),
-    Vec2.new(6, 7),
-    Vec2.new(7, 8),
-    Vec2.new(8, 0),
-    // C
-    Vec2.new(0+9, 1+9),
-    Vec2.new(1+9, 2+9),
-    Vec2.new(2+9, 3+9),
-    Vec2.new(3+9, 4+9),
-    Vec2.new(4+9, 5+9),
-    Vec2.new(5+9, 6+9),
-    Vec2.new(6+9, 7+9),
-    Vec2.new(7+9, 0+9),
-    // B
-    Vec2.new(0+9+9, 1+9+9),
-    Vec2.new(1+9+9, 2+9+9),
-    Vec2.new(2+9+9, 3+9+9),
-    Vec2.new(3+9+9, 4+9+9),
-    Vec2.new(4+9+9, 5+9+9),
-    Vec2.new(5+9+9, 6+9+9),
-    Vec2.new(6+9+9, 0+9+9)
-};
+// The T, C and B letters (25 vertices, 24 edges), placed in init().
+const letters = zg.obj.parseWire(@embedFile("../assets/obj/ancool_tcb.obj"));
+var vertices = wf.vec4s(letters.verts.len, letters.verts);
 
 // --------------------------------------------------------------------------
 // Variables
@@ -147,10 +89,8 @@ pub const Demo = struct {
     frame_counter: u32 = 0,
     starfield_3D: Starfield3D(NB_STARS) = undefined,
     scrolltext: Scrolltext(NB_FONTS) = undefined,
-    projection: Mat4 = undefined,
-    camera: Mat4 = undefined,
-    screen: Mat4 = undefined,
-    projected_vertices: [25]Coord = undefined,
+    cam: wf.Camera = undefined,
+    projected_vertices: [letters.verts.len]Coord = undefined,
     angle_y: f32 = 0.0,
     angle_x: f32 = 0.0,
     angle_z: f32 = 0.0,
@@ -174,25 +114,16 @@ pub const Demo = struct {
         fb.is_enabled = true;
         fb.setPaletteEntry(0, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
         fb.setPaletteEntry(1, Color{ .r = 255, .g = 0, .b = 0, .a = 255 });
-        self.projection = za.perspective(60.0, 200.0 / 320.0, 0.1, 100.0);
-        self.camera = za.camera(Vec3.new(0.0, 0.0, -10.0), 0, 0);
-        self.screen = za.screen(320, 200);   
+        self.cam = .{
+            .projection = za.perspective(60.0, 200.0 / 320.0, 0.1, 100.0),
+            .camera = za.camera(Vec3.new(0.0, 0.0, -10.0), 0, 0),
+            .screen = za.screen(320, 200),
+        };
         self.zoom = 0.8;
 
-        var i: u8 = 0;
-        while(i < 25) : ( i+= 1) {
-            vertices[i] = vertices[i].add(Vec4.new(0, 1.00, 2.8, 0));
-        }
-        
-        i = 9;
-        while(i < 17) : ( i+= 1) {
-            vertices[i] = vertices[i].add(Vec4.new(-0.5, 0, -0.5, 0));        
-        }
-    
-        i = 17;
-        while(i < 25) : ( i+= 1) {
-            vertices[i] = vertices[i].add(Vec4.new(-1.0, 0, -1.0, 0));
-        }        
+        for (&vertices) |*v| v.* = v.add(Vec4.new(0, 1.00, 2.8, 0));
+        for (vertices[9..17]) |*v| v.* = v.add(Vec4.new(-0.5, 0, -0.5, 0)); // C
+        for (vertices[17..25]) |*v| v.* = v.add(Vec4.new(-1.0, 0, -1.0, 0)); // B
 
         // 3rd plane
         fb = &zigos.lfbs[2];
@@ -219,29 +150,8 @@ pub const Demo = struct {
         self.starfield_3D.update();
         self.scrolltext.update();
 
-        for(vertices, 0..) |vertex, idx| {
+        self.cam.project(&vertices, &self.projected_vertices, self, zoomSpin);
 
-            const rot_scale = Mat4.fromScale(Vec3.new(self.zoom, self.zoom, self.zoom));
-            const vertex_after_scale = rot_scale.vec4mulByMat4(vertex);
-
-            const rot_mat = Mat4.fromEulerAngles(Vec3.new(self.angle_x, self.angle_y, self.angle_z));
-            const vertex_after_rot = rot_mat.vec4mulByMat4(vertex_after_scale);
-
-            const vertex_after_cam = self.camera.vec4mulByMat4(vertex_after_rot);
-            const vertex_after_proj = self.projection.vec4mulByMat4(vertex_after_cam);
-                    
-            const norm = Vec4.set(1/vertex_after_proj.w());
-            const vertex_after_norm = vertex_after_proj.mul(norm);
-
-            const vertex_after_screen = self.screen.vec4mulByMat4(vertex_after_norm);
-
-            const coord_x: i16 = @as(i16, @intFromFloat(vertex_after_screen.x())); 
-            const coord_y: i16 = @as(i16, @intFromFloat(vertex_after_screen.y())); 
-
-            self.projected_vertices[idx].x=coord_x;
-            self.projected_vertices[idx].y=coord_y;
-        }        
-   
         self.angle_x += 3;
         self.angle_y += 3.5;    
         self.angle_z += 2;      
@@ -256,6 +166,12 @@ pub const Demo = struct {
         _ = elapsed_time;
     }
 
+    // The letters' own transform: scale, then one Euler X/Y/Z matrix.
+    fn zoomSpin(self: *Demo, v: Vec4) Vec4 {
+        const after_scale = Mat4.fromScale(Vec3.new(self.zoom, self.zoom, self.zoom)).vec4mulByMat4(v);
+        return Mat4.fromEulerAngles(Vec3.new(self.angle_x, self.angle_y, self.angle_z)).vec4mulByMat4(after_scale);
+    }
+
     pub fn render(self: *Demo, zigos: *ZigOS, elapsed_time: f32) void {
 
         self.starfield_3D.target.clearFrameBuffer(0);
@@ -263,12 +179,7 @@ pub const Demo = struct {
 
         const fb = &zigos.lfbs[1];
         fb.clearFrameBuffer(0);
-        for(segments) |segment| {
-            const v1: Coord = self.projected_vertices[@as(usize, @intFromFloat(segment.x()))];
-            const v2: Coord = self.projected_vertices[@as(usize, @intFromFloat(segment.y()))];
-
-            shapes.drawLine(fb.getRenderTarget(), v1, v2, 1);   
-        }
+        wf.drawEdges(fb.getRenderTarget(), &letters.edges, &self.projected_vertices, 1, shapes.drawLine);
 
         self.scrolltext.target.clearFrameBuffer(0);
         self.scrolltext.render();

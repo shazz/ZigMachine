@@ -39,6 +39,7 @@ for t in \
     libs/zig/effects/wave_test.zig \
     libs/zig/effects/spans_test.zig \
     libs/zig/shapes_test.zig \
+    libs/zig/wireframe_test.zig \
     libs/zig/tvnoise/tvnoise.zig \
     apps/zig/scene_tests.zig \
     rom/gem/desktop/namefield.zig \

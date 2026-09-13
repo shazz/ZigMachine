@@ -103,3 +103,84 @@ fn nextF32(toks: *std.mem.TokenIterator(u8, .any)) f32 {
     const t = toks.next() orelse return 0;
     return std.fmt.parseFloat(f32, t) catch 0;
 }
+
+// --------------------------------------------------------------------------
+// Wireframes, parsed at COMPTIME: `v x y z` vertices and `l a b c ...`
+// polylines (each consecutive pair is one edge, in file order). Vertices are
+// kept exactly as written: no recentring, so a scene's hand-tuned coordinates
+// survive bit for bit. Faces are ignored here. Nothing lands in the cart but
+// the arrays the scene actually references: the text itself stays at comptime.
+//
+//   const logo = obj.parseWire(@embedFile("../assets/obj/empire_logo.obj"));
+// --------------------------------------------------------------------------
+pub const Edge = [2]u16;
+
+pub fn Wire(comptime nverts: usize, comptime nedges: usize) type {
+    return struct {
+        verts: [nverts][3]f32,
+        edges: [nedges]Edge,
+    };
+}
+
+fn wireCounts(comptime text: []const u8) [2]usize {
+    @setEvalBranchQuota(1_000_000);
+    var nv: usize = 0;
+    var ne: usize = 0;
+    var lines = std.mem.tokenizeScalar(u8, text, '\n');
+    while (lines.next()) |raw| {
+        var toks = std.mem.tokenizeAny(u8, raw, " \t\r");
+        const kind = toks.next() orelse continue;
+        if (std.mem.eql(u8, kind, "v")) nv += 1;
+        if (std.mem.eql(u8, kind, "l")) {
+            var n: usize = 0;
+            while (toks.next()) |_| n += 1;
+            if (n < 2) @compileError("obj: an `l` record needs at least 2 indices");
+            ne += n - 1;
+        }
+    }
+    return .{ nv, ne };
+}
+
+pub fn parseWire(comptime text: []const u8) Wire(wireCounts(text)[0], wireCounts(text)[1]) {
+    return comptime parseWireAt(text);
+}
+
+fn parseWireAt(comptime text: []const u8) Wire(wireCounts(text)[0], wireCounts(text)[1]) {
+    @setEvalBranchQuota(1_000_000);
+    const R = Wire(wireCounts(text)[0], wireCounts(text)[1]);
+    var out: R = undefined;
+    var nv: usize = 0;
+    var ne: usize = 0;
+    var lines = std.mem.tokenizeScalar(u8, text, '\n');
+    while (lines.next()) |raw| {
+        var toks = std.mem.tokenizeAny(u8, raw, " \t\r");
+        const kind = toks.next() orelse continue;
+        if (std.mem.eql(u8, kind, "v")) {
+            for (&out.verts[nv]) |*c| c.* = wireFloat(toks.next());
+            nv += 1;
+        } else if (std.mem.eql(u8, kind, "l")) {
+            var prev = wireIndex(toks.next(), out.verts.len);
+            while (toks.next()) |t| {
+                const cur = wireIndex(t, out.verts.len);
+                out.edges[ne] = .{ prev, cur };
+                ne += 1;
+                prev = cur;
+            }
+        }
+    }
+    return out;
+}
+
+fn wireFloat(tok: ?[]const u8) f32 {
+    const t = tok orelse @compileError("obj: `v` record needs x y z");
+    return std.fmt.parseFloat(f32, t) catch @compileError("obj: bad float '" ++ t ++ "'");
+}
+
+// OBJ indices are 1-based; a vertex index must name a vertex of the file.
+fn wireIndex(tok: ?[]const u8, nverts: usize) u16 {
+    const t = tok orelse unreachable;
+    const end = std.mem.indexOfScalar(u8, t, '/') orelse t.len;
+    const vi = std.fmt.parseInt(u16, t[0..end], 10) catch @compileError("obj: bad index '" ++ t ++ "'");
+    if (vi < 1 or vi > nverts) @compileError("obj: index out of range '" ++ t ++ "'");
+    return vi - 1;
+}
