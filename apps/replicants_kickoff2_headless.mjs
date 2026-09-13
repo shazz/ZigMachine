@@ -5,8 +5,9 @@
 // snapshotted right after it renders and the snapshots are alpha-blended here,
 // bottom plane first. The scene uses only plane 0 (PLANES = 1).
 //
-// The screen has its BOTTOM BORDER OPEN: the crop is physical rows 40..279 (the
-// visible 200 plus the bottom border), x 80..719 halved back to 320.
+// The screen has its TOP AND BOTTOM BORDERS OPEN and is centred vertically: the
+// crop is physical rows 20..259 (20 rows of each border around the visible 200),
+// x 80..719 halved back to 320.
 //
 // Frame N is requestAnimFrame call N of the original: 1..200 decrunch,
 // 201..500 credits page, 501.. go() (time1 = N - 501).
@@ -76,7 +77,7 @@ function composite() {
 
 async function shot(path) {
     const img = composite();
-    const X0 = 80, Y0 = 40, VW = 320, VH = 240;
+    const X0 = 80, Y0 = 20, VW = 320, VH = 240;
     const hdr = new TextEncoder().encode(`P6\n${VW} ${VH}\n255\n`);
     const buf = new Uint8Array(hdr.length + VW * VH * 3);
     buf.set(hdr);

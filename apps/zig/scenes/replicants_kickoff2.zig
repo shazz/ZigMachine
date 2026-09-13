@@ -50,9 +50,10 @@ const MUSIC_TUNE: u8 = 2; // the title track (subtune 1 is a different song)
 
 const PLANE = 0;
 
-// the 320x240 content window inside the 400x280 overscan buffer
+// the 320x240 content window inside the 400x280 overscan buffer, centred
+// vertically (Matt): (280 - 240) / 2 = 20 rows of the top AND bottom borders
 const CONTENT_X: usize = 40;
-const CONTENT_Y: usize = 40;
+const CONTENT_Y: usize = 20;
 const CONTENT_W: usize = 320;
 const CONTENT_H: usize = 240;
 
@@ -239,7 +240,7 @@ pub const Demo = struct {
         fb.is_enabled = true;
         fb.setPalette(palette);
         fb.setPaletteEntry(TRANSPARENT, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
-        fb.openBorders(.top_bottom); // content reaches physical row 279: the bottom border
+        fb.openBorders(.top_bottom); // content spans physical rows 20..259: both borders
         const whole = blit.Dst.plane(fb);
         fillRows(whole, 0, whole.h, BLACK);
     }
