@@ -138,6 +138,53 @@ for (const [name, r] of refusals) {
     });
 }
 
+// Relative mode and the destination were unchecked before 1.4.0: a bad BASE read
+// or wrote past the end of memory and trapped the machine, and D_BASE = 0x200000
+// wrote straight into the ROM's RAM. Both are now refused without a trap.
+const romGuard = () => u8().subarray(ROM_BASE, ROM_BASE + 4096);
+check("relative source past the video region is refused, no trap", () => {
+    const cyc = blit({ base: 0x3ff000, stride: 320, w: 64, h: 64, x: 0, y: 0 });
+    return untouched() ?? (cyc === 0 ? null : `CYCLES ${cyc}`);
+});
+check("relative source rect running off the region's end is refused", () => {
+    const cyc = blit({ base: REGION_BYTES - 100, stride: 320, w: 64, h: 2, x: 0, y: 0 });
+    return untouched() ?? (cyc === 0 ? null : `CYCLES ${cyc}`);
+});
+function destBlit(cmd, dBase, dStride, coords) {
+    const m = u8(), d = dv();
+    m[R(0x07)] = 0;
+    d.setUint32(R(0x20), dBase, true);
+    d.setUint16(R(0x24), dStride, true);
+    m[R(0x02)] = 0;                          // CON: no channels, no clip
+    m[R(0x01)] = 0xcc;
+    m[R(0x04)] = 0x77;                       // COLOR
+    const [x0, y0, x1, y1, x2, y2, w, h] = coords;
+    d.setInt16(R(0x2c), x0, true); d.setInt16(R(0x2e), y0, true);
+    d.setInt16(R(0x30), x1, true); d.setInt16(R(0x32), y1, true);
+    d.setInt16(R(0x34), x2, true); d.setInt16(R(0x36), y2, true);
+    d.setUint16(R(0x28), w, true); d.setUint16(R(0x2a), h, true);
+    m[R(0x00)] = cmd;
+    machine.hwBlit();
+    return d.getUint32(R(0x60), true);
+}
+for (const [name, cmd] of [["FILL", 2], ["LINE", 3], ["TRIANGLE", 4]]) {
+    check(`${name} with D_BASE in the ROM's RAM is refused`, () => {
+        romGuard().fill(CANARY);
+        const cyc = destBlit(cmd, ROM_BASE - VIDEO, 320, [0, 0, 50, 50, 0, 50, 50, 50]);
+        return romGuard().every((v) => v === CANARY) ? (cyc === 0 ? null : `CYCLES ${cyc}`) : "ROM RAM was written";
+    });
+}
+check("FILL whose box runs off the end of memory is refused, no trap", () => {
+    const cyc = destBlit(2, 0x3fff00, 320, [0, 0, 0, 0, 0, 0, 320, 200]);
+    return cyc === 0 ? null : `CYCLES ${cyc}`;
+});
+check("a huge-stride view that only writes its first rows still works", () => {
+    // blitter_demo's DELAY ring: plane 1 viewed with a 62400-byte stride
+    plane0().fill(CANARY);
+    const cyc = destBlit(2, P0, 62400, [4, 0, 0, 0, 0, 0, 8, 1]);
+    return at(4, 0) === 0x77 && at(11, 0) === 0x77 && cyc === 8 ? null : `FILL wrote ${at(4, 0)}, CYCLES ${cyc}`;
+});
+
 check("hwInit clears CON2, so pre-1.4.0 carts keep relative sources", () => {
     u8()[R(0x07)] = 1;
     machine.hwInit();
