@@ -61,86 +61,14 @@ const logo_b = @embedFile("../assets/screens/fallen_angels/logo.raw");
 // Demo
 // --------------------------------------------------------------------------
 
-const Vec2 = za.Vec2;
 const Vec3 = za.Vec3;
 const Vec4 = za.Vec4;
-const Mat4 = za.Mat4;
+const wf = zg.wireframe;
 
-var grid_vertices = [_]Vec4{
-    Vec4.new(-0.30, 0.30, 0.0, 1.0),
-    Vec4.new(-0.18, 0.30, 0.0, 1.0),
-    Vec4.new(-0.06, 0.30, 0.0, 1.0),
-    Vec4.new(0.06, 0.30, 0.0, 1.0),
-    Vec4.new(0.18, 0.30, 0.0, 1.0),
-    Vec4.new(0.30, 0.30, 0.0, 1.0),
-
-    Vec4.new(-0.30, 0.18, 0, 1.0),
-    Vec4.new(-0.18, 0.18, 0, 1.0),
-    Vec4.new(-0.06, 0.18, 0, 1.0),
-    Vec4.new(0.06, 0.18, 0, 1.0),
-    Vec4.new(0.18, 0.18, 0, 1.0),
-    Vec4.new(0.30, 0.18, 0, 1.0),
-
-    Vec4.new(-0.30, 0.06, 0, 1.0),
-    Vec4.new(-0.18, 0.06, 0, 1.0),
-    Vec4.new(-0.06, 0.06, 0, 1.0),
-    Vec4.new(0.06, 0.06, 0, 1.0),
-    Vec4.new(0.18, 0.06, 0, 1.0),
-    Vec4.new(0.30, 0.06, 0, 1.0),
-
-    Vec4.new(-0.30, -0.06, 0, 1.0),
-    Vec4.new(-0.18, -0.06, 0, 1.0),
-    Vec4.new(-0.06, -0.06, 0, 1.0),
-    Vec4.new(0.06, -0.06, 0, 1.0),
-    Vec4.new(0.18, -0.06, 0, 1.0),
-    Vec4.new(0.30, -0.06, 0, 1.0),
-
-    Vec4.new(-0.30, -0.18, 0, 1.0),
-    Vec4.new(-0.18, -0.18, 0, 1.0),
-    Vec4.new(-0.06, -0.18, 0, 1.0),
-    Vec4.new(0.06, -0.18, 0, 1.0),
-    Vec4.new(0.18, -0.18, 0, 1.0),
-    Vec4.new(0.30, -0.18, 0, 1.0),
-
-    Vec4.new(-0.30, -0.30, 0, 1.0),
-    Vec4.new(-0.18, -0.30, 0, 1.0),
-    Vec4.new(-0.06, -0.30, 0, 1.0),
-    Vec4.new(0.06, -0.30, 0, 1.0),
-    Vec4.new(0.18, -0.30, 0, 1.0),
-    Vec4.new(0.30, -0.30, 0, 1.0)
-};
-
-var grid_segments = [_]Vec4{
-        Vec4.new(0, 1, 7, 6),
-        Vec4.new(1, 2, 8, 7),
-        Vec4.new(2, 3, 9, 8),
-        Vec4.new(3, 4, 10, 9),
-        Vec4.new(4, 5, 11, 10),
-
-        Vec4.new(6, 7, 13, 12),
-        Vec4.new(7, 8, 14, 13),
-        Vec4.new(8, 9, 15, 14),
-        Vec4.new(9, 10, 16, 15),
-        Vec4.new(10, 11, 17, 16),
-
-        Vec4.new(12, 13, 19, 18),
-        Vec4.new(13, 14, 20, 19),
-        Vec4.new(14, 15, 21, 20),
-        Vec4.new(15, 16, 22, 21),
-        Vec4.new(16, 17, 23, 22),
-
-        Vec4.new(18, 19, 25, 24),
-        Vec4.new(19, 20, 26, 25),
-        Vec4.new(20, 21, 27, 26),
-        Vec4.new(21, 22, 28, 27),
-        Vec4.new(22, 23, 29, 28),
-
-        Vec4.new(24, 25, 31, 30),
-        Vec4.new(25, 26, 32, 31),
-        Vec4.new(26, 27, 33, 32),
-        Vec4.new(27, 28, 34, 33),
-        Vec4.new(28, 29, 35, 34)
-};
+// The 6x6 rippling grid (36 vertices, 25 quads = 100 edges). The file holds
+// the flat base; update() rewrites every z with the ripple before projecting.
+const grid = zg.obj.parseWire(@embedFile("../assets/obj/fallen_angels_grid.obj"));
+var grid_vertices = wf.vec4s(grid.verts.len, grid.verts);
 
 
 // Rasters: the scroller ink (plane 0, entry 1) takes rasters_b[line] on visible
@@ -167,10 +95,8 @@ pub const Demo = struct {
     logo_sinx: f32 = 0,
     scroll_sinx: f32 = 0,
     scroll_sinx_incr: f32 = 0,
-    projection: Mat4 = undefined,
-    camera: Mat4 = undefined,
-    screen: Mat4 = undefined,
-    grid_projected_vertices: [36]Coord = undefined,
+    cam: wf.Camera = undefined,
+    grid_projected_vertices: [grid.verts.len]Coord = undefined,
     angle_y: f32 = 0.0,
     angle_x: f32 = 0.0,
     angle_z: f32 = 0.0,    
@@ -217,9 +143,11 @@ pub const Demo = struct {
         fb.setPaletteEntry(0, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
         fb.setPaletteEntry(1, Color{ .r = 0xff, .g = 0x00, .b = 0x00, .a = 255 });
 
-        self.projection = za.perspective(40.0, 200.0 / 320.0, 1, 1000);
-        self.camera = za.camera(Vec3.new(0.0, 0.0, -1.4), 0, 0);
-        self.screen = za.screen(320, 200);   
+        self.cam = .{
+            .projection = za.perspective(40.0, 200.0 / 320.0, 1, 1000),
+            .camera = za.camera(Vec3.new(0.0, 0.0, -1.4), 0, 0),
+            .screen = za.screen(320, 200),
+        };
 
         Console.log("demo init done!", .{});
     }
@@ -255,7 +183,7 @@ pub const Demo = struct {
             grid_vertices[i] = Vec4.new(grid_vertices[i].x(), grid_vertices[i].y(), offset, 1.0);
         }        
 
-        self.transform_object(self.angle_x, self.angle_y, self.angle_z, &grid_vertices, &self.grid_projected_vertices);        
+        self.cam.project(&grid_vertices, &self.grid_projected_vertices, self, spin);
 
         // not sure when time_Counter becomes nan ???
         // self.time_counter += elapsed_time;
@@ -306,55 +234,13 @@ pub const Demo = struct {
         if(self.time_counter > 16*60*6) {
             fb = &zigos.lfbs[2];
             fb.clearFrameBuffer(0);
-            self.render_object(fb.getRenderTarget(), &grid_segments, &self.grid_projected_vertices, 1);
+            wf.drawEdges(fb.getRenderTarget(), &grid.edges, &self.grid_projected_vertices, 1, shapes.drawLine);
         }
 
         _ = elapsed_time;
-    } 
+    }
 
- fn transform_object(self: *Demo, angle_x: f32, angle_y: f32, angle_z: f32, vertices: []Vec4, projected_vertices: []Coord) void {
-
-        for(vertices, 0..) |vertex, idx| {
-
-            const rot_matx = Mat4.fromEulerAngles(Vec3.new(angle_x, 0, 0));
-            const vertex_after_rotx = rot_matx.vec4mulByMat4(vertex);
-
-            const rot_maty = Mat4.fromEulerAngles(Vec3.new(0, angle_y, 0));
-            const vertex_after_roty = rot_maty.vec4mulByMat4(vertex_after_rotx);
-
-            const rot_matz = Mat4.fromEulerAngles(Vec3.new(0, 0, angle_z));
-            const vertex_after_rotz = rot_matz.vec4mulByMat4(vertex_after_roty); 
-      
-            const vertex_after_cam = self.camera.vec4mulByMat4(vertex_after_rotz);
-            const vertex_after_proj = self.projection.vec4mulByMat4(vertex_after_cam);
-                    
-            const norm = Vec4.set(1/vertex_after_proj.w());
-            const vertex_after_norm = vertex_after_proj.mul(norm);
-
-            const vertex_after_screen = self.screen.vec4mulByMat4(vertex_after_norm);
-
-            const coord_x: i16 = @as(i16, @intFromFloat(vertex_after_screen.x())); 
-            const coord_y: i16 = @as(i16, @intFromFloat(vertex_after_screen.y())); 
-
-            projected_vertices[idx].x=coord_x;
-            projected_vertices[idx].y=coord_y;
-        }     
-    }  
-
-    fn render_object(self: *Demo, render_target: RenderTarget, segments: []const Vec4, projected_vertices: []Coord, pal_entry: u8) void {
-
-        for(segments) |segment| {
-            const v1: Coord = projected_vertices[@as(usize, @intFromFloat(segment.x()))];
-            const v2: Coord = projected_vertices[@as(usize, @intFromFloat(segment.y()))];
-            const v3: Coord = projected_vertices[@as(usize, @intFromFloat(segment.z()))];
-            const v4: Coord = projected_vertices[@as(usize, @intFromFloat(segment.w()))];
-
-            shapes.drawLine(render_target, v1, v2, pal_entry);   
-            shapes.drawLine(render_target, v2, v3, pal_entry);   
-            shapes.drawLine(render_target, v3, v4, pal_entry);   
-            shapes.drawLine(render_target, v4, v1, pal_entry);   
-        }
-
-        _ = self;
-    }    
+    fn spin(self: *Demo, v: Vec4) Vec4 {
+        return wf.rotateXYZ(v, self.angle_x, self.angle_y, self.angle_z);
+    }
 };
