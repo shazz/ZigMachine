@@ -12,6 +12,13 @@
 
 use core::panic::PanicInfo;
 
+// The song bridge (apps/rust/zigmachine_music.rs). Declaring it exports the four
+// symbols the host polls; hello requests nothing, so the host never plays a
+// tune. A screen with music would call, in boot():
+//     zigmachine_music::request_song("sos.sndh");            // default subtune
+//     zigmachine_music::request_song_tune("leavin_teramis.sndh", 9);
+mod zigmachine_music;
+
 // --- ABI geometry (mirror of hw/sdk/memmap.zig) ---
 const REG_BACKGROUND: usize = 0x04; // u32 RGBA
 const OFF_PAL: usize = 0x0100; // palette 0: 256 x RGBA u32

@@ -66,5 +66,6 @@ SHOTS=$(mktemp -d)
 node apps/verify.mjs          # the C and Rust carts still talk to the ABI
 node apps/gem_headless.mjs "$SHOTS"
 node apps/sndh_headless.mjs
+node apps/c_music_check.mjs   # a C cart's song request reaches the sealed YM
 node apps/dbug_headless.mjs "$SHOTS"
 echo "shots in $SHOTS"
