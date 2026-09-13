@@ -1,17 +1,18 @@
-// Headless TEX check (CODEF screen 14): the eleven sprites follow screen.js's
-// own chain, frame by frame.
+// Headless TEX check (CODEF screen 14): stars, logo, sprites and scrolltext all
+// sit where screen.js puts them, frame by frame.
 //
-// go() (screen.js:114-118) advances every phase by 0.04 and then draws sprite i
-// at x = 305 + 306*sin(p), y = 86 + 84*cos(1.5p), p starting at 0.3*(i+1). The
-// browser draws an unscaled image at the ROUNDED canvas coordinate; halved, that
-// is floor(round(c) / 2). This rebuilds the expected sprite layer from those
-// formulas and the .raw images and asserts, on plane 1 (logo + sprites):
-//   - every sprite pixel not covered by a later sprite has the sprite's colour,
-//     at several frames (the path, the draw order, the Y's column alignment),
-//   - the sprites MOVE between two sampled frames (a frozen phase would pass a
-//     single-frame check only if it froze at frame 1),
-//   - a sprite crossing the left edge is clipped, not pinned to x = 0,
-//   - the frame loop holds a 60 fps budget with headroom.
+// This replays the original's JavaScript in canvas units, halves it the way the
+// scene documents, and rebuilds the expected index map of three planes:
+//   plane 0  starfield2D_dot (codef_starfield.js:99-121): 25 stars at -5.0 and 30
+//            at -1.2 on 640x190, seeded by the scene's xorshift32, plotted then
+//            moved, one ST pixel per 2x2 dot;
+//   plane 1  the logo at 320 + sin(sinx)*(100*sin(inc)) - 208 (screen.js:110-112)
+//            under the eleven sprites at 305 + 306*sin(p), 86 + 84*cos(1.5p);
+//   plane 3  scrolltext_horizontal (codef_scrolltext.js:57-133) at 3 canvas px a
+//            frame, masked by the font background.
+// Each is checked pixel for pixel at several frames; on top of that the sprite
+// chain, the logo and the scroller must move between consecutive frames, the
+// star layers must keep their counts, and a frame must leave 60 fps headroom.
 //
 //   node apps/tex_headless.mjs [outdir] [cart.wasm]
 import { readFile, writeFile } from "node:fs/promises";
@@ -21,7 +22,11 @@ const PAGES = 112; // SHARED_PAGES in machine/sdk/memmap.zig
 const TOP = 40, LEFT = 80; // the visible window in the physical frame (x doubled)
 const FRAMES = [1, 60, 61, 200, 1234, 3600];
 const ASSETS = "apps/zig/assets/screens/the_union/";
-const NAMES = ["delta", "delta", "delta", "h", "o", "w", "d", "y", "delta", "delta", "delta"];
+const SPRITES = ["delta", "delta", "delta", "h", "o", "w", "d", "y", "delta", "delta", "delta"];
+const TEXT = "THE EXCEPTIONS PROUDLY PRESENT THIS NEW GAME CRACKED BY HOWDY FROM THE EXCEPTIONS MEMBER OF THE UNION     LET WRAP              ";
+const STAR_SEED = 0x2545f491;
+const LAYERS = [{ nb: 25, speedx: -5.0, color: 2 }, { nb: 30, speedx: -1.2, color: 1 }];
+const SCROLL_POS = 142, BACK_POS = 113;
 
 async function boot(cart) {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
@@ -57,76 +62,142 @@ async function boot(cart) {
     return { memory, machine, demo };
 }
 
-/// The screen.js position of sprite i after `frame` calls of go(), halved.
-function spriteAt(i, frame) {
-    let p = 0.3 * (i + 1);
-    for (let k = 0; k < frame; k++) p += 0.04; // accumulate exactly as the JS does
-    return [Math.floor(Math.round(305 + 306 * Math.sin(p)) / 2), Math.floor(Math.round(86 + 84 * Math.cos(p * 1.5)) / 2)];
+// ---- the original, replayed in canvas units --------------------------------
+const halve = (c) => Math.floor(Math.round(c) / 2);
+
+function makeOriginal() {
+    let seed = STAR_SEED;
+    const random = () => {
+        seed = (seed ^ (seed << 13)) >>> 0; seed = (seed ^ (seed >>> 17)) >>> 0; seed = (seed ^ (seed << 5)) >>> 0;
+        return seed / 4294967296;
+    };
+    const stars = [];
+    for (const l of LAYERS) for (let j = 0; j < l.nb; j++) stars.push({ x: random() * 640, y: random() * 190, drawn: 0, ...l });
+    const letters = Array.from({ length: 12 }, (_, i) => ({ x: 11 * 64 + i * 64, ch: TEXT.charCodeAt(i) }));
+    const st = { frame: 0, stars, letters, offset: 12, sinx: 0, inc: 0, phase: SPRITES.map((_, i) => 0.3 * (i + 1)) };
+    st.go = () => {
+        st.frame++;
+        for (const s of stars) {
+            s.drawn = s.x; s.x += s.speedx;
+            if (s.x > 640) s.x = 0;
+            if (s.x < 0) s.x = 640;
+        }
+        st.sinx += 0.13; st.inc += 0.008;
+        st.phase = st.phase.map((p) => p + 0.04);
+        for (const l of letters) {
+            l.x -= 3;
+            if (l.x <= -64) {
+                l.x = 11 * 64 + (l.x + 64); l.ch = TEXT.charCodeAt(st.offset++);
+                if (st.offset > TEXT.length - 1) st.offset = 0;
+            }
+        }
+    };
+    st.logoX = () => halve(320 + Math.sin(st.sinx) * (100 * Math.sin(st.inc)) - 208);
+    return st;
 }
 
-/// Plane-1 pixel index per screen pixel for the sprite layer; -1 where no sprite.
-function expectedLayer(images, frame) {
-    const layer = new Int16Array(320 * 200).fill(-1);
-    images.forEach((img, i) => {
-        const [sx, sy] = spriteAt(i, frame);
-        for (let r = 0; r < 8; r++) for (let c = 0; c < 16; c++) {
-            const v = img[r * 16 + c], x = sx + c, y = sy + r;
-            if (v && x >= 0 && x < 320 && y >= 0 && y < 200) layer[y * 320 + x] = v;
-        }
-    });
-    return layer;
+function paint(map, img, w, part, dx, dy, key0) {
+    const h = part ? part.h : img.length / w, y0 = part ? part.y : 0;
+    for (let r = 0; r < h; r++) for (let c = 0; c < w; c++) {
+        const v = img[(y0 + r) * w + c], x = dx + c, y = dy + r;
+        if ((key0 && v === 0) || x < 0 || x >= 320 || y < 0 || y >= 200) continue;
+        map[y * 320 + x] = v;
+    }
+}
+
+function expectStars(st) {
+    const map = new Uint8Array(320 * 200);
+    for (const s of st.stars) {
+        const x = Math.floor(Math.floor(s.drawn + 1) / 2), y = Math.floor(Math.floor(s.y + 1) / 2);
+        if (x >= 0 && x < 320 && y < 95) map[y * 320 + x] = s.color;
+    }
+    return map;
+}
+
+function expectLogoSprites(st, a) {
+    const map = new Uint8Array(320 * 200);
+    paint(map, a.logo, 208, null, st.logoX(), 0, true);
+    st.phase.forEach((p, i) => paint(map, a.sprites[i], 16, null, halve(305 + 306 * Math.sin(p)), halve(86 + 84 * Math.cos(p * 1.5)), true));
+    return map;
+}
+
+function expectScroll(st, a) {
+    const map = new Uint8Array(320 * 200);
+    for (const l of st.letters) paint(map, a.font, 32, { y: (l.ch - 32) * 17, h: 17 }, Math.floor(l.x / 2), SCROLL_POS, true);
+    for (let i = SCROLL_POS * 320, t = (SCROLL_POS - BACK_POS) * 320; i < (SCROLL_POS + 17) * 320; i++, t++) map[i] &= a.back[t];
+    return map;
+}
+
+// ---- the cart ----------------------------------------------------------------
+/// Compare a plane with an expected index map: index 0 (and the plane's other
+/// transparent entries) must be clear, every other index its palette colour.
+function check(px, W, map, pal, clear, name, frame, errors) {
+    let wrong = 0, ink = 0;
+    for (let y = 0; y < 200; y++) for (let x = 0; x < 320; x++) {
+        const v = map[y * 320 + x], o = ((y + TOP) * W + LEFT + x * 2) * 4;
+        if (clear.includes(v)) { if (px[o + 3] !== 0) wrong++; continue; }
+        ink++;
+        if (px[o + 3] === 0 || px[o] !== pal[v * 4] || px[o + 1] !== pal[v * 4 + 1] || px[o + 2] !== pal[v * 4 + 2]) wrong++;
+    }
+    if (wrong) errors.push(`frame ${frame} ${name}: ${wrong} px off the screen.js replay (${ink} ink px expected)`);
+    return ink;
 }
 
 const { memory, machine, demo } = await boot(process.argv[3] || "docs/demo-tex.wasm");
-const images = await Promise.all(NAMES.map((n) => readFile(`${ASSETS}${n}.raw`)));
-const pal = await readFile(`${ASSETS}logo_pal.dat`);
+const a = {
+    logo: await readFile(`${ASSETS}logo.raw`), back: await readFile(`${ASSETS}back.raw`), font: await readFile(`${ASSETS}fonts.raw`),
+    sprites: await Promise.all(SPRITES.map((n) => readFile(`${ASSETS}${n}.raw`))),
+    logoPal: await readFile(`${ASSETS}logo_pal.dat`), bluePal: await readFile(`${ASSETS}blue_back_pal.dat`),
+};
+const starPal = new Uint8Array(1024);
+starPal.set([0x60, 0x60, 0x60, 255], 4); starPal.set([0xe0, 0xe0, 0xe0, 255], 8);
 const W = machine.hwPhysWidth(), H = machine.hwPhysHeight();
-const errors = [];
-const layers = new Map();
-let frame = 0, cartMs = 0, leftClip = 0;
+const st = makeOriginal();
+const errors = [], seen = new Map();
+let cartMs = 0;
 
 for (const target of FRAMES) {
-    const t0 = performance.now();
-    while (frame < target) { demo.frame(1000 / 60); frame++; }
-    cartMs += performance.now() - t0;
-    machine.hwRenderPlane(1);
-    const px = new Uint8Array(memory.buffer, machine.hwPhysicalPtr(), W * H * 4);
-    const want = expectedLayer(images, frame);
-    let checked = 0, wrong = 0;
-    for (let y = 0; y < 200; y++) for (let x = 0; x < 320; x++) {
-        const v = want[y * 320 + x];
-        if (v < 0) continue;
-        checked++;
-        const o = ((y + TOP) * W + LEFT + x * 2) * 4;
-        if (px[o] !== pal[v * 4] || px[o + 1] !== pal[v * 4 + 1] || px[o + 2] !== pal[v * 4 + 2]) wrong++;
+    while (st.frame < target) {
+        const t0 = performance.now(); demo.frame(1000 / 60); cartMs += performance.now() - t0;
+        st.go();
     }
-    if (checked < 200) errors.push(`frame ${frame}: only ${checked} sprite px on screen`);
-    if (wrong) errors.push(`frame ${frame}: ${wrong}/${checked} sprite px off the screen.js path`);
-    NAMES.forEach((_, i) => { if (spriteAt(i, frame)[0] < 0) leftClip++; });
-    layers.set(frame, { want, checked });
-
-    if (process.argv[2]) {
-        const hdr = new TextEncoder().encode(`P6\n320 200\n255\n`);
-        const buf = new Uint8Array(hdr.length + 320 * 200 * 3);
-        buf.set(hdr);
-        for (let y = 0; y < 200; y++) for (let x = 0; x < 320; x++) for (let c = 0; c < 3; c++)
-            buf[hdr.length + (y * 320 + x) * 3 + c] = px[((y + TOP) * W + LEFT + x * 2) * 4 + c];
-        await writeFile(`${process.argv[2]}/tex-plane1-${frame}.ppm`, buf);
+    const maps = [expectStars(st), expectLogoSprites(st, a), null, expectScroll(st, a)];
+    const got = [];
+    for (const [p, pal, clear, name] of [[0, starPal, [0], "stars"], [1, a.logoPal, [0, 255], "logo+sprites"], [3, a.bluePal, [0], "scrolltext"]]) {
+        machine.hwRenderPlane(p);
+        const px = new Uint8Array(memory.buffer, machine.hwPhysicalPtr(), W * H * 4);
+        got[p] = check(px, W, maps[p], pal, clear, name, st.frame, errors);
+        if (process.argv[2]) {
+            const hdr = new TextEncoder().encode(`P6\n320 200\n255\n`);
+            const buf = new Uint8Array(hdr.length + 320 * 200 * 3);
+            buf.set(hdr);
+            for (let y = 0; y < 200; y++) for (let x = 0; x < 320; x++) for (let c = 0; c < 3; c++)
+                buf[hdr.length + (y * 320 + x) * 3 + c] = px[((y + TOP) * W + LEFT + x * 2) * 4 + c];
+            await writeFile(`${process.argv[2]}/tex-plane${p}-${st.frame}.ppm`, buf);
+        }
     }
+    // star layers keep their counts: every visible dot is one of its layer's stars
+    const perLayer = LAYERS.map((l) => maps[0].filter((v) => v === l.color).length);
+    if (perLayer[0] > 25 || perLayer[1] > 30 || perLayer[0] + perLayer[1] < 40)
+        errors.push(`frame ${st.frame}: star layers show ${perLayer.join("+")} dots (25 + 30 stars)`);
+    seen.set(st.frame, { maps, logoX: st.logoX(), letter0: st.letters[0].x, stars: st.stars.map((s) => s.drawn) });
 }
 
-// the chain moves: consecutive frames place different sprite layers
-const a = layers.get(60).want, b = layers.get(61).want;
-if (a.every((v, i) => v === b[i])) errors.push("frames 60 and 61 carry the same sprite layer: the sprites do not move");
-if (!leftClip) errors.push("no sampled frame puts a sprite past the left edge: the clip goes unchecked");
+// between frames 60 and 61 everything moves by the original's own step
+const f60 = seen.get(60), f61 = seen.get(61);
+if (f60.maps[1].every((v, i) => v === f61.maps[1][i])) errors.push("frames 60/61: the sprite layer does not move");
+if (f61.letter0 - f60.letter0 !== -3 && f61.letter0 - f60.letter0 !== 765) errors.push("frames 60/61: the scroller did not move 3 canvas px");
+f60.stars.forEach((x, i) => {
+    const d = f61.stars[i] - x, want = st.stars[i].speedx;
+    if (Math.abs(d - want) > 1e-9 && Math.abs(d - (640 + want)) > 1e-9 && f61.stars[i] !== 640) errors.push(`star ${i}: moved ${d}, not ${want}`);
+});
+if (errors.length === 0 && FRAMES.every((f) => seen.get(f).logoX === seen.get(1).logoX)) errors.push("the logo never sways");
 
-// timing: the cart's update+render per frame, which has to leave 60 fps headroom
-const perFrame = cartMs / frame;
+const perFrame = cartMs / st.frame;
 if (perFrame > 4) errors.push(`cart takes ${perFrame.toFixed(3)} ms/frame`);
 
 if (errors.length) {
-    console.error(`tex: sprites WRONG\n  ${errors.slice(0, 12).join("\n  ")}`);
+    console.error(`tex: WRONG\n  ${errors.slice(0, 12).join("\n  ")}`);
     process.exit(1);
 }
-const px = [...layers.values()].reduce((n, l) => n + l.checked, 0);
-console.log(`tex: 11 sprites on the screen.js chain at frames ${FRAMES.join(",")} (${px} px, ${leftClip} left-edge crossings), ${perFrame.toFixed(3)} ms/frame`);
+console.log(`tex: stars, logo, 11 sprites and scrolltext on the screen.js replay at frames ${FRAMES.join(",")}; logo x ${FRAMES.map((f) => seen.get(f).logoX).join(",")}; ${perFrame.toFixed(3)} ms/frame`);
