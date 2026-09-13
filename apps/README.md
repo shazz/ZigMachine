@@ -8,7 +8,9 @@ One subfolder per language:
   (Union intro, cracktro ports, GEM desktop host, music debug, …). Compiles to
   `docs/demo.wasm`.
 - **`c/`** — `hello.c`, a plasma proving apps are language-agnostic → `docs/demo-c.wasm`.
-- **`rust/`** — `hello.rs`, the same in `no_std` Rust → `docs/demo-rust.wasm`.
+- **`rust/`** — `hello.rs`, the same in `no_std` Rust → `docs/demo-rust.wasm`, plus
+  one cart per screen in `rust/scenes/` → `docs/demo-rust-<scene>.wasm` (CODEF 490,
+  V8's Populous intro, with its SNDH music).
 
 `verify.mjs` is a headless ABI check for the foreign-language apps (instantiates
 a wasm the way the loader does, runs `boot()`+frames, asserts it drew & animated).

@@ -36,6 +36,19 @@ zigmachine_music::request_song_tune("leavin_teramis.sndh", 9); // subtune, from 
 - `hello.rs` declares the module but requests nothing; `apps/c_music_check.mjs`
   checks that it exports the bridge and stays silent.
 
+## Scenes: `scenes/<name>.rs`
+One cart per screen, like `apps/c/scenes/`: `scenes/<name>.rs` is the crate root
+(its submodules in `scenes/<name>/`, pulled in with `#[path]`), its generated data
+in `assets/screens/<name>/` (`include_bytes!`), built to `docs/demo-rust-<name>.wasm`.
+`build.sh` builds hello plus every scene, or just the ones named.
+
+- **`v8_populous`**: CODEF screen 490, THE FABULOUS V8's Populous crack intro.
+  The flash, the tiled background with the giant V8 fading in and out, the logo
+  waving line by line, the ras-filled wave scroller and Totorman's bouncing member
+  list. Requests David Whittaker's "Custodian" (`custodian.sndh`, subtune 1)
+  through `zigmachine_music.rs`; `apps/c_music_check.mjs` proves it plays. On the
+  menu as V8 POPULOUS (RUST), or `?demo=demo-rust-v8_populous.wasm`.
+
 ## Prerequisite
 ```bash
 rustup target add wasm32-unknown-unknown
