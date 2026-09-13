@@ -262,6 +262,7 @@ pub fn build(b: *std.Build) void {
         "demo-elite_snooker", // 40 — ELITE / Jimmy White Snooker crack intro (CODEF screen 422)
         "demo-union_demo", // 41 — The Union / Union Demo main menu (melonJS remake hub)
         "demo-tutorial", // 42 — docs/TUTORIAL.md: the newcomer's first screen (Zig version)
+        "demo-mpp_truecolor", // 43 — truecolor picture via per-line palettes on 1 and 4 planes (MPP)
     };
     for (cart_names, 0..) |name, idx| {
         if (name.len == 0) continue; // excluded cart (see note above)

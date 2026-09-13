@@ -59,4 +59,5 @@ pub const ENTRIES = [_]Entry{
     .{ .name = "ELITE SNOOKER", .tag = "elite_snooker" },
     .{ .name = "UNION DEMO", .tag = "union_demo" },
     .{ .name = "TUTORIAL", .tag = "tutorial" },
+    .{ .name = "MPP TRUECOLOR", .tag = "mpp_truecolor" },
 };
