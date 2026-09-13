@@ -14,7 +14,6 @@ const Color = zg.Color;
 const Scrolltext = zg.Scrolltext;
 const Background = zg.Background;
 const Sprite = zg.Sprite;
-const Bobs = zg.Bobs;
 
 const Console = zg.Console;
 
@@ -61,8 +60,63 @@ const bob_6_b = @embedFile("../assets/screens/equinox/bob6.raw");
 const bob_7_b = @embedFile("../assets/screens/equinox/bob7.raw");
 const bob_8_b = @embedFile("../assets/screens/equinox/bob8.raw");
 
-const NB_BOBS = 7;
-const bobs_images: [NB_BOBS][]const u8 = [_][]const u8{ bob_1_b, bob_8_b, bob_8_b, bob_8_b, bob_8_b, bob_8_b, bob_8_b };
+// The dragons: CODEF wab screen 015 (prototypes/codef/15/screen.js). All seven
+// wear the same morph frame, dragon1..dragon8 = bob1..bob8 (halved 64x52).
+// Frame 7 is the egg, frame 0 the full dragon.
+const NB_DRAGONS = 7;
+const DRAGON_W = 32;
+const DRAGON_H = 26;
+const dragon_frames = [8][]const u8{ bob_1_b, bob_2_b, bob_3_b, bob_4_b, bob_5_b, bob_6_b, bob_7_b, bob_8_b };
+const EGG_FRAME = 7;
+
+// screen.js:152-185 — the precalculated trajectory. Each dragon trails the
+// previous one by 18 entries; x wraps at 940 and y at 964 (screen.js:303), so
+// the two tables drift against each other. Computed on the 640-wide canvas,
+// then halved to ST pixels.
+const TRAIL = 18;
+const X_WRAP = 940;
+const Y_WRAP = 964;
+const trajectory = blk: {
+    @setEvalBranchQuota(20000);
+    var xs: [X_WRAP]i16 = undefined;
+    var ys: [Y_WRAP]i16 = undefined;
+    var fac_x: f64 = 0;
+    var fac_y: f64 = 0;
+    for (0..Y_WRAP) |i| {
+        // the increments, per range of i, exactly as screen.js:157-181
+        if (i < 125 or i >= 950) {
+            fac_x += 0.05;
+            fac_y += 0.05;
+        } else if (i < 220) {
+            fac_x += 0.03;
+            fac_y += 0.035;
+        } else if (i < 480) {
+            fac_x += 0.06;
+            fac_y += 0.03;
+        } else if (i < 630) {
+            fac_x += 0.045;
+            fac_y += 0.035;
+        } else {
+            fac_x += 0.02;
+            fac_y += 0.045;
+        }
+        const x = 320.0 - 64.0 / 2.0 + ((256.0 - 64.0 / 2.0 - 5.0) * @cos(fac_x));
+        const y = 200.0 - 52.0 / 2.0 + 30.0 + ((128.0 - 52.0 / 2.0 - 10.0) * @sin(fac_y));
+        if (i < X_WRAP) xs[i] = @intFromFloat(@floor(x / 2.0));
+        ys[i] = @intFromFloat(@floor(y / 2.0));
+    }
+    break :blk .{ .x = xs, .y = ys };
+};
+
+// screen.js:146-150 + morphSprite() 216-268. The machine ticks once every
+// 10 frames; each state lasts a fixed number of ticks.
+const MorphState = enum { in_egg, morphing, alive, demorphing };
+const MORPH_TICK = 10;
+const SLEEP_TICKS = 60;
+const MORPH_TICKS = 20;
+const ALIVE_TICKS = 70;
+const DEMORPH_TICKS = 20;
+const ALIVE_TOP_FRAME = 3; // alive ping-pongs frames 0..3
 
 // --------------------------------------------------------------------------
 // Variables
@@ -124,9 +178,15 @@ pub const Demo = struct {
     road1: Sprite = undefined,
     road2: Sprite = undefined,
     logo: Sprite = undefined,
-    bobs: Bobs(NB_BOBS) = undefined,
-    bobs_pos: [NB_BOBS]f32 = undefined,    
     counter: u8 = 0,
+    // the dragons (every field assigned in init(): struct defaults never run)
+    frames: u32 = 0, // screen.js `frames`, starts at 1
+    tabpos: usize = 0, // trajectory index of the lead dragon for the NEXT frame
+    drawn_tabpos: usize = 0, // the index this frame's render draws
+    morph_state: MorphState = .in_egg,
+    morph_frame: u8 = 0, // screen.js `morphType`
+    alive_inc: i8 = 0, // screen.js `aliveInc`
+    state_ticks: u32 = 0, // sleepingTime / morphTime / aliveTime / demorphTime
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
         Console.log("Demo init", .{});
@@ -156,11 +216,14 @@ pub const Demo = struct {
         fb.setPalette(bob_pal);
         fb.setPaletteEntry(0, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
 
-        var i: usize = 0;
-        while (i < NB_BOBS) : (i += 1) {
-            self.bobs_pos[i] = 0.3*(@as(f32, @floatFromInt(i+1)));
-        }
-        self.bobs = Bobs(NB_BOBS).init(fb.getRenderTarget(), bobs_images, 32, 26);
+        // screen.js:60-61, 110-122
+        self.frames = 1;
+        self.tabpos = 0;
+        self.drawn_tabpos = 0;
+        self.morph_state = .in_egg;
+        self.morph_frame = EGG_FRAME;
+        self.alive_inc = 1;
+        self.state_ticks = 0;
 
         fb = &zigos.lfbs[3];
         fb.is_enabled = true; 
@@ -178,17 +241,11 @@ pub const Demo = struct {
         self.backtop.update();
         self.road1.update(null, null, null, null);
 
-        var i: usize = 0;
-        while (i < NB_BOBS) : (i += 1) {
-
-            const x_idx: f32 = 152 + 153 * @sin(self.bobs_pos[i]);
-            const y_idx: f32 = 43 + 42 * @cos(self.bobs_pos[i]*1.5);
-            const x: i16 = @as(i16, @intFromFloat(x_idx));
-            const y: i16 = @as(i16, @intFromFloat(y_idx));
-            self.bobs_pos[i] += 0.04;            
-
-            self.bobs.update(i, x, y);
-        }
+        // screen.js go(): morphSprite(), draw at tabpos, tabpos++, frames++
+        if (self.frames % MORPH_TICK == 0) self.tickMorph();
+        self.drawn_tabpos = self.tabpos;
+        self.tabpos += 1;
+        self.frames += 1;
 
         _ = zigos;
         _ = elapsed_time;
@@ -216,8 +273,9 @@ pub const Demo = struct {
         // self.road1.render();
         // self.logo.render();
 
-        self.bobs.target.clearFrameBuffer(0);
-        self.bobs.render();
+        fb = &zigos.lfbs[2];
+        fb.clearFrameBuffer(0);
+        self.drawDragons(fb);
 
         fb = &zigos.lfbs[3];
         fb.clearFrameBuffer(0);
@@ -225,6 +283,46 @@ pub const Demo = struct {
 
         _ = elapsed_time;
 
+    }
+
+    // morphSprite(), screen.js:216-268: egg (frame 7) for 60 ticks, hatch
+    // 7 -> 0 over 20 ticks, ping-pong 0..3 for 70 ticks, back to 7 over 20.
+    fn tickMorph(self: *Demo) void {
+        self.state_ticks += 1;
+        switch (self.morph_state) {
+            .in_egg => {
+                self.morph_frame = EGG_FRAME;
+                if (self.state_ticks == SLEEP_TICKS) self.enter(.morphing);
+            },
+            .morphing => {
+                if (self.morph_frame > 0) self.morph_frame -= 1;
+                if (self.state_ticks == MORPH_TICKS) self.enter(.alive);
+            },
+            .alive => {
+                if (self.morph_frame == 0) self.alive_inc = 1 else if (self.morph_frame == ALIVE_TOP_FRAME) self.alive_inc = -1;
+                self.morph_frame = @intCast(@as(i8, @intCast(self.morph_frame)) + self.alive_inc);
+                if (self.state_ticks == ALIVE_TICKS) self.enter(.demorphing);
+            },
+            .demorphing => {
+                if (self.morph_frame < EGG_FRAME) self.morph_frame += 1;
+                if (self.state_ticks == DEMORPH_TICKS) self.enter(.in_egg);
+            },
+        }
+    }
+
+    fn enter(self: *Demo, state: MorphState) void {
+        self.morph_state = state;
+        self.state_ticks = 0;
+    }
+
+    // screen.js:301-304: seven dragons, one morph frame, 18 trajectory entries apart
+    fn drawDragons(self: *Demo, fb: *LogicalFB) void {
+        const dst = zg.blit.Dst.plane(fb);
+        const img = zg.blit.Image.init(dragon_frames[self.morph_frame], DRAGON_W);
+        for (0..NB_DRAGONS) |n| {
+            const idx = self.drawn_tabpos + n * TRAIL;
+            zg.blit.blit(dst, img, null, trajectory.x[idx % X_WRAP], trajectory.y[idx % Y_WRAP], 0, .copy);
+        }
     }
 
     fn drawRoad(fb: *LogicalFB, road: []const u8, pos_y: u16, i: u8, band: u8) void {
