@@ -50,6 +50,33 @@ test "floor rounds negative values down" {
     try expectEqual(@as(i32, -1), it.next());
 }
 
+test "NaN and out-of-range sums saturate instead of hitting @intFromFloat UB" {
+    const huge = wave.SineSum(f64, 1){ .base = 3e9, .amp = .{0}, .phase = .{0}, .inc = .{0} };
+    var a = huge.sweep(0);
+    try expectEqual(@as(i32, 0x7FFF_FFFF), a.next());
+    const nan = wave.SineSum(f32, 1){ .amp = .{1}, .phase = .{std.math.nan(f32)}, .inc = .{0} };
+    var b = nan.sweep(0);
+    try expectEqual(@as(i32, -0x8000_0000), b.next());
+    // a saturated offset draws nothing and does not overflow
+    const src_px = [_]u8{1};
+    var buf = [_]u8{0};
+    wave.siny(blit.Dst.buffer(&buf, 1), blit.Image.init(&src_px, 1), null, 0, 5, 1, &a, null, .copy);
+    try expectEqual(@as(u8, 0), buf[0]);
+}
+
+test "accumulate ignores origin; f64 accumulates like the hand loop" {
+    const W = wave.SineSum(f64, 1){ .amp = .{3}, .phase = .{0.25}, .inc = .{0.1} };
+    var x = W.sweep(0);
+    var y = W.sweep(1000);
+    var p: f64 = 0.25;
+    for (0..50) |_| {
+        const want: i32 = @intFromFloat(3.0 * @sin(p));
+        try expectEqual(want, x.next());
+        try expectEqual(want, y.next());
+        p += 0.1;
+    }
+}
+
 const Fixed = struct {
     vals: []const i32,
     i: usize = 0,

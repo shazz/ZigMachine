@@ -31,6 +31,26 @@ test "a run ending a row does not merge with ink starting the next" {
     try expectEqual(spans.Span{ .x0 = 0, .x1 = 1 }, r.row(1)[0]);
 }
 
+test "row past the image is empty; height is exposed" {
+    try expectEqual(@as(usize, 4), @TypeOf(runs).height);
+    try expectEqual(@as(usize, 0), runs.row(4).len);
+    try expectEqual(@as(usize, 0), runs.row(1000).len);
+}
+
+test "all-key, all-ink and one-pixel-wide images" {
+    const none = spans.build(&[_]u8{ 0, 0, 0, 0 }, 2, 0);
+    try expectEqual(@as(usize, 0), none.spans.len);
+    const full = spans.build(&[_]u8{ 1, 1, 1, 1, 1, 1 }, 3, 0);
+    try expectEqual(spans.Span{ .x0 = 0, .x1 = 3 }, full.row(1)[0]);
+    const narrow = spans.build(&[_]u8{ 1, 0, 1 }, 1, 0);
+    try expectEqual(@as(usize, 2), narrow.spans.len);
+}
+
+test "a build inside a function is still comptime" {
+    const local = spans.build(&IMG, 5, 0);
+    try expectEqual(runs.spans, local.spans);
+}
+
 test "a non-zero key" {
     const img = [_]u8{ 9, 0, 9, 0 };
     const r = spans.build(&img, 4, 9);

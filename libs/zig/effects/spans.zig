@@ -26,14 +26,25 @@ pub fn Runs(comptime n: usize, comptime rows: usize) type {
         /// Row y's runs are spans[row_first[y]..row_first[y + 1]].
         row_first: [rows + 1]u32,
 
+        pub const height = rows;
+
+        /// Row y's runs; a row past the image has none.
         pub fn row(self: *const Self, y: usize) []const Span {
+            if (y >= rows) return &.{};
             return self.spans[self.row_first[y]..self.row_first[y + 1]];
         }
     };
 }
 
-/// The runs of pixels != `key` in `img`, `w` pixels per row.
-pub fn build(comptime img: []const u8, comptime w: usize, comptime key: u8) Runs(count(img, w, key), img.len / w) {
+/// The runs of pixels != `key` in `img`, `w` pixels per row. Always evaluated
+/// at compile time, even when called inside a function. The walk is compile
+/// time too: a 400x280 overlay adds tens of seconds to a cold build, so for
+/// much larger images generate the table with a tool instead.
+pub inline fn build(comptime img: []const u8, comptime w: usize, comptime key: u8) Runs(count(img, w, key), img.len / w) {
+    return comptime make(img, w, key);
+}
+
+fn make(comptime img: []const u8, comptime w: usize, comptime key: u8) Runs(count(img, w, key), img.len / w) {
     @setEvalBranchQuota(4 * img.len + 1000);
     const h = img.len / w;
     var out: Runs(count(img, w, key), h) = undefined;
@@ -60,7 +71,8 @@ pub fn build(comptime img: []const u8, comptime w: usize, comptime key: u8) Runs
 
 /// How many runs `build` will produce; it sizes the array exactly.
 pub fn count(comptime img: []const u8, comptime w: usize, comptime key: u8) usize {
-    if (w == 0 or img.len % w != 0) @compileError("spans: image length is not a multiple of its width");
+    if (w == 0) @compileError("spans: zero width");
+    if (img.len % w != 0) @compileError("spans: image length is not a multiple of its width");
     if (w > 0xFFFF) @compileError("spans: rows wider than 65535 pixels");
     @setEvalBranchQuota(2 * img.len + 1000);
     var n: usize = 0;

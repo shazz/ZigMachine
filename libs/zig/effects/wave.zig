@@ -20,12 +20,15 @@
 // --------------------------------------------------------------------------
 const blit = @import("blit.zig");
 
-pub const Step = enum { accumulate, multiply };
-pub const Rounding = enum { trunc, round, floor };
+// Tag 0 is the default, so a SineSum inside a zeroed Demo behaves as declared.
+pub const Step = enum(u8) { accumulate = 0, multiply };
+pub const Rounding = enum(u8) { trunc = 0, round, floor };
 
 /// `base + amp[0]*sin(p0) + amp[1]*sin(p1) + ...`, summed left to right.
+/// A Sweep points at its SineSum: keep the SineSum alive while sweeping.
 pub fn SineSum(comptime F: type, comptime n: usize) type {
     if (n == 0) @compileError("wave.SineSum: at least one term");
+    if (F != f32 and F != f64) @compileError("wave.SineSum: F must be f32 or f64");
     return struct {
         const Self = @This();
 
@@ -62,11 +65,15 @@ pub fn SineSum(comptime F: type, comptime n: usize) type {
                     for (&it.p, s.inc) |*p, d| p.* += d;
                 }
                 it.i += 1;
-                return @intFromFloat(switch (s.rounding) {
-                    .trunc => v,
+                const r = switch (s.rounding) {
+                    .trunc => @trunc(v),
                     .round => @round(v),
                     .floor => @floor(v),
-                });
+                };
+                // Exact for every in-range value; NaN/inf/huge saturate instead
+                // of being undefined in @intFromFloat (NaN fails both tests).
+                if (r >= -0x1p31 and r < 0x1p31) return @intFromFloat(r);
+                return if (r > 0) 0x7FFF_FFFF else -0x8000_0000;
             }
         };
     };
@@ -74,9 +81,11 @@ pub fn SineSum(comptime F: type, comptime n: usize) type {
 
 /// FX.siny: draw `part` of `src` (all of it when null) at (dx, dy) in groups of
 /// `col_w` columns, each group shifted down by the next value of `sweep`
-/// (anything with `next() i32`). Groups are clipped like any blit, and source
-/// pixels equal to `key` are skipped. Every group consumes one value, drawn or not.
+/// (a pointer to anything with `next() i32`). Groups are clipped like any blit,
+/// and source pixels equal to `key` are skipped. Every group of the
+/// source-clipped width consumes one value, drawn or not.
 pub fn siny(dst: blit.Dst, src: blit.Image, part: ?blit.Rect, dx: i32, dy: i32, col_w: usize, sweep: anytype, key: ?u8, ink: blit.Ink) void {
+    if (@typeInfo(@TypeOf(sweep)) != .pointer) @compileError("wave.siny: pass the sweep by pointer (&it)");
     if (col_w == 0) return;
     const p = part orelse blit.Rect{ .x = 0, .y = 0, .w = src.w, .h = src.h };
     if (p.x >= src.w) return;
@@ -85,6 +94,6 @@ pub fn siny(dst: blit.Dst, src: blit.Image, part: ?blit.Rect, dx: i32, dy: i32, 
     while (x < w) : (x += col_w) {
         const off = sweep.next();
         const group = blit.Rect{ .x = p.x + x, .y = p.y, .w = @min(col_w, w - x), .h = p.h };
-        blit.blit(dst, src, group, dx + @as(i32, @intCast(x)), dy + off, key, ink);
+        blit.blit(dst, src, group, dx +| @as(i32, @intCast(x)), dy +| off, key, ink);
     }
 }
