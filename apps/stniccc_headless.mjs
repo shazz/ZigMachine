@@ -5,14 +5,14 @@
 //
 //   node apps/stniccc_headless.mjs [outdir] [streamframe,streamframe,...]
 //
-// One stream frame is drawn every VBL_PER_FRAME host frames (2, see stniccc.zig),
-// so stream frame n is on screen after host frame 2n + 1.
+// One stream frame is drawn every VBL_PER_FRAME host frames (1, see stniccc.zig),
+// so stream frame n is on screen after host frame n.
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { performance } from "node:perf_hooks";
 import { cartRam, romRam } from "../docs/wasm_hiwater.js";
 
 const PAGES = 112; // SHARED_PAGES in machine/sdk/memmap.zig
-const VBL_PER_FRAME = 2; // stniccc.zig
+const VBL_PER_FRAME = 1; // stniccc.zig
 const STREAM_FRAMES = 1800;
 
 async function boot(cart) {
@@ -81,7 +81,7 @@ for (let f = 0; f < hostFrames; f++) {
     const dt = performance.now() - t0;
     total += dt;
     if (dt > worst) { worst = dt; worstAt = f; }
-    const stream = (f - 1) / VBL_PER_FRAME; // host frame 2n+1 shows stream frame n
+    const stream = (f + 1) / VBL_PER_FRAME - 1; // with VBL_PER_FRAME = 1, host frame n shows stream frame n
     if (Number.isInteger(stream) && wanted.has(stream)) {
         await shot(`${out}/stniccc-${String(stream).padStart(4, "0")}.ppm`);
         console.log(`  shot: stream frame ${stream}`);

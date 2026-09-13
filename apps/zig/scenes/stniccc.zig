@@ -10,7 +10,8 @@
 //
 // Data: scene1.bin, the demo's own stream, as shipped by the HTML5 port
 // (dabadab/st-niccc-2000-html5) and the Archimedes port (kieranhj/stniccc-archie,
-// MIT); both copies are byte-identical (sha256 bebba91a...). Music: "STNICCC 2000++"
+// MIT); both copies are byte-identical (sha256 bebba91a...). The MIT notice ships
+// beside the data in assets/screens/stniccc/LICENSE.txt. Music: "STNICCC 2000++"
 // by Dolby (SNDH, 50 Hz timer). Credit for the scene belongs to Oxygene.
 // --------------------------------------------------------------------------
 const zg = @import("zigos");
@@ -28,8 +29,9 @@ const OX: usize = (W - SCENE_W) / 2; // centred on the 320-wide screen
 const BORDER: u8 = 16; // outside the scene's 16 colours: stays black
 const FAILED: u8 = 17; // turns the border red if the stream ever fails to decode
 // The stream has no timing of its own; the original ran as fast as the ST could
-// draw. One stream frame every 2 VBLs (30 fps) plays the flight in 60 seconds.
-const VBL_PER_FRAME: u8 = 2;
+// draw. One stream frame per VBL (60 fps, as the GBA port runs it) plays the
+// flight in 30 seconds.
+const VBL_PER_FRAME: u8 = 1;
 const MUSIC = "stniccc_2000.sndh";
 
 const scene_data = @embedFile("../assets/screens/stniccc/scene1.bin");
