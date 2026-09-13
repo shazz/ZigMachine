@@ -45,7 +45,11 @@ const SILENCE: u8 = 0; // .raw samples are SIGNED 8-bit, so silence is zero
 // buffer, so the linker emitted a second 526 KB blob of zeros to memcpy over the
 // global. Removing that gave 514 KB back and the megabyte fits, with ~590 KB still
 // free by hwRamFree()'s own count (shown on the panel, gated by build.sh).
-const MAX_PCM: usize = 1024 * 1024;
+//
+// Phase 2 step 2.4 spent that RAM: with GEM out of the cart (step 2.3) the window
+// had 603 KB free, so the sampler grew to 1.5 MiB (+512 KB), leaving about 90 KB
+// for stack and heap. Grow it again only against check_fits' measured free count.
+const MAX_PCM: usize = 1536 * 1024;
 const FRAME_HZ: u32 = 60;
 const PLANE: u32 = 0; // the app owns plane 0
 
