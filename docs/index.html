@@ -2,13 +2,24 @@
 <html lang="en">
     <head>
         <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
         <title>Zig Machine</title>
         <link rel="stylesheet" type="text/css" href="css/crt.css?v=36" media="screen" />
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/normalize/5.0.0/normalize.min.css">
-        <link rel="stylesheet" type="text/css" href="css/info.css?v=37" media="screen" />
+        <link rel="stylesheet" type="text/css" href="css/info.css?v=38" media="screen" />
     </head>
     <body>
-        <div>
+        <!-- Scale the fixed 1030x824 monitor stage to the screen (see css/info.css). -->
+        <script>
+            (function () {
+                function fit() {
+                    document.documentElement.style.setProperty("--stage-scale", Math.min(1, window.innerWidth / 1030));
+                }
+                fit();
+                window.addEventListener("resize", fit);
+            })();
+        </script>
+        <div class="stage-box"><div class="stage">
             <img src="overlays/sc1224_5.png" class="monitor" alt="monitor"/>
             <button onclick="main(); this.blur();" class="sound_button">Sound on</button>
             <button onclick="nextChannel(); this.blur();" class="next_channel_button">&nbsp;+&nbsp;</button>
@@ -21,7 +32,7 @@
                     <canvas id="3" width="400" height="280" class="canvas"></canvas>
                 </div>
             </div>
-        </div>
+        </div></div>
         <aside class="info" aria-label="About the ZigMachine">
             <h1>ZIGMACHINE</h1>
             <p class="tagline">A fantasy console written in Zig, running in your browser as WebAssembly.</p>

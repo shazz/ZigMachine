@@ -30,6 +30,14 @@ main h1 { font-size: 21px; color: #7dd3fc; border-bottom: 1px solid #232a3a; pad
 main pre code { background: none; padding: 0; }
 .intro { background: #12151f; border: 1px solid #232a3a; border-radius: 8px; padding: 16px 18px; margin-bottom: 8px; }
 code { background: #1a2030; padding: 1px 5px; border-radius: 4px; }
+/* Phones: the nav moves above the content and wide blocks scroll on their own. */
+@media (max-width: 800px) {
+  .wrap { flex-direction: column; gap: 12px; padding: 16px; }
+  nav { position: static; flex-direction: row; flex-wrap: wrap; min-width: 0; }
+  header { padding: 16px; }
+  table { display: block; overflow-x: auto; }
+  .sig { overflow-wrap: anywhere; }
+}
 </style></head>
 <body>
 <header>
