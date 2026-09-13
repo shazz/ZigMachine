@@ -1,21 +1,22 @@
 // Headless STNICCC 2000 driver: boots the sealed machine + demo-stniccc.wasm the
-// way sealed-loader.js does, runs host frames and writes the visible 320x200
-// screen as PPM at chosen STREAM frames. It also times every host frame, so a
-// frame that blows the 16.6 ms budget (the busiest has 164 polygons) shows up.
+// way sealed-loader.js does, with ITS DISK in the drive (docs/demo-stniccc.zmd,
+// which carries SCENE1.BIN), runs host frames and writes the visible screen as
+// PPM at chosen HOST frames. It also times every frame against the 16.6 ms
+// budget. The rewind replays up to ~100 frames from a keyframe in one VBL, and
+// that is the frame worth watching.
 //
-//   node apps/stniccc_headless.mjs [outdir] [streamframe,streamframe,...]
+//   node apps/stniccc_headless.mjs [outdir] [hostframe,hostframe,...] [frames]
 //
-// One stream frame is drawn every VBL_PER_FRAME host frames (1, see stniccc.zig),
-// so stream frame n is on screen after host frame n.
+// The choreography (stniccc.zig): host frames 1-600 small, then slow down,
+// rewind, message, fullscreen. Shots before the fullscreen switch are 320x200;
+// from then on 400x280 (the whole overscan screen).
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { performance } from "node:perf_hooks";
 import { cartRam, romRam } from "../docs/wasm_hiwater.js";
 
 const PAGES = 112; // SHARED_PAGES in machine/sdk/memmap.zig
-const VBL_PER_FRAME = 1; // stniccc.zig
-const STREAM_FRAMES = 1800;
 
-async function boot(cart) {
+async function boot(cart, disk) {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
     let demo;
     const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), {
@@ -27,6 +28,13 @@ async function boot(cart) {
     })).instance.exports;
     machine.hwSetRomHigh(romRam(romBytes).high ?? 0);
     const noop = () => {};
+    // The drive, as sealed-loader.js's diskReadBlock: one 512-byte block into shared RAM.
+    const diskReadBlock = (block, dstOff) => {
+        const src = disk.subarray(block * 512, block * 512 + 512);
+        if (src.length === 0) return 0;
+        new Uint8Array(memory.buffer, dstOff, src.length).set(src);
+        return src.length;
+    };
     const cartBytes = await readFile(cart);
     demo = (await WebAssembly.instantiate(cartBytes, {
         env: {
@@ -40,8 +48,7 @@ async function boot(cart) {
             hwRomRamFree: machine.hwRomRamFree,
             ...rom,
             audioPlay: noop, audioStop: noop, loadSample: noop, beep: noop,
-            diskReadBlock: noop, hostAudioStreamStart: noop, hostAudioFeed: noop,
-            hostAudioStreamStop: noop,
+            diskReadBlock, hostAudioStreamStart: noop, hostAudioFeed: noop, hostAudioStreamStop: noop,
         },
     })).instance.exports;
     machine.hwSetCartHigh(cartRam(cartBytes).high ?? 0);
@@ -52,40 +59,40 @@ async function boot(cart) {
 }
 
 const out = process.argv[2] || ".";
-const wanted = new Set((process.argv[3] || "0,120,600,1100,1799").split(",").map(Number));
+const wanted = new Set((process.argv[3] || "300,650,800,880,950,1300,2000").split(",").map(Number));
+const FRAMES = Number(process.argv[4] || 3000);
 await mkdir(out, { recursive: true });
-const { memory, machine, demo } = await boot("docs/demo-stniccc.wasm");
+const disk = new Uint8Array(await readFile("docs/demo-stniccc.zmd"));
+const { memory, machine, demo } = await boot("docs/demo-stniccc.wasm", disk);
 const W = machine.hwPhysWidth(), H = machine.hwPhysHeight();
-const BX = machine.hwBorderX(), BY = machine.hwBorderY();
 const XS = W / 400; // physical pixels per logical column
 
+// The whole 400x280 physical screen (borders included), so the fullscreen
+// switch is visible: before it the borders are black.
 async function shot(path) {
     machine.hwRenderPlane(0);
     const px = new Uint8Array(memory.buffer, machine.hwPhysicalPtr(), W * H * 4);
-    const hdr = new TextEncoder().encode(`P6\n320 200\n255\n`);
-    const buf = new Uint8Array(hdr.length + 320 * 200 * 3);
+    const hdr = new TextEncoder().encode(`P6\n400 ${H}\n255\n`);
+    const buf = new Uint8Array(hdr.length + 400 * H * 3);
     buf.set(hdr);
-    for (let y = 0; y < 200; y++)
-        for (let x = 0; x < 320; x++)
-            for (let c = 0; c < 3; c++)
-                buf[hdr.length + (y * 320 + x) * 3 + c] = px[((y + BY) * W + BX + x * XS) * 4 + c];
+    for (let y = 0; y < H; y++)
+        for (let x = 0; x < 400; x++)
+            for (let c = 0; c < 3; c++) buf[hdr.length + (y * 400 + x) * 3 + c] = px[(y * W + x * XS) * 4 + c];
     await writeFile(path, buf);
 }
 
 let worst = 0, worstAt = 0, total = 0;
-const hostFrames = STREAM_FRAMES * VBL_PER_FRAME + 2; // one full loop of the flight
-for (let f = 0; f < hostFrames; f++) {
+for (let f = 1; f <= FRAMES; f++) {
     machine.hwClear();
     const t0 = performance.now();
     demo.frame(16.6);
     const dt = performance.now() - t0;
     total += dt;
-    if (dt > worst) { worst = dt; worstAt = f; }
-    const stream = (f + 1) / VBL_PER_FRAME - 1; // with VBL_PER_FRAME = 1, host frame n shows stream frame n
-    if (Number.isInteger(stream) && wanted.has(stream)) {
-        await shot(`${out}/stniccc-${String(stream).padStart(4, "0")}.ppm`);
-        console.log(`  shot: stream frame ${stream}`);
+    if (dt > worst && f > 1) { worst = dt; worstAt = f; } // frame 1 includes JIT warm-up
+    if (wanted.has(f)) {
+        await shot(`${out}/stniccc-host${String(f).padStart(4, "0")}.ppm`);
+        console.log(`  shot: host frame ${f}`);
     }
 }
-console.log(`host frames: ${hostFrames}, mean ${(total / hostFrames).toFixed(3)} ms, ` +
+console.log(`host frames: ${FRAMES}, mean ${(total / FRAMES).toFixed(3)} ms, ` +
             `worst ${worst.toFixed(3)} ms at host frame ${worstAt} (budget 16.6 ms)`);

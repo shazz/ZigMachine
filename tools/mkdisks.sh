@@ -79,6 +79,9 @@ for w in "$OUT"/demo-*.wasm; do
         # GEM, which opens the app and reads its sample off the same disk.
         st_replay) pack "$OUT/demo-$tag.zmd" "$tag" "$w" --no-boot \
                         --file "SAMPLE.RAW=$OUT/music/smp1.raw" ;;
+        # STNICCC 2000 streams its polygon data off the disk, 64 KB at a time.
+        stniccc)   pack "$OUT/demo-$tag.zmd" "$tag" "$w" \
+                        --file "SCENE1.BIN=apps/zig/assets/screens/stniccc/scene1.bin" ;;
         # The streaming demo carries the track it block-streams.
         stream)    pack "$OUT/demo-$tag.zmd" "$tag" "$w" \
                         --file "MICROMIX.RAW=$OUT/music/micromix30.raw" ;;
