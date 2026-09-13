@@ -56,6 +56,15 @@ pub const Mandelbrot = struct {
         }
     }
 
+    /// Escape-time iteration count (0..MAX_ITER) for physical pixel (px, py) of
+    /// the 400x280 frame. The sealed machine has no truecolor path — `render`
+    /// above wrote the physical framebuffer directly, which the machine now
+    /// clears and composites over — so a scene draws this into a plane as a
+    /// palette index instead (see apps/zig/scenes/mandelbrot.zig).
+    pub fn escapeTime(px: i32, py: i32) u8 {
+        return get_pixel_color(px, py);
+    }
+
     fn get_pixel_color(px: i32, py: i32) u8 {
         var iterations: u8 = 0;
 

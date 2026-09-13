@@ -67,7 +67,11 @@ for w in "$OUT"/demo-*.wasm; do
     # Polyglot carts (demo-c-*, demo-rust-*) run via ?demo=, not from a
     # floppy, and there is one per scene — so skip the whole family rather
     # than naming each new one in SKIP and finding out by a failed pack.
-    case "$tag" in c-*|rust-*) continue;; esac
+    # EXCEPT a polyglot cart the menu lists (its tag is in catalog.zig): the
+    # menu and the +/- channels boot scenes from demo-<tag>.zmd, so it needs one.
+    case "$tag" in
+        c-*|rust-*) grep -q "\.tag = \"$tag\"" apps/zig/scenes/catalog.zig || continue ;;
+    esac
     case "$tag" in
         # ST Replay ships as a DATA disk: not executable, so the machine boots
         # GEM, which opens the app and reads its sample off the same disk.

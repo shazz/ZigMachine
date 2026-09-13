@@ -45,6 +45,9 @@ const scene = switch (opts.index) {
     32 => @import("scenes/ulm_spoon_distorter.zig"),
     33 => @import("scenes/replicants.zig"), // REPS OLD — pre-CODEF-port Replicants, kept for comparison
     34 => @import("scenes/cuddly_starwars.zig"),
+    35 => @import("scenes/replicants_kickoff2.zig"),
+    36 => @import("scenes/dyno_paradis3.zig"),
+    37 => @import("scenes/mandelbrot.zig"),
     else => @compileError("bad cart index"),
 };
 
