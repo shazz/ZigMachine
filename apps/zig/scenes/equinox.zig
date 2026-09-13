@@ -1,78 +1,125 @@
 // --------------------------------------------------------------------------
-// Imports
+// EQUINOX — RVF Honda intro. CODEF wab screen 015 (prototypes/codef/15/screen.js).
+//
+// The canvas is 640x456 = ST 320x228: a low-res screen with the BOTTOM BORDER
+// open (`400+(28*2)`). Every plane is an overscan plane with its top and bottom
+// bands opened; ST row 0 is physical row 40 (the normal visible top), so rows
+// 200..227 — the lower scroller background and the scrolltext — sit in the
+// bottom border at physical 240..267.
+//
+// Planes, in go()'s drawing order:
+//   0 roads       black fill, road2 on the odd bands, road1 on the even
+//   1 backdrop    backtop, backscroll, the fading logo (palette ALPHA)
+//   2 dragons     seven sprites sharing one morph frame
+//   3 scrolltext
 // --------------------------------------------------------------------------
 const std = @import("std");
 const zg = @import("zigos");
-const readU16Array = zg.readU16Array;
-const readI16Array = zg.readI16Array;
-const convertU8ArraytoColors = zg.convertU8ArraytoColors;
+const blit = zg.blit;
 
 const ZigOS = zg.ZigOS;
 const LogicalFB = zg.LogicalFB;
 const Color = zg.Color;
 
-const Scrolltext = zg.Scrolltext;
-const Background = zg.Background;
-const Sprite = zg.Sprite;
-
-const Console = zg.Console;
-
-// --------------------------------------------------------------------------
-// Constants
-// --------------------------------------------------------------------------
-const HEIGHT: u16 = zg.HEIGHT;
-const WIDTH: u16 = zg.WIDTH;
-
 // music — the screen's own tune, played by its own 68000 (docs/music/).
 // Mad Max's "Cybernoid 2" (1989).
 const MUSIC = "cybernoid2.sndh";
 
-// scrolltext
-const fonts_b = @embedFile("../assets/screens/equinox/fonts.raw");
-const SCROLL_TEXT = "            EQUINOX PRESENTS RVF HONDA CRACKED BY ILLEGAL ,INTRO CODED BY KRUEGER ( HE IS NOT HERE BECAUSE HE WORKS AS DUSTMAN,DON'T LAUGH THAT'S REAL ) ,GRAPHIXX BY SMILEY ,ACRONYM BY EIDOLON...             MEMBERS OF EQUINOX ARE :COMPUTER JONES,CREENOX,EIDOLON,ELIAS,ILLEGAL,KRUEGER ( HEHEHE! ),SMILEY,STEPRATE,TDS ( DROP YOUR GIRL FRIEND AND COME HOME ),WEREWOLF ,ZOOLOOK.            GREETINGS TO :MDK (SEE YOU SOON),ST CNX ( WHEN WILL ARRIVE THE TETARD DEMO ),MCA ( HELLO HARRIE ),THE REPLICANTS  ( GOOD INTRO FURY ),DMA ( CHON CHON AND CAMERONE ),THE OVERLANDERS ( BIG THANKS FOR SWAPPING US !),SECTOR NINETY NINE,MEGABUGS,MCS,TBC ( HI DOC )...            HI TO : SID,TOXIC,CHUD,RED SHARK,INFERNAL CODER,BEGON JAUNE,TRAHISON (HE TOI LA BAS ,POURQUOI TU MARCHES COMME CA ? C EST LE RAP,RAP DES GARCONS BOUCHER),POKE,BO,MAGNUM FORCE,FISHERMAN,JULES,BUB,TESTO,EXCALIBURP,JOHNNY TGB,ALX,STRIDER,NOBRU,BABEBIBOBU GROUP,CHRISTINA AND GWENDOLINE FROM ST RANGE...            MESSAGE FROM STEPRATE :TU CONNAIS RIGOULOSS ? SI TU NE CONNAIS PAS VIENS ME VOIR DANS LA CABINE TELEPHONIQUE LA PLUS PROCHE !!!            MESSAGE FROM EIDOLON :JE VOUDRAIS DIRE QUE C EST MIEUX QUE MIEUX ET QUE KRUEGER IL PEUT PAS DIRE LE CONTRAIRE ( ELIAS T EST VIVANT DEPUIS SAMEDI ?)            MESSAGE FROM WEREWOLF :J AIME LES DES SEINS ZA NIMEES ,VIVE MOI !            MESSAGE FROM ILLEGAL LE BAVEUX :HEU TU COMPRENDS J AI TRENTE ANS D ASSEMBLEUR DEVANT MOI ALORS C EST PAS UN SWAPPER DE MERDE QUI VA ME FAIRE CHIER BORDEL!,FUCK!,EIDOLON!!! ( HIHIHIHI! )            MESSAGE FROM KRUEGER :JE SUIS SUR MA BENNE ET J AIME CA ,A DEMAIN LES MECS !            MESSAGE FOR SMILEY : SI TU CONTINUES T AURA UNE TAPETTE !!!            MESSAGE FOR COMPUTER JONES : BON ON A RIEN A TE DIRE SAUF QUE TA MINI ELLE PUE ET TDS IL TE GRUGE AVEC SA RENAULT CINQ TURBO DIESEL  !            MESSAGE FROM ZOOLOOK : CA FAIT DIX ANS QUE JE SUIS SUR MA DEMO MAIS JE CROIS QUE JE VAIS LA RECOMMENCER POUR CHANGER UN PEU ...            BYE ENJOY THIS FANTASTICOULOUS GAME ....SEE YOU LATER !!!!                                          ";
-const SCROLL_CHAR_WIDTH = 32; 
-const SCROLL_CHAR_HEIGHT = 26;
-const SCROLL_SPEED = 8;
-const SCROLL_CHARS = " ! #$%&'()*+,-./0123456789:;<=>? ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-pub const NB_FONTS: u8 = (WIDTH/SCROLL_CHAR_WIDTH) + 1;
+const DIR = "../assets/screens/equinox/";
 
-// palettes
-const font_pal = convertU8ArraytoColors(@embedFile("../assets/screens/equinox/fonts_pal.dat"));
-const backtop_pal = convertU8ArraytoColors(@embedFile("../assets/screens/equinox/backtop_pal.dat"));
-const road_pal = convertU8ArraytoColors(@embedFile("../assets/screens/equinox/road_pal.dat"));
-const bob_pal = convertU8ArraytoColors(@embedFile("../assets/screens/equinox/bobs_pal.dat"));
+// --------------------------------------------------------------------------
+// Screen geometry
+// --------------------------------------------------------------------------
+const SCREEN_W: usize = 320;
+const SCREEN_H: usize = 228; // 400+(28*2) halved
+const SCREEN_X: usize = 40; // ST column 0 in the 400-wide overscan buffer
+const SCREEN_Y: usize = 40; // ST row 0 = the first normally-visible row
 
-// logo
-const backtop_b = @embedFile("../assets/screens/equinox/backtop.raw");
-const backscroll_b = @embedFile("../assets/screens/equinox/backscroll.raw");
+fn screenView(fb: *LogicalFB) blit.Dst {
+    return blit.Dst.plane(fb).window(SCREEN_X, SCREEN_Y, SCREEN_W, SCREEN_H);
+}
 
-const road1_b = @embedFile("../assets/screens/equinox/road1.raw");
-const road2_b = @embedFile("../assets/screens/equinox/road2.raw");
-const logo_b = @embedFile("../assets/screens/equinox/logo.raw");
+// --------------------------------------------------------------------------
+// Plane 0: roads (screen.js:270-289)
+// --------------------------------------------------------------------------
+const road_pal = zg.convertU8ArraytoColors(@embedFile(DIR ++ "road_pal.dat"));
+const road1_img = blit.Image.init(@embedFile(DIR ++ "road1.raw"), SCREEN_W);
+const road2_img = blit.Image.init(@embedFile(DIR ++ "road2.raw"), SCREEN_W);
+const ROAD_Y: usize = 113; // offset_y 226
+const ROAD_FRAMES = 18;
+const ROAD_CLEAR: u8 = 255; // outside the screen: transparent
+const BLACK: u8 = 5; // road_pal[5] is opaque black: mycanvas.fill('#000000')
 
-// bob
-const bob_1_b = @embedFile("../assets/screens/equinox/bob1.raw");
-const bob_2_b = @embedFile("../assets/screens/equinox/bob2.raw");
-const bob_3_b = @embedFile("../assets/screens/equinox/bob3.raw");
-const bob_4_b = @embedFile("../assets/screens/equinox/bob4.raw");
-const bob_5_b = @embedFile("../assets/screens/equinox/bob5.raw");
-const bob_6_b = @embedFile("../assets/screens/equinox/bob6.raw");
-const bob_7_b = @embedFile("../assets/screens/equinox/bob7.raw");
-const bob_8_b = @embedFile("../assets/screens/equinox/bob8.raw");
+// Both tables are in canvas rows; every value is even, so halving is exact.
+const road_offsets = [ROAD_FRAMES][9]u8{
+    .{ 0, 2, 4, 6, 14, 20, 28, 38, 58 },  .{ 0, 2, 4, 8, 14, 22, 28, 40, 52 },
+    .{ 0, 2, 6, 8, 14, 22, 30, 42, 46 },  .{ 0, 4, 4, 8, 16, 24, 30, 44, 40 },
+    .{ 0, 4, 4, 10, 16, 24, 32, 46, 34 }, .{ 0, 4, 6, 10, 16, 26, 32, 48, 28 },
+    .{ 0, 4, 6, 12, 16, 26, 34, 52, 20 }, .{ 0, 6, 4, 12, 20, 26, 34, 54, 14 },
+    .{ 0, 6, 6, 12, 20, 26, 36, 56, 8 },  .{ 2, 4, 6, 14, 20, 28, 38, 58, 0 },
+    .{ 2, 4, 8, 14, 22, 28, 40, 52, 0 },  .{ 2, 6, 8, 14, 22, 30, 42, 46, 0 },
+    .{ 4, 4, 8, 16, 24, 30, 44, 40, 0 },  .{ 4, 4, 10, 16, 24, 32, 46, 34, 0 },
+    .{ 4, 6, 10, 16, 26, 32, 48, 28, 0 }, .{ 4, 6, 12, 16, 26, 34, 52, 20, 0 },
+    .{ 6, 4, 12, 20, 26, 34, 54, 14, 0 }, .{ 6, 6, 12, 20, 26, 36, 56, 8, 0 },
+};
+const road_sum = [ROAD_FRAMES][10]u8{
+    .{ 0, 0, 2, 6, 12, 26, 46, 74, 112, 170 },  .{ 0, 0, 2, 6, 14, 28, 50, 78, 118, 170 },
+    .{ 0, 0, 2, 8, 16, 30, 52, 82, 124, 170 },  .{ 0, 0, 4, 8, 16, 32, 56, 86, 130, 170 },
+    .{ 0, 0, 4, 8, 18, 34, 58, 90, 136, 170 },  .{ 0, 0, 4, 10, 20, 36, 62, 94, 142, 170 },
+    .{ 0, 0, 4, 10, 22, 38, 64, 98, 150, 170 }, .{ 0, 0, 6, 10, 22, 42, 68, 102, 156, 170 },
+    .{ 0, 0, 6, 12, 24, 44, 70, 106, 162, 170 }, .{ 0, 2, 6, 12, 26, 46, 74, 112, 170, 0 },
+    .{ 0, 2, 6, 14, 28, 50, 78, 118, 170, 0 },  .{ 0, 2, 8, 16, 30, 52, 82, 124, 170, 0 },
+    .{ 0, 4, 8, 16, 32, 56, 86, 130, 170, 0 },  .{ 0, 4, 8, 18, 34, 58, 90, 136, 170, 0 },
+    .{ 0, 4, 10, 20, 36, 62, 94, 142, 170, 0 }, .{ 0, 4, 10, 22, 38, 64, 98, 150, 170, 0 },
+    .{ 0, 6, 10, 22, 42, 68, 102, 156, 170, 0 }, .{ 0, 6, 12, 24, 44, 70, 106, 162, 170, 0 },
+};
 
-// The dragons: CODEF wab screen 015 (prototypes/codef/15/screen.js). All seven
-// wear the same morph frame, dragon1..dragon8 = bob1..bob8 (halved 64x52).
-// Frame 7 is the egg, frame 0 the full dragon.
+// drawRoad(): band `band` of animation frame `i`, copied row-for-row.
+fn drawRoadBand(view: blit.Dst, road: blit.Image, i: usize, band: usize) void {
+    const h = road_offsets[i][band] / 2;
+    if (h == 0) return;
+    const top = road_sum[i][band] / 2;
+    const part = blit.Rect{ .x = 0, .y = top, .w = SCREEN_W, .h = h };
+    blit.blit(view, road, part, 0, @intCast(ROAD_Y + top), null, .copy);
+}
+
+// --------------------------------------------------------------------------
+// Plane 1: backtop, backscroll and the logo (screen.js:190-214, 292-297)
+// --------------------------------------------------------------------------
+const backtop_pal = zg.convertU8ArraytoColors(@embedFile(DIR ++ "backtop_pal.dat"));
+const logo_pal = zg.convertU8ArraytoColors(@embedFile(DIR ++ "logo_pal.dat"));
+const backtop_img = blit.Image.init(@embedFile(DIR ++ "backtop.raw"), SCREEN_W);
+const backscroll_img = blit.Image.init(@embedFile(DIR ++ "backscroll.raw"), SCREEN_W);
+const logo_img = blit.Image.init(@embedFile(DIR ++ "logo.raw"), 203);
+const BACKDROP_CLEAR: u8 = 5; // backtop_pal's transparent entry
+// backscroll.png is 640x79 drawn at canvas y 377: its row 0 is a lone row, then
+// pairs, so halved row 0 lands on ST row 188 and the art ends on row 226.
+const BACKSCROLL_Y: i32 = 188;
+const LOGO_X: i32 = 55; // logocanvas.drawPart(mycanvas, 110, 290, ...)
+const LOGO_Y: i32 = 145;
+const LOGO_FIELD: u8 = 1;
+const LOGO_BASE: u8 = 32; // logo colours live after backtop's 24 entries
+const LOGO_COLOURS = 5;
+const LOGO_PERIOD = 400; // `if(frames % 400 == 0) timeToShowLogo = 1`
+const LOGO_STEP_FRAMES = 10; // alphaTime == 10
+
+// --------------------------------------------------------------------------
+// Plane 2: the dragons (screen.js:152-185, 216-268, 301-306)
+// --------------------------------------------------------------------------
+const bob_pal = zg.convertU8ArraytoColors(@embedFile(DIR ++ "bobs_pal.dat"));
 const NB_DRAGONS = 7;
 const DRAGON_W = 32;
-const DRAGON_H = 26;
-const dragon_frames = [8][]const u8{ bob_1_b, bob_2_b, bob_3_b, bob_4_b, bob_5_b, bob_6_b, bob_7_b, bob_8_b };
+// dragon1..dragon8 (64x52, halved); frame 7 is the egg, frame 0 the full dragon
+const dragon_frames = [8][]const u8{
+    @embedFile(DIR ++ "bob1.raw"), @embedFile(DIR ++ "bob2.raw"), @embedFile(DIR ++ "bob3.raw"),
+    @embedFile(DIR ++ "bob4.raw"), @embedFile(DIR ++ "bob5.raw"), @embedFile(DIR ++ "bob6.raw"),
+    @embedFile(DIR ++ "bob7.raw"), @embedFile(DIR ++ "bob8.raw"),
+};
 const EGG_FRAME = 7;
 
-// screen.js:152-185 — the precalculated trajectory. Each dragon trails the
-// previous one by 18 entries; x wraps at 940 and y at 964 (screen.js:303), so
-// the two tables drift against each other. Computed on the 640-wide canvas,
-// then halved to ST pixels.
+// The precalculated trajectory. Each dragon trails the previous one by 18
+// entries; x wraps at 940 and y at 964, so the two tables drift against each
+// other. Computed on the 640-wide canvas, then halved to ST pixels.
 const TRAIL = 18;
 const X_WRAP = 940;
 const Y_WRAP = 964;
@@ -108,8 +155,7 @@ const trajectory = blk: {
     break :blk .{ .x = xs, .y = ys };
 };
 
-// screen.js:146-150 + morphSprite() 216-268. The machine ticks once every
-// 10 frames; each state lasts a fixed number of ticks.
+// The morph machine ticks once every 10 frames; each state lasts a fixed number of ticks.
 const MorphState = enum { in_egg, morphing, alive, demorphing };
 const MORPH_TICK = 10;
 const SLEEP_TICKS = 60;
@@ -119,170 +165,162 @@ const DEMORPH_TICKS = 20;
 const ALIVE_TOP_FRAME = 3; // alive ping-pongs frames 0..3
 
 // --------------------------------------------------------------------------
-// Variables
+// Plane 3: scrolltext_horizontal (codef_scrolltext.js:47-175)
 // --------------------------------------------------------------------------
+const font_pal = zg.convertU8ArraytoColors(@embedFile(DIR ++ "fonts_pal.dat"));
+// fonts.raw is NOT the 320x156 sheet: it is a STRIP of the 60 glyphs, 32x26
+// each, in tile order (glyph k = sheet tile k = character 32 + k).
+const font_strip = @embedFile(DIR ++ "fonts.raw");
+const SCROLL_TEXT = @embedFile(DIR ++ "scrolltext.txt"); // scrtxt, verbatim
+// esfont.initTile(32*2, 26*2, 32), scrolltext.init(mycanvas, esfont, 13).
+// Letter x is kept in CANVAS pixels (1 fractional bit of an ST pixel), so the
+// 13 px/frame step is 6.5 ST px exactly: drawn at floor(x/2), it moves 6, 7, 6, 7.
+const FONT_W: i32 = 64; // canvas units
+const GLYPH_W: usize = 32; // ST pixels
+const FONT_H: usize = 26; // ST rows
+const FONT_FIRST: u8 = 32;
+const SCROLL_SPEED: i32 = 13;
+const WIDE: i32 = (640 + FONT_W - 1) / FONT_W + 1; // ceil(640/64)+1 = 11
+const LETTERS: usize = WIDE + 1; // `for(i=0;i<=this.wide;i++)`
+const SCROLL_Y: i32 = 201; // scrolltext.draw(400+(28*2)-(26*2)-2) = 402
 
-var road_offsets = [18][9]u8{
-    [_]u8{ 0, 2, 4, 6, 14, 20, 28, 38, 58},
-    [_]u8{ 0, 2, 4, 8, 14, 22, 28, 40, 52},
-    [_]u8{ 0, 2, 6, 8, 14, 22, 30, 42, 46},
-    [_]u8{ 0, 4, 4, 8, 16, 24, 30, 44, 40},
-    [_]u8{ 0, 4, 4, 10, 16, 24, 32, 46, 34},
-    [_]u8{ 0, 4, 6, 10, 16, 26, 32, 48, 28},
-    [_]u8{ 0, 4, 6, 12, 16, 26, 34, 52, 20},
-    [_]u8{ 0, 6, 4, 12, 20, 26, 34, 54, 14},
-    [_]u8{ 0, 6, 6, 12, 20, 26, 36, 56, 8},
-    [_]u8{ 2, 4, 6, 14, 20, 28, 38, 58, 0},
-    [_]u8{ 2, 4, 8, 14, 22, 28, 40, 52, 0},
-    [_]u8{ 2, 6, 8, 14, 22, 30, 42, 46, 0},
-    [_]u8{ 4, 4, 8, 16, 24, 30, 44, 40, 0},
-    [_]u8{ 4, 4, 10, 16, 24, 32, 46, 34, 0},
-    [_]u8{ 4, 6, 10, 16, 26, 32, 48, 28, 0},
-    [_]u8{ 4, 6, 12, 16, 26, 34, 52, 20, 0},
-    [_]u8{ 6, 4, 12, 20, 26, 34, 54, 14, 0},
-    [_]u8{ 6, 6, 12, 20, 26, 36, 56, 8, 0},
-};
-
-var road_sum = [18][10]u8{
-    [_]u8{ 0, 0, 2, 6, 12, 26, 46, 74, 112, 170},
-    [_]u8{ 0, 0, 2, 6, 14, 28, 50, 78, 118, 170},
-    [_]u8{ 0, 0, 2, 8, 16, 30, 52, 82, 124, 170},
-    [_]u8{ 0, 0, 4, 8, 16, 32, 56, 86, 130, 170},
-    [_]u8{ 0, 0, 4, 8, 18, 34, 58, 90, 136, 170},
-    [_]u8{ 0, 0, 4, 10, 20, 36, 62, 94, 142, 170},
-    [_]u8{ 0, 0, 4, 10, 22, 38, 64, 98, 150, 170},
-    [_]u8{ 0, 0, 6, 10, 22, 42, 68, 102, 156, 170},
-    [_]u8{ 0, 0, 6, 12, 24, 44, 70, 106, 162, 170},
-    [_]u8{ 0, 2, 6, 12, 26, 46, 74, 112, 170, 0},
-    [_]u8{ 0, 2, 6, 14, 28, 50, 78, 118, 170, 0},
-    [_]u8{ 0, 2, 8, 16, 30, 52, 82, 124, 170, 0},
-    [_]u8{ 0, 4, 8, 16, 32, 56, 86, 130, 170, 0},
-    [_]u8{ 0, 4, 8, 18, 34, 58, 90, 136, 170, 0},
-    [_]u8{ 0, 4, 10, 20, 36, 62, 94, 142, 170, 0},
-    [_]u8{ 0, 4, 10, 22, 38, 64, 98, 150, 170, 0},
-    [_]u8{ 0, 6, 10, 22, 42, 68, 102, 156, 170, 0},
-    [_]u8{ 0, 6, 12, 24, 44, 70, 106, 162, 170, 0},
-};
+const Letter = struct { x: i32, char: u8 };
 
 // --------------------------------------------------------------------------
 // Demo
 // --------------------------------------------------------------------------
-
 pub const Demo = struct {
-  
-    name: u8 = 0,
-    frame_counter: u32 = 0,
-    scrolltext: Scrolltext(NB_FONTS) = undefined,
-    backtop: Background = undefined,
-    backscroll: Background = undefined,
-    road1: Sprite = undefined,
-    road2: Sprite = undefined,
-    logo: Sprite = undefined,
-    counter: u8 = 0,
-    // the dragons (every field assigned in init(): struct defaults never run)
+    // Every field is assigned in init(): a scene's struct defaults never run.
     frames: u32 = 0, // screen.js `frames`, starts at 1
+    road_frame: usize = 0, // screen.js `counter`
+    // the logo
+    logo_showing: bool = false, // timeToShowLogo
+    logo_alpha: f64 = 0,
+    logo_inc: f64 = 0,
+    logo_ticks: u32 = 0, // alphaTime
+    // the dragons
     tabpos: usize = 0, // trajectory index of the lead dragon for the NEXT frame
     drawn_tabpos: usize = 0, // the index this frame's render draws
     morph_state: MorphState = .in_egg,
-    morph_frame: u8 = 0, // screen.js `morphType`
-    alive_inc: i8 = 0, // screen.js `aliveInc`
+    morph_frame: u8 = 0, // morphType
+    alive_inc: i8 = 0, // aliveInc
     state_ticks: u32 = 0, // sleepingTime / morphTime / aliveTime / demorphTime
+    // the scrolltext
+    letters: [LETTERS]Letter = undefined,
+    scroffset: usize = 0,
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
-        Console.log("Demo init", .{});
-
-        // Nothing happens until the user turns sound on — the request just waits.
         zg.requestSong(MUSIC);
 
-        // first plane
-        var fb: *LogicalFB = &zigos.lfbs[0];
-        fb.is_enabled = true;
-        fb.setPalette(road_pal);
-        self.road1.init(fb.getRenderTarget(), road1_b, 320, 85, 0, 112, null, null);
-        self.road2.init(fb.getRenderTarget(), road2_b, 320, 85, 0, 112, null, null);
-        self.logo.init(fb.getRenderTarget(), logo_b, 203, 23, 160-(203/2), 125, null, null);
-
-        fb = &zigos.lfbs[1];
-        fb.is_enabled = true; 
-                
-        fb.setPalette(backtop_pal);
-        fb.setPaletteEntry(5, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
-        // fb.setFrameBufferHBLHandler(0, handler_backpal);
-        self.backtop.init(fb.getRenderTarget(), backtop_b, 0);        
-        self.backscroll.init(fb.getRenderTarget(), backscroll_b, HEIGHT-39);
-
-        fb = &zigos.lfbs[2];
-        fb.is_enabled = true; 
-        fb.setPalette(bob_pal);
-        fb.setPaletteEntry(0, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
-
-        // screen.js:60-61, 110-122
         self.frames = 1;
+        self.road_frame = 0;
+        self.logo_showing = false;
+        self.logo_alpha = 0.00000001;
+        self.logo_inc = 0.1;
+        self.logo_ticks = 0;
         self.tabpos = 0;
         self.drawn_tabpos = 0;
         self.morph_state = .in_egg;
         self.morph_frame = EGG_FRAME;
         self.alive_inc = 1;
         self.state_ticks = 0;
+        self.scroffset = 0;
+        for (&self.letters, 0..) |*l, i| {
+            l.* = .{ .x = WIDE * FONT_W + @as(i32, @intCast(i)) * FONT_W, .char = SCROLL_TEXT[self.scroffset] };
+            self.scroffset += 1;
+        }
 
-        fb = &zigos.lfbs[3];
-        fb.is_enabled = true; 
-        fb.setPalette(font_pal);
+        var fb: *LogicalFB = &zigos.lfbs[0];
+        openPlane(fb, road_pal);
+        fb.setPaletteEntry(ROAD_CLEAR, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
+
+        fb = &zigos.lfbs[1];
+        openPlane(fb, backtop_pal);
+        fb.setPaletteEntry(BACKDROP_CLEAR, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
+        self.setLogoAlpha(fb);
+
+        fb = &zigos.lfbs[2];
+        openPlane(fb, bob_pal);
         fb.setPaletteEntry(0, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
 
-        self.scrolltext = Scrolltext(NB_FONTS).init(fb.getRenderTarget(), fonts_b, SCROLL_CHARS, SCROLL_CHAR_WIDTH, SCROLL_CHAR_HEIGHT, SCROLL_TEXT, SCROLL_SPEED, 200-26, null, null, null);
-
-        Console.log("demo init done!", .{});
+        fb = &zigos.lfbs[3];
+        openPlane(fb, font_pal);
+        fb.setPaletteEntry(0, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
     }
 
-    pub fn update(self: *Demo, zigos: *ZigOS, elapsed_time: f32) void {
+    fn openPlane(fb: *LogicalFB, palette: [256]Color) void {
+        fb.is_enabled = true;
+        fb.openBorders(.top_bottom);
+        fb.setPalette(palette);
+    }
 
-        self.scrolltext.update();
-        self.backtop.update();
-        self.road1.update(null, null, null, null);
-
-        // screen.js go(): morphSprite(), draw at tabpos, tabpos++, frames++
+    // go(), screen.js:276-316, minus the drawing
+    pub fn update(self: *Demo, zigos: *ZigOS, dt: f32) void {
+        _ = dt;
+        self.road_frame = (self.road_frame + 1) % ROAD_FRAMES;
+        if (self.frames % LOGO_PERIOD == 0) self.logo_showing = true;
+        self.tickLogo();
+        self.setLogoAlpha(&zigos.lfbs[1]);
         if (self.frames % MORPH_TICK == 0) self.tickMorph();
         self.drawn_tabpos = self.tabpos;
         self.tabpos += 1;
+        self.scrollStep();
         self.frames += 1;
-
-        _ = zigos;
-        _ = elapsed_time;
     }
 
-    pub fn render(self: *Demo, zigos: *ZigOS, elapsed_time: f32) void {
+    pub fn render(self: *Demo, zigos: *ZigOS, dt: f32) void {
+        _ = dt;
+        self.drawRoads(&zigos.lfbs[0]);
+        drawBackdrop(&zigos.lfbs[1]);
+        self.drawDragons(&zigos.lfbs[2]);
+        self.drawScrolltext(&zigos.lfbs[3]);
+    }
 
-        var fb: *LogicalFB = &zigos.lfbs[0];
-        fb.clearFrameBuffer(255);
+    // screen.js:280-289: road2 on the odd bands first, then road1 on the even ones
+    fn drawRoads(self: *Demo, fb: *LogicalFB) void {
+        const all = blit.Dst.plane(fb);
+        @memset(all.buf, ROAD_CLEAR);
+        const view = screenView(fb);
+        @memset(view.buf[0 .. (view.h - 1) * view.stride + view.w], BLACK);
+        for (0..9) |band| drawRoadBand(view, if (band % 2 == 1) road2_img else road1_img, self.road_frame, band);
+    }
 
-        self.counter = (self.counter + 1) % 18;
-        var i: u8 = 1;
-        while(i < 9) : ( i+= 2 ) {
-            drawRoad(fb, road1_b, 113, self.counter, i);
+    fn drawBackdrop(fb: *LogicalFB) void {
+        @memset(blit.Dst.plane(fb).buf, BACKDROP_CLEAR);
+        const view = screenView(fb);
+        blit.blit(view, backtop_img, null, 0, 0, null, .copy);
+        blit.blit(view, backscroll_img, null, 0, BACKSCROLL_Y, null, .copy);
+        blit.blit(view, logo_img, null, LOGO_X, LOGO_Y, LOGO_FIELD, .{ .offset = LOGO_BASE });
+    }
+
+    // showLogo(), screen.js:190-214
+    fn tickLogo(self: *Demo) void {
+        if (!self.logo_showing) return;
+        self.logo_ticks += 1;
+        if (self.logo_ticks != LOGO_STEP_FRAMES) return;
+        self.logo_alpha += self.logo_inc;
+        if (self.logo_alpha >= 1.0) {
+            self.logo_inc = -0.2;
+            self.logo_alpha = 1.0;
+        } else if (self.logo_alpha < 0.1) {
+            self.logo_inc = 0.2;
+            self.logo_alpha = 0.0000001;
+            self.logo_showing = false;
         }
-        i = 0;
-        while(i < 9) : ( i+= 2 ) {
-            drawRoad(fb, road2_b, 113, self.counter, i);        
+        self.logo_ticks = 0;
+    }
+
+    // The logo is drawn every frame with globalAlpha = alpha. Plane 1 is its own
+    // canvas layer, so the same composite is the palette ALPHA of the logo's
+    // entries, blended by the host over the road beneath.
+    fn setLogoAlpha(self: *Demo, fb: *LogicalFB) void {
+        const a: u8 = @intFromFloat(@round(@max(0.0, @min(1.0, self.logo_alpha)) * 255.0));
+        for (0..LOGO_COLOURS) |i| {
+            if (i == LOGO_FIELD) continue;
+            var c = logo_pal[i];
+            c.a = a;
+            fb.setPaletteEntry(LOGO_BASE + @as(u8, @intCast(i)), c);
         }
-
-        self.backtop.target.clearFrameBuffer(5);
-        self.backtop.render();
-        self.backscroll.render();
-        
-        // self.road1.render();
-        // self.logo.render();
-
-        fb = &zigos.lfbs[2];
-        fb.clearFrameBuffer(0);
-        self.drawDragons(fb);
-
-        fb = &zigos.lfbs[3];
-        fb.clearFrameBuffer(0);
-        self.scrolltext.render();
-
-        _ = elapsed_time;
-
     }
 
     // morphSprite(), screen.js:216-268: egg (frame 7) for 60 ticks, hatch
@@ -317,28 +355,38 @@ pub const Demo = struct {
 
     // screen.js:301-304: seven dragons, one morph frame, 18 trajectory entries apart
     fn drawDragons(self: *Demo, fb: *LogicalFB) void {
-        const dst = zg.blit.Dst.plane(fb);
-        const img = zg.blit.Image.init(dragon_frames[self.morph_frame], DRAGON_W);
+        @memset(blit.Dst.plane(fb).buf, 0);
+        const view = screenView(fb);
+        const img = blit.Image.init(dragon_frames[self.morph_frame], DRAGON_W);
         for (0..NB_DRAGONS) |n| {
             const idx = self.drawn_tabpos + n * TRAIL;
-            zg.blit.blit(dst, img, null, trajectory.x[idx % X_WRAP], trajectory.y[idx % Y_WRAP], 0, .copy);
+            blit.blit(view, img, null, trajectory.x[idx % X_WRAP], trajectory.y[idx % Y_WRAP], 0, .copy);
         }
     }
 
-    fn drawRoad(fb: *LogicalFB, road: []const u8, pos_y: u16, i: u8, band: u8) void {
-        if(road_offsets[i][band] != 0) {
-            // road.drawPart(mycanvas, 0, y+road_sum[i][band], 0,road_sum[i][band], 640,road_offsets[i][band], 1.0, 0, 1.0, 1.0);
+    // scrolltext_horizontal.draw's movement: a letter that has left recycles to
+    // the right, keeping its overshoot, and takes the next character.
+    fn scrollStep(self: *Demo) void {
+        for (&self.letters) |*l| {
+            l.x -= SCROLL_SPEED;
+            if (l.x > -FONT_W) continue;
+            l.x = WIDE * FONT_W + (l.x + FONT_W);
+            l.char = SCROLL_TEXT[self.scroffset];
+            self.scroffset += 1;
+            if (self.scroffset > SCROLL_TEXT.len - 1) self.scroffset = 0;
+        }
+    }
 
-            // fb dest: (0, y+road_sum[i][band])
-            // road src: from (0, road_sum[i][band]) of size 640, road_offsets[i][band]  
-
-            const dst: u16 =  (pos_y + (road_sum[i][band]/2)) * WIDTH;
-            const src: u16 = (road_sum[i][band] / 2) * WIDTH;
-
-            var counter: u16 = 0;
-            while(counter < WIDTH*(road_offsets[i][band]/2)) : (counter += 1) {
-                fb.fb[dst + counter] = road[src + counter];
-            }
+    // drawTile(dst, ltr - 32, posx, posy): letters are 64 canvas px apart, so
+    // they never overlap and the draw order by posx does not matter.
+    fn drawScrolltext(self: *Demo, fb: *LogicalFB) void {
+        @memset(blit.Dst.plane(fb).buf, 0);
+        const view = screenView(fb);
+        const glyph_size = GLYPH_W * FONT_H;
+        for (self.letters) |l| {
+            const nb: usize = l.char - FONT_FIRST;
+            const glyph = blit.Image.init(font_strip[nb * glyph_size ..][0..glyph_size], GLYPH_W);
+            blit.blit(view, glyph, null, @divFloor(l.x, 2), SCROLL_Y, 0, .copy);
         }
     }
 };
