@@ -52,6 +52,7 @@ const scene = switch (opts.index) {
     39 => @import("scenes/tex_neoshow.zig"),
     40 => @import("scenes/elite_snooker.zig"),
     41 => @import("scenes/union_demo.zig"),
+    42 => @import("scenes/tutorial.zig"), // docs/TUTORIAL.md: your first screen
     else => @compileError("bad cart index"),
 };
 

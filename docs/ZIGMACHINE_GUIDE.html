@@ -45,23 +45,24 @@ code { background: #1a2030; padding: 1px 5px; border-radius: 4px; }
   <div class="sub">Generated 2026-09-13 by tools/gen_docs.py · 22 ABI exports · 50 library methods · 94 constants/registers</div>
 </header>
 <div class="wrap">
-  <nav><a href="#top">Overview</a><a href="#examples">Examples</a><a href="#0">Geometry &amp; resolution</a>
-<a href="#1">Resolution &amp; plane modes</a>
-<a href="#2">Video registers</a>
-<a href="#3">Blitter registers</a>
-<a href="#4">Blitter commands / control / minterms</a>
-<a href="#5">HW ABI — machine exports</a>
-<a href="#6">Disk / cart format + boot sectors</a>
-<a href="#7">Music — SNDH player (Zig, C, Rust)</a>
-<a href="#8">ZigOS — LogicalFB (a plane)</a>
-<a href="#9">ZigOS — ZigOS (the OS)</a>
-<a href="#10">ZigOS — Blitter (2D coprocessor)</a>
-<a href="#11">ZigOS — GUI toolkit (Gui)</a>
-<a href="#12">ZigOS — Window manager (Wm)</a>
-<a href="#13">ZigOS — Menu bar (MenuBar)</a>
-<a href="#14">ZigOS — Dialog (modal alert / file selector)</a>
-<a href="#15">ZigGEM ROM — Desktop (boot shell / app launcher)</a>
-<a href="#16">ZigOS — OBJ loader (Mesh)</a></nav>
+  <nav><a href="#top">Overview</a><a href="#examples">Examples</a><a href="#0">Tutorial — your first screen (Zig, C, Rust)</a>
+<a href="#1">Geometry &amp; resolution</a>
+<a href="#2">Resolution &amp; plane modes</a>
+<a href="#3">Video registers</a>
+<a href="#4">Blitter registers</a>
+<a href="#5">Blitter commands / control / minterms</a>
+<a href="#6">HW ABI — machine exports</a>
+<a href="#7">Disk / cart format + boot sectors</a>
+<a href="#8">Music — SNDH player (Zig, C, Rust)</a>
+<a href="#9">ZigOS — LogicalFB (a plane)</a>
+<a href="#10">ZigOS — ZigOS (the OS)</a>
+<a href="#11">ZigOS — Blitter (2D coprocessor)</a>
+<a href="#12">ZigOS — GUI toolkit (Gui)</a>
+<a href="#13">ZigOS — Window manager (Wm)</a>
+<a href="#14">ZigOS — Menu bar (MenuBar)</a>
+<a href="#15">ZigOS — Dialog (modal alert / file selector)</a>
+<a href="#16">ZigGEM ROM — Desktop (boot shell / app launcher)</a>
+<a href="#17">ZigOS — OBJ loader (Mesh)</a></nav>
   <main>
     <section id="top"><h2>Overview</h2><div class="intro">
 ZigMachine is a fantasy console: a <b>sealed hardware</b> core (compiled to two
@@ -137,7 +138,1017 @@ var wm: gui.Wm = .{};
 const content = wm.drawChrome(&amp;g, id, id == wm.topId());
 if (g.button(.{ .x=content.x+4, .y=content.y+4, .w=48, .h=18 }, &quot;OK&quot;, false)) { /* clicked */ }
 // pointer state arrives via demo.pointer(x,y,buttons) (see sealed-loader.js).</pre></section>
-    <section id="0"><h2>Geometry &amp; resolution</h2><table><thead><tr><th>Name</th><th>Value</th><th>Meaning</th></tr></thead><tbody>
+    <section id="0"><h2>Tutorial — your first screen (Zig, C, Rust)</h2><h1>Tutorial: your first screen, in Zig, C and Rust</h1>
+<p>This tutorial builds one small oldskool screen from scratch, one piece at a
+time. It ends with:</p>
+<ul>
+<li>a sky gradient with a <strong>copper bar</strong> bouncing through it,</li>
+<li>a <strong>bouncing block</strong>,</li>
+<li>a <strong>checkerboard floor</strong>,</li>
+<li>a <strong>text scroller</strong>,</li>
+<li><strong>music</strong>: Mad Max's "So Watt" (<code>sos.sndh</code>), played by the machine's
+  emulated 68000 on its YM2149.</li>
+</ul>
+<p>The screen is written three times, and every snippet below comes from a file
+that builds and runs:</p>
+<table>
+<thead>
+<tr>
+<th>Language</th>
+<th>Finished file</th>
+<th>Cart</th>
+<th>Talks to the machine through</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Zig</td>
+<td><code>apps/zig/scenes/tutorial.zig</code></td>
+<td><code>demo-tutorial.wasm</code></td>
+<td><strong>ZigOS</strong>, the open library (<code>docs/ZIGOS_API.md</code>)</td>
+</tr>
+<tr>
+<td>C</td>
+<td><code>apps/c/scenes/tutorial.c</code></td>
+<td><code>demo-c-tutorial.wasm</code></td>
+<td>the raw sealed ABI (<code>docs/HW_API.md</code>)</td>
+</tr>
+<tr>
+<td>Rust</td>
+<td><code>apps/rust/scenes/tutorial.rs</code></td>
+<td><code>demo-rust-tutorial.wasm</code></td>
+<td>the raw sealed ABI (<code>docs/HW_API.md</code>)</td>
+</tr>
+</tbody>
+</table>
+<p>The C and Rust versions use no library. They write palette indices into
+shared memory and poke a few registers. The Zig version calls ZigOS helpers
+for the same jobs. Where the two differ, the step says why.</p>
+<p>Each step shows <strong>only what that step adds or changes</strong>. The finished files
+are the last step. They are short enough to read in one sitting.</p>
+<h2>Before you start</h2>
+<p><strong>The machine in one paragraph.</strong> ZigMachine is a sealed console. Its hardware
+is <code>machine-video.wasm</code> and <code>machine-audio.wasm</code>, and you never rebuild them.
+Your program is a <strong>cart</strong>: a wasm module that shares one <code>WebAssembly.Memory</code>
+with the machine. The screen is <strong>4 planes</strong>. Each plane is a 320x200 buffer of
+<strong>palette indices</strong> with its own 256-colour RGBA palette. Around the 320x200
+screen sits a 40-pixel <strong>border</strong>, 400x280 in all. Every frame the host does
+this:</p>
+<pre><code>hwClear()  -&gt;  your frame()  -&gt;  hwRenderPlane(p) for each plane your isPlaneEnabled(p) says is on
+</code></pre>
+<p><strong>Toolchains.</strong></p>
+<ul>
+<li>Zig 0.16: <code>export PATH="$HOME/.local/zig/0.16.0:$PATH"</code></li>
+<li>C: nothing extra. <code>apps/c/build.sh</code> uses <code>zig cc</code>, which bundles a linker.</li>
+<li>Rust: <code>rustup target add wasm32-unknown-unknown</code>. <code>rustc</code> bundles <code>rust-lld</code>.</li>
+</ul>
+<p><strong>Build.</strong></p>
+<pre><code class="language-bash">sh ./build.sh                          # the Zig carts, plus every check
+bash apps/c/build.sh tutorial          # -&gt; docs/demo-c-tutorial.wasm
+bash apps/rust/build.sh tutorial       # -&gt; docs/demo-rust-tutorial.wasm
+</code></pre>
+<p><code>./build.sh</code> also rebuilds the C and Rust carts, so a plain <code>./build.sh</code>
+covers all three. The single-language scripts are faster while you iterate.</p>
+<p><strong>Run.</strong> Serve <code>docs/</code> and open a cart with <code>?demo=</code>:</p>
+<pre><code class="language-bash">cd docs &amp;&amp; python3 -m http.server 3333
+# http://localhost:3333/index.html?demo=demo-tutorial.wasm
+# http://localhost:3333/index.html?demo=demo-c-tutorial.wasm
+# http://localhost:3333/index.html?demo=demo-rust-tutorial.wasm
+</code></pre>
+<p><code>sealed.html?demo=...</code> also works: it redirects to <code>index.html</code> and keeps the
+query. The Zig screen is on the machine's menu too, as <strong>TUTORIAL</strong>. Hard-reload
+(Ctrl+Shift+R) after every rebuild, or the browser keeps the old wasm.</p>
+<p><strong>Where your file lives.</strong> In Zig, add the scene to three lists that must stay
+in step (already done for the tutorial):</p>
+<ul>
+<li>the <code>switch</code> in <code>apps/zig/cart.zig</code>,</li>
+<li><code>cart_names</code> in <code>build.zig</code>,</li>
+<li><code>apps/zig/scenes/catalog.zig</code>, if the menu should list it.</li>
+</ul>
+<p>A C or Rust scene is just a new file in <code>apps/c/scenes/</code> or <code>apps/rust/scenes/</code>.
+The build scripts pick up every file there.</p>
+<hr />
+<h2>Step 1: an empty cart that boots</h2>
+<p><strong>Goal.</strong> A cart the machine loads and runs, drawing nothing.</p>
+<p><strong>Concept.</strong> The host calls your cart through a handful of exports. <code>boot()</code>
+runs once. <code>frame(dt)</code> runs every frame. <code>isPlaneEnabled(p)</code> tells the host
+which planes to show. The rest (<code>hblDispatch</code>, <code>skipBoot</code>, <code>setShadeMode</code>,
+<code>pointer</code>, <code>input</code>) must exist even as stubs: the build scripts export all
+eight names, and linking fails if one is missing.</p>
+<p>A Zig scene does not write these exports. <code>apps/zig/demo_main.zig</code> does, and it
+calls your <code>Demo</code>'s <code>init</code> once, then <code>update</code> and <code>render</code> every frame.</p>
+<h3>Zig</h3>
+<pre><code class="language-zig">const zg = @import(&quot;zigos&quot;);
+const ZigOS = zg.ZigOS;
+
+pub const Demo = struct {
+    pub fn init(self: *Demo, zigos: *ZigOS) void {
+        _ = self;
+        _ = zigos;
+    }
+
+    pub fn update(self: *Demo, zigos: *ZigOS, dt: f32) void {
+        _ = self;
+        _ = zigos;
+        _ = dt;
+    }
+
+    pub fn render(self: *Demo, zigos: *ZigOS, dt: f32) void {
+        _ = self;
+        _ = zigos;
+        _ = dt;
+    }
+};
+</code></pre>
+<h3>C</h3>
+<pre><code class="language-c">typedef unsigned char u8;
+typedef unsigned short u16;
+typedef unsigned int u32;
+
+__attribute__((export_name(&quot;boot&quot;)))
+void boot(void) {}
+
+__attribute__((export_name(&quot;frame&quot;)))
+void frame(float dt) { (void)dt; }
+
+__attribute__((export_name(&quot;isPlaneEnabled&quot;)))
+int isPlaneEnabled(int id) { (void)id; return 0; }
+
+// The host calls these too. Stubs, so no call ever hits a missing export.
+__attribute__((export_name(&quot;hblDispatch&quot;)))
+void hblDispatch(u32 id, u32 plane, u32 line, u32 x) { (void)id; (void)plane; (void)line; (void)x; }
+__attribute__((export_name(&quot;skipBoot&quot;)))     void skipBoot(void) {}
+__attribute__((export_name(&quot;setShadeMode&quot;))) void setShadeMode(u32 m) { (void)m; }
+__attribute__((export_name(&quot;pointer&quot;)))      void pointer(int x, int y, u32 b) { (void)x; (void)y; (void)b; }
+__attribute__((export_name(&quot;input&quot;)))        void input(u8 dir) { (void)dir; }
+</code></pre>
+<h3>Rust</h3>
+<pre><code class="language-rust">#![no_std]
+#![no_main]
+
+use core::panic::PanicInfo;
+
+#[panic_handler]
+fn panic(_: &amp;PanicInfo) -&gt; ! {
+    loop {}
+}
+
+#[no_mangle]
+pub extern &quot;C&quot; fn boot() {}
+
+#[no_mangle]
+pub extern &quot;C&quot; fn frame(_elapsed_ms: f32) {}
+
+#[no_mangle]
+pub extern &quot;C&quot; fn isPlaneEnabled(_id: i32) -&gt; i32 {
+    0
+}
+
+// The host calls these too. Stubs, so no call ever hits a missing export.
+#[no_mangle]
+pub extern &quot;C&quot; fn hblDispatch(_id: u32, _plane: u32, _line: u32, _x: u32) {}
+#[no_mangle]
+pub extern &quot;C&quot; fn skipBoot() {}
+#[no_mangle]
+pub extern &quot;C&quot; fn setShadeMode(_m: u32) {}
+#[no_mangle]
+pub extern &quot;C&quot; fn pointer(_x: i32, _y: i32, _b: u32) {}
+#[no_mangle]
+pub extern &quot;C&quot; fn input(_dir: u8) {}
+</code></pre>
+<p><code>no_std</code> because there is no operating system. <code>no_main</code> because the host calls
+your exports, so there is no <code>main</code>. The panic handler is required without <code>std</code>.</p>
+<p><strong>What you should see.</strong> Nothing but the background. In Zig it is dark grey:
+ZigOS resets the background to (20,20,20) before a scene starts. In C and Rust
+the machine's reset leaves the background at 0, which has <strong>alpha 0</strong>, so the
+page behind the canvas shows through (black on the default page).</p>
+<p><strong>Common mistakes.</strong></p>
+<ul>
+<li><em>Link error <code>symbol not defined</code> in C or Rust.</em> One of the eight exports is
+  missing. Keep the stubs.</li>
+<li><em>The Zig cart is not built.</em> The scene is missing from <code>cart.zig</code> or
+  <code>build.zig</code>, or its index differs between them.</li>
+</ul>
+<hr />
+<h2>Step 2: enable a plane and set a palette</h2>
+<p><strong>Goal.</strong> Plane 0 on, five colours in its palette, the whole plane filled with
+the sky colour, and a black border.</p>
+<p><strong>Concept.</strong> Like the ST, the screen stores <strong>indices</strong>, not colours. A colour
+is an RGBA <code>u32</code>, stored little-endian as bytes R, G, B, A, so the value is
+<code>a&lt;&lt;24 | b&lt;&lt;16 | g&lt;&lt;8 | r</code>. <strong>Alpha 255 is opaque.</strong> Alpha 0 is transparent,
+which is how an upper plane lets a lower one show through. Changing a palette
+entry recolours every pixel that uses it, at no cost. Step 5 builds on that.</p>
+<p>The sealed memory map (from <code>machine/sdk/memmap.zig</code>), as offsets from
+<code>hwVideoBase()</code>:</p>
+<table>
+<thead>
+<tr>
+<th>Offset</th>
+<th>What</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>0x04</code></td>
+<td><code>REG_BACKGROUND</code>: border/background colour, <code>u32</code></td>
+</tr>
+<tr>
+<td><code>0x0100</code></td>
+<td>plane 0 palette: 256 x <code>u32</code></td>
+</tr>
+<tr>
+<td><code>0x1100</code></td>
+<td>plane 0 framebuffer: 320 x 200 bytes, row by row</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Zig vs C/Rust.</strong> ZigOS wraps all of this: <code>zigos.lfbs[0]</code> is plane 0,
+<code>is_enabled</code> feeds the <code>isPlaneEnabled</code> export, and <code>setPaletteEntry</code> writes the
+palette. C and Rust ask the machine for the base address once, then write the
+bytes themselves.</p>
+<h3>Zig</h3>
+<pre><code class="language-zig">const Color = zg.Color;
+
+// palette indices
+const SKY: u8 = 0;
+const FLOOR_DARK: u8 = 1;
+const FLOOR_LIGHT: u8 = 2;
+const BLOCK: u8 = 3;
+const TEXT_INK: u8 = 4;
+
+fn rgb(r: u8, g: u8, b: u8) Color {
+    return .{ .r = r, .g = g, .b = b, .a = 255 };
+}
+</code></pre>
+<pre><code class="language-zig">    pub fn init(self: *Demo, zigos: *ZigOS) void {
+        _ = self;
+        zigos.setBackgroundColor(rgb(0, 0, 0));
+
+        const fb = &amp;zigos.lfbs[0];
+        fb.is_enabled = true;
+        fb.setPaletteEntry(SKY, rgb(0, 0, 40));
+        fb.setPaletteEntry(FLOOR_DARK, rgb(60, 20, 90));
+        fb.setPaletteEntry(FLOOR_LIGHT, rgb(140, 60, 180));
+        fb.setPaletteEntry(BLOCK, rgb(255, 210, 0));
+        fb.setPaletteEntry(TEXT_INK, rgb(255, 255, 255));
+        fb.clearFrameBuffer(SKY);
+    }
+</code></pre>
+<h3>C</h3>
+<pre><code class="language-c">// --- the sealed ABI: one import, and offsets from machine/sdk/memmap.zig ---
+__attribute__((import_module(&quot;env&quot;), import_name(&quot;hwVideoBase&quot;)))
+extern int hwVideoBase(void);
+
+#define OFF_PAL        0x0100 // plane 0 palette: 256 x RGBA u32
+#define OFF_VRAM       0x1100 // plane 0 framebuffer: 320 x 200 palette indices
+#define REG_BACKGROUND 0x04   // u32: the border/background colour
+#define W 320
+#define H 200
+
+// palette indices
+#define SKY         0
+#define FLOOR_DARK  1
+#define FLOOR_LIGHT 2
+#define BLOCK       3
+#define TEXT_INK    4
+
+static int video_base;
+
+static inline u8 *vram(void) { return (u8 *)(video_base + OFF_VRAM); }
+static inline u32 *palette(void) { return (u32 *)(video_base + OFF_PAL); }
+static inline u32 rgba(u32 r, u32 g, u32 b) { return 0xFF000000u | b &lt;&lt; 16 | g &lt;&lt; 8 | r; }
+
+static void fill_rect(int x, int y, int w, int h, u8 index) {
+    for (int j = y; j &lt; y + h; j++)
+        for (int i = x; i &lt; x + w; i++) vram()[j * W + i] = index;
+}
+
+__attribute__((export_name(&quot;boot&quot;)))
+void boot(void) {
+    video_base = hwVideoBase();
+    *(u32 *)(video_base + REG_BACKGROUND) = rgba(0, 0, 0);
+
+    u32 *pal = palette();
+    pal[SKY] = rgba(0, 0, 40);
+    pal[FLOOR_DARK] = rgba(60, 20, 90);
+    pal[FLOOR_LIGHT] = rgba(140, 60, 180);
+    pal[BLOCK] = rgba(255, 210, 0);
+    pal[TEXT_INK] = rgba(255, 255, 255);
+
+    fill_rect(0, 0, W, H, SKY);
+}
+</code></pre>
+<pre><code class="language-c">__attribute__((export_name(&quot;isPlaneEnabled&quot;)))
+int isPlaneEnabled(int id) { return id == 0; }
+</code></pre>
+<h3>Rust</h3>
+<p>Rust keeps the screen's state in one <code>Screen</code> struct in a <code>static mut</code>, reached
+through <code>screen()</code>. A wasm cart is single-threaded and the host never calls back
+into it while it runs, so that is sound. Each <code>unsafe</code> block says why it is safe.</p>
+<pre><code class="language-rust">use core::ptr::addr_of_mut;
+
+// --- the sealed ABI: one import, and offsets from machine/sdk/memmap.zig ---
+#[link(wasm_import_module = &quot;env&quot;)]
+extern &quot;C&quot; {
+    fn hwVideoBase() -&gt; i32;
+}
+
+const OFF_PAL: usize = 0x0100; // plane 0 palette: 256 x RGBA u32
+const OFF_VRAM: usize = 0x1100; // plane 0 framebuffer: 320 x 200 palette indices
+const REG_BACKGROUND: usize = 0x04; // u32: the border/background colour
+const W: usize = 320;
+const H: usize = 200;
+
+// palette indices
+const SKY: u8 = 0;
+const FLOOR_DARK: u8 = 1;
+const FLOOR_LIGHT: u8 = 2;
+const BLOCK: u8 = 3;
+const TEXT_INK: u8 = 4;
+
+struct Screen {
+    base: usize,
+}
+
+static mut SCREEN: Screen = Screen { base: 0 };
+
+fn screen() -&gt; &amp;'static mut Screen {
+    // SAFETY: a wasm32 cart is single-threaded, and the host never re-enters it.
+    unsafe { &amp;mut *addr_of_mut!(SCREEN) }
+}
+
+const fn rgba(r: u32, g: u32, b: u32) -&gt; u32 {
+    0xFF00_0000 | b &lt;&lt; 16 | g &lt;&lt; 8 | r
+}
+
+impl Screen {
+    fn vram(&amp;self) -&gt; &amp;'static mut [u8] {
+        // SAFETY: plane 0's framebuffer, inside the machine's video region.
+        unsafe { core::slice::from_raw_parts_mut((self.base + OFF_VRAM) as *mut u8, W * H) }
+    }
+
+    fn palette(&amp;self) -&gt; &amp;'static mut [u32] {
+        // SAFETY: plane 0's 256-entry palette, inside the machine's video region.
+        unsafe { core::slice::from_raw_parts_mut((self.base + OFF_PAL) as *mut u32, 256) }
+    }
+
+    fn fill_rect(&amp;self, x: usize, y: usize, w: usize, h: usize, index: u8) {
+        let vram = self.vram();
+        for row in y..y + h {
+            vram[row * W + x..row * W + x + w].fill(index);
+        }
+    }
+}
+</code></pre>
+<pre><code class="language-rust">#[no_mangle]
+pub extern &quot;C&quot; fn boot() {
+    let s = screen();
+    // SAFETY: a plain import from the machine; it returns the video region's base.
+    s.base = unsafe { hwVideoBase() } as usize;
+    // SAFETY: REG_BACKGROUND is a u32 register inside the video region.
+    unsafe { ((s.base + REG_BACKGROUND) as *mut u32).write(rgba(0, 0, 0)) };
+
+    let pal = s.palette();
+    pal[SKY as usize] = rgba(0, 0, 40);
+    pal[FLOOR_DARK as usize] = rgba(60, 20, 90);
+    pal[FLOOR_LIGHT as usize] = rgba(140, 60, 180);
+    pal[BLOCK as usize] = rgba(255, 210, 0);
+    pal[TEXT_INK as usize] = rgba(255, 255, 255);
+
+    s.fill_rect(0, 0, W, H, SKY);
+}
+</code></pre>
+<pre><code class="language-rust">#[no_mangle]
+pub extern &quot;C&quot; fn isPlaneEnabled(id: i32) -&gt; i32 {
+    (id == 0) as i32
+}
+</code></pre>
+<p><strong>What you should see.</strong> A dark blue 320x200 rectangle in a black border.</p>
+<p><strong>Common mistakes.</strong></p>
+<ul>
+<li><em>Nothing shows.</em> Either alpha is 0 (a colour written as <code>0x000028</code> instead of
+  <code>0xFF280000</code>), or the plane is not enabled (<code>is_enabled</code> in Zig,
+  <code>isPlaneEnabled</code> in C and Rust).</li>
+<li><em>Red and blue swapped.</em> The byte order is R, G, B, A from the low byte up.</li>
+<li><em>A scene that enables a plane and later disables it leaves stale pixels on
+  that plane's canvas.</em> Only enabled planes are repainted.</li>
+</ul>
+<hr />
+<h2>Step 3: draw something static</h2>
+<p><strong>Goal.</strong> A checkerboard floor under the sky.</p>
+<p><strong>Concept.</strong> Drawing is writing indices: row <code>y</code>, column <code>x</code> is byte
+<code>y * 320 + x</code>. Something that never changes is drawn once, in <code>init</code>/<code>boot</code>,
+not every frame.</p>
+<p><strong>Zig vs C/Rust.</strong> Zig uses <code>setPixelValue</code>, which clips to the plane.</p>
+<h3>Zig</h3>
+<pre><code class="language-zig">const LogicalFB = zg.LogicalFB;
+</code></pre>
+<pre><code class="language-zig">const W: u16 = zg.WIDTH; // 320
+const H: u16 = zg.HEIGHT; // 200
+</code></pre>
+<pre><code class="language-zig">const FLOOR_Y: u16 = 160;
+</code></pre>
+<pre><code class="language-zig">fn drawFloor(fb: *LogicalFB) void {
+    for (FLOOR_Y..H) |y| {
+        for (0..W) |x| {
+            const light = ((x / 20 + y / 10) &amp; 1) == 1;
+            fb.setPixelValue(@intCast(x), @intCast(y), if (light) FLOOR_LIGHT else FLOOR_DARK);
+        }
+    }
+}
+</code></pre>
+<p>At the end of <code>init</code>:</p>
+<pre><code class="language-zig">        fb.clearFrameBuffer(SKY);
+        drawFloor(fb);
+</code></pre>
+<h3>C</h3>
+<pre><code class="language-c">#define FLOOR_Y 160
+</code></pre>
+<pre><code class="language-c">static void draw_floor(void) {
+    for (int y = FLOOR_Y; y &lt; H; y++)
+        for (int x = 0; x &lt; W; x++)
+            vram()[y * W + x] = ((x / 20 + y / 10) &amp; 1) ? FLOOR_LIGHT : FLOOR_DARK;
+}
+</code></pre>
+<p>At the end of <code>boot</code>:</p>
+<pre><code class="language-c">    fill_rect(0, 0, W, H, SKY);
+    draw_floor();
+</code></pre>
+<h3>Rust</h3>
+<pre><code class="language-rust">const FLOOR_Y: usize = 160;
+</code></pre>
+<p>In <code>impl Screen</code>:</p>
+<pre><code class="language-rust">    fn draw_floor(&amp;self) {
+        let vram = self.vram();
+        for y in FLOOR_Y..H {
+            for x in 0..W {
+                vram[y * W + x] = if (x / 20 + y / 10) &amp; 1 == 1 { FLOOR_LIGHT } else { FLOOR_DARK };
+            }
+        }
+    }
+</code></pre>
+<p>At the end of <code>boot</code>:</p>
+<pre><code class="language-rust">    s.fill_rect(0, 0, W, H, SKY);
+    s.draw_floor();
+</code></pre>
+<p><strong>What you should see.</strong> The blue sky over a two-tone purple checkerboard
+filling the bottom 40 lines.</p>
+<p><strong>Common mistakes.</strong></p>
+<ul>
+<li><em>Zig's <code>drawScanline(x1, x2, y, index)</code> for a full row draws nothing.</em> It
+  fills <code>[x1, x2)</code> but rejects <code>x2 == 320</code>, so it can never reach the last
+  column. Use <code>setPixelValue</code> or write <code>fb.fb</code> directly.</li>
+<li><em>C: writing past row 199.</em> Nothing traps. You overwrite the next plane's
+  framebuffer, or worse. Rust's slices panic instead, and the cart stops.</li>
+</ul>
+<hr />
+<h2>Step 4: animate it every frame</h2>
+<p><strong>Goal.</strong> A yellow block bouncing around the sky.</p>
+<p><strong>Concept.</strong> A demo screen redraws what moves, every frame. Here that means:
+wipe the sky, move the block, draw it. The floor is not touched. Movement is
+whole pixels per frame, like on the ST. The <code>dt</code> the host passes is in
+milliseconds and not reliable enough to pace an effect, so count frames instead.</p>
+<p><strong>Zig vs C/Rust.</strong> A Zig scene splits the frame into <code>update</code> (move) and
+<code>render</code> (draw). C and Rust do both in <code>frame</code>.</p>
+<h3>Zig</h3>
+<p>State lives in the <code>Demo</code> struct. <strong>Set every field in <code>init</code>.</strong> A cart's <code>Demo</code>
+starts as zeroed memory and its field defaults (<code>block_x: i32 = 40</code>) are never
+applied.</p>
+<pre><code class="language-zig">const BLOCK_SIZE: i32 = 24;
+</code></pre>
+<pre><code class="language-zig">fn fillRect(fb: *LogicalFB, x: i32, y: i32, w: i32, h: i32, index: u8) void {
+    var j = y;
+    while (j &lt; y + h) : (j += 1) {
+        var i = x;
+        while (i &lt; x + w) : (i += 1) fb.setPixelValue(@intCast(i), @intCast(j), index);
+    }
+}
+</code></pre>
+<pre><code class="language-zig">pub const Demo = struct {
+    block_x: i32,
+    block_y: i32,
+    block_dx: i32,
+    block_dy: i32,
+
+    pub fn init(self: *Demo, zigos: *ZigOS) void {
+        // A cart's Demo is never built from field defaults: set every field here.
+        self.block_x = 40;
+        self.block_y = 40;
+        self.block_dx = 2;
+        self.block_dy = 1;
+</code></pre>
+<pre><code class="language-zig">    pub fn update(self: *Demo, zigos: *ZigOS, dt: f32) void {
+        _ = zigos;
+        _ = dt;
+        self.block_x += self.block_dx;
+        self.block_y += self.block_dy;
+        if (self.block_x &lt;= 0 or self.block_x &gt;= W - BLOCK_SIZE) self.block_dx = -self.block_dx;
+        if (self.block_y &lt;= 28 or self.block_y &gt;= FLOOR_Y - BLOCK_SIZE) self.block_dy = -self.block_dy;
+    }
+
+    pub fn render(self: *Demo, zigos: *ZigOS, dt: f32) void {
+        _ = dt;
+        const fb = &amp;zigos.lfbs[0];
+        @memset(fb.fb[0 .. @as(usize, FLOOR_Y) * W], SKY); // wipe last frame's sky
+        fillRect(fb, self.block_x, self.block_y, BLOCK_SIZE, BLOCK_SIZE, BLOCK);
+    }
+</code></pre>
+<h3>C</h3>
+<pre><code class="language-c">#define BLOCK_SIZE 24
+</code></pre>
+<pre><code class="language-c">static int block_x, block_y, block_dx, block_dy;
+</code></pre>
+<pre><code class="language-c">static void move_block(void) {
+    block_x += block_dx;
+    block_y += block_dy;
+    if (block_x &lt;= 0 || block_x &gt;= W - BLOCK_SIZE) block_dx = -block_dx;
+    if (block_y &lt;= 28 || block_y &gt;= FLOOR_Y - BLOCK_SIZE) block_dy = -block_dy;
+}
+</code></pre>
+<p>At the end of <code>boot</code>, and the new <code>frame</code>:</p>
+<pre><code class="language-c">    block_x = 40; block_y = 40; block_dx = 2; block_dy = 1;
+</code></pre>
+<pre><code class="language-c">__attribute__((export_name(&quot;frame&quot;)))
+void frame(float dt) {
+    (void)dt;
+    fill_rect(0, 0, W, FLOOR_Y, SKY); // wipe last frame's sky
+    move_block();
+    fill_rect(block_x, block_y, BLOCK_SIZE, BLOCK_SIZE, BLOCK);
+}
+</code></pre>
+<h3>Rust</h3>
+<pre><code class="language-rust">const BLOCK_SIZE: i32 = 24;
+
+struct Screen {
+    base: usize,
+    block_x: i32,
+    block_y: i32,
+    block_dx: i32,
+    block_dy: i32,
+}
+
+static mut SCREEN: Screen = Screen {
+    base: 0,
+    block_x: 40,
+    block_y: 40,
+    block_dx: 2,
+    block_dy: 1,
+};
+</code></pre>
+<p>In <code>impl Screen</code>, and the new <code>frame</code>:</p>
+<pre><code class="language-rust">    fn move_block(&amp;mut self) {
+        self.block_x += self.block_dx;
+        self.block_y += self.block_dy;
+        if self.block_x &lt;= 0 || self.block_x &gt;= W as i32 - BLOCK_SIZE {
+            self.block_dx = -self.block_dx;
+        }
+        if self.block_y &lt;= 28 || self.block_y &gt;= FLOOR_Y as i32 - BLOCK_SIZE {
+            self.block_dy = -self.block_dy;
+        }
+    }
+</code></pre>
+<pre><code class="language-rust">#[no_mangle]
+pub extern &quot;C&quot; fn frame(_elapsed_ms: f32) {
+    let s = screen();
+    s.fill_rect(0, 0, W, FLOOR_Y, SKY); // wipe last frame's sky
+    s.move_block();
+    let size = BLOCK_SIZE as usize;
+    s.fill_rect(s.block_x as usize, s.block_y as usize, size, size, BLOCK);
+}
+</code></pre>
+<p>In C and Rust, a <code>static</code>'s initial value is honoured, because the linker puts
+it in the data segment. Only Zig scenes have the "defaults are ignored" trap.</p>
+<p><strong>What you should see.</strong> The block bounces off the screen edges and the floor,
+and leaves no trail.</p>
+<p><strong>Common mistakes.</strong></p>
+<ul>
+<li><em>A Zig block frozen in the top-left, or flying off at a wild speed.</em> A field
+  was left to its default and read as 0 or garbage. Set it in <code>init</code>.</li>
+<li><em>A trail behind the block.</em> The old position was never wiped.</li>
+<li><em>Zig: <code>self.* = .{ ... }</code> to reset a big struct.</em> It compiles, but the linker
+  stores a second copy of the whole default value in the cart's data. On a
+  struct holding a large buffer that cost one cart 517 KB of its 2 MB window.
+  Set the fields one by one.</li>
+</ul>
+<hr />
+<h2>Step 5: rasters, the copper bar</h2>
+<p><strong>Goal.</strong> A sky that fades from dark to lighter blue, with a copper bar
+sliding up and down through it, all drawn with <strong>one</strong> palette index.</p>
+<p><strong>Concept.</strong> The ST shows 16 colours. Demos got hundreds by changing a palette
+entry <strong>between scanlines</strong>: an interrupt fires at each horizontal blank (HBL),
+and the handler writes a new colour before the next line is drawn. On the Amiga
+the copper chip did it, so a bar made this way is a <em>copper bar</em>.</p>
+<p>ZigMachine has the same thing. Put a non-zero handler id in a plane's
+<code>FB_HBL_ID</code> register, and the machine calls your <code>hblDispatch(id, plane, line, x)</code>
+export before it composites each line of that plane. Every sky pixel is index
+<code>SKY</code>, so writing <code>palette[SKY]</code> from the handler gives each line its own colour.
+The framebuffer does not change. Only the palette does, 200 times a frame.</p>
+<p><strong>The line numbers.</strong> On a normal plane, a per-plane HBL gets <strong>logical</strong> lines
+0..199, where 0 is the top of the 320x200 screen. The <em>global</em> HBL
+(<code>GLOBAL_HBL_ID</code>, which recolours the border through <code>REG_BACKGROUND</code>) gets
+<strong>physical</strong> lines 0..279, where the visible screen starts at 40. An overscan
+plane's per-plane HBL also gets physical lines. Mixing these up shifts a raster
+40 lines.</p>
+<p><strong>Zig vs C/Rust.</strong> ZigOS has <code>zg.copper</code>. You fill a table with one colour per
+line, and its own HBL handler plays the table back. It works out which
+numbering the plane uses, so the table is always indexed from the top of the
+screen. C and Rust keep the table themselves and write the handler by hand.
+Either way the colours are computed in <code>frame</code>/<code>render</code>, and the handler only
+copies one value. The handler runs 200 times a frame, so keep it tiny.</p>
+<h3>Zig</h3>
+<pre><code class="language-zig">const BAR_H: i32 = 16;
+
+// The copper's per-line colours for SKY. Module scope and owned by the scene:
+// an HBL handler gets no pointer to your Demo.
+var copper_table: [1]zg.copper.Table = undefined;
+</code></pre>
+<p>Two new fields, <code>bar_y: i32</code> and <code>bar_dy: i32</code>, set in <code>init</code> (<code>24</code> and <code>2</code>).
+At the end of <code>init</code>, after the palette is set (the table starts as the entry's
+current colour):</p>
+<pre><code class="language-zig">        // One HBL on plane 0 that rewrites SKY before every line.
+        zg.copper.install(fb, &amp;.{SKY}, &amp;copper_table, .{});
+</code></pre>
+<p>At the end of <code>update</code>:</p>
+<pre><code class="language-zig">        self.bar_y += self.bar_dy;
+        if (self.bar_y &lt;= 24 or self.bar_y &gt;= FLOOR_Y - BAR_H) self.bar_dy = -self.bar_dy;
+</code></pre>
+<p>At the end of <code>render</code>, and the new method:</p>
+<pre><code class="language-zig">        self.buildCopper(zg.copper.visible(fb, 0));
+</code></pre>
+<pre><code class="language-zig">    // One colour per visible line: a sky gradient, with a copper bar over it.
+    fn buildCopper(self: *const Demo, lines: *[H]u32) void {
+        for (lines, 0..) |*colour, i| {
+            const d = @as(i32, @intCast(i)) - self.bar_y;
+            if (d &gt;= 0 and d &lt; BAR_H) {
+                const k: u8 = @intCast(if (d &lt; BAR_H / 2) d + 1 else BAR_H - d); // 1..8..1
+                colour.* = rgb(k * 31, k * 24, k * 8).toRGBA();
+            } else {
+                colour.* = rgb(0, @intCast(i / 4), @intCast(40 + i / 2)).toRGBA();
+            }
+        }
+    }
+</code></pre>
+<p>The table is at module scope because it belongs to this scene. Do the same in
+a library you write: a module-scope array in a <em>library</em> costs its size in
+every cart that imports the library, whether or not the cart uses it.</p>
+<h3>C</h3>
+<pre><code class="language-c">#define REG_FB_HBL_ID  0x20   // u16 per plane: 0 = no HBL
+#define REG_FB_HBL_POS 0x28   // u16 per plane: the column the HBL fires at
+</code></pre>
+<pre><code class="language-c">#define BAR_H      16
+</code></pre>
+<pre><code class="language-c">static int bar_y, bar_dy;
+static u32 copper[H]; // the SKY colour of each visible line
+</code></pre>
+<pre><code class="language-c">// One colour per line: a sky gradient, with a copper bar over it.
+static void build_copper(void) {
+    for (int line = 0; line &lt; H; line++) {
+        u32 c = rgba(0, line / 4, 40 + line / 2);
+        int d = line - bar_y;
+        if (d &gt;= 0 &amp;&amp; d &lt; BAR_H) {
+            int k = d &lt; BAR_H / 2 ? d + 1 : BAR_H - d; // 1..8..1: bright in the middle
+            c = rgba(k * 31, k * 24, k * 8);
+        }
+        copper[line] = c;
+    }
+    bar_y += bar_dy;
+    if (bar_y &lt;= 24 || bar_y &gt;= FLOOR_Y - BAR_H) bar_dy = -bar_dy;
+}
+</code></pre>
+<p>At the end of <code>boot</code>:</p>
+<pre><code class="language-c">    bar_y = 24; bar_dy = 2;
+    for (int i = 0; i &lt; H; i++) copper[i] = pal[SKY];
+
+    // Arm plane 0's HBL: any non-zero id, fired at column 0 of every line.
+    *(u16 *)(video_base + REG_FB_HBL_ID + 0 * 2) = 1;
+    *(u16 *)(video_base + REG_FB_HBL_POS + 0 * 2) = 0;
+</code></pre>
+<p><code>build_copper();</code> goes at the end of <code>frame</code>, and the <code>hblDispatch</code> stub becomes
+the handler:</p>
+<pre><code class="language-c">// The machine calls this before it draws each line of plane 0. `line` is the
+// LOGICAL line, 0..199, on a normal plane.
+__attribute__((export_name(&quot;hblDispatch&quot;)))
+void hblDispatch(u32 id, u32 plane, u32 line, u32 x) {
+    (void)id; (void)plane; (void)x;
+    palette()[SKY] = copper[line];
+}
+</code></pre>
+<h3>Rust</h3>
+<pre><code class="language-rust">const REG_FB_HBL_ID: usize = 0x20; // u16 per plane: 0 = no HBL
+const REG_FB_HBL_POS: usize = 0x28; // u16 per plane: the column the HBL fires at
+</code></pre>
+<pre><code class="language-rust">const BAR_H: i32 = 16;
+</code></pre>
+<p><code>Screen</code> gains <code>bar_y: i32</code>, <code>bar_dy: i32</code> and <code>copper: [u32; H]</code>, initialised
+to <code>24</code>, <code>2</code> and <code>[0; H]</code>. In <code>impl Screen</code>:</p>
+<pre><code class="language-rust">    // One colour per line: a sky gradient, with a copper bar over it.
+    fn build_copper(&amp;mut self) {
+        for line in 0..H as i32 {
+            let d = line - self.bar_y;
+            self.copper[line as usize] = if (0..BAR_H).contains(&amp;d) {
+                let k = (if d &lt; BAR_H / 2 { d + 1 } else { BAR_H - d }) as u32; // 1..8..1
+                rgba(k * 31, k * 24, k * 8)
+            } else {
+                rgba(0, line as u32 / 4, 40 + line as u32 / 2)
+            };
+        }
+        self.bar_y += self.bar_dy;
+        if self.bar_y &lt;= 24 || self.bar_y &gt;= FLOOR_Y as i32 - BAR_H {
+            self.bar_dy = -self.bar_dy;
+        }
+    }
+</code></pre>
+<p>At the end of <code>boot</code>:</p>
+<pre><code class="language-rust">    s.copper = [pal[SKY as usize]; H];
+
+    // Arm plane 0's HBL: any non-zero id, fired at column 0 of every line.
+    // SAFETY: plane 0's u16 HBL registers, inside the video region.
+    unsafe {
+        ((s.base + REG_FB_HBL_ID) as *mut u16).write(1);
+        ((s.base + REG_FB_HBL_POS) as *mut u16).write(0);
+    }
+</code></pre>
+<p><code>s.build_copper();</code> goes at the end of <code>frame</code>, and the stub becomes:</p>
+<pre><code class="language-rust">// The machine calls this before it draws each line of plane 0. `line` is the
+// LOGICAL line, 0..199, on a normal plane.
+#[no_mangle]
+pub extern &quot;C&quot; fn hblDispatch(_id: u32, _plane: u32, line: u32, _x: u32) {
+    let s = screen();
+    s.palette()[SKY as usize] = s.copper[line as usize];
+}
+</code></pre>
+<p><strong>What you should see.</strong> A gradient sky and a gold bar, brightest in its
+middle, sliding between the top of the screen and the floor. The block stays
+yellow and the floor stays purple: they use other indices.</p>
+<p><strong>Common mistakes.</strong></p>
+<ul>
+<li><em>The bar sits 40 lines too low, and the top of the screen never changes.</em>
+  The handler subtracted 40 from a logical line, or indexed a physical table.</li>
+<li><em>The whole sky is one colour.</em> The HBL is not armed (id still 0), or the
+  handler writes the wrong palette entry.</li>
+<li><em>The bar jitters.</em> The handler computes the colour itself from state that
+  <code>frame</code> is still changing. Build the table in <code>frame</code>, copy it in the handler.</li>
+</ul>
+<hr />
+<h2>Step 6: a text scroller</h2>
+<p><strong>Goal.</strong> A line of text scrolling right to left across the top of the screen,
+looping forever.</p>
+<p><strong>Concept.</strong> A font is a set of small bitmaps. To scroll, draw the text starting
+at <code>-scroll_x</code>, clip what falls off either edge, and add 2 to <code>scroll_x</code> every
+frame. When <code>scroll_x</code> reaches the text's pixel width, wrap it to 0. That lands
+the text exactly where it started, so the loop has no seam.</p>
+<p><strong>Zig vs C/Rust.</strong> ZigOS carries the ST's 8x8 system font, and
+<code>zigos.printText(fb, text, x, y, ink, paper)</code> draws with it. <code>x</code> is signed and
+clipped, so text can start off the left edge. The paper index is written behind
+the glyphs, and <code>SKY</code> there lets the copper show through. C and Rust have no
+font, so they embed one: a 5x7 bitmap for just the letters the text needs, one
+byte per row, drawn 2x2. That is why the C and Rust text is bigger.</p>
+<h3>Zig</h3>
+<pre><code class="language-zig">const TEXT = &quot;HELLO FROM ZIG * THIS IS YOUR FIRST ZIGMACHINE SCREEN * &quot;;
+const TEXT_W: i32 = TEXT.len * 8; // the 8x8 system font
+</code></pre>
+<p>A <code>scroll_x: i32</code> field, set to <code>0</code> in <code>init</code>. At the end of <code>update</code>:</p>
+<pre><code class="language-zig">        self.scroll_x = @mod(self.scroll_x + 2, TEXT_W);
+</code></pre>
+<p>At the end of <code>render</code>:</p>
+<pre><code class="language-zig">        // Two copies of the text, one text-width apart, so the loop has no gap.
+        const x = -self.scroll_x;
+        zigos.printText(fb, TEXT, @intCast(x), 8, TEXT_INK, SKY);
+        zigos.printText(fb, TEXT, @intCast(x + TEXT_W), 8, TEXT_INK, SKY);
+</code></pre>
+<h3>C</h3>
+<pre><code class="language-c">static int scroll_x;
+</code></pre>
+<pre><code class="language-c">// A 5x7 font holding only the letters TEXT uses: one byte per row, bit 4 = left.
+static const char GLYPHS[] = &quot;ACEFGHILMNORSTUYZ*&quot;;
+static const u8 FONT[][7] = {
+    {0x0E, 0x11, 0x11, 0x1F, 0x11, 0x11, 0x11}, // A
+    {0x0E, 0x11, 0x10, 0x10, 0x10, 0x11, 0x0E}, // C
+    {0x1F, 0x10, 0x10, 0x1E, 0x10, 0x10, 0x1F}, // E
+    {0x1F, 0x10, 0x10, 0x1E, 0x10, 0x10, 0x10}, // F
+    {0x0E, 0x11, 0x10, 0x17, 0x11, 0x11, 0x0F}, // G
+    {0x11, 0x11, 0x11, 0x1F, 0x11, 0x11, 0x11}, // H
+    {0x0E, 0x04, 0x04, 0x04, 0x04, 0x04, 0x0E}, // I
+    {0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x1F}, // L
+    {0x11, 0x1B, 0x15, 0x15, 0x11, 0x11, 0x11}, // M
+    {0x11, 0x19, 0x15, 0x13, 0x11, 0x11, 0x11}, // N
+    {0x0E, 0x11, 0x11, 0x11, 0x11, 0x11, 0x0E}, // O
+    {0x1E, 0x11, 0x11, 0x1E, 0x14, 0x12, 0x11}, // R
+    {0x0F, 0x10, 0x10, 0x0E, 0x01, 0x01, 0x1E}, // S
+    {0x1F, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04}, // T
+    {0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x0E}, // U
+    {0x11, 0x11, 0x0A, 0x04, 0x04, 0x04, 0x04}, // Y
+    {0x1F, 0x01, 0x02, 0x04, 0x08, 0x10, 0x1F}, // Z
+    {0x00, 0x15, 0x0E, 0x1F, 0x0E, 0x15, 0x00}, // *
+};
+static const char TEXT[] = &quot;HELLO FROM C * THIS IS YOUR FIRST ZIGMACHINE SCREEN * &quot;;
+#define TEXT_LEN (int)(sizeof(TEXT) - 1)
+#define SCALE    2  // each font pixel is drawn 2x2
+#define ADVANCE  12 // 5 columns x 2, plus a 2-pixel gap
+
+static int glyph_of(char c) {
+    for (int g = 0; GLYPHS[g]; g++)
+        if (GLYPHS[g] == c) return g;
+    return -1;
+}
+
+static void draw_char(char c, int x, int y) {
+    int g = glyph_of(c);
+    if (g &lt; 0) return; // a space, or a letter the font lacks
+    for (int row = 0; row &lt; 7; row++)
+        for (int col = 0; col &lt; 5; col++) {
+            if (!(FONT[g][row] &amp; (0x10 &gt;&gt; col))) continue;
+            for (int sy = 0; sy &lt; SCALE; sy++)
+                for (int sx = 0; sx &lt; SCALE; sx++) {
+                    int px = x + col * SCALE + sx;
+                    if (px &gt;= 0 &amp;&amp; px &lt; W) vram()[(y + row * SCALE + sy) * W + px] = TEXT_INK;
+                }
+        }
+}
+
+static void draw_scroller(void) {
+    for (int i = 0;; i++) {
+        int x = i * ADVANCE - scroll_x;
+        if (x &gt;= W) break;
+        if (x &gt; -ADVANCE) draw_char(TEXT[i % TEXT_LEN], x, 8);
+    }
+    scroll_x = (scroll_x + 2) % (TEXT_LEN * ADVANCE);
+}
+</code></pre>
+<p><code>scroll_x = 0;</code> goes in <code>boot</code> and <code>draw_scroller();</code> at the end of <code>frame</code>.
+<code>TEXT[i % TEXT_LEN]</code> repeats the text, so one loop fills the whole width.</p>
+<h3>Rust</h3>
+<pre><code class="language-rust">// A 5x7 font holding only the letters TEXT uses: one byte per row, bit 4 = left.
+const GLYPHS: &amp;[u8] = b&quot;ACEFGHILMNORSTUYZ*&quot;;
+const FONT: [[u8; 7]; 18] = [
+    [0x0E, 0x11, 0x11, 0x1F, 0x11, 0x11, 0x11], // A
+    [0x0E, 0x11, 0x10, 0x10, 0x10, 0x11, 0x0E], // C
+    [0x1F, 0x10, 0x10, 0x1E, 0x10, 0x10, 0x1F], // E
+    [0x1F, 0x10, 0x10, 0x1E, 0x10, 0x10, 0x10], // F
+    [0x0E, 0x11, 0x10, 0x17, 0x11, 0x11, 0x0F], // G
+    [0x11, 0x11, 0x11, 0x1F, 0x11, 0x11, 0x11], // H
+    [0x0E, 0x04, 0x04, 0x04, 0x04, 0x04, 0x0E], // I
+    [0x10, 0x10, 0x10, 0x10, 0x10, 0x10, 0x1F], // L
+    [0x11, 0x1B, 0x15, 0x15, 0x11, 0x11, 0x11], // M
+    [0x11, 0x19, 0x15, 0x13, 0x11, 0x11, 0x11], // N
+    [0x0E, 0x11, 0x11, 0x11, 0x11, 0x11, 0x0E], // O
+    [0x1E, 0x11, 0x11, 0x1E, 0x14, 0x12, 0x11], // R
+    [0x0F, 0x10, 0x10, 0x0E, 0x01, 0x01, 0x1E], // S
+    [0x1F, 0x04, 0x04, 0x04, 0x04, 0x04, 0x04], // T
+    [0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x0E], // U
+    [0x11, 0x11, 0x0A, 0x04, 0x04, 0x04, 0x04], // Y
+    [0x1F, 0x01, 0x02, 0x04, 0x08, 0x10, 0x1F], // Z
+    [0x00, 0x15, 0x0E, 0x1F, 0x0E, 0x15, 0x00], // *
+];
+const TEXT: &amp;[u8] = b&quot;HELLO FROM RUST * THIS IS YOUR FIRST ZIGMACHINE SCREEN * &quot;;
+const SCALE: usize = 2; // each font pixel is drawn 2x2
+const ADVANCE: usize = 12; // 5 columns x 2, plus a 2-pixel gap
+</code></pre>
+<p><code>Screen</code> gains <code>scroll_x: usize</code>, initialised to <code>0</code>. In <code>impl Screen</code>:</p>
+<pre><code class="language-rust">    fn draw_char(&amp;self, c: u8, x: i32, y: usize) {
+        // a space, or a letter the font lacks, draws nothing
+        let Some(g) = GLYPHS.iter().position(|&amp;l| l == c) else { return };
+        let vram = self.vram();
+        for (row, bits) in FONT[g].iter().enumerate() {
+            for col in 0..5 {
+                if bits &amp; (0x10 &gt;&gt; col) == 0 {
+                    continue;
+                }
+                for sy in 0..SCALE {
+                    for sx in 0..SCALE {
+                        let px = x + (col * SCALE + sx) as i32;
+                        if (0..W as i32).contains(&amp;px) {
+                            vram[(y + row * SCALE + sy) * W + px as usize] = TEXT_INK;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    fn draw_scroller(&amp;mut self) {
+        let mut i = 0;
+        loop {
+            let x = (i * ADVANCE) as i32 - self.scroll_x as i32;
+            if x &gt;= W as i32 {
+                break;
+            }
+            if x &gt; -(ADVANCE as i32) {
+                self.draw_char(TEXT[i % TEXT.len()], x, 8);
+            }
+            i += 1;
+        }
+        self.scroll_x = (self.scroll_x + 2) % (TEXT.len() * ADVANCE);
+    }
+</code></pre>
+<p><code>s.draw_scroller();</code> goes at the end of <code>frame</code>.</p>
+<p><strong>What you should see.</strong> White text gliding right to left over the top of the
+gradient, with no gap when it loops. Zig's is the small ST system font. C and
+Rust show a chunkier 10x14 font.</p>
+<p><strong>Common mistakes.</strong></p>
+<ul>
+<li><em>A gap or a jump when the text loops.</em> The wrap width is not exactly the text
+  width: length times the glyph advance.</li>
+<li><em>Letters wrap onto the next line at the right edge.</em> A glyph was drawn without
+  clipping <code>x</code>. Clip every pixel, as all three versions do.</li>
+<li><em>Text with a black box around it over the raster.</em> The paper index is not
+  <code>SKY</code>, so the copper cannot recolour it.</li>
+</ul>
+<hr />
+<h2>Step 7: music</h2>
+<p><strong>Goal.</strong> "So Watt" by Mad Max plays while the screen runs.</p>
+<p><strong>Concept.</strong> A cart never contains a music player. It asks the host for a tune
+<strong>by name</strong>, a file under <code>docs/music/</code>. The host polls the cart every frame,
+fetches the file, and plays it on the audio thread. An SNDH carries the tune's
+own 68000 replay code, which the machine runs on an emulated 68000 driving its
+YM2149, as the ST did. The full guide is <code>docs/MUSIC.md</code>.</p>
+<p>Request once, at start-up. Each request replaces the tune playing.</p>
+<p><strong>Zig vs C/Rust.</strong> Zig calls <code>zg.requestSong</code>, and <code>demo_main.zig</code> already
+exports what the host polls. C and Rust include a small bridge that defines
+those exports: <code>apps/c/zigmachine_music.h</code> or <code>apps/rust/zigmachine_music.rs</code>.</p>
+<h3>Zig</h3>
+<pre><code class="language-zig">const MUSIC = &quot;sos.sndh&quot;; // a file under docs/music/
+</code></pre>
+<p>In <code>init</code>:</p>
+<pre><code class="language-zig">        zg.requestSong(MUSIC);
+</code></pre>
+<h3>C</h3>
+<p>At the top of the file:</p>
+<pre><code class="language-c">#include &quot;../zigmachine_music.h&quot; // from exactly ONE .c file: it defines exports
+</code></pre>
+<p>At the start of <code>boot</code>:</p>
+<pre><code class="language-c">    zm_request_song(&quot;sos.sndh&quot;); // a file under docs/music/
+</code></pre>
+<h3>Rust</h3>
+<p>At the top of the file:</p>
+<pre><code class="language-rust">// The song bridge. Declaring the module defines the exports the host polls.
+#[path = &quot;../zigmachine_music.rs&quot;]
+mod zigmachine_music;
+</code></pre>
+<p>At the start of <code>boot</code>:</p>
+<pre><code class="language-rust">    zigmachine_music::request_song(&quot;sos.sndh&quot;); // a file under docs/music/
+</code></pre>
+<p><strong>What you should hear.</strong> The music starts <strong>as soon as you click or press a
+key</strong> in the page. Browsers only allow sound after a user gesture. The request
+waits until then.</p>
+<p><strong>Common mistakes.</strong></p>
+<ul>
+<li><em>Silence, and no error.</em> No gesture yet; click the screen. Otherwise, check
+  the name matches a file in <code>docs/music/</code> exactly, 64 bytes at most.</li>
+<li><em>C: <code>duplicate symbol pollSongRequest</code>.</em> The header was included from two
+  <code>.c</code> files of the same cart. It defines the exports, so include it once.</li>
+<li><em>An SNDH that loads but plays nothing.</em> Some need the STE's DMA sound chip
+  (<code>FLAG ~a</code>), which this machine does not have. Listen before you ship one.</li>
+<li><em>A multi-song SNDH plays the wrong tune.</em> Use
+  <code>requestSongTune(name, n)</code> / <code>zm_request_song_tune</code> /
+  <code>request_song_tune</code>. Subtunes count from 1, and 0 is the file's default.</li>
+</ul>
+<hr />
+<h2>Step 8, going further: borders and the blitter</h2>
+<p>Your screen is a normal plane: 320x200, border closed. Two directions from here,
+both with working examples.</p>
+<p><strong>Open the borders.</strong> On an ST the border is opened by flickering the video
+resolution at an exact moment on each scanline. ZigMachine makes you earn it the
+same way. Put the plane in overscan mode (400x280), register the plane's HBL at
+the magic column <code>OVERSCAN_MAGIC_X</code> (40), and flicker the resolution register
+from the handler. Miss the column and that line's border shows garbage. In Zig
+it is one call, <code>fb.openBorders(.all)</code>, or pass <code>.{ .flicker = true }</code> to
+<code>zg.copper.install</code> to keep your rasters. In C, <code>apps/c/scenes/screen34.c</code> does
+it by hand:</p>
+<pre><code class="language-c">// Open the border on THIS scanline, ST-style: flicker the resolution register
+// medium-&gt;planes. The sealed machine cannot trap writes to shared memory, so the
+// flicker latch is bumped too — that is what it samples once per line.
+__attribute__((export_name(&quot;hblDispatch&quot;)))
+void hblDispatch(u32 id, u32 plane, u32 line, u32 x) {
+    (void)id; (void)plane; (void)line; (void)x;
+    w8(REG_RESOLUTION, RES_MEDIUM);
+    w8(REG_RESOLUTION, RES_PLANES);
+    w16(REG_RES_FLICKER, (u16)(r16(REG_RES_FLICKER) + 1));
+}
+</code></pre>
+<p>Remember the line numbers: once a plane is in overscan mode, its HBL gets
+<strong>physical</strong> lines 0..279, so a raster table indexed by logical line moves 40
+lines. <code>zg.copper</code> handles that for you.</p>
+<p><strong>Use the blitter.</strong> The machine has a 2D coprocessor for fills, lines,
+triangles and masked blits, driven through registers and <code>hwBlit()</code>. In Zig,
+<code>zg.Blitter</code> wraps it. See <code>apps/zig/scenes/blitter_demo.zig</code>.</p>
+<h2>Where next</h2>
+<ul>
+<li><a href="ZIGOS_API.md"><code>docs/ZIGOS_API.md</code></a>: the Zig library, including the copper,
+  <code>blit</code>, <code>scrollring</code> and wireframe helpers.</li>
+<li><a href="HW_API.md"><code>docs/HW_API.md</code></a>: the sealed ABI C and Rust carts use, the full
+  register map, overscan and the RAM window.</li>
+<li><a href="MUSIC.md"><code>docs/MUSIC.md</code></a>: formats, subtunes and the headless checks.</li>
+<li><a href="BLITTER_HW_SPEC.md"><code>docs/BLITTER_HW_SPEC.md</code></a>: the blitter's registers and
+  operations.</li>
+<li>The CODEF port skill (<code>.claude/skills/codef-port/</code>, or <code>/convert_codef &lt;id&gt;</code>
+  in Claude Code): how the real cracktro ports in <code>apps/zig/scenes/</code> were made,
+  and a good source of screens to read next.</li>
+<li>Real screens by language: <code>apps/zig/scenes/replicants_garfield.zig</code> (copper,
+  blit, scrollring), <code>apps/c/scenes/screen34.c</code> (bottom border opened in C),
+  <code>apps/rust/scenes/v8_populous.rs</code> (a full cracktro in Rust).</li>
+</ul></section>
+<section id="1"><h2>Geometry &amp; resolution</h2><table><thead><tr><th>Name</th><th>Value</th><th>Meaning</th></tr></thead><tbody>
 <tr><td><code>PHYSICAL_WIDTH</code></td><td><code>400</code></td><td></td></tr>
 <tr><td><code>PHYSICAL_HEIGHT</code></td><td><code>280</code></td><td></td></tr>
 <tr><td><code>WIDTH</code></td><td><code>320</code></td><td></td></tr>
@@ -159,7 +1170,7 @@ if (g.button(.{ .x=content.x+4, .y=content.y+4, .w=48, .h=18 }, &quot;OK&quot;, 
 <tr><td><code>STRIDE_NORMAL</code></td><td><code>WIDTH</code></td><td>320</td></tr>
 <tr><td><code>STRIDE_FULLSCREEN</code></td><td><code>PHYSICAL_WIDTH</code></td><td>400</td></tr>
 </tbody></table></section>
-<section id="1"><h2>Resolution &amp; plane modes</h2><table><thead><tr><th>Name</th><th>Value</th><th>Meaning</th></tr></thead><tbody>
+<section id="2"><h2>Resolution &amp; plane modes</h2><table><thead><tr><th>Name</th><th>Value</th><th>Meaning</th></tr></thead><tbody>
 <tr><td><code>FB_MODE_NORMAL</code></td><td><code>0</code></td><td>320x200 low-res plane (pixel-doubled into the raster)</td></tr>
 <tr><td><code>FB_MODE_FULLSCREEN</code></td><td><code>1</code></td><td>400x280 low-res overscan plane (Option B, doubled)</td></tr>
 <tr><td><code>FB_MODE_SCROLL</code></td><td><code>2</code></td><td>window into a bigger-than-screen buffer; pan via FB_BASE + HSCROLL</td></tr>
@@ -169,7 +1180,7 @@ if (g.button(.{ .x=content.x+4, .y=content.y+4, .w=48, .h=18 }, &quot;OK&quot;, 
 <tr><td><code>RES_TRUECOLOR</code></td><td><code>1</code></td><td></td></tr>
 <tr><td><code>RES_MEDIUM</code></td><td><code>2</code></td><td>640x200, 2 planes, no border (ST-medium style)</td></tr>
 </tbody></table></section>
-<section id="2"><h2>Video registers</h2><table><thead><tr><th>Name</th><th>Value</th><th>Meaning</th></tr></thead><tbody>
+<section id="3"><h2>Video registers</h2><table><thead><tr><th>Name</th><th>Value</th><th>Meaning</th></tr></thead><tbody>
 <tr><td><code>REG_RESOLUTION</code></td><td><code>0x00</code></td><td>u8   0 = planes, 1 = truecolor (border-open)</td></tr>
 <tr><td><code>REG_NB_PLANES</code></td><td><code>0x01</code></td><td>u8   (ro) = 4</td></tr>
 <tr><td><code>REG_BACKGROUND</code></td><td><code>0x04</code></td><td>u32  border/background RGBA</td></tr>
@@ -186,7 +1197,7 @@ if (g.button(.{ .x=content.x+4, .y=content.y+4, .w=48, .h=18 }, &quot;OK&quot;, 
 <tr><td><code>REG_CART_HIGH</code></td><td><code>0x5C</code></td><td>u32  (0x5C..0x5F)</td></tr>
 <tr><td><code>REG_ROM_HIGH</code></td><td><code>0x60</code></td><td>u32  (0x60..0x63; 0x64..0x7F free below OFF_BLIT)</td></tr>
 </tbody></table></section>
-<section id="3"><h2>Blitter registers</h2><table><thead><tr><th>Name</th><th>Value</th><th>Meaning</th></tr></thead><tbody>
+<section id="4"><h2>Blitter registers</h2><table><thead><tr><th>Name</th><th>Value</th><th>Meaning</th></tr></thead><tbody>
 <tr><td><code>BLIT_COMMAND</code></td><td><code>OFF_BLIT + 0x00</code></td><td>u8  0 NOP 1 BLIT 2 FILL 3 LINE 4 TRIANGLE</td></tr>
 <tr><td><code>BLIT_MINTERM</code></td><td><code>OFF_BLIT + 0x01</code></td><td>u8  LF truth table of A,B,C (index = A&lt;&lt;2|B&lt;&lt;1|C)</td></tr>
 <tr><td><code>BLIT_CON</code></td><td><code>OFF_BLIT + 0x02</code></td><td>u8  control bits (see CON_* below)</td></tr>
@@ -217,7 +1228,7 @@ if (g.button(.{ .x=content.x+4, .y=content.y+4, .w=48, .h=18 }, &quot;OK&quot;, 
 <tr><td><code>BLIT_CMD_TRIANGLE</code></td><td><code>4</code></td><td></td></tr>
 <tr><td><code>BLIT_STATUS_BUSY</code></td><td><code>1 &lt;&lt; 7</code></td><td></td></tr>
 </tbody></table></section>
-<section id="4"><h2>Blitter commands / control / minterms</h2><table><thead><tr><th>Name</th><th>Value</th><th>Meaning</th></tr></thead><tbody>
+<section id="5"><h2>Blitter commands / control / minterms</h2><table><thead><tr><th>Name</th><th>Value</th><th>Meaning</th></tr></thead><tbody>
 <tr><td><code>BLIT_CMD_NOP</code></td><td><code>0</code></td><td></td></tr>
 <tr><td><code>BLIT_CMD_BLIT</code></td><td><code>1</code></td><td></td></tr>
 <tr><td><code>BLIT_CMD_FILL</code></td><td><code>2</code></td><td></td></tr>
@@ -241,7 +1252,7 @@ if (g.button(.{ .x=content.x+4, .y=content.y+4, .w=48, .h=18 }, &quot;OK&quot;, 
 <tr><td><code>MT_CLEAR</code></td><td><code>0x00</code></td><td></td></tr>
 <tr><td><code>MT_SET</code></td><td><code>0xFF</code></td><td></td></tr>
 </tbody></table></section>
-<section id="5"><h2>HW ABI — machine exports</h2><div class="item"><code class="sig">hwVideoBase() i32</code><div class="doc">base of the video hardware region</div></div>
+<section id="6"><h2>HW ABI — machine exports</h2><div class="item"><code class="sig">hwVideoBase() i32</code><div class="doc">base of the video hardware region</div></div>
 <div class="item"><code class="sig">hwInit() void</code><div class="doc">reset registers/planes</div></div>
 <div class="item"><code class="sig">hwClear() void</code><div class="doc">fill PFB with BACKGROUND, run GLOBAL_HBL per row</div></div>
 <div class="item"><code class="sig">hwRenderPlane(plane: u32) void</code><div class="doc">composite one enabled LFB -&gt; PFB</div></div>
@@ -263,7 +1274,7 @@ if (g.button(.{ .x=content.x+4, .y=content.y+4, .w=48, .h=18 }, &quot;OK&quot;, 
 <div class="item"><code class="sig">hwRomRamSize() u32</code></div>
 <div class="item"><code class="sig">hwRomRamUsed() u32</code></div>
 <div class="item"><code class="sig">hwRomRamFree() u32</code></div></section>
-<section id="6"><h2>Disk / cart format + boot sectors</h2><h1>ZigMachine Disk — design</h1>
+<section id="7"><h2>Disk / cart format + boot sectors</h2><h1>ZigMachine Disk — design</h1>
 <blockquote>
 <p><strong>Packing the shelf:</strong> <code>tools/mkdisks.sh</code> repacks every disk in <code>docs/</code> from the
 built carts (run by <code>build.sh</code>; only repacks what is stale, <code>-f</code> forces). It is
@@ -731,7 +1742,7 @@ export fn pollCartRequest() i32 { return if (frame_count &gt;= 120) 2 else 0; } 
 - After <code>hwInit()</code> plane 0 is already a normal 320×200 plane with its default framebuffer
   base — read <code>REG_FB_BASE</code> (as above) rather than hard-coding the address.
 - Keep it small: check <code>ls -l docs/boot-&lt;name&gt;.wasm</code> ≤ 1015 B; <code>mkdisk</code> prints the headroom.</p></section>
-<section id="7"><h2>Music — SNDH player (Zig, C, Rust)</h2><h1>Music — the SNDH player, from Zig, C and Rust</h1>
+<section id="8"><h2>Music — SNDH player (Zig, C, Rust)</h2><h1>Music — the SNDH player, from Zig, C and Rust</h1>
 <p>ZigMachine plays real Atari ST music. An <strong>SNDH</strong> file carries the tune's own
 68000 replay routine; the machine runs that code on an emulated 68000 (Musashi)
 driving the sealed YM2149, exactly as the ST did. Nothing is pre-rendered, and
@@ -833,7 +1844,7 @@ plays David Whittaker's Custodian (<code>custodian.sndh</code>, subtune 1).</p>
   the way the loader does, and plays it: it must reach SNDH mode with a non-zero
   peak. It runs in <code>./build.sh</code>.</li>
 </ul></section>
-<section id="8"><h2>ZigOS — LogicalFB (a plane)</h2><div class="item"><code class="sig">init(self: *LogicalFB, zigos: *ZigOS) void</code></div>
+<section id="9"><h2>ZigOS — LogicalFB (a plane)</h2><div class="item"><code class="sig">init(self: *LogicalFB, zigos: *ZigOS) void</code></div>
 <div class="item"><code class="sig">setOverscanBuffer(self: *LogicalFB) void</code><div class="doc">Turn this plane into an OVERSCAN plane: a 400×280 buffer in PHYSICAL coords (0..400, 0..280). The borders stay CLOSED — only the visible 320×200 window shows — until the scene &quot;opens&quot; a border with the authentic resolution-flicker trick: call flickerBorder() from this plane&#x27;s HBL handler, at OVERSCAN_MAGIC_X, on the scanline of the border you want. See docs/HW_API.md &quot;Opening the borders&quot;.</div></div>
 <div class="item"><code class="sig">flickerBorder(_: *LogicalFB) void</code><div class="doc">Open a border, ST-style, from THIS plane&#x27;s per-plane HBL handler: flicker the resolution register (RES_MEDIUM -&gt; RES_PLANES). The sealed machine can&#x27;t trap writes to shared memory, so we also bump REG_RES_FLICKER — the latch it samples once per scanline. The plane&#x27;s HBL must fire at OVERSCAN_MAGIC_X (± tolerance) or that line&#x27;s border shows garbage — a mistimed trick, exactly as on real HW. Flicker in a border band (top/bottom) opens it from that row down; flicker on a visible line opens both side borders for that line (re-open sides every line).</div></div>
 <div class="item"><code class="sig">openBorders(self: *LogicalFB, which: Borders) void</code><div class="doc">Make this an overscan plane and open its borders with the flicker trick: .all flickers every line (top, sides, bottom), .top_bottom only the border bands (MAXI). Replaces this plane&#x27;s HBL handler; a scene that also needs per-line rasters uses copper.install(fb, entries, .{ .flicker = true }). Every enabled overscan plane needs this for itself: the machine replays a plane&#x27;s HBLs while rendering THAT plane.</div></div>
@@ -855,7 +1866,7 @@ plays David Whittaker's Custodian (<code>custodian.sndh</code>, subtune 1).</p>
 <div class="item"><code class="sig">clearFrameBuffer(self: *LogicalFB, pal_entry: u8) void</code></div>
 <div class="item"><code class="sig">setFrameBufferHBLHandler(self: *LogicalFB, position: u16, handler: *const fn (*LogicalFB, *ZigOS, u16, u16) void) void</code></div>
 <div class="item"><code class="sig">clearFrameBufferHBLHandler(self: *LogicalFB) void</code></div></section>
-<section id="9"><h2>ZigOS — ZigOS (the OS)</h2><div class="item"><code class="sig">initTextOnly(self: *ZigOS) void</code><div class="doc">Bind the system fonts and NOTHING else — no registers, no VRAM allocation.  For a consumer that needs to DRAW TEXT over a framebuffer somebody else owns: the ROM chip does this so it can render GEM widgets for an app written in C or Rust, which has no ZigOS of its own to lend. Calling the full init() there would reset the machine&#x27;s registers and reallocate every plane out from under the running app.</div></div>
+<section id="10"><h2>ZigOS — ZigOS (the OS)</h2><div class="item"><code class="sig">initTextOnly(self: *ZigOS) void</code><div class="doc">Bind the system fonts and NOTHING else — no registers, no VRAM allocation.  For a consumer that needs to DRAW TEXT over a framebuffer somebody else owns: the ROM chip does this so it can render GEM widgets for an app written in C or Rust, which has no ZigOS of its own to lend. Calling the full init() there would reset the machine&#x27;s registers and reallocate every plane out from under the running app.</div></div>
 <div class="item"><code class="sig">init(self: *ZigOS) void</code></div>
 <div class="item"><code class="sig">resetForScene(self: *ZigOS) void</code><div class="doc">Reset the machine to a freshly-booted state so a DIFFERENT scene can be started at runtime (the boot-&gt;cart hand-off and the effects menu use this). Like init() but without re-discovering the video base, and it ALSO clears the per-plane hardware mode/stride/scroll/HBL registers a previous scene may have set (plain init() leaves those stale, which would corrupt the next scene). Safe only after init() has run once (sets base/fonts).</div></div>
 <div class="item"><code class="sig">nop(self: *ZigOS) void</code><div class="doc">--- Features ---</div></div>
@@ -868,7 +1879,7 @@ plays David Whittaker's Custodian (<code>custodian.sndh</code>, subtune 1).</p>
 <div class="item"><code class="sig">setHBLHandler(self: *ZigOS, handler: *const fn (*ZigOS, u16) void) void</code></div>
 <div class="item"><code class="sig">removeHBLHandler(self: *ZigOS) void</code></div>
 <div class="item"><code class="sig">dispatchHBL(self: *ZigOS, id: u32, plane: u32, line: u32, x: u32) void</code><div class="doc">Called (via the demo module&#x27;s exported hblDispatch) by the sealed machine when the render pipeline reaches an HBL point. Integer ids in, Zig handler calls out — the machine never holds a function pointer.</div></div></section>
-<section id="10"><h2>ZigOS — Blitter (2D coprocessor)</h2><div class="item"><code class="sig">init(self: *Blitter) void</code></div>
+<section id="11"><h2>ZigOS — Blitter (2D coprocessor)</h2><div class="item"><code class="sig">init(self: *Blitter) void</code></div>
 <div class="item"><code class="sig">fill(self: *Blitter, fb: *LogicalFB, x: i16, y: i16, w: u16, h: u16, color: u8) void</code><div class="doc">--- primitives ---</div></div>
 <div class="item"><code class="sig">clear(self: *Blitter, fb: *LogicalFB, color: u8) void</code></div>
 <div class="item"><code class="sig">line(self: *Blitter, fb: *LogicalFB, x0: i16, y0: i16, x1: i16, y1: i16, color: u8, mt: Minterm) void</code></div>
@@ -880,12 +1891,12 @@ plays David Whittaker's Custodian (<code>custodian.sndh</code>, subtune 1).</p>
 <div class="item"><code class="sig">bob(self: *Blitter, dst: *LogicalFB, dx: i16, dy: i16, src: *LogicalFB, sx: i16, sy: i16, w: u16, h: u16, key: u8) void</code><div class="doc">Cookie-cut bob: copy a w×h region of `src` at (sx,sy) onto `dst` at (dx,dy), skipping pixels equal to `key` (the chunky one-channel cookie-cut).</div></div>
 <div class="item"><code class="sig">blitImage(self: *Blitter, dst: *LogicalFB, dx: i16, dy: i16, pixels: []const u8, src_w: u16, sx: u16, sy: u16, w: u16, h: u16, key: ?u8) void</code><div class="doc">Copy a w×h region at (sx,sy) of a raw 8bpp image held ANYWHERE in the cart&#x27;s RAM (an @embedFile asset, a scratch buffer), `src_w` pixels per row, onto `dst` at (dx,dy). `key` skips that index (cookie-cut); null copies every pixel. The rectangle is clamped to `pixels`, so it never reads past the slice; the machine (HW 1.4.0, CON2.SRC_ABS) refuses a source outside the readable windows and draws nothing.</div></div>
 <div class="item"><code class="sig">cycles(self: *Blitter) u32</code><div class="doc">Estimated cost of the last op (pixels touched + setup), for VBL budgeting.</div></div></section>
-<section id="11"><h2>ZigOS — GUI toolkit (Gui)</h2></section>
-<section id="12"><h2>ZigOS — Window manager (Wm)</h2></section>
-<section id="13"><h2>ZigOS — Menu bar (MenuBar)</h2></section>
-<section id="14"><h2>ZigOS — Dialog (modal alert / file selector)</h2></section>
-<section id="15"><h2>ZigGEM ROM — Desktop (boot shell / app launcher)</h2></section>
-<section id="16"><h2>ZigOS — OBJ loader (Mesh)</h2><div class="item"><code class="sig">load(self: *Mesh, text: []const u8) void</code></div>
+<section id="12"><h2>ZigOS — GUI toolkit (Gui)</h2></section>
+<section id="13"><h2>ZigOS — Window manager (Wm)</h2></section>
+<section id="14"><h2>ZigOS — Menu bar (MenuBar)</h2></section>
+<section id="15"><h2>ZigOS — Dialog (modal alert / file selector)</h2></section>
+<section id="16"><h2>ZigGEM ROM — Desktop (boot shell / app launcher)</h2></section>
+<section id="17"><h2>ZigOS — OBJ loader (Mesh)</h2><div class="item"><code class="sig">load(self: *Mesh, text: []const u8) void</code></div>
 <div class="item"><code class="sig">Wire(comptime nverts: usize, comptime nedges: usize) type</code></div>
 <div class="item"><code class="sig">parseWire(comptime text: []const u8) Wire(wireCounts(text)[0], wireCounts(text)[1])</code></div></section>
   </main>
