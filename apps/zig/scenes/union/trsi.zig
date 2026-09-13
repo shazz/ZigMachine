@@ -49,6 +49,7 @@ const BG = Color{ .r = 0, .g = 0, .b = 0, .a = 255 };
 const Phase = enum { entry, turn };
 
 pub const Part = struct {
+    blitter: zg.Blitter = .{},
     phase: Phase = .entry,
     t: u32 = 0,
     turn_tick: u32 = 0,
@@ -60,6 +61,7 @@ pub const Part = struct {
 
     pub fn init(self: *Part, zigos: *ZigOS) void {
         self.* = .{};
+        self.blitter.init();
         var prng = std.Random.DefaultPrng.init(0x2b1c9f);
         const rnd = prng.random();
         var i: usize = 0;
@@ -103,7 +105,7 @@ pub const Part = struct {
         p0.clearFrameBuffer(0);
         switch (self.phase) {
             .entry => self.drawEntry(p0),
-            .turn => drawFrame(p0, self.turn_idx),
+            .turn => self.drawFrame(p0, self.turn_idx),
         }
     }
 
@@ -136,18 +138,8 @@ pub const Part = struct {
         }
     }
 
-    fn drawFrame(fb: *LogicalFB, n: usize) void {
-        const base: usize = n * FH * FW;
-        var py: usize = 0;
-        while (py < FH) : (py += 1) {
-            const row = base + py * FW;
-            var px: usize = 0;
-            while (px < FW) : (px += 1) {
-                const idx = turn_raw[row + px];
-                if (idx == 0) continue;
-                fb.setPixelValue(@intCast(OX + @as(i32, @intCast(px))), @intCast(OY + @as(i32, @intCast(py))), idx);
-            }
-        }
+    fn drawFrame(self: *Part, fb: *LogicalFB, n: usize) void {
+        self.blitter.blitImage(fb, @intCast(OX), @intCast(OY), turn_raw, @intCast(FW), 0, @intCast(n * FH), @intCast(FW), @intCast(FH), 0);
     }
 
     // CODEF fades by canvas alpha; over black that is the palette's RGB scaled
