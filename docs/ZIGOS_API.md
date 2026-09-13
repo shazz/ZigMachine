@@ -212,8 +212,10 @@ sealed, and it is not guaranteed by the ABI. Prefer the resolution/HBL mechanism
 
 ## 8. Audio players
 
-Players are open ZigOS code that drive the sealed chips. Three ship today:
+Players are open ZigOS code that drive the sealed chips. Four ship today:
 
+- **SNDH** — the tune's own 68000 replay code, run on the emulated 68000 driving the
+  sealed YM2149 (subtunes: `tune` counts from 1, 0 = default). The preferred format.
 - **MOD** (`ModPlayer`) — ProTracker 4-channel `.MOD`, drives the Paula channels.
 - **YM** (`YmPlayer`) — YM5!/YM6! register dump, writes the YM2149 registers.
 - **raw sample** — streams 8-bit PCM on one Paula channel.
@@ -222,6 +224,11 @@ They run on the audio thread and are swappable — add your own by driving the s
 chip ABI (see HW_API.md §5). The active player's mode + per-channel scopes are
 mirrored back into `zigos.audio_mode` / `zigos.scopes` / `zigos.ym_regs` so scenes
 can visualise the sound (as `music_debug`'s oscilloscope does).
+
+A scene asks for a tune by name with `zg.requestSong(name)` / `zg.requestSongTune(name, n)`;
+C and Rust carts use `apps/c/zigmachine_music.h` / `apps/rust/zigmachine_music.rs`, which
+export the same four functions the host polls. The full guide, with formats, rules and the
+headless checks, is `docs/MUSIC.md` (also rendered into `docs/ZIGMACHINE_GUIDE.html`).
 
 ## 9. Build & run
 
