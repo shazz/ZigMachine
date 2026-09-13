@@ -53,5 +53,6 @@ pub const ENTRIES = [_]Entry{
     .{ .name = "DYNO PARADIS3", .tag = "dyno_paradis3" },
     .{ .name = "MANDELBROT", .tag = "mandelbrot" },
     .{ .name = "STNICCC 2000", .tag = "stniccc" },
+    .{ .name = "TEX NEO SHOW", .tag = "tex_neoshow" },
     .{ .name = "REPS FRED (C)", .tag = "c-screen34" },
 };

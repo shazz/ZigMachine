@@ -49,6 +49,7 @@ const scene = switch (opts.index) {
     36 => @import("scenes/dyno_paradis3.zig"),
     37 => @import("scenes/mandelbrot.zig"),
     38 => @import("scenes/stniccc.zig"),
+    39 => @import("scenes/tex_neoshow.zig"),
     else => @compileError("bad cart index"),
 };
 
