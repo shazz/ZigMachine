@@ -14,10 +14,16 @@
 //    real audio modules the way the worklet does, plays: SNDH mode, no stuck PC,
 //    audible every second, all three voices written.
 // 4. Escape asks for the hub (request 1, tag union_demo); one plane; frame cost.
+// 5. The hub's note (jsApp.mainscrollerPos, screen.js:38,57,74). A note for
+//    TNT1's door starts the scroller at its offset (pixel-exact against a replay
+//    started there), and Escape rewrites it: door, x and y kept, scroll = the
+//    replay's scroffset. A note for another door, none, or an offset past the
+//    text starts at 0 and leaves the scratch bytes untouched.
 //
-//   node apps/union_tnt1_headless.mjs [outdir] [cart.wasm] [--break halve|passes]
-// --break runs the replay with floor(c/2) snapping or one ballfield pass a frame;
-// a different cart (e.g. docs/demo-union_multifake.wasm) must also FAIL.
+//   node apps/union_tnt1_headless.mjs [outdir] [cart.wasm] [--break halve|passes|note]
+// --break runs the replay with floor(c/2) snapping, one ballfield pass a frame,
+// or ignoring the note's offset; a different cart (e.g.
+// docs/demo-union_multifake.wasm) must also FAIL.
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { performance } from "node:perf_hooks";
 import { deflateSync } from "node:zlib";
@@ -41,11 +47,12 @@ const SHOTS = [0, 1, 2, 3, 60, 61, 200, 299, 300, 301, 420, 500, 501, 700];
 const argv = process.argv.slice(2);
 const at = argv.indexOf("--break");
 const brk = at >= 0 ? argv.splice(at, 2)[1] : null;
-if (brk !== null && !["halve", "passes"].includes(brk)) throw new Error(`--break takes halve or passes, not ${brk}`);
+if (brk !== null && !["halve", "passes", "note"].includes(brk)) throw new Error(`--break takes halve, passes or note, not ${brk}`);
 const out = argv[0] || "/tmp/union_tnt1";
 const cartPath = argv[1] || "docs/demo-union_tnt1.wasm";
 
-async function boot(cart) {
+/// `plant({ memory, rom })`, when given, runs just before the cart is inserted.
+async function boot(cart, plant = null) {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
     let demo;
     const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), {
@@ -65,8 +72,9 @@ async function boot(cart) {
     machine.hwSetCartHigh(cartRam(cartBytes).high ?? 0);
     machine.hwInit();
     demo.boot();
+    plant?.({ memory, rom });
     demo.skipBoot();
-    return { memory, machine, demo };
+    return { memory, machine, demo, rom };
 }
 
 /// The requested SNDH through machine-audio + demo-audio, as the worklet plays it.
@@ -117,15 +125,20 @@ const pal = new Uint8Array(await readFile(`${ASSETS}/pal.dat`));
 const text = await readFile(`${ASSETS}/scrolltext.txt`);
 const hubBlob = await readFile("apps/zig/assets/screens/union_demo/menu_assets.bin");
 if (!hubBlob.subarray(hubBlob.length - text.length).equals(text)) errors.push("scrolltext.txt differs from the hub's (the end of union_demo/menu_assets.bin)");
-const replay = makeReplay(new Uint8Array(await readFile(`${ASSETS}/tnt1.bin`)), text.toString("latin1"),
-    brk === "halve" ? { halve: (c) => Math.floor(c / 2) } : brk === "passes" ? { passes: 1 } : {});
-const { memory, machine, demo } = await boot(cartPath);
+const bin = new Uint8Array(await readFile(`${ASSETS}/tnt1.bin`));
+const breakOpts = brk === "halve" ? { halve: (c) => Math.floor(c / 2) } : brk === "passes" ? { passes: 1 } : {};
+/// The replay with its scroller started at `scroll` (--break note: always 0).
+const replayOf = (scroll) => makeReplay(bin, text.toString("latin1"), { ...breakOpts, scroll: brk === "note" ? 0 : scroll });
+const replay = replayOf(0);
+const main = await boot(cartPath);
+const { memory, machine, demo } = main;
 const W = machine.hwPhysWidth(), H = machine.hwPhysHeight();
 const dec = new TextDecoder();
 let song = null, planes = 0;
 
 /// The 320x200 window as RGBA, after rendering every enabled plane (one expected).
-function capture() {
+function capture(m = main) {
+    const { memory, machine, demo } = m;
     machine.hwClear();
     planes = 0;
     const img = new Uint8Array(320 * 200 * 4);
@@ -137,6 +150,18 @@ function capture() {
         for (let y = 0; y < 200; y++) for (let x = 0; x < 320; x++) img.set(px.subarray(((TOP + y) * W + LEFT + 2 * x) * 4, ((TOP + y) * W + LEFT + 2 * x) * 4 + 4), (y * 320 + x) * 4);
     }
     return img;
+}
+/// [pixels of `shot` that are not the replay's palette index map, the first one]
+function offBy(shot, map) {
+    let wrong = 0, firstWrong = null;
+    for (let i = 0; i < 64000; i++) {
+        const v = map[i], o = i * 4;
+        if (shot[o + 3] !== 255 || shot[o] !== pal[v * 4] || shot[o + 1] !== pal[v * 4 + 1] || shot[o + 2] !== pal[v * 4 + 2]) {
+            wrong++;
+            firstWrong ??= `(${i % 320},${Math.floor(i / 320)}) got ${[...shot.subarray(o, o + 3)]} want index ${v}`;
+        }
+    }
+    return [wrong, firstWrong];
 }
 const rgb = (img) => { const o = new Uint8Array(320 * 200 * 3); for (let i = 0; i < 64000; i++) o.set(img.subarray(i * 4, i * 4 + 3), i * 3); return o; };
 function step() {
@@ -179,14 +204,7 @@ for (const target of SHOTS) {
     while (draws <= target) { if (KEYS.has(draws)) replay.key(KEYS.get(draws)); map = replay.draw(); draws++; }
     shot = capture();
     if (planes !== 1) errors.push(`screen frame ${target}: ${planes} planes enabled, the screen uses one`);
-    let wrong = 0, firstWrong = null;
-    for (let i = 0; i < 64000; i++) {
-        const v = map[i], o = i * 4;
-        if (shot[o + 3] !== 255 || shot[o] !== pal[v * 4] || shot[o + 1] !== pal[v * 4 + 1] || shot[o + 2] !== pal[v * 4 + 2]) {
-            wrong++;
-            firstWrong ??= `(${i % 320},${Math.floor(i / 320)}) got ${[...shot.subarray(o, o + 3)]} want index ${v}`;
-        }
-    }
+    const [wrong, firstWrong] = offBy(shot, map);
     if (wrong) errors.push(`screen frame ${target}: ${wrong} px off the screen.js replay, first ${firstWrong}`);
     if ([200, 420, 700].includes(target)) await writeFile(`${out}/union_tnt1-${target}.png`, png(rgb(shot)));
 }
@@ -207,10 +225,63 @@ if (req !== 1 || tag !== "union_demo") errors.push(`Escape asked for cart reques
 const perFrame = cartMs / timed;
 if (!(perFrame < 2)) errors.push(`cart update+render takes ${perFrame.toFixed(3)} ms a frame with 550 balls`);
 
+// ---- 5. the hub's note: jsApp.mainscrollerPos in and back out -----------------------
+// TNT1 is doors.DOORS[4], teleport key '5': union_demo_doors_check.mjs sees it launch union_tnt1.
+const TNT1_DOOR = 4, NOTE_FRAMES = 60, NOTE_SCROLL = 1000, NOTE_BYTES = 20;
+function scratchOf(m) {
+    if (!m.rom.romScratchPtr) throw new Error("docs/rom.wasm has no scratch bytes (romScratchPtr)");
+    return new Uint8Array(m.memory.buffer, m.rom.romScratchPtr(), m.rom.romScratchLen());
+}
+const xorOf = (b) => b.subarray(6, NOTE_BYTES).reduce((c, e) => c ^ e, 0);
+/// union_demo/return_note.zig's record: "UNI1", length 14, XOR, door, flags, x, y, scroll.
+function plantNote(m, [door, x, y, scroll]) {
+    const b = scratchOf(m), v = new DataView(b.buffer, b.byteOffset, NOTE_BYTES);
+    b[6] = door; b[7] = 0; v.setFloat32(8, x, true); v.setFloat32(12, y, true); v.setUint32(16, scroll, true);
+    b[4] = 14; b[5] = xorOf(b); b.set([0x55, 0x4e, 0x49, 0x31]); // tag last, as write() does
+}
+function readNote(b) {
+    if (dec.decode(b.subarray(0, 4)) !== "UNI1" || b[4] !== 14 || b[5] !== xorOf(b)) return null;
+    const v = new DataView(b.buffer, b.byteOffset, NOTE_BYTES);
+    return { door: b[6], x: v.getFloat32(8, true), y: v.getFloat32(12, true), scroll: v.getUint32(16, true) };
+}
+const isBg = (shot) => { for (let x = 0; x < 320; x++) if (shot[x * 4 + 3] !== 255 || shot[x * 4] !== BG[0] || shot[x * 4 + 1] !== BG[1] || shot[x * 4 + 2] !== BG[2]) return false; return true; };
+/// A fresh machine with `note` planted (null: none), screen frame NOTE_FRAMES
+/// against a replay whose scroller starts at `start`, then Escape.
+async function noteCase(label, note, start) {
+    const m = await boot(cartPath, note && ((b) => plantNote(b, note)));
+    const before = scratchOf(m).slice();
+    let f = 0;
+    do { m.demo.frame(1000 / 60); f++; } while (!isBg(capture(m)) && f < 400);
+    for (let k = 0; k < NOTE_FRAMES; k++) m.demo.frame(1000 / 60);
+    const r = replayOf(start);
+    let map;
+    for (let d = 0; d <= NOTE_FRAMES; d++) map = r.draw();
+    const [wrong, firstWrong] = offBy(capture(m), map);
+    if (wrong) errors.push(`${label}: screen frame ${NOTE_FRAMES} is ${wrong} px off the replay started at ${start}, first ${firstWrong}`);
+    m.demo.key(K_ESC);
+    if (m.demo.pollCartRequest() !== 1) errors.push(`${label}: Escape did not ask for the hub`);
+    return { before, after: scratchOf(m).slice(), offset: r.scroffset() };
+}
+{ // the offset must show on screen, or the pixel checks below prove nothing
+    const a = makeReplay(bin, text.toString("latin1"), { scroll: NOTE_SCROLL }), z = makeReplay(bin, text.toString("latin1"));
+    let ma, mz;
+    for (let d = 0; d <= NOTE_FRAMES; d++) { ma = a.draw(); mz = z.draw(); }
+    if (ma.every((v, i) => v === mz[i])) errors.push(`scroll ${NOTE_SCROLL} and 0 look the same at screen frame ${NOTE_FRAMES}`);
+}
+const own = await noteCase("note for door 4", [TNT1_DOOR, 2650.5, 127, NOTE_SCROLL], NOTE_SCROLL);
+const back = readNote(own.after);
+if (!back || back.door !== TNT1_DOOR || back.x !== 2650.5 || back.y !== 127 || back.scroll !== own.offset)
+    errors.push(`note for door 4: after Escape the note is ${JSON.stringify(back)}, wanted door 4, x 2650.5, y 127, scroll ${own.offset}`);
+for (const [label, note] of [["note for door 8", [8, 4236, 127, NOTE_SCROLL]], ["no note", null], ["note for door 4 past the text", [TNT1_DOOR, 2650.5, 127, text.length]]]) {
+    const c = await noteCase(label, note, 0);
+    if (!Buffer.from(c.before).equals(Buffer.from(c.after))) errors.push(`${label}: the scratch bytes were written`);
+}
+
 if (errors.length) {
     console.error(`union_tnt1: WRONG${brk ? ` (--break ${brk})` : ""}${argv[1] ? ` (cart ${cartPath})` : ""}\n  ${errors.slice(0, 12).join("\n  ")}`);
     process.exit(1);
 }
 console.log(`union_tnt1: TEX loader panel over ${first} frames (ink on ${inkFrames}, up to ${maxInk} px); screen = screen.js replay at frames ${SHOTS.join(",")} ` +
     `(key 5 at 300, key 0 at 500); ${MUSIC} mode ${music.mode}, peak ${music.peak.toFixed(4)}, 0 silent s, voices ${music.volWrites.join("/")}; ` +
-    `Esc -> union_demo; ${perFrame.toFixed(3)} ms/frame at 550 balls; shots in ${out}`);
+    `Esc -> union_demo; ${perFrame.toFixed(3)} ms/frame at 550 balls; hub note: door 4 starts at ${NOTE_SCROLL} and hands back ${own.offset}, ` +
+    `door 8 / none / past the text start at 0 unwritten; shots in ${out}`);

@@ -27,9 +27,13 @@
 //
 // Loading: the remake's TEX loader panel (loader.js) is the REAL depack here
 // (fx = tex_loader, build.zig). Its "PRESS SPACE" wait is not kept.
-// Leaving: Escape or Space (screen.js:77-81) goes back to the hub. The remake
-// carries the menu's scroller position into the screen (jsApp.mainscrollerPos);
-// the hub is another cart here, so the scroller starts at the text's beginning.
+// Leaving: Escape or Space (screen.js:77-81) goes back to the hub. The scroller
+// starts at jsApp.mainscrollerPos (screen.js:38,57) and hands it back
+// (screen.js:74). The hub is another cart here, so the position travels in the
+// hub's ROM-scratch note (union_demo/return_note.zig): a note for TNT1's own
+// door starts the scroller at its offset, and leaving rewrites it with the
+// offset reached. With no such note the scroller starts at 0 and nothing is
+// written.
 // --------------------------------------------------------------------------
 const std = @import("std");
 const zg = @import("zigos");
@@ -40,6 +44,9 @@ const blit = zg.blit;
 const ballfield = zg.ballfield;
 const DepackFx = @import("depackers").depack_fx.Runner(zg, null);
 const packed_assets = @import("packed_assets");
+const rom = @import("rom_sdk");
+const return_note = @import("union_demo/return_note.zig");
+const doors = @import("union_demo/doors.zig");
 
 // The remake plays data/music/Pandora.ym ("U_STARBL.BIN"); this is Mad Max's
 // Union Demo Pandora from the SNDH archive (one subtune, FLAG ~y).
@@ -91,6 +98,11 @@ const SEED: u32 = 0x1D872B41; // apps/union_tnt1_replay.mjs SEED
 const START_BALLS = 60;
 const MAX_BALLS = 550;
 
+/// TNT1's index in doors.DOORS: the door number the hub's note carries.
+const DOOR: u8 = for (doors.DOORS, 0..) |d, i| {
+    if (d.screen == .tnt1_screen) break i;
+} else @compileError("no door leads to the TNT1 screen");
+
 /// The ballcanvas pixels 'source-atop' keeps: logo and scroller ink, red balls.
 const atop_canvas: [256]bool = blk: {
     var s = [_]bool{false} ** 256;
@@ -123,13 +135,16 @@ pub const Demo = struct {
     wanted: usize, // a number key's count, applied by the next update
     ring: zg.scrollring.Ring(i32, LETTERS),
     leave: bool,
+    note: ?return_note.Note, // the hub's note for this door, when it left one
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
         self.phase = .failed;
         self.leave = false;
         self.field = ballfield.Field.init(FIELD);
         self.random = ballfield.XorShift32.init(SEED);
-        self.ring = zg.scrollring.Ring(i32, LETTERS).init(TEXT, (LETTERS - 1) * GLYPH_C, GLYPH_C);
+        self.note = hubNote();
+        const offset: usize = if (self.note) |n| n.scroll else 0; // jsApp.mainscrollerPos
+        self.ring = zg.scrollring.Ring(i32, LETTERS).initAt(TEXT, (LETTERS - 1) * GLYPH_C, GLYPH_C, offset);
         const ram = freeRam(TOTAL + @alignOf(Work) + @sizeOf(Work)) orelse return fail("no free RAM to depack into");
         const buf = ram[0..TOTAL];
         self.work = @ptrFromInt(std.mem.alignForward(usize, @intFromPtr(buf.ptr) + TOTAL, @alignOf(Work)));
@@ -174,11 +189,11 @@ pub const Demo = struct {
 
     /// Host input ids: 5 fire, 6 back.
     pub fn input(self: *Demo, dir: u8) void {
-        if (dir == 6 or (dir == 5 and self.phase == .running)) self.leave = true;
+        if (dir == 6 or (dir == 5 and self.phase == .running)) self.goBack();
     }
 
     pub fn key(self: *Demo, cp: u32) void {
-        if (cp == K_ESC or (cp == ' ' and self.phase == .running)) self.leave = true;
+        if (cp == K_ESC or (cp == ' ' and self.phase == .running)) self.goBack();
         if (self.phase != .running) return;
         if (cp == '0') self.wanted = 550;
         if (cp >= '1' and cp <= '9') self.wanted = 50 + 50 * @as(usize, cp - '0'); // '1' 100 .. '9' 500
@@ -193,6 +208,17 @@ pub const Demo = struct {
     pub fn cartTag(self: *Demo) []const u8 {
         _ = self;
         return HUB;
+    }
+
+    /// update() keeps jsApp.mainscrollerPos current (screen.js:74), then the exit
+    /// changes state: hand the hub the offset reached, in the note it left. Only
+    /// a running screen has moved the scroller; during the load the note stands.
+    fn goBack(self: *Demo) void {
+        self.leave = true;
+        if (self.phase != .running) return;
+        const n = self.note orelse return;
+        const buf = scratch() orelse return;
+        return_note.write(buf, .{ .door = n.door, .x = n.x, .y = n.y, .scroll = @intCast(self.ring.next) });
     }
 
     fn start(self: *Demo, zigos: *ZigOS) void {
@@ -250,6 +276,24 @@ fn split(buf: []const u8) Images {
 
 fn fail(why: []const u8) void {
     zg.Console.log("union_tnt1: {s}", .{why});
+}
+
+/// The hub's note, when it is for TNT1's door and its offset lies inside the
+/// text. peek() leaves it in place: the hub spends it when it comes back.
+fn hubNote() ?return_note.Note {
+    const buf = scratch() orelse return null;
+    const n = return_note.peek(buf) orelse return null;
+    if (n.door != DOOR or n.scroll >= TEXT.len) return null;
+    return n;
+}
+
+// The ROM's scratch bytes (rom_sdk.romScratchPtr), or null on a ROM without them:
+// the page's tolerant env stubs a missing export to return 0.
+fn scratch() ?[]u8 {
+    const len = rom.romScratchLen();
+    const ptr = rom.romScratchPtr();
+    if (len == 0 or ptr == 0) return null;
+    return @as([*]u8, @ptrFromInt(ptr))[0..len];
 }
 
 /// `len` bytes of the cart's RAM window above its statics and stack.

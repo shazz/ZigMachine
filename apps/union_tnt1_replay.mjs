@@ -71,11 +71,13 @@ export function makeReplay(bin, text, opts = {}) {
     let balls = 60, field = makeBallfield(balls, random);
     // scrolltext.init(scrollcanvas, font, 3, undefined, 0, 0): wide = 21, letters 0..21
     const letters = [];
-    let offset = 0;
+    let offset = opts.scroll ?? 0; // scrolltext.init(..., jsApp.mainscrollerPos)
     for (let i = 0; i <= 21; i++) letters.push({ posx: 21 * 32 + i * 32, ltr: text.charCodeAt(offset++) });
 
     const isMask = (v) => v === INK || v >= RED_FIRST;
     return {
+        /// jsApp.mainscrollerPos after the draws so far (screen.js:74)
+        scroffset: () => offset,
         /// update(): a number key rebuilds the field with its count (screen.js:82-150)
         key(k) {
             if (KEYS[k] && KEYS[k] !== balls) { balls = KEYS[k]; field = makeBallfield(balls, random); }
