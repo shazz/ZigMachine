@@ -41,10 +41,13 @@ pub fn write(buf: []u8, n: Note) void {
 /// hub still take()s it on the way back. A reader must check `door` is its own
 /// door (the note was left for this launch) and that `scroll` indexes the SAME
 /// scrolltext.txt: it is the next character to enter the hub's scroller.
-/// Screens that hand the position BACK (remake: superscroller screen.js:84,
-/// reps :179, beatdis screen.js:85 / screen2.js:116 set jsApp.mainscrollerPos
-/// on exit) rewrite the note with write(), keeping door, x and y from peek()
-/// and only their own scroll. L16 reads only. main.js:488 is the hub's own.
+/// The remake's screens that start at jsApp.mainscrollerPos also hand it BACK
+/// (0.9.8: tnt1 screen.js:74, tnt2 :91, superscroller :84, reps :179, L16 :89,
+/// beatdis screen.js:85 / screen2.js:116): they rewrite the note with write(),
+/// keeping door, x and y from peek() and only their own scroll (the offset at
+/// exit). `door` is the doors.DOORS index the hub stored, not a ROUTES index.
+/// tnt3, deltaforce, texcopier, multifake and textracker don't use it.
+/// main.js:488 is the hub's own write.
 /// null when tag, length or checksum do not match, or the buffer is too short.
 pub fn peek(buf: []const u8) ?Note {
     if (buf.len < HEADER + PAYLOAD) return null;
