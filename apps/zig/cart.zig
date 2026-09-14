@@ -59,6 +59,7 @@ const scene = switch (opts.index) {
     46 => @import("scenes/union_demo_intro.zig"),
     47 => @import("scenes/union_deltaforce.zig"),
     48 => @import("scenes/union_texcopier.zig"),
+    49 => @import("scenes/union_tnt3.zig"),
     else => @compileError("bad cart index"),
 };
 
