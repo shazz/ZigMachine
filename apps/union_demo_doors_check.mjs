@@ -12,7 +12,7 @@ import { readFile, access } from "node:fs/promises";
 import { cartRam, romRam } from "../docs/wasm_hiwater.js";
 
 const PAGES = 112; // SHARED_PAGES in machine/sdk/memmap.zig
-const WANT = ["union_deltaforce", "union_tnt3", "union_tnt1", "union_reps", "union_l16", "union_multifake", "union_texcopier", "union_textracker"]; // by teleport key: doors '2', '3', '5', '6', '8', '9', '0', 'H'
+const WANT = ["union_deltaforce", "union_tnt3", "union_tnt1", "union_reps", "union_tnt2", "union_l16", "union_multifake", "union_texcopier", "union_textracker"]; // by teleport key: doors '2', '3', '5', '6', '7', '8', '9', '0', 'H'
 const DIR = { fire: 5 };
 
 async function boot(cartPath) {
