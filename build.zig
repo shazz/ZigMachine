@@ -123,6 +123,13 @@ pub fn build(b: *std.Build) void {
     pack_deltaforce.addFileArg(b.path("apps/zig/assets/screens/union_deltaforce/loader_deltaforce.txt"));
     pack_deltaforce.addFileArg(b.path("apps/zig/assets/screens/union_deltaforce/deltaforce.bin"));
     const deltaforce_zx0 = pack_deltaforce.addOutputFileArg("union_deltaforce.zx0");
+    // The Union Demo TEX COPIER: display, font, textures and raster colours depack
+    // behind the TEX loader panel of screens/texcopier/loader.js.
+    const pack_texcopier = b.addRunArtifact(zx0pack);
+    pack_texcopier.addArgs(&.{ "--fx", "tex_loader", "--panel" });
+    pack_texcopier.addFileArg(b.path("apps/zig/assets/screens/union_texcopier/loader_texcopier.txt"));
+    pack_texcopier.addFileArg(b.path("apps/zig/assets/screens/union_texcopier/texcopier.bin"));
+    const texcopier_zx0 = pack_texcopier.addOutputFileArg("union_texcopier.zx0");
     const packed_files = b.addWriteFiles();
     _ = packed_files.addCopyFile(trsi_zx0, "trsi_turn.zx0");
     _ = packed_files.addCopyFile(multifake_zx0, "union_multifake.zx0");
@@ -130,6 +137,7 @@ pub fn build(b: *std.Build) void {
     _ = packed_files.addCopyFile(intro_zx0, "union_demo_intro.zx0");
     _ = packed_files.addCopyFile(menu_zx0, "union_demo_menu.zx0");
     _ = packed_files.addCopyFile(deltaforce_zx0, "union_deltaforce.zx0");
+    _ = packed_files.addCopyFile(texcopier_zx0, "union_texcopier.zx0");
     // MPP TRUECOLOR's gallery: one blob per picture and mode (tools/mpp_convert.py).
     // Unpacked they overflow the cart window, so the scene depacks only the one on
     // screen. MPP_PICTURES follows the converter's PICTURES list.
@@ -156,6 +164,7 @@ pub fn build(b: *std.Build) void {
             \\pub const union_demo_intro = @embedFile("union_demo_intro.zx0");
             \\pub const union_demo_menu = @embedFile("union_demo_menu.zx0");
             \\pub const union_deltaforce = @embedFile("union_deltaforce.zx0");
+            \\pub const union_texcopier = @embedFile("union_texcopier.zx0");
             \\{s}}};
             \\
         , .{mpp_decl})),
@@ -328,6 +337,7 @@ pub fn build(b: *std.Build) void {
         "demo-union_textracker", // 45 — The Union Demo hidden screen, TEX's Sample-Mon ST (melonJS remake)
         "demo-union_intro_screen", // 46 — The Union Demo intro screen (melonJS remake, screens/intro): hub-only
         "demo-union_deltaforce", // 47 — The Union Demo / DELTA FORCE Sphericool screen (melonJS remake)
+        "demo-union_texcopier", // 48 — The Union Demo / COPIER TEX, TEX's copy program (melonJS remake)
     };
     for (cart_names, 0..) |name, idx| {
         if (name.len == 0) continue; // excluded cart (see note above)
