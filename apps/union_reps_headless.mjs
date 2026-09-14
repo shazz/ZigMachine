@@ -153,14 +153,20 @@ async function run({ note, offset, frames, holds = [], main = false }) {
     if (Math.abs(first - DEPACK_FRAMES) > 1) errors.push(`the screen started at frame ${first}, the depack pacing says ${DEPACK_FRAMES}`);
     if (inkFrames < DEPACK_FRAMES / 2 || maxInk < 2000) errors.push(`the TEX loader panel barely showed: ink on ${inkFrames} frames, at most ${maxInk} px`);
 
-    // screen frame k = the (k+1)-th update; a hold is pressed before frame `from`, released before `to`
+    // screen frame k = the (k+1)-th update. A hold is what a browser host sends: a
+    // press before frame `from`, auto-repeats every 2 frames (~33 ms) while down,
+    // and the key-up before frame `to`. Without the repeats, controls.zig rightly
+    // treats a lone press on a host that has not yet sent a key-up as a tap.
     const rep = makeReplay(assets, brk === "note" ? null : brk, offset);
     let replayed = 0;
     screenFrame = 0;
     for (const target of frames) {
         while (screenFrame < target) {
             screenFrame++;
-            for (const h of holds) { if (screenFrame === h.from) m.demo.input(h.dir); if (screenFrame === h.to) m.demo.inputRelease(h.dir); }
+            for (const h of holds) {
+                if (screenFrame >= h.from && screenFrame < h.to && (screenFrame - h.from) % 2 === 0) m.demo.input(h.dir);
+                if (screenFrame === h.to) m.demo.inputRelease(h.dir);
+            }
             step();
         }
         for (; replayed <= target; replayed++) rep.step(holds.find((h) => replayed >= h.from && replayed < h.to)?.name ?? null);

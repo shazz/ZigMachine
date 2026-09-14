@@ -45,11 +45,8 @@ pub const Scroller = struct {
     /// init(canvas, font, 4, undefined, 0, jsApp.mainscrollerPos): the letters
     /// take the text from `offset`, the hub scroller's next character. The JS
     /// reads past the text's end there; like the hub, this wraps.
-    pub fn init(self: *Scroller, offset: usize) void {
-        self.ring = zg.scrollring.Ring(i32, LETTERS).init(TEXT, START_C, GLYPH_C);
-        const start = if (offset < TEXT.len) offset else 0;
-        for (&self.ring.c, 0..) |*c, i| c.* = TEXT[(start + i) % TEXT.len];
-        self.ring.next = (start + LETTERS) % TEXT.len;
+    pub fn init(self: *Scroller, start: usize) void {
+        self.ring = zg.scrollring.Ring(i32, LETTERS).initAt(TEXT, START_C, GLYPH_C, start);
         self.scrollspeed = 1;
     }
 
