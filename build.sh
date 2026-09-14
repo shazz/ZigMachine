@@ -82,8 +82,10 @@ node apps/gem_headless.mjs "$SHOTS"
 node apps/sndh_headless.mjs
 node apps/sndh_relocate_check.mjs   # a tune that installs its own MFP vectors (Alloy Run) plays: images load at $10002
 timeout 180 node apps/c_music_check.mjs   # a C cart's song request reaches the sealed YM (timeout: it once hung a gate)
-node apps/union_demo_music_check.mjs   # the Union Demo menu's SNDH plays, on all three voices
+node apps/union_demo_music_check.mjs   # the Union Demo menu's and cracktro's SNDH tunes are requested by name and play
 node apps/union_demo_music_check.mjs --fail-proof   # ...and a wrong tune name fails that check
+node apps/union_intro_music_check.mjs   # the cracktro's music starts with the TRSI logo, and main doesn't restart it
+node apps/union_intro_music_check.mjs --fail-proof   # ...and a wrong tune name fails that check
 node apps/union_demo_doors_check.mjs   # the hub's doors launch the Union screens by tag (they are hub-only)
 node apps/union_multifake_headless.mjs "$SHOTS"   # TCB3: loader depack, then screen.js replayed pixel for pixel
 node apps/dbug_headless.mjs "$SHOTS"

@@ -115,29 +115,44 @@ pub const Demo = struct {
     frame: u32 = 0,
     grad_idx: u8 = 0, // gradTiles palette-animation step
     grad_inc: i8 = 1,
-    // This scene OWNS its playlist (host holds none): YM tunes under docs/music/.
-    // Track 1 plays the real SNDH replay routine (smaller, and the authentic
-    // player, not a register-dump recording) — proof:
-    //   SharpnessBuzztone.ymraw == Jess/Sharpness_Buzztone.sndh: 99.8% of 800
-    //   frames (regs 0-5,8-10) at offset 0, tune default. FLAG ~ay verified
-    //   audible headless (peak 0.55-0.80, non-silent) despite the STE-DMA bit.
-    // Tracks 2-6 stay .ymraw: each is a straight mod2ym conversion of an Amiga
-    // module (150mph/Androids by TAO of ACF conv. Leonard, Drooling by 505
-    // conv. aldn, Reality by Big Alec conv. Oedipus, Lap33/"Lap 22" by
-    // Lap/Next conv. Senser/Vectronix). The archive's same-titled ST-native
-    // SNDHs are independent compositions/replays, not this recording: best
-    // register match over 800 frames was 150mph 73%, Androids 55%, Drooling
-    // 61%, and Big_Alec/Reality.sndh doesn't even run here (stuck PC, silent);
-    // Lap33/"Lap 22" has no SNDH in the archive at all. None clears the ~95%
-    // bar, so per Matt's rule ("no screen ... if a sndh version is available")
-    // these stay as-is: no available SNDH IS this recording.
-    const TRACKS = [_][]const u8{
+    // This scene OWNS its playlist (host holds none): tunes under docs/music/.
+    // Tracks 1, 2, 5 and 6 play the real SNDH replay routine (smaller, and the
+    // authentic player, not a register-dump recording). Proof: YM regs 0-5,8-10
+    // (volume masked 0x1f) of the SNDH vs the old .ymraw, % of register cells
+    // equal over 800 frames, offsets -50..+400, every subtune, rendered
+    // headless through the real demo-audio + machine-audio modules (SNDH
+    // images at $10002 since #91):
+    //   1 SharpnessBuzztone.ymraw == Jess/Sharpness_Buzztone.sndh: 99.8% at
+    //     offset 0, tune default. FLAG ~ay audible headless (peak 0.55-0.80).
+    //   5 Lap33.ymraw (header "LAP 22 (e.g. BMT screen/PYM)", Lap/Next, conv.
+    //     Senser/Vectronix) == Lap/Lap_33.sndh: 100.0% (every frame whole) at
+    //     offset -24, its only tune; FLAG ~y, peak 0.68. The "22" was a typo.
+    // SID tunes (tracks 2 and 6). A 50 Hz dump cannot record a timer SID
+    // effect: the replay's timer zeroes a voice's volume between the dump's
+    // samples, so those volume cells miss even when the tune is the original.
+    // Matt's rule, 2026-09-13: accept a SID SNDH whose period registers 0-5
+    // match 100% and whose only misses are those SID-zeroed volumes.
+    //   2 150mph.ymraw (TAO of ACF, conv. Leonard) == Tao/Steps/150_mph.sndh,
+    //     its only tune, offset 0: periods 100%, 94.3% of cells, 49.4% of
+    //     frames whole; every miss is vol 9 zeroed by its timer A/D SID. It
+    //     replaced Tao/Songs_That_Make_U_Go_Mmh2/150_mph.sndh (95.9% of cells,
+    //     78.1% of frames, but channel A an octave apart: another arrangement).
+    //     TSD_STe/150_mph is STE DMA (~ey): silent here, 42.6%.
+    //   6 Reality.ymraw (Gunnar Gaubatz (Big Alec), conv. Oedipus) ==
+    //     Big_Alec/Reality.sndh, its only tune, offset 0: periods 100%, 94.5%
+    //     of cells, 50.1% of frames whole; every miss is vol 10 zeroed by its
+    //     timer-D SID. Nemo/Reality_Enraged.sndh: 0%.
+    // Tracks 3 and 4 stay .ymraw (archive searched by TITL/COMM/filename):
+    //   Androids: Tao/Steps/Androids.sndh 89.4% of cells, 27.4% of frames
+    //     (periods 100%, its SID zeroes vols 9 AND 10); Mmh2 version 76.8%.
+    //   Drooling: 505/Drooling.sndh 61.6% (an STE DMA replay, not this dump).
+    pub const TRACKS = [_][]const u8{
         "union/sharpness_buzztone.sndh",
-        "union/150mph.ymraw",
+        "union/150_mph.sndh",
         "union/Androids.ymraw",
         "union/Drooling.ymraw",
-        "union/Lap33.ymraw",
-        "union/Reality.ymraw",
+        "union/lap_33.sndh",
+        "union/reality.sndh",
     };
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
@@ -145,7 +160,7 @@ pub const Demo = struct {
         self.frame = 0;
         self.grad_idx = 0;
         self.grad_inc = 1;
-        zg.requestSong(TRACKS[0]); // autoplay track 1 (host plays it by name)
+        autoplay(); // track 1, unless the cracktro already started a tune
         const p0: *LogicalFB = &zigos.lfbs[0];
         p0.is_enabled = true;
         p0.setOverscanBuffer();
@@ -211,7 +226,22 @@ pub const Demo = struct {
     // Keys 1-6 switch the YM tune — request the track BY NAME (host plays it).
     pub fn setShadeMode(self: *Demo, mode: u32) void {
         _ = self;
-        if (mode < TRACKS.len) zg.requestSong(TRACKS[mode]);
+        if (mode < TRACKS.len) requestTrack(TRACKS[mode]);
+    }
+
+    /// Keys 1-6: ask the host for `name` unless it is the tune asked for last,
+    /// so pressing the playing track's key never restarts it. The Codef remake's
+    /// keys do the same: they only switch when `currentTrack != n`.
+    /// Start track 1, unless a tune was already asked for in this cart. In the
+    /// cracktro, union_intro starts it with the TRSI logo, and the viewer may have
+    /// picked another with 1-6 since. The remake's main part never touches the music.
+    pub fn autoplay() void {
+        if (zg.songNameLen() == 0) zg.requestSong(TRACKS[0]);
+    }
+
+    pub fn requestTrack(name: []const u8) void {
+        if (@import("std").mem.eql(u8, zg.songNamePtr()[0..zg.songNameLen()], name)) return;
+        zg.requestSong(name);
     }
 
     fn fill(fb: *LogicalFB, y0: i16, y1: i16, idx: u8) void {
