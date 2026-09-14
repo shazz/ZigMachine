@@ -39,7 +39,15 @@ pub fn Ring(comptime P: type, comptime n: usize) type {
         /// Letter i at `start + i * glyph_w`, carrying `text[i]`: CODEF's layout.
         /// An empty text scrolls blanks rather than killing the cart.
         pub fn init(text: []const u8, start: P, glyph_w: P) Self {
-            var self: Self = .{ .x = undefined, .c = undefined, .text = nonEmpty(text), .next = 0, .start = start, .glyph_w = glyph_w };
+            return initAt(text, start, glyph_w, 0);
+        }
+
+        /// init() with the text starting at `offset`, CODEF's
+        /// scrolltext.init(..., offset): letter 0 carries text[offset]. An
+        /// offset past the text starts at 0.
+        pub fn initAt(text: []const u8, start: P, glyph_w: P, offset: usize) Self {
+            const t = nonEmpty(text);
+            var self: Self = .{ .x = undefined, .c = undefined, .text = t, .next = if (offset < t.len) offset else 0, .start = start, .glyph_w = glyph_w };
             for (0..n) |i| {
                 self.x[i] = start + fromIndex(i) * glyph_w;
                 self.c[i] = self.take();

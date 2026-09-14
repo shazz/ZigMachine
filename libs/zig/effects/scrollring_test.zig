@@ -12,6 +12,14 @@ test "init lays letters out from start, one glyph apart, carrying the text in or
     try expectEqual(@as(u8, 'D'), r.upcoming());
 }
 
+test "initAt starts the text at an offset, wrapping past its end; a bad offset starts at 0" {
+    const r = Ring(i32, 3).initAt("ABCDE", 100, 16, 3);
+    try expectEqual([3]i32{ 100, 116, 132 }, r.x);
+    try expectEqual([3]u8{ 'D', 'E', 'A' }, r.c);
+    try expectEqual(@as(u8, 'B'), r.upcoming());
+    try expectEqual([3]u8{ 'A', 'B', 'C' }, Ring(i32, 3).initAt("ABCDE", 100, 16, 5).c);
+}
+
 test "stepCount reports how many letters wrapped, and none when nothing did" {
     var r = Ring(i32, 3).init("ABCDEF", 64, 64);
     r.x = .{ -60, -62, 10 };

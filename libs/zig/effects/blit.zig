@@ -78,6 +78,11 @@ pub const Rect = struct { x: usize, y: usize, w: usize, h: usize };
 /// canvas 'source-atop': the source gives the SHAPE, the pattern the COLOUR.
 pub const Pattern = struct { img: Image, ox: i32, oy: i32 };
 
+/// Draw p only where `set[destination pixel] == inside`. With `set` = the
+/// palette entries of a layer's opaque pixels, `inside = true` is canvas
+/// 'source-atop' onto that layer and `inside = false` draws only around it.
+pub const Select = struct { set: *const [256]bool, inside: bool };
+
 /// What a drawn (non-key) source pixel `p` writes.
 pub const Ink = union(enum) {
     copy, // p
@@ -86,6 +91,7 @@ pub const Ink = union(enum) {
     lut: *const [256]u8, // lut[p]
     row: []const u8, // row[destination y]; rows past its end are not drawn
     pattern: Pattern, // the pattern pixel under the destination
+    select: Select, // p, where the destination is (or is not) in a palette set
 };
 
 /// The clipped job: `w` x `h` pixels from src (sx, sy) to dst (dx, dy).
@@ -201,6 +207,9 @@ fn draw(dst: Dst, src: Image, s: Span, comptime tag: std.meta.Tag(Ink), v: anyty
                 for (in, out, pat) |p, *d, c| if (!keyed or p != key) {
                     d.* = c;
                 };
+            },
+            .select => for (in, out) |p, *d| if ((!keyed or p != key) and v.set[d.*] == v.inside) {
+                d.* = p;
             },
         }
     }
