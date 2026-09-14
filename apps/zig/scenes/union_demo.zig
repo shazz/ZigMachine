@@ -27,16 +27,15 @@ const Hud = @import("union_demo/hud.zig").Hud;
 const world = @import("union_demo/world.zig");
 const doors = @import("union_demo/doors.zig");
 
-// "Union Demo MENU" is Mad Max's Alloy Run: U_MENU.BIN, the YM5! register dump
-// the remake plays (header "Union Demo MENU / Mad Max (Alloyrun/MON)"), shipped
-// depacked as .ymraw because that is the extension the host's YM player is
-// wired to.
-// KEPT as .ymraw (checked 2026-09-13, per "prefer SNDH over YM"): no SNDH
-// matches this recording. Registers 0-5/8-10 over 800 frames, offsets -50..+400:
-// Mad_Max C64-Conversions tune 1 best at 1.8%, tune 2 and Dubmood 0%. The
-// archive's Mad_Max/Demos/Union_Demo/SID/Alloy_Run.sndh plays SILENT in our
-// player (MFP timers never start, peak 0), so it cannot be compared yet.
-const MUSIC = "union_demo_menu.ymraw";
+// "Union Demo MENU" is Mad Max's Alloy Run, and this is the REAL tune: the
+// archive's Mad_Max/Demos/Union_Demo/SID/Alloy_Run.sndh (SID effects on MFP
+// timers A/B/D). It is the same tune as the remake's U_MENU.BIN YM5! dump, at
+// lag 0 (voice B's period matches on 91% of frames); the bleeps at the start of
+// that dump were an artefact of sampling a SID tune once per 50 Hz frame, not
+// music. It used to play SILENT here because the player loaded tunes at $0 and
+// this one installs its timer vectors at $110/$120/$134, over its own code.
+const MUSIC = "union/alloy_run.sndh";
+const MUSIC_TUNE: u8 = 1; // the file's only subtune
 
 const VIEW_W: i32 = 640; // me.video.init('jsapp', 640, 400) (main.js:240)
 const CAM_LIMIT: i32 = @as(i32, @intCast(A.map.COLS * A.map.TILE_W)) - VIEW_W;
@@ -76,7 +75,7 @@ pub const Demo = struct {
         fb.is_enabled = true;
         fb.setPalette(A.palette);
         fb.setPaletteEntry(0, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
-        zg.requestSong(MUSIC);
+        zg.requestSongTune(MUSIC, MUSIC_TUNE);
     }
 
     pub fn update(self: *Demo, zigos: *ZigOS, dt: f32) void {

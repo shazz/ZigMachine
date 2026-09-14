@@ -30,7 +30,7 @@ The file extension picks the player. Files live under `docs/music/`.
 **The YM dump player is deprecated: use SNDH.** A dump records the chip only
 once per frame, so SID voices, digidrums and samples played through the YM
 volume DAC come out wrong (the Union Demo menu's dump turned its SID intro into
-bleeps). A screen plays a `.ymraw` only as the last resort, when a real search
+bleeps; the menu now plays the real `union/alloy_run.sndh`). A screen plays a `.ymraw` only as the last resort, when a real search
 finds no SNDH of the same tune, and its music comment gives the best SNDH score. Prove a match by running both and comparing YM registers 0-5 and
 8-10 frame by frame; a real match is ~100% (screen 34's
 `SoWattTcbSprites.ym` == `sos.sndh`, 100% over 400 frames).

@@ -79,8 +79,10 @@ SHOTS=$(mktemp -d)
 node apps/verify.mjs          # the C and Rust carts still talk to the ABI
 node apps/gem_headless.mjs "$SHOTS"
 node apps/sndh_headless.mjs
+node apps/sndh_relocate_check.mjs   # a tune that installs its own MFP vectors (Alloy Run) plays: images load at $10002
 timeout 180 node apps/c_music_check.mjs   # a C cart's song request reaches the sealed YM (timeout: it once hung a gate)
-node apps/union_demo_music_check.mjs   # the Union Demo menu's YM dump plays
+node apps/union_demo_music_check.mjs   # the Union Demo menu's SNDH plays, on all three voices
+node apps/union_demo_music_check.mjs --fail-proof   # ...and a wrong tune name fails that check
 node apps/union_demo_doors_check.mjs   # the hub's doors launch the Union screens by tag (they are hub-only)
 node apps/union_multifake_headless.mjs "$SHOTS"   # TCB3: loader depack, then screen.js replayed pixel for pixel
 node apps/dbug_headless.mjs "$SHOTS"
