@@ -873,24 +873,27 @@ async function main() {
 }
 window.main = main;
 
-async function playMod(url) {
+async function playMod(url, gen) {
     await startAudio();
     if (!audioNode) return; // no audio in this context
     const bytes = await fetch(url).then(r => r.arrayBuffer());
+    if (gen !== undefined && gen !== songGen) return; // a newer song request (or a stop) won
     audioNode.port.postMessage({ type: "loadMod", bytes: bytes }, [bytes]);
     const b = document.querySelector('.sound_button'); if (b) b.textContent = "Sound off";
 }
-async function playYm(url) {
+async function playYm(url, gen) {
     await startAudio();
     if (!audioNode) return; // no audio in this context
     const bytes = await fetch(url).then(r => r.arrayBuffer());
+    if (gen !== undefined && gen !== songGen) return; // a newer song request (or a stop) won
     audioNode.port.postMessage({ type: "loadYm", bytes: bytes }, [bytes]);
     const b = document.querySelector('.sound_button'); if (b) b.textContent = "Sound off";
 }
-async function playSndh(url, tune) {
+async function playSndh(url, tune, gen) {
     await startAudio();
     if (!audioNode) return; // no audio in this context
     const bytes = await fetch(url).then(r => r.arrayBuffer());
+    if (gen !== undefined && gen !== songGen) return; // a newer song request (or a stop) won
     audioNode.port.postMessage({ type: "loadSndh", bytes: bytes, tune: tune || 0 }, [bytes]);
     const b = document.querySelector('.sound_button'); if (b) b.textContent = "Sound off";
 }
@@ -902,24 +905,32 @@ function stopRaw() {
         { type: "loadRaw", bytes: new Uint8Array([128, 128, 128, 128]).buffer, rate: 12517, unsigned: true });
 }
 
-async function playRaw(url, rate, unsigned) {
+async function playRaw(url, rate, unsigned, gen) {
     await startAudio();
     if (!audioNode) return; // no audio in this context
     const bytes = await fetch(url).then(r => r.arrayBuffer());
+    if (gen !== undefined && gen !== songGen) return; // a newer song request (or a stop) won
     audioNode.port.postMessage({ type: "loadRaw", bytes: bytes, rate: rate || 12517, unsigned: !!unsigned }, [bytes]);
     const b = document.querySelector('.sound_button'); if (b) b.textContent = "Sound off";
 }
 // Play a scene-requested music file BY NAME (a path under music/). The extension
 // picks the player — the host keeps no per-scene playlist. Name comes from wasm
 // (zigos.requestSong), so reject a path escape defensively.
+// Every request bumps songGen; a fetch that resolves after a newer request (a
+// stop included) is dropped, so a slow earlier song can never start over it.
+let songGen = 0;
 function playSongByName(name, tune) {
+    const gen = ++songGen;
+    // "none" is the reserved stop request (zg.stopSong / zm_stop_song / stop_song):
+    // the same player reset the machine does when a program ends.
+    if (name === "none") { if (audioNode) audioNode.port.postMessage({ type: "reset" }); return; }
     if (!name || name.includes("..") || name.startsWith("/")) return;
     const url = "music/" + name;
-    if (name.endsWith(".mod")) playMod(url);
-    else if (name.endsWith(".ymraw")) playYm(url);
+    if (name.endsWith(".mod")) playMod(url, gen);
+    else if (name.endsWith(".ymraw")) playYm(url, gen);
     // Only an SNDH has subtunes; `tune` counts from 1, 0 = the image's default.
-    else if (name.endsWith(".sndh")) playSndh(url, tune);
-    else if (name.endsWith(".raw")) playRaw(url, 12517, false);
+    else if (name.endsWith(".sndh")) playSndh(url, tune, gen);
+    else if (name.endsWith(".raw")) playRaw(url, 12517, false, gen);
 }
 
 // Boot-sector beep: a raw YM2149 tone (no song player). Exposed to the boot program

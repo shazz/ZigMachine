@@ -197,10 +197,17 @@ const LANDED_MS = (PANEL.length * PANEL[0].length - 1) * 30 + 50; // tex_loader 
 const landedTicks = Math.ceil(LANDED_MS / 140);
 demo.key(32);
 if (demo.pollCartRequest() !== 0) errors.push("Space on the intro left at once; FIRST_LOADER's panel must come first");
+// demoLoader stops the intro tune (Matt: silence for now): the cart asks for the
+// reserved stop name, which the host turns into an audio reset.
+let stopReq = null; // polled on the panel's first frame, below
 let creditsMid = 0, creditsFrames = 0;
 for (let f = 1; f <= landedTicks; f++) {
     demo.frame(1000 / 60);
     creditsFrames = f;
+    if (f === 1) {
+        if (demo.pollSongRequest()) stopReq = dec.decode(new Uint8Array(memory.buffer, demo.songNamePtr(), demo.songNameLen()));
+        if (stopReq !== "none") errors.push(`the credits panel asks for song ${JSON.stringify(stopReq)}, not the stop request "none"`);
+    }
     const r = shot();
     if (f === 2 && inkPixels(r) !== 0) errors.push("the credits panel does not start on black");
     if (f === 60) { creditsMid = inkPixels(r); if (out) await writeFile(`${out}/union_intro-credits-60.png`, png(r, 320, 200)); }
@@ -237,18 +244,25 @@ async function sndhPeak(name) {
     if (!audio.audioLoadSndh(tune.length)) return -1;
     audio.audioSndhPlay(1); // the image has one subtune; requestSong asks for its default
     const left = new Float32Array(mem.buffer, chip.audioLeftPtr(), 882);
-    let peak = 0;
-    for (let f = 0; f < 150; f++) { // 3 s of 50 Hz blocks, as apps/sndh_headless.mjs reads them
-        audio.audioRender(882);
-        for (const v of left) peak = Math.max(peak, Math.abs(v));
-    }
-    return peak;
+    const render = (blocks) => {
+        let p = 0;
+        for (let f = 0; f < blocks; f++) { audio.audioRender(882); for (const v of left) p = Math.max(p, Math.abs(v)); }
+        return p;
+    };
+    const peak = render(150); // 3 s of 50 Hz blocks, as apps/sndh_headless.mjs reads them
+    // what the host does on "none" (sealed-loader.js playSongByName): the audio reset
+    audio.audioReset();
+    render(2); // let the chip's last block drain
+    return { peak, afterStop: render(50) };
 }
-const peak = song ? await sndhPeak(song) : -1;
+const played = song ? await sndhPeak(song) : { peak: -1, afterStop: -1 };
+const peak = played.peak;
 if (!(peak > 0.01)) errors.push(`${song} plays at peak ${peak} (silent or refused)`);
+if (stopReq === "none" && !(played.afterStop >= 0 && played.afterStop < 0.001))
+    errors.push(`after the stop the output still peaks at ${played.afterStop} (not silent)`);
 
 if (errors.length) {
     console.error(`union_demo_intro: WRONG\n  ${errors.slice(0, 12).join("\n  ")}`);
     process.exit(1);
 }
-console.log(`union_demo_intro: depack ${depackFrames} frames, no panel (${midInk} TEX ink px); all 64000 px equal the screen.js replay at frames ${FRAMES.join(",")}; song ${song} (peak ${peak.toFixed(2)}); Space -> demoloader.js panel, landed after ${landedTicks} frames (${landedInk} ink px = its glyphs) -> Space -> union_demo; ${perFrame.toFixed(3)} ms/frame`);
+console.log(`union_demo_intro: depack ${depackFrames} frames, no panel (${midInk} TEX ink px); all 64000 px equal the screen.js replay at frames ${FRAMES.join(",")}; song ${song} (peak ${peak.toFixed(2)}); Space -> stop request "none", silent after (peak ${played.afterStop.toFixed(4)}) -> demoloader.js panel, landed after ${landedTicks} frames (${landedInk} ink px = its glyphs) -> Space -> union_demo; ${perFrame.toFixed(3)} ms/frame`);

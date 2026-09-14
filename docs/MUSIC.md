@@ -75,6 +75,23 @@ zigmachine_music::request_song_tune("custodian.sndh", 1);
 `bash apps/rust/build.sh`. Example: `apps/rust/scenes/v8_populous.rs`, which
 plays David Whittaker's Custodian (`custodian.sndh`, subtune 1).
 
+## Stopping the music
+
+`"none"` is a reserved song name: requesting it stops whatever is playing (the
+host resets the audio players, as it does when a program ends). No file under
+`docs/music/` may be called `none`. A stop also cancels a song still being
+fetched, so a slow earlier request can never start after it.
+
+```zig
+zg.stopSong();          // Zig
+```
+```c
+zm_stop_song();         // C
+```
+```rust
+zigmachine_music::stop_song();   // Rust
+```
+
 ## Rules and limits
 
 - **Names** are paths under `docs/music/`, at most 64 bytes, no `..` and no
