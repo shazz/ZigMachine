@@ -9,7 +9,8 @@
 //    (apps/union_beatdis_replay.mjs, from the sources, not the scene), sampled
 //    at canvas (2X, 2Y) for ST pixel (X, Y), at fixed frames and at the first
 //    frames a '!' shows at an odd and an even x. The CurveRipper tables in
-//    curve.zig must equal screen2.js's when the remake is on this machine.
+//    curve.zig must equal screen2.js's when the remake is found (union_remake_dir.mjs:
+//    UNION_REMAKE_DIR or the main checkout); without it that re-read is SKIPPED, said so.
 //    Hub notes (ROM scratch "UNI1", return_note.zig): 1024 runs with a note for
 //    ANOTHER door and 512 with one for this door at scroll 500, so the text
 //    starts at 0 and at 500; a third run's out-of-range scroll starts at 0.
@@ -28,11 +29,12 @@
 //     the fail proof: the "held" key repeats every 150 ms, past the quiet period,
 //     so the lock releases between repeats as if it were not there; the hold
 //     check must catch the screen leaving
-import { readFile, writeFile, mkdir, access } from "node:fs/promises";
+import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { performance } from "node:perf_hooks";
 import { deflateSync } from "node:zlib";
 import { cartRam, romRam } from "../docs/wasm_hiwater.js";
 import { loadAssets, makeReplay, promptMap, CW } from "./union_beatdis_replay.mjs";
+import { findUnionRemake } from "./union_remake_dir.mjs";
 
 const PAGES = 112, AUDIO_PAGES = 48; // machine/sdk/memmap.zig, machine/sdk/audio.zig
 const TOP = 40, LEFT = 80; // ST (0,0) in the physical frame (x doubled)
@@ -47,7 +49,7 @@ const VERSIONS = [
     { name: "512", key: K_RETURN, song: "union/pro_bmx_simulator_b.sndh", note: { door: BEATDIS_DOOR, scroll: 500 }, start: 500, accept: true, out: K_SPACE },
     { name: "1024", key: K_SPACE, song: "union/beat_dis.sndh", note: { door: BEATDIS_DOOR, scroll: 16128 }, start: 0, accept: false, out: K_ESC },
 ];
-const REMAKE = "prototypes/oldies/Union-Demo-HTML5-Remake-0.9.8/screens/beatdis/screen2.js";
+const SCREEN2 = "screens/beatdis/screen2.js"; // in the remake's directory
 
 const BREAK = process.argv.includes("--break") ? process.argv[process.argv.indexOf("--break") + 1] : null;
 if (BREAK !== null && BREAK !== "keylock") { console.error(`union_beatdis: --break ${BREAK}: only "keylock" can be broken`); process.exit(1); }
@@ -248,12 +250,17 @@ async function sndhPlays(song) {
 }
 
 async function curveMatchesRemake() {
-    try { await access(REMAKE); } catch { return "remake not on this machine, tables not re-read"; }
-    const js = await readFile(REMAKE, "utf8");
+    const remake = findUnionRemake(SCREEN2);
+    if (!remake.dir) {
+        const line = `SKIPPED the table re-read: no remake at ${remake.tried.join(", ") || "(UNION_REMAKE_DIR unset, not a git checkout)"} (set UNION_REMAKE_DIR)`;
+        console.log(line);
+        return line;
+    }
+    const js = await readFile(`${remake.dir}/${SCREEN2}`, "utf8");
     const table = (n) => js.match(new RegExp(`this.${n} = new Array\\(([^)]*)\\)`))[1].split(",").map((t) => Number(t.trim()));
     const same = (a, b) => a.length === b.length && a.every((x, i) => x === b[i]);
     if (!same(table("spritePosX"), A.curveX) || !same(table("spritePosY"), A.curveY)) errors.push("curve.zig differs from screen2.js's CurveRipper tables");
-    return `curve.zig = screen2.js (${A.curveX.length} points)`;
+    return `curve.zig = screen2.js (${A.curveX.length} points, re-read from ${remake.dir})`;
 }
 
 const PROMPT = promptMap(A);

@@ -11,7 +11,9 @@
 //   env: PLAYWRIGHT_DIR  node_modules dir holding playwright, when it is not
 //                        resolvable from here (e.g. ~/.npm/_npx/<hash>/node_modules)
 //        CHROME          the Chrome binary (default /usr/bin/google-chrome)
-//        REMAKE          the remake's directory (default prototypes/oldies/Union-Demo-HTML5-Remake-0.9.8)
+//        UNION_REMAKE_DIR  the remake's directory (REMAKE is an alias); by default
+//                        the main checkout's prototypes/oldies/Union-Demo-HTML5-Remake-0.9.8
+//                        (apps/union_remake_dir.mjs), which also serves a worktree
 //
 // Frame numbers follow each port's headless harness: superscroller frame N is
 // the canvas after N update()+draw() calls, L16 frame N after N+1 (its harness
@@ -20,9 +22,11 @@
 // One browser at a time: the box is short on memory.
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { createRequire } from "node:module";
+import { findUnionRemake } from "../apps/union_remake_dir.mjs";
 
-// prototypes/ is not in git: point REMAKE at a checkout that has it when running from a worktree
-const REMAKE = (process.env.REMAKE || new URL("../prototypes/oldies/Union-Demo-HTML5-Remake-0.9.8", import.meta.url).pathname).replace(/\/?$/, "/");
+// prototypes/ is not in git: found through apps/union_remake_dir.mjs
+const FOUND = process.env.REMAKE ? { dir: process.env.REMAKE, tried: [process.env.REMAKE] } : findUnionRemake();
+const REMAKE = FOUND.dir ? FOUND.dir.replace(/\/?$/, "/") : null;
 
 const SCREENS = {
     superscroller: {
@@ -76,6 +80,7 @@ async function main() {
     if (!cfg || !list || !out) throw new Error("usage: node tools/chrome_capture.mjs <L16|superscroller> <frame,frame,...> <outdir>");
     const frames = list.split(",").map(Number).sort((a, b) => a - b);
     if (frames.some((f) => !Number.isInteger(f) || f < 0)) throw new Error(`frames must be whole numbers >= 0: ${list}`);
+    if (!REMAKE) throw new Error(`no remake at ${FOUND.tried.join(", ") || "(not a git checkout)"} (set UNION_REMAKE_DIR)`);
     await mkdir(out, { recursive: true });
     const text = await mainScrolltext();
     await writeFile(`${out}/scrolltext.txt`, text, "latin1"); // what jsApp.scrolltext was

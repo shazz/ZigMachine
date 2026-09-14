@@ -7,9 +7,10 @@
 // 2. Screen. union_l16_replay.mjs replays screens/L16/screen.js from its own
 //    numbers with Chrome's measured canvas resampling, on the port's grid; both
 //    planes composited, over the full 800x280 overscan frame.
-// 3. jsApp.mainscrollerPos. A valid note for L16's door starts the text at its
-//    offset; a note for another door, or past the text, starts it at 0; the
-//    note is left untouched for the hub.
+// 3. jsApp.mainscrollerPos. A note for L16's door with a scroll inside the text
+//    starts the text there and is rewritten with the scroller's offset on
+//    leaving; a note for another door, or with a scroll past the text, is
+//    refused (hub_note.accepted): the text starts at 0 and the note is untouched.
 // 4. The requested SNDH loads and makes sound; Escape asks for the hub; a frame
 //    leaves 60 fps headroom.
 //
@@ -112,12 +113,13 @@ if (!differs(0, 1, 162, 242)) errors.push("frames 0/1: the logo raster does not 
 if (!differs(60, 200, 0, W)) errors.push("frames 60/200: the bob does not travel");
 
 // 3. jsApp.mainscrollerPos from the hub's note
-//    Leaving rewrites a note for this door with the scroller's offset
-//    (screen.js:89), keeping door and Charly's x/y; another door's note is untouched.
+//    Leaving rewrites an accepted note with the scroller's offset (screen.js:89),
+//    keeping door and Charly's x/y; a refused note (another door's, or a scroll
+//    past the text) is not changed by a byte.
 for (const { note, begin, rewrite } of [
     { note: { door: L16_DOOR, scroll: 500 }, begin: 500, rewrite: true },
     { note: { door: L16_DOOR + 1, scroll: 500 }, begin: 0, rewrite: false },
-    { note: { door: L16_DOOR, scroll: A.text.length }, begin: 0, rewrite: true },
+    { note: { door: L16_DOOR, scroll: A.text.length }, begin: 0, rewrite: false },
 ]) {
     const AT = 700, label = `note door ${note.door} scroll ${note.scroll}`; // 700 frames: letters wrap, the offset moves
     const N = await start(note);
@@ -132,7 +134,7 @@ for (const { note, begin, rewrite } of [
     if (N.demo.pollCartRequest() !== 1) errors.push(`${label}: Escape did not ask for the hub`);
     const after = N.scratch();
     if (!rewrite) {
-        if (after.slice(0, 20).some((b, i) => b !== before[i])) errors.push(`${label}: another door's note was changed`);
+        if (after.slice(0, 20).some((b, i) => b !== before[i])) errors.push(`${label}: a refused note was changed`);
         continue;
     }
     const v = new DataView(after.buffer, after.byteOffset + 6, 14), xor = after.subarray(6, 20).reduce((a, b) => a ^ b, 0);
@@ -164,5 +166,5 @@ if (errors.length) {
 }
 console.log(`union_l16: loader depacked in ${M.startFrame} frames (ink on ${M.inkFrames}, up to ${M.maxInk} px); ` +
     `both planes = screen.js replay at frames ${SCREEN_FRAMES.join(",")}; hub note: door ${L16_DOOR} scroll 500 starts at 500 and is rewritten with the scroller's offset, ` +
-    `past the text starts at 0, another door's note starts at 0 untouched; ${M.song} plays (${music.subtunes} subtune, peak ${music.peak.toFixed(3)}, ` +
+    `door ${L16_DOOR} scroll ${A.text.length} (past the text) and another door's note start at 0 and are left untouched; ${M.song} plays (${music.subtunes} subtune, peak ${music.peak.toFixed(3)}, ` +
     `${music.voices} voices); Esc -> union_demo; ${perFrame.toFixed(3)} ms/frame mean, ${warm.toFixed(3)} ms warm median`);
