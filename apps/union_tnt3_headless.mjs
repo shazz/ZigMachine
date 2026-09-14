@@ -18,9 +18,10 @@
 // The remake is not in git (prototypes/): without it, step 2 is SKIPPED, said
 // so on the FITS line, and the hub is only required after ESC.
 //
-//   node apps/union_tnt3_headless.mjs [outdir] [cart.wasm] [--remake DIR] [--break overdraw|ball]
-// --break replays a deliberately wrong screen.js / three.js (union_tnt3_replay.mjs
-// BREAKS): the check must then FAIL, which proves it can tell a wrong port.
+//   node apps/union_tnt3_headless.mjs [outdir] [cart.wasm] [--remake DIR] [--break overdraw|ball|music]
+// --break overdraw|ball replays a deliberately wrong screen.js / three.js
+// (union_tnt3_replay.mjs BREAKS); --break music expects the wrong subtune. The
+// check must then FAIL, which proves it can tell a wrong port.
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { readFileSync } from "node:fs";
 import { performance } from "node:perf_hooks";
@@ -38,6 +39,8 @@ const SCENE = readFileSync("apps/zig/scenes/union_tnt3.zig", "utf8");
 const MUSIC = /^const MUSIC = "([^"]+)";/m.exec(SCENE)?.[1];
 const MUSIC_TUNE = +(/^const MUSIC_TUNE = (\d+);/m.exec(SCENE)?.[1] ?? NaN);
 if (!MUSIC || !Number.isInteger(MUSIC_TUNE)) throw new Error("union_tnt3.zig: MUSIC / MUSIC_TUNE not found");
+// U_TNTVEC.BIN (the remake's NinjaRemix.ym) is this image's subtune 7: 100.0% of YM registers over 3,000 frames
+const WANT_MUSIC = "union/chambers_of_shaolin.sndh", WANT_TUNE = 7;
 const K_ESC = 0xe012;
 const ESC_FRAME = 1480;
 
@@ -47,7 +50,9 @@ const remakeArg = flag("--remake");
 const brk = flag("--break");
 const REMAKE_DIR = findRemake(remakeArg);
 if (remakeArg && !REMAKE_DIR) throw new Error(`--remake ${remakeArg}: no screens/tnt3/screen.js there`);
-if (brk && !REMAKE_DIR) throw new Error("--break needs the remake (prototypes/ or --remake DIR)");
+if (brk && brk !== "music" && !REMAKE_DIR) throw new Error("--break needs the remake (prototypes/ or --remake DIR)");
+// --break music wants the neighbouring subtune: a cart asking for the wrong one must fail
+const wantTune = brk === "music" ? WANT_TUNE - 1 : WANT_TUNE;
 // screen frame -> [cart key, the melonJS action screen.js tests]
 const KEYS = new Map([[300, ["3", "3"]], [520, ["4", "4"]], [760, ["5", "5"]], [1000, ["1", "1"]], [1240, ["2", "2"]], [ESC_FRAME, [K_ESC, "exit"]]]);
 // frames 25-300 TNT, 425-500 ball, 625-750 glider, 875-1000 carrier, 1125-1225
@@ -173,7 +178,7 @@ else if (Math.abs(first - DEPACK_FRAMES) > 1) errors.push(`the screen started at
 if (inkFrames < DEPACK_FRAMES / 2 || maxInk < 2000) errors.push(`the TEX loader panel barely showed: ink on ${inkFrames} frames, at most ${maxInk} px`);
 
 // 2. the screen against screen.js; screen frame k = the (k+1)-th update() + draw()
-const remake = REMAKE_DIR ? makeRemake(REMAKE_DIR, brk) : null;
+const remake = REMAKE_DIR ? makeRemake(REMAKE_DIR, brk === "music" ? null : brk) : null;
 let remakeLeft = -1, compared = 0, objectPx = 0;
 const OBJECT_BG = new Set([0x000000, 0x606060, 0xa0a0a0, 0xe0e0e0, 0xe00000]); // stars and scroller
 remake?.frame(); // screen frame 0 (the cart ran it on the depack's last frame)
@@ -213,7 +218,8 @@ if (!remake) {
     if (hubAt <= ESC_FRAME) errors.push(`the hub was asked for at screen frame ${hubAt}, not after ESC at ${ESC_FRAME}`);
 } else if (remakeLeft < 0) errors.push("screen.js never left: the key schedule is wrong");
 else if (hubAt !== remakeLeft) errors.push(`the hub was asked for at screen frame ${hubAt}, screen.js leaves at ${remakeLeft}`);
-if (song !== MUSIC || tune !== MUSIC_TUNE) errors.push(`song request ${JSON.stringify(song)} #${tune}, wanted "${MUSIC}" #${MUSIC_TUNE}`);
+if (MUSIC !== WANT_MUSIC || MUSIC_TUNE !== wantTune) errors.push(`union_tnt3.zig sets "${MUSIC}" #${MUSIC_TUNE}, the remake's tune is "${WANT_MUSIC}" #${wantTune}`);
+if (song !== WANT_MUSIC || tune !== wantTune) errors.push(`song request ${JSON.stringify(song)} #${tune}, wanted "${WANT_MUSIC}" #${wantTune}`);
 else {
     const r = await sndhPlay(song, tune);
     if (r.why) errors.push(`${song}: ${r.why}`);

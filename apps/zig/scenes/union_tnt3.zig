@@ -42,13 +42,14 @@ const Key = show_mod.Key;
 const Scroller = @import("union_tnt3/scroller.zig").Scroller;
 const BAND_ROWS = @import("union_tnt3/scroller.zig").BAND_ROWS;
 
-// The remake plays data/music/NinjaRemix.ym (tag: "TNT Vector Screen (UNION
-// DEMO)", Mad Max), chosen here by name: Mad Max's Ninja Remix SNDH. Its dump's
-// registers match none of the six subtunes (they do match Chambers of Shaolin
-// #7); #3 is only the nearest by note histogram. The one place to swap the tune
-// (union_tnt3_headless.mjs reads these two lines).
-const MUSIC = "union/ninja_remix.sndh";
-const MUSIC_TUNE = 3;
+// The remake plays data/music/NinjaRemix.ym, an LHA of U_TNTVEC.BIN ("TNT Vector
+// Screen (UNION DEMO)", Mad Max, 8,542 frames). Despite the name it is not Ninja
+// Remix: Mad_Max/Games/Ninja_Remix.sndh matches its YM registers 0% on all six
+// subtunes. A sweep of every subtune of all 357 Mad Max SNDHs found it:
+// Chambers_Of_Shaolin.sndh #7, a 100.0% register match over 3,000 frames at
+// offset 0. union_tnt3_headless.mjs reads these two lines.
+const MUSIC = "union/chambers_of_shaolin.sndh";
+const MUSIC_TUNE = 7;
 const HUB = "union_demo";
 // 68,608 bytes at 3 a line (840 a frame) depack in 82 frames; the remake's
 // panel lands its 414th letter after 89 (12,440 ms at 140 ms a frame).
