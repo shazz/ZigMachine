@@ -46,6 +46,7 @@ const VIEW_W: i32 = 640; // me.video.init('jsapp', 640, 400) (main.js:240)
 const BANNER_RATIO: f32 = 0.5; // plx_banner "ratio" property (union3.tmx)
 const BANNER_W: f32 = 640; // banner4.png
 const MESSAGE_FRAMES: u16 = 120;
+const EASE_STEPS: u8 = 8; // steps the view takes to reach Charly when the start clamp lets go
 const STEP_MS: f32 = 1000.0 / 60.0;
 const STEP_DUE_MS: f32 = 10;
 const STEP_DEBT_MS: f32 = 4; // STEP_DUE_MS + STEP_DEBT_MS < the shortest 60 Hz dt
@@ -58,6 +59,7 @@ pub const Demo = struct {
     hud: Hud,
     cam: i32, // viewport pos.x, 640 space
     wrapped_once: bool, // Charly has crossed the seam: the view runs unclamped
+    ease_steps: u8, // steps left to close the gap the start clamp left (0: follow exactly)
     banner: zg.tilemap.RatioScroll,
     rasters_y: u32, // ScrollingBackgroundLayer pos.y
     clock: f32, // ms towards the next 60 Hz step (negative: carried early time)
@@ -72,6 +74,7 @@ pub const Demo = struct {
         self.controls.init();
         self.cam = 0;
         self.wrapped_once = false;
+        self.ease_steps = 0;
         self.follow(); // follow() + setDeadzone(0, 0) both force a camera update
         self.banner = .{ .pos = 0, .last = @floatFromInt(self.cam), .ratio = BANNER_RATIO, .w = BANNER_W };
         self.rasters_y = 0;
@@ -126,6 +129,9 @@ pub const Demo = struct {
         // error, and 5599.9995 must still shift the view by 5600.
         if (wrapped != 0) {
             self.shiftView(@intFromFloat(@round(wrapped)));
+            // Only a LEFT crossing can come out of the clamp (he walked into x < 320
+            // with the view pinned at 0), leaving the view up to 320 px off him.
+            if (!self.wrapped_once and wrapped > 0) self.ease_steps = EASE_STEPS;
             self.wrapped_once = true;
         }
         if (self.controls.fire) {
@@ -183,17 +189,24 @@ pub const Demo = struct {
     // first crosses the seam the view keeps melonJS's clamp at 0, so the opening
     // shot is the remake's (spawn x 268 wants view -52; the remake shows 0).
     // After that it runs unclamped, so the view keeps Charly centred across the
-    // seam; below 0 the start of the street shows the end of it. Its right clamp
+    // seam (easing onto him over EASE_STEPS if the clamp had left him behind);
+    // below 0 the start of the street shows the end of it. Its right clamp
     // (map - view) is never applied: it would jump the view at the seam. floor
     // instead of ~~ agrees on every view >= 0 and stays continuous below it.
     fn follow(self: *Demo) void {
         const dz = zg.tilemap.deadzone(VIEW_W, 0);
         const rel = self.charly.x - @as(f32, @floatFromInt(self.cam));
         const edge: ?i32 = if (rel > @as(f32, @floatFromInt(dz.hi))) dz.hi else if (rel < @as(f32, @floatFromInt(dz.lo))) dz.lo else null;
-        if (edge) |e| {
-            const target: i32 = @intFromFloat(@floor(self.charly.x - @as(f32, @floatFromInt(e))));
-            self.cam = if (self.wrapped_once) target else @max(target, 0);
+        var target = if (edge) |e| @as(i32, @intFromFloat(@floor(self.charly.x - @as(f32, @floatFromInt(e))))) else self.cam;
+        if (!self.wrapped_once) target = @max(target, 0);
+        if (self.ease_steps == 0) {
+            self.cam = target;
+            return;
         }
+        // Ease instead of snapping 160 screen px: close 1/n of the gap with n steps
+        // left, in integers (deterministic), so the last step lands exactly.
+        self.cam += @divTrunc(target - self.cam, @as(i32, self.ease_steps));
+        self.ease_steps -= 1;
     }
 
     // Charly crossed an end and his x jumped a street-length: the view and the
