@@ -123,4 +123,5 @@ node apps/union_texcopier_headless.mjs "$SHOTS"   # COPIER TEX: loader depack, s
 node apps/union_tnt3_headless.mjs "$SHOTS"   # TNT3: loader depack, then screen.js + three.js r49 replayed pixel for pixel
 node apps/union_l16_headless.mjs "$SHOTS"   # L16: loader depack, both overscan planes = screen.js replay, SNDH plays, Esc
 node apps/union_tnt1_headless.mjs "$SHOTS"   # TNT1 Starballs: TEX loader depack, screen.js replay (keys 5, 0), Pandora plays
+node apps/union_reps_headless.mjs "$SHOTS"   # REPS: loader depack, screen.js replayed with the joystick, the SNDH plays
 echo "shots in $SHOTS"

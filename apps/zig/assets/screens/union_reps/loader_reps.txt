@@ -1,0 +1,27 @@
+# The Union Demo REPS loader panel (Union-Demo-HTML5-Remake-0.9.8,
+# screens/reps/loader.js, loaderText[0..22]): 23 rows of 20. build.zig packs
+# reps.bin with it:
+#   zx0pack --fx tex_loader --panel apps/zig/assets/screens/union_reps/loader_reps.txt <in> <out>
+"                    "
+"                    "
+"   THE REPLICANTS   "
+"   WOBBLY SPRITES   "
+"                    "
+"PROGRAM BY EXCALIBUR"
+"    GRAPHICS  BY    "
+"     RANK XEROX     "
+"                    "
+"  SOUND BY BIG MAX  "
+"     COMPOSED BY    "
+"     JEROEN  TEL    "
+"                    "
+"  USE JOYSTICK TO   "
+" CONTROL SCROLLING  "
+"                    "
+" PLEASE WAIT WHILE  "
+"   DECOMPRESSING    "
+"                    "
+"                    "
+"                    "
+"                    "
+"                    "
