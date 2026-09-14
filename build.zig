@@ -337,8 +337,7 @@ pub fn build(b: *std.Build) void {
         "demo-union_textracker", // 45 — The Union Demo hidden screen, TEX's Sample-Mon ST (melonJS remake)
         "demo-union_intro_screen", // 46 — The Union Demo intro screen (melonJS remake, screens/intro): hub-only
         "demo-union_deltaforce", // 47 — The Union Demo / DELTA FORCE Sphericool screen (melonJS remake)
-        "", // 48 — reserved: the boss session's TNT3 (empty = not built)
-        "demo-union_texcopier", // 49 — The Union Demo / COPIER TEX, TEX's copy program (melonJS remake)
+        "demo-union_texcopier", // 48 — The Union Demo / COPIER TEX, TEX's copy program (melonJS remake)
     };
     for (cart_names, 0..) |name, idx| {
         if (name.len == 0) continue; // excluded cart (see note above)
