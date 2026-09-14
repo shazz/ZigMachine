@@ -152,6 +152,7 @@ pub const Demo = struct {
     fn leaveForHub(self: *Demo) void {
         self.leave = true;
         const n = self.hub_note orelse return;
+        self.hub_note = null; // written once, however many leave events follow
         const buf = scratch() orelse return;
         return_note.write(buf, .{ .door = n.door, .x = n.x, .y = n.y, .scroll = @intCast(self.scroller.offset()) });
     }
