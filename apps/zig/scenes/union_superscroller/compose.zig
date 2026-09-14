@@ -23,6 +23,7 @@ pub const Palette = zg.LinePalette(80);
 const BACK_H: u16 = 400;
 const SCROLL_Y: i32 = 14; // scrolltextcanvas.draw(maincanvas, 0, 14)
 const SCROLL_H: i32 = 374;
+const W_I: i32 = A.W; // for the signed letter positions
 
 const Layers = struct { back: ?cd.Taps, overs: [2]?cd.Taps, raster: ?u32 };
 
@@ -80,12 +81,12 @@ fn rasterAt(img: *const A.Images, m: *const M.Motion, s: i32) u32 {
 fn markInk(ink: *[A.W]bool, img: *const A.Images, m: *const M.Motion, s: i32) void {
     const glyph_row: usize = @intCast(@divExact(s, 2));
     for (m.ring.x, m.ring.c) |pos, ch| {
-        if (pos >= 2 * A.W or pos + M.TILE_W <= 0) continue;
+        if (pos >= 2 * W_I or pos + M.TILE_W <= 0) continue;
         var runs = img.font.runs(ch - A.FIRST_CHAR, glyph_row);
         while (runs.next()) |run| {
             const cols = zg.spanfont.halfColumns(pos, run);
-            const x0: usize = @intCast(std.math.clamp(cols[0], 0, A.W));
-            const x1: usize = @intCast(std.math.clamp(cols[1], 0, A.W));
+            const x0: usize = @intCast(std.math.clamp(cols[0], 0, W_I));
+            const x1: usize = @intCast(std.math.clamp(cols[1], 0, W_I));
             if (x1 > x0) @memset(ink[x0..x1], true);
         }
     }

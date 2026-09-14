@@ -12,8 +12,8 @@
 const std = @import("std");
 const zg = @import("zigos");
 
-pub const W = zg.WIDTH;
-pub const H = zg.HEIGHT;
+pub const W: usize = zg.WIDTH; // usize: TOTAL (2 * W * H) overflows u16
+pub const H: usize = zg.HEIGHT;
 pub const BACK_COLOURS = 4;
 pub const OVER_COLOURS = 4;
 pub const RASTER_COLOURS = 42;

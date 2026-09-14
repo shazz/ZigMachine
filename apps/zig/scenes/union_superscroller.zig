@@ -57,6 +57,7 @@ const TEXT_LEN = @import("union_superscroller/motion.zig").TEXT.len;
 // through the YM's volume registers, so it plays here: sndh_headless.mjs gives
 // SNDH mode, peak 0.3300, volumes written on voices A and C, no stuck PC.
 const MUSIC = "union/wow_scroller.sndh";
+const MUSIC_TUNE = 1; // its one subtune, asked for by number
 const HUB = "union_demo";
 // 140,601 bytes at 5 a line (1,400 a frame) depack in 101 frames; the remake's
 // panel lands its 437th letter after 94 (13,130 ms at 140 ms a frame).
@@ -145,7 +146,7 @@ pub const Demo = struct {
         fb.is_enabled = true;
         fb.setPaletteEntry(0, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
         self.palette.install(fb);
-        zg.requestSong(MUSIC); // onResetEvent
+        zg.requestSongTune(MUSIC, MUSIC_TUNE); // onResetEvent
         self.phase = .running;
     }
 
