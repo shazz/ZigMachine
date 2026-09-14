@@ -41,6 +41,10 @@ pub fn write(buf: []u8, n: Note) void {
 /// hub still take()s it on the way back. A reader must check `door` is its own
 /// door (the note was left for this launch) and that `scroll` indexes the SAME
 /// scrolltext.txt: it is the next character to enter the hub's scroller.
+/// Screens that hand the position BACK (remake: superscroller screen.js:84,
+/// reps :179, beatdis screen.js:85 / screen2.js:116 set jsApp.mainscrollerPos
+/// on exit) rewrite the note with write(), keeping door, x and y from peek()
+/// and only their own scroll. L16 reads only. main.js:488 is the hub's own.
 /// null when tag, length or checksum do not match, or the buffer is too short.
 pub fn peek(buf: []const u8) ?Note {
     if (buf.len < HEADER + PAYLOAD) return null;
