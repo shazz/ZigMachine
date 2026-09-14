@@ -148,6 +148,12 @@ pub fn build(b: *std.Build) void {
     pack_tnt1.addFileArg(b.path("apps/zig/assets/screens/union_tnt1/loader_tnt1.txt"));
     pack_tnt1.addFileArg(b.path("apps/zig/assets/screens/union_tnt1/tnt1.bin"));
     const tnt1_zx0 = pack_tnt1.addOutputFileArg("union_tnt1.zx0");
+    // The Union Demo REPS screen depacks behind its own TEX loader panel.
+    const pack_reps = b.addRunArtifact(zx0pack);
+    pack_reps.addArgs(&.{ "--fx", "tex_loader", "--panel" });
+    pack_reps.addFileArg(b.path("apps/zig/assets/screens/union_reps/loader_reps.txt"));
+    pack_reps.addFileArg(b.path("apps/zig/assets/screens/union_reps/reps.bin"));
+    const reps_zx0 = pack_reps.addOutputFileArg("union_reps.zx0");
     const packed_files = b.addWriteFiles();
     _ = packed_files.addCopyFile(trsi_zx0, "trsi_turn.zx0");
     _ = packed_files.addCopyFile(multifake_zx0, "union_multifake.zx0");
@@ -159,6 +165,7 @@ pub fn build(b: *std.Build) void {
     _ = packed_files.addCopyFile(tnt3_zx0, "union_tnt3.zx0");
     _ = packed_files.addCopyFile(l16_zx0, "union_l16.zx0");
     _ = packed_files.addCopyFile(tnt1_zx0, "union_tnt1.zx0");
+    _ = packed_files.addCopyFile(reps_zx0, "union_reps.zx0");
     // MPP TRUECOLOR's gallery: one blob per picture and mode (tools/mpp_convert.py).
     // Unpacked they overflow the cart window, so the scene depacks only the one on
     // screen. MPP_PICTURES follows the converter's PICTURES list.
@@ -189,6 +196,7 @@ pub fn build(b: *std.Build) void {
             \\pub const union_tnt3 = @embedFile("union_tnt3.zx0");
             \\pub const union_l16 = @embedFile("union_l16.zx0");
             \\pub const union_tnt1 = @embedFile("union_tnt1.zx0");
+            \\pub const union_reps = @embedFile("union_reps.zx0");
             \\{s}}};
             \\
         , .{mpp_decl})),
@@ -365,6 +373,7 @@ pub fn build(b: *std.Build) void {
         "demo-union_tnt3", // 49 — The Union Demo / TNT3, the TNT Crew's vector screen (melonJS remake)
         "demo-union_l16", // 50 — The Union Demo / LEVEL 16 FULLSCREEN (melonJS remake)
         "demo-union_tnt1", // 51 — The Union Demo / TNT1, TNT-Crew Starballs (melonJS remake)
+        "demo-union_reps", // 52 — The Union Demo / REPS, The Replicants' wobbly sprites (melonJS remake)
     };
     for (cart_names, 0..) |name, idx| {
         if (name.len == 0) continue; // excluded cart (see note above)
