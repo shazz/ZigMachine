@@ -136,6 +136,12 @@ ZigOS `fs/` wraps it: `mount(image)`, `find("NAME.WSM") -> {block,len}`,
   everything else is little-endian.
 - Keep block size 512 in v1 (bootsector homage + simple math); revisit if useful.
 - A `.zmd` is trivially inspectable — a hex dump shows the descriptor in clear.
+- **Uploads ("Run your own cart" on the page).** A visitor's file is sniffed by
+  content (`ZMDISK` at `$0` or `\0asm` + `ZMDISK` at `$400` = disk, `\0asm` = cart,
+  `ZX0!` = packed cart) and mounted by the same parser as a URL disk
+  (`docs/zmdisk.js`, `mountDiskBytes`), so streaming works identically. Host caps:
+  a cart (raw or packed) at most **2 MB** (the cart window); a disk at most **16 MB**
+  (the format has no limit, `total blocks` is a u32: this is host policy).
 
 ---
 

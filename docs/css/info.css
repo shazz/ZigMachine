@@ -98,6 +98,22 @@
   text-decoration: none;
 }
 
+/* "Run your own cart": the readable twin of the button on the scaled monitor. */
+.info .upload { margin: 10px 0 8px; }
+
+.info .upload_link {
+  margin-right: 6px;
+  padding: 3px 10px;
+  border: 1px solid var(--accent);
+  border-radius: 4px;
+  background: #1b241b;
+  color: var(--accent);
+  font: inherit;
+  cursor: pointer;
+}
+
+.info .upload_link:hover { color: #fff; }
+
 .info .credits {
   margin-top: 12px;
   font-size: 11px;
@@ -125,4 +141,5 @@
   }
   .info h1 { font-size: 22px; }
   .info .links a { flex: 1 1 100%; text-align: center; padding: 10px; }
+  .info .upload_link { display: block; width: 100%; margin: 0 0 6px; padding: 10px; }
 }
