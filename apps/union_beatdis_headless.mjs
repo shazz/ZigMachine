@@ -30,13 +30,14 @@ const TOP = 40, LEFT = 80; // ST (0,0) in the physical frame (x doubled)
 const DEPACK_FRAMES = Math.ceil(325408 / (9 * 280)); // DEPACK_BYTES_PER_LINE = 9
 const TEX_INK = [0xc0, 0xa0, 0x00];
 const K_ESC = 0xe012, K_RETURN = 13, K_SPACE = 32;
+const BANG_LIMIT = 40000; // 16,128 letters at 96/7 frames each is 221k frames: '!' is common enough well before
 const FRAMES = [0, 1, 2, 24, 25, 26, 45, 46, 99, 100, 101, 148, 149, 150, 199, 200, 201, 512, 513, 1234, 3000];
+const BEATDIS_DOOR = 0; // TMX object 0 in menu_map.zig, the door doors.zig tags union_beatdis
 const VERSIONS = [
     { name: "1024", key: K_SPACE, song: "union/beat_dis.sndh", note: { door: 8, scroll: 500 }, start: 0, accept: false },
     { name: "512", key: K_RETURN, song: "union/pro_bmx_simulator_b.sndh", note: { door: BEATDIS_DOOR, scroll: 500 }, start: 500, accept: true },
     { name: "1024", key: K_SPACE, song: "union/beat_dis.sndh", note: { door: BEATDIS_DOOR, scroll: 16128 }, start: 0, accept: false },
 ];
-const BEATDIS_DOOR = 0; // TMX object 0 in menu_map.zig, the door doors.zig tags union_beatdis
 const REMAKE = "prototypes/oldies/Union-Demo-HTML5-Remake-0.9.8/screens/beatdis/screen2.js";
 
 const outDir = process.argv[2];
@@ -159,7 +160,10 @@ async function screen(v, cart, demo) {
     const want = new Set(FRAMES);
     const bangs = { odd: -1, even: -1 };
     const seen = new Map();
-    for (let f = 0; f <= Math.max(...FRAMES, 1600); f++) {
+    // Past the last fixed frame, keep stepping (painting nothing) until a '!' has
+    // shown at both parities: where they fall depends on where the text starts.
+    const last = Math.max(...FRAMES);
+    for (let f = 0; f <= last || (f <= BANG_LIMIT && (bangs.odd < 0 || bangs.even < 0)); f++) {
         cart.step(f > 1234);
         replay.update();
         for (const l of replay.letters) if (l.ltr === 33 && l.posx > -96 && l.posx < 576) {
@@ -173,7 +177,7 @@ async function screen(v, cart, demo) {
         seen.set(f, img);
         if (outDir && [0, 100, 1234].includes(f)) await writeFile(`${outDir}/union_beatdis-${v.name}-${f}.png`, png(img));
     }
-    if (bangs.odd < 0 || bangs.even < 0) errors.push(`${v.name}: no '!' at both parities by frame 1600`);
+    if (bangs.odd < 0 || bangs.even < 0) errors.push(`${v.name}: no '!' at both parities by frame ${BANG_LIMIT}`);
     const moved = (a, b, y0, y1) => seen.get(a).subarray(y0 * 1280, y1 * 1280).some((p, i) => p !== seen.get(b)[y0 * 1280 + i]);
     if (!moved(200, 201, 0, 150)) errors.push(`${v.name} frames 200/201: beatdis.png does not scroll`);
     if (!moved(200, 201, 167, 183)) errors.push(`${v.name} frames 200/201: the scroller does not move`);
