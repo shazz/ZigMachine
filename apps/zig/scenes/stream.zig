@@ -18,6 +18,8 @@ const Console = zg.Console;
 const W: usize = zg.WIDTH; // 320
 const H: usize = zg.HEIGHT; // 200
 const RATE: f32 = 12517.0; // sample rate (matches the .raw)
+const RING: f32 = 32768.0; // the audio ring (STREAM_RING in demo_audio_main.zig)
+const RING_BLOCKS: u32 = 64; // 512-byte blocks in one ring
 
 pub const Demo = struct {
     file_block: u32 = 0, // first disk block of the sample data
@@ -79,10 +81,19 @@ pub const Demo = struct {
 
     pub fn update(self: *Demo, zigos: *ZigOS, elapsed_time: f32) void {
         _ = zigos;
-        const dt = @min(elapsed_time / 1000.0, 0.05); // clamp hitches so we never over-feed the ring
-        self.budget += RATE * dt; // bytes the audio consumed since last frame
+        // The audio clock never stops, so pace by the REAL frame time: a clamped dt
+        // left the clip behind the speaker for good at 18 fps or after a hidden tab
+        // (apps/stream_pacing_check.mjs).
+        self.budget += RATE * @max(elapsed_time, 0) / 1000.0; // bytes the audio consumed since last frame
+        // Whole rings of backlog would only lap the ring onto itself: skip them in
+        // the clip, then feed what is left — never more than one ring's worth.
+        const rings = @floor(self.budget / RING);
+        if (rings > 0) {
+            if (self.total_blocks > 0) self.cur = @intCast((@as(u64, self.cur) + @as(u64, @intFromFloat(rings)) * RING_BLOCKS) % self.total_blocks);
+            self.budget -= rings * RING;
+        }
         var guard: u32 = 0;
-        while (self.budget >= 512 and guard < 8) : (guard += 1) {
+        while (self.budget >= 512 and guard < RING_BLOCKS) : (guard += 1) {
             self.feedBlock();
             self.budget -= 512;
         }
