@@ -62,7 +62,7 @@ const ROUTES = [_]Route{
     .{ .demo_name = "DELTAFORCE_LOADER", .screen = .deltaforce_screen, .title = "DELTA FORCE", .tag = "union_deltaforce" },
     .{ .demo_name = "TNT3_LOADER", .screen = .tnt3_screen, .title = "TNT3", .tag = "union_tnt3" },
     .{ .demo_name = "SUPERSCROLLER_LOADER", .screen = .superscroller_screen, .title = "TCB2" },
-    .{ .demo_name = "TNT1_LOADER", .screen = .tnt1_screen, .title = "TNT1" },
+    .{ .demo_name = "TNT1_LOADER", .screen = .tnt1_screen, .title = "TNT1", .tag = "union_tnt1" },
     .{ .demo_name = "REPS_LOADER", .screen = .reps_screen, .title = "REPS" },
     .{ .demo_name = "TNT2_LOADER", .screen = .tnt2_screen, .title = "TNT2" },
     .{ .demo_name = "L16_LOADER", .screen = .l16_screen, .title = "L16", .tag = "union_l16" },
