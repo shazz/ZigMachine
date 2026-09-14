@@ -64,6 +64,7 @@ const scene = switch (opts.index) {
     51 => @import("scenes/union_tnt1.zig"),
     52 => @import("scenes/union_reps.zig"),
     53 => @import("scenes/union_tnt2.zig"),
+    54 => @import("scenes/union_beatdis.zig"),
     else => @compileError("bad cart index"),
 };
 

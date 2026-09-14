@@ -44,6 +44,7 @@ for t in \
     libs/zig/effects/copper_test.zig \
     libs/zig/effects/palette_test.zig \
     libs/zig/effects/scrollring_test.zig \
+    libs/zig/effects/pathchain_test.zig \
     libs/zig/effects/wave_test.zig \
     libs/zig/effects/spans_test.zig \
     libs/zig/effects/ballfield_test.zig \
@@ -125,4 +126,6 @@ node apps/union_l16_headless.mjs "$SHOTS"   # L16: loader depack, both overscan 
 node apps/union_tnt1_headless.mjs "$SHOTS"   # TNT1 Starballs: TEX loader depack, screen.js replay (keys 5, 0), Pandora plays
 node apps/union_reps_headless.mjs "$SHOTS"   # REPS: loader depack, screen.js replayed with the joystick, the SNDH plays
 node apps/union_tnt2_headless.mjs "$SHOTS"   # TNT2: TEX loader depack, screen.js + its keys replayed pixel for pixel, Cybernoid plays
+node apps/union_beatdis_headless.mjs "$SHOTS"   # TCB1: loader depack + question, both versions replayed pixel for pixel, both SNDHs play
+node apps/union_beatdis_headless.mjs --break keylock "$SHOTS"   # ...and a key lock that releases between repeats fails the hold check
 echo "shots in $SHOTS"

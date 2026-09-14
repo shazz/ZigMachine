@@ -29,6 +29,7 @@ pub const charpanel = @import("effects/charpanel.zig"); // self-writing characte
 pub const blit = @import("effects/blit.zig"); // clipped signed blits: Dst/Image/Ink
 pub const palette = @import("effects/palette.zig"); // scale colours from a base palette (fades)
 pub const scrollring = @import("effects/scrollring.zig"); // CODEF letter-ring scroller state
+pub const pathchain = @import("effects/pathchain.zig"); // sprites trailing each other along one ripped path
 pub const wave = @import("effects/wave.zig"); // CODEF FX.siny: SineSum + column-shifted strip blit
 pub const spans = @import("effects/spans.zig"); // comptime ink runs of a sparse overlay
 pub const codef3d = @import("effects/codef3d.zig"); // CODEF codef3D (three.js r49 canvas faces), replayed exactly
