@@ -103,6 +103,21 @@ test "pattern colours by destination position and clips to its extent" {
     try expectEqualSlices(u8, &.{ BG, 72, 73, BG }, buf[W .. W + 4]);
 }
 
+test "select draws only where the destination is, or is not, in the set" {
+    var buf: [W * H]u8 = undefined;
+    const d = fresh(&buf);
+    buf[1] = 40; // one 'opaque' destination pixel under source pixel 2
+    var set = [_]bool{false} ** 256;
+    set[40] = true;
+    b.blit(d, src, null, 0, 0, 1, .{ .select = .{ .set = &set, .inside = true } });
+    try expectEqualSlices(u8, &.{ BG, 2, BG }, buf[0..3]); // atop: only over the 40
+    try expectEqualSlices(u8, &.{ BG, BG, BG }, buf[W .. W + 3]);
+    b.blit(d, src, null, 0, 0, 1, .{ .select = .{ .set = &set, .inside = false } });
+    // around it: 1 is the key, the 40-turned-2 is outside the set now, BG is outside
+    try expectEqualSlices(u8, &.{ BG, 2, 3, BG }, buf[0..4]);
+    try expectEqualSlices(u8, &.{ 4, 5, 6, BG }, buf[W .. W + 4]);
+}
+
 test "window clips and relocates the origin" {
     var buf: [W * H]u8 = undefined;
     const win = fresh(&buf).window(2, 1, 2, 2);
