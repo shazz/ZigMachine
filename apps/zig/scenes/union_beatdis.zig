@@ -32,6 +32,10 @@
 // 33 ms, which would answer the question AND leave the screen. So after the
 // choice, SPACE, RETURN and fire are ignored until none has come for
 // KEY_LOCK_QUIET_MS of frame time: repeats keep it armed, letting go releases it.
+// A held key's FIRST repeat only comes after the keyboard's repeat delay
+// (500 ms is common, X11 defaults to 660), a silence the quiet period alone would
+// take for a release; so the lock also holds for KEY_REPEAT_DELAY_MS after the
+// choice. The price: a second press that quick after the choice is ignored.
 // --------------------------------------------------------------------------
 const zg = @import("zigos");
 const hw = @import("hardware");
@@ -61,6 +65,7 @@ const K_ESC: u32 = 0xE012;
 const K_RETURN: u32 = 13;
 const FIRE: u8 = 5;
 const KEY_LOCK_QUIET_MS: f32 = 100; // three missed repeats
+const KEY_REPEAT_DELAY_MS: f32 = 700; // past a keyboard's first-repeat delay
 const BACK: u8 = 6;
 
 var depack: DepackFx = undefined; // module scope: the runner needs a stable address
@@ -75,6 +80,7 @@ pub const Demo = struct {
     hub: ?hub_note.Note, // the note this screen started from, given back on leaving
     key_lock: bool, // armed by the choice until SPACE/RETURN/fire go quiet
     lock_quiet_ms: f32, // frame time since the last of them while armed
+    lock_age_ms: f32, // frame time since the choice armed it
     leave: bool,
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
@@ -83,6 +89,7 @@ pub const Demo = struct {
         self.hub = null;
         self.key_lock = false;
         self.lock_quiet_ms = 0;
+        self.lock_age_ms = 0;
         self.leave = false;
         self.screen.init(.k1024, 0);
         const buf = freeRam(A.TOTAL) orelse return self.abandon("no free RAM to depack into");
@@ -95,7 +102,8 @@ pub const Demo = struct {
     pub fn update(self: *Demo, zigos: *ZigOS, dt: f32) void {
         if (self.key_lock) {
             self.lock_quiet_ms += dt;
-            if (self.lock_quiet_ms >= KEY_LOCK_QUIET_MS) self.key_lock = false;
+            self.lock_age_ms += dt;
+            if (self.lock_age_ms >= KEY_REPEAT_DELAY_MS and self.lock_quiet_ms >= KEY_LOCK_QUIET_MS) self.key_lock = false;
         }
         switch (self.phase) {
             .loading => switch (depack.frame(zigos)) {
@@ -152,6 +160,7 @@ pub const Demo = struct {
         self.chosen = version;
         self.key_lock = true;
         self.lock_quiet_ms = 0;
+        self.lock_age_ms = 0;
     }
 
     /// SPACE, RETURN or fire while the lock is armed: keep it armed and drop the event.
