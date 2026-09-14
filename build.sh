@@ -68,6 +68,7 @@ done
 tools/mkdisks.sh
 python3 tools/channels.py     # the monitor's +/- channel list (needs the disks)
 python3 tools/cache_bust.py   # docs/*.html ?v= = content hash of each script/CSS (stale-cache guard)
+python3 tools/gen_docs.py --check   # ZIGMACHINE_GUIDE.html regenerated from MUSIC.md, FLOPPY_DISK.md and the sources
 node apps/disk_check.mjs
 node apps/upload_check.mjs    # an uploaded disk mounts exactly like a URL one; bad uploads refused
 
