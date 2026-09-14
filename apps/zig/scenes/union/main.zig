@@ -127,21 +127,22 @@ pub const Demo = struct {
     //     Go_Mmh2/150_mph.sndh ("STMYGM 2 version"), its only tune: 95.9% of
     //     cells at offset 0, but only 78.1% of frames fully matching and 92.4%
     //     over 3000 frames; channel A plays an octave apart (another
-    //     arrangement). Matt accepted it on 2026-09-13. Tao/Steps/150_mph.sndh
-    //     derails on its first frame (timer A/D SID code writes $110/$134
-    //     inside an image loaded at $0): re-test it after fix/sndh-relocate;
-    //     it may be the exact match and replace this one. TSD_STe/150_mph is
-    //     STE DMA (~ey): silent here, 42.6%.
+    //     arrangement). Matt accepted it on 2026-09-13. Re-tested once images
+    //     loaded at $10002 (#91): Tao/Steps/150_mph.sndh now runs, 94.3% of
+    //     cells, 49.4% of frames: periods 100%, but its timer SID zeroes vol 9
+    //     between 50 Hz samples. Lower on both counts, so Mmh2 stays.
+    //     TSD_STe/150_mph is STE DMA (~ey): silent here, 42.6%.
     //   5 Lap33.ymraw (header "LAP 22 (e.g. BMT screen/PYM)", Lap/Next, conv.
     //     Senser/Vectronix) == Lap/Lap_33.sndh: 100.0% (every frame whole) at
     //     offset -24, its only tune; FLAG ~y, peak 0.68. The "22" was a typo.
-    // Tracks 3,4,6 stay .ymraw (archive re-searched by TITL/COMM/filename):
-    //   Androids: Tao/Steps/Androids.sndh 87.1% (its timer-A SID zeroes vols
-    //     9/10 between 50 Hz samples; derails at frame 768); Mmh2 version 76.8%.
+    // Tracks 3,4,6 stay .ymraw (archive re-searched by TITL/COMM/filename;
+    // SID tunes re-measured with images at $10002, #91):
+    //   Androids: Tao/Steps/Androids.sndh 89.4% of cells, 27.4% of frames
+    //     (periods 100%, its timer SID zeroes vols 9/10 between 50 Hz
+    //     samples); Mmh2 version 76.8%.
     //   Drooling: 505/Drooling.sndh 61.6% (an STE DMA replay, not this dump).
-    //   Reality: Big_Alec/Reality.sndh derails in init (stuck PC, silent; it
-    //     writes $110 inside the image): blocked on the SNDH relocate fix.
-    // Re-measure 150mph (Steps), Androids and Reality once SNDH images relocate.
+    //   Reality: Big_Alec/Reality.sndh now runs: 94.5% of cells, 50.1% of
+    //     frames (periods 100%, its timer-D SID zeroes vol 10): under 95%.
     const TRACKS = [_][]const u8{
         "union/sharpness_buzztone.sndh",
         "union/150_mph.sndh",
