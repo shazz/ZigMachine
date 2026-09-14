@@ -49,6 +49,8 @@ for t in \
     libs/zig/effects/tilegrid_test.zig \
     libs/zig/effects/codef3d_test.zig \
     libs/zig/effects/canvas_poly_test.zig \
+    libs/zig/effects/canvas_rows_test.zig \
+    libs/zig/effects/colour_bank_test.zig \
     libs/zig/shapes_test.zig \
     libs/zig/wireframe_test.zig \
     libs/zig/tvnoise/tvnoise.zig \
@@ -118,4 +120,5 @@ node apps/stream_pacing_check.mjs   # streamed audio tracks wall time at 18 fps,
 node apps/union_deltaforce_headless.mjs "$SHOTS"   # DELTA FORCE: TEX loader depack, screen.js replayed pixel for pixel, the SNDH plays
 node apps/union_texcopier_headless.mjs "$SHOTS"   # COPIER TEX: loader depack, screen.js replay incl. Chrome's blends, Scoop plays
 node apps/union_tnt3_headless.mjs "$SHOTS"   # TNT3: loader depack, then screen.js + three.js r49 replayed pixel for pixel
+node apps/union_l16_headless.mjs "$SHOTS"   # L16: loader depack, both overscan planes = screen.js replay, SNDH plays, Esc
 echo "shots in $SHOTS"

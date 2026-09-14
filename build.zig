@@ -136,6 +136,12 @@ pub fn build(b: *std.Build) void {
     pack_tnt3.addFileArg(b.path("apps/zig/assets/screens/union_tnt3/loader_tnt3.txt"));
     pack_tnt3.addFileArg(b.path("apps/zig/assets/screens/union_tnt3/tnt3.bin"));
     const tnt3_zx0 = pack_tnt3.addOutputFileArg("union_tnt3.zx0");
+    // The Union Demo LEVEL 16 FULLSCREEN, behind screens/L16/loader.js's panel.
+    const pack_l16 = b.addRunArtifact(zx0pack);
+    pack_l16.addArgs(&.{ "--fx", "tex_loader", "--panel" });
+    pack_l16.addFileArg(b.path("apps/zig/assets/screens/union_l16/loader_l16.txt"));
+    pack_l16.addFileArg(b.path("apps/zig/assets/screens/union_l16/l16.bin"));
+    const l16_zx0 = pack_l16.addOutputFileArg("union_l16.zx0");
     const packed_files = b.addWriteFiles();
     _ = packed_files.addCopyFile(trsi_zx0, "trsi_turn.zx0");
     _ = packed_files.addCopyFile(multifake_zx0, "union_multifake.zx0");
@@ -145,6 +151,7 @@ pub fn build(b: *std.Build) void {
     _ = packed_files.addCopyFile(deltaforce_zx0, "union_deltaforce.zx0");
     _ = packed_files.addCopyFile(texcopier_zx0, "union_texcopier.zx0");
     _ = packed_files.addCopyFile(tnt3_zx0, "union_tnt3.zx0");
+    _ = packed_files.addCopyFile(l16_zx0, "union_l16.zx0");
     // MPP TRUECOLOR's gallery: one blob per picture and mode (tools/mpp_convert.py).
     // Unpacked they overflow the cart window, so the scene depacks only the one on
     // screen. MPP_PICTURES follows the converter's PICTURES list.
@@ -173,6 +180,7 @@ pub fn build(b: *std.Build) void {
             \\pub const union_deltaforce = @embedFile("union_deltaforce.zx0");
             \\pub const union_texcopier = @embedFile("union_texcopier.zx0");
             \\pub const union_tnt3 = @embedFile("union_tnt3.zx0");
+            \\pub const union_l16 = @embedFile("union_l16.zx0");
             \\{s}}};
             \\
         , .{mpp_decl})),
@@ -347,6 +355,7 @@ pub fn build(b: *std.Build) void {
         "demo-union_deltaforce", // 47 — The Union Demo / DELTA FORCE Sphericool screen (melonJS remake)
         "demo-union_texcopier", // 48 — The Union Demo / COPIER TEX, TEX's copy program (melonJS remake)
         "demo-union_tnt3", // 49 — The Union Demo / TNT3, the TNT Crew's vector screen (melonJS remake)
+        "demo-union_l16", // 50 — The Union Demo / LEVEL 16 FULLSCREEN (melonJS remake)
     };
     for (cart_names, 0..) |name, idx| {
         if (name.len == 0) continue; // excluded cart (see note above)

@@ -1,0 +1,27 @@
+# The Union Demo LEVEL 16 FULLSCREEN loader panel (Union-Demo-HTML5-Remake-0.9.8,
+# screens/L16/loader.js, loaderText[0..22]): 23 rows of 20. build.zig packs
+# l16.bin with it:
+#   zx0pack --fx tex_loader --panel apps/zig/assets/screens/union_l16/loader_l16.txt <in> <out>
+"                    "
+"                    "
+"LEVEL 16 FULLSCREEN "
+"                    "
+"  PROGRAM BY ILJA   "
+"  GRAPHICS BY DON   "
+" SOUND  BY MAD MAX  "
+"COMPOSED BY MAD MAX "
+"                    "
+"SPECIAL THANX TO JAN"
+"AND STEPHANE FOR THE"
+"      F O N T       "
+"    ONE BUBBLE      "
+"AND !%&%$/(&) BY ES "
+"                    "
+" PLEASE WAIT WHILE  "
+"   DECOMPRESSING    "
+"                    "
+"                    "
+"                    "
+"                    "
+"                    "
+"                    "
