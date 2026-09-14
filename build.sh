@@ -69,6 +69,7 @@ tools/mkdisks.sh
 python3 tools/channels.py     # the monitor's +/- channel list (needs the disks)
 python3 tools/cache_bust.py   # docs/*.html ?v= = content hash of each script/CSS (stale-cache guard)
 node apps/disk_check.mjs
+node apps/upload_check.mjs    # an uploaded disk mounts exactly like a URL one; bad uploads refused
 
 # --- headless harnesses: each drives the real machine end to end -----------
 # Shots go to a scratch dir so a build does not litter the repo. These cover

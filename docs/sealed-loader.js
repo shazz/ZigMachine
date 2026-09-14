@@ -67,67 +67,25 @@ function consoleLogJS(ptr, len) {
 let mountedDisk = null; // { buf, files: {NAME: {start,len}} } — the currently inserted disk
 
 async function mountDisk(url) {
-    const buf = new Uint8Array(await fetch(url + BUST).then((r) => r.arrayBuffer()));
-    // Format v2: block 0 is an EXECUTABLE boot sector — a wasm module (\0asm), with the
-    // descriptor at $400 (see docs/FLOPPY_DISK.md). v1 has the "ZMDISK" descriptor at $0.
-    if (buf[0] === 0x00 && buf[1] === 0x61 && buf[2] === 0x73 && buf[3] === 0x6d)
-        return mountDiskV2(url, buf);
-    if (String.fromCharCode(...buf.subarray(0, 6)) !== "ZMDISK")
-        throw new Error("not a ZigMachine disk: " + url);
-    // Executability (ST-style): boot sector's 256 big-endian words sum to 0x1234 for
-    // a BOOTABLE disk; a DATA disk sums to 0x0000 and boots the OS (GEM) instead.
-    let sum = 0;
-    for (let i = 0; i < 256; i++) sum = (sum + ((buf[2 * i] << 8) | buf[2 * i + 1])) & 0xFFFF;
-    const bootable = sum === 0x1234;
-    if (!bootable && sum !== 0x0000)
-        throw new Error("disk corrupt: boot-sector checksum 0x" + sum.toString(16));
-    const dv = new DataView(buf.buffer);
-    const blockSize = dv.getUint16(0x08, true);
-    const bootBlock = dv.getUint32(0x0e, true);
-    const bootLen = dv.getUint32(0x12, true);
-    const title = text_decoder.decode(buf.subarray(0x200, 0x240)).replace(/\0.*$/, "");
-    // FAT: flat file table at $300 (see docs/FLOPPY_DISK.md).
-    const nFiles = dv.getUint16(0x2e4, true);
-    const files = {};
-    for (let i = 0; i < nFiles; i++) {
-        const e = 0x300 + i * 32;
-        const name = text_decoder.decode(buf.subarray(e, e + 16)).replace(/\0.*$/, "");
-        files[name] = { start: dv.getUint32(e + 0x10, true), len: dv.getUint32(e + 0x14, true), type: buf[e + 0x18] };
-    }
-    mountedDisk = { buf, files };
-    const start = bootBlock * blockSize;
-    console.log(`Mounted "${title}" — ${bootable ? "bootable" : "DATA disk"}, ${nFiles} FAT file(s)`);
-    return { bootable, cart: bootable ? buf.buffer.slice(start, start + bootLen) : null };
+    return mountDiskBytes(new Uint8Array(await fetch(url + BUST).then((r) => r.arrayBuffer())), url);
 }
 
-// Format v2: the 1 KB boot sector IS an executable wasm module (its 512 big-endian
-// words sum to $1234). We hand the loader those 1 KB to instantiate FIRST; the boot
-// program then asks (pollCartRequest() == 2) to CHAINLOAD the real cart, whose pointer
-// lives in the descriptor at $400. Regions: boot [0,1K) · descriptor [1K,2K) · FAT
-// [2K,3K) · data [3K,). Streaming stays 512-byte blocks.
-function mountDiskV2(url, buf) {
-    let sum = 0;
-    for (let i = 0; i < 512; i++) sum = (sum + ((buf[2 * i] << 8) | buf[2 * i + 1])) & 0xFFFF;
-    const bootable = sum === 0x1234; // else: not executable -> treat as a data disk (GEM)
-    const dv = new DataView(buf.buffer);
-    if (String.fromCharCode(...buf.subarray(0x400, 0x406)) !== "ZMDISK")
-        throw new Error("v2 disk: bad descriptor magic");
-    const cartBlock = dv.getUint32(0x408, true);
-    const cartLen = dv.getUint32(0x40c, true);
-    const title = text_decoder.decode(buf.subarray(0x410, 0x450)).replace(/\0.*$/, "");
-    const nFiles = dv.getUint16(0x4f4, true);
-    const files = {}; // FAT at $800, same 32-byte entries as v1
-    for (let i = 0; i < nFiles; i++) {
-        const e = 0x800 + i * 32;
-        const name = text_decoder.decode(buf.subarray(e, e + 16)).replace(/\0.*$/, "");
-        files[name] = { start: dv.getUint32(e + 0x10, true), len: dv.getUint32(e + 0x14, true), type: buf[e + 0x18] };
+// Insert a disk image held in memory: a fetched URL or a visitor's upload
+// (upload-cart.js) go through this same parse, so both leave the drive in the
+// same state for diskReadBlock. The parser is docs/zmdisk.js (shared with the
+// node checks). v1: "ZMDISK" boot sector at $0, $1234 = bootable, $0000 = data
+// disk (GEM). v2: the 1 KB boot sector IS a wasm module that chainloads the cart
+// (swapCart req 2) from the descriptor at $400. Returns { bootable, cart[, v2] }.
+function mountDiskBytes(buf, name) {
+    if (!globalThis.ZMDisk) throw new Error(`zmdisk.js not loaded: cannot mount ${name}`);
+    const d = globalThis.ZMDisk.parseDisk(buf, name);
+    mountedDisk = d.mounted;
+    if (d.v2) {
+        console.log(`Mounted v2 "${d.title}" — ${d.bootable ? "executable boot sector" : "data disk"}, ${d.nFiles} FAT file(s)`);
+        return { bootable: d.bootable, v2: true, cart: d.cart };
     }
-    const cartStart = cartBlock * 512;
-    const date = dv.getUint32(0x4f0, true); // descriptor $4F0 YYYYMMDD (disk build date)
-    mountedDisk = { buf, files, date, v2: true, chainCart: { start: cartStart, len: cartLen } };
-    console.log(`Mounted v2 "${title}" — ${bootable ? "executable boot sector" : "data disk"}, ${nFiles} FAT file(s)`);
-    // Run the 1 KB boot sector first; it chainloads the cart (swapCart req 2).
-    return { bootable, v2: true, cart: bootable ? buf.buffer.slice(0, 1024) : null };
+    console.log(`Mounted "${d.title}" — ${d.bootable ? "bootable" : "DATA disk"}, ${d.nFiles} FAT file(s)`);
+    return { bootable: d.bootable, cart: d.cart };
 }
 
 // Read a named file from the mounted disk's FAT (streaming a whole file for now).
@@ -845,6 +803,8 @@ function startAudio() {
             audioCtx = null;
             return;
         }
+        // Does the browser honour the requested 44100 Hz? (A suspect for choppy streamed music.)
+        console.log("audio: context sampleRate", audioCtx.sampleRate);
         await audioCtx.audioWorklet.addModule("audio-worklet-sealed.js" + BUST);
         audioNode = new AudioWorkletNode(audioCtx, "zig-audio-sealed", {
             numberOfInputs: 0,

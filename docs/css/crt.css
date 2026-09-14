@@ -45,6 +45,22 @@ body {
   background-color: #858585;
 }
 
+.upload_button {
+  position: absolute;
+  margin-left: 505px;
+  margin-top: 665px;
+  z-index: 101;
+  border-radius: 5px;
+  border-color: darkgrey;
+  color: rgb(255, 255, 255);
+  background-color: #858585;
+}
+
+/* A file dragged over the monitor (docs/upload-cart.js). */
+.stage.drop-armed .monitor {
+  filter: drop-shadow(0 0 14px #7dff9b) brightness(1.12);
+}
+
 .container {
   background: #121010;
   width: 800px;
