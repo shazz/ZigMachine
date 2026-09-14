@@ -96,7 +96,9 @@ machine, shoots start/middle/end and checks the depacked bytes. The first screen
 to ship behind it is the Union Demo's TCB3 MULTIFAKE (`union_multifake`): its
 pictures (156,511 bytes) are packed with `screens/multifake/loader.js`'s panel in
 `build.zig` and depack at 6 bytes a line, 94 frames
-(`apps/union_multifake_headless.mjs`).
+(`apps/union_multifake_headless.mjs`). DELTA FORCE (`union_deltaforce`) followed:
+186,774 bytes behind `screens/deltaforce/loader.js`'s 19-column panel, 7 bytes a line,
+96 frames (`apps/union_deltaforce_headless.mjs`).
 
 **automation**, what is authentic and what is adapted. It is the fake depack
 screen that opened the Replicants' Kick Off 2 remake (CODEF screen 168,

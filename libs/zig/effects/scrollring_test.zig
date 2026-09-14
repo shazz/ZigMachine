@@ -54,6 +54,18 @@ test "letters wrapping in the same frame take characters in array order" {
     try expectEqual([2]u8{ 'C', 'D' }, r.c);
 }
 
+test "skip passes over a marker so the next wrap takes the character after it, wrapping" {
+    var r = Ring(i32, 1).init("AbC", 0, 10);
+    try expectEqual(@as(u8, 'b'), r.upcoming());
+    r.skip();
+    try expectEqual(@as(u8, 'C'), r.upcoming());
+    _ = r.step(10);
+    try expectEqual(@as(u8, 'C'), r.c[0]);
+    try expectEqual(@as(u8, 'A'), r.upcoming()); // after the last character, back to the first
+    r.skip();
+    try expectEqual(@as(u8, 'b'), r.upcoming());
+}
+
 test "setText restarts at the new text's first character" {
     var r = Ring(i32, 1).init("XYZ", 0, 10);
     r.setText("Q");
