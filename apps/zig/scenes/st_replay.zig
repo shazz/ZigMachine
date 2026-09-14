@@ -50,7 +50,7 @@ const SILENCE: u8 = 0; // .raw samples are SIGNED 8-bit, so silence is zero
 // had 603 KB free, so the sampler grew to 1.5 MiB (+512 KB), leaving about 90 KB
 // for stack and heap. Grow it again only against check_fits' measured free count.
 const MAX_PCM: usize = 1536 * 1024;
-const FRAME_HZ: u32 = 60;
+const RING: usize = 32768; // the audio ring (STREAM_RING in demo_audio_main.zig)
 const PLANE: u32 = 0; // the app owns plane 0
 
 // The sample itself, in machine RAM. Module-level, NOT a field of App — which is
@@ -81,6 +81,7 @@ pub const App = struct {
     fsel: rom.FileSel = .{}, // GEM's ITEM SELECTOR, opened by "Load from disc"
     sample: [WAVE_LEN]u8 = [_]u8{SILENCE} ** WAVE_LEN, // the display view, built here
     pos: usize = 0, // how far the replay has fed the audio ring
+    budget: f32 = 0, // fractional bytes owed to the ring (paces the feed to dt)
     rate: usize = 2, // index into ui.RATES; the real thing boots at 10 KHz
     playing: bool = false,
     looping: bool = false,
@@ -195,6 +196,7 @@ pub const App = struct {
         self.dialog = rom.Dialog.open();
         self.playhead = 0;
         self.pos = 0;
+        self.budget = 0;
         self.bytes = 0;
         self.low = 0;
         self.looping = false;
@@ -289,6 +291,7 @@ pub const App = struct {
         self.playing = true;
         self.playhead = 0;
         self.pos = 0;
+        self.budget = 0;
         zg.audioStreamStart(@floatFromInt(ui.RATES[self.rate])); // the speaker, nothing more
     }
     fn stop(self: *App) void {
@@ -321,15 +324,23 @@ pub const App = struct {
         _ = os;
         self.g.beginFrame();
         self.clicks();
-        _ = dt;
-        if (self.playing) self.feed();
+        if (self.playing) self.feed(dt);
     }
 
     // One frame of replay: hand the speaker the next slice of OUR sample. At the
-    // selected rate that is rate/60 bytes a frame — the pace is the machine's, so
-    // f1..f6 change the pitch simply by changing how much we feed.
-    fn feed(self: *App) void {
-        const chunk: usize = @as(usize, ui.RATES[self.rate]) / FRAME_HZ;
+    // selected rate that is rate * dt bytes — f1..f6 change the pitch simply by
+    // changing how much we feed. It is paced by the frame's REAL dt, not rate/60:
+    // the speaker plays on its own clock, so a fixed slice overran the ring at
+    // 144 Hz and starved it at 18 fps (apps/stream_pacing_check.mjs).
+    fn feed(self: *App, dt: f32) void {
+        self.budget += @as(f32, @floatFromInt(ui.RATES[self.rate])) * @max(dt, 0) / 1000.0;
+        var chunk: usize = @intFromFloat(self.budget);
+        self.budget -= @floatFromInt(chunk);
+        // Whole rings of backlog (a hidden tab) would only lap the ring onto itself:
+        // skip them in the sample and feed the rest.
+        const skip = chunk - chunk % RING;
+        self.pos = @min(self.pos + skip, @as(usize, self.bytes));
+        chunk -= skip;
         const end = @min(self.pos + chunk, @as(usize, self.bytes));
         if (end > self.pos) {
             zg.audioFeed(pcm[self.pos..end]);
