@@ -16,6 +16,7 @@ const std = @import("std");
 const zg = @import("zigos");
 const ZigOS = zg.ZigOS;
 const Doors = @import("union/doors.zig").Doors;
+const UnionMain = @import("union/main.zig").Demo;
 const trsi = @import("union/trsi.zig");
 const DepackFx = @import("depackers").depack_fx.Runner(zg, null); // rasters: no tvnoise needed
 
@@ -84,6 +85,13 @@ pub const Demo = struct {
     }
 
     fn startPart(self: *Demo, zigos: *ZigOS) void {
+        // The music starts with the TRSI logo, the first part (Matt). The Codef
+        // remake (intro/index.html init()) starts Sharpness Buzztone together
+        // with its sequencer, whose first effect is the TRSI logo. The RASTERS
+        // depack before it is ZigMachine's stand-in for the remake's image
+        // loader, so the request comes once it is done. requestTrack skips a
+        // repeat, so later parts and the main screen keep the tune playing.
+        UnionMain.requestTrack(UnionMain.TRACKS[0]);
         switch (SEQ[self.idx]) {
             inline else => |t| {
                 self.active = @unionInit(Active, @tagName(t), .{});

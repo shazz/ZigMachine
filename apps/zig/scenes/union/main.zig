@@ -146,7 +146,7 @@ pub const Demo = struct {
     //   Androids: Tao/Steps/Androids.sndh 89.4% of cells, 27.4% of frames
     //     (periods 100%, its SID zeroes vols 9 AND 10); Mmh2 version 76.8%.
     //   Drooling: 505/Drooling.sndh 61.6% (an STE DMA replay, not this dump).
-    const TRACKS = [_][]const u8{
+    pub const TRACKS = [_][]const u8{
         "union/sharpness_buzztone.sndh",
         "union/150_mph.sndh",
         "union/Androids.ymraw",
@@ -160,7 +160,7 @@ pub const Demo = struct {
         self.frame = 0;
         self.grad_idx = 0;
         self.grad_inc = 1;
-        zg.requestSong(TRACKS[0]); // autoplay track 1 (host plays it by name)
+        requestTrack(TRACKS[0]); // autoplay track 1, unless union_intro already started it
         const p0: *LogicalFB = &zigos.lfbs[0];
         p0.is_enabled = true;
         p0.setOverscanBuffer();
@@ -226,7 +226,16 @@ pub const Demo = struct {
     // Keys 1-6 switch the YM tune — request the track BY NAME (host plays it).
     pub fn setShadeMode(self: *Demo, mode: u32) void {
         _ = self;
-        if (mode < TRACKS.len) zg.requestSong(TRACKS[mode]);
+        if (mode < TRACKS.len) requestTrack(TRACKS[mode]);
+    }
+
+    /// Ask the host for `name` unless it is the tune asked for last, so a
+    /// playing track is never restarted. union_intro starts track 1 with the
+    /// TRSI logo and main must not start it again. The Codef remake's keys 1-6
+    /// do the same: they only switch when `currentTrack != n`.
+    pub fn requestTrack(name: []const u8) void {
+        if (@import("std").mem.eql(u8, zg.songNamePtr()[0..zg.songNameLen()], name)) return;
+        zg.requestSong(name);
     }
 
     fn fill(fb: *LogicalFB, y0: i16, y1: i16, idx: u8) void {
