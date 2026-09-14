@@ -61,10 +61,11 @@ test "faces sort far to near, ties keeping their order" {
         .{ .x = 0, .y = 0, .z = 0 },   .{ .x = 0, .y = 10, .z = 0 },   .{ .x = 10, .y = 0, .z = 0 }, // near
         .{ .x = 0, .y = 0, .z = -50 }, .{ .x = 0, .y = 10, .z = -50 }, .{ .x = 10, .y = 0, .z = -50 }, // far
     };
+    // wound clockwise on screen, (0,0) -> (10,0) -> (0,10): the other way is culled
     const faces = [_]c3.Face{
-        .{ .v = .{ 0, 1, 2, 0 }, .n = 3, .ink = 1 },
-        .{ .v = .{ 3, 4, 5, 0 }, .n = 3, .ink = 2 },
-        .{ .v = .{ 0, 1, 2, 0 }, .n = 3, .ink = 3 },
+        .{ .v = .{ 0, 2, 1, 0 }, .n = 3, .ink = 1 },
+        .{ .v = .{ 3, 5, 4, 0 }, .n = 3, .ink = 2 },
+        .{ .v = .{ 0, 2, 1, 0 }, .n = 3, .ink = 3 },
     };
     const lens = c3.Lens.init(640, 400, 25, 1, 10000);
     const m = c3.mesh(&verts, &faces);

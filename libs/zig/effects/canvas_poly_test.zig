@@ -28,7 +28,7 @@ test "edges are half-open: a sample on the top or left edge is in, on the bottom
 
 test "winding is nonzero: a doubly wound square fills once, a bowtie fills both lobes" {
     var buf = [_]u8{0} ** (10 * 10);
-    poly.fill(Dst.buffer(&buf, 10), &.{ .{ 0, 0 }, .{ 20, 0 }, .{ 20, 20 }, .{ 0, 20 }, .{ 20, 0 }, .{ 20, 20 } }, 3);
+    poly.fill(Dst.buffer(&buf, 10), &.{ .{ 0, 0 }, .{ 20, 0 }, .{ 20, 20 }, .{ 0, 20 }, .{ 0, 0 }, .{ 20, 0 }, .{ 20, 20 }, .{ 0, 20 } }, 3);
     try expectEqual(@as(usize, 100), count(&buf, 3));
     @memset(&buf, 0);
     poly.fill(Dst.buffer(&buf, 10), &.{ .{ 0, 0 }, .{ 20, 20 }, .{ 20, 0 }, .{ 0, 20 } }, 4);
