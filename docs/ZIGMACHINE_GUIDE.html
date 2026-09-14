@@ -42,7 +42,7 @@ code { background: #1a2030; padding: 1px 5px; border-radius: 4px; }
 <body>
 <header>
   <h1>ZigMachine — Programmer's Guide</h1>
-  <div class="sub">Generated 2026-09-13 by tools/gen_docs.py · 22 ABI exports · 50 library methods · 94 constants/registers</div>
+  <div class="sub">Generated 2026-09-14 by tools/gen_docs.py · 22 ABI exports · 50 library methods · 94 constants/registers</div>
 </header>
 <div class="wrap">
   <nav><a href="#top">Overview</a><a href="#examples">Examples</a><a href="#0">Tutorial — your first screen (Zig, C, Rust)</a>
@@ -1829,6 +1829,17 @@ zigmachine_music::request_song_tune(&quot;custodian.sndh&quot;, 1);
 <p><code>apps/rust/zigmachine_music.rs</code> is the Rust twin of the C header. Build with
 <code>bash apps/rust/build.sh</code>. Example: <code>apps/rust/scenes/v8_populous.rs</code>, which
 plays David Whittaker's Custodian (<code>custodian.sndh</code>, subtune 1).</p>
+<h2>Stopping the music</h2>
+<p><code>"none"</code> is a reserved song name: requesting it stops whatever is playing (the
+host resets the audio players, as it does when a program ends). No file under
+<code>docs/music/</code> may be called <code>none</code>. A stop also cancels a song still being
+fetched, so a slow earlier request can never start after it.</p>
+<pre><code class="language-zig">zg.stopSong();          // Zig
+</code></pre>
+<pre><code class="language-c">zm_stop_song();         // C
+</code></pre>
+<pre><code class="language-rust">zigmachine_music::stop_song();   // Rust
+</code></pre>
 <h2>Rules and limits</h2>
 <ul>
 <li><strong>Names</strong> are paths under <code>docs/music/</code>, at most 64 bytes, no <code>..</code> and no

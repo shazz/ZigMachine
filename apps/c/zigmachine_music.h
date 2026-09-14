@@ -56,6 +56,11 @@ static inline int zm_request_song(const char *name) {
     return zm_request_song_tune(name, 0);
 }
 
+// Stop whatever is playing: "none" is the host's reserved stop name.
+static inline int zm_stop_song(void) {
+    return zm_request_song("none");
+}
+
 // --- the exports the host polls (sealed-loader.js, once per frame) ---------
 // 1 = a new request is pending; reading it clears it, so each request plays once.
 __attribute__((export_name("pollSongRequest")))

@@ -53,6 +53,11 @@ pub fn request_song(name: &str) -> bool {
     request_song_tune(name, 0)
 }
 
+/// Stop whatever is playing: "none" is the host's reserved stop name.
+pub fn stop_song() -> bool {
+    request_song("none")
+}
+
 // --- the exports the host polls (sealed-loader.js, once per frame) ----------
 /// 1 = a new request is pending; reading it clears it, so each request plays once.
 #[no_mangle]

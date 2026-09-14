@@ -149,6 +149,15 @@ pub fn requestSong(name: []const u8) void {
     requestSongTune(name, 0);
 }
 
+/// The reserved song name that asks the host to STOP whatever is playing (it
+/// resets the audio players, as it does when a program ends). No file may use it.
+pub const SONG_STOP = "none";
+
+/// Silence the current tune, e.g. for a loader panel that plays no music.
+pub fn stopSong() void {
+    requestSong(SONG_STOP);
+}
+
 /// Same, for a multi-subtune image: `tune` counts from 1, and 0 means "the
 /// image's own default". An SNDH can hold many songs (Leavin Teramis holds 11)
 /// and the file name alone cannot say which one a screen wants.

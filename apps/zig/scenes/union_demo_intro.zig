@@ -271,6 +271,8 @@ pub const Demo = struct {
         if (self.depacking or self.wants_quit) return;
         if (!self.credits) {
             self.credits = true; // onDestroyEvent of the intro, onResetEvent of demoLoader
+            // demoLoader stops the intro tune for zik_loader.ogg; Matt: silence for now.
+            zg.stopSong();
             self.credits_ticks = 0;
             self.credits_clock = 0;
         } else if (self.credits_ticks * TWEEN_TICK_MS >= CREDITS_LANDED_MS) {
