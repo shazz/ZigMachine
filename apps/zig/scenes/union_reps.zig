@@ -19,6 +19,8 @@
 // the screen's pictures ship ZX0-packed with fx = tex_loader and this panel
 // (build.zig). The loader's "PRESS SPACE" wait is not kept.
 //
+// The scrollers start where the hub's scroller was, and hand their position
+// back when leaving (jsApp.mainscrollerPos, through the hub's ROM-scratch note).
 // Joystick left/right speeds the scrollers up and down; Escape or Space
 // (screen.js:182-186, 'exit' / 'enter') goes back to the hub.
 // --------------------------------------------------------------------------
@@ -29,7 +31,11 @@ const Color = zg.Color;
 const blit = zg.blit;
 const DepackFx = @import("depackers").depack_fx.Runner(zg, null);
 const packed_assets = @import("packed_assets");
+const std = @import("std");
+const rom = @import("rom_sdk");
 const Controls = @import("union_demo/controls.zig").Controls;
+const return_note = @import("union_demo/return_note.zig");
+const doors = @import("union_demo/doors.zig");
 
 const A = @import("union_reps/assets.zig");
 const layers = @import("union_reps/layers.zig");
@@ -44,6 +50,15 @@ const HUB = "union_demo";
 const DEPACK_BYTES_PER_LINE = 6;
 const UNION_BOTTOM_Y = 156; // scrollOverlay.draw(maincanvas, 0, 312)
 const K_ESC: u32 = 0xE012;
+const STEP_MS: f32 = 1000.0 / 60.0; // the screen steps once a frame
+const TAG = "union_reps";
+/// This screen's index in doors.DOORS: what the hub's note names as its door.
+const MY_DOOR: usize = blk: {
+    for (doors.DOORS, 0..) |d, i| {
+        if (d.tag) |t| if (std.mem.eql(u8, t, TAG)) break :blk i;
+    }
+    @compileError("no door launches " ++ TAG);
+};
 
 // Module scope: the runner needs a stable address.
 var depack: DepackFx = undefined;
@@ -58,6 +73,7 @@ pub const Demo = struct {
     sprites: layers.Sprites,
     scroller: Scroller,
     controls: Controls,
+    hub_note: ?return_note.Note, // the hub's note for this door, when it left one
     leave: bool,
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
@@ -66,7 +82,8 @@ pub const Demo = struct {
         self.bars.init();
         self.rasters.init();
         self.sprites.init();
-        self.scroller.init();
+        self.hub_note = hubNote();
+        self.scroller.init(if (self.hub_note) |n| n.scroll else 0);
         self.controls.init();
         const buf = freeRam(A.TOTAL) orelse return fail("no free RAM to depack into");
         if (!depack.start(zigos, packed_assets.union_reps, buf, DEPACK_BYTES_PER_LINE))
@@ -92,7 +109,7 @@ pub const Demo = struct {
         const held = self.controls.state();
         if (held.left) self.scroller.faster() else if (held.right) self.scroller.slower();
         self.scroller.update();
-        self.controls.tick();
+        self.controls.tick(STEP_MS);
     }
 
     pub fn render(self: *Demo, zigos: *ZigOS, dt: f32) void {
@@ -113,14 +130,30 @@ pub const Demo = struct {
     /// Host input ids: 0-3 directions, 5 fire, 6 back.
     pub fn input(self: *Demo, dir: u8) void {
         if (dir == 6 or (dir == 5 and self.phase == .running)) {
-            self.leave = true;
+            self.leaveForHub();
         } else if (self.phase == .running) {
             self.controls.input(dir);
         }
     }
 
+    /// Key-up of a Direction, from a host that sends it (demo_main.inputRelease).
+    pub fn inputRelease(self: *Demo, dir: u8) void {
+        self.controls.release(dir);
+    }
+
     pub fn key(self: *Demo, cp: u32) void {
-        if (cp == K_ESC or (cp == ' ' and self.phase == .running)) self.leave = true;
+        if (cp == K_ESC or (cp == ' ' and self.phase == .running)) self.leaveForHub();
+    }
+
+    /// me.state.change(MENU_LOADER), with jsApp.mainscrollerPos kept current from
+    /// scrolltextBlue.scroffset (screen.js:179): the hub's note goes back with the
+    /// blue scroller's offset and Charly's position untouched. No note came in, none
+    /// goes out.
+    fn leaveForHub(self: *Demo) void {
+        self.leave = true;
+        const n = self.hub_note orelse return;
+        const buf = scratch() orelse return;
+        return_note.write(buf, .{ .door = n.door, .x = n.x, .y = n.y, .scroll = @intCast(self.scroller.offset()) });
     }
 
     pub fn pollCart(self: *Demo) i32 {
@@ -143,6 +176,28 @@ pub const Demo = struct {
         self.phase = .running;
     }
 };
+
+/// jsApp.mainscrollerPos at init: the note the hub left in the ROM scratch when
+/// its REPS door launched this cart. Peeked, not spent: the hub spends it when it
+/// comes back. The text is the hub's own, so its offset names the same character
+/// here. null (start at 0, write nothing back) when there is no scratch or no
+/// valid note, when the note is another door's (stale), or when its offset is
+/// past the text.
+fn hubNote() ?return_note.Note {
+    const buf = scratch() orelse return null;
+    const n = return_note.peek(buf) orelse return null;
+    if (n.door != MY_DOOR or n.scroll >= Scroller.TEXT_LEN) return null;
+    return n;
+}
+
+/// The ROM's scratch bytes (rom_sdk.romScratchPtr), or null on a ROM without them:
+/// the page's tolerant env stubs a missing export to return 0.
+fn scratch() ?[]u8 {
+    const len = rom.romScratchLen();
+    const ptr = rom.romScratchPtr();
+    if (len == 0 or ptr == 0) return null;
+    return @as([*]u8, @ptrFromInt(ptr))[0..len];
+}
 
 fn fail(why: []const u8) void {
     zg.Console.log("union_reps: {s}", .{why});

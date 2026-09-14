@@ -13,8 +13,10 @@ const zg = @import("zigos");
 const blit = zg.blit;
 const A = @import("assets.zig");
 
-/// jsApp.scrolltext (main.js:50), the hub's text, byte for byte.
-pub const TEXT = @embedFile("../../assets/screens/union_demo/scrolltext.txt");
+/// jsApp.scrolltext (main.js:50). Byte for byte the hub's text (the tail of
+/// union_demo/menu_assets.bin; union_reps_headless.mjs checks it), so the hub's
+/// scroller offset names the same character here.
+pub const TEXT = @embedFile("../../assets/screens/union_reps/scrolltext.txt");
 
 const FIRST_CHAR = 32; // initTile(64,64,32)
 const GLYPH_C: i32 = 64;
@@ -35,14 +37,25 @@ comptime {
 }
 
 pub const Scroller = struct {
+    pub const TEXT_LEN = TEXT.len;
+
     ring: zg.scrollring.Ring(i32, LETTERS),
     scrollspeed: f64,
 
-    /// init(canvas, font, 4, undefined, 0, jsApp.mainscrollerPos): the menu's
-    /// scroller position is not carried across the cart swap, so offset 0.
-    pub fn init(self: *Scroller) void {
+    /// init(canvas, font, 4, undefined, 0, jsApp.mainscrollerPos): the letters
+    /// take the text from `offset`, the hub scroller's next character. The JS
+    /// reads past the text's end there; like the hub, this wraps.
+    pub fn init(self: *Scroller, offset: usize) void {
         self.ring = zg.scrollring.Ring(i32, LETTERS).init(TEXT, START_C, GLYPH_C);
+        const start = if (offset < TEXT.len) offset else 0;
+        for (&self.ring.c, 0..) |*c, i| c.* = TEXT[(start + i) % TEXT.len];
+        self.ring.next = (start + LETTERS) % TEXT.len;
         self.scrollspeed = 1;
+    }
+
+    /// scrolltextBlue.scroffset: the next character to enter (jsApp.mainscrollerPos).
+    pub fn offset(self: *const Scroller) usize {
+        return self.ring.next;
     }
 
     pub fn faster(self: *Scroller) void {

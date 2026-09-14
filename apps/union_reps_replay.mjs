@@ -19,7 +19,10 @@ const LETTERS = "THE REPLICANTS";
 export async function loadAssets() {
     const bin = new Uint8Array(await readFile(`${ASSETS}/reps.bin`));
     const pal = new Uint8Array(await readFile(`${ASSETS}/pal.dat`));
-    const text = await readFile("apps/zig/assets/screens/union_demo/scrolltext.txt", "latin1");
+    const text = await readFile(`${ASSETS}/scrolltext.txt`, "latin1");
+    const hub = await readFile("apps/zig/assets/screens/union_demo/menu_assets.bin");
+    if (hub.subarray(hub.length - text.length).toString("latin1") !== text) // union_demo/assets.zig: the blob ends with it
+        throw new Error("union_reps/scrolltext.txt is not the hub's scrolltext: the hub's scroller offset would mean another character");
     let at = 0;
     const take = (w, h) => { const img = { px: bin.subarray(at, at + w * h), w, h }; at += w * h; return img; };
     const A = {
@@ -31,12 +34,16 @@ export async function loadAssets() {
     return { A, pal, text };
 }
 
-function scroller(text) { // scrolltext_horizontal.init(canvas 640x64, font, 4, undefined, 0, mainscrollerPos 0)
+function scroller(text, offset) { // scrolltext_horizontal.init(canvas 640x64, font, 4, undefined, 0, jsApp.mainscrollerPos)
     const wide = Math.ceil(640 / 64) + 1, letters = [];
-    let scroffset = 0;
-    for (let i = 0; i <= wide; i++) letters.push({ posx: Math.ceil(wide * 64 + i * 64), ltr: text.charCodeAt(scroffset++) });
+    let scroffset = offset;
+    for (let i = 0; i <= wide; i++) {
+        letters.push({ posx: Math.ceil(wide * 64 + i * 64), ltr: text.charCodeAt(scroffset++) });
+        if (scroffset > text.length - 1) scroffset = 0; // the JS reads past the end here; the hub and REPS wrap
+    }
     return {
         letters,
+        offset: () => scroffset,
         move(speed) { // codef_scrolltext.js:105-134 (the text has no '^' codes)
             for (const l of letters) {
                 l.posx -= speed;
@@ -51,14 +58,14 @@ function scroller(text) { // scrolltext_horizontal.init(canvas 640x64, font, 4, 
     };
 }
 
-export function makeReplay({ A, text }, brk = null) {
+export function makeReplay({ A, text }, brk = null, mainscrollerPos = 0) {
     const s = {
         y1: -168, y2: 0, top: [94, 124, 154], topDir: [2, 2, 2], bottom: [204, 234, 264], bottomDir: [-2, -2, -2],
         counter: Array.from({ length: 14 }, (_, i) => i * 0.5), px: [], py: [], scrollspeed: 1, speed: 4,
     };
     const inc = brk === "sprites" ? 0.07 : 0.08;
     const speeds = brk === "speed" ? [2, 6, 8, 16, 32] : [2, 4, 8, 16, 32];
-    const red = scroller(text), blue = scroller(text);
+    const red = scroller(text, mainscrollerPos), blue = scroller(text, mainscrollerPos);
 
     // update() then the letter walk of scrolltextRed/Blue.draw(0); held is "left", "right" or null
     function step(held) {
@@ -137,5 +144,5 @@ export function makeReplay({ A, text }, brk = null) {
         });
         return map;
     }
-    return { step, render, state: s };
+    return { step, render, state: s, blueOffset: () => blue.offset() };
 }
