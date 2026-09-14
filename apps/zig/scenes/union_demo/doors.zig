@@ -12,6 +12,7 @@
 const std = @import("std");
 const map = @import("../../assets/screens/union_demo/menu_map.zig"); // not assets.zig: tests natively
 const Box = @import("charly.zig").Box;
+const MAP_W = @import("charly.zig").MAP_W;
 
 /// jsApp.ScreenID values (main.js:13-43).
 pub const ScreenId = enum(u16) {
@@ -98,10 +99,14 @@ fn lower(comptime s: []const u8) []const u8 {
 }
 
 /// The door Charly's collision box overlaps (me.Rect.overlaps: strict edges),
-/// as me.game.collide reports it; null when he is in front of none.
+/// as me.game.collide reports it; null when he is in front of none. The street
+/// wraps, so each door is also tried one street-length either side of itself.
 pub fn touching(b: Box) ?usize {
     for (DOORS, 0..) |d, i| {
-        if (b.left < d.x + d.w and d.x < b.right and b.top < d.y + d.h and d.y < b.bottom) return i;
+        if (b.top >= d.y + d.h or d.y >= b.bottom) continue;
+        for ([_]f32{ 0, MAP_W, -MAP_W }) |shift| {
+            if (b.left < d.x + shift + d.w and d.x + shift < b.right) return i;
+        }
     }
     return null;
 }

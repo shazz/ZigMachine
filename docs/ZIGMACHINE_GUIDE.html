@@ -234,7 +234,9 @@ The build scripts pick up every file there.</p>
 runs once. <code>frame(dt)</code> runs every frame. <code>isPlaneEnabled(p)</code> tells the host
 which planes to show. The rest (<code>hblDispatch</code>, <code>skipBoot</code>, <code>setShadeMode</code>,
 <code>pointer</code>, <code>input</code>) must exist even as stubs: the build scripts export all
-eight names, and linking fails if one is missing.</p>
+eight names, and linking fails if one is missing. <code>inputRelease(dir)</code> is
+OPTIONAL and not one of the eight: the host calls it on key-up, only for a cart
+that exports it, so a held direction stops exactly on release.</p>
 <p>A Zig scene does not write these exports. <code>apps/zig/demo_main.zig</code> does, and it
 calls your <code>Demo</code>'s <code>init</code> once, then <code>update</code> and <code>render</code> every frame.</p>
 <h3>Zig</h3>

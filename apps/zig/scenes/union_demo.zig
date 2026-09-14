@@ -7,6 +7,10 @@
 // follows him horizontally; fire in front of one of the eleven doors enters a
 // demo screen. Under the playfield runs the TEX scroller.
 //
+// The street LOOPS, unlike the remake's (its viewport clamps to the map and its
+// collision stops Charly at either end): walking past one end continues from
+// the other, view, banner parallax, collision and doors included.
+//
 // Geometry: the remake's canvas is 640x480 but everything it draws sits in the
 // top 400 rows (map 25x16, HUD down to 395) — an ST 320x200 doubled. Halved
 // onto one normal 320x200 plane; no border is used.
@@ -17,11 +21,14 @@
 // --------------------------------------------------------------------------
 const std = @import("std");
 const zg = @import("zigos");
+const rom = @import("rom_sdk");
 const ZigOS = zg.ZigOS;
 const Color = zg.Color;
 
 const A = @import("union_demo/assets.zig");
 const Charly = @import("union_demo/charly.zig").Charly;
+const MAP_W = @import("union_demo/charly.zig").MAP_W;
+const return_note = @import("union_demo/return_note.zig");
 const Controls = @import("union_demo/controls.zig").Controls;
 const Hud = @import("union_demo/hud.zig").Hud;
 const world = @import("union_demo/world.zig");
@@ -39,10 +46,14 @@ const MUSIC = "union/alloy_run.sndh";
 const MUSIC_TUNE: u8 = 1; // the file's only subtune
 
 const VIEW_W: i32 = 640; // me.video.init('jsapp', 640, 400) (main.js:240)
-const CAM_LIMIT: i32 = @as(i32, @intCast(A.map.COLS * A.map.TILE_W)) - VIEW_W;
 const BANNER_RATIO: f32 = 0.5; // plx_banner "ratio" property (union3.tmx)
 const BANNER_W: f32 = 640; // banner4.png
 const MESSAGE_FRAMES: u16 = 120;
+const EASE_STEPS: u8 = 8; // steps the view takes to reach Charly when the start clamp lets go
+const STEP_MS: f32 = 1000.0 / 60.0;
+const STEP_DUE_MS: f32 = 10;
+const STEP_DEBT_MS: f32 = 4; // STEP_DUE_MS + STEP_DEBT_MS < the shortest 60 Hz dt
+const MAX_STEPS = 4; // a stalled tab catches up 4 steps, not seconds
 const K_ESC: u32 = 0xE012;
 
 pub const Demo = struct {
@@ -50,8 +61,11 @@ pub const Demo = struct {
     controls: Controls,
     hud: Hud,
     cam: i32, // viewport pos.x, 640 space
+    wrapped_once: bool, // Charly has crossed the seam: the view runs unclamped
+    ease_steps: u8, // steps left to close the gap the start clamp left (0: follow exactly)
     banner: zg.tilemap.RatioScroll,
     rasters_y: u32, // ScrollingBackgroundLayer pos.y
+    clock: f32, // ms towards the next 60 Hz step (negative: carried early time)
     message: ?usize, // door whose COMING SOON is showing
     message_frames: u16,
     wants_quit: bool,
@@ -62,9 +76,12 @@ pub const Demo = struct {
         self.charly.init(A.map.START_X, A.map.START_Y);
         self.controls.init();
         self.cam = 0;
+        self.wrapped_once = false;
+        self.ease_steps = 0;
         self.follow(); // follow() + setDeadzone(0, 0) both force a camera update
         self.banner = .{ .pos = 0, .last = @floatFromInt(self.cam), .ratio = BANNER_RATIO, .w = BANNER_W };
         self.rasters_y = 0;
+        self.clock = 0;
         self.message = null;
         self.message_frames = 0;
         self.wants_quit = false;
@@ -78,8 +95,13 @@ pub const Demo = struct {
         menu_loader.start(zigos); // the HUD and the music wait for the graphics
     }
 
+    /// The remake updates on setInterval at me.sys.fps = 60 whatever the display
+    /// (main.js:528, useNativeAnimFrame = false), so its speeds are per 1/60 s.
+    /// The host calls once per display frame: run the 60 Hz steps that are due.
+    /// A step runs once STEP_DUE_MS has built up and at most STEP_DEBT_MS of early
+    /// time is carried, so a 60 Hz display gets exactly one step every frame (dt
+    /// jitter included) and a 144 Hz one gets 60 a second, not 144.
     pub fn update(self: *Demo, zigos: *ZigOS, dt: f32) void {
-        _ = dt;
         switch (menu_loader.step(zigos)) {
             .loading => return,
             .failed => {
@@ -88,19 +110,40 @@ pub const Demo = struct {
             },
             .ready => { // PlayScreen.onResetEvent: the HUD, then the menu music
                 self.hud.init();
+                self.comeBack(); // back from a door's screen: where Charly and the scroller were
                 zg.requestSongTune(MUSIC, MUSIC_TUNE);
             },
             .running => {},
         }
+        // The loader's frames are not the street's: the clock starts on .ready, so
+        // that frame runs the street's first step, as it did before the clock.
+        self.clock += if (std.math.isNan(dt) or dt < 0) STEP_MS else @min(dt, MAX_STEPS * STEP_MS);
+        var steps: u8 = 0;
+        while (self.clock >= STEP_DUE_MS and steps < MAX_STEPS) : (steps += 1) {
+            self.step();
+            self.clock = @max(self.clock - STEP_MS, -STEP_DEBT_MS);
+        }
+    }
+
+    fn step(self: *Demo) void {
         self.rasters_y = (self.rasters_y + world.RASTER_STEP) % world.RASTER_WRAP;
         self.banner.update(@floatFromInt(self.cam));
-        self.charly.update(self.controls.state(), &A.collision);
+        const wrapped = self.charly.update(self.controls.state(), &A.collision);
+        // round, not truncate: x - unwrapped is a street-length only up to f32
+        // error, and 5599.9995 must still shift the view by 5600.
+        if (wrapped != 0) {
+            self.shiftView(@intFromFloat(@round(wrapped)));
+            // Only a LEFT crossing can come out of the clamp (he walked into x < 320
+            // with the view pinned at 0), leaving the view up to 320 px off him.
+            if (!self.wrapped_once and wrapped > 0) self.ease_steps = EASE_STEPS;
+            self.wrapped_once = true;
+        }
         if (self.controls.fire) {
             if (doors.touching(self.charly.box())) |d| self.enter(d);
         }
         self.follow();
         self.hud.update();
-        self.controls.tick();
+        self.controls.tick(STEP_MS);
         self.message_frames -|= 1;
         if (self.message_frames == 0) self.message = null;
     }
@@ -123,6 +166,11 @@ pub const Demo = struct {
         if (dir == 6) self.wants_quit = true else self.controls.input(dir);
     }
 
+    /// Key-up of a Direction, from a host that sends it (demo_main.inputRelease).
+    pub fn inputRelease(self: *Demo, dir: u8) void {
+        self.controls.release(dir);
+    }
+
     /// -1 the menu, 1 a door's cart (demo_main.pollCartRequest).
     pub fn pollCart(self: *Demo) i32 {
         if (self.wants_quit) return -1;
@@ -141,9 +189,65 @@ pub const Demo = struct {
         } else self.controls.key(cp);
     }
 
+    // Viewport._followH with setDeadzone(0, 0) (entities.js:49). Until Charly
+    // first crosses the seam the view keeps melonJS's clamp at 0, so the opening
+    // shot is the remake's (spawn x 268 wants view -52; the remake shows 0).
+    // After that it runs unclamped, so the view keeps Charly centred across the
+    // seam (easing onto him over EASE_STEPS if the clamp had left him behind);
+    // below 0 the start of the street shows the end of it. Its right clamp
+    // (map - view) is never applied: it would jump the view at the seam. floor
+    // instead of ~~ agrees on every view >= 0 and stays continuous below it.
     fn follow(self: *Demo) void {
-        const dz = zg.tilemap.deadzone(VIEW_W, 0); // setDeadzone(0, 0) (entities.js:49)
-        self.cam = zg.tilemap.followAxis(self.cam, self.charly.x, dz.lo, dz.hi, CAM_LIMIT);
+        const dz = zg.tilemap.deadzone(VIEW_W, 0);
+        const rel = self.charly.x - @as(f32, @floatFromInt(self.cam));
+        const edge: ?i32 = if (rel > @as(f32, @floatFromInt(dz.hi))) dz.hi else if (rel < @as(f32, @floatFromInt(dz.lo))) dz.lo else null;
+        var target = if (edge) |e| @as(i32, @intFromFloat(@floor(self.charly.x - @as(f32, @floatFromInt(e))))) else self.cam;
+        if (!self.wrapped_once) target = @max(target, 0);
+        if (self.ease_steps == 0) {
+            self.cam = target;
+            return;
+        }
+        // Ease instead of snapping 160 screen px: close 1/n of the gap with n steps
+        // left, in integers (deterministic), so the last step lands exactly.
+        self.cam += @divTrunc(target - self.cam, @as(i32, self.ease_steps));
+        self.ease_steps -= 1;
+    }
+
+    // Charly crossed an end and his x jumped a street-length: the view and the
+    // banner's last-seen view jump with him, so neither scrolls.
+    fn shiftView(self: *Demo, by: i32) void {
+        self.cam += by;
+        self.banner.last += @floatFromInt(by);
+    }
+
+    // DoorEntity.onCollision saves jsApp.entityPos before it changes state, and
+    // the scroller has kept jsApp.mainscrollerPos current (main.js:488): leave
+    // both in the ROM, the only memory the door's cart does not replace.
+    fn leaveNote(self: *const Demo, d: usize) void {
+        const buf = scratch() orelse return;
+        return_note.write(buf, .{ .door = @intCast(d), .x = self.charly.x, .y = self.charly.y, .scroll = @intCast(self.hud.offset) });
+    }
+
+    // MainEntity.init takes jsApp.entityPos when there is one (entities.js:39-42)
+    // and the scroller restarts at jsApp.mainscrollerPos (main.js:467). The note is
+    // spent either way; one that is out of range starts the hub as a first visit.
+    // It runs on the loader's .ready frame, as the remake's MainEntity.init runs
+    // after mainMenuLoader: the scrolltext only exists once the depack has bound
+    // it. The camera is then re-followed from 0 exactly as init does (the remake's
+    // forced viewport update): the lowest door starts at x 672, so a Charly
+    // touching one is past x 592, his view is past 272, the start clamp (>= 0)
+    // cannot bind, no ease starts, and the first street frame is already centred
+    // on him. The banner's last view moves with it, so it does not scroll.
+    fn comeBack(self: *Demo) void {
+        const buf = scratch() orelse return;
+        const n = return_note.take(buf) orelse return;
+        if (n.door >= doors.DOORS.len or !(n.x >= 0 and n.x < MAP_W)) return;
+        if (!(n.y >= 0 and n.y < @as(f32, @floatFromInt(A.map.ROWS * A.map.TILE_H))) or n.scroll >= A.scrolltext.len) return;
+        self.charly.init(n.x, n.y);
+        self.hud.initAt(n.scroll);
+        self.cam = 0;
+        self.follow();
+        self.banner.last = @floatFromInt(self.cam);
     }
 
     // DoorEntity.onCollision: the remake changes state to the door's loader. A
@@ -151,6 +255,7 @@ pub const Demo = struct {
     // screen is not ported yet says so instead.
     fn enter(self: *Demo, d: usize) void {
         if (doors.DOORS[d].tag) |tag| {
+            self.leaveNote(d);
             self.launch = tag;
             self.launch_pending = true;
             return;
@@ -159,6 +264,15 @@ pub const Demo = struct {
         self.message_frames = MESSAGE_FRAMES;
     }
 };
+
+// The ROM's scratch bytes (rom_sdk.romScratchPtr), or null on a ROM without them:
+// the page's tolerant env stubs a missing export to return 0.
+fn scratch() ?[]u8 {
+    const len = rom.romScratchLen();
+    const ptr = rom.romScratchPtr();
+    if (len == 0 or ptr == 0) return null;
+    return @as([*]u8, @ptrFromInt(ptr))[0..len];
+}
 
 fn drawMessage(zigos: *ZigOS, d: usize) void {
     var buf: [40]u8 = undefined;

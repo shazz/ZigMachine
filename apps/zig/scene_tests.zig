@@ -8,4 +8,5 @@
 test {
     _ = @import("scenes/dbug_sync.zig");
     _ = @import("scenes/union_demo/charly_test.zig");
+    _ = @import("scenes/union_demo/return_note.zig");
 }
