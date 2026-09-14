@@ -60,10 +60,10 @@ pub const Screen = struct {
     vert_y: [2]i32, // posVertScrollY1/Y2, canvas px
     sprite_step: u32, // spritePos
 
-    /// onResetEvent; the scroller starts at the top of its text (see union_beatdis.zig).
-    pub fn init(self: *Screen, version: Version) void {
+    /// onResetEvent: scrolltext.init(..., jsApp.mainscrollerPos), the text resuming at `text_offset`.
+    pub fn init(self: *Screen, version: Version, text_offset: usize) void {
         self.version = version;
-        self.letters = zg.scrollring.Ring(i32, LETTERS).init(TEXT, LETTERS_START_C, GLYPH_C);
+        self.letters = zg.scrollring.Ring(i32, LETTERS).initAt(TEXT, LETTERS_START_C, GLYPH_C, text_offset);
         self.back_x = 0;
         self.vert_y = VERT_START_C;
         self.sprite_step = 0;

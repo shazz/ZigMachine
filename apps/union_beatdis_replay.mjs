@@ -62,11 +62,16 @@ const SPRITE_ORDER = ["T", "H", "E", null, "U", "N", "I", "O", "N"]; // screen2.
 const SHEET = { T: 0, H: 1, E: 2, U: 3, N: 4, I: 5, O: 6 };
 const SPRITE_W = { T: 32, H: 32, E: 32, U: 32, N: 32, I: 24, O: 32 };
 
-export function makeReplay(A, version) {
-    const st = { posScrollerX: 0, posVertScrollY1: 400, posVertScrollY2: 800, spritePos: 0, scroffset: 0, letters: [] };
-    // scrolltext.init(scrolltextcanvas 576x150, bitmapfont 96x100, 7, undefined, 0, mainscrollerPos = 0)
+// `scroll` is jsApp.mainscrollerPos, where the hub's scroller left the text.
+export function makeReplay(A, version, scroll = 0) {
+    const st = { posScrollerX: 0, posVertScrollY1: 400, posVertScrollY2: 800, spritePos: 0, scroffset: scroll, letters: [] };
+    // scrolltext.init(scrolltextcanvas 576x150, bitmapfont 96x100, 7, undefined, 0, mainscrollerPos).
+    // Within 8 letters of the end the JS would read NaN letters; like the hub, wrap.
     const wide = Math.ceil(576 / 96) + 1;
-    for (let i = 0; i <= wide; i++) st.letters.push({ posx: Math.ceil(wide * 96 + i * 96), ltr: A.text.charCodeAt(st.scroffset++) });
+    for (let i = 0; i <= wide; i++) {
+        st.letters.push({ posx: Math.ceil(wide * 96 + i * 96), ltr: A.text.charCodeAt(st.scroffset++) });
+        if (st.scroffset > A.text.length - 1) st.scroffset = 0;
+    }
     const sprites = SPRITE_ORDER.map((k) => k && {
         w: SPRITE_W[k], h: 32,
         at: (u, v) => A.sprites.px[(v >> 1) * 112 + SHEET[k] * 16 + (u >> 1)],

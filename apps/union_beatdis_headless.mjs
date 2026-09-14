@@ -10,6 +10,11 @@
 //    at canvas (2X, 2Y) for ST pixel (X, Y), at fixed frames and at the first
 //    frames a '!' shows at an odd and an even x. The CurveRipper tables in
 //    curve.zig must equal screen2.js's when the remake is on this machine.
+//    Hub notes (ROM scratch "UNI1", return_note.zig): 1024 runs with a note for
+//    ANOTHER door and 512 with one for this door at scroll 500, so the text
+//    starts at 0 and at 500; a third run's out-of-range scroll starts at 0.
+//    Leaving, the accepted note must hold the same door and x/y and the
+//    scroller's scroffset; a refused one must not have changed a byte.
 // 3. The song request (name and subtune 1), the SNDH really playing on the
 //    sealed YM, ESC / SPACE back to the hub, RETURN not, and the frame cost.
 //
@@ -27,9 +32,11 @@ const TEX_INK = [0xc0, 0xa0, 0x00];
 const K_ESC = 0xe012, K_RETURN = 13, K_SPACE = 32;
 const FRAMES = [0, 1, 2, 24, 25, 26, 45, 46, 99, 100, 101, 148, 149, 150, 199, 200, 201, 512, 513, 1234, 3000];
 const VERSIONS = [
-    { name: "1024", key: K_SPACE, song: "union/beat_dis.sndh" },
-    { name: "512", key: K_RETURN, song: "union/pro_bmx_simulator_b.sndh" },
+    { name: "1024", key: K_SPACE, song: "union/beat_dis.sndh", note: { door: 8, scroll: 500 }, start: 0, accept: false },
+    { name: "512", key: K_RETURN, song: "union/pro_bmx_simulator_b.sndh", note: { door: BEATDIS_DOOR, scroll: 500 }, start: 500, accept: true },
+    { name: "1024", key: K_SPACE, song: "union/beat_dis.sndh", note: { door: BEATDIS_DOOR, scroll: 16128 }, start: 0, accept: false },
 ];
+const BEATDIS_DOOR = 0; // TMX object 0 in menu_map.zig, the door doors.zig tags union_beatdis
 const REMAKE = "prototypes/oldies/Union-Demo-HTML5-Remake-0.9.8/screens/beatdis/screen2.js";
 
 const outDir = process.argv[2];
@@ -39,7 +46,7 @@ const A = await loadAssets();
 const errors = [];
 const dec = new TextDecoder();
 
-async function boot() {
+async function boot(note) {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
     let demo;
     const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), {
@@ -48,6 +55,7 @@ async function boot() {
     const romBytes = await readFile("docs/rom.wasm");
     const rom = (await WebAssembly.instantiate(romBytes, { env: { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit } })).instance.exports;
     machine.hwSetRomHigh(romRam(romBytes).high ?? 0);
+    writeHubNote(memory, rom, note);
     const cartBytes = await readFile(cartPath);
     const env = { memory, ...rom };
     for (const k of Object.keys(machine)) if (k.startsWith("hw")) env[k] = machine[k];
@@ -58,7 +66,31 @@ async function boot() {
     machine.hwInit();
     demo.boot();
     demo.skipBoot();
-    return { memory, machine, demo };
+    return { memory, machine, demo, rom };
+}
+
+// return_note.write's record, as the hub leaves it at door `note.door` (Charly at 686,127).
+function writeHubNote(memory, rom, note) {
+    const at = new DataView(memory.buffer, rom.romScratchPtr(), 20);
+    at.setUint8(6, note.door); at.setUint8(7, 0);
+    at.setFloat32(8, 686, true); at.setFloat32(12, 127, true); at.setUint32(16, note.scroll, true);
+    let xor = 0;
+    for (let i = 6; i < 20; i++) xor ^= at.getUint8(i);
+    at.setUint8(4, 14); at.setUint8(5, xor);
+    [..."UNI1"].forEach((c, i) => at.setUint8(i, c.charCodeAt(0)));
+}
+const noteBytes = ({ memory, rom }) => Array.from(new Uint8Array(memory.buffer, rom.romScratchPtr(), 20));
+
+// The note after leaving: unchanged when refused; else a valid record with the
+// hub's door and x/y and `scroll` = the scroller's scroffset.
+function noteAfterLeaving(v, before, after, scroffset) {
+    if (!v.accept) return after.some((b, i) => b !== before[i]) ? `${v.name}: a refused note was rewritten` : null;
+    const dv = new DataView(Uint8Array.from(after).buffer);
+    const xor = after.slice(6).reduce((a, b) => a ^ b, 0);
+    const same = [0, 1, 2, 3, 4, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15].every((i) => after[i] === before[i]);
+    if (!same || after[5] !== xor) return `${v.name}: the note came back with its tag, door or x/y changed, or a bad checksum`;
+    if (dv.getUint32(16, true) !== scroffset) return `${v.name}: the note's scroll is ${dv.getUint32(16, true)}, the scroller is at ${scroffset}`;
+    return null;
 }
 
 function makeCart({ memory, machine, demo }) {
@@ -122,7 +154,7 @@ function loader(v, cart) {
 }
 
 async function screen(v, cart, demo) {
-    const replay = makeReplay(A, v.name);
+    const replay = makeReplay(A, v.name, v.start);
     demo.key(v.key);
     const want = new Set(FRAMES);
     const bangs = { odd: -1, even: -1 };
@@ -146,7 +178,7 @@ async function screen(v, cart, demo) {
     if (!moved(200, 201, 0, 150)) errors.push(`${v.name} frames 200/201: beatdis.png does not scroll`);
     if (!moved(200, 201, 167, 183)) errors.push(`${v.name} frames 200/201: the scroller does not move`);
     if (v.name === "512" && !moved(1234, 3000, 0, 150)) errors.push("512: the sprites do not move");
-    return bangs;
+    return { bangs, replay };
 }
 
 async function sndhPlays(song) {
@@ -184,20 +216,24 @@ async function curveMatchesRemake() {
 
 const report = [await curveMatchesRemake()];
 for (const v of VERSIONS) {
-    const booted = await boot();
+    const booted = await boot(v.note);
+    const planted = noteBytes(booted);
     const cart = makeCart(booted);
     const asked = loader(v, cart);
-    const bangs = await screen(v, cart, booted.demo);
+    const { bangs, replay } = await screen(v, cart, booted.demo);
     if (!cart.song || cart.song.name !== v.song || cart.song.tune !== 1) errors.push(`${v.name}: song request ${JSON.stringify(cart.song)}, wanted "${v.song}" tune 1`);
     const played = cart.song ? await sndhPlays(cart.song) : "no song";
     if (!played.startsWith("peak")) errors.push(`${v.name}: ${played}`);
+    if (noteBytes(booted).some((b, i) => b !== planted[i])) errors.push(`${v.name}: the screen changed the hub's note before leaving`);
     booted.demo.key(K_RETURN);
     if (booted.demo.pollCartRequest() !== 0) errors.push(`${v.name}: RETURN left the screen`);
     booted.demo.key(v.name === "1024" ? K_ESC : K_SPACE);
     if (!cart.leaves()) errors.push(`${v.name}: ${v.name === "1024" ? "ESC" : "SPACE"} did not ask for union_demo`);
+    const noteWrong = noteAfterLeaving(v, planted, noteBytes(booted), replay.scroffset);
+    if (noteWrong) errors.push(noteWrong);
     const perFrame = cart.ms / cart.frames, warm = cart.warm.sort((a, b) => a - b)[cart.warm.length >> 1];
     if (perFrame > 4) errors.push(`${v.name}: cart takes ${perFrame.toFixed(3)} ms/frame`);
-    report.push(`${v.name}: question at frame ${asked}, '!' odd/even at ${bangs.odd}/${bangs.even}, ${cart.song?.name} ${played}, ${perFrame.toFixed(3)} ms/frame mean, ${warm.toFixed(3)} warm median`);
+    report.push(`${v.name} (note door ${v.note.door} scroll ${v.note.scroll} -> text at ${v.start}, left at ${replay.scroffset}): question at frame ${asked}, '!' odd/even at ${bangs.odd}/${bangs.even}, ${cart.song?.name} ${played}, ${perFrame.toFixed(3)} ms/frame mean, ${warm.toFixed(3)} warm median`);
 }
 
 if (errors.length) {
