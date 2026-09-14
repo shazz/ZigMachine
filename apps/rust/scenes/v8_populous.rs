@@ -30,6 +30,8 @@ use core::ptr::addr_of_mut;
 
 #[path = "../zigmachine_music.rs"]
 mod zigmachine_music;
+#[path = "../zigmachine_tvnoise.rs"]
+mod zigmachine_tvnoise; // +/- tunes in through TV snow, as a Zig cart does
 #[path = "v8_populous/fmath.rs"]
 mod fmath;
 #[path = "v8_populous/scroll.rs"]
@@ -230,6 +232,9 @@ pub extern "C" fn boot() {
 
 #[no_mangle]
 pub extern "C" fn frame(_elapsed_ms: f32) {
+    if zigmachine_tvnoise::step() {
+        return; // a channel change: snow first
+    }
     let s = screen();
     if s.part == Part::White {
         if s.flash(255, false) { return; }
@@ -249,9 +254,13 @@ pub extern "C" fn isPlaneEnabled(id: i32) -> i32 {
 
 // Optional ABI surface: no-op stubs so a keypress/HBL never hits a missing export.
 #[no_mangle]
-pub extern "C" fn hblDispatch(_id: u32, _plane: u32, _line: u32, _x: u32) {}
+pub extern "C" fn hblDispatch(_id: u32, _plane: u32, _line: u32, _x: u32) {
+    zigmachine_tvnoise::hbl();
+}
 #[no_mangle]
-pub extern "C" fn skipBoot() {}
+pub extern "C" fn skipBoot() {
+    zigmachine_tvnoise::stop();
+}
 #[no_mangle]
 pub extern "C" fn setShadeMode(_m: u32) {}
 #[no_mangle]

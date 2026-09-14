@@ -18,6 +18,8 @@ One subfolder per language:
 
 `verify.mjs` is a headless ABI check for the foreign-language apps (instantiates
 a wasm the way the loader does, runs `boot()`+frames, asserts it drew & animated).
+`tunein_check.mjs` proves the C and Rust channel carts tune in through the same
+TV snow as a Zig cart, byte for byte, then start as `skipBoot` would.
 
 ## How an app reaches the machine
 The seal is a **wasm ABI**: an app imports `env.memory` + `hwVideoBase()`, exports

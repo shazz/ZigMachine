@@ -25,6 +25,7 @@
 // ---------------------------------------------------------------------------
 #include "../assets/screens/screen34/data.h"
 #include "../zigmachine_music.h"
+#include "../zigmachine_tvnoise.h" // +/- tunes in through TV snow, as a Zig cart does
 
 // The original loads screens/034/SoWattTcbSprites.ym (prototypes/codef/34/screen.js:31),
 // a YM5 register dump converted by Leonard. Its frames match this SNDH's own
@@ -165,6 +166,7 @@ void boot(void) {
 __attribute__((export_name("hblDispatch")))
 void hblDispatch(u32 id, u32 plane, u32 line, u32 x) {
     (void)id; (void)plane; (void)line; (void)x;
+    if (zm_tvnoise_hbl()) return;
     w8(REG_RESOLUTION, RES_MEDIUM);
     w8(REG_RESOLUTION, RES_PLANES);
     w16(REG_RES_FLICKER, (u16)(r16(REG_RES_FLICKER) + 1));
@@ -173,6 +175,7 @@ void hblDispatch(u32 id, u32 plane, u32 line, u32 x) {
 __attribute__((export_name("frame")))
 void frame(float dt) {
     (void)dt;
+    if (zm_tvnoise_frame()) return; // a channel change: snow first
     u8 *dst = vram();
     for (int i = 0; i < PW * PH; i++) dst[i] = 0; // the original's fill('#000000')
 
@@ -208,7 +211,7 @@ void frame(float dt) {
 __attribute__((export_name("isPlaneEnabled")))
 _Bool isPlaneEnabled(u8 id) { return id == 0; }
 
-__attribute__((export_name("skipBoot")))     void skipBoot(void) {}
+__attribute__((export_name("skipBoot")))     void skipBoot(void) { zm_tvnoise_stop(); }
 __attribute__((export_name("setShadeMode"))) void setShadeMode(u32 m) { (void)m; }
 __attribute__((export_name("pointer")))      void pointer(int x, int y, u32 b) { (void)x; (void)y; (void)b; }
 __attribute__((export_name("input")))        void input(u8 dir) { (void)dir; }
