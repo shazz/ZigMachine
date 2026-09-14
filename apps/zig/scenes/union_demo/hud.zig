@@ -35,11 +35,19 @@ pub const Hud = struct {
     pano: f32, // posScroller
 
     pub fn init(self: *Hud) void {
-        self.offset = 0; // jsApp.mainscrollerPos starts at 0
+        self.initAt(0); // jsApp.mainscrollerPos starts at 0
+    }
+
+    /// scrolltext.init(..., offset) (codef_scrolltext.js:54-69): the text restarts
+    /// at `offset`, as the remake does with jsApp.mainscrollerPos when the hub
+    /// comes back from a screen. `offset` must be < A.scrolltext.len.
+    pub fn initAt(self: *Hud, offset: usize) void {
+        self.offset = offset;
         for (&self.letters, 0..) |*l, i| {
             l.posx = @as(i32, WIDE) * FONT_W + @as(i32, @intCast(i)) * FONT_W;
             l.ltr = A.scrolltext[self.offset];
             self.offset += 1;
+            if (self.offset > A.scrolltext.len - 1) self.offset = 0; // the JS reads past the end; we wrap
         }
         self.pano = 0;
     }

@@ -16,6 +16,11 @@
 //          docs/sealed-loader.js sends it from its keyup listener (and releases
 //          every held direction on blur); `stop` models an older host without it.
 //          Both FAIL on a cart built before inputRelease existed.
+//   return the hub fires at door 9 (it leaves a note in the ROM's scratch bytes),
+//          the door's disk boots, then a FRESH hub cart over the same memory and
+//          ROM, as the page swaps back: Charly stands where he left and the
+//          scroller resumes its text. The note is used once, and a fresh page
+//          (new memory + ROM) starts at the spawn.
 //   door   the hub -> door swap in the page's order (disk, ROM unpack, instantiate,
 //          romReset, hwInit, boot, skipBoot) shows the TEX loader panel.
 //
@@ -245,16 +250,63 @@ async function checkKeyup() {
         : `FAIL keyup: a 100 ms tap released by key-up kept moving ${after} ms (limit ${STOP_MS})`;
 }
 
+// Boot the cart of the disk a door asked for, as swapCart does.
+async function loadDisk(m, t) {
+    const disk = new Uint8Array(await readFile(`docs/demo-${t}.zmd`));
+    const dv = new DataView(disk.buffer, disk.byteOffset);
+    const start = dv.getUint32(0x0e, true) * dv.getUint16(0x08, true);
+    await load(m, disk.slice(start, start + dv.getUint32(0x12, true)), true);
+}
+
+// return: see the header. STREET_ROWS is wall, pavement and Charly, below the
+// 60-row door rasters and the banner (both restart on a new hub); the HUD
+// (scroller) is checked apart.
+const STREET_ROWS = [64, 155];
+const HUD_ROWS = [165, 200];
+async function checkReturn() {
+    const fails = [];
+    const m = await boot();
+    const spawn = visible(m, STREET_ROWS); // the street's first step
+    for (let i = 0; i < 200; i++) step(m); // the scroller moves past its first characters
+    m.demo.key("9".charCodeAt(0)); step(m); // teleport in front of door 9
+    m.demo.input(DIR.fire); step(m);
+    const left = visible(m, STREET_ROWS);
+    if (m.demo.pollCartRequest() !== 1 || tag(m) !== "union_multifake")
+        return "FAIL return: fire at door 9 did not ask for union_multifake";
+    const ptr = m.rom.romScratchPtr ? m.rom.romScratchPtr() : 0;
+    const note = ptr ? new DataView(m.memory.buffer, ptr, 20) : null;
+    const noted = note && new TextDecoder().decode(new Uint8Array(m.memory.buffer, ptr, 4)) === "UNI1";
+    if (!noted) fails.push("the hub left no note in the ROM scratch");
+    else if (note.getFloat32(8, true) !== 4236 || note.getFloat32(12, true) !== 127 || note.getUint32(16, true) <= 12)
+        fails.push(`the note says x ${note.getFloat32(8, true)} y ${note.getFloat32(12, true)} scroll ${note.getUint32(16, true)}, not door 9 and a moved scroller`);
+    await loadDisk(m, "union_multifake");
+    for (let i = 0; i < 30; i++) step(m); // the door's cart runs over the cart window
+    const hub = await readFile(CART);
+    await load(m, hub, false); // swapCart back to the hub: romReset, hwInit, boot, skipBoot
+    await ready(m); // its menuloader depack first; the note is read when it ends
+    if (!same(visible(m, STREET_ROWS), left))
+        fails.push(same(visible(m, STREET_ROWS), spawn) ? "the hub came back at the spawn (START_X), not at door 9" : "the hub came back somewhere else than door 9");
+    if (ptr && new Uint8Array(m.memory.buffer, ptr, 4).some((b) => b !== 0)) fails.push("the note was not spent");
+    for (let i = 0; i < 160; i++) step(m); // letters reach the screen
+    const scroller = visible(m, HUD_ROWS);
+    const fresh = await boot(); // a new page: new memory, new ROM
+    for (let i = 0; i < 161; i++) step(fresh);
+    if (same(scroller, visible(fresh, HUD_ROWS))) fails.push("the scroller restarted from its first character");
+    const page = await boot();
+    if (!same(visible(page, STREET_ROWS), spawn)) fails.push("a fresh page did not start at the spawn");
+    await load(m, hub, false); // the hub again, with no door in between
+    await ready(m);
+    if (!same(visible(m, STREET_ROWS), spawn)) fails.push("a second return without a door did not start at the spawn: the note was reused");
+    return fails.length ? `FAIL return: ${fails.join("; ")}` : "ok   return: door 9 -> union_multifake -> a fresh hub: Charly and the scroller where they were, note spent, a new page at the spawn";
+}
+
 // The hub's door request followed through the shelf's disks, page order.
 async function checkDoor() {
     const m = await boot();
     m.demo.key("h".charCodeAt(0)); step(m); // in front of the hidden door
     m.demo.input(DIR.fire); step(m);
     if (m.demo.pollCartRequest() !== 1) return "FAIL door: fire in front of the hidden door asked for nothing";
-    const disk = new Uint8Array(await readFile(`docs/demo-${tag(m)}.zmd`));
-    const dv = new DataView(disk.buffer, disk.byteOffset);
-    const start = dv.getUint32(0x0e, true) * dv.getUint16(0x08, true);
-    await load(m, disk.slice(start, start + dv.getUint32(0x12, true)), true);
+    await loadDisk(m, tag(m));
     let ink = 0;
     for (let f = 0; f < 60; f++) {
         step(m);
@@ -266,7 +318,7 @@ async function checkDoor() {
 }
 
 const cost = await timeline();
-const results = [await checkWrap(), await checkEase(), await checkStop(60), await checkStop(144), await checkKeyup(), await checkDoor()];
+const results = [await checkWrap(), await checkEase(), await checkStop(60), await checkStop(144), await checkKeyup(), await checkReturn(), await checkDoor()];
 for (const r of results) console.log(r);
 
 const stats = (a) => {

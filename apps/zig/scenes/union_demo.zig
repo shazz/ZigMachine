@@ -21,11 +21,14 @@
 // --------------------------------------------------------------------------
 const std = @import("std");
 const zg = @import("zigos");
+const rom = @import("rom_sdk");
 const ZigOS = zg.ZigOS;
 const Color = zg.Color;
 
 const A = @import("union_demo/assets.zig");
 const Charly = @import("union_demo/charly.zig").Charly;
+const MAP_W = @import("union_demo/charly.zig").MAP_W;
+const return_note = @import("union_demo/return_note.zig");
 const Controls = @import("union_demo/controls.zig").Controls;
 const Hud = @import("union_demo/hud.zig").Hud;
 const world = @import("union_demo/world.zig");
@@ -107,6 +110,7 @@ pub const Demo = struct {
             },
             .ready => { // PlayScreen.onResetEvent: the HUD, then the menu music
                 self.hud.init();
+                self.comeBack(); // back from a door's screen: where Charly and the scroller were
                 zg.requestSongTune(MUSIC, MUSIC_TUNE);
             },
             .running => {},
@@ -216,11 +220,42 @@ pub const Demo = struct {
         self.banner.last += @floatFromInt(by);
     }
 
+    // DoorEntity.onCollision saves jsApp.entityPos before it changes state, and
+    // the scroller has kept jsApp.mainscrollerPos current (main.js:488): leave
+    // both in the ROM, the only memory the door's cart does not replace.
+    fn leaveNote(self: *const Demo, d: usize) void {
+        const buf = scratch() orelse return;
+        return_note.write(buf, .{ .door = @intCast(d), .x = self.charly.x, .y = self.charly.y, .scroll = @intCast(self.hud.offset) });
+    }
+
+    // MainEntity.init takes jsApp.entityPos when there is one (entities.js:39-42)
+    // and the scroller restarts at jsApp.mainscrollerPos (main.js:467). The note is
+    // spent either way; one that is out of range starts the hub as a first visit.
+    // It runs on the loader's .ready frame, as the remake's MainEntity.init runs
+    // after mainMenuLoader: the scrolltext only exists once the depack has bound
+    // it. The camera is then re-followed from 0 exactly as init does (the remake's
+    // forced viewport update): the lowest door starts at x 672, so a Charly
+    // touching one is past x 592, his view is past 272, the start clamp (>= 0)
+    // cannot bind, no ease starts, and the first street frame is already centred
+    // on him. The banner's last view moves with it, so it does not scroll.
+    fn comeBack(self: *Demo) void {
+        const buf = scratch() orelse return;
+        const n = return_note.take(buf) orelse return;
+        if (n.door >= doors.DOORS.len or !(n.x >= 0 and n.x < MAP_W)) return;
+        if (!(n.y >= 0 and n.y < @as(f32, @floatFromInt(A.map.ROWS * A.map.TILE_H))) or n.scroll >= A.scrolltext.len) return;
+        self.charly.init(n.x, n.y);
+        self.hud.initAt(n.scroll);
+        self.cam = 0;
+        self.follow();
+        self.banner.last = @floatFromInt(self.cam);
+    }
+
     // DoorEntity.onCollision: the remake changes state to the door's loader. A
     // ported screen's cart plays its own loader as it depacks; a door whose
     // screen is not ported yet says so instead.
     fn enter(self: *Demo, d: usize) void {
         if (doors.DOORS[d].tag) |tag| {
+            self.leaveNote(d);
             self.launch = tag;
             self.launch_pending = true;
             return;
@@ -229,6 +264,15 @@ pub const Demo = struct {
         self.message_frames = MESSAGE_FRAMES;
     }
 };
+
+// The ROM's scratch bytes (rom_sdk.romScratchPtr), or null on a ROM without them:
+// the page's tolerant env stubs a missing export to return 0.
+fn scratch() ?[]u8 {
+    const len = rom.romScratchLen();
+    const ptr = rom.romScratchPtr();
+    if (len == 0 or ptr == 0) return null;
+    return @as([*]u8, @ptrFromInt(ptr))[0..len];
+}
 
 fn drawMessage(zigos: *ZigOS, d: usize) void {
     var buf: [40]u8 = undefined;
