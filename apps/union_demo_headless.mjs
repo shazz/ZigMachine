@@ -2,10 +2,12 @@
 // the way docs/sealed-loader.js does, walks Charly through a scripted timeline and
 // dumps the visible 320x200 screen as PPMs, plus the frame cost. Then it CHECKS:
 //
-//   wrap   teleport to the last door (key 0), walk right with F1 and fire held:
-//          the view keeps scrolling past the street's end and the first ported
-//          door on the far side of the seam is entered (derived from doors.zig,
-//          menu_map.zig and charly.zig: see expectedWrapDoor).
+//   wrap   teleport to the last door (key 0), walk right with F1 but NO fire until
+//          Charly must be past the street's end, then hold fire: the view keeps
+//          scrolling across the seam, no door is entered before it, the first door
+//          entered is the lowest-x ported one (derived from doors.zig, menu_map.zig
+//          and charly.zig: see expectedWrapDoor), and the hub's ROM note puts
+//          Charly below the start, inside that door: he really wrapped.
 //   stop   a key held like a browser auto-repeats it (press, 500 ms, then every
 //          33 ms), released anywhere from 550 to 1500 ms, on a 60 Hz and on a
 //          144 Hz display: the street always stops moving within STOP_MS (the
@@ -34,6 +36,7 @@
 //
 //   node apps/union_demo_headless.mjs [outdir] [cart.wasm]
 //   node apps/union_demo_headless.mjs --break return [outdir]   # must FAIL `return`
+//   node apps/union_demo_headless.mjs --break wrap [outdir]     # fire from the start: must FAIL `wrap`
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { performance } from "node:perf_hooks";
 import { cartRam, romRam } from "../docs/wasm_hiwater.js";
@@ -169,13 +172,13 @@ async function timeline() {
 }
 
 // The door `wrap` must reach is DERIVED from the hub's own tables, not written
-// here: every Union screen ported before x 2208 (beatdis 672, deltaforce 1312,
-// tnt3 1600, superscroller 1824...) moves the first ported door past the seam,
-// and a hard-coded tag broke the gate each time. Charly starts at teleport '0'
-// (charly.zig TELEPORTS[9]) and walks right with fire held: he enters the first
-// tagged door (doors.zig ROUTES `.tag`) he still overlaps or has ahead
-// (menu_map.zig DOORS x + w beyond his x), else, after the wrap, the tagged door
-// with the smallest x. null when no door is tagged at all.
+// here: every Union screen ported moves the first ported door (a hard-coded tag
+// broke the gate each time). Charly starts at teleport '0' (charly.zig
+// TELEPORTS[9], x 5436) and crosses the seam before fire is held, so the door is
+// the tagged one (doors.zig ROUTES `.tag`) with the smallest x (menu_map.zig
+// DOORS). Picking "the first door at or ahead of the start" instead passed
+// vacuously once COPIER TEX (x 5442, under the start) got its tag: it was
+// entered at frame 0 and the seam was never crossed. null when no door is tagged.
 async function expectedWrapDoor() {
     const routes = await readFile("apps/zig/scenes/union_demo/doors.zig", "utf8");
     const tags = new Map([...routes.matchAll(/\.demo_name = "(\w+)"[^\n]*?\.tag = "(\w+)"/g)].map((r) => [r[1], r[2]]));
@@ -188,20 +191,40 @@ async function expectedWrapDoor() {
     const teleports = [...charly.slice(charly.indexOf("TELEPORTS")).matchAll(/\.\{ ([\d.]+), [\d.]+ \}/g)];
     if (teleports.length < 10) throw new Error("charly.zig TELEPORTS: fewer than 10 entries parsed");
     const startX = Number(teleports[9][1]);
-    return (doors.find((d) => d.x + d.w > startX) ?? doors[0])?.tag ?? null;
+    const num = (re, what) => {
+        const r = charly.match(re);
+        if (!r) throw new Error(`charly.zig: ${what} not parsed`);
+        return r.slice(1).map(Number);
+    };
+    const [tiles, tileW] = num(/MAP_W: f32 = (\d+) \* (\d+)/, "MAP_W");
+    const [walk] = num(/const WALK = \[2\]f32\{ ([\d.]+),/, "WALK");
+    const [fast] = num(/const FAST = \[2\]f32\{ ([\d.]+),/, "FAST");
+    if (!doors.length) return null;
+    return { ...doors[0], startX, mapW: tiles * tileW, walk, fast };
 }
 
-// wrap: from the last door, right + F1 + fire, until a door asks for a cart.
-async function checkWrap() {
+const SEAM_MARGIN = 5; // steps beyond the slowest crossing (WALK x) before fire is held
+
+// wrap: from the last door (x 5436), right + F1 with NO fire until Charly must be
+// past the seam, then fire too, until a door asks for a cart. `fireEarly` (the
+// --break wrap fail proof) holds fire from the start, as the vacuous check did.
+async function checkWrap(fireEarly = false) {
     const want = await expectedWrapDoor();
     if (want === null) return "FAIL wrap: no door in doors.zig ROUTES has a .tag, so there is no ported door to walk into";
+    // Fire is held after `seamSteps` at the slowest speed; at F1's speed Charly is
+    // at most this far past the seam then, so the door must lie beyond it to be
+    // walked into rather than already passed.
+    const seamSteps = Math.ceil((want.mapW - want.startX) / want.walk) + SEAM_MARGIN;
+    const reach = seamSteps * want.fast - (want.mapW - want.startX);
+    if (want.x <= reach) return `FAIL wrap: the lowest ported door (${want.tag}, x ${want.x}) is within ${reach} px of the seam: move the start or the check can't walk into it`;
     const m = await boot();
     step(m);
     m.demo.key("0".charCodeAt(0)); step(m); // teleport to x 5436
     m.demo.key(K_F1); step(m);
     let prev = visible(m, STREET), still = 0, f = 0;
     for (; f < 600; f++) {
-        m.demo.input(DIR.right); m.demo.input(DIR.fire);
+        m.demo.input(DIR.right);
+        if (fireEarly || f >= seamSteps) m.demo.input(DIR.fire);
         step(m);
         const street = visible(m, STREET);
         still = same(street, prev) ? still + 1 : 0;
@@ -209,9 +232,20 @@ async function checkWrap() {
         if (still > 30) return `FAIL wrap: walking right, the street has not scrolled for 30 frames (frame ${f}): the view is held at the map's end`;
         if (m.demo.pollCartRequest() === 1) break;
     }
-    const t = f < 600 ? tag(m) : "(none)";
-    return t === want ? `ok   wrap: past the end, the first ported door (${want}) was entered after ${f} frames`
-        : `FAIL wrap: expected ${want}, the first ported door beyond the seam, got ${t}`;
+    if (f >= 600) return `FAIL wrap: no door asked for a cart within 600 frames (expected ${want.tag})`;
+    const t = tag(m);
+    if (f < seamSteps) return `FAIL wrap: ${t} was entered at frame ${f}, before Charly could cross the seam (${seamSteps} steps from x ${want.startX})`;
+    if (t !== want.tag) return `FAIL wrap: expected ${want.tag}, the lowest ported door beyond the seam, got ${t}`;
+    // The hub's own record of where Charly stood when the door launched.
+    const ptr = m.rom.romScratchPtr ? m.rom.romScratchPtr() : 0;
+    if (!ptr || new TextDecoder().decode(new Uint8Array(m.memory.buffer, ptr, 4)) !== "UNI1")
+        return `FAIL wrap: ${t} launched but the hub left no note, so the wrap can't be confirmed`;
+    const x = new DataView(m.memory.buffer, ptr, 20).getFloat32(8, true);
+    // Charly's collision box reaches ~77 px right of his x (deltaforce: x 1235.5 at a
+    // door from 1312), so allow 128 px; the wrap itself is proven by x < startX.
+    if (!(x < want.startX && x > want.x - 128 && x < want.x + want.w))
+        return `FAIL wrap: ${t} was entered with Charly at x ${x}, not past the seam inside its door (x ${want.x}..${want.x + want.w}, start ${want.startX})`;
+    return `ok   wrap: no fire until past the seam (${seamSteps} steps from x ${want.startX}), then the lowest ported door (${t}) at Charly x ${x} after ${f} frames`;
 }
 
 // A key the browser way: a press at 0, repeats from 500 ms every 33.3 ms while
@@ -353,8 +387,16 @@ async function checkDoor() {
         : `FAIL door: the TEX loader panel shows on only ${ink} of the first 60 frames after the swap`;
 }
 
+if (BREAK === "wrap") {
+    const r = await checkWrap(true);
+    console.log(r);
+    const caught = r.startsWith("FAIL wrap") && r.includes("before Charly could cross the seam");
+    console.log(caught ? "=> PASS ✅ fail proof: fire from the start enters the door under the start, and `wrap` refuses it"
+        : "=> FAIL ❌ fail proof: `wrap` accepted a door entered before the seam");
+    process.exit(caught ? 0 : 1);
+}
 if (BREAK !== null) {
-    if (BREAK !== "return") { console.log(`=> FAIL ❌ --break ${BREAK}: only "return" can be broken`); process.exit(1); }
+    if (BREAK !== "return") { console.log(`=> FAIL ❌ --break ${BREAK}: only "return" and "wrap" can be broken`); process.exit(1); }
     const r = await checkReturn();
     console.log(r);
     const caught = r.startsWith("FAIL return") && r.includes("spawn");
