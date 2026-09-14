@@ -36,21 +36,30 @@ pub fn write(buf: []u8, n: Note) void {
     buf[0..4].* = TAG;
 }
 
-/// Read the note and spend it: the tag is zeroed whether or not the record
-/// matched, so a note is used once at most. null when tag, length or checksum
-/// do not match (no note, a stale or foreign record, or a buffer too short).
-pub fn take(buf: []u8) ?Note {
+/// Read the note WITHOUT spending it: for the door screen the hub launched,
+/// which starts its scroller where the hub's was (jsApp.mainscrollerPos). The
+/// hub still take()s it on the way back. A reader must check `door` is its own
+/// door (the note was left for this launch) and that `scroll` indexes the SAME
+/// scrolltext.txt: it is the next character to enter the hub's scroller.
+/// null when tag, length or checksum do not match, or the buffer is too short.
+pub fn peek(buf: []const u8) ?Note {
     if (buf.len < HEADER + PAYLOAD) return null;
     const p = buf[HEADER..][0..PAYLOAD];
-    const valid = std.mem.eql(u8, buf[0..4], &TAG) and buf[4] == PAYLOAD and buf[5] == checksum(p);
-    @memset(buf[0..4], 0);
-    if (!valid) return null;
+    if (!std.mem.eql(u8, buf[0..4], &TAG) or buf[4] != PAYLOAD or buf[5] != checksum(p)) return null;
     return .{
         .door = p[0],
         .x = @bitCast(std.mem.readInt(u32, p[2..6], .little)),
         .y = @bitCast(std.mem.readInt(u32, p[6..10], .little)),
         .scroll = std.mem.readInt(u32, p[10..14], .little),
     };
+}
+
+/// Read the note and spend it: the tag is zeroed whether or not the record
+/// matched, so a note is used once at most. null as for peek().
+pub fn take(buf: []u8) ?Note {
+    const n = peek(buf);
+    if (buf.len >= HEADER + PAYLOAD) @memset(buf[0..4], 0);
+    return n;
 }
 
 fn checksum(p: []const u8) u8 {
@@ -70,6 +79,27 @@ test "a note comes back once, as written" {
     try expectEqual(@as(f32, 127), n.y);
     try expectEqual(@as(u32, 57), n.scroll);
     try expectEqual(@as(?Note, null), take(&buf)); // spent
+}
+
+test "a door screen can peek at the note, and the hub still takes it back" {
+    var buf = [_]u8{0} ** 64;
+    write(&buf, .{ .door = 3, .x = 1500, .y = 127, .scroll = 212 });
+    const seen = peek(&buf) orelse return error.TestExpectedNote;
+    try expectEqual(@as(u8, 3), seen.door);
+    try expectEqual(@as(u32, 212), seen.scroll);
+    try expectEqual(@as(u32, 212), (peek(&buf) orelse return error.TestExpectedNote).scroll); // not spent
+    const back = take(&buf) orelse return error.TestExpectedNote;
+    try expectEqual(@as(f32, 1500), back.x);
+    try expectEqual(@as(?Note, null), peek(&buf)); // spent by the hub
+}
+
+test "peek refuses a corrupted note and leaves the bytes alone" {
+    var buf = [_]u8{0} ** 64;
+    write(&buf, .{ .door = 3, .x = 1500, .y = 127, .scroll = 212 });
+    buf[HEADER + 10] ^= 0x01;
+    const before = buf;
+    try expectEqual(@as(?Note, null), peek(&buf));
+    try std.testing.expectEqualSlices(u8, &before, &buf);
 }
 
 test "a zeroed scratch (power-on) holds no note" {
