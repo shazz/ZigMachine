@@ -1480,6 +1480,12 @@ one cart + its assets is well under 24.)</p>
   everything else is little-endian.</li>
 <li>Keep block size 512 in v1 (bootsector homage + simple math); revisit if useful.</li>
 <li>A <code>.zmd</code> is trivially inspectable — a hex dump shows the descriptor in clear.</li>
+<li><strong>Uploads ("Run your own cart" on the page).</strong> A visitor's file is sniffed by
+  content (<code>ZMDISK</code> at <code>$0</code> or <code>\0asm</code> + <code>ZMDISK</code> at <code>$400</code> = disk, <code>\0asm</code> = cart,
+  <code>ZX0!</code> = packed cart) and mounted by the same parser as a URL disk
+  (<code>docs/zmdisk.js</code>, <code>mountDiskBytes</code>), so streaming works identically. Host caps:
+  a cart (raw or packed) at most <strong>2 MB</strong> (the cart window); a disk at most <strong>16 MB</strong>
+  (the format has no limit, <code>total blocks</code> is a u32: this is host policy).</li>
 </ul>
 <hr />
 <h2>Packed carts (ZX0)</h2>
