@@ -74,6 +74,12 @@ pub fn Ring(comptime P: type, comptime n: usize) type {
             return self.text[self.next];
         }
 
+        /// Pass over the upcoming character without showing it: CODEF scenes
+        /// consume their effect markers with `scroffset++`. Wraps like a take.
+        pub fn skip(self: *Self) void {
+            _ = self.take();
+        }
+
         /// Carry on with another text: the next wrapping letter takes its first character.
         pub fn setText(self: *Self, text: []const u8) void {
             self.text = nonEmpty(text);

@@ -112,6 +112,35 @@ test "siny with a partial last group and a flat ink" {
     try expectEqual(@as(usize, 2), offs.i);
 }
 
+test "sinyHalved picks the halving matching each column's canvas row parity" {
+    // two half columns; parity-0 strip holds 1s, parity-1 strip holds 2s, 2 rows each
+    const even_px = [_]u8{ 1, 1, 1, 1 };
+    const odd_px = [_]u8{ 2, 2, 2, 2 };
+    const halves = [2]blit.Image{ blit.Image.init(&even_px, 2), blit.Image.init(&odd_px, 2) };
+    var buf = [_]u8{9} ** (2 * 5);
+    // canvas columns 0,1 -> y 4 (even: rows 2..3); columns 2,3 -> y 3 (odd: rows 1..2)
+    var offs = Fixed{ .vals = &.{ 4, 100, 3, 100 } };
+    wave.sinyHalved(blit.Dst.buffer(&buf, 2), &halves, 0, &offs, null, .copy);
+    try expectEqual([_]u8{ 9, 9 }, buf[0..2].*);
+    try expectEqual([_]u8{ 9, 2 }, buf[2..4].*);
+    try expectEqual([_]u8{ 1, 2 }, buf[4..6].*);
+    try expectEqual([_]u8{ 1, 9 }, buf[6..8].*);
+    try expectEqual(@as(usize, 4), offs.i); // the odd canvas columns are consumed, not used
+}
+
+test "sinyHalved: a negative odd canvas y floors, and dx clips" {
+    const odd_px = [_]u8{ 5, 6 }; // 1 column, rows 0..1
+    const even_px = [_]u8{ 7, 7 };
+    const halves = [2]blit.Image{ blit.Image.init(&even_px, 1), blit.Image.init(&odd_px, 1) };
+    var buf = [_]u8{0} ** 2;
+    var offs = Fixed{ .vals = &.{ -1, 0 } };
+    wave.sinyHalved(blit.Dst.buffer(&buf, 1), &halves, 0, &offs, null, .copy);
+    try expectEqual([_]u8{ 6, 0 }, buf); // y -1 -> row floor(-1/2) = -1: only its second row shows
+    var gone = Fixed{ .vals = &.{ 0, 0 } };
+    wave.sinyHalved(blit.Dst.buffer(&buf, 1), &halves, -1, &gone, null, .copy);
+    try expectEqual([_]u8{ 6, 0 }, buf); // off the left edge: untouched
+}
+
 test "siny of a sub-rectangle (one glyph of a font sheet), one column at a time" {
     // 6x2 sheet, glyph = columns 2..3 rows 0..1
     const sheet = [_]u8{ 7, 7, 1, 2, 7, 7, 7, 7, 3, 0, 7, 7 };

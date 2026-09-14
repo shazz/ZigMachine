@@ -79,6 +79,26 @@ pub fn SineSum(comptime F: type, comptime n: usize) type {
     };
 }
 
+/// FX.siny authored on a doubled (640-wide) canvas, drawn at half resolution.
+///
+/// The canvas strip is given twice, halved at each vertical parity: `halves[0]`
+/// pairs its rows (2k, 2k+1), `halves[1]` pairs (2k-1, 2k). `sweep` yields the
+/// CANVAS y of every canvas column, two per destination column; the first of
+/// each pair places the half column. A column landing on an even canvas row
+/// uses halves[0] at y/2, an odd one halves[1] at floor(y/2), so each ST row
+/// shows exactly the two canvas rows it covers, whatever the sine's parity.
+/// Destination column dx + i shows half column i.
+pub fn sinyHalved(dst: blit.Dst, halves: *const [2]blit.Image, dx: i32, sweep: anytype, key: ?u8, ink: blit.Ink) void {
+    if (@typeInfo(@TypeOf(sweep)) != .pointer) @compileError("wave.sinyHalved: pass the sweep by pointer (&it)");
+    const w = @min(halves[0].w, halves[1].w);
+    for (0..w) |i| {
+        const y = sweep.next();
+        _ = sweep.next(); // canvas column 2i+1: under the same ST column
+        const half = &halves[@intCast(y & 1)];
+        blit.blit(dst, half.*, .{ .x = i, .y = 0, .w = 1, .h = half.h }, dx +| @as(i32, @intCast(i)), @divFloor(y, 2), key, ink);
+    }
+}
+
 /// FX.siny: draw `part` of `src` (all of it when null) at (dx, dy) in groups of
 /// `col_w` columns, each group shifted down by the next value of `sweep`
 /// (a pointer to anything with `next() i32`). Groups are clipped like any blit,
