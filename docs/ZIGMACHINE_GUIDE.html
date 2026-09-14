@@ -1773,7 +1773,7 @@ requestSong(&quot;sos.sndh&quot;) ──►  polls pollSongRequest() every frame
 </tr>
 <tr>
 <td><code>.ymraw</code></td>
-<td>YM5!/YM6! register dump</td>
+<td>YM5!/YM6! register dump (<strong>deprecated</strong>, last resort only)</td>
 <td>no</td>
 </tr>
 <tr>
@@ -1788,8 +1788,11 @@ requestSong(&quot;sos.sndh&quot;) ──►  polls pollSongRequest() every frame
 </tr>
 </tbody>
 </table>
-<p><strong>Prefer SNDH.</strong> A screen plays a <code>.ymraw</code> dump only when no SNDH of the same
-tune exists. Prove a match by running both and comparing YM registers 0-5 and
+<p><strong>The YM dump player is deprecated: use SNDH.</strong> A dump records the chip only
+once per frame, so SID voices, digidrums and samples played through the YM
+volume DAC come out wrong (the Union Demo menu's dump turned its SID intro into
+bleeps). A screen plays a <code>.ymraw</code> only as the last resort, when a real search
+finds no SNDH of the same tune, and its music comment gives the best SNDH score. Prove a match by running both and comparing YM registers 0-5 and
 8-10 frame by frame; a real match is ~100% (screen 34's
 <code>SoWattTcbSprites.ym</code> == <code>sos.sndh</code>, 100% over 400 frames).</p>
 <h2>Zig</h2>

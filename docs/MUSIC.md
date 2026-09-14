@@ -23,12 +23,15 @@ The file extension picks the player. Files live under `docs/music/`.
 | Extension | Player | Subtunes |
 |---|---|---|
 | `.sndh` | the tune's own 68000 code on the sealed YM (preferred) | yes: `tune` counts from 1, 0 = the file's default |
-| `.ymraw` | YM5!/YM6! register dump | no |
+| `.ymraw` | YM5!/YM6! register dump (**deprecated**, last resort only) | no |
 | `.mod` | ProTracker 4-channel on the Paula channels | no |
 | `.raw` | 8-bit PCM at 12517 Hz | no |
 
-**Prefer SNDH.** A screen plays a `.ymraw` dump only when no SNDH of the same
-tune exists. Prove a match by running both and comparing YM registers 0-5 and
+**The YM dump player is deprecated: use SNDH.** A dump records the chip only
+once per frame, so SID voices, digidrums and samples played through the YM
+volume DAC come out wrong (the Union Demo menu's dump turned its SID intro into
+bleeps). A screen plays a `.ymraw` only as the last resort, when a real search
+finds no SNDH of the same tune, and its music comment gives the best SNDH score. Prove a match by running both and comparing YM registers 0-5 and
 8-10 frame by frame; a real match is ~100% (screen 34's
 `SoWattTcbSprites.ym` == `sos.sndh`, 100% over 400 frames).
 
