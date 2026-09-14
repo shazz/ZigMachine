@@ -2,19 +2,22 @@
 // MPP TRUECOLOR: more than 256 colours per plane, the STE "Multi Palette
 // Picture" way (https://codeberg.org/zerkman/mpp): reload the palette between
 // scanlines. A plane's HBL handler runs once before each line is composited, so
-// every line can take a whole new palette. One truecolor picture, three modes:
+// every line can take a whole new palette. Two truecolor pictures, three modes:
 //
 //   key 1  GLOBAL    one 256-colour palette for the whole picture, 1 plane
 //   key 2  PER-LINE  1 plane, a best 256-colour palette for EACH of the lines
 //   key 3  4 PLANES  each pixel opaque in exactly one plane; every plane has its
 //                    own per-line palette (255 + transparent) = 1020 per line
+//   Space            the other picture: procedural spheres, or a scarlet macaw
+//                    (photo by Adrian Pingstone, public domain, Wikimedia Commons)
 //
-// The modes cycle by themselves every CYCLE_FRAMES. The picture and its palettes
-// come from tools/mpp_convert.py (a procedural image, no photo); the caption band
-// under it names the mode and the distinct colours the converter counted.
+// The modes cycle by themselves every CYCLE_FRAMES. The pictures and palettes come
+// from tools/mpp_convert.py; the caption band under the picture names the mode and
+// the distinct colours the converter counted.
 //
-// Assets per mode (see the converter's docstring): m<N>_pal.bin RGBA bytes,
-// m<N>_map.bin (plane, line) -> (offset, first entry, count), m<N>_idx.bin pixels.
+// Assets per picture P and mode N (see the converter's docstring): p<P>_m<N>_pal.bin
+// RGBA bytes, p<P>_m<N>_map.bin (plane, line) -> (offset, first entry, count),
+// p<P>_m<N>_idx.bin pixels.
 // The handler is one @memcpy of count*4 bytes into the plane palette.
 // --------------------------------------------------------------------------
 const std = @import("std");
@@ -40,20 +43,29 @@ const Assets = struct {
 };
 
 const DIR = "../assets/screens/mpp_truecolor/";
-const MODES = [3]Assets{
-    .{ .pal = @embedFile(DIR ++ "m1_pal.bin"), .map = @embedFile(DIR ++ "m1_map.bin"), .idx = @embedFile(DIR ++ "m1_idx.bin"), .planes = 1, .title = "1 GLOBAL: ONE 256-COLOUR PALETTE" },
-    .{ .pal = @embedFile(DIR ++ "m2_pal.bin"), .map = @embedFile(DIR ++ "m2_map.bin"), .idx = @embedFile(DIR ++ "m2_idx.bin"), .planes = 1, .title = "2 PER-LINE: 256 COLOURS EACH LINE" },
-    .{ .pal = @embedFile(DIR ++ "m3_pal.bin"), .map = @embedFile(DIR ++ "m3_map.bin"), .idx = @embedFile(DIR ++ "m3_idx.bin"), .planes = PLANES, .title = "3 4 PLANES: 4x255 COLOURS A LINE" },
-};
+const MODE_COUNT: usize = 3;
+const FIRE: u8 = 5; // demo_main Direction.Fire: the host sends it for Space (and Enter)
 
-// counts.bin: source, mode 1, mode 2, mode 3 distinct colours in the image area.
-const COUNTS = @embedFile(DIR ++ "counts.bin");
-fn count(i: usize) u32 {
-    return std.mem.readInt(u32, COUNTS[i * 4 ..][0..4], .little);
+fn modes(comptime p: []const u8) [MODE_COUNT]Assets {
+    const P = DIR ++ "p" ++ p ++ "_m";
+    return .{
+        .{ .pal = @embedFile(P ++ "1_pal.bin"), .map = @embedFile(P ++ "1_map.bin"), .idx = @embedFile(P ++ "1_idx.bin"), .planes = 1, .title = "1 GLOBAL: ONE 256-COLOUR PALETTE" },
+        .{ .pal = @embedFile(P ++ "2_pal.bin"), .map = @embedFile(P ++ "2_map.bin"), .idx = @embedFile(P ++ "2_idx.bin"), .planes = 1, .title = "2 PER-LINE: 256 COLOURS EACH LINE" },
+        .{ .pal = @embedFile(P ++ "3_pal.bin"), .map = @embedFile(P ++ "3_map.bin"), .idx = @embedFile(P ++ "3_idx.bin"), .planes = PLANES, .title = "3 4 PLANES: 4x255 COLOURS A LINE" },
+    };
 }
 
-// HBL handlers take no user pointer: the active mode lives at module scope.
-var active: *const Assets = &MODES[0];
+// Picture 0 the procedural spheres, picture 1 the macaw.
+const PICTURES = [_][MODE_COUNT]Assets{ modes("0"), modes("1") };
+
+// p<P>_counts.bin: source, mode 1, mode 2, mode 3 distinct colours in the image area.
+const COUNTS = [PICTURES.len][]const u8{ @embedFile(DIR ++ "p0_counts.bin"), @embedFile(DIR ++ "p1_counts.bin") };
+fn count(picture: usize, i: usize) u32 {
+    return std.mem.readInt(u32, COUNTS[picture][i * 4 ..][0..4], .little);
+}
+
+// HBL handlers take no user pointer: the active picture and mode live at module scope.
+var active: *const Assets = &PICTURES[0][0];
 
 // Load this line's palette run for this plane: one copy, no conversion.
 fn hbl(fb: *LogicalFB, _: *ZigOS, line: u16, _: u16) void {
@@ -69,11 +81,13 @@ fn hbl(fb: *LogicalFB, _: *ZigOS, line: u16, _: u16) void {
 
 pub const Demo = struct {
     os: *ZigOS,
+    picture: u8,
     mode: u8,
     frames: u32,
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
         self.os = zigos;
+        self.picture = 0;
         self.mode = 0;
         self.frames = 0;
         zigos.setBackgroundColor(.{ .r = 0, .g = 0, .b = 0, .a = 255 });
@@ -82,8 +96,17 @@ pub const Demo = struct {
     }
 
     pub fn setShadeMode(self: *Demo, m: u32) void {
-        if (m >= MODES.len) return;
+        if (m >= MODE_COUNT) return;
         self.mode = @intCast(m);
+        self.frames = 0;
+        self.apply();
+    }
+
+    // Space arrives as Fire. Taking input() rather than key() keeps Escape and
+    // Back returning to the menu (demo_main.zig).
+    pub fn input(self: *Demo, dir: u8) void {
+        if (dir != FIRE) return;
+        self.picture = @intCast((self.picture + 1) % PICTURES.len);
         self.frames = 0;
         self.apply();
     }
@@ -92,7 +115,7 @@ pub const Demo = struct {
         _ = zigos;
         _ = dt;
         self.frames += 1;
-        if (self.frames >= CYCLE_FRAMES) self.setShadeMode((self.mode + 1) % MODES.len);
+        if (self.frames >= CYCLE_FRAMES) self.setShadeMode((self.mode + 1) % MODE_COUNT);
     }
 
     // Everything is drawn once per mode switch; the HBLs do the per-frame work.
@@ -103,7 +126,7 @@ pub const Demo = struct {
     }
 
     fn apply(self: *Demo) void {
-        const a = &MODES[self.mode];
+        const a = &PICTURES[self.picture][self.mode];
         active = a;
         const lfbs = &self.os.lfbs;
         for (lfbs, 0..) |*fb, p| {
@@ -119,12 +142,12 @@ pub const Demo = struct {
     }
 
     fn caption(self: *Demo, fb: *LogicalFB) void {
-        const a = &MODES[self.mode];
+        const a = &PICTURES[self.picture][self.mode];
         const top: usize = @intCast(IMAGE_H);
         @memset(fb.fb[top * W .. H * W], 0);
         fb.setPaletteEntry(INK, .{ .r = 255, .g = 255, .b = 255, .a = 255 });
         var buf: [40]u8 = undefined;
-        const stats = std.fmt.bufPrint(&buf, "{d} COLOURS ON SCREEN / SOURCE {d}", .{ count(self.mode + 1), count(0) }) catch "?";
+        const stats = std.fmt.bufPrint(&buf, "{d} COLOURS ON SCREEN / SOURCE {d}", .{ count(self.picture, self.mode + 1), count(self.picture, 0) }) catch "?";
         self.os.printText(fb, a.title, 4, IMAGE_H + 2, INK, 0);
         self.os.printText(fb, stats, 4, IMAGE_H + 11, INK, 0);
     }

@@ -1,17 +1,18 @@
 // Headless MPP TRUECOLOR check: per-line palettes really put more colours on
 // screen than one palette can.
 //
-// For each mode (setShadeMode 0/1/2) it composites the enabled planes the way
+// For each picture (Fire, as Space sends it, switches) and each mode
+// (setShadeMode 0/1/2) it composites the enabled planes the way
 // the host does (hwClear, frame, hwRenderPlane per enabled plane) and counts the
 // DISTINCT colours in the picture area of the physical framebuffer. It asserts:
-//   - every mode shows exactly the count its caption claims (counts.bin),
+//   - every mode shows exactly the count its caption claims (p<P>_counts.bin),
 //   - PER-LINE shows more than GLOBAL, and at least MIN_PER_LINE,
 //   - 4 PLANES shows at least as many as PER-LINE.
 // A handler that missed lines, or a plane split that left a pixel opaque in two
 // planes or in none, changes the count; nothing else would error.
 //
 //   node apps/mpp_truecolor_headless.mjs [outdir] [cart.wasm]
-//   (outdir: writes mpp-mode<N>.ppm, the picture area at 320x180)
+//   (outdir: writes mpp-<picture>-mode<N>.ppm, the picture area at 320x180)
 import { readFile, writeFile } from "node:fs/promises";
 import { cartRam, romRam } from "../docs/wasm_hiwater.js";
 
@@ -96,30 +97,37 @@ function distinct(rgb) {
 }
 
 const [outdir, cart = "docs/demo-mpp_truecolor.wasm"] = process.argv.slice(2);
-const counts = new Uint32Array((await readFile("apps/zig/assets/screens/mpp_truecolor/counts.bin")).buffer.slice(0, 16));
 const { memory, machine, demo } = await boot(cart);
 const NAMES = ["GLOBAL", "PER-LINE", "4 PLANES"];
+const PICTURES = ["spheres", "parrot"]; // the scene's order; Fire steps to the next
+const FIRE = 5; // demo_main Direction.Fire, what the host sends for Space
 const W = machine.hwPhysWidth();
 const layer = new Uint8Array(W * machine.hwPhysHeight() * 4);
-const measured = [], errors = [];
-for (let m = 0; m < 3; m++) {
-    demo.setShadeMode(m);
-    for (let f = 0; f < WARMUP; f++) hostFrame(memory, machine, demo, null); // JIT warm-up
-    let ms = 0;
-    for (let f = 0; f < FRAMES; f++) ms += hostFrame(memory, machine, demo, null);
-    hostFrame(memory, machine, demo, layer);
-    const rgb = picture(layer, W);
-    measured.push(distinct(rgb));
-    if (measured[m] !== counts[m + 1]) errors.push(`${NAMES[m]}: ${measured[m]} colours on screen, caption claims ${counts[m + 1]}`);
-    console.log(`mpp_truecolor: ${NAMES[m].padEnd(8)} ${measured[m]} colours (claimed ${counts[m + 1]}, source ${counts[0]}), ${(ms / FRAMES).toFixed(2)} ms/frame`);
-    if (outdir) {
-        const hdr = new TextEncoder().encode(`P6\n${IMG_W} ${IMG_H}\n255\n`);
-        await writeFile(`${outdir}/mpp-mode${m + 1}.ppm`, Buffer.concat([hdr, rgb]));
+const errors = [];
+for (let p = 0; p < PICTURES.length; p++) {
+    if (p > 0) demo.input(FIRE);
+    const name = PICTURES[p];
+    const counts = new Uint32Array((await readFile(`apps/zig/assets/screens/mpp_truecolor/p${p}_counts.bin`)).buffer.slice(0, 16));
+    const measured = [];
+    for (let m = 0; m < 3; m++) {
+        demo.setShadeMode(m);
+        for (let f = 0; f < WARMUP; f++) hostFrame(memory, machine, demo, null); // JIT warm-up
+        let ms = 0;
+        for (let f = 0; f < FRAMES; f++) ms += hostFrame(memory, machine, demo, null);
+        hostFrame(memory, machine, demo, layer);
+        const rgb = picture(layer, W);
+        measured.push(distinct(rgb));
+        if (measured[m] !== counts[m + 1]) errors.push(`${name} ${NAMES[m]}: ${measured[m]} colours on screen, caption claims ${counts[m + 1]}`);
+        console.log(`mpp_truecolor: ${name.padEnd(7)} ${NAMES[m].padEnd(8)} ${measured[m]} colours (claimed ${counts[m + 1]}, source ${counts[0]}), ${(ms / FRAMES).toFixed(2)} ms/frame`);
+        if (outdir) {
+            const hdr = new TextEncoder().encode(`P6\n${IMG_W} ${IMG_H}\n255\n`);
+            await writeFile(`${outdir}/mpp-${name}-mode${m + 1}.ppm`, Buffer.concat([hdr, rgb]));
+        }
     }
+    if (measured[1] <= measured[0]) errors.push(`${name}: PER-LINE ${measured[1]} not above GLOBAL ${measured[0]}`);
+    if (measured[1] < MIN_PER_LINE) errors.push(`${name}: PER-LINE ${measured[1]} below ${MIN_PER_LINE}`);
+    if (measured[2] < measured[1]) errors.push(`${name}: 4 PLANES ${measured[2]} below PER-LINE ${measured[1]}`);
 }
-if (measured[1] <= measured[0]) errors.push(`PER-LINE ${measured[1]} not above GLOBAL ${measured[0]}`);
-if (measured[1] < MIN_PER_LINE) errors.push(`PER-LINE ${measured[1]} below ${MIN_PER_LINE}`);
-if (measured[2] < measured[1]) errors.push(`4 PLANES ${measured[2]} below PER-LINE ${measured[1]}`);
 if (errors.length) {
     console.error(`mpp_truecolor: FAILED\n  ${errors.join("\n  ")}`);
     process.exit(1);
