@@ -21,7 +21,7 @@ import { boot, songPeak, png } from "./union_l16_machine.mjs";
 
 const ASSETS = "apps/zig/assets/screens/union_l16";
 const DEPACK_FRAMES = Math.ceil(147176 / (5 * 280)); // l16.bin at DEPACK_BYTES_PER_LINE = 5
-const SCREEN_FRAMES = [0, 1, 2, 3, 5, 60, 84, 85, 200, 1000, 3000];
+const SCREEN_FRAMES = [0, 1, 2, 3, 5, 60, 84, 85, 200, 339, 1000, 3000]; // 339: double-precision y is 945 px off Chrome
 const TEX_INK = [0xc0, 0xa0, 0x00];
 const MUSIC = "union/level_16.sndh";
 const L16_DOOR = 7; // TMX object 7 = doors.zig's L16_LOADER (teleport key '8')

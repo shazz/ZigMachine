@@ -54,7 +54,6 @@ for t in \
     libs/zig/effects/tilegrid_test.zig \
     libs/zig/effects/codef3d_test.zig \
     libs/zig/effects/canvas_poly_test.zig \
-    libs/zig/effects/canvas_rows_test.zig \
     libs/zig/effects/colour_bank_test.zig \
     libs/zig/shapes_test.zig \
     libs/zig/wireframe_test.zig \

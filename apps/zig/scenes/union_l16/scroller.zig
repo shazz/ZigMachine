@@ -5,7 +5,7 @@
 // the picture's pipe-shaped hole.
 //
 // At 1.8 px a frame every letter sits at a fractional y, and Chrome resamples its
-// rows (canvas_rows.zig). One frame's column holds at most 141 distinct blends
+// rows (chrome_draw.zig). One frame's column holds at most 141 distinct blends
 // (the whole 287,120-frame text cycle, checked against the Chrome model), so
 // they are the bottom plane's entries from SCROLL_FIRST up, handed out per frame
 // by a colour bank.
@@ -16,7 +16,7 @@
 // --------------------------------------------------------------------------
 const zg = @import("zigos");
 const blit = zg.blit;
-const canvas_rows = zg.canvas_rows;
+const cd = zg.chrome_draw;
 const A = @import("assets.zig");
 
 /// jsApp.scrolltext (main.js:50), the hub's text, byte for byte: the hub's note
@@ -86,12 +86,12 @@ pub const Scroller = struct {
             const sy = g / SHEET_COLS * @as(usize, @intFromFloat(GLYPH));
             const rows = planeRows(posy, column.h);
             for (rows.start..rows.end) |y| {
-                const t = canvas_rows.tap(A.canvasRow(y), posy, sy, @intFromFloat(GLYPH), A.FONT_H) orelse continue;
-                const row_a = font[t.a * A.FONT_W + sx ..][0..column.w];
-                const row_b = font[t.b * A.FONT_W + sx ..][0..column.w];
+                const t = cd.partTaps(posy, @intCast(sy), @intFromFloat(GLYPH), A.FONT_H, A.canvasRow(y)) orelse continue;
+                const row_a = font[@as(usize, t.top) * A.FONT_W + sx ..][0..column.w];
+                const row_b = font[@as(usize, t.bottom) * A.FONT_W + sx ..][0..column.w];
                 const out = column.buf[y * column.stride ..][0..column.w];
                 for (row_a, row_b, out) |ia, ib, *d| {
-                    const rgb = canvas_rows.mixRgb(A.fontInk(ia), A.fontInk(ib), t.w16);
+                    const rgb = cd.mixRgb(A.fontInk(ia), A.fontInk(ib), t.w);
                     d.* = self.bank.entry(palette, rgb) orelse blk: {
                         self.lost += 1;
                         break :blk black;
@@ -102,9 +102,11 @@ pub const Scroller = struct {
     }
 };
 
-/// The plane rows whose canvas rows a letter's snapped 32-row rectangle may cover.
+/// The plane rows whose canvas rows a letter's 32 drawn rows may cover: from
+/// round(y), y as Chrome's float32 (chrome_draw.partTaps).
 fn planeRows(posy: f64, h: usize) Range {
-    const top = @floor(posy + 0.5) - A.CROP_Y;
+    const fy: f64 = @as(f32, @floatCast(posy));
+    const top = @floor(fy + 0.5) - A.CROP_Y;
     const first = @max(0, @ceil(top / 2));
     const last = @min(@as(f64, @floatFromInt(h)), @ceil((top + GLYPH) / 2));
     if (last <= first) return .{ .start = 0, .end = 0 };
