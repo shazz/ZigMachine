@@ -1,0 +1,27 @@
+# The Union Demo TNT2 loader panel (Union-Demo-HTML5-Remake-0.9.8,
+# screens/tnt2/loader.js, loaderText[0..22]): 23 rows of 20. build.zig packs
+# tnt2.bin with it:
+#   zx0pack --fx tex_loader --panel apps/zig/assets/screens/union_tnt2/loader_tnt2.txt <in> <out>
+"                    "
+"                    "
+"      TNT-CREW      "
+"   SUPERSCROLLER    "
+"                    "
+" PROGRAM BY HEXOGEN "
+"   GRAPHICS BY ES   "
+"                    "
+"SOUND BY MAD AND MAX"
+"     COMPOSED BY    "
+"     JEROEN  TEL    "
+"                    "
+" TRY THE KEYS 1..4  "
+"AND CRSR LEFT/RIGHT "
+"                    "
+" PLEASE WAIT WHILE  "
+"   DECOMPRESSING    "
+"                    "
+"                    "
+"                    "
+"                    "
+"                    "
+"                    "
