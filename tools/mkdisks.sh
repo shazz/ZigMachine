@@ -97,9 +97,6 @@ for w in "$OUT"/demo-*.wasm; do
         # The streaming demo carries the track it block-streams.
         stream)    pack "$OUT/demo-$tag.zmd" "$tag" "$w" \
                         --file "MICROMIX.RAW=$OUT/music/micromix30.raw" ;;
-        # The Union Demo hidden screen streams "Feed Me" (170 s, past the song region).
-        union_textracker) pack "$OUT/demo-$tag.zmd" "$tag" "$w" \
-                        --file "FEEDME.RAW=apps/zig/assets/screens/union_textracker/feedme.raw" ;;
         *)         pack "$OUT/demo-$tag.zmd" "$tag" "$w" ;;
     esac
 done
