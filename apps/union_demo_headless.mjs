@@ -80,7 +80,30 @@ function step() {
     cost.render.push(performance.now() - t);
 }
 
-for (let i = 0; i < PREROLL; i++) step();
+// The menu's graphics first depack behind menuloader.js's TEX panel (the remake's
+// mainMenuLoader); the traced timeline starts with the street. The frame the
+// depack ends is the street's first update, so it counts as one pre-roll frame.
+const TEX_INK = [0xc0, 0xa0, 0x00];
+function panelInk() {
+    const w = machine.hwPhysWidth(), pfb = new Uint8Array(memory.buffer, machine.hwPhysicalPtr(), w * machine.hwPhysHeight() * 4);
+    let n = 0;
+    for (let y = 0; y < 200; y++) for (let x = 0; x < 320; x++) {
+        const s = ((40 + y) * w + 80 + 2 * x) * 4;
+        if (pfb[s] === TEX_INK[0] && pfb[s + 1] === TEX_INK[1] && pfb[s + 2] === TEX_INK[2]) n++;
+    }
+    return n;
+}
+let loadFrames = 0, midInk = 0;
+for (;;) {
+    step();
+    loadFrames++;
+    if (demo.pollSongRequest()) break;
+    if (loadFrames === 50) { midInk = panelInk(); await shot(memory, machine, `${outDir}/loader-0050.ppm`); }
+    if (loadFrames > 400) { console.log("=> FAIL the menu never finished loading"); process.exit(1); }
+}
+if (midInk < 500) { console.log(`=> FAIL mid-load the TEX loader panel shows ${midInk} ink px`); process.exit(1); }
+console.log(`menu loader: ${loadFrames} frames behind menuloader.js's TEX panel (${midInk} ink px at frame 50)`);
+for (let i = 1; i < PREROLL; i++) step();
 for (let f = 0; f < TIMELINE.frames; f++) {
     for (const [key, from, to] of TIMELINE.hold) {
         const last = key === "fire" ? from : to - REPEAT_HOLD;

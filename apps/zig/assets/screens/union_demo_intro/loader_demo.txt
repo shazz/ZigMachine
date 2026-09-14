@@ -1,0 +1,27 @@
+# The Union Demo's first TEX loader panel (Union-Demo-HTML5-Remake-0.9.8,
+# screens/loader/demoloader.js, loaderText[0..22]): 23 rows of 21. In the remake
+# it is FIRST_LOADER, the screen Space leads to from the intro. Pack with
+#   zx0pack --fx tex_loader --panel apps/zig/assets/screens/union_demo_intro/loader_demo.txt <in> <out>
+"THIS SCREEN WAS DONE "
+"         BY          "
+"   THE CAREBEARS     "
+"                     "
+"PROGRAM BY NICK, JAS "
+"  GRAPHICS BY  ES    "
+"                     "
+"  SOUND BY MAD MAX   "
+"    COMPOSED  BY     "
+"THE MANIACS OF NOISE "
+"                     "
+" DMA FILE  HANDLING  "
+"      BY 6719        "
+"                     "
+"NOTHING IN THIS DEMO "
+"-EXCEPT THE  PACKER- "
+"WAS DONE BY -ME- !!! "
+"                     "
+"  PRESS ANY KEY TO   "
+"      CONTINUE       "
+"                     "
+"                     "
+"                     "

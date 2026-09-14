@@ -56,6 +56,7 @@ const scene = switch (opts.index) {
     43 => @import("scenes/mpp_truecolor.zig"), // more than 256 colours: per-line palettes (MPP)
     44 => @import("scenes/union_multifake.zig"),
     45 => @import("scenes/union_textracker.zig"),
+    46 => @import("scenes/union_demo_intro.zig"),
     else => @compileError("bad cart index"),
 };
 

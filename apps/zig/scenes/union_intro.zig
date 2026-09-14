@@ -138,4 +138,21 @@ pub const Demo = struct {
     pub fn pollSong(self: *Demo) u32 {
         return if (self.in_main) self.main.pollSong() else 0;
     }
+
+    // With pollCart declared, demo_main no longer turns Escape into "back to the
+    // menu", so the cart owns keys: Escape still quits, anywhere.
+    pub fn key(self: *Demo, cp: u32) void {
+        if (self.in_main) self.main.key(cp);
+        if (cp == 0xE012) self.wants_quit = true; // host KEY_CODES.Escape
+    }
+
+    /// Cartridge swap: -1 the menu, 1 the door's cart (union/doors.zig DOOR_CART).
+    pub fn pollCart(self: *Demo) i32 {
+        if (self.wants_quit) return -1;
+        return if (self.in_main) self.main.pollCart() else 0;
+    }
+
+    pub fn cartTag(self: *Demo) []const u8 {
+        return self.main.cartTag();
+    }
 };

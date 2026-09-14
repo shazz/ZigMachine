@@ -57,7 +57,7 @@ pub const ENTRIES = [_]Entry{
     .{ .name = "REPS FRED (C)", .tag = "c-screen34" },
     .{ .name = "V8 POPULOUS (RUST)", .tag = "rust-v8_populous" },
     .{ .name = "ELITE SNOOKER", .tag = "elite_snooker" },
-    .{ .name = "UNION DEMO", .tag = "union_demo" },
+    .{ .name = "UNION DEMO", .tag = "union_intro_screen" }, // the demo opens on its intro splash; Space goes on to the street (union_demo)
     .{ .name = "TUTORIAL", .tag = "tutorial" },
     .{ .name = "MPP TRUECOLOR", .tag = "mpp_truecolor" },
     // The Union Demo's screens (union_multifake, union_textracker, ...) are NOT

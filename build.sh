@@ -93,4 +93,5 @@ node apps/tex_headless.mjs "$SHOTS"             # the eleven sprites on screen.j
 node apps/equinox_headless.mjs "$SHOTS"   # the dragons morph egg -> dragon -> egg
 node apps/mpp_truecolor_headless.mjs "$SHOTS"   # per-line palettes: colours on screen = captions
 node apps/union_textracker_headless.mjs "$SHOTS"   # TEX loader depack, then screen.js replayed pixel for pixel
+node apps/union_demo_intro_headless.mjs "$SHOTS"   # TEX loader depack, then every pixel on the screen.js replay
 echo "shots in $SHOTS"

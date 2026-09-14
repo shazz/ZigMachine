@@ -40,8 +40,10 @@ EXCLUDE = {
 
 # The Union Demo's screens are reached only through the union_demo hub's doors
 # (Matt, 2026-09-13), never by +/-. Every union_* tag is one, except these two.
+# The Union Demo's channel is its intro splash, as the demo opens on it; the
+# street (union_demo) is reached from there with Space.
 UNION_PREFIX = "union_"
-UNION_CHANNELS = {"union_demo", "union_intro"}  # the hub, and the cracktro leading to it
+UNION_CHANNELS = {"union_intro_screen", "union_intro"}  # the demo's opening, and the cracktro leading to it
 
 
 def excluded(tag):
