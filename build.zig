@@ -130,6 +130,12 @@ pub fn build(b: *std.Build) void {
     pack_texcopier.addFileArg(b.path("apps/zig/assets/screens/union_texcopier/loader_texcopier.txt"));
     pack_texcopier.addFileArg(b.path("apps/zig/assets/screens/union_texcopier/texcopier.bin"));
     const texcopier_zx0 = pack_texcopier.addOutputFileArg("union_texcopier.zx0");
+    // The Union Demo TNT3 vector screen: stars and font behind screens/tnt3/loader.js's panel.
+    const pack_tnt3 = b.addRunArtifact(zx0pack);
+    pack_tnt3.addArgs(&.{ "--fx", "tex_loader", "--panel" });
+    pack_tnt3.addFileArg(b.path("apps/zig/assets/screens/union_tnt3/loader_tnt3.txt"));
+    pack_tnt3.addFileArg(b.path("apps/zig/assets/screens/union_tnt3/tnt3.bin"));
+    const tnt3_zx0 = pack_tnt3.addOutputFileArg("union_tnt3.zx0");
     const packed_files = b.addWriteFiles();
     _ = packed_files.addCopyFile(trsi_zx0, "trsi_turn.zx0");
     _ = packed_files.addCopyFile(multifake_zx0, "union_multifake.zx0");
@@ -138,6 +144,7 @@ pub fn build(b: *std.Build) void {
     _ = packed_files.addCopyFile(menu_zx0, "union_demo_menu.zx0");
     _ = packed_files.addCopyFile(deltaforce_zx0, "union_deltaforce.zx0");
     _ = packed_files.addCopyFile(texcopier_zx0, "union_texcopier.zx0");
+    _ = packed_files.addCopyFile(tnt3_zx0, "union_tnt3.zx0");
     // MPP TRUECOLOR's gallery: one blob per picture and mode (tools/mpp_convert.py).
     // Unpacked they overflow the cart window, so the scene depacks only the one on
     // screen. MPP_PICTURES follows the converter's PICTURES list.
@@ -165,6 +172,7 @@ pub fn build(b: *std.Build) void {
             \\pub const union_demo_menu = @embedFile("union_demo_menu.zx0");
             \\pub const union_deltaforce = @embedFile("union_deltaforce.zx0");
             \\pub const union_texcopier = @embedFile("union_texcopier.zx0");
+            \\pub const union_tnt3 = @embedFile("union_tnt3.zx0");
             \\{s}}};
             \\
         , .{mpp_decl})),
@@ -338,6 +346,7 @@ pub fn build(b: *std.Build) void {
         "demo-union_intro_screen", // 46 — The Union Demo intro screen (melonJS remake, screens/intro): hub-only
         "demo-union_deltaforce", // 47 — The Union Demo / DELTA FORCE Sphericool screen (melonJS remake)
         "demo-union_texcopier", // 48 — The Union Demo / COPIER TEX, TEX's copy program (melonJS remake)
+        "demo-union_tnt3", // 49 — The Union Demo / TNT3, the TNT Crew's vector screen (melonJS remake)
     };
     for (cart_names, 0..) |name, idx| {
         if (name.len == 0) continue; // excluded cart (see note above)
