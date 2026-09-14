@@ -13,7 +13,12 @@
 //    with --remake DIR they are decoded from the remake's own PNGs instead.
 // 3. The song request names the SNDH and it plays on the sealed YM (mode SNDH,
 //    no stuck PC, every second audible, all three voices written).
-// 4. Space asks for the hub; a frame fits 60 fps with room to spare.
+// 4. Escape and Space ask for the hub; a frame fits 60 fps with room to spare.
+// 5. The hub's return note (ROM scratch): the main run starts with one for TNT2's
+//    door, so the replay starts there too, and after Escape the note keeps door,
+//    x and y with the replay's scroffset (screen.js:33, 91). Separate visits: a
+//    note for another door, one past the text's end, or none start at 0 and
+//    leave the scratch as it was. scrolltext.txt must equal the hub blob's text.
 //
 //   node apps/union_tnt2_headless.mjs [outdir] [cart.wasm] [--remake DIR] [--break green]
 // --break green replays screen.js with the green band at -5 instead of -6
@@ -26,7 +31,10 @@ import { cartRam, romRam } from "../docs/wasm_hiwater.js";
 const PAGES = 112, AUDIO_PAGES = 48; // SHARED_PAGES in machine/sdk/memmap.zig; machine/sdk/audio.zig
 const TOP = 40, LEFT = 80; // ST (0,0) in the physical frame (x doubled)
 const ASSETS = "apps/zig/assets/screens/union_tnt2";
-const TEXT_FILE = "apps/zig/assets/screens/union_demo/scrolltext.txt"; // jsApp.scrolltext
+const TEXT_FILE = `${ASSETS}/scrolltext.txt`; // jsApp.scrolltext, a copy of the hub's
+const HUB_BLOB = "apps/zig/assets/screens/union_demo/menu_assets.bin"; // ends with that text
+const TNT2_DOOR = 6, NOTE_X = 3520, NOTE_Y = 127; // DOORS index of TNT2_LOADER (menu_map.zig), Charly at it
+const START = 4321; // "ING FORWARD ": visible letters, unlike the text's opening spaces
 const MUSIC = "union/cybernoid.sndh";
 const TEX_INK = [0xc0, 0xa0, 0x00];
 const K_ESC = 0xe012;
@@ -110,10 +118,10 @@ async function fromRemake(dir) {
 }
 
 // ---- the original, replayed at canvas resolution ----------------------------------
-function makeOriginal(img, text) {
+function makeOriginal(img, text, start) {
     const s = { draws: 0, blue: -640, brown: -640, green: -640, blueSpeed: -2, brownSpeed: -4, greenSpeed: brk === "green" ? -5 : -6, scrollSpeed: 2, select: 1 };
-    // onResetEvent: scrolltext.init(maincanvas 640x400, font 64x40 from 32, scrollSpeed, no sinparam, 0, mainscrollerPos 0)
-    const sc = { speed: s.scrollSpeed, scroffset: 0, wide: Math.ceil(640 / 64) + 1, letters: [] };
+    // onResetEvent: scrolltext.init(maincanvas 640x400, font 64x40 from 32, scrollSpeed, no sinparam, 0, mainscrollerPos)
+    const sc = { speed: s.scrollSpeed, scroffset: start, wide: Math.ceil(640 / 64) + 1, letters: [] };
     for (let i = 0; i <= sc.wide; i++) sc.letters.push({ posx: Math.ceil(sc.wide * 64 + i * 64), ltr: text.charCodeAt(sc.scroffset++) });
     const wrap = (v) => (v > 0 ? -640 : v < -640 ? 0 : v);
 
@@ -135,6 +143,7 @@ function makeOriginal(img, text) {
         }
     };
 
+    s.scroffset = () => sc.scroffset; // what update() copies to jsApp.mainscrollerPos (screen.js:91)
     s.draw = (render) => {
         for (const l of sc.letters) {
             l.posx -= sc.speed;
@@ -194,7 +203,25 @@ const pressedAt = (k) => (name) => {
 const SHOTS = [0, 1, 2, 60, 61, 105, 113, 215, 305, 355, 470, 800, 920, 921, 1234, 3000];
 
 // ---- the machine ----------------------------------------------------------------
-async function boot(cart) {
+const scratchOf = (m) => {
+    if (!m.rom.romScratchPtr) throw new Error("docs/rom.wasm has no romScratchPtr (older than #98)");
+    return new Uint8Array(m.memory.buffer, m.rom.romScratchPtr(), m.rom.romScratchLen());
+};
+/// union_demo/return_note.zig write(): "UNI1", payload length 14, XOR, then door, flags, x, y, scroll.
+function writeNote(buf, { door, scroll }) {
+    const dv = new DataView(buf.buffer, buf.byteOffset, 20);
+    dv.setUint8(6, door); dv.setUint8(7, 0);
+    dv.setFloat32(8, NOTE_X, true); dv.setFloat32(12, NOTE_Y, true); dv.setUint32(16, scroll, true);
+    buf[4] = 14; buf[5] = buf.subarray(6, 20).reduce((c, b) => c ^ b, 0);
+    buf.set([0x55, 0x4e, 0x49, 0x31], 0);
+}
+function readNote(buf) {
+    const dv = new DataView(buf.buffer, buf.byteOffset, 20);
+    if (String.fromCharCode(...buf.subarray(0, 4)) !== "UNI1" || buf[4] !== 14 || buf[5] !== buf.subarray(6, 20).reduce((c, b) => c ^ b, 0)) return null;
+    return { door: buf[6], x: dv.getFloat32(8, true), y: dv.getFloat32(12, true), scroll: dv.getUint32(16, true) };
+}
+
+async function boot(cart, note = null) {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
     let demo;
     const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), {
@@ -205,6 +232,7 @@ async function boot(cart) {
         env: { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit },
     })).instance.exports;
     machine.hwSetRomHigh(romRam(romBytes).high ?? 0);
+    if (note) writeNote(scratchOf({ memory, rom }), note); // the hub left it before the swap
     const cartBytes = await readFile(cart);
     const env = { memory, ...rom };
     for (const k of Object.keys(machine)) if (k.startsWith("hw")) env[k] = machine[k];
@@ -215,7 +243,7 @@ async function boot(cart) {
     machine.hwInit();
     demo.boot();
     demo.skipBoot();
-    return { memory, machine, demo };
+    return { memory, machine, demo, rom };
 }
 
 async function sndhPlay(name, tune) {
@@ -265,8 +293,10 @@ if (remake) { // the conversion itself: tnt2.bin, doubled back, is the remake's 
     console.log(`union_tnt2 assets: tnt2.bin vs ${remake}/screens/tnt2/*.png: ${LAYOUT.map(([n], i) => `${n} ${diffs[i]}`).join(", ")} px differ`);
     if (diffs.some((d) => d)) errors.push("tnt2.bin is not the remake's PNGs halved");
 }
-const text = await readFile(TEXT_FILE, "latin1");
-const { memory, machine, demo } = await boot(cartPath);
+const textBytes = await readFile(TEXT_FILE), hubBlob = await readFile(HUB_BLOB);
+if (!hubBlob.subarray(hubBlob.length - textBytes.length).equals(textBytes)) errors.push(`${TEXT_FILE} differs from the hub's (the end of ${HUB_BLOB})`);
+const text = textBytes.toString("latin1");
+const { memory, machine, demo, rom } = await boot(cartPath, { door: TNT2_DOOR, scroll: START });
 const W = machine.hwPhysWidth(), H = machine.hwPhysHeight(), dec = new TextDecoder();
 let song = null, tune = 0, cartMs = 0, renderMs = 0, timed = 0, screenFrame = -1;
 
@@ -311,7 +341,7 @@ else if (Math.abs(first - DEPACK_FRAMES) > 1) errors.push(`the screen started at
 if (inkFrames < DEPACK_FRAMES / 2 || maxInk < 2000) errors.push(`the TEX loader panel barely showed: ink on ${inkFrames} frames, at most ${maxInk} px`);
 
 // 2. the screen against the replay; screen frame k = the (k+1)-th update()+draw()
-const st = makeOriginal(img, text);
+const st = makeOriginal(img, text, START);
 const seen = new Map();
 screenFrame = 0;
 for (const target of SHOTS) {
@@ -354,14 +384,60 @@ else if (music.mode !== MODE_SNDH || music.stuckPc || !(music.peak > 0.01) || mu
 
 // 4. leaving, cost
 if (demo.pollCartRequest() !== 0) errors.push("the screen asks for a cart before being told to leave");
+demo.key(K_ESC);
+if (demo.pollCartRequest() !== 1) errors.push("Escape does not ask for the hub");
+const handed = st.scroffset(), back = readNote(scratchOf({ memory, rom }));
+if (!back || back.door !== TNT2_DOOR || back.x !== NOTE_X || back.y !== NOTE_Y || back.scroll !== handed)
+    errors.push(`after ${SHOTS.at(-1)} frames and Escape the note is ${JSON.stringify(back)}, wanted door ${TNT2_DOOR} x ${NOTE_X} y ${NOTE_Y} scroll ${handed}`);
 demo.key(0x20);
 const req = demo.pollCartRequest();
 const tag = dec.decode(new Uint8Array(memory.buffer, demo.getCartTagPtr(), demo.getCartTagLen()));
 if (req !== 1 || tag !== "union_demo") errors.push(`Space asked for cart request ${req} "${tag}", wanted 1 "union_demo"`);
-demo.key(K_ESC);
-if (demo.pollCartRequest() !== 1) errors.push("Escape does not ask for the hub");
 const perFrame = cartMs / timed, perRender = renderMs / (SHOTS.filter((f) => f > 30).length);
 if (perFrame > 2) errors.push(`cart update+render takes ${perFrame.toFixed(3)} ms a frame`);
+
+// 5. which notes set the start, and which get rewritten, on fresh machines
+const PROBE = 200; // screen frames: the ring's first letters are on screen by then
+function replayAt(start) {
+    const r = makeOriginal(img, text, start);
+    let canvas;
+    while (r.draws <= PROBE) { r.update(() => false); canvas = r.draw(r.draws === PROBE); }
+    return canvas;
+}
+const probes = new Map([[START, replayAt(START)], [0, replayAt(0)]]);
+if (probes.get(START).every((v, i) => v === probes.get(0)[i])) errors.push(`screen frame ${PROBE} is the same from offsets ${START} and 0: the note checks prove nothing`);
+async function visit(note) {
+    const m = await boot(cartPath, note);
+    const scratch = scratchOf(m), before = scratch.slice();
+    const px = () => { m.machine.hwRenderPlane(0); return new Uint8Array(m.memory.buffer, m.machine.hwPhysicalPtr(), W * H * 4); };
+    let f = 0;
+    do { m.demo.frame(1000 / 60); if (++f > 400) return { start: "never", wrote: false }; }
+    while (((row) => !Array.from({ length: 320 }, (_, x) => row[(TOP * W + LEFT + x * 2) * 4 + 3]).every(Boolean))(px()));
+    for (let k = 0; k < PROBE; k++) m.demo.frame(1000 / 60);
+    const shot = px();
+    let start = "neither offset";
+    for (const [s, canvas] of probes) {
+        let same = true;
+        for (let y = 0; y < 200 && same; y++) for (let x = 0; x < 320 && same; x++) {
+            const o = ((y + TOP) * W + LEFT + x * 2) * 4, v = canvas[2 * y * 640 + 2 * x];
+            same = shot[o] === v >> 16 && shot[o + 1] === ((v >> 8) & 255) && shot[o + 2] === (v & 255);
+        }
+        if (same) { start = s; break; }
+    }
+    m.demo.key(K_ESC);
+    m.demo.pollCartRequest();
+    return { start, wrote: scratch.some((b, i) => b !== before[i]) };
+}
+for (const [what, note, want, writes] of [
+    ["a note for TNT2's door", { door: TNT2_DOOR, scroll: START }, START, true],
+    ["a note for door 8 (TCB3)", { door: 8, scroll: START }, 0, false],
+    ["a note past the text's end", { door: TNT2_DOOR, scroll: text.length }, 0, false],
+    ["no note", null, 0, false],
+]) {
+    const v = await visit(note);
+    if (v.start !== want || v.wrote !== writes)
+        errors.push(`${what}: the scroller started at ${v.start} (want ${want}), the scratch was ${v.wrote ? "" : "not "}rewritten (want ${writes ? "rewritten" : "untouched"})`);
+}
 
 if (errors.length) {
     console.error(`union_tnt2: WRONG${brk ? ` (--break ${brk})` : ""} (${cartPath})\n  ${errors.slice(0, 12).join("\n  ")}`);
@@ -370,4 +446,5 @@ if (errors.length) {
 console.log(`union_tnt2: TEX loader depacked in ${first} frames (ink on ${inkFrames}, up to ${maxInk} px); ` +
     `screen = screen.js replay (${remake ? "remake PNGs" : "tnt2.bin"}) at frames ${SHOTS.join(",")} with the key script; ` +
     `${MUSIC} tune ${tune} plays (peak ${music.peak.toFixed(4)}, 0 silent s, voices ${music.volWrites.join("/")}); Space/Esc -> union_demo; ` +
+    `note for door ${TNT2_DOOR} starts the text at ${START} and hands back ${handed}, other door / past the end / none start at 0 untouched; ` +
     `${perFrame.toFixed(3)} ms cart + ${perRender.toFixed(3)} ms hwRenderPlane a frame; shots in ${outDir}`);

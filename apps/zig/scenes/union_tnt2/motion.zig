@@ -43,7 +43,9 @@ pub const Layer = struct {
     }
 };
 
-pub const TEXT = @embedFile("../../assets/screens/union_demo/scrolltext.txt"); // jsApp.scrolltext (main.js:50)
+/// jsApp.scrolltext (main.js:50). The hub packs it into menu_assets.bin; this is a
+/// byte-identical copy (apps/union_tnt2_headless.mjs checks it against the blob).
+pub const TEXT = @embedFile("../../assets/screens/union_tnt2/scrolltext.txt");
 
 const FIRST_CHAR = 32; // bitmapfont.initTile(64,40,32)
 const GLYPH_W_C: i32 = 64;
@@ -63,9 +65,22 @@ comptime {
 pub const Scroller = struct {
     ring: zg.scrollring.Ring(i32, LETTERS),
 
-    /// scrolltext.init(..., offset jsApp.mainscrollerPos): the text from its start.
-    pub fn init(self: *Scroller) void {
+    /// scrolltext.init(..., offset jsApp.mainscrollerPos): letter i carries
+    /// TEXT[start + i] and the next to enter TEXT[start + LETTERS], wrapping at
+    /// the end as the ring does (the JS reads past it; the hub's Hud.initAt wraps
+    /// too). `start` must be < TEXT.len.
+    pub fn init(self: *Scroller, start: usize) void {
         self.ring = zg.scrollring.Ring(i32, LETTERS).init(TEXT, START_C, GLYPH_W_C);
+        self.ring.next = start;
+        for (&self.ring.c) |*c| {
+            c.* = TEXT[self.ring.next];
+            self.ring.next = (self.ring.next + 1) % TEXT.len;
+        }
+    }
+
+    /// scrolltext.scroffset: the next character to enter.
+    pub fn offset(self: *const Scroller) usize {
+        return self.ring.next;
     }
 
     pub fn step(self: *Scroller, speed: i32) void {

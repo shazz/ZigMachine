@@ -19,8 +19,9 @@
 //
 // Loading: tnt2.bin depacks for real behind loader.js's TEX panel (fx tex_loader,
 // build.zig); its "PRESS SPACE" wait is dropped. Escape or Space leave for the hub.
-// Adapted: the remake carries the hub scroller's text offset (mainscrollerPos) and
-// the band speeds across visits; carts share no state, so each visit starts fresh.
+// The scroller starts at, and hands back, the hub's text offset (mainscrollerPos)
+// through the hub's ROM return note (hub_note.zig). Adapted: the remake also keeps
+// the band speeds across visits; carts share no other state, so they start fresh.
 // --------------------------------------------------------------------------
 const zg = @import("zigos");
 const hw = @import("hardware");
@@ -33,6 +34,7 @@ const packed_assets = @import("packed_assets");
 const A = @import("union_tnt2/assets.zig");
 const motion = @import("union_tnt2/motion.zig");
 const controls = @import("union_tnt2/controls.zig");
+const hub_note = @import("union_tnt2/hub_note.zig");
 
 // The remake plays data/music/Cybernoid.ym; this is Mad Max's Cybernoid from
 // the same Union Demo folder of the SNDH archive (one subtune, FLAG ~y).
@@ -60,6 +62,7 @@ pub const Demo = struct {
     select: u8, // this.controlsSelect
     keys: controls.Controls,
     leave: bool,
+    note: ?hub_note.Note, // the hub's return note, when it was left for this door
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
         self.phase = .failed;
@@ -67,7 +70,8 @@ pub const Demo = struct {
         self.blue.init(-2); // screen.js:39-41
         self.brown.init(-4);
         self.green.init(-6);
-        self.scroller.init();
+        self.note = hub_note.accepted(motion.TEXT.len);
+        self.scroller.init(if (self.note) |n| n.scroll else 0); // screen.js:33
         self.scroll_speed = 2; // screen.js:30
         self.select = 1;
         self.keys.init();
@@ -148,6 +152,9 @@ pub const Demo = struct {
     pub fn pollCart(self: *Demo) i32 {
         if (!self.leave) return 0;
         self.leave = false;
+        // screen.js:91 keeps mainscrollerPos current on every update; leaving
+        // from the loader, the screen never ran and the hub's position stands.
+        if (self.phase == .running) if (self.note) |n| hub_note.handBack(n, self.scroller.offset());
         return 1;
     }
 
