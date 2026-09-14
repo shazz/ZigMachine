@@ -18,7 +18,16 @@
 // 3. The song request (name and subtune 1), the SNDH really playing on the
 //    sealed YM, ESC / SPACE back to the hub, RETURN not, and the frame cost.
 //
+// 4. Key lock (main.js:391-392 binds SPACE/RETURN with lock): per version, a fresh
+//    boot holds its choice key through the question (events at 0 ms, 500 ms,
+//    then every 33 ms to 1.5 s, a pad fire with each): the screen must still be
+//    running. After 150 ms of silence one SPACE must ask for union_demo.
+//
 //   node apps/union_beatdis_headless.mjs [outdir] [cart.wasm]
+//   node apps/union_beatdis_headless.mjs --break keylock [outdir] [cart.wasm]
+//     the fail proof: the "held" key repeats every 150 ms, past the quiet period,
+//     so the lock releases between repeats as if it were not there; the hold
+//     check must catch the screen leaving
 import { readFile, writeFile, mkdir, access } from "node:fs/promises";
 import { performance } from "node:perf_hooks";
 import { deflateSync } from "node:zlib";
@@ -34,14 +43,18 @@ const BANG_LIMIT = 40000; // 16,128 letters at 96/7 frames each is 221k frames: 
 const FRAMES = [0, 1, 2, 24, 25, 26, 45, 46, 99, 100, 101, 148, 149, 150, 199, 200, 201, 512, 513, 1234, 3000];
 const BEATDIS_DOOR = 0; // TMX object 0 in menu_map.zig, the door doors.zig tags union_beatdis
 const VERSIONS = [
-    { name: "1024", key: K_SPACE, song: "union/beat_dis.sndh", note: { door: 8, scroll: 500 }, start: 0, accept: false },
-    { name: "512", key: K_RETURN, song: "union/pro_bmx_simulator_b.sndh", note: { door: BEATDIS_DOOR, scroll: 500 }, start: 500, accept: true },
-    { name: "1024", key: K_SPACE, song: "union/beat_dis.sndh", note: { door: BEATDIS_DOOR, scroll: 16128 }, start: 0, accept: false },
+    { name: "1024", key: K_SPACE, song: "union/beat_dis.sndh", note: { door: 8, scroll: 500 }, start: 0, accept: false, out: K_SPACE },
+    { name: "512", key: K_RETURN, song: "union/pro_bmx_simulator_b.sndh", note: { door: BEATDIS_DOOR, scroll: 500 }, start: 500, accept: true, out: K_SPACE },
+    { name: "1024", key: K_SPACE, song: "union/beat_dis.sndh", note: { door: BEATDIS_DOOR, scroll: 16128 }, start: 0, accept: false, out: K_ESC },
 ];
 const REMAKE = "prototypes/oldies/Union-Demo-HTML5-Remake-0.9.8/screens/beatdis/screen2.js";
 
-const outDir = process.argv[2];
-const cartPath = process.argv[3] || "docs/demo-union_beatdis.wasm";
+const BREAK = process.argv.includes("--break") ? process.argv[process.argv.indexOf("--break") + 1] : null;
+if (BREAK !== null && BREAK !== "keylock") { console.error(`union_beatdis: --break ${BREAK}: only "keylock" can be broken`); process.exit(1); }
+const POS = process.argv.slice(2).filter((a, i, all) => a !== "--break" && all[i - 1] !== "--break");
+const outDir = POS[0];
+const cartPath = POS[1] || "docs/demo-union_beatdis.wasm";
+const REPEAT_MS = BREAK === "keylock" ? 150 : 33; // a browser's key repeat, or one slower than the lock's quiet period
 if (outDir) await mkdir(outDir, { recursive: true });
 const A = await loadAssets();
 const errors = [];
@@ -185,6 +198,31 @@ async function screen(v, cart, demo) {
     return { bangs, replay };
 }
 
+// Hold the choice key through the question, then let go and press SPACE once.
+async function holdCheck(v) {
+    const booted = await boot({ door: 8, scroll: 0 });
+    const cart = makeCart(booted), demo = booted.demo;
+    for (let f = 0; f < 400 && !cart.song; f++) {
+        cart.step();
+        if (wrongPixels(cart.shot(), (x, y) => PROMPT[y * 320 + x]) === 0) break;
+    }
+    const events = [0, 500];
+    for (let t = 500 + REPEAT_MS; t <= 1500; t += REPEAT_MS) events.push(t);
+    const FRAME_MS = 1000 / 60;
+    let t = 0, next = 0, left = null;
+    while (next < events.length || t < events.at(-1) + 150) {
+        for (; next < events.length && events[next] <= t; next++) { demo.key(v.key); if (next) demo.input(5); }
+        cart.step();
+        t += FRAME_MS;
+        if (demo.pollCartRequest() === 1 && left === null) left = Math.round(t);
+    }
+    if (left !== null) return `${v.name}: holding the choice key left the screen at ${left} ms (events every ${REPEAT_MS} ms)`;
+    if (!cart.song || cart.song.name !== v.song) return `${v.name}: holding the choice key did not start the screen`;
+    demo.key(K_SPACE);
+    if (!cart.leaves()) return `${v.name}: SPACE 150 ms after letting go did not ask for union_demo`;
+    return null;
+}
+
 async function sndhPlays(song) {
     const memory = new WebAssembly.Memory({ initial: AUDIO_PAGES, maximum: AUDIO_PAGES });
     const machine = (await WebAssembly.instantiate(await readFile("docs/machine-audio.wasm"), { env: { memory } })).instance.exports;
@@ -218,7 +256,20 @@ async function curveMatchesRemake() {
     return `curve.zig = screen2.js (${A.curveX.length} points)`;
 }
 
+const PROMPT = promptMap(A);
+if (BREAK === "keylock") {
+    const caught = [];
+    for (const v of VERSIONS.slice(0, 2)) { const wrong = await holdCheck(v); if (wrong) caught.push(wrong); }
+    if (caught.length === 2) {
+        console.log(`=> PASS ✅ fail proof: with the lock released between repeats, the hold check catches both versions (${caught.join("; ")})`);
+        process.exit(0);
+    }
+    console.log(`=> FAIL ❌ fail proof: the hold check caught ${caught.length} of 2 versions with repeats every ${REPEAT_MS} ms`);
+    process.exit(1);
+}
 const report = [await curveMatchesRemake()];
+for (const v of VERSIONS.slice(0, 2)) { const wrong = await holdCheck(v); if (wrong) errors.push(wrong); }
+report.push("key lock: a held choice key (0, 500, then every 33 ms to 1.5 s, with fire) keeps both screens running, SPACE 150 ms after asks for union_demo");
 for (const v of VERSIONS) {
     const booted = await boot(v.note);
     const planted = noteBytes(booted);
@@ -231,8 +282,8 @@ for (const v of VERSIONS) {
     if (noteBytes(booted).some((b, i) => b !== planted[i])) errors.push(`${v.name}: the screen changed the hub's note before leaving`);
     booted.demo.key(K_RETURN);
     if (booted.demo.pollCartRequest() !== 0) errors.push(`${v.name}: RETURN left the screen`);
-    booted.demo.key(v.name === "1024" ? K_ESC : K_SPACE);
-    if (!cart.leaves()) errors.push(`${v.name}: ${v.name === "1024" ? "ESC" : "SPACE"} did not ask for union_demo`);
+    booted.demo.key(v.out);
+    if (!cart.leaves()) errors.push(`${v.name}: ${v.out === K_ESC ? "ESC" : "SPACE"} did not ask for union_demo`);
     const noteWrong = noteAfterLeaving(v, planted, noteBytes(booted), replay.scroffset);
     if (noteWrong) errors.push(noteWrong);
     const perFrame = cart.ms / cart.frames, warm = cart.warm.sort((a, b) => a - b)[cart.warm.length >> 1];

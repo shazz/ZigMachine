@@ -25,6 +25,13 @@
 // rather than both as "fire". On the screen, ESC or SPACE (screen.js:88,
 // 'exit' / 'enter') go back to the hub; RETURN does nothing, as in the remake.
 // A fire that is not a key (touch, pad) answers the question with "any other".
+//
+// Key lock: the remake binds SPACE and RETURN with lock set (main.js:391-392,
+// me.input.bindKey(..., true)), so a key held down to answer the question fires
+// once. The host forwards no key-up, and a held key auto-repeats about every
+// 33 ms, which would answer the question AND leave the screen. So after the
+// choice, SPACE, RETURN and fire are ignored until none has come for
+// KEY_LOCK_QUIET_MS of frame time: repeats keep it armed, letting go releases it.
 // --------------------------------------------------------------------------
 const zg = @import("zigos");
 const hw = @import("hardware");
@@ -53,6 +60,7 @@ const DEPACK_BYTES_PER_LINE = 9;
 const K_ESC: u32 = 0xE012;
 const K_RETURN: u32 = 13;
 const FIRE: u8 = 5;
+const KEY_LOCK_QUIET_MS: f32 = 100; // three missed repeats
 const BACK: u8 = 6;
 
 var depack: DepackFx = undefined; // module scope: the runner needs a stable address
@@ -65,12 +73,16 @@ pub const Demo = struct {
     screen: Screen,
     chosen: ?Version,
     hub: ?hub_note.Note, // the note this screen started from, given back on leaving
+    key_lock: bool, // armed by the choice until SPACE/RETURN/fire go quiet
+    lock_quiet_ms: f32, // frame time since the last of them while armed
     leave: bool,
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
         self.phase = .failed;
         self.chosen = null;
         self.hub = null;
+        self.key_lock = false;
+        self.lock_quiet_ms = 0;
         self.leave = false;
         self.screen.init(.k1024, 0);
         const buf = freeRam(A.TOTAL) orelse return self.abandon("no free RAM to depack into");
@@ -81,7 +93,10 @@ pub const Demo = struct {
     }
 
     pub fn update(self: *Demo, zigos: *ZigOS, dt: f32) void {
-        _ = dt;
+        if (self.key_lock) {
+            self.lock_quiet_ms += dt;
+            if (self.lock_quiet_ms >= KEY_LOCK_QUIET_MS) self.key_lock = false;
+        }
         switch (self.phase) {
             .loading => switch (depack.frame(zigos)) {
                 .more => {},
@@ -110,11 +125,12 @@ pub const Demo = struct {
 
     pub fn key(self: *Demo, cp: u32) void {
         if (cp == K_ESC) self.leave = true;
+        if ((cp == ' ' or cp == K_RETURN) and self.swallowed()) return;
         switch (self.phase) {
             .asking => if (cp == ' ') {
-                self.chosen = .k1024;
+                self.choose(.k1024);
             } else if (cp == K_RETURN) {
-                self.chosen = .k512;
+                self.choose(.k512);
             },
             .running => if (cp == ' ') {
                 self.leave = true;
@@ -125,9 +141,24 @@ pub const Demo = struct {
 
     pub fn input(self: *Demo, dir: u8) void {
         if (dir == BACK) self.leave = true;
-        if (dir != FIRE) return;
-        if (self.phase == .asking and self.chosen == null) self.chosen = .k1024;
+        if (dir != FIRE or self.swallowed()) return;
+        if (self.phase == .asking) self.choose(.k1024);
         if (self.phase == .running) self.leave = true;
+    }
+
+    /// The question's answer, once; it arms the key lock.
+    fn choose(self: *Demo, version: Version) void {
+        if (self.chosen != null) return;
+        self.chosen = version;
+        self.key_lock = true;
+        self.lock_quiet_ms = 0;
+    }
+
+    /// SPACE, RETURN or fire while the lock is armed: keep it armed and drop the event.
+    fn swallowed(self: *Demo) bool {
+        if (!self.key_lock) return false;
+        self.lock_quiet_ms = 0;
+        return true;
     }
 
     pub fn pollCart(self: *Demo) i32 {
