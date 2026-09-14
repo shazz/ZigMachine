@@ -11,10 +11,15 @@
 //
 // Memory map given to the 68000 (24-bit, as a 68000 has):
 //
-//   $000000..$0FFFFF   1 MiB of RAM — the shared song RAM, so the image the
-//                      worklet staged IS the 68000's memory, with no copy. The
-//                      tune sits at $0, where its three branch instructions
-//                      stand in for the reset vectors it never takes.
+//   $000000..$0FFFFF   1 MiB of RAM — the shared song RAM. The worklet stages
+//                      the file at $0; load() moves (or depacks) it up to
+//                      IMAGE_BASE and zeroes the rest, as a fresh ST would be.
+//   $000000..$0003FF   the exception vector table, EMPTY until the tune fills
+//                      it: a SID tune installs its MFP handlers at $110/$120/
+//                      $134 itself. The image used to sit HERE, and those
+//                      writes overwrote its own code (Alloy Run: silence).
+//   $010002            the image: init / exit / play at +0 / +4 / +8, then the
+//                      tune's code and data. The heap starts right after it.
 //   $0FFE00            supervisor stack, growing down
 //   $0FFF00            a planted NOP used as the return address (see call())
 //   $FF8800..$FF8803   the PSG: select at 8800, write-data at 8801/8802/8803
@@ -46,8 +51,16 @@ const RAM_SIZE: u32 = @intCast(audio.SONG_CAP);
 const STACK_TOP: u32 = RAM_SIZE - 0x200;
 const RETURN_PC: u32 = RAM_SIZE - 0x100;
 const NOP: u16 = 0x4E71;
-/// The most RAM a tune may occupy, leaving the stack somewhere to live.
-const MAX_IMAGE: u32 = RAM_SIZE - 0x10000;
+/// Where the image lives in 68000 RAM: AtariAudio's SNDH_UPLOAD_ADDR
+/// (SndhRenderer.h), which it chose because some tunes cannot play below it and
+/// some crash when loaded exactly on the 64 KiB boundary. Above the vector table
+/// and the system variables, so a tune that installs its own vectors does not
+/// write over itself.
+const IMAGE_BASE: u32 = 0x10002;
+/// The top of the region a tune may occupy, leaving the stack somewhere to live.
+const IMAGE_TOP: u32 = RAM_SIZE - 0x10000;
+/// The most bytes a tune may occupy.
+const MAX_IMAGE: u32 = IMAGE_TOP - IMAGE_BASE;
 
 const PSG_BASE: u32 = 0xFF8800;
 const ADDRESS_MASK: u32 = 0x00FFFFFF; // a 68000 has 24 address lines
@@ -391,19 +404,22 @@ pub const SndhPlayer = struct {
     timer_period: [4]u32 = [_]u32{0} ** 4,
     timer_acc: [4]u32 = [_]u32{NEVER} ** 4,
 
-    /// The image is ALREADY in song RAM (the worklet staged it there), which is
-    /// the 68000's RAM, so loading is just: is this really an SNDH, and will it
-    /// leave room for a stack?
+    /// The file is ALREADY in song RAM (the worklet staged it at $0), which is
+    /// the 68000's RAM, so loading is: is this really an SNDH, will it leave room
+    /// for a stack, and move it up to IMAGE_BASE out of the vector table.
     pub fn load(self: *SndhPlayer, len: u32) bool {
         self.* = .{};
         if (len == 0 or len > MAX_IMAGE) return false;
-        const image_len = if (depackers.isPacked(ram()[0..len])) open(len) orelse return false else len;
-        const image = ram()[0..image_len];
-        self.info = sndh.parse(image) orelse return false;
+        const packed_file = depackers.isPacked(ram()[0..len]);
+        // Check it is an SNDH before anything is moved: a refused file must
+        // leave song RAM as the worklet staged it.
+        if (!packed_file and sndh.parse(ram()[0..len]) == null) return false;
+        const image_len = if (packed_file) open(len) orelse return false else place(len);
+        self.info = sndh.parse(ram()[IMAGE_BASE..][0..image_len]) orelse return false;
         self.tune = self.info.default_tune;
         self.samples_per_frame = @intFromFloat(audio.SAMPLE_RATE / @as(f32, @floatFromInt(self.info.hz)));
 
-        heapReset(image_len);
+        heapReset(IMAGE_BASE + image_len);
 
         // The return stub the replay routine will RTS to.
         writeWord(RETURN_PC, NOP);
@@ -536,7 +552,7 @@ pub const SndhPlayer = struct {
         writeLong(STACK_TOP - 4, RETURN_PC);
         m68k_set_reg(REG_SP, STACK_TOP - 4);
         m68k_set_reg(REG_D0, d0);
-        m68k_set_reg(REG_PC, entry);
+        m68k_set_reg(REG_PC, IMAGE_BASE + entry); // sndh.INIT/EXIT/PLAY are image offsets
 
         return runUntilReturn();
     }
@@ -545,16 +561,34 @@ pub const SndhPlayer = struct {
 /// Most SNDH tunes in the wild are crunched. Depacking is done HERE, in the
 /// 68000's own RAM, because that is where a real ST would do it: the packed
 /// image is moved out of the way into the top half of RAM and depacked back
-/// down over address 0, where the replay routine expects to live. Returns the
+/// down to IMAGE_BASE, where the replay routine will live. Returns the
 /// depacked length, or null if it will not fit or the stream is corrupt.
 const SCRATCH: u32 = RAM_SIZE / 2;
 
 fn open(len: u32) ?u32 {
     const out_len = depackers.depackedLen(ram()[0..len]) orelse return null;
-    // The two halves must not overlap, and the packed copy must clear the stack.
-    if (out_len == 0 or out_len > SCRATCH or SCRATCH + len > MAX_IMAGE) return null;
+    // The two regions must not overlap, and the packed copy must clear the stack.
+    if (out_len == 0 or IMAGE_BASE + out_len > SCRATCH or SCRATCH + len > IMAGE_TOP) return null;
     @memcpy(ram()[SCRATCH..][0..len], ram()[0..len]);
-    return depackers.depack(ram()[SCRATCH..][0..len], ram()[0..out_len]);
+    const image_len = depackers.depack(ram()[SCRATCH..][0..len], ram()[IMAGE_BASE..][0..out_len]) orelse return null;
+    clearAround(image_len);
+    return image_len;
+}
+
+/// An unpacked file: move it from $0, where it was staged, up to IMAGE_BASE.
+/// The two ranges overlap once a file is over 64 KiB, so copy from the top down.
+fn place(len: u32) u32 {
+    std.mem.copyBackwards(u8, ram()[IMAGE_BASE..][0..len], ram()[0..len]);
+    clearAround(len);
+    return len;
+}
+
+/// Zero every byte of 68000 RAM that is not the image: the vector table must
+/// not hold the staged file's bytes (a timer vector read there would call
+/// garbage), and the heap must not hold a previous tune or the packed copy.
+fn clearAround(image_len: u32) void {
+    @memset(ram()[0..IMAGE_BASE], 0);
+    @memset(ram()[IMAGE_BASE + image_len .. RAM_SIZE], 0);
 }
 
 // Every channel off: volumes to zero and the mixer set to "no tone, no noise".
