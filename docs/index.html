@@ -24,7 +24,7 @@
             <button onclick="main(); this.blur();" class="sound_button">Sound on</button>
             <button onclick="nextChannel(); this.blur();" class="next_channel_button">&nbsp;+&nbsp;</button>
             <button onclick="previousChannel(); this.blur();" class="prev_channel_button">&nbsp;-&nbsp;</button>
-            <button type="button" onclick="pickUserFile(); this.blur();" class="upload_button" title="Run a .wasm cart or .zmd disk from your machine">&#9650; Run your own cart</button>
+            <button type="button" onclick="pickUserFile(); this.blur();" class="upload_button" title="Run a .wasm cart or .zmd disk from your machine">Upload</button>
             <input type="file" id="upload_input" accept=".wasm,.zmd" hidden>
             <div class="container">
                 <div class="overlay">
@@ -50,7 +50,7 @@
                 <li><kbd>↑</kbd><kbd>↓</kbd><kbd>←</kbd><kbd>→</kbd> pick a disk in the menu, <kbd>Enter</kbd> boots it, <kbd>Esc</kbd> goes back.</li>
                 <li>Sound starts on your first click or key.</li>
             </ul>
-            <p class="upload"><button type="button" class="upload_link" onclick="pickUserFile(); this.blur();">&#9650; Run your own cart</button>
+            <p class="upload"><button type="button" class="upload_link" onclick="pickUserFile(); this.blur();">Upload</button>
             <span>a <code>.wasm</code> or <code>.zmd</code>, or drop it on the monitor. It runs locally in your
             browser; build one with the <a href="ZIGMACHINE_GUIDE.html#0">tutorial</a>.</span></p>
 
