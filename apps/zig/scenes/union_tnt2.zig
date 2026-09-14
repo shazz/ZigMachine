@@ -71,7 +71,7 @@ pub const Demo = struct {
         self.brown.init(-4);
         self.green.init(-6);
         self.note = hub_note.accepted(motion.TEXT.len);
-        self.scroller.init(if (self.note) |n| n.scroll else 0); // screen.js:33
+        self.scroller.initAt(if (self.note) |n| n.scroll else 0); // screen.js:33
         self.scroll_speed = 2; // screen.js:30
         self.select = 1;
         self.keys.init();
@@ -154,7 +154,7 @@ pub const Demo = struct {
         self.leave = false;
         // screen.js:91 keeps mainscrollerPos current on every update; leaving
         // from the loader, the screen never ran and the hub's position stands.
-        if (self.phase == .running) if (self.note) |n| hub_note.handBack(n, self.scroller.offset());
+        if (self.phase == .running) if (self.note) |n| hub_note.handBack(n, self.scroller.next());
         return 1;
     }
 
