@@ -100,6 +100,8 @@ node apps/upload_check.mjs    # an uploaded disk mounts exactly like a URL one; 
 # or ABI change breaks whichever one you were not thinking about.
 SHOTS=$(mktemp -d)
 node apps/verify.mjs          # the C and Rust carts still talk to the ABI
+node apps/tunein_check.mjs    # C/Rust channels tune in through Zig's snow, byte for byte, then start as skipBoot
+node apps/tunein_check.mjs --fail-proof docs/demo-c.wasm docs/demo-rust.wasm   # ...and a cart without tuneIn fails it
 node apps/gem_headless.mjs "$SHOTS"
 node apps/sndh_headless.mjs
 node apps/sndh_relocate_check.mjs   # a tune that installs its own MFP vectors (Alloy Run) plays: images load at $10002

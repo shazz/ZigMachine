@@ -37,6 +37,21 @@ void boot(void) {
   tune above 255. Nothing plays until the user turns sound on; the request waits.
 - `screen34.c` uses it. Proof: `node apps/c_music_check.mjs`.
 
+## Channel change: `zigmachine_tvnoise.h`
+On +/- the host calls `tuneIn(25)`; a Zig cart shows TV snow first, a cart
+without `tuneIn` just cuts in. This header is that snow, byte for byte (same
+PRNG, seed, ramp, band and plane setup as `apps/zig/demo_main.zig`). It defines
+the `tuneIn` export and saves and restores what the snow overwrites, so the
+cart starts exactly as after `skipBoot`. Three hooks:
+```c
+#include "../zigmachine_tvnoise.h"          // from exactly ONE .c file per cart
+void frame(float dt)  { if (zm_tvnoise_frame()) return; ... }
+void hblDispatch(...) { if (zm_tvnoise_hbl()) return; ... }
+void skipBoot(void)   { zm_tvnoise_stop(); }
+```
+`screen34.c` (a channel) uses it; hello and tutorial are not channels and stay
+minimal. Proof: `node apps/tunein_check.mjs`.
+
 ## Build & run
 ```bash
 bash apps/c/build.sh                          # -> docs/demo-c.wasm (uses `zig cc`)

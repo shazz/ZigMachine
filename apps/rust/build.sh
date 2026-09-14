@@ -24,6 +24,7 @@ LDFLAGS=(-C link-arg=--no-entry -C link-arg=--import-memory
          -C link-arg=--initial-memory=$MEM -C link-arg=--max-memory=$MEM
          -C link-arg=--global-base=$GLOBAL_BASE)
 for e in "${EXPORTS[@]}"; do LDFLAGS+=(-C link-arg=--export=$e); done
+LDFLAGS+=(-C link-arg=--export-if-defined=tuneIn) # zigmachine_tvnoise.rs, where declared (see apps/c/build.sh)
 
 build() { # <crate root .rs> <out .wasm>
     # strip=debuginfo: a scene with bounds checks links libcore's panic formatting,

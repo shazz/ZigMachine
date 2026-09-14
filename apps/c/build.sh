@@ -25,6 +25,10 @@ EXPORTS=(boot frame isPlaneEnabled hblDispatch skipBoot setShadeMode pointer inp
 LDFLAGS=(-Wl,--no-entry -Wl,--import-memory
          -Wl,--initial-memory=$MEM -Wl,--max-memory=$MEM -Wl,--global-base=$GLOBAL_BASE)
 for e in "${EXPORTS[@]}"; do LDFLAGS+=(-Wl,--export=$e); done
+# tuneIn (the channel-change snow) is NOT in the list: only a cart that includes
+# zigmachine_tvnoise.h has it, and --export would fail to link the others. The
+# header's export_name attribute exports it, as zigmachine_music.h does its four.
+# (zig cc refuses -Wl,--export-if-defined as an unsupported linker arg.)
 
 build_one() {
     scene=$1

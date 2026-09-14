@@ -36,6 +36,20 @@ zigmachine_music::request_song_tune("leavin_teramis.sndh", 9); // subtune, from 
 - `hello.rs` declares the module but requests nothing; `apps/c_music_check.mjs`
   checks that it exports the bridge and stays silent.
 
+## Channel change: `zigmachine_tvnoise.rs`
+The Rust twin of `apps/c/zigmachine_tvnoise.h`: the TV snow a Zig cart shows on
++/- (`tuneIn(25)`), byte for byte, then the cart starts exactly as after
+`skipBoot`. Declaring the module defines `tuneIn`; `build.sh` exports it with
+`--export-if-defined`, so carts without it still link.
+```rust
+mod zigmachine_tvnoise;
+// frame():       if zigmachine_tvnoise::step() { return; }
+// hblDispatch(): if zigmachine_tvnoise::hbl() { return; }
+// skipBoot():    zigmachine_tvnoise::stop();
+```
+`v8_populous` (a channel) uses it; hello and tutorial are not channels and stay
+minimal. Proof: `node apps/tunein_check.mjs`.
+
 ## Scenes: `scenes/<name>.rs`
 One cart per screen, like `apps/c/scenes/`: `scenes/<name>.rs` is the crate root
 (its submodules in `scenes/<name>/`, pulled in with `#[path]`), its generated data
