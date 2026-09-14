@@ -25,13 +25,18 @@
 // "PRESS SPACE TO ENTER" wait is not kept: the screen starts when the data is in.
 //
 // Leaving: Escape or Space ('exit' / 'enter', screen.js:93-97) goes back to the
-// hub, as me.state.change(MENU_LOADER) does. The remake starts the text where
-// the menu's scroller stood (jsApp.mainscrollerPos); a separate cart cannot
-// know that, so it starts at the beginning.
+// hub, as me.state.change(MENU_LOADER) does.
+//
+// The text starts at jsApp.mainscrollerPos (screen.js:44, 61), from the hub's ROM
+// scratch note (union_demo/return_note.zig) when it is this door's; our text is a
+// byte-identical copy of the hub's (the harness checks). screen.js:84 hands back
+// scroffset, so leaving rewrites that note with its x/y and our offset; without
+// an accepted note nothing is written.
 // --------------------------------------------------------------------------
 const std = @import("std");
 const zg = @import("zigos");
 const hw = @import("hardware");
+const rom = @import("rom_sdk");
 const ZigOS = zg.ZigOS;
 const Color = zg.Color;
 const DepackFx = @import("depackers").depack_fx.Runner(zg, null);
@@ -40,6 +45,9 @@ const packed_assets = @import("packed_assets");
 const A = @import("union_superscroller/assets.zig");
 const Motion = @import("union_superscroller/motion.zig").Motion;
 const compose = @import("union_superscroller/compose.zig");
+const doors = @import("union_demo/doors.zig");
+const return_note = @import("union_demo/return_note.zig");
+const TEXT_LEN = @import("union_superscroller/motion.zig").TEXT.len;
 
 // me.audio.playTrack("zik_tcb2") (screen.js:67): the remake plays a sample,
 // data/music/zik_tcb2.ogg, An Cool's sampled sound (loader.js:28-29 credits it).
@@ -54,6 +62,12 @@ const HUB = "union_demo";
 // panel lands its 437th letter after 94 (13,130 ms at 140 ms a frame).
 const DEPACK_BYTES_PER_LINE = 5;
 const K_ESC: u32 = 0xE012;
+const TAG = "union_superscroller";
+/// This screen's index in the hub's DOORS, the index its note carries.
+const DOOR: usize = blk: {
+    for (doors.DOORS, 0..) |d, i| if (d.tag) |t| if (std.mem.eql(u8, t, TAG)) break :blk i;
+    @compileError("no Union Demo door launches " ++ TAG);
+};
 
 // Module scope: the runner needs a stable address.
 var depack: DepackFx = undefined;
@@ -67,6 +81,8 @@ pub const Demo = struct {
     motion: Motion,
     /// 200 lines x 80 colours: in free RAM after the depacked image, not in the cart's data.
     palette: *compose.Palette,
+    /// The hub's note for this door, peeked at init; null: none, or another door's.
+    note: ?return_note.Note,
     leave: bool,
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
@@ -74,7 +90,8 @@ pub const Demo = struct {
         self.buf = &.{};
         self.images = undefined;
         self.leave = false;
-        self.motion.init();
+        self.note = acceptedNote();
+        self.motion.init(if (self.note) |n| n.scroll else 0);
         const pal_at = std.mem.alignForward(usize, A.TOTAL, @alignOf(compose.Palette));
         const ram = freeRam(pal_at + @sizeOf(compose.Palette)) orelse return self.abandon("no free RAM to depack into");
         self.buf = ram[0..A.TOTAL];
@@ -104,11 +121,11 @@ pub const Demo = struct {
 
     /// Host input ids: 5 fire, 6 back.
     pub fn input(self: *Demo, dir: u8) void {
-        if (dir == 6 or (dir == 5 and self.phase == .running)) self.leave = true;
+        if (dir == 6 or (dir == 5 and self.phase == .running)) self.leaveForHub();
     }
 
     pub fn key(self: *Demo, cp: u32) void {
-        if (cp == K_ESC or (cp == ' ' and self.phase == .running)) self.leave = true;
+        if (cp == K_ESC or (cp == ' ' and self.phase == .running)) self.leaveForHub();
     }
 
     pub fn pollCart(self: *Demo) i32 {
@@ -132,6 +149,16 @@ pub const Demo = struct {
         self.phase = .running;
     }
 
+    /// me.state.change(MENU_LOADER), with jsApp.mainscrollerPos where this
+    /// scroller stands: the next character to enter, as the hub counts it.
+    fn leaveForHub(self: *Demo) void {
+        self.leave = true;
+        if (self.phase != .running) return; // the text never moved
+        const n = self.note orelse return;
+        const buf = scratch() orelse return;
+        return_note.write(buf, .{ .door = n.door, .x = n.x, .y = n.y, .scroll = @intCast(self.motion.scroffset()) });
+    }
+
     /// Without its pictures there is no screen: say why and go back to the hub.
     fn abandon(self: *Demo, why: []const u8) void {
         zg.Console.log("union_superscroller: {s}, back to the menu", .{why});
@@ -139,6 +166,27 @@ pub const Demo = struct {
         self.leave = true;
     }
 };
+
+/// The hub's note when it is for this door and its scroll is in the text, read
+/// without spending it. null (the text starts at 0, the remake's first visit)
+/// when there is none (booted on its own, or a ROM without scratch), when
+/// another door left it (not this screen's visit), or when its index is not in
+/// the text (a stale or foreign record).
+fn acceptedNote() ?return_note.Note {
+    const buf = scratch() orelse return null;
+    const n = return_note.peek(buf) orelse return null;
+    if (n.door != DOOR or n.scroll >= TEXT_LEN) return null;
+    return n;
+}
+
+/// The ROM's scratch bytes (rom_sdk.romScratchPtr), or null on a ROM without
+/// them, as union_demo.zig reads them.
+fn scratch() ?[]u8 {
+    const len = rom.romScratchLen();
+    const ptr = rom.romScratchPtr();
+    if (len == 0 or ptr == 0) return null;
+    return @as([*]u8, @ptrFromInt(ptr))[0..len];
+}
 
 /// `len` bytes of the cart's RAM window above its statics and stack, starting
 /// on an 8-byte boundary so the palette's u32 tables can live in it.

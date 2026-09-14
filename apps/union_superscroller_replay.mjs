@@ -52,10 +52,11 @@ export function tapRows(y, h, cy, snap = false) {
     return { ta: clamp(top), tb: clamp(top + 1), w: Math.floor((v - top) * 16) };
 }
 
-/// `opts.speed` and `opts.snap` exist to prove the harness fails on a wrong port.
+/// `opts.offset`: the text's first character (the hub's note). `opts.speed` and
+/// `opts.snap` exist to prove the harness fails on a wrong port.
 export function makeReplay(bin, text, opts = {}) {
     const A = parseBin(bin), speed = opts.speed ?? SPEED, snap = !!opts.snap;
-    const st = { y1: 0, ras: Array.from({ length: RASTER_COPIES }, (_, i) => RASTER_STEP * i), offset: 0 };
+    const st = { y1: 0, ras: Array.from({ length: RASTER_COPIES }, (_, i) => RASTER_STEP * i), offset: opts.offset ?? 0 };
     const nextChar = () => { const c = text.charCodeAt(st.offset++); if (st.offset > text.length - 1) st.offset = 0; return c; };
     const letters = Array.from({ length: LETTERS }, (_, i) => ({ posx: Math.ceil((LETTERS - 1) * TILE_W + i * TILE_W), ltr: 0 }));
     for (const l of letters) { l.ltr = text.charCodeAt(st.offset); st.offset++; }
@@ -125,5 +126,8 @@ export function makeReplay(bin, text, opts = {}) {
         return rgb;
     }
 
-    return { step, draw };
+    /// scrolltext.scroffset, what screen.js:84 hands back as jsApp.mainscrollerPos.
+    const offset = () => st.offset;
+
+    return { step, draw, offset };
 }

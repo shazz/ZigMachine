@@ -37,10 +37,11 @@ pub const Motion = struct {
     rasters: [RASTER_COPIES]i32, // posRastersY
     ring: zg.scrollring.Ring(i32, LETTERS),
 
-    pub fn init(self: *Motion) void {
+    /// `offset`: the text's first character, jsApp.mainscrollerPos (screen.js:40, 64).
+    pub fn init(self: *Motion, offset: usize) void {
         self.y1 = 0;
         for (&self.rasters, 0..) |*r, i| r.* = RASTER_STEP * @as(i32, @intCast(i));
-        self.ring = zg.scrollring.Ring(i32, LETTERS).init(TEXT, (LETTERS - 1) * TILE_W, TILE_W);
+        self.ring = zg.scrollring.Ring(i32, LETTERS).initAt(TEXT, (LETTERS - 1) * TILE_W, TILE_W, offset);
     }
 
     /// One melonJS frame's worth: update(), then the letters' move in draw().
@@ -52,6 +53,11 @@ pub const Motion = struct {
             if (r.* <= -RASTER_STEP) r.* = RASTER_STEP * 4;
         }
         _ = self.ring.stepCount(SPEED);
+    }
+
+    /// scrolltext.scroffset: the index of the next character to enter.
+    pub fn scroffset(self: *const Motion) usize {
+        return self.ring.next;
     }
 
     /// posVertScrollY1..3: Y2 = Y1 + 398, Y3 = Y2 + 398 (added in that order).
