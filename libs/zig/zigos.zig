@@ -31,6 +31,8 @@ pub const palette = @import("effects/palette.zig"); // scale colours from a base
 pub const scrollring = @import("effects/scrollring.zig"); // CODEF letter-ring scroller state
 pub const wave = @import("effects/wave.zig"); // CODEF FX.siny: SineSum + column-shifted strip blit
 pub const spans = @import("effects/spans.zig"); // comptime ink runs of a sparse overlay
+pub const codef3d = @import("effects/codef3d.zig"); // CODEF codef3D (three.js r49 canvas faces), replayed exactly
+pub const canvas_poly = @import("effects/canvas_poly.zig"); // a doubled canvas's path fill, shown halved
 // per-line palette tables, one HBL per plane, always-physical rows
 pub const copper = @import("effects/copper.zig").Copper(LogicalFB, ZigOS, .{
     .nb_planes = NB_PLANES,

@@ -47,6 +47,8 @@ for t in \
     libs/zig/effects/wave_test.zig \
     libs/zig/effects/spans_test.zig \
     libs/zig/effects/tilegrid_test.zig \
+    libs/zig/effects/codef3d_test.zig \
+    libs/zig/effects/canvas_poly_test.zig \
     libs/zig/shapes_test.zig \
     libs/zig/wireframe_test.zig \
     libs/zig/tvnoise/tvnoise.zig \
