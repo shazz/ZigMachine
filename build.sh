@@ -87,6 +87,8 @@ node apps/union_demo_music_check.mjs --fail-proof   # ...and a wrong tune name f
 node apps/union_intro_music_check.mjs   # the cracktro's music starts with the TRSI logo, and main doesn't restart it
 node apps/union_intro_music_check.mjs --fail-proof   # ...and a wrong tune name fails that check
 node apps/union_demo_doors_check.mjs   # the hub's doors launch the Union screens by tag (they are hub-only)
+node apps/union_demo_headless.mjs "$SHOTS/union_demo"   # hub: street wraps, view eases, keys stop at 60/144 Hz and on key-up, door memory
+node apps/union_demo_headless.mjs --break return "$SHOTS/union_demo"   # ...and a lost ROM note fails the door-memory check
 node apps/union_multifake_headless.mjs "$SHOTS"   # TCB3: loader depack, then screen.js replayed pixel for pixel
 node apps/dbug_headless.mjs "$SHOTS"
 node apps/fallen_angels_headless.mjs "$SHOTS"   # per-plane rasters on all 200 lines

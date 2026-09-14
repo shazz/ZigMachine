@@ -32,6 +32,7 @@
 // scene keeps a repeating direction held for 60 ms after its last event.
 //
 //   node apps/union_demo_headless.mjs [outdir] [cart.wasm]
+//   node apps/union_demo_headless.mjs --break return [outdir]   # must FAIL `return`
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { performance } from "node:perf_hooks";
 import { cartRam, romRam } from "../docs/wasm_hiwater.js";
@@ -51,8 +52,13 @@ const TIMELINE = {
     hold: [["right", 60, 130], ["up", 150, 200], ["fire", 230, 231], ["right", 260, 700], ["down", 720, 760], ["left", 780, 860]],
     shots: { 1: "start", 100: "walking", 210: "at-door", 231: "door-entered", 400: "scrolled", 600: "scroller", 760: "down", 850: "walking-left" },
 };
-const outDir = process.argv[2] || "/tmp/union_demo";
-const CART = process.argv[3] || "docs/demo-union_demo.wasm";
+// --break return: the fail proof. The ROM scratch is wiped between the door's cart
+// and the swap back, as a host or ROM that lost the note would; only `return`
+// runs, and it must FAIL (exit 0 when it does, 1 when the check cannot tell).
+const BREAK = process.argv.includes("--break") ? process.argv[process.argv.indexOf("--break") + 1] : null;
+const POS = process.argv.slice(2).filter((a, i, all) => a !== "--break" && all[i - 1] !== "--break");
+const outDir = POS[0] || "/tmp/union_demo";
+const CART = POS[1] || "docs/demo-union_demo.wasm";
 
 async function boot(loaded = true) {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
@@ -281,6 +287,7 @@ async function checkReturn() {
         fails.push(`the note says x ${note.getFloat32(8, true)} y ${note.getFloat32(12, true)} scroll ${note.getUint32(16, true)}, not door 9 and a moved scroller`);
     await loadDisk(m, "union_multifake");
     for (let i = 0; i < 30; i++) step(m); // the door's cart runs over the cart window
+    if (BREAK === "return" && ptr) new Uint8Array(m.memory.buffer, ptr, m.rom.romScratchLen()).fill(0);
     const hub = await readFile(CART);
     await load(m, hub, false); // swapCart back to the hub: romReset, hwInit, boot, skipBoot
     await ready(m); // its menuloader depack first; the note is read when it ends
@@ -289,8 +296,11 @@ async function checkReturn() {
     if (ptr && new Uint8Array(m.memory.buffer, ptr, 4).some((b) => b !== 0)) fails.push("the note was not spent");
     for (let i = 0; i < 160; i++) step(m); // letters reach the screen
     const scroller = visible(m, HUD_ROWS);
-    const fresh = await boot(); // a new page: new memory, new ROM
-    for (let i = 0; i < 161; i++) step(fresh);
+    // A new page: new memory, new ROM. Both hubs have run ready() (its last frame
+    // is the street's first step) and then the same 160 steps, so their letters
+    // stand at the same x and only the characters can differ.
+    const fresh = await boot();
+    for (let i = 0; i < 160; i++) step(fresh);
     if (same(scroller, visible(fresh, HUD_ROWS))) fails.push("the scroller restarted from its first character");
     const page = await boot();
     if (!same(visible(page, STREET_ROWS), spawn)) fails.push("a fresh page did not start at the spawn");
@@ -315,6 +325,16 @@ async function checkDoor() {
     }
     return ink >= 50 ? `ok   door: the TEX loader panel shows on ${ink} of the first 60 frames after the swap`
         : `FAIL door: the TEX loader panel shows on only ${ink} of the first 60 frames after the swap`;
+}
+
+if (BREAK !== null) {
+    if (BREAK !== "return") { console.log(`=> FAIL ❌ --break ${BREAK}: only "return" can be broken`); process.exit(1); }
+    const r = await checkReturn();
+    console.log(r);
+    const caught = r.startsWith("FAIL return") && r.includes("spawn");
+    console.log(caught ? "=> PASS ✅ fail proof: a lost ROM note brings the hub back at the spawn, and `return` says so"
+        : "=> FAIL ❌ fail proof: `return` did not notice the lost note");
+    process.exit(caught ? 0 : 1);
 }
 
 const cost = await timeline();
