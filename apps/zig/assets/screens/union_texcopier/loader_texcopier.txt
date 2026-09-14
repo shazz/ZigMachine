@@ -1,0 +1,27 @@
+# The Union Demo TEX COPIER loader panel (Union-Demo-HTML5-Remake-0.9.8,
+# screens/texcopier/loader.js:20-43, loaderText[0..22]): 23 rows of 21. build.zig
+# packs texcopier.bin with it:
+#   zx0pack --fx tex_loader --panel apps/zig/assets/screens/union_texcopier/loader_texcopier.txt <in> <out>
+"                     "
+"                     "
+" TEX : COPY-PROGRAM  "
+"                     "
+" PROGRAM  BY 6719    "
+"          AND MAD MAX"
+" GRAPHIX  BY ES      "
+" SOUND    BY MAH MAH "
+"     COMPOSED BY     "
+"     JEROEN  TEL     "
+"                     "
+" PRESS SPACE TO START"
+"    OR '0' TO EXIT   "
+"                     "
+"                     "
+" PLEASE WAIT A MOMENT"
+"     SLEEP-MODE...   "
+"                     "
+"                     "
+"                     "
+"                     "
+"                     "
+"                     "
