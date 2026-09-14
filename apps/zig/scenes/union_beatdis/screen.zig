@@ -14,15 +14,28 @@
 // x is not always even (3 and 7 a frame): ST column X shows canvas column 2X,
 // i.e. a picture at canvas x shows from ST column ceil(x/2) (`halveX`).
 // --------------------------------------------------------------------------
+const std = @import("std");
 const zg = @import("zigos");
 const blit = zg.blit;
 const pathchain = zg.pathchain;
 const A = @import("assets.zig");
 const curve = @import("curve.zig");
+const hub_assets = @import("../union_demo/assets.zig");
 
 pub const Version = enum { k1024, k512 };
 
 pub const TEXT = @embedFile("../../assets/screens/union_beatdis/scrolltext.txt"); // main.js:50-229, jsApp.scrolltext
+
+// The hub's note carries a scroll into jsApp.scrolltext, the same text in both
+// carts: the hub's scrolltext.txt is the last part of menu_assets.bin
+// (union_demo/assets.zig).
+comptime {
+    const blob = @embedFile("../../assets/screens/union_demo/menu_assets.bin");
+    if (blob.len != hub_assets.BLOB_LEN) @compileError("menu_assets.bin is not the layout union_demo/assets.zig reads");
+    @setEvalBranchQuota(4 * TEXT.len + 1000);
+    if (!std.mem.eql(u8, blob[blob.len - TEXT.len ..], TEXT))
+        @compileError("scrolltext.txt differs from the hub's: the note's scroll offset would not index this text");
+}
 const FIRST_CHAR = 32;
 const GLYPH_C: i32 = 2 * A.GLYPH_W;
 const LETTERS = 8; // wide = ceil(576/96)+1 = 7, letters 0..wide

@@ -21,7 +21,6 @@
 // --------------------------------------------------------------------------
 const std = @import("std");
 const zg = @import("zigos");
-const rom = @import("rom_sdk");
 const ZigOS = zg.ZigOS;
 const Color = zg.Color;
 
@@ -29,6 +28,7 @@ const A = @import("union_demo/assets.zig");
 const Charly = @import("union_demo/charly.zig").Charly;
 const MAP_W = @import("union_demo/charly.zig").MAP_W;
 const return_note = @import("union_demo/return_note.zig");
+const hub_note = @import("union_demo/hub_note.zig"); // scratch()
 const Controls = @import("union_demo/controls.zig").Controls;
 const Hud = @import("union_demo/hud.zig").Hud;
 const world = @import("union_demo/world.zig");
@@ -224,7 +224,7 @@ pub const Demo = struct {
     // the scroller has kept jsApp.mainscrollerPos current (main.js:488): leave
     // both in the ROM, the only memory the door's cart does not replace.
     fn leaveNote(self: *const Demo, d: usize) void {
-        const buf = scratch() orelse return;
+        const buf = hub_note.scratch() orelse return;
         return_note.write(buf, .{ .door = @intCast(d), .x = self.charly.x, .y = self.charly.y, .scroll = @intCast(self.hud.offset) });
     }
 
@@ -239,7 +239,7 @@ pub const Demo = struct {
     // cannot bind, no ease starts, and the first street frame is already centred
     // on him. The banner's last view moves with it, so it does not scroll.
     fn comeBack(self: *Demo) void {
-        const buf = scratch() orelse return;
+        const buf = hub_note.scratch() orelse return;
         const n = return_note.take(buf) orelse return;
         if (n.door >= doors.DOORS.len or !(n.x >= 0 and n.x < MAP_W)) return;
         if (!(n.y >= 0 and n.y < @as(f32, @floatFromInt(A.map.ROWS * A.map.TILE_H))) or n.scroll >= A.scrolltext.len) return;
@@ -264,15 +264,6 @@ pub const Demo = struct {
         self.message_frames = MESSAGE_FRAMES;
     }
 };
-
-// The ROM's scratch bytes (rom_sdk.romScratchPtr), or null on a ROM without them:
-// the page's tolerant env stubs a missing export to return 0.
-fn scratch() ?[]u8 {
-    const len = rom.romScratchLen();
-    const ptr = rom.romScratchPtr();
-    if (len == 0 or ptr == 0) return null;
-    return @as([*]u8, @ptrFromInt(ptr))[0..len];
-}
 
 fn drawMessage(zigos: *ZigOS, d: usize) void {
     var buf: [40]u8 = undefined;
