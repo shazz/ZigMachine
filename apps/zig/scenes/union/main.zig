@@ -116,32 +116,35 @@ pub const Demo = struct {
     grad_idx: u8 = 0, // gradTiles palette-animation step
     grad_inc: i8 = 1,
     // This scene OWNS its playlist (host holds none): tunes under docs/music/.
-    // Tracks 1 and 5 play the real SNDH replay routine (smaller, and the
+    // Tracks 1, 2 and 5 play the real SNDH replay routine (smaller, and the
     // authentic player, not a register-dump recording). Proof: YM regs 0-5,8-10
     // (volume masked 0x1f) of the SNDH vs the old .ymraw, % of register cells
     // equal over 800 frames, offsets -50..+400, every subtune, rendered
     // headless through the real demo-audio + machine-audio modules:
     //   1 SharpnessBuzztone.ymraw == Jess/Sharpness_Buzztone.sndh: 99.8% at
     //     offset 0, tune default. FLAG ~ay audible headless (peak 0.55-0.80).
+    //   2 150mph.ymraw (TAO of ACF, conv. Leonard) ~= Tao/Songs_That_Make_U_
+    //     Go_Mmh2/150_mph.sndh ("STMYGM 2 version"), its only tune: 95.9% of
+    //     cells at offset 0, but only 78.1% of frames fully matching and 92.4%
+    //     over 3000 frames; channel A plays an octave apart (another
+    //     arrangement). Matt accepted it on 2026-09-13. Tao/Steps/150_mph.sndh
+    //     derails on its first frame (timer A/D SID code writes $110/$134
+    //     inside an image loaded at $0): re-test it after fix/sndh-relocate;
+    //     it may be the exact match and replace this one. TSD_STe/150_mph is
+    //     STE DMA (~ey): silent here, 42.6%.
     //   5 Lap33.ymraw (header "LAP 22 (e.g. BMT screen/PYM)", Lap/Next, conv.
     //     Senser/Vectronix) == Lap/Lap_33.sndh: 100.0% (every frame whole) at
     //     offset -24, its only tune; FLAG ~y, peak 0.68. The "22" was a typo.
-    // Tracks 2,3,4,6 stay .ymraw (archive re-searched by TITL/COMM/filename):
-    //   150mph: Tao/Steps/150_mph.sndh derails on its first replay frame (its
-    //     timer A/D SID code writes vectors $110/$134, inside an image loaded
-    //     at $0): blocked on the SNDH relocate fix. Mmh2/150_mph ("STMYGM 2
-    //     version") scores 95.9% at 0 but is another arrangement: channel A an
-    //     octave apart, 78% of frames whole, 92.4% over 3000 frames.
-    //     TSD_STe/150_mph is STE DMA (~ey): silent here, 42.6%.
+    // Tracks 3,4,6 stay .ymraw (archive re-searched by TITL/COMM/filename):
     //   Androids: Tao/Steps/Androids.sndh 87.1% (its timer-A SID zeroes vols
     //     9/10 between 50 Hz samples; derails at frame 768); Mmh2 version 76.8%.
     //   Drooling: 505/Drooling.sndh 61.6% (an STE DMA replay, not this dump).
     //   Reality: Big_Alec/Reality.sndh derails in init (stuck PC, silent; it
     //     writes $110 inside the image): blocked on the SNDH relocate fix.
-    // Re-measure 150mph, Androids and Reality once SNDH images relocate.
+    // Re-measure 150mph (Steps), Androids and Reality once SNDH images relocate.
     const TRACKS = [_][]const u8{
         "union/sharpness_buzztone.sndh",
-        "union/150mph.ymraw",
+        "union/150_mph.sndh",
         "union/Androids.ymraw",
         "union/Drooling.ymraw",
         "union/lap_33.sndh",
