@@ -66,17 +66,9 @@ pub const Scroller = struct {
     ring: zg.scrollring.Ring(i32, LETTERS),
 
     /// scrolltext.init(..., offset jsApp.mainscrollerPos): `offset` is the next
-    /// character to enter, so letter i carries TEXT[offset + i], wrapping at the
-    /// end (the JS would read NaN letters there). The same contract as
-    /// scrollring's initAt on the beatdis/tnt1/superscroller branches; once that
-    /// lands this is Ring.initAt(TEXT, START_C, GLYPH_W_C, offset).
+    /// character to enter, so letter i carries TEXT[offset + i] (scrollring.initAt).
     pub fn initAt(self: *Scroller, offset: usize) void {
-        self.ring = zg.scrollring.Ring(i32, LETTERS).init(TEXT, START_C, GLYPH_W_C);
-        self.ring.next = offset % TEXT.len;
-        for (&self.ring.c) |*c| {
-            c.* = TEXT[self.ring.next];
-            self.ring.next = (self.ring.next + 1) % TEXT.len;
-        }
+        self.ring = zg.scrollring.Ring(i32, LETTERS).initAt(TEXT, START_C, GLYPH_W_C, offset);
     }
 
     /// scrolltext.scroffset: the next character to enter.
