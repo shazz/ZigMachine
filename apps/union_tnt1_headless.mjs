@@ -112,8 +112,12 @@ function png(rgb) {
 const errors = [];
 await mkdir(out, { recursive: true });
 const pal = new Uint8Array(await readFile(`${ASSETS}/pal.dat`));
-const replay = makeReplay(new Uint8Array(await readFile(`${ASSETS}/tnt1.bin`)),
-    await readFile("apps/zig/assets/screens/union_demo/scrolltext.txt", "latin1"),
+// The scene's text is a copy of jsApp.scrolltext; the hub's blob ends with it
+// (scenes/union_demo/assets.zig bind order), and the two must not drift.
+const text = await readFile(`${ASSETS}/scrolltext.txt`);
+const hubBlob = await readFile("apps/zig/assets/screens/union_demo/menu_assets.bin");
+if (!hubBlob.subarray(hubBlob.length - text.length).equals(text)) errors.push("scrolltext.txt differs from the hub's (the end of union_demo/menu_assets.bin)");
+const replay = makeReplay(new Uint8Array(await readFile(`${ASSETS}/tnt1.bin`)), text.toString("latin1"),
     brk === "halve" ? { halve: (c) => Math.floor(c / 2) } : brk === "passes" ? { passes: 1 } : {});
 const { memory, machine, demo } = await boot(cartPath);
 const W = machine.hwPhysWidth(), H = machine.hwPhysHeight();

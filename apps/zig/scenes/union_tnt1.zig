@@ -50,8 +50,9 @@ const K_ESC: u32 = 0xE012;
 // assembles over 72 frames (the remake's takes 99).
 const DEPACK_BYTES_PER_LINE = 1;
 
-/// jsApp.scrolltext (main.js:50), shared with the hub.
-const TEXT = @embedFile("../assets/screens/union_demo/scrolltext.txt");
+/// jsApp.scrolltext (main.js:50). The hub packs it into menu_assets.bin; this is a
+/// byte-identical copy (apps/union_tnt1_headless.mjs checks it against the blob).
+const TEXT = @embedFile("../assets/screens/union_tnt1/scrolltext.txt");
 /// tools/private_tools/union_tnt1_assets.py: 0 transparent, 1 #000040,
 /// 2 #800000 (logo, font), 3..10 blue balls, 11..17 red balls.
 const palette = zg.convertU8ArraytoColors(@embedFile("../assets/screens/union_tnt1/pal.dat"));
