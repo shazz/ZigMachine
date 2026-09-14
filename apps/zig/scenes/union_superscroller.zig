@@ -41,11 +41,13 @@ const A = @import("union_superscroller/assets.zig");
 const Motion = @import("union_superscroller/motion.zig").Motion;
 const compose = @import("union_superscroller/compose.zig");
 
-// me.audio.playTrack("zik_tcb2") (screen.js:67): data/music/zik_tcb2.ogg, An
-// Cool's sampled sound (loader.js:28-29 credits it). The Union_Demo folder of
-// the SNDH archive has no TCB2 tune; this is AN_Cool/Wow_Scroller.sndh ("Wow
-// Scroller", AN Cool, 1989, one subtune, FLAG ~ay: its samples go through the
-// YM's volume registers, so it plays here).
+// me.audio.playTrack("zik_tcb2") (screen.js:67): the remake plays a sample,
+// data/music/zik_tcb2.ogg, An Cool's sampled sound (loader.js:28-29 credits it).
+// The Mad_Max/Demos/Union_Demo folder has no TCB2 tune, so this SNDH comes from
+// OUTSIDE that folder, by Matt's call (2026-09-14): AN_Cool/Wow_Scroller.sndh,
+// tune 1 ("Wow Scroller", AN Cool, 1989, one subtune, FLAG ~ay). Its samples go
+// through the YM's volume registers, so it plays here: sndh_headless.mjs gives
+// SNDH mode, peak 0.3300, volumes written on voices A and C, no stuck PC.
 const MUSIC = "union/wow_scroller.sndh";
 const HUB = "union_demo";
 // 140,601 bytes at 5 a line (1,400 a frame) depack in 101 frames; the remake's
