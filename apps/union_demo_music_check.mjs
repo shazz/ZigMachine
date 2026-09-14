@@ -4,9 +4,9 @@
 // songNameLen/songTune), then hands the requested file to the real audio modules
 // the way the worklet does for a .sndh (audioLoadSndh + audioSndhPlay(tune)).
 //   - union_demo: the menu's Alloy Run.
-//   - union_main: track 1 autoplays; keys 2 and 5 (setShadeMode(1)/(4)) ask for
-//     150 mph and Lap 33 BY THEIR SNDH names; the .ymraw dumps they replaced
-//     must never come back.
+//   - union_main: track 1 autoplays; keys 2, 5 and 6 (setShadeMode(1)/(4)/(5))
+//     ask for 150 mph, Lap 33 and Reality BY THEIR SNDH names; the .ymraw dumps
+//     they replaced must never come back. 150 mph and Reality are SID tunes.
 //
 // "Plays" means more than a peak: Alloy Run is a SID tune, and it once loaded,
 // reported mode 4 and made no sound at all (the player had loaded it over the
@@ -23,10 +23,14 @@ const FAIL_PROOF = process.argv.includes("--fail-proof");
 // Fail proof: each screen is asked for the file it used to play before its SNDH.
 const MENU_WANT = FAIL_PROOF ? "union_demo_menu.ymraw" : "union/alloy_run.sndh";
 const MENU_TUNE = 1;
-const MAIN_WANT = [ // [setShadeMode, name] — mode 0 is the autoplay request
-    [0, "union/sharpness_buzztone.sndh"],
-    [1, FAIL_PROOF ? "union/150mph.ymraw" : "union/150_mph.sndh"],
-    [4, FAIL_PROOF ? "union/Lap33.ymraw" : "union/lap_33.sndh"],
+// [setShadeMode, name, voices] — mode 0 is the autoplay request. `voices` is how
+// many volume registers the replay must write in 10 s: Lap 33 only rewrites
+// voice A's (B and C keep their init volume; it matched the dump 100%).
+const MAIN_WANT = [
+    [0, "union/sharpness_buzztone.sndh", 3],
+    [1, FAIL_PROOF ? "union/150mph.ymraw" : "union/150_mph.sndh", 3],
+    [4, FAIL_PROOF ? "union/Lap33.ymraw" : "union/lap_33.sndh", 1],
+    [5, FAIL_PROOF ? "union/Reality.ymraw" : "union/reality.sndh", 3],
 ];
 const MODE_SNDH = 4; // demo_audio_main.zig audioMode()
 const SECONDS = 10, SR = 44100, BLOCK = 882;
@@ -109,12 +113,13 @@ async function sndhPlay(name, tune) {
     return { loaded: true, peak, silent, volWrites, mode: audio.audioMode(), stuckPc: audio.audioSndhStuckPc() };
 }
 
-async function plays(req) {
+async function plays(req, voices = 3) {
     const r = await sndhPlay(req.name, req.tune);
     if (!r.loaded) { console.log(`  SNDH not loaded (${r.why})`); return false; }
+    const written = r.volWrites.filter((n) => n > 0).length;
     console.log(`  SNDH mode ${r.mode} (${MODE_SNDH} == SNDH), peak ${r.peak.toFixed(4)}, silent seconds ${r.silent}/${SECONDS}, ` +
-        `volume writes A/B/C ${r.volWrites.join("/")}, stuck PC $${r.stuckPc.toString(16)}`);
-    return r.mode === MODE_SNDH && r.peak > 0.01 && r.silent === 0 && r.volWrites.every((n) => n > 0);
+        `volume writes A/B/C ${r.volWrites.join("/")} (want ${voices} voices), stuck PC $${r.stuckPc.toString(16)}`);
+    return r.mode === MODE_SNDH && r.peak > 0.01 && r.silent === 0 && written >= voices && r.stuckPc === 0;
 }
 
 async function checkMenu() {
@@ -128,11 +133,11 @@ async function checkMenu() {
 async function checkMain() {
     const cart = await bootCart("docs/demo-union_main.wasm");
     let ok = true;
-    for (const [mode, want] of MAIN_WANT) {
+    for (const [mode, want, voices] of MAIN_WANT) {
         if (mode > 0) cart.demo.setShadeMode(mode);
         const req = firstRequest(cart, 10);
         console.log(`union_main track ${mode + 1} request: ${req ? `"${req.name}" tune ${req.tune}` : "none"} (want "${want}")`);
-        ok = !!req && req.name === want && (await plays(req)) && ok;
+        ok = !!req && req.name === want && (await plays(req, voices)) && ok;
     }
     return ok;
 }

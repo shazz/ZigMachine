@@ -116,40 +116,43 @@ pub const Demo = struct {
     grad_idx: u8 = 0, // gradTiles palette-animation step
     grad_inc: i8 = 1,
     // This scene OWNS its playlist (host holds none): tunes under docs/music/.
-    // Tracks 1, 2 and 5 play the real SNDH replay routine (smaller, and the
+    // Tracks 1, 2, 5 and 6 play the real SNDH replay routine (smaller, and the
     // authentic player, not a register-dump recording). Proof: YM regs 0-5,8-10
     // (volume masked 0x1f) of the SNDH vs the old .ymraw, % of register cells
     // equal over 800 frames, offsets -50..+400, every subtune, rendered
-    // headless through the real demo-audio + machine-audio modules:
+    // headless through the real demo-audio + machine-audio modules (SNDH
+    // images at $10002 since #91):
     //   1 SharpnessBuzztone.ymraw == Jess/Sharpness_Buzztone.sndh: 99.8% at
     //     offset 0, tune default. FLAG ~ay audible headless (peak 0.55-0.80).
-    //   2 150mph.ymraw (TAO of ACF, conv. Leonard) ~= Tao/Songs_That_Make_U_
-    //     Go_Mmh2/150_mph.sndh ("STMYGM 2 version"), its only tune: 95.9% of
-    //     cells at offset 0, but only 78.1% of frames fully matching and 92.4%
-    //     over 3000 frames; channel A plays an octave apart (another
-    //     arrangement). Matt accepted it on 2026-09-13. Re-tested once images
-    //     loaded at $10002 (#91): Tao/Steps/150_mph.sndh now runs, 94.3% of
-    //     cells, 49.4% of frames: periods 100%, but its timer SID zeroes vol 9
-    //     between 50 Hz samples. Lower on both counts, so Mmh2 stays.
-    //     TSD_STe/150_mph is STE DMA (~ey): silent here, 42.6%.
     //   5 Lap33.ymraw (header "LAP 22 (e.g. BMT screen/PYM)", Lap/Next, conv.
     //     Senser/Vectronix) == Lap/Lap_33.sndh: 100.0% (every frame whole) at
     //     offset -24, its only tune; FLAG ~y, peak 0.68. The "22" was a typo.
-    // Tracks 3,4,6 stay .ymraw (archive re-searched by TITL/COMM/filename;
-    // SID tunes re-measured with images at $10002, #91):
+    // SID tunes (tracks 2 and 6). A 50 Hz dump cannot record a timer SID
+    // effect: the replay's timer zeroes a voice's volume between the dump's
+    // samples, so those volume cells miss even when the tune is the original.
+    // Matt's rule, 2026-09-13: accept a SID SNDH whose period registers 0-5
+    // match 100% and whose only misses are those SID-zeroed volumes.
+    //   2 150mph.ymraw (TAO of ACF, conv. Leonard) == Tao/Steps/150_mph.sndh,
+    //     its only tune, offset 0: periods 100%, 94.3% of cells, 49.4% of
+    //     frames whole; every miss is vol 9 zeroed by its timer A/D SID. It
+    //     replaced Tao/Songs_That_Make_U_Go_Mmh2/150_mph.sndh (95.9% of cells,
+    //     78.1% of frames, but channel A an octave apart: another arrangement).
+    //     TSD_STe/150_mph is STE DMA (~ey): silent here, 42.6%.
+    //   6 Reality.ymraw (Gunnar Gaubatz (Big Alec), conv. Oedipus) ==
+    //     Big_Alec/Reality.sndh, its only tune, offset 0: periods 100%, 94.5%
+    //     of cells, 50.1% of frames whole; every miss is vol 10 zeroed by its
+    //     timer-D SID. Nemo/Reality_Enraged.sndh: 0%.
+    // Tracks 3 and 4 stay .ymraw (archive searched by TITL/COMM/filename):
     //   Androids: Tao/Steps/Androids.sndh 89.4% of cells, 27.4% of frames
-    //     (periods 100%, its timer SID zeroes vols 9/10 between 50 Hz
-    //     samples); Mmh2 version 76.8%.
+    //     (periods 100%, its SID zeroes vols 9 AND 10); Mmh2 version 76.8%.
     //   Drooling: 505/Drooling.sndh 61.6% (an STE DMA replay, not this dump).
-    //   Reality: Big_Alec/Reality.sndh now runs: 94.5% of cells, 50.1% of
-    //     frames (periods 100%, its timer-D SID zeroes vol 10): under 95%.
     const TRACKS = [_][]const u8{
         "union/sharpness_buzztone.sndh",
         "union/150_mph.sndh",
         "union/Androids.ymraw",
         "union/Drooling.ymraw",
         "union/lap_33.sndh",
-        "union/Reality.ymraw",
+        "union/reality.sndh",
     };
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
