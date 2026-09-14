@@ -89,9 +89,10 @@ pub const Demo = struct {
         // remake (intro/index.html init()) starts Sharpness Buzztone together
         // with its sequencer, whose first effect is the TRSI logo. The RASTERS
         // depack before it is ZigMachine's stand-in for the remake's image
-        // loader, so the request comes once it is done. requestTrack skips a
-        // repeat, so later parts and the main screen keep the tune playing.
-        UnionMain.requestTrack(UnionMain.TRACKS[0]);
+        // loader, so the request comes once it is done. autoplay only fires
+        // while nothing has been asked for, so later parts and the main screen
+        // keep whatever is playing, including a track picked with 1-6.
+        UnionMain.autoplay();
         switch (SEQ[self.idx]) {
             inline else => |t| {
                 self.active = @unionInit(Active, @tagName(t), .{});
@@ -139,8 +140,11 @@ pub const Demo = struct {
         }
     }
 
+    // Keys 1-6 pick the tune during the WHOLE cracktro: the remake's key handler
+    // is global (document.onkeydown = KeyCheck), not the main part's.
     pub fn setShadeMode(self: *Demo, mode: u32) void {
-        if (self.in_main) self.main.setShadeMode(mode);
+        if (self.in_main) return self.main.setShadeMode(mode);
+        if (mode < UnionMain.TRACKS.len) UnionMain.requestTrack(UnionMain.TRACKS[mode]);
     }
 
     pub fn pollSong(self: *Demo) u32 {

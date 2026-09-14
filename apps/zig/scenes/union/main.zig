@@ -160,7 +160,7 @@ pub const Demo = struct {
         self.frame = 0;
         self.grad_idx = 0;
         self.grad_inc = 1;
-        requestTrack(TRACKS[0]); // autoplay track 1, unless union_intro already started it
+        autoplay(); // track 1, unless the cracktro already started a tune
         const p0: *LogicalFB = &zigos.lfbs[0];
         p0.is_enabled = true;
         p0.setOverscanBuffer();
@@ -229,10 +229,16 @@ pub const Demo = struct {
         if (mode < TRACKS.len) requestTrack(TRACKS[mode]);
     }
 
-    /// Ask the host for `name` unless it is the tune asked for last, so a
-    /// playing track is never restarted. union_intro starts track 1 with the
-    /// TRSI logo and main must not start it again. The Codef remake's keys 1-6
-    /// do the same: they only switch when `currentTrack != n`.
+    /// Keys 1-6: ask the host for `name` unless it is the tune asked for last,
+    /// so pressing the playing track's key never restarts it. The Codef remake's
+    /// keys do the same: they only switch when `currentTrack != n`.
+    /// Start track 1, unless a tune was already asked for in this cart. In the
+    /// cracktro, union_intro starts it with the TRSI logo, and the viewer may have
+    /// picked another with 1-6 since. The remake's main part never touches the music.
+    pub fn autoplay() void {
+        if (zg.songNameLen() == 0) zg.requestSong(TRACKS[0]);
+    }
+
     pub fn requestTrack(name: []const u8) void {
         if (@import("std").mem.eql(u8, zg.songNamePtr()[0..zg.songNameLen()], name)) return;
         zg.requestSong(name);
