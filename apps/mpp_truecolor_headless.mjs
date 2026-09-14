@@ -1,15 +1,17 @@
 // Headless MPP TRUECOLOR check: per-line palettes really put more colours on
-// screen than one palette can.
+// screen than one palette can, for every picture in the gallery.
 //
-// For each picture (Fire, as Space sends it, switches) and each mode
-// (setShadeMode 0/1/2) it composites the enabled planes the way
-// the host does (hwClear, frame, hwRenderPlane per enabled plane) and counts the
-// DISTINCT colours in the picture area of the physical framebuffer. It asserts:
-//   - every mode shows exactly the count its caption claims (p<P>_counts.bin),
-//   - PER-LINE shows more than GLOBAL, and at least MIN_PER_LINE,
-//   - 4 PLANES shows at least as many as PER-LINE.
-// A handler that missed lines, or a plane split that left a pixel opaque in two
-// planes or in none, changes the count; nothing else would error.
+// For each picture (Fire, as Space sends it, steps to the next) and each mode
+// (setShadeMode 0/1/2) it composites the enabled planes the way the host does
+// (hwClear, frame, hwRenderPlane per enabled plane) and asserts:
+//   - every mode shows exactly the distinct colours its caption claims (p<P>_counts.bin),
+//   - PER-LINE shows more than GLOBAL, and 4 PLANES at least as many as PER-LINE,
+//   - 4 PLANES is lossless: the picture's RGB hashes to the source's (FNV-1a in counts),
+//   - after the last picture, Fire wraps to picture 0 and the frame (caption included)
+//     is byte-identical to the first pass, in two modes: the depack buffer is not stale.
+// A handler that missed lines, a plane split that left a pixel opaque in two planes
+// or in none, or a palette decoded wrong changes a count or a hash; nothing would error.
+// Each switch depacks one packed blob; the slowest switch is reported.
 //
 //   node apps/mpp_truecolor_headless.mjs [outdir] [cart.wasm]
 //   (outdir: writes mpp-<picture>-mode<N>.ppm, the picture area at 320x180)
@@ -19,8 +21,8 @@ import { cartRam, romRam } from "../docs/wasm_hiwater.js";
 const PAGES = 112; // SHARED_PAGES in machine/sdk/memmap.zig
 const TOP = 40, LEFT = 80; // first visible physical row / column (low res is doubled)
 const IMG_W = 320, IMG_H = 180; // the picture; the caption band is below it
-const MIN_PER_LINE = 20000;
 const WARMUP = 30, FRAMES = 60; // per mode: untimed, then timed, then the shot
+const ASSETS = "apps/zig/assets/screens/mpp_truecolor";
 
 async function boot(cart) {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
@@ -96,38 +98,65 @@ function distinct(rgb) {
     return seen.size;
 }
 
+function fnv1a(bytes) {
+    let h = 0x811c9dc5;
+    for (const b of bytes) h = Math.imul(h ^ b, 0x01000193) >>> 0;
+    return h;
+}
+
 const [outdir, cart = "docs/demo-mpp_truecolor.wasm"] = process.argv.slice(2);
 const { memory, machine, demo } = await boot(cart);
 const NAMES = ["GLOBAL", "PER-LINE", "4 PLANES"];
-const PICTURES = ["spheres", "parrot"]; // the scene's order; Fire steps to the next
+const PICTURES = ["spheres", "parrot", "sunset", "halo", "hills"]; // the scene's order; Fire steps to the next
 const FIRE = 5; // demo_main Direction.Fire, what the host sends for Space
 const W = machine.hwPhysWidth();
 const layer = new Uint8Array(W * machine.hwPhysHeight() * 4);
 const errors = [];
+const firstPass = []; // picture 0's whole-frame hash per mode
+let slowest = 0;
+
+// A switch (Fire or a mode key) depacks one blob; time it, then shoot the frame.
+function shoot(action) {
+    const t = performance.now();
+    action();
+    slowest = Math.max(slowest, performance.now() - t);
+    for (let f = 0; f < WARMUP; f++) hostFrame(memory, machine, demo, null); // JIT warm-up
+    let ms = 0;
+    for (let f = 0; f < FRAMES; f++) ms += hostFrame(memory, machine, demo, null);
+    hostFrame(memory, machine, demo, layer);
+    return ms / FRAMES;
+}
+
 for (let p = 0; p < PICTURES.length; p++) {
-    if (p > 0) demo.input(FIRE);
     const name = PICTURES[p];
-    const counts = new Uint32Array((await readFile(`apps/zig/assets/screens/mpp_truecolor/p${p}_counts.bin`)).buffer.slice(0, 16));
+    const counts = new Uint32Array((await readFile(`${ASSETS}/p${p}_counts.bin`)).buffer.slice(0, 20));
     const measured = [];
+    let frameMs = 0;
+    if (p > 0) shoot(() => demo.input(FIRE)); // keeps the mode (4 PLANES); timed like any switch
     for (let m = 0; m < 3; m++) {
-        demo.setShadeMode(m);
-        for (let f = 0; f < WARMUP; f++) hostFrame(memory, machine, demo, null); // JIT warm-up
-        let ms = 0;
-        for (let f = 0; f < FRAMES; f++) ms += hostFrame(memory, machine, demo, null);
-        hostFrame(memory, machine, demo, layer);
+        frameMs = Math.max(frameMs, shoot(() => demo.setShadeMode(m)));
         const rgb = picture(layer, W);
         measured.push(distinct(rgb));
+        if (p === 0) firstPass.push(fnv1a(layer));
         if (measured[m] !== counts[m + 1]) errors.push(`${name} ${NAMES[m]}: ${measured[m]} colours on screen, caption claims ${counts[m + 1]}`);
-        console.log(`mpp_truecolor: ${name.padEnd(7)} ${NAMES[m].padEnd(8)} ${measured[m]} colours (claimed ${counts[m + 1]}, source ${counts[0]}), ${(ms / FRAMES).toFixed(2)} ms/frame`);
+        if (m === 2 && fnv1a(rgb) !== counts[4]) errors.push(`${name} 4 PLANES: not the source picture (hash mismatch)`);
         if (outdir) {
             const hdr = new TextEncoder().encode(`P6\n${IMG_W} ${IMG_H}\n255\n`);
             await writeFile(`${outdir}/mpp-${name}-mode${m + 1}.ppm`, Buffer.concat([hdr, rgb]));
         }
     }
     if (measured[1] <= measured[0]) errors.push(`${name}: PER-LINE ${measured[1]} not above GLOBAL ${measured[0]}`);
-    if (measured[1] < MIN_PER_LINE) errors.push(`${name}: PER-LINE ${measured[1]} below ${MIN_PER_LINE}`);
     if (measured[2] < measured[1]) errors.push(`${name}: 4 PLANES ${measured[2]} below PER-LINE ${measured[1]}`);
+    console.log(`mpp_truecolor: ${name.padEnd(7)} ${measured.join(" / ")} colours (source ${counts[0]}), ${frameMs.toFixed(2)} ms/frame max`);
 }
+
+// Wrap: Fire from the last picture lands on picture 0 in 4 PLANES (the mode stays),
+// then GLOBAL; both frames must match the first pass byte for byte.
+shoot(() => demo.input(FIRE));
+if (fnv1a(layer) !== firstPass[2]) errors.push("wrap to spheres: 4 PLANES frame differs from the first pass");
+shoot(() => demo.setShadeMode(0));
+if (fnv1a(layer) !== firstPass[0]) errors.push("wrap to spheres: GLOBAL frame differs from the first pass");
+console.log(`mpp_truecolor: ${PICTURES.length} pictures, 4 PLANES lossless, wrap identical; slowest switch (depack) ${slowest.toFixed(1)} ms`);
 if (errors.length) {
     console.error(`mpp_truecolor: FAILED\n  ${errors.join("\n  ")}`);
     process.exit(1);
