@@ -12,6 +12,11 @@
 //
 // Halved: ST row Y shows canvas row 2Y, i.e. half-canvas row 2Y + scrollposY.
 // A line of n glyphs starts at canvas x 320 - n*8, which is always even.
+//
+// It always starts at the first line. The hub's return note (its scroller's
+// jsApp.mainscrollerPos) is not read: TNT3's screen.js inits this scroller as
+// init(maincanvas, redfonts, 3, 18), with no mainscrollerPos, and its text is its
+// own, not union_demo's scrolltext.txt.
 // --------------------------------------------------------------------------
 const std = @import("std");
 const zg = @import("zigos");
