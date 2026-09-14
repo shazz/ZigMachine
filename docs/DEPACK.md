@@ -98,7 +98,9 @@ pictures (156,511 bytes) are packed with `screens/multifake/loader.js`'s panel i
 `build.zig` and depack at 6 bytes a line, 94 frames
 (`apps/union_multifake_headless.mjs`). DELTA FORCE (`union_deltaforce`) followed:
 186,774 bytes behind `screens/deltaforce/loader.js`'s 19-column panel, 7 bytes a line,
-96 frames (`apps/union_deltaforce_headless.mjs`).
+96 frames (`apps/union_deltaforce_headless.mjs`). TCB2's WOW!-SCROLLER (`union_superscroller`)
+does the same with `screens/superscroller/loader.js`'s panel: 140,601 bytes at 5 a
+line, 101 frames (`apps/union_superscroller_headless.mjs`).
 
 **automation**, what is authentic and what is adapted. It is the fake depack
 screen that opened the Replicants' Kick Off 2 remake (CODEF screen 168,

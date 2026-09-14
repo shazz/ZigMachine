@@ -61,7 +61,7 @@ const ROUTES = [_]Route{
     .{ .demo_name = "BEATDIS_LOADER", .screen = .beatdis1024_screen, .title = "TCB1", .tag = "union_beatdis" }, // Space; Enter = 512 KB (asked in the cart)
     .{ .demo_name = "DELTAFORCE_LOADER", .screen = .deltaforce_screen, .title = "DELTA FORCE", .tag = "union_deltaforce" },
     .{ .demo_name = "TNT3_LOADER", .screen = .tnt3_screen, .title = "TNT3", .tag = "union_tnt3" },
-    .{ .demo_name = "SUPERSCROLLER_LOADER", .screen = .superscroller_screen, .title = "TCB2" },
+    .{ .demo_name = "SUPERSCROLLER_LOADER", .screen = .superscroller_screen, .title = "TCB2", .tag = "union_superscroller" },
     .{ .demo_name = "TNT1_LOADER", .screen = .tnt1_screen, .title = "TNT1", .tag = "union_tnt1" },
     .{ .demo_name = "REPS_LOADER", .screen = .reps_screen, .title = "REPS", .tag = "union_reps" },
     .{ .demo_name = "TNT2_LOADER", .screen = .tnt2_screen, .title = "TNT2", .tag = "union_tnt2" },

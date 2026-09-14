@@ -48,6 +48,9 @@ for t in \
     libs/zig/effects/wave_test.zig \
     libs/zig/effects/spans_test.zig \
     libs/zig/effects/ballfield_test.zig \
+    libs/zig/effects/chrome_draw_test.zig \
+    libs/zig/effects/linepal_test.zig \
+    libs/zig/effects/spanfont_test.zig \
     libs/zig/effects/tilegrid_test.zig \
     libs/zig/effects/codef3d_test.zig \
     libs/zig/effects/canvas_poly_test.zig \
@@ -129,4 +132,5 @@ node apps/union_reps_headless.mjs "$SHOTS"   # REPS: loader depack, screen.js re
 node apps/union_tnt2_headless.mjs "$SHOTS"   # TNT2: TEX loader depack, screen.js + its keys replayed pixel for pixel, Cybernoid plays
 node apps/union_beatdis_headless.mjs "$SHOTS"   # TCB1: loader depack + question, both versions replayed pixel for pixel, both SNDHs play
 node apps/union_beatdis_headless.mjs --break keylock "$SHOTS"   # ...and a key lock that releases between repeats fails the hold check
+node apps/union_superscroller_headless.mjs "$SHOTS"   # TCB2: TEX loader depack, screen.js with Chrome's filtering replayed pixel for pixel, the SNDH plays
 echo "shots in $SHOTS"

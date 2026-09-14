@@ -166,6 +166,12 @@ pub fn build(b: *std.Build) void {
     pack_beatdis.addFileArg(b.path("apps/zig/assets/screens/union_beatdis/loader_beatdis.txt"));
     pack_beatdis.addFileArg(b.path("apps/zig/assets/screens/union_beatdis/beatdis.bin"));
     const beatdis_zx0 = pack_beatdis.addOutputFileArg("union_beatdis.zx0");
+    // The Union Demo TCB2 WOW!-SCROLLER: behind screens/superscroller/loader.js's panel.
+    const pack_superscroller = b.addRunArtifact(zx0pack);
+    pack_superscroller.addArgs(&.{ "--fx", "tex_loader", "--panel" });
+    pack_superscroller.addFileArg(b.path("apps/zig/assets/screens/union_superscroller/loader_superscroller.txt"));
+    pack_superscroller.addFileArg(b.path("apps/zig/assets/screens/union_superscroller/superscroller.bin"));
+    const superscroller_zx0 = pack_superscroller.addOutputFileArg("union_superscroller.zx0");
     const packed_files = b.addWriteFiles();
     _ = packed_files.addCopyFile(trsi_zx0, "trsi_turn.zx0");
     _ = packed_files.addCopyFile(multifake_zx0, "union_multifake.zx0");
@@ -180,6 +186,7 @@ pub fn build(b: *std.Build) void {
     _ = packed_files.addCopyFile(reps_zx0, "union_reps.zx0");
     _ = packed_files.addCopyFile(tnt2_zx0, "union_tnt2.zx0");
     _ = packed_files.addCopyFile(beatdis_zx0, "union_beatdis.zx0");
+    _ = packed_files.addCopyFile(superscroller_zx0, "union_superscroller.zx0");
     // MPP TRUECOLOR's gallery: one blob per picture and mode (tools/mpp_convert.py).
     // Unpacked they overflow the cart window, so the scene depacks only the one on
     // screen. MPP_PICTURES follows the converter's PICTURES list.
@@ -213,6 +220,7 @@ pub fn build(b: *std.Build) void {
             \\pub const union_reps = @embedFile("union_reps.zx0");
             \\pub const union_tnt2 = @embedFile("union_tnt2.zx0");
             \\pub const union_beatdis = @embedFile("union_beatdis.zx0");
+            \\pub const union_superscroller = @embedFile("union_superscroller.zx0");
             \\{s}}};
             \\
         , .{mpp_decl})),
@@ -392,6 +400,7 @@ pub fn build(b: *std.Build) void {
         "demo-union_reps", // 52 — The Union Demo / REPS, The Replicants' wobbly sprites (melonJS remake)
         "demo-union_tnt2", // 53 — The Union Demo / TNT2, the TNT-Crew's parallax superscroller (melonJS remake)
         "demo-union_beatdis", // 54 — The Union Demo / TCB1 BEAT DIS, 1 MB and 1/2 MB (melonJS remake)
+        "demo-union_superscroller", // 55 — The Union Demo / TCB2 WOW!-SCROLLER (melonJS remake)
     };
     for (cart_names, 0..) |name, idx| {
         if (name.len == 0) continue; // excluded cart (see note above)
