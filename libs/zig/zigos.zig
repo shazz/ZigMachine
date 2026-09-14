@@ -37,6 +37,13 @@ pub const canvas_poly = @import("effects/canvas_poly.zig"); // a doubled canvas'
 pub const canvas_rows = @import("effects/canvas_rows.zig"); // Chrome's resample of a drawImage at a fractional y
 pub const colour_bank = @import("effects/colour_bank.zig"); // per-frame RGB -> palette entry allocation
 pub const ballfield = @import("effects/ballfield.zig"); // CODEF ballfield: 3D ball bobs flying at the viewer
+pub const chrome_draw = @import("effects/chrome_draw.zig"); // Chrome's drawImage at a fractional y (taps, mix, srcOver)
+pub const spanfont = @import("effects/spanfont.zig"); // big 1-bit font as ink runs, sampled at half resolution
+pub const linepal = @import("effects/linepal.zig"); // rgb(); LinePalette below
+/// Up to `n` palette entries per visible line, allocated per pixel colour, replayed by an HBL.
+pub fn LinePalette(comptime n: usize) type {
+    return linepal.LinePalette(LogicalFB, ZigOS, .{ .rows = HEIGHT, .visible_top = VERTICAL_BORDERS_HEIGHT }, n);
+}
 // per-line palette tables, one HBL per plane, always-physical rows
 pub const copper = @import("effects/copper.zig").Copper(LogicalFB, ZigOS, .{
     .nb_planes = NB_PLANES,
