@@ -147,7 +147,7 @@ pub const Demo = struct {
                 .failed => return self.abandon("depack failed"),
                 .done => {
                     self.depacking = false;
-                    self.startScreen(zigos);
+                    startScreen(zigos);
                 },
             }
         }
@@ -180,7 +180,7 @@ pub const Demo = struct {
         return self.history[(self.newest + frames) % HISTORY];
     }
 
-    fn startScreen(self: *Demo, zigos: *ZigOS) void {
+    fn startScreen(zigos: *ZigOS) void {
         const fb = &zigos.lfbs[0];
         fb.is_enabled = true;
         fb.setPalette(palette);
