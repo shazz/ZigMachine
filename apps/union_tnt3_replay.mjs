@@ -15,12 +15,10 @@
 // Drawing is recorded and evaluated only where a pixel is asked for, so a replay
 // of thousands of frames stays cheap.
 import { readFileSync, existsSync } from "node:fs";
-import { execFileSync } from "node:child_process";
-import { dirname, join } from "node:path";
 import { inflateSync } from "node:zlib";
 import vm from "node:vm";
+import { findUnionRemake } from "./union_remake_dir.mjs";
 
-const REMAKE = "prototypes/oldies/Union-Demo-HTML5-Remake-0.9.8";
 const CLEAR = -1;
 // --break: a replay that is wrong on purpose, so the check must FAIL.
 //   overdraw: three.js's Nb() does nothing (a codef3d.zig detail);
@@ -31,18 +29,11 @@ const BREAKS = {
 };
 export const BREAK_NAMES = Object.keys(BREAKS);
 
-/// The remake's directory, or null. prototypes/ is not in git: it is looked for
-/// here, then in the main checkout (a worktree has none of its own).
+/// The remake's directory, or null: `dir` (--remake) when given, else
+/// union_remake_dir.mjs's (UNION_REMAKE_DIR, then the main checkout).
 export function findRemake(dir) {
     if (dir) return existsSync(`${dir}/screens/tnt3/screen.js`) ? dir : null;
-    const roots = ["."];
-    try {
-        const common = execFileSync("git", ["rev-parse", "--path-format=absolute", "--git-common-dir"], { stdio: ["ignore", "pipe", "ignore"] });
-        roots.push(dirname(common.toString().trim()));
-    } catch {
-        // not a git checkout: only "." is looked at
-    }
-    return roots.map((r) => join(r, REMAKE)).find((d) => existsSync(`${d}/screens/tnt3/screen.js`)) ?? null;
+    return findUnionRemake("screens/tnt3/screen.js").dir;
 }
 
 function decodePng(path) {

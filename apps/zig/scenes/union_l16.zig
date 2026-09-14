@@ -22,7 +22,9 @@
 // jsApp.mainscrollerPos: the scroller starts at the hub scroller's next character,
 // from the note the hub leaves in the ROM, and writes its own offset back into
 // that note on the way out, so the menu resumes from L16's text
-// (screen.js:31, :89; union_demo/hub_note.zig).
+// (screen.js:31, :89; union_demo/hub_note.zig). As on the other door screens, a
+// note whose scroll is past the text is refused: the text starts at 0 and
+// nothing is written back.
 //
 // Loading: the screen's data depacks for real behind the TEX loader panel of
 // loader.js (zx0.Fx.tex_loader, build.zig). Its "PRESS SPACE" wait is not kept.
@@ -74,7 +76,7 @@ pub const Demo = struct {
     rasters: R.Rasters,
     scroller: S.Scroller,
     sprite_pos: usize,
-    note: ?hub_note.Note, // the hub's note about this launch, rewritten on leaving
+    note: ?hub_note.Note, // the hub's note for this door with a scroll inside the text, rewritten on leaving
     warned: bool,
     leave: bool,
 
@@ -84,8 +86,8 @@ pub const Demo = struct {
         self.warned = false;
         self.sprite_pos = 0;
         self.rasters.init();
-        self.note = hub_note.mine();
-        self.scroller.init(SCROLL_FIRST, startOffset(self.note, S.TEXT.len));
+        self.note = hub_note.accepted(S.TEXT.len);
+        self.scroller.init(SCROLL_FIRST, if (self.note) |n| n.scroll else 0); // jsApp.mainscrollerPos
         const buf = freeRam(A.TOTAL) orelse return fail("no free RAM to depack into");
         if (!depack.start(zigos, packed_assets.union_l16, buf, DEPACK_BYTES_PER_LINE))
             return fail("packed image unreadable");
@@ -176,14 +178,6 @@ fn fillColumns(dst: blit.Dst, canvas_x: i32, canvas_w: i32, entry: u8) void {
     const x: usize = @intCast(A.planeX(canvas_x));
     const w: usize = @intCast(@divExact(canvas_w, 2));
     for (0..dst.h) |y| @memset(dst.buf[y * dst.stride + x ..][0..w], entry);
-}
-
-/// Where the text starts: the note's character, or 0 without a note or when it
-/// is not a character of this text. A note for this door is still rewritten on
-/// leaving, even when its character is out of range.
-fn startOffset(note: ?hub_note.Note, text_len: usize) usize {
-    const n = note orelse return 0;
-    return if (n.scroll < text_len) n.scroll else 0;
 }
 
 fn fail(why: []const u8) void {

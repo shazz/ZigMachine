@@ -14,9 +14,9 @@
 // SKIPPED, said so, and the cart-only checks still run. Exits 1 on any failure.
 import { readFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
-import { execFileSync } from "node:child_process";
-import { dirname, join } from "node:path";
+import { join } from "node:path";
 import { createHash } from "node:crypto";
+import { mainCheckoutRoot } from "./union_remake_dir.mjs";
 import { cartRam, romRam } from "../docs/wasm_hiwater.js";
 import { replayWab, PLANE_W, PLANE_H, ENTRY_FRAMES, PART_FRAMES } from "./union_intro_wab_ref.mjs";
 
@@ -41,10 +41,8 @@ function findRemake() {
     const has = (d) => existsSync(`${d}/eflogowabentry.js`);
     if (process.env.UNION_INTRO_SRC) return has(process.env.UNION_INTRO_SRC) ? process.env.UNION_INTRO_SRC : null;
     const roots = [process.cwd()];
-    try {
-        const common = execFileSync("git", ["rev-parse", "--path-format=absolute", "--git-common-dir"], { stdio: ["ignore", "pipe", "ignore"] });
-        roots.push(dirname(common.toString().trim()));
-    } catch { /* not a git checkout: cwd only */ }
+    const main = mainCheckoutRoot(); // null outside a git checkout: cwd only
+    if (main) roots.push(main);
     return roots.map((r) => join(r, REMAKE)).find(has) ?? null;
 }
 
