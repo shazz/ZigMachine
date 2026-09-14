@@ -124,7 +124,7 @@ async function plays(req, voices = 3) {
 
 async function checkMenu() {
     const cart = await bootCart("docs/demo-union_demo.wasm");
-    const req = firstRequest(cart, 10);
+    const req = firstRequest(cart, 400); // the song starts with the street, after the ~100-frame loader panel
     const again = cart.demo.pollSongRequest();
     console.log(`union_demo request: ${req ? `"${req.name}" tune ${req.tune}` : "none"} (polled twice: ${again ? "STILL pending" : "cleared"})`);
     return !!req && req.name === MENU_WANT && req.tune === MENU_TUNE && !again && (await plays(req));
