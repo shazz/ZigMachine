@@ -24,6 +24,7 @@
 //
 // Leaving: Escape or O (screen.js:194, 'exit' / 'O') goes back to the hub, as
 // me.state.change(MENU_LOADER) does. Space ('enter') starts the copy.
+// The remake's texcopier never reads jsApp.mainscrollerPos, so no return note is used.
 // --------------------------------------------------------------------------
 const zg = @import("zigos");
 const hw = @import("hardware");
