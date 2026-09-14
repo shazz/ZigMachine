@@ -62,7 +62,7 @@ export function loadAssets() {
 /// `brk` deliberately gets one number wrong, so the harness can prove it fails.
 export function makeReplay(A, brk = null) {
     const TEXT = A.text;
-    const GOLD_STEP = brk === "gold" ? 5 : 6;
+    const GOLD_STEP = brk === "gold" ? 12 : 6; // a wrong step must stay even: goldY/2 indexes the halved texture
     const TWIST_STEP = brk === "twist" ? 0.11 : 0.1;
     const WAVE_INC = brk === "wave" ? 0.0041 : 0.004;
     const FLASH = brk === "voices" ? 6 : 7;

@@ -3,8 +3,9 @@
 // dumps the visible 320x200 screen as PPMs, plus the frame cost. Then it CHECKS:
 //
 //   wrap   teleport to the last door (key 0), walk right with F1 and fire held:
-//          the view keeps scrolling past the street's end and the hidden door at
-//          x 2208 (union_textracker) is entered on the far side of the seam.
+//          the view keeps scrolling past the street's end and the first ported
+//          door on the far side of the seam is entered (derived from doors.zig,
+//          menu_map.zig and charly.zig: see expectedWrapDoor).
 //   stop   a key held like a browser auto-repeats it (press, 500 ms, then every
 //          33 ms), released anywhere from 550 to 1500 ms, on a 60 Hz and on a
 //          144 Hz display: the street always stops moving within STOP_MS (the
@@ -167,8 +168,33 @@ async function timeline() {
     return m.cost;
 }
 
+// The door `wrap` must reach is DERIVED from the hub's own tables, not written
+// here: every Union screen ported before x 2208 (beatdis 672, deltaforce 1312,
+// tnt3 1600, superscroller 1824...) moves the first ported door past the seam,
+// and a hard-coded tag broke the gate each time. Charly starts at teleport '0'
+// (charly.zig TELEPORTS[9]) and walks right with fire held: he enters the first
+// tagged door (doors.zig ROUTES `.tag`) he still overlaps or has ahead
+// (menu_map.zig DOORS x + w beyond his x), else, after the wrap, the tagged door
+// with the smallest x. null when no door is tagged at all.
+async function expectedWrapDoor() {
+    const routes = await readFile("apps/zig/scenes/union_demo/doors.zig", "utf8");
+    const tags = new Map([...routes.matchAll(/\.demo_name = "(\w+)"[^\n]*?\.tag = "(\w+)"/g)].map((r) => [r[1], r[2]]));
+    const map = await readFile("apps/zig/assets/screens/union_demo/menu_map.zig", "utf8");
+    const doors = [...map.matchAll(/\.x = ([\d.]+), \.y = [\d.]+, \.w = ([\d.]+), \.h = [\d.]+, \.demo_name = "(\w+)"/g)]
+        .map((d) => ({ x: Number(d[1]), w: Number(d[2]), tag: tags.get(d[3]) }))
+        .filter((d) => d.tag)
+        .sort((a, b) => a.x - b.x);
+    const charly = await readFile("apps/zig/scenes/union_demo/charly.zig", "utf8");
+    const teleports = [...charly.slice(charly.indexOf("TELEPORTS")).matchAll(/\.\{ ([\d.]+), [\d.]+ \}/g)];
+    if (teleports.length < 10) throw new Error("charly.zig TELEPORTS: fewer than 10 entries parsed");
+    const startX = Number(teleports[9][1]);
+    return (doors.find((d) => d.x + d.w > startX) ?? doors[0])?.tag ?? null;
+}
+
 // wrap: from the last door, right + F1 + fire, until a door asks for a cart.
 async function checkWrap() {
+    const want = await expectedWrapDoor();
+    if (want === null) return "FAIL wrap: no door in doors.zig ROUTES has a .tag, so there is no ported door to walk into";
     const m = await boot();
     step(m);
     m.demo.key("0".charCodeAt(0)); step(m); // teleport to x 5436
@@ -184,8 +210,8 @@ async function checkWrap() {
         if (m.demo.pollCartRequest() === 1) break;
     }
     const t = f < 600 ? tag(m) : "(none)";
-    return t === "union_textracker" ? `ok   wrap: past the end, the hidden door was entered after ${f} frames`
-        : `FAIL wrap: expected the union_textracker door beyond the seam, got ${t}`;
+    return t === want ? `ok   wrap: past the end, the first ported door (${want}) was entered after ${f} frames`
+        : `FAIL wrap: expected ${want}, the first ported door beyond the seam, got ${t}`;
 }
 
 // A key the browser way: a press at 0, repeats from 500 ms every 33.3 ms while

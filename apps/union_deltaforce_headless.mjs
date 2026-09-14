@@ -34,7 +34,7 @@ const MODE_SNDH = 4;
 const K_ESC = 0xe012;
 const FIXED = [0, 1, 2, 45, 46, 60, 100, 300, 777];
 const FOLLOW = [0, 1, 10, 40]; // frames after an event that are compared too
-const SHOT_EVENTS = new Set(["intro stop", "outro starts +10", "INVERSE +10", "GLOBAL_SINEWAVE +10", "RESET #2 +40"]);
+const SHOT_EVENTS = new Set(["intro stop", "outro starts +10", "INVERSE +10", "GLOBAL_SINEWAVE +10", "RESET +40", "second pass scrolls +40"]);
 
 const argv = process.argv.slice(2);
 const brkAt = argv.indexOf("--break");
