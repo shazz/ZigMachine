@@ -217,7 +217,7 @@ Players are open ZigOS code that drive the sealed chips. Four ship today:
 - **SNDH** — the tune's own 68000 replay code, run on the emulated 68000 driving the
   sealed YM2149 (subtunes: `tune` counts from 1, 0 = default). The preferred format.
 - **MOD** (`ModPlayer`) — ProTracker 4-channel `.MOD`, drives the Paula channels.
-- **YM** (`YmPlayer`) — YM5!/YM6! register dump, writes the YM2149 registers.
+- **YM** (`YmPlayer`) — YM5!/YM6! register dump, writes the YM2149 registers. **Deprecated**: screens use the SNDH player; a dump is the last resort when no SNDH of the tune exists (see docs/MUSIC.md).
 - **raw sample** — streams 8-bit PCM on one Paula channel.
 
 They run on the audio thread and are swappable — add your own by driving the same

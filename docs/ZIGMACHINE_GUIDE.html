@@ -1480,6 +1480,12 @@ one cart + its assets is well under 24.)</p>
   everything else is little-endian.</li>
 <li>Keep block size 512 in v1 (bootsector homage + simple math); revisit if useful.</li>
 <li>A <code>.zmd</code> is trivially inspectable — a hex dump shows the descriptor in clear.</li>
+<li><strong>Uploads ("Run your own cart" on the page).</strong> A visitor's file is sniffed by
+  content (<code>ZMDISK</code> at <code>$0</code> or <code>\0asm</code> + <code>ZMDISK</code> at <code>$400</code> = disk, <code>\0asm</code> = cart,
+  <code>ZX0!</code> = packed cart) and mounted by the same parser as a URL disk
+  (<code>docs/zmdisk.js</code>, <code>mountDiskBytes</code>), so streaming works identically. Host caps:
+  a cart (raw or packed) at most <strong>2 MB</strong> (the cart window); a disk at most <strong>16 MB</strong>
+  (the format has no limit, <code>total blocks</code> is a u32: this is host policy).</li>
 </ul>
 <hr />
 <h2>Packed carts (ZX0)</h2>
@@ -1773,7 +1779,7 @@ requestSong(&quot;sos.sndh&quot;) ──►  polls pollSongRequest() every frame
 </tr>
 <tr>
 <td><code>.ymraw</code></td>
-<td>YM5!/YM6! register dump</td>
+<td>YM5!/YM6! register dump (<strong>deprecated</strong>, last resort only)</td>
 <td>no</td>
 </tr>
 <tr>
@@ -1788,8 +1794,11 @@ requestSong(&quot;sos.sndh&quot;) ──►  polls pollSongRequest() every frame
 </tr>
 </tbody>
 </table>
-<p><strong>Prefer SNDH.</strong> A screen plays a <code>.ymraw</code> dump only when no SNDH of the same
-tune exists. Prove a match by running both and comparing YM registers 0-5 and
+<p><strong>The YM dump player is deprecated: use SNDH.</strong> A dump records the chip only
+once per frame, so SID voices, digidrums and samples played through the YM
+volume DAC come out wrong (the Union Demo menu's dump turned its SID intro into
+bleeps). A screen plays a <code>.ymraw</code> only as the last resort, when a real search
+finds no SNDH of the same tune, and its music comment gives the best SNDH score. Prove a match by running both and comparing YM registers 0-5 and
 8-10 frame by frame; a real match is ~100% (screen 34's
 <code>SoWattTcbSprites.ym</code> == <code>sos.sndh</code>, 100% over 400 frames).</p>
 <h2>Zig</h2>
