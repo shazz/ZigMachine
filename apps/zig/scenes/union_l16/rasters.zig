@@ -6,10 +6,10 @@
 // the bottom plane, recoloured per physical row by zg.copper.
 //
 // A row's colour is Chrome's resample of the gradient at the fractional position
-// (canvas_rows.zig), black where the image does not reach.
+// (chrome_draw.zig), black where the image does not reach.
 // --------------------------------------------------------------------------
 const zg = @import("zigos");
-const canvas_rows = zg.canvas_rows;
+const cd = zg.chrome_draw;
 const A = @import("assets.zig");
 
 pub const RASTER_X = 340; // canvas; 160 wide
@@ -54,6 +54,6 @@ pub const Rasters = struct {
 
 fn rowColour(gradient: []const u8, row: i32, y: f64) u32 {
     const n = gradient.len / 3;
-    const t = canvas_rows.tap(row, y, 0, n, n) orelse return OPAQUE; // maincanvas.fill('#000000')
-    return OPAQUE | canvas_rows.mixRgb(gradient[t.a * 3 ..][0..3].*, gradient[t.b * 3 ..][0..3].*, t.w16);
+    const t = cd.taps(y, @intCast(n), row) orelse return OPAQUE; // maincanvas.fill('#000000')
+    return OPAQUE | cd.mixRgb(gradient[@as(usize, t.top) * 3 ..][0..3].*, gradient[@as(usize, t.bottom) * 3 ..][0..3].*, t.w);
 }

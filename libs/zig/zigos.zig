@@ -34,10 +34,9 @@ pub const wave = @import("effects/wave.zig"); // CODEF FX.siny: SineSum + column
 pub const spans = @import("effects/spans.zig"); // comptime ink runs of a sparse overlay
 pub const codef3d = @import("effects/codef3d.zig"); // CODEF codef3D (three.js r49 canvas faces), replayed exactly
 pub const canvas_poly = @import("effects/canvas_poly.zig"); // a doubled canvas's path fill, shown halved
-pub const canvas_rows = @import("effects/canvas_rows.zig"); // Chrome's resample of a drawImage at a fractional y
 pub const colour_bank = @import("effects/colour_bank.zig"); // per-frame RGB -> palette entry allocation
 pub const ballfield = @import("effects/ballfield.zig"); // CODEF ballfield: 3D ball bobs flying at the viewer
-pub const chrome_draw = @import("effects/chrome_draw.zig"); // Chrome's drawImage at a fractional y (taps, mix, srcOver)
+pub const chrome_draw = @import("effects/chrome_draw.zig"); // Chrome's drawImage (of a part) at a fractional y: taps, mix, srcOver
 pub const spanfont = @import("effects/spanfont.zig"); // big 1-bit font as ink runs, sampled at half resolution
 pub const linepal = @import("effects/linepal.zig"); // rgb(); LinePalette below
 /// Up to `n` palette entries per visible line, allocated per pixel colour, replayed by an HBL.

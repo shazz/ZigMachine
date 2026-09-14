@@ -1,7 +1,7 @@
 // --------------------------------------------------------------------------
 // Colour bank: RGB colours to palette entries, allocated afresh every frame.
 //
-// A canvas port that blends (a smoothed scroller, canvas_rows.zig) produces
+// A canvas port that blends (a smoothed scroller, chrome_draw.zig) produces
 // more colours over its run than a palette holds, but few in any one frame.
 // So the frame asks the bank for each colour it draws: the first request takes
 // the next free entry from `first` up and writes the colour into the palette,

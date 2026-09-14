@@ -3,11 +3,12 @@
 // (2X + 16, 2Y + 6). Written from the source, not from the scene, so the headless
 // check (union_l16_headless.mjs) catches any drift in a table, step or rounding.
 //
-// Canvas resampling, measured against Chrome running screen.js (the whole
-// 832x572 canvas, 0 pixels wrong at 12 frames): an unscaled drawImage at a
-// fractional y draws rows round(y)..round(y)+h-1; row r blends source rows
-// floor(r-y) and +1 (clamped to the image) with the fraction truncated to 16ths,
-// (a*(16-w) + b*w) >> 4 per premultiplied channel.
+// Canvas resampling, as libs/zig/effects/chrome_draw.zig, measured against Chrome
+// running screen.js (tools/chrome_capture.mjs; 0 px wrong at 36 frames): y is a
+// float32 first; an unscaled drawImage at a fractional y draws the rows whose
+// centre is inside, fy < r+0.5 <= fy+h; row r blends source rows floor(r-fy) and
+// +1 (from the part's first row, clamped to the whole image) with the fraction
+// truncated to 16ths, (a*(16-w) + b*w) >> 4 per premultiplied channel.
 export const W = 400, H = 280, CROP_X = 16, CROP_Y = 6;
 const FONT_W = 256, FONT_H = 128, BOB_W = 16, BOB_H = 17;
 
@@ -27,9 +28,9 @@ export function loadAssets(bin, palPicture, palFont, curveTxt, text) {
 
 // the tap: which source rows canvas row r shows of rows [py0, py0+ph) of an image ih tall drawn at y
 function tap(r, y, py0, ph, ih) {
-    const top = Math.round(y);
-    if (r < top || r >= top + ph) return null;
-    const v = r - y, v0 = Math.floor(v);
+    const fy = Math.fround(y);
+    if (!(fy < r + 0.5 && r + 0.5 <= fy + ph)) return null;
+    const v = r - fy, v0 = Math.floor(v);
     const clamp = (s) => Math.min(Math.max(s, 0), ih - 1);
     return { a: clamp(py0 + v0), b: clamp(py0 + v0 + 1), w: Math.floor((v - v0) * 16) };
 }
