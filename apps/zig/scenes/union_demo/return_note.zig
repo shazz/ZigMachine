@@ -47,7 +47,7 @@ pub fn write(buf: []u8, n: Note) void {
 /// keeping door, x and y from peek() and only their own scroll (the offset at
 /// exit). `door` is the doors.DOORS index the hub stored, not a ROUTES index.
 /// tnt3, deltaforce, texcopier, multifake and textracker don't use it.
-/// main.js:488 is the hub's own write.
+/// main.js:488 is the hub's own write. Door screens do this through hub_note.zig.
 /// null when tag, length or checksum do not match, or the buffer is too short.
 pub fn peek(buf: []const u8) ?Note {
     if (buf.len < HEADER + PAYLOAD) return null;

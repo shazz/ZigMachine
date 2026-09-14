@@ -20,8 +20,9 @@
 // Loading: tnt2.bin depacks for real behind loader.js's TEX panel (fx tex_loader,
 // build.zig); its "PRESS SPACE" wait is dropped. Escape or Space leave for the hub.
 // The scroller starts at, and hands back, the hub's text offset (mainscrollerPos)
-// through the hub's ROM return note (hub_note.zig). Adapted: the remake also keeps
-// the band speeds across visits; carts share no other state, so they start fresh.
+// through the hub's ROM return note (union_demo/hub_note.zig). Adapted: the remake
+// also keeps the band speeds across visits; carts share no other state, so they
+// start fresh.
 // --------------------------------------------------------------------------
 const zg = @import("zigos");
 const hw = @import("hardware");
@@ -34,7 +35,7 @@ const packed_assets = @import("packed_assets");
 const A = @import("union_tnt2/assets.zig");
 const motion = @import("union_tnt2/motion.zig");
 const controls = @import("union_tnt2/controls.zig");
-const hub_note = @import("union_tnt2/hub_note.zig");
+const hub_note = @import("union_demo/hub_note.zig").HubNote("union_tnt2");
 
 // The remake plays data/music/Cybernoid.ym; this is Mad Max's Cybernoid from
 // the same Union Demo folder of the SNDH archive (one subtune, FLAG ~y).

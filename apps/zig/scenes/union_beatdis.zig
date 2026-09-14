@@ -19,7 +19,7 @@
 //
 // The scroller resumes where the hub's banner scroller left off, and the hub
 // resumes where this one left off: jsApp.mainscrollerPos (screen.js:61,85,
-// screen2.js:93,116), carried in the hub's ROM note (hub_note.zig).
+// screen2.js:93,116), carried in the hub's ROM note (union_demo/hub_note.zig).
 //
 // Keys: the cart owns the keyboard, so SPACE and RETURN arrive as themselves
 // rather than both as "fire". On the screen, ESC or SPACE (screen.js:88,
@@ -46,8 +46,9 @@ const packed_assets = @import("packed_assets");
 
 const A = @import("union_beatdis/assets.zig");
 const prompt = @import("union_beatdis/prompt.zig");
-const hub_note = @import("union_beatdis/hub_note.zig");
+const hub_note = @import("union_demo/hub_note.zig").HubNote("union_beatdis");
 const Screen = @import("union_beatdis/screen.zig").Screen;
+const TEXT = @import("union_beatdis/screen.zig").TEXT;
 const Version = @import("union_beatdis/screen.zig").Version;
 
 // The two tunes, chosen by name (Matt, 2026-09-13): the 1 MB screen plays
@@ -174,7 +175,7 @@ pub const Demo = struct {
         if (!self.leave) return 0;
         self.leave = false;
         // only a running scroller has a position to give back
-        if (self.phase == .running) if (self.hub) |note| hub_note.leave(note, self.screen.letters.next);
+        if (self.phase == .running) if (self.hub) |note| hub_note.handBack(note, self.screen.letters.next);
         return 1;
     }
 
@@ -194,7 +195,7 @@ pub const Demo = struct {
 
     fn start(self: *Demo, zigos: *ZigOS, version: Version) void {
         zigos.lfbs[0].setPaletteEntry(0, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
-        self.hub = hub_note.peek();
+        self.hub = hub_note.accepted(TEXT.len);
         self.screen.init(version, if (self.hub) |note| note.scroll else 0);
         zg.requestSongTune(switch (version) {
             .k1024 => MUSIC_1024,
