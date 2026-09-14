@@ -61,8 +61,21 @@ for t in \
     apps/zig/scenes/stniccc/player.zig
 do
     printf '%-42s ' "$t"
-    zig test "$t" 2>&1 | tail -1
+    # NOT `zig test | tail -1`: a pipeline's status is tail's, so a failing test
+    # printed only its binary path and the gate went on green (tnt3's codef3d and
+    # canvas_poly tests). Keep the output, test zig's own status, fail at the end.
+    if out=$(zig test "$t" 2>&1); then
+        printf '%s\n' "$out" | tail -1
+    else
+        echo "FAILED"
+        printf '%s\n' "$out" | tail -20
+        tests_failed="$tests_failed $t"
+    fi
 done
+if [ -n "$tests_failed" ]; then
+    echo "native tests: FAILED ❌$tests_failed"
+    exit 1
+fi
 
 # --- disks: repack what is stale, then mount and instantiate every image ----
 tools/mkdisks.sh
