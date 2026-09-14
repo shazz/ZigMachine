@@ -58,6 +58,14 @@ pub const Result = enum(u32) { none = 0, ok = 1, cancel = 2 };
 /// Host-only: reclaim every handle the previous program held (see rom_main.zig).
 pub extern fn romReset() void;
 
+/// Scratch bytes that survive a cart swap (romReset does not clear them; only a
+/// new page does): where a program leaves a note for the next one. The address is
+/// absolute in shared memory. An old rom.wasm lacks both exports and the page's
+/// tolerant env stubs them to 0: romScratchLen() == 0 means "no scratch". Format
+/// and rules: rom/rom_main.zig.
+pub extern fn romScratchPtr() u32;
+pub extern fn romScratchLen() u32;
+
 /// Open a context over a PLANE, for a caller with no ZigOS of its own — which is
 /// every app not written in Zig. The ROM reads the plane's framebuffer base out of
 /// the video registers and lends its own text renderer. This is the entry point

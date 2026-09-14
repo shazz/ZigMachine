@@ -110,6 +110,30 @@ export fn romReset() void {
     desk_ready = false;
 }
 
+/// A few bytes that OUTLIVE the program that wrote them. A cart swap replaces the
+/// cart window, never these statics (rom.wasm is instantiated once per page), so a
+/// program can leave a note for the program that comes after it: the Union Demo
+/// hub remembers where Charly left by a door. Only a power-on (a new page, i.e. a
+/// fresh rom.wasm over fresh memory) clears them. romReset must NOT: the host calls
+/// it on every swap, between the note being written and being read back.
+///
+/// Shared convention (apps/zig/scenes/union_demo/return_note.zig): 4-byte owner
+/// tag, u8 payload length, u8 XOR checksum of the payload, payload. A reader checks
+/// all three and zeroes the tag whether or not they match, so a note is used once
+/// at most and another program's bytes are never misread. The bytes live in the
+/// ROM's own statics, below hwRomRamUsed(), so the packed-cart staging area the
+/// host copies above them on a swap can never overlap them.
+pub const SCRATCH_BYTES = 64;
+var scratch: [SCRATCH_BYTES]u8 = [_]u8{0} ** SCRATCH_BYTES;
+
+export fn romScratchPtr() u32 {
+    return @intCast(@intFromPtr(&scratch));
+}
+
+export fn romScratchLen() u32 {
+    return SCRATCH_BYTES;
+}
+
 fn guiAt(h: u32) ?*gui.Gui {
     if (h == 0 or h > MAX_GUI or !gui_used[h - 1]) return null;
     return &guis[h - 1];
