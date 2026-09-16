@@ -34,7 +34,7 @@ const PAGES = [8][5][]const u8{
     .{ "  Welcome to the new TRSI and WAB demo", "", "   Please use 1-6 to change the zik", "     (only Chrome or browser die)", "       And enjoy the show !!!!!" },
     .{ "****************************************", "*    This project deserved a place", "*     to credit the various people", "* who have helped and gave their time", "****************************************" },
     .{ "Code.....................TotorMan, Shazz", "Gfx........C-Rem/MJJ, Joe & Thorion/TRSi", "...Dr Satan/Empire, SoLO/WAB, Seen/Melon", "Music........Jess/OVR, Lap/Next, TAO/ACF", ".............505/Checkpoint, Big Alec/DF" },
-    .{ "****************************************", "*        The UNION DEMO Remake", "*      All original music and gfx", "*  were reused, here are the credits:", "****************************************" },
+    .{ "****************************************", "*         The UNION DEMO Remake        *", "*      All original music and gfx      *", "*  were reused, here are the credits:  *", "****************************************" },
     .{ "Intro screen.............Shazz, NoNameNo", "Loader.............................Shazz", "Main menu..........................Shazz", "TCB 1...................MellowMan, Shazz", "Delta Force.............MellowMan, Shazz" },
     .{ "TNT Crew 3...............TotorMan, Shazz", "TCB 2..............................Shazz", "TNT Crew 1.........................Shazz", "The Replicants.....................Shazz", "TNT Crew 2.........................Shazz" },
     .{ "", "Level 16................MellowMan, Shazz", "TCB 3..........TotorMan, NoNameNo, Shazz", "Hidden Screen......................Shazz", "TEX Copier..............MellowMan, Shazz" },
