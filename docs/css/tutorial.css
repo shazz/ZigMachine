@@ -73,15 +73,15 @@ kbd { font: 11.5px/1 var(--mono); background: #1a2030; border: 1px solid var(--e
   border-bottom-width: 2px; border-radius: 4px; padding: 2px 5px; }
 
 /* the md's bold lead-ins, each with its own job on the page */
-.lead > strong { display: block; font: 600 11.5px/1.5 var(--mono); letter-spacing: .12em;
+.lead > strong:first-child { display: block; font: 600 11.5px/1.5 var(--mono); letter-spacing: .12em;
   text-transform: uppercase; color: var(--muted); }
-.lead-goal > strong { color: var(--h3); }
+.lead-goal > strong:first-child { color: var(--h3); }
 .lead-vs, .lead-see { background: var(--panel); border-left: 3px solid var(--edge);
   border-radius: 0 8px 8px 0; padding: 12px 16px; }
 .lead-vs { border-left-color: var(--c); }
 .lead-see { border-left-color: var(--live); }
-.lead-see > strong { color: var(--live); }
-.lead-mistakes > strong { color: #f4a58a; }
+.lead-see > strong:first-child { color: var(--live); }
+.lead-mistakes > strong:first-child { color: #f4a58a; }
 .lead-mistakes + ul { color: var(--dim); font-size: 14.5px; }
 .lead-mistakes + ul em { color: var(--ink); font-style: normal; font-weight: 600; }
 

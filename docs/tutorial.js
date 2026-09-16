@@ -11,8 +11,8 @@
     var LANGS = ["zig", "c", "rust"];
     var NAMES = { zig: "Zig", c: "C", rust: "Rust" };
     // Step-gated carts: one per language, `?step=N` selects how far to build up.
-    var CARTS = { zig: "demo-tutorial-steps.wasm", c: "demo-c-tutorial-steps.wasm",
-                  rust: "demo-rust-tutorial-steps.wasm" };
+    var CARTS = { zig: "demo-tutorial_steps.wasm", c: "demo-c-tutorial_steps.wasm",
+                  rust: "demo-rust-tutorial_steps.wasm" };
     var LANG_KEY = "zm.tutorial.lang", SEEN_KEY = "zm.tutorial.reached";
 
     function store(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }

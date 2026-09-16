@@ -157,3 +157,5 @@ html.embed .prev_channel_button,
 html.embed .upload_button,
 html.embed .tpad { display: none !important; }
 html.embed .stage-box { margin: 0 auto; }
+/* Nothing scrolls inside the frame: the stage already scales to fit it. */
+html.embed, html.embed body { overflow: hidden; margin: 0; }
