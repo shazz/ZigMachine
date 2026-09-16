@@ -13,8 +13,10 @@
 //          144 Hz display: the street always stops moving within STOP_MS (the
 //          60 ms input window + the original's 9-step friction tail + a frame).
 //   ease   walk left from the spawn, where the view is clamped at 0 like the
-//          remake's, across the seam: when the clamp lets go the view eases onto
-//          Charly (his screen x moves at most EASE_PX a step) and ends centred.
+//          remake's, across the seam: the street NEVER stops scrolling and never
+//          scrolls faster than SCROLL_MAX_PX, and Charly ends centred. The clamp
+//          used to hold until the seam, so the street stood still for half a
+//          screen and then lurched ~25 px a frame after him.
 //   keyup  with the host's key-up (demo.inputRelease), a 100 ms tap stops as fast.
 //          docs/sealed-loader.js sends it from its keyup listener (and releases
 //          every held direction on blur); `stop` models an older host without it.
@@ -52,7 +54,13 @@ const DIR = { up: 0, down: 1, left: 2, right: 3, fire: 5, back: 6 };
 const K_F1 = 0xe001;
 const K_ESC = 0xe012; // host KEY_CODES.Escape
 const STREET = [116, 159]; // screen rows of pavement: only Charly and the view change them
-const EASE_PX = 32; // screen px a step: the 8-step ease moves ~20-25, a snap 161
+const EASE_PX = 32; // screen px a step for the centroid (it wobbles with his walk cycle)
+// The street's own scroll, measured frame to frame. Walking at full speed moves it
+// 2.5 px a frame (5 map px halved); the view may gain on Charly by at most
+// VIEW_MAX_GAIN-8 map px a step while catching up, so 5 px a frame is the ceiling.
+// A STALL (0) is the bug this pins: the view used to sit pinned at 0 while Charly
+// walked half a screen, then lurch after him.
+const SCROLL_MAX_PX = 5;
 const STOP_MS = 250; // 60 ms window + 9 x 16.7 ms of friction (0.5 a step from 5 px) + a frame
 const TIMELINE = {
     frames: 900,
@@ -284,10 +292,34 @@ function charlyX(m) {
 
 // ease: left from the spawn, across the seam, then on: no step moves him far on
 // screen, and he ends in the middle of it (the view follows him again).
+// How far the STREET scrolled between two frames, by best-match offset of a row
+// band above Charly. Charly's own centroid is no good for this: it wobbles several
+// px with his walk cycle, which is why a stop-then-lurch hid under a 32 px limit.
+function bandRows(m) { return visible(m, [64, 92]); }
+function scrolled(a, b, W = 320, H = 28) {
+    let best = 0, bestScore = Infinity;
+    for (let d = -24; d <= 24; d++) {
+        let score = 0, n = 0;
+        for (let y = 0; y < H; y += 2) {
+            for (let x = 40; x < W - 40; x += 2) {
+                const sx = x + d;
+                if (sx < 0 || sx >= W) continue;
+                const i = (y * W + x) * 3, j = (y * W + sx) * 3;
+                score += Math.abs(a[i] - b[j]) + Math.abs(a[i + 1] - b[j + 1]) + Math.abs(a[i + 2] - b[j + 2]);
+                n++;
+            }
+        }
+        score /= n || 1;
+        if (score < bestScore) { bestScore = score; best = d; }
+    }
+    return best;
+}
+
 async function checkEase() {
     const m = await boot();
     for (let i = 0; i < PREROLL; i++) step(m);
-    let prev = charlyX(m), worst = 0, at = 0;
+    let prevBand = bandRows(m), prev = charlyX(m), worst = 0, at = 0;
+    const speeds = [];
     for (let f = 0; f < 150; f++) {
         m.demo.input(DIR.left);
         step(m);
@@ -295,9 +327,20 @@ async function checkEase() {
         if (x === null || prev === null) return `FAIL ease: Charly not found on screen at frame ${f}`;
         if (Math.abs(x - prev) > worst) { worst = Math.abs(x - prev); at = f; }
         prev = x;
+        const cur = bandRows(m);
+        speeds.push(scrolled(prevBand, cur));
+        prevBand = cur;
     }
+    // Frame 0 is the first input, before he is moving; every frame after it must
+    // scroll, and none may outrun SCROLL_MAX_PX.
+    const stalled = speeds.slice(1).map((v, i) => [i + 1, v]).filter(([, v]) => v === 0).map(([i]) => i);
+    if (stalled.length)
+        return `FAIL ease: the street STOPPED on ${stalled.length} frame(s) walking left (first at ${stalled[0]}): the view is pinned, it will lurch to catch up`;
+    const fastest = Math.max(...speeds.map(Math.abs));
+    if (fastest > SCROLL_MAX_PX)
+        return `FAIL ease: the street scrolled ${fastest} px in one frame (limit ${SCROLL_MAX_PX}): the view lurched after Charly`;
     if (worst > EASE_PX) return `FAIL ease: at frame ${at} Charly jumped ${worst.toFixed(1)} px on screen (limit ${EASE_PX})`;
-    return prev > 130 && prev < 210 ? `ok   ease: across the seam from the clamped start, at most ${worst.toFixed(1)} px a step, ends centred (x ${prev.toFixed(0)})`
+    return prev > 130 && prev < 210 ? `ok   ease: walking left off the clamped start and across the seam the street never stops, at most ${fastest} px a frame, ends centred (x ${prev.toFixed(0)})`
         : `FAIL ease: after walking left 150 steps Charly is at screen x ${prev.toFixed(0)}, not centred: the view never let go of the clamp`;
 }
 
