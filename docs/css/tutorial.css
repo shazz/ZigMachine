@@ -145,7 +145,6 @@ html[data-compare] .lang > h3 { display: block; }
   :root { --rail-w: 180px; }
   .wrap { grid-template-columns: var(--rail-w) minmax(0, 1fr); padding: 20px 24px 80px; }
   .monitorcol { display: none; }
-  .comparepick { display: none; }
 }
 @media (max-width: 899px) {
   .wrap { grid-template-columns: minmax(0, 1fr); gap: 0; padding: 16px 16px 72px; }
@@ -163,12 +162,9 @@ html[data-compare] .lang > h3 { display: block; }
 
 /* Compare mode: two languages side by side, wide screens only. JS removes the
    attribute entirely when no second language is picked. */
-@media (min-width: 1200px) {
-  /* minmax(0, 1fr), NOT 1fr: a grid track's default minimum is min-content, so a
-     long Rust line pushed the second column straight out of main and under the
-     monitor panel. The code blocks scroll inside themselves instead. */
-  html[data-compare] .langs { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    gap: 20px; align-items: start; }
-  /* Two columns need more than a reading measure. */
-  html[data-compare] main { max-width: none; }
-}
+/* Compare mode STACKS the second language under the first, full width.
+   Side by side was tried and abandoned: the same step is 30 lines of Zig and 87
+   of Rust, so two columns forced every block into its own horizontal scrollbar
+   and neither language could be read. Stacked, both get the full measure, and
+   compare works at every width instead of only on a wide desktop. */
+html[data-compare] .lang + .lang { margin-top: 22px; }
