@@ -11,6 +11,9 @@ resolution</b> (with per-scanline resolution switching), a <b>GEM-style GUI
 toolkit</b>, and a <b>Wavefront OBJ loader</b> on top of the sealed machine.
 A scene is a struct with <code>init/update/render</code> (see the first example);
 select it in <code>apps/floppy.zig</code>.
+<p><b>New here?</b> Do the <a href="TUTORIAL.html">tutorial</a> first: it builds one
+screen step by step in Zig, C and Rust, and runs each step on the real machine.
+This page is the reference you reach for afterwards.</p>
 """
 
 EXAMPLES = [

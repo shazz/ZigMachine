@@ -71,8 +71,9 @@ def parse_sources() -> dict[str, list[Item]]:
 def groups(s: dict[str, list[Item]]) -> list[tuple[str, str]]:
     """The guide's sections, in reading order."""
     return [
-        # Newcomers first: build a screen before reading the reference.
-        ("Tutorial — your first screen (Zig, C, Rust)", render_markdown_file("docs/TUTORIAL.md")),
+        # The tutorial is its own page now (docs/TUTORIAL.html): this one is the
+        # reference, and a newcomer should not have to scroll past 1200 lines of
+        # lesson to reach the register map.
         ("Geometry & resolution", render_consts(s["geometry"])),
         ("Resolution & plane modes", render_consts(s["modes"])),
         ("Video registers", render_consts(s["regs"])),
@@ -93,6 +94,16 @@ def groups(s: dict[str, list[Item]]) -> list[tuple[str, str]]:
     ]
 
 
+def slug(title: str) -> str:
+    """A stable anchor for a section title.
+
+    The ids used to be the group's position (#0..#17), so inserting a group
+    silently repointed every deep link into the guide — including the tutorial
+    page's register callouts. A slug only changes when the title does.
+    """
+    return re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-")
+
+
 def _counts(s: dict[str, list[Item]]) -> str:
     methods = sum(len(s[k]) for k in METHOD_KEYS)
     consts = sum(len(s[k]) for k in CONST_KEYS)
@@ -102,9 +113,9 @@ def _counts(s: dict[str, list[Item]]) -> str:
 def build() -> str:
     s = parse_sources()
     gs = groups(s)
-    nav = "\n".join(f'<a href="#{i}">{esc(t)}</a>' for i, (t, _) in enumerate(gs))
+    nav = "\n".join(f'<a href="#{slug(t)}">{esc(t)}</a>' for t, _ in gs)
     sections = "\n".join(
-        f'<section id="{i}"><h2>{esc(t)}</h2>{body}</section>' for i, (t, body) in enumerate(gs)
+        f'<section id="{slug(t)}"><h2>{esc(t)}</h2>{body}</section>' for t, body in gs
     )
     return TEMPLATE.format(
         css=CSS,

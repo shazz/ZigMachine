@@ -1,0 +1,951 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ZigMachine — Tutorial</title>
+<meta name="description" content="Write your first ZigMachine screen, step by step, in Zig, C or Rust — running live on the real machine.">
+<link rel="stylesheet" href="css/tutorial.css?v=30f6de70">
+<link rel="stylesheet" href="css/tutorial-code.css?v=9cfda999">
+<script>
+(function () {
+  var l = null;
+  try { l = localStorage.getItem("zm.tutorial.lang"); } catch (e) {}
+  document.documentElement.dataset.lang = l || "zig";
+})();
+</script>
+</head>
+<body>
+<header class="topbar">
+  <a class="wordmark" href="index.html">ZIGMACHINE</a><span class="crumb">TUTORIAL</span>
+  <button class="counter" id="counter" aria-expanded="false" aria-controls="rail">
+    <span id="counter-n">1</span> / 8
+  </button>
+  <div class="spacer"></div>
+  <div class="langpick" role="group" aria-label="Language"><button class="seg" data-lang="zig" aria-pressed="false">Zig</button><button class="seg" data-lang="c" aria-pressed="false">C</button><button class="seg" data-lang="rust" aria-pressed="false">Rust</button></div>
+  <label class="comparepick">compare
+    <select id="compare" aria-label="Compare with a second language"><option value="">—</option><option value="zig">Zig</option><option value="c">C</option><option value="rust">Rust</option></select>
+  </label>
+  <a class="guidelink" href="ZIGMACHINE_GUIDE.html">Reference &rarr;</a>
+</header>
+<div class="wrap">
+  <nav class="rail" id="rail" aria-label="Steps"><a href="#before-you-start" data-slug="before-you-start"><span class="rn">·</span>Before you start</a>
+<a href="#step-1" data-slug="step-1"><span class="rn">01</span>an empty cart that boots</a>
+<a href="#step-2" data-slug="step-2"><span class="rn">02</span>enable a plane and set a palette</a>
+<a href="#step-3" data-slug="step-3"><span class="rn">03</span>draw something static</a>
+<a href="#step-4" data-slug="step-4"><span class="rn">04</span>animate it every frame</a>
+<a href="#step-5" data-slug="step-5"><span class="rn">05</span>rasters, the copper bar</a>
+<a href="#step-6" data-slug="step-6"><span class="rn">06</span>a text scroller</a>
+<a href="#step-7" data-slug="step-7"><span class="rn">07</span>music</a>
+<a href="#step-8" data-slug="step-8"><span class="rn">08</span>going further: borders and the blitter</a>
+<a href="#where-next" data-slug="where-next"><span class="rn">·</span>Where next</a></nav>
+  <main>
+    <section class="intro" id="intro">
+      <h1>Tutorial: your first screen, in Zig, C and Rust</h1>
+      <p>This tutorial builds one small oldskool screen from scratch, one piece at a
+time. It ends with:</p>
+<ul>
+<li>a sky gradient with a <strong>copper bar</strong> bouncing through it,</li>
+<li>a <strong>bouncing block</strong>,</li>
+<li>a <strong>checkerboard floor</strong>,</li>
+<li>a <strong>text scroller</strong>,</li>
+<li><strong>music</strong>: Mad Max's "So Watt" (<code>sos.sndh</code>), played by the machine's
+  emulated 68000 on its YM2149.</li>
+</ul>
+<p>The screen is written three times, and every snippet below comes from a file
+that builds and runs:</p>
+<table>
+<thead>
+<tr>
+<th>Language</th>
+<th>Finished file</th>
+<th>Cart</th>
+<th>Talks to the machine through</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Zig</td>
+<td><code>apps/zig/scenes/tutorial.zig</code></td>
+<td><code>demo-tutorial.wasm</code></td>
+<td><strong>ZigOS</strong>, the open library (<code>docs/ZIGOS_API.md</code>)</td>
+</tr>
+<tr>
+<td>C</td>
+<td><code>apps/c/scenes/tutorial.c</code></td>
+<td><code>demo-c-tutorial.wasm</code></td>
+<td>the raw sealed ABI (<code>docs/HW_API.md</code>)</td>
+</tr>
+<tr>
+<td>Rust</td>
+<td><code>apps/rust/scenes/tutorial.rs</code></td>
+<td><code>demo-rust-tutorial.wasm</code></td>
+<td>the raw sealed ABI (<code>docs/HW_API.md</code>)</td>
+</tr>
+</tbody>
+</table>
+<p>The C and Rust versions use no library. They write palette indices into
+shared memory and poke a few registers. The Zig version calls ZigOS helpers
+for the same jobs. Where the two differ, the step says why.</p>
+<p>Each step shows <strong>only what that step adds or changes</strong>. The finished files
+are the last step. They are short enough to read in one sitting.</p>
+      <div class="picker" id="picker" hidden>
+        <p class="picker-q">Which language do you want to read this in?
+          <span class="picker-sub">You can switch any time.</span></p>
+        <div class="picker-cards"><button class="card" data-lang="zig" type="button"><b>Zig</b><span class="card-n">138 lines</span><span class="card-v">through the ZigOS library</span></button><button class="card" data-lang="c" type="button"><b>C</b><span class="card-n">191 lines</span><span class="card-v">straight at the sealed ABI</span></button><button class="card" data-lang="rust" type="button"><b>Rust</b><span class="card-n">263 lines</span><span class="card-v">straight at the sealed ABI, no_std</span></button></div>
+      </div>
+    </section>
+<section class="plain" id="before-you-start"><header class="step-h"><h2>Before you start</h2></header><div class="shared"><p class="lead lead-note"><strong>The machine in one paragraph.</strong> ZigMachine is a sealed console. Its hardware
+is <code>machine-video.wasm</code> and <code>machine-audio.wasm</code>, and you never rebuild them.
+Your program is a <strong>cart</strong>: a wasm module that shares one <code>WebAssembly.Memory</code>
+with the machine. The screen is <strong>4 planes</strong>. Each plane is a 320x200 buffer of
+<strong>palette indices</strong> with its own 256-colour RGBA palette. Around the 320x200
+screen sits a 40-pixel <strong>border</strong>, 400x280 in all. Every frame the host does
+this:</p>
+<figure class="cb"><figcaption><span class="cb-n">1 line</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code>hwClear()  -&gt;  your frame()  -&gt;  hwRenderPlane(p) for each plane your isPlaneEnabled(p) says is on</code></pre></figure>
+<p class="lead lead-note"><strong>Toolchains.</strong></p>
+<ul>
+<li>Zig 0.16: <code>export PATH="$HOME/.local/zig/0.16.0:$PATH"</code></li>
+<li>C: nothing extra. <code>apps/c/build.sh</code> uses <code>zig cc</code>, which bundles a linker.</li>
+<li>Rust: <code>rustup target add wasm32-unknown-unknown</code>. <code>rustc</code> bundles <code>rust-lld</code>.</li>
+</ul>
+<p class="lead lead-note"><strong>Build.</strong></p>
+<figure class="cb" data-lang=bash><figcaption><span class="cb-lang">bash</span><span class="cb-n">3 lines</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code>sh ./build.sh                          <span class="tok-cm"># the Zig carts, plus every check</span>
+bash apps/c/build.sh tutorial          <span class="tok-cm"># -&gt; docs/demo-c-tutorial.wasm</span>
+bash apps/rust/build.sh tutorial       <span class="tok-cm"># -&gt; docs/demo-rust-tutorial.wasm</span></code></pre></figure>
+<p><code>./build.sh</code> also rebuilds the C and Rust carts, so a plain <code>./build.sh</code>
+covers all three. The single-language scripts are faster while you iterate.</p>
+<p class="lead lead-note"><strong>Run.</strong> Serve <code>docs/</code> and open a cart with <code>?demo=</code>:</p>
+<figure class="cb" data-lang=bash><figcaption><span class="cb-lang">bash</span><span class="cb-n">4 lines</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code><span class="tok-kw">cd</span> docs &amp;&amp; python3 -m http.server <span class="tok-num">3333</span>
+<span class="tok-cm"># http://localhost:3333/index.html?demo=demo-tutorial.wasm</span>
+<span class="tok-cm"># http://localhost:3333/index.html?demo=demo-c-tutorial.wasm</span>
+<span class="tok-cm"># http://localhost:3333/index.html?demo=demo-rust-tutorial.wasm</span></code></pre></figure>
+<p><code>sealed.html?demo=...</code> also works: it redirects to <code>index.html</code> and keeps the
+query. The Zig screen is on the machine's menu too, as <strong>TUTORIAL</strong>. Hard-reload
+(Ctrl+Shift+R) after every rebuild, or the browser keeps the old wasm.</p>
+<p class="lead lead-note"><strong>Where your file lives.</strong> In Zig, add the scene to three lists that must stay
+in step (already done for the tutorial):</p>
+<ul>
+<li>the <code>switch</code> in <code>apps/zig/cart.zig</code>,</li>
+<li><code>cart_names</code> in <code>build.zig</code>,</li>
+<li><code>apps/zig/scenes/catalog.zig</code>, if the menu should list it.</li>
+</ul>
+<p>A C or Rust scene is just a new file in <code>apps/c/scenes/</code> or <code>apps/rust/scenes/</code>.
+The build scripts pick up every file there.</p>
+<hr /></div><div class="shared after"></div><div class="run-slot"></div></section>
+<section class="step" id="step-1" data-step="1"><header class="step-h"><span class="num">01</span><h2>an empty cart that boots</h2><button class="run" data-step="1" type="button">&#9654; Run</button></header><div class="shared"><p class="lead lead-goal"><strong>Goal.</strong> A cart the machine loads and runs, drawing nothing.</p>
+<p class="lead lead-concept"><strong>Concept.</strong> The host calls your cart through a handful of exports. <code>boot()</code>
+runs once. <code>frame(dt)</code> runs every frame. <code>isPlaneEnabled(p)</code> tells the host
+which planes to show. The rest (<code>hblDispatch</code>, <code>skipBoot</code>, <code>setShadeMode</code>,
+<code>pointer</code>, <code>input</code>) must exist even as stubs: the build scripts export all
+eight names, and linking fails if one is missing. <code>inputRelease(dir)</code> is
+OPTIONAL and not one of the eight: the host calls it on key-up, only for a cart
+that exports it, so a held direction stops exactly on release.</p>
+<p>A Zig scene does not write these exports. <code>apps/zig/demo_main.zig</code> does, and it
+calls your <code>Demo</code>'s <code>init</code> once, then <code>update</code> and <code>render</code> every frame.</p></div><div class="langs"><section class="lang" data-lang="zig" id="step-1-zig"><h3>Zig</h3><figure class="cb" data-lang=zig><figcaption><span class="cb-lang">zig</span><span class="cb-n">21 lines</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code><span class="tok-kw">const</span> zg = @<span class="tok-fn">import</span>(<span class="tok-str">&quot;zigos&quot;</span>);
+<span class="tok-kw">const</span> ZigOS = zg.ZigOS;
+
+<span class="tok-kw">pub</span> <span class="tok-kw">const</span> Demo = <span class="tok-kw">struct</span> {
+    <span class="tok-kw">pub</span> <span class="tok-kw">fn</span> <span class="tok-fn">init</span>(self: *Demo, zigos: *ZigOS) <span class="tok-kw">void</span> {
+        _ = self;
+        _ = zigos;
+    }
+
+    <span class="tok-kw">pub</span> <span class="tok-kw">fn</span> <span class="tok-fn">update</span>(self: *Demo, zigos: *ZigOS, dt: <span class="tok-kw">f32</span>) <span class="tok-kw">void</span> {
+        _ = self;
+        _ = zigos;
+        _ = dt;
+    }
+
+    <span class="tok-kw">pub</span> <span class="tok-kw">fn</span> <span class="tok-fn">render</span>(self: *Demo, zigos: *ZigOS, dt: <span class="tok-kw">f32</span>) <span class="tok-kw">void</span> {
+        _ = self;
+        _ = zigos;
+        _ = dt;
+    }
+};</code></pre></figure></section><section class="lang" data-lang="c" id="step-1-c"><h3>C</h3><figure class="cb" data-lang=c><figcaption><span class="cb-lang">c</span><span class="cb-n">20 lines</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code><span class="tok-kw">typedef</span> <span class="tok-kw">unsigned</span> <span class="tok-kw">char</span> <span class="tok-kw">u8</span>;
+<span class="tok-kw">typedef</span> <span class="tok-kw">unsigned</span> <span class="tok-kw">short</span> <span class="tok-kw">u16</span>;
+<span class="tok-kw">typedef</span> <span class="tok-kw">unsigned</span> <span class="tok-kw">int</span> <span class="tok-kw">u32</span>;
+
+<span class="tok-fn">__attribute__</span>((<span class="tok-fn">export_name</span>(<span class="tok-str">&quot;boot&quot;</span>)))
+<span class="tok-kw">void</span> <span class="tok-fn">boot</span>(<span class="tok-kw">void</span>) {}
+
+<span class="tok-fn">__attribute__</span>((<span class="tok-fn">export_name</span>(<span class="tok-str">&quot;frame&quot;</span>)))
+<span class="tok-kw">void</span> <span class="tok-fn">frame</span>(<span class="tok-kw">float</span> dt) { (<span class="tok-kw">void</span>)dt; }
+
+<span class="tok-fn">__attribute__</span>((<span class="tok-fn">export_name</span>(<span class="tok-str">&quot;isPlaneEnabled&quot;</span>)))
+<span class="tok-kw">int</span> <span class="tok-fn">isPlaneEnabled</span>(<span class="tok-kw">int</span> id) { (<span class="tok-kw">void</span>)id; <span class="tok-kw">return</span> <span class="tok-num">0</span>; }
+
+<span class="tok-cm">// The host calls these too. Stubs, so no call ever hits a missing export.</span>
+<span class="tok-fn">__attribute__</span>((<span class="tok-fn">export_name</span>(<span class="tok-str">&quot;hblDispatch&quot;</span>)))
+<span class="tok-kw">void</span> <span class="tok-fn">hblDispatch</span>(<span class="tok-kw">u32</span> id, <span class="tok-kw">u32</span> plane, <span class="tok-kw">u32</span> line, <span class="tok-kw">u32</span> x) { (<span class="tok-kw">void</span>)id; (<span class="tok-kw">void</span>)plane; (<span class="tok-kw">void</span>)line; (<span class="tok-kw">void</span>)x; }
+<span class="tok-fn">__attribute__</span>((<span class="tok-fn">export_name</span>(<span class="tok-str">&quot;skipBoot&quot;</span>)))     <span class="tok-kw">void</span> <span class="tok-fn">skipBoot</span>(<span class="tok-kw">void</span>) {}
+<span class="tok-fn">__attribute__</span>((<span class="tok-fn">export_name</span>(<span class="tok-str">&quot;setShadeMode&quot;</span>))) <span class="tok-kw">void</span> <span class="tok-fn">setShadeMode</span>(<span class="tok-kw">u32</span> m) { (<span class="tok-kw">void</span>)m; }
+<span class="tok-fn">__attribute__</span>((<span class="tok-fn">export_name</span>(<span class="tok-str">&quot;pointer&quot;</span>)))      <span class="tok-kw">void</span> <span class="tok-fn">pointer</span>(<span class="tok-kw">int</span> x, <span class="tok-kw">int</span> y, <span class="tok-kw">u32</span> b) { (<span class="tok-kw">void</span>)x; (<span class="tok-kw">void</span>)y; (<span class="tok-kw">void</span>)b; }
+<span class="tok-fn">__attribute__</span>((<span class="tok-fn">export_name</span>(<span class="tok-str">&quot;input&quot;</span>)))        <span class="tok-kw">void</span> <span class="tok-fn">input</span>(<span class="tok-kw">u8</span> dir) { (<span class="tok-kw">void</span>)dir; }</code></pre></figure></section><section class="lang" data-lang="rust" id="step-1-rust"><h3>Rust</h3><figure class="cb" data-lang=rust><figcaption><span class="cb-lang">rust</span><span class="cb-n">32 lines</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code><span class="tok-at">#![no_std]</span>
+<span class="tok-at">#![no_main]</span>
+
+<span class="tok-kw">use</span> core::panic::PanicInfo;
+
+<span class="tok-at">#[panic_handler]</span>
+<span class="tok-kw">fn</span> <span class="tok-fn">panic</span>(_: &amp;PanicInfo) -&gt; ! {
+    <span class="tok-kw">loop</span> {}
+}
+
+<span class="tok-at">#[no_mangle]</span>
+<span class="tok-kw">pub</span> <span class="tok-kw">extern</span> <span class="tok-str">&quot;C&quot;</span> <span class="tok-kw">fn</span> <span class="tok-fn">boot</span>() {}
+
+<span class="tok-at">#[no_mangle]</span>
+<span class="tok-kw">pub</span> <span class="tok-kw">extern</span> <span class="tok-str">&quot;C&quot;</span> <span class="tok-kw">fn</span> <span class="tok-fn">frame</span>(_elapsed_ms: <span class="tok-kw">f32</span>) {}
+
+<span class="tok-at">#[no_mangle]</span>
+<span class="tok-kw">pub</span> <span class="tok-kw">extern</span> <span class="tok-str">&quot;C&quot;</span> <span class="tok-kw">fn</span> <span class="tok-fn">isPlaneEnabled</span>(_id: <span class="tok-kw">i32</span>) -&gt; <span class="tok-kw">i32</span> {
+    <span class="tok-num">0</span>
+}
+
+<span class="tok-cm">// The host calls these too. Stubs, so no call ever hits a missing export.</span>
+<span class="tok-at">#[no_mangle]</span>
+<span class="tok-kw">pub</span> <span class="tok-kw">extern</span> <span class="tok-str">&quot;C&quot;</span> <span class="tok-kw">fn</span> <span class="tok-fn">hblDispatch</span>(_id: <span class="tok-kw">u32</span>, _plane: <span class="tok-kw">u32</span>, _line: <span class="tok-kw">u32</span>, _x: <span class="tok-kw">u32</span>) {}
+<span class="tok-at">#[no_mangle]</span>
+<span class="tok-kw">pub</span> <span class="tok-kw">extern</span> <span class="tok-str">&quot;C&quot;</span> <span class="tok-kw">fn</span> <span class="tok-fn">skipBoot</span>() {}
+<span class="tok-at">#[no_mangle]</span>
+<span class="tok-kw">pub</span> <span class="tok-kw">extern</span> <span class="tok-str">&quot;C&quot;</span> <span class="tok-kw">fn</span> <span class="tok-fn">setShadeMode</span>(_m: <span class="tok-kw">u32</span>) {}
+<span class="tok-at">#[no_mangle]</span>
+<span class="tok-kw">pub</span> <span class="tok-kw">extern</span> <span class="tok-str">&quot;C&quot;</span> <span class="tok-kw">fn</span> <span class="tok-fn">pointer</span>(_x: <span class="tok-kw">i32</span>, _y: <span class="tok-kw">i32</span>, _b: <span class="tok-kw">u32</span>) {}
+<span class="tok-at">#[no_mangle]</span>
+<span class="tok-kw">pub</span> <span class="tok-kw">extern</span> <span class="tok-str">&quot;C&quot;</span> <span class="tok-kw">fn</span> <span class="tok-fn">input</span>(_dir: <span class="tok-kw">u8</span>) {}</code></pre></figure>
+<p><code>no_std</code> because there is no operating system. <code>no_main</code> because the host calls
+your exports, so there is no <code>main</code>. The panic handler is required without <code>std</code>.</p></section></div><div class="shared after"><p class="lead lead-see"><strong>What you should see.</strong> Nothing but the background. In Zig it is dark grey:
+ZigOS resets the background to (20,20,20) before a scene starts. In C and Rust
+the machine's reset leaves the background at 0, which has <strong>alpha 0</strong>, so the
+page behind the canvas shows through (black on the default page).</p>
+<p class="lead lead-mistakes"><strong>Common mistakes.</strong></p>
+<ul>
+<li><em>Link error <code>symbol not defined</code> in C or Rust.</em> One of the eight exports is
+  missing. Keep the stubs.</li>
+<li><em>The Zig cart is not built.</em> The scene is missing from <code>cart.zig</code> or
+  <code>build.zig</code>, or its index differs between them.</li>
+</ul>
+<hr /></div><div class="run-slot"></div></section>
+<section class="step" id="step-2" data-step="2"><header class="step-h"><span class="num">02</span><h2>enable a plane and set a palette</h2><button class="run" data-step="2" type="button">&#9654; Run</button></header><div class="shared"><p class="lead lead-goal"><strong>Goal.</strong> Plane 0 on, five colours in its palette, the whole plane filled with
+the sky colour, and a black border.</p>
+<p class="lead lead-concept"><strong>Concept.</strong> Like the ST, the screen stores <strong>indices</strong>, not colours. A colour
+is an RGBA <code>u32</code>, stored little-endian as bytes R, G, B, A, so the value is
+<code>a&lt;&lt;24 | b&lt;&lt;16 | g&lt;&lt;8 | r</code>. <strong>Alpha 255 is opaque.</strong> Alpha 0 is transparent,
+which is how an upper plane lets a lower one show through. Changing a palette
+entry recolours every pixel that uses it, at no cost. Step 5 builds on that.</p>
+<p>The sealed memory map (from <code>machine/sdk/memmap.zig</code>), as offsets from
+<code>hwVideoBase()</code>:</p>
+<table>
+<thead>
+<tr>
+<th>Offset</th>
+<th>What</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>0x04</code></td>
+<td><code>REG_BACKGROUND</code>: border/background colour, <code>u32</code></td>
+</tr>
+<tr>
+<td><code>0x0100</code></td>
+<td>plane 0 palette: 256 x <code>u32</code></td>
+</tr>
+<tr>
+<td><code>0x1100</code></td>
+<td>plane 0 framebuffer: 320 x 200 bytes, row by row</td>
+</tr>
+</tbody>
+</table>
+<p class="lead lead-vs"><strong>Zig vs C/Rust.</strong> ZigOS wraps all of this: <code>zigos.lfbs[0]</code> is plane 0,
+<code>is_enabled</code> feeds the <code>isPlaneEnabled</code> export, and <code>setPaletteEntry</code> writes the
+palette. C and Rust ask the machine for the base address once, then write the
+bytes themselves.</p></div><div class="langs"><section class="lang" data-lang="zig" id="step-2-zig"><h3>Zig</h3><figure class="cb" data-lang=zig><figcaption><span class="cb-lang">zig</span><span class="cb-n">12 lines</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code><span class="tok-kw">const</span> Color = zg.Color;
+
+<span class="tok-cm">// palette indices</span>
+<span class="tok-kw">const</span> SKY: <span class="tok-kw">u8</span> = <span class="tok-num">0</span>;
+<span class="tok-kw">const</span> FLOOR_DARK: <span class="tok-kw">u8</span> = <span class="tok-num">1</span>;
+<span class="tok-kw">const</span> FLOOR_LIGHT: <span class="tok-kw">u8</span> = <span class="tok-num">2</span>;
+<span class="tok-kw">const</span> BLOCK: <span class="tok-kw">u8</span> = <span class="tok-num">3</span>;
+<span class="tok-kw">const</span> TEXT_INK: <span class="tok-kw">u8</span> = <span class="tok-num">4</span>;
+
+<span class="tok-kw">fn</span> <span class="tok-fn">rgb</span>(r: <span class="tok-kw">u8</span>, g: <span class="tok-kw">u8</span>, b: <span class="tok-kw">u8</span>) Color {
+    <span class="tok-kw">return</span> .{ .r = r, .g = g, .b = b, .a = <span class="tok-num">255</span> };
+}</code></pre></figure>
+<figure class="cb" data-lang=zig><figcaption><span class="cb-lang">zig</span><span class="cb-n">13 lines</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code>    <span class="tok-kw">pub</span> <span class="tok-kw">fn</span> <span class="tok-fn">init</span>(self: *Demo, zigos: *ZigOS) <span class="tok-kw">void</span> {
+        _ = self;
+        zigos.<span class="tok-fn">setBackgroundColor</span>(<span class="tok-fn">rgb</span>(<span class="tok-num">0</span>, <span class="tok-num">0</span>, <span class="tok-num">0</span>));
+
+        <span class="tok-kw">const</span> fb = &amp;zigos.lfbs[<span class="tok-num">0</span>];
+        fb.is_enabled = <span class="tok-kw">true</span>;
+        fb.<span class="tok-fn">setPaletteEntry</span>(SKY, <span class="tok-fn">rgb</span>(<span class="tok-num">0</span>, <span class="tok-num">0</span>, <span class="tok-num">40</span>));
+        fb.<span class="tok-fn">setPaletteEntry</span>(FLOOR_DARK, <span class="tok-fn">rgb</span>(<span class="tok-num">60</span>, <span class="tok-num">20</span>, <span class="tok-num">90</span>));
+        fb.<span class="tok-fn">setPaletteEntry</span>(FLOOR_LIGHT, <span class="tok-fn">rgb</span>(<span class="tok-num">140</span>, <span class="tok-num">60</span>, <span class="tok-num">180</span>));
+        fb.<span class="tok-fn">setPaletteEntry</span>(BLOCK, <span class="tok-fn">rgb</span>(<span class="tok-num">255</span>, <span class="tok-num">210</span>, <span class="tok-num">0</span>));
+        fb.<span class="tok-fn">setPaletteEntry</span>(TEXT_INK, <span class="tok-fn">rgb</span>(<span class="tok-num">255</span>, <span class="tok-num">255</span>, <span class="tok-num">255</span>));
+        fb.<span class="tok-fn">clearFrameBuffer</span>(SKY);
+    }</code></pre></figure></section><section class="lang" data-lang="c" id="step-2-c"><h3>C</h3><figure class="cb" data-lang=c><figcaption><span class="cb-lang">c</span><span class="cb-n">42 lines</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code><span class="tok-cm">// --- the sealed ABI: one import, and offsets from machine/sdk/memmap.zig ---</span>
+<span class="tok-fn">__attribute__</span>((<span class="tok-fn">import_module</span>(<span class="tok-str">&quot;env&quot;</span>), <span class="tok-fn">import_name</span>(<span class="tok-str">&quot;hwVideoBase&quot;</span>)))
+<span class="tok-kw">extern</span> <span class="tok-kw">int</span> <span class="tok-fn">hwVideoBase</span>(<span class="tok-kw">void</span>);
+
+<span class="tok-pp">#define</span> OFF_PAL        <span class="tok-num">0x0100</span> <span class="tok-cm">// plane 0 palette: 256 x RGBA u32</span>
+<span class="tok-pp">#define</span> OFF_VRAM       <span class="tok-num">0x1100</span> <span class="tok-cm">// plane 0 framebuffer: 320 x 200 palette indices</span>
+<span class="tok-pp">#define</span> REG_BACKGROUND <span class="tok-num">0x04</span>   <span class="tok-cm">// u32: the border/background colour</span>
+<span class="tok-pp">#define</span> W <span class="tok-num">320</span>
+<span class="tok-pp">#define</span> H <span class="tok-num">200</span>
+
+<span class="tok-cm">// palette indices</span>
+<span class="tok-pp">#define</span> SKY         <span class="tok-num">0</span>
+<span class="tok-pp">#define</span> FLOOR_DARK  <span class="tok-num">1</span>
+<span class="tok-pp">#define</span> FLOOR_LIGHT <span class="tok-num">2</span>
+<span class="tok-pp">#define</span> BLOCK       <span class="tok-num">3</span>
+<span class="tok-pp">#define</span> TEXT_INK    <span class="tok-num">4</span>
+
+<span class="tok-kw">static</span> <span class="tok-kw">int</span> video_base;
+
+<span class="tok-kw">static</span> <span class="tok-kw">inline</span> <span class="tok-kw">u8</span> *<span class="tok-fn">vram</span>(<span class="tok-kw">void</span>) { <span class="tok-kw">return</span> (<span class="tok-kw">u8</span> *)(video_base + OFF_VRAM); }
+<span class="tok-kw">static</span> <span class="tok-kw">inline</span> <span class="tok-kw">u32</span> *<span class="tok-fn">palette</span>(<span class="tok-kw">void</span>) { <span class="tok-kw">return</span> (<span class="tok-kw">u32</span> *)(video_base + OFF_PAL); }
+<span class="tok-kw">static</span> <span class="tok-kw">inline</span> <span class="tok-kw">u32</span> <span class="tok-fn">rgba</span>(<span class="tok-kw">u32</span> r, <span class="tok-kw">u32</span> g, <span class="tok-kw">u32</span> b) { <span class="tok-kw">return</span> <span class="tok-num">0xFF000000</span>u | b &lt;&lt; <span class="tok-num">16</span> | g &lt;&lt; <span class="tok-num">8</span> | r; }
+
+<span class="tok-kw">static</span> <span class="tok-kw">void</span> <span class="tok-fn">fill_rect</span>(<span class="tok-kw">int</span> x, <span class="tok-kw">int</span> y, <span class="tok-kw">int</span> w, <span class="tok-kw">int</span> h, <span class="tok-kw">u8</span> index) {
+    <span class="tok-kw">for</span> (<span class="tok-kw">int</span> j = y; j &lt; y + h; j++)
+        <span class="tok-kw">for</span> (<span class="tok-kw">int</span> i = x; i &lt; x + w; i++) <span class="tok-fn">vram</span>()[j * W + i] = index;
+}
+
+<span class="tok-fn">__attribute__</span>((<span class="tok-fn">export_name</span>(<span class="tok-str">&quot;boot&quot;</span>)))
+<span class="tok-kw">void</span> <span class="tok-fn">boot</span>(<span class="tok-kw">void</span>) {
+    video_base = <span class="tok-fn">hwVideoBase</span>();
+    *(<span class="tok-kw">u32</span> *)(video_base + REG_BACKGROUND) = <span class="tok-fn">rgba</span>(<span class="tok-num">0</span>, <span class="tok-num">0</span>, <span class="tok-num">0</span>);
+
+    <span class="tok-kw">u32</span> *pal = <span class="tok-fn">palette</span>();
+    pal[SKY] = <span class="tok-fn">rgba</span>(<span class="tok-num">0</span>, <span class="tok-num">0</span>, <span class="tok-num">40</span>);
+    pal[FLOOR_DARK] = <span class="tok-fn">rgba</span>(<span class="tok-num">60</span>, <span class="tok-num">20</span>, <span class="tok-num">90</span>);
+    pal[FLOOR_LIGHT] = <span class="tok-fn">rgba</span>(<span class="tok-num">140</span>, <span class="tok-num">60</span>, <span class="tok-num">180</span>);
+    pal[BLOCK] = <span class="tok-fn">rgba</span>(<span class="tok-num">255</span>, <span class="tok-num">210</span>, <span class="tok-num">0</span>);
+    pal[TEXT_INK] = <span class="tok-fn">rgba</span>(<span class="tok-num">255</span>, <span class="tok-num">255</span>, <span class="tok-num">255</span>);
+
+    <span class="tok-fn">fill_rect</span>(<span class="tok-num">0</span>, <span class="tok-num">0</span>, W, H, SKY);
+}</code></pre></figure>
+<figure class="cb" data-lang=c><figcaption><span class="cb-lang">c</span><span class="cb-n">2 lines</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code><span class="tok-fn">__attribute__</span>((<span class="tok-fn">export_name</span>(<span class="tok-str">&quot;isPlaneEnabled&quot;</span>)))
+<span class="tok-kw">int</span> <span class="tok-fn">isPlaneEnabled</span>(<span class="tok-kw">int</span> id) { <span class="tok-kw">return</span> id == <span class="tok-num">0</span>; }</code></pre></figure></section><section class="lang" data-lang="rust" id="step-2-rust"><h3>Rust</h3><p>Rust keeps the screen's state in one <code>Screen</code> struct in a <code>static mut</code>, reached
+through <code>screen()</code>. A wasm cart is single-threaded and the host never calls back
+into it while it runs, so that is sound. Each <code>unsafe</code> block says why it is safe.</p>
+<figure class="cb" data-lang=rust><figcaption><span class="cb-lang">rust</span><span class="cb-n">54 lines</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code><span class="tok-kw">use</span> core::ptr::addr_of_mut;
+
+<span class="tok-cm">// --- the sealed ABI: one import, and offsets from machine/sdk/memmap.zig ---</span>
+<span class="tok-at">#[link(wasm_import_module = &quot;env&quot;)]</span>
+<span class="tok-kw">extern</span> <span class="tok-str">&quot;C&quot;</span> {
+    <span class="tok-kw">fn</span> <span class="tok-fn">hwVideoBase</span>() -&gt; <span class="tok-kw">i32</span>;
+}
+
+<span class="tok-kw">const</span> OFF_PAL: <span class="tok-kw">usize</span> = <span class="tok-num">0x0100</span>; <span class="tok-cm">// plane 0 palette: 256 x RGBA u32</span>
+<span class="tok-kw">const</span> OFF_VRAM: <span class="tok-kw">usize</span> = <span class="tok-num">0x1100</span>; <span class="tok-cm">// plane 0 framebuffer: 320 x 200 palette indices</span>
+<span class="tok-kw">const</span> REG_BACKGROUND: <span class="tok-kw">usize</span> = <span class="tok-num">0x04</span>; <span class="tok-cm">// u32: the border/background colour</span>
+<span class="tok-kw">const</span> W: <span class="tok-kw">usize</span> = <span class="tok-num">320</span>;
+<span class="tok-kw">const</span> H: <span class="tok-kw">usize</span> = <span class="tok-num">200</span>;
+
+<span class="tok-cm">// palette indices</span>
+<span class="tok-kw">const</span> SKY: <span class="tok-kw">u8</span> = <span class="tok-num">0</span>;
+<span class="tok-kw">const</span> FLOOR_DARK: <span class="tok-kw">u8</span> = <span class="tok-num">1</span>;
+<span class="tok-kw">const</span> FLOOR_LIGHT: <span class="tok-kw">u8</span> = <span class="tok-num">2</span>;
+<span class="tok-kw">const</span> BLOCK: <span class="tok-kw">u8</span> = <span class="tok-num">3</span>;
+<span class="tok-kw">const</span> TEXT_INK: <span class="tok-kw">u8</span> = <span class="tok-num">4</span>;
+
+<span class="tok-kw">struct</span> Screen {
+    base: <span class="tok-kw">usize</span>,
+}
+
+<span class="tok-kw">static</span> <span class="tok-kw">mut</span> SCREEN: Screen = Screen { base: <span class="tok-num">0</span> };
+
+<span class="tok-kw">fn</span> <span class="tok-fn">screen</span>() -&gt; &amp;&#x27;<span class="tok-kw">static</span> <span class="tok-kw">mut</span> Screen {
+    <span class="tok-cm">// SAFETY: a wasm32 cart is single-threaded, and the host never re-enters it.</span>
+    <span class="tok-kw">unsafe</span> { &amp;<span class="tok-kw">mut</span> *addr_of_mut!(SCREEN) }
+}
+
+<span class="tok-kw">const</span> <span class="tok-kw">fn</span> <span class="tok-fn">rgba</span>(r: <span class="tok-kw">u32</span>, g: <span class="tok-kw">u32</span>, b: <span class="tok-kw">u32</span>) -&gt; <span class="tok-kw">u32</span> {
+    <span class="tok-num">0xFF00_0000</span> | b &lt;&lt; <span class="tok-num">16</span> | g &lt;&lt; <span class="tok-num">8</span> | r
+}
+
+<span class="tok-kw">impl</span> Screen {
+    <span class="tok-kw">fn</span> <span class="tok-fn">vram</span>(&amp;<span class="tok-kw">self</span>) -&gt; &amp;&#x27;<span class="tok-kw">static</span> <span class="tok-kw">mut</span> [<span class="tok-kw">u8</span>] {
+        <span class="tok-cm">// SAFETY: plane 0&#x27;s framebuffer, inside the machine&#x27;s video region.</span>
+        <span class="tok-kw">unsafe</span> { core::slice::<span class="tok-fn">from_raw_parts_mut</span>((<span class="tok-kw">self</span>.base + OFF_VRAM) <span class="tok-kw">as</span> *<span class="tok-kw">mut</span> <span class="tok-kw">u8</span>, W * H) }
+    }
+
+    <span class="tok-kw">fn</span> <span class="tok-fn">palette</span>(&amp;<span class="tok-kw">self</span>) -&gt; &amp;&#x27;<span class="tok-kw">static</span> <span class="tok-kw">mut</span> [<span class="tok-kw">u32</span>] {
+        <span class="tok-cm">// SAFETY: plane 0&#x27;s 256-entry palette, inside the machine&#x27;s video region.</span>
+        <span class="tok-kw">unsafe</span> { core::slice::<span class="tok-fn">from_raw_parts_mut</span>((<span class="tok-kw">self</span>.base + OFF_PAL) <span class="tok-kw">as</span> *<span class="tok-kw">mut</span> <span class="tok-kw">u32</span>, <span class="tok-num">256</span>) }
+    }
+
+    <span class="tok-kw">fn</span> <span class="tok-fn">fill_rect</span>(&amp;<span class="tok-kw">self</span>, x: <span class="tok-kw">usize</span>, y: <span class="tok-kw">usize</span>, w: <span class="tok-kw">usize</span>, h: <span class="tok-kw">usize</span>, index: <span class="tok-kw">u8</span>) {
+        <span class="tok-kw">let</span> vram = <span class="tok-kw">self</span>.<span class="tok-fn">vram</span>();
+        <span class="tok-kw">for</span> row <span class="tok-kw">in</span> y..y + h {
+            vram[row * W + x..row * W + x + w].<span class="tok-fn">fill</span>(index);
+        }
+    }
+}</code></pre></figure>
+<figure class="cb" data-lang=rust><figcaption><span class="cb-lang">rust</span><span class="cb-n">17 lines</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code><span class="tok-at">#[no_mangle]</span>
+<span class="tok-kw">pub</span> <span class="tok-kw">extern</span> <span class="tok-str">&quot;C&quot;</span> <span class="tok-kw">fn</span> <span class="tok-fn">boot</span>() {
+    <span class="tok-kw">let</span> s = <span class="tok-fn">screen</span>();
+    <span class="tok-cm">// SAFETY: a plain import from the machine; it returns the video region&#x27;s base.</span>
+    s.base = <span class="tok-kw">unsafe</span> { <span class="tok-fn">hwVideoBase</span>() } <span class="tok-kw">as</span> <span class="tok-kw">usize</span>;
+    <span class="tok-cm">// SAFETY: REG_BACKGROUND is a u32 register inside the video region.</span>
+    <span class="tok-kw">unsafe</span> { ((s.base + REG_BACKGROUND) <span class="tok-kw">as</span> *<span class="tok-kw">mut</span> <span class="tok-kw">u32</span>).<span class="tok-fn">write</span>(<span class="tok-fn">rgba</span>(<span class="tok-num">0</span>, <span class="tok-num">0</span>, <span class="tok-num">0</span>)) };
+
+    <span class="tok-kw">let</span> pal = s.<span class="tok-fn">palette</span>();
+    pal[SKY <span class="tok-kw">as</span> <span class="tok-kw">usize</span>] = <span class="tok-fn">rgba</span>(<span class="tok-num">0</span>, <span class="tok-num">0</span>, <span class="tok-num">40</span>);
+    pal[FLOOR_DARK <span class="tok-kw">as</span> <span class="tok-kw">usize</span>] = <span class="tok-fn">rgba</span>(<span class="tok-num">60</span>, <span class="tok-num">20</span>, <span class="tok-num">90</span>);
+    pal[FLOOR_LIGHT <span class="tok-kw">as</span> <span class="tok-kw">usize</span>] = <span class="tok-fn">rgba</span>(<span class="tok-num">140</span>, <span class="tok-num">60</span>, <span class="tok-num">180</span>);
+    pal[BLOCK <span class="tok-kw">as</span> <span class="tok-kw">usize</span>] = <span class="tok-fn">rgba</span>(<span class="tok-num">255</span>, <span class="tok-num">210</span>, <span class="tok-num">0</span>);
+    pal[TEXT_INK <span class="tok-kw">as</span> <span class="tok-kw">usize</span>] = <span class="tok-fn">rgba</span>(<span class="tok-num">255</span>, <span class="tok-num">255</span>, <span class="tok-num">255</span>);
+
+    s.<span class="tok-fn">fill_rect</span>(<span class="tok-num">0</span>, <span class="tok-num">0</span>, W, H, SKY);
+}</code></pre></figure>
+<figure class="cb" data-lang=rust><figcaption><span class="cb-lang">rust</span><span class="cb-n">4 lines</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code><span class="tok-at">#[no_mangle]</span>
+<span class="tok-kw">pub</span> <span class="tok-kw">extern</span> <span class="tok-str">&quot;C&quot;</span> <span class="tok-kw">fn</span> <span class="tok-fn">isPlaneEnabled</span>(id: <span class="tok-kw">i32</span>) -&gt; <span class="tok-kw">i32</span> {
+    (id == <span class="tok-num">0</span>) <span class="tok-kw">as</span> <span class="tok-kw">i32</span>
+}</code></pre></figure></section></div><div class="shared after"><p class="lead lead-see"><strong>What you should see.</strong> A dark blue 320x200 rectangle in a black border.</p>
+<p class="lead lead-mistakes"><strong>Common mistakes.</strong></p>
+<ul>
+<li><em>Nothing shows.</em> Either alpha is 0 (a colour written as <code>0x000028</code> instead of
+  <code>0xFF280000</code>), or the plane is not enabled (<code>is_enabled</code> in Zig,
+  <code>isPlaneEnabled</code> in C and Rust).</li>
+<li><em>Red and blue swapped.</em> The byte order is R, G, B, A from the low byte up.</li>
+<li><em>A scene that enables a plane and later disables it leaves stale pixels on
+  that plane's canvas.</em> Only enabled planes are repainted.</li>
+</ul>
+<hr /></div><div class="run-slot"></div></section>
+<section class="step" id="step-3" data-step="3"><header class="step-h"><span class="num">03</span><h2>draw something static</h2><button class="run" data-step="3" type="button">&#9654; Run</button></header><div class="shared"><p class="lead lead-goal"><strong>Goal.</strong> A checkerboard floor under the sky.</p>
+<p class="lead lead-concept"><strong>Concept.</strong> Drawing is writing indices: row <code>y</code>, column <code>x</code> is byte
+<code>y * 320 + x</code>. Something that never changes is drawn once, in <code>init</code>/<code>boot</code>,
+not every frame.</p>
+<p class="lead lead-vs"><strong>Zig vs C/Rust.</strong> Zig uses <code>setPixelValue</code>, which clips to the plane.</p></div><div class="langs"><section class="lang" data-lang="zig" id="step-3-zig"><h3>Zig</h3><figure class="cb" data-lang=zig><figcaption><span class="cb-lang">zig</span><span class="cb-n">1 line</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code><span class="tok-kw">const</span> LogicalFB = zg.LogicalFB;</code></pre></figure>
+<figure class="cb" data-lang=zig><figcaption><span class="cb-lang">zig</span><span class="cb-n">2 lines</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code><span class="tok-kw">const</span> W: <span class="tok-kw">u16</span> = zg.WIDTH; <span class="tok-cm">// 320</span>
+<span class="tok-kw">const</span> H: <span class="tok-kw">u16</span> = zg.HEIGHT; <span class="tok-cm">// 200</span></code></pre></figure>
+<figure class="cb" data-lang=zig><figcaption><span class="cb-lang">zig</span><span class="cb-n">1 line</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code><span class="tok-kw">const</span> FLOOR_Y: <span class="tok-kw">u16</span> = <span class="tok-num">160</span>;</code></pre></figure>
+<figure class="cb" data-lang=zig><figcaption><span class="cb-lang">zig</span><span class="cb-n">8 lines</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code><span class="tok-kw">fn</span> <span class="tok-fn">drawFloor</span>(fb: *LogicalFB) <span class="tok-kw">void</span> {
+    <span class="tok-kw">for</span> (FLOOR_Y..H) |y| {
+        <span class="tok-kw">for</span> (<span class="tok-num">0</span>..W) |x| {
+            <span class="tok-kw">const</span> light = ((x / <span class="tok-num">20</span> + y / <span class="tok-num">10</span>) &amp; <span class="tok-num">1</span>) == <span class="tok-num">1</span>;
+            fb.<span class="tok-fn">setPixelValue</span>(@<span class="tok-fn">intCast</span>(x), @<span class="tok-fn">intCast</span>(y), <span class="tok-kw">if</span> (light) FLOOR_LIGHT <span class="tok-kw">else</span> FLOOR_DARK);
+        }
+    }
+}</code></pre></figure>
+<p>At the end of <code>init</code>:</p>
+<figure class="cb" data-lang=zig><figcaption><span class="cb-lang">zig</span><span class="cb-n">2 lines</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code>        fb.<span class="tok-fn">clearFrameBuffer</span>(SKY);
+        <span class="tok-fn">drawFloor</span>(fb);</code></pre></figure></section><section class="lang" data-lang="c" id="step-3-c"><h3>C</h3><figure class="cb" data-lang=c><figcaption><span class="cb-lang">c</span><span class="cb-n">1 line</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code><span class="tok-pp">#define</span> FLOOR_Y <span class="tok-num">160</span></code></pre></figure>
+<figure class="cb" data-lang=c><figcaption><span class="cb-lang">c</span><span class="cb-n">5 lines</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code><span class="tok-kw">static</span> <span class="tok-kw">void</span> <span class="tok-fn">draw_floor</span>(<span class="tok-kw">void</span>) {
+    <span class="tok-kw">for</span> (<span class="tok-kw">int</span> y = FLOOR_Y; y &lt; H; y++)
+        <span class="tok-kw">for</span> (<span class="tok-kw">int</span> x = <span class="tok-num">0</span>; x &lt; W; x++)
+            <span class="tok-fn">vram</span>()[y * W + x] = ((x / <span class="tok-num">20</span> + y / <span class="tok-num">10</span>) &amp; <span class="tok-num">1</span>) ? FLOOR_LIGHT : FLOOR_DARK;
+}</code></pre></figure>
+<p>At the end of <code>boot</code>:</p>
+<figure class="cb" data-lang=c><figcaption><span class="cb-lang">c</span><span class="cb-n">2 lines</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code>    <span class="tok-fn">fill_rect</span>(<span class="tok-num">0</span>, <span class="tok-num">0</span>, W, H, SKY);
+    <span class="tok-fn">draw_floor</span>();</code></pre></figure></section><section class="lang" data-lang="rust" id="step-3-rust"><h3>Rust</h3><figure class="cb" data-lang=rust><figcaption><span class="cb-lang">rust</span><span class="cb-n">1 line</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code><span class="tok-kw">const</span> FLOOR_Y: <span class="tok-kw">usize</span> = <span class="tok-num">160</span>;</code></pre></figure>
+<p>In <code>impl Screen</code>:</p>
+<figure class="cb" data-lang=rust><figcaption><span class="cb-lang">rust</span><span class="cb-n">8 lines</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code>    <span class="tok-kw">fn</span> <span class="tok-fn">draw_floor</span>(&amp;<span class="tok-kw">self</span>) {
+        <span class="tok-kw">let</span> vram = <span class="tok-kw">self</span>.<span class="tok-fn">vram</span>();
+        <span class="tok-kw">for</span> y <span class="tok-kw">in</span> FLOOR_Y..H {
+            <span class="tok-kw">for</span> x <span class="tok-kw">in</span> <span class="tok-num">0</span>..W {
+                vram[y * W + x] = <span class="tok-kw">if</span> (x / <span class="tok-num">20</span> + y / <span class="tok-num">10</span>) &amp; <span class="tok-num">1</span> == <span class="tok-num">1</span> { FLOOR_LIGHT } <span class="tok-kw">else</span> { FLOOR_DARK };
+            }
+        }
+    }</code></pre></figure>
+<p>At the end of <code>boot</code>:</p>
+<figure class="cb" data-lang=rust><figcaption><span class="cb-lang">rust</span><span class="cb-n">2 lines</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code>    s.<span class="tok-fn">fill_rect</span>(<span class="tok-num">0</span>, <span class="tok-num">0</span>, W, H, SKY);
+    s.<span class="tok-fn">draw_floor</span>();</code></pre></figure></section></div><div class="shared after"><p class="lead lead-see"><strong>What you should see.</strong> The blue sky over a two-tone purple checkerboard
+filling the bottom 40 lines.</p>
+<p class="lead lead-mistakes"><strong>Common mistakes.</strong></p>
+<ul>
+<li><em>Zig's <code>drawScanline(x1, x2, y, index)</code> for a full row draws nothing.</em> It
+  fills <code>[x1, x2)</code> but rejects <code>x2 == 320</code>, so it can never reach the last
+  column. Use <code>setPixelValue</code> or write <code>fb.fb</code> directly.</li>
+<li><em>C: writing past row 199.</em> Nothing traps. You overwrite the next plane's
+  framebuffer, or worse. Rust's slices panic instead, and the cart stops.</li>
+</ul>
+<hr /></div><div class="run-slot"></div></section>
+<section class="step" id="step-4" data-step="4"><header class="step-h"><span class="num">04</span><h2>animate it every frame</h2><button class="run" data-step="4" type="button">&#9654; Run</button></header><div class="shared"><p class="lead lead-goal"><strong>Goal.</strong> A yellow block bouncing around the sky.</p>
+<p class="lead lead-concept"><strong>Concept.</strong> A demo screen redraws what moves, every frame. Here that means:
+wipe the sky, move the block, draw it. The floor is not touched. Movement is
+whole pixels per frame, like on the ST. The <code>dt</code> the host passes is in
+milliseconds and not reliable enough to pace an effect, so count frames instead.</p>
+<p class="lead lead-vs"><strong>Zig vs C/Rust.</strong> A Zig scene splits the frame into <code>update</code> (move) and
+<code>render</code> (draw). C and Rust do both in <code>frame</code>.</p></div><div class="langs"><section class="lang" data-lang="zig" id="step-4-zig"><h3>Zig</h3><p>State lives in the <code>Demo</code> struct. <strong>Set every field in <code>init</code>.</strong> A cart's <code>Demo</code>
+starts as zeroed memory and its field defaults (<code>block_x: i32 = 40</code>) are never
+applied.</p>
+<figure class="cb" data-lang=zig><figcaption><span class="cb-lang">zig</span><span class="cb-n">1 line</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code><span class="tok-kw">const</span> BLOCK_SIZE: <span class="tok-kw">i32</span> = <span class="tok-num">24</span>;</code></pre></figure>
+<figure class="cb" data-lang=zig><figcaption><span class="cb-lang">zig</span><span class="cb-n">7 lines</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code><span class="tok-kw">fn</span> <span class="tok-fn">fillRect</span>(fb: *LogicalFB, x: <span class="tok-kw">i32</span>, y: <span class="tok-kw">i32</span>, w: <span class="tok-kw">i32</span>, h: <span class="tok-kw">i32</span>, index: <span class="tok-kw">u8</span>) <span class="tok-kw">void</span> {
+    <span class="tok-kw">var</span> j = y;
+    <span class="tok-kw">while</span> (j &lt; y + h) : (j += <span class="tok-num">1</span>) {
+        <span class="tok-kw">var</span> i = x;
+        <span class="tok-kw">while</span> (i &lt; x + w) : (i += <span class="tok-num">1</span>) fb.<span class="tok-fn">setPixelValue</span>(@<span class="tok-fn">intCast</span>(i), @<span class="tok-fn">intCast</span>(j), index);
+    }
+}</code></pre></figure>
+<figure class="cb" data-lang=zig><figcaption><span class="cb-lang">zig</span><span class="cb-n">12 lines</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code><span class="tok-kw">pub</span> <span class="tok-kw">const</span> Demo = <span class="tok-kw">struct</span> {
+    block_x: <span class="tok-kw">i32</span>,
+    block_y: <span class="tok-kw">i32</span>,
+    block_dx: <span class="tok-kw">i32</span>,
+    block_dy: <span class="tok-kw">i32</span>,
+
+    <span class="tok-kw">pub</span> <span class="tok-kw">fn</span> <span class="tok-fn">init</span>(self: *Demo, zigos: *ZigOS) <span class="tok-kw">void</span> {
+        <span class="tok-cm">// A cart&#x27;s Demo is never built from field defaults: set every field here.</span>
+        self.block_x = <span class="tok-num">40</span>;
+        self.block_y = <span class="tok-num">40</span>;
+        self.block_dx = <span class="tok-num">2</span>;
+        self.block_dy = <span class="tok-num">1</span>;</code></pre></figure>
+<figure class="cb" data-lang=zig><figcaption><span class="cb-lang">zig</span><span class="cb-n">15 lines</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code>    <span class="tok-kw">pub</span> <span class="tok-kw">fn</span> <span class="tok-fn">update</span>(self: *Demo, zigos: *ZigOS, dt: <span class="tok-kw">f32</span>) <span class="tok-kw">void</span> {
+        _ = zigos;
+        _ = dt;
+        self.block_x += self.block_dx;
+        self.block_y += self.block_dy;
+        <span class="tok-kw">if</span> (self.block_x &lt;= <span class="tok-num">0</span> <span class="tok-kw">or</span> self.block_x &gt;= W - BLOCK_SIZE) self.block_dx = -self.block_dx;
+        <span class="tok-kw">if</span> (self.block_y &lt;= <span class="tok-num">28</span> <span class="tok-kw">or</span> self.block_y &gt;= FLOOR_Y - BLOCK_SIZE) self.block_dy = -self.block_dy;
+    }
+
+    <span class="tok-kw">pub</span> <span class="tok-kw">fn</span> <span class="tok-fn">render</span>(self: *Demo, zigos: *ZigOS, dt: <span class="tok-kw">f32</span>) <span class="tok-kw">void</span> {
+        _ = dt;
+        <span class="tok-kw">const</span> fb = &amp;zigos.lfbs[<span class="tok-num">0</span>];
+        @<span class="tok-fn">memset</span>(fb.fb[<span class="tok-num">0</span> .. @<span class="tok-fn">as</span>(<span class="tok-kw">usize</span>, FLOOR_Y) * W], SKY); <span class="tok-cm">// wipe last frame&#x27;s sky</span>
+        <span class="tok-fn">fillRect</span>(fb, self.block_x, self.block_y, BLOCK_SIZE, BLOCK_SIZE, BLOCK);
+    }</code></pre></figure></section><section class="lang" data-lang="c" id="step-4-c"><h3>C</h3><figure class="cb" data-lang=c><figcaption><span class="cb-lang">c</span><span class="cb-n">1 line</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code><span class="tok-pp">#define</span> BLOCK_SIZE <span class="tok-num">24</span></code></pre></figure>
+<figure class="cb" data-lang=c><figcaption><span class="cb-lang">c</span><span class="cb-n">1 line</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code><span class="tok-kw">static</span> <span class="tok-kw">int</span> block_x, block_y, block_dx, block_dy;</code></pre></figure>
+<figure class="cb" data-lang=c><figcaption><span class="cb-lang">c</span><span class="cb-n">6 lines</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code><span class="tok-kw">static</span> <span class="tok-kw">void</span> <span class="tok-fn">move_block</span>(<span class="tok-kw">void</span>) {
+    block_x += block_dx;
+    block_y += block_dy;
+    <span class="tok-kw">if</span> (block_x &lt;= <span class="tok-num">0</span> || block_x &gt;= W - BLOCK_SIZE) block_dx = -block_dx;
+    <span class="tok-kw">if</span> (block_y &lt;= <span class="tok-num">28</span> || block_y &gt;= FLOOR_Y - BLOCK_SIZE) block_dy = -block_dy;
+}</code></pre></figure>
+<p>At the end of <code>boot</code>, and the new <code>frame</code>:</p>
+<figure class="cb" data-lang=c><figcaption><span class="cb-lang">c</span><span class="cb-n">1 line</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code>    block_x = <span class="tok-num">40</span>; block_y = <span class="tok-num">40</span>; block_dx = <span class="tok-num">2</span>; block_dy = <span class="tok-num">1</span>;</code></pre></figure>
+<figure class="cb" data-lang=c><figcaption><span class="cb-lang">c</span><span class="cb-n">7 lines</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code><span class="tok-fn">__attribute__</span>((<span class="tok-fn">export_name</span>(<span class="tok-str">&quot;frame&quot;</span>)))
+<span class="tok-kw">void</span> <span class="tok-fn">frame</span>(<span class="tok-kw">float</span> dt) {
+    (<span class="tok-kw">void</span>)dt;
+    <span class="tok-fn">fill_rect</span>(<span class="tok-num">0</span>, <span class="tok-num">0</span>, W, FLOOR_Y, SKY); <span class="tok-cm">// wipe last frame&#x27;s sky</span>
+    <span class="tok-fn">move_block</span>();
+    <span class="tok-fn">fill_rect</span>(block_x, block_y, BLOCK_SIZE, BLOCK_SIZE, BLOCK);
+}</code></pre></figure></section><section class="lang" data-lang="rust" id="step-4-rust"><h3>Rust</h3><figure class="cb" data-lang=rust><figcaption><span class="cb-lang">rust</span><span class="cb-n">17 lines</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code><span class="tok-kw">const</span> BLOCK_SIZE: <span class="tok-kw">i32</span> = <span class="tok-num">24</span>;
+
+<span class="tok-kw">struct</span> Screen {
+    base: <span class="tok-kw">usize</span>,
+    block_x: <span class="tok-kw">i32</span>,
+    block_y: <span class="tok-kw">i32</span>,
+    block_dx: <span class="tok-kw">i32</span>,
+    block_dy: <span class="tok-kw">i32</span>,
+}
+
+<span class="tok-kw">static</span> <span class="tok-kw">mut</span> SCREEN: Screen = Screen {
+    base: <span class="tok-num">0</span>,
+    block_x: <span class="tok-num">40</span>,
+    block_y: <span class="tok-num">40</span>,
+    block_dx: <span class="tok-num">2</span>,
+    block_dy: <span class="tok-num">1</span>,
+};</code></pre></figure>
+<p>In <code>impl Screen</code>, and the new <code>frame</code>:</p>
+<figure class="cb" data-lang=rust><figcaption><span class="cb-lang">rust</span><span class="cb-n">10 lines</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code>    <span class="tok-kw">fn</span> <span class="tok-fn">move_block</span>(&amp;<span class="tok-kw">mut</span> <span class="tok-kw">self</span>) {
+        <span class="tok-kw">self</span>.block_x += <span class="tok-kw">self</span>.block_dx;
+        <span class="tok-kw">self</span>.block_y += <span class="tok-kw">self</span>.block_dy;
+        <span class="tok-kw">if</span> <span class="tok-kw">self</span>.block_x &lt;= <span class="tok-num">0</span> || <span class="tok-kw">self</span>.block_x &gt;= W <span class="tok-kw">as</span> <span class="tok-kw">i32</span> - BLOCK_SIZE {
+            <span class="tok-kw">self</span>.block_dx = -<span class="tok-kw">self</span>.block_dx;
+        }
+        <span class="tok-kw">if</span> <span class="tok-kw">self</span>.block_y &lt;= <span class="tok-num">28</span> || <span class="tok-kw">self</span>.block_y &gt;= FLOOR_Y <span class="tok-kw">as</span> <span class="tok-kw">i32</span> - BLOCK_SIZE {
+            <span class="tok-kw">self</span>.block_dy = -<span class="tok-kw">self</span>.block_dy;
+        }
+    }</code></pre></figure>
+<figure class="cb" data-lang=rust><figcaption><span class="cb-lang">rust</span><span class="cb-n">8 lines</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code><span class="tok-at">#[no_mangle]</span>
+<span class="tok-kw">pub</span> <span class="tok-kw">extern</span> <span class="tok-str">&quot;C&quot;</span> <span class="tok-kw">fn</span> <span class="tok-fn">frame</span>(_elapsed_ms: <span class="tok-kw">f32</span>) {
+    <span class="tok-kw">let</span> s = <span class="tok-fn">screen</span>();
+    s.<span class="tok-fn">fill_rect</span>(<span class="tok-num">0</span>, <span class="tok-num">0</span>, W, FLOOR_Y, SKY); <span class="tok-cm">// wipe last frame&#x27;s sky</span>
+    s.<span class="tok-fn">move_block</span>();
+    <span class="tok-kw">let</span> size = BLOCK_SIZE <span class="tok-kw">as</span> <span class="tok-kw">usize</span>;
+    s.<span class="tok-fn">fill_rect</span>(s.block_x <span class="tok-kw">as</span> <span class="tok-kw">usize</span>, s.block_y <span class="tok-kw">as</span> <span class="tok-kw">usize</span>, size, size, BLOCK);
+}</code></pre></figure>
+<p>In C and Rust, a <code>static</code>'s initial value is honoured, because the linker puts
+it in the data segment. Only Zig scenes have the "defaults are ignored" trap.</p></section></div><div class="shared after"><p class="lead lead-see"><strong>What you should see.</strong> The block bounces off the screen edges and the floor,
+and leaves no trail.</p>
+<p class="lead lead-mistakes"><strong>Common mistakes.</strong></p>
+<ul>
+<li><em>A Zig block frozen in the top-left, or flying off at a wild speed.</em> A field
+  was left to its default and read as 0 or garbage. Set it in <code>init</code>.</li>
+<li><em>A trail behind the block.</em> The old position was never wiped.</li>
+<li><em>Zig: <code>self.* = .{ ... }</code> to reset a big struct.</em> It compiles, but the linker
+  stores a second copy of the whole default value in the cart's data. On a
+  struct holding a large buffer that cost one cart 517 KB of its 2 MB window.
+  Set the fields one by one.</li>
+</ul>
+<hr /></div><div class="run-slot"></div></section>
+<section class="step" id="step-5" data-step="5"><header class="step-h"><span class="num">05</span><h2>rasters, the copper bar</h2><button class="run" data-step="5" type="button">&#9654; Run</button></header><div class="shared"><p class="lead lead-goal"><strong>Goal.</strong> A sky that fades from dark to lighter blue, with a copper bar
+sliding up and down through it, all drawn with <strong>one</strong> palette index.</p>
+<p class="lead lead-concept"><strong>Concept.</strong> The ST shows 16 colours. Demos got hundreds by changing a palette
+entry <strong>between scanlines</strong>: an interrupt fires at each horizontal blank (HBL),
+and the handler writes a new colour before the next line is drawn. On the Amiga
+the copper chip did it, so a bar made this way is a <em>copper bar</em>.</p>
+<p>ZigMachine has the same thing. Put a non-zero handler id in a plane's
+<code>FB_HBL_ID</code> register, and the machine calls your <code>hblDispatch(id, plane, line, x)</code>
+export before it composites each line of that plane. Every sky pixel is index
+<code>SKY</code>, so writing <code>palette[SKY]</code> from the handler gives each line its own colour.
+The framebuffer does not change. Only the palette does, 200 times a frame.</p>
+<p class="lead lead-concept"><strong>The line numbers.</strong> On a normal plane, a per-plane HBL gets <strong>logical</strong> lines
+0..199, where 0 is the top of the 320x200 screen. The <em>global</em> HBL
+(<code>GLOBAL_HBL_ID</code>, which recolours the border through <code>REG_BACKGROUND</code>) gets
+<strong>physical</strong> lines 0..279, where the visible screen starts at 40. An overscan
+plane's per-plane HBL also gets physical lines. Mixing these up shifts a raster
+40 lines.</p>
+<p class="lead lead-vs"><strong>Zig vs C/Rust.</strong> ZigOS has <code>zg.copper</code>. You fill a table with one colour per
+line, and its own HBL handler plays the table back. It works out which
+numbering the plane uses, so the table is always indexed from the top of the
+screen. C and Rust keep the table themselves and write the handler by hand.
+Either way the colours are computed in <code>frame</code>/<code>render</code>, and the handler only
+copies one value. The handler runs 200 times a frame, so keep it tiny.</p></div><div class="langs"><section class="lang" data-lang="zig" id="step-5-zig"><h3>Zig</h3><figure class="cb" data-lang=zig><figcaption><span class="cb-lang">zig</span><span class="cb-n">5 lines</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code><span class="tok-kw">const</span> BAR_H: <span class="tok-kw">i32</span> = <span class="tok-num">16</span>;
+
+<span class="tok-cm">// The copper&#x27;s per-line colours for SKY. Module scope and owned by the scene:</span>
+<span class="tok-cm">// an HBL handler gets no pointer to your Demo.</span>
+<span class="tok-kw">var</span> copper_table: [<span class="tok-num">1</span>]zg.copper.Table = <span class="tok-kw">undefined</span>;</code></pre></figure>
+<p>Two new fields, <code>bar_y: i32</code> and <code>bar_dy: i32</code>, set in <code>init</code> (<code>24</code> and <code>2</code>).
+At the end of <code>init</code>, after the palette is set (the table starts as the entry's
+current colour):</p>
+<figure class="cb" data-lang=zig><figcaption><span class="cb-lang">zig</span><span class="cb-n">2 lines</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code>        <span class="tok-cm">// One HBL on plane 0 that rewrites SKY before every line.</span>
+        zg.copper.<span class="tok-fn">install</span>(fb, &amp;.{SKY}, &amp;copper_table, .{});</code></pre></figure>
+<p>At the end of <code>update</code>:</p>
+<figure class="cb" data-lang=zig><figcaption><span class="cb-lang">zig</span><span class="cb-n">2 lines</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code>        self.bar_y += self.bar_dy;
+        <span class="tok-kw">if</span> (self.bar_y &lt;= <span class="tok-num">24</span> <span class="tok-kw">or</span> self.bar_y &gt;= FLOOR_Y - BAR_H) self.bar_dy = -self.bar_dy;</code></pre></figure>
+<p>At the end of <code>render</code>, and the new method:</p>
+<figure class="cb" data-lang=zig><figcaption><span class="cb-lang">zig</span><span class="cb-n">1 line</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code>        self.<span class="tok-fn">buildCopper</span>(zg.copper.<span class="tok-fn">visible</span>(fb, <span class="tok-num">0</span>));</code></pre></figure>
+<figure class="cb" data-lang=zig><figcaption><span class="cb-lang">zig</span><span class="cb-n">12 lines</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code>    <span class="tok-cm">// One colour per visible line: a sky gradient, with a copper bar over it.</span>
+    <span class="tok-kw">fn</span> <span class="tok-fn">buildCopper</span>(self: *<span class="tok-kw">const</span> Demo, lines: *[H]<span class="tok-kw">u32</span>) <span class="tok-kw">void</span> {
+        <span class="tok-kw">for</span> (lines, <span class="tok-num">0</span>..) |*colour, i| {
+            <span class="tok-kw">const</span> d = @<span class="tok-fn">as</span>(<span class="tok-kw">i32</span>, @<span class="tok-fn">intCast</span>(i)) - self.bar_y;
+            <span class="tok-kw">if</span> (d &gt;= <span class="tok-num">0</span> <span class="tok-kw">and</span> d &lt; BAR_H) {
+                <span class="tok-kw">const</span> k: <span class="tok-kw">u8</span> = @<span class="tok-fn">intCast</span>(<span class="tok-kw">if</span> (d &lt; BAR_H / <span class="tok-num">2</span>) d + <span class="tok-num">1</span> <span class="tok-kw">else</span> BAR_H - d); <span class="tok-cm">// 1..8..1</span>
+                colour.* = <span class="tok-fn">rgb</span>(k * <span class="tok-num">31</span>, k * <span class="tok-num">24</span>, k * <span class="tok-num">8</span>).<span class="tok-fn">toRGBA</span>();
+            } <span class="tok-kw">else</span> {
+                colour.* = <span class="tok-fn">rgb</span>(<span class="tok-num">0</span>, @<span class="tok-fn">intCast</span>(i / <span class="tok-num">4</span>), @<span class="tok-fn">intCast</span>(<span class="tok-num">40</span> + i / <span class="tok-num">2</span>)).<span class="tok-fn">toRGBA</span>();
+            }
+        }
+    }</code></pre></figure>
+<p>The table is at module scope because it belongs to this scene. Do the same in
+a library you write: a module-scope array in a <em>library</em> costs its size in
+every cart that imports the library, whether or not the cart uses it.</p></section><section class="lang" data-lang="c" id="step-5-c"><h3>C</h3><figure class="cb" data-lang=c><figcaption><span class="cb-lang">c</span><span class="cb-n">2 lines</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code><span class="tok-pp">#define</span> REG_FB_HBL_ID  <span class="tok-num">0x20</span>   <span class="tok-cm">// u16 per plane: 0 = no HBL</span>
+<span class="tok-pp">#define</span> REG_FB_HBL_POS <span class="tok-num">0x28</span>   <span class="tok-cm">// u16 per plane: the column the HBL fires at</span></code></pre></figure>
+<figure class="cb" data-lang=c><figcaption><span class="cb-lang">c</span><span class="cb-n">1 line</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code><span class="tok-pp">#define</span> BAR_H      <span class="tok-num">16</span></code></pre></figure>
+<figure class="cb" data-lang=c><figcaption><span class="cb-lang">c</span><span class="cb-n">2 lines</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code><span class="tok-kw">static</span> <span class="tok-kw">int</span> bar_y, bar_dy;
+<span class="tok-kw">static</span> <span class="tok-kw">u32</span> copper[H]; <span class="tok-cm">// the SKY colour of each visible line</span></code></pre></figure>
+<figure class="cb" data-lang=c><figcaption><span class="cb-lang">c</span><span class="cb-n">14 lines</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code><span class="tok-cm">// One colour per line: a sky gradient, with a copper bar over it.</span>
+<span class="tok-kw">static</span> <span class="tok-kw">void</span> <span class="tok-fn">build_copper</span>(<span class="tok-kw">void</span>) {
+    <span class="tok-kw">for</span> (<span class="tok-kw">int</span> line = <span class="tok-num">0</span>; line &lt; H; line++) {
+        <span class="tok-kw">u32</span> c = <span class="tok-fn">rgba</span>(<span class="tok-num">0</span>, line / <span class="tok-num">4</span>, <span class="tok-num">40</span> + line / <span class="tok-num">2</span>);
+        <span class="tok-kw">int</span> d = line - bar_y;
+        <span class="tok-kw">if</span> (d &gt;= <span class="tok-num">0</span> &amp;&amp; d &lt; BAR_H) {
+            <span class="tok-kw">int</span> k = d &lt; BAR_H / <span class="tok-num">2</span> ? d + <span class="tok-num">1</span> : BAR_H - d; <span class="tok-cm">// 1..8..1: bright in the middle</span>
+            c = <span class="tok-fn">rgba</span>(k * <span class="tok-num">31</span>, k * <span class="tok-num">24</span>, k * <span class="tok-num">8</span>);
+        }
+        copper[line] = c;
+    }
+    bar_y += bar_dy;
+    <span class="tok-kw">if</span> (bar_y &lt;= <span class="tok-num">24</span> || bar_y &gt;= FLOOR_Y - BAR_H) bar_dy = -bar_dy;
+}</code></pre></figure>
+<p>At the end of <code>boot</code>:</p>
+<figure class="cb" data-lang=c><figcaption><span class="cb-lang">c</span><span class="cb-n">6 lines</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code>    bar_y = <span class="tok-num">24</span>; bar_dy = <span class="tok-num">2</span>;
+    <span class="tok-kw">for</span> (<span class="tok-kw">int</span> i = <span class="tok-num">0</span>; i &lt; H; i++) copper[i] = pal[SKY];
+
+    <span class="tok-cm">// Arm plane 0&#x27;s HBL: any non-zero id, fired at column 0 of every line.</span>
+    *(<span class="tok-kw">u16</span> *)(video_base + REG_FB_HBL_ID + <span class="tok-num">0</span> * <span class="tok-num">2</span>) = <span class="tok-num">1</span>;
+    *(<span class="tok-kw">u16</span> *)(video_base + REG_FB_HBL_POS + <span class="tok-num">0</span> * <span class="tok-num">2</span>) = <span class="tok-num">0</span>;</code></pre></figure>
+<p><code>build_copper();</code> goes at the end of <code>frame</code>, and the <code>hblDispatch</code> stub becomes
+the handler:</p>
+<figure class="cb" data-lang=c><figcaption><span class="cb-lang">c</span><span class="cb-n">7 lines</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code><span class="tok-cm">// The machine calls this before it draws each line of plane 0. `line` is the</span>
+<span class="tok-cm">// LOGICAL line, 0..199, on a normal plane.</span>
+<span class="tok-fn">__attribute__</span>((<span class="tok-fn">export_name</span>(<span class="tok-str">&quot;hblDispatch&quot;</span>)))
+<span class="tok-kw">void</span> <span class="tok-fn">hblDispatch</span>(<span class="tok-kw">u32</span> id, <span class="tok-kw">u32</span> plane, <span class="tok-kw">u32</span> line, <span class="tok-kw">u32</span> x) {
+    (<span class="tok-kw">void</span>)id; (<span class="tok-kw">void</span>)plane; (<span class="tok-kw">void</span>)x;
+    <span class="tok-fn">palette</span>()[SKY] = copper[line];
+}</code></pre></figure></section><section class="lang" data-lang="rust" id="step-5-rust"><h3>Rust</h3><figure class="cb" data-lang=rust><figcaption><span class="cb-lang">rust</span><span class="cb-n">2 lines</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code><span class="tok-kw">const</span> REG_FB_HBL_ID: <span class="tok-kw">usize</span> = <span class="tok-num">0x20</span>; <span class="tok-cm">// u16 per plane: 0 = no HBL</span>
+<span class="tok-kw">const</span> REG_FB_HBL_POS: <span class="tok-kw">usize</span> = <span class="tok-num">0x28</span>; <span class="tok-cm">// u16 per plane: the column the HBL fires at</span></code></pre></figure>
+<figure class="cb" data-lang=rust><figcaption><span class="cb-lang">rust</span><span class="cb-n">1 line</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code><span class="tok-kw">const</span> BAR_H: <span class="tok-kw">i32</span> = <span class="tok-num">16</span>;</code></pre></figure>
+<p><code>Screen</code> gains <code>bar_y: i32</code>, <code>bar_dy: i32</code> and <code>copper: [u32; H]</code>, initialised
+to <code>24</code>, <code>2</code> and <code>[0; H]</code>. In <code>impl Screen</code>:</p>
+<figure class="cb" data-lang=rust><figcaption><span class="cb-lang">rust</span><span class="cb-n">16 lines</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code>    <span class="tok-cm">// One colour per line: a sky gradient, with a copper bar over it.</span>
+    <span class="tok-kw">fn</span> <span class="tok-fn">build_copper</span>(&amp;<span class="tok-kw">mut</span> <span class="tok-kw">self</span>) {
+        <span class="tok-kw">for</span> line <span class="tok-kw">in</span> <span class="tok-num">0</span>..H <span class="tok-kw">as</span> <span class="tok-kw">i32</span> {
+            <span class="tok-kw">let</span> d = line - <span class="tok-kw">self</span>.bar_y;
+            <span class="tok-kw">self</span>.copper[line <span class="tok-kw">as</span> <span class="tok-kw">usize</span>] = <span class="tok-kw">if</span> (<span class="tok-num">0</span>..BAR_H).<span class="tok-fn">contains</span>(&amp;d) {
+                <span class="tok-kw">let</span> k = (<span class="tok-kw">if</span> d &lt; BAR_H / <span class="tok-num">2</span> { d + <span class="tok-num">1</span> } <span class="tok-kw">else</span> { BAR_H - d }) <span class="tok-kw">as</span> <span class="tok-kw">u32</span>; <span class="tok-cm">// 1..8..1</span>
+                <span class="tok-fn">rgba</span>(k * <span class="tok-num">31</span>, k * <span class="tok-num">24</span>, k * <span class="tok-num">8</span>)
+            } <span class="tok-kw">else</span> {
+                <span class="tok-fn">rgba</span>(<span class="tok-num">0</span>, line <span class="tok-kw">as</span> <span class="tok-kw">u32</span> / <span class="tok-num">4</span>, <span class="tok-num">40</span> + line <span class="tok-kw">as</span> <span class="tok-kw">u32</span> / <span class="tok-num">2</span>)
+            };
+        }
+        <span class="tok-kw">self</span>.bar_y += <span class="tok-kw">self</span>.bar_dy;
+        <span class="tok-kw">if</span> <span class="tok-kw">self</span>.bar_y &lt;= <span class="tok-num">24</span> || <span class="tok-kw">self</span>.bar_y &gt;= FLOOR_Y <span class="tok-kw">as</span> <span class="tok-kw">i32</span> - BAR_H {
+            <span class="tok-kw">self</span>.bar_dy = -<span class="tok-kw">self</span>.bar_dy;
+        }
+    }</code></pre></figure>
+<p>At the end of <code>boot</code>:</p>
+<figure class="cb" data-lang=rust><figcaption><span class="cb-lang">rust</span><span class="cb-n">8 lines</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code>    s.copper = [pal[SKY <span class="tok-kw">as</span> <span class="tok-kw">usize</span>]; H];
+
+    <span class="tok-cm">// Arm plane 0&#x27;s HBL: any non-zero id, fired at column 0 of every line.</span>
+    <span class="tok-cm">// SAFETY: plane 0&#x27;s u16 HBL registers, inside the video region.</span>
+    <span class="tok-kw">unsafe</span> {
+        ((s.base + REG_FB_HBL_ID) <span class="tok-kw">as</span> *<span class="tok-kw">mut</span> <span class="tok-kw">u16</span>).<span class="tok-fn">write</span>(<span class="tok-num">1</span>);
+        ((s.base + REG_FB_HBL_POS) <span class="tok-kw">as</span> *<span class="tok-kw">mut</span> <span class="tok-kw">u16</span>).<span class="tok-fn">write</span>(<span class="tok-num">0</span>);
+    }</code></pre></figure>
+<p><code>s.build_copper();</code> goes at the end of <code>frame</code>, and the stub becomes:</p>
+<figure class="cb" data-lang=rust><figcaption><span class="cb-lang">rust</span><span class="cb-n">7 lines</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code><span class="tok-cm">// The machine calls this before it draws each line of plane 0. `line` is the</span>
+<span class="tok-cm">// LOGICAL line, 0..199, on a normal plane.</span>
+<span class="tok-at">#[no_mangle]</span>
+<span class="tok-kw">pub</span> <span class="tok-kw">extern</span> <span class="tok-str">&quot;C&quot;</span> <span class="tok-kw">fn</span> <span class="tok-fn">hblDispatch</span>(_id: <span class="tok-kw">u32</span>, _plane: <span class="tok-kw">u32</span>, line: <span class="tok-kw">u32</span>, _x: <span class="tok-kw">u32</span>) {
+    <span class="tok-kw">let</span> s = <span class="tok-fn">screen</span>();
+    s.<span class="tok-fn">palette</span>()[SKY <span class="tok-kw">as</span> <span class="tok-kw">usize</span>] = s.copper[line <span class="tok-kw">as</span> <span class="tok-kw">usize</span>];
+}</code></pre></figure></section></div><div class="shared after"><p class="lead lead-see"><strong>What you should see.</strong> A gradient sky and a gold bar, brightest in its
+middle, sliding between the top of the screen and the floor. The block stays
+yellow and the floor stays purple: they use other indices.</p>
+<p class="lead lead-mistakes"><strong>Common mistakes.</strong></p>
+<ul>
+<li><em>The bar sits 40 lines too low, and the top of the screen never changes.</em>
+  The handler subtracted 40 from a logical line, or indexed a physical table.</li>
+<li><em>The whole sky is one colour.</em> The HBL is not armed (id still 0), or the
+  handler writes the wrong palette entry.</li>
+<li><em>The bar jitters.</em> The handler computes the colour itself from state that
+  <code>frame</code> is still changing. Build the table in <code>frame</code>, copy it in the handler.</li>
+</ul>
+<hr /></div><div class="run-slot"></div></section>
+<section class="step" id="step-6" data-step="6"><header class="step-h"><span class="num">06</span><h2>a text scroller</h2><button class="run" data-step="6" type="button">&#9654; Run</button></header><div class="shared"><p class="lead lead-goal"><strong>Goal.</strong> A line of text scrolling right to left across the top of the screen,
+looping forever.</p>
+<p class="lead lead-concept"><strong>Concept.</strong> A font is a set of small bitmaps. To scroll, draw the text starting
+at <code>-scroll_x</code>, clip what falls off either edge, and add 2 to <code>scroll_x</code> every
+frame. When <code>scroll_x</code> reaches the text's pixel width, wrap it to 0. That lands
+the text exactly where it started, so the loop has no seam.</p>
+<p class="lead lead-vs"><strong>Zig vs C/Rust.</strong> ZigOS carries the ST's 8x8 system font, and
+<code>zigos.printText(fb, text, x, y, ink, paper)</code> draws with it. <code>x</code> is signed and
+clipped, so text can start off the left edge. The paper index is written behind
+the glyphs, and <code>SKY</code> there lets the copper show through. C and Rust have no
+font, so they embed one: a 5x7 bitmap for just the letters the text needs, one
+byte per row, drawn 2x2. That is why the C and Rust text is bigger.</p></div><div class="langs"><section class="lang" data-lang="zig" id="step-6-zig"><h3>Zig</h3><figure class="cb" data-lang=zig><figcaption><span class="cb-lang">zig</span><span class="cb-n">2 lines</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code><span class="tok-kw">const</span> TEXT = <span class="tok-str">&quot;HELLO FROM ZIG * THIS IS YOUR FIRST ZIGMACHINE SCREEN * &quot;</span>;
+<span class="tok-kw">const</span> TEXT_W: <span class="tok-kw">i32</span> = TEXT.len * <span class="tok-num">8</span>; <span class="tok-cm">// the 8x8 system font</span></code></pre></figure>
+<p>A <code>scroll_x: i32</code> field, set to <code>0</code> in <code>init</code>. At the end of <code>update</code>:</p>
+<figure class="cb" data-lang=zig><figcaption><span class="cb-lang">zig</span><span class="cb-n">1 line</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code>        self.scroll_x = @<span class="tok-fn">mod</span>(self.scroll_x + <span class="tok-num">2</span>, TEXT_W);</code></pre></figure>
+<p>At the end of <code>render</code>:</p>
+<figure class="cb" data-lang=zig><figcaption><span class="cb-lang">zig</span><span class="cb-n">4 lines</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code>        <span class="tok-cm">// Two copies of the text, one text-width apart, so the loop has no gap.</span>
+        <span class="tok-kw">const</span> x = -self.scroll_x;
+        zigos.<span class="tok-fn">printText</span>(fb, TEXT, @<span class="tok-fn">intCast</span>(x), <span class="tok-num">8</span>, TEXT_INK, SKY);
+        zigos.<span class="tok-fn">printText</span>(fb, TEXT, @<span class="tok-fn">intCast</span>(x + TEXT_W), <span class="tok-num">8</span>, TEXT_INK, SKY);</code></pre></figure></section><section class="lang" data-lang="c" id="step-6-c"><h3>C</h3><figure class="cb" data-lang=c><figcaption><span class="cb-lang">c</span><span class="cb-n">1 line</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code><span class="tok-kw">static</span> <span class="tok-kw">int</span> scroll_x;</code></pre></figure>
+<figure class="cb" data-lang=c><figcaption><span class="cb-lang">c</span><span class="cb-n">55 lines</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code><span class="tok-cm">// A 5x7 font holding only the letters TEXT uses: one byte per row, bit 4 = left.</span>
+<span class="tok-kw">static</span> <span class="tok-kw">const</span> <span class="tok-kw">char</span> GLYPHS[] = <span class="tok-str">&quot;ACEFGHILMNORSTUYZ*&quot;</span>;
+<span class="tok-kw">static</span> <span class="tok-kw">const</span> <span class="tok-kw">u8</span> FONT[][<span class="tok-num">7</span>] = {
+    {<span class="tok-num">0x0E</span>, <span class="tok-num">0x11</span>, <span class="tok-num">0x11</span>, <span class="tok-num">0x1F</span>, <span class="tok-num">0x11</span>, <span class="tok-num">0x11</span>, <span class="tok-num">0x11</span>}, <span class="tok-cm">// A</span>
+    {<span class="tok-num">0x0E</span>, <span class="tok-num">0x11</span>, <span class="tok-num">0x10</span>, <span class="tok-num">0x10</span>, <span class="tok-num">0x10</span>, <span class="tok-num">0x11</span>, <span class="tok-num">0x0E</span>}, <span class="tok-cm">// C</span>
+    {<span class="tok-num">0x1F</span>, <span class="tok-num">0x10</span>, <span class="tok-num">0x10</span>, <span class="tok-num">0x1E</span>, <span class="tok-num">0x10</span>, <span class="tok-num">0x10</span>, <span class="tok-num">0x1F</span>}, <span class="tok-cm">// E</span>
+    {<span class="tok-num">0x1F</span>, <span class="tok-num">0x10</span>, <span class="tok-num">0x10</span>, <span class="tok-num">0x1E</span>, <span class="tok-num">0x10</span>, <span class="tok-num">0x10</span>, <span class="tok-num">0x10</span>}, <span class="tok-cm">// F</span>
+    {<span class="tok-num">0x0E</span>, <span class="tok-num">0x11</span>, <span class="tok-num">0x10</span>, <span class="tok-num">0x17</span>, <span class="tok-num">0x11</span>, <span class="tok-num">0x11</span>, <span class="tok-num">0x0F</span>}, <span class="tok-cm">// G</span>
+    {<span class="tok-num">0x11</span>, <span class="tok-num">0x11</span>, <span class="tok-num">0x11</span>, <span class="tok-num">0x1F</span>, <span class="tok-num">0x11</span>, <span class="tok-num">0x11</span>, <span class="tok-num">0x11</span>}, <span class="tok-cm">// H</span>
+    {<span class="tok-num">0x0E</span>, <span class="tok-num">0x04</span>, <span class="tok-num">0x04</span>, <span class="tok-num">0x04</span>, <span class="tok-num">0x04</span>, <span class="tok-num">0x04</span>, <span class="tok-num">0x0E</span>}, <span class="tok-cm">// I</span>
+    {<span class="tok-num">0x10</span>, <span class="tok-num">0x10</span>, <span class="tok-num">0x10</span>, <span class="tok-num">0x10</span>, <span class="tok-num">0x10</span>, <span class="tok-num">0x10</span>, <span class="tok-num">0x1F</span>}, <span class="tok-cm">// L</span>
+    {<span class="tok-num">0x11</span>, <span class="tok-num">0x1B</span>, <span class="tok-num">0x15</span>, <span class="tok-num">0x15</span>, <span class="tok-num">0x11</span>, <span class="tok-num">0x11</span>, <span class="tok-num">0x11</span>}, <span class="tok-cm">// M</span>
+    {<span class="tok-num">0x11</span>, <span class="tok-num">0x19</span>, <span class="tok-num">0x15</span>, <span class="tok-num">0x13</span>, <span class="tok-num">0x11</span>, <span class="tok-num">0x11</span>, <span class="tok-num">0x11</span>}, <span class="tok-cm">// N</span>
+    {<span class="tok-num">0x0E</span>, <span class="tok-num">0x11</span>, <span class="tok-num">0x11</span>, <span class="tok-num">0x11</span>, <span class="tok-num">0x11</span>, <span class="tok-num">0x11</span>, <span class="tok-num">0x0E</span>}, <span class="tok-cm">// O</span>
+    {<span class="tok-num">0x1E</span>, <span class="tok-num">0x11</span>, <span class="tok-num">0x11</span>, <span class="tok-num">0x1E</span>, <span class="tok-num">0x14</span>, <span class="tok-num">0x12</span>, <span class="tok-num">0x11</span>}, <span class="tok-cm">// R</span>
+    {<span class="tok-num">0x0F</span>, <span class="tok-num">0x10</span>, <span class="tok-num">0x10</span>, <span class="tok-num">0x0E</span>, <span class="tok-num">0x01</span>, <span class="tok-num">0x01</span>, <span class="tok-num">0x1E</span>}, <span class="tok-cm">// S</span>
+    {<span class="tok-num">0x1F</span>, <span class="tok-num">0x04</span>, <span class="tok-num">0x04</span>, <span class="tok-num">0x04</span>, <span class="tok-num">0x04</span>, <span class="tok-num">0x04</span>, <span class="tok-num">0x04</span>}, <span class="tok-cm">// T</span>
+    {<span class="tok-num">0x11</span>, <span class="tok-num">0x11</span>, <span class="tok-num">0x11</span>, <span class="tok-num">0x11</span>, <span class="tok-num">0x11</span>, <span class="tok-num">0x11</span>, <span class="tok-num">0x0E</span>}, <span class="tok-cm">// U</span>
+    {<span class="tok-num">0x11</span>, <span class="tok-num">0x11</span>, <span class="tok-num">0x0A</span>, <span class="tok-num">0x04</span>, <span class="tok-num">0x04</span>, <span class="tok-num">0x04</span>, <span class="tok-num">0x04</span>}, <span class="tok-cm">// Y</span>
+    {<span class="tok-num">0x1F</span>, <span class="tok-num">0x01</span>, <span class="tok-num">0x02</span>, <span class="tok-num">0x04</span>, <span class="tok-num">0x08</span>, <span class="tok-num">0x10</span>, <span class="tok-num">0x1F</span>}, <span class="tok-cm">// Z</span>
+    {<span class="tok-num">0x00</span>, <span class="tok-num">0x15</span>, <span class="tok-num">0x0E</span>, <span class="tok-num">0x1F</span>, <span class="tok-num">0x0E</span>, <span class="tok-num">0x15</span>, <span class="tok-num">0x00</span>}, <span class="tok-cm">// *</span>
+};
+<span class="tok-kw">static</span> <span class="tok-kw">const</span> <span class="tok-kw">char</span> TEXT[] = <span class="tok-str">&quot;HELLO FROM C * THIS IS YOUR FIRST ZIGMACHINE SCREEN * &quot;</span>;
+<span class="tok-pp">#define</span> TEXT_LEN (<span class="tok-kw">int</span>)(<span class="tok-kw">sizeof</span>(TEXT) - <span class="tok-num">1</span>)
+<span class="tok-pp">#define</span> SCALE    <span class="tok-num">2</span>  <span class="tok-cm">// each font pixel is drawn 2x2</span>
+<span class="tok-pp">#define</span> ADVANCE  <span class="tok-num">12</span> <span class="tok-cm">// 5 columns x 2, plus a 2-pixel gap</span>
+
+<span class="tok-kw">static</span> <span class="tok-kw">int</span> <span class="tok-fn">glyph_of</span>(<span class="tok-kw">char</span> c) {
+    <span class="tok-kw">for</span> (<span class="tok-kw">int</span> g = <span class="tok-num">0</span>; GLYPHS[g]; g++)
+        <span class="tok-kw">if</span> (GLYPHS[g] == c) <span class="tok-kw">return</span> g;
+    <span class="tok-kw">return</span> -<span class="tok-num">1</span>;
+}
+
+<span class="tok-kw">static</span> <span class="tok-kw">void</span> <span class="tok-fn">draw_char</span>(<span class="tok-kw">char</span> c, <span class="tok-kw">int</span> x, <span class="tok-kw">int</span> y) {
+    <span class="tok-kw">int</span> g = <span class="tok-fn">glyph_of</span>(c);
+    <span class="tok-kw">if</span> (g &lt; <span class="tok-num">0</span>) <span class="tok-kw">return</span>; <span class="tok-cm">// a space, or a letter the font lacks</span>
+    <span class="tok-kw">for</span> (<span class="tok-kw">int</span> row = <span class="tok-num">0</span>; row &lt; <span class="tok-num">7</span>; row++)
+        <span class="tok-kw">for</span> (<span class="tok-kw">int</span> col = <span class="tok-num">0</span>; col &lt; <span class="tok-num">5</span>; col++) {
+            <span class="tok-kw">if</span> (!(FONT[g][row] &amp; (<span class="tok-num">0x10</span> &gt;&gt; col))) <span class="tok-kw">continue</span>;
+            <span class="tok-kw">for</span> (<span class="tok-kw">int</span> sy = <span class="tok-num">0</span>; sy &lt; SCALE; sy++)
+                <span class="tok-kw">for</span> (<span class="tok-kw">int</span> sx = <span class="tok-num">0</span>; sx &lt; SCALE; sx++) {
+                    <span class="tok-kw">int</span> px = x + col * SCALE + sx;
+                    <span class="tok-kw">if</span> (px &gt;= <span class="tok-num">0</span> &amp;&amp; px &lt; W) <span class="tok-fn">vram</span>()[(y + row * SCALE + sy) * W + px] = TEXT_INK;
+                }
+        }
+}
+
+<span class="tok-kw">static</span> <span class="tok-kw">void</span> <span class="tok-fn">draw_scroller</span>(<span class="tok-kw">void</span>) {
+    <span class="tok-kw">for</span> (<span class="tok-kw">int</span> i = <span class="tok-num">0</span>;; i++) {
+        <span class="tok-kw">int</span> x = i * ADVANCE - scroll_x;
+        <span class="tok-kw">if</span> (x &gt;= W) <span class="tok-kw">break</span>;
+        <span class="tok-kw">if</span> (x &gt; -ADVANCE) <span class="tok-fn">draw_char</span>(TEXT[i % TEXT_LEN], x, <span class="tok-num">8</span>);
+    }
+    scroll_x = (scroll_x + <span class="tok-num">2</span>) % (TEXT_LEN * ADVANCE);
+}</code></pre></figure>
+<p><code>scroll_x = 0;</code> goes in <code>boot</code> and <code>draw_scroller();</code> at the end of <code>frame</code>.
+<code>TEXT[i % TEXT_LEN]</code> repeats the text, so one loop fills the whole width.</p></section><section class="lang" data-lang="rust" id="step-6-rust"><h3>Rust</h3><figure class="cb" data-lang=rust><figcaption><span class="cb-lang">rust</span><span class="cb-n">25 lines</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code><span class="tok-cm">// A 5x7 font holding only the letters TEXT uses: one byte per row, bit 4 = left.</span>
+<span class="tok-kw">const</span> GLYPHS: &amp;[<span class="tok-kw">u8</span>] = b<span class="tok-str">&quot;ACEFGHILMNORSTUYZ*&quot;</span>;
+<span class="tok-kw">const</span> FONT: [[<span class="tok-kw">u8</span>; <span class="tok-num">7</span>]; <span class="tok-num">18</span>] = [
+    [<span class="tok-num">0x0E</span>, <span class="tok-num">0x11</span>, <span class="tok-num">0x11</span>, <span class="tok-num">0x1F</span>, <span class="tok-num">0x11</span>, <span class="tok-num">0x11</span>, <span class="tok-num">0x11</span>], <span class="tok-cm">// A</span>
+    [<span class="tok-num">0x0E</span>, <span class="tok-num">0x11</span>, <span class="tok-num">0x10</span>, <span class="tok-num">0x10</span>, <span class="tok-num">0x10</span>, <span class="tok-num">0x11</span>, <span class="tok-num">0x0E</span>], <span class="tok-cm">// C</span>
+    [<span class="tok-num">0x1F</span>, <span class="tok-num">0x10</span>, <span class="tok-num">0x10</span>, <span class="tok-num">0x1E</span>, <span class="tok-num">0x10</span>, <span class="tok-num">0x10</span>, <span class="tok-num">0x1F</span>], <span class="tok-cm">// E</span>
+    [<span class="tok-num">0x1F</span>, <span class="tok-num">0x10</span>, <span class="tok-num">0x10</span>, <span class="tok-num">0x1E</span>, <span class="tok-num">0x10</span>, <span class="tok-num">0x10</span>, <span class="tok-num">0x10</span>], <span class="tok-cm">// F</span>
+    [<span class="tok-num">0x0E</span>, <span class="tok-num">0x11</span>, <span class="tok-num">0x10</span>, <span class="tok-num">0x17</span>, <span class="tok-num">0x11</span>, <span class="tok-num">0x11</span>, <span class="tok-num">0x0F</span>], <span class="tok-cm">// G</span>
+    [<span class="tok-num">0x11</span>, <span class="tok-num">0x11</span>, <span class="tok-num">0x11</span>, <span class="tok-num">0x1F</span>, <span class="tok-num">0x11</span>, <span class="tok-num">0x11</span>, <span class="tok-num">0x11</span>], <span class="tok-cm">// H</span>
+    [<span class="tok-num">0x0E</span>, <span class="tok-num">0x04</span>, <span class="tok-num">0x04</span>, <span class="tok-num">0x04</span>, <span class="tok-num">0x04</span>, <span class="tok-num">0x04</span>, <span class="tok-num">0x0E</span>], <span class="tok-cm">// I</span>
+    [<span class="tok-num">0x10</span>, <span class="tok-num">0x10</span>, <span class="tok-num">0x10</span>, <span class="tok-num">0x10</span>, <span class="tok-num">0x10</span>, <span class="tok-num">0x10</span>, <span class="tok-num">0x1F</span>], <span class="tok-cm">// L</span>
+    [<span class="tok-num">0x11</span>, <span class="tok-num">0x1B</span>, <span class="tok-num">0x15</span>, <span class="tok-num">0x15</span>, <span class="tok-num">0x11</span>, <span class="tok-num">0x11</span>, <span class="tok-num">0x11</span>], <span class="tok-cm">// M</span>
+    [<span class="tok-num">0x11</span>, <span class="tok-num">0x19</span>, <span class="tok-num">0x15</span>, <span class="tok-num">0x13</span>, <span class="tok-num">0x11</span>, <span class="tok-num">0x11</span>, <span class="tok-num">0x11</span>], <span class="tok-cm">// N</span>
+    [<span class="tok-num">0x0E</span>, <span class="tok-num">0x11</span>, <span class="tok-num">0x11</span>, <span class="tok-num">0x11</span>, <span class="tok-num">0x11</span>, <span class="tok-num">0x11</span>, <span class="tok-num">0x0E</span>], <span class="tok-cm">// O</span>
+    [<span class="tok-num">0x1E</span>, <span class="tok-num">0x11</span>, <span class="tok-num">0x11</span>, <span class="tok-num">0x1E</span>, <span class="tok-num">0x14</span>, <span class="tok-num">0x12</span>, <span class="tok-num">0x11</span>], <span class="tok-cm">// R</span>
+    [<span class="tok-num">0x0F</span>, <span class="tok-num">0x10</span>, <span class="tok-num">0x10</span>, <span class="tok-num">0x0E</span>, <span class="tok-num">0x01</span>, <span class="tok-num">0x01</span>, <span class="tok-num">0x1E</span>], <span class="tok-cm">// S</span>
+    [<span class="tok-num">0x1F</span>, <span class="tok-num">0x04</span>, <span class="tok-num">0x04</span>, <span class="tok-num">0x04</span>, <span class="tok-num">0x04</span>, <span class="tok-num">0x04</span>, <span class="tok-num">0x04</span>], <span class="tok-cm">// T</span>
+    [<span class="tok-num">0x11</span>, <span class="tok-num">0x11</span>, <span class="tok-num">0x11</span>, <span class="tok-num">0x11</span>, <span class="tok-num">0x11</span>, <span class="tok-num">0x11</span>, <span class="tok-num">0x0E</span>], <span class="tok-cm">// U</span>
+    [<span class="tok-num">0x11</span>, <span class="tok-num">0x11</span>, <span class="tok-num">0x0A</span>, <span class="tok-num">0x04</span>, <span class="tok-num">0x04</span>, <span class="tok-num">0x04</span>, <span class="tok-num">0x04</span>], <span class="tok-cm">// Y</span>
+    [<span class="tok-num">0x1F</span>, <span class="tok-num">0x01</span>, <span class="tok-num">0x02</span>, <span class="tok-num">0x04</span>, <span class="tok-num">0x08</span>, <span class="tok-num">0x10</span>, <span class="tok-num">0x1F</span>], <span class="tok-cm">// Z</span>
+    [<span class="tok-num">0x00</span>, <span class="tok-num">0x15</span>, <span class="tok-num">0x0E</span>, <span class="tok-num">0x1F</span>, <span class="tok-num">0x0E</span>, <span class="tok-num">0x15</span>, <span class="tok-num">0x00</span>], <span class="tok-cm">// *</span>
+];
+<span class="tok-kw">const</span> TEXT: &amp;[<span class="tok-kw">u8</span>] = b<span class="tok-str">&quot;HELLO FROM RUST * THIS IS YOUR FIRST ZIGMACHINE SCREEN * &quot;</span>;
+<span class="tok-kw">const</span> SCALE: <span class="tok-kw">usize</span> = <span class="tok-num">2</span>; <span class="tok-cm">// each font pixel is drawn 2x2</span>
+<span class="tok-kw">const</span> ADVANCE: <span class="tok-kw">usize</span> = <span class="tok-num">12</span>; <span class="tok-cm">// 5 columns x 2, plus a 2-pixel gap</span></code></pre></figure>
+<p><code>Screen</code> gains <code>scroll_x: usize</code>, initialised to <code>0</code>. In <code>impl Screen</code>:</p>
+<figure class="cb" data-lang=rust><figcaption><span class="cb-lang">rust</span><span class="cb-n">35 lines</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code>    <span class="tok-kw">fn</span> <span class="tok-fn">draw_char</span>(&amp;<span class="tok-kw">self</span>, c: <span class="tok-kw">u8</span>, x: <span class="tok-kw">i32</span>, y: <span class="tok-kw">usize</span>) {
+        <span class="tok-cm">// a space, or a letter the font lacks, draws nothing</span>
+        <span class="tok-kw">let</span> <span class="tok-kw">Some</span>(g) = GLYPHS.<span class="tok-fn">iter</span>().<span class="tok-fn">position</span>(|&amp;l| l == c) <span class="tok-kw">else</span> { <span class="tok-kw">return</span> };
+        <span class="tok-kw">let</span> vram = <span class="tok-kw">self</span>.<span class="tok-fn">vram</span>();
+        <span class="tok-kw">for</span> (row, bits) <span class="tok-kw">in</span> FONT[g].<span class="tok-fn">iter</span>().<span class="tok-fn">enumerate</span>() {
+            <span class="tok-kw">for</span> col <span class="tok-kw">in</span> <span class="tok-num">0</span>..<span class="tok-num">5</span> {
+                <span class="tok-kw">if</span> bits &amp; (<span class="tok-num">0x10</span> &gt;&gt; col) == <span class="tok-num">0</span> {
+                    <span class="tok-kw">continue</span>;
+                }
+                <span class="tok-kw">for</span> sy <span class="tok-kw">in</span> <span class="tok-num">0</span>..SCALE {
+                    <span class="tok-kw">for</span> sx <span class="tok-kw">in</span> <span class="tok-num">0</span>..SCALE {
+                        <span class="tok-kw">let</span> px = x + (col * SCALE + sx) <span class="tok-kw">as</span> <span class="tok-kw">i32</span>;
+                        <span class="tok-kw">if</span> (<span class="tok-num">0</span>..W <span class="tok-kw">as</span> <span class="tok-kw">i32</span>).<span class="tok-fn">contains</span>(&amp;px) {
+                            vram[(y + row * SCALE + sy) * W + px <span class="tok-kw">as</span> <span class="tok-kw">usize</span>] = TEXT_INK;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    <span class="tok-kw">fn</span> <span class="tok-fn">draw_scroller</span>(&amp;<span class="tok-kw">mut</span> <span class="tok-kw">self</span>) {
+        <span class="tok-kw">let</span> <span class="tok-kw">mut</span> i = <span class="tok-num">0</span>;
+        <span class="tok-kw">loop</span> {
+            <span class="tok-kw">let</span> x = (i * ADVANCE) <span class="tok-kw">as</span> <span class="tok-kw">i32</span> - <span class="tok-kw">self</span>.scroll_x <span class="tok-kw">as</span> <span class="tok-kw">i32</span>;
+            <span class="tok-kw">if</span> x &gt;= W <span class="tok-kw">as</span> <span class="tok-kw">i32</span> {
+                <span class="tok-kw">break</span>;
+            }
+            <span class="tok-kw">if</span> x &gt; -(ADVANCE <span class="tok-kw">as</span> <span class="tok-kw">i32</span>) {
+                <span class="tok-kw">self</span>.<span class="tok-fn">draw_char</span>(TEXT[i % TEXT.<span class="tok-fn">len</span>()], x, <span class="tok-num">8</span>);
+            }
+            i += <span class="tok-num">1</span>;
+        }
+        <span class="tok-kw">self</span>.scroll_x = (<span class="tok-kw">self</span>.scroll_x + <span class="tok-num">2</span>) % (TEXT.<span class="tok-fn">len</span>() * ADVANCE);
+    }</code></pre></figure>
+<p><code>s.draw_scroller();</code> goes at the end of <code>frame</code>.</p></section></div><div class="shared after"><p class="lead lead-see"><strong>What you should see.</strong> White text gliding right to left over the top of the
+gradient, with no gap when it loops. Zig's is the small ST system font. C and
+Rust show a chunkier 10x14 font.</p>
+<p class="lead lead-mistakes"><strong>Common mistakes.</strong></p>
+<ul>
+<li><em>A gap or a jump when the text loops.</em> The wrap width is not exactly the text
+  width: length times the glyph advance.</li>
+<li><em>Letters wrap onto the next line at the right edge.</em> A glyph was drawn without
+  clipping <code>x</code>. Clip every pixel, as all three versions do.</li>
+<li><em>Text with a black box around it over the raster.</em> The paper index is not
+  <code>SKY</code>, so the copper cannot recolour it.</li>
+</ul>
+<hr /></div><div class="run-slot"></div></section>
+<section class="step" id="step-7" data-step="7"><header class="step-h"><span class="num">07</span><h2>music</h2><button class="run" data-step="7" type="button">&#9654; Run</button></header><div class="shared"><p class="lead lead-goal"><strong>Goal.</strong> "So Watt" by Mad Max plays while the screen runs.</p>
+<p class="lead lead-concept"><strong>Concept.</strong> A cart never contains a music player. It asks the host for a tune
+<strong>by name</strong>, a file under <code>docs/music/</code>. The host polls the cart every frame,
+fetches the file, and plays it on the audio thread. An SNDH carries the tune's
+own 68000 replay code, which the machine runs on an emulated 68000 driving its
+YM2149, as the ST did. The full guide is <code>docs/MUSIC.md</code>.</p>
+<p>Request once, at start-up. Each request replaces the tune playing.</p>
+<p class="lead lead-vs"><strong>Zig vs C/Rust.</strong> Zig calls <code>zg.requestSong</code>, and <code>demo_main.zig</code> already
+exports what the host polls. C and Rust include a small bridge that defines
+those exports: <code>apps/c/zigmachine_music.h</code> or <code>apps/rust/zigmachine_music.rs</code>.</p></div><div class="langs"><section class="lang" data-lang="zig" id="step-7-zig"><h3>Zig</h3><figure class="cb" data-lang=zig><figcaption><span class="cb-lang">zig</span><span class="cb-n">1 line</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code><span class="tok-kw">const</span> MUSIC = <span class="tok-str">&quot;sos.sndh&quot;</span>; <span class="tok-cm">// a file under docs/music/</span></code></pre></figure>
+<p>In <code>init</code>:</p>
+<figure class="cb" data-lang=zig><figcaption><span class="cb-lang">zig</span><span class="cb-n">1 line</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code>        zg.<span class="tok-fn">requestSong</span>(MUSIC);</code></pre></figure></section><section class="lang" data-lang="c" id="step-7-c"><h3>C</h3><p>At the top of the file:</p>
+<figure class="cb" data-lang=c><figcaption><span class="cb-lang">c</span><span class="cb-n">1 line</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code><span class="tok-pp">#include</span> <span class="tok-str">&quot;../zigmachine_music.h&quot;</span> <span class="tok-cm">// from exactly ONE .c file: it defines exports</span></code></pre></figure>
+<p>At the start of <code>boot</code>:</p>
+<figure class="cb" data-lang=c><figcaption><span class="cb-lang">c</span><span class="cb-n">1 line</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code>    <span class="tok-fn">zm_request_song</span>(<span class="tok-str">&quot;sos.sndh&quot;</span>); <span class="tok-cm">// a file under docs/music/</span></code></pre></figure></section><section class="lang" data-lang="rust" id="step-7-rust"><h3>Rust</h3><p>At the top of the file:</p>
+<figure class="cb" data-lang=rust><figcaption><span class="cb-lang">rust</span><span class="cb-n">3 lines</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code><span class="tok-cm">// The song bridge. Declaring the module defines the exports the host polls.</span>
+<span class="tok-at">#[path = &quot;../zigmachine_music.rs&quot;]</span>
+<span class="tok-kw">mod</span> zigmachine_music;</code></pre></figure>
+<p>At the start of <code>boot</code>:</p>
+<figure class="cb" data-lang=rust><figcaption><span class="cb-lang">rust</span><span class="cb-n">1 line</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code>    zigmachine_music::<span class="tok-fn">request_song</span>(<span class="tok-str">&quot;sos.sndh&quot;</span>); <span class="tok-cm">// a file under docs/music/</span></code></pre></figure></section></div><div class="shared after"><p class="lead lead-see"><strong>What you should hear.</strong> The music starts <strong>as soon as you click or press a
+key</strong> in the page. Browsers only allow sound after a user gesture. The request
+waits until then.</p>
+<p class="lead lead-mistakes"><strong>Common mistakes.</strong></p>
+<ul>
+<li><em>Silence, and no error.</em> No gesture yet; click the screen. Otherwise, check
+  the name matches a file in <code>docs/music/</code> exactly, 64 bytes at most.</li>
+<li><em>C: <code>duplicate symbol pollSongRequest</code>.</em> The header was included from two
+  <code>.c</code> files of the same cart. It defines the exports, so include it once.</li>
+<li><em>An SNDH that loads but plays nothing.</em> Some need the STE's DMA sound chip
+  (<code>FLAG ~a</code>), which this machine does not have. Listen before you ship one.</li>
+<li><em>A multi-song SNDH plays the wrong tune.</em> Use
+  <code>requestSongTune(name, n)</code> / <code>zm_request_song_tune</code> /
+  <code>request_song_tune</code>. Subtunes count from 1, and 0 is the file's default.</li>
+</ul>
+<hr /></div><div class="run-slot"></div></section>
+<section class="step" id="step-8" data-step="8"><header class="step-h"><span class="num">08</span><h2>going further: borders and the blitter</h2></header><div class="shared"><p>Your screen is a normal plane: 320x200, border closed. Two directions from here,
+both with working examples.</p>
+<p class="lead lead-note"><strong>Open the borders.</strong> On an ST the border is opened by flickering the video
+resolution at an exact moment on each scanline. ZigMachine makes you earn it the
+same way. Put the plane in overscan mode (400x280), register the plane's HBL at
+the magic column <code>OVERSCAN_MAGIC_X</code> (40), and flicker the resolution register
+from the handler. Miss the column and that line's border shows garbage. In Zig
+it is one call, <code>fb.openBorders(.all)</code>, or pass <code>.{ .flicker = true }</code> to
+<code>zg.copper.install</code> to keep your rasters. In C, <code>apps/c/scenes/screen34.c</code> does
+it by hand:</p>
+<figure class="cb" data-lang=c><figcaption><span class="cb-lang">c</span><span class="cb-n">10 lines</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code><span class="tok-cm">// Open the border on THIS scanline, ST-style: flicker the resolution register</span>
+<span class="tok-cm">// medium-&gt;planes. The sealed machine cannot trap writes to shared memory, so the</span>
+<span class="tok-cm">// flicker latch is bumped too — that is what it samples once per line.</span>
+<span class="tok-fn">__attribute__</span>((<span class="tok-fn">export_name</span>(<span class="tok-str">&quot;hblDispatch&quot;</span>)))
+<span class="tok-kw">void</span> <span class="tok-fn">hblDispatch</span>(<span class="tok-kw">u32</span> id, <span class="tok-kw">u32</span> plane, <span class="tok-kw">u32</span> line, <span class="tok-kw">u32</span> x) {
+    (<span class="tok-kw">void</span>)id; (<span class="tok-kw">void</span>)plane; (<span class="tok-kw">void</span>)line; (<span class="tok-kw">void</span>)x;
+    <span class="tok-fn">w8</span>(REG_RESOLUTION, RES_MEDIUM);
+    <span class="tok-fn">w8</span>(REG_RESOLUTION, RES_PLANES);
+    <span class="tok-fn">w16</span>(REG_RES_FLICKER, (<span class="tok-kw">u16</span>)(<span class="tok-fn">r16</span>(REG_RES_FLICKER) + <span class="tok-num">1</span>));
+}</code></pre></figure>
+<p>Remember the line numbers: once a plane is in overscan mode, its HBL gets
+<strong>physical</strong> lines 0..279, so a raster table indexed by logical line moves 40
+lines. <code>zg.copper</code> handles that for you.</p>
+<p class="lead lead-note"><strong>Use the blitter.</strong> The machine has a 2D coprocessor for fills, lines,
+triangles and masked blits, driven through registers and <code>hwBlit()</code>. In Zig,
+<code>zg.Blitter</code> wraps it. See <code>apps/zig/scenes/blitter_demo.zig</code>.</p></div><div class="shared after"></div><div class="run-slot"></div></section>
+<section class="plain" id="where-next"><header class="step-h"><h2>Where next</h2></header><div class="shared"><ul>
+<li><a href="ZIGOS_API.md"><code>docs/ZIGOS_API.md</code></a>: the Zig library, including the copper,
+  <code>blit</code>, <code>scrollring</code> and wireframe helpers.</li>
+<li><a href="HW_API.md"><code>docs/HW_API.md</code></a>: the sealed ABI C and Rust carts use, the full
+  register map, overscan and the RAM window.</li>
+<li><a href="MUSIC.md"><code>docs/MUSIC.md</code></a>: formats, subtunes and the headless checks.</li>
+<li><a href="BLITTER_HW_SPEC.md"><code>docs/BLITTER_HW_SPEC.md</code></a>: the blitter's registers and
+  operations.</li>
+<li>The CODEF port skill (<code>.claude/skills/codef-port/</code>, or <code>/convert_codef &lt;id&gt;</code>
+  in Claude Code): how the real cracktro ports in <code>apps/zig/scenes/</code> were made,
+  and a good source of screens to read next.</li>
+<li>Real screens by language: <code>apps/zig/scenes/replicants_garfield.zig</code> (copper,
+  blit, scrollring), <code>apps/c/scenes/screen34.c</code> (bottom border opened in C),
+  <code>apps/rust/scenes/v8_populous.rs</code> (a full cracktro in Rust).</li>
+</ul></div><div class="shared after"></div><div class="run-slot"></div></section>
+  </main>
+  <aside class="monitorcol" aria-label="The machine">
+    <div class="monitor" id="monitor">
+      <div class="screen" id="screen">
+        <p class="idle">Press <b>&#9654; Run</b> on any step to boot it here on the real machine.</p>
+      </div>
+      <div class="caption">
+        <span class="dot" id="dot" aria-hidden="true"></span>
+        <span class="capt" id="capt">idle</span>
+        <button class="stop" id="stop" hidden>&#9632; Stop</button>
+        <a class="pop" id="pop" href="index.html?demo=demo-tutorial.wasm" hidden>&#8599;</a>
+      </div>
+    </div>
+  </aside>
+</div>
+<script src="tutorial.js?v=7ffa4468"></script>
+</body></html>

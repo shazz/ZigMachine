@@ -12,6 +12,8 @@ h1 { margin: 0 0 6px; font-size: 26px; letter-spacing: .5px; }
 nav { position: sticky; top: 20px; align-self: flex-start; min-width: 210px; display: flex; flex-direction: column; gap: 4px; }
 nav a { color: #9aa4bd; text-decoration: none; padding: 5px 10px; border-radius: 6px; font-size: 13px; }
 nav a:hover { background: #1a2030; color: #fff; }
+nav a.ext { color: #7dff9b; border: 1px solid #2c4a37; margin-bottom: 6px; }
+nav a.ext:hover { background: #172b20; }
 main { flex: 1; min-width: 0; }
 h2 { margin: 34px 0 14px; font-size: 19px; color: #7dd3fc; border-bottom: 1px solid #232a3a; padding-bottom: 6px; }
 h3 { margin: 20px 0 8px; font-size: 15px; color: #fbbf72; }
@@ -50,7 +52,7 @@ TEMPLATE = """<!doctype html>
   <div class="sub">Generated {date} by tools/gen_docs.py · {counts}</div>
 </header>
 <div class="wrap">
-  <nav><a href="#top">Overview</a><a href="#examples">Examples</a>{nav}</nav>
+  <nav><a class="ext" href="TUTORIAL.html">Tutorial &rarr;</a><a href="#top">Overview</a><a href="#examples">Examples</a>{nav}</nav>
   <main>
     <section id="top"><h2>Overview</h2><div class="intro">{intro}</div></section>
     <section id="examples"><h2>Examples</h2>{examples}</section>

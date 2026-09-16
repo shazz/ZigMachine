@@ -6,7 +6,13 @@
         <title>Zig Machine</title>
         <link rel="stylesheet" type="text/css" href="css/crt.css?v=4887aa9f" media="screen" />
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/normalize/5.0.0/normalize.min.css">
-        <link rel="stylesheet" type="text/css" href="css/info.css?v=501450c3" media="screen" />
+        <link rel="stylesheet" type="text/css" href="css/info.css?v=6590e4a0" media="screen" />
+        <!-- ?embed strips the page down to the monitor: the tutorial page
+             (docs/TUTORIAL.html) frames this file to run a cart beside the code. -->
+        <script>
+            if (new URLSearchParams(location.search).has("embed"))
+                document.documentElement.classList.add("embed");
+        </script>
     </head>
     <body>
         <!-- Scale the fixed 1030x824 monitor stage to the screen (see css/info.css). -->
@@ -49,6 +55,8 @@
                 <li><kbd>+</kbd> / <kbd>−</kbd> on the monitor change channel, TV-style.</li>
                 <li><kbd>↑</kbd><kbd>↓</kbd><kbd>←</kbd><kbd>→</kbd> pick a disk in the menu, <kbd>Enter</kbd> boots it, <kbd>Esc</kbd> goes back.</li>
                 <li>Sound starts on your first click or key.</li>
+                <li>Want to write one? The <a href="TUTORIAL.html">tutorial</a> builds a screen
+                    like these step by step, in Zig, C or Rust.</li>
             </ul>
             <p class="upload"><button type="button" class="upload_link" onclick="pickUserFile(); this.blur();">Upload</button>
             <span>a <code>.wasm</code> or <code>.zmd</code>, or drop it on the monitor. It runs locally in your
@@ -67,6 +75,7 @@
             </ul>
 
             <div class="links">
+                <a href="TUTORIAL.html">Tutorial</a>
                 <a href="ZIGMACHINE_GUIDE.html">Programmer's guide</a>
                 <a href="https://github.com/shazz/ZigMachine">Source &amp; README</a>
             </div>
