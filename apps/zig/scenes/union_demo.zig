@@ -160,10 +160,11 @@ pub const Demo = struct {
         if (self.message) |d| drawMessage(zigos, d);
     }
 
-    /// Back (6) leaves for the menu: with pollCart declared, demo_main no
-    /// longer does that for us.
+    /// Every direction is Charly's. Back (6) deliberately does NOTHING: this
+    /// street is the demo's HUB, and Back used to throw the session away from
+    /// it (see key()).
     pub fn input(self: *Demo, dir: u8) void {
-        if (dir == 6) self.wants_quit = true else self.controls.input(dir);
+        if (dir != 6) self.controls.input(dir);
     }
 
     /// Key-up of a Direction, from a host that sends it (demo_main.inputRelease).
@@ -171,7 +172,8 @@ pub const Demo = struct {
         self.controls.release(dir);
     }
 
-    /// -1 the menu, 1 a door's cart (demo_main.pollCartRequest).
+    /// -1 the menu, 1 a door's cart (demo_main.pollCartRequest). Escape no
+    /// longer reaches -1; only a disk that failed to load does (see update()).
     pub fn pollCart(self: *Demo) i32 {
         if (self.wants_quit) return -1;
         if (!self.launch_pending) return 0;
@@ -183,10 +185,13 @@ pub const Demo = struct {
         return self.launch orelse "";
     }
 
+    /// Escape is SWALLOWED. It used to quit to the ZigMachine menu, so one
+    /// mistyped key — and Escape sits right by the 1-9/0/H door teleports — threw
+    /// away the whole walk. The hub has no way out on purpose: you leave it
+    /// through a door, and the cracktro door runner that launched it
+    /// (union/doors.zig) still owns Escape.
     pub fn key(self: *Demo, cp: u32) void {
-        if (cp == K_ESC) {
-            self.wants_quit = true;
-        } else self.controls.key(cp);
+        if (cp != K_ESC) self.controls.key(cp);
     }
 
     // Viewport._followH with setDeadzone(0, 0) (entities.js:49). Until Charly

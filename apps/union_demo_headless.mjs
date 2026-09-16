@@ -19,6 +19,8 @@
 //          docs/sealed-loader.js sends it from its keyup listener (and releases
 //          every held direction on blur); `stop` models an older host without it.
 //          Both FAIL on a cart built before inputRelease existed.
+//   esc    Escape and Back ask the host for NOTHING (they used to ask for the
+//          menu disk), while the doors still open: the hub is left through a door.
 //   return the hub fires at door 9 (it leaves a note in the ROM's scratch bytes),
 //          the door's disk boots, then a FRESH hub cart over the same memory and
 //          ROM, as the page swaps back: Charly stands where he left and the
@@ -46,8 +48,9 @@ const PREROLL = 3;
 const HOLD_TAIL = 3; // frames held after the last event: 3 x 16.6 ms < 60 ms
 const DT = 16.6;
 const TEX_INK = [0xc0, 0xa0, 0x00]; // the TEX loader panel's ink
-const DIR = { up: 0, down: 1, left: 2, right: 3, fire: 5 };
+const DIR = { up: 0, down: 1, left: 2, right: 3, fire: 5, back: 6 };
 const K_F1 = 0xe001;
+const K_ESC = 0xe012; // host KEY_CODES.Escape
 const STREET = [116, 159]; // screen rows of pavement: only Charly and the view change them
 const EASE_PX = 32; // screen px a step: the 8-step ease moves ~20-25, a snap 161
 const STOP_MS = 250; // 60 ms window + 9 x 16.7 ms of friction (0.5 a step from 5 px) + a frame
@@ -370,6 +373,30 @@ async function checkReturn() {
     return fails.length ? `FAIL return: ${fails.join("; ")}` : "ok   return: door 9 -> union_multifake -> a fresh hub: Charly and the scroller where they were, note spent, a new page at the spawn";
 }
 
+// esc: the hub SWALLOWS Escape and Back. Both used to ask for cart -1 (the menu
+// disk), so one mistyped key — Escape sits right by the 1-9/0/H door teleports —
+// threw the whole walk away. The hub is left through a door, not through Escape.
+// The -1 path itself must survive: a hub whose disk fails to load still bails.
+async function checkEsc() {
+    const fails = [];
+    const m = await boot();
+    for (const [what, press] of [["Escape", () => m.demo.key(K_ESC)], ["Back", () => m.demo.input(DIR.back)]]) {
+        press();
+        step(m);
+        const req = m.demo.pollCartRequest();
+        if (req !== 0) fails.push(`${what} asked for cart ${req}${req === -1 ? " (the menu disk)" : ""}, wanted 0`);
+    }
+    // Swallowing Escape must not have cost the hub its other keys: H still
+    // teleports to the hidden door, and fire there still leaves through it.
+    m.demo.key("h".charCodeAt(0));
+    step(m);
+    m.demo.input(DIR.fire);
+    step(m);
+    if (m.demo.pollCartRequest() !== 1) fails.push("after Escape, fire at the hidden door no longer leaves the hub");
+    return fails.length ? `FAIL esc: ${fails.join("; ")}`
+        : "ok   esc: Escape and Back ask for nothing; the doors still open";
+}
+
 // The hub's door request followed through the shelf's disks, page order.
 async function checkDoor() {
     const m = await boot();
@@ -406,7 +433,7 @@ if (BREAK !== null) {
 }
 
 const cost = await timeline();
-const results = [await checkWrap(), await checkEase(), await checkStop(60), await checkStop(144), await checkKeyup(), await checkReturn(), await checkDoor()];
+const results = [await checkWrap(), await checkEase(), await checkStop(60), await checkStop(144), await checkKeyup(), await checkEsc(), await checkReturn(), await checkDoor()];
 for (const r of results) console.log(r);
 
 const stats = (a) => {
