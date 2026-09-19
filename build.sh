@@ -139,5 +139,10 @@ node apps/union_beatdis_headless.mjs "$SHOTS"   # TCB1: loader depack + question
 node apps/union_beatdis_headless.mjs --break keylock "$SHOTS"   # ...and a key lock that releases between repeats fails the hold check
 node apps/union_superscroller_headless.mjs "$SHOTS"   # TCB2: TEX loader depack, screen.js with Chrome's filtering replayed pixel for pixel, the SNDH plays
 node apps/automation442_headless.mjs "$SHOTS/automation442"   # AUTOMATION 442: the panned overscan scroll plane through one bgcount cycle
+node apps/big_demo_headless.mjs   # TEX B.I.G. DEMO: wait screen hands over at frame 201, 116 entries, cursor clamps [2,113], all 45 named SNDH present, bands cycle
+node apps/big_demo_headless.mjs --break nav   # ...and a list that never moves fails the clamp checks
+node apps/big_demo_headless.mjs --break music   # ...and the wrong subtune fails the song check
+node apps/big_demo_headless.mjs --break noop   # ...and an entry with no SNDH that asks for one fails (no silent substitution)
+node apps/big_demo_headless.mjs --break songs   # ...and a named SNDH missing from docs/music/big/ fails (it would play silence)
 node apps/tlb_spoon_headless.mjs "$SHOTS/tlb_spoon"   # TLB TWIDDLE: the sine intro, then starballs + logo + the rotating-letter scroller
 echo "shots in $SHOTS"
