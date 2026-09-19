@@ -28,8 +28,27 @@
 // behave like the list's own four separator rows: selectable, silent.
 //
 // NOT ported: the main picture advertises "Hit 1...3 for Psych-O-Screens" and
-// "Hit B for the B.I.G.-Scroller", but the remake's KeyCheck() (screen.js:33)
-// implements neither — there is no code for them to port.
+// "Hit B for the B.I.G.-Scroller". Those keys are real on the machine (Matt,
+// 2026-09-19) and open four further screens, but the remake's KeyCheck()
+// (screen.js:33) implements neither and those screens are not here yet.
+//
+// DELIBERATE DIVERGENCE FROM THE REMAKE — the Digital Department.
+// The real demo's song list ends with a row reading "-:THE DIGITAL
+// DEPARTMENT:-", with no tune behind it, and Return on that row opens the
+// Digital Solution sound-test screen (big/digital.zig). The remake DROPPED
+// both: its list runs ...ZOIDS / ZOOLOOK / blank / "END OF LIST" (screen.js
+// indices 112-115) and there is no such screen in it at all. We follow the
+// REAL demo and not the remake, the same call already made for the colour
+// bands — the remake is deficient here, not different.
+//
+// The cost of that call, stated plainly: every other row of this screen is
+// verified 0 px wrong against a Chrome replay of screen.js, and the list block
+// no longer can be, because it now holds a row the remake has never had. The
+// list is 117 entries instead of 116 and `curent` clamps at [2, 114] instead
+// of [2, 113] — the clamp is `mylist.length - 3` and the new row is placed so
+// that the clamp lands exactly on it (see big/list.zig). The cursor starts at
+// 2 and the window is curent-2..curent+3, so an input-free run never shows the
+// new row and the screen's baked frame hashes are unchanged.
 // --------------------------------------------------------------------------
 const zg = @import("zigos");
 const ZigOS = zg.ZigOS;
@@ -39,6 +58,7 @@ const Console = zg.Console;
 const A = @import("big/assets.zig");
 const Screen = @import("big/screen.zig").Screen;
 const list = @import("big/list.zig");
+const digital = @import("big/digital.zig");
 
 const K_ESC: u32 = 0xE012; // host KEY_CODES.Escape
 const K_RETURN: u32 = 13;
@@ -54,11 +74,16 @@ pub const Demo = struct {
     screen: Screen,
     running: bool, // false while wait() still owns the frame
     leave: bool,
+    /// The Digital Solution is up, over the jukebox (list.DIGITAL was chosen).
+    /// Its scroller runs off THIS struct's `screen`, so the text carries on
+    /// across the swap rather than restarting — the state has one home.
+    digital_up: bool,
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
         Console.log("B.I.G. Demo init", .{});
         self.running = false;
         self.leave = false;
+        self.digital_up = false;
         self.screen.init();
 
         var fb: *LogicalFB = &zigos.lfbs[0];
@@ -83,6 +108,7 @@ pub const Demo = struct {
     pub fn render(self: *Demo, zigos: *ZigOS, dt: f32) void {
         _ = dt;
         const fb: *LogicalFB = &zigos.lfbs[0];
+        if (self.digital_up) return digital.draw(&self.screen, fb);
         if (self.running) self.screen.go(fb) else self.screen.drawWait(fb);
     }
 
@@ -94,10 +120,21 @@ pub const Demo = struct {
     }
 
     pub fn key(self: *Demo, cp: u32) void {
-        switch (cp) {
-            K_ESC => self.leave = true,
-            K_RETURN => self.screen.select(),
-            else => {},
+        if (cp == K_ESC) {
+            self.leave = true;
+            return;
+        }
+        // The Digital Solution owns every other key while it is up: 1-6 play,
+        // Space comes back here ("-PRESS SPACE TO EXIT TO THE B.I.G. DEMO-").
+        if (self.digital_up) {
+            if (digital.key(cp)) self.digital_up = false;
+            return;
+        }
+        // Return: the highlight moves whatever the row is, and the Digital
+        // Department row opens its screen instead of playing anything.
+        if (cp == K_RETURN) {
+            self.screen.select();
+            if (self.screen.curentlplay == list.DIGITAL) self.digital_up = true;
         }
     }
 
@@ -112,6 +149,7 @@ pub const Demo = struct {
     /// exactly what the original does. (Matt, 2026-09-19.)
     pub fn input(self: *Demo, dir: u8) void {
         if (dir == DIR_BACK) self.leave = true;
+        if (self.digital_up) return; // the Digital Solution has no cursor to move
         if (dir == DIR_UP) self.screen.scrollUp();
         if (dir == DIR_DOWN) self.screen.scrollDown();
     }

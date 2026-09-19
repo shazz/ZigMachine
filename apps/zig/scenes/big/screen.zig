@@ -80,7 +80,10 @@ pub const Screen = struct {
 
     /// scrolltext_horizontal.draw() advances the letters BEFORE painting them,
     /// so go()'s very first frame already shows them one step in.
-    fn advance(self: *Screen) void {
+    /// Public because the Digital Solution (big/digital.zig) shows the SAME
+    /// scroller and drives it the same way — advance, paint, scrollerTick — off
+    /// this one Screen, so the text carries on across the swap.
+    pub fn advance(self: *Screen) void {
         for (&self.posx, &self.ltr) |*px, *lt| {
             px.* -= A.SPEED2;
             if (px.* <= -A.FONT_W2) {
@@ -92,10 +95,15 @@ pub const Screen = struct {
         }
     }
 
-    /// go()'s tail (screen.js:488-490), run after the frame is painted.
-    fn tick(self: *Screen) void {
+    /// The fontbg diagonal's step: the other half of the scroller's state.
+    pub fn scrollerTick(self: *Screen) void {
         self.bgscrposx -= 3; // if((bgscrposx-=3)<=-31) bgscrposx=0;
         if (self.bgscrposx <= -31) self.bgscrposx = 0;
+    }
+
+    /// go()'s tail (screen.js:488-490), run after the frame is painted.
+    fn tick(self: *Screen) void {
+        self.scrollerTick();
         self.texbg += 0.4; // exactly go()'s accumulation, drift and all
         // fadecpt += 0.5 rides on this; 0.5 IS exact in binary, so the integer
         // count is the same sequence forever, and it is kept inside one cycle
@@ -143,7 +151,7 @@ pub const Screen = struct {
                 }
             }
         }
-        self.drawScroller(fb);
+        self.drawScrollerAt(fb, A.SCROLL_Y);
         self.drawShadows(fb);
         self.drawList(fb);
         // The two rules that bracket the cursor row, pulsing on fade[] at +0.5.
@@ -154,7 +162,12 @@ pub const Screen = struct {
 
     /// The transparent scroller: the IN font is a MASK filled with the scrolling
     /// fontbg diagonal (canvas 'source-in'), the OUT font's outline over it.
-    fn drawScroller(self: *Screen, fb: *LogicalFB) void {
+    /// `y0` is the band's top row in content coordinates: A.SCROLL_Y for the
+    /// jukebox, 35 lower for the Digital Solution. The fontbg diagonal is
+    /// anchored to the GLYPH's row (what the jukebox's 0-px replay confirms)
+    /// and repeats every 8 px, so drawing a band at another y is only a phase
+    /// shift of it.
+    pub fn drawScrollerAt(self: *Screen, fb: *LogicalFB, y0: usize) void {
         const phase = @divFloor(-self.bgscrposx, 2); // fontbg's offset, halved
         for (self.posx, self.ltr) |px, lt| {
             // -ME-'s text is not pure uppercase: it carries 2 TABs and 38
@@ -181,7 +194,7 @@ pub const Screen = struct {
                 const off = (g * A.GH + y) * A.GW + sx;
                 const mask = A.fontin[off..][0..n];
                 const line = A.fontout[off..][0..n];
-                const dst = row(fb, A.SCROLL_Y + y)[dx..][0..n];
+                const dst = row(fb, y0 + y)[dx..][0..n];
                 for (mask, line, dst, 0..) |m, o, *d, k| {
                     if (m != 0) {
                         const t = @as(i32, @intCast(dx + k)) + phase - @as(i32, @intCast(y));

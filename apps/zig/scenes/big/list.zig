@@ -132,6 +132,28 @@ pub const ENTRIES = [_]Entry{
     .{ .label = "              WIZ #3              ", .song = "big/Wiz.sndh", .tune = 3 },
     .{ .label = "               ZOIDS               ", .song = "big/Zoids.sndh", .tune = 1 },
     .{ .label = "              ZOOLOOK              ", .song = "big/Zoolook.sndh", .tune = 1 },
+    // The REAL demo's list ends the songs with this row, and selecting it opens
+    // the Digital Solution sound-test screen (see big/digital.zig). It has no
+    // tune, exactly like the list's separator rows, so the music path treats it
+    // as the no-op it is; big_demo.zig watches for its INDEX instead.
+    //
+    // The CODEF remake DROPPED it — its list runs ZOIDS / ZOOLOOK / blank /
+    // "END OF LIST" and stops. We follow the real demo (Matt, 2026-09-19); the
+    // divergence is written up in the scene header.
+    //
+    // It goes HERE, after the last song and before the trailing blank + END OF
+    // LIST, and not at the very end: `curent` is clamped to ENTRIES.len - 3, so
+    // an entry appended after those two would never be reachable. Put here, the
+    // clamp lands exactly on it — which is how the clamp and the list agree.
+    .{ .label = "    -:THE DIGITAL DEPARTMENT:-    ", .song = "", .tune = 0 },
     .{ .label = "                                   ", .song = "", .tune = 0 },
     .{ .label = "----------END OF LIST--------------", .song = "", .tune = 0 },
 };
+
+/// The row that opens the Digital Solution: the last one `curent` can reach.
+pub const DIGITAL: usize = ENTRIES.len - 3;
+
+comptime {
+    if (ENTRIES[DIGITAL].song.len != 0) @compileError("the Digital Department row must have no tune");
+    if (ENTRIES[DIGITAL].label[4] != '-') @compileError("DIGITAL does not point at the Digital Department row");
+}

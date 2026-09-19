@@ -9,8 +9,11 @@ import { readFileSync, readdirSync } from "node:fs";
 const LIST_ZIG = "apps/zig/scenes/big/list.zig";
 const SUBDIR = "big"; // what a `song` is relative to: the host fetches "music/" + name
 const MUSIC_DIR = `docs/music/${SUBDIR}`;
-export const ENTRIES = 116; // TEX's list (screen.js:89-204)
-export const CURSOR = [2, 113]; // curent's range: 2 .. mylist.length-3
+// TEX's list is screen.js:89-204's 116 rows PLUS "-:THE DIGITAL DEPARTMENT:-",
+// which the remake dropped and the real demo has (see big_demo.zig's header).
+export const ENTRIES = 117;
+export const CURSOR = [2, 114]; // curent's range: 2 .. mylist.length-3
+export const DIGITAL = ENTRIES - 3; // the row that opens the Digital Solution
 
 /// TEX's 116 entries as { label, song, tune }. `--break songs` points the LAST
 /// mapped entry at a file that is not on disk — an entry the other checks do

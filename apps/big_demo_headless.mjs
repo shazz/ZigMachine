@@ -14,7 +14,7 @@ import { readFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { performance } from "node:perf_hooks";
 import { boot, sndhPlay } from "./big_demo_machine.mjs";
-import { readList, checkSongs, ENTRIES, CURSOR } from "./big_demo_list.mjs";
+import { readList, checkSongs, ENTRIES, CURSOR, DIGITAL } from "./big_demo_list.mjs";
 
 const TOP = 5, LEFT = 40, CW = 320, CH = 270; // the screen, centred in the 400x280 plane
 const WAIT = 200; // wait()'s `if((mytempo++)>=200)`; frame 201 is go()'s first
@@ -45,6 +45,12 @@ const errors = [];
 const LIST = readList(brk);
 const songs = checkSongs(LIST);
 if (LIST.length !== ENTRIES) errors.push(`big/list.zig holds ${LIST.length} entries, TEX's list is ${ENTRIES}`);
+// The clamp is `mylist.length - 3`, so the Digital Department row is reachable
+// ONLY if it sits exactly there. Appending it after the trailing blank and
+// "END OF LIST" would leave it selectable by nobody, silently.
+if (!/DIGITAL DEPARTMENT/.test(LIST[DIGITAL]?.label ?? "")) errors.push(`entry ${DIGITAL} is "${LIST[DIGITAL]?.label.trim()}", not the Digital Department row: the clamp cannot reach it`);
+if (LIST[DIGITAL]?.song) errors.push("the Digital Department row has a tune: it opens a screen, it does not play");
+if (CURSOR[1] !== LIST.length - 3) errors.push(`the cursor clamp ${CURSOR[1]} is not mylist.length-3 = ${LIST.length - 3}`);
 errors.push(...songs.errors);
 const playable = LIST.findIndex((e, n) => n > CURSOR[0] && e.song);
 // One of the four entries the archive has no SNDH for; not one of the separators.
@@ -142,11 +148,11 @@ const atTop = hashList();
 if (nav(0, 5) !== atTop) errors.push("Up at the top of the list moved the cursor: `if((curent--)<=2)` does not clamp");
 if (nav(1) === atTop) errors.push("Down did not move the cursor");
 if (nav(0) !== atTop) errors.push("Up did not come back to the top of the list");
-const h112 = nav(1, CURSOR[1] - CURSOR[0] - 1); // 2 -> 112
-const h113 = nav(1); // 112 -> 113, the last cursor position
-if (h113 === h112) errors.push(`Down from ${CURSOR[1] - 1} did not move: the clamp is one entry early`);
-if (nav(1, 5) !== h113) errors.push(`Down past ${CURSOR[1]} moved: \`if((curent++)>=mylist.length-3)\` does not clamp`);
-if (nav(0) !== h112) errors.push(`Up from ${CURSOR[1]} did not come back one entry`);
+const hLast1 = nav(1, CURSOR[1] - CURSOR[0] - 1); // 2 -> one above the clamp
+const hLast = nav(1); // ...and on to the clamp, the last cursor position
+if (hLast === hLast1) errors.push(`Down from ${CURSOR[1] - 1} did not move: the clamp is one entry early`);
+if (nav(1, 5) !== hLast) errors.push(`Down past ${CURSOR[1]} moved: \`if((curent++)>=mylist.length-3)\` does not clamp`);
+if (nav(0) !== hLast1) errors.push(`Up from ${CURSOR[1]} did not come back one entry`);
 // 6. Return: a mapped entry plays, an unmapped one plays NOTHING
 nav(0, 200); // back to the top, whatever the clamp did
 nav(1, playable - CURSOR[0]);

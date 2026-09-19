@@ -138,9 +138,16 @@ node apps/union_beatdis_headless.mjs "$SHOTS"   # TCB1: loader depack + question
 node apps/union_beatdis_headless.mjs --break keylock "$SHOTS"   # ...and a key lock that releases between repeats fails the hold check
 node apps/union_superscroller_headless.mjs "$SHOTS"   # TCB2: TEX loader depack, screen.js with Chrome's filtering replayed pixel for pixel, the SNDH plays
 node apps/automation442_headless.mjs "$SHOTS/automation442"   # AUTOMATION 442: the panned overscan scroll plane through one bgcount cycle
-node apps/big_demo_headless.mjs   # TEX B.I.G. DEMO: wait screen hands over at frame 201, 116 entries, cursor clamps [2,113], all 45 named SNDH present, bands cycle
+node apps/big_demo_headless.mjs   # TEX B.I.G. DEMO: wait screen hands over at frame 201, 117 entries (incl. the Digital Department row), cursor clamps [2,114], all 45 named SNDH present, bands cycle
 node apps/big_demo_headless.mjs --break nav   # ...and a list that never moves fails the clamp checks
 node apps/big_demo_headless.mjs --break music   # ...and the wrong subtune fails the song check
 node apps/big_demo_headless.mjs --break noop   # ...and an entry with no SNDH that asks for one fails (no silent substitution)
 node apps/big_demo_headless.mjs --break songs   # ...and a named SNDH missing from docs/music/big/ fails (it would play silence)
+node apps/digital_solution_headless.mjs   # THE DIGITAL SOLUTION (a screen OF big_demo): list row 114 opens it, every px outside the scroller band = screen.raw, the band is the SHARED scrolltext in lockstep, keys 1-6 -> 6 subtunes
+node apps/digital_solution_headless.mjs --break pixels   # ...and one changed pixel of the reference fails the picture check
+node apps/digital_solution_headless.mjs --break tune   # ...and PHANTOMS 2 on the wrong subtune fails the key mapping
+node apps/digital_solution_headless.mjs --break songs   # ...and a named SNDH missing from docs/music/digital/ fails (it would play silence)
+node apps/digital_solution_headless.mjs --break exit   # ...and a key that is not Space failing to leave is caught
+node apps/digital_solution_headless.mjs --break route   # ...and Return one row short of the Digital Department not opening it is caught
+node apps/digital_solution_headless.mjs --break drift   # ...and one frame of scrolltext drift is caught (so a restart would be too)
 echo "shots in $SHOTS"
