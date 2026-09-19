@@ -143,3 +143,19 @@
   .info .links a { flex: 1 1 100%; text-align: center; padding: 10px; }
   .info .upload_link { display: block; width: 100%; margin: 0 0 6px; padding: 10px; }
 }
+
+/* ---- ?embed: this page inside the tutorial's iframe --------------------
+   docs/TUTORIAL.html frames index.html?demo=<cart>&step=N&embed to run a cart
+   next to the code. Only the monitor is wanted: no prose column, no channel
+   or upload buttons, no fixed touch pad (it would overflow a small frame).
+   The Sound button STAYS — it is the in-document gesture the AudioContext
+   needs, and a click on the parent page is not a gesture in here. */
+html.embed body { background: transparent; }
+html.embed .info,
+html.embed .next_channel_button,
+html.embed .prev_channel_button,
+html.embed .upload_button,
+html.embed .tpad { display: none !important; }
+html.embed .stage-box { margin: 0 auto; }
+/* Nothing scrolls inside the frame: the stage already scales to fit it. */
+html.embed, html.embed body { overflow: hidden; margin: 0; }

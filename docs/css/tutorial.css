@@ -1,0 +1,170 @@
+/* docs/TUTORIAL.html — layout and chrome. Code blocks live in tutorial-code.css.
+   Generated page, hand-written style: see tools/gen_tutorial.py. */
+:root {
+  color-scheme: dark;
+  --bg: #0e1016; --panel: #12151f; --edge: #232a3a; --edge-soft: #191e2b;
+  --ink: #d7dbe6; --dim: #9aa4bd; --muted: #8b93a7;
+  --h2: #7dd3fc; --h3: #fbbf72;
+  --live: #7dff9b; --live-glow: rgba(125, 255, 155, .35);
+  --zig: #f7a41d; --c: #a5b4fc; --rust: #f4a58a;
+  --mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace;
+  --rail-w: 200px; --mon-w: 400px;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.65 system-ui, sans-serif; }
+a { color: var(--h2); }
+
+/* ---- top bar ---------------------------------------------------------- */
+.topbar { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; gap: 12px;
+  height: 56px; padding: 0 20px; background: rgba(14, 16, 22, .88); backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--edge); }
+.wordmark { font: 600 15px/1 var(--mono); letter-spacing: .14em; color: var(--live);
+  text-shadow: 0 0 12px var(--live-glow); text-decoration: none; }
+.crumb { font: 11.5px/1 var(--mono); letter-spacing: .12em; color: var(--muted); text-transform: uppercase; }
+.spacer { flex: 1; }
+.counter { display: none; font: 12px/1 var(--mono); color: var(--dim); background: var(--panel);
+  border: 1px solid var(--edge); border-radius: 6px; padding: 7px 9px; cursor: pointer; }
+.langpick { display: flex; gap: 2px; background: var(--panel); border: 1px solid var(--edge);
+  border-radius: 8px; padding: 2px; }
+.seg { font: 12.5px/1 var(--mono); color: var(--dim); background: none; border: 0; cursor: pointer;
+  padding: 6px 11px; border-radius: 6px; }
+.seg:hover { color: #fff; }
+.seg[aria-pressed="true"] { background: var(--seg, var(--h2)); color: #0e1016; font-weight: 600; }
+.seg[data-lang="zig"] { --seg: var(--zig); } .seg[data-lang="c"] { --seg: var(--c); }
+.seg[data-lang="rust"] { --seg: var(--rust); }
+.comparepick { font: 11.5px/1 var(--mono); color: var(--muted); display: flex; align-items: center; gap: 6px; }
+.comparepick select { font: 11.5px/1 var(--mono); color: var(--dim); background: var(--panel);
+  border: 1px solid var(--edge); border-radius: 6px; padding: 6px 7px; }
+.guidelink { font: 12px/1 var(--mono); color: var(--dim); text-decoration: none; }
+.guidelink:hover { color: #fff; }
+
+/* ---- layout ----------------------------------------------------------- */
+.wrap { display: grid; grid-template-columns: var(--rail-w) minmax(0, 1fr) var(--mon-w);
+  gap: 28px; max-width: 1480px; margin: 0 auto; padding: 24px 32px 80px; }
+main { min-width: 0; max-width: 780px; }
+
+.rail { position: sticky; top: 80px; align-self: start; display: flex; flex-direction: column; gap: 1px;
+  max-height: calc(100vh - 110px); overflow-y: auto; }
+.rail a { display: flex; gap: 9px; align-items: baseline; color: var(--dim); text-decoration: none;
+  font-size: 13px; padding: 5px 9px; border-radius: 6px; border-left: 2px solid transparent; }
+.rail a:hover { background: #1a2030; color: #fff; }
+.rail a[aria-current="true"] { background: #161b28; color: #fff; border-left-color: var(--h2); }
+.rail a.seen .rn { color: var(--live); }
+.rn { font: 11px/1.5 var(--mono); color: var(--muted); flex: none; }
+
+/* ---- prose ------------------------------------------------------------ */
+h1 { font-size: 28px; line-height: 1.15; letter-spacing: .3px; margin: 0 0 14px; }
+.step, .plain { scroll-margin-top: 72px; padding-top: 18px; }
+.step + .step, .plain + .step, .step + .plain { border-top: 1px solid var(--edge-soft); margin-top: 34px; }
+.step-h { display: flex; align-items: baseline; gap: 12px; margin: 0 0 4px; }
+.step-h h2 { flex: 1; font-size: 22px; line-height: 1.25; color: var(--h2); margin: 0; }
+.num { font: 15px/1 var(--mono); color: var(--h3); flex: none; }
+.plain .step-h h2 { color: var(--ink); }
+.lang h3 { display: none; font: 600 13px/1 var(--mono); letter-spacing: .1em; text-transform: uppercase;
+  color: var(--h3); margin: 0 0 10px; }
+main :is(h4, h5) { font-size: 15px; color: var(--h3); margin: 18px 0 6px; }
+main ul, main ol { padding-left: 22px; }
+main :not(pre) > code { background: #1a2030; color: #a5f3c0; padding: 1px 5px; border-radius: 4px;
+  font: 13px/1.4 var(--mono); }
+main table { width: 100%; border-collapse: collapse; font-size: 13.5px; display: block; overflow-x: auto; }
+main th, main td { text-align: left; padding: 6px 10px; border-bottom: 1px solid #1c2230; vertical-align: top; }
+main th { color: var(--h2); }
+kbd { font: 11.5px/1 var(--mono); background: #1a2030; border: 1px solid var(--edge);
+  border-bottom-width: 2px; border-radius: 4px; padding: 2px 5px; }
+
+/* the md's bold lead-ins, each with its own job on the page */
+.lead > strong:first-child { display: block; font: 600 11.5px/1.5 var(--mono); letter-spacing: .12em;
+  text-transform: uppercase; color: var(--muted); }
+.lead-goal > strong:first-child { color: var(--h3); }
+.lead-vs, .lead-see { background: var(--panel); border-left: 3px solid var(--edge);
+  border-radius: 0 8px 8px 0; padding: 12px 16px; }
+.lead-vs { border-left-color: var(--c); }
+.lead-see { border-left-color: var(--live); }
+.lead-see > strong:first-child { color: var(--live); }
+.lead-mistakes > strong:first-child { color: #f4a58a; }
+.lead-mistakes + ul { color: var(--dim); font-size: 14.5px; }
+.lead-mistakes + ul em { color: var(--ink); font-style: normal; font-weight: 600; }
+
+/* ---- language blocks -------------------------------------------------- */
+.langs { margin: 18px 0; }
+.lang { border-left: 3px solid var(--lang, var(--edge)); padding-left: 16px; }
+.lang[data-lang="zig"] { --lang: var(--zig); } .lang[data-lang="c"] { --lang: var(--c); }
+.lang[data-lang="rust"] { --lang: var(--rust); }
+/* No JS: every language stacks, headings visible — i.e. the markdown, as-is. */
+html[data-lang] .lang { display: none; }
+html[data-lang="zig"] .lang[data-lang="zig"],
+html[data-lang="c"] .lang[data-lang="c"],
+html[data-lang="rust"] .lang[data-lang="rust"] { display: block; }
+html[data-compare="zig"] .lang[data-lang="zig"],
+html[data-compare="c"] .lang[data-lang="c"],
+html[data-compare="rust"] .lang[data-lang="rust"] { display: block; }
+html[data-compare] .lang > h3 { display: block; }
+
+/* ---- first-visit language chooser ------------------------------------- */
+.picker { margin: 22px 0 6px; padding: 18px; background: var(--panel); border: 1px solid var(--edge);
+  border-radius: 10px; }
+.picker-q { margin: 0 0 12px; font-size: 15px; }
+.picker-sub { color: var(--muted); }
+.picker-cards { display: flex; gap: 10px; flex-wrap: wrap; }
+.card { flex: 1 1 150px; display: flex; flex-direction: column; gap: 3px; text-align: left;
+  background: #161b28; border: 1px solid var(--edge); border-left: 3px solid var(--lang, var(--edge));
+  border-radius: 8px; padding: 12px 14px; color: var(--ink); cursor: pointer; font: inherit; }
+.card:hover { border-color: var(--lang); background: #1a2030; }
+.card[data-lang="zig"] { --lang: var(--zig); } .card[data-lang="c"] { --lang: var(--c); }
+.card[data-lang="rust"] { --lang: var(--rust); }
+.card b { font-size: 16px; }
+.card-n { font: 12px/1.4 var(--mono); color: var(--lang); }
+.card-v { font-size: 12.5px; color: var(--muted); }
+
+/* ---- run button + the monitor ----------------------------------------- */
+.run { flex: none; font: 12.5px/1 var(--mono); color: var(--live); background: #13211a;
+  border: 1px solid #2c4a37; border-radius: 6px; padding: 7px 12px; cursor: pointer; }
+.run:hover { background: #172b20; border-color: var(--live); }
+.run:active { transform: scale(.97); }
+.monitorcol { min-width: 0; }
+.monitor { position: sticky; top: 80px; background: var(--panel); border: 1px solid var(--edge);
+  border-radius: 10px; overflow: hidden; }
+.monitor.live { border-color: rgba(125, 255, 155, .4); box-shadow: 0 0 24px -6px var(--live-glow); }
+.screen { aspect-ratio: 1030 / 824; display: grid; place-items: center; background: #0a0c11; }
+.screen iframe { width: 100%; height: 100%; border: 0; display: block; }
+.screen .idle { margin: 0; padding: 22px; text-align: center; font-size: 13.5px; color: var(--muted); }
+.caption { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-top: 1px solid var(--edge);
+  font: 11.5px/1.4 var(--mono); color: var(--dim); }
+.dot { width: 7px; height: 7px; border-radius: 50%; background: #3a4356; flex: none; }
+.monitor.live .dot { background: var(--live); box-shadow: 0 0 8px var(--live); }
+.capt { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.stop, .pop { font: 11.5px/1 var(--mono); color: var(--dim); background: none; border: 1px solid var(--edge);
+  border-radius: 5px; padding: 4px 7px; cursor: pointer; text-decoration: none; flex: none; }
+.stop:hover, .pop:hover { color: #fff; border-color: var(--dim); }
+.run-slot:empty { display: none; }
+.run-slot .monitor { position: static; max-width: 560px; margin: 18px 0 4px; }
+
+/* ---- responsive ------------------------------------------------------- */
+@media (max-width: 1400px) { :root { --mon-w: 360px; } }
+@media (max-width: 1199px) {
+  :root { --rail-w: 180px; }
+  .wrap { grid-template-columns: var(--rail-w) minmax(0, 1fr); padding: 20px 24px 80px; }
+  .monitorcol { display: none; }
+}
+@media (max-width: 899px) {
+  .wrap { grid-template-columns: minmax(0, 1fr); gap: 0; padding: 16px 16px 72px; }
+  .counter { display: block; }
+  .rail { display: none; position: static; max-height: 50vh; margin: 0 0 14px; }
+  .rail.open { display: flex; }
+  .crumb, .guidelink { display: none; }
+  body { font-size: 15px; line-height: 1.6; }
+  h1 { font-size: 23px; }
+  .step-h h2 { font-size: 19px; }
+  .step-h { flex-wrap: wrap; }
+  .lang { padding-left: 12px; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } .run:active { transform: none; } }
+
+/* Compare mode: two languages side by side, wide screens only. JS removes the
+   attribute entirely when no second language is picked. */
+/* Compare mode STACKS the second language under the first, full width.
+   Side by side was tried and abandoned: the same step is 30 lines of Zig and 87
+   of Rust, so two columns forced every block into its own horizontal scrollbar
+   and neither language could be read. Stacked, both get the full measure, and
+   compare works at every width instead of only on a wide desktop. */
+html[data-compare] .lang + .lang { margin-top: 22px; }
