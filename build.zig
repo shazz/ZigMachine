@@ -402,7 +402,7 @@ pub fn build(b: *std.Build) void {
         "demo-union_beatdis", // 54 — The Union Demo / TCB1 BEAT DIS, 1 MB and 1/2 MB (melonJS remake)
         "demo-union_superscroller", // 55 — The Union Demo / TCB2 WOW!-SCROLLER (melonJS remake)
         "demo-tutorial_steps", // 56 — tutorial.zig stopped at any step, for docs/TUTORIAL.html
-        "", // 57 — reserved for another session's scene (the loop skips "")
+        "demo-automation442", // 57 — AUTOMATION CD 442 PART A, the Ghostbusters II menu (CODEF screen 420)
         "demo-big_demo", // 58 — The Exceptions / The B.I.G. Demo jukebox (CODEF screen 23)
     };
     for (cart_names, 0..) |name, idx| {

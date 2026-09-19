@@ -181,6 +181,13 @@ borders with rasters through `copper.install(..., .{ .flicker = true })`
 instead. Every enabled overscan plane needs its own call.
 `fb.hblLinesArePhysical()` reports which line numbering the plane's handler gets.
 
+**`fb.setOverscanScrollPlane(w, h)`**: an overscan plane backed by a
+bigger-than-window buffer, so the full 400x280 window pans with `setScroll(x, y)`
+— hardware scroll with the borders open (`apps/zig/scenes/automation442.zig`).
+Register the flicker HBL yourself (`zg.OVERSCAN_MAGIC_X`, `zg.flickerAllHbl`):
+`openBorders` allocates its own 400x280 buffer and would undo this. No per-line
+fine scroll in this mode — `renderPlaneOverscan` does not re-read `HSCROLL`.
+
 **`zg.obj.parseWire` + `zg.wireframe`**: 3D line objects. `parseWire` reads a
 `.obj` at COMPTIME: `v x y z` vertices (kept exactly as written, no recentring)
 and `l a b c ...` polylines, each consecutive pair one edge. Only the arrays the

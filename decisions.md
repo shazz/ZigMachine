@@ -9,6 +9,36 @@ reconstructed from the commits that made them, so they are shorter.
 
 ---
 
+## 2026-09-19 — Overscan + hardware scroll needed no machine change
+
+**Status:** accepted
+
+**Context:** The AUTOMATION 442 port (CODEF screen 420) wants a tiled background
+that pans across the *whole* 400×280 overscan window with zero per-pixel work per
+frame. The two capabilities existed separately — `FB_MODE = 2` (SCROLL) pans a
+bigger-than-screen buffer, `FB_MODE = 4` (OVERSCAN) draws the border bands — and
+the obvious move was a fifth render mode combining them.
+
+**Decision:** No new mode, and no change to `machine/video.zig`.
+`renderPlaneOverscan()` already reads its buffer as `lfb(fb_id)` (i.e. through
+`FB_BASE`, the pan point) with `fbStride(fb_id)` as the row pitch, so an OVERSCAN
+plane bound to a larger buffer with `FB_STRIDE = buf_w` pans correctly the moment
+`setScroll()` rewrites `FB_BASE`. The only thing missing was an SDK entry point:
+`LogicalFB.setOverscanScrollPlane(buf_w, buf_h)` in `libs/zig/zigos.zig`, which is
+`setOverscanBuffer()` with `setScrollPlane()`'s allocation and stride.
+
+**Alternatives considered:** a `FB_MODE = 5` "overscan scroll" render path (more
+machine surface, an ABI-visible constant, and a duplicate of a loop that already
+did the right thing); or painting the pan per frame into a 400×280 overscan buffer
+(112k pixel writes per frame — exactly the cost the hardware scroll exists to avoid).
+
+**Consequences:** No register layout changed, so no ABI rebuild. The one asymmetry
+is that `renderPlaneOverscan()` does not re-read `HSCROLL` per scanline, so this
+mode has coarse scroll only — a scene wanting per-line distortion still needs
+`FB_MODE = 2` and closed borders. Documented in `docs/HW_API.md` §3.
+
+---
+
 ## 2026-09-12 — The ROM's ABI names a PLANE, not a pointer
 
 **Status:** accepted
