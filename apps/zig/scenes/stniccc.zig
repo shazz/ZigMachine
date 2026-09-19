@@ -40,10 +40,25 @@ const REWIND_MAX: f32 = 8;
 const MESSAGE_FRAMES: u32 = 180; // 3 s
 const BLINK: u32 = 30; // the message blinks every half second
 const MESSAGE = "LET'S GO FULLSCREEN!";
+const ZOOM_FRAMES: u32 = 90; // 1.5 s easing the 256x200 window out to the whole 400x280 plane
 
 const ST_LEVEL = [8]u8{ 0, 36, 73, 109, 146, 182, 219, 255 }; // ST 3-bit gun -> 8 bit
 
-const Act = enum { small, slowing, rewinding, message, fullscreen, failed };
+// Smoothstep. A linear zoom starts and stops abruptly; easing both ends is what
+// reads as a camera pull rather than a jump cut. Clamped, so the last frame is
+// exactly the full plane and the centring subtractions below cannot underflow.
+fn ease(x: f32) f32 {
+    const c = @min(@max(x, 0), 1);
+    return c * c * (3 - 2 * c);
+}
+
+fn lerp(from: u32, to: u16, k: f32) usize {
+    const a: f32 = @floatFromInt(from);
+    const b: f32 = @floatFromInt(to);
+    return @intFromFloat(a + (b - a) * k);
+}
+
+const Act = enum { small, slowing, rewinding, message, zooming, fullscreen, failed };
 
 pub const Demo = struct {
     player: player_mod.Player,
@@ -101,13 +116,14 @@ pub const Demo = struct {
                 self.speed = @max(self.speed - REWIND_ACCEL, -REWIND_MAX);
                 self.pos = @max(self.pos + self.speed, 0);
             },
-            .message, .failed => {},
+            .message, .zooming, .failed => {},
         }
         switch (self.act) {
             .small => if (self.t >= SMALL_FRAMES) self.enter(.slowing),
             .slowing => if (self.t >= SLOW_FRAMES) self.enter(.rewinding),
             .rewinding => if (self.pos == 0) self.enter(.message),
-            .message => if (self.t >= MESSAGE_FRAMES) self.enter(.fullscreen),
+            .message => if (self.t >= MESSAGE_FRAMES) self.enter(.zooming),
+            .zooming => if (self.t >= ZOOM_FRAMES) self.enter(.fullscreen),
             .fullscreen, .failed => {},
         }
     }
@@ -116,7 +132,10 @@ pub const Demo = struct {
         self.act = act;
         self.t = 0;
         if (act == .rewinding) self.speed = 0;
-        if (act == .fullscreen) self.pos = 0;
+        if (act == .fullscreen) {
+            self.pos = 0;
+            self.player.shown = null; // the zoom left frame 0 drawn at its own rect
+        }
     }
 
     pub fn render(self: *Demo, zigos: *ZigOS, elapsed_time: f32) void {
@@ -128,7 +147,13 @@ pub const Demo = struct {
                 if (self.t % BLINK != 1) return;
                 self.player.shown = null; // redraw frame 0, which also erases the text
                 self.drawFrame(fb) catch return self.fail(fb);
-                if ((self.t / BLINK) % 2 == 0) zigos.printText(fb, MESSAGE, messageX(), 96, WHITE, BLACK);
+                if ((self.t / BLINK) % 2 == 0) zigos.printText(fb, MESSAGE, messageX(), 140, WHITE, BLACK);
+            },
+            .zooming => {
+                if (!self.wide) self.goFullscreen(fb); // borders open FIRST: the margin is black anyway
+                fb.clearFrameBuffer(0); // the view is smaller than the plane until the last frame
+                self.player.shown = null; // the rect moved, so frame 0 is redrawn every frame
+                self.drawFrame(fb) catch self.fail(fb);
             },
             .fullscreen => {
                 if (!self.wide) self.goFullscreen(fb);
@@ -159,11 +184,31 @@ pub const Demo = struct {
 
     fn view(self: *const Demo, fb: *LogicalFB) player_mod.View {
         const px = fb.fb[0 .. @as(usize, fb.stride) * fb.fb_h];
+        if (self.act == .zooming) return self.zoomView(fb);
         if (self.wide) return .{ .target = .{ .px = px, .stride = fb.stride, .w = fb.fb_w, .h = fb.fb_h, .ox = 0 }, .w = fb.fb_w, .h = fb.fb_h };
         return .{
             .target = .{ .px = px, .stride = fb.stride, .w = player_mod.SRC_W, .h = player_mod.SRC_H, .ox = SMALL_OX },
             .w = player_mod.SRC_W,
             .h = player_mod.SRC_H,
+        };
+    }
+
+    // The zoom out of the small window. Both rects are CENTRED, so at t = 0 this
+    // reproduces exactly where the 256x200 window sat once the borders opened the
+    // plane to 400x280 — the switch has no jump, it just starts growing. The
+    // stream is vectors, so every step re-rasterizes the polygons at the new size;
+    // nothing is resampled and the edges stay as crisp as the small window's.
+    fn zoomView(self: *const Demo, fb: *LogicalFB) player_mod.View {
+        const k = ease(@as(f32, @floatFromInt(self.t)) / @as(f32, @floatFromInt(ZOOM_FRAMES)));
+        const w = lerp(player_mod.SRC_W, fb.fb_w, k);
+        const h = lerp(player_mod.SRC_H, fb.fb_h, k);
+        const oy = (@as(usize, fb.fb_h) - h) / 2;
+        // polyfill.Target has an ox but no oy: start the slice oy rows in instead.
+        const px = fb.fb[oy * @as(usize, fb.stride) ..][0 .. @as(usize, fb.stride) * h];
+        return .{
+            .target = .{ .px = px, .stride = fb.stride, .w = w, .h = h, .ox = (@as(usize, fb.fb_w) - w) / 2 },
+            .w = @intCast(w),
+            .h = @intCast(h),
         };
     }
 
