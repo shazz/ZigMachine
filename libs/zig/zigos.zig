@@ -335,6 +335,32 @@ pub const LogicalFB = struct {
         self.clearFrameBuffer(0);
     }
 
+    // Turn this plane into an OVERSCAN plane backed by a BIGGER-than-window buffer,
+    // so the 400×280 overscan window can be panned across it with setScroll() —
+    // hardware scroll and open borders at the same time. No machine change was
+    // needed: renderPlaneOverscan() already reads the buffer through FB_BASE (the
+    // pan point) with FB_STRIDE as the row pitch. Borders are still EARNED —
+    // flickerBorder() from this plane's HBL at OVERSCAN_MAGIC_X, exactly as for
+    // setOverscanBuffer(). Draw in buffer coords (0..buf_w, 0..buf_h), and keep
+    // the pan inside 0..buf_w-PHYSICAL_WIDTH / 0..buf_h-PHYSICAL_HEIGHT.
+    // NB: renderPlaneOverscan does NOT re-read HSCROLL, so there is no per-line
+    // fine scroll in this mode (unlike FB_MODE_SCROLL).
+    // A buffer SMALLER than the overscan window would make the machine read past
+    // the allocation on every frame — a silent VRAM corruption, not a trap, since
+    // nothing bounds-checks the composite. So the size is clamped up to the window
+    // rather than trusted; the caller still owes the pan clamp above.
+    pub fn setOverscanScrollPlane(self: *LogicalFB, buf_w: u16, buf_h: u16) void {
+        const w = @max(buf_w, PHYSICAL_WIDTH);
+        const h = @max(buf_h, PHYSICAL_HEIGHT);
+        self.stride = w;
+        self.fb_w = w;
+        self.fb_h = h;
+        writeU16(hw.REG_FB_STRIDE + @as(usize, self.id) * 2, w);
+        writeU8(hw.REG_FB_MODE + @as(usize, self.id), hw.FB_MODE_OVERSCAN);
+        self.bind(vramAlloc(@as(usize, w) * @as(usize, h)));
+        self.clearFrameBuffer(0);
+    }
+
     // Open a border, ST-style, from THIS plane's per-plane HBL handler: flicker the
     // resolution register (RES_MEDIUM -> RES_PLANES). The sealed machine can't trap
     // writes to shared memory, so we also bump REG_RES_FLICKER — the latch it samples

@@ -79,6 +79,15 @@ memory.
 (`setScroll(x, y)` — zero per-pixel cost), and `HSCROLL` is re-read every scanline so a
 per-plane HBL handler can bend each line (`setScrollFine` → sine wobble / shear).
 
+**Overscan planes can scroll too** (`setOverscanScrollPlane(w, h)`, `FB_MODE = 4`):
+`renderPlaneOverscan()` already reads its buffer through `FB_BASE` with `FB_STRIDE` as
+the row pitch, so backing an OVERSCAN plane with a bigger-than-window buffer makes the
+full 400×280 window pannable by `setScroll(x, y)` — hardware scroll *and* open borders,
+with no machine-side change. Keep the pan inside `0..w-400` / `0..h-280`. The borders
+are still earned (flicker below), and unlike `FB_MODE = 2` this path does **not**
+re-read `HSCROLL`, so there is no per-line fine scroll. Used by
+`apps/zig/scenes/automation442.zig`.
+
 ### Opening the borders (overscan) — the ST timing trick
 
 Overscan is not a flag — you **earn** it, the way real ST demos do, by abusing the

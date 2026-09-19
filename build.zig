@@ -401,6 +401,7 @@ pub fn build(b: *std.Build) void {
         "demo-union_tnt2", // 53 — The Union Demo / TNT2, the TNT-Crew's parallax superscroller (melonJS remake)
         "demo-union_beatdis", // 54 — The Union Demo / TCB1 BEAT DIS, 1 MB and 1/2 MB (melonJS remake)
         "demo-union_superscroller", // 55 — The Union Demo / TCB2 WOW!-SCROLLER (melonJS remake)
+        "demo-automation442", // 56 — AUTOMATION CD 442 PART A, the Ghostbusters II menu (CODEF screen 420)
     };
     for (cart_names, 0..) |name, idx| {
         if (name.len == 0) continue; // excluded cart (see note above)
