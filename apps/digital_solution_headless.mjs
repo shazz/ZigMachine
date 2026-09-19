@@ -3,34 +3,29 @@
 // big_demo, not a cart of its own, so this drives docs/demo-big_demo.wasm: past
 // wait(), down the list to the Digital Department row, Return.
 //
-// Every visible pixel must equal screen.raw through its own pal.dat — the plane
-// really is the captured picture, not something that merely hashes
-// consistently — EXCEPT rows 179..194, the 16 the shared scrolltext owns. That
-// band cannot be asserted against the capture (the scroll offset at capture
-// time is unknown, and the remake's text may not even be the real screen's), so
-// it is excluded and covered instead by checks of its own: it moves, its pixels
-// come from the shared font and nowhere else, and it is pixel-identical to a
-// SECOND machine left running the jukebox — which is what proves the text
-// carries on across the screen change rather than restarting. On top of that: the row that opens it is the
-// LAST one the cursor can reach (`mylist.length - 3`) and the row before it does
-// not open it, nothing moves, opening it plays nothing, keys 1-6 request the
-// right FILE and the right SUBTUNE, Space goes back to the running jukebox,
-// Escape leaves, every named SNDH is on disk, and every one of the six really
-// makes sound (all six are FLAG ~ay, the flag that usually means silence — so
-// it is measured, not assumed).
+// Every visible pixel must equal screen.raw through its own pal.dat — so the
+// plane really is the captured picture, not something that merely hashes
+// consistently. TWO regions are exempt, and each is a declared blind spot with
+// its own compensating checks in digital_solution_band.mjs: rows 179..194, the
+// shared scrolltext, and the TEXT pixels, which colour-cycle.
 //
-//   node apps/digital_solution_headless.mjs [cart.wasm] [--break pixels|tune|songs|exit|route|drift]
-// --break perturbs an INPUT — the reference picture, an entry's subtune, an
-// entry's filename, which key is pressed to leave, which ROW is selected, or
-// the shadow machine's frame count — and each must be caught.
-import { readFile } from "node:fs/promises";
+// The rest: the row that opens it is the LAST the cursor can reach
+// (`mylist.length - 3`) and the row before it does not open it; opening it
+// plays the DIGI Ace 2; keys 1-6 request the right FILE and SUBTUNE; Space goes
+// back to the running jukebox; Escape leaves; every named SNDH is on disk; and
+// all six really make sound (every one is FLAG ~ay, which usually means
+// silence, so it is measured).
+//
+//   node apps/digital_solution_headless.mjs [cart.wasm] [--break MODE]
+// --break perturbs an INPUT — the reference picture, an entry's subtune or
+// filename, which key leaves, which ROW is selected, the shadow machine's frame
+// count, or the cycle phase — and each must be caught.
 import { performance } from "node:perf_hooks";
-// The sealed machine, not big_demo's own: boot() is screen-agnostic and lives
-// in that file only because it is where it was first needed.
-import { boot } from "./big_demo_machine.mjs";
+import { boot } from "./big_demo_machine.mjs"; // screen-agnostic; it just lives there
 import { readTunes, checkSongs, measurePeaks, ENTRIES } from "./digital_solution_tunes.mjs";
 import { CURSOR, DIGITAL } from "./big_demo_list.mjs";
-import { shadow, view, BAND_ROWS } from "./digital_solution_band.mjs";
+import { shadow, BAND_ROWS } from "./digital_solution_band.mjs";
+import { view, refs, tileAt, cycleColour, walkCycle, bandColourErrors, CYCLE_STEP } from "./digital_solution_view.mjs";
 
 const CW = 320, CH = 200; // the visible window inside the 400x280 overscan plane
 const ART = "apps/zig/assets/screens/digital_solution";
@@ -39,10 +34,12 @@ const K_ESC = 0xE012, K_SPACE = 32, K_RETURN = 13, K_1 = 49, DIR_DOWN = 1, DIR_B
 const STATIC_AT = 120; // two seconds: long enough for anything animated to show
 const SHADOW_DELAY = 17; // how much later the shadow machine opens the screen
 
-const argv = process.argv.slice(2), bi = argv.indexOf("--break"), MODES = ["pixels", "tune", "songs", "exit", "route", "drift"];
+const argv = process.argv.slice(2), bi = argv.indexOf("--break"), MODES = ["pixels", "tune", "songs", "exit", "route", "drift", "cycle"];
 const brk = bi >= 0 ? argv.splice(bi, 2)[1] : null;
 if (brk && !MODES.includes(brk)) throw new Error(`--break ${brk}: ${MODES.join("|")}`);
 const CART = argv[0] || "docs/demo-big_demo.wasm";
+// --break cycle expects the text one cycle step ahead of where texbg puts it.
+const SKEW = brk === "cycle" ? 1 : 0;
 const errors = [];
 
 // 1. the table, and the files behind it
@@ -56,8 +53,6 @@ if (phantom.length !== 2 || phantom[0].song !== phantom[1].song || phantom[0].tu
 if (DIGITAL !== CURSOR[1]) errors.push(`the Digital Department row ${DIGITAL} is not the cursor's last stop ${CURSOR[1]}`);
 
 const { memory, machine, demo } = await boot(CART);
-const V = view(memory, machine), band = V.band, hashFrame = V.hashStill;
-const diffPicture = (raw, pal) => V.diff(raw, pal);
 const PW = machine.hwPhysWidth(), dec = new TextDecoder(); // 800: the visible x is DOUBLED
 let frame = 0, song = null, tune = 0, songAt = -1, cart = 0, cartMs = 0;
 
@@ -74,6 +69,21 @@ function step() {
     tune = demo.songTune(); songAt = frame;
 }
 
+const { raw, pal, bigPal, cyc, errors: refErrors } = await refs(ART);
+errors.push(...refErrors);
+if (brk === "pixels") raw[CH / 2 * CW + CW / 2] ^= 1; // one byte of the REFERENCE
+const V = view(memory, machine, raw, pal), band = V.band, hashFrame = V.hashStill;
+/// The picture, with the TEXT pixels expected at THIS frame's cycle colour.
+let entered = -1; // the frame Return opened the screen; the text cycle counts from it
+/// How many times the scene has ADVANCED the text cycle by the time the frame
+/// now on screen was drawn. draw() paints with the accumulator and ticks it
+/// after, so the first drawn frame is 0 — hence the -1 against the step that
+/// drew it. (Getting this off by one showed up as a one-step phase lag, which
+/// is exactly what the check is for.)
+const inside = () => frame - entered - 1 + SKEW;
+const diffPicture = () => V.diff(cycleColour(bigPal, cyc, tileAt(inside())));
+
+
 // 2. down the list to the Digital Department row, and Return.
 // --break route stops ONE row short. That row (ZOOLOOK) has a tune, so the
 // wrong-row case is not silently indistinguishable from the right one.
@@ -82,50 +92,35 @@ const rows = (brk === "route" ? DIGITAL - 1 : DIGITAL) - CURSOR[0];
 for (let k = 0; k < rows; k++) { demo.input(DIR_DOWN); step(); }
 const jukebox = hashFrame();
 const songBefore = songAt;
-demo.key(K_RETURN); step();
-if (brk !== "route" && songAt !== songBefore)
-    errors.push(`the Digital Department row asked for ${JSON.stringify(song)} #${tune}: it opens a screen, it does not play`);
+demo.key(K_RETURN); entered = frame; step();
+// The screen opens WITH its music, the DIGI Ace 2 and not the jukebox's. (This
+// asserted the OPPOSITE until Matt saw the real screen — which is how the
+// correction got caught here rather than shipped.)
+if (brk !== "route" && (songAt === songBefore || song !== TUNES[0].song || tune !== TUNES[0].tune))
+    errors.push(`opening the screen asked for ${JSON.stringify(song)} #${tune}, wanted "${TUNES[0].song}" #${TUNES[0].tune}`);
 
-// 3. THE PICTURE: every visible pixel is screen.raw through pal.dat.
-// --break pixels flips one byte of the REFERENCE, so a check that only compared
-// the frame with itself would sail through this.
-const raw = new Uint8Array(await readFile(`${ART}/screen.raw`));
-const pal = new Uint8Array(await readFile(`${ART}/pal.dat`));
-if (raw.length !== CW * CH) errors.push(`screen.raw is ${raw.length} bytes, not 320x200`);
-if (brk === "pixels") raw[CH / 2 * CW + CW / 2] ^= 1;
-const bad = diffPicture(raw, pal);
+// 3. THE PICTURE. --break pixels flips one byte of the REFERENCE, so a check
+// that only compared the frame with itself would sail through this.
+const bad = diffPicture();
 if (bad) errors.push(bad);
 const first = hashFrame();
 if (first === jukebox) errors.push("Return on the Digital Department row changed nothing: the screen never opened");
 
-// 3b. THE BAND — the 16 rows the picture check above deliberately skips.
-// Three compensating checks, because an exclusion with nothing behind it is how
-// a bug hides: it is a real scroller (many colours, all of them the shared
-// font's), it MOVES, and it is in lockstep with a second machine that stayed in
-// the jukebox — which is continuity across the screen change, measured.
-const bigPal = new Uint8Array(await readFile("apps/zig/assets/screens/big_demo/pal.dat"));
-const BASE = 124; // where digital_solution_assets.py appends; below it is big_demo's own
-const shared = new Set(); // the colours the jukebox's font can paint
-for (let i = 0; i < BASE; i++) shared.add(`${bigPal[i * 4]},${bigPal[i * 4 + 1]},${bigPal[i * 4 + 2]}`);
-const PANEL = `${pal[128 * 4]},${pal[128 * 4 + 1]},${pal[128 * 4 + 2]}`; // what the band sits on
+// 3b. THE BAND — the 16 rows the picture check above skips. Three compensating
+// checks: it is a real scroller (many colours, all the shared font's), it
+// MOVES, and it is in lockstep with a second machine that opened this screen
+// SHADOW_DELAY frames later — continuity across the change, measured.
+const BASE = 124, PANEL = 128; // where the converter appends, and the grey the band sits on
 const b0 = band();
-if (b0.colours.size < 9) errors.push(`the band shows ${b0.colours.size} colours: the fontbg fill alone is 8, so it is not drawing`);
-const alien = [...b0.colours].filter((c) => c !== PANEL && !shared.has(c));
-if (alien.length) errors.push(`the band paints ${alien.length} colour(s) that are not the shared font's or the panel: ${alien[0]}`);
+errors.push(...bandColourErrors(b0, bigPal, pal, BASE, PANEL));
 step();
 if (band().hash === b0.hash) errors.push("the band did not change between two frames: the scrolltext is not running");
-// The second machine, which opened this screen SHADOW_DELAY frames later and
-// is then stepped to the same absolute frame. --break drift gives it one frame
-// more, which must be caught: a check that could not see one frame of drift
-// could not see a reset either.
 const shadowRun = await shadow(CART, { waitFrames: WAIT, rows, delay: SHADOW_DELAY });
-/// Step BOTH machines to a common frame and compare the band there.
-///
-/// The sync has to go both ways: the shadow's constructor leaves it ahead (it
-/// dawdles SHADOW_DELAY frames before entering), and runTo cannot go backwards
-/// — comparing without this silently measured two different frames and read as
-/// a scrolltext bug. The frame numbers are asserted equal so it cannot come
-/// back. --break drift deliberately puts the shadow one frame out.
+/// Step BOTH machines to a common frame and compare the band there. The sync
+/// goes both ways — the shadow's constructor leaves it AHEAD and runTo cannot
+/// go backwards, and comparing without this silently measured two different
+/// frames and read as a scrolltext bug — so the frame numbers are asserted
+/// equal too. --break drift deliberately puts the shadow one frame out.
 function bandsAgree(what) {
     while (frame < shadowRun.frame) step();
     shadowRun.runTo(frame + (brk === "drift" ? 1 : 0));
@@ -138,9 +133,18 @@ bandsAgree(`the band differs from a run that opened this screen ${SHADOW_DELAY} 
 const seen = songAt;
 const until = frame + STATIC_AT;
 while (frame < until) step();
-if (hashFrame() !== first) errors.push(`the screen changed over ${STATIC_AT} frames outside the band: the rest is STATIC`);
+if (hashFrame() !== first) errors.push(`the screen changed over ${STATIC_AT} frames outside the band and the text: the rest is STATIC`);
 if (songAt !== seen) errors.push(`music changed by itself at frame ${songAt} (${song}): the screen waits for a key`);
 if (cart !== 0) errors.push(`the screen asked to leave (${cart}) with no key pressed`);
+
+// 4b. THE TEXT CYCLES — the other declared blind spot. hashStill() leaves the
+// TEXT pixels out because they change colour, so here is what covers them: the
+// text must walk the SAME eight colours cycle.raw holds, read out of that file
+// itself, on its OWN accumulator — slower than the jukebox's 0.4, and mirrored
+// from the scene so the provisional rate is in ONE place. A text stuck on one
+// colour, on the wrong phase, or running at the bands' rate all fail.
+const walk = walkCycle(V, bigPal, cyc, () => tileAt(inside()), step);
+errors.push(...walk.errors);
 
 // 5. keys 1-6: the right file AND the right subtune, and no pixel moves
 for (const [n, want] of TUNES.entries()) {
@@ -157,7 +161,7 @@ if (hashFrame() !== first) errors.push("a key changed the picture: the screen ha
 // --break exit presses the key next to Space's codepoint, which nothing binds.
 demo.key(brk === "exit" ? K_SPACE + 1 : K_SPACE);
 step();
-if (!diffPicture(raw, pal)) errors.push("Space did not leave the Digital Solution");
+if (!diffPicture()) errors.push("Space did not leave the Digital Solution");
 const back = hashFrame();
 step();
 if (hashFrame() === back) errors.push("the jukebox is frozen after coming back: it should be running again");
@@ -187,9 +191,10 @@ if (brk) {
 }
 if (errors.length) { console.error(`digital_solution: WRONG\n  ${errors.slice(0, 12).join("\n  ")}`); process.exit(1); }
 if (songs.orphans.length) console.log(`digital_solution: ${songs.orphans.length} unused SNDH in docs/music/digital/: ${songs.orphans.join(" ")}`);
-console.log(`digital_solution: FITS list row ${DIGITAL} ("-:THE DIGITAL DEPARTMENT:-") opens it, all ${CW * (CH - (BAND_ROWS[1] - BAND_ROWS[0]))} still px match screen.raw ` +
+console.log(`digital_solution: FITS list row ${DIGITAL} ("-=THE DIGITAL DEPARTMENT=-") opens it, all ${CW * (CH - (BAND_ROWS[1] - BAND_ROWS[0]))} still px match screen.raw ` +
     `outside rows ${BAND_ROWS[0]}..${BAND_ROWS[1] - 1} (frame ${first.slice(0, 12)}), static over ${STATIC_AT} frames; ` +
     `the band is the shared scrolltext — ${b0.colours.size} colours, all the font's, in lockstep with a run that opened it ${SHADOW_DELAY} frames later; ` +
+    `the text cycles through ${new Set(walk.got).size} of cycle.raw's 8 at its own += ${CYCLE_STEP} (provisional); opening it plays ${TUNES[0].song.split("/")[1]}; ` +
     `keys 1-6 -> ${songs.named} SNDH (all on disk), ` +
     `PHANTOMS = subtunes ${phantom.map((e) => e.tune).join("/")} of one image; Space -> the jukebox, Escape/Back -> menu; ` +
     `peaks ${peaks.join(", ")}; ${perFrame.toFixed(3)} ms/frame`);

@@ -32,23 +32,24 @@
 // 2026-09-19) and open four further screens, but the remake's KeyCheck()
 // (screen.js:33) implements neither and those screens are not here yet.
 //
-// DELIBERATE DIVERGENCE FROM THE REMAKE — the Digital Department.
-// The real demo's song list ends with a row reading "-:THE DIGITAL
-// DEPARTMENT:-", with no tune behind it, and Return on that row opens the
-// Digital Solution sound-test screen (big/digital.zig). The remake DROPPED
-// both: its list runs ...ZOIDS / ZOOLOOK / blank / "END OF LIST" (screen.js
-// indices 112-115) and there is no such screen in it at all. We follow the
-// REAL demo and not the remake, the same call already made for the colour
-// bands — the remake is deficient here, not different.
+// THE LIST IS THE DEMO'S OWN, NOT THE REMAKE'S.
+// big/list.zig is TEX's 118-row table ripped out of the running demo's memory
+// (Hatari, table at $A4BC, stride 38), not a transcription of screen.js. The
+// remake's 116 rows turned out to be a RENAMED, RE-SORTED and incomplete copy:
+// ACTION-BIKER became "CLUMSY COLIN ACTION BIKER" and moved A->C, STRONGMAN
+// became "GEOFF CAPES STRONGMAN" and moved S->G, two entries were dropped, one
+// was invented, and the durations were lost entirely. We follow the REAL demo
+// — the same call already made for the colour bands and the border.
 //
-// The cost of that call, stated plainly: every other row of this screen is
-// verified 0 px wrong against a Chrome replay of screen.js, and the list block
-// no longer can be, because it now holds a row the remake has never had. The
-// list is 117 entries instead of 116 and `curent` clamps at [2, 114] instead
-// of [2, 113] — the clamp is `mylist.length - 3` and the new row is placed so
-// that the clamp lands exactly on it (see big/list.zig). The cursor starts at
-// 2 and the window is curent-2..curent+3, so an input-free run never shows the
-// new row and the screen's baked frame hashes are unchanged.
+// The cost, stated plainly: the list block can no longer be compared against a
+// Chrome replay of screen.js at all, because it is no longer the remake's list.
+// Everything outside it still is. The list is 118 rows and `curent` clamps at
+// [2, 115] = `mylist.length - 3`, which lands exactly on the Digital
+// Department row where the real table puts it — the demo's own data and its own
+// clamp agreeing is the strongest evidence we have that the row belongs there.
+// The four baked frame hashes DID move, because the rows on screen in an
+// input-free run (TOP OF LIST, blank, ACE 2, ACTION-BIKER #1, #2) are now the
+// real ones and carry their durations.
 // --------------------------------------------------------------------------
 const zg = @import("zigos");
 const ZigOS = zg.ZigOS;
@@ -139,7 +140,10 @@ pub const Demo = struct {
         // Department row opens its screen instead of playing anything.
         if (cp == K_RETURN) {
             self.screen.select();
-            if (self.screen.curentlplay == list.DIGITAL) self.digital_up = true;
+            if (self.screen.curentlplay == list.DIGITAL) {
+                self.digital_up = true;
+                digital.enter(); // the screen opens WITH its music
+            }
         }
     }
 

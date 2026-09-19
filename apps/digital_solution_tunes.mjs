@@ -9,7 +9,7 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { sndhPlay } from "./big_demo_machine.mjs";
 
-const SCENE = "apps/zig/scenes/big/digital.zig";
+const SCENE = "apps/zig/scenes/big/digital_tunes.zig";
 const SUBDIR = "digital"; // what a `song` is relative to: the host fetches "music/" + name
 const MUSIC_DIR = `docs/music/${SUBDIR}`;
 export const ENTRIES = 6; // "DARE TO PRESS:" 1..6, read off the capture

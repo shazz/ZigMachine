@@ -6,13 +6,14 @@
 // has no SNDH for, the harness sees it on the next run.
 import { readFileSync, readdirSync } from "node:fs";
 
-const LIST_ZIG = "apps/zig/scenes/big/list.zig";
+const LIST_ZIG = "apps/zig/scenes/big/list_data.zig"; // the GENERATED rows; list.zig is the provenance
 const SUBDIR = "big"; // what a `song` is relative to: the host fetches "music/" + name
 const MUSIC_DIR = `docs/music/${SUBDIR}`;
-// TEX's list is screen.js:89-204's 116 rows PLUS "-:THE DIGITAL DEPARTMENT:-",
-// which the remake dropped and the real demo has (see big_demo.zig's header).
-export const ENTRIES = 117;
-export const CURSOR = [2, 114]; // curent's range: 2 .. mylist.length-3
+// TEX's OWN table, ripped out of the running demo's memory: 118 rows, of which
+// 113 are tunes. The CODEF remake's 116 are a renamed, re-sorted, incomplete
+// copy of it (see big/list.zig's header) and are no longer what we ship.
+export const ENTRIES = 118;
+export const CURSOR = [2, 115]; // curent's range: 2 .. mylist.length-3
 export const DIGITAL = ENTRIES - 3; // the row that opens the Digital Solution
 
 /// TEX's 116 entries as { label, song, tune }. `--break songs` points the LAST

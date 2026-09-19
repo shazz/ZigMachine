@@ -1,6 +1,6 @@
 // --------------------------------------------------------------------------
 // THE DIGITAL SOLUTION — the B.I.G. Demo's sound-test screen, reached from the
-// jukebox list entry "-:THE DIGITAL DEPARTMENT:-" (see list.zig).
+// jukebox list entry "-=THE DIGITAL DEPARTMENT=-" (see list.zig).
 //
 // The artwork and the wording are TEX's; the six tunes are Mad Max's
 // Best-In-Galaxy conversions. Credited, never re-attributed.
@@ -11,64 +11,64 @@
 // was MEASURED and what was RECONSTRUCTED is drawn explicitly here.
 //
 // ---- OBSERVED (measured from the capture, BIG_DEMO_7.gif) ----------------
-//   * The picture. The capture is 640x400 and an EXACT 2x doubling of
-//     320x200: row 2k == row 2k+1 and col 2k == col 2k+1, pairing (0,1), with
-//     0 mismatched rows of 200 and 0 mismatched columns of 320. (Pairing
-//     (1,2) mismatches 151 rows and 317 columns — which is how we know (0,1)
-//     is the true one.) So even-sampling to 320x200 is LOSSLESS, and what is
-//     drawn here is the machine's own output, not a redrawing.
-//   * 15 distinct colours in the whole frame, at most 12 in any one row: a
-//     plain 16-colour ST low-res screen, 320x200, NO per-line palette trick.
-//     tools/private_tools/digital_solution_assets.py asserts all of that and
-//     refuses to convert if the capture were ever resampled.
+//   * The picture. The capture is an EXACT 2x of 320x200 — 0 mismatched rows
+//     of 200 and 0 columns of 320, pairing (0,1) — so even-sampling is
+//     LOSSLESS and what is drawn here is the machine's own output, not a
+//     redrawing. 15 colours, at most 12 in a row: a plain 16-colour ST low-res
+//     screen with no per-line trick. Every one of those numbers is asserted by
+//     tools/private_tools/digital_solution_assets.py, which refuses to convert
+//     if the capture were ever resampled; the full measurements are there.
 //   * The text, read off the capture: the header, "DARE TO PRESS:", the six
 //     numbered entries in two columns (1-3 left, 4-6 right), the SOON COMING
 //     note, and "-PRESS SPACE TO EXIT TO THE B.I.G. DEMO-". Nothing is
 //     retyped as glyphs; it is the picture.
 //   * The tune mapping. The six entries name exactly the five SNDH images in
 //     prototypes/sndh_lf/Mad_Max/Demos/Best_In_Galaxy-Digi/, and
-//     Phantom_Of_The_Asteroid.sndh really carries ##02 — two subtunes — so
-//     PHANTOMS 1 and PHANTOMS 2 are subtunes 1 and 2 of one image and not two
-//     entries pointed at the same music. All six were rendered on the sealed
-//     audio machine and all six make sound (peaks 0.1395 .. 0.2991), which is
-//     worth saying because every one of them is FLAG ~ay — the flag that
+//     Phantom_Of_The_Asteroid.sndh really carries ##02, so PHANTOMS 1 and 2 are
+//     its subtunes 1 and 2 and not two entries on one tune. All six were
+//     rendered on the sealed audio machine and all six make sound (0.1395 ..
+//     0.2991) — worth saying, because every one is FLAG ~ay, the flag that
 //     usually means a clean load and silence.
-//   * The screen is STATIC apart from the band along the bottom, which is the
-//     demo's OWN SCROLLTEXT — the same one the jukebox runs, carrying on from
-//     wherever it had got to (Matt, 2026-09-19). Confirmed from the capture's
-//     pixels, not taken on trust:
-//       - rows 176..178 and 195..199 are ONE colour (#ababab) across all 320
-//         columns and rows 179..194 are the only ones that are not, so the band
-//         is exactly 16 rows on a flat panel — and 16 is A.SCROLL_H.
-//       - the band's eight non-grey colours are big_demo's FONTBG[0..7] in the
-//         SAME ORDER (orange, light blue, blue, teal, dark teal, dark red, red,
-//         tan), each within one ST level, two of the eight exact.
-//       - its glyph outline greys are ST levels 3/4/6, which are exactly
-//         fontOUT's 0x63/0x82/0xc1.
-//     So this screen runs big_demo's scroller, at its own y, off the one shared
-//     Screen — no second scroller, no second copy of the 41,859-byte text.
+//   * The TEXT CYCLES. Every character on the screen is one palette entry, and
+//     the capture caught it at #8d12e9 — ST levels (4,0,7), which is exactly
+//     cycle.raw's index 13, tile 4's colour. So the text is not "purple": it is
+//     whichever of the eight the cycle is on — the SAME eight the jukebox's
+//     raster bands ride (Matt, 2026-09-19).
+//   * Opening the screen STARTS ACE II, in its Best_In_Galaxy-Digi version.
+//   * The screen is otherwise STATIC apart from the band along the bottom,
+//     which is the demo's OWN SCROLLTEXT — the same one the jukebox runs,
+//     carrying on from wherever it had got to (Matt, 2026-09-19). Confirmed
+//     from the capture's pixels, not taken on trust: it is exactly 16 rows
+//     (= A.SCROLL_H) on a flat panel, its eight non-grey colours are FONTBG[0..7]
+//     in the SAME ORDER, and its outline greys are fontOUT's ST levels 3/4/6.
+//     The three measurements are set out in the converter. So this screen runs
+//     big_demo's scroller, at its own y, off the one shared Screen — no second
+//     scroller, no second copy of the 41,859-byte text.
 //   * Space returns to the B.I.G. Demo, because the screen's own last line
 //     says so. It returns to the jukebox list inside this same cart.
 //
 // ---- RECONSTRUCTED (flagged, not hidden) ---------------------------------
-//   * WHERE THE SCROLLER HAD GOT TO at capture time. Unknowable, and not worth
-//     guessing: the visible fragment does not occur anywhere in the remake's
-//     41,351-character transcription at all, so the remake's text may simply
-//     differ from the real screen's. The band is therefore the only part of
-//     this screen that is NOT asserted against the capture — see the harness,
-//     which covers those 16 rows with checks of its own instead.
-//   * The fontbg fill's PHASE at this y. drawScrollerAt anchors the diagonal to
-//     the glyph's own row, as the jukebox's 0-px-verified band does. The
-//     pattern repeats every 8 px, so no capture of a static screen could fix
-//     which phase the real screen used.
-//   * Whether the jukebox's OTHER animations keep running underneath. The
-//     scroller is visible here, so it must; the colour bands are not visible,
-//     so texbg is left alone while this screen is up. Unobservable either way.
-//   * The BORDER. The jukebox runs 320x270 with the top and bottom borders
-//     open, and this screen is drawn into that same plane. The real Digital
-//     Solution is a plain 200-line screen, i.e. its borders are CLOSED, which
-//     is black — so the 40 physical rows above and below the picture are
-//     filled with BLACK. Visually that is a closed border; it is not one.
+//   * WHERE THE SCROLLER HAD GOT TO at capture time. Unknowable: the visible
+//     fragment does not occur anywhere in the remake's 41,351-character
+//     transcription, so the remake's text may simply differ from the real
+//     screen's. Those 16 rows are therefore the one part NOT asserted against
+//     the capture — the harness covers them with checks of their own.
+//   * The fontbg fill's PHASE at this y: drawScrollerAt anchors the diagonal to
+//     the glyph's own row, as the jukebox's 0-px-verified band does, and the
+//     pattern repeats every 8 px, so no still could fix which phase was used.
+//   * THE COLOUR CYCLE'S RATE. It is SLOWER than the jukebox's 0.4 (Matt), and
+//     the exact increment is NOT KNOWN: A.DIGITAL_CYCLE_STEP is a provisional
+//     half-speed 0.2, picked because it is obviously provisional, not because
+//     it was measured. To be confirmed against the real demo. One constant, so
+//     confirming it is a one-line change.
+//   * The colour cycle's phase OFFSET, likewise: one still is one sample of an
+//     eight-step loop, so any offset fits it. It runs unshifted.
+//   * Whether that cycle RESTARTS when the screen is re-entered. It carries on
+//     here, as the scrolltext does.
+//   * The BORDER. The jukebox runs 320x270 with its top and bottom borders
+//     open and this screen is drawn into that same plane, so the 40 physical
+//     rows above and below the picture are filled here — with A.PANEL, the
+//     grey the jukebox uses, not the black a genuinely closed border would be.
 //     Do NOT "fix" this by calling openBorders() again on the way in and out:
 //     setOverscanBuffer() vramAllocs a fresh buffer every call, and vramAlloc
 //     has NO bounds check against the 1 MiB pool — it would bump silently past
@@ -79,6 +79,7 @@ const zg = @import("zigos");
 const LogicalFB = zg.LogicalFB;
 const A = @import("assets.zig");
 const Screen = @import("screen.zig").Screen;
+pub const TUNES = @import("digital_tunes.zig").TUNES;
 
 pub const K_SPACE: u32 = 32;
 const K_1: u32 = '1';
@@ -87,10 +88,10 @@ const K_1: u32 = '1';
 /// the capture — lossless, the doubling being exact — with the 16 scroller rows
 /// blanked to the panel grey, because the scroller draws them live.
 const PICTURE = @embedFile("../../assets/screens/digital_solution/screen.raw");
-/// big_demo's OWN 256-entry palette with this screen's 7 colours and a black
-/// border APPENDED past its last used index. Sharing one palette is what lets
-/// the jukebox's scroller keep its fontbg and outline colours while this screen
-/// is up, and means nothing has to be restored on the way out.
+/// big_demo's OWN 256-entry palette with this screen's 7 colours APPENDED past
+/// its last used index. Sharing one palette is what lets the jukebox's scroller
+/// keep its fontbg and outline colours while this screen is up, and means
+/// nothing has to be restored on the way out.
 pub const palette = zg.convertU8ArraytoColors(@embedFile("../../assets/screens/digital_solution/pal.dat"));
 
 /// Where the 320x200 sits in the jukebox's 400x280 overscan plane: the visible
@@ -101,28 +102,16 @@ const Y: usize = 40;
 pub const BAND_Y: usize = 179;
 /// ...the same row in Screen's content coordinates, which row() offsets by A.TOP.
 const BAND_ROW: usize = Y + BAND_Y - A.TOP;
-/// The converter appends this screen's colours to big_demo's palette starting
-/// here — its first free index — and the black border is the last of them.
+/// The converter appends this screen's 7 colours to big_demo's palette starting
+/// here, its first free index.
 const BASE: u8 = 124;
-const BORDER: u8 = BASE + 7;
-
-/// "DARE TO PRESS:" — the six entries as the picture prints them, and the Mad
-/// Max SNDH each one plays. `label` is not drawn (the picture already carries
-/// it); it is here so the mapping can be read, checked and reported by name.
-pub const Entry = struct {
-    label: []const u8,
-    song: []const u8,
-    tune: u8, // SNDH subtune, counting from 1
-};
-
-pub const TUNES = [6]Entry{
-    .{ .label = "1. ACE II", .song = "digital/Ace_2.sndh", .tune = 1 },
-    .{ .label = "2. LABELLO", .song = "digital/Labello.sndh", .tune = 1 },
-    .{ .label = "3. PHANTOMS 1", .song = "digital/Phantom_Of_The_Asteroid.sndh", .tune = 1 },
-    .{ .label = "4. PHANTOMS 2", .song = "digital/Phantom_Of_The_Asteroid.sndh", .tune = 2 },
-    .{ .label = "5. SANXION-LOADER", .song = "digital/Sanxion.sndh", .tune = 1 },
-    .{ .label = "6. STAR PAWS", .song = "digital/Starpaws.sndh", .tune = 1 },
-};
+const COLOURS: u8 = 7;
+/// The one non-grey among them: every character on the screen. Not a fixed
+/// colour — see cycle(); the capture merely caught it at one phase.
+const TEXT: u8 = BASE + 6;
+/// "Border: all grey" (Matt, 2026-09-19) — the jukebox's own A.PANEL, which its
+/// opened borders and the hardware background register already use.
+const BORDER: u8 = A.PANEL;
 
 comptime {
     if (PICTURE.len != @as(usize, zg.WIDTH) * zg.HEIGHT) @compileError("screen.raw is not 320x200");
@@ -130,13 +119,17 @@ comptime {
     if (Y + zg.HEIGHT > zg.PHYSICAL_HEIGHT) @compileError("the picture runs off the plane");
     if (A.TOP + BAND_ROW != Y + BAND_Y) @compileError("the band is not where the capture puts it");
     if (BAND_Y + @as(usize, A.SCROLL_H) > zg.HEIGHT) @compileError("the scroller band runs off the screen");
-    // The whole point of appending: 0..BORDER-1 must still MEAN what they mean
-    // to the jukebox, or drawScrollerAt would paint this screen's greys.
+    // The whole point of appending: 0..BASE-1 must still MEAN what they mean to
+    // the jukebox, or drawScrollerAt would paint this screen's greys and BORDER
+    // would not be the jukebox's panel grey.
     for (0..BASE) |i| if (palette[i].toRGBA() != A.palette[i].toRGBA())
         @compileError("pal.dat diverges from big_demo's below the appended block");
     if (A.palette[BASE].a != 0) @compileError("index BASE is not free in big_demo's palette");
-    if (palette[BORDER].toRGBA() != (zg.Color{ .r = 0, .g = 0, .b = 0, .a = 255 }).toRGBA())
-        @compileError("the appended border is not black");
+    if (palette[BASE + COLOURS].a != 0) @compileError("the appended block is not 7 colours");
+    if (TEXT + 1 != BASE + COLOURS) @compileError("TEXT is not the last appended colour");
+    // That the text colour IS a cycle colour is a measurement across two
+    // different palettes (the capture's ladder and the remake's), so it is
+    // asserted where the arithmetic can be done: apps/digital_solution_band.mjs.
     // The converter guarantees the picture never uses index 0 (the transparent
     // hole); checking all 64000 bytes HERE would cost a comptime branch quota
     // on every build, so it is asserted where it is cheap — in
@@ -151,14 +144,37 @@ comptime {
 pub fn draw(screen: *Screen, fb: *LogicalFB) void {
     screen.advance();
     paint(fb);
+    cycle(fb, screen.digitalTile()); // after paint(): paint() installs the palette
     screen.drawScrollerAt(fb, BAND_ROW);
     screen.scrollerTick();
+    screen.texbgTick(); // the jukebox's bands keep running underneath
+    screen.digitalTick(); // ...and this screen's own, slower text cycle
 }
 
-/// The still part: black where the real screen's borders are closed, the
-/// captured picture in the 200 visible lines.
+/// Opening the screen starts ACE II — the DIGI version from
+/// Best_In_Galaxy-Digi, not the jukebox's `big/Ace_2.sndh` (Matt, 2026-09-19).
+pub fn enter() void {
+    zg.requestSongTune(TUNES[0].song, TUNES[0].tune);
+}
+
+/// Every character on this screen is ONE palette entry, and it cycles: the
+/// capture's text is #8d12e9, ST levels (4,0,7) — exactly cycle.raw's index 13,
+/// tile 4's colour. So it is not "purple", it is whichever of the eight the
+/// cycle is on: the SAME eight the jukebox's bands ride, stepped by this
+/// screen's own slower accumulator (A.DIGITAL_CYCLE_STEP). The colour is read
+/// out of cycle.raw itself — the first pixel of tile t, which walks 9..16 —
+/// rather than a table copied from it, so the two cannot drift apart.
+fn cycle(fb: *LogicalFB, tile: usize) void {
+    fb.setPaletteEntry(TEXT, A.palette[A.cycle[tile * A.CYCLE_H * A.CYCLE_W]]);
+}
+
+/// The still part: the picture in the 200 visible lines, the panel grey
+/// everywhere the real screen's borders are closed.
 fn paint(fb: *LogicalFB) void {
-    fb.setPalette(palette); // identical to the jukebox's below BORDER (asserted above)
+    // The appended block (124..130) is not in the palette big_demo's init() set,
+    // so this screen installs it. Identical to the jukebox's below BASE
+    // (comptime-asserted), which is why nothing has to be restored on the way out.
+    fb.setPalette(palette);
     for (0..Y) |y| @memset(fb.fb[y * A.STRIDE ..][0..A.STRIDE], BORDER);
     for (0..zg.HEIGHT) |y| {
         const dst = fb.fb[(Y + y) * A.STRIDE ..][0..A.STRIDE];

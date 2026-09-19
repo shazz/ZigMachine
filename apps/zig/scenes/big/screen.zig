@@ -36,6 +36,8 @@ pub const Screen = struct {
     /// go()'s frame count, mod A.FRAME_CYCLE: fadecpt (+0.5)
     /// are read off it as integers, so neither drifts the way a float would.
     frame: u32,
+    /// The Digital Solution's own, slower colour-cycle accumulator — NOT texbg.
+    digital_cycle: f64,
     mytempo: u32, // wait()'s 200-frame counter
     bgscrposx: i32, // fontbg's scroll under the transparent scroller
     curent: usize, // the cursor: always the MIDDLE of the five rows
@@ -51,6 +53,7 @@ pub const Screen = struct {
     pub fn init(self: *Screen) void {
         self.frame = 0;
         self.texbg = 0;
+        self.digital_cycle = 0;
         self.mytempo = 0;
         self.bgscrposx = 0;
         self.curent = 2;
@@ -95,6 +98,34 @@ pub const Screen = struct {
         }
     }
 
+    /// The cycle tile showing this frame — go()'s own `Math.floor(texbg)%8`.
+    fn tileOf(v: f64) usize {
+        return @intFromFloat(@mod(@floor(v), @as(f64, @floatFromInt(A.CYCLE_TILES))));
+    }
+    pub fn cycleTile(self: *const Screen) usize {
+        return tileOf(self.texbg);
+    }
+
+    /// texbg += 0.4, exactly go()'s accumulation, drift and all. Public because
+    /// the Digital Solution keeps the jukebox's bands running while it is up.
+    pub fn texbgTick(self: *Screen) void {
+        self.texbg += A.CYCLE_STEP;
+    }
+
+    /// The Digital Solution's text cycle. SAME eight colours, SEPARATE and
+    /// SLOWER accumulator — it is deliberately not `texbg`, and the two must
+    /// not be "simplified" back into one: the jukebox's bands and this screen's
+    /// text run at different rates on the real machine (Matt, 2026-09-19).
+    /// Advanced only while that screen is up, so it carries on from where it
+    /// was across visits, as the scrolltext does. (Whether the real screen
+    /// restarts it on entry is not known.)
+    pub fn digitalTile(self: *const Screen) usize {
+        return tileOf(self.digital_cycle);
+    }
+    pub fn digitalTick(self: *Screen) void {
+        self.digital_cycle += A.DIGITAL_CYCLE_STEP;
+    }
+
     /// The fontbg diagonal's step: the other half of the scroller's state.
     pub fn scrollerTick(self: *Screen) void {
         self.bgscrposx -= 3; // if((bgscrposx-=3)<=-31) bgscrposx=0;
@@ -104,7 +135,7 @@ pub const Screen = struct {
     /// go()'s tail (screen.js:488-490), run after the frame is painted.
     fn tick(self: *Screen) void {
         self.scrollerTick();
-        self.texbg += 0.4; // exactly go()'s accumulation, drift and all
+        self.texbgTick();
         // fadecpt += 0.5 rides on this; 0.5 IS exact in binary, so the integer
         // count is the same sequence forever, and it is kept inside one cycle
         // so the u32 can never wrap out from under it (see A.FRAME_CYCLE).
@@ -134,8 +165,7 @@ pub const Screen = struct {
         self.advance();
         // cycler[Math.floor(texbg)%8].draw(mycanvas,0,498/378/104): each band is
         // cycle.png's tile i, tiled 10 across and 4 down. texbg += 0.4 a frame.
-        const tile = @mod(@floor(self.texbg), @as(f64, @floatFromInt(A.CYCLE_TILES)));
-        expandBand(@intFromFloat(tile));
+        expandBand(self.cycleTile());
         for (A.BAND_Y) |by| {
             for (0..A.BAND_H) |i| @memcpy(row(fb, by + i), &band_rows[i % A.CYCLE_H]);
         }

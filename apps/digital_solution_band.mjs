@@ -21,54 +21,23 @@ export const CW = 320, CH = 200, LEFT = 40, TOP = 40; // the picture, and where 
 export const DIGITAL_BAND_Y = 40 + BAND_ROWS[0]; // 219
 export const JUKEBOX_BAND_Y = 5 + 222; // 227
 
-const px = (memory, machine) =>
+export const pixelsOf = (memory, machine) =>
     new Uint8Array(memory.buffer, machine.hwPhysicalPtr(), machine.hwPhysWidth() * machine.hwPhysHeight() * 4);
 /// A pixel of the plane, by PLANE row: the physical frame is 800 wide and the
 /// visible x is doubled, while y maps straight through on an overscan plane.
-const at = (buf, PW, x, planeY) => { const o = (planeY * PW + 2 * (LEFT + x)) * 4; return buf.subarray(o, o + 4); };
+export const atPlane = (buf, PW, x, planeY) => { const o = (planeY * PW + 2 * (LEFT + x)) * 4; return buf.subarray(o, o + 4); };
 
 /// The band as pixels: a hash for comparing two runs, and the set of colours in
 /// it for proving it is not a flat rectangle.
 export function readBand(memory, machine, planeY0) {
-    const buf = px(memory, machine), PW = machine.hwPhysWidth();
+    const buf = pixelsOf(memory, machine), PW = machine.hwPhysWidth();
     const h = createHash("sha256"), colours = new Set();
     for (let y = 0; y < BAND_H; y++) for (let x = 0; x < CW; x++) {
-        const p = at(buf, PW, x, planeY0 + y);
+        const p = atPlane(buf, PW, x, planeY0 + y);
         h.update(p);
         colours.add(`${p[0]},${p[1]},${p[2]}`);
     }
     return { hash: h.digest("hex"), colours };
-}
-
-/// The Digital Solution as pixels: the still part (everything but the band),
-/// and the still part against the capture. Both SKIP rows BAND_ROWS, which is
-/// the declared blind spot the shadow run above pays for.
-export function view(memory, machine) {
-    const inBand = (y) => y >= BAND_ROWS[0] && y < BAND_ROWS[1];
-    const rgba = (x, y) => {
-        const buf = px(memory, machine), PW = machine.hwPhysWidth();
-        return at(buf, PW, x, TOP + y);
-    };
-    return {
-        band: () => readBand(memory, machine, DIGITAL_BAND_Y),
-        hashStill() {
-            const buf = px(memory, machine), PW = machine.hwPhysWidth(), h = createHash("sha256");
-            for (let y = 0; y < CH; y++) if (!inBand(y)) for (let x = 0; x < CW; x++) h.update(at(buf, PW, x, TOP + y));
-            return h.digest("hex");
-        },
-        /// "" when every still pixel is screen.raw through pal.dat.
-        diff(raw, pal) {
-            const buf = px(memory, machine), PW = machine.hwPhysWidth();
-            let wrong = 0, where = null;
-            for (let y = 0; y < CH; y++) if (!inBand(y)) for (let x = 0; x < CW; x++) {
-                const i = raw[y * CW + x] * 4, g = at(buf, PW, x, TOP + y);
-                if (g[0] === pal[i] && g[1] === pal[i + 1] && g[2] === pal[i + 2] && g[3] === pal[i + 3]) continue;
-                wrong++; where ??= `(${x},${y}) is rgba(${g}) not rgba(${pal[i]},${pal[i + 1]},${pal[i + 2]},${pal[i + 3]})`;
-            }
-            return wrong ? `${wrong} of ${CW * (CH - BAND_H)} still px differ from screen.raw: first ${where}` : "";
-        },
-        rgba,
-    };
 }
 
 /// A SECOND machine running the same cart, which opens the Digital Solution
@@ -101,3 +70,4 @@ export async function shadow(cartPath, { waitFrames, rows, delay }) {
     demo.key(13); step();                                // Return: the screen opens
     return { get frame() { return frame; }, runTo, band: () => readBand(memory, machine, DIGITAL_BAND_Y) };
 }
+
