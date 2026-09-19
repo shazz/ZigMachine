@@ -403,6 +403,9 @@ pub fn build(b: *std.Build) void {
         "demo-union_superscroller", // 55 — The Union Demo / TCB2 WOW!-SCROLLER (melonJS remake)
         "demo-tutorial_steps", // 56 — tutorial.zig stopped at any step, for docs/TUTORIAL.html
         "demo-automation442", // 57 — AUTOMATION CD 442 PART A, the Ghostbusters II menu (CODEF screen 420)
+        "", // 58 — reserved: big_demo (another session, not merged yet)
+        "demo-tlb_spoon", // 59 — THE LOST BOYS / THE TWIDDLE DEMO, ULM Megademo (CODEF screen 122)
+        "demo-tcb_colorshock", // 60 — THE CAREBEARS / COLORSHOCK 2, The Cuddly Demos (CODEF screen 172)
     };
     for (cart_names, 0..) |name, idx| {
         if (name.len == 0) continue; // excluded cart (see note above)

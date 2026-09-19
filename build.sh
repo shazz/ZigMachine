@@ -119,6 +119,7 @@ node apps/union_demo_headless.mjs --break wrap "$SHOTS/union_demo"   # ...and a 
 node apps/union_multifake_headless.mjs "$SHOTS"   # TCB3: loader depack, then screen.js replayed pixel for pixel
 node apps/union_intro_wab_check.mjs docs/demo-union_intro.wasm   # cracktro WAB logo: lands as exactly wab.raw; the original JS replayed (skipped without prototypes/)
 node apps/dbug_headless.mjs "$SHOTS"
+node apps/tcb_colorshock_headless.mjs "$SHOTS/tcb_colorshock"   # COLORSHOCK 2: the hardware pan, the per-line palettes, the strip on its table
 node apps/fallen_angels_headless.mjs "$SHOTS"   # per-plane rasters on all 200 lines
 node apps/tex_loader_fx_headless.mjs "$SHOTS/tex_loader_fx"   # fx = tex_loader on a real asset, bytes checked
 node apps/tex_headless.mjs "$SHOTS"             # the eleven sprites on screen.js's chain
@@ -138,4 +139,5 @@ node apps/union_beatdis_headless.mjs "$SHOTS"   # TCB1: loader depack + question
 node apps/union_beatdis_headless.mjs --break keylock "$SHOTS"   # ...and a key lock that releases between repeats fails the hold check
 node apps/union_superscroller_headless.mjs "$SHOTS"   # TCB2: TEX loader depack, screen.js with Chrome's filtering replayed pixel for pixel, the SNDH plays
 node apps/automation442_headless.mjs "$SHOTS/automation442"   # AUTOMATION 442: the panned overscan scroll plane through one bgcount cycle
+node apps/tlb_spoon_headless.mjs "$SHOTS/tlb_spoon"   # TLB TWIDDLE: the sine intro, then starballs + logo + the rotating-letter scroller
 echo "shots in $SHOTS"

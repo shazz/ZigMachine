@@ -68,6 +68,8 @@ const scene = switch (opts.index) {
     55 => @import("scenes/union_superscroller.zig"),
     56 => @import("scenes/tutorial_steps.zig"), // docs/TUTORIAL.html runs this per step
     57 => @import("scenes/automation442.zig"),
+    59 => @import("scenes/tlb_spoon.zig"), // The Lost Boys / The Twiddle Demo (CODEF screen 122)
+    60 => @import("scenes/tcb_colorshock.zig"), // 58 is another session's, not merged yet
     else => @compileError("bad cart index"),
 };
 
