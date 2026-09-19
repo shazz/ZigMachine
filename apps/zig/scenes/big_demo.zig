@@ -66,7 +66,12 @@ pub const Demo = struct {
         fb.openBorders(.top_bottom); // 400x280 + the flicker HBL, bands only
         fb.setPalette(A.palette);
         fb.setPaletteEntry(A.TRANSPARENT, zg.Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
-        fb.clearFrameBuffer(A.BLACK); // the 5 rows above and below the screen
+        // The whole 400x280 buffer: the 5 rows above and below the 270-row screen
+        // AND the 40-px side margins. PANEL, not BLACK — the real screen's border
+        // is the same grey as the panel, so the join is invisible.
+        fb.clearFrameBuffer(A.PANEL);
+        // The hardware border beyond the plane, for the same reason.
+        zigos.setBackgroundColor(A.palette[A.PANEL]);
     }
 
     pub fn update(self: *Demo, zigos: *ZigOS, dt: f32) void {
