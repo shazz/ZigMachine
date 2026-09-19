@@ -1,0 +1,26 @@
+/* docs/TUTORIAL.html — code blocks and syntax tokens.
+   Tokens are emitted at generation time by tools/docgen/highlight.py. */
+.cb { margin: 12px 0; background: var(--panel); border: 1px solid var(--edge); border-radius: 8px;
+  overflow: hidden; }
+.cb figcaption { display: flex; align-items: center; gap: 10px; padding: 5px 10px; background: #161a26;
+  border-bottom: 1px solid var(--edge); font: 11px/1.6 var(--mono); color: var(--muted); }
+.cb-lang { color: var(--cbl, var(--dim)); text-transform: uppercase; letter-spacing: .1em; }
+.cb[data-lang=zig] { --cbl: var(--zig); } .cb[data-lang=c] { --cbl: var(--c); }
+.cb[data-lang=rust] { --cbl: var(--rust); }
+.cb-n { flex: 1; }
+.cb-copy { font: 11px/1 var(--mono); color: var(--dim); background: none; border: 1px solid var(--edge);
+  border-radius: 5px; padding: 3px 7px; cursor: pointer; }
+.cb-copy:hover { color: #fff; border-color: var(--dim); }
+.cb-copy.done { color: var(--live); border-color: var(--live); }
+.cb pre { margin: 0; padding: 12px 14px; overflow-x: auto; -webkit-overflow-scrolling: touch;
+  font: 13px/1.55 var(--mono); color: #cdd6e6; }
+.cb pre code { font: inherit; background: none; padding: 0; color: inherit; }
+
+.tok-cm { color: #6b7591; font-style: italic; }
+.tok-str { color: #a5f3c0; }
+.tok-num { color: #fbbf72; }
+.tok-kw { color: #c4b5fd; }
+.tok-fn { color: #7dd3fc; }
+.tok-at, .tok-pp { color: #f4a58a; }
+
+@media (max-width: 899px) { .cb pre { font-size: 12.5px; line-height: 1.5; padding: 10px 12px; } }

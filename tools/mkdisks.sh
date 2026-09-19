@@ -33,7 +33,7 @@ FORCE=""
 #   machine-*  sealed hardware      demo-audio  worklet module, not a cart
 #   boot-*     v2 boot sectors      demo-c/rust polyglot demos (run via ?demo=)
 #   *bootloader/audio  retired legacy monolith
-SKIP="machine-video machine-audio demo-audio bootloader audio boot-novirus demo-c demo-rust"
+SKIP="machine-video machine-audio demo-audio bootloader audio boot-novirus demo-c demo-rust demo-tutorial_steps demo-c-tutorial_steps demo-rust-tutorial_steps"
 
 packed=0; skipped=0
 TMP=$(mktemp -d)

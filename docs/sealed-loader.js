@@ -471,6 +471,26 @@ async function boot() {
     machine.hwInit();
     demo.boot();
 
+    // ?step=N: run a cart at an intermediate state. docs/TUTORIAL.html uses it to
+    // boot the tutorial screen as it stands at each step of docs/TUTORIAL.md, so
+    // "what you should see" is literally what you see. It rides the existing
+    // per-scene mode switch (setShadeMode) rather than adding an ABI point, and a
+    // cart that ignores the mode simply runs as usual.
+    // skipBoot first: the mode only reaches a RUNNING cart, and an embedded panel
+    // does not want the boot ROM animation anyway.
+    const stepArg = params.get("step");
+    if (stepArg !== null) {
+        const n = Number(stepArg);
+        if (!Number.isInteger(n) || n < 1) {
+            console.warn("?step must be a positive integer, got:", stepArg);
+        } else {
+            demo.skipBoot();
+            if (!demo.setShadeMode || !demo.setShadeMode(n)) {
+                console.warn("?step=" + n + ": this cart has no steps, running it whole");
+            }
+        }
+    }
+
     // The sample is fed by the render loop once the running cart exposes its
     // buffer (after the boot ROM / immediately on a scene swap) — see the loop.
     start();
