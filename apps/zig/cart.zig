@@ -68,6 +68,7 @@ const scene = switch (opts.index) {
     55 => @import("scenes/union_superscroller.zig"),
     56 => @import("scenes/tutorial_steps.zig"), // docs/TUTORIAL.html runs this per step
     57 => @import("scenes/automation442.zig"),
+    58 => @import("scenes/big_demo.zig"), // The Exceptions / The B.I.G. Demo (CODEF screen 23)
     else => @compileError("bad cart index"),
 };
 
