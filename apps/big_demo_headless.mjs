@@ -14,7 +14,7 @@ import { readFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { performance } from "node:perf_hooks";
 import { boot, sndhPlay } from "./big_demo_machine.mjs";
-import { readList, checkSongs, ENTRIES, CURSOR } from "./big_demo_list.mjs";
+import { readList, checkSongs, ENTRIES, CURSOR, DIGITAL } from "./big_demo_list.mjs";
 
 const TOP = 5, LEFT = 40, CW = 320, CH = 270; // the screen, centred in the 400x280 plane
 const WAIT = 200; // wait()'s `if((mytempo++)>=200)`; frame 201 is go()'s first
@@ -23,17 +23,31 @@ const ART = "apps/zig/assets/screens/big_demo";
 const BAND_TOP = 52, BAND_ROW = 60, CYCLE_W = 32, CYCLE_H = 5; // the top band; one cycle tile
 const LIST_Y = 92, LIST_X = 17, LIST_W = 280, ROWS = 5, RH = 8, RULES = [107, 115];
 const RED = [255, 0, 0]; // mylist3.fill('#ff0000'), the cursor row
-// Whole-frame SHA-256s of an input-free run, from the build whose every row
-// outside the three cycler bands matched a Chrome replay of the remake's
-// screen.js exactly (0 px wrong on frames 1, 201, 202, 400, 600 and 1000),
-// re-baked when the colour bands became cycle.png's real PATTERN. Frame 1 is
-// the wait screen, which has no bands: its hash is unchanged across that fix.
+// Whole-frame SHA-256s of an input-free run.
+//
+// RE-BAKED 2026-09-19, the first time these moved by design: big/list.zig is no
+// longer the remake's list but TEX's OWN 118-row table, ripped out of the
+// running demo's memory, so the five rows on screen at curent = 2 are now the
+// real ones and carry their durations. Old -> new:
+//
+//     1    6d2299731df2  ->  6d2299731df2   UNCHANGED
+//     201  59ca35735a78  ->  f56c8c8f606c
+//     400  a1a63a604e7e  ->  caafe3b57044
+//     1000 c5724b7a028b  ->  1c71895efdfc
+//
+// Frame 1 is the wait() instruction screen, which draws no list — that it did
+// NOT move is the control showing the change is confined to the list block.
+//
+// The earlier baseline was the build whose every row outside the three cycler
+// bands matched a Chrome replay of the remake's screen.js exactly (0 px wrong
+// on frames 1, 201, 202, 400, 600 and 1000). That comparison no longer applies
+// to the LIST ROWS, deliberately: they are the demo's, not the remake's.
+// Everything outside the list block is still the replayed screen.
 // BIG_DEMO_HASHES=1 re-prints them if the screen is deliberately changed.
 const FRAMES = {
-    1: "6d2299731df28521dba73affc2ae7856d66139042e69b340240d8a56b8e37e2e", 201: "59ca35735a784ea4be8aeac1cc6120fcc2a952b43cf380598016c7fad5ac2423",
-    400: "a1a63a604e7e3dead42d9d4a09e24a3e9cd48bc43393f1bfaa698376f3daca6b", 1000: "c5724b7a028b63f940ddb833cb7f5cf551e07ec0414911c5b4fc80b3ac1e5148",
+    1: "6d2299731df28521dba73affc2ae7856d66139042e69b340240d8a56b8e37e2e", 201: "f56c8c8f606cbfbf9fb2bdbd17ac48d3715e0f85a4ef7ae14a9d47c9ec6dc1b9",
+    400: "caafe3b57044591b4be906c0b45524e29f6fbfcbf13198431398c8dbe30c72d9", 1000: "1c71895efdfc0108fe6c06f08f34d9e9aba3ed05052ff7e37a7416ba29103c6f",
 };
-
 const argv = process.argv.slice(2), bi = argv.indexOf("--break");
 const brk = bi >= 0 ? argv.splice(bi, 2)[1] : null;
 if (brk && !["nav", "music", "noop", "songs"].includes(brk)) throw new Error(`--break ${brk}: nav|music|noop|songs`);
@@ -45,10 +59,16 @@ const errors = [];
 const LIST = readList(brk);
 const songs = checkSongs(LIST);
 if (LIST.length !== ENTRIES) errors.push(`big/list.zig holds ${LIST.length} entries, TEX's list is ${ENTRIES}`);
+// The clamp is `mylist.length - 3`, so the Digital Department row is reachable
+// ONLY if it sits exactly there. Appending it after the trailing blank and
+// "END OF LIST" would leave it selectable by nobody, silently.
+if (!/DIGITAL DEPARTMENT/.test(LIST[DIGITAL]?.label ?? "")) errors.push(`entry ${DIGITAL} is "${LIST[DIGITAL]?.label.trim()}", not the Digital Department row: the clamp cannot reach it`);
+if (LIST[DIGITAL]?.song) errors.push("the Digital Department row has a tune: it opens a screen, it does not play");
+if (CURSOR[1] !== LIST.length - 3) errors.push(`the cursor clamp ${CURSOR[1]} is not mylist.length-3 = ${LIST.length - 3}`);
 errors.push(...songs.errors);
 const playable = LIST.findIndex((e, n) => n > CURSOR[0] && e.song);
 // One of the four entries the archive has no SNDH for; not one of the separators.
-const silent = LIST.findIndex((e) => !e.song && /THALAMUS|DELTA PREVIEW|V8 *#2/.test(e.label));
+const silent = LIST.findIndex((e) => !e.song && /THALAMUS|DELTA +PREVIEW|V8 *#2/.test(e.label));
 const want = LIST[playable];
 if (silent < 0) errors.push("no unmapped tune (Thalamus / Delta preview / V8 #2) found in big/list.zig");
 
@@ -166,11 +186,11 @@ const atTop = hashList();
 if (nav(0, 5) !== atTop) errors.push("Up at the top of the list moved the cursor: `if((curent--)<=2)` does not clamp");
 if (nav(1) === atTop) errors.push("Down did not move the cursor");
 if (nav(0) !== atTop) errors.push("Up did not come back to the top of the list");
-const h112 = nav(1, CURSOR[1] - CURSOR[0] - 1); // 2 -> 112
-const h113 = nav(1); // 112 -> 113, the last cursor position
-if (h113 === h112) errors.push(`Down from ${CURSOR[1] - 1} did not move: the clamp is one entry early`);
-if (nav(1, 5) !== h113) errors.push(`Down past ${CURSOR[1]} moved: \`if((curent++)>=mylist.length-3)\` does not clamp`);
-if (nav(0) !== h112) errors.push(`Up from ${CURSOR[1]} did not come back one entry`);
+const hLast1 = nav(1, CURSOR[1] - CURSOR[0] - 1); // 2 -> one above the clamp
+const hLast = nav(1); // ...and on to the clamp, the last cursor position
+if (hLast === hLast1) errors.push(`Down from ${CURSOR[1] - 1} did not move: the clamp is one entry early`);
+if (nav(1, 5) !== hLast) errors.push(`Down past ${CURSOR[1]} moved: \`if((curent++)>=mylist.length-3)\` does not clamp`);
+if (nav(0) !== hLast1) errors.push(`Up from ${CURSOR[1]} did not come back one entry`);
 // 6. Return: a mapped entry plays, an unmapped one plays NOTHING
 nav(0, 200); // back to the top, whatever the clamp did
 nav(1, playable - CURSOR[0]);

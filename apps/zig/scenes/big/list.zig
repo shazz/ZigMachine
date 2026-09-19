@@ -1,137 +1,136 @@
-// The B.I.G. Demo's jukebox list: TEX's own 116 menu entries, exactly as they
-// stand in CODEF screen 23 (screen.js:89-204), and the SNDH each one plays.
+// The B.I.G. Demo's jukebox list — TEX's OWN 118 rows, ripped out of the
+// running demo's memory, not transcribed from the CODEF remake.
 //
-// The remake names a .ym per entry ("Big - Delta  7.ym"). Those dumps are Mad
-// Max's Best-In-Galaxy tunes, and the archive holds the real SNDH images, so a
-// "<Tune> N.ym" is <Tune>.sndh subtune N (they match 1:1 — Aufweidersehen Monty
-// is 13 .ym files and a 13-subtune SNDH, Delta 10 and 10, and so on). The file
-// names differ from TEX's spelling in places (Confusion -> Confuzion, W.a.r ->
-// Make_Love_Not_W_A_R): that is the archive's naming, not a substitution.
+// The rows themselves are generated into big/list_data.zig. This file is the
+// provenance: where they came from, how they were checked, and what the fields
+// mean. That prose is the point — it is what makes the data trustworthy to the
+// next reader — so it lives here rather than being squeezed to fit beside 118
+// table rows.
 //
-// `song = ""` means "select it, nothing plays" — which is what the original
-// does for its four separator rows, and all we can honestly do for the four
-// entries with no SNDH behind them (see the scene header).
-pub const Entry = struct {
-    label: []const u8, // 34 or 35 chars, printed with the 8x8 list font
-    song: []const u8, // "" = nothing to play
-    tune: u8, // SNDH subtune, counting from 1
-};
+// ---- SOURCE --------------------------------------------------------------
+// BIG_DEMO.MSA booted in Hatari (TOS 1.02 fr, ST, 1 MB), frozen at the jukebox
+// screen, the table dumped straight out of RAM
+// (prototypes/codef/23/atarimania/songlist.bin). The geometry comes out of the
+// DRAWING CODE, not from eyeballing the data:
+//
+//     $B648  mulu.w  #$26,d1        ; row index * 38   <- stride
+//     $B652  lea     $a4bc(pc),a0   ; table base       <- $A4BC
+//     $B662  move.b  (a0)+,d0       ; print until NUL
+//     $B686  move.b  $24(a1),$b699  ; byte 36 -> a self-modified operand
+//     $B68E  move.b  $25(a1),$b69b  ; byte 37 -> a self-modified operand
+//
+// A row is 38 bytes: [0..34] the 35 printable characters, [35] the NUL the
+// print loop stops on, [36] the subtune (0-BASED), [37] the tune id. On a tune
+// row byte 29 is '|' and bytes 30..34 are the duration, MM'SS.
+//
+// ---- VERIFIED INDEPENDENTLY, before any of this was generated -------------
+// The dump begins ONE BYTE BEFORE $A4BC and runs past the table's end, so a
+// decode from offset 0 produces rows of noise. Rather than take the offset on
+// trust, it was recovered from the bytes: the printable runs in the dump start
+// at 1, 39, 77, 115, 153, 191, ... which gives base = 1 and stride = 38 from
+// the data alone. Then, every one of these was measured and held:
+//
+//   * all 118 rows carry NUL at byte 35, and every label is fully printable;
+//   * exactly 113 rows carry '|' at byte 29, and all 113 of those ALSO carry a
+//     well-formed MM'SS at 30..34 — zero exceptions in either direction. The
+//     other 5 are the dividers and blanks;
+//   * 118 x 38 = 4484 = $A4BC..$B640, exactly what the drawing code says;
+//   * ACE 2 = 05'52, ACTION-BIKER #1 = 03'09 and #2 = 01'01 — all three match
+//     the live screen;
+//   * and the whole decode was then diffed row by row, field by field, against
+//     an independent one made from the same dump: 118 of 118 identical.
+//
+// ---- THE SUBTUNE IS THE DEMO'S OWN ---------------------------------------
+// `tune` is byte 36 + 1 (our API counts from 1) and rows sharing byte 37 share
+// an SNDH image. This replaces the mapping we previously INFERRED from the
+// remake's ".ym" filename numbering. Across all 47 ids byte 36 runs 0..n-1 with
+// zero exceptions, and the group sizes match the SNDH images exactly — MONTY
+// 13, DELTA 10, GERRY THE GERM 7, GREMLIN 7, SAMANTHA-FOX 6, STRONGMAN 6.
+//
+// NOTE the SEMANTICS of bytes 36/37 are a reading of two values the code copies
+// into self-modified operands. The bytes are fact; "subtune" and "tune id" are
+// the hypothesis that 47-for-47 agreement supports.
+//
+// ---- THE LABELS ARE VERBATIM ---------------------------------------------
+// Internal spacing, the '|', and the duration, exactly as the table holds them.
+//
+// The '|' does not appear on the real screen and does not need stripping:
+// fontp.png is 512x32, cut by initTile(16,16,32) into 64 tiles from character
+// 32, so '|' (0x7C) is glyph 92 — off the sheet. drawPart paints nothing, which
+// is precisely what screen.zig's `if (g >= A.P_GLYPHS) continue` does, the same
+// path the scrolltext's TAB and lowercase 'r' already take. Checked against the
+// font, not assumed.
+//
+// Keeping the labels verbatim is also what puts the DURATIONS on screen,
+// right-aligned, with no code at all: they are part of the 35 characters.
+//
+// ---- WHERE THE REMAKE IS WRONG -------------------------------------------
+// It is not only dropped rows. CODEF screen 23 RENAMED entries and then
+// RE-SORTED the list alphabetically under the new names, which moved them:
+//
+//     ACTION-BIKER #1..#3   -> "CLUMSY COLIN ACTION BIKER",  A -> C
+//     STRONGMAN #1..#6      -> "GEOFF CAPES STRONGMAN",      S -> G
+//     SHOWJUMPING           -> "HARVEY SMITHS SHOW JUMPING", S -> H
+//
+// It also dropped BALLOON CHALLENGE #2 and INTERNATIONAL KARATE II, invented an
+// "INTERNATIONAL KARATE +" that memory does not have, lost the '&' of BUMP SET
+// & SPIKE and both hyphens of SAMANTHA-FOX STRIP-POKER, shortened
+// "(MAKE L.O.V.E. NOT) W.A.R." to "W.A.R", carried a "##2" typo on GERRY THE
+// GERM, and ended the list "END OF LIST" where the demo says "BOTTOM OF LIST".
+// We follow the REAL demo (Matt, 2026-09-19) — the same call already made for
+// the colour bands, the border and the Digital Department row itself.
+//
+// NOTE ZOIDS sorts AFTER ZOOLOOK here. That is the demo's own order, not a
+// mistake, and it must not be "fixed".
+//
+// ---- FILE NAMES, AND TWO REAL DISAGREEMENTS ------------------------------
+// The archive's names differ from TEX's spelling in places — CONFUZION ->
+// Confuzion.sndh, SHOWJUMPING -> Harvey_Smiths_Show_Jumping.sndh — which is the
+// archive's naming of the same Mad Max Best-In-Galaxy tunes, not a substitution.
+//
+// INTERNATIONAL KARATE II -> International_Karate_Plus.sndh is the same thing
+// in the other direction, and it is correct: the 1987 sequel to International
+// Karate was released as "International Karate +" (IK+), so TEX's "II" and the
+// archive's "_Plus" are one game under its two common names. The two files in
+// Best_In_Galaxy/ are genuinely different images (different size and md5)
+// despite sharing a TITL, so the demo's two rows map onto them one for one.
+// Settled; please do not re-litigate it.
+//
+// Two genuine disagreements between the demo's table and the archive, recorded
+// here as known rather than overlooked:
+//
+//   * THE LAST V8 — the table has THREE rows, The_Last_V8.sndh is ##01. Rows #2
+//     and #3 therefore play NOTHING. The archive is missing two of TEX's
+//     subtunes; that is a fact about the archive, not a licence to substitute
+//     some other part of the tune.
+//   * STARPAWS — the table has THREE rows, Starpaws.sndh is ##04. Subtunes 1-3
+//     are used and the fourth is simply unused. Harmless, but it means either
+//     the demo omits one or the archive's image carries an extra.
+//
+// `song = ""` means "select it, nothing plays": the 5 divider and blank rows,
+// the two tunes with no SNDH in the archive at all (DELTA PREVIEW, THALAMUS),
+// and THE LAST V8 #2 and #3 above. Nine rows in total.
+const std = @import("std");
+const data = @import("list_data.zig");
 
-pub const ENTRIES = [_]Entry{
-    .{ .label = "----------TOP OF LIST--------------", .song = "", .tune = 0 },
-    .{ .label = "                                   ", .song = "", .tune = 0 },
-    .{ .label = "               ACE 2               ", .song = "big/Ace_2.sndh", .tune = 1 },
-    .{ .label = "     AUFWIEDERSEHEN MONTY  #1     ", .song = "big/Aufweidersehen_Monty.sndh", .tune = 1 },
-    .{ .label = "     AUFWIEDERSEHEN MONTY  #2     ", .song = "big/Aufweidersehen_Monty.sndh", .tune = 2 },
-    .{ .label = "     AUFWIEDERSEHEN MONTY  #3     ", .song = "big/Aufweidersehen_Monty.sndh", .tune = 3 },
-    .{ .label = "     AUFWIEDERSEHEN MONTY  #4     ", .song = "big/Aufweidersehen_Monty.sndh", .tune = 4 },
-    .{ .label = "     AUFWIEDERSEHEN MONTY  #5     ", .song = "big/Aufweidersehen_Monty.sndh", .tune = 5 },
-    .{ .label = "     AUFWIEDERSEHEN MONTY  #6     ", .song = "big/Aufweidersehen_Monty.sndh", .tune = 6 },
-    .{ .label = "     AUFWIEDERSEHEN MONTY  #7     ", .song = "big/Aufweidersehen_Monty.sndh", .tune = 7 },
-    .{ .label = "     AUFWIEDERSEHEN MONTY  #8     ", .song = "big/Aufweidersehen_Monty.sndh", .tune = 8 },
-    .{ .label = "     AUFWIEDERSEHEN MONTY  #9     ", .song = "big/Aufweidersehen_Monty.sndh", .tune = 9 },
-    .{ .label = "     AUFWIEDERSEHEN MONTY #10     ", .song = "big/Aufweidersehen_Monty.sndh", .tune = 10 },
-    .{ .label = "     AUFWIEDERSEHEN MONTY #11     ", .song = "big/Aufweidersehen_Monty.sndh", .tune = 11 },
-    .{ .label = "     AUFWIEDERSEHEN MONTY #12     ", .song = "big/Aufweidersehen_Monty.sndh", .tune = 12 },
-    .{ .label = "     AUFWIEDERSEHEN MONTY #13     ", .song = "big/Aufweidersehen_Monty.sndh", .tune = 13 },
-    .{ .label = "       BALLOON CHALLENGE #1       ", .song = "big/Balloon_Challange.sndh", .tune = 1 },
-    .{ .label = "         BATTLE OF BRITAIN         ", .song = "big/Battle_Of_Britain.sndh", .tune = 1 },
-    .{ .label = "         BUMP SET SPIKE #1         ", .song = "big/Bump_Set_And_Spike.sndh", .tune = 1 },
-    .{ .label = "         BUMP SET SPIKE #2         ", .song = "big/Bump_Set_And_Spike.sndh", .tune = 2 },
-    .{ .label = "            CHIMERA #1            ", .song = "big/Chimera.sndh", .tune = 1 },
-    .{ .label = "            CHIMERA #2            ", .song = "big/Chimera.sndh", .tune = 2 },
-    .{ .label = "   CLUMSY COLIN ACTION BIKER #1   ", .song = "big/Clumsy_Colin_Action_Biker.sndh", .tune = 1 },
-    .{ .label = "   CLUMSY COLIN ACTION BIKER #2   ", .song = "big/Clumsy_Colin_Action_Biker.sndh", .tune = 2 },
-    .{ .label = "   CLUMSY COLIN ACTION BIKER #3   ", .song = "big/Clumsy_Colin_Action_Biker.sndh", .tune = 3 },
-    .{ .label = "        COMMANDO #1 - GAME        ", .song = "big/Commando.sndh", .tune = 1 },
-    .{ .label = "      COMMANDO #2 - HIGHSCORE      ", .song = "big/Commando.sndh", .tune = 2 },
-    .{ .label = "            COMMANDO #3            ", .song = "big/Commando.sndh", .tune = 3 },
-    .{ .label = "             CONFUSION             ", .song = "big/Confuzion.sndh", .tune = 1 },
-    .{ .label = "          CRAZY COMETS #1          ", .song = "big/Crazy_Comets.sndh", .tune = 1 },
-    .{ .label = "          CRAZY COMETS #2          ", .song = "big/Crazy_Comets.sndh", .tune = 2 },
-    .{ .label = "       DELTA  #1 - HIGHSCORE       ", .song = "big/Delta.sndh", .tune = 1 },
-    .{ .label = "         DELTA  #2 - TITLE         ", .song = "big/Delta.sndh", .tune = 2 },
-    .{ .label = "             DELTA  #3             ", .song = "big/Delta.sndh", .tune = 3 },
-    .{ .label = "             DELTA  #4             ", .song = "big/Delta.sndh", .tune = 4 },
-    .{ .label = "             DELTA  #5             ", .song = "big/Delta.sndh", .tune = 5 },
-    .{ .label = "             DELTA  #6             ", .song = "big/Delta.sndh", .tune = 6 },
-    .{ .label = "             DELTA  #7             ", .song = "big/Delta.sndh", .tune = 7 },
-    .{ .label = "             DELTA  #8             ", .song = "big/Delta.sndh", .tune = 8 },
-    .{ .label = "             DELTA  #9             ", .song = "big/Delta.sndh", .tune = 9 },
-    .{ .label = "             DELTA #10             ", .song = "big/Delta.sndh", .tune = 10 },
-    .{ .label = "           DELTA PREVIEW           ", .song = "", .tune = 0 },
-    .{ .label = "             EDUCATION             ", .song = "big/Education.sndh", .tune = 1 },
-    .{ .label = "           FLASH GORDON           ", .song = "big/Flash_Gordon.sndh", .tune = 1 },
-    .{ .label = "            FORMULA ONE            ", .song = "big/Formula_1.sndh", .tune = 1 },
-    .{ .label = "     GEOFF CAPES STRONGMAN #1     ", .song = "big/Geoff_Capes_Strongman.sndh", .tune = 1 },
-    .{ .label = "     GEOFF CAPES STRONGMAN #2     ", .song = "big/Geoff_Capes_Strongman.sndh", .tune = 2 },
-    .{ .label = "     GEOFF CAPES STRONGMAN #3     ", .song = "big/Geoff_Capes_Strongman.sndh", .tune = 3 },
-    .{ .label = "     GEOFF CAPES STRONGMAN #4     ", .song = "big/Geoff_Capes_Strongman.sndh", .tune = 4 },
-    .{ .label = "     GEOFF CAPES STRONGMAN #5     ", .song = "big/Geoff_Capes_Strongman.sndh", .tune = 5 },
-    .{ .label = "     GEOFF CAPES STRONGMAN #6     ", .song = "big/Geoff_Capes_Strongman.sndh", .tune = 6 },
-    .{ .label = "         GERRY THE GERM #1         ", .song = "big/Gerry_The_Germ.sndh", .tune = 1 },
-    .{ .label = "        GERRY THE GERM ##2        ", .song = "big/Gerry_The_Germ.sndh", .tune = 2 },
-    .{ .label = "         GERRY THE GERM #3         ", .song = "big/Gerry_The_Germ.sndh", .tune = 3 },
-    .{ .label = "         GERRY THE GERM #4         ", .song = "big/Gerry_The_Germ.sndh", .tune = 4 },
-    .{ .label = "         GERRY THE GERM #5         ", .song = "big/Gerry_The_Germ.sndh", .tune = 5 },
-    .{ .label = "         GERRY THE GERM #6         ", .song = "big/Gerry_The_Germ.sndh", .tune = 6 },
-    .{ .label = "         GERRY THE GERM #7         ", .song = "big/Gerry_The_Germ.sndh", .tune = 7 },
-    .{ .label = "       GREMLIN MUSIC DEMO #1       ", .song = "big/Gremlin_Music_Demo.sndh", .tune = 1 },
-    .{ .label = "       GREMLIN MUSIC DEMO #2       ", .song = "big/Gremlin_Music_Demo.sndh", .tune = 2 },
-    .{ .label = "       GREMLIN MUSIC DEMO #3       ", .song = "big/Gremlin_Music_Demo.sndh", .tune = 3 },
-    .{ .label = "       GREMLIN MUSIC DEMO #4       ", .song = "big/Gremlin_Music_Demo.sndh", .tune = 4 },
-    .{ .label = "       GREMLIN MUSIC DEMO #5       ", .song = "big/Gremlin_Music_Demo.sndh", .tune = 5 },
-    .{ .label = "       GREMLIN MUSIC DEMO #6       ", .song = "big/Gremlin_Music_Demo.sndh", .tune = 6 },
-    .{ .label = "       GREMLIN MUSIC DEMO #7       ", .song = "big/Gremlin_Music_Demo.sndh", .tune = 7 },
-    .{ .label = "    HARVEY SMITHS SHOW JUMPING    ", .song = "big/Harvey_Smiths_Show_Jumping.sndh", .tune = 1 },
-    .{ .label = "           HUMAN RACE #1           ", .song = "big/Human_Race.sndh", .tune = 1 },
-    .{ .label = "           HUMAN RACE #2           ", .song = "big/Human_Race.sndh", .tune = 2 },
-    .{ .label = "           HUMAN RACE #3           ", .song = "big/Human_Race.sndh", .tune = 3 },
-    .{ .label = "           HUMAN RACE #4           ", .song = "big/Human_Race.sndh", .tune = 4 },
-    .{ .label = "           HUMAN RACE #5           ", .song = "big/Human_Race.sndh", .tune = 5 },
-    .{ .label = "           HUNTER PATROL           ", .song = "big/Hunter_Patrol.sndh", .tune = 1 },
-    .{ .label = "              I-BALL              ", .song = "big/I-Ball.sndh", .tune = 1 },
-    .{ .label = "      INTERNATIONAL KARATE +      ", .song = "big/International_Karate_Plus.sndh", .tune = 1 },
-    .{ .label = "       INTERNATIONAL KARATE       ", .song = "big/International_Karate.sndh", .tune = 1 },
-    .{ .label = "              LABELLO              ", .song = "big/Labello.sndh", .tune = 1 },
-    .{ .label = "            LIGHTFORCE            ", .song = "big/Lightforce.sndh", .tune = 1 },
-    .{ .label = "            LOCOMOTION            ", .song = "big/Locomotion.sndh", .tune = 1 },
-    .{ .label = "        MASTER OF MAGIC #1        ", .song = "big/Master_Of_Magic.sndh", .tune = 1 },
-    .{ .label = "        MASTER OF MAGIC #2        ", .song = "big/Master_Of_Magic.sndh", .tune = 2 },
-    .{ .label = "        MASTER OF MAGIC #3        ", .song = "big/Master_Of_Magic.sndh", .tune = 3 },
-    .{ .label = "        MONTY ON THE RUN #1        ", .song = "big/Monty_On_The_Run.sndh", .tune = 1 },
-    .{ .label = "        MONTY ON THE RUN #2        ", .song = "big/Monty_On_The_Run.sndh", .tune = 2 },
-    .{ .label = "        MONTY ON THE RUN #3        ", .song = "big/Monty_On_The_Run.sndh", .tune = 3 },
-    .{ .label = "        NEMESIS THE WARLOCK        ", .song = "big/Nemesis_The_Warlock.sndh", .tune = 1 },
-    .{ .label = "       ONE MAN AND HIS DROID       ", .song = "big/One_Man_and_His_Droid.sndh", .tune = 1 },
-    .{ .label = "    PHANTOMS OF THE ASTEROID #1    ", .song = "big/Phantom_Of_The_Asteroid.sndh", .tune = 1 },
-    .{ .label = "    PHANTOMS OF THE ASTEROID #2    ", .song = "big/Phantom_Of_The_Asteroid.sndh", .tune = 2 },
-    .{ .label = "    SAMANTHA FOX STRIP POKER #1    ", .song = "big/Sam_Fox_Strip_Poker.sndh", .tune = 1 },
-    .{ .label = "    SAMANTHA FOX STRIP POKER #2    ", .song = "big/Sam_Fox_Strip_Poker.sndh", .tune = 2 },
-    .{ .label = "    SAMANTHA FOX STRIP POKER #3    ", .song = "big/Sam_Fox_Strip_Poker.sndh", .tune = 3 },
-    .{ .label = "    SAMANTHA FOX STRIP POKER #4    ", .song = "big/Sam_Fox_Strip_Poker.sndh", .tune = 4 },
-    .{ .label = "    SAMANTHA FOX STRIP POKER #5    ", .song = "big/Sam_Fox_Strip_Poker.sndh", .tune = 5 },
-    .{ .label = "    SAMANTHA FOX STRIP POKER #6    ", .song = "big/Sam_Fox_Strip_Poker.sndh", .tune = 6 },
-    .{ .label = "         SANXION - LOADER         ", .song = "big/Sanxion_Loader.sndh", .tune = 1 },
-    .{ .label = "              SANXION              ", .song = "big/Sanxion_Title.sndh", .tune = 1 },
-    .{ .label = "            SMALL TITLE            ", .song = "big/Small_Title.sndh", .tune = 1 },
-    .{ .label = "            SPELLBOUND            ", .song = "big/Spellbound.sndh", .tune = 1 },
-    .{ .label = "            STARPAWS #1            ", .song = "big/Starpaws.sndh", .tune = 1 },
-    .{ .label = "            STARPAWS #2            ", .song = "big/Starpaws.sndh", .tune = 2 },
-    .{ .label = "            STARPAWS #3            ", .song = "big/Starpaws.sndh", .tune = 3 },
-    .{ .label = "             THALAMUS             ", .song = "", .tune = 0 },
-    .{ .label = "          THE LAST V8 #1          ", .song = "big/The_Last_V8.sndh", .tune = 1 },
-    .{ .label = "          THE LAST V8 #2          ", .song = "", .tune = 0 },
-    .{ .label = "          THE LAST V8 #3          ", .song = "", .tune = 0 },
-    .{ .label = "         THING ON A SPRING         ", .song = "big/Thing_On_A_Spring.sndh", .tune = 1 },
-    .{ .label = "              THRUST              ", .song = "big/Thrust.sndh", .tune = 1 },
-    .{ .label = "              WARHAWK              ", .song = "big/Warhawk.sndh", .tune = 1 },
-    .{ .label = "               W.A.R               ", .song = "big/Make_Love_Not_W_A_R.sndh", .tune = 1 },
-    .{ .label = "              WIZ #1              ", .song = "big/Wiz.sndh", .tune = 1 },
-    .{ .label = "              WIZ #2              ", .song = "big/Wiz.sndh", .tune = 2 },
-    .{ .label = "              WIZ #3              ", .song = "big/Wiz.sndh", .tune = 3 },
-    .{ .label = "               ZOIDS               ", .song = "big/Zoids.sndh", .tune = 1 },
-    .{ .label = "              ZOOLOOK              ", .song = "big/Zoolook.sndh", .tune = 1 },
-    .{ .label = "                                   ", .song = "", .tune = 0 },
-    .{ .label = "----------END OF LIST--------------", .song = "", .tune = 0 },
-};
+pub const Entry = data.Entry;
+pub const ENTRIES = data.ENTRIES;
+
+/// The row that opens the Digital Solution (big/digital.zig): the last one
+/// `curent` can reach.
+///
+/// The real table puts "-=THE DIGITAL DEPARTMENT=-" at row 115, and the demo's
+/// own clamp is `mylist.length - 3` = 118 - 3 = 115. The data and the code
+/// agree without being made to, which is the strongest evidence we have that
+/// this row is where memory says it is — and it is why the remake's list, which
+/// has no such row, left the clamp pointing at an ordinary tune.
+pub const DIGITAL: usize = ENTRIES.len - 3;
+
+comptime {
+    @setEvalBranchQuota(4000); // the 118-row label check below
+    if (ENTRIES.len != 118) @compileError("the table is 118 rows");
+    if (ENTRIES[DIGITAL].song.len != 0) @compileError("the Digital Department row must have no tune");
+    if (std.mem.indexOf(u8, ENTRIES[DIGITAL].label, "DIGITAL DEPARTMENT") == null)
+        @compileError("DIGITAL does not point at the Digital Department row");
+    for (ENTRIES) |e| if (e.label.len != 35) @compileError("a row is not 35 characters");
+}

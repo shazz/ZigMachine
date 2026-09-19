@@ -88,6 +88,21 @@ pub const FADE = [30]u8{ 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41,
 /// Screen.texbg is a real f64 accumulator for exactly that reason.
 pub const FRAME_CYCLE: u32 = 60;
 
+/// go()'s `texbg += 0.4`: the rate the three raster bands step through
+/// cycle.png's 8 tiles. Named here so it sits beside the Digital Department's
+/// own rate below — they are the SAME cycle at two different speeds.
+pub const CYCLE_STEP: f64 = 0.4;
+
+/// The Digital Solution's text cycles through the same 8 colours but SLOWER
+/// than the jukebox's bands (Matt, 2026-09-19).
+///
+/// THE EXACT INCREMENT IS NOT KNOWN. 0.2 is a provisional half-speed, chosen
+/// because it is obviously provisional and not because it was measured; it is
+/// to be confirmed against the real demo (eyeballed, or read out of the 68000
+/// code by a session running it in an emulator). It is one constant on purpose:
+/// when the real rate turns up this line is the whole change.
+pub const DIGITAL_CYCLE_STEP: f64 = 0.2;
+
 // ---- the files ----------------------------------------------------------
 pub const cycle = @embedFile("../../assets/screens/big_demo/cycle.raw"); // 8 tiles of 32x5, tile-major
 pub const main_img = @embedFile("../../assets/screens/big_demo/main.raw"); // 320x270, 0 = hole

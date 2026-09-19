@@ -36,6 +36,8 @@ pub const Screen = struct {
     /// go()'s frame count, mod A.FRAME_CYCLE: fadecpt (+0.5)
     /// are read off it as integers, so neither drifts the way a float would.
     frame: u32,
+    /// The Digital Solution's own, slower colour-cycle accumulator — NOT texbg.
+    digital_cycle: f64,
     mytempo: u32, // wait()'s 200-frame counter
     bgscrposx: i32, // fontbg's scroll under the transparent scroller
     curent: usize, // the cursor: always the MIDDLE of the five rows
@@ -51,6 +53,7 @@ pub const Screen = struct {
     pub fn init(self: *Screen) void {
         self.frame = 0;
         self.texbg = 0;
+        self.digital_cycle = 0;
         self.mytempo = 0;
         self.bgscrposx = 0;
         self.curent = 2;
@@ -80,7 +83,10 @@ pub const Screen = struct {
 
     /// scrolltext_horizontal.draw() advances the letters BEFORE painting them,
     /// so go()'s very first frame already shows them one step in.
-    fn advance(self: *Screen) void {
+    /// Public because the Digital Solution (big/digital.zig) shows the SAME
+    /// scroller and drives it the same way — advance, paint, scrollerTick — off
+    /// this one Screen, so the text carries on across the swap.
+    pub fn advance(self: *Screen) void {
         for (&self.posx, &self.ltr) |*px, *lt| {
             px.* -= A.SPEED2;
             if (px.* <= -A.FONT_W2) {
@@ -92,11 +98,44 @@ pub const Screen = struct {
         }
     }
 
-    /// go()'s tail (screen.js:488-490), run after the frame is painted.
-    fn tick(self: *Screen) void {
+    /// The cycle tile showing this frame — go()'s own `Math.floor(texbg)%8`.
+    fn tileOf(v: f64) usize {
+        return @intFromFloat(@mod(@floor(v), @as(f64, @floatFromInt(A.CYCLE_TILES))));
+    }
+    pub fn cycleTile(self: *const Screen) usize {
+        return tileOf(self.texbg);
+    }
+
+    /// texbg += 0.4, exactly go()'s accumulation, drift and all. Public because
+    /// the Digital Solution keeps the jukebox's bands running while it is up.
+    pub fn texbgTick(self: *Screen) void {
+        self.texbg += A.CYCLE_STEP;
+    }
+
+    /// The Digital Solution's text cycle. SAME eight colours, SEPARATE and
+    /// SLOWER accumulator — it is deliberately not `texbg`, and the two must
+    /// not be "simplified" back into one: the jukebox's bands and this screen's
+    /// text run at different rates on the real machine (Matt, 2026-09-19).
+    /// Advanced only while that screen is up, so it carries on from where it
+    /// was across visits, as the scrolltext does. (Whether the real screen
+    /// restarts it on entry is not known.)
+    pub fn digitalTile(self: *const Screen) usize {
+        return tileOf(self.digital_cycle);
+    }
+    pub fn digitalTick(self: *Screen) void {
+        self.digital_cycle += A.DIGITAL_CYCLE_STEP;
+    }
+
+    /// The fontbg diagonal's step: the other half of the scroller's state.
+    pub fn scrollerTick(self: *Screen) void {
         self.bgscrposx -= 3; // if((bgscrposx-=3)<=-31) bgscrposx=0;
         if (self.bgscrposx <= -31) self.bgscrposx = 0;
-        self.texbg += 0.4; // exactly go()'s accumulation, drift and all
+    }
+
+    /// go()'s tail (screen.js:488-490), run after the frame is painted.
+    fn tick(self: *Screen) void {
+        self.scrollerTick();
+        self.texbgTick();
         // fadecpt += 0.5 rides on this; 0.5 IS exact in binary, so the integer
         // count is the same sequence forever, and it is kept inside one cycle
         // so the u32 can never wrap out from under it (see A.FRAME_CYCLE).
@@ -126,8 +165,7 @@ pub const Screen = struct {
         self.advance();
         // cycler[Math.floor(texbg)%8].draw(mycanvas,0,498/378/104): each band is
         // cycle.png's tile i, tiled 10 across and 4 down. texbg += 0.4 a frame.
-        const tile = @mod(@floor(self.texbg), @as(f64, @floatFromInt(A.CYCLE_TILES)));
-        expandBand(@intFromFloat(tile));
+        expandBand(self.cycleTile());
         for (A.BAND_Y) |by| {
             for (0..A.BAND_H) |i| @memcpy(row(fb, by + i), &band_rows[i % A.CYCLE_H]);
         }
@@ -143,7 +181,7 @@ pub const Screen = struct {
                 }
             }
         }
-        self.drawScroller(fb);
+        self.drawScrollerAt(fb, A.SCROLL_Y);
         self.drawShadows(fb);
         self.drawList(fb);
         // The two rules that bracket the cursor row, pulsing on fade[] at +0.5.
@@ -154,7 +192,12 @@ pub const Screen = struct {
 
     /// The transparent scroller: the IN font is a MASK filled with the scrolling
     /// fontbg diagonal (canvas 'source-in'), the OUT font's outline over it.
-    fn drawScroller(self: *Screen, fb: *LogicalFB) void {
+    /// `y0` is the band's top row in content coordinates: A.SCROLL_Y for the
+    /// jukebox, 35 lower for the Digital Solution. The fontbg diagonal is
+    /// anchored to the GLYPH's row (what the jukebox's 0-px replay confirms)
+    /// and repeats every 8 px, so drawing a band at another y is only a phase
+    /// shift of it.
+    pub fn drawScrollerAt(self: *Screen, fb: *LogicalFB, y0: usize) void {
         const phase = @divFloor(-self.bgscrposx, 2); // fontbg's offset, halved
         for (self.posx, self.ltr) |px, lt| {
             // -ME-'s text is not pure uppercase: it carries 2 TABs and 38
@@ -181,7 +224,7 @@ pub const Screen = struct {
                 const off = (g * A.GH + y) * A.GW + sx;
                 const mask = A.fontin[off..][0..n];
                 const line = A.fontout[off..][0..n];
-                const dst = row(fb, A.SCROLL_Y + y)[dx..][0..n];
+                const dst = row(fb, y0 + y)[dx..][0..n];
                 for (mask, line, dst, 0..) |m, o, *d, k| {
                     if (m != 0) {
                         const t = @as(i32, @intCast(dx + k)) + phase - @as(i32, @intCast(y));

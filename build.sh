@@ -190,11 +190,20 @@ gate union_beatdis node apps/union_beatdis_headless.mjs "$SHOTS"   # TCB1: loade
 gate union_beatdis node apps/union_beatdis_headless.mjs --break keylock "$SHOTS"   # ...and a key lock that releases between repeats fails the hold check
 gate union_superscroller node apps/union_superscroller_headless.mjs "$SHOTS"   # TCB2: TEX loader depack, screen.js with Chrome's filtering replayed pixel for pixel, the SNDH plays
 gate automation442 node apps/automation442_headless.mjs "$SHOTS/automation442"   # AUTOMATION 442: the panned overscan scroll plane through one bgcount cycle
-gate big_demo node apps/big_demo_headless.mjs   # TEX B.I.G. DEMO: wait screen hands over at frame 201, 116 entries, cursor clamps [2,113], all 45 named SNDH present, bands cycle
+gate big_demo node apps/big_demo_headless.mjs   # TEX B.I.G. DEMO: wait screen hands over at frame 201, TEX's own 118 rows ripped from RAM, cursor clamps [2,115], all 45 named SNDH present, bands cycle
 gate big_demo node apps/big_demo_headless.mjs --break nav   # ...and a list that never moves fails the clamp checks
 gate big_demo node apps/big_demo_headless.mjs --break music   # ...and the wrong subtune fails the song check
 gate big_demo node apps/big_demo_headless.mjs --break noop   # ...and an entry with no SNDH that asks for one fails (no silent substitution)
 gate big_demo node apps/big_demo_headless.mjs --break songs   # ...and a named SNDH missing from docs/music/big/ fails (it would play silence)
+gate digital_solution node apps/digital_solution_headless.mjs   # THE DIGITAL SOLUTION (a screen OF big_demo): list row 115 opens it, every px outside the scroller band = screen.raw, the band is the SHARED scrolltext in lockstep, the text cycles on texbg, opening it plays the DIGI Ace 2, keys 1-6 -> 6 subtunes
+gate digital_solution node apps/digital_solution_headless.mjs --break pixels   # ...and one changed pixel of the reference fails the picture check
+gate digital_solution node apps/digital_solution_headless.mjs --break tune   # ...and PHANTOMS 2 on the wrong subtune fails the key mapping
+gate digital_solution node apps/digital_solution_headless.mjs --break songs   # ...and a named SNDH missing from docs/music/digital/ fails (it would play silence)
+gate digital_solution node apps/digital_solution_headless.mjs --break exit   # ...and a key that is not Space failing to leave is caught
+gate digital_solution node apps/digital_solution_headless.mjs --break route   # ...and Return one row short of the Digital Department not opening it is caught
+gate digital_solution node apps/digital_solution_headless.mjs --break drift   # ...and one frame of scrolltext drift is caught (so a restart would be too)
+gate digital_solution node apps/digital_solution_headless.mjs --break cycle   # ...and the text one cycle step out of phase is caught
+node apps/tlb_spoon_headless.mjs "$SHOTS/tlb_spoon"   # TLB TWIDDLE: the sine intro, then starballs + logo + the rotating-letter scroller
 gate stniccc node apps/stniccc_headless.mjs "$SHOTS/stniccc"   # STNICCC 2000 (Oxygene): the frame-replay flight, small -> rewind -> fullscreen
 gate tlb_spoon node apps/tlb_spoon_headless.mjs "$SHOTS/tlb_spoon"   # TLB TWIDDLE: the sine intro, then starballs + logo + the rotating-letter scroller
 echo "shots in $SHOTS"
