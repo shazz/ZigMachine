@@ -404,6 +404,8 @@ pub fn build(b: *std.Build) void {
         "demo-tutorial_steps", // 56 — tutorial.zig stopped at any step, for docs/TUTORIAL.html
         "demo-automation442", // 57 — AUTOMATION CD 442 PART A, the Ghostbusters II menu (CODEF screen 420)
         "demo-big_demo", // 58 — The Exceptions / The B.I.G. Demo jukebox (CODEF screen 23)
+        "demo-tlb_spoon", // 59 — THE LOST BOYS / THE TWIDDLE DEMO, ULM Megademo (CODEF screen 122)
+        "demo-tcb_colorshock", // 60 — THE CAREBEARS / COLORSHOCK 2, The Cuddly Demos (CODEF screen 172)
     };
     for (cart_names, 0..) |name, idx| {
         if (name.len == 0) continue; // excluded cart (see note above)

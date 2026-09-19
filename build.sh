@@ -119,6 +119,7 @@ node apps/union_demo_headless.mjs --break wrap "$SHOTS/union_demo"   # ...and a 
 node apps/union_multifake_headless.mjs "$SHOTS"   # TCB3: loader depack, then screen.js replayed pixel for pixel
 node apps/union_intro_wab_check.mjs docs/demo-union_intro.wasm   # cracktro WAB logo: lands as exactly wab.raw; the original JS replayed (skipped without prototypes/)
 node apps/dbug_headless.mjs "$SHOTS"
+node apps/tcb_colorshock_headless.mjs "$SHOTS/tcb_colorshock"   # COLORSHOCK 2: the hardware pan, the per-line palettes, the strip on its table
 node apps/fallen_angels_headless.mjs "$SHOTS"   # per-plane rasters on all 200 lines
 node apps/tex_loader_fx_headless.mjs "$SHOTS/tex_loader_fx"   # fx = tex_loader on a real asset, bytes checked
 node apps/tex_headless.mjs "$SHOTS"             # the eleven sprites on screen.js's chain
@@ -143,4 +144,5 @@ node apps/big_demo_headless.mjs --break nav   # ...and a list that never moves f
 node apps/big_demo_headless.mjs --break music   # ...and the wrong subtune fails the song check
 node apps/big_demo_headless.mjs --break noop   # ...and an entry with no SNDH that asks for one fails (no silent substitution)
 node apps/big_demo_headless.mjs --break songs   # ...and a named SNDH missing from docs/music/big/ fails (it would play silence)
+node apps/tlb_spoon_headless.mjs "$SHOTS/tlb_spoon"   # TLB TWIDDLE: the sine intro, then starballs + logo + the rotating-letter scroller
 echo "shots in $SHOTS"
