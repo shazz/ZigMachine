@@ -56,6 +56,12 @@ pub const P_GLYPHS: usize = 64;
 // ---- palette indices, as laid out by big_demo_assets.py -----------------
 pub const TRANSPARENT: u8 = 0;
 pub const BLACK: u8 = 1;
+/// rgb(160,160,160), the screen's own grey. The TOP row of both main.png and
+/// wait.png is this colour across all 640 px, so the opened top/bottom borders
+/// and the side margins must be it too — otherwise there is a visible seam
+/// where the border meets the screen. It was BLACK, and the seam showed
+/// (Matt, 2026-09-19).
+pub const PANEL: u8 = 6;
 /// mycycle.initTile(64,10,0) cuts cycle.png into 8 tiles of 64x10 — halved,
 /// 32x5. Each is the same 8-colour rainbow at three stripe widths (1px on rows
 /// 0 and 4, 2px on 1 and 3, 4px on row 2), rotated one colour along per tile,
