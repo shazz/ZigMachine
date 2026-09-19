@@ -11,6 +11,32 @@
 # Everything here is fast and offline. Run it instead of `zig build`.
 set -e
 if [ -t 1 ]; then clear; fi # not from a git hook or a log redirect
+
+# --- every harness runs under a HARD TIMEOUT -------------------------------
+# WHY: on 2026-09-19 `node apps/union_demo_music_check.mjs --fail-proof` wedged at
+# 0.0% CPU and this gate sat on it for 80 MINUTES before a human looked. A different
+# audio harness (c_music_check.mjs) did the same for 2h23m earlier. Neither is a
+# permanent hang — the same check passes standalone in ~5 s — so it is an
+# intermittent race on the SNDH/audio path (a poll loop waiting for sound against a
+# player that can legitimately take tens of seconds to start; see the Xbtimer note
+# in docs/MUSIC.md).
+#
+# A wedged gate is WORSE than a failing one: it cannot be told apart from a slow
+# one, so "green" simply never arrives and nobody is told why. This turns an
+# invisible stall into a red line in minutes.
+#
+# `timeout` execs the real node, so this function does not recurse into itself.
+HARNESS_TIMEOUT=${HARNESS_TIMEOUT:-300}
+node() {
+    timeout "$HARNESS_TIMEOUT" node "$@" || {
+        status=$?
+        if [ "$status" -eq 124 ]; then
+            echo "harness TIMED OUT after ${HARNESS_TIMEOUT}s: node $*" >&2
+            echo "  (re-run it alone; if it passes, you have hit the intermittent audio wedge)" >&2
+        fi
+        return "$status"
+    }
+}
 zig build -Drelease=true -Dwasm
 # The C and Rust carts have their own build scripts, which zig build does not run.
 # Rebuilding them here (both are byte-for-byte deterministic) is what lets the
