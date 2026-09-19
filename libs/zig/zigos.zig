@@ -103,6 +103,13 @@ pub const HEIGHT: u16 = hw.HEIGHT;
 pub const OVERSCAN_MAGIC_X: u16 = hw.OVERSCAN_MAGIC_X; // register the overscan HBL here
 pub const OVERSCAN_X_TOL: u16 = hw.OVERSCAN_X_TOL;
 pub const NB_PLANES: u8 = hw.NB_PLANES;
+// The VRAM pool and what a plane costs in it. vramAlloc() has NO pool guard —
+// it bumps straight past the end into the physical framebuffer — so a scene that
+// allocates a big backing buffer should bound-check its total at comptime, and
+// it needs these numbers to do that without hardcoding the memory map.
+pub const VRAM_BYTES: usize = hw.VRAM_BYTES;
+pub const NORMAL_FB_BYTES: usize = hw.NORMAL_FB_BYTES;
+pub const OVERSCAN_FB_BYTES: usize = hw.FULLSCREEN_FB_BYTES; // one 400x280 plane
 pub const HORIZONTAL_BORDERS_WIDTH: u16 = hw.HORIZONTAL_BORDERS_WIDTH;
 pub const VERTICAL_BORDERS_HEIGHT: u16 = hw.VERTICAL_BORDERS_HEIGHT;
 pub const SCOPE_LEN: usize = 128; // per-channel audio scope length (matches audio engine)

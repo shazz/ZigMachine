@@ -102,6 +102,30 @@ function nav(dir, n = 1) {
 runTo(1);
 const waitHash = hashFrame(), px1 = pixels();
 for (const y of [1, CH - 2]) if (at(px1, 10, y)[3] !== 255) errors.push(`content row ${y} is transparent: the borders never opened`);
+
+/// THE BORDER. hashFrame() covers the 320x270 CONTENT only, so the border around
+/// it was never looked at by anything — and it shipped BLACK while the top row of
+/// main.png and wait.png is rgb(160,160,160) across all 640 px, leaving a visible
+/// seam on the live site until Matt spotted it by eye. An excluded region is a
+/// declared blind spot; this is the check that region never had.
+/// Samples the physical framebuffer OUTSIDE the content: the opened bands above
+/// and below, and the closed side margins.
+{
+    const PANEL = [160, 160, 160];
+    const raw = pixels(), PH = machine.hwPhysHeight();
+    const rgb = (x, y) => { const o = (y * PW + x) * 4; return [raw[o], raw[o + 1], raw[o + 2]]; };
+    const probes = [
+        ["top band", PW >> 1, 2],
+        ["bottom band", PW >> 1, PH - 3],
+        ["left margin", 4, PH >> 1],
+        ["right margin", PW - 5, PH >> 1],
+    ];
+    for (const [what, x, y] of probes) {
+        const got = rgb(x, y);
+        if (!same(got, PANEL))
+            errors.push(`${what} at (${x},${y}) is rgb(${got}) — the border must be the screen's own grey rgb(${PANEL}), or the join shows`);
+    }
+}
 runTo(WAIT);
 if (hashFrame() !== waitHash) errors.push("the instruction screen is not static over its 200 frames");
 if (song) errors.push(`music started at frame ${songAt}, during wait()`);

@@ -119,6 +119,7 @@ node apps/union_demo_headless.mjs --break wrap "$SHOTS/union_demo"   # ...and a 
 node apps/union_multifake_headless.mjs "$SHOTS"   # TCB3: loader depack, then screen.js replayed pixel for pixel
 node apps/union_intro_wab_check.mjs docs/demo-union_intro.wasm   # cracktro WAB logo: lands as exactly wab.raw; the original JS replayed (skipped without prototypes/)
 node apps/dbug_headless.mjs "$SHOTS"
+node apps/tcb_colorshock_headless.mjs "$SHOTS/tcb_colorshock"   # COLORSHOCK 2: the hardware pan, the per-line palettes, the strip on its table
 node apps/fallen_angels_headless.mjs "$SHOTS"   # per-plane rasters on all 200 lines
 node apps/tex_loader_fx_headless.mjs "$SHOTS/tex_loader_fx"   # fx = tex_loader on a real asset, bytes checked
 node apps/tex_headless.mjs "$SHOTS"             # the eleven sprites on screen.js's chain
@@ -150,4 +151,5 @@ node apps/digital_solution_headless.mjs --break songs   # ...and a named SNDH mi
 node apps/digital_solution_headless.mjs --break exit   # ...and a key that is not Space failing to leave is caught
 node apps/digital_solution_headless.mjs --break route   # ...and Return one row short of the Digital Department not opening it is caught
 node apps/digital_solution_headless.mjs --break drift   # ...and one frame of scrolltext drift is caught (so a restart would be too)
+node apps/tlb_spoon_headless.mjs "$SHOTS/tlb_spoon"   # TLB TWIDDLE: the sine intro, then starballs + logo + the rotating-letter scroller
 echo "shots in $SHOTS"
