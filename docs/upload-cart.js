@@ -54,6 +54,7 @@ async function startUpload(p, name) {
     machine.hwInit();
     demo.boot();
     if (demo.skipBoot) demo.skipBoot();
+    if (bootable && window.armCartOsd) window.armCartOsd(name); // name card: the file's own name
     currentTag = null;    // not a channel: + / - start again from the first one
     diskApp = !bootable;  // data disk -> GEM's FLOPPY opens its app
     diskDirSet = false;   // hand GEM the new disk's FAT listing

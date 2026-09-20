@@ -12,60 +12,71 @@
 // Excluded (pre-existing bit-rot vs the current ZigOS API): demo, demo_test,
 // bladerunners_fullscreen.
 // --------------------------------------------------------------------------
+// The trailing comment on each entry is its TYPE — the machine the screen comes
+// from: "atari st", "amiga", "zigmachine" (an original screen or a tech demo),
+// "system" (GEM, ST Replay: not demos), or "unknown" where the scene's own source
+// does not say and nobody has checked. tools/channels.py parses it into
+// docs/channels.json, and the host's VHS name card (docs/cart-osd.js) prints it.
+// It is a COMMENT, not a field, on purpose: this is host presentation metadata,
+// which the menu cart would otherwise carry as dead bytes — and a comment on the
+// line you already edit when adding a screen cannot drift out of sync the way a
+// second list would. channels.py FAILS if an entry has no known type.
 pub const Entry = struct { name: []const u8, tag: []const u8 };
 
 pub const ENTRIES = [_]Entry{
-    .{ .name = "UNION INTRO", .tag = "union_intro" },
-    .{ .name = "UNION MAIN", .tag = "union_main" },
-    .{ .name = "MUSIC DEBUG", .tag = "music" },
-    .{ .name = "BLITTER DEMO", .tag = "blitter" },
-    .{ .name = "SCROLL DEMO", .tag = "scroll" },
-    .{ .name = "OBJ DEMO", .tag = "obj" },
-    .{ .name = "EXIT TO GEM", .tag = "gem" },
-    .{ .name = "ST REPLAY", .tag = "st_replay" },
-    .{ .name = "ANCOOL", .tag = "ancool" },
-    .{ .name = "BLADERUNNERS", .tag = "bladerunners" },
-    .{ .name = "DBUG", .tag = "dbug" },
-    .{ .name = "DELTA FORCE", .tag = "deltaforce" },
-    .{ .name = "DELTA FORCE 2", .tag = "deltaforce2" },
-    .{ .name = "EMPIRE", .tag = "empire" },
-    .{ .name = "EQUINOX", .tag = "equinox" },
-    .{ .name = "FALLEN ANGELS", .tag = "fallen_angels" },
-    .{ .name = "FULLSCREEN", .tag = "fullscreen" },
-    .{ .name = "BAD FLICKER", .tag = "badflicker" },
-    .{ .name = "ICS", .tag = "ics" },
-    .{ .name = "LEONARD", .tag = "leonard" },
-    .{ .name = "MAXI", .tag = "maxi" },
-    .{ .name = "MED OVERSCAN", .tag = "medium_overscan" },
-    .{ .name = "RES SWITCH", .tag = "res_switch" },
-    .{ .name = "SHAPES", .tag = "shapes" },
-    .{ .name = "STCS", .tag = "stcs" },
-    .{ .name = "TEX", .tag = "tex" },
-    .{ .name = "STREAM", .tag = "stream" },
-    .{ .name = "NOEXTRA", .tag = "noextra" },
-    .{ .name = "REPLICANTS DD2", .tag = "replicants_dd2" },
-    .{ .name = "SUPPLEX FS2", .tag = "supplex_fs2" },
-    .{ .name = "REPLICANTS GARFIELD", .tag = "replicants_garfield" },
-    .{ .name = "ULM SPOON DISTORTER", .tag = "ulm_spoon_distorter" },
-    .{ .name = "REPS OLD", .tag = "replicants" },
-    .{ .name = "CUDDLY STARWARS", .tag = "cuddly_starwars" },
-    .{ .name = "REPLICANTS KICK OFF 2", .tag = "replicants_kickoff2" },
-    .{ .name = "DYNO PARADIS3", .tag = "dyno_paradis3" },
-    .{ .name = "MANDELBROT", .tag = "mandelbrot" },
-    .{ .name = "STNICCC 2000", .tag = "stniccc" },
-    .{ .name = "TEX NEO SHOW", .tag = "tex_neoshow" },
-    .{ .name = "REPS FRED (C)", .tag = "c-screen34" },
-    .{ .name = "V8 POPULOUS (RUST)", .tag = "rust-v8_populous" },
-    .{ .name = "ELITE SNOOKER", .tag = "elite_snooker" },
-    .{ .name = "UNION DEMO", .tag = "union_intro_screen" }, // the demo opens on its intro splash; Space goes on to the street (union_demo)
-    .{ .name = "TUTORIAL", .tag = "tutorial" },
-    .{ .name = "MPP TRUECOLOR", .tag = "mpp_truecolor" },
-    .{ .name = "AUTOMATION 442", .tag = "automation442" },
-    .{ .name = "TEX B.I.G. DEMO", .tag = "big_demo" },
-    .{ .name = "TLB TWIDDLE DEMO", .tag = "tlb_spoon" },
-    .{ .name = "TCB COLORSHOCK", .tag = "tcb_colorshock" },
-    .{ .name = "VEX 2025 GTA VI", .tag = "vex" },
-    .{ .name = "REPLICANTS EMLYN", .tag = "replicants_emlyn" },
+    .{ .name = "UNION INTRO", .tag = "union_intro" }, // atari st
+    .{ .name = "UNION MAIN", .tag = "union_main" }, // atari st
+    .{ .name = "MUSIC DEBUG", .tag = "music" }, // zigmachine
+    .{ .name = "BLITTER DEMO", .tag = "blitter" }, // zigmachine
+    .{ .name = "SCROLL DEMO", .tag = "scroll" }, // zigmachine
+    .{ .name = "OBJ DEMO", .tag = "obj" }, // zigmachine
+    .{ .name = "EXIT TO GEM", .tag = "gem" }, // system
+    .{ .name = "ST REPLAY", .tag = "st_replay" }, // system
+    .{ .name = "ANCOOL", .tag = "ancool" }, // atari st
+    .{ .name = "BLADERUNNERS", .tag = "bladerunners" }, // atari st
+    .{ .name = "DBUG", .tag = "dbug" }, // atari st
+    .{ .name = "DELTA FORCE", .tag = "deltaforce" }, // atari st
+    .{ .name = "DELTA FORCE 2", .tag = "deltaforce2" }, // atari st
+    .{ .name = "EMPIRE", .tag = "empire" }, // atari st
+    .{ .name = "EQUINOX", .tag = "equinox" }, // atari st
+    .{ .name = "FALLEN ANGELS", .tag = "fallen_angels" }, // atari st
+    .{ .name = "FULLSCREEN", .tag = "fullscreen" }, // zigmachine
+    .{ .name = "BAD FLICKER", .tag = "badflicker" }, // zigmachine
+    .{ .name = "ICS", .tag = "ics" }, // atari st
+    .{ .name = "LEONARD", .tag = "leonard" }, // atari st
+    .{ .name = "MAXI", .tag = "maxi" }, // zigmachine
+    .{ .name = "MED OVERSCAN", .tag = "medium_overscan" }, // zigmachine
+    .{ .name = "RES SWITCH", .tag = "res_switch" }, // zigmachine
+    .{ .name = "SHAPES", .tag = "shapes" }, // zigmachine
+    .{ .name = "STCS", .tag = "stcs" }, // atari st
+    .{ .name = "TEX", .tag = "tex" }, // atari st
+    .{ .name = "STREAM", .tag = "stream" }, // zigmachine
+    .{ .name = "NOEXTRA", .tag = "noextra" }, // atari st
+    .{ .name = "REPLICANTS DD2", .tag = "replicants_dd2" }, // atari st
+    .{ .name = "SUPPLEX FS2", .tag = "supplex_fs2" }, // amiga
+    .{ .name = "REPLICANTS GARFIELD", .tag = "replicants_garfield" }, // atari st
+    .{ .name = "ULM SPOON DISTORTER", .tag = "ulm_spoon_distorter" }, // atari st
+    .{ .name = "REPS OLD", .tag = "replicants" }, // atari st
+    .{ .name = "CUDDLY STARWARS", .tag = "cuddly_starwars" }, // atari st
+    .{ .name = "REPLICANTS KICK OFF 2", .tag = "replicants_kickoff2" }, // atari st
+    .{ .name = "DYNO PARADIS3", .tag = "dyno_paradis3" }, // atari st
+    .{ .name = "MANDELBROT", .tag = "mandelbrot" }, // zigmachine
+    .{ .name = "STNICCC 2000", .tag = "stniccc" }, // atari st
+    .{ .name = "TEX NEO SHOW", .tag = "tex_neoshow" }, // atari st
+    .{ .name = "REPS FRED (C)", .tag = "c-screen34" }, // atari st
+    .{ .name = "V8 POPULOUS (RUST)", .tag = "rust-v8_populous" }, // atari st
+    .{ .name = "ELITE SNOOKER", .tag = "elite_snooker" }, // atari st
+    .{ .name = "UNION DEMO", .tag = "union_intro_screen" }, // atari st — the demo opens on its intro splash; Space goes on to the street (union_demo)
+    .{ .name = "TUTORIAL", .tag = "tutorial" }, // zigmachine
+    .{ .name = "MPP TRUECOLOR", .tag = "mpp_truecolor" }, // zigmachine
+    .{ .name = "AUTOMATION 442", .tag = "automation442" }, // atari st
+    .{ .name = "TEX B.I.G. DEMO", .tag = "big_demo" }, // atari st
+    .{ .name = "TLB TWIDDLE DEMO", .tag = "tlb_spoon" }, // atari st
+    .{ .name = "TCB COLORSHOCK", .tag = "tcb_colorshock" }, // atari st
+    .{ .name = "VEX 2025 GTA VI", .tag = "vex" }, // atari st
+    .{ .name = "REPLICANTS EMLYN", .tag = "replicants_emlyn" }, // atari st
+    .{ .name = "SCROLLTEXT LAB", .tag = "scrolllab" }, // zigmachine
+    .{ .name = "SILENTS HYBRID GLENZ", .tag = "tsl_hybridglenz" }, // amiga
     // The Union Demo's screens (union_multifake, union_textracker, ...) are NOT
     // listed: they are reached only through the UNION DEMO hub's doors (Matt,
     // 2026-09-13). Their carts stay in build.zig / cart.zig, so their disks build.

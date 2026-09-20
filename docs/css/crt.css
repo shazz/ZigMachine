@@ -149,3 +149,74 @@ body {
   border: true;
   border-color: white;
 }
+
+/* ---- The VHS OSD: the running cart's name on the glass (docs/cart-osd.js) ---
+   Its own layer above the plane canvases — the canvases' own CSS is left alone
+   on purpose (smoothing them seams the stacked planes, see .canvas above).
+
+   Everything here is in STAGE pixels, inside .stage's transform: the OSD then
+   keeps its place and its scanline pitch relative to the picture at any window
+   width, instead of drifting as the stage is scaled. The tube is 800x560 stage
+   px for a 400x280 raster — 2 stage px per machine pixel — so the 4px mask pitch
+   lights exactly one machine scanline in two. */
+/* The deck's own display font: "EAS VHS" by elliotshock (FontStruct) — see
+   docs/fonts/README.md, which is its licence record and must stay with it.
+   The first @font-face on this page, so: scoped to .cart_osd and nothing else,
+   and `swap` so a slow or failed font fetch shows the card in the monospace
+   fallback INSTANTLY instead of holding it back. */
+@font-face {
+  font-family: "EAS VHS";
+  src: url("../fonts/eas-vhs.ttf") format("truetype");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+.cart_osd {
+  /* Inside the tube (.container sits at 114,80 and is 800x560), inset well off
+     the bezel art, bottom-left like a deck's own display. */
+  position: absolute;
+  left: 152px;
+  top: 512px;
+  max-width: 724px;
+  z-index: 101;
+  pointer-events: none;
+  /* 32 stage px: a whole number, and a whole number of machine pixels (2 stage
+     px each), so the glyph grid agrees with the picture's. geometricPrecision
+     turns hinting OFF on purpose — hinting would snap stems to the UNSCALED
+     pixel grid and the stage's own scale() would then smear them; unhinted
+     outlines just scale with everything else. */
+  font: 32px/1.15 "EAS VHS", ui-monospace, "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace;
+  text-rendering: geometricPrecision;
+  font-synthesis: none;
+  letter-spacing: 0.10em;
+  text-transform: uppercase;
+  color: #7dff9b;
+  filter: drop-shadow(0 0 14px #7dff9b); /* the house glow (see .drop-armed) */
+  /* ODD LINES ONLY: 2 lit stage px, 2 dark. The glyphs are combed, not solid. */
+  -webkit-mask-image: repeating-linear-gradient(to bottom, #000 0 2px, transparent 2px 4px);
+  mask-image: repeating-linear-gradient(to bottom, #000 0 2px, transparent 2px 4px);
+  /* Gone by default. It cuts IN hard (a deck snaps its display on) and fades
+     OUT over ~0.45s, which is what the phosphor actually looks like. */
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.45s linear, visibility 0s linear 0.45s;
+}
+
+.cart_osd.on {
+  opacity: 1;
+  visibility: visible;
+  transition: none; /* hard cut in */
+}
+
+/* The machine the screen comes from, under the title — smaller and dimmer, the
+   way a deck prints the tape speed under the tape name. */
+.cart_osd_name { display: block; }
+
+.cart_osd_type {
+  display: block;
+  margin-top: 6px;
+  font-size: 16px;
+  opacity: 0.75;
+}
+

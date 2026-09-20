@@ -73,7 +73,8 @@ for (const k of TELEPORT) {
 const problems = [];
 if (JSON.stringify(launched) !== JSON.stringify(WANT))
     problems.push(`doors launched [${launched.join(", ")}], want [${WANT.join(", ")}]`);
-const channels = JSON.parse(await readFile("docs/channels.json", "utf8"));
+// channels.json is a list of {tag, title, type} records (tools/channels.py).
+const channels = JSON.parse(await readFile("docs/channels.json", "utf8")).map((c) => c.tag);
 for (const tag of WANT) {
     try { await access(`docs/demo-${tag}.zmd`); } catch { problems.push(`no disk docs/demo-${tag}.zmd`); }
     if (channels.includes(tag)) problems.push(`${tag} is a +/- channel; it must be hub-only`);

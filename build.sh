@@ -95,7 +95,12 @@ zig build -Drelease=true -Dwasm
 # to a Zig scene edit), so a --fast build is never a pushable one.
 if [ -n "$FAST" ]; then
     tools/mkdisks.sh
-    echo "FAST BUILD - wasm + disks only. NOTHING was checked."
+    # channels.py too: without it a BRAND-NEW screen is missing from
+    # docs/channels.json, ?channel=<tag> silently falls back to another channel,
+    # and you test the wrong cart believing it is yours. Exactly the silent
+    # staleness --fast repacks the disks to avoid, so it belongs here as well.
+    python3 tools/channels.py
+    echo "FAST BUILD - wasm + disks + channels. NOTHING was checked."
     echo "  Run ./build.sh --only <screen>, and a bare ./build.sh before pushing."
     exit 0
 fi
@@ -140,7 +145,7 @@ for t in \
     libs/zig/effects/linepal_test.zig \
     libs/zig/effects/spanfont_test.zig \
     libs/zig/effects/tilegrid_test.zig \
-    libs/zig/effects/codef3d_test.zig \
+    libs/zig/effects/zig3d_test.zig \
     libs/zig/effects/canvas_poly_test.zig \
     libs/zig/effects/colour_bank_test.zig \
     libs/zig/shapes_test.zig \
@@ -158,7 +163,7 @@ for t in \
 do
     printf '%-42s ' "$t"
     # NOT `zig test | tail -1`: a pipeline's status is tail's, so a failing test
-    # printed only its binary path and the gate went on green (tnt3's codef3d and
+    # printed only its binary path and the gate went on green (tnt3's zig3d and
     # canvas_poly tests). Keep the output, test zig's own status, fail at the end.
     if out=$(zig test "$t" 2>&1); then
         printf '%s\n' "$out" | tail -1
@@ -209,14 +214,18 @@ gate union_intro_wab node apps/union_intro_wab_check.mjs docs/demo-union_intro.w
 gate dbug node apps/dbug_headless.mjs "$SHOTS"
 gate vex node apps/vex_headless.mjs "$SHOTS/vex"   # VEX 2025: logo, panel + its 4-page cycle, cubes, both scrollers, the raster rows
 gate tcb_colorshock node apps/tcb_colorshock_headless.mjs "$SHOTS/tcb_colorshock"   # COLORSHOCK 2: the hardware pan, the per-line palettes, the strip on its table
-gate replicants_emlyn node apps/replicants_emlyn_headless.mjs "$SHOTS/replicants_emlyn"   # EMLYN HUGHES: the bars are REAL rasters edge to edge (no pixel ever carries a bar colour; theta 0 is ONE colour register a line), Space switches ORIGINAL<->ZIG, the sweeping logo, the flat scroller in the opened bottom border, Escape leaves, the tune plays with no unanswered hardware write
+gate replicants_emlyn node apps/replicants_emlyn_headless.mjs "$SHOTS/replicants_emlyn"   # EMLYN HUGHES: the bars are REAL rasters edge to edge (no pixel ever carries a bar colour; theta 0 is ONE colour register a line), Space switches ORIGINAL<->ZIG (bars turn, scrolltext bends on CODEF 484's curve), the sweeping logo, the flat scroller in the opened bottom border, Escape leaves, the tune plays with no unanswered hardware write
 gate replicants_emlyn node apps/replicants_emlyn_headless.mjs --break rasters "$SHOTS/replicants_emlyn"   # ...and one static palette instead of a per-scanline one is caught
-gate replicants_emlyn node apps/replicants_emlyn_headless.mjs --break borders "$SHOTS/replicants_emlyn"   # ...and rasters that stop at the content edge (flicker only in the bands, the .top_bottom behaviour) is caught
+gate replicants_emlyn node apps/replicants_emlyn_headless.mjs --break borders "$SHOTS/replicants_emlyn"   # ...and rasters, logo OR scrolltext stopping at the content edge (the .top_bottom + window-clipped behaviour) is caught
 gate replicants_emlyn node apps/replicants_emlyn_headless.mjs --break spin "$SHOTS/replicants_emlyn"   # ...and bars that never tilt without Space is caught
+gate tsl_hybridglenz node apps/tsl_hybridglenz_headless.mjs "$SHOTS/tsl_hybridglenz"   # HYBRID GLENZ: the blitter's OR minterm really makes 1|2=3 in the panel, the two objects interlace onto odd/even plane rows and morph apart, the square flies in and dissolves into the framed panel, the three text overlays and the logo's white flash are palette fades, the bar and scroller run the full raster
+gate tsl_hybridglenz node apps/tsl_hybridglenz_headless.mjs --break spin "$SHOTS/tsl_hybridglenz"   # ...and objects that never turn is caught
+gate scrolllab node apps/scrolllab_headless.mjs "$SHOTS/scrolllab"   # SCROLLTEXT LAB: the ten distortions over one text (codef_fx siny/sinx/zoomy, a 2D path with a loop, screen 345's table) all render and all differ from FLAT, and Escape leaves
 gate fallen_angels node apps/fallen_angels_headless.mjs "$SHOTS"   # per-plane rasters on all 200 lines
 gate tex_loader_fx node apps/tex_loader_fx_headless.mjs "$SHOTS/tex_loader_fx"   # fx = tex_loader on a real asset, bytes checked
 gate tex node apps/tex_headless.mjs "$SHOTS"             # the eleven sprites on screen.js's chain
 gate equinox node apps/equinox_headless.mjs "$SHOTS"   # the dragons morph egg -> dragon -> egg
+gate tex_neoshow node apps/tex_neoshow_headless.mjs "$SHOTS/tex_neoshow"   # TEX NEO SHOW: the scroller band is a REAL per-line raster (copper), full plane width
 gate mpp_truecolor node apps/mpp_truecolor_headless.mjs "$SHOTS"   # per-line palettes: colours on screen = captions
 gate union_textracker node apps/union_textracker_headless.mjs "$SHOTS"   # TEX loader depack, then screen.js replayed pixel for pixel
 gate union_demo_intro node apps/union_demo_intro_headless.mjs "$SHOTS"   # TEX loader depack, then every pixel on the screen.js replay

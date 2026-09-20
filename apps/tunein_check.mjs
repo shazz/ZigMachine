@@ -182,8 +182,10 @@ const argv = process.argv.slice(2);
 const failProof = argv[0] === "--fail-proof";
 let carts = argv.filter((a) => a !== "--fail-proof");
 if (carts.length === 0) {
+    // channels.json is a list of {tag, title, type} records (tools/channels.py).
     const channels = JSON.parse(await readFile("docs/channels.json", "utf8"));
-    carts = channels.filter((t) => /^(c|rust)-/.test(t)).map((t) => `docs/demo-${t}.wasm`);
+    carts = channels.map((c) => c.tag).filter((t) => /^(c|rust)-/.test(t))
+        .map((t) => `docs/demo-${t}.wasm`);
 }
 const zig = await snowOf(ZIG_REF);
 const ref = zig.frames;

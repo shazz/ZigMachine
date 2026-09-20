@@ -194,6 +194,9 @@ async function swapCart(req, channelTag) {
         // Channel change: snow first (a disk packed before tuneIn existed just starts).
         if (channelTag && demo.tuneIn) demo.tuneIn(TUNE_FRAMES);
         else if (req === 1) demo.skipBoot(); // scene or data-disk→GEM: straight in (no boot ROM)
+        // The deck's name card, over the picture this cart is about to draw. Only
+        // for a real cart: a data disk brings up GEM, and req -1 is the menu.
+        if (req === 1 && bootable && window.armCartOsd) window.armCartOsd(tag);
         heldDirs.clear(); // the new cart never saw those presses: no releases for them
         currentTag = tag; // null = the menu
         diskApp = !bootable;            // data disk → GEM's FLOPPY opens its app
@@ -224,7 +227,10 @@ async function swapCart(req, channelTag) {
 // the ROM and sound chip are reset exactly as for a menu launch.
 // --------------------------------------------------------------------------
 const TUNE_FRAMES = 25; // frames of snow before the new channel's picture
-let channels = null;    // [tag, ...], fetched once
+// [{tag, title, type}, ...], fetched once. The title and type are what the VHS
+// name card prints when the channel comes up (cart-osd.js); nothing else here
+// reads them, so a record with only a tag still tunes.
+let channels = null;
 let currentTag = null;  // tag of the running scene disk, null = menu / other
 
 // The channel list, fetched once. null (logged) if it cannot be had.
@@ -245,16 +251,17 @@ async function loadChannels() {
 async function firstChannel(wanted) {
     const list = await loadChannels();
     if (!list) return null;
-    if (wanted && !list.includes(wanted)) console.error(`?channel=${wanted} is not a channel; tuning to ${list[0]}`);
-    return wanted && list.includes(wanted) ? wanted : list[0];
+    const has = wanted && list.some((c) => c.tag === wanted);
+    if (wanted && !has) console.error(`?channel=${wanted} is not a channel; tuning to ${list[0].tag}`);
+    return has ? wanted : list[0].tag;
 }
 
 async function changeChannel(step) {
     if (swapping || !demo) return;
     if (!(await loadChannels())) return;
-    const at = channels.indexOf(currentTag);
+    const at = channels.findIndex((c) => c.tag === currentTag);
     const next = at < 0 ? 0 : (at + step + channels.length) % channels.length;
-    swapCart(1, channels[next]);
+    swapCart(1, channels[next].tag);
 }
 function nextChannel() { changeChannel(1); }
 function previousChannel() { changeChannel(-1); }
@@ -452,6 +459,8 @@ async function boot() {
         if (bootable) {
             demoMod = await instantiateCart(cart, diskUrl);
             console.log("Booted cart from disk:", diskUrl);
+            // Power-on into a channel (or ?disk=): name the cart once it is up.
+            if (window.armCartOsd) window.armCartOsd(currentTag || window.osdTagFromDiskUrl(diskUrl));
         } else {
             // A data disk isn't bootable — bring up the OS (GEM); the disk stays
             // mounted so GEM can open its app + read its files (e.g. SAMPLE.RAW).
@@ -542,6 +551,10 @@ function start() {
         if (swapping || cartTrapped) return;
         machine.hwClear();          // sealed: clear PFB + global HBL
         demo.frame(elapsed_time);   // open: scene draws into shared LFBs (+ overscan poke)
+
+        // The VHS name card: fires once the booting cart is really running (past
+        // the boot ROM / the channel snow). A no-op when nothing is armed.
+        if (window.pollCartOsd) window.pollCartOsd();
 
         // Cartridge swap: the menu boots a scene's floppy; a scene returns to the
         // menu. Async (fetch the disk) — the loop keeps running the current cart.

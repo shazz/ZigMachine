@@ -1,46 +1,232 @@
 [
- "ancool",
- "automation442",
- "bladerunners",
- "blitter",
- "cuddly_starwars",
- "dbug",
- "deltaforce",
- "deltaforce2",
- "dyno_paradis3",
- "elite_snooker",
- "empire",
- "equinox",
- "fallen_angels",
- "fullscreen",
- "ics",
- "leonard",
- "mandelbrot",
- "maxi",
- "medium_overscan",
- "mpp_truecolor",
- "music",
- "noextra",
- "obj",
- "replicants_dd2",
- "replicants_emlyn",
- "replicants_garfield",
- "replicants_kickoff2",
- "c-screen34",
- "res_switch",
- "scroll",
- "shapes",
- "stcs",
- "stniccc",
- "supplex_fs2",
- "tcb_colorshock",
- "tex",
- "big_demo",
- "tex_neoshow",
- "tlb_spoon",
- "ulm_spoon_distorter",
- "union_intro_screen",
- "union_intro",
- "rust-v8_populous",
- "vex"
+ {
+  "tag": "ancool",
+  "title": "ANCOOL",
+  "type": "atari st"
+ },
+ {
+  "tag": "automation442",
+  "title": "AUTOMATION 442",
+  "type": "atari st"
+ },
+ {
+  "tag": "bladerunners",
+  "title": "BLADERUNNERS",
+  "type": "atari st"
+ },
+ {
+  "tag": "blitter",
+  "title": "BLITTER DEMO",
+  "type": "zigmachine"
+ },
+ {
+  "tag": "cuddly_starwars",
+  "title": "CUDDLY STARWARS",
+  "type": "atari st"
+ },
+ {
+  "tag": "dbug",
+  "title": "DBUG",
+  "type": "atari st"
+ },
+ {
+  "tag": "deltaforce",
+  "title": "DELTA FORCE",
+  "type": "atari st"
+ },
+ {
+  "tag": "deltaforce2",
+  "title": "DELTA FORCE 2",
+  "type": "atari st"
+ },
+ {
+  "tag": "dyno_paradis3",
+  "title": "DYNO PARADIS3",
+  "type": "atari st"
+ },
+ {
+  "tag": "elite_snooker",
+  "title": "ELITE SNOOKER",
+  "type": "atari st"
+ },
+ {
+  "tag": "empire",
+  "title": "EMPIRE",
+  "type": "atari st"
+ },
+ {
+  "tag": "equinox",
+  "title": "EQUINOX",
+  "type": "atari st"
+ },
+ {
+  "tag": "fallen_angels",
+  "title": "FALLEN ANGELS",
+  "type": "atari st"
+ },
+ {
+  "tag": "fullscreen",
+  "title": "FULLSCREEN",
+  "type": "zigmachine"
+ },
+ {
+  "tag": "ics",
+  "title": "ICS",
+  "type": "atari st"
+ },
+ {
+  "tag": "leonard",
+  "title": "LEONARD",
+  "type": "atari st"
+ },
+ {
+  "tag": "mandelbrot",
+  "title": "MANDELBROT",
+  "type": "zigmachine"
+ },
+ {
+  "tag": "maxi",
+  "title": "MAXI",
+  "type": "zigmachine"
+ },
+ {
+  "tag": "medium_overscan",
+  "title": "MED OVERSCAN",
+  "type": "zigmachine"
+ },
+ {
+  "tag": "mpp_truecolor",
+  "title": "MPP TRUECOLOR",
+  "type": "zigmachine"
+ },
+ {
+  "tag": "music",
+  "title": "MUSIC DEBUG",
+  "type": "zigmachine"
+ },
+ {
+  "tag": "noextra",
+  "title": "NOEXTRA",
+  "type": "atari st"
+ },
+ {
+  "tag": "obj",
+  "title": "OBJ DEMO",
+  "type": "zigmachine"
+ },
+ {
+  "tag": "replicants_dd2",
+  "title": "REPLICANTS DD2",
+  "type": "atari st"
+ },
+ {
+  "tag": "replicants_emlyn",
+  "title": "REPLICANTS EMLYN",
+  "type": "atari st"
+ },
+ {
+  "tag": "replicants_garfield",
+  "title": "REPLICANTS GARFIELD",
+  "type": "atari st"
+ },
+ {
+  "tag": "replicants_kickoff2",
+  "title": "REPLICANTS KICK OFF 2",
+  "type": "atari st"
+ },
+ {
+  "tag": "c-screen34",
+  "title": "REPS FRED (C)",
+  "type": "atari st"
+ },
+ {
+  "tag": "res_switch",
+  "title": "RES SWITCH",
+  "type": "zigmachine"
+ },
+ {
+  "tag": "scroll",
+  "title": "SCROLL DEMO",
+  "type": "zigmachine"
+ },
+ {
+  "tag": "scrolllab",
+  "title": "SCROLLTEXT LAB",
+  "type": "zigmachine"
+ },
+ {
+  "tag": "shapes",
+  "title": "SHAPES",
+  "type": "zigmachine"
+ },
+ {
+  "tag": "tsl_hybridglenz",
+  "title": "SILENTS HYBRID GLENZ",
+  "type": "amiga"
+ },
+ {
+  "tag": "stcs",
+  "title": "STCS",
+  "type": "atari st"
+ },
+ {
+  "tag": "stniccc",
+  "title": "STNICCC 2000",
+  "type": "atari st"
+ },
+ {
+  "tag": "supplex_fs2",
+  "title": "SUPPLEX FS2",
+  "type": "amiga"
+ },
+ {
+  "tag": "tcb_colorshock",
+  "title": "TCB COLORSHOCK",
+  "type": "atari st"
+ },
+ {
+  "tag": "tex",
+  "title": "TEX",
+  "type": "atari st"
+ },
+ {
+  "tag": "big_demo",
+  "title": "TEX B.I.G. DEMO",
+  "type": "atari st"
+ },
+ {
+  "tag": "tex_neoshow",
+  "title": "TEX NEO SHOW",
+  "type": "atari st"
+ },
+ {
+  "tag": "tlb_spoon",
+  "title": "TLB TWIDDLE DEMO",
+  "type": "atari st"
+ },
+ {
+  "tag": "ulm_spoon_distorter",
+  "title": "ULM SPOON DISTORTER",
+  "type": "atari st"
+ },
+ {
+  "tag": "union_intro_screen",
+  "title": "UNION DEMO",
+  "type": "atari st"
+ },
+ {
+  "tag": "union_intro",
+  "title": "UNION INTRO",
+  "type": "atari st"
+ },
+ {
+  "tag": "rust-v8_populous",
+  "title": "V8 POPULOUS (RUST)",
+  "type": "atari st"
+ },
+ {
+  "tag": "vex",
+  "title": "VEX 2025 GTA VI",
+  "type": "atari st"
+ }
 ]
