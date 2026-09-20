@@ -26,9 +26,12 @@
 // WHAT IS REPRODUCED, all read from $18B96 and $18F9A:
 //   * the diagonal shift — entry E of line L takes entry E+1 of line L+1, every
 //     frame, over the WHOLE 212-row region, so the visible 150 are fed from the
-//     rows below them. In a row-major table that is one flat shift of 17 words,
-//     which is exactly what was measured from the other side: 200 blocks of $22
-//     = 34 bytes = 17 words, covering all 6,800 bytes.
+//     rows below them. In a row-major table that is one flat ROTATION of 17
+//     words: 200 blocks of $22 = 34 bytes = 17 words covering all 6,800, with
+//     the head saved at $18B36 and written back at the far end by $18B98.
+//     That is also why the table FILLS rather than drains — it conserves what
+//     it holds and the feed adds one cell a frame, so a dump taken two seconds
+//     into the screen is 94% empty and one taken 34 seconds in is half full.
 //   * the feed — ONE cell, at a fixed place: the word 18 back from the end of
 //     the region is copied into a one-word scratch at $19240, perturbed by one
 //     level in one channel with a direction at $19238 that flips at 0 and at 7,
@@ -118,17 +121,21 @@ pub const Key2 = struct {
 
     pub fn draw(_: *Key2, _: *LogicalFB) void {
         // One flat rotation of 17 words: entry E of line L takes entry E+1 of
-        // line L+1, and the 17 words that fall off the front come back at the
-        // end. A colour travels up and left one cell a frame, for ever.
+        // line L+1, and the words that fall off the front come back at the end.
+        // A colour travels up and left one cell a frame, for ever.
         //
-        // The WRAP is inferred, and here is why. A plain shift leaves column 15
-        // and the last row with nothing above-right of them, so they hold; then
-        // column 14 becomes a copy of column 15, and within twenty frames the
-        // whole table is one column smeared diagonally. Ported that way it
-        // renders as horizontal streaks, which is not what the screen does.
-        // Key 3's shift looked like the same drain and turned out to be a
-        // closed rotation two instructions further on ($1B40C), so a rotation
-        // is what this is read as until the write that closes it is found.
+        // IT IS A ROTATION IN THE CODE TOO, and the half that closes it sits
+        // BEFORE the loop, not after: `movem.l (a1),d2-d7` at $18B36 saves
+        // TWELVE words of the head before a single word moves, and $18B98
+        // writes them at the far end afterwards — eleven verbatim, the twelfth
+        // replaced by the perturbed neighbour the feed produces.
+        //
+        // It was ported as a rotation before that was found, on the evidence
+        // that a plain shift cannot run: column 15 and the last row have
+        // nothing above-right of them, so within twenty frames the whole table
+        // is one column smeared diagonally, which renders as horizontal streaks
+        // and not as this screen. A mechanism that drains its own input in four
+        // seconds is worth disbelieving.
         const flat: *[N]u16 = @ptrCast(&table);
         var held: [STEP]u16 = undefined;
         @memcpy(&held, flat[0..STEP]);

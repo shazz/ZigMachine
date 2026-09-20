@@ -45,12 +45,20 @@
 // screen ink lives in plane 3 as the tint layer; a renderer in between moves
 // one to the other.
 //
-// THE SCROLL RATE, 2 px a frame, is DERIVED and not measured: eight phases
-// consuming one 16-pixel coarse shift. The eight are not all distinct (1-3
-// share handlers with 5-7), so they may not each advance equally, and the
-// competing reading — phase 0 fetching one character per 8-phase cycle — gives
-// 8 px a frame instead. One number, two readings, neither measured; it is a
-// constant here so a measurement is a one-line change.
+// THE SCROLL RATE IS 4 PX A FRAME, measured rather than derived. $D328, the
+// text index, advances ONE byte per 8-phase cycle — read twice on the running
+// demo, +1 over 8 frames and +8 over 64 — and a byte is one 32-pixel cell, so
+// 32 px / 8 frames = 4.
+//
+// Both derivations were wrong and in opposite directions. 8 px a frame assumed
+// phase 0 pulled a whole 64-px character per cycle; it pulls one cell, because
+// the routine READS two bytes and ADVANCES one — $D32A and $D330 are the
+// current cell and the NEXT, a sliding window over a 32-px boundary, not a
+// character fetched whole. 2 px a frame came from the 16-px coarse shift over
+// eight phases, but that shift is reached from six of the eight phases, not
+// one, and 6 x 16 does not reconcile with anything. How the coarse shift and
+// the pre-shifted buffers divide the 32 px between them is still unread; the
+// rate does not depend on knowing.
 const zg = @import("zigos");
 const LogicalFB = zg.LogicalFB;
 const D = @import("keyb_data.zig");
@@ -60,7 +68,7 @@ const H: usize = 200;
 const X0: usize = (zg.PHYSICAL_WIDTH - W) / 2;
 const Y0: usize = (zg.PHYSICAL_HEIGHT - H) / 2;
 const GLYPH: u8 = 8; // plane 3, ORed onto the cave's pen
-const STEP: usize = 2; // px per frame — derived, see the header
+const STEP: usize = 4; // px per frame — MEASURED, see the header
 const ROW_BYTES: usize = D.CELL_W / 8;
 
 const cave = @embedFile("../../assets/screens/big_demo/keyb_cave.raw");
