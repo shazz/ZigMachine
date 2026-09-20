@@ -15,11 +15,12 @@
 //   two rules pulsing on a 30-entry grey ramp at fadecpt += 0.5
 //
 // Geometry: the remake's canvas is 640x540 and every PNG is an exact 2x, so
-// this is 320x270 — an ST fullscreen with the TOP and BOTTOM borders open. We
-// earn them the real way, fb.openBorders(.top_bottom) (setOverscanBuffer plus
-// the res-flicker HBL at OVERSCAN_MAGIC_X, flickering only the border bands so
-// the side borders stay shut, which is what the original screen does). The 270
-// rows sit centred in the 280 physical ones, 5 black rows top and bottom.
+// this is 320x270, sitting centred in the 400x280 overscan plane. ALL FOUR
+// borders are open — fb.openBorders(.all), the res-flicker HBL at
+// OVERSCAN_MAGIC_X on every line — because the real screen is full overscan and
+// puts content in the side borders. An earlier pass used .top_bottom on the
+// belief that the sides stayed shut; the capture refutes it (see big/border.zig)
+// and the remake simply has no artwork out there to have shown otherwise.
 //
 // Music: the remake names a .ym per entry; this plays the real SNDHs — Mad
 // Max's own 68000 replay code on the emulated CPU — mapping "<Tune> N.ym" to
@@ -27,9 +28,33 @@
 // SNDH in the archive (Delta preview, Thalamus, The Last V8 #2 and #3) and
 // behave like the list's own four separator rows: selectable, silent.
 //
-// NOT ported: the main picture advertises "Hit 1...3 for Psych-O-Screens" and
-// "Hit B for the B.I.G.-Scroller", but the remake's KeyCheck() (screen.js:33)
-// implements neither — there is no code for them to port.
+// The SIDE BORDERS are the demo's, not the remake's: main.png stops at the
+// screen edge, but the real screen runs the song-list frame's shadow and the
+// bottom scroller's pipes and shadows out past the 320 columns (Matt,
+// 2026-09-19). big/border.zig carries that, measured off the real capture.
+//
+// The SUB-SCREENS behind the jukebox — the Digital Department and the keys the
+// picture advertises — live in big/sub.zig, which also owns the handover of the
+// plane. Key 3 is built; 1, 2 and B are not yet.
+//
+// THE LIST IS THE DEMO'S OWN, NOT THE REMAKE'S.
+// big/list.zig is TEX's 118-row table ripped out of the running demo's memory
+// (Hatari, table at $A4BC, stride 38), not a transcription of screen.js. The
+// remake's 116 rows turned out to be a RENAMED, RE-SORTED and incomplete copy:
+// ACTION-BIKER became "CLUMSY COLIN ACTION BIKER" and moved A->C, STRONGMAN
+// became "GEOFF CAPES STRONGMAN" and moved S->G, two entries were dropped, one
+// was invented, and the durations were lost entirely. We follow the REAL demo
+// — the same call already made for the colour bands and the border.
+//
+// The cost, stated plainly: the list block can no longer be compared against a
+// Chrome replay of screen.js at all, because it is no longer the remake's list.
+// Everything outside it still is. The list is 118 rows and `curent` clamps at
+// [2, 115] = `mylist.length - 3`, which lands exactly on the Digital
+// Department row where the real table puts it — the demo's own data and its own
+// clamp agreeing is the strongest evidence we have that the row belongs there.
+// The four baked frame hashes DID move, because the rows on screen in an
+// input-free run (TOP OF LIST, blank, ACE 2, ACTION-BIKER #1, #2) are now the
+// real ones and carry their durations.
 // --------------------------------------------------------------------------
 const zg = @import("zigos");
 const ZigOS = zg.ZigOS;
@@ -39,6 +64,8 @@ const Console = zg.Console;
 const A = @import("big/assets.zig");
 const Screen = @import("big/screen.zig").Screen;
 const list = @import("big/list.zig");
+const border = @import("big/border.zig");
+const sub = @import("big/sub.zig");
 
 const K_ESC: u32 = 0xE012; // host KEY_CODES.Escape
 const K_RETURN: u32 = 13;
@@ -54,16 +81,21 @@ pub const Demo = struct {
     screen: Screen,
     running: bool, // false while wait() still owns the frame
     leave: bool,
+    /// The sub-screens and whose turn it is with the plane. The Digital
+    /// Solution's scroller runs off THIS struct's `screen`, so its text carries
+    /// on across the swap rather than restarting — the state has one home.
+    sub: sub.Sub,
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
         Console.log("B.I.G. Demo init", .{});
         self.running = false;
         self.leave = false;
+        self.sub.init();
         self.screen.init();
 
         var fb: *LogicalFB = &zigos.lfbs[0];
         fb.is_enabled = true;
-        fb.openBorders(.top_bottom); // 400x280 + the flicker HBL, bands only
+        fb.openBorders(.all); // 400x280 + the flicker HBL on EVERY line
         fb.setPalette(A.palette);
         fb.setPaletteEntry(A.TRANSPARENT, zg.Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
         // The whole 400x280 buffer: the 5 rows above and below the 270-row screen
@@ -72,22 +104,36 @@ pub const Demo = struct {
         fb.clearFrameBuffer(A.PANEL);
         // The hardware border beyond the plane, for the same reason.
         zigos.setBackgroundColor(A.palette[A.PANEL]);
+        // The instruction screen's border is PLAIN GREY (Matt, 2026-09-20): the
+        // frame shadow and the scroller's pipes belong to the jukebox, and
+        // go() paints them when it takes over. clearFrameBuffer already left
+        // the margins PANEL, so wait() needs nothing further.
+        fb.setPaletteEntry(A.PULSE, A.PULSE_RAMP[0]);
+        // The instruction screen's border is PLAIN GREY (Matt, 2026-09-20): the
+        // frame shadow and the scroller's pipes belong to the jukebox, and
+        // go() paints them when it takes over. clearFrameBuffer already left
+        // the margins PANEL, so wait() needs nothing further.
+        fb.setPaletteEntry(A.PULSE, A.PULSE_RAMP[0]);
     }
 
     pub fn update(self: *Demo, zigos: *ZigOS, dt: f32) void {
-        _ = zigos;
         _ = dt;
         // wait() shows the instruction screen, then calls go() ON THAT FRAME:
         // the 201st is the jukebox's first, and the tune starts with it.
         if (self.running) return;
         if (!self.screen.waited()) return;
         self.running = true;
+        // The jukebox's border arrives WITH the jukebox, not before it.
+        const fb: *LogicalFB = &zigos.lfbs[0];
+        border.paint(fb);
+        border.paintRules(fb, A.PULSE);
         zg.requestSongTune(FIRST.song, FIRST.tune);
     }
 
     pub fn render(self: *Demo, zigos: *ZigOS, dt: f32) void {
         _ = dt;
         const fb: *LogicalFB = &zigos.lfbs[0];
+        if (self.sub.draw(&self.screen, zigos)) return;
         if (self.running) self.screen.go(fb) else self.screen.drawWait(fb);
     }
 
@@ -99,10 +145,22 @@ pub const Demo = struct {
     }
 
     pub fn key(self: *Demo, cp: u32) void {
-        switch (cp) {
-            K_ESC => self.leave = true,
-            K_RETURN => self.screen.select(),
-            else => {},
+        if (cp == K_ESC) {
+            self.leave = true;
+            return;
+        }
+        // A sub-screen owns every other key while it is up, and Space is how
+        // you leave one ("-PRESS SPACE TO EXIT TO THE B.I.G. DEMO-").
+        if (self.sub.key(cp, &self.screen, self.running)) return;
+        // Return: the highlight moves whatever the row is, and the Digital
+        // Department row opens its screen instead of playing anything.
+        if (cp == K_RETURN) {
+            // Read what is playing BEFORE select() moves the highlight: that is
+            // the tune Space brings back from the Digital Solution.
+            const playing = self.screen.curentlplay;
+            self.screen.select();
+            // The Digital Department row opens its screen WITH its music.
+            if (self.screen.curentlplay == list.DIGITAL) self.sub.enterDigital(playing);
         }
     }
 
@@ -117,6 +175,7 @@ pub const Demo = struct {
     /// exactly what the original does. (Matt, 2026-09-19.)
     pub fn input(self: *Demo, dir: u8) void {
         if (dir == DIR_BACK) self.leave = true;
+        if (self.sub.up()) return; // a sub-screen has no cursor to move
         if (dir == DIR_UP) self.screen.scrollUp();
         if (dir == DIR_DOWN) self.screen.scrollDown();
     }

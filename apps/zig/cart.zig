@@ -71,6 +71,7 @@ const scene = switch (opts.index) {
     58 => @import("scenes/big_demo.zig"), // The Exceptions / The B.I.G. Demo (CODEF screen 23)
     59 => @import("scenes/tlb_spoon.zig"), // The Lost Boys / The Twiddle Demo (CODEF screen 122)
     60 => @import("scenes/tcb_colorshock.zig"), // The Carebears / Colorshock 2 (CODEF screen 172)
+    61 => @import("scenes/vex.zig"), // vEctRoniX / VEX 2025 GTA VI cracktro (original ST binary)
     else => @compileError("bad cart index"),
 };
 

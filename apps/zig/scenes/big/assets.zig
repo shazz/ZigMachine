@@ -15,7 +15,7 @@ const zg = @import("zigos");
 pub const W: u16 = 320; // mycanvas 640 / 2
 pub const H: u16 = 270; // mycanvas 540 / 2
 pub const STRIDE: u16 = 400; // zg.PHYSICAL_WIDTH: the overscan plane
-pub const LEFT: u16 = 40; // side borders stay CLOSED; content fills the 320
+pub const LEFT: u16 = 40; // the side border either side of the 320 content columns
 pub const TOP: u16 = 5; // 270 rows centred in the 280 physical ones
 
 // ---- layout (screen.js go(), all coordinates halved) --------------------
@@ -75,18 +75,78 @@ pub const FONTBG = [8]u8{ 17, 18, 19, 20, 21, 22, 23, 24 };
 pub const LIST_INK = [5]u8{ 25, 26, 27, 26, 25 };
 /// fontp.png's own ink — seen only on the highlighted (playing) row.
 pub const FONTP_INK: u8 = 8;
-/// fade[]: 30 greys, #FFFFFF down to #000000 and back up.
-pub const FADE = [30]u8{ 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 1, 42, 41, 40, 39, 38, 37, 36, 35, 34, 33, 32, 31, 30, 29 };
+/// THE PANEL RULES' PULSE — the real demo's, not the remake's.
+///
+/// On the machine this is not a palette of greys at all. At display lines 92
+/// and 100 the HBL stage splats ONE ST colour word across palette entries
+/// 0..13 (`movem.l` from $BE80 to $FF8240) and restores 0..7 from $BE48 later
+/// in the SAME scanline, so each rule shows as exactly one row of one live
+/// colour with normal grey either side. We do the same with one dedicated pen
+/// and one palette write a frame, which is the identical operation.
+///
+/// The ramp is the 43-word gradient at $BEC0 ($FFFF terminator at $BF16),
+/// walked by the long cursor at $BF18 — ONE WORD PER FRAME, so a 43-frame
+/// cycle, ~0.86 s at 50 Hz. Read out of the running demo over 5 samples by the
+/// ShirazMCP session (2026-09-19): $BF18 advanced 3 words in 3 frames and 25
+/// in 25.
+///
+/// The CODEF remake coarsened this on all three counts — 30 entries stepped
+/// every SECOND frame (a 60-frame cycle, 40% slow) in PURE grey. The ramp is
+/// not grey: it climbs through $0112, $0223, $0334, $0445, $0556, $0667, one
+/// channel leading by a level. That is not decoration either — a capture of
+/// the real screen measures the two dips at rgb(48,48,79), a visible blue
+/// tint that no grey table can produce, and it was that tint that identified
+/// the gradient in the first place.
+pub const PULSE: u8 = 28;
 
-/// go()'s frame counter now drives only the rule fade, floor(0.5f)%30, which
-/// repeats every 60 frames — 0.5 is exact in binary, so the integer count is
-/// that sequence forever, and keeping it modulo 60 stops the u32 silently
-/// wrapping mid-cycle after ~414 days of uptime.
+/// Palette entries 29..42 were the remake's other fade greys. Nothing reads
+/// them now; they are left in pal.dat rather than regenerating the file (and
+/// with it every 50%-shadow blend) for fourteen unused colours.
+const RAMP_WORDS = [43]u16{
+    0x000, 0x001, 0x011, 0x111, 0x112, 0x122, 0x222, 0x223,
+    0x233, 0x333, 0x334, 0x344, 0x444, 0x445, 0x455, 0x555,
+    0x556, 0x566, 0x666, 0x667, 0x677, 0x777, 0x777, 0x776,
+    0x766, 0x666, 0x665, 0x655, 0x555, 0x554, 0x544, 0x444,
+    0x443, 0x433, 0x333, 0x332, 0x322, 0x222, 0x221, 0x211,
+    0x111, 0x110, 0x100,
+};
+
+/// An ST colour word is three 3-bit levels; level n displays at n*255/7.
+pub const PULSE_RAMP = blk: {
+    var out: [RAMP_WORDS.len]zg.Color = undefined;
+    for (RAMP_WORDS, &out) |w, *c| c.* = .{
+        .r = @intCast((w >> 8 & 7) * 255 / 7),
+        .g = @intCast((w >> 4 & 7) * 255 / 7),
+        .b = @intCast((w & 7) * 255 / 7),
+        .a = 255,
+    };
+    break :blk out;
+};
+
+/// go()'s frame counter drives only the rule pulse, one ramp word per frame.
+/// It IS the cursor at $BF18, so the counter's period is the ramp's length and
+/// nothing else — keeping it modulo 43 also stops the u32 silently wrapping
+/// mid-cycle after ~414 days of uptime.
 ///
 /// The band tile does NOT ride on this: 0.4 is not exact, go()'s running sum
 /// drifts below the integers, and a repeating counter cannot reproduce it.
 /// Screen.texbg is a real f64 accumulator for exactly that reason.
-pub const FRAME_CYCLE: u32 = 60;
+pub const FRAME_CYCLE: u32 = PULSE_RAMP.len;
+
+/// go()'s `texbg += 0.4`: the rate the three raster bands step through
+/// cycle.png's 8 tiles. Named here so it sits beside the Digital Department's
+/// own rate below — they are the SAME cycle at two different speeds.
+pub const CYCLE_STEP: f64 = 0.4;
+
+/// The Digital Solution's text cycles through the same 8 colours but SLOWER
+/// than the jukebox's bands (Matt, 2026-09-19).
+///
+/// THE EXACT INCREMENT IS NOT KNOWN. 0.2 is a provisional half-speed, chosen
+/// because it is obviously provisional and not because it was measured; it is
+/// to be confirmed against the real demo (eyeballed, or read out of the 68000
+/// code by a session running it in an emulator). It is one constant on purpose:
+/// when the real rate turns up this line is the whole change.
+pub const DIGITAL_CYCLE_STEP: f64 = 0.2;
 
 // ---- the files ----------------------------------------------------------
 pub const cycle = @embedFile("../../assets/screens/big_demo/cycle.raw"); // 8 tiles of 32x5, tile-major
