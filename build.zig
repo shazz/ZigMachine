@@ -406,6 +406,7 @@ pub fn build(b: *std.Build) void {
         "demo-big_demo", // 58 — The Exceptions / The B.I.G. Demo jukebox (CODEF screen 23)
         "demo-tlb_spoon", // 59 — THE LOST BOYS / THE TWIDDLE DEMO, ULM Megademo (CODEF screen 122)
         "demo-tcb_colorshock", // 60 — THE CAREBEARS / COLORSHOCK 2, The Cuddly Demos (CODEF screen 172)
+        "demo-vex", // 61 — vEctRoniX / VEX 2025, the GTA VI cracktro (ported from the ST binary)
     };
     for (cart_names, 0..) |name, idx| {
         if (name.len == 0) continue; // excluded cart (see note above)
