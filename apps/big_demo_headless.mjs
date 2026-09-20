@@ -62,7 +62,7 @@ const FRAMES = {
     1: "6d2299731df28521dba73affc2ae7856d66139042e69b340240d8a56b8e37e2e", 201: "aa9a1176ac3a4dad97e5a0c998351e35e7df7bf385fd625fc837e37b9cc4aae0",
     400: "36975381270f74bdf741c0b703166be07efe0f974ddca0cb72f56e377ed1cf2a", 1000: "006f3eff520e9f569b0b49be88a919af6c54ff633f4a1430ad673a991a542438",
 };
-let key3 = "key 3 not reached", key2 = "key 2 not reached", key1 = "key 1 not reached", keyb = "key B not reached";
+let digi = "digi not reached", key3 = "key 3 not reached", key2 = "key 2 not reached", key1 = "key 1 not reached", keyb = "key B not reached";
 const argv = process.argv.slice(2), bi = argv.indexOf("--break");
 const brk = bi >= 0 ? argv.splice(bi, 2)[1] : null;
 if (brk && !["nav", "music", "noop", "songs", "screens"].includes(brk)) throw new Error(`--break ${brk}: nav|music|noop|songs|screens`);
@@ -222,6 +222,23 @@ if (holes.length < 20) errors.push(`only ${holes.length} band px show through ma
 if (tiles.join() !== wantTiles.join()) errors.push(`band tiles over 24 frames ${tiles.join()}, texbg += 0.4 gives ${wantTiles.join()}`);
 // 4. whole-frame fingerprints, and the playing row's filled bar
 for (const f of [400, 1000]) { runTo(f); got[f] = hashFrame(); }
+/// 6b. THE DIGITAL DEPARTMENT'S DIGIDRUMS. These five tunes drive the YM
+/// through its ADDRESS MIRRORS — `movep.l d0,$ffff8800` writes bytes at +0, +2,
+/// +4 and +6, which is two registers in one instruction — and the player used
+/// to decode only $FF8800..$FF8803. Half of every such transfer went nowhere:
+/// the tunes played, badly, and Matt heard it as thin and noisy.
+///
+/// A dropped hardware write is SILENT by construction, so the check is not on
+/// the sound, it is on the traffic: no address the tune writes may go
+/// unanswered. That is the assertion the old harness could not have made,
+/// because nothing counted what was being thrown away.
+{
+    const r = await sndhPlay("digital/Ace_2.sndh", 1);
+    if (r.unhandled?.length) errors.push(`the Digital Department's ACE II writes ${r.unhandled.length} hardware address(es) nothing answers: ${r.unhandled.join(" ")}`);
+    if (!(r.peak > 0.25)) errors.push(`the Digital Department's ACE II peaks at ${r.peak?.toFixed(3)}, below the 0.25 a working digi arrangement reaches`);
+    digi = `digi: ACE II peak ${r.peak?.toFixed(3)}, no dropped hardware writes`;
+}
+
 /// 7. KEY 3, the raster field. The picture advertises "Hit 1...3 for
 /// Psych-O-Screens" and the remake binds none of them. What is checked here is
 /// the SCHEDULE, because that is what was measured off the real screen and it
@@ -466,4 +483,4 @@ if (songs.orphans.length) console.log(`big_demo: ${songs.orphans.length} SNDH in
 console.log(`big_demo: FITS wait() 200 frames then go() with ${WANT_SONG} #${WANT_TUNE}; 4 frame hashes; ${LIST.length} entries, ` +
     `cursor clamps at [${CURSOR}], "${LIST[silent].label.trim()}" requests nothing; all ${songs.named} named SNDH present ` +
     `(${songs.onDisk} on disk); band tiles ${tiles.slice(0, 6).join("")}... follow texbg += 0.4; ${want.song.split("/")[1]} #${want.tune} ` +
-    `peak ${r.peak?.toFixed(3)}; ${key3}; ${key2}; ${key1}; ${keyb}; ${perFrame.toFixed(3)} ms/frame`);
+    `peak ${r.peak?.toFixed(3)}; ${digi}; ${key3}; ${key2}; ${key1}; ${keyb}; ${perFrame.toFixed(3)} ms/frame`);

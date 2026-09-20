@@ -46,5 +46,7 @@ export async function sndhPlay(name, tune) {
         audio.audioRender(882);
         for (const v of new Float32Array(memory.buffer, m.audioLeftPtr(), 882)) peak = Math.max(peak, Math.abs(v));
     }
-    return { peak, stuckPc: audio.audioSndhStuckPc() };
+    const unhandled = [];
+    for (let i = 0; i < Math.min(8, audio.audioUnhandledCount()); i++) unhandled.push("$" + audio.audioUnhandled(i).toString(16).toUpperCase());
+    return { peak, stuckPc: audio.audioSndhStuckPc(), unhandled, dmaStarts: audio.audioDmaStarts() };
 }

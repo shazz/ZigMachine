@@ -125,6 +125,22 @@ export fn audioReset() void {
     current_mode = 0;
 }
 /// Where a replay call gave up, when a tune refuses to run. 0 means it ran.
+/// The STE DMA chip's traffic: register writes seen, sample frames started.
+export fn audioDmaWrites() u32 {
+    return @import("players").ste_dma.writes;
+}
+export fn audioDmaStarts() u32 {
+    return @import("players").ste_dma.starts;
+}
+/// The i'th distinct hardware address the tune wrote that nothing answers.
+export fn audioUnhandled(i: u32) u32 {
+    const u = &@import("players").sndh.unhandled;
+    return if (i < u.len) u[i] else 0;
+}
+export fn audioUnhandledCount() u32 {
+    return @import("players").sndh.unhandled_n;
+}
+
 export fn audioSndhStuckPc() u32 {
     return players.sndhStuckPc();
 }
