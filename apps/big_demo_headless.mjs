@@ -61,7 +61,7 @@ const FRAMES = {
     1: "6d2299731df28521dba73affc2ae7856d66139042e69b340240d8a56b8e37e2e", 201: "aa9a1176ac3a4dad97e5a0c998351e35e7df7bf385fd625fc837e37b9cc4aae0",
     400: "36975381270f74bdf741c0b703166be07efe0f974ddca0cb72f56e377ed1cf2a", 1000: "006f3eff520e9f569b0b49be88a919af6c54ff633f4a1430ad673a991a542438",
 };
-let key3 = "key 3 not reached", key2 = "key 2 not reached";
+let key3 = "key 3 not reached", key2 = "key 2 not reached", key1 = "key 1 not reached";
 const argv = process.argv.slice(2), bi = argv.indexOf("--break");
 const brk = bi >= 0 ? argv.splice(bi, 2)[1] : null;
 if (brk && !["nav", "music", "noop", "songs"].includes(brk)) throw new Error(`--break ${brk}: nav|music|noop|songs`);
@@ -315,6 +315,44 @@ for (const f of [400, 1000]) { runTo(f); got[f] = hashFrame(); }
     demo.key(32); step(); step();
     if (hashFrame() === waitHash) errors.push("leaving key 2 did not restore the jukebox");
 }
+
+/// 9. KEY 1, Colorright. Three things, each the mechanism rather than a hash:
+/// the 15-row band is 15 rows and carries $1478A's words in order; it SWEEPS
+/// one line a frame; and the stars ACCUMULATE — the real demo removed not one
+/// star over 400 frames, so a port that clears, moves or re-randomises them is
+/// wrong in a way no single frame would show.
+{
+    demo.key(49); step(); // '1'
+    const PH = machine.hwPhysHeight(), TOP1 = (PH - 200) >> 1;
+    const at1 = (x, y) => { const px = pixels(), o = ((TOP1 + y) * PW + 2 * x) * 4; return `${px[o]},${px[o+1]},${px[o+2]}`; };
+    // The band is read in the SIDE BORDER, x = 4, where no picture pixel can
+    // reach it: on this screen colour 0 is the border, which is how a raster
+    // meant for the picture shows up out there at all.
+    const bandRows = () => { const out = []; for (let y = -30; y < 220; y++) if (at1(4, y) !== "0,0,0") out.push(y); return out; };
+    const first = bandRows();
+    if (first.length !== 15) errors.push(`key 1's band is ${first.length} rows, d3 = $E counts 15`);
+    if (first.length && first[14] - first[0] !== 14) errors.push("key 1's band rows are not contiguous");
+    const colours = first.map((y) => at1(4, y));
+    if (new Set(colours).size !== 15) errors.push(`key 1's band shows ${new Set(colours).size} distinct colours over 15 rows`);
+    step();
+    const second = bandRows();
+    if (!second.length || second[0] - first[0] !== 1) errors.push(`key 1's split moved ${second.length ? second[0] - first[0] : "nowhere"} lines in a frame, the counter steps by 1`);
+    // Stars: count, then count again 60 frames later. Every pixel that was a
+    // star must still be one, and there must be more of them.
+    const starPx = () => { const out = new Set(); for (let y = 23; y <= 175; y++) for (let x = 44; x <= 274; x += 2) if (at1(x, y) !== "0,0,0") out.add(y * 320 + x); return out; };
+    const before = starPx();
+    for (let f = 0; f < 60; f++) step();
+    const after = starPx();
+    const gone = [...before].filter((k) => !after.has(k)).length;
+    if (gone) errors.push(`${gone} of key 1's stars vanished over 60 frames; the real demo erases none`);
+    if (after.size <= before.size) errors.push(`key 1's stars went ${before.size} -> ${after.size}; the field only ever grows`);
+    // The panel below the picture, in its own sixteen colours.
+    const panel = new Set(); for (let x = 20; x < 360; x += 3) panel.add(at1(x, 215));
+    if (panel.size < 4) errors.push(`key 1's COLORRIGHT panel at display line 215 shows ${panel.size} colours`);
+    key1 = `key 1: band 15 rows sweeping 1/frame, stars ${before.size} -> ${after.size} with 0 erased`;
+    demo.key(32); step(); step();
+    if (hashFrame() === waitHash) errors.push("leaving key 1 did not restore the jukebox");
+}
 if (process.env.BIG_DEMO_HASHES) console.log(JSON.stringify(got, null, 1));
 for (const [f, want] of Object.entries(FRAMES))
     if (got[f] !== want) errors.push(`frame ${f}: ${got[f]?.slice(0, 12)} is not the measured ${want.slice(0, 12)}`);
@@ -360,4 +398,4 @@ if (songs.orphans.length) console.log(`big_demo: ${songs.orphans.length} SNDH in
 console.log(`big_demo: FITS wait() 200 frames then go() with ${WANT_SONG} #${WANT_TUNE}; 4 frame hashes; ${LIST.length} entries, ` +
     `cursor clamps at [${CURSOR}], "${LIST[silent].label.trim()}" requests nothing; all ${songs.named} named SNDH present ` +
     `(${songs.onDisk} on disk); band tiles ${tiles.slice(0, 6).join("")}... follow texbg += 0.4; ${want.song.split("/")[1]} #${want.tune} ` +
-    `peak ${r.peak?.toFixed(3)}; ${key3}; ${key2}; ${perFrame.toFixed(3)} ms/frame`);
+    `peak ${r.peak?.toFixed(3)}; ${key3}; ${key2}; ${key1}; ${perFrame.toFixed(3)} ms/frame`);

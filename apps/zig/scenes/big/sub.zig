@@ -20,22 +20,25 @@ const LogicalFB = zg.LogicalFB;
 const A = @import("assets.zig");
 const border = @import("border.zig");
 const digital = @import("digital.zig");
+const key1 = @import("key1.zig");
 const key2 = @import("key2.zig");
 const key3 = @import("key3.zig");
 const Screen = @import("screen.zig").Screen;
 
 pub const K_SPACE: u32 = 32;
+const K_1: u32 = '1';
 const K_2: u32 = '2';
 const K_3: u32 = '3';
 
 /// Which screen owns the frame.
-pub const Mode = enum { jukebox, digital, key2, key3 };
+pub const Mode = enum { jukebox, digital, key1, key2, key3 };
 
 pub const Sub = struct {
     mode: Mode,
     /// What is actually on the plane. Differs from `mode` for exactly one
     /// frame, between the key arriving and the next draw.
     shown: Mode,
+    k1: key1.Key1,
     k2: key2.Key2,
     k3: key3.Key3,
 
@@ -54,6 +57,7 @@ pub const Sub = struct {
         const fb: *LogicalFB = &zigos.lfbs[0];
         if (self.shown != self.mode) {
             switch (self.mode) {
+                .key1 => self.k1.enter(fb),
                 .key2 => self.k2.enter(zigos, fb),
                 .key3 => self.k3.enter(fb),
                 .jukebox => restore(zigos, fb),
@@ -64,6 +68,7 @@ pub const Sub = struct {
         switch (self.mode) {
             .jukebox => return false,
             .digital => digital.draw(screen, fb),
+            .key1 => self.k1.draw(fb),
             .key2 => self.k2.draw(fb),
             .key3 => self.k3.draw(fb),
         }
@@ -79,13 +84,17 @@ pub const Sub = struct {
                 if (digital.key(cp)) self.mode = .jukebox;
                 return true;
             },
-            .key2, .key3 => {
+            .key1, .key2, .key3 => {
                 if (cp == K_SPACE) self.mode = .jukebox;
                 return true;
             },
             .jukebox => {},
         }
         if (running) switch (cp) {
+            K_1 => {
+                self.mode = .key1;
+                return true;
+            },
             K_2 => {
                 self.mode = .key2;
                 return true;
