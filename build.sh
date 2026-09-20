@@ -22,7 +22,16 @@ if [ -t 1 ]; then clear; fi # not from a git hook or a log redirect
 # narrow anything unless the diff touches scene/asset files and nothing else.
 # The cheap cross-cutting checks (windows, ABI, disks) always run regardless.
 ONLY=""
+FAST=""
 case "${1:-}" in
+    --fast)
+        # Compile and repack the disks, then STOP: no windows, no tests, no
+        # harnesses. For the edit-reload-look loop only -- it proves nothing.
+        # It still runs mkdisks because the browser fetches demo-<tag>.zmd, not
+        # the .wasm: skipping it would serve the PREVIOUS cart from a build that
+        # looked successful, which is the exact silent staleness this gate is for.
+        FAST=1
+        ;;
     --only)
         # ALL remaining arguments are tags. Reading only $2 meant a second
         # --only was dropped on the floor and the gate still exited green.
@@ -81,6 +90,16 @@ gate() {
 }
 
 zig build -Drelease=true -Dwasm
+
+# --fast stops here. The C and Rust carts are NOT rebuilt (slow, and irrelevant
+# to a Zig scene edit), so a --fast build is never a pushable one.
+if [ -n "$FAST" ]; then
+    tools/mkdisks.sh
+    echo "FAST BUILD - wasm + disks only. NOTHING was checked."
+    echo "  Run ./build.sh --only <screen>, and a bare ./build.sh before pushing."
+    exit 0
+fi
+
 # The C and Rust carts have their own build scripts, which zig build does not run.
 # Rebuilding them here (both are byte-for-byte deterministic) is what lets the
 # pre-push hook's "docs/ matches the source" check catch a stale demo-c*.wasm or
