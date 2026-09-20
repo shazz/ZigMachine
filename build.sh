@@ -23,7 +23,13 @@ if [ -t 1 ]; then clear; fi # not from a git hook or a log redirect
 # The cheap cross-cutting checks (windows, ABI, disks) always run regardless.
 ONLY=""
 case "${1:-}" in
-    --only)    ONLY="${2:?--only needs a screen tag, e.g. --only stniccc}" ;;
+    --only)
+        # ALL remaining arguments are tags. Reading only $2 meant a second
+        # --only was dropped on the floor and the gate still exited green.
+        shift
+        [ $# -gt 0 ] || { echo "--only needs a screen tag, e.g. --only stniccc" >&2; exit 2; }
+        ONLY="$*"
+        ;;
     --changed)
         # Everything changed ON THIS BRANCH, not just since HEAD: diffing HEAD alone
         # means the first commit empties the set and silently widens back to the full
@@ -46,8 +52,20 @@ case "${1:-}" in
         fi ;;
 esac
 if [ -n "$ONLY" ]; then
+    # A tag matching no gate line would run ZERO screen harnesses and still exit
+    # 0 -- a check that did not run and said it passed. Refuse instead.
+    _tags=$(grep -oE '^gate [A-Za-z0-9_]+' "$0" | cut -d' ' -f2 | sort -u)
+    for _s in $ONLY; do
+        _hit=0
+        for _t in $_tags; do case "$_t" in *"$_s"*) _hit=1 ;; esac; done
+        [ "$_hit" = 1 ] || { echo "--only: no harness tag matches '$_s'" >&2; exit 2; }
+    done
     echo "SELECTIVE GATE - screens: $ONLY"
     echo "  (cross-cutting checks still run; use a bare ./build.sh before pushing)"
+    # Matching is substring and over-inclusive on purpose -- for a gate, running
+    # more is the safe error. It CANNOT express a screen reached through another
+    # screen: --only big_demo does NOT pull in digital_solution, which runs from
+    # demo-big_demo.wasm. Name both, or use the bare gate.
 fi
 
 # gate <tag> <command...> - run a harness unless --only/--changed excludes it.

@@ -5,6 +5,13 @@
 
 pub const logo = @embedFile("../../assets/screens/vex/logo.raw");
 pub const vtitle = @embedFile("../../assets/screens/vex/vtitle.raw");
+pub const intro_script = @embedFile("../../assets/screens/vex/intro_script.dat");
+pub const introfont = @embedFile("../../assets/screens/vex/introfont.raw");
+pub const intro_texts = [3][]const u8{
+    @embedFile("../../assets/screens/vex/intro0.txt"),
+    @embedFile("../../assets/screens/vex/intro1.txt"),
+    @embedFile("../../assets/screens/vex/intro2.txt"),
+};
 pub const vtitle_pal_b = @embedFile("../../assets/screens/vex/vtitle_pal.dat");
 pub const bigfont = @embedFile("../../assets/screens/vex/bigfont.raw");
 pub const charmap = @embedFile("../../assets/screens/vex/charmap.txt");
@@ -37,6 +44,8 @@ pub const SPEED_LEN: usize = 128;
 comptime {
     if (logo.len != 320 * LOGO_H) @compileError("logo.raw is not 320x44");
     if (vtitle.len != 320 * VTITLE_H) @compileError("vtitle.raw is not 320x200");
+    if (intro_script.len != 19 * 8) @compileError("intro_script.dat is not 19 records");
+    if (introfont.len != 96 * 8) @compileError("introfont.raw is not 96 x 8 bytes");
     if (vtitle_pal_b.len != 16 * 2) @compileError("vtitle_pal.dat is not 16 words");
     if (bigfont.len != GLYPHS * 64) @compileError("bigfont.raw is not 40 x 64 bytes");
     if (cubes.len != CUBE_FRAMES * CUBE_LINES * 8) @compileError("cubes.raw is not 360 x 28 lines");

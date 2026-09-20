@@ -87,7 +87,11 @@ class Screen {
         }
     }
 
-    async shot(path) {
+    // `floor` is the minimum lit percentage this frame must reach. The default
+    // suits every screen here: the pre-title is mostly WHITE surround (~73%),
+    // the title a full-screen picture, the intro always busy. Pass a lower one
+    // only for a frame that is sparse by design, and say why.
+    async shot(path, floor = 4) {
         const snaps = this.snaps;
         const half = this.w / 2; // undo the horizontal doubling
         const hdr = new TextEncoder().encode(`P6\n${half} ${this.h}\n255\n`);
@@ -120,7 +124,7 @@ class Screen {
             }
         }
         const pct = (100 * lit) / (200 * 160);
-        if (pct < 4) throw new Error(`${path}: only ${pct.toFixed(2)}% of the screen is lit — a layer stopped drawing`);
+        if (pct < floor) throw new Error(`${path}: only ${pct.toFixed(2)}% of the screen is lit (floor ${floor}%) — a layer stopped drawing`);
         console.log(`  shot: ${path} (frame ${this.frames}, ${pct.toFixed(2)}% lit)`);
     }
 }
@@ -129,30 +133,41 @@ const out = process.argv[2] || "/tmp/vex";
 await mkdir(out, { recursive: true });
 const screen = await boot();
 
-// The "V" title owns the first TITLE frames ($804): it resolves out of white,
-// holds, flashes back out at 250 and hands over at 300.  Every intro shot below
-// is offset by it, so the names keep meaning what they say — without the offset
-// "02-running" lands on the title's white flash and still passes the lit test.
+// Two screens run before the intro proper, and every shot below is offset past
+// them so the names keep meaning what they say — without the offset the shots
+// land on a white flash and still pass the lit test.
+//   PRETITLE  $b5b8's script: three pages of 8x8 text. This is the frame the
+//             script HANDS OVER on, which is NOT the 850 the delays sum to: a
+//             frame that drains a delay to zero does not also run the next
+//             record, so each of the 13 non-zero delays costs one frame more.
+//             Simulate intro_script.dat rather than re-deriving it by hand.
+//   TITLE     the V picture: out of white, hold, white again at 250, hand over
+//             at 300 ($12c)
+const PRETITLE = 865;
 const TITLE = 300;
 
 screen.run(1);
-await screen.shot(`${out}/00-title-white.ppm`); // $80a's white, before the fade
+await screen.shot(`${out}/00-pretitle.ppm`);    // page 1 up, white surround behind it
+screen.run(120);
+await screen.shot(`${out}/01-pretitle-lit.ppm`); // still page 1, ink faded up
+screen.run(PRETITLE - 121 + 1); // one past the handover, inside the white
+await screen.shot(`${out}/02-title-white.ppm`); // $80a's white, before the fade
 screen.run(59);
-await screen.shot(`${out}/01-title.ppm`);       // 60: the V has resolved out of it
+await screen.shot(`${out}/03-title.ppm`);       // 60: the V has resolved out of it
 screen.run(TITLE - 60);
-await screen.shot(`${out}/02-first.ppm`);       // frame TITLE: the handover, the intro's own first
+await screen.shot(`${out}/04-first.ppm`);       // PRETITLE+TITLE: the handover, the intro's own first
 screen.run(59);
-await screen.shot(`${out}/03-faded.ppm`);       // +60: the 21-word crossfade has landed
+await screen.shot(`${out}/05-faded.ppm`);       // +60: the 21-word crossfade has landed
 screen.run(240);
-await screen.shot(`${out}/04-running.ppm`);     // scroller on its wave, cubes rolling
+await screen.shot(`${out}/06-running.ppm`);     // scroller on its wave, cubes rolling
 screen.run(700);
-await screen.shot(`${out}/05-mid-page.ppm`);    // still page 0, deep into the 1000-frame hold
+await screen.shot(`${out}/07-mid-page.ppm`);    // still page 0, deep into the 1000-frame hold
 screen.run(360);
-await screen.shot(`${out}/06-wiping.ppm`);      // intro 1060: the panel erases a line a frame
+await screen.shot(`${out}/08-wiping.ppm`);      // intro 1060: the panel erases a line a frame
 screen.run(180);
-await screen.shot(`${out}/07-page1.ppm`);       // intro 1240: page 1 is back
+await screen.shot(`${out}/09-page1.ppm`);       // intro 1240: page 1 is back
 screen.run(1240);
-await screen.shot(`${out}/08-page2.ppm`);
+await screen.shot(`${out}/10-page2.ppm`);
 
 const t0 = performance.now();
 screen.run(3000);

@@ -42,7 +42,9 @@ const Scroller = @import("vex/scroller.zig").Scroller;
 const Small = @import("vex/small.zig").Small;
 const Credits = @import("vex/credits.zig").Credits;
 const cubes = @import("vex/cubes.zig");
+const raster = @import("vex/raster.zig");
 const Title = @import("vex/title.zig").Title;
+const Intro = @import("vex/intro.zig");
 
 // !Cube / Aggression's tune, ripped straight out of the intro's DATA at $3906e
 // (the VBL's `jsr` lands on $39076, the SNDH play vector) — so this is the
@@ -52,24 +54,6 @@ const MUSIC = "vex.sndh";
 // The palette entries the raster drives live with the layers they colour.
 const BG = P.BG;
 const DRIVEN = P.DRIVEN;
-
-const SPLITS: usize = 71; // $30dee ships as $47
-const SPLIT_TOP: usize = 47; // the two lines $e90a paints before the chain
-const SPLIT_END: usize = SPLIT_TOP + 2 * SPLITS; // 189
-
-var row_pal: [P.ROWS][DRIVEN]u32 = undefined;
-
-fn rasterHbl(fb: *LogicalFB, _: *ZigOS, line: u16, _: u16) void {
-    if (line >= P.ROWS) return;
-    for (row_pal[line], 0..) |c, i| fb.palette[BG + i] = c;
-}
-
-/// Which Timer-B split owns `y`, clamped to the chain's own first and last.
-fn splitOf(y: usize) usize {
-    if (y <= SPLIT_TOP) return 0;
-    if (y >= SPLIT_END) return SPLITS - 1;
-    return (y - SPLIT_TOP) / 2;
-}
 
 pub const Demo = struct {
     // demo_main holds the cart as `undefined`: every field is set in init().
@@ -81,6 +65,8 @@ pub const Demo = struct {
     cubes: cubes.Cubes,
     /// $804's title screen; the intro does not start until it is done.
     title: Title,
+    /// The demo's FIRST screen ($b5b8's script), ahead of the title.
+    intro: Intro.Intro,
     /// $30dc4: the VBL counts 100 frames before it lets any effect run, and
     /// $e9ba gates colours 1-3 and 8-15 on the same counter.
     settle: u16,
@@ -101,13 +87,22 @@ pub const Demo = struct {
         self.cubes.init();
         self.settle = 100;
 
-        self.title.init(fb); // the logo and the raster wait for $12c
+        self.intro.init(fb); // the script screen runs first; it starts the title
+        zigos.setHBLHandler(raster.borderHbl); // colour 0 drives the border throughout
+        fb.setFrameBufferHBLHandler(0, raster.preTitleHbl); // ...and the plane, while the script runs
+        raster.band_top = Intro.BAND_TOP;
+        raster.band_rows = Intro.BAND_ROWS;
         zg.requestSong(MUSIC); // the tune plays under the title too ($843b8)
     }
 
     pub fn update(self: *Demo, zigos: *ZigOS, dt: f32) void {
         _ = dt;
         const fb: *LogicalFB = &zigos.lfbs[0];
+        if (!self.intro.finished) {
+            self.intro.step(fb);
+            if (self.intro.finished) self.title.init(fb); // $ff -> state 2
+            return;
+        }
         if (!self.title.done()) {
             self.title.step();
             if (self.title.done()) self.startIntro(fb);
@@ -130,7 +125,25 @@ pub const Demo = struct {
     pub fn render(self: *Demo, zigos: *ZigOS, dt: f32) void {
         _ = dt;
         const fb: *LogicalFB = &zigos.lfbs[0];
-        if (!self.title.done()) return self.title.publish(fb);
+        if (!self.intro.finished) {
+            // $b412/$b45c split colour 0: the cleared band is black and
+            // everything outside it -- screen AND border -- is white. That
+            // white is constant; op 2's flag records the $16cb6 write at the
+            // end of the script but does not change what is drawn here.
+            fb.palette[Intro.INK] = pal.rgba(self.intro.ink);
+            raster.band_in = pal.rgba(0x000);
+            raster.band_out = pal.rgba(0x777);
+            return;
+        }
+        if (!self.title.done()) {
+            self.title.publish(fb);
+            raster.band_top = 0;
+            raster.band_rows = zg.HEIGHT; // one flat band: the picture's colour 0
+            raster.band_in = pal.rgba(self.title.live[0]);
+            raster.band_out = raster.band_in;
+            fb.fb_hbl_handler = null; // the picture owns all 16 colours
+            return;
+        }
         // A BOUNDED view of the plane: fb.fb is a many-pointer, so slicing it
         // by hand would silence every bounds check on the recompose.
         const pixels = fb.fb[0 .. @as(usize, fb.stride) * fb.fb_h];
@@ -147,7 +160,8 @@ pub const Demo = struct {
         P.clear();
         drawLogo(fb);
         self.publishPalette(fb);
-        fb.setFrameBufferHBLHandler(0, rasterHbl);
+        fb.setFrameBufferHBLHandler(0, raster.rasterHbl);
+        raster.band_rows = 0; // back to the Timer-B table
     }
 
     /// The VBL blasts the 16-word palette then overrides colour 0 with $31310.
@@ -162,9 +176,9 @@ pub const Demo = struct {
         const body = pal.rgba(self.fade.live[pal.BODY_BG]);
         const small_ink = pal.rgba(self.fade.live[pal.SMALL_INK]);
         var b: usize = 0;
-        for (&row_pal, 0..) |*row, y| {
-            const s = splitOf(y);
-            row[0] = if (y < SPLIT_TOP or y >= P.SMALL_TOP) top else if (y < SPLIT_TOP + 2 or y >= SPLIT_END) flash else body;
+        for (&raster.row_pal, 0..) |*row, y| {
+            const s = raster.splitOf(y);
+            row[0] = if (y < raster.SPLIT_TOP or y >= P.SMALL_TOP) top else if (y < raster.SPLIT_TOP + 2 or y >= raster.SPLIT_END) flash else body;
             while (b + 1 < cubes.BAND_ROW.len and y >= cubes.BAND_ROW[b + 1]) b += 1;
             const shades = self.cubes.band(if (self.settle > 0) 0 else b, &self.fade);
             for (shades, 0..) |c, i| row[1 + i] = pal.rgba(c);
