@@ -10,6 +10,9 @@
   harnesses and takes far too long for a one-line edit:
   - `./build.sh --only <screen>` — one screen, e.g. `./build.sh --only stniccc`
   - `./build.sh --changed` — derives the screen set from the working tree
+  - `./build.sh --fast` — wasm + `.zmd` disks only, then stops. NOTHING is checked (no
+    RAM windows, no native tests, no harnesses) and the C/Rust carts are not rebuilt.
+    For the edit-reload-look loop in the browser; never a substitute for a gate.
   The cross-cutting checks (`check_fits`, `ram_check`, `rom_abi_check`, `blitter_check`, `disk_check`,
   `upload_check`, `verify`, `tunein_check`) always run; only per-screen harnesses are skipped.
 - **Run the bare `./build.sh` before pushing or merging.** `--changed` already falls back to the full
