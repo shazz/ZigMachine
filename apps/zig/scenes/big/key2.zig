@@ -33,17 +33,23 @@
 //     it holds and the feed adds one cell a frame, so a dump taken two seconds
 //     into the screen is 94% empty and one taken 34 seconds in is half full.
 //   * the feed — ONE cell, at a fixed place: the word 18 back from the end of
-//     the region is copied into a one-word scratch at $19240, perturbed by one
-//     level in one channel with a direction at $19238 that flips at 0 and at 7,
-//     and written into the LAST word. That is why the plane is a smooth
-//     gradient and not noise — every new value is within one level of a value
-//     already on it — and why it fills from the BOTTOM: values enter at the
-//     end of the region and the diagonal shift carries them up and left.
+//     the region is copied into a one-word scratch at $19240, stepped by one
+//     level in ONE OF THE THREE CHANNELS (big/walk.zig), and written into the
+//     LAST word. That is why the plane is a smooth gradient and not noise —
+//     every new value is within one level of a value already on it — and why it
+//     fills from the BOTTOM: values enter at the end of the region and the
+//     diagonal shift carries them up and left.
 //   * the four-way roll, one outcome of which re-rolls.
 //
 // WHAT IS INVENTED, and it is one thing: the PRNG. A hardware-seeded one cannot
 // be ported, so this is a plain xorshift. The statistics match; the pixels never
 // will.
+//
+// It was TWO things until Matt looked at the screen. Only the blue stepper had
+// been read; the other two roll outcomes were guessed as cursor moves, and with
+// one channel walking the rotation carried a single value across all 3,400
+// words — 203 distinct colours down to EIGHT by frame 4,300. A documented gap
+// still ships a wrong screen.
 //
 // THE STARTING STATE is a dump taken 34 SECONDS into the screen. An earlier one
 // taken two seconds in was 94% zeros — the table starts cleared and fills from
@@ -53,6 +59,7 @@ const zg = @import("zigos");
 const LogicalFB = zg.LogicalFB;
 const ZigOS = zg.ZigOS;
 const D = @import("key2_data.zig");
+const walk = @import("walk.zig");
 
 pub const W: usize = 320;
 pub const H: usize = 200;
@@ -68,7 +75,7 @@ const start_table = @embedFile("../../assets/screens/big_demo/key2_table.bin");
 /// one table; the cart never has two of these up at once.
 var table: [D.ROWS][D.PENS]u16 = undefined;
 var seed: u32 = undefined;
-var dir: i8 = undefined;
+var dirs: walk.Dirs = undefined;
 
 /// An ST colour word is three 3-bit levels; level n displays at n*255/7.
 fn colour(w: u16) zg.Color {
@@ -102,7 +109,7 @@ pub const Key2 = struct {
             }
         }
         seed = 0x1BD00;
-        dir = 1;
+        dirs = .{};
         // The borders are shut and black on this screen, so the plane's own
         // flicker HBL goes and ours takes over. big/sub.zig puts the jukebox's
         // back on the way out.
@@ -147,8 +154,8 @@ pub const Key2 = struct {
 
 /// $18B96 then $18F9A. The POSITION is not random: a1 is left at the end of
 /// the shift loop, `move.w -$24(a1),(a2)` reads 18 words back from it and
-/// `move.w (a2),-$2(a1)` writes the perturbed value into the last word. Only
-/// WHETHER to step is random — a two-bit roll, one outcome of which re-rolls.
+/// `move.w (a2),-$2(a1)` writes the stepped value into the last word. The roll
+/// picks WHICH CHANNEL moves — red, green, blue, or re-roll.
 const N: usize = D.ROWS * D.PENS;
 /// One line plus one entry: the diagonal, flattened.
 const STEP: usize = D.PENS + 1;
@@ -156,14 +163,11 @@ const SRC: usize = N - 18; // -$24 bytes from the region's end
 const DST: usize = N - 1; // -$2 bytes
 
 fn feed() void {
+    const flat: *[N]u16 = @ptrCast(&table);
     for (0..8) |_| { // the machine re-rolls; bound it so a port cannot hang
-        if (next() & 3 == 3) continue;
-        const flat: *[N]u16 = @ptrCast(&table);
-        var w = flat[SRC];
-        const lvl = w & 7;
-        if (lvl == 0) dir = 1 else if (lvl == 7) dir = -1;
-        w = (w & ~@as(u16, 7)) | @as(u16, @intCast(@as(i16, @intCast(lvl)) + dir));
-        flat[DST] = w;
+        const roll = next();
+        if (roll & 3 == 3) continue;
+        flat[DST] = walk.step(flat[SRC], roll, &dirs);
         return;
     }
 }

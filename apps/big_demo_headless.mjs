@@ -362,10 +362,20 @@ for (const f of [400, 1000]) { runTo(f); got[f] = hashFrame(); }
     const gone = [...before].filter((k) => !after.has(k)).length;
     if (gone) errors.push(`${gone} of key 1's stars vanished over 60 frames; the real demo erases none`);
     if (after.size <= before.size) errors.push(`key 1's stars went ${before.size} -> ${after.size}; the field only ever grows`);
+    // THE COLOURS MUST MARCH. Same lesson as key 2's colour floor: the band and
+    // the stars were both checked and both passed while the picture's own
+    // palette stood still, because nothing asserted that it MOVES. Sample a
+    // column of the frame art — away from the stars, away from the band — and
+    // require it to differ after 12 frames, which is three shifts at one per
+    // four frames.
+    const frameCol = () => [...Array(40).keys()].map((i) => at1(12, 30 + i)).join("|");
+    const palBefore = frameCol();
+    for (let f = 0; f < 12; f++) step();
+    if (frameCol() === palBefore) errors.push("key 1's picture palette did not move over 12 frames: the pens are not marching");
     // The panel below the picture, in its own sixteen colours.
     const panel = new Set(); for (let x = 20; x < 360; x += 3) panel.add(at1(x, 215));
     if (panel.size < 4) errors.push(`key 1's COLORRIGHT panel at display line 215 shows ${panel.size} colours`);
-    key1 = `key 1: band 15 rows sweeping 1/frame, stars ${before.size} -> ${after.size} with 0 erased`;
+    key1 = `key 1: band 15 rows sweeping 1/frame, pens marching, stars ${before.size} -> ${after.size} with 0 erased`;
     demo.key(32); step(); step();
     if (hashFrame() === waitHash) errors.push("leaving key 1 did not restore the jukebox");
 }

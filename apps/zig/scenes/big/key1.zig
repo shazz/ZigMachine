@@ -17,6 +17,19 @@
 // in order. Colour 0 is the border, which is why a raster meant for the picture
 // shows up out there at all.
 //
+// THE COLOURS MARCH ALONG THE PENS, which is presumably the name. A routine at
+// $1485E, installed on the VBL chain at $4D6, shifts pens 4..15 DOWN ONE every
+// four frames — 12.5 steps a second — and a new colour enters at pen 15 from
+// $148A0, which is the same three-channel walk key 2 feeds its plane with
+// (big/walk.zig). Pens 0..3 are below the shift and never move, which is why
+// the cube's greys stay put while everything around them travels.
+//
+// This shipped STATIC at first, on the strength of a claim that $1475C was not
+// the live palette and the HBL rewrote it every frame. The opposite is true:
+// $1475C IS the live palette, $1485E rewrites IT and pushes all sixteen to the
+// registers, and the HBL only writes the band into one pen. Matt saw the
+// screen standing still.
+//
 // THE STARS ACCUMULATE. Not motion, not re-randomisation — the generator plots
 // new ones and NOTHING ever erases. Two consecutive frames of the real demo
 // share 5,656 stars with zero removed and 21 added; 400 frames later every one
@@ -50,6 +63,7 @@
 const zg = @import("zigos");
 const LogicalFB = zg.LogicalFB;
 const D = @import("key1_data.zig");
+const walk = @import("walk.zig");
 
 const W: usize = 320;
 const H: usize = 200;
@@ -64,6 +78,12 @@ const PANEL_PEN: u8 = 16; // the panel's own sixteen, above the picture's
 /// New stars a frame. Measured directly on two consecutive frames of the real
 /// demo, at one point on the fill curve.
 const PLOTS: usize = 21;
+/// $1499C, read live: the pen ramp shifts one place every FOUR frames — 12.5
+/// steps a second, which is the cycling you see.
+const CYCLE_FRAMES: u8 = 4;
+/// The shift starts at pen 4 and runs 11 entries, so pens 0..3 — black and the
+/// cube's three greys — never move. That is why the cube does not shimmer.
+const FIRST_CYCLED: usize = 4;
 
 const picture = @embedFile("../../assets/screens/big_demo/key1_screen.raw");
 const panel = @embedFile("../../assets/screens/big_demo/key1_panel.raw");
@@ -92,11 +112,18 @@ pub const Key1 = struct {
     split: i32, // $147DE, the sweep counter — and Timer B itself
     down: bool, // $147E0
     seed: u32,
+    /// $1475C, live: the shift rewrites it and then pushes it to the registers.
+    pens: [16]u16,
+    cycle: u8, // $1499E, the rate counter
+    dirs: walk.Dirs, // $149E8 and its two siblings
 
     pub fn enter(self: *Key1, fb: *LogicalFB) void {
         self.split = D.SWEEP_LO;
         self.down = true;
         self.seed = 0x14000;
+        self.pens = D.LIVE;
+        self.cycle = CYCLE_FRAMES;
+        self.dirs = .{};
         fb.setPalette(palette());
         // Pen 0 everywhere, so the side borders and the bands above and below
         // the picture all follow the sweep — which is what makes a raster meant
@@ -124,7 +151,20 @@ pub const Key1 = struct {
             if (row < t.len) t[row] = colour(w).toRGBA();
         }
         self.sweep();
+        self.march(fb);
         self.plot(fb);
+    }
+
+    /// $1485E: every fourth frame, pens 4..15 shift down one and a new colour
+    /// walks in at the far end. Pen 0 is left to the copper — the demo pushes
+    /// all sixteen, but its pen 0 is the band's and ours comes per row.
+    fn march(self: *Key1, fb: *LogicalFB) void {
+        self.cycle -= 1;
+        if (self.cycle != 0) return;
+        self.cycle = CYCLE_FRAMES;
+        for (FIRST_CYCLED..self.pens.len - 1) |i| self.pens[i] = self.pens[i + 1];
+        self.pens[self.pens.len - 1] = walk.step(self.pens[self.pens.len - 1], @intCast(self.next()), &self.dirs);
+        for (FIRST_CYCLED..self.pens.len) |i| fb.setPaletteEntry(@intCast(i), colour(self.pens[i]));
     }
 
     /// $142EC: one line a frame, reversing at 180 and at 3.
