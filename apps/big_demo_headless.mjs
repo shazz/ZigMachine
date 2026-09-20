@@ -5,11 +5,12 @@
 // NOTHING rather than something else. The numbered sections below say what each
 // check is; the one that matters most is 6, the no-silent-substitution guard.
 //
-//   node apps/big_demo_headless.mjs [cart.wasm] [--break nav|music|noop|songs]
+//   node apps/big_demo_headless.mjs [cart.wasm] [--break nav|music|noop|songs|screens]
 // --break drives the list through demo.key() (ignored by the screen), expects the
-// neighbouring subtune, runs the silent-entry test on a PLAYABLE entry, or points
-// one entry at an SNDH that is not on disk: each must be caught, which is what
-// makes the checks worth running.
+// neighbouring subtune, runs the silent-entry test on a PLAYABLE entry, points
+// one entry at an SNDH that is not on disk, or never presses the sub-screen
+// keys at all: each must be caught, which is what makes the checks worth
+// running.
 import { readFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { performance } from "node:perf_hooks";
@@ -64,7 +65,7 @@ const FRAMES = {
 let key3 = "key 3 not reached", key2 = "key 2 not reached", key1 = "key 1 not reached", keyb = "key B not reached";
 const argv = process.argv.slice(2), bi = argv.indexOf("--break");
 const brk = bi >= 0 ? argv.splice(bi, 2)[1] : null;
-if (brk && !["nav", "music", "noop", "songs"].includes(brk)) throw new Error(`--break ${brk}: nav|music|noop|songs`);
+if (brk && !["nav", "music", "noop", "songs", "screens"].includes(brk)) throw new Error(`--break ${brk}: nav|music|noop|songs|screens`);
 const errors = [];
 
 // The list is the screen's own data (big_demo_list.mjs reads it), and every SNDH
@@ -118,6 +119,11 @@ const hashFrame = () => hashRows(0, CH, 0, CW);
 /// The list block alone, minus the two animated rules: stable unless the cursor
 /// or the highlight moves, so it isolates navigation from the scroller.
 const hashList = () => hashRows(LIST_Y, LIST_Y + ROWS * RH, LIST_X, LIST_X + LIST_W, RULES);
+
+/// Enter a sub-screen. --break screens does NOT press the key, so every check
+/// in sections 7..10 is then reading the jukebox instead of the screen it
+/// names. If any of them still passes, that check was not reading the screen.
+const enter = (cp) => { if (brk !== "screens") demo.key(cp); step(); };
 
 /// Up (0) / Down (1) arrive through input(); --break nav sends them as keys,
 /// which the screen does not bind, so nothing should move.
@@ -229,7 +235,7 @@ for (const f of [400, 1000]) { runTo(f); got[f] = hashFrame(); }
 /// why there are 27 of them. The first band is 9 px because the display opens
 /// in the middle of a write, and the last is 11 for the same reason.
 {
-    demo.key(51); step(); // '3'
+    enter(51); // '3'
     const px = pixels(), PH = machine.hwPhysHeight();
     const TOP3 = (PH - 200) >> 1, L3 = (PW - 640) >> 1; // 320x200, borders closed
     const rgb = (x, y) => { const o = ((TOP3 + y) * PW + L3 + 2 * x) * 4; return `${px[o]},${px[o+1]},${px[o+2]}`; };
@@ -289,7 +295,7 @@ for (const f of [400, 1000]) { runTo(f); got[f] = hashFrame(); }
 /// table from a PRNG seeded with the 200 Hz clock and the live beam position,
 /// so two runs of the REAL demo do not agree either.
 {
-    demo.key(50); step(); step(); // '2'
+    enter(50); step(); // '2'
     const px = pixels(), PH = machine.hwPhysHeight();
     const TOP2 = (PH - 200) >> 1;
     const rgb = (x, y) => { const o = ((TOP2 + y) * PW + ((PW - 640) >> 1) + 2 * x) * 4; return `${px[o]},${px[o+1]},${px[o+2]}`; };
@@ -322,7 +328,7 @@ for (const f of [400, 1000]) { runTo(f); got[f] = hashFrame(); }
 /// star over 400 frames, so a port that clears, moves or re-randomises them is
 /// wrong in a way no single frame would show.
 {
-    demo.key(49); step(); // '1'
+    enter(49); // '1'
     const PH = machine.hwPhysHeight(), TOP1 = (PH - 200) >> 1;
     const at1 = (x, y) => { const px = pixels(), o = ((TOP1 + y) * PW + 2 * x) * 4; return `${px[o]},${px[o+1]},${px[o+2]}`; };
     // The band is read in the SIDE BORDER, x = 4, where no picture pixel can
@@ -360,7 +366,7 @@ for (const f of [400, 1000]) { runTo(f); got[f] = hashFrame(); }
 /// gradient that crawls means the cursor is being carried), that the band
 /// really is 2 lines a colour, and that the glyphs MOVE over it.
 {
-    demo.key(66); step(); // 'B'
+    enter(66); // 'B'
     const PH = machine.hwPhysHeight(), TOPB = (PH - 200) >> 1;
     const atB = (x, y) => { const px = pixels(), o = ((TOPB + y) * PW + 2 * ((PW - 640) / 4 | 0) + 2 * x) * 4; return `${px[o]},${px[o+1]},${px[o+2]}`; };
     // Read the gradient off the glyph pixels: sample each band row's set of
