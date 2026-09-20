@@ -22,7 +22,12 @@
 //                      tune's code and data. The heap starts right after it.
 //   $0FFE00            supervisor stack, growing down
 //   $0FFF00            a planted NOP used as the return address (see call())
-//   $FF8800..$FF8803   the PSG: select at 8800, write-data at 8801/8802/8803
+//   $FF8800..$FF88FF   the PSG, mirrored as the real chip mirrors it: even
+//                      addresses with bit 1 clear select, with bit 1 set write
+//   $FF8900..$FF893F   the STE DMA sound chip (ste_dma.zig): a tune whose
+//                      header carries FLAG `a` plays its digidrums through it,
+//                      and without it those writes went nowhere and the tune
+//                      played as a thin YM-only arrangement.
 //   everything else    reads 0, ignores writes. Timers and the MFP are NOT
 //                      emulated: `play` is called by us, at the rate the SNDH
 //                      header asks for, which is what those timers exist to do.
@@ -31,6 +36,7 @@ const std = @import("std");
 const audio = @import("audio_hw");
 const depackers = @import("depackers");
 const sndh = @import("sndh.zig");
+const dma = @import("ste_dma.zig");
 
 // --- Musashi ---------------------------------------------------------------
 const CPU_TYPE_68000: c_uint = 1; // M68K_CPU_TYPE_68000
@@ -63,6 +69,9 @@ const IMAGE_TOP: u32 = RAM_SIZE - 0x10000;
 const MAX_IMAGE: u32 = IMAGE_TOP - IMAGE_BASE;
 
 const PSG_BASE: u32 = 0xFF8800;
+/// How far the PSG's incomplete decoding mirrors it: $FF8800..$FF88FF, which
+/// is where the DMA sound chip's own registers begin.
+const PSG_SPAN: u32 = 0x100;
 const ADDRESS_MASK: u32 = 0x00FFFFFF; // a 68000 has 24 address lines
 
 /// A replay call that has not returned within this many cycles has lost its
@@ -87,8 +96,9 @@ export fn m68k_read_memory_8(address: c_uint) c_uint {
     if (addr < RAM_SIZE) return ram()[addr];
     // $FF8800 reads back the SELECTED register — a replay that preserves the
     // mixer's port bits does a read-modify-write through it.
-    if (addr == PSG_BASE) return ym_shadow[psg_latch];
+    if (addr >= PSG_BASE and addr < PSG_BASE + PSG_SPAN and addr & 3 == 0) return ym_shadow[psg_latch];
     if (addr >= MFP_BASE and addr < MFP_BASE + MFP_SIZE) return mfpRead(addr);
+    if (addr >= dma.BASE and addr < dma.BASE + dma.SIZE) return dma.read(addr);
     return 0;
 }
 
@@ -124,9 +134,16 @@ export fn m68k_write_memory_16(address: c_uint, value: c_uint) void {
         ram()[addr + 1] = @truncate(value);
     } else {
         // Only the EVEN byte of a word reaches the PSG (see psgWrite); the MFP
-        // is byte-wide on odd addresses, so a word write there lands on both.
+        // and the DMA chip are byte-wide on odd addresses, so a word write
+        // there lands on both. Every DMA register a tune sets — the pointers,
+        // the control byte, the mode — is on an ODD address, and they are
+        // usually reached as offsets from a base in an address register
+        // (`lea $ffff8900,a0` then `move.b d0,$9(a0)`), so a word or long write
+        // that missed its odd half would silently set nothing.
         hwWrite(addr, @truncate(value >> 8));
-        if (addr >= MFP_BASE and addr < MFP_BASE + MFP_SIZE) hwWrite(addr + 1, @truncate(value));
+        const wide = (addr >= MFP_BASE and addr < MFP_BASE + MFP_SIZE) or
+            (addr >= dma.BASE and addr < dma.BASE + dma.SIZE);
+        if (wide) hwWrite(addr + 1, @truncate(value));
     }
 }
 
@@ -135,7 +152,17 @@ export fn m68k_write_memory_32(address: c_uint, value: c_uint) void {
     m68k_write_memory_16(address +% 2, value & 0xFFFF);
 }
 
-// $FF8800 selects a register, $FF8802 writes the selected one.
+// $FF8800 selects a register, $FF8802 writes the selected one — AND SO DOES
+// EVERY MIRROR OF THEM UP TO $FF88FF.
+//
+// The chip decodes A1 and nothing above it, so $FF8804 is another select port
+// and $FF8806 another data port. That is not a curiosity: it is what makes
+// `movep.l d0,$ffff8800` set TWO registers in one instruction, writing bytes at
+// +0, +2, +4 and +6 — select, value, select, value. Mad Max's digidrum routines
+// are built on it, and with only $FF8800..$FF8803 decoded, half of every such
+// transfer went nowhere: the second register of each pair kept its old value
+// while the first got the second's data. The tunes played, badly — thin and
+// noisy, which is exactly how Matt described the Digital Department.
 //
 // The YM is wired to the UPPER half of the 68000's data bus, so it only ever
 // sees the even byte of a transfer: $FF8801 and $FF8803 go nowhere. That is not
@@ -145,18 +172,30 @@ export fn m68k_write_memory_32(address: c_uint, value: c_uint) void {
 // every value is immediately clobbered by the pad byte behind it: periods go
 // half-right, volumes land on zero, and the tune plays silence.
 fn psgWrite(addr: u32, value: u8) void {
-    if (addr == PSG_BASE) {
+    if (addr & 1 != 0) return; // the odd byte never reaches the chip
+    if (addr & 2 == 0) {
         psg_latch = value & 0x0F;
-    } else if (addr == PSG_BASE + 2) {
+    } else {
         ym_shadow[psg_latch] = value;
         audio.machineYmWrite(psg_latch, value);
     }
 }
 
 /// Everything above RAM: the PSG, the MFP, and silence for the rest.
+/// Distinct hardware addresses the tune wrote that nothing here answers.
+/// A tune that decides it is on the wrong machine writes NOTHING to the chip
+/// it wanted, so "the chip saw no traffic" and "the chip is broken" look
+/// identical without this.
+pub var unhandled: [8]u32 = [_]u32{0} ** 8;
+pub var unhandled_n: u32 = 0;
+
 fn hwWrite(addr: u32, value: u8) void {
-    if (addr >= PSG_BASE and addr <= PSG_BASE + 3) return psgWrite(addr, value);
+    if (addr >= PSG_BASE and addr < PSG_BASE + PSG_SPAN) return psgWrite(addr, value);
     if (addr >= MFP_BASE and addr < MFP_BASE + MFP_SIZE) return mfpWrite(addr, value);
+    if (addr >= dma.BASE and addr < dma.BASE + dma.SIZE) return dma.write(addr, value);
+    for (unhandled[0..@min(unhandled_n, unhandled.len)]) |a| if (a == addr) return;
+    if (unhandled_n < unhandled.len) unhandled[unhandled_n] = addr;
+    unhandled_n +%= 1;
 }
 
 /// Musashi calls this before every instruction (see config/m68kconf.h). It is
@@ -471,6 +510,10 @@ pub const SndhPlayer = struct {
                 block = @min(block, acc >> 16); // whole samples until it is due
             };
             audio.machineRenderYm(@intCast(off), block);
+            // The DMA chip's samples are mixed by the machine's own sample
+            // channels, so the block that rendered the YM must mix them too.
+            audio.machineMixPaula(@intCast(off), block);
+            dma.advance(block);
             self.advance(block);
             off += block;
         }
@@ -589,12 +632,36 @@ fn place(len: u32) u32 {
 fn clearAround(image_len: u32) void {
     @memset(ram()[0..IMAGE_BASE], 0);
     @memset(ram()[IMAGE_BASE + image_len .. RAM_SIZE], 0);
+    plantCookieJar();
+}
+
+// --- the cookie jar --------------------------------------------------------
+// WHY: all five of the Digital Department's tunes carry the string `_MCH` and
+// look the machine up in TOS's cookie jar before deciding how to play their
+// digidrums. With the jar absent — $5A0 reads 0 on zeroed RAM — they conclude
+// they are on a plain STF with no DMA chip and take the YM-only path, which is
+// the thin arrangement that played before this. Emulating the DMA registers is
+// not enough on its own: the tune has to be told the hardware is there.
+const COOKIE_PTR: u32 = 0x5A0; // TOS's `_p_cookies`
+const JAR: u32 = 0x700; // above the vector table and the OS variables
+const MCH_STE: u32 = 0x0001_0000; // ST = 0, STE = 1.0, TT = 2.0, Falcon = 3.0
+const SND_YM_DMA: u32 = 0b11; // bit 0 = YM2149, bit 1 = 8-bit stereo DMA
+
+fn plantCookieJar() void {
+    writeLong(COOKIE_PTR, JAR);
+    const jar = [_]u32{
+        0x5F4D4348, MCH_STE, // _MCH
+        0x5F534E44, SND_YM_DMA, // _SND
+        0, 4, // the terminator carries the jar's slot count
+    };
+    for (jar, 0..) |word, i| writeLong(JAR + @as(u32, @intCast(i)) * 4, word);
 }
 
 // Every channel off: volumes to zero and the mixer set to "no tone, no noise".
 fn silence() void {
     audio.machineYmWrite(7, 0xFF);
     for ([_]u32{ 8, 9, 10 }) |reg| audio.machineYmWrite(reg, 0);
+    dma.reset(); // a sample left looping outlives the tune that started it
 }
 
 fn readWord(addr: u32) u16 {
