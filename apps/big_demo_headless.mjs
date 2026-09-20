@@ -61,7 +61,7 @@ const FRAMES = {
     1: "6d2299731df28521dba73affc2ae7856d66139042e69b340240d8a56b8e37e2e", 201: "aa9a1176ac3a4dad97e5a0c998351e35e7df7bf385fd625fc837e37b9cc4aae0",
     400: "36975381270f74bdf741c0b703166be07efe0f974ddca0cb72f56e377ed1cf2a", 1000: "006f3eff520e9f569b0b49be88a919af6c54ff633f4a1430ad673a991a542438",
 };
-let key3 = "key 3 not reached", key2 = "key 2 not reached", key1 = "key 1 not reached";
+let key3 = "key 3 not reached", key2 = "key 2 not reached", key1 = "key 1 not reached", keyb = "key B not reached";
 const argv = process.argv.slice(2), bi = argv.indexOf("--break");
 const brk = bi >= 0 ? argv.splice(bi, 2)[1] : null;
 if (brk && !["nav", "music", "noop", "songs"].includes(brk)) throw new Error(`--break ${brk}: nav|music|noop|songs`);
@@ -353,6 +353,40 @@ for (const f of [400, 1000]) { runTo(f); got[f] = hashFrame(); }
     demo.key(32); step(); step();
     if (hashFrame() === waitHash) errors.push("leaving key 1 did not restore the jukebox");
 }
+
+/// 10. KEY B, the B.I.G. scroller. The rainbow is STATIC and exact — 32 words,
+/// two display lines each, 66..129, then the pens hold the last one. What is
+/// checked is that it is static (the VBL resets its cursor every frame, so a
+/// gradient that crawls means the cursor is being carried), that the band
+/// really is 2 lines a colour, and that the glyphs MOVE over it.
+{
+    demo.key(66); step(); // 'B'
+    const PH = machine.hwPhysHeight(), TOPB = (PH - 200) >> 1;
+    const atB = (x, y) => { const px = pixels(), o = ((TOPB + y) * PW + 2 * ((PW - 640) / 4 | 0) + 2 * x) * 4; return `${px[o]},${px[o+1]},${px[o+2]}`; };
+    // Read the gradient off the glyph pixels: sample each band row's set of
+    // colours and take the one that is not a cave grey.
+    const bandRow = (y) => new Set([...Array(320).keys()].map((x) => atB(x, y)));
+    let twoLine = 0;
+    for (let y = 68; y < 130; y += 2) {
+        const a = [...bandRow(y)].sort().join("|"), b = [...bandRow(y + 1)].sort().join("|");
+        if (a !== b) twoLine++;
+    }
+    // POSITIONS, not colour sets: a horizontal shift leaves the set of colours
+    // on a row untouched, so a set comparison would pass on a frozen scroller.
+    const rowPx = (y) => [...Array(320).keys()].map((x) => atB(x, y)).join("|");
+    const before = [100, 110, 120].map(rowPx);
+    const tint = [...Array(31).keys()].map((i) => [...bandRow(68 + 2 * i)].sort().join("|"));
+    for (let f = 0; f < 16; f++) step();
+    if ([100, 110, 120].map(rowPx).join("#") === before.join("#")) errors.push("key B's band did not change over 16 frames: the glyphs are not scrolling");
+    // But the RAINBOW must not have moved with them: the VBL resets its cursor
+    // every frame, so the letters travel through a fixed gradient.
+    const tint2 = [...Array(31).keys()].map((i) => [...bandRow(68 + 2 * i)].sort().join("|"));
+    if (tint.filter((v, i) => v !== tint2[i]).length > 6) errors.push("key B's gradient moved with the glyphs; it is reset every frame and does not crawl");
+    if (twoLine > 6) errors.push(`${twoLine} of key B's 31 colour pairs differ between their two lines; the ramp is one word per TWO scanlines`);
+    keyb = `key B: 31 two-line ramp steps, glyphs moving`;
+    demo.key(32); step(); step();
+    if (hashFrame() === waitHash) errors.push("leaving key B did not restore the jukebox");
+}
 if (process.env.BIG_DEMO_HASHES) console.log(JSON.stringify(got, null, 1));
 for (const [f, want] of Object.entries(FRAMES))
     if (got[f] !== want) errors.push(`frame ${f}: ${got[f]?.slice(0, 12)} is not the measured ${want.slice(0, 12)}`);
@@ -398,4 +432,4 @@ if (songs.orphans.length) console.log(`big_demo: ${songs.orphans.length} SNDH in
 console.log(`big_demo: FITS wait() 200 frames then go() with ${WANT_SONG} #${WANT_TUNE}; 4 frame hashes; ${LIST.length} entries, ` +
     `cursor clamps at [${CURSOR}], "${LIST[silent].label.trim()}" requests nothing; all ${songs.named} named SNDH present ` +
     `(${songs.onDisk} on disk); band tiles ${tiles.slice(0, 6).join("")}... follow texbg += 0.4; ${want.song.split("/")[1]} #${want.tune} ` +
-    `peak ${r.peak?.toFixed(3)}; ${key3}; ${key2}; ${key1}; ${perFrame.toFixed(3)} ms/frame`);
+    `peak ${r.peak?.toFixed(3)}; ${key3}; ${key2}; ${key1}; ${keyb}; ${perFrame.toFixed(3)} ms/frame`);

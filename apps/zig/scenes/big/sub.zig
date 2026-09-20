@@ -21,17 +21,20 @@ const A = @import("assets.zig");
 const border = @import("border.zig");
 const digital = @import("digital.zig");
 const key1 = @import("key1.zig");
+const keyb = @import("keyb.zig");
 const key2 = @import("key2.zig");
 const key3 = @import("key3.zig");
 const Screen = @import("screen.zig").Screen;
 
 pub const K_SPACE: u32 = 32;
+const K_B: u32 = 'B';
+const K_b: u32 = 'b';
 const K_1: u32 = '1';
 const K_2: u32 = '2';
 const K_3: u32 = '3';
 
 /// Which screen owns the frame.
-pub const Mode = enum { jukebox, digital, key1, key2, key3 };
+pub const Mode = enum { jukebox, digital, key1, key2, key3, keyb };
 
 pub const Sub = struct {
     mode: Mode,
@@ -39,6 +42,7 @@ pub const Sub = struct {
     /// frame, between the key arriving and the next draw.
     shown: Mode,
     k1: key1.Key1,
+    kb: keyb.KeyB,
     k2: key2.Key2,
     k3: key3.Key3,
 
@@ -58,6 +62,7 @@ pub const Sub = struct {
         if (self.shown != self.mode) {
             switch (self.mode) {
                 .key1 => self.k1.enter(fb),
+                .keyb => self.kb.enter(zigos, fb),
                 .key2 => self.k2.enter(zigos, fb),
                 .key3 => self.k3.enter(fb),
                 .jukebox => restore(zigos, fb),
@@ -69,6 +74,7 @@ pub const Sub = struct {
             .jukebox => return false,
             .digital => digital.draw(screen, fb),
             .key1 => self.k1.draw(fb),
+            .keyb => self.kb.draw(fb),
             .key2 => self.k2.draw(fb),
             .key3 => self.k3.draw(fb),
         }
@@ -84,7 +90,7 @@ pub const Sub = struct {
                 if (digital.key(cp)) self.mode = .jukebox;
                 return true;
             },
-            .key1, .key2, .key3 => {
+            .key1, .key2, .key3, .keyb => {
                 if (cp == K_SPACE) self.mode = .jukebox;
                 return true;
             },
@@ -93,6 +99,10 @@ pub const Sub = struct {
         if (running) switch (cp) {
             K_1 => {
                 self.mode = .key1;
+                return true;
+            },
+            K_B, K_b => {
+                self.mode = .keyb;
                 return true;
             },
             K_2 => {
