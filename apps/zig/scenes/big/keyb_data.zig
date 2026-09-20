@@ -25,3 +25,14 @@ pub const BAND_H: usize = 64;
 /// Timer B = $41 = 65 -> the first ramp write is on this line, two above the
 /// band, so the first two ramp lines have no glyph to colour.
 pub const RAMP_Y: usize = 66;
+
+/// The font: 90 half-glyphs of 32x64, ONE BIT PER PIXEL. Byte b of the text
+/// picks plane b div 30 and cell b mod 30 of a three-bank image, and a 64-px
+/// character is the pair (b, b+1) in the same plane. Plane 3 is blank by
+/// design, which is what makes $5A ($5A div 30 = 3) the space.
+pub const HALVES: usize = 90;
+pub const CELL_W: usize = 32;
+pub const GH: usize = 64;
+pub const CHAR_W: usize = 2 * CELL_W;
+/// $5A: both halves, and the only character whose two bytes are equal.
+pub const SPACE: u8 = 0x5A;

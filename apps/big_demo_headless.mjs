@@ -377,6 +377,11 @@ for (const f of [400, 1000]) { runTo(f); got[f] = hashFrame(); }
         const a = [...bandRow(y)].sort().join("|"), b = [...bandRow(y + 1)].sort().join("|");
         if (a !== b) twoLine++;
     }
+    // The text opens with NINE SPACES, which at 2 px a frame is 288 frames of
+    // empty band before a letter reaches the screen. Wait them out, or the
+    // scroll check compares two identical pictures of bare cave and concludes
+    // nothing is moving — which it did.
+    for (let f = 0; f < 400; f++) step();
     // POSITIONS, not colour sets: a horizontal shift leaves the set of colours
     // on a row untouched, so a set comparison would pass on a frozen scroller.
     const rowPx = (y) => [...Array(320).keys()].map((x) => atB(x, y)).join("|");
@@ -389,7 +394,10 @@ for (const f of [400, 1000]) { runTo(f); got[f] = hashFrame(); }
     const tint2 = [...Array(31).keys()].map((i) => [...bandRow(68 + 2 * i)].sort().join("|"));
     if (tint.filter((v, i) => v !== tint2[i]).length > 6) errors.push("key B's gradient moved with the glyphs; it is reset every frame and does not crawl");
     if (twoLine > 6) errors.push(`${twoLine} of key B's 31 colour pairs differ between their two lines; the ramp is one word per TWO scanlines`);
-    keyb = `key B: 31 two-line ramp steps, glyphs moving`;
+    // The band must carry INK, or "it changed" could be the cave flickering.
+    const ink = [...Array(320).keys()].filter((x) => atB(x, 100) !== atB(x, 100 - 40)).length;
+    if (ink < 20) errors.push(`key B's band carries ${ink} px differing from the cave above it: no text is on screen`);
+    keyb = `key B: 31 two-line ramp steps, glyphs moving, ${ink} inked columns`;
     demo.key(32); step(); step();
     if (hashFrame() === waitHash) errors.push("leaving key B did not restore the jukebox");
 }
