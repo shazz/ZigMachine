@@ -15,17 +15,23 @@
 //   two rules pulsing on a 30-entry grey ramp at fadecpt += 0.5
 //
 // Geometry: the remake's canvas is 640x540 and every PNG is an exact 2x, so
-// this is 320x270 — an ST fullscreen with the TOP and BOTTOM borders open. We
-// earn them the real way, fb.openBorders(.top_bottom) (setOverscanBuffer plus
-// the res-flicker HBL at OVERSCAN_MAGIC_X, flickering only the border bands so
-// the side borders stay shut, which is what the original screen does). The 270
-// rows sit centred in the 280 physical ones, 5 black rows top and bottom.
+// this is 320x270, sitting centred in the 400x280 overscan plane. ALL FOUR
+// borders are open — fb.openBorders(.all), the res-flicker HBL at
+// OVERSCAN_MAGIC_X on every line — because the real screen is full overscan and
+// puts content in the side borders. An earlier pass used .top_bottom on the
+// belief that the sides stayed shut; the capture refutes it (see big/border.zig)
+// and the remake simply has no artwork out there to have shown otherwise.
 //
 // Music: the remake names a .ym per entry; this plays the real SNDHs — Mad
 // Max's own 68000 replay code on the emulated CPU — mapping "<Tune> N.ym" to
 // <Tune>.sndh subtune N (see big/list.zig). Four of the 116 entries have no
 // SNDH in the archive (Delta preview, Thalamus, The Last V8 #2 and #3) and
 // behave like the list's own four separator rows: selectable, silent.
+//
+// The SIDE BORDERS are the demo's, not the remake's: main.png stops at the
+// screen edge, but the real screen runs the song-list frame's shadow and the
+// bottom scroller's pipes and shadows out past the 320 columns (Matt,
+// 2026-09-19). big/border.zig carries that, measured off the real capture.
 //
 // NOT ported: the main picture advertises "Hit 1...3 for Psych-O-Screens" and
 // "Hit B for the B.I.G.-Scroller". Those keys are real on the machine (Matt,
@@ -60,6 +66,7 @@ const A = @import("big/assets.zig");
 const Screen = @import("big/screen.zig").Screen;
 const list = @import("big/list.zig");
 const digital = @import("big/digital.zig");
+const border = @import("big/border.zig");
 
 const K_ESC: u32 = 0xE012; // host KEY_CODES.Escape
 const K_RETURN: u32 = 13;
@@ -89,7 +96,7 @@ pub const Demo = struct {
 
         var fb: *LogicalFB = &zigos.lfbs[0];
         fb.is_enabled = true;
-        fb.openBorders(.top_bottom); // 400x280 + the flicker HBL, bands only
+        fb.openBorders(.all); // 400x280 + the flicker HBL on EVERY line
         fb.setPalette(A.palette);
         fb.setPaletteEntry(A.TRANSPARENT, zg.Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
         // The whole 400x280 buffer: the 5 rows above and below the 270-row screen
@@ -98,16 +105,21 @@ pub const Demo = struct {
         fb.clearFrameBuffer(A.PANEL);
         // The hardware border beyond the plane, for the same reason.
         zigos.setBackgroundColor(A.palette[A.PANEL]);
+        // Colour 0 per scanline, once: it is static apart from the two rule
+        // rows, and those carry the PULSE pen, which the palette write moves.
+        border.paint(fb);
+        border.paintRules(fb, A.PANEL); // until go() owns them
+        fb.setPaletteEntry(A.PULSE, A.PULSE_RAMP[0]);
     }
 
     pub fn update(self: *Demo, zigos: *ZigOS, dt: f32) void {
-        _ = zigos;
         _ = dt;
         // wait() shows the instruction screen, then calls go() ON THAT FRAME:
         // the 201st is the jukebox's first, and the tune starts with it.
         if (self.running) return;
         if (!self.screen.waited()) return;
         self.running = true;
+        border.paintRules(&zigos.lfbs[0], A.PULSE);
         zg.requestSongTune(FIRST.song, FIRST.tune);
     }
 

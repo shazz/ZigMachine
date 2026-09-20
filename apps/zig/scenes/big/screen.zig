@@ -33,8 +33,8 @@ pub const Screen = struct {
     /// form, the sum drifts below each integer, and from frame 50 the original
     /// changes tile one frame later, every fifth frame. The drift is the effect.
     texbg: f64,
-    /// go()'s frame count, mod A.FRAME_CYCLE: fadecpt (+0.5)
-    /// are read off it as integers, so neither drifts the way a float would.
+    /// go()'s frame count, mod A.FRAME_CYCLE — the port's copy of the real
+    /// demo's gradient cursor at $BF18, which advances one word per frame.
     frame: u32,
     /// The Digital Solution's own, slower colour-cycle accumulator — NOT texbg.
     digital_cycle: f64,
@@ -136,9 +136,8 @@ pub const Screen = struct {
     fn tick(self: *Screen) void {
         self.scrollerTick();
         self.texbgTick();
-        // fadecpt += 0.5 rides on this; 0.5 IS exact in binary, so the integer
-        // count is the same sequence forever, and it is kept inside one cycle
-        // so the u32 can never wrap out from under it (see A.FRAME_CYCLE).
+        // The rule pulse rides on this: an integer step per frame, kept inside
+        // one ramp so the u32 can never wrap out from under it (A.FRAME_CYCLE).
         self.frame = (self.frame + 1) % A.FRAME_CYCLE;
     }
 
@@ -184,9 +183,11 @@ pub const Screen = struct {
         self.drawScrollerAt(fb, A.SCROLL_Y);
         self.drawShadows(fb);
         self.drawList(fb);
-        // The two rules that bracket the cursor row, pulsing on fade[] at +0.5.
-        const f = A.FADE[@divFloor(self.frame, 2) % 30];
-        for (A.RULE_Y) |ry| @memset(row(fb, ry), f);
+        // The two rules that bracket the cursor row. ONE live colour, stepped
+        // one gradient word per frame: the same single palette write the real
+        // HBL stage makes at display lines 92 and 100 (= content 107 and 115).
+        fb.setPaletteEntry(A.PULSE, A.PULSE_RAMP[@as(usize, self.frame)]);
+        for (A.RULE_Y) |ry| @memset(row(fb, ry), A.PULSE);
         self.tick();
     }
 

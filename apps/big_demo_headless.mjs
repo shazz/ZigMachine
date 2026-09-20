@@ -25,18 +25,31 @@ const LIST_Y = 92, LIST_X = 17, LIST_W = 280, ROWS = 5, RH = 8, RULES = [107, 11
 const RED = [255, 0, 0]; // mylist3.fill('#ff0000'), the cursor row
 // Whole-frame SHA-256s of an input-free run.
 //
-// RE-BAKED 2026-09-19, the first time these moved by design: big/list.zig is no
-// longer the remake's list but TEX's OWN 118-row table, ripped out of the
-// running demo's memory, so the five rows on screen at curent = 2 are now the
-// real ones and carry their durations. Old -> new:
+// RE-BAKED TWICE on 2026-09-19, both times by design.
+//
+// (1) big/list.zig became TEX's OWN 118-row table, ripped out of the running
+//     demo's memory, so the five rows on screen at curent = 2 are the real ones
+//     and carry their durations.
 //
 //     1    6d2299731df2  ->  6d2299731df2   UNCHANGED
 //     201  59ca35735a78  ->  f56c8c8f606c
 //     400  a1a63a604e7e  ->  caafe3b57044
 //     1000 c5724b7a028b  ->  1c71895efdfc
 //
-// Frame 1 is the wait() instruction screen, which draws no list — that it did
-// NOT move is the control showing the change is confined to the list block.
+// (2) The rules' pulse became the real demo's 43-word gradient stepped once a
+//     frame, instead of the remake's 30 greys stepped every second frame.
+//
+//     1    6d2299731df2  ->  6d2299731df2   UNCHANGED
+//     201  f56c8c8f606c  ->  aa9a1176ac3a
+//     400  caafe3b57044  ->  36975381270f
+//     1000 1c71895efdfc  ->  006f3eff520e
+//
+// Frame 1 is the wait() instruction screen, which draws no list and whose rules
+// are not yet the gradient's — that it did NOT move either time is the control.
+// For (2) the confinement was also checked directly: rendering the old and new
+// carts side by side and hashing each content row, EXACTLY rows 107 and 115
+// differ, on all three frames. A re-bake without that check would hide any
+// regression the new hash happened to absorb.
 //
 // The earlier baseline was the build whose every row outside the three cycler
 // bands matched a Chrome replay of the remake's screen.js exactly (0 px wrong
@@ -45,8 +58,8 @@ const RED = [255, 0, 0]; // mylist3.fill('#ff0000'), the cursor row
 // Everything outside the list block is still the replayed screen.
 // BIG_DEMO_HASHES=1 re-prints them if the screen is deliberately changed.
 const FRAMES = {
-    1: "6d2299731df28521dba73affc2ae7856d66139042e69b340240d8a56b8e37e2e", 201: "f56c8c8f606cbfbf9fb2bdbd17ac48d3715e0f85a4ef7ae14a9d47c9ec6dc1b9",
-    400: "caafe3b57044591b4be906c0b45524e29f6fbfcbf13198431398c8dbe30c72d9", 1000: "1c71895efdfc0108fe6c06f08f34d9e9aba3ed05052ff7e37a7416ba29103c6f",
+    1: "6d2299731df28521dba73affc2ae7856d66139042e69b340240d8a56b8e37e2e", 201: "aa9a1176ac3a4dad97e5a0c998351e35e7df7bf385fd625fc837e37b9cc4aae0",
+    400: "36975381270f74bdf741c0b703166be07efe0f974ddca0cb72f56e377ed1cf2a", 1000: "006f3eff520e9f569b0b49be88a919af6c54ff633f4a1430ad673a991a542438",
 };
 const argv = process.argv.slice(2), bi = argv.indexOf("--break");
 const brk = bi >= 0 ? argv.splice(bi, 2)[1] : null;
@@ -122,23 +135,50 @@ for (const y of [1, CH - 2]) if (at(px1, 10, y)[3] !== 255) errors.push(`content
 /// main.png and wait.png is rgb(160,160,160) across all 640 px, leaving a visible
 /// seam on the live site until Matt spotted it by eye. An excluded region is a
 /// declared blind spot; this is the check that region never had.
-/// Samples the physical framebuffer OUTSIDE the content: the opened bands above
-/// and below, and the closed side margins.
+///
+/// It checks EVERY border row on BOTH sides, not a sample. The four-probe
+/// version this replaced sat at the vertical midpoint, which is inside the one
+/// long flat run — it would have passed against a border of nothing but panel
+/// grey, i.e. against the bug it was meant to catch once the border grew
+/// content. The table below is the same measurement big/border.zig carries,
+/// transcribed independently: a typo has to be made twice to pass.
 {
-    const PANEL = [160, 160, 160];
-    const raw = pixels(), PH = machine.hwPhysHeight();
+    const PH = machine.hwPhysHeight();
+    const raw = pixels();
     const rgb = (x, y) => { const o = (y * PW + x) * 4; return [raw[o], raw[o + 1], raw[o + 2]]; };
-    const probes = [
-        ["top band", PW >> 1, 2],
-        ["bottom band", PW >> 1, PH - 3],
-        ["left margin", 4, PH >> 1],
-        ["right margin", PW - 5, PH >> 1],
+    // ST level x 32, which is main.png's own grey ladder.
+    const g = (n) => [n * 32, n * 32, n * 32];
+    const PANEL = g(5);
+    // [lastContentRow, left, right] — the rule rows (107, 115) are PANEL here
+    // because this runs during wait(), before go() hands them to the gradient.
+    const RUNS = [
+        [93, 5, 5], [94, 5, 4], [98, 5, 3], [99, 5, 4], [146, 5, 5],
+        [147, 5, 4], [151, 5, 3], [152, 5, 4], [213, 5, 5],
+        [214, 6, 6], [215, 7, 7], [216, 6, 6], [217, 5, 5], [218, 4, 4], [219, 3, 3],
+        [223, 5, 5], [224, 4, 4], [228, 3, 3], [229, 4, 4], [239, 5, 5],
+        [240, 6, 6], [241, 7, 7], [242, 6, 6], [243, 5, 5], [244, 4, 4], [245, 3, 3],
+        [249, 5, 5], [250, 4, 4], [254, 3, 3], [255, 4, 4], [269, 5, 5],
     ];
-    for (const [what, x, y] of probes) {
-        const got = rgb(x, y);
-        if (!same(got, PANEL))
-            errors.push(`${what} at (${x},${y}) is rgb(${got}) — the border must be the screen's own grey rgb(${PANEL}), or the join shows`);
-    }
+    let y = 0, bad = 0, split = 0;
+    for (const [last, l, r] of RUNS)
+        for (; y <= last; y++) {
+            const got = [rgb(4, TOP + y), rgb(PW - 5, TOP + y)];
+            for (const [i, what, want] of [[0, "left", g(l)], [1, "right", g(r)]])
+                if (!same(got[i], want) && bad++ < 4)
+                    errors.push(`${what} border, content row ${y}: rgb(${got[i]}), wanted rgb(${want})`);
+            if (!same(got[0], got[1])) split++; // counted off the PIXELS, not the table
+        }
+    // The bands above and below the content, which the border table does not cover.
+    for (const [what, py] of [["top band", 2], ["bottom band", PH - 3]])
+        if (!same(rgb(PW >> 1, py), PANEL))
+            errors.push(`${what} is rgb(${rgb(PW >> 1, py)}) — it must be the screen's own grey rgb(${PANEL}), or the join shows`);
+    // The song-list frame's shadow is the ONLY one-sided feature, and it is the
+    // whole reason this border is more than a colour: on the machine it is the
+    // HBL writing colour 0 TWICE on those lines, so the left shows the early
+    // value and the right the late one. Counted off the rendered pixels, so a
+    // border that goes symmetric fails here even if someone flattens the table
+    // above to match it.
+    if (split !== 12) errors.push(`${split} rendered rows have different left and right borders, the real screen has 12`);
 }
 runTo(WAIT);
 if (hashFrame() !== waitHash) errors.push("the instruction screen is not static over its 200 frames");
