@@ -12,6 +12,44 @@
 set -e
 if [ -t 1 ]; then clear; fi # not from a git hook or a log redirect
 
+# --- every harness runs under a HARD TIMEOUT -------------------------------
+# WHY: on 2026-09-19 `node apps/union_demo_music_check.mjs --fail-proof` wedged at
+# 0.0% CPU and this gate sat on it for 80 MINUTES before a human looked. A different
+# audio harness (c_music_check.mjs) did the same for 2h23m earlier. Neither is a
+# permanent hang — the same check passes standalone in ~5 s — so it is an
+# intermittent race on the SNDH/audio path (a poll loop waiting for sound against a
+# player that can legitimately take tens of seconds to start; see the Xbtimer note
+# in docs/MUSIC.md).
+#
+# A wedged gate is WORSE than a failing one: it cannot be told apart from a slow
+# one, so "green" simply never arrives and nobody is told why. This turns an
+# invisible stall into a red line.
+#
+# WHY 900 AND NOT 300, which is what this shipped as until it was used in anger:
+# `rom_abi_check.mjs` takes 105 SECONDS on an idle box, and this gate is often
+# run while another one is going. At 300 it was killed by its own watchdog and
+# the gate died with a spurious red — trading a silent nine-hour wedge for a
+# flaky failure is not an improvement. 900 still turns that wedge into a quarter
+# of an hour.
+#
+# WHAT WOULD BE BETTER: a wall clock cannot tell "slow" from "hung", but the
+# wedge has a signature that can — it consumes ZERO CPU SECONDS while it hangs,
+# where a slow harness burns CPU throughout. A watchdog on CPU time would need
+# no arbitrary ceiling at all. `timeout` cannot do that, so this is the blunt
+# version, and the number is an env var so nobody has to edit the file.
+#
+# `timeout` execs the real node, so this function does not recurse into itself.
+HARNESS_TIMEOUT=${HARNESS_TIMEOUT:-900}
+node() {
+    timeout "$HARNESS_TIMEOUT" node "$@" || {
+        status=$?
+        if [ "$status" -eq 124 ]; then
+            echo "harness TIMED OUT after ${HARNESS_TIMEOUT}s: node $*" >&2
+            echo "  (re-run it alone; if it passes, you have hit the intermittent audio wedge)" >&2
+        fi
+        return "$status"
+    }
+}
 # --- selective gate: --only <tags> / --changed -----------------------------
 # The DEFAULT is the full gate, and the pre-push hook must keep using it. These
 # flags are an inner-loop convenience ONLY.
