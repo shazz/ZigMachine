@@ -311,13 +311,23 @@ for (const f of [400, 1000]) { runTo(f); got[f] = hashFrame(); }
     }
     if (sameAsFirst > 4) errors.push(`${sameAsFirst} of key 2's 148 banded lines are pixel-identical to line 60: the palette is not per line`);
     if (thin > 40) errors.push(`${thin} of key 2's banded lines carry fewer than 3 colours`);
+    // THE FIELD MUST STAY RICH. This is the check that was missing: "the palette
+    // is per line" passed happily while the table decayed to eight colours over
+    // a few thousand frames, and Matt found it by eye. The real screen is a full
+    // rainbow — the still carries 256 colours — so a floor well under that still
+    // catches a collapse.
+    const distinct = () => { const c = new Set(); for (let y = 46; y < 194; y += 3) for (let x = 0; x < 320; x += 4) c.add(rgb(x, y)); return c.size; };
+    const early = distinct();
+    for (let f = 0; f < 5000; f++) step();
+    const late = distinct();
+    if (late < 60) errors.push(`key 2 shows ${late} distinct colours after 5000 frames (was ${early}): the table has collapsed, not filled`);
     // Outside the band the VBL's base palette is live, and it has only SIX
     // distinct words: $18F24 = 0000 0007 0000 x4 0110 0330 0660 0000 x6 0700.
     // A line there showing a seventh colour means the table leaked out of its
     // 45..194 range, which is the one thing that could silently go wrong in a
     // handler that runs on all 280 physical rows.
     for (const y of [10, 30, 197]) if (rowColours(y).size > 6) errors.push(`key 2 line ${y} is outside the table's band but shows ${rowColours(y).size} colours, the base palette has 6`);
-    key2 = `key 2: per-line palette live on 148 lines, ${thin} thin`;
+    key2 = `key 2: per-line palette on 148 lines, ${early} colours -> ${late} after 5000 frames`;
     demo.key(32); step(); step();
     if (hashFrame() === waitHash) errors.push("leaving key 2 did not restore the jukebox");
 }
