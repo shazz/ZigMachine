@@ -172,6 +172,11 @@ pub fn build(b: *std.Build) void {
     pack_superscroller.addFileArg(b.path("apps/zig/assets/screens/union_superscroller/loader_superscroller.txt"));
     pack_superscroller.addFileArg(b.path("apps/zig/assets/screens/union_superscroller/superscroller.bin"));
     const superscroller_zx0 = pack_superscroller.addOutputFileArg("union_superscroller.zx0");
+    // THE REPLICANTS / Emlyn Hughes: the big logo and the font. 769,580 bytes
+    // pack to 17,862, so the cart embeds the packed form and depacks in init().
+    const pack_emlyn = b.addRunArtifact(zx0pack);
+    pack_emlyn.addFileArg(b.path("apps/zig/assets/screens/replicants_emlyn/emlyn.bin"));
+    const emlyn_zx0 = pack_emlyn.addOutputFileArg("replicants_emlyn.zx0");
     const packed_files = b.addWriteFiles();
     _ = packed_files.addCopyFile(trsi_zx0, "trsi_turn.zx0");
     _ = packed_files.addCopyFile(multifake_zx0, "union_multifake.zx0");
@@ -187,6 +192,7 @@ pub fn build(b: *std.Build) void {
     _ = packed_files.addCopyFile(tnt2_zx0, "union_tnt2.zx0");
     _ = packed_files.addCopyFile(beatdis_zx0, "union_beatdis.zx0");
     _ = packed_files.addCopyFile(superscroller_zx0, "union_superscroller.zx0");
+    _ = packed_files.addCopyFile(emlyn_zx0, "replicants_emlyn.zx0");
     // MPP TRUECOLOR's gallery: one blob per picture and mode (tools/mpp_convert.py).
     // Unpacked they overflow the cart window, so the scene depacks only the one on
     // screen. MPP_PICTURES follows the converter's PICTURES list.
@@ -221,6 +227,7 @@ pub fn build(b: *std.Build) void {
             \\pub const union_tnt2 = @embedFile("union_tnt2.zx0");
             \\pub const union_beatdis = @embedFile("union_beatdis.zx0");
             \\pub const union_superscroller = @embedFile("union_superscroller.zx0");
+            \\pub const replicants_emlyn = @embedFile("replicants_emlyn.zx0");
             \\{s}}};
             \\
         , .{mpp_decl})),
@@ -407,6 +414,7 @@ pub fn build(b: *std.Build) void {
         "demo-tlb_spoon", // 59 — THE LOST BOYS / THE TWIDDLE DEMO, ULM Megademo (CODEF screen 122)
         "demo-tcb_colorshock", // 60 — THE CAREBEARS / COLORSHOCK 2, The Cuddly Demos (CODEF screen 172)
         "demo-vex", // 61 — vEctRoniX / VEX 2025, the GTA VI cracktro (ported from the ST binary)
+        "demo-replicants_emlyn", // 62 — The Replicants / Emlyn Hughes Intl Soccer cracktro (CODEF screen 17)
     };
     for (cart_names, 0..) |name, idx| {
         if (name.len == 0) continue; // excluded cart (see note above)

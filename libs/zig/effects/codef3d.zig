@@ -306,6 +306,59 @@ fn farther(_: void, a: Poly, b: Poly) bool {
     return b.z - a.z < 0;
 }
 
+/// One THREE.Particle of a CODEF `vectorball_dot`/`vectorball_img` group, placed
+/// as CanvasRenderer draws a ParticleCanvasMaterial (its `r()`): `x`/`y` are
+/// canvas pixels and `sx`/`sy` the scale its program runs under. The renderer
+/// leaves the canvas transform at (1, 0, 0, -1, o, q) and does NOT undo the flip
+/// for this material (only ParticleBasicMaterial passes -j), so a program point
+/// (px, py) lands at (x + sx*px, y - sy*py) and the program's image comes out
+/// MIRRORED vertically.
+pub const Particle = struct { x: f64, y: f64, sx: f64, sy: f64, z: f64 };
+
+/// Projector's RenderableParticle branch for a group of particles at the origin,
+/// Euler-rotated by `rotation` and scaled by `scale` (Object3D.updateMatrix ends
+/// with Matrix4.scale), seen from a camera at `camera` with no rotation.
+/// `out` needs points.len entries; the visible ones come back far to near.
+/// A Particle's own scale stays THREE's default 1, which is what both CODEF
+/// vectorball helpers leave it at.
+pub fn projectParticles(lens: *const Lens, camera: Vec3, rotation: Vec3, scale: f64, points: []const Vec3, out: []Particle) []Particle {
+    const origin = Vec3{ .x = 0, .y = 0, .z = 0 };
+    var group = Mat4.compose(origin, rotation);
+    for (0..3) |c| for (0..4) |r| { // Matrix4.scale: each of the first three columns
+        group.e[r + 4 * c] = @floatCast(@as(f64, group.e[r + 4 * c]) * scale);
+    };
+    const vp = lens.projection.mul(&Mat4.compose(camera, origin).inverse());
+    var n: usize = 0;
+    for (points) |p| {
+        const world = group.mul(&Mat4.compose(p, origin)); // the particle's matrixWorld
+        const e = vp.clip(.{ .x = world.at(12), .y = world.at(13), .z = world.at(14) });
+        out[n] = place(lens, e) orelse continue;
+        n += 1;
+    }
+    std.sort.insertion(Particle, out[0..n], {}, fartherParticle);
+    return out[0..n];
+}
+
+/// A projected particle's canvas placement, or null where the Projector drops it
+/// (clip z outside (0, 1)) or the renderer's viewport test does.
+fn place(lens: *const Lens, e: Vec4) ?Particle {
+    const z = e.z / e.w;
+    if (!(z > 0 and z < 1)) return null;
+    const ax = e.x / e.w * lens.half_w;
+    const ay = e.y / e.w * lens.half_h;
+    const sx = @abs(e.x / e.w - (e.x + lens.projection.at(0)) / (e.w + lens.projection.at(12))) * lens.half_w;
+    const sy = @abs(e.y / e.w - (e.y + lens.projection.at(5)) / (e.w + lens.projection.at(13))) * lens.half_h;
+    // the renderer's box is sx/sy wide, NOT the program's image, so a particle
+    // whose centre leaves the canvas is dropped whole however big it draws
+    if (ax + sx < -lens.half_w or ax - sx > lens.half_w) return null;
+    if (ay + sy < -lens.half_h or ay - sy > lens.half_h) return null;
+    return .{ .x = ax + lens.half_w, .y = -ay + lens.half_h, .sx = sx, .sy = sy, .z = z };
+}
+
+fn fartherParticle(_: void, a: Particle, b: Particle) bool {
+    return b.z - a.z < 0;
+}
+
 /// Frustum.setFromMatrix(vp) then Frustum.contains(mesh).
 /// Its six planes are row 3 minus/plus rows 0, 0, 1, 1, 2, 2 of vp.
 fn insideFrustum(vp: *const Mat4, model: *const Mat4, radius: f64) bool {

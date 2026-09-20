@@ -209,6 +209,10 @@ gate union_intro_wab node apps/union_intro_wab_check.mjs docs/demo-union_intro.w
 gate dbug node apps/dbug_headless.mjs "$SHOTS"
 gate vex node apps/vex_headless.mjs "$SHOTS/vex"   # VEX 2025: logo, panel + its 4-page cycle, cubes, both scrollers, the raster rows
 gate tcb_colorshock node apps/tcb_colorshock_headless.mjs "$SHOTS/tcb_colorshock"   # COLORSHOCK 2: the hardware pan, the per-line palettes, the strip on its table
+gate replicants_emlyn node apps/replicants_emlyn_headless.mjs "$SHOTS/replicants_emlyn"   # EMLYN HUGHES: the bars are REAL rasters edge to edge (no pixel ever carries a bar colour; theta 0 is ONE colour register a line), Space switches ORIGINAL<->ZIG, the sweeping logo, the flat scroller in the opened bottom border, Escape leaves, the tune plays with no unanswered hardware write
+gate replicants_emlyn node apps/replicants_emlyn_headless.mjs --break rasters "$SHOTS/replicants_emlyn"   # ...and one static palette instead of a per-scanline one is caught
+gate replicants_emlyn node apps/replicants_emlyn_headless.mjs --break borders "$SHOTS/replicants_emlyn"   # ...and rasters that stop at the content edge (flicker only in the bands, the .top_bottom behaviour) is caught
+gate replicants_emlyn node apps/replicants_emlyn_headless.mjs --break spin "$SHOTS/replicants_emlyn"   # ...and bars that never tilt without Space is caught
 gate fallen_angels node apps/fallen_angels_headless.mjs "$SHOTS"   # per-plane rasters on all 200 lines
 gate tex_loader_fx node apps/tex_loader_fx_headless.mjs "$SHOTS/tex_loader_fx"   # fx = tex_loader on a real asset, bytes checked
 gate tex node apps/tex_headless.mjs "$SHOTS"             # the eleven sprites on screen.js's chain

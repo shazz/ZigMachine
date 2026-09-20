@@ -75,3 +75,22 @@ test "faces sort far to near, ties keeping their order" {
     try expectEqual(@as(usize, 3), polys.len);
     try expectEqual([3]u8{ 2, 1, 3 }, [3]u8{ polys[0].ink, polys[1].ink, polys[2].ink });
 }
+
+// screen 17's vectorballs: codef3D(canvas 640x480, camZ 800, fov 50, near 1,
+// far 1600) with group.scale 60 and rotation.x 0.04. The x/y/scale three.js's
+// own Projector printed for three of the twelve particles, in ITS draw order
+// (far to near). All three sit at x = 0, so they share the canvas midline.
+const RING = [_]c3.Vec3{ .{ .x = 0, .y = 1, .z = -5 }, .{ .x = 0, .y = 0, .z = 0 }, .{ .x = 0, .y = -1, .z = 5 } };
+
+test "a scaled group of particles lands where three.js r49 puts them" {
+    const lens = c3.Lens.init(640, 480, 50, 1, 1600);
+    var out: [RING.len]c3.Particle = undefined;
+    const ps = c3.projectParticles(&lens, .{ .x = 0, .y = 0, .z = 800 }, .{ .x = 0.04, .y = 0, .z = 0 }, 60, &RING, &out);
+    try expectEqual(@as(usize, 3), ps.len);
+    const want = [3]c3.Particle{
+        .{ .x = 320, .y = 206.25473102648283, .sx = 0.46901777099399683, .sy = 0.469017770993998, .z = 0.999427034940785 },
+        .{ .x = 320, .y = 240, .sx = 0.6433520793914794, .sy = 0.6433520793914795, .z = 0.9987491607666016 },
+        .{ .x = 320, .y = 313.67257318223824, .sx = 1.0239582349882228, .sy = 1.0239582349882248, .z = 0.9972692278389645 },
+    };
+    try expectEqual(want, ps[0..3].*);
+}
