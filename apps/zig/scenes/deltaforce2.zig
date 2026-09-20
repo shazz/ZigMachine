@@ -45,7 +45,22 @@ const rasterbars_pal = convertU8ArraytoColors(@embedFile("../assets/screens/df2/
 
 // rasters
 const scroll_rasters_b = convertU8ArraytoColors(@embedFile("../assets/screens/df2/scrollrasters.dat"));
+
+// The background ramp: ten palette indices ACROSS (rasterbars.png is 10x1),
+// repeated over every row and slid one pixel per frame. See the note above
+// handler_scroller: this one is pixels by nature, not a scanline raster.
 const rasterbars_b = @embedFile("../assets/screens/df2/rasterbars.raw");
+const BAR_PERIOD: usize = rasterbars_b.len;
+comptime {
+    if (WIDTH % BAR_PERIOD != 0) @compileError("the background ramp assumes WIDTH is a multiple of BAR_PERIOD");
+}
+
+// One band = a line of the font plus the gap under it; the scroller's off-screen
+// buffer holds two of them, so a read at any offset inside the first band still
+// has a whole band's worth of pixels ahead of it.
+const BAND_ROWS: u16 = SCROLL_CHAR_HEIGHT + SCROLL_INTERSPACE;
+const BAND_BYTES: usize = BAND_ROWS * WIDTH;
+const SCROLLER_ROWS: u16 = BAND_ROWS * 2;
 
 // --------------------------------------------------------------------------
 // Variables
@@ -55,13 +70,18 @@ const rasterbars_b = @embedFile("../assets/screens/df2/rasterbars.raw");
 // --------------------------------------------------------------------------
 // Demo
 // --------------------------------------------------------------------------
-// fn handler_rasterbars(fb: *LogicalFB, zigos: *ZigOS, line: u16, col: u16) void {
-
-//     fb.setPaletteEntry(0, rasters_b[col % 10]);
-
-//     _ = zigos;
-//     _ = line;
-// }
+// The blue background is NOT a scanline raster and cannot be made into one:
+// rasterbars.png is 10x1 (ten colours ACROSS), and the screen draws them as a
+// 10-pixel VERTICAL ramp repeated over the row, sliding one pixel left per
+// frame — the CODEF original's `bluerasterback.png` scrolled horizontally
+// (x -= 5). A colour register changed per scanline paints a HORIZONTAL bar, so
+// an HBL cannot produce this. The 2023 attempt that sat commented out here
+// indexed a per-COLUMN callback (`rasters_b[col % 10]`) the machine has never
+// had — `col` is the column the handler was REGISTERED at, constant for every
+// line — and referenced an asset (rasters.dat) the scene never loads, so it
+// could not even compile. It is deleted rather than revived.
+// The scroller's rasters below, by contrast, ARE real: one palette write per
+// scanline from the plane's HBL.
 
 fn handler_scroller(fb: *LogicalFB, zigos: *ZigOS, line: u16, col: u16) void {
     const back_color: Color = Color{ .r = 0, .g = 0, .b = 0, .a = 0 };
@@ -85,7 +105,14 @@ pub const Demo = struct {
     frame_counter: u32 = 0,
     scrolltext: Scrolltext(NB_FONTS) = undefined,
     scroller_target: RenderTarget = undefined,
-    scroller_pos_y: u16 = SCROLL_CHAR_HEIGHT-1,
+    scroller_pos_y: u16 = SCROLL_CHAR_HEIGHT - 1,
+    // The scroller's off-screen buffer. It used to be a stack local in init(),
+    // so scroller_target held a pointer to a dead frame (the bug bladerunners.zig
+    // was fixed for), and it was 2 rows SHORT of the height it declared: render
+    // reads rows scroller_pos_y..scroller_pos_y+32, i.e. up to row 65 at
+    // scroller_pos_y = 32. Sized to the declared height, it lives as long as Demo.
+    scroller_buffer: [WIDTH * SCROLLER_ROWS]u8 = undefined,
+    scroller_render_buffer: RenderBuffer = undefined,
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
         Console.log("Demo init", .{});
@@ -93,24 +120,21 @@ pub const Demo = struct {
         // Nothing happens until the user turns sound on — the request just waits.
         zg.requestSong(MUSIC);
 
-        // first plane
+        // The background plane: no HBL, its colours are the ramp drawn as pixels.
         var fb: *LogicalFB = &zigos.lfbs[0];
         fb.is_enabled = true;
-  
-        // HBL Handler for the raster effect
-        // fb.setFrameBufferHBLHandler(0, handler_rasterbars);   
         fb.setPalette(rasterbars_pal);
 
         fb = &zigos.lfbs[1];
         fb.is_enabled = true; 
         fb.setPalette(font_pal);
 
-        // HBL Handler for the raster effect
-        fb.setFrameBufferHBLHandler(0, handler_scroller);        
+        // The scroller's ink colour, a real raster: one palette write per scanline.
+        fb.setFrameBufferHBLHandler(0, handler_scroller);
 
-        var buffer = [_]u8{0} ** (WIDTH * (SCROLL_CHAR_HEIGHT+2) * 2); 
-        var render_buffer: RenderBuffer = .{ .buffer = &buffer, .width = WIDTH, .height = (SCROLL_CHAR_HEIGHT+SCROLL_INTERSPACE) * 2};  
-        self.scroller_target = .{ .render_buffer = &render_buffer };   
+        @memset(&self.scroller_buffer, 0);
+        self.scroller_render_buffer = .{ .buffer = &self.scroller_buffer, .width = WIDTH, .height = SCROLLER_ROWS };
+        self.scroller_target = .{ .render_buffer = &self.scroller_render_buffer };
         self.scroller_pos_y = (SCROLL_CHAR_HEIGHT - 1);
 
         self.scrolltext = Scrolltext(NB_FONTS).init(self.scroller_target, fonts_b, SCROLL_CHARS, SCROLL_CHAR_WIDTH, SCROLL_CHAR_HEIGHT, SCROLL_TEXT, SCROLL_SPEED, 0, null, null, null);
@@ -123,10 +147,10 @@ pub const Demo = struct {
         self.scrolltext.update();
 
         self.frame_counter += 1;
-        if (self.frame_counter == 10) self.frame_counter  = 0;
+        if (self.frame_counter == BAR_PERIOD) self.frame_counter = 0;
 
         self.scroller_pos_y -= 1;
-        if(self.scroller_pos_y == 0) self.scroller_pos_y = (SCROLL_CHAR_HEIGHT + SCROLL_INTERSPACE - 1);
+        if (self.scroller_pos_y == 0) self.scroller_pos_y = BAND_ROWS - 1;
             
         _ = zigos;
         _ = elapsed_time;
@@ -134,39 +158,33 @@ pub const Demo = struct {
 
     pub fn render(self: *Demo, zigos: *ZigOS, elapsed_time: f32) void {
 
+        // Every row of the background is the same 10-pixel ramp (WIDTH is a
+        // multiple of BAR_PERIOD), so build the row once and copy it down
+        // instead of taking a modulo per pixel.
+        var row: [WIDTH]u8 = undefined;
+        for (&row, 0..) |*px, x| px.* = rasterbars_b[(self.frame_counter + x) % BAR_PERIOD];
+
         var fb = &zigos.lfbs[0];
-        var i: u16 = 0;
-        while(i < WIDTH*HEIGHT) : (i += 1) {
-            fb.fb[i] = rasterbars_b[(self.frame_counter + i) % 10];
-        }
+        for (0..HEIGHT) |y| @memcpy(fb.fb[y * WIDTH ..][0..WIDTH], &row);
 
         fb = &zigos.lfbs[1];
         self.scroller_target.clearFrameBuffer(0);
         self.scrolltext.render();
 
-        // copy scrolltext another time
-        i = 0;
-        while(i < (WIDTH*SCROLL_CHAR_HEIGHT)) : ( i += 1) {
-            self.scroller_target.render_buffer.buffer[i + ((SCROLL_CHAR_HEIGHT+SCROLL_INTERSPACE) * WIDTH)] = self.scroller_target.render_buffer.buffer[i];
-        }
+        // A second copy of the font band below the first, so a band read at any
+        // scroll offset always has a whole band of pixels ahead of it.
+        const band = self.scroller_buffer[0 .. SCROLL_CHAR_HEIGHT * WIDTH];
+        @memcpy(self.scroller_buffer[BAND_BYTES..][0 .. SCROLL_CHAR_HEIGHT * WIDTH], band);
 
-        i = 0;
+        // The plane is that band, repeated down the screen from the current
+        // vertical offset: six whole bands and whatever is left of the seventh.
         const offset = self.scroller_pos_y * WIDTH;
-        while(i < (WIDTH*(SCROLL_CHAR_HEIGHT+SCROLL_INTERSPACE))) : ( i += 1){
-            fb.fb[i + (0 * (SCROLL_CHAR_HEIGHT+SCROLL_INTERSPACE) * WIDTH)] = self.scroller_target.render_buffer.buffer[i + offset];
-            fb.fb[i + (1 * (SCROLL_CHAR_HEIGHT+SCROLL_INTERSPACE) * WIDTH)] = self.scroller_target.render_buffer.buffer[i + offset];
-            fb.fb[i + (2 * (SCROLL_CHAR_HEIGHT+SCROLL_INTERSPACE) * WIDTH)] = self.scroller_target.render_buffer.buffer[i + offset];
-            fb.fb[i + (3 * (SCROLL_CHAR_HEIGHT+SCROLL_INTERSPACE) * WIDTH)] = self.scroller_target.render_buffer.buffer[i + offset];
-            fb.fb[i + (4 * (SCROLL_CHAR_HEIGHT+SCROLL_INTERSPACE) * WIDTH)] = self.scroller_target.render_buffer.buffer[i + offset];
-            fb.fb[i + (5 * (SCROLL_CHAR_HEIGHT+SCROLL_INTERSPACE) * WIDTH)] = self.scroller_target.render_buffer.buffer[i + offset];
-        }
+        const source = self.scroller_buffer[offset..][0..BAND_BYTES];
+        const whole_bands = (WIDTH * HEIGHT) / BAND_BYTES;
+        for (0..whole_bands) |b| @memcpy(fb.fb[b * BAND_BYTES ..][0..BAND_BYTES], source);
 
-        i = 0;
-        var j: u16 = (6 * (SCROLL_CHAR_HEIGHT + SCROLL_INTERSPACE) * WIDTH);
-        while(j < (WIDTH*HEIGHT)) : ( j += 1){
-            fb.fb[j] = self.scroller_target.render_buffer.buffer[i + offset];
-            i += 1;
-        }        
+        const tail = (WIDTH * HEIGHT) - whole_bands * BAND_BYTES;
+        @memcpy(fb.fb[whole_bands * BAND_BYTES ..][0..tail], source[0..tail]);
 
         _ = elapsed_time;
 
