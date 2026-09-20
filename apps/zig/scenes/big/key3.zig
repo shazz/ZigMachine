@@ -150,14 +150,14 @@ pub const Key3 = struct {
                 s.fast -= 1;
                 continue;
             }
-            // CYCLIC, and this is a deliberate deviation from the code as read.
-            // The demo's own shift moves 60 of a 61-word table up one and leaves
-            // the last word alone, which drains the table to a single value
-            // after 60 steps — four seconds at the script's reload of 1. Either
-            // the shift reaches further than the three blocks that were read,
-            // or something refills the tail; neither is established. A rotation
-            // is the smallest change that keeps the field alive, and it is
-            // flagged here rather than passed off as the original.
+            // A 61-word ROTATION, which is exactly what the demo does. Its
+            // own code saves word 0 (`move.w (a0),d0` at $1B3E8), shifts words
+            // 1..60 down with three 20-word movem blocks, and then writes the
+            // saved word back into word 60 (`move.w d0,$78(a0)` at $1B40C).
+            // The first reading of it stopped two instructions short of that
+            // last move and looked like a drain, which would have emptied the
+            // table in 60 steps — four seconds at the script's own reload of 1.
+            // Distrusting a mechanism that cannot run is what found it.
             const t = self.region[s.base .. s.base + s.len];
             const head = t[0];
             for (0..t.len - 1) |i| t[i] = t[i + 1];
