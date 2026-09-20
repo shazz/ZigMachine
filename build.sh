@@ -22,8 +22,23 @@ if [ -t 1 ]; then clear; fi # not from a git hook or a log redirect
 # narrow anything unless the diff touches scene/asset files and nothing else.
 # The cheap cross-cutting checks (windows, ABI, disks) always run regardless.
 ONLY=""
+FAST=""
 case "${1:-}" in
-    --only)    ONLY="${2:?--only needs a screen tag, e.g. --only stniccc}" ;;
+    --fast)
+        # Compile and repack the disks, then STOP: no windows, no tests, no
+        # harnesses. For the edit-reload-look loop only -- it proves nothing.
+        # It still runs mkdisks because the browser fetches demo-<tag>.zmd, not
+        # the .wasm: skipping it would serve the PREVIOUS cart from a build that
+        # looked successful, which is the exact silent staleness this gate is for.
+        FAST=1
+        ;;
+    --only)
+        # ALL remaining arguments are tags. Reading only $2 meant a second
+        # --only was dropped on the floor and the gate still exited green.
+        shift
+        [ $# -gt 0 ] || { echo "--only needs a screen tag, e.g. --only stniccc" >&2; exit 2; }
+        ONLY="$*"
+        ;;
     --changed)
         # Everything changed ON THIS BRANCH, not just since HEAD: diffing HEAD alone
         # means the first commit empties the set and silently widens back to the full
@@ -46,8 +61,20 @@ case "${1:-}" in
         fi ;;
 esac
 if [ -n "$ONLY" ]; then
+    # A tag matching no gate line would run ZERO screen harnesses and still exit
+    # 0 -- a check that did not run and said it passed. Refuse instead.
+    _tags=$(grep -oE '^gate [A-Za-z0-9_]+' "$0" | cut -d' ' -f2 | sort -u)
+    for _s in $ONLY; do
+        _hit=0
+        for _t in $_tags; do case "$_t" in *"$_s"*) _hit=1 ;; esac; done
+        [ "$_hit" = 1 ] || { echo "--only: no harness tag matches '$_s'" >&2; exit 2; }
+    done
     echo "SELECTIVE GATE - screens: $ONLY"
     echo "  (cross-cutting checks still run; use a bare ./build.sh before pushing)"
+    # Matching is substring and over-inclusive on purpose -- for a gate, running
+    # more is the safe error. It CANNOT express a screen reached through another
+    # screen: --only big_demo does NOT pull in digital_solution, which runs from
+    # demo-big_demo.wasm. Name both, or use the bare gate.
 fi
 
 # gate <tag> <command...> - run a harness unless --only/--changed excludes it.
@@ -63,6 +90,16 @@ gate() {
 }
 
 zig build -Drelease=true -Dwasm
+
+# --fast stops here. The C and Rust carts are NOT rebuilt (slow, and irrelevant
+# to a Zig scene edit), so a --fast build is never a pushable one.
+if [ -n "$FAST" ]; then
+    tools/mkdisks.sh
+    echo "FAST BUILD - wasm + disks only. NOTHING was checked."
+    echo "  Run ./build.sh --only <screen>, and a bare ./build.sh before pushing."
+    exit 0
+fi
+
 # The C and Rust carts have their own build scripts, which zig build does not run.
 # Rebuilding them here (both are byte-for-byte deterministic) is what lets the
 # pre-push hook's "docs/ matches the source" check catch a stale demo-c*.wasm or
@@ -170,6 +207,7 @@ gate union_demo node apps/union_demo_headless.mjs --break wrap "$SHOTS/union_dem
 gate union_multifake node apps/union_multifake_headless.mjs "$SHOTS"   # TCB3: loader depack, then screen.js replayed pixel for pixel
 gate union_intro_wab node apps/union_intro_wab_check.mjs docs/demo-union_intro.wasm   # cracktro WAB logo: lands as exactly wab.raw; the original JS replayed (skipped without prototypes/)
 gate dbug node apps/dbug_headless.mjs "$SHOTS"
+gate vex node apps/vex_headless.mjs "$SHOTS/vex"   # VEX 2025: logo, panel + its 4-page cycle, cubes, both scrollers, the raster rows
 gate tcb_colorshock node apps/tcb_colorshock_headless.mjs "$SHOTS/tcb_colorshock"   # COLORSHOCK 2: the hardware pan, the per-line palettes, the strip on its table
 gate fallen_angels node apps/fallen_angels_headless.mjs "$SHOTS"   # per-plane rasters on all 200 lines
 gate tex_loader_fx node apps/tex_loader_fx_headless.mjs "$SHOTS/tex_loader_fx"   # fx = tex_loader on a real asset, bytes checked
