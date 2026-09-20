@@ -33,10 +33,9 @@
 // bottom scroller's pipes and shadows out past the 320 columns (Matt,
 // 2026-09-19). big/border.zig carries that, measured off the real capture.
 //
-// NOT ported: the main picture advertises "Hit 1...3 for Psych-O-Screens" and
-// "Hit B for the B.I.G.-Scroller". Those keys are real on the machine (Matt,
-// 2026-09-19) and open four further screens, but the remake's KeyCheck()
-// (screen.js:33) implements neither and those screens are not here yet.
+// The SUB-SCREENS behind the jukebox — the Digital Department and the keys the
+// picture advertises — live in big/sub.zig, which also owns the handover of the
+// plane. Key 3 is built; 1, 2 and B are not yet.
 //
 // THE LIST IS THE DEMO'S OWN, NOT THE REMAKE'S.
 // big/list.zig is TEX's 118-row table ripped out of the running demo's memory
@@ -65,8 +64,8 @@ const Console = zg.Console;
 const A = @import("big/assets.zig");
 const Screen = @import("big/screen.zig").Screen;
 const list = @import("big/list.zig");
-const digital = @import("big/digital.zig");
 const border = @import("big/border.zig");
+const sub = @import("big/sub.zig");
 
 const K_ESC: u32 = 0xE012; // host KEY_CODES.Escape
 const K_RETURN: u32 = 13;
@@ -82,16 +81,16 @@ pub const Demo = struct {
     screen: Screen,
     running: bool, // false while wait() still owns the frame
     leave: bool,
-    /// The Digital Solution is up, over the jukebox (list.DIGITAL was chosen).
-    /// Its scroller runs off THIS struct's `screen`, so the text carries on
-    /// across the swap rather than restarting — the state has one home.
-    digital_up: bool,
+    /// The sub-screens and whose turn it is with the plane. The Digital
+    /// Solution's scroller runs off THIS struct's `screen`, so its text carries
+    /// on across the swap rather than restarting — the state has one home.
+    sub: sub.Sub,
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
         Console.log("B.I.G. Demo init", .{});
         self.running = false;
         self.leave = false;
-        self.digital_up = false;
+        self.sub.init();
         self.screen.init();
 
         var fb: *LogicalFB = &zigos.lfbs[0];
@@ -105,6 +104,11 @@ pub const Demo = struct {
         fb.clearFrameBuffer(A.PANEL);
         // The hardware border beyond the plane, for the same reason.
         zigos.setBackgroundColor(A.palette[A.PANEL]);
+        // Colour 0 per scanline, once: it is static apart from the two rule
+        // rows, and those carry the PULSE pen, which the palette write moves.
+        border.paint(fb);
+        border.paintRules(fb, A.PANEL); // until go() owns them
+        fb.setPaletteEntry(A.PULSE, A.PULSE_RAMP[0]);
         // Colour 0 per scanline, once: it is static apart from the two rule
         // rows, and those carry the PULSE pen, which the palette write moves.
         border.paint(fb);
@@ -126,7 +130,7 @@ pub const Demo = struct {
     pub fn render(self: *Demo, zigos: *ZigOS, dt: f32) void {
         _ = dt;
         const fb: *LogicalFB = &zigos.lfbs[0];
-        if (self.digital_up) return digital.draw(&self.screen, fb);
+        if (self.sub.draw(&self.screen, fb)) return;
         if (self.running) self.screen.go(fb) else self.screen.drawWait(fb);
     }
 
@@ -142,20 +146,15 @@ pub const Demo = struct {
             self.leave = true;
             return;
         }
-        // The Digital Solution owns every other key while it is up: 1-6 play,
-        // Space comes back here ("-PRESS SPACE TO EXIT TO THE B.I.G. DEMO-").
-        if (self.digital_up) {
-            if (digital.key(cp)) self.digital_up = false;
-            return;
-        }
+        // A sub-screen owns every other key while it is up, and Space is how
+        // you leave one ("-PRESS SPACE TO EXIT TO THE B.I.G. DEMO-").
+        if (self.sub.key(cp, self.running)) return;
         // Return: the highlight moves whatever the row is, and the Digital
         // Department row opens its screen instead of playing anything.
         if (cp == K_RETURN) {
             self.screen.select();
-            if (self.screen.curentlplay == list.DIGITAL) {
-                self.digital_up = true;
-                digital.enter(); // the screen opens WITH its music
-            }
+            // The Digital Department row opens its screen WITH its music.
+            if (self.screen.curentlplay == list.DIGITAL) self.sub.enterDigital();
         }
     }
 
@@ -170,7 +169,7 @@ pub const Demo = struct {
     /// exactly what the original does. (Matt, 2026-09-19.)
     pub fn input(self: *Demo, dir: u8) void {
         if (dir == DIR_BACK) self.leave = true;
-        if (self.digital_up) return; // the Digital Solution has no cursor to move
+        if (self.sub.up()) return; // a sub-screen has no cursor to move
         if (dir == DIR_UP) self.screen.scrollUp();
         if (dir == DIR_DOWN) self.screen.scrollDown();
     }

@@ -61,6 +61,7 @@ const FRAMES = {
     1: "6d2299731df28521dba73affc2ae7856d66139042e69b340240d8a56b8e37e2e", 201: "aa9a1176ac3a4dad97e5a0c998351e35e7df7bf385fd625fc837e37b9cc4aae0",
     400: "36975381270f74bdf741c0b703166be07efe0f974ddca0cb72f56e377ed1cf2a", 1000: "006f3eff520e9f569b0b49be88a919af6c54ff633f4a1430ad673a991a542438",
 };
+let key3 = "key 3 not reached";
 const argv = process.argv.slice(2), bi = argv.indexOf("--break");
 const brk = bi >= 0 ? argv.splice(bi, 2)[1] : null;
 if (brk && !["nav", "music", "noop", "songs"].includes(brk)) throw new Error(`--break ${brk}: nav|music|noop|songs`);
@@ -215,6 +216,68 @@ if (holes.length < 20) errors.push(`only ${holes.length} band px show through ma
 if (tiles.join() !== wantTiles.join()) errors.push(`band tiles over 24 frames ${tiles.join()}, texbg += 0.4 gives ${wantTiles.join()}`);
 // 4. whole-frame fingerprints, and the playing row's filled bar
 for (const f of [400, 1000]) { runTo(f); got[f] = hashFrame(); }
+/// 7. KEY 3, the raster field. The picture advertises "Hit 1...3 for
+/// Psych-O-Screens" and the remake binds none of them. What is checked here is
+/// the SCHEDULE, because that is what was measured off the real screen and it
+/// is what a wrong line, a wrong band width or a wrong window offset breaks:
+///
+///   lines 0,1    black
+///   4n+2, 4n+4   FLAT, one colour across all 320 (the two per-line words)
+///   4n+3, 4n+5   27 bands, boundaries at x = 9 + 12k
+///
+/// 12 px is one `move.w` to $FF8240 at 1 pixel per cycle, and 320/12 = 26.7 is
+/// why there are 27 of them. The first band is 9 px because the display opens
+/// in the middle of a write, and the last is 11 for the same reason.
+{
+    demo.key(51); step(); // '3'
+    const px = pixels(), PH = machine.hwPhysHeight();
+    const TOP3 = (PH - 200) >> 1, L3 = (PW - 640) >> 1; // 320x200, borders closed
+    const rgb = (x, y) => { const o = ((TOP3 + y) * PW + L3 + 2 * x) * 4; return `${px[o]},${px[o+1]},${px[o+2]}`; };
+    // The cross sits at x 125..193, y 86..154 in the bitmap, and it draws OVER
+    // the field — so every check below reads the columns it cannot reach.
+    // Excluding it is a declared blind spot, so the cross gets its own check.
+    const CLEAR = [...Array(120).keys()].concat([...Array(120).keys()].map((x) => x + 200));
+    const edges = (y) => CLEAR.filter((x, i) => i > 0 && CLEAR[i - 1] === x - 1 && rgb(x, y) !== rgb(x - 1, y));
+    let flat = 0, field = 0, offgrid = 0, wrongCount = 0;
+    for (let y = 0; y < 200; y++) {
+        const e = edges(y);
+        if (y < 2) { if (e.length) errors.push(`key 3 line ${y} is not flat`); continue; }
+        if ((y - 2) % 2 === 0) {
+            if (e.length === 0 && rgb(0, y) === rgb(319, y)) flat++;
+            else errors.push(`key 3 line ${y} should be one flat per-line colour across the whole width`);
+            continue;
+        }
+        field++;
+        // Every edge on the 12-px grid, AND every band a constant colour. The
+        // second half is the one that cannot be fooled: two neighbouring bands
+        // carrying the same word show no edge at all, so counting edges gives a
+        // number that moves with the data while "each band is flat" does not.
+        for (const x of e) if (x % 12 !== 9) offgrid++;
+        for (const x0 of CLEAR) {
+            // and not a band that reaches into the cross box at x 125..193
+            if (x0 % 12 !== 9 || x0 + 12 > 320 || (x0 + 12 > 125 && x0 < 194)) continue;
+            const c = rgb(x0, y);
+            for (let x = x0 + 1; x < x0 + 12 && x < 320; x++) if (rgb(x, y) !== c) { wrongCount++; break; }
+        }
+        if (rgb(0, y) === rgb(119, y) && rgb(200, y) === rgb(319, y)) wrongCount++; // not a field at all
+    }
+    if (flat !== 99) errors.push(`key 3 has ${flat} flat per-line rows, the schedule gives 99`);
+    if (field !== 99) errors.push(`key 3 has ${field} banded rows, the schedule gives 99`);
+    if (wrongCount) errors.push(`${wrongCount} key-3 bands are not a constant colour across their 12 px`);
+    if (offgrid) errors.push(`${offgrid} key-3 band boundaries are off the x = 9 + 12k grid`);
+    // The cross is the only thing in the bitmap: 1,224 px of 64,000, at
+    // x 125..193, y 86..154. If it stopped being drawn the field alone would
+    // still pass every check above, which is exactly the blind spot to close.
+    let crossRows = 0;
+    for (let y = 86; y <= 154; y++) {
+        for (let x = 126; x <= 193; x++) if (rgb(x, y) !== rgb(x - 1, y) && (x % 12 !== 9)) { crossRows++; break; }
+    }
+    if (crossRows < 60) errors.push(`the key-3 cross shows on ${crossRows} of its 69 rows`);
+    key3 = `key 3: ${field} banded + ${flat} flat rows on the 12 px grid, cross on ${crossRows}/69`;
+    // Space comes back to the jukebox, and the jukebox comes back intact.
+    demo.key(32); step(); step();
+    if (hashFrame() === waitHash) errors.push("leaving key 3 did not restore the jukebox");
+}
 if (process.env.BIG_DEMO_HASHES) console.log(JSON.stringify(got, null, 1));
 for (const [f, want] of Object.entries(FRAMES))
     if (got[f] !== want) errors.push(`frame ${f}: ${got[f]?.slice(0, 12)} is not the measured ${want.slice(0, 12)}`);
@@ -260,4 +323,4 @@ if (songs.orphans.length) console.log(`big_demo: ${songs.orphans.length} SNDH in
 console.log(`big_demo: FITS wait() 200 frames then go() with ${WANT_SONG} #${WANT_TUNE}; 4 frame hashes; ${LIST.length} entries, ` +
     `cursor clamps at [${CURSOR}], "${LIST[silent].label.trim()}" requests nothing; all ${songs.named} named SNDH present ` +
     `(${songs.onDisk} on disk); band tiles ${tiles.slice(0, 6).join("")}... follow texbg += 0.4; ${want.song.split("/")[1]} #${want.tune} ` +
-    `peak ${r.peak?.toFixed(3)}; ${perFrame.toFixed(3)} ms/frame`);
+    `peak ${r.peak?.toFixed(3)}; ${key3}; ${perFrame.toFixed(3)} ms/frame`);
