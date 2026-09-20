@@ -32,9 +32,9 @@ pub const INK: u8 = 1; // $b6a0 writes plane 0 only, so the text is index 1
 /// scanlines and writes colour 0 from $ef6e; $b45c writes $777 back. Since the
 /// ST's border is colour 0 too, the band runs the full width of the raster.
 /// op 4 only erases the previous page's text.
-/// BAND_TOP is MEASURED off the demozoo reference (rows 70..134), not derived
+/// BAND_TOP is MEASURED off the demozoo reference (rows 76..140), not derived
 /// from the code -- the cycle timing inside $b45c's waits would not tell me.
-pub const BAND_TOP: u16 = 70;
+pub const BAND_TOP: u16 = 76;
 pub const BAND_ROWS: u16 = 64; // $fa21 = $40
 
 const REC: usize = 8; // delay u16, op u8, text u8, row u16, colour u16
