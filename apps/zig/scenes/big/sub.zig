@@ -20,20 +20,23 @@ const LogicalFB = zg.LogicalFB;
 const A = @import("assets.zig");
 const border = @import("border.zig");
 const digital = @import("digital.zig");
+const key2 = @import("key2.zig");
 const key3 = @import("key3.zig");
 const Screen = @import("screen.zig").Screen;
 
 pub const K_SPACE: u32 = 32;
+const K_2: u32 = '2';
 const K_3: u32 = '3';
 
 /// Which screen owns the frame.
-pub const Mode = enum { jukebox, digital, key3 };
+pub const Mode = enum { jukebox, digital, key2, key3 };
 
 pub const Sub = struct {
     mode: Mode,
     /// What is actually on the plane. Differs from `mode` for exactly one
     /// frame, between the key arriving and the next draw.
     shown: Mode,
+    k2: key2.Key2,
     k3: key3.Key3,
 
     pub fn init(self: *Sub) void {
@@ -47,11 +50,13 @@ pub const Sub = struct {
 
     /// Paint the frame if a sub-screen owns it. True when it did, so the
     /// jukebox knows to stay out of the way.
-    pub fn draw(self: *Sub, screen: *Screen, fb: *LogicalFB) bool {
+    pub fn draw(self: *Sub, screen: *Screen, zigos: *zg.ZigOS) bool {
+        const fb: *LogicalFB = &zigos.lfbs[0];
         if (self.shown != self.mode) {
             switch (self.mode) {
+                .key2 => self.k2.enter(zigos, fb),
                 .key3 => self.k3.enter(fb),
-                .jukebox => restore(fb),
+                .jukebox => restore(zigos, fb),
                 .digital => {}, // draws over the jukebox's own palette
             }
             self.shown = self.mode;
@@ -59,6 +64,7 @@ pub const Sub = struct {
         switch (self.mode) {
             .jukebox => return false,
             .digital => digital.draw(screen, fb),
+            .key2 => self.k2.draw(fb),
             .key3 => self.k3.draw(fb),
         }
         return true;
@@ -73,16 +79,23 @@ pub const Sub = struct {
                 if (digital.key(cp)) self.mode = .jukebox;
                 return true;
             },
-            .key3 => {
+            .key2, .key3 => {
                 if (cp == K_SPACE) self.mode = .jukebox;
                 return true;
             },
             .jukebox => {},
         }
-        if (cp == K_3 and running) {
-            self.mode = .key3;
-            return true;
-        }
+        if (running) switch (cp) {
+            K_2 => {
+                self.mode = .key2;
+                return true;
+            },
+            K_3 => {
+                self.mode = .key3;
+                return true;
+            },
+            else => {},
+        };
         return false;
     }
 
@@ -95,7 +108,11 @@ pub const Sub = struct {
 
 /// The jukebox's plane, rebuilt: palette, transparent pen, panel-grey ground
 /// and the side borders. The next go() repaints the content over it.
-fn restore(fb: *LogicalFB) void {
+fn restore(zigos: *zg.ZigOS, fb: *LogicalFB) void {
+    // Key 2 replaces the plane's HBL with its own per-line palette handler, so
+    // the flicker that holds the jukebox's borders open has to be put back.
+    fb.openBorders(.all);
+    zigos.setBackgroundColor(A.palette[A.PANEL]);
     fb.setPalette(A.palette);
     fb.setPaletteEntry(A.TRANSPARENT, zg.Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
     fb.clearFrameBuffer(A.PANEL);

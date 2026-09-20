@@ -61,7 +61,7 @@ const FRAMES = {
     1: "6d2299731df28521dba73affc2ae7856d66139042e69b340240d8a56b8e37e2e", 201: "aa9a1176ac3a4dad97e5a0c998351e35e7df7bf385fd625fc837e37b9cc4aae0",
     400: "36975381270f74bdf741c0b703166be07efe0f974ddca0cb72f56e377ed1cf2a", 1000: "006f3eff520e9f569b0b49be88a919af6c54ff633f4a1430ad673a991a542438",
 };
-let key3 = "key 3 not reached";
+let key3 = "key 3 not reached", key2 = "key 2 not reached";
 const argv = process.argv.slice(2), bi = argv.indexOf("--break");
 const brk = bi >= 0 ? argv.splice(bi, 2)[1] : null;
 if (brk && !["nav", "music", "noop", "songs"].includes(brk)) throw new Error(`--break ${brk}: nav|music|noop|songs`);
@@ -278,6 +278,43 @@ for (const f of [400, 1000]) { runTo(f); got[f] = hashFrame(); }
     demo.key(32); step(); step();
     if (hashFrame() === waitHash) errors.push("leaving key 3 did not restore the jukebox");
 }
+
+/// 8. KEY 2, the 512-colour Psych-O-Screen. A FULL 16-colour palette per
+/// scanline for display lines 45..194, played by this plane's own HBL — the
+/// bitmap is blitted once and never touched, and every bit of the motion is in
+/// the palette. What is checked is that the palette really is PER LINE, because
+/// a static palette would still draw a plausible-looking screen.
+///
+/// Not a hash, and not a comparison against a capture: the demo generates this
+/// table from a PRNG seeded with the 200 Hz clock and the live beam position,
+/// so two runs of the REAL demo do not agree either.
+{
+    demo.key(50); step(); step(); // '2'
+    const px = pixels(), PH = machine.hwPhysHeight();
+    const TOP2 = (PH - 200) >> 1;
+    const rgb = (x, y) => { const o = ((TOP2 + y) * PW + ((PW - 640) >> 1) + 2 * x) * 4; return `${px[o]},${px[o+1]},${px[o+2]}`; };
+    const rowColours = (y) => new Set([...Array(320).keys()].map((x) => rgb(x, y)));
+    // Inside the band: lines differ from each other, and each carries several
+    // colours. Two lines 100 apart agreeing on every pixel would mean one
+    // palette for the whole screen.
+    let sameAsFirst = 0, thin = 0;
+    const first = [...Array(320).keys()].map((x) => rgb(x, 60)).join("|");
+    for (let y = 46; y < 194; y++) {
+        if ([...Array(320).keys()].map((x) => rgb(x, y)).join("|") === first) sameAsFirst++;
+        if (rowColours(y).size < 3) thin++;
+    }
+    if (sameAsFirst > 4) errors.push(`${sameAsFirst} of key 2's 148 banded lines are pixel-identical to line 60: the palette is not per line`);
+    if (thin > 40) errors.push(`${thin} of key 2's banded lines carry fewer than 3 colours`);
+    // Outside the band the VBL's base palette is live, and it has only SIX
+    // distinct words: $18F24 = 0000 0007 0000 x4 0110 0330 0660 0000 x6 0700.
+    // A line there showing a seventh colour means the table leaked out of its
+    // 45..194 range, which is the one thing that could silently go wrong in a
+    // handler that runs on all 280 physical rows.
+    for (const y of [10, 30, 197]) if (rowColours(y).size > 6) errors.push(`key 2 line ${y} is outside the table's band but shows ${rowColours(y).size} colours, the base palette has 6`);
+    key2 = `key 2: per-line palette live on 148 lines, ${thin} thin`;
+    demo.key(32); step(); step();
+    if (hashFrame() === waitHash) errors.push("leaving key 2 did not restore the jukebox");
+}
 if (process.env.BIG_DEMO_HASHES) console.log(JSON.stringify(got, null, 1));
 for (const [f, want] of Object.entries(FRAMES))
     if (got[f] !== want) errors.push(`frame ${f}: ${got[f]?.slice(0, 12)} is not the measured ${want.slice(0, 12)}`);
@@ -323,4 +360,4 @@ if (songs.orphans.length) console.log(`big_demo: ${songs.orphans.length} SNDH in
 console.log(`big_demo: FITS wait() 200 frames then go() with ${WANT_SONG} #${WANT_TUNE}; 4 frame hashes; ${LIST.length} entries, ` +
     `cursor clamps at [${CURSOR}], "${LIST[silent].label.trim()}" requests nothing; all ${songs.named} named SNDH present ` +
     `(${songs.onDisk} on disk); band tiles ${tiles.slice(0, 6).join("")}... follow texbg += 0.4; ${want.song.split("/")[1]} #${want.tune} ` +
-    `peak ${r.peak?.toFixed(3)}; ${key3}; ${perFrame.toFixed(3)} ms/frame`);
+    `peak ${r.peak?.toFixed(3)}; ${key3}; ${key2}; ${perFrame.toFixed(3)} ms/frame`);

@@ -130,7 +130,7 @@ pub const Demo = struct {
     pub fn render(self: *Demo, zigos: *ZigOS, dt: f32) void {
         _ = dt;
         const fb: *LogicalFB = &zigos.lfbs[0];
-        if (self.sub.draw(&self.screen, fb)) return;
+        if (self.sub.draw(&self.screen, zigos)) return;
         if (self.running) self.screen.go(fb) else self.screen.drawWait(fb);
     }
 
