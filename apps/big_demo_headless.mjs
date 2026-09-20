@@ -62,7 +62,7 @@ const FRAMES = {
     1: "6d2299731df28521dba73affc2ae7856d66139042e69b340240d8a56b8e37e2e", 201: "aa9a1176ac3a4dad97e5a0c998351e35e7df7bf385fd625fc837e37b9cc4aae0",
     400: "36975381270f74bdf741c0b703166be07efe0f974ddca0cb72f56e377ed1cf2a", 1000: "006f3eff520e9f569b0b49be88a919af6c54ff633f4a1430ad673a991a542438",
 };
-let digi = "digi not reached", key3 = "key 3 not reached", key2 = "key 2 not reached", key1 = "key 1 not reached", keyb = "key B not reached";
+let resume = "resume not reached", digi = "digi not reached", key3 = "key 3 not reached", key2 = "key 2 not reached", key1 = "key 1 not reached", keyb = "key B not reached";
 const argv = process.argv.slice(2), bi = argv.indexOf("--break");
 const brk = bi >= 0 ? argv.splice(bi, 2)[1] : null;
 if (brk && !["nav", "music", "noop", "songs", "screens"].includes(brk)) throw new Error(`--break ${brk}: nav|music|noop|songs|screens`);
@@ -137,7 +137,35 @@ runTo(1);
 const waitHash = hashFrame(), px1 = pixels();
 for (const y of [1, CH - 2]) if (at(px1, 10, y)[3] !== 255) errors.push(`content row ${y} is transparent: the borders never opened`);
 
-/// THE BORDER. hashFrame() covers the 320x270 CONTENT only, so the border around
+/// THE INSTRUCTION SCREEN'S BORDER IS FLAT. It wore the jukebox's frame shadow
+/// and scroller pipes for 200 frames, because the border was painted from
+/// init() rather than when go() took over. Both margins, every row, one colour.
+{
+    const raw = pixels(), PH = machine.hwPhysHeight();
+    const rgb = (x, y) => { const o = (y * PW + x) * 4; return `${raw[o]},${raw[o+1]},${raw[o+2]}`; };
+    const PANEL = "160,160,160";
+    const odd = [];
+    for (let y = 0; y < PH; y++) for (const [what, x] of [["left", 4], ["right", PW - 5]])
+        if (rgb(x, y) !== PANEL && odd.length < 4) odd.push(`${what} row ${y} is rgb(${rgb(x, y)})`);
+    if (odd.length) errors.push(`the instruction screen's border is not plain grey: ${odd.join(", ")}`);
+}
+
+
+runTo(WAIT);
+if (hashFrame() !== waitHash) errors.push("the instruction screen is not static over its 200 frames");
+if (song) errors.push(`music started at frame ${songAt}, during wait()`);
+// 2. go() takes over on frame 201, with the first tune
+runTo(WAIT + 1);
+const wantTune = brk === "music" ? WANT_TUNE + 1 : WANT_TUNE;
+if (songAt !== WAIT + 1) errors.push(`go() asked for music at frame ${songAt}, wait() hands over at ${WAIT + 1}`);
+if (song !== WANT_SONG || tune !== wantTune) errors.push(`first song ${JSON.stringify(song)} #${tune}, wanted "${WANT_SONG}" #${wantTune}`);
+const got = { 1: waitHash, [WAIT + 1]: hashFrame() };
+
+/// THE BORDER, checked once the JUKEBOX owns it. The instruction screen's
+/// border is plain grey — the frame shadow and the scroller's pipes belong to
+/// the jukebox and arrive with it (Matt, 2026-09-20) — so this cannot run at
+/// frame 1 any more, and the flat-grey case is checked separately above.
+/// hashFrame() covers the 320x270 CONTENT only, so the border around
 /// it was never looked at by anything — and it shipped BLACK while the top row of
 /// main.png and wait.png is rgb(160,160,160) across all 640 px, leaving a visible
 /// seam on the live site until Matt spotted it by eye. An excluded region is a
@@ -156,10 +184,12 @@ for (const y of [1, CH - 2]) if (at(px1, 10, y)[3] !== 255) errors.push(`content
     // ST level x 32, which is main.png's own grey ladder.
     const g = (n) => [n * 32, n * 32, n * 32];
     const PANEL = g(5);
-    // [lastContentRow, left, right] — the rule rows (107, 115) are PANEL here
-    // because this runs during wait(), before go() hands them to the gradient.
+    // [lastContentRow, left, right]. -1 means "whatever the PULSE pen is": rows
+    // 107 and 115 are the two rules, and their colour is a frame of the 43-word
+    // gradient rather than a constant. They are still required to match each
+    // other, and the pulse itself is checked by the frame hashes.
     const RUNS = [
-        [93, 5, 5], [94, 5, 4], [98, 5, 3], [99, 5, 4], [146, 5, 5],
+        [93, 5, 5], [94, 5, 4], [98, 5, 3], [99, 5, 4], [106, 5, 5], [107, -1, -1], [114, 5, 5], [115, -1, -1], [146, 5, 5],
         [147, 5, 4], [151, 5, 3], [152, 5, 4], [213, 5, 5],
         [214, 6, 6], [215, 7, 7], [216, 6, 6], [217, 5, 5], [218, 4, 4], [219, 3, 3],
         [223, 5, 5], [224, 4, 4], [228, 3, 3], [229, 4, 4], [239, 5, 5],
@@ -170,6 +200,10 @@ for (const y of [1, CH - 2]) if (at(px1, 10, y)[3] !== 255) errors.push(`content
     for (const [last, l, r] of RUNS)
         for (; y <= last; y++) {
             const got = [rgb(4, TOP + y), rgb(PW - 5, TOP + y)];
+            if (l < 0) {
+                if (!same(got[0], got[1])) errors.push(`the rule row ${y} differs between its margins`);
+                continue;
+            }
             for (const [i, what, want] of [[0, "left", g(l)], [1, "right", g(r)]])
                 if (!same(got[i], want) && bad++ < 4)
                     errors.push(`${what} border, content row ${y}: rgb(${got[i]}), wanted rgb(${want})`);
@@ -187,15 +221,7 @@ for (const y of [1, CH - 2]) if (at(px1, 10, y)[3] !== 255) errors.push(`content
     // above to match it.
     if (split !== 12) errors.push(`${split} rendered rows have different left and right borders, the real screen has 12`);
 }
-runTo(WAIT);
-if (hashFrame() !== waitHash) errors.push("the instruction screen is not static over its 200 frames");
-if (song) errors.push(`music started at frame ${songAt}, during wait()`);
-// 2. go() takes over on frame 201, with the first tune
-runTo(WAIT + 1);
-const wantTune = brk === "music" ? WANT_TUNE + 1 : WANT_TUNE;
-if (songAt !== WAIT + 1) errors.push(`go() asked for music at frame ${songAt}, wait() hands over at ${WAIT + 1}`);
-if (song !== WANT_SONG || tune !== wantTune) errors.push(`first song ${JSON.stringify(song)} #${tune}, wanted "${WANT_SONG}" #${wantTune}`);
-const got = { 1: waitHash, [WAIT + 1]: hashFrame() };
+
 // 3. the rasters. cycle.png is a tile SHEET (8 tiles of 32x5), not eight flat
 // colours, so this checks the whole PATTERN and reads back WHICH tile is showing
 // — a flat fill and a one-pixel sample both passed the check this replaced.
@@ -472,6 +498,25 @@ if (r.why) errors.push(`${want.song}: ${r.why}`);
 else if (r.peak <= 0.01 || r.stuckPc) errors.push(`${want.song} #${want.tune}: peak ${r.peak.toFixed(4)}, stuck PC ${r.stuckPc}`);
 if (perFrame > 4) errors.push(`cart takes ${perFrame.toFixed(3)} ms/frame`);
 
+/// 11. LEAVING THE DIGITAL DEPARTMENT PUTS THE JUKEBOX'S TUNE BACK. Its screen
+/// takes the sound chip over, so coming back has to hand it back — otherwise
+/// the list sits there highlighting a tune nobody is playing (Matt,
+/// 2026-09-20). The highlight and the sound are one thing here: both come from
+/// `curentlplay`, so restoring the tune restores the bar with it.
+{
+    nav(1, 4); // four rows down from the start, onto something with a tune
+    demo.key(13); step(); // Return: play it
+    const before = song, beforeTune = tune;
+    nav(1, ENTRIES); // straight to the bottom; the clamp stops on the Digital row
+    demo.key(13); step(); // Return: opens the screen WITH its own music
+    if (song === before) errors.push("the Digital Department did not start its own music");
+    const inside = song;
+    demo.key(32); step(); // Space: back to the jukebox
+    if (song !== before || tune !== beforeTune)
+        errors.push(`leaving the Digital Department left ${JSON.stringify(song)} #${tune} playing, not the jukebox's ${JSON.stringify(before)} #${beforeTune}`);
+    resume = `resume: ${before.split("/")[1]} -> ${inside.split("/")[1]} -> ${song.split("/")[1]}`;
+}
+
 if (brk) {
     const caught = errors.length > 0;
     console.log(caught ? `=> PASS ✅ fail proof: --break ${brk} was caught (${errors[0]})`
@@ -483,4 +528,4 @@ if (songs.orphans.length) console.log(`big_demo: ${songs.orphans.length} SNDH in
 console.log(`big_demo: FITS wait() 200 frames then go() with ${WANT_SONG} #${WANT_TUNE}; 4 frame hashes; ${LIST.length} entries, ` +
     `cursor clamps at [${CURSOR}], "${LIST[silent].label.trim()}" requests nothing; all ${songs.named} named SNDH present ` +
     `(${songs.onDisk} on disk); band tiles ${tiles.slice(0, 6).join("")}... follow texbg += 0.4; ${want.song.split("/")[1]} #${want.tune} ` +
-    `peak ${r.peak?.toFixed(3)}; ${digi}; ${key3}; ${key2}; ${key1}; ${keyb}; ${perFrame.toFixed(3)} ms/frame`);
+    `peak ${r.peak?.toFixed(3)}; ${digi}; ${key3}; ${key2}; ${key1}; ${keyb}; ${resume}; ${perFrame.toFixed(3)} ms/frame`);

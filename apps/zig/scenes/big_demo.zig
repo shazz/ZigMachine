@@ -104,15 +104,15 @@ pub const Demo = struct {
         fb.clearFrameBuffer(A.PANEL);
         // The hardware border beyond the plane, for the same reason.
         zigos.setBackgroundColor(A.palette[A.PANEL]);
-        // Colour 0 per scanline, once: it is static apart from the two rule
-        // rows, and those carry the PULSE pen, which the palette write moves.
-        border.paint(fb);
-        border.paintRules(fb, A.PANEL); // until go() owns them
+        // The instruction screen's border is PLAIN GREY (Matt, 2026-09-20): the
+        // frame shadow and the scroller's pipes belong to the jukebox, and
+        // go() paints them when it takes over. clearFrameBuffer already left
+        // the margins PANEL, so wait() needs nothing further.
         fb.setPaletteEntry(A.PULSE, A.PULSE_RAMP[0]);
-        // Colour 0 per scanline, once: it is static apart from the two rule
-        // rows, and those carry the PULSE pen, which the palette write moves.
-        border.paint(fb);
-        border.paintRules(fb, A.PANEL); // until go() owns them
+        // The instruction screen's border is PLAIN GREY (Matt, 2026-09-20): the
+        // frame shadow and the scroller's pipes belong to the jukebox, and
+        // go() paints them when it takes over. clearFrameBuffer already left
+        // the margins PANEL, so wait() needs nothing further.
         fb.setPaletteEntry(A.PULSE, A.PULSE_RAMP[0]);
     }
 
@@ -123,7 +123,10 @@ pub const Demo = struct {
         if (self.running) return;
         if (!self.screen.waited()) return;
         self.running = true;
-        border.paintRules(&zigos.lfbs[0], A.PULSE);
+        // The jukebox's border arrives WITH the jukebox, not before it.
+        const fb: *LogicalFB = &zigos.lfbs[0];
+        border.paint(fb);
+        border.paintRules(fb, A.PULSE);
         zg.requestSongTune(FIRST.song, FIRST.tune);
     }
 
@@ -148,13 +151,16 @@ pub const Demo = struct {
         }
         // A sub-screen owns every other key while it is up, and Space is how
         // you leave one ("-PRESS SPACE TO EXIT TO THE B.I.G. DEMO-").
-        if (self.sub.key(cp, self.running)) return;
+        if (self.sub.key(cp, &self.screen, self.running)) return;
         // Return: the highlight moves whatever the row is, and the Digital
         // Department row opens its screen instead of playing anything.
         if (cp == K_RETURN) {
+            // Read what is playing BEFORE select() moves the highlight: that is
+            // the tune Space brings back from the Digital Solution.
+            const playing = self.screen.curentlplay;
             self.screen.select();
             // The Digital Department row opens its screen WITH its music.
-            if (self.screen.curentlplay == list.DIGITAL) self.sub.enterDigital();
+            if (self.screen.curentlplay == list.DIGITAL) self.sub.enterDigital(playing);
         }
     }
 

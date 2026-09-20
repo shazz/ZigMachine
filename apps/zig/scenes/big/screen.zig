@@ -151,8 +151,16 @@ pub const Screen = struct {
 
     /// Return: the highlight always moves; a row with no tune plays nothing.
     pub fn select(self: *Screen) void {
-        self.curentlplay = self.curent;
-        const e = list.ENTRIES[self.curentlplay];
+        self.play(self.curent);
+    }
+
+    /// Put the highlight on `idx` and start its tune. Leaving the Digital
+    /// Solution calls this with whatever the jukebox was playing when the
+    /// Digital Department row was chosen, so the list picks up where it left
+    /// off instead of coming back silent (Matt, 2026-09-20).
+    pub fn play(self: *Screen, idx: usize) void {
+        self.curentlplay = idx;
+        const e = list.ENTRIES[idx];
         if (e.song.len != 0) zg.requestSongTune(e.song, e.tune);
     }
 

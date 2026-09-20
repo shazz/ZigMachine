@@ -41,6 +41,10 @@ pub const Sub = struct {
     /// What is actually on the plane. Differs from `mode` for exactly one
     /// frame, between the key arriving and the next draw.
     shown: Mode,
+    /// What the jukebox was playing when the Digital Department was opened.
+    /// Its screen takes the sound chip over, so coming back has to hand it
+    /// back rather than leave the list highlighting a tune nobody is playing.
+    resume_to: usize,
     k1: key1.Key1,
     kb: keyb.KeyB,
     k2: key2.Key2,
@@ -49,6 +53,7 @@ pub const Sub = struct {
     pub fn init(self: *Sub) void {
         self.mode = .jukebox;
         self.shown = .jukebox;
+        self.resume_to = 0;
     }
 
     pub fn up(self: *const Sub) bool {
@@ -84,10 +89,15 @@ pub const Sub = struct {
     /// True when the key was the sub-screens' to handle. `running` gates the
     /// Psych-O-Screen keys to the jukebox proper: during wait() the picture
     /// that advertises them is not even on screen.
-    pub fn key(self: *Sub, cp: u32, running: bool) bool {
+    pub fn key(self: *Sub, cp: u32, screen: *Screen, running: bool) bool {
         switch (self.mode) {
             .digital => {
-                if (digital.key(cp)) self.mode = .jukebox;
+                // Its 1-6 play the digi versions; Space comes back, and the
+                // jukebox's own tune comes back with it.
+                if (digital.key(cp)) {
+                    self.mode = .jukebox;
+                    screen.play(self.resume_to);
+                }
                 return true;
             },
             .key1, .key2, .key3, .keyb => {
@@ -118,10 +128,12 @@ pub const Sub = struct {
         return false;
     }
 
-    /// The Digital Department row opens its screen instead of playing.
-    pub fn enterDigital(self: *Sub) void {
+    /// The Digital Department row opens its screen instead of playing. `playing`
+    /// is the entry the jukebox had going, which Space puts back.
+    pub fn enterDigital(self: *Sub, playing: usize) void {
         self.mode = .digital;
-        digital.enter();
+        self.resume_to = playing;
+        digital.enter(); // the screen opens WITH its own music
     }
 };
 

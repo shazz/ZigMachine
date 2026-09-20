@@ -97,14 +97,16 @@ const RUNS = [_]Run{
     .{ .last = 269, .l = PA, .r = PA }, // 256.. NOT measured: see the header
 };
 
-/// Paint both margins for every content row. Called once, from init: colour 0
-/// is static for the whole screen except the two pulse rows, and those carry
-/// the PULSE pen, so the per-frame palette write moves them without a redraw.
+/// Paint both margins for every content row. Called ONCE, when go() takes over
+/// from the instruction screen — not from init. Colour 0 is static for the
+/// whole screen except the two pulse rows, and those carry the PULSE pen, so
+/// the per-frame palette write moves them without a redraw.
 ///
-/// NOT applied differently during the 200-frame instruction screen. Whether the
-/// real demo's wait() runs the same HBL chain is NOT known — the capture is of
-/// the jukebox — and painting one border is a smaller invention than inventing
-/// a second one.
+/// The instruction screen's border is PLAIN GREY: no frame shadow, no pipes.
+/// Those belong to the jukebox (Matt, 2026-09-20). This was painted from init
+/// at first, on the grounds that the capture is of the jukebox and nothing was
+/// known about wait()'s own HBL chain — so the border arrived 200 frames early
+/// and the instruction screen wore the jukebox's furniture.
 pub fn paint(fb: *LogicalFB) void {
     var y: usize = 0;
     for (RUNS) |run| {
@@ -116,12 +118,8 @@ pub fn paint(fb: *LogicalFB) void {
     }
 }
 
-/// Repaint just the two rule rows' margins. wait() and go() do not agree about
-/// what belongs there: go()'s rows carry the gradient (measured), wait()'s are
-/// not in any capture we have. They are held at PANEL until go() takes over,
-/// because an unknown row that matches the panel cannot look broken, and a
-/// stray pen there would be two coloured dashes in a grey border for 200
-/// frames. Stated as a choice, not a measurement.
+/// Repaint just the two rule rows' margins. go() hands them to the PULSE pen;
+/// nothing paints them during the instruction screen, whose border is flat.
 pub fn paintRules(fb: *LogicalFB, pen: u8) void {
     for (A.RULE_Y) |ry| {
         const base = (A.TOP + @as(usize, ry)) * A.STRIDE;
