@@ -15,7 +15,7 @@
 // --------------------------------------------------------------------------
 const std = @import("std");
 const zg = @import("zigos");
-const c3 = zg.codef3d;
+const c3 = zg.zig3d;
 const blit = zg.blit;
 const M = @import("models.zig");
 const Vec3 = c3.Vec3;

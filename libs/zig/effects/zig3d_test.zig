@@ -1,9 +1,9 @@
-// Tests for effects/codef3d.zig. Expected numbers were printed by three.js r49
+// Tests for effects/zig3d.zig. Expected numbers were printed by three.js r49
 // itself (the remake's lib/codef_3d_v2.js, run in node): Float32Array storage
 // makes them exact, so they compare with ==.
 const std = @import("std");
 const expectEqual = std.testing.expectEqual;
-const c3 = @import("codef3d.zig");
+const c3 = @import("zig3d.zig");
 
 test "perspective(25, 640/400, 1, 10000) is three.js's projectionMatrix" {
     const m = c3.Mat4.perspective(25, 1.6, 1, 10000);

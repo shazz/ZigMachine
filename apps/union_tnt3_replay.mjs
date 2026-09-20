@@ -21,7 +21,7 @@ import { findUnionRemake } from "./union_remake_dir.mjs";
 
 const CLEAR = -1;
 // --break: a replay that is wrong on purpose, so the check must FAIL.
-//   overdraw: three.js's Nb() does nothing (a codef3d.zig detail);
+//   overdraw: three.js's Nb() does nothing (a zig3d.zig detail);
 //   ball: the sphere's radius is 79, not 80 (a union_tnt3/models.zig detail).
 const BREAKS = {
     overdraw: ["lib/codef_3d_v2.js", "function Nb(a,b){", "function Nb(a,b){return;"],

@@ -7,7 +7,7 @@
 // On screen, in draw order (screen.js:806-838), one plane, one palette:
 //   stars.png, static
 //   the chosen object: one to three codef3D engines (three.js r49 canvas faces,
-//     replayed exactly by zg.codef3d), each filling its faces far to near
+//     replayed exactly by zg.zig3d), each filling its faces far to near
 //   a black band over the top 18 canvas rows, and the up-and-down scroller in
 //     it (union_tnt3/scroller.zig)
 // Keys 1..5 (or A..E) pick the Union logo, TNT logo, ball, glider or carrier;

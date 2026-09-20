@@ -10,7 +10,7 @@
 // --------------------------------------------------------------------------
 const std = @import("std");
 const zg = @import("zigos");
-const c3 = zg.codef3d;
+const c3 = zg.zig3d;
 const A = @import("assets.zig");
 const Vec3 = c3.Vec3;
 const Face = c3.Face;

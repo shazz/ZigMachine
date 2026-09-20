@@ -23,7 +23,7 @@
 // in three.js's own operation order. Vertices and vectors are f64 (JS numbers).
 // Zig's sin/cos/tan are musl's, which are fdlibm's, as V8's Math is.
 //
-// No ZigOS import: codef3d_test.zig runs it natively. The scene owns every
+// No ZigOS import: zig3d_test.zig runs it natively. The scene owns every
 // buffer (project() takes scratch slices), so this file weighs no cart.
 // --------------------------------------------------------------------------
 const std = @import("std");
@@ -268,10 +268,22 @@ pub const Screen = struct { x: f64, y: f64, usable: bool };
 /// A face ready to fill: its path in canvas pixels.
 pub const Poly = struct { pts: [4][2]f64, n: u8, ink: u8, z: f64 };
 
+/// What `codef3D.faces(vertices, object, doubleSided, overdraw)` was given.
+/// three.js r49's Projector skips the facing test entirely when the mesh is
+/// doubleSided (`if (O.doubleSided || i != O.flipSided)`), and CanvasRenderer
+/// only pushes an edge's ends apart when the material's overdraw is set.
+/// The defaults are what every caller before screen 417 passed.
+pub const Options = struct { double_sided: bool = false, overdraw: bool = true };
+
 /// One draw of `m` placed at `position`/`rotation`, seen from a camera at
 /// `camera` (no rotation). `screen` needs m.verts.len entries, `out`
 /// m.faces.len. Returns the faces to fill, far to near.
 pub fn project(lens: *const Lens, camera: Vec3, position: Vec3, rotation: Vec3, m: *const Mesh, screen: []Screen, out: []Poly) []Poly {
+    return projectEx(lens, camera, position, rotation, m, screen, out, .{});
+}
+
+/// project() for a mesh whose `faces()` call did not take the defaults.
+pub fn projectEx(lens: *const Lens, camera: Vec3, position: Vec3, rotation: Vec3, m: *const Mesh, screen: []Screen, out: []Poly, opts: Options) []Poly {
     const model = Mat4.compose(position, rotation);
     const view = Mat4.compose(camera, .{ .x = 0, .y = 0, .z = 0 }).inverse();
     const vp = lens.projection.mul(&view);
@@ -286,10 +298,10 @@ pub fn project(lens: *const Lens, camera: Vec3, position: Vec3, rotation: Vec3, 
         const s = screen;
         if (!s[f.v[0]].usable or !s[f.v[1]].usable or !s[f.v[2]].usable) continue;
         if (f.n == 4 and !s[f.v[3]].usable) continue;
-        if (!clockwise(f, s)) continue;
+        if (!opts.double_sided and !clockwise(f, s)) continue;
         var p = Poly{ .pts = undefined, .n = f.n, .ink = f.ink, .z = vp.point(model.point(centroid)).z };
         for (0..f.n) |i| p.pts[i] = .{ s[f.v[i]].x * lens.half_w, s[f.v[i]].y * lens.half_h };
-        overdraw(&p);
+        if (opts.overdraw) overdraw(&p);
         for (p.pts[0..f.n]) |*pt| {
             const x = pt[0] + lens.half_w;
             const y = -pt[1] + lens.half_h;
