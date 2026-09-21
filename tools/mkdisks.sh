@@ -33,7 +33,7 @@ FORCE=""
 #   machine-*  sealed hardware      demo-audio  worklet module, not a cart
 #   boot-*     v2 boot sectors      demo-c/rust polyglot demos (run via ?demo=)
 #   *bootloader/audio  retired legacy monolith
-SKIP="machine-video machine-audio demo-audio bootloader audio boot-novirus demo-c demo-rust demo-tutorial_steps demo-c-tutorial_steps demo-rust-tutorial_steps"
+SKIP="machine-video machine-audio demo-audio bootloader audio boot-novirus boot-replicants_emlyn demo-c demo-rust demo-tutorial_steps demo-c-tutorial_steps demo-rust-tutorial_steps"
 
 packed=0; skipped=0
 TMP=$(mktemp -d)
@@ -87,6 +87,18 @@ for w in "$OUT"/demo-*.wasm; do
         c-*|rust-*) grep -q "\.tag = \"$tag\"" apps/zig/scenes/catalog.zig || continue ;;
     esac
     case "$tag" in
+        # REPLICANTS / Emlyn Hughes is a FORMAT V2 disk: its block 0 is an
+        # executable boot sector (the crew's note about the SPACE key), which
+        # chainloads the cart. The boot program is the screen's own, so it is
+        # named here next to the disk it belongs to.
+        replicants_emlyn)
+                   BOOTSEC="$OUT/boot-replicants_emlyn.wasm"
+                   if [ -f "$BOOTSEC" ]; then
+                       pack "$OUT/demo-$tag.zmd" "$tag" "$w" --boot-wasm "$BOOTSEC"
+                   else
+                       echo "  !! $BOOTSEC missing: demo-$tag packed WITHOUT its boot sector"
+                       pack "$OUT/demo-$tag.zmd" "$tag" "$w"
+                   fi ;;
         # ST Replay ships as a DATA disk: not executable, so the machine boots
         # GEM, which opens the app and reads its sample off the same disk.
         st_replay) pack "$OUT/demo-$tag.zmd" "$tag" "$w" --no-boot \
