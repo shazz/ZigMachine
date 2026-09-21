@@ -1,4 +1,4 @@
-/* docs/TUTORIAL.html — code blocks and syntax tokens.
+/* docs/TUTORIAL.html — code blocks and syntax tokens, shared with ZIGMACHINE_GUIDE.html.
    Tokens are emitted at generation time by tools/docgen/highlight.py. */
 .cb { margin: 12px 0; background: var(--panel); border: 1px solid var(--edge); border-radius: 8px;
   overflow: hidden; }

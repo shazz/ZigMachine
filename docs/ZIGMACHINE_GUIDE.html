@@ -2,70 +2,48 @@
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ZigMachine — Programmer's Guide</title>
-<style>
-:root { color-scheme: dark; }
-* { box-sizing: border-box; }
-body { margin: 0; background: #0e1016; color: #d7dbe6; font: 15px/1.6 system-ui, sans-serif; }
-header { padding: 32px 40px; background: linear-gradient(135deg, #1a1f2e, #0e1016); border-bottom: 1px solid #2a3142; }
-h1 { margin: 0 0 6px; font-size: 26px; letter-spacing: .5px; }
-.sub { color: #8b93a7; font-size: 13px; }
-.wrap { display: flex; gap: 28px; max-width: 1200px; margin: 0 auto; padding: 28px 40px; }
-nav { position: sticky; top: 20px; align-self: flex-start; min-width: 210px; display: flex; flex-direction: column; gap: 4px; }
-nav a { color: #9aa4bd; text-decoration: none; padding: 5px 10px; border-radius: 6px; font-size: 13px; }
-nav a:hover { background: #1a2030; color: #fff; }
-nav a.ext { color: #7dff9b; border: 1px solid #2c4a37; margin-bottom: 6px; }
-nav a.ext:hover { background: #172b20; }
-main { flex: 1; min-width: 0; }
-h2 { margin: 34px 0 14px; font-size: 19px; color: #7dd3fc; border-bottom: 1px solid #232a3a; padding-bottom: 6px; }
-h3 { margin: 20px 0 8px; font-size: 15px; color: #fbbf72; }
-.item { padding: 10px 0; border-bottom: 1px solid #191e2b; }
-.sig { display: block; color: #a5f3c0; font: 13px/1.5 ui-monospace, monospace; white-space: pre-wrap; }
-.doc { color: #9aa4bd; font-size: 13.5px; margin-top: 4px; }
-table { width: 100%; border-collapse: collapse; font-size: 13px; }
-th, td { text-align: left; padding: 6px 10px; border-bottom: 1px solid #1c2230; vertical-align: top; }
-th { color: #7dd3fc; font-weight: 600; }
-td code, .sig, code { color: #a5f3c0; }
-pre.code, main pre { background: #12151f; border: 1px solid #232a3a; border-radius: 8px; padding: 14px 16px;
-           overflow-x: auto; font: 12.5px/1.5 ui-monospace, monospace; color: #cdd6e6; }
-/* markdown-rendered sections (FLOPPY_DISK.md): give its own headings the guide look */
-main h1 { font-size: 21px; color: #7dd3fc; border-bottom: 1px solid #232a3a; padding-bottom: 6px; margin: 30px 0 14px; }
-main pre code { background: none; padding: 0; }
-.intro { background: #12151f; border: 1px solid #232a3a; border-radius: 8px; padding: 16px 18px; margin-bottom: 8px; }
-code { background: #1a2030; padding: 1px 5px; border-radius: 4px; }
-/* Phones: the nav moves above the content and wide blocks scroll on their own. */
-@media (max-width: 800px) {
-  .wrap { flex-direction: column; gap: 12px; padding: 16px; }
-  nav { position: static; flex-direction: row; flex-wrap: wrap; min-width: 0; }
-  header { padding: 16px; }
-  table { display: block; overflow-x: auto; }
-  .sig { overflow-wrap: anywhere; }
-}
-</style></head>
+<meta name="description" content="The ZigMachine reference: video and blitter registers, the sealed HW ABI, the disk and music formats, and the ZigOS / GEM library, generated from the sources.">
+<link rel="stylesheet" href="css/docs.css?v=3f1bd301">
+<link rel="stylesheet" href="css/code.css?v=0edb2f47">
+<link rel="stylesheet" href="css/guide.css?v=ece899e9">
+</head>
 <body>
-<header>
-  <h1>ZigMachine — Programmer's Guide</h1>
-  <div class="sub">Generated 2026-09-19 by tools/gen_docs.py · 22 ABI exports · 51 library methods · 94 constants/registers</div>
+<header class="topbar">
+  <a class="wordmark" href="index.html">ZIGMACHINE</a><span class="crumb">Programmer's guide</span>
+  <button class="railtoggle" id="railtoggle" aria-expanded="false" aria-controls="rail">Sections</button>
+  <div class="spacer"></div>
+  <a class="guidelink" href="TUTORIAL.html">Tutorial &rarr;</a>
 </header>
 <div class="wrap">
-  <nav><a class="ext" href="TUTORIAL.html">Tutorial &rarr;</a><a href="#top">Overview</a><a href="#examples">Examples</a><a href="#geometry-resolution">Geometry &amp; resolution</a>
-<a href="#resolution-plane-modes">Resolution &amp; plane modes</a>
-<a href="#video-registers">Video registers</a>
-<a href="#blitter-registers">Blitter registers</a>
-<a href="#blitter-commands-control-minterms">Blitter commands / control / minterms</a>
-<a href="#hw-abi-machine-exports">HW ABI — machine exports</a>
-<a href="#disk-cart-format-boot-sectors">Disk / cart format + boot sectors</a>
-<a href="#music-sndh-player-zig-c-rust">Music — SNDH player (Zig, C, Rust)</a>
-<a href="#zigos-logicalfb-a-plane">ZigOS — LogicalFB (a plane)</a>
-<a href="#zigos-zigos-the-os">ZigOS — ZigOS (the OS)</a>
-<a href="#zigos-blitter-2d-coprocessor">ZigOS — Blitter (2D coprocessor)</a>
-<a href="#zigos-gui-toolkit-gui">ZigOS — GUI toolkit (Gui)</a>
-<a href="#zigos-window-manager-wm">ZigOS — Window manager (Wm)</a>
-<a href="#zigos-menu-bar-menubar">ZigOS — Menu bar (MenuBar)</a>
-<a href="#zigos-dialog-modal-alert-file-selector">ZigOS — Dialog (modal alert / file selector)</a>
-<a href="#ziggem-rom-desktop-boot-shell-app-launcher">ZigGEM ROM — Desktop (boot shell / app launcher)</a>
-<a href="#zigos-obj-loader-mesh">ZigOS — OBJ loader (Mesh)</a></nav>
+  <nav class="rail" id="rail" aria-label="Sections"><div class="rail-g">Start</div>
+<a href="#top" data-slug="top">Overview</a>
+<a href="#examples" data-slug="examples">Examples</a>
+<div class="rail-g">Machine</div>
+<a href="#geometry-resolution" data-slug="geometry-resolution">Geometry</a>
+<a href="#resolution-plane-modes" data-slug="resolution-plane-modes">Plane modes</a>
+<a href="#video-registers" data-slug="video-registers">Video registers</a>
+<a href="#blitter-registers" data-slug="blitter-registers">Blitter registers</a>
+<a href="#blitter-commands-control-minterms" data-slug="blitter-commands-control-minterms">Blitter control</a>
+<a href="#hw-abi-machine-exports" data-slug="hw-abi-machine-exports">HW ABI</a>
+<div class="rail-g">Formats</div>
+<a href="#disk-cart-format-boot-sectors" data-slug="disk-cart-format-boot-sectors">Disk &amp; cart format</a>
+<a href="#music-sndh-player-zig-c-rust" data-slug="music-sndh-player-zig-c-rust">Music</a>
+<div class="rail-g">ZigOS</div>
+<a href="#zigos-logicalfb-a-plane" data-slug="zigos-logicalfb-a-plane">LogicalFB</a>
+<a href="#zigos-zigos-the-os" data-slug="zigos-zigos-the-os">ZigOS</a>
+<a href="#zigos-blitter-2d-coprocessor" data-slug="zigos-blitter-2d-coprocessor">Blitter</a>
+<a href="#zigos-obj-loader-mesh" data-slug="zigos-obj-loader-mesh">Mesh</a>
+<div class="rail-g">GEM</div>
+<a href="#zigos-gui-toolkit-gui" data-slug="zigos-gui-toolkit-gui">Gui</a>
+<a href="#zigos-window-manager-wm" data-slug="zigos-window-manager-wm">Wm</a>
+<a href="#zigos-menu-bar-menubar" data-slug="zigos-menu-bar-menubar">MenuBar</a>
+<a href="#zigos-dialog-modal-alert-file-selector" data-slug="zigos-dialog-modal-alert-file-selector">Dialog</a>
+<a href="#ziggem-rom-desktop-boot-shell-app-launcher" data-slug="ziggem-rom-desktop-boot-shell-app-launcher">Desktop</a></nav>
   <main>
-    <section id="top"><h2>Overview</h2><div class="intro">
+    <section class="hero" id="top">
+      <h1>Programmer's guide</h1>
+      <ul class="stats"><li><a href="#hw-abi-machine-exports"><b>22</b>ABI exports</a></li><li><a href="#zigos-logicalfb-a-plane"><b>97</b>library methods</a></li><li><a href="#geometry-resolution"><b>88</b>constants / registers</a></li></ul>
+      <div class="intro">
 ZigMachine is a fantasy console: a <b>sealed hardware</b> core (compiled to two
 <code>machine-*.wasm</code> binaries you never edit) plus an <b>open library</b>
 (ZigOS) and your <b>scene</b> code, all sharing one <code>WebAssembly.Memory</code>
@@ -78,197 +56,196 @@ select it in <code>apps/floppy.zig</code>.
 <p><b>New here?</b> Do the <a href="TUTORIAL.html">tutorial</a> first: it builds one
 screen step by step in Zig, C and Rust, and runs each step on the real machine.
 This page is the reference you reach for afterwards.</p>
-</div></section>
-    <section id="examples"><h2>Examples</h2><h3>A minimal scene</h3><pre class="code">// apps/scenes/my_scene.zig — select it in apps/floppy.zig:
-//   pub const Demo = @import(&quot;scenes/my_scene.zig&quot;).Demo;
-const zg = @import(&quot;zigos&quot;);
-const ZigOS = zg.ZigOS;
-const Color = zg.Color;
+</div>
+      <p class="stamp">Generated 2026-09-20 by tools/gen_docs.py from machine/sdk, libs/zig, rom/gem and docs/*.md</p>
+    </section>
+    <section class="ref" id="examples">
+      <header class="sec-h"><span class="eyebrow">Start</span><h2>Examples<small>six scenes, in Zig</small></h2></header>
+      <h3>A minimal scene</h3><figure class="cb" data-lang=zig><figcaption><span class="cb-lang">zig</span><span class="cb-n">21 lines</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code><span class="tok-cm">// apps/scenes/my_scene.zig — select it in apps/floppy.zig:</span>
+<span class="tok-cm">//   pub const Demo = @import(&quot;scenes/my_scene.zig&quot;).Demo;</span>
+<span class="tok-kw">const</span> zg = @<span class="tok-fn">import</span>(<span class="tok-str">&quot;zigos&quot;</span>);
+<span class="tok-kw">const</span> ZigOS = zg.ZigOS;
+<span class="tok-kw">const</span> Color = zg.Color;
 
-pub const Demo = struct {
-    pub fn init(self: *Demo, os: *ZigOS) void {
+<span class="tok-kw">pub</span> <span class="tok-kw">const</span> Demo = <span class="tok-kw">struct</span> {
+    <span class="tok-kw">pub</span> <span class="tok-kw">fn</span> <span class="tok-fn">init</span>(self: *Demo, os: *ZigOS) <span class="tok-kw">void</span> {
         _ = self;
-        const fb = &amp;os.lfbs[0];
-        fb.is_enabled = true;                     // show plane 0
-        fb.setPaletteEntry(1, .{ .r = 255, .g = 80, .b = 0, .a = 255 });
+        <span class="tok-kw">const</span> fb = &amp;os.lfbs[<span class="tok-num">0</span>];
+        fb.is_enabled = <span class="tok-kw">true</span>;                     <span class="tok-cm">// show plane 0</span>
+        fb.<span class="tok-fn">setPaletteEntry</span>(<span class="tok-num">1</span>, .{ .r = <span class="tok-num">255</span>, .g = <span class="tok-num">80</span>, .b = <span class="tok-num">0</span>, .a = <span class="tok-num">255</span> });
     }
-    pub fn update(self: *Demo, os: *ZigOS, dt: f32) void { _ = self; _ = os; _ = dt; }
-    pub fn render(self: *Demo, os: *ZigOS, dt: f32) void {
+    <span class="tok-kw">pub</span> <span class="tok-kw">fn</span> <span class="tok-fn">update</span>(self: *Demo, os: *ZigOS, dt: <span class="tok-kw">f32</span>) <span class="tok-kw">void</span> { _ = self; _ = os; _ = dt; }
+    <span class="tok-kw">pub</span> <span class="tok-kw">fn</span> <span class="tok-fn">render</span>(self: *Demo, os: *ZigOS, dt: <span class="tok-kw">f32</span>) <span class="tok-kw">void</span> {
         _ = self; _ = dt;
-        const fb = &amp;os.lfbs[0];
-        fb.clearFrameBuffer(0);
-        fb.setPixelValue(160, 100, 1);            // one orange pixel, screen centre
+        <span class="tok-kw">const</span> fb = &amp;os.lfbs[<span class="tok-num">0</span>];
+        fb.<span class="tok-fn">clearFrameBuffer</span>(<span class="tok-num">0</span>);
+        fb.<span class="tok-fn">setPixelValue</span>(<span class="tok-num">160</span>, <span class="tok-num">100</span>, <span class="tok-num">1</span>);            <span class="tok-cm">// one orange pixel, screen centre</span>
     }
-};</pre>
-<h3>Filled vectors with the blitter</h3><pre class="code">const zg = @import(&quot;zigos&quot;);
-var blit: zg.Blitter = .{};
+};</code></pre></figure>
+<h3>Filled vectors with the blitter</h3><figure class="cb" data-lang=zig><figcaption><span class="cb-lang">zig</span><span class="cb-n">9 lines</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code><span class="tok-kw">const</span> zg = @<span class="tok-fn">import</span>(<span class="tok-str">&quot;zigos&quot;</span>);
+<span class="tok-kw">var</span> blit: zg.Blitter = .{};
 
-// in init: blit.init();
-// in render (fb = &amp;os.lfbs[0]):
-blit.clear(fb, 0);                                // hardware FILL
-blit.triangle(fb, .{ .x = 20, .y = 20 }, .{ .x = 300, .y = 40 }, .{ .x = 160, .y = 180 }, 1);
-// glenz (see-through) vectors: OR each single-bit face colour into the buffer
-blit.triangleEx(fb, a, b, c, 0x01, 0, .glenz);</pre>
-<h3>Per-scanline rasters (HBL)</h3><pre class="code">// A palette/background split every scanline — set a global HBL handler.
-fn raster(os: *zg.ZigOS, line: u16) void {
-    os.setBackgroundColor(.{ .r = @intCast(line), .g = 0, .b = 128, .a = 255 });
+<span class="tok-cm">// in init: blit.init();</span>
+<span class="tok-cm">// in render (fb = &amp;os.lfbs[0]):</span>
+blit.<span class="tok-fn">clear</span>(fb, <span class="tok-num">0</span>);                                <span class="tok-cm">// hardware FILL</span>
+blit.<span class="tok-fn">triangle</span>(fb, .{ .x = <span class="tok-num">20</span>, .y = <span class="tok-num">20</span> }, .{ .x = <span class="tok-num">300</span>, .y = <span class="tok-num">40</span> }, .{ .x = <span class="tok-num">160</span>, .y = <span class="tok-num">180</span> }, <span class="tok-num">1</span>);
+<span class="tok-cm">// glenz (see-through) vectors: OR each single-bit face colour into the buffer</span>
+blit.<span class="tok-fn">triangleEx</span>(fb, a, b, c, <span class="tok-num">0x01</span>, <span class="tok-num">0</span>, .glenz);</code></pre></figure>
+<h3>Per-scanline rasters (HBL)</h3><figure class="cb" data-lang=zig><figcaption><span class="cb-lang">zig</span><span class="cb-n">5 lines</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code><span class="tok-cm">// A palette/background split every scanline — set a global HBL handler.</span>
+<span class="tok-kw">fn</span> <span class="tok-fn">raster</span>(os: *zg.ZigOS, line: <span class="tok-kw">u16</span>) <span class="tok-kw">void</span> {
+    os.<span class="tok-fn">setBackgroundColor</span>(.{ .r = @<span class="tok-fn">intCast</span>(line), .g = <span class="tok-num">0</span>, .b = <span class="tok-num">128</span>, .a = <span class="tok-num">255</span> });
 }
-// in init: os.setHBLHandler(raster);</pre>
-<h3>Hardware scrolling</h3><pre class="code">// A window onto a bigger-than-screen buffer.
-const fb = &amp;os.lfbs[0];
-fb.setScrollPlane(640, 400);        // back plane 0 with a 640x400 buffer
-// ... draw into it at buffer coords ...
-// each frame, pan the visible 320x200 window (pure hardware, zero per-pixel cost):
-fb.setScroll(scroll_x, scroll_y);
-// bonus: in SCROLL mode HSCROLL is re-read per scanline, so a per-plane HBL
-// handler calling fb.setScrollFine(sin(line)) bends each line (wobble).</pre>
-<h3>Medium resolution + per-HBL res switch</h3><pre class="code">// Medium = 640x200, crisp 1:1 (low-res is 320, pixel-doubled onto the same
-// 800-wide raster). setMediumPlane defaults the screen to medium.
-const fb = &amp;os.lfbs[0];
-fb.setMediumPlane();                 // 640x200 crisp; setMediumFullscreen() for overscan
-fb.setFrameBufferHBLHandler(0, resHBL);
+<span class="tok-cm">// in init: os.setHBLHandler(raster);</span></code></pre></figure>
+<h3>Hardware scrolling</h3><figure class="cb" data-lang=zig><figcaption><span class="cb-lang">zig</span><span class="cb-n">8 lines</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code><span class="tok-cm">// A window onto a bigger-than-screen buffer.</span>
+<span class="tok-kw">const</span> fb = &amp;os.lfbs[<span class="tok-num">0</span>];
+fb.<span class="tok-fn">setScrollPlane</span>(<span class="tok-num">640</span>, <span class="tok-num">400</span>);        <span class="tok-cm">// back plane 0 with a 640x400 buffer</span>
+<span class="tok-cm">// ... draw into it at buffer coords ...</span>
+<span class="tok-cm">// each frame, pan the visible 320x200 window (pure hardware, zero per-pixel cost):</span>
+fb.<span class="tok-fn">setScroll</span>(scroll_x, scroll_y);
+<span class="tok-cm">// bonus: in SCROLL mode HSCROLL is re-read per scanline, so a per-plane HBL</span>
+<span class="tok-cm">// handler calling fb.setScrollFine(sin(line)) bends each line (wobble).</span></code></pre></figure>
+<h3>Medium resolution + per-HBL res switch</h3><figure class="cb" data-lang=zig><figcaption><span class="cb-lang">zig</span><span class="cb-n">11 lines</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code><span class="tok-cm">// Medium = 640x200, crisp 1:1 (low-res is 320, pixel-doubled onto the same</span>
+<span class="tok-cm">// 800-wide raster). setMediumPlane defaults the screen to medium.</span>
+<span class="tok-kw">const</span> fb = &amp;os.lfbs[<span class="tok-num">0</span>];
+fb.<span class="tok-fn">setMediumPlane</span>();                 <span class="tok-cm">// 640x200 crisp; setMediumFullscreen() for overscan</span>
+fb.<span class="tok-fn">setFrameBufferHBLHandler</span>(<span class="tok-num">0</span>, resHBL);
 
-// An HBL handler flips RESOLUTION per scanline -&gt; low &amp; medium on one screen:
-fn resHBL(fb: *zg.LogicalFB, os: *zg.ZigOS, line: u16, x: u16) void {
+<span class="tok-cm">// An HBL handler flips RESOLUTION per scanline -&gt; low &amp; medium on one screen:</span>
+<span class="tok-kw">fn</span> <span class="tok-fn">resHBL</span>(fb: *zg.LogicalFB, os: *zg.ZigOS, line: <span class="tok-kw">u16</span>, x: <span class="tok-kw">u16</span>) <span class="tok-kw">void</span> {
     _ = fb; _ = x;
-    os.setResolution(if (line &gt;= 80 and line &lt; 130) .planes else .medium);
-}</pre>
-<h3>A GEM window (gui toolkit)</h3><pre class="code">const gui = zg.gui;
-var g: gui.Gui = .{ .os = os, .fb = &amp;os.lfbs[0], .blit = &amp;blit };
-var wm: gui.Wm = .{};
-// in init: gui.installPalette(fb); _ = wm.add(.{ .r = .{ .x=16,.y=26,.w=200,.h=90 }, .title = &quot;FILE&quot; });
-// in update: g.beginFrame(); wm.handle(&amp;g);
-// in render: draw desktop, then each window&#x27;s chrome + your content:
-const content = wm.drawChrome(&amp;g, id, id == wm.topId());
-if (g.button(.{ .x=content.x+4, .y=content.y+4, .w=48, .h=18 }, &quot;OK&quot;, false)) { /* clicked */ }
-// pointer state arrives via demo.pointer(x,y,buttons) (see sealed-loader.js).</pre></section>
-    <section id="geometry-resolution"><h2>Geometry &amp; resolution</h2><table><thead><tr><th>Name</th><th>Value</th><th>Meaning</th></tr></thead><tbody>
-<tr><td><code>PHYSICAL_WIDTH</code></td><td><code>400</code></td><td></td></tr>
-<tr><td><code>PHYSICAL_HEIGHT</code></td><td><code>280</code></td><td></td></tr>
-<tr><td><code>WIDTH</code></td><td><code>320</code></td><td></td></tr>
-<tr><td><code>HEIGHT</code></td><td><code>200</code></td><td></td></tr>
-<tr><td><code>NB_PLANES</code></td><td><code>4</code></td><td></td></tr>
-<tr><td><code>HORIZONTAL_BORDERS_WIDTH</code></td><td><code>(PHYSICAL_WIDTH - WIDTH) / 2</code></td><td>40</td></tr>
-<tr><td><code>VERTICAL_BORDERS_HEIGHT</code></td><td><code>(PHYSICAL_HEIGHT - HEIGHT) / 2</code></td><td>40</td></tr>
-<tr><td><code>MEDIUM_WIDTH</code></td><td><code>640</code></td><td>logical medium visible width</td></tr>
-<tr><td><code>MEDIUM_HEIGHT</code></td><td><code>200</code></td><td></td></tr>
-<tr><td><code>MEDIUM_PLANES</code></td><td><code>2</code></td><td></td></tr>
-<tr><td><code>MEDIUM_FB_BYTES</code></td><td><code>@as(usize, MEDIUM_WIDTH) * @as(usize, MEDIUM_HEIGHT)</code></td><td>128000</td></tr>
-<tr><td><code>MEDIUM_FULL_FB_BYTES</code></td><td><code>@as(usize, RASTER_WIDTH) * @as(usize, RASTER_HEIGHT)</code></td><td>224000</td></tr>
-<tr><td><code>RASTER_WIDTH</code></td><td><code>PHYSICAL_WIDTH * 2</code></td><td>800</td></tr>
-<tr><td><code>RASTER_HEIGHT</code></td><td><code>PHYSICAL_HEIGHT</code></td><td>280</td></tr>
-<tr><td><code>RASTER_BORDER_X</code></td><td><code>HORIZONTAL_BORDERS_WIDTH * 2</code></td><td>80</td></tr>
-<tr><td><code>RASTER_BORDER_Y</code></td><td><code>VERTICAL_BORDERS_HEIGHT</code></td><td>40</td></tr>
-<tr><td><code>RASTER_VIS_WIDTH</code></td><td><code>WIDTH * 2</code></td><td>640 (physical visible)</td></tr>
-<tr><td><code>RASTER_VIS_HEIGHT</code></td><td><code>HEIGHT</code></td><td>200</td></tr>
-<tr><td><code>STRIDE_NORMAL</code></td><td><code>WIDTH</code></td><td>320</td></tr>
-<tr><td><code>STRIDE_FULLSCREEN</code></td><td><code>PHYSICAL_WIDTH</code></td><td>400</td></tr>
+    os.<span class="tok-fn">setResolution</span>(<span class="tok-kw">if</span> (line &gt;= <span class="tok-num">80</span> <span class="tok-kw">and</span> line &lt; <span class="tok-num">130</span>) .planes <span class="tok-kw">else</span> .medium);
+}</code></pre></figure>
+<h3>A GEM window (gui toolkit)</h3><figure class="cb" data-lang=zig><figcaption><span class="cb-lang">zig</span><span class="cb-n">9 lines</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code><span class="tok-kw">const</span> gui = zg.gui;
+<span class="tok-kw">var</span> g: gui.Gui = .{ .os = os, .fb = &amp;os.lfbs[<span class="tok-num">0</span>], .blit = &amp;blit };
+<span class="tok-kw">var</span> wm: gui.Wm = .{};
+<span class="tok-cm">// in init: gui.installPalette(fb); _ = wm.add(.{ .r = .{ .x=16,.y=26,.w=200,.h=90 }, .title = &quot;FILE&quot; });</span>
+<span class="tok-cm">// in update: g.beginFrame(); wm.handle(&amp;g);</span>
+<span class="tok-cm">// in render: draw desktop, then each window&#x27;s chrome + your content:</span>
+<span class="tok-kw">const</span> content = wm.<span class="tok-fn">drawChrome</span>(&amp;g, id, id == wm.<span class="tok-fn">topId</span>());
+<span class="tok-kw">if</span> (g.<span class="tok-fn">button</span>(.{ .x=content.x+<span class="tok-num">4</span>, .y=content.y+<span class="tok-num">4</span>, .w=<span class="tok-num">48</span>, .h=<span class="tok-num">18</span> }, <span class="tok-str">&quot;OK&quot;</span>, <span class="tok-kw">false</span>)) { /* clicked */ }
+<span class="tok-cm">// pointer state arrives via demo.pointer(x,y,buttons) (see sealed-loader.js).</span></code></pre></figure>
+    </section>
+<section class="ref" id="geometry-resolution"><header class="sec-h"><span class="eyebrow">Machine</span><h2>Geometry<small>raster, window and border sizes</small></h2><span class="count">20 entries</span></header><table class="regs"><thead><tr><th>Name</th><th>Value</th><th>Meaning</th></tr></thead><tbody>
+<tr><td><code>PHYSICAL_WIDTH</code></td><td><code>400</code></td><td class="meaning"></td></tr>
+<tr><td><code>PHYSICAL_HEIGHT</code></td><td><code>280</code></td><td class="meaning"></td></tr>
+<tr><td><code>WIDTH</code></td><td><code>320</code></td><td class="meaning"></td></tr>
+<tr><td><code>HEIGHT</code></td><td><code>200</code></td><td class="meaning"></td></tr>
+<tr><td><code>NB_PLANES</code></td><td><code>4</code></td><td class="meaning"></td></tr>
+<tr><td><code>HORIZONTAL_BORDERS_WIDTH</code></td><td><code>(PHYSICAL_WIDTH - WIDTH) / 2</code></td><td class="meaning">40</td></tr>
+<tr><td><code>VERTICAL_BORDERS_HEIGHT</code></td><td><code>(PHYSICAL_HEIGHT - HEIGHT) / 2</code></td><td class="meaning">40</td></tr>
+<tr><td><code>MEDIUM_WIDTH</code></td><td><code>640</code></td><td class="meaning">logical medium visible width</td></tr>
+<tr><td><code>MEDIUM_HEIGHT</code></td><td><code>200</code></td><td class="meaning"></td></tr>
+<tr><td><code>MEDIUM_PLANES</code></td><td><code>2</code></td><td class="meaning"></td></tr>
+<tr><td><code>MEDIUM_FB_BYTES</code></td><td><code>@as(usize, MEDIUM_WIDTH) * @as(usize, MEDIUM_HEIGHT)</code></td><td class="meaning">128000</td></tr>
+<tr><td><code>MEDIUM_FULL_FB_BYTES</code></td><td><code>@as(usize, RASTER_WIDTH) * @as(usize, RASTER_HEIGHT)</code></td><td class="meaning">224000</td></tr>
+<tr><td><code>RASTER_WIDTH</code></td><td><code>PHYSICAL_WIDTH * 2</code></td><td class="meaning">800</td></tr>
+<tr><td><code>RASTER_HEIGHT</code></td><td><code>PHYSICAL_HEIGHT</code></td><td class="meaning">280</td></tr>
+<tr><td><code>RASTER_BORDER_X</code></td><td><code>HORIZONTAL_BORDERS_WIDTH * 2</code></td><td class="meaning">80</td></tr>
+<tr><td><code>RASTER_BORDER_Y</code></td><td><code>VERTICAL_BORDERS_HEIGHT</code></td><td class="meaning">40</td></tr>
+<tr><td><code>RASTER_VIS_WIDTH</code></td><td><code>WIDTH * 2</code></td><td class="meaning">640 (physical visible)</td></tr>
+<tr><td><code>RASTER_VIS_HEIGHT</code></td><td><code>HEIGHT</code></td><td class="meaning">200</td></tr>
+<tr><td><code>STRIDE_NORMAL</code></td><td><code>WIDTH</code></td><td class="meaning">320</td></tr>
+<tr><td><code>STRIDE_FULLSCREEN</code></td><td><code>PHYSICAL_WIDTH</code></td><td class="meaning">400</td></tr>
 </tbody></table></section>
-<section id="resolution-plane-modes"><h2>Resolution &amp; plane modes</h2><table><thead><tr><th>Name</th><th>Value</th><th>Meaning</th></tr></thead><tbody>
-<tr><td><code>FB_MODE_NORMAL</code></td><td><code>0</code></td><td>320x200 low-res plane (pixel-doubled into the raster)</td></tr>
-<tr><td><code>FB_MODE_FULLSCREEN</code></td><td><code>1</code></td><td>400x280 low-res overscan plane (Option B, doubled)</td></tr>
-<tr><td><code>FB_MODE_SCROLL</code></td><td><code>2</code></td><td>window into a bigger-than-screen buffer; pan via FB_BASE + HSCROLL</td></tr>
-<tr><td><code>FB_MODE_MEDIUM</code></td><td><code>3</code></td><td>640x200 medium-res plane (1:1 into the raster)</td></tr>
-<tr><td><code>FB_MODE_OVERSCAN</code></td><td><code>4</code></td><td>400x280 buffer, borders CLOSED until opened by the resolution-flicker trick (see OVERSCAN_* below)</td></tr>
-<tr><td><code>RES_PLANES</code></td><td><code>0</code></td><td></td></tr>
-<tr><td><code>RES_TRUECOLOR</code></td><td><code>1</code></td><td></td></tr>
-<tr><td><code>RES_MEDIUM</code></td><td><code>2</code></td><td>640x200, 2 planes, no border (ST-medium style)</td></tr>
+<section class="ref" id="resolution-plane-modes"><header class="sec-h"><span class="eyebrow">Machine</span><h2>Plane modes<small>FB_MODE_* and RES_*</small></h2><span class="count">8 entries</span></header><table class="regs"><thead><tr><th>Name</th><th>Value</th><th>Meaning</th></tr></thead><tbody>
+<tr><td><code>FB_MODE_NORMAL</code></td><td><code>0</code></td><td class="meaning">320x200 low-res plane (pixel-doubled into the raster)</td></tr>
+<tr><td><code>FB_MODE_FULLSCREEN</code></td><td><code>1</code></td><td class="meaning">400x280 low-res overscan plane (Option B, doubled)</td></tr>
+<tr><td><code>FB_MODE_SCROLL</code></td><td><code>2</code></td><td class="meaning">window into a bigger-than-screen buffer; pan via FB_BASE + HSCROLL</td></tr>
+<tr><td><code>FB_MODE_MEDIUM</code></td><td><code>3</code></td><td class="meaning">640x200 medium-res plane (1:1 into the raster)</td></tr>
+<tr><td><code>FB_MODE_OVERSCAN</code></td><td><code>4</code></td><td class="meaning">400x280 buffer, borders CLOSED until opened by the resolution-flicker trick (see OVERSCAN_* below)</td></tr>
+<tr><td><code>RES_PLANES</code></td><td><code>0</code></td><td class="meaning"></td></tr>
+<tr><td><code>RES_TRUECOLOR</code></td><td><code>1</code></td><td class="meaning"></td></tr>
+<tr><td><code>RES_MEDIUM</code></td><td><code>2</code></td><td class="meaning">640x200, 2 planes, no border (ST-medium style)</td></tr>
 </tbody></table></section>
-<section id="video-registers"><h2>Video registers</h2><table><thead><tr><th>Name</th><th>Value</th><th>Meaning</th></tr></thead><tbody>
-<tr><td><code>REG_RESOLUTION</code></td><td><code>0x00</code></td><td>u8   0 = planes, 1 = truecolor (border-open)</td></tr>
-<tr><td><code>REG_NB_PLANES</code></td><td><code>0x01</code></td><td>u8   (ro) = 4</td></tr>
-<tr><td><code>REG_BACKGROUND</code></td><td><code>0x04</code></td><td>u32  border/background RGBA</td></tr>
-<tr><td><code>REG_PLANE_ENABLE</code></td><td><code>0x08</code></td><td>u8 x4 (informational in v1; host gates blits)</td></tr>
-<tr><td><code>REG_GLOBAL_HBL_ID</code></td><td><code>0x10</code></td><td>u16  border/background HBL handler id (0 = none)</td></tr>
-<tr><td><code>REG_FB_HBL_ID</code></td><td><code>0x20</code></td><td>u16 x4 per-plane HBL handler id (0 = none)</td></tr>
-<tr><td><code>REG_FB_HBL_POS</code></td><td><code>0x28</code></td><td>u16 x4 x position at which the per-plane HBL fires</td></tr>
-<tr><td><code>REG_FRAME</code></td><td><code>0x30</code></td><td>u32  (ro) frame counter</td></tr>
-<tr><td><code>REG_FB_STRIDE</code></td><td><code>0x34</code></td><td>u16 x4 per-plane row stride in pixels (320 normal, 400 fullscreen, or any SCROLL buffer width)</td></tr>
-<tr><td><code>REG_HSCROLL</code></td><td><code>0x3C</code></td><td>u16 x4 per-plane horizontal scroll (re-read PER SCANLINE in SCROLL mode → line distort)</td></tr>
-<tr><td><code>REG_FB_BASE</code></td><td><code>0x44</code></td><td>u32 x4 per-plane framebuffer screen base (0x44..0x53) — pan point for SCROLL mode</td></tr>
-<tr><td><code>REG_FB_MODE</code></td><td><code>0x54</code></td><td>u8 x4 per-plane render mode (0x54..0x57): 0 normal, 1 fullscreen, 2 scroll, 3 medium, 4 overscan</td></tr>
-<tr><td><code>REG_RES_FLICKER</code></td><td><code>0x58</code></td><td>u16  overscan-trick latch: the SDK bumps it on a RES_MEDIUM-&gt;RES_PLANES flicker so the (untrappable) poke is observable per scanline (0x58..0x59; 0x5A..0x5B free)</td></tr>
-<tr><td><code>REG_CART_HIGH</code></td><td><code>0x5C</code></td><td>u32  (0x5C..0x5F)</td></tr>
-<tr><td><code>REG_ROM_HIGH</code></td><td><code>0x60</code></td><td>u32  (0x60..0x63; 0x64..0x7F free below OFF_BLIT)</td></tr>
+<section class="ref" id="video-registers"><header class="sec-h"><span class="eyebrow">Machine</span><h2>Video registers<small>the sealed video block</small></h2><span class="count">15 entries</span></header><table class="regs"><thead><tr><th>Name</th><th>Value</th><th>Type</th><th>Meaning</th></tr></thead><tbody>
+<tr><td><code>REG_RESOLUTION</code></td><td><code>0x00</code></td><td><span class="type">u8</span></td><td class="meaning">0 = planes, 1 = truecolor (border-open)</td></tr>
+<tr><td><code>REG_NB_PLANES</code></td><td><code>0x01</code></td><td><span class="type">u8<span class="ro">ro</span></span></td><td class="meaning">= 4</td></tr>
+<tr><td><code>REG_BACKGROUND</code></td><td><code>0x04</code></td><td><span class="type">u32</span></td><td class="meaning">border/background RGBA</td></tr>
+<tr><td><code>REG_PLANE_ENABLE</code></td><td><code>0x08</code></td><td><span class="type">u8 &times;4</span></td><td class="meaning">(informational in v1; host gates blits)</td></tr>
+<tr><td><code>REG_GLOBAL_HBL_ID</code></td><td><code>0x10</code></td><td><span class="type">u16</span></td><td class="meaning">border/background HBL handler id (0 = none)</td></tr>
+<tr><td><code>REG_FB_HBL_ID</code></td><td><code>0x20</code></td><td><span class="type">u16 &times;4</span></td><td class="meaning">per-plane HBL handler id (0 = none)</td></tr>
+<tr><td><code>REG_FB_HBL_POS</code></td><td><code>0x28</code></td><td><span class="type">u16 &times;4</span></td><td class="meaning">x position at which the per-plane HBL fires</td></tr>
+<tr><td><code>REG_FRAME</code></td><td><code>0x30</code></td><td><span class="type">u32<span class="ro">ro</span></span></td><td class="meaning">frame counter</td></tr>
+<tr><td><code>REG_FB_STRIDE</code></td><td><code>0x34</code></td><td><span class="type">u16 &times;4</span></td><td class="meaning">per-plane row stride in pixels (320 normal, 400 fullscreen, or any SCROLL buffer width)</td></tr>
+<tr><td><code>REG_HSCROLL</code></td><td><code>0x3C</code></td><td><span class="type">u16 &times;4</span></td><td class="meaning">per-plane horizontal scroll (re-read PER SCANLINE in SCROLL mode → line distort)</td></tr>
+<tr><td><code>REG_FB_BASE</code></td><td><code>0x44</code></td><td><span class="type">u32 &times;4</span></td><td class="meaning">per-plane framebuffer screen base (0x44..0x53) — pan point for SCROLL mode</td></tr>
+<tr><td><code>REG_FB_MODE</code></td><td><code>0x54</code></td><td><span class="type">u8 &times;4</span></td><td class="meaning">per-plane render mode (0x54..0x57): 0 normal, 1 fullscreen, 2 scroll, 3 medium, 4 overscan</td></tr>
+<tr><td><code>REG_RES_FLICKER</code></td><td><code>0x58</code></td><td><span class="type">u16</span></td><td class="meaning">overscan-trick latch: the SDK bumps it on a RES_MEDIUM-&gt;RES_PLANES flicker so the (untrappable) poke is observable per scanline (0x58..0x59; 0x5A..0x5B free)</td></tr>
+<tr><td><code>REG_CART_HIGH</code></td><td><code>0x5C</code></td><td><span class="type">u32</span></td><td class="meaning">(0x5C..0x5F)</td></tr>
+<tr><td><code>REG_ROM_HIGH</code></td><td><code>0x60</code></td><td><span class="type">u32</span></td><td class="meaning">(0x60..0x63; 0x64..0x7F free below OFF_BLIT)</td></tr>
 </tbody></table></section>
-<section id="blitter-registers"><h2>Blitter registers</h2><table><thead><tr><th>Name</th><th>Value</th><th>Meaning</th></tr></thead><tbody>
-<tr><td><code>BLIT_COMMAND</code></td><td><code>OFF_BLIT + 0x00</code></td><td>u8  0 NOP 1 BLIT 2 FILL 3 LINE 4 TRIANGLE</td></tr>
-<tr><td><code>BLIT_MINTERM</code></td><td><code>OFF_BLIT + 0x01</code></td><td>u8  LF truth table of A,B,C (index = A&lt;&lt;2|B&lt;&lt;1|C)</td></tr>
-<tr><td><code>BLIT_CON</code></td><td><code>OFF_BLIT + 0x02</code></td><td>u8  control bits (see CON_* below)</td></tr>
-<tr><td><code>BLIT_STATUS</code></td><td><code>OFF_BLIT + 0x03</code></td><td>u8  (ro) bit7 BUSY</td></tr>
-<tr><td><code>BLIT_COLOR</code></td><td><code>OFF_BLIT + 0x04</code></td><td>u8  foreground index</td></tr>
-<tr><td><code>BLIT_BG_COLOR</code></td><td><code>OFF_BLIT + 0x05</code></td><td>u8  halftone background index</td></tr>
-<tr><td><code>BLIT_COLOR_KEY</code></td><td><code>OFF_BLIT + 0x06</code></td><td>u8  transparent index (KEY_EN cookie-cut)</td></tr>
-<tr><td><code>BLIT_A_BASE</code></td><td><code>OFF_BLIT + 0x08</code></td><td>u32 channel A source base</td></tr>
-<tr><td><code>BLIT_A_STRIDE</code></td><td><code>OFF_BLIT + 0x0C</code></td><td>u16 channel A row stride</td></tr>
-<tr><td><code>BLIT_B_BASE</code></td><td><code>OFF_BLIT + 0x10</code></td><td>u32 channel B source base</td></tr>
-<tr><td><code>BLIT_B_STRIDE</code></td><td><code>OFF_BLIT + 0x14</code></td><td>u16 channel B row stride</td></tr>
-<tr><td><code>BLIT_C_BASE</code></td><td><code>OFF_BLIT + 0x18</code></td><td>u32 channel C source base</td></tr>
-<tr><td><code>BLIT_C_STRIDE</code></td><td><code>OFF_BLIT + 0x1C</code></td><td>u16 channel C row stride</td></tr>
-<tr><td><code>BLIT_D_BASE</code></td><td><code>OFF_BLIT + 0x20</code></td><td>u32 channel D destination base</td></tr>
-<tr><td><code>BLIT_D_STRIDE</code></td><td><code>OFF_BLIT + 0x24</code></td><td>u16 channel D row stride</td></tr>
-<tr><td><code>BLIT_W</code></td><td><code>OFF_BLIT + 0x28</code></td><td>u16 blit width  (BLIT/FILL)</td></tr>
-<tr><td><code>BLIT_H</code></td><td><code>OFF_BLIT + 0x2A</code></td><td>u16 blit height (BLIT/FILL)</td></tr>
-<tr><td><code>BLIT_CLIP_X</code></td><td><code>OFF_BLIT + 0x38</code></td><td>u16 clip rect origin x</td></tr>
-<tr><td><code>BLIT_CLIP_Y</code></td><td><code>OFF_BLIT + 0x3A</code></td><td>u16 clip rect origin y</td></tr>
-<tr><td><code>BLIT_CLIP_W</code></td><td><code>OFF_BLIT + 0x3C</code></td><td>u16 clip rect width</td></tr>
-<tr><td><code>BLIT_CLIP_H</code></td><td><code>OFF_BLIT + 0x3E</code></td><td>u16 clip rect height</td></tr>
-<tr><td><code>BLIT_HALFTONE</code></td><td><code>OFF_BLIT + 0x40</code></td><td>u16 x16 1-bit halftone pattern</td></tr>
-<tr><td><code>BLIT_CYCLES</code></td><td><code>OFF_BLIT + 0x60</code></td><td>u32 (ro) estimated cost of last op</td></tr>
-<tr><td><code>BLIT_CMD_NOP</code></td><td><code>0</code></td><td></td></tr>
-<tr><td><code>BLIT_CMD_BLIT</code></td><td><code>1</code></td><td></td></tr>
-<tr><td><code>BLIT_CMD_FILL</code></td><td><code>2</code></td><td></td></tr>
-<tr><td><code>BLIT_CMD_LINE</code></td><td><code>3</code></td><td></td></tr>
-<tr><td><code>BLIT_CMD_TRIANGLE</code></td><td><code>4</code></td><td></td></tr>
-<tr><td><code>BLIT_STATUS_BUSY</code></td><td><code>1 &lt;&lt; 7</code></td><td></td></tr>
+<section class="ref" id="blitter-registers"><header class="sec-h"><span class="eyebrow">Machine</span><h2>Blitter registers<small>OFF_BLIT + …</small></h2><span class="count">23 entries</span></header><table class="regs"><thead><tr><th>Name</th><th>Value</th><th>Type</th><th>Meaning</th></tr></thead><tbody>
+<tr><td><code>BLIT_COMMAND</code></td><td><code>OFF_BLIT + 0x00</code></td><td><span class="type">u8</span></td><td class="meaning">0 NOP 1 BLIT 2 FILL 3 LINE 4 TRIANGLE</td></tr>
+<tr><td><code>BLIT_MINTERM</code></td><td><code>OFF_BLIT + 0x01</code></td><td><span class="type">u8</span></td><td class="meaning">LF truth table of A,B,C (index = A&lt;&lt;2|B&lt;&lt;1|C)</td></tr>
+<tr><td><code>BLIT_CON</code></td><td><code>OFF_BLIT + 0x02</code></td><td><span class="type">u8</span></td><td class="meaning">control bits (see CON_* below)</td></tr>
+<tr><td><code>BLIT_STATUS</code></td><td><code>OFF_BLIT + 0x03</code></td><td><span class="type">u8<span class="ro">ro</span></span></td><td class="meaning">bit7 BUSY</td></tr>
+<tr><td><code>BLIT_COLOR</code></td><td><code>OFF_BLIT + 0x04</code></td><td><span class="type">u8</span></td><td class="meaning">foreground index</td></tr>
+<tr><td><code>BLIT_BG_COLOR</code></td><td><code>OFF_BLIT + 0x05</code></td><td><span class="type">u8</span></td><td class="meaning">halftone background index</td></tr>
+<tr><td><code>BLIT_COLOR_KEY</code></td><td><code>OFF_BLIT + 0x06</code></td><td><span class="type">u8</span></td><td class="meaning">transparent index (KEY_EN cookie-cut)</td></tr>
+<tr><td><code>BLIT_A_BASE</code></td><td><code>OFF_BLIT + 0x08</code></td><td><span class="type">u32</span></td><td class="meaning">channel A source base</td></tr>
+<tr><td><code>BLIT_A_STRIDE</code></td><td><code>OFF_BLIT + 0x0C</code></td><td><span class="type">u16</span></td><td class="meaning">channel A row stride</td></tr>
+<tr><td><code>BLIT_B_BASE</code></td><td><code>OFF_BLIT + 0x10</code></td><td><span class="type">u32</span></td><td class="meaning">channel B source base</td></tr>
+<tr><td><code>BLIT_B_STRIDE</code></td><td><code>OFF_BLIT + 0x14</code></td><td><span class="type">u16</span></td><td class="meaning">channel B row stride</td></tr>
+<tr><td><code>BLIT_C_BASE</code></td><td><code>OFF_BLIT + 0x18</code></td><td><span class="type">u32</span></td><td class="meaning">channel C source base</td></tr>
+<tr><td><code>BLIT_C_STRIDE</code></td><td><code>OFF_BLIT + 0x1C</code></td><td><span class="type">u16</span></td><td class="meaning">channel C row stride</td></tr>
+<tr><td><code>BLIT_D_BASE</code></td><td><code>OFF_BLIT + 0x20</code></td><td><span class="type">u32</span></td><td class="meaning">channel D destination base</td></tr>
+<tr><td><code>BLIT_D_STRIDE</code></td><td><code>OFF_BLIT + 0x24</code></td><td><span class="type">u16</span></td><td class="meaning">channel D row stride</td></tr>
+<tr><td><code>BLIT_W</code></td><td><code>OFF_BLIT + 0x28</code></td><td><span class="type">u16</span></td><td class="meaning">blit width  (BLIT/FILL)</td></tr>
+<tr><td><code>BLIT_H</code></td><td><code>OFF_BLIT + 0x2A</code></td><td><span class="type">u16</span></td><td class="meaning">blit height (BLIT/FILL)</td></tr>
+<tr><td><code>BLIT_CLIP_X</code></td><td><code>OFF_BLIT + 0x38</code></td><td><span class="type">u16</span></td><td class="meaning">clip rect origin x</td></tr>
+<tr><td><code>BLIT_CLIP_Y</code></td><td><code>OFF_BLIT + 0x3A</code></td><td><span class="type">u16</span></td><td class="meaning">clip rect origin y</td></tr>
+<tr><td><code>BLIT_CLIP_W</code></td><td><code>OFF_BLIT + 0x3C</code></td><td><span class="type">u16</span></td><td class="meaning">clip rect width</td></tr>
+<tr><td><code>BLIT_CLIP_H</code></td><td><code>OFF_BLIT + 0x3E</code></td><td><span class="type">u16</span></td><td class="meaning">clip rect height</td></tr>
+<tr><td><code>BLIT_HALFTONE</code></td><td><code>OFF_BLIT + 0x40</code></td><td><span class="type">u16 &times;16</span></td><td class="meaning">1-bit halftone pattern</td></tr>
+<tr><td><code>BLIT_CYCLES</code></td><td><code>OFF_BLIT + 0x60</code></td><td><span class="type">u32<span class="ro">ro</span></span></td><td class="meaning">estimated cost of last op</td></tr>
 </tbody></table></section>
-<section id="blitter-commands-control-minterms"><h2>Blitter commands / control / minterms</h2><table><thead><tr><th>Name</th><th>Value</th><th>Meaning</th></tr></thead><tbody>
-<tr><td><code>BLIT_CMD_NOP</code></td><td><code>0</code></td><td></td></tr>
-<tr><td><code>BLIT_CMD_BLIT</code></td><td><code>1</code></td><td></td></tr>
-<tr><td><code>BLIT_CMD_FILL</code></td><td><code>2</code></td><td></td></tr>
-<tr><td><code>BLIT_CMD_LINE</code></td><td><code>3</code></td><td></td></tr>
-<tr><td><code>BLIT_CMD_TRIANGLE</code></td><td><code>4</code></td><td></td></tr>
-<tr><td><code>CON_USEA</code></td><td><code>1 &lt;&lt; 0</code></td><td>channel A enabled</td></tr>
-<tr><td><code>CON_USEB</code></td><td><code>1 &lt;&lt; 1</code></td><td>channel B enabled</td></tr>
-<tr><td><code>CON_USEC</code></td><td><code>1 &lt;&lt; 2</code></td><td>channel C enabled</td></tr>
-<tr><td><code>CON_KEY_EN</code></td><td><code>1 &lt;&lt; 3</code></td><td>colour-key cookie-cut (skip B == COLOR_KEY)</td></tr>
-<tr><td><code>CON_IFE</code></td><td><code>1 &lt;&lt; 4</code></td><td>inclusive area fill (reserved, v2)</td></tr>
-<tr><td><code>CON_EFE</code></td><td><code>1 &lt;&lt; 5</code></td><td>exclusive area fill (reserved, v2)</td></tr>
-<tr><td><code>CON_DESC</code></td><td><code>1 &lt;&lt; 6</code></td><td>descending copy (overlapping moves)</td></tr>
-<tr><td><code>CON_CLIP_EN</code></td><td><code>1 &lt;&lt; 7</code></td><td>clip to CLIP rect</td></tr>
-<tr><td><code>BLIT_STATUS_BUSY</code></td><td><code>1 &lt;&lt; 7</code></td><td></td></tr>
-<tr><td><code>MT_A</code></td><td><code>0xF0</code></td><td>D = A</td></tr>
-<tr><td><code>MT_B</code></td><td><code>0xCC</code></td><td>D = B (plain image copy)</td></tr>
-<tr><td><code>MT_C</code></td><td><code>0xAA</code></td><td>D = C (dest unchanged)</td></tr>
-<tr><td><code>MT_COOKIE</code></td><td><code>0xCA</code></td><td>(A &amp; B) | (~A &amp; C) — cookie-cut bob</td></tr>
-<tr><td><code>MT_XOR_BC</code></td><td><code>0x66</code></td><td>D = B ^ C (reversible draw)</td></tr>
-<tr><td><code>MT_OR_BC</code></td><td><code>0xEE</code></td><td>D = B | C (additive — glenz vector transparency)</td></tr>
-<tr><td><code>MT_CLEAR</code></td><td><code>0x00</code></td><td></td></tr>
-<tr><td><code>MT_SET</code></td><td><code>0xFF</code></td><td></td></tr>
+<section class="ref" id="blitter-commands-control-minterms"><header class="sec-h"><span class="eyebrow">Machine</span><h2>Blitter control<small>commands, CON_* bits, minterms</small></h2><span class="count">22 entries</span></header><table class="regs"><thead><tr><th>Name</th><th>Value</th><th>Meaning</th></tr></thead><tbody>
+<tr><td><code>BLIT_CMD_NOP</code></td><td><code>0</code></td><td class="meaning"></td></tr>
+<tr><td><code>BLIT_CMD_BLIT</code></td><td><code>1</code></td><td class="meaning"></td></tr>
+<tr><td><code>BLIT_CMD_FILL</code></td><td><code>2</code></td><td class="meaning"></td></tr>
+<tr><td><code>BLIT_CMD_LINE</code></td><td><code>3</code></td><td class="meaning"></td></tr>
+<tr><td><code>BLIT_CMD_TRIANGLE</code></td><td><code>4</code></td><td class="meaning"></td></tr>
+<tr><td><code>CON_USEA</code></td><td><code>1 &lt;&lt; 0</code></td><td class="meaning">channel A enabled</td></tr>
+<tr><td><code>CON_USEB</code></td><td><code>1 &lt;&lt; 1</code></td><td class="meaning">channel B enabled</td></tr>
+<tr><td><code>CON_USEC</code></td><td><code>1 &lt;&lt; 2</code></td><td class="meaning">channel C enabled</td></tr>
+<tr><td><code>CON_KEY_EN</code></td><td><code>1 &lt;&lt; 3</code></td><td class="meaning">colour-key cookie-cut (skip B == COLOR_KEY)</td></tr>
+<tr><td><code>CON_IFE</code></td><td><code>1 &lt;&lt; 4</code></td><td class="meaning">inclusive area fill (reserved, v2)</td></tr>
+<tr><td><code>CON_EFE</code></td><td><code>1 &lt;&lt; 5</code></td><td class="meaning">exclusive area fill (reserved, v2)</td></tr>
+<tr><td><code>CON_DESC</code></td><td><code>1 &lt;&lt; 6</code></td><td class="meaning">descending copy (overlapping moves)</td></tr>
+<tr><td><code>CON_CLIP_EN</code></td><td><code>1 &lt;&lt; 7</code></td><td class="meaning">clip to CLIP rect</td></tr>
+<tr><td><code>BLIT_STATUS_BUSY</code></td><td><code>1 &lt;&lt; 7</code></td><td class="meaning"></td></tr>
+<tr><td><code>MT_A</code></td><td><code>0xF0</code></td><td class="meaning">D = A</td></tr>
+<tr><td><code>MT_B</code></td><td><code>0xCC</code></td><td class="meaning">D = B (plain image copy)</td></tr>
+<tr><td><code>MT_C</code></td><td><code>0xAA</code></td><td class="meaning">D = C (dest unchanged)</td></tr>
+<tr><td><code>MT_COOKIE</code></td><td><code>0xCA</code></td><td class="meaning">(A &amp; B) | (~A &amp; C) — cookie-cut bob</td></tr>
+<tr><td><code>MT_XOR_BC</code></td><td><code>0x66</code></td><td class="meaning">D = B ^ C (reversible draw)</td></tr>
+<tr><td><code>MT_OR_BC</code></td><td><code>0xEE</code></td><td class="meaning">D = B | C (additive — glenz vector transparency)</td></tr>
+<tr><td><code>MT_CLEAR</code></td><td><code>0x00</code></td><td class="meaning"></td></tr>
+<tr><td><code>MT_SET</code></td><td><code>0xFF</code></td><td class="meaning"></td></tr>
 </tbody></table></section>
-<section id="hw-abi-machine-exports"><h2>HW ABI — machine exports</h2><div class="item"><code class="sig">hwVideoBase() i32</code><div class="doc">base of the video hardware region</div></div>
-<div class="item"><code class="sig">hwInit() void</code><div class="doc">reset registers/planes</div></div>
-<div class="item"><code class="sig">hwClear() void</code><div class="doc">fill PFB with BACKGROUND, run GLOBAL_HBL per row</div></div>
-<div class="item"><code class="sig">hwRenderPlane(plane: u32) void</code><div class="doc">composite one enabled LFB -&gt; PFB</div></div>
-<div class="item"><code class="sig">hwBlit() void</code><div class="doc">execute the blitter COMMAND in the register block</div></div>
-<div class="item"><code class="sig">hwBorderX() u32</code><div class="doc">physical border width (host pointer mapping)</div></div>
-<div class="item"><code class="sig">hwBorderY() u32</code></div>
-<div class="item"><code class="sig">hwPhysicalPtr() i32</code><div class="doc">pointer to PFB for the host to blit</div></div>
-<div class="item"><code class="sig">hwPlanesNumber() u8</code></div>
-<div class="item"><code class="sig">hwPhysWidth() u32</code></div>
-<div class="item"><code class="sig">hwPhysHeight() u32</code></div>
-<div class="item"><code class="sig">hwVersion() u32</code><div class="doc">ZM_HW_VERSION</div></div>
-<div class="item"><code class="sig">hwRamBase() u32</code><div class="doc">first byte of the cart&#x27;s window (0x100000)</div></div>
-<div class="item"><code class="sig">hwRamTop() u32</code><div class="doc">first byte ABOVE it (= the video region)</div></div>
-<div class="item"><code class="sig">hwRamSize() u32</code><div class="doc">the whole window, in bytes (2 MiB)</div></div>
-<div class="item"><code class="sig">hwRamUsed() u32</code><div class="doc">this cart&#x27;s static data + stack</div></div>
-<div class="item"><code class="sig">hwRamFree() u32</code><div class="doc">what is left below the video region</div></div>
-<div class="item"><code class="sig">hwRomRamBase() u32</code></div>
-<div class="item"><code class="sig">hwRomRamTop() u32</code></div>
-<div class="item"><code class="sig">hwRomRamSize() u32</code></div>
-<div class="item"><code class="sig">hwRomRamUsed() u32</code></div>
-<div class="item"><code class="sig">hwRomRamFree() u32</code></div></section>
-<section id="disk-cart-format-boot-sectors"><h2>Disk / cart format + boot sectors</h2><h1>ZigMachine Disk — design</h1>
+<section class="ref" id="hw-abi-machine-exports"><header class="sec-h"><span class="eyebrow">Machine</span><h2>HW ABI<small>what machine-*.wasm exports</small></h2><span class="count">22 exports</span></header><article class="api" id="hwVideoBase"><code class="sig"><b class="fn">hwVideoBase</b>() <span class="ret">i32</span></code><a class="anchor" href="#hwVideoBase" aria-label="Link to hwVideoBase">#</a><p class="doc">base of the video hardware region</p></article>
+<article class="api" id="hwInit"><code class="sig"><b class="fn">hwInit</b>() <span class="ret">void</span></code><a class="anchor" href="#hwInit" aria-label="Link to hwInit">#</a><p class="doc">reset registers/planes</p></article>
+<article class="api" id="hwClear"><code class="sig"><b class="fn">hwClear</b>() <span class="ret">void</span></code><a class="anchor" href="#hwClear" aria-label="Link to hwClear">#</a><p class="doc">fill PFB with BACKGROUND, run GLOBAL_HBL per row</p></article>
+<article class="api" id="hwRenderPlane"><code class="sig"><b class="fn">hwRenderPlane</b>(plane: u32) <span class="ret">void</span></code><a class="anchor" href="#hwRenderPlane" aria-label="Link to hwRenderPlane">#</a><p class="doc">composite one enabled LFB -&gt; PFB</p></article>
+<article class="api" id="hwBlit"><code class="sig"><b class="fn">hwBlit</b>() <span class="ret">void</span></code><a class="anchor" href="#hwBlit" aria-label="Link to hwBlit">#</a><p class="doc">execute the blitter COMMAND in the register block</p></article>
+<article class="api" id="hwBorderX"><code class="sig"><b class="fn">hwBorderX</b>() <span class="ret">u32</span></code><a class="anchor" href="#hwBorderX" aria-label="Link to hwBorderX">#</a><p class="doc">physical border width (host pointer mapping)</p></article>
+<article class="api" id="hwBorderY"><code class="sig"><b class="fn">hwBorderY</b>() <span class="ret">u32</span></code><a class="anchor" href="#hwBorderY" aria-label="Link to hwBorderY">#</a></article>
+<article class="api" id="hwPhysicalPtr"><code class="sig"><b class="fn">hwPhysicalPtr</b>() <span class="ret">i32</span></code><a class="anchor" href="#hwPhysicalPtr" aria-label="Link to hwPhysicalPtr">#</a><p class="doc">pointer to PFB for the host to blit</p></article>
+<article class="api" id="hwPlanesNumber"><code class="sig"><b class="fn">hwPlanesNumber</b>() <span class="ret">u8</span></code><a class="anchor" href="#hwPlanesNumber" aria-label="Link to hwPlanesNumber">#</a></article>
+<article class="api" id="hwPhysWidth"><code class="sig"><b class="fn">hwPhysWidth</b>() <span class="ret">u32</span></code><a class="anchor" href="#hwPhysWidth" aria-label="Link to hwPhysWidth">#</a></article>
+<article class="api" id="hwPhysHeight"><code class="sig"><b class="fn">hwPhysHeight</b>() <span class="ret">u32</span></code><a class="anchor" href="#hwPhysHeight" aria-label="Link to hwPhysHeight">#</a></article>
+<article class="api" id="hwVersion"><code class="sig"><b class="fn">hwVersion</b>() <span class="ret">u32</span></code><a class="anchor" href="#hwVersion" aria-label="Link to hwVersion">#</a><p class="doc">ZM_HW_VERSION</p></article>
+<article class="api" id="hwRamBase"><code class="sig"><b class="fn">hwRamBase</b>() <span class="ret">u32</span></code><a class="anchor" href="#hwRamBase" aria-label="Link to hwRamBase">#</a><p class="doc">first byte of the cart&#x27;s window (0x100000)</p></article>
+<article class="api" id="hwRamTop"><code class="sig"><b class="fn">hwRamTop</b>() <span class="ret">u32</span></code><a class="anchor" href="#hwRamTop" aria-label="Link to hwRamTop">#</a><p class="doc">first byte ABOVE it (= the video region)</p></article>
+<article class="api" id="hwRamSize"><code class="sig"><b class="fn">hwRamSize</b>() <span class="ret">u32</span></code><a class="anchor" href="#hwRamSize" aria-label="Link to hwRamSize">#</a><p class="doc">the whole window, in bytes (2 MiB)</p></article>
+<article class="api" id="hwRamUsed"><code class="sig"><b class="fn">hwRamUsed</b>() <span class="ret">u32</span></code><a class="anchor" href="#hwRamUsed" aria-label="Link to hwRamUsed">#</a><p class="doc">this cart&#x27;s static data + stack</p></article>
+<article class="api" id="hwRamFree"><code class="sig"><b class="fn">hwRamFree</b>() <span class="ret">u32</span></code><a class="anchor" href="#hwRamFree" aria-label="Link to hwRamFree">#</a><p class="doc">what is left below the video region</p></article>
+<article class="api" id="hwRomRamBase"><code class="sig"><b class="fn">hwRomRamBase</b>() <span class="ret">u32</span></code><a class="anchor" href="#hwRomRamBase" aria-label="Link to hwRomRamBase">#</a></article>
+<article class="api" id="hwRomRamTop"><code class="sig"><b class="fn">hwRomRamTop</b>() <span class="ret">u32</span></code><a class="anchor" href="#hwRomRamTop" aria-label="Link to hwRomRamTop">#</a></article>
+<article class="api" id="hwRomRamSize"><code class="sig"><b class="fn">hwRomRamSize</b>() <span class="ret">u32</span></code><a class="anchor" href="#hwRomRamSize" aria-label="Link to hwRomRamSize">#</a></article>
+<article class="api" id="hwRomRamUsed"><code class="sig"><b class="fn">hwRomRamUsed</b>() <span class="ret">u32</span></code><a class="anchor" href="#hwRomRamUsed" aria-label="Link to hwRomRamUsed">#</a></article>
+<article class="api" id="hwRomRamFree"><code class="sig"><b class="fn">hwRomRamFree</b>() <span class="ret">u32</span></code><a class="anchor" href="#hwRomRamFree" aria-label="Link to hwRomRamFree">#</a></article></section>
+<section class="ref" id="disk-cart-format-boot-sectors"><header class="sec-h"><span class="eyebrow">Formats</span><h2>Disk &amp; cart format<small>docs/FLOPPY_DISK.md</small></h2></header><div class="chapter"><ul class="toc"><li class="toc-3"><a href="#disk-cart-format-boot-sectors-zigmachine-disk-design">ZigMachine Disk — design</a></li><li class="toc-4"><a href="#disk-cart-format-boot-sectors-why">Why</a></li><li class="toc-4"><a href="#disk-cart-format-boot-sectors-format-fixed-header-linear-512-byte-blocks-contiguous-files">Format (fixed header, linear 512-byte blocks, contiguous files)</a></li><li class="toc-4"><a href="#disk-cart-format-boot-sectors-drive-abi-block-reads">Drive ABI (block reads)</a></li><li class="toc-4"><a href="#disk-cart-format-boot-sectors-boot-flow">Boot flow</a></li><li class="toc-4"><a href="#disk-cart-format-boot-sectors-staged-plan">Staged plan</a></li><li class="toc-4"><a href="#disk-cart-format-boot-sectors-notes">Notes</a></li><li class="toc-4"><a href="#disk-cart-format-boot-sectors-packed-carts-zx0">Packed carts (ZX0)</a></li><li class="toc-3"><a href="#disk-cart-format-boot-sectors-format-v2-the-boot-sector-is-executable-a-wasm-chainloader">Format v2 — the boot sector <em>is</em> executable (a wasm chainloader)</a></li><li class="toc-4"><a href="#disk-cart-format-boot-sectors-layout-512-byte-streaming-blocks-1-kb-2-block-header-regions">Layout (512-byte streaming blocks; 1 KB = 2-block header regions)</a></li><li class="toc-4"><a href="#disk-cart-format-boot-sectors-boot-flow-v2">Boot flow (v2)</a></li><li class="toc-4"><a href="#disk-cart-format-boot-sectors-staged-build-v2">Staged build (v2)</a></li><li class="toc-4"><a href="#disk-cart-format-boot-sectors-writing-a-boot-sector-program">Writing a boot-sector program</a></li></ul><h3 id="disk-cart-format-boot-sectors-zigmachine-disk-design">ZigMachine Disk — design</h3>
 <blockquote>
 <p><strong>Packing the shelf:</strong> <code>tools/mkdisks.sh</code> repacks every disk in <code>docs/</code> from the
 built carts (run by <code>build.sh</code>; only repacks what is stale, <code>-f</code> forces). It is
@@ -286,7 +263,7 @@ overflows the 2 MiB demo window.</p>
 keeping from the ST floppy) on top of a <strong>flat, linear-block</strong> layout — no
 tracks/sides, no FAT cluster chains. Real floppy fidelity isn't the goal; the boot
 block + block streaming are.</p>
-<h2>Why</h2>
+<h4 id="disk-cart-format-boot-sectors-why">Why</h4>
 <p>A scene <code>@embedFile</code>s its assets, so linking many scenes into one <code>demo.wasm</code> blows
 the demo window (~5.7 MB needed vs 2 MiB). Give the machine a <strong>disk drive</strong>: a scene
 and its assets live on a disk image, and the machine <strong>streams blocks into RAM on
@@ -298,15 +275,14 @@ demand</strong> instead of baking assets into the binary. This unlocks:</p>
 <li><strong>Executable boot block</strong> — read block 0, verify it's a valid bootable ZigMachine
   disk, run its boot file.</li>
 </ul>
-<h2>Format (fixed header, linear 512-byte blocks, contiguous files)</h2>
+<h4 id="disk-cart-format-boot-sectors-format-fixed-header-linear-512-byte-blocks-contiguous-files">Format (fixed header, linear 512-byte blocks, contiguous files)</h4>
 <p>Three regions. Everything is addressed by <strong>linear 512-byte block</strong> (block N = byte
 <code>N*512</code>); no track/sector/side. Files are stored <strong>contiguously</strong>, so a file byte is
 just <code>file.start + offset</code> — the FAT is a flat table, not cluster chains.</p>
-<pre><code>[$0000 .. $0200)   Boot sector      512 B   magic + $1234 checksum + boot pointer
+<figure class="cb"><figcaption><span class="cb-n">3 lines</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code>[$0000 .. $0200)   Boot sector      512 B   magic + $1234 checksum + boot pointer
 [$0200 .. $0600)   Descriptor + FAT  1 KB   disk metadata + the file table
-[$0600 .. )        Data                     contiguous file contents
-</code></pre>
-<h3>Boot sector — <code>$0000</code>, 512 B (executable)</h3>
+[$0600 .. )        Data                     contiguous file contents</code></pre></figure>
+<h5 id="disk-cart-format-boot-sectors-boot-sector-0000-512-b-executable">Boot sector — <code>$0000</code>, 512 B (executable)</h5>
 <table>
 <thead>
 <tr>
@@ -382,7 +358,7 @@ sample off the disk.</p>
 <p><strong>Simplest disk (our demo carts):</strong> boot sector → 1 KB descriptor (FAT empty, file
 count 0) → the cart wasm as one contiguous data run. The machine reads block 0, checks
 <code>$1234</code>, and loads <code>boot length</code> bytes from <code>boot block</code>. No FAT walk, no directory.</p>
-<h3>Descriptor + FAT — <code>$0200</code>, 1 KB</h3>
+<h5 id="disk-cart-format-boot-sectors-descriptor-fat-0200-1-kb">Descriptor + FAT — <code>$0200</code>, 1 KB</h5>
 <p>First a fixed <strong>descriptor</strong> (metadata shown in the disk browser), then the <strong>FAT</strong>
 (flat file table) filling the rest of the 1 KB:</p>
 <table>
@@ -437,7 +413,7 @@ asset · 2 text) · <code>reserved[7]</code>. Contiguous → no chains; the pack
 once, so there's no fragmentation.</p>
 <p>(24 files fit the fixed 1 KB; if a disk ever needs more, bump the header region — but
 one cart + its assets is well under 24.)</p>
-<h2>Drive ABI (block reads)</h2>
+<h4 id="disk-cart-format-boot-sectors-drive-abi-block-reads">Drive ABI (block reads)</h4>
 <p>A sealed <strong>disk register block</strong> (like the blitter), serviced by the host:</p>
 <ul>
 <li><code>DISK_BLOCK</code> (u32) — linear block to read.</li>
@@ -448,7 +424,7 @@ one cart + its assets is well under 24.)</p>
 </ul>
 <p>ZigOS <code>fs/</code> wraps it: <code>mount(image)</code>, <code>find("NAME.WSM") -&gt; {block,len}</code>,
 <code>readBlock(n)</code> — effects request bytes; the lib streams blocks underneath.</p>
-<h2>Boot flow</h2>
+<h4 id="disk-cart-format-boot-sectors-boot-flow">Boot flow</h4>
 <ol>
 <li>Loader mounts <code>disk.zmd</code> (fetch bytes once).</li>
 <li>Host reads block 0, verifies <code>magic</code> + <code>$1234</code>, parses the descriptor.</li>
@@ -457,7 +433,7 @@ one cart + its assets is well under 24.)</p>
 <li>The scene streams its own assets from the same disk by name, block by block.</li>
 <li>ESC / eject → back to the disk browser (menu).</li>
 </ol>
-<h2>Staged plan</h2>
+<h4 id="disk-cart-format-boot-sectors-staged-plan">Staged plan</h4>
 <ul>
 <li><strong>A. Spec</strong> — this doc.</li>
 <li><strong>B. <code>mkdisk</code></strong> (<code>tools/mkdisk.py</code>) — pack <code>boot.wasm</code> + assets + descriptor into a
@@ -468,7 +444,7 @@ one cart + its assets is well under 24.)</p>
 <li><strong>E. Streaming assets</strong> — port one asset-heavy scene (e.g. <code>tex</code>) to stream its screens
   off the disk instead of <code>@embedFile</code>, shrinking its wasm — the payoff demonstrated.</li>
 </ul>
-<h2>Notes</h2>
+<h4 id="disk-cart-format-boot-sectors-notes">Notes</h4>
 <ul>
 <li>The <code>$1234</code> checksum uses big-endian 16-bit words (the one ST-endian quirk we keep);
   everything else is little-endian.</li>
@@ -482,7 +458,7 @@ one cart + its assets is well under 24.)</p>
   (the format has no limit, <code>total blocks</code> is a u32: this is host policy).</li>
 </ul>
 <hr />
-<h2>Packed carts (ZX0)</h2>
+<h4 id="disk-cart-format-boot-sectors-packed-carts-zx0">Packed carts (ZX0)</h4>
 <p>Every disk <code>tools/mkdisks.sh</code> writes stores its cart <strong>ZX0-packed</strong>: the cart
 bytes at the boot pointer (v1) or the descriptor's cart block (v2) are a
 ZigMachine ZX0 container (<code>"ZX0!"</code>, see <code>libs/zig/depackers/zx0.zig</code>), made
@@ -507,23 +483,22 @@ program. <code>apps/disk_check.mjs</code> unpacks every disk the same way, and
 <code>apps/rom_abi_check.mjs</code> throws truncated, oversized and out-of-window calls at
 <code>romDepack</code>. A cart that is NOT packed still loads unchanged, so older disks
 keep working.</p>
-<h1>Format v2 — the boot sector <em>is</em> executable (a wasm chainloader)</h1>
+<h3 id="disk-cart-format-boot-sectors-format-v2-the-boot-sector-is-executable-a-wasm-chainloader">Format v2 — the boot sector <em>is</em> executable (a wasm chainloader)</h3>
 <p><strong>Status: designing (2026-09-07).</strong> v1's boot sector is <em>metadata that points at the
 cart</em> — the host loads the cart. v2 makes the boot sector <strong>the boot</strong>, ST-style: it is
 a real, tiny <strong>wasm module</strong> that the machine runs first, and it <strong>chainloads</strong> the cart
 itself. The <code>$1234</code> checksum keeps its exact old meaning — it just now marks <em>executable
 code</em> rather than a bootable descriptor. This moves boot logic <strong>out of the host JS</strong>
 (the loader shrinks to: read block 0, checksum, instantiate, run) and into the disk.</p>
-<h2>Layout (512-byte streaming blocks; 1 KB = 2-block header regions)</h2>
-<pre><code>region            bytes        blocks   contents
+<h4 id="disk-cart-format-boot-sectors-layout-512-byte-streaming-blocks-1-kb-2-block-header-regions">Layout (512-byte streaming blocks; 1 KB = 2-block header regions)</h4>
+<figure class="cb"><figcaption><span class="cb-n">5 lines</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code>region            bytes        blocks   contents
 BOOT SECTOR       [0K .. 1K)   0..1     executable wasm module ($1234 ⇒ run it)
 DESCRIPTOR        [1K .. 2K)   2..3     zigcart BPB (metadata + cart pointer)
 FAT               [2K .. 3K)   4..5     flat file table (24 × 32 B, as v1)
-DATA              [3K .. )     6..      cart wasm + files, contiguous
-</code></pre>
+DATA              [3K .. )     6..      cart wasm + files, contiguous</code></pre></figure>
 <p>Streaming granularity stays <strong>512 B</strong> (drive ABI unchanged); only the header is 1 KB per
 region. Cart data starts at <strong>block 6</strong> (byte <code>$0C00</code>).</p>
-<h3>Boot sector — <code>[0K..1K)</code>, an executable wasm module</h3>
+<h5 id="disk-cart-format-boot-sectors-boot-sector-0k-1k-an-executable-wasm-module">Boot sector — <code>[0K..1K)</code>, an executable wasm module</h5>
 <p>The 1 KB <strong>is a wasm binary</strong> (<code>\0asm\01\00\00\00…</code>), not a struct. It is a minimal
 "boot program" cart: the host instantiates it against the sealed machine and drives it
 through the <strong>normal render loop</strong>, so it only needs the loop's mandatory demo contract
@@ -568,7 +543,7 @@ section</strong> named <code>zmck</code> holding a 2-byte adjustment word; <code
 1 KB's 512 big-endian words sum to <code>$1234</code>. Custom sections are ignored at execution, so
 the wasm still runs. <code>$0000</code> (or any non-<code>$1234</code>) ⇒ <strong>not executable</strong> ⇒ POST → GEM (data
 disk), exactly as v1.</p>
-<h3>Descriptor — <code>[1K..2K)</code></h3>
+<h5 id="disk-cart-format-boot-sectors-descriptor-1k-2k">Descriptor — <code>[1K..2K)</code></h5>
 <p>Same fields as v1's descriptor <strong>plus</strong> the cart pointer that used to live in the boot
 sector (since the boot sector is now code):</p>
 <table>
@@ -633,7 +608,7 @@ sector (since the boot sector is now code):</p>
 </tbody>
 </table>
 <p>FAT (<code>[2K..3K)</code>) is v1's table verbatim (24 × 32 B entries), addressing files in DATA.</p>
-<h2>Boot flow (v2)</h2>
+<h4 id="disk-cart-format-boot-sectors-boot-flow-v2">Boot flow (v2)</h4>
 <ol>
 <li><strong>Host</strong> mounts the <code>.zmd</code>, reads the 1 KB boot sector, sums its 512 BE words.</li>
 <li><code>== $1234</code> <strong>and</strong> <code>\0asm</code> magic → <strong>executable</strong>: instantiate the boot sector as the
@@ -648,7 +623,7 @@ sector (since the boot sector is now code):</p>
 descriptor's cart</em> — and the disk owns everything else. <code>chainload</code> reuses the existing
 <code>swapCart</code> machinery (a new <code>req = 2</code> = "this disk's cart" alongside <code>req = 1</code> = named
 floppy).</p>
-<h2>Staged build (v2)</h2>
+<h4 id="disk-cart-format-boot-sectors-staged-build-v2">Staged build (v2)</h4>
 <ul>
 <li><strong>1. Spec</strong> — this section.</li>
 <li><strong>2. Host</strong> — <code>mountDiskV2()</code> (parse the 4 regions), instantiate an executable boot
@@ -662,7 +637,7 @@ floppy).</p>
   message + a low YM2149 tone, hold ~2 s, then chainload) — the ST-antivirus-bootsector
   homage, proving the whole path in-browser.</li>
 </ul>
-<h2>Writing a boot-sector program</h2>
+<h4 id="disk-cart-format-boot-sectors-writing-a-boot-sector-program">Writing a boot-sector program</h4>
 <p>A boot-sector program is a <strong>bare wasm module</strong> — <em>no ZigOS, no ROM</em> — that pokes the
 sealed video ABI directly and stays under <strong>1015 bytes</strong> (the 1 KB sector minus the 9-byte
 <code>zmck</code> checksum section). It participates in the machine's normal render loop, so it only
@@ -707,42 +682,41 @@ docs/boot-&lt;name&gt;.wasm -o docs/&lt;disk&gt;.zmd</code> — <code>mkdisk</co
 tunes it so the sector sums to <code>$1234</code>. <strong>Run:</strong> <code>sealed.html?disk=&lt;disk&gt;.zmd</code>.</p>
 <p><strong>Example</strong> — <code>apps/zig/boot/novirus.zig</code>, the "No virus in ZigMachine" intro (full white
 = inverse video, hold ~2 s, chainload). Abridged (full 8×8 font in the source):</p>
-<pre><code class="language-zig">const hw = @import(&quot;hardware&quot;); // ABI offsets only — no code
-extern fn hwVideoBase() i32;    // the machine tells us where its region lives
+<figure class="cb" data-lang=zig><figcaption><span class="cb-lang">zig</span><span class="cb-n">27 lines</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code><span class="tok-kw">const</span> hw = @<span class="tok-fn">import</span>(<span class="tok-str">&quot;hardware&quot;</span>); <span class="tok-cm">// ABI offsets only — no code</span>
+<span class="tok-kw">extern</span> <span class="tok-kw">fn</span> <span class="tok-fn">hwVideoBase</span>() <span class="tok-kw">i32</span>;    <span class="tok-cm">// the machine tells us where its region lives</span>
 
-const W: usize = hw.WIDTH; // 320
-var frame_count: u32 = 0;
+<span class="tok-kw">const</span> W: <span class="tok-kw">usize</span> = hw.WIDTH; <span class="tok-cm">// 320</span>
+<span class="tok-kw">var</span> frame_count: <span class="tok-kw">u32</span> = <span class="tok-num">0</span>;
 
-inline fn regBase() usize { return @intCast(hwVideoBase()); }
-inline fn w32(off: usize, v: u32) void { @as(*volatile u32, @ptrFromInt(regBase() + off)).* = v; }
-inline fn r32(off: usize) u32 { return @as(*volatile u32, @ptrFromInt(regBase() + off)).*; }
-inline fn fbPtr() [*]u8 { return @ptrFromInt(regBase() + @as(usize, r32(hw.REG_FB_BASE))); } // plane 0
+<span class="tok-kw">inline</span> <span class="tok-kw">fn</span> <span class="tok-fn">regBase</span>() <span class="tok-kw">usize</span> { <span class="tok-kw">return</span> @<span class="tok-fn">intCast</span>(<span class="tok-fn">hwVideoBase</span>()); }
+<span class="tok-kw">inline</span> <span class="tok-kw">fn</span> <span class="tok-fn">w32</span>(off: <span class="tok-kw">usize</span>, v: <span class="tok-kw">u32</span>) <span class="tok-kw">void</span> { @<span class="tok-fn">as</span>(*<span class="tok-kw">volatile</span> <span class="tok-kw">u32</span>, @<span class="tok-fn">ptrFromInt</span>(<span class="tok-fn">regBase</span>() + off)).* = v; }
+<span class="tok-kw">inline</span> <span class="tok-kw">fn</span> <span class="tok-fn">r32</span>(off: <span class="tok-kw">usize</span>) <span class="tok-kw">u32</span> { <span class="tok-kw">return</span> @<span class="tok-fn">as</span>(*<span class="tok-kw">volatile</span> <span class="tok-kw">u32</span>, @<span class="tok-fn">ptrFromInt</span>(<span class="tok-fn">regBase</span>() + off)).*; }
+<span class="tok-kw">inline</span> <span class="tok-kw">fn</span> <span class="tok-fn">fbPtr</span>() [*]<span class="tok-kw">u8</span> { <span class="tok-kw">return</span> @<span class="tok-fn">ptrFromInt</span>(<span class="tok-fn">regBase</span>() + @<span class="tok-fn">as</span>(<span class="tok-kw">usize</span>, <span class="tok-fn">r32</span>(hw.REG_FB_BASE))); } <span class="tok-cm">// plane 0</span>
 
-// One-shot: white ground everywhere (borders via REG_BACKGROUND + plane paper),
-// black message on plane 0 → inverse video.
-export fn boot() void {
-    frame_count = 0;
-    w32(hw.REG_BACKGROUND, 0xFFFFFFFF);        // borders + visible = white
-    w32(hw.OFF_PAL + 0 * 4, 0xFFFFFFFF);       // plane idx 0 = white paper (compositor writes every pixel)
-    w32(hw.OFF_PAL + 1 * 4, 0xFF000000);       // plane idx 1 = black ink
-    const fb = fbPtr();
-    var i: usize = 0;
-    while (i &lt; W * hw.HEIGHT) : (i += 1) fb[i] = 0;
-    drawText(fb, &quot;NO VIRUS IN ZIGMACHINE&quot;);     // 8×8 glyph blit — see source
+<span class="tok-cm">// One-shot: white ground everywhere (borders via REG_BACKGROUND + plane paper),</span>
+<span class="tok-cm">// black message on plane 0 → inverse video.</span>
+<span class="tok-kw">export</span> <span class="tok-kw">fn</span> <span class="tok-fn">boot</span>() <span class="tok-kw">void</span> {
+    frame_count = <span class="tok-num">0</span>;
+    <span class="tok-fn">w32</span>(hw.REG_BACKGROUND, <span class="tok-num">0xFFFFFFFF</span>);        <span class="tok-cm">// borders + visible = white</span>
+    <span class="tok-fn">w32</span>(hw.OFF_PAL + <span class="tok-num">0</span> * <span class="tok-num">4</span>, <span class="tok-num">0xFFFFFFFF</span>);       <span class="tok-cm">// plane idx 0 = white paper (compositor writes every pixel)</span>
+    <span class="tok-fn">w32</span>(hw.OFF_PAL + <span class="tok-num">1</span> * <span class="tok-num">4</span>, <span class="tok-num">0xFF000000</span>);       <span class="tok-cm">// plane idx 1 = black ink</span>
+    <span class="tok-kw">const</span> fb = <span class="tok-fn">fbPtr</span>();
+    <span class="tok-kw">var</span> i: <span class="tok-kw">usize</span> = <span class="tok-num">0</span>;
+    <span class="tok-kw">while</span> (i &lt; W * hw.HEIGHT) : (i += <span class="tok-num">1</span>) fb[i] = <span class="tok-num">0</span>;
+    <span class="tok-fn">drawText</span>(fb, <span class="tok-str">&quot;NO VIRUS IN ZIGMACHINE&quot;</span>);     <span class="tok-cm">// 8×8 glyph blit — see source</span>
 }
 
-export fn frame(dt: f32) void { _ = dt; frame_count +%= 1; }
-export fn isPlaneEnabled(plane: i32) i32 { return if (plane == 0) 1 else 0; }
-export fn pollCartRequest() i32 { return if (frame_count &gt;= 120) 2 else 0; } // ~2 s → chainload
-</code></pre>
+<span class="tok-kw">export</span> <span class="tok-kw">fn</span> <span class="tok-fn">frame</span>(dt: <span class="tok-kw">f32</span>) <span class="tok-kw">void</span> { _ = dt; frame_count +%= <span class="tok-num">1</span>; }
+<span class="tok-kw">export</span> <span class="tok-kw">fn</span> <span class="tok-fn">isPlaneEnabled</span>(plane: <span class="tok-kw">i32</span>) <span class="tok-kw">i32</span> { <span class="tok-kw">return</span> <span class="tok-kw">if</span> (plane == <span class="tok-num">0</span>) <span class="tok-num">1</span> <span class="tok-kw">else</span> <span class="tok-num">0</span>; }
+<span class="tok-kw">export</span> <span class="tok-kw">fn</span> <span class="tok-fn">pollCartRequest</span>() <span class="tok-kw">i32</span> { <span class="tok-kw">return</span> <span class="tok-kw">if</span> (frame_count &gt;= <span class="tok-num">120</span>) <span class="tok-num">2</span> <span class="tok-kw">else</span> <span class="tok-num">0</span>; } <span class="tok-cm">// ~2 s → chainload</span></code></pre></figure>
 <p>Gotchas worth knowing:
 - <strong>The compositor writes every plane pixel</strong> (no alpha skip), so to show the background
   through a plane you paint the plane's index-0 the same colour, rather than relying on a
   transparent index.
 - After <code>hwInit()</code> plane 0 is already a normal 320×200 plane with its default framebuffer
   base — read <code>REG_FB_BASE</code> (as above) rather than hard-coding the address.
-- Keep it small: check <code>ls -l docs/boot-&lt;name&gt;.wasm</code> ≤ 1015 B; <code>mkdisk</code> prints the headroom.</p></section>
-<section id="music-sndh-player-zig-c-rust"><h2>Music — SNDH player (Zig, C, Rust)</h2><h1>Music — the SNDH player, from Zig, C and Rust</h1>
+- Keep it small: check <code>ls -l docs/boot-&lt;name&gt;.wasm</code> ≤ 1015 B; <code>mkdisk</code> prints the headroom.</p></div></section>
+<section class="ref" id="music-sndh-player-zig-c-rust"><header class="sec-h"><span class="eyebrow">Formats</span><h2>Music<small>docs/MUSIC.md</small></h2></header><div class="chapter"><ul class="toc"><li class="toc-3"><a href="#music-sndh-player-zig-c-rust-music-the-sndh-player-from-zig-c-and-rust">Music — the SNDH player, from Zig, C and Rust</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-formats">Formats</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-zig">Zig</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-c">C</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-rust">Rust</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-stopping-the-music">Stopping the music</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-rules-and-limits">Rules and limits</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-proving-a-tune-plays-headless">Proving a tune plays (headless)</a></li></ul><h3 id="music-sndh-player-zig-c-rust-music-the-sndh-player-from-zig-c-and-rust">Music — the SNDH player, from Zig, C and Rust</h3>
 <p>ZigMachine plays real Atari ST music. An <strong>SNDH</strong> file carries the tune's own
 68000 replay routine; the machine runs that code on an emulated 68000 (Musashi)
 driving the sealed YM2149, exactly as the ST did. Nothing is pre-rendered, and
@@ -750,12 +724,11 @@ an SNDH is a few KB where a register dump is hundreds.</p>
 <p><strong>A cart never links the player.</strong> It asks the host for a tune <em>by name</em>, and
 the host plays it on the audio thread. That is why the same four exports work
 from any language.</p>
-<pre><code>cart (Zig / C / Rust)           host (docs/sealed-loader.js)          audio thread
+<figure class="cb"><figcaption><span class="cb-n">4 lines</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code>cart (Zig / C / Rust)           host (docs/sealed-loader.js)          audio thread
 requestSong(&quot;sos.sndh&quot;) ──►  polls pollSongRequest() every frame ──► demo-audio.wasm:
                              reads songNamePtr/Len + songTune         68000 runs the SNDH
-                             fetches docs/music/&lt;name&gt;                 ─► sealed YM2149
-</code></pre>
-<h2>Formats</h2>
+                             fetches docs/music/&lt;name&gt;                 ─► sealed YM2149</code></pre></figure>
+<h4 id="music-sndh-player-zig-c-rust-formats">Formats</h4>
 <p>The file extension picks the player. Files live under <code>docs/music/</code>.</p>
 <table>
 <thead>
@@ -795,46 +768,40 @@ bleeps; the menu now plays the real <code>union/alloy_run.sndh</code>). A screen
 finds no SNDH of the same tune, and its music comment gives the best SNDH score. Prove a match by running both and comparing YM registers 0-5 and
 8-10 frame by frame; a real match is ~100% (screen 34's
 <code>SoWattTcbSprites.ym</code> == <code>sos.sndh</code>, 100% over 400 frames).</p>
-<h2>Zig</h2>
-<pre><code class="language-zig">const zg = @import(&quot;zigos&quot;);
+<h4 id="music-sndh-player-zig-c-rust-zig">Zig</h4>
+<figure class="cb" data-lang=zig><figcaption><span class="cb-lang">zig</span><span class="cb-n">4 lines</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code><span class="tok-kw">const</span> zg = @<span class="tok-fn">import</span>(<span class="tok-str">&quot;zigos&quot;</span>);
 
-zg.requestSong(&quot;rings_of_medusa.sndh&quot;);          // the file's default tune
-zg.requestSongTune(&quot;leavin_teramis.sndh&quot;, 9);    // subtune 9 (counts from 1)
-</code></pre>
+zg.<span class="tok-fn">requestSong</span>(<span class="tok-str">&quot;rings_of_medusa.sndh&quot;</span>);          <span class="tok-cm">// the file&#x27;s default tune</span>
+zg.<span class="tok-fn">requestSongTune</span>(<span class="tok-str">&quot;leavin_teramis.sndh&quot;</span>, <span class="tok-num">9</span>);    <span class="tok-cm">// subtune 9 (counts from 1)</span></code></pre></figure>
 <p><code>apps/zig/demo_main.zig</code> already exports the four functions the host polls.
 Request once, in <code>init()</code>: each request replaces the tune playing.</p>
-<h2>C</h2>
-<pre><code class="language-c">#include &quot;../zigmachine_music.h&quot;   // from exactly ONE .c file per cart: it DEFINES the exports
+<h4 id="music-sndh-player-zig-c-rust-c">C</h4>
+<figure class="cb" data-lang=c><figcaption><span class="cb-lang">c</span><span class="cb-n">6 lines</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code><span class="tok-pp">#include</span> <span class="tok-str">&quot;../zigmachine_music.h&quot;</span>   <span class="tok-cm">// from exactly ONE .c file per cart: it DEFINES the exports</span>
 
-void boot(void) {
-    zm_request_song(&quot;sos.sndh&quot;);                       // default tune
-    // zm_request_song_tune(&quot;leavin_teramis.sndh&quot;, 9);  // subtune 9
-}
-</code></pre>
+<span class="tok-kw">void</span> <span class="tok-fn">boot</span>(<span class="tok-kw">void</span>) {
+    <span class="tok-fn">zm_request_song</span>(<span class="tok-str">&quot;sos.sndh&quot;</span>);                       <span class="tok-cm">// default tune</span>
+    <span class="tok-cm">// zm_request_song_tune(&quot;leavin_teramis.sndh&quot;, 9);  // subtune 9</span>
+}</code></pre></figure>
 <p><code>apps/c/zigmachine_music.h</code> defines <code>pollSongRequest</code>, <code>songNamePtr</code>,
 <code>songNameLen</code> and <code>songTune</code> with <code>export_name</code>, so <code>apps/c/build.sh</code> needs no
 change. Build with <code>bash apps/c/build.sh</code>. Example: <code>apps/c/scenes/screen34.c</code>.</p>
-<h2>Rust</h2>
-<pre><code class="language-rust">mod zigmachine_music;                                    // once per cart: defines the exports
+<h4 id="music-sndh-player-zig-c-rust-rust">Rust</h4>
+<figure class="cb" data-lang=rust><figcaption><span class="cb-lang">rust</span><span class="cb-n">4 lines</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code><span class="tok-kw">mod</span> zigmachine_music;                                    <span class="tok-cm">// once per cart: defines the exports</span>
 
-zigmachine_music::request_song(&quot;sos.sndh&quot;);
-zigmachine_music::request_song_tune(&quot;custodian.sndh&quot;, 1);
-</code></pre>
+zigmachine_music::<span class="tok-fn">request_song</span>(<span class="tok-str">&quot;sos.sndh&quot;</span>);
+zigmachine_music::<span class="tok-fn">request_song_tune</span>(<span class="tok-str">&quot;custodian.sndh&quot;</span>, <span class="tok-num">1</span>);</code></pre></figure>
 <p><code>apps/rust/zigmachine_music.rs</code> is the Rust twin of the C header. Build with
 <code>bash apps/rust/build.sh</code>. Example: <code>apps/rust/scenes/v8_populous.rs</code>, which
 plays David Whittaker's Custodian (<code>custodian.sndh</code>, subtune 1).</p>
-<h2>Stopping the music</h2>
+<h4 id="music-sndh-player-zig-c-rust-stopping-the-music">Stopping the music</h4>
 <p><code>"none"</code> is a reserved song name: requesting it stops whatever is playing (the
 host resets the audio players, as it does when a program ends). No file under
 <code>docs/music/</code> may be called <code>none</code>. A stop also cancels a song still being
 fetched, so a slow earlier request can never start after it.</p>
-<pre><code class="language-zig">zg.stopSong();          // Zig
-</code></pre>
-<pre><code class="language-c">zm_stop_song();         // C
-</code></pre>
-<pre><code class="language-rust">zigmachine_music::stop_song();   // Rust
-</code></pre>
-<h2>Rules and limits</h2>
+<figure class="cb" data-lang=zig><figcaption><span class="cb-lang">zig</span><span class="cb-n">1 line</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code>zg.<span class="tok-fn">stopSong</span>();          <span class="tok-cm">// Zig</span></code></pre></figure>
+<figure class="cb" data-lang=c><figcaption><span class="cb-lang">c</span><span class="cb-n">1 line</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code><span class="tok-fn">zm_stop_song</span>();         <span class="tok-cm">// C</span></code></pre></figure>
+<figure class="cb" data-lang=rust><figcaption><span class="cb-lang">rust</span><span class="cb-n">1 line</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code>zigmachine_music::<span class="tok-fn">stop_song</span>();   <span class="tok-cm">// Rust</span></code></pre></figure>
+<h4 id="music-sndh-player-zig-c-rust-rules-and-limits">Rules and limits</h4>
 <ul>
 <li><strong>Names</strong> are paths under <code>docs/music/</code>, at most 64 bytes, no <code>..</code> and no
   leading <code>/</code>. C and Rust calls return 0 / <code>false</code> and queue nothing for an empty
@@ -849,7 +816,7 @@ fetched, so a slow earlier request can never start after it.</p>
 <li><strong>Digidrum SNDHs</strong> that start their drums through XBIOS <code>Xbtimer</code> are
   supported; a drum can begin late in the tune (Monty: 38.4 s).</li>
 </ul>
-<h2>Proving a tune plays (headless)</h2>
+<h4 id="music-sndh-player-zig-c-rust-proving-a-tune-plays-headless">Proving a tune plays (headless)</h4>
 <ul>
 <li><code>node apps/sndh_headless.mjs docs/music/&lt;name&gt;.sndh</code> runs an SNDH through the
   real audio modules and reports the subtunes, timers, YM registers and the
@@ -857,63 +824,110 @@ fetched, so a slow earlier request can never start after it.</p>
 <li><code>node apps/c_music_check.mjs</code> boots the C and Rust carts, polls their request
   the way the loader does, and plays it: it must reach SNDH mode with a non-zero
   peak. It runs in <code>./build.sh</code>.</li>
-</ul></section>
-<section id="zigos-logicalfb-a-plane"><h2>ZigOS — LogicalFB (a plane)</h2><div class="item"><code class="sig">init(self: *LogicalFB, zigos: *ZigOS) void</code></div>
-<div class="item"><code class="sig">setOverscanBuffer(self: *LogicalFB) void</code><div class="doc">Turn this plane into an OVERSCAN plane: a 400×280 buffer in PHYSICAL coords (0..400, 0..280). The borders stay CLOSED — only the visible 320×200 window shows — until the scene &quot;opens&quot; a border with the authentic resolution-flicker trick: call flickerBorder() from this plane&#x27;s HBL handler, at OVERSCAN_MAGIC_X, on the scanline of the border you want. See docs/HW_API.md &quot;Opening the borders&quot;.</div></div>
-<div class="item"><code class="sig">setOverscanScrollPlane(self: *LogicalFB, buf_w: u16, buf_h: u16) void</code><div class="doc">Turn this plane into an OVERSCAN plane backed by a BIGGER-than-window buffer, so the 400×280 overscan window can be panned across it with setScroll() — hardware scroll and open borders at the same time. No machine change was needed: renderPlaneOverscan() already reads the buffer through FB_BASE (the pan point) with FB_STRIDE as the row pitch. Borders are still EARNED — flickerBorder() from this plane&#x27;s HBL at OVERSCAN_MAGIC_X, exactly as for setOverscanBuffer(). Draw in buffer coords (0..buf_w, 0..buf_h), and keep the pan inside 0..buf_w-PHYSICAL_WIDTH / 0..buf_h-PHYSICAL_HEIGHT. NB: renderPlaneOverscan does NOT re-read HSCROLL, so there is no per-line fine scroll in this mode (unlike FB_MODE_SCROLL). A buffer SMALLER than the overscan window would make the machine read past the allocation on every frame — a silent VRAM corruption, not a trap, since nothing bounds-checks the composite. So the size is clamped up to the window rather than trusted; the caller still owes the pan clamp above.</div></div>
-<div class="item"><code class="sig">flickerBorder(_: *LogicalFB) void</code><div class="doc">Open a border, ST-style, from THIS plane&#x27;s per-plane HBL handler: flicker the resolution register (RES_MEDIUM -&gt; RES_PLANES). The sealed machine can&#x27;t trap writes to shared memory, so we also bump REG_RES_FLICKER — the latch it samples once per scanline. The plane&#x27;s HBL must fire at OVERSCAN_MAGIC_X (± tolerance) or that line&#x27;s border shows garbage — a mistimed trick, exactly as on real HW. Flicker in a border band (top/bottom) opens it from that row down; flicker on a visible line opens both side borders for that line (re-open sides every line).</div></div>
-<div class="item"><code class="sig">openBorders(self: *LogicalFB, which: Borders) void</code><div class="doc">Make this an overscan plane and open its borders with the flicker trick: .all flickers every line (top, sides, bottom), .top_bottom only the border bands (MAXI). Replaces this plane&#x27;s HBL handler; a scene that also needs per-line rasters uses copper.install(fb, entries, .{ .flicker = true }). Every enabled overscan plane needs this for itself: the machine replays a plane&#x27;s HBLs while rendering THAT plane.</div></div>
-<div class="item"><code class="sig">hblLinesArePhysical(self: *const LogicalFB) bool</code><div class="doc">True when this plane&#x27;s per-plane HBL receives PHYSICAL lines 0..279 (overscan, fullscreen, full-raster medium), false for LOGICAL lines 0..199 (normal, scroll, medium) — machine/video.zig&#x27;s renderPlane* loops.</div></div>
-<div class="item"><code class="sig">setScrollPlane(self: *LogicalFB, buf_w: u16, buf_h: u16) void</code><div class="doc">Turn this plane into a SCROLL plane: back it with a bigger-than-screen buffer (buf_w x buf_h). Draw into it at buffer coordinates via the normal methods; the visible 320x200 window is panned with setScroll()/setScrollFine().</div></div>
-<div class="item"><code class="sig">setScroll(self: *LogicalFB, x: u32, y: u32) void</code><div class="doc">Pan the visible window to buffer pixel (x, y) — coarse hardware scroll (moves the plane&#x27;s read base; the backing buffer / draw origin stays put).</div></div>
-<div class="item"><code class="sig">setScrollFine(self: *LogicalFB, hs: u16) void</code><div class="doc">Per-line horizontal offset (added on top of setScroll). In SCROLL mode this is re-read every scanline, so setting it from an HBL handler distorts the image line-by-line (sine wobble / shear).</div></div>
-<div class="item"><code class="sig">setMediumPlane(self: *LogicalFB) void</code><div class="doc">Turn this plane into a MEDIUM-res plane (640x200, 1:1 into the raster). Coordinates are 0..640 / 0..200; the machine composites it crisply (no pixel doubling). Use 2 medium planes for a 4-colour GEM-style screen.</div></div>
-<div class="item"><code class="sig">setMediumOverscan(self: *LogicalFB) void</code><div class="doc">Turn this plane into a MEDIUM-res plane covering the WHOLE 800x280 raster, borders included — the medium twin of the low-res Option-B overscan. The visible window is the centre 640x200 at (80,40); coordinates here are PHYSICAL, so (0,0) is the top-left of the border.  The sealed machine already does this: renderPlaneMedium() switches to full-raster compositing when a plane&#x27;s stride reaches RASTER_WIDTH, which is the only signal it gets. So this is a plain ZigOS helper, not HW work — it replaces the deleted setMediumFullscreen(), whose removal during the overscan rework is what parked apps/zig/scenes/medium_overscan.zig.</div></div>
-<div class="item"><code class="sig">setResLow(self: *LogicalFB) void</code><div class="doc">Switch an already-medium plane (setMediumPlane) between LOW (320, drawn pixel-doubled) and MEDIUM (640, 1:1) at runtime WITHOUT reallocating: the 640-wide buffer holds a 320 image too (stride 320 uses its first columns). Redraw after switching (content is stride-dependent).</div></div>
-<div class="item"><code class="sig">setResMedium(self: *LogicalFB) void</code></div>
-<div class="item"><code class="sig">getRenderTarget(self: *LogicalFB) RenderTarget</code></div>
-<div class="item"><code class="sig">setPalette(self: *LogicalFB, entries: [256]Color) void</code><div class="doc">--- Palette management ---</div></div>
-<div class="item"><code class="sig">setPaletteEntry(self: *LogicalFB, entry: u8, value: Color) void</code></div>
-<div class="item"><code class="sig">getPaletteEntry(self: *LogicalFB, entry: u8) Color</code></div>
-<div class="item"><code class="sig">setFramebufferBackgroundColor(self: *LogicalFB, pal_entry: u8) void</code></div>
-<div class="item"><code class="sig">setPixelValue(self: *LogicalFB, x: u16, y: u16, pal_entry: u8) void</code></div>
-<div class="item"><code class="sig">drawScanline(self: *LogicalFB, x1: u16, x2: u16, y: u16, pal_entry: u8) void</code></div>
-<div class="item"><code class="sig">clearFrameBuffer(self: *LogicalFB, pal_entry: u8) void</code></div>
-<div class="item"><code class="sig">setFrameBufferHBLHandler(self: *LogicalFB, position: u16, handler: *const fn (*LogicalFB, *ZigOS, u16, u16) void) void</code></div>
-<div class="item"><code class="sig">clearFrameBufferHBLHandler(self: *LogicalFB) void</code></div></section>
-<section id="zigos-zigos-the-os"><h2>ZigOS — ZigOS (the OS)</h2><div class="item"><code class="sig">initTextOnly(self: *ZigOS) void</code><div class="doc">Bind the system fonts and NOTHING else — no registers, no VRAM allocation.  For a consumer that needs to DRAW TEXT over a framebuffer somebody else owns: the ROM chip does this so it can render GEM widgets for an app written in C or Rust, which has no ZigOS of its own to lend. Calling the full init() there would reset the machine&#x27;s registers and reallocate every plane out from under the running app.</div></div>
-<div class="item"><code class="sig">init(self: *ZigOS) void</code></div>
-<div class="item"><code class="sig">resetForScene(self: *ZigOS) void</code><div class="doc">Reset the machine to a freshly-booted state so a DIFFERENT scene can be started at runtime (the boot-&gt;cart hand-off and the effects menu use this). Like init() but without re-discovering the video base, and it ALSO clears the per-plane hardware mode/stride/scroll/HBL registers a previous scene may have set (plain init() leaves those stale, which would corrupt the next scene). Safe only after init() has run once (sets base/fonts).</div></div>
-<div class="item"><code class="sig">nop(self: *ZigOS) void</code><div class="doc">--- Features ---</div></div>
-<div class="item"><code class="sig">printText(self: *ZigOS, lfb: *LogicalFB, text: []const u8, x: i16, y: i16, fg_color_index: u8, bg_color_index: u8) void</code><div class="doc">Draw text in the 8x8 system font. x/y are SIGNED: GUI text can start off the left/top edge (a window dragged past the border) and must be cut, not wrapped onto the neighbouring scanline.</div></div>
-<div class="item"><code class="sig">printTextClipped(self: *ZigOS, lfb: *LogicalFB, text: []const u8, x: i16, y: i16, fg_color_index: u8, bg_color_index: u8, clip: Clip) void</code><div class="doc">Draw text in the 8x8 font, confined to `clip` — for text whose glyph cell has to overlap its neighbours (a menu separator&#x27;s underscore sits low in its cell, so the cell reaches up into the row above).</div></div>
-<div class="item"><code class="sig">printTextSmall(self: *ZigOS, lfb: *LogicalFB, text: []const u8, x: i16, y: i16, fg_color_index: u8, bg_color_index: u8) void</code><div class="doc">Draw text in the 6x6 system font (icon labels).</div></div>
-<div class="item"><code class="sig">setResolution(self: *ZigOS, res: Resolution) void</code><div class="doc">--- Framebuffer / register management ---</div></div>
-<div class="item"><code class="sig">setBackgroundColor(self: *ZigOS, color: Color) void</code></div>
-<div class="item"><code class="sig">getBackgroundColor(self: *ZigOS) Color</code></div>
-<div class="item"><code class="sig">setHBLHandler(self: *ZigOS, handler: *const fn (*ZigOS, u16) void) void</code></div>
-<div class="item"><code class="sig">removeHBLHandler(self: *ZigOS) void</code></div>
-<div class="item"><code class="sig">dispatchHBL(self: *ZigOS, id: u32, plane: u32, line: u32, x: u32) void</code><div class="doc">Called (via the demo module&#x27;s exported hblDispatch) by the sealed machine when the render pipeline reaches an HBL point. Integer ids in, Zig handler calls out — the machine never holds a function pointer.</div></div></section>
-<section id="zigos-blitter-2d-coprocessor"><h2>ZigOS — Blitter (2D coprocessor)</h2><div class="item"><code class="sig">init(self: *Blitter) void</code></div>
-<div class="item"><code class="sig">fill(self: *Blitter, fb: *LogicalFB, x: i16, y: i16, w: u16, h: u16, color: u8) void</code><div class="doc">--- primitives ---</div></div>
-<div class="item"><code class="sig">clear(self: *Blitter, fb: *LogicalFB, color: u8) void</code></div>
-<div class="item"><code class="sig">line(self: *Blitter, fb: *LogicalFB, x0: i16, y0: i16, x1: i16, y1: i16, color: u8, mt: Minterm) void</code></div>
-<div class="item"><code class="sig">triangle(self: *Blitter, fb: *LogicalFB, v0: Vec2, v1: Vec2, v2: Vec2, color: u8) void</code><div class="doc">Flat solid triangle (COLOR straight into dest).</div></div>
-<div class="item"><code class="sig">triangleEx(self: *Blitter, fb: *LogicalFB, v0: Vec2, v1: Vec2, v2: Vec2, fg: u8, bg: u8, mt: Minterm) void</code><div class="doc">General triangle: fill with `fg` combined into the destination via `mt` (`.copy` = flat, `.glenz` = OR transparency). When a halftone pattern is loaded (setHalftone), pixels alternate `fg`/`bg` for dithered shading.</div></div>
-<div class="item"><code class="sig">setHalftone(self: *Blitter, pattern: [16]u16) void</code><div class="doc">Load / clear the 16x16 1-bit halftone pattern (bit set -&gt; COLOR, clear -&gt; BG_COLOR).</div></div>
-<div class="item"><code class="sig">clearHalftone(self: *Blitter) void</code></div>
-<div class="item"><code class="sig">blitCopy(self: *Blitter, dst: *LogicalFB, dx: i16, dy: i16, src: *LogicalFB, sx: i16, sy: i16, w: u16, h: u16) void</code><div class="doc">Plain block copy of a w×h region of `src` at (sx,sy) onto `dst` at (dx,dy), no colour key. Firing this once per row with a per-row `dx` is the classic strip-blit deformation (sine wobble / rubber / shear).</div></div>
-<div class="item"><code class="sig">bob(self: *Blitter, dst: *LogicalFB, dx: i16, dy: i16, src: *LogicalFB, sx: i16, sy: i16, w: u16, h: u16, key: u8) void</code><div class="doc">Cookie-cut bob: copy a w×h region of `src` at (sx,sy) onto `dst` at (dx,dy), skipping pixels equal to `key` (the chunky one-channel cookie-cut).</div></div>
-<div class="item"><code class="sig">blitImage(self: *Blitter, dst: *LogicalFB, dx: i16, dy: i16, pixels: []const u8, src_w: u16, sx: u16, sy: u16, w: u16, h: u16, key: ?u8) void</code><div class="doc">Copy a w×h region at (sx,sy) of a raw 8bpp image held ANYWHERE in the cart&#x27;s RAM (an @embedFile asset, a scratch buffer), `src_w` pixels per row, onto `dst` at (dx,dy). `key` skips that index (cookie-cut); null copies every pixel. The rectangle is clamped to `pixels`, so it never reads past the slice; the machine (HW 1.4.0, CON2.SRC_ABS) refuses a source outside the readable windows and draws nothing.</div></div>
-<div class="item"><code class="sig">cycles(self: *Blitter) u32</code><div class="doc">Estimated cost of the last op (pixels touched + setup), for VBL budgeting.</div></div></section>
-<section id="zigos-gui-toolkit-gui"><h2>ZigOS — GUI toolkit (Gui)</h2></section>
-<section id="zigos-window-manager-wm"><h2>ZigOS — Window manager (Wm)</h2></section>
-<section id="zigos-menu-bar-menubar"><h2>ZigOS — Menu bar (MenuBar)</h2></section>
-<section id="zigos-dialog-modal-alert-file-selector"><h2>ZigOS — Dialog (modal alert / file selector)</h2></section>
-<section id="ziggem-rom-desktop-boot-shell-app-launcher"><h2>ZigGEM ROM — Desktop (boot shell / app launcher)</h2></section>
-<section id="zigos-obj-loader-mesh"><h2>ZigOS — OBJ loader (Mesh)</h2><div class="item"><code class="sig">load(self: *Mesh, text: []const u8) void</code></div>
-<div class="item"><code class="sig">Wire(comptime nverts: usize, comptime nedges: usize) type</code></div>
-<div class="item"><code class="sig">parseWire(comptime text: []const u8) Wire(wireCounts(text)[0], wireCounts(text)[1])</code></div></section>
+</ul></div></section>
+<section class="ref" id="zigos-logicalfb-a-plane"><header class="sec-h"><span class="eyebrow">ZigOS</span><h2>LogicalFB<small>a plane</small></h2><span class="count">23 methods</span></header><article class="api" id="LogicalFB.init"><code class="sig"><b class="fn">init</b>(self: *LogicalFB, zigos: *ZigOS) <span class="ret">void</span></code><a class="anchor" href="#LogicalFB.init" aria-label="Link to init">#</a></article>
+<article class="api" id="LogicalFB.setOverscanBuffer"><code class="sig"><b class="fn">setOverscanBuffer</b>(self: *LogicalFB) <span class="ret">void</span></code><a class="anchor" href="#LogicalFB.setOverscanBuffer" aria-label="Link to setOverscanBuffer">#</a><p class="doc">Turn this plane into an OVERSCAN plane: a 400×280 buffer in PHYSICAL coords (0..400, 0..280). The borders stay CLOSED — only the visible 320×200 window shows — until the scene &quot;opens&quot; a border with the authentic resolution-flicker trick: call flickerBorder() from this plane&#x27;s HBL handler, at OVERSCAN_MAGIC_X, on the scanline of the border you want. See docs/HW_API.md &quot;Opening the borders&quot;.</p></article>
+<article class="api" id="LogicalFB.setOverscanScrollPlane"><code class="sig"><b class="fn">setOverscanScrollPlane</b>(self: *LogicalFB, buf_w: u16, buf_h: u16) <span class="ret">void</span></code><a class="anchor" href="#LogicalFB.setOverscanScrollPlane" aria-label="Link to setOverscanScrollPlane">#</a><p class="doc">Turn this plane into an OVERSCAN plane backed by a BIGGER-than-window buffer, so the 400×280 overscan window can be panned across it with setScroll() — hardware scroll and open borders at the same time. No machine change was needed: renderPlaneOverscan() already reads the buffer through FB_BASE (the pan point) with FB_STRIDE as the row pitch. Borders are still EARNED — flickerBorder() from this plane&#x27;s HBL at OVERSCAN_MAGIC_X, exactly as for setOverscanBuffer(). Draw in buffer coords (0..buf_w, 0..buf_h), and keep the pan inside 0..buf_w-PHYSICAL_WIDTH / 0..buf_h-PHYSICAL_HEIGHT. NB: renderPlaneOverscan does NOT re-read HSCROLL, so there is no per-line fine scroll in this mode (unlike FB_MODE_SCROLL). A buffer SMALLER than the overscan window would make the machine read past the allocation on every frame — a silent VRAM corruption, not a trap, since nothing bounds-checks the composite. So the size is clamped up to the window rather than trusted; the caller still owes the pan clamp above.</p></article>
+<article class="api" id="LogicalFB.flickerBorder"><code class="sig"><b class="fn">flickerBorder</b>(_: *LogicalFB) <span class="ret">void</span></code><a class="anchor" href="#LogicalFB.flickerBorder" aria-label="Link to flickerBorder">#</a><p class="doc">Open a border, ST-style, from THIS plane&#x27;s per-plane HBL handler: flicker the resolution register (RES_MEDIUM -&gt; RES_PLANES). The sealed machine can&#x27;t trap writes to shared memory, so we also bump REG_RES_FLICKER — the latch it samples once per scanline. The plane&#x27;s HBL must fire at OVERSCAN_MAGIC_X (± tolerance) or that line&#x27;s border shows garbage — a mistimed trick, exactly as on real HW. Flicker in a border band (top/bottom) opens it from that row down; flicker on a visible line opens both side borders for that line (re-open sides every line).</p></article>
+<article class="api" id="LogicalFB.openBorders"><code class="sig"><b class="fn">openBorders</b>(self: *LogicalFB, which: Borders) <span class="ret">void</span></code><a class="anchor" href="#LogicalFB.openBorders" aria-label="Link to openBorders">#</a><p class="doc">Make this an overscan plane and open its borders with the flicker trick: .all flickers every line (top, sides, bottom), .top_bottom only the border bands (MAXI). Replaces this plane&#x27;s HBL handler; a scene that also needs per-line rasters uses copper.install(fb, entries, .{ .flicker = true }). Every enabled overscan plane needs this for itself: the machine replays a plane&#x27;s HBLs while rendering THAT plane.</p></article>
+<article class="api" id="LogicalFB.hblLinesArePhysical"><code class="sig"><b class="fn">hblLinesArePhysical</b>(self: *const LogicalFB) <span class="ret">bool</span></code><a class="anchor" href="#LogicalFB.hblLinesArePhysical" aria-label="Link to hblLinesArePhysical">#</a><p class="doc">True when this plane&#x27;s per-plane HBL receives PHYSICAL lines 0..279 (overscan, fullscreen, full-raster medium), false for LOGICAL lines 0..199 (normal, scroll, medium) — machine/video.zig&#x27;s renderPlane* loops.</p></article>
+<article class="api" id="LogicalFB.setScrollPlane"><code class="sig"><b class="fn">setScrollPlane</b>(self: *LogicalFB, buf_w: u16, buf_h: u16) <span class="ret">void</span></code><a class="anchor" href="#LogicalFB.setScrollPlane" aria-label="Link to setScrollPlane">#</a><p class="doc">Turn this plane into a SCROLL plane: back it with a bigger-than-screen buffer (buf_w x buf_h). Draw into it at buffer coordinates via the normal methods; the visible 320x200 window is panned with setScroll()/setScrollFine().</p></article>
+<article class="api" id="LogicalFB.setScroll"><code class="sig"><b class="fn">setScroll</b>(self: *LogicalFB, x: u32, y: u32) <span class="ret">void</span></code><a class="anchor" href="#LogicalFB.setScroll" aria-label="Link to setScroll">#</a><p class="doc">Pan the visible window to buffer pixel (x, y) — coarse hardware scroll (moves the plane&#x27;s read base; the backing buffer / draw origin stays put).</p></article>
+<article class="api" id="LogicalFB.setScrollFine"><code class="sig"><b class="fn">setScrollFine</b>(self: *LogicalFB, hs: u16) <span class="ret">void</span></code><a class="anchor" href="#LogicalFB.setScrollFine" aria-label="Link to setScrollFine">#</a><p class="doc">Per-line horizontal offset (added on top of setScroll). In SCROLL mode this is re-read every scanline, so setting it from an HBL handler distorts the image line-by-line (sine wobble / shear).</p></article>
+<article class="api" id="LogicalFB.setMediumPlane"><code class="sig"><b class="fn">setMediumPlane</b>(self: *LogicalFB) <span class="ret">void</span></code><a class="anchor" href="#LogicalFB.setMediumPlane" aria-label="Link to setMediumPlane">#</a><p class="doc">Turn this plane into a MEDIUM-res plane (640x200, 1:1 into the raster). Coordinates are 0..640 / 0..200; the machine composites it crisply (no pixel doubling). Use 2 medium planes for a 4-colour GEM-style screen.</p></article>
+<article class="api" id="LogicalFB.setMediumOverscan"><code class="sig"><b class="fn">setMediumOverscan</b>(self: *LogicalFB) <span class="ret">void</span></code><a class="anchor" href="#LogicalFB.setMediumOverscan" aria-label="Link to setMediumOverscan">#</a><p class="doc">Turn this plane into a MEDIUM-res plane covering the WHOLE 800x280 raster, borders included — the medium twin of the low-res Option-B overscan. The visible window is the centre 640x200 at (80,40); coordinates here are PHYSICAL, so (0,0) is the top-left of the border.  The sealed machine already does this: renderPlaneMedium() switches to full-raster compositing when a plane&#x27;s stride reaches RASTER_WIDTH, which is the only signal it gets. So this is a plain ZigOS helper, not HW work — it replaces the deleted setMediumFullscreen(), whose removal during the overscan rework is what parked apps/zig/scenes/medium_overscan.zig.</p></article>
+<article class="api" id="LogicalFB.setResLow"><code class="sig"><b class="fn">setResLow</b>(self: *LogicalFB) <span class="ret">void</span></code><a class="anchor" href="#LogicalFB.setResLow" aria-label="Link to setResLow">#</a><p class="doc">Switch an already-medium plane (setMediumPlane) between LOW (320, drawn pixel-doubled) and MEDIUM (640, 1:1) at runtime WITHOUT reallocating: the 640-wide buffer holds a 320 image too (stride 320 uses its first columns). Redraw after switching (content is stride-dependent).</p></article>
+<article class="api" id="LogicalFB.setResMedium"><code class="sig"><b class="fn">setResMedium</b>(self: *LogicalFB) <span class="ret">void</span></code><a class="anchor" href="#LogicalFB.setResMedium" aria-label="Link to setResMedium">#</a></article>
+<article class="api" id="LogicalFB.getRenderTarget"><code class="sig"><b class="fn">getRenderTarget</b>(self: *LogicalFB) <span class="ret">RenderTarget</span></code><a class="anchor" href="#LogicalFB.getRenderTarget" aria-label="Link to getRenderTarget">#</a></article>
+<h3 class="api-group">Palette management</h3>
+<article class="api" id="LogicalFB.setPalette"><code class="sig"><b class="fn">setPalette</b>(self: *LogicalFB, entries: [256]Color) <span class="ret">void</span></code><a class="anchor" href="#LogicalFB.setPalette" aria-label="Link to setPalette">#</a></article>
+<article class="api" id="LogicalFB.setPaletteEntry"><code class="sig"><b class="fn">setPaletteEntry</b>(self: *LogicalFB, entry: u8, value: Color) <span class="ret">void</span></code><a class="anchor" href="#LogicalFB.setPaletteEntry" aria-label="Link to setPaletteEntry">#</a></article>
+<article class="api" id="LogicalFB.getPaletteEntry"><code class="sig"><b class="fn">getPaletteEntry</b>(self: *LogicalFB, entry: u8) <span class="ret">Color</span></code><a class="anchor" href="#LogicalFB.getPaletteEntry" aria-label="Link to getPaletteEntry">#</a></article>
+<article class="api" id="LogicalFB.setFramebufferBackgroundColor"><code class="sig"><b class="fn">setFramebufferBackgroundColor</b>(self: *LogicalFB, pal_entry: u8) <span class="ret">void</span></code><a class="anchor" href="#LogicalFB.setFramebufferBackgroundColor" aria-label="Link to setFramebufferBackgroundColor">#</a></article>
+<article class="api" id="LogicalFB.setPixelValue"><code class="sig"><b class="fn">setPixelValue</b>(self: *LogicalFB, x: u16, y: u16, pal_entry: u8) <span class="ret">void</span></code><a class="anchor" href="#LogicalFB.setPixelValue" aria-label="Link to setPixelValue">#</a></article>
+<article class="api" id="LogicalFB.drawScanline"><code class="sig"><b class="fn">drawScanline</b>(self: *LogicalFB, x1: u16, x2: u16, y: u16, pal_entry: u8) <span class="ret">void</span></code><a class="anchor" href="#LogicalFB.drawScanline" aria-label="Link to drawScanline">#</a></article>
+<article class="api" id="LogicalFB.clearFrameBuffer"><code class="sig"><b class="fn">clearFrameBuffer</b>(self: *LogicalFB, pal_entry: u8) <span class="ret">void</span></code><a class="anchor" href="#LogicalFB.clearFrameBuffer" aria-label="Link to clearFrameBuffer">#</a></article>
+<article class="api" id="LogicalFB.setFrameBufferHBLHandler"><code class="sig"><b class="fn">setFrameBufferHBLHandler</b>(self: *LogicalFB, position: u16, handler: *const fn (*LogicalFB, *ZigOS, u16, u16) void) <span class="ret">void</span></code><a class="anchor" href="#LogicalFB.setFrameBufferHBLHandler" aria-label="Link to setFrameBufferHBLHandler">#</a></article>
+<article class="api" id="LogicalFB.clearFrameBufferHBLHandler"><code class="sig"><b class="fn">clearFrameBufferHBLHandler</b>(self: *LogicalFB) <span class="ret">void</span></code><a class="anchor" href="#LogicalFB.clearFrameBufferHBLHandler" aria-label="Link to clearFrameBufferHBLHandler">#</a></article></section>
+<section class="ref" id="zigos-zigos-the-os"><header class="sec-h"><span class="eyebrow">ZigOS</span><h2>ZigOS<small>the OS</small></h2><span class="count">13 methods</span></header><article class="api" id="ZigOS.initTextOnly"><code class="sig"><b class="fn">initTextOnly</b>(self: *ZigOS) <span class="ret">void</span></code><a class="anchor" href="#ZigOS.initTextOnly" aria-label="Link to initTextOnly">#</a><p class="doc">Bind the system fonts and NOTHING else — no registers, no VRAM allocation.  For a consumer that needs to DRAW TEXT over a framebuffer somebody else owns: the ROM chip does this so it can render GEM widgets for an app written in C or Rust, which has no ZigOS of its own to lend. Calling the full init() there would reset the machine&#x27;s registers and reallocate every plane out from under the running app.</p></article>
+<article class="api" id="ZigOS.init"><code class="sig"><b class="fn">init</b>(self: *ZigOS) <span class="ret">void</span></code><a class="anchor" href="#ZigOS.init" aria-label="Link to init">#</a></article>
+<article class="api" id="ZigOS.resetForScene"><code class="sig"><b class="fn">resetForScene</b>(self: *ZigOS) <span class="ret">void</span></code><a class="anchor" href="#ZigOS.resetForScene" aria-label="Link to resetForScene">#</a><p class="doc">Reset the machine to a freshly-booted state so a DIFFERENT scene can be started at runtime (the boot-&gt;cart hand-off and the effects menu use this). Like init() but without re-discovering the video base, and it ALSO clears the per-plane hardware mode/stride/scroll/HBL registers a previous scene may have set (plain init() leaves those stale, which would corrupt the next scene). Safe only after init() has run once (sets base/fonts).</p></article>
+<h3 class="api-group">Features</h3>
+<article class="api" id="ZigOS.nop"><code class="sig"><b class="fn">nop</b>(self: *ZigOS) <span class="ret">void</span></code><a class="anchor" href="#ZigOS.nop" aria-label="Link to nop">#</a></article>
+<article class="api" id="ZigOS.printText"><code class="sig"><b class="fn">printText</b>(self: *ZigOS, lfb: *LogicalFB, text: []const u8, x: i16, y: i16, fg_color_index: u8, bg_color_index: u8) <span class="ret">void</span></code><a class="anchor" href="#ZigOS.printText" aria-label="Link to printText">#</a><p class="doc">Draw text in the 8x8 system font. x/y are SIGNED: GUI text can start off the left/top edge (a window dragged past the border) and must be cut, not wrapped onto the neighbouring scanline.</p></article>
+<article class="api" id="ZigOS.printTextClipped"><code class="sig"><b class="fn">printTextClipped</b>(self: *ZigOS, lfb: *LogicalFB, text: []const u8, x: i16, y: i16, fg_color_index: u8, bg_color_index: u8, clip: Clip) <span class="ret">void</span></code><a class="anchor" href="#ZigOS.printTextClipped" aria-label="Link to printTextClipped">#</a><p class="doc">Draw text in the 8x8 font, confined to `clip` — for text whose glyph cell has to overlap its neighbours (a menu separator&#x27;s underscore sits low in its cell, so the cell reaches up into the row above).</p></article>
+<article class="api" id="ZigOS.printTextSmall"><code class="sig"><b class="fn">printTextSmall</b>(self: *ZigOS, lfb: *LogicalFB, text: []const u8, x: i16, y: i16, fg_color_index: u8, bg_color_index: u8) <span class="ret">void</span></code><a class="anchor" href="#ZigOS.printTextSmall" aria-label="Link to printTextSmall">#</a><p class="doc">Draw text in the 6x6 system font (icon labels).</p></article>
+<h3 class="api-group">Framebuffer / register management</h3>
+<article class="api" id="ZigOS.setResolution"><code class="sig"><b class="fn">setResolution</b>(self: *ZigOS, res: Resolution) <span class="ret">void</span></code><a class="anchor" href="#ZigOS.setResolution" aria-label="Link to setResolution">#</a></article>
+<article class="api" id="ZigOS.setBackgroundColor"><code class="sig"><b class="fn">setBackgroundColor</b>(self: *ZigOS, color: Color) <span class="ret">void</span></code><a class="anchor" href="#ZigOS.setBackgroundColor" aria-label="Link to setBackgroundColor">#</a></article>
+<article class="api" id="ZigOS.getBackgroundColor"><code class="sig"><b class="fn">getBackgroundColor</b>(self: *ZigOS) <span class="ret">Color</span></code><a class="anchor" href="#ZigOS.getBackgroundColor" aria-label="Link to getBackgroundColor">#</a></article>
+<article class="api" id="ZigOS.setHBLHandler"><code class="sig"><b class="fn">setHBLHandler</b>(self: *ZigOS, handler: *const fn (*ZigOS, u16) void) <span class="ret">void</span></code><a class="anchor" href="#ZigOS.setHBLHandler" aria-label="Link to setHBLHandler">#</a></article>
+<article class="api" id="ZigOS.removeHBLHandler"><code class="sig"><b class="fn">removeHBLHandler</b>(self: *ZigOS) <span class="ret">void</span></code><a class="anchor" href="#ZigOS.removeHBLHandler" aria-label="Link to removeHBLHandler">#</a></article>
+<article class="api" id="ZigOS.dispatchHBL"><code class="sig"><b class="fn">dispatchHBL</b>(self: *ZigOS, id: u32, plane: u32, line: u32, x: u32) <span class="ret">void</span></code><a class="anchor" href="#ZigOS.dispatchHBL" aria-label="Link to dispatchHBL">#</a><p class="doc">Called (via the demo module&#x27;s exported hblDispatch) by the sealed machine when the render pipeline reaches an HBL point. Integer ids in, Zig handler calls out — the machine never holds a function pointer.</p></article></section>
+<section class="ref" id="zigos-blitter-2d-coprocessor"><header class="sec-h"><span class="eyebrow">ZigOS</span><h2>Blitter<small>2D coprocessor</small></h2><span class="count">13 methods</span></header><article class="api" id="Blitter.init"><code class="sig"><b class="fn">init</b>(self: *Blitter) <span class="ret">void</span></code><a class="anchor" href="#Blitter.init" aria-label="Link to init">#</a></article>
+<h3 class="api-group">primitives</h3>
+<article class="api" id="Blitter.fill"><code class="sig"><b class="fn">fill</b>(self: *Blitter, fb: *LogicalFB, x: i16, y: i16, w: u16, h: u16, color: u8) <span class="ret">void</span></code><a class="anchor" href="#Blitter.fill" aria-label="Link to fill">#</a></article>
+<article class="api" id="Blitter.fillEx"><code class="sig"><b class="fn">fillEx</b>(self: *Blitter, fb: *LogicalFB, x: i16, y: i16, w: u16, h: u16, color: u8, opts: FillOpts) <span class="ret">void</span></code><a class="anchor" href="#Blitter.fillEx" aria-label="Link to fillEx">#</a></article>
+<article class="api" id="Blitter.clear"><code class="sig"><b class="fn">clear</b>(self: *Blitter, fb: *LogicalFB, color: u8) <span class="ret">void</span></code><a class="anchor" href="#Blitter.clear" aria-label="Link to clear">#</a></article>
+<article class="api" id="Blitter.line"><code class="sig"><b class="fn">line</b>(self: *Blitter, fb: *LogicalFB, x0: i16, y0: i16, x1: i16, y1: i16, color: u8, mt: Minterm) <span class="ret">void</span></code><a class="anchor" href="#Blitter.line" aria-label="Link to line">#</a></article>
+<article class="api" id="Blitter.triangle"><code class="sig"><b class="fn">triangle</b>(self: *Blitter, fb: *LogicalFB, v0: Vec2, v1: Vec2, v2: Vec2, color: u8) <span class="ret">void</span></code><a class="anchor" href="#Blitter.triangle" aria-label="Link to triangle">#</a><p class="doc">Flat solid triangle (COLOR straight into dest).</p></article>
+<article class="api" id="Blitter.triangleEx"><code class="sig"><b class="fn">triangleEx</b>(self: *Blitter, fb: *LogicalFB, v0: Vec2, v1: Vec2, v2: Vec2, fg: u8, bg: u8, mt: Minterm) <span class="ret">void</span></code><a class="anchor" href="#Blitter.triangleEx" aria-label="Link to triangleEx">#</a><p class="doc">General triangle: fill with `fg` combined into the destination via `mt` (`.copy` = flat, `.glenz` = OR transparency). When a halftone pattern is loaded (setHalftone), pixels alternate `fg`/`bg` for dithered shading.</p></article>
+<article class="api" id="Blitter.setHalftone"><code class="sig"><b class="fn">setHalftone</b>(self: *Blitter, pattern: [16]u16) <span class="ret">void</span></code><a class="anchor" href="#Blitter.setHalftone" aria-label="Link to setHalftone">#</a><p class="doc">Load / clear the 16x16 1-bit halftone pattern (bit set -&gt; COLOR, clear -&gt; BG_COLOR).</p></article>
+<article class="api" id="Blitter.clearHalftone"><code class="sig"><b class="fn">clearHalftone</b>(self: *Blitter) <span class="ret">void</span></code><a class="anchor" href="#Blitter.clearHalftone" aria-label="Link to clearHalftone">#</a></article>
+<article class="api" id="Blitter.blitCopy"><code class="sig"><b class="fn">blitCopy</b>(self: *Blitter, dst: *LogicalFB, dx: i16, dy: i16, src: *LogicalFB, sx: i16, sy: i16, w: u16, h: u16) <span class="ret">void</span></code><a class="anchor" href="#Blitter.blitCopy" aria-label="Link to blitCopy">#</a><p class="doc">Plain block copy of a w×h region of `src` at (sx,sy) onto `dst` at (dx,dy), no colour key. Firing this once per row with a per-row `dx` is the classic strip-blit deformation (sine wobble / rubber / shear).</p></article>
+<article class="api" id="Blitter.bob"><code class="sig"><b class="fn">bob</b>(self: *Blitter, dst: *LogicalFB, dx: i16, dy: i16, src: *LogicalFB, sx: i16, sy: i16, w: u16, h: u16, key: u8) <span class="ret">void</span></code><a class="anchor" href="#Blitter.bob" aria-label="Link to bob">#</a><p class="doc">Cookie-cut bob: copy a w×h region of `src` at (sx,sy) onto `dst` at (dx,dy), skipping pixels equal to `key` (the chunky one-channel cookie-cut).</p></article>
+<article class="api" id="Blitter.blitImage"><code class="sig"><b class="fn">blitImage</b>(self: *Blitter, dst: *LogicalFB, dx: i16, dy: i16, pixels: []const u8, src_w: u16, sx: u16, sy: u16, w: u16, h: u16, key: ?u8) <span class="ret">void</span></code><a class="anchor" href="#Blitter.blitImage" aria-label="Link to blitImage">#</a><p class="doc">Copy a w×h region at (sx,sy) of a raw 8bpp image held ANYWHERE in the cart&#x27;s RAM (an @embedFile asset, a scratch buffer), `src_w` pixels per row, onto `dst` at (dx,dy). `key` skips that index (cookie-cut); null copies every pixel. The rectangle is clamped to `pixels`, so it never reads past the slice; the machine (HW 1.4.0, CON2.SRC_ABS) refuses a source outside the readable windows and draws nothing.</p></article>
+<article class="api" id="Blitter.cycles"><code class="sig"><b class="fn">cycles</b>(self: *Blitter) <span class="ret">u32</span></code><a class="anchor" href="#Blitter.cycles" aria-label="Link to cycles">#</a><p class="doc">Estimated cost of the last op (pixels touched + setup), for VBL budgeting.</p></article></section>
+<section class="ref" id="zigos-obj-loader-mesh"><header class="sec-h"><span class="eyebrow">ZigOS</span><h2>Mesh<small>Wavefront OBJ loader</small></h2><span class="count">1 method</span></header><article class="api" id="Mesh.load"><code class="sig"><b class="fn">load</b>(self: *Mesh, text: []const u8) <span class="ret">void</span></code><a class="anchor" href="#Mesh.load" aria-label="Link to load">#</a></article></section>
+<section class="ref" id="zigos-gui-toolkit-gui"><header class="sec-h"><span class="eyebrow">GEM</span><h2>Gui<small>immediate-mode widgets</small></h2><span class="count">19 methods</span></header><article class="api" id="Gui.setPointer"><code class="sig"><b class="fn">setPointer</b>(self: *Gui, x: i32, y: i32, buttons: u32) <span class="ret">void</span></code><a class="anchor" href="#Gui.setPointer" aria-label="Link to setPointer">#</a></article>
+<article class="api" id="Gui.beginFrame"><code class="sig"><b class="fn">beginFrame</b>(self: *Gui) <span class="ret">void</span></code><a class="anchor" href="#Gui.beginFrame" aria-label="Link to beginFrame">#</a></article>
+<article class="api" id="Gui.endFrame"><code class="sig"><b class="fn">endFrame</b>(self: *Gui) <span class="ret">void</span></code><a class="anchor" href="#Gui.endFrame" aria-label="Link to endFrame">#</a></article>
+<h3 class="api-group">primitives</h3>
+<article class="api" id="Gui.rect"><code class="sig"><b class="fn">rect</b>(self: *Gui, r: Rect, color: u8) <span class="ret">void</span></code><a class="anchor" href="#Gui.rect" aria-label="Link to rect">#</a></article>
+<article class="api" id="Gui.frame"><code class="sig"><b class="fn">frame</b>(self: *Gui, r: Rect, color: u8) <span class="ret">void</span></code><a class="anchor" href="#Gui.frame" aria-label="Link to frame">#</a></article>
+<article class="api" id="Gui.bevel"><code class="sig"><b class="fn">bevel</b>(self: *Gui, r: Rect, face: u8, raised: bool) <span class="ret">void</span></code><a class="anchor" href="#Gui.bevel" aria-label="Link to bevel">#</a><p class="doc">A raised (or sunken) 3D bevel box (TOS 4 / MagiC look — NOT used by the TOS 1.x-style chrome, kept for apps that want it).</p></article>
+<article class="api" id="Gui.text"><code class="sig"><b class="fn">text</b>(self: *Gui, s: []const u8, x: i16, y: i16, ink: u8, paper: u8) <span class="ret">void</span></code><a class="anchor" href="#Gui.text" aria-label="Link to text">#</a></article>
+<article class="api" id="Gui.textSmall"><code class="sig"><b class="fn">textSmall</b>(self: *Gui, s: []const u8, x: i16, y: i16, ink: u8, paper: u8) <span class="ret">void</span></code><a class="anchor" href="#Gui.textSmall" aria-label="Link to textSmall">#</a><p class="doc">6x6 system font (icon labels).</p></article>
+<article class="api" id="Gui.textClipped"><code class="sig"><b class="fn">textClipped</b>(self: *Gui, s: []const u8, x: i16, y: i16, ink: u8, paper: u8, r: Rect) <span class="ret">void</span></code><a class="anchor" href="#Gui.textClipped" aria-label="Link to textClipped">#</a><p class="doc">Text confined to `r` — clipped per PIXEL, so a glyph cell may overlap its neighbours without painting over them.</p></article>
+<article class="api" id="Gui.textIn"><code class="sig"><b class="fn">textIn</b>(self: *Gui, s: []const u8, x: i16, y: i16, ink: u8, paper: u8, lo: i16, hi: i16) <span class="ret">void</span></code><a class="anchor" href="#Gui.textIn" aria-label="Link to textIn">#</a><p class="doc">Text clipped to the horizontal span [lo, hi) a CHARACTER at a time: the part that fits is drawn and the rest is cut off, so a name slides out of a window letter by letter instead of vanishing whole. Cell-aligned layouts (and cell-stepped scrolling) keep the trimmed text on the grid.</p></article>
+<article class="api" id="Gui.textSmallIn"><code class="sig"><b class="fn">textSmallIn</b>(self: *Gui, s: []const u8, x: i16, y: i16, ink: u8, paper: u8, lo: i16, hi: i16) <span class="ret">void</span></code><a class="anchor" href="#Gui.textSmallIn" aria-label="Link to textSmallIn">#</a><p class="doc">The same, in the 6x6 system font (icon labels).</p></article>
+<article class="api" id="Gui.plot"><code class="sig"><b class="fn">plot</b>(self: *Gui, x: i16, y: i16, c: u8) <span class="ret">void</span></code><a class="anchor" href="#Gui.plot" aria-label="Link to plot">#</a><p class="doc">A single pixel, clipped to the framebuffer. Everything that plots directly (gadgets, hatch, icons, dotted overlays) goes through here: a window can be dragged past an edge, and an unclipped write there wraps onto the neighbouring scanline instead of disappearing.</p></article>
+<article class="api" id="Gui.dotted"><code class="sig"><b class="fn">dotted</b>(self: *Gui, r: Rect, c: u8) <span class="ret">void</span></code><a class="anchor" href="#Gui.dotted" aria-label="Link to dotted">#</a><p class="doc">A GEM dotted rectangle outline (every other pixel) — the shape every &quot;pending&quot; gesture is drawn with: window move/resize, icon drag, the window-open zoom box, the rubber-band marquee.</p></article>
+<article class="api" id="Gui.gadget"><code class="sig"><b class="fn">gadget</b>(self: *Gui, x: i16, y: i16, box: [glyphs.GH]u16, ink: u8, paper: u8) <span class="ret">void</span></code><a class="anchor" href="#Gui.gadget" aria-label="Link to gadget">#</a><p class="doc">Blit a GEM control gadget (a GWxGH box lifted verbatim from the ST GEM reference: frame + background + symbol) opaquely at (x,y). 1 = ink, 0 = paper.</p></article>
+<article class="api" id="Gui.hatch"><code class="sig"><b class="fn">hatch</b>(self: *Gui, r: Rect, ink: u8, paper: u8) <span class="ret">void</span></code><a class="anchor" href="#Gui.hatch" aria-label="Link to hatch">#</a><p class="doc">GEM &quot;grey&quot; pattern fill — the title-bar mover / scrollbar track. Lifted from the ST reference: one ink dot on every even row at every odd column (25%), aligned to SCREEN coordinates like a VDI pattern fill.</p></article>
+<article class="api" id="Gui.hit"><code class="sig"><b class="fn">hit</b>(self: *Gui, r: Rect) <span class="ret">bool</span></code><a class="anchor" href="#Gui.hit" aria-label="Link to hit">#</a></article>
+<article class="api" id="Gui.button"><code class="sig"><b class="fn">button</b>(self: *Gui, r: Rect, label: []const u8, active: bool) <span class="ret">bool</span></code><a class="anchor" href="#Gui.button" aria-label="Link to button">#</a><p class="doc">A flat GEM (TOS 1.x) button: white box, 1px black border, inverse video while pressed or `active` (SELECTED). Returns true on the press frame.</p></article>
+<article class="api" id="Gui.buttonEx"><code class="sig"><b class="fn">buttonEx</b>(self: *Gui, r: Rect, label: []const u8, active: bool, default: bool) <span class="ret">bool</span></code><a class="anchor" href="#Gui.buttonEx" aria-label="Link to buttonEx">#</a><p class="doc">`default` = the GEM default exit button: a solid 2px border (the outer frame plus a second frame 1px inside it).</p></article>
+<article class="api" id="Gui.buttonThick"><code class="sig"><b class="fn">buttonThick</b>(self: *Gui, r: Rect, label: []const u8, active: bool, border: i16) <span class="ret">bool</span></code><a class="anchor" href="#Gui.buttonThick" aria-label="Link to buttonThick">#</a><p class="doc">A flat GEM button with an explicit border thickness (nested frames). GEM dialogs use 1px for multi-choice buttons, 2px for a normal exit button, 3px for the default (OK). Inverse-video while pressed or `active`.</p></article></section>
+<section class="ref" id="zigos-window-manager-wm"><header class="sec-h"><span class="eyebrow">GEM</span><h2>Wm<small>window manager</small></h2><span class="count">11 methods</span></header><article class="api" id="Wm.add"><code class="sig"><b class="fn">add</b>(self: *Wm, w: Window) <span class="ret">u8</span></code><a class="anchor" href="#Wm.add" aria-label="Link to add">#</a></article>
+<article class="api" id="Wm.tryAdd"><code class="sig"><b class="fn">tryAdd</b>(self: *Wm, w: Window) <span class="ret">?u8</span></code><a class="anchor" href="#Wm.tryAdd" aria-label="Link to tryAdd">#</a><p class="doc">Like add() but reuses a closed slot first and returns null when all MAX_WIN windows are open (GEM: &quot;The Desktop has no more windows&quot;).</p></article>
+<article class="api" id="Wm.toFront"><code class="sig"><b class="fn">toFront</b>(self: *Wm, id: u8) <span class="ret">void</span></code><a class="anchor" href="#Wm.toFront" aria-label="Link to toFront">#</a></article>
+<article class="api" id="Wm.handle"><code class="sig"><b class="fn">handle</b>(self: *Wm, g: *Gui) <span class="ret">bool</span></code><a class="anchor" href="#Wm.handle" aria-label="Link to handle">#</a><p class="doc">Process pointer: dragging, resizing, and the close / full / size controls. Returns true when this frame&#x27;s press landed on a window (so the caller&#x27;s desktop must not treat it as a desktop click).</p></article>
+<article class="api" id="Wm.close"><code class="sig"><b class="fn">close</b>(self: *Wm, id: u8) <span class="ret">void</span></code><a class="anchor" href="#Wm.close" aria-label="Link to close">#</a></article>
+<article class="api" id="Wm.takeClosed"><code class="sig"><b class="fn">takeClosed</b>(self: *Wm) <span class="ret">?u8</span></code><a class="anchor" href="#Wm.takeClosed" aria-label="Link to takeClosed">#</a><p class="doc">The window closed since the last call, if any (one-shot).</p></article>
+<article class="api" id="Wm.drawGhost"><code class="sig"><b class="fn">drawGhost</b>(self: *Wm, g: *Gui) <span class="ret">void</span></code><a class="anchor" href="#Wm.drawGhost" aria-label="Link to drawGhost">#</a><p class="doc">Paint the pending move/resize outline. Call it AFTER the windows are drawn.</p></article>
+<article class="api" id="Wm.takeZoom"><code class="sig"><b class="fn">takeZoom</b>(self: *Wm) <span class="ret">?types.Zoom</span></code><a class="anchor" href="#Wm.takeZoom" aria-label="Link to takeZoom">#</a><p class="doc">The full-box zoom since the last call, if any (one-shot).</p></article>
+<article class="api" id="Wm.drawChrome"><code class="sig"><b class="fn">drawChrome</b>(self: *Wm, g: *Gui, id: u8, active: bool) <span class="ret">Rect</span></code><a class="anchor" href="#Wm.drawChrome" aria-label="Link to drawChrome">#</a></article>
+<article class="api" id="Wm.contentRect"><code class="sig"><b class="fn">contentRect</b>(self: *Wm, id: u8) <span class="ret">Rect</span></code><a class="anchor" href="#Wm.contentRect" aria-label="Link to contentRect">#</a><p class="doc">The interior content rect WITHOUT drawing (same math as drawChrome&#x27;s return), for laying out / hit-testing a window&#x27;s contents.</p></article>
+<article class="api" id="Wm.topOpen"><code class="sig"><b class="fn">topOpen</b>(self: *Wm) <span class="ret">?u8</span></code><a class="anchor" href="#Wm.topOpen" aria-label="Link to topOpen">#</a><p class="doc">The frontmost OPEN window — GEM&#x27;s active window. Closing a window leaves its id in `order`, so scanning from the back and skipping closed slots is what promotes the next window to active; without it the last window left on screen would keep drawing with an inactive (unhatched) title bar.</p></article></section>
+<section class="ref" id="zigos-menu-bar-menubar"><header class="sec-h"><span class="eyebrow">GEM</span><h2>MenuBar<small>menu bar</small></h2><span class="count">1 method</span></header><article class="api" id="MenuBar.process"><code class="sig"><b class="fn">process</b>(self: *MenuBar, g: *Gui, menus: []const Menu, bar_w: i16, locked: bool) <span class="ret">?MenuPick</span></code><a class="anchor" href="#MenuBar.process" aria-label="Link to process">#</a><p class="doc">GEM feel: a title drops as soon as the pointer moves over it (no click needed), sliding along the bar switches menus, a click on an item picks it, a click anywhere else closes the menu. Nothing drops while the button is held from elsewhere (e.g. a window being dragged across the bar).</p></article></section>
+<section class="ref" id="zigos-dialog-modal-alert-file-selector"><header class="sec-h"><span class="eyebrow">GEM</span><h2>Dialog<small>modal alert, file selector</small></h2><span class="count">4 methods</span></header><article class="api" id="Dialog.alert"><code class="sig"><b class="fn">alert</b>(self: *Dialog, title: []const u8, msg: []const u8) <span class="ret">void</span></code><a class="anchor" href="#Dialog.alert" aria-label="Link to alert">#</a><p class="doc">GEM alerts have no title bar — every line is body text.</p></article>
+<article class="api" id="Dialog.alertLines"><code class="sig"><b class="fn">alertLines</b>(self: *Dialog, lines: []const []const u8, warn: bool) <span class="ret">void</span></code><a class="anchor" href="#Dialog.alertLines" aria-label="Link to alertLines">#</a><p class="doc">A multi-line GEM alert, optionally with the warning sign on the left.</p></article>
+<article class="api" id="Dialog.openFiles"><code class="sig"><b class="fn">openFiles</b>(self: *Dialog, title: []const u8, items: []const []const u8) <span class="ret">void</span></code><a class="anchor" href="#Dialog.openFiles" aria-label="Link to openFiles">#</a></article>
+<article class="api" id="Dialog.process"><code class="sig"><b class="fn">process</b>(self: *Dialog, g: *Gui) <span class="ret">DlgResult</span></code><a class="anchor" href="#Dialog.process" aria-label="Link to process">#</a></article></section>
+<section class="ref" id="ziggem-rom-desktop-boot-shell-app-launcher"><header class="sec-h"><span class="eyebrow">GEM</span><h2>Desktop<small>boot shell, app launcher</small></h2><span class="count">12 methods</span></header><article class="api" id="Desktop.init"><code class="sig"><b class="fn">init</b>(self: *Desktop, os: *zsrc.ZigOS, fb: *zsrc.LogicalFB, blit: *zsrc.Blitter) <span class="ret">void</span></code><a class="anchor" href="#Desktop.init" aria-label="Link to init">#</a></article>
+<article class="api" id="Desktop.applyBg"><code class="sig"><b class="fn">applyBg</b>(self: *Desktop) <span class="ret">void</span></code><a class="anchor" href="#Desktop.applyBg" aria-label="Link to applyBg">#</a></article>
+<article class="api" id="Desktop.isModal"><code class="sig"><b class="fn">isModal</b>(self: *const Desktop) <span class="ret">bool</span></code><a class="anchor" href="#Desktop.isModal" aria-label="Link to isModal">#</a><p class="doc">An open dialog owns all input: the icons, the windows AND the menu bar. ONE list, read by both render and runDialogs — two copies once drifted and left the menu bar live under the COPY box.</p></article>
+<article class="api" id="Desktop.render"><code class="sig"><b class="fn">render</b>(self: *Desktop) <span class="ret">Action</span></code><a class="anchor" href="#Desktop.render" aria-label="Link to render">#</a><p class="doc">Draw the desktop (res-adaptive) + windows; handle icon drag/click; return action.</p></article>
+<article class="api" id="Desktop.launchName"><code class="sig"><b class="fn">launchName</b>(self: *const Desktop) <span class="ret">[]const u8</span></code><a class="anchor" href="#Desktop.launchName" aria-label="Link to launchName">#</a><p class="doc">The program a .launch action refers to. Empty when the disk holds none, so the caller can report &quot;no program on this disk&quot; instead of booting nothing.</p></article>
+<article class="api" id="Desktop.setPointer"><code class="sig"><b class="fn">setPointer</b>(self: *Desktop, x: i32, y: i32, buttons: u32) <span class="ret">void</span></code><a class="anchor" href="#Desktop.setPointer" aria-label="Link to setPointer">#</a></article>
+<article class="api" id="Desktop.requestOpenAt"><code class="sig"><b class="fn">requestOpenAt</b>(self: *Desktop, x: i32, y: i32) <span class="ret">void</span></code><a class="anchor" href="#Desktop.requestOpenAt" aria-label="Link to requestOpenAt">#</a></article>
+<article class="api" id="Desktop.beginFrame"><code class="sig"><b class="fn">beginFrame</b>(self: *Desktop) <span class="ret">void</span></code><a class="anchor" href="#Desktop.beginFrame" aria-label="Link to beginFrame">#</a></article>
+<article class="api" id="Desktop.endFrame"><code class="sig"><b class="fn">endFrame</b>(self: *Desktop) <span class="ret">void</span></code><a class="anchor" href="#Desktop.endFrame" aria-label="Link to endFrame">#</a></article>
+<article class="api" id="Desktop.clampIcons"><code class="sig"><b class="fn">clampIcons</b>(self: *Desktop) <span class="ret">void</span></code><a class="anchor" href="#Desktop.clampIcons" aria-label="Link to clampIcons">#</a></article>
+<article class="api" id="Desktop.key"><code class="sig"><b class="fn">key</b>(self: *Desktop, cp: u32) <span class="ret">void</span></code><a class="anchor" href="#Desktop.key" aria-label="Link to key">#</a><p class="doc">Character keyboard: feeds the Show Info rename field while it&#x27;s open.</p></article>
+<article class="api" id="Desktop.input"><code class="sig"><b class="fn">input</b>(self: *Desktop, dir: u32) <span class="ret">void</span></code><a class="anchor" href="#Desktop.input" aria-label="Link to input">#</a><p class="doc">Directional input from the host (0=up 1=down 2=left 3=right). The desktop only uses left/right, and only to walk the caret in the name field of an open INFORMATION / NEW FOLDER box.</p></article></section>
   </main>
 </div>
+<script src="guide.js?v=3eb64558"></script>
 </body></html>

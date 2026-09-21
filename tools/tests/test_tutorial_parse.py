@@ -19,16 +19,27 @@ class ParseRealFile(unittest.TestCase):
     def setUpClass(cls) -> None:
         cls.t = parse(REAL)
 
-    def test_eight_steps_and_two_framing_sections(self) -> None:
-        self.assertEqual(len(self.t.steps), 8)
+    def test_thirteen_steps_and_two_framing_sections(self) -> None:
+        self.assertEqual(len(self.t.steps), 13)
         plain = [s.slug for s in self.t.sections if not s.is_step]
         self.assertEqual(plain, ["before-you-start", "where-next"])
 
-    def test_steps_one_to_seven_carry_all_three_languages(self) -> None:
+    # Steps 1-7 are the buildable core: every one ships Zig, C and Rust, and
+    # apps/tutorial_steps_check.mjs fingerprints their carts (LAST_STEP = 7).
+    # Step 8 is prose. Steps 9+ are reference steps with no carts behind them
+    # (RUNNABLE_THROUGH in tutorial_render.py gives them no Run button), and one
+    # of them is deliberately Zig-only.
+    ZIG_ONLY = {11}  # 3D objects: zg.obj/wireframe/zig3d are compiled INTO the
+    # cart, so there is no C or Rust equivalent to show.
+    PROSE_ONLY = {8}  # "going further: opening the borders"
+
+    def test_every_step_carries_the_languages_it_claims(self) -> None:
         for step in self.t.steps:
             got = [b.lang for b in step.langs]
-            if step.number == 8:
-                self.assertEqual(got, [], "step 8 is prose, it has no code blocks")
+            if step.number in self.PROSE_ONLY:
+                self.assertEqual(got, [], f"step {step.number} is prose")
+            elif step.number in self.ZIG_ONLY:
+                self.assertEqual(got, ["zig"], f"step {step.number} is Zig only")
             else:
                 self.assertEqual(got, list(LANGS.values()), f"step {step.number}")
 

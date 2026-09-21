@@ -4,125 +4,102 @@ from __future__ import annotations
 import re
 from datetime import date
 
-from . import ROOT, esc, render_markdown_file
-from .guide_content import EXAMPLES, INTRO
-from .guide_theme import CSS, TEMPLATE
+from . import ROOT, esc, unstamped
+from .guide_body import render_chapter, render_consts, render_examples, render_items, slug
+from .guide_content import INTRO
+from .guide_sections import SECTIONS, Sec
+from .guide_theme import TEMPLATE
 from .zig_parse import Item, parse_consts, parse_externs, parse_struct_methods
 
 GEOMETRY_RE = r"(?:WIDTH|HEIGHT|NB_PLANES|PHYSICAL_\w+|RASTER_\w+|MEDIUM_\w+|HORIZONTAL_\w+|VERTICAL_\w+|STRIDE_\w+)"
 
-# The groups whose lengths are summed into the header's "N library methods" and
+# The groups whose lengths are summed into the hero's "N library methods" and
 # "N constants/registers" counts.
 METHOD_KEYS = ("lfb", "zos", "blitter", "gui", "wm", "menubar", "dialog", "desktop", "mesh")
 CONST_KEYS = ("geometry", "modes", "regs", "blit_regs", "blit_ctl")
 
 
-def render_items(items: list[Item]) -> str:
-    rows = []
-    for it in items:
-        doc = f'<div class="doc">{esc(it.doc)}</div>' if it.doc else ""
-        rows.append(f'<div class="item"><code class="sig">{esc(it.sig)}</code>{doc}</div>')
-    return "\n".join(rows)
-
-
-def render_consts(items: list[Item]) -> str:
-    rows = ["<table><thead><tr><th>Name</th><th>Value</th><th>Meaning</th></tr></thead><tbody>"]
-    for it in items:
-        rows.append(
-            f"<tr><td><code>{esc(it.name)}</code></td>"
-            f"<td><code>{esc(it.sig)}</code></td><td>{esc(it.doc)}</td></tr>"
-        )
-    rows.append("</tbody></table>")
-    return "\n".join(rows)
-
-
-def render_examples() -> str:
-    out = []
-    for title, code in EXAMPLES:
-        out.append(f'<h3>{esc(title)}</h3><pre class="code">{esc(code)}</pre>')
-    return "\n".join(out)
-
-
 def parse_sources() -> dict[str, list[Item]]:
-    """Every generated reference group, parsed from the Zig sources it documents."""
+    """Every generated reference group, parsed from the Zig sources it documents.
+    GEM structs come from the files that DEFINE them: rom/gem/gui.zig only
+    re-exports (`pub const Gui = core.Gui;`), which left five sections empty."""
     sdk = ROOT / "machine" / "sdk"
     mm = sdk / "memmap.zig"
     zigos = ROOT / "libs" / "zig" / "zigos.zig"
-    gem_gui = ROOT / "rom" / "gem" / "gui.zig"
+    gui = ROOT / "rom" / "gem" / "gui"
     return {
         "geometry": parse_consts(mm, GEOMETRY_RE),
         "modes": parse_consts(mm, r"(?:RES_\w+|FB_MODE_\w+)"),
         "regs": parse_consts(mm, r"REG_\w+"),
-        "blit_regs": parse_consts(mm, r"BLIT_[A-Z_]+"),
+        # BLIT_CMD_* and BLIT_STATUS_BUSY are control values, listed once, below.
+        "blit_regs": parse_consts(mm, r"BLIT_(?!CMD_|STATUS_BUSY)[A-Z_]+"),
         "blit_ctl": parse_consts(mm, r"(?:CON_\w+|MT_\w+|BLIT_CMD_\w+|BLIT_STATUS_\w+)"),
         "abi": parse_externs(sdk / "hardware.zig"),
         "lfb": parse_struct_methods(zigos, "LogicalFB"),
         "zos": parse_struct_methods(zigos, "ZigOS"),
         "blitter": parse_struct_methods(ROOT / "libs" / "zig" / "blitter.zig", "Blitter"),
-        "gui": parse_struct_methods(gem_gui, "Gui"),
-        "wm": parse_struct_methods(gem_gui, "Wm"),
-        "menubar": parse_struct_methods(gem_gui, "MenuBar"),
-        "dialog": parse_struct_methods(gem_gui, "Dialog"),
-        "desktop": parse_struct_methods(ROOT / "rom" / "gem" / "gem.zig", "Desktop"),
+        "gui": parse_struct_methods(gui / "core.zig", "Gui"),
+        "wm": parse_struct_methods(gui / "window.zig", "Wm"),
+        "menubar": parse_struct_methods(gui / "menu.zig", "MenuBar"),
+        "dialog": parse_struct_methods(gui / "dialog.zig", "Dialog"),
+        "desktop": parse_struct_methods(ROOT / "rom" / "gem" / "desktop" / "desktop.zig", "Desktop"),
         "mesh": parse_struct_methods(ROOT / "libs" / "zig" / "utils" / "obj_loader.zig", "Mesh"),
     }
 
 
-def groups(s: dict[str, list[Item]]) -> list[tuple[str, str]]:
-    """The guide's sections, in reading order."""
-    return [
-        # The tutorial is its own page now (docs/TUTORIAL.html): this one is the
-        # reference, and a newcomer should not have to scroll past 1200 lines of
-        # lesson to reach the register map.
-        ("Geometry & resolution", render_consts(s["geometry"])),
-        ("Resolution & plane modes", render_consts(s["modes"])),
-        ("Video registers", render_consts(s["regs"])),
-        ("Blitter registers", render_consts(s["blit_regs"])),
-        ("Blitter commands / control / minterms", render_consts(s["blit_ctl"])),
-        ("HW ABI — machine exports", render_items(s["abi"])),
-        ("Disk / cart format + boot sectors", render_markdown_file("docs/FLOPPY_DISK.md")),
-        ("Music — SNDH player (Zig, C, Rust)", render_markdown_file("docs/MUSIC.md")),
-        ("ZigOS — LogicalFB (a plane)", render_items(s["lfb"])),
-        ("ZigOS — ZigOS (the OS)", render_items(s["zos"])),
-        ("ZigOS — Blitter (2D coprocessor)", render_items(s["blitter"])),
-        ("ZigOS — GUI toolkit (Gui)", render_items(s["gui"])),
-        ("ZigOS — Window manager (Wm)", render_items(s["wm"])),
-        ("ZigOS — Menu bar (MenuBar)", render_items(s["menubar"])),
-        ("ZigOS — Dialog (modal alert / file selector)", render_items(s["dialog"])),
-        ("ZigGEM ROM — Desktop (boot shell / app launcher)", render_items(s["desktop"])),
-        ("ZigOS — OBJ loader (Mesh)", render_items(s["mesh"])),
-    ]
+def _body(sec: Sec, s: dict[str, list[Item]]) -> tuple[str, str]:
+    """A section's rendered body and its count badge."""
+    if sec.kind == "md":
+        return render_chapter(sec.src, slug(sec.title)), ""
+    items = s[sec.src]
+    if sec.kind == "consts":
+        return render_consts(items), f"{len(items)} entr{'y' if len(items) == 1 else 'ies'}"
+    noun = "export" if sec.src == "abi" else "method"
+    return render_items(items, sec.prefix), f"{len(items)} {noun}{'' if len(items) == 1 else 's'}"
 
 
-def slug(title: str) -> str:
-    """A stable anchor for a section title.
+def render_section(sec: Sec, body: str, count: str) -> str:
+    badge = f'<span class="count">{count}</span>' if count else ""
+    return (
+        f'<section class="ref" id="{slug(sec.title)}">'
+        f'<header class="sec-h"><span class="eyebrow">{esc(sec.group)}</span>'
+        f"<h2>{esc(sec.short)}<small>{esc(sec.sub)}</small></h2>{badge}</header>"
+        f"{body}</section>"
+    )
 
-    The ids used to be the group's position (#0..#17), so inserting a group
-    silently repointed every deep link into the guide — including the tutorial
-    page's register callouts. A slug only changes when the title does.
-    """
-    return re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-")
+
+def rail() -> str:
+    out = ['<div class="rail-g">Start</div>',
+           '<a href="#top" data-slug="top">Overview</a>',
+           '<a href="#examples" data-slug="examples">Examples</a>']
+    group = ""
+    for sec in SECTIONS:
+        if sec.group != group:
+            group = sec.group
+            out.append(f'<div class="rail-g">{esc(group)}</div>')
+        out.append(f'<a href="#{slug(sec.title)}" data-slug="{slug(sec.title)}">{esc(sec.short)}</a>')
+    return "\n".join(out)
 
 
-def _counts(s: dict[str, list[Item]]) -> str:
+def stats(s: dict[str, list[Item]]) -> str:
     methods = sum(len(s[k]) for k in METHOD_KEYS)
     consts = sum(len(s[k]) for k in CONST_KEYS)
-    return f"{len(s['abi'])} ABI exports · {methods} library methods · {consts} constants/registers"
+    tiles = [
+        (len(s["abi"]), "ABI exports", "hw-abi-machine-exports"),
+        (methods, "library methods", "zigos-logicalfb-a-plane"),
+        (consts, "constants / registers", "geometry-resolution"),
+    ]
+    return "".join(f'<li><a href="#{a}"><b>{n}</b>{label}</a></li>' for n, label, a in tiles)
 
 
 def build() -> str:
     s = parse_sources()
-    gs = groups(s)
-    nav = "\n".join(f'<a href="#{slug(t)}">{esc(t)}</a>' for t, _ in gs)
-    sections = "\n".join(
-        f'<section id="{slug(t)}"><h2>{esc(t)}</h2>{body}</section>' for t, body in gs
-    )
+    sections = "\n".join(render_section(sec, *_body(sec, s)) for sec in SECTIONS)
     return TEMPLATE.format(
-        css=CSS,
-        date=date.today().isoformat(),
-        counts=_counts(s),
+        rail=rail(),
+        stats=stats(s),
         intro=INTRO,
-        nav=nav,
+        date=date.today().isoformat(),
         examples=render_examples(),
         sections=sections,
     )
@@ -132,5 +109,6 @@ GENERATED_LINE = re.compile(r"Generated \d{4}-\d{2}-\d{2} by tools/gen_docs\.py"
 
 
 def undated(text: str) -> str:
-    """The guide minus its generation date, which changes every day by itself."""
-    return GENERATED_LINE.sub("Generated by tools/gen_docs.py", text)
+    """The guide minus its generation date, which changes every day by itself,
+    and minus cache_bust.py's ?v= stamps, which it rewrites after generation."""
+    return unstamped(GENERATED_LINE.sub("Generated by tools/gen_docs.py", text))

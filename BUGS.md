@@ -370,6 +370,32 @@ Root cause: the reorg and the overscan model changed under documents nobody
 re-read. A fix is mechanical, but (3) especially needs doing: a C or Rust cart
 that believes the comment lays out its buffer at half the stride.
 
+**Three more of the same class, found 2026-09-20 rebuilding the guide's UI:**
+
+4. `docs/index.html:67` links `ZIGMACHINE_GUIDE.html#0` — a dead anchor ever
+   since the guide moved to real slugs. The front page's own link to the
+   reference does not land anywhere.
+5. `docs/FLOPPY_DISK.md` still says *"Status: MVP working… Still to do:
+   FAT/multi-file, disk-browser menu, block streaming"*. **All three exist.**
+   The disk shelf has a FAT, GEM browses it, and block streaming is gated by
+   `apps/stream_pacing_check.mjs`. A newcomer reads that and concludes the
+   machine cannot do what it demonstrably does.
+6. **ZigOS's module-level functions are documented NOWHERE.** `requestSong`,
+   `requestSongTune`, `stopSong`, `readBlock`, `audioStreamStart/Feed/Stop`,
+   `LinePalette`, `flickerAllHbl` and others are `pub` on the module rather
+   than methods on a struct, and both docgen parsers only walk struct methods.
+   This is not staleness — it is a whole category of the API that has never
+   appeared in the generated reference. Root cause is in
+   `tools/docgen/zig_parse.py`: it has no module-level pass at all. The fix is a
+   new parse plus a "ZigOS — module functions" section, which is a content
+   decision, not a mechanical one.
+
+(4) and (5) are one-line edits. (6) is the real one, and it is the same shape as
+the bug that hid 46 library methods behind a nested-struct parse error until the
+2026-09-20 rebuild: **the generator silently omits what it cannot parse, so the
+page looks complete and is not.** Any fix should make the generator *report* what
+it skipped rather than drop it.
+
 ---
 
 ## The menu clips long screen names in the right column

@@ -1,27 +1,12 @@
-/* docs/TUTORIAL.html — layout and chrome. Code blocks live in tutorial-code.css.
-   Generated page, hand-written style: see tools/gen_tutorial.py. */
-:root {
-  color-scheme: dark;
-  --bg: #0e1016; --panel: #12151f; --edge: #232a3a; --edge-soft: #191e2b;
-  --ink: #d7dbe6; --dim: #9aa4bd; --muted: #8b93a7;
-  --h2: #7dd3fc; --h3: #fbbf72;
-  --live: #7dff9b; --live-glow: rgba(125, 255, 155, .35);
-  --zig: #f7a41d; --c: #a5b4fc; --rust: #f4a58a;
-  --mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace;
-  --rail-w: 200px; --mon-w: 400px;
-}
-* { box-sizing: border-box; }
-body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.65 system-ui, sans-serif; }
-a { color: var(--h2); }
+/* docs/TUTORIAL.html — what is specific to the tutorial: language switching, the
+   step rail's progress marks, the run button and the live monitor. Tokens, the top
+   bar, the rail and the prose basics are shared with the guide in css/docs.css;
+   code blocks are in css/code.css. Generated page, hand-written style: see
+   tools/gen_tutorial.py. */
+
+:root { --mon-w: 400px; }
 
 /* ---- top bar ---------------------------------------------------------- */
-.topbar { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; gap: 12px;
-  height: 56px; padding: 0 20px; background: rgba(14, 16, 22, .88); backdrop-filter: blur(8px);
-  border-bottom: 1px solid var(--edge); }
-.wordmark { font: 600 15px/1 var(--mono); letter-spacing: .14em; color: var(--live);
-  text-shadow: 0 0 12px var(--live-glow); text-decoration: none; }
-.crumb { font: 11.5px/1 var(--mono); letter-spacing: .12em; color: var(--muted); text-transform: uppercase; }
-.spacer { flex: 1; }
 .counter { display: none; font: 12px/1 var(--mono); color: var(--dim); background: var(--panel);
   border: 1px solid var(--edge); border-radius: 6px; padding: 7px 9px; cursor: pointer; }
 .langpick { display: flex; gap: 2px; background: var(--panel); border: 1px solid var(--edge);
@@ -35,25 +20,15 @@ a { color: var(--h2); }
 .comparepick { font: 11.5px/1 var(--mono); color: var(--muted); display: flex; align-items: center; gap: 6px; }
 .comparepick select { font: 11.5px/1 var(--mono); color: var(--dim); background: var(--panel);
   border: 1px solid var(--edge); border-radius: 6px; padding: 6px 7px; }
-.guidelink { font: 12px/1 var(--mono); color: var(--dim); text-decoration: none; }
-.guidelink:hover { color: #fff; }
 
 /* ---- layout ----------------------------------------------------------- */
 .wrap { display: grid; grid-template-columns: var(--rail-w) minmax(0, 1fr) var(--mon-w);
   gap: 28px; max-width: 1480px; margin: 0 auto; padding: 24px 32px 80px; }
 main { min-width: 0; max-width: 780px; }
 
-.rail { position: sticky; top: 80px; align-self: start; display: flex; flex-direction: column; gap: 1px;
-  max-height: calc(100vh - 110px); overflow-y: auto; }
-.rail a { display: flex; gap: 9px; align-items: baseline; color: var(--dim); text-decoration: none;
-  font-size: 13px; padding: 5px 9px; border-radius: 6px; border-left: 2px solid transparent; }
-.rail a:hover { background: #1a2030; color: #fff; }
-.rail a[aria-current="true"] { background: #161b28; color: #fff; border-left-color: var(--h2); }
 .rail a.seen .rn { color: var(--live); }
-.rn { font: 11px/1.5 var(--mono); color: var(--muted); flex: none; }
 
 /* ---- prose ------------------------------------------------------------ */
-h1 { font-size: 28px; line-height: 1.15; letter-spacing: .3px; margin: 0 0 14px; }
 .step, .plain { scroll-margin-top: 72px; padding-top: 18px; }
 .step + .step, .plain + .step, .step + .plain { border-top: 1px solid var(--edge-soft); margin-top: 34px; }
 .step-h { display: flex; align-items: baseline; gap: 12px; margin: 0 0 4px; }
@@ -62,15 +37,6 @@ h1 { font-size: 28px; line-height: 1.15; letter-spacing: .3px; margin: 0 0 14px;
 .plain .step-h h2 { color: var(--ink); }
 .lang h3 { display: none; font: 600 13px/1 var(--mono); letter-spacing: .1em; text-transform: uppercase;
   color: var(--h3); margin: 0 0 10px; }
-main :is(h4, h5) { font-size: 15px; color: var(--h3); margin: 18px 0 6px; }
-main ul, main ol { padding-left: 22px; }
-main :not(pre) > code { background: #1a2030; color: #a5f3c0; padding: 1px 5px; border-radius: 4px;
-  font: 13px/1.4 var(--mono); }
-main table { width: 100%; border-collapse: collapse; font-size: 13.5px; display: block; overflow-x: auto; }
-main th, main td { text-align: left; padding: 6px 10px; border-bottom: 1px solid #1c2230; vertical-align: top; }
-main th { color: var(--h2); }
-kbd { font: 11.5px/1 var(--mono); background: #1a2030; border: 1px solid var(--edge);
-  border-bottom-width: 2px; border-radius: 4px; padding: 2px 5px; }
 
 /* the md's bold lead-ins, each with its own job on the page */
 .lead > strong:first-child { display: block; font: 600 11.5px/1.5 var(--mono); letter-spacing: .12em;
@@ -158,7 +124,7 @@ html[data-compare] .lang > h3 { display: block; }
   .step-h { flex-wrap: wrap; }
   .lang { padding-left: 12px; }
 }
-@media (prefers-reduced-motion: reduce) { * { transition: none !important; } .run:active { transform: none; } }
+@media (prefers-reduced-motion: reduce) { .run:active { transform: none; } }
 
 /* Compare mode: two languages side by side, wide screens only. JS removes the
    attribute entirely when no second language is picked. */

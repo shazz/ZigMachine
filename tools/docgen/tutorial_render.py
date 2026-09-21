@@ -1,11 +1,10 @@
 """Renders a parsed Tutorial into docs/TUTORIAL.html."""
 from __future__ import annotations
 
-import html as _html
 import re
 
-from . import ROOT, esc, render_markdown
-from .highlight import highlight
+from . import ROOT, esc, render_markdown, unstamped  # noqa: F401  (unstamped: gen_tutorial.py's guard)
+from .codeblocks import code_blocks
 from .tutorial_parse import LANGS, Section, Tutorial, parse
 from .tutorial_theme import LANG_NAMES, PREPAINT, TEMPLATE, comparepick, langpick
 
@@ -22,11 +21,18 @@ LEAD_CLASSES = {
     "the line numbers": "concept",
 }
 LEAD_RE = re.compile(r"<p><strong>([^<]+?)\.</strong>")
-CODE_RE = re.compile(r'<pre><code(?: class="language-([\w+#-]+)")?>([\s\S]*?)</code></pre>')
-STAMP_RE = re.compile(r'(\.(?:js|css))\?v=[0-9a-f]+')
 
 # The cart each language's finished tutorial screen builds to (docs/).
 CARTS = {"zig": "demo-tutorial", "c": "demo-c-tutorial", "rust": "demo-rust-tutorial"}
+
+# The last step the stepped carts (apps/*/scenes/tutorial_steps.*) can be asked
+# to stop at. They build up ONE screen and stop there, and they REFUSE an
+# out-of-range step rather than clamping it. Steps past this one are reference
+# material about other parts of the machine — they still show code in all three
+# languages, but there is no cart that "is" them, so they get no Run button that
+# would boot the wrong screen. Keep this in step with LAST_STEP in
+# apps/tutorial_steps_check.mjs.
+RUNNABLE_THROUGH = 7
 
 
 def label_leads(markup: str) -> str:
@@ -37,24 +43,6 @@ def label_leads(markup: str) -> str:
         return f'<p class="lead lead-{kind}"><strong>{m.group(1)}.</strong>'
 
     return LEAD_RE.sub(repl, markup)
-
-
-def code_blocks(markup: str, default_lang: str = "") -> str:
-    """Re-render markdown's <pre><code> into a captioned, highlighted block."""
-
-    def repl(m: re.Match[str]) -> str:
-        lang = (m.group(1) or default_lang or "").lower()
-        code = _html.unescape(m.group(2)).rstrip("\n")
-        n = len(code.splitlines())
-        tag = f'<span class="cb-lang">{esc(lang)}</span>' if lang else ""
-        return (
-            f'<figure class="cb"{f" data-lang={lang}" if lang else ""}>'
-            f'<figcaption>{tag}<span class="cb-n">{n} line{"" if n == 1 else "s"}</span>'
-            f'<button class="cb-copy" type="button">Copy</button></figcaption>'
-            f"<pre><code>{highlight(code, lang)}</code></pre></figure>"
-        )
-
-    return CODE_RE.sub(repl, markup)
 
 
 def _prose(md: str, lang: str = "") -> str:
@@ -74,7 +62,7 @@ def render_langs(sec: Section) -> str:
 
 
 def render_section(sec: Section) -> str:
-    runnable = bool(sec.langs)
+    runnable = bool(sec.langs) and sec.is_step and sec.number <= RUNNABLE_THROUGH
     run = (
         f'<button class="run" data-step="{sec.number}" type="button">'
         f"&#9654; Run</button>" if runnable else ""
@@ -131,8 +119,3 @@ def build() -> str:
         cards=cards(),
         sections="\n".join(render_section(s) for s in t.sections),
     )
-
-
-def unstamped(text: str) -> str:
-    """The page minus cache_bust.py's ?v= hashes, which it rewrites after generation."""
-    return STAMP_RE.sub(r"\1", text)

@@ -3,8 +3,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ZigMachine — Tutorial</title>
 <meta name="description" content="Write your first ZigMachine screen, step by step, in Zig, C or Rust — running live on the real machine.">
-<link rel="stylesheet" href="css/tutorial.css?v=f590a57d">
-<link rel="stylesheet" href="css/tutorial-code.css?v=9cfda999">
+<link rel="stylesheet" href="css/docs.css?v=3f1bd301">
+<link rel="stylesheet" href="css/code.css?v=0edb2f47">
+<link rel="stylesheet" href="css/tutorial.css?v=1a7b2b87">
 <script>
 (function () {
   var l = null;
@@ -17,7 +18,7 @@
 <header class="topbar">
   <a class="wordmark" href="index.html">ZIGMACHINE</a><span class="crumb">TUTORIAL</span>
   <button class="counter" id="counter" aria-expanded="false" aria-controls="rail">
-    <span id="counter-n">1</span> / 8
+    <span id="counter-n">1</span> / 13
   </button>
   <div class="spacer"></div>
   <div class="langpick" role="group" aria-label="Language"><button class="seg" data-lang="zig" aria-pressed="false">Zig</button><button class="seg" data-lang="c" aria-pressed="false">C</button><button class="seg" data-lang="rust" aria-pressed="false">Rust</button></div>
@@ -35,7 +36,12 @@
 <a href="#step-5" data-slug="step-5"><span class="rn">05</span>rasters, the copper bar</a>
 <a href="#step-6" data-slug="step-6"><span class="rn">06</span>a text scroller</a>
 <a href="#step-7" data-slug="step-7"><span class="rn">07</span>music</a>
-<a href="#step-8" data-slug="step-8"><span class="rn">08</span>going further: borders and the blitter</a>
+<a href="#step-8" data-slug="step-8"><span class="rn">08</span>going further: opening the borders</a>
+<a href="#step-9" data-slug="step-9"><span class="rn">09</span>going further: the blitter, and what a technique costs</a>
+<a href="#step-10" data-slug="step-10"><span class="rn">10</span>PCM audio, streamed off the disk</a>
+<a href="#step-11" data-slug="step-11"><span class="rn">11</span>loading and drawing a 3D object</a>
+<a href="#step-12" data-slug="step-12"><span class="rn">12</span>glenz vectors, the OR minterm</a>
+<a href="#step-13" data-slug="step-13"><span class="rn">13</span>seeing the sound — YM channels and a PCM spectrum</a>
 <a href="#where-next" data-slug="where-next"><span class="rn">·</span>Where next</a></nav>
   <main>
     <section class="intro" id="intro">
@@ -891,8 +897,9 @@ waits until then.</p>
   <code>request_song_tune</code>. Subtunes count from 1, and 0 is the file's default.</li>
 </ul>
 <hr /></div><div class="run-slot"></div></section>
-<section class="step" id="step-8" data-step="8"><header class="step-h"><span class="num">08</span><h2>going further: borders and the blitter</h2></header><div class="shared"><p>Your screen is a normal plane: 320x200, border closed. Two directions from here,
-both with working examples.</p>
+<section class="step" id="step-8" data-step="8"><header class="step-h"><span class="num">08</span><h2>going further: opening the borders</h2></header><div class="shared"><p>Your screen is a normal plane: 320x200, border closed. Two directions from here,
+both with working examples: this step opens the borders, the next one puts the
+blitter to work.</p>
 <p class="lead lead-note"><strong>Open the borders.</strong> On an ST the border is opened by flickering the video
 resolution at an exact moment on each scanline. ZigMachine makes you earn it the
 same way. Put the plane in overscan mode (400x280), register the plane's HBL at
@@ -913,10 +920,1421 @@ it by hand:</p>
 }</code></pre></figure>
 <p>Remember the line numbers: once a plane is in overscan mode, its HBL gets
 <strong>physical</strong> lines 0..279, so a raster table indexed by logical line moves 40
-lines. <code>zg.copper</code> handles that for you.</p>
-<p class="lead lead-note"><strong>Use the blitter.</strong> The machine has a 2D coprocessor for fills, lines,
-triangles and masked blits, driven through registers and <code>hwBlit()</code>. In Zig,
-<code>zg.Blitter</code> wraps it. See <code>apps/zig/scenes/blitter_demo.zig</code>.</p></div><div class="shared after"></div><div class="run-slot"></div></section>
+lines. <code>zg.copper</code> handles that for you.</p></div><div class="shared after"></div><div class="run-slot"></div></section>
+<section class="step" id="step-9" data-step="9"><header class="step-h"><span class="num">09</span><h2>going further: the blitter, and what a technique costs</h2></header><div class="shared"><p class="lead lead-goal"><strong>Goal.</strong> A 3D torus shaded as a grid of dots, drawn by the 2D coprocessor —
+and then drawn three more ways over the same data, with the cost of each on
+screen, so the techniques can be judged against each other.</p>
+<p class="lead lead-concept"><strong>Concept.</strong> The machine has a blitter: fills, lines, triangles and masked
+blits. You set up a block of registers at <code>0x80</code> in the video region — what to
+draw, where, in what colour, combined how — and call <code>hwBlit()</code>. It runs
+synchronously and reports what it cost in <code>BLIT_CYCLES</code>.
+<code>docs/BLITTER_HW_SPEC.md</code> is the full register map;
+<code>apps/zig/scenes/blitter_demo.zig</code> exercises the operations one at a time. The
+worked example here is <strong>POLKA DOTS</strong> (<code>apps/zig/scenes/polkadots/</code>), which you
+can run from the menu.</p>
+<p class="lead lead-note"><strong>The split it wants.</strong> POLKA DOTS divides the frame in two:</p>
+<ul>
+<li><strong>the CPU decides</strong> — <code>torus.zig</code> projects the torus, <code>shade.zig</code> reduces it
+  to a 45x28 grid of one byte per cell: how bright that cell is, 0..10</li>
+<li><strong>the blitter draws</strong> — and it draws that same grid FOUR different ways, on
+  keys 1 to 4</li>
+</ul>
+<p>Nothing above the renderer changes when you press a key. That is the point of
+the screen: the intensity grid is the interface between the two halves, and
+turning intensity into pixels is a separate decision with a separate cost.</p>
+<p class="lead lead-note"><strong>Technique 1: dot SIZE, one blit per cell.</strong> The ten dot sizes live side by
+side in one 70x7 sheet, so the brightness <em>is</em> the source-x. There is no
+branching on brightness and no second image: the cell value picks which part of
+the sheet to blit. This is how newsprint halftone works, and no fixed pattern
+can do it.</p>
+<p class="lead lead-note"><strong>Technique 2: the HALFTONE register, one fill per run.</strong> The blitter carries a
+16x16 one-bit pattern in <code>HALFTONE[16]</code>. Load it, and every <code>FILL</code> paints
+<code>COLOR</code> where a bit is set and <code>BG_COLOR</code> where it is clear — the <em>density</em> half
+of halftone, and what an ST blitter could actually do. Two things follow, and
+together they are the whole lesson.</p>
+<p>The pattern is fixed for the duration of the operation, so the dot <strong>cannot</strong>
+change size within one fill. Intensity has to come from how many bits are set:
+POLKA DOTS builds ten ordered-dither (Bayer) patterns whose densities are the
+ink counts of the ten dots in the sheet — <code>0, 1, 5, 9, 13, 17, 25, 37, 45, 49</code>
+pixels out of 49, rescaled to bits out of 64 — so both techniques draw the same
+ramp.</p>
+<p>And because the pattern is anchored to <em>screen</em> coordinates rather than to the
+operation, neighbouring cells of the same brightness dither continuously into
+each other. So a whole <strong>run</strong> of equal cells can be covered by ONE fill instead
+of one per cell. That is where the operations go.</p></div><div class="langs"><section class="lang" data-lang="zig" id="step-9-zig"><h3>Zig</h3><p><code>zg.Blitter</code> wraps the register block. The stamp, from <code>polkadots/dots.zig</code>:</p>
+<figure class="cb" data-lang=zig><figcaption><span class="cb-lang">zig</span><span class="cb-n">20 lines</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code><span class="tok-kw">pub</span> <span class="tok-kw">const</span> CELL = <span class="tok-num">7</span>;           <span class="tok-cm">// the dot cell, from the original&#x27;s initTile(7, 7)</span>
+<span class="tok-kw">const</span> SHEET_W: <span class="tok-kw">u16</span> = <span class="tok-num">70</span>;      <span class="tok-cm">// ten 7x7 dots side by side</span>
+<span class="tok-kw">const</span> PAT = @<span class="tok-fn">embedFile</span>(<span class="tok-str">&quot;../../assets/screens/polkadots/pat.raw&quot;</span>);
+
+<span class="tok-kw">pub</span> <span class="tok-kw">fn</span> <span class="tok-fn">stamp</span>(fb: *zg.LogicalFB, bl: *zg.Blitter, grid: *<span class="tok-kw">const</span> shade.Grid) Cost {
+    <span class="tok-kw">var</span> cost = Cost{};
+    <span class="tok-kw">for</span> (<span class="tok-num">0</span>..shade.CELLS_Y) |cy| {
+        <span class="tok-kw">const</span> dy = Y_OFF + @<span class="tok-fn">as</span>(<span class="tok-kw">i16</span>, @<span class="tok-fn">intCast</span>(cy * CELL));
+        <span class="tok-kw">for</span> (<span class="tok-num">0</span>..shade.CELLS_X) |cx| {
+            <span class="tok-kw">const</span> cell = grid[cy * shade.CELLS_X + cx];
+            <span class="tok-kw">if</span> (cell == <span class="tok-num">0</span>) <span class="tok-kw">continue</span>;               <span class="tok-cm">// dark: draw nothing at all</span>
+            <span class="tok-kw">const</span> sx: <span class="tok-kw">u16</span> = @<span class="tok-fn">as</span>(<span class="tok-kw">u16</span>, cell - <span class="tok-num">1</span>) * CELL;  <span class="tok-cm">// brightness IS source-x</span>
+            <span class="tok-kw">const</span> dx = X_OFF + @<span class="tok-fn">as</span>(<span class="tok-kw">i16</span>, @<span class="tok-fn">intCast</span>(cx * CELL));
+            bl.<span class="tok-fn">blitImage</span>(fb, dx, dy, PAT, SHEET_W, sx, <span class="tok-num">0</span>, CELL, CELL, <span class="tok-kw">null</span>);
+            cost.ops += <span class="tok-num">1</span>;
+            cost.px += bl.<span class="tok-fn">cycles</span>();                <span class="tok-cm">// what the blitter reports</span>
+        }
+    }
+    <span class="tok-kw">return</span> cost;
+}</code></pre></figure>
+<p><code>blitImage</code> takes the destination plane and position, then the source: the sheet
+in cart RAM, its width, the source x/y, and the size to copy. The trailing
+<code>null</code> is the colour key — these tiles are fully opaque, so each one paints its
+own field over whatever was there and no masking is needed.</p>
+<p>The halftone pass, from <code>polkadots/modes.zig</code>, loads one pattern per intensity
+that is actually present in the frame and then fills runs:</p>
+<figure class="cb" data-lang=zig><figcaption><span class="cb-lang">zig</span><span class="cb-n">5 lines</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code><span class="tok-kw">for</span> (<span class="tok-num">1</span>..LEVELS) |lvl| {
+    <span class="tok-kw">if</span> (present &amp; (@<span class="tok-fn">as</span>(<span class="tok-kw">u16</span>, <span class="tok-num">1</span>) &lt;&lt; @<span class="tok-fn">intCast</span>(lvl + <span class="tok-num">1</span>)) == <span class="tok-num">0</span>) <span class="tok-kw">continue</span>;
+    bl.<span class="tok-fn">setHalftone</span>(PATTERNS[lvl]);   <span class="tok-cm">// 16 register writes, not an operation</span>
+    <span class="tok-fn">fillLevel</span>(fb, bl, grid, @<span class="tok-fn">intCast</span>(lvl + <span class="tok-num">1</span>), &amp;cost);
+}</code></pre></figure>
+<p>and <code>fillLevel</code> walks each cell row, finds the maximal run of cells holding that
+intensity, and issues ONE <code>bl.fill(fb, x, y, cells * CELL, CELL, ink)</code> for it.</p></section><section class="lang" data-lang="c" id="step-9-c"><h3>C</h3><p>There is no wrapper: you write the registers yourself, the way
+<code>apps/c/scenes/screen34.c</code> writes the resolution register in the previous step.
+<code>w8</code>/<code>w16</code>/<code>w32</code> are the same one-line helpers, and <code>hwBlit</code> is imported like
+<code>hwVideoBase</code>:</p>
+<figure class="cb" data-lang=c><figcaption><span class="cb-lang">c</span><span class="cb-n">40 lines</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code><span class="tok-pp">#define</span> OFF_BLIT      <span class="tok-num">0x80</span>
+<span class="tok-pp">#define</span> BLIT_COMMAND  (OFF_BLIT + <span class="tok-num">0x00</span>)
+<span class="tok-pp">#define</span> BLIT_MINTERM  (OFF_BLIT + <span class="tok-num">0x01</span>)
+<span class="tok-pp">#define</span> BLIT_CON      (OFF_BLIT + <span class="tok-num">0x02</span>)
+<span class="tok-pp">#define</span> BLIT_COLOR    (OFF_BLIT + <span class="tok-num">0x04</span>)
+<span class="tok-pp">#define</span> BLIT_BG_COLOR (OFF_BLIT + <span class="tok-num">0x05</span>)
+<span class="tok-pp">#define</span> BLIT_CON2     (OFF_BLIT + <span class="tok-num">0x07</span>)
+<span class="tok-pp">#define</span> BLIT_B_BASE   (OFF_BLIT + <span class="tok-num">0x10</span>)
+<span class="tok-pp">#define</span> BLIT_B_STRIDE (OFF_BLIT + <span class="tok-num">0x14</span>)
+<span class="tok-pp">#define</span> BLIT_D_BASE   (OFF_BLIT + <span class="tok-num">0x20</span>)
+<span class="tok-pp">#define</span> BLIT_D_STRIDE (OFF_BLIT + <span class="tok-num">0x24</span>)
+<span class="tok-pp">#define</span> BLIT_W        (OFF_BLIT + <span class="tok-num">0x28</span>)
+<span class="tok-pp">#define</span> BLIT_H        (OFF_BLIT + <span class="tok-num">0x2A</span>)
+<span class="tok-pp">#define</span> BLIT_X0       (OFF_BLIT + <span class="tok-num">0x2C</span>)
+<span class="tok-pp">#define</span> BLIT_Y0       (OFF_BLIT + <span class="tok-num">0x2E</span>)
+<span class="tok-pp">#define</span> BLIT_HALFTONE (OFF_BLIT + <span class="tok-num">0x40</span>)
+<span class="tok-pp">#define</span> CMD_BLIT <span class="tok-num">1</span>
+<span class="tok-pp">#define</span> CMD_FILL <span class="tok-num">2</span>
+<span class="tok-pp">#define</span> CON_USEB <span class="tok-num">0x02</span>      <span class="tok-cm">// channel B (the image) enabled</span>
+<span class="tok-pp">#define</span> CON2_SRC_ABS <span class="tok-num">0x01</span>  <span class="tok-cm">// B_BASE is an absolute address, not a region offset</span>
+<span class="tok-pp">#define</span> MT_B <span class="tok-num">0xCC</span>          <span class="tok-cm">// D = B: copy the source through untouched</span>
+
+<span class="tok-fn">__attribute__</span>((<span class="tok-fn">import_module</span>(<span class="tok-str">&quot;env&quot;</span>), <span class="tok-fn">import_name</span>(<span class="tok-str">&quot;hwBlit&quot;</span>)))
+<span class="tok-kw">extern</span> <span class="tok-kw">void</span> <span class="tok-fn">hwBlit</span>(<span class="tok-kw">void</span>);
+
+<span class="tok-kw">static</span> <span class="tok-kw">const</span> <span class="tok-kw">u8</span> PAT[<span class="tok-num">70</span> * <span class="tok-num">7</span>] = { <span class="tok-cm">/* the ten dots, side by side */</span> };
+
+<span class="tok-kw">static</span> <span class="tok-kw">void</span> <span class="tok-fn">stamp</span>(<span class="tok-kw">int</span> dx, <span class="tok-kw">int</span> dy, <span class="tok-kw">int</span> level) {
+    <span class="tok-fn">w32</span>(BLIT_D_BASE, OFF_VRAM);             <span class="tok-cm">// destination: plane 0</span>
+    <span class="tok-fn">w16</span>(BLIT_D_STRIDE, W);
+    <span class="tok-fn">w32</span>(BLIT_B_BASE, (<span class="tok-kw">u32</span>)&amp;PAT[level * <span class="tok-num">7</span>]); <span class="tok-cm">// brightness IS source-x</span>
+    <span class="tok-fn">w16</span>(BLIT_B_STRIDE, <span class="tok-num">70</span>);
+    <span class="tok-fn">w8</span>(BLIT_CON2, CON2_SRC_ABS);            <span class="tok-cm">// the sheet is in the cart, not VRAM</span>
+    <span class="tok-fn">w8</span>(BLIT_CON, CON_USEB);
+    <span class="tok-fn">w8</span>(BLIT_MINTERM, MT_B);
+    <span class="tok-fn">w16</span>(BLIT_X0, dx); <span class="tok-fn">w16</span>(BLIT_Y0, dy);
+    <span class="tok-fn">w16</span>(BLIT_W, <span class="tok-num">7</span>);   <span class="tok-fn">w16</span>(BLIT_H, <span class="tok-num">7</span>);
+    <span class="tok-fn">w8</span>(BLIT_COMMAND, CMD_BLIT);
+    <span class="tok-fn">hwBlit</span>();
+}</code></pre></figure>
+<p>The halftone half is a pattern load and a fill. <code>CON</code> is 0 because <code>FILL</code> uses
+no source channel at all:</p>
+<figure class="cb" data-lang=c><figcaption><span class="cb-lang">c</span><span class="cb-n">15 lines</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code><span class="tok-kw">static</span> <span class="tok-kw">void</span> <span class="tok-fn">load_halftone</span>(<span class="tok-kw">const</span> <span class="tok-kw">u16</span> pattern[<span class="tok-num">16</span>]) {
+    <span class="tok-kw">for</span> (<span class="tok-kw">int</span> i = <span class="tok-num">0</span>; i &lt; <span class="tok-num">16</span>; i++) <span class="tok-fn">w16</span>(BLIT_HALFTONE + i * <span class="tok-num">2</span>, pattern[i]);
+}
+
+<span class="tok-kw">static</span> <span class="tok-kw">void</span> <span class="tok-fn">fill_run</span>(<span class="tok-kw">int</span> dx, <span class="tok-kw">int</span> dy, <span class="tok-kw">int</span> cells, <span class="tok-kw">u8</span> ink) {
+    <span class="tok-fn">w32</span>(BLIT_D_BASE, OFF_VRAM);
+    <span class="tok-fn">w16</span>(BLIT_D_STRIDE, W);
+    <span class="tok-fn">w8</span>(BLIT_CON, <span class="tok-num">0</span>);
+    <span class="tok-fn">w8</span>(BLIT_COLOR, ink);      <span class="tok-cm">// where a pattern bit is SET</span>
+    <span class="tok-fn">w8</span>(BLIT_BG_COLOR, <span class="tok-num">0</span>);     <span class="tok-cm">// where it is clear</span>
+    <span class="tok-fn">w16</span>(BLIT_X0, dx); <span class="tok-fn">w16</span>(BLIT_Y0, dy);
+    <span class="tok-fn">w16</span>(BLIT_W, cells * <span class="tok-num">7</span>); <span class="tok-fn">w16</span>(BLIT_H, <span class="tok-num">7</span>);
+    <span class="tok-fn">w8</span>(BLIT_COMMAND, CMD_FILL);
+    <span class="tok-fn">hwBlit</span>();
+}</code></pre></figure></section><section class="lang" data-lang="rust" id="step-9-rust"><h3>Rust</h3><p>The same registers through raw pointers, in the idiom
+<code>apps/rust/scenes/tutorial.rs</code> already uses for the HBL. The constants are the
+offsets from the C block above:</p>
+<figure class="cb" data-lang=rust><figcaption><span class="cb-lang">rust</span><span class="cb-n">42 lines</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code><span class="tok-at">#[link(wasm_import_module = &quot;env&quot;)]</span>
+<span class="tok-kw">extern</span> <span class="tok-str">&quot;C&quot;</span> { <span class="tok-kw">fn</span> <span class="tok-fn">hwBlit</span>(); }
+
+<span class="tok-kw">static</span> PAT: [<span class="tok-kw">u8</span>; <span class="tok-num">70</span> * <span class="tok-num">7</span>] = [<span class="tok-cm">/* the ten dots, side by side */</span>];
+
+<span class="tok-cm">// SAFETY: a wasm32 cart is single-threaded and these are the machine&#x27;s own</span>
+<span class="tok-cm">// registers, inside the video region hwVideoBase() handed us.</span>
+<span class="tok-kw">unsafe</span> <span class="tok-kw">fn</span> <span class="tok-fn">stamp</span>(base: <span class="tok-kw">usize</span>, dx: <span class="tok-kw">i16</span>, dy: <span class="tok-kw">i16</span>, level: <span class="tok-kw">usize</span>) {
+    ((base + BLIT_D_BASE) <span class="tok-kw">as</span> *<span class="tok-kw">mut</span> <span class="tok-kw">u32</span>).<span class="tok-fn">write</span>(OFF_VRAM <span class="tok-kw">as</span> <span class="tok-kw">u32</span>);
+    ((base + BLIT_D_STRIDE) <span class="tok-kw">as</span> *<span class="tok-kw">mut</span> <span class="tok-kw">u16</span>).<span class="tok-fn">write</span>(W <span class="tok-kw">as</span> <span class="tok-kw">u16</span>);
+    ((base + BLIT_B_BASE) <span class="tok-kw">as</span> *<span class="tok-kw">mut</span> <span class="tok-kw">u32</span>).<span class="tok-fn">write</span>(PAT.<span class="tok-fn">as_ptr</span>().<span class="tok-fn">add</span>(level * <span class="tok-num">7</span>) <span class="tok-kw">as</span> <span class="tok-kw">u32</span>);
+    ((base + BLIT_B_STRIDE) <span class="tok-kw">as</span> *<span class="tok-kw">mut</span> <span class="tok-kw">u16</span>).<span class="tok-fn">write</span>(<span class="tok-num">70</span>);
+    ((base + BLIT_CON2) <span class="tok-kw">as</span> *<span class="tok-kw">mut</span> <span class="tok-kw">u8</span>).<span class="tok-fn">write</span>(CON2_SRC_ABS);
+    ((base + BLIT_CON) <span class="tok-kw">as</span> *<span class="tok-kw">mut</span> <span class="tok-kw">u8</span>).<span class="tok-fn">write</span>(CON_USEB);
+    ((base + BLIT_MINTERM) <span class="tok-kw">as</span> *<span class="tok-kw">mut</span> <span class="tok-kw">u8</span>).<span class="tok-fn">write</span>(MT_B);
+    ((base + BLIT_X0) <span class="tok-kw">as</span> *<span class="tok-kw">mut</span> <span class="tok-kw">i16</span>).<span class="tok-fn">write</span>(dx);
+    ((base + BLIT_Y0) <span class="tok-kw">as</span> *<span class="tok-kw">mut</span> <span class="tok-kw">i16</span>).<span class="tok-fn">write</span>(dy);
+    ((base + BLIT_W) <span class="tok-kw">as</span> *<span class="tok-kw">mut</span> <span class="tok-kw">u16</span>).<span class="tok-fn">write</span>(<span class="tok-num">7</span>);
+    ((base + BLIT_H) <span class="tok-kw">as</span> *<span class="tok-kw">mut</span> <span class="tok-kw">u16</span>).<span class="tok-fn">write</span>(<span class="tok-num">7</span>);
+    ((base + BLIT_COMMAND) <span class="tok-kw">as</span> *<span class="tok-kw">mut</span> <span class="tok-kw">u8</span>).<span class="tok-fn">write</span>(CMD_BLIT);
+    <span class="tok-fn">hwBlit</span>();
+}
+
+<span class="tok-kw">unsafe</span> <span class="tok-kw">fn</span> <span class="tok-fn">load_halftone</span>(base: <span class="tok-kw">usize</span>, pattern: &amp;[<span class="tok-kw">u16</span>; <span class="tok-num">16</span>]) {
+    <span class="tok-kw">for</span> (i, row) <span class="tok-kw">in</span> pattern.<span class="tok-fn">iter</span>().<span class="tok-fn">enumerate</span>() {
+        ((base + BLIT_HALFTONE + i * <span class="tok-num">2</span>) <span class="tok-kw">as</span> *<span class="tok-kw">mut</span> <span class="tok-kw">u16</span>).<span class="tok-fn">write</span>(*row);
+    }
+}
+
+<span class="tok-kw">unsafe</span> <span class="tok-kw">fn</span> <span class="tok-fn">fill_run</span>(base: <span class="tok-kw">usize</span>, dx: <span class="tok-kw">i16</span>, dy: <span class="tok-kw">i16</span>, cells: <span class="tok-kw">i16</span>, ink: <span class="tok-kw">u8</span>) {
+    ((base + BLIT_D_BASE) <span class="tok-kw">as</span> *<span class="tok-kw">mut</span> <span class="tok-kw">u32</span>).<span class="tok-fn">write</span>(OFF_VRAM <span class="tok-kw">as</span> <span class="tok-kw">u32</span>);
+    ((base + BLIT_D_STRIDE) <span class="tok-kw">as</span> *<span class="tok-kw">mut</span> <span class="tok-kw">u16</span>).<span class="tok-fn">write</span>(W <span class="tok-kw">as</span> <span class="tok-kw">u16</span>);
+    ((base + BLIT_CON) <span class="tok-kw">as</span> *<span class="tok-kw">mut</span> <span class="tok-kw">u8</span>).<span class="tok-fn">write</span>(<span class="tok-num">0</span>);
+    ((base + BLIT_COLOR) <span class="tok-kw">as</span> *<span class="tok-kw">mut</span> <span class="tok-kw">u8</span>).<span class="tok-fn">write</span>(ink);
+    ((base + BLIT_BG_COLOR) <span class="tok-kw">as</span> *<span class="tok-kw">mut</span> <span class="tok-kw">u8</span>).<span class="tok-fn">write</span>(<span class="tok-num">0</span>);
+    ((base + BLIT_X0) <span class="tok-kw">as</span> *<span class="tok-kw">mut</span> <span class="tok-kw">i16</span>).<span class="tok-fn">write</span>(dx);
+    ((base + BLIT_Y0) <span class="tok-kw">as</span> *<span class="tok-kw">mut</span> <span class="tok-kw">i16</span>).<span class="tok-fn">write</span>(dy);
+    ((base + BLIT_W) <span class="tok-kw">as</span> *<span class="tok-kw">mut</span> <span class="tok-kw">u16</span>).<span class="tok-fn">write</span>((cells * <span class="tok-num">7</span>) <span class="tok-kw">as</span> <span class="tok-kw">u16</span>);
+    ((base + BLIT_H) <span class="tok-kw">as</span> *<span class="tok-kw">mut</span> <span class="tok-kw">u16</span>).<span class="tok-fn">write</span>(<span class="tok-num">7</span>);
+    ((base + BLIT_COMMAND) <span class="tok-kw">as</span> *<span class="tok-kw">mut</span> <span class="tok-kw">u8</span>).<span class="tok-fn">write</span>(CMD_FILL);
+    <span class="tok-fn">hwBlit</span>();
+}</code></pre></figure>
+<p><strong>A FILL with no pattern loaded</strong> is the screen's third mode, <code>SOLID</code>: the same
+runs, one palette entry per intensity, no dither at all. It is the baseline the
+other two are measured against — and the reminder that halftone buys you shades
+you do not have colours for. On a four-colour ST screen it was the only way to
+get ten. The fourth mode, <code>FILL DOTS</code>, goes back to one operation per cell but
+draws a constant-filled square sized by the intensity, so it isolates what the
+source channel costs.</p></section></div><div class="shared after"><p class="lead lead-see"><strong>What you should see.</strong> A torus of red dots turning, and the bottom line
+reading the mode, the blitter operations it issued this frame, and the pixels
+the blitter reported touching. Press 1 to 4: the shape does not change, only the
+technique. Four consecutive frames of the same torus, from
+<code>apps/polkadots_headless.mjs</code>:</p>
+<table>
+<thead>
+<tr>
+<th>mode</th>
+<th>technique</th>
+<th>operations</th>
+<th>pixels</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1 DOT SIZE</td>
+<td>one BLIT per lit cell, from the sheet</td>
+<td>233</td>
+<td>11K</td>
+</tr>
+<tr>
+<td>2 HALFTONE</td>
+<td>one FILL per run, <code>HALFTONE</code> + <code>COLOR</code></td>
+<td>108</td>
+<td>9K</td>
+</tr>
+<tr>
+<td>3 SOLID</td>
+<td>one FILL per run, palette ramp</td>
+<td>146</td>
+<td>12K</td>
+</tr>
+<tr>
+<td>4 FILL DOTS</td>
+<td>one FILL per lit cell, square sized by intensity</td>
+<td>214</td>
+<td>3K</td>
+</tr>
+</tbody>
+</table>
+<p>Halftone covers the same torus in <strong>less than half</strong> the operations, because a
+run of equal cells is one fill — and it looks worse, a grey newsprint dither
+instead of round dots that grow. That is exactly the trade the ST offered, and
+the harness asserts it rather than leaving it to this paragraph.</p>
+<p>The wall-clock figures are worth reading carefully: averaged over 40 rounds
+every one of the four modes takes about 0.3 ms a frame, and the differences
+between them are inside the measurement noise. They barely differ because the
+CPU half — projecting the torus and shading the grid — is the same in all four
+and dominates. <strong>Count operations, not just milliseconds:</strong> the op count is what
+scales when the effect grows, and it is the number that would have decided the
+technique on real hardware.</p>
+<p class="lead lead-mistakes"><strong>Common mistakes.</strong></p>
+<ul>
+<li><em>Every fill comes out dithered, including the screen clear.</em> The halftone
+  pattern is sticky: it stays loaded until you clear it, and the machine treats
+  "any non-zero row" as "halftone on". Clear it before a plain fill —
+  <code>bl.clearHalftone()</code>, or sixteen zero words.</li>
+<li><em>The darkest level turns solid.</em> An all-zero pattern means halftone OFF, not
+  "draw nothing", so a level with no bits set fills with <code>COLOR</code> at full
+  strength. Skip that level instead of loading an empty pattern.</li>
+<li><em>The blit draws nothing at all.</em> If the source is an asset in your cart rather
+  than another plane, <code>CON2.SRC_ABS</code> must be set — otherwise <code>B_BASE</code> is read as
+  an offset into the video region, and the machine refuses a source outside the
+  windows it can read.</li>
+<li><em>The dots are in the right places but the wrong sizes.</em> <code>B_BASE</code> points at the
+  first pixel of the source rectangle, not at the start of the sheet: the
+  source-x has to be added to the pointer (<code>PAT + level * CELL</code>), and
+  <code>B_STRIDE</code> stays the width of the whole sheet.</li>
+</ul></div><div class="run-slot"></div></section>
+<section class="step" id="step-10" data-step="10"><header class="step-h"><span class="num">10</span><h2>PCM audio, streamed off the disk</h2></header><div class="shared"><p class="lead lead-goal"><strong>Goal.</strong> A sampled loop — a real recording, not a chip tune — plays out of the
+machine while its waveform draws on screen, from a file far too big to hold in
+RAM.</p>
+<p class="lead lead-concept"><strong>Concept.</strong> Step 7's music is a <em>file name</em>: the cart asks, the host plays, and
+the cart never sees a sample. PCM is the opposite. The machine gives you a
+speaker and a drive, and you are the pump between them. Three host imports are
+the whole speaker:</p>
+<table>
+<thead>
+<tr>
+<th>import</th>
+<th>what it does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>hostAudioStreamStart(rate: f32)</code></td>
+<td>open the stream at <code>rate</code> Hz</td>
+</tr>
+<tr>
+<td><code>hostAudioFeed(ptr: u32, len: u32)</code></td>
+<td>append <code>len</code> <strong>signed 8-bit mono</strong> samples</td>
+</tr>
+<tr>
+<td><code>hostAudioStreamStop()</code></td>
+<td>silence it</td>
+</tr>
+</tbody>
+</table>
+<p>and one is the whole drive: <code>diskReadBlock(block: u32, dst: u32)</code> copies one
+512-byte block into your RAM and returns how many bytes it moved. They are plain
+<code>env</code> imports, so a Zig, C or Rust cart reaches them the same way — no bridge
+header, unlike the song request.</p>
+<p class="lead lead-note"><strong>The ring is a pump, not a buffer.</strong> Behind <code>hostAudioFeed</code> is a 32 KiB ring in
+the audio worklet, and the worklet drains it at the sample rate whether or not
+your cart is running. Feed too slowly and it replays the lap it has already
+played — the stutter. Feed too fast and you overwrite samples it has not reached
+yet. At 12517 Hz a 32 KiB ring is 2.6 seconds, so you have two and a half
+seconds of slack and no more. Pre-fill about half of it in <code>init</code>, before the
+first frame; if you do not, playback starts on an empty ring and the first thing
+the reader hears is noise.</p>
+<p class="lead lead-note"><strong>Pace by real dt, never by frame count.</strong> This is the trap, and it is the only
+part of this step the gate has a harness for. The obvious loop is "feed
+<code>rate / 60</code> bytes a frame", or the defensive-looking "clamp <code>dt</code> to 50 ms so one
+bad frame cannot spike the audio". Both are wrong, because the audio clock does
+not care how often the page draws. A phone at 18 fps, a 144 Hz monitor, or a tab
+hidden for three seconds each leave the song position drifting away from where
+the speaker actually is, and once it is a ring away it never comes back. The
+correct quantity is bytes the <em>speaker</em> consumed since the previous frame:
+<code>rate * dt / 1000</code>, with the frame's true <code>dt</code>. <code>apps/stream_pacing_check.mjs</code>
+drives the real carts through 30 seconds at 60 Hz, at 144 Hz, at a jittery
+18 fps and across a 3 s stall, and fails if the position ever strays more than
+one ring from <code>rate * wall_time</code>. Given a cart from before this rule it fails,
+which is how the harness proves it can see the bug.</p>
+<p class="lead lead-note"><strong>A backlog bigger than the ring is a skip, not a catch-up.</strong> If a stall leaves
+you owing 100 KiB, feeding 100 KiB laps the 32 KiB ring three times and the
+listener hears only the last lap. Drop whole rings from the budget and move the
+<em>clip</em> position forward by the same amount — the song jumps, which is what
+actually happened, instead of playing three laps of stale audio in fast-forward.</p>
+<p class="lead lead-note"><strong>Finding the file.</strong> The disk is a flat FAT (<code>docs/FLOPPY_DISK.md</code>): a <code>ZMDISK</code>
+descriptor, a file count, then 32-byte entries of <code>name[16]</code>, <code>start: u32</code>,
+<code>len: u32</code>, <code>type: u8</code>. <code>start</code> is a <strong>byte offset into the image</strong>, not a block
+number — divide by 512 yourself. There are two layouts, v1 (descriptor <code>$000</code>,
+count <code>$2E4</code>, FAT <code>$300</code>) and v2, which puts an executable boot sector first and
+moves them to <code>$400</code> / <code>$4F4</code> / <code>$800</code>. Probe v2 first: a v1 image has nothing
+at <code>$400</code>, but a v2 image has a boot sector at <code>$000</code>, so testing v1 first
+mis-identifies every v2 disk.</p></div><div class="langs"><section class="lang" data-lang="zig" id="step-10-zig"><h3>Zig</h3><p>ZigOS already owns the FAT walk, so the Zig cart only does the pumping.
+<code>libs/zig/disk.zig</code> is the reader; <code>zg.disk.mount()</code> returns the layout or
+<code>null</code>, and <code>zg.disk.find()</code> a <code>{ start, len, kind }</code> entry.</p>
+<figure class="cb" data-lang=zig><figcaption><span class="cb-lang">zig</span><span class="cb-n">10 lines</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code><span class="tok-kw">const</span> RATE: <span class="tok-kw">f32</span> = <span class="tok-num">12517.0</span>;  <span class="tok-cm">// Hz, and the .raw carries no header saying so</span>
+<span class="tok-kw">const</span> RING: <span class="tok-kw">f32</span> = <span class="tok-num">32768.0</span>;  <span class="tok-cm">// the worklet&#x27;s stream ring, in bytes</span>
+<span class="tok-kw">const</span> RING_BLOCKS: <span class="tok-kw">u32</span> = <span class="tok-num">64</span>; <span class="tok-cm">// 32768 / 512</span>
+
+first_block: <span class="tok-kw">u32</span> = <span class="tok-num">0</span>,
+total_blocks: <span class="tok-kw">u32</span> = <span class="tok-num">0</span>,
+file_len: <span class="tok-kw">u32</span> = <span class="tok-num">0</span>,
+cur: <span class="tok-kw">u32</span> = <span class="tok-num">0</span>,      <span class="tok-cm">// blocks fed so far; wraps, which loops the clip</span>
+budget: <span class="tok-kw">f32</span> = <span class="tok-num">0</span>,   <span class="tok-cm">// bytes the speaker has consumed and we still owe it</span>
+wave: [<span class="tok-num">512</span>]<span class="tok-kw">u8</span> = [_]<span class="tok-kw">u8</span>{<span class="tok-num">128</span>} ** <span class="tok-num">512</span>, <span class="tok-cm">// the block we fed last, for the display</span></code></pre></figure>
+<figure class="cb" data-lang=zig><figcaption><span class="cb-lang">zig</span><span class="cb-n">11 lines</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code>    <span class="tok-cm">// Pull one block off the disk, feed it to the speaker, keep it to draw.</span>
+    <span class="tok-kw">fn</span> <span class="tok-fn">feedBlock</span>(self: *Demo) <span class="tok-kw">void</span> {
+        <span class="tok-kw">var</span> buf: [<span class="tok-num">512</span>]<span class="tok-kw">u8</span> = <span class="tok-kw">undefined</span>;
+        _ = zg.<span class="tok-fn">readBlock</span>(self.first_block + self.cur, &amp;buf);
+        <span class="tok-kw">const</span> done = self.cur * <span class="tok-num">512</span>;
+        <span class="tok-kw">const</span> n: <span class="tok-kw">usize</span> = @<span class="tok-fn">min</span>(@<span class="tok-fn">as</span>(<span class="tok-kw">u32</span>, <span class="tok-num">512</span>), self.file_len - done); <span class="tok-cm">// last block is short</span>
+        zg.<span class="tok-fn">audioFeed</span>(buf[<span class="tok-num">0</span>..n]);
+        @<span class="tok-fn">memcpy</span>(self.wave[<span class="tok-num">0</span>..], buf[<span class="tok-num">0</span>..]);
+        self.cur += <span class="tok-num">1</span>;
+        <span class="tok-kw">if</span> (self.cur &gt;= self.total_blocks) self.cur = <span class="tok-num">0</span>; <span class="tok-cm">// loop</span>
+    }</code></pre></figure>
+<p>In <code>init</code>, after the palette:</p>
+<figure class="cb" data-lang=zig><figcaption><span class="cb-lang">zig</span><span class="cb-n">8 lines</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code>        <span class="tok-kw">const</span> lay = zg.disk.<span class="tok-fn">mount</span>() <span class="tok-kw">orelse</span> <span class="tok-kw">return</span>;           <span class="tok-cm">// no disk in the drive</span>
+        <span class="tok-kw">const</span> e = zg.disk.<span class="tok-fn">find</span>(lay, <span class="tok-str">&quot;MICROMIX.RAW&quot;</span>) <span class="tok-kw">orelse</span> <span class="tok-kw">return</span>;
+        self.first_block = e.start / <span class="tok-num">512</span>;
+        self.file_len = e.len;
+        self.total_blocks = (e.len + <span class="tok-num">511</span>) / <span class="tok-num">512</span>;
+
+        zg.<span class="tok-fn">audioStreamStart</span>(RATE);
+        <span class="tok-kw">for</span> (<span class="tok-num">0</span>..<span class="tok-num">32</span>) |_| self.<span class="tok-fn">feedBlock</span>(); <span class="tok-cm">// pre-fill ~half the ring</span></code></pre></figure>
+<p>And <code>update</code> is the pacing rule, in full:</p>
+<figure class="cb" data-lang=zig><figcaption><span class="cb-lang">zig</span><span class="cb-n">20 lines</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code>    <span class="tok-kw">pub</span> <span class="tok-kw">fn</span> <span class="tok-fn">update</span>(self: *Demo, zigos: *ZigOS, elapsed_time: <span class="tok-kw">f32</span>) <span class="tok-kw">void</span> {
+        _ = zigos;
+        <span class="tok-kw">if</span> (self.total_blocks == <span class="tok-num">0</span>) <span class="tok-kw">return</span>;
+        <span class="tok-cm">// Bytes the speaker consumed since the previous frame. The REAL dt: a</span>
+        <span class="tok-cm">// clamped or assumed one leaves the clip behind the speaker for good.</span>
+        self.budget += RATE * @<span class="tok-fn">max</span>(elapsed_time, <span class="tok-num">0</span>) / <span class="tok-num">1000.0</span>;
+        <span class="tok-cm">// Whole rings of backlog would only lap the ring onto itself. Skip them</span>
+        <span class="tok-cm">// in the clip instead, then feed at most one ring&#x27;s worth.</span>
+        <span class="tok-kw">const</span> rings = @<span class="tok-fn">floor</span>(self.budget / RING);
+        <span class="tok-kw">if</span> (rings &gt; <span class="tok-num">0</span>) {
+            <span class="tok-kw">const</span> skip = @<span class="tok-fn">as</span>(<span class="tok-kw">u64</span>, @<span class="tok-fn">intFromFloat</span>(rings)) * RING_BLOCKS;
+            self.cur = @<span class="tok-fn">intCast</span>((@<span class="tok-fn">as</span>(<span class="tok-kw">u64</span>, self.cur) + skip) % self.total_blocks);
+            self.budget -= rings * RING;
+        }
+        <span class="tok-kw">var</span> guard: <span class="tok-kw">u32</span> = <span class="tok-num">0</span>;
+        <span class="tok-kw">while</span> (self.budget &gt;= <span class="tok-num">512</span> <span class="tok-kw">and</span> guard &lt; RING_BLOCKS) : (guard += <span class="tok-num">1</span>) {
+            self.<span class="tok-fn">feedBlock</span>();
+            self.budget -= <span class="tok-num">512</span>;
+        }
+    }</code></pre></figure>
+<p>The <code>guard</code> is not decoration. <code>budget</code> is a float you add to every frame; one
+absurd <code>dt</code> from a browser that was asleep must cost a bounded number of disk
+reads, not a loop that runs until the frame is over.</p></section><section class="lang" data-lang="c" id="step-10-c"><h3>C</h3><p>No ZigOS, so the FAT walk is yours — about twenty lines, and it is the same
+twenty lines in any language.</p>
+<figure class="cb" data-lang=c><figcaption><span class="cb-lang">c</span><span class="cb-n">14 lines</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code><span class="tok-fn">__attribute__</span>((<span class="tok-fn">import_module</span>(<span class="tok-str">&quot;env&quot;</span>), <span class="tok-fn">import_name</span>(<span class="tok-str">&quot;diskReadBlock&quot;</span>)))
+<span class="tok-kw">extern</span> <span class="tok-kw">int</span> <span class="tok-fn">diskReadBlock</span>(<span class="tok-kw">unsigned</span> block, <span class="tok-kw">void</span> *dst);
+<span class="tok-fn">__attribute__</span>((<span class="tok-fn">import_module</span>(<span class="tok-str">&quot;env&quot;</span>), <span class="tok-fn">import_name</span>(<span class="tok-str">&quot;hostAudioStreamStart&quot;</span>)))
+<span class="tok-kw">extern</span> <span class="tok-kw">void</span> <span class="tok-fn">hostAudioStreamStart</span>(<span class="tok-kw">float</span> rate);
+<span class="tok-fn">__attribute__</span>((<span class="tok-fn">import_module</span>(<span class="tok-str">&quot;env&quot;</span>), <span class="tok-fn">import_name</span>(<span class="tok-str">&quot;hostAudioFeed&quot;</span>)))
+<span class="tok-kw">extern</span> <span class="tok-kw">void</span> <span class="tok-fn">hostAudioFeed</span>(<span class="tok-kw">const</span> <span class="tok-kw">void</span> *ptr, <span class="tok-kw">unsigned</span> len);
+
+<span class="tok-pp">#define</span> RATE        <span class="tok-num">12517</span>.0f
+<span class="tok-pp">#define</span> RING        <span class="tok-num">32768</span>.0f
+<span class="tok-pp">#define</span> RING_BLOCKS <span class="tok-num">64</span>
+
+<span class="tok-kw">static</span> <span class="tok-kw">unsigned</span> first_block, total_blocks, file_len, cur;
+<span class="tok-kw">static</span> <span class="tok-kw">float</span> budget;
+<span class="tok-kw">static</span> <span class="tok-kw">unsigned</span> <span class="tok-kw">char</span> wave[<span class="tok-num">512</span>];</code></pre></figure>
+<figure class="cb" data-lang=c><figcaption><span class="cb-lang">c</span><span class="cb-n">48 lines</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code><span class="tok-kw">static</span> <span class="tok-kw">unsigned</span> <span class="tok-kw">char</span> blk[<span class="tok-num">512</span>];
+
+<span class="tok-cm">// Read the 512-byte block holding `off` and return the offset within it.</span>
+<span class="tok-kw">static</span> <span class="tok-kw">unsigned</span> <span class="tok-fn">at</span>(<span class="tok-kw">unsigned</span> off) {
+    <span class="tok-fn">diskReadBlock</span>(off / <span class="tok-num">512</span>, blk);
+    <span class="tok-kw">return</span> off % <span class="tok-num">512</span>;
+}
+<span class="tok-kw">static</span> <span class="tok-kw">unsigned</span> <span class="tok-fn">rd32</span>(<span class="tok-kw">unsigned</span> off) {
+    <span class="tok-kw">unsigned</span> i = <span class="tok-fn">at</span>(off);
+    <span class="tok-kw">return</span> blk[i] | (blk[i+<span class="tok-num">1</span>] &lt;&lt; <span class="tok-num">8</span>) | (blk[i+<span class="tok-num">2</span>] &lt;&lt; <span class="tok-num">16</span>) | ((<span class="tok-kw">unsigned</span>)blk[i+<span class="tok-num">3</span>] &lt;&lt; <span class="tok-num">24</span>);
+}
+<span class="tok-kw">static</span> <span class="tok-kw">int</span> <span class="tok-fn">magic_at</span>(<span class="tok-kw">unsigned</span> off) {
+    <span class="tok-kw">unsigned</span> i = <span class="tok-fn">at</span>(off);
+    <span class="tok-kw">const</span> <span class="tok-kw">char</span> *m = <span class="tok-str">&quot;ZMDISK&quot;</span>;
+    <span class="tok-kw">for</span> (<span class="tok-kw">int</span> k = <span class="tok-num">0</span>; k &lt; <span class="tok-num">6</span>; k++) <span class="tok-kw">if</span> (blk[i + k] != (<span class="tok-kw">unsigned</span> <span class="tok-kw">char</span>)m[k]) <span class="tok-kw">return</span> <span class="tok-num">0</span>;
+    <span class="tok-kw">return</span> <span class="tok-num">1</span>;
+}
+
+<span class="tok-cm">// Find `name` in the flat FAT. Probes v2 FIRST: a v2 image has a boot sector at</span>
+<span class="tok-cm">// $000, so testing v1 first would mis-identify it.</span>
+<span class="tok-kw">static</span> <span class="tok-kw">int</span> <span class="tok-fn">find_file</span>(<span class="tok-kw">const</span> <span class="tok-kw">char</span> *name) {
+    <span class="tok-kw">unsigned</span> count_off, fat;
+    <span class="tok-kw">if</span> (<span class="tok-fn">magic_at</span>(<span class="tok-num">0x400</span>))      { count_off = <span class="tok-num">0x4f4</span>; fat = <span class="tok-num">0x800</span>; }
+    <span class="tok-kw">else</span> <span class="tok-kw">if</span> (<span class="tok-fn">magic_at</span>(<span class="tok-num">0x000</span>)) { count_off = <span class="tok-num">0x2e4</span>; fat = <span class="tok-num">0x300</span>; }
+    <span class="tok-kw">else</span> <span class="tok-kw">return</span> <span class="tok-num">0</span>;                                   <span class="tok-cm">// no ZigMachine disk mounted</span>
+    <span class="tok-kw">unsigned</span> ci = <span class="tok-fn">at</span>(count_off);
+    <span class="tok-kw">unsigned</span> count = blk[ci] | (blk[ci + <span class="tok-num">1</span>] &lt;&lt; <span class="tok-num">8</span>);
+    <span class="tok-kw">for</span> (<span class="tok-kw">unsigned</span> i = <span class="tok-num">0</span>; i &lt; count; i++) {
+        <span class="tok-kw">unsigned</span> e = <span class="tok-fn">at</span>(fat + i * <span class="tok-num">32</span>), k = <span class="tok-num">0</span>;
+        <span class="tok-kw">while</span> (k &lt; <span class="tok-num">16</span> &amp;&amp; name[k] &amp;&amp; blk[e + k] == (<span class="tok-kw">unsigned</span> <span class="tok-kw">char</span>)name[k]) k++;
+        <span class="tok-kw">if</span> (name[k] || (k &lt; <span class="tok-num">16</span> &amp;&amp; blk[e + k])) <span class="tok-kw">continue</span>; <span class="tok-cm">// both must end here</span>
+        first_block = <span class="tok-fn">rd32</span>(fat + i * <span class="tok-num">32</span> + <span class="tok-num">0x10</span>) / <span class="tok-num">512</span>;   <span class="tok-cm">// `start` is a BYTE offset</span>
+        file_len    = <span class="tok-fn">rd32</span>(fat + i * <span class="tok-num">32</span> + <span class="tok-num">0x14</span>);
+        total_blocks = (file_len + <span class="tok-num">511</span>) / <span class="tok-num">512</span>;
+        <span class="tok-kw">return</span> <span class="tok-num">1</span>;
+    }
+    <span class="tok-kw">return</span> <span class="tok-num">0</span>;
+}
+
+<span class="tok-kw">static</span> <span class="tok-kw">void</span> <span class="tok-fn">feed_block</span>(<span class="tok-kw">void</span>) {
+    <span class="tok-kw">unsigned</span> <span class="tok-kw">char</span> buf[<span class="tok-num">512</span>];
+    <span class="tok-fn">diskReadBlock</span>(first_block + cur, buf);
+    <span class="tok-kw">unsigned</span> done = cur * <span class="tok-num">512</span>;
+    <span class="tok-kw">unsigned</span> n = file_len - done &lt; <span class="tok-num">512</span> ? file_len - done : <span class="tok-num">512</span>;
+    <span class="tok-fn">hostAudioFeed</span>(buf, n);
+    <span class="tok-kw">for</span> (<span class="tok-kw">int</span> i = <span class="tok-num">0</span>; i &lt; <span class="tok-num">512</span>; i++) wave[i] = buf[i];
+    <span class="tok-kw">if</span> (++cur &gt;= total_blocks) cur = <span class="tok-num">0</span>;
+}</code></pre></figure>
+<p>At the end of <code>boot</code>:</p>
+<figure class="cb" data-lang=c><figcaption><span class="cb-lang">c</span><span class="cb-n">4 lines</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code>    <span class="tok-kw">if</span> (<span class="tok-fn">find_file</span>(<span class="tok-str">&quot;MICROMIX.RAW&quot;</span>)) {
+        <span class="tok-fn">hostAudioStreamStart</span>(RATE);
+        <span class="tok-kw">for</span> (<span class="tok-kw">int</span> i = <span class="tok-num">0</span>; i &lt; <span class="tok-num">32</span>; i++) <span class="tok-fn">feed_block</span>(); <span class="tok-cm">// pre-fill ~half the ring</span>
+    }</code></pre></figure>
+<p>And in <code>frame(float dt)</code>:</p>
+<figure class="cb" data-lang=c><figcaption><span class="cb-lang">c</span><span class="cb-n">11 lines</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code>    <span class="tok-kw">if</span> (total_blocks) {
+        budget += RATE * (dt &gt; <span class="tok-num">0</span> ? dt : <span class="tok-num">0</span>) / <span class="tok-num">1000</span>.0f;   <span class="tok-cm">// the REAL dt, never rate/60</span>
+        <span class="tok-kw">while</span> (budget &gt;= RING) {                        <span class="tok-cm">// a whole ring behind: skip it</span>
+            cur = (cur + RING_BLOCKS) % total_blocks;
+            budget -= RING;
+        }
+        <span class="tok-kw">for</span> (<span class="tok-kw">int</span> g = <span class="tok-num">0</span>; budget &gt;= <span class="tok-num">512</span>.0f &amp;&amp; g &lt; RING_BLOCKS; g++) {
+            <span class="tok-fn">feed_block</span>();
+            budget -= <span class="tok-num">512</span>.0f;
+        }
+    }</code></pre></figure>
+<p>Note <code>find_file</code> reuses one static <code>blk</code> buffer for every probe, so <code>rd32</code> must
+re-read before each field: <code>at()</code> is what makes that safe, and reading two fields
+from one stale <code>blk</code> is the bug waiting in any shortened version of this.</p></section><section class="lang" data-lang="rust" id="step-10-rust"><h3>Rust</h3><figure class="cb" data-lang=rust><figcaption><span class="cb-lang">rust</span><span class="cb-n">20 lines</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code><span class="tok-at">#[link(wasm_import_module = &quot;env&quot;)]</span>
+<span class="tok-kw">extern</span> <span class="tok-str">&quot;C&quot;</span> {
+    <span class="tok-kw">fn</span> <span class="tok-fn">diskReadBlock</span>(block: <span class="tok-kw">u32</span>, dst: *<span class="tok-kw">mut</span> <span class="tok-kw">u8</span>) -&gt; <span class="tok-kw">i32</span>;
+    <span class="tok-kw">fn</span> <span class="tok-fn">hostAudioStreamStart</span>(rate: <span class="tok-kw">f32</span>);
+    <span class="tok-kw">fn</span> <span class="tok-fn">hostAudioFeed</span>(ptr: *<span class="tok-kw">const</span> <span class="tok-kw">u8</span>, len: <span class="tok-kw">u32</span>);
+}
+
+<span class="tok-kw">const</span> RATE: <span class="tok-kw">f32</span> = <span class="tok-num">12517.0</span>;
+<span class="tok-kw">const</span> RING: <span class="tok-kw">f32</span> = <span class="tok-num">32768.0</span>;
+<span class="tok-kw">const</span> RING_BLOCKS: <span class="tok-kw">u32</span> = <span class="tok-num">64</span>;
+
+<span class="tok-kw">pub</span> <span class="tok-kw">struct</span> Stream {
+    first_block: <span class="tok-kw">u32</span>,
+    total_blocks: <span class="tok-kw">u32</span>,
+    file_len: <span class="tok-kw">u32</span>,
+    cur: <span class="tok-kw">u32</span>,
+    budget: <span class="tok-kw">f32</span>,
+    <span class="tok-kw">pub</span> wave: [<span class="tok-kw">u8</span>; <span class="tok-num">512</span>],
+    blk: [<span class="tok-kw">u8</span>; <span class="tok-num">512</span>],
+}</code></pre></figure>
+<figure class="cb" data-lang=rust><figcaption><span class="cb-lang">rust</span><span class="cb-n">85 lines</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code><span class="tok-kw">impl</span> Stream {
+    <span class="tok-cm">/// Read the block holding `off`; returns the offset within `self.blk`.</span>
+    <span class="tok-kw">fn</span> <span class="tok-fn">at</span>(&amp;<span class="tok-kw">mut</span> <span class="tok-kw">self</span>, off: <span class="tok-kw">u32</span>) -&gt; <span class="tok-kw">usize</span> {
+        <span class="tok-cm">// SAFETY: the drive copies exactly 512 bytes into a 512-byte buffer.</span>
+        <span class="tok-kw">unsafe</span> { <span class="tok-fn">diskReadBlock</span>(off / <span class="tok-num">512</span>, <span class="tok-kw">self</span>.blk.<span class="tok-fn">as_mut_ptr</span>()) };
+        (off % <span class="tok-num">512</span>) <span class="tok-kw">as</span> <span class="tok-kw">usize</span>
+    }
+    <span class="tok-kw">fn</span> <span class="tok-fn">rd32</span>(&amp;<span class="tok-kw">mut</span> <span class="tok-kw">self</span>, off: <span class="tok-kw">u32</span>) -&gt; <span class="tok-kw">u32</span> {
+        <span class="tok-kw">let</span> i = <span class="tok-kw">self</span>.<span class="tok-fn">at</span>(off);
+        <span class="tok-kw">u32</span>::<span class="tok-fn">from_le_bytes</span>(<span class="tok-kw">self</span>.blk[i..i + <span class="tok-num">4</span>].<span class="tok-fn">try_into</span>().<span class="tok-fn">unwrap</span>())
+    }
+    <span class="tok-kw">fn</span> <span class="tok-fn">magic_at</span>(&amp;<span class="tok-kw">mut</span> <span class="tok-kw">self</span>, off: <span class="tok-kw">u32</span>) -&gt; <span class="tok-kw">bool</span> {
+        <span class="tok-kw">let</span> i = <span class="tok-kw">self</span>.<span class="tok-fn">at</span>(off);
+        &amp;<span class="tok-kw">self</span>.blk[i..i + <span class="tok-num">6</span>] == b<span class="tok-str">&quot;ZMDISK&quot;</span>
+    }
+
+    <span class="tok-cm">/// Probes v2 FIRST: a v2 image has a boot sector at $000, so testing v1</span>
+    <span class="tok-cm">/// first would mis-identify it.</span>
+    <span class="tok-kw">pub</span> <span class="tok-kw">fn</span> <span class="tok-fn">open</span>(&amp;<span class="tok-kw">mut</span> <span class="tok-kw">self</span>, name: &amp;<span class="tok-kw">str</span>) -&gt; <span class="tok-kw">bool</span> {
+        <span class="tok-kw">let</span> (count_off, fat) = <span class="tok-kw">if</span> <span class="tok-kw">self</span>.<span class="tok-fn">magic_at</span>(<span class="tok-num">0x400</span>) {
+            (<span class="tok-num">0x4f4</span>, <span class="tok-num">0x800</span>)
+        } <span class="tok-kw">else</span> <span class="tok-kw">if</span> <span class="tok-kw">self</span>.<span class="tok-fn">magic_at</span>(<span class="tok-num">0x000</span>) {
+            (<span class="tok-num">0x2e4</span>, <span class="tok-num">0x300</span>)
+        } <span class="tok-kw">else</span> {
+            <span class="tok-kw">return</span> <span class="tok-kw">false</span>; <span class="tok-cm">// no ZigMachine disk mounted</span>
+        };
+        <span class="tok-kw">let</span> i = <span class="tok-kw">self</span>.<span class="tok-fn">at</span>(count_off);
+        <span class="tok-kw">let</span> count = <span class="tok-kw">u16</span>::<span class="tok-fn">from_le_bytes</span>([<span class="tok-kw">self</span>.blk[i], <span class="tok-kw">self</span>.blk[i + <span class="tok-num">1</span>]]) <span class="tok-kw">as</span> <span class="tok-kw">u32</span>;
+        <span class="tok-kw">for</span> n <span class="tok-kw">in</span> <span class="tok-num">0</span>..count {
+            <span class="tok-kw">let</span> e = <span class="tok-kw">self</span>.<span class="tok-fn">at</span>(fat + n * <span class="tok-num">32</span>);
+            <span class="tok-kw">let</span> raw = &amp;<span class="tok-kw">self</span>.blk[e..e + <span class="tok-num">16</span>];
+            <span class="tok-kw">let</span> end = raw.<span class="tok-fn">iter</span>().<span class="tok-fn">position</span>(|&amp;b| b == <span class="tok-num">0</span>).<span class="tok-fn">unwrap_or</span>(<span class="tok-num">16</span>);
+            <span class="tok-kw">if</span> &amp;raw[..end] != name.<span class="tok-fn">as_bytes</span>() {
+                <span class="tok-kw">continue</span>;
+            }
+            <span class="tok-kw">self</span>.first_block = <span class="tok-kw">self</span>.<span class="tok-fn">rd32</span>(fat + n * <span class="tok-num">32</span> + <span class="tok-num">0x10</span>) / <span class="tok-num">512</span>; <span class="tok-cm">// a BYTE offset</span>
+            <span class="tok-kw">self</span>.file_len = <span class="tok-kw">self</span>.<span class="tok-fn">rd32</span>(fat + n * <span class="tok-num">32</span> + <span class="tok-num">0x14</span>);
+            <span class="tok-kw">self</span>.total_blocks = (<span class="tok-kw">self</span>.file_len + <span class="tok-num">511</span>) / <span class="tok-num">512</span>;
+            <span class="tok-kw">return</span> <span class="tok-kw">true</span>;
+        }
+        <span class="tok-kw">false</span>
+    }
+
+    <span class="tok-kw">fn</span> <span class="tok-fn">feed_block</span>(&amp;<span class="tok-kw">mut</span> <span class="tok-kw">self</span>) {
+        <span class="tok-kw">let</span> <span class="tok-kw">mut</span> buf = [0<span class="tok-kw">u8</span>; <span class="tok-num">512</span>];
+        <span class="tok-cm">// SAFETY: 512 bytes into a 512-byte buffer, then `n` of them to the ring.</span>
+        <span class="tok-kw">unsafe</span> {
+            <span class="tok-fn">diskReadBlock</span>(<span class="tok-kw">self</span>.first_block + <span class="tok-kw">self</span>.cur, buf.<span class="tok-fn">as_mut_ptr</span>());
+            <span class="tok-kw">let</span> n = (<span class="tok-kw">self</span>.file_len - <span class="tok-kw">self</span>.cur * <span class="tok-num">512</span>).<span class="tok-fn">min</span>(<span class="tok-num">512</span>);
+            <span class="tok-fn">hostAudioFeed</span>(buf.<span class="tok-fn">as_ptr</span>(), n);
+        }
+        <span class="tok-kw">self</span>.wave = buf;
+        <span class="tok-kw">self</span>.cur += <span class="tok-num">1</span>;
+        <span class="tok-kw">if</span> <span class="tok-kw">self</span>.cur &gt;= <span class="tok-kw">self</span>.total_blocks {
+            <span class="tok-kw">self</span>.cur = <span class="tok-num">0</span>; <span class="tok-cm">// loop</span>
+        }
+    }
+
+    <span class="tok-kw">pub</span> <span class="tok-kw">fn</span> <span class="tok-fn">start</span>(&amp;<span class="tok-kw">mut</span> <span class="tok-kw">self</span>) {
+        <span class="tok-cm">// SAFETY: opening the speaker; the host validates the rate.</span>
+        <span class="tok-kw">unsafe</span> { <span class="tok-fn">hostAudioStreamStart</span>(RATE) };
+        <span class="tok-kw">for</span> _ <span class="tok-kw">in</span> <span class="tok-num">0</span>..<span class="tok-num">32</span> {
+            <span class="tok-kw">self</span>.<span class="tok-fn">feed_block</span>(); <span class="tok-cm">// pre-fill ~half the ring</span>
+        }
+    }
+
+    <span class="tok-cm">/// Call once a frame with the frame&#x27;s REAL dt in ms — never `1000.0 / 60.0`.</span>
+    <span class="tok-kw">pub</span> <span class="tok-kw">fn</span> <span class="tok-fn">pump</span>(&amp;<span class="tok-kw">mut</span> <span class="tok-kw">self</span>, dt: <span class="tok-kw">f32</span>) {
+        <span class="tok-kw">if</span> <span class="tok-kw">self</span>.total_blocks == <span class="tok-num">0</span> {
+            <span class="tok-kw">return</span>;
+        }
+        <span class="tok-kw">self</span>.budget += RATE * dt.<span class="tok-fn">max</span>(<span class="tok-num">0.0</span>) / <span class="tok-num">1000.0</span>;
+        <span class="tok-kw">while</span> <span class="tok-kw">self</span>.budget &gt;= RING {
+            <span class="tok-cm">// A whole ring behind: skip the clip forward, do not replay the lap.</span>
+            <span class="tok-kw">self</span>.cur = (<span class="tok-kw">self</span>.cur + RING_BLOCKS) % <span class="tok-kw">self</span>.total_blocks;
+            <span class="tok-kw">self</span>.budget -= RING;
+        }
+        <span class="tok-kw">let</span> <span class="tok-kw">mut</span> guard = <span class="tok-num">0</span>;
+        <span class="tok-kw">while</span> <span class="tok-kw">self</span>.budget &gt;= <span class="tok-num">512.0</span> &amp;&amp; guard &lt; RING_BLOCKS {
+            <span class="tok-kw">self</span>.<span class="tok-fn">feed_block</span>();
+            <span class="tok-kw">self</span>.budget -= <span class="tok-num">512.0</span>;
+            guard += <span class="tok-num">1</span>;
+        }
+    }
+}</code></pre></figure>
+<p>In <code>boot</code>, <code>if s.stream.open("MICROMIX.RAW") { s.stream.start(); }</code>; in
+<code>frame(dt)</code>, <code>s.stream.pump(dt);</code>.</p></section></div><div class="shared after"><p class="lead lead-see"><strong>What you should hear.</strong> The clip, at pitch, looping seamlessly, and staying
+in step with the picture no matter what the frame rate does. Drawing
+<code>wave[x * 512 / 320]</code> as a signed byte gives you the oscilloscope the STREAM
+scene shows. As in step 7, nothing sounds until the reader clicks: a stream
+started before the gesture is held and pre-filled, then released.</p>
+<p class="lead lead-mistakes"><strong>Common mistakes.</strong></p>
+<ul>
+<li><em>It plays, then slowly goes out of sync with the screen and never recovers.</em>
+  Paced by frame count, or with <code>dt</code> clamped. Use the frame's real <code>dt</code>.</li>
+<li><em>A short buzzing lap repeats after the tab was hidden.</em> The backlog was fed
+  instead of skipped: whole rings must move the clip, not the ring.</li>
+<li><em>Noise for the first half-second.</em> No pre-fill — the ring started empty.</li>
+<li><em>The sample plays at the wrong speed, or as a chainsaw.</em> A <code>.raw</code> has no
+  header: the rate is something you must know, and the samples must be signed
+  8-bit mono. Unsigned bytes fed as signed become a square wave.</li>
+<li><em>Nothing at all, on a disk you know has the file.</em> The FAT was probed v1
+  first and matched a v2 image's boot sector, or <code>start</code> was used as a block
+  number instead of a byte offset.</li>
+<li><em>The last few samples click on every loop.</em> The final block is short; feed
+  <code>len - cur * 512</code> bytes, not 512.</li>
+</ul>
+<hr /></div><div class="run-slot"></div></section>
+<section class="step" id="step-11" data-step="11"><header class="step-h"><span class="num">11</span><h2>loading and drawing a 3D object</h2></header><div class="shared"><p class="lead lead-goal"><strong>Goal.</strong> A Wavefront <code>.obj</code> model — an icosahedron, a gem, a logo — spinning
+on screen, flat-shaded by the blitter, drawn from the same file a modelling
+package exports.</p>
+<p class="lead lead-note"><strong>Why this step is Zig only.</strong> Everything a scene needs here is <em>in ZigOS</em>: the
+OBJ parser (<code>zg.obj</code>, <code>libs/zig/utils/obj_loader.zig</code>), the wireframe camera
+pipeline (<code>zg.wireframe</code>) and the three.js-exact projector (<code>zg.zig3d</code>). ZigOS
+is a Zig library that compiles <strong>into</strong> the cart, so a C or Rust cart cannot
+link against it. What those carts see is the sealed ABI — registers, <code>hwBlit</code>,
+the ROM's exports — and there is no 3D in the ABI, because 3D on this machine
+is the CPU's job, the same way it was on a 68000. A C or Rust cart can
+absolutely spin a model; it brings its own parser and its own matrices, roughly
+the sixty lines below rewritten. That is a different tutorial, not a
+translation of this one. The <em>drawing</em> half — <code>triangle</code>, <code>line</code> and the glenz
+minterm in step 12 — is hardware and is reachable from all three languages.</p>
+<p class="lead lead-concept"><strong>Concept.</strong> The whole pipeline is four steps and no hardware knows about any
+of them until the last:</p>
+<ol>
+<li>parse the <code>.obj</code> into vertices and triangles, once;</li>
+<li>every frame, rotate each vertex and project it to screen x/y;</li>
+<li>sort the faces far-to-near, and shade each one from its normal;</li>
+<li>hand the blitter three screen points per face.</li>
+</ol>
+<p class="lead lead-note"><strong>Two loaders, and they are not interchangeable.</strong> <code>zg.obj</code> has both, and
+picking the wrong one is the first thing that goes wrong:</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th><code>Mesh.load(text)</code></th>
+<th><code>obj.parseWire(text)</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>when</td>
+<td>at run time, in <code>init</code></td>
+<td>at <strong>comptime</strong></td>
+</tr>
+<tr>
+<td>reads</td>
+<td><code>v</code> vertices, <code>f</code> faces (fan-triangulated)</td>
+<td><code>v</code> vertices, <code>l</code> line records</td>
+</tr>
+<tr>
+<td>geometry</td>
+<td><strong>recentred and scaled to a unit sphere</strong></td>
+<td>kept exactly as written</td>
+</tr>
+<tr>
+<td>costs</td>
+<td>the fixed <code>Mesh</code> struct, always</td>
+<td>only the arrays you name; the text stays at comptime</td>
+</tr>
+<tr>
+<td>for</td>
+<td>solid objects you will fill</td>
+<td>line objects: logos, grids, ships</td>
+</tr>
+</tbody>
+</table>
+<p>The normalising is the trap. <code>Mesh.load</code> rescales <em>every</em> model to the same
+size, which is what you want when the reader can cycle models and what you
+absolutely do not want for a hand-placed logo — pass that one through
+<code>parseWire</code>, whose contract is that your coordinates survive bit for bit.</p>
+<p class="lead lead-note"><strong>Fixed capacity, because there is no allocator.</strong> <code>obj.Mesh</code> is
+<code>MAX_VERTS = 2048</code> vertices and <code>MAX_FACES = 4096</code> faces as plain arrays, about
+49 KB, and it costs that whether your model has twelve faces or four thousand.
+Add the scene's own <code>pos</code> and <code>screen</code> arrays and a spinning-object scene is
+80 KB of RAM before it draws anything. That is affordable once. It is also why
+you should <strong>not</strong> write <code>self.* = .{}</code> to reset a struct this size: on a large
+struct that emits a second, duplicate data segment in the cart, and this repo
+has paid 517 KB for that mistake. Reset the fields you actually mean to reset.</p>
+<p class="lead lead-note"><strong>Sort the faces; there is no z-buffer.</strong> The machine has one byte per pixel
+and no depth buffer, so visibility is the painter's algorithm: order the faces
+by average z and draw far ones first. An insertion sort over an index array is
+the right call here — a few hundred faces, already nearly sorted from the
+previous frame, so it runs in close to linear time and never allocates.</p>
+<p class="lead lead-note"><strong>Three cameras, pick on purpose.</strong> The projection below is hand-rolled: three
+Euler rotations and a divide by <code>z + DIST</code>, about fifteen lines, and it is what
+most scenes should use. <code>zg.wireframe</code> is the matrix pipeline (zalgebra <code>Mat4</code>,
+camera → projection → 1/w → screen) that the line-object scenes share. <code>zg.zig3d</code>
+is something else entirely: a replay of three.js r49's projector, f32 matrix
+storage and all, so that a CODEF port renders the <em>same</em> pixels as the original
+remake. Reach for <code>zig3d</code> only when byte-fidelity with a CODEF screen is the
+point; it is a fidelity tool, not a faster camera.</p></div><div class="langs"><section class="lang" data-lang="zig" id="step-11-zig"><h3>Zig</h3><p>The model is text, embedded at compile time and parsed at boot:</p>
+<figure class="cb" data-lang=zig><figcaption><span class="cb-lang">zig</span><span class="cb-n">40 lines</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code><span class="tok-kw">const</span> zg = @<span class="tok-fn">import</span>(<span class="tok-str">&quot;zigos&quot;</span>);
+<span class="tok-kw">const</span> ZigOS = zg.ZigOS;
+<span class="tok-kw">const</span> LogicalFB = zg.LogicalFB;
+<span class="tok-kw">const</span> Blitter = zg.Blitter;
+<span class="tok-kw">const</span> Vec2 = zg.BlitVec2;   <span class="tok-cm">// { x: i16, y: i16 } — what the blitter takes</span>
+<span class="tok-kw">const</span> obj = zg.obj;
+
+<span class="tok-kw">const</span> W: <span class="tok-kw">i32</span> = zg.WIDTH;
+<span class="tok-kw">const</span> H: <span class="tok-kw">i32</span> = zg.HEIGHT;
+<span class="tok-kw">const</span> DIST: <span class="tok-kw">f32</span> = <span class="tok-num">3.2</span>;      <span class="tok-cm">// camera distance; the mesh is a unit sphere</span>
+<span class="tok-kw">const</span> FOV: <span class="tok-kw">f32</span> = <span class="tok-num">150.0</span>;     <span class="tok-cm">// pixels per unit at z = 1</span>
+<span class="tok-kw">const</span> LEVELS: <span class="tok-kw">u8</span> = <span class="tok-num">12</span>;      <span class="tok-cm">// shade ramp, palette indices 1..12</span>
+<span class="tok-kw">const</span> LIGHT = [<span class="tok-num">3</span>]<span class="tok-kw">f32</span>{ <span class="tok-num">0.36</span>, <span class="tok-num">0.48</span>, -<span class="tok-num">0.80</span> };
+
+<span class="tok-kw">const</span> MODEL = @<span class="tok-fn">embedFile</span>(<span class="tok-str">&quot;../assets/obj/icosahedron.obj&quot;</span>);
+
+<span class="tok-kw">pub</span> <span class="tok-kw">const</span> Demo = <span class="tok-kw">struct</span> {
+    blitter: Blitter = .{},
+    mesh: obj.Mesh = .{},
+    ax: <span class="tok-kw">f32</span> = <span class="tok-num">0</span>,
+    ay: <span class="tok-kw">f32</span> = <span class="tok-num">0</span>,
+    pos: [obj.MAX_VERTS][<span class="tok-num">3</span>]<span class="tok-kw">f32</span> = <span class="tok-kw">undefined</span>,    <span class="tok-cm">// rotated, before projection</span>
+    screen: [obj.MAX_VERTS]Vec2 = <span class="tok-kw">undefined</span>,   <span class="tok-cm">// projected, ready to blit</span>
+
+    <span class="tok-kw">pub</span> <span class="tok-kw">fn</span> <span class="tok-fn">init</span>(self: *Demo, zigos: *ZigOS) <span class="tok-kw">void</span> {
+        self.blitter.<span class="tok-fn">init</span>();
+        <span class="tok-kw">const</span> fb: *LogicalFB = &amp;zigos.lfbs[<span class="tok-num">0</span>];
+        fb.is_enabled = <span class="tok-kw">true</span>;
+        fb.<span class="tok-fn">setPaletteEntry</span>(<span class="tok-num">0</span>, .{ .r = <span class="tok-num">0</span>, .g = <span class="tok-num">0</span>, .b = <span class="tok-num">0</span>, .a = <span class="tok-num">0</span> });
+        <span class="tok-kw">for</span> (<span class="tok-num">0</span>..LEVELS) |l| {
+            <span class="tok-kw">const</span> f: <span class="tok-kw">f32</span> = @<span class="tok-fn">as</span>(<span class="tok-kw">f32</span>, @<span class="tok-fn">floatFromInt</span>(l)) / @<span class="tok-fn">as</span>(<span class="tok-kw">f32</span>, LEVELS - <span class="tok-num">1</span>);
+            fb.<span class="tok-fn">setPaletteEntry</span>(<span class="tok-num">1</span> + @<span class="tok-fn">as</span>(<span class="tok-kw">u8</span>, @<span class="tok-fn">intCast</span>(l)), .{
+                .r = <span class="tok-fn">chan</span>(<span class="tok-num">0.15</span> + <span class="tok-num">0.85</span> * f),
+                .g = <span class="tok-fn">chan</span>(<span class="tok-num">0.45</span> + <span class="tok-num">0.55</span> * f),
+                .b = <span class="tok-fn">chan</span>(<span class="tok-num">0.55</span> + <span class="tok-num">0.45</span> * f),
+                .a = <span class="tok-num">255</span>,
+            });
+        }
+        self.mesh.<span class="tok-fn">load</span>(MODEL); <span class="tok-cm">// runtime parse into the fixed-capacity mesh</span>
+    }</code></pre></figure>
+<p><code>update</code> turns the object and projects it. Rotation and projection belong here,
+not in <code>render</code>: <code>render</code> may be called for more than one plane.</p>
+<figure class="cb" data-lang=zig><figcaption><span class="cb-lang">zig</span><span class="cb-n">22 lines</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code>    <span class="tok-kw">pub</span> <span class="tok-kw">fn</span> <span class="tok-fn">update</span>(self: *Demo, zigos: *ZigOS, dt: <span class="tok-kw">f32</span>) <span class="tok-kw">void</span> {
+        _ = zigos;
+        _ = dt;
+        self.ax += <span class="tok-num">0.019</span>;
+        self.ay += <span class="tok-num">0.027</span>;
+        <span class="tok-kw">const</span> sx = @<span class="tok-fn">sin</span>(self.ax);
+        <span class="tok-kw">const</span> cx = @<span class="tok-fn">cos</span>(self.ax);
+        <span class="tok-kw">const</span> sy = @<span class="tok-fn">sin</span>(self.ay);
+        <span class="tok-kw">const</span> cy = @<span class="tok-fn">cos</span>(self.ay);
+        <span class="tok-kw">for</span> (self.mesh.verts[<span class="tok-num">0</span>..self.mesh.nverts], <span class="tok-num">0</span>..) |p, i| {
+            <span class="tok-kw">const</span> y1 = p.y * cx - p.z * sx;      <span class="tok-cm">// rotate about X</span>
+            <span class="tok-kw">const</span> z1 = p.y * sx + p.z * cx;
+            <span class="tok-kw">const</span> x2 = p.x * cy + z1 * sy;       <span class="tok-cm">// then about Y</span>
+            <span class="tok-kw">const</span> z2 = -p.x * sy + z1 * cy;
+            self.pos[i] = .{ x2, y1, z2 };
+            <span class="tok-kw">const</span> zc = z2 + DIST;                <span class="tok-cm">// push it in front of the camera</span>
+            self.screen[i] = .{
+                .x = @<span class="tok-fn">intFromFloat</span>(@<span class="tok-fn">as</span>(<span class="tok-kw">f32</span>, @<span class="tok-fn">floatFromInt</span>(@<span class="tok-fn">divTrunc</span>(W, <span class="tok-num">2</span>))) + x2 * FOV / zc),
+                .y = @<span class="tok-fn">intFromFloat</span>(@<span class="tok-fn">as</span>(<span class="tok-kw">f32</span>, @<span class="tok-fn">floatFromInt</span>(@<span class="tok-fn">divTrunc</span>(H, <span class="tok-num">2</span>))) + y1 * FOV / zc),
+            };
+        }
+    }</code></pre></figure>
+<p><code>render</code> sorts, shades and blits — three screen points per face:</p>
+<figure class="cb" data-lang=zig><figcaption><span class="cb-lang">zig</span><span class="cb-n">61 lines</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code>    <span class="tok-kw">pub</span> <span class="tok-kw">fn</span> <span class="tok-fn">render</span>(self: *Demo, zigos: *ZigOS, dt: <span class="tok-kw">f32</span>) <span class="tok-kw">void</span> {
+        _ = dt;
+        <span class="tok-kw">const</span> fb: *LogicalFB = &amp;zigos.lfbs[<span class="tok-num">0</span>];
+        <span class="tok-kw">const</span> b = &amp;self.blitter;
+        b.<span class="tok-fn">clear</span>(fb, <span class="tok-num">0</span>);
+        <span class="tok-kw">var</span> order: [obj.MAX_FACES]<span class="tok-kw">u16</span> = <span class="tok-kw">undefined</span>;
+        self.<span class="tok-fn">sortFaces</span>(&amp;order);
+        <span class="tok-kw">for</span> (order[<span class="tok-num">0</span>..self.mesh.nfaces]) |f| {
+            <span class="tok-kw">const</span> t = self.mesh.faces[f];
+            <span class="tok-kw">const</span> shade: <span class="tok-kw">u8</span> = <span class="tok-num">1</span> + self.<span class="tok-fn">brightness</span>(f);
+            b.<span class="tok-fn">triangle</span>(fb, self.screen[t.a], self.screen[t.b], self.screen[t.c], shade);
+        }
+    }
+
+    <span class="tok-cm">// Lambert on the face normal: |n . light| / |n|, quantised to the ramp.</span>
+    <span class="tok-cm">// The ABSOLUTE value is deliberate — with no back-face culling a face turned</span>
+    <span class="tok-cm">// away would otherwise go black and punch a hole in the solid.</span>
+    <span class="tok-kw">fn</span> <span class="tok-fn">brightness</span>(self: *Demo, face: <span class="tok-kw">u16</span>) <span class="tok-kw">u8</span> {
+        <span class="tok-kw">const</span> t = self.mesh.faces[face];
+        <span class="tok-kw">const</span> a = self.pos[t.a];
+        <span class="tok-kw">const</span> n = <span class="tok-fn">cross</span>(<span class="tok-fn">sub</span>(self.pos[t.b], a), <span class="tok-fn">sub</span>(self.pos[t.c], a));
+        <span class="tok-kw">const</span> d = @<span class="tok-fn">abs</span>(<span class="tok-fn">dot</span>(n, LIGHT)) / (<span class="tok-fn">len</span>(n) + <span class="tok-num">0.0001</span>);
+        <span class="tok-kw">return</span> @<span class="tok-fn">intFromFloat</span>(@<span class="tok-fn">min</span>(d, <span class="tok-num">0.999</span>) * @<span class="tok-fn">as</span>(<span class="tok-kw">f32</span>, LEVELS - <span class="tok-num">1</span>));
+    }
+
+    <span class="tok-cm">// Painter&#x27;s algorithm: far faces first. Insertion sort over an index array,</span>
+    <span class="tok-cm">// which is near-linear on a list that was already sorted last frame.</span>
+    <span class="tok-kw">fn</span> <span class="tok-fn">sortFaces</span>(self: *Demo, order: *[obj.MAX_FACES]<span class="tok-kw">u16</span>) <span class="tok-kw">void</span> {
+        <span class="tok-kw">const</span> n = self.mesh.nfaces;
+        <span class="tok-kw">for</span> (<span class="tok-num">0</span>..n) |i| order[i] = @<span class="tok-fn">intCast</span>(i);
+        <span class="tok-kw">var</span> i: <span class="tok-kw">usize</span> = <span class="tok-num">1</span>;
+        <span class="tok-kw">while</span> (i &lt; n) : (i += <span class="tok-num">1</span>) {
+            <span class="tok-kw">const</span> cur = order[i];
+            <span class="tok-kw">const</span> key = self.<span class="tok-fn">avgZ</span>(cur);
+            <span class="tok-kw">var</span> j: <span class="tok-kw">usize</span> = i;
+            <span class="tok-kw">while</span> (j &gt; <span class="tok-num">0</span> <span class="tok-kw">and</span> self.<span class="tok-fn">avgZ</span>(order[j - <span class="tok-num">1</span>]) &lt; key) : (j -= <span class="tok-num">1</span>) order[j] = order[j - <span class="tok-num">1</span>];
+            order[j] = cur;
+        }
+    }
+
+    <span class="tok-kw">fn</span> <span class="tok-fn">avgZ</span>(self: *Demo, face: <span class="tok-kw">u16</span>) <span class="tok-kw">f32</span> {
+        <span class="tok-kw">const</span> t = self.mesh.faces[face];
+        <span class="tok-kw">return</span> self.pos[t.a][<span class="tok-num">2</span>] + self.pos[t.b][<span class="tok-num">2</span>] + self.pos[t.c][<span class="tok-num">2</span>];
+    }
+};
+
+<span class="tok-kw">fn</span> <span class="tok-fn">chan</span>(v: <span class="tok-kw">f32</span>) <span class="tok-kw">u8</span> {
+    <span class="tok-kw">return</span> @<span class="tok-fn">intFromFloat</span>(@<span class="tok-fn">max</span>(@<span class="tok-fn">as</span>(<span class="tok-kw">f32</span>, <span class="tok-num">0</span>), @<span class="tok-fn">min</span>(v, <span class="tok-num">1.0</span>)) * <span class="tok-num">255.0</span>);
+}
+<span class="tok-kw">fn</span> <span class="tok-fn">sub</span>(a: [<span class="tok-num">3</span>]<span class="tok-kw">f32</span>, b: [<span class="tok-num">3</span>]<span class="tok-kw">f32</span>) [<span class="tok-num">3</span>]<span class="tok-kw">f32</span> {
+    <span class="tok-kw">return</span> .{ a[<span class="tok-num">0</span>] - b[<span class="tok-num">0</span>], a[<span class="tok-num">1</span>] - b[<span class="tok-num">1</span>], a[<span class="tok-num">2</span>] - b[<span class="tok-num">2</span>] };
+}
+<span class="tok-kw">fn</span> <span class="tok-fn">cross</span>(a: [<span class="tok-num">3</span>]<span class="tok-kw">f32</span>, b: [<span class="tok-num">3</span>]<span class="tok-kw">f32</span>) [<span class="tok-num">3</span>]<span class="tok-kw">f32</span> {
+    <span class="tok-kw">return</span> .{ a[<span class="tok-num">1</span>] * b[<span class="tok-num">2</span>] - a[<span class="tok-num">2</span>] * b[<span class="tok-num">1</span>], a[<span class="tok-num">2</span>] * b[<span class="tok-num">0</span>] - a[<span class="tok-num">0</span>] * b[<span class="tok-num">2</span>], a[<span class="tok-num">0</span>] * b[<span class="tok-num">1</span>] - a[<span class="tok-num">1</span>] * b[<span class="tok-num">0</span>] };
+}
+<span class="tok-kw">fn</span> <span class="tok-fn">dot</span>(a: [<span class="tok-num">3</span>]<span class="tok-kw">f32</span>, b: [<span class="tok-num">3</span>]<span class="tok-kw">f32</span>) <span class="tok-kw">f32</span> {
+    <span class="tok-kw">return</span> a[<span class="tok-num">0</span>] * b[<span class="tok-num">0</span>] + a[<span class="tok-num">1</span>] * b[<span class="tok-num">1</span>] + a[<span class="tok-num">2</span>] * b[<span class="tok-num">2</span>];
+}
+<span class="tok-kw">fn</span> <span class="tok-fn">len</span>(a: [<span class="tok-num">3</span>]<span class="tok-kw">f32</span>) <span class="tok-kw">f32</span> {
+    <span class="tok-kw">return</span> @<span class="tok-fn">sqrt</span>(<span class="tok-fn">dot</span>(a, a));
+}</code></pre></figure>
+<p>Swap <code>b.triangle</code> for three <code>b.line(fb, va.x, va.y, vb.x, vb.y, 201, .copy)</code>
+calls and the same mesh is a wireframe; swap it for <code>b.triangleEx(...,
+.glenz)</code> and it is see-through, which is step 12.</p>
+<p>For a line object — a logo, a grid — use the comptime loader instead, and note
+that only the arrays you name reach the cart:</p>
+<figure class="cb" data-lang=zig><figcaption><span class="cb-lang">zig</span><span class="cb-n">2 lines</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code><span class="tok-kw">const</span> logo = obj.<span class="tok-fn">parseWire</span>(@<span class="tok-fn">embedFile</span>(<span class="tok-str">&quot;../assets/obj/empire_logo.obj&quot;</span>));
+<span class="tok-kw">var</span> verts = zg.wireframe.<span class="tok-fn">vec4s</span>(logo.verts.len, logo.verts);</code></pre></figure>
+<p><code>apps/zig/scenes/obj_demo.zig</code> is this step finished, with four renderers
+(hardware flat, glenz, hardware wireframe and a CPU scanline fill of the same
+mesh) on keys 1-4 so you can watch the same geometry go through hardware and
+software side by side.</p></section></div><div class="shared after"><p class="lead lead-see"><strong>What you should see.</strong> A solid icosahedron turning on two axes, its faces
+shading from teal to white as they face the light, with no seams or popping
+where faces meet. Swap in <code>gem.obj</code> and nothing about the code changes — the
+loader normalises it to the same size.</p>
+<p class="lead lead-mistakes"><strong>Common mistakes.</strong></p>
+<ul>
+<li><em>The object turns inside out, or near faces vanish behind far ones.</em> The face
+  sort is backwards, or sorting by one vertex's z instead of the face's average.</li>
+<li><em>Black wedges flicker across the solid as it turns.</em> The shade came out 0.
+  Take <code>@abs</code> of the dot product, or cull back faces properly — not neither.</li>
+<li><em>A logo loads at the wrong size or in the wrong place.</em> <code>Mesh.load</code> recentred
+  and rescaled it. Use <code>obj.parseWire</code> when the coordinates are the point.</li>
+<li><em>The model is a mess of long triangles across the screen.</em> An <code>f</code> record used
+  negative (relative) indices, which this loader does not support, or the model
+  has more than <code>MAX_VERTS</code> vertices and the extra ones silently became index 0.</li>
+<li><em>The cart grew by hundreds of KB after a refactor.</em> Something did
+  <code>self.* = .{}</code> on the struct holding the mesh. Assign the fields instead.</li>
+<li><em>It is smooth at 200 faces and a slideshow at 2000.</em> Every vertex is
+  transformed in f32 on the CPU each frame; the blitter only fills. Reduce the
+  model, or cull back faces before you sort.</li>
+</ul>
+<hr /></div><div class="run-slot"></div></section>
+<section class="step" id="step-12" data-step="12"><header class="step-h"><span class="num">12</span><h2>glenz vectors, the OR minterm</h2></header><div class="shared"><p class="lead lead-goal"><strong>Goal.</strong> A solid object you can see through: every face translucent, and every
+overlap a colour of its own. The Amiga trick, on the hardware that did it.</p>
+<p class="lead lead-concept"><strong>Concept.</strong> Step 9 drove the blitter two ways — one stamp per cell, and one
+halftone fill per run — and both left <code>MINTERM</code> at <code>MT_B</code>, <code>D = B</code>: copy the
+source through untouched. That byte at <code>OFF_BLIT + 0x01</code> is the register that
+makes the blitter a <em>coprocessor</em> rather than a fast memcpy. It is the
+truth table of the three sources A, B and C, applied bit by bit to the 8-bit
+palette index, so the blitter computes <code>D = LF(A, B, C)</code> per pixel in one pass.
+Three of the 256 functions have names in ZigOS:</p>
+<table>
+<thead>
+<tr>
+<th><code>Minterm</code></th>
+<th>byte</th>
+<th><code>D =</code></th>
+<th>what it is</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>.copy</code></td>
+<td><code>0xCC</code></td>
+<td><code>B</code></td>
+<td>a flat fill</td>
+</tr>
+<tr>
+<td><code>.xor</code></td>
+<td><code>0x66</code></td>
+<td><code>B ^ C</code></td>
+<td>reversible: draw it twice and it is gone</td>
+</tr>
+<tr>
+<td><code>.glenz</code></td>
+<td><code>0xEE</code></td>
+<td><code>B \| C</code></td>
+<td><strong>OR into the destination — glenz</strong></td>
+</tr>
+</tbody>
+</table>
+<p class="lead lead-note"><strong>OR is not alpha.</strong> There is no blending here and nothing is multiplied by
+anything. The blitter takes the ink you set in <code>COLOR</code>, ORs it into the index
+already in the framebuffer, and writes the result back. Ink 1 over a background
+of 0 gives 1. Ink 2 over that same pixel gives 3. Nothing about 3 is "half of
+1 and half of 2" — 3 is simply a different palette entry, and <em>you decide what
+colour it is</em>. The transparency is entirely in the palette you write. This is
+why the technique is cheap enough for a 68000: no per-pixel arithmetic, just an
+OR gate and a lookup.</p>
+<p class="lead lead-note"><strong>Choose inks that are single bits.</strong> That is the whole design rule. Give each
+face an ink of <code>1 &lt;&lt; k</code>, and then every possible overlap of those faces lands on
+an index nothing else can produce: faces 1 and 2 overlap at 3, faces 1, 2 and 4
+at 7, and so on. With six bits you have 63 reachable indices and a palette entry
+for each. Program them by <em>adding the hues of the bits that are set</em>, and you
+get a solid that looks additively lit for free:</p>
+<figure class="cb" data-lang=zig><figcaption><span class="cb-lang">zig</span><span class="cb-n">10 lines</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code><span class="tok-cm">// Index i means &quot;these faces overlap here&quot;: bit k set = face-group k is in.</span>
+<span class="tok-kw">var</span> i: <span class="tok-kw">u8</span> = <span class="tok-num">1</span>;
+<span class="tok-kw">while</span> (i &lt; <span class="tok-num">64</span>) : (i += <span class="tok-num">1</span>) {
+    <span class="tok-kw">var</span> acc = [<span class="tok-num">3</span>]<span class="tok-kw">f32</span>{ <span class="tok-num">0</span>, <span class="tok-num">0</span>, <span class="tok-num">0</span> };
+    <span class="tok-kw">for</span> (<span class="tok-num">0</span>..<span class="tok-num">6</span>) |k| <span class="tok-kw">if</span> (i &amp; (@<span class="tok-fn">as</span>(<span class="tok-kw">u8</span>, <span class="tok-num">1</span>) &lt;&lt; @<span class="tok-fn">intCast</span>(k)) != <span class="tok-num">0</span>) {
+        <span class="tok-kw">for</span> (<span class="tok-num">0</span>..<span class="tok-num">3</span>) |c| acc[c] += HUE[k][c];
+    };
+    fb.<span class="tok-fn">setPaletteEntry</span>(i, <span class="tok-fn">rgb</span>(acc, <span class="tok-num">0.72</span>));
+    <span class="tok-kw">if</span> (i == <span class="tok-num">63</span>) <span class="tok-kw">break</span>;
+}</code></pre></figure>
+<p>Use a plain index — 5, say — for one of these faces and the scheme collapses:
+5 is 1|4, so that face is indistinguishable from an overlap of the first and
+third, and the object develops patches of the wrong colour that move with the
+geometry.</p>
+<p class="lead lead-note"><strong>The background must be index 0.</strong> <code>x | 0 == x</code>, so drawing over 0 leaves your
+ink intact, and — the other direction — an ink of 0 leaves the destination
+untouched. That second property is what lets the glenz object share a plane
+with something else, and it is how <code>apps/zig/scenes/tsl_hybridglenz/</code> puts two
+objects through each other: each one is drawn through a <code>HALFTONE</code> of alternating
+full rows with <code>BG_COLOR</code> 0, so object A owns the even scanlines, object B the
+odd ones, and neither clears the other's rows. Two interpenetrating glenz objects
+with no off-screen buffer and no compositing pass.</p>
+<p class="lead lead-note"><strong>OR is symmetric, and that is a real limitation — state it honestly.</strong> <code>a | b</code>
+is <code>b | a</code>, so the hardware genuinely cannot tell which face is in front. A red
+face over a white one and a white face over a red one both land on the same
+index and therefore the same colour. Sorting your faces before you draw them
+changes nothing at all, which is disorienting the first time: with <code>.copy</code> the
+sort is everything, with <code>.glenz</code> it is wasted work. Live with it — this is what
+glenz vectors looked like in 1990 and the reason they look <em>right</em> — or, if one
+particular pair reads badly, renumber so those two faces do not share a
+combination (the <code>GLENZ_RW</code> entry in that scene's <code>assets.zig</code> is exactly one
+such hand-fixed pair). What you cannot do is recover depth from an OR.</p>
+<p class="lead lead-note"><strong>You still need the geometry.</strong> Nothing in this step projects anything: the
+three screen points come from step 11's pipeline, or from <code>zg.zig3d</code> when the
+scene is a CODEF port. Glenz is a <em>drawing</em> mode, and the only thing that
+changes from a flat-shaded object is the minterm and the ink.</p></div><div class="langs"><section class="lang" data-lang="zig" id="step-12-zig"><h3>Zig</h3><p><code>triangleEx</code> is <code>triangle</code> with the minterm and a background index exposed:</p>
+<figure class="cb" data-lang=zig><figcaption><span class="cb-lang">zig</span><span class="cb-n">7 lines</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code><span class="tok-kw">fn</span> <span class="tok-fn">drawGlenz</span>(self: *Demo, fb: *LogicalFB) <span class="tok-kw">void</span> {
+    <span class="tok-kw">const</span> b = &amp;self.blitter;
+    <span class="tok-kw">for</span> (self.mesh.faces[<span class="tok-num">0</span>..self.mesh.nfaces], <span class="tok-num">0</span>..) |t, i| {
+        <span class="tok-kw">const</span> bit: <span class="tok-kw">u8</span> = @<span class="tok-fn">as</span>(<span class="tok-kw">u8</span>, <span class="tok-num">1</span>) &lt;&lt; @<span class="tok-fn">intCast</span>(i % <span class="tok-num">6</span>); <span class="tok-cm">// ink = ONE bit</span>
+        b.<span class="tok-fn">triangleEx</span>(fb, self.screen[t.a], self.screen[t.b], self.screen[t.c], bit, <span class="tok-num">0</span>, .glenz);
+    }
+}</code></pre></figure>
+<p>No face sort, because it would do nothing. To interlace two objects, load a
+halftone of whole rows around the draw:</p>
+<figure class="cb" data-lang=zig><figcaption><span class="cb-lang">zig</span><span class="cb-n">10 lines</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code><span class="tok-cm">// Rows of the 16x16 halftone this object owns; `odd` picks rows 1,3,5...</span>
+<span class="tok-kw">fn</span> <span class="tok-fn">stripes</span>(<span class="tok-kw">comptime</span> odd: <span class="tok-kw">bool</span>) [<span class="tok-num">16</span>]<span class="tok-kw">u16</span> {
+    <span class="tok-kw">var</span> p: [<span class="tok-num">16</span>]<span class="tok-kw">u16</span> = <span class="tok-kw">undefined</span>;
+    <span class="tok-kw">for</span> (&amp;p, <span class="tok-num">0</span>..) |*row, i| row.* = <span class="tok-kw">if</span> ((i &amp; <span class="tok-num">1</span> == <span class="tok-num">1</span>) == odd) <span class="tok-num">0xFFFF</span> <span class="tok-kw">else</span> <span class="tok-num">0</span>;
+    <span class="tok-kw">return</span> p;
+}
+
+bl.<span class="tok-fn">setHalftone</span>(<span class="tok-fn">stripes</span>(<span class="tok-kw">true</span>));
+<span class="tok-cm">// ... triangleEx calls, all with bg 0 ...</span>
+bl.<span class="tok-fn">clearHalftone</span>();</code></pre></figure>
+<p><code>clearHalftone</code> is not optional. The pattern is a register, not an argument: it
+stays loaded, and the next scene primitive that expects a solid fill will come
+out striped.</p></section><section class="lang" data-lang="c" id="step-12-c"><h3>C</h3><p>Step 9's register block and its <code>w8</code>/<code>w16</code>/<code>w32</code> helpers, with three more names.
+As there, <code>D_BASE</code> is a <strong>region offset</strong>, not a pointer — the blitter writes
+only video memory — so plane 0's destination is <code>OFF_VRAM</code>.</p>
+<figure class="cb" data-lang=c><figcaption><span class="cb-lang">c</span><span class="cb-n">4 lines</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code><span class="tok-pp">#define</span> BLIT_X1           (OFF_BLIT + <span class="tok-num">0x30</span>) <span class="tok-cm">// i16 x2: triangle v1</span>
+<span class="tok-pp">#define</span> BLIT_X2           (OFF_BLIT + <span class="tok-num">0x34</span>) <span class="tok-cm">// i16 x2: triangle v2</span>
+<span class="tok-pp">#define</span> CMD_TRIANGLE      <span class="tok-num">4</span>
+<span class="tok-pp">#define</span> MT_OR_BC          <span class="tok-num">0xEE</span> <span class="tok-cm">// D = B | C — additive glenz transparency</span></code></pre></figure>
+<figure class="cb" data-lang=c><figcaption><span class="cb-lang">c</span><span class="cb-n">35 lines</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code><span class="tok-cm">// One see-through triangle. `ink` must be a SINGLE BIT for the overlap</span>
+<span class="tok-cm">// palette to mean anything: 1, 2, 4, 8, 16, 32.</span>
+<span class="tok-kw">static</span> <span class="tok-kw">void</span> <span class="tok-fn">glenz_triangle</span>(<span class="tok-kw">int</span> x0, <span class="tok-kw">int</span> y0, <span class="tok-kw">int</span> x1, <span class="tok-kw">int</span> y1, <span class="tok-kw">int</span> x2, <span class="tok-kw">int</span> y2, <span class="tok-kw">u8</span> ink) {
+    <span class="tok-fn">w32</span>(BLIT_D_BASE, OFF_VRAM);      <span class="tok-cm">// destination: plane 0</span>
+    <span class="tok-fn">w16</span>(BLIT_D_STRIDE, W);
+    <span class="tok-fn">w8</span>(BLIT_CON, <span class="tok-num">0</span>);                 <span class="tok-cm">// no source channel: TRIANGLE uses COLOR</span>
+    <span class="tok-fn">w8</span>(BLIT_MINTERM, MT_OR_BC);
+    <span class="tok-fn">w8</span>(BLIT_COLOR, ink);
+    <span class="tok-fn">w8</span>(BLIT_BG_COLOR, <span class="tok-num">0</span>);            <span class="tok-cm">// 0 OR dest leaves dest alone</span>
+    <span class="tok-fn">w16</span>(BLIT_X0, x0); <span class="tok-fn">w16</span>(BLIT_Y0, y0);
+    <span class="tok-fn">w16</span>(BLIT_X1, x1); <span class="tok-fn">w16</span>(BLIT_X1 + <span class="tok-num">2</span>, y1);
+    <span class="tok-fn">w16</span>(BLIT_X2, x2); <span class="tok-fn">w16</span>(BLIT_X2 + <span class="tok-num">2</span>, y2);
+    <span class="tok-fn">w8</span>(BLIT_COMMAND, CMD_TRIANGLE);
+    <span class="tok-fn">hwBlit</span>(); <span class="tok-cm">// registers are inert memory until this runs the op</span>
+}
+
+<span class="tok-cm">// The 63 overlap colours, built by adding the hues of the bits that are set.</span>
+<span class="tok-kw">static</span> <span class="tok-kw">void</span> <span class="tok-fn">program_glenz_palette</span>(<span class="tok-kw">void</span>) {
+    <span class="tok-kw">static</span> <span class="tok-kw">const</span> <span class="tok-kw">float</span> HUE[<span class="tok-num">6</span>][<span class="tok-num">3</span>] = {
+        {<span class="tok-num">0</span>.95f, <span class="tok-num">0</span>.30f, <span class="tok-num">0</span>.40f}, {<span class="tok-num">0</span>.30f, <span class="tok-num">0</span>.90f, <span class="tok-num">0</span>.50f}, {<span class="tok-num">0</span>.98f, <span class="tok-num">0</span>.80f, <span class="tok-num">0</span>.20f},
+        {<span class="tok-num">0</span>.30f, <span class="tok-num">0</span>.60f, <span class="tok-num">0</span>.98f}, {<span class="tok-num">0</span>.85f, <span class="tok-num">0</span>.40f, <span class="tok-num">0</span>.95f}, {<span class="tok-num">0</span>.30f, <span class="tok-num">0</span>.90f, <span class="tok-num">0</span>.90f},
+    };
+    <span class="tok-kw">for</span> (<span class="tok-kw">int</span> i = <span class="tok-num">1</span>; i &lt; <span class="tok-num">64</span>; i++) {
+        <span class="tok-kw">float</span> acc[<span class="tok-num">3</span>] = {<span class="tok-num">0</span>, <span class="tok-num">0</span>, <span class="tok-num">0</span>};
+        <span class="tok-kw">for</span> (<span class="tok-kw">int</span> k = <span class="tok-num">0</span>; k &lt; <span class="tok-num">6</span>; k++)
+            <span class="tok-kw">if</span> (i &amp; (<span class="tok-num">1</span> &lt;&lt; k)) <span class="tok-kw">for</span> (<span class="tok-kw">int</span> c = <span class="tok-num">0</span>; c &lt; <span class="tok-num">3</span>; c++) acc[c] += HUE[k][c];
+        <span class="tok-fn">palette</span>()[i] = <span class="tok-fn">rgba</span>(<span class="tok-fn">chan</span>(acc[<span class="tok-num">0</span>] * <span class="tok-num">0</span>.72f), <span class="tok-fn">chan</span>(acc[<span class="tok-num">1</span>] * <span class="tok-num">0</span>.72f), <span class="tok-fn">chan</span>(acc[<span class="tok-num">2</span>] * <span class="tok-num">0</span>.72f));
+    }
+}
+
+<span class="tok-kw">static</span> <span class="tok-kw">u32</span> <span class="tok-fn">chan</span>(<span class="tok-kw">float</span> v) {
+    <span class="tok-kw">if</span> (v &lt; <span class="tok-num">0</span>) v = <span class="tok-num">0</span>;
+    <span class="tok-kw">if</span> (v &gt; <span class="tok-num">1</span>) v = <span class="tok-num">1</span>;
+    <span class="tok-kw">return</span> (<span class="tok-kw">u32</span>)(v * <span class="tok-num">255</span>.0f);
+}</code></pre></figure>
+<p>Drawing a face is then <code>glenz_triangle(x0, y0, x1, y1, x2, y2, 1 &lt;&lt; (i % 6));</code>.</p></section><section class="lang" data-lang="rust" id="step-12-rust"><h3>Rust</h3><p>Step 9's constants, plus the triangle command and the OR minterm:</p>
+<figure class="cb" data-lang=rust><figcaption><span class="cb-lang">rust</span><span class="cb-n">48 lines</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code><span class="tok-kw">const</span> BLIT_X0: <span class="tok-kw">usize</span> = OFF_BLIT + <span class="tok-num">0x2C</span>; <span class="tok-cm">// X0 Y0 X1 Y1 X2 Y2, six contiguous i16</span>
+<span class="tok-kw">const</span> CMD_TRIANGLE: <span class="tok-kw">u8</span> = <span class="tok-num">4</span>;
+<span class="tok-kw">const</span> MT_OR_BC: <span class="tok-kw">u8</span> = <span class="tok-num">0xEE</span>; <span class="tok-cm">// D = B | C — additive glenz transparency</span>
+
+<span class="tok-cm">/// One see-through triangle. `ink` must be a SINGLE BIT (1, 2, 4, 8, 16, 32)</span>
+<span class="tok-cm">/// or the overlap palette stops meaning anything.</span>
+<span class="tok-kw">fn</span> <span class="tok-fn">glenz_triangle</span>(base: <span class="tok-kw">usize</span>, v: [(<span class="tok-kw">i16</span>, <span class="tok-kw">i16</span>); <span class="tok-num">3</span>], ink: <span class="tok-kw">u8</span>) {
+    <span class="tok-cm">// SAFETY: the blitter register block, inside the video region. Nothing runs</span>
+    <span class="tok-cm">// until hwBlit(); these writes are inert memory.</span>
+    <span class="tok-kw">unsafe</span> {
+        ((base + BLIT_D_BASE) <span class="tok-kw">as</span> *<span class="tok-kw">mut</span> <span class="tok-kw">u32</span>).<span class="tok-fn">write</span>(OFF_VRAM <span class="tok-kw">as</span> <span class="tok-kw">u32</span>);
+        ((base + BLIT_D_STRIDE) <span class="tok-kw">as</span> *<span class="tok-kw">mut</span> <span class="tok-kw">u16</span>).<span class="tok-fn">write</span>(W <span class="tok-kw">as</span> <span class="tok-kw">u16</span>);
+        ((base + BLIT_CON) <span class="tok-kw">as</span> *<span class="tok-kw">mut</span> <span class="tok-kw">u8</span>).<span class="tok-fn">write</span>(<span class="tok-num">0</span>);
+        ((base + BLIT_MINTERM) <span class="tok-kw">as</span> *<span class="tok-kw">mut</span> <span class="tok-kw">u8</span>).<span class="tok-fn">write</span>(MT_OR_BC);
+        ((base + BLIT_COLOR) <span class="tok-kw">as</span> *<span class="tok-kw">mut</span> <span class="tok-kw">u8</span>).<span class="tok-fn">write</span>(ink);
+        ((base + BLIT_BG_COLOR) <span class="tok-kw">as</span> *<span class="tok-kw">mut</span> <span class="tok-kw">u8</span>).<span class="tok-fn">write</span>(<span class="tok-num">0</span>); <span class="tok-cm">// 0 OR dest leaves dest</span>
+        <span class="tok-kw">let</span> p = (base + BLIT_X0) <span class="tok-kw">as</span> *<span class="tok-kw">mut</span> <span class="tok-kw">i16</span>;
+        <span class="tok-kw">for</span> (i, (x, y)) <span class="tok-kw">in</span> v.<span class="tok-fn">iter</span>().<span class="tok-fn">enumerate</span>() {
+            p.<span class="tok-fn">add</span>(i * <span class="tok-num">2</span>).<span class="tok-fn">write</span>(*x);
+            p.<span class="tok-fn">add</span>(i * <span class="tok-num">2</span> + <span class="tok-num">1</span>).<span class="tok-fn">write</span>(*y);
+        }
+        ((base + BLIT_COMMAND) <span class="tok-kw">as</span> *<span class="tok-kw">mut</span> <span class="tok-kw">u8</span>).<span class="tok-fn">write</span>(CMD_TRIANGLE);
+        <span class="tok-fn">hwBlit</span>();
+    }
+}
+
+<span class="tok-cm">/// The 63 overlap colours: add the hues of the bits that are set.</span>
+<span class="tok-kw">fn</span> <span class="tok-fn">program_glenz_palette</span>(pal: &amp;<span class="tok-kw">mut</span> [<span class="tok-kw">u32</span>]) {
+    <span class="tok-kw">const</span> HUE: [[<span class="tok-kw">f32</span>; <span class="tok-num">3</span>]; <span class="tok-num">6</span>] = [
+        [<span class="tok-num">0.95</span>, <span class="tok-num">0.30</span>, <span class="tok-num">0.40</span>], [<span class="tok-num">0.30</span>, <span class="tok-num">0.90</span>, <span class="tok-num">0.50</span>], [<span class="tok-num">0.98</span>, <span class="tok-num">0.80</span>, <span class="tok-num">0.20</span>],
+        [<span class="tok-num">0.30</span>, <span class="tok-num">0.60</span>, <span class="tok-num">0.98</span>], [<span class="tok-num">0.85</span>, <span class="tok-num">0.40</span>, <span class="tok-num">0.95</span>], [<span class="tok-num">0.30</span>, <span class="tok-num">0.90</span>, <span class="tok-num">0.90</span>],
+    ];
+    <span class="tok-kw">for</span> i <span class="tok-kw">in</span> <span class="tok-num">1</span>..64<span class="tok-kw">usize</span> {
+        <span class="tok-kw">let</span> <span class="tok-kw">mut</span> acc = [<span class="tok-num">0</span>.0<span class="tok-kw">f32</span>; <span class="tok-num">3</span>];
+        <span class="tok-kw">for</span> (k, hue) <span class="tok-kw">in</span> HUE.<span class="tok-fn">iter</span>().<span class="tok-fn">enumerate</span>() {
+            <span class="tok-kw">if</span> i &amp; (<span class="tok-num">1</span> &lt;&lt; k) != <span class="tok-num">0</span> {
+                <span class="tok-kw">for</span> c <span class="tok-kw">in</span> <span class="tok-num">0</span>..<span class="tok-num">3</span> {
+                    acc[c] += hue[c];
+                }
+            }
+        }
+        pal[i] = <span class="tok-fn">rgba</span>(<span class="tok-fn">chan</span>(acc[<span class="tok-num">0</span>] * <span class="tok-num">0.72</span>), <span class="tok-fn">chan</span>(acc[<span class="tok-num">1</span>] * <span class="tok-num">0.72</span>), <span class="tok-fn">chan</span>(acc[<span class="tok-num">2</span>] * <span class="tok-num">0.72</span>));
+    }
+}
+
+<span class="tok-kw">fn</span> <span class="tok-fn">chan</span>(v: <span class="tok-kw">f32</span>) -&gt; <span class="tok-kw">u32</span> {
+    (v.<span class="tok-fn">clamp</span>(<span class="tok-num">0.0</span>, <span class="tok-num">1.0</span>) * <span class="tok-num">255.0</span>) <span class="tok-kw">as</span> <span class="tok-kw">u32</span>
+}</code></pre></figure></section></div><div class="shared after"><p class="lead lead-see"><strong>What you should see.</strong> A solid object whose every face you can see through,
+with the overlaps picking up their own colours as it turns — six hues where a
+single face is in the way, brighter mixes where two or three are. The silhouette
+stays crisp: each face is still a hardware-filled triangle, so there are no soft
+edges anywhere. Key 2 of <code>apps/zig/scenes/obj_demo.zig</code> is this, on the same
+mesh as step 11's flat shading, so you can flip between them.</p>
+<p class="lead lead-mistakes"><strong>Common mistakes.</strong></p>
+<ul>
+<li><em>The object is one flat colour with no overlaps visible.</em> The inks are not
+  single bits — <code>1, 2, 3, 4, 5, 6</code> looks reasonable and is wrong. Use
+  <code>1 &lt;&lt; (i % 6)</code>.</li>
+<li><em>It draws over the background instead of through it.</em> The minterm is still
+  <code>.copy</code>. <code>0xCC</code> is <code>D = B</code>; you want <code>0xEE</code>.</li>
+<li><em>The object smears and never clears.</em> OR can only set bits, never clear them,
+  so a glenz object <strong>must</strong> be drawn onto a cleared plane every frame. There is
+  no "undraw" — that is <code>.xor</code>'s trick, not this one.</li>
+<li><em>Overlaps show as black holes.</em> Those indices have no palette entry. All 63
+  combinations you can reach need a colour, not just the six singles.</li>
+<li><em>Everything after the object comes out striped.</em> A halftone was left loaded.
+  <code>clearHalftone()</code> after the draw, or zero the sixteen <code>BLIT_HALFTONE</code> words.</li>
+<li><em>Faces do not look layered no matter how they are sorted.</em> They will not.
+  OR is symmetric; the hardware cannot tell front from back, and the sort is
+  wasted work. See the paragraph above.</li>
+<li><em>Nothing is drawn at all.</em> <code>hwBlit()</code> was never called, or <code>D_BASE</code> was set to
+  a pointer instead of the region offset of the plane's framebuffer.</li>
+</ul>
+<hr /></div><div class="run-slot"></div></section>
+<section class="step" id="step-13" data-step="13"><header class="step-h"><span class="num">13</span><h2>seeing the sound — YM channels and a PCM spectrum</h2></header><div class="shared"><p class="lead lead-goal"><strong>Goal.</strong> Three bars that rise and fall with the YM2149's three voices while an
+SNDH plays, and — when the cart is streaming its own PCM — a real frequency
+spectrum under them.</p>
+<p class="lead lead-concept"><strong>Concept.</strong> The audio does not happen where your cart does. The players live in
+<code>demo-audio.wasm</code> on the <strong>audio thread</strong>, and a cart cannot call into them. What
+it can do is hold out a buffer and let the host fill it. Four exports are that
+buffer, and the host feature-detects each one by name: export it and it gets
+written, leave it out and nothing happens.</p>
+<table>
+<thead>
+<tr>
+<th>export</th>
+<th>returns a pointer to</th>
+<th>filled with</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>getYmRegsPointer</code></td>
+<td>16 bytes</td>
+<td>the YM2149's registers, R0..R13</td>
+</tr>
+<tr>
+<td><code>getAudioModePointer</code></td>
+<td>1 byte</td>
+<td>which player is live</td>
+</tr>
+<tr>
+<td><code>getSongMsPointer</code></td>
+<td>1 u32</td>
+<td>milliseconds into the tune</td>
+</tr>
+<tr>
+<td><code>getScopesPointer</code></td>
+<td>4 x 128 f32</td>
+<td>per-channel sample captures</td>
+</tr>
+</tbody>
+</table>
+<p>A Zig cart gets all four for free — <code>apps/zig/demo_main.zig</code> exports them
+pointing into ZigOS, so you just read <code>zigos.ym_regs</code>, <code>zigos.audio_mode</code>,
+<code>zigos.song_ms</code> and <code>zigos.scopes</code>. A C or Rust cart exports the four functions
+itself, pointing at its own statics, and gets exactly the same data. Nothing in
+this step is Zig-only.</p>
+<p class="lead lead-note"><strong>The YM gives you registers, not sound.</strong> This is the honest limit, and it is
+the thing to understand before designing anything: <strong>no audio samples come back
+from the YM path.</strong> When a SNDH or a YM dump is playing, <code>scopes</code> is not
+refreshed — the scope array belongs to the sample engine's four Paula channels,
+and the PSG does not go through them. So you cannot FFT a SNDH from inside a
+cart. There is no buffer of its output to transform.</p>
+<p>What you get instead is the chip, which is arguably better: fourteen registers,
+read fresh several times a second, exactly what the 68000 replay routine last
+wrote. Everything a visualiser needs is in them:</p>
+<table>
+<thead>
+<tr>
+<th>registers</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>R0/R1, R2/R3, R4/R5</td>
+<td>channel A/B/C tone period, 12 bits: <code>(R1 &amp; 0x0F) &lt;&lt; 8 \| R0</code></td>
+</tr>
+<tr>
+<td>R6</td>
+<td>noise period, 5 bits</td>
+</tr>
+<tr>
+<td>R7</td>
+<td>mixer. Bits 0-2 tone A/B/C, bits 3-5 noise A/B/C — <strong>0 means ON</strong></td>
+</tr>
+<tr>
+<td>R8, R9, R10</td>
+<td>channel A/B/C volume, 0..15; <strong>bit 4 set = follow the envelope</strong></td>
+</tr>
+<tr>
+<td>R11/R12, R13</td>
+<td>envelope period and shape</td>
+</tr>
+</tbody>
+</table>
+<p>Two of those lines are where visualisers go wrong. The mixer is
+<strong>active-low</strong> — a set bit <em>disables</em> that voice, because the chip's designers
+wired it that way — so a naive <code>if (r7 &amp; bit)</code> lights up exactly the channels
+that are silent. And a volume register with bit 4 set does not mean volume 16;
+it means "this channel is under envelope control", and its real loudness is
+sweeping between 0 and 15 at the envelope rate. Draw it as a fixed high-ish
+value or read R11-R13 and follow the shape, but do not draw <code>vreg &amp; 0x1F</code>.</p>
+<p>The pitch is <code>125000 / period</code> Hz on a 2 MHz ST PSG, so the period is an
+<em>inverse</em>: a small period is a high note, and period 0 means the channel was
+never programmed. Clamp before you divide.</p>
+<p class="lead lead-note"><strong>Everything you draw from registers is a reconstruction, not a capture.</strong> The
+music scene, <code>apps/zig/scenes/music_debug.zig</code>, draws a convincing three-channel
+oscilloscope for SNDH, and every pixel of it is synthesised: a square wave whose
+wavelength comes from the period, whose height comes from the volume, plus a
+hash-noise term when the mixer says noise is on. It looks like a scope because
+the chip really is making square waves. It is not one, and it will not show you
+a digidrum. Say so in your own comments and nobody downstream will be misled.</p>
+<p class="lead lead-note"><strong>For real samples, switch on the mode.</strong> <code>audio_mode</code> says which world you are
+in, and the scope array only means something in two of them:</p>
+<table>
+<thead>
+<tr>
+<th>mode</th>
+<th>player</th>
+<th><code>scopes</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td>nothing</td>
+<td>stale</td>
+</tr>
+<tr>
+<td>1</td>
+<td>MOD</td>
+<td><strong>4 channels, live</strong></td>
+</tr>
+<tr>
+<td>2</td>
+<td>YM dump</td>
+<td>stale — use <code>ym_regs</code></td>
+</tr>
+<tr>
+<td>3</td>
+<td>raw sample / <strong>your Step 10 PCM stream</strong></td>
+<td><strong>channel 0, live</strong></td>
+</tr>
+<tr>
+<td>4</td>
+<td>SNDH</td>
+<td>stale — use <code>ym_regs</code></td>
+</tr>
+</tbody>
+</table>
+<p>Mode 3 is the interesting one: a stream you started with
+<code>hostAudioStreamStart</code> plays on Paula channel 0, so <code>scopes[0]</code> is a live
+capture of <em>your own</em> PCM, after resampling. It is 128 f32 taken one in four at
+the engine's 44100 Hz, so it is a window of about 11.6 ms sampled at
+<strong>11025 Hz</strong> — Nyquist 5.5 kHz. Bass and mids are all there; a cymbal is not.</p>
+<p class="lead lead-note"><strong>A spectrum needs a transform, and the machine has none.</strong> There is no FFT in
+the ABI, in ZigOS or in the ROM. For a bar display you do not want one either:
+you want a handful of bands, and <strong>Goertzel</strong> gives you one band in one pass
+with three floats of state and no tables. Eight to sixteen bands over 128
+samples is a few thousand multiplies a frame — nothing, on a machine that
+projects 3D meshes in f32.</p></div><div class="langs"><section class="lang" data-lang="zig" id="step-13-zig"><h3>Zig</h3><p>ZigOS already has the fields; read them in <code>render</code>.</p>
+<figure class="cb" data-lang=zig><figcaption><span class="cb-lang">zig</span><span class="cb-n">30 lines</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code><span class="tok-kw">const</span> SCOPE_LEN: <span class="tok-kw">usize</span> = zg.SCOPE_LEN;   <span class="tok-cm">// 128</span>
+<span class="tok-kw">const</span> SCOPE_RATE: <span class="tok-kw">f32</span> = <span class="tok-num">44100.0</span> / <span class="tok-num">4.0</span>;   <span class="tok-cm">// captured one sample in four</span>
+
+<span class="tok-cm">// Three YM channels as bars: height = volume, colour = tone/noise/both.</span>
+<span class="tok-kw">fn</span> <span class="tok-fn">drawYmBars</span>(zigos: *ZigOS, fb: *LogicalFB) <span class="tok-kw">void</span> {
+    <span class="tok-kw">const</span> regs = &amp;zigos.ym_regs;
+    <span class="tok-kw">for</span> (<span class="tok-num">0</span>..<span class="tok-num">3</span>) |ch| {
+        <span class="tok-kw">const</span> period: <span class="tok-kw">u16</span> = (@<span class="tok-fn">as</span>(<span class="tok-kw">u16</span>, regs[ch * <span class="tok-num">2</span> + <span class="tok-num">1</span>] &amp; <span class="tok-num">0x0F</span>) &lt;&lt; <span class="tok-num">8</span>) | regs[ch * <span class="tok-num">2</span>];
+        <span class="tok-kw">const</span> vreg = regs[<span class="tok-num">8</span> + ch];
+        <span class="tok-cm">// Bit 4 = &quot;the envelope drives this channel&quot;, NOT volume 16. Show it as</span>
+        <span class="tok-cm">// a loud-ish constant rather than pretending we know where the sweep is.</span>
+        <span class="tok-kw">const</span> vol: <span class="tok-kw">f32</span> = <span class="tok-kw">if</span> (vreg &amp; <span class="tok-num">0x10</span> != <span class="tok-num">0</span>) <span class="tok-num">13.0</span> <span class="tok-kw">else</span> @<span class="tok-fn">floatFromInt</span>(vreg &amp; <span class="tok-num">0x0F</span>);
+        <span class="tok-cm">// The mixer is ACTIVE LOW: a SET bit silences that voice.</span>
+        <span class="tok-kw">const</span> tone_on = (regs[<span class="tok-num">7</span>] &gt;&gt; @<span class="tok-fn">intCast</span>(ch)) &amp; <span class="tok-num">1</span> == <span class="tok-num">0</span>;
+        <span class="tok-kw">const</span> noise_on = (regs[<span class="tok-num">7</span>] &gt;&gt; @<span class="tok-fn">intCast</span>(ch + <span class="tok-num">3</span>)) &amp; <span class="tok-num">1</span> == <span class="tok-num">0</span>;
+        <span class="tok-kw">if</span> (!tone_on <span class="tok-kw">and</span> !noise_on) <span class="tok-kw">continue</span>;             <span class="tok-cm">// genuinely silent</span>
+        <span class="tok-kw">const</span> ink: <span class="tok-kw">u8</span> = <span class="tok-kw">if</span> (noise_on <span class="tok-kw">and</span> !tone_on) <span class="tok-num">3</span> <span class="tok-kw">else</span> <span class="tok-kw">if</span> (noise_on) <span class="tok-num">2</span> <span class="tok-kw">else</span> <span class="tok-num">1</span>;
+
+        <span class="tok-kw">const</span> h: <span class="tok-kw">i32</span> = @<span class="tok-fn">intFromFloat</span>(vol / <span class="tok-num">15.0</span> * <span class="tok-num">60.0</span>);
+        <span class="tok-kw">const</span> x0: <span class="tok-kw">i16</span> = @<span class="tok-fn">intCast</span>(<span class="tok-num">40</span> + ch * <span class="tok-num">80</span>);
+        <span class="tok-kw">var</span> y: <span class="tok-kw">i32</span> = <span class="tok-num">120</span> - h;
+        <span class="tok-kw">while</span> (y &lt; <span class="tok-num">120</span>) : (y += <span class="tok-num">1</span>) {
+            <span class="tok-kw">for</span> (<span class="tok-num">0</span>..<span class="tok-num">48</span>) |dx| fb.<span class="tok-fn">setPixelValue</span>(@<span class="tok-fn">intCast</span>(x0 + @<span class="tok-fn">as</span>(<span class="tok-kw">i16</span>, @<span class="tok-fn">intCast</span>(dx))), @<span class="tok-fn">intCast</span>(y), ink);
+        }
+        <span class="tok-cm">// Pitch, for a tick mark: 125000 / period Hz. Period 0 = never programmed.</span>
+        <span class="tok-kw">const</span> hz: <span class="tok-kw">f32</span> = <span class="tok-kw">if</span> (period == <span class="tok-num">0</span>) <span class="tok-num">0</span> <span class="tok-kw">else</span> <span class="tok-num">125000.0</span> / @<span class="tok-fn">as</span>(<span class="tok-kw">f32</span>, @<span class="tok-fn">floatFromInt</span>(period));
+        <span class="tok-kw">const</span> tick: <span class="tok-kw">i32</span> = <span class="tok-num">130</span> + @<span class="tok-fn">min</span>(@<span class="tok-fn">as</span>(<span class="tok-kw">i32</span>, @<span class="tok-fn">intFromFloat</span>(hz / <span class="tok-num">40.0</span>)), <span class="tok-num">60</span>);
+        <span class="tok-kw">for</span> (<span class="tok-num">0</span>..<span class="tok-num">48</span>) |dx| fb.<span class="tok-fn">setPixelValue</span>(@<span class="tok-fn">intCast</span>(x0 + @<span class="tok-fn">as</span>(<span class="tok-kw">i16</span>, @<span class="tok-fn">intCast</span>(dx))), @<span class="tok-fn">intCast</span>(tick), ink);
+    }
+}</code></pre></figure>
+<p>The spectrum, for mode 3 — one Goertzel pass per band over <code>scopes[0]</code>:</p>
+<figure class="cb" data-lang=zig><figcaption><span class="cb-lang">zig</span><span class="cb-n">34 lines</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code><span class="tok-cm">// Power of `samples` at `hz`, by Goertzel: one band, one pass, no tables.</span>
+<span class="tok-kw">fn</span> <span class="tok-fn">goertzel</span>(samples: []<span class="tok-kw">const</span> <span class="tok-kw">f32</span>, hz: <span class="tok-kw">f32</span>, rate: <span class="tok-kw">f32</span>) <span class="tok-kw">f32</span> {
+    <span class="tok-kw">const</span> w = <span class="tok-num">2.0</span> * std.math.pi * hz / rate;
+    <span class="tok-kw">const</span> coeff = <span class="tok-num">2.0</span> * @<span class="tok-fn">cos</span>(w);
+    <span class="tok-kw">var</span> s1: <span class="tok-kw">f32</span> = <span class="tok-num">0</span>;
+    <span class="tok-kw">var</span> s2: <span class="tok-kw">f32</span> = <span class="tok-num">0</span>;
+    <span class="tok-kw">for</span> (samples) |x| {
+        <span class="tok-kw">const</span> s = x + coeff * s1 - s2;
+        s2 = s1;
+        s1 = s;
+    }
+    <span class="tok-kw">return</span> @<span class="tok-fn">max</span>(<span class="tok-num">0.0</span>, s1 * s1 + s2 * s2 - coeff * s1 * s2);
+}
+
+<span class="tok-cm">// Sixteen bands, logarithmically spaced from 60 Hz to just under Nyquist.</span>
+<span class="tok-kw">const</span> BANDS: <span class="tok-kw">usize</span> = <span class="tok-num">16</span>;
+
+<span class="tok-kw">fn</span> <span class="tok-fn">drawSpectrum</span>(zigos: *ZigOS, fb: *LogicalFB) <span class="tok-kw">void</span> {
+    <span class="tok-kw">if</span> (zigos.audio_mode != <span class="tok-num">3</span> <span class="tok-kw">and</span> zigos.audio_mode != <span class="tok-num">1</span>) <span class="tok-kw">return</span>; <span class="tok-cm">// registers only</span>
+    <span class="tok-kw">const</span> samples = &amp;zigos.scopes[<span class="tok-num">0</span>];
+    <span class="tok-kw">for</span> (<span class="tok-num">0</span>..BANDS) |b| {
+        <span class="tok-kw">const</span> t = @<span class="tok-fn">as</span>(<span class="tok-kw">f32</span>, @<span class="tok-fn">floatFromInt</span>(b)) / @<span class="tok-fn">as</span>(<span class="tok-kw">f32</span>, BANDS - <span class="tok-num">1</span>);
+        <span class="tok-kw">const</span> hz = <span class="tok-num">60.0</span> * std.math.<span class="tok-fn">pow</span>(<span class="tok-kw">f32</span>, <span class="tok-num">5000.0</span> / <span class="tok-num">60.0</span>, t); <span class="tok-cm">// 60 Hz .. 5 kHz</span>
+        <span class="tok-kw">const</span> p = <span class="tok-fn">goertzel</span>(samples, hz, SCOPE_RATE);
+        <span class="tok-cm">// Power spans orders of magnitude: a log scale, or every bar is 0 or full.</span>
+        <span class="tok-kw">const</span> db = <span class="tok-num">10.0</span> * @<span class="tok-fn">log10</span>(p + 1e-<span class="tok-num">9</span>);
+        <span class="tok-kw">const</span> h: <span class="tok-kw">i32</span> = @<span class="tok-fn">intFromFloat</span>(std.math.<span class="tok-fn">clamp</span>((db + <span class="tok-num">50.0</span>) * <span class="tok-num">1.2</span>, <span class="tok-num">0.0</span>, <span class="tok-num">60.0</span>));
+        <span class="tok-kw">const</span> x0: <span class="tok-kw">i32</span> = @<span class="tok-fn">intCast</span>(<span class="tok-num">16</span> + b * <span class="tok-num">18</span>);
+        <span class="tok-kw">var</span> y: <span class="tok-kw">i32</span> = <span class="tok-num">190</span> - h;
+        <span class="tok-kw">while</span> (y &lt; <span class="tok-num">190</span>) : (y += <span class="tok-num">1</span>) {
+            <span class="tok-kw">for</span> (<span class="tok-num">0</span>..<span class="tok-num">14</span>) |dx| fb.<span class="tok-fn">setPixelValue</span>(@<span class="tok-fn">intCast</span>(x0 + @<span class="tok-fn">as</span>(<span class="tok-kw">i32</span>, @<span class="tok-fn">intCast</span>(dx))), @<span class="tok-fn">intCast</span>(y), <span class="tok-num">4</span>);
+        }
+    }
+}</code></pre></figure>
+<p><code>1e-9</code> inside the log is not superstition: a silent band gives exactly 0, and
+<code>@log10(0)</code> is <code>-inf</code>, which becomes an illegal <code>@intFromFloat</code> and traps the
+cart.</p></section><section class="lang" data-lang="c" id="step-13-c"><h3>C</h3><p>The exports are yours to define. The host checks each name and skips the ones
+that are missing, so you can export only what you read.</p>
+<figure class="cb" data-lang=c><figcaption><span class="cb-lang">c</span><span class="cb-n">14 lines</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code><span class="tok-cm">// The host writes these between frames; export the pointers and it finds them.</span>
+<span class="tok-kw">static</span> <span class="tok-kw">unsigned</span> <span class="tok-kw">char</span> ym_regs[<span class="tok-num">16</span>];
+<span class="tok-kw">static</span> <span class="tok-kw">unsigned</span> <span class="tok-kw">char</span> audio_mode;
+<span class="tok-kw">static</span> <span class="tok-kw">unsigned</span> song_ms;
+<span class="tok-kw">static</span> <span class="tok-kw">float</span> scopes[<span class="tok-num">4</span>][<span class="tok-num">128</span>];
+
+<span class="tok-fn">__attribute__</span>((<span class="tok-fn">export_name</span>(<span class="tok-str">&quot;getYmRegsPointer&quot;</span>)))
+<span class="tok-kw">unsigned</span> <span class="tok-kw">char</span> *<span class="tok-fn">getYmRegsPointer</span>(<span class="tok-kw">void</span>) { <span class="tok-kw">return</span> ym_regs; }
+<span class="tok-fn">__attribute__</span>((<span class="tok-fn">export_name</span>(<span class="tok-str">&quot;getAudioModePointer&quot;</span>)))
+<span class="tok-kw">unsigned</span> <span class="tok-kw">char</span> *<span class="tok-fn">getAudioModePointer</span>(<span class="tok-kw">void</span>) { <span class="tok-kw">return</span> &amp;audio_mode; }
+<span class="tok-fn">__attribute__</span>((<span class="tok-fn">export_name</span>(<span class="tok-str">&quot;getSongMsPointer&quot;</span>)))
+<span class="tok-kw">unsigned</span> *<span class="tok-fn">getSongMsPointer</span>(<span class="tok-kw">void</span>) { <span class="tok-kw">return</span> &amp;song_ms; }
+<span class="tok-fn">__attribute__</span>((<span class="tok-fn">export_name</span>(<span class="tok-str">&quot;getScopesPointer&quot;</span>)))
+<span class="tok-kw">float</span> *<span class="tok-fn">getScopesPointer</span>(<span class="tok-kw">void</span>) { <span class="tok-kw">return</span> &amp;scopes[<span class="tok-num">0</span>][<span class="tok-num">0</span>]; }</code></pre></figure>
+<figure class="cb" data-lang=c><figcaption><span class="cb-lang">c</span><span class="cb-n">34 lines</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code><span class="tok-cm">// Three YM channels as bars. The two traps, spelled out:</span>
+<span class="tok-cm">//   - the MIXER (R7) is ACTIVE LOW: a set bit SILENCES that voice;</span>
+<span class="tok-cm">//   - volume bit 4 means &quot;envelope drives this channel&quot;, not volume 16.</span>
+<span class="tok-kw">static</span> <span class="tok-kw">void</span> <span class="tok-fn">draw_ym_bars</span>(<span class="tok-kw">void</span>) {
+    <span class="tok-kw">for</span> (<span class="tok-kw">int</span> ch = <span class="tok-num">0</span>; ch &lt; <span class="tok-num">3</span>; ch++) {
+        <span class="tok-kw">unsigned</span> period = ((ym_regs[ch * <span class="tok-num">2</span> + <span class="tok-num">1</span>] &amp; <span class="tok-num">0x0F</span>) &lt;&lt; <span class="tok-num">8</span>) | ym_regs[ch * <span class="tok-num">2</span>];
+        <span class="tok-kw">unsigned</span> vreg = ym_regs[<span class="tok-num">8</span> + ch];
+        <span class="tok-kw">float</span> vol = (vreg &amp; <span class="tok-num">0x10</span>) ? <span class="tok-num">13</span>.0f : (<span class="tok-kw">float</span>)(vreg &amp; <span class="tok-num">0x0F</span>);
+        <span class="tok-kw">int</span> tone_on  = ((ym_regs[<span class="tok-num">7</span>] &gt;&gt; ch) &amp; <span class="tok-num">1</span>) == <span class="tok-num">0</span>;
+        <span class="tok-kw">int</span> noise_on = ((ym_regs[<span class="tok-num">7</span>] &gt;&gt; (ch + <span class="tok-num">3</span>)) &amp; <span class="tok-num">1</span>) == <span class="tok-num">0</span>;
+        <span class="tok-kw">if</span> (!tone_on &amp;&amp; !noise_on) <span class="tok-kw">continue</span>;
+        <span class="tok-kw">u8</span> ink = (noise_on &amp;&amp; !tone_on) ? <span class="tok-num">3</span> : (noise_on ? <span class="tok-num">2</span> : <span class="tok-num">1</span>);
+
+        <span class="tok-kw">int</span> h = (<span class="tok-kw">int</span>)(vol / <span class="tok-num">15</span>.0f * <span class="tok-num">60</span>.0f);
+        <span class="tok-fn">fill_rect</span>(<span class="tok-num">40</span> + ch * <span class="tok-num">80</span>, <span class="tok-num">120</span> - h, <span class="tok-num">48</span>, h, ink);
+
+        <span class="tok-kw">float</span> hz = period ? <span class="tok-num">125000</span>.0f / (<span class="tok-kw">float</span>)period : <span class="tok-num">0</span>.0f; <span class="tok-cm">// period 0 = unset</span>
+        <span class="tok-kw">int</span> tick = <span class="tok-num">130</span> + (<span class="tok-kw">int</span>)(hz / <span class="tok-num">40</span>.0f &gt; <span class="tok-num">60</span>.0f ? <span class="tok-num">60</span>.0f : hz / <span class="tok-num">40</span>.0f);
+        <span class="tok-fn">fill_rect</span>(<span class="tok-num">40</span> + ch * <span class="tok-num">80</span>, tick, <span class="tok-num">48</span>, <span class="tok-num">1</span>, ink);
+    }
+}
+
+<span class="tok-cm">// One frequency band of `n` samples, by Goertzel: three floats of state.</span>
+<span class="tok-kw">static</span> <span class="tok-kw">float</span> <span class="tok-fn">goertzel</span>(<span class="tok-kw">const</span> <span class="tok-kw">float</span> *s, <span class="tok-kw">int</span> n, <span class="tok-kw">float</span> hz, <span class="tok-kw">float</span> rate) {
+    <span class="tok-kw">float</span> coeff = <span class="tok-num">2</span>.0f * <span class="tok-fn">__builtin_cosf</span>(<span class="tok-num">6</span>.28318530718f * hz / rate);
+    <span class="tok-kw">float</span> s1 = <span class="tok-num">0</span>, s2 = <span class="tok-num">0</span>;
+    <span class="tok-kw">for</span> (<span class="tok-kw">int</span> i = <span class="tok-num">0</span>; i &lt; n; i++) {
+        <span class="tok-kw">float</span> v = s[i] + coeff * s1 - s2;
+        s2 = s1;
+        s1 = v;
+    }
+    <span class="tok-kw">float</span> p = s1 * s1 + s2 * s2 - coeff * s1 * s2;
+    <span class="tok-kw">return</span> p &gt; <span class="tok-num">0</span> ? p : <span class="tok-num">0</span>;
+}</code></pre></figure>
+<p>The band loop is the Zig one transliterated: <code>scopes[0]</code> is live only when
+<code>audio_mode</code> is 1 or 3, and the log needs its <code>+ 1e-9f</code>.</p></section><section class="lang" data-lang="rust" id="step-13-rust"><h3>Rust</h3><figure class="cb" data-lang=rust><figcaption><span class="cb-lang">rust</span><span class="cb-n">22 lines</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code><span class="tok-cm">// The host writes these between frames; export the pointers and it finds them.</span>
+<span class="tok-kw">static</span> <span class="tok-kw">mut</span> YM_REGS: [<span class="tok-kw">u8</span>; <span class="tok-num">16</span>] = [<span class="tok-num">0</span>; <span class="tok-num">16</span>];
+<span class="tok-kw">static</span> <span class="tok-kw">mut</span> AUDIO_MODE: <span class="tok-kw">u8</span> = <span class="tok-num">0</span>;
+<span class="tok-kw">static</span> <span class="tok-kw">mut</span> SONG_MS: <span class="tok-kw">u32</span> = <span class="tok-num">0</span>;
+<span class="tok-kw">static</span> <span class="tok-kw">mut</span> SCOPES: [[<span class="tok-kw">f32</span>; <span class="tok-num">128</span>]; <span class="tok-num">4</span>] = [[<span class="tok-num">0.0</span>; <span class="tok-num">128</span>]; <span class="tok-num">4</span>];
+
+<span class="tok-at">#[no_mangle]</span>
+<span class="tok-kw">pub</span> <span class="tok-kw">extern</span> <span class="tok-str">&quot;C&quot;</span> <span class="tok-kw">fn</span> <span class="tok-fn">getYmRegsPointer</span>() -&gt; *<span class="tok-kw">mut</span> <span class="tok-kw">u8</span> {
+    core::ptr::addr_of_mut!(YM_REGS) <span class="tok-kw">as</span> *<span class="tok-kw">mut</span> <span class="tok-kw">u8</span>
+}
+<span class="tok-at">#[no_mangle]</span>
+<span class="tok-kw">pub</span> <span class="tok-kw">extern</span> <span class="tok-str">&quot;C&quot;</span> <span class="tok-kw">fn</span> <span class="tok-fn">getAudioModePointer</span>() -&gt; *<span class="tok-kw">mut</span> <span class="tok-kw">u8</span> {
+    core::ptr::addr_of_mut!(AUDIO_MODE)
+}
+<span class="tok-at">#[no_mangle]</span>
+<span class="tok-kw">pub</span> <span class="tok-kw">extern</span> <span class="tok-str">&quot;C&quot;</span> <span class="tok-kw">fn</span> <span class="tok-fn">getSongMsPointer</span>() -&gt; *<span class="tok-kw">mut</span> <span class="tok-kw">u32</span> {
+    core::ptr::addr_of_mut!(SONG_MS)
+}
+<span class="tok-at">#[no_mangle]</span>
+<span class="tok-kw">pub</span> <span class="tok-kw">extern</span> <span class="tok-str">&quot;C&quot;</span> <span class="tok-kw">fn</span> <span class="tok-fn">getScopesPointer</span>() -&gt; *<span class="tok-kw">mut</span> <span class="tok-kw">f32</span> {
+    core::ptr::addr_of_mut!(SCOPES) <span class="tok-kw">as</span> *<span class="tok-kw">mut</span> <span class="tok-kw">f32</span>
+}</code></pre></figure>
+<figure class="cb" data-lang=rust><figcaption><span class="cb-lang">rust</span><span class="cb-n">37 lines</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code><span class="tok-cm">/// One YM channel, decoded from the register file.</span>
+<span class="tok-kw">struct</span> Voice {
+    period: <span class="tok-kw">u16</span>,
+    vol: <span class="tok-kw">f32</span>,
+    tone: <span class="tok-kw">bool</span>,
+    noise: <span class="tok-kw">bool</span>,
+}
+
+<span class="tok-kw">fn</span> <span class="tok-fn">voice</span>(regs: &amp;[<span class="tok-kw">u8</span>; <span class="tok-num">16</span>], ch: <span class="tok-kw">usize</span>) -&gt; Voice {
+    Voice {
+        period: ((regs[ch * <span class="tok-num">2</span> + <span class="tok-num">1</span>] &amp; <span class="tok-num">0x0F</span>) <span class="tok-kw">as</span> <span class="tok-kw">u16</span>) &lt;&lt; <span class="tok-num">8</span> | regs[ch * <span class="tok-num">2</span>] <span class="tok-kw">as</span> <span class="tok-kw">u16</span>,
+        <span class="tok-cm">// Bit 4 = envelope-driven, NOT volume 16.</span>
+        vol: <span class="tok-kw">if</span> regs[<span class="tok-num">8</span> + ch] &amp; <span class="tok-num">0x10</span> != <span class="tok-num">0</span> { <span class="tok-num">13.0</span> } <span class="tok-kw">else</span> { (regs[<span class="tok-num">8</span> + ch] &amp; <span class="tok-num">0x0F</span>) <span class="tok-kw">as</span> <span class="tok-kw">f32</span> },
+        <span class="tok-cm">// The mixer is ACTIVE LOW: a SET bit silences that voice.</span>
+        tone: regs[<span class="tok-num">7</span>] &gt;&gt; ch &amp; <span class="tok-num">1</span> == <span class="tok-num">0</span>,
+        noise: regs[<span class="tok-num">7</span>] &gt;&gt; (ch + <span class="tok-num">3</span>) &amp; <span class="tok-num">1</span> == <span class="tok-num">0</span>,
+    }
+}
+
+<span class="tok-kw">impl</span> Voice {
+    <span class="tok-cm">/// Hz on a 2 MHz ST PSG. Period 0 means the channel was never programmed.</span>
+    <span class="tok-kw">fn</span> <span class="tok-fn">hz</span>(&amp;<span class="tok-kw">self</span>) -&gt; <span class="tok-kw">f32</span> {
+        <span class="tok-kw">if</span> <span class="tok-kw">self</span>.period == <span class="tok-num">0</span> { <span class="tok-num">0.0</span> } <span class="tok-kw">else</span> { <span class="tok-num">125_000.0</span> / <span class="tok-kw">self</span>.period <span class="tok-kw">as</span> <span class="tok-kw">f32</span> }
+    }
+}
+
+<span class="tok-cm">/// Power at `hz`, by Goertzel: one band, one pass, three floats of state.</span>
+<span class="tok-kw">fn</span> <span class="tok-fn">goertzel</span>(samples: &amp;[<span class="tok-kw">f32</span>], hz: <span class="tok-kw">f32</span>, rate: <span class="tok-kw">f32</span>) -&gt; <span class="tok-kw">f32</span> {
+    <span class="tok-kw">let</span> coeff = <span class="tok-num">2.0</span> * (core::<span class="tok-kw">f32</span>::consts::TAU * hz / rate).<span class="tok-fn">cos</span>();
+    <span class="tok-kw">let</span> (<span class="tok-kw">mut</span> s1, <span class="tok-kw">mut</span> s2) = (<span class="tok-num">0</span>.0<span class="tok-kw">f32</span>, <span class="tok-num">0</span>.0<span class="tok-kw">f32</span>);
+    <span class="tok-kw">for</span> &amp;x <span class="tok-kw">in</span> samples {
+        <span class="tok-kw">let</span> s = x + coeff * s1 - s2;
+        s2 = s1;
+        s1 = s;
+    }
+    (s1 * s1 + s2 * s2 - coeff * s1 * s2).<span class="tok-fn">max</span>(<span class="tok-num">0.0</span>)
+}</code></pre></figure>
+<p>Read the statics through <code>addr_of!</code> in <code>frame</code>, and gate the spectrum on
+<code>AUDIO_MODE</code> being 1 or 3 exactly as in Zig.</p></section></div><div class="shared after"><p class="lead lead-see"><strong>What you should see.</strong> With a SNDH playing: three bars stepping in time with
+the tune, dropping to nothing on rests, and changing colour when a channel
+switches to noise — which is what a drum is, on this chip. With a Step 10 PCM
+stream: the bars stay flat (no PSG is running) and the spectrum lights up
+instead, bass on the left, the top bands mostly dark because the capture stops
+at 5.5 kHz. <code>apps/zig/scenes/music_debug.zig</code> is the full version, with a
+synthesised three-channel oscilloscope that switches on <code>audio_mode</code>.</p>
+<p class="lead lead-mistakes"><strong>Common mistakes.</strong></p>
+<ul>
+<li><em>Every channel reads as loud all the time, including the silent ones.</em> The
+  mixer test is inverted. R7 is active low: <code>(r7 &gt;&gt; ch) &amp; 1 == 0</code> means ON.</li>
+<li><em>One channel pegs at maximum and never moves.</em> Its volume register has bit 4
+  set — it is envelope-driven, and <code>vreg &amp; 0x1F</code> is not its loudness.</li>
+<li><em>A bass note draws taller than a lead.</em> The period is an inverse. Pitch is
+  <code>125000 / period</code>, so divide — and guard period 0 first.</li>
+<li><em>The spectrum is empty while a SNDH plays.</em> It always will be. The YM path
+  fills no scope buffer; there is nothing in the machine to transform. Draw
+  registers for modes 2 and 4, samples for 1 and 3.</li>
+<li><em>The cart traps the moment the music stops.</em> <code>@log10(0)</code> is <code>-inf</code> and
+  <code>@intFromFloat(-inf)</code> is illegal, not merely wrong. Add the epsilon.</li>
+<li><em>Every bar is either flat or full height.</em> The Goertzel output is power, which
+  spans orders of magnitude. Plot dB.</li>
+<li><em>The C or Rust cart shows nothing but the Zig one works.</em> One of the four
+  exports is missing or misnamed. The host feature-detects them by exact name
+  and silently skips what it cannot find — there is no error for this.</li>
+<li><em>The visualiser freezes for a moment when the screen changes.</em> The host stops
+  writing during a cart swap, because those addresses belong to the cart being
+  unpacked. Expected; the next <code>audioState</code> message resumes it.</li>
+</ul>
+<hr /></div><div class="run-slot"></div></section>
 <section class="plain" id="where-next"><header class="step-h"><h2>Where next</h2></header><div class="shared"><ul>
 <li><a href="ZIGOS_API.md"><code>docs/ZIGOS_API.md</code></a>: the Zig library, including the copper,
   <code>blit</code>, <code>scrollring</code> and wireframe helpers.</li>

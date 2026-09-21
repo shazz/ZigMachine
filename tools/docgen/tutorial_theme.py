@@ -1,7 +1,7 @@
 """The tutorial page's HTML shell.
 
-Unlike the guide, the tutorial's CSS and JS are real files (docs/css/tutorial.css,
-docs/tutorial.js) rather than Python strings: the page is interactive, so the
+The tutorial's CSS and JS are real files (docs/css/docs.css + code.css shared with the
+guide, docs/css/tutorial.css, docs/tutorial.js) rather than Python strings: the page is interactive, so the
 behaviour belongs in a file a browser devtool can debug, and tools/cache_bust.py
 stamps both with a content hash for free.
 """
@@ -23,8 +23,9 @@ TEMPLATE = """<!doctype html>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ZigMachine — Tutorial</title>
 <meta name="description" content="Write your first ZigMachine screen, step by step, in Zig, C or Rust — running live on the real machine.">
+<link rel="stylesheet" href="css/docs.css">
+<link rel="stylesheet" href="css/code.css">
 <link rel="stylesheet" href="css/tutorial.css">
-<link rel="stylesheet" href="css/tutorial-code.css">
 {prepaint}
 </head>
 <body>

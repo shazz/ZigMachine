@@ -12,6 +12,7 @@ reuse the guide's Zig parsers for its register callouts.
 from __future__ import annotations
 
 import html
+import re
 from pathlib import Path
 
 import markdown  # renders the repo's .md prose into both pages
@@ -31,3 +32,11 @@ def render_markdown(text: str) -> str:
 def render_markdown_file(rel: str) -> str:
     """Render a repo markdown file to HTML (fenced code + tables) for a page section."""
     return render_markdown((ROOT / rel).read_text())
+
+
+STAMP_RE = re.compile(r"(\.(?:js|css))\?v=[0-9a-f]+")
+
+
+def unstamped(text: str) -> str:
+    """The page minus cache_bust.py's ?v= hashes, which it rewrites after generation."""
+    return STAMP_RE.sub(r"\1", text)

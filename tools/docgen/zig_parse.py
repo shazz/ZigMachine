@@ -64,20 +64,23 @@ def parse_externs(path: Path) -> list[Item]:
 
 
 def parse_struct_methods(path: Path, struct: str) -> list[Item]:
-    """`pub fn name(...) ret {` methods inside `pub const <struct> = struct`."""
+    """`pub fn name(...) ret {` methods inside a top-level `pub const <struct> = struct`.
+
+    Only a column-0 struct opens a scope and only its `};` closes it, so a nested
+    helper struct (Blitter.FillOpts) no longer swallows every method after it —
+    the published guide listed 1 of Blitter's 13 methods for that reason.
+    """
     lines = path.read_text().splitlines()
     items: list[Item] = []
-    cur = None
+    inside = False
     for i, line in enumerate(lines):
-        sm = re.match(r"\s*pub const (\w+)\s*=\s*(?:extern\s+)?struct", line)
-        if sm:
-            cur = sm.group(1)
+        if not inside:
+            inside = re.match(rf"pub const {struct}\s*=\s*(?:extern\s+)?struct\b", line) is not None
             continue
-        if cur != struct:
-            continue
-        fm = re.match(r"\s*pub fn\s+(\w+)\s*(\(.*)$", line)
+        if line.startswith("};"):
+            break
+        fm = re.match(r"    pub fn\s+(\w+)\s*(\(.*)$", line)
         if fm:
-            sig = fm.group(2).rstrip()
-            sig = re.sub(r"\s*\{?\s*$", "", sig)  # drop trailing brace
+            sig = re.sub(r"\s*\{?\s*$", "", fm.group(2).rstrip())  # drop trailing brace
             items.append(Item(fm.group(1), f"{fm.group(1)}{sig}", _leading_doc(lines, i)))
     return items
