@@ -73,6 +73,9 @@ const scene = switch (opts.index) {
     60 => @import("scenes/tcb_colorshock.zig"), // The Carebears / Colorshock 2 (CODEF screen 172)
     61 => @import("scenes/vex.zig"), // vEctRoniX / VEX 2025 GTA VI cracktro (original ST binary)
     62 => @import("scenes/replicants_emlyn.zig"), // The Replicants / Emlyn Hughes (CODEF screen 17)
+    63 => @import("scenes/scrolllab.zig"), // scrolltext distortion lab (codef_fx filters)
+    64 => @import("scenes/tsl_hybridglenz.zig"), // The Silents / Hybrid Glenz (CODEF screen 417)
+    65 => @import("scenes/polkadots.zig"), // POLKA DOTS: the halftone torus (CODEF screen 81)
     else => @compileError("bad cart index"),
 };
 

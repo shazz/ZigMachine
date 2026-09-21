@@ -177,6 +177,10 @@ pub fn build(b: *std.Build) void {
     const pack_emlyn = b.addRunArtifact(zx0pack);
     pack_emlyn.addFileArg(b.path("apps/zig/assets/screens/replicants_emlyn/emlyn.bin"));
     const emlyn_zx0 = pack_emlyn.addOutputFileArg("replicants_emlyn.zx0");
+    // THE SILENTS / HYBRID GLENZ (CODEF 417): logo + font + 3 text overlays.
+    const pack_tsl = b.addRunArtifact(zx0pack);
+    pack_tsl.addFileArg(b.path("apps/zig/assets/screens/tsl_hybridglenz/tsl.bin"));
+    const tsl_zx0 = pack_tsl.addOutputFileArg("tsl_hybridglenz.zx0");
     const packed_files = b.addWriteFiles();
     _ = packed_files.addCopyFile(trsi_zx0, "trsi_turn.zx0");
     _ = packed_files.addCopyFile(multifake_zx0, "union_multifake.zx0");
@@ -193,6 +197,7 @@ pub fn build(b: *std.Build) void {
     _ = packed_files.addCopyFile(beatdis_zx0, "union_beatdis.zx0");
     _ = packed_files.addCopyFile(superscroller_zx0, "union_superscroller.zx0");
     _ = packed_files.addCopyFile(emlyn_zx0, "replicants_emlyn.zx0");
+    _ = packed_files.addCopyFile(tsl_zx0, "tsl_hybridglenz.zx0");
     // MPP TRUECOLOR's gallery: one blob per picture and mode (tools/mpp_convert.py).
     // Unpacked they overflow the cart window, so the scene depacks only the one on
     // screen. MPP_PICTURES follows the converter's PICTURES list.
@@ -228,6 +233,7 @@ pub fn build(b: *std.Build) void {
             \\pub const union_beatdis = @embedFile("union_beatdis.zx0");
             \\pub const union_superscroller = @embedFile("union_superscroller.zx0");
             \\pub const replicants_emlyn = @embedFile("replicants_emlyn.zx0");
+            \\pub const tsl_hybridglenz = @embedFile("tsl_hybridglenz.zx0");
             \\{s}}};
             \\
         , .{mpp_decl})),
@@ -415,6 +421,9 @@ pub fn build(b: *std.Build) void {
         "demo-tcb_colorshock", // 60 — THE CAREBEARS / COLORSHOCK 2, The Cuddly Demos (CODEF screen 172)
         "demo-vex", // 61 — vEctRoniX / VEX 2025, the GTA VI cracktro (ported from the ST binary)
         "demo-replicants_emlyn", // 62 — The Replicants / Emlyn Hughes Intl Soccer cracktro (CODEF screen 17)
+        "demo-scrolllab", // 63 — scrolltext distortion lab: ten filters over one text, for picking one
+        "demo-tsl_hybridglenz", // 64 — THE SILENTS / HYBRID GLENZ, blitter glenz vectors (CODEF screen 417)
+        "demo-polkadots", // 65 — POLKA DOTS: NoNameNo's halftone dot-matrix torus (CODEF screen 81)
     };
     for (cart_names, 0..) |name, idx| {
         if (name.len == 0) continue; // excluded cart (see note above)

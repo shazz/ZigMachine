@@ -115,6 +115,11 @@
   "type": "zigmachine"
  },
  {
+  "tag": "polkadots",
+  "title": "POLKA DOTS",
+  "type": "zigmachine"
+ },
+ {
   "tag": "replicants_dd2",
   "title": "REPLICANTS DD2",
   "type": "atari st"
