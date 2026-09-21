@@ -30,6 +30,24 @@ inventing a selector.
 **Tags:** #ux #architecture #research
 **Status:** parked
 
+### 2026-09-20 — ZigMachine on an FPGA (the hardware half)
+
+Split off from the native desktop host now tracked in `TODOS.md`. The HARDWARE
+half of ZigMachine is plausible in fabric: planes, the shifter, the blitter and
+the YM2149 are all proven on MiSTer, and a memory-mapped register ABI is
+FPGA-shaped by nature — that is what the sealed machine already is.
+
+**What blocks it: the carts are wasm, and an FPGA cannot run wasm.** It would
+need a soft CPU — RISC-V, or a real 68000 core, which would have the pleasing
+effect of turning the SNDH player's *emulated* 68000 into a real one — with the
+carts compiled native and the register ABI kept as the contract between the two
+halves. That contract surviving a change of CPU is the same claim the polyglot
+carts and the desktop host make from their own directions.
+
+**Source:** conversation with Matt (2026-09-20), alongside the desktop-host item
+**Tags:** #hardware #research #someday
+**Status:** parked
+
 ---
 
 ## Graduated (moved to issues/tasks)
