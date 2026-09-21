@@ -424,6 +424,7 @@ pub fn build(b: *std.Build) void {
         "demo-scrolllab", // 63 — scrolltext distortion lab: ten filters over one text, for picking one
         "demo-tsl_hybridglenz", // 64 — THE SILENTS / HYBRID GLENZ, blitter glenz vectors (CODEF screen 417)
         "demo-polkadots", // 65 — POLKA DOTS: NoNameNo's halftone dot-matrix torus (CODEF screen 81)
+        "demo-elite_cfsr", // 66 — ELITE / Challenge Foot Senior crack intro (ported from the ST binary)
     };
     for (cart_names, 0..) |name, idx| {
         if (name.len == 0) continue; // excluded cart (see note above)
@@ -477,12 +478,18 @@ pub fn build(b: *std.Build) void {
     // Executable boot-sector programs (ZigCart format v2): bare wasm — no ZigOS/ROM,
     // they poke the sealed video ABI directly and must stay tiny (≤ 1 KB boot sector).
     // Packed into a disk's block 0 by mkdisk (which tunes the $1234 checksum word).
-    const boot_progs = [_][]const u8{"novirus"};
+    // A GENERIC boot program lives in apps/zig/boot/; one that talks about a
+    // particular screen's keys lives with that screen, so the source path is
+    // spelled out here rather than derived from the name.
+    const boot_progs = [_]struct { name: []const u8, src: []const u8 }{
+        .{ .name = "novirus", .src = "apps/zig/boot/novirus.zig" },
+        .{ .name = "replicants_emlyn", .src = "apps/zig/scenes/replicants_emlyn/boot.zig" },
+    };
     for (boot_progs) |bp| {
         const exe = b.addExecutable(.{
-            .name = b.fmt("boot-{s}", .{bp}),
+            .name = b.fmt("boot-{s}", .{bp.name}),
             .root_module = b.createModule(.{
-                .root_source_file = b.path(b.fmt("apps/zig/boot/{s}.zig", .{bp})),
+                .root_source_file = b.path(bp.src),
                 .target = wasm_target,
                 .optimize = optimize,
                 .imports = &.{.{ .name = "hardware", .module = sdk_video }},
