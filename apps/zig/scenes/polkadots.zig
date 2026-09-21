@@ -33,9 +33,25 @@
 // ONE PLANE, 12 colours: the black field, the tiles' own (7,7,7) and the ten
 // dot inks. The original draws everything onto one canvas; so does this.
 //
-// COST (measured, apps/polkadots_headless.mjs): see the harness output. The
-// per-cell stamp is a real hardware BLIT, ~440 of them a frame at the torus's
-// widest. That number is the argument in the blitter proposal.
+// FOUR RENDER MODES, ONE GRID. Keys 1..4 (or Space) switch only the RENDERER;
+// the CPU half — torus.zig projecting and shade.zig reducing — is identical for
+// all of them, which is the split the example exists to teach. Every mode
+// drives the real blitter, and the bottom line reports the operations it issued
+// and the pixels it touched, because the cost is half of the comparison:
+//
+//   1 DOT SIZE   one BLIT per lit cell from a ten-dot sheet (dots.zig)
+//   2 HALFTONE   one FILL per RUN, shaded by the HALFTONE register
+//   3 SOLID      one FILL per run, shaded by the palette — the baseline
+//   4 FILL DOTS  one FILL per lit cell, a square sized by the intensity
+//
+// Escape leaves. Declaring key() takes Escape away from the host, so this
+// scene sets wants_quit itself.
+//
+// COST (apps/polkadots_headless.mjs, averaged over 40 interleaved rounds on the
+// same torus): 223 / 99 / 123 / 173 blitter operations a frame, all four at
+// ~0.3 ms in the cart. The halftone register covers the grid in less than half
+// the operations of the dot sheet because a RUN of equal cells is one fill —
+// and it cannot vary the dot. That trade is what the screen is for.
 // --------------------------------------------------------------------------
 const zg = @import("zigos");
 const ZigOS = zg.ZigOS;
@@ -45,8 +61,12 @@ const c3 = zg.zig3d;
 const torus = @import("polkadots/torus.zig");
 const shade = @import("polkadots/shade.zig");
 const dots = @import("polkadots/dots.zig");
+const modes = @import("polkadots/modes.zig");
+const readout = @import("polkadots/readout.zig");
 
 const PLANE = 0;
+const K_ESC: u32 = 0xE012;
+const DIR_FIRE = 5; // the host maps Space and Enter to input(5)
 
 // go(): the group turns before every draw (screen.js:110-111).
 const STEP_X: f64 = 0.02;
@@ -65,11 +85,17 @@ pub const Demo = struct {
     mesh: c3.Mesh,
     blitter: zg.Blitter,
     rotation: c3.Vec3,
-    blits: u32, // last frame's stamp count, for the harness
+    mode: modes.Mode,
+    cost: dots.Cost, // last frame's blitter operations, for the label and the tap
+    loads: u32, // halftone pattern changes, mode 2 only
+    wants_quit: bool, // demo_main returns to the menu on this
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
         self.rotation = .{ .x = 0, .y = 0, .z = 0 };
-        self.blits = 0;
+        self.mode = .dot_size;
+        self.cost = .{};
+        self.loads = 0;
+        self.wants_quit = false;
         self.blitter.init();
         self.mesh = geometry.build();
         shade.setNormals(&geometry.normals);
@@ -91,13 +117,42 @@ pub const Demo = struct {
         _ = dt;
     }
 
+    /// 1..4 pick the renderer, Space cycles, Escape leaves. A screen that
+    /// declares key() owns every key, Escape included.
+    pub fn key(self: *Demo, cp: u32) void {
+        if (cp == K_ESC) self.wants_quit = true;
+        if (cp >= '1' and cp <= '0' + modes.NAMES.len) self.mode = @enumFromInt(cp - '1');
+    }
+
+    pub fn input(self: *Demo, dir: u8) void {
+        if (dir == DIR_FIRE) self.mode = @enumFromInt((@intFromEnum(self.mode) + 1) % modes.NAMES.len);
+    }
+
+    /// The host can drive the mode too (the headless harness does), so the four
+    /// renderers can be compared without a keyboard.
+    pub fn setShadeMode(self: *Demo, m: u32) void {
+        if (m < modes.NAMES.len) self.mode = @enumFromInt(m);
+    }
+
     pub fn render(self: *Demo, zigos: *ZigOS, dt: f32) void {
         _ = dt;
         const fb = &zigos.lfbs[PLANE];
         self.rotation.x += STEP_X;
         self.rotation.y += STEP_Y;
         shade.render(&self.lens, &self.mesh, self.rotation, &screen_buf, &poly_buf, &grid);
+        // The clear is a FILL like any other, so the halftone pattern mode 2
+        // left loaded would dither it. Drop it before clearing, every frame.
+        self.blitter.clearHalftone();
         self.blitter.clear(fb, 0);
-        self.blits = dots.stamp(fb, &self.blitter, &grid);
+        self.loads = 0;
+        self.cost = switch (self.mode) {
+            .dot_size => dots.stamp(fb, &self.blitter, &grid),
+            .halftone => modes.halftone(fb, &self.blitter, &grid, &self.loads),
+            .solid => modes.solid(fb, &self.blitter, &grid),
+            .fill_dots => modes.fillDots(fb, &self.blitter, &grid),
+        };
+        const m = @intFromEnum(self.mode);
+        readout.label(zigos, fb, m, modes.NAMES[m], self.cost.ops, self.cost.px);
+        readout.tap(fb, m, self.cost.ops);
     }
 };

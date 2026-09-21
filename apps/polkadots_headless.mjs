@@ -10,6 +10,13 @@
 // screen is (0,0,0)) and times the cart's own frame separately from the plane
 // composite the host would do.
 //
+// FOUR MODES. The screen is a bench: the same intensity grid drawn four ways,
+// picked with demo.setShadeMode(0..3). This harness renders every one of them,
+// proves each draws a DIFFERENT picture, reads the op count the cart wrote into
+// its 24-pixel binary tap (readout.zig) rather than trusting the label, and
+// times each mode separately — the comparison table at the end is the point of
+// the screen.
+//
 //   node apps/polkadots_headless.mjs [outdir]
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { cartRam, romRam } from "../docs/wasm_hiwater.js";
@@ -17,6 +24,7 @@ import { cartRam, romRam } from "../docs/wasm_hiwater.js";
 const PAGES = 112; // must match SHARED_PAGES in machine/sdk/memmap.zig
 const PLANES = 1; // the whole screen is one plane, as the original is one canvas
 const CELL = 7;
+const zgWidth = 320;
 const CELLS_X = 45, CELLS_Y = 28;
 const X_OFF = 2, Y_OFF = 2; // (320 - 315) / 2, (200 - 196) / 2
 
@@ -113,7 +121,9 @@ class Screen {
     census() {
         let blits = 0;
         const sizes = new Array(10).fill(0);
-        for (let cy = 0; cy < CELLS_Y; cy++) {
+        // The readout sits along the bottom row of the screen and paints over
+        // the last row of cells, so that row cannot be counted from pixels.
+        for (let cy = 0; cy < CELLS_Y - 1; cy++) {
             for (let cx = 0; cx < CELLS_X; cx++) {
                 let lit = false, ink = 0;
                 for (let y = 0; y < CELL; y++) {
@@ -131,7 +141,36 @@ class Screen {
         return { blits, sizes };
     }
 
-    async shot(path) {
+    // The cart's own count, read out of the 24-pixel binary tap in the last
+    // row: 8 bits of mode, then 16 bits of blitter operations, LSB first, in an
+    // ink that is (0,0,1) — black on screen, a 1 here.
+    tap() {
+        let bits = 0;
+        for (let b = 0; b < 24; b++) {
+            const [, , blue] = this.rgb(zgWidth - 24 + b, 199);
+            if (blue > 0.5) bits |= 1 << b;
+        }
+        return { mode: bits & 0xFF, ops: bits >>> 8 };
+    }
+
+    mode(n) {
+        if (!this.demo.setShadeMode(n)) throw new Error(`setShadeMode(${n}) was not accepted by the cart`);
+    }
+
+    // Fingerprint of the PICTURE only, above the readout, so two modes are
+    // judged different by what they drew and not by their label.
+    picture() {
+        let h = 0x811c9dc5;
+        for (let ly = 0; ly < 190; ly += 3) {
+            for (let lx = 0; lx < 320; lx += 3) {
+                const [r, g, b] = this.rgb(lx, ly);
+                h = Math.imul(h ^ ((r | 0) + (g | 0) * 7 + (b | 0) * 13), 0x01000193) >>> 0;
+            }
+        }
+        return h;
+    }
+
+    async shot(path, withCensus = false) {
         const half = this.w / 2;
         const hdr = new TextEncoder().encode(`P6\n${half} ${this.h}\n255\n`);
         const out = new Uint8Array(hdr.length + half * this.h * 3);
@@ -151,13 +190,27 @@ class Screen {
             }
         }
         await writeFile(path, out);
+        if (!withCensus) {
+            console.log(`  shot: ${path} (frame ${this.frames}, ${this.tap().ops} ops)`);
+            return 0;
+        }
+        // Only MODE 1 draws an opaque 7x7 tile per cell, so only there does the
+        // picture spell out the blit count and the distribution of dot sizes.
         const { blits, sizes } = this.census();
         if (blits < 100) throw new Error(`${path}: only ${blits} cells stamped — the torus is missing or tiny`);
         if (blits > 700) throw new Error(`${path}: ${blits} cells stamped — the torus has lost its hole or is drawing the whole grid`);
         if (sizes.slice(6).reduce((a, b) => a + b, 0) === 0) {
             throw new Error(`${path}: no bright dots — the directional light is not reaching any face`);
         }
-        console.log(`  shot: ${path} (frame ${this.frames}, ${blits} blits, sizes ${sizes.join("/")})`);
+        // The tap is the cart's own count over ALL cell rows; the census can
+        // only see the rows the readout does not cover, so it is a lower bound
+        // that may miss at most one row of cells.
+        const { mode, ops } = this.tap();
+        if (mode !== 0) throw new Error(`${path}: the tap says mode ${mode}, expected 0`);
+        if (ops < blits || ops > blits + CELLS_X) {
+            throw new Error(`${path}: the cart claims ${ops} blits, the picture shows ${blits} in the rows it can see`);
+        }
+        console.log(`  shot: ${path} (frame ${this.frames}, ${ops} blits, sizes ${sizes.join("/")})`);
         return blits;
     }
 }
@@ -169,14 +222,16 @@ const TILE_OF_INK = new Map([[0, 0], [1, 1], [5, 2], [9, 3], [13, 4], [17, 5], [
 const out = process.argv[2] || "/tmp/polkadots";
 await mkdir(out, { recursive: true });
 const screen = await boot();
+
+// --- MODE 1, the port itself: the picture is checked against the original ---
 screen.run(1);
-let peak = await screen.shot(`${out}/00-first.ppm`);     // rotation (0.02, 0.04): the ring near face-on
+let peak = await screen.shot(`${out}/00-first.ppm`, true);     // rotation (0.02, 0.04): the ring near face-on
 screen.run(24);
-peak = Math.max(peak, await screen.shot(`${out}/01-quarter.ppm`)); // y has turned a radian
+peak = Math.max(peak, await screen.shot(`${out}/01-quarter.ppm`, true)); // y has turned a radian
 screen.run(55);
-peak = Math.max(peak, await screen.shot(`${out}/02-edge.ppm`));    // the tube seen close to edge-on
+peak = Math.max(peak, await screen.shot(`${out}/02-edge.ppm`, true));    // the tube seen close to edge-on
 screen.run(79);
-peak = Math.max(peak, await screen.shot(`${out}/03-back.ppm`));
+peak = Math.max(peak, await screen.shot(`${out}/03-back.ppm`, true));
 
 // Soak: the rotation is two unbounded f64 accumulators, so no frame repeats.
 // What is being proven is that the stamp never walks off the plane (blitImage
@@ -189,3 +244,51 @@ peak = Math.max(peak, screen.census().blits);
 console.log(`  soak: ${screen.frames} frames clean, ${ms.toFixed(3)} ms/frame in the cart ` +
     `(project + shade + ${peak} peak blits), ${(1000 / ms).toFixed(0)} fps of headroom`);
 if (ms > 16.6) throw new Error(`the cart needs ${ms.toFixed(2)} ms a frame — that is under 60 fps`);
+
+// --- THE BENCH: the same grid, four renderers, measured against each other ---
+// The modes are INTERLEAVED, one frame each, round after round: the torus turns
+// by a single step between them, so the four figures describe the same picture
+// instead of four different moments of the rotation. Timing each of those
+// frames separately keeps the CPU half (project + shade) in all four figures —
+// which is right, because it is the part that does NOT change.
+const NAMES = ["DOT SIZE", "HALFTONE", "SOLID", "FILL DOTS"];
+const ROUNDS = 40;
+const bench = NAMES.map((name) => ({ name, ops: 0, px: 0, ms: 0 }));
+const seen = new Map();
+for (let round = 0; round < ROUNDS; round++) {
+    for (let m = 0; m < NAMES.length; m++) {
+        screen.mode(m);
+        const a = screen.cart_ms;
+        screen.run(1);
+        bench[m].ms += screen.cart_ms - a;
+        const { mode, ops } = screen.tap();
+        if (mode !== m) throw new Error(`mode ${m}: the cart's tap says ${mode} — setShadeMode did not take`);
+        if (ops < 20) throw new Error(`mode ${m} (${NAMES[m]}): only ${ops} blitter ops — it is drawing nothing`);
+        bench[m].ops += ops;
+        if (round > 0) continue;
+        await screen.shot(`${out}/1${m}-mode${m + 1}-${NAMES[m].toLowerCase().replace(" ", "")}.ppm`);
+        const pic = screen.picture();
+        if (seen.has(pic)) throw new Error(`mode ${m} (${NAMES[m]}) draws the same picture as mode ${seen.get(pic)}`);
+        seen.set(pic, m);
+    }
+}
+
+console.log("  bench (the same torus, drawn four ways, averaged over " + ROUNDS + " rounds):");
+for (const [i, b] of bench.entries()) {
+    b.ops /= ROUNDS;
+    b.ms /= ROUNDS;
+    console.log(`    ${i + 1} ${b.name.padEnd(10)} ${b.ops.toFixed(0).padStart(4)} blitter ops  ${b.ms.toFixed(3)} ms/frame`);
+    if (b.ms > 16.6) throw new Error(`mode ${i + 1} (${b.name}) needs ${b.ms.toFixed(2)} ms a frame — under 60 fps`);
+}
+
+// The teaching claim, asserted rather than left to the prose: the halftone
+// register shades a whole RUN of equal cells in one FILL, so it costs far fewer
+// operations than one dot-sheet blit per cell — and cannot vary the dot.
+const [dot, half, solid, fills] = bench;
+if (!(half.ops < dot.ops / 2)) {
+    throw new Error(`HALFTONE issued ${half.ops} ops against DOT SIZE's ${dot.ops}: the run collapsing is not working`);
+}
+if (half.ops > solid.ops) throw new Error("HALFTONE should never issue more fills than SOLID: they share the same runs");
+if (fills.ops > dot.ops) throw new Error("FILL DOTS should never issue more ops than DOT SIZE: both are one op per lit cell");
+console.log(`  claim: HALFTONE covers the grid in ${half.ops.toFixed(0)} fills where DOT SIZE needs ${dot.ops.toFixed(0)} blits ` +
+    `(${(dot.ops / half.ops).toFixed(1)}x fewer operations)`);

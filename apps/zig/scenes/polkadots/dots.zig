@@ -16,7 +16,19 @@ const Color = zg.Color;
 const shade = @import("shade.zig");
 
 pub const CELL = 7; // initTile(7, 7)
+
+/// Palette index of the darkest dot ink; the ramp runs INK_BASE..INK_TOP, one
+/// entry per intensity, and every render mode shades out of it.
+pub const INK_BASE: u8 = 2;
+pub const INK_TOP: u8 = 11;
+pub const LABEL_INK: u8 = 12;
+pub const TAP_INK: u8 = 13; // visually black, see readout.zig
 const SHEET_W: u16 = 70;
+
+/// What one frame of a render mode cost: blitter OPERATIONS issued, and the
+/// pixels the blitter reported touching (BLIT_CYCLES, read after every op).
+/// Counting them is the cheapest performance instrument this machine has.
+pub const Cost = struct { ops: u32 = 0, px: u32 = 0 };
 
 /// pat.png as palette indices: 1 is the tile field, 2 + t is tile t's ink.
 /// tools/private_tools/polkadots_assets.py.
@@ -46,13 +58,15 @@ pub fn palette() [256]Color {
     p[9] = .{ .r = 255, .g = 115, .b = 115, .a = 255 };
     p[10] = .{ .r = 255, .g = 141, .b = 141, .a = 255 };
     p[11] = .{ .r = 255, .g = 217, .b = 217, .a = 255 };
+    p[LABEL_INK] = .{ .r = 255, .g = 255, .b = 255, .a = 255 };
+    p[TAP_INK] = .{ .r = 0, .g = 0, .b = 1, .a = 255 }; // black to the eye, a 1 to the harness
     return p;
 }
 
-/// Stamp every lit cell of `grid` and return how many blits that took — the
-/// number the blitter proposal is argued from.
-pub fn stamp(fb: *zg.LogicalFB, bl: *zg.Blitter, grid: *const shade.Grid) u32 {
-    var blits: u32 = 0;
+/// MODE 1. Stamp every lit cell of `grid` and report what that cost — one
+/// hardware blit per lit cell, the number the other modes are measured against.
+pub fn stamp(fb: *zg.LogicalFB, bl: *zg.Blitter, grid: *const shade.Grid) Cost {
+    var cost = Cost{};
     for (0..shade.CELLS_Y) |cy| {
         const dy = Y_OFF + @as(i16, @intCast(cy * CELL));
         for (0..shade.CELLS_X) |cx| {
@@ -61,8 +75,9 @@ pub fn stamp(fb: *zg.LogicalFB, bl: *zg.Blitter, grid: *const shade.Grid) u32 {
             const sx: u16 = @as(u16, cell - 1) * CELL;
             const dx = X_OFF + @as(i16, @intCast(cx * CELL));
             bl.blitImage(fb, dx, dy, PAT, SHEET_W, sx, 0, CELL, CELL, null);
-            blits += 1;
+            cost.ops += 1;
+            cost.px += bl.cycles();
         }
     }
-    return blits;
+    return cost;
 }
