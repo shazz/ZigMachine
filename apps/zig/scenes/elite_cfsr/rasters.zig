@@ -17,15 +17,22 @@
 // $777 and back down, with a $700 accent in the last group.
 //
 // WHERE THEY SIT. The band bitmap starts at line 44 ($1b86 / 160), the 20 groups
-// run 44..203 with it, and the two colour-0 bars bracket them: 39..43 above, and
+// run 44..203 with it, and the two colour-0 bars bracket them: 38..42 above, and
 // 201..205 below — which is PAST the 200-line screen and therefore lands in the
 // BOTTOM BORDER, where colour 0 is all there is. That is why the borders are
 // open here: on hardware the bar runs edge to edge and down into the border, and
-// the demo's own screenshot shows it doing exactly that. The line at which the
-// beam-synced bar starts is the one number the binary would not give up exactly
-// (it depends on Timer B / HBL latency in cycles); 39 is the value that makes
-// the top bar sit against the band and the bottom one fall where the screenshot
-// has it.
+// the demo's own screenshot shows it doing exactly that.
+//
+// The line at which the beam-synced bar starts is the one number the BINARY
+// would not give up: it depends on Timer B / HBL latency in cycles, not on
+// anything static analysis can settle. It was reconstructed as 39, and then
+// MEASURED on real hardware (Hatari via shirazmcp, 2026-09-20): the original
+// runs with the opening bar at 38, one line earlier. Anchored on the logo's
+// own first scanline, and confirmed term by term against the left BORDER, which
+// carries colour 0 and therefore shows the bar unobstructed:
+//   38 = $100  39 = $411  40 = $732  41 = $765  42 = $000
+// The closing bar measured at 201..205, exactly as reconstructed.
+// So line 43 is background: the bar does NOT abut the band.
 // --------------------------------------------------------------------------
 const zg = @import("zigos");
 const A = @import("assets.zig");
@@ -47,7 +54,9 @@ const GROUP_LINES: usize = 8;
 // The five bar lines end where TIMER_B_1 takes the chain over (line 44), and the
 // closing bar starts five lines past the last group's first line: Timer B is
 // reloaded with 4 there and the handler then waits one HBL to sync.
-const BAR1_TOP: usize = A.BAND_TOP - BEAM_RASTERS1.len; // 39
+// 38, MEASURED on hardware — not BAND_TOP - 5 (39), which is what it looks
+// like it should be. There is one background line at 43 between bar and band.
+const BAR1_TOP: usize = 38;
 const BAR2_TOP: usize = A.BAND_TOP + (GROUPS - 1) * GROUP_LINES + 5; // 201
 
 /// Slot 0 drives palette entry 0, slot 1 entry 1, slot 2 entry 8.

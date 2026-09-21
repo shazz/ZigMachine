@@ -18,7 +18,11 @@ const PLANES = 1; // one overscan plane: the ST drew this on one screen
 // The scene's geometry, from apps/zig/scenes/elite_cfsr/ (which took it from the
 // .PRG's own symbols). Physical row = 40 + line.
 const TOP = 40, BAND_TOP = 44, BAND_ROWS = 16, REPEATS = 10, GROUP = 8;
-const BAR1_TOP = 39, BAR2_TOP = 201;
+// 38 and 201 MEASURED on real hardware (Hatari via shirazmcp, 2026-09-20),
+// anchored on the logo's first scanline and read off the LEFT BORDER where
+// colour 0 is unobstructed. 38 corrects a reconstruction of 39: the bar does
+// NOT abut the band, line 43 is background.
+const BAR1_TOP = 38, BAR2_TOP = 201;
 const BEAM_RASTERS1 = [0x100, 0x411, 0x732, 0x765, 0x000];
 const BEAM_RASTERS2 = [0x765, 0x732, 0x411, 0x100, 0x000];
 const RASTERS = [
