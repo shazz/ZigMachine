@@ -56,10 +56,38 @@ pub const Blitter = struct {
         self.w16(hw.BLIT_D_STRIDE, fb.stride);
     }
 
+    // What a FILL may do beyond writing `color` straight into the destination.
+    // Every field defaults to the pre-1.5.0 behaviour, so `fill()` is unchanged:
+    //  - `bg` null leaves BG_COLOR alone (a solid fill never reads it; a halftone
+    //    fill that wants a defined background must say which),
+    //  - `mt` null writes the colour straight (FILL ignores MINTERM), non-null
+    //    combines source and destination the way triangleEx does,
+    //  - `halftone` true makes the loaded pattern authoritative, so an ALL-ZERO
+    //    pattern is density 0 (every pixel `bg`) instead of "no halftone at all".
+    //    Leave it false and the machine sniffs the pattern; to turn a halftone
+    //    off, clearHalftone().
+    pub const FillOpts = struct {
+        bg: ?u8 = null,
+        mt: ?Minterm = null,
+        halftone: bool = false,
+    };
+
     // --- primitives ---
     pub fn fill(self: *Blitter, fb: *LogicalFB, x: i16, y: i16, w: u16, h: u16, color: u8) void {
+        self.fillEx(fb, x, y, w, h, color, .{});
+    }
+
+    pub fn fillEx(self: *Blitter, fb: *LogicalFB, x: i16, y: i16, w: u16, h: u16, color: u8, opts: FillOpts) void {
         self.setDest(fb);
         self.w8(hw.BLIT_CON, 0);
+        var con2: u8 = 0;
+        if (opts.mt) |m| {
+            self.w8(hw.BLIT_MINTERM, @intFromEnum(m));
+            con2 |= hw.CON2_FILL_MT;
+        }
+        if (opts.bg) |b| self.w8(hw.BLIT_BG_COLOR, b);
+        if (opts.halftone) con2 |= hw.CON2_HALFTONE_EN;
+        self.w8(hw.BLIT_CON2, con2); // never stale: SRC_ABS from an earlier blit must not leak in
         self.w8(hw.BLIT_COLOR, color);
         self.wi16(hw.BLIT_X0, x);
         self.wi16(hw.BLIT_Y0, y);

@@ -90,14 +90,20 @@ fn applyMinterm(a: u8, b: u8, c: u8, mt: u8) u8 {
 // --------------------------------------------------------------------------
 // Ops
 // --------------------------------------------------------------------------
-fn doFill(d: [*]u8, ds: u16, c: Clip, cost: *u32) void {
+fn doFill(d: [*]u8, ds: u16, c: Clip, con2: u8, cost: *u32) void {
     const x0 = ri16(memmap.BLIT_X0);
     const y0 = ri16(memmap.BLIT_Y0);
     const w = r16(memmap.BLIT_W);
     const h = r16(memmap.BLIT_H);
     const fg = r8(memmap.BLIT_COLOR);
     const bg = r8(memmap.BLIT_BG_COLOR);
-    const halftone = haveHalftone();
+    const halftone = haveHalftone(con2);
+    // Combining with the destination is opt-in (CON2.FILL_MT): FILL ignored
+    // MINTERM before 1.5.0, so a caller that never wrote the register would
+    // otherwise start obeying whatever the previous op left there. MT_B is the
+    // identity for D = LF(0, src, D), so the plain plot stays the fast path.
+    const mt = r8(memmap.BLIT_MINTERM);
+    const combine = con2 & memmap.CON2_FILL_MT != 0 and mt != memmap.MT_B;
     var j: u16 = 0;
     while (j < h) : (j += 1) {
         var i: u16 = 0;
@@ -105,7 +111,14 @@ fn doFill(d: [*]u8, ds: u16, c: Clip, cost: *u32) void {
             const px = @as(i32, x0) + i;
             const py = @as(i32, y0) + j;
             const v = if (halftone) (if (halftoneBit(px, py)) fg else bg) else fg;
-            plot(d, ds, c, px, py, v);
+            if (combine) {
+                if (inClip(c, px, py)) {
+                    const idx = @as(usize, @intCast(py)) * ds + @as(usize, @intCast(px));
+                    d[idx] = applyMinterm(0, v, d[idx], mt); // channel B = src, C = dest
+                }
+            } else {
+                plot(d, ds, c, px, py, v);
+            }
             cost.* += 1;
         }
     }
@@ -304,13 +317,13 @@ inline fn linePixel(d: [*]u8, ds: u16, c: Clip, mt: u8, color: u8, x: i32, y: i3
 
 // TRIANGLE — deterministic odd-even scanline fill (the sealed convenience over
 // the Amiga edge+area-fill two-pass; exact and gap-free for a single triangle).
-fn doTriangle(d: [*]u8, ds: u16, c: Clip, cost: *u32) void {
+fn doTriangle(d: [*]u8, ds: u16, c: Clip, con2: u8, cost: *u32) void {
     const xs = [3]i32{ ri16(memmap.BLIT_X0), ri16(memmap.BLIT_X1), ri16(memmap.BLIT_X2) };
     const ys = [3]i32{ ri16(memmap.BLIT_Y0), ri16(memmap.BLIT_Y1), ri16(memmap.BLIT_Y2) };
     const color = r8(memmap.BLIT_COLOR);
     const bg = r8(memmap.BLIT_BG_COLOR);
     const mt = r8(memmap.BLIT_MINTERM); // combine fill with dest: MT_B copies, MT_OR_BC = glenz
-    const halftone = haveHalftone(); // dithered fill (COLOR / BG_COLOR) when a pattern is loaded
+    const halftone = haveHalftone(con2); // dithered fill (COLOR / BG_COLOR) when a pattern is loaded
     var ymin = @min(ys[0], @min(ys[1], ys[2]));
     var ymax = @max(ys[0], @max(ys[1], ys[2]));
     ymin = @max(ymin, c.y0);
@@ -358,7 +371,12 @@ fn crossSpan(xs: [3]i32, ys: [3]i32, y: i32, xl: *i32, xr: *i32) void {
 // --------------------------------------------------------------------------
 // Halftone (16x16 1-bit pattern selecting COLOR / BG_COLOR)
 // --------------------------------------------------------------------------
-fn haveHalftone() bool {
+// Explicit when the program says so (CON2.HALFTONE_EN), which is the only way
+// to ask for an ALL-ZERO pattern — density 0, every pixel BG_COLOR. With the bit
+// clear the machine sniffs for a non-zero row, as it did before 1.5.0, so a
+// caller that only loads a pattern still gets a halftone.
+fn haveHalftone(con2: u8) bool {
+    if (con2 & memmap.CON2_HALFTONE_EN != 0) return true;
     var i: usize = 0;
     while (i < 16) : (i += 1) if (r16(memmap.BLIT_HALFTONE + i * 2) != 0) return true;
     return false;
@@ -378,6 +396,7 @@ pub fn execute() void {
     w8(memmap.BLIT_STATUS, memmap.BLIT_STATUS_BUSY);
 
     const con = r8(memmap.BLIT_CON);
+    const con2 = r8(memmap.BLIT_CON2);
     const d_base: usize = r32(memmap.BLIT_D_BASE);
     const d_stride = r16(memmap.BLIT_D_STRIDE);
     const clip = clipRect(con, d_stride);
@@ -394,10 +413,10 @@ pub fn execute() void {
     const d: [*]u8 = @ptrFromInt(memmap.HW_VIDEO_BASE + d_base);
 
     switch (cmd) {
-        memmap.BLIT_CMD_FILL => doFill(d, d_stride, clip, &cost),
+        memmap.BLIT_CMD_FILL => doFill(d, d_stride, clip, con2, &cost),
         memmap.BLIT_CMD_BLIT => doBlit(d, d_stride, clip, con, &cost),
         memmap.BLIT_CMD_LINE => doLine(d, d_stride, clip, &cost),
-        memmap.BLIT_CMD_TRIANGLE => doTriangle(d, d_stride, clip, &cost),
+        memmap.BLIT_CMD_TRIANGLE => doTriangle(d, d_stride, clip, con2, &cost),
         else => {},
     }
 

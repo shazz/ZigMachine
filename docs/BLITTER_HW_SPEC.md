@@ -19,6 +19,14 @@ to `HARDWARE_SPEC.md` (the sealed video/audio machine) and `HW_API.md` (the ABI)
 > or the ROM window, range-checked per blit. Before it, every BASE was an offset
 > from `HW_VIDEO_BASE`, so a cart's own assets (which live below it) could only
 > be blitted after copying them into VRAM.
+>
+> **1.5.0 (2026-09-20): FILL joins the rest.** `CON2.FILL_MT` makes `FILL`
+> combine through `MINTERM` like `BLIT`/`LINE`/`TRIANGLE` (§4.2), so a patterned
+> XOR or OR fill is finally possible; `CON2.HALFTONE_EN` says a halftone is
+> active because the program says so, not because the machine found a non-zero
+> row, so an ALL-ZERO pattern means density 0 (every pixel `BG_COLOR`) instead of
+> "no halftone". Both are opt-in: with the bits clear, `FILL` writes the colour
+> straight and the pattern is sniffed, exactly as before 1.5.0.
 
 Goal: give the sealed machine an oldskool **blitter** — a fixed-function 2D
 drawing coprocessor the open ZigOS/effects drive through memory-mapped registers.
@@ -110,7 +118,7 @@ by `hw/sdk/memmap.zig`). Word/long fields little-endian.
 | `0x04` | `COLOR` | u8 | foreground index (FILL/LINE/TRIANGLE, halftone FG) |
 | `0x05` | `BG_COLOR` | u8 | halftone / fill background index |
 | `0x06` | `COLOR_KEY` | u8 | index treated as transparent (the chunky "mask", when `KEY_EN`) |
-| `0x07` | `CON2` | u8 | control, second byte (1.4.0): bit0 `SRC_ABS` (A/B BASE are absolute addresses, range-checked, see §2) |
+| `0x07` | `CON2` | u8 | control, second byte: bit0 `SRC_ABS` (1.4.0 — A/B BASE are absolute addresses, range-checked, see §2) · bit1 `FILL_MT` (1.5.0 — `FILL` combines through `MINTERM`, §4.2) · bit2 `HALFTONE_EN` (1.5.0 — `HALFTONE` is active by declaration, not by sniffing, §4.2) |
 | `0x08` | `A_BASE` `A_STRIDE` | u32,u16 | channel A source (mask/data) |
 | `0x10` | `B_BASE` `B_STRIDE` | u32,u16 | channel B source (image data) |
 | `0x18` | `C_BASE` `C_STRIDE` | u32,u16 | channel C source (background) |
@@ -132,8 +140,8 @@ mirror `BLTCON1`'s fill and descend bits. `A/B/C/D_BASE`+`STRIDE` are the Amiga
 
 ## 4. Operations
 
-All ops honour `MINTERM`/channel enables, the clip rect (`CLIP_EN`), and
-framebuffer bounds. Coordinates are signed; off-screen geometry is clipped.
+All ops honour `MINTERM`/channel enables (`FILL` only with `CON2.FILL_MT`, §4.2),
+the clip rect (`CLIP_EN`), and framebuffer bounds. Coordinates are signed; off-screen geometry is clipped.
 
 ### 4.1 `BLIT` — three-source block transfer / cookie-cut bob
 Combine enabled sources A,B,C into D over a `W×H` rect, `D = MINTERM(A,B,C)` per
@@ -146,8 +154,23 @@ overlapping moves (smear/feedback trails).
 
 ### 4.2 `FILL` — solid / halftone rectangle
 Fill the `W×H` rect at `(X0,Y0)` in D with `COLOR`, or — when a `HALFTONE`
-pattern is loaded — the 16×16 tile selecting `COLOR`/`BG_COLOR`. Fast clears and
+pattern is active — the 16×16 tile selecting `COLOR`/`BG_COLOR`. Fast clears and
 classic dithered/halftone shading. (A degenerate BLIT with only the constant path.)
+
+Two bits in `CON2` (1.5.0) widen it, both **opt-in** so that a program written
+against 1.4.0 renders identically:
+
+- `CON2.FILL_MT` — the filled value is channel **B** and the destination is
+  channel **C**, so `D = MINTERM(0, src, D)`: `0xCC` (`MT_B`) is the plain fill,
+  `0x66` XORs the pattern in (and out again next frame), `0xEE` ORs a halftone
+  into what is already on the plane. With the bit clear `FILL` ignores `MINTERM`
+  entirely — it did until 1.5.0, and callers left the register stale.
+- `CON2.HALFTONE_EN` — the `HALFTONE` pattern is active because the program said
+  so. With the bit clear the machine decides by looking for a non-zero row
+  (pre-1.5.0 behaviour), which makes an all-zero pattern mean "no halftone" —
+  backwards for a density ramp, where level 0 must paint every pixel `BG_COLOR`.
+  The bit applies to `TRIANGLE`'s halftone too. To turn a halftone off, clear the
+  pattern.
 
 ### 4.3 `LINE` — Bresenham line mode
 Draw `(X0,Y0)`→`(X1,Y1)` in `COLOR` (or halftone stipple — the Amiga line

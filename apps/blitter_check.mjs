@@ -1,5 +1,6 @@
-// The blitter's SOURCE contract (HW 1.4.0), driven straight through the register
-// block of the sealed machine, with no cart and no ZigOS in the way.
+// The blitter's SOURCE contract (HW 1.4.0) and FILL's combine/halftone contract
+// (HW 1.5.0), driven straight through the register block of the sealed machine,
+// with no cart and no ZigOS in the way.
 //
 // Before 1.4.0 every channel BASE was an offset from HW_VIDEO_BASE, so a cart's
 // own assets (which live below it, in the cart window) were unreachable. CON2.SRC_ABS
@@ -185,13 +186,85 @@ check("a huge-stride view that only writes its first rows still works", () => {
     return at(4, 0) === 0x77 && at(11, 0) === 0x77 && cyc === 8 ? null : `FILL wrote ${at(4, 0)}, CYCLES ${cyc}`;
 });
 
+// FILL's own contract (HW 1.5.0). Until 1.5.0 FILL plotted COLOR straight and
+// decided "is a halftone loaded?" by sniffing the pattern for a non-zero row, so
+// a patterned XOR/OR fill was impossible and density 0 meant SOLID. Both new
+// powers are opt-in bits in CON2, because every pre-1.5.0 caller wrote CON = 0
+// and left MINTERM holding whatever the previous op had put there: the checks
+// below pin BOTH halves — what the bits do, and that without them nothing moved.
+function fill({ con2 = 0, x, y, w, h, color, bg = 0, mt = 0xcc, halftone }) {
+    const m = u8(), d = dv();
+    d.setUint32(R(0x20), P0, true);
+    d.setUint16(R(0x24), STRIDE, true);
+    m[R(0x02)] = 0;                          // CON: no channels, no clip
+    m[R(0x07)] = con2;
+    m[R(0x01)] = mt;                         // MINTERM
+    m[R(0x04)] = color;
+    m[R(0x05)] = bg;
+    for (let i = 0; i < 16; i++) d.setUint16(R(0x40) + i * 2, halftone ? halftone[i] : 0, true);
+    d.setInt16(R(0x2c), x, true);
+    d.setInt16(R(0x2e), y, true);
+    d.setUint16(R(0x28), w, true);
+    d.setUint16(R(0x2a), h, true);
+    m[R(0x00)] = 2;                          // COMMAND: FILL
+    machine.hwBlit();
+    return d.getUint32(R(0x60), true);
+}
+const CHECKER = Array.from({ length: 16 }, (_, j) => (j % 2 ? 0xaaaa : 0x5555));
+const ALL_ZERO = new Array(16).fill(0);
+const FILL_MT = 0x02, HALFTONE_EN = 0x04;
+
+check("FILL without CON2.FILL_MT ignores a stale MINTERM (pre-1.5.0 behaviour)", () => {
+    // MT_CLEAR would wipe the rect to 0 if FILL obeyed the register unasked.
+    fill({ x: 0, y: 0, w: 8, h: 2, color: 0x33, mt: 0x00 });
+    return at(0, 0) === 0x33 && at(7, 1) === 0x33 ? null : `FILL wrote ${at(0, 0)}/${at(7, 1)}`;
+});
+check("FILL with CON2.FILL_MT XORs into the destination", () => {
+    fill({ con2: FILL_MT, x: 4, y: 1, w: 4, h: 1, color: 0x0f, mt: 0x66 }); // MT_XOR_BC
+    const once = at(4, 1);
+    fill({ con2: FILL_MT, x: 4, y: 1, w: 4, h: 1, color: 0x0f, mt: 0x66 }); // XOR back out
+    if (once !== (CANARY ^ 0x0f)) return `XOR gave ${once}, wants ${CANARY ^ 0x0f}`;
+    return at(4, 1) === CANARY && at(7, 1) === CANARY ? null : "XOR was not reversible";
+});
+check("FILL with CON2.FILL_MT ORs into the destination", () => {
+    fill({ con2: FILL_MT, x: 0, y: 0, w: 3, h: 1, color: 0x81, mt: 0xee }); // MT_OR_BC
+    return at(0, 0) === (CANARY | 0x81) ? null : `OR gave ${at(0, 0)}`;
+});
+check("FILL_MT with MT_B is still the plain fill", () => {
+    fill({ con2: FILL_MT, x: 0, y: 0, w: 3, h: 1, color: 0x2a, mt: 0xcc });
+    return at(0, 0) === 0x2a && at(2, 0) === 0x2a ? null : `MT_B fill gave ${at(0, 0)}`;
+});
+check("FILL halftone picks COLOR/BG_COLOR, and BG_COLOR is honoured", () => {
+    fill({ x: 0, y: 0, w: 16, h: 2, color: 0x11, bg: 0x22, halftone: CHECKER });
+    // row 0 = 0x5555: bit i of x selects, so even x -> COLOR, odd x -> BG.
+    return at(0, 0) === 0x11 && at(1, 0) === 0x22 && at(0, 1) === 0x22 && at(1, 1) === 0x11
+        ? null : `halftone gave ${at(0, 0)},${at(1, 0)} / ${at(0, 1)},${at(1, 1)}`;
+});
+check("an all-zero halftone WITHOUT the enable bit still fills solid (pre-1.5.0)", () => {
+    fill({ x: 0, y: 0, w: 4, h: 1, color: 0x44, bg: 0x55, halftone: ALL_ZERO });
+    return at(0, 0) === 0x44 && at(3, 0) === 0x44 ? null : `sniffed fill gave ${at(0, 0)}`;
+});
+check("an all-zero halftone WITH CON2.HALFTONE_EN is density 0: all BG_COLOR", () => {
+    fill({ con2: HALFTONE_EN, x: 0, y: 0, w: 4, h: 1, color: 0x44, bg: 0x55, halftone: ALL_ZERO });
+    return at(0, 0) === 0x55 && at(3, 0) === 0x55 ? null : `density 0 gave ${at(0, 0)}`;
+});
+check("an all-zero halftone, HALFTONE_EN + XOR, leaves the plane alone", () => {
+    // bg 0 XORed into dest is the identity: the "draw nothing" level of a ramp.
+    fill({ con2: HALFTONE_EN | FILL_MT, x: 0, y: 0, w: 32, h: 4, color: 0x44, bg: 0, mt: 0x66, halftone: ALL_ZERO });
+    return untouched();
+});
+check("a halftone fill still clips to the destination", () => {
+    fill({ con2: HALFTONE_EN | FILL_MT, x: -4, y: -1, w: 8, h: 3, color: 0xff, bg: 0x10, mt: 0xee, halftone: CHECKER });
+    return at(0, 0) !== CANARY && at(319, 199) === CANARY ? null : "clipped fill wrote outside";
+});
+
 check("hwInit clears CON2, so pre-1.4.0 carts keep relative sources", () => {
     u8()[R(0x07)] = 1;
     machine.hwInit();
     return u8()[R(0x07)] === 0 ? null : "CON2 survived hwInit";
 });
-check("the machine reports HW 1.4.0", () =>
-    machine.hwVersion() === 0x00010400 ? null : `hwVersion 0x${machine.hwVersion().toString(16)}`);
+check("the machine reports HW 1.5.0", () =>
+    machine.hwVersion() === 0x00010500 ? null : `hwVersion 0x${machine.hwVersion().toString(16)}`);
 
 console.log(failed ? `blitter_check: ${failed} FAILED` : "blitter_check: all pass ✅");
 process.exit(failed ? 1 : 0);

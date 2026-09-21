@@ -188,6 +188,17 @@ pub const CON_CLIP_EN: u8 = 1 << 7; // clip to CLIP rect
 // RAM); otherwise the BLIT draws nothing. D stays a video-region offset: the
 // blitter reads anywhere a program may, but writes only video memory.
 pub const CON2_SRC_ABS: u8 = 1 << 0;
+// FILL_MT (1.5.0): FILL combines its source (channel B: COLOR, or the halftone
+// pick) with the destination (channel C) through MINTERM, exactly as TRIANGLE
+// does. Opt-in, because FILL ignored MINTERM until 1.5.0 and every caller left
+// the register holding whatever the previous op wrote: with the bit clear FILL
+// writes the colour straight, as it always did.
+pub const CON2_FILL_MT: u8 = 1 << 1;
+// HALFTONE_EN (1.5.0): the HALFTONE pattern is active because the program says
+// so, not because the machine found a non-zero row in it. An all-zero pattern
+// then means "every pixel is BG_COLOR" (density 0) instead of "no halftone".
+// With the bit clear the machine sniffs the pattern, as it did before 1.5.0.
+pub const CON2_HALFTONE_EN: u8 = 1 << 2;
 
 pub const BLIT_STATUS_BUSY: u8 = 1 << 7;
 
@@ -253,4 +264,4 @@ pub const ROM_RAM_BYTES: usize = ROM_RAM_TOP - ROM_RAM_BASE; // 2 MiB
 // tools/mkdisks.sh; node apps/disk_check.mjs is what catches it.
 pub const SHARED_PAGES: u32 = 112;
 
-pub const ZM_HW_VERSION: u32 = 0x0001_0400; // 1.4.0 — blitter CON2.SRC_ABS: sources in cart RAM / ROM window
+pub const ZM_HW_VERSION: u32 = 0x0001_0500; // 1.5.0 — blitter CON2.FILL_MT (FILL honours MINTERM) + CON2.HALFTONE_EN (explicit halftone)

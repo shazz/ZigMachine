@@ -184,6 +184,14 @@ Full model in `docs/BLITTER_HW_SPEC.md`; drive it via `zigos/blitter.zig`
   `D_BASE` stays a video-region offset (the blitter writes only video memory).
   `hwInit()` clears `CON2`, so carts built before 1.4.0 behave exactly as before.
   ZigOS: `Blitter.blitImage(dst, dx, dy, pixels, src_w, sx, sy, w, h, key)`.
+- **FILL combines, and a halftone can be declared — since 1.5.0.** `CON2` bit1
+  `FILL_MT` makes FILL run its value through `MINTERM` against the destination
+  (XOR a pattern in and out again, OR a halftone into what is there); bit2
+  `HALFTONE_EN` says the `HALFTONE` pattern is active because the program said
+  so, so an ALL-ZERO pattern is density 0 (every pixel `BG_COLOR`) instead of
+  "no halftone". Both are opt-in: with the bits clear FILL writes `COLOR`
+  straight and the pattern is sniffed, so pre-1.5.0 carts are unchanged.
+  ZigOS: `Blitter.fillEx(fb, x, y, w, h, color, .{ .bg = …, .mt = …, .halftone = … })`.
 - **Deferred (v2):** raw area fill (`CON.IFE`/`EFE`) and an async/DMA
   cycle-budgeted mode.
 
