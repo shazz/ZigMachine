@@ -23,7 +23,7 @@ const SCROLL_TOP = 195, SCROLL_BOTTOM = 226; // drawTile(390) halved, 32 rows ta
 const MAGIC_X = 40, HBL_PLANE_ID = 0; // OVERSCAN_MAGIC_X; id 5 would be the global HBL
 const K_ESC = 0xe012, DIR_FIRE = 5;
 const WANT_MUSIC = "seven_gates_of_jambala.sndh", WANT_TUNE = 9;
-const SPIN_FRAMES = 40; // theta = 0.02 * 40 = 0.80 rad, a clear diagonal
+const SPIN_FRAMES = 40; // theta = 0.02 * 40 = 0.80 rad; the bend is full by 20
 const RETURN_FRAMES = 21; // 0.80 rad home at 0.16 a frame: 5, and 20 from the far side
 
 // --break <what> SABOTAGES one measurement and passes only if the check it
@@ -106,11 +106,14 @@ function bucketsAt(line) {
 ///   count    buckets in use, from the ramp itself (1 = one raster register)
 ///   tilted   lines whose buckets are not all one colour (only a tilt does that)
 ///   changes  lines whose bucket palette differs from the line above
-///   side     non-black pixels in the LEFT and RIGHT border columns
+///   side     non-black raster pixels in the LEFT and RIGHT border columns
+///   logoSide logo pixels there, and fontSide scrolltext pixels: the logo and
+///            the scrolltext are drawn to the whole raster too
 function census() {
     const lfb = indices();
     const n = { bucket: 0, bar: 0, art: 0, other: 0 };
-    let count = 1, tilted = 0, changes = 0, prev = "", side = 0, fontTop = 1e9, fontBottom = -1, lowest = -1;
+    let count = 1, tilted = 0, changes = 0, prev = "", side = 0, logoSide = 0, fontSide = 0;
+    let fontTop = 1e9, fontBottom = -1, lowest = -1;
     for (let y = 0; y < H; y++) {
         const b = bucketsAt(broke === "rasters" ? CONTENT_Y : y); // sabotage: one static palette
         const key = b.join(",");
@@ -118,15 +121,20 @@ function census() {
         prev = key;
         for (let x = 0; x < PW; x++) {
             const i = lfb[y * PW + x];
+            // sabotage: pretend nothing is drawn outside the content window,
+            // which is the .top_bottom + window-clipped behaviour this replaced
+            const inBorder = (x < CONTENT_X || x >= CONTENT_X + CONTENT_W) && broke !== "borders";
             if (i >= FIRST_BUCKET) {
                 n.bucket++;
                 count = Math.max(count, i - FIRST_BUCKET + 1);
-                const inBorder = x < CONTENT_X || x >= CONTENT_X + CONTENT_W;
-                if (inBorder && b[i - FIRST_BUCKET] !== BLACK_RGBA && broke !== "borders") side++;
+                if (inBorder && b[i - FIRST_BUCKET] !== BLACK_RGBA) side++;
             } else if (i >= FIRST_BAR && i < FIRST_FONT) n.bar++;
             else if (i >= FIRST_FONT) {
                 n.art++;
-                if (i < FIRST_LOGO) {
+                if (i >= FIRST_LOGO) {
+                    if (inBorder) logoSide++;
+                } else {
+                    if (inBorder) fontSide++;
                     const row = y - CONTENT_Y;
                     if (row < fontTop) fontTop = row;
                     if (row > fontBottom) fontBottom = row;
@@ -137,7 +145,7 @@ function census() {
         const used = b.slice(0, count);
         if (used.some((c) => c !== used[0])) tilted++;
     }
-    return { ...n, count, tilted, changes, side, fontTop, fontBottom, lowest };
+    return { ...n, count, tilted, changes, side, logoSide, fontSide, fontTop, fontBottom, lowest };
 }
 
 async function shot(path) {
@@ -167,12 +175,13 @@ if (W !== 800 || PW !== 400) console.log(`  note: physical ${W}x${H}, plane stri
 run(1);
 await shot(`${out}/0001.ppm`);
 let c = census();
-console.log(`  frame 1: ${c.count} bucket(s), ${c.bucket} bucket px, ${c.art} art px, bar-as-pixel ${c.bar}, palette changes on ${c.changes} lines, side ${c.side}`);
+console.log(`  frame 1: ${c.count} bucket(s), ${c.bucket} bucket px, ${c.art} art px, bar-as-pixel ${c.bar}, palette changes on ${c.changes} lines, border raster ${c.side} logo ${c.logoSide}`);
 check("bar.png's colours are never pixels — the bars are only ever palette", c.bar, 0);
 check("the background is nothing but bucket indices", c.bucket > 0, true);
 check("the raster table really changes from line to line", c.changes > 100, true);
 check("theta 0 needs ONE colour register a line, as a raster bar does", c.count, 1);
 check("the rasters run into the LEFT and RIGHT borders", c.side > 0, true);
+check("... and so does the logo, which is drawn to the whole raster", c.logoSide > 0, true);
 check("content reaches the opened bottom border", c.lowest >= 240, true);
 check("the logo depacked and draws over the rasters", c.art > 0, true);
 
@@ -181,8 +190,9 @@ check("the logo depacked and draws over the rasters", c.art > 0, true);
 run(119);
 await shot(`${out}/0120.ppm`);
 c = census();
-console.log(`  frame 120: ${c.count} bucket(s), scroller rows ${c.fontTop}..${c.fontBottom}`);
-check("the scroller is on the canvas, inside ST rows 195..226", c.fontTop >= SCROLL_TOP && c.fontBottom <= SCROLL_BOTTOM, true);
+console.log(`  frame 120: ${c.count} bucket(s), scroller rows ${c.fontTop}..${c.fontBottom}, in the border ${c.fontSide}`);
+check("ORIGINAL keeps the scroller flat, inside ST rows 195..226", c.fontTop >= SCROLL_TOP && c.fontBottom <= SCROLL_BOTTOM, true);
+check("the scrolltext runs into the LEFT and RIGHT borders too", c.fontSide > 0, true);
 
 // Space switches ORIGINAL -> ZIG (the host sends it as input(5); this cart
 // declares no key(), so it keeps the host's Escape). Sabotage: never press it.
@@ -192,6 +202,7 @@ await shot(`${out}/0160-zig.ppm`);
 c = census();
 console.log(`  ZIG + ${SPIN_FRAMES}: ${c.count} buckets, ${c.tilted} tilted lines, bar-as-pixel ${c.bar}`);
 check("ZIG mode tilts the bars off horizontal", c.tilted > 200, true);
+check("... and bends the scrolltext off flat with them", c.fontBottom - c.fontTop > 40, true);
 check("... and pays for it with a finer ramp", c.count > 50, true);
 check("a tilted bar is still only ever palette entries", c.bar, 0);
 
@@ -202,6 +213,7 @@ run(RETURN_FRAMES);
 c = census();
 console.log(`  ORIGINAL + ${RETURN_FRAMES}: ${c.count} buckets, ${c.tilted} tilted lines`);
 check("Space switches back to ORIGINAL within 20 frames", c.count === 1 && c.tilted === 0, true);
+check("... and the scrolltext is dead flat again with it", c.fontBottom - c.fontTop < 32, true);
 
 // The cart declares no key(), so demo_main's own Escape -> menu still applies.
 demo.key(K_ESC);

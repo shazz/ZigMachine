@@ -11,10 +11,10 @@
 // the plane x = 0 and every bar lands on the canvas midline: what each one
 // contributes is a canvas y and a scale, which is exactly what a raster needs.
 // Their positions are pixel-verified against three.js r49's own Projector
-// (codef3d_test.zig) — only the PAINTING became real rasters (rasters.zig).
+// (zig3d_test.zig) — only the PAINTING became real rasters (rasters.zig).
 // --------------------------------------------------------------------------
 const zg = @import("zigos");
-const c3 = zg.codef3d;
+const c3 = zg.zig3d;
 
 const CANVAS_W = 640; // new canvas(640, 480, "main")
 const CANVAS_H = 480;

@@ -19,6 +19,11 @@ const zg = @import("zigos");
 const blit = zg.blit;
 const A = @import("assets.zig");
 
+// Plane column X is content x + CONTENT_X, plane row Y is content y + CONTENT_Y
+// — the same canvas-to-raster mapping rasters.zig uses for the ramp.
+const ORIGIN_X: i32 = @intCast(A.CONTENT_X);
+const ORIGIN_Y: i32 = @intCast(A.CONTENT_Y);
+
 const HANDLE_X = A.LOGO_W / 2; // in canvas pixels: A.LOGO_W, A.LOGO_H
 const HANDLE_Y = A.LOGO_H / 2;
 const CX = 320; // draw(mycanvas, 320 + posx, 300 + sin(posy) * 300)
@@ -51,9 +56,15 @@ pub const Logo = struct {
         self.posy += POSY_STEP;
     }
 
-    pub fn draw(self: *const Logo, screen: blit.Dst, image: blit.Image) void {
+    /// Drawn to the WHOLE 400x280 raster, not the content window: on a
+    /// fullscreen ST screen every column is drawable, so the logo sweeps
+    /// through the side borders the rasters already run into, instead of
+    /// stopping at an edge that is no longer there. Only the CLIPPING changes —
+    /// the position arithmetic is still the remake's, in canvas pixels.
+    pub fn draw(self: *const Logo, plane: blit.Dst, image: blit.Image) void {
         const x = @divExact(CX + self.posx - HANDLE_X * 2, 2);
         const y = (CY + @sin(self.posy) * AMP - HANDLE_Y * 2) / 2;
-        blit.blit(screen, image, null, x, @intFromFloat(@round(y)), A.TRANSPARENT, .copy);
+        const row: i32 = @intFromFloat(@round(y));
+        blit.blit(plane, image, null, x + ORIGIN_X, row + ORIGIN_Y, A.TRANSPARENT, .copy);
     }
 };

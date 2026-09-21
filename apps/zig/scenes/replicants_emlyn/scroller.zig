@@ -16,9 +16,25 @@
 //
 // drawTile's y is the tile TOP (drawPart translates by -handle, and the font is
 // not mid-handled), so canvas y 390 is ST row 195 and the band is rows 195..226.
+//
+// It draws to the WHOLE 400x280 raster, not the canvas window: with the rasters
+// and the logo both running edge to edge, the scrolltext was the only thing
+// still stopping at an edge this screen no longer has. Plane column X is
+// content x + CONTENT_X and plane row Y is content y + CONTENT_Y — the same
+// mapping rasters.zig uses for the ramp and logo.zig for the logo.
+//
+// ZIG MODE bends it on CODEF 484's middle scroller, the curve picked out of the
+// distortion lab: cascade-archeology.js:76-79, amp HALVED and inc DOUBLED for
+// ST, offset per frame unchanged. The filter is codef_fx.siny and is NOT
+// reimplemented here — libs/zig/effects/wave.zig already is it (its own header
+// says so), so this is the shared one. `.multiply` rather than CODEF's
+// accumulate because the phase has to be a function of the SCREEN column: the
+// glyphs are blitted one at a time, not walked as one strip, and both forms
+// give phase = value + inc*x.
 // --------------------------------------------------------------------------
 const zg = @import("zigos");
 const blit = zg.blit;
+const wave = zg.wave;
 const A = @import("assets.zig");
 
 /// screen.js:76, exactly. Its authors' words, not ours.
@@ -33,7 +49,14 @@ const SPEED = 4; // init(..., 4)
 const WIDE = 11; // Math.ceil(640 / 64) + 1
 pub const LETTERS = WIDE + 1; // the ring loops i = 0 to wide INCLUSIVE
 const START_C = WIDE * TILE_C; // 704
-pub const ROW = 390 / 2; // draw(390), the tile's top
+pub const ROW = 390 / 2 + @as(i32, @intCast(A.CONTENT_Y)); // draw(390) halved, on the raster
+const ORIGIN_X: i32 = @intCast(A.CONTENT_X);
+
+// CODEF 484's middle scroller (cascade-archeology.js:76-79), halved and doubled.
+const TERMS = 2;
+const AMP = [TERMS]f64{ 10, 20 }; // the short ripple, then the long swell
+const INC = [TERMS]f64{ 0.06, 0.02 }; // radians a column: the wavelengths
+const OFFSET = [TERMS]f64{ -0.05, -0.04 }; // radians a frame: the travel
 
 comptime {
     @setEvalBranchQuota(4 * TEXT.len + 1000);
@@ -44,9 +67,11 @@ pub const Scroller = struct {
     posx: [LETTERS]i32, // canvas pixels, always even
     ltr: [LETTERS]u8,
     offset: usize, // scroffset
+    phase: [TERMS]f64, // 484's `value`, advanced by OFFSET a frame
 
     pub fn init(self: *Scroller) void {
         self.offset = 0;
+        self.phase = .{ 0, 0 };
         for (&self.posx, &self.ltr, 0..) |*x, *c, i| {
             x.* = @intCast(START_C + i * TILE_C);
             c.* = TEXT[self.offset];
@@ -57,6 +82,7 @@ pub const Scroller = struct {
     /// The first half of draw(): every letter moves, and one that has left the
     /// canvas rejoins the back of the ring with the next character.
     pub fn update(self: *Scroller) void {
+        for (&self.phase, OFFSET) |*v, d| v.* += d;
         for (&self.posx, &self.ltr) |*x, *c| {
             x.* -= SPEED;
             if (x.* > -TILE_C) continue;
@@ -67,11 +93,28 @@ pub const Scroller = struct {
         }
     }
 
-    pub fn draw(self: *const Scroller, dst: blit.Dst, font: blit.Image) void {
+    /// `bend` is 0 in ORIGINAL mode — and then this is the original's own plain
+    /// blit, not a flat sweep, so the frame is bit-identical to the faithful
+    /// port. Above 0 the letters ride 484's curve, scaled by it, so switching
+    /// modes grows and flattens the bend instead of snapping it.
+    pub fn draw(self: *const Scroller, dst: blit.Dst, font: blit.Image, bend: f64) void {
         for (self.posx, self.ltr) |x, c| {
             const g: usize = c - FIRST_CHAR;
             const cell = blit.Rect{ .x = g % COLS * TILE, .y = g / COLS * TILE, .w = TILE, .h = TILE };
-            blit.blit(dst, font, cell, @divExact(x, 2), ROW, A.TRANSPARENT, .copy);
+            const dx = @divExact(x, 2) + ORIGIN_X;
+            if (bend <= 0) {
+                blit.blit(dst, font, cell, dx, ROW, A.TRANSPARENT, .copy);
+                continue;
+            }
+            const curve = wave.SineSum(f64, TERMS){
+                .amp = .{ AMP[0] * bend, AMP[1] * bend },
+                .phase = self.phase,
+                .inc = INC,
+                .step = .multiply,
+                .rounding = .round,
+            };
+            var it = curve.sweep(dx);
+            wave.siny(dst, font, cell, dx, ROW, 1, &it, A.TRANSPARENT, .copy);
         }
     }
 };

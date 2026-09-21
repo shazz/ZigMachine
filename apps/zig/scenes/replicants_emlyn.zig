@@ -29,9 +29,13 @@
 //     bar.png's 64 one-colour rows were always a table FOR. So the background is
 //     a ramp of palette indices across all 400 raster columns and the plane's
 //     HBL colours them per line (emlyn/rasters.zig). Nothing of the bars is in
-//     the framebuffer, and every border is open so they run edge to edge.
-//  2. SPACE switches between ORIGINAL (theta = 0, the faithful screen 17) and
-//     ZIG (the bars turn through every direction). See turnBars().
+//     the framebuffer, and every border is open so they run edge to edge. The
+//     LOGO and the SCROLLTEXT are drawn to the whole 400x280 raster for the
+//     same reason: on a fullscreen screen there is no edge to stop at.
+//  2. SPACE switches between ORIGINAL (the faithful screen 17) and ZIG, where
+//     the bars turn through every direction AND the scrolltext bends on CODEF
+//     484's middle-scroller curve (emlyn/scroller.zig), the one picked out of
+//     the distortion lab. Both grow in and flatten out over the same 20 frames.
 //
 // ONE plane, one palette: 107 entries of art (unquantized) + up to 149 raster
 // buckets. Per frame: a colour table, a 400-byte pattern per plane row, one
@@ -42,13 +46,14 @@ const hw = @import("hardware");
 const ZigOS = zg.ZigOS;
 const Color = zg.Color;
 const blit = zg.blit;
-const c3 = zg.codef3d;
+const c3 = zg.zig3d;
 const zx0 = @import("depackers").zx0;
 const packed_assets = @import("packed_assets");
 
 const A = @import("replicants_emlyn/assets.zig");
 const balls = @import("replicants_emlyn/balls.zig");
 const rasters = @import("replicants_emlyn/rasters.zig");
+const Mode = @import("replicants_emlyn/mode.zig").Mode;
 const Logo = @import("replicants_emlyn/logo.zig").Logo;
 const Scroller = @import("replicants_emlyn/scroller.zig").Scroller;
 
@@ -73,19 +78,6 @@ const MUSIC_TUNE: u8 = 9;
 const PLANE = 0;
 const DIR_FIRE = 5; // the host maps Space AND Enter to input(5)
 
-// MINE, not the original's: screen 17 has no bar angle at all. Half the group's
-// own 0.04, and the same number the logo's sine already steps by, so a full
-// turn takes 2*pi / 0.02 = 314 frames (5.2 s) — the logo's bob period. Like
-// both of those it is a float accumulator, so it is not exactly periodic.
-const THETA_STEP = 0.02;
-// Coming BACK to horizontal is a different job: it answers a keypress, so it has
-// to read as immediate. Eight times the sweep, the short way round, which is at
-// most pi / 0.16 = 20 frames — a third of a second — and always lands exactly on
-// 0 rather than drifting past it.
-const RETURN_STEP = 8 * THETA_STEP;
-const PI = 3.141592653589793;
-const TAU = 2 * PI;
-
 pub const Demo = struct {
     ok: bool,
     images: A.Images,
@@ -94,15 +86,13 @@ pub const Demo = struct {
     particles: [balls.POINTS.len]c3.Particle,
     started: bool, // go() has drawn once, so the logo may move
     rotation_x: f64, // group.rotation.x
-    theta: f64, // the raster bars' angle
-    zig_mode: bool, // Space: ORIGINAL (theta -> 0) or ZIG (theta turns)
+    mode: Mode, // ORIGINAL or ZIG, and how far between (emlyn/mode.zig)
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
         self.ok = false;
         self.started = false;
         self.rotation_x = 0;
-        self.theta = 0;
-        self.zig_mode = false;
+        self.mode.init();
         self.logo.init();
         self.scroller.init();
         self.particles = undefined;
@@ -131,7 +121,7 @@ pub const Demo = struct {
     /// Escape -> menu (demo_main.zig). Declaring key() here would take Escape
     /// away with it and strand the screen.
     pub fn input(self: *Demo, dir: u8) void {
-        if (dir == DIR_FIRE) self.zig_mode = !self.zig_mode;
+        if (dir == DIR_FIRE) self.mode.toggle();
     }
 
     pub fn update(self: *Demo, zigos: *ZigOS, dt: f32) void {
@@ -142,27 +132,7 @@ pub const Demo = struct {
         self.scroller.update();
         if (self.started) self.logo.move(); // ... and moves the logo after
         self.started = true;
-        self.turnBars();
-    }
-
-    /// ZIG mode sweeps the angle; ORIGINAL mode brings it home the SHORT way
-    /// round, at eight times the sweep. Still a turn, never a snap — but it
-    /// starts on the frame the key arrives and is over inside 20 frames, which
-    /// the old "finish the lap" version was not (it could take 5 seconds).
-    fn turnBars(self: *Demo) void {
-        if (self.zig_mode) {
-            self.theta += THETA_STEP;
-            if (self.theta >= TAU) self.theta -= TAU;
-            return;
-        }
-        if (self.theta == 0) return;
-        const left = if (self.theta <= PI) self.theta else TAU - self.theta;
-        if (left <= RETURN_STEP) return self.settle();
-        self.theta += if (self.theta <= PI) -RETURN_STEP else RETURN_STEP;
-    }
-
-    fn settle(self: *Demo) void {
-        self.theta = 0;
+        self.mode.update();
     }
 
     pub fn render(self: *Demo, zigos: *ZigOS, dt: f32) void {
@@ -170,12 +140,14 @@ pub const Demo = struct {
         if (!self.ok) return;
         // my3d.draw(), split in two: the projection is still three.js's, but
         // what it feeds is the HBL's colour table, not a blit.
-        rasters.build(balls.project(self.rotation_x, &self.particles), self.theta);
+        rasters.build(balls.project(self.rotation_x, &self.particles), self.mode.theta);
         const plane = blit.Dst.plane(&zigos.lfbs[PLANE]);
         for (0..plane.h) |y| @memcpy(plane.buf[y * plane.stride ..][0..rasters.row.len], &rasters.row);
-        const screen = plane.window(A.CONTENT_X, A.CONTENT_Y, A.CONTENT_W, A.CONTENT_H);
-        self.logo.draw(screen, self.images.logo);
-        self.scroller.draw(screen, self.images.font);
+        // Rasters, then the logo, then the scrolltext — the remake's order.
+        // All three take the WHOLE raster now: nothing stops at an edge this
+        // screen no longer has.
+        self.logo.draw(plane, self.images.logo);
+        self.scroller.draw(plane, self.images.font, self.mode.bend);
     }
 };
 
