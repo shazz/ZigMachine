@@ -8,7 +8,7 @@ The **sealed machine** ABI: everything a coder gets of the hardware is the two
 > the entry points, not the schematics. The constraints *are* the console.
 > Everything here is stable ABI — additive changes bump minor, layout changes
 > bump major. Version is exported as `hwVersion()` / `audioVersion()`
-> (`0x0001_0300` = 1.3.0).
+> (`0x0001_0600` = 1.6.0).
 
 The single source of truth for the numbers below is `hw/sdk/memmap.zig` (video)
 and `hw/sdk/audio.zig` (audio).
@@ -73,6 +73,29 @@ memory.
 | `0x58` | `RES_FLICKER` | u16 | overscan-trick latch: the SDK bumps it on a `RES_MEDIUM`→`RES_PLANES` flicker so the machine can observe the (untrappable) poke once per scanline |
 | `0x5C` | `CART_HIGH` | u32 | the running cart's data+stack high-water, declared by the host at load time (`hwSetCartHigh`). Survives `hwInit`. `0` = undeclared. Backs the RAM instructions in §4c |
 | `0x60` | `ROM_HIGH` | u32 | the same for the ROM module's window (`hwSetRomHigh`). `0` = no ROM chip fitted |
+| `0x64` | `BEAM_COUNT` | u16 | **1.6.0** colour-0 writes queued for the current line (table at `OFF_BEAM_TABLE`); the machine zeroes it after the line |
+| `0x68` | `BEAM_DROPPED` | u32 | **1.6.0** running count of refused BEAM writes; only `hwInit` zeroes it — read and clear it yourself |
+
+**BEAM — mid-line colour-0 writes (1.6.0).** For zero-bitplane screens, where the
+picture is colour 0 rewritten mid-line. From the **global** HBL for physical line
+`y`, queue up to 64 entries `x << 16 | st_colour` at `OFF_BEAM_TABLE` (region
+offset `0x1DBD00`, just above the PFB) and set `BEAM_COUNT`. `hwClear()` then
+paints the line from `BACKGROUND`, switching colour at each entry's `x`
+(PHYSICAL px 0..399, left border included), and leaves the last colour in
+`BACKGROUND` for the next line, as `$FF8240` keeps its value. The colour is an
+ST/STE word; its 4-bit STE level × 16 becomes each RGBA gun (`$777` → 224).
+The machine enforces the 68000: `x` snaps down to 4, accepted writes are ≥ 8 px
+apart and increasing, 64 a line at most, `x` < 400; anything else is **dropped
+and counted** in `BEAM_DROPPED`. With `BEAM_COUNT = 0` nothing changes. ZigOS:
+
+```zig
+fn hbl(_: *zg.ZigOS, line: u16) void {
+    zg.beam.begin();
+    zg.beam.cells(0, 8, &row_colours[line]); // 50 cells of 8 px across the whole line
+}
+```
+
+Full rules and rationale: `docs/HARDWARE_SPEC.md` §4 "BEAM".
 
 **Scroll planes** (`FB_MODE = 2`): back a plane with a bigger-than-screen buffer
 (`setScrollPlane(w, h)`); the visible 320×200 window is panned by moving `FB_BASE`
@@ -133,7 +156,7 @@ hwPhysicalPtr() i32      // pointer to the PFB, for the host to blit
 hwPlanesNumber() u8      // 4
 hwPhysWidth() u32        // 400
 hwPhysHeight() u32       // 280
-hwVersion() u32          // 0x0001_0300
+hwVersion() u32          // 0x0001_0600 (1.6.0)
 ```
 
 **Import it requires** (provided by the host, routed to the open demo module):

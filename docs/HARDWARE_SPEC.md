@@ -66,6 +66,7 @@ ZigOS wraps them so effects use names, not raw addresses.
 | Palette ×4 | `PAL` = 0x0100 | 4 × 1024 B | R/W | 256 × RGBA per plane |
 | Logical FB ×4 | `LFB` = 0x1100 | 4 × 64000 B | R/W | 320×200, 1 byte palette index/pixel |
 | Physical FB | `PFB` | 448000 B | **R only** | machine output; host blits it. Not user-writable. |
+| BEAM table | `OFF_BEAM_TABLE` = `PFB` + PFB size | 64 × 4 B | R/W | 1.6.0: the current line's colour-0 writes (§4, "BEAM"). Outside the blitter's window. |
 
 `LFB(plane) = base + 0x1100 + plane*64000`, `PAL(plane) = base + 0x0100 + plane*1024`.
 
@@ -87,6 +88,46 @@ ZigOS wraps them so effects use names, not raw addresses.
 | 0x20 | `FB_HBL_ID[4]` | u16×4 | per-plane HBL handler id (0 = none) |
 | 0x28 | `FB_HBL_POS[4]` | u16×4 | x position at which the per-plane HBL fires |
 | 0x30 | `FRAME` | u32 (ro) | frame counter |
+| 0x64 | `BEAM_COUNT` | u16 | 1.6.0: colour-0 writes queued for the CURRENT line; the machine sets it back to 0 after the line |
+| 0x68 | `BEAM_DROPPED` | u32 | 1.6.0: running count of BEAM writes the machine refused; only `hwInit` zeroes it (the program reads and clears it) |
+
+### BEAM — mid-line colour-0 writes (1.6.0)
+
+A zero-bitplane ST screen has no pixels: every "pixel" is colour 0 (`$FF8240`)
+rewritten by cycle-counted `move.w`s while the beam crosses the line, and the
+background IS the picture. BEAM gives the machine that register, with the
+68000's limits built in.
+
+The **global HBL** for physical line `y` (0..279) fills `OFF_BEAM_TABLE` with
+entries `x << 16 | colour` and sets `BEAM_COUNT`. When the handler returns,
+`hwClear()` paints the line: it starts in `BACKGROUND`, and from each accepted
+entry's `x` on the line is that entry's colour. The last colour **becomes
+`BACKGROUND`**, so the next line starts in it, exactly as `$FF8240` keeps its
+value. `BEAM_COUNT` is then set to 0: a list is consumed once, and the HBL must
+refill it on every line it wants writes on. `BEAM_COUNT = 0` is the pre-1.6.0
+fill, byte for byte.
+
+- **x** is in PHYSICAL low-res pixels, 0..399, the left border starting at 0
+  (the same coordinate as `PHYSICAL_WIDTH`), drawn doubled on the 800 raster.
+- **colour** is an ST/STE colour word as written to `$FF8240`: each nibble is 3
+  bits plus the STE LSB in bit 3, and the 4-bit level × 16 gives the gun, so a
+  plain ST colour lands on the `nibble × 32` grid (0..224) that ripped ST palettes
+  use, and an STE half-step 16 above it. It is converted to the palette's RGBA
+  (`a<<24 | b<<16 | g<<8 | r`), which is what `BACKGROUND` then holds.
+
+The limits the machine enforces (low res is one pixel per 8 MHz cycle):
+
+| Rule | Why (68000) |
+|---|---|
+| `x` snaps DOWN to a multiple of 4 | the CPU reaches the bus in 4-cycle slots |
+| an accepted write is ≥ 8 px after the previous accepted one (so `x` strictly increases) | `move.w Dn,(An)` = 8 cycles, the fastest write there is |
+| at most 64 writes a line; `x` < 400 | the table's 64 slots; the line's 400 px. At 8 px a write only 50 fit a line, so the pixel limit bites first |
+
+A write that breaks a rule is **dropped** and counted in `BEAM_DROPPED` — never
+silently absorbed. `BEAM_COUNT` above 64 counts the writes that had no slot.
+ZigOS: `zg.beam.begin()`, `zg.beam.write(x, st)`, `zg.beam.cells(x0, w, colours)`,
+`zg.beam.dropped()` / `clearDropped()` (`libs/zig/effects/beam.zig`). End to end:
+`apps/beam_check.mjs` (and its `--break` twin, 4 px writes, which must be caught).
 
 ---
 

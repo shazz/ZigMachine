@@ -42,7 +42,7 @@
   <main>
     <section class="hero" id="top">
       <h1>Programmer's guide</h1>
-      <ul class="stats"><li><a href="#hw-abi-machine-exports"><b>22</b>ABI exports</a></li><li><a href="#zigos-logicalfb-a-plane"><b>97</b>library methods</a></li><li><a href="#geometry-resolution"><b>88</b>constants / registers</a></li></ul>
+      <ul class="stats"><li><a href="#hw-abi-machine-exports"><b>22</b>ABI exports</a></li><li><a href="#zigos-logicalfb-a-plane"><b>97</b>library methods</a></li><li><a href="#geometry-resolution"><b>90</b>constants / registers</a></li></ul>
       <div class="intro">
 ZigMachine is a fantasy console: a <b>sealed hardware</b> core (compiled to two
 <code>machine-*.wasm</code> binaries you never edit) plus an <b>open library</b>
@@ -57,7 +57,7 @@ select it in <code>apps/floppy.zig</code>.
 screen step by step in Zig, C and Rust, and runs each step on the real machine.
 This page is the reference you reach for afterwards.</p>
 </div>
-      <p class="stamp">Generated 2026-09-20 by tools/gen_docs.py from machine/sdk, libs/zig, rom/gem and docs/*.md</p>
+      <p class="stamp">Generated 2026-09-24 by tools/gen_docs.py from machine/sdk, libs/zig, rom/gem and docs/*.md</p>
     </section>
     <section class="ref" id="examples">
       <header class="sec-h"><span class="eyebrow">Start</span><h2>Examples<small>six scenes, in Zig</small></h2></header>
@@ -157,7 +157,7 @@ fb.<span class="tok-fn">setFrameBufferHBLHandler</span>(<span class="tok-num">0<
 <tr><td><code>RES_TRUECOLOR</code></td><td><code>1</code></td><td class="meaning"></td></tr>
 <tr><td><code>RES_MEDIUM</code></td><td><code>2</code></td><td class="meaning">640x200, 2 planes, no border (ST-medium style)</td></tr>
 </tbody></table></section>
-<section class="ref" id="video-registers"><header class="sec-h"><span class="eyebrow">Machine</span><h2>Video registers<small>the sealed video block</small></h2><span class="count">15 entries</span></header><table class="regs"><thead><tr><th>Name</th><th>Value</th><th>Type</th><th>Meaning</th></tr></thead><tbody>
+<section class="ref" id="video-registers"><header class="sec-h"><span class="eyebrow">Machine</span><h2>Video registers<small>the sealed video block</small></h2><span class="count">17 entries</span></header><table class="regs"><thead><tr><th>Name</th><th>Value</th><th>Type</th><th>Meaning</th></tr></thead><tbody>
 <tr><td><code>REG_RESOLUTION</code></td><td><code>0x00</code></td><td><span class="type">u8</span></td><td class="meaning">0 = planes, 1 = truecolor (border-open)</td></tr>
 <tr><td><code>REG_NB_PLANES</code></td><td><code>0x01</code></td><td><span class="type">u8<span class="ro">ro</span></span></td><td class="meaning">= 4</td></tr>
 <tr><td><code>REG_BACKGROUND</code></td><td><code>0x04</code></td><td><span class="type">u32</span></td><td class="meaning">border/background RGBA</td></tr>
@@ -172,7 +172,9 @@ fb.<span class="tok-fn">setFrameBufferHBLHandler</span>(<span class="tok-num">0<
 <tr><td><code>REG_FB_MODE</code></td><td><code>0x54</code></td><td><span class="type">u8 &times;4</span></td><td class="meaning">per-plane render mode (0x54..0x57): 0 normal, 1 fullscreen, 2 scroll, 3 medium, 4 overscan</td></tr>
 <tr><td><code>REG_RES_FLICKER</code></td><td><code>0x58</code></td><td><span class="type">u16</span></td><td class="meaning">overscan-trick latch: the SDK bumps it on a RES_MEDIUM-&gt;RES_PLANES flicker so the (untrappable) poke is observable per scanline (0x58..0x59; 0x5A..0x5B free)</td></tr>
 <tr><td><code>REG_CART_HIGH</code></td><td><code>0x5C</code></td><td><span class="type">u32</span></td><td class="meaning">(0x5C..0x5F)</td></tr>
-<tr><td><code>REG_ROM_HIGH</code></td><td><code>0x60</code></td><td><span class="type">u32</span></td><td class="meaning">(0x60..0x63; 0x64..0x7F free below OFF_BLIT)</td></tr>
+<tr><td><code>REG_ROM_HIGH</code></td><td><code>0x60</code></td><td><span class="type">u32</span></td><td class="meaning">(0x60..0x63)</td></tr>
+<tr><td><code>REG_BEAM_COUNT</code></td><td><code>0x64</code></td><td><span class="type">u16</span></td><td class="meaning">entries queued for the CURRENT line (0x64..0x65; 0x66..0x67 free)</td></tr>
+<tr><td><code>REG_BEAM_DROPPED</code></td><td><code>0x68</code></td><td><span class="type">u32</span></td><td class="meaning">running count of rejected writes (0x68..0x6B; 0x6C..0x7F free below OFF_BLIT)</td></tr>
 </tbody></table></section>
 <section class="ref" id="blitter-registers"><header class="sec-h"><span class="eyebrow">Machine</span><h2>Blitter registers<small>OFF_BLIT + …</small></h2><span class="count">23 entries</span></header><table class="regs"><thead><tr><th>Name</th><th>Value</th><th>Type</th><th>Meaning</th></tr></thead><tbody>
 <tr><td><code>BLIT_COMMAND</code></td><td><code>OFF_BLIT + 0x00</code></td><td><span class="type">u8</span></td><td class="meaning">0 NOP 1 BLIT 2 FILL 3 LINE 4 TRIANGLE</td></tr>
