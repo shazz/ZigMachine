@@ -426,6 +426,7 @@ pub fn build(b: *std.Build) void {
         "demo-polkadots", // 65 — POLKA DOTS: NoNameNo's halftone dot-matrix torus (CODEF screen 81)
         "demo-elite_cfsr", // 66 — ELITE / Challenge Foot Senior crack intro (ported from the ST binary)
         "demo-rno_sodium", // 67 — RNO / SODIUM, Altparty intro (ported from the ST binary)
+        "demo-rno_natrium", // 68 — RNO / NATRIUM, 96k intro (ported from the ST binary)
     };
     for (cart_names, 0..) |name, idx| {
         if (name.len == 0) continue; // excluded cart (see note above)

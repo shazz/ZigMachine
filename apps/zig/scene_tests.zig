@@ -11,4 +11,5 @@ test {
     _ = @import("scenes/union_demo/return_note.zig");
     _ = @import("scenes/union_demo/hub_note.zig");
     _ = @import("scenes/union_texcopier/copier_test.zig");
+    _ = @import("scenes/rno_natrium/verify_test.zig");
 }

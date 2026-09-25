@@ -80,6 +80,7 @@ pub const ENTRIES = [_]Entry{
     .{ .name = "POLKA DOTS", .tag = "polkadots" }, // zigmachine
     .{ .name = "ELITE CHALLENGE FOOT", .tag = "elite_cfsr" }, // atari st
     .{ .name = "RNO SODIUM", .tag = "rno_sodium" }, // atari st
+    .{ .name = "RNO NATRIUM", .tag = "rno_natrium" }, // atari st
     // The Union Demo's screens (union_multifake, union_textracker, ...) are NOT
     // listed: they are reached only through the UNION DEMO hub's doors (Matt,
     // 2026-09-13). Their carts stay in build.zig / cart.zig, so their disks build.
