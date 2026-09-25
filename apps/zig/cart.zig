@@ -78,6 +78,7 @@ const scene = switch (opts.index) {
     65 => @import("scenes/polkadots.zig"), // POLKA DOTS: the halftone torus (CODEF screen 81)
     66 => @import("scenes/elite_cfsr.zig"), // ELITE / Challenge Foot Senior cracktro (original ST binary)
     67 => @import("scenes/rno_sodium.zig"), // RNO / SODIUM intro (original ST binary)
+    68 => @import("scenes/rno_natrium.zig"), // RNO / NATRIUM 96k intro (original ST binary)
     else => @compileError("bad cart index"),
 };
 
