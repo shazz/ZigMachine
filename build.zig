@@ -427,6 +427,7 @@ pub fn build(b: *std.Build) void {
         "demo-elite_cfsr", // 66 — ELITE / Challenge Foot Senior crack intro (ported from the ST binary)
         "demo-rno_sodium", // 67 — RNO / SODIUM, Altparty intro (ported from the ST binary)
         "demo-rno_natrium", // 68 — RNO / NATRIUM, 96k intro (ported from the ST binary)
+        "demo-dhs_0pxl0reg", // 69 — DHS / (n)0 PIXELS (n)0 REGRETS, zero bitplanes on the BEAM (ported from the ST binary)
     };
     for (cart_names, 0..) |name, idx| {
         if (name.len == 0) continue; // excluded cart (see note above)

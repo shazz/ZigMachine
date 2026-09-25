@@ -601,8 +601,10 @@ function start() {
                 demo.songTune ? demo.songTune() : 0);
         }
 
+        let anyPlane = false;
         for (let i = 0; i < nb_planes; i++) {
             if (demo.isPlaneEnabled(i)) {
+                anyPlane = true;
                 machine.hwRenderPlane(i);       // sealed: composite LFB[i] -> PFB
                 imageDatas[i].data.set(fbView); // single copy PFB -> plane i's canvas
                 contexts[i].putImageData(imageDatas[i], 0, 0);
@@ -611,6 +613,14 @@ function start() {
                 contexts[i].clearRect(0, 0, fb_width, fb_height); // blank the stale layer
                 planeDirty[i] = false;
             }
+        }
+        // No plane enabled: an ST with empty bitplanes still shows colour 0, so
+        // the PFB as hwClear() left it (background, borders, BEAM writes) is the
+        // picture. A zero-bitplane screen (dhs_0pxl0reg) is nothing but this.
+        if (!anyPlane) {
+            imageDatas[0].data.set(fbView);
+            contexts[0].putImageData(imageDatas[0], 0, 0);
+            planeDirty[0] = true;
         }
     };
     // The rAF chain must never die: an exception out of a cart used to stop
