@@ -1,6 +1,7 @@
 // --------------------------------------------------------------------------
 // The HUD (main.js TopBannerObject + BottomBannerObject): the UNION DEMO logo,
-// the scroll-rasters band and the big scroller.
+// the scroll-rasters band (colour 0 per line, see raster.zig) and the big
+// scroller.
 //
 // The scroller is CODEF scrolltext_horizontal drawn twice into a 640x34
 // merge canvas: fontsTexIn, then 'source-in' with the panorama strip, then
@@ -15,9 +16,16 @@ const blit = zg.blit;
 const LogicalFB = zg.LogicalFB;
 const A = @import("assets.zig");
 const world = @import("world.zig");
+const raster = @import("raster.zig");
 
 const LOGO_X: i32 = 194 / 2; // me.SpriteObject(194, 0) (main.js:414)
 const RASTERS_Y: usize = 318 / 2; // scrollrasters drawn at y 318 (main.js:499)
+/// The scroll band's colours from its first coloured line to the screen's
+/// bottom: scrollrasters rows 0-1 are black, and colour 0 is black already.
+pub const BAND_Y: usize = RASTERS_Y + 1;
+pub fn band() []const u8 {
+    return A.scroll_rows[0 .. zg.HEIGHT - BAND_Y];
+}
 const SCROLL_Y: i32 = 344 / 2; // merge canvas drawn at y 344 (main.js:508)
 const SPEED: i32 = 5; // scrolltext init speed 5 (main.js:467)
 const PANO_STEP: f32 = -2.5; // updateItemValue("scroller", -2.5) (main.js:553)
@@ -67,8 +75,8 @@ pub const Hud = struct {
     }
 
     pub fn draw(self: *const Hud, fb: *LogicalFB) void {
-        world.fillRow(fb, RASTERS_Y, A.colors.BLACK); // scrollrasters rows 0-1
-        for (RASTERS_Y + 1..fb.fb_h) |y| world.fillRow(fb, y, A.scroll_rows[y - RASTERS_Y - 1]);
+        // The scroll band is colour 0 per line (raster.zig), so it is only a fill.
+        for (RASTERS_Y..fb.fb_h) |y| world.fillRow(fb, y, raster.BG);
         const dst = blit.Dst.plane(fb);
         const pano = blit.Pattern{ .img = A.panorama, .ox = @intFromFloat(@ceil(self.pano / 2)), .oy = SCROLL_Y };
         for (self.letters) |l| {

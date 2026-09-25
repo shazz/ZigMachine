@@ -13,7 +13,9 @@
 //
 // Geometry: the remake's canvas is 640x480 but everything it draws sits in the
 // top 400 rows (map 25x16, HUD down to 395) — an ST 320x200 doubled. Halved
-// onto one normal 320x200 plane; no border is used.
+// onto one normal 320x200 plane; no border is opened. Both rasters are real
+// (union_demo/raster.zig), and the scroll band's colour 0 paints the closed
+// side borders on its lines, as on the ST.
 //
 // Per frame, in melonJS's order: layers update (rasters, banner parallax, one
 // frame behind the camera), Charly moves and collides, the door check, the
@@ -30,10 +32,11 @@ const MAP_W = @import("union_demo/charly.zig").MAP_W;
 const return_note = @import("union_demo/return_note.zig");
 const hub_note = @import("union_demo/hub_note.zig"); // scratch()
 const Controls = @import("union_demo/controls.zig").Controls;
-const Hud = @import("union_demo/hud.zig").Hud;
 const world = @import("union_demo/world.zig");
 const doors = @import("union_demo/doors.zig");
 const menu_loader = @import("union_demo/loading.zig"); // menuloader.js before the street
+const raster = @import("union_demo/raster.zig");
+const hud = @import("union_demo/hud.zig");
 
 // "Union Demo MENU" is Mad Max's Alloy Run, and this is the REAL tune: the
 // archive's Mad_Max/Demos/Union_Demo/SID/Alloy_Run.sndh (SID effects on MFP
@@ -65,7 +68,7 @@ const K_ESC: u32 = 0xE012;
 pub const Demo = struct {
     charly: Charly,
     controls: Controls,
-    hud: Hud,
+    hud: hud.Hud,
     cam: i32, // viewport pos.x, 640 space
     start_clamp: bool, // the opening shot's view >= 0 clamp still holds
     banner: zg.tilemap.RatioScroll,
@@ -114,6 +117,7 @@ pub const Demo = struct {
             },
             .ready => { // PlayScreen.onResetEvent: the HUD, then the menu music
                 self.hud.init();
+                raster.install(zigos, &zigos.lfbs[0], hud.BAND_Y, hud.band());
                 self.comeBack(); // back from a door's screen: where Charly and the scroller were
                 zg.requestSongTune(MUSIC, MUSIC_TUNE);
             },
@@ -157,7 +161,7 @@ pub const Demo = struct {
         _ = dt;
         if (menu_loader.blocking()) return; // the loader panel owns the plane
         const fb = &zigos.lfbs[0];
-        world.drawRasters(fb, self.rasters_y);
+        world.drawRasters(fb, self.rasters_y, raster.doorInk(fb));
         world.drawBanner(fb, self.banner.pos);
         world.drawForeground(fb, self.cam);
         world.drawCharly(fb, &self.charly, self.cam);

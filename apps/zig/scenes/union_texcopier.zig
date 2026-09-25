@@ -6,7 +6,9 @@
 //
 // On screen, in draw order (screen.js:212-242), one plane, one palette:
 //   black; from frame 104, six raster windows at fixed rows, each scrolling
-//   through one of 8 raster images at 2.5 canvas rows a frame (draw.zig);
+//   through one of 8 raster images at 2.5 canvas rows a frame (draw.zig): a
+//   REAL raster, colour 0 rewritten per scanline (raster.zig), so the bars also
+//   run through the closed side borders, as on the ST;
 //   the copier's display panel;
 //   a line of text whose letters are holes in a black font, a 1280-wide colour
 //   texture scrolling half a canvas pixel a frame behind them. Every 7 seconds
@@ -36,6 +38,7 @@ const packed_assets = @import("packed_assets");
 const A = @import("union_texcopier/assets.zig");
 const draw = @import("union_texcopier/draw.zig");
 const Copier = @import("union_texcopier/copier.zig").Copier;
+const raster = @import("union_texcopier/raster.zig");
 
 // The remake plays data/music/copier.ym, "UNION DEMO Copier / Mad Max (composed
 // by M.O.N.)": Mad Max's Union Demo conversion of Scoop "That's The Way It Is".
@@ -59,13 +62,11 @@ pub const Demo = struct {
     images: A.Images,
     copier: Copier,
     space: bool, // 'enter' pressed since the last update
-    raster_image: usize, // the image whose colours are in RASTER_BASE..
     leave: bool,
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
         self.phase = .loading;
         self.space = false;
-        self.raster_image = A.RASTER_IMAGES; // none yet
         self.leave = false;
         self.copier.init();
         const buf = freeRam(A.TOTAL) orelse return self.abandon("no free RAM to depack into");
@@ -84,19 +85,20 @@ pub const Demo = struct {
         };
         self.copier.update(self.space);
         self.space = false;
-        const image = self.copier.raster_texture % A.RASTER_IMAGES;
-        if (image != self.raster_image) {
-            A.setRasterColours(&zigos.lfbs[0], self.images.rasters, image);
-            self.raster_image = image;
-        }
     }
 
     pub fn render(self: *Demo, zigos: *ZigOS, dt: f32) void {
         _ = dt;
         if (self.phase != .running or self.leave) return;
-        const dst = blit.Dst.plane(&zigos.lfbs[0]);
+        const fb = &zigos.lfbs[0];
+        const dst = blit.Dst.plane(fb);
         draw.clear(dst);
-        draw.rasters(dst, &self.copier);
+        draw.rasters(raster.background(fb), &self.copier, self.images.rasters);
+        // The border is painted before the next frame's update: give it that
+        // frame's windows. Keys never move the rasters, so `false` is exact.
+        var next = self.copier;
+        next.update(false);
+        draw.rasters(raster.nextBorder(), &next, self.images.rasters);
         draw.display(dst, self.images);
         draw.textLine(dst, &self.copier, self.images);
     }
@@ -125,6 +127,7 @@ pub const Demo = struct {
         const fb = &zigos.lfbs[0];
         fb.is_enabled = true;
         fb.setPalette(A.palette);
+        raster.install(zigos, fb);
         zg.requestSongTune(MUSIC, MUSIC_TUNE); // onResetEvent
         self.phase = .running;
     }

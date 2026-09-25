@@ -6,8 +6,9 @@
 // Chrome draws two things at half-pixel positions and resamples them
 // bilinearly: a pixel between two texels is their 50/50 mix, each channel
 // (a + b) >> 1, a transparent texel counting as black (measured against the
-// remake in Chrome: 5877 of 5877 raster blends). Every mix the screen can make
-// is a palette entry here, so the drawing stays palette lookups.
+// remake in Chrome: 5877 of 5877 raster blends). Every mix the text line can
+// make is a palette entry here, so its drawing stays palette lookups; the raster
+// windows' mixes are colours of the raster register itself (raster.zig).
 // --------------------------------------------------------------------------
 const zg = @import("zigos");
 const Color = zg.Color;
@@ -33,10 +34,6 @@ const TEXTURES = [2]Texture{
     .{ .base = 15, .colours = 7, .mixes = 28 }, // blue: 7 colours, 28 pairs with transparent
     .{ .base = 22, .colours = 6, .mixes = 56 }, // orange: 6 colours, 21 pairs
 };
-/// A raster image's 16 colours, then 17 mixes: transparent/c0, c0/c1 .. c14/c15, c15/transparent.
-pub const RASTER_BASE: u8 = 77;
-pub const RASTER_MIX: u8 = RASTER_BASE + RASTER_COLOURS;
-
 /// Two knock-out ids (0..7, 0 transparent) -> the palette entry of their mix.
 pub const Pairs = [8][8]u8;
 pub const pairs: [2]Pairs = .{ pairTable(TEXTURES[0]), pairTable(TEXTURES[1]) };
@@ -70,21 +67,6 @@ pub const Images = struct {
     }
 };
 
-/// Raster image `image`'s colours and their mixes into RASTER_BASE..: the windows
-/// show one image at a time (rasterTexture % 8).
-pub fn setRasterColours(fb: *zg.LogicalFB, rasters: []const u8, image: usize) void {
-    const rgb = rasters[image * RASTER_COLOURS * 3 ..][0 .. RASTER_COLOURS * 3];
-    const black = Color{ .r = 0, .g = 0, .b = 0, .a = 255 };
-    var prev = black;
-    for (0..RASTER_COLOURS) |k| {
-        const c = Color{ .r = rgb[3 * k], .g = rgb[3 * k + 1], .b = rgb[3 * k + 2], .a = 255 };
-        fb.setPaletteEntry(RASTER_BASE + @as(u8, @intCast(k)), c);
-        fb.setPaletteEntry(RASTER_MIX + @as(u8, @intCast(k)), mix(prev, c));
-        prev = c;
-    }
-    fb.setPaletteEntry(RASTER_MIX + RASTER_COLOURS, mix(prev, black));
-}
-
 fn pairTable(comptime t: Texture) Pairs {
     var table: Pairs = undefined;
     for (0..8) |a| for (0..8) |b| {
@@ -105,7 +87,7 @@ fn idColour(p: [256]Color, t: Texture, id: usize) Color {
 }
 
 /// Chrome's 50/50 bilinear mix of two opaque (or transparent-as-black) texels.
-fn mix(a: Color, b: Color) Color {
+pub fn mix(a: Color, b: Color) Color {
     return .{ .r = half(a.r, b.r), .g = half(a.g, b.g), .b = half(a.b, b.b), .a = 255 };
 }
 

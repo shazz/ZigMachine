@@ -10,6 +10,11 @@
 // 3. The music: the song request is union/scoop.sndh subtune 2, and that tune
 //    loads on the real audio modules, plays every second on all three voices, no
 //    stuck PC.
+//    The raster windows are colour 0 changed per line, so the BORDER shows them
+//    too: every border pixel of visible line y is the replay's raster colour on
+//    that line (black off the windows, and above and below the screen). Frames
+//    run in the host's order, hwClear (the global HBL paints the border) BEFORE
+//    the cart's frame, so a border a frame behind the windows fails here.
 // 4. Escape asks for the Union Demo menu's disk.
 // 5. A warm frame fits well inside 60 fps.
 //
@@ -61,22 +66,38 @@ async function boot(cart) {
     return { memory, machine, demo };
 }
 
-/// The 320x200 window as the host composites it, over black.
+/// The 320x200 window as the host composites it, over black; `border` gets the
+/// border pixels of the physical frame (RGBA, the window left as it is).
 function capture(memory, machine, demo) {
     const W = machine.hwPhysWidth(), H = machine.hwPhysHeight(), img = new Uint8Array(320 * 200 * 3);
-    machine.hwClear();
-    let planes = 0;
+    let planes = 0, border = null;
     for (let p = 0; p < machine.hwPlanesNumber(); p++) {
         if (!demo.isPlaneEnabled(p)) continue;
         planes++;
         machine.hwRenderPlane(p);
         const px = new Uint8Array(memory.buffer, machine.hwPhysicalPtr(), W * H * 4);
+        border ??= px.slice();
         for (let y = 0; y < 200; y++) for (let x = 0; x < 320; x++) {
             const i = ((TOP + y) * W + LEFT + x * 2) * 4, a = px[i + 3] / 255, o = (y * 320 + x) * 3;
             for (let c = 0; c < 3; c++) img[o + c] = Math.round(img[o + c] * (1 - a) + px[i + c] * a);
         }
     }
-    return { img, planes };
+    return { img, planes, border, W, H };
+}
+
+/// Border pixels that are not their line's colour 0: `rowColour(y)` for visible
+/// line y, black above and below the screen.
+function borderWrong({ border, W, H }, rowColour) {
+    let wrong = 0;
+    for (let p = 0; p < H; p++) {
+        const vis = p >= TOP && p < TOP + 200, want = vis ? rowColour(p - TOP) : [0, 0, 0];
+        for (let x = 0; x < W; x++) {
+            if (vis && x >= LEFT && x < LEFT + 640) continue;
+            const o = (p * W + x) * 4;
+            if (border[o] !== want[0] || border[o + 1] !== want[1] || border[o + 2] !== want[2] || border[o + 3] !== 255) wrong++;
+        }
+    }
+    return wrong;
 }
 
 function png(w, h, rgb) {
@@ -141,6 +162,7 @@ const { memory, machine, demo } = await boot(cartPath);
 const dec = new TextDecoder();
 let song = null;
 const step = () => {
+    machine.hwClear(); // the host's order: the border, then the cart's frame
     demo.frame(1000 / 60);
     if (demo.pollSongRequest()) song = { name: dec.decode(new Uint8Array(memory.buffer, demo.songNamePtr(), demo.songNameLen())), tune: demo.songTune() };
 };
@@ -195,6 +217,9 @@ for (let f = 1; f <= lastShot; f++) {
         first ??= `(${(i / 3) % 320},${Math.floor(i / 3 / 320)}) got ${[...shot.img.subarray(i, i + 3)]} want ${[...want.subarray(i, i + 3)]}`;
     }
     if (wrong) errors.push(`frame ${f}: ${wrong} px differ from the screen.js replay, first ${first}`);
+    // frame 1's border was painted while the loader still ran (the depack ends on it)
+    const badBorder = f > 1 ? borderWrong(shot, (y) => replay.rasterPixel(2 * y)) : 0;
+    if (badBorder) errors.push(`frame ${f}: ${badBorder} border px are not their line's colour 0`);
     if ([1, 105, 461, 761, 1000].includes(f)) await writeFile(`${outDir}/union_texcopier-${String(f).padStart(5, "0")}.png`, png(320, 200, shot.img));
 }
 
@@ -220,6 +245,6 @@ if (errors.length) {
     console.error(`union_texcopier: WRONG${brk ? ` (--break ${brk})` : ""}\n  ${errors.slice(0, 12).join("\n  ")}`);
     process.exit(1);
 }
-console.log(`union_texcopier: TEX loader panel over ${depackFrames} depack frames; screen.js replay (Chrome's mixes) exact at frames ${SHOTS.join(",")} ` +
+console.log(`union_texcopier: TEX loader panel over ${depackFrames} depack frames; screen.js replay (Chrome's mixes) exact at frames ${SHOTS.join(",")}, the rasters' colour 0 in the border from frame 2 ` +
     `with Space at ${SPACE_AT}; ${MUSIC} tune ${MUSIC_TUNE} requested and plays (peak ${music.peak.toFixed(4)}, 0 silent s, voices ${music.volWrites.join("/")}); ` +
     `Escape -> union_demo; ${perFrame.toFixed(3)} ms cart a frame; shots in ${outDir}`);

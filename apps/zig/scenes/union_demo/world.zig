@@ -14,6 +14,7 @@ const blit = zg.blit;
 const LogicalFB = zg.LogicalFB;
 const A = @import("assets.zig");
 const Charly = @import("charly.zig").Charly;
+const raster = @import("raster.zig");
 
 pub const RASTER_ROWS: usize = 60; // ScrollingBackgroundLayer: 640x120 at the top (main.js:426-427)
 pub const RASTER_STEP: u32 = 12; // pos.y += 12 per update (main.js:436)
@@ -26,10 +27,15 @@ pub fn fillRow(fb: *LogicalFB, y: usize, idx: u8) void {
 }
 
 /// doorrasters.png scrolled `pos_y` rows (640 space). Halved row i pairs the
-/// image's rows (2i+1, 2i+2), so screen row k shows row k + pos_y/2 - 1.
-pub fn drawRasters(fb: *LogicalFB, pos_y: u32) void {
+/// image's rows (2i+1, 2i+2), so screen row k shows row k + pos_y/2 - 1. Each
+/// row is one colour, so the band is ONE ink whose register is rewritten on
+/// each of its lines (raster.zig): `ink` gets this frame's colour per line.
+pub fn drawRasters(fb: *LogicalFB, pos_y: u32, ink: *[zg.HEIGHT]u32) void {
     const base = pos_y / 2 + A.door_rows.len - 1;
-    for (0..RASTER_ROWS) |k| fillRow(fb, k, A.door_rows[(k + base) % A.door_rows.len]);
+    for (0..RASTER_ROWS) |k| {
+        fillRow(fb, k, raster.DOOR_INK);
+        ink[k] = A.palette[A.door_rows[(k + base) % A.door_rows.len]].toRGBA();
+    }
 }
 
 /// plx_banner (repeat-x, ratio 0.5) with `scroll` its layer pos.x. banner.raw

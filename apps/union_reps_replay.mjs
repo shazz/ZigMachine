@@ -90,26 +90,39 @@ export function makeReplay({ A, text }, brk = null, mainscrollerPos = 0) {
         blue.move(s.speed);
     }
 
-    function render() {
-        const map = new Uint8Array(320 * 200).fill(BLACK);
-        const sample = (c) => 2 * c + 1;
-        // image.draw(maincanvas, dx, dy) of (part of) a halved image; ink(p, X, Y) -> index, 0 = skip
-        const draw = (img, dx, dy, ink, part = { sx: 0, sy: 0, w: img.w, h: img.h }) => {
-            for (let Y = Math.max(0, Math.ceil((dy - 1) / 2)); Y < 200; Y++) {
-                const v = sample(Y) - dy;
-                if (v >= 2 * part.h) break;
-                for (let X = Math.max(0, Math.ceil((dx - 1) / 2)); X < 320; X++) {
-                    const u = sample(X) - dx;
-                    if (u >= 2 * part.w) break;
-                    const p = img.px[(part.sy + (v >> 1)) * img.w + part.sx + (u >> 1)];
-                    const o = p ? ink(p, X, Y) : 0;
-                    if (o) map[Y * 320 + X] = o;
-                }
+    const sample = (c) => 2 * c + 1;
+    // image.draw(maincanvas, dx, dy) of (part of) a halved image; ink(p, X, Y) -> index, 0 = skip
+    const drawInto = (map) => (img, dx, dy, ink, part = { sx: 0, sy: 0, w: img.w, h: img.h }) => {
+        for (let Y = Math.max(0, Math.ceil((dy - 1) / 2)); Y < 200; Y++) {
+            const v = sample(Y) - dy;
+            if (v >= 2 * part.h) break;
+            for (let X = Math.max(0, Math.ceil((dx - 1) / 2)); X < 320; X++) {
+                const u = sample(X) - dx;
+                if (u >= 2 * part.w) break;
+                const p = img.px[(part.sy + (v >> 1)) * img.w + part.sx + (u >> 1)];
+                const o = p ? ink(p, X, Y) : 0;
+                if (o) map[Y * 320 + X] = o;
             }
-        };
-        const copy = (p) => p;
+        }
+    };
+    const copy = (p) => p;
+    // maincanvas.fill('#000000') and the six 640-wide bar images (screen.js:236, 250-256)
+    function barsMap() {
+        const map = new Uint8Array(320 * 200).fill(BLACK), draw = drawInto(map);
         const bars = [[A.pink, s.top[0]], [A.green, s.top[1]], [A.brown, s.top[2]], [A.brown, s.bottom[0]], [A.green, s.bottom[1]], [A.pink, s.bottom[2]]];
         for (const [rows, y] of bars) draw({ px: Uint8Array.from({ length: 320 * rows.length }, (_, i) => rows[(i / 320) | 0]), w: 320, h: rows.length }, 0, y, copy);
+        return map;
+    }
+
+    /// What the ST's border shows on each visible line: colour 0, i.e. the bars'
+    /// layer at the screen's edge (every bar row is one colour right across).
+    function border() {
+        const map = barsMap();
+        return Uint8Array.from({ length: 200 }, (_, Y) => map[Y * 320]);
+    }
+
+    function render() {
+        const map = barsMap(), draw = drawInto(map);
         draw(A.overlay, 0, 0, copy);
         for (const [sc, dy, colour] of [[red, 14, RED], [blue, 326, BLUE]])
             for (const l of sc.letters) {
@@ -144,5 +157,5 @@ export function makeReplay({ A, text }, brk = null, mainscrollerPos = 0) {
         });
         return map;
     }
-    return { step, render, state: s, blueOffset: () => blue.offset() };
+    return { step, render, border, state: s, blueOffset: () => blue.offset() };
 }
