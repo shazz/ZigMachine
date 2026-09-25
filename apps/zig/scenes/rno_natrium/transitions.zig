@@ -18,8 +18,7 @@ pub fn zoomInN(step: u16) u16 {
 
 /// $D570: n = max(100 - $144A4, 0), a signed word compare.
 pub fn zoomOutN(step: u16) u16 {
-    const n: i32 = 100 - @as(i32, step);
-    return if (n < 0) 0 else @intCast(n);
+    return @intCast(@max(100 - @as(i32, step), 0));
 }
 
 /// The $6F41A line table: 200 source lines, or BLACK. Step 200/(2n) in 16.16

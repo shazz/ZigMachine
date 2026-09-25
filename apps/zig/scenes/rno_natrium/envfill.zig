@@ -7,6 +7,7 @@
 // into an unrolled `move.b d16(a1),-(a4)` span; spans wider than the triangle's
 // middle width read stale entries, also kept.
 // --------------------------------------------------------------------------
+const std = @import("std");
 const A = @import("assets.zig");
 
 pub const SIZE = 128; // the chunky buffer is 128 x 128, stride 128
@@ -152,5 +153,3 @@ pub fn triangle(buf: *[SIZE * SIZE]u8, table: *[128]u16, in: [3]Vert) void {
     buildTable(table, wx, grad(hiw(tr) - hiw(l.tex), wx), grad(w16(tr) - w16(l.tex), wx));
     _ = spans(buf, table, v[0].y, n, l, sl, sr, gl);
 }
-
-const std = @import("std");

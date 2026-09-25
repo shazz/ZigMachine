@@ -57,6 +57,13 @@ comptime {
     if (chrome.len != 16384 or greet.len != 3584 or strip.len != 7680) @compileError("twister/credits art");
     if (sin_tab.len != 2560) @compileError("sin.bin is not 1280 words");
     if (palettes.len != 0x140) @compileError("palettes.bin is not $14360..$1449F");
+    // The index bounds proved in chunky_box.zig and envmap.zig, and the
+    // twister's @intCast to i16, all rest on |SIN[i]| <= 256.
+    @setEvalBranchQuota(20_000);
+    for (0..1280) |i| {
+        const v: i16 = @bitCast(be16(sin_tab, i));
+        if (v < -256 or v > 256) @compileError("sin.bin leaves -256..256");
+    }
 }
 
 pub inline fn be16(b: []const u8, i: usize) u16 {

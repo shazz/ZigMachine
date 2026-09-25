@@ -21,7 +21,8 @@ pub const TOP = 20; // first box line
 pub const GROUP_LEFT = 1; // x = 16 (part 2)
 pub const GROUP_RIGHT = 9; // x = 144 (part 7)
 
-inline fn w16(x: i64) u32 {
+/// The low word, unsigned (envfill.w16 is the SIGNED word).
+inline fn lo16(x: i64) u32 {
     return @as(u32, @truncate(@as(u64, @bitCast(x)))) & 0xFFFF;
 }
 inline fn s16(x: u32) i32 {
@@ -58,14 +59,38 @@ inline fn tunnelOffset(i: usize) u32 {
     return ((o >> 9) << 8) | (o & 0xFE);
 }
 
+/// The tunnel's pan across the 160x100 table, from SIN[i]: bytes into a
+/// 320-byte table row (i = 3f), and rows (i = 4f).
+fn xpanAt(i: u32) u32 {
+    const d3 = lo16(@as(i64, lo16(A.sin(i) * 0x28)) + 0x2800);
+    return (d3 >> 7) & 0xFE;
+}
+fn ypanAt(i: u32) u32 {
+    const d4 = lo16(@as(i64, lo16(A.sin(i) * 0x0A)) + 0x0A00);
+    return (d4 >> 8) & 0x1F;
+}
+
+// The 80x80 window read out of the 160x100 table is unchecked: |SIN| <= 256
+// holds the pan to rows 0..20 and bytes 0..160, which lands the last cell on
+// entry 15999 of 16000 -- in bounds with nothing to spare. Prove it.
+comptime {
+    @setEvalBranchQuota(20_000);
+    var xmax: u32 = 0;
+    var ymax: u32 = 0;
+    for (0..1024) |i| {
+        xmax = @max(xmax, xpanAt(i));
+        ymax = @max(ymax, ypanAt(i));
+    }
+    if ((ymax + CELLS - 1) * 160 + xmax / 2 + CELLS - 1 >= A.tunnel_map.len / 2)
+        @compileError("the tunnel's pan reads past the offset table");
+}
+
 /// $DDEC: one field of the tunnel for frame f.
 pub fn tunnel(s: *Screen, f: u16, p: u1) void {
     const ff: u32 = f;
     const base = ((ff & 0x7F) << 8) | (ff & 0xFE); // v += 1, u += 0.5 per frame
-    const d3 = w16(@as(i64, w16(A.sin((ff * 3) & 0x3FF) * 0x28)) + 0x2800);
-    const xpan = (d3 >> 7) & 0xFE; // bytes into a 320-byte table row
-    const d4 = w16(@as(i64, w16(A.sin((ff * 4) & 0x3FF) * 0x0A)) + 0x0A00);
-    const ypan = (d4 >> 8) & 0x1F;
+    const xpan = xpanAt((ff * 3) & 0x3FF);
+    const ypan = ypanAt((ff * 4) & 0x3FF);
     var cells: [CELLS]u8 = undefined;
     for (0..CELLS) |r| {
         const row = (ypan + r) * 160 + xpan / 2;
@@ -86,7 +111,7 @@ pub fn wobble(s: *Screen, f: u16, p: u1) void {
     var d1 = (ff *% 0x11) & 0x7FE;
     var d2 = (ff *% 0xFFF5) & 0x7FE;
     for (&disp, 0..) |*d, c| {
-        const w = w16(@as(i64, s16(w16(A.sin(d1 >> 1) + A.sin(d2 >> 1)))) * 12);
+        const w = lo16(@as(i64, s16(lo16(A.sin(d1 >> 1) + A.sin(d2 >> 1)))) * 12);
         d.* = s16((w & 0xFF00) | ((0x30 + 2 * @as(u32, @intCast(c))) & 0xFF)); // hi = rows, lo = u byte
         d1 = (d1 + 0x0A) & 0x7FE;
         d2 = (d2 + 0x16) & 0x7FE;
@@ -95,7 +120,7 @@ pub fn wobble(s: *Screen, f: u16, p: u1) void {
     d2 = (ff *% 0xFFED) & 0x7FE;
     var cells: [CELLS]u8 = undefined;
     for (0..CELLS) |r| {
-        const w = w16(@as(i64, s16(w16(A.sin(d1 >> 1) + A.sin(d2 >> 1)))) * 24);
+        const w = lo16(@as(i64, s16(lo16(A.sin(d1 >> 1) + A.sin(d2 >> 1)))) * 24);
         const shift: i32 = @intCast((w >> 8) & 0xFFFE); // LOGICAL shift: 0..254
         d1 = (d1 + 0x0E) & 0x7FE;
         d2 = (d2 + 0x12) & 0x7FE;
@@ -110,13 +135,13 @@ pub fn rotozoom(s: *Screen, f: u16, p: u1) void {
     const ff: u32 = f;
     const d0 = (ff *% 3) & 0x7FE; // angle, byte offset
     const d1 = (ff *% 12) & 0x7FE; // zoom
-    const z: i64 = w16(A.sin(d1 >> 1) * 4 + 0x480);
+    const z: i64 = lo16(A.sin(d1 >> 1) * 4 + 0x480);
     // muls.w + lsr.l #8, low word kept
     const px: u32 = @truncate(@as(u64, @bitCast(A.sin(d0 >> 1) * z)));
     const py: u32 = @truncate(@as(u64, @bitCast(A.sin((d0 >> 1) + 256) * z)));
     const x: i64 = s16(px >> 8);
     const y: i64 = s16(py >> 8);
-    const uu0 = w16(0x4000 - @as(i64, w16(y << 5)));
+    const uu0 = lo16(0x4000 - @as(i64, lo16(y << 5)));
     // The ORIGINAL BUG, kept: d7.w is set to $4000 - 32X, then bsr $DD84 does
     // move.w #$7FFE,d7 -- so V0 is always $7FFE and only U is centred.
     const vv0: u32 = 0x7FFE;
@@ -125,14 +150,14 @@ pub fn rotozoom(s: *Screen, f: u16, p: u1) void {
     var v: u32 = 0;
     for (&cols) |*c| {
         c.* = ((v & 0xFF00) | (u >> 8)) & 0x7FFE;
-        u = w16(@as(i64, u) + 2 * y);
-        v = w16(@as(i64, v) + 2 * x);
+        u = lo16(@as(i64, u) + 2 * y);
+        v = lo16(@as(i64, v) + 2 * x);
     }
     var cells: [CELLS]u8 = undefined;
     for (0..CELLS) |r| {
         const l: i64 = 2 * @as(i64, @intCast(r)) + p;
-        u = w16(@as(i64, uu0) - l * x);
-        v = w16(@as(i64, vv0) + l * y);
+        u = lo16(@as(i64, uu0) - l * x);
+        v = lo16(@as(i64, vv0) + l * y);
         const rp = ((v & 0xFF00) | (u >> 8)) & 0x7FFE;
         for (&cells, cols) |*c, cd| c.* = A.tex_skin[((rp + cd) >> 1) & 0x3FFF];
         writeRow(s, TOP + 2 * r + p, GROUP_RIGHT, &cells);

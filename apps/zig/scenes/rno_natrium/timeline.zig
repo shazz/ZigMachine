@@ -172,11 +172,9 @@ pub const Seq = struct {
             self.stall -= 1;
             if (self.stall > 0) return;
         }
-        var guard: usize = 0;
-        while (!self.run()) {
-            guard += 1;
-            if (guard > 16) break; // a state chain never runs this long; do not hang the frame
-        }
+        // A state chain never runs this long; the bound only keeps a bad one
+        // from hanging the frame.
+        for (0..16) |_| if (self.run()) break;
     }
 
     /// Runs the current state. True = the program now waits for the next VBL.

@@ -30,6 +30,33 @@ inline fn word(o: Object, i: usize) i32 {
     return @as(i16, @bitCast(A.be16(o.data, i)));
 }
 
+// render() indexes pv[] by the face words and divides by Rz/256 + 800 with no
+// check, which ReleaseSmall would not trap on. Only these two objects ever
+// reach it, so prove both here. With |SIN| <= 256 (assets.zig) the matrix's
+// first row is within 256 and the others within 512, so for a vertex whose
+// |x| + |y| + |z| is at most `span`: |z8| <= 2 * span + 1, and the divs
+// quotient is at most 512 * span / d -- which must fit a word, or the 68000
+// leaves the register alone and this port would not.
+comptime {
+    @setEvalBranchQuota(20_000);
+    for ([_][]const u8{ A.cube, A.prism }) |data| {
+        const o = object(data);
+        if (o.nv > MAX_V or o.nf > MAX_F) @compileError("an env object outgrows MAX_V / MAX_F");
+        if (data.len != 2 * (8 + 6 * o.nv + 3 * o.nf)) @compileError("an env object's size disagrees with its counts");
+        for (0..3 * o.nf) |k| {
+            const w = word(o, 8 + 3 * o.nv + k);
+            if (w < 0 or w & 1 != 0 or w >> 1 >= o.nv) @compileError("a face names no vertex");
+        }
+        var span: i32 = 0;
+        for (0..o.nv) |i| {
+            const sum = @abs(word(o, 8 + 3 * i)) + @abs(word(o, 9 + 3 * i)) + @abs(word(o, 10 + 3 * i));
+            span = @max(span, @as(i32, @intCast(sum)));
+        }
+        const d_min = 800 - (2 * span + 1);
+        if (d_min <= 0 or @divTrunc(512 * span, d_min) > 32767) @compileError("the projection's divs can fail");
+    }
+}
+
 /// The chunky buffer ($B791A) and the span table the filler patches.
 pub var chunky: [fill.SIZE * fill.SIZE]u8 = undefined;
 var span_table: [128]u16 = undefined;
@@ -82,7 +109,7 @@ pub fn render(o: Object, f: u16) void {
         const ry = l32(dot(&m, 1, x, y, z));
         const z8 = l32(dot(&m, 2, x, y, z)) >> 8;
         zk[i] = @as(u32, @bitCast(z8 +% 0x8000)) & 0xFFFF;
-        // |z8| <= 170 for these objects, so d is never 0.
+        // d > 0 and the quotients fit a word: proved at the top of the file.
         const d = w16(@as(i64, z8) + 800);
         const nx = word(o, normals + 3 * i);
         const ny = word(o, normals + 3 * i + 1);
