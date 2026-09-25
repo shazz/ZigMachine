@@ -97,9 +97,16 @@ pub const ModPlayer = struct {
     }
 
     pub fn start(self: *ModPlayer) void {
+        self.startAtBpm(125);
+    }
+
+    /// Start at `bpm` rather than ProTracker's 125: some replays default to
+    /// another tempo (TRSI's Falcon replay, $7B = 123). An Fxx >= $20 in the
+    /// song still overrides it, as on any ProTracker.
+    pub fn startAtBpm(self: *ModPlayer, bpm: u8) void {
         self.active = true;
         self.speed = 6;
-        self.setBpm(125);
+        self.setBpm(bpm);
         self.tick_acc = 0;
         self.tick = 0;
         self.row = 0;

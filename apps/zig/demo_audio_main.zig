@@ -74,6 +74,16 @@ export fn audioModPlay() void {
     mod.start();
     current_mode = 1;
 }
+/// Play at a start tempo (zg.requestModBpm). ProTracker tempos are 32..255
+/// (below $20 an Fxx is a speed); anything else is not a tempo, and plays at
+/// ProTracker's 125 exactly as audioModPlay does, the way tune 0 does.
+export fn audioModPlayBpm(bpm: u32) void {
+    if (bpm < 32 or bpm > 255) return audioModPlay();
+    ym.stop();
+    audio.machinePaulaClearScopes();
+    mod.startAtBpm(@intCast(bpm));
+    current_mode = 1;
+}
 export fn audioModStop() void {
     mod.stop();
     if (current_mode == 1) current_mode = 0;
