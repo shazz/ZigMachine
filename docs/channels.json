@@ -230,6 +230,11 @@
   "type": "atari st"
  },
  {
+  "tag": "trsi_transarctica",
+  "title": "TRSI TRANSARCTICA",
+  "type": "atari falcon"
+ },
+ {
   "tag": "ulm_spoon_distorter",
   "title": "ULM SPOON DISTORTER",
   "type": "atari st"

@@ -80,6 +80,7 @@ const scene = switch (opts.index) {
     67 => @import("scenes/rno_sodium.zig"), // RNO / SODIUM intro (original ST binary)
     68 => @import("scenes/rno_natrium.zig"), // RNO / NATRIUM 96k intro (original ST binary)
     69 => @import("scenes/dhs_0pxl0reg.zig"), // DHS / (n)0 PIXELS (n)0 REGRETS (original ST binary)
+    70 => @import("scenes/trsi_transarctica.zig"), // TRSI / TRANSARCTICA cracktro (original Falcon030 binary)
     else => @compileError("bad cart index"),
 };
 
