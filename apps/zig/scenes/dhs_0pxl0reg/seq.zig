@@ -44,14 +44,16 @@ fn call(h: Hook) void {
     if (h == .nop) return;
     const i = @intFromEnum(h);
     if (spent[i]) return;
-    if (isOnce(h)) spent[i] = true;
+    if (ONCE[i]) spent[i] = true;
     hooks.call(h, frame);
 }
 
-fn isOnce(h: Hook) bool {
-    for (rip.ONCE) |o| if (o == h) return true;
-    return false;
-}
+/// rip.ONCE as a lookup by hook.
+const ONCE: [NHOOKS]bool = blk: {
+    var t = [_]bool{false} ** NHOOKS;
+    for (rip.ONCE) |o| t[@intFromEnum(o)] = true;
+    break :blk t;
+};
 
 /// This frame's main-loop call: 0 none, 1 before the kernel, 2 after it.
 fn callCode() u16 {

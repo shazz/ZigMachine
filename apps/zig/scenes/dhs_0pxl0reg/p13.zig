@@ -41,8 +41,8 @@ pub fn reset() void {
 
 pub fn init() void {
     // in the demo's order ($A79FC, $A862C, $A925C): the fader's rotation is global
-    for ([_]usize{ 2, 1, 0 }, [_][]const u16{ &rip.P13_TGT_41462, &rip.P13_TGT_4147C, &rip.P13_TGT_41496 }) |g, tgt| {
-        core.palSets(&sets[g], &.{ .{ .tgt = tgt, .n = 23 }, .{ .tgt = &rip.P13_TGT_41448, .n = 24 } });
+    inline for (.{ 2, 1, 0 }, .{ &rip.P13_TGT_41462, &rip.P13_TGT_4147C, &rip.P13_TGT_41496 }) |g, tgt| {
+        core.palSets(48, &sets[g], &.{ .{ .tgt = tgt, .n = 23 }, .{ .tgt = &rip.P13_TGT_41448, .n = 24 } });
     }
     var tpl: [54]u8 = undefined;
     tpl[0] = 0;

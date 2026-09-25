@@ -16,7 +16,7 @@ const zg = @import("zigos");
 
 pub const LINES = zg.PHYSICAL_HEIGHT; // 280
 const W = zg.PHYSICAL_WIDTH; // 400
-const SLOTS = 64; // BEAM_MAX: more than that on a line is counted, not stored
+const SLOTS = zg.beam.MAX; // more than that on a line is counted, not stored
 
 var count: [LINES]u8 = undefined;
 var list: [LINES][SLOTS]u32 = undefined; // x << 16 | ST colour word

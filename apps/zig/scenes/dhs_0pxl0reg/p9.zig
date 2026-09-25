@@ -71,7 +71,7 @@ pub fn init() void {
     var t = [_]u16{0} ** 128;
     @memcpy(W[24 * 128 ..][0..128], &t);
     var n: usize = 25;
-    for ([_][]const u16{ &rip.P9_TGT_26A42, &rip.P9_TGT_26B42 }, [_]usize{ 23, 24 }) |tgt, steps| {
+    for ([_]*const [128]u16{ &rip.P9_TGT_26A42, &rip.P9_TGT_26B42 }, [_]usize{ 23, 24 }) |tgt, steps| {
         for (0..steps) |_| {
             core.step1(&t, tgt);
             @memcpy(W[n * 128 ..][0..128], &t);

@@ -43,7 +43,7 @@ pub fn init() void {
     @memset(&flat, 0);
     var n: usize = 1;
     const zero = [_]u16{0} ** 13;
-    for ([_][]const u16{ &rip.P15_TGT_4329A, &rip.P15_TGT_43266, &rip.P15_TGT_43280, &rip.P15_TGT_4324C, &zero }, [_]u32{ 23, 24, 24, 24, 24 }) |tgt, steps| {
+    for ([_]*const [13]u16{ &rip.P15_TGT_4329A, &rip.P15_TGT_43266, &rip.P15_TGT_43280, &rip.P15_TGT_4324C, &zero }, [_]u32{ 23, 24, 24, 24, 24 }) |tgt, steps| {
         for (0..steps) |_| {
             core.step1(&p, tgt);
             @memcpy(flat[13 * n ..][0..13], &p);

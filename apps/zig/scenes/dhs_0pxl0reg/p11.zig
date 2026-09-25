@@ -49,7 +49,7 @@ pub fn reset() void {
 }
 
 pub fn init() void {
-    core.palSets(&sets, &.{
+    core.palSets(72, &sets, &.{
         .{ .tgt = &rip.P11_TGT_40F78, .n = 23 },
         .{ .tgt = &rip.P11_TGT_40F5E, .n = 24 },
         .{ .tgt = &rip.P11_TGT_40F92, .n = 24 },

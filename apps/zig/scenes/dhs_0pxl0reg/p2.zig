@@ -87,7 +87,7 @@ pub fn bars() void {
     if (c11022 & 0x8000 != 0 and amp != 0xB7) amp += 1;
 }
 
-fn fadeBar(tgt: []const u16) void {
+fn fadeBar(tgt: *const [16]u16) void {
     core.step1(&bar, tgt);
 }
 

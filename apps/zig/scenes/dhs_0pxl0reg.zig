@@ -15,10 +15,8 @@
 // its cycle-counted move.w's (dhs_0pxl0reg/out.zig maps them to the physical
 // frame) and the global HBL queues each line's writes (zg.beam). No write is
 // ever refused (REG_BEAM_DROPPED stays 0; the harness proves it).
-// OPEN: docs/sealed-loader.js uploads the physical frame only for ENABLED
-// planes, and any enabled plane overwrites the window; until the host shows
-// the frame with no plane enabled, this screen is blank in the browser. The
-// headless harness reads the machine's frame directly and is unaffected.
+// With no plane enabled the host shows the physical frame as hwClear() left
+// it (docs/sealed-loader.js), which is all this screen ever draws.
 //
 // Seventeen parts on the demo's own sequencer (seq.zig), ~435 s; it ends in P17,
 // which runs forever, and so does this. Music: two SNDHs that match the demo's

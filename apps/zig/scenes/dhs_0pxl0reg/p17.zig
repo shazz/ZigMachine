@@ -8,6 +8,7 @@
 // row goes into routines R and R+220 every second call ($20D50).
 // The demo ends here and runs this part forever.
 // --------------------------------------------------------------------------
+const std = @import("std");
 const core = @import("core.zig");
 const out = @import("out.zig");
 const rip = @import("rip.zig");
@@ -114,4 +115,3 @@ pub fn kernel(l0: u32) void {
     core.colour = 0;
 }
 
-const std = @import("std");

@@ -40,8 +40,9 @@ pub inline fn sinMul(i: usize, k: i32) i32 {
 /// count right is what keeps later parts' colours exact.
 pub var fade_calls: u32 = 0;
 
-pub fn step1(cur: []u16, tgt: []const u16) void {
-    std.debug.assert(cur.len == tgt.len);
+/// `cur` is a pointer to an array and `tgt` one of the same length: a
+/// mismatched target is a compile error, not an overread in ReleaseSmall.
+pub fn step1(cur: anytype, tgt: *const @TypeOf(cur.*)) void {
     const k = fade_calls % 3;
     fade_calls += 1;
     const sh: u4 = @intCast(4 * k);
@@ -55,7 +56,7 @@ pub fn step1(cur: []u16, tgt: []const u16) void {
 }
 
 /// $224EE: all three components one step towards the target at once.
-pub fn step3(out: []u16, cur: []const u16, tgt: []const u16) void {
+pub fn step3(out: anytype, cur: *const @TypeOf(out.*), tgt: *const @TypeOf(out.*)) void {
     for (out, cur, tgt) |*o, c, t| {
         var r: u16 = 0;
         inline for (.{ 0x700, 0x070, 0x007 }, .{ 0x100, 0x010, 0x001 }) |mask, one| {
@@ -70,20 +71,25 @@ pub fn step3(out: []u16, cur: []const u16, tgt: []const u16) void {
 
 /// A chain of 13-word palette sets: zeros, then single-component fades
 /// towards each target for its step count (P11, P13, P16).
-pub const Link = struct { tgt: []const u16, n: u32 };
+pub const Link = struct { tgt: *const [13]u16, n: u32 };
 
-pub fn palSets(sets: [][13]u16, chain: []const Link) void {
+/// The chain must fill `sets` exactly (1 + the steps); checked at compile time.
+pub fn palSets(comptime N: usize, sets: *[N][13]u16, comptime chain: []const Link) void {
+    comptime {
+        var total: usize = 1;
+        for (chain) |link| total += link.n;
+        if (total != N) @compileError("palSets: the chain does not fill the sets");
+    }
     var p = [_]u16{0} ** 13;
     sets[0] = p;
     var n: usize = 1;
-    for (chain) |link| {
+    inline for (chain) |link| {
         for (0..link.n) |_| {
             step1(&p, link.tgt);
             sets[n] = p;
             n += 1;
         }
     }
-    std.debug.assert(n == sets.len);
 }
 
 /// Work a main-loop hook does after the kernel (model.Demo.after), in order.

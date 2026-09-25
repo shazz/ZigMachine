@@ -43,8 +43,8 @@ pub fn reset() void {
 
 pub fn init() void {
     core.colour = 0;
-    for (&groups, [_][]const u16{ &rip.P16_TGT_3ACA8, &rip.P16_TGT_3ACC2, &rip.P16_TGT_3ACDC }) |*g, tgt| {
-        core.palSets(g, &.{ .{ .tgt = tgt, .n = 23 }, .{ .tgt = &rip.P16_TGT_3AC8E, .n = 24 } });
+    inline for (&groups, .{ &rip.P16_TGT_3ACA8, &rip.P16_TGT_3ACC2, &rip.P16_TGT_3ACDC }) |*g, tgt| {
+        core.palSets(48, g, &.{ .{ .tgt = tgt, .n = 23 }, .{ .tgt = &rip.P16_TGT_3AC8E, .n = 24 } });
     }
     for (&bufs) |*b| for (b) |*row| @memset(row, 0);
     back = 0;

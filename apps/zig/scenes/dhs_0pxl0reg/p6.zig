@@ -20,6 +20,18 @@ var rendered: [2]bool = undefined; // a never-rendered buffer shows d2 in every 
 var front: usize = 0;
 var show: usize = 0;
 
+// A cell sums two map bytes (all even, at most 30), so OPT is only ever read
+// at even indices up to 60; every one of those must name d0..a5 (regs[14]).
+// OPT itself holds 14 and 15 elsewhere, which would read past the registers.
+comptime {
+    @setEvalBranchQuota(100_000);
+    var seen = [_]bool{false} ** 256;
+    for (assets.p6_map) |v| seen[v] = true;
+    for (0..256) |x| if (seen[x]) for (0..256) |y| {
+        if (seen[y] and rip.P6_OPT[(x + y) & 0xFF] > 13) @compileError("dhs P6: a reachable OPT entry is past a5");
+    };
+}
+
 pub fn reset() void {
     ofs = rip.P6_OFS;
     for (&ph, rip.P6_PH) |*p, v| p.* = v;
@@ -80,18 +92,17 @@ pub fn render() void {
 pub fn kernel(l0: u32) void {
     const s0 = ofs / 26;
     var d1: u16 = 0;
+    const blank = [_]u8{2} ** 52;
     for (0..25) |bi| {
         const b: u32 = @intCast(bi);
         var regs: [14]u16 = undefined;
         regs[0] = 0;
         for (0..13) |i| regs[1 + i] = core.le16(assets.p6_sets, (s0 + b) * 13 + i);
         d1 = regs[1];
+        const cells: *const [52]u8 = if (rendered[show]) &buf[show][bi] else &blank;
         for (0..7) |l| {
             const base = 332 + 4096 * b + 512 * @as(u32, @intCast(l));
-            for (0..52) |j| {
-                const n = if (rendered[show]) buf[show][bi][j] else 2;
-                out.emit(l0, base + 8 * @as(u32, @intCast(j)), regs[n]);
-            }
+            for (cells, 0..) |n, j| out.emit(l0, base + 8 * @as(u32, @intCast(j)), regs[n]);
             out.emit(l0, base + 416, d1);
         }
     }

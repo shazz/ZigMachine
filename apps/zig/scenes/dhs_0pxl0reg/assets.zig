@@ -43,3 +43,18 @@ comptime {
     if (p11_scr.len != 1050 * 16 or p12_heat0.len != 0x8A0 + 256 or p15_img.len != 128 * 52) @compileError("dhs assets: P11/P12/P15 size");
     if (p17_a5.len != 1024 or p16_opc.len != 4096 or p6_sets.len != 60 * 26) @compileError("dhs assets: P6/P16/P17 size");
 }
+
+// The kernels index 14-word register files with these bytes, and P11 / P13
+// with `n - 1` on a u8: a byte out of range would read past the palette (or
+// wrap) silently in ReleaseSmall. Proven here instead of clamped per cell.
+comptime {
+    @setEvalBranchQuota(200_000);
+    for (.{ p11_tex, p11_scr, p13_tex, p13_strips }) |b| if (!within(b, 1, 13)) @compileError("dhs assets: a P11/P13 register number is not d1..a5");
+    if (!within(p16_opc, 0, 13)) @compileError("dhs assets: a P16 register number is past a5");
+    if (!within(tr_cards, 0, 12)) @compileError("dhs assets: a TR card nibble is past its 13-word palette");
+}
+
+fn within(comptime b: []const u8, comptime lo: u8, comptime hi: u8) bool {
+    for (b) |v| if (v < lo or v > hi) return false;
+    return true;
+}

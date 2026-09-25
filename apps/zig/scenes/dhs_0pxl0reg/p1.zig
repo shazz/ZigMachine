@@ -109,13 +109,13 @@ pub fn whiteOut() void {
 pub fn kernel(l0: u32) void {
     const p = &pal[palofs / 30];
     const lt = &lines[T / 0x21C];
+    var regs: [14]u16 = undefined; // register 0 is the line colour, 1..13 the palette
+    @memcpy(regs[1..14], p[1..14]);
     for (0..ROWS) |i| {
         const d0 = lt[i];
         const line: u32 = @intCast(512 * i);
         out.emit(l0, 248 + line, d0);
-        var regs: [14]u16 = undefined;
         regs[0] = d0;
-        @memcpy(regs[1..14], p[1..14]);
         const row = assets.p1_logo[i * 52 ..][0..52];
         for (0..52) |j| {
             const v = if (revealed[i]) regs[@min(row[j], 13)] else d0;
