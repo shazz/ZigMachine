@@ -74,7 +74,9 @@ class ZigAudioSealedProcessor extends AudioWorkletProcessor {
             if (msg.type === "loadMod") {
                 const len = writeSong(msg.bytes);
                 const ok = d.audioLoadMod(len);
-                if (ok) d.audioModPlay();
+                // A start BPM other than ProTracker's 125 (zg.requestModBpm); 0 = 125.
+                if (ok && msg.bpm) d.audioModPlayBpm(msg.bpm);
+                else if (ok) d.audioModPlay();
                 this.port.postMessage({ type: "modLoaded", ok: !!ok, len: len });
             } else if (msg.type === "loadYm") {
                 const len = writeSong(msg.bytes);

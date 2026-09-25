@@ -30,6 +30,8 @@ static mut PENDING: bool = false;
 
 /// Request subtune `tune` of `name` (a file under docs/music/). Subtunes count
 /// from 1; 0 means "the image's own default". Only an SNDH has subtunes.
+/// For a .mod, a tune of 32..255 is instead its start BPM (zg.requestModBpm);
+/// 0..31 plays at ProTracker's 125.
 /// Returns false when refused (empty or too-long name, or tune > 255).
 /// A later request replaces a pending one.
 pub fn request_song_tune(name: &str, tune: u32) -> bool {

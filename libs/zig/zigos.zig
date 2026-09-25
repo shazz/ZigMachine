@@ -201,6 +201,13 @@ pub fn requestSongTune(name: []const u8, tune: u8) void {
     g_song_tune = tune;
     g_song_pending = true;
 }
+/// A ProTracker MOD started at `bpm` (32..255) instead of ProTracker's 125, for
+/// a replay whose own default differs (TRSI's Falcon replay starts at 123). A
+/// MOD has no subtunes, so the request's tune field carries the BPM; 0, what
+/// requestSong sends, keeps 125.
+pub fn requestModBpm(name: []const u8, bpm: u8) void {
+    requestSongTune(name, bpm);
+}
 pub fn songTune() u8 {
     return g_song_tune;
 }

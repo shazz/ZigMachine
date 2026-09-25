@@ -1011,12 +1011,13 @@ async function main() {
 }
 window.main = main;
 
-async function playMod(url, gen) {
+// `bpm`: the start tempo a cart asked for with zg.requestModBpm (0 = ProTracker's 125).
+async function playMod(url, gen, bpm) {
     await startAudio();
     if (!audioNode) return; // no audio in this context
     const bytes = await fetch(url).then(r => r.arrayBuffer());
     if (gen !== undefined && gen !== songGen) return; // a newer song request (or a stop) won
-    audioNode.port.postMessage({ type: "loadMod", bytes: bytes }, [bytes]);
+    audioNode.port.postMessage({ type: "loadMod", bytes: bytes, bpm: bpm || 0 }, [bytes]);
     const b = document.querySelector('.sound_button'); if (b) b.textContent = "Sound off";
 }
 async function playYm(url, gen) {
@@ -1064,7 +1065,7 @@ function playSongByName(name, tune) {
     if (name === "none") { if (audioNode) audioNode.port.postMessage({ type: "reset" }); return; }
     if (!name || name.includes("..") || name.startsWith("/")) return;
     const url = "music/" + name;
-    if (name.endsWith(".mod")) playMod(url, gen);
+    if (name.endsWith(".mod")) playMod(url, gen, tune); // a MOD's tune field is its start BPM
     else if (name.endsWith(".ymraw")) playYm(url, gen);
     // Only an SNDH has subtunes; `tune` counts from 1, 0 = the image's default.
     else if (name.endsWith(".sndh")) playSndh(url, tune, gen);

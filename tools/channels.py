@@ -62,7 +62,7 @@ def excluded(tag):
 
 # The machines a screen can come from. "unknown" is a deliberate label, not a
 # default: it means the scene's own source does not say and nobody has checked.
-KINDS = ("atari st", "amiga", "zigmachine", "system", "unknown")
+KINDS = ("atari st", "atari falcon", "amiga", "zigmachine", "system", "unknown")
 
 # name, tag, and the trailing comment the type is read from. The comment may go
 # on with prose after the type ("// atari st — the demo opens on ...").
