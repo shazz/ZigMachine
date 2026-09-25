@@ -72,7 +72,7 @@ pub fn frame(scr: *[st.BYTES]u8, f: u16) void {
     // The original clears and fills these 200 LONGS over the same $6BDE4 the
     // other effects share as words. Nothing reads that before part 6's $04A0
     // clears it again, so the long list is kept apart from st.Machine.list.
-    var list: [st.LINES]u32 = [_]u32{0} ** st.LINES; // lines off the faces: block 0
+    var list: [st.LINES]u32 = @splat(0); // lines off the faces: block 0
     for (0..4) |k| {
         const n = (k + 1) & 3;
         const h = y[n] - y[k];

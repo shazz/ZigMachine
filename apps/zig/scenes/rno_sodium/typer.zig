@@ -21,6 +21,17 @@ const CELL: usize = 0x4A; // px 144, plane 1's byte
 const GLYPH_ROWS: usize = 16;
 const FONT_ROW: usize = 256; // 4 planes x 64 bytes
 const FONT_PLANE1: usize = 0x40;
+const WIPE_GROUPS: usize = 10; // px 144..303
+
+// Every cell of the position tables, glyph and plane-2 byte included, is on
+// the screen: typeChar indexes without a check.
+comptime {
+    @setEvalBranchQuota(10_000);
+    for (0..A.TEXT_CHARS) |k| {
+        const last = CELL + A.textX(k) + A.textY(k) + (GLYPH_ROWS - 1) * st.LINE + 2;
+        if (last >= st.BYTES) @compileError("a text cell runs off the screen");
+    }
+}
 
 /// One call of $19DC with page `page` (0..2).
 pub fn typeChar(scr: *[st.BYTES]u8, m: *st.Machine, page: usize) void {
@@ -44,5 +55,5 @@ pub fn wipe(scr: *[st.BYTES]u8, t: u32) void {
 fn restoreLine(scr: *[st.BYTES]u8, line: i32) void {
     if (line < 0 or line >= st.LINES) return;
     const row = scr[@as(usize, @intCast(line)) * st.LINE + CELL ..];
-    for (0..10) |g| row[g * 8 ..][0..4].* = .{ 0xFF, 0xFF, 0xFF, 0xFF };
+    for (0..WIPE_GROUPS) |g| row[g * 8 ..][0..4].* = @splat(0xFF);
 }

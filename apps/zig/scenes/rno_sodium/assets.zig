@@ -104,6 +104,14 @@ comptime {
     if (pic0.len != 256 * PIC0_ROW) @compileError("pic0.bin is not 256 rows of 96 bytes");
     if (pic1.len != 32000) @compileError("pic1.bin is not one ST screen");
     if (palettes.len != 5 * 32) @compileError("palettes.bin is not five palettes");
+    // Every walker's range rests on |S[i]| <= 256: the curtain's sum + $200
+    // is never negative (its @intCast), and the prism's edge lines stay in
+    // 8..192 (its list index). ReleaseSmall would not trap on either.
+    @setEvalBranchQuota(10_000);
+    for (0..1280) |i| {
+        const v = sineEntry(i);
+        if (v < -256 or v > 256) @compileError("sine.bin leaves -256..256");
+    }
     // The farthest a stale row list can point: the distorter's row 255 * 96.
     if (curtain_tail.len != 255 * PIC0_ROW + CURTAIN_ROW_BYTES) @compileError("curtain_tail.bin is short");
 }
