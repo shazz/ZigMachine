@@ -538,11 +538,43 @@ function start() {
     // gets its stale layer cleared ONCE, instead of leaving the old image on top.
     const planeDirty = new Array(nb_planes).fill(false);
 
+    // The machine runs at a FIXED 60 Hz, whatever the display refreshes at. rAF
+    // fires once per refresh, so on a 120 Hz ProMotion panel (or 144 Hz) a cart
+    // that steps once per frame ran 2x (2.4x) too fast. Now a refresh only runs the
+    // machine when a 60 Hz tick is due; the others keep the last picture. Carts that
+    // pace by elapsed time are unaffected (dt now spans the skipped refreshes).
+    const MACHINE_HZ = 60;
+    const TICK_MS = 1000 / MACHINE_HZ;
     let last_timestamp = 0;
+    let next_tick = 0;
+    // The title shows both rates, averaged over ~0.5 s: how often the machine
+    // ran, and how often the display refreshed. Written only when it changes.
+    let rate_refreshes = 0, rate_ticks = 0, rate_since = 0, rate_shown = "";
+    const showRates = function (timestamp, ticked) {
+        if (rate_since === 0) rate_since = timestamp; // first frame: start the window here
+        rate_refreshes++;
+        if (ticked) rate_ticks++;
+        const span = timestamp - rate_since;
+        if (span < 500) return;
+        const title = "ZigMachine — " + Math.round(rate_ticks * 1000 / span) + " fps · display " +
+            Math.round(rate_refreshes * 1000 / span) + " Hz";
+        if (title !== rate_shown) document.title = rate_shown = title;
+        rate_refreshes = rate_ticks = 0;
+        rate_since = timestamp;
+    };
     const step = function (timestamp) {
+        // The very first call is loop() itself, not rAF: it has no timestamp.
+        if (timestamp === undefined) timestamp = performance.now();
+        if (next_tick === 0) next_tick = timestamp;
+        // 1 ms of slack for rAF jitter, so a 60 Hz display never skips a tick.
+        const due = timestamp >= next_tick - 1;
+        showRates(timestamp, due);
+        if (!due) return;
+        next_tick += TICK_MS;
+        if (timestamp - next_tick > 250) next_tick = timestamp; // after a stall: resync, no burst
+        if (last_timestamp === 0) last_timestamp = timestamp; // first tick: dt 0, not the page's age
         const elapsed_time = (timestamp - last_timestamp);
         last_timestamp = timestamp;
-        document.title = "Sealed HW — FPS:" + (1000 / elapsed_time).toFixed(1);
 
         // A swap unpacks the NEW cart into the cart RAM window (unpackCart), which
         // is the OLD cart's statics and stack. Running the old cart meanwhile reads
