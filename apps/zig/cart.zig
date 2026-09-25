@@ -79,6 +79,7 @@ const scene = switch (opts.index) {
     66 => @import("scenes/elite_cfsr.zig"), // ELITE / Challenge Foot Senior cracktro (original ST binary)
     67 => @import("scenes/rno_sodium.zig"), // RNO / SODIUM intro (original ST binary)
     68 => @import("scenes/rno_natrium.zig"), // RNO / NATRIUM 96k intro (original ST binary)
+    69 => @import("scenes/dhs_0pxl0reg.zig"), // DHS / (n)0 PIXELS (n)0 REGRETS (original ST binary)
     else => @compileError("bad cart index"),
 };
 
