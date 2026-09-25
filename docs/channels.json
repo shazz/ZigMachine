@@ -155,6 +155,11 @@
   "type": "zigmachine"
  },
  {
+  "tag": "rno_sodium",
+  "title": "RNO SODIUM",
+  "type": "atari st"
+ },
+ {
   "tag": "scroll",
   "title": "SCROLL DEMO",
   "type": "zigmachine"

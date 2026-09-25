@@ -77,6 +77,7 @@ const scene = switch (opts.index) {
     64 => @import("scenes/tsl_hybridglenz.zig"), // The Silents / Hybrid Glenz (CODEF screen 417)
     65 => @import("scenes/polkadots.zig"), // POLKA DOTS: the halftone torus (CODEF screen 81)
     66 => @import("scenes/elite_cfsr.zig"), // ELITE / Challenge Foot Senior cracktro (original ST binary)
+    67 => @import("scenes/rno_sodium.zig"), // RNO / SODIUM intro (original ST binary)
     else => @compileError("bad cart index"),
 };
 
