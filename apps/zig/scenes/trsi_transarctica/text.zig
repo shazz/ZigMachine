@@ -51,7 +51,7 @@ pub fn draw(dst: [*]u8, stride: usize, page: usize) void {
     for (0..assets.BG_H) |y| {
         const row = dst + y * stride;
         const bg = assets.bg_map[y * assets.W ..][0..assets.W];
-        for (row[0..assets.W], bg) |*px, v| px.* = 128 + v;
+        for (row[0..assets.W], bg) |*px, v| px.* = 0x80 | v; // plane 7 set: cannot overflow
     }
     var row: usize = 0;
     var col: usize = 0;

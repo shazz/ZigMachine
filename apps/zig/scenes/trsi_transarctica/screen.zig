@@ -41,6 +41,9 @@ comptime {
     if (LOGO_LINE + assets.LOGO_H > DISPLAY_H) @compileError("the logo runs below the display");
     if (MEM_LINES > intro.SLIDE_LINES + DISPLAY_H) @compileError("the text runs below the display");
     if (LOGO_LINE < intro.SLIDE_LINES) @compileError("the logo would reach the top band");
+    // vramAlloc has no guard, and the four NORMAL planes ZigOS allocates at
+    // boot are never reclaimed: the scroll buffer goes on top of them.
+    if (zg.NB_PLANES * zg.NORMAL_FB_BYTES + @as(usize, BUF_W) * BUF_H > zg.VRAM_BYTES) @compileError("over the VRAM pool");
 }
 
 pub fn line(buf: [*]u8, m: usize) [*]u8 {

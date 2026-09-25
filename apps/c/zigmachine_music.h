@@ -33,6 +33,8 @@ static unsigned zm_song_pending = 0;
 
 // Request subtune `tune` of `name` (a file under docs/music/). Subtunes count
 // from 1; 0 means "the image's own default". Only an SNDH has subtunes.
+// For a .mod, a tune of 32..255 is instead its start BPM (zg.requestModBpm);
+// 0..31 plays at ProTracker's 125.
 // A tune the file does not hold falls back to its default, inside the player.
 // Returns 1 when the request was queued, 0 when refused (null/empty/too-long
 // name, or tune > 255). A later request replaces a pending one.
