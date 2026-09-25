@@ -440,6 +440,43 @@ async function checkEsc() {
         : "ok   esc: Escape and Back ask for nothing; the doors still open";
 }
 
+// The scroll band is colour 0 changed per line (union_demo/raster.zig), so on its
+// lines the BORDER shows it too, edge to edge as on the ST, and every other
+// border line is black. Checked on the whole 800x280 frame, border pixel by
+// border pixel, at frames through a walk. Also: the door band's ink (entry 68)
+// must be past every index the hub's images and raster tables use.
+async function checkRasters() {
+    const DOOR_INK = 68, BLACK = 6, BAND_Y = 160; // raster.zig, menu_colors.zig, hud.zig BAND_Y
+    const pal = await readFile("apps/zig/assets/screens/union_demo/pal.dat");
+    const band = await readFile("apps/zig/assets/screens/union_demo/scrollrasters.dat");
+    const doors = await readFile("apps/zig/assets/screens/union_demo/doorrasters.dat");
+    const blob = await readFile("apps/zig/assets/screens/union_demo/menu_assets.bin");
+    const images = blob.subarray(0, blob.length - 16128); // assets.zig: the scrolltext ends the blob
+    for (const [what, bytes] of [["an image", images], ["scrollrasters", band], ["doorrasters", doors]])
+        if (bytes.some((p) => p >= DOOR_INK)) return `FAIL rasters: ${what} uses index ${DOOR_INK} or above, which the door raster's register would recolour`;
+    const m = await boot();
+    const W = m.machine.hwPhysWidth(), H = m.machine.hwPhysHeight();
+    const want = (p) => { const y = p - 40, i = y >= BAND_Y && y < 200 ? band[y - BAND_Y] : BLACK; return [pal[i * 4], pal[i * 4 + 1], pal[i * 4 + 2]]; };
+    let wrong = 0, lit = 0;
+    for (let f = 1; f <= 400; f++) {
+        if (f >= 100 && f < 300) m.demo.input(DIR.right);
+        step(m);
+        if (f % 50) continue;
+        const px = new Uint8Array(m.memory.buffer, m.machine.hwPhysicalPtr(), W * H * 4);
+        for (let p = 0; p < H; p++) {
+            const [r, g, b] = want(p);
+            if (r || g || b) lit++;
+            for (let x = 0; x < W; x++) {
+                if (p >= 40 && p < 240 && x >= 80 && x < 720) continue;
+                const o = (p * W + x) * 4;
+                if (px[o] !== r || px[o + 1] !== g || px[o + 2] !== b || px[o + 3] !== 255) wrong++;
+            }
+        }
+    }
+    if (wrong) return `FAIL rasters: ${wrong} border px are not their line's colour 0 (the scroll band, black elsewhere)`;
+    return `ok   rasters: the scroll band's colour 0 runs through the side borders on its ${lit / 8} coloured lines, black elsewhere, at 8 frames; door ink ${DOOR_INK} is free`;
+}
+
 // The hub's door request followed through the shelf's disks, page order.
 async function checkDoor() {
     const m = await boot();
@@ -476,7 +513,7 @@ if (BREAK !== null) {
 }
 
 const cost = await timeline();
-const results = [await checkWrap(), await checkEase(), await checkStop(60), await checkStop(144), await checkKeyup(), await checkEsc(), await checkReturn(), await checkDoor()];
+const results = [await checkWrap(), await checkEase(), await checkStop(60), await checkStop(144), await checkKeyup(), await checkEsc(), await checkReturn(), await checkDoor(), await checkRasters()];
 for (const r of results) console.log(r);
 
 const stats = (a) => {
