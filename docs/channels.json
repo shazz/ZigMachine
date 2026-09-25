@@ -75,6 +75,11 @@
   "type": "atari st"
  },
  {
+  "tag": "c-fujiboink",
+  "title": "FUJIBOINK (C)",
+  "type": "atari st"
+ },
+ {
   "tag": "fullscreen",
   "title": "FULLSCREEN",
   "type": "zigmachine"

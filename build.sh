@@ -234,6 +234,9 @@ gate dhs_0pxl0reg node apps/dhs_0pxl0reg_headless.mjs --break skip "$SHOTS/dhs_0
 gate dhs_0pxl0reg node apps/dhs_0pxl0reg_headless.mjs --break drop "$SHOTS/dhs_0pxl0reg"   # ...and a write 4 px after another (faster than a move.w) is counted as a drop
 gate trsi_transarctica node apps/trsi_transarctica_headless.mjs "$SHOTS/trsi_transarctica"   # TRSI TRANSARCTICA (Falcon): at 17 program VBLs (intro flash, logo fade and slide, all six pages, the 3 RAM-snapshot and 5 screenshot frames) the 320x240 display, top/bottom borders open, is the RE model's pixel for pixel; the open bands are colour 0; the pages loop after 4210 VBLs; the MOD is requested at BPM 123 on VBL 1 and plays; audioModPlayBpm(125) is audioModPlay byte for byte
 gate trsi_transarctica node apps/trsi_transarctica_headless.mjs --break skip "$SHOTS/trsi_transarctica"   # ...and one skipped VBL fails the frame checks
+gate c_fujiboink node apps/c_fujiboink_headless.mjs "$SHOTS/c_fujiboink"   # FUJIBOINK! (C, START 1986): nine Hatari captures of FUJIBOIN.PRG, six pixel for pixel and three within a one-VBL mid-frame sliver; the rainbow is Timer B's 73 register lines (every pixel an ST index, entry 4 rewritten per line); the thud SNDH lands with the fuji and decays; F-key freeze, Space and Escape leave
+gate c_fujiboink node apps/c_fujiboink_headless.mjs --break rasters "$SHOTS/c_fujiboink"   # ...and a plane whose HBL never runs (one static palette) is caught
+gate c_fujiboink node apps/c_fujiboink_headless.mjs --break thud "$SHOTS/c_fujiboink"   # ...and a lost thud request is caught
 gate fallen_angels node apps/fallen_angels_headless.mjs "$SHOTS"   # per-plane rasters on all 200 lines
 gate tex_loader_fx node apps/tex_loader_fx_headless.mjs "$SHOTS/tex_loader_fx"   # fx = tex_loader on a real asset, bytes checked
 gate tex node apps/tex_headless.mjs "$SHOTS"             # the eleven sprites on screen.js's chain
