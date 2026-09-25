@@ -8,6 +8,7 @@ const blit = zg.blit;
 const A = @import("assets.zig");
 const Copier = @import("copier.zig").Copier;
 const text = @import("text.zig");
+const raster = @import("raster.zig");
 
 const W = zg.WIDTH;
 const H = zg.HEIGHT;
@@ -19,49 +20,43 @@ const DISPLAY_X = 160 / 2; // display.draw(maincanvas, 160, 74)
 const DISPLAY_Y = 74 / 2;
 const TEXT_Y = 360 / 2; // textcanvas.draw(maincanvas, 0, 360)
 
-/// maincanvas.fill('#000000'). The whole view: dst must be the normal 320x200 plane.
+/// maincanvas.fill('#000000'): colour 0, which the raster windows recolour per
+/// line. The whole view: dst must be the normal 320x200 plane.
 pub fn clear(dst: blit.Dst) void {
-    @memset(dst.buf, A.BLACK);
+    @memset(dst.buf, raster.BG);
 }
 
 /// drawPart(maincanvas, 0, rastersPos[i], 0, rasterScrollY - 4i, 640, 32) for the
 /// six windows. Each image row is uniform across its 640 columns, so every ST row
-/// is one colour: the texel at source row v = rasterScrollY - 4i + (canvas row - top).
-pub fn rasters(dst: blit.Dst, c: *const Copier) void {
+/// is one colour, the texel at source row v = rasterScrollY - 4i + (canvas row -
+/// top): the windows are colour 0's value per line (raster.zig), never pixels.
+/// `rows` gets this state's colour 0 for every visible line, black outside them.
+pub fn rasters(rows: *[H]u32, c: *const Copier, images: []const u8) void {
+    @memset(rows, A.palette[A.BLACK].toRGBA());
     if (!c.time_to_raster) return;
+    const image = images[c.raster_texture % A.RASTER_IMAGES * A.RASTER_COLOURS * 3 ..][0 .. A.RASTER_COLOURS * 3];
     for (WINDOW_TOPS, 0..) |top, i| {
         const first = @divFloor(top + 1, 2); // the first ST row whose canvas row 2Y >= top
         const last = @divFloor(top + WINDOW_H - 1, 2);
         const base2 = c.raster_scroll2 - WINDOW_STEP2 * @as(i32, @intCast(i));
         var y = first;
-        while (y <= last) : (y += 1) {
-            const entry = rasterEntry(base2 + 2 * (2 * y - top));
-            if (entry == A.BLACK) continue; // already filled
-            const row: usize = @intCast(y);
-            @memset(dst.buf[row * dst.stride ..][0..W], entry);
-        }
+        while (y <= last) : (y += 1) rows[@intCast(y)] = rasterColour(image, base2 + 2 * (2 * y - top)).toRGBA();
     }
 }
 
-/// The palette entry at twice a raster source row: an even value is a texel, an
-/// odd one the mix of the two around it. Rows 32..63 hold 16 doubled colours; the
-/// rest of the image, and anything outside it, is transparent over black.
-fn rasterEntry(v2: i32) u8 {
-    if (v2 < 0) return A.BLACK;
+/// The colour at twice a raster source row: an even value is a texel, an odd one
+/// Chrome's 50/50 mix of the two around it. Rows 32..63 hold 16 doubled colours;
+/// the rest of the image, and anything outside it, is transparent over black.
+fn rasterColour(image: []const u8, v2: i32) zg.Color {
     const row = @divFloor(v2, 2);
-    if (@mod(v2, 2) == 0) return rasterTexel(row);
-    return switch (row) {
-        31 => A.RASTER_MIX, // transparent / colour 0
-        63 => A.RASTER_MIX + A.RASTER_COLOURS, // colour 15 / transparent
-        32...62 => if (@mod(row, 2) == 0) rasterTexel(row) // both rows of one colour
-        else A.RASTER_MIX + @as(u8, @intCast(@divExact(row - 31, 2))),
-        else => A.BLACK,
-    };
+    if (@mod(v2, 2) == 0) return rasterTexel(image, row);
+    return A.mix(rasterTexel(image, row), rasterTexel(image, row + 1));
 }
 
-fn rasterTexel(row: i32) u8 {
-    if (row < 32 or row >= 32 + 2 * A.RASTER_COLOURS) return A.BLACK;
-    return A.RASTER_BASE + @as(u8, @intCast(@divFloor(row - 32, 2)));
+fn rasterTexel(image: []const u8, row: i32) zg.Color {
+    if (row < 32 or row >= 32 + 2 * A.RASTER_COLOURS) return A.palette[A.BLACK];
+    const k: usize = @intCast(@divFloor(row - 32, 2));
+    return .{ .r = image[3 * k], .g = image[3 * k + 1], .b = image[3 * k + 2], .a = 255 };
 }
 
 /// display.draw(maincanvas, 160, 74): opaque.
