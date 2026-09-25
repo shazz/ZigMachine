@@ -52,6 +52,22 @@ void skipBoot(void)   { zm_tvnoise_stop(); }
 `screen34.c` (a channel) uses it; hello and tutorial are not channels and stay
 minimal. Proof: `node apps/tunein_check.mjs`.
 
+## `fujiboink.c`: a source port of an ST program
+Xanth Park's FujiBoink! (START, Fall 1986), C to C from FUJIBOIN.C, with
+FUJISTUF.S in `scenes/fujiboink/fujistuf.h`. What it shows a C cart can do:
+- **ST bitplane semantics on a chunky plane**: each pixel holds the 4-bit value
+  of the four ST planes, palette entries 0..15 are the colour registers.
+- **Real rasters**: Timer B becomes the plane's HBL (`FB_HBL_ID`), which rewrites
+  palette entries 4..7 per line.
+- **Page flipping**: the second screen is plane 1's buffer, shown by writing
+  `FB_BASE` at the VBL (Setscreen).
+- **Blocking code**: the original waits for the VBL anywhere; here every waiting
+  function is a protothread (`PT_YIELD` = `xbios(37)`).
+- **Data by `#embed`**: `assets/screens/fujiboink/FUJIBOIN.D8A`, made by the
+  original generators in Hatari. The thud is an SNDH (`thud.s`) requested per
+  bounce, because a cart cannot write the YM directly.
+Proof: `node apps/c_fujiboink_headless.mjs`, against Hatari captures.
+
 ## Build & run
 ```bash
 bash apps/c/build.sh                          # -> docs/demo-c.wasm (uses `zig cc`)

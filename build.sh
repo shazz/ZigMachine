@@ -232,6 +232,9 @@ gate rno_natrium node apps/rno_natrium_headless.mjs "$SHOTS/rno_natrium"   # RNO
 gate dhs_0pxl0reg node apps/dhs_0pxl0reg_headless.mjs "$SHOTS/dhs_0pxl0reg"   # DHS (n)0 PIXELS (n)0 REGRETS: zero bitplanes, every pixel a BEAM colour-0 write; at every 50th frame across all 17 parts the whole 400x280 physical frame, borders included, is the reference model's byte for byte; REG_BEAM_DROPPED stays 0 over the whole 22,000-frame run; no plane is ever enabled; Fake It at 159, stopped at 7759, AY Tunage at 8173
 gate dhs_0pxl0reg node apps/dhs_0pxl0reg_headless.mjs --break skip "$SHOTS/dhs_0pxl0reg"   # ...and one skipped VBL fails the frame checks
 gate dhs_0pxl0reg node apps/dhs_0pxl0reg_headless.mjs --break drop "$SHOTS/dhs_0pxl0reg"   # ...and a write 4 px after another (faster than a move.w) is counted as a drop
+gate c_fujiboink node apps/c_fujiboink_headless.mjs "$SHOTS/c_fujiboink"   # FUJIBOINK! (C, START 1986): nine Hatari captures of FUJIBOIN.PRG, six pixel for pixel and three within a one-VBL mid-frame sliver; the rainbow is Timer B's 73 register lines (every pixel an ST index, entry 4 rewritten per line); the thud SNDH lands with the fuji and decays; F-key freeze, Space and Escape leave
+gate c_fujiboink node apps/c_fujiboink_headless.mjs --break rasters "$SHOTS/c_fujiboink"   # ...and a plane whose HBL never runs (one static palette) is caught
+gate c_fujiboink node apps/c_fujiboink_headless.mjs --break thud "$SHOTS/c_fujiboink"   # ...and a lost thud request is caught
 gate fallen_angels node apps/fallen_angels_headless.mjs "$SHOTS"   # per-plane rasters on all 200 lines
 gate tex_loader_fx node apps/tex_loader_fx_headless.mjs "$SHOTS/tex_loader_fx"   # fx = tex_loader on a real asset, bytes checked
 gate tex node apps/tex_headless.mjs "$SHOTS"             # the eleven sprites on screen.js's chain
