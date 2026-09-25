@@ -1,7 +1,7 @@
 // --------------------------------------------------------------------------
-// REPS layers: the bouncing rasterbars, the raster-filled "CRACKING IS..."
-// mask, the wobbly THE REPLICANTS sprites and theunion.png's soft edges
-// (screen.js:143-175 update, 242-285 draw).
+// REPS layers: the colours per scanline of the bouncing rasterbars and of the
+// "CRACKING IS..." mask (raster.zig plays them), the wobbly THE REPLICANTS
+// sprites and theunion.png's soft edges (screen.js:143-175 update, 242-285 draw).
 //
 // Halving rule, the same for every layer: ST pixel (X, Y) shows canvas pixel
 // (2X+1, 2Y+1). Even canvas coordinates halve exactly; a fractional sprite
@@ -44,15 +44,18 @@ pub const Bars = struct {
         }
     }
 
-    /// Each row of a bar is one colour, so a bar is full-width runs.
-    pub fn draw(self: *const Bars, dst: blit.Dst, img: *const A.Images) void {
+    /// Each row of a bar is ONE colour right across the raster, so a bar is not
+    /// pixels at all: it is colour 0 rewritten on each of its scanlines. `rows`
+    /// is colour 0 for every visible line, black where no bar is.
+    pub fn paint(self: *const Bars, rows: *[zg.HEIGHT]u32, img: *const A.Images) void {
         const colours = [6][]const u8{ img.pink, img.green, img.brown, img.brown, img.green, img.pink };
-        for (self.y, colours) |y, rows| {
+        @memset(rows, A.rgba(A.BLACK));
+        for (self.y, colours) |y, bar| {
             const top = @divFloor(y, 2); // bars start and step on even rows
-            for (rows, 0..) |c, r| {
+            for (bar, 0..) |c, r| {
                 const row = top + @as(i32, @intCast(r));
-                if (row < 0 or row >= @as(i32, @intCast(dst.h))) continue;
-                @memset(dst.buf[@as(usize, @intCast(row)) * dst.stride ..][0..dst.w], c);
+                if (row < 0 or row >= zg.HEIGHT) continue;
+                rows[@intCast(row)] = A.rgba(c);
             }
         }
     }
@@ -62,18 +65,16 @@ pub const Bars = struct {
 /// posColorRasterY1 and posColorRasterY2 (screen.js:243-247), then drawn at
 /// canvas row 146. Both positions step 1 and wrap 168 -> -168, so Y2 is always
 /// Y1 +- 168: between them they cover the 108 rows, and every row shows
-/// rasters.png's row (row - Y1) mod 168. Per ST row that is one colour: blit's
-/// `.row` ink through the mask.
+/// rasters.png's row (row - Y1) mod 168. Per ST row that is one colour, so the
+/// mask is drawn in ONE ink and that ink's register is rewritten per scanline.
 pub const Rasters = struct {
     pos: i32, // posColorRasterY1
-    rows: [zg.HEIGHT]u8,
 
     const Y = 73;
     const PERIOD = 168; // rasters.png height
 
     pub fn init(self: *Rasters) void {
         self.pos = -PERIOD;
-        @memset(&self.rows, 0);
     }
 
     pub fn update(self: *Rasters) void {
@@ -81,13 +82,14 @@ pub const Rasters = struct {
         if (self.pos >= PERIOD) self.pos = -PERIOD;
     }
 
-    pub fn draw(self: *Rasters, dst: blit.Dst, mask: blit.Image, rasters: []const u8) void {
+    /// The mask in MASK_INK, and that ink's colour for each of its lines.
+    pub fn draw(self: *const Rasters, dst: blit.Dst, mask: blit.Image, rasters: []const u8, ink: *[zg.HEIGHT]u32) void {
         for (0..mask.h) |r| {
             const canvas_row = 2 * @as(i32, @intCast(r)) + 1;
             const src_row: usize = @intCast(@mod(canvas_row - self.pos, PERIOD));
-            self.rows[Y + r] = rasters[src_row / 2];
+            ink[Y + r] = A.rgba(rasters[src_row / 2]);
         }
-        blit.blit(dst, mask, null, 0, Y, 0, .{ .row = &self.rows });
+        blit.blit(dst, mask, null, 0, Y, 0, .{ .flat = A.MASK_INK });
     }
 };
 

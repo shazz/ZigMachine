@@ -5,7 +5,7 @@
 // (Mad Max), composed by Jeroen Tel: all The Replicants' / The Union's.
 //
 // On screen, in draw order (screen.js:232-286), one plane, one palette:
-//   black; six rasterbars bouncing behind the picture's windows (layers.zig)
+//   colour 0; six rasterbars bouncing behind the picture's windows
 //   overlay.png, the picture with its windows
 //   the red and blue scrollers of the menu's text (scroller.zig)
 //   "CRACKING IS ... GOOD FOR YOU" and the Atari logos, filled by rasters
@@ -13,7 +13,12 @@
 //   theunion.png over both scrollers, soft-edged
 //
 // Geometry: a 640x400 canvas, everything inside it, every PNG doubled on the
-// (0,0) grid: one normal 320x200 plane, no borders.
+// (0,0) grid: one normal 320x200 plane, no borders opened.
+//
+// Both rasters are REAL rasters (raster.zig): the bars are colour 0 changed per
+// scanline, so they also run through the closed side borders as on the ST, and
+// the mask's ink is one register changed per scanline. The remake drew both as
+// pixels.
 //
 // Loading: the remake's TEX loader panel (loader.js) is the REAL depack here:
 // the screen's pictures ship ZX0-packed with fx = tex_loader and this panel
@@ -27,7 +32,6 @@
 const zg = @import("zigos");
 const hw = @import("hardware");
 const ZigOS = zg.ZigOS;
-const Color = zg.Color;
 const blit = zg.blit;
 const DepackFx = @import("depackers").depack_fx.Runner(zg, null);
 const packed_assets = @import("packed_assets");
@@ -37,6 +41,7 @@ const hub_note = @import("union_demo/hub_note.zig").HubNote("union_reps");
 const A = @import("union_reps/assets.zig");
 const layers = @import("union_reps/layers.zig");
 const Scroller = @import("union_reps/scroller.zig").Scroller;
+const raster = @import("union_reps/raster.zig");
 
 // The remake plays data/music/ChildrenSongs.ym (its LHA member is U_WOBBLY.BIN);
 // this is that tune's SNDH, "Children's Song" by Mad Max.
@@ -104,13 +109,18 @@ pub const Demo = struct {
     pub fn render(self: *Demo, zigos: *ZigOS, dt: f32) void {
         _ = dt;
         if (self.phase != .running) return;
-        const dst = blit.Dst.plane(&zigos.lfbs[0]);
+        const fb = &zigos.lfbs[0];
+        const dst = blit.Dst.plane(fb);
         const img = &self.images;
-        @memset(dst.buf, A.BLACK);
-        self.bars.draw(dst, img);
+        // Colour 0 everywhere under the picture: the bars are its colour per line.
+        @memset(dst.buf, 0);
+        self.bars.paint(raster.background(fb), img);
+        var next = self.bars; // the border is painted before the next frame's update
+        next.update();
+        next.paint(raster.nextBorder(), img);
         blit.blit(dst, img.overlay, null, 0, 0, 0, .copy);
         self.scroller.draw(dst, img.font);
-        self.rasters.draw(dst, img.mask, img.rasters);
+        self.rasters.draw(dst, img.mask, img.rasters, raster.maskInk(fb));
         self.sprites.draw(dst, &img.sprites);
         layers.drawUnion(dst, img.theunion, 0);
         layers.drawUnion(dst, img.theunion, UNION_BOTTOM_Y);
@@ -160,7 +170,7 @@ pub const Demo = struct {
         const fb = &zigos.lfbs[0];
         fb.is_enabled = true;
         fb.setPalette(A.palette);
-        fb.setPaletteEntry(0, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
+        raster.install(zigos, fb);
         zg.requestSong(MUSIC); // onResetEvent
         self.phase = .running;
     }

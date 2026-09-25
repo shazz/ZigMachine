@@ -7,6 +7,11 @@
 //    replayed in canvas units, then halved) at every sampled frame, with the
 //    joystick held left, then right (press + inputRelease), through the run. Any
 //    drift in a table, increment, order or rounding is wrong pixels.
+//    The BORDER too: the bars are colour 0 changed per scanline, so every border
+//    pixel of visible line y must be the replay's colour 0 on that line (and the
+//    top and bottom borders black). Frames run as the host runs them: hwClear
+//    (the global HBL paints the border) BEFORE the cart's frame, so a border
+//    table one frame late shows here as wrong border pixels.
 // 3. jsApp.mainscrollerPos. The run boots with the hub's ROM-scratch note for the
 //    REPS door (return_note.zig layout) saying scroll 500: the scrollers must start
 //    at character 500, the note must be untouched while the screen runs (REPS
@@ -27,6 +32,7 @@ import { ASSETS, loadAssets, makeReplay } from "./union_reps_replay.mjs";
 
 const PAGES = 112, AUDIO_PAGES = 48; // machine/sdk/memmap.zig, machine/sdk/audio.zig
 const TOP = 40, LEFT = 80; // ST (0,0) in the physical frame (x doubled)
+const BLACK = 1; // union_reps/assets.zig: maincanvas.fill('#000000')
 const SCREEN_FRAMES = [0, 1, 2, 60, 61, 200, 350, 430, 600, 800, 1234, 3000];
 const HOLDS = [{ dir: 2, name: "left", from: 300, to: 420 }, { dir: 3, name: "right", from: 520, to: 720 }];
 const REPS_DOOR = 5; // doors.zig DOORS (TMX order): REPS_LOADER is object 5
@@ -43,6 +49,8 @@ const out = argv[0], CART = argv[1] || "docs/demo-union_reps.wasm";
 if (out) await mkdir(out, { recursive: true });
 const assets = await loadAssets();
 const { pal } = assets;
+const MASK_INK = 98; // union_reps/assets.zig: the mask's register, which no image may use
+if ((await readFile(`${ASSETS}/reps.bin`)).some((p) => p >= MASK_INK)) throw new Error(`reps.bin uses index ${MASK_INK} or above: the mask's raster register would recolour it`);
 const DEPACK_FRAMES = Math.ceil((await readFile(`${ASSETS}/reps.bin`)).length / (6 * 280)); // DEPACK_BYTES_PER_LINE = 6
 const dec = new TextDecoder();
 
@@ -125,6 +133,7 @@ async function run({ note, offset, frames, holds = [], main = false }) {
     const errors = [], warm = [], seen = new Map();
     let song = null, tune = 0, cartMs = 0, steps = 0, screenFrame = -1;
     const step = () => {
+        m.machine.hwClear(); // the host's order: the border, then the cart's frame
         const t0 = performance.now();
         m.demo.frame(1000 / 60);
         const ms = performance.now() - t0;
@@ -177,6 +186,19 @@ async function run({ note, offset, frames, holds = [], main = false }) {
             if (a !== 255 || r !== pal[v * 4] || g !== pal[v * 4 + 1] || b !== pal[v * 4 + 2]) wrong++;
         }
         if (wrong) errors.push(`screen frame ${target}: ${wrong} px off the screen.js replay (scroll from ${offset}, speed ${rep.state.speed})`);
+        // Screen frame 0 is the frame the depack ends on: its border was painted (hwClear)
+        // while the loader still ran, so the rasters own the border from frame 1.
+        const bg = rep.border(), black = pal.subarray(BLACK * 4, BLACK * 4 + 3);
+        let wrongBorder = 0;
+        for (let y = 0; y < H; y++) {
+            const want = y >= TOP && y < TOP + 200 ? pal.subarray(bg[y - TOP] * 4, bg[y - TOP] * 4 + 3) : black;
+            for (let x = 0; x < W; x++) {
+                if (y >= TOP && y < TOP + 200 && x >= LEFT && x < LEFT + 640) continue;
+                const o = (y * W + x) * 4;
+                if (px[o] !== want[0] || px[o + 1] !== want[1] || px[o + 2] !== want[2] || px[o + 3] !== 255) wrongBorder++;
+            }
+        }
+        if (wrongBorder && target > 0) errors.push(`screen frame ${target}: ${wrongBorder} border px are not that line's colour 0`);
         seen.set(target, { map, speed: rep.state.speed });
         if (out && main && [0, 600, 1234].includes(target)) await png(`union_reps-${target}`, px, W);
     }

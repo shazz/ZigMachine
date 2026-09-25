@@ -11,6 +11,14 @@ pub const palette = zg.convertU8ArraytoColors(@embedFile("../../assets/screens/u
 pub const BLACK: u8 = 1; // maincanvas.fill('#000000')
 pub const RED_INK: u8 = 2; // fontRed.png's one colour
 pub const BLUE_INK: u8 = 3; // fontBlue.png's
+/// The mask's one ink: past every index reps.bin uses (the harness checks), so
+/// only the mask ever carries it. Its colour is the raster's, per scanline.
+pub const MASK_INK: u8 = 98;
+
+/// Palette entry `i` as the plane stores it.
+pub fn rgba(i: u8) u32 {
+    return palette[i].toRGBA();
+}
 
 /// theunion.png's soft edges (alpha 204, 84, 171) land only on these: the four
 /// overlay colours under them and the two scroller inks. Blend row k starts at
