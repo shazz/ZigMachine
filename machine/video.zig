@@ -16,6 +16,7 @@
 // --------------------------------------------------------------------------
 const std = @import("std");
 const memmap = @import("sdk/memmap.zig");
+const beam = @import("beam.zig");
 
 // The one host import the sealed machine needs: route an HBL point to the demo.
 extern fn hblDispatch(id: u32, plane: u32, line: u32, x: u32) void;
@@ -167,13 +168,18 @@ pub fn reset() void {
 }
 
 // Fill the RASTER with BACKGROUND, running the global HBL handler once per
-// scanline (so a per-line handler paints the border/background rasters).
+// scanline (so a per-line handler paints the border/background rasters). A line
+// the HBL queued BEAM writes on is painted in spans instead (beam.zig).
 pub fn clear() void {
     const gid = r16(memmap.REG_GLOBAL_HBL_ID);
     const out64: [*]u64 = @ptrCast(@alignCast(pfb()));
     var y: usize = 0;
     while (y < RH) : (y += 1) {
         if (gid != 0) hblDispatch(gid, 0, @intCast(y), 0);
+        if (r16(memmap.REG_BEAM_COUNT) != 0) {
+            beamLine(out64[(y * RW) >> 1 ..][0..beam.W]);
+            continue;
+        }
         const bg = r32(memmap.REG_BACKGROUND); // re-read after the HBL (per-line colour)
         const pair = @as(u64, bg) | (@as(u64, bg) << 32);
         const row64 = (y * RW) >> 1;
@@ -181,6 +187,16 @@ pub fn clear() void {
         while (i < RW / 2) : (i += 1) out64[row64 + i] = pair; // fill 2 pixels/write
     }
     w32(memmap.REG_FRAME, r32(memmap.REG_FRAME) +% 1);
+}
+
+// One BEAM line: paint it, carry its last colour into BACKGROUND (colour 0 keeps
+// its value into the next line on an ST), count the drops, consume the list.
+fn beamLine(row: []u64) void {
+    const table: [*]const u32 = @ptrFromInt(memmap.HW_VIDEO_BASE + memmap.OFF_BEAM_TABLE);
+    const line = beam.paintLine(row, r32(memmap.REG_BACKGROUND), table[0..memmap.BEAM_MAX], r16(memmap.REG_BEAM_COUNT));
+    w32(memmap.REG_BACKGROUND, line.bg);
+    w32(memmap.REG_BEAM_DROPPED, r32(memmap.REG_BEAM_DROPPED) +% line.dropped);
+    w16(memmap.REG_BEAM_COUNT, 0);
 }
 
 // Write one logical pixel DOUBLED at physical (px..px+1, py) as a single 64-bit

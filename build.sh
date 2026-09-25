@@ -117,6 +117,8 @@ node apps/check_fits.mjs docs/demo-*.wasm docs/rom.wasm
 node apps/ram_check.mjs
 node apps/rom_abi_check.mjs   # the ROM survives hostile arguments from any language
 node apps/blitter_check.mjs   # blitter sources: plane offsets, cart RAM (SRC_ABS), refusals
+node apps/beam_check.mjs      # BEAM (1.6.0): mid-line colour-0 cells across the whole line, persistence, no drops
+node apps/beam_check.mjs --break   # ...and writes 4 px apart (faster than a move.w) are caught and counted as drops
 
 # --- ZX0: pack every asset (stale only) and report the ratios per screen ------
 tools/pack_stats.sh
@@ -148,6 +150,8 @@ for t in \
     libs/zig/effects/zig3d_test.zig \
     libs/zig/effects/canvas_poly_test.zig \
     libs/zig/effects/colour_bank_test.zig \
+    libs/zig/effects/beam_test.zig \
+    machine/beam_test.zig \
     libs/zig/shapes_test.zig \
     libs/zig/wireframe_test.zig \
     libs/zig/tvnoise/tvnoise.zig \

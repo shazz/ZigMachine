@@ -95,7 +95,27 @@ pub const REG_RES_FLICKER: usize = 0x58; // u16  overscan-trick latch: the SDK b
 pub const REG_CART_HIGH: usize = 0x5C; // u32  (0x5C..0x5F)
 // Same, for the ROM module's window (Phase 2). 0 = no ROM chip fitted, which
 // is the state until rom.wasm exists — hwRomRamFree() then reports 0.
-pub const REG_ROM_HIGH: usize = 0x60; // u32  (0x60..0x63; 0x64..0x7F free below OFF_BLIT)
+pub const REG_ROM_HIGH: usize = 0x60; // u32  (0x60..0x63)
+
+// --- BEAM (1.6.0): mid-line colour-0 writes ---------------------------------
+// The ST's zero-bitplane trick: rewrite colour 0 ($FF8240) with cycle-counted
+// move.w's while the beam crosses a line, so the background itself is the
+// picture. The GLOBAL HBL for physical line y queues up to BEAM_MAX writes;
+// clear() paints the line in spans from them, then consumes the list. The
+// machine enforces the 68000's limits and COUNTS every write that breaks them
+// (docs/HARDWARE_SPEC.md, "BEAM"). BEAM_COUNT = 0 is the pre-1.6.0 path exactly.
+pub const REG_BEAM_COUNT: usize = 0x64; // u16  entries queued for the CURRENT line (0x64..0x65; 0x66..0x67 free)
+pub const REG_BEAM_DROPPED: usize = 0x68; // u32  running count of rejected writes (0x68..0x6B; 0x6C..0x7F free below OFF_BLIT)
+// The table is 256 bytes, too big for the register block, so it sits directly
+// ABOVE the physical framebuffer: outside REGION_BYTES, which is the window the
+// blitter reads and writes — a blit can never scribble a line's writes.
+// Entry = x:u16 (high half, PHYSICAL px 0..399, left border included) | colour
+// (low half: an ST/STE colour word exactly as written to $FF8240).
+pub const OFF_BEAM_TABLE: usize = OFF_PFB + PFB_BYTES; // = REGION_BYTES
+pub const BEAM_MAX: usize = 64; // entries a line
+pub const BEAM_TABLE_BYTES: usize = BEAM_MAX * 4; // 256
+pub const BEAM_GRID: u16 = 4; // x snaps DOWN to it: the 68000's 4-cycle bus slot (1 low-res px a cycle)
+pub const BEAM_MIN_GAP: u16 = 8; // px between accepted writes: move.w Dn,(An) = 8 cycles, the fastest write
 
 pub const FB_MODE_NORMAL: u8 = 0; // 320x200 low-res plane (pixel-doubled into the raster)
 pub const FB_MODE_FULLSCREEN: u8 = 1; // 400x280 low-res overscan plane (Option B, doubled)
@@ -264,4 +284,15 @@ pub const ROM_RAM_BYTES: usize = ROM_RAM_TOP - ROM_RAM_BASE; // 2 MiB
 // tools/mkdisks.sh; node apps/disk_check.mjs is what catches it.
 pub const SHARED_PAGES: u32 = 112;
 
-pub const ZM_HW_VERSION: u32 = 0x0001_0500; // 1.5.0 — blitter CON2.FILL_MT (FILL honours MINTERM) + CON2.HALFTONE_EN (explicit halftone)
+pub const ZM_HW_VERSION: u32 = 0x0001_0600; // 1.6.0 — BEAM: mid-line colour-0 writes (REG_BEAM_*, OFF_BEAM_TABLE)
+
+// Register-block overlaps are SILENT (two names, one byte), so the BEAM layout
+// proves at compile time that it clears its neighbours.
+comptime {
+    if (REG_ROM_HIGH + 4 > REG_BEAM_COUNT) @compileError("memmap: ROM_HIGH overlaps BEAM_COUNT");
+    if (REG_BEAM_COUNT + 2 > REG_BEAM_DROPPED) @compileError("memmap: BEAM_COUNT overlaps BEAM_DROPPED");
+    if (REG_BEAM_DROPPED + 4 > OFF_BLIT) @compileError("memmap: BEAM_DROPPED overlaps the blitter block");
+    if (OFF_BEAM_TABLE % 4 != 0) @compileError("memmap: BEAM table must be u32-aligned");
+    if (OFF_BEAM_TABLE < REGION_BYTES) @compileError("memmap: BEAM table inside the blitter's window");
+    if (HW_VIDEO_BASE + OFF_BEAM_TABLE + BEAM_TABLE_BYTES > ROM_RAM_BASE) @compileError("memmap: BEAM table runs into the ROM window");
+}

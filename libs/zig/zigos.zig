@@ -52,6 +52,20 @@ pub const copper = @import("effects/copper.zig").Copper(LogicalFB, ZigOS, .{
     .magic_x = OVERSCAN_MAGIC_X,
 });
 
+// Mid-line colour-0 writes (HW 1.6.0 BEAM), queued from the global HBL handler.
+pub const beam = @import("effects/beam.zig").Beam(BeamRegs, .{
+    .count = hw.REG_BEAM_COUNT,
+    .dropped = hw.REG_BEAM_DROPPED,
+    .table = hw.OFF_BEAM_TABLE,
+    .max = hw.BEAM_MAX,
+});
+const BeamRegs = struct {
+    pub const r16 = readU16;
+    pub const w16 = writeU16;
+    pub const r32 = readU32;
+    pub const w32 = writeU32;
+};
+
 // Overscan HBL handlers for LogicalFB.openBorders(). On an overscan plane the
 // line is PHYSICAL 0..279; the visible band is VERTICAL_BORDERS_HEIGHT..+HEIGHT.
 pub fn flickerAllHbl(fb: *LogicalFB, _: *ZigOS, _: u16, _: u16) void {

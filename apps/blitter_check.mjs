@@ -263,8 +263,8 @@ check("hwInit clears CON2, so pre-1.4.0 carts keep relative sources", () => {
     machine.hwInit();
     return u8()[R(0x07)] === 0 ? null : "CON2 survived hwInit";
 });
-check("the machine reports HW 1.5.0", () =>
-    machine.hwVersion() === 0x00010500 ? null : `hwVersion 0x${machine.hwVersion().toString(16)}`);
+check("the machine reports HW 1.5.0 or later", () =>
+    machine.hwVersion() >= 0x00010500 ? null : `hwVersion 0x${machine.hwVersion().toString(16)}`);
 
 console.log(failed ? `blitter_check: ${failed} FAILED` : "blitter_check: all pass ✅");
 process.exit(failed ? 1 : 0);
