@@ -175,3 +175,9 @@ const t0 = performance.now();
 screen.run(3000);
 console.log(`  soak: ${screen.frames} frames clean, ` +
     `${((performance.now() - t0) / 3000).toFixed(2)} ms/frame (update + render + 1 plane composite)`);
+// The layers and the credit pages come from zg.mem, once per cart load.
+const refused = screen.machine.hwRamAllocFailures();
+if (refused) {
+    console.log(`vex: FAILED -- ${refused} zg.mem allocation(s) refused`);
+    process.exit(1);
+}

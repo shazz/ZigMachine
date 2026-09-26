@@ -20,7 +20,7 @@ pub const Small = struct {
         self.pending = .{0} ** P.SMALL_ROWS;
         self.count = CHAR_FRAMES;
         self.text = 0;
-        for (&P.small) |*row| @memset(row, 0);
+        for (P.small) |*row| @memset(row, 0);
     }
 
     /// $328e: take the next byte, wrap at the end of the text.  The font starts
