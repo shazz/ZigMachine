@@ -99,6 +99,27 @@ fn setup(g: *Game, field: i32) void {
     m.setw(ad.DEMO_TIMER, 0x7D0);
 }
 
+// fieldSetup walks ns.app's terrain tables and decor lists, whose cell lists
+// end at $FF: prove on the ROM bytes that every walk stays inside the ROM
+// and every cell inside the 40x50 grid, so no data-driven loop can run away.
+comptime {
+    @setEvalBranchQuota(20000);
+    for (ad.T_TERRAIN) |t| if (t[0] + 50 * 13 > mem.ROM_HI or t[1] + 13 > 40) @compileError("terrain table out of range");
+    const lists = ad.DECOR_RIVER ++ [_]ad.Decor{ad.DECOR_CANYON} ++ ad.DECOR_PLAIN;
+    for (lists) |d| {
+        const n: u32 = @intCast(d.end - 0x18);
+        if (d.list + 6 * n > mem.ROM_HI) @compileError("decor list out of range");
+        var c = d.cells - mem.ROM_LO;
+        for (0..n) |_| {
+            while (A.rom[c] != 0xFF) : (c += 2) {
+                const cell = @as(i32, @as(i8, @bitCast(A.rom[c]))) * 50 + @as(i8, @bitCast(A.rom[c + 1]));
+                if (cell < 0 or cell >= 2000) @compileError("decor cell outside the grid");
+            }
+            c += 1;
+        }
+    }
+}
+
 fn fieldSetup(g: *Game) void { // $DC56
     const m = &g.m;
     const fld = m.w(ad.FIELD);

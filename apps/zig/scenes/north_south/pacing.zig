@@ -99,6 +99,25 @@ pub const Sequencer = struct {
     }
 };
 
+// The sequencer walks a sequence two bytes at a time until $FF and indexes
+// the sample lengths with what it reads, unchecked in ReleaseSmall: prove
+// every sequence is non-empty (a loop restarts at byte 0), ends inside the
+// file, and names only samples that exist.
+comptime {
+    @setEvalBranchQuota(20000);
+    const nsmp: usize = A.be16(A.sound, 2);
+    const body = 4 + 2 * nsmp + 2 * @as(usize, nseq());
+    for (0..nseq()) |n| {
+        const start = body + A.be16(A.sound, 4 + 2 * nsmp + 2 * n);
+        if (A.sound[start] == 0xFF) @compileError("sound.bin: an empty sequence");
+        var i = start;
+        while (A.sound[i] != 0xFF) : (i += 2) {
+            if (A.sound[i] >= nsmp) @compileError("sound.bin: a sequence names a missing sample");
+            _ = A.sound[i + 2]; // the next pair's first byte is in the file
+        }
+    }
+}
+
 fn nseq() u16 {
     return A.be16(A.sound, 0);
 }

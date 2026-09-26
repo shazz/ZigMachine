@@ -21,8 +21,11 @@ pub const LO: u32 = 0x1C3F0;
 pub const HI: u32 = 0x1DA80;
 pub const SIZE: usize = HI - LO;
 
-const ROM_LO: u32 = 0x17E00;
-const ROM_HI: u32 = 0x18C20;
+pub const ROM_LO: u32 = 0x17E00;
+pub const ROM_HI: u32 = 0x18C20;
+comptime {
+    if (A.rom.len != ROM_HI - ROM_LO or A.entry.len != SIZE) @compileError("rom.bin / entry.bin: not the windows' sizes");
+}
 
 /// Reads outside the two windows. The original would read other RAM there; the
 /// reference model never does on any scripted frame, and the harness asserts
@@ -43,8 +46,10 @@ pub inline fn muluW(a: i32, b: i32) i32 {
 pub const Mem = struct {
     ram: [SIZE]u8,
 
+    // `a > HI - n`, not `a + n > HI`: a is often a wrapped pointer (a stored
+    // pointer minus B, a negative grid index) and the sum would overflow.
     inline fn at(a: u32, n: u32) ?usize {
-        if (a < LO or a + n > HI) {
+        if (a < LO or a > HI - n) {
             misses += 1;
             return null;
         }
@@ -63,7 +68,7 @@ pub const Mem = struct {
         self.ram[i + 1] = @truncate(u);
     }
     pub fn addw(self: *Mem, a: u32, v: i32) void {
-        self.setw(a, self.w(a) + v);
+        self.setw(a, self.w(a) +% v);
     }
     /// Unsigned byte.
     pub fn b(self: *const Mem, a: u32) i32 {
@@ -106,7 +111,7 @@ pub const Mem = struct {
 };
 
 inline fn romAt(a: u32, n: u32) ?usize {
-    if (a < ROM_LO or a + n > ROM_HI) {
+    if (a < ROM_LO or a > ROM_HI - n) {
         misses += 1;
         return null;
     }

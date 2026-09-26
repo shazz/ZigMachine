@@ -84,6 +84,13 @@ pub const Controls = struct {
         }
     }
 
+    /// Space is down since the battle saw it go down (keyUp clears it in every
+    /// phase). The host forwards the OS auto-repeat as fresh key() calls, so a
+    /// Space still held from the battle must not count as a new press.
+    pub fn spaceHeld(self: *const Controls) bool {
+        return self.confed_stick & FIRE != 0;
+    }
+
     /// The bytes for this frame. `two_players`: the Union reads port 1 and the
     /// Confederates the keyboard stick; otherwise both sets feed the one stick.
     pub fn inputs(self: *const Controls, two_players: bool) Inputs {

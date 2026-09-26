@@ -64,6 +64,12 @@ pub const banks: [NBANKS]Bank = blk: {
         var total: usize = 0;
         for (0..n) |k| total += @as(usize, be16(head, k * 10)) * be16(head, k * 10 + 2);
         const pix = sprites[p + 2 + n * 10 ..][0..total];
+        // Bank.get slices pix at run time, unchecked in ReleaseSmall: prove
+        // every sprite's pixels lie inside its bank here.
+        for (0..n) |k| {
+            const size = @as(usize, be16(head, k * 10)) * be16(head, k * 10 + 2);
+            if (be32(head, k * 10 + 4) + size > total) @compileError("sprites.bin: a sprite overruns its bank");
+        }
         out[i] = .{ .count = n, .head = head, .pix = pix };
         p += 2 + n * 10 + total;
         if (p & 1 != 0) p += 1;

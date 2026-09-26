@@ -49,7 +49,9 @@ pub fn hitTest(g: *Game, x: i32, y: i32, dy: i32, dx: i32) bool {
     var hit = false;
     const base = m.w(ad.SIDE_BASE);
     g.cost.add(.hits, 1);
-    while (true) : (p += 1) {
+    // The list ends at a y >= 200 sentinel. The bound only stops a list that
+    // lost it from spinning forever; running into it counts as a miss.
+    while (p < mem.HI) : (p += 1) {
         const k = m.b(p);
         g.cost.add(.hit_it, 1);
         const oy = m.w(obj(k) + 2);
@@ -74,15 +76,19 @@ pub fn hitTest(g: *Game, x: i32, y: i32, dy: i32, dx: i32) bool {
             m.setw(obj(k) + 6, 0x65);
         }
     }
+    mem.misses += 1;
+    return hit;
 }
 
 /// $D4D0: the first live slot from `first`, or -1 past `end`.
 pub fn firstAlive(g: *Game, first: i32, end: i32) i32 {
     var d6: i32 = 0;
-    while (true) : (d6 += 1) {
+    // With no live slot the original reads on past the objects; stop at the
+    // end of the RAM window (a miss), which is past `end` too: still -1.
+    while (obj(first + d6) < mem.HI) : (d6 += 1) {
         const st = g.m.w(obj(first + d6) + 6);
         if (st != 0 and st != 0x17) break;
-    }
+    } else mem.misses += 1;
     return if (first + d6 < end) first + d6 else -1;
 }
 
@@ -93,11 +99,15 @@ pub fn drawMove(g: *Game, y: i32, idx: i32) void {
     var a: i32 = -1;
     var i: u32 = 0;
     g.cost.add(.dm, 1);
-    while (c < 0 or a < 0) : (i += 1) {
+    while ((c < 0 or a < 0) and ad.DRAW + i < mem.HI) : (i += 1) {
         g.cost.add(.dm_it, 1);
         const k = m.b(ad.DRAW + i);
         if (k == idx and a < 0) a = @intCast(i);
         if (y <= m.w(obj(k) + 2) and c < 0) c = @intCast(i);
+    }
+    if (c < 0 or a < 0) { // idx not in the list, or no sentinel: a corrupted list
+        mem.misses += 1;
+        return;
     }
     if (c - a == 1) c = a;
     const D: i32 = ad.DRAW;
@@ -159,7 +169,7 @@ pub fn reform(g: *Game, first: i32, o_in: u32, count: i32, form_in: u32) i32 {
         if (st == 0x0A or st == 3) break;
         o += 12;
         k += 1;
-        if (k == count) break;
+        if (k >= count) break; // == in the original; >= also ends a count <= 0, which returns 0 either way
     }
     const x0 = m.w(o);
     const y0 = m.w(o + 2);

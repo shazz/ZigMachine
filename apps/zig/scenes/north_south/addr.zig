@@ -114,6 +114,9 @@ pub const DECOR_RIVER = [2]Decor{ .{ .list = 0x18874, .cells = 0x18898, .end = 0
 pub const DECOR_CANYON = Decor{ .list = 0x188E0, .cells = 0x18904, .end = 0x1E };
 pub const DECOR_PLAIN = [2]Decor{ .{ .list = 0x1899C, .cells = 0x189C0, .end = 0x1E }, .{ .list = 0x1894C, .cells = 0x18970, .end = 0x1E } };
 
+/// Object k's record. k is whatever word the game read (a leader of -1, a
+/// grid cell), so the address wraps like the 68000's and an out-of-range one
+/// is caught by Mem's window check rather than by an illegal cast.
 pub inline fn obj(k: i32) u32 {
-    return @intCast(@as(i32, OBJ) + 12 * k);
+    return @bitCast(@as(i32, OBJ) +% 12 *% k);
 }

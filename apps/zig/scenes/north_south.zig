@@ -43,9 +43,10 @@ const front = @import("north_south/front.zig");
 const controls = @import("north_south/controls.zig");
 // This cart's own wasm exports: the key RELEASE (the loader calls a cart's
 // keyUp when it exports one; demo_main forwards none) and the headless
-// harness's door (north_south/testapi.zig). Only when this scene IS the cart:
-// every cart's build analyses every scene file, and an export here would
-// otherwise land in all of them.
+// harness's door (north_south/testapi.zig). cart.zig only analyses the scene
+// its comptime index selects, so this guard is belt and braces: should this
+// file ever be imported from elsewhere (a test, another scene), the exports
+// still land only in the cart whose Demo this is.
 comptime {
     if (@import("../cart.zig").Cart == Demo) {
         _ = @import("north_south/testapi.zig");
@@ -140,7 +141,10 @@ pub const Demo = struct {
     fn battleFrame(self: *Demo) void {
         game.frame(keys.inputs(game.cfg.mode == 0));
         // One voice, and every play_seq cuts the last: the frame's last request wins.
-        if (game.nevents > 0) zg.requestSongTune(SOUND, @intCast(game.events[game.nevents - 1] + 1));
+        if (game.nevents > 0) {
+            const seq = game.events[game.nevents - 1];
+            if (seq < 255) zg.requestSongTune(SOUND, @intCast(seq + 1)); // the subtune is a u8
+        }
         self.next_frame = self.vbls + game.pace.last_vbls;
         self.shown_dirty = true;
         if (game.result != 0) {
@@ -194,7 +198,8 @@ pub const Demo = struct {
         switch (self.phase) {
             .front => switch (cp) {
                 controls.K_ESC => self.leave = true,
-                ' ', controls.K_RETURN => if (self.menu.onStart()) self.start(),
+                ' ' => if (!keys.spaceHeld() and self.menu.onStart()) self.start(),
+                controls.K_RETURN => if (self.menu.onStart()) self.start(),
                 'w', 'W' => self.input(0),
                 's', 'S' => self.input(1),
                 'a', 'A' => self.input(2),
@@ -202,7 +207,7 @@ pub const Demo = struct {
                 else => {},
             },
             .battle => keys.keyChange(cp, true),
-            .result => if (cp == ' ' or cp == controls.K_RETURN) {
+            .result => if ((cp == ' ' and !keys.spaceHeld()) or cp == controls.K_RETURN) {
                 self.result_until = self.vbls;
             },
         }
