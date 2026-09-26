@@ -7,6 +7,8 @@
 // the frame, which is what the ST's 16 colours amounted to (colours 4..7 were
 // always one value, and 8..15 another).
 // --------------------------------------------------------------------------
+const zg = @import("zigos");
+
 pub const WORDS: usize = 20; // 320 px
 pub const ROWS: usize = 200;
 
@@ -21,18 +23,32 @@ pub const SMALL_ROWS: usize = 8;
 pub const LIVE_TOP: usize = CREDIT_TOP;
 pub const LIVE_ROWS: usize = CREDIT_ROWS;
 
-pub var cube_lo: [ROWS][WORDS]u16 = undefined;
-pub var cube_hi: [ROWS][WORDS]u16 = undefined;
-pub var scroll: [ROWS][WORDS]u16 = undefined;
-pub var credits: [CREDIT_ROWS][WORDS]u16 = undefined;
-pub var small: [SMALL_ROWS][WORDS]u16 = undefined;
+pub var cube_lo: *[ROWS][WORDS]u16 = undefined;
+pub var cube_hi: *[ROWS][WORDS]u16 = undefined;
+pub var scroll: *[ROWS][WORDS]u16 = undefined;
+pub var credits: *[CREDIT_ROWS][WORDS]u16 = undefined;
+pub var small: *[SMALL_ROWS][WORDS]u16 = undefined;
+var owned = false;
+
+/// The layers come from the RAM arena (zg.mem), once per cart load: as
+/// module-scope arrays they were 29 KB of zeros written into the cart binary,
+/// since imported memory is not known to be zero. Call before clear().
+pub fn alloc() void {
+    if (owned) return;
+    cube_lo = zg.mem.mustAlloc([WORDS]u16, ROWS)[0..ROWS];
+    cube_hi = zg.mem.mustAlloc([WORDS]u16, ROWS)[0..ROWS];
+    scroll = zg.mem.mustAlloc([WORDS]u16, ROWS)[0..ROWS];
+    credits = zg.mem.mustAlloc([WORDS]u16, CREDIT_ROWS)[0..CREDIT_ROWS];
+    small = zg.mem.mustAlloc([WORDS]u16, SMALL_ROWS)[0..SMALL_ROWS];
+    owned = true;
+}
 
 pub fn clear() void {
-    for (&cube_lo) |*r| @memset(r, 0);
-    for (&cube_hi) |*r| @memset(r, 0);
-    for (&scroll) |*r| @memset(r, 0);
-    for (&credits) |*r| @memset(r, 0);
-    for (&small) |*r| @memset(r, 0);
+    for (cube_lo) |*r| @memset(r, 0);
+    for (cube_hi) |*r| @memset(r, 0);
+    for (scroll) |*r| @memset(r, 0);
+    for (credits) |*r| @memset(r, 0);
+    for (small) |*r| @memset(r, 0);
 }
 
 // --------------------------------------------------------------------------
@@ -73,7 +89,7 @@ pub fn composeBand(fb: []u8, stride: usize) void {
 
 /// Metallinos' eight rows, plane 2 only.
 pub fn composeSmall(fb: []u8, stride: usize) void {
-    for (&small, 0..) |*bits, r| {
+    for (small, 0..) |*bits, r| {
         const row = fb[(SMALL_TOP + r) * stride ..][0 .. WORDS * 16];
         for (bits, 0..) |w, g| {
             const out = row[g * 16 ..][0..16];

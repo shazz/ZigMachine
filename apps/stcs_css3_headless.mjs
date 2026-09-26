@@ -165,6 +165,10 @@ if (barRows === 0) errors.push("the bar never reached the border");
 if (!songAt || songAt.name !== "thrust.sndh" || songAt.v !== expected.preroll)
     errors.push(`song request ${JSON.stringify(songAt)}, want thrust.sndh with the picture (host frame ${expected.preroll + 1})`);
 
+// the screen and the scroll buffers come from zg.mem, once per cart load
+const refused = S.machine.hwRamAllocFailures();
+if (refused) errors.push(`${refused} zg.mem allocation(s) refused`);
+
 // cost of a host frame in the main loop
 const N = 600;
 const t0 = performance.now();

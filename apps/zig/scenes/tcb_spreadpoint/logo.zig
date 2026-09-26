@@ -41,9 +41,16 @@ pub const FRAMES = blk: {
     break :blk n;
 };
 
-var angle: [FRAMES]f64 = undefined;
+/// From the RAM arena (zg.mem), once per cart load: as a module-scope array
+/// it was 18 KB of zeros written into the cart binary.
+var angle: *[FRAMES]f64 = undefined;
+var owned = false;
 
 pub fn init() void {
+    if (!owned) {
+        angle = zg.mem.mustAlloc(f64, FRAMES)[0..FRAMES];
+        owned = true;
+    }
     const pi2 = 2.0 * std.math.pi;
     const speed_fast = std.math.pi / 32.0;
     const speed_slow = std.math.pi / 40.0;

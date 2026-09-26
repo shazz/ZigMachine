@@ -374,6 +374,11 @@ if (songs.length !== 1 || songs[0].name !== MUSIC || songs[0].frame !== INTRO - 
     if (au.audioMode() !== 4 || peak < 0.05) fail(`${MUSIC} does not play (mode ${au.audioMode()}, peak ${peak.toFixed(3)})`);
     else console.log(`  music: ${MUSIC} requested at frame ${INTRO - 1}, plays (peak ${peak.toFixed(3)})`);
 }
+// The angle table and the DNA strip come from zg.mem, once per cart load.
+{
+    const refused = m.machine.hwRamAllocFailures();
+    if (refused) fail(`${refused} zg.mem allocation(s) refused`);
+}
 // The cart alone, every layer on (it > 1952): update + render + the composite.
 {
     const t1 = performance.now();
