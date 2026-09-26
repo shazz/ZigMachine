@@ -36,18 +36,24 @@ const NAMES = [4][]const u8{ "FLAT", "GLENZ", "WIRE", "SOFT" };
 
 pub const Demo = struct {
     blitter: Blitter = .{},
-    mesh: obj.Mesh = .{},
+    // The mesh and its per-vertex transforms (~82 KB) come from the cart RAM
+    // arena (zg.mem) once, in init(): as fields of the static cart they were
+    // zeros in the data segment. A model switch re-loads the mesh in place.
+    mesh: *obj.Mesh = undefined,
     os: *ZigOS = undefined,
     style: u8 = 0,
     model: u8 = 0,
     ax: f32 = 0,
     ay: f32 = 0,
     az: f32 = 0,
-    pos: [obj.MAX_VERTS][3]f32 = undefined,
-    screen: [obj.MAX_VERTS]Vec2 = undefined,
+    pos: *[obj.MAX_VERTS][3]f32 = undefined,
+    screen: *[obj.MAX_VERTS]Vec2 = undefined,
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
         Console.log("obj_demo init", .{});
+        self.mesh = &zg.mem.mustAlloc(obj.Mesh, 1)[0];
+        self.pos = zg.mem.mustAlloc([3]f32, obj.MAX_VERTS)[0..obj.MAX_VERTS];
+        self.screen = zg.mem.mustAlloc(Vec2, obj.MAX_VERTS)[0..obj.MAX_VERTS];
         self.os = zigos;
         self.blitter.init();
         const fb: *LogicalFB = &zigos.lfbs[0];
@@ -182,16 +188,19 @@ pub const Demo = struct {
         const cy = @cos(self.ay);
         const sz = @sin(self.az);
         const cz = @cos(self.az);
-        for (self.mesh.verts[0..self.mesh.nverts], 0..) |p, i| {
+        const mesh = self.mesh;
+        const pos = self.pos;
+        const screen = self.screen;
+        for (mesh.verts[0..mesh.nverts], 0..) |p, i| {
             const y1 = p.y * cx - p.z * sx;
             const z1 = p.y * sx + p.z * cx;
             const x2 = p.x * cy + z1 * sy;
             const z2 = -p.x * sy + z1 * cy;
-            self.pos[i] = .{ x2 * cz - y1 * sz, x2 * sz + y1 * cz, z2 };
+            pos[i] = .{ x2 * cz - y1 * sz, x2 * sz + y1 * cz, z2 };
             const zc = z2 + DIST;
-            self.screen[i] = .{
-                .x = @intFromFloat(@as(f32, @floatFromInt(@divTrunc(WIDTH, 2))) + self.pos[i][0] * FOV / zc),
-                .y = @intFromFloat(@as(f32, @floatFromInt(@divTrunc(HEIGHT, 2))) + self.pos[i][1] * FOV / zc),
+            screen[i] = .{
+                .x = @intFromFloat(@as(f32, @floatFromInt(@divTrunc(WIDTH, 2))) + pos[i][0] * FOV / zc),
+                .y = @intFromFloat(@as(f32, @floatFromInt(@divTrunc(HEIGHT, 2))) + pos[i][1] * FOV / zc),
             };
         }
     }

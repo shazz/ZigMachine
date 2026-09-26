@@ -31,7 +31,6 @@ const ALLOW = {
     "demo-dbug.wasm": 117350,
     "demo-dhs_0pxl0reg.wasm": 341426,
     "demo-maxi.wasm": 94438,
-    "demo-obj.wasm": 86318,
     "demo-rno_natrium.wasm": 85302,
     "demo-rno_sodium.wasm": 277702,
     "demo-st_replay.wasm": 1579078,
