@@ -432,6 +432,7 @@ pub fn build(b: *std.Build) void {
         "demo-north_south", // 71 — Infogrames / NORTH & SOUTH, the battle, playable (ported from the ST program)
         "demo-joust", // 72 — JOUST, Atari Corp 1986: the game, ported from JOUST.PRG through its reference model
         "demo-tcb_spreadpoint", // 73 — The Carebears / The Spreadpoint Demo (CODEF screen 469)
+        "demo-stcs_css3", // 74 — STCS / Tsunoo Rhilty 3rd CSS Convention intro (ported from the ST binary)
     };
     for (cart_names, 0..) |name, idx| {
         if (name.len == 0) continue; // excluded cart (see note above)
