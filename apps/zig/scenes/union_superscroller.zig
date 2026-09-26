@@ -33,9 +33,7 @@
 // scroffset, so leaving rewrites that note with its x/y and our offset; without
 // an accepted note nothing is written.
 // --------------------------------------------------------------------------
-const std = @import("std");
 const zg = @import("zigos");
-const hw = @import("hardware");
 const ZigOS = zg.ZigOS;
 const Color = zg.Color;
 const DepackFx = @import("depackers").depack_fx.Runner(zg, null);
@@ -72,7 +70,7 @@ pub const Demo = struct {
     buf: []u8,
     images: A.Images,
     motion: Motion,
-    /// 200 lines x 80 colours: in free RAM after the depacked image, not in the cart's data.
+    /// 200 lines x 80 colours: on zg.mem next to the depacked image, not in the cart's data.
     palette: *compose.Palette,
     /// The hub's note for this door, peeked at init; null: none, or another door's.
     note: ?hub_note.Note,
@@ -85,10 +83,10 @@ pub const Demo = struct {
         self.leave = false;
         self.note = hub_note.accepted(TEXT_LEN);
         self.motion.init(if (self.note) |n| n.scroll else 0);
-        const pal_at = std.mem.alignForward(usize, A.TOTAL, @alignOf(compose.Palette));
-        const ram = freeRam(pal_at + @sizeOf(compose.Palette)) orelse return self.abandon("no free RAM to depack into");
-        self.buf = ram[0..A.TOTAL];
-        self.palette = @ptrCast(@alignCast(ram[pal_at..].ptr));
+        // On zg.mem, taken once: init runs once per cart load.
+        self.buf = zg.mem.alloc(u8, A.TOTAL) orelse return self.abandon("no free RAM to depack into");
+        const palette = zg.mem.alloc(compose.Palette, 1) orelse return self.abandon("no free RAM for the palette");
+        self.palette = &palette[0];
         self.palette.init();
         if (!depack.start(zigos, packed_assets.union_superscroller, self.buf, DEPACK_BYTES_PER_LINE))
             return self.abandon("packed image unreadable");
@@ -158,12 +156,3 @@ pub const Demo = struct {
         self.leave = true;
     }
 };
-
-/// `len` bytes of the cart's RAM window above its statics and stack, starting
-/// on an 8-byte boundary so the palette's u32 tables can live in it.
-fn freeRam(len: usize) ?[]u8 {
-    const used: usize = hw.hwRamBase() + hw.hwRamUsed();
-    const base = std.mem.alignForward(usize, used, 8);
-    if (hw.hwRamFree() < base - used + len) return null;
-    return @as([*]u8, @ptrFromInt(base))[0..len];
-}

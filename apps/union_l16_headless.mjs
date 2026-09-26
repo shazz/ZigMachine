@@ -35,6 +35,7 @@ const A = loadAssets(new Uint8Array(await readFile(`${ASSETS}/l16.bin`)), new Ui
 // The note's offsets index the hub's text: L16's copy must be the hub's, which is
 // the last slice of menu_assets.bin (union_demo/assets.zig bind()).
 const errors = [];
+const machines = []; // every boot's video machine, for the zg.mem refusal check
 {
     const mine = await readFile(`${ASSETS}/scrolltext.txt`), hub = await readFile("apps/zig/assets/screens/union_demo/menu_assets.bin");
     if (!mine.equals(hub.subarray(hub.length - mine.length)))
@@ -50,6 +51,7 @@ const at = (M) => (px, x, y) => { const o = (y * M.W + 2 * x) * 4; return [px[o]
 /// Boot and run the loader until the screen asks for its song.
 async function start(note) {
     const M = await boot(CART, note);
+    machines.push(M.machine);
     M.song = null; M.ms = 0; M.frames = 0; M.warm = [];
     M.step = (warm = false) => {
         const t0 = performance.now();
@@ -159,6 +161,9 @@ const perFrame = M.ms / M.frames;
 if (perFrame > 4) errors.push(`cart takes ${perFrame.toFixed(3)} ms/frame`);
 M.warm.sort((a, b) => a - b);
 const warm = M.warm.length ? M.warm[M.warm.length >> 1] : NaN;
+// Every boot takes its depack target from zg.mem: a refused allocation is a screen that never loaded.
+const refused = machines.reduce((n, m) => n + m.hwRamAllocFailures(), 0);
+if (refused) errors.push(`${refused} zg.mem allocation(s) refused`);
 
 if (errors.length) {
     console.error(`union_l16: WRONG\n  ${errors.slice(0, 12).join("\n  ")}`);

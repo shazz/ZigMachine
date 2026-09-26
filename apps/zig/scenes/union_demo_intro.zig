@@ -38,7 +38,6 @@
 // --------------------------------------------------------------------------
 const std = @import("std");
 const zg = @import("zigos");
-const hw = @import("hardware");
 const ZigOS = zg.ZigOS;
 const Color = zg.Color;
 const blit = zg.blit;
@@ -124,13 +123,6 @@ const DIR_BACK: u8 = 6;
 
 var ink_row: [zg.HEIGHT]u8 = undefined; // palette index per ST row for .row ink
 
-/// `len` bytes of the cart's RAM window above its statics and stack.
-fn freeRam(len: usize) ?[]u8 {
-    if (hw.hwRamFree() < len) return null;
-    const base: usize = hw.hwRamBase() + hw.hwRamUsed();
-    return @as([*]u8, @ptrFromInt(base))[0..len];
-}
-
 /// Canvas coordinate -> ST pixel, rounding to nearest (Math.round's tie rule).
 fn half(v: f64) i32 {
     return @intFromFloat(@floor(v / 2 + 0.5));
@@ -160,7 +152,8 @@ pub const Demo = struct {
         self.leaving = false;
         self.wants_quit = false;
         self.depacking = false;
-        self.data = freeRam(BLOB_LEN) orelse return self.fail("no free RAM to depack into");
+        // On zg.mem, taken once: init runs once per cart load.
+        self.data = zg.mem.alloc(u8, BLOB_LEN) orelse return self.fail("no free RAM to depack into");
         if (!depack.start(zigos, packed_intro, self.data, DEPACK_BYTES_PER_LINE))
             return self.fail("packed graphics unreadable");
         self.depacking = true;

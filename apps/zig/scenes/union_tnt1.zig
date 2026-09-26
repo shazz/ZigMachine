@@ -35,9 +35,7 @@
 // offset reached. With no such note the scroller starts at 0 and nothing is
 // written.
 // --------------------------------------------------------------------------
-const std = @import("std");
 const zg = @import("zigos");
-const hw = @import("hardware");
 const ZigOS = zg.ZigOS;
 const Color = zg.Color;
 const blit = zg.blit;
@@ -107,8 +105,8 @@ const atop_canvas: [256]bool = blk: {
 /// One drawn tile, already on the ST grid.
 const Spot = struct { x: i16, y: i16, tile: u8 };
 const Pass = struct { spots: [MAX_BALLS]Spot, n: usize };
-/// The balls and their two draw lists, ~29 KB: in free cart RAM after the
-/// depacked images, since a module-scope array is written into the cart's data
+/// The balls and their two draw lists, ~29 KB: on zg.mem next to the depacked
+/// images, since a module-scope array is written into the cart's data
 /// segment as zeros, `undefined` or not.
 const Work = struct { balls: [MAX_BALLS]ballfield.Ball, passes: [2]Pass };
 
@@ -138,9 +136,10 @@ pub const Demo = struct {
         self.note = hub_note.accepted(TEXT.len);
         const offset: usize = if (self.note) |n| n.scroll else 0; // jsApp.mainscrollerPos
         self.ring = zg.scrollring.Ring(i32, LETTERS).initAt(TEXT, (LETTERS - 1) * GLYPH_C, GLYPH_C, offset);
-        const ram = freeRam(TOTAL + @alignOf(Work) + @sizeOf(Work)) orelse return fail("no free RAM to depack into");
-        const buf = ram[0..TOTAL];
-        self.work = @ptrFromInt(std.mem.alignForward(usize, @intFromPtr(buf.ptr) + TOTAL, @alignOf(Work)));
+        // On zg.mem, taken once: init runs once per cart load.
+        const buf = zg.mem.alloc(u8, TOTAL) orelse return fail("no free RAM to depack into");
+        const work = zg.mem.alloc(Work, 1) orelse return fail("no free RAM for the balls");
+        self.work = &work[0];
         for (&self.work.passes) |*p| p.n = 0;
         self.spawn(START_BALLS); // the constructor's field
         if (!depack.start(zigos, packed_assets.union_tnt1, buf, DEPACK_BYTES_PER_LINE))
@@ -268,12 +267,4 @@ fn split(buf: []const u8) Images {
 
 fn fail(why: []const u8) void {
     zg.Console.log("union_tnt1: {s}", .{why});
-}
-
-
-/// `len` bytes of the cart's RAM window above its statics and stack.
-fn freeRam(len: usize) ?[]u8 {
-    if (hw.hwRamFree() < len) return null;
-    const base: usize = hw.hwRamBase() + hw.hwRamUsed();
-    return @as([*]u8, @ptrFromInt(base))[0..len];
 }

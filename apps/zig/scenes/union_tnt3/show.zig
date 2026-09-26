@@ -30,8 +30,8 @@ const CAMERA_OUT = 10000;
 const CAMERA_STEP = 100;
 const INIT_CAMERA_Z = 10; // new codef3D(canvas3D[0], 10, 25, 1, 10000)
 
-/// The ball and one engine's projection scratch, ~36 KB: the scene places it in
-/// free cart RAM, since a module-scope array is written into the cart's data
+/// The ball and one engine's projection scratch, ~36 KB: the scene places it on
+/// zg.mem, since a module-scope array is written into the cart's data
 /// segment as zeros, `undefined` or not.
 pub const Work = struct {
     ball: M.Ball,

@@ -249,6 +249,8 @@ if (req !== 1 || tag !== "union_demo") errors.push(`Escape asks for request ${re
 // ---- 5. cost ---------------------------------------------------------------------
 const perFrame = cartMs / timed, perRender = renderMs / timed;
 if (perFrame > 2) errors.push(`cart update+render takes ${perFrame.toFixed(3)} ms a frame`);
+// The depack target comes from zg.mem: a refused allocation is a screen that never loaded.
+if (machine.hwRamAllocFailures()) errors.push(`${machine.hwRamAllocFailures()} zg.mem allocation(s) refused`);
 
 if (errors.length) {
     console.error(`union_textracker: WRONG${brk ? ` (--break ${brk})` : ""}\n  ${errors.slice(0, 12).join("\n  ")}`);

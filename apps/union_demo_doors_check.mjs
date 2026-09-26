@@ -15,6 +15,8 @@ const PAGES = 112; // SHARED_PAGES in machine/sdk/memmap.zig
 const WANT = ["union_beatdis", "union_deltaforce", "union_tnt3", "union_superscroller", "union_tnt1", "union_reps", "union_tnt2", "union_l16", "union_multifake", "union_texcopier", "union_textracker"]; // by teleport key: doors '1', '2', '3', '5', '6', '7', '8', '9', '0', 'H'
 const DIR = { fire: 5 };
 
+const machines = []; // every boot's video machine, for the zg.mem refusal check
+
 async function boot(cartPath) {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
     let demo;
@@ -36,6 +38,7 @@ async function boot(cartPath) {
     machine.hwInit();
     demo.boot();
     demo.skipBoot();
+    machines.push(machine);
     return { memory, machine, demo };
 }
 
@@ -125,6 +128,9 @@ for (const cart of ["union_main", "union_intro"]) {
     if (!started || early !== 0 || tag !== "union_demo")
         problems.push(`the intro: first Space asks for ${early} (want 0, the loader panel), Space after the panel asks for ${req} "${tag}", not 1 "union_demo"`);
 }
+// The hub and the intro depack into zg.mem blocks: a refusal is a screen that never loaded.
+const refused = machines.reduce((n, m) => n + m.hwRamAllocFailures(), 0);
+if (refused) problems.push(`${refused} zg.mem allocation(s) refused`);
 
 if (problems.length) {
     console.log(`union_demo doors: FAIL\n  ${problems.join("\n  ")}`);

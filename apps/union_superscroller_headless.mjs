@@ -46,6 +46,7 @@ const cartPath = argv[1] || "docs/demo-union_superscroller.wasm";
 const MUSIC = brk === "music" ? "union/thundercats.sndh" : "union/wow_scroller.sndh";
 
 const errors = [];
+const machines = []; // every boot's video machine, for the zg.mem refusal check
 await mkdir(outDir, { recursive: true });
 const bin = new Uint8Array(await readFile(`${ASSETS}/superscroller.bin`));
 const textBytes = await readFile(`${ASSETS}/scrolltext.txt`), text = textBytes.toString("latin1");
@@ -56,6 +57,7 @@ const dec = new TextDecoder();
 /// Boot with `note`, run the depack; returns the machine with `step` and the song seen.
 async function start(note, label) {
     const m = await boot(cartPath, note);
+    machines.push(m.machine);
     m.song = null;
     m.step = () => {
         const t0 = performance.now();
@@ -154,6 +156,9 @@ for (const [label, note] of [["door 8's note", { ...NOTE, door: 8 }], ["no note"
     if (o.demo.pollCartRequest() !== 1) errors.push(`${label}: Escape does not leave`);
     scratchKept(o, `${label}, after Escape`);
 }
+// Every boot takes its depack target from zg.mem: a refused allocation is a screen that never loaded.
+const refused = machines.reduce((n, m) => n + m.hwRamAllocFailures(), 0);
+if (refused) errors.push(`${refused} zg.mem allocation(s) refused`);
 
 if (errors.length) {
     console.error(`union_superscroller: WRONG${brk ? ` (--break ${brk})` : ""}\n  ${errors.slice(0, 12).join("\n  ")}`);

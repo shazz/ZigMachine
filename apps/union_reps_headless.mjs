@@ -64,6 +64,8 @@ function writeNote(bytes, { door, scroll }) {
     bytes.set([..."UNI1"].map((c) => c.charCodeAt(0)), 0);
 }
 
+const machines = []; // every boot's video machine, for the zg.mem refusal check
+
 async function boot(note) {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
     let demo;
@@ -85,6 +87,7 @@ async function boot(note) {
     if (note) writeNote(scratch, note); // left by the hub before it swapped this cart in
     demo.boot();
     demo.skipBoot();
+    machines.push(machine);
     return { memory, machine, demo, scratch };
 }
 
@@ -238,6 +241,9 @@ let song = main.song;
 if (song !== MUSIC) errors.push(`song request ${JSON.stringify(song)}, wanted "${MUSIC}"`);
 else { const r = await sndhPlay(song, main.tune); if (typeof r === "string") errors.push(r); else song += ` (tune ${main.tune}, peak ${r.peak.toFixed(3)})`; }
 if (main.perFrame > 4) errors.push(`cart takes ${main.perFrame.toFixed(3)} ms/frame`);
+// Every boot takes its depack target from zg.mem: a refused allocation is a screen that never loaded.
+const refused = machines.reduce((n, m) => n + m.hwRamAllocFailures(), 0);
+if (refused) errors.push(`${refused} zg.mem allocation(s) refused`);
 
 if (errors.length) {
     console.error(`union_reps: WRONG${brk ? ` (--break ${brk})` : ""}\n  ${errors.slice(0, 12).join("\n  ")}`);

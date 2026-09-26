@@ -188,7 +188,7 @@ const SPHERE_FACE_TABLE = blk: {
     break :blk f;
 };
 
-/// The ball's run-time half, ~15 KB: the scene keeps it in free cart RAM, since
+/// The ball's run-time half, ~15 KB: the scene keeps it on zg.mem, since
 /// a module-scope array is written into the cart's data segment as zeros.
 pub const Ball = struct {
     verts: [SPHERE_VERTS]Vec3,

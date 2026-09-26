@@ -260,6 +260,8 @@ const peak = played.peak;
 if (!(peak > 0.01)) errors.push(`${song} plays at peak ${peak} (silent or refused)`);
 if (stopReq === "none" && !(played.afterStop >= 0 && played.afterStop < 0.001))
     errors.push(`after the stop the output still peaks at ${played.afterStop} (not silent)`);
+// The depack target comes from zg.mem: a refused allocation is a screen that never loaded.
+if (machine.hwRamAllocFailures()) errors.push(`${machine.hwRamAllocFailures()} zg.mem allocation(s) refused`);
 
 if (errors.length) {
     console.error(`union_demo_intro: WRONG\n  ${errors.slice(0, 12).join("\n  ")}`);

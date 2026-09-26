@@ -8,7 +8,6 @@
 // build.zig), and the street starts on the frame the last byte lands.
 // --------------------------------------------------------------------------
 const zg = @import("zigos");
-const hw = @import("hardware");
 const A = @import("assets.zig");
 const DepackFx = @import("depackers").depack_fx.Runner(zg, null); // tex_loader: no tvnoise
 const packed_menu = @import("packed_assets").union_demo_menu;
@@ -26,17 +25,14 @@ const State = enum { loading, done, failed };
 /// What the street should do this frame.
 pub const Step = enum { loading, ready, running, failed };
 
-fn freeRam(len: usize) ?[]u8 {
-    if (hw.hwRamFree() < len) return null;
-    const base: usize = hw.hwRamBase() + hw.hwRamUsed();
-    return @as([*]u8, @ptrFromInt(base))[0..len];
-}
-
 /// Begin depacking behind the panel. Call after the plane's palette is set:
 /// the runner restores it when it finishes.
 pub fn start(zigos: *zg.ZigOS) void {
     state = .failed;
-    blob = freeRam(A.BLOB_LEN) orelse return zg.Console.log("union_demo: no free RAM for the menu graphics", .{});
+    // On zg.mem, taken once however often this runs: a second start depacks
+    // into the same block.
+    if (blob.len != A.BLOB_LEN)
+        blob = zg.mem.alloc(u8, A.BLOB_LEN) orelse return zg.Console.log("union_demo: no free RAM for the menu graphics", .{});
     if (!depack.start(zigos, packed_menu, blob, BYTES_PER_LINE))
         return zg.Console.log("union_demo: menu graphics unreadable", .{});
     state = .loading;

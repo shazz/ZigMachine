@@ -38,7 +38,6 @@
 // choice. The price: a second press that quick after the choice is ignored.
 // --------------------------------------------------------------------------
 const zg = @import("zigos");
-const hw = @import("hardware");
 const ZigOS = zg.ZigOS;
 const Color = zg.Color;
 const DepackFx = @import("depackers").depack_fx.Runner(zg, null);
@@ -93,7 +92,8 @@ pub const Demo = struct {
         self.lock_age_ms = 0;
         self.leave = false;
         self.screen.init(.k1024, 0);
-        const buf = freeRam(A.TOTAL) orelse return self.abandon("no free RAM to depack into");
+        // On zg.mem, taken once: init runs once per cart load.
+        const buf = zg.mem.alloc(u8, A.TOTAL) orelse return self.abandon("no free RAM to depack into");
         if (!depack.start(zigos, packed_assets.union_beatdis, buf, DEPACK_BYTES_PER_LINE))
             return self.abandon("packed image unreadable");
         self.images = A.Images.split(buf);
@@ -211,10 +211,3 @@ pub const Demo = struct {
         self.leave = true;
     }
 };
-
-/// `len` bytes of the cart's RAM window above its statics and stack.
-fn freeRam(len: usize) ?[]u8 {
-    if (hw.hwRamFree() < len) return null;
-    const base: usize = hw.hwRamBase() + hw.hwRamUsed();
-    return @as([*]u8, @ptrFromInt(base))[0..len];
-}

@@ -32,7 +32,6 @@
 // held (draw() sets the speed back to 10 every frame), so they are not ported.
 // --------------------------------------------------------------------------
 const zg = @import("zigos");
-const hw = @import("hardware");
 const ZigOS = zg.ZigOS;
 const Color = zg.Color;
 const blit = zg.blit;
@@ -86,7 +85,8 @@ pub const Demo = struct {
         self.intro.init();
         self.scroller.init();
         const intro_len = Band.bytes(INTRO_W);
-        const buf = freeRam(A.TOTAL + intro_len + Band.bytes(SCROLL_W)) orelse return fail("no free RAM to depack into");
+        // On zg.mem, taken once: init runs once per cart load.
+        const buf = zg.mem.alloc(u8, A.TOTAL + intro_len + Band.bytes(SCROLL_W)) orelse return fail("no free RAM to depack into");
         const data = buf[0..A.TOTAL];
         self.intro_band = Band.init(buf[A.TOTAL..][0..intro_len], INTRO_W);
         self.scroll_band = Band.init(buf[A.TOTAL + intro_len ..], SCROLL_W);
@@ -166,11 +166,4 @@ pub const Demo = struct {
 
 fn fail(why: []const u8) void {
     zg.Console.log("union_deltaforce: {s}", .{why});
-}
-
-/// `len` bytes of the cart's RAM window above its statics and stack.
-fn freeRam(len: usize) ?[]u8 {
-    if (hw.hwRamFree() < len) return null;
-    const base: usize = hw.hwRamBase() + hw.hwRamUsed();
-    return @as([*]u8, @ptrFromInt(base))[0..len];
 }

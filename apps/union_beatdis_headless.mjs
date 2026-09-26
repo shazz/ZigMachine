@@ -62,6 +62,8 @@ const A = await loadAssets();
 const errors = [];
 const dec = new TextDecoder();
 
+const machines = []; // every boot's video machine, for the zg.mem refusal check
+
 async function boot(note) {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
     let demo;
@@ -82,6 +84,7 @@ async function boot(note) {
     machine.hwInit();
     demo.boot();
     demo.skipBoot();
+    machines.push(machine);
     return { memory, machine, demo, rom };
 }
 
@@ -297,6 +300,9 @@ for (const v of VERSIONS) {
     if (perFrame > 4) errors.push(`${v.name}: cart takes ${perFrame.toFixed(3)} ms/frame`);
     report.push(`${v.name} (note door ${v.note.door} scroll ${v.note.scroll} -> text at ${v.start}, left at ${replay.scroffset}): question at frame ${asked}, '!' odd/even at ${bangs.odd}/${bangs.even}, ${cart.song?.name} ${played}, ${perFrame.toFixed(3)} ms/frame mean, ${warm.toFixed(3)} warm median`);
 }
+// Every boot takes its depack target from zg.mem: a refused allocation is a screen that never loaded.
+const refused = machines.reduce((n, m) => n + m.hwRamAllocFailures(), 0);
+if (refused) errors.push(`${refused} zg.mem allocation(s) refused`);
 
 if (errors.length) {
     console.error(`union_beatdis: WRONG\n  ${errors.slice(0, 12).join("\n  ")}`);

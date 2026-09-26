@@ -31,7 +31,6 @@
 // Leaving: Escape, or Space once running ('exit' / 'enter', screen.js:99-103).
 // --------------------------------------------------------------------------
 const zg = @import("zigos");
-const hw = @import("hardware");
 const ZigOS = zg.ZigOS;
 const Color = zg.Color;
 const blit = zg.blit;
@@ -88,7 +87,8 @@ pub const Demo = struct {
         self.rasters.init();
         self.note = hub_note.accepted(S.TEXT.len);
         self.scroller.init(SCROLL_FIRST, if (self.note) |n| n.scroll else 0); // jsApp.mainscrollerPos
-        const buf = freeRam(A.TOTAL) orelse return fail("no free RAM to depack into");
+        // On zg.mem, taken once: init runs once per cart load.
+        const buf = zg.mem.alloc(u8, A.TOTAL) orelse return fail("no free RAM to depack into");
         if (!depack.start(zigos, packed_assets.union_l16, buf, DEPACK_BYTES_PER_LINE))
             return fail("packed image unreadable");
         self.images = A.Images.split(buf);
@@ -182,11 +182,4 @@ fn fillColumns(dst: blit.Dst, canvas_x: i32, canvas_w: i32, entry: u8) void {
 
 fn fail(why: []const u8) void {
     zg.Console.log("union_l16: {s}", .{why});
-}
-
-/// `len` bytes of the cart's RAM window above its statics and stack.
-fn freeRam(len: usize) ?[]u8 {
-    if (hw.hwRamFree() < len) return null;
-    const base: usize = hw.hwRamBase() + hw.hwRamUsed();
-    return @as([*]u8, @ptrFromInt(base))[0..len];
 }

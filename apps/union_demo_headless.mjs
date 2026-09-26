@@ -103,7 +103,12 @@ async function ready(m, onFrame = () => {}) {
     for (let f = 1; f <= 400; f++) {
         step(m);
         await onFrame(f);
-        if (m.demo.pollSongRequest()) return f;
+        if (m.demo.pollSongRequest()) {
+            // the graphics depack into a zg.mem block: a refusal is a hub that never loaded
+            const refused = m.machine.hwRamAllocFailures();
+            if (refused) throw new Error(`the hub had ${refused} zg.mem allocation(s) refused`);
+            return f;
+        }
     }
     throw new Error("the hub never finished loading");
 }
