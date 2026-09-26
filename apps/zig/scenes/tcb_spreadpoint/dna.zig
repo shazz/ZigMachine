@@ -48,14 +48,22 @@ var strands: [2][COLUMNS]Column = undefined;
 /// source_row[h][r]: the strip row a column h rows tall shows on its row r.
 /// Depends only on h (to - from is at most 2 * AMPLITUDE), so it is built once.
 const MAX_H = 2 * AMPLITUDE;
-var source_row: [MAX_H + 1][MAX_H]u8 = undefined;
-var strip: [W * STRIP_H]u8 = undefined;
+/// Both from the RAM arena (zg.mem), once per cart load: as module-scope
+/// arrays they were 10 KB of zeros written into the cart binary.
+var source_row: *[MAX_H + 1][MAX_H]u8 = undefined;
+var strip: *[W * STRIP_H]u8 = undefined;
+var owned = false;
 
 fn jsRound(v: f64) i32 {
     return @intFromFloat(@floor(v + 0.5)); // Math.round
 }
 
 pub fn init() void {
+    if (!owned) {
+        source_row = zg.mem.mustAlloc([MAX_H]u8, MAX_H + 1)[0 .. MAX_H + 1];
+        strip = zg.mem.mustAlloc(u8, W * STRIP_H)[0 .. W * STRIP_H];
+        owned = true;
+    }
     const pi2 = 2.0 * std.math.pi;
     for (0..2) |pos| {
         const decal = @as(f64, @floatFromInt(pos)) * std.math.pi;
@@ -75,7 +83,7 @@ pub fn init() void {
         }
     }
     // height = h/25 + 0.0001; dest row r takes strip row (r + 0.5) / height
-    for (&source_row, 0..) |*rows, h| {
+    for (source_row, 0..) |*rows, h| {
         const height = @as(f64, @floatFromInt(h)) / AMPLITUDE + 0.0001;
         for (rows, 0..) |*sy, r| {
             sy.* = @intCast(@min(STRIP_H - 1, @as(usize, @intFromFloat((@as(f64, @floatFromInt(r)) + 0.5) / height))));
@@ -87,9 +95,9 @@ pub fn init() void {
 /// Letter n of the endless text sits at START_X + 32n - 3*calls: the eleven +1
 /// letters of scrolltext_horizontal are a window onto that stream.
 fn fillStrip(calls: u64) void {
-    @memset(&strip, 0);
+    @memset(strip, 0);
     const shift: i64 = @intCast(calls * SPEED);
-    const dst = blit.Dst.buffer(&strip, W);
+    const dst = blit.Dst.buffer(strip, W);
     // first letter still overlapping the strip: START_X + 32n - shift > -32
     var n: i64 = @max(0, @divFloor(shift - START_X - GLYPH_W, GLYPH_W) + 1);
     while (true) : (n += 1) {
@@ -104,13 +112,15 @@ fn fillStrip(calls: u64) void {
 /// draw_scroller_dna into `view`, the 320x50 dna_canvas window of the plane.
 pub fn draw(view: blit.Dst, calls: u64) void {
     fillStrip(calls);
+    const rows = source_row; // locals: the plane stores would otherwise reload them
+    const text = strip;
     for (&strands) |*strand| {
         for (strand, 0..) |col, c| {
             if (col.h == 0) continue;
-            for (source_row[col.h][0..col.h], 0..) |sy, r| {
+            for (rows[col.h][0..col.h], 0..) |sy, r| {
                 const y = @as(usize, col.top) + r;
                 if (y >= view.h) break;
-                const src = strip[@as(usize, sy) * W + c * 2 ..][0..2];
+                const src = text[@as(usize, sy) * W + c * 2 ..][0..2];
                 const dst = view.buf[y * view.stride + c * 2 ..][0..2];
                 for (src, dst) |s, *d| {
                     if (s != 0) d.* = s;
