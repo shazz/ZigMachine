@@ -21,7 +21,8 @@
 // it costs ~7000 sample writes a frame because the object is only ~21 cells
 // across.
 // --------------------------------------------------------------------------
-const c3 = @import("zigos").zig3d;
+const zg = @import("zigos");
+const c3 = zg.zig3d;
 
 pub const CELLS_X = 45; // 45 x 7 = 315 of the 320 columns
 pub const CELLS_Y = 28; // 28 x 7 = 196 of the 200 rows
@@ -50,7 +51,16 @@ const LZ: f64 = 0.4472135954999579;
 // eleventh tile that does not exist. Kept verbatim for that reason.
 const TILE_SCALE: f64 = 0.0392156862745;
 
-var samples: [SW * SH]u8 = undefined;
+/// The small canvas, from the RAM arena (zg.mem) once per cart load: as a
+/// module-scope array it was 20 KB of zeros written into the cart binary.
+var samples: *[SW * SH]u8 = undefined;
+var owned = false;
+
+pub fn alloc() void {
+    if (owned) return;
+    samples = zg.mem.mustAlloc(u8, SW * SH)[0 .. SW * SH];
+    owned = true;
+}
 
 pub const Grid = [CELLS_X * CELLS_Y]u8;
 
@@ -67,7 +77,7 @@ pub fn render(
 ) void {
     const origin = c3.Vec3{ .x = 0, .y = 0, .z = 0 };
     const model = c3.Mat4.compose(origin, rotation);
-    @memset(&samples, 0);
+    @memset(samples, 0);
     const drawn = c3.project(lens, .{ .x = 0, .y = 0, .z = CAM_Z }, origin, rotation, mesh, screen, polys);
     for (drawn) |p| fillQuad(p, redOf(&model, p.ink));
     reduce(out);
@@ -148,11 +158,12 @@ fn paint(lo: f64, hi: f64, y: usize, red: u8) void {
 /// Average each cell's SS x SS samples (the browser's antialiased pixel), then
 /// quantise to a tile. 0 means "canvas still black": no tile is stamped.
 fn reduce(out: *Grid) void {
+    const canvas = samples; // a local: the stores to out would otherwise reload it
     for (0..CELLS_Y) |cy| for (0..CELLS_X) |cx| {
         var sum: u32 = 0;
         for (0..SS) |j| {
             const row = (cy * SS + j) * SW + cx * SS;
-            for (samples[row .. row + SS]) |s| sum += s;
+            for (canvas[row .. row + SS]) |s| sum += s;
         }
         const red = sum / (SS * SS);
         out[cy * CELLS_X + cx] = if (red == 0) 0 else 1 + tileOf(@intCast(red));
