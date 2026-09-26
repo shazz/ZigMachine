@@ -235,6 +235,11 @@
   "type": "atari st"
  },
  {
+  "tag": "tcb_weirddream",
+  "title": "TCB WEIRD DREAM",
+  "type": "atari st"
+ },
+ {
   "tag": "tex",
   "title": "TEX",
   "type": "atari st"
