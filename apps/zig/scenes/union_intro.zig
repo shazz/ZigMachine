@@ -20,22 +20,12 @@ const UnionMain = @import("union/main.zig").Demo;
 const trsi = @import("union/trsi.zig");
 const DepackFx = @import("depackers").depack_fx.Runner(zg, null); // rasters: no tvnoise needed
 
-const hw = @import("hardware");
-
 // The TRSI animation arrives packed; it is depacked with its effect (the RASTERS
 // flash, chosen at pack time in build.zig) before the first part starts. At 8
 // bytes per physical line it takes about 1.5 s. The runner lives at module scope
 // because its HBL handler needs a stable address.
 const DEPACK_BYTES_PER_LINE = 8;
 var depack: DepackFx = undefined;
-
-/// `len` bytes of the cart's RAM window above its statics and stack, the part
-/// the machine reports as free. Null when there is not that much left.
-fn freeRam(len: usize) ?[]u8 {
-    if (hw.hwRamFree() < len) return null;
-    const base: usize = hw.hwRamBase() + hw.hwRamUsed();
-    return @as([*]u8, @ptrFromInt(base))[0..len];
-}
 
 const Active = union(enum) {
     trsi: trsi.Part,
@@ -56,7 +46,10 @@ pub const Demo = struct {
     pub fn init(self: *Demo, zigos: *ZigOS) void {
         self.* = .{};
         trsi.turn_raw = &.{};
-        const buf = freeRam(trsi.TURN_LEN) orelse return self.skipTrsi(zigos, "no free RAM to depack into");
+        // On zg.mem, not borrowed above hwRamUsed(): the main screen's scroller
+        // strip comes from the arena later, and would be handed these bytes.
+        // init runs once per cart load, so this is taken once.
+        const buf = zg.mem.alloc(u8, trsi.TURN_LEN) orelse return self.skipTrsi(zigos, "no free RAM to depack into");
         if (!depack.start(zigos, trsi.turn_packed, buf, DEPACK_BYTES_PER_LINE))
             return self.skipTrsi(zigos, "packed image unreadable");
         trsi.turn_raw = buf;

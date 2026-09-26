@@ -56,7 +56,7 @@ async function bootCart(cartPath) {
     machine.hwInit();
     demo.boot();
     demo.skipBoot();
-    return { memory, demo };
+    return { memory, machine, demo };
 }
 
 function firstRequest({ memory, demo }, frames) {
@@ -139,7 +139,10 @@ async function checkMain() {
         console.log(`union_main track ${mode + 1} request: ${req ? `"${req.name}" tune ${req.tune}` : "none"} (want "${want}")`);
         ok = !!req && req.name === want && (await plays(req, voices)) && ok;
     }
-    return ok;
+    // union_main takes its scroller strip from zg.mem: a refusal left it on a bad pointer.
+    const refused = cart.machine.hwRamAllocFailures();
+    console.log(`union_main zg.mem allocations refused: ${refused} (want 0)`);
+    return refused === 0 && ok;
 }
 
 const menu = await checkMenu();

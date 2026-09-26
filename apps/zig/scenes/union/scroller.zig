@@ -62,12 +62,19 @@ fn handlerOverscan(fb: *LogicalFB, zigos: *ZigOS, line: u16, col: u16) void {
 
 const ScrollerFx = st2.Scroller(NUM_SLOTS);
 
+/// The flat text band, before the wave bends it: STRIP_H rows of STRIP_W, on
+/// zg.mem. Module scope, not a Scroller field: the hosts reset with
+/// `self.* = .{}` (union_intro.zig, doors.zig), which would clear a pointer
+/// field, and an array field there cost a 12.8 KB default blob per reset site.
+/// Taken once per cart load, however often the main screen is entered.
+var strip: []u8 = &.{};
+
 pub const Scroller = struct {
     fx: ScrollerFx = .{},
-    strip: [STRIP_H][STRIP_W]u8 = undefined,
     wave_v: f32 = 0,
 
     pub fn init(self: *Scroller, zigos: *ZigOS) void {
+        if (strip.len == 0) strip = zg.mem.mustAlloc(u8, @as(usize, STRIP_H) * STRIP_W);
         const p2: *LogicalFB = &zigos.lfbs[2];
         p2.is_enabled = true;
         p2.setOverscanBuffer();
@@ -98,10 +105,10 @@ pub const Scroller = struct {
         const p2: *LogicalFB = &zigos.lfbs[2];
         p2.clearFrameBuffer(0);
 
-        for (&self.strip) |*row| @memset(row, 0);
-        self.fx.draw(@as([*]u8, @ptrCast(&self.strip))[0 .. STRIP_H * STRIP_W], STRIP_W, STRIP_W);
+        @memset(strip, 0);
+        self.fx.draw(strip, STRIP_W, STRIP_W);
 
-        compositeSiny(p2, &self.strip, &self.wave_v);
+        compositeSiny(p2, strip, &self.wave_v);
     }
 };
 
@@ -109,10 +116,9 @@ pub const Scroller = struct {
 // plane, each column group offset vertically by sin(phase)*amp; phase advances
 // per column during the sweep but the *persisted* state only carries the
 // per-frame drift (mirrors Codef's oldvalue+offset reset after the loop).
-fn compositeSiny(p2: *LogicalFB, strip: *const [STRIP_H][STRIP_W]u8, wave_v: *f32) void {
+fn compositeSiny(p2: *LogicalFB, flat: []const u8, wave_v: *f32) void {
     const sum = zg.wave.SineSum(f32, 1){ .amp = .{WAVE_AMP}, .phase = .{wave_v.*}, .inc = .{WAVE_INC}, .rounding = .round };
     var it = sum.sweep(0);
-    const flat = @as([*]const u8, @ptrCast(strip))[0 .. STRIP_H * STRIP_W];
     zg.wave.siny(zg.blit.Dst.plane(p2), zg.blit.Image.init(flat, STRIP_W), null, 0, BASE_Y, WAVE_COL, &it, 0, .copy);
     wave_v.* += WAVE_DRIFT;
 }

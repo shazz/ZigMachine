@@ -74,6 +74,7 @@ function run({ memory, machine, demo }) {
         if (demo.pollSongRequest())
             seen.requests.push({ f, name: dec.decode(new Uint8Array(memory.buffer, demo.songNamePtr(), demo.songNameLen())) });
     }
+    seen.refused = machine.hwRamAllocFailures();
     return seen;
 }
 
@@ -89,6 +90,7 @@ const checks = [
     [seen.requests.length === WANT.length && seen.requests.every((r, i) => r.name === WANT[i]),
         "key 3 -> Androids, key 5 -> Lap 33, key 5 again -> nothing"],
     [seen.main > 0 && seen.requests.every((r) => r.f < seen.main), "the main screen is reached and requests nothing"],
+    [seen.refused === 0, `no zg.mem allocation was refused (TRSI depack, scroller strip): ${seen.refused}`],
 ];
 for (const [ok, what] of checks) console.log(`  ${ok ? "ok  " : "FAIL"} ${what}`);
 const ok = checks.every(([c]) => c);
