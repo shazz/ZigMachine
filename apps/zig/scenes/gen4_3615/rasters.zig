@@ -8,7 +8,17 @@
 // rgba(0,0,20,a) bands laid over the chessboard. Each is uniform along a line,
 // i.e. one colour register per line on an ST, and skyColors / vueColors are
 // written as ST register values (every nibble even: the 3-bit $0RGB doubled),
-// so the colours are kept and only the mechanism changes:
+// so the colours are kept and only the mechanism changes.
+//
+// They are rendered the way this machine renders a colour register
+// (machine/beam.zig stToRgba): a 4-bit level times 16, so an ST register's
+// 3-bit gun lands on the nibble*32 grid, 0..224. The scene's own art palette
+// is on that level*16 grid too (pal.dat: every channel a multiple of 16). The
+// browser expands '#RGB' by 17 instead (#00E -> 238), a value no register makes.
+// #045 / #0CE, the floor, follow the same rule (5 is an STE half-step, 80,
+// which the art palette also uses). Only the shadow's rgba(0,0,20,a) blend is
+// the remake's own arithmetic, kept as Chrome rounds it.
+//
 //
 //   VU_INK       the bars, vueColors[k] for two lines of every three, black
 //                on the third (the gap the 6-row stripes leave)
@@ -43,10 +53,10 @@ pub const VU_TOP = 41; // vueCanView drawn at (58, 82), 180 rows
 pub const VU_ROWS = 90;
 pub const BLACK = Color{ .r = 0, .g = 0, .b = 0, .a = 255 };
 
-/// '#RGB' as the browser expands it: each nibble times 17.
-fn css(comptime c: []const u8) Color {
+/// The remake's 'RGB' digits as 4-bit levels, times 16 (see the header).
+fn level16(comptime c: []const u8) Color {
     const n = [3]u8{ hex(c[0]), hex(c[1]), hex(c[2]) };
-    return .{ .r = n[0] * 17, .g = n[1] * 17, .b = n[2] * 17, .a = 255 };
+    return .{ .r = n[0] * 16, .g = n[1] * 16, .b = n[2] * 16, .a = 255 };
 }
 
 fn hex(comptime d: u8) u8 {
@@ -59,7 +69,7 @@ fn list(comptime s: []const u8, comptime n: usize) [n]Color {
         const e = s[i * 4 ..][0..3];
         // an ST register value: 3 bits a channel, written doubled
         for (e) |d| std.debug.assert(hex(d) % 2 == 0);
-        c.* = css(e);
+        c.* = level16(e);
     }
     std.debug.assert(s.len == n * 4 - 1);
     return out;
@@ -67,8 +77,8 @@ fn list(comptime s: []const u8, comptime n: usize) [n]Color {
 
 const sky = list(sky_colors, 45);
 const vue = list(vue_colors, 30);
-pub const check_dark = css("045");
-pub const check_light = css("0CE");
+pub const check_dark = level16("045");
+pub const check_light = level16("0CE");
 
 /// fillRect(rgba(0,0,20,a)) over an opaque colour the way Chrome's raster
 /// rounds it (all 36 shaded colours of a reference frame fit): an 8-bit alpha,

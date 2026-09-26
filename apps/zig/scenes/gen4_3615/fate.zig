@@ -27,12 +27,16 @@ const Pos = struct { i: u8, y: f64, z: f64 };
 
 pub const Fate = struct {
     shown: bool,
+    /// shown when step() last ran: ^CLogoFate; lands after it (in scroller()),
+    /// so on that frame the JS has no slices to draw yet, and neither does this.
+    placed: bool,
     wave: u8,
     ctr: f64,
     slices: [SLICES]Slice, // in draw order: z ascending, stable
 
     pub fn init(self: *Fate) void {
         self.shown = false;
+        self.placed = false;
         self.wave = 0;
         self.ctr = 0;
         self.slices = undefined;
@@ -52,6 +56,7 @@ pub const Fate = struct {
 
     /// dancingFate()'s maths for this frame; then fateCtr advances.
     pub fn step(self: *Fate) void {
+        self.placed = self.shown;
         if (!self.shown) return;
         var pos: [SLICES]Pos = undefined;
         curve(self.wave, self.ctr, &pos);
@@ -71,7 +76,7 @@ pub const Fate = struct {
     /// pixel (ox, oy). ST pixel (X, Y) is canvas pixel (2X, 2Y), so a slice
     /// shows only on its even canvas rows and columns.
     pub fn draw(self: *const Fate, bg: []u8, bg_w: usize, ox: i32, oy: i32) void {
-        if (!self.shown) return;
+        if (!self.placed) return;
         const bg_h: i32 = @intCast(bg.len / bg_w);
         for (self.slices) |s| {
             for (0..2) |dy| {

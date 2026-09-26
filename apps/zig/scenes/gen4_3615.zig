@@ -32,9 +32,10 @@
 //      by mocheDist, the whole walked up and down by a sine.
 //   7. potiches(): 3615 twice, GEN4, the two side bars, WHO ELSE?.
 // The sky, the VU colours and the floor shading are REAL rasters here
-// (gen4_3615/rasters.zig). Every table and increment is screen.js's own; the
-// frame matches the remake run in Chrome at canvas (2X, 2Y) — apps/
-// gen4_3615_headless.mjs replays screen.js and compares.
+// (gen4_3615/rasters.zig), their colours on the ST register grid rather than
+// the browser's #RGB x17. Every table and increment is screen.js's own; the
+// frame matches the remake run in Chrome at canvas (2X, 2Y), those colours
+// aside — apps/gen4_3615_headless.mjs replays screen.js and compares.
 //
 // No depacker intro to skip: screen.js starts on the screen itself.
 // --------------------------------------------------------------------------
@@ -152,7 +153,7 @@ pub const Demo = struct {
         self.moche_drawn = self.moche_dist_ctr;
         self.moche_ctr += MOCHE_SPEED;
         self.moche_dist_ctr += 1;
-        if (self.moche_dist_ctr > A.moche_dist.len - 32) self.moche_dist_ctr = 0;
+        if (self.moche_dist_ctr > A.moche_dist.len - MOCHE_LINES) self.moche_dist_ctr = 0;
     }
 
     pub fn render(self: *Demo, zigos: *ZigOS, dt: f32) void {
@@ -207,10 +208,15 @@ pub const Demo = struct {
     /// floor(y + 2k + 0.5) and column 2X - 140 + round(mocheDist[ctr - k]).
     fn drawMoche(self: *const Demo, canvas: blit.Dst) void {
         for (0..MOCHE_LINES) |k| {
+            // mocheDistCtr reaches mocheDist.length - 32 (the wrap test is >), so
+            // strip 0 reads one past the table once a lap: undefined in the JS,
+            // and drawImage given NaN draws nothing. Skip it the same way.
+            const at = self.moche_drawn + MOCHE_LINES - k;
+            if (at >= A.moche_dist.len) continue;
             const fk: f64 = @floatFromInt(2 * k);
             const v: usize = @intFromFloat(@floor(self.moche_y + fk + 0.5));
             const src = A.moche.data[((v % 24) >> 1) * A.moche.w ..][0..A.moche.w];
-            const shift: usize = A.moche_dist[self.moche_drawn + 32 - k];
+            const shift: usize = A.moche_dist[at];
             const out = canvas.buf[(MOCHE_Y + k) * canvas.stride + MOCHE_X ..][0..MOCHE_W];
             for (out, 0..) |*p, i| p.* = src[((2 * i + shift) % 24) >> 1];
         }

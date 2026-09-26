@@ -1,11 +1,15 @@
 // Headless ULM 3615 GEN4 driver — boots the sealed machine + demo-gen4_3615.wasm
 // the way docs/sealed-loader.js does and checks it against screen.js REPLAYED
 // (apps/gen4_3615_replay.mjs, written from the source and matched to the page
-// run in Chrome: 3 pixels of ten 384x270 reference frames differ).
+// run in Chrome: 3 pixels of ten 384x270 reference frames differ, once the
+// page's x17 '#RGB' expansion is put back for the raster colours, which this
+// port renders on the ST register grid instead: see gen4_3615/rasters.zig).
 //
-//   1. frames: at ten go() counts, from the first frame through the FATE
+//   1. frames: at twelve go() counts, from the first frame through the FATE
 //      logo's appearance (2480) and all six of its waveforms, every pixel of the
 //      whole 400x280 plane is the replay's (borders black where it draws nothing).
+//      603 is the motif's lap, where strip 0 reads one past mocheDist; 2480 is
+//      the frame ^CLogoFate; runs, too late for that frame's logo.
 //      The YM volume registers are driven with a known sequence, so the VU
 //      meters are replayed too.
 //   2. rasters: the sky, the VU colours and the floor shading are colour
@@ -28,7 +32,7 @@ const MAGIC_X = 40, HBL_PLANE_ID = 0; // OVERSCAN_MAGIC_X, plane 0's handler
 const CANVAS_X = 8, CANVAS_Y = 10; // the scene's placement of the 384x270 canvas
 const VU_INK = 64, SKY_INK = 65, CHECK_DARK = 66, CHECK_LIGHT = 67; // gen4_3615/assets.zig
 const WANT_MUSIC = "3615_gen4_demo.sndh";
-const FRAMES = [1, 2, 60, 700, 2600, 7000, 10500, 15000, 22000, 30000];
+const FRAMES = [1, 2, 60, 603, 700, 2480, 2600, 7000, 10500, 15000, 22000, 30000];
 const VOL = (k, n) => ((n * (k + 3)) >> 3) % 16; // a register sequence for the meters
 
 const args = process.argv.slice(2);
@@ -141,7 +145,7 @@ for (const f of FRAMES) {
 }
 
 // 2. rasters: per physical line, the colour the HBL installs for each ink
-const hex3 = (c) => [...c].map((d) => parseInt(d, 16) * 17);
+const hex3 = (c) => [...c].map((d) => parseInt(d, 16) * 16); // the register grid, as the replay
 const rgba = ([r, g, b]) => ((255 << 24) | (b << 16) | (g << 8) | r) >>> 0;
 const sky = "00E.02E.04E.06E.08E.0AE.0CE.2EE.4EE.6EE.8EE.AEE.CEE.CCE.ECE.CCC.EEC.ECC.ECA.EEA.CEA.CE8.AE8.CE6.CE0.EE0.EE4.EE6.EEC.EE6.EE2.EE0.CE0.CE2.AE4.CE6.CEA.EEA.EC8.E88.E66.E40.A20.600.600".split(".");
 let rasterBad = 0, skyChanges = 0, prevSky = -1;

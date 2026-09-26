@@ -29,7 +29,11 @@ const mocheSpeed = 0.04;
 const placement = [["minitel", 162, 82], ["minitel", 516, 82], ["gen4", 260, 60], ["bord", 0, 268], ["bord", 728, 268], ["whoelse", 140, 466]];
 const vuePos = [0, 506 - 58, 282 - 58];
 
-const css = (c) => [...c].map((n) => parseInt(n, 16) * 17);
+// The one departure from the page: its '#RGB' colours (sky, VU, floor) are
+// taken as the ST colour registers they are, on the machine's grid (a 4-bit
+// level x 16: machine/beam.zig stToRgba), not the browser's x17 expansion.
+// See gen4_3615/rasters.zig. Everything else is the page's arithmetic.
+const css = (c) => [...c].map((n) => parseInt(n, 16) * 16);
 const CHECK_DARK = css("045"), CHECK_LIGHT = css("0CE"), SHADOW = [0, 0, 20];
 
 /// screen.js initDistort (379-460), verbatim.
@@ -300,6 +304,10 @@ export class Replay {
     renderMoche(put) { // 32 two-row strips of the 24x24 tiled pattern at (140, 466)
         for (let k = 0; k < 32; k++) {
             const x = this.mocheDist[this.mocheDrawn + 32 - k];
+            // once a lap strip 0 reads one past the table: drawImage given a NaN
+            // argument returns without drawing (the canvas spec), and here the
+            // NaN would otherwise sample column 0 through the >> 1
+            if (x === undefined) continue;
             const v = Math.floor(this.mocheY + 2 * k + 0.5);
             for (let X = 70; X < 70 + 236; X++) {
                 const u = Math.floor(x + 2 * X - 140 + 0.5);
