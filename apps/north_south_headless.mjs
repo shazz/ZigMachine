@@ -64,7 +64,8 @@ function crc32(b) {
 // ---------------------------------------------------------------- replay
 async function replay() {
     const expect = JSON.parse(await readFile("apps/north_south_expect.json", "utf8"));
-    const { memory, demo } = await boot();
+    const { memory, machine, demo } = await boot();
+    const arenaTop = machine.hwRamMark(); // the screens are taken at init, never per battle
     const tot = { frames: 0, state: 0, screen: 0, sound: 0, vbl: 0, real_vbl: 0, results: 0, scripts: 0 };
     let failures = 0;
     for (const [name, e] of Object.entries(expect)) {
@@ -102,6 +103,8 @@ async function replay() {
     console.log(`  replay: ${tot.scripts} scripts, ${tot.frames} frames — state ${tot.state}, screen ${tot.screen}, sound ${tot.sound},` +
         ` VBLs ${tot.vbl} equal to the model (${tot.real_vbl} to the real game, ${(100 * tot.real_vbl / tot.frames).toFixed(1)} %),` +
         ` results ${tot.results}/${tot.scripts}`);
+    if (machine.hwRamMark() !== arenaTop) { failures++; console.log(`  FAIL the RAM arena grew over ${tot.scripts} battle starts`); }
+    if (machine.hwRamAllocFailures()) { failures++; console.log(`  FAIL ${machine.hwRamAllocFailures()} zg.mem allocation(s) refused`); }
     return failures;
 }
 
@@ -160,6 +163,7 @@ async function play() {
     demo.key(0xE00A); // F10
     check("F10 leaves for the menu", demo.pollCartRequest() === -1);
     console.log(`  ${ms.toFixed(3)} ms per host frame (battle + present + plane composite)`);
+    check("no zg.mem allocation refused (the screens are taken once, not per battle)", machine.hwRamAllocFailures() === 0);
     return failures;
 }
 
