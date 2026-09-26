@@ -109,3 +109,11 @@ screen.run(HOLD + 60);
 await screen.shot(`${out}/03-erasing.ppm`); // part-erased, next pattern
 screen.run(ERASE - 60 + 120);
 await screen.shot(`${out}/04-second-text.ppm`); // "PRINCE OF PERSIA" arriving
+
+// The overscan compositing buffer comes from the RAM arena at init: a refused
+// allocation is a window overrun, never a pass.
+const refused = screen.machine.hwRamAllocFailures();
+if (refused) {
+    console.log(`dbug: FAILED -- ${refused} zg.mem allocation(s) refused`);
+    process.exit(1);
+}

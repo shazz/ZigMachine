@@ -62,7 +62,9 @@ const  logo_b = @embedFile("../assets/screens/dbug/logo.raw");
 // Variables
 // --------------------------------------------------------------------------
 var start_raster_line: u16 = 0;
-var off_buffer = [_]u8{0} ** (400 * 280); 
+// The 400x280 overscan compositing buffer, from the cart RAM arena (zg.mem) in
+// init: as a module-scope array it was 112,000 zero bytes of the data section.
+var off_buffer: *[400 * 280]u8 = undefined;
 
 // --------------------------------------------------------------------------
 // Demo
@@ -121,7 +123,8 @@ pub const Demo = struct {
         self.sync = .{};
 
         // big buffer to the siz of the overscan
-        var overscan_render_buffer: RenderBuffer = .{ .buffer = &off_buffer, .width = 400, .height = 280 };  
+        off_buffer = zg.mem.mustAlloc(u8, 400 * 280)[0 .. 400 * 280]; // once per cart load
+        var overscan_render_buffer: RenderBuffer = .{ .buffer = off_buffer, .width = 400, .height = 280 };  
         self.overscan_target = .{ .render_buffer = &overscan_render_buffer };   
 
         // copy logo palette starting at 100

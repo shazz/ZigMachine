@@ -29,7 +29,6 @@ const ALLOW = {
     // (the arena is a machine-video instruction), so this one needs another fix.
     "demo-audio.wasm": 590760,
     "demo-cuddly_starwars.wasm": 223510,
-    "demo-dbug.wasm": 117350,
     "demo-dhs_0pxl0reg.wasm": 341426,
     "demo-joust.wasm": 153614,
     "demo-maxi.wasm": 94438,
