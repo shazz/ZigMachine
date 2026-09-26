@@ -66,6 +66,15 @@ var start_raster_line: u16 = 0;
 // init: as a module-scope array it was 112,000 zero bytes of the data section.
 var off_buffer: *[400 * 280]u8 = undefined;
 
+// The scroller is drawn 50 pixels wide and zoomed 8 times into the overscan
+// ((320 + 80) / 8). Small, so a static; cleared in init.
+var scroller_pixels: [50 * SCROLL_CHAR_HEIGHT]u8 = undefined;
+
+// The RenderTargets hold POINTERS to these, and live for the whole cart, so the
+// buffers must too: as init() locals they were dangling stack pointers.
+var scroller_render_buffer: RenderBuffer = undefined;
+var overscan_render_buffer: RenderBuffer = undefined;
+
 // --------------------------------------------------------------------------
 // Demo
 // --------------------------------------------------------------------------
@@ -114,18 +123,17 @@ pub const Demo = struct {
         // HBL: open the borders + raster bars (must fire at the magic column)
         fb.setFrameBufferHBLHandler(zg.OVERSCAN_MAGIC_X, handler_scroller);
 
-        // only a 50 pixels wide buffer is needed as it will be zoomed 8 times (320+80 / 8)
-        var buffer = [_]u8{0} ** (50 * SCROLL_CHAR_HEIGHT); 
-        var render_buffer: RenderBuffer = .{ .buffer = &buffer, .width = 50, .height = SCROLL_CHAR_HEIGHT };  
-        self.scroller_target = .{ .render_buffer = &render_buffer };   
+        @memset(&scroller_pixels, 0);
+        scroller_render_buffer = .{ .buffer = &scroller_pixels, .width = 50, .height = SCROLL_CHAR_HEIGHT };
+        self.scroller_target = .{ .render_buffer = &scroller_render_buffer };
 
         self.scrolltext = Scrolltext(NB_FONTS).init(self.scroller_target, fonts_b, SCROLL_CHARS, SCROLL_CHAR_WIDTH, SCROLL_CHAR_HEIGHT, SCROLL_TEXT, SCROLL_SPEED, 0, null, null, null);
         self.sync = .{};
 
         // big buffer to the siz of the overscan
         off_buffer = zg.mem.mustAlloc(u8, 400 * 280)[0 .. 400 * 280]; // once per cart load
-        var overscan_render_buffer: RenderBuffer = .{ .buffer = off_buffer, .width = 400, .height = 280 };  
-        self.overscan_target = .{ .render_buffer = &overscan_render_buffer };   
+        overscan_render_buffer = .{ .buffer = off_buffer, .width = 400, .height = 280 };
+        self.overscan_target = .{ .render_buffer = &overscan_render_buffer };
 
         // copy logo palette starting at 100
         fb.setPaletteEntry(100, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
