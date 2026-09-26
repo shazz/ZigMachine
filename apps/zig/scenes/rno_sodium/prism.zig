@@ -24,8 +24,9 @@ const ROW_BYTES: usize = st.STRIP_BYTES; // 96
 const BLOCK_BYTES: usize = BLOCK_ROWS * ROW_BYTES; // 6144
 
 /// $280E4: 34 blocks x 64 rows x 96 bytes of ST 4-plane. Built once at init,
-/// as $1388 built it; module scope, as it is this cart's alone.
-var blocks: [BLOCKS * BLOCK_BYTES]u8 = undefined;
+/// as $1388 built it, into 204 KB of zg.mem (allocRam).
+pub var blocks: *[BLOCKS * BLOCK_BYTES]u8 = undefined;
+pub const BLOCKS_BYTES = BLOCKS * BLOCK_BYTES;
 
 /// $1388: block 0 solid 7, then 33 scaled, shaded copies of the texture.
 pub fn buildBlocks() void {
