@@ -63,6 +63,8 @@ async function boot() {
             hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit,
             hwRamBase: machine.hwRamBase, hwRamTop: machine.hwRamTop, hwRamSize: machine.hwRamSize,
             hwRamUsed: machine.hwRamUsed, hwRamFree: machine.hwRamFree,
+            hwRamAlloc: machine.hwRamAlloc, hwRamMark: machine.hwRamMark,
+            hwRamRelease: machine.hwRamRelease, hwRamAllocFailures: machine.hwRamAllocFailures,
             hwRomRamBase: machine.hwRomRamBase, hwRomRamTop: machine.hwRomRamTop, hwRomRamSize: machine.hwRomRamSize,
             hwRomRamUsed: machine.hwRomRamUsed, hwRomRamFree: machine.hwRomRamFree,
             ...rom,
@@ -230,6 +232,7 @@ else console.log(`  music: ${got.length} requests, each the remake's tune: ${[..
 await checkTunes(new Set(got.map((g) => g.join("#"))));
 
 // ------------------------------------------------------------------ leaving + cost
+if (m.machine.hwRamAllocFailures()) fail(`${m.machine.hwRamAllocFailures()} zg.mem allocation(s) refused`);
 m.demo.key(K.esc);
 if (m.demo.pollCartRequest() !== -1) fail("Escape does not ask for the menu disk");
 {

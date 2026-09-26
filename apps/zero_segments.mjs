@@ -42,8 +42,6 @@ const ALLOW = {
     "demo-supplex_fs2.wasm": 73277,
     "demo-tex_neoshow.wasm": 71918,
     "demo-ulm_spoon_distorter.wasm": 95482,
-    // demo-swedish_newyear.wasm (922,018 B) is being migrated on its own branch;
-    // it is not on main yet, so it has no entry here.
 };
 
 function uleb(b, p) {
