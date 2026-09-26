@@ -18,6 +18,9 @@
 //      each ping-ponging 1.5/frame between 50 and 270. The bars are uniform
 //      per row, so they are a colour per LINE: every pixel the frame leaves
 //      transparent is index 0, whose palette entry the copper rewrites every line.
+//      Both they and the red tubes of step 2 are colour 0, which on an ST also
+//      paints the border: a global HBL copies colour 0's table into the machine
+//      background per physical line, so every raster runs edge to edge.
 //   2. background.png (red frame, open in the middle) and — drawn last in the
 //      original — backgroundMask.png at y=294. Nothing ever lands on the
 //      mask's opaque part except scroller pixels, which the mask would hide
@@ -166,6 +169,52 @@ const palette: [256]Color = blk: {
     break :blk p;
 };
 
+// --------------------------------------------------------------------------
+// The three red tubes (top, middle, bottom) are uniform per row: a red ramp
+// 64..224 = nibble*32, i.e. colours ripped from the ST's colour register, so
+// they were a raster on the real screen, not art. Their rows leave the frame
+// here and become colour-0 lines in the raster table, drawn over the bars as
+// background.png was; like every raster they then run into the border.
+// --------------------------------------------------------------------------
+const NO_TUBE: u32 = 0; // a table entry is RGBA with alpha 255, never 0
+
+/// Per visible line: the tube colour, or NO_TUBE.
+const tube_line: [HEIGHT]u32 = blk: {
+    @setEvalBranchQuota(1_000_000);
+    var t = [_]u32{NO_TUBE} ** HEIGHT;
+    for (0..HEIGHT) |y| {
+        const row = frame_b[y * WIDTH ..][0..WIDTH];
+        const first = row[0];
+        if (first == RASTER_INK) continue;
+        for (row) |px| {
+            if (px != first) break;
+        } else {
+            const c = frame_pal[first];
+            // a register colour: every channel on the ST's nibble*32 grid
+            assert(c.r % 32 == 0 and c.g % 32 == 0 and c.b % 32 == 0);
+            t[y] = c.toRGBA();
+        }
+    }
+    break :blk t;
+};
+
+/// frame.raw with the tube rows handed to the raster: index 0 there.
+const frame_px: [@as(usize, WIDTH) * HEIGHT]u8 = blk: {
+    @setEvalBranchQuota(1_000_000);
+    var f: [@as(usize, WIDTH) * HEIGHT]u8 = frame_b[0 .. @as(usize, WIDTH) * HEIGHT].*;
+    for (0..HEIGHT) |y| {
+        if (tube_line[y] != NO_TUBE) @memset(f[y * WIDTH ..][0..WIDTH], RASTER_INK);
+    }
+    break :blk f;
+};
+
+comptime {
+    // the three tubes: 11 + 11 + 8 lines
+    var n: usize = 0;
+    for (tube_line) |c| n += @intFromBool(c != NO_TUBE);
+    assert(n == 30);
+}
+
 /// text_pal index -> palette index, for fontmask.raw's pixels.
 const mask_remap: [256]u8 = blk: {
     @setEvalBranchQuota(100_000);
@@ -197,6 +246,20 @@ const mask_ink = blit.Ink{ .pattern = .{ .img = blit.Image.init(&fontmask_ink, M
 // few drawScanline calls instead of 268 pixel writes.
 // --------------------------------------------------------------------------
 const logo = zg.spans.build(logo_b, LOGO_W, 0);
+
+const VBORDER: usize = zg.VERTICAL_BORDERS_HEIGHT;
+
+/// Colour 0 per physical line for the border. The host paints the border
+/// (hwClear, global HBL) BEFORE it runs the cart's frame, so this is built one
+/// frame ahead, from the bar positions the next update() will draw: border and
+/// picture then show the same frame, as they do on an ST.
+var border_table: copper.Table = undefined;
+
+/// Global HBL, PHYSICAL line 0..279: the border takes colour 0's colour for the
+/// line. Scene-owned, as in vex.
+fn borderHbl(zigos: *ZigOS, line: u16) void {
+    zigos.setBackgroundColor(Color.fromRGBA(border_table[@min(line, border_table.len - 1)]));
+}
 
 // --------------------------------------------------------------------------
 // Demo
@@ -232,9 +295,13 @@ pub const Demo = struct {
         const fb = &zigos.lfbs[PLANE];
         fb.is_enabled = true;
         fb.setPalette(palette);
-        @memcpy(fb.fb[0..frame_b.len], frame_b);
+        @memcpy(fb.fb[0..frame_px.len], &frame_px);
         // seeds every line with the palette's own black bars / logo ink
         copper.install(fb, &.{ RASTER_INK, LOGO_INK }, &copper_tables, .{});
+        // The plane is 320 wide, so the border is the MACHINE background: on an
+        // ST it is colour 0, so it follows colour 0's table line by line.
+        buildRasterLines(&border_table, self.bar_pos); // what frame 1 draws
+        zigos.setHBLHandler(borderHbl);
     }
 
     /// Advances state in exactly go()'s order, recording the values go() DRAWS
@@ -272,26 +339,34 @@ pub const Demo = struct {
     pub fn render(self: *Demo, zigos: *ZigOS, dt: f32) void {
         _ = dt;
         const fb = &zigos.lfbs[PLANE];
-        self.buildRasterLines(copper.visible(fb, RASTER_SLOT));
+        buildRasterLines(copper.table(fb, RASTER_SLOT), self.bar_drawn);
+        // update() draws the next frame's bars at bar_pos
+        buildRasterLines(&border_table, self.bar_pos);
         self.buildInkLines(copper.visible(fb, INK_SLOT));
 
-        // paint order: bars (index 0) + frame, glyphs, logo
-        @memcpy(fb.fb[0..frame_b.len], frame_b);
+        // paint order: bars and tubes (index 0) + frame, glyphs, logo
+        @memcpy(fb.fb[0..frame_px.len], &frame_px);
         self.drawScroller(fb);
         self.drawLogoWindow(fb);
     }
 
-    /// Paint the bars into the per-line table in go()'s order. A bar at a
-    /// fractional 640-space y covers ST line k with its row floor(2k - pos).
-    fn buildRasterLines(self: *Demo, line: *[HEIGHT]u32) void {
-        @memset(line, BLACK.toRGBA());
-        for (self.bar_drawn, 0..) |pos, b| {
+    /// Paint colour 0's whole table, borders included (they stay black): the
+    /// bars in go()'s order, then the tubes over them, as background.png was
+    /// drawn over the bars. A bar at a fractional 640-space y covers ST line k
+    /// with its row floor(2k - pos).
+    fn buildRasterLines(table: *copper.Table, bars: [4]f64) void {
+        @memset(table, BLACK.toRGBA());
+        const line = table[VBORDER..][0..HEIGHT];
+        for (bars, 0..) |pos, b| {
             var k: i32 = @intFromFloat(@ceil(pos / 2.0));
             while (k < HEIGHT) : (k += 1) {
                 const r: i32 = @intFromFloat(@floor(@as(f64, @floatFromInt(2 * k)) - pos));
                 if (r >= BAR_ROWS) break;
                 if (k >= 0 and r >= 0) line[@intCast(k)] = rows[b * BAR_ROWS + @as(usize, @intCast(r))].toRGBA();
             }
+        }
+        for (line, tube_line) |*c, t| {
+            if (t != NO_TUBE) c.* = t;
         }
     }
 

@@ -8,82 +8,7 @@ a complaint.
 
 ---
 
-## REPLICANTS GARFIELD: the rasters stop at the screen edge
-
-**Where:** `apps/zig/scenes/replicants_garfield.zig`
-**Reported:** Matt, 2026-09-20
-
-The four bouncing raster bars do not reach the left and right borders. On a
-real ST they would: a raster bar *is* a colour register, and the border is
-painted from the same register, so the bar runs the full width of the raster.
-Compare `replicants_emlyn` and `tex_neoshow`, where it does.
-
-**Root cause — not the one you would guess.** The rasters here are already
-REAL: `copper.install(fb, &.{ RASTER_INK, LOGO_INK }, ...)` at line 237 drives
-per-line colours, and `RASTER_INK = 0` (line 72) is already colour 0, the
-border register. So the mechanism is right and the entry is right.
-
-What is missing is that **this plane is a normal 320-wide plane**. There is no
-`setOverscanBuffer()`, no `openBorders()`, and `copper.install` is called with
-`.{}` — no `.flicker`. On a 320-wide plane the border is not plane pixels at
-all: it is painted from the MACHINE background colour, which nothing updates
-per scanline. So writing the plane palette's entry 0 per line colours the
-picture and leaves the border alone.
-
-**Two ways to fix it, and they are genuinely different screens:**
-
-1. *Cheap, keeps the 320 plane.* Also write the machine background per line
-   from the same table — `zigos.setBackgroundColor()` from the HBL, which is
-   exactly what `vex/raster.zig`'s `borderHbl` does, and for the same reason
-   (its plane is 320 wide too). The bars then reach the border without the
-   screen becoming overscan.
-2. *Overscan.* `setOverscanBuffer()` + `openBorders()` and widen the raster
-   carrier to all 400 plane columns, as `replicants_emlyn` does. This is a
-   bigger change: it alters the screen's geometry, and per this repo's model
-   overscan is an EARNED res-flicker trick paid for on every visible line.
-
-(1) is almost certainly what this screen wants — it is the same picture, just
-with the border doing what the hardware would have done.
-
-**Before fixing, check the original.** The CODEF remake has no borders at all,
-so it cannot answer whether the real Replicants screen ran its bars into them.
-A remake is not the demo — on `tex_neoshow` the demozoo capture showed the band
-reaching the border while the *gradient* on the same screen did not, i.e. two
-different registers. Do not assume every raster on this screen wants the same
-treatment.
-
-**Gate note:** see the next entry — this screen's harness exists but never
-runs, so nothing would catch a regression here either way.
-
----
-
-## `replicants_garfield_headless.mjs` exists but is not gated
-
-**Where:** `apps/replicants_garfield_headless.mjs`, `build.sh`
-**Found:** 2026-09-20, while writing the entry above
-
-The harness is written and sitting in `apps/`, but there is no
-`gate replicants_garfield ...` line in `build.sh`, so it has never run in the
-gate. The screen has **zero** end-to-end coverage.
-
-This is the same hole `apps/stniccc_headless.mjs` had for weeks, and the same
-one `tex_neoshow` had until today — which is exactly why CLAUDE.md says a
-screen is only covered if its harness is **named in `build.sh`**, and to add
-the `gate` line in the same commit as the harness.
-
-Not fixed here on purpose: adding the line means the gate starts running it,
-and if it does not currently pass, that turns one silent gap into a red gate
-for everyone in a shared tree. Run it by hand first
-(`node apps/replicants_garfield_headless.mjs "$SHOTS/replicants_garfield"`),
-then add the line with whatever fixes it needs.
-
-**And it does not run clean as written.** `apps/replicants_garfield_headless.mjs:92`
-does `const out = process.argv[2] || "/tmp/replicants_garfield"` and then writes
-PPMs into `out` — but it never creates the directory. Run with no argument and it
-dies with ENOENT before the first shot. (Moved here from `TODOS.md`, where it sat
-as a separate item; it is the same file and the same fix commit.) A `mkdir -p`
-equivalent at startup is the whole fix, and it has to happen before the `gate`
-line is worth adding.
+## Some `apps/*_headless.mjs` may be missing their `gate` line
 
 Worth a sweep: check whether any OTHER `apps/*_headless.mjs` is missing its
 `gate` line. The two found so far were both discovered by accident.
@@ -95,7 +20,8 @@ Worth a sweep: check whether any OTHER `apps/*_headless.mjs` is missing its
 **Where:** `apps/zig/scenes/replicants_garfield.zig` (CODEF 28)
 **Found:** the port review, 2026-09-12
 
-Separate from the border entry above — these are the picture itself not matching
+Separate from the border fix (2026-09-25: tubes and bars are now colour-0
+rasters running into the border) — these are the picture itself not matching
 the original.
 
 1. **Gradient wrap.** The port wraps the rasterFont4 stack with `@mod`; the
