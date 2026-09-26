@@ -294,3 +294,6 @@ if (half.ops > solid.ops) throw new Error("HALFTONE should never issue more fill
 if (fills.ops > dot.ops) throw new Error("FILL DOTS should never issue more ops than DOT SIZE: both are one op per lit cell");
 console.log(`  claim: HALFTONE covers the grid in ${half.ops.toFixed(0)} fills where DOT SIZE needs ${dot.ops.toFixed(0)} blits ` +
     `(${(dot.ops / half.ops).toFixed(1)}x fewer operations)`);
+// The small canvas and the polygon list come from zg.mem, once per cart load.
+const refused = screen.machine.hwRamAllocFailures();
+if (refused) throw new Error(`${refused} zg.mem allocation(s) refused`);

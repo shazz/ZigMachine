@@ -74,9 +74,12 @@ const STEP_Y: f64 = 0.04;
 
 // Scratch the Demo struct must not carry: cart statics cost a data segment
 // either way, but they keep the zero-initialised struct small.
-var geometry: torus.Geometry = undefined;
+// The torus and the polygon list come from the RAM arena (zg.mem), once per
+// cart load: as statics they were 25 KB of zeros written into the cart binary.
+var geometry: *torus.Geometry = undefined;
 var screen_buf: [torus.VERTS]c3.Screen = undefined;
-var poly_buf: [torus.FACES]c3.Poly = undefined;
+var poly_buf: *[torus.FACES]c3.Poly = undefined;
+var owned = false;
 var grid: shade.Grid = undefined;
 var palette_scratch: [256]Color = undefined;
 
@@ -97,6 +100,12 @@ pub const Demo = struct {
         self.loads = 0;
         self.wants_quit = false;
         self.blitter.init();
+        if (!owned) {
+            geometry = &zg.mem.mustAlloc(torus.Geometry, 1)[0];
+            poly_buf = zg.mem.mustAlloc(c3.Poly, torus.FACES)[0..torus.FACES];
+            owned = true;
+        }
+        shade.alloc();
         self.mesh = geometry.build();
         shade.setNormals(&geometry.normals);
         self.lens = c3.Lens.init(shade.CELLS_X, shade.CELLS_Y, shade.FOV, shade.NEAR, shade.FAR);
@@ -139,7 +148,7 @@ pub const Demo = struct {
         const fb = &zigos.lfbs[PLANE];
         self.rotation.x += STEP_X;
         self.rotation.y += STEP_Y;
-        shade.render(&self.lens, &self.mesh, self.rotation, &screen_buf, &poly_buf, &grid);
+        shade.render(&self.lens, &self.mesh, self.rotation, &screen_buf, poly_buf, &grid);
         // The clear is a FILL like any other, so the halftone pattern mode 2
         // left loaded would dither it. Drop it before clearing, every frame.
         self.blitter.clearHalftone();

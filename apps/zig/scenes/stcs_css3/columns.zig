@@ -48,7 +48,7 @@ pub fn columns(m: *Machine) void {
         m.stars_on = false;
         m.columns_on = false;
     }
-    const s = &machine.screen;
+    const s = machine.screen;
     for ([_]usize{ 0, 0x80 }) |x0| {
         for (FIRST..FIRST + LINES) |y| {
             for (0..4) |g| {
@@ -96,7 +96,7 @@ pub fn letters(m: *Machine) void {
 /// 17 lines of the letter's word ror.l-ed by x & 15: the low word ORs (or
 /// and-nots) into group x >> 4, the high word into the next group.
 fn blit(k: usize, x: u8, y: u8, draw: bool) void {
-    const s = &machine.screen;
+    const s = machine.screen;
     const base: usize = 4 + @as(usize, y) * A.LINE + ((@as(usize, x) >> 1) & 0xF8);
     const sh: u5 = @intCast(x & 15);
     for (0..A.LETTER_WORDS) |i| {

@@ -77,6 +77,7 @@ pub const Demo = struct {
         const fb: *LogicalFB = &zigos.lfbs[0];
         fb.is_enabled = true;
         fb.clearFrameBuffer(BG);
+        P.alloc();
         P.clear();
 
         self.fade.init();

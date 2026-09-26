@@ -99,6 +99,16 @@ fn handler_scroller(fb: *LogicalFB, zigos: *ZigOS, line: u16, col: u16) void {
     _ = col;
 }
 
+var scroller_owned: ?*[WIDTH * SCROLLER_ROWS]u8 = null;
+
+/// The scroller's off-screen buffer, from zg.mem once per cart load.
+fn scrollerBuffer() *[WIDTH * SCROLLER_ROWS]u8 {
+    if (scroller_owned) |b| return b;
+    const b = zg.mem.mustAlloc(u8, WIDTH * SCROLLER_ROWS)[0 .. WIDTH * SCROLLER_ROWS];
+    scroller_owned = b;
+    return b;
+}
+
 pub const Demo = struct {
   
     name: u8 = 0,
@@ -110,8 +120,10 @@ pub const Demo = struct {
     // so scroller_target held a pointer to a dead frame (the bug bladerunners.zig
     // was fixed for), and it was 2 rows SHORT of the height it declared: render
     // reads rows scroller_pos_y..scroller_pos_y+32, i.e. up to row 65 at
-    // scroller_pos_y = 32. Sized to the declared height, it lives as long as Demo.
-    scroller_buffer: [WIDTH * SCROLLER_ROWS]u8 = undefined,
+    // scroller_pos_y = 32. Sized to the declared height, it lives as long as the
+    // cart: it comes from the RAM arena (scrollerBuffer), where as a field it was
+    // 26 KB of zeros written into the cart binary.
+    scroller_buffer: *[WIDTH * SCROLLER_ROWS]u8,
     scroller_render_buffer: RenderBuffer = undefined,
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
@@ -132,8 +144,9 @@ pub const Demo = struct {
         // The scroller's ink colour, a real raster: one palette write per scanline.
         fb.setFrameBufferHBLHandler(0, handler_scroller);
 
-        @memset(&self.scroller_buffer, 0);
-        self.scroller_render_buffer = .{ .buffer = &self.scroller_buffer, .width = WIDTH, .height = SCROLLER_ROWS };
+        self.scroller_buffer = scrollerBuffer();
+        @memset(self.scroller_buffer, 0);
+        self.scroller_render_buffer = .{ .buffer = self.scroller_buffer, .width = WIDTH, .height = SCROLLER_ROWS };
         self.scroller_target = .{ .render_buffer = &self.scroller_render_buffer };
         self.scroller_pos_y = (SCROLL_CHAR_HEIGHT - 1);
 

@@ -8,6 +8,7 @@
 // The panel then lives for 1000 frames, is erased one line a frame for 120
 // frames, and the next page is drawn back in one line a frame for another 120.
 // --------------------------------------------------------------------------
+const zg = @import("zigos");
 const A = @import("assets.zig");
 const P = @import("planes.zig");
 
@@ -18,7 +19,10 @@ const TEXT_ROWS: usize = P.CREDIT_ROWS / 8;
 const WIPE_WORDS: usize = 50;
 const HOLD_FRAMES: u16 = 1000; // $3434 counts to $3e8
 
-var pages: [4][P.CREDIT_ROWS][P.WORDS]u16 = undefined;
+/// From the RAM arena (zg.mem), once per cart load: 19 KB that as a
+/// module-scope array was zeros written into the cart binary.
+var pages: *[4][P.CREDIT_ROWS][P.WORDS]u16 = undefined;
+var pages_owned = false;
 
 /// One page rendered into its own bit buffer, exactly as $33a2 fills plane 0
 /// of a page buffer: column c is the high byte of word c/2 when c is even.
@@ -54,8 +58,12 @@ pub const Credits = struct {
     page: usize, // $27c68, the page the NEXT wipe-in draws from
 
     pub fn init(self: *Credits) void {
+        if (!pages_owned) {
+            pages = zg.mem.mustAlloc([P.CREDIT_ROWS][P.WORDS]u16, 4)[0..4];
+            pages_owned = true;
+        }
         for (A.credit_pages, 0..) |text, i| layout(i, text);
-        @memcpy(&P.credits, &pages[0]); // $340c shows page 0 from the start
+        @memcpy(P.credits, &pages[0]); // $340c shows page 0 from the start
         self.phase = .hold;
         self.frames = 0;
         self.line = 0;
@@ -103,7 +111,7 @@ pub const Credits = struct {
     /// $3468's 50 words, flattened over the block and clipped at its end (the
     /// original ran two and a half lines past into the screen below).
     fn clearRun(self: *const Credits) void {
-        const flat: [*]u16 = @ptrCast(&P.credits);
+        const flat: [*]u16 = @ptrCast(P.credits);
         const total = P.CREDIT_ROWS * P.WORDS;
         var i = self.line * P.WORDS;
         var n: usize = 0;

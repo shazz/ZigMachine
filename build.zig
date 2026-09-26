@@ -181,6 +181,11 @@ pub fn build(b: *std.Build) void {
     const pack_tsl = b.addRunArtifact(zx0pack);
     pack_tsl.addFileArg(b.path("apps/zig/assets/screens/tsl_hybridglenz/tsl.bin"));
     const tsl_zx0 = pack_tsl.addOutputFileArg("tsl_hybridglenz.zx0");
+    // SUPPLEX / FS2 (CODEF 525): the 400x280 background. 73 KB of it is one
+    // black run, which as a raw @embedFile was that many zeros in the cart.
+    const pack_supplex = b.addRunArtifact(zx0pack);
+    pack_supplex.addFileArg(b.path("apps/zig/assets/screens/supplex_fs2/main.raw"));
+    const supplex_zx0 = pack_supplex.addOutputFileArg("supplex_fs2_main.zx0");
     const packed_files = b.addWriteFiles();
     // SWEDISH NEW YEAR (CODEF 295): every picture and font, one blob each. The
     // scene depacks only the part on screen's set, into one working buffer
@@ -211,6 +216,7 @@ pub fn build(b: *std.Build) void {
     _ = packed_files.addCopyFile(superscroller_zx0, "union_superscroller.zx0");
     _ = packed_files.addCopyFile(emlyn_zx0, "replicants_emlyn.zx0");
     _ = packed_files.addCopyFile(tsl_zx0, "tsl_hybridglenz.zx0");
+    _ = packed_files.addCopyFile(supplex_zx0, "supplex_fs2_main.zx0");
     // MPP TRUECOLOR's gallery: one blob per picture and mode (tools/mpp_convert.py).
     // Unpacked they overflow the cart window, so the scene depacks only the one on
     // screen. MPP_PICTURES follows the converter's PICTURES list.
@@ -247,6 +253,7 @@ pub fn build(b: *std.Build) void {
             \\pub const union_superscroller = @embedFile("union_superscroller.zx0");
             \\pub const replicants_emlyn = @embedFile("replicants_emlyn.zx0");
             \\pub const tsl_hybridglenz = @embedFile("tsl_hybridglenz.zx0");
+            \\pub const supplex_fs2_main = @embedFile("supplex_fs2_main.zx0");
             \\{s}{s}}};
             \\
         , .{ swedish_decl, mpp_decl })),
