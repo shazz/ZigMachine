@@ -431,6 +431,8 @@ pub fn build(b: *std.Build) void {
         "demo-trsi_transarctica", // 70 — TRSI / TRANSARCTICA Falcon030 cracktro (ported from the Falcon binary)
         "demo-north_south", // 71 — Infogrames / NORTH & SOUTH, the battle, playable (ported from the ST program)
         "demo-joust", // 72 — JOUST, Atari Corp 1986: the game, ported from JOUST.PRG through its reference model
+        "", // 73 — reserved for tcb_spreadpoint, landing in parallel (renumber on merge)
+        "demo-stcs_css3", // 74 — STCS / Tsunoo Rhilty 3rd CSS Convention intro (ported from the ST binary)
     };
     for (cart_names, 0..) |name, idx| {
         if (name.len == 0) continue; // excluded cart (see note above)
