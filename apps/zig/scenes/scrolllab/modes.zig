@@ -89,17 +89,19 @@ var p_rubber = [_]Param{
 const PIPE_BASE = 1.0;
 var p_pipe = [_]Param{.{ .value = 0, .amp = 0.75, .inc = 0.04, .offset = -0.06 }};
 /// The one text source: the band, flat, before anything distorts it.
-var strip: [TILE][W]u8 = undefined;
+/// 22,528 B on zg.mem, taken once by init() (once per cart load).
+var strip: *[TILE][W]u8 = undefined;
 
 pub const Glyph = struct { x: i32, cell: blit.Rect };
 pub fn init() void {
+    strip = zg.mem.mustAlloc([W]u8, TILE)[0..TILE];
     path.buildPath();
     table345.buildTable();
 }
 
 pub fn fillStrip(font: blit.Image, glyphs: []const Glyph) void {
-    for (&strip) |*r| @memset(r, 0);
-    const dst = blit.Dst.buffer(std.mem.asBytes(&strip), W);
+    for (strip) |*r| @memset(r, 0);
+    const dst = blit.Dst.buffer(std.mem.asBytes(strip), W);
     for (glyphs) |g| blit.blit(dst, font, g.cell, g.x, 0, 0, .copy);
 }
 
@@ -121,11 +123,11 @@ fn paramsOf(mode: Mode) []Param {
 /// frame the curve slides, on top of the mode's offsets, as a rigid
 /// translation (offset = -travel*inc). Mode 9 reads it as arc pixels a frame.
 pub fn draw(mode: Mode, dst: blit.Dst, row: i32, align_x: usize, travel: f64, frame: u32) void {
-    const src = blit.Image.init(std.mem.asBytes(&strip), W);
+    const src = blit.Image.init(std.mem.asBytes(strip), W);
     const p = paramsOf(mode);
     switch (mode) {
         .flat => blit.blit(dst, src, null, 0, row, 0, .copy),
-        .path => path.draw(dst, &strip, travel * @as(f64, @floatFromInt(frame))),
+        .path => path.draw(dst, strip, travel * @as(f64, @floatFromInt(frame))),
         .table345 => table345.draw(dst, src, row, frame),
         .rubber => sinx(dst, src, p, row, travel),
         .pipe => zoomy(dst, src, p, row, travel),
@@ -185,6 +187,7 @@ fn sinx(dst: blit.Dst, src: blit.Image, params: []Param, posy: i32, travel: f64)
 fn zoomy(dst: blit.Dst, src: blit.Image, params: []Param, posy: i32, travel: f64) void {
     var old: [MAX_TERMS]f64 = undefined;
     snapshot(params, &old);
+    const band = strip; // one load of the arena pointer, not one a pixel
     for (0..src.w) |i| {
         const zoom = PIPE_BASE + sum(params);
         for (params) |*p| p.value += p.inc;
@@ -194,7 +197,7 @@ fn zoomy(dst: blit.Dst, src: blit.Image, params: []Param, posy: i32, travel: f64
             const sr = round(@as(f64, @floatFromInt(r)) / zoom);
             const y = posy + r;
             if (sr < 0 or sr >= src.h or y < 0 or y >= dst.h) continue;
-            const p = strip[@intCast(sr)][i];
+            const p = band[@intCast(sr)][i];
             if (p != 0) dst.buf[@as(usize, @intCast(y)) * dst.stride + i] = p;
         }
     }

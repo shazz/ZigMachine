@@ -31,12 +31,14 @@ const PATH = [_][2]f64{
     .{ 300, 132 }, .{ 340, 128 }, .{ 380, 132 }, // and away to the right
 };
 const MAX_PTS = 896;
-var path: [MAX_PTS][2]f32 = undefined;
+/// 7,168 B on zg.mem, taken once by buildPath() (modes.init, once per cart load).
+var path: *[MAX_PTS][2]f32 = undefined;
 var path_len: usize = 0;
 
 /// Walk the Catmull-Rom finely, then emit a point every arc pixel.
 pub fn buildPath() void {
     const STEP = 400;
+    path = zg.mem.mustAlloc([2]f32, MAX_PTS)[0..MAX_PTS];
     var prev = sample(0, 0);
     var acc: f64 = 0;
     path[0] = .{ @floatCast(prev[0]), @floatCast(prev[1]) };
@@ -74,14 +76,15 @@ fn sample(i: usize, f: f64) [2]f64 {
 pub fn draw(dst: blit.Dst, strip: *const [TILE][W]u8, drift: f64) void {
     if (path_len < 4) return;
     const n: f64 = @floatFromInt(path_len);
+    const pts = path; // one load of the arena pointer, not three a column
     for (0..2 * W) |sub| {
         const col = sub / 2;
         var s = @mod(@as(f64, @floatFromInt(sub)) * 0.5 + drift, n);
         if (s < 1) s += n - 2;
         const i: usize = @intFromFloat(s);
-        const p = path[i];
-        const a = path[(i + path_len - 1) % path_len];
-        const b = path[(i + 1) % path_len];
+        const p = pts[i];
+        const a = pts[(i + path_len - 1) % path_len];
+        const b = pts[(i + 1) % path_len];
         const dx = b[0] - a[0];
         const dy = b[1] - a[1];
         const d = @sqrt(dx * dx + dy * dy);
