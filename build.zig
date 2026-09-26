@@ -182,6 +182,19 @@ pub fn build(b: *std.Build) void {
     pack_tsl.addFileArg(b.path("apps/zig/assets/screens/tsl_hybridglenz/tsl.bin"));
     const tsl_zx0 = pack_tsl.addOutputFileArg("tsl_hybridglenz.zx0");
     const packed_files = b.addWriteFiles();
+    // SWEDISH NEW YEAR (CODEF 295): every picture and font, one blob each. The
+    // scene depacks only the part on screen's set, into one working buffer
+    // (apps/zig/scenes/swedish_newyear/assets.zig names the sets).
+    const SWEDISH = [_][]const u8{ "main", "font7", "block", "banner", "syncfont", "logo", "sync1", "sync2", "tcb", "kh", "kh2", "edge", "tcblogo", "wizcoder", "ancool", "omain", "omega", "ofont", "vumeter", "atari" };
+    var swedish_decl: []const u8 = "pub const swedish_newyear = struct {\n";
+    for (SWEDISH) |name| {
+        const file = b.fmt("swedish_newyear_{s}.zx0", .{name});
+        const pack_swe = b.addRunArtifact(zx0pack);
+        pack_swe.addFileArg(b.path(b.fmt("apps/zig/assets/screens/swedish_newyear/{s}.raw", .{name})));
+        _ = packed_files.addCopyFile(pack_swe.addOutputFileArg(file), file);
+        swedish_decl = b.fmt("{s}    pub const {s} = @embedFile(\"{s}\");\n", .{ swedish_decl, name, file });
+    }
+    swedish_decl = b.fmt("{s}}};\n", .{swedish_decl});
     _ = packed_files.addCopyFile(trsi_zx0, "trsi_turn.zx0");
     _ = packed_files.addCopyFile(multifake_zx0, "union_multifake.zx0");
     _ = packed_files.addCopyFile(textracker_zx0, "union_textracker.zx0");
@@ -234,9 +247,9 @@ pub fn build(b: *std.Build) void {
             \\pub const union_superscroller = @embedFile("union_superscroller.zx0");
             \\pub const replicants_emlyn = @embedFile("replicants_emlyn.zx0");
             \\pub const tsl_hybridglenz = @embedFile("tsl_hybridglenz.zx0");
-            \\{s}}};
+            \\{s}{s}}};
             \\
-        , .{mpp_decl})),
+        , .{ swedish_decl, mpp_decl })),
         .target = wasm_target,
         .optimize = optimize,
     });

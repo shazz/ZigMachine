@@ -12,8 +12,9 @@
 // continues past the remake's 768x536 frame to the edge of the tube (the part
 // opens every border), wrapping its 320x240 pattern; Math.random is a seeded
 // xorshift, the shuffle is fillpix's own.
-const frame = @import("frame.zig");
 const gen = @import("assets_gen.zig");
+const assets = @import("assets.zig");
+const ram = @import("ram.zig");
 const image = @import("image.zig");
 const fx = @import("fx.zig");
 
@@ -23,8 +24,8 @@ const NY = 240;
 const MAIN_X: i32 = 8; // main-ST origin in physical pixels
 const MAIN_Y: i32 = 10;
 
-var noise: [NBA][NX * NY / 8]u8 = undefined;
-var mask: [NX * NY]u8 = undefined;
+/// The 12 noise frames, a bit a pixel: TCB #1's scratch in the part buffer.
+pub const Noise = [NBA][NX * NY / 8]u8;
 
 pub const Tcb1 = struct {
     n: usize,
@@ -39,8 +40,14 @@ pub const Tcb1 = struct {
             .{ .value = 0, .amp = 15, .inc = 0.05, .offset = 0.005 },
             .{ .value = 0, .amp = 7, .inc = 0.1, .offset = 0.08 },
         } };
+    }
+
+    /// On entering the part: the noise frames, regenerated from the same seed
+    /// (they share the part buffer with the other parts' pictures).
+    pub fn enter(_: *Tcb1) void {
+        const noise = assets.scratch(.tcb1);
         var rng = Rng{ .s = 0x2951_988 };
-        for (0..NBA) |u| fillpix(&noise[u], &rng);
+        for (noise) |*n| fillpix(n, &rng);
     }
 
     /// One do_tcb1(); returns true on the frame the music must start.
@@ -54,55 +61,78 @@ pub const Tcb1 = struct {
         }
         var shifts: [32]f64 = undefined;
         if (self.music_please >= 1) self.logo_fx.run(&shifts);
-        for (0..frame.PH) |py| {
-            const row = &frame.px[py];
-            for (0..frame.PW) |px| row[px] = self.pixel(cur, @intCast(px), @intCast(py), &shifts);
+        // Locals, not reloads: the pixel stores go through a pointer, so the
+        // compiler cannot keep anything it reads through another in a register.
+        const view = View{
+            .noise = &assets.scratch(.tcb1)[cur],
+            .logo = assets.tcb,
+            .masked = self.music_please == 0,
+            .shifts = &shifts,
+        };
+        const px_rows = ram.buf.px;
+        for (px_rows, 0..) |*row, py| {
+            for (row, 0..) |*o, px| o.* = view.pixel(@intCast(px), @intCast(py));
         }
         return start_music;
     }
+};
 
-    fn pixel(self: *const Tcb1, cur: usize, px: i32, py: i32, shifts: *const [32]f64) u16 {
+const View = struct {
+    noise: *const [NX * NY / 8]u8,
+    logo: image.Img,
+    masked: bool, // musicplease 0: the intro's four black masks
+    shifts: *const [32]f64,
+
+    fn pixel(self: *const View, px: i32, py: i32) u16 {
         const mx = 2 * (px - MAIN_X); // main-canvas pixel
         const my = 2 * (py - MAIN_Y);
-        if (self.music_please == 0) {
+        if (self.masked) {
             if (mx < 60 or mx >= 708 or my < 60 or my >= 476) return 0;
         } else {
             if (my >= 476) return 0;
             const i = my - 140;
             if (i >= 0 and i < 32) {
-                const c = image.ifloor(@as(f64, @floatFromInt(mx)) + 0.5 - (shifts[@intCast(i)] + 230));
-                const g = gen.tcb.at(c, i);
+                const c = image.ifloor(@as(f64, @floatFromInt(mx)) + 0.5 - (self.shifts[@intCast(i)] + 230));
+                const g = self.logo.at(c, i);
                 if (g != image.NONE) return g;
             }
         }
-        return if (noiseAt(cur, mx, my)) gen.NOISE_GID else 0;
+        return if (noiseAt(self.noise, mx, my)) gen.NOISE_GID else 0;
     }
 };
 
 /// mycanvas.draw(maincanvas, 0, 0, 1, 0, 1.2, 1.2) of minicanv drawn 2x.
-fn noiseAt(cur: usize, mx: i32, my: i32) bool {
+fn noiseAt(noise: *const [NX * NY / 8]u8, mx: i32, my: i32) bool {
     const xm = image.ifloor((@as(f64, @floatFromInt(mx)) + 0.5) / 1.2);
     const ym = image.ifloor((@as(f64, @floatFromInt(my)) + 0.5) / 1.2);
     const u: usize = @intCast(@mod(@divFloor(xm, 2), NX));
     const v: usize = @intCast(@mod(@divFloor(ym, 2), NY));
     const bit = v * NX + u;
-    return noise[cur][bit >> 3] & (@as(u8, 1) << @intCast(bit & 7)) != 0;
+    return noise[bit >> 3] & (@as(u8, 1) << @intCast(bit & 7)) != 0;
 }
 
 /// fillpix(c1, canvas, 320, 240, 320*240/2): exactly half set, then shuffle().
+/// The shuffle swaps bits in place (a byte-a-pixel mask would be 75 KB of cart RAM).
 fn fillpix(out: *[NX * NY / 8]u8, rng: *Rng) void {
-    @memset(&mask, 0);
-    @memset(mask[0 .. NX * NY / 2], 1);
-    var i: usize = mask.len;
+    @memset(out, 0);
+    @memset(out[0 .. NX * NY / 16], 0xFF);
+    var i: usize = NX * NY;
     while (i > 0) {
         const j: usize = @intFromFloat(@floor(rng.next() * @as(f64, @floatFromInt(i))));
         i -= 1;
-        const t = mask[i];
-        mask[i] = mask[j];
-        mask[j] = t;
+        const bi = getBit(out, i);
+        setBit(out, i, getBit(out, j));
+        setBit(out, j, bi);
     }
-    @memset(out, 0);
-    for (mask, 0..) |b, k| out[k >> 3] |= b << @intCast(k & 7);
+}
+
+fn getBit(bits: *const [NX * NY / 8]u8, k: usize) u1 {
+    return @truncate(bits[k >> 3] >> @intCast(k & 7));
+}
+
+fn setBit(bits: *[NX * NY / 8]u8, k: usize, b: u1) void {
+    const m = @as(u8, 1) << @intCast(k & 7);
+    if (b == 1) bits[k >> 3] |= m else bits[k >> 3] &= ~m;
 }
 
 /// Math.random, seeded: xorshift32 / 2^32.

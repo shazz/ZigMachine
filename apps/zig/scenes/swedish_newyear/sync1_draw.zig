@@ -1,7 +1,7 @@
 // SYNC #1's pixel layers, each sampled at the 640-space point (2X+0.5, 2Y+0.5)
 // through the remake's own transform, nearest (an ST moves whole pixels).
 const frame = @import("frame.zig");
-const gen = @import("assets_gen.zig");
+const assets = @import("assets.zig");
 const image = @import("image.zig");
 const sc = @import("scroller.zig");
 const fx = @import("fx.zig");
@@ -20,7 +20,7 @@ pub fn banner(tile: i32, xx: f64) void {
         if (v < 0 or v >= 70) continue;
         var x: i32 = 94;
         while (x <= 226) : (x += 1) {
-            const g = gen.banner.at(x - 94, tile * 70 + v);
+            const g = assets.banner.at(x - 94, tile * 70 + v);
             if (g != NONE) frame.put(x, y, g);
         }
     }
@@ -76,7 +76,7 @@ fn glyph(s: *const sc.Scroller, k: u8, cx: i32, row: i32) u16 {
     const party = @divFloor(nb, 10) * 27;
     if (party >= 162) return NONE; // '\' ']' '_': no cell, nothing drawn
     const px: i32 = @intFromFloat(s.posx[k]);
-    return gen.syncfont.at(@mod(nb, 10) * 32 + cx - px, party + row);
+    return assets.syncfont.at(@mod(nb, 10) * 32 + cx - px, party + row);
 }
 
 /// logo.png centred in a 640x450 canvas (top-left 235,200), FX sinx(50,50)
@@ -99,7 +99,7 @@ pub fn logo(fx1: *fx.Fx(2), fx2: *fx.Fx(2)) void {
             const j = r2 - 50; // the sinx row
             if (j < 0) continue;
             const c1 = ifloor(@as(f64, @floatFromInt(i)) + 0.5 - (p[@intCast(j)] + 50));
-            const g = gen.logo.at(c1 - 235, j - 200);
+            const g = assets.logo.at(c1 - 235, j - 200);
             if (g != NONE) frame.put(x, y, g);
         }
     }

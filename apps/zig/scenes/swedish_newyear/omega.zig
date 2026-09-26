@@ -8,7 +8,7 @@
 //   atari.png's 31 spinning frames (172x134, one per 2 frames) bouncing on
 //     184 - |sin(logosiny) * 47|.
 const frame = @import("frame.zig");
-const gen = @import("assets_gen.zig");
+const assets = @import("assets.zig");
 const image = @import("image.zig");
 const texts = @import("texts.zig");
 const sc = @import("scroller.zig");
@@ -31,7 +31,7 @@ pub const Omega = struct {
 
     pub fn step(self: *Omega, vu: *Vu, regs: *const [16]u8) void {
         vu.watch(regs);
-        blit(&gen.omain, 20, 20, 128); // 640-space (40,40): even rows and columns
+        blit(&assets.omain, 20, 20, 128); // 640-space (40,40): even rows and columns
         omegaSign();
         self.scroll.advance();
         self.drawScroll();
@@ -64,7 +64,7 @@ pub const Omega = struct {
                     const local = @as(f64, @floatFromInt(2 * x)) + 0.5 - posx;
                     if (local < 0) continue;
                     if (local >= partw) break;
-                    const g = gen.ofont.at(ifloor(partx + local), ifloor(party + r));
+                    const g = assets.ofont.at(ifloor(partx + local), ifloor(party + r));
                     if (g != NONE) frame.put(x, y, g);
                 }
             }
@@ -84,7 +84,7 @@ pub const Omega = struct {
             if (r < 0 or r >= 134) continue;
             var x: i32 = 115;
             while (x < 201) : (x += 1) {
-                const g = gen.atari.at(@divFloor(partx + 2 * x - 229, 2), party + r);
+                const g = assets.atari.at(@divFloor(partx + 2 * x - 229, 2), party + r);
                 if (g != NONE) frame.put(x, y, g);
             }
         }
@@ -108,7 +108,7 @@ fn omegaSign() void {
     while (y < 187) : (y += 1) {
         var x: i32 = 148;
         while (x < 162) : (x += 1) {
-            const g = gen.omega.at(2 * x - 295, 2 * y - 345);
+            const g = assets.omega.at(2 * x - 295, 2 * y - 345);
             if (g != NONE) frame.put(x, y, g);
         }
     }
@@ -134,7 +134,7 @@ fn meters(h: i32, row0: i32) void {
         while (x < 261) : (x += 1) {
             const col = if (x <= 146) 292 - 2 * x else 2 * x - 324;
             if (col < 0 or col >= 198) continue;
-            const g = gen.vumeter.at(@divFloor(col, 2), r);
+            const g = assets.vumeter.at(@divFloor(col, 2), r);
             if (g != NONE) frame.put(x, y, g);
         }
     }

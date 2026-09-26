@@ -11,6 +11,7 @@
 // the border IS colour 0, so a colour-0 raster runs edge to edge.
 const zg = @import("zigos");
 const gen = @import("assets_gen.zig");
+const ram = @import("ram.zig");
 
 const ZigOS = zg.ZigOS;
 const LogicalFB = zg.LogicalFB;
@@ -24,15 +25,14 @@ pub const BLACK: u32 = 0xFF00_0000;
 
 pub const Borders = enum { closed, bottom, all };
 
-/// The picture, one gid a physical pixel (module scope: 224 KB, not in Demo).
-pub var px: [PH][PW]u16 = undefined;
 /// Colour 0 per physical line: `now` is what the plane shows this frame,
 /// `next` what hwClear paints the closed borders with at the START of the next
 /// frame (it runs before the cart, so the table is built one frame ahead).
 pub var c0_now: [PH]u32 = undefined;
 pub var c0_next: [PH]u32 = undefined;
-/// The per-line entries 1..used[y] that present() handed out.
-var bank: [PH][255]u32 = undefined;
+// The picture (a gid a physical pixel) is ram.buf.px; the per-line entries
+// 1..used[y] that present() hands out are ram.buf.bank, as gids: the HBL looks
+// the colour up, so the 280x255 table is u16, not u32.
 var used: [PH]u8 = undefined;
 var slot: [gen.NB_COLOURS]u8 = undefined;
 var stamp: [gen.NB_COLOURS]u16 = undefined;
@@ -43,6 +43,7 @@ pub var peak: u8 = 0;
 pub var overflow: u32 = 0;
 
 pub fn init(zigos: *ZigOS) void {
+    ram.init();
     const fb = &zigos.lfbs[0];
     fb.setOverscanBuffer();
     fb.is_enabled = true;
@@ -63,7 +64,7 @@ pub fn setBorders(b: Borders) void {
 }
 
 pub fn clear() void {
-    for (&px) |*row| @memset(row, 0);
+    for (ram.buf.px) |*row| @memset(row, 0);
 }
 
 /// Plot a gid at mycanvas-ST coordinates (the 320x225 remake canvas, halved).
@@ -71,7 +72,7 @@ pub inline fn put(x: i32, y: i32, g: u16) void {
     const X = x + OX;
     const Y = y + OY;
     if (X < 0 or Y < 0 or X >= PW or Y >= PH) return;
-    px[@intCast(Y)][@intCast(X)] = g;
+    ram.buf.px[@intCast(Y)][@intCast(X)] = g;
 }
 
 /// Colour 0 for the mycanvas-ST row `y` in a per-line table.
@@ -82,6 +83,8 @@ pub fn setC0(table: *[PH]u32, y: i32, rgba: u32) void {
 
 /// Rows -> plane indices, handing out each line's entries.
 pub fn present(fb: *LogicalFB) void {
+    const px = ram.buf.px;
+    const bank = ram.buf.bank;
     for (0..PH) |y| {
         stamp_gen +%= 1;
         if (stamp_gen == 0) {
@@ -99,7 +102,7 @@ pub fn present(fb: *LogicalFB) void {
                 overflow += 1;
                 o.* = 255;
             } else {
-                bank[y][n] = gen.colours[g];
+                bank[y][n] = g;
                 n += 1;
                 stamp[g] = stamp_gen;
                 slot[g] = n;
@@ -122,7 +125,7 @@ fn planeHbl(fb: *LogicalFB, _: *ZigOS, line: u16, _: u16) void {
     if (flick) fb.flickerBorder();
     if (line >= PH) return;
     fb.palette[0] = c0_now[line];
-    for (bank[line][0..used[line]], 1..) |c, i| fb.palette[i] = c;
+    for (ram.buf.bank[line][0..used[line]], 1..) |g, i| fb.palette[i] = gen.colours[g];
 }
 
 /// Global HBL, physical line: a closed border shows colour 0.

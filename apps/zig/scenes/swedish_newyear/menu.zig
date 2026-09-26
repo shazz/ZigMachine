@@ -8,6 +8,7 @@
 // frame.zig's line palette carries its colours, as a Spectrum-512 picture's HBL does.
 const frame = @import("frame.zig");
 const gen = @import("assets_gen.zig");
+const assets = @import("assets.zig");
 const texts = @import("texts.zig");
 const image = @import("image.zig");
 const sc = @import("scroller.zig");
@@ -34,7 +35,7 @@ pub const Menu = struct {
 
     fn drawPicture() void {
         for (0..200) |y| {
-            const row = gen.main_px[y * 320 ..][0..320];
+            const row = assets.main_px[y * 320 ..][0..320];
             for (row, 0..) |i, x| frame.put(@intCast(x), @intCast(y), gen.main_lut[y][i]);
         }
     }
@@ -54,7 +55,7 @@ pub const Menu = struct {
                 const srow = @divFloor(nb, 10) * 27 + @divFloor(2 * y - SCROLL_Y - 1, 2);
                 var x: i32 = @max(0, @divFloor(posx + 1, 2));
                 while (x < 320 and 2 * x - posx < 95) : (x += 1) {
-                    const g = gen.font7.at(partx + 2 * x - posx, srow);
+                    const g = assets.font7.at(partx + 2 * x - posx, srow);
                     if (g != image.NONE) frame.put(x, y, g);
                 }
             }
@@ -63,7 +64,7 @@ pub const Menu = struct {
 
     fn drawBlock(x0: i32) void {
         for (0..25) |y| for (0..16) |x| {
-            const g = gen.block.at(@intCast(x), @intCast(y));
+            const g = assets.block.at(@intCast(x), @intCast(y));
             if (g != image.NONE) frame.put(x0 + @as(i32, @intCast(x)), 200 + @as(i32, @intCast(y)), g);
         };
     }

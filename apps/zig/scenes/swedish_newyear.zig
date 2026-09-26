@@ -49,6 +49,7 @@ const Tcb2 = @import("swedish_newyear/tcb2.zig").Tcb2;
 const Omega = @import("swedish_newyear/omega.zig").Omega;
 const Vu = @import("swedish_newyear/vu.zig").Vu;
 const music = @import("swedish_newyear/music.zig");
+const assets = @import("swedish_newyear/assets.zig");
 
 const ZigOS = zg.ZigOS;
 
@@ -72,6 +73,7 @@ pub const Demo = struct {
     intro_on: bool,
     intro_ms: f32,
     wants_quit: bool,
+    loaded: ?assets.Set, // the pictures in the part buffer (null: none usable)
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
         self.part = .menu;
@@ -85,6 +87,7 @@ pub const Demo = struct {
         self.intro_on = false;
         self.intro_ms = 0;
         self.wants_quit = false;
+        self.loaded = null;
         frame.init(zigos);
         music.play(.scout);
     }
@@ -108,17 +111,39 @@ pub const Demo = struct {
             .tcb1 => .all,
             else => .closed,
         });
-        if (self.part != .tcb1) frame.clear();
-        switch (self.part) {
+        const ready = self.load();
+        if (self.part != .tcb1 or !ready) frame.clear();
+        if (ready) switch (self.part) {
             .menu => self.menu.step(),
             .sync1 => self.sync1.step(),
             .sync2 => sync2.step(&self.vu, &zigos.ym_regs),
             .tcb1 => if (self.tcb1.step()) music.play(.tcb_music),
             .tcb2 => self.tcb2.step(self.sync1.scroll.current()),
             .omega => self.omega.step(&self.vu, &zigos.ym_regs),
-        }
+        };
         frame.present(&zigos.lfbs[0]);
         self.colour0();
+    }
+
+    /// The part's pictures, depacked when it is first drawn after a switch (so
+    /// two keys between frames depack once). False: nothing to draw with.
+    fn load(self: *Demo) bool {
+        const set: assets.Set = switch (self.part) {
+            .menu => .menu,
+            .sync1, .sync2 => .sync,
+            .tcb1 => .tcb1,
+            .tcb2 => .tcb2,
+            .omega => .omega,
+        };
+        if (self.loaded == set) return true;
+        if (!assets.load(set)) {
+            self.loaded = null;
+            zg.Console.log("swedish_newyear: the {s} pictures do not depack", .{@tagName(set)});
+            return false;
+        }
+        self.loaded = set;
+        if (set == .tcb1) self.tcb1.enter();
+        return true;
     }
 
     /// The next frame's colour 0 per line (rasters on SYNC #1 and TCB #2).

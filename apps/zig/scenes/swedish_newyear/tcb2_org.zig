@@ -9,6 +9,7 @@
 // face (bottom half, flipped, drawn by ab 0), positive = a front face (top half, ab 1).
 // Every draw is nearest (the remake's canvas smooths).
 const gen = @import("assets_gen.zig");
+const assets = @import("assets.zig");
 const image = @import("image.zig");
 const sc = @import("scroller.zig");
 
@@ -19,10 +20,22 @@ const ROTA_STEP: f64 = 0.02;
 
 pub const W = 400;
 pub const H = 240;
-pub var org: [H][W]u16 = undefined;
-/// The text half of the 704x50 buffer as kh LOCAL indices (the bottom half is
-/// the same pixels; only the tint row differs).
-var sbuf: [25][704]u8 = undefined;
+/// Only rows TOP..H are stored: the layer's 1.8x draw never samples above
+/// orgcanvas row 111 ((0 + 0.5 + 200) / 1.8), and nothing is drawn there
+/// either (the cylinder's highest row is floor(138 - 0.5 - 25) - 1 = 111).
+pub const TOP = 111;
+/// TCB #2's scratch in the part buffer: the stored orgcanvas rows, and the text
+/// half of the 704x50 buffer as kh LOCAL indices (the bottom half is the same
+/// pixels; only the tint row differs).
+pub const Scratch = struct {
+    rows: [H - TOP][W]u16,
+    sbuf: [25][704]u8,
+};
+
+/// orgcanvas row `y`, TOP <= y < H.
+pub fn row(y: usize) *[W]u16 {
+    return &assets.scratch(.tcb2).rows[y - TOP];
+}
 
 pub const Cylinder = struct {
     rota: f64,
@@ -49,7 +62,8 @@ pub const Cylinder = struct {
 };
 
 fn fillBuffer(text: *sc.Scroller) void {
-    for (&sbuf) |*r| @memset(r, 0);
+    const sbuf = &assets.scratch(.tcb2).sbuf;
+    for (sbuf) |*r| @memset(r, 0);
     text.advance();
     for (0..text.wide + 1) |k| {
         const nb: i32 = @as(i32, text.ltr[k]) - 32;
@@ -59,7 +73,7 @@ fn fillBuffer(text: *sc.Scroller) void {
         const px: i32 = @intFromFloat(text.posx[k]);
         var c: i32 = @max(0, px);
         while (c < px + 32 and c < 704) : (c += 1) {
-            for (0..25) |r| sbuf[r][@intCast(c)] = gen.kh.local(@intCast(partx + c - px), @intCast(party + @as(i32, @intCast(r))));
+            for (0..25) |r| sbuf[r][@intCast(c)] = assets.kh.local(@intCast(partx + c - px), @intCast(party + @as(i32, @intCast(r))));
         }
     }
 }
@@ -79,14 +93,18 @@ fn column(i: i32, counter: i32, yrot: f64, size: f64, party: i32) void {
     const dy = yrot + 200 - 32;
     const lo = ifloor(dy - 0.5 + 25 * @min(size, 0)) - 1;
     const hi = ifloor(dy - 0.5 + 25 * @max(size, 0)) + 2;
-    var y = @max(lo, 0);
+    const s = assets.scratch(.tcb2);
+    var y = @max(lo, TOP);
     while (y < @min(hi, H)) : (y += 1) {
         const v = ifloor((@as(f64, @floatFromInt(y)) + 0.5 - dy) / size);
         if (v < 0 or v >= 25) continue;
+        const src = &s.sbuf[@intCast(v)];
+        const tint = &gen.tint_gid[@intCast(party + v)];
+        const dst = &s.rows[@intCast(y - TOP)];
         var x = @max(dx, 0);
         while (x < dx + partw and x < W) : (x += 1) {
-            const l = sbuf[@intCast(v)][@intCast(partx + x - dx)];
-            if (l != 0) org[@intCast(y)][@intCast(x)] = gen.tint_gid[@intCast(party + v)][l];
+            const l = src[@intCast(partx + x - dx)];
+            if (l != 0) dst[@intCast(x)] = tint[l];
         }
     }
 }
@@ -103,8 +121,8 @@ pub fn otherScroller(text: *sc.Scroller) void {
         var c: i32 = @max(0, px);
         while (c < px + 48 and c < 329) : (c += 1) {
             for (0..25) |r| {
-                const g = gen.kh2.at(partx + c - px, party + @as(i32, @intCast(r)));
-                if (g != NONE) org[155 + r][@intCast(c)] = g;
+                const g = assets.kh2.at(partx + c - px, party + @as(i32, @intCast(r)));
+                if (g != NONE) row(155 + r)[@intCast(c)] = g;
             }
         }
     }
@@ -112,23 +130,23 @@ pub fn otherScroller(text: *sc.Scroller) void {
 
 /// scrolledge.draw(orgcanvas, cx, cy, 1, 0, 0.7, 0.7), midhandled (13, 18).
 pub fn edge(cx: f64, cy: f64) void {
-    var y: i32 = @max(0, ifloor(cy - 20));
+    var y: i32 = @max(TOP, ifloor(cy - 20));
     while (y < @min(H, ifloor(cy + 20))) : (y += 1) {
         const v = ifloor((@as(f64, @floatFromInt(y)) + 0.5 - cy) / 0.7 + 18);
         var x: i32 = @max(0, ifloor(cx - 16));
         while (x < ifloor(cx + 16)) : (x += 1) {
             const u = ifloor((@as(f64, @floatFromInt(x)) + 0.5 - cx) / 0.7 + 13);
-            const g = gen.edge.at(u, v);
-            if (g != NONE) org[@intCast(y)][@intCast(x)] = g;
+            const g = assets.edge.at(u, v);
+            if (g != NONE) row(@intCast(y))[@intCast(x)] = g;
         }
     }
 }
 
 pub fn clear() void {
-    for (&org) |*r| @memset(r, 0);
+    for (&assets.scratch(.tcb2).rows) |*r| @memset(r, 0);
 }
 
 /// orgcanvas.quad(318, 111, 50, 130, '#000000')
 pub fn quad() void {
-    for (111..H) |y| @memset(org[y][318..368], 0);
+    for (TOP..H) |y| @memset(row(y)[318..368], 0);
 }

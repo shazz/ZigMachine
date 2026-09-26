@@ -1,7 +1,7 @@
 // TCB #2's pixel layers, each sampled at the 640-space point (2X+0.5, 2Y+0.5)
 // through the remake's transforms, nearest (see fx.zig).
 const frame = @import("frame.zig");
-const gen = @import("assets_gen.zig");
+const assets = @import("assets.zig");
 const image = @import("image.zig");
 const fx = @import("fx.zig");
 const org = @import("tcb2_org.zig");
@@ -17,8 +17,8 @@ pub fn layer(top: f64) void {
         const y2 = ifloor(@as(f64, @floatFromInt(2 * y)) + 0.5 - top);
         if (y2 < 0 or y2 >= 400) continue;
         const oy = ifloor((@as(f64, @floatFromInt(y2)) + 0.5 + 200) / 1.8);
-        if (oy >= org.H) continue;
-        const row = &org.org[@intCast(oy)];
+        if (oy < org.TOP or oy >= org.H) continue;
+        const row = org.row(@intCast(oy));
         var x: i32 = 17;
         while (x < 320) : (x += 1) {
             const ox = ifloor((@as(f64, @floatFromInt(2 * x - 34)) + 0.5) / 1.8);
@@ -37,7 +37,7 @@ pub fn wizcoder(grey: u16) void {
         var x: i32 = 60;
         while (x < 260) : (x += 1) {
             const u = ifloor((@as(f64, @floatFromInt(2 * x)) + 0.5 - 320) / 1.5 + 130);
-            if (gen.wizcoder.at(u, v) != NONE) frame.put(x, y, grey);
+            if (assets.wizcoder.at(u, v) != NONE) frame.put(x, y, grey);
         }
     }
 }
@@ -60,7 +60,7 @@ pub fn tcbLogo(fx_y: *fx.Fx(2), fx_x: *fx.Fx(2)) void {
             if (r1 < 0 or r1 >= 240) continue;
             const u = ifloor((@as(f64, @floatFromInt(c2)) + 0.5 - 320) / 1.5 + 48);
             const v = ifloor((@as(f64, @floatFromInt(r1)) + 0.5 - 50) / 1.5 + 12);
-            const g = gen.tcblogo.at(u, v);
+            const g = assets.tcblogo.at(u, v);
             if (g != NONE) frame.put(x, y, g);
         }
     }
@@ -76,7 +76,7 @@ pub fn ancool(fx_x: *fx.Fx(2)) void {
         var x: i32 = 0;
         while (x < 320) : (x += 1) {
             const c = ifloor(@as(f64, @floatFromInt(2 * x)) + 0.5 - p[j]);
-            const g = gen.ancool.at(c - 130, @as(i32, @intCast(j)) - 88);
+            const g = assets.ancool.at(c - 130, @as(i32, @intCast(j)) - 88);
             if (g != NONE) frame.put(x, y, g);
         }
     }

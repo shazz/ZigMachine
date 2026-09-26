@@ -26,7 +26,9 @@ pub const Scroller = struct {
         self.text = text;
         self.fontw = fontw;
         self.speed = speed;
-        self.wide = @intFromFloat(@ceil(canvas_w / fontw) + 1);
+        // Clamped so a wider canvas can never run past the MAX-letter ring (no
+        // ring here reaches it: the widest is exactly MAX).
+        self.wide = @min(@as(usize, @intFromFloat(@ceil(canvas_w / fontw) + 1)), MAX - 1);
         self.off = 0;
         for (0..self.wide + 1) |i| {
             self.posx[i] = @ceil(@as(f64, @floatFromInt(self.wide)) * fontw + @as(f64, @floatFromInt(i)) * fontw);
