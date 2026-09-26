@@ -62,8 +62,11 @@ fn posed(p: Pose, v: Vec4) Vec4 {
 // --------------------------------------------------------------------------
 // Variables
 // --------------------------------------------------------------------------
-var overcan_buffer = [_]u8{0} ** (320 * 280);
-var render_buffer: RenderBuffer = .{ .buffer = &overcan_buffer, .width = 320, .height = 280 };   
+// The 320x280 frame, drawn here and blitted into the plane: from the cart RAM
+// arena (zg.mem) in init, since as a module-scope array it was 89,600 zero
+// bytes of the data section. render_buffer.buffer is pointed at it there.
+var overcan_buffer: *[320 * 280]u8 = undefined;
+var render_buffer: RenderBuffer = .{ .width = 320, .height = 280 };
 
 // --------------------------------------------------------------------------
 // Demo
@@ -112,6 +115,8 @@ pub const Demo = struct {
         fb.setFrameBufferHBLHandler(zg.OVERSCAN_MAGIC_X, handler_vertical_borders);
 
         // create text buffer
+        overcan_buffer = zg.mem.mustAlloc(u8, 320 * 280)[0 .. 320 * 280]; // once per cart load
+        render_buffer.buffer = overcan_buffer;
         self.render_target = .{ .render_buffer = &render_buffer };  
         self.render_target.clearFrameBuffer(0); 
 
@@ -171,10 +176,11 @@ pub const Demo = struct {
         const ph: usize = zg.PHYSICAL_HEIGHT;
         const vw: usize = WIDTH;
         const border: usize = zg.OVERSCAN_MAGIC_X;
+        const src = overcan_buffer; // a local: the global pointer is not reloaded per pixel
         var y: usize = 0;
         while (y < ph) : (y += 1) {
             var x: usize = 0;
-            while (x < vw) : (x += 1) fb.fb[y * pw + x + border] = overcan_buffer[y * vw + x];
+            while (x < vw) : (x += 1) fb.fb[y * pw + x + border] = src[y * vw + x];
         }
 
         _ = elapsed_time;
