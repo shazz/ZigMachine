@@ -26,10 +26,6 @@ pub const path_x = @embedFile(DIR ++ "path_x.bin");
 pub const path_y = @embedFile(DIR ++ "path_y.bin");
 /// $D6AA: 3335 character codes then $3F (wrap). $F0 = pause.
 pub const text = @embedFile(DIR ++ "text.bin");
-/// The four scroll buffers' 19 lines at start: pic2 is decoded after the BSS
-/// clear, so its tail sits in $1B452 and $1DE52 until the scroller shifts it
-/// out (and line 18 of each buffer, which the shift never writes, keeps it).
-pub const scrollbuf = @embedFile(DIR ++ "scrollbuf.bin");
 
 pub const SCREEN_BYTES: usize = 32000;
 pub const LINE: usize = 160;
@@ -49,7 +45,6 @@ comptime {
     std.debug.assert(font.len == 112 * LINE);
     std.debug.assert(raster.len == 0xD669 - 0xD3FE);
     std.debug.assert(path_x.len == PATH_LEN and path_y.len == PATH_LEN);
-    std.debug.assert(scrollbuf.len == 4 * BUF_BYTES);
     // every code is a glyph, the wrap or the pause: the table is never overrun
     @setEvalBranchQuota(20_000);
     for (text) |c| std.debug.assert(c < GLYPHS or c == TEXT_WRAP or c == TEXT_PAUSE);

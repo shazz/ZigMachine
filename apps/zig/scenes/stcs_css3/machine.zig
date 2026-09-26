@@ -5,12 +5,24 @@
 // and columns.zig and work on this, byte for byte, as the 68000 did.
 // --------------------------------------------------------------------------
 const std = @import("std");
+const zg = @import("zigos");
 const A = @import("assets.zig");
 
-/// $F8000, the screen: module scope, it is the cart's and not the Demo's.
-pub var screen: [A.SCREEN_BYTES]u8 = undefined;
+/// $F8000, the screen: the cart's and not the Demo's.
+pub var screen: *[A.SCREEN_BYTES]u8 = undefined;
 /// The four scroll buffers ($1B452, $1DE52, $20852, $23252), 19 lines each.
-pub var bufs: [4][A.BUF_BYTES]u8 = undefined;
+pub var bufs: *[4][A.BUF_BYTES]u8 = undefined;
+var owned = false;
+
+/// Both come from the RAM arena (zg.mem), once per cart load: as module-scope
+/// arrays they were 44 KB of zeros written into the cart binary, since imported
+/// memory is not known to be zero.
+fn allocBuffers() void {
+    if (owned) return;
+    screen = zg.mem.mustAlloc(u8, A.SCREEN_BYTES)[0..A.SCREEN_BYTES];
+    bufs = zg.mem.mustAlloc([A.BUF_BYTES]u8, 4)[0..4];
+    owned = true;
+}
 
 pub const STARS: usize = 100;
 /// The raster region is kept as bytes at its own addresses ($D3FE..$D668):
@@ -48,8 +60,10 @@ pub const Machine = struct {
     cols: [8][A.SCROLL_LINES]u32, // $E7BE + $108*n: planes 0+1, one long a line
 
     pub fn init(self: *Machine) void {
-        @memcpy(&screen, A.screen);
-        for (&bufs, 0..) |*b, i| @memcpy(b, A.scrollbuf[i * A.BUF_BYTES ..][0..A.BUF_BYTES]);
+        allocBuffers();
+        @memcpy(screen, A.screen);
+        // The buffers start zeroed: the 12 KB ripped at start was all zeros.
+        for (bufs) |*b| @memset(b, 0);
         @memcpy(&self.raster, A.raster);
         self.bar_up = false;
         self.warp = 0;
@@ -133,6 +147,6 @@ pub const Machine = struct {
 fn plot(line: usize, x: u16, set: bool) void {
     const a = line + ((x >> 1) & 0xF8);
     const bit: u16 = @as(u16, 1) << @intCast(15 - (x & 15));
-    const w = A.be16(&screen, a);
-    A.put16(&screen, a, if (set) w | bit else w & ~bit);
+    const w = A.be16(screen, a);
+    A.put16(screen, a, if (set) w | bit else w & ~bit);
 }
