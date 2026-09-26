@@ -37,7 +37,6 @@
 // stars are the TCB logo's own three colours, as an ST palette would share.
 // There is no raster on this screen: nothing changes colour per line.
 // --------------------------------------------------------------------------
-const std = @import("std");
 const zg = @import("zigos");
 const ZigOS = zg.ZigOS;
 const LogicalFB = zg.LogicalFB;

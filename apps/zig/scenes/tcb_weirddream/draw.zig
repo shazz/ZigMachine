@@ -36,6 +36,12 @@ comptime {
     if (font_b.len != FONT_W * 150) @compileError("font.raw is not 320x150");
     if (sprite_b.len != SPRITE_W * SPRITE_H) @compileError("sprite.raw is not 48x32");
     if (logos_idx.len != LOGO_FRAMES * 12) @compileError("logos.idx is not 150 frames");
+    // keyed() slices logos_b[off..] without a runtime check: prove every frame fits.
+    @setEvalBranchQuota(20_000);
+    for (0..LOGO_FRAMES) |i| {
+        const e = logoEntry(i);
+        if (e.off + @as(usize, e.w) * e.h > logos_b.len) @compileError("logos.idx frame overruns logos.raw");
+    }
 }
 
 /// dosplash(): the canvas was filled with colour 0, and draw n (1-based) has
@@ -55,32 +61,43 @@ pub fn clear(fb: *LogicalFB) void {
 // --------------------------------------------------------------------------
 // The two zooming logos: frame `zoom` of the precalc, at its y parity
 // --------------------------------------------------------------------------
-const LOGO_FRAMES = (40 + 35) * 2;
-const REP_FIRST = 40 * 2; // logos.idx: TCB 1..40 then REPLICANTS 1..35, x2 parities
+const TCB_ZOOMS = 40; // prelogotcb: 2000 / 50 rows
+const REP_ZOOMS = 35; // prelogorep: 1540 / 44 rows
+const LOGO_FRAMES = (TCB_ZOOMS + REP_ZOOMS) * 2;
+const REP_FIRST = TCB_ZOOMS * 2; // logos.idx: TCB 1..40 then REPLICANTS 1..35, x2 parities
 // drawPart at canvas x 225 / 41, both odd: the bake halves column pairs (-1,0)..
 const TCB_X: i32 = 112;
 const REP_X: i32 = 20;
 
 pub fn logos(fb: *LogicalFB, l: motion.Layout) void {
     if (l.tcb_on_top) {
-        logo(fb, l.rep, REP_FIRST, REP_X);
-        logo(fb, l.tcb, 0, TCB_X);
+        logo(fb, l.rep, REP_FIRST, REP_ZOOMS, REP_X);
+        logo(fb, l.tcb, 0, TCB_ZOOMS, TCB_X);
     } else {
-        logo(fb, l.tcb, 0, TCB_X);
-        logo(fb, l.rep, REP_FIRST, REP_X);
+        logo(fb, l.tcb, 0, TCB_ZOOMS, TCB_X);
+        logo(fb, l.rep, REP_FIRST, REP_ZOOMS, REP_X);
     }
 }
 
-fn logo(fb: *LogicalFB, l: motion.Logo, first: usize, x: i32) void {
-    if (l.zoom == 0) return;
-    const i = first + (@as(usize, l.zoom) - 1) * 2 + @as(usize, @intCast(l.top & 1));
+const LogoEntry = struct { dx: i16, dy: i16, w: u16, h: u16, off: u32 };
+
+fn logoEntry(i: usize) LogoEntry {
     const e = logos_idx[i * 12 ..][0..12];
-    const dx = std.mem.readInt(i16, e[0..2], .little);
-    const dy = std.mem.readInt(i16, e[2..4], .little);
-    const w = std.mem.readInt(u16, e[4..6], .little);
-    const h = std.mem.readInt(u16, e[6..8], .little);
-    const off = std.mem.readInt(u32, e[8..12], .little);
-    keyed(fb, logos_b[off..], w, h, x + dx, (l.top >> 1) + dy);
+    return .{
+        .dx = std.mem.readInt(i16, e[0..2], .little),
+        .dy = std.mem.readInt(i16, e[2..4], .little),
+        .w = std.mem.readInt(u16, e[4..6], .little),
+        .h = std.mem.readInt(u16, e[6..8], .little),
+        .off = std.mem.readInt(u32, e[8..12], .little),
+    };
+}
+
+fn logo(fb: *LogicalFB, l: motion.Logo, first: usize, zooms: u8, x: i32) void {
+    // zoom is bounded by the motion formulas (TCB <= 40, REPLICANTS <= 35);
+    // the explicit test keeps a changed formula from reading another logo's frame.
+    if (l.zoom == 0 or l.zoom > zooms) return;
+    const e = logoEntry(first + (@as(usize, l.zoom) - 1) * 2 + @as(usize, @intCast(l.top & 1)));
+    keyed(fb, logos_b[e.off..], e.w, e.h, x + e.dx, (l.top >> 1) + e.dy);
 }
 
 // --------------------------------------------------------------------------
@@ -141,8 +158,7 @@ fn keyed(fb: *LogicalFB, img: []const u8, w: u16, h: u16, x: i32, y: i32) void {
     const y0: i32 = @max(0, -y);
     const y1: i32 = @min(@as(i32, h), @as(i32, H) - y);
     if (x0 >= x1 or y0 >= y1) return;
-    var r: usize = @intCast(y0);
-    while (r < y1) : (r += 1) {
+    for (@as(usize, @intCast(y0))..@as(usize, @intCast(y1))) |r| {
         const src = img[r * w ..][@intCast(x0)..@intCast(x1)];
         const at = @as(usize, @intCast(y + @as(i32, @intCast(r)))) * fb.stride + @as(usize, @intCast(x + x0));
         for (src, fb.fb[at..][0..src.len]) |v, *p| {
