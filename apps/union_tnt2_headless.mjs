@@ -221,6 +221,8 @@ function readNote(buf) {
     return { door: buf[6], x: dv.getFloat32(8, true), y: dv.getFloat32(12, true), scroll: dv.getUint32(16, true) };
 }
 
+const machines = []; // every boot's video machine, for the zg.mem refusal check
+
 async function boot(cart, note = null) {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
     let demo;
@@ -243,6 +245,7 @@ async function boot(cart, note = null) {
     machine.hwInit();
     demo.boot();
     demo.skipBoot();
+    machines.push(machine);
     return { memory, machine, demo, rom };
 }
 
@@ -438,6 +441,9 @@ for (const [what, note, want, writes] of [
     if (v.start !== want || v.wrote !== writes)
         errors.push(`${what}: the scroller started at ${v.start} (want ${want}), the scratch was ${v.wrote ? "" : "not "}rewritten (want ${writes ? "rewritten" : "untouched"})`);
 }
+// Every boot takes its depack target from zg.mem: a refused allocation is a screen that never loaded.
+const refused = machines.reduce((n, m) => n + m.hwRamAllocFailures(), 0);
+if (refused) errors.push(`${refused} zg.mem allocation(s) refused`);
 
 if (errors.length) {
     console.error(`union_tnt2: WRONG${brk ? ` (--break ${brk})` : ""} (${cartPath})\n  ${errors.slice(0, 12).join("\n  ")}`);

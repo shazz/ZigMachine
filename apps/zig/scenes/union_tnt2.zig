@@ -25,7 +25,6 @@
 // start fresh.
 // --------------------------------------------------------------------------
 const zg = @import("zigos");
-const hw = @import("hardware");
 const ZigOS = zg.ZigOS;
 const Color = zg.Color;
 const blit = zg.blit;
@@ -76,7 +75,8 @@ pub const Demo = struct {
         self.scroll_speed = 2; // screen.js:30
         self.select = 1;
         self.keys.init();
-        const buf = freeRam(A.TOTAL) orelse return fail("no free RAM to depack into");
+        // On zg.mem, taken once: init runs once per cart load.
+        const buf = zg.mem.alloc(u8, A.TOTAL) orelse return fail("no free RAM to depack into");
         if (!depack.start(zigos, packed_assets.union_tnt2, buf, DEPACK_BYTES_PER_LINE))
             return fail("packed image unreadable");
         self.images = A.Images.split(buf);
@@ -205,11 +205,4 @@ fn drawPiece(dst: blit.Dst, img: blit.Image, p: A.Piece) void {
 
 fn fail(why: []const u8) void {
     zg.Console.log("union_tnt2: {s}", .{why});
-}
-
-/// `len` bytes of the cart's RAM window above its statics and stack.
-fn freeRam(len: usize) ?[]u8 {
-    if (hw.hwRamFree() < len) return null;
-    const base: usize = hw.hwRamBase() + hw.hwRamUsed();
-    return @as([*]u8, @ptrFromInt(base))[0..len];
 }
