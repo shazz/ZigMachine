@@ -41,7 +41,6 @@
 // --------------------------------------------------------------------------
 const std = @import("std");
 const zg = @import("zigos");
-const hw = @import("hardware");
 const ZigOS = zg.ZigOS;
 const Color = zg.Color;
 const blit = zg.blit;
@@ -123,7 +122,8 @@ pub const Demo = struct {
         self.newest = 0;
         self.leaving = false;
 
-        const buf = freeRam(SCREEN_LEN) orelse return self.abandon("no free RAM to depack into");
+        // On zg.mem, taken once: init runs once per cart load.
+        const buf = zg.mem.alloc(u8, SCREEN_LEN) orelse return self.abandon("no free RAM to depack into");
         if (!depack.start(zigos, @import("packed_assets").union_textracker, buf, DEPACK_BYTES_PER_LINE))
             return self.abandon("packed screen unreadable");
         self.screen = buf;
@@ -269,11 +269,4 @@ fn blend(src: Color, dst: Color) Color {
 const ALPHA8: u16 = @round(TILE0_ALPHA * 255);
 fn mix(s: u8, d: u8) u8 {
     return @intCast(((@as(u16, s) * (ALPHA8 + 1)) >> 8) + ((@as(u16, d) * (256 - ALPHA8)) >> 8));
-}
-
-/// `len` bytes of the cart's RAM window above its statics and stack.
-fn freeRam(len: usize) ?[]u8 {
-    if (hw.hwRamFree() < len) return null;
-    const base: usize = hw.hwRamBase() + hw.hwRamUsed();
-    return @as([*]u8, @ptrFromInt(base))[0..len];
 }
