@@ -431,6 +431,11 @@ pub fn build(b: *std.Build) void {
         "demo-trsi_transarctica", // 70 — TRSI / TRANSARCTICA Falcon030 cracktro (ported from the Falcon binary)
         "demo-north_south", // 71 — Infogrames / NORTH & SOUTH, the battle, playable (ported from the ST program)
         "demo-joust", // 72 — JOUST, Atari Corp 1986: the game, ported from JOUST.PRG through its reference model
+        "", // 73 — reserved: tcb_spreadpoint (in flight on another branch)
+        "", // 74 — reserved: stcs_css3 (in flight on another branch)
+        "", // 75 — reserved: tcb_weirddream (in flight on another branch)
+        "", // 76 — reserved: swedish_newyear (in flight on another branch)
+        "demo-gen4_3615", // 77 — ULM / 3615 GEN4 contest screen by The Fate, full overscan (CODEF screen 539)
     };
     for (cart_names, 0..) |name, idx| {
         if (name.len == 0) continue; // excluded cart (see note above)

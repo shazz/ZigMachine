@@ -83,6 +83,7 @@ const scene = switch (opts.index) {
     70 => @import("scenes/trsi_transarctica.zig"), // TRSI / TRANSARCTICA cracktro (original Falcon030 binary)
     71 => @import("scenes/north_south.zig"), // Infogrames / NORTH & SOUTH, the battle (original ST program, playable)
     72 => @import("scenes/joust.zig"), // JOUST, Atari Corp 1986: the game (original ST binary, playable)
+    77 => @import("scenes/gen4_3615.zig"), // ULM / 3615 GEN4, The Fate (CODEF screen 539)
     else => @compileError("bad cart index"),
 };
 
