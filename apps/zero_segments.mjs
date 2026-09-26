@@ -38,7 +38,6 @@ const ALLOW = {
     "demo-st_replay.wasm": 1579078,
     "demo-supplex_fs2.wasm": 73277,
     "demo-tex_neoshow.wasm": 71918,
-    "demo-ulm_spoon_distorter.wasm": 95482,
 };
 
 function uleb(b, p) {

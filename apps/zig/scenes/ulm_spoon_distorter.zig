@@ -182,11 +182,24 @@ fn getPosition(i: i64) i64 {
 }
 
 // --------------------------------------------------------------------------
-// Offscreens and per-row scratch (module scope: kept out of the Demo struct)
+// Offscreens and per-row scratch: taken from the machine's RAM arena (zg.mem)
+// at init. As module-scope arrays they were 89 KB of zeros the link wrote into
+// the cart binary (imported memory is not known to be zero) and into the 2 MiB
+// window; from the arena they cost nothing until the cart runs, and come back
+// zeroed. The same buffers, the same way, as dyno_paradis3.
 // --------------------------------------------------------------------------
-var back_canvas: [BACK_CANVAS_W * BACK_H]u8 = undefined;
-var scroll_canvas: [SCROLL_W * FONT_H]u8 = undefined;
-var front_row: [SCREEN_H]i64 = undefined;
+var back_canvas: []u8 = &.{};
+var scroll_canvas: []u8 = &.{};
+var front_row: []i64 = &.{};
+
+// Once per cart load: a new cart gets a fresh instance (empty slices) AND an
+// empty arena, so a re-init of the same instance keeps its buffers.
+fn allocOffscreens() void {
+    if (back_canvas.len != 0) return;
+    back_canvas = zg.mem.mustAlloc(u8, BACK_CANVAS_W * BACK_H);
+    scroll_canvas = zg.mem.mustAlloc(u8, SCROLL_W * FONT_H);
+    front_row = zg.mem.mustAlloc(i64, SCREEN_H);
+}
 
 // --------------------------------------------------------------------------
 // Demo
@@ -207,6 +220,7 @@ pub const Demo = struct {
         self.letter_num = 0;
         self.letter_decal = 0;
         self.scroll_built_for = -1;
+        allocOffscreens();
 
         // back_canvas.fill('#000000') is fully covered by the 49 tiles
         for (0..BACK_H) |y| for (0..BACK_CANVAS_W) |x| {
@@ -230,7 +244,7 @@ pub const Demo = struct {
         _ = zigos;
         _ = dt; // the clock advances at the end of render(), after drawing
         var decal_x: i64 = std.math.maxInt(i64);
-        for (&front_row, 0..) |*v, line| {
+        for (front_row, 0..) |*v, line| {
             v.* = getWave(&front_intro, &front_main, self.wave_pos + line);
             decal_x = @min(decal_x, v.*);
         }
@@ -255,18 +269,20 @@ pub const Demo = struct {
         const fb = &zigos.lfbs[PLANE];
         const screen = fb.fb[0 .. PW * PH];
         const view = blit.Dst.plane(fb).window(X0, Y0, SCREEN_W, SCREEN_H);
-        const scroll_img = blit.Image.init(&scroll_canvas, SCROLL_W);
+        const scroll_img = blit.Image.init(scroll_canvas, SCROLL_W);
+        const back = back_canvas; // locals: the plane stores would otherwise reload them
+        const rows = front_row;
         for (0..SCREEN_H) |line| {
             const dst = screen[(Y0 + line) * PW + X0 ..][0..SCREEN_W];
 
             const back_wave = getWave(&back_intro, &back_main, self.wave_pos + line);
             const back_x: usize = @intCast(@mod(@divFloor(back_wave, 2), BACK_W)); // sums are >= 0
             const back_y = (line + BACK_ROW_OFFSET + bounce_back) % BACK_H;
-            @memcpy(dst, back_canvas[back_y * BACK_CANVAS_W + back_x ..][0..SCREEN_W]);
+            @memcpy(dst, back[back_y * BACK_CANVAS_W + back_x ..][0..SCREEN_W]);
 
             // >= 0: letter_decal <= decal_x <= every row's front value. A start
             // past the canvas draws nothing; the canvas edge clips, as drawPart does.
-            const scroll_x: usize = @intCast(front_row[line] - self.letter_decal);
+            const scroll_x: usize = @intCast(rows[line] - self.letter_decal);
             const font_y = (line + FONT_ROW_OFFSET + bounce_front) % FONT_H;
             const row = blit.Rect{ .x = scroll_x, .y = font_y, .w = SCREEN_W, .h = 1 };
             blit.blit(view, scroll_img, row, 0, @intCast(line), 0, .copy);
@@ -284,8 +300,8 @@ pub const Demo = struct {
 
 /// display_text: letters from `first` until the 1152-pixel canvas is full.
 fn buildScrollCanvas(first: i64) void {
-    @memset(&scroll_canvas, 0);
-    const canvas = blit.Dst.buffer(&scroll_canvas, SCROLL_W);
+    @memset(scroll_canvas, 0);
+    const canvas = blit.Dst.buffer(scroll_canvas, SCROLL_W);
     var x: usize = 0;
     var i: usize = @intCast(first);
     while (x < SCROLL_W) : (i += 1) {

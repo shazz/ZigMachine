@@ -111,3 +111,9 @@ t = performance.now();
 for (let i = 0; i < N; i++) for (let p = 0; p < PLANES; p++) machine.hwRenderPlane(p);
 const comp = (performance.now() - t) / N;
 console.log(`  frame cost: cart ${cart.toFixed(3)} ms + planes ${comp.toFixed(3)} ms`);
+// The offscreens come from zg.mem, once per cart load.
+const refused = machine.hwRamAllocFailures();
+if (refused) {
+    console.log(`ulm_spoon_distorter: FAILED -- ${refused} zg.mem allocation(s) refused`);
+    process.exit(1);
+}
