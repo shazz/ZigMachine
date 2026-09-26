@@ -13,6 +13,17 @@ const AMIGA_CLOCK: f32 = 7093789.2; // PAL Paula clock
 const FRAC_BITS: u6 = 16;
 const NUM_CH: usize = audio.NUM_CHANNELS;
 
+// Headroom. Channels 0/3 pan to -0.6 and 1/2 to +0.6, so on each side two
+// channels reach the bus at 0.5 and two at 0.2 (master 0.5): four full-scale
+// samples sum to 1.4 and the bus clamp at 1.0 clipped them. An Amiga mixes its
+// four channels in analogue and never clips, so the volume sent to the chip is
+// scaled by 1/1.4: the worst case is exactly full scale.
+const HEADROOM: f32 = 1.0 / 1.4;
+
+fn chipVolume(vol: u8) f32 {
+    return @as(f32, @floatFromInt(vol)) / 64.0 * HEADROOM;
+}
+
 const SampleHdr = struct {
     start: u32 = 0, // byte offset into the MOD image of the PCM data
     len: u32 = 0, // in bytes
@@ -201,7 +212,7 @@ pub const ModPlayer = struct {
 
     fn applyToEngine(self: *ModPlayer, ch: usize) void {
         const cs = &self.chan[ch];
-        audio.machinePaulaSetVolume(@intCast(ch), @as(f32, @floatFromInt(cs.volume)) / 64.0);
+        audio.machinePaulaSetVolume(@intCast(ch), chipVolume(cs.volume));
         audio.machinePaulaSetStep(@intCast(ch), periodToStep(cs.period));
     }
 
@@ -285,7 +296,7 @@ pub const ModPlayer = struct {
                     const down = cs.param & 0x0F;
                     const v: i16 = @as(i16, cs.volume) + up - down;
                     cs.volume = @intCast(std.math.clamp(v, 0, 64));
-                    audio.machinePaulaSetVolume(@intCast(ch), @as(f32, @floatFromInt(cs.volume)) / 64.0);
+                    audio.machinePaulaSetVolume(@intCast(ch), chipVolume(cs.volume));
                 },
                 else => {},
             }
