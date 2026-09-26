@@ -63,6 +63,16 @@ const MAX_CATCH_UP: u64 = 4;
 /// One host frame never counts for more than this (a tab left in the background).
 const MAX_FRAME_US: u64 = 1_000_000;
 
+/// The two ST screens and the prism's blocks, from zg.mem (zeroed), ONCE per cart
+/// load: as statics they were 267 KB of zeros in the cart and its window.
+var ram_taken = false;
+fn allocRam() void {
+    if (ram_taken) return;
+    ram_taken = true;
+    st.screens = zg.mem.mustAlloc([st.BYTES]u8, 2)[0..2];
+    prism.blocks = zg.mem.mustAlloc(u8, prism.BLOCKS_BYTES)[0..prism.BLOCKS_BYTES];
+}
+
 pub const Demo = struct {
     // demo_main holds the cart as `undefined`: every field is set in init().
     m: st.Machine,
@@ -75,6 +85,7 @@ pub const Demo = struct {
         self.part = 0;
         self.clock_us = 0;
         self.vbls = 0;
+        allocRam();
         prism.buildBlocks(); // $1388, which the original ran before the music
 
         // The border is colour 0, and colour 0 is $000 in all five palettes.

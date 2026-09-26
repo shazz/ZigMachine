@@ -29,15 +29,11 @@ const ALLOW = {
     // (the arena is a machine-video instruction), so this one needs another fix.
     "demo-audio.wasm": 590760,
     "demo-cuddly_starwars.wasm": 223510,
-    "demo-dhs_0pxl0reg.wasm": 341426,
     "demo-joust.wasm": 153614,
     "demo-north_south.wasm": 204174,
     "demo-obj.wasm": 86318,
-    "demo-rno_natrium.wasm": 85302,
-    "demo-rno_sodium.wasm": 277702,
     "demo-stniccc.wasm": 137614,
     "demo-supplex_fs2.wasm": 73277,
-    "demo-ulm_spoon_distorter.wasm": 95482,
 };
 
 function uleb(b, p) {

@@ -10,6 +10,7 @@
 const core = @import("core.zig");
 const out = @import("out.zig");
 const rip = @import("rip.zig");
+const ram = @import("ram.zig");
 const assets = @import("assets.zig");
 
 const ROWS = 270;
@@ -25,7 +26,7 @@ var t1ce2e: u16 = 0;
 var c1ced4: u16 = 0;
 var c1ced6: u32 = 0;
 var pal: [24][15]u16 = undefined;
-var lines: [16][ROWS]u16 = undefined;
+var lines: *[16][ROWS]u16 = undefined; // ram.part, from init
 
 pub fn reset() void {
     @memset(&revealed, false);
@@ -43,6 +44,7 @@ pub fn reset() void {
 /// $1CDE6: the palette fade (23 steps) and the line-colour tables: 7 fade
 /// steps from black, then 8 all-component steps towards white.
 pub fn init() void {
+    lines = ram.part([16][ROWS]u16);
     core.colour = 0;
     var p = [_]u16{0} ** 15;
     pal[0] = p;

@@ -159,5 +159,8 @@ const from = s.vbls;
 s.runTo(END + 0x150);
 const ms = (performance.now() - t0) / (s.vbls - from);
 if (s.hash() !== early) throw new Error("after $1E00 the intro did not start over identically");
+// The screens and the chunky buffer come from zg.mem, once per cart load.
+const refused = s.machine.hwRamAllocFailures();
+if (refused) throw new Error(`${refused} zg.mem allocation(s) refused`);
 console.log(`  loop: $1E00 restarts the intro, frame $150 identical on the second run`);
 console.log(`  soak: ${s.vbls} frames clean, ${ms.toFixed(3)} ms/frame (update + render + plane composite)`);

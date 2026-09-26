@@ -10,6 +10,7 @@
 const core = @import("core.zig");
 const out = @import("out.zig");
 const rip = @import("rip.zig");
+const ram = @import("ram.zig");
 const assets = @import("assets.zig");
 
 const Kind = enum(u8) { a, b, c };
@@ -22,7 +23,7 @@ var bar: [16]u16 = undefined;
 var phase: u32 = 0;
 var amp: u32 = 0;
 var c11022: u16 = 0;
-var ring: [2048]i32 = undefined; // longs by byte offset / 4
+var ring: *[2048]i32 = undefined; // longs by byte offset / 4; ram.part, from init
 var rp: u32 = 0;
 var t10eb8: u16 = 0;
 var t10ed8: u16 = 0;
@@ -41,7 +42,6 @@ pub fn reset() void {
     phase = rip.P2_PHASE;
     amp = rip.P2_AMP;
     c11022 = rip.P2_C11022;
-    @memset(&ring, 0);
     rp = 0;
     t10eb8 = 0;
     t10ed8 = 0;
@@ -56,6 +56,7 @@ pub fn reset() void {
 }
 
 pub fn init() void {
+    ring = ram.part([2048]i32);
     core.colour = 0;
     @memset(&jsr, .{ .kind = .a, .row = 0 });
     for (0..27) |k| jsr[86 + k] = .{ .kind = .c, .row = @intCast(k) };

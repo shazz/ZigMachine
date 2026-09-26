@@ -185,5 +185,8 @@ const before = screen.frames;
 screen.run(END + 10 - screen.frames); // through the end, the loop and part 1 again
 checkMusic(screen);
 if (!leftIsWhite(screen)) throw new Error("after the loop: PO·RNO should be back");
+// The screens and the prism blocks come from zg.mem, once per cart load.
+const refused = screen.machine.hwRamAllocFailures();
+if (refused) throw new Error(`${refused} zg.mem allocation(s) refused`);
 console.log(`  soak: ${screen.frames} VBLs clean, ${((performance.now() - t0) / (screen.frames - before)).toFixed(3)} ms/frame ` +
     "(update + render + 1 plane composite + the harness's own readback)");

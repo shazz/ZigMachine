@@ -16,10 +16,10 @@ const zg = @import("zigos");
 
 pub const LINES = zg.PHYSICAL_HEIGHT; // 280
 const W = zg.PHYSICAL_WIDTH; // 400
-const SLOTS = zg.beam.MAX; // more than that on a line is counted, not stored
+pub const SLOTS = zg.beam.MAX; // more than that on a line is counted, not stored
 
 var count: [LINES]u8 = undefined;
-var list: [LINES][SLOTS]u32 = undefined; // x << 16 | ST colour word
+pub var list: *[LINES][SLOTS]u32 = undefined; // x << 16 | ST colour word; ram.zig
 var start_set: [LINES]bool = undefined;
 var start_col: [LINES]u16 = undefined;
 var top: u16 = 0; // colour 0 at the top of the frame (model `bg`)

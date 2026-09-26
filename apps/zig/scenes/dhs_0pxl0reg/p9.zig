@@ -12,6 +12,7 @@
 const core = @import("core.zig");
 const out = @import("out.zig");
 const rip = @import("rip.zig");
+const ram = @import("ram.zig");
 const assets = @import("assets.zig");
 
 var P: u32 = 0; // $25ABC, brightness offset into W (bytes)
@@ -27,8 +28,8 @@ var c1329a: u32 = 0;
 var cimg: [5]u32 = undefined;
 var done = false; // $12E28 patches itself after its first instruction
 var tpow: [8][256]u8 = undefined; // T applied k times: the 8 fade levels
-var W: [96 * 128]u16 = undefined;
-var bufs: [2][66][33]u16 = undefined;
+var W: *[96 * 128]u16 = undefined; // ram.part, from init
+var bufs: *[2][66][33]u16 = undefined;
 var back: usize = 0;
 var front: usize = 1;
 var ptr: [33]u32 = undefined;
@@ -59,10 +60,15 @@ fn x66(v: i32) u32 {
     return @as(u32, @intCast(@mod(512 + v, 126))) * 66;
 }
 
+const Ram = struct { W: [96 * 128]u16, bufs: [2][66][33]u16 };
+
 pub fn init() void {
     core.colour = 0;
     if (done) return;
     done = true;
+    const mem = ram.part(Ram);
+    W = &mem.W;
+    bufs = &mem.bufs;
     for (0..256) |v| tpow[0][v] = @intCast(v);
     for (1..8) |k| {
         for (0..256) |v| tpow[k][v] = rip.P9_T[tpow[k - 1][v]];
@@ -79,7 +85,7 @@ pub fn init() void {
         }
     }
     @memset(W[72 * 128 ..], 0x777);
-    for (&bufs) |*bb| for (bb) |*r| @memset(r, 0);
+    for (bufs) |*bb| for (bb) |*r| @memset(r, 0);
     back = 0;
     front = 1;
     for (&ptr, 0..) |*p, c| p.* = tx(a1 / 4 + @as(u32, @intCast(c))) + tx(b1 / 4 + @as(u32, @intCast(c))); // $17D0C
@@ -102,12 +108,14 @@ fn levelStep() void {
 fn render() void {
     const pow = &tpow[lev / 0x1104];
     const pic = assets.p9_images[img * 2178 ..][0..2178];
+    const w = W; // locals: the stores into dst would otherwise reload W
+    const dst = &bufs[back];
     const base = P >> 1;
     for (0..33) |c| {
         const p = ptr[c];
         for (0..66) |r| {
             const texel = assets.p9_tex[(p + @as(u32, @intCast(r))) % assets.p9_tex.len];
-            bufs[back][r][c] = W[base + @as(u32, pow[pic[c * 66 + r]]) * 128 + texel];
+            dst[r][c] = w[base + @as(u32, pow[pic[c * 66 + r]]) * 128 + texel];
         }
     }
 }

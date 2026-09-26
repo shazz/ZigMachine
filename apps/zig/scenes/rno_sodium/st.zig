@@ -21,9 +21,9 @@ pub const LINES: usize = 200;
 pub const STRIP: usize = 0x40;
 pub const STRIP_BYTES: usize = LINE - STRIP; // 96: 12 groups
 
-/// scrA/scrB ($078A/$078E, live $22B00/$2AB00). Module scope: 64 KB is the
-/// cart's, and does not belong in the Demo struct.
-pub var screens: [2][BYTES]u8 = undefined;
+/// scrA/scrB ($078A/$078E, live $22B00/$2AB00): 64 KB from zg.mem, taken once
+/// per cart load by allocRam() (a static would be 64 KB of zeros in the cart).
+pub var screens: *[2][BYTES]u8 = undefined;
 
 pub const Machine = struct {
     f: u16, // $2542, the frame word
@@ -63,12 +63,12 @@ pub const Machine = struct {
 
 /// Main's fill ($002A and $0316): both screens to $FF, colour 15 everywhere.
 pub fn fillBoth() void {
-    for (&screens) |*s| @memset(s, 0xFF);
+    for (screens) |*s| @memset(s, 0xFF);
 }
 
 /// Part 2's copy ($007A): the converted eye picture, whole, into both screens.
 pub fn copyPic1() void {
-    for (&screens) |*s| @memcpy(s, A.pic1);
+    for (screens) |*s| @memcpy(s, A.pic1);
 }
 
 /// $0452: the strip on scrA to colour 7 — planes 0, 1, 2 set, plane 3 clear.

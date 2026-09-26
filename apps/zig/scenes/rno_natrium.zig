@@ -41,6 +41,7 @@ const Color = zg.Color;
 
 const st = @import("rno_natrium/st.zig");
 const timeline = @import("rno_natrium/timeline.zig");
+const envmap = @import("rno_natrium/envmap.zig");
 
 const MUSIC = "rno_natrium.sndh";
 const PLANE = 0;
@@ -49,12 +50,23 @@ const PLANE = 0;
 const VBL_US: u32 = 20_000;
 const MAX_VBLS_PER_FRAME: u32 = 3; // after a stall, catch up a little, not all of it
 
+/// The two ST screens and the env-map chunky buffer, from zg.mem (zeroed), ONCE
+/// per cart load: as statics they were 80 KB of zeros in the cart and its window.
+var ram_taken = false;
+fn allocRam() void {
+    if (ram_taken) return;
+    ram_taken = true;
+    timeline.screens = zg.mem.mustAlloc(st.Screen, 2)[0..2];
+    envmap.chunky = zg.mem.mustAlloc(u8, envmap.CHUNKY_BYTES)[0..envmap.CHUNKY_BYTES];
+}
+
 pub const Demo = struct {
     seq: timeline.Seq,
     vbl_us: u32, // microseconds towards the next VBL
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
         self.vbl_us = 0;
+        allocRam(); // before seq.reset, which clears the screens
         self.seq.reset();
         const fb = &zigos.lfbs[PLANE];
         fb.is_enabled = true;

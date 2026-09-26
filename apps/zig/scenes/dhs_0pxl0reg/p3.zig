@@ -9,6 +9,7 @@
 const core = @import("core.zig");
 const out = @import("out.zig");
 const rip = @import("rip.zig");
+const ram = @import("ram.zig");
 
 var S: u32 = 0; // $3DFAE, bytes 0..$62
 var P: u32 = 0; // $1BA12
@@ -19,9 +20,9 @@ var from_tabs = false; // the colours come from the rainbow, later the fade tabl
 var srcofs: u32 = 0; // $3DFAA
 var c1ad0e: u32 = 0;
 var c1ad70: u16 = 0;
-var buf: [233][100]u16 = undefined;
+var buf: *[233][100]u16 = undefined; // ram.part, from init
 var rainbow: [512]u16 = undefined; // $1BA66: $1BA84 x 32 at $A3D96
-var tabs: [24][512]u16 = undefined; // $1BA2A: fade from black towards $3DFB4
+var tabs: *[24][512]u16 = undefined; // $1BA2A: fade from black towards $3DFB4
 
 pub fn reset() void {
     S = rip.P3_S;
@@ -33,11 +34,15 @@ pub fn reset() void {
     srcofs = rip.P3_SRCOFS;
     c1ad0e = rip.P3_C1AD0E;
     c1ad70 = rip.P3_C1AD70;
-    for (&buf) |*r| @memset(r, 0);
 }
+
+const Ram = struct { buf: [233][100]u16, tabs: [24][512]u16 };
 
 /// $1ACC6: the colour tables, then 61 columns drawn so the ribbon is full.
 pub fn init() void {
+    const mem = ram.part(Ram);
+    buf = &mem.buf;
+    tabs = &mem.tabs;
     for (0..32) |k| @memcpy(rainbow[16 * k ..][0..16], &rip.P3_RAINBOW);
     @memset(&tabs[0], 0);
     for (1..24) |k| {
@@ -57,8 +62,9 @@ fn barY(idx: u32) u32 {
 }
 
 fn draw() void {
+    const b = buf; // a local: a store through another pointer would otherwise reload it
     const c = S >> 1;
-    for (&buf) |*r| {
+    for (b) |*r| {
         r[c] = 0;
         r[c + 50] = 0;
     }
@@ -72,8 +78,8 @@ fn draw() void {
             const v = col[n];
             n += 1;
             for ([_]u32{ y + 2 * @as(u32, @intCast(i)), y + 2 * @as(u32, @intCast(i)) + 1 }) |rr| {
-                buf[rr][c] = v;
-                buf[rr][c + 50] = v;
+                b[rr][c] = v;
+                b[rr][c + 50] = v;
             }
         }
     }
