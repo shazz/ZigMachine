@@ -429,6 +429,7 @@ pub fn build(b: *std.Build) void {
         "demo-rno_natrium", // 68 — RNO / NATRIUM, 96k intro (ported from the ST binary)
         "demo-dhs_0pxl0reg", // 69 — DHS / (n)0 PIXELS (n)0 REGRETS, zero bitplanes on the BEAM (ported from the ST binary)
         "demo-trsi_transarctica", // 70 — TRSI / TRANSARCTICA Falcon030 cracktro (ported from the Falcon binary)
+        "demo-north_south", // 71 — Infogrames / NORTH & SOUTH, the battle, playable (ported from the ST program)
     };
     for (cart_names, 0..) |name, idx| {
         if (name.len == 0) continue; // excluded cart (see note above)
