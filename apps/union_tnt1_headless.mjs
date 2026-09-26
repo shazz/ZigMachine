@@ -51,6 +51,8 @@ if (brk !== null && !["halve", "passes", "note"].includes(brk)) throw new Error(
 const out = argv[0] || "/tmp/union_tnt1";
 const cartPath = argv[1] || "docs/demo-union_tnt1.wasm";
 
+const machines = []; // every boot's video machine, for the zg.mem refusal check
+
 /// `plant({ memory, rom })`, when given, runs just before the cart is inserted.
 async function boot(cart, plant = null) {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
@@ -74,6 +76,7 @@ async function boot(cart, plant = null) {
     demo.boot();
     plant?.({ memory, rom });
     demo.skipBoot();
+    machines.push(machine);
     return { memory, machine, demo, rom };
 }
 
@@ -276,6 +279,9 @@ for (const [label, note] of [["note for door 8", [8, 4236, 127, NOTE_SCROLL]], [
     const c = await noteCase(label, note, 0);
     if (!Buffer.from(c.before).equals(Buffer.from(c.after))) errors.push(`${label}: the scratch bytes were written`);
 }
+// Every boot takes its depack target from zg.mem: a refused allocation is a screen that never loaded.
+const refused = machines.reduce((n, m) => n + m.hwRamAllocFailures(), 0);
+if (refused) errors.push(`${refused} zg.mem allocation(s) refused`);
 
 if (errors.length) {
     console.error(`union_tnt1: WRONG${brk ? ` (--break ${brk})` : ""}${argv[1] ? ` (cart ${cartPath})` : ""}\n  ${errors.slice(0, 12).join("\n  ")}`);
