@@ -132,7 +132,9 @@ pub const Demo = struct {
             self.clock_us += us;
         }
         // the ST's VBL count at this host moment
-        var limit: i64 = @intCast(self.clock_us * CPU_HZ / (VBL_CYC * 1_000_000));
+        // (in u128: clock_us x CPU_HZ passes u64 after ~26 days of uptime, and
+        // a wrapped clock would stall the game for good)
+        var limit: i64 = @intCast(@as(u128, self.clock_us) * CPU_HZ / (VBL_CYC * 1_000_000));
         limit -= self.skipped;
         const vbl = self.m.st.pacer.vbl;
         if (limit > vbl + MAX_BEHIND) {
@@ -202,7 +204,7 @@ pub const Demo = struct {
         const ch: u8 = @intCast(cp);
         // JOUST turns TOS's key repeat off (andi.b #$fc,$484): the host's
         // auto-repeat must not type a key twice
-        const bitm = @as(u128, 1) << @intCast(ch);
+        const bitm = heldBit(ch);
         if (self.held & bitm != 0) return;
         self.held |= bitm;
         // the name entry and the pause read the keyboard: every key is a key there
@@ -215,8 +217,9 @@ pub const Demo = struct {
 
     pub fn keyUp(self: *Demo, cp: u32) void {
         if (cp > 0x7F) return;
-        self.held &= ~(@as(u128, 1) << @intCast(cp));
-        _ = self.stick(@intCast(cp), false);
+        const ch: u8 = @intCast(cp);
+        self.held &= ~heldBit(ch);
+        _ = self.stick(ch, false);
     }
 
     /// A joystick key: W A S D, Space, Enter, 0. True if it was one.
@@ -241,6 +244,15 @@ pub const Demo = struct {
         return true;
     }
 };
+
+/// A key's bit in `held`, one per KEY: the host reports the character, so a
+/// Shift pressed or let go while the key is down releases 'W' after pressing
+/// 'w'. Unfolded, the 'w' bit stayed set and every later W was dropped as a
+/// repeat -- the stick went dead until the page lost focus.
+fn heldBit(ch: u8) u128 {
+    const c = if (ch >= 'A' and ch <= 'Z') ch + 32 else ch;
+    return @as(u128, 1) << @intCast(c & 0x7F);
+}
 
 fn arrowBit(dir: u8) u8 {
     return switch (dir) {

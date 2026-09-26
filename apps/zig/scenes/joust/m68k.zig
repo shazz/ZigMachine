@@ -52,13 +52,13 @@ pub fn lsrl(v: i64, n: i64) i64 {
     if (k >= 32) return 0;
     return (v & M32) >> @intCast(k);
 }
-/// Python's `v >> n` for a small non-negative n.
+/// Python's `v >> n` for n >= 0. Every caller passes a masked byte or count;
+/// a negative n (Python would raise) is taken as 0 rather than reaching the
+/// u6 cast, which is unchecked in ReleaseSmall.
 pub fn shr(v: i64, n: i64) i64 {
     if (n >= 63) return if (v < 0) -1 else 0;
+    if (n <= 0) return v;
     return v >> @intCast(n);
-}
-pub fn shl(v: i64, n: i64) i64 {
-    return v << @intCast(n);
 }
 pub fn bit(v: i64, n: i64) bool {
     return (shr(v, n) & 1) != 0;

@@ -222,5 +222,5 @@ pub fn siren(st: *St, cy: *Cy) void {
     cy.one(0x0A92);
 }
 
-/// The siren's sound, in the SFX log: joust_sfx.sndh's subtune 17.
-pub const SIREN: i64 = 16;
+/// The siren's sound, in the SFX log (sound.zig owns the number).
+pub const SIREN = @import("sound.zig").SIREN;

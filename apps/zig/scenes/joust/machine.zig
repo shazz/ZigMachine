@@ -155,7 +155,7 @@ pub const Machine = struct {
                 self.mode = .name_entry;
                 return false;
             } else st.pacer.run(st, st.cycles - st.clocked),
-            else => _ = calls.runCall(st, k, &.{ .joy = self.joy }),
+            else => _ = calls.runCall(st, k),
         }
         return self.afterCall();
     }

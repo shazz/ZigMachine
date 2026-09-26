@@ -7,7 +7,7 @@
 //      a3: equal y bounces (SFX 11), otherwise the higher rider (smaller y)
 //      wins -- only a player can unseat;
 //   3. a player then collects eggs / hatched knights, and meets the
-//      pterodactyls (coll_eggs.zig).
+//      pterodactyls (coll_eggs.zig, coll_ptero.zig).
 // The joust itself, the unseat and the bounce are coll_joust.zig.
 // --------------------------------------------------------------------------
 const joust = @import("coll_joust.zig");

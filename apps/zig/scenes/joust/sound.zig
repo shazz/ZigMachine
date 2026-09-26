@@ -16,6 +16,9 @@ const V = State.V;
 
 pub const SFX_TABLE: i64 = 0x17E2;
 pub const SILENCE: i64 = 0x157D; // script 0: the all-off script, also passed straight to Dosound
+/// The start-up siren ($09AC, Giaccess, not a script), in the SFX log after
+/// the 16 scripts: joust_sfx.sndh's subtune 17.
+pub const SIREN: i64 = 16;
 
 /// $0A94(n): start Dosound script n if n <= the current priority. Returns true
 /// if it started. Registers are preserved (movem).

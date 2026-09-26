@@ -4,6 +4,7 @@
 // what the reference says it must hold. Exported by joust.zig's comptime
 // block, in JOUST's cart only.
 // --------------------------------------------------------------------------
+const std = @import("std");
 const State = @import("state.zig");
 const cyc = @import("cyc.zig");
 const machine = @import("machine.zig");
@@ -35,7 +36,7 @@ pub fn frame(p1: u32, p2: u32) callconv(.c) i32 {
     const mm = m orelse return -1;
     mm.joy = .{ @truncate(p1), @truncate(p2) };
     mm.run(1 << 62, true);
-    return @intCast(mm.frame_vbls);
+    return std.math.cast(i32, mm.frame_vbls) orelse -1;
 }
 
 /// --break: charge extra cycles, as a one-instruction transcription slip would.
@@ -63,7 +64,7 @@ pub fn val(what: u32) callconv(.c) u32 {
     return switch (what) {
         0 => @truncate(t),
         1 => @truncate(t >> 32),
-        2 => @intCast(st.pacer.vbl),
+        2 => @truncate(@as(u64, @bitCast(st.pacer.vbl))),
         3 => @truncate(mm.frames),
         4 => @intFromEnum(mm.mode),
         5 => st.oob,

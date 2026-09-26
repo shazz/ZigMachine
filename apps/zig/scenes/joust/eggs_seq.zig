@@ -2,6 +2,7 @@
 // Call 4 continued (the model's a_eggs.py): the animation table $27F8, the
 // hatch $2816, the countdown $2914, and the aux sprite's draw $2936..$29B6.
 // --------------------------------------------------------------------------
+const std = @import("std");
 const State = @import("state.zig");
 const cyc = @import("cyc.zig");
 const sub = @import("riders_sub.zig");
@@ -26,8 +27,14 @@ pub fn L27F8(st: *St, cy: *Cy) u32 {
     st.s(V.tmp_sprite_e5e, st.rl(0x1AC2 + d1));
     const a2 = st.rl(0x1AC2 + d1 + 4);
     R[10] = a2;
-    return @intCast(a2 - BASE);
+    // jmp (a2): a pointer read from RAM. One below the program (a corrupt
+    // table entry) must not reach an unchecked cast: it becomes a label the
+    // dispatcher does not know, which counts an access and ends the call.
+    return std.math.cast(u32, a2 - BASE) orelse NO_LABEL;
 }
+
+/// No label of eggs.zig's machine: its step() counts it in st.oob and stops.
+const NO_LABEL: u32 = 0xFFFF_FFFF;
 
 pub fn L2816(st: *St, cy: *Cy) u32 {
     const R = &st.regs;

@@ -195,7 +195,11 @@ pub const St = struct {
     }
 
     /// play_sfx's note for the host: the SNDH subtune to start.
+    /// Only the 17 real scripts (0..15 and the siren) are logged: anything else
+    /// would be a subtune joust_sfx.sndh does not have (and a negative n would
+    /// reach an unchecked cast).
     pub fn logSfx(self: *St, n: i64) void {
+        if (n < 0 or n > sound.SIREN) return;
         if (self.sfx_n < self.sfx_log.len) {
             self.sfx_log[self.sfx_n] = @intCast(n);
             self.sfx_n += 1;
@@ -250,6 +254,10 @@ fn loadImage() void {
         }
     }
     @memcpy(mem[TEXT_LEN .. TEXT_LEN + 32000], MUR);
+    // A reset (the harness's, or a second power-on in one instance) must not
+    // inherit the last run's screen or the RAM below it: the model starts both
+    // empty.
+    @memset(&scr, 0);
 }
 
 // ---- 68000 arithmetic (m68k.zig), re-exported ----
@@ -263,5 +271,4 @@ pub const divu = m68k.divu;
 pub const rorl = m68k.rorl;
 pub const lsrl = m68k.lsrl;
 pub const shr = m68k.shr;
-pub const shl = m68k.shl;
 pub const bit = m68k.bit;
