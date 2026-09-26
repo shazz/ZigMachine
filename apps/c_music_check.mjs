@@ -19,7 +19,7 @@ setTimeout(() => {
     console.log(`FAIL  c_music_check: no exit after 90 s (last stage: ${stage})`);
     process.exit(1);
 }, 90_000).unref();
-import { cartRam, CART_RAM_BASE, CART_RAM_TOP } from "../docs/wasm_hiwater.js";
+import { cartRam } from "../docs/wasm_hiwater.js";
 
 const PAGES = 112, VIDEO_BASE = 0x300000, AUDIO_PAGES = 48;
 const dec = new TextDecoder();
@@ -47,9 +47,11 @@ async function bootCart(path) {
     const ram = cartRam(cart);
     const env = {
         memory, hwVideoBase: () => VIDEO_BASE, consoleLogJS: () => {},
-        hwRamBase: () => CART_RAM_BASE, hwRamTop: () => CART_RAM_TOP,
-        hwRamSize: () => CART_RAM_TOP - CART_RAM_BASE, hwRamUsed: () => ram.used, hwRamFree: () => ram.free,
     };
+    // The machine's own RAM instructions, declared as the loader declares them
+    // (a cart may take buffers from the RAM arena, hwRamAlloc).
+    for (const k of Object.keys(machine)) if (k.startsWith("hwRam")) env[k] = machine[k];
+    machine.hwSetCartHigh(ram.known ? ram.high : 0);
     const x = (await WebAssembly.instantiate(cart, { env: { ...rom, ...env } })).instance.exports;
     live.demo = x;
     return { memory, x };

@@ -29,6 +29,7 @@ SECTIONS: list[Sec] = [
     Sec("Machine", "Blitter commands / control / minterms", "Blitter control", "commands, CON_* bits, minterms",
         "consts", "blit_ctl"),
     Sec("Machine", "HW ABI — machine exports", "HW ABI", "what machine-*.wasm exports", "items", "abi"),
+    Sec("Machine", "Memory management", "Memory", "cart RAM, the RAM arena, VRAM", "md", "docs/MEMORY.md"),
     Sec("Formats", "Disk / cart format + boot sectors", "Disk & cart format", "docs/FLOPPY_DISK.md", "md",
         "docs/FLOPPY_DISK.md"),
     Sec("Formats", "Music — SNDH player (Zig, C, Rust)", "Music", "docs/MUSIC.md", "md", "docs/MUSIC.md"),

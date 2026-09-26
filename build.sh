@@ -114,6 +114,8 @@ if command -v rustc > /dev/null 2>&1; then bash apps/rust/build.sh > /dev/null; 
 
 # --- memory windows: every module measured against ITS OWN map -------------
 node apps/check_fits.mjs docs/demo-*.wasm docs/rom.wasm
+node apps/zero_segments.mjs docs/demo-*.wasm   # no zero-filled static of 64 KB+ in a data section (use zg.mem / hwRamAlloc)
+node apps/zero_segments.mjs --break            # ...and a synthetic cart with a 70 KB zero segment is caught
 node apps/ram_check.mjs
 node apps/rom_abi_check.mjs   # the ROM survives hostile arguments from any language
 node apps/blitter_check.mjs   # blitter sources: plane offsets, cart RAM (SRC_ABS), refusals
@@ -152,6 +154,8 @@ for t in \
     libs/zig/effects/colour_bank_test.zig \
     libs/zig/effects/beam_test.zig \
     machine/beam_test.zig \
+    machine/arena_test.zig \
+    libs/zig/mem_test.zig \
     libs/zig/shapes_test.zig \
     libs/zig/wireframe_test.zig \
     libs/zig/tvnoise/tvnoise.zig \

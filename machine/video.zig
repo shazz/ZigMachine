@@ -17,6 +17,7 @@
 const std = @import("std");
 const memmap = @import("sdk/memmap.zig");
 const beam = @import("beam.zig");
+const arena = @import("arena.zig");
 
 // The one host import the sealed machine needs: route an HBL point to the demo.
 extern fn hblDispatch(id: u32, plane: u32, line: u32, x: u32) void;
@@ -106,8 +107,13 @@ pub fn pfbBytePtr() usize {
 // end, because that is baked into the cart wasm. The host measures it once at
 // load time and declares it here; everything below is arithmetic on the map.
 // --------------------------------------------------------------------------
+// Declaring a cart's high-water is the host saying "a NEW cart is loaded" (every
+// boot, chainload and swap goes through it), so it also empties the arena the
+// previous cart left behind and zeroes its failure counter.
 pub fn setCartHigh(high: u32) void {
     w32(memmap.REG_CART_HIGH, high);
+    w32(memmap.REG_RAM_ARENA_TOP, 0);
+    w32(memmap.REG_RAM_ALLOC_FAILS, 0);
 }
 pub fn cartHigh() u32 {
     return r32(memmap.REG_CART_HIGH);
@@ -130,11 +136,44 @@ inline fn usedIn(high: u32, base: usize, top: usize) u32 {
     if (high < base or high >= top) return 0;
     return @intCast(high - base);
 }
+// The cart window's free/used count the ARENA too (1.7.0): free = top of window
+// - max(high-water, arena top), so base + used is still the first byte nobody
+// owns, which is what the depack-to-free-RAM scenes rely on.
 pub fn ramFree() u32 {
-    return freeIn(cartHigh(), memmap.CART_RAM_BASE, memmap.CART_RAM_TOP);
+    return arena.free(arenaState(), cartWindow(), cartHigh());
 }
 pub fn ramUsed() u32 {
-    return usedIn(cartHigh(), memmap.CART_RAM_BASE, memmap.CART_RAM_TOP);
+    return arena.used(arenaState(), cartWindow(), cartHigh());
+}
+
+// --- RAM arena (1.7.0; machine/arena.zig holds the rules) ---
+fn cartWindow() arena.Window {
+    const p: [*]u8 = @ptrFromInt(memmap.CART_RAM_BASE);
+    return .{ .base = memmap.CART_RAM_BASE, .mem = p[0..memmap.CART_RAM_BYTES] };
+}
+fn arenaState() arena.State {
+    return .{ .top = r32(memmap.REG_RAM_ARENA_TOP), .failures = r32(memmap.REG_RAM_ALLOC_FAILS) };
+}
+fn saveArena(s: arena.State) void {
+    w32(memmap.REG_RAM_ARENA_TOP, s.top);
+    w32(memmap.REG_RAM_ALLOC_FAILS, s.failures);
+}
+pub fn ramAlloc(bytes: u32, alignment: u32) u32 {
+    var s = arenaState();
+    const at = arena.alloc(&s, cartWindow(), cartHigh(), bytes, alignment);
+    saveArena(s);
+    return at;
+}
+pub fn ramMark() u32 {
+    return arena.mark(arenaState(), cartWindow(), cartHigh());
+}
+pub fn ramRelease(m: u32) void {
+    var s = arenaState();
+    arena.release(&s, cartWindow(), cartHigh(), m);
+    saveArena(s);
+}
+pub fn ramAllocFailures() u32 {
+    return r32(memmap.REG_RAM_ALLOC_FAILS);
 }
 pub fn romRamFree() u32 {
     return freeIn(romHigh(), memmap.ROM_RAM_BASE, memmap.ROM_RAM_TOP);
@@ -147,12 +186,15 @@ pub fn romRamUsed() u32 {
 pub fn reset() void {
     // The high-water registers describe the loaded MODULES, not the video state,
     // and the host may declare them either side of hwInit() — so they survive.
+    // So does the RAM arena: it holds the cart's buffers, not video state.
     const cart_high = cartHigh();
     const rom_high = romHigh();
+    const heap = arenaState();
     var i: usize = 0;
     while (i < 256) : (i += 1) w8(memmap.OFF_REG + i, 0);
     w32(memmap.REG_CART_HIGH, cart_high);
     w32(memmap.REG_ROM_HIGH, rom_high);
+    saveArena(heap);
     w8(memmap.REG_NB_PLANES, memmap.NB_PLANES);
     w8(memmap.REG_RESOLUTION, memmap.RES_PLANES);
     // Every plane starts NORMAL: stride 320, no fine scroll, and its screen base

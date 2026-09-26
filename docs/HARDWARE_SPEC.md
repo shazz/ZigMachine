@@ -90,6 +90,8 @@ ZigOS wraps them so effects use names, not raw addresses.
 | 0x30 | `FRAME` | u32 (ro) | frame counter |
 | 0x64 | `BEAM_COUNT` | u16 | 1.6.0: colour-0 writes queued for the CURRENT line; the machine sets it back to 0 after the line |
 | 0x68 | `BEAM_DROPPED` | u32 | 1.6.0: running count of BEAM writes the machine refused; only `hwInit` zeroes it (the program reads and clears it) |
+| 0x6C | `RAM_ARENA_TOP` | u32 | 1.7.0: first byte above the cart's RAM arena (`hwRamAlloc`); 0 = empty. Survives `hwInit`; `hwSetCartHigh` empties it |
+| 0x70 | `RAM_ALLOC_FAILS` | u32 (ro) | 1.7.0: refused `hwRamAlloc`/`hwRamRelease` calls since the cart was declared |
 
 ### BEAM — mid-line colour-0 writes (1.6.0)
 
@@ -144,6 +146,23 @@ hwPhysicalPtr() i32               // pointer to PFB for the host to blit
 ```
 
 Per-frame host loop: `hwClear()` → `demo.frame(dt)` → `hwRender()` → blit `PFB`.
+
+**RAM arena (1.7.0)** — malloc for a cart, called by the cart itself:
+
+```
+hwRamAlloc(bytes: u32, alignment: u32) u32   // zeroed, aligned (power of two, 1..65536); 0 = refused, counted
+hwRamMark() u32                              // the arena's top (0 = no declared high-water, no arena)
+hwRamRelease(mark: u32) void                 // free back to a mark; a mark outside [high-water, top] is refused, counted
+hwRamAllocFailures() u32                     // REG_RAM_ALLOC_FAILS
+```
+
+A bump allocator between the cart's declared high-water (`CART_HIGH`) and the
+video region. `hwRamFree()` = window top − max(high-water, arena top), and
+`hwRamUsed()` includes the arena, so `hwRamBase() + hwRamUsed()` is still the first
+byte nobody owns. The host's `hwSetCartHigh` at every cart load empties the arena
+and zeroes the counter. Rules: `machine/arena.zig` (native tests in
+`machine/arena_test.zig`); the sealed binary: `apps/ram_check.mjs`; guide:
+`docs/MEMORY.md`.
 
 **Imports of `machine-video.wasm`** (provided by the host, routed to `demo`):
 

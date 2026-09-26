@@ -49,6 +49,8 @@ pub const REG_FB_MODE = memmap.REG_FB_MODE;
 pub const REG_RES_FLICKER = memmap.REG_RES_FLICKER;
 pub const REG_BEAM_COUNT = memmap.REG_BEAM_COUNT; // 1.6.0 BEAM: mid-line colour-0 writes
 pub const REG_BEAM_DROPPED = memmap.REG_BEAM_DROPPED;
+pub const REG_RAM_ARENA_TOP = memmap.REG_RAM_ARENA_TOP; // 1.7.0 RAM arena (hwRamAlloc)
+pub const REG_RAM_ALLOC_FAILS = memmap.REG_RAM_ALLOC_FAILS;
 pub const OFF_BEAM_TABLE = memmap.OFF_BEAM_TABLE;
 pub const BEAM_MAX = memmap.BEAM_MAX;
 pub const BEAM_GRID = memmap.BEAM_GRID;
@@ -157,8 +159,23 @@ pub extern fn hwVersion() u32; // ZM_HW_VERSION
 pub extern fn hwRamBase() u32; // first byte of the cart's window (0x100000)
 pub extern fn hwRamTop() u32; // first byte ABOVE it (= the video region)
 pub extern fn hwRamSize() u32; // the whole window, in bytes (2 MiB)
-pub extern fn hwRamUsed() u32; // this cart's static data + stack
-pub extern fn hwRamFree() u32; // what is left below the video region
+pub extern fn hwRamUsed() u32; // this cart's static data + stack + RAM arena
+pub extern fn hwRamFree() u32; // what is left below the video region, above the arena
+
+// --- RAM arena (1.7.0) ---
+// malloc for a cart. A module-scope `var buf: [N]u8 = undefined;` costs N bytes
+// of the cart binary AND of the window (imported memory: the linker writes the
+// zeros out); these cost nothing until called. A bump allocator above the cart's
+// high-water: hwRamAlloc returns ZEROED memory aligned to `alignment` (a power
+// of two, 1..65536), or 0 when it cannot, and every refusal bumps
+// hwRamAllocFailures(). Nothing is freed singly: hwRamMark() then
+// hwRamRelease(mark) frees everything allocated in between (one region reused
+// per demo part). A new cart (boot, chainload, swap) starts with an empty arena.
+// ZigOS wraps it as zg.mem (an std.mem.Allocator plus zg.mem.alloc(T, n)).
+pub extern fn hwRamAlloc(bytes: u32, alignment: u32) u32; // address, or 0 (counted)
+pub extern fn hwRamMark() u32; // the arena's current top (0 = no arena: high-water undeclared)
+pub extern fn hwRamRelease(mark: u32) void; // free back to a mark (a bad mark is refused + counted)
+pub extern fn hwRamAllocFailures() u32; // refused allocs/releases since this cart was loaded
 
 // The ROM chip's own window, above the video region (Phase 2). Reports 0 until
 // a rom.wasm is fitted — an app asking about a ROM that is not there gets the

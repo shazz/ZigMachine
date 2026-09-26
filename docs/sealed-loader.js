@@ -292,6 +292,9 @@ function declareCartRam(bytes, what) {
     if (!machine || !machine.hwSetCartHigh) return; // pre-1.2.0 machine
     if (!globalThis.ZMRam) {
         console.warn("wasm_hiwater.js not loaded — hwRamFree() will report 0");
+        // Still a NEW cart: declaring 0 also empties the previous cart's RAM
+        // arena, so nothing it allocated is handed on (or counted) as ours.
+        machine.hwSetCartHigh(0);
         return;
     }
     try {
@@ -412,6 +415,12 @@ async function boot() {
             hwRamSize: machine.hwRamSize,
             hwRamUsed: machine.hwRamUsed,
             hwRamFree: machine.hwRamFree,
+            // The RAM arena (1.7.0): malloc above the cart's high-water, emptied
+            // by the hwSetCartHigh every cart load makes (declareCartRam).
+            hwRamAlloc: machine.hwRamAlloc,
+            hwRamMark: machine.hwRamMark,
+            hwRamRelease: machine.hwRamRelease,
+            hwRamAllocFailures: machine.hwRamAllocFailures,
             // The ROM chip's own window (Phase 2). No rom.wasm is fitted yet, so
             // these report 0 — which reads as "take nothing", the safe answer.
             hwRomRamBase: machine.hwRomRamBase,

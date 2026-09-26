@@ -64,8 +64,12 @@ function lineIs(y, want) {
     return null;
 }
 
-check("the machine reports HW 1.6.0", () =>
-    machine.hwVersion() === 0x00010600 ? null : `hwVersion ${hex(machine.hwVersion())}`);
+// BEAM arrived in 1.6.0; later minors are additive (1.7.0: the RAM arena), so
+// what BEAM needs is "1.6.0 or later, same major".
+check("the machine reports HW 1.6.0 or later", () => {
+    const v = machine.hwVersion();
+    return v >= 0x00010600 && v < 0x00020000 ? null : `hwVersion ${hex(v)}`;
+});
 check("the BEAM table sits right above the physical framebuffer", () =>
     machine.hwPhysicalPtr() + RW * RH * 4 === VIDEO + OFF_BEAM_TABLE ? null : "OFF_BEAM_TABLE moved");
 

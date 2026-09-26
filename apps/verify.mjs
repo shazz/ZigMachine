@@ -10,7 +10,7 @@
 // merely linking: the test reads the framebuffer back and requires the ROM's own
 // output to be there.
 import { readFile } from "node:fs/promises";
-import { cartRam, CART_RAM_BASE, CART_RAM_TOP } from "../docs/wasm_hiwater.js";
+import { cartRam } from "../docs/wasm_hiwater.js";
 
 const PAGES = 112; // memmap.SHARED_PAGES
 const VIDEO_BASE = 0x300000; // hwVideoBase() return value (HW_VIDEO_BASE)
@@ -63,12 +63,11 @@ async function check(path) {
         memory,
         hwVideoBase: () => VIDEO_BASE,
         consoleLogJS: (ptr, len) => { logged = dec.decode(new Uint8Array(memory.buffer, ptr, len)); },
-        hwRamBase: () => CART_RAM_BASE,
-        hwRamTop: () => CART_RAM_TOP,
-        hwRamSize: () => CART_RAM_TOP - CART_RAM_BASE,
-        hwRamUsed: () => ram.used,
-        hwRamFree: () => ram.free,
     };
+    // The machine's own RAM instructions, declared as the loader declares them,
+    // so a cart that takes a buffer from the arena (hwRamAlloc) gets real memory.
+    for (const k of Object.keys(machine)) if (k.startsWith("hwRam")) env[k] = machine[k];
+    machine.hwSetCartHigh(ram.known ? ram.high : 0);
     const { instance } = await WebAssembly.instantiate(cart, { env: { ...rom, ...env } });
     live.demo = instance.exports;
     const x = instance.exports;
