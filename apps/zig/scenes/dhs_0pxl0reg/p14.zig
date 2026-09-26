@@ -11,6 +11,7 @@
 const core = @import("core.zig");
 const out = @import("out.zig");
 const rip = @import("rip.zig");
+const ram = @import("ram.zig");
 const assets = @import("assets.zig");
 
 const LINES = 273;
@@ -22,7 +23,7 @@ var ph2: u32 = 0;
 var ph: u32 = 0;
 var c1a820: u32 = 0;
 var c1a838: u32 = 0;
-var buf: [LINES * 128 + 256]u16 = undefined; // $92EEE, 128 words a line
+var buf: *[LINES * 128 + 256]u16 = undefined; // $92EEE, 128 words a line; ram.part, from init
 var rt: [LINES]u8 = undefined;
 
 pub fn reset() void {
@@ -33,11 +34,11 @@ pub fn reset() void {
     ph = rip.P14_PH;
     c1a820 = rip.P14_C1A820;
     c1a838 = rip.P14_C1A838;
-    @memset(&buf, 0);
     @memset(&rt, 0);
 }
 
 pub fn init() void {
+    buf = ram.part([LINES * 128 + 256]u16);
     core.colour = 0;
 }
 
@@ -81,21 +82,22 @@ pub fn m1a822() void {
 }
 
 pub fn kernel(l0: u32) void {
+    const b = buf; // a local: a store through another pointer would otherwise reload it
     const c0 = S >> 1;
     const a6: u32 = @intCast(@as(i32, @intCast(rip.P14_TEX0 + 0xEE + col)) + vofs);
     for (rt, 0..) |q, L| {
         const k = q / 3;
         const r0 = L * 128 + c0;
         const v = core.le16(assets.p14_mem, (a6 >> 1) + L);
-        buf[r0 + 63] = v;
-        buf[r0 + 127] = v;
+        b[r0 + 63] = v;
+        b[r0 + 127] = v;
         const lu: u32 = @intCast(L);
         const t = 512 * lu + @as(u32, switch (q % 3) {
             0 => 324,
             1 => 320,
             else => 316,
         });
-        for (0..36) |j| out.emit(l0, t + 12 * @as(u32, @intCast(j)), buf[r0 + k + j]);
+        for (0..36) |j| out.emit(l0, t + 12 * @as(u32, @intCast(j)), b[r0 + k + j]);
     }
     out.emit(l0, 512 * LINES + 264, 0);
     core.colour = 0;

@@ -27,6 +27,7 @@ const ZigOS = zg.ZigOS;
 
 const seq = @import("dhs_0pxl0reg/seq.zig");
 const out = @import("dhs_0pxl0reg/out.zig");
+const ram = @import("dhs_0pxl0reg/ram.zig");
 
 /// The ST's VBL is 50 Hz; the host's frame is whatever the display runs at.
 /// The sequencer is music-synced, so it advances by real 20 ms VBLs.
@@ -39,6 +40,7 @@ pub const Demo = struct {
     pub fn init(self: *Demo, zigos: *ZigOS) void {
         self.vbl_us = 0;
         for (&zigos.lfbs) |*fb| fb.is_enabled = false; // zero bitplanes
+        ram.init(); // out.list, before the HBL that reads it
         seq.reset();
         zigos.setHBLHandler(out.hbl);
     }

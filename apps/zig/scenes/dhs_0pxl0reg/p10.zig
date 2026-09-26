@@ -12,6 +12,7 @@
 const core = @import("core.zig");
 const out = @import("out.zig");
 const rip = @import("rip.zig");
+const ram = @import("ram.zig");
 const assets = @import("assets.zig");
 
 const ROW = 258; // strip words a row
@@ -19,7 +20,7 @@ const PAL_AT = 0x506EC - 0x506BE; // offsets into p10_region
 const GMAP_AT = 0x506D6 - 0x506BE;
 const FONT_AT = 0x5070C - 0x506BE;
 
-var strip: [50 * ROW + 300]u16 = undefined; // the generated code, patched every frame
+var strip: *[50 * ROW + 300]u16 = undefined; // the generated code, patched every frame; ram.part, from init
 var tp: u32 = 0; // $506AE, text pointer (offset into the region)
 var gc: u32 = 0; // glyph column, 0..$3F
 var pos: u32 = 0;
@@ -35,7 +36,6 @@ var gmap: [256]u32 = undefined; // $201A2: font offset per character
 var ramps: [8][64]u16 = undefined; // $20168: $43854 and 7 darker copies
 
 pub fn reset() void {
-    for (&strip, 0..) |*w, i| w.* = core.le16(assets.p10_strip, i);
     tp = rip.P10_TP;
     gc = rip.P10_VARS[0];
     pos = rip.P10_VARS[1];
@@ -50,6 +50,8 @@ pub fn reset() void {
 }
 
 pub fn init() void {
+    strip = ram.part([50 * ROW + 300]u16);
+    for (strip, 0..) |*w, i| w.* = core.le16(assets.p10_strip, i);
     @memset(&gmap, 0);
     var o: u32 = 0;
     var p: usize = GMAP_AT;
@@ -90,6 +92,7 @@ pub fn kernel(l0: u32, k: u2) void {
     dir = if (k == 2) 1 else 0;
     mask = if (k == 0) 0 else 0xFFFF;
     step = if (k == 0) 0 else 8;
+    const s = strip; // a local: a store through another pointer would otherwise reload it
     // PRE
     const ch = assets.p10_region[tp];
     const fo: u32 = gmap[ch] + @as(u32, @intCast(core.sw(gc) >> 1));
@@ -97,8 +100,8 @@ pub fn kernel(l0: u32, k: u2) void {
     for (0..50) |r| {
         const f = assets.p10_region[FONT_AT + fo + 0x20 * r];
         const v: u16 = 0x3200 | ((0x80 + @as(u16, f)) & 0xFF);
-        strip[r * ROW + col] = v;
-        strip[r * ROW + col + 128] = v;
+        s[r * ROW + col] = v;
+        s[r * ROW + col + 128] = v;
     }
     // SETUP + DISPLAY
     var a6 = (ph & mask) >> 1;
@@ -112,7 +115,7 @@ pub fn kernel(l0: u32, k: u2) void {
         const first = t + @as(u32, if (d6 & 1 != 0) 56 else 60);
         var n: u32 = 0;
         while (n < 53) : (n += 1) {
-            const w = strip[e + n];
+            const w = s[e + n];
             if (w == 0x4E75) break;
             out.emit(l0, first + 8 * n, reg(w & 0x3F, L));
         }

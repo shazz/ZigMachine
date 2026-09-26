@@ -9,6 +9,7 @@
 //            queues breaks the 68000's limits
 //   planes   no plane is ever enabled: every pixel is colour 0, as on the ST
 //   music    "Fake It" starts at frame 159, stops at 7759, "AY Tunage" at 8173
+//   ram      no zg.mem allocation refused (out.list and each part's buffers)
 //   node apps/dhs_0pxl0reg_headless.mjs [outdir]
 //   node apps/dhs_0pxl0reg_headless.mjs --break skip   one VBL skipped at frame 1000:
 //            passes only if the frame checks catch it
@@ -145,6 +146,8 @@ const errors = [];
 if (bad) errors.push(`${bad} frames differ from the model`);
 if (checked !== fixture.frames.length) errors.push(`checked ${checked} of ${fixture.frames.length} frames`);
 if (dropped) errors.push(`${dropped} beam writes dropped`);
+// Every part takes its buffers from zg.mem at its init (ram.zig): none refused.
+if (machine.hwRamAllocFailures()) errors.push(`${machine.hwRamAllocFailures()} zg.mem allocation(s) refused`);
 if (planesOn) errors.push(`a plane was enabled on ${planesOn} frame-planes`);
 if (!songsOk) errors.push(`music requests ${JSON.stringify(songs)}, want ${JSON.stringify(SONGS)}`);
 console.log(errors.length ? `dhs_0pxl0reg: FAILED — ${errors.join("; ")}` : "dhs_0pxl0reg: all pass");
