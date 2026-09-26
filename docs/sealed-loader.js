@@ -134,7 +134,7 @@ async function swapCart(req, channelTag) {
             machine.hwInit();
             demo.boot();
             if (demo.skipBoot) demo.skipBoot(); // straight into the cart (boot sector already showed)
-            heldDirs.clear(); // the new cart never saw those presses: no releases for them
+            heldDirs.clear(); heldKeys.clear(); // the new cart never saw those presses: no releases for them
             swapping = false;
             return;
         }
@@ -156,7 +156,7 @@ async function swapCart(req, channelTag) {
             machine.hwInit();
             demo.boot();
             demo.skipBoot(); // GEM already booted the machine; no second boot screen
-            heldDirs.clear(); // the new cart never saw those presses: no releases for them
+            heldDirs.clear(); heldKeys.clear(); // the new cart never saw those presses: no releases for them
             swapping = false;
             return;
         }
@@ -169,7 +169,7 @@ async function swapCart(req, channelTag) {
             machine.hwInit();
             demo.boot();
             demo.skipBoot();
-            heldDirs.clear(); // the new cart never saw those presses: no releases for them
+            heldDirs.clear(); heldKeys.clear(); // the new cart never saw those presses: no releases for them
             diskApp = true;      // the disk is still mounted: FLOPPY still opens it
             diskDirSet = false;  // re-hand GEM the FAT listing
             swapping = false;
@@ -197,7 +197,7 @@ async function swapCart(req, channelTag) {
         // The deck's name card, over the picture this cart is about to draw. Only
         // for a real cart: a data disk brings up GEM, and req -1 is the menu.
         if (req === 1 && bootable && window.armCartOsd) window.armCartOsd(tag);
-        heldDirs.clear(); // the new cart never saw those presses: no releases for them
+        heldDirs.clear(); heldKeys.clear(); // the new cart never saw those presses: no releases for them
         currentTag = tag; // null = the menu
         diskApp = !bootable;            // data disk → GEM's FLOPPY opens its app
         diskDirSet = false;            // re-hand GEM the new disk's FAT listing
@@ -763,6 +763,15 @@ function directionOf(key, owns) {
     return -1;
 }
 const heldDirs = new Set(); // directions this page has seen go down and not up
+// The same for demo.keyUp's codes: a cart that owns the keyboard (a game: WASD,
+// fire, Space...) must see those released on focus loss too, or they stay down.
+const heldKeys = new Set();
+function keyUpCode(key) {
+    if (key === "Backspace") return 8;
+    if (key === "Enter") return 13;
+    if (key.length === 1) return key.charCodeAt(0);
+    return KEY_CODES[key] !== undefined ? KEY_CODES[key] : -1;
+}
 // Bookkeeping only; the keydown listener above still sends demo.input. Repeats
 // are counted too, so a key held across a cart swap (heldDirs cleared) is
 // tracked again for blur.
@@ -771,6 +780,8 @@ window.document.body.addEventListener('keydown', function (evt) {
     const owns = demo.ownsKeyboard ? demo.ownsKeyboard() !== 0 : false;
     const dir = directionOf(evt.key, owns);
     if (dir >= 0) heldDirs.add(dir);
+    const code = keyUpCode(evt.key);
+    if (code >= 0 && demo.keyUp) heldKeys.add(code);
 });
 // No release while a swap is in flight (the cart window holds the next cart being
 // unpacked) or after a trap (that cart is never called again).
@@ -786,17 +797,18 @@ window.document.body.addEventListener('keyup', function (evt) {
         heldDirs.delete(dir);
         if (demo.inputRelease) demo.inputRelease(dir);
     }
-    if (cartCallable() && demo.keyUp) {
-        if (evt.key === "Backspace") demo.keyUp(8);
-        else if (evt.key === "Enter") demo.keyUp(13);
-        else if (evt.key.length === 1) demo.keyUp(evt.key.charCodeAt(0));
-        else if (KEY_CODES[evt.key] !== undefined) demo.keyUp(KEY_CODES[evt.key]);
+    const code = keyUpCode(evt.key);
+    if (code >= 0 && cartCallable() && demo.keyUp) {
+        heldKeys.delete(code);
+        demo.keyUp(code);
     }
 });
 // Focus loss swallows the keyup: release everything still held.
 function releaseAll() {
     if (cartCallable() && demo.inputRelease) for (const d of heldDirs) demo.inputRelease(d);
     heldDirs.clear();
+    if (cartCallable() && demo.keyUp) for (const c of heldKeys) demo.keyUp(c);
+    heldKeys.clear();
 }
 window.addEventListener('blur', releaseAll);
 document.addEventListener('visibilitychange', () => { if (document.hidden) releaseAll(); });
