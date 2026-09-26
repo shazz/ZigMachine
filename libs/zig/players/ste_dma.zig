@@ -21,11 +21,17 @@
 // WHAT IS NOT HERE, named rather than silently missing:
 //   * the frame-end interrupt (MFP GPIP 7). Nothing we play polls it; tunes
 //     poll the go bit, which is cleared below when a one-shot runs out.
-//   * the Microwire volume and tone registers ($FF8922/$FF8924). Writes are
-//     accepted and shadowed so a read-modify-write sees what it wrote, but the
-//     master volume is not applied.
+//   * the Microwire volume and tone SETTINGS ($FF8922/$FF8924): the master
+//     volume and tone a tune sends are not applied. The TRANSFER is emulated,
+//     because tunes wait on it: writing the data register shifts 16 bits out,
+//     and while it does the mask register reads back rotated one bit per shift,
+//     returning to the written mask after 16. maxYMiser's STE path writes $7FF
+//     to the mask, the command to the data, then spins until the mask reads
+//     something else and again until it reads $7FF: a mask that only ever read
+//     back $7FF hung those tunes in their init (crystallized.sndh, D-Bug).
 //   * the real chip latches start/end at the END of a frame. Here they are
 //     latched when the go bit is set, which is a frame early at worst.
+const std = @import("std");
 const audio = @import("audio_hw");
 
 pub const BASE: u32 = 0xFF8900;
@@ -36,6 +42,8 @@ const START_HI: u32 = 0x03; // +0x03/0x05/0x07
 const COUNT_HI: u32 = 0x09; // +0x09/0x0B/0x0D, read-only: where the chip is now
 const END_HI: u32 = 0x0F; // +0x0F/0x11/0x13
 const MODE: u32 = 0x21; // bits 0-1 = rate, bit 7 = MONO
+const MW_DATA: u32 = 0x22; // Microwire data, $FF8922 (word)
+const MW_MASK: u32 = 0x24; // Microwire mask, $FF8924 (word)
 
 /// The four rates the chip can be clocked at, in Hz.
 const RATES = [4]f32{ 6258, 12517, 25033, 50066 };
@@ -44,6 +52,10 @@ const CH_L: u32 = 0;
 const CH_R: u32 = 1;
 
 var regs: [SIZE]u8 = [_]u8{0} ** SIZE;
+/// Microwire shifts still to go in the current transfer (16 per data write).
+/// One shift per read of the mask's low byte: a word read sees one position,
+/// and a spinning tune watches the mask walk round and come home.
+var mw_left: u8 = 0;
 var playing: bool = false;
 var stereo: bool = false;
 /// Bytes consumed since the frame started, 16.16 — the counter registers are
@@ -61,6 +73,7 @@ pub var starts: u32 = 0;
 
 pub fn reset() void {
     regs = [_]u8{0} ** SIZE;
+    mw_left = 0;
     playing = false;
     pos = 0;
     audio.machinePaulaSetActive(CH_L, 0);
@@ -81,7 +94,18 @@ pub fn read(addr: u32) u8 {
             else => 0,
         };
     }
+    if ((r == MW_MASK or r == MW_MASK + 1) and mw_left != 0) return microwireMask(r);
     return regs[r];
+}
+
+/// The mask during a transfer: the written mask rotated left by the shifts done.
+fn microwireMask(r: u32) u8 {
+    const mask: u16 = (@as(u16, regs[MW_MASK]) << 8) | regs[MW_MASK + 1];
+    const done: u4 = @intCast(16 - @as(u32, mw_left));
+    const now = std.math.rotl(u16, mask, done);
+    if (r == MW_MASK) return @truncate(now >> 8);
+    mw_left -= 1; // the low byte ends a word read: the next one sees the next shift
+    return @truncate(now);
 }
 
 pub fn write(addr: u32, value: u8) void {
@@ -90,6 +114,7 @@ pub fn write(addr: u32, value: u8) void {
     writes +%= 1;
     const was = regs[CTRL] & 1;
     regs[r] = value;
+    if (r == MW_DATA or r == MW_DATA + 1) mw_left = 16; // a transfer starts
     if (r != CTRL) return;
     if (value & 1 != 0) {
         if (was == 0) begin();

@@ -102,10 +102,15 @@ export fn m68k_read_memory_8(address: c_uint) c_uint {
     return 0;
 }
 
+// A word or long read of HARDWARE is two byte reads, high byte first, exactly
+// as the write side splits them. It used to return 0: harmless while tunes only
+// read the PSG by byte, fatal for the STE path, where maxYMiser's Microwire
+// wait (`cmpi.w #$7ff,$ffff8924`) read 0 forever and hung the tune's init
+// (crystallized.sndh, the D-Bug and music-debug screens).
 export fn m68k_read_memory_16(address: c_uint) c_uint {
     const addr = @as(u32, @intCast(address)) & ADDRESS_MASK;
     if (addr + 1 < RAM_SIZE) return (@as(c_uint, ram()[addr]) << 8) | ram()[addr + 1];
-    return 0;
+    return (m68k_read_memory_8(addr) << 8) | m68k_read_memory_8(addr +% 1);
 }
 
 export fn m68k_read_memory_32(address: c_uint) c_uint {
@@ -114,7 +119,7 @@ export fn m68k_read_memory_32(address: c_uint) c_uint {
         return (@as(c_uint, ram()[addr]) << 24) | (@as(c_uint, ram()[addr + 1]) << 16) |
             (@as(c_uint, ram()[addr + 2]) << 8) | ram()[addr + 3];
     }
-    return 0;
+    return (m68k_read_memory_16(addr) << 16) | m68k_read_memory_16(addr +% 2);
 }
 
 export fn m68k_write_memory_8(address: c_uint, value: c_uint) void {
