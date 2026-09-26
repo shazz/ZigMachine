@@ -101,6 +101,8 @@ async function boot(cartPath, disk) {
     machine.hwInit();
     demo.boot();
     demo.skipBoot();
+    const refused = machine.hwRamAllocFailures();
+    if (refused) throw new Error(`${refused} zg.mem allocation(s) refused at boot`);
     return { demo, io };
 }
 

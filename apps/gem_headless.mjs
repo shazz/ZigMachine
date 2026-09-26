@@ -141,6 +141,10 @@ class Gem {
         this.demo.boot();
         this.demo.skipBoot();
         for (let i = 0; i < 4; i++) this.demo.frame(16.6); // let it settle
+        // A program takes its buffers from the RAM arena at init (ST Replay's
+        // 1.5 MiB sample): a refusal is a window overrun, never a pass.
+        const refused = this.machine.hwRamAllocFailures();
+        if (refused) throw new Error(`${refused} zg.mem allocation(s) refused after a program launch`);
     }
     point(x, y, buttons) { this.demo.pointer(x, y, buttons); this.frame(); }
     click(x, y) { this.point(x, y, 0); this.point(x, y, 1); this.point(x, y, 0); }

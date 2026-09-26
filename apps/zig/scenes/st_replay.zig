@@ -48,28 +48,28 @@ const SILENCE: u8 = 0; // .raw samples are SIGNED 8-bit, so silence is zero
 //
 // Phase 2 step 2.4 spent that RAM: with GEM out of the cart (step 2.3) the window
 // had 603 KB free, so the sampler grew to 1.5 MiB (+512 KB), leaving about 90 KB
-// for stack and heap. Grow it again only against check_fits' measured free count.
+// for stack and heap. Grow it again only against hwRamFree() measured at run time
+// (the panel shows it): since the buffer moved to the RAM arena, check_fits no
+// longer sees it and reports those 1.5 MiB as free.
 const MAX_PCM: usize = 1536 * 1024;
 const RING: usize = 32768; // the audio ring (STREAM_RING in demo_audio_main.zig)
 const PLANE: u32 = 0; // the app owns plane 0
 
-// The sample itself, in machine RAM. Module-level, NOT a field of App — which is
-// about safety, not size: a struct carrying a megabyte array is a landmine, because
-// any `x = .{}` on it makes the linker materialise a WHOLE SECOND copy as a data
-// segment. That is precisely what `self.* = .{}` in gem_desktop.zig did, and it
-// cost 517 KB of the cart's RAM window until 2026-09-12. Out here, it cannot
-// happen again.
+// The sample itself, in machine RAM: allocated from the cart RAM arena
+// (zg.mem, HW 1.7.0) once per cart load, in init(). As a module-scope array it
+// was 1.5 MiB of zeros in the wasm's data section (the cart imports its memory,
+// so the linker cannot assume it is zero) and in the image romDepack unpacks
+// into the window at load. Peak RAM is unchanged: the arena hands out the same
+// 1.5 MiB, just above the statics and stack instead of among them.
 //
-// It does NOT shrink the wasm. The cart imports its memory (build.zig), and
-// wasm-lld cannot assume imported memory is zeroed, so it materialises .bss as
-// explicit zero data segments regardless — the megabyte is in the file either
-// way (measured: file size tracks MAX_PCM 1:1). Serve the carts gzipped if that
-// matters; a megabyte of zeros compresses to nothing.
+// Module-level, NOT a field of App: a struct carrying a large array is a
+// landmine, because any `x = .{}` on it makes the linker materialise a whole
+// second copy as a data segment (`self.* = .{}` in gem_desktop.zig cost 517 KB
+// that way until 2026-09-12).
 //
-// `undefined` + an explicit memset in init() rather than a zero initialiser,
-// because the loader swaps carts over ONE shared memory: never assume a fresh
-// cart's RAM is clean. Same reason every scalar in init() is set, not assumed.
-var pcm: [MAX_PCM]u8 = undefined;
+// Arena memory comes back zeroed, but init() still silences it explicitly:
+// SILENCE is the sampler's notion of quiet, not the allocator's.
+var pcm: *[MAX_PCM]u8 = undefined;
 
 
 pub const App = struct {
@@ -117,7 +117,7 @@ pub const App = struct {
         const lay = disk.mount() orelse return self.dlg("Load from disc", "No disc in drive A:.");
         const ent = disk.find(lay, name) orelse return self.dlg("Load from disc", "File not found.");
         self.stop();
-        const n = disk.read(ent, &pcm);
+        const n = disk.read(ent, pcm);
         @memset(pcm[n..], SILENCE);
         self.bytes = @intCast(n);
         self.low = 0;
@@ -202,7 +202,8 @@ pub const App = struct {
         self.looping = false;
         self.marked = false;
         @memset(&self.sample, SILENCE);
-        @memset(&pcm, SILENCE); // .bss, and the cart swap reuses memory — see above
+        pcm = zg.mem.mustAlloc(u8, MAX_PCM)[0..MAX_PCM]; // once per cart load: init runs once
+        @memset(pcm, SILENCE);
         self.rate = 2; // 10 KHz, as the original boots
         self.high = self.bytes;
     }
@@ -303,7 +304,7 @@ pub const App = struct {
     // rest of the app's state — an editor command edits, it does not reboot.
     fn wipe(self: *App) void {
         @memset(&self.sample, SILENCE);
-        @memset(&pcm, SILENCE);
+        @memset(pcm, SILENCE);
         self.bytes = 0;
         self.low = 0;
         self.high = 0;

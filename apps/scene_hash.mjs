@@ -101,6 +101,13 @@ async function fingerprint(argv) {
         samples.push({ frame: f, hash });
     }
     console.log(JSON.stringify({ cart, frames: N, every: K, calls: callSpecs, samples, total: total.digest("hex") }));
+    // A cart that takes its buffers from the RAM arena (zg.mem) and was refused
+    // one ran on a bad pointer: its fingerprint is not evidence of anything.
+    const refused = machine.hwRamAllocFailures();
+    if (refused) {
+        console.error(`scene_hash: ${cart}: ${refused} zg.mem allocation(s) refused`);
+        process.exit(1);
+    }
 }
 
 async function compare(a, b) {

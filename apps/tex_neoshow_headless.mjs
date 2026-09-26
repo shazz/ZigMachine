@@ -110,3 +110,11 @@ for (let r = 0; r < 5; r++) {
     bestComp = Math.min(bestComp, (performance.now() - t0) / 600);
 }
 console.log(`  frame cost (best of 5x600): cart ${bestCart.toFixed(3)} ms + planes ${bestComp.toFixed(3)} ms`);
+
+// The unicorn canvas comes from the RAM arena at init: a refused allocation is
+// a window overrun, never a pass.
+const refused = machine.hwRamAllocFailures();
+if (refused) {
+    console.log(`tex_neoshow: FAILED -- ${refused} zg.mem allocation(s) refused`);
+    process.exit(1);
+}
