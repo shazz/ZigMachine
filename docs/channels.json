@@ -225,6 +225,11 @@
   "type": "amiga"
  },
  {
+  "tag": "swedish_newyear",
+  "title": "SWEDISH NEW YEAR",
+  "type": "atari st"
+ },
+ {
   "tag": "tcb_colorshock",
   "title": "TCB COLORSHOCK",
   "type": "atari st"

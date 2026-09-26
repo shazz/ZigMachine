@@ -256,6 +256,10 @@ gate tcb_weirddream node apps/tcb_weirddream_headless.mjs "$SHOTS/tcb_weirddream
 gate tcb_weirddream node apps/tcb_weirddream_headless.mjs --break table "$SHOTS/tcb_weirddream"   # ...and a scroll table read one entry late is caught
 gate tcb_weirddream node apps/tcb_weirddream_headless.mjs --break noclear "$SHOTS/tcb_weirddream"   # ...and a border never painted is caught
 gate tcb_weirddream node apps/tcb_weirddream_headless.mjs --break keys "$SHOTS/tcb_weirddream"   # ...and a wrong F1/F2 rule is caught
+gate swedish_newyear node apps/swedish_newyear_headless.mjs "$SHOTS/swedish_newyear"   # SWEDISH NEW YEAR (CODEF 295): the menu + 5 screens along the remake's key path vs screen.js replayed, whole physical frame pixel for pixel, colour-0 rasters as per-line registers into the borders, every tune its SNDH/subtune and playing
+gate swedish_newyear node apps/swedish_newyear_headless.mjs --break hbl "$SHOTS/swedish_newyear"   # ...and without the HBL the rasters/line palette are caught
+gate swedish_newyear node apps/swedish_newyear_headless.mjs --break step "$SHOTS/swedish_newyear"   # ...and one extra cart frame is caught
+gate swedish_newyear node apps/swedish_newyear_headless.mjs --break tune "$SHOTS/swedish_newyear"   # ...and a wrong subtune is caught
 gate c_fujiboink node apps/c_fujiboink_headless.mjs "$SHOTS/c_fujiboink"   # FUJIBOINK! (C, START 1986): nine Hatari captures of FUJIBOIN.PRG, six pixel for pixel and three within a one-VBL mid-frame sliver; the rainbow is Timer B's 73 register lines (every pixel an ST index, entry 4 rewritten per line); the thud SNDH lands with the fuji and decays; F-key freeze, Space and Escape leave
 gate c_fujiboink node apps/c_fujiboink_headless.mjs --break rasters "$SHOTS/c_fujiboink"   # ...and a plane whose HBL never runs (one static palette) is caught
 gate c_fujiboink node apps/c_fujiboink_headless.mjs --break thud "$SHOTS/c_fujiboink"   # ...and a lost thud request is caught
