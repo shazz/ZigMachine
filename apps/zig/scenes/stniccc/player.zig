@@ -18,18 +18,25 @@ pub const SRC_H: u32 = 200;
 /// Scaling the VERTICES (not the pixels) keeps the edges sharp at any size.
 pub const View = struct { target: polyfill.Target, w: u32, h: u32 };
 
-pub const Player = struct {
-    stream: st.Stream,
+/// What is recorded the first time a frame is decoded (66,600 B). The caller
+/// owns it: the scene takes it from the cart RAM arena, a test from its stack.
+pub const Index = struct {
     offsets: [MAX_FRAMES]u32,
     clears: [MAX_FRAMES]bool,
     palettes: [MAX_FRAMES][16]u16, // the palette in effect once that frame is drawn
+};
+
+pub const Player = struct {
+    stream: st.Stream,
+    index: *Index,
     known: u32, // frames 0..known-1 are indexed
     next: u32, // stream offset of frame `known`
     total: u32, // frame count once $FD has been read, else 0
     shown: ?u32, // the frame on screen, or null when the screen was disturbed
 
-    pub fn init(self: *Player, source: st.Source, buf: *[st.BLOCK]u8) void {
+    pub fn init(self: *Player, source: st.Source, buf: *[st.BLOCK]u8, index: *Index) void {
         self.stream = .{ .source = source, .buf = buf };
+        self.index = index;
         self.known = 0;
         self.next = 0;
         self.total = 0;
@@ -37,7 +44,7 @@ pub const Player = struct {
     }
 
     pub fn palette(self: *const Player, n: u32) *const [16]u16 {
-        return &self.palettes[n];
+        return &self.index.palettes[n];
     }
 
     /// Draw frame n. The next frame after the one on screen decodes just that
@@ -52,23 +59,23 @@ pub const Player = struct {
 
     fn lastClear(self: *const Player, n: u32) u32 {
         var f = n;
-        while (f > 0 and !self.clears[f]) f -= 1;
+        while (f > 0 and !self.index.clears[f]) f -= 1;
         return f;
     }
 
     // Decode frames up to n without drawing, recording where each one starts.
     fn indexTo(self: *Player, n: u32) st.Error!void {
         if (n >= MAX_FRAMES or (self.total != 0 and n >= self.total)) return error.Truncated;
-        var pal: [16]u16 = if (self.known == 0) [_]u16{0} ** 16 else self.palettes[self.known - 1];
+        var pal: [16]u16 = if (self.known == 0) [_]u16{0} ** 16 else self.index.palettes[self.known - 1];
         var poly: st.Poly = undefined;
         while (self.known <= n) {
             const f = self.known;
             self.stream.seek(self.next);
             const flags = try self.stream.beginFrame(&pal);
             while (try self.stream.nextPoly(&poly)) {}
-            self.offsets[f] = self.next;
-            self.clears[f] = flags.clear;
-            self.palettes[f] = pal;
+            self.index.offsets[f] = self.next;
+            self.index.clears[f] = flags.clear;
+            self.index.palettes[f] = pal;
             self.next = self.stream.pos;
             self.known = f + 1;
             if (self.stream.done) {
@@ -79,7 +86,7 @@ pub const Player = struct {
     }
 
     fn draw(self: *Player, f: u32, view: View) st.Error!void {
-        self.stream.seek(self.offsets[f]);
+        self.stream.seek(self.index.offsets[f]);
         var ignored: [16]u16 = undefined; // the recorded palette is authoritative
         const flags = try self.stream.beginFrame(&ignored);
         if (flags.clear) clear(view.target);
@@ -154,8 +161,8 @@ fn buildScene(out: []u8) []u8 {
 const VW = 32;
 const VH = 25;
 
-fn testPlayer(p: *Player, src: *st.SliceSource, buf: *[st.BLOCK]u8) void {
-    p.init(src.source(), buf);
+fn testPlayer(p: *Player, src: *st.SliceSource, buf: *[st.BLOCK]u8, index: *Index) void {
+    p.init(src.source(), buf, index);
 }
 fn testView(px: *[VW * VH]u8) View {
     return .{ .target = .{ .px = px, .stride = VW, .w = VW, .h = VH, .ox = 0 }, .w = VW, .h = VH };
@@ -165,8 +172,9 @@ test "any frame drawn out of order matches the same frame played in order" {
     var scene_buf: [128]u8 = undefined;
     var src = st.SliceSource{ .bytes = buildScene(&scene_buf) };
     var buf: [st.BLOCK]u8 = undefined;
+    var index: Index = undefined;
     var p: Player = undefined;
-    testPlayer(&p, &src, &buf);
+    testPlayer(&p, &src, &buf, &index);
     var screen = [_]u8{0} ** (VW * VH);
     var snaps: [4][VW * VH]u8 = undefined;
     for (0..4) |f| {
@@ -186,8 +194,9 @@ test "frame 1 keeps frame 0 underneath; frame 2 clears it" {
     var scene_buf: [128]u8 = undefined;
     var src = st.SliceSource{ .bytes = buildScene(&scene_buf) };
     var buf: [st.BLOCK]u8 = undefined;
+    var index: Index = undefined;
     var p: Player = undefined;
-    testPlayer(&p, &src, &buf);
+    testPlayer(&p, &src, &buf, &index);
     var screen = [_]u8{0} ** (VW * VH);
     try p.show(1, testView(&screen)); // straight to frame 1: replays 0 then 1
     try expectEqual(@as(u8, 1), screen[1 * VW + 1]); // frame 0's square, not cleared
@@ -200,12 +209,14 @@ test "a frame past the end, or a stream that cannot be read, is an error" {
     var scene_buf: [128]u8 = undefined;
     var src = st.SliceSource{ .bytes = buildScene(&scene_buf) };
     var buf: [st.BLOCK]u8 = undefined;
+    var index: Index = undefined;
     var p: Player = undefined;
-    testPlayer(&p, &src, &buf);
+    testPlayer(&p, &src, &buf, &index);
     var screen = [_]u8{0} ** (VW * VH);
     try std.testing.expectError(error.Truncated, p.show(4, testView(&screen)));
     var empty = st.SliceSource{ .bytes = &.{} };
+    var q_index: Index = undefined;
     var q: Player = undefined;
-    testPlayer(&q, &empty, &buf);
+    testPlayer(&q, &empty, &buf, &q_index);
     try std.testing.expectError(error.ReadFailed, q.show(0, testView(&screen)));
 }

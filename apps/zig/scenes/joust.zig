@@ -114,6 +114,7 @@ pub const Demo = struct {
         self.fire2 = false;
         self.held = 0;
         self.wants_quit = false;
+        State.allocMemory(); // once per cart load: reset() and restarts only re-fill it
         self.m.reset(SEED);
         g_demo = self;
         testapi.m = &self.m;

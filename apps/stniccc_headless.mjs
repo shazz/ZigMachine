@@ -98,3 +98,9 @@ for (let f = 1; f <= FRAMES; f++) {
 }
 console.log(`host frames: ${FRAMES}, mean ${(total / FRAMES).toFixed(3)} ms, ` +
             `worst ${worst.toFixed(3)} ms at host frame ${worstAt} (budget 16.6 ms)`);
+// The block and the frame index come from the RAM arena (zg.mem): a refused
+// request is a bug.
+if (machine.hwRamAllocFailures()) {
+    console.log(`stniccc: FAIL -- ${machine.hwRamAllocFailures()} zg.mem allocation(s) refused`);
+    process.exit(1);
+}

@@ -28,11 +28,6 @@ const ALLOW = {
     // The AUDIO thread's module (players + 68000 core): it has no RAM arena
     // (the arena is a machine-video instruction), so this one needs another fix.
     "demo-audio.wasm": 590760,
-    "demo-cuddly_starwars.wasm": 223510,
-    "demo-joust.wasm": 153614,
-    "demo-north_south.wasm": 204174,
-    "demo-obj.wasm": 86318,
-    "demo-stniccc.wasm": 137614,
     "demo-supplex_fs2.wasm": 73277,
 };
 

@@ -11,6 +11,7 @@
 //                   screen lands where that address points (or nowhere here)
 //   hline = $1426C  horizontal line, clipped, inclusive
 // --------------------------------------------------------------------------
+const zg = @import("zigos");
 const A = @import("assets.zig");
 
 pub const W: usize = 320;
@@ -18,9 +19,15 @@ pub const H: usize = 200;
 pub const PIXELS: usize = W * H;
 
 /// The two screen buffers and the background, keyed by the RAM address the
-/// game keeps in $1CD28 / $1CF16 / $1C934. Module scope: 192 KB is not the
-/// Demo struct's.
-pub var screens: [3][PIXELS]u8 = undefined;
+/// game keeps in $1CD28 / $1CF16 / $1C934. 192 KB from the cart RAM arena
+/// (zg.mem), taken once by allocScreens() in the scene's init: as a
+/// module-scope array it was 192 KB of zeros in the data segment. Every
+/// battle start re-fills them (setup.start) and must not allocate again.
+pub var screens: *[3][PIXELS]u8 = undefined;
+
+pub fn allocScreens() void {
+    screens = zg.mem.mustAlloc([PIXELS]u8, 3)[0..3];
+}
 pub const SCREEN_ADDR = [3]u32{ 0x2AC00, 0xF8000, 0x9C712 };
 
 pub fn screenAt(addr: u32) ?*[PIXELS]u8 {

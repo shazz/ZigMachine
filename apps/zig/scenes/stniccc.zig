@@ -62,7 +62,11 @@ const Act = enum { small, slowing, rewinding, message, zooming, fullscreen, fail
 
 pub const Demo = struct {
     player: player_mod.Player,
-    block: [st.BLOCK]u8,
+    // The loaded 64 KB block and the player's frame index, from the cart RAM
+    // arena (zg.mem) once in init(): as fields of the static cart they were
+    // 130 KB of zeros in the data segment.
+    block: *[st.BLOCK]u8,
+    index: *player_mod.Index,
     file: zg.disk.Entry,
     act: Act,
     t: u32, // VBLs since the act began (1 on its first frame)
@@ -77,6 +81,8 @@ pub const Demo = struct {
         self.pos = 0;
         self.speed = 1;
         self.wide = false;
+        self.block = zg.mem.mustAlloc(u8, st.BLOCK)[0..st.BLOCK];
+        self.index = &zg.mem.mustAlloc(player_mod.Index, 1)[0];
         // The ST's border is colour 0: black, so the closed borders of the small
         // phase match the black bars beside the 256-wide window.
         zigos.setBackgroundColor(Color{ .r = 0, .g = 0, .b = 0, .a = 255 });
@@ -88,7 +94,7 @@ pub const Demo = struct {
         fb.clearFrameBuffer(BLACK);
         const lay = zg.disk.mount() orelse return self.fail(fb);
         self.file = zg.disk.find(lay, SCENE_FILE) orelse return self.fail(fb);
-        self.player.init(.{ .ctx = self, .readFn = readDiskBlock }, &self.block);
+        self.player.init(.{ .ctx = self, .readFn = readDiskBlock }, self.block, self.index);
         zg.requestSong(MUSIC);
     }
 

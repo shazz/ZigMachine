@@ -112,3 +112,9 @@ t = performance.now();
 for (let i = 0; i < N; i++) for (let p = 0; p < PLANES; p++) machine.hwRenderPlane(p);
 const comp = (performance.now() - t) / N;
 console.log(`  frame cost: cart ${cart.toFixed(3)} ms + planes ${comp.toFixed(3)} ms`);
+
+// The canvases come from the RAM arena (zg.mem): a refused request is a bug.
+if (machine.hwRamAllocFailures()) {
+    console.log(`cuddly_starwars: FAIL -- ${machine.hwRamAllocFailures()} zg.mem allocation(s) refused`);
+    process.exit(1);
+}

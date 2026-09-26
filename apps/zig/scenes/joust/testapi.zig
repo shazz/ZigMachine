@@ -46,7 +46,9 @@ pub fn nudge(cycles: u32) callconv(.c) void {
 }
 
 /// FNV-1a of the game's RAM ($0D00-$1C90, $81CC-$8210, $86DA-$8710) + the screen.
+/// 0 before the scene's init: the memory is not allocated yet.
 pub fn hash() callconv(.c) u32 {
+    if (m == null) return 0;
     var h: u32 = 0x811C9DC5;
     for (REGIONS) |r| {
         for (State.mem[r[0]..r[1]]) |b| h = (h ^ b) *% 0x01000193;
@@ -75,8 +77,9 @@ pub fn val(what: u32) callconv(.c) u32 {
 }
 
 /// The ST screen (32000 bytes, planar) and the 16 colour registers, for the
-/// harness to decode itself.
-pub fn screenPtr() callconv(.c) [*]const u8 {
+/// harness to decode itself. The screen is 0 (null) before the scene's init.
+pub fn screenPtr() callconv(.c) ?[*]const u8 {
+    if (m == null) return null;
     return State.scr[State.BELOW..].ptr;
 }
 pub fn palPtr() callconv(.c) [*]const u16 {

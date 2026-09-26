@@ -40,6 +40,7 @@ const ZigOS = zg.ZigOS;
 const G = @import("north_south/game.zig");
 const setup = @import("north_south/setup.zig");
 const front = @import("north_south/front.zig");
+const gfx = @import("north_south/gfx.zig");
 const controls = @import("north_south/controls.zig");
 // This cart's own wasm exports: the key RELEASE (the loader calls a cart's
 // keyUp when it exports one; demo_main forwards none) and the headless
@@ -95,6 +96,7 @@ pub const Demo = struct {
     leave: bool,
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
+        gfx.allocScreens(); // once per cart load: start() re-fills them every battle
         self.phase = .front;
         self.menu.reset();
         keys.reset();

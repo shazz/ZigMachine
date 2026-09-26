@@ -85,7 +85,8 @@ function sfxOf(demo) {
 
 async function replay(name) {
     const run = fixture.runs[name];
-    const { demo } = await boot();
+    const { machine, demo } = await boot();
+    const arenaTop = machine.hwRamMark(); // mem + scr are taken at init, never on a reset
     const joy = Buffer.from(run.joy, "base64");
     const sfx = run.sfx.split(",");
     const checks = new Map(run.checks.map(([f, h, t]) => [f, [h >>> 0, t]]));
@@ -122,6 +123,8 @@ async function replay(name) {
     const oob = demo.joustTestVal(5), cerr = demo.joustTestVal(6);
     if (oob) fail(`${oob} accesses outside the program, the screen and the RAM below it`);
     if (cerr) fail(`${cerr} cycle-table errors`);
+    if (machine.hwRamMark() !== arenaTop) fail("the RAM arena grew: a reset or restart allocated");
+    if (machine.hwRamAllocFailures()) fail(`${machine.hwRamAllocFailures()} zg.mem allocation(s) refused`);
     console.log(`  ${name}: ${run.frames} frames from power-on; VBLs per frame ${vblOk}/${run.frames}, ` +
         `SFX ${sfxOk}/${run.frames}, RAM+screen+clock ${hashOk}/${checks.size} checks identical to the harness ` +
         `(${ms.toFixed(3)} ms/frame)`);

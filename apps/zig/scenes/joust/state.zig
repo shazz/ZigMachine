@@ -14,6 +14,7 @@
 // transcriptions mask where the model masks, and nowhere else.
 // --------------------------------------------------------------------------
 const std = @import("std");
+const zg = @import("zigos");
 const pacing = @import("pacing.zig");
 const sound = @import("sound.zig");
 const m68k = @import("m68k.zig");
@@ -38,9 +39,17 @@ const PRG = @embedFile("../../assets/screens/joust/JOUST.PRG");
 pub const MUR = @embedFile("../../assets/screens/joust/JOUST.MUR");
 pub const HIGH_SCO = @embedFile("../../assets/screens/joust/HIGH.SCO");
 
-/// Module scope: 146 KB that do not belong in the cart's Demo struct.
-pub var mem: [MEM_LEN]u8 = undefined;
-pub var scr: [BELOW + 32000]u8 = undefined;
+/// 146 KB from the cart RAM arena (zg.mem), taken once per cart load by
+/// allocMemory() in the scene's init: as module-scope arrays they were 146 KB
+/// of zeros in the data segment. loadImage() re-fills both on every reset and
+/// restart, and allocates nothing.
+pub var mem: *[MEM_LEN]u8 = undefined;
+pub var scr: *[BELOW + 32000]u8 = undefined;
+
+pub fn allocMemory() void {
+    mem = zg.mem.mustAlloc(u8, MEM_LEN)[0..MEM_LEN];
+    scr = zg.mem.mustAlloc(u8, BELOW + 32000)[0 .. BELOW + 32000];
+}
 
 pub const Exit = enum { none, jmp18, restart, quit };
 
@@ -128,6 +137,8 @@ pub const St = struct {
     }
 
     // ---- absolute-address access, as the 68000 sees it ----
+    // Every 68000 access of every transcribed routine lands here, and reads
+    // the arena pointer once: one load where a static array had a constant.
     fn where(self: *St, a: i64, n: u8) ?[]u8 {
         const x = a & 0xFFFFFF;
         const len: i64 = n;
@@ -257,7 +268,7 @@ fn loadImage() void {
     // A reset (the harness's, or a second power-on in one instance) must not
     // inherit the last run's screen or the RAM below it: the model starts both
     // empty.
-    @memset(&scr, 0);
+    @memset(scr, 0);
 }
 
 // ---- 68000 arithmetic (m68k.zig), re-exported ----

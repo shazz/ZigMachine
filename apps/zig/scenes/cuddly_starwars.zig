@@ -173,18 +173,31 @@ inline fn greyIndex(value: f32) u8 {
 // --------------------------------------------------------------------------
 // Module-scope state: scratch canvases and what the HBL reads. All of it is
 // (re)written in init() or every frame before use.
+//
+// The large buffers come from the cart RAM arena (zg.mem) once, in init(): as
+// module-scope arrays they were ~222 KB of zeros in the data segment (the cart
+// imports its memory). raster_line stays static: the HBL reads it, and it is
+// only 800 B.
 // --------------------------------------------------------------------------
-var star_x: [STARS]f64 = undefined;
-var star_y: [STARS]f64 = undefined;
+var star_x: *[STARS]f64 = undefined;
+var star_y: *[STARS]f64 = undefined;
 var raster_line: [H]Color = undefined;
-var scroll_canvas: [SCROLL_H * W]u8 = undefined;
-var text_canvas: [motion.TEXT_ROWS * W]u8 = undefined;
+var scroll_canvas: *[SCROLL_H * W]u8 = undefined;
+var text_canvas: *[motion.TEXT_ROWS * W]u8 = undefined;
 // Leftmost and rightmost inked column of each text row; an empty row has
 // left > right. Most starwars lines are padded with spaces, so the perspective
 // only samples the span between them.
 var text_row_left: [motion.TEXT_ROWS]u16 = undefined;
 var text_row_right: [motion.TEXT_ROWS]u16 = undefined;
-var band_alpha: [motion.BAND_ROWS * W]f32 = undefined;
+var band_alpha: *[motion.BAND_ROWS * W]f32 = undefined;
+
+fn allocBuffers() void {
+    star_x = zg.mem.mustAlloc(f64, STARS)[0..STARS];
+    star_y = zg.mem.mustAlloc(f64, STARS)[0..STARS];
+    scroll_canvas = zg.mem.mustAlloc(u8, SCROLL_H * W)[0 .. SCROLL_H * W];
+    text_canvas = zg.mem.mustAlloc(u8, motion.TEXT_ROWS * W)[0 .. motion.TEXT_ROWS * W];
+    band_alpha = zg.mem.mustAlloc(f32, motion.BAND_ROWS * W)[0 .. motion.BAND_ROWS * W];
+}
 
 // A normal plane's HBL gets LOGICAL lines 0..199.
 fn rasterHbl(fb: *LogicalFB, _: *ZigOS, line: u16, _: u16) void {
@@ -230,6 +243,7 @@ pub const Demo = struct {
             self.text_offset += 1;
         }
 
+        allocBuffers();
         // Math.random() in the original; any fixed sequence is as faithful.
         var seed: u32 = 12345;
         for (0..STARS) |i| {
@@ -318,13 +332,15 @@ pub const Demo = struct {
     fn drawStars(self: *Demo, screen: []u8) void {
         const cos = @cos(self.rot);
         const sin = @sin(self.rot);
+        const xs = star_x;
+        const ys = star_y;
         for (0..STARS) |i| {
             var z = @as(f64, @floatFromInt(i)) * (STAR_Z_SIZE / @as(f64, STARS)) - self.star_z;
             if (z > STAR_Z_SIZE) z -= STAR_Z_SIZE * @floor(z / STAR_Z_SIZE);
             if (z < 0) z -= STAR_Z_SIZE * @floor(z / STAR_Z_SIZE);
             if (z == 0) continue; // 128/0: the canvas ignores a non-finite rect
-            const dx = star_x[i] - 160;
-            const dy = star_y[i] - 100;
+            const dx = xs[i] - 160;
+            const dy = ys[i] - 100;
             const k = STAR_FOCAL / z;
             const sx = (dx * cos - dy * sin) * k + 160;
             const sy = (dx * sin + dy * cos) * k + 100;
@@ -340,7 +356,7 @@ pub const Demo = struct {
         self.layoutText();
 
         // the perspective into a 100-row alpha band ('source-over' accumulation)
-        @memset(&band_alpha, 0);
+        @memset(band_alpha, 0);
         for (motion.perspective) |p| {
             const upper_row = inkedRow(p.src_row);
             const lower_row = inkedRow(p.src_row + 1);
@@ -374,7 +390,7 @@ pub const Demo = struct {
 
     /// print() of 30 lines of the starwars text onto the (flat) text canvas.
     fn layoutText(self: *Demo) void {
-        @memset(&text_canvas, 0);
+        @memset(text_canvas, 0);
         @memset(&text_row_left, W);
         @memset(&text_row_right, 0);
         for (0..SW_LINES) |j| {
@@ -409,7 +425,7 @@ pub const Demo = struct {
     }
 
     fn drawScroller(self: *Demo, screen: []u8) void {
-        @memset(&scroll_canvas, 0);
+        @memset(scroll_canvas, 0);
         for (self.letter_x, self.letter_char) |x, c| {
             if (x >= W) continue; // letters waiting at the back of the ring
             blitScrollGlyph(c - FIRST_CHAR, x);
@@ -556,10 +572,11 @@ fn blitScrollGlyph(nb: usize, x: i32) void {
     const ty = (nb / FONT_COLS) * GLYPH_H;
     const c0: usize = @intCast(@max(0, -x));
     const c1: usize = @intCast(@min(@as(i32, GLYPH_W), @as(i32, W) - x));
+    const canvas = scroll_canvas;
     for (0..SCROLL_H) |r| {
         const src = font_b[(ty + r) * FONT_W + tx ..][0..GLYPH_W];
         for (c0..c1) |c| {
-            if (src[c] != 0) scroll_canvas[r * W + @as(usize, @intCast(x + @as(i32, @intCast(c))))] = src[c];
+            if (src[c] != 0) canvas[r * W + @as(usize, @intCast(x + @as(i32, @intCast(c))))] = src[c];
         }
     }
 }
