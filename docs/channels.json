@@ -90,6 +90,11 @@
   "type": "atari st"
  },
  {
+  "tag": "joust",
+  "title": "JOUST",
+  "type": "atari st"
+ },
+ {
   "tag": "leonard",
   "title": "LEONARD",
   "type": "atari st"
