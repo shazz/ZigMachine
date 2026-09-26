@@ -256,6 +256,10 @@ gate tcb_weirddream node apps/tcb_weirddream_headless.mjs "$SHOTS/tcb_weirddream
 gate tcb_weirddream node apps/tcb_weirddream_headless.mjs --break table "$SHOTS/tcb_weirddream"   # ...and a scroll table read one entry late is caught
 gate tcb_weirddream node apps/tcb_weirddream_headless.mjs --break noclear "$SHOTS/tcb_weirddream"   # ...and a border never painted is caught
 gate tcb_weirddream node apps/tcb_weirddream_headless.mjs --break keys "$SHOTS/tcb_weirddream"   # ...and a wrong F1/F2 rule is caught
+gate swedish_newyear node apps/swedish_newyear_headless.mjs "$SHOTS/swedish_newyear"   # SWEDISH NEW YEAR (CODEF 295): the menu + 5 screens along the remake's key path vs screen.js replayed, whole physical frame pixel for pixel, colour-0 rasters as per-line registers into the borders, every tune its SNDH/subtune and playing
+gate swedish_newyear node apps/swedish_newyear_headless.mjs --break hbl "$SHOTS/swedish_newyear"   # ...and without the HBL the rasters/line palette are caught
+gate swedish_newyear node apps/swedish_newyear_headless.mjs --break step "$SHOTS/swedish_newyear"   # ...and one extra cart frame is caught
+gate swedish_newyear node apps/swedish_newyear_headless.mjs --break tune "$SHOTS/swedish_newyear"   # ...and a wrong subtune is caught
 gate gen4_3615 node apps/gen4_3615_headless.mjs "$SHOTS/gen4_3615"   # ULM 3615 GEN4: screen.js replayed (matched to the page in Chrome) at twelve frames from 1 to 30000 (the motif table's wrap at 603, the frame THE FATE is called at 2480), through all six waveforms, with the YM volumes driven: the whole 400x280 plane pixel for pixel; the sky, VU colours and floor shading are colour registers changed per line; side and bottom borders open, top shut; the remake's SNDH plays
 gate gen4_3615 node apps/gen4_3615_headless.mjs --break fate "$SHOTS/gen4_3615"   # ...and the logo's slices one canvas row down is caught
 gate gen4_3615 node apps/gen4_3615_headless.mjs --break ulm "$SHOTS/gen4_3615"   # ...and the ULM table one entry late is caught

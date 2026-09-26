@@ -86,6 +86,7 @@ const scene = switch (opts.index) {
     73 => @import("scenes/tcb_spreadpoint.zig"), // The Carebears / The Spreadpoint Demo (CODEF screen 469)
     74 => @import("scenes/stcs_css3.zig"), // STCS / Tsunoo Rhilty 3rd CSS Convention intro (original ST binary)
     75 => @import("scenes/tcb_weirddream.zig"), // TCB + REPLICANTS / WEIRD DREAM crack intro (CODEF screen 345)
+    76 => @import("scenes/swedish_newyear.zig"), // Swedish New Year Demo, menu + 5 screens (CODEF screen 295)
     77 => @import("scenes/gen4_3615.zig"), // ULM / 3615 GEN4, The Fate (CODEF screen 539)
     else => @compileError("bad cart index"),
 };
