@@ -74,5 +74,6 @@ for (let m = 1; m <= MODES; m++) {
 for (let m = 2; m <= MODES; m++) check(`mode ${m} is not FLAT`, shapes[m - 1] !== shapes[0], true);
 demo.key(K_ESC);
 check("Escape leaves for the menu", demo.pollCartRequest(), -1);
+check("no zg.mem allocation was refused", machine.hwRamAllocFailures(), 0);
 console.log(failures ? `\nscrolllab: ${failures} FAILED` : `\nscrolllab: PASS (${MODES} modes, frames in ${out})`);
 process.exit(failures ? 1 : 0);

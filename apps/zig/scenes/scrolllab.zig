@@ -29,7 +29,6 @@
 // Escape away from the host, so this scene sets wants_quit itself.
 // --------------------------------------------------------------------------
 const zg = @import("zigos");
-const hw = @import("hardware");
 const ZigOS = zg.ZigOS;
 const Color = zg.Color;
 const blit = zg.blit;
@@ -91,7 +90,9 @@ pub const Demo = struct {
             self.offset += 1;
         }
 
-        const buf = freeRam(A.TOTAL) orelse return fail("no free RAM for the font");
+        // On zg.mem, not borrowed above hwRamUsed(): modes.init() just took the
+        // strip and the path from the arena, which would hand a borrow out again.
+        const buf = zg.mem.alloc(u8, A.TOTAL) orelse return fail("no free RAM for the font");
         if (zx0.depack(packed_assets.replicants_emlyn, buf) == null) return fail("depack failed");
         self.font = A.Images.split(buf).font;
 
@@ -181,11 +182,4 @@ fn label(dst: blit.Dst, font: blit.Image, text: []const u8, top: usize) void {
 
 fn fail(why: []const u8) void {
     zg.Console.log("scrolllab: {s}", .{why});
-}
-
-/// `len` bytes of the cart's RAM window above its statics and stack.
-fn freeRam(len: usize) ?[]u8 {
-    if (hw.hwRamFree() < len) return null;
-    const base: usize = hw.hwRamBase() + hw.hwRamUsed();
-    return @as([*]u8, @ptrFromInt(base))[0..len];
 }
