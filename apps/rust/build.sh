@@ -20,9 +20,17 @@ OUT=../../docs
 # Layout MUST match build.zig's demo module (see apps/c/build.sh for the why).
 MEM=7340032; GLOBAL_BASE=1048576                 # 112*65536 (memmap.SHARED_PAGES) ; 0x100000
 EXPORTS=(boot frame isPlaneEnabled hblDispatch skipBoot setShadeMode pointer input)
+# --no-stack-first: rustc's wasm32 default puts the 1 MiB stack FIRST, growing
+# down from --global-base -- i.e. from 0x100000 into the MACHINE's RAM below the
+# cart window -- and leaves .bss out of the data segments, so the host's
+# high-water (docs/wasm_hiwater.js: max(stack pointer, data end)) ended at the
+# initialised data and missed the cart's zeroed statics. hwRamFree() then
+# over-reported, and the RAM arena (HW 1.7.0) handed out the cart's own .bss.
+# Stack-last is the layout C and Zig carts already have: data, .bss, then the
+# stack, whose top IS the high-water.
 LDFLAGS=(-C link-arg=--no-entry -C link-arg=--import-memory
          -C link-arg=--initial-memory=$MEM -C link-arg=--max-memory=$MEM
-         -C link-arg=--global-base=$GLOBAL_BASE)
+         -C link-arg=--global-base=$GLOBAL_BASE -C link-arg=--no-stack-first)
 for e in "${EXPORTS[@]}"; do LDFLAGS+=(-C link-arg=--export=$e); done
 LDFLAGS+=(-C link-arg=--export-if-defined=tuneIn) # zigmachine_tvnoise.rs, where declared (see apps/c/build.sh)
 

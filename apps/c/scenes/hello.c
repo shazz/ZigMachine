@@ -3,7 +3,7 @@
 //
 // Proof that apps are language-agnostic: this talks to the SAME sealed
 // machine-video.wasm as the Zig demo, over the SAME memory-mapped ABI
-// (hw/sdk/memmap.zig). It imports exactly two machine functions and writes
+// (hw/sdk/memmap.zig). It imports a handful of machine functions and writes
 // 8-bit palette indices straight into the shared video region.
 //
 // Build: see apps/c/build.sh  (zig cc, bundled lld). Output: docs/demo-c.wasm
@@ -26,6 +26,10 @@ __attribute__((import_module("env"), import_name("hwVideoBase")))
 extern int hwVideoBase(void);
 __attribute__((import_module("env"), import_name("consoleLogJS")))
 extern void consoleLogJS(const char *ptr, int len);
+
+// The machine's RAM arena (HW 1.7.0): malloc above this cart's statics, so a
+// working buffer costs nothing in the cart binary. The LUT below comes from it.
+#include "../zigmachine_mem.h"
 
 // --- the ROM chip: GEM, called from C (rom/sdk/rom.zig) ---
 //
@@ -51,7 +55,7 @@ ROM_IMPORT("guiText")  extern void guiText(unsigned h, const char *p, unsigned l
 static unsigned gui = 0;           // the ROM handle; 0 = no context
 
 static int   video_base = 0;       // base of the shared video hardware region
-static u8    tri[256];             // triangle-wave LUT (a libm-free "sine")
+static u8   *tri = 0;             // triangle-wave LUT (a libm-free "sine"), from the RAM arena
 static u8    plane0_on = 0;
 static u32   frame_counter = 0;
 
@@ -91,6 +95,12 @@ void boot(void) {
     video_base = hwVideoBase();
     *(u32 *)(reg() + REG_BACKGROUND) = 0xFF000000u;   // opaque black border
     build_rainbow();
+    tri = zm_alloc_array(u8, 256);                     // zeroed, or NULL when the window is full
+    if (!tri) {
+        const char full[] = "C app: hwRamAlloc refused the plasma LUT";
+        consoleLogJS(full, (int)sizeof(full) - 1);
+        return;                                        // plane 0 stays off: nothing to show
+    }
     for (int i = 0; i < 256; i++) tri[i] = (u8)(i < 128 ? i * 2 : (255 - i) * 2);
     plane0_on = 1;                                     // enable plane 0
 
@@ -134,6 +144,7 @@ static void draw_rom_panel(void) {
 __attribute__((export_name("frame")))
 void frame(float elapsed_ms) {
     (void)elapsed_ms;
+    if (!tri) return;                                  // boot() could not get its LUT
     frame_counter++;
     u32 t = frame_counter;
     u8 *fb = vram();

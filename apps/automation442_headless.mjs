@@ -42,6 +42,8 @@ async function boot(cart = "docs/demo-automation442.wasm") {
             hwRamBase: machine.hwRamBase, hwRamTop: machine.hwRamTop,
             hwRamSize: machine.hwRamSize, hwRamUsed: machine.hwRamUsed,
             hwRamFree: machine.hwRamFree,
+            hwRamAlloc: machine.hwRamAlloc, hwRamMark: machine.hwRamMark,
+            hwRamRelease: machine.hwRamRelease, hwRamAllocFailures: machine.hwRamAllocFailures,
             hwRomRamBase: machine.hwRomRamBase, hwRomRamTop: machine.hwRomRamTop,
             hwRomRamSize: machine.hwRomRamSize, hwRomRamUsed: machine.hwRomRamUsed,
             hwRomRamFree: machine.hwRomRamFree,

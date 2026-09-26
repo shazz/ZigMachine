@@ -9,6 +9,46 @@ reconstructed from the commits that made them, so they are shorter.
 
 ---
 
+## 2026-09-26 — The machine hands out RAM: a bump arena (HW 1.7.0)
+
+**Status:** accepted · guide in `docs/MEMORY.md`
+
+**Context:** A cart imports its memory, so the linker cannot assume it is zero and
+writes every zero byte of a module-scope buffer into the data segment.
+`demo-swedish_newyear.wasm` spent 1866 KB of its 2 MiB window on ~600 KB of real
+content, and 16 modules on main carried zero runs of 64 KB+. The ABI could only *measure* the
+window (`hwRamFree`), and every scene that wanted scratch space hand-rolled
+`hwRamBase() + hwRamUsed()` with no reservation and no failure count.
+
+**Decision:** Sealed instructions `hwRamAlloc(bytes, alignment)`, `hwRamMark`,
+`hwRamRelease(mark)`, `hwRamAllocFailures`, backed by two registers
+(`REG_RAM_ARENA_TOP` 0x6C, `REG_RAM_ALLOC_FAILS` 0x70). A **bump arena** from the
+declared high-water up: memory is zeroed (what a static promised), a refusal
+returns 0 and is counted, release is to a mark. The per-cart reset rides on
+`hwSetCartHigh`, which the host already calls at every boot, chainload and swap,
+so no new host hook was needed; `hwInit` preserves the arena like `CART_HIGH`.
+`hwRamUsed/Free` include the arena. ZigOS wraps it as `zg.mem` (an
+`std.mem.Allocator` plus typed `alloc(T, n)`); C and Rust get small wrappers. A
+gate (`apps/zero_segments.mjs`) fails any new zero run of 64 KB+.
+
+**Alternatives considered:** a general malloc/free heap in the machine (free
+lists, fragmentation, a lot of sealed code for demo carts that allocate once at
+boot); letting the linker zero `.bss` itself with bulk-memory passive segments
+(`zig cc` does this for C, but it is toolchain-specific and gives no failure
+count or per-part reuse); a ZigOS-only allocator over `hwRamBase + hwRamUsed`
+(not language-agnostic, and the machine could not reset it per cart).
+
+**Consequences:** Nothing is freed singly: a multi-part cart marks and releases.
+`hwRamBase() + hwRamUsed()` stays the first unowned byte, so the existing
+depack-to-free-RAM scenes are unchanged, but their scratch is still unreserved:
+an allocation made after it reuses those bytes. Arena use is invisible to
+`check_fits`, like ZX0 depack targets. Rust carts now link `--no-stack-first`:
+rustc's stack-first default put the stack below `0x100000` (machine RAM) and left
+`.bss` out of the data segments, so the measured high-water missed the cart's
+zeroed statics and the arena handed them out.
+
+---
+
 ## 2026-09-19 — Overscan + hardware scroll needed no machine change
 
 **Status:** accepted

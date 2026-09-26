@@ -56,6 +56,8 @@ async function boot() {
             consoleLogJS: (p, l) => console.log("[wasm]", dec.decode(new Uint8Array(memory.buffer, p, l))),
             hwRamBase: machine.hwRamBase, hwRamTop: machine.hwRamTop, hwRamSize: machine.hwRamSize,
             hwRamUsed: machine.hwRamUsed, hwRamFree: machine.hwRamFree,
+            hwRamAlloc: machine.hwRamAlloc, hwRamMark: machine.hwRamMark,
+            hwRamRelease: machine.hwRamRelease, hwRamAllocFailures: machine.hwRamAllocFailures,
             hwRomRamBase: machine.hwRomRamBase, hwRomRamTop: machine.hwRomRamTop,
             hwRomRamSize: machine.hwRomRamSize, hwRomRamUsed: machine.hwRomRamUsed,
             hwRomRamFree: machine.hwRomRamFree, ...rom,

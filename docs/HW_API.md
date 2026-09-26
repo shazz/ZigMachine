@@ -8,7 +8,7 @@ The **sealed machine** ABI: everything a coder gets of the hardware is the two
 > the entry points, not the schematics. The constraints *are* the console.
 > Everything here is stable ABI — additive changes bump minor, layout changes
 > bump major. Version is exported as `hwVersion()` / `audioVersion()`
-> (`0x0001_0600` = 1.6.0).
+> (`0x0001_0700` = 1.7.0).
 
 The single source of truth for the numbers below is `hw/sdk/memmap.zig` (video)
 and `hw/sdk/audio.zig` (audio).
@@ -75,6 +75,8 @@ memory.
 | `0x60` | `ROM_HIGH` | u32 | the same for the ROM module's window (`hwSetRomHigh`). `0` = no ROM chip fitted |
 | `0x64` | `BEAM_COUNT` | u16 | **1.6.0** colour-0 writes queued for the current line (table at `OFF_BEAM_TABLE`); the machine zeroes it after the line |
 | `0x68` | `BEAM_DROPPED` | u32 | **1.6.0** running count of refused BEAM writes; only `hwInit` zeroes it — read and clear it yourself |
+| `0x6C` | `RAM_ARENA_TOP` | u32 | **1.7.0** first byte above the cart's RAM arena; `0` = empty. Survives `hwInit`; `hwSetCartHigh` (a new cart) empties it. See §4c |
+| `0x70` | `RAM_ALLOC_FAILS` | u32 (ro) | **1.7.0** refused `hwRamAlloc`/`hwRamRelease` calls since this cart was declared |
 
 **BEAM — mid-line colour-0 writes (1.6.0).** For zero-bitplane screens, where the
 picture is colour 0 rewritten mid-line. From the **global** HBL for physical line
@@ -156,7 +158,7 @@ hwPhysicalPtr() i32      // pointer to the PFB, for the host to blit
 hwPlanesNumber() u8      // 4
 hwPhysWidth() u32        // 400
 hwPhysHeight() u32       // 280
-hwVersion() u32          // 0x0001_0600 (1.6.0)
+hwVersion() u32          // 0x0001_0700 (1.7.0)
 ```
 
 **Import it requires** (provided by the host, routed to the open demo module):
@@ -235,8 +237,8 @@ the machine dies later, somewhere else. So ask, do not guess:
 hwRamBase() u32          // 0x100000 — first byte of the cart's window
 hwRamTop()  u32          // 0x300000 — first byte ABOVE it (= the video region)
 hwRamSize() u32          // 0x200000 — the whole window
-hwRamUsed() u32          // this cart's static data + stack
-hwRamFree() u32          // what is left below the video region
+hwRamUsed() u32          // this cart's static data + stack (+ its RAM arena, 1.7.0)
+hwRamFree() u32          // what is left below the video region (above the arena)
 ```
 
 `hwRamFree()` returns **0** when the host has not declared the cart's high-water
@@ -256,6 +258,34 @@ Language-agnostic: a C or Rust cart imports `hwRamFree` from `env` like any othe
 entry point. `node apps/ram_check.mjs` tests the instructions against the host
 measurement; `node apps/check_fits.mjs <cart.wasm>` reports the same numbers
 offline and fails the build if a cart overruns the window.
+
+### The RAM arena — since 1.7.0
+
+malloc for a cart. A module-scope buffer costs its full size in the cart binary
+(imported memory is not known to be zero, so the link writes the zeros out) and
+in the window before boot; an arena block costs nothing until the cart asks:
+
+```zig
+hwRamAlloc(bytes, alignment) u32  // ZEROED block above the high-water; 0 = refused
+hwRamMark() u32                   // the arena's top: pass it to hwRamRelease later
+hwRamRelease(mark)                // free everything allocated after mark
+hwRamAllocFailures() u32          // refusals since this cart was loaded (never silent)
+```
+
+- A bump allocator from the cart's high-water (`CART_HIGH`) up to the video region.
+  `alignment` is a power of two, 1..65536; `bytes` must be non-zero.
+- Refused (returns 0 and bumps `RAM_ALLOC_FAILS`): undeclared high-water, zero
+  bytes, a bad alignment, not enough room. `hwRamRelease` of a mark outside
+  `[high-water, arena top]` is refused and counted too.
+- `hwRamFree()` = `hwRamTop()` − max(high-water, arena top); `hwRamUsed()` counts
+  the arena, so `used + free = size` and `hwRamBase() + hwRamUsed()` stays the
+  first unowned byte (scenes depack there — memory an allocation later reuses).
+- Per cart: `hwSetCartHigh` (every boot, chainload and swap) empties the arena and
+  zeroes the counter; `hwInit` leaves both alone.
+
+ZigOS wraps it as `zg.mem` (an `std.mem.Allocator`, `zg.mem.alloc(T, n) ?[]T`,
+`mustAlloc`, `mark/release`); C has `apps/c/zigmachine_mem.h`, Rust
+`apps/rust/zigmachine_mem.rs`. The whole story: `docs/MEMORY.md`.
 
 ### The ROM window — since 1.3.0
 

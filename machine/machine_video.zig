@@ -72,6 +72,22 @@ export fn hwRamFree() u32 {
     return video.ramFree();
 }
 
+// --- RAM arena (1.7.0, machine/arena.zig) ---
+// malloc for a cart: zeroed memory above its high-water instead of a zero-filled
+// static the linker writes byte for byte into the cart binary.
+export fn hwRamAlloc(bytes: u32, alignment: u32) u32 {
+    return video.ramAlloc(bytes, alignment);
+}
+export fn hwRamMark() u32 {
+    return video.ramMark();
+}
+export fn hwRamRelease(mark: u32) void {
+    video.ramRelease(mark);
+}
+export fn hwRamAllocFailures() u32 {
+    return video.ramAllocFailures();
+}
+
 // --- ROM chip RAM (Phase 2) ---
 // The ROM gets its own window ABOVE the video region, so an app's 2 MiB stays the
 // app's. Reports 0 until a rom.wasm is actually fitted and declared.

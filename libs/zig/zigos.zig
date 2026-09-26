@@ -238,6 +238,31 @@ pub const DISK_BLOCK: usize = 512;
 // The machine-side disk reader (FAT lookup + file streaming) built on readBlock.
 pub const disk = @import("disk.zig");
 
+// --- Cart RAM arena (HW 1.7.0): zg.mem ---------------------------------------
+// malloc for a scene: zeroed buffers above the cart's high-water that cost
+// nothing in the cart binary, unlike a zero-filled static (see libs/zig/mem.zig).
+const HwRam = struct {
+    pub fn alloc(bytes: usize, alignment: usize) usize {
+        // A request past u32 still reaches the machine, so it is refused AND counted.
+        const n = std.math.cast(u32, bytes) orelse std.math.maxInt(u32);
+        const a = std.math.cast(u32, alignment) orelse 0;
+        return hw.hwRamAlloc(n, a);
+    }
+    pub fn mark() usize {
+        return hw.hwRamMark();
+    }
+    pub fn release(m: usize) void {
+        hw.hwRamRelease(std.math.cast(u32, m) orelse 0);
+    }
+    pub fn failures() u32 {
+        return hw.hwRamAllocFailures();
+    }
+    pub fn free() usize {
+        return hw.hwRamFree();
+    }
+};
+pub const mem = @import("mem.zig").Mem(HwRam);
+
 // Read one 512-byte disk block into dst (>= 512 bytes). Returns bytes read.
 pub fn readBlock(block: u32, dst: []u8) i32 {
     return diskReadBlock(block, @intCast(@intFromPtr(dst.ptr)));

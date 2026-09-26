@@ -105,7 +105,16 @@ pub const REG_ROM_HIGH: usize = 0x60; // u32  (0x60..0x63)
 // machine enforces the 68000's limits and COUNTS every write that breaks them
 // (docs/HARDWARE_SPEC.md, "BEAM"). BEAM_COUNT = 0 is the pre-1.6.0 path exactly.
 pub const REG_BEAM_COUNT: usize = 0x64; // u16  entries queued for the CURRENT line (0x64..0x65; 0x66..0x67 free)
-pub const REG_BEAM_DROPPED: usize = 0x68; // u32  running count of rejected writes (0x68..0x6B; 0x6C..0x7F free below OFF_BLIT)
+pub const REG_BEAM_DROPPED: usize = 0x68; // u32  running count of rejected writes (0x68..0x6B)
+
+// --- RAM ARENA (1.7.0): hwRamAlloc / hwRamMark / hwRamRelease ----------------
+// A bump allocator over the cart window ABOVE the cart's high-water (CART_HIGH)
+// and below the video region, so a big working buffer costs nothing in the cart
+// binary (machine/arena.zig). Both registers are the machine's own state: they
+// survive hwInit() like CART_HIGH, and hwSetCartHigh() -- the host declaring a
+// NEW cart, at every boot or swap -- empties the arena and zeroes the counter.
+pub const REG_RAM_ARENA_TOP: usize = 0x6C; // u32  first byte above the arena; 0 = empty (0x6C..0x6F)
+pub const REG_RAM_ALLOC_FAILS: usize = 0x70; // u32  (ro) refused hwRamAlloc/hwRamRelease calls (0x70..0x73; 0x74..0x7F free below OFF_BLIT)
 // The table is 256 bytes, too big for the register block, so it sits directly
 // ABOVE the physical framebuffer: outside REGION_BYTES, which is the window the
 // blitter reads and writes — a blit can never scribble a line's writes.
@@ -284,14 +293,17 @@ pub const ROM_RAM_BYTES: usize = ROM_RAM_TOP - ROM_RAM_BASE; // 2 MiB
 // tools/mkdisks.sh; node apps/disk_check.mjs is what catches it.
 pub const SHARED_PAGES: u32 = 112;
 
-pub const ZM_HW_VERSION: u32 = 0x0001_0600; // 1.6.0 — BEAM: mid-line colour-0 writes (REG_BEAM_*, OFF_BEAM_TABLE)
+pub const ZM_HW_VERSION: u32 = 0x0001_0700; // 1.7.0 — RAM arena: hwRamAlloc/Mark/Release/AllocFailures (REG_RAM_*)
 
-// Register-block overlaps are SILENT (two names, one byte), so the BEAM layout
-// proves at compile time that it clears its neighbours.
+// Register-block overlaps are SILENT (two names, one byte), so the BEAM and RAM
+// ARENA layouts prove at compile time that they clear their neighbours.
 comptime {
     if (REG_ROM_HIGH + 4 > REG_BEAM_COUNT) @compileError("memmap: ROM_HIGH overlaps BEAM_COUNT");
     if (REG_BEAM_COUNT + 2 > REG_BEAM_DROPPED) @compileError("memmap: BEAM_COUNT overlaps BEAM_DROPPED");
-    if (REG_BEAM_DROPPED + 4 > OFF_BLIT) @compileError("memmap: BEAM_DROPPED overlaps the blitter block");
+    if (REG_BEAM_DROPPED + 4 > REG_RAM_ARENA_TOP) @compileError("memmap: BEAM_DROPPED overlaps RAM_ARENA_TOP");
+    if (REG_RAM_ARENA_TOP + 4 > REG_RAM_ALLOC_FAILS) @compileError("memmap: RAM_ARENA_TOP overlaps RAM_ALLOC_FAILS");
+    if (REG_RAM_ALLOC_FAILS + 4 > OFF_BLIT) @compileError("memmap: RAM_ALLOC_FAILS overlaps the blitter block");
+    if (REG_RAM_ARENA_TOP % 4 != 0 or REG_RAM_ALLOC_FAILS % 4 != 0) @compileError("memmap: RAM arena registers must be u32-aligned");
     if (OFF_BEAM_TABLE % 4 != 0) @compileError("memmap: BEAM table must be u32-aligned");
     if (OFF_BEAM_TABLE < REGION_BYTES) @compileError("memmap: BEAM table inside the blitter's window");
     if (HW_VIDEO_BASE + OFF_BEAM_TABLE + BEAM_TABLE_BYTES > ROM_RAM_BASE) @compileError("memmap: BEAM table runs into the ROM window");

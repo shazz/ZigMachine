@@ -18,6 +18,9 @@ use core::panic::PanicInfo;
 //     zigmachine_music::request_song("sos.sndh");            // default subtune
 //     zigmachine_music::request_song_tune("leavin_teramis.sndh", 9);
 mod zigmachine_music;
+// The machine's RAM arena (HW 1.7.0): malloc above this cart's statics, so a
+// working buffer costs nothing in the cart binary. The plasma LUT comes from it.
+mod zigmachine_mem;
 
 // --- ABI geometry (mirror of hw/sdk/memmap.zig) ---
 const REG_BACKGROUND: usize = 0x04; // u32 RGBA
@@ -51,7 +54,7 @@ const GEM_WHITE: u32 = 1;
 
 static mut GUI: u32 = 0; // the ROM handle; 0 = no context
 static mut VIDEO_BASE: usize = 0;
-static mut TRI: [u8; 256] = [0; 256]; // triangle-wave LUT (libm-free "sine")
+static mut TRI: *mut u8 = core::ptr::null_mut(); // triangle-wave LUT (libm-free "sine"), from the RAM arena
 static mut PLANE0_ON: bool = false;
 static mut FRAME: u32 = 0;
 
@@ -91,9 +94,15 @@ pub extern "C" fn boot() {
         VIDEO_BASE = base;
         ((base + REG_BACKGROUND) as *mut u32).write(0xFF00_0000u32); // opaque black
         build_rainbow(base);
-        for i in 0..256usize {
-            TRI[i] = if i < 128 { (i * 2) as u8 } else { ((255 - i) * 2) as u8 };
+        let Some(tri) = zigmachine_mem::alloc::<u8>(256) else {
+            const FULL: &[u8] = b"Rust app: hwRamAlloc refused the plasma LUT";
+            consoleLogJS(FULL.as_ptr(), FULL.len() as i32);
+            return; // plane 0 stays off: nothing to show
+        };
+        for (i, v) in tri.iter_mut().enumerate() {
+            *v = if i < 128 { (i * 2) as u8 } else { ((255 - i) * 2) as u8 };
         }
+        TRI = tri.as_mut_ptr();
         PLANE0_ON = true;
         // SAFETY: guiOpenPlane only reads plane 0's registers from the shared
         // video region; a 0 handle means "no context" and every draw is skipped.
@@ -134,14 +143,18 @@ unsafe fn draw_rom_panel() {
 #[no_mangle]
 pub extern "C" fn frame(_elapsed_ms: f32) {
     unsafe {
+        if TRI.is_null() {
+            return; // boot() could not get its LUT
+        }
         FRAME = FRAME.wrapping_add(1);
         let t = FRAME as usize;
         let fb = (VIDEO_BASE + OFF_VRAM) as *mut u8;
         for y in 0..HEIGHT {
             for x in 0..WIDTH {
-                let v = TRI[(x + t) & 255] as u32
-                    + TRI[(y * 2 + t) & 255] as u32
-                    + TRI[(x + y + 2 * t) & 255] as u32;
+                // SAFETY: TRI holds 256 bytes and every index is masked to 0..255.
+                let v = *TRI.add((x + t) & 255) as u32
+                    + *TRI.add((y * 2 + t) & 255) as u32
+                    + *TRI.add((x + y + 2 * t) & 255) as u32;
                 fb.add(y * WIDTH + x).write(((v >> 2) & 255) as u8);
             }
         }

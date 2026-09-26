@@ -134,12 +134,25 @@ fn getPosition(i: i64) i64 {
 }
 
 // --------------------------------------------------------------------------
-// Offscreens (module scope: kept out of the Demo struct)
+// Offscreens: taken from the machine's RAM arena (zg.mem) at init. As module-
+// scope arrays they were 68 KB of zeros the link wrote into the cart binary
+// (imported memory is not known to be zero) and into the 2 MiB window; from the
+// arena they cost nothing until the cart runs, and come back zeroed.
 // --------------------------------------------------------------------------
-var back_canvas: [BACK_CANVAS_W * BACK_H]u8 = undefined;
-var intro_canvas: [INTRO_W * FONT_H]u8 = undefined;
-var scroll_canvas: [SCROLL_W * FONT_H]u8 = undefined;
-var front_row: [SCREEN_H]i64 = undefined;
+var back_canvas: []u8 = &.{};
+var intro_canvas: []u8 = &.{};
+var scroll_canvas: []u8 = &.{};
+var front_row: []i64 = &.{};
+
+// Once per cart load: a new cart gets a fresh instance (empty slices) AND an
+// empty arena, so a re-init of the same instance keeps its buffers.
+fn allocOffscreens() void {
+    if (back_canvas.len != 0) return;
+    back_canvas = zg.mem.mustAlloc(u8, BACK_CANVAS_W * BACK_H);
+    intro_canvas = zg.mem.mustAlloc(u8, INTRO_W * FONT_H);
+    scroll_canvas = zg.mem.mustAlloc(u8, SCROLL_W * FONT_H);
+    front_row = zg.mem.mustAlloc(i64, SCREEN_H);
+}
 
 const Phase = enum { intro, splash, main };
 
@@ -178,12 +191,13 @@ pub const Demo = struct {
         self.letter_decal = 0;
         self.scroll_built_for = -1;
 
+        allocOffscreens();
         for (0..BACK_H) |y| for (0..BACK_CANVAS_W) |x| {
             back_canvas[y * BACK_CANVAS_W + x] = back_b[y * BACK_W + x % BACK_W];
         };
-        @memset(&intro_canvas, 0);
-        @memset(&scroll_canvas, 0);
-        @memset(&front_row, 0);
+        @memset(intro_canvas, 0);
+        @memset(scroll_canvas, 0);
+        @memset(front_row, 0);
 
         zg.requestSong(MUSIC_INTRO);
         zigos.setBackgroundColor(Color{ .r = 0, .g = 0, .b = 0, .a = 255 });
@@ -228,7 +242,7 @@ pub const Demo = struct {
         switch (self.phase) {
             .intro => {
                 @memset(view.buf[0..view_len], BLACK);
-                const intro_img = blit.Image.init(&intro_canvas, INTRO_W);
+                const intro_img = blit.Image.init(intro_canvas, INTRO_W);
                 blit.blit(view, intro_img, null, -@as(i32, CROP_X), INTRO_Y, 0, .copy);
             },
             .splash => @memset(view.buf[0..view_len], BLACK),
@@ -254,7 +268,7 @@ pub const Demo = struct {
             @memset(row[INTRO_W - speed ..], 0);
         }
         const g = t.letter[self.intro_tile.?];
-        const canvas = blit.Dst.buffer(&intro_canvas, INTRO_W);
+        const canvas = blit.Dst.buffer(intro_canvas, INTRO_W);
         const part = blit.Rect{ .x = g.x, .y = g.y, .w = g.w, .h = FONT_H };
         blit.blit(canvas, font_img, part, @as(i32, SCREEN_W) + self.intro_x, 0, 0, .copy);
         return true;
@@ -283,7 +297,7 @@ pub const Demo = struct {
     /// animDemo's "Calc decal_x" and "Calc first letter".
     fn findFirstLetter(self: *Demo) void {
         var decal_x: i64 = std.math.maxInt(i64);
-        for (&front_row, 0..) |*v, line| {
+        for (front_row, 0..) |*v, line| {
             v.* = getWave(&t.front_intro_wave, &t.front_main_wave, self.front_pos + line);
             if (v.* < decal_x) decal_x = @max(v.*, 0);
         }
@@ -304,7 +318,7 @@ pub const Demo = struct {
         const bounce: usize = @intCast(@mod(self.iteration, t.bounce_back.len));
         const bounce_back: usize = t.bounce_back[bounce];
         const bounce_front: usize = t.bounce_front[bounce];
-        const scroll_img = blit.Image.init(&scroll_canvas, SCROLL_W);
+        const scroll_img = blit.Image.init(scroll_canvas, SCROLL_W);
 
         for (0..SCREEN_H) |line| {
             const back_wave = getWave(&t.back_intro_wave, &t.back_main_wave, self.back_pos + line);
@@ -331,8 +345,8 @@ pub const Demo = struct {
 
 /// displayText: letters from `first` until the 665-pixel canvas is full.
 fn buildScrollCanvas(first: i64) void {
-    @memset(&scroll_canvas, 0);
-    const canvas = blit.Dst.buffer(&scroll_canvas, SCROLL_W);
+    @memset(scroll_canvas, 0);
+    const canvas = blit.Dst.buffer(scroll_canvas, SCROLL_W);
     var x: usize = 0;
     var i: usize = @intCast(first);
     while (x < SCROLL_W) : (i += 1) {
