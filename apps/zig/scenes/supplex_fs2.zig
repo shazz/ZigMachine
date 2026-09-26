@@ -33,6 +33,8 @@
 const std = @import("std");
 const zg = @import("zigos");
 const convertU8ArraytoColors = zg.convertU8ArraytoColors;
+const zx0 = @import("depackers").zx0;
+const packed_assets = @import("packed_assets");
 
 const ZigOS = zg.ZigOS;
 const LogicalFB = zg.LogicalFB;
@@ -46,8 +48,11 @@ const PW: i32 = zg.PHYSICAL_WIDTH; // 400
 const PH: i32 = zg.PHYSICAL_HEIGHT; // 280
 const X_OFF: i32 = 20; // the 360-wide Amiga screen, centred in the plane
 
-// background: main.png halved and already placed at X_OFF by the asset tool.
-const main_b = @embedFile("../assets/screens/supplex_fs2/main.raw");
+// background: main.png halved and already placed at X_OFF by the asset tool
+// (assets/screens/supplex_fs2/main.raw). It ships ZX0-packed (build.zig): 73 KB
+// of it is one black run, which raw was that many zeros in the cart binary.
+const main_zx0 = packed_assets.supplex_fs2_main;
+const MAIN_BYTES: usize = @intCast(PW * PH);
 const main_pal = convertU8ArraytoColors(@embedFile("../assets/screens/supplex_fs2/main_pal.dat"));
 
 // font: 20x3 tiles of 16x16 (CODEF initTile(32,32,32)), 1 = ink, 0 = field.
@@ -256,9 +261,12 @@ fn setupPlanes(zigos: *ZigOS) void {
     fb.setPaletteEntry(1, .{ .r = 0xAA, .g = 0xAA, .b = 0xAA, .a = 255 });
 }
 
+// The background is drawn once, so it depacks straight into the plane: no
+// working buffer at all. The pack is built from the asset at build time, so a
+// failure here is a broken build, never a condition to run on through.
 fn drawBackground(fb: *LogicalFB) void {
-    comptime std.debug.assert(main_b.len == @as(usize, @intCast(PW * PH)));
-    for (main_b, 0..) |v, idx| fb.fb[idx] = v;
+    if (zx0.depackedLen(main_zx0) != MAIN_BYTES) @panic("supplex_fs2: main.raw is not 400x280");
+    if (zx0.depack(main_zx0, fb.fb[0..MAIN_BYTES]) == null) @panic("supplex_fs2: main.raw depack failed");
 }
 
 // font.print(textcanvas, line, 56, 216 + 32*n): the panel is drawn once, each

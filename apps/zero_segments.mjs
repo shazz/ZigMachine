@@ -28,7 +28,6 @@ const ALLOW = {
     // The AUDIO thread's module (players + 68000 core): it has no RAM arena
     // (the arena is a machine-video instruction), so this one needs another fix.
     "demo-audio.wasm": 590760,
-    "demo-supplex_fs2.wasm": 73277,
 };
 
 function uleb(b, p) {
