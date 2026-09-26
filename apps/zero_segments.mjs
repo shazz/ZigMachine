@@ -30,7 +30,6 @@ const ALLOW = {
     "demo-audio.wasm": 590760,
     "demo-dbug.wasm": 117350,
     "demo-dhs_0pxl0reg.wasm": 341426,
-    "demo-joust.wasm": 153614,
     "demo-maxi.wasm": 94438,
     "demo-obj.wasm": 86318,
     "demo-rno_natrium.wasm": 85302,
