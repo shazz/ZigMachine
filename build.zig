@@ -434,6 +434,8 @@ pub fn build(b: *std.Build) void {
         "demo-tcb_spreadpoint", // 73 — The Carebears / The Spreadpoint Demo (CODEF screen 469)
         "demo-stcs_css3", // 74 — STCS / Tsunoo Rhilty 3rd CSS Convention intro (ported from the ST binary)
         "demo-tcb_weirddream", // 75 — TCB + REPLICANTS / WEIRD DREAM crack intro (CODEF screen 345)
+        "", // 76 — reserved: swedish_newyear (in flight on another branch)
+        "demo-gen4_3615", // 77 — ULM / 3615 GEN4 contest screen by The Fate, full overscan (CODEF screen 539)
     };
     for (cart_names, 0..) |name, idx| {
         if (name.len == 0) continue; // excluded cart (see note above)

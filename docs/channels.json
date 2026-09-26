@@ -265,6 +265,11 @@
   "type": "atari falcon"
  },
  {
+  "tag": "gen4_3615",
+  "title": "ULM 3615 GEN4",
+  "type": "atari st"
+ },
+ {
   "tag": "ulm_spoon_distorter",
   "title": "ULM SPOON DISTORTER",
   "type": "atari st"
