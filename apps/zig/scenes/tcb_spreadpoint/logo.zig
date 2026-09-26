@@ -72,23 +72,23 @@ pub fn draw(view: blit.Dst, iteration: u64) void {
     const y = 45.0 + 40.0 * @sin(a);
 
     // Destination pixel d samples source (d + 0.5 - origin) / z.
-    var src_x: [CANVAS]i16 = undefined;
+    var src_x: [CANVAS]?u8 = undefined;
     for (&src_x, 0..) |*s, d| s.* = sample(d, x, z, W);
-    for (0..CANVAS) |dy| {
-        const sy = sample(dy, y, z, H);
-        if (sy < 0) continue;
-        const src = logo_b[@as(usize, @intCast(sy)) * W ..][0..W];
+    for (0..@min(CANVAS, view.h)) |dy| {
+        const sy = sample(dy, y, z, H) orelse continue;
+        const src = logo_b[@as(usize, sy) * W ..][0..W];
         const dst = view.buf[dy * view.stride ..][0..CANVAS];
         for (src_x, dst) |sx, *d| {
-            if (sx < 0) continue;
-            const p = src[@intCast(sx)];
+            const p = src[sx orelse continue];
             if (p != 0) d.* = p;
         }
     }
 }
 
-fn sample(d: usize, origin: f64, z: f64, n: usize) i16 {
+/// The source index destination pixel d samples, null off the image (or on a
+/// NaN, which fails both comparisons).
+fn sample(d: usize, origin: f64, z: f64, comptime n: u8) ?u8 {
     const v = @floor((@as(f64, @floatFromInt(d)) + 0.5 - origin) / z);
-    if (!(v >= 0 and v < @as(f64, @floatFromInt(n)))) return -1;
+    if (!(v >= 0 and v < n)) return null;
     return @intFromFloat(v);
 }

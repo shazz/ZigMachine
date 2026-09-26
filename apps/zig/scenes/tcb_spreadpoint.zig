@@ -97,6 +97,9 @@ comptime {
     if (font_b.len != 80 * 36) @compileError("font.raw is not 80x36");
     if (ball_b.len != BALL_W * 16) @compileError("ball.raw is not 17x16");
     if (SPEED.len * FONT_H > H) @compileError("the spread scroller is taller than the screen");
+    // Dst.window() clips silently, and logo.draw writes whole CANVAS-wide rows.
+    if (LOGO_X + logo.CANVAS > W or logo.CANVAS > H) @compileError("the logo canvas leaves the screen");
+    if (dna.W > W or raster.DNA_TOP + 2 * dna.STRIP_H > H) @compileError("the DNA canvas leaves the screen");
     @setEvalBranchQuota(10_000);
     for (texts.scroll) |c| if (c < FIRST_CHAR or c - FIRST_CHAR >= FONT_COLS * 6) @compileError("scroll text character outside the font");
 }

@@ -45,6 +45,10 @@ comptime {
 const Column = struct { top: u8, h: u8 }; // dna_canvas rows top .. top+h-1; h 0 = not drawn
 
 var strands: [2][COLUMNS]Column = undefined;
+/// source_row[h][r]: the strip row a column h rows tall shows on its row r.
+/// Depends only on h (to - from is at most 2 * AMPLITUDE), so it is built once.
+const MAX_H = 2 * AMPLITUDE;
+var source_row: [MAX_H + 1][MAX_H]u8 = undefined;
 var strip: [W * STRIP_H]u8 = undefined;
 
 fn jsRound(v: f64) i32 {
@@ -68,6 +72,13 @@ pub fn init() void {
             // to >= from on every drawn column (measured: h is 0..27), so the
             // canvas never flips a column.
             strands[pos][c] = .{ .top = @intCast(AMPLITUDE + from), .h = @intCast(@max(to - from, 0)) };
+        }
+    }
+    // height = h/25 + 0.0001; dest row r takes strip row (r + 0.5) / height
+    for (&source_row, 0..) |*rows, h| {
+        const height = @as(f64, @floatFromInt(h)) / AMPLITUDE + 0.0001;
+        for (rows, 0..) |*sy, r| {
+            sy.* = @intCast(@min(STRIP_H - 1, @as(usize, @intFromFloat((@as(f64, @floatFromInt(r)) + 0.5) / height))));
         }
     }
 }
@@ -96,13 +107,10 @@ pub fn draw(view: blit.Dst, calls: u64) void {
     for (&strands) |*strand| {
         for (strand, 0..) |col, c| {
             if (col.h == 0) continue;
-            // height = h/25 + 0.0001; dest row r takes strip row (r + 0.5) / height
-            const height = @as(f64, @floatFromInt(col.h)) / AMPLITUDE + 0.0001;
-            for (0..col.h) |r| {
-                const sy: usize = @min(STRIP_H - 1, @as(usize, @intFromFloat((@as(f64, @floatFromInt(r)) + 0.5) / height)));
+            for (source_row[col.h][0..col.h], 0..) |sy, r| {
                 const y = @as(usize, col.top) + r;
                 if (y >= view.h) break;
-                const src = strip[sy * W + c * 2 ..][0..2];
+                const src = strip[@as(usize, sy) * W + c * 2 ..][0..2];
                 const dst = view.buf[y * view.stride + c * 2 ..][0..2];
                 for (src, dst) |s, *d| {
                     if (s != 0) d.* = s;
