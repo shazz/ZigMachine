@@ -45,10 +45,12 @@ const WIDE = (FLOOR_W + GLYPH - 1) / GLYPH + 1; // ceil(704/192)+1 = 5
 const LETTERS = WIDE + 1;
 const Ring = zg.scrollring.Ring(i32, LETTERS);
 
-/// What the box holds before the glyphs cut it out (module scope: too big for the Demo).
-var box: [BOX_W * BOX_H]u8 = undefined;
-/// Each letter's glyph unpacked to 0/1, re-unpacked only when its character changes.
-var glyph_px: [LETTERS][A.FONT_W * A.FONT_H]u8 = undefined;
+/// What the box holds before the glyphs cut it out, and each letter's glyph
+/// unpacked to 0/1 (re-unpacked only when its character changes). Both come
+/// from the cart RAM arena (zg.mem) at init: as module-scope arrays they were
+/// 82 KB of zeros in the data segment (the zero-segment gate's 64 KB limit).
+var box: *[BOX_W * BOX_H]u8 = undefined;
+var glyph_px: *[LETTERS][A.FONT_W * A.FONT_H]u8 = undefined;
 
 pub const Scroller = struct {
     ring: Ring,
@@ -59,6 +61,8 @@ pub const Scroller = struct {
     corr: [FLOOR_ROWS]f64, // damier()'s float walk, kept as the JS computes it
 
     pub fn init(self: *Scroller) void {
+        box = zg.mem.mustAlloc(u8, BOX_W * BOX_H)[0 .. BOX_W * BOX_H];
+        glyph_px = zg.mem.mustAlloc([A.FONT_W * A.FONT_H]u8, LETTERS)[0..LETTERS];
         self.ring = Ring.init(A.text, WIDE * GLYPH, GLYPH);
         self.cached = @splat(0);
         self.damier_ctr = 0;
@@ -103,10 +107,10 @@ pub const Scroller = struct {
         @memset(box[0..BOX_W], 0); // canvas rows 268-269: nothing drawn yet
         @memset(box[BOX_W .. (FLOOR_TOP - BOX_Y) * BOX_W], A.SKY_INK);
         for (FLOOR_TOP..BOX_Y + BOX_H) |Y| self.floorRow(Y, box[(Y - BOX_Y) * BOX_W ..][0..BOX_W]);
-        fate.draw(&box, BOX_W, BOX_X, BOX_Y);
+        fate.draw(box, BOX_W, BOX_X, BOX_Y);
 
         const hole = canvas.window(BOX_X, BOX_Y, BOX_W, BOX_H);
-        const ink = blit.Ink{ .pattern = .{ .img = blit.Image.init(&box, BOX_W), .ox = 0, .oy = 0 } };
+        const ink = blit.Ink{ .pattern = .{ .img = blit.Image.init(box, BOX_W), .ox = 0, .oy = 0 } };
         for (self.ring.x, self.ring.c, 0..) |x, c, i| {
             const gx = @divExact(x, 2);
             if (gx >= BOX_W or gx + A.FONT_W <= 0) continue;
