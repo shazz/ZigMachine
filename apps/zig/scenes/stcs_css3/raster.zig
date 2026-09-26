@@ -9,14 +9,15 @@
 // frames, and its nine 2-line blocks P2..P10 take a 9-entry window of the
 // 28-word ring at $D620, rotated one entry a frame.
 // --------------------------------------------------------------------------
-const Machine = @import("machine.zig").Machine;
+const machine = @import("machine.zig");
+const Machine = machine.Machine;
 
 const C2: u16 = 0xD65A;
 const C12: u16 = 0xD664;
 const RING: u16 = 0xD620;
 const RING_WORDS: usize = 28;
 const BAR_BLOCKS: u16 = 0xD45E; // P2
-const TOP: u16 = 0xD3FE;
+const TOP: u16 = machine.RASTER_BASE; // the top palette opens the region
 const BLOCKS: u16 = 0xD41E;
 const COUNTS: u16 = 0xD658;
 pub const NBLOCKS: usize = 16;
@@ -27,8 +28,8 @@ pub fn vbl(m: *Machine) void {
     var t: [RING_WORDS]u16 = undefined;
     for (&t, 0..) |*w, i| w.* = m.rasterWord(RING + 2 * @as(u16, @intCast(i)));
     if (!m.bar_up) {
-        m.raster[C2 - 0xD3FE] +%= 2;
-        m.raster[C12 - 0xD3FE] -%= 2;
+        m.raster[C2 - machine.RASTER_BASE] +%= 2;
+        m.raster[C12 - machine.RASTER_BASE] -%= 2;
         // move.w -(a1),-(a0) x27 then move.w $D656,$D620
         var n: [RING_WORDS]u16 = undefined;
         for (0..RING_WORDS - 1) |i| n[i + 1] = t[i];
@@ -37,8 +38,8 @@ pub fn vbl(m: *Machine) void {
         paintBar(m, &n, &.{ 0, 1, 4, 5, 8, 9, 12, 13 });
         if (m.rasterByte(C2) == 98) m.bar_up = true;
     } else {
-        m.raster[C2 - 0xD3FE] -%= 2;
-        m.raster[C12 - 0xD3FE] +%= 2;
+        m.raster[C2 - machine.RASTER_BASE] -%= 2;
+        m.raster[C12 - machine.RASTER_BASE] +%= 2;
         // (a0)+ -> (a1)+ starting one word low: t[0] lands on $D61E, just past
         // P15, and $D61E is then copied to $D654 (ring[26]); ring[27] stays.
         m.setRasterWord(RING - 2, t[0]);

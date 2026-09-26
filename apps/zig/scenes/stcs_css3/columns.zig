@@ -19,6 +19,26 @@ const PATH_END: u16 = 0x3A8C; // 14988
 const PATH_Y: u8 = 0x46; // screen y = path y + 70
 const LETTER_GAP: u16 = 16; // path entries between letters, before the per-letter step
 
+// letters() indexes the path at `path + 3 * LETTER_GAP` at most (path runs
+// 0..PATH_END and back), and blit() writes 17 lines down and one group right of
+// (x, y + 70). Nothing clamps at run time, so prove both over the tables here:
+// y + 70 must not wrap its u8 and the blit's last word must stay on the screen.
+comptime {
+    @setEvalBranchQuota(200_000);
+    const reach: usize = PATH_END + 3 * LETTER_GAP;
+    if (reach >= A.PATH_LEN) @compileError("letter path index past the path tables");
+    var max_y: usize = 0;
+    var max_x: usize = 0;
+    for (A.path_y[0 .. reach + 1], A.path_x[0 .. reach + 1]) |py, px| {
+        max_y = @max(max_y, py);
+        max_x = @max(max_x, px);
+    }
+    const y_max = max_y + PATH_Y;
+    if (y_max > 0xFF) @compileError("letter y wraps its u8");
+    const last = 4 + y_max * A.LINE + ((max_x >> 1) & 0xF8) + A.LINE * (A.LETTER_WORDS - 1) + 8 + 2;
+    if (last > A.SCREEN_BYTES) @compileError("letter blit past the ST screen");
+}
+
 pub fn columns(m: *Machine) void {
     if (!m.columns_on) return;
     m.columns_calls += 1;
