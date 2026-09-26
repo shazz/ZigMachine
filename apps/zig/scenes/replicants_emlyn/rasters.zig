@@ -76,8 +76,8 @@ const LINE_CYCLES = 400.0; // an open line displays 400 pixels, one a cycle
 const CYCLES_PER_ENTRY = 4.5; // movem.l d0-d7,(a0): 72 cycles, 16 registers
 
 /// The ink of every bucket of every PHYSICAL row: a band 0..31, or BLACK.
-/// Scene-scope, so it weighs this cart only.
-var table: [zg.PHYSICAL_HEIGHT][MAX_BUCKETS]u8 = undefined;
+/// 41,720 B on zg.mem, taken by install() before the HBL that reads it goes in.
+var table: *[zg.PHYSICAL_HEIGHT][MAX_BUCKETS]u8 = undefined;
 var ink: [BANDS + 1]u32 = undefined;
 /// The background pattern, painted under everything: plane column x shows
 /// bucket x * count / 400, and all the motion is in the palette.
@@ -87,10 +87,12 @@ var count: usize = 0;
 var merge: [16]usize = undefined;
 
 /// Replace openBorders()'s handler with one that ALSO opens the borders: the
-/// machine gives a plane one HBL, and this screen needs both.
+/// machine gives a plane one HBL, and this screen needs both. Runs once per
+/// cart load (Demo.init), so the table is allocated once.
 pub fn install(fb: *zg.LogicalFB) void {
+    table = zg.mem.mustAlloc([MAX_BUCKETS]u8, zg.PHYSICAL_HEIGHT)[0..zg.PHYSICAL_HEIGHT];
     for (&ink, 0..) |*c, i| c.* = if (i == BLACK) A.BLACK_RGBA else A.bar_rgba[i];
-    for (&table) |*r| @memset(r, BLACK);
+    for (table) |*r| @memset(r, BLACK);
     for (0..MAX_BUCKETS) |b| fb.palette[A.FIRST_BUCKET + b] = A.BLACK_RGBA;
     setCount(1);
     fb.setFrameBufferHBLHandler(zg.OVERSCAN_MAGIC_X, hbl);
@@ -117,12 +119,13 @@ pub fn build(particles: []const c3.Particle, theta: f64) void {
     const width = 2.0 * PLANE_WF / @as(f64, @floatFromInt(count)); // a bucket, in canvas pixels
     setMerge(particles, @abs(width * sin));
     const du = width * sin;
+    const t = table; // one load of the arena pointer, not one a row
     for (0..A.CONTENT_H) |y| {
         // the ST row's canvas pixel centre, as the sprite port sampled it
         const yc = 2.0 * @as(f64, @floatFromInt(y)) + 0.5;
         // plane column 0 is CONTENT_X to the left of canvas 0
         var u = (-2.0 * @as(f64, A.CONTENT_X) + 0.5 - CX) * sin + (yc - CY) * cos + CY;
-        for (table[A.CONTENT_Y + y][0..count]) |*b| {
+        for (t[A.CONTENT_Y + y][0..count]) |*b| {
             b.* = inkAt(particles, u);
             u += du;
         }

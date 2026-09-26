@@ -227,6 +227,8 @@ console.log(`  ${WANT_MUSIC} #${WANT_TUNE}: peak ${r.peak?.toFixed(4)}, stuck PC
 check("the tune plays (not silence, no stuck PC)", !r.why && r.peak > 0.01 && !r.stuckPc, true);
 check("no hardware write went unanswered", r.unhandled?.length, 0);
 
+check("no zg.mem allocation was refused", machine.hwRamAllocFailures(), 0);
+
 // Warm frame cost in ZIG mode, which is the expensive one: 600 frames sweep
 // almost two full turns, so the average covers every ramp width from 1 bucket
 // to the palette's 149. The plane figure includes the per-line palette writes

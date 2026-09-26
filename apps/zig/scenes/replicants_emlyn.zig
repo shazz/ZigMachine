@@ -42,7 +42,6 @@
 // clipped logo blit and 12 glyphs.
 // --------------------------------------------------------------------------
 const zg = @import("zigos");
-const hw = @import("hardware");
 const ZigOS = zg.ZigOS;
 const Color = zg.Color;
 const blit = zg.blit;
@@ -98,7 +97,11 @@ pub const Demo = struct {
         self.particles = undefined;
         balls.init();
 
-        const buf = freeRam(A.TOTAL) orelse return fail("no free RAM for the assets");
+        // On zg.mem, not borrowed above hwRamUsed(): the raster table is in the
+        // arena too, and the next allocation would hand a borrow out again.
+        // check_fits cannot see these 752 KB (taken at run time), so the free
+        // RAM it prints overstates the truth by that much.
+        const buf = zg.mem.alloc(u8, A.TOTAL) orelse return fail("no free RAM for the assets");
         if (zx0.depack(packed_assets.replicants_emlyn, buf) == null) return fail("depack failed");
         self.images = A.Images.split(buf);
 
@@ -153,14 +156,4 @@ pub const Demo = struct {
 
 fn fail(why: []const u8) void {
     zg.Console.log("replicants_emlyn: {s}", .{why});
-}
-
-/// `len` bytes of the cart's RAM window above its statics and stack.
-/// check_fits cannot see this: the 752 KB the assets depack into are borrowed
-/// at run time, and packing shrank the static footprint the gate DOES measure,
-/// so the free-RAM figure it prints is larger than the truth by that much.
-fn freeRam(len: usize) ?[]u8 {
-    if (hw.hwRamFree() < len) return null;
-    const base: usize = hw.hwRamBase() + hw.hwRamUsed();
-    return @as([*]u8, @ptrFromInt(base))[0..len];
 }
