@@ -86,6 +86,7 @@ pub const ENTRIES = [_]Entry{
     .{ .name = "FUJIBOINK (C)", .tag = "c-fujiboink" }, // atari st
     .{ .name = "NORTH & SOUTH BATTLE", .tag = "north_south" }, // atari st
     .{ .name = "JOUST", .tag = "joust" }, // atari st
+    .{ .name = "TCB SPREADPOINT", .tag = "tcb_spreadpoint" }, // atari st
     // The Union Demo's screens (union_multifake, union_textracker, ...) are NOT
     // listed: they are reached only through the UNION DEMO hub's doors (Matt,
     // 2026-09-13). Their carts stay in build.zig / cart.zig, so their disks build.
