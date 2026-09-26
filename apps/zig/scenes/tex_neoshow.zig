@@ -197,8 +197,9 @@ comptime {
         @compileError("scrolltext character outside font.png");
 }
 
-// The composited unicorn + star frame (module scope: kept out of the Demo struct).
-var einhorn_canvas: [PIC_W * 200]u8 = undefined;
+// The composited unicorn + star frame, from the cart RAM arena (zg.mem) in
+// init: as a module-scope array it was 64,000 zero bytes of the data section.
+var einhorn_canvas: *[PIC_W * 200]u8 = undefined;
 
 // The scroller rasters: the band's and the gradient's colour for every PHYSICAL
 // row (copper tables are
@@ -283,6 +284,7 @@ pub const Demo = struct {
         self.pic_n = 0;
         self.bottom_row = 0;
         self.einhorn_star = null;
+        einhorn_canvas = zg.mem.mustAlloc(u8, PIC_W * 200)[0 .. PIC_W * 200]; // once per cart load
 
         zg.requestSong(MUSIC);
         zigos.setBackgroundColor(rgb(BLACK));
@@ -389,7 +391,7 @@ pub const Demo = struct {
     fn einhorn(self: *Demo, fb: *LogicalFB, a: f32) []const u8 {
         const star = jsRound(self.pic_n, STAR_STEP) % STAR_FRAMES;
         if (self.einhorn_star != star) {
-            @memcpy(&einhorn_canvas, einhorn_raw);
+            @memcpy(einhorn_canvas, einhorn_raw);
             for (t.star_frames[star]) |s| einhorn_canvas[s.at] += s.colour;
             self.einhorn_star = star;
         }
@@ -398,7 +400,7 @@ pub const Demo = struct {
             const c = if (e == 0) under else over(ink, under, a);
             fb.setPaletteEntry(PIC_BASE + @as(u8, @intCast(e * STAR_COLOURS + s)), rgb(c));
         };
-        return &einhorn_canvas;
+        return einhorn_canvas;
     }
 
     fn drawScroller(self: *Demo, view: blit.Dst) void {
