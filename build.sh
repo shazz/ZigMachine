@@ -302,5 +302,7 @@ gate digital_solution node apps/digital_solution_headless.mjs --break drift   # 
 gate digital_solution node apps/digital_solution_headless.mjs --break cycle   # ...and the text one cycle step out of phase is caught
 node apps/tlb_spoon_headless.mjs "$SHOTS/tlb_spoon"   # TLB TWIDDLE: the sine intro, then starballs + logo + the rotating-letter scroller
 gate stniccc node apps/stniccc_headless.mjs "$SHOTS/stniccc"   # STNICCC 2000 (Oxygene): the frame-replay flight, small -> rewind -> fullscreen
+gate cuddly_starwars node apps/cuddly_starwars_headless.mjs "$SHOTS/cuddly_starwars"   # CUDDLY STAR WARS: the harness existed but no gate ran it; fails on a refused zg.mem allocation
+gate ulm_spoon_distorter node apps/ulm_spoon_distorter_headless.mjs "$SHOTS/ulm_spoon_distorter"   # ULM SPOON DISTORTER: the harness existed but no gate ran it; fails on a refused zg.mem allocation
 gate tlb_spoon node apps/tlb_spoon_headless.mjs "$SHOTS/tlb_spoon"   # TLB TWIDDLE: the sine intro, then starballs + logo + the rotating-letter scroller
 echo "shots in $SHOTS"
