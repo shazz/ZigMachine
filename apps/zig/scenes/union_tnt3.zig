@@ -25,9 +25,7 @@
 // Leaving: ESC or SPACE (screen.js:714-719) sends the object away like any
 // change, and the hub loads when the camera is out, as MENU_LOADER did.
 // --------------------------------------------------------------------------
-const std = @import("std");
 const zg = @import("zigos");
-const hw = @import("hardware");
 const ZigOS = zg.ZigOS;
 const Color = zg.Color;
 const blit = zg.blit;
@@ -74,9 +72,10 @@ pub const Demo = struct {
         self.leave = false;
         self.keys = .initEmpty();
         self.scroller.init();
-        const ram = freeRam(A.TOTAL + @alignOf(Work) + @sizeOf(Work)) orelse return fail("no free RAM to depack into");
-        const buf = ram[0..A.TOTAL];
-        self.show.init(@ptrFromInt(std.mem.alignForward(usize, @intFromPtr(buf.ptr) + A.TOTAL, @alignOf(Work))));
+        // On zg.mem, taken once: init runs once per cart load.
+        const buf = zg.mem.alloc(u8, A.TOTAL) orelse return fail("no free RAM to depack into");
+        const work = zg.mem.alloc(Work, 1) orelse return fail("no free RAM for the show");
+        self.show.init(&work[0]);
         if (!depack.start(zigos, packed_assets.union_tnt3, buf, DEPACK_BYTES_PER_LINE))
             return fail("packed image unreadable");
         self.images = A.Images.split(buf);
@@ -155,11 +154,4 @@ pub const Demo = struct {
 
 fn fail(why: []const u8) void {
     zg.Console.log("union_tnt3: {s}", .{why});
-}
-
-/// `len` bytes of the cart's RAM window above its statics and stack.
-fn freeRam(len: usize) ?[]u8 {
-    if (hw.hwRamFree() < len) return null;
-    const base: usize = hw.hwRamBase() + hw.hwRamUsed();
-    return @as([*]u8, @ptrFromInt(base))[0..len];
 }

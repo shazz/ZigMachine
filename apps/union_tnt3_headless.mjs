@@ -229,6 +229,8 @@ else {
 const perFrame = cartMs / frames;
 if (perFrame > 4) errors.push(`cart takes ${perFrame.toFixed(3)} ms/frame`);
 warm.sort((a, b) => a - b);
+// The depack target comes from zg.mem: a refused allocation is a screen that never loaded.
+if (machine.hwRamAllocFailures()) errors.push(`${machine.hwRamAllocFailures()} zg.mem allocation(s) refused`);
 
 if (errors.length) {
     console.error(`union_tnt3: WRONG${brk ? ` (--break ${brk})` : ""}\n  ${errors.slice(0, 12).join("\n  ")}`);
