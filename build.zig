@@ -433,6 +433,7 @@ pub fn build(b: *std.Build) void {
         "demo-joust", // 72 — JOUST, Atari Corp 1986: the game, ported from JOUST.PRG through its reference model
         "demo-tcb_spreadpoint", // 73 — The Carebears / The Spreadpoint Demo (CODEF screen 469)
         "demo-stcs_css3", // 74 — STCS / Tsunoo Rhilty 3rd CSS Convention intro (ported from the ST binary)
+        "demo-tcb_weirddream", // 75 — TCB + REPLICANTS / WEIRD DREAM crack intro (CODEF screen 345)
     };
     for (cart_names, 0..) |name, idx| {
         if (name.len == 0) continue; // excluded cart (see note above)

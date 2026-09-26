@@ -248,6 +248,10 @@ gate stcs_css3 node apps/stcs_css3_headless.mjs "$SHOTS/stcs_css3"   # STCS 3RD 
 gate stcs_css3 node apps/stcs_css3_headless.mjs --break noclear "$SHOTS/stcs_css3"   # ...and a border never painted per line is caught
 gate stcs_css3 node apps/stcs_css3_headless.mjs --break timerb "$SHOTS/stcs_css3"   # ...and a plane whose Timer B HBL never runs (one palette for all lines) is caught
 gate stcs_css3 node apps/stcs_css3_headless.mjs --break skip "$SHOTS/stcs_css3"   # ...and one lost VBL is caught
+gate tcb_weirddream node apps/tcb_weirddream_headless.mjs "$SHOTS/tcb_weirddream"   # TCB WEIRD DREAM: 51 frames equal a JS replay of screen.js pixel for pixel (splash reveal, logo zoom frames and parities, stars, precalc_scroll_x run verbatim, the cosine band, the sprites); colour 0 is the border on every line, grey through the splash and black from go()'s first frame; rollout.sndh tune 1 at go()'s start, F1/F2 as screen.js
+gate tcb_weirddream node apps/tcb_weirddream_headless.mjs --break table "$SHOTS/tcb_weirddream"   # ...and a scroll table read one entry late is caught
+gate tcb_weirddream node apps/tcb_weirddream_headless.mjs --break noclear "$SHOTS/tcb_weirddream"   # ...and a border never painted is caught
+gate tcb_weirddream node apps/tcb_weirddream_headless.mjs --break keys "$SHOTS/tcb_weirddream"   # ...and a wrong F1/F2 rule is caught
 gate c_fujiboink node apps/c_fujiboink_headless.mjs "$SHOTS/c_fujiboink"   # FUJIBOINK! (C, START 1986): nine Hatari captures of FUJIBOIN.PRG, six pixel for pixel and three within a one-VBL mid-frame sliver; the rainbow is Timer B's 73 register lines (every pixel an ST index, entry 4 rewritten per line); the thud SNDH lands with the fuji and decays; F-key freeze, Space and Escape leave
 gate c_fujiboink node apps/c_fujiboink_headless.mjs --break rasters "$SHOTS/c_fujiboink"   # ...and a plane whose HBL never runs (one static palette) is caught
 gate c_fujiboink node apps/c_fujiboink_headless.mjs --break thud "$SHOTS/c_fujiboink"   # ...and a lost thud request is caught
