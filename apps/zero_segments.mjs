@@ -34,7 +34,6 @@ const ALLOW = {
     "demo-maxi.wasm": 94438,
     "demo-north_south.wasm": 204174,
     "demo-obj.wasm": 86318,
-    "demo-rno_natrium.wasm": 85302,
     "demo-stniccc.wasm": 137614,
     "demo-st_replay.wasm": 1579078,
     "demo-supplex_fs2.wasm": 73277,

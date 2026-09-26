@@ -49,8 +49,9 @@ pub const VBL_UNITS: u32 = 1024;
 pub const DDEC_COST: u32 = 1129; // 1.1025 VBL a call: 186 calls in 205 VBLs
 pub const DDEC_PHASE: u32 = 205; // the first call starts after the zoom's copy
 
-/// $5F400 and $67400.
-pub var screens: [2]st.Screen = undefined;
+/// $5F400 and $67400: 64 KB from zg.mem, taken once per cart load
+/// (rno_natrium.zig allocRam; the native tests point it at their own).
+pub var screens: *[2]st.Screen = undefined;
 
 pub const State = enum {
     // parts_a
@@ -158,7 +159,7 @@ pub const Seq = struct {
         self.env_after = .wait_start;
         self.strip = 0;
         self.finished = false;
-        for (&screens) |*s| st.clear(s);
+        for (screens) |*s| st.clear(s);
         st.fromIlbm(self.back(), A.natrium_rows, A.LOGO_TOP, A.LOGO_ROWS);
     }
 

@@ -28,6 +28,15 @@ fn crcWords(comptime N: usize, t: [N]u16) u32 {
 
 var scratch: st.Screen = undefined;
 
+// The cart takes these from zg.mem; a native test has no arena, so it lends
+// the scene its own before a test that reaches them.
+var test_screens: [2]st.Screen = undefined;
+var test_chunky: [envmap.CHUNKY_BYTES]u8 = undefined;
+fn lendRam() void {
+    T.screens = &test_screens;
+    envmap.chunky = &test_chunky;
+}
+
 test "generated tables equal the program's ($B751A, $B771A, $13D38)" {
     try std.testing.expectEqual(@as(u32, 0xF04A39A0), crcWords(256, A.pix_double));
     try std.testing.expectEqual(@as(u32, 0xDF3FB350), crcWords(256, A.pix_mirror));
@@ -62,14 +71,15 @@ test "chunky box: tunnel, wobble, rotozoom fields" {
 }
 
 test "env objects: cube f 201, prism f 153 (chunky and planes)" {
+    lendRam();
     const cases = [_]struct { obj: []const u8, f: u16, chunky: u32, planes: u32 }{
         .{ .obj = A.cube, .f = 201, .chunky = 0xC06360CB, .planes = 0x8CDAB626 },
         .{ .obj = A.prism, .f = 153, .chunky = 0x5C0607C3, .planes = 0x860B939E },
     };
     for (cases) |c| {
-        @memset(&envmap.chunky, 0);
+        @memset(envmap.chunky, 0);
         envmap.render(envmap.object(c.obj), c.f);
-        try std.testing.expectEqual(c.chunky, crc(&envmap.chunky));
+        try std.testing.expectEqual(c.chunky, crc(envmap.chunky));
         st.clear(&scratch);
         envmap.c2p(&scratch, 0);
         try std.testing.expectEqual(c.planes, crc(&scratch));
@@ -119,6 +129,7 @@ fn masked(s: *const st.Screen, counter: u32, is_front: bool) u32 {
 var seq: T.Seq = undefined;
 
 test "the timeline reproduces all eight RAM snapshots" {
+    lendRam();
     seq.reset();
     for (SNAPS) |snap| {
         while (seq.counter < snap.counter) seq.tick();
@@ -132,6 +143,7 @@ test "the timeline reproduces all eight RAM snapshots" {
 }
 
 test "the timeline ends at $1E00" {
+    lendRam();
     seq.reset();
     while (!seq.finished) {
         seq.tick();

@@ -57,8 +57,10 @@ comptime {
     }
 }
 
-/// The chunky buffer ($B791A) and the span table the filler patches.
-pub var chunky: [fill.SIZE * fill.SIZE]u8 = undefined;
+/// The chunky buffer ($B791A), 16 KB from zg.mem (rno_natrium.zig allocRam;
+/// the native tests point it at their own), and the span table the filler patches.
+pub var chunky: *[CHUNKY_BYTES]u8 = undefined;
+pub const CHUNKY_BYTES = fill.SIZE * fill.SIZE;
 var span_table: [128]u16 = undefined;
 
 fn matrix(f: u16, m: *[9]i32) void {
@@ -146,7 +148,7 @@ pub fn render(o: Object, f: u16) void {
         const i: usize = order[r];
         var tri: [3]fill.Vert = undefined;
         for (&tri, 0..) |*t, n| t.* = pv[@as(usize, @intCast(word(o, faces + 3 * i + n))) >> 1];
-        fill.triangle(&chunky, &span_table, tri);
+        fill.triangle(chunky, &span_table, tri);
     }
 }
 
