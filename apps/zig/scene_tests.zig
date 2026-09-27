@@ -12,4 +12,8 @@ test {
     _ = @import("scenes/union_demo/hub_note.zig");
     _ = @import("scenes/union_texcopier/copier_test.zig");
     _ = @import("scenes/rno_natrium/verify_test.zig");
+    _ = @import("scenes/swedish_newyear/sync_test.zig");
+    _ = @import("scenes/swedish_newyear/tcb1_test.zig");
+    _ = @import("scenes/swedish_newyear/tcb2_test.zig");
+    _ = @import("scenes/swedish_newyear/st.zig");
 }

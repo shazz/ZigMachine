@@ -1,122 +1,152 @@
-// whichpart 1 -- SYNC SCREEN #1 (screen.js do_sync1), back to front:
-//   rasters.png at y 181; five redraster.png bars at 150-130*sin(y1 + c*0.044),
-//     c = 0.6 3.6 6.6 9.9 13.2, squashed 0.5 0.6 0.7 0.8 1; whiteraster.png at y 40
-//     -- all ST-legal colours, uniform rows: REAL rasters here, colour 0 per line
-//     (frame.zig), running into the borders as colour 0 does on an ST;
-//   the banner (SYNC logo / the four faces) squashing on XX, tile flipping at XX <= 0;
-//   the scroller: a sine scroller, or (on the text's '\' / ']' codes) the same
-//     text flipping on `flip`, and bouncing (fx 2); '_' goes back to the sine;
-//   the Redhead logo, FX sinx then siny (sync1_draw.zig).
-// Every constant is screen.js's; the state persists across visits, as its globals do.
-const frame = @import("frame.zig");
-const gen = @import("assets_gen.zig");
-const texts = @import("texts.zig");
-const sc = @import("scroller.zig");
-const fx = @import("fx.zig");
-const draw = @import("sync1_draw.zig");
+// --------------------------------------------------------------------------
+// SYNC SCREEN #1, from the disk: the part the loader reads from tracks 45..55
+// to $20000 on F1 (prototypes/snyd_re/NOTES.md). Its main loop ($20022), once
+// a VBL, in order:
+//   $204B4  the raster table: colour 0 for all 200 lines, which Timer B (event
+//           count 1, $202E6) writes to $FF8240 at the END of every line -- so
+//           line y shows entry y-1. A fixed rainbow at 115, five bars riding a
+//           sine table ($2BEF2) and a white bar at 20, in that order.
+//   the frame palette from ($286C0), for lines 0..54; after writing entry 54
+//           the Timer B handler sets colours 1..15 once more for the rest.
+//   $2045C  the banner: the SYNC logo / the four faces, squashed by copying a
+//           list of source lines (42 lists, $2B678), drawn into the SHOWN buffer
+//           early in the frame.
+//   $213D4  flip the two screens, then the nine-letter scroller (sync1_letters.zig).
+//   $20660  the "Redhead" logo, a vertical wave of 16-pixel columns.
+// Space (scancode $39) goes to SYNC #2.
+//
+// The remake had the bars, the banner and the scroller, but re-derived all
+// of them from sine formulas and PNGs; it invented the flipping/bouncing
+// scroller modes and dropped the logo's per-column wave, the squash lists and
+// the scroller's own distortion lists. None of that is used here.
+//
+// Checked: every routine below reproduces Hatari's RAM of the running demo byte
+// for byte -- both screens, the raster table and every variable -- after 100
+// and after 1500 iterations from the part's first (prototypes/snyd_re/
+// sync1_model.py is the same code in Python, run against the dumps).
+// --------------------------------------------------------------------------
+const st = @import("st.zig");
+const letters = @import("sync1_letters.zig");
+pub const init = @import("sync1_init.zig").init;
 
-const DELTA_OFFSETBARS: f64 = 0.044;
-const BAR_PHASE = [5]f64{ 0.6, 3.6, 6.6, 9.9, 13.2 };
-const BAR_SQUASH = [5]f64{ 0.5, 0.6, 0.7, 0.8, 1 };
+const Ram = st.Ram;
 
-pub const Sync1 = struct {
-    y1: f64,
-    xx: f64, // XX
-    size: f64,
-    tile: i32,
-    flip: f64,
-    flipinc: f64,
-    bounce: f64,
-    bounceinc: f64,
-    fx_mode: u8, // `fx`
-    scroll: sc.Scroller, // myscrolltext (sine), into sscrollcanvas
-    scroll2: sc.Scroller, // myscrolltext2, into sscrollcanvas2
-    fx1: fx.Fx(2),
-    fx2: fx.Fx(2),
+pub const BASE: u32 = 0x20000; // where the loader puts the part
+pub const TOP: u32 = 0x80000; // the screens at $70000 / $78000 end here
 
-    pub fn init(self: *Sync1) void {
-        self.y1 = 100;
-        self.xx = 1;
-        self.size = 0.05;
-        self.tile = 0;
-        self.flip = 1;
-        self.flipinc = -0.5;
-        self.bounce = 0;
-        self.bounceinc = 2;
-        self.fx_mode = 0;
-        self.scroll.init(texts.sync1, 32, 520, 4, .{ .value = 0, .amp = 45, .inc = 0.6, .offset = 0.08 });
-        self.scroll2.init(texts.sync1, 32, 520, 4, null);
-        self.fx1 = .{ .p = .{ .{ .value = 0, .amp = -20, .inc = 0.03, .offset = -0.05 }, .{ .value = 0, .amp = 10, .inc = 0.01, .offset = 0.08 } } };
-        self.fx2 = .{ .p = .{ .{ .value = 0, .amp = 10, .inc = 0.03, .offset = -0.05 }, .{ .value = 0, .amp = 10, .inc = 0.01, .offset = 0.08 } } };
+pub const DRAW: u32 = 0x21656; // .l the buffer being drawn
+pub const SCR_A: u32 = 0x2165C; // .l
+pub const SCR_B: u32 = 0x21660; // .l
+pub const FLIP: u32 = 0x2165A; // .b which of the two was set last
+pub const BAND: u32 = 0x21676; // .l the draw buffer's line 100
+pub const LINE_TAB: u32 = 0x216B8; // .w line * 160, 201 entries
+pub const RASTERS: u32 = 0x2BD32; // .w colour 0 per line, 200 entries
+const SINE: u32 = 0x2BEF2; // .w byte offsets into RASTERS, stepped by 4
+const PAL_PTR: u32 = 0x286C0; // .l the frame palette
+const IMAGE: u32 = 0x2854E; // .l the banner picture, 80 bytes a line
+const IMAGE_PAIR: u32 = 0x28552; // .l -> (picture, palette) at $28534 / $2853C
+const SQUASH: u32 = 0x2B674; // .l -> the next of the 42 line lists
+const LOGO_ROWS: u32 = 0x207BE; // .l -> this frame's 24 row offsets ($207C6..)
+const LOGO_COLS: u32 = 0x207C2; // .l -> this frame's 6 column heights ($20846..)
+const LOGO_WORK: u32 = 0x208C6; // 24 rows of 48 bytes
+
+/// Colours 1..15 from line 55 down (Timer B, $202F6).
+pub const LOWER = [15]u16{ 0x300, 0x500, 0x700, 0x777, 0x752, 0x003, 0x005, 0x111, 0x222, 0x333, 0x000, 0x444, 0x555, 0x666, 0x333 };
+pub const PAL_SWITCH_LINE = 55;
+
+/// What a frame shows, captured as the iteration starts (see swedish_newyear.zig).
+pub const Shown = struct { screen: u32, palette: u32 };
+
+/// One pass of the main loop, $2003A..$2007E (the music plays from its SNDH).
+pub fn iteration(r: *const Ram) Shown {
+    rasters(r);
+    const shown = Shown{ .screen = r.l(DRAW), .palette = r.l(PAL_PTR) };
+    banner(r);
+    letters.scroller(r);
+    logo(r);
+    return shown;
+}
+
+/// $204B4.
+pub fn rasters(r: *const Ram) void {
+    r.zero(RASTERS, 400);
+    r.cp(RASTERS + 0xE6, 0x28600, 40); // the rainbow, lines 115..134
+    r.cp(RASTERS + 0x10E, 0x28628, 40); // and 135..154
+    const bars = [5][3]u32{
+        .{ 0x28544, 0x285CA, 16 }, .{ 0x28546, 0x285B6, 16 }, .{ 0x28548, 0x2859E, 20 },
+        .{ 0x2854A, 0x2857E, 28 }, .{ 0x2854C, 0x28556, 40 },
+    };
+    for (bars) |bar| {
+        var v = r.w(bar[0]) + 4;
+        if (v == 0x2D0) v = 0;
+        r.sw(bar[0], v);
+        r.cp(st.add(RASTERS, st.sx(r.w(SINE + v))), bar[1], bar[2]);
     }
+    r.cp(RASTERS + 0x28, 0x285DA, 28); // the white bar, lines 20..33
+}
 
-    /// One do_sync1(): draw with the current state, then advance it.
-    pub fn step(self: *Sync1) void {
-        // the rasters are colour 0: colour0() drew them from this y1 last frame
-        draw.banner(self.tile, self.xx);
-        self.xx = self.xx - self.size;
-        if (self.xx <= 0) {
-            self.size = -0.05;
-            self.tile += 1;
+/// $2045C / $2034E.
+fn banner(r: *const Ram) void {
+    var a2 = r.l(r.l(SQUASH));
+    var a0 = r.l(DRAW) + 0x168 + r.w(LINE_TAB + 2 * @as(u32, r.b(a2)));
+    a2 += 1;
+    for ([_]i32{ -0xA0, -0x78, 0, 0x28, 0xA0, 0xC8, 0x140, 0x168 }) |off| r.zero(st.add(a0, off), 44);
+    a0 += 0x140;
+    while (true) : (a0 += st.LINE) {
+        const line = r.b(a2);
+        a2 += 1;
+        if (line == 0xFF) break;
+        r.cp(a0, r.l(IMAGE) + @as(u32, line) * 0x50, 0x50);
+    }
+    for ([_]u32{ 0, 0x28, 0xA0, 0xC8, 0x140, 0x168 }) |off| r.zero(a0 + off, 44);
+    if (r.l(SQUASH) == 0x2B720) { // the last list: the other picture
+        r.sl(SQUASH, 0x2B678);
+        var p = r.l(IMAGE_PAIR) + 8;
+        if (p == 0x28544) p = 0x28534;
+        r.sl(IMAGE_PAIR, p);
+        r.sl(IMAGE, r.l(p));
+        r.sl(PAL_PTR, r.l(p + 4));
+    }
+    r.sl(SQUASH, r.l(SQUASH) + 4);
+}
+
+/// $20660: 24 rows picked from the logo's 16 preshifts (a horizontal wave),
+/// then 6 columns of 16 pixels, planes 0-1 only, each at its own height.
+fn logo(r: *const Ram) void {
+    var rows = r.l(LOGO_ROWS) + 2;
+    if (rows == 0x20806) rows = 0x207C6;
+    r.sl(LOGO_ROWS, rows);
+    for (0..24) |i| {
+        const src = st.add(0x37B30 + 0x30 * @as(u32, @intCast(i)), st.sx(r.w(rows + 2 * @as(u32, @intCast(i)))));
+        const dst = LOGO_WORK + 0x30 * @as(u32, @intCast(i));
+        r.cp(dst, src, 20);
+        r.cp(dst + 0x18, src + 0x18, 20);
+    }
+    var cols = r.l(LOGO_COLS) + 2;
+    if (cols == 0x20886) cols = 0x20846;
+    r.sl(LOGO_COLS, cols);
+    for (0..6) |c| {
+        const cu: u32 = @intCast(c);
+        const top = st.add(r.l(DRAW) + 0x2298 + 8 * cu, st.sx(r.w(cols + 2 * cu)));
+        for (0..4) |k| {
+            const a2 = top + @as(u32, @intCast(k));
+            r.sb(a2 - 0xA0, 0);
+            r.sb(a2 - 0x140, 0);
+            for (0..24) |row| r.sb(a2 + @as(u32, @intCast(row)) * 0xA0, r.b(LOGO_WORK + 8 * cu + @as(u32, @intCast(k)) + @as(u32, @intCast(row)) * 0x30));
+            r.sb(a2 + 0xF00, 0);
+            r.sb(a2 + 0xFA0, 0);
         }
-        if (self.xx >= 1) self.size = 0.05;
-        if (self.tile >= 2) self.tile = 0;
-
-        self.scroll.advance();
-        self.scroll2.advance();
-        switch (self.scroll.current()) {
-            '\\' => self.fx_mode = 1,
-            ']' => self.fx_mode = 2,
-            '_' => self.fx_mode = 0,
-            else => {},
-        }
-        self.drawScroll();
-        draw.logo(&self.fx1, &self.fx2);
-        self.y1 += DELTA_OFFSETBARS;
     }
+}
 
-    fn drawScroll(self: *Sync1) void {
-        switch (self.fx_mode) {
-            0 => draw.scroller(&self.scroll, .{ .y = 220, .flip = 1, .plain = true }),
-            1 => {
-                draw.scroller(&self.scroll, .{ .y = 215, .flip = self.flip, .plain = false });
-                self.stepFlip();
-            },
-            else => {
-                draw.scroller(&self.scroll2, .{ .y = 200 + self.bounce, .flip = self.flip, .plain = false });
-                self.stepFlip();
-                self.bounce += self.bounceinc;
-                if (self.bounce >= 40) self.bounceinc = -2;
-                if (self.bounce <= 0) self.bounceinc = 2;
-            },
-        }
-    }
+/// Colour-register state of ST line `y` (0..199) for the frame `shown` describes.
+pub fn lineColour0(r: *const Ram, shown: Shown, y: usize) u16 {
+    if (y == 0) return r.w(shown.palette);
+    return r.w(RASTERS + 2 * @as(u32, @intCast(y - 1)));
+}
 
-    fn stepFlip(self: *Sync1) void {
-        self.flip += self.flipinc;
-        if (self.flip <= -1) self.flipinc = 0.05;
-        if (self.flip >= 1) self.flipinc = -0.05;
-    }
-
-    /// Colour 0 per line for the frame the CURRENT state draws: the rasters,
-    /// back to front, sampled at 640-row 2Y (+0.5, nearest).
-    pub fn colour0(self: *const Sync1, table: *[frame.PH]u32) void {
-        @memset(table, frame.BLACK);
-        var y: i32 = 0;
-        while (y < 225) : (y += 1) frame.setC0(table, y, self.rasterAt(y));
-    }
-
-    fn rasterAt(self: *const Sync1, y: i32) u32 {
-        const r: i32 = 2 * y;
-        const rc: f64 = @as(f64, @floatFromInt(r)) + 0.5;
-        var c: u32 = frame.BLACK;
-        if (r >= 181 and r < 181 + gen.rasters_rows.len) c = gen.rasters_rows[@intCast(r - 181)];
-        for (BAR_PHASE, BAR_SQUASH) |ph, h| {
-            const yc = 150 - 130 * @sin(self.y1 + ph * DELTA_OFFSETBARS);
-            const s = @floor((rc - yc) / h + 13);
-            if (s >= 0 and s < 26) c = gen.redraster_rows[@intFromFloat(s)];
-        }
-        if (r >= 40 and r < 40 + gen.whiteraster_rows.len) c = gen.whiteraster_rows[@intCast(r - 40)];
-        return c;
-    }
-};
+/// Colours 1..15 of ST line `y`.
+pub fn lineColour(r: *const Ram, shown: Shown, y: usize, i: usize) u16 {
+    if (y >= PAL_SWITCH_LINE) return LOWER[i - 1];
+    return r.w(shown.palette + 2 * @as(u32, @intCast(i)));
+}

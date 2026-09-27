@@ -1,8 +1,9 @@
 // The pictures and fonts, part by part. Every .raw ships ZX0-packed (build.zig:
 // packed_assets.swedish_newyear); on entering a part its set is depacked into the
 // one part buffer (ram.zig), after which the part's own scratch sits. Only one
-// part runs at a time, so the buffer is the LARGEST set, not the sum: OMEGA's
-// ~248 KB against ~620 KB of pictures unpacked.
+// part runs at a time, so the buffer is the LARGEST set, not the sum. The SYNC
+// and TCB "sets" are the real parts as the loader reads them, and their scratch
+// is the rest of the part's memory (st.zig); TCB's 480 KB is the largest.
 //
 // The Imgs keep assets_gen.zig's size, depth and LUT; only `.data` is filled here.
 const std = @import("std");
@@ -11,26 +12,25 @@ const PACKED = @import("packed_assets").swedish_newyear;
 const gen = @import("assets_gen.zig");
 const Img = @import("image.zig").Img;
 const ram = @import("ram.zig");
+const sync1 = @import("sync1.zig");
 const tcb1 = @import("tcb1.zig");
-const org = @import("tcb2_org.zig");
 
-pub const Set = enum { menu, sync, tcb1, tcb2, omega };
+pub const Set = enum { menu, sync, tcb, omega };
+
+pub const SYNC_IMAGE: usize = 11 * 9 * 2 * 512;
+/// SYNC's memory, $20000..$80000: the tracks, its buffers, its two screens.
+pub const SYNC_RAM: usize = sync1.TOP - sync1.BASE;
+pub const TCB_IMAGE: usize = 26 * 9 * 2 * 512;
+/// TCB's memory, $8000..$80000.
+pub const TCB_RAM: usize = tcb1.TOP - tcb1.BASE;
 
 pub var main_px: []const u8 = &.{}; // 320x200, a byte a pixel (main_lut's row-local index)
+/// The SYNC part as the loader read it (tracks 45..55, 101,376 bytes to $20000).
+pub var sync_part: []const u8 = &.{};
 pub var font7 = blank(gen.font7);
 pub var block = blank(gen.block);
-pub var banner = blank(gen.banner);
-pub var syncfont = blank(gen.syncfont);
-pub var logo = blank(gen.logo);
-pub var sync1 = blank(gen.sync1);
-pub var sync2 = blank(gen.sync2);
-pub var tcb = blank(gen.tcb);
-pub var kh = blank(gen.kh);
-pub var kh2 = blank(gen.kh2);
-pub var edge = blank(gen.edge);
-pub var tcblogo = blank(gen.tcblogo);
-pub var wizcoder = blank(gen.wizcoder);
-pub var ancool = blank(gen.ancool);
+/// The TCB part as the loader read it (tracks 12..37, 239,616 bytes to $8000).
+pub var tcb_part: []const u8 = &.{};
 pub var omain = blank(gen.omain);
 pub var omega = blank(gen.omega);
 pub var ofont = blank(gen.ofont);
@@ -57,18 +57,8 @@ const ENTRIES = [_]Entry{
     .{ .set = .menu, .src = PACKED.main, .len = 320 * 200, .data = &main_px },
     entry(.menu, PACKED.font7, gen.font7, &font7),
     entry(.menu, PACKED.block, gen.block, &block),
-    entry(.sync, PACKED.banner, gen.banner, &banner),
-    entry(.sync, PACKED.syncfont, gen.syncfont, &syncfont),
-    entry(.sync, PACKED.logo, gen.logo, &logo),
-    entry(.sync, PACKED.sync1, gen.sync1, &sync1),
-    entry(.sync, PACKED.sync2, gen.sync2, &sync2),
-    entry(.tcb1, PACKED.tcb, gen.tcb, &tcb),
-    entry(.tcb2, PACKED.kh, gen.kh, &kh),
-    entry(.tcb2, PACKED.kh2, gen.kh2, &kh2),
-    entry(.tcb2, PACKED.edge, gen.edge, &edge),
-    entry(.tcb2, PACKED.tcblogo, gen.tcblogo, &tcblogo),
-    entry(.tcb2, PACKED.wizcoder, gen.wizcoder, &wizcoder),
-    entry(.tcb2, PACKED.ancool, gen.ancool, &ancool),
+    .{ .set = .sync, .src = PACKED.sync_part, .len = SYNC_IMAGE, .data = &sync_part },
+    .{ .set = .tcb, .src = PACKED.tcb_part, .len = TCB_IMAGE, .data = &tcb_part },
     entry(.omega, PACKED.omain, gen.omain, &omain),
     entry(.omega, PACKED.omega, gen.omega, &omega),
     entry(.omega, PACKED.ofont, gen.ofont, &ofont),
@@ -92,8 +82,8 @@ fn scratchAt(comptime set: Set) usize {
 
 fn ScratchOf(comptime set: Set) type {
     return switch (set) {
-        .tcb1 => tcb1.Noise,
-        .tcb2 => org.Scratch,
+        .tcb => [TCB_RAM - TCB_IMAGE]u8,
+        .sync => [SYNC_RAM - SYNC_IMAGE]u8, // the part's memory above its tracks
         else => void,
     };
 }
@@ -104,11 +94,6 @@ pub const PART_LEN: usize = blk: {
     for (std.enums.values(Set)) |s| most = @max(most, scratchAt(s) + @sizeOf(ScratchOf(s)));
     break :blk most;
 };
-
-/// A part's scratch; valid while its set is the one loaded.
-pub fn scratch(comptime set: Set) *ScratchOf(set) {
-    return @ptrCast(@alignCast(ram.buf.part[scratchAt(set)..][0..@sizeOf(ScratchOf(set))]));
-}
 
 /// Depack `set` into the part buffer. False (nothing usable) if a blob does not
 /// depack to its picture's size: a build fault, never expected at run time.

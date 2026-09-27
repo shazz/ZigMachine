@@ -1,128 +1,122 @@
-// whichpart 4 -- TCB SCREEN #2 (screen.js do_tcb2), back to front:
-//   the scroller layer: orgcanvas (tcb2_org.zig) at 1.8x, at (34, 254-Y) --
-//     Y rises 0..30 by 3 and settles at -3 -- reaching into the bottom border,
-//     which this part opens; or, once tcb2fx is 1, at 254-|sin(siny)*120|;
-//   five raster bars (raster1_down at alpha 0.6 behind, raster1_up in front) on
-//     200+200cos(angle), 0.25 apart, +0.05 a frame, halved vertically: ST-legal,
-//     uniform rows -- REAL rasters, colour 0 per line (colour0());
-//   the UNION WIZ CODERS logo at 1.5x in the frame's grey from clr[] (85 frames);
-//   TCB_distlogo.png 1.5x through FX siny then sinx; ancool.png through FX sinx.
-// tcb2fx becomes 1 when SYNC #1's scroller (myscrolltext -- the remake reads the
-// wrong scroller, and it only moves in SYNC #1) stands on a ']': ported as is.
-// Deviation, ST-ward: the bars are colour 0, so they pass BEHIND the scroller
-// layer's pixels where, with tcb2fx 1, the remake would lay them over it.
-const std = @import("std");
-const frame = @import("frame.zig");
-const gen = @import("assets_gen.zig");
-const texts = @import("texts.zig");
-const sc = @import("scroller.zig");
-const fx = @import("fx.zig");
-const org = @import("tcb2_org.zig");
-const draw = @import("tcb2_draw.zig");
+// --------------------------------------------------------------------------
+// TCB SCREEN #2, from the disk: the second half of the load F2 reads from
+// tracks 12..37 to $8000 (prototypes/snyd_re/NOTES_tcb.md). TCB #1 ($E192)
+// runs until Space is released; then its exit ($E0C2) and this screen's
+// set-up (tcb2_init.zig), then the main loop $10B38, once a VBL:
+//   VBL $EB3E  the palette $B4CC, Timer B on for the colour-0 rasters, the
+//              next of 128 raster frames ($EAFA); every 70 VBLs it hands over
+//              to $EC30 for 42 VBLs, which fades colour 1 up and down ($EAA4):
+//              the UNION logo (plane 0 = colour 1) flashes out of the black.
+//   $10714     flip the screens ($78300 / $70600): the one drawn this pass is
+//              shown from the next VBL.
+//   $F18C      where the scroller's palette chain starts (Timer B, next VBL).
+//   $C06A      the big bouncing scroller (tcb2_scroll.zig) and the keys.
+//   $10652 / $1058E  the small cylinder scroller (tcb2_small.zig).
+//   $B4BE      the yellow TCB logo (tcb2_logo.zig).
+//   $9964      AN COOL / WIZ CODERS (tcb2_ancool.zig).
+// The colour registers of every line are tcb2_vbl.zig's palettes(): Timer B
+// writes colour 0 from the raster frame at the end of each line, switches
+// colours 2..15 at line 37, and from line 88 walks seven palettes, 8 lines
+// apart from the scroller's line down, that shade the scroller.
+//
+// Keys, as the original reads them ($C076, a key acts once until another
+// function key is pressed): F1 / F2 set the big scroller's speed (slow /
+// normal), F3 / F4 / F5 restart the music at Dugger subtunes 2 / 3 / 4.
+// The music starts at subtune 4.
+//
+// The remake invented or dropped: its F1..F5 played five different tunes,
+// one of them a "dugger4" jingle that is nowhere on the disk; its tcb2fx mode
+// (the scroller climbing on a sine) was triggered by the SYNC screen's text
+// and is not in the original; its bars were a sine formula, not the 128-frame
+// table; it drew the cylinder scroller and both logos from PNGs through
+// CODEF's FX distortions instead of these preshift/ring/wave routines.
+// --------------------------------------------------------------------------
+const st = @import("st.zig");
+const vbl = @import("tcb2_vbl.zig");
+const scroll = @import("tcb2_scroll.zig");
+const small = @import("tcb2_small.zig");
+const logo = @import("tcb2_logo.zig");
+const ancool = @import("tcb2_ancool.zig");
+pub const init = @import("tcb2_init.zig").init;
+pub const palettes = vbl.palettes;
+pub const Shown = vbl.Shown;
 
-const NB_RASTERS = 5;
+const Ram = st.Ram;
 
-pub const Tcb2 = struct {
-    colour: u8,
-    cyl: org.Cylinder,
-    y: i32, // Y
-    y_inc: i32,
-    loop: bool,
-    tcb2fx: u8,
-    siny: f64,
-    angle: [NB_RASTERS]f64,
-    text: sc.Scroller, // tcb2myscrolltext: 48x25 font, 329 canvas, speed 5
-    cyl_text: sc.Scroller, // tcb2myscrolltext2: 32x25 font, 704 canvas, speed 2
-    fx_tcb: fx.Fx(2), // tcb2myfx (siny)
-    fx_tcb2: fx.Fx(2), // tcb2myfx2 (sinx)
-    fx_ancool: fx.Fx(2), // tcb2myfx3 (sinx)
+pub const BASE: u32 = 0x8000; // where the loader puts the part
+pub const TOP: u32 = 0x80000;
 
-    pub fn init(self: *Tcb2) void {
-        self.colour = 1;
-        self.cyl = .{ .rota = 0, .counter = 0 };
-        self.y = 0;
-        self.y_inc = 3;
-        self.loop = false;
-        self.tcb2fx = 0;
-        self.siny = 0;
-        for (&self.angle, 0..) |*a, i| a.* = 0.25 * @as(f64, @floatFromInt(i));
-        self.text.init(texts.tcb2, 48, 329, 5, null);
-        self.cyl_text.init(texts.tcb2_cylinder, 32, 704, 2, null);
-        self.fx_tcb = .{ .p = .{ .{ .value = 0, .amp = 10, .inc = 0.03, .offset = -0.06 }, .{ .value = 0, .amp = 10, .inc = 0.01, .offset = 0.05 } } };
-        self.fx_tcb2 = .{ .p = .{ .{ .value = 0, .amp = 20, .inc = 0.02, .offset = -0.05 }, .{ .value = 0, .amp = 10, .inc = 0.04, .offset = 0.008 } } };
-        self.fx_ancool = .{ .p = .{ .{ .value = 0, .amp = 60, .inc = 0.04, .offset = -0.05 }, .{ .value = 0, .amp = 25, .inc = 0.06, .offset = 0.05 } } };
-    }
+pub const DRAWN: u32 = 0x113E6; // .l the screen drawn this pass (shown next VBL)
+const FLIP: u32 = 0x1074E; // .l not'ed every pass
+pub const MUSIC: u32 = 0x50600; // the Dugger replay, copied here by $10AA0
+pub const LINE160: u32 = 0x10D66; // .l line * 160, 200 entries
+pub const GLYPH_OFFSET: u32 = 0x3C03C; // .l small glyph * $960, 60 entries
+pub const SCALE: u32 = 0xF54E; // 25 blocks of 32 longs: rows, then row offsets
+pub const GLYPHS: u32 = 0x1908C; // the preshifted big glyphs
+pub const LOGO_SHIFTS: u32 = 0x52600; // the TCB logo's 16 preshifts, $578 each
+pub const RASTERS: u32 = 0x3654C; // 128 frames x 90 colour-0 words
+pub const SLOT_X: u32 = 0xC150; // .l x 7: the scroller slots' screen offsets
+pub const SLOT_GLYPH: u32 = 0xC16C; // .l x 7: their glyphs
+pub const LEFT_EDGE: u32 = 0xC188; // .l the slot here takes the next letter
+pub const RIGHT_EDGE: u32 = 0xC18C; // .l ... and moves here; the end blocks
+pub const TEXT: u32 = 0xC190; // .l -> the next letter
+pub const TEXT_START: u32 = 0xCC16;
+pub const YLIST: u32 = 0xC198; // .l -> the bounce list being applied
+pub const YSCRIPT: u32 = 0xC19C; // .l -> the next bounce list's number
+pub const ANCOOL_RING: u32 = 0xA3AA; // 25 x (source, screen offset) + copies
+pub const ANCOOL: u32 = 0x57D80; // AN COOL's 16 preshifts, $1644 each
+const KEY_SEEN: u32 = 0xC194; // .b the last function key acted on
+const CHAIN_LINE: u32 = 0xEF45; // .b the scroller's line - 96, for the next VBL
 
-    /// One do_tcb2(). `sync1_char` is myscrolltext's current character.
-    pub fn step(self: *Tcb2, sync1_char: u8) void {
-        const grey = gen.clr_level[self.colour];
-        if (self.colour >= 85) self.colour = 1;
-        org.clear();
-        self.cyl.scroller(&self.cyl_text, 0);
-        org.otherScroller(&self.text);
-        const cy: f64 = @floatFromInt(165 - self.y);
-        org.edge(9, cy);
-        org.edge(310, cy);
-        self.cyl.scroller(&self.cyl_text, 1);
-        org.quad();
-        if (self.tcb2fx == 0) {
-            draw.layer(@floatFromInt(254 - self.y));
-            if (!self.loop) self.y += self.y_inc;
-            if (self.y >= 30) self.y_inc = -3;
-            if (self.y <= -1) self.loop = true;
-        } else {
-            self.siny += 0.05;
-            draw.layer(254 - @abs(@sin(self.siny) * 120));
-        }
-        for (&self.angle) |*a| advance(a); // the bars were drawn by colour0()
-        draw.wizcoder(gen.grey_gid[grey]);
-        draw.tcbLogo(&self.fx_tcb, &self.fx_tcb2);
-        draw.ancool(&self.fx_ancool);
-        if (sync1_char == ']') self.tcb2fx = 1;
-        self.colour += 1;
-    }
+/// $FFFC02 as the main loop reads it: the last key code the keyboard sent.
+var keyboard: u8 = 0;
 
-    /// Colour 0 per line: rastercanvas (drawn at scale (1, 0.5)) row 4Y+1.
-    pub fn colour0(self: *const Tcb2, table: *[frame.PH]u32) void {
-        @memset(table, frame.BLACK);
-        var y: i32 = 0;
-        while (y < 100) : (y += 1) frame.setC0(table, y, self.barsAt(@as(f64, @floatFromInt(4 * y + 1)) + 0.5));
-    }
-
-    fn barsAt(self: *const Tcb2, rc: f64) u32 {
-        var c = [3]f64{ 0, 0, 0 };
-        for (self.angle) |a| if (a > std.math.pi and a < 2 * std.math.pi) {
-            const s = @floor(rc - (200 + 200 * @cos(a)) + 26); // drawDOWN, alpha 0.6
-            if (s >= 0 and s < 53) blend(&c, gen.raster_down_rows[@intFromFloat(s)], 0.6);
-        };
-        for (self.angle) |a| if (a >= 0 and a <= std.math.pi / 2.0) up(&c, rc, a); // drawUP1
-        var i: usize = NB_RASTERS;
-        while (i > 0) { // drawUP2, last bar first
-            i -= 1;
-            const a = self.angle[i];
-            if (a > std.math.pi / 2.0 and a <= std.math.pi) up(&c, rc, a);
-        }
-        const r: u32 = @intFromFloat(@floor(c[0] + 0.5));
-        const g: u32 = @intFromFloat(@floor(c[1] + 0.5));
-        const b: u32 = @intFromFloat(@floor(c[2] + 0.5));
-        return frame.BLACK | (b << 16) | (g << 8) | r;
-    }
-};
-
-fn up(c: *[3]f64, rc: f64, a: f64) void {
-    const s = @floor(rc - (200 + 200 * @cos(a)) + 16);
-    if (s >= 0 and s < 32) blend(c, gen.raster_up_rows[@intFromFloat(s)], 1);
+/// One VBL and one pass of the main loop.
+pub fn frame(r: *const Ram) Shown {
+    const shown = vbl.vbl(r);
+    flip(r);
+    r.sb(CHAIN_LINE, @truncate((r.l(RIGHT_EDGE) / 0xA0) -% 0x60)); // $F18C
+    scroll.step(r);
+    applyKey(r);
+    small.clear(r);
+    small.step(r);
+    logo.step(r);
+    ancool.step(r);
+    return shown;
 }
 
-fn blend(c: *[3]f64, rgba: u32, alpha: f64) void {
-    for (0..3) |k| {
-        const v: f64 = @floatFromInt((rgba >> @intCast(8 * k)) & 0xFF);
-        c[k] = c[k] * (1 - alpha) + v * alpha;
+/// $10714.
+fn flip(r: *const Ram) void {
+    r.sl(FLIP, ~r.l(FLIP));
+    r.sl(DRAWN, if (r.l(FLIP) == 0) 0x78300 else 0x70600);
+}
+
+/// A function key (0 = F1 .. 4 = F5) reaching the keyboard. It acts at the
+/// end of the next pass's $C06A; returns the Dugger subtune F3..F5 restart.
+pub fn key(r: *const Ram, f: u8) ?u8 {
+    keyboard = 0x3B + f;
+    if (r.b(KEY_SEEN) == keyboard) return null;
+    return if (f >= 2) f else null;
+}
+
+/// $C076: a function key other than the last one acted on.
+fn applyKey(r: *const Ram) void {
+    const code = keyboard;
+    if (code == r.b(KEY_SEEN) or code < 0x3B or code > 0x3F) return;
+    r.sb(KEY_SEEN, code);
+    switch (code) {
+        0x3B, 0x3C => {
+            r.sl(scroll.PHASE, 0);
+            r.sl(scroll.SPEED, if (code == 0x3B) 0x258 else 0x4B0);
+        },
+        else => {
+            r.sb(vbl.RESTART, 0xFF);
+            r.sl(vbl.RESTART_TUNE, code - 0x3B);
+        },
     }
 }
 
-/// myrastero.advance(0.05)
-fn advance(a: *f64) void {
-    a.* += 0.05;
-    if (a.* >= 2 * std.math.pi) a.* -= 2 * std.math.pi;
+/// The keyboard as a fresh load finds it.
+pub fn resetKeyboard() void {
+    keyboard = 0;
 }
