@@ -16,13 +16,13 @@
 // modes; only ZIG fills them in.
 // --------------------------------------------------------------------------
 const scr = @import("scr.zig");
-const B = @import("basic.zig");
+const ring = @import("zig_ring.zig");
 const hooks = @import("zig_hooks.zig");
 const set = @import("zig_settings.zig");
 const V = @import("vars.zig");
 const v = &V.v;
 
-const MAX = 8;
+const MAX = set.crater_max;
 const Hole = struct {
     s: i32 = -1,
     made: u32 = 0,
@@ -50,7 +50,7 @@ pub fn reset() void {
 /// 316: a crash is about to make its hole in sector s.
 pub fn before(s: i32) void {
     open = null;
-    if (s < 0 or s >= 51) return;
+    if (s < 0 or s >= ring.SECTORS) return;
     const i = free() orelse return;
     var h = Hole{ .s = s, .made = now };
     h.ghx[0] = scr.peek(v.ghx9 + s);
@@ -82,7 +82,8 @@ fn free() ?usize {
 pub fn tick() void {
     now +%= 1;
     const life = set.crater_life_vbls;
-    if (!hooks.zig or life == 0) return;
+    // Only in flight: the title (tscreen 2350) parks sector 0's gun bits.
+    if (!hooks.zig or life == 0 or !hooks.flightView()) return;
     for (&holes, 0..) |*h, i| {
         if (h.s < 0 or open == i or now -% h.made < life) continue;
         if (h.s == v.sx or h.s == hooks.live_sx) continue;
@@ -100,7 +101,7 @@ fn fill(h: *Hole) void {
         var k: usize = @intCast(h.sno[0]);
         while (k < @min(4, @as(usize, @intCast(h.sno[1])))) : (k += 1) {
             scr.poke(v.so9 + s * 4 + @as(i32, @intCast(k)), h.so[k]);
-            v.snox_a[B.ix(52, s)][k] = h.snox[k];
+            v.snox_a[@intCast(s)][k] = h.snox[k];
         }
     }
     h.* = .{};

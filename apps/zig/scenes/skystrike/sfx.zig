@@ -13,10 +13,8 @@ const zs = @import("zig_sound.zig");
 const V = @import("vars.zig");
 const v = &V.v;
 
-/// ZIG's sample for each routine (zig_settings.zig).
-fn fx() @import("zig_settings.zig").Effects {
-    return @import("zig_settings.zig").effects;
-}
+/// ZIG's sample for each routine (a run-time setting, read at each call).
+const fx = &@import("zig_settings.zig").effects;
 
 /// 990-992: the engine: silent at th = 0, else noise 31 - th under
 /// envelope 10 with period eng - 3.
@@ -44,15 +42,15 @@ pub fn splash() void {
         snd.noise(2);
         snd.envel(9, 19000);
         v.nso = 4;
-        zs.play(fx().splash, false);
+        zs.play(fx.splash, false);
         return;
     }
-    crashAs(fx().bomb);
+    crashAs(fx.bomb);
 }
 
 /// 994: music off : samloop off : samplay 2 : nso = 6
 pub fn crash() void {
-    crashAs(fx().crash);
+    crashAs(fx.crash);
 }
 
 fn crashAs(s: zs.Sample) void {
@@ -74,7 +72,7 @@ pub fn guns() void {
     snd.samloop(true);
     snd.samplay(1);
     v.nso = 4;
-    zs.play(fx().guns, true);
+    zs.play(fx.guns, true);
 }
 
 /// 997: the crash sample and noise 5.
@@ -87,7 +85,7 @@ pub fn hit() void {
     snd.samplay(2);
     snd.noise(5);
     v.nso = 4;
-    zs.play(fx().hit, false);
+    zs.play(fx.hit, false);
 }
 
 /// 998: the crash sample.
@@ -99,5 +97,5 @@ pub fn bang() void {
     snd.samloop(false);
     snd.samplay(2);
     v.nso = 4;
-    zs.play(fx().bang, false);
+    zs.play(fx.bang, false);
 }

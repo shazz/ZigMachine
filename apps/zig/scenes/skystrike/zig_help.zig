@@ -8,8 +8,9 @@
 //   80-81 up/down turn the plane; 120/129 left/right the throttle, when not
 //   firing, down to 4 at the least; 150 0-9; 350-381 fire, fire+left a bomb,
 //   fire+right a rocket -- in ZIG one key each, Ctrl, Space and Shift, and
-//   Ctrl is a fire button for the chords (zig_keys.zig); 124 C/F9 cluster (a bonus held); 125 B/F5 turbo
-//   (a bonus held); 152 U/F10 wheels; 162 T/F3 turn round (stopped); 156
+//   Ctrl is a fire button for the chords (zig_keys.zig); 124 C/F9 cluster
+//   (a bonus held); 125 B/F5 turbo (a bonus held); 152 U/F10 wheels; 162
+//   T/F3 turn round (stopped); 156
 //   F/F8 gives up a plane landed and stopped for a new one (it costs one,
 //   line 68); 161 S the carrier's catapult; 157 A autoland on an airfield's
 //   sector (not on Hard: atlf, 2133; it costs points); 158 M/F2 moves the

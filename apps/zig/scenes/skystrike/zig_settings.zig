@@ -58,6 +58,8 @@ pub const tracer_reach: i32 = 10;
 /// fills in again; 0 = never, as in the original. 30 s. GAMEPLAY: a crater
 /// that expires changes the sector's gun bits and wreck table.
 pub var crater_life_vbls: u32 = 1502;
+/// Holes remembered at once; a crash while all are waiting stays for good.
+pub const crater_max: usize = 8;
 
 // ---- the weapon keys ------------------------------------------------------
 /// Host key codes (docs/sealed-loader.js MOD_CODES). Each is one key for the

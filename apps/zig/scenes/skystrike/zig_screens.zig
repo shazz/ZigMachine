@@ -48,8 +48,21 @@ pub fn draw(ov: []u8) void {
     @memset(ov[0 .. Y0 * W], mostly(p, 0));
     @memset(ov[(Y0 + SH) * W .. H * W], mostly(p, scr.H - 1));
     for (0..SH) |y| {
-        const from = p[src(y) * scr.W ..][0..scr.W];
         const to = ov[(Y0 + y) * W ..][0..W];
-        for (to, 0..) |*d, x| d.* = from[src(x)];
+        // Every fourth source line is shown twice: copy the line just made.
+        if (y > 0 and src(y) == src(y - 1)) {
+            @memcpy(to, ov[(Y0 + y - 1) * W ..][0..W]);
+            continue;
+        }
+        widen(to, p[src(y) * scr.W ..][0..scr.W]);
+    }
+}
+
+/// One line, 320 -> 400: each 4 source pixels to 5, the first doubled
+/// (src() of 5g..5g+4 is 4g, 4g, 4g+1, 4g+2, 4g+3).
+fn widen(to: *[W]u8, from: *const [scr.W]u8) void {
+    for (0..scr.W / 4) |g| {
+        const f = from[g * 4 ..][0..4];
+        to[g * 5 ..][0..5].* = .{ f[0], f[0], f[1], f[2], f[3] };
     }
 }

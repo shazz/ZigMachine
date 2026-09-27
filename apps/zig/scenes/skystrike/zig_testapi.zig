@@ -15,7 +15,7 @@
 //                made / filled in, 66-68 the ghx9 / sno9 / so9 addresses
 //   poke(300+k)  70 the crater lifetime in VBLs (0 never), 71 fullscreen
 //                screens on / off
-//   ptr(5..7)    5 the ring (960 x 520, the world plane's buffer), 6 the
+//   ptr(5..7)    5 the ring (960 x 540, the world plane's buffer), 6 the
 //                capture (320 x 200), 7 the overlay (400 x 280)
 // --------------------------------------------------------------------------
 const zg = @import("zigos");

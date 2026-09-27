@@ -1,7 +1,7 @@
 // --------------------------------------------------------------------------
 // ZIG mode's two planes and its camera.
 //
-//   plane 1  the world: an overscan SCROLL plane over the ring's 960 x 520
+//   plane 1  the world: an overscan SCROLL plane over the ring's 960 x 540
 //            buffer (zig_ring.zig), panned by the hardware (setScroll = the
 //            plane's base register), borders opened by flickerBorder() from
 //            its HBL at OVERSCAN_MAGIC_X on every line: 400 x 280 on screen

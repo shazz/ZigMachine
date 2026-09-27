@@ -41,6 +41,7 @@ pub fn reset() void {
     live_sx = 0;
     live_al = 0;
     draws = 0;
+    rounds = 0;
     @import("zig_craters.zig").reset();
 }
 
