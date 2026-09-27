@@ -1,147 +1,166 @@
-// whichpart 3 -- TCB SCREEN #1, the "A-COUPLE-OF-BORDERS-SCREEN" (screen.js
-// do_tcb1). It draws straight onto the 768x536 main canvas, which here is the
-// physical frame: main-ST (0,0) = physical (8,10), mycanvas sitting at (32,30).
-//   white noise: 12 frames of 320x240, half the pixels #AAAAAA (fillpix: a
-//     shuffled 50% mask), drawn 2x into mycanvas, which is drawn 1.2x over the
-//     whole main canvas (the noise pixel is 1.2 ST pixels);
-//   while intro.ogg plays (musicplease 0): black masks 60 px deep on all four
-//     sides, the noise only in the screen window;
-//   after it (musicplease >= 1): the noise fills the top and side borders, only
-//     the bottom 60 px masked, and tcb.png wobbles on FX sinx(230, 140).
-// Deviations, all ST-ward: the 1.2x draw is nearest, not smoothed; the noise
-// continues past the remake's 768x536 frame to the edge of the tube (the part
-// opens every border), wrapping its 320x240 pattern; Math.random is a seeded
-// xorshift, the shuffle is fillpix's own.
-const gen = @import("assets_gen.zig");
-const assets = @import("assets.zig");
-const ram = @import("ram.zig");
-const image = @import("image.zig");
-const fx = @import("fx.zig");
+// --------------------------------------------------------------------------
+// TCB SCREEN #1, "A-COUPLE-OF-BORDERS-SCREEN", from the disk: $E192 in the TCB
+// load (tracks 12..37 to $8000; prototypes/snyd_re/NOTES_tcb.md). It is a
+// digitised sound demo more than a picture:
+//   * the sound is ONE sample byte a scanline (the HBL, $DEDA, and inline in
+//     the fullscreen loop) through a volume table into YM registers 8..10: 0.69 s
+//     of speech ten times, then a stream that loops from $32AD0 for ever. Here
+//     it is the hand-built SNDH of that stream (swedish_newyear_tcb_digi.sndh,
+//     Timer A 15754 Hz), and the sample pointer a4 is SIMULATED at its rate:
+//     7877/25 = 315.08 samples a VBL (the ST plays 313 in the intro, 312 in the
+//     fullscreen; measured in Hatari), so the pictures change with the sound.
+//   * the picture is a fixed noise buffer (tcb1_init.zig) shown from 16
+//     shuffled bases, one a VBL. Once a4 passes $2D0E1 the VBL runs a
+//     fullscreen: top and side borders open (bottom closed), 230-byte lines
+//     (tcb1_show.zig). Once it passes $32AD0 the TCB logo is drawn, each line on
+//     the preshift the logo had some frames before (a 26-entry delay line) --
+//     a wobble that ripples down it.
+// Colours: the palette $E1EA (greys), colour 0 black; no rasters.
+// Space (release) leaves: $E0C2 restores the machine, colour 0 = $777, and
+// TCB #2's set-up runs (see the report: ~73 VBLs, noise with a light border,
+// then black).
+//
+// The remake drew random noise and a sine-wobbled logo over a CODEF canvas,
+// and played the stream as two OGG files.
+// --------------------------------------------------------------------------
+const st = @import("st.zig");
+const frame = @import("frame.zig");
+pub const init_part = @import("tcb1_init.zig").init;
 
-const NBA = 12;
-const NX = 320;
-const NY = 240;
-const MAIN_X: i32 = 8; // main-ST origin in physical pixels
-const MAIN_Y: i32 = 10;
+const Ram = st.Ram;
 
-/// The 12 noise frames, a bit a pixel: TCB #1's scratch in the part buffer.
-pub const Noise = [NBA][NX * NY / 8]u8;
+pub const BASE: u32 = 0x8000; // where the loader puts the TCB part
+pub const TOP: u32 = 0x80000;
+
+pub const NOISE: u32 = 0x70000; // the noise buffer, $EA62 bytes
+pub const PRESHIFTS: u32 = 0x49DCC; // 12 blocks of $2D0: the logo shifted 4..15
+pub const SHOWN: u32 = 0xDD30; // .l the base on show (the logo is drawn on it)
+pub const LAST_DRAW: u32 = 0xDD34; // .l the end of the last logo drawn
+pub const PALETTE: u32 = 0xE1EA;
+const DELAY: u32 = 0xD8DA; // .l x 26: per logo line, the step to its source line
+const COUNT: u32 = 0xD956; // .w 0..49
+const SELECT: u32 = 0xD958; // .w 0..7
+const STARTS: u32 = 0xD95A; // .w x 8: where in WOBBLE each 50 frames start
+const START: u32 = 0xD96A; // .w
+const WOBBLE: u32 = 0xD96C; // .w the preshift (0..11) a frame
+const BASES: u32 = 0xDF5E; // .l x 16
+const BASE_IX: u32 = 0xDF9E; // .l 0..60, step 4
+const LOGO_ON: u32 = 0xDF5D; // .b
+const LOOPS: u32 = 0xDF58; // .l
+const LOOP_END: u32 = 0xEA9C; // .l
+const LOOP_LEN: u32 = 0xEAA0; // .l
+const LOGO_BYTES: u32 = 0x4B6C; // the logo's end from the base, in 230-byte lines
+const LINE = 230; // bytes a fullscreen line
+pub const STREAM: u32 = 0x1908C;
+const FULLSCREEN_AFTER: u32 = 0x2D0E1;
+const LOGO_AFTER: u32 = 0x32AD0;
+const PER_VBL_NUM = 7877; // 15754 Hz / 50, as a fraction
+const PER_VBL_DEN = 25;
 
 pub const Tcb1 = struct {
-    n: usize,
-    music_please: u8,
-    logo_fx: fx.Fx(3),
+    a4: u32, // the sample pointer (a register on the ST, not in RAM)
+    frac: u32,
+    shown: u32, // the base this frame shows (set by the previous VBL)
+    full: bool, // this frame is a fullscreen
 
-    pub fn init(self: *Tcb1) void {
-        self.n = 0;
-        self.music_please = 0;
-        self.logo_fx = .{ .p = .{
-            .{ .value = 0, .amp = 1, .inc = 0.2, .offset = -0.05 },
-            .{ .value = 0, .amp = 15, .inc = 0.05, .offset = 0.005 },
-            .{ .value = 0, .amp = 7, .inc = 0.1, .offset = 0.08 },
-        } };
+    /// The part's tracks are in `r`, everything above them zero.
+    pub fn init(self: *Tcb1, r: *const Ram) void {
+        init_part(r);
+        self.* = .{ .a4 = STREAM, .frac = 0, .shown = NOISE, .full = false };
     }
 
-    /// On entering the part: the noise frames, regenerated from the same seed
-    /// (they share the part buffer with the other parts' pictures).
-    pub fn enter(_: *Tcb1) void {
-        const noise = assets.scratch(.tcb1);
-        var rng = Rng{ .s = 0x2951_988 };
-        for (noise) |*n| fillpix(n, &rng);
+    /// One VBL: the samples since the last one (and $DEF2's bookkeeping, which
+    /// the main loop runs between VBLs), then $DD38.
+    pub fn vbl(self: *Tcb1, r: *const Ram) void {
+        self.frac += PER_VBL_NUM;
+        self.a4 += self.frac / PER_VBL_DEN;
+        self.frac %= PER_VBL_DEN;
+        self.loop(r);
+        self.shown = r.l(SHOWN);
+        body(r);
+        self.full = self.a4 > FULLSCREEN_AFTER;
     }
 
-    /// One do_tcb1(); returns true on the frame the music must start.
-    pub fn step(self: *Tcb1) bool {
-        const cur = self.n;
-        self.n = (self.n + 1) % NBA;
-        var start_music = false;
-        if (self.music_please == 1) {
-            start_music = true;
-            self.music_please = 2;
+    pub fn fullscreen(self: *const Tcb1) bool {
+        return self.full;
+    }
+
+    pub fn borders(self: *const Tcb1) frame.Borders {
+        return if (self.full) .top_sides else .closed;
+    }
+
+    /// $DEF2: the logo from $32AD0 on; past the loop's end, back by its length
+    /// (the speech loops 10 times, then the music part for ever).
+    fn loop(self: *Tcb1, r: *const Ram) void {
+        if (self.a4 > LOGO_AFTER) r.sb(LOGO_ON, 0xFF);
+        if (self.a4 <= r.l(LOOP_END)) return;
+        self.a4 -= r.l(LOOP_LEN);
+        r.sl(LOOPS, r.l(LOOPS) + 1);
+        if (r.l(LOOPS) >= 10) {
+            r.sl(LOOP_END, 0x41234);
+            r.sl(LOOP_LEN, 0xE764);
         }
-        var shifts: [32]f64 = undefined;
-        if (self.music_please >= 1) self.logo_fx.run(&shifts);
-        // Locals, not reloads: the pixel stores go through a pointer, so the
-        // compiler cannot keep anything it reads through another in a register.
-        const view = View{
-            .noise = &assets.scratch(.tcb1)[cur],
-            .logo = assets.tcb,
-            .masked = self.music_please == 0,
-            .shifts = &shifts,
-        };
-        const px_rows = ram.buf.px;
-        for (px_rows, 0..) |*row, py| {
-            for (row, 0..) |*o, px| o.* = view.pixel(@intCast(px), @intCast(py));
-        }
-        return start_music;
+        r.sw(LOGO_ON - 1, 0); // $DF5C and $DF5D
+        if (self.a4 > LOGO_AFTER) r.sb(LOGO_ON, 0xFF); // the main loop, at once
     }
 };
 
-const View = struct {
-    noise: *const [NX * NY / 8]u8,
-    logo: image.Img,
-    masked: bool, // musicplease 0: the intro's four black masks
-    shifts: *const [32]f64,
+/// $DD38 without the sound: erase, delay line, draw, next base.
+pub fn body(r: *const Ram) void {
+    erase(r);
+    delay(r);
+    if (r.b(LOGO_ON) != 0) draw(r);
+    const ix = (r.l(BASE_IX) + 4) & 0x3F;
+    r.sl(BASE_IX, ix);
+    r.sl(SHOWN, r.l(BASES + ix));
+}
 
-    fn pixel(self: *const View, px: i32, py: i32) u16 {
-        const mx = 2 * (px - MAIN_X); // main-canvas pixel
-        const my = 2 * (py - MAIN_Y);
-        if (self.masked) {
-            if (mx < 60 or mx >= 708 or my < 60 or my >= 476) return 0;
-        } else {
-            if (my >= 476) return 0;
-            const i = my - 140;
-            if (i >= 0 and i < 32) {
-                const c = image.ifloor(@as(f64, @floatFromInt(mx)) + 0.5 - (self.shifts[@intCast(i)] + 230));
-                const g = self.logo.at(c, i);
-                if (g != image.NONE) return g;
-            }
+/// $D7D8: the last logo's box, filled back to front with 16 bytes a line of
+/// the shown base's top, longs 1,2,3,1,3,4,1,3,2,4 -- pseudo-noise.
+fn erase(r: *const Ram) void {
+    var a1 = r.l(LAST_DRAW);
+    var a0 = r.l(SHOWN);
+    const order = [10]u32{ 0, 1, 2, 0, 2, 3, 0, 2, 1, 3 };
+    for (0..18) |_| {
+        // read first: in the intro the box is low enough to overwrite these
+        const d = [4]u32{ r.l(a0), r.l(a0 + 4), r.l(a0 + 8), r.l(a0 + 12) };
+        for (order) |k| {
+            a1 -%= 4;
+            r.sl(a1, d[k]);
         }
-        return if (noiseAt(self.noise, mx, my)) gen.NOISE_GID else 0;
-    }
-};
-
-/// mycanvas.draw(maincanvas, 0, 0, 1, 0, 1.2, 1.2) of minicanv drawn 2x.
-fn noiseAt(noise: *const [NX * NY / 8]u8, mx: i32, my: i32) bool {
-    const xm = image.ifloor((@as(f64, @floatFromInt(mx)) + 0.5) / 1.2);
-    const ym = image.ifloor((@as(f64, @floatFromInt(my)) + 0.5) / 1.2);
-    const u: usize = @intCast(@mod(@divFloor(xm, 2), NX));
-    const v: usize = @intCast(@mod(@divFloor(ym, 2), NY));
-    const bit = v * NX + u;
-    return noise[bit >> 3] & (@as(u8, 1) << @intCast(bit & 7)) != 0;
-}
-
-/// fillpix(c1, canvas, 320, 240, 320*240/2): exactly half set, then shuffle().
-/// The shuffle swaps bits in place (a byte-a-pixel mask would be 75 KB of cart RAM).
-fn fillpix(out: *[NX * NY / 8]u8, rng: *Rng) void {
-    @memset(out, 0);
-    @memset(out[0 .. NX * NY / 16], 0xFF);
-    var i: usize = NX * NY;
-    while (i > 0) {
-        const j: usize = @intFromFloat(@floor(rng.next() * @as(f64, @floatFromInt(i))));
-        i -= 1;
-        const bi = getBit(out, i);
-        setBit(out, i, getBit(out, j));
-        setBit(out, j, bi);
+        a0 += 16;
+        a1 -%= 0xBE;
     }
 }
 
-fn getBit(bits: *const [NX * NY / 8]u8, k: usize) u1 {
-    return @truncate(bits[k >> 3] >> @intCast(k & 7));
-}
-
-fn setBit(bits: *[NX * NY / 8]u8, k: usize, b: u1) void {
-    const m = @as(u8, 1) << @intCast(k & 7);
-    if (b == 1) bits[k >> 3] |= m else bits[k >> 3] &= ~m;
-}
-
-/// Math.random, seeded: xorshift32 / 2^32.
-pub const Rng = struct {
-    s: u32,
-    pub fn next(self: *Rng) f64 {
-        self.s ^= self.s << 13;
-        self.s ^= self.s >> 17;
-        self.s ^= self.s << 5;
-        return @as(f64, @floatFromInt(self.s)) / 4294967296.0;
+/// $D84A: every line's step moves one line down; line 0 takes this frame's
+/// preshift, and line 1's step is corrected so it still reaches its source.
+fn delay(r: *const Ram) void {
+    var k: u32 = 25;
+    while (k > 0) : (k -= 1) r.sl(DELAY + 4 * k, r.l(DELAY + 4 * (k - 1)));
+    var cnt = r.w(COUNT) + 1;
+    if (cnt >= 50) {
+        cnt = 0;
+        const sel = (r.w(SELECT) + 1) & 7;
+        r.sw(SELECT, sel);
+        r.sw(START, r.w(STARTS + 2 * @as(u32, sel)));
     }
-};
+    r.sw(COUNT, cnt);
+    const shift: u32 = r.w(WOBBLE + 2 * @as(u32, cnt +% r.w(START)));
+    const e0 = shift * 0x2D0 -% 0x28;
+    r.sl(DELAY, e0);
+    r.sl(DELAY + 4, r.l(DELAY + 4) -% e0 -% 0x28);
+}
+
+/// $D80C: 18 lines, bottom up, 40 bytes each, on the shown base.
+fn draw(r: *const Ram) void {
+    var a1 = r.l(SHOWN) + LOGO_BYTES;
+    r.sl(LAST_DRAW, a1);
+    var a0: u32 = PRESHIFTS + 0x2D0;
+    for (0..18) |i| {
+        a0 +%= r.l(DELAY + 4 * @as(u32, @intCast(i)));
+        a1 -= 40;
+        r.cp(a1, a0, 40);
+        a1 -= LINE - 40;
+    }
+}

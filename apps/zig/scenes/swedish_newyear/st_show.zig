@@ -54,6 +54,53 @@ pub fn present(fb: []u8) void {
     frame.c0_now = frame.c0_next;
 }
 
+// ------------------------------------------------------------------ overscan
+// A frame with open borders is not a 320x200 window: each physical line has its
+// own start address, first pixel and extent (TCB #1's 230-byte lines start 12
+// pixels left of the plane; its first two lines are the odd ones where the
+// borders open). The shifter reads 16-pixel groups of four plane words from
+// the line's first byte on, whatever the address mod 8 -- which is why 230-byte
+// lines rotate the plane order from one line to the next.
+
+/// One physical line of an overscan frame: pixels in [lo, hi) show the screen,
+/// read from `addr` with its first pixel at physical x `x0`; the rest is colour 0.
+pub const Row = struct { addr: u32, x0: i32, lo: u16, hi: u16 };
+pub const Rows = [frame.PH]?Row;
+
+/// Like capture(), for a whole overscan plane under ONE palette.
+pub fn captureOverscan(r: *const st.Ram, rows: *const Rows, pal: *const [16]u16) void {
+    var colours: [16]u32 = undefined;
+    for (&colours, pal) |*c, w| c.* = st.color(w);
+    for (ram.buf.plane, rows, 0..) |*out, row, py| {
+        @memset(out, 0);
+        if (row) |ln| lineAt(r, ln, out);
+        ram.buf.pal_next[py] = colours;
+        frame.c0_next[py] = colours[0];
+    }
+}
+
+fn lineAt(r: *const st.Ram, ln: Row, out: *[frame.PW]u8) void {
+    var group: [16]u8 = undefined;
+    var have: i32 = -1;
+    for (ln.lo..ln.hi) |x| {
+        const k = @as(i32, @intCast(x)) - ln.x0;
+        if (k < 0) continue;
+        const g = @divFloor(k, 16);
+        if (g != have) {
+            st.groupToChunky(r.bytes(ln.addr + 8 * @as(u32, @intCast(g)), 8)[0..8], &group);
+            have = g;
+        }
+        out[x] = group[@intCast(@mod(k, 16))];
+    }
+}
+
+/// The captured overscan frame into the plane.
+pub fn presentOverscan(fb: []u8) void {
+    for (ram.buf.plane, 0..) |*row, py| @memcpy(fb[py * frame.PW ..][0..frame.PW], row);
+    ram.buf.pal.* = ram.buf.pal_next.*;
+    frame.c0_now = frame.c0_next;
+}
+
 test "palettes cover the ST window only" {
     try std.testing.expect(frame.OY >= 0 and frame.OY + LINES <= frame.PH);
 }

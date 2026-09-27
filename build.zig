@@ -190,7 +190,7 @@ pub fn build(b: *std.Build) void {
     // SWEDISH NEW YEAR (CODEF 295): every picture and font, one blob each. The
     // scene depacks only the part on screen's set, into one working buffer
     // (apps/zig/scenes/swedish_newyear/assets.zig names the sets).
-    const SWEDISH = [_][]const u8{ "main", "font7", "block", "sync_part", "tcb", "kh", "kh2", "edge", "tcblogo", "wizcoder", "ancool", "omain", "omega", "ofont", "vumeter", "atari" };
+    const SWEDISH = [_][]const u8{ "main", "font7", "block", "sync_part", "tcb_part", "omain", "omega", "ofont", "vumeter", "atari" };
     var swedish_decl: []const u8 = "pub const swedish_newyear = struct {\n";
     for (SWEDISH) |name| {
         const file = b.fmt("swedish_newyear_{s}.zx0", .{name});

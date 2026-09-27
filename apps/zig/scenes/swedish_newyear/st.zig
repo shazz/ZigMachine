@@ -97,13 +97,15 @@ const spread: [256]u64 = blk: {
 
 /// The shifter, one line: 20 groups of four plane words -> 320 palette indices.
 pub fn lineToChunky(line: []const u8, out: *[320]u8) void {
-    for (0..20) |g| {
-        const q = line[g * 8 ..][0..8];
-        inline for (0..2) |half| {
-            const v = spread[q[half]] | (spread[q[2 + half]] << 1) |
-                (spread[q[4 + half]] << 2) | (spread[q[6 + half]] << 3);
-            std.mem.writeInt(u64, out[g * 16 + half * 8 ..][0..8], v, .little);
-        }
+    for (0..20) |g| groupToChunky(line[g * 8 ..][0..8], out[g * 16 ..][0..16]);
+}
+
+/// One 16-pixel group of four plane words -> 16 palette indices.
+pub fn groupToChunky(q: *const [8]u8, out: *[16]u8) void {
+    inline for (0..2) |half| {
+        const v = spread[q[half]] | (spread[q[2 + half]] << 1) |
+            (spread[q[4 + half]] << 2) | (spread[q[6 + half]] << 3);
+        std.mem.writeInt(u64, out[half * 8 ..][0..8], v, .little);
     }
 }
 

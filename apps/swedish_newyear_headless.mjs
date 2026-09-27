@@ -1,36 +1,34 @@
 // Headless SWEDISH NEW YEAR DEMO driver (apps/zig/scenes/swedish_newyear.zig):
 // boots the sealed machine + the cart the way docs/sealed-loader.js does and
 // plays the whole key path -- menu, F1 SYNC #1, Space SYNC #2, Space menu,
-// F2 TCB #1 (through the intro's end), Space TCB #2 (F1..F5), Space menu,
-// F3 OMEGA, Space menu. Two references:
-//   * SYNC #1 and #2 are ported from the DISK, so they are checked against the
-//     REAL demo: SHA-256s of what the machine must show at fixed iterations,
-//     produced by prototypes/snyd_re/sync_expect.py from the Python models of
-//     the ripped routines -- models that reproduce Hatari's RAM of the running
-//     demo byte for byte (NOTES.md there; the Zig is checked against the same
-//     dumps by apps/zig/scenes/swedish_newyear/sync_test.zig). Per checkpoint:
-//       win   the 320x200 window's palette indices (the part's screen),
+// F2 TCB #1 (into its fullscreen), Space TCB #2 (then F3 F4 F5 F1 F5), Space
+// menu, F3 OMEGA, Space menu. Two references:
+//   * SYNC and TCB are ported from the DISK, so they are checked against the
+//     REAL demo: SHA-256s of what the machine must show at fixed VBLs, from
+//     prototypes/snyd_re/{sync,tcb1,tcb2}_expect.py -- models of the ripped
+//     routines that reproduce Hatari's RAM of the running demo byte for byte
+//     (NOTES.md, NOTES_tcb.md there; the Zig is checked against the same dumps
+//     by apps/zig/scenes/swedish_newyear/{sync,tcb1,tcb2}_test.zig). Per shot:
+//       win   the 320x200 window's palette indices (the part's screen) -- the
+//             whole 400x280 plane for TCB #1, which opens the top and sides,
 //       pal   colour registers 0..15 as the plane's HBL leaves them on each of
 //             the 280 lines (the rasters ARE these: per-line register values),
 //       phys  the whole physical frame, borders included (a closed border is
 //             colour 0 of its line, painted by the global HBL one frame ahead).
-//     These parts run at the ST's 50 Hz, so the tour steps them 20 ms a frame.
-//   * the menu, TCB and OMEGA are still the CODEF remake's, checked against
-//     screen.js REPLAYED (apps/swedish_newyear_replay.mjs):
-//       1. every shot: the WHOLE physical frame (borders included) is the
-//          replay's, pixel for pixel;
-//       2. the rasters are REGISTER writes: colour 0 (entry 0) after each line's
-//          HBL is the replay's raster colour on that line, the bars' pixels are
-//          index 0, and the per-line palette stays within 255 entries.
-//   3. the music: every request is the expected tune, mapped to its SNDH and
-//      subtune (or the one dump / the two TCB samples), and each SNDH plays;
-//   4. Escape asks for the menu disk; the cart's frame cost is reported.
+//     TCB #2's 73-VBL set-up must be black. These parts run at the ST's 50 Hz,
+//     so the tour steps them 20 ms a frame.
+//   * the menu and OMEGA are still the CODEF remake's, checked against
+//     screen.js REPLAYED (apps/swedish_newyear_replay.mjs): every shot's WHOLE
+//     physical frame (borders included) is the replay's, pixel for pixel, and
+//     colour 0 after each line's HBL is the replay's.
+//   Then: every song request is the expected tune and subtune, and each SNDH
+//   plays; Escape asks for the menu disk; the cart's frame cost is reported.
 //
 //   node apps/swedish_newyear_headless.mjs [outdir] [--break hbl|step|tune|border]
-//     hbl     the plane's HBL is not called during a shot: the palettes/rasters fail
-//     step    the cart runs one frame the reference does not: the frames fail
+//     hbl     the plane's HBL is not called during a shot: the registers fail
+//     step    the cart runs one frame the reference does not (SYNC #1, TCB #2)
 //     tune    a wrong subtune is reported: the music check fails
-//     border  the frame before an ST shot skips hwClear: the borders' colour 0 fails
+//     border  an ST shot's frame skips hwClear: the borders' colour 0 fails
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { cartRam, romRam } from "../docs/wasm_hiwater.js";
@@ -40,14 +38,12 @@ import { Remake, PW, PH } from "./swedish_newyear_replay.mjs";
 const PAGES = 112, OFF_PAL = 0x100, REG_FB_BASE = 0x44;
 const DT = 1000 / 60;
 const K = { space: 32, esc: 0xe012, f: (n) => 0xe000 + n };
-const SONGS = { // the remake's tune -> what the port must request (swedish_newyear.zig)
+const SONGS = { // each tune -> what the port must request (swedish_newyear.zig)
     scout: ["scout.sndh", 1], jinx1: ["Jinks.sndh", 1], icepalace: ["beyond_the_ice_palace.sndh", 1],
-    sync2: ["Swedish_New_Year_Demo_Sync.sndh", 1],
-    tcb_intro: ["swedish_newyear_tcb_intro.raw", 0], tcb_music: ["swedish_newyear_tcb_music.raw", 0],
-    dugger1: ["dugger.sndh", 2], dugger2: ["dugger.sndh", 3], dugger3: ["dugger.sndh", 4],
-    dugger4: ["swedish_newyear_dugger4.ymraw", 0], dugger5: ["dugger.sndh", 1],
+    sync2: ["Swedish_New_Year_Demo_Sync.sndh", 1], tcb_digi: ["swedish_newyear_tcb_digi.sndh", 1],
+    dugger2: ["dugger.sndh", 2], dugger3: ["dugger.sndh", 3], dugger4: ["dugger.sndh", 4],
 };
-const RASTER_PARTS = new Set([4]); // remake parts with rasters (TCB #2)
+const RASTER_PARTS = new Set(); // remake parts with rasters: none left (the menu, OMEGA)
 
 const argv = process.argv.slice(2);
 const bi = argv.indexOf("--break");
@@ -111,10 +107,8 @@ const dec = new TextDecoder();
 let n = 0, last = null;
 const cost = [];
 const got = [];
-// The host polls ONE request a frame, so two keys between frames (Space then F3)
-// leave only the last: the remake starts scout and replaces it at once.
-const wanted = [];
-let songsSeen = 0; // the constructor's scout is polled on the first frame
+// The host polls ONE request a frame; the tour leaves a frame between keys.
+const wanted = ["scout"]; // the cart's init requests it
 const want = () => wanted.map((t) => SONGS[t]);
 
 /// Volumes that change in a known rhythm, so SYNC #2 flashes and OMEGA's
@@ -148,8 +142,6 @@ function frame(paint, dt = DT, clear = true) {
     }
     remake.paint = paint;
     last = remake.frame(dt, regs);
-    if (remake.songs.length > songsSeen) wanted.push(remake.songs[remake.songs.length - 1]);
-    songsSeen = remake.songs.length;
     n++;
 }
 
@@ -217,6 +209,32 @@ const ST_EXPECT = {
     "sync2-0013": ["c7835f2424702f11", "6983bcc0ef6e0763", "b9f3593e290b548e"],
     "sync2-0024": ["c7835f2424702f11", "cdbe2e9a6e59e081", "b65c67e2349fc40d"],
     "sync2-0025": ["c7835f2424702f11", "fbe65b78dd623e31", "afded05b29f87ef9"],
+    // prototypes/snyd_re/tcb1_expect.py: [PLANE, pal, phys] -- TCB #1 opens the
+    // top and side borders, so the first hash is the whole 400x280 plane of
+    // indices. tcb1-NNNN shows VBL NNNN+1 (603 the last intro frame, 604 the
+    // first fullscreen, 677 the first with the logo).
+    "tcb1-0000": ["477b5f6431fb93ac", "a67487cee3c07b81", "2fb6c8a8d635cbdf"],
+    "tcb1-0001": ["088959c9f27aa354", "a67487cee3c07b81", "bf669a0b6ac93b39"],
+    "tcb1-0074": ["821b8896ff737e20", "a67487cee3c07b81", "201050c17ac50a76"],
+    "tcb1-0603": ["23a0b2389964d350", "a67487cee3c07b81", "dd0bbbe764ef1c29"],
+    "tcb1-0604": ["348f72a74921f869", "a67487cee3c07b81", "468ccb6e4b2f685a"],
+    "tcb1-0677": ["ad7af58934fc88ec", "a67487cee3c07b81", "fd9c2e1bcbb336bc"],
+    "tcb1-0699": ["3f7a9572beaeb318", "a67487cee3c07b81", "a58427ddab3f1df0"],
+    "tcb1-0999": ["4ba3943c1a5e0490", "a67487cee3c07b81", "55dececfcdfd7b4d"],
+    // prototypes/snyd_re/tcb2_expect.py: [win, pal, phys]. Space starts TCB #2's
+    // set-up, 73 black VBLs; tcb2-NNNN then shows its frame NNNN-73 (the fade
+    // of the UNION logo at 100 and 112).
+    "tcb2-0000": "black",
+    "tcb2-0073": "black",
+    "tcb2-0074": ["a00d54643c2275d7", "e8c612031a88791c", "6c6ae064595d9b32"],
+    "tcb2-0075": ["aa6b8d1834efc1bd", "74998932d8be19f9", "5883100dfa8fe2f3"],
+    "tcb2-0076": ["c44b6b5bee21656f", "e000dddd0f7f4e5b", "6492420734c04c25"],
+    "tcb2-0083": ["130ec0066c37f03f", "2cb9043385a185fa", "20843a08922e00bc"],
+    "tcb2-0173": ["ddb4a7dfd31c04d2", "6a852db5a7479bd3", "a77ac8dc6267e437"],
+    "tcb2-0185": ["776a125ab8c55645", "1b0f3af63210151d", "7ff01e6f05f660a8"],
+    "tcb2-0547": ["f82bc5908a3b65af", "24fd801ce5069ac8", "ed7f73ca41f28d50"],
+    "tcb2-0548": ["63cc71ce5464d354", "5d7595f3a11e3a9e", "90d6b6cde4f092d5"],
+    "tcb2-1073": ["0ee3dc96c1f8e40b", "66ff917f7aace45b", "a65381897cc26872"],
 };
 const sha = (b) => createHash("sha256").update(b).digest("hex").slice(0, 16);
 
@@ -239,8 +257,14 @@ async function stShot(name) {
         rgb.set(pfb.subarray(o, o + 3), (y * PW + x) * 3);
     }
     await writeFile(`${outdir}/${name}.ppm`, Buffer.concat([Buffer.from(`P6\n${PW} ${PH}\n255\n`), rgb]));
-    const got = [sha(win), sha(new Uint8Array(pal.buffer)), sha(rgb)];
-    const what = ["the screen (window indices)", "the colour registers per line (rasters)", "the physical frame (borders)"];
+    if (ST_EXPECT[name] === "black") {
+        if (rgb.some((v) => v !== 0)) fail(`${name}: the set-up is not black`);
+        else console.log(`  ${name}: frame ${n - 1} -- black, as the set-up is`);
+        return;
+    }
+    const first = name.startsWith("tcb1") ? plane.slice(0, PW * PH) : win;
+    const got = [sha(first), sha(new Uint8Array(pal.buffer)), sha(rgb)];
+    const what = [name.startsWith("tcb1") ? "the plane (indices)" : "the screen (window indices)", "the colour registers per line (rasters)", "the physical frame (borders)"];
     let ok = true;
     for (let k = 0; k < 3; k++) {
         if (got[k] === ST_EXPECT[name][k]) continue;
@@ -253,27 +277,34 @@ async function stShot(name) {
 // ------------------------------------------------------------------ the tour
 const script = [
     { run: 400, shots: [0, 1, 150, 399], prefix: "menu" },
-    { key: [K.f(1), 112] },
+    { key: [K.f(1), 112], song: "jinx1" },
     { run: 1501, dt: 20, st: true, shots: [0, 1, 2, 100, 400, 1500], prefix: "sync1" },
     { key: [K.space, 32], song: "sync2" },
     { run: 26, dt: 20, st: true, shots: [0, 1, 12, 13, 24, 25], prefix: "sync2" },
-    { key: [K.space, 32] },
+    { key: [K.space, 32], song: "scout" },
     { run: 5, shots: [4], prefix: "menu_back" },
-    { key: [K.f(2), 113] },
-    { run: 1000, shots: [0, 1, 400, 788, 789, 790, 999], prefix: "tcb1" },
+    { key: [K.f(2), 113], song: "tcb_digi" },
+    { run: 1000, dt: 20, st: true, shots: [0, 1, 74, 603, 604, 677, 699, 999], prefix: "tcb1" },
     { key: [K.space, 32] },
-    { run: 700, shots: [0, 1, 10, 25, 60, 300, 699], prefix: "tcb2", keysAt: { 100: [K.f(1), 112], 200: [K.f(2), 113], 300: [K.f(3), 114], 400: [K.f(4), 115], 500: [K.f(5), 116] } },
-    { key: [K.space, 32] },
-    { key: [K.f(3), 114] },
+    // after the last shot: F3 F4 F5 restart Dugger at 2 3 4, F5 again does nothing, F1 is a speed
+    {
+        run: 1100, dt: 20, st: true, shots: [0, 73, 74, 75, 76, 83, 173, 185, 547, 548, 1073], prefix: "tcb2",
+        keysAt: { 1075: [K.f(3), 114], 1080: [K.f(4), 115], 1085: [K.f(5), 116], 1090: [K.f(5), 116], 1095: [K.f(1), 112] },
+        songAt: { 73: "dugger4", 1075: "dugger2", 1080: "dugger3", 1085: "dugger4" },
+    },
+    { key: [K.space, 32], song: "scout" },
+    { run: 3 },
+    { key: [K.f(3), 114], song: "icepalace" },
     { run: 500, shots: [0, 1, 7, 62, 250, 499], prefix: "omega" },
-    { key: [K.space, 32] },
+    { key: [K.space, 32], song: "scout" },
     { run: 3 },
 ];
 const t0 = performance.now();
 for (const s of script) {
     if (s.key) press(s.key[0], s.key[1]);
-    if (s.song) wanted.push(s.song); // a tune the remake does not play
+    if (s.song) wanted.push(s.song);
     for (let i = 0; i < (s.run || 0); i++) {
+        if (s.songAt && s.songAt[i]) wanted.push(s.songAt[i]);
         if (s.keysAt && s.keysAt[i]) press(...s.keysAt[i]);
         const isShot = s.shots && s.shots.includes(i);
         const dt = s.dt || DT;
@@ -291,7 +322,7 @@ const ms = (performance.now() - t0) / n;
 const w = want();
 if (brk === "tune") got[3] = ["dugger.sndh", 3];
 if (JSON.stringify(got) !== JSON.stringify(w)) fail(`song requests ${JSON.stringify(got)}\n       want ${JSON.stringify(w)}`);
-else console.log(`  music: ${got.length} requests, each the remake's tune: ${[...new Set(got.map((g) => g.join("#")))].join(", ")}`);
+else console.log(`  music: ${got.length} requests, each the expected tune: ${[...new Set(got.map((g) => g.join("#")))].join(", ")}`);
 await checkTunes(new Set(got.map((g) => g.join("#"))));
 
 // ------------------------------------------------------------------ leaving + cost

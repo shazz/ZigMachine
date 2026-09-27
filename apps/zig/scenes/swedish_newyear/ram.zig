@@ -8,6 +8,7 @@
 //                     for SYNC and TCB, the real part's own memory (st.zig)
 //   chunky  64,000 B  st_show.zig: an ST part's frame, as palette indices
 //   pal    2 x 17,920 B  st_show.zig: its 16 colours per physical line, shown / next
+//   plane  112,000 B  st_show.zig: an overscan frame (TCB #1), the whole 400x280
 // Hot loops read these pointers into locals first: a store through one pointer
 // would otherwise force a reload of `buf` on every pixel.
 const zg = @import("zigos");
@@ -24,6 +25,7 @@ pub const Buffers = struct {
     chunky: *[200][320]u8,
     pal: *LinePal,
     pal_next: *LinePal,
+    plane: *[frame.PH][frame.PW]u8,
 };
 
 pub var buf: Buffers = undefined;
@@ -38,5 +40,6 @@ pub fn init() void {
         .chunky = zg.mem.mustAlloc([320]u8, 200)[0..200],
         .pal = zg.mem.mustAlloc([16]u32, frame.PH)[0..frame.PH],
         .pal_next = zg.mem.mustAlloc([16]u32, frame.PH)[0..frame.PH],
+        .plane = zg.mem.mustAlloc([frame.PW]u8, frame.PH)[0..frame.PH],
     };
 }

@@ -23,7 +23,8 @@ pub const OX: i32 = zg.HORIZONTAL_BORDERS_WIDTH; // mycanvas (0,0) = physical (4
 pub const OY: i32 = zg.VERTICAL_BORDERS_HEIGHT;
 pub const BLACK: u32 = 0xFF00_0000;
 
-pub const Borders = enum { closed, bottom, all };
+/// top_sides: every line above the bottom border (TCB #1's fullscreen).
+pub const Borders = enum { closed, bottom, all, top_sides };
 
 /// Colour 0 per physical line: `now` is what the plane shows this frame,
 /// `next` what hwClear paints the closed borders with at the START of the next
@@ -124,6 +125,7 @@ fn planeHbl(fb: *LogicalFB, _: *ZigOS, line: u16, _: u16) void {
     const flick = switch (borders) {
         .closed => false,
         .bottom => line >= OY + zg.HEIGHT,
+        .top_sides => line < OY + zg.HEIGHT,
         .all => true,
     };
     if (flick) fb.flickerBorder();
