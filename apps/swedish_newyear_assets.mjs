@@ -13,7 +13,10 @@ export async function loadAssets() {
     const A = { img: {} };
     for (const m of src.matchAll(/pub const (\w+) = Img\{ \.w = (\d+), \.h = (\d+), \.bits = (\d+), .*?\.lut = &\[_\]u16\{ ([^}]*) \} \};/g)) {
         const [, name, w, h, bits, lut] = m;
-        A.img[name] = { w: +w, h: +h, bits: +bits, lut: nums(lut), data: await readFile(`${RAW}${name}.raw`) };
+        // The SYNC pictures of the remake are still in the generated tables, but
+        // the port now takes those screens from the disk: no .raw, not loaded.
+        const data = await readFile(`${RAW}${name}.raw`).catch(() => null);
+        if (data) A.img[name] = { w: +w, h: +h, bits: +bits, lut: nums(lut), data };
     }
     const arr = (name) => nums(src.match(new RegExp(`pub const ${name} = [^{]*\\{([^;]*)\\};`))[1].replace(/\[\d+\]u\d+|\[_\]u\d+/g, ""));
     const one = (name) => Number(src.match(new RegExp(`pub const ${name}(?:: u16)? = (\\d+);`))[1]);
@@ -29,7 +32,7 @@ export async function loadAssets() {
     A.NOISE = one("NOISE_GID");
     const ts = await readFile(DIR + "texts.zig", "utf8");
     A.text = {};
-    for (const n of ["menu", "sync1", "tcb2", "tcb2_cylinder", "omega"]) {
+    for (const n of ["menu", "tcb2", "tcb2_cylinder", "omega"]) {
         A.text[n] = [...ts.split(`pub const ${n} =`)[1].split(";")[0].matchAll(/"((?:[^"\\]|\\.)*)"/g)].map((m) => m[1].replace(/\\(.)/g, "$1")).join("");
     }
     return A;

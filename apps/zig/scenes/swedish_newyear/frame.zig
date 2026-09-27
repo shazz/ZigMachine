@@ -38,6 +38,9 @@ var slot: [gen.NB_COLOURS]u8 = undefined;
 var stamp: [gen.NB_COLOURS]u16 = undefined;
 var stamp_gen: u16 = 0;
 var borders: Borders = .closed;
+/// A part from the disk is on screen (st_show.zig): the plane holds its 16
+/// palette indices and ram.buf.pal its colours per line, not gids.
+pub var st_mode: bool = false;
 /// Most entries one line needed, and pixels that found none (must stay 0).
 pub var peak: u8 = 0;
 pub var overflow: u32 = 0;
@@ -53,6 +56,7 @@ pub fn init(zigos: *ZigOS) void {
     @memset(&c0_now, BLACK);
     @memset(&c0_next, BLACK);
     borders = .closed;
+    st_mode = false;
     peak = 0;
     overflow = 0;
     fb.setFrameBufferHBLHandler(zg.OVERSCAN_MAGIC_X, planeHbl);
@@ -124,6 +128,10 @@ fn planeHbl(fb: *LogicalFB, _: *ZigOS, line: u16, _: u16) void {
     };
     if (flick) fb.flickerBorder();
     if (line >= PH) return;
+    if (st_mode) { // a real part: its 16 colour registers, as they stand on this line
+        for (ram.buf.pal[line], 0..) |c, i| fb.palette[i] = c;
+        return;
+    }
     fb.palette[0] = c0_now[line];
     for (ram.buf.bank[line][0..used[line]], 1..) |g, i| fb.palette[i] = gen.colours[g];
 }

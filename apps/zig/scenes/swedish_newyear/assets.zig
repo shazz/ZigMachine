@@ -13,17 +13,19 @@ const Img = @import("image.zig").Img;
 const ram = @import("ram.zig");
 const tcb1 = @import("tcb1.zig");
 const org = @import("tcb2_org.zig");
+const sync1 = @import("sync1.zig");
 
 pub const Set = enum { menu, sync, tcb1, tcb2, omega };
 
+pub const SYNC_IMAGE: usize = 11 * 9 * 2 * 512;
+/// SYNC's memory, $20000..$80000: the tracks, its buffers, its two screens.
+pub const SYNC_RAM: usize = sync1.TOP - sync1.BASE;
+
 pub var main_px: []const u8 = &.{}; // 320x200, a byte a pixel (main_lut's row-local index)
+/// The SYNC part as the loader read it (tracks 45..55, 101,376 bytes to $20000).
+pub var sync_part: []const u8 = &.{};
 pub var font7 = blank(gen.font7);
 pub var block = blank(gen.block);
-pub var banner = blank(gen.banner);
-pub var syncfont = blank(gen.syncfont);
-pub var logo = blank(gen.logo);
-pub var sync1 = blank(gen.sync1);
-pub var sync2 = blank(gen.sync2);
 pub var tcb = blank(gen.tcb);
 pub var kh = blank(gen.kh);
 pub var kh2 = blank(gen.kh2);
@@ -57,11 +59,7 @@ const ENTRIES = [_]Entry{
     .{ .set = .menu, .src = PACKED.main, .len = 320 * 200, .data = &main_px },
     entry(.menu, PACKED.font7, gen.font7, &font7),
     entry(.menu, PACKED.block, gen.block, &block),
-    entry(.sync, PACKED.banner, gen.banner, &banner),
-    entry(.sync, PACKED.syncfont, gen.syncfont, &syncfont),
-    entry(.sync, PACKED.logo, gen.logo, &logo),
-    entry(.sync, PACKED.sync1, gen.sync1, &sync1),
-    entry(.sync, PACKED.sync2, gen.sync2, &sync2),
+    .{ .set = .sync, .src = PACKED.sync_part, .len = SYNC_IMAGE, .data = &sync_part },
     entry(.tcb1, PACKED.tcb, gen.tcb, &tcb),
     entry(.tcb2, PACKED.kh, gen.kh, &kh),
     entry(.tcb2, PACKED.kh2, gen.kh2, &kh2),
@@ -94,6 +92,7 @@ fn ScratchOf(comptime set: Set) type {
     return switch (set) {
         .tcb1 => tcb1.Noise,
         .tcb2 => org.Scratch,
+        .sync => [SYNC_RAM - SYNC_IMAGE]u8, // the part's memory above its tracks
         else => void,
     };
 }

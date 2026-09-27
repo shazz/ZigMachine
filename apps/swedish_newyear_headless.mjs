@@ -1,21 +1,38 @@
 // Headless SWEDISH NEW YEAR DEMO driver (apps/zig/scenes/swedish_newyear.zig):
 // boots the sealed machine + the cart the way docs/sealed-loader.js does and
-// plays the remake's whole key path -- menu, F1 SYNC #1, Space SYNC #2, Space
-// menu, F2 TCB #1 (through the intro's end), Space TCB #2 (F1..F5), Space menu,
-// F3 OMEGA, Space menu, and SYNC #1 left on its ']' so TCB #2's tcb2fx turns on
-// -- against screen.js REPLAYED (apps/swedish_newyear_replay.mjs):
-//   1. every shot: the WHOLE physical frame (borders included) is the replay's,
-//      pixel for pixel -- a closed border shows colour 0, which the global HBL
-//      paints from a table built one frame ahead; an open one the plane;
-//   2. the rasters are REGISTER writes: colour 0 (entry 0) after each line's
-//      HBL is the replay's raster colour on that line, the bars' pixels are
-//      index 0, and the per-line palette stays within 255 entries;
-//   3. the music: every request is the replay's tune, mapped to its SNDH and
+// plays the whole key path -- menu, F1 SYNC #1, Space SYNC #2, Space menu,
+// F2 TCB #1 (through the intro's end), Space TCB #2 (F1..F5), Space menu,
+// F3 OMEGA, Space menu. Two references:
+//   * SYNC #1 and #2 are ported from the DISK, so they are checked against the
+//     REAL demo: SHA-256s of what the machine must show at fixed iterations,
+//     produced by prototypes/snyd_re/sync_expect.py from the Python models of
+//     the ripped routines -- models that reproduce Hatari's RAM of the running
+//     demo byte for byte (NOTES.md there; the Zig is checked against the same
+//     dumps by apps/zig/scenes/swedish_newyear/sync_test.zig). Per checkpoint:
+//       win   the 320x200 window's palette indices (the part's screen),
+//       pal   colour registers 0..15 as the plane's HBL leaves them on each of
+//             the 280 lines (the rasters ARE these: per-line register values),
+//       phys  the whole physical frame, borders included (a closed border is
+//             colour 0 of its line, painted by the global HBL one frame ahead).
+//     These parts run at the ST's 50 Hz, so the tour steps them 20 ms a frame.
+//   * the menu, TCB and OMEGA are still the CODEF remake's, checked against
+//     screen.js REPLAYED (apps/swedish_newyear_replay.mjs):
+//       1. every shot: the WHOLE physical frame (borders included) is the
+//          replay's, pixel for pixel;
+//       2. the rasters are REGISTER writes: colour 0 (entry 0) after each line's
+//          HBL is the replay's raster colour on that line, the bars' pixels are
+//          index 0, and the per-line palette stays within 255 entries.
+//   3. the music: every request is the expected tune, mapped to its SNDH and
 //      subtune (or the one dump / the two TCB samples), and each SNDH plays;
 //   4. Escape asks for the menu disk; the cart's frame cost is reported.
 //
-//   node apps/swedish_newyear_headless.mjs [outdir] [--break hbl|step|tune]
+//   node apps/swedish_newyear_headless.mjs [outdir] [--break hbl|step|tune|border]
+//     hbl     the plane's HBL is not called during a shot: the palettes/rasters fail
+//     step    the cart runs one frame the reference does not: the frames fail
+//     tune    a wrong subtune is reported: the music check fails
+//     border  the frame before an ST shot skips hwClear: the borders' colour 0 fails
 import { readFile, writeFile, mkdir } from "node:fs/promises";
+import { createHash } from "node:crypto";
 import { cartRam, romRam } from "../docs/wasm_hiwater.js";
 import { loadAssets } from "./swedish_newyear_assets.mjs";
 import { Remake, PW, PH } from "./swedish_newyear_replay.mjs";
@@ -25,16 +42,17 @@ const DT = 1000 / 60;
 const K = { space: 32, esc: 0xe012, f: (n) => 0xe000 + n };
 const SONGS = { // the remake's tune -> what the port must request (swedish_newyear.zig)
     scout: ["scout.sndh", 1], jinx1: ["Jinks.sndh", 1], icepalace: ["beyond_the_ice_palace.sndh", 1],
+    sync2: ["Swedish_New_Year_Demo_Sync.sndh", 1],
     tcb_intro: ["swedish_newyear_tcb_intro.raw", 0], tcb_music: ["swedish_newyear_tcb_music.raw", 0],
     dugger1: ["dugger.sndh", 2], dugger2: ["dugger.sndh", 3], dugger3: ["dugger.sndh", 4],
     dugger4: ["swedish_newyear_dugger4.ymraw", 0], dugger5: ["dugger.sndh", 1],
 };
-const RASTER_PARTS = new Set([1, 4]);
+const RASTER_PARTS = new Set([4]); // remake parts with rasters (TCB #2)
 
 const argv = process.argv.slice(2);
 const bi = argv.indexOf("--break");
 const brk = bi < 0 ? null : argv.splice(bi, 2)[1];
-if (brk && !["hbl", "step", "tune"].includes(brk)) throw new Error(`--break takes hbl, step or tune, not ${brk}`);
+if (brk && !["hbl", "step", "tune", "border"].includes(brk)) throw new Error(`--break takes hbl, step, tune or border, not ${brk}`);
 const outdir = argv[0] || "/tmp/swedish_newyear";
 await mkdir(outdir, { recursive: true });
 const errors = [];
@@ -114,12 +132,12 @@ function press(cart, js) {
     if (js !== null) remake.key(js);
 }
 
-function frame(paint) {
+function frame(paint, dt = DT, clear = true) {
     const regs = regsAt(n);
     m.regs().set(regs);
     const tc = performance.now();
-    m.machine.hwClear();
-    m.demo.frame(DT);
+    if (clear) m.machine.hwClear();
+    m.demo.frame(dt);
     m.machine.hwRenderPlane(0);
     const part = remake.whichpart;
     cost[part] = cost[part] || [0, 0];
@@ -129,7 +147,7 @@ function frame(paint) {
         got.push([name, m.demo.songTune()]);
     }
     remake.paint = paint;
-    last = remake.frame(DT, regs);
+    last = remake.frame(dt, regs);
     if (remake.songs.length > songsSeen) wanted.push(remake.songs[remake.songs.length - 1]);
     songsSeen = remake.songs.length;
     n++;
@@ -182,14 +200,63 @@ function checkRasters(name, lines) {
     if (RASTER_PARTS.has(last.part)) console.log(`    rasters: colour 0 per line from the HBL; ${maxUsed} entries a line at most, ${maxChanged} register changes a line at most`);
 }
 
+// ------------------------------------------------------------------ ST parts
+// prototypes/snyd_re/sync_expect.py: [win, pal, phys], SHA-256 prefixes.
+// sync1-NNNN shows the part's iteration NNNN+1 (entering runs the first);
+// sync2-NNNN shows SYNC #2 after NNNN VBLs (VBL 13 flashes blue, 25 red).
+const ST_EXPECT = {
+    "sync1-0000": ["5915875cd4db5db0", "7e41ee93d715dd31", "5cc2e36971c658fb"],
+    "sync1-0001": ["40ca22c98fdf56da", "d4cb57c7b3b9e93a", "c21a4bda8300784e"],
+    "sync1-0002": ["28740adb5673ba88", "8b59a4731e4f2e14", "0beb534b79014779"],
+    "sync1-0100": ["74953bac67af1a71", "93469b781a7ae6b7", "5b6e3a4e5ee7be62"],
+    "sync1-0400": ["0756f9481532ac99", "e5a19218278b1e32", "76600c1e82ba387a"],
+    "sync1-1500": ["bc914a5935b24a67", "5adba000debb9c2b", "2788d50052d3ba69"],
+    "sync2-0000": ["c7835f2424702f11", "cdbe2e9a6e59e081", "b65c67e2349fc40d"],
+    "sync2-0001": ["c7835f2424702f11", "cdbe2e9a6e59e081", "b65c67e2349fc40d"],
+    "sync2-0012": ["c7835f2424702f11", "cdbe2e9a6e59e081", "b65c67e2349fc40d"],
+    "sync2-0013": ["c7835f2424702f11", "6983bcc0ef6e0763", "b9f3593e290b548e"],
+    "sync2-0024": ["c7835f2424702f11", "cdbe2e9a6e59e081", "b65c67e2349fc40d"],
+    "sync2-0025": ["c7835f2424702f11", "fbe65b78dd623e31", "afded05b29f87ef9"],
+};
+const sha = (b) => createHash("sha256").update(b).digest("hex").slice(0, 16);
+
+/// An ST part's frame against the original's: window, registers, borders.
+async function stShot(name) {
+    const lines = new Map();
+    m.setRec((l) => { lines.set(l, Uint32Array.from(m.palette().subarray(0, 16))); });
+    m.machine.hwRenderPlane(0);
+    m.setRec(null);
+    const plane = m.plane();
+    const win = new Uint8Array(320 * 200);
+    for (let y = 0; y < 200; y++) win.set(plane.subarray((y + 40) * PW + 40, (y + 40) * PW + 360), y * 320);
+    const pal = new Uint32Array(PH * 16);
+    for (let y = 0; y < PH; y++) if (lines.has(y)) pal.set(lines.get(y), y * 16);
+    const pw = m.machine.hwPhysWidth();
+    const pfb = new Uint8Array(m.memory.buffer, m.machine.hwPhysicalPtr(), pw * m.machine.hwPhysHeight() * 4);
+    const rgb = Buffer.alloc(PW * PH * 3);
+    for (let y = 0; y < PH; y++) for (let x = 0; x < PW; x++) {
+        const o = (y * pw + 2 * x) * 4;
+        rgb.set(pfb.subarray(o, o + 3), (y * PW + x) * 3);
+    }
+    await writeFile(`${outdir}/${name}.ppm`, Buffer.concat([Buffer.from(`P6\n${PW} ${PH}\n255\n`), rgb]));
+    const got = [sha(win), sha(new Uint8Array(pal.buffer)), sha(rgb)];
+    const what = ["the screen (window indices)", "the colour registers per line (rasters)", "the physical frame (borders)"];
+    let ok = true;
+    for (let k = 0; k < 3; k++) {
+        if (got[k] === ST_EXPECT[name][k]) continue;
+        ok = false;
+        fail(`${name}: ${what[k]} ${got[k]}, the original's ${ST_EXPECT[name][k]}`);
+    }
+    console.log(`  ${name}: frame ${n - 1}${ok ? " -- the original's screen, rasters and borders" : ""}`);
+}
+
 // ------------------------------------------------------------------ the tour
-const SYNC1_BRACKET = A.text.sync1.indexOf("]");
 const script = [
     { run: 400, shots: [0, 1, 150, 399], prefix: "menu" },
     { key: [K.f(1), 112] },
-    { run: 3900, shots: [0, 1, 200, 520, 600, 1500, 3790, 3899], prefix: "sync1" },
-    { key: [K.space, 32] },
-    { run: 200, shots: [0, 5, 60, 150], prefix: "sync2" },
+    { run: 1501, dt: 20, st: true, shots: [0, 1, 2, 100, 400, 1500], prefix: "sync1" },
+    { key: [K.space, 32], song: "sync2" },
+    { run: 26, dt: 20, st: true, shots: [0, 1, 12, 13, 24, 25], prefix: "sync2" },
     { key: [K.space, 32] },
     { run: 5, shots: [4], prefix: "menu_back" },
     { key: [K.f(2), 113] },
@@ -200,29 +267,25 @@ const script = [
     { key: [K.f(3), 114] },
     { run: 500, shots: [0, 1, 7, 62, 250, 499], prefix: "omega" },
     { key: [K.space, 32] },
-    { key: [K.f(1), 112] },
-    { untilBracket: true },
-    { key: [K.space, 32] }, { key: [K.space, 32] }, { key: [K.f(2), 113] }, { run: 3 }, { key: [K.space, 32] },
-    { run: 200, shots: [0, 1, 30, 199], prefix: "tcb2fx1" },
+    { run: 3 },
 ];
 const t0 = performance.now();
 for (const s of script) {
     if (s.key) press(s.key[0], s.key[1]);
-    if (s.untilBracket) { // SYNC #1 until myscrolltext stands on ']'
-        let guard = 0;
-        while (remake.myscroll.current() !== 93 && guard++ < 20000) frame(false);
-        console.log(`  sync1 stopped on ']' (text index ${SYNC1_BRACKET}) after ${guard} frames`);
-    }
+    if (s.song) wanted.push(s.song); // a tune the remake does not play
     for (let i = 0; i < (s.run || 0); i++) {
         if (s.keysAt && s.keysAt[i]) press(...s.keysAt[i]);
         const isShot = s.shots && s.shots.includes(i);
-        if (isShot && brk === "step" && s.prefix === "tcb2") m.demo.frame(DT); // the cart runs a frame the replay does not
-        frame(isShot);
-        if (isShot) await shot(`${s.prefix}-${String(i).padStart(4, "0")}`);
+        const dt = s.dt || DT;
+        // the cart runs a frame the reference does not
+        if (isShot && brk === "step" && (s.prefix === "tcb2" || s.prefix === "sync1")) m.demo.frame(dt);
+        frame(isShot, dt, !(isShot && s.st && brk === "border")); // border: last frame's colour 0 left in
+        if (!isShot) continue;
+        const name = `${s.prefix}-${String(i).padStart(4, "0")}`;
+        await (s.st ? stShot(name) : shot(name));
     }
 }
 const ms = (performance.now() - t0) / n;
-if (!(remake.tcb2fx === 1)) fail("the tour never reached tcb2fx = 1");
 
 // ------------------------------------------------------------------ music
 const w = want();
@@ -239,7 +302,7 @@ if (m.demo.pollCartRequest() !== -1) fail("Escape does not ask for the menu disk
     const t1 = performance.now();
     for (let i = 0; i < 300; i++) { m.machine.hwClear(); m.demo.frame(DT); m.machine.hwRenderPlane(0); }
     console.log("  cart frame cost (update + render + composite), per part: " + cost.map((c, i) => `${["menu", "sync1", "sync2", "tcb1", "tcb2", "omega"][i]} ${(c[0] / c[1]).toFixed(2)} ms`).join(", "));
-    console.log(`  ${n} frames replayed (${ms.toFixed(2)} ms/frame with the replay); the cart alone on TCB #2 (fx 1): ${((performance.now() - t1) / 300).toFixed(3)} ms/frame (update + render + composite)`);
+    console.log(`  ${n} frames replayed (${ms.toFixed(2)} ms/frame with the replay); the cart alone on the menu: ${((performance.now() - t1) / 300).toFixed(3)} ms/frame (update + render + composite)`);
 }
 
 async function checkTunes(set) {

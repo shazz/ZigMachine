@@ -8,21 +8,6 @@ pub const menu = " HELLO AND WELCOME TO THE SWEDISH NEW YEAR DEMO, RELEASED THE 
     "AND MAD MAX FOR THE MUZAK. IF YOU READ THIS TEN TIMES WE WILL TELL YOU HOW TO REMOVE ALL O" ++
     "F THE BORDERS.    ";
 // menutext: 468 characters
-pub const sync1 = "           H I   T H E R E   F O L K S ! !                     \\       T H I S   I S   P Y" ++
-    " L O N  X   O F   S Y N C   T Y P I N G   I N   O U R   N E W   S C R O L L I N E   R U N " ++
-    "N I N G   I N   O U R   P A R T   O F   T H E   N E W   Y E A R   D E M O .  D E S P I T E" ++
-    "   A  L O T   O F   T R O U B L E   T H E   D E M O   M U S T   B E   R E A D Y   A N D   " ++
-    "W O R K I N G   B Y   O R   E L S E   Y O U   W O U L D N T   R E A D   T H I S   T E X T." ++
-    "                     ] O N   M Y   L E F T   S I D E   S I T S   R E D H E A D   A N D   T" ++
-    " R I E S   R E A L   H A R D   T O   M A K E   T H E   S C R O L L E R   W O R K   W I T H" ++
-    "   T H E   O T H E R   C O D E   A N D   O N   M Y   R I G H T   S I D E   S I T S   M R ." ++
-    " M A C   A N D   H E L P I N G   M E   W I T H   T H E   W R I T I N G .   T H E   R O O M" ++
-    "   I S   F I L L E D   W I T H   T H E   H A C K E R   E L I T E   O F   S W E D E N   L E" ++
-    " D   B Y   T H E   C A R E B E A R S   A N D   O M E G A .  W E   A R E   N O W   O N   T " ++
-    "H E   T H I R D   D A Y   O F   O U R   F O U R   D A Y   C O N V E N T I O N   H E R E   " ++
-    "I N   A N G E L H O L M   A N D   T H I S   S C R O L L E R   I S N T   T H A T   I M P R " ++
-    "E S S I N G   I S   I T ? ? ? ?                __ ";
-// sync1text: 1220 characters
 pub const tcb2 = "              HI!   THIS DEMOSCREEN WAS CODED AND DESIGNED BY NICK, JAS, AND AN COOL (!) O" ++
     "F THE CAREBEARS.  SO WAS THE 'A-COUPLE-OF-BORDERS-SCREEN' YOU SAW ABOUT TWENTY SECONDS AGO" ++
     ".  WE'VE SAVED THIS PIECE OF NEWS FOR THIS DEMO...  -AN COOL- IS NOW A MEMBER OF THE CAREB" ++

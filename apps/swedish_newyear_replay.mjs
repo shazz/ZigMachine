@@ -66,14 +66,7 @@ export class Remake {
     constructor(A) {
         this.A = A; this.whichpart = 0; this.songs = [];
         this.menuscroll = new Scroll(A.text.menu, 95, 640, 10);
-        // sync 1
-        this.y1 = 100; this.XX = 1; this.size = 0.05; this.tile = 0; this.flip = 1; this.flipinc = -0.5;
-        this.bounce = 0; this.bounceinc = 2; this.fx = 0;
-        this.myscroll = new Scroll(A.text.sync1, 32, 520, 4, { myvalue: 0, amp: 45, inc: 0.6, offset: 0.08 });
-        this.myscroll2 = new Scroll(A.text.sync1, 32, 520, 4);
-        this.fx1 = [P(0, -20, 0.03, -0.05), P(0, 10, 0.01, 0.08)];
-        this.fx2 = [P(0, 10, 0.03, -0.05), P(0, 10, 0.01, 0.08)];
-        // sync 2 / omega
+        // omega
         this.oldv = [0, 0, 0]; this.hv = [0, 0, 0];
         // tcb 1
         this.musicplease = 0; this.n = 0; this.introOn = false; this.introMs = 0;
@@ -121,7 +114,7 @@ export class Remake {
         this.g = new Int32Array(PW * PH); // gid 0 = colour 0 everywhere
         this.c0 = new Array(PH).fill(BLACK);
         const part = this.whichpart;
-        [() => this.menu(), () => this.sync1(), () => this.sync2(regs), () => this.tcb1(), () => this.tcb2(), () => this.omega(regs)][part]();
+        [() => this.menu(), () => this.sync1(), () => this.sync2(), () => this.tcb1(), () => this.tcb2(), () => this.omega(regs)][part]();
         return { part, g: this.g, c0: this.c0 };
     }
     put(x, y, gid) { // work-canvas ST coordinates
@@ -145,71 +138,9 @@ export class Remake {
         for (const bx of [0, 608]) for (let y = 200; y < 225; y++) for (let x = bx / 2; x < bx / 2 + 16; x++) this.put(x, y, at(A.img.block, x - bx / 2, y - 200));
     }
 
-    sync1() {
-        const A = this.A, d = 0.044;
-        for (let y = 0; y < 225; y++) { // rasters, 5 red bars, white bar: colour 0
-            const r = 2 * y;
-            let c = BLACK;
-            if (r >= 181 && r < 247) c = A.rasters_rows[r - 181];
-            [[0.6, 0.5], [3.6, 0.6], [6.6, 0.7], [9.9, 0.8], [13.2, 1]].forEach(([k, h]) => {
-                const yc = 150 - 130 * Math.sin(this.y1 + k * d), s = fl((r + 0.5 - yc) / h + 13);
-                if (s >= 0 && s < 26) c = A.redraster_rows[s];
-            });
-            if (r >= 40 && r < 62) c = A.whiteraster_rows[r - 40];
-            this.c0[y + OY] = c;
-        }
-        this.y1 += d;
-        if (this.XX !== 0) for (let y = 0; y < 225; y++) { // banner.drawTile(tile, 320, 51, 1, 0, 1, XX)
-            const v = fl((2 * y + 0.5 - 51) / this.XX + 35);
-            if (v < 0 || v >= 70) continue;
-            for (let x = 0; x < 320; x++) {
-                const u = 2 * x - 187; // x + 0.5 - 320 + 133
-                if (u >= 0 && u < 266) this.put(x, y, at(A.img.banner, (u - 1) / 2, this.tile * 70 + v));
-            }
-        }
-        this.XX = this.XX - this.size;
-        if (this.XX <= 0) { this.size = -0.05; this.tile += 1; }
-        if (this.XX >= 1) this.size = 0.05;
-        if (this.tile >= 2) this.tile = 0;
-        const s1 = this.myscroll.draw(), s2 = this.myscroll2.draw();
-        switch (this.myscroll.current()) { case 92: this.fx = 1; break; case 93: this.fx = 2; break; case 95: this.fx = 0; break; }
-        const flipStep = () => { this.flip += this.flipinc; if (this.flip <= -1) this.flipinc = 0.05; if (this.flip >= 1) this.flipinc = -0.05; };
-        if (this.fx === 0) this.scrollCanvas(s1, (y) => 2 * y + 5);
-        if (this.fx === 1) { const f = this.flip; this.scrollCanvas(s1, (y) => (f === 0 ? -1 : fl((2 * y + 0.5 - 215) / f + 225))); flipStep(); }
-        if (this.fx === 2) {
-            const f = this.flip, top = 200 + this.bounce;
-            this.scrollCanvas(s2, (y) => (f === 0 ? -1 : fl((2 * y + 0.5 - top) / f + 225)));
-            flipStep();
-            this.bounce += this.bounceinc; if (this.bounce >= 40) this.bounceinc = -2; if (this.bounce <= 0) this.bounceinc = 2;
-        }
-        const p = fxRun(this.fx1, 450), q = fxRun(this.fx2, 640); // logo: sinx(50,50), siny(50,50), at (230,15) midhandled
-        for (let y = 0; y < 225; y++) for (let x = 0; x < 320; x++) {
-            const c3 = 2 * x + 90, r3 = 2 * y + 210;
-            if (c3 >= 640 || r3 >= 450) continue;
-            const i = c3 - 50;
-            if (i < 0 || i >= 640) continue;
-            const r2 = fl(r3 + 0.5 - (q[i] + 50));
-            if (r2 < 50 || r2 >= 450) continue;
-            const j = r2 - 50, c1 = fl(i + 0.5 - (p[j] + 50));
-            this.put(x, y, at(A.img.logo, c1 - 235, j - 200));
-        }
-    }
-    // a 520x450 scroll canvas (letters at y 205 + prov) at mycanvas x 60
-    scrollCanvas(letters, cyOf) {
-        for (let y = 0; y < 225; y++) {
-            const cy = cyOf(y);
-            if (cy < 0 || cy >= 450) continue;
-            for (let x = 0; x < 320; x++) {
-                const cx = 2 * x - 60;
-                if (cx < 0 || cx >= 520) continue;
-                for (const l of letters) {
-                    if (cx < l.posx || cx >= l.posx + 32) continue;
-                    const nb = l.ltr - 32, party = fl(nb / 10) * 27, row = fl(cy + 0.5 - (l.prov + 205));
-                    if (party < 162 && row >= 0 && row < 27) this.put(x, y, at(this.A.img.syncfont, (nb % 10) * 32 + cx - l.posx, party + row));
-                }
-            }
-        }
-    }
+    // SYNC #1 and #2 are ported from the disk and checked against the real
+    // demo (sync_expect.py hashes), not against the remake: nothing to replay.
+    sync1() {}
 
     watch(regs) {
         for (let c = 0; c < 3; c++) {
@@ -219,15 +150,7 @@ export class Remake {
     }
     remember(regs) { for (let c = 0; c < 3; c++) this.oldv[c] = regs[8 + c] & 31; }
 
-    sync2(regs) {
-        this.watch(regs);
-        const img = this.hv[0] + this.hv[1] + this.hv[2] >= 7 ? this.A.img.sync2 : this.A.img.sync1;
-        for (let y = 0; y < 225; y++) for (let x = 0; x < 320; x++) { // 320x96 doubled, top-left (160, 3)
-            const u = 2 * x - 160, v = 2 * y - 3;
-            if (u >= 0 && u < 320 && v >= 0 && v < 96) this.put(x, y, at(img, u >> 1, v >> 1));
-        }
-        this.remember(regs);
-    }
+    sync2() {}
 
     tcb1() {
         const cur = this.n;
@@ -296,7 +219,6 @@ export class Remake {
             const j = 2 * y;
             this.put(x, y, at(A.img.ancool, fl(2 * x + 0.5 - p3[j]) - 130, j - 88));
         }
-        if (this.myscroll.current() === 93) this.tcb2fx = 1;
         this.colour += 1;
     }
     // scroller(ab): the 704x50 buffer, then 12 columns

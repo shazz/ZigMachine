@@ -1,8 +1,8 @@
-// The remake's tunes (its LoadAndRun .ym files and two Howl .oggs) as what this
-// machine plays; the evidence for each mapping is in swedish_newyear.zig.
+// Every tune of the cart as what this machine plays; the evidence for each
+// mapping is in swedish_newyear.zig.
 const zg = @import("zigos");
 
-pub const Tune = enum { scout, jinx1, icepalace, tcb_intro, tcb_music, dugger1, dugger2, dugger3, dugger4, dugger5 };
+pub const Tune = enum { scout, jinx1, sync2, icepalace, tcb_intro, tcb_music, dugger1, dugger2, dugger3, dugger4, dugger5 };
 
 /// TCB #2's F1..F5 (KeyCheck: dugger4, dugger5, dugger1, dugger2, dugger3).
 pub const dugger_keys = [5]Tune{ .dugger4, .dugger5, .dugger1, .dugger2, .dugger3 };
@@ -11,6 +11,7 @@ pub fn play(t: Tune) void {
     switch (t) {
         .scout => zg.requestSongTune("scout.sndh", 1),
         .jinx1 => zg.requestSongTune("Jinks.sndh", 1),
+        .sync2 => zg.requestSongTune("Swedish_New_Year_Demo_Sync.sndh", 1),
         .icepalace => zg.requestSongTune("beyond_the_ice_palace.sndh", 1),
         .tcb_intro => zg.requestSong("swedish_newyear_tcb_intro.raw"),
         .tcb_music => zg.requestSong("swedish_newyear_tcb_music.raw"),
