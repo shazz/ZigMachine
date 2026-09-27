@@ -65,7 +65,7 @@ fn l2005() flow.Act {
     return .{ .go = .l2006 };
 }
 
-var budget: u32 = 0;
+pub var budget: u32 = 0;
 
 /// while inkey$ = "" and mouse key = 0 and ti < 10000 : ... wend, one
 /// VBL's worth of passes at a time.

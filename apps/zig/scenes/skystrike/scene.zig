@@ -8,7 +8,6 @@ const S = @import("stos.zig");
 const scr = @import("scr.zig");
 const text = @import("text.zig");
 const sprite = @import("sprite.zig");
-const move = @import("move.zig");
 const zone = @import("zone.zig");
 const clock = @import("clock.zig");
 const B = @import("basic.zig");

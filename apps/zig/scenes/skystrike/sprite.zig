@@ -22,6 +22,10 @@ const Rect = struct { x0: i32 = 0, y0: i32 = 0, x1: i32 = -1, y1: i32 = -1 };
 
 pub const NIMG: usize = 124;
 pub var imgs: [NIMG]Img = [_]Img{.{}} ** NIMG;
+comptime {
+    // load() puts image i at imgs[i + 1]: the bank's count must leave room.
+    if (be(16, u16) >= NIMG) @compileError("sprites.bnk has more images than imgs holds");
+}
 var pool: []u8 = &.{};
 pub const CLEAR: u8 = 0xFF;
 
@@ -100,10 +104,11 @@ fn rectOf(s: Spr) Rect {
 fn restore(r: Rect) void {
     const p = scr.get(.physic);
     const b = scr.get(.back);
+    const n: usize = @intCast(r.x1 - r.x0 + 1);
     var y = r.y0;
     while (y <= r.y1) : (y += 1) {
-        const o: usize = @intCast(y * 320);
-        @memcpy(p[o + @as(usize, @intCast(r.x0)) ..][0..@intCast(r.x1 - r.x0 + 1)], b[o + @as(usize, @intCast(r.x0)) ..][0..@intCast(r.x1 - r.x0 + 1)]);
+        const o: usize = @intCast(y * 320 + r.x0);
+        @memcpy(p[o..][0..n], b[o..][0..n]);
     }
 }
 

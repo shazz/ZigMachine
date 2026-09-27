@@ -54,10 +54,6 @@ pub fn clearKey() void {
     q_len = 0;
 }
 
-pub fn pending() bool {
-    return q_len != 0;
-}
-
 /// STOS truth values: -1 true, 0 false.
 fn t(b: bool) i32 {
     return if (b) -1 else 0;

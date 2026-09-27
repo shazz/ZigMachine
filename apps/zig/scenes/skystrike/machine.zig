@@ -57,6 +57,8 @@ pub fn reset() void {
     S.timer = 0;
     vbls = 0;
     @import("pass.zig").passes = 0;
+    @import("title.zig").budget = 0;
+    zone.refused = 0;
 }
 
 /// One VBL.

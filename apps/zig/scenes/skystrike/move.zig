@@ -62,12 +62,6 @@ pub fn animOn() void {
     };
 }
 
-/// OFF: every movement and animation stopped.
-pub fn off() void {
-    for (&mv) |*r| r.on = false;
-    for (&an) |*r| r.on = false;
-}
-
 fn stepMove(n: usize, r: *Run) void {
     r.left -= 1;
     if (r.left > 0) return;

@@ -65,6 +65,9 @@ pub fn get(b: *Block, src: scr.Id, x1: i32, y1: i32, x2: i32, y2: i32) void {
     const sx = floor16(x1);
     b.w = @max(0, floor16(x2) - sx);
     b.h = @max(0, y2 - y1);
+    // The buffer holds one screen: a larger rectangle keeps the rows that fit
+    // rather than writing past it (no call in the game comes near).
+    if (b.w > 0) b.h = @min(b.h, @as(i32, @intCast(b.px.len / @as(usize, @intCast(b.w)))));
     const s = scr.get(src);
     var j: i32 = 0;
     while (j < b.h) : (j += 1) {

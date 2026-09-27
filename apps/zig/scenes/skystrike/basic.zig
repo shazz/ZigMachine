@@ -54,10 +54,6 @@ pub fn sgn(a: i32) i32 {
     return if (a > 0) 1 else if (a < 0) -1 else 0;
 }
 
-pub fn sgnf(a: f64) i32 {
-    return if (a > 0) 1 else if (a < 0) -1 else 0;
-}
-
 pub fn abs(a: i32) i32 {
     return if (a < 0) -a else a;
 }

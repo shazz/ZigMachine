@@ -7,7 +7,6 @@
 // leading space.
 // --------------------------------------------------------------------------
 const assets = @import("assets.zig");
-const scr = @import("scr.zig");
 const gfx = @import("gfx.zig");
 
 pub const COLS: i32 = 40;

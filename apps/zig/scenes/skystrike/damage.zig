@@ -5,7 +5,6 @@
 // --------------------------------------------------------------------------
 const S = @import("stos.zig");
 const scr = @import("scr.zig");
-const B = @import("basic.zig");
 const O = @import("objects.zig");
 const scene = @import("scene.zig");
 const sfx = @import("sfx.zig");

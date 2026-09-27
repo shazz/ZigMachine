@@ -10,8 +10,6 @@
 // RETURN from one, or a WAIT of n VBLs before the next label. Routines that
 // never wait are plain functions and are simply called.
 // --------------------------------------------------------------------------
-const std = @import("std");
-
 pub const L = enum(u8) {
     boot,
     // the game (loop.zig)
