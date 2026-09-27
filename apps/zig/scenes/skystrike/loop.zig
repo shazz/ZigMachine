@@ -6,7 +6,6 @@
 const S = @import("stos.zig");
 const scr = @import("scr.zig");
 const input = @import("input.zig");
-const move = @import("move.zig");
 const B = @import("basic.zig");
 const flow = @import("flow.zig");
 const clock = @import("clock.zig");
@@ -47,7 +46,7 @@ fn l25() flow.Act {
 
 /// 34: off : a crash-landing's message, and a key.
 fn l34() flow.Act {
-    move.off();
+    scene.off();
     if (v.cl == 0) return .{ .go = .l34b };
     v.mes_s.set("You Managed to Crash Land !");
     scene.message1506();

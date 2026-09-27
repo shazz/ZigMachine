@@ -76,6 +76,7 @@ pub fn val(what: u32) callconv(.c) i32 {
         7 => @intCast(B.div_zero),
         8 => @truncate(@as(i64, @intCast(machine.vbls))),
         9 => S.timer,
+        10 => @intCast(@import("pass.zig").passes),
         11 => @intFromFloat(v.sp_f * 1000.0),
         else => other(what),
     };

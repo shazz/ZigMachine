@@ -23,6 +23,7 @@ fn sc(o: i32) i32 {
 
 /// 1000-1029
 pub fn draw() void {
+    clock.spend(clock.REDRAW);
     v.g = scr.peek(v.ghx9 + v.sx);
     O.countBits();
     sprite.mouse(false, sprite.spr[0].img, sprite.spr[0].x, sprite.spr[0].y);
@@ -205,7 +206,8 @@ pub fn message1506() void {
     v.mes_s.len = 0;
 }
 
-/// OFF: movements stopped (also 1950).
+/// OFF: every sprite switched off and every movement stopped (the ST's
+/// sprite table after 34's OFF: all fifteen inactive, their places kept).
 pub fn off() void {
-    move.off();
+    sprite.allOff();
 }

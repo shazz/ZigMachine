@@ -19,6 +19,9 @@ const net = @import("net.zig");
 const V = @import("vars.zig");
 const v = &V.v;
 
+/// Main-loop passes since power on (line 128), for the harness.
+pub var passes: u32 = 0;
+
 fn k(s: []const u8) bool {
     return v.k_s.eql(s);
 }
@@ -132,6 +135,7 @@ pub fn part120() void {
 /// 128-129: z2 = the VBLs this pass took; TIMER = 0 (zm is never set, so
 /// its busy loop never runs); the stick right opens the throttle.
 pub fn timer128() void {
+    passes += 1;
     v.z2 = S.timer;
     v.t = S.timer;
     while (v.t < v.zm) v.t += 1;

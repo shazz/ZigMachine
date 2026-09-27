@@ -56,6 +56,7 @@ pub fn reset() void {
     clock.reset();
     S.timer = 0;
     vbls = 0;
+    @import("pass.zig").passes = 0;
 }
 
 /// One VBL.

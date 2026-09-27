@@ -121,9 +121,10 @@ pub fn clw() void {
     cy = 0;
 }
 
-/// SQUARE w,h,border: a frame of w x h cells from the cursor, in the pen
-/// colour, one pixel inside the outer cells (the border-1 style), its inside
-/// cleared to paper. The cursor does not move.
+/// SQUARE w,h,border: w x h cells from the cursor cleared to paper, and a
+/// frame in the pen colour 3 pixels inside them with its corners left out
+/// (measured on the ST: square 29,3,1 at 6,8 draws y = 67 and 84 from
+/// x = 52 to 275, x = 51 and 276 from y = 68 to 83). The cursor stays.
 pub fn square(w: i32, h: i32, border: i32) void {
     _ = border;
     const x0 = cx * 8;
@@ -134,6 +135,9 @@ pub fn square(w: i32, h: i32, border: i32) void {
     gfx.ink = paper;
     gfx.bar(x0, y0, x1, y1);
     gfx.ink = pen;
-    gfx.box(x0 + 3, y0 + 3, x1 - 3, y1 - 3);
+    gfx.draw(x0 + 4, y0 + 3, x1 - 4, y0 + 3);
+    gfx.draw(x0 + 4, y1 - 3, x1 - 4, y1 - 3);
+    gfx.draw(x0 + 3, y0 + 4, x0 + 3, y1 - 4);
+    gfx.draw(x1 - 3, y0 + 4, x1 - 3, y1 - 4);
     gfx.ink = saved;
 }

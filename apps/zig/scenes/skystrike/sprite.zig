@@ -80,8 +80,11 @@ pub fn set(n: i32, x: i32, y: i32, img: i32) void {
     dirty = true;
 }
 
-/// The whole list off (dreg(0)=7: dreg(2)=0: trap 5, and SPRITE OFF).
+/// dreg(0)=7 : dreg(2)=0 : trap 5 -- the sprite trap's function 7 ($3D0E0):
+/// every movement and animation cleared ($3D0A6, $3D078), then every sprite
+/// off.
 pub fn allOff() void {
+    @import("move.zig").reset();
     for (spr[1..]) |*s| s.on = false;
     dirty = true;
 }

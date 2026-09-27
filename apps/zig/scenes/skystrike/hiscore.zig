@@ -7,7 +7,6 @@
 const S = @import("stos.zig");
 const scr = @import("scr.zig");
 const sprite = @import("sprite.zig");
-const move = @import("move.zig");
 const pal = @import("pal.zig");
 const input = @import("input.zig");
 const blocks = @import("blocks.zig");
@@ -38,7 +37,7 @@ fn clearAll() void {
 /// 2260-2275: the picture, the table drawn on back and pasted over it.
 fn l2260() flow.Act {
     snd.samstop();
-    move.off();
+    scene.off();
     clearAll();
     sprite.mouse(false, sprite.spr[0].img, sprite.spr[0].x, sprite.spr[0].y);
     S.fadeBlack(1);
@@ -133,7 +132,7 @@ fn l2320b() flow.Act {
 
 /// 2310: "Enter Your Name !", the score and kills on the new line.
 fn l2310() flow.Act {
-    move.off();
+    scene.off();
     table.prompt2310();
     input.clearKey();
     v.ok = 0;

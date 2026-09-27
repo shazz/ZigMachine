@@ -11,6 +11,7 @@ const S = @import("stos.zig");
 const scr = @import("scr.zig");
 const text = @import("text.zig");
 const sprite = @import("sprite.zig");
+const scene = @import("scene.zig");
 const move = @import("move.zig");
 const input = @import("input.zig");
 const B = @import("basic.zig");
@@ -35,7 +36,7 @@ pub const PASS_DEN: u32 = 2;
 
 /// 2000: off : tsc = 1 : gosub 2350
 fn l2000() flow.Act {
-    move.off();
+    scene.off();
     v.tsc = 1;
     return .{ .call = .{ .to = .l2350, .ret = .l2000b } };
 }

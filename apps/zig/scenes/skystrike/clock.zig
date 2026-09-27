@@ -9,8 +9,13 @@
 // TIMER move on in between exactly as the ST's interrupts do.
 // --------------------------------------------------------------------------
 pub const VBL: u64 = 160256;
-/// One main-loop pass (lines 50-149), with the sprite VBL interrupt's share.
-pub const PASS: u64 = 2 * VBL + VBL / 2;
+/// One main-loop pass (lines 50-149), with the sprite VBL interrupt's share:
+/// 2.8 VBLs (the ST's z2 runs 3, 3, 3, 2 ... taking off and flying over
+/// the home airfield: 2.76-2.86 a pass).
+pub const PASS: u64 = 2 * VBL + VBL * 4 / 5;
+/// A screen drawn afresh (line 1000): the pass that crosses into a new
+/// sector takes 24 VBLs on the ST, 21 more than a plain one.
+pub const REDRAW: u64 = 21 * VBL;
 
 var pos: u64 = 0;
 var crossed: u16 = 0;
