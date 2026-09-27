@@ -23,8 +23,10 @@ const HILITE: u8 = 2;
 // Layout. ROWS is fixed by the space between the title and the footer (a row is
 // 11px from y=22, so row 14 lands at y=176 and clears the footer at 190) — NOT
 // derived from the entry count, which is what used to make the list overflow the
-// screen as scenes were added.
-const COLS: usize = 2;
+// screen as scenes were added. ONE column: channel names run up to 22 characters
+// (tools/channels.py enforces it), and 22 x 8px after the cursor does not fit in the
+// 152px a second column left -- names ran into it.
+const COLS: usize = 1;
 const ROWS: usize = 15;
 const PER_PAGE: usize = COLS * ROWS;
 const PAGES: usize = (ENTRIES.len + PER_PAGE - 1) / PER_PAGE;
