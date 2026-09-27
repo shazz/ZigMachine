@@ -1,0 +1,76 @@
+/* ---- The full virtual keyboard (docs/vkbd.js)
+   Opened from the touch pad's "Full" button; the pad itself (sealed-loader.js)
+   only shows on a touch screen, so on a desktop neither is ever seen. */
+/* The keyboard replaces the pad while it is open; ?embed shows neither. */
+html.vkbd-open .tpad,
+html.embed .tpad,
+html.embed .vkbd { display: none !important; }
+html.vkbd-open .stage-box { margin: 0 auto; }
+
+/* The pad's button that opens it: the glass's green, not the pad's grey. */
+.tpad .act .vk_toggle {
+  width: 64px;
+  height: 40px;
+  border-radius: 8px;
+  font: 14px/1 "EAS VHS", ui-monospace, monospace;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #7dff9b;
+  background: rgba(2, 12, 5, 0.85);
+  border: 2px solid #7dff9b;
+}
+
+/* The keyboard: fixed to the bottom of the viewport, full width. 37 columns: a
+   30-column main block (a letter key is 2), a narrow gap, and the 6-column
+   cursor cluster. Six rows: F1-F10, then the ST's five. Keys compress sideways
+   on a phone in portrait; rows get shorter in landscape. */
+.vkbd {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1001; /* over the pad (1000) */
+  display: none;
+  grid-template-columns: repeat(30, minmax(0, 1fr)) minmax(0, 0.6fr) repeat(6, minmax(0, 1fr));
+  grid-template-rows: repeat(6, min(52px, 8.5vh));
+  gap: 3px 2px;
+  padding: 6px 4px calc(6px + env(safe-area-inset-bottom, 0px));
+  box-sizing: border-box;
+  background: #020c05; /* opaque: the page's prose must not show through the keys */
+  border-top: 2px solid #7dff9b;
+  box-shadow: 0 0 14px rgba(125, 255, 155, 0.45);
+  font: min(18px, 3.4vw)/1 "EAS VHS", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  color: #7dff9b;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  touch-action: none;
+}
+html.vkbd-open .vkbd { display: grid; }
+
+.vk_key {
+  min-width: 0;
+  padding: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  font: inherit;
+  text-transform: uppercase;
+  color: inherit;
+  background: transparent;
+  border: 1px solid rgba(125, 255, 155, 0.45);
+  border-radius: 3px;
+  text-shadow: 0 0 6px rgba(125, 255, 155, 0.6);
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+  cursor: pointer;
+}
+/* The function keys sit a little apart from the main block, as on the ST. */
+.vkbd > .vk_key:nth-child(-n + 10) { margin-bottom: 3px; font-size: 0.85em; }
+.vk_key.vk_word { font-size: 0.75em; } /* Shift, Return, Help...: fit a phone in portrait */
+.vk_key.down, .vk_key.latched {
+  background: #7dff9b;
+  color: #031a09;
+  text-shadow: none;
+}
+.vk_key.latched { box-shadow: 0 0 8px #7dff9b; }
+.vk_hide { border-style: dashed; }

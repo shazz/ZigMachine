@@ -884,10 +884,14 @@ document.addEventListener('visibilitychange', () => { if (document.hidden) relea
 // to the SAME demo.input(N) codes as keydown (0=up 1=down 2=left 3=right
 // 5=fire/enter 6=esc). D-pad repeats while held so "hold-Left to slow" works;
 // Fire/Esc are single-press. Purely page input — the sealed pipeline is untouched.
+// Touch screens only: shown when ANY pointer is coarse (a finger), so a
+// touch laptop keeps it and a mouse-only desktop does not. A media query, never
+// the user agent. docs/vkbd.js adds its "Full" keyboard button to it.
 // --------------------------------------------------------------------------
 (function () {
     const S = document.createElement("style");
-    S.textContent = ".tpad{position:fixed;bottom:12px;left:0;right:0;display:flex;" +
+    S.textContent = ".tpad{position:fixed;bottom:12px;left:0;right:0;display:none;" +
+        "}@media (any-pointer:coarse){.tpad{display:flex}}.tpad{" +
         "justify-content:space-between;padding:0 14px;z-index:1000;pointer-events:none;" +
         "user-select:none;-webkit-user-select:none}" +
         ".tpad>div{display:grid;gap:6px;pointer-events:none}" +

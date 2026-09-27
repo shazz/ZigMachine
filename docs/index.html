@@ -8,6 +8,7 @@
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/normalize/5.0.0/normalize.min.css">
         <link rel="stylesheet" type="text/css" href="css/info.css?v=c961d556" media="screen" />
         <link rel="stylesheet" type="text/css" href="css/cart-select.css?v=78409390" media="screen" />
+        <link rel="stylesheet" type="text/css" href="css/vkbd.css?v=36c58a17" media="screen" />
         <!-- ?embed strips the page down to the monitor: the tutorial page
              (docs/TUTORIAL.html) frames this file to run a cart beside the code. -->
         <script>
@@ -61,6 +62,7 @@
                 <li><kbd>+</kbd> / <kbd>−</kbd> on the monitor change channel, TV-style;
                     <kbd>Select</kbd> lists every channel to jump straight to one.</li>
                 <li><kbd>↑</kbd><kbd>↓</kbd><kbd>←</kbd><kbd>→</kbd> pick a disk in the menu, <kbd>Enter</kbd> boots it, <kbd>Esc</kbd> goes back.</li>
+                <li>On a touch screen, a pad stands in for the arrows; its <kbd>Full</kbd> button opens a whole ST keyboard, F1-F10 included.</li>
                 <li>Sound starts on your first click or key.</li>
                 <li>Want to write one? The <a href="TUTORIAL.html">tutorial</a> builds a screen
                     like these step by step, in Zig, C or Rust.</li>
@@ -99,7 +101,7 @@
     <!-- The disk parser, same hand-over (globalThis.ZMDisk). Modules run before
          the load event that boots the machine. -->
     <script type="module" src="zmdisk.js?v=7ace187b"></script>
-    <script src="sealed-loader.js?v=96363c09"></script>
+    <script src="sealed-loader.js?v=d3bd3a3e"></script>
     <!-- "Run your own cart": the upload button and drag & drop (after the loader,
          whose state it shares). -->
     <script src="upload-cart.js?v=3bae6aa7"></script>
@@ -108,5 +110,8 @@
     <script src="cart-osd.js?v=39652902"></script>
     <!-- The cart selector: every channel as a list on the glass (after the
          loader, whose channel list and tuneToChannel it shares). -->
-    <script src="cart-select.js?v=8e8d627e"></script>
+    <script src="cart-select.js?v=83139c2f"></script>
+    <!-- The full virtual keyboard for touch screens, opened from the touch pad
+         (after the loader, which builds the pad and listens for the keys). -->
+    <script src="vkbd.js?v=8b737947"></script>
 </html>

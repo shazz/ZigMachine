@@ -163,10 +163,12 @@ window.addEventListener("keyup", (e) => {
 }, true);
 
 // A press outside closes it, and that whole gesture stops there: it does not
-// also change channel, click the picture or fire the touch pad.
+// also change channel, click the picture or fire the touch pad. The full
+// virtual keyboard (vkbd.js) is not "outside": it is a keyboard, and its keys
+// drive the list like real ones.
 window.addEventListener("pointerdown", (e) => {
     csEatClick = false;
-    if (!cs.open || cs.el.contains(e.target)) return;
+    if (!cs.open || cs.el.contains(e.target) || e.target.closest?.(".vkbd")) return;
     closeCartSelect();
     csEatClick = true;
     e.preventDefault();
