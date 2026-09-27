@@ -175,6 +175,11 @@
   "type": "zigmachine"
  },
  {
+  "tag": "rick_dangerous",
+  "title": "RICK DANGEROUS",
+  "type": "atari st"
+ },
+ {
   "tag": "rno_natrium",
   "title": "RNO NATRIUM",
   "type": "atari st"
