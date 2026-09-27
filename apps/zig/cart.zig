@@ -88,6 +88,7 @@ const scene = switch (opts.index) {
     75 => @import("scenes/tcb_weirddream.zig"), // TCB + REPLICANTS / WEIRD DREAM crack intro (CODEF screen 345)
     76 => @import("scenes/swedish_newyear.zig"), // Swedish New Year Demo, menu + 5 screens (CODEF screen 295)
     77 => @import("scenes/gen4_3615.zig"), // ULM / 3615 GEN4, The Fate (CODEF screen 539)
+    78 => @import("scenes/rick_dangerous.zig"), // RICK DANGEROUS, Core Design / Firebird 1989: the game (original ST binary, playable)
     else => @compileError("bad cart index"),
 };
 
