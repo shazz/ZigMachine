@@ -32,6 +32,14 @@ pub fn reset() void {
     flash_c = -1;
 }
 
+/// MODE 0's palette as far as the error trap needs it: black paper, white
+/// pen 1, no fade running (a refused level file is reported at power-on,
+/// while line 3's FADE 1 would still hide it).
+pub fn plain() void {
+    reset();
+    hw[1] = 0x777;
+}
+
 fn begin(s: i32) void {
     speed = @intCast(@max(1, s));
     count = speed;

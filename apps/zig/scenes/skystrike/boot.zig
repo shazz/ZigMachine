@@ -10,6 +10,7 @@ const blocks = @import("blocks.zig");
 const sprite = @import("sprite.zig");
 const assets = @import("assets.zig");
 const files = @import("files.zig");
+const levels = @import("levels.zig");
 const B = @import("basic.zig");
 const flow = @import("flow.zig");
 const V = @import("vars.zig");
@@ -36,6 +37,9 @@ fn lines1to23() flow.Act {
     v.lc9 = v.ghx9 + 51;
     readData();
     v.sx = 0;
+    // The level files off the disk, if it carries its own (levels.zig): a bad
+    // one stops here, on the error trap, instead of playing garbage.
+    if (!levels.load()) return .{ .go = .l2700 };
     return .{ .go = .l2000 };
 }
 
@@ -100,7 +104,7 @@ pub fn newWorld() void {
     scr.fillZero(scr.start(7), scr.start(7) + scr.BANK7_LEN);
     scr.fillZero(scr.start(5) + 32032, scr.start(5) + 32434);
     scr.fillZero(scr.start(6) + 32032, scr.start(6) + 32434);
-    for (assets.SCRNDATA_DAT, 0..) |b, i| scr.poke(v.sc9 + @as(i32, @intCast(i)), b);
+    for (levels.world(), 0..) |b, i| scr.poke(v.sc9 + @as(i32, @intCast(i)), b);
     v.clus = 0;
     v.alp = 0;
     v.cl = 0;

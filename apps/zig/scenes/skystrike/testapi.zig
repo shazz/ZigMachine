@@ -12,7 +12,10 @@
 //                     (VARS), 100+i sound command i (op << 8 | arg),
 //                     200 + 2k + e enemy e's ENEMY[k]
 //   poke(what, v)     11 SP# x 1000, 12 clear the sound log, 20+ a variable,
-//                     200+ an enemy's (as val)
+//                     200+ an enemy's (as val); in both val and poke,
+//                     0x50000+ is a PEEK / POKE address (bank << 16 | offset),
+//                     e.g. SC9 + sx, a screen's type (tools/skystrike/
+//                     render_tileset.mjs draws every type this way)
 //   refuse()          one zg.mem allocation too big to grant (--break alloc)
 //   ptr(what)         0 physic, 1 back, 2 bank 5, 3 bank 6 (320x200
 //                     indices), 4 the colour registers (16 u16)
@@ -95,7 +98,11 @@ pub fn val(what: u32) callconv(.c) i32 {
     };
 }
 
+/// PEEK / POKE addresses as the BASIC computes them (START(5) = 5 << 16).
+const BANK_ADDR: u32 = 0x50000;
+
 fn other(what: u32) i32 {
+    if (what >= BANK_ADDR) return scr.peek(@intCast(what));
     if (what >= 200) {
         if (enemyPtr(what - 200)) |p| return p.*;
         return 0;
@@ -119,6 +126,7 @@ pub fn poke(what: u32, value: i32) callconv(.c) void {
         if (varPtr(what - 20)) |p| p.* = value;
     }
     if (what == 12) sound.log_n = 0;
+    if (what >= BANK_ADDR) return scr.poke(@intCast(what), value);
     if (what >= 200) {
         if (enemyPtr(what - 200)) |p| p.* = value;
     }

@@ -11,6 +11,7 @@ const scene = @import("scene.zig");
 const vehicles = @import("vehicles.zig");
 const sfx = @import("sfx.zig");
 const snd = @import("sound.zig");
+const levels = @import("levels.zig");
 const V = @import("vars.zig");
 const v = &V.v;
 
@@ -74,16 +75,25 @@ fn l227b() flow.Act {
 }
 
 /// 2700: mode 0 : print "Error#"; errn ;" in "; errl : wait key : end.
-/// Only a missing MISSIONS.DAT record leads here; END is the title.
+/// A missing MISSIONS.DAT record leads here, and a disk's level file that
+/// levels.zig refused (its reason printed instead); END is the title.
 fn l2700() flow.Act {
+    if (levels.err != null) {
+        @import("pal.zig").plain();
+        text.pen = 1;
+        text.paper = 0;
+        text.clw();
+    }
     text.locate(0, 0);
-    text.write("Error# 62  in  1665");
+    text.write(levels.err orelse "Error# 62  in  1665");
     text.newline();
     input.clearKey();
     return .{ .go = .l2700b };
 }
 
 fn l2700b() flow.Act {
-    if (input.inkey() == null) return .{ .wait = .{ .vbls = 1, .then = .l2700b } };
+    // A refused level file is not played around: the built-in set would pass
+    // for the disk's. The cart stays on the message (Escape leaves).
+    if (input.inkey() == null or levels.err != null) return .{ .wait = .{ .vbls = 1, .then = .l2700b } };
     return .{ .go = .l2000 };
 }
