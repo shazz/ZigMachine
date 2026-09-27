@@ -3,9 +3,16 @@
 // DATA.DAT (lines 8-22), SPITFIRE.HSC (2302-2305) and MISSIONS.DAT's
 // 301-byte records (1663-1666: FIELD #1, 289 AS md$, 12 AS db$). The
 // high-score file is only written in RAM: a browser has no disk to keep it.
+//
+// MISSIONS.DAT and SCRNDATA.DAT are the level data (docs/ports/
+// SKYSTRIKE_LEVELS.md). The game BLOADs / GETs them from its disk, so this
+// cart does too: a file of that name on the mounted .zmd replaces the copy
+// built into the cart (levels.zig), which is how a custom mission set is
+// played without rebuilding anything.
 // --------------------------------------------------------------------------
 const std = @import("std");
 const assets = @import("assets.zig");
+const levels = @import("levels.zig");
 
 /// A reader over one text file: fields end at CR, LF or a comma.
 pub const Reader = struct {
@@ -60,8 +67,9 @@ pub const Mission = struct {
 pub fn mission(n: i32) ?Mission {
     if (n < 1) return null;
     const at = @as(usize, @intCast(n - 1)) * REC;
-    if (at + REC > assets.MISSIONS_DAT.len) return null;
-    const r = assets.MISSIONS_DAT[at..][0..REC];
+    const all = levels.missions();
+    if (at + REC > all.len) return null;
+    const r = all[at..][0..REC];
     const d = r[289..];
     return .{
         .text = r[0..289],

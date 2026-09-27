@@ -1,0 +1,506 @@
+{
+ "type": "map",
+ "version": 1.2,
+ "tiledversion": "1.2.0",
+ "orientation": "orthogonal",
+ "renderorder": "right-down",
+ "infinite": false,
+ "width": 51,
+ "height": 1,
+ "tilewidth": 320,
+ "tileheight": 176,
+ "nextlayerid": 3,
+ "nextobjectid": 2,
+ "properties": [
+  {
+   "name": "record",
+   "type": "int",
+   "value": 6
+  },
+  {
+   "name": "mission",
+   "type": "int",
+   "value": 4
+  },
+  {
+   "name": "misf",
+   "type": "int",
+   "value": 1
+  },
+  {
+   "name": "mfin",
+   "type": "int",
+   "value": 1
+  },
+  {
+   "name": "bonus",
+   "type": "int",
+   "value": 500
+  },
+  {
+   "name": "msb",
+   "type": "int",
+   "value": 2
+  },
+  {
+   "name": "meb",
+   "type": "int",
+   "value": 4
+  },
+  {
+   "name": "briefing",
+   "type": "string",
+   "value": "The Battleship Grafmark has moved\ninto the lake . Hit it with at\nleast 3 bombs and sink it !"
+  }
+ ],
+ "layers": [
+  {
+   "id": 1,
+   "name": "world",
+   "type": "tilelayer",
+   "x": 0,
+   "y": 0,
+   "width": 51,
+   "height": 1,
+   "opacity": 1,
+   "visible": true,
+   "data": [2,1,1,1,1,1,1,1,1,1,2,1,1,33,1,1,1,1,1,1,2,1,1,17,15,13,14,10,10,10,10,10,10,3,4,10,10,35,18,1,2,1,34,34,25,34,1,1,1,1,2]
+  },
+  {
+   "id": 2,
+   "name": "mission",
+   "type": "objectgroup",
+   "x": 0,
+   "y": 0,
+   "opacity": 1,
+   "visible": true,
+   "draworder": "topdown",
+   "objects": [
+    {
+     "id": 1,
+     "gid": 38,
+     "name": "target",
+     "type": "target",
+     "x": 10688,
+     "y": 168,
+     "width": 64,
+     "height": 64,
+     "rotation": 0,
+     "visible": true
+    }
+   ]
+  }
+ ],
+ "tilesets": [
+  {
+   "firstgid": 1,
+   "name": "skystrike_screens",
+   "image": "skystrike_screens.png",
+   "imagewidth": 1920,
+   "imageheight": 1056,
+   "tilewidth": 320,
+   "tileheight": 176,
+   "tilecount": 36,
+   "columns": 6,
+   "margin": 0,
+   "spacing": 0,
+   "tiles": [
+    {
+     "id": 0,
+     "properties": [
+      {
+       "name": "is",
+       "type": "string",
+       "value": "screen type 0: grass; on screens 2-50 a random scene at each new game (2530)"
+      }
+     ]
+    },
+    {
+     "id": 1,
+     "properties": [
+      {
+       "name": "is",
+       "type": "string",
+       "value": "screen type 1: airfield (1060)"
+      }
+     ]
+    },
+    {
+     "id": 2,
+     "properties": [
+      {
+       "name": "is",
+       "type": "string",
+       "value": "screen type 2: battleship, west half (1090)"
+      }
+     ]
+    },
+    {
+     "id": 3,
+     "properties": [
+      {
+       "name": "is",
+       "type": "string",
+       "value": "screen type 3: battleship, east half (1100)"
+      }
+     ]
+    },
+    {
+     "id": 4,
+     "properties": [
+      {
+       "name": "is",
+       "type": "string",
+       "value": "screen type 4: grass, never randomised (1050)"
+      }
+     ]
+    },
+    {
+     "id": 5,
+     "properties": [
+      {
+       "name": "is",
+       "type": "string",
+       "value": "screen type 5: grass, never randomised (1050)"
+      }
+     ]
+    },
+    {
+     "id": 6,
+     "properties": [
+      {
+       "name": "is",
+       "type": "string",
+       "value": "screen type 6: grass, never randomised (1050)"
+      }
+     ]
+    },
+    {
+     "id": 7,
+     "properties": [
+      {
+       "name": "is",
+       "type": "string",
+       "value": "screen type 7: grass, never randomised (1050)"
+      }
+     ]
+    },
+    {
+     "id": 8,
+     "properties": [
+      {
+       "name": "is",
+       "type": "string",
+       "value": "screen type 8: bridge over a river (1300)"
+      }
+     ]
+    },
+    {
+     "id": 9,
+     "properties": [
+      {
+       "name": "is",
+       "type": "string",
+       "value": "screen type 9: sea (1150)"
+      }
+     ]
+    },
+    {
+     "id": 10,
+     "properties": [
+      {
+       "name": "is",
+       "type": "string",
+       "value": "screen type 10: sea, beach to the west (1160)"
+      }
+     ]
+    },
+    {
+     "id": 11,
+     "properties": [
+      {
+       "name": "is",
+       "type": "string",
+       "value": "screen type 11: sea, beach to the east (1170)"
+      }
+     ]
+    },
+    {
+     "id": 12,
+     "properties": [
+      {
+       "name": "is",
+       "type": "string",
+       "value": "screen type 12: aircraft carrier, west half (1180)"
+      }
+     ]
+    },
+    {
+     "id": 13,
+     "properties": [
+      {
+       "name": "is",
+       "type": "string",
+       "value": "screen type 13: aircraft carrier, east half (1190)"
+      }
+     ]
+    },
+    {
+     "id": 14,
+     "properties": [
+      {
+       "name": "is",
+       "type": "string",
+       "value": "screen type 14: cliff, sea to the east (1200)"
+      }
+     ]
+    },
+    {
+     "id": 15,
+     "properties": [
+      {
+       "name": "is",
+       "type": "string",
+       "value": "screen type 15: cliff, sea to the west (1210)"
+      }
+     ]
+    },
+    {
+     "id": 16,
+     "properties": [
+      {
+       "name": "is",
+       "type": "string",
+       "value": "screen type 16: hill, rising (1220)"
+      }
+     ]
+    },
+    {
+     "id": 17,
+     "properties": [
+      {
+       "name": "is",
+       "type": "string",
+       "value": "screen type 17: hill, falling (1230)"
+      }
+     ]
+    },
+    {
+     "id": 18,
+     "properties": [
+      {
+       "name": "is",
+       "type": "string",
+       "value": "screen type 18: REFUSED, the game draws nothing"
+      }
+     ]
+    },
+    {
+     "id": 19,
+     "properties": [
+      {
+       "name": "is",
+       "type": "string",
+       "value": "screen type 19: REFUSED, the game draws nothing"
+      }
+     ]
+    },
+    {
+     "id": 20,
+     "properties": [
+      {
+       "name": "is",
+       "type": "string",
+       "value": "screen type 20: houses (scene 0, 1070)"
+      }
+     ]
+    },
+    {
+     "id": 21,
+     "properties": [
+      {
+       "name": "is",
+       "type": "string",
+       "value": "screen type 21: inn (scene 1, 1070)"
+      }
+     ]
+    },
+    {
+     "id": 22,
+     "properties": [
+      {
+       "name": "is",
+       "type": "string",
+       "value": "screen type 22: gun and bunker (scene 2, 1070)"
+      }
+     ]
+    },
+    {
+     "id": 23,
+     "properties": [
+      {
+       "name": "is",
+       "type": "string",
+       "value": "screen type 23: manor (scene 3, 1070)"
+      }
+     ]
+    },
+    {
+     "id": 24,
+     "properties": [
+      {
+       "name": "is",
+       "type": "string",
+       "value": "screen type 24: factory (scene 4, 1070)"
+      }
+     ]
+    },
+    {
+     "id": 25,
+     "properties": [
+      {
+       "name": "is",
+       "type": "string",
+       "value": "screen type 25: orchard (scene 5, 1070)"
+      }
+     ]
+    },
+    {
+     "id": 26,
+     "properties": [
+      {
+       "name": "is",
+       "type": "string",
+       "value": "screen type 26: gun post (scene 6, 1070)"
+      }
+     ]
+    },
+    {
+     "id": 27,
+     "properties": [
+      {
+       "name": "is",
+       "type": "string",
+       "value": "screen type 27: filling station (scene 7, 1070)"
+      }
+     ]
+    },
+    {
+     "id": 28,
+     "properties": [
+      {
+       "name": "is",
+       "type": "string",
+       "value": "screen type 28: barracks (scene 8, 1070)"
+      }
+     ]
+    },
+    {
+     "id": 29,
+     "properties": [
+      {
+       "name": "is",
+       "type": "string",
+       "value": "screen type 29: silos (scene 9, 1070)"
+      }
+     ]
+    },
+    {
+     "id": 30,
+     "properties": [
+      {
+       "name": "is",
+       "type": "string",
+       "value": "screen type 30: church (scene 10, 1070)"
+      }
+     ]
+    },
+    {
+     "id": 31,
+     "properties": [
+      {
+       "name": "is",
+       "type": "string",
+       "value": "screen type 31: stream (scene 11, 1070)"
+      }
+     ]
+    },
+    {
+     "id": 32,
+     "properties": [
+      {
+       "name": "is",
+       "type": "string",
+       "value": "screen type 32: fort (scene 12, 1070)"
+      }
+     ]
+    },
+    {
+     "id": 33,
+     "properties": [
+      {
+       "name": "is",
+       "type": "string",
+       "value": "screen type 33: gun tower (scene 13, 1070)"
+      }
+     ]
+    },
+    {
+     "id": 34,
+     "properties": [
+      {
+       "name": "is",
+       "type": "string",
+       "value": "screen type 34: coastal gun on a cliff (scene 14, 1070)"
+      }
+     ]
+    },
+    {
+     "id": 35,
+     "properties": [
+      {
+       "name": "is",
+       "type": "string",
+       "value": "screen type 35: bunker in a hill (scene 15, 1070)"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "firstgid": 37,
+   "name": "skystrike_markers",
+   "image": "skystrike_markers.png",
+   "imagewidth": 128,
+   "imageheight": 64,
+   "tilewidth": 64,
+   "tileheight": 64,
+   "tilecount": 2,
+   "columns": 2,
+   "margin": 0,
+   "spacing": 0,
+   "tiles": [
+    {
+     "id": 0,
+     "properties": [
+      {
+       "name": "is",
+       "type": "string",
+       "value": "start marker"
+      }
+     ]
+    },
+    {
+     "id": 1,
+     "properties": [
+      {
+       "name": "is",
+       "type": "string",
+       "value": "target marker"
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

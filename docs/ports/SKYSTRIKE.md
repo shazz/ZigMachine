@@ -18,6 +18,9 @@ been seen publicly"; it has since landed in that archive.
 The RE workspace (tools, dumps, the listing) lives in the gitignored
 `prototypes/skystrike_re/`; paths below are relative to it.
 
+The level data (the world strip, the mission records, what is code and what is
+random) and editing missions as Tiled maps: [SKYSTRIKE_LEVELS.md](SKYSTRIKE_LEVELS.md).
+
 This is a log of what was actually done, in order. The tools it mentions are in `tools/` here. The disk is
 `prototypes/Automation Menu Disk 258 (1990)(Automation)[a].st`.
 

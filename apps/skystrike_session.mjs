@@ -6,7 +6,9 @@ import { cartRam, romRam } from "../docs/wasm_hiwater.js";
 
 const PAGES = 112; // SHARED_PAGES in machine/sdk/memmap.zig
 
-export async function boot() {
+/// extraEnv(memory): host imports to provide instead of the no-op stubs, e.g.
+/// a diskReadBlock serving a .zmd (apps/skystrike_levels.mjs).
+export async function boot(extraEnv = () => ({})) {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
     let demo;
     const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), {
@@ -17,7 +19,7 @@ export async function boot() {
     const rom = (await WebAssembly.instantiate(romBytes, { env: env0 })).instance.exports;
     machine.hwSetRomHigh(romRam(romBytes).high ?? 0);
     const cartBytes = await readFile("docs/demo-skystrike.wasm");
-    const env = { ...env0, ...rom };
+    const env = { ...env0, ...rom, ...extraEnv(memory) };
     for (const n of Object.keys(machine)) if (n.startsWith("hwRam") || n.startsWith("hwRomRam")) env[n] = machine[n];
     for (const imp of WebAssembly.Module.imports(new WebAssembly.Module(cartBytes)))
         if (imp.module === "env" && !(imp.name in env)) env[imp.name] = () => {};
@@ -38,8 +40,8 @@ export const PASSES = 10, SP = 11, CLEAR_LOG = 12, ENEMY = 200; // testapi.zig
 const OP = { music: 0, samplay: 1, samstop: 2, samloop: 3, volume: 4, noise: 5, envel: 6 };
 
 /// A lockstep session: the cart powered on with RND seeded.
-export async function session(seed = 1234) {
-    const ctx = await boot();
+export async function session(seed = 1234, extraEnv = undefined) {
+    const ctx = await boot(extraEnv);
     const d = ctx.demo;
     d.skyTestReset(seed);
     const s = {

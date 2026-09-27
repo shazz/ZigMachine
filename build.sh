@@ -261,6 +261,8 @@ gate skystrike node apps/skystrike_headless.mjs --break physics "$SHOTS/skystrik
 gate skystrike node apps/skystrike_headless.mjs --break sound "$SHOTS/skystrike"   # ...and a bomb for the gun burst fails the SFX check
 gate skystrike node apps/skystrike_headless.mjs --break sndh "$SHOTS/skystrike"   # ...and the wrong sample fails the digi check
 gate skystrike node apps/skystrike_headless.mjs --break alloc "$SHOTS/skystrike"   # ...and a refused zg.mem allocation fails the run
+gate skystrike node apps/skystrike_levels.mjs   # SKYSTRIKE levels: the Tiled maps (tools/skystrike/levels.py) round-trip MISSIONS.DAT + SCRNDATA.DAT byte for byte and ARE the cart's data; 22 broken maps refused; a disk with an edited mission is briefed and played; a bad disk file stops on the error trap
+gate skystrike node apps/skystrike_levels.mjs --break disk   # ...and a disk of the built-in data fails the custom-mission check
 gate tcb_spreadpoint node apps/tcb_spreadpoint_headless.mjs "$SHOTS/tcb_spreadpoint"   # TCB SPREADPOINT (CODEF 469): screen.js replayed (intro fades, angle table, balls, 33-speed scroller, DNA scrolltext) and at 12 frames across the intro and 6000 main-part iterations the plane is its indices pixel for pixel; the 3 rasters are HBL register writes (entries 2..6 hold the tables on every line, <=4 changes a line) and every composited pixel is its line's colour; tcb_spreadpoint.sndh requested once, at the main part, and plays
 gate tcb_spreadpoint node apps/tcb_spreadpoint_headless.mjs --break hbl "$SHOTS/tcb_spreadpoint"   # ...and a plane whose HBL never runs is caught
 gate tcb_spreadpoint node apps/tcb_spreadpoint_headless.mjs --break step "$SHOTS/tcb_spreadpoint"   # ...and one frame out of step with screen.js is caught
