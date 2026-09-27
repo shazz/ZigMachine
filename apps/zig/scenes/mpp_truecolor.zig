@@ -27,7 +27,6 @@
 // --------------------------------------------------------------------------
 const std = @import("std");
 const zg = @import("zigos");
-const hw = @import("hardware");
 const blob = @import("mpp_truecolor/blob.zig");
 const ZigOS = zg.ZigOS;
 const LogicalFB = zg.LogicalFB;
@@ -94,7 +93,8 @@ pub const Demo = struct {
         self.work = &.{};
         zigos.setBackgroundColor(.{ .r = 0, .g = 0, .b = 0, .a = 255 });
         for (&zigos.lfbs) |*fb| fb.setFrameBufferHBLHandler(0, hbl);
-        self.work = freeRam(workLen() orelse return self.fail("a packed picture is unreadable")) orelse
+        // On zg.mem, taken once at the largest blob's size: every switch reuses it.
+        self.work = zg.mem.alloc(u8, workLen() orelse return self.fail("a packed picture is unreadable")) orelse
             return self.fail("no free RAM to depack into");
         self.apply();
     }
@@ -184,13 +184,6 @@ fn workLen() ?usize {
         most = @max(most, blob.need(image, m.planes) orelse return null);
     };
     return most;
-}
-
-/// `len` bytes of the cart's RAM window above its statics and stack.
-fn freeRam(len: usize) ?[]u8 {
-    if (hw.hwRamFree() < len) return null;
-    const base: usize = hw.hwRamBase() + hw.hwRamUsed();
-    return @as([*]u8, @ptrFromInt(base))[0..len];
 }
 
 // Mode 3: index bytes, then plane bytes (blob.load checked < PLANES); 0 in the other planes.
