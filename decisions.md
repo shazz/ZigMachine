@@ -9,6 +9,58 @@ reconstructed from the commits that made them, so they are shorter.
 
 ---
 
+## 2026-09-27 — The sealed YM gates a tone above Nyquist at its average (0.5)
+
+**Status:** accepted
+
+**Context:** Matt heard SKYSTRIKE's engine and gun sound higher in the port than
+on Hatari, and a high-pitched sound in Sky_Strike.sndh tune 3 that the original
+does not have. The game's YM registers and the Timer A rate were identical to
+Hatari's (engine th=5: R6 $1A, R11/12 $003D, R13 $0A, mixer $C0; gun: TACR 1,
+TADR $6E = 5585 Hz), and so were the envelope fundamental (64 Hz) and the noise
+spectrum's null (clock/(16*26) = 4807 Hz). The difference was a narrow line at
+7300 Hz carrying most of the port's energy (the gun's 7-8 kHz band at -2.5 dB,
+Hatari's at -22.4 dB). `Ym2149.render` point-sampled each tone's square at
+44.1 kHz. Both effects leave tone period 0 enabled (STOS NOISE writes mixer $C0
+and periods 0; Maestro's digi writes a volume per sample over mixer $F8), and
+period 0 is a 125 kHz square: sampled, it folds to |125000 - 3 * 44100| =
+7300 Hz. Tune 3 sets channel A to period 0 at volume 14-15 for 5 VBLs at a time.
+
+**Decision:** a tone whose step per output sample exceeds 0.5 (above Nyquist:
+periods 0-5 at 44.1 kHz) gates the channel at 0.5 instead of 1 or 0
+(`Ym2149.toneGate`). The real chip's output, low-passed, and Hatari's 250 kHz
+model, filtered down, both give that average: the square is open half the time.
+Tones at or below Nyquist are the same float as before (`VOL * 1.0`), so no
+other sound changes. It covers every path, since the SNDH player, the YM dump
+player, the MOD's direct `zg.ymWrite` effects and the free-standing effect voice
+all render through `Ym2149.render`. Tested in `machine/audio/ym_test.zig`.
+
+**Alternatives considered:** band-limiting every tone (a box filter over the
+sample interval, or rendering at 250 kHz and decimating, as Hatari does). It is
+more accurate for the harmonics of audible squares too, but it changes every
+tune on the shelf and costs far more per sample. The aliasing of an audible
+square's harmonics is a much smaller effect than a whole fundamental folded
+into the audible band. Hatari's output low-pass (the port is still 3-7 dB
+hotter above 10 kHz) was left alone: it is a separate question.
+
+**Consequences:** Across all 389 subtunes on the shelf (docs/music, big/,
+digital/, union/; 120 s each), 363 render byte-identical. 26 change, and each
+has an audible tone at period 5 or below (no other tune changed):
+auf_weidersehen_monty_digi #1, bangkok_knights #1, count_zero_2 #1, dugger #3
+and #4, joust_sfx #8 and #17, leatherneck #1, pro_bmx_simulator_a #1, skystrike
+#1 and #3, sos #1, sowatt_an_bass #1, stniccc_2000 #1, big/Battle_Of_Britain #1,
+big/Chimera #1, big/Gerry_The_Germ #5, big/Monty_On_The_Run #1,
+big/Sam_Fox_Strip_Poker #5 and #6, big/Sanxion_Loader #1, big/Sanxion_Title #1,
+big/Thrust #1, union/chambers_of_shaolin #6, union/mega_apocalypse #1 and
+union/thundercats #1. The rms moves by 1% or less, except for the Monty digi
+tune (3819 channel-VBLs at period 0, rms 0.1745 -> 0.1640, -6%): a digi played
+over a period-0 tone is now heard at the average level, as on an ST, without
+the whistle on top. SKYSTRIKE after the change: the engine's bands from 0 to
+8 kHz are within about 1 dB of Hatari's at th=5 and th=9, the gun's likewise,
+and the engine's rms is 3225 against Hatari's 3367 (4741 before).
+
+---
+
 ## 2026-09-27 — The SNDH player's MFP honours IER/IMR (enable, mask, pending)
 
 **Status:** accepted · code in `libs/zig/players/mfp.zig`, guide in `docs/MUSIC.md`

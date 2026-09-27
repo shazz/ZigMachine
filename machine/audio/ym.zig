@@ -97,6 +97,24 @@ pub const Ym2149 = struct {
         return if (p == 0) 1 else p;
     }
 
+    /// Channel ch's tone gate for this output sample: 1 open, 0 shut, or 0.5
+    /// for a tone above the output's Nyquist frequency. Periods 0-5 (125 kHz
+    /// down to 25 kHz on the ST's 2 MHz clock) cannot be sampled at 44.1 kHz:
+    /// point-sampled, 125 kHz folds down to |125000 - 3 * 44100| = 7300 Hz, a
+    /// loud whistle no ST makes. The chip's output (and Hatari's 250 kHz
+    /// model, filtered down) is that square's average: open half the time.
+    /// Digis (a volume per sample, tone period 0 left on) and STOS's engine
+    /// noise (mixer $C0, periods 0) rely on exactly that.
+    pub fn toneGate(self: *Ym2149, ch: usize, mixer: u8) f32 {
+        const period: f32 = @floatFromInt(self.tonePeriod(ch));
+        const step = (YM_CLOCK / (16.0 * period)) / self.sr;
+        self.tone_phase[ch] += step;
+        if (self.tone_phase[ch] >= 1.0) self.tone_phase[ch] -= @floor(self.tone_phase[ch]);
+        if ((mixer >> @intCast(ch)) & 1 == 1) return 1;
+        if (step > 0.5) return 0.5;
+        return if (self.tone_phase[ch] < 0.5) 1 else 0;
+    }
+
     pub fn render(self: *Ym2149, left: []f32, right: []f32) void {
         const n = left.len;
         const mixer = self.regs[7];
@@ -129,23 +147,17 @@ pub const Ym2149 = struct {
             var mix: f32 = 0;
             var ch: usize = 0;
             while (ch < 3) : (ch += 1) {
-                const period: f32 = @floatFromInt(self.tonePeriod(ch));
-                self.tone_phase[ch] += (YM_CLOCK / (16.0 * period)) / self.sr;
-                if (self.tone_phase[ch] >= 1.0) self.tone_phase[ch] -= @floor(self.tone_phase[ch]);
-                const tone_high = self.tone_phase[ch] < 0.5;
-
-                const tone_off = (mixer >> @intCast(ch)) & 1 == 1;
+                const t = self.toneGate(ch, mixer);
                 const noise_off = (mixer >> @intCast(ch + 3)) & 1 == 1;
-                const t = tone_high or tone_off;
                 const nz = (self.noise_bit == 1) or noise_off;
-                if (t and nz) {
+                if (t > 0 and nz) {
                     const vreg = self.regs[8 + ch];
                     // envelope uses the full 5-bit level; fixed 4-bit v -> 2*v+1
                     const level: u5 = if (vreg & 0x10 != 0)
                         self.env_pos
                     else
                         @intCast(@as(u8, vreg & 0x0F) * 2 + 1);
-                    mix += VOL_TABLE[level];
+                    mix += VOL_TABLE[level] * t;
                 }
             }
             const out = mix * 0.33; // headroom for 3 channels summed

@@ -229,6 +229,12 @@ and engine note over its flight MOD).
   digi, and how SID-voice tunes (Elite, Crystallized) silence a voice for a
   frame. The in-service registers are not modelled: a handler always runs to
   its `rte` before the next interrupt.
+- **Ultrasonic tones are heard as their average.** A tone at period 0-5
+  (25-125 kHz) is above the 44.1 kHz output's Nyquist frequency, so the sealed
+  YM (`machine/audio/ym.zig`) gates it at 0.5, "open half the time". That is
+  what the real chip's output and Hatari give. A point-sampled square would
+  fold period 0 down to a 7300 Hz whistle. Digis (a volume per sample with the
+  tone at period 0) and STOS's NOISE (mixer $C0) depend on it.
 
 ## Proving a tune plays (headless)
 

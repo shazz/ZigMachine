@@ -3,9 +3,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ZigMachine — Programmer's Guide</title>
 <meta name="description" content="The ZigMachine reference: video and blitter registers, the sealed HW ABI, the disk and music formats, and the ZigOS / GEM library, generated from the sources.">
-<link rel="stylesheet" href="css/docs.css?v=3f1bd301">
-<link rel="stylesheet" href="css/code.css?v=0edb2f47">
-<link rel="stylesheet" href="css/guide.css?v=ece899e9">
+<link rel="stylesheet" href="css/docs.css">
+<link rel="stylesheet" href="css/code.css">
+<link rel="stylesheet" href="css/guide.css">
 </head>
 <body>
 <header class="topbar">
@@ -1055,6 +1055,12 @@ and engine note over its flight MOD).</p>
   digi, and how SID-voice tunes (Elite, Crystallized) silence a voice for a
   frame. The in-service registers are not modelled: a handler always runs to
   its <code>rte</code> before the next interrupt.</li>
+<li><strong>Ultrasonic tones are heard as their average.</strong> A tone at period 0-5
+  (25-125 kHz) is above the 44.1 kHz output's Nyquist frequency, so the sealed
+  YM (<code>machine/audio/ym.zig</code>) gates it at 0.5, "open half the time". That is
+  what the real chip's output and Hatari give. A point-sampled square would
+  fold period 0 down to a 7300 Hz whistle. Digis (a volume per sample with the
+  tone at period 0) and STOS's NOISE (mixer $C0) depend on it.</li>
 </ul>
 <h4 id="music-sndh-player-zig-c-rust-proving-a-tune-plays-headless">Proving a tune plays (headless)</h4>
 <ul>
@@ -1169,5 +1175,5 @@ and engine note over its flight MOD).</p>
 <article class="api" id="Desktop.input"><code class="sig"><b class="fn">input</b>(self: *Desktop, dir: u32) <span class="ret">void</span></code><a class="anchor" href="#Desktop.input" aria-label="Link to input">#</a><p class="doc">Directional input from the host (0=up 1=down 2=left 3=right). The desktop only uses left/right, and only to walk the caret in the name field of an open INFORMATION / NEW FOLDER box.</p></article></section>
   </main>
 </div>
-<script src="guide.js?v=3eb64558"></script>
+<script src="guide.js"></script>
 </body></html>

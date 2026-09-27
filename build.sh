@@ -149,6 +149,7 @@ NATIVE_TESTS="
     libs/zig/effects/colour_bank_test.zig
     libs/zig/effects/beam_test.zig
     machine/beam_test.zig
+    machine/audio/ym_test.zig
     machine/arena_test.zig
     libs/zig/mem_test.zig
     libs/zig/sndh_call_test.zig
