@@ -12,17 +12,20 @@
 set -e
 if [ -t 1 ]; then clear; fi # not from a git hook or a log redirect
 
-# --- selective gate: --only <tags> / --changed -----------------------------
-# The DEFAULT is the full gate, and the pre-push hook must keep using it. These
-# flags are an inner-loop convenience ONLY.
+# --- selective gate: --only <tags> / --changed [<rev>] ----------------------
+# The DEFAULT is the full gate. --only is an inner-loop convenience; --changed
+# is also what the pre-push hook runs, so its rules are conservative.
 #
-# Why they are conservative: the failures this gate catches are silent and
-# CROSS-CUTTING. A change under libs/, rom/, machine/, docs/*.js or build.zig
-# can break a screen whose own files never changed, so --changed refuses to
-# narrow anything unless the diff touches scene/asset files and nothing else.
-# The cheap cross-cutting checks (windows, ABI, disks) always run regardless.
+# Only the per-screen HARNESSES are ever narrowed. Every mode still rebuilds
+# every cart and disk and runs every cross-cutting check (windows, ABI, disks,
+# native tests), because the failures this gate catches are silent and
+# CROSS-CUTTING: a change under libs/, rom/, machine/, docs/*.js or build.zig can
+# break a screen whose own files never changed. tools/gate_scope.py decides which
+# harnesses a diff can reach, and anything it cannot place is the full gate.
+# See docs/BUILDING.md.
 ONLY=""
 FAST=""
+CHANGED_BASE=""
 case "${1:-}" in
     --fast)
         # Compile and repack the disks, then STOP: no windows, no tests, no
@@ -40,30 +43,23 @@ case "${1:-}" in
         ONLY="$*"
         ;;
     --changed)
-        # Everything changed ON THIS BRANCH, not just since HEAD: diffing HEAD alone
-        # means the first commit empties the set and silently widens back to the full
-        # gate, exactly while you are iterating in small commits.
-        _base=$(git merge-base HEAD origin/main 2>/dev/null || echo HEAD)
-        _touched=$(git diff --name-only "$_base" 2>/dev/null; \
-                   git ls-files -o --exclude-standard 2>/dev/null)
-        # anything outside a scene or its assets forces the full gate
-        _wide=$(printf '%s\n' "$_touched" | grep -v '^$' \
-                | grep -vE '^apps/zig/(scenes|assets/screens)/' \
-                | grep -vE '^docs/(demo-[^/]+\.(wasm|zmd)|music/)' || true)
-        if [ -n "$_wide" ]; then
-            echo "--changed: full gate (these are outside scenes/assets):"
-            printf '%s\n' "$_wide" | sed 's/^/    /'
-        else
-            ONLY=$(printf '%s\n' "$_touched" \
-                   | sed -nE 's#^apps/zig/(scenes|assets/screens)/([^/.]+).*#\2#p' \
-                   | sort -u | tr '\n' ' ')
-            [ -z "$ONLY" ] && echo "--changed: nothing changed; full gate"
-        fi ;;
+        # Everything changed since <rev> (default: the branch's merge-base with
+        # origin/main, not HEAD: diffing HEAD alone means the first commit empties
+        # the set exactly while you are iterating in small commits). Working tree
+        # and untracked files included. The scope is computed AFTER the build (see
+        # changed_scope below), so a shared scene file that changed another cart's
+        # bytes shows up as that cart's docs/demo-<tag>.wasm and pulls it in too.
+        CHANGED_BASE=${2:-$(git merge-base HEAD origin/main 2>/dev/null || echo HEAD)}
+        git rev-parse -q --verify "$CHANGED_BASE^{commit}" > /dev/null \
+            || { echo "--changed: unknown revision '$CHANGED_BASE'" >&2; exit 2; }
+        ;;
+    "") ;;
+    *) echo "build.sh: unknown option '$1' (--fast | --only <tags> | --changed [<rev>])" >&2; exit 2 ;;
 esac
 if [ -n "$ONLY" ]; then
     # A tag matching no gate line would run ZERO screen harnesses and still exit
     # 0 -- a check that did not run and said it passed. Refuse instead.
-    _tags=$(grep -oE '^gate [A-Za-z0-9_]+' "$0" | cut -d' ' -f2 | sort -u)
+    _tags=$(grep -oE '^gate(_timed)? [A-Za-z0-9_]+' "$0" | cut -d' ' -f2 | sort -u)
     for _s in $ONLY; do
         _hit=0
         for _t in $_tags; do case "$_t" in *"$_s"*) _hit=1 ;; esac; done
@@ -74,20 +70,16 @@ if [ -n "$ONLY" ]; then
     # Matching is substring and over-inclusive on purpose -- for a gate, running
     # more is the safe error. It CANNOT express a screen reached through another
     # screen: --only big_demo does NOT pull in digital_solution, which runs from
-    # demo-big_demo.wasm. Name both, or use the bare gate.
+    # demo-big_demo.wasm. Name both, use --changed, or use the bare gate.
 fi
 
-# gate <tag> <command...> - run a harness unless --only/--changed excludes it.
-gate() {
-    _tag=$1; shift
-    if [ -n "$ONLY" ]; then
-        for _s in $ONLY; do
-            case "$_tag" in *"$_s"*) "$@"; return ;; esac
-        done
-        return 0
-    fi
-    "$@"
-}
+# The green stamp (tools/gate_stamp.sh): a FULL gate that starts AND ends on a
+# clean tree records that tree, and the pre-push hook will not gate it again.
+STAMPABLE=""
+if [ -z "$FAST$ONLY" ] && sh tools/gate_stamp.sh clean; then STAMPABLE=1; fi
+
+# gate / gate_timed / always / run_gates: the harness queue (parallel, bounded)
+. tools/gate_lib.sh
 
 zig build -Drelease=true -Dwasm
 
@@ -117,7 +109,7 @@ node apps/check_fits.mjs docs/demo-*.wasm docs/rom.wasm
 node apps/zero_segments.mjs docs/demo-*.wasm   # no zero-filled static of 64 KB+ in a data section (use zg.mem / hwRamAlloc)
 node apps/zero_segments.mjs --break            # ...and a synthetic cart with a 70 KB zero segment is caught
 node apps/ram_check.mjs
-node apps/rom_abi_check.mjs   # the ROM survives hostile arguments from any language
+early rom_abi node apps/rom_abi_check.mjs   # the ROM survives hostile arguments from any language (~40 s: started in the background, reported with the harnesses)
 node apps/blitter_check.mjs   # blitter sources: plane offsets, cart RAM (SRC_ABS), refusals
 node apps/beam_check.mjs      # BEAM (1.6.0): mid-line colour-0 cells across the whole line, persistence, no drops
 node apps/beam_check.mjs --break   # ...and writes 4 px apart (faster than a move.w) are caught and counted as drops
@@ -128,61 +120,70 @@ tools/pack_stats.sh
 # --- native tests ----------------------------------------------------------
 # Zig has no `test` step in build.zig, so name the files that hold tests. Add
 # yours here when you write them, or the gate will not run them.
-for t in \
-    libs/zig/disk.zig \
-    libs/zig/players/sndh.zig \
-    libs/zig/players/mfp_test.zig \
-    libs/zig/depackers/ice_test.zig \
-    libs/zig/depackers/zx0_test.zig \
-    libs/zig/depackers/depack_fx.zig \
-    libs/zig/depackers/tex_loader.zig \
-    libs/zig/depackers/tex_loader_test.zig \
-    libs/zig/effects/charpanel_test.zig \
-    libs/zig/effects/blit_test.zig \
-    libs/zig/effects/copper_test.zig \
-    libs/zig/effects/palette_test.zig \
-    libs/zig/effects/scrollring_test.zig \
-    libs/zig/effects/pathchain_test.zig \
-    libs/zig/effects/wave_test.zig \
-    libs/zig/effects/spans_test.zig \
-    libs/zig/effects/ballfield_test.zig \
-    libs/zig/effects/chrome_draw_test.zig \
-    libs/zig/effects/linepal_test.zig \
-    libs/zig/effects/spanfont_test.zig \
-    libs/zig/effects/tilegrid_test.zig \
-    libs/zig/effects/zig3d_test.zig \
-    libs/zig/effects/canvas_poly_test.zig \
-    libs/zig/effects/colour_bank_test.zig \
-    libs/zig/effects/beam_test.zig \
-    machine/beam_test.zig \
-    machine/arena_test.zig \
-    libs/zig/mem_test.zig \
-    libs/zig/sndh_call_test.zig \
-    libs/zig/shapes_test.zig \
-    libs/zig/wireframe_test.zig \
-    libs/zig/tvnoise/tvnoise.zig \
-    apps/zig/scene_tests.zig \
-    rom/gem/desktop/namefield.zig \
-    rom/gem/desktop/stamp.zig \
-    rom/gem/desktop/dirmodel_test.zig \
-    rom/gem/desktop/deskinf.zig \
-    rom/gem/gui/grid.zig \
-    apps/zig/scenes/stniccc/stream.zig \
-    apps/zig/scenes/stniccc/polyfill.zig \
+NATIVE_TESTS="
+    libs/zig/disk.zig
+    libs/zig/players/sndh.zig
+    libs/zig/players/mfp_test.zig
+    libs/zig/depackers/ice_test.zig
+    libs/zig/depackers/zx0_test.zig
+    libs/zig/depackers/depack_fx.zig
+    libs/zig/depackers/tex_loader.zig
+    libs/zig/depackers/tex_loader_test.zig
+    libs/zig/effects/charpanel_test.zig
+    libs/zig/effects/blit_test.zig
+    libs/zig/effects/copper_test.zig
+    libs/zig/effects/palette_test.zig
+    libs/zig/effects/scrollring_test.zig
+    libs/zig/effects/pathchain_test.zig
+    libs/zig/effects/wave_test.zig
+    libs/zig/effects/spans_test.zig
+    libs/zig/effects/ballfield_test.zig
+    libs/zig/effects/chrome_draw_test.zig
+    libs/zig/effects/linepal_test.zig
+    libs/zig/effects/spanfont_test.zig
+    libs/zig/effects/tilegrid_test.zig
+    libs/zig/effects/zig3d_test.zig
+    libs/zig/effects/canvas_poly_test.zig
+    libs/zig/effects/colour_bank_test.zig
+    libs/zig/effects/beam_test.zig
+    machine/beam_test.zig
+    machine/arena_test.zig
+    libs/zig/mem_test.zig
+    libs/zig/sndh_call_test.zig
+    libs/zig/shapes_test.zig
+    libs/zig/wireframe_test.zig
+    libs/zig/tvnoise/tvnoise.zig
+    apps/zig/scene_tests.zig
+    rom/gem/desktop/namefield.zig
+    rom/gem/desktop/stamp.zig
+    rom/gem/desktop/dirmodel_test.zig
+    rom/gem/desktop/deskinf.zig
+    rom/gem/gui/grid.zig
+    apps/zig/scenes/stniccc/stream.zig
+    apps/zig/scenes/stniccc/polyfill.zig
     apps/zig/scenes/stniccc/player.zig
-do
+"
+# Compiled and run GATE_TEST_JOBS (default 4) at a time -- the zig cache is
+# safe to share, and a zig test is CPU, not RAM, bound -- then
+# printed in list order. NOT `zig test | tail -1`: a pipeline's status is
+# tail's, so a failing test printed only its binary path and the gate went on
+# green (tnt3's zig3d and canvas_poly tests). Keep the output, test zig's own
+# status, fail at the end.
+TESTQ=$(mktemp -d)
+printf '%s\n' $NATIVE_TESTS | xargs -P "${GATE_TEST_JOBS:-4}" -I{} sh -c \
+    'o="$2/$(printf %s "$1" | tr / _)"; zig test "$1" > "$o.out" 2>&1; echo $? > "$o.rc"' _ {} "$TESTQ"
+for t in $NATIVE_TESTS; do
+    o="$TESTQ/$(printf %s "$t" | tr / _)"
     printf '%-42s ' "$t"
-    # NOT `zig test | tail -1`: a pipeline's status is tail's, so a failing test
-    # printed only its binary path and the gate went on green (tnt3's zig3d and
-    # canvas_poly tests). Keep the output, test zig's own status, fail at the end.
-    if out=$(zig test "$t" 2>&1); then
-        printf '%s\n' "$out" | tail -1
+    if [ "$(cat "$o.rc")" = 0 ]; then
+        tail -1 "$o.out"
     else
         echo "FAILED"
-        printf '%s\n' "$out" | tail -20
+        tail -20 "$o.out"
         tests_failed="$tests_failed $t"
     fi
 done
+[ -n "$tests_failed" ] || rm -rf "$TESTQ"
 if [ -n "$tests_failed" ]; then
     echo "native tests: FAILED ❌$tests_failed"
     exit 1
@@ -203,25 +204,45 @@ node apps/tutorial_steps_check.mjs   # docs/TUTORIAL.html's per-step carts have 
 # Shots go to a scratch dir so a build does not litter the repo. These cover
 # BOTH halves of the machine — GEM/ROM and the audio/SNDH side — because a host
 # or ABI change breaks whichever one you were not thinking about.
+#
+# Nothing runs on these lines: `gate` QUEUES a harness and run_gates, at the end,
+# runs the queue GATE_JOBS at a time (tools/gate_lib.sh). `gate_timed` marks a
+# harness that asserts wall-clock ms a frame: it runs ALONE after the pool.
+# `always` is queued whatever --only/--changed selected.
 SHOTS=$(mktemp -d)
-node apps/verify.mjs          # the C and Rust carts still talk to the ABI
-node apps/tunein_check.mjs    # C/Rust channels tune in through Zig's snow, byte for byte, then start as skipBoot
-node apps/tunein_check.mjs --fail-proof docs/demo-c.wasm docs/demo-rust.wasm   # ...and a cart without tuneIn fails it
+if [ -n "$CHANGED_BASE" ]; then
+    # After the build on purpose: docs/demo-*.wasm are now this tree's bytes, so
+    # every cart the change reached is in the diff (tools/gate_scope.py).
+    _scope=$( { git diff --name-status --no-renames "$CHANGED_BASE"
+                git ls-files -o --exclude-standard | sed 's/^/A\t/'; } \
+              | python3 tools/gate_scope.py . )
+    if [ "$_scope" = FULL ]; then
+        echo "--changed $CHANGED_BASE: FULL gate (the paths above are shared or unknown)"
+    else
+        SELECT_EXACT=$_scope
+        STAMPABLE=""
+        echo "SELECTIVE GATE (--changed $CHANGED_BASE) - harnesses: ${_scope:-none}"
+        echo "  (every cart and disk was rebuilt and every cross-cutting check runs)"
+    fi
+fi
+always verify node apps/verify.mjs          # the C and Rust carts still talk to the ABI
+always tunein node apps/tunein_check.mjs    # C/Rust channels tune in through Zig's snow, byte for byte, then start as skipBoot
+always tunein node apps/tunein_check.mjs --fail-proof docs/demo-c.wasm docs/demo-rust.wasm   # ...and a cart without tuneIn fails it
 gate gem node apps/gem_headless.mjs "$SHOTS"
 gate sndh node apps/sndh_headless.mjs
 gate sndh_relocate node apps/sndh_relocate_check.mjs   # a tune that installs its own MFP vectors (Alloy Run) plays: images load at $10002
 gate sndh_call node apps/sndh_call_check.mjs   # zg.sndhCall: INIT on the RUNNING tune leaves the untouched channel, Timer A's phase and the position exactly as an untouched run's
 gate sndh_call node apps/sndh_call_check.mjs --break   # ...and a reload in its place is caught
-gate c_music timeout 180 node apps/c_music_check.mjs   # a C cart's song request reaches the sealed YM (timeout: it once hung a gate)
+gate_timed c_music timeout 180 node apps/c_music_check.mjs   # a C cart's song request reaches the sealed YM (timeout: it once hung a gate)
 gate union_demo_music node apps/union_demo_music_check.mjs   # the Union Demo menu's and cracktro's SNDH tunes are requested by name and play
 gate union_demo_music node apps/union_demo_music_check.mjs --fail-proof   # ...and a wrong tune name fails that check
 gate union_intro_music node apps/union_intro_music_check.mjs   # the cracktro's music starts with the TRSI logo, and main doesn't restart it
 gate union_intro_music node apps/union_intro_music_check.mjs --fail-proof   # ...and a wrong tune name fails that check
 gate union_demo_doors node apps/union_demo_doors_check.mjs   # the hub's doors launch the Union screens by tag (they are hub-only)
-gate union_demo node apps/union_demo_headless.mjs "$SHOTS/union_demo"   # hub: street wraps, view eases, keys stop at 60/144 Hz and on key-up, door memory
-gate union_demo node apps/union_demo_headless.mjs --break return "$SHOTS/union_demo"   # ...and a lost ROM note fails the door-memory check
-gate union_demo node apps/union_demo_headless.mjs --break wrap "$SHOTS/union_demo"   # ...and a door entered before the seam fails the wrap check
-gate union_multifake node apps/union_multifake_headless.mjs "$SHOTS"   # TCB3: loader depack, then screen.js replayed pixel for pixel
+gate_timed union_demo node apps/union_demo_headless.mjs "$SHOTS/union_demo"   # hub: street wraps, view eases, keys stop at 60/144 Hz and on key-up, door memory
+gate_timed union_demo node apps/union_demo_headless.mjs --break return "$SHOTS/union_demo"   # ...and a lost ROM note fails the door-memory check
+gate_timed union_demo node apps/union_demo_headless.mjs --break wrap "$SHOTS/union_demo"   # ...and a door entered before the seam fails the wrap check
+gate_timed union_multifake node apps/union_multifake_headless.mjs "$SHOTS"   # TCB3: loader depack, then screen.js replayed pixel for pixel
 gate union_intro_wab node apps/union_intro_wab_check.mjs docs/demo-union_intro.wasm   # cracktro WAB logo: lands as exactly wab.raw; the original JS replayed (skipped without prototypes/)
 gate dbug node apps/dbug_headless.mjs "$SHOTS"
 gate vex node apps/vex_headless.mjs "$SHOTS/vex"   # VEX 2025: logo, panel + its 4-page cycle, cubes, both scrollers, the raster rows
@@ -232,10 +253,10 @@ gate replicants_emlyn node apps/replicants_emlyn_headless.mjs --break borders "$
 gate replicants_emlyn node apps/replicants_emlyn_headless.mjs --break spin "$SHOTS/replicants_emlyn"   # ...and bars that never tilt without Space is caught
 gate replicants_garfield node apps/replicants_garfield_headless.mjs "$SHOTS/replicants_garfield"   # GARFIELD: the four bouncing bars and the three red tubes are colour 0, real rasters edge to edge: every visible line's border follows colour 0 (a global HBL copies the copper's table into the machine background), the tubes are ST reds, top and bottom borders black
 gate replicants_garfield node apps/replicants_garfield_headless.mjs --break noclear "$SHOTS/replicants_garfield"   # ...and a border that is never painted per line is caught
-gate tsl_hybridglenz node apps/tsl_hybridglenz_headless.mjs "$SHOTS/tsl_hybridglenz"   # HYBRID GLENZ: the blitter's OR minterm really makes 1|2=3 in the panel, the two objects interlace onto odd/even plane rows and morph apart, the square flies in and dissolves into the framed panel, the three text overlays and the logo's white flash are palette fades, the bar and scroller run the full raster
-gate tsl_hybridglenz node apps/tsl_hybridglenz_headless.mjs --break spin "$SHOTS/tsl_hybridglenz"   # ...and objects that never turn is caught
+gate_timed tsl_hybridglenz node apps/tsl_hybridglenz_headless.mjs "$SHOTS/tsl_hybridglenz"   # HYBRID GLENZ: the blitter's OR minterm really makes 1|2=3 in the panel, the two objects interlace onto odd/even plane rows and morph apart, the square flies in and dissolves into the framed panel, the three text overlays and the logo's white flash are palette fades, the bar and scroller run the full raster
+gate_timed tsl_hybridglenz node apps/tsl_hybridglenz_headless.mjs --break spin "$SHOTS/tsl_hybridglenz"   # ...and objects that never turn is caught
 gate scrolllab node apps/scrolllab_headless.mjs "$SHOTS/scrolllab"   # SCROLLTEXT LAB: the ten distortions over one text (codef_fx siny/sinx/zoomy, a 2D path with a loop, screen 345's table) all render and all differ from FLAT, and Escape leaves
-gate polkadots node apps/polkadots_headless.mjs "$SHOTS/polkadots"   # POLKA DOTS: the flat-shaded torus reaches the dot grid (100-700 cells stamped, never the whole grid), the light still makes big dots as well as small ones, all FOUR render modes draw a different picture at the op count the cart itself reports, and every one of them holds 60 fps
+gate_timed polkadots node apps/polkadots_headless.mjs "$SHOTS/polkadots"   # POLKA DOTS: the flat-shaded torus reaches the dot grid (100-700 cells stamped, never the whole grid), the light still makes big dots as well as small ones, all FOUR render modes draw a different picture at the op count the cart itself reports, and every one of them holds 60 fps
 gate elite_cfsr node apps/elite_cfsr_headless.mjs "$SHOTS/elite_cfsr"   # ELITE CHALLENGE FOOT: both colour-0 bars are REAL rasters read off the LEFT BORDER (BEAM_RASTERS1/2 exact, and the closing one only exists because the bottom border is open), every one of the 156 band lines carries its own RASTERS group word, and all ten copies of the 16-row XOR-filled scroller pattern agree
 gate rno_sodium node apps/rno_sodium_headless.mjs "$SHOTS/rno_sodium"   # RNO SODIUM: at the eight counter values of the Hatari RAM snapshots (wobble trail, curtain, both text pages, prism and distorter back buffers) the frame on screen is the original's, pixel for pixel; the parts change on a 50 Hz counter even on a 60 Hz host; gritty.sndh restarts when the intro loops
 gate rno_natrium node apps/rno_natrium_headless.mjs "$SHOTS/rno_natrium"   # RNO NATRIUM: at six timeline counters the displayed frame is Hatari's RAM snapshot through the palette, byte for byte; part 1's two-tone dot tunnel and logo band; $1E00 starts the intro over identically
@@ -300,40 +321,46 @@ gate c_fujiboink node apps/c_fujiboink_headless.mjs --break rasters "$SHOTS/c_fu
 gate c_fujiboink node apps/c_fujiboink_headless.mjs --break thud "$SHOTS/c_fujiboink"   # ...and a lost thud request is caught
 gate fallen_angels node apps/fallen_angels_headless.mjs "$SHOTS"   # per-plane rasters on all 200 lines
 gate tex_loader_fx node apps/tex_loader_fx_headless.mjs "$SHOTS/tex_loader_fx"   # fx = tex_loader on a real asset, bytes checked
-gate tex node apps/tex_headless.mjs "$SHOTS"             # the eleven sprites on screen.js's chain
+gate_timed tex node apps/tex_headless.mjs "$SHOTS"             # the eleven sprites on screen.js's chain
 gate equinox node apps/equinox_headless.mjs "$SHOTS"   # the dragons morph egg -> dragon -> egg
 gate tex_neoshow node apps/tex_neoshow_headless.mjs "$SHOTS/tex_neoshow"   # TEX NEO SHOW: the scroller band is a REAL per-line raster (copper), full plane width
 gate mpp_truecolor node apps/mpp_truecolor_headless.mjs "$SHOTS"   # per-line palettes: colours on screen = captions
-gate union_textracker node apps/union_textracker_headless.mjs "$SHOTS"   # TEX loader depack, then screen.js replayed pixel for pixel
-gate union_demo_intro node apps/union_demo_intro_headless.mjs "$SHOTS"   # TEX loader depack, then every pixel on the screen.js replay
-gate stream_pacing node apps/stream_pacing_check.mjs   # streamed audio tracks wall time at 18 fps, 144 Hz and across a 3 s stall
-gate union_deltaforce node apps/union_deltaforce_headless.mjs "$SHOTS"   # DELTA FORCE: TEX loader depack, screen.js replayed pixel for pixel, the SNDH plays
-gate union_texcopier node apps/union_texcopier_headless.mjs "$SHOTS"   # COPIER TEX: loader depack, screen.js replay incl. Chrome's blends, Scoop plays
-gate union_tnt3 node apps/union_tnt3_headless.mjs "$SHOTS"   # TNT3: loader depack, then screen.js + three.js r49 replayed pixel for pixel
-gate union_l16 node apps/union_l16_headless.mjs "$SHOTS"   # L16: loader depack, both overscan planes = screen.js replay, SNDH plays, Esc
-gate union_tnt1 node apps/union_tnt1_headless.mjs "$SHOTS"   # TNT1 Starballs: TEX loader depack, screen.js replay (keys 5, 0), Pandora plays
-gate union_reps node apps/union_reps_headless.mjs "$SHOTS"   # REPS: loader depack, screen.js replayed with the joystick, the SNDH plays
-gate union_tnt2 node apps/union_tnt2_headless.mjs "$SHOTS"   # TNT2: TEX loader depack, screen.js + its keys replayed pixel for pixel, Cybernoid plays
-gate union_beatdis node apps/union_beatdis_headless.mjs "$SHOTS"   # TCB1: loader depack + question, both versions replayed pixel for pixel, both SNDHs play
-gate union_beatdis node apps/union_beatdis_headless.mjs --break keylock "$SHOTS"   # ...and a key lock that releases between repeats fails the hold check
-gate union_superscroller node apps/union_superscroller_headless.mjs "$SHOTS"   # TCB2: TEX loader depack, screen.js with Chrome's filtering replayed pixel for pixel, the SNDH plays
+gate_timed union_textracker node apps/union_textracker_headless.mjs "$SHOTS"   # TEX loader depack, then screen.js replayed pixel for pixel
+gate_timed union_demo_intro node apps/union_demo_intro_headless.mjs "$SHOTS"   # TEX loader depack, then every pixel on the screen.js replay
+gate_timed stream_pacing node apps/stream_pacing_check.mjs   # streamed audio tracks wall time at 18 fps, 144 Hz and across a 3 s stall
+gate_timed union_deltaforce node apps/union_deltaforce_headless.mjs "$SHOTS"   # DELTA FORCE: TEX loader depack, screen.js replayed pixel for pixel, the SNDH plays
+gate_timed union_texcopier node apps/union_texcopier_headless.mjs "$SHOTS"   # COPIER TEX: loader depack, screen.js replay incl. Chrome's blends, Scoop plays
+gate_timed union_tnt3 node apps/union_tnt3_headless.mjs "$SHOTS"   # TNT3: loader depack, then screen.js + three.js r49 replayed pixel for pixel
+gate_timed union_l16 node apps/union_l16_headless.mjs "$SHOTS"   # L16: loader depack, both overscan planes = screen.js replay, SNDH plays, Esc
+gate_timed union_tnt1 node apps/union_tnt1_headless.mjs "$SHOTS"   # TNT1 Starballs: TEX loader depack, screen.js replay (keys 5, 0), Pandora plays
+gate_timed union_reps node apps/union_reps_headless.mjs "$SHOTS"   # REPS: loader depack, screen.js replayed with the joystick, the SNDH plays
+gate_timed union_tnt2 node apps/union_tnt2_headless.mjs "$SHOTS"   # TNT2: TEX loader depack, screen.js + its keys replayed pixel for pixel, Cybernoid plays
+gate_timed union_beatdis node apps/union_beatdis_headless.mjs "$SHOTS"   # TCB1: loader depack + question, both versions replayed pixel for pixel, both SNDHs play
+gate_timed union_beatdis node apps/union_beatdis_headless.mjs --break keylock "$SHOTS"   # ...and a key lock that releases between repeats fails the hold check
+gate_timed union_superscroller node apps/union_superscroller_headless.mjs "$SHOTS"   # TCB2: TEX loader depack, screen.js with Chrome's filtering replayed pixel for pixel, the SNDH plays
 gate automation442 node apps/automation442_headless.mjs "$SHOTS/automation442"   # AUTOMATION 442: the panned overscan scroll plane through one bgcount cycle
-gate big_demo node apps/big_demo_headless.mjs   # TEX B.I.G. DEMO: wait screen hands over at frame 201, TEX's own 118 rows ripped from RAM, cursor clamps [2,115], all 45 named SNDH present, bands cycle
-gate big_demo node apps/big_demo_headless.mjs --break nav   # ...and a list that never moves fails the clamp checks
-gate big_demo node apps/big_demo_headless.mjs --break music   # ...and the wrong subtune fails the song check
-gate big_demo node apps/big_demo_headless.mjs --break noop   # ...and an entry with no SNDH that asks for one fails (no silent substitution)
-gate big_demo node apps/big_demo_headless.mjs --break songs   # ...and a named SNDH missing from docs/music/big/ fails (it would play silence)
-gate digital_solution node apps/digital_solution_headless.mjs   # THE DIGITAL SOLUTION (a screen OF big_demo): list row 115 opens it, every px outside the scroller band = screen.raw, the band is the SHARED scrolltext in lockstep, the text cycles on texbg, opening it plays the DIGI Ace 2, keys 1-6 -> 6 subtunes
-gate digital_solution node apps/digital_solution_headless.mjs --break pixels   # ...and one changed pixel of the reference fails the picture check
-gate digital_solution node apps/digital_solution_headless.mjs --break tune   # ...and PHANTOMS 2 on the wrong subtune fails the key mapping
-gate digital_solution node apps/digital_solution_headless.mjs --break songs   # ...and a named SNDH missing from docs/music/digital/ fails (it would play silence)
-gate digital_solution node apps/digital_solution_headless.mjs --break exit   # ...and a key that is not Space failing to leave is caught
-gate digital_solution node apps/digital_solution_headless.mjs --break route   # ...and Return one row short of the Digital Department not opening it is caught
-gate digital_solution node apps/digital_solution_headless.mjs --break drift   # ...and one frame of scrolltext drift is caught (so a restart would be too)
-gate digital_solution node apps/digital_solution_headless.mjs --break cycle   # ...and the text one cycle step out of phase is caught
-node apps/tlb_spoon_headless.mjs "$SHOTS/tlb_spoon"   # TLB TWIDDLE: the sine intro, then starballs + logo + the rotating-letter scroller
+gate_timed big_demo node apps/big_demo_headless.mjs   # TEX B.I.G. DEMO: wait screen hands over at frame 201, TEX's own 118 rows ripped from RAM, cursor clamps [2,115], all 45 named SNDH present, bands cycle
+gate_timed big_demo node apps/big_demo_headless.mjs --break nav   # ...and a list that never moves fails the clamp checks
+gate_timed big_demo node apps/big_demo_headless.mjs --break music   # ...and the wrong subtune fails the song check
+gate_timed big_demo node apps/big_demo_headless.mjs --break noop   # ...and an entry with no SNDH that asks for one fails (no silent substitution)
+gate_timed big_demo node apps/big_demo_headless.mjs --break songs   # ...and a named SNDH missing from docs/music/big/ fails (it would play silence)
+gate_timed digital_solution node apps/digital_solution_headless.mjs   # THE DIGITAL SOLUTION (a screen OF big_demo): list row 115 opens it, every px outside the scroller band = screen.raw, the band is the SHARED scrolltext in lockstep, the text cycles on texbg, opening it plays the DIGI Ace 2, keys 1-6 -> 6 subtunes
+gate_timed digital_solution node apps/digital_solution_headless.mjs --break pixels   # ...and one changed pixel of the reference fails the picture check
+gate_timed digital_solution node apps/digital_solution_headless.mjs --break tune   # ...and PHANTOMS 2 on the wrong subtune fails the key mapping
+gate_timed digital_solution node apps/digital_solution_headless.mjs --break songs   # ...and a named SNDH missing from docs/music/digital/ fails (it would play silence)
+gate_timed digital_solution node apps/digital_solution_headless.mjs --break exit   # ...and a key that is not Space failing to leave is caught
+gate_timed digital_solution node apps/digital_solution_headless.mjs --break route   # ...and Return one row short of the Digital Department not opening it is caught
+gate_timed digital_solution node apps/digital_solution_headless.mjs --break drift   # ...and one frame of scrolltext drift is caught (so a restart would be too)
+gate_timed digital_solution node apps/digital_solution_headless.mjs --break cycle   # ...and the text one cycle step out of phase is caught
 gate stniccc node apps/stniccc_headless.mjs "$SHOTS/stniccc"   # STNICCC 2000 (Oxygene): the frame-replay flight, small -> rewind -> fullscreen
 gate cuddly_starwars node apps/cuddly_starwars_headless.mjs "$SHOTS/cuddly_starwars"   # CUDDLY STAR WARS: the harness existed but no gate ran it; fails on a refused zg.mem allocation
 gate ulm_spoon_distorter node apps/ulm_spoon_distorter_headless.mjs "$SHOTS/ulm_spoon_distorter"   # ULM SPOON DISTORTER: the harness existed but no gate ran it; fails on a refused zg.mem allocation
 gate tlb_spoon node apps/tlb_spoon_headless.mjs "$SHOTS/tlb_spoon"   # TLB TWIDDLE: the sine intro, then starballs + logo + the rotating-letter scroller
+run_gates
 echo "shots in $SHOTS"
+
+# Green stamp: only a FULL gate, only if the tree was clean at the start and is
+# still clean now (a rebuilt docs/ file that differs from HEAD makes it dirty).
+if [ -n "$STAMPABLE" ]; then
+    sh tools/gate_stamp.sh write || echo "gate green, but the tree is dirty now: NOT stamped"
+fi

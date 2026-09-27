@@ -1,32 +1,90 @@
 #!/bin/sh
-# Pre-push: nothing reaches GitHub (and so GitHub Pages) unless the full gate
-# passes AND docs/ matches the source being pushed. ./build.sh runs the native
-# tests and every headless harness on top of the rebuild. Skip once with
-# `git push --no-verify`.
+# Pre-push: nothing reaches GitHub (and so GitHub Pages) unless the tree being
+# pushed passed the gate AND docs/ matches the source being pushed. Skip once
+# with `git push --no-verify`. Run it under the gate lock (one gate at a time on
+# this box): flock prototypes/_gate_logs/build.lock git push ...
+#
+# Three paths, cheapest first (docs/BUILDING.md has the reasoning and timings):
+#
+# 1. GREEN STAMP. If the pushed commit's TREE passed the full gate before, in
+#    this clone, with the same zig/node (tools/gate_stamp.sh), nothing runs.
+#    This is not a bypass: the stamp is keyed by the tree hash, which is the
+#    hash of exactly the bytes being pushed, and it is only written by a FULL
+#    ./build.sh that started and ended on a clean tree. Gating identical bytes
+#    twice can only repeat the answer (or flip a flaky wall-clock check).
+# 2. SELECTIVE. The diff from what the remote already has to what we push is
+#    classified by tools/gate_scope.py (via build.sh --changed <base>). If every
+#    change is confined to screens, only those screens' harnesses run -- but the
+#    build, every disk, the native tests and every cross-cutting check still
+#    run in full. It trusts the base: what the remote has passed this hook when
+#    it was pushed.
+# 3. FULL. Anything shared (libs/, rom/, machine/, build.zig, build.sh, docs/*.js,
+#    tools/, a new cart's registration), an unknown base, or untracked files in
+#    the checkout: the full ./build.sh, which stamps the tree if it passes.
 cd "$(git rev-parse --show-toplevel)" || exit 1
+[ -d "$HOME/.local/zig/0.16.0" ] && PATH="$HOME/.local/zig/0.16.0:$PATH" && export PATH
+ZERO=0000000000000000000000000000000000000000
+remote=${1:-origin}
+log="$(git rev-parse --path-format=absolute --git-dir)/zm-pre-push.log"
 
 head=$(git rev-parse HEAD)
+base="" full="" pushing=""
 while read -r local_ref local_sha remote_ref remote_sha; do
-    [ "$local_sha" = "0000000000000000000000000000000000000000" ] && continue # a delete
+    [ "$local_sha" = "$ZERO" ] && continue # a delete
+    pushing=1
     if [ "$local_sha" != "$head" ]; then
         echo "pre-push: pushing $local_ref ($local_sha), but HEAD is $head."
         echo "Check out what you push so the gate tests it, or use --no-verify."
         exit 1
     fi
+    if [ "$remote_sha" = "$ZERO" ]; then
+        # a new branch: diff from where it left the remote's main
+        remote_sha=$(git merge-base "$local_sha" "refs/remotes/$remote/main" 2>/dev/null) || remote_sha=""
+    fi
+    if [ -z "$remote_sha" ] || ! git cat-file -e "$remote_sha^{commit}" 2>/dev/null; then
+        full="the remote's side of $remote_ref is unknown here"
+    elif [ -n "$base" ] && [ "$base" != "$remote_sha" ]; then
+        full="several refs with different bases"
+    fi
+    base=$remote_sha
 done
+[ -n "$pushing" ] || exit 0
 
 if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
     echo "pre-push: the working tree has uncommitted changes; the gate would not test what you push."
     exit 1
 fi
 
-echo "pre-push: running the full gate (./build.sh)"
-[ -d "$HOME/.local/zig/0.16.0" ] && PATH="$HOME/.local/zig/0.16.0:$PATH" && export PATH
-sh build.sh > /tmp/zm-pre-push.log 2>&1 || {
-    tail -40 /tmp/zm-pre-push.log
-    echo "pre-push: ./build.sh FAILED (full log: /tmp/zm-pre-push.log)"
+tree=$(git rev-parse "HEAD^{tree}")
+if [ ! -f tools/gate_stamp.sh ] || [ ! -f tools/gate_scope.py ]; then
+    # core.hooksPath points every worktree at ONE copy of this hook, so it can
+    # meet a checkout older than itself: that tree gets the old full gate.
+    full="this checkout predates the stamp and the selective gate"
+elif sh tools/gate_stamp.sh clean; then
+    if sh tools/gate_stamp.sh check "$tree"; then
+        echo "pre-push: gate already green for this tree ($tree): not gating the same bytes twice ✅"
+        exit 0
+    fi
+else
+    # An untracked file the build reads would be gated but not pushed: no stamp
+    # can vouch for it, and nothing narrower than the full gate is honest.
+    full="untracked files under the build's inputs (git status)"
+fi
+
+if [ -n "$full" ]; then
+    echo "pre-push: running the FULL gate ($full)"
+    set -- build.sh
+else
+    echo "pre-push: running the gate on what changed since $(git rev-parse --short "$base") (build.sh --changed)"
+    set -- build.sh --changed "$base"
+fi
+start=$(date +%s)
+sh "$@" > "$log" 2>&1 || {
+    tail -60 "$log"
+    echo "pre-push: ./$* FAILED (full log: $log)"
     exit 1
 }
+grep -E '^(SELECTIVE GATE|--changed|gate: |  shared or unknown: )' "$log" | sed 's/^/    /'
 
 stale=$(git status --porcelain -- docs)
 if [ -n "$stale" ]; then
@@ -35,4 +93,4 @@ if [ -n "$stale" ]; then
     echo "Commit them first, or GitHub Pages would deploy stale screens."
     exit 1
 fi
-echo "pre-push: gate green, docs/ up to date ✅"
+echo "pre-push: gate green in $(( $(date +%s) - start ))s, docs/ up to date ✅"
