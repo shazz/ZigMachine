@@ -161,6 +161,15 @@ requests, the paired shot and dynamite's double play among them).
   audibly (Sharpness Buzztone), others play silence.
 - **Digidrum SNDHs** that start their drums through XBIOS `Xbtimer` are
   supported; a drum can begin late in the tune (Monty: 38.4 s).
+- **The MFP's interrupt controller is emulated** (`libs/zig/players/mfp.zig`).
+  A timer calls its handler only while its IERA/IERB bit is set and its
+  IMRA/IMRB bit is unmasked, as on the chip. Each tune starts with the MFP as
+  TOS 1.04 leaves it: Timer C enabled, Timers A, B and D off. So an INIT enables
+  its own timers, as it must on an ST (`Xbtimer` does it for you). Clearing a
+  bit stops the handler but not the timer. That is how STOS's Maestro stops a
+  digi, and how SID-voice tunes (Elite, Crystallized) silence a voice for a
+  frame. The in-service registers are not modelled: a handler always runs to
+  its `rte` before the next interrupt.
 
 ## Proving a tune plays (headless)
 

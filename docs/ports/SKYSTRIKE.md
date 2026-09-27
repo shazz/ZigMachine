@@ -220,4 +220,6 @@ by `apps/skystrike_headless.mjs`.
 - **The digi that would not stop.** Maestro stops a sample by clearing Timer A's IERA/IMRA bits. The sealed
   SNDH player's MFP ignores those bits and runs a timer on its control register alone, so SAMSTOP, and the
   end of a one-shot sample, left the digi running. The harness's sound check found this. `sound.s` now
-  also writes TACR = 0, which makes no audible difference on an ST.
+  also writes TACR = 0, which makes no audible difference on an ST. The player's MFP has since been fixed
+  to honour IER/IMR (`libs/zig/players/mfp.zig`, decisions.md 2026-09-27): SAMSTOP now stops the digi
+  without the TACR write. The write is kept anyway.

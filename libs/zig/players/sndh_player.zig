@@ -28,15 +28,18 @@
 //                      header carries FLAG `a` plays its digidrums through it,
 //                      and without it those writes went nowhere and the tune
 //                      played as a thin YM-only arrangement.
-//   everything else    reads 0, ignores writes. Timers and the MFP are NOT
-//                      emulated: `play` is called by us, at the rate the SNDH
-//                      header asks for, which is what those timers exist to do.
+//   $FFFA00..$FFFA3F   the MFP 68901 (mfp.zig): its timers and the interrupt
+//                      controller in front of them. The timer that drives
+//                      `play` is NOT run from it: we call `play` ourselves, at
+//                      the rate the SNDH header asks for.
+//   everything else    reads 0, ignores writes.
 // --------------------------------------------------------------------------
 const std = @import("std");
 const audio = @import("audio_hw");
 const depackers = @import("depackers");
 const sndh = @import("sndh.zig");
 const dma = @import("ste_dma.zig");
+const mfp_chip = @import("mfp.zig");
 
 // --- Musashi ---------------------------------------------------------------
 const CPU_TYPE_68000: c_uint = 1; // M68K_CPU_TYPE_68000
@@ -219,27 +222,14 @@ export fn zmSndhInstructionHook(pc: c_uint) void {
 // kHz, whose handler feeds the volume registers to play digidrums. Without it
 // that voice never moves and the drums are simply absent.
 //
-// So the MFP's timer registers are shadowed here and any timer OTHER than the
-// one driving `play` gets its handler called at the rate it asks for.
+// So the MFP is emulated here (mfp.zig): any timer OTHER than the one driving
+// `play` counts at the rate it asks for, and each time it runs out its handler
+// is called -- IF the interrupt controller lets it through. A disabled channel
+// (IERA/IERB) never goes pending; a masked one (IMRA/IMRB) goes pending and
+// waits to be unmasked. That is how a replay routine stops a digi without
+// stopping its timer (STOS's Maestro, Skystrike's SAMSTOP).
 const MFP_BASE: u32 = 0xFFFA00;
-const MFP_SIZE: u32 = 0x40;
-const MFP_CLOCK: f32 = 2457600.0;
-/// Timer control prescalers, indexed by the low 3 bits of the control register.
-const PRESCALE = [8]u16{ 0, 4, 10, 16, 50, 64, 100, 200 };
-/// Registers, as offsets from $FFFA00 (the MFP lives on odd addresses).
-const VR = 0x17; // vector register: its top nibble is the vector base
-const TACR = 0x19;
-const TBCR = 0x1B;
-const TCDCR = 0x1D; // timer C in bits 4-6, timer D in bits 0-2
-const TADR = 0x1F;
-const TBDR = 0x21;
-const TCDR = 0x23;
-const TDDR = 0x25;
-/// A timer's interrupt channel number, which picks its vector.
-const CHANNEL = [4]u8{ 13, 8, 5, 4 }; // A, B, C, D
-/// Refuse to emulate a timer faster than this: a tune that programs a silly
-/// rate must not be able to hang the audio thread.
-const MAX_TIMER_HZ: f32 = 40000.0;
+const MFP_SIZE: u32 = mfp_chip.SIZE;
 /// A timer_acc that will never come due.
 const NEVER: u32 = 0xFFFFFFFF;
 /// Timer accumulators are 16.16 fixed point IN SAMPLES. They have to be: a
@@ -248,54 +238,23 @@ const NEVER: u32 = 0xFFFFFFFF;
 /// a fast drum, it sounds like noise.
 const ONE: u32 = 1 << 16;
 
-/// TOS leaves the vector register at $40, and tunes count on it: they install
-/// their handlers at the standard addresses ($120 for Timer B, $134 for Timer A)
-/// without ever writing VR themselves. Start the MFP the way a booted ST hands
-/// it over, or the vectors are computed from a base of 0 and point into the
-/// tune's own header.
-const VR_TOS_DEFAULT: u8 = 0x40;
-
-var mfp: [MFP_SIZE]u8 = [_]u8{0} ** MFP_SIZE;
-
-fn mfpReset() void {
-    mfp = [_]u8{0} ** MFP_SIZE;
-    mfp[VR] = VR_TOS_DEFAULT;
-}
+var mfp: mfp_chip.Mfp = .{ .regs = [_]u8{0} ** MFP_SIZE };
 
 fn mfpWrite(addr: u32, value: u8) void {
-    mfp[addr - MFP_BASE] = value;
+    mfp.write(addr - MFP_BASE, value);
 }
 
 fn mfpRead(addr: u32) u8 {
-    return mfp[addr - MFP_BASE];
+    return mfp.read(addr - MFP_BASE);
 }
 
-/// How often timer `t` (0=A..3=D) wants its interrupt, or 0 when it is stopped.
 fn timerHz(t: usize) f32 {
-    const ctrl: u8 = switch (t) {
-        0 => mfp[TACR] & 0x0F,
-        1 => mfp[TBCR] & 0x0F,
-        2 => (mfp[TCDCR] >> 4) & 0x07,
-        else => mfp[TCDCR] & 0x07,
-    };
-    // Bit 3 is event-count mode, which counts an external signal, not the clock.
-    if (ctrl == 0 or ctrl > 7) return 0;
-    const data: u16 = switch (t) {
-        0 => mfp[TADR],
-        1 => mfp[TBDR],
-        2 => mfp[TCDR],
-        else => mfp[TDDR],
-    };
-    const count: f32 = if (data == 0) 256 else @floatFromInt(data);
-    const hz = MFP_CLOCK / (@as(f32, @floatFromInt(PRESCALE[ctrl])) * count);
-    return if (hz > MAX_TIMER_HZ) 0 else hz;
+    return mfp.timerHz(t);
 }
 
 /// Where timer `t`'s handler lives, or 0 if the tune installed none.
 fn timerVector(t: usize) u32 {
-    const base: u32 = mfp[VR] & 0xF0;
-    const addr = (base | CHANNEL[t]) * 4;
-    const handler = readLong(addr);
+    const handler = readLong(mfp.vectorSlot(t));
     return if (handler == 0 or handler >= RAM_SIZE) 0 else handler;
 }
 
@@ -328,26 +287,9 @@ fn xbtimer(sp: u32) void {
     const ctrl: u8 = @truncate(readWord(sp + 4));
     const data: u8 = @truncate(readWord(sp + 6));
     const vector = readLong(sp + 8);
-    switch (t) {
-        0 => {
-            mfp[TACR] = ctrl & 0x0F;
-            mfp[TADR] = data;
-        },
-        1 => {
-            mfp[TBCR] = ctrl & 0x0F;
-            mfp[TBDR] = data;
-        },
-        2 => {
-            mfp[TCDCR] = (mfp[TCDCR] & 0x0F) | ((ctrl & 0x07) << 4);
-            mfp[TCDR] = data;
-        },
-        else => {
-            mfp[TCDCR] = (mfp[TCDCR] & 0xF0) | (ctrl & 0x07);
-            mfp[TDDR] = data;
-        },
-    }
-    const slot = ((@as(u32, mfp[VR]) & 0xF0) | CHANNEL[t]) * 4;
-    if (vector != 0 and vector < RAM_SIZE) writeLong(slot, vector);
+    const install = vector != 0 and vector < RAM_SIZE;
+    mfp.xbtimer(t, ctrl, data, install);
+    if (install) writeLong(mfp.vectorSlot(t), vector);
 }
 
 var heap_next: u32 = 0;
@@ -421,6 +363,17 @@ fn callInterrupt(handler: u32) bool {
     return runUntilReturn();
 }
 
+/// Take every interrupt the MFP has pending and unmasked, highest priority
+/// first. A channel with no handler installed is dropped. False if a handler
+/// ran away.
+fn deliverPending() bool {
+    while (mfp.nextInterrupt()) |t| {
+        const handler = timerVector(t);
+        if (handler != 0 and !callInterrupt(handler)) return false;
+    }
+    return true;
+}
+
 fn runUntilReturn() bool {
     returned = false;
     var spent: u32 = 0;
@@ -490,7 +443,7 @@ pub const SndhPlayer = struct {
 
     fn begin(self: *SndhPlayer, d0: u32) void {
         silence();
-        mfpReset(); // a fresh MFP, as TOS would hand it over
+        mfp.reset(); // a fresh MFP, as TOS would hand it over
         self.active = self.call(sndh.INIT, d0);
         self.frame_acc = 0;
         self.frames_played = 0;
@@ -564,12 +517,16 @@ pub const SndhPlayer = struct {
             self.frame_acc = self.samples_per_frame;
             self.rearm(); // init/play may only now have programmed the timers
         }
+        // PLAY (or INIT, or a handler) may have unmasked a request that was
+        // waiting: the 68000 takes it the moment it can.
+        if (!deliverPending()) return self.derail();
         for (&self.timer_acc, 0..) |*acc, t| {
             if (acc.* == NEVER or self.timer_period[t] == 0) continue;
-            const handler = timerVector(t);
-            // A timer can be due more than once inside a single sample.
+            // A timer can be due more than once inside a single sample. It
+            // counts whatever IER/IMR say; they only decide what interrupts.
             while (acc.* < ONE) {
-                if (handler != 0 and !callInterrupt(handler)) return self.derail();
+                mfp.timeout(t);
+                if (!deliverPending()) return self.derail();
                 acc.* += self.timer_period[t];
             }
         }

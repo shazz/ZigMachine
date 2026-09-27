@@ -5,7 +5,7 @@
 // The tune is hand-assembled so every register it drives is known:
 //   INIT d0 >= 0       tones A + B on, A at volume 15, B silent, the play
 //                      counter ($800) cleared, Timer A at 6400 Hz counting its
-//                      interrupts at $801 (vector $134)
+//                      interrupts at $801 (vector $134, IERA/IMRA bit 5 set)
 //   INIT d0 bit 15 set "resident": channel B only (period $40, volume 12)
 //   PLAY (50 Hz)       $800 += 1, and channel A's period low byte = $800
 // A control run plays it untouched. The call run sndhCalls $8001 at block 10:
@@ -38,6 +38,10 @@ function tune() {
     w(0x11fc); w(0x60); w(0xfa1f); // move.b #$60,$fffa1f.w   TADR
     const vec = b.length; w(0x21fc); w(0); w(0); w(0x0134); // move.l #handler,$134.w (patched)
     w(0x11fc); w(0x01); w(0xfa19); // move.b #1,$fffa19.w     TACR: /4 -> 6400 Hz
+    // TOS leaves Timer A's interrupt off, and the player's MFP honours that
+    // (libs/zig/players/mfp.zig): enable and unmask it, as a real tune must.
+    w(0x0038); w(0x20); w(0xfa07); // ori.b #$20,$fffa07.w    IERA
+    w(0x0038); w(0x20); w(0xfa13); // ori.b #$20,$fffa13.w    IMRA
     w(0x4e75);
     const resident = b.length;
     psg(2, 0x40); psg(3, 0); psg(9, 12);

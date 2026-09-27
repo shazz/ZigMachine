@@ -250,8 +250,10 @@ samplay:
 
 ; $988: SAMSTOP. Maestro only disables and masks Timer A (IERA / IMRA);
 ; the timer is also STOPPED here (TACR = 0), which on an ST changes nothing
-; heard, because the sealed player's MFP runs a timer on its control register
-; alone: without it the digi would never stop.
+; heard. It was added because the sealed player's MFP once ran a timer on its
+; control register alone and the digi never stopped; the player now honours
+; IERA/IMRA as the chip does (libs/zig/players/mfp.zig), so the IERA/IMRA
+; clears alone would do. The TACR write is kept: harmless, and belt and braces.
 samstop:
 	move.w	sr,d7
 	move.w	#$2700,sr
