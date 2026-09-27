@@ -1,9 +1,10 @@
 // --------------------------------------------------------------------------
 // Lines 150-165: the keyboard (and F-key scancodes): 0-9 throttle, P pause
 // (151, a flow of its own), U / F10 wheels, Esc bail out, Enter ripcord,
-// Space land the parachute, F / F8 refuel stop, A autoland, M / F2 move the
-// main base, E / F4 extinguisher, S steam catapult, T / F3 turn round; 165
-// flak now and then where there is flak.
+// Space land the parachute, F / F8 a new plane for a landed one (cl, which
+// line 68 charges a plane), A autoland, M / F2 move the main base, E / F4
+// extinguisher, S steam catapult, T / F3 turn round; 165 flak now and then
+// where there is flak.
 // --------------------------------------------------------------------------
 const S = @import("stos.zig");
 const scr = @import("scr.zig");

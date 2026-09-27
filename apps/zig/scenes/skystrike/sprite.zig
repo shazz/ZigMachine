@@ -15,10 +15,13 @@ const std = @import("std");
 const zg = @import("zigos");
 const assets = @import("assets.zig");
 const scr = @import("scr.zig");
+const hooks = @import("zig_hooks.zig");
 
 pub const Img = struct { w: i32 = 0, h: i32 = 0, hx: i32 = 0, hy: i32 = 0, off: usize = 0 };
-pub const Spr = struct { on: bool = false, x: i32 = 0, y: i32 = 0, img: i32 = 0 };
-const Rect = struct { x0: i32 = 0, y0: i32 = 0, x1: i32 = -1, y1: i32 = -1 };
+/// fx, fy: the sector and layer whose screen x, y are on (ZIG mode's
+/// scrolled world draws each sprite there, zig_hooks.frame()).
+pub const Spr = struct { on: bool = false, x: i32 = 0, y: i32 = 0, img: i32 = 0, fx: i32 = 0, fy: i32 = 0 };
+pub const Rect = struct { x0: i32 = 0, y0: i32 = 0, x1: i32 = -1, y1: i32 = -1 };
 
 pub const NIMG: usize = 124;
 pub var imgs: [NIMG]Img = [_]Img{.{}} ** NIMG;
@@ -31,8 +34,11 @@ pub const CLEAR: u8 = 0xFF;
 
 /// 0 is the mouse pointer, 1..15 the sprites.
 pub var spr: [16]Spr = [_]Spr{.{}} ** 16;
-var drawn: [16]Rect = [_]Rect{.{}} ** 16;
+pub var drawn: [16]Rect = [_]Rect{.{}} ** 16;
 pub var dirty: bool = false;
+/// The table as the last UPDATE drew it: what the physical screen shows
+/// (ZIG mode draws the sprites from this, zig_overlay.zig).
+pub var shown: [16]Spr = [_]Spr{.{}} ** 16;
 
 fn be(o: usize, comptime T: type) T {
     return std.mem.readInt(T, assets.SPRITES[o..][0..@sizeOf(T)], .big);
@@ -75,12 +81,14 @@ pub fn reset() void {
     spr = [_]Spr{.{}} ** 16;
     drawn = [_]Rect{.{}} ** 16;
     dirty = false;
+    shown = spr;
 }
 
 /// SPRITE n,x,y,i.
 pub fn set(n: i32, x: i32, y: i32, img: i32) void {
     const s = &spr[@intCast(n & 15)];
-    s.* = .{ .on = true, .x = x, .y = y, .img = img };
+    const f = hooks.frame();
+    s.* = .{ .on = true, .x = x, .y = y, .img = img, .fx = f[0], .fy = f[1] };
     dirty = true;
 }
 
@@ -112,20 +120,26 @@ fn restore(r: Rect) void {
     }
 }
 
-/// Draw image `img` with its hot spot at (x, y) into `dst`.
+/// Draw image `img` with its hot spot at (x, y) into the 320x200 `dst`.
 pub fn blit(dst: []u8, img: i32, x: i32, y: i32) void {
+    blitClip(dst, 320, 200, img, x, y);
+}
+
+/// Draw image `img` with its hot spot at (x, y) into `dst`, `w` pixels a
+/// row (the stride) and `h` rows, clipped to them.
+pub fn blitClip(dst: []u8, w: i32, h: i32, img: i32, x: i32, y: i32) void {
     if (img <= 0 or img >= NIMG) return;
     const im = imgs[@intCast(img)];
     const src = pool[im.off..][0..@intCast(im.w * im.h)];
     var j: i32 = 0;
     while (j < im.h) : (j += 1) {
         const ty = y - im.hy + j;
-        if (ty < 0 or ty > 199) continue;
+        if (ty < 0 or ty >= h) continue;
         var i: i32 = 0;
         while (i < im.w) : (i += 1) {
             const tx = x - im.hx + i;
             const v = src[@intCast(j * im.w + i)];
-            if (tx >= 0 and tx <= 319 and v != CLEAR) dst[@intCast(ty * 320 + tx)] = v;
+            if (tx >= 0 and tx < w and v != CLEAR) dst[@intCast(ty * w + tx)] = v;
         }
     }
 }
@@ -136,6 +150,7 @@ pub fn update() void {
     dirty = false;
     for (drawn) |r| if (r.x1 >= r.x0) restore(r);
     const p = scr.get(.physic);
+    shown = spr;
     var n: usize = 15;
     while (true) : (n -= 1) {
         const s = spr[n];
@@ -153,6 +168,7 @@ pub fn put(n: i32) void {
 
 /// The mouse pointer is sprite 0: SHOW ON / HIDE ON, CHANGE MOUSE, LIMIT MOUSE.
 pub fn mouse(show: bool, img: i32, x: i32, y: i32) void {
-    spr[0] = .{ .on = show, .x = x, .y = y, .img = img };
+    const f = hooks.frame();
+    spr[0] = .{ .on = show, .x = x, .y = y, .img = img, .fx = f[0], .fy = f[1] };
     dirty = true;
 }

@@ -37,6 +37,16 @@ pub fn reset() void {
     an = [_]Run{.{}} ** 16;
 }
 
+/// Every program as it stands, for ZIG's off-screen draws (zig_sandbox.zig).
+pub const State = struct { mv: [16]Run, an: [16]Run };
+pub fn save() State {
+    return .{ .mv = mv, .an = an };
+}
+pub fn load(s: State) void {
+    mv = s.mv;
+    an = s.an;
+}
+
 pub fn moveX(n: usize, p: Prog) void {
     mv[n] = .{ .prog = p, .set = true };
 }

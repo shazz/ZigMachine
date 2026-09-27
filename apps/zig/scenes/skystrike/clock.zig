@@ -25,6 +25,16 @@ pub fn reset() void {
     crossed = 0;
 }
 
+/// The clock as it stands, for ZIG's off-screen draws (zig_sandbox.zig).
+pub const State = struct { pos: u64, crossed: u16 };
+pub fn save() State {
+    return .{ .pos = pos, .crossed = crossed };
+}
+pub fn load(s: State) void {
+    pos = s.pos;
+    crossed = s.crossed;
+}
+
 pub fn spend(c: u64) void {
     pos += c;
     while (pos >= VBL) {

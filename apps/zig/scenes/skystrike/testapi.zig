@@ -31,6 +31,7 @@ const sound = @import("sound.zig");
 const B = @import("basic.zig");
 const flow = @import("flow.zig");
 const S = @import("stos.zig");
+const zt = @import("zig_testapi.zig");
 const V = @import("vars.zig");
 const v = &V.v;
 
@@ -41,12 +42,14 @@ const VARS = [_][]const u8{
     "planes", "fuel", "crsh", "ld",  "bale",  "fre",     "mission", "lvl",
     "ammo",  "z2",  "en",   "cl",    "uc",    "dif",     "ti",   "nf",
     "mfin",  "tgtx", "fust", "atlf", "bf",    "rkf",     "bnf",  "esx",
+    "r2",    "scre",
 };
 
 pub fn reset(seed: u32) callconv(.c) void {
     lockstep = true;
     machine.reset();
     rnd.seed = seed;
+    @import("zig_mode.zig").set(false); // the ST's screens and traces
 }
 
 pub fn vbl(n: u32) callconv(.c) u32 {
@@ -103,6 +106,7 @@ const BANK_ADDR: u32 = 0x50000;
 
 fn other(what: u32) i32 {
     if (what >= BANK_ADDR) return scr.peek(@intCast(what));
+    if (what >= zt.BASE and what < zt.BASE + 100) return zt.val(what - zt.BASE);
     if (what >= 200) {
         if (enemyPtr(what - 200)) |p| return p.*;
         return 0;
@@ -126,6 +130,7 @@ pub fn poke(what: u32, value: i32) callconv(.c) void {
         if (varPtr(what - 20)) |p| p.* = value;
     }
     if (what == 12) sound.log_n = 0;
+    if (what == 13) sound.sent_n = 0;
     if (what >= BANK_ADDR) return scr.poke(@intCast(what), value);
     if (what >= 200) {
         if (enemyPtr(what - 200)) |p| p.* = value;
@@ -143,6 +148,6 @@ pub fn ptr(what: u32) callconv(.c) ?[*]u8 {
         2 => scr.get(.b5).ptr,
         3 => scr.get(.b6).ptr,
         4 => @ptrCast(&pal.hw),
-        else => null,
+        else => zt.ptr(what),
     };
 }

@@ -28,8 +28,13 @@
 // right + FIRE a rocket. The keyboard as the game reads it: 0-9 throttle,
 // U wheels, Esc bail out (Enter the ripcord, Space land), W wings, B turbo,
 // C cluster, E extinguisher, R repair, A autoland, M main base, S launch,
-// T turn round, F refuel stop, P pause; F2-F10 their shortcuts. Escape on
-// the title leaves the cart.
+// T turn round, F a new plane for a landed one (it costs one, line 68),
+// P pause; F2-F10 their shortcuts. Escape on the title leaves the cart.
+// Z switches ORIGINAL / ZIG.
+//
+// ZIG MODE (the default; skystrike/zig_*.zig, docs/ports/SKYSTRIKE.md): the
+// same game shown fullscreen and scrolled by the hardware, no pause at a new
+// screen, tracers, synthesized effects on the Paula channels, key help at P.
 //
 // SOUND. docs/music/skystrike.sndh (assets/screens/skystrike/sound.s): the
 // three tunes played by STOS's own music library (Grazey's rip), the engine
@@ -45,6 +50,9 @@ const machine = @import("skystrike/machine.zig");
 const inp = @import("skystrike/input.zig");
 const flow = @import("skystrike/flow.zig");
 const testapi = @import("skystrike/testapi.zig");
+const zig_view = @import("skystrike/zig_view.zig");
+const zig_mode = @import("skystrike/zig_mode.zig");
+const zig_testapi = @import("skystrike/zig_testapi.zig");
 
 const PLANE = 0;
 const CPU_HZ: u64 = 8021247;
@@ -69,6 +77,8 @@ comptime {
         @export(&testapi.poke, .{ .name = "skyTestPoke" });
         @export(&testapi.ptr, .{ .name = "skyTestPtr" });
         @export(&testapi.refuse, .{ .name = "skyTestRefuse" });
+        @export(&zig_testapi.setMode, .{ .name = "skyTestMode" });
+        @export(&zig_testapi.capture, .{ .name = "skyTestCapture" });
     }
 }
 
@@ -78,12 +88,13 @@ fn keyUpExport(cp: u32) callconv(.c) void {
 }
 
 /// A host key as the ST's: the character and scancode into the key buffer,
-/// Space also the fire button.
+/// Space also the fire button; Z switches ORIGINAL / ZIG (zig_mode.zig).
 pub fn hostKey(cp: u32) void {
     if (cp >= K_F1 and cp <= K_F10) return inp.push(0, @intCast(59 + cp - K_F1));
     if (cp == K_ESC) return inp.push(27, 1);
     if (cp > 255) return;
     const c: u8 = @intCast(cp);
+    if (zig_mode.isToggle(c)) return zig_mode.toggle();
     if (c == ' ') inp.fire_down = true;
     inp.push(c, inp.scancodeOf(c));
 }
@@ -99,6 +110,8 @@ pub const Demo = struct {
         self.wants_quit = false;
         machine.alloc();
         machine.reset();
+        zig_view.init(zigos);
+        zig_mode.set(true);
         g_demo = self;
         zigos.setBackgroundColor(Color{ .r = 0, .g = 0, .b = 0, .a = 255 });
         const fb = &zigos.lfbs[PLANE];
@@ -125,7 +138,7 @@ pub const Demo = struct {
     pub fn render(self: *Demo, zigos: *ZigOS, dt: f32) void {
         _ = self;
         _ = dt;
-        machine.present(&zigos.lfbs[PLANE]);
+        zig_view.render(zigos);
     }
 
     pub fn ownsKeyboard(self: *Demo) u32 {

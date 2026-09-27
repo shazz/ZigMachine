@@ -22,6 +22,16 @@ pub fn resetAll() void {
     zones = [_]Z{.{}} ** N;
 }
 
+/// The table as it stands, for ZIG's off-screen draws (zig_sandbox.zig).
+pub const State = struct { zones: [N]Z, refused: u32 };
+pub fn save() State {
+    return .{ .zones = zones, .refused = refused };
+}
+pub fn load(s: State) void {
+    zones = s.zones;
+    refused = s.refused;
+}
+
 pub fn set(z: i32, x1: i32, y1: i32, x2: i32, y2: i32) void {
     if (z < 1 or z > N or x1 >= x2 or y1 >= y2) {
         refused += 1;

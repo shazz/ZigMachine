@@ -8,6 +8,16 @@
 pub var seed: u32 = 0x1234567;
 var last: i32 = 0;
 
+/// The generator as it stands, for ZIG's off-screen draws (zig_sandbox.zig).
+pub const State = struct { seed: u32, last: i32 };
+pub fn save() State {
+    return .{ .seed = seed, .last = last };
+}
+pub fn load(s: State) void {
+    seed = s.seed;
+    last = s.last;
+}
+
 fn random() u32 {
     seed = seed *% 3141592621 +% 1;
     return (seed >> 8) & 0xFFFFFF;

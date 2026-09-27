@@ -14,6 +14,7 @@ const B = @import("basic.zig");
 const O = @import("objects.zig");
 const T = @import("scenetypes.zig");
 const guns = @import("groundguns.zig");
+const hooks = @import("zig_hooks.zig");
 const V = @import("vars.zig");
 const v = &V.v;
 
@@ -23,7 +24,8 @@ fn sc(o: i32) i32 {
 
 /// 1000-1029
 pub fn draw() void {
-    clock.spend(clock.REDRAW);
+    hooks.beforeDraw();
+    clock.spend(if (hooks.freeRedraw()) 0 else clock.REDRAW);
     v.g = scr.peek(v.ghx9 + v.sx);
     O.countBits();
     sprite.mouse(false, sprite.spr[0].img, sprite.spr[0].x, sprite.spr[0].y);
@@ -42,6 +44,7 @@ pub fn draw() void {
     if (v.al == 0 and sc(0) < 20) T.onType(sc(v.sx));
     if (v.al == 0 and sc(v.sx) >= 20 and sc(v.sx) <= 35) T.t1070();
     draw1008();
+    hooks.afterDraw();
 }
 
 fn resetFlags() void {
