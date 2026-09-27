@@ -29,6 +29,7 @@ pub fn fire350() void {
         v.ammo = 0;
         return;
     }
+    @import("zig_hooks.zig").roundFired();
     sfx.guns();
     v.a = 0;
     while (true) {

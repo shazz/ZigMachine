@@ -5,8 +5,9 @@
 // target arrow, the pilot's card) and its bonus bar (the box at 14,2 to
 // 306,12) into the back screen as it always has; ZIG shows those pixels as
 // they are, fixed in the frame while the world scrolls under them: the panel
-// centred in the bottom border (the frame's last 24 lines, black either
-// side), the bar where the original has it, now in the top border.
+// centred in the bottom border, black either side, with a margin of black
+// under it that a monitor's frame may cover; the bar in the top border,
+// moved down by the same kind of margin (zig_settings.zig).
 //
 // The notice ("ZIG MODE" / "ORIGINAL MODE") is written in the game's own
 // 8x8 font on plane 3, a plain 320 x 200 plane of its own over whichever
@@ -19,21 +20,29 @@ const assets = @import("assets.zig");
 const ring = @import("zig_ring.zig");
 const scroll = @import("zig_scroll.zig");
 const overlay = @import("zig_overlay.zig");
+const set = @import("zig_settings.zig");
 const V = @import("vars.zig");
 const v = &V.v;
 
 const W: usize = @intCast(scroll.WIN_W);
+const H: usize = @intCast(scroll.WIN_H);
 const PANEL_Y: usize = 176;
-const PANEL_H: usize = 24;
-/// The panel's first line in the frame, and its left edge.
-pub const HUD_Y: usize = @as(usize, @intCast(scroll.WIN_H)) - PANEL_H;
+const PANEL_H: usize = @intCast(scroll.PANEL_H);
+/// The panel's first line in the frame (right under the world's view), and
+/// its left edge.
+pub const HUD_Y: usize = @intCast(scroll.VIEW_H);
 pub const HUD_X: usize = (W - scr.W) / 2;
-/// The bar keeps its place on the ST screen, inside the 400-wide frame.
+/// The bar keeps its columns on the ST screen, inside the 400-wide frame,
+/// and moves down by the margin.
 pub const BAR_DX: usize = HUD_X;
+pub const BAR_DY: usize = set.bar_top_margin;
+comptime {
+    if (H - (HUD_Y + PANEL_H) < set.hud_bottom_margin) @compileError("the HUD panel is inside the bottom margin");
+}
 
 pub const NOTICE_PLANE = 3;
-const NOTICE_FRAMES: u32 = 100;
-const NOTICE_Y: usize = 24;
+const NOTICE_FRAMES: u32 = set.notice_frames;
+const NOTICE_Y: usize = set.notice_y;
 const NOTICE_PEN: u8 = 15;
 var notice_left: u32 = 0;
 var notice_zig: bool = false;
@@ -51,14 +60,14 @@ pub fn draw(ov: []u8, pen: u8) void {
 
 fn panel(ov: []u8) void {
     const back = scr.get(.back);
+    @memset(ov[HUD_Y * W .. H * W], 0);
     for (0..PANEL_H) |y| {
         const row = ov[(HUD_Y + y) * W ..][0..W];
-        @memset(row, 0);
         @memcpy(row[HUD_X..][0..scr.W], back[(PANEL_Y + y) * scr.W ..][0..scr.W]);
     }
     for (ring.BAR_Y0..ring.BAR_Y1 + 1) |y| {
         const n = ring.BAR_X1 + 1 - ring.BAR_X0;
-        @memcpy(ov[y * W + BAR_DX + ring.BAR_X0 ..][0..n], back[y * scr.W + ring.BAR_X0 ..][0..n]);
+        @memcpy(ov[(y + BAR_DY) * W + BAR_DX + ring.BAR_X0 ..][0..n], back[y * scr.W + ring.BAR_X0 ..][0..n]);
     }
 }
 

@@ -41,6 +41,9 @@ async function shot(px, path) {
 /// keeps the ST's 50 Hz, Escape on the title leaves.
 export async function live(outdir, label) {
     const { memory, machine, demo } = await boot();
+    // ORIGINAL: plane 0 is the ST's screen. The power-on mode is ZIG, which
+    // shows the title scaled into the open frame instead (apps/skystrike_zig.mjs).
+    demo.skyTestMode(0);
     const errors = [];
     const step = (n, dt) => {
         for (let i = 0; i < n; i++) { machine.hwClear(); demo.frame(dt); machine.hwRenderPlane(0); }

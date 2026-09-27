@@ -232,10 +232,15 @@ The cart has two modes, switched by **Z** at any moment, mid-flight included (as
 the default at power-on, is the same game shown another way. It changes the
 presentation and the pacing, never the rules: the logic, scores, collisions, AI and
 RND draws are the original's, and the harness proves it pass by pass
-(`apps/skystrike_zig.mjs`, check (c)). The title, the menu, the briefings and the hall
-of fame stay the original's screens in both modes. A notice in the game's font says
-which mode is on for two seconds after a switch. In the hall of fame's name entry, Z
-is a letter.
+(`apps/skystrike_zig.mjs`, check (c)), with one exception that is a setting: a crashed
+enemy's crater fills in after 30 s (see "Craters"). The title, the menu, the briefings,
+the verdicts and the hall of fame are the original's screens in both modes; ZIG shows
+them scaled to fill the open frame. A notice in the game's font says which mode is on
+for two seconds after a switch. In the hall of fame's name entry, Z is a letter.
+
+Every value ZIG can be tuned by is in one file, `zig_settings.zig`: the power-on
+mode, fullscreen screens on or off, the HUD and bar margins, the camera's glide, the
+tracers, the crater lifetime, the weapon keys and the effect-to-sample table.
 
 The code is in `apps/zig/scenes/skystrike/zig_*.zig`. The game's own modules carry
 only small hooks (`zig_hooks.zig`), none of which changes what the game does in
@@ -246,8 +251,11 @@ ORIGINAL; `apps/skystrike_headless.mjs` still passes unchanged.
 | a new screen (line 1000 from 40 or 213) | 21 VBLs of pause | none | the scroll shows the next screen before you reach it |
 | the view | 320 x 176 of one screen, flipped | 400 x 256 of the world, scrolled by the hardware | see more of the world around the plane |
 | the frame | 320 x 200, borders shut | 400 x 280, all four borders open | fullscreen |
-| the panel, the bonus bar | on the screen | in the bottom / top border, fixed | HUD |
+| title, menu, briefing, hall of fame | 320 x 200 | the same screen scaled 5/4 into the open frame | fullscreen |
+| the panel, the bonus bar | on the screen | in the bottom / top border, fixed, 20 lines in from the edge | HUD |
 | the guns | nothing drawn | tracers | show the bullets |
+| the weapons | FIRE, FIRE + left (bomb), FIRE + right (rocket) | also Ctrl, Space, Shift: one key each | |
+| a crashed enemy's crater | stays | fills in after 30 s | a setting |
 | the ammo | not shown | a counter in the game's font | |
 | effects | Maestro digis and PSG noise on the YM | synthesized samples on the Paula channels | the YM keeps the music |
 | P (pause) | the music until a key | the same, and the key help over the game | |
@@ -302,7 +310,14 @@ The original draws only the current screen's sprites, but it moves many things
 everywhere, every pass, because they carry their own sector and layer: the two enemy
 fighters (`esx, eal`), the vehicles (`vsx`), the bomb, the rocket, the bonus crate,
 the enemy pilot's chute, and the empty plane after a bail-out. ZIG draws those where
-they are now, in whichever ring sector that is. Line 1000 makes two things sprites on
+they are now, in whichever ring sector that is. Off the world's ends the game's sector
+numbers are not the wrapped world's: an enemy is spawned at `sx - 3 .. sx + 3` (line
+73), so below 0 at sector 0, and move255 wraps it from -1 to 400 and from 50 on to 51.
+Such an enemy is drawn in the sector just past the end it left (400 is -1), and only
+beside that end: the game shows it once it flies back into 0 .. 50. ZIG first drew
+none of them, so near sector 0 (every mission-1 start) enemies coming from the left
+were missing from the left border while those on the right showed (`zig_ring.seat`).
+Line 1000 makes two things sprites on
 arrival: an airfield's flag (sprite 5) and the bridge's arch (the mouse pointer). ZIG
 draws those as the sandboxed draw left them. A sector's wrecks are drawn from its
 wreck table (`so9`, `snox`). So a neighbour shows its current state for what moves,
@@ -311,17 +326,24 @@ original does not simulate.
 
 ### The frame
 
-- **Planes.** 0 is the original's screen (320 x 200), shown whenever the world is not.
-  1 is the world. 2 carries the sprites, tracers and HUD (400 x 280, index 255
-  transparent). 3 carries the mode notice.
+- **Planes.** 0 is the original's screen (320 x 200), shown in ORIGINAL whenever the
+  world is not. 1 is the world. 2 carries the sprites, tracers and HUD (400 x 280, index
+  255 transparent) and, in ZIG off the world, the other screens (`zig_screens.zig`): the
+  physic screen scaled 5/4 to 400 x 250 (nearest pixel, every fourth column and line
+  doubled), at line 15, the 15 lines above and below in the colour most of the screen's
+  top and bottom line is. 3 carries the mode notice.
 - **Borders.** Planes 1 and 2 open all four with the earned trick: `flickerBorder()`
   from each plane's HBL at `OVERSCAN_MAGIC_X` on every line (`zg.flickerAllHbl`).
 - **Allocation.** Both planes are allocated once, at the cart's init. `vramAlloc` has
   no guard, so `zig_scroll.zig` checks the total at comptime: 4 x 64,000 (the boot
-  planes) + 499,200 + 112,000 = 867,200 of 1,048,576 bytes.
-- **HUD.** The panel is the game's own lines 176-199 of back, centred in the frame's
-  last 24 lines, with black either side. The ammo counter sits in the black on the
-  right. The bonus bar's box (14,2 to 306,12) keeps its place in the top border.
+  planes) + 518,400 (960 x 540) + 112,000 = 886,400 of 1,048,576 bytes.
+- **HUD.** The panel is the game's own lines 176-199 of back, centred on the frame's
+  lines 236-259, with black either side, and 20 lines of black under it: a monitor's
+  frame covers the bottom of the picture, and at lines 256-279 the panel was hard to
+  read. The world's view is lines 0-235, and the camera stops where the ground's last
+  line meets the panel. The ammo counter sits in the black on the right. The bonus
+  bar's box (14,2 to 306,12) keeps its columns and moves down 20 lines, to lines
+  22-32. Both margins are settings (`hud_bottom_margin`, `bar_top_margin`).
 - **Messages.** "Press 'S' to Launch", "BAD LANDING !" and the boxed verdicts are
   written into the screen by the game, so they sit in the world where the original
   puts them and scroll with it.
@@ -332,12 +354,40 @@ original does not simulate.
 ### Tracers and the ammo counter
 
 The original's guns (350-359) take a round and test each enemy's direction; they
-draw nothing. ZIG *sees* a round taken (ammo went down since the last frame) and sends
+draw nothing. ZIG *sees* a round taken (a hook in 350 counts each one) and sends
 three streaks from the plane's nose along its heading (the listing's `dx()/dy()`
 table). They travel twice the table's step a frame (up to 12 px). Each has a head in the palette's
 most fiery colour and a tail in the next. A streak vanishes at the view's edge or at
 an enemy fighter. The game never reads any of it; the ammo count and the hit dice are
 the original's. The counter shows `ammo` in the game's font.
+
+On the home airfield, stopped, there were no tracers. ZIG first watched the ammo go
+down, but there line 101 rearms (532) in the same pass as the guns take their round,
+so the count never moves: the counter rightly stays at 50 + b(2) and no round was
+seen. The hook sees every round, landed or not.
+
+### The weapon keys
+
+In ZIG, left Ctrl fires the guns, left Shift a rocket and Space a bomb
+(`zig_keys.zig`). Each is exactly the chord it stands for (FIRE, FIRE + right, FIRE
++ left) held, so the game sees the joystick and nothing else; the harness proves it
+by CRC. Space still goes into the key buffer and is still FIRE, so with the pilot out
+(`bale`) it lands his chute (155) and drops nothing. Ctrl is a fire button for the
+old chords (Ctrl + left a bomb, Ctrl + right a rocket); Space + an arrow is a bomb.
+ORIGINAL ignores Ctrl and Shift, and its Space is FIRE as on the ST.
+
+### Craters
+
+An enemy that hits the ground (316) may leave a hole where it fell: 920 sets a gun
+bit of that sector (the crater image 73) and 930 adds its wreck to the sector's wreck
+table. In the original they stay for the rest of the game. In ZIG, after
+`crater_life_vbls` (1502 VBLs, 30 s; 0 = never) the sector's ground is put back
+exactly as before that crash (`zig_craters.zig`): the bits the crash set are cleared
+and the wreck slots it added are taken off. This is gameplay: a gun bit is what 1030
+stamps and 945 counts. So it waits while the sector is on screen (its screen, zones
+and sprites were drawn from the hole, and only line 1000 redraws them), and the ring
+slot redraws by itself, since the gun bits are part of its signature. The harness runs
+every ORIGINAL-against-ZIG comparison with the setting at never.
 
 ### Sound
 
@@ -421,7 +471,40 @@ proposed:
 - **The pause.** The help shows in ZIG's pause only, and the CRC is the same in both
   modes before, during and after it.
 - **(e) Memory.** No zg.mem allocation is refused.
+- **Screens** (`skystrike_zig_screens.mjs`). The title, menu, briefing, hall of fame and
+  name entry fill the open frame in ZIG, every pixel the physic screen scaled; ORIGINAL
+  shows plane 0 alone. Z typed in the name entry does not switch.
+- **Edges** (`skystrike_zig_edges.mjs`). Tracers on the heading when firing on the
+  runway; an enemy in sector -1 and 400 drawn in the left border at sector 0, as one in
+  sector 1 is in the right; no ghost plane where a bomb bursts (both modes).
+- **Keys** (`skystrike_zig_keys.mjs`). Ctrl / Shift / Space = their chords by CRC;
+  bailed out, ZIG's Space = ORIGINAL's; ORIGINAL ignores Ctrl and Shift.
+- **Craters** (`skystrike_zig_craters.mjs`). A hole made next door is there a pass
+  before its time, and by its time the ground bytes and the ring slot are what they
+  were before the crash. ORIGINAL keeps it.
+- **(d)** also checks that the panel ends 20 lines above the frame's bottom (those
+  lines black) and that the bar is at lines 22-32.
 - **Break modes.** Each check has a `--break` mode that must be caught by that check.
+
+### The ghost plane (a port bug, both modes)
+
+A bomb bursting on the plane's own screen left a copy of the plane in the back
+screen. The original does not: at 1950 it turns the sprites OFF, and 993 starts with
+WAIT VBL, during which STOS's VBL redraws the sprites (the listing never turns
+automatic UPDATE off), so they are off the physic screen before 1956 copies it to back
+(`gosub 192`, SCREEN COPY LOGIC TO BACK, logic being physic). The port's WAIT VBL only
+counted the time, so the sprites were still drawn when the copy was made. WAIT VBL now
+runs the sprite redraw at once (`clock.waitVbl`). The ST reference screens and the
+takeoff trace still match. The Hatari check was not repeated for this: the game reads
+no injected joystick, and the bomb's variables are not yet mapped to addresses.
+
+### Music
+
+ZIG was to play three ProTracker modules from The Mod Archive (battleship 1, 99351;
+spitfire by Jonte, 106646; glory by dalmet, 165443). All three are under the "Mod Archive
+Distribution license": the original file may be redistributed unmodified, but that
+"does not cover inclusion in a packed/bundled application or game", which needs the
+artist's permission. None is shipped; both modes play skystrike.sndh.
 
 ### Compromises
 

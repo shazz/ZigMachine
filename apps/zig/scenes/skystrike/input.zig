@@ -16,6 +16,14 @@ pub const RIGHT: u8 = 8;
 
 pub var stick: u8 = 0;
 pub var fire_down: bool = false;
+/// ZIG's one-key weapons held (zig_keys.zig): each is FIRE, with the arrow
+/// its chord needs. Never set in ORIGINAL.
+pub const Weapon = struct { guns: bool = false, rocket: bool = false, bomb: bool = false };
+pub var weapon: Weapon = .{};
+
+fn firing() bool {
+    return fire_down or weapon.guns or weapon.rocket or weapon.bomb;
+}
 
 const QN = 32;
 var q_char: [QN]u8 = undefined;
@@ -28,6 +36,7 @@ pub var last_scan: i32 = 0;
 pub fn reset() void {
     stick = 0;
     fire_down = false;
+    weapon = .{};
     q_len = 0;
     last_scan = 0;
 }
@@ -66,16 +75,16 @@ pub fn jdown() i32 {
     return t(stick & DOWN != 0);
 }
 pub fn jleft() i32 {
-    return t(stick & LEFT != 0);
+    return t(stick & LEFT != 0 or weapon.bomb);
 }
 pub fn jright() i32 {
-    return t(stick & RIGHT != 0);
+    return t(stick & RIGHT != 0 or weapon.rocket);
 }
 pub fn fire() i32 {
-    return t(fire_down);
+    return t(firing());
 }
 pub fn mouseKey() i32 {
-    return if (fire_down) 2 else 0;
+    return if (firing()) 2 else 0;
 }
 
 /// The ST scancode of a character the host sends (0 when the game never

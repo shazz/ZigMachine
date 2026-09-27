@@ -10,7 +10,11 @@
 //                drawn, 10 rebuilds, 11 shifts, 12/13 the pan (ring coords),
 //                14/15 the camera (world), 16 sandboxed draws, 17 sandboxed
 //                draws that made a sound (checked 0), 18 sound commands
-//                sent, 20+i the i'th sent (op << 8 | arg)
+//                sent, 20+i the i'th sent (op << 8 | arg); 60-63 tracers
+//                shown, their two colours, the key help shown; 64/65 craters
+//                made / filled in, 66-68 the ghx9 / sno9 / so9 addresses
+//   poke(300+k)  70 the crater lifetime in VBLs (0 never), 71 fullscreen
+//                screens on / off
 //   ptr(5..7)    5 the ring (960 x 520, the world plane's buffer), 6 the
 //                capture (320 x 200), 7 the overlay (400 x 280)
 // --------------------------------------------------------------------------
@@ -22,6 +26,8 @@ const ring = @import("zig_ring.zig");
 const scroll = @import("zig_scroll.zig");
 const sandbox = @import("zig_sandbox.zig");
 const mode = @import("zig_mode.zig");
+const set = @import("zig_settings.zig");
+const V = @import("vars.zig");
 
 pub const BASE: u32 = 300;
 
@@ -68,8 +74,22 @@ fn more(k: u32) i32 {
         61 => @import("zig_tracers.zig").ink,
         62 => @import("zig_tracers.zig").tail,
         63 => @intFromBool(@import("zig_help.zig").shown),
+        64 => @bitCast(@import("zig_craters.zig").made),
+        65 => @bitCast(@import("zig_craters.zig").filled),
+        66 => V.v.ghx9,
+        67 => V.v.sno9,
+        68 => V.v.so9,
+        70 => @bitCast(set.crater_life_vbls),
         else => if (k >= 20 and k - 20 < sound.sent_n) sound.sent[k - 20] else -1,
     };
+}
+
+pub fn poke(k: u32, value: i32) void {
+    switch (k) {
+        70 => set.crater_life_vbls = @bitCast(value),
+        71 => set.fullscreen_screens = value != 0,
+        else => {},
+    }
 }
 
 pub fn ptr(what: u32) ?[*]u8 {

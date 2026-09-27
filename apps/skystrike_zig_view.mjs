@@ -2,9 +2,13 @@
 //   (d) a ZIG frame in flight, as the host composites it, = the ring at the
 //       hardware's pan with the overlay over it, EVERY pixel of 400 x 280:
 //       so all four borders are open (a closed one shows the background, a
-//       missed flicker noise); the panel sits in the bottom border, the bonus
-//       bar in the top one, both = the game's back screen; the ammo counter
-//       is the game's font
+//       missed flicker noise); the panel sits in the bottom border with its
+//       last line MARGIN lines clear of the frame's bottom edge (a monitor's
+//       frame covers them: they are black), the bonus bar in the top border
+//       MARGIN lines down, both = the game's back screen; the ammo counter is
+//       the game's font
+//   --break hud: the panel and the bar looked for where they were before
+//       (the frame's last 24 lines, the top edge)
 //   tracers  FIRE in ZIG leaves streaks on the plane's heading line; in
 //       ORIGINAL none; the ammo goes down the same in both
 // and the screenshots.
@@ -12,7 +16,10 @@ import { readFile } from "node:fs/promises";
 import { onRunway, takeOff, steer, Z, RING_W, WIN_W } from "./skystrike_zig_session.mjs";
 import { grab, lowres, png } from "./skystrike_zig_frame.mjs";
 
-const FIRE = 0x80, SP = 11, AMMO_X = 364, HUD_Y = 256; // zig_hud.zig
+const FIRE = 0x80, SP = 11, AMMO_X = 364; // zig_hud.zig
+// zig_settings.zig: the panel's last line and the bar's box both MARGIN
+// lines inside the frame; the panel right under the world's view.
+const MARGIN = 20, PANEL_H = 24, HUD_Y = 280 - MARGIN - PANEL_H, BAR_DY = MARGIN;
 const gun = (n) => Math.floor((n & 7) * 255 / 7);
 const rgba = (w) => (0xff000000 | gun(w) << 16 | gun(w >> 4) << 8 | gun(w >> 8)) >>> 0;
 
@@ -21,7 +28,7 @@ function palette(s) {
 }
 
 /// The frame against ring + overlay, pixel for pixel; then the HUD's parts.
-function frameChecks(s, frame, errors) {
+function frameChecks(s, frame, errors, broke) {
     const pal = palette(s), ring = s.ring(), ov = s.overlay(), back = s.screen("back");
     const sx = s.z("sx"), sy = s.z("sy");
     let bad = 0, border = 0, lit = 0, first = null;
@@ -35,13 +42,16 @@ function frameChecks(s, frame, errors) {
         if (inBorder) border++;
         first ??= `x ${x} y ${y}`;
     }
-    const total = 400 * HUD_Y - 320 * 200;
+    const total = 400 * HUD_Y - 320 * 196;
     if (bad) errors.push(`(d) ${bad} of 112000 pixels are not the ring + overlay (${border} in the borders; first ${first})`);
     if (lit < total / 2) errors.push(`(d) the borders are shut: ${lit} of their ${total} pixels above the HUD show anything but colour 0`);
-    let hud = 0;
-    for (let y = 0; y < 24; y++) for (let x = 0; x < 320; x++) if (frame[(HUD_Y + y) * WIN_W + 40 + x] >>> 0 !== pal[back[(176 + y) * 320 + x]]) hud++;
-    for (let y = 2; y <= 12; y++) for (let x = 14; x <= 306; x++) if (frame[y * WIN_W + 40 + x] >>> 0 !== pal[back[y * 320 + x]]) hud++;
-    if (hud) errors.push(`(d) ${hud} pixels of the panel (bottom border) or the bonus bar (top border) are not the game's`);
+    const [hy, by] = broke === "hud" ? [256, 0] : [HUD_Y, BAR_DY];
+    let hud = 0, bar = 0, margin = 0;
+    for (let y = 0; y < 24; y++) for (let x = 0; x < 320; x++) if (frame[(hy + y) * WIN_W + 40 + x] >>> 0 !== pal[back[(176 + y) * 320 + x]]) hud++;
+    for (let y = 2; y <= 12; y++) for (let x = 14; x <= 306; x++) if (frame[(y + by) * WIN_W + 40 + x] >>> 0 !== pal[back[y * 320 + x]]) bar++;
+    for (let y = HUD_Y + PANEL_H; y < 280; y++) for (let x = 0; x < WIN_W; x++) if (frame[y * WIN_W + x] >>> 0 !== pal[0]) margin++;
+    if (hud || bar) errors.push(`(d) ${hud} pixels of the panel (bottom border, line ${hy}) and ${bar} of the bonus bar (top border, line ${by + 2}) are not the game's`);
+    if (margin) errors.push(`(d) ${margin} pixels of the ${MARGIN} lines under the panel are not black`);
     return `${lit} of ${total} border pixels lit`;
 }
 
@@ -60,7 +70,7 @@ async function ammoCheck(s, errors) {
 
 /// Tracer pixels in the overlay, and how far the worst lies off the line
 /// through the plane along heading r (turned 90 degrees for --break tracer).
-function tracerLine(s, broke) {
+export function tracerLine(s, broke) {
     const ov = s.overlay(), ink = s.val(361), tail = s.val(362);
     const camX = ((s.z("cx") - 1) * 320 + s.z("sx")), camY = -(s.z("base") + 2) * 160 + s.z("sy");
     const px = s.v("sx") * 320 + s.v("x") - camX, py = -s.v("al") * 160 + s.v("y") - camY;
@@ -69,7 +79,7 @@ function tracerLine(s, broke) {
     if (broke === "tracer") [dx, dy] = [-dy, dx];
     const n = Math.hypot(dx, dy);
     let count = 0, off = 0;
-    for (let y = 0; y < 256; y++) for (let x = 0; x < WIN_W; x++) {
+    for (let y = 0; y < HUD_Y; y++) for (let x = 0; x < WIN_W; x++) {
         const o = ov[y * WIN_W + x];
         if (o !== ink && o !== tail) continue;
         const wx = ((x - px) % 16320 + 24480) % 16320 - 8160;
@@ -107,7 +117,7 @@ export async function view(outdir, broke) {
     for (let p = 0; p < 6; p++) s.pass();
     const frame = lowres(grab(s));
     await png(`${outdir}/zig_flight.png`, frame, 400, 280);
-    const borders = frameChecks(s, frame, errors);
+    const borders = frameChecks(s, frame, errors, broke);
     await ammoCheck(s, errors);
     steer(s, 5);
     for (let p = 0; p < 200 && s.v("al") === 0; p++) { s.poke(SP, 11000); s.pass(); }
