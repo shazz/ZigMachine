@@ -11,7 +11,7 @@
 // Frames run in the host's order (hwClear, frame, render), because hwClear is
 // where the global HBL paints the border. Checked on the whole 800x280 physical
 // frame: every visible line's border is colour 0 on that line (the colour at the
-// window's left edge, which is always index 0 there), the three red tubes run
+// window's left edge, which is always index 0 there), the six red tubes run
 // edge to edge, the moving bars reach the border, and the top and bottom borders
 // stay black. --break noclear skips hwClear: the border is never painted, and
 // the checks must fail.
@@ -84,7 +84,7 @@ function step() {
 const px = (x, y) => { const b = pfb(), i = (y * W + x) * 4; return (b[i] << 16) | (b[i + 1] << 8) | b[i + 2]; };
 const hex = (c) => "#" + c.toString(16).padStart(6, "0");
 const RED = new Set([0x400000, 0x600000, 0x800000, 0xa00000, 0xc00000, 0xe00000]);
-const TUBES = [[0, 11], [147, 158], [192, 200]]; // visible lines, end exclusive
+const TUBES = [[0, 11], [147, 191], [192, 200]]; // visible lines, end exclusive: top, the middle tube x4, bottom = six tubes
 const onTube = (y) => TUBES.some(([a, b]) => y >= a && y < b);
 const errors = [];
 let barsInBorder = 0, checkedLines = 0;
@@ -147,4 +147,4 @@ if (unique.length) {
     for (const e of unique.slice(0, 12)) console.log("  " + e);
     process.exit(1);
 }
-console.log(`replicants_garfield: ${checkedLines} raster lines checked edge to edge over ${frames - N} frames: the three red tubes (ST reds) and the moving bars reach both borders, which follow colour 0 line by line; top and bottom borders black; bars in the border on ${barsInBorder} lines; ${cost.toFixed(3)} ms/frame (clear + cart + plane); shots in ${out}`);
+console.log(`replicants_garfield: ${checkedLines} raster lines checked edge to edge over ${frames - N} frames: the six red tubes (ST reds) and the moving bars reach both borders, which follow colour 0 line by line; top and bottom borders black; bars in the border on ${barsInBorder} lines; ${cost.toFixed(3)} ms/frame (clear + cart + plane); shots in ${out}`);

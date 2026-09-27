@@ -170,11 +170,16 @@ const palette: [256]Color = blk: {
 };
 
 // --------------------------------------------------------------------------
-// The three red tubes (top, middle, bottom) are uniform per row: a red ramp
-// 64..224 = nibble*32, i.e. colours ripped from the ST's colour register, so
-// they were a raster on the real screen, not art. Their rows leave the frame
-// here and become colour-0 lines in the raster table, drawn over the bars as
-// background.png was; like every raster they then run into the border.
+// The red tubes are uniform per row: a red ramp 64..224 = nibble*32, i.e.
+// colours ripped from the ST's colour register, so they were a raster on the
+// real screen, not art. Their rows leave the frame here and become colour-0
+// lines in the raster table, drawn over the bars as background.png was; like
+// every raster they then run into the border.
+//
+// The real intro has SIX tubes; the remake's background.png keeps three (top,
+// middle, bottom) and fills the space under the middle one, lines 158-190, with
+// red frame art. Matt, 2026-09-27: the middle tube repeats down there — four
+// stacked tubes, 11 lines each (MID_COPIES more of lines 147-157).
 // --------------------------------------------------------------------------
 const NO_TUBE: u32 = 0; // a table entry is RGBA with alpha 255, never 0
 
@@ -195,8 +200,16 @@ const tube_line: [HEIGHT]u32 = blk: {
             t[y] = c.toRGBA();
         }
     }
+    for (1..MID_COPIES + 1) |k| for (0..TUBE_H) |i| {
+        t[MID_TUBE + k * TUBE_H + i] = t[MID_TUBE + i];
+    };
     break :blk t;
 };
+/// The middle tube's first line and height in background.png, and how many
+/// more copies of it stack underneath (the real screen's other three tubes).
+const MID_TUBE: usize = 147;
+const TUBE_H: usize = 11;
+const MID_COPIES: usize = 3;
 
 /// frame.raw with the tube rows handed to the raster: index 0 there.
 const frame_px: [@as(usize, WIDTH) * HEIGHT]u8 = blk: {
@@ -209,10 +222,10 @@ const frame_px: [@as(usize, WIDTH) * HEIGHT]u8 = blk: {
 };
 
 comptime {
-    // the three tubes: 11 + 11 + 8 lines
+    // the six tubes: 11 + 4 x 11 + 8 lines
     var n: usize = 0;
     for (tube_line) |c| n += @intFromBool(c != NO_TUBE);
-    assert(n == 30);
+    assert(n == 63);
 }
 
 /// text_pal index -> palette index, for fontmask.raw's pixels.
