@@ -39,7 +39,7 @@ skystrike_dog75.mod              (game over: killed, or no more aircraft)
             https://creativecommons.org/licenses/by/4.0/
 
 
-Credit lines (the game shows them in short on the title's ticker and in the
+Credit lines (the game shows them in short on the title's bottom border and in the
 pause's key help; the scene header and docs/ports/SKYSTRIKE.md give them in full):
   "Explore the sky" by BLuRry (1994), from The Mod Archive (ID 167145), licensed CC BY-SA 4.0
   "The Hawk's Claw" by Drozerix (2022), from The Mod Archive (ID 197917), Public Domain

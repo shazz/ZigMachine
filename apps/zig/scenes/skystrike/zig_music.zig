@@ -34,13 +34,6 @@ pub const MODS = std.EnumArray(Situation, []const u8).init(.{
     .gameover = "skystrike_dog75.mod",
 });
 
-/// The credits, as the title's ticker and the pause's key help show them.
-pub const CREDITS = [_][]const u8{
-    "\"Explore the sky\" by BLuRry (1994), CC BY-SA 4.0",
-    "\"The Hawk's Claw\" by Drozerix (2022), Public Domain",
-    "\"dog75\" by Songerson (2019), CC BY 4.0",
-};
-
 /// Where the game is, as ZIG's music sees it.
 pub var now: Situation = .none;
 /// ORIGINAL's tune (MUSIC n, 1-3), 0 while its music is off.

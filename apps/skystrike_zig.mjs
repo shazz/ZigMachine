@@ -15,7 +15,7 @@
 //                                                    apps/skystrike_zig_sound.mjs
 //   music  the MOD for each of the game's switch points (title, flight,
 //       pause, game over), skystrike.sndh in ORIGINAL, Z swapping them;
-//       the title's credits ticker                   apps/skystrike_zig_music.mjs
+//       the title's music credits line              apps/skystrike_zig_music.mjs
 //   pause  P: the key help over ZIG's pause, not ORIGINAL's; the CRC the same
 //       before, during, after                        apps/skystrike_zig_pause.mjs
 //   screens  the title, menu and briefing 1:1 with the world extended into

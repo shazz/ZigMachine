@@ -8,6 +8,7 @@ import { WIN_W } from "./skystrike_zig_session.mjs";
 export const SX = 40, SY = 40;             // screen_x, screen_y
 export const BAND = 240;                   // the bottom border's first line
 export const SCROLL_Y = 251;               // scroller_y
+export const CREDITS_Y = SCROLL_Y - 10;    // zig_credits.zig: the music's credits line
 export const HUD_MARGIN = 10;              // hud_bottom_margin
 export const ZX = 80, ZY = 40, ZW = 176, ZH = 8; // the title's SCROLL 1 zone
 export const SHIFT = 393 - 240;            // the scroller's letters, right of the original's

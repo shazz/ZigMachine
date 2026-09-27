@@ -311,7 +311,7 @@ gate skystrike node apps/skystrike_zig.mjs --break keys "$SHOTS/skystrike_zig"  
 gate skystrike node apps/skystrike_zig.mjs --break crater "$SHOTS/skystrike_zig"   # ...and the crater lifetime at never fails the craters check
 gate skystrike node apps/skystrike_zig.mjs --break music "$SHOTS/skystrike_zig"    # ...and the flight's MOD expected on the title fails the music check
 gate skystrike node apps/skystrike_zig.mjs --break swap "$SHOTS/skystrike_zig"     # ...and Z expected to leave the music alone fails the swap check
-gate skystrike node apps/skystrike_zig.mjs --break credits "$SHOTS/skystrike_zig"  # ...and the credits ticker looked for in ORIGINAL fails the credits check
+gate skystrike node apps/skystrike_zig.mjs --break credits "$SHOTS/skystrike_zig"  # ...and the credits line looked for in ORIGINAL fails the credits check
 gate skystrike python3 tools/skystrike/make_sfx.py --check   # ZIG mode's synthesized samples = the committed sfx/*.raw (the cart embeds them: zig_fx.zig)
 gate tcb_spreadpoint node apps/tcb_spreadpoint_headless.mjs "$SHOTS/tcb_spreadpoint"   # TCB SPREADPOINT (CODEF 469): screen.js replayed (intro fades, angle table, balls, 33-speed scroller, DNA scrolltext) and at 12 frames across the intro and 6000 main-part iterations the plane is its indices pixel for pixel; the 3 rasters are HBL register writes (entries 2..6 hold the tables on every line, <=4 changes a line) and every composited pixel is its line's colour; tcb_spreadpoint.sndh requested once, at the main part, and plays
 gate tcb_spreadpoint node apps/tcb_spreadpoint_headless.mjs --break hbl "$SHOTS/tcb_spreadpoint"   # ...and a plane whose HBL never runs is caught

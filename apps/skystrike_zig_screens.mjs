@@ -105,14 +105,16 @@ function faults(r, at, tile, old, screen) {
 }
 
 /// The bottom border: its own colour, the scroller's ink on the title only,
-/// in its 8 lines, never in the last HUD_MARGIN lines.
+/// in its 8 lines and in the music credits' 8 above them (zig_credits.zig,
+/// checked by apps/skystrike_zig_music.mjs), never in the last HUD_MARGIN lines.
 function band(name, v, ink, errors) {
     const bg = v.frame[K.BAND * WIN_W] >>> 0;
     let stray = 0, left = 0, right = 0, n = 0;
     for (let y = K.BAND; y < 280; y++) for (let x = 0; x < WIN_W; x++) {
         const c = v.frame[y * WIN_W + x] >>> 0, row = y >= K.SCROLL_Y && y < K.SCROLL_Y + 8;
+        const credits = name === "title" && y >= K.CREDITS_Y && y < K.CREDITS_Y + 8;
         if (c === ink && row) { n++; if (x < K.SX) left++; if (x >= K.SX + 320) right++; }
-        else if (c !== bg) stray++;
+        else if (c !== bg && !(c === ink && credits)) stray++;
     }
     if (stray) errors.push(`screens: ZIG's ${name}, bottom border: ${stray} pixels neither its colour nor the scroller's`);
     if (name !== "title") {

@@ -11,15 +11,18 @@
 //            there), back -> the flight's MOD, the engine note replayed onto
 //            each (NOISE / ENVEL as calls, as YM writes); Z on the title: ORIGINAL -> the
 //            title's MOD, back -> skystrike.sndh the tune the game chose
-//   credits  ZIG's title shows the ticker in the band under the screen (the
-//            credit text's pixels in the pen), ORIGINAL's does not
+//   credits  ZIG's title shows the music's credits line in the bottom border
+//            above the scroller (its pixels in the scroller's ink, clear of
+//            the monitor's frame), ORIGINAL's does not
 // --break music: the flight's MOD expected on the title; swap: Z expected to
-// leave the music alone; credits: the ticker looked for in ORIGINAL.
+// leave the music alone; credits: the credits line looked for in ORIGINAL.
 import { readFile } from "node:fs/promises";
 import { zsession, WIN_W } from "./skystrike_zig_session.mjs";
 import { toPlay } from "./skystrike_session.mjs";
+import * as K from "./skystrike_zig_screens_layout.mjs";
 
 const SNDH = "skystrike.sndh", SILENCE = 4;
+const INK = 16; // zig_scroller.zig's overlay index for its white
 const src = await readFile("apps/zig/scenes/skystrike/zig_music.zig", "utf8");
 const MOD = Object.fromEntries([...src.matchAll(/\.(title|flying|gameover) = "([^"]+)"/g)].map((m) => [m[1], m[2]]));
 const SIT = { none: 0, title: 1, flying: 2, gameover: 3 };
@@ -154,19 +157,22 @@ async function swap(broke, errors) {
     return `Z in flight -> ${toOrig.at(-1)} -> ${toZig.at(-1)}; on the title -> ${tToZig.at(-1)} -> ${tToOrig.at(-1)}`;
 }
 
-/// The ticker's text pixels in the band under ZIG's title.
+/// The credits line's pixels in the bottom border of ZIG's title.
 async function credits(broke, errors) {
     const out = [];
     for (const zig of [true, false]) {
         const s = await zsession(zig);
         s.vbl(500);
         s.run(3);
+        s.machine.hwClear();
+        s.demo.frame(20);
         const ov = s.overlay(), shown = s.z("credits");
         let pen = 0;
-        for (let y = 265; y < 280; y++) for (let x = 0; x < WIN_W; x++) if (ov[y * WIN_W + x] !== ov[279 * WIN_W]) pen++;
+        for (let y = K.CREDITS_Y; y < K.CREDITS_Y + 8; y++) for (let x = 0; x < WIN_W; x++) if (ov[y * WIN_W + x] === INK) pen++;
+        if (K.CREDITS_Y < K.BAND || K.CREDITS_Y + 8 > K.SCROLL_Y) errors.push(`credits: the line (${K.CREDITS_Y}) is not in the bottom border above the scroller`);
         const want = broke === "credits" ? !zig : zig;
         const on = shown === 1 && pen > 200 && s.demo.isPlaneEnabled(2) === 1;
-        if (on !== want) errors.push(`credits: ${zig ? "ZIG" : "ORIGINAL"}'s title ${on ? "shows" : "has no"} music credits (shown ${shown}, ${pen} text pixels in the band)`);
+        if (on !== want) errors.push(`credits: ${zig ? "ZIG" : "ORIGINAL"}'s title ${on ? "shows" : "has no"} music credits (shown ${shown}, ${pen} ink pixels on its lines)`);
         out.push(`${zig ? "ZIG" : "ORIGINAL"} ${pen} px`);
     }
     return out.join(", ");
@@ -180,6 +186,6 @@ export async function music(broke) {
     const sw = await swap(broke, errors);
     const cr = await credits(broke, errors);
     const short = (l) => (l ?? []).map((r) => r.replace("skystrike_", "").replace(".mod", "")).join("+") || "-";
-    console.log(`  music: ZIG title ${short(z.title)}, play ${short([...z.play, ...z.flight])}, pause ${short(z.pause)}/${short(z.unpause)}, over ${short(z.over)}, back ${short(z.back)}; ORIGINAL title ${short(o.title)}, pause ${short(o.pause)}, over ${short(o.over)}; ${sw}; credits ticker: ${cr}`);
+    console.log(`  music: ZIG title ${short(z.title)}, play ${short([...z.play, ...z.flight])}, pause ${short(z.pause)}/${short(z.unpause)}, over ${short(z.over)}, back ${short(z.back)}; ORIGINAL title ${short(o.title)}, pause ${short(o.pause)}, over ${short(o.over)}; ${sw}; credits line: ${cr}`);
     return errors;
 }

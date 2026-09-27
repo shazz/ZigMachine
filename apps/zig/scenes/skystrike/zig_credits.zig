@@ -1,73 +1,56 @@
 // --------------------------------------------------------------------------
-// ZIG mode's music credits on the title: a ticker in the band under the
-// scaled title screen (zig_screens.zig leaves 15 lines there), in the game's
-// 8x8 font, moving a pixel a frame while the title's own scroller runs
-// (2005-2006). The pen is the palette's colour furthest in brightness from
-// the band's, so it reads whatever the band is painted in. Overlay only:
-// no game state, and ORIGINAL never shows it.
+// ZIG mode's music credits on the title: one line in the bottom border just
+// above the title's credits scroller (zig_scroller.zig), which has the band
+// under it. The three modules and their licences take turns, each centred
+// for CYCLE frames, while the title's scroller runs (2006), in the
+// scroller's own white (it fades with the screen). Both lines are in the
+// border's 29 lines above the monitor's frame (hud_bottom_margin). Overlay
+// only: no game state, and ORIGINAL never shows it.
 // --------------------------------------------------------------------------
 const flow = @import("flow.zig");
-const pal = @import("pal.zig");
-const scr = @import("scr.zig");
-const assets = @import("assets.zig");
-const scroll = @import("zig_scroll.zig");
-const screens = @import("zig_screens.zig");
-const zm = @import("zig_music.zig");
+const text = @import("text.zig");
+const set = @import("zig_settings.zig");
+const scroller = @import("zig_scroller.zig");
 
-const W: usize = @intCast(scroll.WIN_W);
-const H: usize = @intCast(scroll.WIN_H);
-const SEP = "   -   ";
-const TEXT = "MUSIC FROM THE MOD ARCHIVE:   " ++ zm.CREDITS[0] ++ SEP ++ zm.CREDITS[1] ++ SEP ++ zm.CREDITS[2] ++ SEP;
-const TEXT_W: usize = TEXT.len * 8;
+const W: usize = 400;
+/// Its first line: two clear lines above the scroller's.
+pub const Y: usize = set.scroller_y - 10;
+/// Frames each line stays (3 s at 50 Hz).
+const CYCLE: usize = 150;
 
-/// The band's first line, and the ticker's (centred in it).
-pub const BAND_Y: usize = screens.Y0 + screens.SH;
-pub const Y: usize = if (H >= BAND_Y + 8) BAND_Y + (H - BAND_Y - 8) / 2 else 0;
+const LINES = [_][]const u8{
+    "MUSIC FROM THE MOD ARCHIVE",
+    "Explore the sky - BLuRry - CC BY-SA 4.0",
+    "The Hawk's Claw - Drozerix - Public Domain",
+    "dog75 - Songerson - CC BY 4.0",
+};
+
 comptime {
-    for (TEXT) |c| if (c < 32) @compileError("the ticker's text has a control character");
+    if (Y < set.screen_y + 200) @compileError("the credits must be in the bottom border, under the screen");
+    if (set.scroller_y + 8 > 280 - set.hud_bottom_margin) @compileError("the scroller must clear the monitor's frame");
+    for (LINES) |l| {
+        if (l.len * 8 > W) @compileError("a credits line is wider than the frame");
+        for (l) |c| if (c < 32) @compileError("a credits line has a control character");
+    }
 }
 
-var pos: usize = 0;
+var frames: usize = 0;
 pub var shown: bool = false;
 
-/// While the title's scroller runs, over the frame zig_screens.draw made.
+/// Over the bottom border zig_scroller.draw painted.
 pub fn draw(ov: []u8) void {
-    // Checked at run time, not comptime: zig_screens.zig owns the band's
-    // height, and a layout without one must not stop the cart building
-    // (apps/skystrike_zig_music.mjs fails if the ticker goes missing).
-    shown = (flow.pc == .l2005 or flow.pc == .l2006) and H >= BAND_Y + 8;
-    if (!shown) return;
-    const p = scr.get(.physic);
-    if (p.len == 0) return;
-    const pen = contrast(screens.mostly(p, scr.H - 1));
-    pos = (pos + 1) % TEXT_W;
-    for (0..W) |x| {
-        const t = (pos + x) % TEXT_W;
-        const c = TEXT[t / 8];
-        const g = assets.FONT[@as(usize, c - 32) * 8 ..][0..8];
-        const bit: u3 = @intCast(7 - t % 8);
-        for (0..8) |j| {
-            if (g[j] >> bit & 1 != 0) ov[(Y + j) * W + x] = pen;
-        }
+    shown = flow.pc == .l2006;
+    if (!shown) {
+        frames = 0;
+        return;
     }
-}
-
-fn brightness(c: u8) i32 {
-    const w = pal.hw[c & 15];
-    return @as(i32, w >> 8 & 7) * 3 + @as(i32, w >> 4 & 7) * 6 + @as(i32, w & 7);
-}
-
-/// The palette index furthest in brightness from colour `band`.
-fn contrast(band: u8) u8 {
-    const b = brightness(band);
-    var best: u8 = 0;
-    var far: i32 = -1;
-    for (0..16) |i| {
-        const d = @as(i32, @intCast(@abs(brightness(@intCast(i)) - b)));
-        if (d > far) {
-            far = d;
-            best = @intCast(i);
-        }
+    const line = LINES[frames / CYCLE % LINES.len];
+    frames += 1;
+    const x0 = (W - line.len * 8) / 2;
+    for (line, 0..) |c, k| {
+        const g = text.glyph(c);
+        for (0..8) |j| for (0..8) |i| {
+            if (g[j] >> @intCast(7 - i) & 1 != 0) ov[(Y + j) * W + x0 + k * 8 + i] = scroller.INK;
+        };
     }
-    return best;
 }

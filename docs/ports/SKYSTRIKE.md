@@ -542,7 +542,7 @@ proposed:
   channel back at its end, and the engine's SAMSTOP lets the gun loop go.
 - **Music** (`skystrike_zig_music.mjs`). The song requests at each switch point:
   ZIG's MODs as in the table above, ORIGINAL's skystrike.sndh tunes (never a MOD), Z
-  swapping them in flight and on the title; the credits ticker on ZIG's title only.
+  swapping them in flight and on the title; the credits line on ZIG's title only.
 - **The effect path itself** (`apps/mod_sfx_check.mjs`, tag `mod_sfx`) is proved on
   the audio modules alone: the channel chosen, the bytes, the volume and pan, the
   song silent there and busy elsewhere, the release, the loop's stop and timeout, the
@@ -622,9 +622,10 @@ game sets its engine note again only when it changes, so the switch replays the
 game's last VOLUME / NOISE / ENVEL (outside an effect) onto the new song
 (`zig_psg.replay`): as YM writes in ZIG, as calls on the SNDH in ORIGINAL.
 
-**Credits in the game.** On ZIG's title, a ticker in the band under the scaled screen
-(`zig_credits.zig`) names the three modules and their licences, in the game's font,
-in the palette colour that stands out most from the band. The pause's key help ends
+**Credits in the game.** On ZIG's title, a line in the bottom border just above the
+credits scroller (`zig_credits.zig`, line 241, the scroller at 251, both clear of the
+monitor's frame) names the three modules and their licences in turn, three seconds
+each, centred, in the game's font and the scroller's white. The pause's key help ends
 with them too (`zig_help.zig`).
 
 An earlier search picked three modules under the "Mod Archive Distribution license"
