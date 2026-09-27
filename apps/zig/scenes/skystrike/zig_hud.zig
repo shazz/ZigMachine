@@ -31,10 +31,10 @@ const PANEL_H: usize = @intCast(scroll.PANEL_H);
 /// The panel's first line in the frame (right under the world's view), and
 /// its left edge.
 pub const HUD_Y: usize = @intCast(scroll.VIEW_H);
-pub const HUD_X: usize = (W - scr.W) / 2;
-/// The bar keeps its columns on the ST screen, inside the 400-wide frame,
-/// and moves down by the margin.
-pub const BAR_DX: usize = HUD_X;
+pub const HUD_X: usize = @intCast(@as(i32, @intCast((W - scr.W) / 2)) + set.hud_x_shift);
+/// The bar keeps its columns on the ST screen, centred in the 400-wide frame
+/// (the panel's sideways shift is its own), and moves down by the margin.
+pub const BAR_DX: usize = (W - scr.W) / 2;
 pub const BAR_DY: usize = set.bar_top_margin;
 comptime {
     if (H - (HUD_Y + PANEL_H) < set.hud_bottom_margin) @compileError("the HUD panel is inside the bottom margin");

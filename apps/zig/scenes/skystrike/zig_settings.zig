@@ -22,7 +22,11 @@ pub var fullscreen_screens: bool = true;
 
 // ---- the frame (overscan: 400 columns x 280 lines) -------------------------
 /// Lines left clear under the HUD panel, where a monitor's frame covers.
-pub const hud_bottom_margin: usize = 20;
+pub const hud_bottom_margin: usize = 10;
+/// The HUD panel (and the ammo counter beside it) moved sideways from the
+/// frame's centre, px; negative is left. Matt, 2026-09-27: 10 px left
+/// centres it on the monitor.
+pub const hud_x_shift: i32 = -10;
 /// Lines the bonus bar's box is moved down from the frame's top.
 pub const bar_top_margin: usize = 20;
 /// Where the plane sits in the frame (px), the camera's target.

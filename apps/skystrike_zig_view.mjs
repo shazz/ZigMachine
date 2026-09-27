@@ -16,10 +16,10 @@ import { readFile } from "node:fs/promises";
 import { onRunway, takeOff, steer, Z, RING_W, WIN_W } from "./skystrike_zig_session.mjs";
 import { grab, lowres, png } from "./skystrike_zig_frame.mjs";
 
-const FIRE = 0x80, SP = 11, AMMO_X = 364; // zig_hud.zig
+const FIRE = 0x80, SP = 11, HUD_X = 30, AMMO_X = HUD_X + 324; // zig_hud.zig (hud_x_shift -10)
 // zig_settings.zig: the panel's last line and the bar's box both MARGIN
 // lines inside the frame; the panel right under the world's view.
-const MARGIN = 20, PANEL_H = 24, HUD_Y = 280 - MARGIN - PANEL_H, BAR_DY = MARGIN;
+const MARGIN = 10, PANEL_H = 24, HUD_Y = 280 - MARGIN - PANEL_H, BAR_DY = 20; // hud_bottom_margin, bar_top_margin
 const gun = (n) => Math.floor((n & 7) * 255 / 7);
 const rgba = (w) => (0xff000000 | gun(w) << 16 | gun(w >> 4) << 8 | gun(w >> 8)) >>> 0;
 
@@ -47,7 +47,7 @@ function frameChecks(s, frame, errors, broke) {
     if (lit < total / 2) errors.push(`(d) the borders are shut: ${lit} of their ${total} pixels above the HUD show anything but colour 0`);
     const [hy, by] = broke === "hud" ? [256, 0] : [HUD_Y, BAR_DY];
     let hud = 0, bar = 0, margin = 0;
-    for (let y = 0; y < 24; y++) for (let x = 0; x < 320; x++) if (frame[(hy + y) * WIN_W + 40 + x] >>> 0 !== pal[back[(176 + y) * 320 + x]]) hud++;
+    for (let y = 0; y < 24; y++) for (let x = 0; x < 320; x++) if (frame[(hy + y) * WIN_W + HUD_X + x] >>> 0 !== pal[back[(176 + y) * 320 + x]]) hud++;
     for (let y = 2; y <= 12; y++) for (let x = 14; x <= 306; x++) if (frame[(y + by) * WIN_W + 40 + x] >>> 0 !== pal[back[y * 320 + x]]) bar++;
     for (let y = HUD_Y + PANEL_H; y < 280; y++) for (let x = 0; x < WIN_W; x++) if (frame[y * WIN_W + x] >>> 0 !== pal[0]) margin++;
     if (hud || bar) errors.push(`(d) ${hud} pixels of the panel (bottom border, line ${hy}) and ${bar} of the bonus bar (top border, line ${by + 2}) are not the game's`);
