@@ -65,12 +65,22 @@ fn nextPattern(a4: i64) ?i64 {
         return m.rl(a4 + 0xA);
     }
     m.wb(a4 + 0x12, 1);
+    const a0, const d0 = sequence(a4) orelse return null;
+    m.wb(a4 + 0x14, 0);
+    m.wl(a4 + 2, a0);
+    const pat = m.idx(PATTERN_BASE, m.rw(PATTERNS + 2 * d0));
+    m.wl(a4 + 6, pat);
+    return pat;
+}
+
+/// The sequence's commands up to its next pattern number: the pointer after
+/// it and the number, or null at its end ($FF: the channel stops).
+fn sequence(a4: i64) ?[2]i64 {
     var a0 = m.rl(a4 + 2);
-    var d0: i64 = undefined;
     while (true) {
-        d0 = m.rb(a0);
+        const d0 = m.rb(a0);
         a0 += 1;
-        if (d0 & 0x80 == 0) break;
+        if (d0 & 0x80 == 0) return .{ a0, d0 };
         if (d0 == 0xFE) {
             m.wb(a4 + 0x13, m.rb(a0));
             a0 += 1;
@@ -84,11 +94,6 @@ fn nextPattern(a4: i64) ?i64 {
             a0 += 1;
         }
     }
-    m.wb(a4 + 0x14, 0);
-    m.wl(a4 + 2, a0);
-    a0 = m.idx(PATTERN_BASE, m.rw(PATTERNS + 2 * d0));
-    m.wl(a4 + 6, a0);
-    return a0;
 }
 
 /// $34DC4: $80-$88 instrument, $FF end of pattern, $89-$BF flags, $C2
@@ -153,20 +158,7 @@ fn arpeggio(a4: i64, a6: i64) void {
         m.wb(a4 + 0x20, c & 0x7F);
         return;
     }
-    if (c & 0x40 == 0) {
-        m.wb(a4 + 0x1E, m.rb(a4 + 0x1E) - 1);
-        if (m.rb(a4 + 0x1E) != 0) return;
-        m.wb(a4 + 0x1F, m.rb(a4 + 0x1F) - 1);
-        if (m.rb(a4 + 0x1F) != 0) {
-            const a0 = m.rl(a4 + 0x1A);
-            var d0 = m.rb(a0);
-            m.wl(a4 + 0x1A, a0 + 1);
-            m.wb(a4 + 0x1E, d0 & 7);
-            d0 = (((d0 >> 3) & 0x1F) + m.rb(a4 + 0x17)) & 0xFF;
-            m.ww(a6 + 4, m.rw(m.idx(PERIODS, 2 * m.s8(d0))));
-            return;
-        }
-    }
+    if (c & 0x40 == 0 and arpeggioStep(a4, a6)) return;
     const a0 = ARPS + ((m.rb(a4 + 0x20) << 3) & 0xFF);
     const b = m.rb(a0);
     if (b & 0x80 == 0 and m.rb(a4 + 0x20) & 0x40 == 0) {
@@ -178,4 +170,20 @@ fn arpeggio(a4: i64, a6: i64) void {
     m.wb(a4 + 0x1F, (b & 7) + 1);
     m.wl(a4 + 0x1A, a0 + 1);
     m.ww(a6 + 4, m.rw(m.idx(PERIODS, 2 * m.s8(m.rb(a4 + 0x17)))));
+}
+
+/// Within the arpeggio: the delay +$1E, then the next step while its count
+/// +$1F lasts. True: done this tick; false: the count ran out (restart it).
+fn arpeggioStep(a4: i64, a6: i64) bool {
+    m.wb(a4 + 0x1E, m.rb(a4 + 0x1E) - 1);
+    if (m.rb(a4 + 0x1E) != 0) return true;
+    m.wb(a4 + 0x1F, m.rb(a4 + 0x1F) - 1);
+    if (m.rb(a4 + 0x1F) == 0) return false;
+    const a0 = m.rl(a4 + 0x1A);
+    var d0 = m.rb(a0);
+    m.wl(a4 + 0x1A, a0 + 1);
+    m.wb(a4 + 0x1E, d0 & 7);
+    d0 = (((d0 >> 3) & 0x1F) + m.rb(a4 + 0x17)) & 0xFF;
+    m.ww(a6 + 4, m.rw(m.idx(PERIODS, 2 * m.s8(d0))));
+    return true;
 }

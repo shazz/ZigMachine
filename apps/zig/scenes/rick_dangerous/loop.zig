@@ -11,6 +11,7 @@
 //                    (14 + the loop's tests; P pauses: spin until P again)
 //   not dying:       x <= 0 or >= $E8 -> 15, 16, 17 (the game completed -> 20, 21)
 //                    Esc -> 21; after a pause -> 18 (a VBL wait)
+//                    (calls 13, 14, 18 and these tests: loop_wait.zig)
 //
 // Every call goes through io.beginCall / io.endCall: the harness's outside
 // world at its entry, the VBLs it took inside it (lockstep).
@@ -20,13 +21,14 @@ const F = @import("fields.zig");
 const game = @import("game.zig");
 const io = @import("io.zig");
 const clock = @import("clock.zig");
-const hud = @import("hud.zig");
 const fade = @import("fade.zig");
 const calls = @import("calls.zig");
 const wc = @import("world_calls.zig");
+const world_scroll = @import("world_scroll.zig");
 const exit_call = @import("exit_call.zig");
 const gameover = @import("gameover.zig");
 const title = @import("title.zig");
+const waits = @import("loop_wait.zig");
 const Status = fade.Status;
 
 pub const Exit = enum { none, gameover, complete, restart };
@@ -36,7 +38,7 @@ const Pc = enum { top, scroll, redraw, exit17, c19, c20, c21, flip, wait, pause,
 pub const Frame = struct {
     pc: Pc = .done,
     exit: Exit = .none,
-    scroll: wc.Scroll = .{},
+    scroll: world_scroll.Scroll = .{},
     redraw: wc.Redraw = .{},
     sub: exit_call.SubmapExit = .{},
     fade: fade.Fade = .{},
@@ -55,7 +57,7 @@ pub const Frame = struct {
                 .top => self.top(),
                 .scroll, .redraw, .exit17 => self.worldCall(),
                 .c19, .c20, .c21 => self.leave(),
-                .flip, .wait, .pause, .wait18 => self.waits(),
+                .flip, .wait, .pause, .wait18 => waits.step(self),
                 .done => return .done,
             };
             if (s == .yield) return .yield;
@@ -67,34 +69,42 @@ pub const Frame = struct {
         for (0..4) |k| calls.run(@intCast(k));
         if (m.rb(F.RICK_DYING) == 0) {
             const y = m.sw(F.R_Y);
-            if (y <= 0x5F or y >= 0xCC) {
-                const k: i64 = if (y <= 0x5F) 7 else 8;
-                io.beginCall(k);
-                clock.beginWorld(k);
-                self.scroll.start(k == 7);
-                self.pc = .scroll;
-                return .done;
-            }
+            if (y <= 0x5F or y >= 0xCC) return self.beginScroll(y <= 0x5F);
         } else if (m.rw(F.R_TYPE) == 0) { // Rick's slot finished dying
-            if (m.rb(F.LIVES) == 0) {
-                io.beginCall(19);
-                clock.beginLong(19);
-                self.fade.start(true);
-                self.pc = .c19;
-                return .done;
-            }
-            calls.run(4);
-            calls.run(5);
-            io.beginCall(6);
-            clock.beginWorld(6);
-            self.redraw.start();
-            self.pc = .redraw;
-            return .done;
+            return self.afterDeath();
         }
         game.paused = false;
         for (9..13) |k| calls.run(@intCast(k));
         io.beginCall(13);
         self.pc = .flip;
+        return .done;
+    }
+
+    /// Rick at the top (y <= $5F) or the bottom (y >= $CC): call 7 or 8.
+    fn beginScroll(self: *Frame, up: bool) Status {
+        const k: i64 = if (up) 7 else 8;
+        io.beginCall(k);
+        clock.beginWorld(k);
+        self.scroll.start(up);
+        self.pc = .scroll;
+        return .done;
+    }
+
+    /// The death is over: no lives -> call 19 (GAME OVER); else calls 4, 5, 6.
+    fn afterDeath(self: *Frame) Status {
+        if (m.rb(F.LIVES) == 0) {
+            io.beginCall(19);
+            clock.beginLong(19);
+            self.fade.start(true);
+            self.pc = .c19;
+            return .done;
+        }
+        calls.run(4);
+        calls.run(5);
+        io.beginCall(6);
+        clock.beginWorld(6);
+        self.redraw.start();
+        self.pc = .redraw;
         return .done;
     }
 
@@ -147,80 +157,10 @@ pub const Frame = struct {
         self.pc = .c20;
     }
 
-    fn begin21(self: *Frame) void {
+    pub fn begin21(self: *Frame) void {
         io.beginCall(21);
         clock.beginLong(21);
         self.title.start();
         self.pc = .c21;
-    }
-
-    /// Call 13 (flip), call 14 (wait + the loop's tests, the P pause), call 18.
-    fn waits(self: *Frame) Status {
-        switch (self.pc) {
-            .flip => {
-                if (hud.flipBlocked()) return .yield;
-                hud.flip();
-                io.endCall();
-                io.beginCall(14);
-                self.pc = .wait;
-            },
-            .wait => {
-                if (hud.waitBlocked()) return .yield;
-                hud.wait();
-                io.eventsDue(game.call_vbls); // arrived before the wait's VBL
-                if (!calls.pauses()) {
-                    io.endCall();
-                    self.tail();
-                    return .done;
-                }
-                m.wb(F.KEY, 0);
-                self.pc = .pause;
-            },
-            .pause => { // the spin: until P is pressed again
-                io.eventsDue(game.call_vbls + 1);
-                if (m.rb(F.KEY) != 0x19 and !(io.lockstep and !io.keysLeft())) {
-                    if (game.ahead()) return .yield;
-                    game.vblIrq();
-                    return .done;
-                }
-                m.wb(F.KEY, 0);
-                game.paused = true;
-                io.endCall();
-                self.tail();
-            },
-            else => { // call 18: the wait after a pause
-                if (hud.waitBlocked()) return .yield;
-                hud.wait();
-                io.endCall();
-                self.pc = .done;
-            },
-        }
-        return .done;
-    }
-
-    /// After call 14: the submap exit, Esc, the wait after a pause.
-    fn tail(self: *Frame) void {
-        self.pc = .done;
-        if (m.rb(F.RICK_DYING) != 0) return;
-        const x = m.sw(F.R_X);
-        if (x <= 0 or x >= 0xE8) {
-            calls.run(15);
-            calls.run(16);
-            io.beginCall(17);
-            clock.beginWorld(17);
-            self.sub.start();
-            self.pc = .exit17;
-            return;
-        }
-        if (m.rb(F.KEY) == 0x01) {
-            self.exit = .restart;
-            self.begin21();
-            return;
-        }
-        if (game.paused) {
-            game.paused = false;
-            io.beginCall(18);
-            self.pc = .wait18;
-        }
     }
 };

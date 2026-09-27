@@ -1,7 +1,7 @@
 // --------------------------------------------------------------------------
 // Spawning (the model's a_spawn.py, literal): $39082 the probe rows, $390CE a
-// row of the submap's spawn list, $391C4 a slot filled from its record and
-// its type descriptor $377B6. Each routine returns the ORIGINAL's cycles for
+// row of the submap's spawn list, and $391C4 a slot filled from its record
+// and its type descriptor $377B6 (spawn_fill.zig). Each routine returns the ORIGINAL's cycles for
 // the path it took (measured per instruction, checked against the 68000 on
 // every submap): the long calls' clock adds them.
 //
@@ -12,12 +12,12 @@
 // --------------------------------------------------------------------------
 const m = @import("ram.zig");
 const F = @import("fields.zig");
+const fill = @import("spawn_fill.zig").fill;
 
 const SLOT0: i64 = F.ENT;
 const OBJECTS: i64 = 0x3A2B4; // slots 4-8
 const ENEMIES: i64 = 0x3A430; // slots 9-11
 const ENEMIES_END: i64 = 0x3A514; // slot 12
-const TYPES: i64 = 0x377B6;
 
 const ROWS_BASE: i64 = 12 + 3 * 20 + 16 + 12;
 const BIT_ON: i64 = 8;
@@ -32,7 +32,6 @@ const ROW_SETUP: i64 = 40;
 const REC_END: i64 = 28;
 const REC_TEST: i64 = 24;
 const REC_SKIP: i64 = 20;
-const FILL: i64 = 1012;
 
 /// $39082: the probe rows in spawn_rows: bit1 -> +8, +16, +24; bit2 -> +0;
 /// bit0 -> +32. Returns the cycles.
@@ -141,65 +140,4 @@ fn alreadyOut(a0: i64) Scan {
         }
         n += 8 + 12;
     }
-}
-
-/// $391C4(a0 = record, a1 = slot, d0 = row offset).
-pub fn fill(a0: i64, a1: i64, d0: i64) i64 {
-    m.wl(a1 + 0x26, a0);
-    const t = m.rb(a0 + 2);
-    m.ww(a1, t);
-    const a2 = TYPES + ((t << 4) & 0xFFFF);
-    m.ww(a1 + 0x10, m.rw(a2 + 2));
-    m.ww(a1 + 0x12, m.rw(a2 + 4));
-    m.ww(a1 + 0x44, m.rw(a2));
-    m.wl(a1 + 0x36, m.rl(a2 + 0xA));
-    m.ww(a1 + 0x40, m.rb(a2 + 0xE) << 3);
-    m.ww(a1 + 0x42, m.rb(a2 + 0xF) << 3);
-    m.wl(a1 + 0x22, 0);
-    const anim = m.rl(a2 + 6);
-    m.wl(a1 + 0x32, anim);
-    if (anim != 0) m.wl(a1 + 0x22, m.rl(anim & 0xFFFFFF));
-    place(a0, a1, d0);
-    zone(a0, a1, d0);
-    defaults(a0, a1);
-    return FILL + @as(i64, if (anim != 0) 20 else 0);
-}
-
-fn place(a0: i64, a1: i64, d0: i64) void {
-    var d2 = m.rb(a0 + 4);
-    const d1 = d2 & 0xF8;
-    d2 = ((((d2 & 7) + d0) & 0xFFFF) << 3) & 0xFFFF;
-    if (m.rb(a0 + 3) & 4 == 0) d2 = (d2 & 0xFF00) | (d2 & 0xF8) | 3;
-    m.ww(a1 + 6, d2);
-    m.ww(a1 + 4, d1);
-    m.ww(a1 + 0xC, d1);
-    m.ww(a1 + 0xE, d2);
-}
-
-fn zone(a0: i64, a1: i64, d0: i64) void {
-    var d2 = m.rb(a0 + 5);
-    const d1 = d2 & 0xF8;
-    d2 &= 7;
-    m.wb(a1 + 0x4A, d2);
-    d2 = (((d2 + d0) & 0xFFFF) << 3) & 0xFFFF;
-    m.ww(a1 + 0x3E, d2);
-    m.ww(a1 + 0x42, m.rw(a1 + 0x42) + d2);
-    m.wb(a1 + 0x4A, m.rb(a1 + 0x4A) * 0x19);
-    m.ww(a1 + 0x3C, d1);
-    m.ww(a1 + 0x30, d1);
-    m.ww(a1 + 0x40, m.rw(a1 + 0x40) + d1);
-}
-
-fn defaults(a0: i64, a1: i64) void {
-    m.ww(a1 + 0x3A, if (m.rb(a0 + 3) & 4 != 0) 0xFF else 0);
-    m.wb(a1 + 0x46, m.rb(a0 + 3));
-    m.ww(a1 + 0x2A, 0);
-    m.ww(a1 + 0x2C, 0);
-    m.ww(a1 + 0x2E, 0);
-    m.wb(a1 + 0x47, 0);
-    m.ww(a1 + 2, 0xFF);
-    m.wb(a1 + 0x48, 0);
-    m.wb(a1 + 0xA, 0);
-    m.ww(a1 + 8, 0x100);
-    m.wb(a1 + 0x49, 0);
 }

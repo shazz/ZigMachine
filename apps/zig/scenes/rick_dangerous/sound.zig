@@ -48,6 +48,10 @@ fn record(n: i64, d1: i64) void {
         log_n += 1;
     }
     if (dropped or in_tick) return;
+    // The SNDH holds ids 0..28 only. The trap descriptors' ids are data, so
+    // an id past the table (never met on a recorded path) is logged but not
+    // requested: 1 + id + 29 x v would overflow the u8 subtune.
+    if (n & 0xFF >= NIDS) return;
     const v: i64 = if (d1 & 0xFF != 0) 2 else alt;
     subtune = @intCast(1 + (n & 0xFF) + NIDS * v);
     stop = false;

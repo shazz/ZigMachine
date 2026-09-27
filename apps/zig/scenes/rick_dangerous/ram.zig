@@ -73,26 +73,37 @@ pub fn wl(a: i64, v: i64) void {
     ww(a + 2, v);
 }
 
-/// n bytes from src to dst (the model's slice assignment; the ranges never overlap).
+/// n bytes from src to dst: the model's slice assignment, which reads the
+/// whole source first, so an overlap copies as memmove does (no caller
+/// overlaps today; @memcpy would be illegal behaviour if one ever did).
 pub fn copy(dst: i64, src: i64, n: i64) void {
     const d = at(dst) orelse return;
     const s = at(src) orelse return;
-    const len: usize = @intCast(n);
+    const len = span(n) orelse return;
     if (d + len > MEM_LEN or s + len > MEM_LEN) {
         oob += 1;
         return;
     }
-    @memcpy(mem[d..][0..len], mem[s..][0..len]);
+    @memmove(mem[d..][0..len], mem[s..][0..len]);
 }
 
 pub fn zero(dst: i64, n: i64) void {
     const d = at(dst) orelse return;
-    const len: usize = @intCast(n);
+    const len = span(n) orelse return;
     if (d + len > MEM_LEN) {
         oob += 1;
         return;
     }
     @memset(mem[d..][0..len], 0);
+}
+
+/// A length in 0..MEM_LEN (anything else is counted, never cast).
+inline fn span(n: i64) ?usize {
+    if (n < 0 or n > MEM_LEN) {
+        oob += 1;
+        return null;
+    }
+    return @intCast(n);
 }
 
 pub fn s8(v: i64) i64 {

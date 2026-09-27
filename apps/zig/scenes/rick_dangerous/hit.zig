@@ -7,6 +7,7 @@
 // --------------------------------------------------------------------------
 const m = @import("ram.zig");
 const core = @import("core.zig");
+const draw = @import("draw.zig");
 
 pub const BULLET: i64 = 0x3A21C; // slot 2
 pub const DYNAMITE: i64 = 0x3A268; // slot 3
@@ -25,12 +26,8 @@ pub fn rws(a: i64) i64 {
     return m.sw(a & 0xFFFFFF);
 }
 
-/// $3A6C0: type = 0; the rect of the screen being drawn erased once more.
-pub fn killSlot(a0: i64) void {
-    m.ww(a0, 0);
-    const r = a0 + (if (m.rl(0x38D6C) & 0x8000 != 0) @as(i64, 0x1C) else 0x16);
-    m.wb(r, m.rb(r) | 4);
-}
+/// $3A6C0 (draw.zig owns the one transcription).
+pub const killSlot = draw.killSlot;
 
 /// $3AE66(d0 = BCD long): into score_bcd $3ADA8..$3ADAA (abcd, X cleared),
 /// the 6 digits to $3ADB2.., dirty_score = $FF.

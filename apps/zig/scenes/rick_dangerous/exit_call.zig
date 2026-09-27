@@ -76,13 +76,7 @@ pub const SubmapExit = struct {
             },
             .load => {
                 if (self.load.step() == .yield) return .yield;
-                if (m.s16(m.rw(F.LEVEL)) >= 4) {
-                    m.ww(F.GAME_COMPLETE, 0xFF);
-                    self.pc = .done;
-                    continue;
-                }
-                self.enter.start(); // $395C2: x from the level record
-                self.pc = .enter2;
+                self.afterLoad();
             },
             .enter2 => {
                 if (self.enter.step() == .yield) return .yield;
@@ -95,6 +89,17 @@ pub const SubmapExit = struct {
             },
             .done => return .done,
         };
+    }
+
+    /// The next level's intro is over: the game completed, or its first submap.
+    fn afterLoad(self: *SubmapExit) void {
+        if (m.s16(m.rw(F.LEVEL)) >= 4) {
+            m.ww(F.GAME_COMPLETE, 0xFF);
+            self.pc = .done;
+            return;
+        }
+        self.enter.start(); // $395C2: x from the level record
+        self.pc = .enter2;
     }
 };
 

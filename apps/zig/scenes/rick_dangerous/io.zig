@@ -70,6 +70,10 @@ pub fn beginCall(k: i64) void {
         l.n = @intCast(@max(next(), 0));
         l.at = tp;
         l.i = 0;
+        if (2 * l.n > tape.len - tp) { // a short tape: no event may read past it
+            errors += 1;
+            l.n = 0;
+        }
         tp += 2 * l.n;
     }
     moved = next();
@@ -126,6 +130,11 @@ pub fn irq() void {
     var n = irqs[ip];
     ip += 1;
     while (n > 0) : (n -= 1) {
+        if (irqs.len - ip < 2) {
+            errors += 1;
+            ip = irqs.len;
+            return;
+        }
         m.wb(irqs[ip], irqs[ip + 1]);
         ip += 2;
     }

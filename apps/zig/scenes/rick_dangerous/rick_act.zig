@@ -73,7 +73,7 @@ fn poke(face: i64, dx: i64) void {
 fn shoot() void {
     if (m.rb(R.LATCH) != 0) return;
     m.wb(R.LATCH, 0xFF);
-    var d4 = m.rw(R.R_HOMEX);
+    const d4 = m.rw(R.R_HOMEX);
     m.ww(R.R_X, d4);
     m.wb(R.LADDER, 0);
     if (m.rw(R.R_DIR) != 0) {
@@ -89,10 +89,15 @@ fn shoot() void {
     m.ww(R.B_TYPE, 2);
     snd.play(8, 1);
     snd.play(8, 0);
+    launch();
+}
+
+/// The bullet's slot: its dirty rects, direction, position and sprite from Rick's.
+fn launch() void {
     m.wb(R.B_DIRTY0, m.rb(R.B_DIRTY0) & 0xFE);
     m.wb(R.B_DIRTY1, m.rb(R.B_DIRTY1) & 0xFE);
     m.ww(R.B_DIR, m.rw(R.R_DIR));
-    d4 = (m.rw(R.R_Y) + 7) & 0xFFFF;
+    var d4 = (m.rw(R.R_Y) + 7) & 0xFFFF;
     m.ww(R.B_Y, d4);
     m.ww(R.BULLET_Y, d4 + 4);
     d4 = m.rw(R.R_X);

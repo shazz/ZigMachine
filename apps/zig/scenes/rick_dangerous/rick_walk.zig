@@ -23,17 +23,7 @@ pub fn walk(d0: i64) Next {
     const d3 = fixed();
     const ny = d3 >> 16;
     const nf = d3 & 0xFFFF;
-    var d2 = m.rw(R.R_X);
-    m.ww(R.R_HOMEX, d2);
-    if (d0 & 4 != 0) {
-        d2 = (d2 - 2) & 0xFFFF;
-        m.wb(R.MOVED, 0xFF);
-        m.ww(R.R_DIR, 0xFF);
-    } else if (d0 & 8 != 0) {
-        d2 = (d2 + 2) & 0xFFFF;
-        m.wb(R.MOVED, 0xFF);
-        m.ww(R.R_DIR, 0);
-    }
+    const d2 = stepX(d0);
     if (!collide(d2, ny)) { // free: move in x and y
         m.ww(R.R_X, d2);
         m.ww(R.R_Y, ny);
@@ -50,6 +40,23 @@ pub fn walk(d0: i64) Next {
         return .after;
     }
     return blocked(d0, d2);
+}
+
+/// x kept as home_x, then the wanted x: 2 px left / right (moved, facing).
+fn stepX(d0: i64) i64 {
+    const d2 = m.rw(R.R_X);
+    m.ww(R.R_HOMEX, d2);
+    if (d0 & 4 != 0) {
+        m.wb(R.MOVED, 0xFF);
+        m.ww(R.R_DIR, 0xFF);
+        return (d2 - 2) & 0xFFFF;
+    }
+    if (d0 & 8 != 0) {
+        m.wb(R.MOVED, 0xFF);
+        m.ww(R.R_DIR, 0);
+        return (d2 + 2) & 0xFFFF;
+    }
+    return d2;
 }
 
 /// $3BC2E: the vertical move is blocked.

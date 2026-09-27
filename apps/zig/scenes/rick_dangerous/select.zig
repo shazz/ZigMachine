@@ -29,9 +29,9 @@ pub const LevelSelect = struct {
 
     pub fn step(self: *LevelSelect) Status {
         while (true) switch (self.pc) {
-            .fo => {
+            .fo, .fi => {
                 if (self.fade.step() == .yield) return .yield;
-                self.pc = .wait1;
+                self.pc = if (self.pc == .fo) .wait1 else .cursor;
             },
             .wait1 => {
                 if (hud.waitBlocked()) return .yield;
@@ -39,10 +39,6 @@ pub const LevelSelect = struct {
                 entries();
                 self.fade.start(false);
                 self.pc = .fi;
-            },
-            .fi => {
-                if (self.fade.step() == .yield) return .yield;
-                self.pc = .cursor;
             },
             .cursor => {
                 screen.printAt(8, self.d1, hof.CURSOR);
@@ -54,17 +50,22 @@ pub const LevelSelect = struct {
                     if (hud.waitBlocked()) return .yield;
                     screen.waitD();
                 }
-                if (m.rb(F.JOY) & 0x80 != 0) {
-                    m.ww(F.SEL_LEVEL, self.d2);
-                    self.pc = .done;
-                    continue;
-                }
-                screen.printAt(8, self.d1, hof.BLANK);
-                self.move();
-                self.pc = .cursor;
+                self.pick();
             },
             .done => return .done,
         };
+    }
+
+    /// After the 4 waits: FIRE picks the level, else the cursor moves.
+    fn pick(self: *LevelSelect) void {
+        if (m.rb(F.JOY) & 0x80 != 0) {
+            m.ww(F.SEL_LEVEL, self.d2);
+            self.pc = .done;
+            return;
+        }
+        screen.printAt(8, self.d1, hof.BLANK);
+        self.move();
+        self.pc = .cursor;
     }
 
     fn move(self: *LevelSelect) void {

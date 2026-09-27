@@ -44,23 +44,7 @@ pub fn bullet(a0: i64) void {
 /// blast: the slot moves -4/-5, digi 10 twice, the blast box live for anim
 /// frames 0-6 ($366C0); Rick inside it is killed; at the anim's end, all clear.
 pub fn dynamite(a0: i64) void {
-    if (m.rw(0x3B99C) == 0) {
-        m.ww(0x3B9AA, 0);
-        const d1 = m.rl(m.idx(0x36674, (m.rw(0x3A292) & ~@as(i64, 1)) * 2));
-        if (d1 != 0xFFFFFFFF) {
-            m.ww(0x3A292, m.rw(0x3A292) + 1);
-            m.wl(0x3A28A, d1);
-            if (m.rw(0x3A292) & 3 == 0) snd.play(9, 1);
-            return;
-        }
-        m.ww(0x3B99C, 0xFF);
-        m.ww(0x3A26C, m.rw(0x3A26C) - 4);
-        m.ww(0x3A26E, m.rw(0x3A26E) - 5);
-        m.ww(0x3A27C, 0);
-        m.ww(0x3A292, 0);
-        snd.play(0xA, 1);
-        snd.play(0xA, 0);
-    }
+    if (m.rw(0x3B99C) == 0 and fuse()) return;
     m.ww(0x3B9AC, m.rw(0x3A26C) + 0xC);
     m.ww(0x3B9AE, m.rw(0x3A26E) + 0xA);
     m.ww(0x3B9AA, 0xFF);
@@ -77,6 +61,27 @@ pub fn dynamite(a0: i64) void {
     m.ww(0x3B99C, 0);
     m.ww(0x3B9AA, 0);
     hit.killSlot(a0);
+}
+
+/// The fuse (blast not yet done): true while it burns; at its anim's end the
+/// blast starts (the slot -4/-5, digi 10 twice) and false.
+fn fuse() bool {
+    m.ww(0x3B9AA, 0);
+    const d1 = m.rl(m.idx(0x36674, (m.rw(0x3A292) & ~@as(i64, 1)) * 2));
+    if (d1 != 0xFFFFFFFF) {
+        m.ww(0x3A292, m.rw(0x3A292) + 1);
+        m.wl(0x3A28A, d1);
+        if (m.rw(0x3A292) & 3 == 0) snd.play(9, 1);
+        return true;
+    }
+    m.ww(0x3B99C, 0xFF);
+    m.ww(0x3A26C, m.rw(0x3A26C) - 4);
+    m.ww(0x3A26E, m.rw(0x3A26E) - 5);
+    m.ww(0x3A27C, 0);
+    m.ww(0x3A292, 0);
+    snd.play(0xA, 1);
+    snd.play(0xA, 0);
+    return false;
 }
 
 /// Types 16 / 17, $3CA8E / $3CAA2 -> $3CADA. Poked, shot or blasted: it

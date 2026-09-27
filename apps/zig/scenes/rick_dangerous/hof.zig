@@ -6,9 +6,8 @@
 //
 // Name entry: a 6x5 letter grid ($38A23 + row x 6 + col), the stick moves
 // the cursor every 4 VBLs, FIRE picks: $37 = END, $36 = rub out, else the
-// letter (10 at most). Fire held: the name and the cursors are reprinted,
-// without a wait, until it is released. END: 'POOKY' turns the level select
-// on; the name is copied to +$10 with $39 -> $5E, counting with the
+// letter (10 at most; then Insert.held). END: 'POOKY' turns the level
+// select on; the name is copied to +$10 with $39 -> $5E, counting with the
 // character register (dbra d3): up to the first 0 byte.
 // --------------------------------------------------------------------------
 const m = @import("ram.zig");
@@ -91,14 +90,18 @@ pub const Insert = struct {
                 }
                 self.pc = self.pick();
             },
-            .held => { // $38BB0: until FIRE is released
-                if (game.ahead()) return .yield;
-                show(self.d2, self.d3, self.d7);
-                clock.poll();
-                if (m.rb(F.JOY) & 0x80 == 0) self.pc = .grid;
-            },
+            .held => if (self.held() == .yield) return .yield,
             .done => return .done,
         };
+    }
+
+    /// $38BB0: FIRE held: the name and the cursors again, no wait, until released.
+    fn held(self: *Insert) Status {
+        if (game.ahead()) return .yield;
+        show(self.d2, self.d3, self.d7);
+        clock.poll();
+        if (m.rb(F.JOY) & 0x80 == 0) self.pc = .grid;
+        return .done;
     }
 
     /// After the 4 waits: move, or pick a letter / rub out / END.

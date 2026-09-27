@@ -73,26 +73,19 @@ pub fn drawSlot(slot: i64) void {
 pub fn drawSlotAt(a0: i64) void {
     const x = m.sw(a0 + 4);
     if (x < -8 or x > 0xF0) return killSlot(a0);
-    var y = m.sw(a0 + 6);
-    if (y < 0 or y > 0x142) return killSlot(a0);
+    const y0 = m.sw(a0 + 6);
+    if (y0 < 0 or y0 > 0x142) return killSlot(a0);
     const d0 = m.rl(F.SCREEN_PTR) ^ 0x8000;
     const r = a0 + rectOff();
     m.ww(r, 0x0100);
     var h = m.rw(a0 + 0x14);
     if (h == 0) h = 0x15;
-    var a6 = m.rl(a0 + 0x22);
-    if (a6 == 0 or x < 0 or x > 0xE8) return m.wb(r, m.rb(r) & ~@as(i64, 1));
-    if (y < 0x40) {
-        if (y <= m.s16(0x40 - h)) return m.wb(r, m.rb(r) & ~@as(i64, 1));
-        const d6 = 0x40 - y;
-        h -= d6;
-        a6 = (a6 + (d6 << 4)) & M32;
-        y = 0x40;
-    } else if (y > m.s16(0xFF - h)) {
-        if (y >= 0xFF) return m.wb(r, m.rb(r) & ~@as(i64, 1));
-        h = 0x100 - y;
-    }
-    const lines = (h - 1) & 0xFFFF;
+    const sprite = m.rl(a0 + 0x22);
+    if (sprite == 0 or x < 0 or x > 0xE8) return m.wb(r, m.rb(r) & ~@as(i64, 1));
+    const c = clipY(y0, h, sprite) orelse return m.wb(r, m.rb(r) & ~@as(i64, 1));
+    const y = c.y;
+    const a6 = c.a6;
+    const lines = (c.h - 1) & 0xFFFF;
     m.ww(r + 2, lines);
     const xx = (x + 0x20) & 0xFFFF;
     const off = (((y - 0x38) * 160) + ((xx & 0xFFF0) >> 1)) & 0xFFFF;
@@ -105,6 +98,23 @@ pub fn drawSlotAt(a0: i64) void {
     } else {
         blitAligned(a6, a2, lines);
     }
+}
+
+const Clip = struct { y: i64, h: i64, a6: i64 };
+
+/// The playfield's top ($40: the sprite's first lines skipped) and bottom
+/// ($FF) edges; null when nothing of it is visible.
+fn clipY(y: i64, h: i64, a6: i64) ?Clip {
+    if (y < 0x40) {
+        if (y <= m.s16(0x40 - h)) return null;
+        const d6 = 0x40 - y;
+        return .{ .y = 0x40, .h = h - d6, .a6 = (a6 + (d6 << 4)) & M32 };
+    }
+    if (y > m.s16(0xFF - h)) {
+        if (y >= 0xFF) return null;
+        return .{ .y = y, .h = 0x100 - y, .a6 = a6 };
+    }
+    return .{ .y = y, .h = h, .a6 = a6 };
 }
 
 /// $3AD38: 16-px aligned, 2 groups; the low words go to the right group.
@@ -144,43 +154,44 @@ fn blitShifted(a6_: i64, a2_: i64, s: i64, a5_: i64) void {
     var a2 = a2_;
     var a5 = a5_;
     while (true) {
-        var a3 = a2 + 8;
-        var a4 = a2 + 16;
         const d = [4]i64{ m.rl(a6), m.rl(a6 + 4), m.rl(a6 + 8), m.rl(a6 + 12) };
         a6 += 16;
-        var d4 = ~(d[0] | d[1] | d[2] | d[3]) & M32;
-        var d5 = 0xFFFF0000 | (d4 & 0xFFFF);
-        d4 = swap((d4 & 0xFFFF0000) | 0xFFFF);
-        d4 = ror(d4, s);
-        d5 = ror(d5, s);
-        d4 = swap(d4);
-        d5 = lo(d5, d5 & d4);
-        d4 = swap(d4);
-        for (0..4) |k| {
-            var v = d[k];
-            var d7 = v & 0xFFFF;
-            v = swap(v & 0xFFFF0000);
-            v = ror(v, s);
-            d7 = ror(d7, s);
-            v = swap(v);
-            d7 = lo(d7, d7 | v);
-            v = swap(v);
-            m.ww(a2, (m.rw(a2) & d4) | (v & 0xFFFF));
-            m.ww(a3, (m.rw(a3) & d5) | (d7 & 0xFFFF));
-            d5 = swap(d5);
-            const mk = d5 & 0xFFFF;
-            d5 = swap(d5);
-            d7 = swap(d7);
-            m.ww(a4, (m.rw(a4) & mk) | (d7 & 0xFFFF));
-            if (k < 3) {
-                a2 += 2;
-                a3 += 2;
-                a4 += 2;
-            }
-        }
-        a2 += 0x9A;
+        const mk = shiftedMasks(d, s);
+        // a2 / a3 = +8 / a4 = +16 step 2 a plane; then adda #$9A: $A0 a line
+        for (0..4) |k| shiftedWord(a2 + 2 * @as(i64, @intCast(k)), d[k], s, mk[0], mk[1]);
+        a2 += 0xA0;
         const d7c = (a5 - 1) & 0xFFFF;
         if (d7c == 0xFFFF) return;
         a5 = d7c;
     }
+}
+
+/// The line's mask NOT(d0|d1|d2|d3) shifted over the three groups: d4 (the
+/// left word) and d5 (high word: the right group's, low: the middle's).
+fn shiftedMasks(d: [4]i64, s: i64) [2]i64 {
+    var d4 = ~(d[0] | d[1] | d[2] | d[3]) & M32;
+    var d5 = 0xFFFF0000 | (d4 & 0xFFFF);
+    d4 = swap((d4 & 0xFFFF0000) | 0xFFFF);
+    d4 = ror(d4, s);
+    d5 = ror(d5, s);
+    d4 = swap(d4);
+    d5 = lo(d5, d5 & d4);
+    d4 = swap(d4);
+    return .{ d4, d5 };
+}
+
+/// One plane's long v, shifted right by s, into the words at a2, a2+8, a2+16.
+fn shiftedWord(a2: i64, v0: i64, s: i64, d4: i64, d5: i64) void {
+    var v = v0;
+    var d7 = v & 0xFFFF;
+    v = swap(v & 0xFFFF0000);
+    v = ror(v, s);
+    d7 = ror(d7, s);
+    v = swap(v);
+    d7 = lo(d7, d7 | v);
+    v = swap(v);
+    m.ww(a2, (m.rw(a2) & d4) | (v & 0xFFFF));
+    m.ww(a2 + 8, (m.rw(a2 + 8) & d5) | (d7 & 0xFFFF));
+    d7 = swap(d7);
+    m.ww(a2 + 16, (m.rw(a2 + 16) & (swap(d5) & 0xFFFF)) | (d7 & 0xFFFF));
 }

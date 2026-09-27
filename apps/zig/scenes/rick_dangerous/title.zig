@@ -7,9 +7,7 @@
 // flip, wait.
 //
 // The power-on path $3D6AC..$3D72C (boot) runs the same body behind its own
-// prefix: clear the work buffers and the screens, the level-select flags,
-// the RNG seed $38FF6, the live palette, flip, wait, the title tune, the
-// title picture, flip, wait, then 176 VBLs of the title before the loop.
+// prefix (title_boot.zig).
 // --------------------------------------------------------------------------
 const m = @import("ram.zig");
 const F = @import("fields.zig");
@@ -24,6 +22,7 @@ const fade = @import("fade.zig");
 const intro = @import("intro.zig");
 const wc = @import("world_calls.zig");
 const select = @import("select.zig");
+const power_on = @import("title_boot.zig");
 const Status = fade.Status;
 
 pub const Title = struct {
@@ -42,17 +41,15 @@ pub const Title = struct {
         self.pc = .fo1;
     }
 
-    /// Power-on, $3D6AC: the game's own start-up (no TOS here: Super, the
-    /// vectors and the IKBD commands are the machine's).
+    /// Power-on, $3D6AC (title_boot.zig).
     pub fn boot(self: *Title) void {
         self.* = .{};
-        newgame.startUp();
-        self.pc = .boot_flip;
+        power_on.start(self);
     }
 
     pub fn step(self: *Title) Status {
         while (true) {
-            if (self.bootStep()) |s| {
+            if (power_on.step(self)) |s| {
                 if (s == .yield) return .yield;
                 continue;
             }
@@ -63,38 +60,6 @@ pub const Title = struct {
             if (self.pc == .done) return .done;
             if (self.tailStep() == .yield) return .yield;
         }
-    }
-
-    /// $3D6E8..$3D720, the power-on prefix. null: not in it.
-    fn bootStep(self: *Title) ?Status {
-        switch (self.pc) {
-            .boot_flip, .boot_flip2 => {
-                if (hud.flipBlocked()) return .yield;
-                screen.flipD();
-                self.pc = if (self.pc == .boot_flip) .boot_wait else .boot_wait2;
-            },
-            .boot_wait => {
-                if (hud.waitBlocked()) return .yield;
-                screen.waitD();
-                snd.play(5, 1);
-                screen.titlePicture();
-                self.pc = .boot_flip2;
-            },
-            .boot_wait2 => {
-                if (hud.waitBlocked()) return .yield;
-                screen.waitD();
-                self.hold.start();
-                self.pc = .boot_hold;
-            },
-            .boot_hold => {
-                if (self.hold.step() == .yield) return .yield;
-                if (self.hold.fired) return self.afterLoop();
-                self.fade.start(true);
-                self.pc = .fo1;
-            },
-            else => return null,
-        }
-        return .done;
     }
 
     /// $3D994, the title loop: until FIRE.
@@ -117,6 +82,15 @@ pub const Title = struct {
                 self.fade.start(true);
                 self.pc = if (self.pc == .hold1) .fo2 else .fo1;
             },
+            .fo2, .flip, .wait => return self.pictureStep(),
+            else => return null,
+        }
+        return .done;
+    }
+
+    /// The title loop's second half: fade out, the title picture, flip, wait, fade in.
+    fn pictureStep(self: *Title) Status {
+        switch (self.pc) {
             .fo2 => {
                 if (self.fade.step() == .yield) return .yield;
                 screen.titlePicture();
@@ -127,19 +101,18 @@ pub const Title = struct {
                 screen.flipD();
                 self.pc = .wait;
             },
-            .wait => {
+            else => {
                 if (hud.waitBlocked()) return .yield;
                 screen.waitD();
                 self.fade.start(false);
                 self.pc = .fi2;
             },
-            else => return null,
         }
         return .done;
     }
 
     /// $3D730..$3D754: silence, a new game, the level select.
-    fn afterLoop(self: *Title) Status {
+    pub fn afterLoop(self: *Title) Status {
         snd.off();
         newgame.newGame();
         newgame.reviveSpawns();
@@ -172,6 +145,15 @@ pub const Title = struct {
                 self.fade.start(false);
                 self.pc = .fi;
             },
+            .fi, .flip3, .wait3 => return self.finishStep(),
+            else => self.pc = .done,
+        }
+        return .done;
+    }
+
+    /// $3D754..$3D75C: fade in, flip, wait.
+    fn finishStep(self: *Title) Status {
+        switch (self.pc) {
             .fi => {
                 if (self.fade.step() == .yield) return .yield;
                 self.pc = .flip3;
@@ -181,12 +163,11 @@ pub const Title = struct {
                 screen.flipD();
                 self.pc = .wait3;
             },
-            .wait3 => {
+            else => {
                 if (hud.waitBlocked()) return .yield;
                 screen.waitD();
                 self.pc = .done;
             },
-            else => self.pc = .done,
         }
         return .done;
     }

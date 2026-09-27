@@ -9,7 +9,6 @@
 // --------------------------------------------------------------------------
 const m = @import("ram.zig");
 const F = @import("fields.zig");
-const core = @import("core.zig");
 const clock = @import("clock.zig");
 const costs = @import("costs.zig");
 const game = @import("game.zig");
@@ -20,6 +19,7 @@ const draw = @import("draw.zig");
 const pass = @import("pass.zig");
 const rick = @import("rick.zig");
 const fade = @import("fade.zig");
+const prints = @import("intro_text.zig");
 const Status = fade.Status;
 
 const SLOT12: i64 = 0x3A514;
@@ -51,7 +51,20 @@ pub const LoadLevel = struct {
     }
 
     pub fn step(self: *LoadLevel) Status {
-        while (true) switch (self.pc) {
+        while (true) {
+            const s = switch (self.pc) {
+                .fo, .wait1, .fi => self.upStep(),
+                .loop_, .flip, .wait2 => self.loopStep(),
+                .spin, .spin_wait, .fo2 => self.endStep(),
+                .done => return .done,
+            };
+            if (s == .yield) return .yield;
+        }
+    }
+
+    /// Fade out, wait, the intro screen up, fade in.
+    fn upStep(self: *LoadLevel) Status {
+        switch (self.pc) {
             .fo => {
                 if (self.fade.step() == .yield) return .yield;
                 self.pc = .wait1;
@@ -63,14 +76,21 @@ pub const LoadLevel = struct {
                 self.fade.start(false);
                 self.pc = .fi;
             },
-            .fi => {
+            else => {
                 if (self.fade.step() == .yield) return .yield;
                 self.pc = .loop_;
             },
+        }
+        return .done;
+    }
+
+    /// Until FIRE: erase, the border prints, the entity pass, flip, wait.
+    fn loopStep(self: *LoadLevel) Status {
+        switch (self.pc) {
             .loop_ => {
                 draw.erase();
                 clock.work(costs.eraseCost());
-                frameText();
+                prints.frameText();
                 pass.intro();
                 self.pc = .flip;
             },
@@ -79,7 +99,7 @@ pub const LoadLevel = struct {
                 screen.flipD();
                 self.pc = .wait2;
             },
-            .wait2 => {
+            else => {
                 if (hud.waitBlocked()) return .yield;
                 screen.waitD();
                 if (m.rb(F.JOY) & 0x80 == 0) {
@@ -91,10 +111,17 @@ pub const LoadLevel = struct {
                     self.pc = .fo2;
                 }
             },
+        }
+        return .done;
+    }
+
+    /// After level 4 the tune's end; fade out, clear + HUD, slot 12 off, Rick back.
+    fn endStep(self: *LoadLevel) Status {
+        switch (self.pc) {
             .spin => { // spins; the VBLs keep the tune going
                 if (m.rw(F.MUSIC_BUSY) == 0) {
                     self.pc = .spin_wait;
-                    continue;
+                    return .done;
                 }
                 if (game.ahead()) return .yield;
                 clock.work(clock.VBL - clock.pos);
@@ -105,22 +132,22 @@ pub const LoadLevel = struct {
                 self.fade.start(true);
                 self.pc = .fo2;
             },
-            .fo2 => {
+            else => {
                 if (self.fade.step() == .yield) return .yield;
                 screen.clearHud();
                 for ([_]i64{ SLOT12, 0x3A52A, 0x3A530 }) |a| m.ww(a, 0);
                 rick.flag();
                 self.pc = .done;
             },
-            .done => return .done,
-        };
+        }
+        return .done;
     }
 
     /// Between the first fade out's wait and the fade in.
     fn screenUp(self: *LoadLevel) void {
         screen.clearHud();
-        pictureTiles(self.picture_tile & 0xFFFF);
-        textPrint(self.text);
+        prints.pictureTiles(self.picture_tile & 0xFFFF);
+        prints.textPrint(self.text);
         m.copy(0x65B00, 0x78000, 0x8000);
         clock.work(8 * 20 * 1024 + 10 * 1024);
         hud.clearSlots();
@@ -134,57 +161,3 @@ pub const LoadLevel = struct {
         snd.play(m.rw(F.LEVEL), 0);
     }
 };
-
-/// 6 rows of the 6 tiles d2, d2+1, ... ($38EE8 at $1941 + n x $500).
-fn pictureTiles(d2_: i64) void {
-    var d2 = d2_;
-    var d0: i64 = 0x1941;
-    for (0..6) |_| {
-        var k: i64 = 0;
-        while (k < 6) : (k += 1) {
-            m.wb(0x3B23C + k, d2);
-            d2 = (d2 + 1) & 0xFFFF;
-        }
-        clock.work(180 + clock.PRINT_CHAR * 6 + 150);
-        core.printText(d0, 0x3B23C);
-        d0 = (d0 + 0x500) & 0xFFFF;
-    }
-}
-
-/// One tile per column from column 5; $FF = the next line (row 2, then 13,
-/// 14, ..); $FE = the end.
-fn textPrint(a2_: i64) void {
-    var a2 = a2_;
-    var d1: i64 = 2;
-    while (true) {
-        var d0: i64 = 5;
-        while (true) {
-            const d2 = m.rb(a2);
-            a2 += 1;
-            if (d2 == 0xFF) {
-                d1 += 1;
-                if (d1 == 3) d1 = 0xD;
-                break;
-            }
-            if (d2 == 0xFE) return;
-            m.wb(0x3B23A, d2);
-            screen.printAt(d0, d1, 0x3B23A);
-            d0 += 1;
-        }
-    }
-}
-
-/// $3B18A..$3B1E6: the border prints on single screens.
-fn frameText() void {
-    _ = screen.printOne(0x79440, 0x3B244);
-    for ([2][2]i64{ .{ 0x79940, 0x3B258 }, .{ 0x71440, 0x3B25A } }) |bt| {
-        var a1 = bt[0];
-        for (0..7) |_| {
-            _ = screen.printOne(a1, bt[1]);
-            a1 += 0x19;
-            _ = screen.printOne(a1, bt[1]);
-            a1 += 0x4E7;
-        }
-        if (bt[0] == 0x71440) _ = screen.printOne(a1, 0x3B24E);
-    }
-}

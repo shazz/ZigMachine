@@ -10,29 +10,10 @@ const snd = @import("sound.zig");
 const collide = @import("rick_tiles.zig").collide;
 
 pub fn climb(d0: i64) void {
-    var d2 = m.rw(R.R_X);
-    var d3 = m.rw(R.R_Y);
-    const d7 = d3;
+    const d7 = m.rw(R.R_Y);
     m.ww(R.R_VY, 0x100);
     m.wb(R.FLAGS, m.rb(R.FLAGS) & 0x7F);
-    if (d0 & 4 != 0) {
-        d2 = (d2 - 2) & 0xFFFF;
-        m.ww(R.R_DIR, 0xFF);
-        m.wb(R.MOVED, m.rb(R.MOVED) | 1);
-    } else if (d0 & 8 != 0) {
-        d2 = (d2 + 2) & 0xFFFF;
-        m.ww(R.R_DIR, 0);
-        m.wb(R.MOVED, m.rb(R.MOVED) | 1);
-    }
-    if (d0 & 1 != 0) {
-        d3 = (d3 - 2) & 0xFFFF;
-        m.ww(R.R_VY, 0xFE00);
-        m.wb(R.FLAGS, m.rb(R.FLAGS) & 0xEF);
-        m.wb(R.MOVED, m.rb(R.MOVED) | 2);
-    } else if (d0 & 2 != 0) {
-        d3 = (d3 + 2) & 0xFFFF;
-        m.wb(R.MOVED, m.rb(R.MOVED) | 2);
-    }
+    const d2, const d3 = stick(d0);
     if (m.rb(R.MOVED) & 1 != 0) { // $3C192: the x move
         if (collide(d2, d7) and m.rb(R.ATTR) & 0x40 != 0) {
             m.wb(R.MOVED, m.rb(R.MOVED) & 0xFE);
@@ -53,6 +34,32 @@ pub fn climb(d0: i64) void {
     m.ww(R.R_VY, 0x100); // $3C200
     m.wb(R.MOVED, m.rb(R.MOVED) & 0xFD);
     if (m.rb(R.MOVED) & 1 != 0) checkLeave();
+}
+
+/// $3C0FE..$3C190, the stick: the wanted x (d2) and y (d3), 2 px a
+/// direction, moved bits 0 (x) / 1 (y); up sets vy = $FE00.
+fn stick(d0: i64) [2]i64 {
+    var d2 = m.rw(R.R_X);
+    var d3 = m.rw(R.R_Y);
+    if (d0 & 4 != 0) {
+        d2 = (d2 - 2) & 0xFFFF;
+        m.ww(R.R_DIR, 0xFF);
+        m.wb(R.MOVED, m.rb(R.MOVED) | 1);
+    } else if (d0 & 8 != 0) {
+        d2 = (d2 + 2) & 0xFFFF;
+        m.ww(R.R_DIR, 0);
+        m.wb(R.MOVED, m.rb(R.MOVED) | 1);
+    }
+    if (d0 & 1 != 0) {
+        d3 = (d3 - 2) & 0xFFFF;
+        m.ww(R.R_VY, 0xFE00);
+        m.wb(R.FLAGS, m.rb(R.FLAGS) & 0xEF);
+        m.wb(R.MOVED, m.rb(R.MOVED) | 2);
+    } else if (d0 & 2 != 0) {
+        d3 = (d3 + 2) & 0xFFFF;
+        m.wb(R.MOVED, m.rb(R.MOVED) | 2);
+    }
+    return .{ d2, d3 };
 }
 
 /// $3C21E.

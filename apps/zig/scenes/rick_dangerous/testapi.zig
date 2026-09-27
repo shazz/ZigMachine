@@ -35,7 +35,8 @@ pub fn buf(n: u32) callconv(.c) ?[*]u8 {
 
 pub fn load(snap_len: u32, ints_off: u32, tape_n: u32, irq_n: u32, per_call: u32) callconv(.c) i32 {
     if (m.mem.len == 0 or snap_len != crc.regionBytes()) return -1;
-    if (ints_off % 4 != 0 or ints_off + 4 * (17 + tape_n + irq_n) > tbuf.len) return -2;
+    const ints_len = 4 * (17 + @as(u64, tape_n) + irq_n);
+    if (ints_off % 4 != 0 or snap_len > ints_off or ints_off + ints_len > tbuf.len) return -2;
     m.loadImage();
     crc.load(tbuf[0..snap_len]);
     const ints: [*]const i32 = @ptrCast(@alignCast(tbuf.ptr + ints_off));
@@ -63,7 +64,7 @@ pub fn frame() callconv(.c) i32 {
 
 pub fn val(what: u32) callconv(.c) u32 {
     return switch (what) {
-        0 => crc.state(),
+        0 => if (m.mem.len == 0) 0 else crc.state(),
         1 => io.errors,
         2 => m.oob,
         3 => @bitCast(@as(i32, @truncate(io.bad_frame))),
@@ -103,7 +104,8 @@ pub fn sndBegin(subtune: u32) callconv(.c) void {
     io.lockstep = false;
     digi.reset();
     snd.off();
-    const n: i64 = subtune - 1;
+    if (subtune < 1 or subtune > 3 * snd.NIDS) return;
+    const n: i64 = @as(i64, subtune) - 1;
     const v = @divFloor(n, snd.NIDS);
     if (v != 2) m.wb(0x34A85, v);
     snd.play(@mod(n, snd.NIDS), if (v == 2) 1 else 0);
