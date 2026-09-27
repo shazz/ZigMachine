@@ -234,6 +234,16 @@ export fn sndhCallNamePtr() [*]const u8 {
 export fn sndhCallNameLen() u32 {
     return @intCast(zg.sndhCallNameLen());
 }
+// zg.sfxPlay / sfxStop / ymWrite: the frame's effect commands for the MOD
+// playing, in order, as 16-byte entries at sfxEntriesPtr() (layout:
+// libs/zig/sfx_queue.zig). Polled AFTER pollSongRequest and pollSndhCalls;
+// reading takes them.
+export fn pollSfx() u32 {
+    return if (booted) @intCast(zg.takeSfx()) else 0;
+}
+export fn sfxEntriesPtr() [*]const u8 {
+    return @ptrCast(zg.sfxEntriesPtr());
+}
 
 // Directional / action input from the host. Forwarded to scenes that declare
 // input() (e.g. the effects menu: arrows move, Fire launches, Back returns).

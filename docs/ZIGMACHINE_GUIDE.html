@@ -851,7 +851,7 @@ tunes it so the sector sums to <code>$1234</code>. <strong>Run:</strong> <code>s
 - After <code>hwInit()</code> plane 0 is already a normal 320×200 plane with its default framebuffer
   base — read <code>REG_FB_BASE</code> (as above) rather than hard-coding the address.
 - Keep it small: check <code>ls -l docs/boot-&lt;name&gt;.wasm</code> ≤ 1015 B; <code>mkdisk</code> prints the headroom.</p></div></section>
-<section class="ref" id="music-sndh-player-zig-c-rust"><header class="sec-h"><span class="eyebrow">Formats</span><h2>Music<small>docs/MUSIC.md</small></h2></header><div class="chapter"><ul class="toc"><li class="toc-3"><a href="#music-sndh-player-zig-c-rust-music-the-sndh-player-from-zig-c-and-rust">Music — the SNDH player, from Zig, C and Rust</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-formats">Formats</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-zig">Zig</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-c">C</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-rust">Rust</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-stopping-the-music">Stopping the music</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-sound-effects-calling-the-running-sndh">Sound effects: calling the running SNDH</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-rules-and-limits">Rules and limits</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-proving-a-tune-plays-headless">Proving a tune plays (headless)</a></li></ul><h3 id="music-sndh-player-zig-c-rust-music-the-sndh-player-from-zig-c-and-rust">Music — the SNDH player, from Zig, C and Rust</h3>
+<section class="ref" id="music-sndh-player-zig-c-rust"><header class="sec-h"><span class="eyebrow">Formats</span><h2>Music<small>docs/MUSIC.md</small></h2></header><div class="chapter"><ul class="toc"><li class="toc-3"><a href="#music-sndh-player-zig-c-rust-music-the-sndh-player-from-zig-c-and-rust">Music — the SNDH player, from Zig, C and Rust</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-formats">Formats</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-zig">Zig</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-c">C</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-rust">Rust</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-stopping-the-music">Stopping the music</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-sound-effects-calling-the-running-sndh">Sound effects: calling the running SNDH</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-sound-effects-over-a-mod">Sound effects over a MOD</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-rules-and-limits">Rules and limits</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-proving-a-tune-plays-headless">Proving a tune plays (headless)</a></li></ul><h3 id="music-sndh-player-zig-c-rust-music-the-sndh-player-from-zig-c-and-rust">Music — the SNDH player, from Zig, C and Rust</h3>
 <p>ZigMachine plays real Atari ST music. An <strong>SNDH</strong> file carries the tune's own
 68000 replay routine; the machine runs that code on an emulated 68000 (Musashi)
 driving the sealed YM2149, exactly as the ST did. Nothing is pre-rendered, and
@@ -886,7 +886,7 @@ requestSong(&quot;sos.sndh&quot;) ──►  polls pollSongRequest() every frame
 </tr>
 <tr>
 <td><code>.mod</code></td>
-<td>ProTracker 4-channel on the Paula channels</td>
+<td>ProTracker 4-channel on the Paula channels: tags <code>M.K.</code>, <code>M!K!</code>, <code>4CHN</code>, <code>FLT4</code> only (a 6CHN / 8CHN file is <strong>refused</strong>, see below)</td>
 <td>no</td>
 </tr>
 <tr>
@@ -980,6 +980,58 @@ A's phase and the position exactly as an untouched run's; a reload in its
 place is caught) and the Rick Dangerous harness's resident check (the running
 driver's RAM equals the cart's transcription, tick for tick, with later
 requests, the paired shot and dynamite's double play among them).</p>
+<h4 id="music-sndh-player-zig-c-rust-sound-effects-over-a-mod">Sound effects over a MOD</h4>
+<p>A MOD has no code of its own to call, and it holds all four Paula channels. So a
+cart playing a MOD hands the host its effects as <strong>commands</strong>, and the audio
+thread plays them over the song (Zig only for now):</p>
+<figure class="cb" data-lang=zig><figcaption><span class="cb-lang">zig</span><span class="cb-n">3 lines</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code>_ = zg.<span class="tok-fn">sfxPlay</span>(gun_pcm, <span class="tok-num">12517</span>, <span class="tok-kw">true</span>);   <span class="tok-cm">// signed 8-bit PCM at 12517 Hz, looped</span>
+_ = zg.<span class="tok-fn">sfxStop</span>(<span class="tok-kw">true</span>);                    <span class="tok-cm">// stop it (true: only a looped effect)</span>
+_ = zg.<span class="tok-fn">ymWrite</span>(<span class="tok-num">8</span>, <span class="tok-num">16</span>);                   <span class="tok-cm">// a YM register (0-13), under the song</span></code></pre></figure>
+<ul>
+<li><strong>An effect borrows the song's quietest channel</strong>: the one with the fewest
+  notes over the song (each order entry counted as often as it plays). It plays
+  there at full volume, which is <code>64/64 x 1/1.4</code>: still four channels at most,
+  so the player's headroom stays exact. It uses that channel's own pan. The song
+  goes on reading the channel row by row but writes nothing to it.</li>
+<li><strong>The channel goes back to the song</strong> when a one-shot has played its last
+  sample. A looped effect gives it back on <code>zg.sfxStop</code>, or after <strong>4 s</strong> with no
+  stop, so a lost stop cannot keep it. After that, a looped sample the song holds
+  there sounds again from its loop, and anything else waits for the channel's next
+  note.</li>
+<li><strong>One effect at a time</strong>: a new one cuts the last, as the ST's DMA chip did.</li>
+<li><strong>The YM is idle under a MOD</strong>, so <code>zg.ymWrite</code> puts a PSG note under the song
+  (an engine). The YM is mixed with the MOD from the first write. Writes are
+  refused while an SNDH or a YM dump drives the chip.</li>
+<li><strong>The PCM is copied by the host at the end of the frame</strong>, from the pointer the
+  cart gave. It must stay where it is until then: an <code>@embedFile</code> does. It can be
+  up to 64 KiB, at a rate of 1000-50066 Hz. The audio thread keeps it in the top
+  64 KiB of song RAM, so a MOD larger than 960 KiB plays but refuses effects.</li>
+<li><strong>Commands are queued per frame, in order</strong> (32 a frame). The host drains
+  them after the frame's song request, and posts each one only once the load of
+  a song requested before it has been posted. So an effect never lands on the
+  song it was not meant for. A command refused by the queue is counted in
+  <code>zg.sfxDropped()</code>. An effect with no MOD playing is refused and counted on the
+  audio thread (<code>audioSfxRefused</code>), and the host logs a warning.</li>
+<li><strong>A new song takes back its channel</strong>: a MOD request cuts the effect.</li>
+</ul>
+<p>The path: <code>libs/zig/sfx_queue.zig</code> (the cart's queue; each entry 16 bytes: op,
+a, b, pad, ptr, len, rate), <code>pollSfx</code> / <code>sfxEntriesPtr</code> (<code>apps/zig/demo_main.zig</code>),
+<code>postSfx</code> in <code>docs/sealed-loader.js</code>, the worklet's <code>sfxPlay</code> / <code>sfxStop</code> /
+<code>sfxYm</code> messages, and <code>audioSfxPlay</code> / <code>audioSfxStop</code> / <code>audioSfxYm</code> in
+demo-audio.wasm (<code>apps/zig/demo_audio_mod.zig</code>, <code>libs/zig/players/sfx_voice.zig</code>).
+The sealed machine-audio ABI is unchanged. The effect uses only
+<code>machinePaulaTrigger</code> / <code>SetStep</code> / <code>SetVolume</code> and <code>machineYmWrite</code>.</p>
+<p><strong>Only 4-channel ProTracker MODs load.</strong> A <code>6CHN</code>, <code>8CHN</code> or <code>32CH</code> file has the
+same header but more cells a row, so read as four channels it would play garbage
+in time. The loader (<code>libs/zig/players/mod_format.zig</code>) refuses anything but
+<code>M.K.</code>, <code>M!K!</code>, <code>4CHN</code> and <code>FLT4</code>, a file shorter than the 1084-byte header and a
+song length of 0 or over 128. It counts each refusal (<code>audioModRejected</code>) with the
+reason (<code>audioModError</code>: 1 short, 2 not 4-channel, 3 bad length), and the host
+logs <code>MOD REJECTED</code> with the file's tag.</p>
+<p>Proofs: <code>apps/mod_sfx_check.mjs</code> (every rule above, on the real audio modules),
+<code>libs/zig/players/mod_format_test.zig</code> and <code>libs/zig/sfx_queue_test.zig</code> (native),
+and SKYSTRIKE's ZIG mode (<code>apps/skystrike_zig_sound.mjs</code>: a game's own effects
+and engine note over its flight MOD).</p>
 <h4 id="music-sndh-player-zig-c-rust-rules-and-limits">Rules and limits</h4>
 <ul>
 <li><strong>Names</strong> are paths under <code>docs/music/</code>, at most 64 bytes, no <code>..</code> and no

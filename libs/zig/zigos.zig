@@ -238,6 +238,41 @@ pub fn sndhCallNamePtr() [*]const u8 {
 pub fn sndhCallNameLen() usize {
     return g_sndh_calls.name_len;
 }
+// --- zg.sfxPlay / sfxStop / ymWrite: effects OVER a MOD (libs/zig/sfx_queue.zig) ---
+const sfx_queue = @import("sfx_queue.zig");
+var g_sfx: sfx_queue.Queue = .{};
+
+/// Play `pcm` (signed 8-bit, at `rate` Hz; looped if `loop`) over the MOD
+/// playing, on the song's quietest channel, at full volume. One effect at a
+/// time: a new one cuts the last. `pcm` must stay where it is until the host
+/// drains the frame (an @embedFile does). False when refused (queue full at
+/// 32 a frame, empty or over 64 KiB, rate outside 1000..50066): counted in
+/// sfxDropped(). Nothing plays when no MOD does (the audio thread counts it).
+pub fn sfxPlay(pcm: []const u8, rate: u32, loop: bool) bool {
+    return g_sfx.play(pcm, rate, loop);
+}
+/// Stop the effect (only a looped one when `loop_only`): the channel goes
+/// back to the song at once. A one-shot gives it back by itself at its end.
+pub fn sfxStop(loop_only: bool) bool {
+    return g_sfx.stop(loop_only);
+}
+/// Write YM register `reg` (0..13) under a MOD, which leaves the YM idle: a
+/// PSG note (an engine) over the music. Refused on the audio thread while an
+/// SNDH or a YM dump drives the chip.
+pub fn ymWrite(reg: u8, val: u8) bool {
+    return g_sfx.ym(reg, val);
+}
+pub fn sfxDropped() u32 {
+    return g_sfx.dropped;
+}
+/// The host's side (apps/zig/demo_main.zig exports).
+pub fn takeSfx() usize {
+    return g_sfx.take();
+}
+pub fn sfxEntriesPtr() [*]const sfx_queue.Entry {
+    return &g_sfx.entries;
+}
+
 /// A ProTracker MOD started at `bpm` (32..255) instead of ProTracker's 125, for
 /// a replay whose own default differs (TRSI's Falcon replay starts at 123). A
 /// MOD has no subtunes, so the request's tune field carries the BPM; 0, what

@@ -480,6 +480,13 @@ pub const SndhPlayer = struct {
         silence(); // an exit routine that forgets to must not leave a note hanging
     }
 
+    /// Another file was just staged over the image (a MOD after this tune):
+    /// stop WITHOUT running EXIT, which is no longer there to run.
+    pub fn abandon(self: *SndhPlayer) void {
+        self.active = false;
+        silence();
+    }
+
     /// Render a block, running the tune's interrupts at the right moments
     /// inside it: `play` at the header's rate, plus any OTHER MFP timer the
     /// tune has programmed (a digidrum timer runs at a few kHz, so it fires

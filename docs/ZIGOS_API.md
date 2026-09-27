@@ -225,7 +225,12 @@ Players are open ZigOS code that drive the sealed chips. Four ship today:
   sealed YM2149 (subtunes: `tune` counts from 1, 0 = default). The preferred format.
 - **MOD** (`ModPlayer`) — ProTracker 4-channel `.MOD`, drives the Paula channels. It starts at
   ProTracker's 125 BPM; `zg.requestModBpm(name, bpm)` starts it at another tempo, for a replay
-  whose default differs (TRSI TRANSARCTICA's Falcon replay: 123).
+  whose default differs (TRSI TRANSARCTICA's Falcon replay: 123). Only `M.K.` / `M!K!` / `4CHN` /
+  `FLT4` files load; a 6CHN / 8CHN one is refused and counted (`libs/zig/players/mod_format.zig`).
+  A game's sound effects play OVER a MOD: `zg.sfxPlay(pcm, rate, loop)` borrows the song's
+  quietest channel until the effect ends, `zg.sfxStop(loop_only)` gives it back, and
+  `zg.ymWrite(reg, val)` puts a PSG note on the YM, which a MOD leaves idle (docs/MUSIC.md,
+  "Sound effects over a MOD").
 - **YM** (`YmPlayer`) — YM5!/YM6! register dump, writes the YM2149 registers. **Deprecated**: screens use the SNDH player; a dump is the last resort when no SNDH of the tune exists (see docs/MUSIC.md).
 - **raw sample** — streams 8-bit PCM on one Paula channel.
 

@@ -77,7 +77,25 @@ class ZigAudioSealedProcessor extends AudioWorkletProcessor {
                 // A start BPM other than ProTracker's 125 (zg.requestModBpm); 0 = 125.
                 if (ok && msg.bpm) d.audioModPlayBpm(msg.bpm);
                 else if (ok) d.audioModPlay();
-                this.port.postMessage({ type: "modLoaded", ok: !!ok, len: len });
+                // A refused MOD (not 4-channel ProTracker...) says why: its tag at 1080.
+                const tag = String.fromCharCode(...new Uint8Array(mem.buffer, d.audioSongPtr() + 1080, 4));
+                this.port.postMessage({ type: "modLoaded", ok: !!ok, len: len, error: d.audioModError(),
+                                        rejected: d.audioModRejected(), tag });
+            } else if (msg.type === "sfxPlay") {
+                // zg.sfxPlay: the PCM into the effect buffer, then onto the MOD's
+                // quiet channel (libs/zig/players/sfx_voice.zig).
+                // The buffer is 0 while no MOD plays (an SNDH's RAM is there).
+                const cap = d.audioSfxBufCapacity(), at = d.audioSfxBufPtr();
+                const src = new Uint8Array(msg.bytes);
+                const len = at ? Math.min(src.length, cap) : 0;
+                if (at) new Uint8Array(mem.buffer, at, cap).set(src.subarray(0, len));
+                if (!d.audioSfxPlay(len, msg.rate >>> 0, msg.loop ? 1 : 0))
+                    this.port.postMessage({ type: "sfxMissed", what: "sfxPlay", refused: d.audioSfxRefused() });
+            } else if (msg.type === "sfxStop") {
+                d.audioSfxStop(msg.loopOnly ? 1 : 0);
+            } else if (msg.type === "sfxYm") {
+                if (!d.audioSfxYm(msg.reg >>> 0, msg.val >>> 0))
+                    this.port.postMessage({ type: "sfxMissed", what: "ymWrite", refused: d.audioSfxRefused() });
             } else if (msg.type === "loadYm") {
                 const len = writeSong(msg.bytes);
                 const ok = d.audioLoadYm(len);

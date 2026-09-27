@@ -27,7 +27,9 @@ const ZERO_RUN_MIN = 64 * 1024;
 const ALLOW = {
     // The AUDIO thread's module (players + 68000 core): it has no RAM arena
     // (the arena is a machine-video instruction), so this one needs another fix.
-    "demo-audio.wasm": 590760,
+    // +24 B (2026-09-27): the sound-effect voice over a MOD and the MOD
+    // rejection counters (sfx_voice.zig, demo_audio_main.zig).
+    "demo-audio.wasm": 590784,
 };
 
 function uleb(b, p) {

@@ -666,6 +666,12 @@ function start() {
                 for (let i = 0; i < n; i++) sndhCallByName(name, demo.sndhCallD0(i));
             }
         }
+        // zg.sfxPlay / sfxStop / ymWrite: effects over the MOD playing, after
+        // the song request (libs/zig/sfx_queue.zig). Dropped without sound.
+        if (demo.pollSfx) {
+            const n = demo.pollSfx();
+            if (n && audioCtx) postSfx(memory, demo.sfxEntriesPtr(), n);
+        }
 
         let anyPlane = false;
         for (let i = 0; i < nb_planes; i++) {
@@ -1022,6 +1028,16 @@ function startAudio() {
                         ? `SNDH playing (${msg.len} bytes staged)`
                         : `SNDH REJECTED (${msg.len} bytes) stuckPc=${hex(msg.stuckPc)} trap=${hex(msg.trap)}`);
                 }
+                else if (msg.type === "modLoaded" && !msg.ok) {
+                    // Only 4-channel ProTracker plays (libs/zig/players/mod_format.zig).
+                    const why = ["", "shorter than a MOD header", `not a 4-channel ProTracker MOD (tag "${msg.tag}")`,
+                        "a song length of 0 or over 128"][msg.error] || `error ${msg.error}`;
+                    console.error(`MOD REJECTED (${msg.len} bytes, ${msg.rejected} so far): ${why}`);
+                }
+                else if (msg.type === "sfxMissed") {
+                    console.warn(`zg.${msg.what} refused on the audio thread (${msg.refused} so far): ` +
+                        (msg.what === "ymWrite" ? "an SNDH or a YM dump drives the YM" : "no MOD playing, or a bad length / rate"));
+                }
                 else if (msg.type === "sndhCallMissed") {
                     const hex = (v) => "$" + (v >>> 0).toString(16);
                     console.warn(`zg.sndhCall(d0=${hex(msg.d0)}) found no SNDH playing` +
@@ -1136,7 +1152,8 @@ function playSongByName(name, tune) {
     if (name === "none") { if (audioNode) audioNode.port.postMessage({ type: "reset" }); return; }
     if (!name || name.includes("..") || name.startsWith("/")) return;
     const url = "music/" + name;
-    if (name.endsWith(".mod")) playMod(url, gen, tune); // a MOD's tune field is its start BPM
+    // An effect queued after this request waits until its load is posted.
+    if (name.endsWith(".mod")) songPosted = playMod(url, gen, tune).catch(() => {}); // a MOD's tune field is its start BPM
     else if (name.endsWith(".ymraw")) playYm(url, gen);
     // Only an SNDH has subtunes; `tune` counts from 1, 0 = the image's default.
     else if (name.endsWith(".sndh")) sndhResident = { name, gen, ready: playSndh(url, tune, gen) };
@@ -1157,6 +1174,31 @@ function sndhCallByName(name, d0) {
     }
     const gen = ++songGen;
     sndhResident = { name, gen, ready: playSndh("music/" + name, 0, gen, d0) };
+}
+
+// zg.sfxPlay / sfxStop / ymWrite: `n` 16-byte entries at `at` in the cart's
+// memory (layout: libs/zig/sfx_queue.zig). A play's PCM is copied NOW, while
+// the cart's pointer is good. Each message waits for the load of the song
+// requested before it (songPosted), so an effect never lands on the tune it
+// was not meant for, and sfxChain keeps them in the cart's order.
+let songPosted = Promise.resolve();
+let sfxChain = Promise.resolve();
+function postSfx(mem, at, n) {
+    const dv = new DataView(mem.buffer, at, n * 16);
+    const msgs = [];
+    for (let i = 0; i < n; i++) {
+        const o = i * 16, op = dv.getUint8(o), a = dv.getUint8(o + 1);
+        if (op === 1) {
+            const ptr = dv.getUint32(o + 4, true), len = dv.getUint32(o + 8, true);
+            const bytes = new Uint8Array(mem.buffer, ptr, len).slice().buffer;
+            msgs.push({ type: "sfxPlay", bytes, rate: dv.getUint32(o + 12, true), loop: a });
+        } else if (op === 2) msgs.push({ type: "sfxStop", loopOnly: a });
+        else if (op === 3) msgs.push({ type: "sfxYm", reg: a, val: dv.getUint8(o + 2) });
+    }
+    const after = songPosted;
+    sfxChain = sfxChain.then(() => after).then(() => {
+        for (const m of msgs) if (audioNode) audioNode.port.postMessage(m, m.bytes ? [m.bytes] : []);
+    }).catch(() => {}); // a failed song load already reported itself
 }
 
 // Boot-sector beep: a raw YM2149 tone (no song player). Exposed to the boot program

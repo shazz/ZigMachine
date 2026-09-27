@@ -13,14 +13,21 @@ const players = @import("players"); // open ZigOS players (named module)
 const ModPlayer = players.ModPlayer;
 const YmPlayer = players.YmPlayer;
 const SndhPlayer = players.SndhPlayer;
+const sfx_voice = players.sfx_voice;
 
-var mod: ModPlayer = .{};
-var ym: YmPlayer = .{};
-var sndh: SndhPlayer = .{};
+pub var mod: ModPlayer = .{};
+pub var sfx: sfx_voice.SfxVoice = .{};
+pub var ym: YmPlayer = .{};
+pub var sndh: SndhPlayer = .{};
 // Active player: 0 none, 1 MOD, 2 YM, 3 raw sample. Drives the scope view type.
-var current_mode: u8 = 0;
+pub var current_mode: u8 = 0;
 
-fn songSlice(len: u32) []const u8 {
+// The MOD player's and the sound effects' exports (audioLoadMod, audioSfx*).
+comptime {
+    _ = @import("demo_audio_mod.zig");
+}
+
+pub fn songSlice(len: u32) []const u8 {
     const p: [*]const u8 = @ptrFromInt(audio.SONG_BASE);
     return p[0..@intCast(len)];
 }
@@ -30,6 +37,7 @@ export fn audioInit() void {
     mod = .{};
     ym = .{};
     sndh = .{};
+    sfx = .{};
     current_mode = 0;
 }
 
@@ -40,12 +48,15 @@ export fn audioRender(frames: u32) void {
     } else if (ym.active) {
         ym.renderStereo(n);
     } else if (mod.active) {
+        mod.mix_ym = sfx.ym_live;
         mod.renderStereo(n);
+        sfx.advance(&mod, @intCast(@min(n, audio.MAX_FRAMES)));
     } else {
         // Nothing sequencing: mix any live Paula channels (the raw streamer) —
         // or silence. Mirrors the pre-seal engine.render() Paula path.
         const m = @min(n, audio.MAX_FRAMES);
         audio.machineClear(@intCast(m));
+        if (sfx.ym_live) audio.machineRenderYm(0, @intCast(m));
         audio.machineMixPaula(0, @intCast(m));
         audio.machineClamp(@intCast(m));
     }
@@ -64,36 +75,12 @@ export fn audioMode() u8 {
     return current_mode;
 }
 
-// --- MOD player ---
-export fn audioLoadMod(len: u32) bool {
-    return mod.load(songSlice(len));
-}
-export fn audioModPlay() void {
-    ym.stop();
-    audio.machinePaulaClearScopes();
-    mod.start();
-    current_mode = 1;
-}
-/// Play at a start tempo (zg.requestModBpm). ProTracker tempos are 32..255
-/// (below $20 an Fxx is a speed); anything else is not a tempo, and plays at
-/// ProTracker's 125 exactly as audioModPlay does, the way tune 0 does.
-export fn audioModPlayBpm(bpm: u32) void {
-    if (bpm < 32 or bpm > 255) return audioModPlay();
-    ym.stop();
-    audio.machinePaulaClearScopes();
-    mod.startAtBpm(@intCast(bpm));
-    current_mode = 1;
-}
-export fn audioModStop() void {
-    mod.stop();
-    if (current_mode == 1) current_mode = 0;
-}
-
 // --- YM player ---
 export fn audioLoadYm(len: u32) bool {
     return ym.load(songSlice(len));
 }
 export fn audioYmPlay() void {
+    sfx.reset();
     mod.stop();
     audio.machinePaulaClearScopes();
     ym.start();
@@ -109,6 +96,7 @@ export fn audioLoadSndh(len: u32) bool {
     return sndh.load(len);
 }
 export fn audioSndhPlay(tune: u8) void {
+    sfx.reset();
     mod.stop();
     ym.stop();
     audio.machinePaulaClearScopes();
@@ -118,6 +106,7 @@ export fn audioSndhPlay(tune: u8) void {
 /// Start the staged SNDH with INIT's d0 exactly as given (audioSndhPlay clamps
 /// it to a subtune): the host's load-then-call fallback for zg.sndhCall.
 export fn audioSndhPlayRaw(d0: u32) void {
+    sfx.reset();
     mod.stop();
     ym.stop();
     audio.machinePaulaClearScopes();
@@ -147,9 +136,11 @@ export fn audioReset() void {
     mod.stop();
     ym.stop();
     sndh.stop();
+    sfx.reset();
     audio.machineAudioReset();
     current_mode = 0;
 }
+
 /// Where a replay call gave up, when a tune refuses to run. 0 means it ran.
 /// The STE DMA chip's traffic: register writes seen, sample frames started.
 export fn audioDmaWrites() u32 {

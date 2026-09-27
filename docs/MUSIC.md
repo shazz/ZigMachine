@@ -24,7 +24,7 @@ The file extension picks the player. Files live under `docs/music/`.
 |---|---|---|
 | `.sndh` | the tune's own 68000 code on the sealed YM (preferred) | yes: `tune` counts from 1, 0 = the file's default |
 | `.ymraw` | YM5!/YM6! register dump (**deprecated**, last resort only) | no |
-| `.mod` | ProTracker 4-channel on the Paula channels | no |
+| `.mod` | ProTracker 4-channel on the Paula channels: tags `M.K.`, `M!K!`, `4CHN`, `FLT4` only (a 6CHN / 8CHN file is **refused**, see below) | no |
 | `.raw` | 8-bit PCM at 12517 Hz | no |
 
 **The YM dump player is deprecated: use SNDH.** A dump records the chip only
@@ -146,6 +146,65 @@ A's phase and the position exactly as an untouched run's; a reload in its
 place is caught) and the Rick Dangerous harness's resident check (the running
 driver's RAM equals the cart's transcription, tick for tick, with later
 requests, the paired shot and dynamite's double play among them).
+
+## Sound effects over a MOD
+
+A MOD has no code of its own to call, and it holds all four Paula channels. So a
+cart playing a MOD hands the host its effects as **commands**, and the audio
+thread plays them over the song (Zig only for now):
+
+```zig
+_ = zg.sfxPlay(gun_pcm, 12517, true);   // signed 8-bit PCM at 12517 Hz, looped
+_ = zg.sfxStop(true);                    // stop it (true: only a looped effect)
+_ = zg.ymWrite(8, 16);                   // a YM register (0-13), under the song
+```
+
+- **An effect borrows the song's quietest channel**: the one with the fewest
+  notes over the song (each order entry counted as often as it plays). It plays
+  there at full volume, which is `64/64 x 1/1.4`: still four channels at most,
+  so the player's headroom stays exact. It uses that channel's own pan. The song
+  goes on reading the channel row by row but writes nothing to it.
+- **The channel goes back to the song** when a one-shot has played its last
+  sample. A looped effect gives it back on `zg.sfxStop`, or after **4 s** with no
+  stop, so a lost stop cannot keep it. After that, a looped sample the song holds
+  there sounds again from its loop, and anything else waits for the channel's next
+  note.
+- **One effect at a time**: a new one cuts the last, as the ST's DMA chip did.
+- **The YM is idle under a MOD**, so `zg.ymWrite` puts a PSG note under the song
+  (an engine). The YM is mixed with the MOD from the first write. Writes are
+  refused while an SNDH or a YM dump drives the chip.
+- **The PCM is copied by the host at the end of the frame**, from the pointer the
+  cart gave. It must stay where it is until then: an `@embedFile` does. It can be
+  up to 64 KiB, at a rate of 1000-50066 Hz. The audio thread keeps it in the top
+  64 KiB of song RAM, so a MOD larger than 960 KiB plays but refuses effects.
+- **Commands are queued per frame, in order** (32 a frame). The host drains
+  them after the frame's song request, and posts each one only once the load of
+  a song requested before it has been posted. So an effect never lands on the
+  song it was not meant for. A command refused by the queue is counted in
+  `zg.sfxDropped()`. An effect with no MOD playing is refused and counted on the
+  audio thread (`audioSfxRefused`), and the host logs a warning.
+- **A new song takes back its channel**: a MOD request cuts the effect.
+
+The path: `libs/zig/sfx_queue.zig` (the cart's queue; each entry 16 bytes: op,
+a, b, pad, ptr, len, rate), `pollSfx` / `sfxEntriesPtr` (`apps/zig/demo_main.zig`),
+`postSfx` in `docs/sealed-loader.js`, the worklet's `sfxPlay` / `sfxStop` /
+`sfxYm` messages, and `audioSfxPlay` / `audioSfxStop` / `audioSfxYm` in
+demo-audio.wasm (`apps/zig/demo_audio_mod.zig`, `libs/zig/players/sfx_voice.zig`).
+The sealed machine-audio ABI is unchanged. The effect uses only
+`machinePaulaTrigger` / `SetStep` / `SetVolume` and `machineYmWrite`.
+
+**Only 4-channel ProTracker MODs load.** A `6CHN`, `8CHN` or `32CH` file has the
+same header but more cells a row, so read as four channels it would play garbage
+in time. The loader (`libs/zig/players/mod_format.zig`) refuses anything but
+`M.K.`, `M!K!`, `4CHN` and `FLT4`, a file shorter than the 1084-byte header and a
+song length of 0 or over 128. It counts each refusal (`audioModRejected`) with the
+reason (`audioModError`: 1 short, 2 not 4-channel, 3 bad length), and the host
+logs `MOD REJECTED` with the file's tag.
+
+Proofs: `apps/mod_sfx_check.mjs` (every rule above, on the real audio modules),
+`libs/zig/players/mod_format_test.zig` and `libs/zig/sfx_queue_test.zig` (native),
+and SKYSTRIKE's ZIG mode (`apps/skystrike_zig_sound.mjs`: a game's own effects
+and engine note over its flight MOD).
 
 ## Rules and limits
 

@@ -1,17 +1,26 @@
 const std = @import("std");
 const audio = @import("audio_hw");
+const fmt = @import("mod_format.zig");
+const effects = @import("mod_effects.zig");
 
 // --------------------------------------------------------------------------
-// ProTracker .MOD player (4 channels, 31 samples, "M.K.") — an OPEN ZigOS
-// player. It sequences a MOD image held in the shared song RAM and drives the
-// SEALED Paula channels ONLY through the sdk/audio.zig chip API (machinePaula*).
-// Effects implemented cover the common listenable set; ornaments not yet handled
-// are simply ignored.
+// ProTracker .MOD player (4 channels, 31 samples: mod_format.zig refuses the
+// rest) — an OPEN ZigOS player. It sequences a MOD image held in the shared
+// song RAM and drives the SEALED Paula channels ONLY through the sdk/audio.zig
+// chip API (machinePaula*). The effects implemented (mod_effects.zig) cover
+// the common listenable set; ornaments not yet handled are simply ignored.
+//
+// A channel can be LENT to a game's sound effect (sfx_voice.zig): the song
+// goes on reading it, row by row, but writes nothing to that Paula channel
+// until it is reclaimed. Every chip write for a channel therefore goes
+// through the setters below, which skip a lent one.
 // --------------------------------------------------------------------------
 
 const AMIGA_CLOCK: f32 = 7093789.2; // PAL Paula clock
-const FRAC_BITS: u6 = 16;
-const NUM_CH: usize = audio.NUM_CHANNELS;
+const NUM_CH: usize = fmt.NUM_CH;
+comptime {
+    std.debug.assert(NUM_CH == audio.NUM_CHANNELS);
+}
 
 // Headroom. Channels 0/3 pan to -0.6 and 1/2 to +0.6, so on each side two
 // channels reach the bus at 0.5 and two at 0.2 (master 0.5): four full-scale
@@ -20,18 +29,14 @@ const NUM_CH: usize = audio.NUM_CHANNELS;
 // scaled by 1/1.4: the worst case is exactly full scale.
 const HEADROOM: f32 = 1.0 / 1.4;
 
-fn chipVolume(vol: u8) f32 {
+pub fn chipVolume(vol: u8) f32 {
     return @as(f32, @floatFromInt(vol)) / 64.0 * HEADROOM;
 }
 
-const SampleHdr = struct {
-    start: u32 = 0, // byte offset into the MOD image of the PCM data
-    len: u32 = 0, // in bytes
-    loop_start: u32 = 0, // in bytes
-    loop_len: u32 = 0, // in bytes
-    volume: u8 = 0, // 0..64
-    finetune: i8 = 0,
-};
+/// The Amiga's hard stereo, softened: channels 0 and 3 left, 1 and 2 right.
+pub fn pan(ch: usize) f32 {
+    return if (ch == 0 or ch == 3) -0.6 else 0.6;
+}
 
 const ChanState = struct {
     sample: u8 = 0, // 1-based current sample (0 = none)
@@ -46,11 +51,13 @@ const ChanState = struct {
 
 pub const ModPlayer = struct {
     data: []const u8 = &.{},
-    samples: [32]SampleHdr = [_]SampleHdr{.{}} ** 32,
-    song_len: u8 = 0,
-    order: [128]u8 = [_]u8{0} ** 128,
-    pattern_data: u32 = 0, // byte offset where patterns start
-    num_patterns: u16 = 0,
+    hdr: fmt.Header = .{},
+    /// The channel with the fewest notes: the one a sound effect borrows.
+    quiet: u8 = 0,
+    /// The channel lent to a sound effect, if one is.
+    lent: ?u8 = null,
+    /// Mix the YM2149 too (a game's PSG note under the song: sfx_voice.zig).
+    mix_ym: bool = false,
 
     // sequencer state
     active: bool = false,
@@ -65,46 +72,12 @@ pub const ModPlayer = struct {
 
     chan: [NUM_CH]ChanState = [_]ChanState{.{}} ** NUM_CH,
 
-    fn rd16(self: *ModPlayer, off: usize) u16 {
-        return (@as(u16, self.data[off]) << 8) | self.data[off + 1];
-    }
-
-    pub fn load(self: *ModPlayer, data: []const u8) bool {
+    /// Parse and check `data` (mod_format.zig). On an error nothing plays.
+    pub fn load(self: *ModPlayer, data: []const u8) fmt.Error!void {
         self.* = .{};
+        self.hdr = try fmt.parse(data);
         self.data = data;
-        if (data.len < 1084) return false;
-
-        // 31 sample headers at offset 20, 30 bytes each
-        var i: usize = 1;
-        while (i <= 31) : (i += 1) {
-            const base = 20 + (i - 1) * 30;
-            var s = &self.samples[i];
-            s.len = @as(u32, self.rd16(base + 22)) * 2;
-            const ft: u4 = @truncate(self.data[base + 24] & 0x0F);
-            s.finetune = @as(i4, @bitCast(ft));
-            s.volume = self.data[base + 25];
-            s.loop_start = @as(u32, self.rd16(base + 26)) * 2;
-            s.loop_len = @as(u32, self.rd16(base + 28)) * 2;
-        }
-
-        self.song_len = self.data[950];
-        var max_pat: u16 = 0;
-        i = 0;
-        while (i < 128) : (i += 1) {
-            self.order[i] = self.data[952 + i];
-            if (self.order[i] > max_pat) max_pat = self.order[i];
-        }
-        self.num_patterns = max_pat + 1;
-        self.pattern_data = 1084;
-
-        // PCM data follows the patterns; fill in per-sample start offsets
-        var pcm_off: u32 = self.pattern_data + @as(u32, self.num_patterns) * 1024;
-        i = 1;
-        while (i <= 31) : (i += 1) {
-            self.samples[i].start = pcm_off;
-            pcm_off += self.samples[i].len;
-        }
-        return true;
+        self.quiet = fmt.quietChannel(&self.hdr, data);
     }
 
     pub fn start(self: *ModPlayer) void {
@@ -124,6 +97,7 @@ pub const ModPlayer = struct {
         self.order_pos = 0;
         self.break_row = -1;
         self.jump_pos = -1;
+        self.lent = null;
         for (&self.chan) |*c| c.* = .{};
     }
 
@@ -131,15 +105,52 @@ pub const ModPlayer = struct {
         self.active = false;
     }
 
-    fn setBpm(self: *ModPlayer, bpm: u16) void {
+    pub fn setBpm(self: *ModPlayer, bpm: u16) void {
         const sr = audio.SAMPLE_RATE;
         self.samples_per_tick = @intFromFloat(sr / (@as(f32, @floatFromInt(bpm)) * 0.4));
     }
 
-    fn periodToStep(period: u16) u32 {
+    pub fn periodToStep(period: u16) u32 {
         if (period == 0) return 0;
         const rate = AMIGA_CLOCK / (@as(f32, @floatFromInt(period)) * 2.0);
         return @intFromFloat(rate / audio.SAMPLE_RATE * audio.FRAC_ONE);
+    }
+
+    // --- the chip, for the song's own channels only ----------------------
+    fn owns(self: *const ModPlayer, ch: usize) bool {
+        const l = self.lent orelse return true;
+        return l != ch;
+    }
+    pub fn setStep(self: *ModPlayer, ch: usize, step: u32) void {
+        if (self.owns(ch)) audio.machinePaulaSetStep(@intCast(ch), step);
+    }
+    pub fn setVolume(self: *ModPlayer, ch: usize, vol: u8) void {
+        if (self.owns(ch)) audio.machinePaulaSetVolume(@intCast(ch), chipVolume(vol));
+    }
+    pub fn setPos(self: *ModPlayer, ch: usize, pos: u32) void {
+        if (self.owns(ch)) audio.machinePaulaSetPos(@intCast(ch), pos);
+    }
+
+    /// Lend the quiet channel to a sound effect. The song goes on tracking
+    /// it and writes nothing to it until reclaim().
+    pub fn lend(self: *ModPlayer) u8 {
+        self.lent = self.quiet;
+        return self.quiet;
+    }
+
+    /// The effect is over: the channel is the song's again. A looped sample
+    /// the song holds there (a pad) sounds again from its loop; anything
+    /// else waits for the channel's next note.
+    pub fn reclaim(self: *ModPlayer) void {
+        const ch = self.lent orelse return;
+        self.lent = null;
+        const cs = &self.chan[ch];
+        const s = self.hdr.samples[cs.sample];
+        if (self.active and cs.sample != 0 and s.loop_len > 2 and cs.period != 0) {
+            self.trigger(ch);
+            self.setPos(ch, s.loop_start);
+            self.applyToEngine(ch);
+        } else audio.machinePaulaSetActive(ch, 0);
     }
 
     // Render `frames` stereo samples: tick the sequencer at sample-accurate tick
@@ -154,6 +165,7 @@ pub const ModPlayer = struct {
                 self.tick_acc = self.samples_per_tick;
             }
             const block = @min(@as(u32, @intCast(n - off)), self.tick_acc);
+            if (self.mix_ym) audio.machineRenderYm(@intCast(off), block);
             audio.machineMixPaula(@intCast(off), block);
             self.tick_acc -= block;
             off += block;
@@ -166,7 +178,7 @@ pub const ModPlayer = struct {
         if (self.tick == 0) {
             self.processRow();
         } else {
-            self.processEffects();
+            for (0..NUM_CH) |ch| effects.tickEffect(self, ch);
         }
         self.tick += 1;
         if (self.tick >= self.speed) {
@@ -181,63 +193,65 @@ pub const ModPlayer = struct {
             self.row = if (self.break_row >= 0) @intCast(self.break_row) else 0;
             self.jump_pos = -1;
             self.break_row = -1;
-            return;
-        }
-        if (self.break_row >= 0) {
+        } else if (self.break_row >= 0) {
             self.row = @intCast(self.break_row);
             self.break_row = -1;
-            self.order_pos +%= 1;
-            if (self.order_pos >= self.song_len) self.order_pos = 0;
-            return;
+            self.nextOrder();
+        } else {
+            self.row += 1;
+            if (self.row >= 64) {
+                self.row = 0;
+                self.nextOrder();
+            }
         }
-        self.row += 1;
-        if (self.row >= 64) {
-            self.row = 0;
-            self.order_pos +%= 1;
-            if (self.order_pos >= self.song_len) self.order_pos = 0;
-        }
+        // A Bxx past the song or a Dxx past the pattern: wrap, never read
+        // past the order list or into the next pattern.
+        if (self.order_pos >= self.hdr.song_len) self.order_pos = 0;
+        if (self.row >= 64) self.row = 0;
+    }
+
+    fn nextOrder(self: *ModPlayer) void {
+        self.order_pos +%= 1;
+        if (self.order_pos >= self.hdr.song_len) self.order_pos = 0;
     }
 
     fn trigger(self: *ModPlayer, ch: usize) void {
+        if (!self.owns(ch)) return;
         const cs = &self.chan[ch];
-        const s = self.samples[cs.sample];
+        const s = self.hdr.samples[cs.sample];
         if (cs.sample == 0 or s.len == 0 or s.start + s.len > self.data.len) {
             audio.machinePaulaSetActive(@intCast(ch), 0);
             return;
         }
-        const pan: f32 = if (ch == 0 or ch == 3) -0.6 else 0.6;
         const loop_len: u32 = if (s.loop_len > 2) s.loop_len else 0;
-        audio.machinePaulaTrigger(@intCast(ch), audio.songAddr(s.start), s.len, s.loop_start, loop_len, pan);
+        audio.machinePaulaTrigger(@intCast(ch), audio.songAddr(s.start), s.len, s.loop_start, loop_len, pan(ch));
     }
 
     fn applyToEngine(self: *ModPlayer, ch: usize) void {
-        const cs = &self.chan[ch];
-        audio.machinePaulaSetVolume(@intCast(ch), chipVolume(cs.volume));
-        audio.machinePaulaSetStep(@intCast(ch), periodToStep(cs.period));
+        self.setVolume(ch, self.chan[ch].volume);
+        self.setStep(ch, periodToStep(self.chan[ch].period));
     }
 
     fn cellByte(self: *ModPlayer, ch: usize, n: usize) u8 {
-        const pattern = self.order[self.order_pos];
-        const o = self.pattern_data + @as(u32, pattern) * 1024 + @as(u32, self.row) * 16 + @as(u32, @intCast(ch)) * 4 + n;
+        const pattern = self.hdr.order[self.order_pos];
+        const o = self.hdr.pattern_data + @as(u32, pattern) * fmt.PATTERN_BYTES + @as(u32, self.row) * 16 + @as(u32, @intCast(ch)) * 4 + n;
         return if (o < self.data.len) self.data[o] else 0;
     }
 
     fn processRow(self: *ModPlayer) void {
-        var ch: usize = 0;
-        while (ch < NUM_CH) : (ch += 1) {
+        for (0..NUM_CH) |ch| {
             const b0 = self.cellByte(ch, 0);
             const b1 = self.cellByte(ch, 1);
             const b2 = self.cellByte(ch, 2);
             const b3 = self.cellByte(ch, 3);
             const period: u16 = (@as(u16, b0 & 0x0F) << 8) | b1;
             const sample: u8 = (b0 & 0xF0) | (b2 >> 4);
-            var cs = &self.chan[ch];
+            const cs = &self.chan[ch];
             cs.eff = b2 & 0x0F;
             cs.param = b3;
-
             if (sample != 0 and sample <= 31) {
                 cs.sample = sample;
-                cs.volume = self.samples[sample].volume;
+                cs.volume = self.hdr.samples[sample].volume;
             }
             if (period != 0) {
                 if (cs.eff == 3 or cs.eff == 5) {
@@ -248,69 +262,8 @@ pub const ModPlayer = struct {
                     self.trigger(ch);
                 }
             }
-            self.rowEffect(ch);
+            effects.rowEffect(self, ch);
             self.applyToEngine(ch);
         }
-    }
-
-    fn rowEffect(self: *ModPlayer, ch: usize) void {
-        const cs = &self.chan[ch];
-        switch (cs.eff) {
-            0x0 => cs.arp = cs.param,
-            0xC => cs.volume = @min(cs.param, 64),
-            0xF => if (cs.param < 0x20) {
-                if (cs.param > 0) self.speed = cs.param;
-            } else self.setBpm(cs.param),
-            0xB => self.jump_pos = cs.param,
-            0xD => self.break_row = @intCast((cs.param >> 4) * 10 + (cs.param & 0x0F)),
-            0x9 => audio.machinePaulaSetPos(@intCast(ch), @as(u32, cs.param) * 256),
-            else => {},
-        }
-    }
-
-    fn processEffects(self: *ModPlayer) void {
-        var ch: usize = 0;
-        while (ch < NUM_CH) : (ch += 1) {
-            var cs = &self.chan[ch];
-            switch (cs.eff) {
-                0x0 => if (cs.arp != 0) {
-                    const semi: u8 = switch (self.tick % 3) {
-                        0 => 0,
-                        1 => cs.arp >> 4,
-                        else => cs.arp & 0x0F,
-                    };
-                    const mul = std.math.pow(f32, 2.0, @as(f32, @floatFromInt(semi)) / 12.0);
-                    audio.machinePaulaSetStep(@intCast(ch), @intFromFloat(@as(f32, @floatFromInt(periodToStep(cs.period))) * mul));
-                },
-                0x1 => {
-                    cs.period = if (cs.period > cs.param + 113) cs.period - cs.param else 113;
-                    audio.machinePaulaSetStep(@intCast(ch), periodToStep(cs.period));
-                },
-                0x2 => {
-                    cs.period = @min(856, cs.period + @as(u16, cs.param));
-                    audio.machinePaulaSetStep(@intCast(ch), periodToStep(cs.period));
-                },
-                0x3 => self.tonePorta(ch),
-                0xA => {
-                    const up = cs.param >> 4;
-                    const down = cs.param & 0x0F;
-                    const v: i16 = @as(i16, cs.volume) + up - down;
-                    cs.volume = @intCast(std.math.clamp(v, 0, 64));
-                    audio.machinePaulaSetVolume(@intCast(ch), chipVolume(cs.volume));
-                },
-                else => {},
-            }
-        }
-    }
-
-    fn tonePorta(self: *ModPlayer, ch: usize) void {
-        var cs = &self.chan[ch];
-        if (cs.target_period == 0 or cs.porta_speed == 0) return;
-        if (cs.period < cs.target_period) {
-            cs.period = @min(cs.target_period, cs.period + cs.porta_speed);
-        } else if (cs.period > cs.target_period) {
-            cs.period = if (cs.period > cs.target_period + cs.porta_speed) cs.period - cs.porta_speed else cs.target_period;
-        }
-        audio.machinePaulaSetStep(@intCast(ch), periodToStep(cs.period));
     }
 };
