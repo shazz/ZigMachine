@@ -4,9 +4,10 @@
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <title>Zig Machine</title>
-        <link rel="stylesheet" type="text/css" href="css/crt.css?v=95549cb9" media="screen" />
+        <link rel="stylesheet" type="text/css" href="css/crt.css?v=27788b5d" media="screen" />
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/normalize/5.0.0/normalize.min.css">
-        <link rel="stylesheet" type="text/css" href="css/info.css?v=a11fcc4e" media="screen" />
+        <link rel="stylesheet" type="text/css" href="css/info.css?v=c961d556" media="screen" />
+        <link rel="stylesheet" type="text/css" href="css/cart-select.css?v=78409390" media="screen" />
         <!-- ?embed strips the page down to the monitor: the tutorial page
              (docs/TUTORIAL.html) frames this file to run a cart beside the code. -->
         <script>
@@ -31,6 +32,7 @@
             <button onclick="nextChannel(); this.blur();" class="next_channel_button">&nbsp;+&nbsp;</button>
             <button onclick="previousChannel(); this.blur();" class="prev_channel_button">&nbsp;-&nbsp;</button>
             <button type="button" onclick="pickUserFile(); this.blur();" class="upload_button" title="Run a .wasm cart or .zmd disk from your machine">Upload</button>
+            <button type="button" onclick="toggleCartSelect(); this.blur();" class="select_button" title="Pick a channel from the list of every screen">Select</button>
             <input type="file" id="upload_input" accept=".wasm,.zmd" hidden>
             <div class="container">
                 <div class="overlay">
@@ -56,7 +58,8 @@
 
             <h2>Try it</h2>
             <ul>
-                <li><kbd>+</kbd> / <kbd>−</kbd> on the monitor change channel, TV-style.</li>
+                <li><kbd>+</kbd> / <kbd>−</kbd> on the monitor change channel, TV-style;
+                    <kbd>Select</kbd> lists every channel to jump straight to one.</li>
                 <li><kbd>↑</kbd><kbd>↓</kbd><kbd>←</kbd><kbd>→</kbd> pick a disk in the menu, <kbd>Enter</kbd> boots it, <kbd>Esc</kbd> goes back.</li>
                 <li>Sound starts on your first click or key.</li>
                 <li>Want to write one? The <a href="TUTORIAL.html">tutorial</a> builds a screen
@@ -96,11 +99,14 @@
     <!-- The disk parser, same hand-over (globalThis.ZMDisk). Modules run before
          the load event that boots the machine. -->
     <script type="module" src="zmdisk.js?v=7ace187b"></script>
-    <script src="sealed-loader.js?v=bbc0ded8"></script>
+    <script src="sealed-loader.js?v=96363c09"></script>
     <!-- "Run your own cart": the upload button and drag & drop (after the loader,
          whose state it shares). -->
     <script src="upload-cart.js?v=3bae6aa7"></script>
     <!-- The VHS name card the deck paints when a cart boots (after the loader,
          whose state it shares). -->
     <script src="cart-osd.js?v=39652902"></script>
+    <!-- The cart selector: every channel as a list on the glass (after the
+         loader, whose channel list and tuneToChannel it shares). -->
+    <script src="cart-select.js?v=8e8d627e"></script>
 </html>

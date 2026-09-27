@@ -1,0 +1,104 @@
+/* ---- The cart selector: every channel as a list on the glass (docs/cart-select.js)
+   The font, colour, glow and odd-line comb come from the shared GLASS rule in
+   crt.css (.cart_osd, .cart_select); this file only lays the list out.
+
+   Stage pixels, like the name card: the panel lives inside .stage's transform,
+   so it keeps its place on the tube at any window width. The tube is the
+   800x560 .container at 114,90. */
+.cart_select {
+  position: absolute;
+  left: 150px;
+  top: 118px;
+  width: 728px;
+  height: 500px;
+  z-index: 102; /* over the name card (101) and the bezel (100) */
+  box-sizing: border-box;
+  display: none;
+  flex-direction: column;
+  padding: 14px 16px 16px;
+  font-size: 28px;
+  background: rgba(2, 12, 5, 0.9);
+  border: 2px solid #7dff9b;
+  /* The glass's comb, but with the dark lines at half rather than off: a list
+     is read, not glanced at, so the picture must not show through as much as it
+     does round the name card. */
+  -webkit-mask-image: repeating-linear-gradient(to bottom, #000 0 2px, rgba(0, 0, 0, 0.5) 2px 4px);
+  mask-image: repeating-linear-gradient(to bottom, #000 0 2px, rgba(0, 0, 0, 0.5) 2px 4px);
+  user-select: none;
+  -webkit-user-select: none;
+}
+.cart_select.on { display: flex; }
+
+.cs_head {
+  display: flex;
+  justify-content: space-between;
+  padding-bottom: 8px;
+  margin-bottom: 8px;
+  border-bottom: 2px solid #7dff9b;
+}
+.cs_head .cs_hint { font-size: 16px; opacity: 0.75; align-self: flex-end; }
+
+.cs_body { flex: 1; display: flex; min-height: 0; gap: 10px; }
+
+/* Scrolls natively (wheel, touch drag), with the native bar hidden: the bar on
+   the right is drawn in the glass's own style instead. */
+.cs_list {
+  flex: 1;
+  position: relative;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+}
+.cs_list::-webkit-scrollbar { display: none; }
+
+.cs_list li {
+  display: flex;
+  align-items: baseline;
+  gap: 16px;
+  height: 40px;
+  line-height: 40px;
+  padding: 0 10px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.cs_list .cs_num { width: 2.2em; opacity: 0.75; }
+.cs_list .cs_title { flex: 1; overflow: hidden; text-overflow: ellipsis; }
+.cs_list .cs_type { font-size: 16px; opacity: 0.6; }
+.cs_list li.current .cs_num::before { content: "\25B6"; margin-right: 4px; } /* the running cart */
+.cs_list li.cursor { background: #7dff9b; color: #031a09; }
+
+/* The scrollbar: two arrow buttons around a track with a draggable thumb. */
+.cs_bar { width: 36px; display: flex; flex-direction: column; gap: 6px; }
+.cs_bar button {
+  height: 36px;
+  padding: 0;
+  border: 2px solid #7dff9b;
+  background: transparent;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.cs_bar button::before {
+  content: "";
+  border-left: 10px solid transparent;
+  border-right: 10px solid transparent;
+}
+.cs_up::before { border-bottom: 14px solid #7dff9b; }
+.cs_down::before { border-top: 14px solid #7dff9b; }
+.cs_track { flex: 1; position: relative; border: 2px solid #7dff9b; touch-action: none; cursor: pointer; }
+.cs_thumb { position: absolute; left: 4px; right: 4px; min-height: 24px; background: #7dff9b; }
+
+/* A phone sees the stage at a third of its size: fill the tube, and make rows
+   and arrows big enough for a finger once scaled down. */
+@media (max-width: 700px) {
+  .cart_select { left: 124px; top: 98px; width: 780px; height: 544px; font-size: 40px; padding: 10px 12px; }
+  .cs_head .cs_hint { display: none; }
+  .cs_list li { height: 64px; line-height: 64px; }
+  .cs_list .cs_type { display: none; }
+  .cs_bar { width: 64px; }
+  .cs_bar button { height: 64px; }
+}

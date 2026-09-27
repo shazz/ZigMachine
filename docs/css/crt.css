@@ -45,7 +45,7 @@ body {
   background-color: #858585;
 }
 
-.upload_button {
+.upload_button, .select_button {
   position: absolute;
   margin-left: 505px;
   margin-top: 665px;
@@ -55,6 +55,9 @@ body {
   color: rgb(255, 255, 255);
   background-color: #858585;
 }
+
+/* The cart selector's button, right after Upload (docs/cart-select.js). */
+.select_button { margin-left: 570px; }
 
 /* A file dragged over the monitor (docs/upload-cart.js). */
 .stage.drop-armed .monitor {
@@ -172,15 +175,9 @@ body {
   font-display: swap;
 }
 
-.cart_osd {
-  /* Inside the tube (.container sits at 114,80 and is 800x560), inset well off
-     the bezel art, bottom-left like a deck's own display. */
-  position: absolute;
-  left: 152px;
-  top: 512px;
-  max-width: 724px;
-  z-index: 101;
-  pointer-events: none;
+/* The GLASS: the deck's phosphor look, shared by the name card and the cart
+   selector (docs/cart-select.js, css/cart-select.css). */
+.cart_osd, .cart_select {
   /* 32 stage px: a whole number, and a whole number of machine pixels (2 stage
      px each), so the glyph grid agrees with the picture's. geometricPrecision
      turns hinting OFF on purpose — hinting would snap stems to the UNSCALED
@@ -196,6 +193,17 @@ body {
   /* ODD LINES ONLY: 2 lit stage px, 2 dark. The glyphs are combed, not solid. */
   -webkit-mask-image: repeating-linear-gradient(to bottom, #000 0 2px, transparent 2px 4px);
   mask-image: repeating-linear-gradient(to bottom, #000 0 2px, transparent 2px 4px);
+}
+
+.cart_osd {
+  /* Inside the tube (.container sits at 114,80 and is 800x560), inset well off
+     the bezel art, bottom-left like a deck's own display. */
+  position: absolute;
+  left: 152px;
+  top: 512px;
+  max-width: 724px;
+  z-index: 101;
+  pointer-events: none;
   /* Gone by default. It cuts IN hard (a deck snaps its display on) and fades
      OUT over ~0.45s, which is what the phosphor actually looks like. */
   opacity: 0;

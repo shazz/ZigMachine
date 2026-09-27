@@ -155,6 +155,8 @@ html.embed .info,
 html.embed .next_channel_button,
 html.embed .prev_channel_button,
 html.embed .upload_button,
+html.embed .select_button,
+html.embed .cart_select,
 html.embed .cart_osd,
 html.embed .tpad { display: none !important; }
 html.embed .stage-box { margin: 0 auto; }
