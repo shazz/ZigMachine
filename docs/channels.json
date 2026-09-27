@@ -1,7 +1,7 @@
 [
  {
   "tag": "ancool",
-  "title": "ANCOOL",
+  "title": "AN COOL",
   "type": "atari st"
  },
  {
@@ -11,7 +11,7 @@
  },
  {
   "tag": "bladerunners",
-  "title": "BLADERUNNERS",
+  "title": "BLADERUNNERS DUNGEON",
   "type": "atari st"
  },
  {
@@ -20,23 +20,18 @@
   "type": "zigmachine"
  },
  {
-  "tag": "cuddly_starwars",
-  "title": "CUDDLY STARWARS",
-  "type": "atari st"
- },
- {
   "tag": "dbug",
-  "title": "DBUG",
-  "type": "atari st"
- },
- {
-  "tag": "deltaforce",
-  "title": "DELTA FORCE",
+  "title": "D-BUG",
   "type": "atari st"
  },
  {
   "tag": "deltaforce2",
-  "title": "DELTA FORCE 2",
+  "title": "DELTAFORCE JINXSTER",
+  "type": "atari st"
+ },
+ {
+  "tag": "deltaforce",
+  "title": "DELTAFORCE TESTDRIVE",
   "type": "atari st"
  },
  {
@@ -56,7 +51,7 @@
  },
  {
   "tag": "elite_snooker",
-  "title": "ELITE SNOOKER",
+  "title": "ELITE JIMMY WHITE",
   "type": "atari st"
  },
  {
@@ -66,12 +61,12 @@
  },
  {
   "tag": "equinox",
-  "title": "EQUINOX",
+  "title": "EQUINOX RVF HONDA",
   "type": "atari st"
  },
  {
   "tag": "fallen_angels",
-  "title": "FALLEN ANGELS",
+  "title": "F.ANGELS GOLDEN AXE",
   "type": "atari st"
  },
  {
@@ -86,7 +81,7 @@
  },
  {
   "tag": "ics",
-  "title": "ICS",
+  "title": "ICS BUMPY'S",
   "type": "atari st"
  },
  {
@@ -95,8 +90,8 @@
   "type": "atari st"
  },
  {
-  "tag": "leonard",
-  "title": "LEONARD",
+  "tag": "c-screen34",
+  "title": "MAD VISION FRED (C)",
   "type": "atari st"
  },
  {
@@ -126,7 +121,7 @@
  },
  {
   "tag": "noextra",
-  "title": "NOEXTRA",
+  "title": "NOEXTRA DHS MEGADEMO",
   "type": "atari st"
  },
  {
@@ -140,14 +135,19 @@
   "type": "zigmachine"
  },
  {
+  "tag": "leonard",
+  "title": "OXYGENE 312 SPRITES",
+  "type": "atari st"
+ },
+ {
+  "tag": "stniccc",
+  "title": "OXYGENE STNICCC 2000",
+  "type": "atari st"
+ },
+ {
   "tag": "polkadots",
   "title": "POLKA DOTS",
   "type": "zigmachine"
- },
- {
-  "tag": "replicants_dd2",
-  "title": "REPLICANTS DD2",
-  "type": "atari st"
  },
  {
   "tag": "replicants_emlyn",
@@ -165,8 +165,8 @@
   "type": "atari st"
  },
  {
-  "tag": "c-screen34",
-  "title": "REPS FRED (C)",
+  "tag": "replicants_dd2",
+  "title": "REPS DOUBLE DRAGON 2",
   "type": "atari st"
  },
  {
@@ -205,9 +205,9 @@
   "type": "zigmachine"
  },
  {
-  "tag": "tsl_hybridglenz",
-  "title": "SILENTS HYBRID GLENZ",
-  "type": "amiga"
+  "tag": "stcs_css3",
+  "title": "STCS DEMONIAQ",
+  "type": "atari st"
  },
  {
   "tag": "skystrike",
@@ -216,22 +216,12 @@
  },
  {
   "tag": "stcs",
-  "title": "STCS",
-  "type": "atari st"
- },
- {
-  "tag": "stcs_css3",
-  "title": "STCS 3RD CSS CONVENTION",
-  "type": "atari st"
- },
- {
-  "tag": "stniccc",
-  "title": "STNICCC 2000",
+  "title": "STCS STARGOOSE",
   "type": "atari st"
  },
  {
   "tag": "supplex_fs2",
-  "title": "SUPPLEX FS2",
+  "title": "SUPPLEX FLIGHT SIM 2",
   "type": "amiga"
  },
  {
@@ -241,7 +231,7 @@
  },
  {
   "tag": "tcb_colorshock",
-  "title": "TCB COLORSHOCK",
+  "title": "TCB COLORSHOCK 2",
   "type": "atari st"
  },
  {
@@ -250,13 +240,18 @@
   "type": "atari st"
  },
  {
+  "tag": "cuddly_starwars",
+  "title": "TCB STARWARS SCROLLER",
+  "type": "atari st"
+ },
+ {
   "tag": "tcb_weirddream",
-  "title": "TCB WEIRD DREAM",
+  "title": "TCB/REPS WEIRD DREAM",
   "type": "atari st"
  },
  {
   "tag": "tex",
-  "title": "TEX",
+  "title": "TEX - THE UNION",
   "type": "atari st"
  },
  {
@@ -266,7 +261,12 @@
  },
  {
   "tag": "tex_neoshow",
-  "title": "TEX NEO SHOW",
+  "title": "TEX SUPER NEO SHOW",
+  "type": "atari st"
+ },
+ {
+  "tag": "gen4_3615",
+  "title": "THE FATE 3615 GEN4",
   "type": "atari st"
  },
  {
@@ -280,13 +280,13 @@
   "type": "atari falcon"
  },
  {
-  "tag": "gen4_3615",
-  "title": "ULM 3615 GEN4",
-  "type": "atari st"
+  "tag": "tsl_hybridglenz",
+  "title": "TSL HYBRID GLENZ",
+  "type": "amiga"
  },
  {
   "tag": "ulm_spoon_distorter",
-  "title": "ULM SPOON DISTORTER",
+  "title": "ULM DARK SIDE SPOON",
   "type": "atari st"
  },
  {

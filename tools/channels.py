@@ -64,6 +64,14 @@ def excluded(tag):
 # default: it means the scene's own source does not say and nobody has checked.
 KINDS = ("atari st", "atari falcon", "amiga", "zigmachine", "system", "unknown")
 
+# Display names are shown in three fixed-width-ish places: the menu cart's own
+# 8x8-font list, the VHS name card, and the Select OSD row (docs/css/cart-select.css
+# .cs_title, which ellipsizes past ~25 characters at desktop width). 22 is the
+# hard cap Matt set from that Select OSD screenshot; it also comfortably covers
+# the menu cart's two-column layout. Never raise this without re-checking all
+# three surfaces.
+MAX_NAME_LEN = 22
+
 # name, tag, and the trailing comment the type is read from. The comment may go
 # on with prose after the type ("// atari st — the demo opens on ...").
 ENTRY = re.compile(
@@ -91,6 +99,9 @@ def entries():
     if untyped:
         sys.exit(f"channels: no type on {', '.join(untyped)} in {CATALOG}. "
                  f"End the entry's line with a comment naming one of: {', '.join(KINDS)}.")
+    too_long = [f"{tag} ({len(name)})" for name, tag, _ in typed if len(name) > MAX_NAME_LEN]
+    if too_long:
+        sys.exit(f"channels: name over {MAX_NAME_LEN} chars: {', '.join(too_long)} in {CATALOG}.")
     return typed
 
 
