@@ -58,7 +58,7 @@ select it in <code>apps/floppy.zig</code>.
 screen step by step in Zig, C and Rust, and runs each step on the real machine.
 This page is the reference you reach for afterwards.</p>
 </div>
-      <p class="stamp">Generated 2026-09-26 by tools/gen_docs.py from machine/sdk, libs/zig, rom/gem and docs/*.md</p>
+      <p class="stamp">Generated 2026-09-27 by tools/gen_docs.py from machine/sdk, libs/zig, rom/gem and docs/*.md</p>
     </section>
     <section class="ref" id="examples">
       <header class="sec-h"><span class="eyebrow">Start</span><h2>Examples<small>six scenes, in Zig</small></h2></header>
@@ -994,6 +994,15 @@ requests, the paired shot and dynamite's double play among them).</p>
   audibly (Sharpness Buzztone), others play silence.</li>
 <li><strong>Digidrum SNDHs</strong> that start their drums through XBIOS <code>Xbtimer</code> are
   supported; a drum can begin late in the tune (Monty: 38.4 s).</li>
+<li><strong>The MFP's interrupt controller is emulated</strong> (<code>libs/zig/players/mfp.zig</code>).
+  A timer calls its handler only while its IERA/IERB bit is set and its
+  IMRA/IMRB bit is unmasked, as on the chip. Each tune starts with the MFP as
+  TOS 1.04 leaves it: Timer C enabled, Timers A, B and D off. So an INIT enables
+  its own timers, as it must on an ST (<code>Xbtimer</code> does it for you). Clearing a
+  bit stops the handler but not the timer. That is how STOS's Maestro stops a
+  digi, and how SID-voice tunes (Elite, Crystallized) silence a voice for a
+  frame. The in-service registers are not modelled: a handler always runs to
+  its <code>rte</code> before the next interrupt.</li>
 </ul>
 <h4 id="music-sndh-player-zig-c-rust-proving-a-tune-plays-headless">Proving a tune plays (headless)</h4>
 <ul>

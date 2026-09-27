@@ -9,6 +9,42 @@ reconstructed from the commits that made them, so they are shorter.
 
 ---
 
+## 2026-09-27 — The SNDH player's MFP honours IER/IMR (enable, mask, pending)
+
+**Status:** accepted · code in `libs/zig/players/mfp.zig`, guide in `docs/MUSIC.md`
+
+**Context:** The player ran any MFP timer whose control register was set, and
+ignored IERA/IERB and IMRA/IMRB. STOS's Maestro stops a digi by clearing Timer
+A's IERA/IMRA bits, so Skystrike's SAMSTOP left the digi playing
+(`docs/ports/SKYSTRIKE.md` §9). Its `sound.s` works around this by also
+clearing TACR.
+
+**Decision:** Model the MC68901's interrupt controller for the four timers. A
+timeout sets a channel's pending bit only if the channel is enabled. Clearing
+an IER bit also drops its pending bit. A pending channel interrupts only when
+unmasked, and it waits while masked. IPR and ISR are clear-only from software.
+The counters run regardless. The reset state is what TOS 1.04 leaves, read off
+Hatari after boot: IERA = IMRA = $1E, IERB = IMRB = $64 (Timer C on; A, B and D
+off). Xbtimer enables and unmasks its timer, as TOS's does. In-service is not
+modelled: a handler is called synchronously and runs to its RTE, so nothing can
+nest for ISR to block. VR stays $40 (auto-EOI) instead of TOS's $48 for the
+same reason.
+
+**Alternatives considered:** Leave the chip alone and let each port stop its
+timer (Skystrike's workaround). But the tune's code is the source of truth, and
+every such port would rediscover the bug. Modelling ISR blocking too: it only
+matters for nesting, which the synchronous player never does, and it risks
+silencing a handler that skips its end-of-interrupt.
+
+**Consequences:** Across all 389 subtunes on the shelf (30 s each), 386 render
+byte-identical. Three change, each because the tune masks a timer with IMR and
+the old player ignored it: Crystallized's Timer B voice and Elite's Timers A
+and D (both SID voices masked for a frame at a time), and one register write
+in VEX. A tune that starts a timer without enabling its interrupt now goes
+silent, as it would on an ST. None on the shelf does.
+
+---
+
 ## 2026-09-26 — zg.sndhCall: INIT on the running SNDH, a cart-export queue (no HW bump)
 
 **Status:** accepted · guide in `docs/MUSIC.md` ("Sound effects")

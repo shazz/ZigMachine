@@ -131,6 +131,7 @@ tools/pack_stats.sh
 for t in \
     libs/zig/disk.zig \
     libs/zig/players/sndh.zig \
+    libs/zig/players/mfp_test.zig \
     libs/zig/depackers/ice_test.zig \
     libs/zig/depackers/zx0_test.zig \
     libs/zig/depackers/depack_fx.zig \
