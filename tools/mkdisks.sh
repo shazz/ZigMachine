@@ -57,9 +57,19 @@ repack() {
 # is deterministic, so an unchanged cart still reproduces its disk byte for byte.
 ZX0PACK=zig-out/bin/zx0pack
 [ -x "$ZX0PACK" ] || { echo "mkdisks: $ZX0PACK is missing: run zig build first"; exit 1; }
+# Packing every cart costs most of this script's time, and the same cart bytes
+# always pack to the same bytes. So packed copies are cached (zig-out/, ignored)
+# under the hash of the cart AND of the packer: a rebuilt zx0pack is a new key,
+# never a stale hit. The disk is still rebuilt and compared byte for byte below.
+ZX0CACHE=zig-out/zx0cache
+mkdir -p "$ZX0CACHE"
+PACKER_KEY=$(sha256sum "$ZX0PACK" | cut -c1-16)
 packcart() { # packcart <cart.wasm> -> prints the packed copy's path
-    dst="$TMP/$(basename "$1").zx0"
-    "$ZX0PACK" "$1" "$dst" > /dev/null
+    dst="$ZX0CACHE/$PACKER_KEY-$(sha256sum "$1" | cut -c1-32).zx0"
+    if [ ! -s "$dst" ]; then
+        "$ZX0PACK" "$1" "$dst.$$" > /dev/null
+        mv "$dst.$$" "$dst"
+    fi
     echo "$dst"
 }
 
