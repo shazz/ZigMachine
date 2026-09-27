@@ -2,13 +2,13 @@
 // machine's RAM arena (zg.mem, zeroed) and reached through one struct of
 // pointers. As module-scope statics they were zero data segments (the cart
 // imports its memory), 612 KB of cart binary and of the window before boot.
-//   px     224,000 B  frame.zig: the picture, a gid per physical pixel (menu, OMEGA)
-//   bank   142,800 B  frame.zig: each line's palette entries, as gids (menu, OMEGA)
+//   px     224,000 B  frame.zig: the picture, a gid per physical pixel (the menu)
+//   bank   142,800 B  frame.zig: each line's palette entries, as gids (the menu)
 //   part   PART_LEN   assets.zig: the part on screen's depacked pictures + scratch;
-//                     for SYNC and TCB, the real part's own memory (st.zig)
+//                     for SYNC, TCB and OMEGA, the real part's own memory (st.zig)
 //   chunky  64,000 B  st_show.zig: an ST part's frame, as palette indices
 //   pal    2 x 17,920 B  st_show.zig: its 16 colours per physical line, shown / next
-//   plane  112,000 B  st_show.zig: an overscan frame (TCB #1), the whole 400x280
+//   plane  112,000 B  st_show.zig: an overscan frame (TCB #1, OMEGA), the whole 400x280
 // Hot loops read these pointers into locals first: a store through one pointer
 // would otherwise force a reload of `buf` on every pixel.
 const zg = @import("zigos");

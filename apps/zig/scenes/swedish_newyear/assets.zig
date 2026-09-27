@@ -1,9 +1,10 @@
 // The pictures and fonts, part by part. Every .raw ships ZX0-packed (build.zig:
 // packed_assets.swedish_newyear); on entering a part its set is depacked into the
 // one part buffer (ram.zig), after which the part's own scratch sits. Only one
-// part runs at a time, so the buffer is the LARGEST set, not the sum. The SYNC
-// and TCB "sets" are the real parts as the loader reads them, and their scratch
-// is the rest of the part's memory (st.zig); TCB's 480 KB is the largest.
+// part runs at a time, so the buffer is the LARGEST set, not the sum. The SYNC,
+// TCB and OMEGA "sets" are the real parts as the loader reads them, and their
+// scratch is the rest of the part's memory (st.zig); TCB's and OMEGA's 480 KB
+// ($8000..$80000) are the largest.
 //
 // The Imgs keep assets_gen.zig's size, depth and LUT; only `.data` is filled here.
 const std = @import("std");
@@ -14,6 +15,7 @@ const Img = @import("image.zig").Img;
 const ram = @import("ram.zig");
 const sync1 = @import("sync1.zig");
 const tcb1 = @import("tcb1.zig");
+const omega = @import("omega.zig");
 
 pub const Set = enum { menu, sync, tcb, omega };
 
@@ -23,6 +25,9 @@ pub const SYNC_RAM: usize = sync1.TOP - sync1.BASE;
 pub const TCB_IMAGE: usize = 26 * 9 * 2 * 512;
 /// TCB's memory, $8000..$80000.
 pub const TCB_RAM: usize = tcb1.TOP - tcb1.BASE;
+pub const OMEGA_IMAGE: usize = 7 * 9 * 2 * 512;
+/// OMEGA's memory, $8000..$80000.
+pub const OMEGA_RAM: usize = omega.TOP - omega.BASE;
 
 pub var main_px: []const u8 = &.{}; // 320x200, a byte a pixel (main_lut's row-local index)
 /// The SYNC part as the loader read it (tracks 45..55, 101,376 bytes to $20000).
@@ -31,11 +36,8 @@ pub var font7 = blank(gen.font7);
 pub var block = blank(gen.block);
 /// The TCB part as the loader read it (tracks 12..37, 239,616 bytes to $8000).
 pub var tcb_part: []const u8 = &.{};
-pub var omain = blank(gen.omain);
-pub var omega = blank(gen.omega);
-pub var ofont = blank(gen.ofont);
-pub var vumeter = blank(gen.vumeter);
-pub var atari = blank(gen.atari);
+/// The OMEGA part as the loader read it (tracks 38..44, 64,512 bytes to $8000).
+pub var omega_part: []const u8 = &.{};
 
 fn blank(comptime img: Img) Img {
     return .{ .w = img.w, .h = img.h, .bits = img.bits, .data = &.{}, .lut = img.lut };
@@ -59,11 +61,7 @@ const ENTRIES = [_]Entry{
     entry(.menu, PACKED.block, gen.block, &block),
     .{ .set = .sync, .src = PACKED.sync_part, .len = SYNC_IMAGE, .data = &sync_part },
     .{ .set = .tcb, .src = PACKED.tcb_part, .len = TCB_IMAGE, .data = &tcb_part },
-    entry(.omega, PACKED.omain, gen.omain, &omain),
-    entry(.omega, PACKED.omega, gen.omega, &omega),
-    entry(.omega, PACKED.ofont, gen.ofont, &ofont),
-    entry(.omega, PACKED.vumeter, gen.vumeter, &vumeter),
-    entry(.omega, PACKED.atari, gen.atari, &atari),
+    .{ .set = .omega, .src = PACKED.omega_part, .len = OMEGA_IMAGE, .data = &omega_part },
 };
 
 /// Bytes a set's pictures take, depacked.
@@ -84,6 +82,7 @@ fn ScratchOf(comptime set: Set) type {
     return switch (set) {
         .tcb => [TCB_RAM - TCB_IMAGE]u8,
         .sync => [SYNC_RAM - SYNC_IMAGE]u8, // the part's memory above its tracks
+        .omega => [OMEGA_RAM - OMEGA_IMAGE]u8,
         else => void,
     };
 }

@@ -4,19 +4,19 @@
 // OMEGA (Red) for the graphics, TCB for the code, MAD MAX for the music (and
 // David Whittaker's Beyond the Ice Palace on the OMEGA screen).
 //
-// TWO SOURCES. The menu and OMEGA are still ported from Mellow Man & NewCore's
-// CODEF remake (wab.com screen 295, MIT). SYNC and TCB are ported from the
-// DISK (SNYD_89.MSA; prototypes/snyd_re/NOTES.md, NOTES_tcb.md): the boot
+// TWO SOURCES. The menu is still ported from Mellow Man & NewCore's CODEF
+// remake (wab.com screen 295, MIT). SYNC, TCB and OMEGA are ported from the
+// DISK (SNYD_89.MSA; prototypes/snyd_re/NOTES*.md): the boot
 // sector decrypts a loader into $7000, which reads the menu from tracks 1..11
 // to $8000 and, on F1 / F2 / F3, a part from tracks 45..55 to $20000 /
 // 12..37 to $8000 / 38..44 to $8000, jumps in, and reloads the menu when the
-// part returns. The FAT on the disk is a decoy. See sync.zig and tcb.zig.
+// part returns. The FAT on the disk is a decoy. See sync.zig, tcb.zig, omega.zig.
 //
 // Keys: menu F1 -> SYNC #1, F2 -> TCB #1, F3 -> OMEGA; SYNC #1 Space -> SYNC #2;
 // SYNC #2 Space -> menu (the original resets the ST, which boots back into the
 // menu); TCB #1 Space -> TCB #2 (F1/F2 scroller speed, F3/F4/F5 the Dugger
 // tune from subtune 2/3/4); TCB #2 / OMEGA Space -> menu. Escape leaves (not
-// in the original). A SYNC or TCB visit starts fresh, as a disk load does, and
+// in the original). A disk part's visit starts fresh, as a disk load does, and
 // the menu starts over on every return (the loader reloads it).
 //
 // MUSIC (each from the disk's own replay, or mapped by YM register comparison):
@@ -37,9 +37,11 @@
 //   TCB #2   dugger.sndh #4 at the start, #2/#3/#4 on F3/F4/F5 (Mad Max). The
 //            part's replay (copied to $50600) wrapped as an SNDH: subtunes 1..4
 //            identical to dugger.sndh's, 1.000 aligned at lag 0.
+//   OMEGA    beyond_the_ice_palace.sndh #1 (David Whittaker). The part's replay
+//            ($8BC4..$9C64, init d0 = 0) wrapped as an SNDH and logged against
+//            it over 3000 frames: 1.000 of frames identical at lag 0.
 //   menu     scout.sndh #1 (Mad Max, C64-Conversions/Scout)     hist 0.997, seq 0.94
-//   OMEGA    beyond_the_ice_palace.sndh #1 (Whittaker)           hist 0.976
-//            (these two from the remake's .ym dumps).
+//            (from the remake's .ym dump).
 // Every SNDH is FLAG ~y except the Sync one and the TCB digi (~ay, Timer A).
 // --------------------------------------------------------------------------
 const zg = @import("zigos");
@@ -48,7 +50,6 @@ const Menu = @import("swedish_newyear/menu.zig").Menu;
 const Sync = @import("swedish_newyear/sync.zig").Sync;
 const Tcb = @import("swedish_newyear/tcb.zig").Tcb;
 const Omega = @import("swedish_newyear/omega.zig").Omega;
-const Vu = @import("swedish_newyear/vu.zig").Vu;
 const music = @import("swedish_newyear/music.zig");
 const assets = @import("swedish_newyear/assets.zig");
 
@@ -66,15 +67,14 @@ pub const Demo = struct {
     sync: Sync,
     tcb: Tcb,
     omega: Omega,
-    vu: Vu,
+    ym: *const [16]u8, // the YM registers the SNDH leaves: OMEGA's meters read them
     wants_quit: bool,
     loaded: ?assets.Set, // the part in the part buffer (null: none usable)
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
         self.part = .menu;
         self.menu.init();
-        self.omega.init();
-        self.vu.init();
+        self.ym = &zigos.ym_regs;
         self.wants_quit = false;
         self.loaded = null;
         frame.init(zigos);
@@ -86,18 +86,14 @@ pub const Demo = struct {
     pub fn render(self: *Demo, zigos: *ZigOS, dt: f32) void {
         const fb = &zigos.lfbs[0];
         switch (self.part) {
-            .sync1, .sync2, .tcb1, .tcb2 => return self.renderSt(fb, dt),
-            .menu, .omega => {},
+            .sync1, .sync2, .tcb1, .tcb2, .omega => return self.renderSt(fb, dt),
+            .menu => {},
         }
         frame.st_mode = false;
         frame.flipColour0();
-        frame.setBorders(if (self.part == .menu) .bottom else .closed);
+        frame.setBorders(.bottom);
         frame.clear();
-        if (self.load()) switch (self.part) {
-            .menu => self.menu.step(),
-            .omega => self.omega.step(&self.vu, &zigos.ym_regs),
-            else => unreachable,
-        };
+        if (self.load()) self.menu.step();
         frame.present(fb);
         @memset(&frame.c0_next, frame.BLACK);
     }
@@ -118,6 +114,7 @@ pub const Demo = struct {
                 frame.setBorders(.closed);
                 self.sync.frame(px, dt);
             },
+            .omega => self.omega.frame(px, dt, self.levels()),
             else => if (self.tcb.frame(px, dt)) |n| music.play(.{ .dugger = n }),
         }
     }
@@ -147,7 +144,8 @@ pub const Demo = struct {
                 self.tcb.enter();
                 if (self.part == .tcb2) self.tcb.toSecond();
             },
-            else => {},
+            .omega => self.omega.enter(self.levels()),
+            .menu => {},
         }
         return true;
     }
@@ -169,7 +167,7 @@ pub const Demo = struct {
         switch (f) {
             0 => self.fromDisk(.sync1, .jinx1),
             1 => self.fromDisk(.tcb1, .tcb_digi),
-            2 => self.go(.omega, .icepalace),
+            2 => self.fromDisk(.omega, .icepalace),
             else => {},
         }
     }
@@ -191,13 +189,18 @@ pub const Demo = struct {
         }
     }
 
-    /// F1 / F2: the loader reads the part from the disk again. Loaded now,
+    /// F1 / F2 / F3: the loader reads the part from the disk again. Loaded now,
     /// not on the next render: the first frame's borders (the global HBL) are
     /// painted from what the part's entry captures.
     fn fromDisk(self: *Demo, part: Part, tune: music.Tune) void {
         self.loaded = null;
         self.go(part, tune);
         _ = self.load();
+    }
+
+    /// YM registers 8, 9, 10: the voices' amplitudes.
+    fn levels(self: *const Demo) [3]u8 {
+        return self.ym[8..11].*;
     }
 
     fn go(self: *Demo, part: Part, tune: music.Tune) void {
@@ -207,7 +210,7 @@ pub const Demo = struct {
         if (part == .menu) self.menu.init();
         music.play(tune);
         // The key lands between frames and hwClear paints the borders BEFORE
-        // the next frame runs: the menu and OMEGA have a black colour 0.
-        if (part == .menu or part == .omega) @memset(&frame.c0_next, frame.BLACK);
+        // the next frame runs: the menu has a black colour 0.
+        if (part == .menu) @memset(&frame.c0_next, frame.BLACK);
     }
 };

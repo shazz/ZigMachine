@@ -1,7 +1,7 @@
 // The SWEDISH NEW YEAR assets as the harness reads them: the .raw images and
 // the tables tools/private_tools/swedish_newyear_assets.py generated into
 // apps/zig/scenes/swedish_newyear/assets_gen.zig, and the scrolltexts copied
-// verbatim from screen.js into texts.zig.
+// verbatim from screen.js into texts.zig (the menu's: the other screens are the disk's).
 import { readFile } from "node:fs/promises";
 
 const DIR = "apps/zig/scenes/swedish_newyear/";
@@ -27,7 +27,7 @@ export async function loadAssets() {
     A.mainPx = await readFile(RAW + "main.raw");
     const ts = await readFile(DIR + "texts.zig", "utf8");
     A.text = {};
-    for (const n of ["menu", "omega"]) {
+    for (const n of ["menu"]) {
         A.text[n] = [...ts.split(`pub const ${n} =`)[1].split(";")[0].matchAll(/"((?:[^"\\]|\\.)*)"/g)].map((m) => m[1].replace(/\\(.)/g, "$1")).join("");
     }
     return A;
