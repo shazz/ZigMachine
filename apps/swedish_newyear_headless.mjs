@@ -41,6 +41,7 @@ const K = { space: 32, esc: 0xe012, f: (n) => 0xe000 + n };
 const SONGS = { // each tune -> what the port must request (swedish_newyear.zig)
     scout: ["scout.sndh", 1], jinx1: ["Jinks.sndh", 1], icepalace: ["beyond_the_ice_palace.sndh", 1],
     sync2: ["Swedish_New_Year_Demo_Sync.sndh", 1], tcb_digi: ["swedish_newyear_tcb_digi.sndh", 1],
+    stop: ["none", 0], // zg.stopSong(): TCB #1's exit silences its sample stream
     dugger2: ["dugger.sndh", 2], dugger3: ["dugger.sndh", 3], dugger4: ["dugger.sndh", 4],
 };
 const RASTER_PARTS = new Set(); // remake parts with rasters: none left (the menu, OMEGA)
@@ -285,7 +286,7 @@ const script = [
     { run: 5, shots: [4], prefix: "menu_back" },
     { key: [K.f(2), 113], song: "tcb_digi" },
     { run: 1000, dt: 20, st: true, shots: [0, 1, 74, 603, 604, 677, 699, 999], prefix: "tcb1" },
-    { key: [K.space, 32] },
+    { key: [K.space, 32], song: "stop" },
     // after the last shot: F3 F4 F5 restart Dugger at 2 3 4, F5 again does nothing, F1 is a speed
     {
         run: 1100, dt: 20, st: true, shots: [0, 73, 74, 75, 76, 83, 173, 185, 547, 548, 1073], prefix: "tcb2",
@@ -339,6 +340,7 @@ if (m.demo.pollCartRequest() !== -1) fail("Escape does not ask for the menu disk
 async function checkTunes(set) {
     for (const k of set) {
         const [file, sub] = k.split("#");
+        if (file === "none") continue; // the stop request, not a tune
         const bytes = new Uint8Array(await readFile(`docs/music/${file}`));
         if (!file.endsWith(".sndh")) {
             const ok = file.endsWith(".ymraw") ? dec.decode(bytes.subarray(0, 4)) === "YM5!" : bytes.length > 100000;

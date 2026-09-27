@@ -19,7 +19,6 @@ const tcb2 = @import("tcb2.zig");
 const assets = @import("assets.zig");
 const ram = @import("ram.zig");
 
-pub const VBL_MS: f32 = 20;
 /// VBLs from Space (released) to TCB #2's first frame.
 const SETUP_VBLS = 73;
 /// TCB #2's tune at its start: Dugger subtune 4.
@@ -51,7 +50,6 @@ pub const Tcb = struct {
     /// Space in TCB #1.
     pub fn toSecond(self: *Tcb) void {
         tcb2.init(&self.r);
-        tcb2.resetKeyboard();
         self.second = true;
         self.setup = SETUP_VBLS;
         self.running = false;
@@ -65,7 +63,7 @@ pub const Tcb = struct {
         if (self.overscan) show.presentOverscan(fb) else show.present(fb);
         var tune: ?u8 = null;
         self.acc += dt;
-        while (self.acc >= VBL_MS) : (self.acc -= VBL_MS) {
+        while (self.acc >= st.VBL_MS) : (self.acc -= st.VBL_MS) {
             if (self.vbl()) tune = FIRST_TUNE;
         }
         self.capture();

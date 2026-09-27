@@ -95,11 +95,6 @@ pub const PART_LEN: usize = blk: {
     break :blk most;
 };
 
-/// A part's scratch; valid while its set is the one loaded.
-pub fn scratch(comptime set: Set) *ScratchOf(set) {
-    return @ptrCast(@alignCast(ram.buf.part[scratchAt(set)..][0..@sizeOf(ScratchOf(set))]));
-}
-
 /// Depack `set` into the part buffer. False (nothing usable) if a blob does not
 /// depack to its picture's size: a build fault, never expected at run time.
 pub fn load(set: Set) bool {

@@ -25,7 +25,7 @@
 // --------------------------------------------------------------------------
 const st = @import("st.zig");
 const frame = @import("frame.zig");
-pub const init_part = @import("tcb1_init.zig").init;
+const init_part = @import("tcb1_init.zig").init;
 
 const Ram = st.Ram;
 

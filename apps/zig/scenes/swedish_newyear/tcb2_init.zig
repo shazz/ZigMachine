@@ -30,6 +30,7 @@ pub fn init(r: *const Ram) void {
     unionLogo(r); // $8664
     r.sl(T.DRAWN, 0x78300);
     vbl.install(); // $1081C
+    T.resetKeyboard(); // module state: a second F2 must not inherit the last key
 }
 
 /// $109A4: the palettes (saved / the one shown during the precalc), the glyph

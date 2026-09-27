@@ -17,42 +17,51 @@ const std = @import("std");
 
 pub const LINE = 160; // bytes a low-res line
 pub const SCREEN = 32000; // bytes a low-res screen
+/// A part runs at the original's 50 Hz: one VBL every 20 ms of host time.
+pub const VBL_MS: f32 = 20;
 
 pub const Ram = struct {
     base: u32,
     m: []u8,
 
-    inline fn at(self: *const Ram, a: u32) usize {
-        return a - self.base;
+    /// The offset of `n` bytes at `a`. The routines chase pointers they read
+    /// from this memory, so an address is data: one outside the part traps
+    /// where safety is on (the tests), and in ReleaseSmall -- no bounds checks
+    /// -- is kept inside the part rather than written over the cart's RAM.
+    inline fn at(self: *const Ram, a: u32, n: usize) usize {
+        const off: usize = a -% self.base;
+        if (off < self.m.len and n <= self.m.len - off) return off;
+        if (std.debug.runtime_safety) std.debug.panic("st.Ram: ${X} + {d} is outside the part", .{ a, n });
+        return self.m.len -| n;
     }
 
     pub inline fn b(self: *const Ram, a: u32) u8 {
-        return self.m[self.at(a)];
+        return self.m[self.at(a, 1)];
     }
 
     pub inline fn w(self: *const Ram, a: u32) u16 {
-        return std.mem.readInt(u16, self.m[self.at(a)..][0..2], .big);
+        return std.mem.readInt(u16, self.m[self.at(a, 2)..][0..2], .big);
     }
 
     pub inline fn l(self: *const Ram, a: u32) u32 {
-        return std.mem.readInt(u32, self.m[self.at(a)..][0..4], .big);
+        return std.mem.readInt(u32, self.m[self.at(a, 4)..][0..4], .big);
     }
 
     pub inline fn sb(self: *const Ram, a: u32, v: u8) void {
-        self.m[self.at(a)] = v;
+        self.m[self.at(a, 1)] = v;
     }
 
     pub inline fn sw(self: *const Ram, a: u32, v: u16) void {
-        std.mem.writeInt(u16, self.m[self.at(a)..][0..2], v, .big);
+        std.mem.writeInt(u16, self.m[self.at(a, 2)..][0..2], v, .big);
     }
 
     pub inline fn sl(self: *const Ram, a: u32, v: u32) void {
-        std.mem.writeInt(u32, self.m[self.at(a)..][0..4], v, .big);
+        std.mem.writeInt(u32, self.m[self.at(a, 4)..][0..4], v, .big);
     }
 
     /// `n` bytes at `a`.
     pub inline fn bytes(self: *const Ram, a: u32, n: usize) []u8 {
-        return self.m[self.at(a)..][0..n];
+        return self.m[self.at(a, n)..][0..n];
     }
 
     /// movem / move.l copies: never overlapping in these routines.

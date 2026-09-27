@@ -13,8 +13,6 @@ const sync2 = @import("sync2.zig");
 const assets = @import("assets.zig");
 const ram = @import("ram.zig");
 
-pub const VBL_MS: f32 = 20;
-
 pub const Sync = struct {
     r: st.Ram,
     shown: sync1.Shown,
@@ -48,7 +46,7 @@ pub const Sync = struct {
     pub fn frame(self: *Sync, fb: []u8, dt: f32) void {
         show.present(fb);
         self.acc += dt;
-        while (self.acc >= VBL_MS) : (self.acc -= VBL_MS) self.vbl();
+        while (self.acc >= st.VBL_MS) : (self.acc -= st.VBL_MS) self.vbl();
         self.capture();
     }
 

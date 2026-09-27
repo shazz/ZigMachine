@@ -47,7 +47,6 @@ const frame = @import("swedish_newyear/frame.zig");
 const Menu = @import("swedish_newyear/menu.zig").Menu;
 const Sync = @import("swedish_newyear/sync.zig").Sync;
 const Tcb = @import("swedish_newyear/tcb.zig").Tcb;
-const tcb = @import("swedish_newyear/tcb.zig");
 const Omega = @import("swedish_newyear/omega.zig").Omega;
 const Vu = @import("swedish_newyear/vu.zig").Vu;
 const music = @import("swedish_newyear/music.zig");
@@ -161,7 +160,8 @@ pub const Demo = struct {
         if (cp == K_SPACE) return self.space();
         if (cp < K_F1 or cp > K_F1 + 4) return;
         const f: u8 = @intCast(cp - K_F1); // 0 = F1
-        if (self.part == .tcb2) {
+        if (self.part == .tcb2) { // not loaded: self.tcb is a previous visit's
+            if (self.loaded != .tcb) return;
             if (self.tcb.key(f)) |n| music.play(.{ .dugger = n });
             return;
         }
@@ -180,6 +180,7 @@ pub const Demo = struct {
             .tcb1 => {
                 if (self.loaded == .tcb) self.tcb.toSecond();
                 self.part = .tcb2; // the Dugger tune starts with its first frame
+                zg.stopSong(); // TCB #1's exit ($E0C2) stops the sample stream
             },
             .sync1 => {
                 if (self.loaded == .sync) self.sync.toSecond();

@@ -27,7 +27,6 @@ fn fresh() st.Ram {
     @memcpy(mem[0..IMAGE.len], IMAGE);
     const r = st.Ram{ .base = tcb2.BASE, .m = &mem };
     tcb2.init(&r);
-    tcb2.resetKeyboard();
     return r;
 }
 
