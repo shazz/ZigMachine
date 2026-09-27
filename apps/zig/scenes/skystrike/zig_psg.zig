@@ -59,10 +59,44 @@ pub fn invalidate() void {
     known = [_]bool{false} ** 14;
 }
 
+// ---- the engine note across a Z switch -----------------------------------
+// The switch loads the other mode's song, which silences the YM, and the game
+// sets its engine note again only when it next changes. So the game's last
+// PSG commands outside an effect routine are kept, in both modes, and a
+// switch replays them onto the new song: VOLUME, NOISE, ENVEL in the order
+// sfx.zig's 990 sends them.
+const Last = struct { volume: ?u8 = null, noise: ?u8 = null, hi: u8 = 0, lo: u8 = 0, shape: ?u8 = null };
+var last: Last = .{};
+
+/// One of the game's commands outside an effect routine (sound.zig).
+pub fn remember(op: sound.Op, arg: u8) void {
+    switch (op) {
+        .volume => last.volume = arg,
+        .noise => last.noise = arg,
+        .env_hi => last.hi = arg,
+        .env_lo => last.lo = arg,
+        .envel => last.shape = arg,
+        else => {},
+    }
+}
+
+/// After Z: the engine note onto the YM (ZIG) or the SNDH just loaded.
+pub fn replay(zig: bool) void {
+    const send = if (zig) &command else &sound.send;
+    if (last.volume) |v| send(.volume, v);
+    if (last.noise) |n| send(.noise, n);
+    if (last.shape) |sh| {
+        send(.env_hi, last.hi);
+        send(.env_lo, last.lo);
+        send(.envel, sh);
+    }
+}
+
 /// Power-on: nothing written yet.
 pub fn reset() void {
     invalidate();
     regs = [_]u8{0} ** 14;
     env_period = 0;
     refused = 0;
+    last = .{};
 }

@@ -617,7 +617,10 @@ A briefing between two missions has no MUSIC call in the original (it plays none
 so in ZIG the flight's music goes on under it. ORIGINAL plays skystrike.sndh exactly
 as before. The situation and ORIGINAL's tune are tracked in both modes, so **Z** swaps
 the music too: to ZIG, the MOD for where the game is; to ORIGINAL, skystrike.sndh's
-tune the game chose, or its silence in flight.
+tune the game chose, or its silence in flight. Either load silences the YM, and the
+game sets its engine note again only when it changes, so the switch replays the
+game's last VOLUME / NOISE / ENVEL (outside an effect) onto the new song
+(`zig_psg.replay`): as YM writes in ZIG, as calls on the SNDH in ORIGINAL.
 
 **Credits in the game.** On ZIG's title, a ticker in the band under the scaled screen
 (`zig_credits.zig`) names the three modules and their licences, in the game's font,

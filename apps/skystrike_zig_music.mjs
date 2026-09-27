@@ -8,7 +8,8 @@
 //            keeps it (no request)
 //   original the same moments request skystrike.sndh's tunes, never a MOD
 //   swap     Z in flight: ZIG -> skystrike.sndh's silence (its music is off
-//            there), back -> the flight's MOD; Z on the title: ORIGINAL -> the
+//            there), back -> the flight's MOD, the engine note replayed onto
+//            each (NOISE / ENVEL as calls, as YM writes); Z on the title: ORIGINAL -> the
 //            title's MOD, back -> skystrike.sndh the tune the game chose
 //   credits  ZIG's title shows the ticker in the band under the screen (the
 //            credit text's pixels in the pen), ORIGINAL's does not
@@ -98,16 +99,39 @@ function checkJourney(at, zig, broke, errors) {
     if (!zig && Object.values(at).flat().some((r) => typeof r === "string" && r.endsWith(".mod"))) errors.push("music: ORIGINAL requested a MOD");
 }
 
-/// Z in flight and on the title.
+/// The frame's zg.sndhCall ops (d0 & $7FFF), as the host drains them.
+function sndhOps(s) {
+    const n = s.demo.pollSndhCalls(), out = [];
+    for (let i = 0; i < n; i++) out.push(s.demo.sndhCallD0(i) & 0x7fff);
+    return out;
+}
+
+/// The frame's zg.ymWrite registers, as the host drains them (sfx_queue.zig).
+function ymRegs(s) {
+    const n = s.demo.pollSfx(), dv = new DataView(s.memory.buffer, s.demo.sfxEntriesPtr(), n * 16), regs = {};
+    for (let i = 0; i < n; i++) if (dv.getUint8(i * 16) === 3) regs[dv.getUint8(i * 16 + 1)] = dv.getUint8(i * 16 + 2);
+    return regs;
+}
+
+/// Z in flight and on the title; the engine note replayed across it.
 async function swap(broke, errors) {
     const f = track(await zsession(true));
     await toPlay(f);
+    f.press(0x39);
     for (let p = 0; p < 10; p++) f.pass(f.each);
     f.take();
+    f.demo.pollSndhCalls();
+    f.demo.pollSfx();
     f.press(0x5a);
-    const toOrig = f.take();
+    const toOrig = f.take(), calls = sndhOps(f);
     f.press(0x5a);
-    const toZig = f.take();
+    const toZig = f.take(), ym = ymRegs(f);
+    // the engine note replayed onto the new song: NOISE and ENVEL both ways
+    const noise = f.v("th") ? 31 - f.v("th") : null;
+    if (broke !== "swap" && (!calls.includes(5 << 8 | noise) || !calls.some((d) => d >> 8 === 6)))
+        errors.push(`swap: Z to ORIGINAL in flight did not replay the engine note onto skystrike.sndh (calls ${calls.map((d) => d.toString(16))})`);
+    if (broke !== "swap" && (ym[6] !== noise || ym[13] === undefined))
+        errors.push(`swap: Z to ZIG in flight did not replay the engine note onto the YM (noise ${ym[6]}, shape ${ym[13]}; want noise ${noise})`);
     const t = track(await zsession(false));
     t.vbl(500);
     t.run(2, t.each);

@@ -44,6 +44,7 @@ fn record(op: Op, arg: u8) void {
 
 fn call(op: Op, arg: u8) void {
     record(op, arg);
+    if (@import("zig_sound.zig").cue != .effect) @import("zig_psg.zig").remember(op, arg);
     if (@import("zig_hooks.zig").zig) return @import("zig_sound.zig").route(op, arg);
     send(op, arg);
 }

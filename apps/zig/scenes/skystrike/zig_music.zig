@@ -63,13 +63,18 @@ pub fn off(next: Situation) void {
 }
 
 /// Z was pressed: the other mode's music for the same moment.
+/// The load silences the YM: the engine note is replayed onto it.
 pub fn switched(zig: bool) void {
     playing = null;
-    if (zig) return request();
-    // ORIGINAL: skystrike.sndh, its tune restarted or its silence (a load
-    // either way, which also ends the MOD, its effect and the PSG note).
-    zg.requestSongTune(sound.NAME, if (sndh_tune != 0) sndh_tune else sound.SILENCE);
-    sound.resident = true;
+    if (zig) {
+        request();
+    } else {
+        // ORIGINAL: skystrike.sndh, its tune restarted or its silence (a load
+        // either way, which also ends the MOD, its effect and the PSG note).
+        zg.requestSongTune(sound.NAME, if (sndh_tune != 0) sndh_tune else sound.SILENCE);
+        sound.resident = true;
+    }
+    psg.replay(zig);
 }
 
 fn request() void {
