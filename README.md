@@ -105,7 +105,7 @@ The only target is `wasm32-freestanding-musl`.
 ./build.sh
 ```
 
-That builds every module and cart, then runs the gate: RAM-window checks, the native tests, a repack of every floppy, and headless harnesses that drive the real machine end to end. Use it instead of a bare `zig build` — the failures it catches are the silent ones, like a cart overrunning its window and corrupting the video region instead of trapping.
+That builds every module and cart, then runs the gate: RAM-window checks, the native tests, a repack of every floppy, and headless harnesses that drive the real machine end to end. Use it instead of a bare `zig build` — the failures it catches are the silent ones, like a cart overrunning its window and corrupting the video region instead of trapping. [docs/BUILDING.md](docs/BUILDING.md) covers the faster variants (`--changed`, `--only`, `--fast`) and what the pre-push hook runs.
 
 ## Run
 
