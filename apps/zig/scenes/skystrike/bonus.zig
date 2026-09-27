@@ -55,20 +55,12 @@ fn gift(k: i32) void {
     switch (k) {
         0 => b[3] = 4,
         1 => b[4] = 8,
-        2 => {
-            b[7] += 5000;
-            v.fuel = @min(20000, v.fuel + 5000);
-            b[7] = @min(15000, b[7]);
-        },
+        2 => fuelGift(),
         3 => {
             b[0] = @min(20, b[0] + 10);
             b[1] = @min(2, b[1] + 1);
         },
-        4 => {
-            b[2] += 50;
-            v.ammo += 50;
-            b[2] = @min(150, b[2]);
-        },
+        4 => ammoGift(),
         5 => b[6] = @min(3, b[6] + 1),
         6 => b[5] += 1,
         7 => points(5000),
@@ -86,4 +78,16 @@ fn gift(k: i32) void {
         },
         else => {},
     }
+}
+
+fn fuelGift() void {
+    v.b_a[7] += 5000;
+    v.fuel = @min(20000, v.fuel + 5000);
+    v.b_a[7] = @min(15000, v.b_a[7]);
+}
+
+fn ammoGift() void {
+    v.b_a[2] += 50;
+    v.ammo += 50;
+    v.b_a[2] = @min(150, v.b_a[2]);
 }

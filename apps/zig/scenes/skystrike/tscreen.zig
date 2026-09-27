@@ -12,7 +12,8 @@ const pal = @import("pal.zig");
 const flow = @import("flow.zig");
 const clock = @import("clock.zig");
 const scene = @import("scene.zig");
-const title = @import("title.zig");
+const move = @import("move.zig");
+const B = @import("basic.zig");
 const snd = @import("sound.zig");
 const V = @import("vars.zig");
 const v = &V.v;
@@ -77,7 +78,7 @@ fn l2350d() flow.Act {
     pal.flashOff();
     S.fadeTo(5, .b5);
     snd.music(1 + S.rnd(1) * 2);
-    title.plane();
+    plane();
     v.sx = v.s2;
     v.al = v.s3;
     v.main = v.m1;
@@ -91,3 +92,21 @@ fn l2350d() flow.Act {
     return .ret;
 }
 
+/// 2112: the title plane: sprite 2 from -500,130 flying 4 pixels a VBL
+/// right then left for ever, changing image every 250 VBLs.
+pub fn plane() void {
+    S.sprite_(2, -500, 130, 9);
+    move.moveX(2, .{ .a = .{ 1, 1, 0, 0, 0, 0, 0, 0 }, .b = .{ 4, -4, 0, 0, 0, 0, 0, 0 }, .c = .{ 250, 250, 0, 0, 0, 0, 0, 0 }, .n = 2, .loop = true });
+    move.anim(2, .{ .a = .{ 9, 1, 88, 80, 9, 96, 0, 0 }, .b = .{ 250, 250, 250, 250, 250, 250, 0, 0 }, .n = 6, .loop = true });
+    flag();
+}
+
+/// 2285-2286: at a base, the flag (sprite 1) waves; anim on : move on
+fn flag() void {
+    if (B.mod(v.sx, 10) == 0) {
+        S.sprite_(1, 50, 136, 68);
+        move.anim(1, .{ .a = .{ 68, 69, 0, 0, 0, 0, 0, 0 }, .b = .{ 12, 12, 0, 0, 0, 0, 0, 0 }, .n = 2, .loop = true });
+    }
+    move.animOn();
+    move.moveOn();
+}

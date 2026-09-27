@@ -73,7 +73,7 @@ pub fn part102() void {
     }
     if (v.bf != 0) weapons.bomb365();
     if (v.bnf != 0) bonus.crate();
-    if (v.rkf != 0) weapons.rocket420();
+    if (v.rkf != 0) @import("rocket.zig").rocket420();
     v.gtg = 1 - v.gtg;
     if ((k("W") or v.sk == 65) and v.wd == 0 and v.uc == 0 and (v.r == 0 or v.r == 8)) {
         v.wd2 = 1;
@@ -90,19 +90,11 @@ pub fn part102() void {
     if (v.net != 0) net.net540();
     taxi92();
     if (v.gtg2 == 1) v.gtg4 = 1 - v.gtg4;
-    if (v.tgtx != 0 or v.mission == 17) hud.arrow();
+    if (v.tgtx != 0 or v.mission == 17) @import("arrow.zig").arrow();
 }
 
-/// 120-127
-pub fn part120() void {
-    v.fps_f = 50.0 / B.fl(v.z2);
-    if (S.jleft() != 0 and S.mouseKey() == 0 and v.fuel > 0 and v.th > 4) v.th -= 1;
-    if (k("R")) {
-        v.rqsx = v.sx;
-        v.rqt = 200;
-        v.mes_s.set("Repairing");
-        scene.message1505();
-    }
+/// 120-121: C a cluster bomb, B the turbo, from the bonuses held.
+fn bonusKeys() void {
     if ((k("C") or v.sk == 67) and v.clus == 0 and v.b_a[10] > 0) {
         v.b_a[10] -= 1;
         v.clus = 1;
@@ -120,6 +112,19 @@ pub fn part120() void {
         hud.bonusString();
         hud.bonusBar();
     }
+}
+
+/// 120-127
+pub fn part120() void {
+    v.fps_f = 50.0 / B.fl(v.z2);
+    if (S.jleft() != 0 and S.mouseKey() == 0 and v.fuel > 0 and v.th > 4) v.th -= 1;
+    if (k("R")) {
+        v.rqsx = v.sx;
+        v.rqt = 200;
+        v.mes_s.set("Repairing");
+        scene.message1505();
+    }
+    bonusKeys();
     if (v.turbt != 0) {
         v.turbt -= 1;
         if (v.turbt == 0) v.turbo = 0;

@@ -55,7 +55,7 @@ fn gunHit921() void {
     }
     if (v.csx == v.sx and v.nf == 0) {
         redraw1950();
-        scene.offGround1580();
+        @import("groundguns.zig").offGround1580();
     }
     if (v.csx == v.tgtx and v.bc >= 3) v.mif_a[6] = 1;
 }
@@ -73,8 +73,8 @@ fn redraw1950() void {
     if (v.al == 0 and t < 20) types.onTypeRedraw(t);
     if (v.al == 0 and t >= 20 and t <= 35) types.t1070();
     const guns = scr.peek(v.ghx9 + v.sx) != 0;
-    if (v.al == 0 and guns and v.sea == 0) scene.guns1030();
-    if (v.al == 0 and guns and v.sea == 1) scene.guns1570();
+    if (v.al == 0 and guns and v.sea == 0) @import("groundguns.zig").guns1030();
+    if (v.al == 0 and guns and v.sea == 1) @import("groundguns.zig").guns1570();
     scene.toBack();
     sprite.dirty = true;
     S.update();

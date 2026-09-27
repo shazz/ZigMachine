@@ -31,8 +31,8 @@ pub fn onType(t: i32) void {
         13 => sea.t1190(),
         14 => sea.t1200(),
         15 => sea.t1210(),
-        16 => sea.t1220(),
-        17 => sea.t1230(),
+        16 => @import("hillsides.zig").t1220(),
+        17 => @import("hillsides.zig").t1230(),
         else => {},
     }
 }

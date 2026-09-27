@@ -61,6 +61,19 @@ fn crashing71() Next {
     return .on;
 }
 
+/// 74: while crashing, now and then a fireball thrown off (en of them, at
+/// most 4). "crsh and rnd(5) and en < 4" is bitwise: RND is always drawn.
+fn debris() void {
+    const r5 = S.rnd(5);
+    if ((v.crsh & r5 & B.t(v.en < 4)) == 0) return;
+    v.en += 1;
+    const e = B.ix(5, v.en);
+    v.exx_a[e] = v.x;
+    v.exy_a[e] = v.y;
+    v.exdx_a[e] = -v.dx + S.rnd(16) - 8;
+    v.exdy_a[e] = -S.rnd(32);
+}
+
 /// 72-79
 pub fn touch72() void {
     v.cl = 0;
@@ -80,15 +93,7 @@ pub fn touch72() void {
         }
     }
     if (v.c == 2 and v.al == 0 and v.uc == 0 and v.crsh == 0 and (v.sp_f >= 7 or (v.r > 1 and v.r != 7 and v.r != 8))) v.crsh = 1;
-    const r5 = S.rnd(5); // "crsh and rnd(5) and en < 4" is bitwise
-    if ((v.crsh & r5 & B.t(v.en < 4)) != 0) {
-        v.en += 1;
-        const e = B.ix(5, v.en);
-        v.exx_a[e] = v.x;
-        v.exy_a[e] = v.y;
-        v.exdx_a[e] = -v.dx + S.rnd(16) - 8;
-        v.exdy_a[e] = -S.rnd(32);
-    }
+    debris();
     if (v.en != 0) blast.fireballs200();
     if (v.fre > 3 and v.cl == 0 and v.ld == 0) {
         if (v.r > 4 and v.r < 12) v.jd = 1 else v.ju = 1;

@@ -73,46 +73,27 @@ pub fn hit600() void {
 
 /// 605 fire, 610 guns, 615 fuel, 620 guns damaged, 625 fire, 630 wheels,
 /// 635 engine, 640 bombs, 645 rockets.
+const HIT = [_][]const u8{
+    "On Fire !",     "Guns Destroyed !", "Fuel Hit !",   "Guns Damaged !", "On Fire !",
+    "Wheels Hit !",  "Engine Hit !",     "Bombs Lost !", "Rockets Lost !",
+};
+
 fn damage(k: u8) void {
     switch (k) {
-        0 => {
-            v.fre += 1;
-            v.mes_s.set("On Fire !");
-        },
-        1 => {
-            v.ammo = 0;
-            v.mes_s.set("Guns Destroyed !");
-        },
-        2 => {
-            v.leak += 50;
-            v.mes_s.set("Fuel Hit !");
-        },
-        3 => {
-            v.b_a[0] -= 5;
-            v.mes_s.set("Guns Damaged !");
-        },
-        4 => {
-            v.fre += S.rnd(2);
-            v.mes_s.set("On Fire !");
-        },
+        0 => v.fre += 1,
+        1 => v.ammo = 0,
+        2 => v.leak += 50,
+        3 => v.b_a[0] -= 5,
+        4 => v.fre += S.rnd(2),
         5 => {
             v.ufail = 1;
             v.uc = 0;
-            v.mes_s.set("Wheels Hit !");
         },
-        6 => {
-            v.mxsp -= 1;
-            v.mes_s.set("Engine Hit !");
-        },
-        7 => {
-            v.b_a[3] = 0;
-            v.mes_s.set("Bombs Lost !");
-        },
-        else => {
-            v.b_a[4] = 0;
-            v.mes_s.set("Rockets Lost !");
-        },
+        6 => v.mxsp -= 1,
+        7 => v.b_a[3] = 0,
+        else => v.b_a[4] = 0,
     }
+    v.mes_s.set(HIT[@min(k, HIT.len - 1)]);
 }
 
 /// 650-656: ew = 1 when the explosion at ex (sector esx) is over water.

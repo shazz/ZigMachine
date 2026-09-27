@@ -1,8 +1,8 @@
 // --------------------------------------------------------------------------
 // Line 1000: a screen of the world drawn afresh (sector sx, altitude layer
 // al) -- the sky, what stands on the ground by screen type, the wrecks, the
-// zones -- and 1030 / 1570-1581 the ground guns; 1400-1421 the grass and
-// the panel; 1500-1506 the three message styles.
+// zones (the ground guns, 1030 / 1570-1581, are groundguns.zig); 1400-1421
+// the grass and the panel; 1500-1506 the three message styles.
 // --------------------------------------------------------------------------
 const S = @import("stos.zig");
 const scr = @import("scr.zig");
@@ -14,6 +14,7 @@ const clock = @import("clock.zig");
 const B = @import("basic.zig");
 const O = @import("objects.zig");
 const T = @import("scenetypes.zig");
+const guns = @import("groundguns.zig");
 const V = @import("vars.zig");
 const v = &V.v;
 
@@ -57,8 +58,8 @@ fn draw1008() void {
     v.nf = 0;
     v.g = scr.peek(v.ghx9 + v.sx);
     O.countBits();
-    if (v.al == 0 and v.bc != 0 and v.sea == 0) guns1030();
-    if (v.al == 0 and v.bc != 0 and v.sea == 1) guns1570();
+    if (v.al == 0 and v.bc != 0 and v.sea == 0) guns.guns1030();
+    if (v.al == 0 and v.bc != 0 and v.sea == 1) guns.guns1570();
     if (v.al != 0) T.clouds1052();
     toBack();
     clock.waitVbl();
@@ -80,63 +81,6 @@ pub fn toBack() void {
 /// 193: screen copy back to logic
 pub fn toLogic() void {
     @import("blocks.zig").copyAll(.back, scr.logic);
-}
-
-/// 1030-1032: the wrecked ground guns (image 73) and their zones.
-pub fn guns1030() void {
-    toBack();
-    v.z = 0;
-    v.g = scr.peek(v.ghx9 + v.sx);
-    while (v.z < 8) : (v.z += 1) {
-        if (v.g >> @intCast(v.z) & 1 == 0) continue;
-        v.xx = v.z * 32 + 32;
-        v.yy = 160;
-        if (v.xx > v.grlx and v.xx + 32 < v.grhx) {
-            v.ss = 73;
-            O.stamp();
-            setZone(v.xx, v.xx + 32, 154, 170);
-        }
-    }
-}
-
-fn setZone(x1: i32, x2: i32, y1: i32, y2: i32) void {
-    v.x1 = x1;
-    v.x2 = x2;
-    v.y1 = y1;
-    v.y2 = y2;
-    O.zone800();
-}
-
-/// 1570-1571: on the sea, the guns as tiles on cleared squares.
-pub fn guns1570() void {
-    toBack();
-    v.z = 0;
-    v.g = scr.peek(v.ghx9 + v.sx);
-    while (v.z < 8) : (v.z += 1) {
-        if (!(v.g >> @intCast(v.z) & 1 != 0 and v.gry < 150)) continue;
-        v.xx = v.z * 32 + 32;
-        v.yy = @min(144, v.gry + 4);
-        if (v.xx >= v.grlx and v.xx + 16 < v.grhx) {
-            v.s = 103;
-            O.clearedTile();
-            setZone(v.xx, v.xx + 32, v.gry, v.gry + 16);
-        }
-    }
-}
-
-/// 1580-1581: a gun bit whose place is off this screen's ground is cleared.
-pub fn offGround1580() void {
-    v.z = 0;
-    while (true) {
-        v.xx = 32 + v.z * 32;
-        const on = v.g >> @intCast(v.z) & 1 != 0;
-        if ((on and v.xx < v.grlx) or v.xx + 32 > v.grhx) {
-            v.g &= ~(@as(i32, 1) << @intCast(v.z));
-            scr.poke(v.ghx9 + v.sx, v.g);
-        }
-        v.z += 1;
-        if (v.z > 7) return;
-    }
 }
 
 /// 1400-1404: the grass strip, and on an empty sector one decoration.

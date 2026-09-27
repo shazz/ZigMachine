@@ -1,6 +1,7 @@
 // --------------------------------------------------------------------------
 // Lines 2000-2134: the title (the credits scroller, the timeout to the hall
-// of fame) and the difficulty menu; 2112 / 2285 the title plane and flag.
+// of fame) and the difficulty menu (2112 / 2285, the title plane and the
+// flag, are in tscreen.zig).
 //
 // The scroller loop (2005-2007) has no VBL wait: it runs as fast as the
 // compiled code goes, 6.5 passes a VBL on the ST (measured: TI from 9264 to
@@ -10,9 +11,7 @@
 const S = @import("stos.zig");
 const scr = @import("scr.zig");
 const text = @import("text.zig");
-const sprite = @import("sprite.zig");
 const scene = @import("scene.zig");
-const move = @import("move.zig");
 const input = @import("input.zig");
 const B = @import("basic.zig");
 const flow = @import("flow.zig");
@@ -198,23 +197,4 @@ fn l2131() flow.Act {
         v.scre = 200000;
     }
     return .ret;
-}
-
-/// 2112: the title plane: sprite 2 from -500,130 flying 4 pixels a VBL
-/// right then left for ever, changing image every 250 VBLs.
-pub fn plane() void {
-    S.sprite_(2, -500, 130, 9);
-    move.moveX(2, .{ .a = .{ 1, 1, 0, 0, 0, 0, 0, 0 }, .b = .{ 4, -4, 0, 0, 0, 0, 0, 0 }, .c = .{ 250, 250, 0, 0, 0, 0, 0, 0 }, .n = 2, .loop = true });
-    move.anim(2, .{ .a = .{ 9, 1, 88, 80, 9, 96, 0, 0 }, .b = .{ 250, 250, 250, 250, 250, 250, 0, 0 }, .n = 6, .loop = true });
-    flag();
-}
-
-/// 2285-2286: at a base, the flag (sprite 1) waves; anim on : move on
-fn flag() void {
-    if (B.mod(v.sx, 10) == 0) {
-        S.sprite_(1, 50, 136, 68);
-        move.anim(1, .{ .a = .{ 68, 69, 0, 0, 0, 0, 0, 0 }, .b = .{ 12, 12, 0, 0, 0, 0, 0, 0 }, .n = 2, .loop = true });
-    }
-    move.animOn();
-    move.moveOn();
 }

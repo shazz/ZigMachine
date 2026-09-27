@@ -7,7 +7,6 @@ const S = @import("stos.zig");
 const scr = @import("scr.zig");
 const B = @import("basic.zig");
 const O = @import("objects.zig");
-const scene = @import("scene.zig");
 const types = @import("scenetypes.zig");
 const hud = @import("hud.zig");
 const V = @import("vars.zig");
@@ -43,7 +42,7 @@ pub fn t1090() void {
     v.grlx = 80;
     v.grhx = 320;
     if (k == 0) v.fl = 1;
-    if (scr.peek(v.ghx9 + v.sx) > 0) scene.offGround1580();
+    if (scr.peek(v.ghx9 + v.sx) > 0) @import("groundguns.zig").offGround1580();
     sunk(&v.btlsnk, 10000, true);
     tz("2425", 13, 112 + k);
     tz("808182", 9, 116 + k);
@@ -63,7 +62,7 @@ pub fn t1100() void {
     v.gry = 124 + k;
     v.grhx = 256;
     if (k == 0) v.fl = 1;
-    if (scr.peek(v.ghx9 + v.sx) > 0) scene.offGround1580();
+    if (scr.peek(v.ghx9 + v.sx) > 0) @import("groundguns.zig").offGround1580();
     tz("20020220020220020220020220020240", 0, 128 + k);
     tz("23232323232323232323232323232360", 0, 144 + k);
     tz("434204242504", 0, 96 + k);
@@ -108,7 +107,7 @@ pub fn t1180() void {
     v.grlx = 80;
     v.grhx = 320;
     S.setZone(60, 90, 126 + k, 319, 168);
-    if (scr.peek(v.ghx9 + v.sx) > 0) scene.offGround1580();
+    if (scr.peek(v.ghx9 + v.sx) > 0) @import("groundguns.zig").offGround1580();
     S.setZone(61, 80, 120 + k, 170, 130 + k);
     sunk(&v.carsnk, -10000, false);
     t("000102030202030202030202030202", 5, 128 + k);
@@ -129,7 +128,7 @@ pub fn t1190() void {
     v.gry = 124 + k;
     v.grhx = 256;
     S.setZone(60, 0, 126 + k, 240, 168);
-    if (scr.peek(v.ghx9 + v.sx) > 0) scene.offGround1580();
+    if (scr.peek(v.ghx9 + v.sx) > 0) @import("groundguns.zig").offGround1580();
     t("03020203020203020203020203020240", 0, 128 + k);
     t("23232323232323232323232323232360", 0, 144 + k);
     S.setZone(62, 50, 120 + k, 230, 128 + k);
@@ -181,14 +180,6 @@ pub fn t1210() void {
     while (v.a < 2) : (v.a += 1) S.move(S.lg(), 256 + v.a * 32, 64, .b5, 256 + v.t * 32, 48 - v.t * 16, 288 + v.t * 32, 80 - v.t * 16);
     v.go += 1;
     S.setZone(v.go + 2, 230, 68, 319, 160);
-}
-
-/// 1220-1224 (hills climbing right) / 1230-1234 (climbing left).
-pub fn t1220() void {
-    @import("hillsides.zig").t1220();
-}
-pub fn t1230() void {
-    @import("hillsides.zig").t1230();
 }
 
 /// 1560-1563 / 1565-1568: the carrier (types 12, 13) or the battleship
