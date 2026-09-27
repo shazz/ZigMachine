@@ -120,6 +120,9 @@ async function play() {
             demo.frame(dt);
             if (demo.pollSongRequest())
                 songs.push([dec.decode(new Uint8Array(memory.buffer, demo.songNamePtr(), demo.songNameLen())), demo.songTune()]);
+            // the sequences are zg.sndhCall's on the running image (the loader drains them after the request)
+            for (let c = 0, n = demo.pollSndhCalls(); c < n; c++)
+                songs.push([dec.decode(new Uint8Array(memory.buffer, demo.sndhCallNamePtr(), demo.sndhCallNameLen())), demo.sndhCallD0(c)]);
             machine.hwRenderPlane(0);
         }
     };

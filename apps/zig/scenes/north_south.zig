@@ -25,8 +25,9 @@
 // SOUND. Digitised samples played by a Timer A interrupt through the YM volume
 // registers. A cart cannot write the YM, so docs/music/north_south_digi.sndh
 // carries the original player (Timer A $417E + the VBL sequencer $49D4) and the
-// bank; subtune n+1 plays sequence n, and a request cuts the current sound, as
-// play_seq does (apps/zig/assets/screens/north_south/ns_digi.s).
+// bank; INIT n+1 plays sequence n, and a request cuts the current sound, as
+// play_seq does (apps/zig/assets/screens/north_south/ns_digi.s). Requests are
+// zg.sndhCall's on the running image (the first one loads it).
 //
 // KEYS: see north_south/controls.zig. Escape is a game key (the Union's
 // retreat), so F10 leaves; on the front page Escape leaves too.
@@ -142,10 +143,14 @@ pub const Demo = struct {
     /// One iteration of the battle loop, then its predicted length in VBLs.
     fn battleFrame(self: *Demo) void {
         game.frame(keys.inputs(game.cfg.mode == 0));
-        // One voice, and every play_seq cuts the last: the frame's last request wins.
+        // One voice, and every play_seq cuts the last: the frame's last request
+        // wins. A zg.sndhCall, not a reload: ns_digi.s's INIT is play_seq
+        // itself (it cuts the sample and arms the sequence), so on the running
+        // image the first sample starts on the next VBL tick, as play_seq's
+        // did, and nothing is refetched. The host loads the image on the first.
         if (game.nevents > 0) {
             const seq = game.events[game.nevents - 1];
-            if (seq < 255) zg.requestSongTune(SOUND, @intCast(seq + 1)); // the subtune is a u8
+            if (seq < 0xFFFF) _ = zg.sndhCall(SOUND, seq + 1); // refused only past 16 a frame
         }
         self.next_frame = self.vbls + game.pace.last_vbls;
         self.shown_dirty = true;
