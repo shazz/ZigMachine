@@ -3,32 +3,34 @@
 // plays the whole key path -- menu, F1 SYNC #1, Space SYNC #2, Space menu,
 // F2 TCB #1 (into its fullscreen), Space TCB #2 (then F3 F4 F5 F1 F5), Space
 // menu, F3 OMEGA, Space menu. Two references:
-//   * SYNC and TCB are ported from the DISK, so they are checked against the
-//     REAL demo: SHA-256s of what the machine must show at fixed VBLs, from
-//     prototypes/snyd_re/{sync,tcb1,tcb2}_expect.py -- models of the ripped
-//     routines that reproduce Hatari's RAM of the running demo byte for byte
-//     (NOTES.md, NOTES_tcb.md there; the Zig is checked against the same dumps
-//     by apps/zig/scenes/swedish_newyear/{sync,tcb1,tcb2}_test.zig). Per shot:
+//   * SYNC, TCB and OMEGA are ported from the DISK, so they are checked against
+//     the REAL demo: SHA-256s of what the machine must show at fixed VBLs, from
+//     prototypes/snyd_re/{sync,tcb1,tcb2,omega}_expect.py -- models (or the
+//     original code on Musashi) that reproduce Hatari's RAM of the running demo
+//     byte for byte (NOTES*.md there; the Zig is checked against the same dumps
+//     by apps/zig/scenes/swedish_newyear/*_test.zig). Per shot:
 //       win   the 320x200 window's palette indices (the part's screen) -- the
 //             whole 400x280 plane for TCB #1, which opens the top and sides,
+//             and OMEGA, which opens the bottom (its LED meters live there),
 //       pal   colour registers 0..15 as the plane's HBL leaves them on each of
 //             the 280 lines (the rasters ARE these: per-line register values),
 //       phys  the whole physical frame, borders included (a closed border is
 //             colour 0 of its line, painted by the global HBL one frame ahead).
 //     TCB #2's 73-VBL set-up must be black. These parts run at the ST's 50 Hz,
 //     so the tour steps them 20 ms a frame.
-//   * the menu and OMEGA are still the CODEF remake's, checked against
+//   * the menu is still the CODEF remake's, checked against
 //     screen.js REPLAYED (apps/swedish_newyear_replay.mjs): every shot's WHOLE
 //     physical frame (borders included) is the replay's, pixel for pixel, and
 //     colour 0 after each line's HBL is the replay's.
 //   Then: every song request is the expected tune and subtune, and each SNDH
 //   plays; Escape asks for the menu disk; the cart's frame cost is reported.
 //
-//   node apps/swedish_newyear_headless.mjs [outdir] [--break hbl|step|tune|border]
+//   node apps/swedish_newyear_headless.mjs [outdir] [--break hbl|step|tune|border|meters]
 //     hbl     the plane's HBL is not called during a shot: the registers fail
-//     step    the cart runs one frame the reference does not (SYNC #1, TCB #2)
+//     step    the cart runs one frame the reference does not (SYNC #1, TCB #2, OMEGA)
 //     tune    a wrong subtune is reported: the music check fails
 //     border  an ST shot's frame skips hwClear: the borders' colour 0 fails
+//     meters  OMEGA's voices are fed one frame late: its LED meters fail
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { cartRam, romRam } from "../docs/wasm_hiwater.js";
@@ -38,18 +40,19 @@ import { Remake, PW, PH } from "./swedish_newyear_replay.mjs";
 const PAGES = 112, OFF_PAL = 0x100, REG_FB_BASE = 0x44;
 const DT = 1000 / 60;
 const K = { space: 32, esc: 0xe012, f: (n) => 0xe000 + n };
-const SONGS = { // each tune -> what the port must request (swedish_newyear.zig)
+const SONGS = { // each tune -> what the port must request (swedish_newyear/music.zig)
     scout: ["scout.sndh", 1], jinx1: ["Jinks.sndh", 1], icepalace: ["beyond_the_ice_palace.sndh", 1],
     sync2: ["Swedish_New_Year_Demo_Sync.sndh", 1], tcb_digi: ["swedish_newyear_tcb_digi.sndh", 1],
     stop: ["none", 0], // zg.stopSong(): TCB #1's exit silences its sample stream
     dugger2: ["dugger.sndh", 2], dugger3: ["dugger.sndh", 3], dugger4: ["dugger.sndh", 4],
 };
-const RASTER_PARTS = new Set(); // remake parts with rasters: none left (the menu, OMEGA)
+const RASTER_PARTS = new Set(); // remake parts with rasters: none left (the menu)
 
 const argv = process.argv.slice(2);
 const bi = argv.indexOf("--break");
 const brk = bi < 0 ? null : argv.splice(bi, 2)[1];
-if (brk && !["hbl", "step", "tune", "border"].includes(brk)) throw new Error(`--break takes hbl, step, tune or border, not ${brk}`);
+const BREAKS = ["hbl", "step", "tune", "border", "meters"];
+if (brk && !BREAKS.includes(brk)) throw new Error(`--break takes ${BREAKS.join(", ")}, not ${brk}`);
 const outdir = argv[0] || "/tmp/swedish_newyear";
 await mkdir(outdir, { recursive: true });
 const errors = [];
@@ -112,13 +115,15 @@ const got = [];
 const wanted = ["scout"]; // the cart's init requests it
 const want = () => wanted.map((t) => SONGS[t]);
 
-/// Volumes that change in a known rhythm, so SYNC #2 flashes and OMEGA's
-/// meters light and decay on both sides (the replay is fed the same bytes).
+/// Volumes that change in a known rhythm, so OMEGA's meters light odd and even
+/// levels and none (prototypes/snyd_re/omega_expect.py regs_at feeds the same
+/// to the original code). Never 1: on the ST that level runs the meter's fill
+/// 65536 times over memory (omega_vbl.zig), and the tune never plays it.
 function regsAt(f) {
     const r = new Uint8Array(16);
     r[8] = (f % 23) < 3 ? (f % 7) + 8 : 12;
-    r[9] = (f % 31) < 2 ? 15 - (f % 5) : 9;
-    r[10] = (f % 5) === 0 ? (f % 16) : 3;
+    r[9] = (f % 31) < 2 ? 15 - (f % 5) : (f % 37 === 0 ? 0 : 9);
+    r[10] = (f % 5) === 0 ? 2 + (f % 14) : 3;
     return r;
 }
 
@@ -127,8 +132,8 @@ function press(cart, js) {
     if (js !== null) remake.key(js);
 }
 
-function frame(paint, dt = DT, clear = true) {
-    const regs = regsAt(n);
+function frame(paint, dt = DT, clear = true, late = false) {
+    const regs = regsAt(late ? n - 1 : n);
     m.regs().set(regs);
     const tc = performance.now();
     if (clear) m.machine.hwClear();
@@ -142,7 +147,7 @@ function frame(paint, dt = DT, clear = true) {
         got.push([name, m.demo.songTune()]);
     }
     remake.paint = paint;
-    last = remake.frame(dt, regs);
+    last = remake.frame();
     n++;
 }
 
@@ -236,7 +241,23 @@ const ST_EXPECT = {
     "tcb2-0547": ["f82bc5908a3b65af", "24fd801ce5069ac8", "ed7f73ca41f28d50"],
     "tcb2-0548": ["63cc71ce5464d354", "5d7595f3a11e3a9e", "90d6b6cde4f092d5"],
     "tcb2-1073": ["0ee3dc96c1f8e40b", "66ff917f7aace45b", "a65381897cc26872"],
+    // prototypes/snyd_re/omega_expect.py: [PLANE, pal, phys] -- the bottom border
+    // is open, so the first hash is the whole plane. omega-NNNN shows the state
+    // after NNNN+1 VBLs (F3 runs the first); VBL k's meters read regsAt(n0+k-2),
+    // n0 = OMEGA_N0 the frame the run starts on.
+    "omega-0000": ["599a85e19003a47c", "20bd8e2e0eb8e610", "aad487ee6556cf65"],
+    "omega-0001": ["585e08a2758cf71f", "20bd8e2e0eb8e610", "e9e1df12d7d9fa20"],
+    "omega-0002": ["897b8e53c06b6777", "20bd8e2e0eb8e610", "7ba9dbd2cf6fd388"],
+    "omega-0003": ["301d984f1ccf0796", "20bd8e2e0eb8e610", "5ebc8712ee8b7ad0"],
+    "omega-0049": ["bef0f8ad1eae454a", "20bd8e2e0eb8e610", "a9b3a11dd54b9540"],
+    "omega-0100": ["b615aced9f9fb0cf", "20bd8e2e0eb8e610", "fb03ed710307d772"],
+    "omega-0250": ["376963005016f2fb", "20bd8e2e0eb8e610", "f57a0fbd31c3c656"],
+    "omega-0499": ["ccdf154209896ec2", "20bd8e2e0eb8e610", "1fde66611db74fd5"],
 };
+/// The frame OMEGA's run starts on (omega_expect.py N0): the meters' input is
+/// keyed to the tour's frame counter, so a longer tour must regenerate those.
+const OMEGA_N0 = 4035;
+const WHOLE_PLANE = (name) => name.startsWith("tcb1") || name.startsWith("omega");
 const sha = (b) => createHash("sha256").update(b).digest("hex").slice(0, 16);
 
 /// An ST part's frame against the original's: window, registers, borders.
@@ -263,9 +284,9 @@ async function stShot(name) {
         else console.log(`  ${name}: frame ${n - 1} -- black, as the set-up is`);
         return;
     }
-    const first = name.startsWith("tcb1") ? plane.slice(0, PW * PH) : win;
+    const first = WHOLE_PLANE(name) ? plane.slice(0, PW * PH) : win;
     const got = [sha(first), sha(new Uint8Array(pal.buffer)), sha(rgb)];
-    const what = [name.startsWith("tcb1") ? "the plane (indices)" : "the screen (window indices)", "the colour registers per line (rasters)", "the physical frame (borders)"];
+    const what = [WHOLE_PLANE(name) ? "the plane (indices)" : "the screen (window indices)", "the colour registers per line (rasters)", "the physical frame (borders)"];
     let ok = true;
     for (let k = 0; k < 3; k++) {
         if (got[k] === ST_EXPECT[name][k]) continue;
@@ -296,7 +317,7 @@ const script = [
     { key: [K.space, 32], song: "scout" },
     { run: 3 },
     { key: [K.f(3), 114], song: "icepalace" },
-    { run: 500, shots: [0, 1, 7, 62, 250, 499], prefix: "omega" },
+    { run: 500, dt: 20, st: true, shots: [0, 1, 2, 3, 49, 100, 250, 499], prefix: "omega", at: OMEGA_N0 },
     { key: [K.space, 32], song: "scout" },
     { run: 3 },
 ];
@@ -304,14 +325,16 @@ const t0 = performance.now();
 for (const s of script) {
     if (s.key) press(s.key[0], s.key[1]);
     if (s.song) wanted.push(s.song);
+    if (s.at !== undefined && n !== s.at) fail(`${s.prefix} starts on frame ${n}, the expected hashes on ${s.at}: regenerate them`);
     for (let i = 0; i < (s.run || 0); i++) {
         if (s.songAt && s.songAt[i]) wanted.push(s.songAt[i]);
         if (s.keysAt && s.keysAt[i]) press(...s.keysAt[i]);
         const isShot = s.shots && s.shots.includes(i);
         const dt = s.dt || DT;
         // the cart runs a frame the reference does not
-        if (isShot && brk === "step" && (s.prefix === "tcb2" || s.prefix === "sync1")) m.demo.frame(dt);
-        frame(isShot, dt, !(isShot && s.st && brk === "border")); // border: last frame's colour 0 left in
+        if (isShot && brk === "step" && ["tcb2", "sync1", "omega"].includes(s.prefix)) m.demo.frame(dt);
+        // border: last frame's colour 0 left in; meters: OMEGA's voices one frame late
+        frame(isShot, dt, !(isShot && s.st && brk === "border"), brk === "meters" && s.prefix === "omega");
         if (!isShot) continue;
         const name = `${s.prefix}-${String(i).padStart(4, "0")}`;
         await (s.st ? stShot(name) : shot(name));

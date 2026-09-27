@@ -4,8 +4,8 @@
 // character, and the optional sine (type 0) gives each letter, in screen order,
 // the phase sin(myvalue) with myvalue stepping `inc` per letter and `offset` a
 // frame (plus `inc` per letter that wrapped, so the wave stays on its letters).
-// All in f64, as JS numbers are: omega's 30.7-wide font makes the positions
-// fractional, and the positions and phases accumulate exactly as they do there.
+// All in f64, as JS numbers are (the remake's OMEGA font was 30.7 wide), so the
+// positions and phases accumulate exactly as they do there.
 pub const MAX = 24; // the widest ring here: the TCB cylinder, ceil(704/32)+1 = 23 -> 24 letters
 
 pub const Sine = struct { value: f64, amp: f64, inc: f64, offset: f64 };

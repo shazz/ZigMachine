@@ -67,15 +67,24 @@ pub fn present(fb: []u8) void {
 pub const Row = struct { addr: u32, x0: i32, lo: u16, hi: u16 };
 pub const Rows = [frame.PH]?Row;
 
+/// Colour registers 0..15 of each physical line, as ST words.
+pub const LinePalettes = [frame.PH][16]u16;
+
 /// Like capture(), for a whole overscan plane under ONE palette.
 pub fn captureOverscan(r: *const st.Ram, rows: *const Rows, pal: *const [16]u16) void {
-    var colours: [16]u32 = undefined;
-    for (&colours, pal) |*c, w| c.* = st.color(w);
-    for (ram.buf.plane, rows, 0..) |*out, row, py| {
+    var pals: LinePalettes = undefined;
+    for (&pals) |*line| line.* = pal.*;
+    captureLines(r, rows, &pals);
+}
+
+/// Like capture(), for a whole plane of physical rows, each line under its
+/// own registers (OMEGA: the bottom border's palette from line 200).
+pub fn captureLines(r: *const st.Ram, rows: *const Rows, pals: *const LinePalettes) void {
+    for (ram.buf.plane, rows, pals, 0..) |*out, row, pal, py| {
         @memset(out, 0);
         if (row) |ln| lineAt(r, ln, out);
-        ram.buf.pal_next[py] = colours;
-        frame.c0_next[py] = colours[0];
+        for (&ram.buf.pal_next[py], pal) |*c, w| c.* = st.color(w);
+        frame.c0_next[py] = ram.buf.pal_next[py][0];
     }
 }
 

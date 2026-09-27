@@ -187,10 +187,11 @@ pub fn build(b: *std.Build) void {
     pack_supplex.addFileArg(b.path("apps/zig/assets/screens/supplex_fs2/main.raw"));
     const supplex_zx0 = pack_supplex.addOutputFileArg("supplex_fs2_main.zx0");
     const packed_files = b.addWriteFiles();
-    // SWEDISH NEW YEAR (CODEF 295): every picture and font, one blob each. The
+    // SWEDISH NEW YEAR: the menu's picture and font (CODEF 295) and the three parts
+    // as the disk's loader reads them (SYNC, TCB, OMEGA), one blob each. The
     // scene depacks only the part on screen's set, into one working buffer
     // (apps/zig/scenes/swedish_newyear/assets.zig names the sets).
-    const SWEDISH = [_][]const u8{ "main", "font7", "block", "sync_part", "tcb_part", "omain", "omega", "ofont", "vumeter", "atari" };
+    const SWEDISH = [_][]const u8{ "main", "font7", "block", "sync_part", "tcb_part", "omega_part" };
     var swedish_decl: []const u8 = "pub const swedish_newyear = struct {\n";
     for (SWEDISH) |name| {
         const file = b.fmt("swedish_newyear_{s}.zx0", .{name});

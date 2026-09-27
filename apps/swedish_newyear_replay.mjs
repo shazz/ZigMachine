@@ -1,5 +1,5 @@
 // screen.js of CODEF 295 (SWEDISH NEW YEAR DEMO), REPLAYED for the harness:
-// go(), do_menu/do_omega and KeyCheck (SYNC and TCB are the disk's now), with
+// go(), do_menu and KeyCheck (SYNC, TCB and OMEGA are the disk's now), with
 // the CODEF library calls they make (scrolltext_horizontal, FX sinx/siny,
 // drawTile/drawPart with their clipping, midhandles and transforms), in f64 as
 // JS runs them. The canvas is modelled at the port's documented sample points:
@@ -52,11 +52,6 @@ export class Remake {
     constructor(A) {
         this.A = A; this.whichpart = 0; this.songs = [];
         this.menuscroll = new Scroll(A.text.menu, 95, 640, 10);
-        // omega
-        this.oldv = [0, 0, 0]; this.hv = [0, 0, 0];
-        // omega
-        this.oframe = 0; this.logosiny = 0;
-        this.oscroll = new Scroll(A.text.omega, 30.7, 640, 6);
         this.song("scout");
     }
     song(t) { this.songs.push(t); }
@@ -85,11 +80,11 @@ export class Remake {
     }
 
     // One host tick: go().
-    frame(dt, regs) {
+    frame() {
         this.g = new Int32Array(PW * PH); // gid 0 = colour 0 everywhere
         this.c0 = new Array(PH).fill(BLACK);
         const part = this.whichpart;
-        [() => this.menu(), () => this.sync1(), () => this.sync2(), () => this.tcb1(), () => this.tcb2(), () => this.omega(regs)][part]();
+        [() => this.menu(), () => this.sync1(), () => this.sync2(), () => this.tcb1(), () => this.tcb2(), () => this.omega()][part]();
         return { part, g: this.g, c0: this.c0 };
     }
     put(x, y, gid) { // work-canvas ST coordinates
@@ -117,61 +112,13 @@ export class Remake {
     // demo (sync_expect.py hashes), not against the remake: nothing to replay.
     sync1() {}
 
-    watch(regs) {
-        for (let c = 0; c < 3; c++) {
-            const v = regs[8 + c] & 31;
-            if (this.oldv[c] !== v) this.hv[c] = 7; else if (this.hv[c]-- < 1) this.hv[c] = 0;
-        }
-    }
-    remember(regs) { for (let c = 0; c < 3; c++) this.oldv[c] = regs[8 + c] & 31; }
-
     sync2() {}
 
-    // SYNC and TCB are ported from the disk and checked against the real demo
-    // (the *_expect.py hashes), not against the remake: nothing to replay.
+    // SYNC, TCB and OMEGA are ported from the disk and checked against the real
+    // demo (the *_expect.py hashes), not against the remake: nothing to replay.
     tcb1() {}
 
     tcb2() {}
 
-    omega(regs) {
-        const A = this.A;
-        this.watch(regs);
-        for (let y = 0; y < 225; y++) for (let x = 0; x < 320; x++) {
-            const u = 2 * x - 40, v = 2 * y - 40; // omain at (40,40), halved
-            if (u >= 0 && u < 538 && v >= 0 && v < 255) this.put(x, y, at(A.img.omain, u / 2, v / 2));
-            this.put(x, y, at(A.img.omega, 2 * x - 295, 2 * y - 345));
-        }
-        const cells = 307 / 30.7;
-        for (const l of this.oscroll.draw()) { // drawTile(ofont, ltr-32, posx, 300): fractional cells
-            const nb = l.ltr - 32, partx = fl(nb % cells) * 30.7, party = fl(nb / cells) * 28;
-            const partw = Math.min(30.7, 307 - partx), parth = Math.min(28, 168 - party);
-            if (partw <= 0 || parth <= 0) continue;
-            for (let y = 150; y < 164; y++) for (let x = 0; x < 320; x++) {
-                const lx = 2 * x + 0.5 - l.posx, r = 2 * y - 300;
-                if (lx >= 0 && lx < partw && r < parth) this.put(x, y, at(A.img.ofont, fl(partx + lx), fl(party + r)));
-            }
-        }
-        for (let y = 150; y < 175; y++) for (let x = 0; x < 320; x++) if (2 * x < 43 || 2 * x >= 576) this.put(x, y, 0);
-        [341, 353, 365].forEach((row0, c) => {
-            const t = fl((this.hv[c] / 7) * 14);
-            for (let y = 0; y < 225; y++) for (let x = 0; x < 320; x++) {
-                const r = 2 * y - row0;
-                if (r < 0 || r >= 11) continue;
-                const m = fl(-(2 * x + 0.5 - 293)); // scale(-1, 1) at 293
-                if (m >= 0 && m < 198) this.put(x, y, at(A.img.vumeter, m / 2, t * 11 + r));
-                const n = 2 * x - 324;
-                if (n >= 0 && n < 198) this.put(x, y, at(A.img.vumeter, n / 2, t * 11 + r));
-            }
-        });
-        this.remember(regs);
-        this.logosiny += 0.06;
-        const nb = this.oframe, partx = fl(nb % 4) * 172, party = fl(nb / 4) * 134;
-        const top = 184 - Math.abs(Math.sin(this.logosiny) * 47) - 67;
-        for (let y = 0; y < 225; y++) for (let x = 0; x < 320; x++) {
-            const u = 2 * x - 229, v = fl(2 * y + 0.5 - top);
-            if (u >= 0 && u < 172 && v >= 0 && v < 134) this.put(x, y, at(A.img.atari, (partx + u - 1) / 2, party + v));
-        }
-        this.oframe += 0.5;
-        if (this.oframe >= 31) this.oframe = 0;
-    }
+    omega() {}
 }

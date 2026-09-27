@@ -1,141 +1,90 @@
-// whichpart 5 -- the OMEGA SCREEN (screen.js do_omega), back to front:
-//   omain.png (the frame) at (40,40); omega.png at (295,345);
-//   the scroller: omegafont 30.7x28 cells (fractional: the positions and the
-//     source rectangles are f64 throughout), speed 6, at y 300, masked by black
-//     quads at x < 43 and x >= 576;
-//   six LED VU meters (vumeter.png tiles, 198x11, tile 2*hvoice), each voice
-//     mirrored at 293 and plain at 324, rows 341/353/365;
-//   atari.png's 31 spinning frames (172x134, one per 2 frames) bouncing on
-//     184 - |sin(logosiny) * 47|.
-const frame = @import("frame.zig");
+// --------------------------------------------------------------------------
+// OMEGA (F3 on the menu), from the disk: the loader reads tracks 38..44 to
+// $8000 and jumps in (prototypes/snyd_re/NOTES_omega.md). One screen, all of
+// its work in the VBL (omega_vbl.zig), on the part's own memory (st.zig) at the
+// original's 50 Hz, one VBL every 20 ms of host time. Every F3 is a fresh start.
+//
+//   * the picture (Red of OMEGA) fills the whole 320-pixel width from line 0,
+//     170 lines; the ATARI logo twists and bounces in it; the scroller runs on
+//     lines 172..187 in the picture's colours 1..3.
+//   * the BOTTOM BORDER is opened (Timer B at the end of line 199, $81EA: a
+//     60 Hz / 50 Hz switch) and the palette $C94E loaded for the lines below:
+//     the LED panel on lines 201..224 of the same screen memory, where plane 3
+//     lights the six meters. The picture's palette $DD5E is set by the VBL.
+//     Colour 0 is black in both: no rasters.
+//   * Space (release, $B9 on $FFFC02) leaves: MFP and VBL restored, colour 0 =
+//     $777, sound off -- and the loader reloads the menu.
+//
+// The CODEF remake drew the picture scaled to about 0.83 (266x124 from line
+// 21), the meters inside the screen with a decay the original has not, and a
+// 31-frame spinning ATARI sprite in place of the twisting logo.
+// --------------------------------------------------------------------------
+const st = @import("st.zig");
+const show = @import("st_show.zig");
+const fr = @import("frame.zig");
+const init_part = @import("omega_init.zig").init;
+const vbl = @import("omega_vbl.zig").vbl;
 const assets = @import("assets.zig");
-const image = @import("image.zig");
-const texts = @import("texts.zig");
-const sc = @import("scroller.zig");
-const Vu = @import("vu.zig").Vu;
+const ram = @import("ram.zig");
 
-const ifloor = image.ifloor;
-const NONE = image.NONE;
-const OFONT_W: f64 = 30.7;
+pub const BASE: u32 = 0x8000; // where the loader puts the OMEGA part
+pub const TOP: u32 = 0x80000;
+pub const SCREEN: u32 = 0x70000;
+pub const FRAMES: u32 = 0x40000; // the logo's 32 frames
+pub const LOGO_FRAMES = 32;
+pub const LOGO_LINES = 89;
+pub const LOGO_BYTES = 56; // a built line: 7 groups, 112 pixels
+pub const FRAME_BYTES: u32 = 0x1378; // mulu #$1378 at $8772
+comptime {
+    if (LOGO_LINES * LOGO_BYTES != FRAME_BYTES) @compileError("a logo frame is 89 lines of 56 bytes");
+}
+const PALETTE: u32 = 0xDD5E; // lines 0..199 (the VBL)
+const LOWER_PALETTE: u32 = 0xC94E; // from line 200 (Timer B)
 
 pub const Omega = struct {
-    frame_no: f64, // `frame`
-    logosiny: f64,
-    scroll: sc.Scroller,
+    r: st.Ram,
+    acc: f32,
 
-    pub fn init(self: *Omega) void {
-        self.frame_no = 0;
-        self.logosiny = 0;
-        self.scroll.init(texts.omega, OFONT_W, 640, 6, null);
+    /// The part's tracks are in the part buffer (assets.load(.omega)); the
+    /// first VBL runs at once, with the voices' levels as they stand.
+    pub fn enter(self: *Omega, levels: [3]u8) void {
+        const part = ram.buf.part[0..assets.OMEGA_RAM];
+        @memset(part[assets.OMEGA_IMAGE..], 0);
+        self.r = .{ .base = BASE, .m = part };
+        init_part(&self.r);
+        self.acc = 0;
+        vbl(&self.r, levels);
+        self.capture();
     }
 
-    pub fn step(self: *Omega, vu: *Vu, regs: *const [16]u8) void {
-        vu.watch(regs);
-        blit(&assets.omain, 20, 20, 128); // 640-space (40,40): even rows and columns
-        omegaSign();
-        self.scroll.advance();
-        self.drawScroll();
-        masks();
-        for (0..3) |c| meters(vu.h[c], 341 + 12 * @as(i32, @intCast(c)));
-        vu.remember(regs);
-        self.logosiny += 0.06;
-        self.atari();
-        self.frame_no += 0.5;
-        if (self.frame_no >= 31) self.frame_no = 0;
+    /// One host frame: show what was captured, run the VBLs due, capture.
+    pub fn frame(self: *Omega, fb: []u8, dt: f32, levels: [3]u8) void {
+        fr.setBorders(.bottom);
+        show.presentOverscan(fb);
+        self.acc += dt;
+        while (self.acc >= st.VBL_MS) : (self.acc -= st.VBL_MS) vbl(&self.r, levels);
+        self.capture();
     }
 
-    fn drawScroll(self: *Omega) void {
-        var ord: [sc.MAX]u8 = undefined;
-        const cells: f64 = 307.0 / OFONT_W; // img.width / tilew
-        for (self.scroll.order(&ord)) |k| {
-            const nb: f64 = @floatFromInt(@as(i32, self.scroll.ltr[k]) - 32);
-            const partx = @floor(@mod(nb, cells)) * OFONT_W;
-            const party = @floor(nb / cells) * 28;
-            const partw = @min(OFONT_W, 307 - partx);
-            const parth = @min(28, 168 - party);
-            if (partw <= 0 or parth <= 0) continue;
-            const posx = self.scroll.posx[k];
-            var y: i32 = 150;
-            while (y < 164) : (y += 1) {
-                const r: f64 = @floatFromInt(2 * y - 300);
-                if (r >= parth) continue;
-                var x: i32 = @max(22, ifloor(posx / 2));
-                while (x < 288) : (x += 1) {
-                    const local = @as(f64, @floatFromInt(2 * x)) + 0.5 - posx;
-                    if (local < 0) continue;
-                    if (local >= partw) break;
-                    const g = assets.ofont.at(ifloor(partx + local), ifloor(party + r));
-                    if (g != NONE) frame.put(x, y, g);
-                }
-            }
+    fn capture(self: *const Omega) void {
+        var upper: [16]u16 = undefined;
+        var lower: [16]u16 = undefined;
+        for (&upper, &lower, 0..) |*u, *l, i| {
+            const off = 2 * @as(u32, @intCast(i));
+            u.* = self.r.w(PALETTE + off);
+            l.* = self.r.w(LOWER_PALETTE + off);
         }
-    }
-
-    /// atari.drawTile(mycanvas, frame, 315, 184-|sin(logosiny)*47|), midhandled:
-    /// top-left (229, y-67); column x-229 is odd for even x (the asset's columns).
-    fn atari(self: *Omega) void {
-        const nb = self.frame_no;
-        const partx: i32 = @intFromFloat(@floor(@mod(nb, 4)) * 172);
-        const party: i32 = @intFromFloat(@floor(nb / 4) * 134);
-        const top = 184 - @abs(@sin(self.logosiny) * 47) - 67;
-        var y: i32 = 0;
-        while (y < 225) : (y += 1) {
-            const r = ifloor(@as(f64, @floatFromInt(2 * y)) + 0.5 - top);
-            if (r < 0 or r >= 134) continue;
-            var x: i32 = 115;
-            while (x < 201) : (x += 1) {
-                const g = assets.atari.at(@divFloor(partx + 2 * x - 229, 2), party + r);
-                if (g != NONE) frame.put(x, y, g);
-            }
+        var rows: show.Rows = [_]?show.Row{null} ** fr.PH;
+        var pals: show.LinePalettes = undefined;
+        const oy: usize = @intCast(fr.OY);
+        const x0: i32 = fr.OX;
+        for (&pals, &rows, 0..) |*pal, *row, py| {
+            pal.* = if (py >= oy + show.LINES) lower else upper;
+            if (py < oy) continue;
+            // 200 lines and the 40 of the opened bottom border the machine shows
+            const y: u32 = @intCast(py - oy);
+            row.* = .{ .addr = SCREEN + y * st.LINE, .x0 = x0, .lo = @intCast(x0), .hi = @intCast(x0 + 320) };
         }
+        show.captureLines(&self.r, &rows, &pals);
     }
 };
-
-fn blit(img: *const image.Img, x0: i32, y0: i32, h: i32) void {
-    var y: i32 = 0;
-    while (y < h) : (y += 1) {
-        var x: i32 = 0;
-        while (x < img.w) : (x += 1) {
-            const g = img.at(x, y);
-            if (g != NONE) frame.put(x0 + x, y0 + y, g);
-        }
-    }
-}
-
-/// omega.draw(mycanvas, 295, 345): 640 columns 2X-295, rows 2Y-345.
-fn omegaSign() void {
-    var y: i32 = 173;
-    while (y < 187) : (y += 1) {
-        var x: i32 = 148;
-        while (x < 162) : (x += 1) {
-            const g = assets.omega.at(2 * x - 295, 2 * y - 345);
-            if (g != NONE) frame.put(x, y, g);
-        }
-    }
-}
-
-/// The black quads (-7,300,50,50) and (576,300,80,50) are drawn before the
-/// meters: ST x < 22 and x >= 288 on rows 150..174 go back to colour 0.
-fn masks() void {
-    var y: i32 = 150;
-    while (y < 175) : (y += 1) {
-        var x: i32 = 0;
-        while (x < 320) : (x += 1) if (x < 22 or x >= 288) frame.put(x, y, 0);
-    }
-}
-
-/// vumeter.drawTile(tile = (h/7)*14) mirrored at 293 (col 292-2X) and at 324.
-fn meters(h: i32, row0: i32) void {
-    const t: i32 = @intFromFloat(@floor(@as(f64, @floatFromInt(h)) / 7 * 14));
-    var y: i32 = @divFloor(row0 + 1, 2);
-    while (2 * y - row0 < 11) : (y += 1) {
-        const r = t * 11 + 2 * y - row0;
-        var x: i32 = 48;
-        while (x < 261) : (x += 1) {
-            const col = if (x <= 146) 292 - 2 * x else 2 * x - 324;
-            if (col < 0 or col >= 198) continue;
-            const g = assets.vumeter.at(@divFloor(col, 2), r);
-            if (g != NONE) frame.put(x, y, g);
-        }
-    }
-}
