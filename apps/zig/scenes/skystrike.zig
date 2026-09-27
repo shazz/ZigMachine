@@ -68,6 +68,7 @@ comptime {
         @export(&testapi.val, .{ .name = "skyTestVal" });
         @export(&testapi.poke, .{ .name = "skyTestPoke" });
         @export(&testapi.ptr, .{ .name = "skyTestPtr" });
+        @export(&testapi.refuse, .{ .name = "skyTestRefuse" });
     }
 }
 

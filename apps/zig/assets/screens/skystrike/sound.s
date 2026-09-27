@@ -248,10 +248,14 @@ samplay:
 	move.w	d7,sr
 	rts
 
-; $988: SAMSTOP
+; $988: SAMSTOP. Maestro only disables and masks Timer A (IERA / IMRA);
+; the timer is also STOPPED here (TACR = 0), which on an ST changes nothing
+; heard, because the sealed player's MFP runs a timer on its control register
+; alone: without it the digi would never stop.
 samstop:
 	move.w	sr,d7
 	move.w	#$2700,sr
+	clr.b	$fffffa19.w
 	bclr	#5,$fffffa07.w
 	bclr	#5,$fffffa0b.w
 	bclr	#5,$fffffa0f.w
@@ -286,6 +290,7 @@ isr_once:
 	bra.s	out_level
 .end:	lea	smp_ptr(pc),a3
 	addq.l	#1,(a3)
+	clr.b	$fffffa19.w			; stopped too (see SAMSTOP)
 	bclr	#5,$fffffa07.w
 	movem.l	(sp)+,d7/a3
 	rte

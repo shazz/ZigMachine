@@ -8,8 +8,12 @@
 //   val(what)         0 label, 1 flow faults, 2 PEEK/POKE outside, 3 bad
 //                     indexes, 4 refused zones, 5 refused zg.mem, 6 sound
 //                     commands, 7 divisions by zero, 8 VBLs, 9 TIMER,
-//                     10+ a variable (VARS), 100+i sound command i
-//   poke(what, v)     set variable 10+ (VARS)
+//                     10 main-loop passes, 11 SP# x 1000, 20+ a variable
+//                     (VARS), 100+i sound command i (op << 8 | arg),
+//                     200 + 2k + e enemy e's ENEMY[k]
+//   poke(what, v)     11 SP# x 1000, 12 clear the sound log, 20+ a variable,
+//                     200+ an enemy's (as val)
+//   refuse()          one zg.mem allocation too big to grant (--break alloc)
 //   ptr(what)         0 physic, 1 back, 2 bank 5, 3 bank 6 (320x200
 //                     indices), 4 the colour registers (16 u16)
 // --------------------------------------------------------------------------
@@ -57,6 +61,15 @@ pub fn stick(bits: u32) callconv(.c) void {
     input.fire_down = bits & 0x80 != 0;
 }
 
+const ENEMY = [_][]const u8{ "esx_a", "eal_a", "ex_a", "ey_a", "fre_a", "er_a" };
+
+fn enemyPtr(i: usize) ?*i32 {
+    inline for (ENEMY, 0..) |name, k| {
+        if (i / 2 == k) return &@field(v.*, name)[i % 2];
+    }
+    return null;
+}
+
 fn varPtr(i: usize) ?*i32 {
     inline for (VARS, 0..) |name, k| {
         if (i == k) return &@field(v.*, name);
@@ -83,6 +96,10 @@ pub fn val(what: u32) callconv(.c) i32 {
 }
 
 fn other(what: u32) i32 {
+    if (what >= 200) {
+        if (enemyPtr(what - 200)) |p| return p.*;
+        return 0;
+    }
     if (what >= 100) {
         const i = what - 100;
         return if (i < sound.log_n) sound.log[i] else -1;
@@ -102,6 +119,13 @@ pub fn poke(what: u32, value: i32) callconv(.c) void {
         if (varPtr(what - 20)) |p| p.* = value;
     }
     if (what == 12) sound.log_n = 0;
+    if (what >= 200) {
+        if (enemyPtr(what - 200)) |p| p.* = value;
+    }
+}
+
+pub fn refuse() callconv(.c) void {
+    _ = zg.mem.alloc(u8, 64 << 20);
 }
 
 pub fn ptr(what: u32) callconv(.c) ?[*]u8 {
