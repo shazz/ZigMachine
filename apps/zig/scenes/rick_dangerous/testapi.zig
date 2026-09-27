@@ -12,7 +12,8 @@
 //                   frame's sound requests, 6 unknown handler types, 7 frames,
 //                   8/9 the tape / interrupt positions, 10 VBLs, 100+i request i
 //   poke / irq / refuse   the --break modes' faults
-//   sndBegin / sndTick    the sound driver alone, for the SNDH comparison
+//   sndBegin / sndPlay / sndTick   the sound driver alone, for the SNDH
+//                   comparison (sndPlay: a later request, a resident call)
 // --------------------------------------------------------------------------
 const std = @import("std");
 const zg = @import("zigos");
@@ -57,7 +58,6 @@ pub fn load(snap_len: u32, ints_off: u32, tape_n: u32, irq_n: u32, per_call: u32
 
 pub fn frame() callconv(.c) i32 {
     const v = machine.runFrame();
-    snd.flush();
     io.frame_no += 1;
     return std.math.cast(i32, v) orelse -1;
 }
@@ -109,6 +109,13 @@ pub fn sndBegin(subtune: u32) callconv(.c) void {
     const v = @divFloor(n, snd.NIDS);
     if (v != 2) m.wb(0x34A85, v);
     snd.play(@mod(n, snd.NIDS), if (v == 2) 1 else 0);
+}
+
+/// play_sound(id, d1) between two ticks, as the game calls it: the cart's
+/// driver RAM moves, and what it asks the host (a load, or a resident
+/// zg.sndhCall) is left for the harness to poll, as the loader does.
+pub fn sndPlay(id: u32, d1: u32) callconv(.c) void {
+    snd.play(id, d1);
 }
 
 /// One VBL of the driver: the Timer A samples, then the tick $3488E.

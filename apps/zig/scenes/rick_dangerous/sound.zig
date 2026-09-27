@@ -7,7 +7,10 @@
 // What the player HEARS is rick_dangerous.sndh: the same driver's own 68000
 // code. Every request the game makes is logged (the harness checks them per
 // frame) and, when it is not dropped and not the tick's own tune restart,
-// becomes a request for that SNDH's subtune 1 + id + 29 x v (sound.s).
+// becomes that SNDH's subtune 1 + id + 29 x v (sound.s): a LOAD for the first
+// request and the first after a sound off (zg.requestSongTune), then a
+// zg.sndhCall with RESIDENT on the running driver, so what is already
+// sounding finishes and every request of a frame is heard, in order.
 // --------------------------------------------------------------------------
 const zg = @import("zigos");
 const m = @import("ram.zig");
@@ -32,9 +35,10 @@ pub var log: [64]u32 = undefined;
 pub var log_n: usize = 0;
 pub const OFF: u32 = 0xFFFFF;
 pub const MUSIC = "rick_dangerous.sndh";
-/// The last request the host should play (0 = none), and a sound-off.
-pub var subtune: u8 = 0;
-pub var stop: bool = false;
+/// sound.s's d0 flag: play_sound on the running driver, nothing reinstalled.
+pub const RESIDENT: u16 = 0x8000;
+/// The host has the SNDH loaded since the last sound off: requests are calls.
+pub var resident: bool = false;
 /// The VBL tick is running (its tune restart is the SNDH's own business).
 pub var in_tick: bool = false;
 
@@ -53,8 +57,14 @@ fn record(n: i64, d1: i64) void {
     // requested: 1 + id + 29 x v would overflow the u8 subtune.
     if (n & 0xFF >= NIDS) return;
     const v: i64 = if (d1 & 0xFF != 0) 2 else alt;
-    subtune = @intCast(1 + (n & 0xFF) + NIDS * v);
-    stop = false;
+    const sub: u8 = @intCast(1 + (n & 0xFF) + NIDS * v);
+    if (!resident) {
+        zg.requestSongTune(MUSIC, sub);
+        resident = true;
+    } else {
+        // Refused only past 16 calls in one frame, and then counted by ZigOS.
+        _ = zg.sndhCall(MUSIC, RESIDENT | sub);
+    }
 }
 
 /// $34750(d0 = id, d1 = flag).
@@ -118,24 +128,12 @@ pub fn off() void {
     for ([_]i64{ F.SND_MODE, F.SFX_ALT, F.SND_LOOP, F.SND_ID }) |a| m.wb(a, 0);
     digi.timerA(0, 0);
     if (in_tick) return;
-    subtune = 0;
-    stop = true;
+    zg.stopSong(); // discards this frame's calls too; the next request loads
+    resident = false;
     if (log_n < log.len) {
         log[log_n] = OFF;
         log_n += 1;
     }
-}
-
-/// The host's request for what the game asked since the last flush: the
-/// SNDH's subtune, or silence.
-pub fn flush() void {
-    if (stop) {
-        zg.stopSong();
-    } else if (subtune != 0) {
-        zg.requestSongTune(MUSIC, subtune);
-    }
-    stop = false;
-    subtune = 0;
 }
 
 /// $34F0C: fill the sfx channel a6 from the definition a5 (period d7, duration d6).

@@ -38,8 +38,7 @@ fn clearState() void {
     clock.reset();
     digi.reset();
     snd.log_n = 0;
-    snd.subtune = 0;
-    snd.stop = false;
+    snd.resident = false; // the next request loads the SNDH afresh
     handlers.unknown = 0;
     frames = 0;
     frame = .{};
