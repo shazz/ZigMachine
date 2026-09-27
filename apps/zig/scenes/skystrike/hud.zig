@@ -131,6 +131,7 @@ pub fn kills720() void {
 
 /// 734-736: the bonus bar across the top: frame, checkered, the icons.
 pub fn bonusBar() void {
+    if (@import("zig_hooks.zig").sandbox) return; // ZIG's ring draws the world without it
     S.ink(13);
     S.box(14, 2, 306, 12);
     gfx.writing = 2;

@@ -26,6 +26,8 @@
 ;   op 0 MUSIC arg (0 = off)   1 SAMPLAY arg   2 SAMSTOP   3 SAMLOOP arg
 ;   op 4 VOLUME arg   5 NOISE arg   6 ENVEL shape arg (period from 7 and 8)
 ;   op 7 envelope period high byte   8 envelope period low byte
+;   op 9 ZPLAY arg   10 ZSTOP arg: ZIG mode's samples on the STE DMA chip
+;        (sound_zig.s)
 ; so an effect never reloads the image and what is sounding goes on.
 ;
 ; Build (from the repository root; vasm 1.9, /home/matt/projects/MJJ/bin/vasm):
@@ -73,6 +75,8 @@ init:
 
 exit:
 	bsr	samstop
+	moveq	#0,d0
+	bsr	zstop
 	bsr	music_off
 	rts
 
@@ -92,7 +96,7 @@ command:
 	move.w	d7,d1
 	lsr.w	#8,d1
 	and.w	#$7f,d1
-	cmp.w	#8,d1
+	cmp.w	#10,d1
 	bhi.s	.bad
 	add.w	d1,d1
 	move.w	.tab(pc,d1.w),d1
@@ -100,6 +104,7 @@ command:
 .bad:	rts
 .tab:	dc.w	music-.tab, samplay-.tab, samstop-.tab, samloop-.tab
 	dc.w	volume-.tab, noise-.tab, envel-.tab, env_hi-.tab, env_lo-.tab
+	dc.w	zplay-.tab, zstop-.tab
 
 ; ---- STOS music: the rip's init plays tune d0; its play is our play -------
 music:
@@ -342,3 +347,4 @@ samples:	incbin	"samples.bnk"		; bank 10, "MAESTRO!"
 	even
 grazey:		incbin	"sky_strike_grazey.sndh"
 	even
+	include	"sound_zig.s"

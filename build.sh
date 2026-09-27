@@ -264,6 +264,16 @@ gate skystrike node apps/skystrike_headless.mjs --break sndh "$SHOTS/skystrike" 
 gate skystrike node apps/skystrike_headless.mjs --break alloc "$SHOTS/skystrike"   # ...and a refused zg.mem allocation fails the run
 gate skystrike node apps/skystrike_levels.mjs   # SKYSTRIKE levels: the Tiled maps (tools/skystrike/levels.py) round-trip MISSIONS.DAT + SCRNDATA.DAT byte for byte and ARE the cart's data; 22 broken maps refused; a disk with an edited mission is briefed and played; a bad disk file stops on the error trap
 gate skystrike node apps/skystrike_levels.mjs --break disk   # ...and a disk of the built-in data fails the custom-mission check
+gate skystrike node apps/skystrike_zig.mjs "$SHOTS/skystrike_zig"   # SKYSTRIKE ZIG mode: sectors crossed left/right and layers up/down with no redraw pause and the camera gliding; each screen entered = its ring slot pixel for pixel; switched by Z mid-flight or ZIG throughout, the logic CRC after every pass = ORIGINAL's; the 400x280 frame = ring + overlay with the borders open and the HUD in them; tracers on the heading, none in ORIGINAL; the key help over ZIG's pause only; each event's sample on a Paula channel under the YM music; no zg.mem refused
+gate skystrike node apps/skystrike_zig.mjs --break pause "$SHOTS/skystrike_zig"    # ...and the crossings flown in ORIGINAL fail (a)
+gate skystrike node apps/skystrike_zig.mjs --break ring "$SHOTS/skystrike_zig"     # ...and one ring pixel flipped fails (b)
+gate skystrike node apps/skystrike_zig.mjs --break crc "$SHOTS/skystrike_zig"      # ...and X (a key the game reads) for Z fails (c)
+gate skystrike node apps/skystrike_zig.mjs --break border "$SHOTS/skystrike_zig"   # ...and ORIGINAL's frame fails (d)
+gate skystrike node apps/skystrike_zig.mjs --break alloc "$SHOTS/skystrike_zig"    # ...and a refused zg.mem allocation fails (e)
+gate skystrike node apps/skystrike_zig.mjs --break sound "$SHOTS/skystrike_zig"    # ...and the sample table swapped fails the sound check
+gate skystrike node apps/skystrike_zig.mjs --break tracer "$SHOTS/skystrike_zig"   # ...and the heading turned 90 degrees fails the tracer check
+gate skystrike node apps/skystrike_zig.mjs --break help "$SHOTS/skystrike_zig"     # ...and ORIGINAL's pause searched for the key help fails the pause check
+gate skystrike python3 tools/skystrike/make_sfx.py --check   # ZIG mode's synthesized samples = the committed sfx/*.raw (skystrike.sndh includes them)
 gate tcb_spreadpoint node apps/tcb_spreadpoint_headless.mjs "$SHOTS/tcb_spreadpoint"   # TCB SPREADPOINT (CODEF 469): screen.js replayed (intro fades, angle table, balls, 33-speed scroller, DNA scrolltext) and at 12 frames across the intro and 6000 main-part iterations the plane is its indices pixel for pixel; the 3 rasters are HBL register writes (entries 2..6 hold the tables on every line, <=4 changes a line) and every composited pixel is its line's colour; tcb_spreadpoint.sndh requested once, at the main part, and plays
 gate tcb_spreadpoint node apps/tcb_spreadpoint_headless.mjs --break hbl "$SHOTS/tcb_spreadpoint"   # ...and a plane whose HBL never runs is caught
 gate tcb_spreadpoint node apps/tcb_spreadpoint_headless.mjs --break step "$SHOTS/tcb_spreadpoint"   # ...and one frame out of step with screen.js is caught

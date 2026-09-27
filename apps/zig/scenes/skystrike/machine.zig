@@ -54,6 +54,7 @@ pub fn reset() void {
     B.reset();
     flow.reset();
     clock.reset();
+    @import("zig_hooks.zig").reset();
     S.timer = 0;
     vbls = 0;
     @import("pass.zig").passes = 0;
@@ -69,6 +70,7 @@ pub fn vbl() void {
     move.vbl();
     sprite.update();
     flow.vbl();
+    @import("zig_hooks.zig").tick();
 }
 
 /// VBLs until `limit`.

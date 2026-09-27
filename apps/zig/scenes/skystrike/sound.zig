@@ -15,13 +15,17 @@ pub const NAME = "skystrike.sndh";
 pub const RESIDENT: u16 = 0x8000;
 pub const SILENCE: u8 = 4;
 
-pub const Op = enum(u8) { music, samplay, samstop, samloop, volume, noise, envel, env_hi, env_lo };
+pub const Op = enum(u8) { music, samplay, samstop, samloop, volume, noise, envel, env_hi, env_lo, zplay, zstop };
 
 pub var resident: bool = false;
 /// The requests: op << 8 | arg, in the order the game made them.
 pub var log: [64]u16 = undefined;
 pub var log_n: usize = 0;
 pub var log_total: u32 = 0;
+/// What actually went to the SNDH (d0 & $7FFF), which in ZIG mode is not
+/// the game's own command (zig_sound.zig), for the harness.
+pub var sent: [64]u16 = undefined;
+pub var sent_n: usize = 0;
 
 fn record(op: Op, arg: u8) void {
     log_total += 1;
@@ -33,11 +37,22 @@ fn record(op: Op, arg: u8) void {
 
 fn call(op: Op, arg: u8) void {
     record(op, arg);
+    if (@import("zig_hooks.zig").zig) return @import("zig_sound.zig").route(op, arg);
+    send(op, arg);
+}
+
+/// A command on the running image, as it is.
+pub fn send(op: Op, arg: u8) void {
+    const d0 = @as(u16, @intFromEnum(op)) << 8 | arg;
+    if (sent_n < sent.len) {
+        sent[sent_n] = d0;
+        sent_n += 1;
+    }
     if (!resident) {
         zg.requestSongTune(NAME, SILENCE);
         resident = true;
     }
-    _ = zg.sndhCall(NAME, RESIDENT | @as(u16, @intFromEnum(op)) << 8 | arg);
+    _ = zg.sndhCall(NAME, RESIDENT | d0);
 }
 
 pub fn music(n: i32) void {
@@ -84,4 +99,5 @@ pub fn reset() void {
     resident = false;
     log_n = 0;
     log_total = 0;
+    sent_n = 0;
 }
