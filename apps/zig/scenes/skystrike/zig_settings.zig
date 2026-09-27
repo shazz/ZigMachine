@@ -105,6 +105,6 @@ pub const Effects = struct {
 pub var effects: Effects = .{};
 
 // ---- the music ------------------------------------------------------------
-// Both modes play skystrike.sndh's three tunes (sound.zig). ZIG-mode MODs
-// were asked for (docs/ports/SKYSTRIKE.md, "Music"); none is shipped, as
-// their licence does not cover use in a game.
+// ORIGINAL plays skystrike.sndh's three tunes (sound.zig); ZIG three
+// ProTracker MODs from The Mod Archive, one per situation (zig_music.zig;
+// docs/music/skystrike_music_CREDITS.txt).

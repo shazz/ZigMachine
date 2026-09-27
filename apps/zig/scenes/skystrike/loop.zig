@@ -155,7 +155,7 @@ fn l90() flow.Act {
     }
     S.locate(1, 10);
     snd.samstop();
-    snd.music(1 + S.rnd(1) * 2);
+    snd.music(1 + S.rnd(1) * 2, .title);
     return .{ .go = .l151a };
 }
 
@@ -167,7 +167,7 @@ fn l151a() flow.Act {
 }
 
 fn l151b() flow.Act {
-    snd.musicOff();
+    snd.musicEnd(.flying);
     if (v.a_s.eql("M")) mission.freeMem();
     keys.keys152();
     return .{ .go = .l90b };

@@ -13,7 +13,10 @@
 //                sent, 19 the screen off the world (0 picture, 1 scene,
 //                2 hall), 20+i the i'th sent (op << 8 | arg); 60-63 tracers
 //                shown, their two colours, the key help shown; 64/65 craters
-//                made / filled in, 66-68 the ghx9 / sno9 / so9 addresses
+//                made / filled in, 66-68 the ghx9 / sno9 / so9 addresses;
+//                72 ZIG's music situation, 73 the MOD it last requested
+//                (-1 none), 74 ORIGINAL's tune (0 off), 75 effect / YM
+//                commands the queue refused, 76 the title's credits shown
 //   poke(300+k)  70 the crater lifetime in VBLs (0 never), 71 fullscreen
 //                screens on / off
 //   ptr(5..11)   5 the ring (960 x 540, the world plane's buffer), 6 the
@@ -32,6 +35,7 @@ const sandbox = @import("zig_sandbox.zig");
 const mode = @import("zig_mode.zig");
 const set = @import("zig_settings.zig");
 const V = @import("vars.zig");
+const music = @import("zig_music.zig");
 
 pub const BASE: u32 = 300;
 
@@ -85,6 +89,11 @@ fn more(k: u32) i32 {
         67 => V.v.sno9,
         68 => V.v.so9,
         70 => @bitCast(set.crater_life_vbls),
+        72 => @intFromEnum(music.now),
+        73 => if (music.playing) |m| @intFromEnum(m) else -1,
+        74 => music.sndh_tune,
+        75 => @bitCast(@import("zig_fx.zig").refused +% @import("zig_psg.zig").refused),
+        76 => @intFromBool(@import("zig_credits.zig").shown),
         else => if (k >= 20 and k - 20 < sound.sent_n) sound.sent[k - 20] else -1,
     };
 }

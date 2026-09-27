@@ -64,14 +64,14 @@ fn l220() flow.Act {
 fn l225() flow.Act {
     v.mes_s.set(if (v.crsh == 0) "No More Aircraft !" else "You Were Killed !");
     snd.samstop();
-    snd.music(2);
+    snd.music(2, .gameover);
     scene.message1506();
     return .{ .call = .{ .to = .l190a, .ret = .l227b } };
 }
 
 /// ... music off : 229 goto 23
 fn l227b() flow.Act {
-    snd.musicOff();
+    snd.musicEnd(.title);
     return .{ .go = .l2000 };
 }
 

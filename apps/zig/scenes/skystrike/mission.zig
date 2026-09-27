@@ -113,7 +113,7 @@ fn l1690b() flow.Act {
 fn l1690c() flow.Act {
     boot.unpackTo(assets.NEWS, .physic);
     hooks.shows(.picture);
-    snd.music(3);
+    snd.music(3, .title);
     S.fadeTo(5, .back);
     input.clearKey();
     return .{ .go = .l1697b };
@@ -137,7 +137,7 @@ fn l1698b() flow.Act {
 }
 
 fn l1699() flow.Act {
-    snd.musicOff();
+    snd.musicEnd(.flying);
     text.clw();
     hooks.shows(.picture);
     v.nf = 1;

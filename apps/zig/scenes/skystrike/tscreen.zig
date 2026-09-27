@@ -80,7 +80,7 @@ fn l2350d() flow.Act {
     scene.toBack();
     pal.flashOff();
     S.fadeTo(5, .b5);
-    snd.music(1 + S.rnd(1) * 2);
+    snd.music(1 + S.rnd(1) * 2, .title);
     plane();
     v.sx = v.s2;
     v.al = v.s3;

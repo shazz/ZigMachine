@@ -9,8 +9,13 @@
 //   (d) the fullscreen frame: borders open, = ring + overlay everywhere, the
 //       HUD in the borders; the tracers; the ammo    apps/skystrike_zig_view.mjs
 //   (e) no zg.mem allocation refused
-//   sound  each event's sample on a Paula channel, the music on the YM
-//       untouched, none in ORIGINAL                  apps/skystrike_zig_sound.mjs
+//   sound  each event's sample over the flight's MOD on its lent channel,
+//       given back at the effect's end (the gun loop at SAMSTOP), the
+//       engine note on the YM = the game's commands, none in ORIGINAL
+//                                                    apps/skystrike_zig_sound.mjs
+//   music  the MOD for each of the game's switch points (title, flight,
+//       pause, game over), skystrike.sndh in ORIGINAL, Z swapping them;
+//       the title's credits ticker                   apps/skystrike_zig_music.mjs
 //   pause  P: the key help over ZIG's pause, not ORIGINAL's; the CRC the same
 //       before, during, after                        apps/skystrike_zig_pause.mjs
 //   screens  the title, menu and briefing 1:1 with the world extended into
@@ -28,20 +33,21 @@
 //       flown in ORIGINAL / a ring pixel flipped / X for Z / ORIGINAL's frame /
 //       a refused allocation / the sample table swapped / the heading turned /
 //       ORIGINAL's pause searched for the panel;
-//       --break intro|hiscore|hud|landed|left|ghost|keys|crater: see each module:
+//       --break intro|hiscore|hud|landed|left|ghost|keys|crater|music|swap|credits: see each module:
 //       passes only if caught by the check it breaks
 import { mkdir } from "node:fs/promises";
 import { flight } from "./skystrike_zig_flight.mjs";
 import { crc } from "./skystrike_zig_crc.mjs";
 import { view } from "./skystrike_zig_view.mjs";
 import { sound } from "./skystrike_zig_sound.mjs";
+import { music } from "./skystrike_zig_music.mjs";
 import { pause } from "./skystrike_zig_pause.mjs";
 import { screens } from "./skystrike_zig_screens.mjs";
 import { edges } from "./skystrike_zig_edges.mjs";
 import { keys } from "./skystrike_zig_keys.mjs";
 import { craters } from "./skystrike_zig_craters.mjs";
 
-const BREAKS = ["pause", "ring", "crc", "border", "alloc", "sound", "tracer", "help", "intro", "hiscore", "hud", "landed", "left", "ghost", "keys", "crater"];
+const BREAKS = ["pause", "ring", "crc", "border", "alloc", "sound", "tracer", "help", "intro", "hiscore", "hud", "landed", "left", "ghost", "keys", "crater", "music", "swap", "credits"];
 const bi = process.argv.indexOf("--break");
 const broke = bi > 0 ? process.argv[bi + 1] : null;
 if (bi > 0 && !BREAKS.includes(broke)) throw new Error(`--break ${BREAKS.join(" | ")}`);
@@ -63,6 +69,7 @@ const fl = await run(() => flight(broke));
 await run(() => crc(broke));
 const vw = await run(() => view(outdir, broke));
 await run(() => sound(broke));
+await run(() => music(broke));
 await run(() => pause(outdir, broke));
 await run(() => screens(outdir, broke));
 await run(() => edges(outdir, broke));
@@ -73,7 +80,7 @@ allocations([fl.s, vw.s], errors);
 if (broke) {
     // caught by the check it breaks, not by some other one
     const by = { pause: "(a)", ring: "(b)", crc: "(c)", border: "(d)", alloc: "(e)", sound: "sound:", tracer: "tracers:", help: "pause:",
-        intro: "screens:", hiscore: "screens:", hud: "(d)", landed: "landed:", left: "border:", ghost: "ghost:", keys: "keys:", crater: "craters:" }[broke];
+        intro: "screens:", hiscore: "screens:", hud: "(d)", landed: "landed:", left: "border:", ghost: "ghost:", keys: "keys:", crater: "craters:", music: "music:", swap: "swap:", credits: "credits:" }[broke];
     const hit = errors.find((e) => e.startsWith(by));
     console.log(hit ? `skystrike_zig: PASS (--break ${broke} caught: ${hit})` : `skystrike_zig: FAILED -- --break ${broke} was not caught by ${by} (${errors.length} other errors)`);
     process.exit(hit ? 0 : 1);

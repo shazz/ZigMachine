@@ -10,7 +10,9 @@ import { onRunway, WIN_W } from "./skystrike_zig_session.mjs";
 import { grab, lowres, png } from "./skystrike_zig_frame.mjs";
 
 const START = 200, P = 0x50, Q = 0x51;
-const PANEL = { x: 16 + 8, y: 39 + 8, title: "          K E Y S", pen: 1 }; // zig_help.zig X0/Y0 + a cell (Y0 = (VIEW_H 246 - 168) / 2)
+const PANEL = { x: 16 + 8, y: 23 + 8, title: "          K E Y S", pen: 1 }; // zig_help.zig X0/Y0 + a cell (Y0 = (VIEW_H 246 - 200) / 2)
+// The music's credits heading, line 18 of the panel (zig_help.zig).
+const CREDITS = { x: PANEL.x, y: PANEL.y + 18 * 8, title: "MUSIC (The Mod Archive)", pen: 1 };
 
 async function pausedRun(zig, outdir) {
     const s = await onRunway(zig);
@@ -33,13 +35,14 @@ async function pausedRun(zig, outdir) {
     return { s, crcs, paused, help, ov };
 }
 
-/// The panel's title in the game's font at its place in the overlay.
-async function titleDrawn(ov) {
+/// A line of the panel (its title, the music's heading) in the game's font
+/// at its place in the overlay: the pixels missing.
+async function titleDrawn(ov, at = PANEL) {
     const font = await readFile("apps/zig/assets/screens/skystrike/font.bin");
     let bad = 0;
-    for (let k = 0; k < PANEL.title.length; k++) for (let j = 0; j < 8; j++) for (let i = 0; i < 8; i++) {
-        if (!(font[(PANEL.title.charCodeAt(k) - 32) * 8 + j] >> (7 - i) & 1)) continue;
-        if (ov[(PANEL.y + j) * WIN_W + PANEL.x + k * 8 + i] !== PANEL.pen) bad++;
+    for (let k = 0; k < at.title.length; k++) for (let j = 0; j < 8; j++) for (let i = 0; i < 8; i++) {
+        if (!(font[(at.title.charCodeAt(k) - 32) * 8 + j] >> (7 - i) & 1)) continue;
+        if (ov[(at.y + j) * WIN_W + at.x + k * 8 + i] !== at.pen) bad++;
     }
     return bad;
 }
@@ -51,11 +54,13 @@ export async function pause(outdir, broke) {
     if (z.paused !== L151 || o.paused !== L151) errors.push(`pause: P did not pause (labels ${z.paused}, ${o.paused})`);
     const zBad = await titleDrawn(z.ov);
     if (!z.help || zBad) errors.push(`pause: ZIG's pause shows no key help (shown ${z.help}, ${zBad} title pixels missing)`);
+    const cBad = await titleDrawn(z.ov, CREDITS);
+    if (cBad) errors.push(`pause: ZIG's key help has no music credits (${cBad} pixels of "${CREDITS.title}" missing)`);
     const oShown = broke === "help" ? !o.help : o.help || o.s.demo.isPlaneEnabled(2);
     if (oShown) errors.push(`pause: ORIGINAL's pause ${broke === "help" ? "has no key help to find" : "shows the key help"}`);
     const at = z.crcs.findIndex((c, i) => c !== o.crcs[i]);
     if (at >= 0) errors.push(`pause: the logic state differs between the modes at checkpoint ${at} (before, paused, later, then 5 passes)`);
     if (z.crcs[1] !== z.crcs[2]) errors.push("pause: the logic state moved while paused under the panel");
-    console.log(`  pause: P -> line 151 in both; the key help over ZIG's (its title in the game's font), none in ORIGINAL's; the CRC the same in both before, during and after`);
+    console.log(`  pause: P -> line 151 in both; the key help over ZIG's (its title and the music's credits in the game's font), none in ORIGINAL's; the CRC the same in both before, during and after`);
     return errors;
 }

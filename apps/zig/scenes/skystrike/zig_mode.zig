@@ -8,9 +8,10 @@
 //             new screen, Maestro's digis and the PSG
 //   ZIG       in play: the world scrolled by the hardware in a 400 x 280
 //             frame with its borders open (zig_view.zig), no pause at a new
-//             screen, the effects as samples on the Paula channels
-//             (zig_sound.zig); the title, menu, briefing and hall of fame
-//             are the original's screens, scaled into the open frame
+//             screen, a MOD per situation with the effects as samples
+//             over it (zig_music.zig, zig_sound.zig); the title, menu,
+//             briefing and hall of fame are the original's screens, scaled
+//             into the open frame
 //
 // Only presentation and pacing differ (and, a setting, craters fill in:
 // zig_craters.zig); the switch changes no game state, and

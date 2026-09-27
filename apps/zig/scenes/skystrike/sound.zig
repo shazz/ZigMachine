@@ -8,8 +8,15 @@
 // $8000 + op << 8 + arg on the RUNNING image, so a sample or the engine note
 // already sounding goes on; before the first load it loads subtune 4
 // (silence) first. Each command is logged for the headless harness.
+//
+// ZIG mode sends none of this to the SNDH: it plays a MOD per situation
+// (zig_music.zig, told by music / musicEnd which situation the game is at),
+// its effects over it and the engine's PSG commands on the YM
+// (zig_sound.zig). The log is the same in both modes.
 // --------------------------------------------------------------------------
 const zg = @import("zigos");
+const zm = @import("zig_music.zig");
+pub const Situation = zm.Situation;
 
 pub const NAME = "skystrike.sndh";
 pub const RESIDENT: u16 = 0x8000;
@@ -55,15 +62,26 @@ pub fn send(op: Op, arg: u8) void {
     _ = zg.sndhCall(NAME, RESIDENT | d0);
 }
 
-pub fn music(n: i32) void {
+/// MUSIC n at a switch point: `sit` is the situation ZIG's music is for.
+pub fn music(n: i32, sit: Situation) void {
     if (n >= 1 and n <= 3) {
+        zm.music(@intCast(n), sit);
         record(.music, @intCast(n));
+        if (@import("zig_hooks.zig").zig) return;
         zg.requestSongTune(NAME, @intCast(n));
         resident = true;
-    } else call(.music, 0);
+    } else musicEnd(sit);
 }
 
+/// MUSIC OFF at a switch point: ZIG plays `next` from here.
+pub fn musicEnd(next: Situation) void {
+    zm.off(next);
+    call(.music, 0);
+}
+
+/// MUSIC OFF inside an effect routine (the YM freed for it): no switch.
 pub fn musicOff() void {
+    zm.sndh_tune = 0;
     call(.music, 0);
 }
 
@@ -96,6 +114,8 @@ pub fn envel(shape: i32, period: i32) void {
 }
 
 pub fn reset() void {
+    zm.reset();
+    @import("zig_psg.zig").reset();
     resident = false;
     log_n = 0;
     log_total = 0;

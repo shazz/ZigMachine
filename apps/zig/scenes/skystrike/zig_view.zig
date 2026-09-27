@@ -90,7 +90,9 @@ fn original(zigos: *zg.ZigOS) void {
     zigos.lfbs[scroll.OVERLAY_PLANE].is_enabled = full;
     const p0 = &zigos.lfbs[PLANE0];
     p0.is_enabled = !full;
-    if (full) screens.draw(scroll.over_px) else machine.present(p0);
+    if (!full) return machine.present(p0);
+    screens.draw(scroll.over_px);
+    @import("zig_credits.zig").draw(scroll.over_px);
 }
 
 /// The camera after sprite 1: the plane, or the pilot under his chute.

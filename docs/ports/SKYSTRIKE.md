@@ -260,8 +260,10 @@ ORIGINAL; `apps/skystrike_headless.mjs` still passes unchanged.
 | the weapons | FIRE, FIRE + left (bomb), FIRE + right (rocket) | also Ctrl, Space, Shift: one key each | |
 | a crashed enemy's crater | stays | fills in after 30 s | a setting |
 | the ammo | not shown | a counter in the game's font | |
-| effects | Maestro digis and PSG noise on the YM | synthesized samples on the Paula channels | the YM keeps the music |
-| P (pause) | the music until a key | the same, and the key help over the game | |
+| the music | skystrike.sndh's three tunes (Grazey's rip) | three ProTracker MODs, one per situation | see "Music" |
+| effects | Maestro digis and PSG noise on the YM | synthesized samples over the MOD, on its quietest channel | the music goes on under them |
+| the engine | PSG noise under envelope 10 | the same, written to the YM directly | the YM is idle under a MOD |
+| P (pause) | the music until a key | the same, and the key help (with the music's credits) over the game | |
 
 ### The scroll: a ring of screens in the scroll plane
 
@@ -439,14 +441,20 @@ every ORIGINAL-against-ZIG comparison with the setting at never.
 
 ### Sound
 
+ZIG plays a ProTracker MOD, not skystrike.sndh (see "Music"). The effects are played
+over it, and the engine note goes on the YM, which a MOD leaves idle.
+
 The effects are synthesized by `tools/skystrike/make_sfx.py` (stdlib only, fixed
 seeds): filtered noise and a few sines under envelopes. They are signed 8-bit at the
-STE DMA rates, 28 KB in all (`apps/zig/assets/screens/skystrike/sfx/*.raw`). They ride
-in `skystrike.sndh` (`sound_zig.s`, included by `sound.s`). Its new op 9 (ZPLAY)
-starts one on the STE DMA sound chip, which this machine plays on its Paula sample
-channels (`libs/zig/players/ste_dma.zig`), and op 10 (ZSTOP) stops it. The YM is not
-touched, so the music and the engine's PSG note go on underneath. No host or machine
-change was needed.
+STE DMA rates, 28 KB in all (`apps/zig/assets/screens/skystrike/sfx/*.raw`). The cart
+embeds them (`zig_fx.zig`) and plays each with `zg.sfxPlay`, a machine addition made
+for this (docs/MUSIC.md, "Sound effects over a MOD"). The audio thread lends the
+effect the MOD's quietest channel: the one with the fewest notes over the song. The
+effect plays there at full volume and at that channel's pan. The song goes on reading
+the channel but writes nothing to it until the effect is over. A one-shot gives the
+channel back at its last sample. The looped gun burst gives it back on the engine's
+SAMSTOP (`zg.sfxStop(true)`), or after 4 s with none. In "The Hawk's Claw" the channel
+lent is channel 3 (675 notes, against 752-982 on the others).
 
 Each of the original's effect routines (sfx.zig, lines 990-998) marks its commands.
 In ZIG the Maestro and PSG commands inside a routine are not sent, and its sample is:
@@ -463,9 +471,21 @@ In ZIG the Maestro and PSG commands inside a routine are not sent, and its sampl
 
 The engine's SAMSTOP stops only a looping sample (the gun burst ends where the
 original's did), and one-shots play to their end. A SAMSTOP elsewhere (the pause, the
-verdicts) stops any sample. MUSIC OFF inside an effect is not sent, since the YM is no
-longer needed for it. The game's own command log is the same in both modes. A rocket's
-launch makes no sound in the original, so it makes none in ZIG.
+verdicts) stops any sample. MUSIC OFF inside an effect is not sent. A rocket's launch
+makes no sound in the original, so it makes none in ZIG.
+
+**The engine.** STOS's VOLUME / NOISE / ENVEL become YM register writes
+(`zg.ymWrite`, `zig_psg.zig`), register for register what sound.s does with them:
+VOLUME v sets 8, 9 and 10; NOISE p sets 6 = p & 31, zeroes 0-5, sets 7 = $C0 and
+rewrites 13; ENVEL s,p sets 11 and 12 to the period and 13 = s & 15. A register
+already holding its value is not written again, except 13, whose write restarts the
+envelope. **A change to the engine in sound.s must be made in `zig_psg.zig` too.**
+The alternative, a tiny resident SNDH that only handles the PSG commands, is not
+possible: the audio thread plays one song at a time, and in ZIG that song is the MOD.
+
+The game's own command log (`sound.log`) is the same in both modes. ZIG sends nothing
+to skystrike.sndh, which still carries ZIG's old effect ops 9 and 10 (`sound_zig.s`):
+they are no longer used.
 
 ### The key help (P)
 
@@ -513,9 +533,20 @@ proposed:
   ammo counter is in its font.
 - **Tracers.** The streaks lie within 3 px of the heading line; ORIGINAL draws none.
   FIRE takes the same rounds in both modes.
-- **Sound.** Each event sends its ZPLAY, and on the sealed audio machine the Paula
-  channel starts on exactly that sample's bytes (looped for the gun). The music moves
-  the YM as often with the samples as without. ORIGINAL starts no channel.
+- **Sound** (`skystrike_zig_sound.mjs`). The host's view of the effect commands:
+  each event plays exactly its sample's bytes at its rate (the gun looped), and ZIG
+  sends nothing to skystrike.sndh; ORIGINAL sends no effect command. The engine's YM
+  registers equal the game's own PSG commands as sound.s writes them. On the sealed
+  audio machine, over "The Hawk's Claw", the run's commands start each effect on the
+  lent channel, the other three go on playing the song, each one-shot gives the
+  channel back at its end, and the engine's SAMSTOP lets the gun loop go.
+- **Music** (`skystrike_zig_music.mjs`). The song requests at each switch point:
+  ZIG's MODs as in the table above, ORIGINAL's skystrike.sndh tunes (never a MOD), Z
+  swapping them in flight and on the title; the credits ticker on ZIG's title only.
+- **The effect path itself** (`apps/mod_sfx_check.mjs`, tag `mod_sfx`) is proved on
+  the audio modules alone: the channel chosen, the bytes, the volume and pan, the
+  song silent there and busy elsewhere, the release, the loop's stop and timeout, the
+  YM mixed under a MOD, the 6CHN / 8CHN refusal.
 - **The pause.** The help shows in ZIG's pause only, and the CRC is the same in both
   modes before, during and after it.
 - **(e) Memory.** No zg.mem allocation is refused.
@@ -558,11 +589,44 @@ no injected joystick, and the bomb's variables are not yet mapped to addresses.
 
 ### Music
 
-ZIG was to play three ProTracker modules from The Mod Archive (battleship 1, 99351;
-spitfire by Jonte, 106646; glory by dalmet, 165443). All three are under the "Mod Archive
-Distribution license": the original file may be redistributed unmodified, but that
-"does not cover inclusion in a packed/bundled application or game", which needs the
-artist's permission. None is shipped; both modes play skystrike.sndh.
+ZIG plays three ProTracker modules from The Mod Archive, chosen by Matt. The files
+are unmodified, in `docs/music/`, and `docs/music/skystrike_music_CREDITS.txt` gives
+each one's title, artist, source and licence:
+
+| situation | module | licence |
+|---|---|---|
+| title, menus, briefing, hall of fame, the newspaper, the pause | "Explore the sky" by BLuRry (1994), [Mod Archive 167145](https://modarchive.org/index.php?request=view_by_moduleid&query=167145) | [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/) (the share-alike binds this music file only) |
+| flying | "The Hawk's Claw" by Drozerix (2022), [Mod Archive 197917](https://modarchive.org/index.php?request=view_by_moduleid&query=197917) | [Public Domain](https://creativecommons.org/licenses/publicdomain/) |
+| game over: killed, or no more aircraft | "dog75" by Songerson (2019), [Mod Archive 190360](https://modarchive.org/index.php?request=view_by_moduleid&query=190360) | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) |
+
+The switch points are the original's own MUSIC n / MUSIC OFF (`zig_music.zig`):
+
+| line | the original | ZIG |
+|---|---|---|
+| 2350 the title (and the menu and briefing, which redraw it) | MUSIC 1 or 3 | "Explore the sky" (not restarted if already playing) |
+| 1699 the briefing's end, into the flight | MUSIC OFF | "The Hawk's Claw" |
+| 150 P, the pause | MUSIC 1 or 3 | "Explore the sky" |
+| 151 the key that ends it | MUSIC OFF | "The Hawk's Claw" |
+| 225 "You Were Killed !" / "No More Aircraft !" | MUSIC 2 | "dog75" |
+| 227 the key after it, to the title | MUSIC OFF | "Explore the sky" |
+| 2260 the hall of fame | MUSIC 2 | "Explore the sky" (goes on) |
+| 2281 back to the title | MUSIC OFF | "Explore the sky" (goes on) |
+| 1690 the newspaper, the war won | MUSIC 3 | "Explore the sky" |
+
+A briefing between two missions has no MUSIC call in the original (it plays none),
+so in ZIG the flight's music goes on under it. ORIGINAL plays skystrike.sndh exactly
+as before. The situation and ORIGINAL's tune are tracked in both modes, so **Z** swaps
+the music too: to ZIG, the MOD for where the game is; to ORIGINAL, skystrike.sndh's
+tune the game chose, or its silence in flight.
+
+**Credits in the game.** On ZIG's title, a ticker in the band under the scaled screen
+(`zig_credits.zig`) names the three modules and their licences, in the game's font,
+in the palette colour that stands out most from the band. The pause's key help ends
+with them too (`zig_help.zig`).
+
+An earlier search picked three modules under the "Mod Archive Distribution license"
+(battleship 1, spitfire, glory). That licence "does not cover inclusion in a
+packed/bundled application or game", so they were not used.
 
 ### Compromises
 

@@ -43,7 +43,7 @@ fn l2260() flow.Act {
     sprite.mouse(false, sprite.spr[0].img, sprite.spr[0].x, sprite.spr[0].y);
     S.fadeBlack(1);
     boot.unpackTo(assets.HIPIC, .b5);
-    snd.music(2);
+    snd.music(2, .title);
     S.bar(0, 0, 319, 199);
     scene.toLogic();
     scr.logic = .back;
@@ -108,7 +108,7 @@ fn l2281b() flow.Act {
     clearAll();
     blocks.copyAll(.back, .physic);
     scr.logic = .physic;
-    snd.musicOff();
+    snd.musicEnd(.title);
     return .{ .go = .l2000 };
 }
 

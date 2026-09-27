@@ -21,6 +21,7 @@
 // Drawn like the game's own boxed messages (1506: SQUARE's frame 3 pixels
 // inside the cells, corners out, pen 1 on paper 14, the text pen 0) in its
 // 8x8 font, onto the overlay only: the game's screens are never touched.
+// It ends with ZIG's music and its licences (zig_music.zig).
 // --------------------------------------------------------------------------
 const flow = @import("flow.zig");
 const hud = @import("zig_hud.zig");
@@ -45,6 +46,10 @@ const LINES = [_][]const u8{
     "@EMERGENCY",
     " Esc bail out        Enter open the chute",
     " Space land it       Left/Right steer it",
+    "@MUSIC (The Mod Archive)",
+    " Explore the sky   BLuRry     CC BY-SA 4.0",
+    " The Hawk's Claw   Drozerix   Public Domain",
+    " dog75             Songerson  CC BY 4.0",
     "@P pause   Z ORIGINAL/ZIG   any key: fly",
 };
 const COLS: usize = 46;

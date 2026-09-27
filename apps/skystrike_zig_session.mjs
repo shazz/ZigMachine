@@ -9,6 +9,7 @@ export const Z = {
     crc: 300, zig: 301, view: 302, liveSx: 303, liveAl: 304, draws: 305, cx: 306, base: 307,
     valid: 308, slots: 309, rebuilds: 310, shifts: 311, sx: 312, sy: 313, camX: 314, camY: 315,
     renders: 316, leaks: 317, sent: 318, sent0: 320, cratersMade: 364, cratersFilled: 365,
+    sit: 372, playing: 373, tune: 374, fxRefused: 375, credits: 376,
 };
 export const RING_W = 960, RING_H = 540, WIN_W = 400, WIN_H = 280;
 export const CLEAR_SENT = 13;

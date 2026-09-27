@@ -1,0 +1,46 @@
+SKYSTRIKE (cart 79), ZIG mode: the three ProTracker modules and their licences
+===============================================================================
+
+ZIG mode plays these three 4-channel ProTracker modules, one per situation
+(apps/zig/scenes/skystrike/zig_music.zig). ORIGINAL mode plays skystrike.sndh,
+the game's own music. Each file below is unmodified, as downloaded from
+The Mod Archive (https://modarchive.org). The licence of each was read from
+its own Mod Archive page.
+
+The licences below apply to the MUSIC FILES ONLY. They do not extend to the
+ZigMachine code or to any other file in this repository. In particular, the
+share-alike condition of CC BY-SA 4.0 binds only skystrike_explore_the_sky.mod
+(and any modified version of that file), not the game or the code that plays it.
+
+
+skystrike_explore_the_sky.mod    (title, menus, briefing, hall of fame)
+  Title:    Explore the sky
+  Artist:   BLuRry (1994)
+  Source:   https://modarchive.org/index.php?request=view_by_moduleid&query=167145
+            (The Mod Archive, module ID 167145)
+  Licence:  Creative Commons Attribution-ShareAlike 4.0 International (CC BY-SA 4.0)
+            https://creativecommons.org/licenses/by-sa/4.0/
+            Share-alike applies to this music file only.
+
+skystrike_the_hawks_claw.mod     (flying)
+  Title:    The Hawk's Claw
+  Artist:   Drozerix (2022)
+  Source:   https://modarchive.org/index.php?request=view_by_moduleid&query=197917
+            (The Mod Archive, module ID 197917)
+  Licence:  Public Domain
+            https://creativecommons.org/licenses/publicdomain/
+
+skystrike_dog75.mod              (game over: killed, or no more aircraft)
+  Title:    dog75
+  Artist:   Songerson (2019)
+  Source:   https://modarchive.org/index.php?request=view_by_moduleid&query=190360
+            (The Mod Archive, module ID 190360)
+  Licence:  Creative Commons Attribution 4.0 International (CC BY 4.0)
+            https://creativecommons.org/licenses/by/4.0/
+
+
+Credit lines (the game shows them in short on the title's ticker and in the
+pause's key help; the scene header and docs/ports/SKYSTRIKE.md give them in full):
+  "Explore the sky" by BLuRry (1994), from The Mod Archive (ID 167145), licensed CC BY-SA 4.0
+  "The Hawk's Claw" by Drozerix (2022), from The Mod Archive (ID 197917), Public Domain
+  "dog75" by Songerson (2019), from The Mod Archive (ID 190360), licensed CC BY 4.0
