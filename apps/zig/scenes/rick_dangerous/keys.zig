@@ -7,6 +7,13 @@
 const io = @import("io.zig");
 
 pub const K_ESC: u32 = 0xE012;
+/// Left Ctrl / left Shift (docs/sealed-loader.js MOD_CODES): one-key shortcuts
+/// for the two stick-plus-fire moves, so nobody has to chord them. Ctrl = up +
+/// fire (the gun), Shift = down + fire (dynamite). They only set the same stick
+/// bits a player would, so the game hears nothing it could not hear from the
+/// joystick.
+pub const K_LCTRL: u32 = 0xE014;
+pub const K_LSHIFT: u32 = 0xE015;
 
 const UP: u8 = 1;
 const DOWN: u8 = 2;
@@ -18,6 +25,8 @@ pub const Pad = struct {
     arrows: u8 = 0,
     wasd: u8 = 0,
     fire: bool = false,
+    /// The bits held by the Ctrl / Shift shortcuts.
+    macro: u8 = 0,
     /// The keys down now (the scancode's bit), so a repeat makes nothing.
     held: u128 = 0,
 
@@ -53,8 +62,18 @@ pub const Pad = struct {
         return false;
     }
 
-    /// W A S D, Enter, 0: the joystick. True if it was one.
+    /// W A S D, Enter, 0, and the Ctrl / Shift shortcuts: the joystick. True if
+    /// it was one.
     fn stick(self: *Pad, cp: u32, down: bool) bool {
+        const m: u8 = switch (cp) {
+            K_LCTRL => UP | FIRE,
+            K_LSHIFT => DOWN | FIRE,
+            else => 0,
+        };
+        if (m != 0) {
+            if (down) self.macro |= m else self.macro &= ~m;
+            return true;
+        }
         const c: u32 = if (cp >= 'A' and cp <= 'Z') cp + 32 else cp;
         const b: u8 = switch (c) {
             'w' => UP,
@@ -75,7 +94,7 @@ pub const Pad = struct {
     }
 
     fn send(self: *Pad) void {
-        io.setStick(self.arrows | self.wasd | (if (self.fire) FIRE else 0));
+        io.setStick(self.arrows | self.wasd | self.macro | (if (self.fire) FIRE else 0));
     }
 };
 

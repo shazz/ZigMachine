@@ -261,6 +261,15 @@ async function live() {
     const x0 = rickX();
     demo.input(3); step(40, 20); demo.inputRelease(3); step(5, 20);
     if (rickX() <= x0) errors.push(`right did not move Rick (x ${x0} -> ${rickX()})`);
+    // left Ctrl / left Shift are the stick bits of up+fire / down+fire, nothing else
+    const stick = () => mem()[0x38cad];
+    for (const [code, want, name] of [[0xe014, 0x81, "left Ctrl"], [0xe015, 0x82, "left Shift"]]) {
+        demo.key(code); step(1, 20);
+        if (stick() !== want) errors.push(`${name} set the stick to $${stick().toString(16)}, not $${want.toString(16)}`);
+        demo.keyUp(code); step(1, 20);
+        if (stick() !== 0) errors.push(`${name} released left the stick at $${stick().toString(16)}`);
+        step(30, 20);
+    }
     // a 60 Hz host keeps the ST's 50 Hz: 10 s = ~500 VBLs
     const v0 = demo.rickTestVal(10);
     step(600, 1000 / 60);
@@ -280,7 +289,7 @@ async function live() {
     if (demo.pollCartRequest() !== -1) errors.push("Escape on the title did not leave for the menu");
     if (machine.hwRamAllocFailures()) errors.push(`${machine.hwRamAllocFailures()} zg.mem allocation(s) refused`);
     console.log(`  live: the title (${colours.size} colours, its tune), FIRE -> select -> intro -> level 1, ` +
-        `Rick walks, ${dv} ST VBLs in 10 s at 60 Hz, P pauses and resumes, Escape -> title -> leaves`);
+        `Rick walks, left Ctrl = up+fire and left Shift = down+fire, ${dv} ST VBLs in 10 s at 60 Hz, P pauses and resumes, Escape -> title -> leaves`);
     return errors;
 }
 

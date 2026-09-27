@@ -731,6 +731,10 @@ const KEY_CODES = {
     Insert: 0xE00B, Delete: 0xE00C,
     Undo: 0xE010, Help: 0xE011, Escape: 0xE012,
 };
+// The modifier keys, told apart by SIDE (evt.code, not evt.key): a game may bind
+// left Ctrl and left Shift as buttons of their own (Rick Dangerous: fire up /
+// dynamite). 0xE013 is ST Replay's K_ALT, so these start at 0xE014.
+const MOD_CODES = { ControlLeft: 0xE014, ShiftLeft: 0xE015, ControlRight: 0xE016, ShiftRight: 0xE017 };
 
 window.document.body.addEventListener('keydown', function (evt) {
     if (!demo) return;
@@ -779,6 +783,7 @@ window.document.body.addEventListener('keydown', function (evt) {
         else if (evt.key === "Enter") demo.key(13);
         else if (evt.key.length === 1) demo.key(evt.key.charCodeAt(0));
         else if (KEY_CODES[evt.key] !== undefined) { evt.preventDefault(); demo.key(KEY_CODES[evt.key]); }
+        else if (MOD_CODES[evt.code] !== undefined && !evt.repeat) demo.key(MOD_CODES[evt.code]);
     }
 });
 
@@ -800,7 +805,8 @@ const heldDirs = new Set(); // directions this page has seen go down and not up
 // The same for demo.keyUp's codes: a cart that owns the keyboard (a game: WASD,
 // fire, Space...) must see those released on focus loss too, or they stay down.
 const heldKeys = new Set();
-function keyUpCode(key) {
+function keyUpCode(key, code) {
+    if (MOD_CODES[code] !== undefined) return MOD_CODES[code];
     if (key === "Backspace") return 8;
     if (key === "Enter") return 13;
     if (key.length === 1) return key.charCodeAt(0);
@@ -814,7 +820,7 @@ window.document.body.addEventListener('keydown', function (evt) {
     const owns = demo.ownsKeyboard ? demo.ownsKeyboard() !== 0 : false;
     const dir = directionOf(evt.key, owns);
     if (dir >= 0) heldDirs.add(dir);
-    const code = keyUpCode(evt.key);
+    const code = keyUpCode(evt.key, evt.code);
     if (code >= 0 && demo.keyUp) heldKeys.add(code);
 });
 // No release while a swap is in flight (the cart window holds the next cart being
@@ -831,7 +837,7 @@ window.document.body.addEventListener('keyup', function (evt) {
         heldDirs.delete(dir);
         if (demo.inputRelease) demo.inputRelease(dir);
     }
-    const code = keyUpCode(evt.key);
+    const code = keyUpCode(evt.key, evt.code);
     if (code >= 0 && cartCallable() && demo.keyUp) {
         heldKeys.delete(code);
         demo.keyUp(code);

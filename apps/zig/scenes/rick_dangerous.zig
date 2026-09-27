@@ -20,7 +20,8 @@
 // on the ST's 50.053 Hz VBL clock, derived from the host's elapsed time, and
 // stops at each VBL wait the host's time has not reached (game.zig).
 //
-// CONTROLS. The joystick: the arrow keys (or W A S D), fire = Enter (or 0).
+// CONTROLS. The joystick: the arrow keys (or W A S D), fire = Enter (or 0);
+// left Ctrl = up + fire (shoot), left Shift = down + fire (dynamite).
 // The ST keyboard as the game reads it: P pauses (P again resumes), Space
 // swaps to the grey palette on the title, Escape restarts to the title
 // during a game and leaves the cart on the title.
