@@ -156,6 +156,7 @@ for t in \
     machine/beam_test.zig \
     machine/arena_test.zig \
     libs/zig/mem_test.zig \
+    libs/zig/sndh_call_test.zig \
     libs/zig/shapes_test.zig \
     libs/zig/wireframe_test.zig \
     libs/zig/tvnoise/tvnoise.zig \
@@ -208,6 +209,8 @@ node apps/tunein_check.mjs --fail-proof docs/demo-c.wasm docs/demo-rust.wasm   #
 gate gem node apps/gem_headless.mjs "$SHOTS"
 gate sndh node apps/sndh_headless.mjs
 gate sndh_relocate node apps/sndh_relocate_check.mjs   # a tune that installs its own MFP vectors (Alloy Run) plays: images load at $10002
+gate sndh_call node apps/sndh_call_check.mjs   # zg.sndhCall: INIT on the RUNNING tune leaves the untouched channel, Timer A's phase and the position exactly as an untouched run's
+gate sndh_call node apps/sndh_call_check.mjs --break   # ...and a reload in its place is caught
 gate c_music timeout 180 node apps/c_music_check.mjs   # a C cart's song request reaches the sealed YM (timeout: it once hung a gate)
 gate union_demo_music node apps/union_demo_music_check.mjs   # the Union Demo menu's and cracktro's SNDH tunes are requested by name and play
 gate union_demo_music node apps/union_demo_music_check.mjs --fail-proof   # ...and a wrong tune name fails that check
@@ -245,12 +248,13 @@ gate north_south node apps/north_south_headless.mjs --break   # ...and one poked
 gate joust node apps/joust_headless.mjs "$SHOTS/joust"   # JOUST (the game): two recorded games (1P TAS 18,293 frames to wave 9, 2P TAS 7,015 frames) replayed from power-on in lockstep with the harness's title key and joystick bytes: every frame takes the real program's VBL count and starts its Dosound scripts, every 25th frame start the game RAM + screen hash and the CPU cycle count are the real program's; live: the title and the game on the plane pixel for pixel, '1' starts, P/any key/R/Escape, 50 Hz time on a 60 Hz host; joust_sfx.sndh leaves the YM where TOS's Dosound leaves it for all 16 scripts
 gate joust node apps/joust_headless.mjs --break joy "$SHOTS/joust"   # ...and one flipped fire bit fails the replay checks
 gate joust node apps/joust_headless.mjs --break clock "$SHOTS/joust"   # ...and 4 extra CPU cycles once fail them
-gate rick_dangerous node apps/rick_dangerous_headless.mjs "$SHOTS/rick_dangerous"   # RICK DANGEROUS (the game): 18 recorded runs (10,890 frames: the level walks, deaths, GAME OVER, the name entries, the menus, the bots through all 4 levels) replayed in lockstep with the original's ACIA / Timer A bytes: every frame takes the original's VBLs and leaves its RAM + both screens + palette with the reference model's CRC, makes its play_sound requests (dropped or not) and the SNDH subtune requests they imply; live: title + tune, FIRE -> select -> intro -> level 1, the plane is the ST screen, 50 Hz time on a 60 Hz host, P, Escape; rick_dangerous.sndh's own driver RAM = the cart's for all 87 subtunes
+gate rick_dangerous node apps/rick_dangerous_headless.mjs "$SHOTS/rick_dangerous"   # RICK DANGEROUS (the game): 18 recorded runs (10,890 frames: the level walks, deaths, GAME OVER, the name entries, the menus, the bots through all 4 levels) replayed in lockstep with the original's ACIA / Timer A bytes: every frame takes the original's VBLs and leaves its RAM + both screens + palette with the reference model's CRC, makes its play_sound requests (dropped or not) and the SNDH load / zg.sndhCall requests they imply, in order; live: title + tune, FIRE -> select -> intro -> level 1, the plane is the ST screen, 50 Hz time on a 60 Hz host, P, Escape; rick_dangerous.sndh's own driver RAM = the cart's for all 87 subtunes, and with later requests sndhCall-ed on the RUNNING driver (every id, the paired shot, dynamite x2)
 gate rick_dangerous node apps/rick_dangerous_headless.mjs --break joy "$SHOTS/rick_dangerous"   # ...and one wrong stick byte fails the state CRC
 gate rick_dangerous node apps/rick_dangerous_headless.mjs --break vbl "$SHOTS/rick_dangerous"   # ...and one VBL interrupt too many fails the VBL count
 gate rick_dangerous node apps/rick_dangerous_headless.mjs --break sound "$SHOTS/rick_dangerous"   # ...and the drop rule's input flipped fails the play_sound check
 gate rick_dangerous node apps/rick_dangerous_headless.mjs --break alloc "$SHOTS/rick_dangerous"   # ...and a refused zg.mem allocation fails the run
 gate rick_dangerous node apps/rick_dangerous_headless.mjs --break sndh "$SHOTS/rick_dangerous"   # ...and the SNDH on the wrong subtune fails the driver RAM check
+gate rick_dangerous node apps/rick_dangerous_headless.mjs --break reload "$SHOTS/rick_dangerous"   # ...and a later request forwarded as a reload (not an sndhCall) fails the resident check
 gate tcb_spreadpoint node apps/tcb_spreadpoint_headless.mjs "$SHOTS/tcb_spreadpoint"   # TCB SPREADPOINT (CODEF 469): screen.js replayed (intro fades, angle table, balls, 33-speed scroller, DNA scrolltext) and at 12 frames across the intro and 6000 main-part iterations the plane is its indices pixel for pixel; the 3 rasters are HBL register writes (entries 2..6 hold the tables on every line, <=4 changes a line) and every composited pixel is its line's colour; tcb_spreadpoint.sndh requested once, at the main part, and plays
 gate tcb_spreadpoint node apps/tcb_spreadpoint_headless.mjs --break hbl "$SHOTS/tcb_spreadpoint"   # ...and a plane whose HBL never runs is caught
 gate tcb_spreadpoint node apps/tcb_spreadpoint_headless.mjs --break step "$SHOTS/tcb_spreadpoint"   # ...and one frame out of step with screen.js is caught

@@ -11,10 +11,11 @@
 ;
 ; A ZigMachine cart cannot write the YM itself, so the battle REQUESTS a
 ; subtune of this image whenever the game calls play_seq: SUBTUNE n+1 PLAYS
-; SEQUENCE n. Loading the image cuts whatever was playing and init arms
-; sequence n; its first sample starts on the next play call (the next VBL),
-; as play_seq ($4BD6) followed by the VBL sequencer did. There is one voice
-; and no priority: the last request wins, exactly as in the game.
+; SEQUENCE n. The request is a zg.sndhCall of init on the running image (the
+; first one loads it): init cuts whatever was playing and arms sequence n;
+; its first sample starts on the next play call (the next VBL), as play_seq
+; ($4BD6) followed by the VBL sequencer did. There is one voice and no
+; priority: the last request wins, exactly as in the game.
 ;
 ; The routines below are ns.app's own, transcribed instruction for
 ; instruction (flat addresses in the comments; RAM = flat + $D0A8):

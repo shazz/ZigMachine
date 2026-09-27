@@ -477,12 +477,42 @@ pub const SndhPlayer = struct {
     pub fn start(self: *SndhPlayer, tune: u8) void {
         if (self.info.hz == 0) return;
         self.tune = if (tune >= 1 and tune <= self.info.subtunes) tune else self.info.default_tune;
+        self.begin(self.tune);
+    }
+
+    /// Start with INIT's d0 exactly as given, no subtune clamp: the host's
+    /// fallback when zg.sndhCall names an image that is not the one playing,
+    /// so the call's d0 (a resident flag, say) becomes the image's first INIT.
+    pub fn startRaw(self: *SndhPlayer, d0: u32) void {
+        if (self.info.hz == 0) return;
+        self.begin(d0);
+    }
+
+    fn begin(self: *SndhPlayer, d0: u32) void {
         silence();
         mfpReset(); // a fresh MFP, as TOS would hand it over
-        self.active = self.call(sndh.INIT, self.tune);
+        self.active = self.call(sndh.INIT, d0);
         self.frame_acc = 0;
         self.frames_played = 0;
         self.rearm(); // init is where a tune programs its digidrum timer
+    }
+
+    /// zg.sndhCall: INIT again, as a subroutine with d0, on the image that is
+    /// ALREADY playing -- no load, no silence(), no MFP reset, and the replay
+    /// clock (frame_acc, frames_played) and every running timer's phase are
+    /// kept. rearm() then picks up only what INIT itself changed in the MFP: a
+    /// timer it stopped stops, one it started is due a period from now.
+    ///
+    /// The worklet applies a call between two render blocks, so every play
+    /// tick due before that point has run and the next comes on its old
+    /// schedule: a call lands BETWEEN two ticks, as a game's main loop calling
+    /// its driver between two VBL interrupts does. False if nothing is playing
+    /// or INIT ran away (the tune is then stopped, as a runaway play would be).
+    pub fn callInit(self: *SndhPlayer, d0: u32) bool {
+        if (!self.active) return false;
+        if (!self.call(sndh.INIT, d0)) return self.derail();
+        self.rearm();
+        return true;
     }
 
     /// How far into the tune we are, in milliseconds.

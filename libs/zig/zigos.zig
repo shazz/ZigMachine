@@ -200,6 +200,43 @@ pub fn requestSongTune(name: []const u8, tune: u8) void {
     g_song_len = n;
     g_song_tune = tune;
     g_song_pending = true;
+    g_sndh_calls.clear(); // this request reloads (or stops) what they would run on
+}
+
+// --- zg.sndhCall: INIT again on the RUNNING SNDH (libs/zig/sndh_call.zig) ---
+const sndh_call = @import("sndh_call.zig");
+var g_sndh_calls: sndh_call.Queue = .{};
+comptime { // a name the song bridge takes, a call must take too
+    std.debug.assert(sndh_call.NAME_MAX == g_song_name.len);
+}
+
+/// Run the playing SNDH's INIT again with d0 = `d0`, as a subroutine: no
+/// reload, no chip or MFP reset, the replay clock and the timers' phase kept.
+/// For a game's sound effects, which a song request (a LOAD) would cut every
+/// voice for. Every call of a frame reaches the tune, in order; a song
+/// request or stopSong() made after them discards them. If `name` is not the
+/// image playing, the host loads it and d0 is its first INIT (unclamped).
+/// False when refused (queue full at 16 a frame, or a bad name): counted in
+/// sndhCallsDropped().
+pub fn sndhCall(name: []const u8, d0: u16) bool {
+    return g_sndh_calls.push(name, d0);
+}
+pub fn sndhCallsDropped() u32 {
+    return g_sndh_calls.dropped;
+}
+/// The host's side (apps/zig/demo_main.zig exports): how many calls this
+/// frame, then each one's d0 and the image's name.
+pub fn takeSndhCalls() usize {
+    return g_sndh_calls.take();
+}
+pub fn sndhCallD0(i: usize) u32 {
+    return g_sndh_calls.d0At(i);
+}
+pub fn sndhCallNamePtr() [*]const u8 {
+    return &g_sndh_calls.name;
+}
+pub fn sndhCallNameLen() usize {
+    return g_sndh_calls.name_len;
 }
 /// A ProTracker MOD started at `bpm` (32..255) instead of ProTracker's 125, for
 /// a replay whose own default differs (TRSI's Falcon replay starts at 123). A

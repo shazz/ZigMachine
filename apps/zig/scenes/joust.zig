@@ -29,7 +29,7 @@
 //
 // SOUND. The game's 16 Dosound scripts and the start-up siren, played by
 // joust_sfx.sndh (apps/zig/assets/screens/joust/sfx.s): each script the game
-// starts requests that subtune. The game itself runs TOS's Dosound
+// starts is a zg.sndhCall of that INIT on the running image. The game itself runs TOS's Dosound
 // interpreter inside the machine, because it reads the chip back.
 //
 // HIGH SCORE. HIGH.SCO seeds it; a new one lives in the machine's memory for
@@ -158,11 +158,17 @@ pub const Demo = struct {
 
     /// The scripts the game started since the last host frame: the latest one
     /// is what the chip plays (its priority test already ran in the game).
+    /// A zg.sndhCall, not a reload: sfx.s's INIT is Dosound itself (it only
+    /// points the interpreter at the script), so on the running image the old
+    /// script sounds until the new one's first tick, as under TOS, and nothing
+    /// is refetched. Every call of a frame would land at the same instant, so
+    /// only the last pointer would survive anyway. The host loads the image on
+    /// the first call (and the first after stopSong).
     fn sounds(self: *Demo) void {
         const st = &self.m.st;
         if (st.sfx_n != 0) {
             const n = st.sfx_log[st.sfx_n - 1];
-            zg.requestSongTune(MUSIC, n + 1);
+            _ = zg.sndhCall(MUSIC, @as(u16, n) + 1); // refused only past 16 a frame
             st.sfx_n = 0;
         }
     }

@@ -92,6 +92,61 @@ zm_stop_song();         // C
 zigmachine_music::stop_song();   // Rust
 ```
 
+## Sound effects: calling the running SNDH
+
+A song request is a **load**: the host fetches the file, the player clears the
+68000's RAM around the image, silences the YM, resets the MFP and runs INIT.
+Right for a new tune; wrong for a game's sound effect, which would cut every
+voice, envelope and digi still sounding, where the original lets them finish.
+
+`zg.sndhCall(name, d0)` runs the **playing** image's INIT again, as a
+subroutine with `d0`: no fetch, no reload, no chip or MFP reset. The replay
+clock and every running timer keep their phase; afterwards the player re-reads
+the MFP, so a timer INIT stopped stops and one it started is due a period from
+then. The image decides what `d0` means. A driver that must not reinstall
+itself takes a flag (Rick Dangerous's `sound.s`: bit 15 = resident); an INIT
+that only points the replay at a new sequence (Joust's Dosound scripts, North
+& South's `play_seq`) needs none.
+
+```zig
+zg.requestSongTune("rick_dangerous.sndh", sub);           // the first sound: a LOAD
+_ = zg.sndhCall("rick_dangerous.sndh", 0x8000 | sub2);    // later ones: INIT on the running driver
+```
+```c
+zm_sndh_call("joust_sfx.sndh", n + 1);            // C (returns 0 when refused)
+```
+```rust
+zigmachine_music::sndh_call("joust_sfx.sndh", n + 1);   // Rust (false when refused)
+```
+
+The rules:
+
+- **Every call of a frame gets through, in order** (up to 16 a frame; a refused
+  call is counted: `zg.sndhCallsDropped()` / `zm_sndh_calls_dropped()`).
+- **A song request or a stop made after calls discards them**: it reloads or
+  stops the image they would run on. The host drains the calls after the
+  frame's song request, so this keeps the two in the cart's order.
+- **Calls land between two play ticks.** The worklet applies them between two
+  render blocks (128 samples, 2.9 ms): every tick due before has run, the next
+  comes on its old schedule. That is where a game's main loop calls its driver,
+  between two VBL interrupts.
+- **An image that is not the one playing is loaded first**, and the call's `d0`
+  is its first INIT, unclamped (`audioSndhPlayRaw`). An image with a resident
+  flag must handle that flag on a fresh load, so `sound.s` checks an
+  `installed` byte before skipping the install.
+- **An INIT that is called again must not allocate.** Only a load resets the
+  68000 heap, so an INIT that asks GEMDOS `Malloc` for a buffer uses up more
+  heap on every call. Allocate once, on the first INIT.
+- **Calls made while sound is off are dropped, not kept.** A song request
+  waits for the first gesture; a stale effect firing when sound comes on
+  would be wrong.
+
+Proofs: `apps/sndh_call_check.mjs` (a call leaves the untouched channel, Timer
+A's phase and the position exactly as an untouched run's; a reload in its
+place is caught) and the Rick Dangerous harness's resident check (the running
+driver's RAM equals the cart's transcription, tick for tick, with later
+requests, the paired shot and dynamite's double play among them).
+
 ## Rules and limits
 
 - **Names** are paths under `docs/music/`, at most 64 bytes, no `..` and no

@@ -30,13 +30,16 @@
 ; Timer A is the SNDH player's MFP: the tick programs TACR/TADR and the
 ; handler writes each sample byte through the $3524E volume table.
 ;
-; A ZigMachine cart cannot poke the running tune, so a request is a SUBTUNE:
+; A request is a SUBTUNE:
 ;   subtune = 1 + id + 29 x v,   id 0..28 (the sound table $3498A)
 ;   v = 0 / 1   d1 = 0, with sfx_alt ($34A85) = 0 / 1: the voice the game's
 ;               alternating effects take
 ;   v = 2       d1 = 1 (the effect's voice is 2; a tune loops)
-; Loading the image restarts the driver, so an effect still sounding on
-; ANOTHER voice is cut by the next request (the game would let it finish).
+; The cart's first request (and the first after a sound off) LOADS the image
+; (zg.requestSongTune). Every later one is a zg.sndhCall with d0 = RESIDENT +
+; subtune: INIT again on the running driver, which only sets sfx_alt from v
+; and calls play_sound, so an effect still sounding on ANOTHER voice finishes,
+; as in the game. The drop rule is the driver's own, on the audio clock.
 ;
 ; Build (from the repository root; vasm 1.9, /home/matt/projects/MJJ/bin/vasm):
 ;   vasmm68k_mot -Fbin -nosym -o docs/music/rick_dangerous.sndh \
@@ -51,6 +54,7 @@ PLAY_SOUND	equ	$34750
 TICK		equ	$3488E
 TIMERA_INSTALL	equ	$34A88
 SFX_ALT		equ	$34A85
+RESIDENT_BIT	equ	15
 
 	bra.w	init
 	bra.w	exit
@@ -66,10 +70,19 @@ SFX_ALT		equ	$34A85
 	dc.b	"HDNS"
 	even
 
-; d0 = subtune (1..87)
+; d0 = subtune (1..87), + RESIDENT (bit 15) for a zg.sndhCall on the running
+; driver: no copy, no Timer A install, no sound off -- just the request, so
+; the effects and the digi already sounding go on, as in the game. A resident
+; d0 on a fresh image (the host's load-then-call fallback) installs first.
 init:
 	movem.l	d0-d7/a0-a6,-(sp)
 	move.w	d0,d7
+	bclr	#RESIDENT_BIT,d7
+	beq.s	.install
+	lea	installed(pc),a0
+	tst.b	(a0)
+	bne.s	.request
+.install:
 	lea	driver(pc),a0			; the driver + the player, contiguous
 	lea	DRIVER,a1
 	move.w	#(driver_end-driver)/2-1,d0
@@ -82,6 +95,9 @@ init:
 	dbra	d0,.c2
 	jsr	TIMERA_INSTALL			; the game's own start-up call
 	jsr	SOUND_OFF
+	lea	installed(pc),a0
+	st	(a0)
+.request:
 	subq.w	#1,d7
 	bmi.s	.none
 	and.l	#$FFFF,d7
@@ -108,6 +124,9 @@ exit:
 play:
 	jsr	TICK
 	rts
+
+installed:
+	dc.b	0				; set once the driver sits at $34692
 
 	even
 driver:

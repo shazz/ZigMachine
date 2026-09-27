@@ -8,8 +8,9 @@
 ; sweep written straight into the PSG through Giaccess.
 ;
 ; A ZigMachine cart cannot write the YM itself: its only door to the chip is
-; the song bridge. So the cart requests a subtune of this image each time
-; the game starts a script, and this image plays that script with TOS's own
+; the song bridge. So the cart calls this image's INIT (zg.sndhCall, on the
+; running image: init only re-points the interpreter, as Dosound does) each
+; time the game starts a script, and this image plays that script with TOS's own
 ; Dosound semantics (the cart runs the same interpreter inside the machine,
 ; because the game reads the chip back: $0AC8).
 ;

@@ -365,6 +365,7 @@ async function instantiateCart(bytes, what) {
         // next one. The audio half lives on the worklet thread, so it is a
         // message rather than a call.
         if (audioNode) audioNode.port.postMessage({ type: "reset" });
+        sndhResident = null; // ...and the new cart's first zg.sndhCall loads its image
         cartTrapped = false; // a fresh cart runs again
         return mod;
     } catch (e) {
@@ -653,6 +654,17 @@ function start() {
             playSongByName(text_decoder.decode(
                 new Uint8Array(memory.buffer, demo.songNamePtr(), demo.songNameLen())),
                 demo.songTune ? demo.songTune() : 0);
+        }
+        // zg.sndhCall: the frame's calls to the RUNNING SNDH, after its song
+        // request (a request made after them already discarded them, in the
+        // cart). Drained every frame; without sound they are dropped, not kept.
+        if (demo.pollSndhCalls) {
+            const n = demo.pollSndhCalls();
+            if (n && audioCtx) {
+                const name = text_decoder.decode(
+                    new Uint8Array(memory.buffer, demo.sndhCallNamePtr(), demo.sndhCallNameLen()));
+                for (let i = 0; i < n; i++) sndhCallByName(name, demo.sndhCallD0(i));
+            }
         }
 
         let anyPlane = false;
@@ -961,6 +973,10 @@ let audioReady = null;
 let streamRate = null;     // active stream scene's sample rate (set by the scene), or null
 let streamStarted = false; // have we issued streamStart to the CURRENT audioNode yet?
 let recentChunks = [];     // rolling copies of recent fed blocks, to pre-fill the ring on (re)start
+// The SNDH the worklet has (or is about to have) loaded, for zg.sndhCall:
+// { name, gen, ready } where `ready` resolves once its loadSndh is POSTED, so a
+// call chained on it reaches the worklet after the load. null = none.
+let sndhResident = null;
 
 function startAudio() {
     if (audioReady) return audioReady;
@@ -1000,6 +1016,11 @@ function startAudio() {
                         ? `SNDH playing (${msg.len} bytes staged)`
                         : `SNDH REJECTED (${msg.len} bytes) stuckPc=${hex(msg.stuckPc)} trap=${hex(msg.trap)}`);
                 }
+                else if (msg.type === "sndhCallMissed") {
+                    const hex = (v) => "$" + (v >>> 0).toString(16);
+                    console.warn(`zg.sndhCall(d0=${hex(msg.d0)}) found no SNDH playing` +
+                        (msg.stuckPc ? `: INIT ran away at ${hex(msg.stuckPc)}` : ""));
+                }
                 else if (msg.type === "audioState") {
                     // These write through the running cart's pointers. During a swap
                     // those addresses belong to the cart being unpacked: skip.
@@ -1037,6 +1058,7 @@ async function main() {
     if (audioCtx) {
         try { await audioCtx.close(); } catch (e) {}
         audioCtx = null; audioNode = null; audioReady = null;
+        sndhResident = null; // the SNDH died with the context
         streamStarted = false; // the ring player died with the context; re-arm for next start
         if (button) button.textContent = "Sound on";
         return;
@@ -1066,12 +1088,16 @@ async function playYm(url, gen) {
     audioNode.port.postMessage({ type: "loadYm", bytes: bytes }, [bytes]);
     const b = document.querySelector('.sound_button'); if (b) b.textContent = "Sound off";
 }
-async function playSndh(url, tune, gen) {
+// `d0` (optional): zg.sndhCall's fallback -- INIT runs with this d0, unclamped,
+// instead of starting subtune `tune`.
+async function playSndh(url, tune, gen, d0) {
     await startAudio();
     if (!audioNode) return; // no audio in this context
     const bytes = await fetch(url).then(r => r.arrayBuffer());
     if (gen !== undefined && gen !== songGen) return; // a newer song request (or a stop) won
-    audioNode.port.postMessage({ type: "loadSndh", bytes: bytes, tune: tune || 0 }, [bytes]);
+    const msg = { type: "loadSndh", bytes: bytes, tune: tune || 0 };
+    if (d0 !== undefined) msg.d0 = d0;
+    audioNode.port.postMessage(msg, [bytes]);
     const b = document.querySelector('.sound_button'); if (b) b.textContent = "Sound off";
 }
 
@@ -1098,6 +1124,7 @@ async function playRaw(url, rate, unsigned, gen) {
 let songGen = 0;
 function playSongByName(name, tune) {
     const gen = ++songGen;
+    sndhResident = null; // whatever this request is, it replaces the SNDH playing
     // "none" is the reserved stop request (zg.stopSong / zm_stop_song / stop_song):
     // the same player reset the machine does when a program ends.
     if (name === "none") { if (audioNode) audioNode.port.postMessage({ type: "reset" }); return; }
@@ -1106,8 +1133,24 @@ function playSongByName(name, tune) {
     if (name.endsWith(".mod")) playMod(url, gen, tune); // a MOD's tune field is its start BPM
     else if (name.endsWith(".ymraw")) playYm(url, gen);
     // Only an SNDH has subtunes; `tune` counts from 1, 0 = the image's default.
-    else if (name.endsWith(".sndh")) playSndh(url, tune, gen);
+    else if (name.endsWith(".sndh")) sndhResident = { name, gen, ready: playSndh(url, tune, gen) };
     else if (name.endsWith(".raw")) playRaw(url, 12517, false, gen);
+}
+// zg.sndhCall(name, d0): INIT(d0) on the SNDH already playing, no fetch and no
+// reload. If `name` is not that image, load it and let d0 be its first INIT
+// (so a later call chains on this load). Posted after the load's own message,
+// so the worklet always sees load -> call, in the cart's order.
+function sndhCallByName(name, d0) {
+    if (!name.endsWith(".sndh") || name.includes("..") || name.startsWith("/")) return;
+    const r = sndhResident;
+    if (r && r.name === name) {
+        r.ready.then(() => {
+            if (r.gen === songGen && audioNode) audioNode.port.postMessage({ type: "sndhCall", d0 });
+        }).catch(() => {}); // a failed load already reported itself; one report is enough
+        return;
+    }
+    const gen = ++songGen;
+    sndhResident = { name, gen, ready: playSndh("music/" + name, 0, gen, d0) };
 }
 
 // Boot-sector beep: a raw YM2149 tone (no song player). Exposed to the boot program
@@ -1138,6 +1181,7 @@ function flushPendingStream() {
     if (streamRate === null || !audioNode || streamStarted) return;
     streamStarted = true;
     audioNode.port.postMessage({ type: "streamStart", rate: streamRate });
+    sndhResident = null; // the ring is written over the SNDH's 68000 RAM
     for (const chunk of recentChunks) {
         const bytes = chunk.slice().buffer;
         audioNode.port.postMessage({ type: "streamFeed", bytes }, [bytes]);

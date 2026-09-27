@@ -72,6 +72,7 @@ comptime {
         @export(&testapi.refuse, .{ .name = "rickTestRefuse" });
         @export(&testapi.sndBegin, .{ .name = "rickTestSndBegin" });
         @export(&testapi.sndTick, .{ .name = "rickTestSndTick" });
+        @export(&testapi.sndPlay, .{ .name = "rickTestSndPlay" });
         @export(&testapi.memPtr, .{ .name = "rickTestMemPtr" });
         @export(&testapi.palPtr, .{ .name = "rickTestPalPtr" });
         @export(&testapi.vbase, .{ .name = "rickTestVbase" });
@@ -118,7 +119,6 @@ pub const Demo = struct {
             limit = game.vbls + MAX_BEHIND;
         }
         machine.run(limit);
-        snd.flush();
         snd.log_n = 0;
     }
 
