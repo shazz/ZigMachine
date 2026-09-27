@@ -256,12 +256,25 @@ async function firstChannel(wanted) {
     return has ? wanted : list[0].tag;
 }
 
+// Tune straight to one channel: the ONE way a channel is changed, by +/- and by
+// the cart selector (cart-select.js) alike, so both get the same guard against
+// the async swap race, the same snow, audio reset and name card. swapCart sets
+// currentTag once the new cart is up, so +/- then step on from it. False when
+// refused: a swap already in flight, no machine yet, or not a channel.
+async function tuneToChannel(tag) {
+    if (swapping || !demo) return false;
+    if (!(await loadChannels()) || !channels.some((c) => c.tag === tag)) return false;
+    if (swapping) return false; // another swap started while the list loaded
+    swapCart(1, tag);
+    return true;
+}
+
 async function changeChannel(step) {
     if (swapping || !demo) return;
     if (!(await loadChannels())) return;
     const at = channels.findIndex((c) => c.tag === currentTag);
     const next = at < 0 ? 0 : (at + step + channels.length) % channels.length;
-    swapCart(1, channels[next].tag);
+    tuneToChannel(channels[next].tag);
 }
 function nextChannel() { changeChannel(1); }
 function previousChannel() { changeChannel(-1); }
