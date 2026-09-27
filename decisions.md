@@ -36,12 +36,15 @@ every such port would rediscover the bug. Modelling ISR blocking too: it only
 matters for nesting, which the synchronous player never does, and it risks
 silencing a handler that skips its end-of-interrupt.
 
-**Consequences:** Across all 389 subtunes on the shelf (30 s each), 386 render
+**Consequences:** Across all 389 subtunes on the shelf (120 s each), 386 render
 byte-identical. Three change, each because the tune masks a timer with IMR and
-the old player ignored it: Crystallized's Timer B voice and Elite's Timers A
-and D (both SID voices masked for a frame at a time), and one register write
-in VEX. A tune that starts a timer without enabling its interrupt now goes
-silent, as it would on an ST. None on the shelf does.
+the old player ignored the mask: Crystallized's Timer B SID voice, Elite's
+Timers A and D, and VEX's Timers A and D (Elite and VEX use the same SID
+player). Each masks a voice for whole frames at a time, and the handler used
+to run on. The output peaks are unchanged, and there are 0.3-3.5% fewer YM
+register changes. A tune that starts a timer without
+enabling its interrupt now goes silent, as it would on an ST. None on the shelf
+does; the sndh_call check's hand-made tune did, and now enables Timer A.
 
 ---
 
