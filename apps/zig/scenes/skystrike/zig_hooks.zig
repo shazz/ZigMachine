@@ -14,6 +14,8 @@
 //             from the game loop; cleared the moment the program leaves the
 //             game's labels (a briefing, the title, the hall of fame)
 //   live_sx, live_al   the sector and layer that back screen shows
+//   screen    what the physic screen holds off the world (zig_screens.zig):
+//             told by tscreen.zig, hiscore.zig and mission.zig as it changes
 // --------------------------------------------------------------------------
 const scr = @import("scr.zig");
 const flow = @import("flow.zig");
@@ -34,6 +36,34 @@ var drawing: bool = false;
 /// The harness's copy of the back screen as each live draw left it.
 pub var capture: []u8 = &.{};
 
+/// What the physic screen holds off the world: the title-style screen (a
+/// world scene: the title, the menu, a briefing), the hall of fame (its
+/// picture, the table and the name entry on it), or any other picture.
+pub const Screen = enum { picture, scene, hall };
+pub var screen: Screen = .picture;
+/// Bumped each time a new one is shown (the ZIG caches key on it).
+pub var screen_gen: u32 = 0;
+
+/// The game's code: the physic screen now holds `s`. Only ZIG's own buffers
+/// are written (the title's scroller band, the hall's picture), in both
+/// modes, so Z can be pressed at any moment.
+pub fn shows(s: Screen) void {
+    screen = s;
+    screen_gen +%= 1;
+    switch (s) {
+        .scene => @import("zig_intro.zig").shown(),
+        .hall => @import("zig_hall.zig").shown(),
+        .picture => {},
+    }
+}
+
+/// text.zig: a character cell was drawn (the hall keeps its text apart).
+/// Not from a sandboxed draw: the sandbox puts back only the game's state,
+/// and that cell never reached the physic screen.
+pub fn textCell(c: u8, col: i32, row: i32) void {
+    if (screen == .hall and !sandbox) @import("zig_hall.zig").cell(c, col, row);
+}
+
 pub fn reset() void {
     sandbox = false;
     drawing = false;
@@ -42,6 +72,8 @@ pub fn reset() void {
     live_al = 0;
     draws = 0;
     rounds = 0;
+    screen = .picture;
+    screen_gen +%= 1;
     @import("zig_craters.zig").reset();
 }
 

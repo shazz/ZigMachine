@@ -17,6 +17,7 @@ const briefing = @import("briefing.zig");
 const hud = @import("hud.zig");
 const snd = @import("sound.zig");
 const assets = @import("assets.zig");
+const hooks = @import("zig_hooks.zig");
 const V = @import("vars.zig");
 const v = &V.v;
 
@@ -111,6 +112,7 @@ fn l1690b() flow.Act {
 /// 1690: the paper, music 3, fade to it, a key; the war is won.
 fn l1690c() flow.Act {
     boot.unpackTo(assets.NEWS, .physic);
+    hooks.shows(.picture);
     snd.music(3);
     S.fadeTo(5, .back);
     input.clearKey();
@@ -137,6 +139,7 @@ fn l1698b() flow.Act {
 fn l1699() flow.Act {
     snd.musicOff();
     text.clw();
+    hooks.shows(.picture);
     v.nf = 1;
     scene.panel();
     hud.panel710();

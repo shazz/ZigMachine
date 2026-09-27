@@ -8,6 +8,7 @@
 // --------------------------------------------------------------------------
 const assets = @import("assets.zig");
 const gfx = @import("gfx.zig");
+const hooks = @import("zig_hooks.zig");
 
 pub const COLS: i32 = 40;
 pub const ROWS: i32 = 25;
@@ -36,16 +37,19 @@ pub fn ygraphic(row: i32) i32 {
     return row * 8;
 }
 
-fn glyph(c: u8) []const u8 {
+pub fn glyph(c: u8) []const u8 {
     const i: usize = if (c < 32) 0 else c - 32;
     return assets.FONT[i * 8 ..][0..8];
 }
 
+/// Line j of character c's cell as PRINT draws it now (UNDER fills the last).
+pub fn cellBits(c: u8, j: usize) u8 {
+    return if (under and j == 7) 0xFF else glyph(c)[j];
+}
+
 fn cellOn(b: []u8, c: u8, col: i32, row: i32) void {
-    const g = glyph(c);
     for (0..8) |j| {
-        var bits = g[j];
-        if (under and j == 7) bits = 0xFF;
+        const bits = cellBits(c, j);
         const o: usize = @intCast((row * 8 + @as(i32, @intCast(j))) * 320 + col * 8);
         for (0..8) |i| b[o + i] = if (bits >> @intCast(7 - i) & 1 != 0) pen else paper;
     }
@@ -54,6 +58,7 @@ fn cellOn(b: []u8, c: u8, col: i32, row: i32) void {
 pub fn putChar(c: u8) void {
     var tb: [2][]u8 = undefined;
     for (gfx.targets(&tb)) |b| cellOn(b, c, cx, cy);
+    hooks.textCell(c, cx, cy);
     cx += 1;
     if (cx >= COLS) newline();
 }

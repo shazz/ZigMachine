@@ -10,13 +10,17 @@
 //                drawn, 10 rebuilds, 11 shifts, 12/13 the pan (ring coords),
 //                14/15 the camera (world), 16 sandboxed draws, 17 sandboxed
 //                draws that made a sound (checked 0), 18 sound commands
-//                sent, 20+i the i'th sent (op << 8 | arg); 60-63 tracers
+//                sent, 19 the screen off the world (0 picture, 1 scene,
+//                2 hall), 20+i the i'th sent (op << 8 | arg); 60-63 tracers
 //                shown, their two colours, the key help shown; 64/65 craters
 //                made / filled in, 66-68 the ghx9 / sno9 / so9 addresses
 //   poke(300+k)  70 the crater lifetime in VBLs (0 never), 71 fullscreen
 //                screens on / off
-//   ptr(5..7)    5 the ring (960 x 540, the world plane's buffer), 6 the
-//                capture (320 x 200), 7 the overlay (400 x 280)
+//   ptr(5..11)   5 the ring (960 x 540, the world plane's buffer), 6 the
+//                capture (320 x 200), 7 the overlay (400 x 280), 8 the
+//                title's scroller zone as kept (176 x 8), 9 the intro's
+//                borders (400 x 240), 10 / 11 the hall's picture and text
+//                (320 x 200 each, 255 = no text)
 // --------------------------------------------------------------------------
 const zg = @import("zigos");
 const scr = @import("scr.zig");
@@ -70,6 +74,7 @@ fn more(k: u32) i32 {
         16 => @bitCast(sandbox.renders),
         17 => @bitCast(sandbox.leaks),
         18 => @intCast(sound.sent_n),
+        19 => @intFromEnum(hooks.screen),
         60 => @bitCast(@import("zig_tracers.zig").shown),
         61 => @import("zig_tracers.zig").ink,
         62 => @import("zig_tracers.zig").tail,
@@ -97,6 +102,14 @@ pub fn ptr(what: u32) ?[*]u8 {
         5 => ring.buf.ptr,
         6 => if (hooks.capture.len != 0) hooks.capture.ptr else null,
         7 => if (scroll.over_px.len != 0) scroll.over_px.ptr else null,
+        8 => &@import("zig_intro.zig").zone,
+        9 => orNull(@import("zig_intro.zig").tiles),
+        10 => orNull(@import("zig_hall.zig").pic),
+        11 => orNull(@import("zig_hall.zig").layer),
         else => null,
     };
+}
+
+fn orNull(b: []u8) ?[*]u8 {
+    return if (b.len != 0) b.ptr else null;
 }

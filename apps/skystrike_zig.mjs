@@ -13,8 +13,10 @@
 //       untouched, none in ORIGINAL                  apps/skystrike_zig_sound.mjs
 //   pause  P: the key help over ZIG's pause, not ORIGINAL's; the CRC the same
 //       before, during, after                        apps/skystrike_zig_pause.mjs
-//   screens  the title, menu, briefing, hall of fame and name entry fill the
-//       open frame in ZIG, plane 0 alone in ORIGINAL  apps/skystrike_zig_screens.mjs
+//   screens  the title, menu and briefing 1:1 with the world extended into
+//       the open borders, the title's scroller in the bottom one; the hall of
+//       fame and name entry's picture scaled, their text 1:1; plane 0 alone
+//       in ORIGINAL                                  apps/skystrike_zig_screens.mjs
 //   edges  tracers when landed; an enemy in the left border; no ghost plane
 //       where a bomb bursts                          apps/skystrike_zig_edges.mjs
 //   keys  Ctrl / Shift / Space = the chords           apps/skystrike_zig_keys.mjs
@@ -26,7 +28,7 @@
 //       flown in ORIGINAL / a ring pixel flipped / X for Z / ORIGINAL's frame /
 //       a refused allocation / the sample table swapped / the heading turned /
 //       ORIGINAL's pause searched for the panel;
-//       --break intro|hud|landed|left|ghost|keys|crater: see each module:
+//       --break intro|hiscore|hud|landed|left|ghost|keys|crater: see each module:
 //       passes only if caught by the check it breaks
 import { mkdir } from "node:fs/promises";
 import { flight } from "./skystrike_zig_flight.mjs";
@@ -39,7 +41,7 @@ import { edges } from "./skystrike_zig_edges.mjs";
 import { keys } from "./skystrike_zig_keys.mjs";
 import { craters } from "./skystrike_zig_craters.mjs";
 
-const BREAKS = ["pause", "ring", "crc", "border", "alloc", "sound", "tracer", "help", "intro", "hud", "landed", "left", "ghost", "keys", "crater"];
+const BREAKS = ["pause", "ring", "crc", "border", "alloc", "sound", "tracer", "help", "intro", "hiscore", "hud", "landed", "left", "ghost", "keys", "crater"];
 const bi = process.argv.indexOf("--break");
 const broke = bi > 0 ? process.argv[bi + 1] : null;
 if (bi > 0 && !BREAKS.includes(broke)) throw new Error(`--break ${BREAKS.join(" | ")}`);
@@ -71,7 +73,7 @@ allocations([fl.s, vw.s], errors);
 if (broke) {
     // caught by the check it breaks, not by some other one
     const by = { pause: "(a)", ring: "(b)", crc: "(c)", border: "(d)", alloc: "(e)", sound: "sound:", tracer: "tracers:", help: "pause:",
-        intro: "screens:", hud: "(d)", landed: "landed:", left: "border:", ghost: "ghost:", keys: "keys:", crater: "craters:" }[broke];
+        intro: "screens:", hiscore: "screens:", hud: "(d)", landed: "landed:", left: "border:", ghost: "ghost:", keys: "keys:", crater: "craters:" }[broke];
     const hit = errors.find((e) => e.startsWith(by));
     console.log(hit ? `skystrike_zig: PASS (--break ${broke} caught: ${hit})` : `skystrike_zig: FAILED -- --break ${broke} was not caught by ${by} (${errors.length} other errors)`);
     process.exit(hit ? 0 : 1);

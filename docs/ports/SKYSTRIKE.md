@@ -235,11 +235,12 @@ RND draws are the original's, and the harness proves it pass by pass
 (`apps/skystrike_zig.mjs`, check (c)), with one exception that is a setting: a crashed
 enemy's crater fills in after 30 s (see "Craters"). The title, the menu, the briefings,
 the verdicts and the hall of fame are the original's screens in both modes; ZIG shows
-them scaled to fill the open frame. A notice in the game's font says which mode is on
+them in the open frame without scaling what the game drew (see "The other screens"). A notice in the game's font says which mode is on
 for two seconds after a switch. In the hall of fame's name entry, Z is a letter.
 
 Every value ZIG can be tuned by is in one file, `zig_settings.zig`: the power-on
-mode, fullscreen screens on or off, the HUD and bar margins, the camera's glide, the
+mode, fullscreen screens on or off and where the screen sits in the frame, the title
+scroller's line, colour and speed, the HUD and bar margins, the camera's glide, the
 tracers, the crater lifetime, the weapon keys and the effect-to-sample table.
 
 The code is in `apps/zig/scenes/skystrike/zig_*.zig`. The game's own modules carry
@@ -251,7 +252,9 @@ ORIGINAL; `apps/skystrike_headless.mjs` still passes unchanged.
 | a new screen (line 1000 from 40 or 213) | 21 VBLs of pause | none | the scroll shows the next screen before you reach it |
 | the view | 320 x 176 of one screen, flipped | 400 x 256 of the world, scrolled by the hardware | see more of the world around the plane |
 | the frame | 320 x 200, borders shut | 400 x 280, all four borders open | fullscreen |
-| title, menu, briefing, hall of fame | 320 x 200 | the same screen scaled 5/4 into the open frame | fullscreen |
+| title, menu, briefing | 320 x 200 | 1:1, the world extended into the open borders | fullscreen |
+| the title's credits scroller | 176 px at line 40 | the bottom border, 400 px, white | |
+| hall of fame, name entry | 320 x 200 | the picture scaled 5/4, the text 1:1 over it | fullscreen |
 | the panel, the bonus bar | on the screen | in the bottom / top border, fixed, 20 lines in from the edge | HUD |
 | the guns | nothing drawn | tracers | show the bullets |
 | the weapons | FIRE, FIRE + left (bomb), FIRE + right (rocket) | also Ctrl, Space, Shift: one key each | |
@@ -328,10 +331,8 @@ original does not simulate.
 
 - **Planes.** 0 is the original's screen (320 x 200), shown in ORIGINAL whenever the
   world is not. 1 is the world. 2 carries the sprites, tracers and HUD (400 x 280, index
-  255 transparent) and, in ZIG off the world, the other screens (`zig_screens.zig`): the
-  physic screen scaled 5/4 to 400 x 250 (nearest pixel, every fourth column and line
-  doubled), at line 15, the 15 lines above and below in the colour most of the screen's
-  top and bottom line is. 3 carries the mode notice.
+  255 transparent) and, in ZIG off the world, the other screens (`zig_screens.zig`, see
+  "The other screens"). 3 carries the mode notice.
 - **Borders.** Planes 1 and 2 open all four with the earned trick: `flickerBorder()`
   from each plane's HBL at `OVERSCAN_MAGIC_X` on every line (`zg.flickerAllHbl`).
 - **Allocation.** Both planes are allocated once, at the cart's init. `vramAlloc` has
@@ -350,6 +351,53 @@ original does not simulate.
 - **Colours.** No raster: the game changes no colour per line, and ZIG adds no such
   change. Every plane's palette is the ST's 16 colour registers each frame, so fades
   work.
+
+### The other screens
+
+Off the world, the physic screen is shown on the overlay plane in the 400 x 280 frame.
+How depends on what it holds. The game's code says so as it changes
+(`hooks.shows`: `tscreen.zig` at 2350, `hiscore.zig` at 2260, `mission.zig` at 1690 and
+1699, `endings.zig` at 2700).
+
+- **The title, the menu, a briefing** (`zig_intro.zig`). These are one screen, line 2350:
+  - It is a world scene: line 1000's draw of the home airfield (sector 0 on the title and
+    the menu, the player's base on a briefing) on the ground layer. Its lines 24-175 are
+    moved down to 48-199, then the logos, the text and the sprites (the plane flying
+    across, the flag) go on top.
+  - ZIG shows the screen 1:1 at 40,40 and extends the world into the borders the way the
+    ring does in flight. The same sandboxed line 1000 draws the neighbouring sectors
+    (sx - 1, sx + 1) of the ground layer, moved down 24 lines as 2350 moves its own,
+    and the sky layer above (al = 1) over all three.
+  - Their outer 40 columns and the sky's last 40 lines fill the left, right and top
+    borders, and run on into the screen's edges.
+  - These five draws are made once per screen. The sprites are drawn over the borders
+    too, so the plane flies on out of the screen.
+- **The title's credits scroller** (`zig_scroller.zig`). 2005-2006 is unchanged. In ZIG
+  its zone (80,40 to 256,48) shows what the scene held there before the first letter,
+  and the scroller is drawn in the bottom border instead:
+  - full width, in the game's 8X8 font, white (`scroller_rgb`, dimmed with the fade);
+  - at line 251 (`scroller_y`), centred in the 30 lines above the 10 a monitor's frame
+    covers (`hud_bottom_margin`).
+  - Nothing is kept from frame to frame. The zone's content is a function of the pass
+    counter `ti` and of `mes$`, so the same letters are drawn 153 px further right: one
+    comes in at the frame's right edge every 24 passes and moves a pixel every 3
+    (`scroller_passes_per_px`). The original's text, speed and phase are kept.
+  - The rest of the bottom border is the colour most of the screen's bottom line is.
+- **The hall of fame and its name entry** (`zig_hall.zig`). The picture (HIPIC.PAC, as
+  the physic screen holds it at 2260 before the table is pasted on) is scaled 5/4 to
+  400 x 250, the 15 lines above and below in its top and bottom line's colour. The text
+  is drawn over it 1:1 at 40,40, so the layout is the original's, centred.
+  - The text is every character cell PRINT draws from 2260 on (a hook in `text.zig`),
+    kept apart: its ink, and its paper except paper 0, which the table's transparent
+    paste (2274) leaves out. The name entry's cells (paper 3, the cursor's paper 15) are
+    opaque as drawn.
+  - A text pixel shows where the physic screen holds it, so the APPEAR that brings the
+    table in brings it in 1:1 too.
+  - In the name entry Z is a letter, as before.
+- **Anything else** (the newspaper, the error trap, a screen being built behind a fade):
+  1:1 at 40,40, the borders in the colour most of the picture's own edge is.
+
+`fullscreen_screens = false` shows all of them as the ST's 320 x 200 on plane 0.
 
 ### Tracers and the ammo counter
 
@@ -471,9 +519,19 @@ proposed:
 - **The pause.** The help shows in ZIG's pause only, and the CRC is the same in both
   modes before, during and after it.
 - **(e) Memory.** No zg.mem allocation is refused.
-- **Screens** (`skystrike_zig_screens.mjs`). The title, menu, briefing, hall of fame and
-  name entry fill the open frame in ZIG, every pixel the physic screen scaled; ORIGINAL
-  shows plane 0 alone. Z typed in the name entry does not switch.
+- **Screens** (`skystrike_zig_screens.mjs`). In ZIG, the title, menu and briefing are
+  the physic screen 1:1 at 40,40 (on the title, the scroller's zone as it was before
+  the letters). Each border (left, top, right) is ZIG's own line-1000 draw of it on the
+  frame, has at least two colours, runs on from the screen's edge on 60 % of it, and is
+  not the old 5/4 scaling. The bottom border is its own
+  colour and, on the title only, the scroller: white, in its 8 lines, reaching both
+  side borders, and pixel for pixel the original zone's pen-0 letters 153 px to the
+  right, so the same text at the same phase. The hall of fame and the name entry (a
+  letter typed) are their picture scaled 5/4 with the text 1:1 at 40,40 over it, and the
+  text layer is exactly what the game drew: every text pixel is on the physic screen,
+  and every pixel the game changed on the picture is in it. ORIGINAL shows plane 0
+  alone. Z typed in the name entry does not switch. `--break intro` expects the intro
+  screens scaled as before, `--break hiscore` the hall's text scaled with its picture.
 - **Edges** (`skystrike_zig_edges.mjs`). Tracers on the heading when firing on the
   runway; an enemy in sector -1 and 400 drawn in the left border at sector 0, as one in
   sector 1 is in the right; no ghost plane where a bomb bursts (both modes).
