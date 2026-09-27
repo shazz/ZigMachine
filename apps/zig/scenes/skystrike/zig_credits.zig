@@ -22,13 +22,19 @@ const TEXT_W: usize = TEXT.len * 8;
 
 /// The band's first line, and the ticker's (centred in it).
 pub const BAND_Y: usize = screens.Y0 + screens.SH;
-pub const Y: usize = BAND_Y + (H - BAND_Y - 8) / 2;
+pub const Y: usize = if (H >= BAND_Y + 8) BAND_Y + (H - BAND_Y - 8) / 2 else 0;
+comptime {
+    for (TEXT) |c| if (c < 32) @compileError("the ticker's text has a control character");
+}
 
 var pos: usize = 0;
 pub var shown: bool = false;
 
 /// While the title's scroller runs, over the frame zig_screens.draw made.
 pub fn draw(ov: []u8) void {
+    // Checked at run time, not comptime: zig_screens.zig owns the band's
+    // height, and a layout without one must not stop the cart building
+    // (apps/skystrike_zig_music.mjs fails if the ticker goes missing).
     shown = (flow.pc == .l2005 or flow.pc == .l2006) and H >= BAND_Y + 8;
     if (!shown) return;
     const p = scr.get(.physic);
@@ -38,7 +44,7 @@ pub fn draw(ov: []u8) void {
     for (0..W) |x| {
         const t = (pos + x) % TEXT_W;
         const c = TEXT[t / 8];
-        const g = assets.FONT[@as(usize, if (c < 32) 0 else c - 32) * 8 ..][0..8];
+        const g = assets.FONT[@as(usize, c - 32) * 8 ..][0..8];
         const bit: u3 = @intCast(7 - t % 8);
         for (0..8) |j| {
             if (g[j] >> bit & 1 != 0) ov[(Y + j) * W + x] = pen;

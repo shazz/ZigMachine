@@ -26,7 +26,6 @@
 //
 // Generic over nothing: plain state, tested natively (sfx_queue_test.zig).
 // --------------------------------------------------------------------------
-const std = @import("std");
 
 /// Commands one host frame can carry: an engine note is ~14 YM writes.
 pub const CAP: usize = 32;
@@ -47,7 +46,7 @@ pub const Entry = extern struct {
     rate: u32 = 0,
 };
 comptime {
-    std.debug.assert(@sizeOf(Entry) == 16);
+    if (@sizeOf(Entry) != 16) @compileError("the host reads 16-byte entries");
 }
 
 pub const Queue = struct {

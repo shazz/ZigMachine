@@ -27,6 +27,8 @@ const pan = @import("mod.zig").pan;
 pub const CAP: usize = 64 * 1024;
 /// A looped effect gives its channel back after this long with no stop.
 pub const LOOP_TIMEOUT: u32 = 4 * @as(u32, @intFromFloat(audio.SAMPLE_RATE));
+/// The cart's queue checks CAP and these too (libs/zig/sfx_queue.zig, which
+/// this module cannot import): change them together.
 pub const RATE_MIN: u32 = 1000;
 pub const RATE_MAX: u32 = 50066;
 
@@ -84,10 +86,12 @@ pub const SfxVoice = struct {
         } else self.release(mod);
     }
 
-    /// The song was replaced or stopped: whatever channel was held is the
-    /// new song's (its start retriggers every channel).
+    /// The song was replaced or stopped: the effect is cut. A new song only
+    /// retriggers a channel on its next note, and the quiet channel is the
+    /// one that waits longest: a looped effect left there would sound on,
+    /// past LOOP_TIMEOUT (advance runs only under a MOD), over an SNDH too.
     pub fn songChanged(self: *SfxVoice) void {
-        self.ch = null;
+        self.cut();
     }
 
     /// A YM register, for a PSG note under the song. `owned`: another player
@@ -102,6 +106,7 @@ pub const SfxVoice = struct {
 
     /// The chip was reset (a program ended) or handed to another player.
     pub fn reset(self: *SfxVoice) void {
+        self.cut();
         const refused = self.refused;
         self.* = .{};
         self.refused = refused;
@@ -110,6 +115,13 @@ pub const SfxVoice = struct {
     fn release(self: *SfxVoice, mod: *ModPlayer) void {
         self.ch = null;
         mod.reclaim();
+    }
+
+    /// Silence the held channel without giving it back to a song.
+    fn cut(self: *SfxVoice) void {
+        const c = self.ch orelse return;
+        audio.machinePaulaSetActive(c, 0);
+        self.ch = null;
     }
 
     fn refuse(self: *SfxVoice) bool {

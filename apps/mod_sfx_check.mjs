@@ -11,7 +11,7 @@
 //            song's again: its next row writes to it
 //   loop     a looped effect holds the channel until sfxStop(loop only), a
 //            one-shot ignores that stop; a loop with no stop is released
-//            after the timeout (4 s)
+//            after the timeout (4 s); a new song cuts it (channel off)
 //   ym       a YM write under the MOD is mixed into the output (not without
 //            it); refused while an SNDH plays, and the SNDH -> MOD switch
 //            leaves the SNDH silent (it no longer renders over the MOD)
@@ -130,7 +130,14 @@ async function looped(mod, gun, errors, notes) {
     if (x.a.audioSfxChannel() === -1) errors.push("loop: the loop timed out before 4 s");
     x.render(SR * 0.2);
     if (x.a.audioSfxChannel() !== -1) errors.push("loop: the loop with no stop kept its channel past the 4 s timeout");
-    notes.push("the gun loop held until its stop (a one-shot ignores it), and 4 s with none");
+    // a new song cuts a looping effect: its channel switched off, not left looping
+    x.sfx(gun, 12517, true);
+    const held = x.a.audioSfxChannel(), t2 = x.frames;
+    x.a.audioLoadMod(x.stage(mod));
+    x.a.audioModPlay();
+    const off = x.log.some((e) => e.fn === "SetActive" && e.ch === held && e.a[0] === 0 && e.at === t2);
+    if (x.a.audioSfxChannel() !== -1 || !off) errors.push(`loop: a new song left the looped effect on channel ${held} (held ${x.a.audioSfxChannel()}, switched off ${off})`);
+    notes.push("the gun loop held until its stop (a one-shot ignores it), 4 s with none, cut by a new song");
 }
 
 /// The YM mixed under the MOD, refused under an SNDH; SNDH -> MOD.

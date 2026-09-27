@@ -22,10 +22,16 @@ pub var sndh: SndhPlayer = .{};
 // Active player: 0 none, 1 MOD, 2 YM, 3 raw sample. Drives the scope view type.
 pub var current_mode: u8 = 0;
 
-// The MOD player's and the sound effects' exports (audioLoadMod, audioSfx*).
+// The MOD player's and the sound effects' exports (audioLoadMod, audioSfx*),
+// and the raw sample streamer's (audioPlayRaw, audioStream*).
 comptime {
     _ = @import("demo_audio_mod.zig");
+    _ = @import("demo_audio_raw.zig");
 }
+
+/// The stream's ring at SONG_BASE (demo_audio_raw.zig). The host and the
+/// scenes that stream name it here (docs/audio-worklet-sealed.js, stream.zig).
+pub const STREAM_RING: usize = 32768;
 
 pub fn songSlice(len: u32) []const u8 {
     const p: [*]const u8 = @ptrFromInt(audio.SONG_BASE);
@@ -140,8 +146,6 @@ export fn audioReset() void {
     audio.machineAudioReset();
     current_mode = 0;
 }
-
-/// Where a replay call gave up, when a tune refuses to run. 0 means it ran.
 /// The STE DMA chip's traffic: register writes seen, sample frames started.
 export fn audioDmaWrites() u32 {
     return @import("players").ste_dma.writes;
@@ -158,6 +162,7 @@ export fn audioUnhandledCount() u32 {
     return @import("players").sndh.unhandled_n;
 }
 
+/// Where a replay call gave up, when a tune refuses to run. 0 means it ran.
 export fn audioSndhStuckPc() u32 {
     return players.sndhStuckPc();
 }
@@ -177,60 +182,3 @@ export fn audioSndhUnhandledTrap() u32 {
 export fn audioSndhSubtunes() u8 {
     return if (sndh.info.hz == 0) 0 else sndh.info.subtunes;
 }
-
-// --- raw 8-bit sample streamer (the simplest player on the Paula primitive) ---
-export fn audioPlayRaw(len: u32, rate: f32, is_unsigned: bool) void {
-    mod.stop();
-    ym.stop();
-    audio.machinePaulaClearScopes();
-
-    const n: usize = @intCast(len);
-    if (is_unsigned) {
-        const buf: [*]u8 = @ptrFromInt(audio.SONG_BASE);
-        var i: usize = 0;
-        while (i < n) : (i += 1) buf[i] ^= 0x80; // unsigned -> signed
-    }
-    // Play on channel 0, looped, silence the rest.
-    var ch: u32 = 1;
-    while (ch < audio.NUM_CHANNELS) : (ch += 1) audio.machinePaulaSetActive(ch, 0);
-    audio.machinePaulaTrigger(0, audio.songAddr(0), len, 0, len, 0.0);
-    audio.machinePaulaSetStep(0, @intFromFloat(rate / audio.SAMPLE_RATE * audio.FRAC_ONE));
-    audio.machinePaulaSetVolume(0, 0.9);
-    current_mode = 3;
-}
-
-// Silence the stream. The ring is a LOOPING Paula channel, so it keeps replaying
-// whatever it holds until the channel is switched off — draining is not something
-// it does on its own.
-export fn audioStreamStop() void {
-    audio.machinePaulaSetActive(0, 0);
-    audio.machinePaulaSetVolume(0, 0.0);
-    const buf: [*]u8 = @ptrFromInt(audio.SONG_BASE);
-    var i: usize = 0;
-    while (i < STREAM_RING) : (i += 1) buf[i] = 0;
-    audio.machinePaulaClearScopes();
-    current_mode = 0;
-}
-
-// --- streaming raw sample (Amiga-style refill-ahead ring) ---
-// A Paula channel loops forever over a fixed ring at the start of song RAM; the
-// host keeps writing fresh signed-8-bit samples ahead of the read cursor, paced
-// to the play rate, so samples far larger than SONG_CAP can play.
-pub const STREAM_RING: usize = 32768; // ring size, at SONG_BASE
-
-export fn audioStreamStart(rate: f32) void {
-    mod.stop();
-    ym.stop();
-    audio.machinePaulaClearScopes();
-    // Zero the ring so an under-fed start is silence, not garbage.
-    const buf: [*]u8 = @ptrFromInt(audio.SONG_BASE);
-    var i: usize = 0;
-    while (i < STREAM_RING) : (i += 1) buf[i] = 0;
-    var ch: u32 = 1;
-    while (ch < audio.NUM_CHANNELS) : (ch += 1) audio.machinePaulaSetActive(ch, 0);
-    audio.machinePaulaTrigger(0, audio.songAddr(0), STREAM_RING, 0, STREAM_RING, 0.0); // loop the whole ring
-    audio.machinePaulaSetStep(0, @intFromFloat(rate / audio.SAMPLE_RATE * audio.FRAC_ONE));
-    audio.machinePaulaSetVolume(0, 0.9);
-    current_mode = 3;
-}
-

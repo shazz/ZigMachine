@@ -34,16 +34,16 @@
 // rocket and Space drops a bomb (lands the chute when bailed out): one key
 // for each chord (skystrike/zig_keys.zig).
 //
-// ZIG MODE (the default; skystrike/zig_*.zig, docs/ports/SKYSTRIKE.md): fullscreen,
-// hardware-scrolled, no pause at a new screen, tracers, key help at P (settings:
-// skystrike/zig_settings.zig). SOUND. ORIGINAL: skystrike.sndh (sound.s: STOS's music library, NOISE /
-// VOLUME / ENVEL, Maestro's samples; each command a zg.sndhCall). ZIG: a MOD
-// per situation (skystrike/zig_music.zig), the effects over it (zg.sfxPlay),
-// the engine on the idle YM (zg.ymWrite). Z swaps the music. ZIG's MUSIC
-// (The Mod Archive, unmodified; docs/music/skystrike_music_CREDITS.txt):
-// "Explore the sky" BLuRry 1994, ID 167145, CC BY-SA 4.0 (this file only:
-// creativecommons.org/licenses/by-sa/4.0); "The Hawk's Claw" Drozerix 2022, ID
-// 197917, Public Domain; "dog75" Songerson 2019, ID 190360, CC BY 4.0 (.../by/4.0).
+// ZIG MODE (the default; skystrike/zig_*.zig, docs/ports/SKYSTRIKE.md):
+// fullscreen, hardware-scrolled, no pause at a new screen, tracers, key help
+// at P (skystrike/zig_settings.zig). SOUND. ORIGINAL: skystrike.sndh (sound.s:
+// STOS's music, NOISE / VOLUME / ENVEL, Maestro's samples; zg.sndhCall). ZIG:
+// a MOD per situation (zig_music.zig), effects over it (zg.sfxPlay), the
+// engine on the idle YM (zg.ymWrite); Z swaps the music. The MODs (The Mod
+// Archive, unmodified; docs/music/skystrike_music_CREDITS.txt): "Explore the
+// sky" BLuRry 1994, ID 167145, CC BY-SA 4.0 (this file only:
+// creativecommons.org/licenses/by-sa/4.0); "The Hawk's Claw" Drozerix 2022,
+// ID 197917, Public Domain; "dog75" Songerson 2019, ID 190360, CC BY 4.0.
 // --------------------------------------------------------------------------
 const std = @import("std");
 const zg = @import("zigos");

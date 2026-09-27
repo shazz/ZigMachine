@@ -1,4 +1,3 @@
-const std = @import("std");
 const audio = @import("audio_hw");
 const fmt = @import("mod_format.zig");
 const effects = @import("mod_effects.zig");
@@ -19,7 +18,7 @@ const effects = @import("mod_effects.zig");
 const AMIGA_CLOCK: f32 = 7093789.2; // PAL Paula clock
 const NUM_CH: usize = fmt.NUM_CH;
 comptime {
-    std.debug.assert(NUM_CH == audio.NUM_CHANNELS);
+    if (NUM_CH != audio.NUM_CHANNELS) @compileError("a MOD channel is a Paula channel");
 }
 
 // Headroom. Channels 0/3 pan to -0.6 and 1/2 to +0.6, so on each side two
