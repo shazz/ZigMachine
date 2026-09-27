@@ -1,6 +1,6 @@
 // --------------------------------------------------------------------------
 // One displayed frame: the original's plane 0 (in ZIG, off the world, the
-// same screen scaled to fill plane 2's open frame: zig_screens.zig), or in
+// same screen in plane 2's open frame: zig_screens.zig), or in
 // ZIG's flight the scrolled world (plane 1), its sprites and HUD (plane 2);
 // the notice over any of them (plane 3). Nothing here writes game state.
 //
@@ -24,6 +24,7 @@ const hud = @import("zig_hud.zig");
 const tracers = @import("zig_tracers.zig");
 const help = @import("zig_help.zig");
 const screens = @import("zig_screens.zig");
+const scroller = @import("zig_scroller.zig");
 const set = @import("zig_settings.zig");
 
 const PLANE0 = 0;
@@ -31,6 +32,7 @@ const PLANE0 = 0;
 /// Once per cart load (after machine.alloc).
 pub fn init(zigos: *zg.ZigOS) void {
     sandbox.alloc();
+    screens.alloc();
     scroll.init(zigos);
     // The planes' buffers were just (re)bound and cleared: nothing drawn in
     // them before is there any more.
@@ -77,8 +79,8 @@ fn copyLive() void {
     }
 }
 
-/// Not the world: the ST's screen, as it is (ORIGINAL) or filling the open
-/// frame (ZIG, zig_screens.zig).
+/// Not the world: the ST's screen, as it is (ORIGINAL) or in the open frame
+/// (ZIG, zig_screens.zig).
 fn original(zigos: *zg.ZigOS) void {
     ring.invalidate();
     tracers.clear();
@@ -103,5 +105,6 @@ fn colours(zigos: *zg.ZigOS) void {
         const fb = &zigos.lfbs[p];
         for (0..16) |i| fb.palette[i] = machine.stColor(pal.hw[i]);
         fb.palette[overlay.CLEAR] = 0;
+        fb.palette[scroller.INK] = machine.stColor(scroller.ink());
     }
 }

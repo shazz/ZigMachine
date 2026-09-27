@@ -17,8 +17,24 @@ pub const notice_frames: u32 = 100;
 /// Its line on the 320 x 200 notice plane.
 pub const notice_y: usize = 24;
 /// The title, the menu, the briefings, the hall of fame and its name entry
-/// scaled into the open-bordered 400 x 280 frame (false: the ST's 320 x 200).
+/// in the open-bordered 400 x 280 frame (false: the ST's 320 x 200): the
+/// screen 1:1 at screen_x, screen_y with the world extended round it, or the
+/// hall's picture scaled under its text (zig_screens.zig).
 pub var fullscreen_screens: bool = true;
+/// Where the 320 x 200 screen (and the hall's text) sits in the frame: the
+/// centre of the 400 columns and of the 240 lines above the bottom border.
+pub const screen_x: usize = 40;
+pub const screen_y: usize = 40;
+
+// ---- the title's credits scroller (zig_scroller.zig) ------------------------
+/// Its first line in the frame: in the bottom border (lines 240-279), its 8
+/// lines centred in the 30 above the hud_bottom_margin a monitor covers.
+pub const scroller_y: usize = 251;
+/// Its colour, an ST colour word (0x777 white); it fades with the screen.
+pub const scroller_rgb: u16 = 0x777;
+/// Its speed's source is the game's own pass counter (ti, 2005-2006): one
+/// pixel every this many passes, a letter every 8 pixels. 3 is the original.
+pub const scroller_passes_per_px: i32 = 3;
 
 // ---- the frame (overscan: 400 columns x 280 lines) -------------------------
 /// Lines left clear under the HUD panel, where a monitor's frame covers.

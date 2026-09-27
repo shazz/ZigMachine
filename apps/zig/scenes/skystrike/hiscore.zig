@@ -18,6 +18,7 @@ const snd = @import("sound.zig");
 const assets = @import("assets.zig");
 const table = @import("histable.zig");
 const appear = @import("appear.zig");
+const hooks = @import("zig_hooks.zig");
 const V = @import("vars.zig");
 const v = &V.v;
 
@@ -48,6 +49,7 @@ fn l2260() flow.Act {
     scr.logic = .back;
     clearAll();
     blocks.copyAll(.b5, .physic);
+    hooks.shows(.hall);
     if (v.hs_a[0] == 0) table.load2300();
     table.draw2270();
     S.fadeBlack(1);

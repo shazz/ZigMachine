@@ -8,6 +8,7 @@
 // --------------------------------------------------------------------------
 const assets = @import("assets.zig");
 const gfx = @import("gfx.zig");
+const hooks = @import("zig_hooks.zig");
 
 pub const COLS: i32 = 40;
 pub const ROWS: i32 = 25;
@@ -36,7 +37,7 @@ pub fn ygraphic(row: i32) i32 {
     return row * 8;
 }
 
-fn glyph(c: u8) []const u8 {
+pub fn glyph(c: u8) []const u8 {
     const i: usize = if (c < 32) 0 else c - 32;
     return assets.FONT[i * 8 ..][0..8];
 }
@@ -54,6 +55,7 @@ fn cellOn(b: []u8, c: u8, col: i32, row: i32) void {
 pub fn putChar(c: u8) void {
     var tb: [2][]u8 = undefined;
     for (gfx.targets(&tb)) |b| cellOn(b, c, cx, cy);
+    hooks.textCell(c, cx, cy);
     cx += 1;
     if (cx >= COLS) newline();
 }

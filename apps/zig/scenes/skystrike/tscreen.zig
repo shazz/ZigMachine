@@ -15,6 +15,7 @@ const scene = @import("scene.zig");
 const move = @import("move.zig");
 const B = @import("basic.zig");
 const snd = @import("sound.zig");
+const hooks = @import("zig_hooks.zig");
 const V = @import("vars.zig");
 const v = &V.v;
 
@@ -26,6 +27,7 @@ pub const steps = [_]flow.Entry{
 
 /// 2350-2352 up to 990's WAIT VBL.
 fn l2350() flow.Act {
+    hooks.shows(.picture);
     v.s4 = v.scre;
     v.m1 = v.main;
     v.s2 = v.sx;
@@ -53,6 +55,7 @@ fn l2350a() flow.Act {
 }
 
 fn l2350c() flow.Act {
+    hooks.shows(.picture);
     v.scre = 0;
     v.s4 = 0;
     return .{ .go = .l2350b };
@@ -89,6 +92,7 @@ fn l2350d() flow.Act {
     scr.poke(v.ghx9, v.ts);
     v.bse_a[0] = v.tb;
     v.tsc = 0;
+    hooks.shows(.scene);
     return .ret;
 }
 

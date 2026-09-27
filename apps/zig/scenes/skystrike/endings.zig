@@ -12,6 +12,7 @@ const vehicles = @import("vehicles.zig");
 const sfx = @import("sfx.zig");
 const snd = @import("sound.zig");
 const levels = @import("levels.zig");
+const hooks = @import("zig_hooks.zig");
 const V = @import("vars.zig");
 const v = &V.v;
 
@@ -78,6 +79,7 @@ fn l227b() flow.Act {
 /// A missing MISSIONS.DAT record leads here, and a disk's level file that
 /// levels.zig refused (its reason printed instead); END is the title.
 fn l2700() flow.Act {
+    hooks.shows(.picture);
     if (levels.err != null) {
         @import("pal.zig").plain();
         text.pen = 1;
