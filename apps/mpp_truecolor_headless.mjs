@@ -108,6 +108,8 @@ function fnv1a(bytes) {
 
 const [outdir, cart = "docs/demo-mpp_truecolor.wasm"] = process.argv.slice(2);
 const { memory, machine, demo } = await boot(cart);
+// The working buffer is taken from zg.mem once, in init; no switch may take another.
+const arenaAfterInit = machine.hwRamMark();
 const NAMES = ["GLOBAL", "PER-LINE", "4 PLANES"];
 const PICTURES = ["spheres", "parrot", "sunset", "halo", "hills"]; // the scene's order; Fire steps to the next
 const FIRE = 5; // demo_main Direction.Fire, what the host sends for Space
@@ -159,6 +161,8 @@ if (fnv1a(layer) !== firstPass[2]) errors.push("wrap to spheres: 4 PLANES frame 
 shoot(() => demo.setShadeMode(0));
 if (fnv1a(layer) !== firstPass[0]) errors.push("wrap to spheres: GLOBAL frame differs from the first pass");
 console.log(`mpp_truecolor: ${PICTURES.length} pictures, 4 PLANES lossless, wrap identical; slowest switch (depack) ${slowest.toFixed(1)} ms`);
+if (machine.hwRamAllocFailures()) errors.push(`${machine.hwRamAllocFailures()} zg.mem allocation(s) refused: the pictures never loaded`);
+if (machine.hwRamMark() !== arenaAfterInit) errors.push(`a switch allocated again: zg.mem grew ${machine.hwRamMark() - arenaAfterInit} B after init`);
 if (errors.length) {
     console.error(`mpp_truecolor: FAILED\n  ${errors.join("\n  ")}`);
     process.exit(1);

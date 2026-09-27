@@ -6,7 +6,6 @@
 // The harness reads the result back through the exports below and compares the
 // depacked bytes with the original file.
 const zg = @import("zigos");
-const hw = @import("hardware");
 const DepackFx = @import("depackers").depack_fx.Runner(zg, null);
 const tex_packed = @import("tex_packed");
 
@@ -32,8 +31,8 @@ pub const Cart = struct {
     pub fn init(self: *Cart, zigos: *zg.ZigOS) void {
         _ = self;
         const len = @import("depackers").zx0.depackedLen(tex_packed.image) orelse return fail();
-        if (hw.hwRamFree() < len) return fail();
-        dst = @as([*]u8, @ptrFromInt(hw.hwRamBase() + hw.hwRamUsed()))[0..len];
+        // On zg.mem, taken once: init runs once per cart load.
+        dst = zg.mem.alloc(u8, len) orelse return fail();
         if (!depack.start(zigos, tex_packed.image, dst, tex_packed.bytes_per_line)) return fail();
     }
 
