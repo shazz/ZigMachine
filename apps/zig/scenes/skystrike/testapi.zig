@@ -59,7 +59,7 @@ pub fn vbl(n: u32) callconv(.c) u32 {
 }
 
 pub fn key(cp: u32, down: u32) callconv(.c) void {
-    if (down != 0) @import("../skystrike.zig").hostKey(cp) else if (cp == ' ') input.fire_down = false;
+    if (down != 0) @import("../skystrike.zig").hostKey(cp) else @import("../skystrike.zig").hostKeyUp(cp);
 }
 
 pub fn stick(bits: u32) callconv(.c) void {
@@ -132,6 +132,7 @@ pub fn poke(what: u32, value: i32) callconv(.c) void {
     if (what == 12) sound.log_n = 0;
     if (what == 13) sound.sent_n = 0;
     if (what >= BANK_ADDR) return scr.poke(@intCast(what), value);
+    if (what >= zt.BASE and what < zt.BASE + 100) return zt.poke(what - zt.BASE, value);
     if (what >= 200) {
         if (enemyPtr(what - 200)) |p| p.* = value;
     }

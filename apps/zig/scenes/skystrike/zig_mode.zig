@@ -10,9 +10,10 @@
 //             frame with its borders open (zig_view.zig), no pause at a new
 //             screen, the effects as samples on the Paula channels
 //             (zig_sound.zig); the title, menu, briefing and hall of fame
-//             stay the original's screens
+//             are the original's screens, scaled into the open frame
 //
-// Only presentation and pacing differ; the switch changes no game state, and
+// Only presentation and pacing differ (and, a setting, craters fill in:
+// zig_craters.zig); the switch changes no game state, and
 // the key never reaches the game (it reads no Z). While a name is typed into
 // the hall of fame, Z is a letter.
 // --------------------------------------------------------------------------
@@ -27,6 +28,7 @@ pub fn set(zig: bool) void {
 
 pub fn toggle() void {
     set(!hooks.zig);
+    @import("zig_keys.zig").release();
     zsound.switched(hooks.zig);
     hud.notice(hooks.zig);
 }

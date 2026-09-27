@@ -1,9 +1,11 @@
 // --------------------------------------------------------------------------
 // ZIG mode's few hooks in the game's own code (scene.zig, hud.zig, sfx.zig,
-// sound.zig, sprite.zig, machine.zig). They record what the presentation needs and never
-// change what the game does, with one exception that IS the mode: in ZIG a
-// screen drawn afresh during play is not charged the 21 VBLs the ST took
-// (clock.REDRAW), so the flight goes on without the pause.
+// sound.zig, sprite.zig, machine.zig, weapons.zig, enemy_life.zig). They
+// record what the presentation needs and never change what the game does,
+// with two exceptions that ARE the mode: in ZIG a screen drawn afresh during
+// play is not charged the 21 VBLs the ST took (clock.REDRAW), so the flight
+// goes on without the pause; and a crashed enemy's crater fills in after a
+// while (zig_craters.zig, a setting that can be "never").
 //
 //   zig       ZIG mode is on (the harness's lockstep power-on sets ORIGINAL)
 //   sandbox   the ring is drawing a sector off screen (zig_sandbox.zig): the
@@ -25,6 +27,8 @@ pub var live_sx: i32 = 0;
 pub var live_al: i32 = 0;
 /// Line-1000 draws of the world since power on (the harness's clock).
 pub var draws: u32 = 0;
+/// Rounds the guns took (350), for the tracers (zig_tracers.zig).
+pub var rounds: u32 = 0;
 /// Line 1000 is drawing the live screen (its sprites belong to it).
 var drawing: bool = false;
 /// The harness's copy of the back screen as each live draw left it.
@@ -37,6 +41,8 @@ pub fn reset() void {
     live_sx = 0;
     live_al = 0;
     draws = 0;
+    rounds = 0;
+    @import("zig_craters.zig").reset();
 }
 
 /// Line 1000 called from the game loop: 40 (a new screen) or 213 (the
@@ -48,6 +54,11 @@ fn gameDraw() bool {
 /// ZIG: a screen drawn during play costs no VBLs.
 pub fn freeRedraw() bool {
     return zig and !sandbox and gameDraw();
+}
+
+/// 350: the guns took a round.
+pub fn roundFired() void {
+    rounds +%= 1;
 }
 
 /// The start of line 1000.
@@ -88,6 +99,7 @@ fn gameLabel(l: flow.L) bool {
 /// Every VBL (machine.zig): off the game's labels there is no world on screen.
 pub fn tick() void {
     if (!gameLabel(flow.pc)) in_game = false;
+    @import("zig_craters.zig").tick();
 }
 
 /// The world is on screen and ZIG shows it.

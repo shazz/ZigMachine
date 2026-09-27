@@ -13,20 +13,33 @@
 //       untouched, none in ORIGINAL                  apps/skystrike_zig_sound.mjs
 //   pause  P: the key help over ZIG's pause, not ORIGINAL's; the CRC the same
 //       before, during, after                        apps/skystrike_zig_pause.mjs
+//   screens  the title, menu, briefing, hall of fame and name entry fill the
+//       open frame in ZIG, plane 0 alone in ORIGINAL  apps/skystrike_zig_screens.mjs
+//   edges  tracers when landed; an enemy in the left border; no ghost plane
+//       where a bomb bursts                          apps/skystrike_zig_edges.mjs
+//   keys  Ctrl / Shift / Space = the chords           apps/skystrike_zig_keys.mjs
+//   craters  a crashed enemy's hole fills in after the setting's time, the
+//       sector's ground as before; ORIGINAL keeps it apps/skystrike_zig_craters.mjs
+// (c) and every CRC comparison run with the craters never filling in.
 //   node apps/skystrike_zig.mjs [outdir]            (screenshots in outdir)
 //   node apps/skystrike_zig.mjs --break pause|ring|crc|border|alloc|sound|tracer|help
 //       flown in ORIGINAL / a ring pixel flipped / X for Z / ORIGINAL's frame /
 //       a refused allocation / the sample table swapped / the heading turned /
-//       ORIGINAL's pause searched for the panel: passes only if caught by the
-//       check it breaks
+//       ORIGINAL's pause searched for the panel;
+//       --break intro|hud|landed|left|ghost|keys|crater: see each module:
+//       passes only if caught by the check it breaks
 import { mkdir } from "node:fs/promises";
 import { flight } from "./skystrike_zig_flight.mjs";
 import { crc } from "./skystrike_zig_crc.mjs";
 import { view } from "./skystrike_zig_view.mjs";
 import { sound } from "./skystrike_zig_sound.mjs";
 import { pause } from "./skystrike_zig_pause.mjs";
+import { screens } from "./skystrike_zig_screens.mjs";
+import { edges } from "./skystrike_zig_edges.mjs";
+import { keys } from "./skystrike_zig_keys.mjs";
+import { craters } from "./skystrike_zig_craters.mjs";
 
-const BREAKS = ["pause", "ring", "crc", "border", "alloc", "sound", "tracer", "help"];
+const BREAKS = ["pause", "ring", "crc", "border", "alloc", "sound", "tracer", "help", "intro", "hud", "landed", "left", "ghost", "keys", "crater"];
 const bi = process.argv.indexOf("--break");
 const broke = bi > 0 ? process.argv[bi + 1] : null;
 if (bi > 0 && !BREAKS.includes(broke)) throw new Error(`--break ${BREAKS.join(" | ")}`);
@@ -49,11 +62,16 @@ await run(() => crc(broke));
 const vw = await run(() => view(outdir, broke));
 await run(() => sound(broke));
 await run(() => pause(outdir, broke));
+await run(() => screens(outdir, broke));
+await run(() => edges(outdir, broke));
+await run(() => keys(broke));
+await run(() => craters(broke));
 if (broke === "alloc") vw.s.demo.skyTestRefuse();
 allocations([fl.s, vw.s], errors);
 if (broke) {
     // caught by the check it breaks, not by some other one
-    const by = { pause: "(a)", ring: "(b)", crc: "(c)", border: "(d)", alloc: "(e)", sound: "sound:", tracer: "tracers:", help: "pause:" }[broke];
+    const by = { pause: "(a)", ring: "(b)", crc: "(c)", border: "(d)", alloc: "(e)", sound: "sound:", tracer: "tracers:", help: "pause:",
+        intro: "screens:", hud: "(d)", landed: "landed:", left: "border:", ghost: "ghost:", keys: "keys:", crater: "craters:" }[broke];
     const hit = errors.find((e) => e.startsWith(by));
     console.log(hit ? `skystrike_zig: PASS (--break ${broke} caught: ${hit})` : `skystrike_zig: FAILED -- --break ${broke} was not caught by ${by} (${errors.length} other errors)`);
     process.exit(hit ? 0 : 1);

@@ -6,8 +6,9 @@
 //
 //   ring x  = (sector - (cx - 1)) * 320 + x         960 wide
 //   ring y  = (b + 2 - layer) * 160 + y             3 x 160, the bottom row
-//             176 (the ground's own last 16 lines), then 24 of black under
-//             the ground, which only the HUD band ever covers: 520 high
+//             176 (the ground's own last 16 lines), then black under the
+//             ground as tall as the HUD band (panel + margin), which only
+//             that band ever covers: 540 high
 //
 // A slot is drawn by the game's own line 1000 in a sandbox (zig_sandbox.zig).
 // Crossing a sector or a layer moves the buffer by one slot (a memmove) and
@@ -21,6 +22,7 @@ const std = @import("std");
 const scr = @import("scr.zig");
 const B = @import("basic.zig");
 const sandbox = @import("zig_sandbox.zig");
+const scroll = @import("zig_scroll.zig");
 const V = @import("vars.zig");
 const v = &V.v;
 
@@ -29,7 +31,8 @@ pub const LAYER: i32 = 160;
 pub const SECTORS: i32 = 51;
 pub const WORLD_W: i32 = SECTORS * SEC;
 pub const W: usize = 960;
-pub const H: usize = 520;
+/// The layer rows, the ground's 176 lines, and the HUD band's black.
+pub const H: usize = 2 * 160 + LAST + @as(usize, @intCast(scroll.WIN_H - scroll.VIEW_H));
 /// The ground's slot row keeps all 176 lines of its screen.
 pub const LAST: usize = 176;
 /// The bonus bar's box (hud.zig 734: box 14,2 to 306,12): HUD in ZIG.
@@ -65,10 +68,17 @@ pub fn sectorOf(c: usize) i32 {
 pub fn layerOf(r: usize) i32 {
     return b + 2 - @as(i32, @intCast(r));
 }
-pub fn colOf(s: i32) ?usize {
-    if (s < 0 or s >= SECTORS) return null; // enemies wander to 400 (move255)
-    const d = @mod(s - cx + 1, SECTORS);
-    return if (d <= 2) @intCast(d) else null;
+/// A MOVER's sector number off the world's ends (spawned at sx - 3 (73),
+/// wrapped -1 -> 400 and 50 -> 51 (255)) is the sector just past the end it
+/// left (400 is -1), shown only beside that end.
+pub fn seat(s: i32) i32 {
+    return if (s >= 200) s - 401 else s;
+}
+
+pub fn colOf(s0: i32) ?usize {
+    const s = seat(s0);
+    const d = if (s < 0 or s >= SECTORS) s - cx + 1 else @mod(s - cx + 1, SECTORS);
+    return if (d >= 0 and d <= 2) @intCast(d) else null;
 }
 pub fn rowOf(l: i32) ?usize {
     const r = b + 2 - l;

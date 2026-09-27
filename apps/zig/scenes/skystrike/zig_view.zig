@@ -1,7 +1,8 @@
 // --------------------------------------------------------------------------
-// One displayed frame: the original's plane 0, or in ZIG's flight the
-// scrolled world (plane 1), its sprites and HUD (plane 2); the notice over
-// either (plane 3). Nothing here writes game state.
+// One displayed frame: the original's plane 0 (in ZIG, off the world, the
+// same screen scaled to fill plane 2's open frame: zig_screens.zig), or in
+// ZIG's flight the scrolled world (plane 1), its sprites and HUD (plane 2);
+// the notice over any of them (plane 3). Nothing here writes game state.
 //
 // A ZIG frame: the ring follows the live screen (a shift or a rebuild),
 // draws what the view is missing, takes the live screen into its slot; the
@@ -22,6 +23,8 @@ const overlay = @import("zig_overlay.zig");
 const hud = @import("zig_hud.zig");
 const tracers = @import("zig_tracers.zig");
 const help = @import("zig_help.zig");
+const screens = @import("zig_screens.zig");
+const set = @import("zig_settings.zig");
 
 const PLANE0 = 0;
 
@@ -74,15 +77,18 @@ fn copyLive() void {
     }
 }
 
+/// Not the world: the ST's screen, as it is (ORIGINAL) or filling the open
+/// frame (ZIG, zig_screens.zig).
 fn original(zigos: *zg.ZigOS) void {
     ring.invalidate();
     tracers.clear();
     help.shown = false;
     zigos.lfbs[scroll.WORLD_PLANE].is_enabled = false;
-    zigos.lfbs[scroll.OVERLAY_PLANE].is_enabled = false;
+    const full = hooks.zig and set.fullscreen_screens;
+    zigos.lfbs[scroll.OVERLAY_PLANE].is_enabled = full;
     const p0 = &zigos.lfbs[PLANE0];
-    p0.is_enabled = true;
-    machine.present(p0);
+    p0.is_enabled = !full;
+    if (full) screens.draw(scroll.over_px) else machine.present(p0);
 }
 
 /// The camera after sprite 1: the plane, or the pilot under his chute.

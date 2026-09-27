@@ -38,7 +38,7 @@ pub fn quiet(len: usize, i: i32) usize {
 
 /// Image `img` with its hot spot at line y, column x of layer l, sector s.
 fn put(s: i32, l: i32, x: i32, y: i32, img: i32) void {
-    const px = ring.wrapDelta(s * ring.SEC + x - cam[0]);
+    const px = ring.wrapDelta(ring.seat(s) * ring.SEC + x - cam[0]);
     const py = -l * ring.LAYER + y - cam[1];
     sprite.blitClip(view, W, scroll.VIEW_H, img, px, py);
 }

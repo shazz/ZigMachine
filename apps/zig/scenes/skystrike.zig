@@ -30,11 +30,14 @@
 // C cluster, E extinguisher, R repair, A autoland, M main base, S launch,
 // T turn round, F a new plane for a landed one (it costs one, line 68),
 // P pause; F2-F10 their shortcuts. Escape on the title leaves the cart.
-// Z switches ORIGINAL / ZIG.
+// Z switches ORIGINAL / ZIG. In ZIG, left Ctrl fires the guns, left Shift a
+// rocket and Space drops a bomb (lands the chute when bailed out): one key
+// for each chord (skystrike/zig_keys.zig).
 //
 // ZIG MODE (the default; skystrike/zig_*.zig, docs/ports/SKYSTRIKE.md): the
 // same game shown fullscreen and scrolled by the hardware, no pause at a new
-// screen, tracers, synthesized effects on the Paula channels, key help at P.
+// screen, tracers, synthesized effects on the Paula channels, key help at P;
+// its settings in skystrike/zig_settings.zig.
 //
 // SOUND. docs/music/skystrike.sndh (assets/screens/skystrike/sound.s): the
 // three tunes played by STOS's own music library (Grazey's rip), the engine
@@ -53,6 +56,7 @@ const testapi = @import("skystrike/testapi.zig");
 const zig_view = @import("skystrike/zig_view.zig");
 const zig_mode = @import("skystrike/zig_mode.zig");
 const zig_testapi = @import("skystrike/zig_testapi.zig");
+const zig_keys = @import("skystrike/zig_keys.zig");
 
 const PLANE = 0;
 const CPU_HZ: u64 = 8021247;
@@ -90,6 +94,7 @@ fn keyUpExport(cp: u32) callconv(.c) void {
 /// A host key as the ST's: the character and scancode into the key buffer,
 /// Space also the fire button; Z switches ORIGINAL / ZIG (zig_mode.zig).
 pub fn hostKey(cp: u32) void {
+    if (zig_keys.down(cp)) return;
     if (cp >= K_F1 and cp <= K_F10) return inp.push(0, @intCast(59 + cp - K_F1));
     if (cp == K_ESC) return inp.push(27, 1);
     if (cp > 255) return;
@@ -97,6 +102,12 @@ pub fn hostKey(cp: u32) void {
     if (zig_mode.isToggle(c)) return zig_mode.toggle();
     if (c == ' ') inp.fire_down = true;
     inp.push(c, inp.scancodeOf(c));
+}
+
+/// A host key released: Space is the fire button; ZIG's weapon keys.
+pub fn hostKeyUp(cp: u32) void {
+    if (cp == ' ') inp.fire_down = false;
+    zig_keys.up(cp);
 }
 
 pub const Demo = struct {
@@ -111,7 +122,7 @@ pub const Demo = struct {
         machine.alloc();
         machine.reset();
         zig_view.init(zigos);
-        zig_mode.set(true);
+        zig_mode.set(@import("skystrike/zig_settings.zig").default_zig);
         g_demo = self;
         zigos.setBackgroundColor(Color{ .r = 0, .g = 0, .b = 0, .a = 255 });
         const fb = &zigos.lfbs[PLANE];
@@ -167,7 +178,7 @@ pub const Demo = struct {
 
     pub fn keyUp(self: *Demo, cp: u32) void {
         _ = self;
-        if (cp == ' ') inp.fire_down = false;
+        hostKeyUp(cp);
     }
 };
 

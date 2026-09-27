@@ -43,10 +43,18 @@ pub fn spend(c: u64) void {
     }
 }
 
-/// WAIT VBL: to the start of the next VBL.
+/// WAIT VBL: to the start of the next VBL. The program is not running
+/// while it waits, the VBL interrupt is: its sprite redraw (STOS's sprites
+/// are on automatic UPDATE; the listing never turns it off) happens NOW,
+/// before the next line. Line 1950 relies on it: OFF, then 993's WAIT VBL
+/// takes the sprites off the physic screen before 1956's SCREEN COPY LOGIC
+/// TO BACK; without it the plane was copied into the back screen, a ghost
+/// left where a bomb burst. TIMER, the fades and MOVE still run when the
+/// pass waits out the VBLs it crossed (loop.zig's l102).
 pub fn waitVbl() void {
     pos = 0;
     crossed += 1;
+    @import("sprite.zig").update();
 }
 
 /// The VBLs crossed since the last take().

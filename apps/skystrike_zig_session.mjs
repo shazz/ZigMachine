@@ -8,10 +8,11 @@ import { session, toPlay, PASSES } from "./skystrike_session.mjs";
 export const Z = {
     crc: 300, zig: 301, view: 302, liveSx: 303, liveAl: 304, draws: 305, cx: 306, base: 307,
     valid: 308, slots: 309, rebuilds: 310, shifts: 311, sx: 312, sy: 313, camX: 314, camY: 315,
-    renders: 316, leaks: 317, sent: 318, sent0: 320,
+    renders: 316, leaks: 317, sent: 318, sent0: 320, cratersMade: 364, cratersFilled: 365,
 };
-export const RING_W = 960, RING_H = 520, WIN_W = 400, WIN_H = 280;
+export const RING_W = 960, RING_H = 540, WIN_W = 400, WIN_H = 280;
 export const CLEAR_SENT = 13;
+export const CRATER_LIFE = 370; // zig_testapi.zig: the setting, in VBLs
 const DT = 20; // ms: one ST VBL, so a frame() in lockstep is one displayed frame
 
 /// A session in `zig` mode (the lockstep power-on is ORIGINAL), with the
@@ -21,6 +22,9 @@ export async function zsession(zig, seed = 1234) {
     s.demo.skyTestCapture(1);
     s.mode = (m) => s.demo.skyTestMode(m ? 1 : 0);
     s.mode(zig);
+    // Craters never fill in (as in ORIGINAL): the one ZIG setting that is
+    // gameplay (zig_craters.zig). apps/skystrike_zig_craters.mjs turns it on.
+    s.poke(CRATER_LIFE, 0);
     s.z = (k) => s.val(Z[k]);
     /// n VBLs, each followed by one displayed frame (what the host does).
     s.run = (n, each) => {

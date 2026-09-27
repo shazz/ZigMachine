@@ -6,8 +6,11 @@
 // dx() / dy() table, the same the plane flies by), fast, and vanish at the
 // view's edge or on reaching an enemy fighter.
 //
-// Purely a picture: a round is SEEN (ammo went down since the last frame),
-// never taken, and nothing here is read by the game. The colours are the
+// Purely a picture: a round is SEEN (the guns' hook in 350 counts each one
+// the game takes, zig_hooks.rounds), never taken, and nothing here is read
+// by the game. Not the ammo going down: on a home airfield, stopped, line
+// 101 rearms (532) in the same pass as the guns fire, so the count never
+// moves there -- which is why no tracer showed on the ground. The colours are the
 // palette's own: its most fiery (red + green - blue) for the head, the next
 // for the tail, so the streaks read on the sky and on the white clouds.
 // --------------------------------------------------------------------------
@@ -16,25 +19,23 @@ const sprite = @import("sprite.zig");
 const ring = @import("zig_ring.zig");
 const overlay = @import("zig_overlay.zig");
 const scroll = @import("zig_scroll.zig");
+const hooks = @import("zig_hooks.zig");
+const set = @import("zig_settings.zig");
 const V = @import("vars.zig");
 const v = &V.v;
 
-const MAX = 12;
-const PER_ROUND = 3;
-/// Frames a streak lives at most; its pixels a frame per table unit (the
-/// table's longest step is 6: 12 px a frame, about three times the plane's
-/// top speed per frame); its length, the first HEAD of them the head colour.
-const LIFE: u8 = 30;
-const SPEED: i32 = 2;
-const LEN: i32 = 7;
-const HEAD: i32 = 3;
-/// An enemy this close to a streak's head stops it.
-const REACH: i32 = 10;
+const MAX = set.tracer_max;
+const PER_ROUND = set.tracer_per_round;
+const LIFE = set.tracer_life;
+const SPEED = set.tracer_speed;
+const LEN = set.tracer_len;
+const HEAD = set.tracer_head;
+const REACH = set.tracer_reach;
 
 const Streak = struct { x: i32 = 0, y: i32 = 0, dx: i32 = 0, dy: i32 = 0, life: u8 = 0 };
 
 var streaks: [MAX]Streak = [_]Streak{.{}} ** MAX;
-var ammo_seen: i32 = -1;
+var rounds_seen: ?u32 = null;
 /// Streaks drawn last frame, and the two indices they used (harness).
 pub var shown: u32 = 0;
 pub var ink: u8 = 3;
@@ -42,14 +43,14 @@ pub var tail: u8 = 11;
 
 pub fn clear() void {
     streaks = [_]Streak{.{}} ** MAX;
-    ammo_seen = -1;
+    rounds_seen = null;
     shown = 0;
 }
 
 /// A round taken since last frame: a burst from the plane's nose.
 pub fn watch() void {
-    const took = ammo_seen >= 0 and v.ammo < ammo_seen;
-    ammo_seen = v.ammo;
+    const took = if (rounds_seen) |r| hooks.rounds != r else false;
+    rounds_seen = hooks.rounds;
     if (!took or v.bale != 0) return;
     const p = sprite.shown[1];
     if (!p.on) return;

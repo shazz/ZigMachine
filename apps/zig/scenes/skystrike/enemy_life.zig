@@ -98,8 +98,11 @@ pub fn crashed316() void {
         v.csx = v.esx;
         v.cal = 0;
         v.ghx = @max(1, @min(8, B.div(v.ex, 32) + S.rnd(1) - S.rnd(1)));
+        const craters = @import("zig_craters.zig"); // ZIG: the hole may fill in
+        craters.before(v.csx);
         ground.gunHit920();
         vehicles.planeWreck930();
+        craters.after();
     }
     v.a = v.tta;
     spawn310();

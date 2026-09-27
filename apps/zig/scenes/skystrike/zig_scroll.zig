@@ -1,7 +1,7 @@
 // --------------------------------------------------------------------------
 // ZIG mode's two planes and its camera.
 //
-//   plane 1  the world: an overscan SCROLL plane over the ring's 960 x 520
+//   plane 1  the world: an overscan SCROLL plane over the ring's 960 x 540
 //            buffer (zig_ring.zig), panned by the hardware (setScroll = the
 //            plane's base register), borders opened by flickerBorder() from
 //            its HBL at OVERSCAN_MAGIC_X on every line: 400 x 280 on screen
@@ -14,23 +14,27 @@
 // here at comptime against the pool. Plane 0 stays the original 320 x 200.
 //
 // The camera is the window's top-left in the world (x wraps at 51 sectors;
-// layer al's line y is -al * 160 + y). It follows the plane's sprite, a
-// third of the way a frame and at most MAXSTEP pixels, so the world glides
-// between the game's passes; a jump too far to glide (a new plane, the
+// layer al's line y is -al * 160 + y). It follows the plane's sprite by a
+// fraction of the way a frame, capped (zig_settings.zig's glide_*), so the
+// world glides between the game's passes; a jump too far to glide (a new plane, the
 // autoland) is a cut. Its y stops where the ground's last line meets the HUD.
 // --------------------------------------------------------------------------
 const zg = @import("zigos");
 const ring = @import("zig_ring.zig");
+const set = @import("zig_settings.zig");
 
 pub const WIN_W: i32 = zg.PHYSICAL_WIDTH;
 pub const WIN_H: i32 = zg.PHYSICAL_HEIGHT;
-/// The world's part of the window; the HUD band is under it.
-pub const VIEW_H: i32 = 256;
+/// The HUD panel's height: the game's lines 176-199.
+pub const PANEL_H: i32 = 24;
+/// The world's part of the window; the HUD band (the panel, then the
+/// margin a monitor's frame covers) is under it.
+pub const VIEW_H: i32 = WIN_H - PANEL_H - @as(i32, @intCast(set.hud_bottom_margin));
 /// Where the plane sits in the window.
-pub const PLANE_X: i32 = 200;
-pub const PLANE_Y: i32 = 128;
-pub const MAXSTEP: i32 = 16;
-const SNAP: i32 = 320;
+pub const PLANE_X: i32 = set.plane_x;
+pub const PLANE_Y: i32 = set.plane_y;
+pub const MAXSTEP: i32 = set.glide_cap;
+const SNAP: i32 = set.glide_snap;
 /// The ground layer's line 175 on the window's line VIEW_H - 1.
 const LOWEST: i32 = 175 - (VIEW_H - 1);
 
@@ -70,7 +74,7 @@ pub fn cut() void {
 }
 
 fn glide(d: i32) i32 {
-    const m = if (d > 2 or d < -2) @divTrunc(d, 3) else d;
+    const m = if (d > 2 or d < -2) @divTrunc(d, set.glide_div) else d;
     return @max(-MAXSTEP, @min(MAXSTEP, m));
 }
 

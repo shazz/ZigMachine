@@ -10,7 +10,7 @@ import { onRunway, WIN_W } from "./skystrike_zig_session.mjs";
 import { grab, lowres, png } from "./skystrike_zig_frame.mjs";
 
 const START = 200, P = 0x50, Q = 0x51;
-const PANEL = { x: 16 + 8, y: 44 + 8, title: "          K E Y S", pen: 1 }; // zig_help.zig X0/Y0 + a cell
+const PANEL = { x: 16 + 8, y: 34 + 8, title: "          K E Y S", pen: 1 }; // zig_help.zig X0/Y0 + a cell
 
 async function pausedRun(zig, outdir) {
     const s = await onRunway(zig);
