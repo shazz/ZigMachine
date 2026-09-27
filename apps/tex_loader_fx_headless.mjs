@@ -125,6 +125,8 @@ async function shot(name, frame) {
 
 const perFrame = bytesPerLine * H;
 let frame = 0, middle = false;
+// The depack target comes from zg.mem: a refused allocation is a depack that never ran.
+if (machine.hwRamAllocFailures()) throw new Error(`${machine.hwRamAllocFailures()} zg.mem allocation(s) refused`);
 if (demo.texState() !== 0) throw new Error(`depack did not start (state ${demo.texState()})`);
 while (demo.texState() === 0) {
     demo.frame(16.6);
