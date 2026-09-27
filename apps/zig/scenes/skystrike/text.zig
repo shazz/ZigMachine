@@ -42,11 +42,14 @@ pub fn glyph(c: u8) []const u8 {
     return assets.FONT[i * 8 ..][0..8];
 }
 
+/// Line j of character c's cell as PRINT draws it now (UNDER fills the last).
+pub fn cellBits(c: u8, j: usize) u8 {
+    return if (under and j == 7) 0xFF else glyph(c)[j];
+}
+
 fn cellOn(b: []u8, c: u8, col: i32, row: i32) void {
-    const g = glyph(c);
     for (0..8) |j| {
-        var bits = g[j];
-        if (under and j == 7) bits = 0xFF;
+        const bits = cellBits(c, j);
         const o: usize = @intCast((row * 8 + @as(i32, @intCast(j))) * 320 + col * 8);
         for (0..8) |i| b[o + i] = if (bits >> @intCast(7 - i) & 1 != 0) pen else paper;
     }

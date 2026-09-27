@@ -58,8 +58,10 @@ pub fn shows(s: Screen) void {
 }
 
 /// text.zig: a character cell was drawn (the hall keeps its text apart).
+/// Not from a sandboxed draw: the sandbox puts back only the game's state,
+/// and that cell never reached the physic screen.
 pub fn textCell(c: u8, col: i32, row: i32) void {
-    if (screen == .hall) @import("zig_hall.zig").cell(c, col, row);
+    if (screen == .hall and !sandbox) @import("zig_hall.zig").cell(c, col, row);
 }
 
 pub fn reset() void {

@@ -86,10 +86,8 @@ pub fn draw(ov: []u8) void {
 /// The sprites as the last UPDATE drew them, 15 first, the pointer last,
 /// over the whole frame (the screen's own pixels then go on top).
 fn sprites(ov: []u8) void {
-    var n: usize = 16;
-    while (n > 0) {
-        n -= 1;
-        const s = sprite.shown[n];
+    for (0..sprite.shown.len) |i| {
+        const s = sprite.shown[sprite.shown.len - 1 - i];
         if (s.on) sprite.blitClip(ov[0 .. W * H], W, H, s.img, s.x + X0, s.y + Y0);
     }
 }

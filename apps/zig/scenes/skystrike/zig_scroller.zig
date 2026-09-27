@@ -52,10 +52,13 @@ pub fn ink() u16 {
 }
 
 /// The bottom border (lines `y0` to the frame's end) in `band`, the
-/// scroller over it while the title runs.
+/// scroller over it while the title's loop counts. Not at 2005: ti is only
+/// zeroed once the mouse key is up, so while it is held (a click that left
+/// the hall of fame) ti is still the last loop's, and the zone the ST shows
+/// is the scene's, no letter in it yet.
 pub fn draw(ov: []u8, y0: usize, band: u8) void {
     @memset(ov[y0 * W ..], band);
-    if (running()) letters(ov[set.scroller_y * W ..][0 .. 8 * W]);
+    if (flow.pc == .l2006) letters(ov[set.scroller_y * W ..][0 .. 8 * W]);
 }
 
 fn letters(rows: []u8) void {

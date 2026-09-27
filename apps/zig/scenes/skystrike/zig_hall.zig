@@ -46,10 +46,9 @@ pub fn shown() void {
 /// Cell col, row as text.zig draws it now (pen, paper, UNDER).
 pub fn cell(c: u8, col: i32, row: i32) void {
     if (layer.len == 0) return;
-    const g = text.glyph(c);
     const paper: u8 = if (text.paper == 0) CLEAR else text.paper;
     for (0..8) |j| {
-        const bits: u8 = if (text.under and j == 7) 0xFF else g[j];
+        const bits = text.cellBits(c, j);
         const o: usize = @intCast((row * 8 + @as(i32, @intCast(j))) * 320 + col * 8);
         for (0..8) |i| layer[o + i] = if (bits >> @intCast(7 - i) & 1 != 0) text.pen else paper;
     }
