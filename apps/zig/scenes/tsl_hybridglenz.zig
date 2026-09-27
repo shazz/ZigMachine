@@ -28,7 +28,6 @@
 // rows standing in for the remake's 2-row interlace composite. See glenz.zig.
 // --------------------------------------------------------------------------
 const zg = @import("zigos");
-const hw = @import("hardware");
 const ZigOS = zg.ZigOS;
 const Color = zg.Color;
 const c3 = zg.zig3d;
@@ -79,7 +78,8 @@ pub const Demo = struct {
         self.objects[0].init(&obj.MORPH1, STEP1, stage.PANEL_X, stage.PANEL_Y, glenz.ODD_ROWS);
         self.objects[1].init(&obj.MORPH2, STEP2, stage.PANEL_X, stage.PANEL_Y + 1, glenz.EVEN_ROWS);
 
-        const buf = freeRam(A.TOTAL) orelse return fail("no free RAM for the assets");
+        // On zg.mem, taken once: init runs once per cart load.
+        const buf = zg.mem.alloc(u8, A.TOTAL) orelse return fail("no free RAM for the assets");
         if (zx0.depack(packed_assets.tsl_hybridglenz, buf) == null) return fail("depack failed");
         self.images = A.Images.split(buf);
 
@@ -152,11 +152,4 @@ pub const Demo = struct {
 
 fn fail(why: []const u8) void {
     zg.Console.log("tsl_hybridglenz: {s}", .{why});
-}
-
-/// `len` bytes of the cart's RAM window above its statics and stack.
-fn freeRam(len: usize) ?[]u8 {
-    if (hw.hwRamFree() < len) return null;
-    const base: usize = hw.hwRamBase() + hw.hwRamUsed();
-    return @as([*]u8, @ptrFromInt(base))[0..len];
 }

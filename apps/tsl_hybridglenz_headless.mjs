@@ -231,6 +231,13 @@ for (let i = 0; i < 5; i++) {
 console.log(`  frame cost: cart ${bestCart.toFixed(3)} ms, plane ${bestPlane.toFixed(3)} ms`);
 check("the cart fits a 16.6 ms frame with room to spare", bestCart + bestPlane < 8, true);
 
+// The asset depack target comes from zg.mem: a refused allocation is a screen
+// that never loaded. Fatal even under --break, where failures are the goal.
+if (machine.hwRamAllocFailures()) {
+    console.error(`\ntsl_hybridglenz: FAILED — ${machine.hwRamAllocFailures()} zg.mem allocation(s) refused`);
+    process.exit(1);
+}
+
 if (broke) {
     const ok = failures > 0;
     console.log(ok ? `\ntsl_hybridglenz: PASS (--break ${broke} was caught)` : `\ntsl_hybridglenz: FAILED — --break ${broke} was not caught`);
