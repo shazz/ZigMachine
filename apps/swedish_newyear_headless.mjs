@@ -40,7 +40,7 @@ import { Remake, PW, PH } from "./swedish_newyear_replay.mjs";
 const PAGES = 112, OFF_PAL = 0x100, REG_FB_BASE = 0x44;
 const DT = 1000 / 60;
 const K = { space: 32, esc: 0xe012, f: (n) => 0xe000 + n };
-const SONGS = { // each tune -> what the port must request (swedish_newyear.zig)
+const SONGS = { // each tune -> what the port must request (swedish_newyear/music.zig)
     scout: ["scout.sndh", 1], jinx1: ["Jinks.sndh", 1], icepalace: ["beyond_the_ice_palace.sndh", 1],
     sync2: ["Swedish_New_Year_Demo_Sync.sndh", 1], tcb_digi: ["swedish_newyear_tcb_digi.sndh", 1],
     stop: ["none", 0], // zg.stopSong(): TCB #1's exit silences its sample stream

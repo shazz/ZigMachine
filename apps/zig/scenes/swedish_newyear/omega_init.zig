@@ -23,9 +23,9 @@ const CLEAR_LEN = 0x2710 * 4;
 const LOGO_END: u32 = 0xCA12; // the logo is read backwards from here, 48 bytes a line
 const SHIFTS: u32 = 0xC80E; // .w per line and frame: 0..16
 const CARRY: u32 = 0xC806; // .w x 4: the bits shifted out of the group to the right
-const LOGO_LINES = 89;
+const LOGO_LINES = O.LOGO_LINES;
+const LOGO_BYTES = O.LOGO_BYTES;
 const SRC_GROUPS = 6; // 96 pixels
-pub const LOGO_BYTES = 56; // a built line: 7 groups, 112 pixels
 
 pub fn init(r: *const Ram) void {
     r.zero(O.SCREEN, CLEAR_LEN);
@@ -50,7 +50,7 @@ pub fn init(r: *const Ram) void {
 /// ($8064..$8110). `src` / `dst` are the line's ends; the carries become the
 /// seventh (leftmost) group.
 fn logoLine(r: *const Ram, src_end: u32, dst_end: u32, shift: u5) void {
-    for (0..4) |p| r.sw(CARRY + 2 * @as(u32, @intCast(p)), 0);
+    r.zero(CARRY, 8);
     var src = src_end;
     var dst = dst_end;
     for (0..SRC_GROUPS) |_| {

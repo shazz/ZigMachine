@@ -26,7 +26,6 @@
 // --------------------------------------------------------------------------
 const st = @import("st.zig");
 const O = @import("omega.zig");
-const LOGO_BYTES = @import("omega_init.zig").LOGO_BYTES;
 
 const Ram = st.Ram;
 
@@ -43,7 +42,8 @@ const LOGO_FRAME: u32 = 0x817A; // .l 0..31
 const BOUNCE_PTR: u32 = 0xC98E; // .l into the table below
 const BOUNCE: u32 = 0xC992; // .w x 40: 0, -2 .. -30 .. -1
 const BOUNCE_END: u32 = 0xC9E2;
-const LOGO_LINES = 89;
+const LOGO_LINES = O.LOGO_LINES;
+const LOGO_BYTES = O.LOGO_BYTES;
 
 // --- scroller
 const SCROLL_END: u32 = 0x7757A; // line 187, the last group's plane-1 word
@@ -88,18 +88,18 @@ fn column(r: *const Ram, a: u32, v: u16) void {
 
 /// $8772: the logo's current frame and where it goes.
 fn logoAt(r: *const Ram) struct { src: u32, dst: u32 } {
-    const f = r.l(LOGO_FRAME);
+    const f: u16 = @truncate(r.l(LOGO_FRAME)); // mulu.w reads the low word
     const y = r.w(r.l(BOUNCE_PTR)) +% 30; // addi.w: -30..0 -> 0..30
-    return .{ .src = O.FRAMES + f *% 0x1378, .dst = LOGO_AT + @as(u32, y) * st.LINE };
+    return .{ .src = O.FRAMES + @as(u32, f) * O.FRAME_BYTES, .dst = LOGO_AT + @as(u32, y) * st.LINE };
 }
 
 fn logo(r: *const Ram) void {
     const old = logoAt(r).dst;
     for (0..LOGO_LINES) |y| r.zero(old + @as(u32, @intCast(y)) * st.LINE, LOGO_BYTES);
-    var f = r.l(LOGO_FRAME) + 1;
+    var f = r.l(LOGO_FRAME) +% 1; // addq.l
     if (f == O.LOGO_FRAMES) f = 0;
     r.sl(LOGO_FRAME, f);
-    var p = r.l(BOUNCE_PTR) + 2;
+    var p = r.l(BOUNCE_PTR) +% 2;
     if (p == BOUNCE_END) p = BOUNCE;
     r.sl(BOUNCE_PTR, p);
     const at = logoAt(r);
@@ -109,8 +109,8 @@ fn logo(r: *const Ram) void {
     }
 }
 
-/// `w` rotated left 4 through `carry` (rol.l #4 / or.w / swap): the new word,
-/// and the nibble shifted out becomes the carry.
+/// The word at `a` rotated left 4 through `carry` (rol.l #4 / or.w / swap):
+/// the nibble shifted out becomes the carry.
 fn roll(r: *const Ram, a: u32, carry: *u16) void {
     const v = @as(u32, r.w(a)) << 4;
     r.sw(a, @as(u16, @truncate(v)) | carry.*);
@@ -128,7 +128,9 @@ fn scroll(r: *const Ram) void {
         roll(r, g, &c1);
         roll(r, g - 2, &c0);
         g -= 4;
-        for (0..20) |_| { // (a) and -8(a): plane 1; -2 and -10: plane 0
+        // The 68000 unrolls this by two groups ((a), -8(a): plane 1; -2, -10:
+        // plane 0; ten passes): the same words, each chain in the same order.
+        for (0..20) |_| {
             roll(r, a, &c1);
             roll(r, a - 2, &c0);
             a -= 8;
@@ -154,7 +156,7 @@ fn nextChar(r: *const Ram) void {
 }
 
 fn advance(r: *const Ram) void {
-    var p = r.l(TEXT_PTR) + 1;
+    var p = r.l(TEXT_PTR) +% 1;
     if (p == FONT) p = TEXT;
     r.sl(TEXT_PTR, p);
 }

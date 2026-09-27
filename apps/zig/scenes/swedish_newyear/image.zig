@@ -25,11 +25,3 @@ pub const Img = struct {
         return if (x & 1 == 0) b & 0x0F else b >> 4;
     }
 };
-
-/// floor() of an f64 into i32, saturating so a far-off sample never traps.
-pub fn ifloor(v: f64) i32 {
-    const f = @floor(v);
-    if (!(f > -1.0e9)) return -1_000_000_000;
-    if (f > 1.0e9) return 1_000_000_000;
-    return @intFromFloat(f);
-}

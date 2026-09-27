@@ -30,8 +30,14 @@ const ram = @import("ram.zig");
 pub const BASE: u32 = 0x8000; // where the loader puts the OMEGA part
 pub const TOP: u32 = 0x80000;
 pub const SCREEN: u32 = 0x70000;
-pub const FRAMES: u32 = 0x40000; // the logo's 32 frames, $1378 bytes each
+pub const FRAMES: u32 = 0x40000; // the logo's 32 frames
 pub const LOGO_FRAMES = 32;
+pub const LOGO_LINES = 89;
+pub const LOGO_BYTES = 56; // a built line: 7 groups, 112 pixels
+pub const FRAME_BYTES: u32 = 0x1378; // mulu #$1378 at $8772
+comptime {
+    if (LOGO_LINES * LOGO_BYTES != FRAME_BYTES) @compileError("a logo frame is 89 lines of 56 bytes");
+}
 const PALETTE: u32 = 0xDD5E; // lines 0..199 (the VBL)
 const LOWER_PALETTE: u32 = 0xC94E; // from line 200 (Timer B)
 
@@ -61,17 +67,23 @@ pub const Omega = struct {
     }
 
     fn capture(self: *const Omega) void {
+        var upper: [16]u16 = undefined;
+        var lower: [16]u16 = undefined;
+        for (&upper, &lower, 0..) |*u, *l, i| {
+            const off = 2 * @as(u32, @intCast(i));
+            u.* = self.r.w(PALETTE + off);
+            l.* = self.r.w(LOWER_PALETTE + off);
+        }
         var rows: show.Rows = [_]?show.Row{null} ** fr.PH;
         var pals: show.LinePalettes = undefined;
+        const oy: usize = @intCast(fr.OY);
         const x0: i32 = fr.OX;
-        for (0..fr.PH) |py| {
-            const lower = py >= @as(usize, @intCast(fr.OY)) + show.LINES;
-            const p = if (lower) LOWER_PALETTE else PALETTE;
-            for (&pals[py], 0..) |*c, i| c.* = self.r.w(p + 2 * @as(u32, @intCast(i)));
-            if (py < @as(usize, @intCast(fr.OY))) continue;
+        for (&pals, &rows, 0..) |*pal, *row, py| {
+            pal.* = if (py >= oy + show.LINES) lower else upper;
+            if (py < oy) continue;
             // 200 lines and the 40 of the opened bottom border the machine shows
-            const y: u32 = @intCast(py - @as(usize, @intCast(fr.OY)));
-            rows[py] = .{ .addr = SCREEN + y * st.LINE, .x0 = x0, .lo = @intCast(x0), .hi = @intCast(x0 + 320) };
+            const y: u32 = @intCast(py - oy);
+            row.* = .{ .addr = SCREEN + y * st.LINE, .x0 = x0, .lo = @intCast(x0), .hi = @intCast(x0 + 320) };
         }
         show.captureLines(&self.r, &rows, &pals);
     }
