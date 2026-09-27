@@ -210,6 +210,11 @@
   "type": "amiga"
  },
  {
+  "tag": "skystrike",
+  "title": "SKYSTRIKE",
+  "type": "atari st"
+ },
+ {
   "tag": "stcs",
   "title": "STCS",
   "type": "atari st"

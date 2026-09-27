@@ -458,6 +458,7 @@ pub fn build(b: *std.Build) void {
         "demo-swedish_newyear", // 76 — SYNC / AN COOL / TCB / OMEGA, Swedish New Year Demo: menu + 5 screens (CODEF screen 295)
         "demo-gen4_3615", // 77 — ULM / 3615 GEN4 contest screen by The Fate, full overscan (CODEF screen 539)
         "demo-rick_dangerous", // 78 — RICK DANGEROUS, Core Design / Firebird 1989: the game, ported from RICKST.PRG through its reference model
+        "demo-skystrike", // 79 — SKYSTRIKE, Shadow Software 1990: the STOS game from Automation Menu Disk 258, ported from its detokenised listing
     };
     for (cart_names, 0..) |name, idx| {
         if (name.len == 0) continue; // excluded cart (see note above)
