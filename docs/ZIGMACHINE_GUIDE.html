@@ -851,7 +851,7 @@ tunes it so the sector sums to <code>$1234</code>. <strong>Run:</strong> <code>s
 - After <code>hwInit()</code> plane 0 is already a normal 320×200 plane with its default framebuffer
   base — read <code>REG_FB_BASE</code> (as above) rather than hard-coding the address.
 - Keep it small: check <code>ls -l docs/boot-&lt;name&gt;.wasm</code> ≤ 1015 B; <code>mkdisk</code> prints the headroom.</p></div></section>
-<section class="ref" id="music-sndh-player-zig-c-rust"><header class="sec-h"><span class="eyebrow">Formats</span><h2>Music<small>docs/MUSIC.md</small></h2></header><div class="chapter"><ul class="toc"><li class="toc-3"><a href="#music-sndh-player-zig-c-rust-music-the-sndh-player-from-zig-c-and-rust">Music — the SNDH player, from Zig, C and Rust</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-formats">Formats</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-zig">Zig</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-c">C</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-rust">Rust</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-stopping-the-music">Stopping the music</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-rules-and-limits">Rules and limits</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-proving-a-tune-plays-headless">Proving a tune plays (headless)</a></li></ul><h3 id="music-sndh-player-zig-c-rust-music-the-sndh-player-from-zig-c-and-rust">Music — the SNDH player, from Zig, C and Rust</h3>
+<section class="ref" id="music-sndh-player-zig-c-rust"><header class="sec-h"><span class="eyebrow">Formats</span><h2>Music<small>docs/MUSIC.md</small></h2></header><div class="chapter"><ul class="toc"><li class="toc-3"><a href="#music-sndh-player-zig-c-rust-music-the-sndh-player-from-zig-c-and-rust">Music — the SNDH player, from Zig, C and Rust</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-formats">Formats</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-zig">Zig</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-c">C</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-rust">Rust</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-stopping-the-music">Stopping the music</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-sound-effects-calling-the-running-sndh">Sound effects: calling the running SNDH</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-rules-and-limits">Rules and limits</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-proving-a-tune-plays-headless">Proving a tune plays (headless)</a></li></ul><h3 id="music-sndh-player-zig-c-rust-music-the-sndh-player-from-zig-c-and-rust">Music — the SNDH player, from Zig, C and Rust</h3>
 <p>ZigMachine plays real Atari ST music. An <strong>SNDH</strong> file carries the tune's own
 68000 replay routine; the machine runs that code on an emulated 68000 (Musashi)
 driving the sealed YM2149, exactly as the ST did. Nothing is pre-rendered, and
@@ -936,6 +936,50 @@ fetched, so a slow earlier request can never start after it.</p>
 <figure class="cb" data-lang=zig><figcaption><span class="cb-lang">zig</span><span class="cb-n">1 line</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code>zg.<span class="tok-fn">stopSong</span>();          <span class="tok-cm">// Zig</span></code></pre></figure>
 <figure class="cb" data-lang=c><figcaption><span class="cb-lang">c</span><span class="cb-n">1 line</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code><span class="tok-fn">zm_stop_song</span>();         <span class="tok-cm">// C</span></code></pre></figure>
 <figure class="cb" data-lang=rust><figcaption><span class="cb-lang">rust</span><span class="cb-n">1 line</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code>zigmachine_music::<span class="tok-fn">stop_song</span>();   <span class="tok-cm">// Rust</span></code></pre></figure>
+<h4 id="music-sndh-player-zig-c-rust-sound-effects-calling-the-running-sndh">Sound effects: calling the running SNDH</h4>
+<p>A song request is a <strong>load</strong>: the host fetches the file, the player clears the
+68000's RAM around the image, silences the YM, resets the MFP and runs INIT.
+Right for a new tune; wrong for a game's sound effect, which would cut every
+voice, envelope and digi still sounding, where the original lets them finish.</p>
+<p><code>zg.sndhCall(name, d0)</code> runs the <strong>playing</strong> image's INIT again, as a
+subroutine with <code>d0</code>: no fetch, no reload, no chip or MFP reset. The replay
+clock and every running timer keep their phase; afterwards the player re-reads
+the MFP, so a timer INIT stopped stops and one it started is due a period from
+then. The image decides what <code>d0</code> means. A driver that must not reinstall
+itself takes a flag (Rick Dangerous's <code>sound.s</code>: bit 15 = resident); an INIT
+that only points the replay at a new sequence (Joust's Dosound scripts, North
+&amp; South's <code>play_seq</code>) needs none.</p>
+<figure class="cb" data-lang=zig><figcaption><span class="cb-lang">zig</span><span class="cb-n">2 lines</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code>zg.<span class="tok-fn">requestSongTune</span>(<span class="tok-str">&quot;rick_dangerous.sndh&quot;</span>, sub);           <span class="tok-cm">// the first sound: a LOAD</span>
+_ = zg.<span class="tok-fn">sndhCall</span>(<span class="tok-str">&quot;rick_dangerous.sndh&quot;</span>, <span class="tok-num">0x8000</span> | sub2);    <span class="tok-cm">// later ones: INIT on the running driver</span></code></pre></figure>
+<figure class="cb" data-lang=c><figcaption><span class="cb-lang">c</span><span class="cb-n">1 line</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code><span class="tok-fn">zm_sndh_call</span>(<span class="tok-str">&quot;joust_sfx.sndh&quot;</span>, n + <span class="tok-num">1</span>);            <span class="tok-cm">// C (returns 0 when refused)</span></code></pre></figure>
+<figure class="cb" data-lang=rust><figcaption><span class="cb-lang">rust</span><span class="cb-n">1 line</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code>zigmachine_music::<span class="tok-fn">sndh_call</span>(<span class="tok-str">&quot;joust_sfx.sndh&quot;</span>, n + <span class="tok-num">1</span>);   <span class="tok-cm">// Rust (false when refused)</span></code></pre></figure>
+<p>The rules:</p>
+<ul>
+<li><strong>Every call of a frame gets through, in order</strong> (up to 16 a frame; a refused
+  call is counted: <code>zg.sndhCallsDropped()</code> / <code>zm_sndh_calls_dropped()</code>).</li>
+<li><strong>A song request or a stop made after calls discards them</strong>: it reloads or
+  stops the image they would run on. The host drains the calls after the
+  frame's song request, so this keeps the two in the cart's order.</li>
+<li><strong>Calls land between two play ticks.</strong> The worklet applies them between two
+  render blocks (128 samples, 2.9 ms): every tick due before has run, the next
+  comes on its old schedule. That is where a game's main loop calls its driver,
+  between two VBL interrupts.</li>
+<li><strong>An image that is not the one playing is loaded first</strong>, and the call's <code>d0</code>
+  is its first INIT, unclamped (<code>audioSndhPlayRaw</code>). An image with a resident
+  flag must handle that flag on a fresh load, so <code>sound.s</code> checks an
+  <code>installed</code> byte before skipping the install.</li>
+<li><strong>An INIT that is called again must not allocate.</strong> Only a load resets the
+  68000 heap, so an INIT that asks GEMDOS <code>Malloc</code> for a buffer uses up more
+  heap on every call. Allocate once, on the first INIT.</li>
+<li><strong>Calls made while sound is off are dropped, not kept.</strong> A song request
+  waits for the first gesture; a stale effect firing when sound comes on
+  would be wrong.</li>
+</ul>
+<p>Proofs: <code>apps/sndh_call_check.mjs</code> (a call leaves the untouched channel, Timer
+A's phase and the position exactly as an untouched run's; a reload in its
+place is caught) and the Rick Dangerous harness's resident check (the running
+driver's RAM equals the cart's transcription, tick for tick, with later
+requests, the paired shot and dynamite's double play among them).</p>
 <h4 id="music-sndh-player-zig-c-rust-rules-and-limits">Rules and limits</h4>
 <ul>
 <li><strong>Names</strong> are paths under <code>docs/music/</code>, at most 64 bytes, no <code>..</code> and no

@@ -115,6 +115,22 @@ export fn audioSndhPlay(tune: u8) void {
     sndh.start(tune);
     current_mode = if (sndh.active) 4 else 0;
 }
+/// Start the staged SNDH with INIT's d0 exactly as given (audioSndhPlay clamps
+/// it to a subtune): the host's load-then-call fallback for zg.sndhCall.
+export fn audioSndhPlayRaw(d0: u32) void {
+    mod.stop();
+    ym.stop();
+    audio.machinePaulaClearScopes();
+    sndh.startRaw(d0);
+    current_mode = if (sndh.active) 4 else 0;
+}
+/// zg.sndhCall: INIT(d0) on the RUNNING image, nothing reloaded or reset
+/// (SndhPlayer.callInit). 0 when no SNDH is playing, or INIT ran away.
+export fn audioSndhCall(d0: u32) u32 {
+    const ok = sndh.callInit(d0);
+    if (!sndh.active and current_mode == 4) current_mode = 0;
+    return @intFromBool(ok);
+}
 export fn audioSndhStop() void {
     sndh.stop();
     if (current_mode == 4) current_mode = 0;

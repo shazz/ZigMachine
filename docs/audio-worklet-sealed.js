@@ -86,11 +86,21 @@ class ZigAudioSealedProcessor extends AudioWorkletProcessor {
             } else if (msg.type === "loadSndh") {
                 // An SNDH is 68000 code; the cart depacks it (Pack-Ice) and runs
                 // it on its own CPU. Subtune numbers count from 1.
+                // `d0` (zg.sndhCall naming an image that is not playing): the
+                // call's d0 is the image's first INIT, unclamped.
                 const len = writeSong(msg.bytes);
                 const ok = d.audioLoadSndh(len);
-                if (ok) d.audioSndhPlay(msg.tune || 0);
+                if (ok && msg.d0 !== undefined) d.audioSndhPlayRaw(msg.d0 >>> 0);
+                else if (ok) d.audioSndhPlay(msg.tune || 0);
                 this.port.postMessage({ type: "sndhLoaded", ok: !!ok, len: len,
                                         stuckPc: d.audioSndhStuckPc(), trap: d.audioSndhUnhandledTrap() });
+            } else if (msg.type === "sndhCall") {
+                // zg.sndhCall on the image already playing: INIT(d0) as a
+                // subroutine, nothing reloaded. A message is handled BETWEEN two
+                // process() blocks, so it lands between two play ticks, as a
+                // game's main loop calls its driver between two VBLs.
+                if (!d.audioSndhCall(msg.d0 >>> 0))
+                    this.port.postMessage({ type: "sndhCallMissed", d0: msg.d0, stuckPc: d.audioSndhStuckPc() });
             } else if (msg.type === "loadRaw") {
                 const len = writeSong(msg.bytes);
                 d.audioPlayRaw(len, msg.rate, msg.unsigned ? 1 : 0);

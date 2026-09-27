@@ -218,6 +218,22 @@ export fn songNameLen() u32 {
 export fn songTune() u32 {
     return zg.songTune();
 }
+// zg.sndhCall: the frame's calls to the RUNNING SNDH, in order. The host polls
+// this AFTER pollSongRequest (a song request made after the calls discards
+// them, libs/zig/sndh_call.zig), then reads sndhCallD0(i) for each and the
+// image's name. Reading takes them: each call runs once.
+export fn pollSndhCalls() u32 {
+    return if (booted) @intCast(zg.takeSndhCalls()) else 0;
+}
+export fn sndhCallD0(i: u32) u32 {
+    return zg.sndhCallD0(i);
+}
+export fn sndhCallNamePtr() [*]const u8 {
+    return zg.sndhCallNamePtr();
+}
+export fn sndhCallNameLen() u32 {
+    return @intCast(zg.sndhCallNameLen());
+}
 
 // Directional / action input from the host. Forwarded to scenes that declare
 // input() (e.g. the effects menu: arrows move, Fire launches, Back returns).

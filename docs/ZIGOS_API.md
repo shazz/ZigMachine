@@ -236,7 +236,10 @@ can visualise the sound (as `music_debug`'s oscilloscope does).
 
 A scene asks for a tune by name with `zg.requestSong(name)` / `zg.requestSongTune(name, n)`;
 C and Rust carts use `apps/c/zigmachine_music.h` / `apps/rust/zigmachine_music.rs`, which
-export the same four functions the host polls. The full guide, with formats, rules and the
+export the same four functions the host polls. A request LOADS the tune (the chip is
+silenced, the 68000 RAM cleared); for a game's sound effects `zg.sndhCall(name, d0)` runs
+the playing SNDH's INIT again with `d0` instead, nothing reloaded, every call of a frame
+in order (`zm_sndh_call` / `sndh_call` in C / Rust). The full guide, with formats, rules and the
 headless checks, is `docs/MUSIC.md` (also rendered into `docs/ZIGMACHINE_GUIDE.html`).
 
 ## 9. Build & run

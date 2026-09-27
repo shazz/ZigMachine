@@ -9,6 +9,49 @@ reconstructed from the commits that made them, so they are shorter.
 
 ---
 
+## 2026-09-26 — zg.sndhCall: INIT on the running SNDH, a cart-export queue (no HW bump)
+
+**Status:** accepted · guide in `docs/MUSIC.md` ("Sound effects")
+
+**Context:** Every song request reloads the SNDH: the host refetches it, the
+player zeroes the 68000's RAM around the image, silences the YM, resets the
+MFP and runs INIT. Rick Dangerous plays its effects as subtunes of one driver
+image, so each effect cut every voice and digi still sounding, and the cart's
+one-request-per-frame bridge dropped the game's paired plays (the shot's
+`play(8,1); play(8,0)`, dynamite's two `$0A`).
+
+**Decision:** `zg.sndhCall(name, d0)` queues INIT(d0) on the RUNNING image, up
+to 16 per frame, in order. It rides the song bridge's shape, not a machine
+register: the cart exports `pollSndhCalls` / `sndhCallD0(i)` /
+`sndhCallNamePtr/Len` (Zig `demo_main.zig`, C `zigmachine_music.h`, Rust
+`zigmachine_music.rs`), the loader drains them after the frame's song request
+and posts `{type:"sndhCall", d0}`; the open `demo-audio.wasm` runs
+`SndhPlayer.callInit` (no load, no silence, no MFP reset, clock and timer
+phases kept, then `rearm()`). A song request or stop made after queued calls
+discards them (ZigOS/C/Rust), which is what keeps the two channels in the
+cart's order. A call on an image that is not playing loads it with the call's
+d0 as its first INIT (`audioSndhPlayRaw`), so a stale host never plays a
+default subtune in its place.
+
+**Why no HW 1.8.0:** the brief proposed a register and a `hwVersion` bump.
+Neither sealed binary changes: the song bridge is a contract between cart
+exports and the loader, and the player is the OPEN `demo-audio.wasm`. Bumping
+`hwVersion` would rebuild `machine-video.wasm` only to change a number that no
+longer describes it, and a register would split the one music bridge into two
+mechanisms. The loader feature-detects `demo.pollSndhCalls`, as it already
+does `songTune`.
+
+**Alternatives considered:** the worklet decides "already loaded" (it has no
+file to load when it is not); calls as subtune requests with a "resident" bit
+in `songTune` (still one request a frame, still a fetch); a register queue in
+the video machine (sealed code, and the audio thread cannot read it).
+
+**Consequences:** The drop rule inside a driver (Rick's play_sound) now decides
+on the AUDIO clock, while the cart's transcription decides on the cart clock;
+the two agree when their tick counts do (the harness proves it in lockstep),
+and a request the cart passes may still be dropped by a driver whose tune
+ends a tick later. Calls made while sound is off are dropped.
+
 ## 2026-09-26 — The machine hands out RAM: a bump arena (HW 1.7.0)
 
 **Status:** accepted · guide in `docs/MEMORY.md`
