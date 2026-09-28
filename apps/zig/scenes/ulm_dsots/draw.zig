@@ -49,10 +49,10 @@ pub fn foreground(fb: *LogicalFB, view: *const View) void {
     const cx: i32 = @intFromFloat(@divFloor(view.x, 2));
     const cy: i32 = @as(i32, @intFromFloat(@divFloor(view.y, 2))) + TOP_BAR;
     const t: i32 = @intCast(A.TILE);
-    const c0: usize = @intCast(@max(@divFloor(cx, t), 0));
-    const r0: usize = @intCast(@max(@divFloor(cy, t), 0));
-    const c1: usize = @min(@as(usize, @intCast(@divFloor(cx + @as(i32, @intCast(dst.w)) - 1, t))) + 1, A.map.COLS);
-    const r1: usize = @min(@as(usize, @intCast(@divFloor(cy + @as(i32, @intCast(dst.h)) - 1, t))) + 1, A.map.DATA_ROWS);
+    const c0 = firstTile(cx);
+    const r0 = firstTile(cy);
+    const c1 = @min(tilesTo(cx, dst.w), A.map.COLS);
+    const r1 = @min(tilesTo(cy, dst.h), A.map.DATA_ROWS);
     for (r0..r1) |r| {
         for (c0..c1) |c| {
             const gid = A.foreground[r * A.map.COLS + c];
@@ -80,6 +80,19 @@ pub fn griffin(fb: *LogicalFB, g: *const Griffin, view: *const View) void {
 pub fn bars(fb: *LogicalFB) void {
     @memset(fb.fb[0 .. (OY + TOP_BAR) * fb.stride], A.BLACK);
     @memset(fb.fb[(OY + LOW_BAR) * fb.stride .. @as(usize, fb.fb_h) * fb.stride], A.BLACK); // u16 * u16 overflows
+}
+
+/// The tile under screen pixel `at` (the view's edge), or 0 above/left of the map.
+fn firstTile(at: i32) usize {
+    return @intCast(@max(@divFloor(at, @as(i32, @intCast(A.TILE))), 0));
+}
+
+/// One past the last tile a `len`-pixel span from `at` touches, ceil((at + len)
+/// / TILE). The usual floor((at + len - 1) / TILE) + 1 casts -1 to usize, which
+/// ReleaseSmall does not check, when an empty span starts at 0.
+fn tilesTo(at: i32, len: usize) usize {
+    const end: i32 = at + @as(i32, @intCast(len)) + @as(i32, @intCast(A.TILE)) - 1;
+    return @intCast(@max(@divFloor(end, @as(i32, @intCast(A.TILE))), 0));
 }
 
 /// Where a canvas coordinate lands on the halved screen (see the header).

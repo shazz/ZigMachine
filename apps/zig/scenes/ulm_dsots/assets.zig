@@ -37,6 +37,10 @@ pub var back_rows: []u8 = undefined;
 
 comptime {
     if (foreground.len != map.COLS * map.DATA_ROWS) @compileError("foreground.dat does not match map.zig");
+    if (level.cells.len != map.COLS * map.DATA_ROWS) @compileError("collision.dat does not match map.zig");
+    // a gid past the tileset would be clipped away by blit: a tile silently missing
+    @setEvalBranchQuota(4 * foreground.len);
+    for (foreground) |gid| if (gid > tileset.h / TILE * SHEET_COLS) @compileError("foreground.dat names a tile past tileset.raw");
     if (BACK_ROW < 384 + BACK_W) @compileError("a background row must cover the canvas at any offset");
 }
 
