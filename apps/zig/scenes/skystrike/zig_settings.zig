@@ -108,3 +108,26 @@ pub var effects: Effects = .{};
 // ORIGINAL plays skystrike.sndh's three tunes (sound.zig); ZIG three
 // ProTracker MODs from The Mod Archive, one per situation (zig_music.zig;
 // docs/music/skystrike_music_CREDITS.txt).
+//
+// The mix (Matt, 2026-09-27: the MOD drowned the effects in flight). An
+// effect plays on the MOD's lent channel at the most the MOD's headroom
+// allows (64/64 x 1/1.4, zg.sfxPlay), so the music comes down instead:
+// zg.requestModVolume scales the song's own channels, never the effect's.
+// Measured on the audio modules (apps/skystrike_zig_sound.mjs "mix"), "The
+// Hawk's Claw" with one channel lent is -19.8 dBFS RMS; the effects -26.8
+// (crash) to -29.2 (bomb), -27.9 on average, i.e. 8 dB UNDER it at gain 1.
+// 0.2 (-14 dB) puts the bed at -33.8: every effect 4.6 to 7.0 dB above it,
+// 5.9 on average. The other two have no effects over them: as they were.
+pub var music_gain_play: f32 = 0.2;
+/// The title, the menus, the briefings, the pause and the hall of fame.
+pub var music_gain_menus: f32 = 1.0;
+/// "You Were Killed !" / "No More Aircraft !".
+pub var music_gain_game_over: f32 = 1.0;
+/// The YM voices the game's PSG sounds (the engine note, 993's splash and
+/// 997's noise) are played on, of the three its VOLUME sets: 3 is ORIGINAL,
+/// 2 is -3.5 dB, 1 is -9.5 dB (the same noise and envelope on each voice,
+/// so they add in phase). With all three the engine alone is -19.8 dBFS,
+/// 8 dB over the effects; on one it is -29.3, just under them and 4.5 dB
+/// over the music bed. There is no sfx gain: the effects are already at
+/// the chip's most.
+pub var psg_voices: u2 = 1;

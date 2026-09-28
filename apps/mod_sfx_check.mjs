@@ -16,18 +16,22 @@
 //            it); refused while an SNDH plays, and the SNDH -> MOD switch
 //            leaves the SNDH silent (it no longer renders over the MOD)
 //   refused  no MOD playing: the effect is refused and counted
+//   gain     zg.requestModVolume scales the song's channels, never the
+//            effect's (apps/mod_sfx_gain.mjs)
 //   reject   6CHN / 8CHN / 32CH / an untagged file / a short one: refused,
 //            counted, with the reason; M.K. / M!K! / 4CHN / FLT4 load
-//   node apps/mod_sfx_check.mjs [--break bytes|release|loop|reject]
+//   node apps/mod_sfx_check.mjs [--break bytes|release|loop|reject|gain]
 //     bytes: the effect compared with another sample; release: the channel
 //     expected held after the effect's end; loop: the looped effect expected
-//     free before its stop; reject: an 8CHN file expected to load
+//     free before its stop; reject: an 8CHN file expected to load; gain: the
+//     effect's channel expected scaled with the song
 import { readFile } from "node:fs/promises";
+import { gain } from "./mod_sfx_gain.mjs";
 
 const MOD = "docs/music/skystrike_the_hawks_claw.mod";
 const SNDH = "docs/music/skystrike.sndh";
 const SR = 44100, HEADROOM = 1 / 1.4;
-const BREAKS = ["bytes", "release", "loop", "reject"];
+const BREAKS = ["bytes", "release", "loop", "reject", "gain"];
 const bi = process.argv.indexOf("--break");
 const broke = bi > 0 ? process.argv[bi + 1] : null;
 if (bi > 0 && !BREAKS.includes(broke)) throw new Error(`--break ${BREAKS.join(" | ")}`);
@@ -202,6 +206,7 @@ await looped(mod, gun, errors, notes);
 await ym(mod, sndh, errors, notes);
 await refused(errors);
 await reject(mod, errors, notes);
+await gain(machine, mod, bang, broke, errors, notes);
 for (const n of notes) console.log(`  ${n}`);
 if (broke) {
     const hit = errors.find((e) => e.startsWith(`${broke}:`));

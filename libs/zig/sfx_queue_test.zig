@@ -1,4 +1,5 @@
-// Native tests for the zg.sfxPlay / sfxStop / ymWrite queue (sfx_queue.zig).
+// Native tests for the zg.sfxPlay / sfxStop / ymWrite / requestModVolume queue
+// (sfx_queue.zig).
 const std = @import("std");
 const q = @import("sfx_queue.zig");
 
@@ -49,5 +50,30 @@ test "empty or oversized PCM, a rate out of range and register 14+ are refused a
     try std.testing.expect(!s.play(&pcm, q.RATE_MAX + 1, false));
     try std.testing.expect(!s.ym(14, 0));
     try std.testing.expectEqual(@as(u32, 5), s.dropped);
+    try std.testing.expectEqual(@as(usize, 0), s.take());
+}
+
+test "a MOD gain goes on the wire as x 65536, in order with the effects" {
+    var s: q.Queue = .{};
+    try std.testing.expect(s.gain(0.25));
+    try std.testing.expect(s.play(&pcm, 12517, false));
+    try std.testing.expect(s.gain(1.0));
+    try std.testing.expect(s.gain(0.0));
+    try std.testing.expectEqual(@as(usize, 4), s.take());
+    try std.testing.expectEqual(@as(u8, 4), s.entries[0].op);
+    try std.testing.expectEqual(@as(u32, 16384), s.entries[0].len);
+    try std.testing.expectEqual(@as(u8, 1), s.entries[1].op);
+    try std.testing.expectEqual(q.GAIN_ONE, s.entries[2].len);
+    try std.testing.expectEqual(@as(u32, 0), s.entries[3].len);
+    try std.testing.expectEqual(@as(u32, 0), s.dropped);
+}
+
+test "a MOD gain below 0, above 1 or NaN is refused and counted, never clamped" {
+    var s: q.Queue = .{};
+    try std.testing.expect(!s.gain(-0.1));
+    try std.testing.expect(!s.gain(1.01));
+    try std.testing.expect(!s.gain(std.math.nan(f32)));
+    try std.testing.expect(!s.gain(std.math.inf(f32)));
+    try std.testing.expectEqual(@as(u32, 4), s.dropped);
     try std.testing.expectEqual(@as(usize, 0), s.take());
 }

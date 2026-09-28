@@ -14,13 +14,18 @@
 //           channels go on playing the song; each one-shot gives the channel
 //           back at its end (the song writes to it again); the gun loop is
 //           let go by the engine's own SAMSTOP (a loop-only stop)
-// --break sound: the sample table swapped (gun <-> airburst).
+//   mix     the levels at the gain the cart requested for the flight: each
+//           effect clearly over the music bed, the engine under the effects
+//           (apps/skystrike_zig_mix.mjs, which also holds the engine check)
+// --break sound: the sample table swapped (gun <-> airburst); mix: the
+// flight's music gain set to 1.0.
 import { readFile } from "node:fs/promises";
-import { onRunway, takeOff } from "./skystrike_zig_session.mjs";
-import { ENEMY } from "./skystrike_session.mjs";
+import { zsession, takeOff, Z } from "./skystrike_zig_session.mjs";
+import { ENEMY, toPlay } from "./skystrike_session.mjs";
+import { engineCheck, mix } from "./skystrike_zig_mix.mjs";
 
 const FIRE = 0x80, LEFT = 4, E = { sx: 0, al: 2, x: 4, y: 6 };
-const PLAY = 1, STOP = 2, YM = 3, SR = 44100, PER_FRAME = SR / 50;
+const PLAY = 1, STOP = 2, YM = 3, GAIN = 4, SR = 44100, PER_FRAME = SR / 50;
 const src = await readFile("apps/zig/scenes/skystrike/zig_sound.zig", "utf8");
 const NAMES = src.match(/Sample = enum\(u8\) \{([^}]*)\}/)[1].split(",").map((x) => x.trim()).filter(Boolean);
 const fxSrc = await readFile("apps/zig/scenes/skystrike/zig_fx.zig", "utf8");
@@ -36,14 +41,22 @@ function drain(s, frame, out) {
             c.bytes = new Uint8Array(s.memory.buffer, dv.getUint32(o + 4, true), dv.getUint32(o + 8, true)).slice();
             c.rate = dv.getUint32(o + 12, true);
         }
+        if (op === GAIN) c.q16 = dv.getUint32(o + 8, true);
         out.push(c);
     }
 }
 
-/// The flight's events; returns each event's commands and the whole run's.
-async function events(zig) {
-    const s = await onRunway(zig);
-    s.demo.pollSfx();
+/// The flight's events; returns each event's commands and the whole run's,
+/// and the gain the cart requested for the flight's MOD (the last one queued
+/// on the way to the runway).
+async function events(zig, broke) {
+    const s = await zsession(zig);
+    if (broke === "mix") s.poke(Z.gainPlay, 1000);
+    await toPlay(s);
+    if (!s.runTo("l50", 2000)) throw new Error(`not in play (label ${s.label()})`);
+    const before = [];
+    drain(s, -1, before);
+    const gain = before.findLast((c) => c.op === GAIN)?.q16 ?? null;
     const refused0 = s.z("fxRefused");
     const all = [];
     let frame = 0;
@@ -54,7 +67,7 @@ async function events(zig) {
     let from = all.length;
     s.press(56);
     for (let p = 0; p < 6; p++) s.pass(each);
-    const engine = { ym: all.filter((c) => c.op === YM), log: s.log() };
+    const engine = { ym: all.filter((c) => c.op === YM), pre: before.filter((c) => c.op === YM), log: s.log(), upTo: all.length };
     const got = {}, sent = {};
     from = all.length;
     const grab = (k) => { got[k] = all.slice(from); from = all.length; sent[k] = s.sent(); s.poke(13, 0); };
@@ -78,7 +91,7 @@ async function events(zig) {
     s.set("al", -1);
     s.run(8, each);
     grab("crash");
-    return { got, sent, all, engine, refused: s.z("fxRefused") - refused0 };
+    return { got, sent, all, engine, gain, voices: s.z("psgVoices"), refused: s.z("fxRefused") - refused0 };
 }
 
 const which = (raw, bytes) => raw.findIndex((r) => r.length === bytes.length && r.every((b, i) => b === bytes[i]));
@@ -96,28 +109,6 @@ function cartChecks(z, o, raw, broke, errors) {
     if (toSndh.length) errors.push(`sound: ZIG sent ${toSndh.length} commands to skystrike.sndh (${toSndh.slice(0, 4).map((d) => d.toString(16))})`);
     if (!Object.values(o.sent).flat().length) errors.push("sound: ORIGINAL sent nothing to skystrike.sndh");
     if (z.refused) errors.push(`sound: ${z.refused} of ZIG's effect / YM commands were refused by the queue`);
-}
-
-/// The engine note: ZIG's YM registers = the game's own PSG commands (its
-/// log, the same in both modes) as sound.s writes them (zig_psg.zig).
-const OP = { volume: 4, noise: 5, envel: 6, hi: 7, lo: 8 };
-function engineCheck(z, o, errors) {
-    const regs = new Array(14).fill(null), want = new Array(14).fill(null);
-    for (const c of z.engine.ym) regs[c.a] = c.b;
-    let period = 0;
-    for (const d of z.engine.log) {
-        const op = d >> 8, arg = d & 0xff;
-        if (op === OP.volume) want[8] = want[9] = want[10] = arg;
-        if (op === OP.noise) { want[6] = arg & 31; want[7] = 0xC0; }
-        if (op === OP.hi) period = arg << 8 | period & 0xff;
-        if (op === OP.lo) period = period & 0xff00 | arg;
-        if (op === OP.envel) { want[11] = period & 0xff; want[12] = period >> 8; want[13] = arg & 15; }
-    }
-    const bad = want.map((w, r) => (w !== null && regs[r] !== w ? `r${r} ${regs[r]} not ${w}` : null)).filter(Boolean);
-    if (!want.some((w) => w !== null)) errors.push("sound: throttle 8 logged no PSG command: the engine went unchecked");
-    if (bad.length) errors.push(`sound: ZIG's engine note on the YM differs from the game's commands: ${bad.join(", ")}`);
-    if (o.engine.log.join() !== z.engine.log.join()) errors.push("sound: the game's PSG commands differ between the modes");
-    return `the engine: noise ${regs[6]}, envelope ${regs[13]} period ${regs[12] << 8 | regs[11]} = the game's commands (${z.engine.ym.length} YM writes since take-off)`;
 }
 
 async function audioMachine(log) {
@@ -140,6 +131,7 @@ async function audioMachine(log) {
     const apply = (c) => {
         if (c.op === YM) return a.audioSfxYm(c.a, c.b);
         if (c.op === STOP) return a.audioSfxStop(c.a);
+        if (c.op === GAIN) return a.audioModGain(c.q16);
         new Uint8Array(memory.buffer, a.audioSfxBufPtr(), c.bytes.length).set(c.bytes);
         return a.audioSfxPlay(c.bytes.length, c.rate, c.a);
     };
@@ -188,11 +180,20 @@ async function chip(z, raw, errors) {
 export async function sound(broke) {
     const errors = [];
     const raw = await Promise.all(NAMES.map(async (n) => new Uint8Array(await readFile(`apps/zig/assets/screens/skystrike/sfx/${n}.raw`))));
-    const z = await events(true), o = await events(false);
+    const z = await events(true, broke), o = await events(false);
     cartChecks(z, o, raw, broke, errors);
     const eng = engineCheck(z, o, errors);
     const c = await chip(z, raw, errors);
     const plays = z.all.filter((x) => x.op === PLAY).map((x) => NAMES[which(raw, x.bytes)]);
-    console.log(`  sound: ZIG events -> ${plays.join(" ")}; ORIGINAL -> none; ${eng}; ${c}`);
+    if (o.gain !== null) errors.push(`mix: ORIGINAL requested a MOD gain (${o.gain})`);
+    let m = "the mix: unchecked";
+    if (z.gain === null) errors.push("mix: ZIG requested no MOD gain for the flight");
+    else {
+        const fx = [...new Map(z.all.filter((x) => x.op === PLAY).map((x) => [NAMES[which(raw, x.bytes)], x])).entries()]
+            .map(([name, x]) => ({ name, bytes: x.bytes, rate: x.rate, loop: !!x.a }));
+        const ym = [...z.engine.pre, ...z.engine.ym].map((x) => [x.a, x.b]);
+        m = await mix(fx, ym, z.gain, errors);
+    }
+    console.log(`  sound: ZIG events -> ${plays.join(" ")}; ORIGINAL -> none; ${eng}; ${c}; ${m}`);
     return errors;
 }

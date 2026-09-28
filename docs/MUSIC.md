@@ -157,6 +157,8 @@ thread plays them over the song (Zig only for now):
 _ = zg.sfxPlay(gun_pcm, 12517, true);   // signed 8-bit PCM at 12517 Hz, looped
 _ = zg.sfxStop(true);                    // stop it (true: only a looped effect)
 _ = zg.ymWrite(8, 16);                   // a YM register (0-13), under the song
+zg.requestSong("flight.mod");
+_ = zg.requestModVolume(0.2);            // that song's own channels at 0.2 (-14 dB)
 ```
 
 - **An effect borrows the song's quietest channel**: the one with the fewest
@@ -184,12 +186,30 @@ _ = zg.ymWrite(8, 16);                   // a YM register (0-13), under the song
   `zg.sfxDropped()`. An effect with no MOD playing is refused and counted on the
   audio thread (`audioSfxRefused`), and the host logs a warning.
 - **A new song takes back its channel**: a MOD request cuts the effect.
+- **The music can be turned down under the effects**: `zg.requestModVolume(gain)`
+  scales the song's own channels by `gain` (0..1), at once and from then on. The
+  effect's borrowed channel is not scaled: it stays at `64/64 x 1/1.4`, the most
+  the headroom allows, which is why the song comes down rather than the effect
+  going up. A gain below 1 only lowers the worst case, so nothing clips that did
+  not. Each MOD load starts at 1.0, so the call follows `zg.requestSong` in the
+  same frame; it is queued with the effects, after that load. NaN or a gain
+  outside 0..1 is refused and counted in `zg.sfxDropped()`, never clamped; with
+  no MOD playing it is refused on the audio thread (`audioSfxRefused`).
+  SKYSTRIKE's ZIG mode plays its flight music at 0.2: at 1.0 "The Hawk's Claw"
+  with one channel lent is -19.8 dBFS RMS and its effects -27 to -29, 8 dB under
+  it; at 0.2 the bed is -33.8 and every effect 4.6 to 7.0 dB over it
+  (`apps/skystrike_zig_mix.mjs` measures it on the audio modules).
+  The YM has no such gain (it is the machine's): a game's PSG note is made
+  quieter by sounding it on fewer of the YM's three voices (SKYSTRIKE's
+  `psg_voices`: one voice is -9.5 dB).
 
 The path: `libs/zig/sfx_queue.zig` (the cart's queue; each entry 16 bytes: op,
 a, b, pad, ptr, len, rate), `pollSfx` / `sfxEntriesPtr` (`apps/zig/demo_main.zig`),
 `postSfx` in `docs/sealed-loader.js`, the worklet's `sfxPlay` / `sfxStop` /
-`sfxYm` messages, and `audioSfxPlay` / `audioSfxStop` / `audioSfxYm` in
-demo-audio.wasm (`apps/zig/demo_audio_mod.zig`, `libs/zig/players/sfx_voice.zig`).
+`sfxYm` / `modGain` messages, and `audioSfxPlay` / `audioSfxStop` / `audioSfxYm` /
+`audioModGain` in demo-audio.wasm (`apps/zig/demo_audio_mod.zig`,
+`libs/zig/players/sfx_voice.zig`, `ModPlayer.setGain`). A gain entry is op 4 with
+the gain x 65536 in `len`.
 The sealed machine-audio ABI is unchanged. The effect uses only
 `machinePaulaTrigger` / `SetStep` / `SetVolume` and `machineYmWrite`.
 

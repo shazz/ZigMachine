@@ -6,9 +6,8 @@ const rows = @import("mod_rows.zig");
 // ProTracker .MOD player (4 channels, 31 samples: mod_format.zig refuses the
 // rest) — an OPEN ZigOS player. It sequences a MOD image held in the shared
 // song RAM (mod_rows.zig) and drives the SEALED Paula channels ONLY through
-// the sdk/audio.zig chip API (machinePaula*). The effects implemented
-// (mod_effects.zig) cover the common listenable set; ornaments not yet
-// handled are simply ignored.
+// the sdk/audio.zig chip API (machinePaula*). Its effects (mod_effects.zig)
+// cover the common listenable set; the rest are ignored.
 //
 // A channel can be LENT to a game's sound effect (sfx_voice.zig): the song
 // goes on reading it, row by row, but writes nothing to that Paula channel
@@ -58,8 +57,9 @@ pub const ModPlayer = struct {
     lent: ?u8 = null,
     /// Mix the YM2149 too (a game's PSG note under the song: sfx_voice.zig).
     mix_ym: bool = false,
-
-    // sequencer state
+    /// zg.requestModVolume: the song's channels scaled by this (0..1), never
+    /// the lent one (its effect keeps chipVolume(64)). 1 on every load.
+    gain: f32 = 1.0,
     active: bool = false,
     speed: u8 = 6, // ticks per row
     samples_per_tick: u32 = 882, // 44100 / (125*0.4)
@@ -106,8 +106,7 @@ pub const ModPlayer = struct {
     }
 
     pub fn setBpm(self: *ModPlayer, bpm: u16) void {
-        const sr = audio.SAMPLE_RATE;
-        self.samples_per_tick = @intFromFloat(sr / (@as(f32, @floatFromInt(bpm)) * 0.4));
+        self.samples_per_tick = @intFromFloat(audio.SAMPLE_RATE / (@as(f32, @floatFromInt(bpm)) * 0.4));
     }
 
     pub fn periodToStep(period: u16) u32 {
@@ -125,10 +124,19 @@ pub const ModPlayer = struct {
         if (self.owns(ch)) audio.machinePaulaSetStep(@intCast(ch), step);
     }
     pub fn setVolume(self: *ModPlayer, ch: usize, vol: u8) void {
-        if (self.owns(ch)) audio.machinePaulaSetVolume(@intCast(ch), chipVolume(vol));
+        if (self.owns(ch)) audio.machinePaulaSetVolume(@intCast(ch), chipVolume(vol) * self.gain);
     }
     pub fn setPos(self: *ModPlayer, ch: usize, pos: u32) void {
         if (self.owns(ch)) audio.machinePaulaSetPos(@intCast(ch), pos);
+    }
+
+    /// Scale the song's channels by `g`, 0..1 (else refused: false), at once.
+    /// Below 1 the worst case stays under full scale, as HEADROOM has it.
+    pub fn setGain(self: *ModPlayer, g: f32) bool {
+        if (!(g >= 0.0 and g <= 1.0)) return false; // NaN fails both
+        self.gain = g;
+        for (0..NUM_CH) |ch| self.setVolume(ch, self.chan[ch].volume);
+        return true;
     }
 
     /// Lend the quiet channel to a sound effect. The song goes on tracking
@@ -153,7 +161,7 @@ pub const ModPlayer = struct {
         } else audio.machinePaulaSetActive(ch, 0);
     }
 
-    // Render `frames` stereo samples: tick the sequencer at sample-accurate tick
+    // Render `frames` stereo samples, the sequencer ticked at sample-accurate
     // boundaries; the SEALED chip mixes the channels this player sets up.
     pub fn renderStereo(self: *ModPlayer, frames: usize) void {
         const n = @min(frames, audio.MAX_FRAMES);

@@ -10,6 +10,7 @@ export const Z = {
     valid: 308, slots: 309, rebuilds: 310, shifts: 311, sx: 312, sy: 313, camX: 314, camY: 315,
     renders: 316, leaks: 317, sent: 318, sent0: 320, cratersMade: 364, cratersFilled: 365,
     sit: 372, playing: 373, tune: 374, fxRefused: 375, credits: 376,
+    gainPlay: 377, gainMenus: 378, gainGameOver: 379, psgVoices: 380,
 };
 export const RING_W = 960, RING_H = 540, WIN_W = 400, WIN_H = 280;
 export const CLEAR_SENT = 13;
@@ -63,4 +64,37 @@ export function takeOff(s, passes, each) {
 export function steer(s, r) {
     s.set("r", r);
     s.set("r2", r);
+}
+
+// ---- the host's view (apps/skystrike_zig_music.mjs) ----------------------
+const dec = new TextDecoder();
+
+/// The request pending for the host, if any: "name" or "name#tune".
+function request(s) {
+    const d = s.demo;
+    if (!d.pollSongRequest()) return null;
+    const name = dec.decode(new Uint8Array(s.memory.buffer, d.songNamePtr(), d.songNameLen()));
+    return name.endsWith(".sndh") ? `${name}#${d.songTune()}` : name;
+}
+
+/// The run's request log: polled after every displayed frame, as the host
+/// does: the song request, then the effect queue (sfx_queue.zig). s.take():
+/// the requests since the last take, their zg.requestModVolume gains (x
+/// 65536) as its .gains; s.takeSfx(): the queue's other commands.
+export function track(s) {
+    const got = [], gains = [], sfx = [];
+    const poll = () => {
+        const r = request(s);
+        if (r) got.push(r);
+        const n = s.demo.pollSfx(), dv = new DataView(s.memory.buffer, s.demo.sfxEntriesPtr(), n * 16);
+        for (let i = 0; i < n; i++) {
+            const o = i * 16, op = dv.getUint8(o);
+            if (op === 4) gains.push(dv.getUint32(o + 8, true));
+            else sfx.push({ op, a: dv.getUint8(o + 1), b: dv.getUint8(o + 2) });
+        }
+    };
+    s.each = poll;
+    s.take = () => { poll(); const r = got.splice(0); r.gains = gains.splice(0); return r; };
+    s.takeSfx = () => { poll(); return sfx.splice(0); };
+    return s;
 }

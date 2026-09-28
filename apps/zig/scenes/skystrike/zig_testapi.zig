@@ -15,10 +15,13 @@
 //                shown, their two colours, the key help shown; 64/65 craters
 //                made / filled in, 66-68 the ghx9 / sno9 / so9 addresses;
 //                72 ZIG's music situation, 73 the MOD it last requested
-//                (-1 none), 74 ORIGINAL's tune (0 off), 75 effect / YM
-//                commands the queue refused, 76 the title's credits shown
+//                (-1 none), 74 ORIGINAL's tune (0 off), 75 effect / YM /
+//                gain commands the queue refused, 76 the title's credits
+//                shown, 77-79 the music gains in flight / menus / game over
+//                (x 1000), 80 the PSG voices
 //   poke(300+k)  70 the crater lifetime in VBLs (0 never), 71 fullscreen
-//                screens on / off
+//                screens on / off, 77 the music gain in flight (x 1000),
+//                80 the PSG voices (0..3)
 //   ptr(5..11)   5 the ring (960 x 540, the world plane's buffer), 6 the
 //                capture (320 x 200), 7 the overlay (400 x 280), 8 the
 //                title's scroller zone as kept (176 x 8), 9 the intro's
@@ -79,6 +82,12 @@ fn more(k: u32) i32 {
         17 => @bitCast(sandbox.leaks),
         18 => @intCast(sound.sent_n),
         19 => @intFromEnum(hooks.screen),
+        else => most(k),
+    };
+}
+
+fn most(k: u32) i32 {
+    return switch (k) {
         60 => @bitCast(@import("zig_tracers.zig").shown),
         61 => @import("zig_tracers.zig").ink,
         62 => @import("zig_tracers.zig").tail,
@@ -92,8 +101,12 @@ fn more(k: u32) i32 {
         72 => @intFromEnum(music.now),
         73 => if (music.playing) |m| @intFromEnum(m) else -1,
         74 => music.sndh_tune,
-        75 => @bitCast(@import("zig_fx.zig").refused +% @import("zig_psg.zig").refused),
+        75 => @bitCast(@import("zig_fx.zig").refused +% @import("zig_psg.zig").refused +% music.refused),
         76 => @intFromBool(@import("zig_credits.zig").shown),
+        77 => milli(set.music_gain_play),
+        78 => milli(set.music_gain_menus),
+        79 => milli(set.music_gain_game_over),
+        80 => set.psg_voices,
         else => if (k >= 20 and k - 20 < sound.sent_n) sound.sent[k - 20] else -1,
     };
 }
@@ -102,8 +115,16 @@ pub fn poke(k: u32, value: i32) void {
     switch (k) {
         70 => set.crater_life_vbls = @bitCast(value),
         71 => set.fullscreen_screens = value != 0,
+        77 => set.music_gain_play = @as(f32, @floatFromInt(value)) / 1000.0,
+        80 => if (value >= 0 and value <= 3) {
+            set.psg_voices = @intCast(value);
+        },
         else => {},
     }
+}
+
+fn milli(g: f32) i32 {
+    return @intFromFloat(@round(g * 1000.0));
 }
 
 pub fn ptr(what: u32) ?[*]u8 {

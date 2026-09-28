@@ -14,36 +14,24 @@
 //   credits  ZIG's title shows the music's credits line in the bottom border
 //            above the scroller (its pixels in the scroller's ink, clear of
 //            the monitor's frame), ORIGINAL's does not
+//   gain     each MOD request comes with its situation's zg.requestModVolume
+//            (zig_settings.zig music_gain_*: the flight's in flight, the
+//            menus' on the title and the pause, the game over's after it),
+//            the flight's under the menus'; ORIGINAL requests none
 // --break music: the flight's MOD expected on the title; swap: Z expected to
-// leave the music alone; credits: the credits line looked for in ORIGINAL.
+// leave the music alone; credits: the credits line looked for in ORIGINAL;
+// gain: the flight's gain expected on the title.
 import { readFile } from "node:fs/promises";
-import { zsession, WIN_W } from "./skystrike_zig_session.mjs";
+import { zsession, track, WIN_W } from "./skystrike_zig_session.mjs";
 import { toPlay } from "./skystrike_session.mjs";
 import * as K from "./skystrike_zig_screens_layout.mjs";
+import { checkGains } from "./skystrike_zig_mix.mjs";
 
 const SNDH = "skystrike.sndh", SILENCE = 4;
 const INK = 16; // zig_scroller.zig's overlay index for its white
 const src = await readFile("apps/zig/scenes/skystrike/zig_music.zig", "utf8");
 const MOD = Object.fromEntries([...src.matchAll(/\.(title|flying|gameover) = "([^"]+)"/g)].map((m) => [m[1], m[2]]));
 const SIT = { none: 0, title: 1, flying: 2, gameover: 3 };
-const dec = new TextDecoder();
-
-/// The request pending for the host, if any: "name" or "name#tune".
-function request(s) {
-    const d = s.demo;
-    if (!d.pollSongRequest()) return null;
-    const name = dec.decode(new Uint8Array(s.memory.buffer, d.songNamePtr(), d.songNameLen()));
-    return name.endsWith(".sndh") ? `${name}#${d.songTune()}` : name;
-}
-
-/// The run's request log: polled after every displayed frame, as the host does.
-function track(s) {
-    const got = [];
-    const poll = () => { const r = request(s); if (r) got.push(r); };
-    s.each = poll;
-    s.take = () => { poll(); return got.splice(0); };
-    return s;
-}
 
 /// Title -> menu -> briefing -> play -> pause -> flight; then, from play, the
 /// last plane lost and back to the title.
@@ -109,10 +97,10 @@ function sndhOps(s) {
     return out;
 }
 
-/// The frame's zg.ymWrite registers, as the host drains them (sfx_queue.zig).
+/// The zg.ymWrite registers since the last take.
 function ymRegs(s) {
-    const n = s.demo.pollSfx(), dv = new DataView(s.memory.buffer, s.demo.sfxEntriesPtr(), n * 16), regs = {};
-    for (let i = 0; i < n; i++) if (dv.getUint8(i * 16) === 3) regs[dv.getUint8(i * 16 + 1)] = dv.getUint8(i * 16 + 2);
+    const regs = {};
+    for (const c of s.takeSfx()) if (c.op === 3) regs[c.a] = c.b;
     return regs;
 }
 
@@ -124,7 +112,7 @@ async function swap(broke, errors) {
     for (let p = 0; p < 10; p++) f.pass(f.each);
     f.take();
     f.demo.pollSndhCalls();
-    f.demo.pollSfx();
+    f.takeSfx();
     f.press(0x5a);
     const toOrig = f.take(), calls = sndhOps(f);
     f.press(0x5a);
@@ -183,9 +171,13 @@ export async function music(broke) {
     const z = await journey(true), o = await journey(false);
     checkJourney(z, true, broke, errors);
     checkJourney(o, false, broke, errors);
+    const probe = await zsession(true);
+    const set = { play: probe.z("gainPlay"), menus: probe.z("gainMenus"), over: probe.z("gainGameOver") };
+    checkGains(z, true, set, broke, errors);
+    checkGains(o, false, set, broke, errors);
     const sw = await swap(broke, errors);
     const cr = await credits(broke, errors);
     const short = (l) => (l ?? []).map((r) => r.replace("skystrike_", "").replace(".mod", "")).join("+") || "-";
-    console.log(`  music: ZIG title ${short(z.title)}, play ${short([...z.play, ...z.flight])}, pause ${short(z.pause)}/${short(z.unpause)}, over ${short(z.over)}, back ${short(z.back)}; ORIGINAL title ${short(o.title)}, pause ${short(o.pause)}, over ${short(o.over)}; ${sw}; credits line: ${cr}`);
+    console.log(`  music: ZIG title ${short(z.title)}, play ${short([...z.play, ...z.flight])}, pause ${short(z.pause)}/${short(z.unpause)}, over ${short(z.over)}, back ${short(z.back)}; ORIGINAL title ${short(o.title)}, pause ${short(o.pause)}, over ${short(o.over)}; ${sw}; credits line: ${cr}; gains title ${set.menus / 1000}, flight ${set.play / 1000}, game over ${set.over / 1000}`);
     return errors;
 }

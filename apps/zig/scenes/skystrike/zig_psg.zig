@@ -5,8 +5,10 @@
 // under a MOD (libs/zig/players/sfx_voice.zig mixes it with the song).
 //
 // Register for register what sound.s does with them (its volume / noise /
-// envel, transcribed from STOS at $2EE12 / $2EE3E / $2EDEE):
-//   VOLUME v   8, 9, 10 = v
+// envel, transcribed from STOS at $2EE12 / $2EE3E / $2EDEE), but for the
+// level: VOLUME sets only zig_settings.psg_voices of the three voices, the
+// rest 0, so the engine does not drown the effects over the MOD:
+//   VOLUME v   8, 9, 10 = v (on the first psg_voices; 3 = sound.s)
 //   NOISE p    6 = p & 31; 0-5 = 0; 7 = $C0; 13 rewritten with its value
 //   ENVEL s,p  11 = p low, 12 = p high, 13 = s & 15
 // A change to those routines in sound.s must be made here too.
@@ -17,6 +19,7 @@
 // --------------------------------------------------------------------------
 const zg = @import("zigos");
 const sound = @import("sound.zig");
+const set = @import("zig_settings.zig");
 
 var regs: [14]u8 = [_]u8{0} ** 14;
 var known: [14]bool = [_]bool{false} ** 14;
@@ -27,7 +30,7 @@ pub var refused: u32 = 0;
 /// One of the game's PSG commands (sound.zig's ops 4-8).
 pub fn command(op: sound.Op, arg: u8) void {
     switch (op) {
-        .volume => for (8..11) |r| write(@intCast(r), arg),
+        .volume => for (0..3) |i| write(@intCast(8 + i), if (i < set.psg_voices) arg else 0),
         .noise => noise(arg),
         .env_hi => env_period = @as(u16, arg) << 8 | (env_period & 0xFF),
         .env_lo => env_period = (env_period & 0xFF00) | arg,

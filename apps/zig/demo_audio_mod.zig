@@ -1,6 +1,7 @@
 // --------------------------------------------------------------------------
-// demo-audio.wasm: the MOD player's exports, and the sound effects a game
-// plays OVER a MOD (zg.sfxPlay / sfxStop / ymWrite, libs/zig/sfx_queue.zig;
+// demo-audio.wasm: the MOD player's exports (its level: zg.requestModVolume),
+// and the sound effects a game plays OVER a MOD (zg.sfxPlay / sfxStop /
+// ymWrite, libs/zig/sfx_queue.zig;
 // the voice: libs/zig/players/sfx_voice.zig). Split from demo_audio_main.zig,
 // whose players and mode they share.
 // --------------------------------------------------------------------------
@@ -58,6 +59,15 @@ export fn audioModPlayBpm(bpm: u32) void {
     audio.machinePaulaClearScopes();
     m.mod.startAtBpm(@intCast(bpm));
     m.current_mode = 1;
+}
+/// zg.requestModVolume: the MOD's own channels at q16 / 65536 (0..65536) of
+/// their volume, the effect's lent channel untouched (ModPlayer.setGain).
+/// False, and counted in audioSfxRefused, when no MOD plays or q16 > 1.0.
+export fn audioModGain(q16: u32) bool {
+    const ok = m.current_mode == 1 and m.mod.active and q16 <= 65536 and
+        m.mod.setGain(@as(f32, @floatFromInt(q16)) / 65536.0);
+    if (!ok) m.sfx.refused +%= 1;
+    return ok;
 }
 export fn audioModStop() void {
     m.sfx.songChanged();

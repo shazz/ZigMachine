@@ -96,6 +96,10 @@ class ZigAudioSealedProcessor extends AudioWorkletProcessor {
             } else if (msg.type === "sfxYm") {
                 if (!d.audioSfxYm(msg.reg >>> 0, msg.val >>> 0))
                     this.port.postMessage({ type: "sfxMissed", what: "ymWrite", refused: d.audioSfxRefused() });
+            } else if (msg.type === "modGain") {
+                // zg.requestModVolume: the MOD's own channels, not the effect's.
+                if (!d.audioModGain(msg.q16 >>> 0))
+                    this.port.postMessage({ type: "sfxMissed", what: "requestModVolume", refused: d.audioSfxRefused() });
             } else if (msg.type === "loadYm") {
                 const len = writeSong(msg.bytes);
                 const ok = d.audioLoadYm(len);

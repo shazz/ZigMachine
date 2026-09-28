@@ -1,5 +1,6 @@
 // --------------------------------------------------------------------------
-// zg.sfxPlay / zg.sfxStop / zg.ymWrite -- a game's sound effects OVER a MOD.
+// zg.sfxPlay / zg.sfxStop / zg.ymWrite -- a game's sound effects OVER a MOD,
+// and zg.requestModVolume, the MOD's own level under them.
 //
 // The audio module plays one song at a time. An SNDH carries its own effect
 // code (zg.sndhCall), a MOD does not: so a cart playing a MOD hands the host
@@ -16,12 +17,12 @@
 // stay put until then (an @embedFile does).
 //
 // Each entry is 16 bytes, little-endian (the host reads them with a DataView):
-//   0 op    1 play, 2 stop, 3 ym
+//   0 op    1 play, 2 stop, 3 ym, 4 gain
 //   1 a     play: 1 = looped; stop: 1 = only a looped effect; ym: register
 //   2 b     ym: the value
 //   3 -     0
 //   4 ptr   play: the PCM (signed 8-bit), a cart address
-//   8 len   play: its length in bytes
+//   8 len   play: its length in bytes; gain: the MOD's gain x 65536 (0..65536)
 //   12 rate play: the sample rate in Hz
 //
 // Generic over nothing: plain state, tested natively (sfx_queue_test.zig).
@@ -34,7 +35,9 @@ pub const PCM_MAX: usize = 64 * 1024;
 pub const RATE_MIN: u32 = 1000;
 pub const RATE_MAX: u32 = 50066;
 
-pub const Op = enum(u8) { play = 1, stop = 2, ym = 3 };
+pub const Op = enum(u8) { play = 1, stop = 2, ym = 3, gain = 4 };
+/// A gain of 1.0 on the wire (entry.len).
+pub const GAIN_ONE: u32 = 65536;
 
 pub const Entry = extern struct {
     op: u8,
@@ -74,6 +77,15 @@ pub const Queue = struct {
     pub fn ym(self: *Queue, reg: u8, val: u8) bool {
         if (reg > 13) return self.refuse();
         return self.push(.{ .op = @intFromEnum(Op.ym), .a = reg, .b = val });
+    }
+
+    /// The MOD's own channels at `g` (0..1) of their volume, from the song
+    /// requested before it (zg.requestModVolume). NaN or outside 0..1 is
+    /// refused, never clamped: a gain of 2 is a bug, not a loud song.
+    pub fn gain(self: *Queue, g: f32) bool {
+        if (!(g >= 0.0 and g <= 1.0)) return self.refuse();
+        const q: u32 = @intFromFloat(@round(g * @as(f32, @floatFromInt(GAIN_ONE))));
+        return self.push(.{ .op = @intFromEnum(Op.gain), .len = q });
     }
 
     /// The host takes the frame's commands: how many, then entries[0..n].
