@@ -84,7 +84,7 @@ function step() {
 const px = (x, y) => { const b = pfb(), i = (y * W + x) * 4; return (b[i] << 16) | (b[i + 1] << 8) | b[i + 2]; };
 const hex = (c) => "#" + c.toString(16).padStart(6, "0");
 const RED = new Set([0x400000, 0x600000, 0x800000, 0xa00000, 0xc00000, 0xe00000]);
-const TUBES = [[0, 11], [147, 191], [192, 200]]; // visible lines, end exclusive: top, the middle tube x4, bottom = six tubes
+const TUBES = [[0, 11], [147, 200]]; // visible lines, end exclusive: the top tube; the middle, the ones behind the scrolltext band (158-191, at its edges) and the bottom
 const onTube = (y) => TUBES.some(([a, b]) => y >= a && y < b);
 const errors = [];
 let barsInBorder = 0, checkedLines = 0;

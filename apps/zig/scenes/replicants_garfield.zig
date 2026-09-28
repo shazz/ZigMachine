@@ -176,10 +176,12 @@ const palette: [256]Color = blk: {
 // lines in the raster table, drawn over the bars as background.png was; like
 // every raster they then run into the border.
 //
-// The real intro has SIX tubes; the remake's background.png keeps three (top,
-// middle, bottom) and fills the space under the middle one, lines 158-190, with
-// red frame art. Matt, 2026-09-27: the middle tube repeats down there — four
-// stacked tubes, 11 lines each (MID_COPIES more of lines 147-157).
+// The real intro has SIX tubes. background.png draws three full-width (top,
+// middle, bottom); the other ones run BEHIND the scrolltext's octagon band,
+// lines 158-191, and show only in the band's edge columns, where the art
+// repeats the tube ramp (Matt, 2026-09-27). There the tube colour is the edge
+// column's, and only the edge runs of that colour go to the raster; the
+// octagons stay on top, and the tubes still run on into the border.
 // --------------------------------------------------------------------------
 const NO_TUBE: u32 = 0; // a table entry is RGBA with alpha 255, never 0
 
@@ -200,32 +202,52 @@ const tube_line: [HEIGHT]u32 = blk: {
             t[y] = c.toRGBA();
         }
     }
-    for (1..MID_COPIES + 1) |k| for (0..TUBE_H) |i| {
-        t[MID_TUBE + k * TUBE_H + i] = t[MID_TUBE + i];
-    };
+    for (BAND_TOP..BAND_END + 1) |y| {
+        const c = frame_pal[frame_b[y * WIDTH]];
+        assert(c.r % 32 == 0 and c.g % 32 == 0 and c.b % 32 == 0);
+        t[y] = c.toRGBA();
+    }
     break :blk t;
 };
-/// The middle tube's first line and height in background.png, and how many
-/// more copies of it stack underneath (the real screen's other three tubes).
-const MID_TUBE: usize = 147;
-const TUBE_H: usize = 11;
-const MID_COPIES: usize = 3;
+/// The scrolltext's octagon band: the tubes behind it show at its edges.
+const BAND_TOP: usize = 158;
+const BAND_END: usize = 191;
+
+/// In a band row, how many pixels from one edge share that edge pixel's colour.
+fn edgeRun(row: []const u8, from_left: bool) usize {
+    const edge = if (from_left) row[0] else row[row.len - 1];
+    var n: usize = 0;
+    while (n < row.len) : (n += 1) {
+        const x = if (from_left) n else row.len - 1 - n;
+        if (row[x] != edge) break;
+    }
+    return n;
+}
 
 /// frame.raw with the tube rows handed to the raster: index 0 there.
 const frame_px: [@as(usize, WIDTH) * HEIGHT]u8 = blk: {
     @setEvalBranchQuota(1_000_000);
     var f: [@as(usize, WIDTH) * HEIGHT]u8 = frame_b[0 .. @as(usize, WIDTH) * HEIGHT].*;
     for (0..HEIGHT) |y| {
-        if (tube_line[y] != NO_TUBE) @memset(f[y * WIDTH ..][0..WIDTH], RASTER_INK);
+        if (tube_line[y] == NO_TUBE) continue;
+        const row = f[y * WIDTH ..][0..WIDTH];
+        if (y < BAND_TOP or y > BAND_END) {
+            @memset(row, RASTER_INK);
+            continue;
+        }
+        const l = edgeRun(row, true);
+        const r = edgeRun(row, false);
+        @memset(row[0..l], RASTER_INK);
+        @memset(row[WIDTH - r ..], RASTER_INK);
     }
     break :blk f;
 };
 
 comptime {
-    // the six tubes: 11 + 4 x 11 + 8 lines
+    // the tube lines: 11 top + 11 middle + 34 behind the band + 8 bottom
     var n: usize = 0;
     for (tube_line) |c| n += @intFromBool(c != NO_TUBE);
-    assert(n == 63);
+    assert(n == 64);
 }
 
 /// text_pal index -> palette index, for fontmask.raw's pixels.
