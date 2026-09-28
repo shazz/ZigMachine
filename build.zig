@@ -459,6 +459,7 @@ pub fn build(b: *std.Build) void {
         "demo-gen4_3615", // 77 — ULM / 3615 GEN4 contest screen by The Fate, full overscan (CODEF screen 539)
         "demo-rick_dangerous", // 78 — RICK DANGEROUS, Core Design / Firebird 1989: the game, ported from RICKST.PRG through its reference model
         "demo-skystrike", // 79 — SKYSTRIKE, Shadow Software 1990: the STOS game from Automation Menu Disk 258, ported from its detokenised listing
+        "demo-ulm_dsots", // 80 — ULM / THE DARK SIDE OF THE SPOON, the main menu (shazz's melonJS remake): the griffin's walk-around map
     };
     for (cart_names, 0..) |name, idx| {
         if (name.len == 0) continue; // excluded cart (see note above)

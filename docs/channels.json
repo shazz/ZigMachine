@@ -290,6 +290,11 @@
   "type": "atari st"
  },
  {
+  "tag": "ulm_dsots",
+  "title": "ULM SPOON MEGADEMO",
+  "type": "atari st"
+ },
+ {
   "tag": "union_intro_screen",
   "title": "UNION DEMO",
   "type": "atari st"

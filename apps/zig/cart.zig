@@ -90,6 +90,7 @@ const scene = switch (opts.index) {
     77 => @import("scenes/gen4_3615.zig"), // ULM / 3615 GEN4, The Fate (CODEF screen 539)
     78 => @import("scenes/rick_dangerous.zig"), // RICK DANGEROUS, Core Design / Firebird 1989: the game (original ST binary, playable)
     79 => @import("scenes/skystrike.zig"), // SKYSTRIKE, Shadow Software 1990: the STOS game (Automation Menu Disk 258, playable)
+    80 => @import("scenes/ulm_dsots.zig"), // ULM, The Dark Side of the Spoon: the main menu (its door launches the Parallax Distorter)
     else => @compileError("bad cart index"),
 };
 
