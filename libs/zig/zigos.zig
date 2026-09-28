@@ -262,6 +262,15 @@ pub fn sfxStop(loop_only: bool) bool {
 pub fn ymWrite(reg: u8, val: u8) bool {
     return g_sfx.ym(reg, val);
 }
+/// The MOD's own level: its channels at `gain` (0..1) of their volume, the
+/// effect's borrowed channel untouched (it stays at full volume). Each MOD
+/// load starts at 1.0, so call it after requestSong, in the same frame: it
+/// applies to the song requested before it. A game's music bed under its
+/// effects. False when refused (NaN, outside 0..1, the queue full): counted
+/// in sfxDropped(). Ignored when no MOD plays (the audio thread counts it).
+pub fn requestModVolume(gain: f32) bool {
+    return g_sfx.gain(gain);
+}
 pub fn sfxDropped() u32 {
     return g_sfx.dropped;
 }

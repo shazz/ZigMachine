@@ -6,7 +6,8 @@
 // channels. So an effect BORROWS one: the song's quiet channel, the one with
 // the fewest notes (mod_format.quietChannel), where the tune loses the least.
 // It plays there at full volume (chipVolume(64), which keeps the song's 1/1.4
-// headroom exact: still four channels at most) and at that channel's own pan.
+// headroom exact: still four channels at most) and at that channel's own pan;
+// the song's gain (zg.requestModVolume, ModPlayer.gain) never scales it.
 // The song goes on reading the channel and writes nothing to it; when the
 // effect is over the channel is the song's again (ModPlayer.reclaim):
 //   - a one-shot, when its last sample has played (counted in output frames);

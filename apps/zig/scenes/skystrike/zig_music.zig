@@ -14,6 +14,8 @@
 //   227 / 2281 (MUSIC OFF on the way back to the title): the title's.
 //
 // The files and their licences: docs/music/skystrike_music_CREDITS.txt.
+// Each MOD is played at its situation's gain (zig_settings.zig music_gain_*,
+// zg.requestModVolume), the flight's low under the effects.
 // ORIGINAL plays skystrike.sndh exactly as before. The situation (and
 // ORIGINAL's tune) is tracked in both modes, so Z switches the music to the
 // other mode's for the moment the game is at. A situation's MOD already
@@ -24,6 +26,7 @@ const zg = @import("zigos");
 const hooks = @import("zig_hooks.zig");
 const sound = @import("sound.zig");
 const psg = @import("zig_psg.zig");
+const set = @import("zig_settings.zig");
 
 pub const Situation = enum(u8) { none, title, flying, gameover };
 
@@ -40,6 +43,19 @@ pub var now: Situation = .none;
 pub var sndh_tune: u8 = 0;
 /// The MOD ZIG last requested (null: none since the SNDH or power-on).
 pub var playing: ?Situation = null;
+/// Gains zg.requestModVolume refused (the queue full, a setting outside
+/// 0..1): checked 0 by the harness.
+pub var refused: u32 = 0;
+
+/// The music's level in situation `sit` (zig_settings.zig).
+pub fn gain(sit: Situation) f32 {
+    return switch (sit) {
+        .none => 1.0,
+        .title => set.music_gain_menus,
+        .flying => set.music_gain_play,
+        .gameover => set.music_gain_game_over,
+    };
+}
 
 /// The game's MUSIC n at a switch point.
 pub fn music(n: u8, sit: Situation) void {
@@ -75,11 +91,14 @@ fn request() void {
     playing = now;
     psg.invalidate();
     sound.resident = false; // the SNDH is gone: ORIGINAL's next command loads it
-    if (now == .none) zg.stopSong() else zg.requestSong(MODS.get(now));
+    if (now == .none) return zg.stopSong();
+    zg.requestSong(MODS.get(now));
+    if (!zg.requestModVolume(gain(now))) refused +%= 1;
 }
 
 pub fn reset() void {
     now = .none;
     sndh_tune = 0;
     playing = null;
+    refused = 0;
 }

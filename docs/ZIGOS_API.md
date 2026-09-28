@@ -229,7 +229,9 @@ Players are open ZigOS code that drive the sealed chips. Four ship today:
   `FLT4` files load; a 6CHN / 8CHN one is refused and counted (`libs/zig/players/mod_format.zig`).
   A game's sound effects play OVER a MOD: `zg.sfxPlay(pcm, rate, loop)` borrows the song's
   quietest channel until the effect ends, `zg.sfxStop(loop_only)` gives it back, and
-  `zg.ymWrite(reg, val)` puts a PSG note on the YM, which a MOD leaves idle (docs/MUSIC.md,
+  `zg.ymWrite(reg, val)` puts a PSG note on the YM, which a MOD leaves idle, and
+  `zg.requestModVolume(gain)` (0..1, after `requestSong`, same frame) turns the song's own
+  channels down under them, never the effect's; each MOD load starts at 1.0 (docs/MUSIC.md,
   "Sound effects over a MOD").
 - **YM** (`YmPlayer`) — YM5!/YM6! register dump, writes the YM2149 registers. **Deprecated**: screens use the SNDH player; a dump is the last resort when no SNDH of the tune exists (see docs/MUSIC.md).
 - **raw sample** — streams 8-bit PCM on one Paula channel.

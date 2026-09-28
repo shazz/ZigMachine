@@ -1036,7 +1036,8 @@ function startAudio() {
                 }
                 else if (msg.type === "sfxMissed") {
                     console.warn(`zg.${msg.what} refused on the audio thread (${msg.refused} so far): ` +
-                        (msg.what === "ymWrite" ? "an SNDH or a YM dump drives the YM" : "no MOD playing, or a bad length / rate"));
+                        (msg.what === "ymWrite" ? "an SNDH or a YM dump drives the YM"
+                            : msg.what === "requestModVolume" ? "no MOD playing" : "no MOD playing, or a bad length / rate"));
                 }
                 else if (msg.type === "sndhCallMissed") {
                     const hex = (v) => "$" + (v >>> 0).toString(16);
@@ -1176,7 +1177,7 @@ function sndhCallByName(name, d0) {
     sndhResident = { name, gen, ready: playSndh("music/" + name, 0, gen, d0) };
 }
 
-// zg.sfxPlay / sfxStop / ymWrite: `n` 16-byte entries at `at` in the cart's
+// zg.sfxPlay / sfxStop / ymWrite / requestModVolume: `n` 16-byte entries at `at` in the cart's
 // memory (layout: libs/zig/sfx_queue.zig). A play's PCM is copied NOW, while
 // the cart's pointer is good. Each message waits for the load of the song
 // requested before it (songPosted), so an effect never lands on the tune it
@@ -1194,6 +1195,7 @@ function postSfx(mem, at, n) {
             msgs.push({ type: "sfxPlay", bytes, rate: dv.getUint32(o + 12, true), loop: a });
         } else if (op === 2) msgs.push({ type: "sfxStop", loopOnly: a });
         else if (op === 3) msgs.push({ type: "sfxYm", reg: a, val: dv.getUint8(o + 2) });
+        else if (op === 4) msgs.push({ type: "modGain", q16: dv.getUint32(o + 8, true) }); // zg.requestModVolume
     }
     const after = songPosted;
     sfxChain = sfxChain.then(() => after).then(() => {

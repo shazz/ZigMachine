@@ -984,9 +984,11 @@ requests, the paired shot and dynamite's double play among them).</p>
 <p>A MOD has no code of its own to call, and it holds all four Paula channels. So a
 cart playing a MOD hands the host its effects as <strong>commands</strong>, and the audio
 thread plays them over the song (Zig only for now):</p>
-<figure class="cb" data-lang=zig><figcaption><span class="cb-lang">zig</span><span class="cb-n">3 lines</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code>_ = zg.<span class="tok-fn">sfxPlay</span>(gun_pcm, <span class="tok-num">12517</span>, <span class="tok-kw">true</span>);   <span class="tok-cm">// signed 8-bit PCM at 12517 Hz, looped</span>
+<figure class="cb" data-lang=zig><figcaption><span class="cb-lang">zig</span><span class="cb-n">5 lines</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code>_ = zg.<span class="tok-fn">sfxPlay</span>(gun_pcm, <span class="tok-num">12517</span>, <span class="tok-kw">true</span>);   <span class="tok-cm">// signed 8-bit PCM at 12517 Hz, looped</span>
 _ = zg.<span class="tok-fn">sfxStop</span>(<span class="tok-kw">true</span>);                    <span class="tok-cm">// stop it (true: only a looped effect)</span>
-_ = zg.<span class="tok-fn">ymWrite</span>(<span class="tok-num">8</span>, <span class="tok-num">16</span>);                   <span class="tok-cm">// a YM register (0-13), under the song</span></code></pre></figure>
+_ = zg.<span class="tok-fn">ymWrite</span>(<span class="tok-num">8</span>, <span class="tok-num">16</span>);                   <span class="tok-cm">// a YM register (0-13), under the song</span>
+zg.<span class="tok-fn">requestSong</span>(<span class="tok-str">&quot;flight.mod&quot;</span>);
+_ = zg.<span class="tok-fn">requestModVolume</span>(<span class="tok-num">0.2</span>);            <span class="tok-cm">// that song&#x27;s own channels at 0.2 (-14 dB)</span></code></pre></figure>
 <ul>
 <li><strong>An effect borrows the song's quietest channel</strong>: the one with the fewest
   notes over the song (each order entry counted as often as it plays). It plays
@@ -1013,12 +1015,30 @@ _ = zg.<span class="tok-fn">ymWrite</span>(<span class="tok-num">8</span>, <span
   <code>zg.sfxDropped()</code>. An effect with no MOD playing is refused and counted on the
   audio thread (<code>audioSfxRefused</code>), and the host logs a warning.</li>
 <li><strong>A new song takes back its channel</strong>: a MOD request cuts the effect.</li>
+<li><strong>The music can be turned down under the effects</strong>: <code>zg.requestModVolume(gain)</code>
+  scales the song's own channels by <code>gain</code> (0..1), at once and from then on. The
+  effect's borrowed channel is not scaled: it stays at <code>64/64 x 1/1.4</code>, the most
+  the headroom allows, which is why the song comes down rather than the effect
+  going up. A gain below 1 only lowers the worst case, so nothing clips that did
+  not. Each MOD load starts at 1.0, so the call follows <code>zg.requestSong</code> in the
+  same frame; it is queued with the effects, after that load. NaN or a gain
+  outside 0..1 is refused and counted in <code>zg.sfxDropped()</code>, never clamped; with
+  no MOD playing it is refused on the audio thread (<code>audioSfxRefused</code>).
+  SKYSTRIKE's ZIG mode plays its flight music at 0.2: at 1.0 "The Hawk's Claw"
+  with one channel lent is -19.8 dBFS RMS and its effects -27 to -29, 8 dB under
+  it; at 0.2 the bed is -33.8 and every effect 4.6 to 7.0 dB over it
+  (<code>apps/skystrike_zig_mix.mjs</code> measures it on the audio modules).
+  The YM has no such gain (it is the machine's): a game's PSG note is made
+  quieter by sounding it on fewer of the YM's three voices (SKYSTRIKE's
+  <code>psg_voices</code>: one voice is -9.5 dB).</li>
 </ul>
 <p>The path: <code>libs/zig/sfx_queue.zig</code> (the cart's queue; each entry 16 bytes: op,
 a, b, pad, ptr, len, rate), <code>pollSfx</code> / <code>sfxEntriesPtr</code> (<code>apps/zig/demo_main.zig</code>),
 <code>postSfx</code> in <code>docs/sealed-loader.js</code>, the worklet's <code>sfxPlay</code> / <code>sfxStop</code> /
-<code>sfxYm</code> messages, and <code>audioSfxPlay</code> / <code>audioSfxStop</code> / <code>audioSfxYm</code> in
-demo-audio.wasm (<code>apps/zig/demo_audio_mod.zig</code>, <code>libs/zig/players/sfx_voice.zig</code>).
+<code>sfxYm</code> / <code>modGain</code> messages, and <code>audioSfxPlay</code> / <code>audioSfxStop</code> / <code>audioSfxYm</code> /
+<code>audioModGain</code> in demo-audio.wasm (<code>apps/zig/demo_audio_mod.zig</code>,
+<code>libs/zig/players/sfx_voice.zig</code>, <code>ModPlayer.setGain</code>). A gain entry is op 4 with
+the gain x 65536 in <code>len</code>.
 The sealed machine-audio ABI is unchanged. The effect uses only
 <code>machinePaulaTrigger</code> / <code>SetStep</code> / <code>SetVolume</code> and <code>machineYmWrite</code>.</p>
 <p><strong>Only 4-channel ProTracker MODs load.</strong> A <code>6CHN</code>, <code>8CHN</code> or <code>32CH</code> file has the
