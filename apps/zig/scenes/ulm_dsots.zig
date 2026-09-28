@@ -45,7 +45,20 @@ const testapi = @import("ulm_dsots/testapi.zig");
 const MUSIC = "shaolin_remix.sndh";
 
 /// DoorEntity demo_name -> the cart it launches.
-const DOOR_TAG = .{ .{ "demo1", "ulm_spoon_distorter" } };
+const Route = struct { demo_name: []const u8, tag: []const u8 };
+const ROUTES = [_]Route{.{ .demo_name = "demo1", .tag = "ulm_spoon_distorter" }};
+
+/// DOOR_TAGS[i] is the cart the TMX's door i launches, joined at comptime: a
+/// door with no route is a build error, not a door that silently does nothing.
+const DOOR_TAGS: [A.map.DOORS.len][]const u8 = blk: {
+    var out: [A.map.DOORS.len][]const u8 = undefined;
+    for (A.map.DOORS, 0..) |d, i| {
+        out[i] = for (ROUTES) |r| {
+            if (std.mem.eql(u8, r.demo_name, d.demo_name)) break r.tag;
+        } else @compileError("no route for door " ++ d.demo_name);
+    }
+    break :blk out;
+};
 
 const STEP_MS: f32 = 1000.0 / 60.0; // me.sys.fps; setInterval, not the display
 const STEP_DUE_MS: f32 = 10;
@@ -78,10 +91,10 @@ pub const Demo = struct {
         self.controls.init();
         self.clock = 0;
         self.steps = 0;
-        self.wants_quit = false;
         self.launch_pending = false;
         self.launch = "";
         self.ready = A.prepare();
+        self.wants_quit = !self.ready; // no RAM for the views: back to the menu, not a dead screen
         testapi.bind(self);
 
         zigos.setBackgroundColor(Color{ .r = 0, .g = 0, .b = 0, .a = 255 });
@@ -104,16 +117,16 @@ pub const Demo = struct {
         _ = zigos;
         if (!self.ready) return;
         const t = if (std.math.isNan(dt) or dt < 0) STEP_MS else @min(dt, MAX_STEPS * STEP_MS);
-        const floor = if (t >= STEP_DUE_MS) -STEP_DEBT_MS else -STEP_MS;
+        const max_debt = if (t >= STEP_DUE_MS) STEP_DEBT_MS else STEP_MS;
         self.clock += t;
         var n: u8 = 0;
         while (self.clock >= STEP_DUE_MS and n < MAX_STEPS) : (n += 1) {
             self.step();
-            self.clock = @max(self.clock - STEP_MS, floor);
+            self.clock = @max(self.clock - STEP_MS, -max_debt);
         }
     }
 
-    pub fn step(self: *Demo) void {
+    fn step(self: *Demo) void {
         self.griffin.update(self.controls.state(), &A.level);
         if (self.touchingDoor()) |d| {
             if (self.controls.takeEnter()) self.enter(d);
@@ -172,11 +185,7 @@ pub const Demo = struct {
     // the state changes to the screen. The cart swap replaces this cart, so
     // there is no position to come back to.
     fn enter(self: *Demo, d: usize) void {
-        inline for (DOOR_TAG) |route| {
-            if (std.mem.eql(u8, A.map.DOORS[d].demo_name, route[0])) {
-                self.launch = route[1];
-                self.launch_pending = true;
-            }
-        }
+        self.launch = DOOR_TAGS[d];
+        self.launch_pending = true;
     }
 };

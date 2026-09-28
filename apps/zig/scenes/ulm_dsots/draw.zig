@@ -14,6 +14,7 @@
 // column 2k. So the map lands at -floor(view / 2), the parallax image at
 // -floor(offset / 2), and the sprite, drawn at ~~(pos - view), at ceil of half.
 // --------------------------------------------------------------------------
+const std = @import("std");
 const zg = @import("zigos");
 const blit = zg.blit;
 const LogicalFB = zg.LogicalFB;
@@ -28,6 +29,7 @@ pub const CANVAS_H: usize = 270;
 pub const VIEW_H: usize = 240; // the 480-row viewport
 pub const TOP_BAR: usize = 7; // fillRect(0, 0, 768, 14)
 pub const LOW_BAR: usize = 247; // fillRect(0, 494, 768, 540)
+const OFF_CANVAS: f64 = 4096; // canvas px: any sprite this far off is clipped whole
 
 /// The background rows no bar covers, black at the canvas's sides. back.png
 /// is 256 rows (512 canvas rows): every row up to the low bar has one.
@@ -67,8 +69,10 @@ pub fn griffin(fb: *LogicalFB, g: *const Griffin, view: *const View) void {
     const dst = blit.Dst.plane(fb).window(OX, OY, CANVAS_W, CANVAS_H);
     const s: usize = g.sprite();
     const part = blit.Rect{ .x = (s % 4) * A.FRAME, .y = (s / 4) * A.FRAME, .w = A.FRAME, .h = A.FRAME };
-    const sx: i32 = @intFromFloat(@trunc(g.x - view.x));
-    const sy: i32 = @intFromFloat(@trunc(g.y - view.y));
+    // Past the floor's end (column 663) nothing stops a fall, so y has no
+    // bound: clamp before the cast, which is not checked in ReleaseSmall.
+    const sx: i32 = @intFromFloat(@trunc(std.math.clamp(g.x - view.x, -OFF_CANVAS, OFF_CANVAS)));
+    const sy: i32 = @intFromFloat(@trunc(std.math.clamp(g.y - view.y, -OFF_CANVAS, OFF_CANVAS)));
     blit.blit(dst, if (g.flip) A.griffin_flip else A.griffin, part, halfCeil(sx), halfCeil(sy), 0, .copy);
 }
 
