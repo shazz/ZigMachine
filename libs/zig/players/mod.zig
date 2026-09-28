@@ -1,13 +1,14 @@
 const audio = @import("audio_hw");
 const fmt = @import("mod_format.zig");
-const effects = @import("mod_effects.zig");
+const rows = @import("mod_rows.zig");
 
 // --------------------------------------------------------------------------
 // ProTracker .MOD player (4 channels, 31 samples: mod_format.zig refuses the
 // rest) — an OPEN ZigOS player. It sequences a MOD image held in the shared
-// song RAM and drives the SEALED Paula channels ONLY through the sdk/audio.zig
-// chip API (machinePaula*). The effects implemented (mod_effects.zig) cover
-// the common listenable set; ornaments not yet handled are simply ignored.
+// song RAM (mod_rows.zig) and drives the SEALED Paula channels ONLY through
+// the sdk/audio.zig chip API (machinePaula*). The effects implemented
+// (mod_effects.zig) cover the common listenable set; ornaments not yet
+// handled are simply ignored.
 //
 // A channel can be LENT to a game's sound effect (sfx_voice.zig): the song
 // goes on reading it, row by row, but writes nothing to that Paula channel
@@ -160,7 +161,7 @@ pub const ModPlayer = struct {
         var off: usize = 0;
         while (off < n) {
             if (self.tick_acc == 0) {
-                self.doTick();
+                rows.tick(self);
                 self.tick_acc = self.samples_per_tick;
             }
             const block = @min(@as(u32, @intCast(n - off)), self.tick_acc);
@@ -172,49 +173,7 @@ pub const ModPlayer = struct {
         audio.machineClamp(@intCast(n));
     }
 
-    fn doTick(self: *ModPlayer) void {
-        if (!self.active) return;
-        if (self.tick == 0) {
-            self.processRow();
-        } else {
-            for (0..NUM_CH) |ch| effects.tickEffect(self, ch);
-        }
-        self.tick += 1;
-        if (self.tick >= self.speed) {
-            self.tick = 0;
-            self.advanceRow();
-        }
-    }
-
-    fn advanceRow(self: *ModPlayer) void {
-        if (self.jump_pos >= 0) {
-            self.order_pos = @intCast(self.jump_pos);
-            self.row = if (self.break_row >= 0) @intCast(self.break_row) else 0;
-            self.jump_pos = -1;
-            self.break_row = -1;
-        } else if (self.break_row >= 0) {
-            self.row = @intCast(self.break_row);
-            self.break_row = -1;
-            self.nextOrder();
-        } else {
-            self.row += 1;
-            if (self.row >= 64) {
-                self.row = 0;
-                self.nextOrder();
-            }
-        }
-        // A Bxx past the song or a Dxx past the pattern: wrap, never read
-        // past the order list or into the next pattern.
-        if (self.order_pos >= self.hdr.song_len) self.order_pos = 0;
-        if (self.row >= 64) self.row = 0;
-    }
-
-    fn nextOrder(self: *ModPlayer) void {
-        self.order_pos +%= 1;
-        if (self.order_pos >= self.hdr.song_len) self.order_pos = 0;
-    }
-
-    fn trigger(self: *ModPlayer, ch: usize) void {
+    pub fn trigger(self: *ModPlayer, ch: usize) void {
         if (!self.owns(ch)) return;
         const cs = &self.chan[ch];
         const s = self.hdr.samples[cs.sample];
@@ -226,43 +185,8 @@ pub const ModPlayer = struct {
         audio.machinePaulaTrigger(@intCast(ch), audio.songAddr(s.start), s.len, s.loop_start, loop_len, pan(ch));
     }
 
-    fn applyToEngine(self: *ModPlayer, ch: usize) void {
+    pub fn applyToEngine(self: *ModPlayer, ch: usize) void {
         self.setVolume(ch, self.chan[ch].volume);
         self.setStep(ch, periodToStep(self.chan[ch].period));
-    }
-
-    fn cellByte(self: *ModPlayer, ch: usize, n: usize) u8 {
-        const pattern = self.hdr.order[self.order_pos];
-        const o = self.hdr.pattern_data + @as(u32, pattern) * fmt.PATTERN_BYTES + @as(u32, self.row) * 16 + @as(u32, @intCast(ch)) * 4 + n;
-        return if (o < self.data.len) self.data[o] else 0;
-    }
-
-    fn processRow(self: *ModPlayer) void {
-        for (0..NUM_CH) |ch| {
-            const b0 = self.cellByte(ch, 0);
-            const b1 = self.cellByte(ch, 1);
-            const b2 = self.cellByte(ch, 2);
-            const b3 = self.cellByte(ch, 3);
-            const period: u16 = (@as(u16, b0 & 0x0F) << 8) | b1;
-            const sample: u8 = (b0 & 0xF0) | (b2 >> 4);
-            const cs = &self.chan[ch];
-            cs.eff = b2 & 0x0F;
-            cs.param = b3;
-            if (sample != 0 and sample <= 31) {
-                cs.sample = sample;
-                cs.volume = self.hdr.samples[sample].volume;
-            }
-            if (period != 0) {
-                if (cs.eff == 3 or cs.eff == 5) {
-                    cs.target_period = period;
-                    if (cs.eff == 3 and cs.param != 0) cs.porta_speed = cs.param;
-                } else {
-                    cs.period = period;
-                    self.trigger(ch);
-                }
-            }
-            effects.rowEffect(self, ch);
-            self.applyToEngine(ch);
-        }
     }
 };
