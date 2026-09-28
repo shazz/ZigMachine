@@ -62,9 +62,10 @@ export fn audioModPlayBpm(bpm: u32) void {
 }
 /// zg.requestModVolume: the MOD's own channels at q16 / 65536 (0..65536) of
 /// their volume, the effect's lent channel untouched (ModPlayer.setGain).
-/// False, and counted in audioSfxRefused, when no MOD plays or q16 > 1.0.
+/// False, and counted in audioSfxRefused, when no MOD plays or q16 > 1.0
+/// (setGain owns the 0..1 check).
 export fn audioModGain(q16: u32) bool {
-    const ok = m.current_mode == 1 and m.mod.active and q16 <= 65536 and
+    const ok = m.current_mode == 1 and m.mod.active and
         m.mod.setGain(@as(f32, @floatFromInt(q16)) / 65536.0);
     if (!ok) m.sfx.refused +%= 1;
     return ok;

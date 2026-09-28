@@ -20,7 +20,7 @@
 //                shown, 77-79 the music gains in flight / menus / game over
 //                (x 1000), 80 the PSG voices
 //   poke(300+k)  70 the crater lifetime in VBLs (0 never), 71 fullscreen
-//                screens on / off, 77 the music gain in flight (x 1000),
+//                screens on / off, 77 the music gain in flight (x 1000, 0..1000),
 //                80 the PSG voices (0..3)
 //   ptr(5..11)   5 the ring (960 x 540, the world plane's buffer), 6 the
 //                capture (320 x 200), 7 the overlay (400 x 280), 8 the
@@ -115,7 +115,11 @@ pub fn poke(k: u32, value: i32) void {
     switch (k) {
         70 => set.crater_life_vbls = @bitCast(value),
         71 => set.fullscreen_screens = value != 0,
-        77 => set.music_gain_play = @as(f32, @floatFromInt(value)) / 1000.0,
+        // 0..1000 only: a gain outside 0..1 is refused downstream anyway, and a
+        // huge one would overflow milli()'s @intFromFloat on the way back out.
+        77 => if (value >= 0 and value <= 1000) {
+            set.music_gain_play = @as(f32, @floatFromInt(value)) / 1000.0;
+        },
         80 => if (value >= 0 and value <= 3) {
             set.psg_voices = @intCast(value);
         },
