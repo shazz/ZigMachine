@@ -9,10 +9,20 @@
 // every letter: THIS SCROLLER IS FLAT. The sort by posx only fixes draw order
 // between non-overlapping tiles, so it changes nothing and is not kept.
 //
-// wide = ceil(640 / 64) + 1 = 11, and the ring loops `i <= wide`, so there are
-// TWELVE letters. Letter i starts at canvas x 11*64 + i*64, moves 4 canvas
-// pixels a frame, and on reaching -64 rejoins at 704 + (posx + 64) carrying the
-// next character. Every x is even, so halving is exact.
+// wide = ceil(640 / 64) + 1 = 11, and the ring loops `i <= wide`, so the
+// remake has TWELVE letters. Letter i starts at canvas x 11*64 + i*64, moves 4
+// canvas pixels a frame, and on reaching -64 rejoins at 704 + (posx + 64)
+// carrying the next character. Every x is even, so halving is exact.
+//
+// That ring is sized to the 640-px CANVAS, and this port draws to the 400-px
+// raster, so it is widened here (and only the ring: text, speed, spacing and
+// start are the remake's). Canvas -64 is plane column 8, so the remake's ring
+// recycled every letter while all 32 of its columns were still showing in the
+// opened left border — letters were cut off there instead of scrolling out,
+// while on the right they came in off the raster. Now a letter leaves only
+// once its right edge has passed plane column 0 (canvas -144) and rejoins
+// beyond column 400. Every letter slot sees the same x and the same character
+// on the same frame as in the remake; the ring just keeps two more of them.
 //
 // drawTile's y is the tile TOP (drawPart translates by -handle, and the font is
 // not mid-handled), so canvas y 390 is ST row 195 and the band is rows 195..226.
@@ -47,10 +57,25 @@ const COLS = A.FONT_W / TILE; // img.width / tilew = 10
 const TILES = COLS * (A.FONT_H / TILE); // 80: characters 32..111
 const SPEED = 4; // init(..., 4)
 const WIDE = 11; // Math.ceil(640 / 64) + 1
-pub const LETTERS = WIDE + 1; // the ring loops i = 0 to wide INCLUSIVE
-const START_C = WIDE * TILE_C; // 704
+const START_C = WIDE * TILE_C; // 704: the ring loops i = 0 to wide INCLUSIVE
 pub const ROW = 390 / 2 + @as(i32, @intCast(A.CONTENT_Y)); // draw(390) halved, on the raster
 const ORIGIN_X: i32 = @intCast(A.CONTENT_X);
+const RASTER_W: i32 = @intCast(A.CONTENT_W + 2 * A.CONTENT_X); // 400, the whole plane row
+
+/// Canvas x at which a letter's right edge reaches plane column 0: -144, not
+/// the remake's -64 (which is plane column 8, still inside the left border).
+const EXIT_C: i32 = -2 * (ORIGIN_X + TILE);
+/// Enough letters that the one rejoining lands past the raster's right edge.
+pub const LETTERS: usize = @intCast(@divFloor(RASTER_W + TILE + TILE - 1, TILE)); // 14
+const RING_C: i32 = @intCast(LETTERS * TILE_C); // 896
+
+comptime {
+    // A rejoining letter must start wholly off the right edge, or it pops in.
+    if (@divExact(EXIT_C + RING_C, 2) + ORIGIN_X < RASTER_W) @compileError("scroller ring too short for the raster");
+    // Every x is START_C - SPEED*n + k*TILE_C: EXIT_C must be one of them, so
+    // a letter leaves on the exact frame it is fully off, never a step late.
+    if (@mod(START_C - EXIT_C, SPEED) != 0) @compileError("EXIT_C is not on the scroll's step");
+}
 
 // CODEF 484's middle scroller (cascade-archeology.js:76-79), halved and doubled.
 const TERMS = 2;
@@ -85,8 +110,8 @@ pub const Scroller = struct {
         for (&self.phase, OFFSET) |*v, d| v.* += d;
         for (&self.posx, &self.ltr) |*x, *c| {
             x.* -= SPEED;
-            if (x.* > -TILE_C) continue;
-            x.* += START_C + TILE_C;
+            if (x.* > EXIT_C) continue;
+            x.* += RING_C;
             c.* = TEXT[self.offset];
             self.offset += 1;
             if (self.offset > TEXT.len - 1) self.offset = 0;

@@ -39,7 +39,7 @@
 //
 // ONE plane, one palette: 107 entries of art (unquantized) + up to 149 raster
 // buckets. Per frame: a colour table, a 400-byte pattern per plane row, one
-// clipped logo blit and 12 glyphs.
+// clipped logo blit and 14 glyphs.
 // --------------------------------------------------------------------------
 const zg = @import("zigos");
 const ZigOS = zg.ZigOS;

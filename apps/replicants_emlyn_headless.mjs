@@ -149,16 +149,23 @@ function census() {
 }
 
 async function shot(path) {
-    machine.hwRenderPlane(0);
-    const px = new Uint8Array(memory.buffer, machine.hwPhysicalPtr(), W * H * 4);
+    await shotOf({ memory, machine }, path);
+    console.log(`        (go() call ${frames})`);
+}
+
+/// A PPM of the composited plane, one pixel per plane column, of any instance.
+async function shotOf(m, path) {
+    m.machine.hwRenderPlane(0);
+    const w = m.machine.hwPhysWidth();
+    const px = new Uint8Array(m.memory.buffer, m.machine.hwPhysicalPtr(), w * H * 4);
     const hdr = new TextEncoder().encode(`P6\n${PW} ${H}\n255\n`);
     const buf = new Uint8Array(hdr.length + PW * H * 3);
     buf.set(hdr);
     for (let y = 0; y < H; y++)
         for (let x = 0; x < PW; x++)
-            for (let c = 0; c < 3; c++) buf[hdr.length + (y * PW + x) * 3 + c] = px[(y * W + x * 2) * 4 + c];
+            for (let c = 0; c < 3; c++) buf[hdr.length + (y * PW + x) * 3 + c] = px[(y * w + x * 2) * 4 + c];
     await writeFile(path, buf);
-    console.log(`  shot: ${path} (go() call ${frames})`);
+    console.log(`  shot: ${path}`);
 }
 
 function run(n) {
@@ -218,6 +225,80 @@ check("... and the scrolltext is dead flat again with it", c.fontBottom - c.font
 // The cart declares no key(), so demo_main's own Escape -> menu still applies.
 demo.key(K_ESC);
 check("Escape still leaves for the menu", demo.pollCartRequest(), -1);
+
+// THE LEFT EDGE, pixel for pixel. The remake's ring recycles a letter at
+// canvas -64, which on this raster is plane column 8: the letter vanished with
+// all 32 of its columns still in the opened left border. So two fresh
+// machines run in lockstep, one left in ORIGINAL and one switched to ZIG at
+// once (posx never depends on the mode, only the bend does), and across the
+// frames where letters cross the left edge:
+//   ORIGINAL  a flat scroller moving 2 ST px a frame is its own reference:
+//             every scrolltext pixel of frame n+1 at column x is the one frame n
+//             had at x+2, border columns included — a letter that vanishes, or
+//             is cut, breaks that on the very next frame.
+//   ZIG       each column of the bent scroller is the ORIGINAL machine's same
+//             column, index for index, moved down by one whole number of rows.
+//   both      columns 0..7, where the remake's ring can never reach, carry ink.
+// --break leftclip reproduces the remake's ring on the readout: any letter
+// whose left edge is at or left of column 8 is dropped, as the cart used to.
+const EDGE_FROM = 190, EDGE_TO = 240; // letter 0 reaches the left border at frame 176 and leaves at 212
+const OLD_EXIT_X = 8; // canvas -64 halved, on the raster
+{
+    const a = await boot("docs/demo-replicants_emlyn.wasm");
+    const b = await boot("docs/demo-replicants_emlyn.wasm");
+    b.demo.input(DIR_FIRE);
+    const plane = (m) => {
+        const r = new DataView(m.memory.buffer, m.machine.hwVideoBase(), OFF_PAL);
+        return new Uint8Array(m.memory.buffer, m.machine.hwVideoBase() + r.getUint32(REG_FB_BASE, true), PW * H);
+    };
+    /// The scrolltext's own pixels as a [x][y] index grid, 0 where it has none.
+    const ink = (m, n) => {
+        const lfb = plane(m), cols = [];
+        const edge0 = 392 - 2 * n; // letter 0's left edge; the others are 32 apart
+        for (let x = 0; x < PW; x++) {
+            const col = new Uint8Array(H);
+            const letterLeft = x - ((((x - edge0) % 32) + 32) % 32);
+            const dropped = broke === "leftclip" && letterLeft <= OLD_EXIT_X;
+            if (!dropped) for (let y = 0; y < H; y++) {
+                const i = lfb[y * PW + x];
+                if (i >= FIRST_FONT && i < FIRST_LOGO) col[y] = i;
+            }
+            cols.push(col);
+        }
+        return cols;
+    };
+    const same = (p, q, shift) => p.every((v, y) => v === (q[y - shift] ?? 0));
+    const shiftOf = (p, q) => { // the whole-row move that turns q into p, or null
+        const top = (c) => c.findIndex((v) => v !== 0);
+        const tp = top(p), tq = top(q);
+        if (tp < 0 || tq < 0) return tp === tq ? 0 : null;
+        return same(p, q, tp - tq) ? tp - tq : null;
+    };
+    for (let n = 0; n < EDGE_FROM; n++) { a.demo.frame(16.6); b.demo.frame(16.6); }
+    let prev = ink(a, EDGE_FROM), flatBad = 0, bentBad = 0, flatEdge = 0, bentEdge = 0, half = false;
+    for (let n = EDGE_FROM + 1; n <= EDGE_TO; n++) {
+        a.demo.frame(16.6);
+        b.demo.frame(16.6);
+        const fa = ink(a, n), fb = ink(b, n);
+        for (let x = 0; x < PW - 2; x++) if (!same(fa[x], prev[x + 2], 0)) flatBad++;
+        for (let x = 0; x < CONTENT_X; x++) {
+            if (shiftOf(fb[x], fa[x]) === null) bentBad++;
+            if (x < OLD_EXIT_X && fa[x].some((v) => v)) flatEdge++;
+            if (x < OLD_EXIT_X && fb[x].some((v) => v)) bentEdge++;
+        }
+        if (!half && (392 - 2 * n) === -16) { // letter 0 exactly half into the left border
+            half = true;
+            await shotOf(a, `${out}/left-edge-original.ppm`);
+            await shotOf(b, `${out}/left-edge-zig.ppm`);
+        }
+        prev = fa;
+    }
+    console.log(`  left edge, frames ${EDGE_FROM}..${EDGE_TO}: ORIGINAL ${flatBad} column(s) off the scroll, ${flatEdge} inked in cols 0..7; ZIG ${bentBad} column(s) off the ORIGINAL, ${bentEdge} inked in cols 0..7`);
+    check("ORIGINAL: every scrolltext pixel moves 2 columns a frame, through the left border", flatBad, 0);
+    check("ORIGINAL: letters reach columns 0..7 and scroll off the raster", flatEdge > 0, true);
+    check("ZIG: every left-border column is the ORIGINAL's, bent by whole rows", bentBad, 0);
+    check("ZIG: letters reach columns 0..7 and scroll off the raster", bentEdge > 0, true);
+}
 
 const dec = new TextDecoder();
 const song = dec.decode(new Uint8Array(memory.buffer, demo.songNamePtr(), demo.songNameLen()));
