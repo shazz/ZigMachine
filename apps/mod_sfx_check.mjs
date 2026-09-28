@@ -208,10 +208,15 @@ await refused(errors);
 await reject(mod, errors, notes);
 await gain(machine, mod, bang, broke, errors, notes);
 for (const n of notes) console.log(`  ${n}`);
+// exitCode, never process.exit(): on a loaded box (the gate) process.exit()
+// with this many wasm instances deadlocked node 24 at exit (main thread and
+// its V8 worker both parked on a futex, 0% CPU) in about 1 run in 20, and 4
+// of 6 in one gate. Nothing is left pending here, so node exits by itself.
 if (broke) {
     const hit = errors.find((e) => e.startsWith(`${broke}:`));
     console.log(hit ? `mod_sfx_check: PASS (--break ${broke} caught: ${hit})` : `mod_sfx_check: FAILED -- --break ${broke} not caught (${errors.length} other errors)`);
-    process.exit(hit ? 0 : 1);
+    process.exitCode = hit ? 0 : 1;
+} else {
+    console.log(errors.length ? `mod_sfx_check: FAILED -- ${errors.join("; ")}` : "mod_sfx_check: all pass");
+    process.exitCode = errors.length ? 1 : 0;
 }
-console.log(errors.length ? `mod_sfx_check: FAILED -- ${errors.join("; ")}` : "mod_sfx_check: all pass");
-process.exit(errors.length ? 1 : 0);
