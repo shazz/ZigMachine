@@ -6,6 +6,7 @@
 //   f1    part 1 -- OMEGA's ball bending scroller (f1.zig)
 //   f2    part 2 -- OMEGA's Liesen dist / HAQ scroll (f2.zig)
 //   f3    part 3 -- the ball-curve editor (f3.zig), best effort
+//   f5    part 5 -- SYNC's fullscreen giant scroller (f5.zig), best effort
 // --------------------------------------------------------------------------
 const st = @import("../swedish_newyear/st.zig");
 const shifter = @import("shifter.zig");
@@ -15,9 +16,10 @@ const menu = @import("menu.zig");
 const f1 = @import("f1.zig");
 const f2 = @import("f2.zig");
 const f3 = @import("f3.zig");
+const f5 = @import("f5.zig");
 const raster = @import("raster.zig");
 
-pub const Id = enum { menu, f1, f2, f3 };
+pub const Id = enum { menu, f1, f2, f3, f5 };
 
 pub const Tune = struct { file: []const u8, n: u8 };
 
@@ -34,6 +36,11 @@ pub fn tune(id: Id) Tune {
         // F3's Whittaker replay + Platoon ($1CA66..$1EB28), init d0 = 4: the
         // SNDH passes the subtune as d0 (YM equal to the oracle's, 1500 frames).
         .f3 => .{ .file = "snyd90_f3.sndh", .n = 4 },
+        // F5 plays a YM register STREAM ($1380C, 8 bytes a frame from $C006,
+        // 3840 frames): it is Mad Max's Noisy Pillars (C64 conversion) -- the
+        // archive's #1 writes the same tones, volumes, mixer and noise on all
+        // 3840 frames at lag 0 (ymsearch.mjs found it by its registers).
+        .f5 => .{ .file = "Noisy_Pillars.sndh", .n = 1 },
     };
 }
 
@@ -43,6 +50,7 @@ pub fn set(id: Id) assets.Set {
         .f1 => .f1,
         .f2 => .f2,
         .f3 => .f3,
+        .f5 => .f5,
     };
 }
 
@@ -88,6 +96,12 @@ pub const Running = struct {
                 shifter.blank(st.color(0));
                 return .{ .id = id, .r = r, .pal = palette.at(&r, f3.PALETTE) };
             },
+            .f5 => {
+                const r = st.Ram{ .base = f5.BASE, .m = mem[0 .. f5.TOP - f5.BASE] };
+                f5.enter(&r);
+                shifter.blank(st.color(0));
+                return .{ .id = id, .r = r, .pal = palette.at(&r, f5.PALETTE) };
+            },
         }
     }
 
@@ -112,6 +126,12 @@ pub const Running = struct {
                 if (!last) return;
                 f3.rasters(&self.r, &lines);
                 raster.capture(&self.r, shown, &lines, f3.OPEN_FROM);
+            },
+            .f5 => {
+                const start = f5.vbl(&self.r);
+                if (!last) return;
+                const pal = palette.at(&self.r, f5.PALETTE);
+                raster.captureFull(&self.r, start, f5.LINES, f5.FIRST_LINE, pal, 0);
             },
         }
     }

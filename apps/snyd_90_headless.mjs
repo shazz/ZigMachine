@@ -36,7 +36,8 @@ import { PARTS, LOOK, look, borders } from "./snyd_90_parts.mjs";
 const VBL = 20; // the parts run at the ST's 50 Hz: one VBL a 20 ms frame
 const K = { space: 32, esc: 0xe012, f: (n) => 0xe000 + n };
 const SONGS = [["snyd90.sndh", 4], ["snyd90.sndh", 1], ["snyd90_f2.sndh", 1], ["snyd90.sndh", 1],
-    ["Overlander.sndh", 1], ["snyd90.sndh", 1], ["snyd90_f3.sndh", 4], ["snyd90.sndh", 1]];
+    ["Overlander.sndh", 1], ["snyd90.sndh", 1], ["snyd90_f3.sndh", 4], ["snyd90.sndh", 1],
+    ["Noisy_Pillars.sndh", 1], ["snyd90.sndh", 1]];
 
 const argv = process.argv.slice(2);
 const bi = argv.indexOf("--break");

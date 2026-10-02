@@ -13,7 +13,7 @@ rm -f "$OUT/$name.avi" "$fifo"
 "$here/keys.sh" "$fifo" "$keys" &
 SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy timeout 1200 hatari --machine st --memsize 1 \
   --tos "$TOS" --disk-a "$RE/SNYD_90.ST" --protect-floppy on --borders on \
-  --fast-boot on --confirm-quit off --alert-level fatal --sound off --cmd-fifo "$fifo" \
+  --fast-boot on --frameskips 0 --confirm-quit off --alert-level fatal --sound off --cmd-fifo "$fifo" \
   --avirecord --avi-vcodec png --avi-file "$OUT/$name.avi" --run-vbls "$vbls" \
   --log-file "$OUT/$name.log" "$@" > "$OUT/$name.out" 2>&1
 rm -f "$fifo"

@@ -14,17 +14,19 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 RE = os.environ.get('RE', HERE)
 OUT = os.path.join(HERE, '..', '..', 'apps', 'zig', 'assets', 'screens', 'snyd_90')
 M68RUN = os.environ.get('M68RUN', os.path.join(RE, 'm68run'))
-# name: (entry PC, Hatari's FrameCycles at it, main loop PC, BASE)
+# name: (entry PC, Hatari's FrameCycles at it, main loop PC, BASE, extra m68run commands)
+# (F5 clears memory down from $80000 in its set-up: it needs the loader's stack, $5F4.)
 PARTS = {
-    'f3': (0x18000, 76028, 0x180FA, 0x14000),
+    'f3': (0x18000, 76028, 0x180FA, 0x14000, []),
+    'f5': (0xC000, 27408, 0x17ED2, 0xC000, ['reg:15:5f4']),
 }
 
 
 def make(name: str) -> None:
-    pc, phase, stop, base = PARTS[name]
+    pc, phase, stop, base, extra = PARTS[name]
     with tempfile.TemporaryDirectory() as tmp:
         out = os.path.join(tmp, 'ram.bin')
-        subprocess.run([M68RUN, os.path.join(RE, 'hatari', f'{name}_entry.bin'), out, 'sr:2700',
+        subprocess.run([M68RUN, os.path.join(RE, 'hatari', f'{name}_entry.bin'), out, *extra, 'sr:2700',
                         f'rt:0:{pc:x}:{phase}:{stop:x}'], check=True, capture_output=True)
         ram = open(out, 'rb').read()
     open(os.path.join(OUT, f'{name}.raw'), 'wb').write(ram[base:0x80000])

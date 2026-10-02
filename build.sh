@@ -344,6 +344,7 @@ gate snyd_90 node apps/snyd_90_headless.mjs --break hbl "$SHOTS/snyd_90_break"  
 gate snyd_90 node apps/snyd_90_headless.mjs --break step "$SHOTS/snyd_90_break"   # ...and one VBL too many is caught
 gate snyd_90 node apps/snyd_90_headless.mjs --break tune "$SHOTS/snyd_90_break"   # ...and a wrong subtune is caught
 gate snyd_90 node apps/snyd_90_headless.mjs --break f3 "$SHOTS/snyd_90_break"     # ...and an F3 that never runs a VBL is caught (motion, look, its open bottom border)
+gate snyd_90 node apps/snyd_90_headless.mjs --break f5 "$SHOTS/snyd_90_break"     # ...and an F5 that never runs a VBL is caught (motion, look, its full overscan)
 gate swedish_newyear node apps/swedish_newyear_headless.mjs --break step "$SHOTS/swedish_newyear"   # ...and one extra cart frame is caught
 gate swedish_newyear node apps/swedish_newyear_headless.mjs --break tune "$SHOTS/swedish_newyear"   # ...and a wrong subtune is caught
 gate swedish_newyear node apps/swedish_newyear_headless.mjs --break border "$SHOTS/swedish_newyear"   # ...and a border left with last frame's colour 0 is caught

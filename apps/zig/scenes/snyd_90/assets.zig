@@ -13,11 +13,12 @@ const intro = @import("intro.zig");
 const f1 = @import("f1.zig");
 const f2 = @import("f2.zig");
 const f3 = @import("f3.zig");
+const f5 = @import("f5.zig");
 
-pub const Set = enum { intro, menu, f1, f2, f3 };
+pub const Set = enum { intro, menu, f1, f2, f3, f5 };
 
 /// Bytes of the part buffer: the largest part's memory.
-pub const PART_LEN: usize = @max(menu.TOP - menu.BASE, intro.LEN, f1.TOP - f1.BASE, f2.TOP - f2.BASE, f3.TOP - f3.BASE);
+pub const PART_LEN: usize = @max(menu.TOP - menu.BASE, intro.LEN, f1.TOP - f1.BASE, f2.TOP - f2.BASE, f3.TOP - f3.BASE, f5.TOP - f5.BASE);
 
 var part: []align(4) u8 = &.{};
 
@@ -37,6 +38,7 @@ fn blob(set: Set) struct { src: []const u8, len: usize } {
         .f2 => .{ .src = PACKED.f2, .len = f2.TOP - f2.BASE },
         // F3..F6: their set-up run once on the original code (mk_parts.py).
         .f3 => .{ .src = PACKED.f3, .len = f3.TOP - f3.BASE },
+        .f5 => .{ .src = PACKED.f5, .len = f5.TOP - f5.BASE },
     };
 }
 

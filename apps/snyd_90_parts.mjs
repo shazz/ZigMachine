@@ -5,7 +5,9 @@
 //   look     its colours against Hatari's capture of the real part: the share
 //            of each ST colour word over the window column, lines 0..rows-1
 //            (past 199 the opened bottom border), histogram intersection
-//            >= LOOK (prototypes/snyd90_re/hatari_ref.py makes the reference);
+//            >= LOOK (prototypes/snyd90_re/hatari_ref.py makes the reference;
+//            "lump": a part whose colours cycle keeps only its fixed colours
+//            apart, every other one counts as 0x1000);
 //   borders  where the original opens one (open: "bottom" / "all"), the plane
 //            shows picture there; where it does not, the border is one colour
 //            a line.
@@ -15,21 +17,26 @@ export const LOOK = 0.8;
 /// Per part: its F key, the frames it runs, the shots, which borders it opens.
 export const PARTS = [
     { key: 3, name: "f3", frames: 300, shots: [2, 100, 300], open: "bottom" },
+    { key: 5, name: "f5", frames: 300, shots: [60, 151, 300], open: "all" },
 ];
 
 /// Hatari's capture of the real parts (hatari_ref.py over frames of run_hatari.sh).
 const REF = {
     f3: { rows: 240, colours: { 0x000: 0.4793, 0x003: 0.2021, 0x005: 0.1281, 0x002: 0.0439, 0x500: 0.0387, 0x014: 0.0302, 0x300: 0.0231, 0x027: 0.0209, 0x702: 0.0187, 0x004: 0.0089, 0x001: 0.0035 } },
+    f5: { rows: 236, lump: true, colours: { 0x1000: 0.7202, 0x777: 0.1914, 0x333: 0.0501, 0x555: 0.0384 } },
 };
 
 const word = (rgb, i) => (Math.round(rgb[i] * 7 / 255) << 8) | (Math.round(rgb[i + 1] * 7 / 255) << 4) | Math.round(rgb[i + 2] * 7 / 255);
 
-/// Shares of ST colour words over the window column, ST lines 0..rows-1.
-function shares(rgb, PW, rows) {
+/// Shares of ST colour words over the window column, ST lines 0..rows-1
+/// (with `lump`, colours the reference does not name count as 0x1000).
+function shares(rgb, PW, ref) {
+    const rows = ref.rows;
     const h = new Map();
     let n = 0;
     for (let y = 40; y < Math.min(280, 40 + rows); y++) for (let x = 40; x < 360; x++) {
-        const c = word(rgb, (y * PW + x) * 3);
+        let c = word(rgb, (y * PW + x) * 3);
+        if (ref.lump && !(c in ref.colours)) c = 0x1000;
         h.set(c, (h.get(c) || 0) + 1);
         n++;
     }
@@ -40,7 +47,7 @@ function shares(rgb, PW, rows) {
 /// Histogram intersection of the shot with the part's reference.
 export function look(name, rgb, PW) {
     const ref = REF[name];
-    const have = shares(rgb, PW, ref.rows);
+    const have = shares(rgb, PW, ref);
     let s = 0;
     for (const [c, p] of Object.entries(ref.colours)) s += Math.min(p, have.get(Number(c)) || 0);
     return s;
