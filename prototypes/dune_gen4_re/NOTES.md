@@ -192,7 +192,7 @@ x3, F1 x2), `ref5` (same disk: F2 x2, the menu after). `trace.py` prints the tra
 - Verified: `node apps/sndh_headless.mjs docs/music/dune_gen4_quartet.sndh N` PASS for N = 1..4 (Timer A
   16168 Hz, volumes moving on all three YM channels, no stuck PC, no unanswered trap); both gated.
   Against Hatari's sound (`quartet/avi_wav.py` pulls the PCM out of a `--sound 44100` AVI;
-  `quartet/render.mjs` renders ours; a log-spectrogram correlation, `quartet/out/spec.py` style):
+  `quartet/render.mjs` renders ours; a log-spectrogram correlation, `quartet/speccmp.py`):
   the title (Hatari run `hatari_rec.sh ... title 9500`, song from 130.8 s) matches subtune 4 best (0.73
   over 20 s, 0.66 over 55 s, vs 0.54 for another song or a 2 % tempo error, the peak at exactly 1.0x).
   In ref6 every key's song is the one the table above names (0.70-0.80 at the key's VBL, others
