@@ -106,7 +106,11 @@ Everything below was read from the disk and the depacked program, then checked i
    - While $7502 runs (16-17 VBLs) the MENU's VBL is still installed: the menu scroller rolls on into
      plane 3 of the cleared screen on show, under the menu's rasters (a lone "T" sliding in). That
      screen is drawn into second; the rolled bits stay, black in colour 8, until a star lands on one.
-8. **F3** $3DE: SOUND.TNY + SingSong, F3..F6 pick Quartet songs $1DF2/$24F2/$2A1E/$3316. NOT PORTED.
+8. **F3** $3DE: VBL = RTE, black, SOUND.TNY ("520 SOUNDTRACKER") decoded and faded in, then SingSong
+   plays song $1DF2. The loop $444 reads SingSong's OWN key byte (TEXT+$62, its ACIA handler): Space
+   = stop, rts (back to $1DC: the menu's tune and the menu again); **F3 -> $24F2, F4 -> $2A1E, F5 ->
+   $1DF2, F6 -> $3316** (each: stop, start = from the top; start clears the key byte). No rasters: the
+   menu's Timer B does not show (Hatari ref6). PORTED (still.zig), see "Quartet" below.
 
 ## Measured in Hatari (AVI one frame a VBL + traces)
 Runs: `ref2` (intro, main part), `ref4` (the disk with BLACKEAG.DAT copied as BLACKEAG.TNY: title, menu
@@ -140,7 +144,7 @@ x3, F1 x2), `ref5` (same disk: F2 x2, the menu after). `trace.py` prints the tra
 - **Credit discrepancy**: Demozoo says music by 520; the SNDH says Mr X. The demo's own scroller lists
   several tunes: "THE MUSIC (SOUNDTRACKER) BY S20 [=520]", ... "I HATE LIES ... BY MR X". The YM
   tune is Mr X's; 520's are the Soundtracker (Quartet) tunes.
-- SINGSONG.PRG = Quartet SingSong (4-voice samples) + SOUND2.SET: title screen and F3. Out of scope.
+- SINGSONG.PRG = Quartet SingSong (4-voice samples) + SOUND2.SET: title screen and F3. See "Quartet".
 
 ## The cart
 - `apps/zig/scenes/dune_gen4.zig` + `dune_gen4/`: one overscan plane of palette indices 0..15 and the
@@ -154,10 +158,47 @@ x3, F1 x2), `ref5` (same disk: F2 x2, the menu after). `trace.py` prints the tra
   (frames dumped first by `avi2png.py hatari/refN.avi /dev/shm/refN 1`).
 
 ## Open questions for Matt
-1. Title (DUNE.TNY) and F3 play Quartet SingSong tunes (SOUND2.SET): silent in the cart. Port a 4-voice
-   sample replay, or render them, or leave them silent?
+1. (answered: the Quartet songs are an SNDH now, see "Quartet".)
 2. F1 asks for "A:blackeag.tny" but the disk has BLACKEAG.DAT (a valid Tiny file of Black Eagle's face):
    on this disk the load fails and the letters fly over the menu picture (no rasters). The cart shows
    the intended picture (`black.zig` SHOW_DISK_BUG = false). Keep that, or show the bug?
 3. The original stops the tune while a part loads and fades (VBL = rte); ZigMachine has no pause, so
    the menu tune runs on across F1 and back.
+
+## Quartet (the title's and F3's songs) -- `quartet/`
+- SINGSONG.PRG is byte-identical to Audio Visual Research's (Atari_ST_Sources/ASM/Various/Audio Visual
+  Research .../SINGSONG/, EXAMPLE2.S = the API): TEXT+0 play-till-Space, +4 start, +8 stop, +12 song
+  pointer, +16 voice set pointer. 15828 bytes TEXT, no DATA/BSS, 150 fixups. Disassembly:
+  `quartet/singsong.dis` (`quartet/dr.py FILE FROM TO` slices a listing).
+- The songs are INSIDE DUNE.PRG, back to back: TEXT $1DF2 (+$700), $24F2 (+$52C), $2A1E (+$8F8), $3316
+  (+$82C, ending at $3B42 = "A:musique.prg"). Each: a speed word ($10 = Timer A data $26 /4 = 16168 Hz),
+  15 header bytes, then 4 tracks of 12-byte commands (V voice, P play, R rest, S, l/L loop) each ended
+  by F. The voice set SOUND2.SET is loaded to TEXT+$162AC (BSS), 20 voices from offsets at +$8E.
+- start ($3BC2): turns voice indices into addresses and unrolls loops IN PLACE in the song (stop undoes
+  both), installs Timer A (sample out: d0-d3/a0-a3 = the four voices and a4 = $FFFF8800 live ACROSS
+  interrupts, never saved), takes over Timer C ($114 := $2ED8, the sequencer at TOS's 200 Hz, no
+  chaining) and the ACIA ($118 := $6A, scancode into TEXT+$62), sr = $2500.
+  Its Timer C handler also reads the key byte: F1 = output to the YM ($DDA, the default), **F2 =
+  output to a replay cartridge** at $FA0000 (on a bare ST: silence). Not ported (the cart's F1/F2 do
+  nothing on the title or F3).
+- `quartet/mk_sndh.py RE_DIR OUT.sndh` + `glue.s` (vasm) = `docs/music/dune_gen4_quartet.sndh`
+  (89882 bytes): SINGSONG's TEXT verbatim, relocated by the glue at the first INIT; SOUND2.SET; the four
+  songs as DUNE.PRG holds them. Subtunes 1..4 = $1DF2, $24F2, $2A1E, $3316; TC200, FLAG ~acy.
+  INIT copies the song into a Malloc'd 16 KB work buffer (so the in-place rewrite never touches the
+  original, and INIT again on a playing image stops first), sets +12/+16, jsr 4. PLAY = SingSong's Timer
+  C handler called as an interrupt. The SNDH engine passes d0 = 0 to PLAY, which would wreck voice 0's
+  phase, so the glue wraps the Timer A vector and PLAY to keep d0 in memory between them. EXIT = stop,
+  plus putting the replay's own Timer A handler back where stop saved the wrapper.
+- Verified: `node apps/sndh_headless.mjs docs/music/dune_gen4_quartet.sndh N` PASS for N = 1..4 (Timer A
+  16168 Hz, volumes moving on all three YM channels, no stuck PC, no unanswered trap); both gated.
+  Against Hatari's sound (`quartet/avi_wav.py` pulls the PCM out of a `--sound 44100` AVI;
+  `quartet/render.mjs` renders ours; a log-spectrogram correlation, `quartet/out/spec.py` style):
+  the title (Hatari run `hatari_rec.sh ... title 9500`, song from 130.8 s) matches subtune 4 best (0.73
+  over 20 s, 0.66 over 55 s, vs 0.54 for another song or a 2 % tempo error, the peak at exactly 1.0x).
+  In ref6 every key's song is the one the table above names (0.70-0.80 at the key's VBL, others
+  0.40-0.63). The YM register stream itself is a 16 kHz volume stream, not compared write by write.
+- ref6 (`quartet/ref6.sh`, keys at EMULATED VBLs by `quartet/keys_vbl.py` -- Hatari recording sound
+  runs at 0.3-0.9x real time, so wall-clock keys (`keys.sh`) landed during loads and were lost): Space
+  1751, Space 2951, F3 3801 (black from 3802), SOUND.TNY's fade at 4011 (song at 4041), F4 4300, F5
+  4700, F6 5100, F3 5500, Space 5900, the menu's fade at 6074. `mkref_add.py` appended its frames to
+  the reference without the earlier runs' dumps (`quartet/scenes.py` names each frame's picture).
