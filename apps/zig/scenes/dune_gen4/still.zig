@@ -32,7 +32,7 @@ const SONG_KEYS = [_]struct { key: u32, song: u8 }{
 };
 
 pub const Still = struct {
-    n: u32, // VBLs since the fade began
+    n: u32, // VBLs since the fade began, up to its end
     song: u8, // what SingSong plays once the fade is over
     picks: bool, // F3..F6 change the song (the sound screen, not the title)
     palette: [16]u16,
@@ -49,7 +49,10 @@ pub const Still = struct {
         return self.n >= fade.SCREEN.frames();
     }
 
+    /// `n` stops at the fade's end: fade.at takes n * 100 in u32, which would
+    /// wrap (silently, in ReleaseSmall) after ~10 days on the still screen.
     pub fn vbl(self: *Still) void {
+        if (self.playing()) return;
         self.n += 1;
         if (self.n == fade.SCREEN.frames()) zg.requestSongTune(QUARTET, self.song);
     }
