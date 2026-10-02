@@ -26,6 +26,7 @@ const skulls = @import("hades/skulls.zig");
 const Skulls = skulls.Skulls;
 const Scroll = @import("hades/scroll.zig").Scroll;
 const H = @import("assets.zig").HADES;
+const menuscroll = @import("menuscroll.zig");
 
 pub const FIRST_VBL: u32 = 17;
 const RASTER_TOP = 201;
@@ -95,8 +96,8 @@ pub const Hades = struct {
     }
 };
 
-const BAND_TOP = @import("menuscroll.zig").TOP;
-const BAND_LINES = @import("menuscroll.zig").LINES;
+const BAND_TOP = menuscroll.TOP;
+const BAND_LINES = menuscroll.LINES;
 
 /// The menu scroller's plane 3 into the screen that was on show.
 fn takeBand(s: *ram.Screen, band: *const [BAND_LINES][20]u16) void {
@@ -107,4 +108,6 @@ fn takeBand(s: *ram.Screen, band: *const [BAND_LINES][20]u16) void {
 
 comptime {
     if (C0_FROM + 2 * (H.RASTER1.len + 1) > H.WOBBLE.len) @compileError("Timer B reads past the WOBBLE copy");
+    // render() writes st.regs up to the line after RASTER1's end
+    if (RASTER_TOP + H.RASTER1.len + 1 >= st.H + st.OY) @compileError("F2's rasters run off the screen");
 }

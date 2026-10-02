@@ -120,6 +120,9 @@ fn be16(at: usize) u16 {
 comptime {
     if (DATA.len != 2 * LINES * 24) @compileError("the logo is 50 lines of 24 + 24 bytes");
     if (H.LOGO_Y.len != TURN + 1) @compileError("LOGO_Y runs 0..$118");
+    // draw() and clear() index the screen unchecked
+    if (X_BYTES + GROUPS * 8 > ram.LINE) @compileError("the logo runs past its line");
+    if (std.mem.max(u16, &H.LOGO_Y) + LINES > ram.LINES) @compileError("the logo walks off the screen");
 }
 
 test "copy k is the logo moved k pixels right, plane by plane" {

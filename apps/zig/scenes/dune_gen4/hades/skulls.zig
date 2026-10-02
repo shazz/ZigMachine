@@ -103,6 +103,16 @@ fn be16(at: usize) u16 {
 
 comptime {
     if (DATA.len != LINES * 20) @compileError("TETEDEAD is 32 lines of 2 x (mask + 4 planes)");
+    // the wrap tests == PATH_LEN: a start past it would walk off XYEAGLE
+    for (A.HADES.SKULL_POS) |p| if (p > PATH_LEN) @compileError("a skull starts past the path");
+    // draw() and clear() index the screen unchecked: every point on the path
+    // must keep the 48x32 block inside it
+    @setEvalBranchQuota(10_000);
+    for (1..PATH_LEN + 1) |i| {
+        const w = @as(u16, A.XYEAGLE[2 * i]) << 8 | A.XYEAGLE[2 * i + 1];
+        if (ram.groupAt(w >> 8, w & 0xFF) + (LINES - 1) * ram.LINE + 24 > ram.LINES * ram.LINE)
+            @compileError("a skull on the path runs past the screen");
+    }
 }
 
 test "copy k's masks are NOT (OR of its planes), copy 0's the file's" {
