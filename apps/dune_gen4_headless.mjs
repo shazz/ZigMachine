@@ -5,11 +5,11 @@
 // from AVIs recorded one frame a VBL), compared as ST colour words over the
 // whole window Hatari captures -- borders, rasters and all (x -40..359,
 // y -29..239). The walk through the parts and the music: dune_gen4_keys.mjs.
-//   pixels   37 frames: the intro's bounce (the flick at the turn), the fade-in
+//   pixels   49 frames: the intro's bounce (the flick at the turn), the fade-in
 //            step by step, the main part (letters, colour-0 bars, rainbow, the
 //            scroller in the lower border), the title, three visits to the menu
 //            (rasters, its scroller carrying on through F1) and two to F1 (the
-//            BLACK letters carrying on round their path)
+//            BLACK letters carrying on round their path), two to F2 (HADES)
 //   music    Gen4.sndh from the main part, silence for the title (a Quartet
 //            tune), the poked copy for the menu, nothing after; Escape -> menu disk
 //   cost     mean ms a frame

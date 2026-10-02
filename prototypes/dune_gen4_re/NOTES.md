@@ -1,4 +1,4 @@
-# Dune — Gen4 Demo (1990-06-29) — RE notes (cart 82, tag dune_gen4)
+# Dune — Gen4 Demo (1990-06-29) — RE notes (cart 83, tag dune_gen4)
 
 Demozoo 178058. Credits per Demozoo: Music 520, Graphics Black Eagle, Code Hades.
 Source: https://fujiology.org/ST/D/DUNE2/DUNEGEN4.ZIP (DUNEGEN4.MSA, 9 spt, 2 sides, 80 tracks).

@@ -20,8 +20,10 @@ const zg = @import("zigos");
 const st = @import("st.zig");
 const ram = @import("hades/ram.zig");
 const Stars = @import("hades/stars.zig").Stars;
-const Logo = @import("hades/logo.zig").Logo;
-const Skulls = @import("hades/skulls.zig").Skulls;
+const logo = @import("hades/logo.zig");
+const Logo = logo.Logo;
+const skulls = @import("hades/skulls.zig");
+const Skulls = skulls.Skulls;
 const Scroll = @import("hades/scroll.zig").Scroll;
 const H = @import("assets.zig").HADES;
 
@@ -40,8 +42,8 @@ pub const Hades = struct {
     /// The screens and the pre-shifts come from the cart's RAM arena.
     pub fn init(self: *Hades) void {
         ram.screens = &zg.mem.mustAlloc([2]ram.Screen, 1)[0];
-        self.logo.init(&zg.mem.mustAlloc(Logo.Shifts, 1)[0]);
-        self.skulls.init(&zg.mem.mustAlloc(Skulls.Shifts, 1)[0]);
+        self.logo.init(&zg.mem.mustAlloc(logo.Shifts, 1)[0]);
+        self.skulls.init(&zg.mem.mustAlloc(skulls.Shifts, 1)[0]);
     }
 
     pub fn enter(self: *Hades) void {
