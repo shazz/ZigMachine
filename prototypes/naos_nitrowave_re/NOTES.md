@@ -1,7 +1,7 @@
 # Nitrowave Demo (Naos, 1990) — RE notes
 
 Demozoo 72475. Generation 4 competition (theme: the 3615 GEN4 minitel server).
-Port: cart 82, `naos_nitrowave` (apps/zig/scenes/naos_nitrowave*.zig).
+Port: cart 83, `naos_nitrowave` (apps/zig/scenes/naos_nitrowave*.zig).
 
 ## Sources
 

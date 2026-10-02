@@ -488,7 +488,8 @@ pub fn build(b: *std.Build) void {
         "demo-skystrike", // 79 — SKYSTRIKE, Shadow Software 1990: the STOS game from Automation Menu Disk 258, ported from its detokenised listing
         "demo-ulm_dsots", // 80 — ULM / THE DARK SIDE OF THE SPOON, the main menu (shazz's melonJS remake): the griffin's walk-around map
         "demo-snyd_90", // 81 — OMEGA / SYNC / TCB, Swedish New Year Demo 89-90: intro, menu, F1, F2 (ported from the disk)
-        "demo-naos_nitrowave", // 82 — NAOS / THE NITROWAVE DEMO: the menu + F2 big sprite (ported from the ST disk)
+        "", // 82 — reserved: Dune Gen4 (lands from its own branch; the coordinator resolves this at merge)
+        "demo-naos_nitrowave", // 83 — NAOS / THE NITROWAVE DEMO: the menu + F2 big sprite (ported from the ST disk)
     };
     for (cart_names, 0..) |name, idx| {
         if (name.len == 0) continue; // excluded cart (see note above)

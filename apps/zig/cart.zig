@@ -92,7 +92,7 @@ const scene = switch (opts.index) {
     79 => @import("scenes/skystrike.zig"), // SKYSTRIKE, Shadow Software 1990: the STOS game (Automation Menu Disk 258, playable)
     80 => @import("scenes/ulm_dsots.zig"), // ULM, The Dark Side of the Spoon: the main menu (its door launches the Parallax Distorter)
     81 => @import("scenes/snyd_90.zig"), // OMEGA / SYNC / TCB, Swedish New Year Demo 89-90 (original disk)
-    82 => @import("scenes/naos_nitrowave.zig"), // NAOS / THE NITROWAVE DEMO, menu + F2 (ported from the ST disk)
+    83 => @import("scenes/naos_nitrowave.zig"), // NAOS / THE NITROWAVE DEMO, menu + F2 (ported from the ST disk)
     else => @compileError("bad cart index"),
 };
 
