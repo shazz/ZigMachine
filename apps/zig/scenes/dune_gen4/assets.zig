@@ -7,6 +7,7 @@ pub const T = @import("../../assets/screens/dune_gen4/tables.zig");
 pub const INTRO_TNY = @embedFile(DIR ++ "intro.tny"); // the DUNE logo, intro + main part
 pub const DUNE_TNY = @embedFile(DIR ++ "dune.tny"); // the title picture
 pub const MENU_TNY = @embedFile(DIR ++ "menu.tny");
+pub const SOUND_TNY = @embedFile(DIR ++ "sound.tny"); // F3, "520 SOUNDTRACKER"
 /// On the disk as BLACKEAG.DAT; F1 asks for "A:blackeag.tny" (see black.zig).
 pub const BLACKEAG_TNY = @embedFile(DIR ++ "blackeag.tny");
 

@@ -12,31 +12,29 @@
 //   2. main part  the logo parked, "3615 GEN4" bouncing over grey  mainpart.zig
 //                 colour-0 bars in a colour-8 rainbow, a scroller
 //                 in the lower border; to the text's end or Space
-//   3. title      DUNE.TNY faded in; Space                        (here)
+//   3. title      DUNE.TNY faded in, a Quartet song; Space        still.zig
 //   4. menu       MENU.TNY, rainbow rasters, a scroller            menu.zig
 //                 F1 -> the BLACK letters                          black.zig
 //                 F2 -> the HADES screen                           hades.zig
-//                 F3 -> the Quartet sound screen: NOT PORTED (four
-//                       SingSong sample tunes; no replay here)
-//   Space leaves F1 or F2 for the menu, loaded and faded in again. Escape
-//   leaves the cart (not in the original).
+//                 F3 -> SOUND.TNY, F3..F6 pick a Quartet song      still.zig
+//   Space: F1..F3 back to the menu, reloaded. Escape leaves (not original).
 //
 // MUSIC. MUSIQUE.PRG at $10000 is Gen4.sndh's tune (TITL "Gen4 Demo", ~y),
-// byte for byte bar relocations: the main part plays it. The title plays a
-// Quartet tune (SINGSONG.PRG): silent here. For the menu DUNE.PRG pokes three
-// sequence pointers ($10024.. over $1000C..) and starts it again:
-// dune_gen4_menu.sndh is Gen4.sndh with that same poke.
+// byte for byte bar relocations: the main part plays it. For the menu DUNE.PRG
+// pokes three sequence pointers ($10024.. over $1000C..) and starts it again:
+// dune_gen4_menu.sndh is Gen4.sndh with that same poke. The title and F3 play
+// 520's Quartet songs on SingSong: dune_gen4_quartet.sndh (still.zig).
 // --------------------------------------------------------------------------
 const zg = @import("zigos");
 const st = @import("dune_gen4/st.zig");
 const tny = @import("dune_gen4/tny.zig");
-const fade = @import("dune_gen4/fade.zig");
 const A = @import("dune_gen4/assets.zig");
 const Intro = @import("dune_gen4/intro.zig").Intro;
 const MainPart = @import("dune_gen4/mainpart.zig").MainPart;
 const Menu = @import("dune_gen4/menu.zig").Menu;
 const black = @import("dune_gen4/black.zig");
 const Hades = @import("dune_gen4/hades.zig").Hades;
+const still = @import("dune_gen4/still.zig");
 
 const ZigOS = zg.ZigOS;
 const MUSIC = "dune_gen4.sndh";
@@ -48,7 +46,8 @@ const K_SPACE: u32 = 32;
 const K_ESC: u32 = 0xE012;
 const K_F1: u32 = 0xE001;
 const K_F2: u32 = 0xE002;
-pub const Part = enum(u8) { intro, main, title, menu, black, hades };
+const K_F3: u32 = 0xE003;
+pub const Part = enum(u8) { intro, main, title, menu, black, hades, sound };
 
 /// The part's picture (the original decodes into the screen): RAM arena.
 var pic: *tny.Picture = undefined;
@@ -56,7 +55,7 @@ var pic: *tny.Picture = undefined;
 pub const Demo = struct {
     part: Part,
     acc: f32,
-    title_n: u32,
+    still: still.Still, // the title and F3
     menu_music: bool,
     ok: bool, // every picture decoded
     wants_quit: bool,
@@ -71,7 +70,6 @@ pub const Demo = struct {
         self.fb = st.init(zigos);
         pic = &zg.mem.mustAlloc(tny.Picture, 1)[0];
         self.acc = 0;
-        self.title_n = 0;
         self.menu_music = false;
         self.wants_quit = false;
         self.black.init();
@@ -106,7 +104,7 @@ pub const Demo = struct {
                 self.main.vbl();
                 if (self.main.done()) self.toTitle();
             },
-            .title => self.title_n += 1,
+            .title, .sound => self.still.vbl(),
             .menu => {
                 self.menu.vbl();
                 if (self.menu.ready() and !self.menu_music) {
@@ -131,10 +129,7 @@ pub const Demo = struct {
         switch (self.part) {
             .intro => self.intro.render(self.fb, pic),
             .main => self.main.render(self.fb),
-            .title => {
-                const pal = fade.at(&pic.palette, self.title_n, fade.SCREEN);
-                st.setPalette(&pal);
-            },
+            .title, .sound => self.still.render(),
             .menu => self.menu.render(self.fb),
             .black => self.black.render(self.fb, pic),
             .hades => if (self.hades.running()) self.hades.render(self.fb) else self.menu.render(self.fb),
@@ -156,11 +151,17 @@ pub const Demo = struct {
 
     fn toTitle(self: *Demo) void {
         self.part = .title;
-        self.title_n = 0;
-        zg.stopSong(); // $10004; the Quartet tune that follows is not ported
+        zg.stopSong(); // $10004
         self.load(A.DUNE_TNY);
-        st.clear(self.fb);
-        st.copyRows(self.fb, &pic.px, 0, 0, st.H);
+        self.still.enter(self.fb, pic, still.TITLE_SONG, false);
+    }
+
+    fn toSound(self: *Demo) void {
+        self.part = .sound;
+        zg.stopSong(); // $10004
+        self.menu_music = false; // back at $1DC, jsr $10000 again
+        self.load(A.SOUND_TNY);
+        self.still.enter(self.fb, pic, still.SOUND_SONG, true);
     }
 
     fn toMenu(self: *Demo) void {
@@ -190,8 +191,8 @@ pub const Demo = struct {
         switch (self.part) {
             .intro => {},
             .main => if (cp == K_SPACE) self.toTitle(),
-            .title => if (cp == K_SPACE and self.title_n >= fade.SCREEN.frames()) self.toMenu(),
-            .menu => if (!self.menu.ready()) {} else if (cp == K_F1) self.toBlack() else if (cp == K_F2) self.toHades(),
+            .title, .sound => if (self.still.key(cp)) self.toMenu(),
+            .menu => if (!self.menu.ready()) {} else if (cp == K_F1) self.toBlack() else if (cp == K_F2) self.toHades() else if (cp == K_F3) self.toSound(),
             .black => if (cp == K_SPACE and self.black.running()) self.toMenu(),
             .hades => if (cp == K_SPACE and self.hades.running()) self.toMenu(),
         }

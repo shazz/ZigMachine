@@ -14,6 +14,7 @@ out = sys.argv[1]
 os.makedirs(out, exist_ok=True)
 T = open('dune_unpacked.prg', 'rb').read()[28:]
 COPY = {'INTRO.TNY': 'intro.tny', 'DUNE.TNY': 'dune.tny', 'MENU.TNY': 'menu.tny',
+        'SOUND.TNY': 'sound.tny',
         'BLACKEAG.DAT': 'blackeag.tny', 'ALPHA.DAT': 'alpha.dat', 'FONTE.DAT': 'fonte.dat',
         'BLACK.DAT': 'black.dat', 'XYEAGLE.DAT': 'xyeagle.dat'}
 for src, dst in COPY.items():
