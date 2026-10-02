@@ -13,10 +13,10 @@
 // Ported from the original's code and tables (ric_font.zig, ric_init.zig,
 // ric_sprites.zig, ric_scroll.zig = prototypes/naos_nitrowave_re/ric_pre.py,
 // ric_init.py, ric_model.py, each = the original to the byte). APPROXIMATED,
-// as on the ST these were cycle races: the VBL draws into a screen while the
-// shifter may show it (here a screen is shown whole, two VBLs after the one
-// that set it -- the lag the captures show), and the colour changes land at
-// their nominal lines (ric_show.zig).
+// as on the ST these were cycle races: the VBL draws into the screen the
+// shifter shows (here each frame shows the screen its VBL drew, whole -- what
+// Hatari's captures show, prototypes/naos_nitrowave_re/ric_sync.py), and
+// the colour changes land at their nominal lines (ric_show.zig).
 // Keys as the original: F1 freezes it (its VBL $EF4 moves nothing), F2 lets
 // it go on.
 // --------------------------------------------------------------------------
@@ -38,7 +38,7 @@ pub const Ric = struct {
     frozen: bool,
     regs: show.Regs, // the colour registers at the end of the last frame
     shown_regs: show.Regs, // ...and as the last VBL left them
-    bases: [3]u32, // the screen base set by the last three VBLs, oldest first
+    shown: u32, // the screen base the last VBL set
 
     /// From the file: the title on screen, the fonts built (ric_font.zig).
     pub fn enter(self: *Ric, r: *const st.Ram, figure: u2) void {
@@ -53,11 +53,6 @@ pub const Ric = struct {
         return self.title_left > 0;
     }
 
-    /// The screen the shifter shows now.
-    pub fn displayed(self: *const Ric) u32 {
-        return self.bases[0];
-    }
-
     pub fn frame(self: *Ric, r: *const st.Ram) void {
         if (self.title_left > 0) {
             self.title_left -= 1;
@@ -65,10 +60,9 @@ pub const Ric = struct {
             return;
         }
         self.regs.vbl(r);
-        const shown = if (self.frozen) self.bases[2] else vbl(r);
+        if (!self.frozen) self.shown = vbl(r);
         self.shown_regs = self.regs;
         self.regs.frame(r);
-        self.bases = .{ self.bases[1], self.bases[2], shown };
     }
 
     /// The set-up's end ($D5E..$D94): the replay started, the palette, the VBL.
@@ -76,14 +70,13 @@ pub const Ric = struct {
         init.run(r, self.figure);
         self.regs = show.Regs.start(r);
         self.shown_regs = self.regs;
-        const bg = r.l(spr.BG);
-        self.bases = .{ bg, bg, bg };
+        self.shown = r.l(spr.BG);
         zg.requestSongTune(TUNE, 1);
     }
 
     pub fn present(self: *const Ric, r: *const st.Ram, px: []u8) void {
         if (self.inTitle()) return show.presentTitle(r, px);
-        show.present(r, self.displayed(), self.shown_regs, px);
+        show.present(r, self.shown, self.shown_regs, px);
     }
 };
 

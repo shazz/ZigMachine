@@ -147,7 +147,7 @@ Without the registers the first VBL runs with a6 = 0 and scribbles: restore them
 - Port uses the entry RAM ($400..$7A000, apps/zig/assets/screens/
   naos_nitrowave/dam.bin) instead of porting the long precalculation.
 
-## F1: MULTISPRITES (DEMO_RIC.BIN at $800) -- not ported
+## F1: MULTISPRITES (DEMO_RIC.BIN at $800) -- ported best effort
 
 Interrupt-driven (VBL $F96 / $EF4 does all; main loop waits for Space), Timer
 B HBL $E08 every line: colours 0/1 from $47524, palette split at count $8A,
@@ -172,7 +172,23 @@ Done (RE only):
   later; still ~1000-25000 pixels a frame differ -- the top scroller band's
   colours and single sprites. The VBL draws on screens while they are shown
   and Timer B is delayed by the VBL's long instructions (colour changes at
-  x up to ~40): pixel-exactness needs a cycle model of the VBL. Not ported.
+  x up to ~40): pixel-exactness needs a cycle model of the VBL.
+
+Port (best effort, Matt 2026-10-02: "something looking like the real thing"):
+- `ric_pre.py`: $800..$A3E (title onto $6E700, $4791C, the font + its three
+  roxl shifts, X starting 0) = f1_pre.bin; from the FILE alone, ric_init +
+  ric_model equal the run from the dump for all 4 figures over 400 VBLs. So
+  the cart ships only DEMO_RIC.BIN (ric_font/ric_init/ric_sprites/ric_scroll.zig).
+- `ric_sync.py`: after the base switch the captures pin the timing: each
+  frame shows the screen ITS VBL drew (lag 0), and model frame 0 is capture
+  2813 / 2811 / 2734 / 2663 for F 0..3 (99.7% of pixels; ric_fit2's syncs fit
+  only the colours before the switch, which repeat). Hatari's first ~4 frames
+  are still the title: the harness compares from frame 5.
+- Display: real per-row palettes from the plane HBL, every Timer B change at
+  its nominal line. Zig vs Hatari (apps/naos_nitrowave_f1.mjs): title exact,
+  frames 5..500 99.66..99.84% of the plane's pixels; another figure ~82%.
+- Figure = (menu VBLs at the key >> 1) & 3; title shown 747/748/672/594 VBLs,
+  silent; Robocop_Tune_2 #1 from the main loop (ymcheck 1.000 @ -2).
 
 ## Music
 
