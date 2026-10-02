@@ -19,6 +19,8 @@ make -C fpga setup   # submodules, uv env, sv2v + wasm2c (pinned, checksummed)
 make -C fpga check   # memmap export + tests + SoC elaboration
 make -C fpga util    # what each block costs on the 7-series
 make -C fpga carts   # every docs/demo-*.wasm -> wasm2c -> rv32imf
+make -C fpga host CART=stniccc  # native C host: machine + rom + cart via wasm2c (host/README.md)
+make -C fpga host-check         # its fingerprints == apps/scene_hash.mjs, every cart
 ```
 
 Nothing in `fpga/` is part of `./build.sh`. The wasm machine stays the
@@ -32,6 +34,7 @@ writes to it.
 | `rtl/` | Our Verilog, one directory per block (`video/` today). Includes `gen/memmap.vh`. |
 | `soc/` | LiteX: `zigmachine_soc.py` (the SoC, `sim` and `z7` targets), `zm_video.py` (RTL as a peripheral), `platform_z7.py` (the board, read from the vendor XDC). |
 | `tests/` | pytest. RTL testbenches are C++ in `tests/tb/`, compiled through Yosys CXXRTL (no system simulator needed). |
+| `host/` | The native host (plan step 0b-i): wasm2c'd machine + rom + one cart, driven like `apps/scene_hash.mjs`. |
 | `tools/` | `setup.sh`, `memmap_export.zig` (memmap.zig to Verilog/Python), `util.py` (synthesis cost per block), `wasm2rv.sh` (cart translation). |
 | `boards/microphase_z7_7010/` | Where the vendor's `board.xdc` and `ps7_init` go. Nothing in it is guessed. |
 | `third_party/` | Reused cores as pinned submodules, with licences and measured costs in its README. |
