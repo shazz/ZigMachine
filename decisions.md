@@ -9,6 +9,44 @@ reconstructed from the commits that made them, so they are shorter.
 
 ---
 
+## 2026-10-01 — The FPGA machine runs RISC-V carts translated from wasm (`fpga/`)
+
+**Status:** accepted · design in `docs/ZIGMACHINE_IN_FPGA.md`, tree in `fpga/`
+
+**Context:** The target is a MicroPhase Z7 (XC7Z010, 17,600 LUTs), with the ARM
+doing I/O only and the console in fabric. The CPU that runs carts had to be
+either a wasm softcore or a conventional ISA.
+
+**Decision:**
+- **A RISC-V core (VexRiscv) runs the carts.** wasm stays the cart format and is
+  translated before it reaches the board (wasm2c, then clang/zig for
+  `rv32imf`).
+- **The seal is enforced by the AXI interconnect** (the cart master sees only its
+  windows), not by wasm.
+- **`fpga/` is a self-contained tree**: its own uv env, Makefile and tests,
+  outside `./build.sh`. Reused cores are pinned shallow submodules.
+- **The memory map is exported from `machine/sdk/memmap.zig` by reflection**,
+  never retyped.
+
+**Alternatives considered:**
+- **A wasm softcore.** None exists to reuse, and wasm is designed to be
+  compiled. It would need `i64`/`f32`/`f64` in hardware, and on a 7010 it would
+  not fit beside the machine.
+- **A real 68000 running the carts.** Zig and Rust have no m68k target. The
+  68000 is kept only as the optional SNDH coprocessor.
+- **Typing the memory map into Verilog.** Two copies drift.
+- **Vendoring the cores.** That copies GPL sources into the tree, so
+  submodules were used instead.
+
+**Consequences:**
+- Proven before any hardware: all 90 carts translate and compile for
+  `rv32imf`, and VexRiscv `standard` measures 2,019 LUTs and `jt49` 286.
+- The FPU (`f32`, 3–5K LUTs) decides whether the 7010 is enough.
+- A bitstream containing `jt49`/`fx68k` is a GPL combined work. That must be
+  settled before one is distributed.
+
+---
+
 ## 2026-09-27 — The sealed YM gates a tone above Nyquist at its average (0.5)
 
 **Status:** accepted
