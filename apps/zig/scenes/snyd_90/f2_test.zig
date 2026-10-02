@@ -2,23 +2,21 @@
 // F2 against the ORIGINAL code, byte for byte: every CRC32 is of the part's
 // memory after N VBLs on the Musashi oracle (prototypes/snyd90_re/m68run,
 // whose run matches Hatari's RAM of the real part at VBL 193 to the byte but
-// for the VBL flag and the stack). oracle_expect.py f2 prints these: `mem`
+// for the VBL flag and the stack). `oracle_expect.py f2` prints these: `mem`
 // is $1000..$70000 without the music ($8836..$AF16, the SNDH's) and the VBL
 // flag; `a`/`b` the two screens; `pal` the colour registers.
 // Run through apps/zig/scene_tests.zig.
 // --------------------------------------------------------------------------
-const std = @import("std");
 const st = @import("../swedish_newyear/st.zig");
 const f2 = @import("f2.zig");
 const palette = @import("palette.zig");
+const oracle = @import("oracle_crc.zig");
 
 const IMAGE = @embedFile("../../assets/screens/snyd_90/f2.raw");
 
 var mem: [f2.TOP - f2.BASE]u8 = undefined;
 
-const Expect = struct { vbl: u32, mem: u32, a: u32, b: u32, pal: u32 };
-
-const EXPECT = [_]Expect{
+const EXPECT = [_]oracle.Expect{
     .{ .vbl = 1, .mem = 0x3e9ddfd9, .a = 0x9d675e0e, .b = 0x5bd12871, .pal = 0x36e1963b },
     .{ .vbl = 2, .mem = 0x91e5cf55, .a = 0x9d675e0e, .b = 0x8a16c46b, .pal = 0x36e1963b },
     .{ .vbl = 3, .mem = 0x04377cfd, .a = 0x6ace3afc, .b = 0x8a16c46b, .pal = 0x36e1963b },
@@ -28,22 +26,7 @@ const EXPECT = [_]Expect{
     .{ .vbl = 1500, .mem = 0x1604f34f, .a = 0x9b8e7309, .b = 0x0fdef5f3, .pal = 0x36e1963b },
 };
 
-fn kept(r: *const st.Ram) u32 {
-    var h = std.hash.Crc32.init();
-    var a: u32 = 0x1000;
-    const zeros = [_]u8{0} ** 0x3000;
-    for ([_][2]u32{ .{ 0x1646, 0x1650 }, .{ 0x8836, 0xAF16 } }) |hole| {
-        h.update(r.bytes(a, hole[0] - a));
-        h.update(zeros[0 .. hole[1] - hole[0]]);
-        a = hole[1];
-    }
-    h.update(r.bytes(a, 0x70000 - a));
-    return h.final();
-}
-
-fn crc(r: *const st.Ram, a: u32, n: usize) u32 {
-    return std.hash.Crc32.hash(r.bytes(a, n));
-}
+const HOLES = [_][2]u32{ .{ 0x1646, 0x1650 }, .{ 0x8836, 0xAF16 } };
 
 test "F2 matches the original code's memory after 1..1500 VBLs" {
     @memcpy(&mem, IMAGE);
@@ -55,15 +38,6 @@ test "F2 matches the original code's memory after 1..1500 VBLs" {
             _ = f2.top(&r, &pal);
             f2.bottom(&r);
         }
-        try std.testing.expectEqual(e.a, crc(&r, 0x70000, st.SCREEN));
-        try std.testing.expectEqual(e.b, crc(&r, 0x78000, st.SCREEN));
-        try std.testing.expectEqual(e.mem, kept(&r));
-        try std.testing.expectEqual(e.pal, std.hash.Crc32.hash(std.mem.sliceAsBytes(&palBig(pal))));
+        try oracle.check(&r, e, &HOLES, pal);
     }
-}
-
-fn palBig(pal: [16]u16) [16]u16 {
-    var out: [16]u16 = undefined;
-    for (&out, pal) |*o, c| o.* = std.mem.nativeToBig(u16, c);
-    return out;
 }

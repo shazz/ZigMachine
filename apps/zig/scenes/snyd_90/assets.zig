@@ -10,12 +10,13 @@ const zx0 = @import("depackers").zx0;
 const PACKED = @import("packed_assets").snyd_90;
 const menu = @import("menu.zig");
 const intro = @import("intro.zig");
+const f1 = @import("f1.zig");
 const f2 = @import("f2.zig");
 
-pub const Set = enum { intro, menu, f2 };
+pub const Set = enum { intro, menu, f1, f2 };
 
 /// Bytes of the part buffer: the largest part's memory.
-pub const PART_LEN: usize = @max(menu.TOP - menu.BASE, intro.LEN, f2.TOP - f2.BASE);
+pub const PART_LEN: usize = @max(menu.TOP - menu.BASE, intro.LEN, f1.TOP - f1.BASE, f2.TOP - f2.BASE);
 
 var part: []align(4) u8 = &.{};
 
@@ -30,7 +31,8 @@ fn blob(set: Set) struct { src: []const u8, len: usize } {
     return switch (set) {
         .intro => .{ .src = PACKED.intro_spu, .len = intro.LEN },
         .menu => .{ .src = PACKED.menu, .len = menu.IMAGE },
-        // F2's memory as its own set-up leaves it (the oracle's run).
+        // F1's and F2's memory as their own set-up leaves it (the oracle's run).
+        .f1 => .{ .src = PACKED.f1, .len = f1.TOP - f1.BASE },
         .f2 => .{ .src = PACKED.f2, .len = f2.TOP - f2.BASE },
     };
 }

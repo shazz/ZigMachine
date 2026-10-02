@@ -12,14 +12,16 @@
 // read from the disk afresh (so it starts over).
 //
 // Ported: the intro (a Spectrum 512 picture, snyd_90/intro.zig), the menu
-// (menu.zig) and F2, OMEGA's distorted logo and wave scroller (f2.zig), each
-// checked byte for byte against the original (Hatari RAM, or the original
-// code on a Musashi oracle that matches it). F1 and F3..F6 are not ported:
-// the menu ignores those keys. The loader's "PLEASE WAIT, LOADING..." panel
-// between parts is not shown (this machine depacks at once).
+// (menu.zig), F1, OMEGA's ball bending scroller (f1.zig) and F2, OMEGA's
+// distorted logo and wave scroller (f2.zig), each checked byte for byte
+// against the original (Hatari RAM, or the original code on a Musashi oracle
+// that matches it). F3..F6 are not ported: the menu ignores those keys.
+// The loader's "PLEASE WAIT, LOADING..." panel between parts is not shown
+// (this machine depacks at once).
 //
-// Keys: intro Space -> menu ($109C); menu F2 -> F2; F2 Space -> menu ($6828,
-// on the key's release there); Escape leaves (not in the original).
+// Keys: intro Space -> menu ($109C); menu F1 / F2 -> F1 / F2; Space in either
+// -> menu (F1 on the press, F2 on the release there); Escape leaves (not in
+// the original).
 // Music: each part's own replay wrapped as an SNDH (snyd_90/parts.zig).
 // --------------------------------------------------------------------------
 const zg = @import("zigos");
@@ -72,8 +74,9 @@ pub const Demo = struct {
         }
         const id: ?parts.Id = if (self.running) |p| p.id else null;
         if (id == null and cp == K_SPACE) return self.start(.menu); // the intro
+        if (id == .menu and cp == K_F1) return self.start(.f1);
         if (id == .menu and cp == K_F1 + 1) return self.start(.f2);
-        if (id == .f2 and cp == K_SPACE) return self.start(.menu);
+        if ((id == .f1 or id == .f2) and cp == K_SPACE) return self.start(.menu);
     }
 
     /// The loader reads a part from the disk and jumps in: a fresh start.

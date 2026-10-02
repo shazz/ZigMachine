@@ -9,6 +9,13 @@
  *     frames:N:vbl:ADDR:calls:A,B,C...   N times: irq VBL then call each routine
  *     exec:START:STOP  run from START until PC == STOP (a main loop's straight-line body)
  *     loop:N:vbl:ADDR:exec:START:STOP    N times: irq VBL, then exec START..STOP
+ *     rt:NVBL:PC:PHASE:STOP[:TB]   REAL TIME: run from PC, every instruction's cycles rounded
+ *                      up to 4 (the ST bus); a VBL (autovector 4, through $70) every 160256
+ *                      cycles, the first PHASE cycles in (Hatari's FrameCycles at PC), taken
+ *                      when the SR mask is below 4 and latched until then; with TB, a Timer B
+ *                      interrupt (MFP vector $120, level 6) at cycle TB of every frame. After
+ *                      NVBL VBLs, run on until PC == STOP. Prints the iterations it saw.
+ *     sr:HEX           set the status register (the loader enters parts at $2700)
  *     dump:FILE        write RAM now (the run goes on)
  *     hw:FILE          write the $FF8000 register file now (palette at +$240)
  *     ymlog:FILE       from now on, 16 YM registers after every loop: frame
@@ -34,6 +41,7 @@ static unsigned rd8(unsigned a) {
     if (a < 0x80000) return ram[a];
     if (a >= 0xFF8000) {
         if (a == 0xFFFC02) return key;
+        if ((a & 0xFFFF03) == 0xFF8800) return ym[ym_sel]; /* the YM reads back its selected register */
         return hw[a - 0xFF8000];
     }
     return 0;
@@ -83,6 +91,47 @@ static void exec_to(unsigned start, unsigned stop) {
     }
 }
 
+static void take(unsigned vector_addr, unsigned level) {
+    unsigned sr = m68k_get_reg(NULL, M68K_REG_SR);
+    unsigned sp = m68k_get_reg(NULL, M68K_REG_A7) - 6;
+    m68k_write_memory_16(sp, sr);
+    m68k_write_memory_32(sp + 2, m68k_get_reg(NULL, M68K_REG_PC));
+    m68k_set_reg(M68K_REG_A7, sp);
+    m68k_set_reg(M68K_REG_SR, (sr & 0x00FF) | 0x2000 | (level << 8));
+    m68k_set_reg(M68K_REG_PC, m68k_read_memory_32(vector_addr));
+}
+
+#define FRAME 160256L
+static void realtime(unsigned nvbl, unsigned pc, long phase, unsigned stop, long tb) {
+    long cyc = 0, next_vbl = FRAME - phase, next_tb = tb ? next_vbl - FRAME + tb : -1;
+    int vbl_pending = 0, tb_pending = 0;
+    unsigned vbls = 0;
+    m68k_set_reg(M68K_REG_PC, pc);
+    for (;;) {
+        if (cyc >= next_vbl) { vbl_pending = 1; next_vbl += FRAME; vbls++; }
+        if (tb && cyc >= next_tb) { tb_pending = 1; next_tb += FRAME; }
+        unsigned mask = (m68k_get_reg(NULL, M68K_REG_SR) >> 8) & 7;
+        if (tb_pending && mask < 6) { tb_pending = 0; take(0x120, 6); cyc += 44; }
+        else if (vbl_pending && mask < 4) {
+            if (getenv("RT_LOG")) fprintf(stderr, "vbl %u at $%X\n", vbls, m68k_get_reg(NULL, M68K_REG_PC));
+            vbl_pending = 0; take(0x70, 4); cyc += 44;
+        }
+        if (vbls >= nvbl && (stop == 0 || m68k_get_reg(NULL, M68K_REG_PC) == stop)) break;
+        {
+            static unsigned ring[16]; static int ri = 0, told = 0;
+            unsigned pcn = m68k_get_reg(NULL, M68K_REG_PC);
+            if (pcn < 0x600 && !told && getenv("RT_TRAP")) {
+                told = 1;
+                for (int k = 0; k < 16; k++) fprintf(stderr, "  before trap: $%X\n", ring[(ri + k) & 15]);
+            }
+            ring[ri++ & 15] = pcn;
+        }
+        int c = m68k_execute(1);
+        cyc += (c + 3) & ~3;
+    }
+    fprintf(stderr, "rt: %u VBLs, %ld cycles, PC $%X SR $%X\n", vbls, cyc, m68k_get_reg(NULL, M68K_REG_PC), m68k_get_reg(NULL, M68K_REG_SR));
+}
+
 static void irq(unsigned addr) {
     unsigned sr = m68k_get_reg(NULL, M68K_REG_SR);
     unsigned sp = m68k_get_reg(NULL, M68K_REG_A7) - 6;
@@ -123,6 +172,15 @@ int main(int argc, char **argv) {
                 irq(vbl); exec_to(a, b);
                 if (ymlog) fwrite(ym, 1, 16, ymlog);
             }
+        } else if (!strncmp(c, "sr:", 3)) {
+            m68k_set_reg(M68K_REG_SR, strtoul(c + 3, NULL, 16));
+        } else if (!strncmp(c, "rt:", 3)) {
+            char *e; unsigned n = strtoul(c + 3, &e, 10);
+            unsigned pc = strtoul(e + 1, &e, 16);
+            long ph = strtol(e + 1, &e, 10);
+            unsigned stop = strtoul(e + 1, &e, 16);
+            long tb = *e == ':' ? strtol(e + 1, NULL, 10) : 0;
+            realtime(n, pc, ph, stop, tb);
         } else if (!strncmp(c, "ymlog:", 6)) {
             ymlog = fopen(c + 6, "wb");
         } else if (!strncmp(c, "hw:", 3)) {

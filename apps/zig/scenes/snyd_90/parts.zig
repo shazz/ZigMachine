@@ -3,17 +3,19 @@
 // each on its own memory (st.zig), one VBL at a time, with what it shows
 // captured for the shifter (shifter.zig) the way its VBL leaves it.
 //   menu  part 0 -- menu.zig (entered fresh after every part, as on the ST)
+//   f1    part 1 -- OMEGA's ball bending scroller (f1.zig)
 //   f2    part 2 -- OMEGA's Liesen dist / HAQ scroll (f2.zig)
-// F1, F3..F6 (parts 1, 3..6) are not ported: the menu ignores those keys.
+// F3..F6 (parts 3..6) are not ported: the menu ignores those keys.
 // --------------------------------------------------------------------------
 const st = @import("../swedish_newyear/st.zig");
 const shifter = @import("shifter.zig");
 const palette = @import("palette.zig");
 const assets = @import("assets.zig");
 const menu = @import("menu.zig");
+const f1 = @import("f1.zig");
 const f2 = @import("f2.zig");
 
-pub const Id = enum { menu, f2 };
+pub const Id = enum { menu, f1, f2 };
 
 pub const Tune = struct { file: []const u8, n: u8 };
 
@@ -21,6 +23,10 @@ pub fn tune(id: Id) Tune {
     return switch (id) {
         // The menu's COSO replay + module ($79C4), subtune 1 (4 is the intro's).
         .menu => .{ .file = "snyd90.sndh", .n = 1 },
+        // F1's replay ($3B24..) is Jas C. Brooke's Overlander, init d0 = 0: the
+        // archive's Overlander.sndh #1 writes the same YM registers on every
+        // frame (1500 of 1500, lag 0, against the original on the oracle).
+        .f1 => .{ .file = "Overlander.sndh", .n = 1 },
         // F2's TFMX replay + module ($8836..$AF16), init d0 = 0.
         .f2 => .{ .file = "snyd90_f2.sndh", .n = 1 },
     };
@@ -29,6 +35,7 @@ pub fn tune(id: Id) Tune {
 pub fn set(id: Id) assets.Set {
     return switch (id) {
         .menu => .menu,
+        .f1 => .f1,
         .f2 => .f2,
     };
 }
@@ -49,6 +56,11 @@ pub const Running = struct {
                 shifter.captureScreen(&r, menu.iteration(&r), self.pal);
                 return self;
             },
+            .f1 => {
+                const r = st.Ram{ .base = f1.BASE, .m = mem[0 .. f1.TOP - f1.BASE] };
+                shifter.captureScreen(&r, f1.SCREEN, f1.PALETTE); // the ball, no text yet
+                return .{ .id = id, .r = r, .pal = f1.PALETTE };
+            },
             .f2 => {
                 const r = st.Ram{ .base = f2.BASE, .m = mem[0 .. f2.TOP - f2.BASE] };
                 const self = Running{ .id = id, .r = r, .pal = palette.at(&r, f2.PALETTE) };
@@ -64,6 +76,10 @@ pub const Running = struct {
             .menu => {
                 const shown = menu.iteration(&self.r);
                 if (last) shifter.captureScreen(&self.r, shown, self.pal);
+            },
+            .f1 => { // one screen, redrawn in place ahead of the beam
+                f1.frame(&self.r);
+                if (last) shifter.captureScreen(&self.r, f1.SCREEN, self.pal);
             },
             .f2 => {
                 const shown = f2.top(&self.r, &self.pal);

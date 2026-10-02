@@ -1,8 +1,9 @@
 """oracle_expect.py PART: CRC32s of a part's memory on the Musashi oracle after N VBLs, for *_test.zig.
 
 PART f2: entry dump hatari/f2_entry.bin; set-up exec $1174..$15EC; a VBL = irq $162E + exec $1600..$161A.
-Regions: everything the port keeps -- [$1000,$7FD00) minus the music ($8836..$AF16), the VBL flag
-($1646..$1650) and the screens, which are CRC'd separately; the palette from the register file.
+PART f1: set-up $1000..$10BC (the loader's A7/SR); a VBL = irq $10EE + exec $10C6..$10D2 (jsr $1234).
+Regions: `mem` = [$1000,$70000) minus the part's holes (its music, its VBL flags), then the two
+screens; the palette from the register file.
 Also writes oracle/<part>_init.bin (the asset) and oracle/<part>_fN.bin.
 """
 import os
@@ -13,14 +14,17 @@ import zlib
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 PARTS = {
-    'f2': dict(entry='hatari/f2_entry.bin', setup='exec:1174:15ec', vbl='162e', body='1600:161a',
+    'f2': dict(entry='hatari/f2_entry.bin', setup=['exec:1174:15ec'], vbl='162e', body='1600:161a',
                holes=((0x8836, 0xAF16), (0x1646, 0x1650)), screens=(0x70000, 0x78000)),
+    # F1 keeps the loader's stack ($5F4) and enters with its SR: the set-up clears up to $80000.
+    'f1': dict(entry='hatari/f1_entry.bin', setup=['reg:15:5f4', 'sr:2709', 'exec:1000:10bc'], vbl='10ee',
+               body='10c6:10d2', holes=((0x10EA, 0x10EE), (0x3B24, 0x5B24)), screens=(0x70000, 0x78000)),
 }
 FRAMES = (1, 2, 3, 50, 193, 700, 1500)
 
 
 def run(p: dict, name: str) -> None:
-    cmds = [p['setup'], f'dump:oracle/{name}_init.bin']
+    cmds = p['setup'] + [f'dump:oracle/{name}_init.bin']
     done = 0
     for n in FRAMES:
         cmds += [f'loop:{n - done}:vbl:{p["vbl"]}:exec:{p["body"]}', f'dump:oracle/{name}_f{n}.bin',
