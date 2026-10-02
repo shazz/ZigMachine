@@ -40,6 +40,11 @@
   "type": "atari st"
  },
  {
+  "tag": "dune_gen4",
+  "title": "DUNE GEN4 DEMO",
+  "type": "atari st"
+ },
+ {
   "tag": "dyno_paradis3",
   "title": "DYNO PARADIS3",
   "type": "atari st"

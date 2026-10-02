@@ -94,6 +94,7 @@ pub const ENTRIES = [_]Entry{
     .{ .name = "RICK DANGEROUS", .tag = "rick_dangerous" }, // atari st
     .{ .name = "SKYSTRIKE", .tag = "skystrike" }, // atari st
     .{ .name = "ULM SPOON MEGADEMO", .tag = "ulm_dsots" }, // atari st
+    .{ .name = "DUNE GEN4 DEMO", .tag = "dune_gen4" }, // atari st
     // The Union Demo's screens (union_multifake, union_textracker, ...) are NOT
     // listed: they are reached only through the UNION DEMO hub's doors (Matt,
     // 2026-09-13). Their carts stay in build.zig / cart.zig, so their disks build.
