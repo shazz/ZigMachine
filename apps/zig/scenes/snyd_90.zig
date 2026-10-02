@@ -38,6 +38,11 @@ const INTRO_TUNE = 4; // the intro inits the menu's module with d0 = 4
 const K_SPACE: u32 = 32;
 const K_ESC: u32 = 0xE012;
 const K_F1: u32 = 0xE001;
+const K_F2: u32 = 0xE002;
+/// Most host time one render catches up (5 VBLs): after a stall -- a hidden
+/// tab hands the cart seconds of dt at once -- the parts resume rather than
+/// burst through hundreds of VBLs in one frame (the original never catches up).
+const MAX_BEHIND_MS: f32 = 5 * st.VBL_MS;
 
 pub const Demo = struct {
     running: ?parts.Running, // null: the intro (or a part that did not depack)
@@ -59,8 +64,8 @@ pub const Demo = struct {
 
     pub fn render(self: *Demo, zigos: *ZigOS, dt: f32) void {
         shifter.present(&zigos.lfbs[0]);
-        const p = &(self.running orelse return);
-        self.acc += dt;
+        const p = if (self.running) |*running| running else return;
+        self.acc = @min(self.acc + dt, MAX_BEHIND_MS);
         while (self.acc >= st.VBL_MS) {
             self.acc -= st.VBL_MS;
             p.vbl(self.acc < st.VBL_MS);
@@ -75,7 +80,7 @@ pub const Demo = struct {
         const id: ?parts.Id = if (self.running) |p| p.id else null;
         if (id == null and cp == K_SPACE) return self.start(.menu); // the intro
         if (id == .menu and cp == K_F1) return self.start(.f1);
-        if (id == .menu and cp == K_F1 + 1) return self.start(.f2);
+        if (id == .menu and cp == K_F2) return self.start(.f2);
         if ((id == .f1 or id == .f2) and cp == K_SPACE) return self.start(.menu);
     }
 

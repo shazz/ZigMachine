@@ -135,8 +135,7 @@ fn draw(r: *const st.Ram) void {
 
 /// $1A52: the scroller's columns on the screen on display.
 fn clear(r: *const st.Ram) void {
-    const d = r.l(logo.DRAW);
-    var a0 = ((d & 0xFFFF_0000) | (d & 0xFFFF) ^ 0x8000) + TOP;
+    var a0 = (r.l(logo.DRAW) ^ 0x8000) + TOP;
     const side: u32 = if (r.w(CLEAR_SIDE) != 0) CLEAR_B else CLEAR_A;
     for (0..13) |_| {
         for (0..40) |i| r.sl(st.add(a0, st.sx(r.w(side + 4 * @as(u32, @intCast(i))))), 0);

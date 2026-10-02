@@ -35,9 +35,11 @@ var sprite: [NB]Sprite = undefined;
 
 pub fn indexSprites(r: *const st.Ram) void {
     for (&sprite, 0..) |*s, i| {
-        const at = SPRITE_LIST + 8 * @as(u32, @intCast(i));
+        const n: u32 = @intCast(i);
+        const at = SPRITE_LIST + 8 * n;
         s.* = .{ .src = r.l(at), .cols = if (r.l(at + 4) != 0) 3 else 4 };
-        for (0..8) |sh| r.sl(SPRITE_TABLES + 32 * @as(u32, @intCast(i)) + 4 * @as(u32, @intCast(sh)), @intCast(i << 8 | sh));
+        // (bitmap, shift) where the compiled routine's address went
+        for (0..8) |sh| r.sl(SPRITE_TABLES + 32 * n + 4 * @as(u32, @intCast(sh)), n << 8 | @as(u32, @intCast(sh)));
     }
 }
 
