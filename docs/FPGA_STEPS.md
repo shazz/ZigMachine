@@ -18,11 +18,40 @@ says otherwise.
 | — | Whole SoC elaborated against the real board | **done** | 2,408 LUTs (13.7 %) synthesised |
 | 1–7 | Board work (scanout, YM, CPU, HBL, blitter, ROM, SNDH) | ready to start | needs the board on the bench and openXC7's chipdb |
 | RTL | Video timing (`zm_vtiming`) | **done** | 64 LUTs, CXXRTL-tested over 2 frames |
-| RTL | Video compositor, planes and palettes | *running* | — |
+| RTL | Video compositor: planes, palettes, border, BEAM, all modes | **done** | **32/32 frames pixel-identical** to the machine; 25/25 mutants caught; 1,169 LUTs |
 
 ---
 
 ## 2026-10-02
+
+### The video compositor in RTL, proven against the machine (`060a9af`)
+
+`fpga/rtl/video/zm_video_comp.v` (+ 9 modules) builds each 800-pixel raster
+line in passes: first the background or BEAM spans, then one pass per enabled
+plane. It latches and reads registers exactly as `machine/video.zig` does.
+
+- **How it was proven:** `tools/video_dump` records real carts through the
+  native host: every register, palette and BEAM change around each HBL and pass,
+  the memory read, and the PFB after each plane. The recorder's hashes equal
+  `fpga/host`'s. A CXXRTL testbench replays the recordings with random memory
+  stalls and compares all 800 pixels after every pass.
+- **32/32 frames are pixel-identical.**
+  - Real carts: tutorial, union_intro, union_main (3 planes), union_l16,
+    tcb_colorshock, replicants_emlyn, gen4_3615, maxi, badflicker,
+    dhs_0pxl0reg (BEAM), scroll, res_switch, medium_overscan.
+  - Synthetic frames for what no cart reaches: fullscreen mode, per-line
+    HSCROLL, BEAM edge cases.
+- **25/25 one-rule mutants are caught**: `ZM_RTL_BREAK=1 make -C fpga test`.
+- **Cost:** 1,169 LUT (6.6 %), 1,057 FF, 4 BRAM (palettes, line buffer,
+  fetch), 1 DSP.
+- **Throughput at 40 MHz (2,112 clocks a line):** 1 plane takes 858 clocks,
+  3 planes 2,081. 4 planes need fetch/paint overlap or a 2× compositor clock.
+- **Left:**
+  - a scanout double buffer
+  - the plane mixer (the browser stacks one canvas per plane)
+  - an HBL sequencer: hardware runs line by line, the machine plane by plane
+  - AXI bursts
+  - place and route
 
 ### The board files: found, verified, and kept out of git
 
