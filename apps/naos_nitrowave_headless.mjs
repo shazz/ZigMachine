@@ -134,8 +134,9 @@ function cost(label) {
 /// 'F' stops the part's motion, a second 'F' lets it go on.
 function freeze() {
     demo.key(K.f);
+    for (let i = 0; i < 3; i++) demo.frame(VBL_MS); // both screens redrawn at the frozen place
     const a = plane(refs.bspr);
-    for (let i = 0; i < 10; i++) demo.frame(VBL_MS);
+    for (let i = 0; i < 11; i++) demo.frame(VBL_MS);
     const b = plane(refs.bspr);
     demo.key(K.f);
     for (let i = 0; i < 10; i++) demo.frame(VBL_MS);
