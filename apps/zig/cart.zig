@@ -91,6 +91,7 @@ const scene = switch (opts.index) {
     78 => @import("scenes/rick_dangerous.zig"), // RICK DANGEROUS, Core Design / Firebird 1989: the game (original ST binary, playable)
     79 => @import("scenes/skystrike.zig"), // SKYSTRIKE, Shadow Software 1990: the STOS game (Automation Menu Disk 258, playable)
     80 => @import("scenes/ulm_dsots.zig"), // ULM, The Dark Side of the Spoon: the main menu (its door launches the Parallax Distorter)
+    81 => @import("scenes/naos_nitrowave.zig"), // NAOS / THE NITROWAVE DEMO, the BATTLETEC menu (ported from the ST disk)
     else => @compileError("bad cart index"),
 };
 

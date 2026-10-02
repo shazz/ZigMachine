@@ -201,6 +201,19 @@ pub fn build(b: *std.Build) void {
         swedish_decl = b.fmt("{s}    pub const {s} = @embedFile(\"{s}\");\n", .{ swedish_decl, name, file });
     }
     swedish_decl = b.fmt("{s}}};\n", .{swedish_decl});
+    // NAOS / THE NITROWAVE DEMO: the programs as the disk holds them, one blob
+    // each, depacked into the one part memory at the address each runs from
+    // (apps/zig/scenes/naos_nitrowave/assets.zig names them).
+    const NAOS = [_][]const u8{"menu"};
+    var naos_decl: []const u8 = "pub const naos_nitrowave = struct {\n";
+    for (NAOS) |name| {
+        const file = b.fmt("naos_nitrowave_{s}.zx0", .{name});
+        const pack_naos = b.addRunArtifact(zx0pack);
+        pack_naos.addFileArg(b.path(b.fmt("apps/zig/assets/screens/naos_nitrowave/{s}.bin", .{name})));
+        _ = packed_files.addCopyFile(pack_naos.addOutputFileArg(file), file);
+        naos_decl = b.fmt("{s}    pub const {s} = @embedFile(\"{s}\");\n", .{ naos_decl, name, file });
+    }
+    naos_decl = b.fmt("{s}}};\n", .{naos_decl});
     _ = packed_files.addCopyFile(trsi_zx0, "trsi_turn.zx0");
     _ = packed_files.addCopyFile(multifake_zx0, "union_multifake.zx0");
     _ = packed_files.addCopyFile(textracker_zx0, "union_textracker.zx0");
@@ -255,9 +268,9 @@ pub fn build(b: *std.Build) void {
             \\pub const replicants_emlyn = @embedFile("replicants_emlyn.zx0");
             \\pub const tsl_hybridglenz = @embedFile("tsl_hybridglenz.zx0");
             \\pub const supplex_fs2_main = @embedFile("supplex_fs2_main.zx0");
-            \\{s}{s}}};
+            \\{s}{s}{s}}};
             \\
-        , .{ swedish_decl, mpp_decl })),
+        , .{ swedish_decl, naos_decl, mpp_decl })),
         .target = wasm_target,
         .optimize = optimize,
     });
@@ -460,6 +473,7 @@ pub fn build(b: *std.Build) void {
         "demo-rick_dangerous", // 78 — RICK DANGEROUS, Core Design / Firebird 1989: the game, ported from RICKST.PRG through its reference model
         "demo-skystrike", // 79 — SKYSTRIKE, Shadow Software 1990: the STOS game from Automation Menu Disk 258, ported from its detokenised listing
         "demo-ulm_dsots", // 80 — ULM / THE DARK SIDE OF THE SPOON, the main menu (shazz's melonJS remake): the griffin's walk-around map
+        "demo-naos_nitrowave", // 81 — NAOS / THE NITROWAVE DEMO: the BATTLETEC menu (ported from the ST disk)
     };
     for (cart_names, 0..) |name, idx| {
         if (name.len == 0) continue; // excluded cart (see note above)
