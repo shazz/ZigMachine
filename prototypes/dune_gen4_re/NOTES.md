@@ -17,7 +17,8 @@ Everything below was read from the disk and the depacked program, then checked i
 | `run.sh`, `keys.sh` | headless Hatari run with a png-codec AVI; keys into its --cmd-fifo |
 | `avi2png.py`, `sheet.py` | AVI -> frames, contact sheets |
 | `fadesteps.py` | which fade step each Hatari frame shows |
-| `mkref.py` | Hatari frames -> `apps/dune_gen4_ref.bin.gz` (ST colour words) |
+| `mkref.py`, `mkref.sh` | Hatari frames -> `apps/dune_gen4_ref.bin.br` (ST colour words) |
+| `trace.py`, `cmp.py` | traced VBLs of a run; a cart frame against Hatari's, differences in red |
 
 ## Disk
 - `python3 msa2st.py DUNEGEN4.MSA DUNEGEN4.ST && python3 fatx.py DUNEGEN4.ST files`
@@ -98,12 +99,18 @@ Everything below was read from the disk and the depacked program, then checked i
    - Skulls: TETEDEAD (= TEXT $86FE), 5 on the XYEAGLE path (= TEXT $8A22), indices $8A16 = 5..25,
      the first index drawn first; copy 0 keeps the file's masks, copies 1..15 get NOT(OR planes).
    - Scroller: FONTE glyphs, text $E9F4; two 27x40-byte buffers alternating, each moved 2 bytes and
-     given [0 b0] [b0 b1] [b1 b2] [b2 b3] [b3 0] then a fetch VBL that writes nothing; copied to
-     plane 0 of lines 201..227.
+     given [0 b0] [b0 b1] [b1 b2] [b2 b3] [b3 0]; the last routine ($62B0) runs on into the fetch
+     ($63FC): 40 px a character. Only the first VBL (and the one after the $FF) fetches without a
+     slice. Copied to plane 0 of lines 201..227.
    - Kept between visits (not reset by $7502): the logo's walk and wobble, the skulls' indices.
+   - While $7502 runs (16-17 VBLs) the MENU's VBL is still installed: the menu scroller rolls on into
+     plane 3 of the cleared screen on show, under the menu's rasters (a lone "T" sliding in). That
+     screen is drawn into second; the rolled bits stay, black in colour 8, until a star lands on one.
 8. **F3** $3DE: SOUND.TNY + SingSong, F3..F6 pick Quartet songs $1DF2/$24F2/$2A1E/$3316. NOT PORTED.
 
-## Measured in Hatari (`ref2`: AVI one frame a VBL + traces)
+## Measured in Hatari (AVI one frame a VBL + traces)
+Runs: `ref2` (intro, main part), `ref4` (the disk with BLACKEAG.DAT copied as BLACKEAG.TNY: title, menu
+x3, F1 x2), `ref5` (same disk: F2 x2, the menu after). `trace.py` prints the traced VBLs.
 - A screen address written in a VBL is shown from the NEXT frame (AVI frame k = after VBL k shows the
   base written in VBL k-1, plus what VBL k drew into it). The intro's turn-round VBL therefore shows
   the screen from two VBLs back for a frame.
@@ -111,6 +118,12 @@ Everything below was read from the disk and the depacked program, then checked i
 - Fade-in ($3CD2): steps visible at last-bounce + ceil(4.26 + 3.12 s) — a step every **3.12 VBLs**
   (dbra arithmetic: 3.09) and the clear/copy before it takes 4 VBLs (`fadesteps.py`).
 - Main part letters and colour-0 bars equal the model exactly (VBL n uses index start + n - 1).
+- Title / menu / F1 fade-ins step every 3.5-3.75 VBLs (the last part's Timer B is never stopped and
+  interrupts every line) and land a VBL apart run to run; the cart uses 3.6.
+- Run-to-run jitter of one VBL elsewhere too: the menu's first VBL is 30 or 31 VBLs after its fade
+  starts; F2's set-up takes 16 or 17. The harness's walks press keys at each run's own VBLs.
+- Disk loads (picture/font loads: 150-200 VBLs of black) are left out; holds with a picture on show
+  (the logo during ALPHA.DAT's load, F1's picture during BLACK.DAT's) are kept.
 - Timer B latency: in some frames a line's first ~45 pixels keep the line above's colour (an interrupt
   waiting for a long instruction). The harness counts these, it does not fail them (max 3 lines).
 
@@ -134,8 +147,11 @@ Everything below was read from the disk and the depacked program, then checked i
   16 colour registers of every physical line (st.zig): every raster is a register written between
   lines, edge to edge (the plane flickers its borders open every line; the original opened only the
   lower one — the top/side borders show colour 0 either way).
-- Harness `apps/dune_gen4_headless.mjs`: 17 Hatari frames (intro, fade, main part) as ST colour words
-  over x -40..359, y -29..239; all equal.
+- F2 (`hades.zig`, `hades/`) draws into two ST-format screens exactly as the original does.
+- Harness `apps/dune_gen4_headless.mjs` (+ `dune_gen4_keys.mjs`): the Hatari frames of ref2/ref4/ref5
+  as ST colour words over x -40..359, y -29..239 (`mkref.py` -> `apps/dune_gen4_ref.bin.br`, brotli,
+  XOR-delta), walked with each run's keys on a fresh cart. Rebuild the reference with `mkref.sh`
+  (frames dumped first by `avi2png.py hatari/refN.avi /dev/shm/refN 1`).
 
 ## Open questions for Matt
 1. Title (DUNE.TNY) and F3 play Quartet SingSong tunes (SOUND2.SET): silent in the cart. Port a 4-voice
@@ -143,6 +159,5 @@ Everything below was read from the disk and the depacked program, then checked i
 2. F1 asks for "A:blackeag.tny" but the disk has BLACKEAG.DAT (a valid Tiny file of Black Eagle's face):
    on this disk the load fails and the letters fly over the menu picture (no rasters). The cart shows
    the intended picture (`black.zig` SHOW_DISK_BUG = false). Keep that, or show the bug?
-3. F2 (the HADES screen) is not ported yet — a big part of its own.
-4. The original stops the tune while a part loads and fades (VBL = rte); ZigMachine has no pause, so
+3. The original stops the tune while a part loads and fades (VBL = rte); ZigMachine has no pause, so
    the menu tune runs on across F1 and back.
