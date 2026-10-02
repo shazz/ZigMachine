@@ -340,10 +340,14 @@ gate tcb_weirddream node apps/tcb_weirddream_headless.mjs --break noclear "$SHOT
 gate tcb_weirddream node apps/tcb_weirddream_headless.mjs --break keys "$SHOTS/tcb_weirddream"   # ...and a wrong F1/F2 rule is caught
 gate swedish_newyear node apps/swedish_newyear_headless.mjs "$SHOTS/swedish_newyear"   # SWEDISH NEW YEAR: SYNC #1/#2, TCB #1/#2 and OMEGA ported from the disk, each shot vs the real demo (models / the original code on Musashi, reproducing Hatari RAM): screen, per-line colour registers (rasters), physical frame with borders (OMEGA's LED meters in the opened bottom border); TCB #2 set-up black; menu vs the CODEF remake replayed; every tune its SNDH/subtune and playing
 gate swedish_newyear node apps/swedish_newyear_headless.mjs --break hbl "$SHOTS/swedish_newyear"   # ...and without the HBL the per-line registers are caught
-gate snyd_90 node apps/snyd_90_headless.mjs "$SHOTS/snyd_90"   # SWEDISH NEW YEAR 89-90, ported from the disk: the intro's Spectrum 512 picture (48 registers a line from the HBL) = spu.py's decode (pixel-checked vs Hatari), the menu after 1/2/100/531/1000/1200 VBLs = menu_model.py (byte-checked vs Hatari RAM): window indices + the physical frame; F1..F6 ignored; snyd90.sndh #4 then #1, each playing; Escape
+gate snyd_90 node apps/snyd_90_headless.mjs "$SHOTS/snyd_90"   # SWEDISH NEW YEAR 89-90, ported from the disk: the intro's Spectrum 512 picture = spu.py's decode (pixel-checked vs Hatari), the menu, F1 and F2 = the original code (byte-checked); F3..F6 best effort: motion, colours vs Hatari's capture, borders open where the original opens them; every part's tune requested and playing; Escape
 gate snyd_90 node apps/snyd_90_headless.mjs --break hbl "$SHOTS/snyd_90_break"    # ...and without the HBL the per-line colours are caught
 gate snyd_90 node apps/snyd_90_headless.mjs --break step "$SHOTS/snyd_90_break"   # ...and one VBL too many is caught
 gate snyd_90 node apps/snyd_90_headless.mjs --break tune "$SHOTS/snyd_90_break"   # ...and a wrong subtune is caught
+gate snyd_90 node apps/snyd_90_headless.mjs --break f3 "$SHOTS/snyd_90_break"     # ...and an F3 that never runs a VBL is caught (motion, look, its open bottom border)
+gate snyd_90 node apps/snyd_90_headless.mjs --break f4 "$SHOTS/snyd_90_break"     # ...and an F4 that never runs a VBL is caught (motion, look)
+gate snyd_90 node apps/snyd_90_headless.mjs --break f5 "$SHOTS/snyd_90_break"     # ...and an F5 that never runs a VBL is caught (motion, look, its full overscan)
+gate snyd_90 node apps/snyd_90_headless.mjs --break f6 "$SHOTS/snyd_90_break"     # ...and an F6 that never runs a VBL is caught (motion, look, its open bottom border)
 gate swedish_newyear node apps/swedish_newyear_headless.mjs --break step "$SHOTS/swedish_newyear"   # ...and one extra cart frame is caught
 gate swedish_newyear node apps/swedish_newyear_headless.mjs --break tune "$SHOTS/swedish_newyear"   # ...and a wrong subtune is caught
 gate swedish_newyear node apps/swedish_newyear_headless.mjs --break border "$SHOTS/swedish_newyear"   # ...and a border left with last frame's colour 0 is caught

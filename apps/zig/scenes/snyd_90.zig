@@ -15,13 +15,19 @@
 // (menu.zig), F1, OMEGA's ball bending scroller (f1.zig) and F2, OMEGA's
 // distorted logo and wave scroller (f2.zig), each checked byte for byte
 // against the original (Hatari RAM, or the original code on a Musashi oracle
-// that matches it). F3..F6 are not ported: the menu ignores those keys.
+// that matches it). F3..F6 (snyd_90/later.zig) are best effort: their memory
+// equals the original code's on the oracle, but what they SHOW is a model of
+// their interrupt chains (rasters, opened borders, sync-scrolling) with the
+// cycle races rounded to whole lines -- F3 the ball-curve editor, F4 TCB's
+// letters and balls, F5 SYNC's fullscreen giant scroller, F6 SYNC's vector
+// balls.
 // The loader's "PLEASE WAIT, LOADING..." panel between parts is not shown
 // (this machine depacks at once).
 //
-// Keys: intro Space -> menu ($109C); menu F1 / F2 -> F1 / F2; Space in either
-// -> menu (F1 on the press, F2 on the release there); Escape leaves (not in
-// the original).
+// Keys: intro Space -> menu ($109C); menu F1..F6 -> the part; Space in a
+// part -> menu (F1 on the press, the others on the release there); in F3 the
+// panel's keys (F1..F10, letters, digits, arrows, Insert/Delete/Help/Undo);
+// Escape leaves (not in the original).
 // Music: each part's own replay wrapped as an SNDH (snyd_90/parts.zig).
 // --------------------------------------------------------------------------
 const zg = @import("zigos");
@@ -38,7 +44,7 @@ const INTRO_TUNE = 4; // the intro inits the menu's module with d0 = 4
 const K_SPACE: u32 = 32;
 const K_ESC: u32 = 0xE012;
 const K_F1: u32 = 0xE001;
-const K_F2: u32 = 0xE002;
+const K_F6: u32 = 0xE006;
 /// Most host time one render catches up (5 VBLs): after a stall -- a hidden
 /// tab hands the cart seconds of dt at once -- the parts resume rather than
 /// burst through hundreds of VBLs in one frame (the original never catches up).
@@ -79,9 +85,16 @@ pub const Demo = struct {
         }
         const id: ?parts.Id = if (self.running) |p| p.id else null;
         if (id == null and cp == K_SPACE) return self.start(.menu); // the intro
-        if (id == .menu and cp == K_F1) return self.start(.f1);
-        if (id == .menu and cp == K_F2) return self.start(.f2);
-        if ((id == .f1 or id == .f2) and cp == K_SPACE) return self.start(.menu);
+        // F1..F6 ($3B..$40 on the ST): parts 1..6.
+        if (id == .menu and cp >= K_F1 and cp <= K_F6) return self.start(@enumFromInt(cp - K_F1 + 1));
+        if (id != null and id != .menu and cp == K_SPACE) return self.start(.menu);
+        if (self.running) |*p| p.key(cp);
+    }
+
+    /// The arrows (F3's panel cursor): 0 up, 1 down, 2 left, 3 right.
+    pub fn input(self: *Demo, dir: u32) void {
+        const p = if (self.running) |*running| running else return;
+        if (dir < 4) p.key(0xF000 + dir);
     }
 
     /// The loader reads a part from the disk and jumps in: a fresh start.

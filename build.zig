@@ -204,7 +204,7 @@ pub fn build(b: *std.Build) void {
     // SWEDISH NEW YEAR 89-90 (cart 81): the parts as the disk's loader leaves
     // them, one blob each; the scene depacks the part on screen into one buffer
     // (apps/zig/scenes/snyd_90/assets.zig names the sets).
-    const SNYD90 = [_][]const u8{ "menu", "intro_spu", "f1", "f2" };
+    const SNYD90 = [_][]const u8{ "menu", "intro_spu", "f1", "f2", "f3", "f4", "f5", "f6" };
     var snyd90_decl: []const u8 = "pub const snyd_90 = struct {\n";
     for (SNYD90) |name| {
         const file = b.fmt("snyd_90_{s}.zx0", .{name});
@@ -487,7 +487,7 @@ pub fn build(b: *std.Build) void {
         "demo-rick_dangerous", // 78 — RICK DANGEROUS, Core Design / Firebird 1989: the game, ported from RICKST.PRG through its reference model
         "demo-skystrike", // 79 — SKYSTRIKE, Shadow Software 1990: the STOS game from Automation Menu Disk 258, ported from its detokenised listing
         "demo-ulm_dsots", // 80 — ULM / THE DARK SIDE OF THE SPOON, the main menu (shazz's melonJS remake): the griffin's walk-around map
-        "demo-snyd_90", // 81 — OMEGA / SYNC / TCB, Swedish New Year Demo 89-90: intro, menu, F1, F2 (ported from the disk)
+        "demo-snyd_90", // 81 — OMEGA / SYNC / TCB, Swedish New Year Demo 89-90: intro, menu, F1..F6 (ported from the disk; F3..F6 best effort)
         "demo-dune_gen4", // 82 — DUNE / GEN4 DEMO 1990: intro, main part, title, menu, F1, F2 (ported from the ST disk)
         "demo-naos_nitrowave", // 83 — NAOS / THE NITROWAVE DEMO: the menu, F2 big sprite, F3 Sapristi (ported from the ST disk)
     };

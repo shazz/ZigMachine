@@ -23,6 +23,10 @@ test {
     _ = @import("scenes/snyd_90/menu_test.zig");
     _ = @import("scenes/snyd_90/f2_test.zig");
     _ = @import("scenes/snyd_90/f1_test.zig");
+    _ = @import("scenes/snyd_90/f3_test.zig");
+    _ = @import("scenes/snyd_90/f4_test.zig");
+    _ = @import("scenes/snyd_90/f5_test.zig");
+    _ = @import("scenes/snyd_90/f6_test.zig");
     _ = @import("scenes/dune_gen4/bounce.zig");
     _ = @import("scenes/dune_gen4/fade.zig");
     _ = @import("scenes/dune_gen4/tny.zig");
