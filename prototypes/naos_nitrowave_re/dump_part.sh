@@ -1,7 +1,7 @@
 #!/bin/sh
 # dump_part.sh N PC OUT VBL [VBL...] -- boot NITROWAV.ST, start part F<N> at
 # VBL 1400 (as run_part.sh); for each VBL given, the first time PC is reached
-# with Hatari's VBL counter EQUAL to it, save the 512 KB of RAM to OUT.<VBL>.
+# after Hatari's VBL counter passes it, save the 1 MB of RAM to OUT.<VBL>
 # (`VBL > X` instead of `=` for the first one: use FIRST=gt.) The debugger's
 # status lines go to OUT.log ("CPU=$..., VBL=...").
 set -e
@@ -13,9 +13,9 @@ printf 'b VBL = 1400 :once :file %s/dbg/jmp%s.ini\n' "$PWD" "$N" > dbg/dump.ini
 printf 'w $AFD6 $4e $f9 $00 $00 %s\n' "$T" > "dbg/jmp$N.ini"
 LAST=0
 for v in "$@"; do
-  op='='; [ "${FIRST:-}" = gt ] && [ "$LAST" = 0 ] && op='>'
+  op='>'  # the run's VBL phase is not reproducible: 'first hit after'
   printf 'b pc = %s && VBL %s %s :once :file %s/dbg/save%s.ini\n' "$PC" "$op" "$v" "$PWD" "$v" >> "dbg/jmp$N.ini"
-  printf 'savebin %s/%s.%s 0 $80000\nr\nc\n' "$PWD" "$OUT" "$v" > "dbg/save$v.ini"
+  printf 'savebin %s/%s.%s 0 $100000\nr\nc\n' "$PWD" "$OUT" "$v" > "dbg/save$v.ini"
   LAST=$v
 done
 printf 'c\n' >> "dbg/jmp$N.ini"

@@ -16,13 +16,13 @@
 #include <string.h>
 #include "m68k.h"
 
-static unsigned char ram[0x80000];
+static unsigned char ram[0x100000];
 static unsigned char hw[0x8000];
 static unsigned watch_lo = 0, watch_hi = 0;
 
 static unsigned rd8(unsigned a) {
     a &= 0xFFFFFF;
-    if (a < 0x80000) return ram[a];
+    if (a < 0x100000) return ram[a];
     if (a == 0xFF8209) return 0x10;
     if (a == 0xFFFC00 || a == 0xFFFC02) return 0;
     if (a >= 0xFF8000) return hw[a - 0xFF8000];
@@ -31,7 +31,7 @@ static unsigned rd8(unsigned a) {
 static void wr8(unsigned a, unsigned v) {
     a &= 0xFFFFFF;
     if (a >= watch_lo && a < watch_hi && ram[a] != (v & 0xFF)) fprintf(stderr, "write $%X = %02X at pc $%X\n", a, v, m68k_get_reg(NULL, M68K_REG_PPC));
-    if (a < 0x80000) ram[a] = v;
+    if (a < 0x100000) ram[a] = v;
     else if (a >= 0xFF8000) hw[a - 0xFF8000] = v;
 }
 unsigned int m68k_read_memory_8(unsigned int a) { return rd8(a); }
@@ -69,7 +69,7 @@ static int wanted(const char *list, unsigned k) {
 int main(int argc, char **argv) {
     if (argc < 5) { fprintf(stderr, "usage: m68loop DUMP PC FRAMES OUTPREFIX [frames]\n"); return 1; }
     FILE *f = fopen(argv[1], "rb");
-    if (!f || fread(ram, 1, sizeof ram, f) != sizeof ram) { fprintf(stderr, "bad dump\n"); return 1; }
+    if (!f || fread(ram, 1, sizeof ram, f) < 0x80000) { fprintf(stderr, "bad dump\n"); return 1; }
     fclose(f);
     unsigned pc = strtoul(argv[2], NULL, 16);
     if (getenv("WATCH")) { char *e; watch_lo = strtoul(getenv("WATCH"), &e, 16); watch_hi = strtoul(e + 1, NULL, 16); }
