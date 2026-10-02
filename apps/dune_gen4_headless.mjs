@@ -5,25 +5,30 @@
 // from AVIs recorded one frame a VBL), compared as ST colour words over the
 // whole window Hatari captures -- borders, rasters and all (x -40..359,
 // y -29..239). The walk through the parts and the music: dune_gen4_keys.mjs.
-//   pixels   49 frames: the intro's bounce (the flick at the turn), the fade-in
+//   pixels   60 frames: the intro's bounce (the flick at the turn), the fade-in
 //            step by step, the main part (letters, colour-0 bars, rainbow, the
 //            scroller in the lower border), the title, three visits to the menu
 //            (rasters, its scroller carrying on through F1) and two to F1 (the
-//            BLACK letters carrying on round their path), two to F2 (HADES)
-//   music    Gen4.sndh from the main part, silence for the title (a Quartet
-//            tune), the poked copy for the menu, nothing after; Escape -> menu disk
+//            BLACK letters carrying on round their path), two to F2 (HADES), F3
+//            (SOUND.TNY fading in and still) and the menu either side of it
+//   music    Gen4.sndh from the main part, the title's Quartet song (subtune 4
+//            of dune_gen4_quartet.sndh) once faded in, the poked copy for the
+//            menu, nothing after; F3's songs (F3..F6); Escape -> menu disk
 //   cost     mean ms a frame
-//   node apps/dune_gen4_headless.mjs [--break pixels|lag|music] [outdir]
+//   node apps/dune_gen4_headless.mjs [--break pixels|lag|music|quartet|sound] [outdir]
 //     --break pixels  shows one main-part frame a VBL late
 //     --break lag     shows the intro's bounce a VBL late (the screen latch)
 //     --break music   expects the main part's tune at the menu
+//     --break quartet expects the title to play subtune 1
+//     --break sound   expects F3 to open on subtune 2
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { brotliDecompressSync } from "node:zlib";
 import { cartRam, romRam } from "../docs/wasm_hiwater.js";
-import { WALKS, music, walk } from "./dune_gen4_keys.mjs";
+import { WALKS, music, soundMusic, walk } from "./dune_gen4_keys.mjs";
 
 const PAGES = 112; // must match SHARED_PAGES in machine/sdk/memmap.zig
-const BREAKS = { pixels: "pixels: main-44", lag: "pixels: bounce", music: "music:" };
+const BREAKS = { pixels: "pixels: main-44", lag: "pixels: bounce", music: "music:", quartet: "music: visit 1",
+    sound: "music: F3 visit 1" };
 const bi = process.argv.indexOf("--break");
 const broke = bi > 0 ? process.argv[bi + 1] : null;
 if (bi > 0 && !(broke in BREAKS)) throw new Error(`--break ${Object.keys(BREAKS).join(" | ")}`);
@@ -143,10 +148,11 @@ const check = (c, f) => {
     shots.push(c.shot(`${outdir}/${f.label}.ppm`));
 };
 const costs = [];
-for (const name of ["ref4", "ref5"]) {
+for (const name of ["ref4", "ref5", "ref6"]) {
     const cart = await boot();
     const songs = walk(cart, ref, WALKS[name], check, { fail, broke });
     if (name === "ref4") music(songs, cart, { fail, broke });
+    if (name === "ref6") soundMusic(songs, cart, { fail, broke });
     costs.push(...cart.cost);
 }
 await Promise.all(shots);
