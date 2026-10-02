@@ -16,23 +16,25 @@ const LINES = 32;
 const PATH_LEN = 628; // $274
 const COUNT = 5;
 
-/// [shift][line]: three mask words (one a group), then 3 groups x 4 planes.
-var shifted: [16][LINES][15]u16 = undefined;
+/// [shift][line]: three mask words (one a group), then 3 groups x 4 planes;
+/// the caller's buffer (zg.mem).
+pub const Shifts = [16][LINES][15]u16;
+var shifted: *Shifts = undefined;
 
 pub const Skulls = struct {
     at: [COUNT]u16, // $8A16, kept between visits
     lists: [2][COUNT]?usize, // $89BE / $89E6, one a screen
     list: u1, // which one $8A0E names
 
-    pub fn init(self: *Skulls) void {
+    /// Once. The lists are not reset by a visit either: the first VBLs of the
+    /// next one erase where the last one drew (on cleared screens -- but the
+    /// menu's rolled-in band can lose bits to it).
+    pub fn init(self: *Skulls, buf: *Shifts) void {
+        shifted = buf;
         self.at = A.HADES.SKULL_POS;
-        preshift();
-    }
-
-    /// The lists name the cleared screens of the last visit: nothing to erase.
-    pub fn enter(self: *Skulls) void {
         self.lists = .{ [_]?usize{null} ** COUNT, [_]?usize{null} ** COUNT };
         self.list = 0;
+        preshift();
     }
 
     /// $7410: clear under the skulls this screen got two VBLs ago.
@@ -106,7 +108,8 @@ comptime {
 test "copy k's masks are NOT (OR of its planes), copy 0's the file's" {
     const s = std.testing;
     var sk: Skulls = undefined;
-    sk.init();
+    var buf: Shifts = undefined;
+    sk.init(&buf);
     for (1..16) |k| for (shifted[k]) |ln| for (0..3) |g| {
         try s.expectEqual(~(ln[3 + g * 4] | ln[4 + g * 4] | ln[5 + g * 4] | ln[6 + g * 4]), ln[g]);
     };
@@ -117,7 +120,8 @@ test "copy k's masks are NOT (OR of its planes), copy 0's the file's" {
 test "a skull line is (screen AND mask) OR sprite, a group at a time" {
     const s = std.testing;
     var sk: Skulls = undefined;
-    sk.init();
+    var buf: Shifts = undefined;
+    sk.init(&buf);
     var scr: ram.Screen = undefined;
     @memset(&scr, 0xFF); // every pixel colour 15
     const ln = &shifted[7][9];

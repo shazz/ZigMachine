@@ -11,7 +11,8 @@ pub const LINE = 160;
 pub const LINES = 232;
 pub const Screen = [LINES * LINE]u8;
 
-pub var screens: [2]Screen = undefined;
+/// 74 KB: the caller's (zg.mem), not a module-scope array.
+pub var screens: *[2]Screen = undefined;
 
 pub fn r16(s: *const Screen, at: usize) u16 {
     return @as(u16, s[at]) << 8 | s[at + 1];

@@ -22,22 +22,25 @@ const TOP_SHIFT = 6; // $77F4's high word
 /// $6F04 moves 60 bytes down one and puts the first after them: 61 rotate.
 const ROTATED = 61;
 
-/// [shift][line][group * 3 + plane]
-var shifted: [16][LINES][GROUPS * 3]u16 = undefined;
+/// [shift][line][group * 3 + plane]: 43 KB, so the caller's (zg.mem: a
+/// module-scope array this big would be written into the cart as zeros).
+pub const Shifts = [16][LINES][GROUPS * 3]u16;
+var shifted: *Shifts = undefined;
 
 pub const Logo = struct {
     pos: u16, // $7758
     up: bool, // $775A = 1
     wobble: [H.WOBBLE.len]u8, // $796C, rotating -- Timer B reads it too
-    erase_at: ?usize, // $7762
-    drawn_at: usize, // $775E
+    erase_at: ?usize, // $7762 (0: none)
+    drawn_at: ?usize, // $775E (0 until the first draw)
 
-    pub fn init(self: *Logo) void {
+    pub fn init(self: *Logo, buf: *Shifts) void {
+        shifted = buf;
         self.pos = 0;
         self.up = true;
         self.wobble = H.WOBBLE;
         self.erase_at = null;
-        self.drawn_at = 0;
+        self.drawn_at = null;
         preshift();
     }
 
@@ -53,12 +56,13 @@ pub const Logo = struct {
     pub fn draw(self: *Logo, s: *ram.Screen) void {
         std.mem.rotate(u8, self.wobble[0..ROTATED], 1);
         const y = walk(&self.pos, &self.up);
-        self.drawn_at = @as(usize, y) * ram.LINE + X_BYTES;
+        const top = @as(usize, y) * ram.LINE + X_BYTES;
+        self.drawn_at = top;
         for (0..LINES) |l| {
             const k = LINES - l; // d7, 50 down to 1
             const shift = if (k == LINES) TOP_SHIFT else self.wobble[k];
             const src = &shifted[shift & 15][l];
-            const at = self.drawn_at + l * ram.LINE;
+            const at = top + l * ram.LINE;
             for (0..GROUPS) |g| {
                 for (0..3) |p| ram.w16(s, at + g * 8 + p * 2, src[g * 3 + p]);
                 ram.w16(s, at + g * 8 + 6, 0xFFFF);
@@ -121,7 +125,8 @@ comptime {
 test "copy k is the logo moved k pixels right, plane by plane" {
     const s = std.testing;
     var logo: Logo = undefined;
-    logo.init();
+    var buf: Shifts = undefined;
+    logo.init(&buf);
     for (0..LINES) |l| {
         for (0..3) |p| {
             var row0: u144 = 0;
@@ -138,7 +143,8 @@ test "copy k is the logo moved k pixels right, plane by plane" {
 test "the wobble rotates 61 bytes and the top line keeps shift 6" {
     const s = std.testing;
     var logo: Logo = undefined;
-    logo.init();
+    var buf: Shifts = undefined;
+    logo.init(&buf);
     var scr: ram.Screen = undefined;
     @memset(&scr, 0);
     logo.draw(&scr);

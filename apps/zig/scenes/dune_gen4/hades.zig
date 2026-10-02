@@ -37,17 +37,18 @@ pub const Hades = struct {
     skulls: Skulls,
     scroll: Scroll,
 
+    /// The screens and the pre-shifts come from the cart's RAM arena.
     pub fn init(self: *Hades) void {
-        self.logo.init();
-        self.skulls.init();
+        ram.screens = &zg.mem.mustAlloc([2]ram.Screen, 1)[0];
+        self.logo.init(&zg.mem.mustAlloc(Logo.Shifts, 1)[0]);
+        self.skulls.init(&zg.mem.mustAlloc(Skulls.Shifts, 1)[0]);
     }
 
     pub fn enter(self: *Hades) void {
         self.n = 0;
         self.hidden = 0;
-        for (&ram.screens) |*s| @memset(s, 0); // $39E
+        for (ram.screens) |*s| @memset(s, 0); // $39E
         self.stars.init();
-        self.skulls.enter();
         self.scroll.enter();
     }
 

@@ -48,11 +48,10 @@ const K_SPACE: u32 = 32;
 const K_ESC: u32 = 0xE012;
 const K_F1: u32 = 0xE001;
 const K_F2: u32 = 0xE002;
-
 pub const Part = enum(u8) { intro, main, title, menu, black, hades };
 
-/// The picture of the part on show (the original decodes into the screen).
-var pic: tny.Picture = undefined;
+/// The part's picture (the original decodes into the screen): RAM arena.
+var pic: *tny.Picture = undefined;
 
 pub const Demo = struct {
     part: Part,
@@ -70,6 +69,7 @@ pub const Demo = struct {
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
         self.fb = st.init(zigos);
+        pic = &zg.mem.mustAlloc(tny.Picture, 1)[0];
         self.acc = 0;
         self.title_n = 0;
         self.menu_music = false;
@@ -129,20 +129,20 @@ pub const Demo = struct {
             return st.setPalette(&[_]u16{0} ** 16);
         }
         switch (self.part) {
-            .intro => self.intro.render(self.fb, &pic),
+            .intro => self.intro.render(self.fb, pic),
             .main => self.main.render(self.fb),
             .title => {
                 const pal = fade.at(&pic.palette, self.title_n, fade.SCREEN);
                 st.setPalette(&pal);
             },
             .menu => self.menu.render(self.fb),
-            .black => self.black.render(self.fb, &pic),
+            .black => self.black.render(self.fb, pic),
             .hades => if (self.hades.running()) self.hades.render(self.fb) else self.menu.render(self.fb),
         }
     }
 
     fn load(self: *Demo, file: []const u8) void {
-        if (!tny.decode(file, &pic)) {
+        if (!tny.decode(file, pic)) {
             self.ok = false;
             zg.Console.log("dune_gen4: a Tiny picture does not decode", .{});
         }
@@ -150,7 +150,7 @@ pub const Demo = struct {
 
     fn toMain(self: *Demo) void {
         self.part = .main;
-        self.main.enter(self.fb, &pic);
+        self.main.enter(self.fb, pic);
         zg.requestSong(MUSIC);
     }
 
@@ -166,13 +166,13 @@ pub const Demo = struct {
     fn toMenu(self: *Demo) void {
         self.part = .menu;
         self.load(A.MENU_TNY);
-        self.menu.enter(self.fb, &pic);
+        self.menu.enter(self.fb, pic);
     }
 
     fn toBlack(self: *Demo) void {
         self.part = .black;
         self.load(if (black.SHOW_DISK_BUG) A.MENU_TNY else A.BLACKEAG_TNY);
-        self.black.enter(&pic);
+        self.black.enter(pic);
     }
 
     fn toHades(self: *Demo) void {
