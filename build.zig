@@ -217,7 +217,7 @@ pub fn build(b: *std.Build) void {
     // NAOS / THE NITROWAVE DEMO: the programs as the disk holds them, one blob
     // each, depacked into the one part memory at the address each runs from
     // (apps/zig/scenes/naos_nitrowave/assets.zig names them).
-    const NAOS = [_][]const u8{ "menu", "bspr" };
+    const NAOS = [_][]const u8{ "menu", "bspr", "dam" };
     var naos_decl: []const u8 = "pub const naos_nitrowave = struct {\n";
     for (NAOS) |name| {
         const file = b.fmt("naos_nitrowave_{s}.zx0", .{name});
@@ -489,7 +489,7 @@ pub fn build(b: *std.Build) void {
         "demo-ulm_dsots", // 80 — ULM / THE DARK SIDE OF THE SPOON, the main menu (shazz's melonJS remake): the griffin's walk-around map
         "demo-snyd_90", // 81 — OMEGA / SYNC / TCB, Swedish New Year Demo 89-90: intro, menu, F1, F2 (ported from the disk)
         "", // 82 — reserved: Dune Gen4 (lands from its own branch; the coordinator resolves this at merge)
-        "demo-naos_nitrowave", // 83 — NAOS / THE NITROWAVE DEMO: the menu + F2 big sprite (ported from the ST disk)
+        "demo-naos_nitrowave", // 83 — NAOS / THE NITROWAVE DEMO: the menu, F2 big sprite, F3 Sapristi (ported from the ST disk)
     };
     for (cart_names, 0..) |name, idx| {
         if (name.len == 0) continue; // excluded cart (see note above)

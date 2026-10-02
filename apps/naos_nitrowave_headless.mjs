@@ -6,11 +6,13 @@
 //         (the path starting over), 900, 1100
 //   F2    1, 2, 3, 60, 201 (the entry walk starts), 600, 1000, 1300, 1700
 //         (the sprite's global move)
+//   F3    1..5 (the screens being drawn the first time), 50, 101, 250, 400,
+//         560: colours changed along the lines included
 //   frames   every pixel of the plane = the capture's colour (ST colour words)
 //   music    each program asks for its own tune (subtune 1)
-//   keys     F2 in the menu starts the big sprite; 'F' freezes it; Space goes
-//            back to the menu, which starts over; Space there asks for the
-//            menu disk. No zg.mem allocation refused
+//   keys     F2 / F3 in the menu start the big sprite / Sapristi; 'F' freezes
+//            them; Space goes back to the menu, which starts over; Space there
+//            asks for the menu disk. No zg.mem allocation refused
 //   node apps/naos_nitrowave_headless.mjs [outdir]
 //   node apps/naos_nitrowave_headless.mjs --break late|shift
 //            each frame held against the NEXT VBL's capture / the plane read
@@ -27,8 +29,8 @@ if (bi > 0 && !BREAKS.includes(broke)) throw new Error(`--break ${BREAKS.join(" 
 const outdir = process.argv.slice(2).find((a, i, v) => !a.startsWith("--") && v[i - 1] !== "--break") || "/tmp/naos_nitrowave";
 const PAGES = 112; // SHARED_PAGES in machine/sdk/memmap.zig
 const VBL_MS = 20;
-const K = { space: 32, f2: 0xe002, f: "F".charCodeAt(0) };
-const TUNES = { menu: "big_sprite.sndh", bspr: "so_watt_no_crew.sndh" };
+const K = { space: 32, f2: 0xe002, f3: 0xe003, f: "F".charCodeAt(0) };
+const TUNES = { menu: "big_sprite.sndh", bspr: "so_watt_no_crew.sndh", dam: "so_watt_techatron.sndh" };
 
 async function boot(cart) {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
@@ -67,27 +69,30 @@ const W = machine.hwPhysWidth(), H = machine.hwPhysHeight(), XS = W / 400;
 const errors = [];
 await mkdir(outdir, { recursive: true });
 
-/// The plane as palette indices, through each colour's ST word (c * 255 / 7)
-/// to its first index in the part's palette.
-function plane(ref) {
-    const canon = new Map();
-    ref.palette.forEach((w, i) => { if (!canon.has(w)) canon.set(w, i); });
+/// The plane (after its HBLs) as ST colour words: each channel c * 255 / 7 back to c.
+function plane() {
     machine.hwRenderPlane(0);
     const px = new Uint8Array(memory.buffer, machine.hwPhysicalPtr(), W * H * 4);
-    const out = new Uint8Array(400 * H);
+    const out = new Uint16Array(400 * H);
     const dx = broke === "shift" ? 1 : 0;
     for (let y = 0; y < H; y++) for (let x = 0; x < 400; x++) {
         const i = (y * W + Math.min(x + dx, 399) * XS) * 4;
-        const word = (Math.round(px[i] * 7 / 255) << 8) | (Math.round(px[i + 1] * 7 / 255) << 4) | Math.round(px[i + 2] * 7 / 255);
-        out[y * 400 + x] = canon.has(word) ? canon.get(word) : 255;
+        out[y * 400 + x] = (Math.round(px[i] * 7 / 255) << 8) | (Math.round(px[i + 1] * 7 / 255) << 4) | Math.round(px[i + 2] * 7 / 255);
     }
     return out;
 }
 
-async function ppm(path, ref, idx) {
-    const rgb = (w, s) => ((w >> s) & 7) * 255 / 7;
+/// make_ref.py's frames: u16 big-endian colour words.
+function words(buf) {
+    const out = new Uint16Array(buf.length / 2);
+    for (let i = 0; i < out.length; i++) out[i] = (buf[2 * i] << 8) | buf[2 * i + 1];
+    return out;
+}
+
+async function ppm(path, w) {
+    const rgb = (v, s) => ((v >> s) & 7) * 255 / 7;
     const body = Buffer.alloc(400 * H * 3);
-    idx.forEach((v, i) => { const w = ref.palette[v] ?? 0x700; body[3 * i] = rgb(w, 8); body[3 * i + 1] = rgb(w, 4); body[3 * i + 2] = rgb(w, 0); });
+    w.forEach((v, i) => { body[3 * i] = rgb(v, 8); body[3 * i + 1] = rgb(v, 4); body[3 * i + 2] = rgb(v, 0); });
     await writeFile(path, Buffer.concat([Buffer.from(`P6\n400 ${H}\n255\n`), body]));
 }
 
@@ -100,19 +105,19 @@ function diff(got, exp) {
 /// Run the part on screen from its first VBL and hold its frames to Hatari's.
 async function frames(name) {
     const ref = refs[name];
-    const base = unz(ref.base);
+    const base = words(unz(ref.base));
     const want = new Map([[ref.first, base]]);
-    for (const [k, v] of Object.entries(ref.frames)) want.set(Number(k), unz(v).map((b, i) => b ^ base[i]));
+    for (const [k, v] of Object.entries(ref.frames)) want.set(Number(k), words(unz(v)).map((b, i) => b ^ base[i]));
     const ks = [...want.keys()].sort((a, b) => a - b);
     const passed = [];
     let frame = 0;
     for (const k of ks) {
         while (frame < k) { demo.frame(VBL_MS); frame++; }
-        const got = plane(ref);
+        const got = plane();
         const bad = diff(got, want.get(broke === "late" ? ks[ks.indexOf(k) + 1] ?? k : k));
         if (bad) errors.push(`${name} frame ${k}: ${bad}`);
         else passed.push(k);
-        await ppm(`${outdir}/${name}_${String(k).padStart(5, "0")}.ppm`, ref, got);
+        await ppm(`${outdir}/${name}_${String(k).padStart(5, "0")}.ppm`, got);
     }
     console.log(`  ${name}: ${passed.length} of ${ks.length} frames = the original on Hatari, pixel for pixel (${passed.join(", ")})`);
     const dec = new TextDecoder();
@@ -132,18 +137,27 @@ function cost(label) {
 }
 
 /// 'F' stops the part's motion, a second 'F' lets it go on.
-function freeze() {
+function freeze(label) {
     demo.key(K.f);
-    for (let i = 0; i < 3; i++) demo.frame(VBL_MS); // both screens redrawn at the frozen place
-    const a = plane(refs.bspr);
+    for (let i = 0; i < 5; i++) demo.frame(VBL_MS); // every screen redrawn at the frozen place
+    const a = plane();
     for (let i = 0; i < 11; i++) demo.frame(VBL_MS);
-    const b = plane(refs.bspr);
+    const b = plane();
     demo.key(K.f);
     for (let i = 0; i < 10; i++) demo.frame(VBL_MS);
-    const c = plane(refs.bspr);
-    if (diff(a, b)) errors.push("keys: 'F' does not freeze the big sprite");
-    else if (!diff(b, c)) errors.push("keys: a second 'F' does not let the big sprite go on");
-    else console.log("  keys: 'F' freezes the big sprite and lets it go");
+    const c = plane();
+    if (diff(a, b)) errors.push(`keys: 'F' does not freeze ${label}`);
+    else if (!diff(b, c)) errors.push(`keys: a second 'F' does not let ${label} go on`);
+    else console.log(`  keys: 'F' freezes ${label} and lets it go`);
+}
+
+/// Space in a part: the menu again, from its first frame (the disk reboots).
+function backToMenu(label) {
+    demo.key(K.space);
+    if (demo.pollCartRequest() !== 0) errors.push(`keys: Space in ${label} asks for another cart instead of the menu screen`);
+    demo.frame(VBL_MS);
+    const bad = diff(plane(), words(unz(refs.menu.base)));
+    if (bad) errors.push(`keys: Space in ${label} does not restart the menu (${bad})`);
 }
 
 await frames("menu");
@@ -151,12 +165,13 @@ cost("menu");
 demo.key(K.f2);
 await frames("bspr");
 cost("F2");
-freeze();
-demo.key(K.space);
-if (demo.pollCartRequest() !== 0) errors.push("keys: Space in F2 asks for another cart instead of the menu screen");
-const menu1 = diff(plane(refs.menu), unz(refs.menu.base)); // not run yet: the frame F2 left
-demo.frame(VBL_MS);
-if (diff(plane(refs.menu), unz(refs.menu.base))) errors.push(`keys: Space in F2 does not restart the menu (${menu1 ? "" : "no change; "}${diff(plane(refs.menu), unz(refs.menu.base))})`);
+freeze("the big sprite");
+backToMenu("F2");
+demo.key(K.f3);
+await frames("dam");
+cost("F3");
+freeze("Sapristi");
+backToMenu("F3");
 demo.key(K.space);
 if (demo.pollCartRequest() !== -1) errors.push("keys: Space in the menu does not ask for the menu disk");
 if (machine.hwRamAllocFailures() !== 0) errors.push(`alloc: ${machine.hwRamAllocFailures()} zg.mem requests refused`);
