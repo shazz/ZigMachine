@@ -40,6 +40,7 @@ def _glob(d: Path, pattern: str) -> tuple[Path, ...]:
 
 BLOCKS = [
     Block("zm_vtiming", "zm_vtiming", (FPGA / "rtl/video/zm_vtiming.v",), "ours: 800x600 timing + HBL"),
+    Block("zm_video_comp", "zm_video_comp", _glob(FPGA / "rtl/video", "zm_video_*.v"), "ours: line compositor"),
     Block("jt49", "jt49", _glob(TP / "jt49/hdl", "jt49*.v"), "YM2149 (jotego, GPL-3)"),
     Block("fx68k", "fx68k", _glob(TP / "fx68k", "*.sv"), "68000, cycle-exact (GPL-3)", sv=True),
     # hdl-util/hdmi is not measurable here: its `real` parameters (pixel and audio
