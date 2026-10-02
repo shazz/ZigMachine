@@ -8,3 +8,7 @@ __pycache__/
 boards/*/board.xdc
 boards/*/vendor/
 boards/*/ps7_init*
+# sbt output of vexgen/ (custom VexRiscv netlists)
+vexgen/target/
+vexgen/project/target/
+vexgen/project/project/

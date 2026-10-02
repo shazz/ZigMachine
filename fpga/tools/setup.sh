@@ -70,6 +70,28 @@ if [ ! -d "$TOOLS/simdeps/usr/include/event2" ]; then
     ln -sf /lib/x86_64-linux-gnu/libjson-c.so.5 "$lib/libjson-c.so"
 fi
 
+# Only for custom VexRiscv netlists (vexgen/, CYCLES.md "Memory path"): SpinalHDL
+# needs sbt and a JDK the pinned Scala 2.12 / sbt accept (the box's 21 is too new
+# for VexRiscv's sbt 1.6). Opt in with ZM_VEXGEN=1; nothing else needs a JVM.
+JDK_VER=11.0.32.1_1
+JDK_SHA=5c3f68887c325d36d852ba534303e1f5f1f5cae7d6cc1e951d73e0d8e98a058d
+SBT_VER=1.11.7
+SBT_SHA=1232818f91c39639a93bbe1108e12d94c7044a646a7847f1a3977b9e46716cd6
+if [ "${ZM_VEXGEN:-0}" = 1 ]; then
+    echo "== JDK $JDK_VER + sbt $SBT_VER (custom VexRiscv cores)"
+    if [ ! -x "$TOOLS/jdk/bin/java" ]; then
+        fetch "https://github.com/adoptium/temurin11-binaries/releases/download/jdk-${JDK_VER%_*}%2B${JDK_VER##*_}/OpenJDK11U-jdk_x64_linux_hotspot_$JDK_VER.tar.gz" \
+            "jdk-$JDK_VER.tar.gz" "$JDK_SHA"
+        rm -rf "$TOOLS/jdk" && mkdir -p "$TOOLS/jdk"
+        tar xzf "$DL/jdk-$JDK_VER.tar.gz" -C "$TOOLS/jdk" --strip-components=1
+    fi
+    if [ ! -x "$TOOLS/sbt/bin/sbt" ]; then
+        fetch "https://github.com/sbt/sbt/releases/download/v$SBT_VER/sbt-$SBT_VER.tgz" "sbt-$SBT_VER.tgz" "$SBT_SHA"
+        rm -rf "$TOOLS/sbt" && mkdir -p "$TOOLS/sbt"
+        tar xzf "$DL/sbt-$SBT_VER.tgz" -C "$TOOLS/sbt" --strip-components=1
+    fi
+fi
+
 echo "== optional system tools"
 check() {  # check <binary> <what it is for> <how to get it>
     if command -v "$1" >/dev/null 2>&1; then printf '  %-16s ok      %s\n' "$1" "$2"
