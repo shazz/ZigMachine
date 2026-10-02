@@ -23,4 +23,12 @@ test {
     _ = @import("scenes/snyd_90/menu_test.zig");
     _ = @import("scenes/snyd_90/f2_test.zig");
     _ = @import("scenes/snyd_90/f1_test.zig");
+    _ = @import("scenes/dune_gen4/bounce.zig");
+    _ = @import("scenes/dune_gen4/fade.zig");
+    _ = @import("scenes/dune_gen4/tny.zig");
+    _ = @import("scenes/dune_gen4/hades/ram.zig");
+    _ = @import("scenes/dune_gen4/hades/stars.zig");
+    _ = @import("scenes/dune_gen4/hades/logo.zig");
+    _ = @import("scenes/dune_gen4/hades/skulls.zig");
+    _ = @import("scenes/dune_gen4/hades/scroll.zig");
 }
