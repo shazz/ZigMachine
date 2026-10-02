@@ -14,9 +14,50 @@ says otherwise.
 | 0a | Every cart through wasm2c, then compiled for `rv32imf` | **done** | **90 / 90** compile, no cart changes |
 | 0b-i | Native C host: machine + ROM + cart, all wasm2c'd | **done** | **98 / 98 fingerprints identical** to `scene_hash.mjs` |
 | 0b-ii | Cycles per frame on a real VexRiscv (Verilator) | *running* | — |
-| 1–7 | Board work (scanout, YM, CPU, HBL, blitter, ROM, SNDH) | waiting | needs the MicroPhase board package (`fpga/boards/…/README.md`) |
+| — | Board files (XDC, schematic, PS7 bring-up) | **done** | `fpga/tools/fetch_board.sh`, gitignored; HDMI pins re-derived from the schematic |
+| — | Whole SoC elaborated against the real board | **done** | 2,408 LUTs (13.7 %) synthesised |
+| 1–7 | Board work (scanout, YM, CPU, HBL, blitter, ROM, SNDH) | ready to start | needs the board on the bench and openXC7's chipdb |
 | RTL | Video timing (`zm_vtiming`) | **done** | 64 LUTs, CXXRTL-tested over 2 frames |
 | RTL | Video compositor, planes and palettes | *running* | — |
+
+---
+
+## 2026-10-02
+
+### The board files: found, verified, and kept out of git
+
+`fpga/tools/fetch_board.sh` (pinned commits, checksummed) fetches the following:
+
+- **MicroPhase's own `Z7_LITE.xdc`.** It is in three public repos with an
+  identical pin map (103 ports). Its header forbids publication, so it stays
+  gitignored.
+- **The schematic and the reference manual**, from MicroPhase's `fpga-docs`
+  on GitHub.
+- **Xilinx's xc7z010clg400 package file**, which maps each pin function to a
+  ball.
+- **zeST** (zerkman, GPL-3, an Atari ST on this very board): its Z7-Lite XDC,
+  its Vivado PS7 configuration, and its **prebuilt 7010 `boot.bin`**.
+
+What was verified:
+
+- **HDMI pins:** every one was re-derived independently from the schematic and
+  the package file, and all match: CLK U18/U19, D0 V20/W20, D1 T20/U20,
+  D2 N20/P20, HPD P19, SCL R19, SDA T19. zeST agrees.
+- **Clock:** the PL clock is 50 MHz on N18.
+- **DDR3:** a single 16-bit MT41J256M16 (512 MB). One community `preset.xml`
+  says 32 bits, and it is wrong.
+- **UART:** it is on PS MIO, so the VexRiscv console on the board is `jtag_uart`.
+- **`ps7_init` for the 7010** is not public. zeST's `boot.bin` brings up DDR,
+  clocks and MIO without Vivado, and U-Boot then loads our bitstream. Our own
+  FSBL needs Vivado or `xsct` run once on zeST's PS7 block.
+
+### The whole SoC against the real board
+
+`--target z7` now elaborates against `board.xdc`. Yosys `synth_xilinx` of the
+whole design gives **2,408 LUTs (13.7 %), 1,874 FF, 4 DSP, and 19 + 8 BRAM**. The
+design is VexRiscv `standard`, 32 KB ROM, 64 KB RAM, 8 KB SRAM, CSRs, JTAG UART,
+PLL and `zm_vtiming`. Most of the BRAM is the on-chip test RAM, which moves to
+DDR. The bitstream step stops only at openXC7's missing chipdb.
 
 ---
 
