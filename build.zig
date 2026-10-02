@@ -204,7 +204,7 @@ pub fn build(b: *std.Build) void {
     // SWEDISH NEW YEAR 89-90 (cart 81): the parts as the disk's loader leaves
     // them, one blob each; the scene depacks the part on screen into one buffer
     // (apps/zig/scenes/snyd_90/assets.zig names the sets).
-    const SNYD90 = [_][]const u8{ "menu", "intro_spu", "f1", "f2", "f3", "f4", "f5" };
+    const SNYD90 = [_][]const u8{ "menu", "intro_spu", "f1", "f2", "f3", "f4", "f5", "f6" };
     var snyd90_decl: []const u8 = "pub const snyd_90 = struct {\n";
     for (SNYD90) |name| {
         const file = b.fmt("snyd_90_{s}.zx0", .{name});

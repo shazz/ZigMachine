@@ -87,14 +87,7 @@ fn keys(r: *const st.Ram, k: u8, d7: *u16) void {
         0x3B...0x44 => return preset(r, F_PRESETS + 4 * @as(u32, k - 0x3B)),
         0x0F...0x28 => return preset(r, K_PRESETS + 4 * @as(u32, k - 0x0F)),
         0x02...0x0B => return colours(r, COLOURS + 8 * @as(u32, k - 2)),
-        0x4B => {
-            d7.* -%= 4;
-            return;
-        },
-        0x4D => {
-            d7.* +%= 4;
-            return;
-        },
+        0x4B, 0x4D => return column(d7, k),
         0x50 => d7.* +%= 1,
         0x48 => d7.* -%= 1,
         else => {},
@@ -112,6 +105,11 @@ fn keys(r: *const st.Ram, k: u8, d7: *u16) void {
     } else {
         r.sb(at, r.b(at) +% @as(u8, @truncate(@as(u16, @bitCast(delta)))));
     }
+}
+
+/// Left / right: a column of the panel (four rows apart).
+fn column(d7: *u16, k: u8) void {
+    d7.* = if (k == 0x4B) d7.* -% 4 else d7.* +% 4;
 }
 
 fn preset(r: *const st.Ram, entry: u32) void {

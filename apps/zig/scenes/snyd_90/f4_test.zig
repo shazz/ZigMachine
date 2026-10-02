@@ -20,6 +20,7 @@ const EXPECT = [_]Expect{
     .{ .vbl = 1, .mem = 0xed1f1498 },
     .{ .vbl = 5, .mem = 0x80a2c0ab },
     .{ .vbl = 300, .mem = 0x590a57e0 },
+    .{ .vbl = 1200, .mem = 0x7205627d },
 };
 const HOLES = [_][2]u32{ .{ 0xF3EA, 0xF3EC }, .{ 0x17FC0, 0x1AEDC }, .{ 0x5F000, 0x60000 } };
 
@@ -37,7 +38,7 @@ fn kept(r: *const st.Ram) u32 {
     return h.final();
 }
 
-test "F4 matches the original code's memory after 1, 5 and 300 passes" {
+test "F4 matches the original code's memory after 1, 5, 300 and 1200 passes" {
     @memcpy(&mem, IMAGE);
     const r = st.Ram{ .base = f4.BASE, .m = &mem };
     var done: u32 = 0;

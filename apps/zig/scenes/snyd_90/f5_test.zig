@@ -19,9 +19,10 @@ const EXPECT = [_]Expect{
     .{ .vbl = 1, .mem = 0x435e1929 },
     .{ .vbl = 5, .mem = 0xc68b751b },
     .{ .vbl = 300, .mem = 0xef14411e },
+    .{ .vbl = 1200, .mem = 0x81834350 },
 };
 
-test "F5 matches the original code's memory after 1, 5 and 300 frames" {
+test "F5 matches the original code's memory after 1, 5, 300 and 1200 frames" {
     @memcpy(&mem, IMAGE);
     const r = st.Ram{ .base = f5.BASE, .m = &mem };
     f5.enter(&r);

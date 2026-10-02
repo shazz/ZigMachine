@@ -5,9 +5,9 @@
 //   menu  part 0 -- menu.zig (entered fresh after every part, as on the ST)
 //   f1    part 1 -- OMEGA's ball bending scroller (f1.zig)
 //   f2    part 2 -- OMEGA's Liesen dist / HAQ scroll (f2.zig)
-//   f3    part 3 -- the ball-curve editor (f3.zig), best effort
-//   f4    part 4 -- TCB's letters, balls, stars and scroller (f4.zig), best effort
-//   f5    part 5 -- SYNC's fullscreen giant scroller (f5.zig), best effort
+//   f3..f6 parts 3..6 -- best effort (later.zig): the ball-curve editor,
+//                        TCB's letters and balls, SYNC's fullscreen scroller,
+//                        SYNC's vector balls
 // --------------------------------------------------------------------------
 const st = @import("../swedish_newyear/st.zig");
 const shifter = @import("shifter.zig");
@@ -16,12 +16,9 @@ const assets = @import("assets.zig");
 const menu = @import("menu.zig");
 const f1 = @import("f1.zig");
 const f2 = @import("f2.zig");
-const f3 = @import("f3.zig");
-const f4 = @import("f4.zig");
-const f5 = @import("f5.zig");
-const raster = @import("raster.zig");
+const later = @import("later.zig");
 
-pub const Id = enum { menu, f1, f2, f3, f4, f5 };
+pub const Id = enum { menu, f1, f2, f3, f4, f5, f6 };
 
 pub const Tune = struct { file: []const u8, n: u8 };
 
@@ -47,6 +44,9 @@ pub fn tune(id: Id) Tune {
         // archive's #1 writes the same tones, volumes, mixer and noise on all
         // 3840 frames at lag 0 (ymsearch.mjs found it by its registers).
         .f5 => .{ .file = "Noisy_Pillars.sndh", .n = 1 },
+        // F6's sample replay of the module Wasteland ($E50E.., Timer C at
+        // 7.4 kHz), relocated into an SNDH (mk_f6_sndh.py).
+        .f6 => .{ .file = "snyd90_f6.sndh", .n = 1 },
     };
 }
 
@@ -58,17 +58,19 @@ pub fn set(id: Id) assets.Set {
         .f3 => .f3,
         .f4 => .f4,
         .f5 => .f5,
+        .f6 => .f6,
     };
 }
 
-/// A key for the running part (only F3's panel takes any): the host's
-/// codepoint, or an arrow as 0xF000 + direction (0 up, 1 down, 2 left, 3 right).
-pub fn key(cp: u32) void {
-    f3.key(cp);
+fn laterId(id: Id) ?later.Id {
+    return switch (id) {
+        .f3 => .f3,
+        .f4 => .f4,
+        .f5 => .f5,
+        .f6 => .f6,
+        else => null,
+    };
 }
-
-/// A raster part's colour registers, line by line (one frame's).
-var lines: [f3.LINES][16]u16 = undefined;
 
 pub const Running = struct {
     id: Id,
@@ -78,47 +80,37 @@ pub const Running = struct {
     /// `mem` holds the part as its asset left it: start it, capture its
     /// first frame.
     pub fn enter(id: Id, mem: []u8) Running {
-        switch (id) {
-            .menu => {
-                const r = st.Ram{ .base = menu.BASE, .m = mem[0 .. menu.TOP - menu.BASE] };
-                menu.init(&r);
-                const self = Running{ .id = id, .r = r, .pal = palette.at(&r, menu.PALETTE) };
-                shifter.captureScreen(&r, menu.iteration(&r), self.pal);
-                return self;
-            },
+        if (laterId(id)) |l| {
+            const r = later.ram(l, mem);
+            later.enter(l, &r);
+            return .{ .id = id, .r = r, .pal = [_]u16{0} ** 16 };
+        }
+        return switch (id) {
+            .menu => enterMenu(mem),
             .f1 => {
                 const r = st.Ram{ .base = f1.BASE, .m = mem[0 .. f1.TOP - f1.BASE] };
                 shifter.captureScreen(&r, f1.SCREEN, f1.PALETTE); // the ball, no text yet
                 return .{ .id = id, .r = r, .pal = f1.PALETTE };
             },
-            .f2 => {
+            else => {
                 const r = st.Ram{ .base = f2.BASE, .m = mem[0 .. f2.TOP - f2.BASE] };
-                const self = Running{ .id = id, .r = r, .pal = palette.at(&r, f2.PALETTE) };
                 shifter.blank(st.color(0)); // its set-up cleared both screens
-                return self;
+                return .{ .id = id, .r = r, .pal = palette.at(&r, f2.PALETTE) };
             },
-            .f3 => {
-                f3.enter();
-                const r = st.Ram{ .base = f3.BASE, .m = mem[0 .. f3.TOP - f3.BASE] };
-                shifter.blank(st.color(0));
-                return .{ .id = id, .r = r, .pal = palette.at(&r, f3.PALETTE) };
-            },
-            .f4 => {
-                const r = st.Ram{ .base = f4.BASE, .m = mem[0 .. f4.TOP - f4.BASE] };
-                shifter.blank(st.color(0));
-                return .{ .id = id, .r = r, .pal = f4.colours(&r, 0) };
-            },
-            .f5 => {
-                const r = st.Ram{ .base = f5.BASE, .m = mem[0 .. f5.TOP - f5.BASE] };
-                f5.enter(&r);
-                shifter.blank(st.color(0));
-                return .{ .id = id, .r = r, .pal = palette.at(&r, f5.PALETTE) };
-            },
-        }
+        };
+    }
+
+    fn enterMenu(mem: []u8) Running {
+        const r = st.Ram{ .base = menu.BASE, .m = mem[0 .. menu.TOP - menu.BASE] };
+        menu.init(&r);
+        const self = Running{ .id = .menu, .r = r, .pal = palette.at(&r, menu.PALETTE) };
+        shifter.captureScreen(&r, menu.iteration(&r), self.pal);
+        return self;
     }
 
     /// One VBL; `last` captures what the shifter shows.
     pub fn vbl(self: *Running, last: bool) void {
+        if (laterId(self.id)) |l| return later.vbl(l, &self.r, last);
         switch (self.id) {
             .menu => {
                 const shown = menu.iteration(&self.r);
@@ -128,29 +120,17 @@ pub const Running = struct {
                 f1.frame(&self.r);
                 if (last) shifter.captureScreen(&self.r, f1.SCREEN, self.pal);
             },
-            .f2 => {
+            else => {
                 const shown = f2.top(&self.r, &self.pal);
                 if (last) shifter.captureScreen(&self.r, shown, self.pal);
                 f2.bottom(&self.r);
             },
-            .f3 => {
-                const shown = f3.vbl(&self.r);
-                if (!last) return;
-                f3.rasters(&self.r, &lines);
-                raster.capture(&self.r, shown, &lines, f3.OPEN_FROM);
-            },
-            .f4 => {
-                const shown = f4.vbl(&self.r);
-                if (!last) return;
-                for (lines[0..200], 0..) |*l, y| l.* = f4.colours(&self.r, y);
-                raster.capture(&self.r, shown, lines[0..200], 200);
-            },
-            .f5 => {
-                const start = f5.vbl(&self.r);
-                if (!last) return;
-                const pal = palette.at(&self.r, f5.PALETTE);
-                raster.captureFull(&self.r, start, f5.LINES, f5.FIRST_LINE, pal, 0);
-            },
         }
+    }
+
+    /// A key for the running part (only F3's panel takes any): the host's
+    /// codepoint, or an arrow as 0xF000 + direction (0 up, 1 down, 2 left, 3 right).
+    pub fn key(self: *const Running, cp: u32) void {
+        if (laterId(self.id)) |l| later.key(l, cp);
     }
 };

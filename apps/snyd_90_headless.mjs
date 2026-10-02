@@ -37,7 +37,8 @@ const VBL = 20; // the parts run at the ST's 50 Hz: one VBL a 20 ms frame
 const K = { space: 32, esc: 0xe012, f: (n) => 0xe000 + n };
 const SONGS = [["snyd90.sndh", 4], ["snyd90.sndh", 1], ["snyd90_f2.sndh", 1], ["snyd90.sndh", 1],
     ["Overlander.sndh", 1], ["snyd90.sndh", 1], ["snyd90_f3.sndh", 4], ["snyd90.sndh", 1],
-    ["rollout.sndh", 2], ["snyd90.sndh", 1], ["Noisy_Pillars.sndh", 1], ["snyd90.sndh", 1]];
+    ["rollout.sndh", 2], ["snyd90.sndh", 1], ["Noisy_Pillars.sndh", 1], ["snyd90.sndh", 1],
+    ["snyd90_f6.sndh", 1], ["snyd90.sndh", 1]];
 
 const argv = process.argv.slice(2);
 const bi = argv.indexOf("--break");
@@ -144,7 +145,7 @@ async function bestEffort(p) {
         const { win, rgb } = await capture(name);
         seen.push(sha(win));
         const sim = look(p.name, rgb, PW);
-        const why = borders(p.open, rgb, PW);
+        const why = borders(p.open, rgb, PW, p.rasters);
         if (sim < LOOK) fail(`${name}: colours ${sim.toFixed(3)} like Hatari's capture of the original, want >= ${LOOK}`);
         if (why) fail(`${name}: ${why}`);
         console.log(`  ${name}: frame ${frames}, colours ${sim.toFixed(3)} like the original's${why ? "" : `, borders as the original (${p.open})`}`);
