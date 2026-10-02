@@ -40,6 +40,7 @@ const K_ESC: u32 = 0xE012;
 const K_F1: u32 = 0xE001;
 const K_F2: u32 = 0xE002;
 const K_F3: u32 = 0xE003;
+const K_F4: u32 = 0xE004;
 const K_F5: u32 = 0xE005;
 /// Most host time one render catches up (5 VBLs): after a stall -- a hidden
 /// tab hands the cart seconds of dt at once -- the parts resume rather than
@@ -84,6 +85,7 @@ pub const Demo = struct {
         if (id == .menu and cp == K_F1) return self.start(.f1);
         if (id == .menu and cp == K_F2) return self.start(.f2);
         if (id == .menu and cp == K_F3) return self.start(.f3);
+        if (id == .menu and cp == K_F4) return self.start(.f4);
         if (id == .menu and cp == K_F5) return self.start(.f5);
         if (id != null and id != .menu and cp == K_SPACE) return self.start(.menu);
         if (id == .f3) parts.key(cp);

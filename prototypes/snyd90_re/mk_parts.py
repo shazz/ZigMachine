@@ -18,6 +18,7 @@ M68RUN = os.environ.get('M68RUN', os.path.join(RE, 'm68run'))
 # (F5 clears memory down from $80000 in its set-up: it needs the loader's stack, $5F4.)
 PARTS = {
     'f3': (0x18000, 76028, 0x180FA, 0x14000, []),
+    'f4': (0x8000, 77416, 0xF1AC, 0x7000, []),
     'f5': (0xC000, 27408, 0x17ED2, 0xC000, ['reg:15:5f4']),
 }
 

@@ -17,12 +17,14 @@ export const LOOK = 0.8;
 /// Per part: its F key, the frames it runs, the shots, which borders it opens.
 export const PARTS = [
     { key: 3, name: "f3", frames: 300, shots: [2, 100, 300], open: "bottom" },
+    { key: 4, name: "f4", frames: 300, shots: [2, 100, 300], open: "none" },
     { key: 5, name: "f5", frames: 300, shots: [60, 151, 300], open: "all" },
 ];
 
 /// Hatari's capture of the real parts (hatari_ref.py over frames of run_hatari.sh).
 const REF = {
     f3: { rows: 240, colours: { 0x000: 0.4793, 0x003: 0.2021, 0x005: 0.1281, 0x002: 0.0439, 0x500: 0.0387, 0x014: 0.0302, 0x300: 0.0231, 0x027: 0.0209, 0x702: 0.0187, 0x004: 0.0089, 0x001: 0.0035 } },
+    f4: { rows: 200, colours: { 0x000: 0.7358, 0x500: 0.1796, 0x300: 0.0228, 0x700: 0.0217, 0x505: 0.0128, 0x707: 0.0121, 0x555: 0.0074, 0x333: 0.0056, 0x777: 0.0023 } },
     f5: { rows: 236, lump: true, colours: { 0x1000: 0.7202, 0x777: 0.1914, 0x333: 0.0501, 0x555: 0.0384 } },
 };
 
@@ -53,7 +55,7 @@ export function look(name, rgb, PW) {
     return s;
 }
 
-/// Why the borders are wrong for `open`, or null: rows 240..279 of the window
+/// Why the borders are wrong for `open` ("none", "bottom", "all"), or null: rows 240..279 of the window
 /// column carry picture only where the bottom is open; the side columns only
 /// where every border is.
 export function borders(open, rgb, PW) {
