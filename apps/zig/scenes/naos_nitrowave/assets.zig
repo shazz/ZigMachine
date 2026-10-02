@@ -4,6 +4,7 @@
 // the cart arena) at the address it runs from, when its part is entered:
 //   menu  MENU.PRG's TEXT+DATA (252,016 bytes), relocated to 0
 //   bspr  B_SPRITE.BIN (95,078 bytes) at $800, where the menu's loader puts it
+//   ric   DEMO_RIC.BIN (111,376 bytes) at $800, where the menu's loader puts it
 //   dam   DAMIER3D.BIN's memory at its main loop's first stop, $400..$7A000:
 //         the file after its own set-up ran (dam.zig says why)
 // --------------------------------------------------------------------------
@@ -12,20 +13,21 @@ const zx0 = @import("depackers").zx0;
 const PACKED = @import("packed_assets").naos_nitrowave;
 const st = @import("st.zig");
 
-pub const Set = enum { menu, bspr, dam };
+pub const Set = enum { menu, ric, bspr, dam };
 
 const Blob = struct { src: []const u8, at: u32, len: usize };
 
 fn blob(set: Set) Blob {
     return switch (set) {
         .menu => .{ .src = PACKED.menu, .at = 0, .len = 252016 },
+        .ric => .{ .src = PACKED.ric, .at = 0x800, .len = 111376 },
         .bspr => .{ .src = PACKED.bspr, .at = 0x800, .len = 95078 },
         .dam => .{ .src = PACKED.dam, .at = 0x400, .len = 0x79C00 },
     };
 }
 
 comptime {
-    for ([_]Set{ .menu, .bspr, .dam }) |set| {
+    for ([_]Set{ .menu, .ric, .bspr, .dam }) |set| {
         if (blob(set).at + blob(set).len > st.RAM_LEN) @compileError("naos_nitrowave: a part image runs past the 512 KB part memory");
     }
 }

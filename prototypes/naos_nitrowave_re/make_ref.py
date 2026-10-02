@@ -41,11 +41,31 @@ def z(a):
     return base64.b64encode(zlib.compress(a.tobytes(), 9)).decode()
 
 
+# F1 (best effort, compared by similarity): per figure, the capture showing
+# the model's first VBL (ric_sync.py, fitted after the base switch), the title (2400: the title shows in
+# every figure's run) and frames counted from the first VBL of the main loop.
+RIC = {0: 2813, 1: 2811, 2: 2734, 3: 2663}
+# (not the first 4: Hatari leaves the title up to 4 VBLs later than the model)
+RIC_FRAMES = {0: [5, 6, 50, 99, 150, 300, 500], 1: [5, 50, 300], 2: [5, 50, 300], 3: [5, 50, 300]}
+RIC_TITLE = 2400
+
+
+def ric():
+    out = {'title': z(plane('r0', RIC_TITLE)), 'figures': {}}
+    for f, sync in RIC.items():
+        ks = RIC_FRAMES[f]
+        first = plane(f'r{f}', sync + ks[0])
+        out['figures'][str(f)] = {'sync_capture': sync, 'first': ks[0], 'base': z(first), 'frames': {
+            str(k): z((plane(f'r{f}', sync + k) ^ first).astype('>u2')) for k in ks[1:]}}
+    return out
+
+
 ref = {}
 for part, (capdir, sync, frames) in PARTS.items():
     first = plane(capdir, sync + frames[0] - 1)
     ref[part] = {'sync_capture': sync, 'first': frames[0], 'base': z(first),
                  'frames': {str(k): z((plane(capdir, sync + k - 1) ^ first).astype('>u2')) for k in frames[1:]}}
+ref['ric'] = ric()
 data = gzip.compress(json.dumps(ref).encode(), 9)
 open('../../apps/naos_nitrowave_ref.json.gz', 'wb').write(data)
-print({p: v[2] for p, v in PARTS.items()}, 'bytes', len(data))
+print({p: v[2] for p, v in PARTS.items()}, 'ric', RIC_FRAMES, 'bytes', len(data))

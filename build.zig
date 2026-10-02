@@ -217,7 +217,7 @@ pub fn build(b: *std.Build) void {
     // NAOS / THE NITROWAVE DEMO: the programs as the disk holds them, one blob
     // each, depacked into the one part memory at the address each runs from
     // (apps/zig/scenes/naos_nitrowave/assets.zig names them).
-    const NAOS = [_][]const u8{ "menu", "bspr", "dam" };
+    const NAOS = [_][]const u8{ "menu", "bspr", "dam", "ric" };
     var naos_decl: []const u8 = "pub const naos_nitrowave = struct {\n";
     for (NAOS) |name| {
         const file = b.fmt("naos_nitrowave_{s}.zx0", .{name});
