@@ -13,6 +13,7 @@ says otherwise.
 | — | `fpga/` tooling: cores, uv env, memmap export, cost tool | **done** | `make -C fpga setup && make -C fpga check` |
 | 0a | Every cart through wasm2c, then compiled for `rv32imf` | **done** | **90 / 90** compile, no cart changes |
 | 0b-i | Native C host: machine + ROM + cart, all wasm2c'd | **done** | **98 / 98 fingerprints identical** to `scene_hash.mjs` |
+| 0b-iii | Memory path: DDR via HP, store buffer, caches | **done** | 8-entry store buffer + 16 KiB 2-way I$: **150 MHz holds on DDR** (`784cb2c`) |
 | 0b-ii | Cycles per frame on a real VexRiscv (Verilator) | **done** | hashes identical on 9 carts; **150 MHz, no FPU** (`fpga/CYCLES.md`) |
 | — | Board files (XDC, schematic, PS7 bring-up) | **done** | `fpga/tools/fetch_board.sh`, gitignored; HDMI pins re-derived from the schematic |
 | — | Whole SoC elaborated against the real board | **done** | 2,408 LUTs (13.7 %) synthesised |
@@ -25,6 +26,39 @@ says otherwise.
 ---
 
 ## 2026-10-02 (afternoon)
+
+### The memory path, measured (`784cb2c`)
+
+`soc/zm_memtiming.py` puts a DDR latency model in front of the simulation's
+RAM. Its numbers are derived from UG585, UG1145 and the JBLopen benchmarks, not
+measured on the board yet:
+
+- an HP read: +24 cycles unloaded, +62 with DDR saturated, at 150 MHz;
+- a blocking write: the same as a read;
+- the options: a posted-write buffer, write combining, and ACP through the
+  ARM's L2.
+
+All 59 runs hash identically to the wasm machine.
+
+| cart (aligned build) | 1-cycle RAM | HP, blocking stores | HP + 8-entry store buffer | ACP |
+|---|---|---|---|---|
+| union_beatdis | 55 MHz | 194 | 61 | 58 |
+| ulm_dsots | 98 | 248 | 112 | 106 |
+| skystrike | 115 | 325 | 129 | 124 |
+
+- **Blocking stores were the whole penalty.** A posted-write buffer of about
+  50 LUTs matches "free stores" cycle for cycle, so a write-back D$ is not needed.
+- **A 16 KiB 2-way I$** costs +47 LUT and +3.5 BRAM, and brings skystrike to
+  119 MHz. polkadots' I$ refills drop from 792k to 57k a frame.
+- **Recommendation:**
+  - VexRiscv `standard` + I$ 16K 2-way, D$ 4K write-through;
+  - an 8-entry store buffer on HP0;
+  - the aligned build (no bounds checks);
+  - 150 MHz.
+
+  Margin is 26 % unloaded, about 140 MHz under saturated DDR.
+- **At board bring-up:** time one refill and one posted write, then put the real
+  numbers in `tools/mempath_cfg.py`.
 
 ### A full frame on the wire (`f5b84e5`)
 
