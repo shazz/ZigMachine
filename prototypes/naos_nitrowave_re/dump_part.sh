@@ -22,6 +22,6 @@ printf 'c\n' >> "dbg/jmp$N.ini"
 SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy hatari --machine st --memsize 1 \
   --tos /home/matt/projects/MJJ/bin/hatari/TOS/tos162fr.img --disk-a NITROWAV.ST \
   --protect-floppy on --borders on --fast-boot on --fast-forward on --frameskips 0 \
-  --confirm-quit off --alert-level fatal --parse dbg/dump.ini --run-vbls "$((LAST + 20))" \
+  --confirm-quit off --alert-level fatal --parse dbg/dump.ini --run-vbls "$(( LAST + 20 > ${RUN:-0} ? LAST + 20 : ${RUN:-0} ))" \
   > "$OUT.log" 2>&1 || true
 grep -c savebin "$OUT.log" || true
