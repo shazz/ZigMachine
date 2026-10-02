@@ -5,7 +5,7 @@ cd "$(dirname "$0")" || exit 1
 name=$1; vbls=$2; shift 2
 rm -f "hatari/$name.avi" "hatari/$name.log"
 SDL_VIDEODRIVER=dummy SDL_AUDIODRIVER=dummy timeout 900 hatari --machine st --memsize 1 \
-  --tos hatari/tos102fr.img --disk-a DUNE_AUTO.ST --protect-floppy on --borders on \
+  --tos hatari/tos102fr.img --disk-a "${DISK:-DUNE_AUTO.ST}" --protect-floppy on --borders on \
   --fast-boot on --fast-forward on --confirm-quit off --alert-level fatal --sound off \
   --avirecord --avi-vcodec png --avi-file "hatari/$name.avi" --run-vbls "$vbls" \
   --log-file "hatari/$name.log" "$@" > "hatari/$name.out" 2>&1

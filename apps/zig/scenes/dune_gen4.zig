@@ -76,6 +76,7 @@ pub const Demo = struct {
         self.menu_music = false;
         self.wants_quit = false;
         self.black.init();
+        self.menu.init();
         self.ok = true;
         self.part = .intro;
         self.intro.init();
@@ -126,7 +127,7 @@ pub const Demo = struct {
             .intro => self.intro.render(self.fb, &pic),
             .main => self.main.render(self.fb),
             .title => {
-                const pal = fade.at(&pic.palette, self.title_n);
+                const pal = fade.at(&pic.palette, self.title_n, fade.SCREEN);
                 st.setPalette(&pal);
             },
             .menu => self.menu.render(self.fb),
@@ -152,7 +153,8 @@ pub const Demo = struct {
         self.title_n = 0;
         zg.stopSong(); // $10004; the Quartet tune that follows is not ported
         self.load(A.DUNE_TNY);
-        showPicture(self.fb);
+        st.clear(self.fb);
+        st.copyRows(self.fb, &pic.px, 0, 0, st.H);
     }
 
     fn toMenu(self: *Demo) void {
@@ -175,14 +177,9 @@ pub const Demo = struct {
         switch (self.part) {
             .intro => {},
             .main => if (cp == K_SPACE) self.toTitle(),
-            .title => if (cp == K_SPACE and self.title_n > fade.FRAMES) self.toMenu(),
+            .title => if (cp == K_SPACE and self.title_n >= fade.SCREEN.frames()) self.toMenu(),
             .menu => if (cp == K_F1 and self.menu.ready()) self.toBlack(),
-            .black => if (cp == K_SPACE and self.black.n > fade.FRAMES) self.toMenu(),
+            .black => if (cp == K_SPACE and self.black.running()) self.toMenu(),
         }
     }
 };
-
-fn showPicture(fb: *zg.LogicalFB) void {
-    st.clear(fb);
-    for (0..st.H) |y| @memcpy(st.row(fb, y), pic.px[y * tny.W ..][0..tny.W]);
-}

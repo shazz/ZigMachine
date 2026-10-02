@@ -24,7 +24,16 @@ pub const MenuScroll = struct {
     next: usize, // $104AA
 
     /// Start on the picture's own plane 3.
-    pub fn init(self: *MenuScroll, fb: *zg.LogicalFB) void {
+    /// Once: the text from its start ($104A8..$104AE are only data).
+    pub fn init(self: *MenuScroll) void {
+        @memset(&self.glyph, 0);
+        self.count = 0;
+        self.next = 0;
+    }
+
+    /// Every time the menu is loaded: the band is the picture's plane 3 again,
+    /// and the text carries on where it was, half-rolled glyph and all.
+    pub fn load(self: *MenuScroll, fb: *zg.LogicalFB) void {
         for (&self.rows, 0..) |*r, l| {
             const px = st.row(fb, TOP + l);
             for (r, 0..) |*w, g| {
@@ -32,9 +41,6 @@ pub const MenuScroll = struct {
                 for (0..16) |i| w.* |= @as(u16, (px[g * 16 + i] >> 3) & 1) << @intCast(15 - i);
             }
         }
-        @memset(&self.glyph, 0);
-        self.count = 0;
-        self.next = 0;
     }
 
     pub fn vbl(self: *MenuScroll) void {
@@ -44,14 +50,14 @@ pub const MenuScroll = struct {
                 self.next = 0;
                 return;
             }
-            self.load(TEXT[self.next]);
+            self.fetch(TEXT[self.next]);
             self.next += 1;
         }
         self.count -= 1;
         for (0..4) |_| self.roll();
     }
 
-    fn load(self: *MenuScroll, c: u8) void {
+    fn fetch(self: *MenuScroll, c: u8) void {
         const g = A.FONTE[@as(usize, c) * GLYPH_BYTES ..][0..GLYPH_BYTES];
         for (&self.glyph, 0..) |*w, l| w.* = std.mem.readInt(u32, g[l * 4 ..][0..4], .big);
     }

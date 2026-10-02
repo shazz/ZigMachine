@@ -42,7 +42,7 @@ pub const MainPart = struct {
         self.palette = pic.palette;
         self.n = 0;
         st.clear(fb);
-        intro.copyLines(fb, pic, 10, 0, 101);
+        st.copyRows(fb, &pic.px, intro.PARK_FROM, 0, intro.PARK_LINES);
     }
 
     pub fn done(self: *const MainPart) bool {

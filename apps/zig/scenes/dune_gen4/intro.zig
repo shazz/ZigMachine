@@ -26,11 +26,13 @@ pub const BOUNCE_VBLS: u32 = 229;
 const PREP_VBLS: u32 = 4; // clearing both screens, copying the logo twice (Hatari)
 const TO_MAIN_VBLS: u32 = 182; // last bounce VBL -> the main part's first
 const LOGO_LINES = 116; // $35E copies $73 + 1 lines
-const PARK_FROM = 10; // $FC: picture line 10 to screen line 0, 101 lines
-const PARK_LINES = 101;
+pub const PARK_FROM = 10; // $FC: picture line 10 to screen line 0, 101 lines
+pub const PARK_LINES = 101;
 const LAST_STEP = 0x21;
 
-const BOUNCE_END = fade.FRAMES + BOUNCE_VBLS;
+/// The intro fades INTRO.TNY in on a cleared screen: black, as long as a fade.
+const START_BLACK = fade.MAIN.frames();
+const BOUNCE_END = START_BLACK + BOUNCE_VBLS;
 const FADE_START = BOUNCE_END + PREP_VBLS;
 
 pub const Intro = struct {
@@ -51,7 +53,7 @@ pub const Intro = struct {
     /// One VBL. True when it is the main part's first instead.
     pub fn vbl(self: *Intro) bool {
         self.n += 1;
-        if (self.n > fade.FRAMES and self.n <= BOUNCE_END) self.bounce();
+        if (self.n > START_BLACK and self.n <= BOUNCE_END) self.bounce();
         return self.n == BOUNCE_END + TO_MAIN_VBLS;
     }
 
@@ -71,28 +73,20 @@ pub const Intro = struct {
 
     pub fn render(self: *const Intro, fb: *zg.LogicalFB, pic: *const tny.Picture) void {
         st.clear(fb);
-        if (self.n <= fade.FRAMES or (self.n > BOUNCE_END and self.n <= FADE_START)) {
+        if (self.n <= START_BLACK or (self.n > BOUNCE_END and self.n <= FADE_START)) {
             return st.setPalette(&BLACK);
         }
         if (self.n <= BOUNCE_END) {
             st.setPalette(&pic.palette);
             // on show: the screen the VBL before drew (the swap just made
             // the other one hidden again)
-            if (self.drawn[self.hidden]) |y| copyLines(fb, pic, 0, y, LOGO_LINES);
+            if (self.drawn[self.hidden]) |y| st.copyRows(fb, &pic.px, 0, y, LOGO_LINES);
             return;
         }
-        const pal = fade.at(&pic.palette, self.n - FADE_START);
+        const pal = fade.at(&pic.palette, self.n - FADE_START, fade.MAIN);
         st.setPalette(&pal);
-        copyLines(fb, pic, PARK_FROM, 0, PARK_LINES);
+        st.copyRows(fb, &pic.px, PARK_FROM, 0, PARK_LINES);
     }
 };
 
 const BLACK = [_]u16{0} ** 16;
-
-/// Picture lines from..from+n to screen lines to.., as the movem copies do.
-pub fn copyLines(fb: *zg.LogicalFB, pic: *const tny.Picture, from: usize, to: usize, n: usize) void {
-    for (0..n) |i| {
-        if (from + i >= tny.H or to + i >= st.H) break;
-        @memcpy(st.row(fb, to + i), pic.px[(from + i) * tny.W ..][0..tny.W]);
-    }
-}

@@ -80,6 +80,15 @@ pub fn row(fb: *LogicalFB, y: usize) *[W]u8 {
     return fb.fb[(y + OY) * PW + OX ..][0..W];
 }
 
+/// Lines from..from+n of a 320x200 picture (palette indices) to screen lines
+/// to.., as the movem copies do; nothing past line 199 of either.
+pub fn copyRows(fb: *LogicalFB, pic: *const [W * H]u8, from: usize, to: usize, n: usize) void {
+    for (0..n) |i| {
+        if (from + i >= H or to + i >= H) break;
+        @memcpy(row(fb, to + i), pic[(from + i) * W ..][0..W]);
+    }
+}
+
 pub fn clear(fb: *LogicalFB) void {
     @memset(fb.fb[0 .. PW * PH], 0);
 }
