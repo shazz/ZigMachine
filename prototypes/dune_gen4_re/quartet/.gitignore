@@ -1,0 +1,4 @@
+*.bin
+*.i
+*.sndh
+out/
