@@ -31,7 +31,7 @@ const broke = bi > 0 ? process.argv[bi + 1] : null;
 if (bi > 0 && !BREAKS.includes(broke)) throw new Error(`--break ${BREAKS.join(" | ")}`);
 const outdir = process.argv.slice(2).find((a, i, v) => !a.startsWith("--") && v[i - 1] !== "--break") || "/tmp/naos_nitrowave";
 const VBL_MS = 20;
-const K = { space: 32, f2: 0xe002, f3: 0xe003, f: "F".charCodeAt(0) };
+const K = { space: 32, f1: 0xe001, f2: 0xe002, f3: 0xe003, f: "F".charCodeAt(0) };
 const TUNES = { menu: "big_sprite.sndh", bspr: "so_watt_no_crew.sndh", dam: "so_watt_techatron.sndh" };
 
 const refs = JSON.parse(gunzipSync(await readFile("apps/naos_nitrowave_ref.json.gz")));
@@ -140,13 +140,13 @@ function backToMenu(label) {
 /// (each openBorders() takes a fresh 112,000 bytes from a VRAM pool with no
 /// guard; the eighth would run into the physical framebuffer).
 function trips() {
-    for (let i = 0; i < 6; i++) for (const k of [K.f2, K.f3]) { demo.key(k); demo.frame(VBL_MS); demo.key(K.space); }
+    for (let i = 0; i < 6; i++) for (const k of [K.f1, K.f2, K.f3]) { demo.key(k); demo.frame(VBL_MS); demo.key(K.space); }
     demo.frame(VBL_MS);
     const fbBase = new DataView(memory.buffer).getUint32(machine.hwVideoBase() + 0x44, true); // REG_FB_BASE, plane 0
-    if (fbBase + 400 * 280 > 0x1100 + 1024 * 1024) errors.push(`vram: after twelve trips the plane's buffer is at ${fbBase.toString(16)}, past the 1 MiB VRAM pool`);
+    if (fbBase + 400 * 280 > 0x1100 + 1024 * 1024) errors.push(`vram: after eighteen trips the plane's buffer is at ${fbBase.toString(16)}, past the 1 MiB VRAM pool`);
     const bad = diff(plane(), words(unz(refs.menu.base)));
-    if (bad) errors.push(`keys: twelve trips to F2 / F3 and back leave the menu wrong (${bad})`);
-    else console.log("  keys: twelve trips to F2 / F3 and back, the menu as it started");
+    if (bad) errors.push(`keys: eighteen trips to F1 / F2 / F3 and back leave the menu wrong (${bad})`);
+    else console.log("  keys: eighteen trips to F1 / F2 / F3 and back, the menu as it started");
 }
 
 await frames("menu");

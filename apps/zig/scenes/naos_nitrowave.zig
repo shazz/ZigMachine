@@ -21,10 +21,11 @@
 // on the ST (the VBL drawing on the shown screen, Timer B landing late) is
 // placed at its nominal line, so it is close to Hatari, not equal (ric.zig).
 //
-// Keys: menu F1 -> the multisprites, F2 -> the big sprite, F3 -> Sapristi. In a part, 'F' freezes it
-// (the original's key; in F1, F1 freezes and F2 goes on) and Space or Return goes back to the menu (the original
-// reboots, and the disk boots the menu again from its start). Space in the
-// menu leaves, as the original quits to the desktop; Escape too.
+// Keys: menu F1 -> the multisprites, F2 -> the big sprite, F3 -> Sapristi.
+// In a part, 'F' freezes it (the original's key; in F1, F1 freezes and F2
+// goes on) and Space or Return goes back to the menu (the original reboots,
+// and the disk boots the menu again from its start). Space in the menu
+// leaves, as the original quits to the desktop; Escape too.
 //
 // MUSIC (prototypes/naos_nitrowave_re/NOTES.md, "Music"): every program carries
 // its own TFMX replay and module; each rip plays on the sealed YM
@@ -143,14 +144,13 @@ pub const Demo = struct {
     }
 
     /// A program "loaded off the disk": its image into the part memory, its own
-    /// set-up, its palette (F3's: per row, from its HBL) and its tune.
+    /// set-up, its palette (F1's and F3's: per row, from their HBLs) and its tune.
     fn go(self: *Demo, part: Part) void {
         self.part = part;
         self.acc = 0;
         self.ok = assets.load(&self.ram, part);
         if (!self.ok) return zg.Console.log("naos_nitrowave: the {s} image does not depack", .{@tagName(part)});
-        // F1's and F3's HBLs replace the plain flicker; the others put it back.
-        if (part != .dam and part != .ric) self.fb.setFrameBufferHBLHandler(zg.OVERSCAN_MAGIC_X, zg.flickerAllHbl);
+        self.fb.setFrameBufferHBLHandler(zg.OVERSCAN_MAGIC_X, hblFor(part));
         switch (part) {
             .menu => {
                 self.menu.enter(&self.ram);
@@ -161,7 +161,6 @@ pub const Demo = struct {
             .ric => {
                 // ($FF8209 >> 1) & 3 on the ST: where the beam was
                 self.ric.enter(&self.ram, @truncate(self.menu_vbls >> 1));
-                self.fb.setFrameBufferHBLHandler(zg.OVERSCAN_MAGIC_X, ric_show.hbl);
             },
             .bspr => {
                 self.bspr.enter(&self.ram);
@@ -170,9 +169,19 @@ pub const Demo = struct {
             },
             .dam => {
                 self.dam.enter();
-                self.fb.setFrameBufferHBLHandler(zg.OVERSCAN_MAGIC_X, dam_show.hbl);
                 zg.requestSongTune("so_watt_techatron.sndh", 1);
             },
         }
     }
 };
+
+/// The plane's HBL for a part: F1's and F3's load each row's colours (and open
+/// the borders); the menu's and F2's only open them. The borders themselves
+/// were opened once, in init().
+fn hblFor(part: Part) *const fn (*zg.LogicalFB, *ZigOS, u16, u16) void {
+    return switch (part) {
+        .ric => ric_show.hbl,
+        .dam => dam_show.hbl,
+        .menu, .bspr => zg.flickerAllHbl,
+    };
+}
