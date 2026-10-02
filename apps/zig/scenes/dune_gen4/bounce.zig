@@ -25,6 +25,11 @@ pub fn advance(pos: *u16, up: *bool) u16 {
     return T.BOUNCE[pos.*];
 }
 
+comptime {
+    // a start past the turn would walk up off the table's end
+    for (T.LETTER_POS) |p| if (p > TURN) @compileError("a letter starts past BOUNCE's turn");
+}
+
 test "a letter walks BOUNCE up to $AF and back down to 1" {
     const std = @import("std");
     var pos: u16 = 0;

@@ -90,3 +90,7 @@ pub const Intro = struct {
 };
 
 const BLACK = [_]u16{0} ** 16;
+
+comptime {
+    if (A.T.DROP.len <= LAST_STEP) @compileError("DROP has a line for every step 0..$21");
+}

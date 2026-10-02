@@ -23,7 +23,6 @@ pub const MenuScroll = struct {
     count: u8, // $104A8
     next: usize, // $104AA
 
-    /// Start on the picture's own plane 3.
     /// Once: the text from its start ($104A8..$104AE are only data).
     pub fn init(self: *MenuScroll) void {
         @memset(&self.glyph, 0);

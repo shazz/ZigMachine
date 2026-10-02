@@ -106,6 +106,11 @@ pub const Black = struct {
 
 const BLACK = [_]u16{0} ** 16;
 
+comptime {
+    // the wrap tests == PATH_LEN: a start past it would never wrap
+    for (A.T.BLACK_POS) |p| if (p > PATH_LEN) @compileError("a BLACK letter starts past the path");
+}
+
 fn drawLetter(fb: *zg.LogicalFB, k: usize, x: usize, y: usize) void {
     for (LETTERS[k], 0..) |line, l| {
         if (y + l >= st.H) break;

@@ -20,7 +20,7 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { brotliDecompressSync } from "node:zlib";
 import { cartRam, romRam } from "../docs/wasm_hiwater.js";
-import { walk } from "./dune_gen4_keys.mjs";
+import { WALKS, music, walk } from "./dune_gen4_keys.mjs";
 
 const PAGES = 112; // must match SHARED_PAGES in machine/sdk/memmap.zig
 const BREAKS = { pixels: "pixels: main-44", lag: "pixels: bounce", music: "music:" };
@@ -135,19 +135,25 @@ function compare(cart, ref, f) {
 
 await mkdir(outdir, { recursive: true });
 const ref = await reference();
-const cart = await boot();
 const shots = [];
-walk(cart, ref, (c, f) => {
+const check = (c, f) => {
     const diff = compare(c, ref, f);
     if (diff) fail("pixels", `${f.label} (VBL ${f.vbl}, Hatari ${f.hatari_vbl}): ${diff}`);
     shots.push(c.shot(`${outdir}/${f.label}.ppm`));
-}, { fail, broke });
+};
+const costs = [];
+for (const name of ["ref4", "ref5"]) {
+    const cart = await boot();
+    const songs = walk(cart, ref, WALKS[name], check, { fail, broke });
+    if (name === "ref4") music(songs, cart, { fail, broke });
+    costs.push(...cart.cost);
+}
 await Promise.all(shots);
 if (!errors.some((e) => e.startsWith("pixels")))
-    console.log(`  pixels: ${ref.frames.length} frames equal Hatari's, ${ref.w}x${ref.h} ST pixels each (${lateTotal} line starts late by Timer B latency)`);
-const mean = cart.cost.reduce((a, b) => a + b, 0) / cart.cost.length;
+    console.log(`  pixels: ${shots.length} frames equal Hatari's, ${ref.w}x${ref.h} ST pixels each (${lateTotal} line starts late by Timer B latency)`);
+const mean = costs.reduce((a, b) => a + b, 0) / costs.length;
 if (mean > COST_MS) fail("cost", `mean frame ${mean.toFixed(3)} ms > ${COST_MS} ms`);
-console.log(`  cost: mean ${mean.toFixed(3)} ms a frame over ${cart.cost.length} (cart + plane render)`);
+console.log(`  cost: mean ${mean.toFixed(3)} ms a frame over ${costs.length} (cart + plane render)`);
 
 if (broke) {
     const hit = errors.find((e) => e.startsWith(BREAKS[broke]));

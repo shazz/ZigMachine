@@ -78,4 +78,6 @@ pub const MainPart = struct {
 
 comptime {
     if (RAINBOW_END != 198) @compileError("colour 8's table ends on line 198");
+    // st.setFrom slices regs from the line after the table: it must exist
+    if (SCROLL3_TOP + T.SCROLL3.len > st.H + st.OY) @compileError("colour 3's table runs off the screen");
 }

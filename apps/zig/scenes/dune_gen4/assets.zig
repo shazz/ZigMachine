@@ -20,8 +20,14 @@ pub const FONTE = @embedFile(DIR ++ "fonte.dat");
 pub const FONTE_GLYPHS = 46;
 /// BLACK.DAT: five 32x32 letters in four bitplanes (16 bytes a line).
 pub const BLACK = @embedFile(DIR ++ "black.dat");
-/// XYEAGLE.DAT (= DUNE.PRG $10EFE): the BLACK letters' path, (x << 8 | y) words.
+/// XYEAGLE.DAT (= DUNE.PRG $10EFE and $8A22): the path of F1's BLACK letters and
+/// of F2's skulls, (x << 8 | y) words.
 pub const XYEAGLE = @embedFile(DIR ++ "xyeagle.dat");
+
+/// F2, the HADES screen: its tables (hades.zig, generated) and TETEDEAD.PRG
+/// (= DUNE.PRG $86FE), the skull: 32 lines of two (mask + 4 planes) groups.
+pub const HADES = @import("../../assets/screens/dune_gen4/hades.zig");
+pub const TETEDEAD = @embedFile(DIR ++ "tetedead.dat");
 
 comptime {
     if (ALPHA.len != ALPHA_GLYPHS * 256) @compileError("ALPHA.DAT is 41 glyphs of 256 bytes");

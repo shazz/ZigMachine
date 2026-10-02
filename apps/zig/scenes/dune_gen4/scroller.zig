@@ -72,6 +72,11 @@ fn drawGlyph(fb: *zg.LogicalFB, g: u8, x: i32) void {
     }
 }
 
+comptime {
+    if (TEXT.len < KEPT) @compileError("the scroller starts on the text's first eleven");
+    if (TOP + LINES > st.H + st.OY) @compileError("the scroller runs past the lower border");
+}
+
 fn be16(b: *const [2]u8) u16 {
     return std.mem.readInt(u16, b, .big);
 }

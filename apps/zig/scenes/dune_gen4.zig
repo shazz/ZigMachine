@@ -1,34 +1,30 @@
 // --------------------------------------------------------------------------
-// DUNE -- GEN4 DEMO (Atari ST, 29 June 1990), the group's entry for the 3615
-// GEN4 contest. Code by Hades, graphics by Black Eagle, music by 520 (Demozoo)
-// -- the YM tune's SNDH credits Mr X, and the demo's own scroller credits Mr X
-// for one of its tunes. All of it is theirs.
+// DUNE -- GEN4 DEMO (Atari ST, 29 June 1990), for the 3615 GEN4 contest. Code
+// by Hades, graphics by Black Eagle, music by 520 (Demozoo; the YM tune's SNDH
+// and the demo's own scroller credit Mr X for it). All of it is theirs.
 //
 // Ported from the ORIGINAL DISK (fujiology DUNEGEN4.MSA; RE notes, tools and
-// the measurements in prototypes/dune_gen4_re/NOTES.md). The disk is a plain
-// GEMDOS floppy run from the desktop; DUNE.PRG is packed with JEK Packer 1.3,
-// whose depacking screen is a packer intro and is not reproduced.
+// Hatari measurements in prototypes/dune_gen4_re/NOTES.md), run from the
+// desktop; DUNE.PRG's JEK Packer 1.3 depacking screen is not reproduced.
 //
 // THE SHOW, as DUNE.PRG runs it:
 //   1. intro      INTRO.TNY's logo bounced down the screen        intro.zig
-//   2. main part  the logo parked, "3615 GEN4" bouncing over      mainpart.zig
-//                 grey colour-0 bars in a colour-8 rainbow, the
-//                 scroller in the open lower border; ends with
-//                 its text or on Space
+//   2. main part  the logo parked, "3615 GEN4" bouncing over grey  mainpart.zig
+//                 colour-0 bars in a colour-8 rainbow, a scroller
+//                 in the lower border; to the text's end or Space
 //   3. title      DUNE.TNY faded in; Space                        (here)
 //   4. menu       MENU.TNY, rainbow rasters, a scroller            menu.zig
 //                 F1 -> the BLACK letters                          black.zig
-//                 F2 -> the HADES screen     NOT PORTED (see NOTES.md)
-//                 F3 -> the Quartet sound screen: NOT PORTED -- it is four
-//                       SingSong (Quartet) sample tunes; no replay here.
-//   Space leaves F1 for the menu, which is loaded and faded in again.
-// Escape leaves the cart (not in the original).
+//                 F2 -> the HADES screen                           hades.zig
+//                 F3 -> the Quartet sound screen: NOT PORTED (four
+//                       SingSong sample tunes; no replay here)
+//   Space leaves F1 or F2 for the menu, loaded and faded in again. Escape
+//   leaves the cart (not in the original).
 //
-// MUSIC. MUSIQUE.PRG, loaded to $10000, is the YM tune of Gen4.sndh (TITL
-// "Gen4 Demo", ~y), byte for byte apart from relocated addresses. The main
-// part plays it as it is. The title screen plays a Quartet tune through
-// SINGSONG.PRG and is silent here. Before the menu DUNE.PRG pokes three of
-// the tune's sequence pointers ($10024.. over $1000C..) and starts it again:
+// MUSIC. MUSIQUE.PRG at $10000 is Gen4.sndh's tune (TITL "Gen4 Demo", ~y),
+// byte for byte bar relocations: the main part plays it. The title plays a
+// Quartet tune (SINGSONG.PRG): silent here. For the menu DUNE.PRG pokes three
+// sequence pointers ($10024.. over $1000C..) and starts it again:
 // dune_gen4_menu.sndh is Gen4.sndh with that same poke.
 // --------------------------------------------------------------------------
 const zg = @import("zigos");
@@ -40,6 +36,7 @@ const Intro = @import("dune_gen4/intro.zig").Intro;
 const MainPart = @import("dune_gen4/mainpart.zig").MainPart;
 const Menu = @import("dune_gen4/menu.zig").Menu;
 const black = @import("dune_gen4/black.zig");
+const Hades = @import("dune_gen4/hades.zig").Hades;
 
 const ZigOS = zg.ZigOS;
 const MUSIC = "dune_gen4.sndh";
@@ -50,8 +47,9 @@ const MAX_VBLS = 4; // per host frame, after a stall
 const K_SPACE: u32 = 32;
 const K_ESC: u32 = 0xE012;
 const K_F1: u32 = 0xE001;
+const K_F2: u32 = 0xE002;
 
-pub const Part = enum(u8) { intro, main, title, menu, black };
+pub const Part = enum(u8) { intro, main, title, menu, black, hades };
 
 /// The picture of the part on show (the original decodes into the screen).
 var pic: tny.Picture = undefined;
@@ -68,6 +66,7 @@ pub const Demo = struct {
     main: MainPart,
     menu: Menu,
     black: black.Black,
+    hades: Hades,
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
         self.fb = st.init(zigos);
@@ -77,6 +76,7 @@ pub const Demo = struct {
         self.wants_quit = false;
         self.black.init();
         self.menu.init();
+        self.hades.init();
         self.ok = true;
         self.part = .intro;
         self.intro.init();
@@ -115,6 +115,11 @@ pub const Demo = struct {
                 }
             },
             .black => self.black.vbl(),
+            .hades => {
+                self.hades.vbl(&self.menu.scroll.rows);
+                // the menu's VBL stays until F2's own is installed
+                if (!self.hades.running()) self.menu.vbl();
+            },
         }
     }
 
@@ -132,6 +137,7 @@ pub const Demo = struct {
             },
             .menu => self.menu.render(self.fb),
             .black => self.black.render(self.fb, &pic),
+            .hades => if (self.hades.running()) self.hades.render(self.fb) else self.menu.render(self.fb),
         }
     }
 
@@ -169,6 +175,13 @@ pub const Demo = struct {
         self.black.enter(&pic);
     }
 
+    fn toHades(self: *Demo) void {
+        self.part = .hades;
+        st.clear(self.fb); // $39E
+        self.menu.scroll.load(self.fb); // the band rolls on over nothing
+        self.hades.enter();
+    }
+
     pub fn key(self: *Demo, cp: u32) void {
         if (cp == K_ESC) {
             self.wants_quit = true;
@@ -178,8 +191,9 @@ pub const Demo = struct {
             .intro => {},
             .main => if (cp == K_SPACE) self.toTitle(),
             .title => if (cp == K_SPACE and self.title_n >= fade.SCREEN.frames()) self.toMenu(),
-            .menu => if (cp == K_F1 and self.menu.ready()) self.toBlack(),
+            .menu => if (!self.menu.ready()) {} else if (cp == K_F1) self.toBlack() else if (cp == K_F2) self.toHades(),
             .black => if (cp == K_SPACE and self.black.running()) self.toMenu(),
+            .hades => if (cp == K_SPACE and self.hades.running()) self.toMenu(),
         }
     }
 };

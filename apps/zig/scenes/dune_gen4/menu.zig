@@ -68,5 +68,6 @@ pub const Menu = struct {
 
 comptime {
     if (LOW_TOP != 149) @compileError("the low palette loads on line 149");
+    if (SCROLL8_TOP + T.MENU_SCROLL8.len > st.H + st.OY) @compileError("colour 8's table runs off the screen");
     if (FIRST_VBL != 30) @compileError("Hatari: the menu's VBL starts 30 VBLs into its fade");
 }

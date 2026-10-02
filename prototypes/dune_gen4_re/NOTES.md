@@ -81,8 +81,26 @@ Everything below was read from the disk and the depacked program, then checked i
 6. **F1** $10A06: loads "A:blackeag.tny" ... (see below), BLACK.DAT pre-shifted x16, five letters on
    XYEAGLE's path (628 steps, indices $113E8 = 20,15,10,5,0, not reset between visits), masked by the
    OR of their planes; Space returns.
-7. **F2** $59CC: the HADES screen (starfield, a moving HADES logo, a chain of five TETEDEAD skulls,
-   a magenta-raster scroller in the lower border). ~8 KB of code. NOT PORTED (see open questions).
+7. **F2** $59CC: the HADES screen. No fade: screens cleared, palette $789A, init $7502 (logo and
+   skull pre-shifts), VBL $5A1C (first one 17 VBLs after the key in Hatari). Each VBL, on the hidden
+   screen: $6466 erase stars (list from two VBLs ago), $7410 erase skulls (48x32 rects, a list per
+   screen), $6BBA erase logo (9 groups x 50 lines where it was drawn ONE VBL ago = on the other
+   screen: a sliver two VBLs old survives), $5B7C scroller, $6632 stars, $6E96 logo, $6F30 skulls;
+   music; swap. Timer B at line 198 ($5ABA): colour 3 = 0, lower border open; from line 201 ($5B28)
+   colour 1 = $78BA[i] (28 words) and colour 0 = the word at $797E + 2i -- the logo's wobble table
+   read as colours: the shimmering bars; colour 0 = 0 from line 230.
+   - Stars: 75, each 51 precomputed (offset word, planes-0/1 long) at $904C ($132 bytes a star).
+   - Logo: 128x50 x 3 planes at $7D9E (groups 0-3) and $824E (4-7), 16 pre-shifts of 9 groups, drawn
+     at x 80 with plane 3 = $FFFF; line l uses the pre-shift named by $7790[50-l], copied from the
+     61-byte table $796C rotated a byte a VBL ($6F04 moves 60 and stores the first after them);
+     $7790[50] is past the table: the high word of the first pre-shift pointer, 6. Line from $7B6C
+     (indices 0..$118 and back, like the letters).
+   - Skulls: TETEDEAD (= TEXT $86FE), 5 on the XYEAGLE path (= TEXT $8A22), indices $8A16 = 5..25,
+     the first index drawn first; copy 0 keeps the file's masks, copies 1..15 get NOT(OR planes).
+   - Scroller: FONTE glyphs, text $E9F4; two 27x40-byte buffers alternating, each moved 2 bytes and
+     given [0 b0] [b0 b1] [b1 b2] [b2 b3] [b3 0] then a fetch VBL that writes nothing; copied to
+     plane 0 of lines 201..227.
+   - Kept between visits (not reset by $7502): the logo's walk and wobble, the skulls' indices.
 8. **F3** $3DE: SOUND.TNY + SingSong, F3..F6 pick Quartet songs $1DF2/$24F2/$2A1E/$3316. NOT PORTED.
 
 ## Measured in Hatari (`ref2`: AVI one frame a VBL + traces)

@@ -35,7 +35,7 @@ pub fn init(zigos: *ZigOS) *LogicalFB {
 fn hbl(fb: *LogicalFB, _: *ZigOS, line: u16, _: u16) void {
     fb.flickerBorder();
     if (line >= PH) return;
-    for (regs[line], 0..) |c, i| fb.palette[i] = c;
+    @memcpy(fb.palette[0..16], &regs[line]);
 }
 
 pub const BLACK: u32 = 0xFF00_0000;
@@ -98,9 +98,8 @@ pub fn clear(fb: *LogicalFB) void {
 pub fn orWord(px: *[W]u8, x: i32, word: u16, plane: u3) void {
     if (word == 0) return;
     const bit = @as(u8, 1) << plane;
-    var i: i32 = 0;
-    while (i < 16) : (i += 1) {
-        const xx = x + i;
+    for (0..16) |i| {
+        const xx = x + @as(i32, @intCast(i));
         if (xx < 0 or xx >= W) continue;
         if ((word >> @intCast(15 - i)) & 1 != 0) px[@intCast(xx)] |= bit;
     }
