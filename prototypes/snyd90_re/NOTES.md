@@ -26,15 +26,15 @@ Source: `SNYD_90.ZIP` (fujiology `ST/T/TCB/`) -> `SNYD_90.MSA`, 10 sectors x 2 s
 
 | # | trk/side | load | packed | unpacked | what (strings) |
 |---|---|---|---|---|---|
-| 0 | 1/0  | $1000 | -       | 71680  | MENU (TFE of Omega, gfx Red, music Mad Max; "five 64x62 4-plane sprites") |
-| 1 | 15/0 | $1000 | $10C28 | 211364 | F1 OMEGA: ball-bending scroller (TFE) |
-| 2 | 11/1 | $1000 | $7C88  | 118784 | F2 OMEGA: "Liesen dist, HAQ scroll, Red logos" |
-| 3 | 60/0 | $18000| $C47C  | 163840 | F3 OMEGA (the "funny Mupp demo" per F2's text) — TBC |
-| 4 | 29/0 | $7FE4 | -       | 87040  | F4 TCB (An Cool, Mad Max) — PRG header at $7FE4, entry $8000 |
-| 5 | 70/0 | $C000 | $6C70  | 68202  | F5 SYNC — TBC |
-| 6 | 0/1  | $C000 | $D348  | 93966  | F6 SYNC — TBC |
+| 0 | 1/0  | $1000 | -       | 71680  | MENU (TFE of Omega, gfx Red, music Mad Max; "five 64x62 4-plane sprites") -- PORTED |
+| 1 | 15/0 | $1000 | $10C28 | 211364 | F1 OMEGA: ball-bending scroller (TFE) -- PORTED |
+| 2 | 11/1 | $1000 | $7C88  | 118784 | F2 OMEGA: "Liesen dist, HAQ scroll, Red logos" -- PORTED |
+| 3 | 60/0 | $18000| $C47C  | 163840 | F3: the ball-curve editor ("funny Mupp demo" per F2's text?), bottom border -- not ported |
+| 4 | 29/0 | $7FE4 | -       | 87040  | F4 TCB (An Cool, Mad Max) -- PRG header at $7FE4, entry $8000 (jmp $F130) -- not ported |
+| 5 | 70/0 | $C000 | $6C70  | 68202  | F5 SYNC: giant scroller, full overscan -- not ported |
+| 6 | 0/1  | $C000 | $D348  | 93966  | F6 SYNC: vector balls, text writer, logo in the lower border -- not ported |
 | 7 | 18/1 | $C000 | -       | 261120 | hidden (Left Shift at boot): sample data |
-| 8 | 46/0 | $1000 | -       | 71680  | intro, loaded once before the menu |
+| 8 | 46/0 | $1000 | -       | 71680  | intro (Spectrum 512 title picture), loaded once before the menu -- PORTED |
 
 `parts.py` rips them all to `parts/p<i>_<load>.bin` (memory images at `load`).
 
@@ -98,3 +98,55 @@ part's own first word).
   the scroller clear of that screen comes late (after ~125k cycles, beam below the scroller).
 * `oracle_expect.py f2` -> f2_test.zig CRCs (1..1500 VBLs: all match). Music: TFMX module at $91B2,
   replay $8836..$AF16 wrapped (`f2.sndh`, d0 stub -> 0): YM equal to the oracle's on 1500/1500 frames.
+
+## F1 (part 1, $1000): OMEGA ball bending scroller -- PORTED
+
+* Entry `$1000` (SR $2709, A7 $5F4 from the loader: the set-up clears up to $80000, so the oracle
+  must keep the loader's stack). Copies the ball picture $2CCA4 -> $78000 (one screen), palette
+  $2CC28 (then OVERWRITTEN by the path table: kept as constants in f1.zig), music init `$4078` d0=0,
+  builds 200 paths x 314 (word offset, bit) steps at $1D6D4 from the x table at $2CC24. VBL `$10EE`:
+  Space ($39 press) sets $10EA, music play `$3B50`, counter $10EC. Main body `$10C6..$10D2` = `$1234`.
+* `$1234`: per line, erase list then draw list (10 words each at $138C + 40*line; counts at $35EC)
+  of points walking the path from $4E4 down to 0 by 4 on plane 3 ($78006); a finished point calls
+  the handler $390C + 4n, which moves n words down (one more than the live ones). Then the feed:
+  every $140 VBLs a letter ($39F0, '@' = blank, glyph $5B24 + (c-'@')*$E10, 9 words a line), per
+  line a delay ($345C) then a new point at $4E4, erase/draw alternating ($32CC).
+* Real-time oracle: VBL-locked (only the first iteration overlaps a VBL: it starts mid-frame).
+  Iteration-locked oracle == Hatari `hatari/f1_a.bin` at iteration 515 within 22 bytes (VBL vars,
+  stack, replay). The set-up takes 43 VBLs on the ST (picture shown, no music yet); not reproduced.
+* Music: Jas C. Brooke's Overlander (the replay at $3B24..; `Brooke_Jas_C/Overlander.sndh` 145/154
+  windows): the archive's subtune 1 writes the oracle's YM registers on 1500/1500 frames at lag 0.
+  (The boot sector's joke at the Overlanders, and Omega play their tune.)
+
+## Real-time oracle (m68run `rt:`) and what it says about the other parts
+
+`rt:NVBL:PC:PHASE:STOP[:TB]` runs a part from its entry with every instruction rounded to 4 cycles,
+a VBL every 160256 cycles (first one PHASE cycles in: Hatari's FrameCycles at the entry breakpoint)
+and optionally a Timer B a frame. On F4 it reproduces Hatari's RAM after 300 VBLs to 8 bytes; the
+iteration-locked oracle does not. Entry phases: F1 144460, F2 18964, F3 76028, F4 77416, F5 27408,
+F6 86132 (from the breakpoints; entry dumps `hatari/f*_entry.bin`, menu snapshot `hatari/state-0003`).
+`RT_LOG=1` prints where each VBL lands; `RT_TRAP=1` the PCs before a jump below $600.
+
+* **F4 (part 4, TCB/An Cool: logo blocks, bob ring, 3 star layers, magenta scroller; entry
+  `$F130`, VBL `$F2BE`, Timer B `$F39E` at line 183: colours 4..11 red -> magenta)** -- NOT PORTED.
+  Its iterations overrun the VBL about one frame in six (VBLs land inside `$13xxx`, `$C4xx`, ...);
+  the VBL handler toggles `$F3C0`, swaps the star clear lists and both screen pointers and plays the
+  music, so a VBL inside an iteration changes what the rest of that iteration draws, and frames drop.
+  A faithful port needs the 68000's cycle cost of every iteration (a cycle model of the port's work,
+  or a schedule recorded from the real-time oracle -- not periodic as far as looked).
+* **F3 (part 3, $18000, TCB/OMEGA ball-curve editor, "SX SY GX GY")** -- NOT PORTED. VBL-locked in the
+  real-time oracle, but most of its work runs INSIDE the VBL handler `$1888E` (screen flip
+  $60000/$70000, palette, Timer B chain `$18626`/`$18654` from line 39, `$18B1A`), and Timer B
+  `$18776` opens the bottom border by syncing on the video counter and jumping into nops. Interactive
+  (keys edit the curve parameters). Display model to build: the rasters + the opened bottom border.
+* **F5 (part 5, $C000, SYNC giant scroller in full overscan)** -- NOT PORTED. VBL-locked. VBL `$17D42`
+  arms Timer A (delay $67/4): `$179A0` opens the top border, syncs on $8209, then `$1525E` runs the
+  fullscreen lines through 8 `jsr` whose targets are PATCHED at run time (per-line routines at
+  `$1540C..`), and loads a second palette ($195DA) at the bottom. The main loop works in the spare
+  lines (`$17F56` flag). Display model to build: each line's start address / length from the patched
+  line routines (cf. cart 76's TCB #1 230-byte-line model).
+* **F6 (part 6, $C000, SYNC vector balls + text writer + sparkly SYNC logo in the lower border,
+  raster lines through the borders)** -- NOT PORTED. Seeds a choice of 4 settings from Timer C's
+  running counter (`move.b $FA23,d0`: random on the ST), uses Timers A/B/C and a VBL, and runs its
+  main loop every SECOND VBL (`$12AEC` >= 2: 25 Hz).
+* **Part 7 (Left Shift at boot, 261 KB at $C000)**: sample data of a hidden part -- not looked at.
