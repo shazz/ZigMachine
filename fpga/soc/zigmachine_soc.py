@@ -20,15 +20,21 @@ from litex.build.sim import SimPlatform
 from litex.build.sim.config import SimConfig
 from litex.soc.cores.clock import S7PLL
 from litex.soc.integration.builder import Builder
+from litex.soc.integration.soc import SoCRegion
 from litex.soc.integration.soc_core import SoCCore
-from migen import ClockDomain, If, Module, Signal
+from migen import Cat, ClockDomain, If, Module, Signal
 
+from soc import openxc7
 from soc.zm_video import ZMVideoTiming
+from soc.zm_video_pipe import WINDOW_BYTES, ZMVideo
 
 FPGA = Path(__file__).resolve().parent.parent
 SYS_CLK_SIM = int(1e6)
 SYS_CLK_Z7 = int(100e6)
 PIX_CLK = int(40e6)  # VESA 800x600 @ 60 Hz, see rtl/video/zm_vtiming.v
+VIDEO_WINDOW = (
+    0x90000000  # in the uncached IO region: the video registers, palettes and BEAM table (soc/zm_video_pipe.py)
+)
 SIM_IO = [
     ("sys_clk", 0, Pins(1)),
     ("sys_rst", 0, Pins(1)),
@@ -58,15 +64,22 @@ class _SimCRG(Module):
 
 
 class _Z7CRG(Module):
-    """sys at 100 MHz and the 40 MHz pixel clock from the board's PL oscillator."""
+    """sys at 100 MHz, the 40 MHz pixel clock and its 5x for the TMDS serialisers,
+    from the board's PL oscillator."""
 
     def __init__(self, platform: object, osc_name: str, osc_hz: int) -> None:
         self.clock_domains.cd_sys = ClockDomain()
         self.clock_domains.cd_pix = ClockDomain()
+        self.clock_domains.cd_pix5x = ClockDomain()
         self.submodules.pll = pll = S7PLL(speedgrade=-1)
-        pll.register_clkin(platform.request(osc_name), osc_hz)  # type: ignore[attr-defined]  # untyped LiteX platform
+        clkin = platform.request(osc_name)  # type: ignore[attr-defined]  # untyped LiteX platform
+        # The input period is what timing analysis derives every PLL output from:
+        # without it nextpnr checks all clocks against its 12 MHz default.
+        platform.add_period_constraint(clkin, 1e9 / osc_hz)  # type: ignore[attr-defined]  # untyped LiteX platform
+        pll.register_clkin(clkin, osc_hz)
         pll.create_clkout(self.cd_sys, SYS_CLK_Z7)
         pll.create_clkout(self.cd_pix, PIX_CLK)
+        pll.create_clkout(self.cd_pix5x, 5 * PIX_CLK)
 
 
 class ZigMachineSoC(SoCCore):
@@ -90,8 +103,20 @@ class ZigMachineSoC(SoCCore):
             integrated_main_ram_size=main_ram_size,
             **kwargs,
         )
-        self.video = ZMVideoTiming(platform, cd=video_cd)
+        if video_cd == "pipe":  # the board: the whole pipeline, out through HDMI
+            self._add_video_pipe(platform)
+        else:
+            self.video = ZMVideoTiming(platform, cd=video_cd)
         self.irq.add("video", use_loc_if_exists=True)
+
+    def _add_video_pipe(self, platform: object) -> None:
+        req = platform.request  # type: ignore[attr-defined]  # untyped LiteX platform
+        lanes = ["D0", "D1", "D2", "CLK"]  # zm_dvi_out's {clock, red, green, blue}, low bit first
+        pads = {s.lower(): Cat(*[req(f"HDMI1_{lane}_{s}") for lane in lanes]) for s in ("P", "N")}
+        self.video = ZMVideo(platform, pads)
+        region = SoCRegion(origin=VIDEO_WINDOW, size=WINDOW_BYTES, cached=False)
+        self.bus.add_slave("zm_video", self.video.bus, region)
+        self.bus.add_master(name="zm_video_dma", master=self.video.dma)
 
 
 def build_sim(args: argparse.Namespace) -> None:
@@ -105,16 +130,28 @@ def build_sim(args: argparse.Namespace) -> None:
     builder.build(sim_config=sim_config, run=args.run, build=args.run)
 
 
-def build_z7(args: argparse.Namespace) -> None:
+def make_z7(args: argparse.Namespace) -> tuple[ZigMachineSoC, object]:
+    """The board's SoC and its platform (tools/soc_util.py synthesises them)."""
     from soc import litex_compat
     from soc.platform_z7 import Platform
 
     litex_compat.install()  # Verilog is written here, see soc/litex_compat.py
     platform = Platform(toolchain=args.toolchain)
     # The Z7-Lite UART is on PS MIO (the ARM's), not PL pins: the console runs over USB-JTAG.
-    soc = ZigMachineSoC(platform, SYS_CLK_Z7, "pix", uart_name="jtag_uart")
+    soc = ZigMachineSoC(platform, SYS_CLK_Z7, "pipe", uart_name="jtag_uart")
     soc.crg = _Z7CRG(platform, args.osc, args.osc_hz)
-    Builder(soc, output_dir=str(FPGA / "build/soc_z7"), compile_software=args.build).build(run=args.build)
+    return soc, platform
+
+
+def build_z7(args: argparse.Namespace) -> None:
+    soc, _ = make_z7(args)
+    in_docker = args.toolchain == "openxc7"  # the tools are in a container: soc/openxc7.py
+    if in_docker:
+        openxc7.prepare_env()
+    builder = Builder(soc, output_dir=str(FPGA / "build/soc_z7"), compile_software=args.build)
+    builder.build(run=args.build and not in_docker)
+    if in_docker and args.build:
+        openxc7.run_build(builder.gateware_dir, soc.get_build_name())
 
 
 def main() -> None:

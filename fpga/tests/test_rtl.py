@@ -5,6 +5,8 @@ A testbench prints its failures and exits non-zero; this file only builds and
 runs it. Add a module by adding a row to RTL_TESTS.
 """
 
+import os
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -18,12 +20,23 @@ CXXRTL_INCLUDE = Path(yowasp_yosys.__file__).parent / "share/include/backends/cx
 # (top module, its sources, the testbench)
 RTL_TESTS = [
     ("zm_vtiming", ["rtl/video/zm_vtiming.v"], "tests/tb/zm_vtiming_tb.cpp"),
+    ("zm_tmds_enc", ["rtl/video/zm_tmds_enc.v"], "tests/tb/zm_tmds_tb.cpp"),
 ]
 
 
-def _cxxrtl(top: str, sources: list[str]) -> Path:
-    out = BUILD / f"{top}.cc"
-    reads = " ".join(str(FPGA / s) for s in sources)
+# One rule of an RTL block broken at a time: (id, top, file, text, broken text).
+MUTANTS = [
+    ("tmds_xnor_tie", "zm_tmds_enc", "rtl/video/zm_tmds_enc.v", "n1d == 4'd4 && !d[0]", "n1d == 4'd4 && d[0]"),
+    ("tmds_balanced_sense", "zm_tmds_enc", "rtl/video/zm_tmds_enc.v", "balanced ? !m[8]", "balanced ? m[8]"),
+    ("tmds_cnt_kept", "zm_tmds_enc", "rtl/video/zm_tmds_enc.v", "cnt <= 6'sd0;\n            case", "case"),
+    ("tmds_token_01", "zm_tmds_enc", "rtl/video/zm_tmds_enc.v", "10'b0010101011;", "10'b0010101010;"),
+    ("tmds_adj_sign", "zm_tmds_enc", "rtl/video/zm_tmds_enc.v", "(m[8] ? 6'sd0 : -6'sd2)", "(m[8] ? 6'sd0 : 6'sd2)"),
+]
+
+
+def _cxxrtl(top: str, sources: list[str], root: Path = FPGA, build: Path = BUILD) -> Path:
+    out = build / f"{top}.cc"
+    reads = " ".join(str(root / s) for s in sources)
     script = f"read_verilog -I{FPGA / 'gen'} {reads}; hierarchy -top {top}; proc; write_cxxrtl {out}"
     rc = yowasp_yosys.run_yosys(["-q", "-p", script])
     assert rc == 0, f"yosys failed on {top}"
@@ -31,7 +44,7 @@ def _cxxrtl(top: str, sources: list[str]) -> Path:
 
 
 def _compile_and_run(top: str, cc: Path, tb: str) -> subprocess.CompletedProcess[str]:
-    exe = BUILD / f"{top}_tb"
+    exe = cc.parent / f"{top}_tb"
     subprocess.run(
         ["clang++", "-std=c++17", "-O2", f"-I{CXXRTL_INCLUDE}", f"-I{cc.parent}", str(FPGA / tb), "-o", str(exe)],
         check=True,
@@ -45,3 +58,20 @@ def test_rtl(top: str, sources: list[str], tb: str) -> None:
     BUILD.mkdir(parents=True, exist_ok=True)
     result = _compile_and_run(top, _cxxrtl(top, sources), tb)
     assert result.returncode == 0, result.stdout + result.stderr
+
+
+@pytest.mark.skipif(os.environ.get("ZM_RTL_BREAK") != "1", reason="set ZM_RTL_BREAK=1 to run the break tests")
+@pytest.mark.parametrize(("name", "top", "file", "old", "new"), MUTANTS, ids=[m[0] for m in MUTANTS])
+def test_a_broken_rule_is_caught(name: str, top: str, file: str, old: str, new: str) -> None:
+    sources, tb = next((s, t) for t_, s, t in RTL_TESTS if t_ == top)
+    # Under fpga/build, not tmp: yowasp's Yosys is wasm and sees only this tree.
+    work = FPGA / "build" / "tests" / "mutants" / name
+    shutil.rmtree(work, ignore_errors=True)
+    for src in sources:
+        (work / src).parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy(FPGA / src, work / src)
+    text = (work / file).read_text()
+    assert text.count(old) == 1, f"{name}: the text to break is not unique in {file}"
+    (work / file).write_text(text.replace(old, new))
+    result = _compile_and_run(top, _cxxrtl(top, sources, work, work), tb)
+    assert result.returncode != 0, f"{name} went unnoticed:\n{result.stdout}"

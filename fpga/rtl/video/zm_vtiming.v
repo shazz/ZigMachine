@@ -27,6 +27,7 @@ module zm_vtiming (
     output reg  [8:0]  zm_hbl_line,    // the raster line zm_hbl announces
     output reg         zm_vbl          // one-clock strobe per frame
 );
+`undef ZM_MEMMAP_VH  // memmap.vh's include guard would hide it from all but the first module of a read
 `include "memmap.vh"
 
     localparam integer H_ACTIVE = 800, H_FP = 40, H_SYNC = 128, H_BP = 88;

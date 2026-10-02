@@ -1,123 +1,95 @@
 // Replay testbench for rtl/video/zm_video_comp.v against the wasm machine.
 //
-//   video_comp_tb <dump dir> <frame>...
+//   video_comp_tb [--timing] <dump dir> <frame>...
 //
 // For each frame recorded by tools/video_dump.py it runs the compositor line by
-// line: the BG pass, then a PLANE pass per enabled plane. Before every pass it
-// plays the CPU: it writes, through the CPU port, each register / palette /
-// BEAM word whose value differs from what the machine held when it computed
-// that pass of that line. After every pass it reads the line buffer back and
-// compares all 800 pixels with the machine's PFB row. The words the compositor
-// writes itself (BACKGROUND, BEAM_COUNT, BEAM_DROPPED, FRAME) are checked
-// against the machine's next state record instead of being overwritten unseen.
-// Exits non-zero on any difference.
+// line (video_replay.h) and checks two things: every pass of every line equals
+// the machine's PFB row, and every finished line in the display buffer equals
+// the browser's picture of that row (f<N>.mix, tools/video_mix.py), read
+// through the display port in its own clock so the read costs the compositor
+// nothing. `--timing` skips the per-pass line-buffer reads, so the mixer's
+// sweeps overlap the next passes as they would on the board, and the busy
+// clocks per line are the real ones. Exits non-zero on any difference.
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 
-#include "video_dump.h"
-#include "video_drive.h"
+#include "zm_video_comp.cc"
+#include "video_replay.h"
 
 namespace {
 
-// The register words the compositor stores (zm_video_regs.v IMPL).
-const int kRegWords[] = {0, 1, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 25, 26};
-// ... and the ones it writes itself.
-const int kOwnWords[] = {ZM_REG_BACKGROUND / 4, ZM_REG_BEAM_COUNT / 4, ZM_REG_BEAM_DROPPED / 4, ZM_REG_FRAME / 4};
+using Top = cxxrtl_design::p_zm__video__comp;
+using Rig = vd::Rig<Top>;
 
-struct Replay {
-    vd::Rig rig;
-    const vd::Frame* f = nullptr;
-    uint32_t pal[vd::PAL_WORDS] = {}, beam[vd::BEAM_WORDS] = {};  // what the RTL RAMs hold
-    long bad_pixels = 0, bad_regs = 0;
-    long max_line_cycles = 0;  // compose clocks only: no readout, no CPU writes
+// Display buffer `buf` as 800 RGB pixels, clocking only the display port's domain.
+void read_display(Top& top, int buf, uint8_t* rgb) {
+    for (int x = 0; x < vd::ROW / 2; x++) {
+        top.p_dp__raddr.set<uint32_t>(uint32_t(buf << 9 | x));
+        top.p_dp__clk.set(true);
+        top.step();
+        top.p_dp__clk.set(false);
+        top.step();
+        uint64_t pair = top.p_dp__rdata.get<uint64_t>();
+        for (int b = 0; b < 6; b++) rgb[x * 6 + b] = uint8_t(pair >> (8 * b));
+    }
+}
 
-    void apply_regs(const vd::State& s) {
-        for (int w : kRegWords)
-            if (rig.reg_read(w) != s[size_t(w)]) rig.cpu_write(uint32_t(w) * 4, s[size_t(w)]);
+long check_display(Top& top, const vd::Frame& f, int y) {
+    uint8_t rgb[vd::ROW * 3];
+    read_display(top, y & 1, rgb);
+    const uint8_t* want = &f.mix[size_t(y) * vd::ROW * 3];
+    long bad = 0;
+    for (int x = 0; x < vd::ROW; x++) {
+        if (!std::memcmp(rgb + x * 3, want + x * 3, 3)) continue;
+        if (++bad <= 5)
+            std::printf("FAIL picture line %d x %d: rtl %02x%02x%02x browser %02x%02x%02x\n", y, x, rgb[x * 3],
+                        rgb[x * 3 + 1], rgb[x * 3 + 2], want[x * 3], want[x * 3 + 1], want[x * 3 + 2]);
     }
-    void apply_ram(const vd::State& s, int first, int n, uint32_t* shadow, uint32_t off) {
-        for (int i = 0; i < n; i++) {
-            if (shadow[i] == s[size_t(first + i)]) continue;
-            shadow[i] = s[size_t(first + i)];
-            rig.cpu_write(off + uint32_t(i) * 4, shadow[i]);
-        }
+    return bad;
+}
+
+// Replays one frame and prints its verdict: 0 matched, 1 differed, 2 not loadable.
+int run_frame(Rig& rig, vd::Replay<Rig>& r, const char* dir, const char* frame) {
+    static vd::Frame f;
+    f = vd::Frame{};
+    if (!vd::load(dir, std::atol(frame), f)) {
+        std::printf("FAIL cannot load frame %s from %s (with its .mix)\n", frame, dir);
+        return 2;
     }
-    void check_own(const vd::State& want, int y) {
-        for (int w : kOwnWords) {
-            uint32_t got = rig.reg_read(w);
-            if (got == want[size_t(w)] || ++bad_regs > 10) continue;
-            std::printf("FAIL line %d: register word %d = %08x, machine %08x\n", y, w, got, want[size_t(w)]);
-        }
-    }
-    void compare(int k, int y) {
-        uint32_t line[vd::ROW];
-        rig.read_line(line);
-        const uint32_t* want = f->row(k, y);
-        for (int x = 0; x < vd::ROW; x++) {
-            if (line[x] == want[x]) continue;
-            if (++bad_pixels <= 10)
-                std::printf("FAIL pass %d line %d x %d: rtl %08x machine %08x\n", k, y, x, line[x], want[x]);
-        }
-    }
-    void bg_line(int y) {
-        apply_regs(*f->consumed(0, y));
-        apply_ram(*f->consumed(0, y), vd::BEAM0, vd::BEAM_WORDS, beam, ZM_OFF_BEAM_TABLE);
-        rig.command(0, 0, y);
-        // The machine's state just after this line: next line's PRE, or the end.
-        vd::StateP next = y + 1 < vd::LINES ? f->pre[0][y + 1] : f->end[0];
-        if (next) check_own(*next, y);
-        compare(0, y);
-    }
-    void plane_line(int p, int y) {
-        const int k = p + 1;
-        if (y == 0) {
-            apply_regs(*f->start[k]);
-            rig.command(2, p, 0);
-        }
-        const vd::State& s = *f->consumed(k, y);
-        apply_regs(s);
-        apply_ram(s, vd::PAL0 + p * ZM_PAL_ENTRIES, ZM_PAL_ENTRIES, pal + p * ZM_PAL_ENTRIES, ZM_OFF_PAL + p * ZM_PAL_BYTES);
-        rig.command(1, p, y);
-        compare(k, y);
-    }
-    void run() {
-        rig.mem = &f->mem;
-        for (int y = 0; y < vd::LINES; y++) {
-            long c0 = rig.compose_cycles;
-            bg_line(y);
-            for (int p = 0; p < ZM_NB_PLANES; p++)
-                if ((f->planes >> p) & 1) plane_line(p, y);
-            if (rig.compose_cycles - c0 > max_line_cycles) max_line_cycles = rig.compose_cycles - c0;
-        }
-    }
-};
+    long bad_picture = 0;
+    r.f = &f;
+    r.on_line = [&](int y) { bad_picture += check_display(rig.top, f, y); };
+    r.bad_pixels = r.bad_regs = r.max_line_cycles = r.max_line_busy = 0;
+    r.run();
+    bool hazard = rig.top.p_mix__hazard.get<bool>(), overflow = rig.top.p_overflow.get<bool>();
+    bool ok = r.bad_pixels == 0 && r.bad_regs == 0 && bad_picture == 0 && rig.bad_reads == 0 && !overflow && !hazard;
+    std::printf("frame %s: planes %x vram_changed %d: %ld bad pixels, %ld bad picture pixels, %ld bad registers, "
+                "%ld bad reads, overflow %d, hazard %d, max %ld compose / %ld busy clocks/line -> %s\n",
+                frame, f.planes, f.vram_changed, r.bad_pixels, bad_picture, r.bad_regs, rig.bad_reads, int(overflow),
+                int(hazard), r.max_line_cycles, r.max_line_busy, ok ? "MATCH" : "DIFFER");
+    return ok ? 0 : 1;
+}
 
 }  // namespace
 
 int main(int argc, char** argv) {
-    if (argc < 3) {
-        std::fprintf(stderr, "usage: video_comp_tb <dump dir> <frame>...\n");
+    bool timing = argc > 1 && !std::strcmp(argv[1], "--timing");
+    int first_arg = timing ? 2 : 1;
+    if (argc < first_arg + 2) {
+        std::fprintf(stderr, "usage: video_comp_tb [--timing] <dump dir> <frame>...\n");
         return 2;
     }
-    static Replay r;  // the CXXRTL model is large: keep it off the stack
+    static Rig rig;  // the CXXRTL model is large: keep it off the stack
+    rig.set_clock = [](bool v) { rig.top.p_clk.set(v), rig.top.p_dp__clk.set(v); };
+    rig.top.p_dp__free.set<uint32_t>(3);  // no scanout here: both display buffers are always free
+    static vd::Replay<Rig> r(rig);
+    r.check_passes = !timing;
     int failed = 0;
-    for (int i = 2; i < argc; i++) {
-        static vd::Frame f;
-        f = vd::Frame{};
-        if (!vd::load(argv[1], std::atol(argv[i]), f)) {
-            std::printf("FAIL cannot load frame %s from %s\n", argv[i], argv[1]);
-            return 2;
-        }
-        r.f = &f;
-        r.bad_pixels = r.bad_regs = r.max_line_cycles = 0;
-        r.run();
-        bool ok = r.bad_pixels == 0 && r.bad_regs == 0 && r.rig.bad_reads == 0 && !r.rig.top.p_overflow.get<bool>();
-        std::printf("frame %s: planes %x vram_changed %d: %ld bad pixels, %ld bad registers, %ld bad reads, "
-                    "overflow %d, max %ld compose clocks/line -> %s\n",
-                    argv[i], f.planes, f.vram_changed, r.bad_pixels, r.bad_regs, r.rig.bad_reads,
-                    int(r.rig.top.p_overflow.get<bool>()), r.max_line_cycles, ok ? "MATCH" : "DIFFER");
-        failed += !ok;
+    for (int i = first_arg + 1; i < argc; i++) {
+        int verdict = run_frame(rig, r, argv[first_arg], argv[i]);
+        if (verdict == 2) return 2;
+        failed += verdict;
     }
     return failed ? 1 : 0;
 }

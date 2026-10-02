@@ -3,7 +3,10 @@
 `zm_video_comp` builds the machine's 800×280 raster a line at a time, as
 `machine/video.zig` builds the PFB, and is checked pixel for pixel against the
 wasm machine on real carts' frames and on synthetic frames the real
-`machine-video` renders. (`zm_vtiming` is documented in its own header.)
+`machine-video` renders. `zm_video_mix` folds each pass into the picture the
+browser shows, `zm_video_out` adds the display buffers, timing and scanout, and
+`zm_dvi_out` puts it on HDMI (below, "The picture"). `zm_vtiming`, `zm_tmds_enc`
+and `zm_video_sync` are documented in their headers.
 
 ## The model: one line, several passes
 
@@ -75,10 +78,11 @@ are read; and every rejected or excess entry is counted.
 |---|---|---|
 | CPU write | `cpu_we`, `cpu_waddr[20:0]` (region byte offset / 4), `cpu_be`, `cpu_wdata` | Decodes the register block (`0x00..0x7F`), the four palettes (`OFF_PAL`) and the BEAM table (`OFF_BEAM_TABLE`). Other addresses are ignored. |
 | Register read | `cpu_rword[4:0]` → `cpu_rdata` (combinational) | Only the words the compositor stores. The rest read 0. |
-| Commands | `cmd_valid`, `cmd_ready`, `cmd_op`, `cmd_plane`, `cmd_line`, `pass_done` | A command is taken when `cmd_valid && cmd_ready`. `pass_done` pulses at the end of a `BG` or `PLANE` pass. |
+| Commands | `cmd_valid`, `cmd_ready`, `cmd_op`, `cmd_plane`, `cmd_line`, `cmd_mix`, `cmd_last`, `pass_done` | A command is taken when `cmd_valid && cmd_ready`. `pass_done` pulses at the end of a `BG` or `PLANE` pass. `cmd_mix`: fold the pass into the picture; `cmd_last`: the line's last pass. |
 | **Memory read** | `mem_req_valid/ready/addr`, `mem_rsp_valid/data` | See below. |
-| Line buffer read | `lb_raddr[8:0]` → `lb_rdata[63:0]` (next clock) | Pair `x`: raster pixel `2x` in the low half and `2x+1` in the high half. This is the scanout's port. |
-| Status | `overflow` | Sticky. A line needed more than 256 words, which only a fullscreen stride above 1021 does. |
+| Line buffer read | `lb_raddr[8:0]` → `lb_rdata[63:0]` (next clock) | Pair `x`: raster pixel `2x` (low half), `2x+1` (high). The PFB row, for tests; the mixer owns the port while `mix_busy`. |
+| Display | `dp_clk`, `dp_raddr` = {buffer, pair} → `dp_rdata[47:0]`, `dp_free[1:0]`, `line_ready`, `ready_line` | The picture, 2 × RGB a read, in the scanout's clock. A line's last sweep waits for `dp_free[line[0]]`. |
+| Status | `overflow`, `mix_hazard` | Sticky. A line needed more than 256 words (a fullscreen stride above 1021); the line buffer was rewritten before the sweep read it. |
 
 **The memory read port** (`zm_video_fetch.v`) is the only way the compositor
 reaches memory, and is shaped so it can sit behind an AXI HP master to DDR
@@ -108,93 +112,69 @@ testbench answers after 1 to 8 random clocks and refuses a random quarter.
 | `zm_video_fetch.v` | The memory read port and the fetch buffer writer. |
 | `zm_video_paint.v` | The 3-stage painter: fetch buffer → palette → line buffer. |
 | `zm_video_sdpram.v` | Simple dual-port RAM with byte enables. Infers BRAM or LUTRAM. |
+| `zm_video_mix.v` | The plane mixer: sweeps, the accumulator line, the two display buffers. |
+| `zm_video_dcram.v` | A RAM with a clock per port: the display buffers' clock crossing. |
+| `zm_video_out.v` | Compositor + `zm_vtiming` + scanout, two clock domains, buffer hand-over. |
+| `zm_video_scan.v`, `zm_video_sync.v` | The scanout; a toggle pulse synchroniser. |
+| `zm_tmds_enc.v`, `zm_dvi_out.v` | One TMDS channel; DVI out (3 encoders, OSERDESE2 10:1, OBUFDS). Board only. |
 | `zm_video_memmap.vh` | Includes `gen/memmap.vh` once per module. The generated include guard would otherwise give the constants to the first module only. |
 
 ## How it is tested
 
-```sh
-uv run pytest -q tests/test_rtl_video.py                   # the replays and oracle checks, ~1 min
-ZM_RTL_BREAK=1 uv run pytest -q tests/test_rtl_video.py    # + the 25 break tests, ~5 min more
-uv run python tools/video_dump.py tutorial 300             # record frames of a cart
-uv run python tools/video_dump.py --synth beam             # record a synthetic scenario
-uv run python tools/video_rtl.py build/vdump/tutorial/frames 300   # replay (video_cover.py: coverage)
-```
+Recorded frames replayed through the RTL, pass by pass, line by line and on the
+wire, with break tests: see [`TESTING.md`](TESTING.md), with the coverage table.
 
-1. **Record.** `tools/video_dump/vdump` is the native host (`fpga/host/`'s
-   machine, ROM and cart objects) plus a recorder. Every `hblDispatch` and every
-   pass is bracketed by a delta record of the registers, palettes and BEAM table;
-   it saves the memory the fetcher reads and the PFB after `hwClear` and after
-   each enabled plane. `vsynth` is the same recorder around `machine-video`
-   alone, programmed by C scenarios (`vsynth_scen.c`), which reaches what no cart
-   does. The machine still renders those frames.
-2. **Replay.** `tests/tb/video_comp_tb.cpp` (CXXRTL) runs each line as BG +
-   PLANE passes. Before a pass it writes, through the CPU port, each word that
-   differs from what the machine held for that pass and line. After it, it
-   compares all 800 pixels with the PFB row. The words the compositor writes
-   itself are checked against the machine's next record, never overwritten unseen.
-3. **The oracle is untouched:** every cart frame's dumped PFBs hash to what
-   `fpga/host` reports for that frame.
-4. **Each frame states what it exercises** (`video_cover.py`, from the records:
-   modes, and the effects a handler actually changed), and fails if it stops.
-5. **Break tests:** 25 one-rule mutations of the RTL (`tests/tb/video_mutants.json`),
-   each with the dump that must catch it; a hung pass is reported, not waited
-   on. Opt-in (`ZM_RTL_BREAK=1`, 25 testbench builds). All 25 caught on 2026-10-02.
+## The picture: mixer, scanout, DVI
 
-### Coverage: proven or not yet
+**What the browser shows** (`docs/sealed-loader.js`, `docs/css/crt.css`): canvas
+`i` holds the PFB after `hwRenderPlane(i)` for each enabled plane (the cleared
+PFB on canvas 0 when none is), stacked in DOM order on the tube's `#121010`.
+Chrome's software compositor gives, per canvas: `P = round(c·a/255)` (the
+premultiply in `putImageData`), then `D = P + (D·(256−a) >> 8)`. That is exact on
+all 65,536 colour × alpha pairs and on random 4-canvas stacks, checked against
+headless Chrome screenshots (`tools/mix_chrome.mjs`; the cosmetic CRT veil is
+left out). A GPU compositor rounds partial alpha differently, by up to 4.
 
-"Proven" means at least one replayed frame matches the machine pixel for pixel
-in every pass, and a break test of that rule is caught.
+**The mixer** sweeps the line buffer after every `cmd_mix` pass, 2 pixels a
+clock (400 clocks), `D = over(L, D)` with 12 multipliers (DSPs), from the tube on
+the first sweep of a line. Canvas `k` re-shows lower planes' pixels it does not
+cover, so each sweep covers the whole line. The sweep starts the clock after its
+pass and runs while the next pass fetches and paints; both go from low pairs up
+at ≤ 1 pair a clock, so it is never overtaken (`mix_hazard` checks).
 
-| Mode or effect | Status | Evidence |
-|---|---|---|
-| normal mode, static palette | **proven** | `tutorial` 300, `union_intro` 100 |
-| 2–4 planes layered over the background | **proven** | `union_main` (3 planes), `tcb_colorshock`, `union_l16`, synthetic `layers` (4 modes stacked) |
-| fullscreen (`FB_MODE_FULLSCREEN`), fine scroll latched, odd stride, `hs > stride` | **proven, synthetic only** | synthetic `fullscreen`. ZigOS no longer sets mode 1, so no cart reaches it. |
-| legacy fullscreen (mode 0, stride 400) | **proven, synthetic only** | synthetic `fullscreen`, plane 2 |
-| overscan, borders opened on time | **proven** | `union_main`, `replicants_emlyn`, `gen4_3615`, `maxi`, `fullscreen` (cart) |
-| overscan, mistimed flicker (noise) | **proven** | `badflicker`, synthetic `overscan` (late HBL, tolerance edge) |
-| overscan with a wider buffer (stride 512) | **proven** | `tcb_colorshock`, synthetic `overscan` |
-| scroll mode (pan by `FB_BASE`) | **proven** | `scroll` 300 |
-| scroll mode, `HSCROLL` per line | **proven, synthetic only** | synthetic `scroll`, `layers`. `scroll_demo`'s distort needs a key press. |
-| medium, `RESOLUTION` per line | **proven** | `res_switch`, synthetic `medium` (including `RES_TRUECOLOR`, which renders as low) |
-| medium overscan (stride ≥ 800) | **proven** | `medium_overscan`, synthetic `medium` |
-| palettes changed per line by HBL (copper, linepal) | **proven** | `replicants_emlyn`, `gen4_3615`, `tutorial`, every synthetic scenario |
-| `BACKGROUND` changed per line | **proven** | synthetic `beam`, `layers`; `dhs_0pxl0reg` 900 |
-| BEAM lines: snapping, gap and x drops, more than 64 entries, carry into `BACKGROUND` | **proven** | `dhs_0pxl0reg` 300 and 900 (a static picture), synthetic `beam` |
-| unaligned `FB_BASE`, `FB_BASE`/`HSCROLL` rewritten mid-frame (must be ignored) | **proven, synthetic only** | every synthetic scenario |
-| a fetch stalled by the memory port | **proven** | random `ready` and latency on every replay (`ignore_ready` break test) |
-| HBL handlers that write VRAM mid-render | **not yet** | The replay serves the pre-render image. `vram_changed` is 0 on every corpus frame. |
-| fullscreen stride > 1021 | **not supported** | flagged (`overflow`) and not drawn. The machine has no such limit. |
+**Scanout** (`zm_video_out`): the compositor runs in its own clock (the SoC's
+`sys`), the timing and scanout in the 40 MHz pixel clock. Line `y` goes to
+display buffer `y[0]`; the scanout frees it at the next HBL and shows a line only
+if its buffer holds that line, else black and `underrun`. The compositor stalls
+by itself when both buffers are full.
 
-### What remains before the compositor drives a screen
+**Throughput**, worst line, busy clocks with sweeps overlapped (`--timing`):
+corpus carts at most 2,099 (`union_main`); synthetic `medium` 3,197, `alpha`
+3,124; `worst` (4 medium planes of 800 columns 1:1 over 64 BEAM writes) 5,060. A
+raster line is 2,112 pixel clocks: 4,224 compositor clocks at 80 MHz (`worst`
+underruns, by test), 5,280 at 100 MHz (4 % margin), 7,920 at 150 MHz (36 %).
 
-- **Scanout:** a second line buffer (ping-pong, +2 RAMB18) read by `zm_vtiming`.
-- **The final picture.** The browser stacks one canvas per enabled plane (the
-  PFB after that plane) with alpha. The RTL reproduces each of those PFBs, but
-  not the alpha stacking. A display mixer is needed: binary alpha is cheap,
-  blending is not.
-- **The sequencer.** Something must issue BG/LATCH/PLANE per line and raise the
-  HBL interrupt before each pass. Line-major hardware differs from the machine's
-  plane-major order when a plane-p handler reads what a plane-q handler writes
-  on a later line, or what `frame()` writes between `hwClear` and the renders.
-  The replay applies the machine's per-pass state, so it cannot see this: it is
-  a question about the machine's semantics, not this RTL.
-- **Throughput.** A raster line is 2 × 1056 = 2112 clocks at 40 MHz. Measured
-  compose clocks for the worst line (stalling test memory): 858 for one low-res
-  plane (`tutorial`), 2,081 for three (`union_main`, just fits), 2,632 to 2,818
-  for four planes or three medium ones (synthetic `overscan`, `layers`,
-  `medium`, does not fit). Passes run fetch-then-paint in sequence. A 2×
-  compositor clock, or fetching the next plane during this one's paint, closes it.
-- **AXI.** The port is AXI-shaped but not yet wrapped. There are no bursts: one
-  word per request.
-- **Timing closure.** Not attempted. There has been no place and route.
+### What remains before a bitstream
+
+- **The sequencer.** Something must issue the passes and run the HBL handlers.
+  `tools/video_order_shelf.py` (2026-10-02, frame 300 of 90 carts, every one
+  pixel-identical through the RTL in the machine's order): under line-major
+  order only two change. `badflicker`: the overscan noise seed is `FRAME`, which
+  the machine bumps at the end of `hwClear`, before planes latch (fix: count the
+  frame at VBL). `equinox`: four overscan planes share `RES_FLICKER`, so one
+  plane sees another's flicker (160 pixels).
+- **frame() runs while the beam scans** on hardware; the machine runs it before
+  any plane pass. Its writes to live state (palettes, `BACKGROUND`) land mid-frame.
+- **AXI** (`soc/zm_video_pipe.py` fetches over Wishbone, one word at a time) and
+  DDR; **openXC7's chipdb**; **timing closure** (no place and route yet).
 
 ## Cost (Yosys `synth_xilinx`, xc7, before place and route; `make -C fpga util`)
 
 | Block | LUT | % of 7010 | FF | CARRY4 | BRAM | LUTRAM | DSP |
 |---|---|---|---|---|---|---|---|
-| `zm_video_comp` | 1,169 | 6.6 % | 1,057 | 106 | 4 (3 RAMB18 + 1 RAMB36) | 25 | 1 |
+| `zm_video_comp` (with the mixer) | 1,378 | 7.8 % | 1,158 | 152 | 8 | 25 | 13 |
+| `zm_video_out` (+ scanout, timing) | 1,492 | 8.5 % | 1,325 | 162 | 8 | 25 | 13 |
+| `zm_tmds_enc` (one channel) | 52 | 0.3 % | 28 | 7 | 0 | 0 | 0 |
+| whole z7 SoC with video + DVI (`tools/soc_util.py`) | 4,069 | 23.1 % | 3,345 | 332 | 35 | 33 | 17 |
 
-The BRAMs are the palettes (4 × 256 × 32, one RAMB36), the line buffer (2 ×
-512 × 32, two RAMB18) and the fetch buffer (256 × 32, one RAMB18). The BEAM
-table and the latch slots are LUTRAM. The DSP computes `row * stride`.
+The mixer adds 209 LUTs, 4 BRAM (accumulator line, 2 display buffers) and 12 DSPs.
