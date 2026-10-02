@@ -57,11 +57,11 @@ pub fn captureScreen(r: *const st.Ram, screen: u32, pal: u32) void {
     var regs: [16]u32 = undefined;
     for (&regs, 0..) |*c, i| c.* = st.color(r.w(pal + 2 * @as(u32, @intCast(i))));
     for (0..PH) |py| {
-        const row = &buf.chunky[py];
-        @memset(row, 0);
+        const out = &buf.chunky[py];
+        @memset(out, 0);
         if (py >= OY and py < OY + 200) {
             const y: u32 = @intCast(py - OY);
-            st.lineToChunky(r.bytes(screen + y * st.LINE, st.LINE), row[OX..][0..320]);
+            st.lineToChunky(r.bytes(screen + y * st.LINE, st.LINE), out[OX..][0..320]);
         }
         @memcpy(buf.next[py][0..16], &regs);
         used_next[py] = 16;
@@ -77,7 +77,7 @@ pub fn row(y: usize) *[320]u8 {
 /// Line `y` of the window: its colour registers as RGBA (at most MAXC). Call
 /// blank() first: it sets the lines outside the window.
 pub fn setLine(y: usize, regs: []const u32) void {
-    buf.next[OY + y][0..regs.len].* = regs[0..regs.len].*;
+    @memcpy(buf.next[OY + y][0..regs.len], regs);
     used_next[OY + y] = @intCast(regs.len);
 }
 

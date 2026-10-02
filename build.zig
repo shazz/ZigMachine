@@ -201,6 +201,19 @@ pub fn build(b: *std.Build) void {
         swedish_decl = b.fmt("{s}    pub const {s} = @embedFile(\"{s}\");\n", .{ swedish_decl, name, file });
     }
     swedish_decl = b.fmt("{s}}};\n", .{swedish_decl});
+    // SWEDISH NEW YEAR 89-90 (cart 83): the parts as the disk's loader leaves
+    // them, one blob each; the scene depacks the part on screen into one buffer
+    // (apps/zig/scenes/snyd_90/assets.zig names the sets).
+    const SNYD90 = [_][]const u8{ "menu", "intro_spu" };
+    var snyd90_decl: []const u8 = "pub const snyd_90 = struct {\n";
+    for (SNYD90) |name| {
+        const file = b.fmt("snyd_90_{s}.zx0", .{name});
+        const pack_snyd = b.addRunArtifact(zx0pack);
+        pack_snyd.addFileArg(b.path(b.fmt("apps/zig/assets/screens/snyd_90/{s}.raw", .{name})));
+        _ = packed_files.addCopyFile(pack_snyd.addOutputFileArg(file), file);
+        snyd90_decl = b.fmt("{s}    pub const {s} = @embedFile(\"{s}\");\n", .{ snyd90_decl, name, file });
+    }
+    snyd90_decl = b.fmt("{s}}};\n", .{snyd90_decl});
     _ = packed_files.addCopyFile(trsi_zx0, "trsi_turn.zx0");
     _ = packed_files.addCopyFile(multifake_zx0, "union_multifake.zx0");
     _ = packed_files.addCopyFile(textracker_zx0, "union_textracker.zx0");
@@ -255,9 +268,9 @@ pub fn build(b: *std.Build) void {
             \\pub const replicants_emlyn = @embedFile("replicants_emlyn.zx0");
             \\pub const tsl_hybridglenz = @embedFile("tsl_hybridglenz.zx0");
             \\pub const supplex_fs2_main = @embedFile("supplex_fs2_main.zx0");
-            \\{s}{s}}};
+            \\{s}{s}{s}}};
             \\
-        , .{ swedish_decl, mpp_decl })),
+        , .{ swedish_decl, snyd90_decl, mpp_decl })),
         .target = wasm_target,
         .optimize = optimize,
     });
@@ -394,7 +407,8 @@ pub fn build(b: *std.Build) void {
     // Cart names, index-aligned with the switch in apps/zig/cart.zig and the tags
     // in apps/zig/scenes/catalog.zig. Index 0 is the menu launcher (demo.wasm).
     // An "" entry EXCLUDES a cart from the build (the index is kept, so it stays
-    // aligned with cart.zig and catalog.zig). None are excluded today.
+    // aligned with cart.zig and catalog.zig). 81 and 82 are reserved on this
+    // branch for sibling carts landing separately.
     const cart_names = [_][]const u8{
         "demo",              "demo-union_intro",
         "demo-union_main",   "demo-music",
@@ -460,6 +474,9 @@ pub fn build(b: *std.Build) void {
         "demo-rick_dangerous", // 78 — RICK DANGEROUS, Core Design / Firebird 1989: the game, ported from RICKST.PRG through its reference model
         "demo-skystrike", // 79 — SKYSTRIKE, Shadow Software 1990: the STOS game from Automation Menu Disk 258, ported from its detokenised listing
         "demo-ulm_dsots", // 80 — ULM / THE DARK SIDE OF THE SPOON, the main menu (shazz's melonJS remake): the griffin's walk-around map
+        "", // 81 — reserved: a sibling branch's cart (merged separately)
+        "", // 82 — reserved: a sibling branch's cart (merged separately)
+        "demo-snyd_90", // 83 — OMEGA / SYNC / TCB, Swedish New Year Demo 89-90: intro + menu (ported from the disk)
     };
     for (cart_names, 0..) |name, idx| {
         if (name.len == 0) continue; // excluded cart (see note above)
