@@ -8,59 +8,31 @@
 //         (the sprite's global move)
 //   F3    1..5 (the screens being drawn the first time), 50, 101, 250, 400,
 //         560: colours changed along the lines included
+//   F1    best effort, held by similarity (apps/naos_nitrowave_f1.mjs)
 //   frames   every pixel of the plane = the capture's colour (ST colour words)
 //   music    each program asks for its own tune (subtune 1)
 //   keys     F2 / F3 in the menu start the big sprite / Sapristi; 'F' freezes
 //            them; Space goes back to the menu, which starts over; Space there
 //            asks for the menu disk. No zg.mem allocation refused
 //   node apps/naos_nitrowave_headless.mjs [outdir]
-//   node apps/naos_nitrowave_headless.mjs --break late|shift
+//   node apps/naos_nitrowave_headless.mjs --break late|shift|figure
 //            each frame held against the NEXT VBL's capture / the plane read
-//            one pixel to the right: passes only if caught
+//            one pixel to the right / F1 against another figure: passes only
+//            if caught
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { gunzipSync, inflateSync } from "node:zlib";
 import { performance } from "node:perf_hooks";
-import { cartRam, romRam } from "../docs/wasm_hiwater.js";
+import { boot } from "./naos_nitrowave_boot.mjs";
+import { checkF1 } from "./naos_nitrowave_f1.mjs";
 
-const BREAKS = ["late", "shift"];
+const BREAKS = ["late", "shift", "figure"];
 const bi = process.argv.indexOf("--break");
 const broke = bi > 0 ? process.argv[bi + 1] : null;
 if (bi > 0 && !BREAKS.includes(broke)) throw new Error(`--break ${BREAKS.join(" | ")}`);
 const outdir = process.argv.slice(2).find((a, i, v) => !a.startsWith("--") && v[i - 1] !== "--break") || "/tmp/naos_nitrowave";
-const PAGES = 112; // SHARED_PAGES in machine/sdk/memmap.zig
 const VBL_MS = 20;
-const K = { space: 32, f2: 0xe002, f3: 0xe003, f: "F".charCodeAt(0) };
+const K = { space: 32, f1: 0xe001, f2: 0xe002, f3: 0xe003, f: "F".charCodeAt(0) };
 const TUNES = { menu: "big_sprite.sndh", bspr: "so_watt_no_crew.sndh", dam: "so_watt_techatron.sndh" };
-
-async function boot(cart) {
-    const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
-    let demo;
-    const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), {
-        env: { memory, hblDispatch: (id, p, l, x) => demo.hblDispatch(id, p, l, x) },
-    })).instance.exports;
-    const romBytes = await readFile("docs/rom.wasm");
-    const rom = (await WebAssembly.instantiate(romBytes, {
-        env: { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit },
-    })).instance.exports;
-    machine.hwSetRomHigh(romRam(romBytes).high ?? 0);
-    const noop = () => {};
-    const cartBytes = await readFile(cart);
-    const hw = Object.fromEntries(Object.entries(machine).filter(([k]) => k.startsWith("hwRam") || k.startsWith("hwRomRam")));
-    demo = (await WebAssembly.instantiate(cartBytes, {
-        env: {
-            memory, ...hw, ...rom,
-            jsConsoleLogWrite: noop, jsConsoleLogFlush: noop, jsThrowError: noop, consoleLogJS: noop,
-            hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit,
-            audioPlay: noop, audioStop: noop, loadSample: noop, beep: noop,
-            diskReadBlock: noop, hostAudioStreamStart: noop, hostAudioFeed: noop, hostAudioStreamStop: noop,
-        },
-    })).instance.exports;
-    machine.hwSetCartHigh(cartRam(cartBytes).high ?? 0);
-    machine.hwInit();
-    demo.boot();
-    demo.skipBoot();
-    return { memory, machine, demo };
-}
 
 const refs = JSON.parse(gunzipSync(await readFile("apps/naos_nitrowave_ref.json.gz")));
 const unz = (s) => inflateSync(Buffer.from(s, "base64"));
@@ -120,10 +92,14 @@ async function frames(name) {
         await ppm(`${outdir}/${name}_${String(k).padStart(5, "0")}.ppm`, got);
     }
     console.log(`  ${name}: ${passed.length} of ${ks.length} frames = the original on Hatari, pixel for pixel (${passed.join(", ")})`);
-    const dec = new TextDecoder();
-    const song = dec.decode(new Uint8Array(memory.buffer, demo.songNamePtr(), demo.songNameLen()));
-    if (song !== TUNES[name] || demo.songTune() !== 1) errors.push(`${name} music: asked for ${song} #${demo.songTune()}, not ${TUNES[name]} #1`);
-    else console.log(`  ${name} music: ${song} #1`);
+    if (song() !== `${TUNES[name]} #1`) errors.push(`${name} music: asked for ${song()}, not ${TUNES[name]} #1`);
+    else console.log(`  ${name} music: ${song()}`);
+}
+
+/// The tune the cart asked for last, "name #subtune" ("none": silence).
+function song() {
+    const name = new TextDecoder().decode(new Uint8Array(memory.buffer, demo.songNamePtr(), demo.songNameLen()));
+    return name === "none" ? name : `${name} #${demo.songTune()}`;
 }
 
 function cost(label) {
@@ -164,13 +140,13 @@ function backToMenu(label) {
 /// (each openBorders() takes a fresh 112,000 bytes from a VRAM pool with no
 /// guard; the eighth would run into the physical framebuffer).
 function trips() {
-    for (let i = 0; i < 6; i++) for (const k of [K.f2, K.f3]) { demo.key(k); demo.frame(VBL_MS); demo.key(K.space); }
+    for (let i = 0; i < 6; i++) for (const k of [K.f1, K.f2, K.f3]) { demo.key(k); demo.frame(VBL_MS); demo.key(K.space); }
     demo.frame(VBL_MS);
     const fbBase = new DataView(memory.buffer).getUint32(machine.hwVideoBase() + 0x44, true); // REG_FB_BASE, plane 0
-    if (fbBase + 400 * 280 > 0x1100 + 1024 * 1024) errors.push(`vram: after twelve trips the plane's buffer is at ${fbBase.toString(16)}, past the 1 MiB VRAM pool`);
+    if (fbBase + 400 * 280 > 0x1100 + 1024 * 1024) errors.push(`vram: after eighteen trips the plane's buffer is at ${fbBase.toString(16)}, past the 1 MiB VRAM pool`);
     const bad = diff(plane(), words(unz(refs.menu.base)));
-    if (bad) errors.push(`keys: twelve trips to F2 / F3 and back leave the menu wrong (${bad})`);
-    else console.log("  keys: twelve trips to F2 / F3 and back, the menu as it started");
+    if (bad) errors.push(`keys: eighteen trips to F1 / F2 / F3 and back leave the menu wrong (${bad})`);
+    else console.log("  keys: eighteen trips to F1 / F2 / F3 and back, the menu as it started");
 }
 
 await frames("menu");
@@ -185,6 +161,9 @@ await frames("dam");
 cost("F3");
 freeze("Sapristi");
 backToMenu("F3");
+await checkF1({ demo, plane, refs, words, unz, errors, broke, ppm, outdir, VBL_MS, song, verbose: process.env.VERBOSE });
+cost("F1");
+backToMenu("F1");
 trips();
 demo.key(K.space);
 if (demo.pollCartRequest() !== -1) errors.push("keys: Space in the menu does not ask for the menu disk");
