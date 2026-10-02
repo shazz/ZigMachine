@@ -4,3 +4,7 @@
 build/
 gen/
 __pycache__/
+# Board files fetched by tools/fetch_board.sh: vendor-licensed, never committed.
+boards/*/board.xdc
+boards/*/vendor/
+boards/*/ps7_init*
