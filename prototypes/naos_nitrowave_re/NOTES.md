@@ -115,6 +115,45 @@ Without the registers the first VBL runs with a6 = 0 and scribbles: restore them
   vs Hatari's capture (p2/, sync 2258) 1742 frames pixel-exact (`cmp_part.py`).
   Geometry as the menu (line L at capture row L+1, x+4); lines 0..254 shown.
 
+## F3: SAPRISTI 3615 GEN 4 (DAMIER3D.BIN at $400)
+
+- Load is nondeterministic in Hatari (entry VBL 2836/2838 between runs): dump
+  with `dump_part.sh` "first hit after VBL" thresholds, read the real VBL in
+  the log. RAM above $80000 holds the generated code ($7A000..$7FFB6):
+  1 MB dumps, 1 MB oracle.
+- Main loop $4AC/$54C/$5B2/$618 (4 phases, 4 screens $4DF00 $3F400 $6B500
+  $5CA00); 'F' ($21) toggles $36204, checked only in phase 1 (frozen: phase 1
+  repeats). Routines: $924 scroller columns (fonts *$30C6A, text *$35734),
+  $970 text step, $9D8 scroller wave ($30CA0..$30E7C word pairs), $682/$6E0
+  band sources + routine pairs ($30E80.. / $30F74..), $760 logo state machine
+  (states 1,2,3,5,6,$64; every state change falls through, $8BE -> $8C6 too).
+- VBL program (template $3B812 + fragments $3C89C..$409C0, `dam_fold.txt`,
+  `irregular.py`): logo 36 lines (11 groups planes 1-3), band 62 lines via
+  routine pair *$30F6C/*$30F70 (a5/a6 from the main loop), band 28 lines via
+  *$30FE8/*$30FEC (from $3102C/$31028), logo 16 more, scroller 9 chars x 3
+  groups x 16 lines, clear 4 lines x 26 groups (`lea $18` every 26th: fold
+  hid it -- irregular.py found it). Band routines: move.l (a6)[+],d(a5) /
+  lea d(a6) / lea $E6(a5) / nop / rts only.
+- Colours: end of VBL movem $361BE (black) -> all 16; header block 1 (2..15);
+  per line colour 0 at cycle 42 / colour 1 at 54 (line 228: 26/38) from the
+  table $5F24 (the checker squares: 0/1 swapped per row; sky gradient);
+  blocks at lines 80/81, 145/146, 178/179 (`pal_writes.py`, `gen_layout.py`
+  with Hatari's variant $164/$34/2). Capture x of cycle c = c + K, K anywhere
+  in -140..-56 fits all 560 frames; -98 used. Right border (capture x >= 412)
+  = colour 0; line 255 black.
+- **Verified**: `dam_model.py`+`dam_main.py` from the entry dump = oracle to
+  20000 frames (`dam_check.py`); display (`dam_show.py`) = 560 Hatari frames
+  (`dam_fit.py`, sync 2836). Zig: harness 10 frames exact.
+- Port uses the entry RAM ($400..$7A000, apps/zig/assets/screens/
+  naos_nitrowave/dam.bin) instead of porting the long precalculation.
+
+## F1: MULTISPRITES (DEMO_RIC.BIN at $800) -- not ported
+
+Interrupt-driven (VBL $F96 / $EF4 does all; main loop waits for Space), Timer
+B HBL $E08 every line: colours 0/1 from $47524, palette split at count $8A,
+bottom border opened at the end. 4 screens $9B00 apart precomputed at init by
+running the sprite path ($C50 loop). Title picture first (PI1 at $13BC0).
+
 ## Music
 
 Every program carries its own Mad Max TFMX replay + module (`tfmx.py` sizes the
