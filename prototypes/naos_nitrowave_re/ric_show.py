@@ -22,7 +22,7 @@ class Regs:
         """$101A..$104C: colours 3, 5 .. 13 from $68C2, colour 1 from the
         scroller's colour list as it stands before the VBL moves it on."""
         for k, c in enumerate((3, 5, 7, 9, 11, 13)):
-            self.p[c] = int.from_bytes(mem[0x68C2 + 6 + 4 * k:0x68C8 + 4 * k], 'big')
+            self.p[c] = int.from_bytes(mem[0x68C8 + 4 * k:0x68CA + 4 * k], 'big')
         a1 = int.from_bytes(mem[int.from_bytes(mem[0x4790E:0x47912], 'big'):][:4], 'big')
         self.p[1] = int.from_bytes(mem[a1:a1 + 2], 'big')
 
@@ -33,7 +33,7 @@ class Regs:
         self.p[1] = int.from_bytes(mem[at + 2:at + 4], 'big')
         if k == 60:  # the count reaches $8A
             for j, c in enumerate((3, 5, 7, 9, 11, 13)):
-                self.p[c] = int.from_bytes(mem[0x782AA + 6 + 4 * j:0x782B0 + 4 * j], 'big')
+                self.p[c] = int.from_bytes(mem[0x782B0 + 4 * j:0x782B2 + 4 * j], 'big')
 
 
 def frame(mem, shown, regs, hbl_shift=0):

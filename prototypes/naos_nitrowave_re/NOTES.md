@@ -154,6 +154,26 @@ B HBL $E08 every line: colours 0/1 from $47524, palette split at count $8A,
 bottom border opened at the end. 4 screens $9B00 apart precomputed at init by
 running the sprite path ($C50 loop). Title picture first (PI1 at $13BC0).
 
+Done (RE only):
+- **The figure is random**: $A3E reads the video counter ($FF8209 >> 1 & 3):
+  paths $5096/$5728/$5DBA/$6398 (gaps $2A0/$270/$210/$300; figure 3 sets the
+  base-switch countdown $316A to $8C instead of 100). `run_ric.sh F` forces it
+  (debugger `r d0=2F` at $A44) and records that run (rF/) + dumps
+  (f1_pre.bin before the choice -- the same for all F -- and f1_F.bin).
+  Title shows from $894 to the main loop: 747/748/672/594 VBLs for F 0..3.
+- `ric_init.py`: the set-up after the choice, = Hatari's RAM for all four
+  figures (the entry dumps are a few VBLs in: as many as $316A shows).
+- `ric_model.py`: the VBL ($F96) = the oracle (`ric_oracle.sh`, m68run with
+  IRQs) over 5000 VBLs.
+- `ric_show.py` / `ric_fit2.py` / `ric_survey.py`: the display. Exact for the
+  first ~100 frames (before the base switch) but for lines 200/201 (Timer B
+  late after the bottom-border code: the colour change lands at capture x 177
+  and 9). After the switch: the base a VBL writes shows two captured frames
+  later; still ~1000-25000 pixels a frame differ -- the top scroller band's
+  colours and single sprites. The VBL draws on screens while they are shown
+  and Timer B is delayed by the VBL's long instructions (colour changes at
+  x up to ~40): pixel-exactness needs a cycle model of the VBL. Not ported.
+
 ## Music
 
 Every program carries its own Mad Max TFMX replay + module (`tfmx.py` sizes the
