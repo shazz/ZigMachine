@@ -3,7 +3,10 @@
 Frames are recorded from real carts by tools/video_dump.py (vdump: the native
 host plus a recorder) and from synthetic scenarios rendered by the real
 machine-video (vsynth), then replayed through the RTL under CXXRTL; every pass of
-every line must match the machine's PFB pixel for pixel (tools/video_rtl.py).
+every line must match the machine's PFB pixel for pixel, and every line of the
+plane mixer's picture must match the browser's (tools/video_rtl.py,
+tools/video_mix.py; that model is checked against Chrome in test_video_mix.py).
+Whole frames then go through the scanout and are checked on the wire.
 
 Each corpus frame also states what it is there to exercise, checked from its
 records (tools/video_cover.py), so a frame that stops exercising it fails here
@@ -31,15 +34,15 @@ import video_rtl
 CARTS = [
     ("tutorial", [300], {"mode_normal", "palette_per_line"}),
     ("union_intro", [100], {"mode_normal"}),
-    ("union_main", [300], {"layered", "mode_overscan", "flicker_hit", "palette_per_line"}),
+    ("union_main", [300], {"layered", "mode_overscan", "flicker_hit", "palette_per_line", "alpha_partial"}),
     ("replicants_emlyn", [300], {"mode_overscan", "flicker_hit", "palette_per_line"}),
-    ("gen4_3615", [300], {"mode_overscan", "palette_per_line"}),
+    ("gen4_3615", [300], {"mode_overscan", "palette_per_line", "alpha_zero"}),
     ("maxi", [300], {"mode_overscan", "flicker_hit"}),
     ("badflicker", [300], {"mode_overscan", "flicker_miss"}),
     ("res_switch", [300], {"mode_medium", "resolution_per_line"}),
     ("medium_overscan", [300], {"mode_medium_overscan"}),
     ("scroll", [300], {"mode_scroll"}),
-    ("dhs_0pxl0reg", [300, 900], {"beam"}),
+    ("dhs_0pxl0reg", [300, 900], {"beam", "no_plane"}),
     ("tcb_colorshock", [300], {"layered", "mode_overscan", "palette_per_line"}),
     ("union_l16", [300], {"layered", "mode_overscan"}),
 ]
@@ -51,7 +54,13 @@ SYNTH = [
     ("overscan", [1, 2, 3], {"mode_overscan", "flicker_hit", "flicker_miss"}),
     ("beam", [1, 2], {"beam", "background_per_line"}),
     ("layers", [1, 2], {"mode_normal", "mode_scroll", "mode_medium", "mode_fullscreen", "background_per_line"}),
+    ("alpha", [1, 2], {"layered", "alpha_partial", "alpha_zero", "mode_medium", "mode_overscan"}),
+    ("bgalpha", [1, 2], {"no_plane", "alpha_partial", "background_per_line"}),
+    ("worst", [1, 2], {"layered", "mode_medium_overscan", "beam", "alpha_partial"}),
 ]
+# Multi-plane frames replayed again with the mixer's sweeps overlapping the next
+# passes (no per-pass read-back), as on the board: the line-buffer hazard case.
+TIMING = ["union_main", "tcb_colorshock", "s:layers", "s:alpha", "s:overscan", "s:medium"]
 # One rule of the RTL broken at a time, and the dump that must catch it.
 MUTANTS = json.loads((FPGA / "tests" / "tb" / "video_mutants.json").read_text())
 
@@ -109,7 +118,43 @@ def test_recorded_frames_are_the_reference_hosts(tag: str) -> None:
         assert json.loads(out.stdout)["samples"][0]["hash"] == h.hexdigest()
 
 
-# 25 testbench builds: opt-in, so `make test` on a shared box stays light.
+@pytest.mark.parametrize("key", TIMING)
+def test_picture_with_overlapped_sweeps(tb: Path, key: str) -> None:
+    frames_dir, frames, _ = _source(key)
+    result = video_rtl.replay(tb, frames_dir, frames, timing=True)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert result.stdout.count("-> MATCH") == len(frames)
+
+
+# Whole frames on the wire (zm_video_out), the compositor at 100 MHz (the board's
+# sys clock) against the 40 MHz pixel clock: 5:2. `s:worst` is the costliest line.
+WIRE = (5, 2)
+WIRE_KEYS = ["union_main", "dhs_0pxl0reg", "s:worst"]
+
+
+@pytest.fixture(scope="session")
+def out_tb() -> Path:
+    video_dump.memmap_header()
+    return video_rtl.build_tb(out=True)
+
+
+@pytest.mark.parametrize("key", WIRE_KEYS)
+def test_frames_on_the_wire_are_the_browsers_picture(out_tb: Path, key: str) -> None:
+    frames_dir, frames, _ = _source(key)
+    result = video_rtl.wire(out_tb, WIRE, frames_dir, frames)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "-> MATCH" in result.stdout
+
+
+def test_a_compositor_too_slow_for_the_worst_line_underruns(out_tb: Path) -> None:
+    """At 2:1 the worst line (5,060 clocks) misses its 4,224: the scanout must say so."""
+    frames_dir, _, _ = _source("s:worst")
+    result = video_rtl.wire(out_tb, (2, 1), frames_dir, [1])
+    assert result.returncode != 0
+    assert "underrun 1" in result.stdout
+
+
+# One testbench build per mutant: opt-in, so `make test` on a shared box stays light.
 @pytest.mark.skipif(os.environ.get("ZM_RTL_BREAK") != "1", reason="set ZM_RTL_BREAK=1 to run the break tests")
 @pytest.mark.parametrize("mutant", MUTANTS, ids=[m["id"] for m in MUTANTS])
 def test_a_broken_rule_is_caught(mutant: dict[str, str]) -> None:
@@ -123,7 +168,11 @@ def test_a_broken_rule_is_caught(mutant: dict[str, str]) -> None:
     assert text.count(old) == 1, f"{name}: the text to break is not unique in {file}"
     (rtl / file).write_text(text.replace(old, new))
     video_dump.memmap_header()
-    exe = video_rtl.build_tb(rtl, work)
+    on_wire = mutant.get("tb") == "out"
+    exe = video_rtl.build_tb(rtl, work, out=on_wire)
     frames_dir, frames, _ = _source(key)
-    result = video_rtl.replay(exe, frames_dir, frames)
+    if on_wire:
+        result = video_rtl.wire(exe, WIRE, frames_dir, frames)
+    else:
+        result = video_rtl.replay(exe, frames_dir, frames, timing=bool(mutant.get("timing")))
     assert result.returncode != 0, f"{name} went unnoticed on {key}:\n{result.stdout}"

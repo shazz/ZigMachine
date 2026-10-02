@@ -173,5 +173,117 @@
   "old": "dx <= ZM_OVERSCAN_X_TOL",
   "new": "dx < ZM_OVERSCAN_X_TOL",
   "catch": "s:overscan"
+ },
+ {
+  "id": "mix_tube_black",
+  "file": "zm_video_mix.v",
+  "old": "parameter [23:0] TUBE = 24'h101012",
+  "new": "parameter [23:0] TUBE = 24'h000000",
+  "catch": "gen4_3615"
+ },
+ {
+  "id": "mix_premul_floor",
+  "file": "zm_video_mix.v",
+  "old": "{1'b0, pm} + 17'd128",
+  "new": "{1'b0, pm} + 17'd0",
+  "catch": "union_main"
+ },
+ {
+  "id": "mix_over_255",
+  "file": "zm_video_mix.v",
+  "old": "d * (9'd256 - {1'b0, a})",
+  "new": "d * (9'd255 - {1'b0, a})",
+  "catch": "union_main"
+ },
+ {
+  "id": "mix_alpha_of_pixel0",
+  "file": "zm_video_mix.v",
+  "old": "lb_rdata[(i / 3) * 32 + 24 +: 8]",
+  "new": "lb_rdata[24 +: 8]",
+  "catch": "s:alpha"
+ },
+ {
+  "id": "mix_never_first",
+  "file": "zm_video_comp.v",
+  "old": ".first(p_first)",
+  "new": ".first(1'b0)",
+  "catch": "s:alpha"
+ },
+ {
+  "id": "mix_always_first",
+  "file": "zm_video_comp.v",
+  "old": ".first(p_first)",
+  "new": ".first(1'b1)",
+  "catch": "union_main"
+ },
+ {
+  "id": "mix_last_pass_only",
+  "file": "zm_video_comp.v",
+  "old": "else if (pass_done && pass_mix)",
+  "new": "else if (pass_done && pass_mix && pass_last)",
+  "catch": "union_main"
+ },
+ {
+  "id": "mix_one_display_buffer",
+  "file": "zm_video_comp.v",
+  "old": ".dbuf(p_line[0])",
+  "new": ".dbuf(1'b0)",
+  "catch": "tutorial"
+ },
+ {
+  "id": "mix_overtaken",
+  "file": "zm_video_comp.v",
+  "old": "assign cmd_ready = !busy && !pend;",
+  "new": "assign cmd_ready = !busy;",
+  "catch": "s:alpha",
+  "timing": "1"
+ },
+ {
+  "id": "scan_rgb_misaligned",
+  "file": "zm_video_scan.v",
+  "old": "{de_o, hs_o, vs_o} <= {de1, hs1, vs1};",
+  "new": "{de_o, hs_o, vs_o} <= {de, hsync, vsync};",
+  "catch": "union_main",
+  "tb": "out"
+ },
+ {
+  "id": "scan_one_buffer",
+  "file": "zm_video_scan.v",
+  "old": "assign dp_raddr = {zm_line[0], zm_x[9:1]};",
+  "new": "assign dp_raddr = {1'b0, zm_x[9:1]};",
+  "catch": "union_main",
+  "tb": "out"
+ },
+ {
+  "id": "scan_frees_the_wrong_buffer",
+  "file": "zm_video_scan.v",
+  "old": "freed[!zm_hbl_line[0]] <= 1'b1;",
+  "new": "freed[zm_hbl_line[0]] <= 1'b1;",
+  "catch": "union_main",
+  "tb": "out"
+ },
+ {
+  "id": "scan_no_bars",
+  "file": "zm_video_scan.v",
+  "old": "zm_active && ok, zm_x[0]}",
+  "new": "ok, zm_x[0]}",
+  "catch": "union_main",
+  "tb": "out"
+ },
+ {
+  "id": "comp_ignores_scanout",
+  "file": "zm_video_comp.v",
+  "old": "(!p_last || dp_free[p_line[0]])",
+  "new": "(!p_last || 1'b1)",
+  "catch": "union_main",
+  "tb": "out"
+ },
+ {
+  "id": "pub_line_swapped",
+  "file": "zm_video_out.v",
+  "old": "if (pub_c[1]) pub_line[17:9] <= ready_line;",
+  "new": "if (pub_c[1]) pub_line[8:0] <= ready_line;",
+  "catch": "union_main",
+  "tb": "out"
  }
 ]

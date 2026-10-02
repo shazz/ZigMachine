@@ -134,6 +134,51 @@ static void layer_hbl(uint32_t id, uint32_t plane, uint32_t line) {
     scribble(plane, line);
 }
 
+/* --- alpha: palettes of every alpha on four stacked modes, so the browser
+ * blends canvases (zm_video_mix.v); and the same with no plane at all, where
+ * the cleared PFB alone is the picture, its BACKGROUND half transparent --- */
+static void alpha_palettes(void) {
+    for (uint32_t i = 0; i < ZM_NB_PLANES * ZM_PAL_ENTRIES; i++) vs_w32(ZM_OFF_PAL + i * 4, vs_rnd());
+}
+static void alpha_setup(void) {
+    setup_common();
+    alpha_palettes();
+    vs_plane(0, ZM_FB_MODE_OVERSCAN, 400, k_base[0], ZM_OVERSCAN_MAGIC_X);
+    vs_plane(1, ZM_FB_MODE_NORMAL, 320, k_base[1], 0);
+    vs_plane(2, ZM_FB_MODE_MEDIUM, 640, k_base[2], 0);
+    vs_plane(3, ZM_FB_MODE_SCROLL, 640, k_base[3], 0);
+    vs_w8(ZM_REG_RESOLUTION, ZM_RES_MEDIUM);
+}
+static void alpha_hbl(uint32_t id, uint32_t plane, uint32_t line) {
+    if (id == ZM_HBL_GLOBAL_ID) {
+        vs_w32(ZM_REG_BACKGROUND, vs_rnd());
+        return;
+    }
+    if (plane == 0 && line % 5 == 0) vs_w16(ZM_REG_RES_FLICKER, vs_r16(ZM_REG_RES_FLICKER) + 1);
+    vs_w32(ZM_OFF_PAL + plane * ZM_PAL_BYTES + (line & 255) * 4, vs_rnd());
+}
+static void bgalpha_setup(void) {
+    alpha_setup();
+    vs_w16(ZM_REG_GLOBAL_HBL_ID, ZM_HBL_GLOBAL_ID);
+}
+
+/* --- worst: the most a line can cost the compositor. Four medium planes with
+ * 800-byte strides (800 columns 1:1, all 280 lines), blending, over a BEAM
+ * list of BEAM_MAX entries on every line --- */
+static void worst_setup(void) {
+    alpha_setup();
+    for (int p = 0; p < ZM_NB_PLANES; p++) vs_plane(p, ZM_FB_MODE_MEDIUM, ZM_RASTER_WIDTH, k_base[p], 0);
+    vs_w16(ZM_REG_GLOBAL_HBL_ID, ZM_HBL_GLOBAL_ID);
+}
+static void worst_hbl(uint32_t id, uint32_t plane, uint32_t line) {
+    if (id != ZM_HBL_GLOBAL_ID) {
+        alpha_hbl(id, plane, line);
+        return;
+    }
+    for (uint32_t i = 0; i < ZM_BEAM_MAX; i++) vs_w32(ZM_OFF_BEAM_TABLE + i * 4, (i * 6) << 16 | (vs_rnd() & 0xFFFF));
+    vs_w16(ZM_REG_BEAM_COUNT, ZM_BEAM_MAX);
+}
+
 const vs_scenario vs_scenarios[] = {
     {"fullscreen", 2, 0x7, fs_setup, reset_bases, fs_hbl},
     {"scroll", 2, 0x7, scroll_setup, reset_bases, scroll_hbl},
@@ -141,5 +186,8 @@ const vs_scenario vs_scenarios[] = {
     {"overscan", 3, 0xF, ovs_setup, reset_bases, ovs_hbl},
     {"beam", 2, 0x1, beam_setup, reset_bases, beam_hbl},
     {"layers", 2, 0xF, layer_setup, reset_bases, layer_hbl},
+    {"alpha", 2, 0xF, alpha_setup, reset_bases, alpha_hbl},
+    {"bgalpha", 2, 0x0, bgalpha_setup, reset_bases, alpha_hbl},
+    {"worst", 2, 0xF, worst_setup, reset_bases, worst_hbl},
     {0, 0, 0, 0, 0, 0},
 };

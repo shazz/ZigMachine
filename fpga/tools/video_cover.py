@@ -73,8 +73,23 @@ def _effects(delta: dict[int, int], pas: int, state: dict[int, int]) -> set[str]
     return out
 
 
+def canvas_alpha(frames_dir: Path, frame: int) -> set[str]:
+    """What the plane mixer meets in the canvases the browser stacks for this frame
+    (tools/video_dump/vmix.c): fully transparent pixels, blended ones, or no plane."""
+    planes = int((frames_dir / f"f{frame}.meta").read_text().split()[1])
+    pfb, size = (frames_dir / f"f{frame}.pfb").read_bytes(), mm.PFB_BYTES
+    canvases = range(1, 1 + planes.bit_count()) if planes else [0]
+    alphas = set().union(*(set(pfb[k * size + 3 : (k + 1) * size : 4]) for k in canvases))
+    found = {"no_plane"} if not planes else set()
+    if 0 in alphas:
+        found.add("alpha_zero")
+    if alphas - {0, 255}:
+        found.add("alpha_partial")
+    return found
+
+
 def cover(frames_dir: Path, frame: int) -> set[str]:
-    """Modes of the enabled planes and the per-line effects seen in one frame."""
+    """Modes of the enabled planes, the per-line effects and the canvas alpha seen in one frame."""
     planes = int((frames_dir / f"f{frame}.meta").read_text().split()[1])
     state: dict[int, int] = {}
     pre: dict[int, int] = {}
@@ -90,7 +105,7 @@ def cover(frames_dir: Path, frame: int) -> set[str]:
             found |= _effects(changed, pas, state)
     if planes.bit_count() > 1:
         found.add("layered")
-    return found
+    return found | canvas_alpha(frames_dir, frame)
 
 
 if __name__ == "__main__":

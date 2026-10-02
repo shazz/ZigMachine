@@ -28,6 +28,7 @@ struct Frame {
     int vram_changed = 0;
     std::vector<uint8_t> mem;              // region offset 0 ..
     std::vector<uint32_t> pfb;             // after clear, then after each enabled plane
+    std::vector<uint8_t> mix;              // the browser's picture, 800x280 RGB (tools/video_mix.py)
     StateP start[PASSES], end[PASSES];
     StateP pre[PASSES][LINES], post[PASSES][LINES];
 
@@ -91,6 +92,7 @@ inline bool load(const std::string& dir, long frame, Frame& f) {
     if (!meta || std::fscanf(meta, "planes %u vram_changed %d", &f.planes, &f.vram_changed) != 2) return false;
     std::fclose(meta);
     if (!slurp(base + ".mem", f.mem) || !slurp(base + ".rec", rec) || !slurp(base + ".pfb", pfb)) return false;
+    if (!slurp(base + ".mix", f.mix) || f.mix.size() != size_t(LINES) * ROW * 3) return false;
     f.pfb.resize(pfb.size() / 4);
     for (size_t i = 0; i < f.pfb.size(); i++) {
         size_t at = i * 4;

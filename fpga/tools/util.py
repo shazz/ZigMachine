@@ -41,6 +41,9 @@ def _glob(d: Path, pattern: str) -> tuple[Path, ...]:
 BLOCKS = [
     Block("zm_vtiming", "zm_vtiming", (FPGA / "rtl/video/zm_vtiming.v",), "ours: 800x600 timing + HBL"),
     Block("zm_video_comp", "zm_video_comp", _glob(FPGA / "rtl/video", "zm_video_*.v"), "ours: line compositor"),
+    Block("zm_video_out", "zm_video_out", _glob(FPGA / "rtl/video", "zm_*.v"), "ours: comp + mixer + scanout"),
+    Block("zm_tmds_enc", "zm_tmds_enc", (FPGA / "rtl/video/zm_tmds_enc.v",), "ours: one TMDS channel"),
+    Block("zm_dvi_out", "zm_dvi_out", (FPGA / "rtl/video/zm_dvi_out.v", FPGA / "rtl/video/zm_tmds_enc.v"), "ours: DVI"),
     Block("jt49", "jt49", _glob(TP / "jt49/hdl", "jt49*.v"), "YM2149 (jotego, GPL-3)"),
     Block("fx68k", "fx68k", _glob(TP / "fx68k", "*.sv"), "68000, cycle-exact (GPL-3)", sv=True),
     # hdl-util/hdmi is not measurable here: its `real` parameters (pixel and audio
@@ -49,6 +52,11 @@ BLOCKS = [
     Block("vexriscv_lite", "VexRiscv", (VEX / "VexRiscv_Lite.v",), "rv32im, small caches"),
     Block("vexriscv_std", "VexRiscv", (VEX / "VexRiscv.v",), "rv32im, caches (LiteX default)"),
     Block("vexriscv_full", "VexRiscv", (VEX / "VexRiscv_Full.v",), "rv32im, bigger caches, MMU-less full"),
+]
+# The cache variants vexgen/gen.sh has generated (CYCLES.md "Memory path"), if any.
+BLOCKS += [
+    Block(f"vex_{v.stem.removeprefix('VexRiscv_')}", "VexRiscv", (v,), "standard, other I$/D$ (vexgen)")
+    for v in sorted((FPGA / "build/vexgen").glob("VexRiscv_*.v"))
 ]
 
 CELL_GROUPS = {
