@@ -1,0 +1,6 @@
+# Generated or fetched: `make setup` / `make memmap` recreate all of it.
+.venv/
+.tools/
+build/
+gen/
+__pycache__/

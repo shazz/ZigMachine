@@ -124,7 +124,7 @@ tune's original replay code. On the board there are three options:
    50 Hz replay uses maybe 10–20 % of an 8 MHz 68000. At ~50 host instructions
    per 68000 instruction that is 5–10 M instructions a second, comfortable at
    150 MHz. Timer digidrums at several kHz are the stress case, so measure them.
-2. **A real 68000 core (fx68k / TG68) as the audio coprocessor.** This is
+2. **A real 68000 core (fx68k: **3,357 LUTs measured**, 19 % of a 7010) as the audio coprocessor.** This is
    Scenario B's best idea without its worst one: the replay drivers *run*,
    cycle-exact, and the SDK stays Zig. It probably does not fit a 7010
    alongside everything else, but it is the obvious upgrade on a 7020.
@@ -135,19 +135,22 @@ tune's original replay code. On the board there are three options:
 
 ---
 
-## LUT budget (estimates, to be replaced by Vivado numbers)
+## LUT budget
+
+*Rows marked **measured** come from `make -C fpga util` (Yosys `synth_xilinx`,
+pre-place-and-route, within ~10–20 % of Vivado). The rest are still estimates.*
 
 | Block | LUTs |
 |---|---|
-| Cart CPU, `rv32im` + caches | 2,500 – 3,500 |
+| Cart CPU, VexRiscv `standard` (`rv32im` + caches) | **2,019 measured** (9 BRAM, 4 DSP) |
 | ...its FPU (`f32` only, `f64` soft) | **3,000 – 5,000** |
-| Audio CPU, `rv32im` | 1,500 – 2,000 |
+| Audio CPU, VexRiscv `lite` (`rv32im`) | **1,718 measured** |
 | Video: fetch DMA, compositor, palettes, copper/linepal, overscan | 3,000 – 5,000 |
 | Blitter | 2,000 – 4,000 |
-| YM2149 (MikeJ's or jotego's `jt49`) + the 4-channel 44.1 kHz PCM engine, one time-shared DSP48 MAC | 500 – 1,000 |
+| YM2149 (`jt49`: **286 measured**) + the 4-channel 44.1 kHz PCM engine, one time-shared DSP48 MAC | 500 – 1,000 |
 | TMDS encoder | ~500 |
 | AXI interconnect, HP masters, PS glue | 2,000 – 3,000 |
-| **Total** | **15,000 – 24,000** of 17,600 |
+| **Total** | **~14,000 – 22,000** of 17,600 |
 
 **The honest reading: the 7010 is tight, and the FPU decides it.** Everything
 except the FPU fits with room. The options, in order of preference:
@@ -164,8 +167,9 @@ except the FPU fits with room. The options, in order of preference:
 
 ## The plan, smallest provable step first
 
-0. **Measure, without hardware.** Translate every cart with wasm2c, build for
-   `rv32imf` and `rv32im` (soft-float), and count instructions per frame in a
+0. **Measure, without hardware.** *0a is done* (`make -C fpga carts`): all 90
+   carts translate with wasm2c and compile for `rv32imf` unchanged. Next comes 0b:
+   count instructions per frame in a
    simulator (Spike, QEMU `-icount`, or Verilator running the actual
    VexRiscv). This one table answers clock speed, FPU or not, and 7010 or 7020
    per scene, before a single LUT is spent. The `gate_timed` harnesses already
@@ -243,6 +247,9 @@ ST core already solved. MiSTer targets a Cyclone V with ~110K LEs, though, so
 borrow its designs, not its budget.
 
 ## See also
+
+- **`fpga/`**: the working tree for all of this (setup, the memmap export, RTL
+  and tests, the LiteX SoC, the cost tool, cart translation). See its README.
 
 - `docs/HARDWARE_SPEC.md`, `docs/HW_API.md`: the register model, the RTL's spec
 - `docs/BLITTER_HW_SPEC.md`: already written as a hardware spec

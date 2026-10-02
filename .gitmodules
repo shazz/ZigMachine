@@ -1,0 +1,24 @@
+[submodule "fpga/third_party/jt49"]
+	path = fpga/third_party/jt49
+	url = https://github.com/jotego/jt49.git
+	shallow = true
+[submodule "fpga/third_party/fx68k"]
+	path = fpga/third_party/fx68k
+	url = https://github.com/ijor/fx68k.git
+	shallow = true
+[submodule "fpga/third_party/VexRiscv"]
+	path = fpga/third_party/VexRiscv
+	url = https://github.com/SpinalHDL/VexRiscv.git
+	shallow = true
+[submodule "fpga/third_party/neorv32"]
+	path = fpga/third_party/neorv32
+	url = https://github.com/stnolting/neorv32.git
+	shallow = true
+[submodule "fpga/third_party/hdmi"]
+	path = fpga/third_party/hdmi
+	url = https://github.com/hdl-util/hdmi.git
+	shallow = true
+[submodule "fpga/third_party/AtariST_MiSTer"]
+	path = fpga/third_party/AtariST_MiSTer
+	url = https://github.com/MiSTer-devel/AtariST_MiSTer.git
+	shallow = true
