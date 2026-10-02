@@ -208,6 +208,7 @@ int main(int argc, char **argv) {
                 irq(vbl ? vbl : m68k_read_memory_32(0x70));
                 char buf[512]; strncpy(buf, cl, sizeof buf - 1); buf[sizeof buf - 1] = 0;
                 for (char *t = strtok(buf, ","); t; t = strtok(NULL, ",")) call(strtoul(t, NULL, 16));
+                if (ymlog) fwrite(ym, 1, 16, ymlog);
             }
         } else if (!strncmp(c, "search:", 7)) {
             /* search:N:REF:LO:HI:vbl:ADDR:calls:A,B  -- run N frames, after each

@@ -39,6 +39,7 @@ const K_SPACE: u32 = 32;
 const K_ESC: u32 = 0xE012;
 const K_F1: u32 = 0xE001;
 const K_F2: u32 = 0xE002;
+const K_F3: u32 = 0xE003;
 /// Most host time one render catches up (5 VBLs): after a stall -- a hidden
 /// tab hands the cart seconds of dt at once -- the parts resume rather than
 /// burst through hundreds of VBLs in one frame (the original never catches up).
@@ -81,7 +82,15 @@ pub const Demo = struct {
         if (id == null and cp == K_SPACE) return self.start(.menu); // the intro
         if (id == .menu and cp == K_F1) return self.start(.f1);
         if (id == .menu and cp == K_F2) return self.start(.f2);
-        if ((id == .f1 or id == .f2) and cp == K_SPACE) return self.start(.menu);
+        if (id == .menu and cp == K_F3) return self.start(.f3);
+        if (id != null and id != .menu and cp == K_SPACE) return self.start(.menu);
+        if (id == .f3) parts.key(cp);
+    }
+
+    /// The arrows (F3's panel cursor): 0 up, 1 down, 2 left, 3 right.
+    pub fn input(self: *Demo, dir: u32) void {
+        const p = self.running orelse return;
+        if (p.id == .f3 and dir < 4) parts.key(0xF000 + dir);
     }
 
     /// The loader reads a part from the disk and jumps in: a fresh start.

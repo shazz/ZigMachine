@@ -5,8 +5,9 @@
 INIT_OFF / PLAY_OFF are byte offsets into BLOB of the replay's own init (entered
 with d0 = subtune, as SNDH passes it) and play entry points. exit silences the
 three volume registers. D0_FROM (default 1) is the d0 the part itself passes for
-subtune 1: 0 inserts `subq.w #1,d0` before the init.
+subtune 1: 0 inserts `subq.w #1,d0` before the init. The composer is $COMM (default Mad Max).
 """
+import os
 import struct
 import sys
 
@@ -22,7 +23,7 @@ d0_from = int(sys.argv[8]) if len(sys.argv) > 8 else 1
 hdr = bytearray()
 hdr += b'\x60\x00\x00\x00' * 3  # bra.w init / exit / play, patched below
 hdr += b'SNDH'
-for tag in (b'TITL' + title.encode() + b'\0', b'COMMMad Max\0',
+for tag in (b'TITL' + title.encode() + b'\0', b'COMM' + os.environ.get('COMM', 'Mad Max').encode() + b'\0',
             b'RIPPripped from the Swedish New Year Demo disk (SNYD_90.MSA)\0',
             b'YEAR1990\0', b'##%02d\0' % subs, b'TC' + tc.encode() + b'\0'):
     hdr += tag

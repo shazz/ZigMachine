@@ -33,6 +33,8 @@ var buf: Buffers = undefined;
 var used_now: [PH]u8 = undefined;
 var used_next: [PH]u8 = undefined;
 var c0_next: [PH]u32 = undefined; // closed borders, read by the global HBL
+var open_now: [PH]bool = undefined; // lines whose borders a part opened
+var open_next: [PH]bool = undefined;
 
 /// Once per cart load: the buffers (zg.mem), the plane and both HBLs.
 pub fn init(zigos: *zg.ZigOS) void {
@@ -44,6 +46,8 @@ pub fn init(zigos: *zg.ZigOS) void {
     @memset(&used_now, 0);
     @memset(&used_next, 0);
     @memset(&c0_next, st.color(0));
+    @memset(&open_now, false);
+    @memset(&open_next, false);
     const fb = &zigos.lfbs[0];
     fb.setOverscanBuffer();
     fb.is_enabled = true;
@@ -54,8 +58,7 @@ pub fn init(zigos: *zg.ZigOS) void {
 /// A low-res ST screen at `screen` in `r`, every line under the colour
 /// registers `pal` (no rasters); the borders show its colour 0.
 pub fn captureScreen(r: *const st.Ram, screen: u32, pal: [16]u16) void {
-    var regs: [16]u32 = undefined;
-    for (&regs, pal) |*c, w| c.* = st.color(w);
+    const regs = rgba(pal);
     for (0..PH) |py| {
         const out = &buf.chunky[py];
         @memset(out, 0);
@@ -63,10 +66,35 @@ pub fn captureScreen(r: *const st.Ram, screen: u32, pal: [16]u16) void {
             const y: u32 = @intCast(py - OY);
             st.lineToChunky(r.bytes(screen + y * st.LINE, st.LINE), out[OX..][0..320]);
         }
-        @memcpy(buf.next[py][0..16], &regs);
-        used_next[py] = 16;
-        c0_next[py] = regs[0];
+        setRegs(py, &regs);
     }
+    @memset(&open_next, false);
+}
+
+/// Physical row `py` as palette indices, to fill directly (overscan).
+pub fn physRow(py: usize) *[PW]u8 {
+    return &buf.chunky[py];
+}
+
+/// Physical row `py`'s colour registers (at most MAXC); entry 0 is also
+/// what its closed borders show.
+pub fn setRegs(py: usize, regs: []const u32) void {
+    @memcpy(buf.next[py][0..regs.len], regs);
+    used_next[py] = @intCast(regs.len);
+    c0_next[py] = regs[0];
+}
+
+/// Whether physical row `py`'s borders are open: the plane's HBL then
+/// flickers the line (zg's res-flicker, the ST's 50/60 Hz or res switch).
+pub fn setOpen(py: usize, open: bool) void {
+    open_next[py] = open;
+}
+
+/// The 16 colour registers as the plane stores them.
+pub fn rgba(pal: [16]u16) [16]u32 {
+    var regs: [16]u32 = undefined;
+    for (&regs, pal) |*c, w| c.* = st.color(w);
+    return regs;
 }
 
 /// The window row `y` (0..199) as palette indices, to fill directly.
@@ -89,6 +117,7 @@ pub fn blank(border: u32) void {
         used_next[py] = 1;
         c0_next[py] = border;
     }
+    @memset(&open_next, false);
 }
 
 /// Start of a host frame: the captured frame becomes what the machine shows.
@@ -96,10 +125,12 @@ pub fn present(fb: *zg.LogicalFB) void {
     for (buf.chunky, 0..) |*r, py| @memcpy(fb.fb[py * PW ..][0..PW], r);
     buf.now.* = buf.next.*;
     used_now = used_next;
+    open_now = open_next;
 }
 
 fn planeHbl(fb: *zg.LogicalFB, _: *zg.ZigOS, line: u16, _: u16) void {
     if (line >= PH) return;
+    if (open_now[line]) fb.flickerBorder();
     for (buf.now[line][0..used_now[line]], 0..) |c, i| fb.palette[i] = c;
 }
 

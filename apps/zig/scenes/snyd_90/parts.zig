@@ -5,7 +5,7 @@
 //   menu  part 0 -- menu.zig (entered fresh after every part, as on the ST)
 //   f1    part 1 -- OMEGA's ball bending scroller (f1.zig)
 //   f2    part 2 -- OMEGA's Liesen dist / HAQ scroll (f2.zig)
-// F3..F6 (parts 3..6) are not ported: the menu ignores those keys.
+//   f3    part 3 -- the ball-curve editor (f3.zig), best effort
 // --------------------------------------------------------------------------
 const st = @import("../swedish_newyear/st.zig");
 const shifter = @import("shifter.zig");
@@ -14,8 +14,10 @@ const assets = @import("assets.zig");
 const menu = @import("menu.zig");
 const f1 = @import("f1.zig");
 const f2 = @import("f2.zig");
+const f3 = @import("f3.zig");
+const raster = @import("raster.zig");
 
-pub const Id = enum { menu, f1, f2 };
+pub const Id = enum { menu, f1, f2, f3 };
 
 pub const Tune = struct { file: []const u8, n: u8 };
 
@@ -29,6 +31,9 @@ pub fn tune(id: Id) Tune {
         .f1 => .{ .file = "Overlander.sndh", .n = 1 },
         // F2's TFMX replay + module ($8836..$AF16), init d0 = 0.
         .f2 => .{ .file = "snyd90_f2.sndh", .n = 1 },
+        // F3's Whittaker replay + Platoon ($1CA66..$1EB28), init d0 = 4: the
+        // SNDH passes the subtune as d0 (YM equal to the oracle's, 1500 frames).
+        .f3 => .{ .file = "snyd90_f3.sndh", .n = 4 },
     };
 }
 
@@ -37,8 +42,18 @@ pub fn set(id: Id) assets.Set {
         .menu => .menu,
         .f1 => .f1,
         .f2 => .f2,
+        .f3 => .f3,
     };
 }
+
+/// A key for the running part (only F3's panel takes any): the host's
+/// codepoint, or an arrow as 0xF000 + direction (0 up, 1 down, 2 left, 3 right).
+pub fn key(cp: u32) void {
+    f3.key(cp);
+}
+
+/// A raster part's colour registers, line by line (one frame's).
+var lines: [f3.LINES][16]u16 = undefined;
 
 pub const Running = struct {
     id: Id,
@@ -67,6 +82,12 @@ pub const Running = struct {
                 shifter.blank(st.color(0)); // its set-up cleared both screens
                 return self;
             },
+            .f3 => {
+                f3.enter();
+                const r = st.Ram{ .base = f3.BASE, .m = mem[0 .. f3.TOP - f3.BASE] };
+                shifter.blank(st.color(0));
+                return .{ .id = id, .r = r, .pal = palette.at(&r, f3.PALETTE) };
+            },
         }
     }
 
@@ -85,6 +106,12 @@ pub const Running = struct {
                 const shown = f2.top(&self.r, &self.pal);
                 if (last) shifter.captureScreen(&self.r, shown, self.pal);
                 f2.bottom(&self.r);
+            },
+            .f3 => {
+                const shown = f3.vbl(&self.r);
+                if (!last) return;
+                f3.rasters(&self.r, &lines);
+                raster.capture(&self.r, shown, &lines, f3.OPEN_FROM);
             },
         }
     }
