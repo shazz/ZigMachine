@@ -148,7 +148,7 @@ def logo_hold(p):
             p.sw(P_N, 0x12C)
             p.sw(P_STATE, 0x64)
             p.sw(P_N2, 0xF)
-            return 0x35660
+            return logo_list(p)  # $8BE runs on into $8C6
     return p.l(P_TAB)
 
 

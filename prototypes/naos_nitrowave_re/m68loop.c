@@ -30,7 +30,7 @@ static unsigned rd8(unsigned a) {
 }
 static void wr8(unsigned a, unsigned v) {
     a &= 0xFFFFFF;
-    if (a >= watch_lo && a < watch_hi && ram[a] != (v & 0xFF)) fprintf(stderr, "write $%X = %02X at pc $%X\n", a, v, m68k_get_reg(NULL, M68K_REG_PPC));
+    if (a >= watch_lo && a < watch_hi && (getenv("WATCHALL") || ram[a] != (v & 0xFF))) fprintf(stderr, "write $%X = %02X at pc $%X\n", a, v, m68k_get_reg(NULL, M68K_REG_PPC));
     if (a < 0x100000) ram[a] = v;
     else if (a >= 0xFF8000) hw[a - 0xFF8000] = v;
 }

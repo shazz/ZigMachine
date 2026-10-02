@@ -109,6 +109,8 @@ class Part:
                     self.cp(a4 + LINE * r + 8 * g, src, 6)
                     src += 6
             a4 += 0x18
-        a4 = self.l(0x30C9C)
-        for k in range(104):
-            self.m[a4 + 8 * k:a4 + 8 * k + 6] = bytes(6)
+        a4 = self.l(0x30C9C)  # 4 lines of 26 groups, planes 0..2 (lea $18 every 26th)
+        for line in range(4):
+            for g in range(26):
+                a = a4 + LINE * line + 8 * g
+                self.m[a:a + 6] = bytes(6)
