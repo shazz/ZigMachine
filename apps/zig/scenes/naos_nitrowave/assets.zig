@@ -3,19 +3,21 @@
 // naos_nitrowave), each depacked into the ONE part memory (st.Ram, 512 KB from
 // the cart arena) at the address it runs from, when its part is entered:
 //   menu  MENU.PRG's TEXT+DATA (252,016 bytes), relocated to 0
+//   bspr  B_SPRITE.BIN (95,078 bytes) at $800, where the menu's loader puts it
 // --------------------------------------------------------------------------
 const zg = @import("zigos");
 const zx0 = @import("depackers").zx0;
 const PACKED = @import("packed_assets").naos_nitrowave;
 const st = @import("st.zig");
 
-pub const Set = enum { menu };
+pub const Set = enum { menu, bspr };
 
 const Blob = struct { src: []const u8, at: u32, len: usize };
 
 fn blob(set: Set) Blob {
     return switch (set) {
         .menu => .{ .src = PACKED.menu, .at = 0, .len = 252016 },
+        .bspr => .{ .src = PACKED.bspr, .at = 0x800, .len = 95078 },
     };
 }
 

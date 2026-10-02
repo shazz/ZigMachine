@@ -32,14 +32,24 @@ const stars = [_]Star{
     .{ .y = 272, .x = 256, .c = 4 }, .{ .y = 273, .x = 83, .c = 4 },  .{ .y = 273, .x = 109, .c = 4 },
 };
 
+/// Which of the 230-byte lines show; the rest is black (colour 0 in both
+/// palettes). F2 shows lines 0..254: its VBL loads the black palette at
+/// $17B66 after line 254 (fit_part.py, cmp_part.py on its capture).
+pub const Lines = struct { first: usize, end: usize };
+pub const MENU_LINES = Lines{ .first = 0, .end = LINES };
+
 /// The frame the shifter shows from `base` into the plane's 400x280 indices.
-pub fn present(r: *const st.Ram, base: u32, px: []u8) void {
-    @memset(px[0 .. TOP * PW], 0);
-    for (0..LINES) |y| {
+pub fn present(r: *const st.Ram, base: u32, lines: Lines, px: []u8) void {
+    @memset(px[0 .. (TOP + lines.first) * PW], 0);
+    for (lines.first..lines.end) |y| {
         const line = r.bytes(base + 160 + LINE * @as(u32, @intCast(y)), LINE);
         st.lineToChunky(line, FIRST_PX, px[(TOP + y) * PW ..][0..PW]);
     }
-    @memset(px[(TOP + LINES) * PW .. PH * PW], 0);
+    @memset(px[(TOP + lines.end) * PW .. PH * PW], 0);
+}
+
+/// The menu's bottom rows, as measured.
+pub fn menuStars(px: []u8) void {
     for (stars) |s| px[@as(usize, s.y) * PW + s.x] = s.c;
 }
 

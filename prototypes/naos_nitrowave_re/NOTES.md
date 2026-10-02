@@ -74,6 +74,47 @@ looked like a timing bug in the model for an hour.
   pixel-exact (cmp_menu.py, CAPDIR=m3, sync capture 1276 = model frame 0).
   The Zig port vs Hatari: apps/naos_nitrowave_headless.mjs, 12 frames exact.
 
+## Oracle: the original code on Musashi
+
+`m68loop.c` (Musashi from prototypes/snyd_re/tcb/m68, built with
+`gcc -O2 -o m68loop m68loop.c m68/m68kcpu.c m68/m68kops.c m68/softfloat/softfloat.c -Im68 -lm`)
+resumes a part's MAIN LOOP from a Hatari dump (registers from `DUMP.regs`,
+written by `regs.py LOG VBL`), raises IRQ 4 at every `stop`, and saves RAM
+after chosen VBLs. $FF8209 reads $10 so the fullscreen sync loops end.
+`dump_part.sh N PC OUT VBL...` takes the dumps (pc + exact VBL breakpoints).
+Without the registers the first VBL runs with a6 = 0 and scribbles: restore them.
+
+## F2: BIGSPRITE + OVERSCAN (B_SPRITE.BIN at $800)
+
+- Menu loader: F1 DEMO_RIC.BIN -> $800 ($6CC5 longs), F2 B_SPRITE.BIN -> $800
+  ($5DC1 longs), F3 DAMIER3D.BIN -> $400. Each via $35000/$30000 then copied.
+- Init: clears $17B66..top (bus error ends it); tile $107B6 (32x64) x7 a line
+  from $6AE86 (= screen B $6AD00 + 160 + 230: line 1), x4 down, copied to screen
+  A $5C200 and to the picture $4D700 (same layout). Sprite $10FB6 144x80
+  (72 bytes a line), 15 preshifts $17BA2 + $1680k ($1E36: lsr/roxr a pixel),
+  16 masks $2CD22 + $B40k (NOT OR of planes, the word twice).
+- VBL $79800 generated from template $1558..$1DFE + fragments $5024..$10796
+  (`frags2.py`), $1E82 packs them. Logical program (`bspr_prog.dis`):
+  erase 80 lines x 72 bytes from $4D700 at the table *($1263A)'s offsets + 230i;
+  draw 80 lines: a6 entries of 12 bytes (offset, gfx, mask): pos = offset +
+  *(*($12A5A)), stored in the table; dst = *($12636) + pos + 230i;
+  gfx + 72i, mask + 36i; 9 groups: both longs &= mask long, |= gfx longs.
+  The palette $10796 is loaded at the top, $17B66 (black) after line 254.
+- Main loop $1140 / $11BA (halves): music $1EFA, $1218 (a6: state 1 waits
+  $12A62 frames, states 2..6 walk tables $12E32.. $135B2/$13972../$1416A../
+  $1545A../$1697E.. with restart counts 8/4/1/4, state 7 to $1779A then $11FE
+  restarts), $140C (*$12A5A: wait $12A5E frames, then step 4 bytes through
+  $128C2..$12A52 ten times, wait $320...), screens: half A draws $5C200 with
+  table $1277E and shows $6AD00; half B the other way. Key $21 'F' toggles
+  freeze $17B86 (VBL still runs, no state moves); $1C/$39 (Return, Space)
+  -> $1476: silence and reset (the disk boots the menu again).
+- File values start the state machines ($12A64 = 1, $12A62 = 200, $12A60 = 1,
+  $12A5E = 1000, $12A5A = $128BE -- one before the table).
+- **Verified**: `bspr_model.py` from the FILE = Hatari RAM after 142 passes and
+  = the oracle at 15 points to 8000 frames, every state (`bspr_check.py`);
+  vs Hatari's capture (p2/, sync 2258) 1742 frames pixel-exact (`cmp_part.py`).
+  Geometry as the menu (line L at capture row L+1, x+4); lines 0..254 shown.
+
 ## Music
 
 Every program carries its own Mad Max TFMX replay + module (`tfmx.py` sizes the

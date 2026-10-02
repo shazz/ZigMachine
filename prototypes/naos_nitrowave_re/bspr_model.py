@@ -214,4 +214,4 @@ if __name__ == '__main__':
 
 CAPDIR = "p2"
 PALETTE = 0x10796
-ROWS = (2, 256)  # capture rows lit: screen lines 1..254 (fit_part.py)
+ROWS = (1, 256)  # capture rows lit: screen lines 0..254 (line 0 is all colour 0 but for the sprite)

@@ -1,77 +1,136 @@
 // --------------------------------------------------------------------------
 // NAOS / THE NITROWAVE DEMO (Atari ST, 29-06-1990), made for the Generation 4
 // demo competition (theme: the 3615 GEN4 minitel server). Code by Freddi,
-// Aragorn and Ric, graphics by ATM, music by Mad Max: all theirs.
+// Aragorn and Ric, graphics by ATM, music by Mad Max and AN Cool: all theirs.
 //
 // Ported from the DISK (NITROWAV.MSA, fujiology; prototypes/naos_nitrowave_re/
 // NOTES.md), not from a remake: AUTO/MENU.PRG is the BATTLETEC menu, and F1 /
 // F2 / F3 load DEMO_RIC.BIN (multisprites), B_SPRITE.BIN (big sprite +
 // overscan) and DAMIER3D.BIN (Sapristi 3615 GEN 4) to fixed addresses.
 //
-// PORTED: the menu (menu.zig, menu_vbl.zig, show.zig) -- its fullscreen
-// picture and Freddi's sprite scroller, frame for frame as Hatari shows the
-// original. The menu's machine test before it (the overscan routine generated
-// three ways while the screen stays black) is not shown.
+// PORTED, each frame for frame as Hatari shows the original:
+//   menu  the fullscreen picture and Freddi's sprite scroller (menu*.zig)
+//   F2    Aragorn's big sprite over the overscan tiles (bspr*.zig)
+// Not shown: the menu's machine test before it (the overscan routine generated
+// three ways while the screen stays black) and the floppy loads (~30 s black).
 //
-// Keys: Space leaves (the original's Space quits to the desktop); Escape too.
+// Keys: menu F2 -> the big sprite; F1 / F3 are not ported yet. In a part, 'F'
+// freezes it (the original's key) and Space or Return goes back to the menu
+// (the original reboots, and the disk boots the menu again from its start).
+// Space in the menu leaves, as the original quits to the desktop; Escape too.
 //
 // MUSIC (prototypes/naos_nitrowave_re/NOTES.md, "Music"): every program carries
-// its own Mad Max TFMX replay and module; each rip plays on the sealed YM
-// (apps/sndh_headless.mjs) and matches an archive SNDH register for register:
-//   menu   big_sprite.sndh #1 (Mad_Max/Demos/Cuddly_Demos/Big_Sprite): 0.999
-//          of 1500 frames identical at a 2-frame lag
+// its own TFMX replay and module; each rip plays on the sealed YM
+// (apps/sndh_headless.mjs) and matches an archive SNDH register for register
+// (ymcheck.sh: identical frames at a 2-frame lag):
+//   menu  big_sprite.sndh #1 (Mad_Max/Demos/Cuddly_Demos/Big_Sprite)       0.999
+//   F2    so_watt_no_crew.sndh #1 (Mad_Max/Demos/So_Watt/So_Watt_No_Crew)  1.000
 // --------------------------------------------------------------------------
 const zg = @import("zigos");
 const st = @import("naos_nitrowave/st.zig");
 const assets = @import("naos_nitrowave/assets.zig");
 const show = @import("naos_nitrowave/show.zig");
-const Menu = @import("naos_nitrowave/menu.zig").Menu;
 const M = @import("naos_nitrowave/menu.zig");
+const B = @import("naos_nitrowave/bspr.zig");
 
 const ZigOS = zg.ZigOS;
 
 const K_SPACE: u32 = 32;
+const K_RETURN: u32 = 13;
 const K_ESC: u32 = 0xE012;
-const MENU_TUNE = "big_sprite.sndh";
+const K_F2: u32 = 0xE002;
+const BSPR_LINES = show.Lines{ .first = 0, .end = 255 };
 /// Host frames run at their own rate; a part runs one VBL per 20 ms, catching
 /// up at most this many in one host frame (a stalled tab does not replay a
 /// minute of VBLs).
 const MAX_VBLS_PER_FRAME = 4;
 
+pub const Part = enum { menu, bspr };
+
 pub const Demo = struct {
     ram: st.Ram,
-    menu: Menu,
+    fb: *zg.LogicalFB,
+    part: Part,
+    menu: M.Menu,
+    bspr: B.Bspr,
     acc: f32,
-    ok: bool, // the menu depacked
+    ok: bool, // the part on screen depacked
     wants_quit: bool,
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
-        self.acc = 0;
         self.wants_quit = false;
         self.ram = assets.ram();
-        self.ok = assets.load(&self.ram, .menu);
-        if (!self.ok) zg.Console.log("naos_nitrowave: the menu does not depack", .{});
-        if (self.ok) self.menu.enter(&self.ram);
         zigos.setBackgroundColor(st.color(0));
-        const fb = &zigos.lfbs[0];
-        fb.is_enabled = true;
-        fb.openBorders(.all);
-        if (self.ok) show.palette(&self.ram, M.PALETTE, fb);
-        fb.clearFrameBuffer(0);
-        zg.requestSongTune(MENU_TUNE, 1);
+        self.fb = &zigos.lfbs[0];
+        self.fb.is_enabled = true;
+        self.fb.openBorders(.all);
+        self.fb.clearFrameBuffer(0);
+        self.go(.menu);
     }
 
     pub fn update(_: *Demo, _: *ZigOS, _: f32) void {}
 
-    pub fn render(self: *Demo, zigos: *ZigOS, dt: f32) void {
+    pub fn render(self: *Demo, _: *ZigOS, dt: f32) void {
         if (!self.ok) return;
         self.acc = @min(self.acc + dt, st.VBL_MS * MAX_VBLS_PER_FRAME);
-        while (self.acc >= st.VBL_MS) : (self.acc -= st.VBL_MS) self.menu.frame(&self.ram);
-        const fb = &zigos.lfbs[0];
-        show.present(&self.ram, self.menu.displayed, fb.fb[0 .. @as(usize, zg.PHYSICAL_WIDTH) * zg.PHYSICAL_HEIGHT]);
+        while (self.acc >= st.VBL_MS) : (self.acc -= st.VBL_MS) self.vbl();
+        const px = self.fb.fb[0 .. @as(usize, zg.PHYSICAL_WIDTH) * zg.PHYSICAL_HEIGHT];
+        switch (self.part) {
+            .menu => {
+                show.present(&self.ram, self.menu.displayed, show.MENU_LINES, px);
+                show.menuStars(px);
+            },
+            .bspr => show.present(&self.ram, self.bspr.displayed, BSPR_LINES, px),
+        }
+    }
+
+    fn vbl(self: *Demo) void {
+        switch (self.part) {
+            .menu => self.menu.frame(&self.ram),
+            .bspr => self.bspr.frame(&self.ram),
+        }
     }
 
     pub fn key(self: *Demo, cp: u32) void {
-        if (cp == K_SPACE or cp == K_ESC) self.wants_quit = true;
+        if (cp == K_ESC) return self.quit();
+        switch (self.part) {
+            .menu => {
+                if (cp == K_SPACE) return self.quit();
+                if (cp == K_F2) self.go(.bspr);
+            },
+            .bspr => {
+                if (cp == 'f' or cp == 'F') self.bspr.toggleFreeze();
+                if (cp == K_SPACE or cp == K_RETURN) self.go(.menu);
+            },
+        }
+    }
+
+    fn quit(self: *Demo) void {
+        self.wants_quit = true;
+    }
+
+    /// A program "loaded off the disk": its image into the part memory, its own
+    /// set-up, its palette and its tune.
+    fn go(self: *Demo, part: Part) void {
+        self.part = part;
+        self.acc = 0;
+        const set: assets.Set = switch (part) {
+            .menu => .menu,
+            .bspr => .bspr,
+        };
+        self.ok = assets.load(&self.ram, set);
+        if (!self.ok) return zg.Console.log("naos_nitrowave: the {s} image does not depack", .{@tagName(set)});
+        switch (part) {
+            .menu => {
+                self.menu.enter(&self.ram);
+                show.palette(&self.ram, M.PALETTE, self.fb);
+                zg.requestSongTune("big_sprite.sndh", 1);
+            },
+            .bspr => {
+                self.bspr.enter(&self.ram);
+                show.palette(&self.ram, B.PALETTE, self.fb);
+                zg.requestSongTune("so_watt_no_crew.sndh", 1);
+            },
+        }
     }
 };
