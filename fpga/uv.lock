@@ -329,6 +329,15 @@ wheels = [
 ]
 
 [[package]]
+name = "pythondata-misc-tapcfg"
+version = "0.0.post517"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/22/07/28fa3f0b3afb5f747106f393c669e0d0a2dda5bd1f75b97784df8c4cfd5f/pythondata-misc-tapcfg-0.0.post517.tar.gz", hash = "sha256:d7469d5601ff1f416e4eb97a27ce34b5c74ab896e93d69e03eeb09e874fd5e9c", size = 196078, upload-time = "2022-05-30T19:59:53.668Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/6c/da/4f5fa71b59f0f9b8f3c68d16d1273545a1d909b1d6a19208b78531653539/pythondata_misc_tapcfg-0.0.post517-py3-none-any.whl", hash = "sha256:3fdcd41d9ca3876c8365a214093b2e66dc946d82810ac28c77e2b97d638ab7b0", size = 295926, upload-time = "2022-05-30T19:59:36.692Z" },
+]
+
+[[package]]
 name = "pythondata-software-compiler-rt"
 version = "0.0.post6206"
 source = { registry = "https://pypi.org/simple" }
@@ -421,6 +430,7 @@ dependencies = [
     { name = "litex" },
     { name = "migen" },
     { name = "pythondata-cpu-vexriscv" },
+    { name = "pythondata-misc-tapcfg" },
     { name = "pythondata-software-compiler-rt" },
     { name = "pythondata-software-picolibc" },
     { name = "yowasp-yosys" },
@@ -437,6 +447,7 @@ requires-dist = [
     { name = "litex" },
     { name = "migen", git = "https://github.com/m-labs/migen" },
     { name = "pythondata-cpu-vexriscv" },
+    { name = "pythondata-misc-tapcfg", specifier = ">=0.0.post517" },
     { name = "pythondata-software-compiler-rt", specifier = ">=0.0.post6206" },
     { name = "pythondata-software-picolibc", specifier = ">=1.7.9.post181" },
     { name = "yowasp-yosys" },

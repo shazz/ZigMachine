@@ -21,7 +21,7 @@ from litex.build.sim.config import SimConfig
 from litex.soc.cores.clock import S7PLL
 from litex.soc.integration.builder import Builder
 from litex.soc.integration.soc_core import SoCCore
-from migen import ClockDomain, Module
+from migen import ClockDomain, If, Module, Signal
 
 from soc.zm_video import ZMVideoTiming
 
@@ -46,9 +46,15 @@ SIM_IO = [
 
 
 class _SimCRG(Module):
+    """sys from the sim's clocker, with a power-on reset. Without the reset
+    pulse VexRiscv never loads its reset vector and fetches from 0 forever."""
+
     def __init__(self, clk: object) -> None:
         self.clock_domains.cd_sys = ClockDomain()
-        self.comb += self.cd_sys.clk.eq(clk)
+        self.clock_domains.cd_por = ClockDomain(reset_less=True)
+        por = Signal(4, reset=15)
+        self.comb += [self.cd_sys.clk.eq(clk), self.cd_por.clk.eq(clk), self.cd_sys.rst.eq(por != 0)]
+        self.sync.por += If(por != 0, por.eq(por - 1))
 
 
 class _Z7CRG(Module):
@@ -64,7 +70,15 @@ class _Z7CRG(Module):
 
 
 class ZigMachineSoC(SoCCore):
-    def __init__(self, platform: object, sys_clk: int, video_cd: str, **kwargs: object) -> None:
+    def __init__(
+        self,
+        platform: object,
+        sys_clk: int,
+        video_cd: str,
+        rom_size: int = 0x8000,
+        main_ram_size: int = 0x10000,
+        **kwargs: object,
+    ) -> None:
         SoCCore.__init__(
             self,
             platform,
@@ -72,8 +86,8 @@ class ZigMachineSoC(SoCCore):
             ident="ZigMachine",
             cpu_type="vexriscv",
             cpu_variant="standard",
-            integrated_rom_size=0x8000,
-            integrated_main_ram_size=0x10000,
+            integrated_rom_size=rom_size,
+            integrated_main_ram_size=main_ram_size,
             **kwargs,
         )
         self.video = ZMVideoTiming(platform, cd=video_cd)
@@ -92,12 +106,15 @@ def build_sim(args: argparse.Namespace) -> None:
 
 
 def build_z7(args: argparse.Namespace) -> None:
+    from soc import litex_compat
     from soc.platform_z7 import Platform
 
+    litex_compat.install()  # Verilog is written here, see soc/litex_compat.py
     platform = Platform(toolchain=args.toolchain)
-    soc = ZigMachineSoC(platform, SYS_CLK_Z7, "pix")
+    # The Z7-Lite UART is on PS MIO (the ARM's), not PL pins: the console runs over USB-JTAG.
+    soc = ZigMachineSoC(platform, SYS_CLK_Z7, "pix", uart_name="jtag_uart")
     soc.crg = _Z7CRG(platform, args.osc, args.osc_hz)
-    Builder(soc, output_dir=str(FPGA / "build/soc_z7")).build(run=args.build)
+    Builder(soc, output_dir=str(FPGA / "build/soc_z7"), compile_software=args.build).build(run=args.build)
 
 
 def main() -> None:
@@ -106,7 +123,7 @@ def main() -> None:
     p.add_argument("--run", action="store_true", help="sim: compile and run with Verilator")
     p.add_argument("--build", action="store_true", help="z7: run the toolchain to a bitstream")
     p.add_argument("--toolchain", choices=["vivado", "openxc7"], default="openxc7")
-    p.add_argument("--osc", default="sys_clk", help="z7: the XDC port of the PL oscillator")
+    p.add_argument("--osc", default="PL_CLK_50M", help="z7: the XDC port of the PL oscillator (Z7-Lite: 50 MHz on N18)")
     p.add_argument("--osc-hz", type=int, default=int(50e6), help="z7: its frequency (check the schematic)")
     args = p.parse_args()
     (build_sim if args.target == "sim" else build_z7)(args)

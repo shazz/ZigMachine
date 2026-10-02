@@ -7,6 +7,7 @@ dependencies = [
     "litex",
     "migen",
     "pythondata-cpu-vexriscv",
+    "pythondata-misc-tapcfg>=0.0.post517",
     "pythondata-software-compiler-rt>=0.0.post6206",
     "pythondata-software-picolibc>=1.7.9.post181",
     "yowasp-yosys",

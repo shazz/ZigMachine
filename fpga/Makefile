@@ -90,5 +90,7 @@ host: $(HOST)/$(CART)/host
 host-check: memmap
 	tools/host_check.sh $(CARTS)
 
+include cycles/cycles.mk
+
 clean:
 	rm -rf build gen

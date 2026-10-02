@@ -86,3 +86,18 @@ def test_stub_returns_what_undefined_converts_to() -> None:
 def test_forwarder_refuses_a_signature_mismatch() -> None:
     with pytest.raises(SystemExit, match="does not match"):
         host_gen.forwarder("guiText", "void", ["u32", "u32"], "rom", EXPORTS)
+
+
+def test_forwarder_wraps_the_hbl_dispatch_and_the_blitter_in_span_hooks() -> None:
+    exports = {"machine": {"hwBlit": ("void", [])}, "cart": {"hblDispatch": ("void", ["u32"])}, "rom": {}}
+    blit = host_gen.forwarder("hwBlit", "void", [], "machine", exports)
+    hbl = host_gen.forwarder("hblDispatch", "void", ["u32"], "cart", exports)
+    assert "HOST_SPAN_ENTER(HOST_SPAN_BLIT); w2c_machine_hwBlit(&e->machine); HOST_SPAN_LEAVE();" in blit
+    assert "HOST_SPAN_ENTER(HOST_SPAN_CART); w2c_cart_hblDispatch(&e->cart, a0); HOST_SPAN_LEAVE();" in hbl
+    assert "HOST_SPAN" not in host_gen.forwarder("guiText", "void", ["u32"], "rom", EXPORTS)
+
+
+def test_forwarder_refuses_a_span_that_returns_a_value() -> None:
+    exports = {"machine": {"hwBlit": ("u32", [])}, "cart": {}, "rom": {}}
+    with pytest.raises(SystemExit, match="span"):
+        host_gen.forwarder("hwBlit", "u32", [], "machine", exports)
