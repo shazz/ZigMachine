@@ -5,6 +5,7 @@
 #   make carts     plan step 0a: every cart -> wasm2c -> rv32imf
 #   make host      plan step 0b-i: native host running one cart (CART=stniccc)
 #   make host-check  native host fingerprints == scene_hash.mjs, every cart
+#   make glass / sd  the ARM's program, the SD card (docs/FPGA_GLASS.md)
 ZIG      ?= $(HOME)/.local/zig/0.16.0/zig
 ROOT     := $(abspath ..)
 MEMMAP   := $(ROOT)/machine/sdk/memmap.zig
@@ -21,7 +22,22 @@ gen/memmap.vh gen/memmap.py: $(MEMMAP) $(EXPORT)
 	$(ZIG) run --dep memmap -Mroot=$(EXPORT) -Mmemmap=$(MEMMAP) -- verilog gen/memmap.vh
 	$(ZIG) run --dep memmap -Mroot=$(EXPORT) -Mmemmap=$(MEMMAP) -- python gen/memmap.py
 
-memmap: gen/memmap.vh gen/memmap.py
+# The glass (docs/FPGA_GLASS.md): its register map and the OSD font, generated
+# like the memmap so the RTL, LiteX and the ARM program share one definition.
+GLASS_MAP := glass/src/map.zig
+GLASS_X   := $(ZIG) run --dep glass_map -Mroot=tools/glass_export.zig -Mglass_map=$(GLASS_MAP) --
+FONT_RAW  := $(ROOT)/machine/assets/fonts/system_font_atari_1bit.raw
+gen/glass_map.vh: $(GLASS_MAP) tools/glass_export.zig
+	@mkdir -p gen
+	$(GLASS_X) verilog $@
+gen/glass_map.py: $(GLASS_MAP) tools/glass_export.zig
+	@mkdir -p gen
+	$(GLASS_X) python $@
+gen/glass_font.vh: $(FONT_RAW) tools/glass_export.zig $(GLASS_MAP)
+	@mkdir -p gen
+	$(GLASS_X) font $(FONT_RAW) $@
+
+memmap: gen/memmap.vh gen/memmap.py gen/glass_map.vh gen/glass_map.py gen/glass_font.vh
 
 test: memmap
 	uv run pytest -q
@@ -91,6 +107,17 @@ host-check: memmap
 	tools/host_check.sh $(CARTS)
 
 include cycles/cycles.mk
+
+# --- the glass: the ARM's program and the SD card (docs/FPGA_GLASS.md) -------
+#   make glass   host build (glass sim-load / sim-menu) + the board's static ARM binary
+#   make sd      stage the SD card in build/glass/sd (never a device; see its MANIFEST.txt)
+.PHONY: glass sd
+glass: memmap
+	cd glass && $(ZIG) build
+	cd glass && $(ZIG) build -Dtarget=arm-linux-musleabihf -Dcpu=cortex_a9 -Doptimize=ReleaseSafe --prefix zig-out/arm
+
+sd: glass
+	uv run python tools/glass_sd.py $(if $(BR_OUT),--buildroot $(BR_OUT))
 
 clean:
 	rm -rf build gen

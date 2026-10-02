@@ -12,3 +12,6 @@ boards/*/ps7_init*
 vexgen/target/
 vexgen/project/target/
 vexgen/project/project/
+# the glass program (zig build)
+glass/.zig-cache/
+glass/zig-out/

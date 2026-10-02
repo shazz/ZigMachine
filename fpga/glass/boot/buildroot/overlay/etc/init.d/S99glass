@@ -1,0 +1,24 @@
+#!/bin/sh
+# Start the glass menu: mount the SD card's FAT partition read-only (nothing on
+# the card is ever written, so a power cut cannot corrupt it) and keep `glass`
+# running; if it dies, the menu comes back a second later.
+SHELF=/mnt/sd/zigmachine
+
+case "$1" in
+start)
+    mkdir -p /mnt/sd
+    if ! mount -t vfat -o ro /dev/mmcblk0p1 /mnt/sd; then
+        echo "glass: cannot mount the SD card's first partition" >&2
+        exit 1
+    fi
+    rm -f /tmp/glass.stop
+    (while [ ! -e /tmp/glass.stop ]; do
+        /usr/bin/glass run "$SHELF" || echo "glass: exited ($?), restarting" >&2
+        sleep 1
+    done) &
+    ;;
+stop)
+    touch /tmp/glass.stop
+    killall glass 2>/dev/null
+    ;;
+esac

@@ -19,6 +19,7 @@ serialisers in `cd_pix5x`.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -42,7 +43,12 @@ class ZMVideo(LiteXModule):
     """zm_video_out + zm_dvi_out, with the CPU's bus window, CSRs, IRQs and DMA."""
 
     def __init__(
-        self, platform: Platform, pads: dict[str, Signal], cd_pix: str = "pix", cd_pix5x: str = "pix5x"
+        self,
+        platform: Platform,
+        pads: dict[str, Signal],
+        cd_pix: str = "pix",
+        cd_pix5x: str = "pix5x",
+        overlay: Callable[[LiteXModule, dict[str, Signal]], dict[str, Signal]] | None = None,
     ) -> None:
         self.bus = wishbone.Interface(data_width=32)
         self.dma = wishbone.Interface(data_width=32)
@@ -53,12 +59,17 @@ class ZMVideo(LiteXModule):
         self._fetch(p)
         self._events(p)
         self.specials += Instance("zm_video_out", **self._out_ports(p, cd_pix))
+        # GLASS HOOK (docs/FPGA_GLASS.md): the OSD sits on the finished picture,
+        # between the scanout and DVI, so it never touches the machine's pixels.
+        pic = {k: p[k] for k in ("r", "g", "b", "de", "hsync", "vsync")}
+        if overlay is not None:
+            pic = overlay(self, pic)
         self.specials += Instance(
             "zm_dvi_out",
             i_pix_clk=ClockSignal(cd_pix),
             i_pix5x_clk=ClockSignal(cd_pix5x),
             i_rst=ResetSignal(cd_pix),
-            i_r=p["r"], i_g=p["g"], i_b=p["b"], i_de=p["de"], i_hsync=p["hsync"], i_vsync=p["vsync"],
+            i_r=pic["r"], i_g=pic["g"], i_b=pic["b"], i_de=pic["de"], i_hsync=pic["hsync"], i_vsync=pic["vsync"],
             o_tmds_p=pads["p"], o_tmds_n=pads["n"],
         )  # fmt: skip
         for src in SOURCES:

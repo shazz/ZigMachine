@@ -25,6 +25,8 @@ make -C fpga carts   # every docs/demo-*.wasm -> wasm2c -> rv32imf
 make -C fpga host CART=stniccc  # native C host: machine + rom + cart via wasm2c (host/README.md)
 make -C fpga host-check         # its fingerprints == apps/scene_hash.mjs, every cart
 make -C fpga cycles CARTS="union_beatdis blitter"  # cycles/frame on VexRiscv in Verilator (cycles/README.md, CYCLES.md)
+make -C fpga glass               # the ARM program, host + arm-linux-musleabihf (docs/FPGA_GLASS.md)
+make -C fpga sd                  # stage the SD card in build/glass/sd (BR_OUT=<buildroot output> for plan A)
 ```
 
 Nothing in `fpga/` is part of `./build.sh`. The wasm machine stays the
@@ -40,6 +42,8 @@ writes to it.
 | `tests/` | pytest. RTL testbenches are C++ in `tests/tb/`, compiled through Yosys CXXRTL (no system simulator needed). |
 | `host/` | The native host (plan step 0b-i): wasm2c'd machine + rom + one cart, driven like `apps/scene_hash.mjs`. |
 | `cycles/` | Plan step 0b-ii: that host bare-metal on the SoC's VexRiscv in Verilator, every frame timed and split cart / machine / blitter. Results in [`CYCLES.md`](CYCLES.md). |
+| `glass/` | The ARM side ([`docs/FPGA_GLASS.md`](../docs/FPGA_GLASS.md)): `glass`, the Zig program that loads carts off the SD card and drives the OSD menu (`src/`), the cart CPU's input routing (`firmware/`), and U-Boot, the device tree and Buildroot (`boot/`). |
+| `rtl/glass/` | The PL's front panel: the GP0 register block and the OSD overlay. |
 | `tools/` | `setup.sh`, `memmap_export.zig` (memmap.zig to Verilog/Python), `util.py` (synthesis cost per block), `wasm2rv.sh` (cart translation). |
 | `boards/microphase_z7_7010/` | Where the vendor's `board.xdc` and `ps7_init` go. Nothing in it is guessed. |
 | `third_party/` | Reused cores as pinned submodules, with licences and measured costs in its README. |

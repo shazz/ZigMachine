@@ -19,11 +19,36 @@ says otherwise.
 | — | Whole SoC elaborated against the real board | **done** | 2,408 LUTs (13.7 %) synthesised |
 | — | Video to the wire: mixer, scanout, TMDS/DVI, in the SoC | **done** | mixer = Chrome byte for byte; 40/40 frames; 90/90 carts replay identically |
 | — | openXC7 toolchain (Docker, pinned) + first bitstream | **done** | `make -C fpga blink`; the full SoC routes, sys 92 MHz of 100 |
+| — | The glass: ARM loader + OSD menu ([`FPGA_GLASS.md`](FPGA_GLASS.md)) | **built, host-tested** | GP0 regs + OSD in RTL (13/13 break tests), Zig `glass` (23 tests), 9 board images land byte for byte; the SoC with PS7 does not route yet |
 | 1–7 | Board work | **waiting for the board** | `openFPGALoader -c digilent_hs2 fpga/build/blink/blink_top.bit` |
 | RTL | Video timing (`zm_vtiming`) | **done** | 64 LUTs, CXXRTL-tested over 2 frames |
 | RTL | Video compositor: planes, palettes, border, BEAM, all modes | **done** | **32/32 frames pixel-identical** to the machine; 25/25 mutants caught; 1,169 LUTs |
 
 ---
+
+## 2026-10-02 (evening)
+
+### The glass: the console's front panel ([`FPGA_GLASS.md`](FPGA_GLASS.md))
+
+- **ARM stack:** Linux (Buildroot) running one static Zig program, `glass`,
+  over `/dev/mem` (ADR 2026-10-02). zeST's `BOOT.BIN` and, as a stopgap, its
+  kernel boot it.
+- **PL:**
+  - `zm_glass_regs` is an AXI3 GP0 slave with the cart CPU's reset, a key FIFO,
+    the joypad and the cart's reports: 223 LUT.
+  - `zm_glass_osd` is 32×16 characters of the ST system font over the finished
+    picture: 45 LUT, 2 BRAM.
+  - Whole SoC: 4,424 LUT (25.1 %).
+- **Proven without the board:**
+  - the RTL under CXXRTL, including 3 whole frames checked pixel by pixel, with
+    13/13 break tests caught;
+  - the loader, menu, keymap and pad against a simulated block;
+  - the board images `fpga/cycles` links for 9 carts, which go through fat
+    disks and `glass sim-load` and land byte for byte;
+  - `boot.scr` byte-identical to `mkimage`'s.
+- **Open:** routing the SoC with the PS7 under openXC7 diverges (overuse 730 to
+  1,830 over 51 iterations). Also open: the HP-port master and the board firmware
+  that reports `CART_STATE`.
 
 ## 2026-10-02 (afternoon)
 

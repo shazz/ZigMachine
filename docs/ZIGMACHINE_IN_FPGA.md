@@ -259,6 +259,8 @@ borrow its designs, not its budget.
 
 - **`fpga/`**: the working tree for all of this (setup, the memmap export, RTL
   and tests, the LiteX SoC, the cost tool, cart translation). See its README.
+- `docs/FPGA_GLASS.md`: the ARM side, MiSTer-style: SD card, cart loading,
+  USB input and the OSD menu
 
 - `docs/HARDWARE_SPEC.md`, `docs/HW_API.md`: the register model, the RTL's spec
 - `docs/BLITTER_HW_SPEC.md`: already written as a hardware spec

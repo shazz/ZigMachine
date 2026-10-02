@@ -29,7 +29,7 @@ OUT = FPGA / "build" / "soc_z7"
 
 def elaborate() -> tuple[list[str], list[str]]:
     """Write the SoC's Verilog; return (sources, include dirs)."""
-    args = argparse.Namespace(toolchain="openxc7", osc="PL_CLK_50M", osc_hz=int(50e6), build=False)
+    args = argparse.Namespace(toolchain="openxc7", osc="PL_CLK_50M", osc_hz=int(50e6), build=False, no_glass=False)
     soc, platform = zigmachine_soc.make_z7(args)
     try:
         Builder(soc, output_dir=str(OUT), compile_software=False).build(run=False)

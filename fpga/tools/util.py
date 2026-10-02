@@ -44,6 +44,8 @@ BLOCKS = [
     Block("zm_video_out", "zm_video_out", _glob(FPGA / "rtl/video", "zm_*.v"), "ours: comp + mixer + scanout"),
     Block("zm_tmds_enc", "zm_tmds_enc", (FPGA / "rtl/video/zm_tmds_enc.v",), "ours: one TMDS channel"),
     Block("zm_dvi_out", "zm_dvi_out", (FPGA / "rtl/video/zm_dvi_out.v", FPGA / "rtl/video/zm_tmds_enc.v"), "ours: DVI"),
+    Block("zm_glass_regs", "zm_glass_regs", (FPGA / "rtl/glass/zm_glass_regs.v",), "ours: the ARM's GP0 registers"),
+    Block("zm_glass_osd", "zm_glass_osd", (FPGA / "rtl/glass/zm_glass_osd.v", FPGA / "rtl/video/zm_video_dcram.v"), "ours: OSD"),
     Block("jt49", "jt49", _glob(TP / "jt49/hdl", "jt49*.v"), "YM2149 (jotego, GPL-3)"),
     Block("fx68k", "fx68k", _glob(TP / "fx68k", "*.sv"), "68000, cycle-exact (GPL-3)", sv=True),
     # hdl-util/hdmi is not measurable here: its `real` parameters (pixel and audio

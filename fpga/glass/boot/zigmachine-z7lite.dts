@@ -1,0 +1,68 @@
+// The ZigMachine console's Linux device tree for the MicroPhase Z7-Lite
+// (XC7Z010). Peripherals as zeST's PS7 configures them on this board
+// (vendor/zest/vivado/zest_z7lite.tcl): UART0 on MIO 14/15 at 921600, SD0 on
+// MIO 40..45 without card detect, USB0 ULPI on MIO 28..39 with its PHY reset on
+// MIO 46. The glass needs nothing else from Linux: it reaches the PL and the
+// cart window through /dev/mem (fpga/glass/src/devmem.zig).
+//
+// Unverified until Buildroot builds it (docs/FPGA_GLASS.md, "What needs the board").
+/dts-v1/;
+#include "xilinx/zynq-7000.dtsi"
+
+/ {
+	model = "ZigMachine on MicroPhase Z7-Lite (XC7Z010)";
+	compatible = "microphase,z7-lite", "xlnx,zynq-7000";
+
+	aliases {
+		serial0 = &uart0;
+		mmc0 = &sdhci0;
+	};
+
+	chosen {
+		stdout-path = "serial0:921600n8";
+	};
+
+	memory@0 {
+		device_type = "memory";
+		reg = <0x0 0x20000000>;  // one MT41J256M16: 512 MiB
+	};
+
+	reserved-memory {
+		#address-cells = <1>;
+		#size-cells = <1>;
+		ranges;
+
+		// The cart CPU's RAM (fpga/glass/src/map.zig DDR_CART_BASE/BYTES). no-map:
+		// Linux never caches it, so /dev/mem stores reach DDR as the PL reads them.
+		cart@1e000000 {
+			reg = <0x1e000000 0x02000000>;
+			no-map;
+		};
+	};
+
+	usb_phy0: phy0 {
+		compatible = "usb-nop-xceiv";
+		#phy-cells = <0>;
+		reset-gpios = <&gpio0 46 1>;  // active low
+	};
+};
+
+&clkc {
+	ps-clk-frequency = <33333333>;
+};
+
+&uart0 {
+	status = "okay";
+};
+
+&sdhci0 {
+	status = "okay";
+	broken-cd;
+	disable-wp;
+};
+
+&usb0 {
+	status = "okay";
+	dr_mode = "host";
+	usb-phy = <&usb_phy0>;
+};

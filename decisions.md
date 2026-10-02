@@ -9,6 +9,58 @@ reconstructed from the commits that made them, so they are shorter.
 
 ---
 
+## 2026-10-02 — The console's ARM runs Linux and one Zig program over `/dev/mem`
+
+**Status:** accepted · design in `docs/FPGA_GLASS.md`, code in `fpga/glass/`
+
+**Context:** On the Z7-Lite the ARM does I/O only, MiSTer-style. It reads the
+`.zmd` shelf off the SD card, loads a cart into the cart CPU's DDR, resets it,
+passes it a USB keyboard and joypad, and drives an OSD menu. Something has to
+run on the ARM for that.
+
+**Decision:** **Linux, built by Buildroot, running one static Zig program
+(`glass`).** `glass` reaches the PL's register block (M_AXI_GP0) and the cart
+window (the top 32 MiB of DDR, reserved `no-map`) through `/dev/mem` with
+`O_SYNC`. Until our Buildroot image exists, zeST's own kernel and rootfs are
+the stopgap ("plan B" in `boot.cmd`), booted with `mem=480M` so Linux keeps off
+the cart window. zeST's `BOOT.BIN` (FSBL + U-Boot) brings the PS up in both
+plans.
+
+**Alternatives considered:**
+- **Bare metal** (Xilinx standalone or our own): it boots fastest and has no OS
+  to maintain. But the PS's USB controller would need a host stack, HID parsing
+  and hotplug, plus a FAT driver, all written and debugged against hardware.
+  That is weeks of work before a key press reaches a cart.
+- **U-Boot alone** (scripts, `usbkbd`, `fatload`, `fpga load`): it can load and
+  start a cart, but it stops being resident once it hands over. Its keyboard
+  support is polled and crude, and it has no way to keep an OSD menu and input
+  forwarding running alongside a cart.
+- **PetaLinux:** it needs Vivado and the vendor's BSP flow, the very things
+  this project avoids (the open toolchain, ADR 2026-10-01). Buildroot builds a
+  mainline kernel with a ten-line config fragment.
+- **A kernel driver or UIO** instead of `/dev/mem`: a driver is cleaner, but it
+  is one more thing to build against each kernel, and plan B's kernel is not
+  ours. The register block is 64 KiB and the console is a single-user
+  appliance, so root and `/dev/mem` cost nothing real.
+- **C instead of Zig** for the program: Zig cross-compiles to
+  `arm-linux-musleabihf` with no sysroot, makes a static binary that runs on
+  either kernel, and imports `libs/zig/depackers/zx0.zig`. The board then
+  unpacks a cart with the same code as `rom.wasm`'s `romDepack`. The one piece
+  that must run on the cart CPU (`glass_input.c`) is C, as its firmware is.
+
+**Consequences:**
+- USB HID, hotplug, evdev and FAT come for free, and zeST already proves the
+  kernel side on this exact board.
+- Boot takes seconds, not milliseconds.
+- The SD card is mounted read-only, so a power cut cannot corrupt it.
+- The cart window must be kept from Linux, by a device-tree `reserved-memory`
+  node (plan A) or `mem=` (plan B).
+- `glass` is tested on the desktop against a simulated register block, so
+  everything except the `/dev/mem` mapping and evdev is proven before the board
+  arrives.
+
+---
+
 ## 2026-10-01 — The FPGA machine runs RISC-V carts translated from wasm (`fpga/`)
 
 **Status:** accepted · design in `docs/ZIGMACHINE_IN_FPGA.md`, tree in `fpga/`

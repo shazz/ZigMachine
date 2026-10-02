@@ -25,6 +25,7 @@ from litex.soc.integration.soc_core import SoCCore
 from migen import Cat, ClockDomain, If, Module, Signal
 
 from soc import openxc7
+from soc.zm_glass import ZMGlass, ps7_gp0
 from soc.zm_video import ZMVideoTiming
 from soc.zm_video_pipe import WINDOW_BYTES, ZMVideo
 
@@ -90,6 +91,7 @@ class ZigMachineSoC(SoCCore):
         video_cd: str,
         rom_size: int = 0x8000,
         main_ram_size: int = 0x10000,
+        glass: bool = False,
         **kwargs: object,
     ) -> None:
         SoCCore.__init__(
@@ -104,16 +106,22 @@ class ZigMachineSoC(SoCCore):
             **kwargs,
         )
         if video_cd == "pipe":  # the board: the whole pipeline, out through HDMI
-            self._add_video_pipe(platform)
+            self._add_video_pipe(platform, glass)
         else:
             self.video = ZMVideoTiming(platform, cd=video_cd)
         self.irq.add("video", use_loc_if_exists=True)
 
-    def _add_video_pipe(self, platform: object) -> None:
+    def _add_video_pipe(self, platform: object, glass: bool) -> None:
         req = platform.request  # type: ignore[attr-defined]  # untyped LiteX platform
         lanes = ["D0", "D1", "D2", "CLK"]  # zm_dvi_out's {clock, red, green, blue}, low bit first
         pads = {s.lower(): Cat(*[req(f"HDMI1_{lane}_{s}") for lane in lanes]) for s in ("P", "N")}
-        self.video = ZMVideo(platform, pads)
+        overlay = None
+        if glass:  # the ARM's front panel (docs/FPGA_GLASS.md): GP0 registers, the OSD, the cart CPU's reset
+            self.glass = ZMGlass(platform)
+            self.specials += ps7_gp0(self.glass.axi)
+            self.comb += self.cpu.reset.eq(~self.glass.cpu_run)
+            overlay = self.glass.overlay
+        self.video = ZMVideo(platform, pads, overlay=overlay)
         region = SoCRegion(origin=VIDEO_WINDOW, size=WINDOW_BYTES, cached=False)
         self.bus.add_slave("zm_video", self.video.bus, region)
         self.bus.add_master(name="zm_video_dma", master=self.video.dma)
@@ -138,7 +146,7 @@ def make_z7(args: argparse.Namespace) -> tuple[ZigMachineSoC, object]:
     litex_compat.install()  # Verilog is written here, see soc/litex_compat.py
     platform = Platform(toolchain=args.toolchain)
     # The Z7-Lite UART is on PS MIO (the ARM's), not PL pins: the console runs over USB-JTAG.
-    soc = ZigMachineSoC(platform, SYS_CLK_Z7, "pipe", uart_name="jtag_uart")
+    soc = ZigMachineSoC(platform, SYS_CLK_Z7, "pipe", glass=not args.no_glass, uart_name="jtag_uart")
     soc.crg = _Z7CRG(platform, args.osc, args.osc_hz)
     return soc, platform
 
@@ -162,6 +170,7 @@ def main() -> None:
     p.add_argument("--toolchain", choices=["vivado", "openxc7"], default="openxc7")
     p.add_argument("--osc", default="PL_CLK_50M", help="z7: the XDC port of the PL oscillator (Z7-Lite: 50 MHz on N18)")
     p.add_argument("--osc-hz", type=int, default=int(50e6), help="z7: its frequency (check the schematic)")
+    p.add_argument("--no-glass", action="store_true", help="z7: no ARM front panel; the CPU runs from reset (JTAG)")
     args = p.parse_args()
     (build_sim if args.target == "sim" else build_z7)(args)
 
