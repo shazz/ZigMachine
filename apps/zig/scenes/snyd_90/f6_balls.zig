@@ -29,7 +29,7 @@ const LINES: u32 = 0x43A96;
 pub fn erase(r: *const st.Ram) void {
     r.sw(LIST_HALF, r.w(LIST_HALF) ^ 0x300);
     var a = LIST + r.w(LIST_HALF);
-    while (r.l(a) & 0x8000_0000 == 0) : (a += 8) blit.run(r, r.l(a + 4), r.l(a), 0);
+    while (r.holds(a) and r.l(a) & 0x8000_0000 == 0) : (a += 8) blit.run(r, r.l(a + 4), r.l(a), 0);
 }
 
 /// $C228: the angles move, then $CC8A.
@@ -69,7 +69,7 @@ fn project(r: *const st.Ram) void {
     r.sw(0x12F52, r.w(0x12F4E) +% r.w(0x12F50));
     const t = [3]Trig{ trig(r, 0), trig(r, 1), trig(r, 2) };
     var p = POINTS;
-    while (p < r.l(END)) : (p += 12) point(r, p, t);
+    while (p < r.l(END) and r.holds(p)) : (p += 12) point(r, p, t);
 }
 
 fn coord(r: *const st.Ram, p: u32, k: u32) i32 {
@@ -124,7 +124,7 @@ pub fn draw(r: *const st.Ram) void {
         const kk: u32 = @intCast(k);
         const size: u32 = r.w(0xD4D6 + 2 * kk);
         var a = BUCKET0 + 0x100 * kk;
-        while (a < r.l(BUCKETS + 4 * kk)) : (a += 4) {
+        while (a < r.l(BUCKETS + 4 * kk) and r.holds(a)) : (a += 4) {
             const x = r.w(a);
             const y = r.w(a + 2);
             const at = r.l(DRAW) +% r.l(st.add(LINES, st.sx(y *% 4))) +% ((x & 0xFF0) >> 1);

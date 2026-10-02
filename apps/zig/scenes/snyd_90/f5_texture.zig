@@ -63,8 +63,8 @@ pub fn draw(r: *const st.Ram) void {
     var a3 = r.l(TILE);
     for (0..8) |pass| {
         var regs = [10]u32{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 2 };
-        for (regs[0..8], 0..) |*v, k| v.* = r.l(a3 + 4 * @as(u32, @intCast(k)));
-        a3 += 32;
+        for (regs[0..8], 0..) |*v, k| v.* = r.l(a3 +% 4 * @as(u32, @intCast(k)));
+        a3 +%= 32;
         const list = if (pass < 7) block1[0..n1] else block2[0..n2];
         for (list) |s| r.sl(st.add(a2, s.disp), regs[s.reg]);
         if (pass < 7) a2 +%= 0x398;
@@ -80,7 +80,7 @@ pub fn move(r: *const st.Ram) void {
 }
 
 fn walk(r: *const st.Ram, ptr: u32, step: u32) u16 {
-    var a = r.l(ptr) + step;
+    var a = r.l(ptr) +% step;
     if (a >= 0x1A002) a -= 0x400;
     r.sl(ptr, a);
     return r.w(a);
@@ -92,7 +92,7 @@ pub fn colours(r: *const st.Ram) void {
     const count = r.w(0x1504C) -% 1;
     r.sw(0x1504C, count);
     if (count & 0x8000 == 0) return;
-    var a = r.l(0x1A006) + 8;
+    var a = r.l(0x1A006) +% 8;
     if (a >= 0x1A2E2) a = 0x1A012;
     r.sl(0x1A006, a);
     r.sw(0x1504C, r.w(a));

@@ -35,6 +35,13 @@ pub const Ram = struct {
         return self.m.len -| n;
     }
 
+    /// Whether `a` is inside the part. A loop that walks memory until it
+    /// reads an end marker stops here too: past the part every read is
+    /// clamped to its last bytes, so a missing marker would never be met.
+    pub inline fn holds(self: *const Ram, a: u32) bool {
+        return a -% self.base < self.m.len;
+    }
+
     pub inline fn b(self: *const Ram, a: u32) u8 {
         return self.m[self.at(a, 1)];
     }

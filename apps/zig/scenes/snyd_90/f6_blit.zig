@@ -8,7 +8,8 @@
 //   move.l / move.w Dn,d16(a0)      $2140|n, $3140|n (the erase: d0 = 0)
 //   move.l d16(a1),d16(a0)          $2169       (the reflection's copy)
 // Replayed here instruction by instruction; anything else ends the run and,
-// with safety on (the tests), panics: a misread is seen.
+// with safety on (the tests), panics: a misread is seen. So does running off
+// the part's end (past it every read repeats its last word).
 // --------------------------------------------------------------------------
 const std = @import("std");
 const st = @import("../swedish_newyear/st.zig");
@@ -20,7 +21,7 @@ pub fn run(r: *const st.Ram, pc: u32, a0: u32, a1_in: u32) void {
     var d = [_]u32{0} ** 8;
     var a1 = a1_in;
     var p = pc;
-    while (true) {
+    while (r.holds(p)) {
         const op = r.w(p);
         const ext = r.w(p + 2);
         const n: u3 = @truncate(op >> 9);
@@ -42,6 +43,7 @@ pub fn run(r: *const st.Ram, pc: u32, a0: u32, a1_in: u32) void {
         }
         p += 4;
     }
+    if (std.debug.runtime_safety) std.debug.panic("f6_blit: the routine at ${X} leaves the part", .{pc});
 }
 
 /// movem.l / movem.w (a1)+: longs, or words sign-extended.
@@ -50,7 +52,7 @@ fn movem(r: *const st.Ram, mask: u16, from: u32, d: *[8]u32, size: u32) u32 {
     for (0..8) |k| {
         if (mask & (@as(u16, 1) << @intCast(k)) == 0) continue;
         d[k] = if (size == 4) r.l(a) else @bitCast(st.sx(r.w(a)));
-        a += size;
+        a +%= size;
     }
     return a;
 }

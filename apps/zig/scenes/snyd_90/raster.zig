@@ -36,8 +36,8 @@ const FULL_SKIP = 12;
 /// A full-overscan picture: `lines` lines of 230 bytes from `start`, its
 /// line 0 on ST line `first` (negative: in the opened top border), every
 /// border open there (flickered), under one palette; the rest is border.
-pub fn captureFull(r: *const st.Ram, start: u32, lines: usize, first: i32, pal: [16]u16, border: u16) void {
-    const top: usize = @intCast(@as(i32, @intCast(sh.OY)) + first);
+pub fn captureFull(r: *const st.Ram, start: u32, lines: usize, comptime first: i32, pal: [16]u16, border: u16) void {
+    const top: usize = comptime @intCast(@as(i32, @intCast(sh.OY)) + first); // a line above the frame fails to build
     const regs = sh.rgba(pal);
     const edge = sh.rgba([_]u16{border} ** 16);
     for (0..sh.PH) |py| {

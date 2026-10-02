@@ -47,7 +47,7 @@ fn text(r: *const st.Ram, s: u32, at: u32, odd: bool) void {
     var a = at + @intFromBool(odd);
     var bit = odd;
     var p = s;
-    while (r.b(p) != 0xFF) : (p += 1) {
+    while (r.holds(p) and r.b(p) != 0xFF) : (p += 1) {
         const glyph = FONT + 8 * @as(u32, r.b(p));
         for (0..8) |row| r.sb(a + @as(u32, @intCast(row)) * st.LINE, r.b(glyph + @as(u32, @intCast(row))));
         a += if (bit) 7 else 1;

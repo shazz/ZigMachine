@@ -29,13 +29,13 @@ pub fn morph(r: *const st.Ram) void {
     var src = r.l(0x1463C + 4 * @as(u32, r.w(SHAPE)));
     var p = POINTS;
     var dst = STEPS;
-    while (r.w(src) != 0x8000) : (src += 6) {
+    while (r.holds(src) and r.w(src) != 0x8000) : (src += 6) {
         for (0..3) |k| step(r, p + 4 * @as(u32, @intCast(k)), r.w(src + 2 * @as(u32, @intCast(k))), dst + 4 * @as(u32, @intCast(k)));
         p += 12;
         dst += 12;
     }
     r.sl(NEXT_COUNT, p);
-    while (p < r.l(COUNT)) : (p += 12) {
+    while (p < r.l(COUNT) and r.holds(p)) : (p += 12) {
         for (0..3) |k| step(r, p + 4 * @as(u32, @intCast(k)), r.w(src - 6 + 2 * @as(u32, @intCast(k))), dst + 4 * @as(u32, @intCast(k)));
         dst += 12;
     }

@@ -10,7 +10,9 @@
 //   or.l Dn,d16(a2) / and.l Dn,d16(a2)            $81AA|n<<9, $C1AA|n<<9
 //   move.b d16(a0),d16(a1)                        $1368
 // Anything else ends the run (the clears' sections end on a cmpi); with
-// safety on (the tests) an unknown word is a panic, so a misread is seen.
+// safety on (the tests) an unknown word is a panic, so a misread is seen. So
+// does running off the part's end: past it every read repeats its last word,
+// which could be a store forever.
 // --------------------------------------------------------------------------
 const std = @import("std");
 const st = @import("../swedish_newyear/st.zig");
@@ -24,7 +26,7 @@ const CMPI_L: u16 = 0x0CB9;
 /// section of the clears).
 pub fn run(r: *const st.Ram, pc: u32, regs: *Regs) void {
     var p = pc;
-    while (true) {
+    while (r.holds(p)) {
         const op = r.w(p);
         if (op == RTS or op == CMPI_L) return;
         if (op == 0x1368) { // two displacements
@@ -38,6 +40,7 @@ pub fn run(r: *const st.Ram, pc: u32, regs: *Regs) void {
         }
         p += if ((op & 0xF1FF) == 0x2011) 2 else 4;
     }
+    if (std.debug.runtime_safety) std.debug.panic("f4_blit: the run from ${X} leaves the part", .{pc});
 }
 
 /// One instruction of the long forms.

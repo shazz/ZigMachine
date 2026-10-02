@@ -169,6 +169,32 @@ for (const [file, sub] of SONGS) {
     else console.log(`    ${file} #${sub} plays through the sealed YM (peak ${out.peak.toFixed(3)})`);
 }
 
+// ------------------------------------------------------------------ trips
+// Every part entered and left over and over (naos once ran out of VRAM so,
+// opening its borders per visit): the plane keeps its one overscan buffer,
+// zg.mem does not grow, each visit asks for its tune and then the menu's, and
+// the menu comes back as it starts.
+const TRIPS = 3;
+const fbBase = () => new DataView(m.memory.buffer).getUint32(m.machine.hwVideoBase() + 0x44, true); // REG_FB_BASE, plane 0
+const before = { fb: fbBase(), ram: m.machine.hwRamUsed() };
+const asked = got.length;
+const TUNES = [null, ["Overlander.sndh", 1], ["snyd90_f2.sndh", 1], ["snyd90_f3.sndh", 4], ["rollout.sndh", 2],
+    ["Noisy_Pillars.sndh", 1], ["snyd90_f6.sndh", 1]];
+const want = [];
+for (let i = 0; i < TRIPS; i++) for (let n = 1; n <= 6; n++) {
+    m.demo.key(K.f(n));
+    for (let j = 0; j < 3; j++) frame(`f${n}`);
+    m.demo.key(K.space);
+    frame("menu");
+    want.push(TUNES[n], ["snyd90.sndh", 1]); // the part's tune, then the menu's
+}
+await shot("menu-0001");
+const after = { fb: fbBase(), ram: m.machine.hwRamUsed() };
+if (after.fb !== before.fb) fail(`trips: after ${TRIPS * 6} trips the plane's buffer moved from ${before.fb.toString(16)} to ${after.fb.toString(16)} (borders opened again?)`);
+if (after.ram !== before.ram) fail(`trips: after ${TRIPS * 6} trips zg.mem holds ${after.ram} bytes, ${before.ram} before`);
+if (JSON.stringify(got.slice(asked)) !== JSON.stringify(want)) fail(`trips: song requests ${JSON.stringify(got.slice(asked))}, want ${JSON.stringify(want)}`);
+if (after.fb === before.fb && after.ram === before.ram) console.log(`  trips: ${TRIPS * 6} trips to F1..F6 and back, the plane's buffer and zg.mem (${after.ram} bytes) unchanged`);
+
 // ------------------------------------------------------------------ leaving + cost
 if (m.machine.hwRamAllocFailures()) fail(`${m.machine.hwRamAllocFailures()} zg.mem allocation(s) refused`);
 m.demo.key(K.esc);
