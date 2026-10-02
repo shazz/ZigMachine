@@ -21,8 +21,8 @@ hdr = bytearray()
 hdr += b'\x60\x00\x00\x00' * 3  # bra.w init / exit / play, patched below
 hdr += b'SNDH'
 for tag in (b'TITL' + title.encode() + b'\0', b'COMMMad Max\0',
-            b'RIPPripped from the Swedish New Year Demo disk (SNYD_89.MSA)\0',
-            b'YEAR1989\0', b'##%02d\0' % subs, b'TC' + tc.encode() + b'\0'):
+            b'RIPPripped from the Swedish New Year Demo disk (SNYD_90.MSA)\0',
+            b'YEAR1990\0', b'##%02d\0' % subs, b'TC' + tc.encode() + b'\0'):
     hdr += tag
 if len(hdr) & 1:
     hdr += b'\0'
