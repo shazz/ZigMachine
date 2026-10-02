@@ -51,11 +51,11 @@ pub fn init(zigos: *zg.ZigOS) void {
     zigos.setHBLHandler(borderHbl);
 }
 
-/// A low-res ST screen at `screen` in `r`, every line under the 16 registers
-/// at `pal` (no rasters); the borders show its colour 0.
-pub fn captureScreen(r: *const st.Ram, screen: u32, pal: u32) void {
+/// A low-res ST screen at `screen` in `r`, every line under the colour
+/// registers `pal` (no rasters); the borders show its colour 0.
+pub fn captureScreen(r: *const st.Ram, screen: u32, pal: [16]u16) void {
     var regs: [16]u32 = undefined;
-    for (&regs, 0..) |*c, i| c.* = st.color(r.w(pal + 2 * @as(u32, @intCast(i))));
+    for (&regs, pal) |*c, w| c.* = st.color(w);
     for (0..PH) |py| {
         const out = &buf.chunky[py];
         @memset(out, 0);

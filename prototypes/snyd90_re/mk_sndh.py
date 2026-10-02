@@ -1,10 +1,11 @@
 """Wrap a position-independent replay rip into an SNDH, hand-assembled.
 
-    mk_sndh.py BLOB OUT INIT_OFF PLAY_OFF TITLE TC [SUBTUNES]
+    mk_sndh.py BLOB OUT INIT_OFF PLAY_OFF TITLE TC [SUBTUNES [D0_FROM]]
 
 INIT_OFF / PLAY_OFF are byte offsets into BLOB of the replay's own init (entered
 with d0 = subtune, as SNDH passes it) and play entry points. exit silences the
-three volume registers.
+three volume registers. D0_FROM (default 1) is the d0 the part itself passes for
+subtune 1: 0 inserts `subq.w #1,d0` before the init.
 """
 import struct
 import sys
@@ -16,6 +17,7 @@ play_off = int(sys.argv[4], 0)
 title = sys.argv[5]
 tc = sys.argv[6]
 subs = int(sys.argv[7]) if len(sys.argv) > 7 else 1
+d0_from = int(sys.argv[8]) if len(sys.argv) > 8 else 1
 
 hdr = bytearray()
 hdr += b'\x60\x00\x00\x00' * 3  # bra.w init / exit / play, patched below
@@ -28,6 +30,9 @@ if len(hdr) & 1:
     hdr += b'\0'
 hdr += b'HDNS'
 init_at = len(hdr)
+if d0_from == 0:
+    hdr += b'\x53\x40'  # subq.w #1,d0: the part's own d0
+init_bra = len(hdr)
 hdr += b'\x60\x00\x00\x00'  # init: bra.w blob+init_off
 exit_at = len(hdr)
 for reg in (8, 9, 10):
@@ -48,7 +53,7 @@ def bra(at, target):
 bra(0, init_at)
 bra(4, exit_at)
 bra(8, play_at)
-bra(init_at, blob_at + init_off)
+bra(init_bra, blob_at + init_off)
 bra(play_at, blob_at + play_off)
 open(out, 'wb').write(bytes(hdr) + blob)
 print(out, len(hdr) + len(blob))

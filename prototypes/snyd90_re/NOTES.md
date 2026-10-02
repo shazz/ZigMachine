@@ -45,5 +45,56 @@ Source: `SNYD_90.ZIP` (fujiology `ST/T/TCB/`) -> `SNYD_90.MSA`, 10 sectors x 2 s
 * Init `$10C2` GENERATES compiled sprite code (`$11C8`/`$1294`: runs of skip / and-or / movem
   stores from each sprite's mask) — the "fastest sprite routines" of the scrolltext.
 * Scroller `$15CC`: 16x13 4-plane font at `$1A5A + (c-'A')*$68` (space = `$19F2`), text `$1718`
-  (`$FF` = restart), 4 preshifted 4-px buffers `$38C4/$4904/$5944/$6984`, 4 px a frame, every row
-  doubled, copied to screen + `$5780` (line 140), 26 lines, full width.
+  (`$FF` = restart), 4 ring buffers of 13 rows x 320 bytes `$38C4/$4904/$5944/$6984` (one per 4-px
+  shift; the new column written at col and col+160), 4 px a frame, copied to screen + `$5780`
+  (line 140), 13 lines, full width.
+* Sprites: 11 bitmaps listed at `$386C` (ptr, flag: flag != 0 -> 48 px wide, else 64; 62 rows), sets
+  `$1596` (5: OMEGA), `$15AC` (4: SYNC), `$15BE` (3: TCB, the C shared), 8 preshifts of 2 px. Head:
+  Y = walker $2F68 + walker $2F86, X = $2FA4 + $2FC2 (`$2F2E`: table of longs $3018..$3818, value =
+  low word, (v + $8000) * amp >> 16; a (count, step) list per walker), ring of 25 at `$2D96`, sprites
+  6 entries apart, oldest drawn first. Phases at `$29CA..$29DE`: 500 idle, slide up 64 lines with the
+  Y amplitudes, 100 pause, swap set, slide back.
+
+## Menu: verified
+
+`menu_model.py` (Python) and `apps/zig/scenes/snyd_90/menu*.zig` reproduce Hatari's RAM (both screens,
+phase variables, walkers, ring, scroller variables + buffers, clear lists) at iterations 0, 99, 530
+(mid-slide) and 999 (after the swap to the SYNC set): dumps `hatari/menu_it*.bin`, taken at `$10A8`
+(the main loop's `jsr $29E0`), iteration count from `$29CA`. Phase-machine detail that cost a diff:
+when the slide-down ends the code branches to `$2AA0`, so the idle counter also ticks that iteration.
+Music: the menu's COSO replay + module ($79C4..+$4554) as `snyd90.sndh` (6 subtunes; menu 1, intro 4).
+The oracle's YM registers (below) and the SNDH's on the sealed YM are equal on all 1500 frames at
+lag 0. Archive: best module match Stormlord (155/352 windows: shared instruments, other module).
+
+## Intro (part 8): verified
+
+Spectrum 512 layout (screen $5724 + 199 x 48-word palettes $D424). `spu.py` decodes it with the
+standard boundary formula and matches Hatari's capture on every pixel, once colour 0 of set 0 (never
+written: the loop starts at $FF8242) is taken as the previous line's set-2 colour 0. Borders black.
+
+## The oracle: m68run (Musashi)
+
+`m68run.c` (from `../snyd_re/tcb/`; Musashi sources in `../snyd_re/tcb/m68/`, build:
+`cd m68 && gcc -O2 -I. -o ../m68run ../m68run.c m68kcpu.c m68kops.c softfloat/softfloat.c -lm`) runs
+the ORIGINAL code on a 512 KB RAM image. Added here: `exec:START:STOP` (a main loop's body that is not
+a subroutine), `loop:N:vbl:ADDR:exec:S:E`, `search:` with `exec:`, `dump:FILE`, `hw:FILE` (the $FF8000
+register file: palette at +$240) and `ymlog:FILE` (16 YM registers after each loop frame). Start
+images: Hatari RAM at a part's entry (`hatari/<part>_entry.bin`, break on the entry PC guarded by the
+part's own first word).
+
+## F2 (part 2, $1000): OMEGA "Liesen dist" + "HAQ scroll" -- PORTED
+
+* Entry `$1174`: set-up to `$15EC` (clears $70000..$80000, palette $6908, unpacks $134D6 -> $1D000 and
+  $10CD6 -> $46400 with its own unpacker $6852, 16 logo preshifts listed at $8738, font 4x preshifted
+  $189D6 -> $10CD6, the sine table $1C68 x160, music init `$8836` d0=0). VBL `$162E` sets `$164A`;
+  Space released ($B9) -> `$6828` (restore, rts to the loader). Main loop body `$1600..$161A`.
+* Oracle check: set-up + 193 frames == Hatari's `hatari/f2_a.bin` (taken at $1600, VBL 3055) except the
+  VBL flag, the saved SP ($87E6) and the stack. The asset is the oracle's RAM after the set-up.
+* Per VBL: eori $8000 on $87FC (draw buffer $87FA: $70000/$78000) and on $8203 (shown next VBL);
+  clr $8240; `$11E0` logo; `$1650` scroller. Details in `f2_logo.zig` / `f2_scroll.zig` (self-modifying:
+  `$1114` patches 40 movep displacements for the draw $149C.. and clear $13B8..; the scroller patches
+  its `lea d(a3),a0` at $17DC.. and the clear routine of the next frame at $1A78 / $1B22).
+* Display timing: VBL k shows the screen VBL k-1 drew, palette as the script leaves it early in VBL k;
+  the scroller clear of that screen comes late (after ~125k cycles, beam below the scroller).
+* `oracle_expect.py f2` -> f2_test.zig CRCs (1..1500 VBLs: all match). Music: TFMX module at $91B2,
+  replay $8836..$AF16 wrapped (`f2.sndh`, d0 stub -> 0): YM equal to the oracle's on 1500/1500 frames.

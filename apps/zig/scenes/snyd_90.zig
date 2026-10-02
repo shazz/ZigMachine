@@ -11,38 +11,34 @@
 // then loops: the menu, then the part its F-key picked, then the menu again,
 // read from the disk afresh (so it starts over).
 //
-// Ported: the intro (a Spectrum 512 picture, intro.zig) and the menu
-// (menu.zig, byte for byte against Hatari's RAM). The six parts behind F1..F6
-// are not ported yet: their keys are ignored. The loader's "PLEASE WAIT,
-// LOADING..." panel between parts is not shown (this machine depacks at once).
+// Ported: the intro (a Spectrum 512 picture, snyd_90/intro.zig), the menu
+// (menu.zig) and F2, OMEGA's distorted logo and wave scroller (f2.zig), each
+// checked byte for byte against the original (Hatari RAM, or the original
+// code on a Musashi oracle that matches it). F1 and F3..F6 are not ported:
+// the menu ignores those keys. The loader's "PLEASE WAIT, LOADING..." panel
+// between parts is not shown (this machine depacks at once).
 //
-// Keys: intro Space -> menu (as $109C); Escape leaves (not in the original).
-// Music: docs/music/snyd90.sndh, the menu's own COSO replay and module ($79C4,
-// $4554 bytes) wrapped as an SNDH -- subtune 4 in the intro, 1 in the menu,
-// as the two parts init it. No SNDH in the archive holds this module (best
-// match: Mad Max's Stormlord, 155 of 352 module windows: shared instruments,
-// a different song table and size).
+// Keys: intro Space -> menu ($109C); menu F2 -> F2; F2 Space -> menu ($6828,
+// on the key's release there); Escape leaves (not in the original).
+// Music: each part's own replay wrapped as an SNDH (snyd_90/parts.zig).
 // --------------------------------------------------------------------------
 const zg = @import("zigos");
 const st = @import("swedish_newyear/st.zig");
 const shifter = @import("snyd_90/shifter.zig");
 const assets = @import("snyd_90/assets.zig");
 const intro = @import("snyd_90/intro.zig");
-const menu = @import("snyd_90/menu.zig");
+const parts = @import("snyd_90/parts.zig");
 
 const ZigOS = zg.ZigOS;
 
-pub const Part = enum(u8) { intro, menu };
-
-const MUSIC = "snyd90.sndh";
-const TUNE_INTRO = 4;
-const TUNE_MENU = 1;
+const INTRO_MUSIC = "snyd90.sndh";
+const INTRO_TUNE = 4; // the intro inits the menu's module with d0 = 4
 const K_SPACE: u32 = 32;
 const K_ESC: u32 = 0xE012;
+const K_F1: u32 = 0xE001;
 
 pub const Demo = struct {
-    part: Part,
-    r: st.Ram, // the menu's memory, $1000..$80000
+    running: ?parts.Running, // null: the intro (or a part that did not depack)
     acc: f32, // host ms not yet run as 50 Hz VBLs
     wants_quit: bool,
 
@@ -50,19 +46,23 @@ pub const Demo = struct {
         assets.init();
         shifter.init(zigos);
         self.wants_quit = false;
-        self.r = .{ .base = menu.BASE, .m = &.{} };
-        self.toIntro();
+        self.running = null;
+        self.acc = 0;
+        zg.requestSongTune(INTRO_MUSIC, INTRO_TUNE);
+        const mem = assets.load(.intro) orelse return fault(.intro);
+        intro.show(mem[0..intro.LEN]);
     }
 
     pub fn update(_: *Demo, _: *ZigOS, _: f32) void {}
 
     pub fn render(self: *Demo, zigos: *ZigOS, dt: f32) void {
         shifter.present(&zigos.lfbs[0]);
-        if (self.part != .menu or self.r.m.len == 0) return;
+        const p = &(self.running orelse return);
         self.acc += dt;
-        var shown: ?u32 = null;
-        while (self.acc >= st.VBL_MS) : (self.acc -= st.VBL_MS) shown = menu.iteration(&self.r);
-        if (shown) |screen| shifter.captureScreen(&self.r, screen, menu.PALETTE);
+        while (self.acc >= st.VBL_MS) {
+            self.acc -= st.VBL_MS;
+            p.vbl(self.acc < st.VBL_MS);
+        }
     }
 
     pub fn key(self: *Demo, cp: u32) void {
@@ -70,26 +70,20 @@ pub const Demo = struct {
             self.wants_quit = true;
             return;
         }
-        if (self.part == .intro and cp == K_SPACE) self.toMenu();
+        const id: ?parts.Id = if (self.running) |p| p.id else null;
+        if (id == null and cp == K_SPACE) return self.start(.menu); // the intro
+        if (id == .menu and cp == K_F1 + 1) return self.start(.f2);
+        if (id == .f2 and cp == K_SPACE) return self.start(.menu);
     }
 
-    fn toIntro(self: *Demo) void {
-        self.part = .intro;
-        zg.requestSongTune(MUSIC, TUNE_INTRO);
-        const mem = assets.load(.intro) orelse return fault(.intro);
-        intro.show(mem[0..intro.LEN]);
-    }
-
-    /// The loader reads the menu from the disk again: a fresh start.
-    fn toMenu(self: *Demo) void {
-        self.part = .menu;
+    /// The loader reads a part from the disk and jumps in: a fresh start.
+    fn start(self: *Demo, id: parts.Id) void {
+        self.running = null;
         self.acc = 0;
-        self.r.m = &.{};
-        zg.requestSongTune(MUSIC, TUNE_MENU);
-        const mem = assets.load(.menu) orelse return fault(.menu);
-        self.r = .{ .base = menu.BASE, .m = mem[0 .. menu.TOP - menu.BASE] };
-        menu.init(&self.r);
-        shifter.captureScreen(&self.r, menu.iteration(&self.r), menu.PALETTE);
+        const t = parts.tune(id);
+        zg.requestSongTune(t.file, t.n);
+        const mem = assets.load(parts.set(id)) orelse return fault(parts.set(id));
+        self.running = parts.Running.enter(id, mem);
     }
 };
 

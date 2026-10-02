@@ -1,14 +1,18 @@
 // Headless SWEDISH NEW YEAR DEMO 89-90 driver (apps/zig/scenes/snyd_90.zig):
 // boots the sealed machine + the cart as docs/sealed-loader.js does and plays
 // the key path -- intro, Space, the menu for 1200 VBLs (through a full slide
-// and the swap to the SYNC letters), F1..F6 (parts not ported: ignored), Escape.
+// and the swap to the SYNC letters; F1, F3..F6 ignored: not ported), F2 for
+// 1500 VBLs, Space back to a fresh menu, Escape.
 // Every shot is checked against the REAL demo: SHA-256 prefixes from
 // prototypes/snyd90_re/snyd90_expect.py --
 //   intro    the Spectrum 512 picture as decoded by spu.py, which matches a
 //            Hatari capture of the running intro pixel for pixel;
 //   menu-J   the screen the menu's J-th iteration drew, from menu_model.py,
 //            which reproduces Hatari's RAM byte for byte (and so does the Zig:
-//            apps/zig/scenes/snyd_90/menu_test.zig).
+//            apps/zig/scenes/snyd_90/menu_test.zig);
+//   f2-J     what F2 shows during its VBL J: the original code run on the
+//            Musashi oracle (prototypes/snyd90_re/m68run), which matches
+//            Hatari's RAM of the real part (f2_test.zig checks the Zig on it).
 // Per shot: the window's palette indices, and the whole physical 400x280 frame
 // in RGB (the colours come from the plane's HBL, line by line: 48 registers a
 // line in the intro; the borders are colour 0 from the global HBL).
@@ -17,7 +21,7 @@
 //
 //   node apps/snyd_90_headless.mjs [outdir] [--break hbl|step|tune]
 //     hbl   the plane's HBL is not called during a shot: the colours fail
-//     step  the cart runs one VBL the reference does not: the menu shots fail
+//     step  the cart runs one VBL the reference does not: the menu/F2 shots fail
 //     tune  a wrong subtune is reported: the music check fails
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { createHash } from "node:crypto";
@@ -34,8 +38,15 @@ const EXPECT = {
     "menu-0531": ["09277ce9f3bd8cdf", "fd48138284fe5bf2"],
     "menu-1000": ["3c9e6217de121a7d", "30bdf62e7ba8091e"],
     "menu-1200": ["85602e678e35975c", "fec34b17c640ad39"],
+    "f2-0001": ["4f7988030a00d082", "3c521e0946b9f8fe"],
+    "f2-0002": ["d4003559a510ccbd", "7b501fb9a7fd2da4"],
+    "f2-0003": ["0f4451f5b4a40379", "d92e7800b3aa1bdd"],
+    "f2-0051": ["f0091c48c5d1acb0", "31cceb75611334dd"],
+    "f2-0194": ["3286d611dec36d3e", "f1622b0f9425c720"],
+    "f2-0701": ["dd9de0599b3e0d4c", "6804ef867346f165"],
+    "f2-1501": ["0970034ffc352cac", "02604d403f75a633"],
 };
-const SONGS = [["snyd90.sndh", 4], ["snyd90.sndh", 1]];
+const SONGS = [["snyd90.sndh", 4], ["snyd90.sndh", 1], ["snyd90_f2.sndh", 1], ["snyd90.sndh", 1]];
 
 const argv = process.argv.slice(2);
 const bi = argv.indexOf("--break");
@@ -78,7 +89,7 @@ async function boot() {
 const m = await boot();
 const got = [];
 let frames = 0;
-const cost = { intro: [0, 0], menu: [0, 0] };
+const cost = { intro: [0, 0], menu: [0, 0], f2: [0, 0] };
 
 function frame(part, dt = VBL) {
     const t = performance.now();
@@ -126,12 +137,25 @@ await shot("intro"); // a still picture: unchanged 50 VBLs on
 m.demo.key(K.space);
 const MENU_SHOTS = [1, 2, 100, 531, 1000, 1200];
 for (let j = 1; j <= 1200; j++) {
-    if (j === 700) for (let f = 1; f <= 6; f++) m.demo.key(K.f(f)); // parts not ported: no effect
+    if (j === 700) for (const f of [1, 3, 4, 5, 6]) m.demo.key(K.f(f)); // parts not ported: no effect
     const isShot = MENU_SHOTS.includes(j);
     if (isShot && brk === "step") m.demo.frame(VBL);
     frame("menu");
     if (isShot) await shot(`menu-${String(j).padStart(4, "0")}`);
 }
+// F2: the shot after VBL J shows (one host frame later: the capture is presented
+// at the start of the next frame) what the original shows during VBL J.
+m.demo.key(K.f(2));
+const F2_SHOTS = [1, 2, 3, 51, 194, 701, 1501];
+for (let j = 1; j <= 1502; j++) {
+    const isShot = F2_SHOTS.includes(j - 1);
+    if (isShot && brk === "step") m.demo.frame(VBL);
+    frame("f2");
+    if (isShot) await shot(`f2-${String(j - 1).padStart(4, "0")}`);
+}
+m.demo.key(K.space); // back to the menu, read afresh: its first iteration again
+frame("menu");
+await shot("menu-0001");
 const ms = (performance.now() - t0) / frames;
 
 // ------------------------------------------------------------------ music
@@ -162,7 +186,7 @@ async function checkTune(file, sub) {
 if (m.machine.hwRamAllocFailures()) fail(`${m.machine.hwRamAllocFailures()} zg.mem allocation(s) refused`);
 m.demo.key(K.esc);
 if (m.demo.pollCartRequest() !== -1) fail("Escape does not ask for the menu disk");
-console.log(`  cart frame cost (update + render + composite): intro ${(cost.intro[0] / cost.intro[1]).toFixed(3)} ms, menu ${(cost.menu[0] / cost.menu[1]).toFixed(3)} ms; ${frames} frames, ${ms.toFixed(2)} ms/frame with the checks`);
+console.log(`  cart frame cost (update + render + composite): intro ${(cost.intro[0] / cost.intro[1]).toFixed(3)} ms, menu ${(cost.menu[0] / cost.menu[1]).toFixed(3)} ms, F2 ${(cost.f2[0] / cost.f2[1]).toFixed(3)} ms; ${frames} frames, ${ms.toFixed(2)} ms/frame with the checks`);
 
 if (brk) {
     console.log(errors.length ? `snyd_90: PASS (--break ${brk} caught: ${errors.length} failures)` : `snyd_90: FAILED -- --break ${brk} was not caught`);
