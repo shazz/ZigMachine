@@ -16,11 +16,47 @@ says otherwise.
 | 0b-ii | Cycles per frame on a real VexRiscv (Verilator) | **done** | hashes identical on 9 carts; **150 MHz, no FPU** (`fpga/CYCLES.md`) |
 | — | Board files (XDC, schematic, PS7 bring-up) | **done** | `fpga/tools/fetch_board.sh`, gitignored; HDMI pins re-derived from the schematic |
 | — | Whole SoC elaborated against the real board | **done** | 2,408 LUTs (13.7 %) synthesised |
-| 1–7 | Board work (scanout, YM, CPU, HBL, blitter, ROM, SNDH) | ready to start | needs the board on the bench and openXC7's chipdb |
+| — | Video to the wire: mixer, scanout, TMDS/DVI, in the SoC | **done** | mixer = Chrome byte for byte; 40/40 frames; 90/90 carts replay identically |
+| — | openXC7 toolchain (Docker, pinned) + first bitstream | **done** | `make -C fpga blink`; the full SoC routes, sys 92 MHz of 100 |
+| 1–7 | Board work | **waiting for the board** | `openFPGALoader -c digilent_hs2 fpga/build/blink/blink_top.bit` |
 | RTL | Video timing (`zm_vtiming`) | **done** | 64 LUTs, CXXRTL-tested over 2 frames |
 | RTL | Video compositor: planes, palettes, border, BEAM, all modes | **done** | **32/32 frames pixel-identical** to the machine; 25/25 mutants caught; 1,169 LUTs |
 
 ---
+
+## 2026-10-02 (afternoon)
+
+### A full frame on the wire (`f5b84e5`)
+
+- **Mixer.** The browser stacks one canvas per plane. Chrome's software
+  compositor was measured over all 65,536 colour × alpha pairs, and the RTL
+  mixer reproduces it byte for byte (`zm_video_mix`). The C oracle equals
+  Chrome's own screenshots.
+- **Scanout.** The compositor runs in its own clock, with two dual-clock
+  display line buffers feeding VESA 800×600 at 40 MHz. Whole frames are checked
+  against VESA 800×600 timing, with the picture doubled vertically. An underrun
+  is sticky.
+- **HDMI.** Our own DVI TMDS encoder takes 52 LUTs per channel; 2 million
+  symbols equal a spec encoder. Output goes through OSERDESE2 10:1 and OBUFDS.
+- **The shelf.** All 90 hostable carts replay pixel-identically through the RTL.
+  Line-by-line order (the hardware's) changes only `badflicker` (its noise seed
+  is counted at `hwClear`) and `equinox` (planes share `RES_FLICKER`).
+- **Throughput.** The worst line takes 5,060 compositor clocks: 4 % margin at
+  100 MHz, 36 % at 150 MHz.
+- **Open:** `frame()` running while the beam scans, the pass/HBL sequencer, and
+  AXI HP bursts.
+
+### The first bitstreams (`f685ee5`)
+
+- **openXC7 in Docker**, pinned to toolchain-nix 092acc1. The xc7z010 chipdb is
+  reproducible, and its sha256 is checked on every rebuild.
+- **`make -C fpga blink`** builds `blink_top.bit`: 8 LUTs, 266 MHz against 50.
+- **The full SoC** (VexRiscv, JTAG UART, PLL, video pipeline, HDMI serialisers)
+  places and routes: 4,159 LUT, 46 BRAM, 17 DSP. Pixel clock: 126 MHz achieved.
+  **sys: 92 MHz achieved against 100**, on VexRiscv's fetch path, where 9.17 ns
+  of the 10.87 ns is routing. The fix is a lower sys clock or pipelining.
+- **Fixed:** the generated XDC had no `create_clock`, so every clock was being
+  checked against nextpnr's 12 MHz default, a false pass.
 
 ## 2026-10-02
 
