@@ -1,184 +1,253 @@
 # ZigMachine on an FPGA
 
-*A feasibility note, 2026-09-20. Nothing here is committed to — it exists so the
-question can be argued from facts rather than re-imagined each time it comes up.*
+*A feasibility note, first written 2026-09-20 and retargeted 2026-10-01 to a real
+board. Nothing here is committed to. It exists so the question can be argued
+from facts rather than re-imagined each time it comes up.*
 
-## The shape of the problem
+## The target
 
-ZigMachine is two halves with a hard line between them, and the two halves have
-completely different FPGA stories.
+**MicroPhase Z7 board, Xilinx Zynq XC7Z010.** The fantasy console runs in the
+programmable logic (PL). The dual Cortex-A9 (PS) does **I/O only**: boot,
+SD card, USB keyboard/pad, network and UART. It never runs a cart, never
+touches a register on a scanline deadline, and is not on the video or audio
+path.
 
-| Half | What it is today | FPGA difficulty |
+| XC7Z010-1 resource | Amount | What it means here |
 |---|---|---|
-| **The machine** — planes, shifter, per-scanline palette, blitter, YM2149, HBL timing | `machine/*.zig` compiled to wasm | **Solved elsewhere.** This is what FPGAs are for. |
-| **The carts** — the programs that run on it | wasm modules | **The whole problem.** An FPGA cannot run wasm. |
+| LUTs / flip-flops | 17,600 / 35,200 | **The binding constraint.** Small: about a third of a 7020. |
+| Block RAM | 60 × 36 Kb ≈ 270 KB | Line buffers, palettes, caches and the ROM. Not framebuffers. |
+| DSP48 | 80 | Blitter and audio multiplies, an FPU's mantissa multiplier. |
+| PS DDR3 | board-dependent (typically 512 MB) | Holds everything big. The PL reaches it through the four 64-bit AXI HP ports. |
+| PS peripherals | USB, SD, Ethernet, UART | The ARM's whole job. |
 
-The line between them is the sealed memory-mapped ABI, and it is the most
-FPGA-friendly decision in the project. Carts talk to registers in shared memory
-and cannot reach inside the hardware. That is not an emulation convention — it
-is *how real hardware is organised*. `docs/BLITTER_HW_SPEC.md` already reads
-like an RTL specification: a register block at fixed offsets, an operation
-selector, a BUSY flag, and a cost model.
+*The DDR size and the video connector (HDMI or a PMOD) depend on the exact
+MicroPhase variant, so check them against its schematic before you rely on them.*
 
-So the hardware half is mostly a transcription job. Everything below is about
-the cart half.
-
-## Prior art, so the hardware half is not argued from first principles
-
-The **MiSTer** project implements a full Atari ST in FPGA — shifter, MMU,
-blitter, YM2149, MFP, floppy — and it runs real software. Every chip ZigMachine
-models has a known-good open implementation. The ST core is not a research
-project; it is a download.
-
-This matters because it converts "can the video and audio be done?" from an open
-question into a porting estimate. What ZigMachine adds beyond a stock ST is a
-256-colour palette, four planes and a 400x280 raster — all *simplifications* of
-the problem an ST core already solved, not new hardware.
+The machine's shared memory is **7 MiB** (`build.zig`, `video_shared_bytes`):
+the 2 MiB cart window, VRAM, the physical framebuffer and the 2 MiB ROM window.
+All of it lives in DDR. Four planes of 400×280 8-bit pixels are 448 KB, which
+is more than all the BRAM on the chip. So the scanout is a DMA master that
+streams each line from DDR into a BRAM line buffer ahead of the beam. That costs
+roughly 30 MB/s, which is nothing for an HP port.
 
 ---
 
-## Scenario A — soft CPU, carts compiled native
+## The question: a RISC-V core, or a wasm softcore?
 
-Put a **RISC-V** soft core in the fabric. Drop wasm entirely. Compile carts to
-RISC-V with the same Zig/C/Rust toolchains, keep the memory-mapped ABI byte for
-byte, and let the hardware be real logic.
+**RISC-V.** The cart format stays wasm, and wasm is translated to RISC-V
+**before** it reaches the board. The fabric never sees a wasm opcode.
 
-**Pros**
-- The ABI is unchanged, so every existing scene is a recompile, not a rewrite.
-- The polyglot proof already holds: Zig, C and Rust all target RISC-V.
-- Soft RISC-V cores are mature, small, and free (VexRiscv, PicoRV32, NEORV32).
-- Toolchain risk is near zero — this is the best-supported cross-compile target
-  in existence.
+### Why not a wasm softcore
 
-**Cons**
-- **wasm stops being the distribution format**, so the browser build and the
-  FPGA build diverge into two artefacts from one source. The `.zmd` disk format
-  would need a native-code cart variant, or a fat format.
-- No sandbox. wasm's memory isolation is what makes the machine *sealed*; on a
-  soft CPU a buggy cart can scribble anywhere. The seal becomes a convention
-  again, enforced by an MPU at best.
-- Performance is a real question. A ~100 MHz soft RISC-V is not obviously faster
-  than wasm in a browser on a modern laptop; the win is authenticity, not speed.
+1. **Nothing exists to download.** There are research papers and hobby cores,
+   but no maintained, verified wasm CPU. You would be building the CPU *and* the
+   console, and debugging each against the other.
+2. **wasm is a hostile ISA for hardware.** It has LEB128 variable-length
+   immediates and a typed operand stack, so you need stack caching or poor IPC.
+   Its structured `block`/`loop`/`br` needs a label stack resolved at decode,
+   and `call_indirect` type-checks against a table. It was designed to be
+   *compiled*, not executed. A wasm core loses to a RISC-V core of the same LUT
+   count on every axis.
+3. **You cannot subset it.** The carts use the whole numeric spec: `f32`
+   appears in 156 files under `apps/zig/scenes` + `libs/zig`, `f64` in 90 and
+   `i64` in 124. A wasm core must execute all of that in hardware or trap to
+   software, and a core that traps to software is a RISC core plus a decoder.
+   A RISC-V toolchain decides per type instead: hardware `f32`, soft `f64`,
+   `i64` as register pairs, with no cart changes.
+4. **It does not fit.** On a 17.6K-LUT part the CPU budget is a few thousand
+   LUTs (see the budget below). A wasm core with `i64`/`f32`/`f64` would eat the
+   whole chip before the shifter existed.
 
-**Effort:** the largest *piece* but the least *risk*. Bring up a core, write a
-linker script, port the ABI headers, boot one cart.
+The one real argument *for* a wasm core was the original Scenario C: keep wasm
+as the single distribution format, and keep the sandbox. Translation keeps the
+format, and the fabric enforces the sandbox better than wasm does (next section).
+So that argument does not survive.
 
-**Problems to solve first:** how `.zmd` carries native code; whether `rom.wasm`
-becomes ROM in fabric or a native library; what replaces `--import-memory`'s
-shared-memory contract.
+### How a wasm cart becomes RISC-V
 
----
+`cart.wasm` goes through **wasm2c** (WABT, mature). The C comes out sandboxed
+and deterministic. It is then compiled by clang for `rv32imf` and linked against
+the native ROM to give `cart.rv32`.
 
-## Scenario B — a real 68000 core
+- **One pipeline for all three languages.** Zig, C and Rust carts all go through
+  it unchanged. The polyglot proof survives, because nothing downstream knows
+  which language produced the wasm.
+- **The `.zmd` disk becomes a fat disk.** The wasm cart (canonical, what the
+  browser runs) and its `rv32` translation sit side by side, produced by
+  `tools/mkdisks.sh`. The `rv32` blob is ZX0-packed like everything else on the
+  shelf.
+- **Option: translate on the ARM at load time.** That puts a compiler on the
+  board, but the ARM is otherwise idle and loading a cart off SD *is* I/O. Do
+  this only once build-time translation works.
+- **Later, for a hot cart:** compile its Zig directly for `riscv32-freestanding`
+  and skip wasm2c's bounds checks. That is a per-cart optimisation, not the
+  architecture.
 
-Put a **68000** (TG68, fx68k) in the fabric instead. Carts become 68000 code.
+### The seal, enforced by the bus instead of by wasm
 
-**Pros**
-- The most authentic possible answer. The machine stops *modelling* an ST and
-  becomes one.
-- **The SNDH player collapses into nothing.** Today it emulates a 68000 (Musashi)
-  to run each tune's original replay driver, trapping its PSG writes. On a real
-  68000 that driver simply *runs*. An entire subsystem — and its three documented
-  silent-failure traps — disappears.
-- Real ST binaries could run directly. The `/convert_st` ports stop being ports.
-- fx68k is cycle-accurate, so the cycle-counting this project already does
-  (`move.w` = 12 cycles = 12 pixels) becomes literally true rather than a model.
+wasm's isolation is what makes the machine *sealed*. On the FPGA the seal moves
+into the interconnect, and it gets stronger:
 
-**Cons**
-- **Zig does not target 68000.** Neither does Rust. Only C has a maintained
-  m68k backend (gcc). So the SDK — the thing that makes writing screens pleasant
-  — would have to be rewritten, or scenes written in C and assembly.
-- That contradicts the project's name and its central proof (a rich Zig SDK with
-  C and Rust as equals).
-- A 68000 at 8 MHz really is slow. Effects written against a wasm budget would
-  need rewriting to fit, which is authentic but is a rewrite of every scene.
-
-**Effort:** moderate in fabric, **enormous** in software. It is not a port; it is
-a different project that shares a name.
-
-**Problems to solve first:** the SDK question, and whether the answer is "this is
-a second machine" rather than "this is ZigMachine on FPGA".
-
----
-
-## Scenario C — wasm in fabric
-
-Execute wasm directly: a hardware wasm interpreter, or AOT-compile each cart to a
-soft core's instruction set at load time.
-
-**Pros**
-- Keeps wasm as the one distribution format. One `.zmd` shelf, every host.
-- Preserves the sandbox, and therefore the seal.
-
-**Cons**
-- Largely unexplored. There are research papers and a few hobby cores; there is
-  no production-grade wasm CPU to download.
-- A wasm interpreter in fabric will be slower than the same silicon running
-  RISC-V natively, because you pay decode costs forever.
-- AOT-at-load-time means shipping a compiler onto the board, which is a large
-  software problem wearing a hardware hat.
-
-**Effort:** research-scale. Unbounded.
-
-**Verdict:** interesting, and not the way to get something on a screen.
+- The cart CPU's AXI master is **wired** to see only the 2 MiB cart window, the
+  VRAM, the register block and the ROM (execute-only). Anything else returns a
+  bus error, which raises the error trap. Machine state that is not a register
+  has no address at all, so a buggy cart physically cannot reach it.
+- RISC-V PMP (NEORV32 has it, VexRiscv optionally) adds the ROM's
+  execute-only rule and catches wild jumps.
+- Once the bus enforces the seal, wasm2c's own bounds checks are belt and
+  braces. Keep them until the bus window is proven.
 
 ---
 
-## Scenario D — hybrid: FPGA video/audio, host CPU
+## The machine in fabric
 
-Keep the carts running on a real computer (browser or the native host in
-`TODOS.md`), and put only the **chips** in fabric — the shifter, blitter and YM —
-connected over USB/PCIe, driven by the same register writes.
+| Block | Source | Notes |
+|---|---|---|
+| Cart CPU | VexRiscv or NEORV32, `rv32imf`, I/D caches in BRAM | ~150 MHz on a -1 Artix-7 fabric is realistic for VexRiscv. Interrupt on every line start = HBL handlers, natively. |
+| Video | new RTL from `docs/HARDWARE_SPEC.md` | Plane fetch, compositor, 256-colour palettes, `zg.copper` / `zg.linepal` as hardware lists, earned overscan (`flickerBorder()` becomes real res-flicker timing). |
+| Blitter | new RTL from `docs/BLITTER_HW_SPEC.md` | Already written as a register spec with a cost model. |
+| YM2149 + PCM | MikeJ's YM2149 (VHDL) or jotego's `jt49` (Verilog): a few hundred LUTs, the cheapest block on the chip. Plus the 4-channel PCM engine (`machine/audio/engine.zig`), with its channels time-shared through one DSP48 MAC. | Audio out over HDMI (data islands cost LUTs), I²S to a PMOD DAC, or PWM on a pin as a first step. |
+| ROM | `rom.wasm` translated to `rv32`, in BRAM/flash | Phase 2's "ROM chip" literally becomes one. Carts call it through a fixed jump table, as TOS did. |
+| Display | DVI/HDMI TMDS (OSERDES) | **800×600 @ 60 Hz, 40 MHz pixel clock.** 400×280 scaled ×2 is 800×560, so the bars are 20 lines. Integer scaling, no filter, and one logical line is exactly two output lines. |
+| ARM side | Linux (Buildroot/PetaLinux), AXI GP for control, shared DDR | USB HID is the reason for Linux. It writes keyboard and pad state into machine registers, and loads `.zmd` files off SD into DDR. |
 
-**Pros**
-- The smallest step that produces something genuinely real: the rasters and the
-  blits are *actually hardware*.
-- No cart changes at all. The ABI already writes to registers; those writes just
-  travel further.
-- Naturally incremental — do the YM first, hear it, then the blitter.
+**Scenario D's timing problem disappears.** With the CPU and the shifter both
+in fabric, a per-scanline palette write has no bus between them. At 150 MHz and
+~19 kHz logical lines, an HBL handler gets roughly **7,900 cycles a line**.
 
-**Cons**
-- The bus latency is the whole design problem. A per-scanline palette write has
-  a deadline measured in microseconds; USB does not.
-- Probably needs the frame's register writes batched and shipped ahead, which
-  changes the timing model from "write when you like" to "submit a display list".
-  That is a real ABI change, even if the register names survive.
+### The SNDH player: the one subsystem that does not map cleanly
 
-**Effort:** smallest to start, and the one most likely to produce a demo video.
+SNDH music is a 68000 emulator (Musashi, in `demo-audio.wasm`) running each
+tune's original replay code. On the board there are three options:
 
-**Problems to solve first:** latency budget, and whether a display-list model can
-be introduced without breaking the "write a register from an HBL" contract that
-every scene is built on.
+1. **Musashi on a second, small RV32IM core** (no FPU, ~1.5K LUTs). A plain
+   50 Hz replay uses maybe 10–20 % of an 8 MHz 68000. At ~50 host instructions
+   per 68000 instruction that is 5–10 M instructions a second, comfortable at
+   150 MHz. Timer digidrums at several kHz are the stress case, so measure them.
+2. **A real 68000 core (fx68k / TG68) as the audio coprocessor.** This is
+   Scenario B's best idea without its worst one: the replay drivers *run*,
+   cycle-exact, and the SDK stays Zig. It probably does not fit a 7010
+   alongside everything else, but it is the obvious upgrade on a 7020.
+3. Musashi on the main cart core: no. It would steal frame time
+   unpredictably.
+
+**Start with option 1.**
 
 ---
 
-## What is actually hard, across all four
+## LUT budget (estimates, to be replaced by Vivado numbers)
 
-1. **wasm is not a CPU.** Every scenario resolves this differently and each
-   resolution has a cost: a second artefact (A), a rewritten SDK (B), a research
-   project (C), or keeping the CPU off the board entirely (D).
-2. **The seal.** wasm's isolation is load-bearing — it is what lets the machine
-   be "sealed" rather than merely well-behaved. Only C and D preserve it.
-3. **Timing.** ZigMachine's authenticity lives in per-scanline effects. Any
-   architecture that adds latency between the cart and the palette register
-   breaks the thing worth building.
-4. **Assets.** `.zmd` disks, ZX0 packing and the ROM are all wasm-shaped today.
-   They would need a native equivalent in A and B.
+| Block | LUTs |
+|---|---|
+| Cart CPU, `rv32im` + caches | 2,500 – 3,500 |
+| ...its FPU (`f32` only, `f64` soft) | **3,000 – 5,000** |
+| Audio CPU, `rv32im` | 1,500 – 2,000 |
+| Video: fetch DMA, compositor, palettes, copper/linepal, overscan | 3,000 – 5,000 |
+| Blitter | 2,000 – 4,000 |
+| YM2149 (MikeJ's or jotego's `jt49`) + the 4-channel 44.1 kHz PCM engine, one time-shared DSP48 MAC | 500 – 1,000 |
+| TMDS encoder | ~500 |
+| AXI interconnect, HP masters, PS glue | 2,000 – 3,000 |
+| **Total** | **15,000 – 24,000** of 17,600 |
 
-## If it were to be tried
+**The honest reading: the 7010 is tight, and the FPU decides it.** Everything
+except the FPU fits with room. The options, in order of preference:
 
-**D first, then A.** D gets a YM2149 singing from real fabric in a weekend-ish
-project and proves the register model survives the trip. A is the one that could
-become a whole machine on a board, and its risk is mostly clerical.
+- Measure first. If the hot `f32` paths are in a handful of libs (sin tables,
+  3D transform), a fixed-point build of those libs may be cheaper than
+  5K LUTs of FPU.
+- A minimal FPU: add/mul/convert in hardware, divide/sqrt in software.
+- Move to a **7020** (53,200 LUTs, same PS, often the same board family). It
+  fits everything, including option 2's real 68000 for SNDH. If the 7010 is
+  chosen for price, this is the cheapest way out of every squeeze.
 
-B is the romantic answer and is worth being honest about: it would be a superb
-*Atari* project and a poor *ZigMachine* one, because it throws away the Zig SDK
-that is the reason this project exists.
+---
+
+## The plan, smallest provable step first
+
+0. **Measure, without hardware.** Translate every cart with wasm2c, build for
+   `rv32imf` and `rv32im` (soft-float), and count instructions per frame in a
+   simulator (Spike, QEMU `-icount`, or Verilator running the actual
+   VexRiscv). This one table answers clock speed, FPU or not, and 7010 or 7020
+   per scene, before a single LUT is spent. The `gate_timed` harnesses already
+   name which scenes are budget-bound.
+1. **Scanout.** The ARM fills a framebuffer in DDR, and the PL streams it over
+   HP to 800×600 HDMI. This proves the DDR → line buffer → TMDS path.
+2. **YM2149 in fabric, register-driven from the ARM.** You hear real hardware
+   early. This is Scenario D's weekend project, done on-chip.
+3. **The cart CPU plus one C cart** (`apps/c` hello world) through the
+   memory-mapped ABI, with the bus-window seal from day one.
+4. **HBL interrupts, copper, linepal and earned overscan.** This is where the
+   authenticity lives.
+5. **Blitter**, from its spec.
+6. **The native ROM, the `.zmd` loader on the ARM, and the menu.** The shelf
+   boots.
+7. **SNDH** on the audio core.
+
+**The test oracle already exists.** `apps/scene_hash.mjs` fingerprints scenes
+byte for byte against the wasm machine. Run the RTL plus the translated cart in
+Verilator on the desktop, dump the same frames, and compare. Every scene that
+matches its wasm fingerprint is proven before it ever touches the board, and
+the browser build stays the reference implementation.
+
+---
+
+## Toolchain: open source, with Vivado as the fallback
+
+The XC7Z010 is one of the best-covered Xilinx parts in the open flow, because
+Project X-Ray documented its bitstream early.
+
+| Stage | Tool |
+|---|---|
+| Synthesis | **Yosys** (`synth_xilinx`). VHDL via the GHDL plugin (MikeJ's YM2149), SystemVerilog via sv2v. |
+| Place & route + bitstream | **nextpnr-xilinx** + Project X-Ray, packaged together as **openXC7** |
+| SoC | **LiteX**: VexRiscv/NEORV32, buses, video, a Zynq-7000 PS wrapper. It targets openXC7 *and* Vivado. |
+| Simulation | **Verilator** (the scene-fingerprint oracle), GHDL, cocotb |
+| Software | clang/Zig for `rv32imf`, wasm2c, and Linux + U-Boot on the ARM |
+
+**The weak spots, to check against the current state of openXC7:**
+- **PS configuration.** `ps7_init` (DDR timings, clocks, MIO) is normally
+  generated by Vivado, so take it once from the board vendor's package.
+- **Timing closure.** It is weaker than Vivado's, which matters near 150 MHz
+  with an FPU.
+- **Primitive coverage.** Check OSERDES (TMDS) and the PS7 HP ports.
+
+**Vivado ML Standard** (free, not open, supports the 7010) is the fallback for
+any of these. Because LiteX builds with either flow, switching costs one option.
+
+---
+
+## The earlier scenarios, for the record
+
+The first version of this note argued four architectures without a board.
+Given the 7010 and "ARM for I/O only", this is where each one lands:
+
+- **A, soft RISC-V with native carts:** **chosen.** Its two cons were "wasm
+  stops being the distribution format" and "no sandbox". The first is answered
+  by translating at build time into a fat `.zmd`, the second by the bus-window
+  seal.
+- **B, a real 68000 core running the carts:** still rejected for carts. Zig and
+  Rust do not target m68k, so the SDK would be thrown away. It survives in a
+  smaller role as the optional SNDH coprocessor.
+- **C, wasm in fabric:** rejected, for the four reasons above. Translation gets
+  its benefits without its costs.
+- **D, chips in fabric with a host CPU over USB:** rejected as an architecture,
+  since the CPU is on the board now. It survives as plan step 2.
+
+## Prior art
+
+The **MiSTer** project implements a full Atari ST in FPGA: shifter, MMU,
+blitter, YM2149, MFP and floppy, and it runs real software. Every chip
+ZigMachine models has a known-good open implementation to read. What ZigMachine
+adds (a 256-colour palette, four planes, a 400×280 raster) *simplifies* what an
+ST core already solved. MiSTer targets a Cyclone V with ~110K LEs, though, so
+borrow its designs, not its budget.
 
 ## See also
 
-- `docs/BLITTER_HW_SPEC.md` — already written as a hardware spec
-- `docs/HARDWARE_SPEC.md`, `docs/HW_API.md` — the register model
-- `TODOS.md`, "A native desktop host" — the same portability argument, one step
-  short of hardware, and a sensible prerequisite
-- `docs/IDEAS.md` — where this started as a parked idea
+- `docs/HARDWARE_SPEC.md`, `docs/HW_API.md`: the register model, the RTL's spec
+- `docs/BLITTER_HW_SPEC.md`: already written as a hardware spec
+- `docs/PHASE2_ROM_CHIP.md`: the ROM that becomes a real ROM
+- `machine/sdk/memmap.zig`: the single source of truth for the bus map
+- `TODOS.md`, "A native desktop host": the same portability argument, one step
+  short of hardware. wasm2c is a good way to build it, and it doubles as plan
+  step 0.
