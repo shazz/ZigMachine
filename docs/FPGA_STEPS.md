@@ -13,7 +13,7 @@ says otherwise.
 | — | `fpga/` tooling: cores, uv env, memmap export, cost tool | **done** | `make -C fpga setup && make -C fpga check` |
 | 0a | Every cart through wasm2c, then compiled for `rv32imf` | **done** | **90 / 90** compile, no cart changes |
 | 0b-i | Native C host: machine + ROM + cart, all wasm2c'd | **done** | **98 / 98 fingerprints identical** to `scene_hash.mjs` |
-| 0b-ii | Cycles per frame on a real VexRiscv (Verilator) | *running* | — |
+| 0b-ii | Cycles per frame on a real VexRiscv (Verilator) | **done** | hashes identical on 9 carts; **150 MHz, no FPU** (`fpga/CYCLES.md`) |
 | — | Board files (XDC, schematic, PS7 bring-up) | **done** | `fpga/tools/fetch_board.sh`, gitignored; HDMI pins re-derived from the schematic |
 | — | Whole SoC elaborated against the real board | **done** | 2,408 LUTs (13.7 %) synthesised |
 | 1–7 | Board work (scanout, YM, CPU, HBL, blitter, ROM, SNDH) | ready to start | needs the board on the bench and openXC7's chipdb |
@@ -23,6 +23,37 @@ says otherwise.
 ---
 
 ## 2026-10-02
+
+### Step 0b-ii: the cart CPU's real load, and the verdict (`623f27c`)
+
+The native host runs bare-metal on the SoC's own VexRiscv `standard` (rv32im) in
+Verilator, built with GCC 13 and picolibc and a three-header shim for the stock
+wasm2c runtime. **All 9 sample carts hash identically** to `scene_hash.mjs` and
+to the native host, in every build. A cycle counter splits the time three ways:
+**cart** (`frame()` plus the HBL handlers), **machine render**, and
+**blitter**. The last two become RTL.
+
+| cart | Mc/frame (p95) | MHz needed, soft-float | float share |
+|---|---|---|---|
+| blitter | 0.14 | 9 | 78 % |
+| tsl_hybridglenz | 0.16 | 10 | 28 % |
+| tutorial | 0.60 | 36 | 0 % |
+| union_beatdis | 1.54 (2.04 worst frame) | 93 (122) | 0 % |
+| ulm_dsots | 1.69 | 101 | 1 % |
+| skystrike | 2.01 | 120 | 0 % |
+| replicants_emlyn | 9.17 | 550 (209 even with an f64 FPU) | 65 % |
+| polkadots | 37.7 | 2262 (449 with an f64 FPU) | 83 % |
+
+- **Verdict: 150 MHz, no FPU.** The two outliers use `f64` kept from their
+  JavaScript originals. That is a scene fix, not a hardware one.
+- **Measured cheaper wins:** aligned loads cut cart cost by 4–40 %
+  (union_beatdis 1.54 to 0.92 Mc). Dropping the bounds checks saves 36 %.
+- **Caveat:** the simulated RAM answers in one cycle. With realistic DDR
+  refill and store costs, union_beatdis would need 238 MHz, ulm_dsots 210 and
+  skystrike 261. **The DDR/write path is the next design question**, more than
+  the clock.
+- **Still running:** the rest of the shelf (81 carts) is being measured in the
+  background. `uv run python tools/cycles_report.py` refreshes the table.
 
 ### The video compositor in RTL, proven against the machine (`060a9af`)
 

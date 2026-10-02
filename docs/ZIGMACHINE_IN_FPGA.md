@@ -143,37 +143,46 @@ pre-place-and-route, within ~10–20 % of Vivado). The rest are still estimates.
 | Block | LUTs |
 |---|---|
 | Cart CPU, VexRiscv `standard` (`rv32im` + caches) | **2,019 measured** (9 BRAM, 4 DSP) |
-| ...its FPU (`f32` only, `f64` soft) | **3,000 – 5,000** |
+| ...its FPU | **0: not needed** (step 0b, `fpga/CYCLES.md`) |
 | Audio CPU, VexRiscv `lite` (`rv32im`) | **1,718 measured** |
-| Video: fetch DMA, compositor, palettes, copper/linepal, overscan | 3,000 – 5,000 |
+| Video: compositor (planes, palettes, border, BEAM, all modes) | **1,169 measured** (4 BRAM, 1 DSP; `fpga/rtl/video`) |
+| Video: scanout buffer, plane mixer, copper/linepal, AXI bursts | 1,000 – 2,000 |
 | Blitter | 2,000 – 4,000 |
 | YM2149 (`jt49`: **286 measured**) + the 4-channel 44.1 kHz PCM engine, one time-shared DSP48 MAC | 500 – 1,000 |
 | TMDS encoder | ~500 |
 | AXI interconnect, HP masters, PS glue | 2,000 – 3,000 |
-| **Total** | **~14,000 – 22,000** of 17,600 |
+| **Total** | **~11,000 – 16,000** of 17,600 |
 
-**The honest reading: the 7010 is tight, and the FPU decides it.** Everything
-except the FPU fits with room. The options, in order of preference:
+**The reading after step 0b (2026-10-02): the 7010 fits, with no FPU.**
 
-- Measure first. If the hot `f32` paths are in a handful of libs (sin tables,
-  3D transform), a fixed-point build of those libs may be cheaper than
-  5K LUTs of FPU.
-- A minimal FPU: add/mul/convert in hardware, divide/sqrt in software.
-- Move to a **7020** (53,200 LUTs, same PS, often the same board family). It
-  fits everything, including option 2's real 68000 for SNDH. If the 7010 is
-  chosen for price, this is the cheapest way out of every squeeze.
+The cart CPU's real load was measured on VexRiscv in Verilator, with hashes
+identical to the wasm machine (`fpga/CYCLES.md`):
+
+- **Clock: 150 MHz.** It covers the realistic sample carts with ~25 % margin,
+  where 100 MHz misses three of them.
+- **No FPU.** The carts that fit barely use floats. The two float-heavy ones
+  (polkadots, replicants_emlyn) are CODEF ports that kept JavaScript's `f64`, so
+  an `f32` FPU would not touch them. Fixing them is a scene change.
+- **Cheaper wins than an FPU,** both measured: aligned word loads with the rare
+  misaligned access trapped and emulated (−4…40 %), and dropping wasm2c's bounds
+  checks now that the bus window is the seal (−36 %).
+- **The open risk is memory, not compute.** The simulation's RAM answers in one
+  cycle. With DDR behind the PS, cache refills and the write-through store
+  stream could cost up to ~2.5× on store-heavy carts. That makes the D-cache
+  policy and the HP-port write path the next design question.
+
+A **7020** stays the upgrade path for the 68000 SNDH coprocessor (fx68k, 3,357
+LUTs).
 
 ---
 
 ## The plan, smallest provable step first
 
 0. **Measure, without hardware.** *0a is done* (`make -C fpga carts`): all 90
-   carts translate with wasm2c and compile for `rv32imf` unchanged. Next comes 0b:
-   count instructions per frame in a
-   simulator (Spike, QEMU `-icount`, or Verilator running the actual
-   VexRiscv). This one table answers clock speed, FPU or not, and 7010 or 7020
-   per scene, before a single LUT is spent. The `gate_timed` harnesses already
-   name which scenes are budget-bound.
+   carts translate with wasm2c and compile for `rv32imf` unchanged. *0b is done*:
+   the whole machine runs as native C, byte-identical (`make -C fpga host-check`),
+   and on VexRiscv in Verilator with cycles per frame measured
+   (`fpga/CYCLES.md`): 150 MHz, no FPU.
 1. **Scanout.** The ARM fills a framebuffer in DDR, and the PL streams it over
    HP to 800×600 HDMI. This proves the DDR → line buffer → TMDS path.
 2. **YM2149 in fabric, register-driven from the ARM.** You hear real hardware
