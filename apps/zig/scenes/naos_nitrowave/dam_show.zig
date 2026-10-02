@@ -92,17 +92,8 @@ pub fn present(r: *const st.Ram, base: u32, px: []u8) void {
 /// that lands inside the row.
 fn row(r: *const st.Ram, line: u16, pal: *[16]u16, b0: usize, out: []u8, dst: *Row) usize {
     var ws: [2 + 16]Write = undefined;
-    var n: usize = 0;
-    const special = line == 228;
-    ws[0] = .{ .line = line, .cycle = if (special) 26 else 42, .colour = 0, .value = r.w(0x5F24 + 4 * @as(u32, line)) };
-    ws[1] = .{ .line = line, .cycle = if (special) 38 else 54, .colour = 1, .value = r.w(0x5F26 + 4 * @as(u32, line)) };
-    n = 2;
     var b = b0;
-    while (b < blocks.len and blocks[b].line == line) : (b += 1) {
-        ws[n] = blocks[b];
-        n += 1;
-    }
-    std.sort.insertion(Write, ws[0..n], {}, byCycle);
+    const n = lineWrites(r, line, &b, &ws);
     var seg: u8 = 0;
     var x: usize = 0;
     var k: usize = 0;
@@ -121,6 +112,21 @@ fn row(r: *const st.Ram, line: u16, pal: *[16]u16, b0: usize, out: []u8, dst: *R
     dst.segs = seg + 1;
     for (ws[k..n]) |w| pal[w.colour] = w.value; // past the row's last pixel
     return b;
+}
+
+/// The line's colour 0 and 1 from the table, and the blocks' writes on it
+/// (blocks[b..] are next), in cycle order.
+fn lineWrites(r: *const st.Ram, line: u16, b: *usize, ws: *[2 + 16]Write) usize {
+    const special = line == 228;
+    ws[0] = .{ .line = line, .cycle = if (special) 26 else 42, .colour = 0, .value = r.w(0x5F24 + 4 * @as(u32, line)) };
+    ws[1] = .{ .line = line, .cycle = if (special) 38 else 54, .colour = 1, .value = r.w(0x5F26 + 4 * @as(u32, line)) };
+    var n: usize = 2;
+    while (b.* < blocks.len and blocks[b.*].line == line and n < ws.len) : (b.* += 1) {
+        ws[n] = blocks[b.*];
+        n += 1;
+    }
+    std.sort.insertion(Write, ws[0..n], {}, byCycle);
+    return n;
 }
 
 fn byCycle(_: void, a: Write, b: Write) bool {
