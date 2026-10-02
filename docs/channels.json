@@ -125,6 +125,11 @@
   "type": "zigmachine"
  },
  {
+  "tag": "naos_nitrowave",
+  "title": "NAOS NITROWAVE DEMO",
+  "type": "atari st"
+ },
+ {
   "tag": "noextra",
   "title": "NOEXTRA DHS MEGADEMO",
   "type": "atari st"

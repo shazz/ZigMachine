@@ -93,6 +93,7 @@ const scene = switch (opts.index) {
     80 => @import("scenes/ulm_dsots.zig"), // ULM, The Dark Side of the Spoon: the main menu (its door launches the Parallax Distorter)
     81 => @import("scenes/snyd_90.zig"), // OMEGA / SYNC / TCB, Swedish New Year Demo 89-90 (original disk)
     82 => @import("scenes/dune_gen4.zig"), // DUNE / GEN4 DEMO 1990 (original ST disk): intro, main part, title, menu, F1, F2
+    83 => @import("scenes/naos_nitrowave.zig"), // NAOS / THE NITROWAVE DEMO, menu + F2 + F3 (ported from the ST disk)
     else => @compileError("bad cart index"),
 };
 

@@ -214,6 +214,19 @@ pub fn build(b: *std.Build) void {
         snyd90_decl = b.fmt("{s}    pub const {s} = @embedFile(\"{s}\");\n", .{ snyd90_decl, name, file });
     }
     snyd90_decl = b.fmt("{s}}};\n", .{snyd90_decl});
+    // NAOS / THE NITROWAVE DEMO: the programs as the disk holds them, one blob
+    // each, depacked into the one part memory at the address each runs from
+    // (apps/zig/scenes/naos_nitrowave/assets.zig names them).
+    const NAOS = [_][]const u8{ "menu", "bspr", "dam" };
+    var naos_decl: []const u8 = "pub const naos_nitrowave = struct {\n";
+    for (NAOS) |name| {
+        const file = b.fmt("naos_nitrowave_{s}.zx0", .{name});
+        const pack_naos = b.addRunArtifact(zx0pack);
+        pack_naos.addFileArg(b.path(b.fmt("apps/zig/assets/screens/naos_nitrowave/{s}.bin", .{name})));
+        _ = packed_files.addCopyFile(pack_naos.addOutputFileArg(file), file);
+        naos_decl = b.fmt("{s}    pub const {s} = @embedFile(\"{s}\");\n", .{ naos_decl, name, file });
+    }
+    naos_decl = b.fmt("{s}}};\n", .{naos_decl});
     _ = packed_files.addCopyFile(trsi_zx0, "trsi_turn.zx0");
     _ = packed_files.addCopyFile(multifake_zx0, "union_multifake.zx0");
     _ = packed_files.addCopyFile(textracker_zx0, "union_textracker.zx0");
@@ -268,9 +281,9 @@ pub fn build(b: *std.Build) void {
             \\pub const replicants_emlyn = @embedFile("replicants_emlyn.zx0");
             \\pub const tsl_hybridglenz = @embedFile("tsl_hybridglenz.zx0");
             \\pub const supplex_fs2_main = @embedFile("supplex_fs2_main.zx0");
-            \\{s}{s}{s}}};
+            \\{s}{s}{s}{s}}};
             \\
-        , .{ swedish_decl, snyd90_decl, mpp_decl })),
+        , .{ swedish_decl, snyd90_decl, naos_decl, mpp_decl })),
         .target = wasm_target,
         .optimize = optimize,
     });
@@ -476,6 +489,7 @@ pub fn build(b: *std.Build) void {
         "demo-ulm_dsots", // 80 — ULM / THE DARK SIDE OF THE SPOON, the main menu (shazz's melonJS remake): the griffin's walk-around map
         "demo-snyd_90", // 81 — OMEGA / SYNC / TCB, Swedish New Year Demo 89-90: intro, menu, F1, F2 (ported from the disk)
         "demo-dune_gen4", // 82 — DUNE / GEN4 DEMO 1990: intro, main part, title, menu, F1, F2 (ported from the ST disk)
+        "demo-naos_nitrowave", // 83 — NAOS / THE NITROWAVE DEMO: the menu, F2 big sprite, F3 Sapristi (ported from the ST disk)
     };
     for (cart_names, 0..) |name, idx| {
         if (name.len == 0) continue; // excluded cart (see note above)
