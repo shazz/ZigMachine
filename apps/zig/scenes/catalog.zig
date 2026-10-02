@@ -94,6 +94,7 @@ pub const ENTRIES = [_]Entry{
     .{ .name = "RICK DANGEROUS", .tag = "rick_dangerous" }, // atari st
     .{ .name = "SKYSTRIKE", .tag = "skystrike" }, // atari st
     .{ .name = "ULM SPOON MEGADEMO", .tag = "ulm_dsots" }, // atari st
+    .{ .name = "SWEDISH NEW YEAR 90", .tag = "snyd_90" }, // atari st
     .{ .name = "NAOS NITROWAVE DEMO", .tag = "naos_nitrowave" }, // atari st
     // The Union Demo's screens (union_multifake, union_textracker, ...) are NOT
     // listed: they are reached only through the UNION DEMO hub's doors (Matt,

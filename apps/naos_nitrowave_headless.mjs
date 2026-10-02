@@ -1,4 +1,4 @@
-// Headless NAOS / NITROWAVE DEMO driver (cart 81). The reference is the
+// Headless NAOS / NITROWAVE DEMO driver (cart 82). The reference is the
 // ORIGINAL disk on Hatari (TOS 1.62, frameskip 0): apps/naos_nitrowave_ref.json.gz,
 // from prototypes/naos_nitrowave_re/make_ref.py -- for each ported program,
 // frames counted in VBLs from its start, mapped to the 400x280 plane:

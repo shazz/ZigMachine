@@ -20,4 +20,7 @@ test {
     _ = @import("scenes/ulm_dsots/view.zig");
     _ = @import("scenes/ulm_dsots/level.zig");
     _ = @import("scenes/ulm_dsots/griffin_test.zig");
+    _ = @import("scenes/snyd_90/menu_test.zig");
+    _ = @import("scenes/snyd_90/f2_test.zig");
+    _ = @import("scenes/snyd_90/f1_test.zig");
 }

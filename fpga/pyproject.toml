@@ -1,0 +1,31 @@
+[project]
+name = "zigmachine-fpga"
+version = "0.1.0"
+description = "ZigMachine on a Zynq XC7Z010: SoC generation, memory-map export and RTL checks"
+requires-python = ">=3.11"
+dependencies = [
+    "litex",
+    "migen",
+    "pythondata-cpu-vexriscv",
+    "pythondata-software-compiler-rt>=0.0.post6206",
+    "pythondata-software-picolibc>=1.7.9.post181",
+    "yowasp-yosys",
+]
+
+[dependency-groups]
+dev = ["pytest", "cocotb"]
+
+[tool.uv]
+package = false
+
+[tool.uv.sources]
+migen = { git = "https://github.com/m-labs/migen" }
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+extend-exclude = ["third_party", "build", "gen"]
