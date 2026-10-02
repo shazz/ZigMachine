@@ -33,7 +33,9 @@ export const WALKS = {
         ["menu5", null, 0], // the fade at 5630, its VBL 30 at 5661
     ],
 };
-const TUNES = [[0, "dune_gen4.sndh"], [1, "none"], [2, "dune_gen4_menu.sndh"]];
+/// The title's Quartet song is the SNDH's subtune 4 ($3316), started once the
+/// fade is over; Space stops it (SingSong's jsr 8) before the menu's tune.
+const TUNES = [[0, "dune_gen4.sndh"], [1, "none,dune_gen4_quartet.sndh#4"], [2, "none,dune_gen4_menu.sndh"]];
 
 /// Run one walk; `check(cart, frame)` holds each reference frame.
 export function walk(cart, ref, steps, check, { fail, broke }) {
@@ -58,14 +60,18 @@ export function music(songs, cart, { fail: fail0, broke }) {
     let ok = true;
     const fail = (...a) => { ok = false; fail0(...a); };
     for (const [visit, want0] of TUNES) {
-        const want = broke === "music" && visit === 2 ? "dune_gen4.sndh" : want0;
+        const want = broke === "music" && visit === 2 ? "dune_gen4.sndh"
+            : broke === "quartet" && visit === 1 ? "none,dune_gen4_quartet.sndh#1" : want0;
         if (songs[visit].join() !== want) fail("music", `visit ${visit} asked for "${songs[visit]}", not ${want}`);
     }
     const later = songs.slice(TUNES.length).filter((s) => s.length);
     if (later.length) fail("music", `${later}: the menu tune should run on through F1 and F2`);
     const first = cart.songs.find(([, n]) => n === "dune_gen4.sndh");
     if (first?.[0] !== 437) fail("music", `Gen4.sndh asked for at VBL ${first?.[0]}, not the main part's first (437)`);
-    if (ok) console.log("  music: Gen4.sndh from the main part's first VBL, silence for the title, the poked copy once the menu is up, nothing after");
+    const q = cart.songs.findIndex(([, n]) => n.startsWith("dune_gen4_quartet.sndh"));
+    const fadeIn = q > 0 ? cart.songs[q][0] - cart.songs[q - 1][0] : -1; // from the title's stop
+    if (fadeIn !== 30) fail("music", `the title's song came ${fadeIn} VBLs into the title, not after its 30-VBL fade`);
+    if (ok) console.log("  music: Gen4.sndh from the main part's first VBL, the title's Quartet song once faded in, the poked copy once the menu is up, nothing after");
     cart.key(K.esc);
     const req = cart.demo.pollCartRequest();
     if (req !== -1) fail("keys", `Escape asked for ${req}, not the menu disk (-1)`);

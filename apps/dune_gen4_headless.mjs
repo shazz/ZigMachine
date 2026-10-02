@@ -74,7 +74,8 @@ class Cart {
             this.vbls++;
             if (!this.demo.pollSongRequest()) continue;
             const name = new TextDecoder().decode(new Uint8Array(this.memory.buffer, this.demo.songNamePtr(), this.demo.songNameLen()));
-            this.songs.push([this.vbls, name]);
+            const tune = this.demo.songTune();
+            this.songs.push([this.vbls, tune ? `${name}#${tune}` : name]);
         }
     }
     key(cp) { this.demo.key(cp); }
