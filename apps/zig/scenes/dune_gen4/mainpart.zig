@@ -26,15 +26,21 @@ const LETTERS_TOP = L.TOP + std.mem.min(u8, &T.BOUNCE);
 
 pub const MainPart = struct {
     letters: Letters,
-    scroller: Scroller,
+    scroller: Scroller, // the state the next VBL draws
+    drawn: ?Scroller, // what the last VBL drew, into the hidden screen
+    shown: ?Scroller, // what the screen on show holds: drawn one VBL earlier
     c0: [L.C0_LINES]u16,
     palette: [16]u16, // $11EA: INTRO.TNY's
+    n: u32, // VBLs run
 
     pub fn enter(self: *MainPart, fb: *zg.LogicalFB, pic: *const tny.Picture) void {
         self.letters.init();
         self.scroller.init();
+        self.drawn = null;
+        self.shown = null;
         @memset(&self.c0, 0);
         self.palette = pic.palette;
+        self.n = 0;
         st.clear(fb);
         intro.copyLines(fb, pic, 10, 0, 101);
     }
@@ -44,13 +50,17 @@ pub const MainPart = struct {
     }
 
     pub fn vbl(self: *MainPart) void {
+        self.n += 1;
         self.letters.vbl(&self.c0);
+        self.shown = self.drawn;
+        self.drawn = self.scroller;
         self.scroller.vbl();
     }
 
     pub fn render(self: *const MainPart, fb: *zg.LogicalFB) void {
+        if (self.n == 0) return st.setPalette(&self.palette); // the VBL not on yet
         self.letters.draw(fb, LETTERS_TOP);
-        self.scroller.draw(fb);
+        if (self.shown) |s| s.draw(fb) else Scroller.clear(fb);
         self.rasters();
     }
 

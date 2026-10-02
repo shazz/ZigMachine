@@ -97,7 +97,10 @@ pub const Demo = struct {
 
     fn vbl(self: *Demo) void {
         switch (self.part) {
-            .intro => if (self.intro.vbl()) self.toMain(),
+            .intro => if (self.intro.vbl()) {
+                self.toMain();
+                self.main.vbl();
+            },
             .main => {
                 self.main.vbl();
                 if (self.main.done()) self.toTitle();

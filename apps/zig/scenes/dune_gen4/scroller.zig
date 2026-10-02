@@ -46,8 +46,12 @@ pub const Scroller = struct {
         self.next += 1;
     }
 
-    pub fn draw(self: *const Scroller, fb: *zg.LogicalFB) void {
+    pub fn clear(fb: *zg.LogicalFB) void {
         for (TOP..TOP + LINES) |y| @memset(st.row(fb, y), 0);
+    }
+
+    pub fn draw(self: *const Scroller, fb: *zg.LogicalFB) void {
+        clear(fb);
         for (self.chars, 0..) |c, k| {
             const x = 316 - 32 * @as(i32, @intCast(k)) - 4 * @as(i32, self.f);
             drawGlyph(fb, c, x);

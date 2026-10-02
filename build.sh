@@ -344,6 +344,10 @@ gate gen4_3615 node apps/gen4_3615_headless.mjs "$SHOTS/gen4_3615"   # ULM 3615 
 gate gen4_3615 node apps/gen4_3615_headless.mjs --break fate "$SHOTS/gen4_3615"   # ...and the logo's slices one canvas row down is caught
 gate gen4_3615 node apps/gen4_3615_headless.mjs --break ulm "$SHOTS/gen4_3615"   # ...and the ULM table one entry late is caught
 gate gen4_3615 node apps/gen4_3615_headless.mjs --break raster "$SHOTS/gen4_3615"   # ...and a sky raster one line out is caught
+gate dune_gen4 node apps/dune_gen4_headless.mjs "$SHOTS/dune_gen4"   # DUNE GEN4 DEMO vs DUNE.PRG in Hatari (apps/dune_gen4_ref.bin.gz): the intro's bounce, the fade-in step by step and the main part's letters, colour-0 bars, rainbow and lower-border scroller, the whole window as ST colour words; Gen4.sndh at the main part, silence for the title, the poked copy at the menu; Space / F1 / Escape
+gate dune_gen4 node apps/dune_gen4_headless.mjs --break pixels "$SHOTS/dune_gen4_break"   # ...and a main-part frame one VBL late is caught
+gate dune_gen4 node apps/dune_gen4_headless.mjs --break lag "$SHOTS/dune_gen4_break"      # ...and the bounce shown without the screen latch is caught
+gate dune_gen4 node apps/dune_gen4_headless.mjs --break music "$SHOTS/dune_gen4_break"    # ...and the menu playing the main part's tune is caught
 gate c_fujiboink node apps/c_fujiboink_headless.mjs "$SHOTS/c_fujiboink"   # FUJIBOINK! (C, START 1986): nine Hatari captures of FUJIBOIN.PRG, six pixel for pixel and three within a one-VBL mid-frame sliver; the rainbow is Timer B's 73 register lines (every pixel an ST index, entry 4 rewritten per line); the thud SNDH lands with the fuji and decays; F-key freeze, Space and Escape leave
 gate c_fujiboink node apps/c_fujiboink_headless.mjs --break rasters "$SHOTS/c_fujiboink"   # ...and a plane whose HBL never runs (one static palette) is caught
 gate c_fujiboink node apps/c_fujiboink_headless.mjs --break thud "$SHOTS/c_fujiboink"   # ...and a lost thud request is caught
