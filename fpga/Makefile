@@ -94,3 +94,24 @@ include cycles/cycles.mk
 
 clean:
 	rm -rf build gen
+
+# --- bitstreams: openXC7 in Docker (tools/openxc7.sh, docker/openxc7/) -------
+#   make toolchain  the pinned image + prjxray-db + xc7z010 chipdb, into .tools/ (once, heavy)
+#   make blink      first bitstream: rtl/board/blink_top.v -> build/blink/blink_top.bit
+BOARD_XDC := boards/microphase_z7_7010/board.xdc
+BLINK     := build/blink
+
+.PHONY: toolchain blink
+
+toolchain:
+	tools/openxc7.sh toolchain
+
+$(BLINK)/blink_top.xdc: rtl/board/blink_top.v $(BOARD_XDC)
+	@mkdir -p $(@D)
+	tools/openxc7.sh xdc $(BOARD_XDC) $< > $@
+	echo 'create_clock -period 20.000 [get_ports PL_CLK_50M]' >> $@
+
+$(BLINK)/blink_top.bit: rtl/board/blink_top.v $(BLINK)/blink_top.xdc
+	tools/openxc7.sh bit blink_top $(CURDIR)/$(BLINK) $(CURDIR)/$(BLINK)/blink_top.xdc $(CURDIR)/$<
+
+blink: $(BLINK)/blink_top.bit

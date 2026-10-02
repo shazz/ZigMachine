@@ -65,3 +65,19 @@ writes to it.
 the full-SoC simulation; setup unpacks the libevent/json-c headers its harness
 needs), `riscv64-unknown-elf-gcc` + picolibc (the cycles firmware), openXC7 (Docker) or Vivado ML Standard (bitstreams), and Icarus
 (cocotb).
+
+## Bitstreams (openXC7 in Docker)
+
+```sh
+make -C fpga toolchain   # once: pinned image (docker/openxc7/) + prjxray-db + xc7z010 chipdb -> .tools/
+make -C fpga blink       # rtl/board/blink_top.v -> build/blink/blink_top.bit (+ pnr.log, report.json)
+uv run python -m soc.zigmachine_soc --target z7 --toolchain openxc7 --build   # the full SoC
+```
+
+`tools/openxc7.sh` runs yosys -> nextpnr-xilinx -> fasm2frames -> xc7frames2bit
+in the container, as the caller, with the repo mounted at its own path; nothing
+is installed on the host. The image is openXC7's own Nix flake
+(`toolchain-nix`) pinned by commit and digest; the chipdb's sha256 is in
+`docker/openxc7/chipdb.sha256` and is checked on every rebuild. For LiteX,
+`soc/openxc7.py` writes the build script on the host and runs it in the
+container. Loading a bitstream onto the board: `boards/microphase_z7_7010/README.md`.

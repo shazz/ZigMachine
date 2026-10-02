@@ -43,3 +43,36 @@ Two routes:
 2. **Our own FSBL:** generate `ps7_init` once with Vivado or Vitis `xsct` from
    zeST's `zest_z7lite.tcl` PS7 block (zeST's `setup/recipes/fsbl.sh` does
    exactly this).
+
+## Programming the PL over JTAG (openFPGALoader)
+
+The board's USB-JTAG is an FT232HL (USB `0403:6014`) with a 93LC56 EEPROM,
+wired like a Digilent JTAG-HS2. openFPGALoader names that cable `digilent_hs2`
+(`src/cable.hpp`: `FTDI_SER(0x0403, 0x6014, FTDI_INTF_A, 0xe8, 0xeb, 0x00, 0x60)`).
+The bitstream goes to the PL's SRAM only (lost at power-off); the PL clock is the
+board's own 50 MHz oscillator, so `blink_top.bit` needs nothing from the ARM side.
+
+1. **Boot mode:** set jumper **J1 to JTAG** (the manual's *Boot Config* table,
+   `vendor/Z7-Lite_Reference_Manual.md`). In QSPI/SD mode a FSBL on the card or
+   flash may reconfigure the PL behind you.
+2. **udev, once:** openFPGALoader ships `99-openfpgaloader.rules` (group
+   `plugdev`) and `70-openfpgaloader.rules` (no group, use `dialout`):
+   ```sh
+   sudo cp 99-openfpgaloader.rules /etc/udev/rules.d/
+   sudo udevadm control --reload-rules && sudo udevadm trigger
+   sudo usermod -a -G plugdev $USER   # then log out and back in
+   ```
+3. **See the chain:** `openFPGALoader -c digilent_hs2 --detect` should list the
+   xc7z010 (and the ARM DAP). If the cable is not found, check `lsusb` for
+   `0403:6014`; if it is found but the chain is empty, check J1 and the power.
+4. **Load:**
+   ```sh
+   openFPGALoader -c digilent_hs2 fpga/build/blink/blink_top.bit
+   ```
+   PL_LED1 and PL_LED2 then alternate, 0.5 s each. The full SoC loads the same
+   way: `openFPGALoader -c digilent_hs2 fpga/build/soc_z7/gateware/<name>.bit`.
+
+The `.bit` files come from `make -C fpga blink` / the SoC's `--toolchain openxc7
+--build`, through `tools/openxc7.sh` (openXC7 in Docker, pinned in
+`docker/openxc7/`). openFPGALoader is not in that image: it needs the USB device,
+so install it on the host (`apt install openfpgaloader`, or a release build).
