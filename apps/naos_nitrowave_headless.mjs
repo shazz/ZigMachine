@@ -160,6 +160,19 @@ function backToMenu(label) {
     if (bad) errors.push(`keys: Space in ${label} does not restart the menu (${bad})`);
 }
 
+/// Programs entered over and over: the plane must keep the one overscan buffer
+/// (each openBorders() takes a fresh 112,000 bytes from a VRAM pool with no
+/// guard; the eighth would run into the physical framebuffer).
+function trips() {
+    for (let i = 0; i < 6; i++) for (const k of [K.f2, K.f3]) { demo.key(k); demo.frame(VBL_MS); demo.key(K.space); }
+    demo.frame(VBL_MS);
+    const fbBase = new DataView(memory.buffer).getUint32(machine.hwVideoBase() + 0x44, true); // REG_FB_BASE, plane 0
+    if (fbBase + 400 * 280 > 0x1100 + 1024 * 1024) errors.push(`vram: after twelve trips the plane's buffer is at ${fbBase.toString(16)}, past the 1 MiB VRAM pool`);
+    const bad = diff(plane(), words(unz(refs.menu.base)));
+    if (bad) errors.push(`keys: twelve trips to F2 / F3 and back leave the menu wrong (${bad})`);
+    else console.log("  keys: twelve trips to F2 / F3 and back, the menu as it started");
+}
+
 await frames("menu");
 cost("menu");
 demo.key(K.f2);
@@ -172,6 +185,7 @@ await frames("dam");
 cost("F3");
 freeze("Sapristi");
 backToMenu("F3");
+trips();
 demo.key(K.space);
 if (demo.pollCartRequest() !== -1) errors.push("keys: Space in the menu does not ask for the menu disk");
 if (machine.hwRamAllocFailures() !== 0) errors.push(`alloc: ${machine.hwRamAllocFailures()} zg.mem requests refused`);

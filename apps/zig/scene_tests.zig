@@ -31,4 +31,5 @@ test {
     _ = @import("scenes/dune_gen4/hades/logo.zig");
     _ = @import("scenes/dune_gen4/hades/skulls.zig");
     _ = @import("scenes/dune_gen4/hades/scroll.zig");
+    _ = @import("scenes/naos_nitrowave/planar.zig");
 }

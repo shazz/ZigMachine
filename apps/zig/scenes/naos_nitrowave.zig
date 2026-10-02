@@ -72,7 +72,9 @@ pub const Demo = struct {
         zigos.setBackgroundColor(st.color(0));
         self.fb = &zigos.lfbs[0];
         self.fb.is_enabled = true;
-        self.fb.clearFrameBuffer(0);
+        // ONCE: every openBorders() takes a fresh 400x280 buffer from a VRAM
+        // pool with no guard, so re-opening per part ran past it by the eighth.
+        self.fb.openBorders(.all);
         self.go(.menu);
     }
 
@@ -128,7 +130,8 @@ pub const Demo = struct {
         self.acc = 0;
         self.ok = assets.load(&self.ram, part);
         if (!self.ok) return zg.Console.log("naos_nitrowave: the {s} image does not depack", .{@tagName(part)});
-        self.fb.openBorders(.all);
+        // F3's HBL replaces the plain flicker; the menu and F2 put it back.
+        if (part != .dam) self.fb.setFrameBufferHBLHandler(zg.OVERSCAN_MAGIC_X, zg.flickerAllHbl);
         switch (part) {
             .menu => {
                 self.menu.enter(&self.ram);

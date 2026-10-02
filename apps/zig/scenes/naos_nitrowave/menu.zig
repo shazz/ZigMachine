@@ -63,9 +63,9 @@ pub const Menu = struct {
         self.shown = SCR_A;
         self.displayed = SCR_A;
         self.swap(r);
-        self.letterClock(r);
+        letterClock(r);
         pathClock(r);
-        self.scroll(r);
+        scroll(r);
     }
 
     /// One VBL, then the main loop's work after it ($528..$578).
@@ -73,7 +73,7 @@ pub const Menu = struct {
         self.displayed = self.shown;
         vbl.run(r);
         self.swap(r);
-        self.scroll(r);
+        scroll(r);
         pathClock(r);
     }
 
@@ -93,24 +93,24 @@ pub const Menu = struct {
         }
         setTables(r, GFX_B, MASK_B);
     }
-
-    /// $630: the tables the next VBL draws from move one column (16 px) left.
-    fn scroll(self: *Menu, r: *const st.Ram) void {
-        if (r.b(V_PAUSE) == 1) return pauseClock(r);
-        for ([2]u32{ r.l(V_GFX), r.l(V_MASK) }) |t| {
-            for (0..TABLE_ENTRIES - 1) |i| r.sl(t + 4 * @as(u32, @intCast(i)), r.l(t + 4 * @as(u32, @intCast(i)) + 4));
-        }
-        self.letterClock(r);
-    }
-
-    /// $794: every sixth call, the next character ($7DC).
-    fn letterClock(_: *Menu, r: *const st.Ram) void {
-        r.sb(V_SIX, r.b(V_SIX) +% 1);
-        if (r.b(V_SIX) != 6) return;
-        r.sb(V_SIX, 0);
-        nextChar(r);
-    }
 };
+
+/// $630: the tables the next VBL draws from move one column (16 px) left.
+fn scroll(r: *const st.Ram) void {
+    if (r.b(V_PAUSE) == 1) return pauseClock(r);
+    for ([2]u32{ r.l(V_GFX), r.l(V_MASK) }) |t| {
+        for (0..TABLE_ENTRIES - 1) |i| r.sl(t + 4 * @as(u32, @intCast(i)), r.l(t + 4 * @as(u32, @intCast(i)) + 4));
+    }
+    letterClock(r);
+}
+
+/// $794: every sixth call, the next character ($7DC).
+fn letterClock(r: *const st.Ram) void {
+    r.sb(V_SIX, r.b(V_SIX) +% 1);
+    if (r.b(V_SIX) != 6) return;
+    r.sb(V_SIX, 0);
+    nextChar(r);
+}
 
 fn setTables(r: *const st.Ram, gfx: u32, mask: u32) void {
     r.sl(V_MASK, mask);

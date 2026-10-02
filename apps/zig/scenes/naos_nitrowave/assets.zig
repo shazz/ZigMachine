@@ -24,6 +24,12 @@ fn blob(set: Set) Blob {
     };
 }
 
+comptime {
+    for ([_]Set{ .menu, .bspr, .dam }) |set| {
+        if (blob(set).at + blob(set).len > st.RAM_LEN) @compileError("naos_nitrowave: a part image runs past the 512 KB part memory");
+    }
+}
+
 var ram_bytes: []u8 = &.{};
 
 /// The part memory, taken once per cart load (zeroed by the arena).

@@ -35,6 +35,8 @@ const V_PSTATE: u32 = 0x12A64;
 const GLOB_FIRST: u32 = 0x128C2;
 const GLOB_END: u32 = 0x12A52;
 const ENTRY: u32 = 12;
+const PATH_FIRST: u32 = 0x12A66; // state 1's entry
+const PATH_END: u32 = 0x1779A; // the end of state 7's table
 
 /// $1218's states 2..6: the end of each entry table, where it restarts, and the
 /// next state's count (state 6 runs on into state 7's table instead).
@@ -97,51 +99,53 @@ pub const Bspr = struct {
 
     /// $1218: a6 for the next VBL.
     fn path(self: *Bspr, r: *const st.Ram) void {
-        if (self.freeze) return self.setA6(r.l(V_PATH));
+        if (self.freeze) return self.holdPath(r);
         if (r.w(V_PSTATE) == 1) {
             const n = r.w(V_PN) -% 1;
             r.sw(V_PN, n);
-            if (n != 0) return self.setA6(r.l(V_PATH));
+            if (n != 0) return self.holdPath(r);
             r.sw(V_PSTATE, 2);
             r.sw(V_PN, 8);
         }
         self.walk(r);
     }
 
-    fn setA6(self: *Bspr, a: u32) void {
-        self.a6 = a;
+    /// The same entry again: frozen, or state 1 counting down.
+    fn holdPath(self: *Bspr, r: *const st.Ram) void {
+        self.a6 = r.l(V_PATH);
     }
 
-    /// $125E..$13F0: one entry on in the current table.
+    /// $125E..$13F0: one entry on in the current table. A table that ends
+    /// with its count run out falls through into the next state's, same call.
     fn walk(self: *Bspr, r: *const st.Ram) void {
         while (true) {
             const s = r.w(V_PSTATE);
-            var a0 = r.l(V_PATH) + ENTRY;
-            if (s >= 2 and s <= 6) {
-                const w = walks[s - 2];
-                if (a0 == w.end) {
-                    const n = r.w(V_PN) -% 1;
-                    r.sw(V_PN, n);
-                    if (n == 0) {
-                        r.sw(V_PSTATE, s + 1);
-                        if (w.next) |next| r.sw(V_PN, next);
-                        continue;
-                    }
-                    a0 = w.restart;
-                }
-                r.sl(V_PATH, a0);
-                return self.setA6(a0);
-            }
-            r.sw(V_PSTATE, 7); // $13CC
-            if (a0 != 0x1779A) {
-                r.sl(V_PATH, a0);
-                return self.setA6(a0);
-            }
-            r.sw(V_PSTATE, 1); // $11FE: start over, then $1218 again
-            r.sw(V_PN, 0x190);
-            r.sl(V_PATH, 0x12A66);
-            return self.path(r);
+            const a0 = r.l(V_PATH) + ENTRY;
+            if (s < 2 or s > 6) return self.lastWalk(r, a0);
+            const w = walks[s - 2];
+            if (a0 != w.end) return self.setPath(r, a0);
+            const n = r.w(V_PN) -% 1;
+            r.sw(V_PN, n);
+            if (n != 0) return self.setPath(r, w.restart);
+            r.sw(V_PSTATE, s + 1);
+            if (w.next) |next| r.sw(V_PN, next);
         }
+    }
+
+    /// $13CC: state 7 walks to its table's end, then $11FE starts the whole
+    /// path over and $1218 runs again.
+    fn lastWalk(self: *Bspr, r: *const st.Ram, a0: u32) void {
+        r.sw(V_PSTATE, 7);
+        if (a0 != PATH_END) return self.setPath(r, a0);
+        r.sw(V_PSTATE, 1);
+        r.sw(V_PN, 0x190);
+        r.sl(V_PATH, PATH_FIRST);
+        self.path(r);
+    }
+
+    fn setPath(self: *Bspr, r: *const st.Ram, a0: u32) void {
+        r.sl(V_PATH, a0);
+        self.a6 = a0;
     }
 
     /// $140C: the offset the whole sprite moves by.
