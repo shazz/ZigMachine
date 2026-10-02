@@ -25,34 +25,13 @@
 //     hbl   the plane's HBL is not called during a shot: the colours fail
 //     step  the cart runs one VBL the reference does not: the menu/F2 shots fail
 //     tune  a wrong subtune is reported: the music check fails
-import { readFile, writeFile, mkdir } from "node:fs/promises";
+import { writeFile, mkdir } from "node:fs/promises";
 import { createHash } from "node:crypto";
-import { cartRam, romRam } from "../docs/wasm_hiwater.js";
+import { boot, tuneFault, PW, PH } from "./snyd_90_machine.mjs";
+import { EXPECT } from "./snyd_90_expect.mjs";
 
-const PAGES = 112, OFF_PAL = 0x100, REG_FB_BASE = 0x44, PW = 400, PH = 280;
 const VBL = 20; // the parts run at the ST's 50 Hz: one VBL a 20 ms frame
 const K = { space: 32, esc: 0xe012, f: (n) => 0xe000 + n };
-const EXPECT = {
-    "intro": ["491f7e0b7fa2f5ac", "833eeee91e8a18bf"],
-    "menu-0001": ["792a1d0862a639f1", "c66600dfa2f7a4a7"],
-    "menu-0002": ["792a1d0862a639f1", "c66600dfa2f7a4a7"],
-    "menu-0100": ["b14e0f30fe3069af", "a4b092fe624c2e15"],
-    "menu-0531": ["09277ce9f3bd8cdf", "fd48138284fe5bf2"],
-    "menu-1000": ["3c9e6217de121a7d", "30bdf62e7ba8091e"],
-    "menu-1200": ["85602e678e35975c", "fec34b17c640ad39"],
-    "f2-0001": ["4f7988030a00d082", "3c521e0946b9f8fe"],
-    "f2-0002": ["d4003559a510ccbd", "7b501fb9a7fd2da4"],
-    "f2-0003": ["0f4451f5b4a40379", "d92e7800b3aa1bdd"],
-    "f2-0051": ["f0091c48c5d1acb0", "31cceb75611334dd"],
-    "f2-0194": ["3286d611dec36d3e", "f1622b0f9425c720"],
-    "f2-0701": ["dd9de0599b3e0d4c", "6804ef867346f165"],
-    "f2-1501": ["0970034ffc352cac", "02604d403f75a633"],
-    "f1-0001": ["180825ebbd018edd", "c4cd4e0d2aa06bc0"],
-    "f1-0002": ["180825ebbd018edd", "c4cd4e0d2aa06bc0"],
-    "f1-0300": ["180825ebbd018edd", "c4cd4e0d2aa06bc0"],
-    "f1-0701": ["dda8ff95761e8d75", "1ce77cf633c91c9e"],
-    "f1-1501": ["c9d4a915200dad7f", "a10acb0cb93ea0e7"],
-};
 const SONGS = [["snyd90.sndh", 4], ["snyd90.sndh", 1], ["snyd90_f2.sndh", 1], ["snyd90.sndh", 1],
     ["Overlander.sndh", 1], ["snyd90.sndh", 1]];
 
@@ -67,32 +46,6 @@ const errors = [];
 const fail = (msg) => { errors.push(msg); console.log(`  FAIL ${msg}`); };
 const sha = (b) => createHash("sha256").update(b).digest("hex").slice(0, 16);
 const dec = new TextDecoder();
-
-async function boot() {
-    const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
-    let demo, mute = false;
-    const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), {
-        env: { memory, hblDispatch: (id, p, l, x) => { if (!mute) demo.hblDispatch(id, p, l, x); } },
-    })).instance.exports;
-    const romBytes = await readFile("docs/rom.wasm");
-    const rom = (await WebAssembly.instantiate(romBytes, { env: { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit } })).instance.exports;
-    machine.hwSetRomHigh(romRam(romBytes).high ?? 0);
-    const noop = () => {};
-    const cartBytes = await readFile("docs/demo-snyd_90.wasm");
-    const env = { memory, jsConsoleLogWrite: noop, jsConsoleLogFlush: noop, jsThrowError: noop, consoleLogJS: noop, ...rom };
-    for (const k of Object.keys(machine)) if (/^hw(Video|Blit|Ram|RomRam)/.test(k)) env[k] = machine[k];
-    for (const k of ["audioPlay", "audioStop", "loadSample", "beep", "diskReadBlock", "hostAudioStreamStart", "hostAudioFeed", "hostAudioStreamStop"]) env[k] = noop;
-    demo = (await WebAssembly.instantiate(cartBytes, { env })).instance.exports;
-    machine.hwSetCartHigh(cartRam(cartBytes).high ?? 0);
-    machine.hwInit();
-    demo.boot();
-    demo.skipBoot();
-    const base = machine.hwVideoBase();
-    return {
-        memory, machine, demo, setMute: (v) => { mute = v; },
-        plane: () => new Uint8Array(memory.buffer, base + new DataView(memory.buffer, base).getUint32(REG_FB_BASE, true), PW * PH),
-    };
-}
 
 const m = await boot();
 const got = [];
@@ -175,24 +128,11 @@ const ms = (performance.now() - t0) / frames;
 if (brk === "tune") got[1] = ["snyd90.sndh", 2];
 if (JSON.stringify(got) !== JSON.stringify(SONGS)) fail(`song requests ${JSON.stringify(got)}, want ${JSON.stringify(SONGS)}`);
 else console.log(`  music: ${got.map((g) => g.join(" #")).join(", then ")}`);
-for (const [file, sub] of SONGS) await checkTune(file, sub);
-
-async function checkTune(file, sub) {
-    const bytes = new Uint8Array(await readFile(`docs/music/${file}`));
-    const mem = new WebAssembly.Memory({ initial: 48, maximum: 48 });
-    const ma = (await WebAssembly.instantiate(await readFile("docs/machine-audio.wasm"), { env: { memory: mem } })).instance.exports;
-    const env = { memory: mem };
-    for (const x of Object.keys(ma)) if (x.startsWith("machine")) env[x] = ma[x];
-    const au = (await WebAssembly.instantiate(await readFile("docs/demo-audio.wasm"), { env })).instance.exports;
-    au.audioInit();
-    new Uint8Array(mem.buffer, au.audioSongPtr(), bytes.length).set(bytes);
-    if (!au.audioLoadSndh(bytes.length)) return fail(`${file} is not an SNDH image`);
-    au.audioSndhPlay(sub);
-    const left = new Float32Array(mem.buffer, ma.audioLeftPtr(), 1024);
-    let peak = 0;
-    for (let d = 0; d < 2 * 44100; d += 1024) { au.audioRender(1024); for (const v of left) peak = Math.max(peak, Math.abs(v)); }
-    if (au.audioMode() !== 4 || peak < 0.05 || au.audioSndhStuckPc()) fail(`${file} #${sub} does not play (mode ${au.audioMode()}, peak ${peak.toFixed(3)})`);
-    else console.log(`    ${file} #${sub} plays through the sealed YM (peak ${peak.toFixed(3)})`);
+for (const [file, sub] of SONGS) {
+    const out = {};
+    const why = await tuneFault(file, sub, out);
+    if (why) fail(why);
+    else console.log(`    ${file} #${sub} plays through the sealed YM (peak ${out.peak.toFixed(3)})`);
 }
 
 // ------------------------------------------------------------------ leaving + cost
