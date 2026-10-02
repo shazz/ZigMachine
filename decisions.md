@@ -9,6 +9,47 @@ reconstructed from the commits that made them, so they are shorter.
 
 ---
 
+## 2026-10-02 — FPGA video composites into a DDR framebuffer; the seal is a hardware bus window
+
+**Status:** accepted (Matt, after the Fable review, `fpga/REVIEW_FABLE.md` findings 1–2)
+
+**Context:** The board plan raced the beam: the compositor drew line by line
+while the cart's `frame()` ran concurrently, and HBL handlers fired as CPU
+interrupts. The machine's contract is a strict order every frame, `hwClear`
+(global HBLs) → `frame()` → each plane with its HBL handlers. Carts draw in
+place, so racing the beam tears them, breaks the palette writes, and voids
+scene_hash as the oracle for the board. Separately, the cart, ROM and firmware
+share one VexRiscv address space, and the recommended build drops wasm2c's
+bounds checks, so nothing seals the cart.
+
+**Decision:**
+- **Composite each frame into a DDR framebuffer** in exactly the machine's
+  order and at compositor speed. A sequencer runs clear, then `frame()`, then
+  the planes, and HBL handlers are called from it, not taken as interrupts.
+  Scanout reads the previous, completed frame. The cost is one frame of
+  latency and about 80 MB/s of DDR.
+- **The seal is a hardware bus window.** The cart CPU's master is masked to its
+  own windows. Any other address raises a bus-error trap, and the
+  sequencer/`mem_base`/firmware state is not addressable by the cart.
+
+**Alternatives considered:**
+- Keep beam racing with shadow palettes: authentic timing, but no oracle and
+  torn carts.
+- Decide after bring-up.
+- For the seal: PMP + U-mode (needs PMP in the core plus trap plumbing), or
+  keeping the bounds checks (~36 % cycles).
+
+**Consequences:**
+- No per-line deadline. Two of the machine's line-major corner cases
+  (badflicker, equinox) disappear.
+- The board frame is hashable against the wasm machine.
+- HBL interrupt cost is gone.
+- The line-racing scanout and the compositor's live register reads get
+  reworked around a sequencer.
+- DDR bandwidth for the framebuffer joins the CPU's HP traffic.
+
+---
+
 ## 2026-10-02 — The console's ARM runs Linux and one Zig program over `/dev/mem`
 
 **Status:** accepted · design in `docs/FPGA_GLASS.md`, code in `fpga/glass/`
