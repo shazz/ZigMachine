@@ -15,10 +15,14 @@
 //         with its colour-register writes along the lines (dam*.zig)
 // Not shown: the menu's machine test before it (the overscan routine generated
 // three ways while the screen stays black) and the floppy loads (~30 s black).
-// F1 (Ric's multisprites, interrupt-driven, Timer B rasters) is not ported.
+// PORTED BEST EFFORT (Matt, 2026-10-02: "something looking like the real
+// thing"): F1, Ric's multisprites (ric*.zig) -- the original's figures,
+// tables, sprites and colours, its title and its tune; what was a cycle race
+// on the ST (the VBL drawing on the shown screen, Timer B landing late) is
+// placed at its nominal line, so it is close to Hatari, not equal (ric.zig).
 //
-// Keys: menu F2 -> the big sprite, F3 -> Sapristi. In a part, 'F' freezes it
-// (the original's key) and Space or Return goes back to the menu (the original
+// Keys: menu F1 -> the multisprites, F2 -> the big sprite, F3 -> Sapristi. In a part, 'F' freezes it
+// (the original's key; in F1, F1 freezes and F2 goes on) and Space or Return goes back to the menu (the original
 // reboots, and the disk boots the menu again from its start). Space in the
 // menu leaves, as the original quits to the desktop; Escape too.
 //
@@ -27,6 +31,7 @@
 // (apps/sndh_headless.mjs) and matches an archive SNDH register for register
 // (ymcheck.sh: identical frames at a 2-frame lag):
 //   menu  big_sprite.sndh #1 (Mad_Max/Demos/Cuddly_Demos/Big_Sprite)       0.999
+//   F1    robocop_tune_2.sndh #1 (Mad_Max/Demos/Cuddly_Demos/Robocop_Tune_2) 1.000
 //   F2    so_watt_no_crew.sndh #1 (Mad_Max/Demos/So_Watt/So_Watt_No_Crew)  1.000
 //   F3    so_watt_techatron.sndh #1 (AN_Cool/So_Watt-Techatron)            0.999
 // --------------------------------------------------------------------------
@@ -38,12 +43,15 @@ const dam_show = @import("naos_nitrowave/dam_show.zig");
 const M = @import("naos_nitrowave/menu.zig");
 const B = @import("naos_nitrowave/bspr.zig");
 const D = @import("naos_nitrowave/dam.zig");
+const R = @import("naos_nitrowave/ric.zig");
+const ric_show = @import("naos_nitrowave/ric_show.zig");
 
 const ZigOS = zg.ZigOS;
 
 const K_SPACE: u32 = 32;
 const K_RETURN: u32 = 13;
 const K_ESC: u32 = 0xE012;
+const K_F1: u32 = 0xE001;
 const K_F2: u32 = 0xE002;
 const K_F3: u32 = 0xE003;
 const BSPR_LINES = show.Lines{ .first = 0, .end = 255 };
@@ -62,6 +70,8 @@ pub const Demo = struct {
     menu: M.Menu,
     bspr: B.Bspr,
     dam: D.Dam,
+    ric: R.Ric,
+    menu_vbls: u32, // VBLs since the menu started: F1's figure comes from it
     acc: f32,
     ok: bool, // the part on screen depacked
     wants_quit: bool,
@@ -90,6 +100,7 @@ pub const Demo = struct {
                 show.present(&self.ram, self.menu.displayed, show.MENU_LINES, px);
                 show.menuStars(px);
             },
+            .ric => self.ric.present(&self.ram, px),
             .bspr => show.present(&self.ram, self.bspr.displayed, BSPR_LINES, px),
             .dam => dam_show.present(&self.ram, self.dam.displayed, px),
         }
@@ -97,7 +108,11 @@ pub const Demo = struct {
 
     fn vbl(self: *Demo) void {
         switch (self.part) {
-            .menu => self.menu.frame(&self.ram),
+            .menu => {
+                self.menu.frame(&self.ram);
+                self.menu_vbls +%= 1;
+            },
+            .ric => self.ric.frame(&self.ram),
             .bspr => self.bspr.frame(&self.ram),
             .dam => self.dam.frame(&self.ram),
         }
@@ -109,9 +124,13 @@ pub const Demo = struct {
         switch (self.part) {
             .menu => {
                 if (cp == K_SPACE) return self.quit();
+                if (cp == K_F1) self.go(.ric);
                 if (cp == K_F2) self.go(.bspr);
                 if (cp == K_F3) self.go(.dam);
                 return;
+            },
+            .ric => if (cp == K_F1 or cp == K_F2) {
+                self.ric.frozen = cp == K_F1;
             },
             .bspr => if (freeze) self.bspr.toggleFreeze(),
             .dam => if (freeze) self.dam.toggleFreeze(&self.ram),
@@ -130,13 +149,19 @@ pub const Demo = struct {
         self.acc = 0;
         self.ok = assets.load(&self.ram, part);
         if (!self.ok) return zg.Console.log("naos_nitrowave: the {s} image does not depack", .{@tagName(part)});
-        // F3's HBL replaces the plain flicker; the menu and F2 put it back.
-        if (part != .dam) self.fb.setFrameBufferHBLHandler(zg.OVERSCAN_MAGIC_X, zg.flickerAllHbl);
+        // F1's and F3's HBLs replace the plain flicker; the others put it back.
+        if (part != .dam and part != .ric) self.fb.setFrameBufferHBLHandler(zg.OVERSCAN_MAGIC_X, zg.flickerAllHbl);
         switch (part) {
             .menu => {
                 self.menu.enter(&self.ram);
+                self.menu_vbls = 0;
                 show.palette(&self.ram, M.PALETTE, self.fb);
                 zg.requestSongTune("big_sprite.sndh", 1);
+            },
+            .ric => {
+                // ($FF8209 >> 1) & 3 on the ST: where the beam was
+                self.ric.enter(&self.ram, @truncate(self.menu_vbls >> 1));
+                self.fb.setFrameBufferHBLHandler(zg.OVERSCAN_MAGIC_X, ric_show.hbl);
             },
             .bspr => {
                 self.bspr.enter(&self.ram);
