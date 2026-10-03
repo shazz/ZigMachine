@@ -20,8 +20,8 @@ says otherwise.
 | — | Video to the wire: mixer, scanout, TMDS/DVI, in the SoC | **done** | mixer = Chrome byte for byte; 40/40 frames; 90/90 carts replay identically |
 | — | openXC7 toolchain (Docker, pinned) + first bitstream | **done** | `make -C fpga blink`; the full SoC routes |
 | — | Timing closure under openXC7 (pass 2) | **done at 100 MHz** | glass SoC **meets sys 100 / comp 125 MHz** (seed 8, pinned); compositor on its own clock; skystrike needs 119 |
-| — | The glass: ARM loader + OSD menu + USB keyboard/mouse/pads ([`FPGA_GLASS.md`](FPGA_GLASS.md)) | **built, host-tested** | GP0 regs + OSD in RTL (19/19 break tests), Zig `glass` (37 tests), input break tests 18/18, 9 board images land byte for byte; the SoC with PS7 does not route yet |
-| 1–7 | Board work | **started: blink runs on the board** | `openFPGALoader -c digilent_hs2 fpga/build/blink/blink_top.bit` |
+| — | The glass: ARM loader + OSD menu + USB keyboard/mouse/pads ([`FPGA_GLASS.md`](FPGA_GLASS.md)) | **built, host-tested** | GP0 regs + OSD in RTL (19/19 break tests), Zig `glass` (37 tests), input break tests 18/18, 9 board images land byte for byte; **GP0 + OSD proven on the board from U-Boot** |
+| 1–7 | **Board bring-up on the real Z7-Lite** | **5 milestones on silicon** | blink · HDMI video · U-Boot + DDR · HDMI audio · ARM→GP0→OSD (see "the board is alive") |
 | RTL | Video timing (`zm_vtiming`) | **done** | 64 LUTs, CXXRTL-tested over 2 frames |
 | RTL | Video compositor: planes, palettes, border, BEAM, all modes | **done** | **32/32 frames pixel-identical** to the machine; 25/25 mutants caught; 1,169 LUTs |
 | — | DDR framebuffer video: sequencer, snoop, double buffer, scanout DMA | **done** | the cart CPU + the RTL video in Verilator: **5/5 carts hash = scene_hash** (tutorial, union_main, badflicker, equinox, dhs_0pxl0reg); 49/49 RTL mutants caught |
@@ -29,6 +29,14 @@ says otherwise.
 ---
 
 ## 2026-10-03: the board is alive
+
+| # | On the real board | What it proves |
+|---|---|---|
+| 1 | **LED blink** (`make -C fpga blink`) | the open toolchain (Yosys → nextpnr → prjxray → openFPGALoader) end to end on silicon |
+| 2 | **HDMI test pattern** (`hdmi-test-oddr`) | the video path at 800×600@60, through an ODDR serialiser (the OSERDES cascade fails under openXC7) |
+| 3 | **U-Boot + DDR** (zeST `BOOT.BIN` on SD) | the ARM side boots; DDR3 512 MB at 533 MHz; `mtest` clean |
+| 4 | **HDMI audio** (`hdmi-audio-test`) | data islands + InfoFrames + ACR: a 440/660 Hz stereo tone from the monitor's speakers |
+| 5 | **The OSD, driven by the ARM** (`osd-test`) | GP0 at `0x43C0_0000` from U-Boot (ID `5a4d474c`, scratch read-back), "HELLO FROM THE ARM" + the time, OSD on/off, recoloured live |
 
 - **First light.** `openFPGALoader -c digilent_hs2 --detect` sees the JTAG chain:
   the ARM Cortex-A9 DAP (`0x4ba00477`) and the **xc7z010** (`0x3722093`).
@@ -38,6 +46,14 @@ says otherwise.
   on real silicon.
 - Setup: the USB-C **JTAG** port (J6; it also powers the board), the **UART**
   port (J3, CH340 → `/dev/ttyUSB0`), and jumper **J1 on the JTAG pins**.
+- **HDMI audio works** (`make -C fpga hdmi-audio-test`): HDMI (not DVI) with
+  data islands (TERC4, guard bands, BCH ECC), AVI + Audio InfoFrames, ACR
+  N=6144/CTS=40000, 48 kHz stereo L-PCM: 440 Hz left, 660 Hz right **heard from
+  the monitor's speakers** (the Z7-Lite has no other audio output). The encoder
+  (`rtl/hdmi/`) is ~370 LUTs; its packets equal hdl-util's bit for bit, and a
+  reference sink in the testbench decodes 3 frames (14 break tests).
+  `make -C fpga edid-test` shows a monitor's EDID as hex on screen
+  (`tools/edid_decode.py` decodes it).
 - **HDMI works** (`make -C fpga hdmi-test-oddr`): 800×600@60 colour bars, the
   bouncing box and the 8-bit ramps on a monitor, from the PL alone. **Finding:**
   the OSERDESE2 10:1 master/slave cascade (`zm_dvi_out`) routes correctly under
@@ -45,6 +61,14 @@ says otherwise.
   fabric shifter at 200 MHz into an ODDR (2 bits a clock) works, and that
   serialiser replaces it in the SoC. Variants for future debugging:
   `hdmi-test-{clkonly,lvcmos,rev,inv}`.
+- **The SoC now uses it.** `zm_dvi_out` serialises with a fabric shifter
+  (`rtl/video/zm_tmds_shift.v`, 200 MHz) into an ODDR by default; the
+  OSERDESE2 cascade is kept behind `SERIALISER="OSERDES"`. CXXRTL test of the
+  shifter behind the encoder (bit 0 first, two bits a 5x clock, all five
+  counter phases) with 3 break tests. The new netlist re-drew the seed (seed 8:
+  sys 93.1, comp 107.5 MHz); over seeds 1-5 the best is **seed 5, now pinned:
+  sys 102.3 MHz, comp 118.4 MHz (misses 125), pix 117.5, pix5x 361.4 (needs
+  200)**. `fpga/build/hdmi_oddr_soc/results.txt`.
 - **The ARM side and DDR work.** With zeST's 7010 `BOOT.BIN` alone on the SD card
   and J1 on SD: the FSBL and U-Boot 2025.01 come up. The console is the CH340 at
   **921600 baud** (not 115200). The ARM runs at 666 MHz; **DDR3 is 512 MB at
@@ -54,6 +78,21 @@ says otherwise.
   (itself, its stack and its FDT), which overlaps the glass's cart window at
   `0x1E00_0000`. Under Linux with `mem=480M` that is fine, but a cart loaded
   from U-Boot must go lower.
+- **The OSD test bitstream: WORKS ON THE BOARD.** Matt saw the banner at load;
+  `osd_uboot_demo.sh` then read ID `5a4d474c`, VERSION `00010100`, CTRL `2`,
+  SCRATCH `c0ffee42` back over GP0; "HELLO FROM THE ARM" and the time appeared,
+  the box went off and on, and turned yellow-on-blue (FG/BG read back
+  `00ffff00 000000aa`). openXC7 timing: pix 120 MHz, pix5x 505 MHz (need 40/200).
+  `make -C fpga osd-test` → `build/osd_test/osd_test_top.bit`: the test pattern
+  with the glass OSD over it (`zm_glass_osd`), and `zm_glass_regs` on the PS7's
+  M_AXI_GP0 at `0x43C0_0000`, clocked from the PL's 40 MHz pixel clock (not FCLK0).
+  The PL writes a banner into the OSD text RAM at reset (`rtl/board/osd_banner.v`)
+  and CTRL starts with the OSD on, so the overlay shows at load even if GP0 does
+  not. `fpga/tools/osd_uboot_demo.sh` then reads the ID, writes "HELLO FROM THE
+  ARM" and the time, toggles the OSD and changes its colours from U-Boot. CXXRTL
+  plays those steps and checks every pixel of a frame after each
+  (`tests/tb/osd_test_tb.cpp`, 5 break tests); `make -C fpga osd-test-sim` draws them
+  (`build/osd_test/osd_*.png`).
 
 ## 2026-10-03
 
