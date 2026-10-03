@@ -69,7 +69,15 @@ board's own 50 MHz oscillator, so `blink_top.bit` needs nothing from the ARM sid
    ```sh
    openFPGALoader -c digilent_hs2 fpga/build/blink/blink_top.bit
    ```
-   PL_LED1 and PL_LED2 then alternate, 0.5 s each. The full SoC loads the same
+   PL_LED1 and PL_LED2 then alternate, 0.5 s each. **Second step, HDMI:**
+   `make -C fpga hdmi-test` (`rtl/board/hdmi_test_top.v`; `make -C fpga hdmi-test-sim`
+   checks the pattern in CXXRTL and writes it as PNGs), then
+   `openFPGALoader -c digilent_hs2 fpga/build/hdmi_test/hdmi_test_top.bit` with HDMI1
+   on a monitor: 800x600@60 colour bars, castellations, a bouncing orange box and
+   four 8-bit ramps inside a 1-pixel white frame; PL_LED2 lit (PLL locked), PL_LED1
+   blinking at 1 Hz off the 40 MHz pixel clock. Bring-up variants of it,
+   `make -C fpga hdmi-test-{oddr,clkonly,lvcmos,rev,inv}` (the Makefile says what
+   each changes), land in `build/hdmi_test_<variant>/`. The full SoC loads the same
    way: `openFPGALoader -c digilent_hs2 fpga/build/soc_z7/gateware/<name>.bit`.
 
 The `.bit` files come from `make -C fpga blink` / the SoC's `--toolchain openxc7

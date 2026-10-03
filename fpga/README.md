@@ -75,6 +75,7 @@ needs), `riscv64-unknown-elf-gcc` + picolibc (the cycles firmware), openXC7 (Doc
 ```sh
 make -C fpga toolchain   # once: pinned image (docker/openxc7/) + prjxray-db + xc7z010 chipdb -> .tools/
 make -C fpga blink       # rtl/board/blink_top.v -> build/blink/blink_top.bit (+ pnr.log, report.json)
+make -C fpga hdmi-test   # rtl/board/hdmi_test_top.v: HDMI1 test pattern -> build/hdmi_test/hdmi_test_top.bit
 uv run --with meson --with ninja python -m soc.zigmachine_soc --target z7 --toolchain openxc7 --build   # the full SoC, glass included (~4 min)
 ```
 

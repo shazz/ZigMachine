@@ -82,20 +82,20 @@ xdc_for() {  # xdc_for BOARD_XDC TOP_V: the board's lines for the top's ports on
     grep -E "get_ports\s+\{?\s*($ports)(\[[0-9]+\])?\s*\}?\s*\]" "$1"
 }
 
-bit() {  # bit TOP OUT XDC VERILOG...
-    local top=$1 out=$2 xdc=$3; shift 3
+bit() {  # bit TOP OUT XDC VERILOG...  (`include`s resolve in fpga/gen, or OPENXC7_INC; OPENXC7_DEFS=-DX)
+    local top=$1 out=$2 xdc=$3 inc="${OPENXC7_INC:-$FPGA/gen}" defs="${OPENXC7_DEFS:-}"; shift 3
     [ -f "$CHIPDB/$DBPART.bin" ] || chipdb
     mkdir -p "$out"
     run bash -c 'set -euo pipefail
-        top=$1 out=$2 xdc=$3 part=$4 chipdb=$5 db=$6; shift 6
+        top=$1 out=$2 xdc=$3 part=$4 chipdb=$5 db=$6 inc=$7 defs=$8; shift 8
         cd "$out"
-        yosys -q -l synth.log -p "read_verilog -sv $*; synth_xilinx -flatten -abc9 -arch xc7 -top $top; tee -o utilization.txt stat; write_json $top.json"
+        yosys -q -l synth.log -p "read_verilog -sv -I$inc $defs $*; synth_xilinx -flatten -abc9 -arch xc7 -top $top; tee -o utilization.txt stat; write_json $top.json"
         nextpnr-xilinx --chipdb "$chipdb" --xdc "$xdc" --json "$top.json" \
             --write "${top}_routed.json" --fasm "$top.fasm" --report report.json --log pnr.log
         fasm2frames --part "$part" --db-root "$db/zynq7" "$top.fasm" > "$top.frames"
         xc7frames2bit --part_file "$db/zynq7/$part/part.yaml" --part_name "$part" \
             --frm_file "$top.frames" --output_file "$top.bit"' \
-        _ "$top" "$out" "$xdc" "$PART" "$CHIPDB/$DBPART.bin" "$PRJXRAY_DB_DIR" "$@"
+        _ "$top" "$out" "$xdc" "$PART" "$CHIPDB/$DBPART.bin" "$PRJXRAY_DB_DIR" "$inc" "$defs" "$@"
     echo "openxc7: $out/$top.bit"
 }
 

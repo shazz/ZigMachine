@@ -38,6 +38,13 @@ says otherwise.
   on real silicon.
 - Setup: the USB-C **JTAG** port (J6; it also powers the board), the **UART**
   port (J3, CH340 → `/dev/ttyUSB0`), and jumper **J1 on the JTAG pins**.
+- **HDMI works** (`make -C fpga hdmi-test-oddr`): 800×600@60 colour bars, the
+  bouncing box and the 8-bit ramps on a monitor, from the PL alone. **Finding:**
+  the OSERDESE2 10:1 master/slave cascade (`zm_dvi_out`) routes correctly under
+  openXC7 (it was checked in the FASM) but gives **no signal on silicon**. A
+  fabric shifter at 200 MHz into an ODDR (2 bits a clock) works, and that
+  serialiser replaces it in the SoC. Variants for future debugging:
+  `hdmi-test-{clkonly,lvcmos,rev,inv}`.
 
 ## 2026-10-03
 

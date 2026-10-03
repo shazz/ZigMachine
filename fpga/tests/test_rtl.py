@@ -21,6 +21,7 @@ CXXRTL_INCLUDE = Path(yowasp_yosys.__file__).parent / "share/include/backends/cx
 RTL_TESTS = [
     ("zm_vtiming", ["rtl/video/zm_vtiming.v"], "tests/tb/zm_vtiming_tb.cpp"),
     ("zm_tmds_enc", ["rtl/video/zm_tmds_enc.v"], "tests/tb/zm_tmds_tb.cpp"),
+    ("hdmi_pattern", ["rtl/video/zm_vtiming.v", "rtl/board/hdmi_pattern.v"], "tests/tb/hdmi_pattern_tb.cpp"),
 ]
 
 
@@ -31,6 +32,9 @@ MUTANTS = [
     ("tmds_cnt_kept", "zm_tmds_enc", "rtl/video/zm_tmds_enc.v", "cnt <= 6'sd0;\n            case", "case"),
     ("tmds_token_01", "zm_tmds_enc", "rtl/video/zm_tmds_enc.v", "10'b0010101011;", "10'b0010101010;"),
     ("tmds_adj_sign", "zm_tmds_enc", "rtl/video/zm_tmds_enc.v", "(m[8] ? 6'sd0 : -6'sd2)", "(m[8] ? 6'sd0 : 6'sd2)"),
+    ("hdmi_edge_off_by_one", "hdmi_pattern", "rtl/board/hdmi_pattern.v", "(x == 10'd799)", "(x == 10'd798)"),
+    ("hdmi_ramp_level", "hdmi_pattern", "rtl/board/hdmi_pattern.v", "11'd683", "11'd682"),
+    ("hdmi_box_step", "hdmi_pattern", "rtl/board/hdmi_pattern.v", "bx <= bx + 10'd4", "bx <= bx + 10'd3"),
 ]
 
 

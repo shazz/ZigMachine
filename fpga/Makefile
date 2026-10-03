@@ -158,3 +158,40 @@ $(BLINK)/blink_top.bit: rtl/board/blink_top.v $(BLINK)/blink_top.xdc
 	tools/openxc7.sh bit blink_top $(CURDIR)/$(BLINK) $(CURDIR)/$(BLINK)/blink_top.xdc $(CURDIR)/$<
 
 blink: $(BLINK)/blink_top.bit
+
+#   make hdmi-test      second bitstream: HDMI1 test pattern, 800x600@60 -> build/hdmi_test/hdmi_test_top.bit
+#   make hdmi-test-sim  the pattern in CXXRTL, checked, frames 0 and 60 -> build/hdmi_test/frame_*.png
+#   make hdmi-test-VARIANT  bring-up variants -> build/hdmi_test_VARIANT/hdmi_test_top.bit:
+#     oddr     10:1 by a fabric shifter + ODDR instead of the OSERDESE2 cascade
+#     clkonly  no serialiser: the 40 MHz pixel clock on the clock pair (ODDR), data pairs constant
+#     rev      symbols sent MSB first          inv  the three data pairs inverted (P/N swapped)
+#     lvcmos   as oddr, but every pair as two LVCMOS33 outputs (P, ~P): no TMDS_33 driver
+# Every P&R takes Fable's container lock (one openXC7 container at a time on this box).
+HDMI_TEST := build/hdmi_test
+HDMI_TEST_V := rtl/board/hdmi_test_top.v rtl/board/hdmi_pattern.v rtl/board/hdmi_dvi_dbg.v \
+	rtl/video/zm_vtiming.v rtl/video/zm_dvi_out.v rtl/video/zm_tmds_enc.v
+HDMI_LOCK := flock $(CURDIR)/build/fable_timing3/.container.lock
+HDMI_DEFS_oddr    := -DHDMI_ODDR
+HDMI_DEFS_clkonly := -DHDMI_CLKONLY
+HDMI_DEFS_rev     := -DHDMI_REVERSE
+HDMI_DEFS_inv     := -DHDMI_INVERT
+HDMI_DEFS_lvcmos  := -DHDMI_ODDR -DHDMI_SE
+HDMI_XDC_lvcmos   := | sed 's/TMDS_33/LVCMOS33/'
+HDMI_VARIANTS := oddr clkonly rev inv lvcmos
+
+.PHONY: hdmi-test hdmi-test-sim $(addprefix hdmi-test-,$(HDMI_VARIANTS))
+
+build/hdmi_test%/hdmi_test_top.xdc: rtl/board/hdmi_test_top.v $(BOARD_XDC)
+	@mkdir -p $(@D)
+	tools/openxc7.sh xdc $(BOARD_XDC) $< $(HDMI_XDC$(subst /,,$*)) > $@
+	echo 'create_clock -period 20.000 [get_ports PL_CLK_50M]' >> $@
+
+build/hdmi_test%/hdmi_test_top.bit: $(HDMI_TEST_V) gen/memmap.vh build/hdmi_test%/hdmi_test_top.xdc
+	OPENXC7_DEFS="$(HDMI_DEFS$(subst /,,$*))" $(HDMI_LOCK) tools/openxc7.sh bit hdmi_test_top $(CURDIR)/$(@D) \
+		$(CURDIR)/$(@D)/hdmi_test_top.xdc $(addprefix $(CURDIR)/,$(HDMI_TEST_V))
+
+hdmi-test: $(HDMI_TEST)/hdmi_test_top.bit
+$(addprefix hdmi-test-,$(HDMI_VARIANTS)): hdmi-test-%: build/hdmi_test_%/hdmi_test_top.bit
+
+hdmi-test-sim: memmap
+	uv run python tools/hdmi_test_sim.py 60
