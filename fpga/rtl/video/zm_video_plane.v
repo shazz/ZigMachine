@@ -42,24 +42,35 @@ module zm_video_plane (
 );
 `include "zm_video_memmap.vh"
 
+    // Stage 1: the inputs, registered, so the latch's LUTRAM reads and the live
+    // registers' muxes end in a flip-flop before any arithmetic.
+    reg [31:0] base_i;
+    reg [15:0] stride_i, hpos_i, seen_i, hs_live_i, flicker_i;
+    reg [8:0]  py_i;
+    reg [7:0]  mode_i, seed_i, res_i;
+    reg        top_open_i, bot_open_i;
+    always @(posedge clk)
+        {base_i, stride_i, hpos_i, seen_i, hs_live_i, flicker_i, py_i, mode_i, seed_i, res_i, top_open_i, bot_open_i}
+            <= {base, stride, hpos, seen, hs_live, flicker, py, mode, seed, res, top_open, bot_open};
+
     localparam [2:0] NORMAL = 3'd0, FS = 3'd1, SCROLL = 3'd2, MED = 3'd3, OVS = 3'd4;
-    wire [2:0] m = (mode >= 8'd1 && mode <= 8'd4) ? mode[2:0] : (stride == ZM_STRIDE_FULLSCREEN ? FS : NORMAL);
-    wire vis = py >= ZM_RASTER_BORDER_Y && py < ZM_RASTER_BORDER_Y + ZM_HEIGHT;
-    wire ovm = stride >= ZM_RASTER_WIDTH;
+    wire [2:0] m = (mode_i >= 8'd1 && mode_i <= 8'd4) ? mode_i[2:0] : (stride_i == ZM_STRIDE_FULLSCREEN ? FS : NORMAL);
+    wire vis = py_i >= ZM_RASTER_BORDER_Y && py_i < ZM_RASTER_BORDER_Y + ZM_HEIGHT;
+    wire ovm = stride_i >= ZM_RASTER_WIDTH;
     wire phys = m == FS || m == OVS || (m == MED && ovm);
-    wire [8:0] row = phys ? py : py - ZM_RASTER_BORDER_Y[8:0];
-    wire med_line = m == MED && res == ZM_RES_MEDIUM;
+    wire [8:0] row = phys ? py_i : py_i - ZM_RASTER_BORDER_Y[8:0];
+    wire med_line = m == MED && res_i == ZM_RES_MEDIUM;
     wire [10:0] med_len = med_line ? (ovm ? 11'd800 : 11'd640) : (ovm ? 11'd400 : 11'd320);
     // A fullscreen row longer than the fetch buffer asks for 2047 bytes, which
     // the fetcher refuses and flags (`overflow`) instead of wrapping silently.
-    wire [10:0] fs_len = stride > 16'd1021 ? 11'h7FF : stride[10:0];
+    wire [10:0] fs_len = stride_i > 16'd1021 ? 11'h7FF : stride_i[10:0];
     wire [10:0] len = m == FS ? fs_len : m == OVS ? 11'd400 : m == MED ? med_len : 11'd320;
-    wire [31:0] addr = base + row * stride + (m == SCROLL ? {16'd0, hs_live} : 32'd0);
+    wire [31:0] addr = base_i + row * stride_i + (m == SCROLL ? {16'd0, hs_live_i} : 32'd0);
     // Overscan: did this line's HBL flicker, and on the magic column?
-    wire flk = flicker != seen;
-    wire [15:0] dx = hpos > ZM_OVERSCAN_MAGIC_X ? hpos - ZM_OVERSCAN_MAGIC_X : ZM_OVERSCAN_MAGIC_X - hpos;
+    wire flk = flicker_i != seen_i;
+    wire [15:0] dx = hpos_i > ZM_OVERSCAN_MAGIC_X ? hpos_i - ZM_OVERSCAN_MAGIC_X : ZM_OVERSCAN_MAGIC_X - hpos_i;
     wire hit_now = flk && dx <= ZM_OVERSCAN_X_TOL;
-    wire top = py < ZM_RASTER_BORDER_Y, bot = !top && !vis;
+    wire top = py_i < ZM_RASTER_BORDER_Y, bot = !top && !vis;
 
     localparam [1:0] IDLE = 2'd0, DIV = 2'd1, FETCH = 2'd2, PAINT = 2'd3;
     reg [1:0] st = IDLE;
@@ -67,16 +78,31 @@ module zm_video_plane (
     reg [15:0] num;
     wire [16:0] rem_t = {s0, num[15]};
 
-    // The pass's geometry, registered as it starts: the registers it came from
-    // may change under the pass once the next handler runs.
+    // The pass's geometry, computed every clock into `*_q` and taken as the pass
+    // starts (comp-clock timing, fpga/README.md "Timing under openXC7": the
+    // latch -> compare -> carry cones were the compositor's critical path). The
+    // inputs are still for at least two clocks before `start` (stage 1, then
+    // this one): the sequencer's command, the latch and the drained stores all
+    // settle before the pass's LOAD, and `seen`/`top_open` change only one clock
+    // after a previous pass's start.
+    reg [31:0] addr_q;
+    reg [10:0] len_q;
+    reg [2:0]  m_q;
+    reg [7:0]  nbase_q;
+    reg        phys_q, vis_q, med_q, hit_q, flk_q, top_q, bot_q, open_q;
+    always @(posedge clk) begin
+        {addr_q, len_q, m_q, nbase_q} <= {addr, len, m, py_i[7:0] * 8'd101 + seed_i * 8'd7};
+        {phys_q, vis_q, med_q, hit_q, flk_q, top_q, bot_q} <= {phys, vis, med_line, hit_now, flk, top, bot};
+        open_q <= (top && (top_open_i || hit_now)) || (bot && (bot_open_i || hit_now));
+    end
     always @(posedge clk) if (st == IDLE && start) begin
-        fetch_addr <= addr;
-        fetch_len <= len;
-        ncols <= m == FS ? ZM_PHYSICAL_WIDTH[9:0] : len[9:0];
-        dst0 <= phys ? 10'd0 : ZM_RASTER_BORDER_X[9:0];
-        {single, wrap, ov, band, hit, flick} <= {med_line, m == FS, m == OVS, !vis, hit_now, flk};
-        band_open <= (top && (top_open || hit_now)) || (bot && (bot_open || hit_now));
-        nbase <= py[7:0] * 8'd101 + seed * 8'd7;
+        fetch_addr <= addr_q;
+        fetch_len <= len_q;
+        ncols <= m_q == FS ? ZM_PHYSICAL_WIDTH[9:0] : len_q[9:0];
+        dst0 <= phys_q ? 10'd0 : ZM_RASTER_BORDER_X[9:0];
+        {single, wrap, ov, band, hit, flick} <= {med_q, m_q == FS, m_q == OVS, !vis_q, hit_q, flk_q};
+        band_open <= open_q;
+        nbase <= nbase_q;
     end
 
     // Fullscreen: s0 = hs % stride by restoring division, one bit a clock.
@@ -94,10 +120,10 @@ module zm_video_plane (
         else case (st)
             IDLE: if (start) begin
                 upd <= 1'b1;
-                upd_top <= m == OVS && top && hit_now;
-                upd_bot <= m == OVS && bot && hit_now;
-                if (!(phys || vis)) done <= 1'b1;   // nothing of this plane on this line
-                else if (m == FS) st <= DIV;
+                upd_top <= m_q == OVS && top_q && hit_q;
+                upd_bot <= m_q == OVS && bot_q && hit_q;
+                if (!(phys_q || vis_q)) done <= 1'b1;   // nothing of this plane on this line
+                else if (m_q == FS) st <= DIV;
                 else {st, fetch_start} <= {FETCH, 1'b1};
             end
             DIV: if (k == 5'd0) {st, fetch_start} <= {FETCH, 1'b1};

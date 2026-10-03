@@ -22,6 +22,7 @@ case class ZmArgs(
     dWays: Int = 1,
     seal: Boolean = false,
     relaxedPc: Boolean = false,
+    prediction: String = "STATIC", // NONE | STATIC | DYNAMIC_TARGET (fpga/README.md "Timing under openXC7")
     outputFile: String = "VexRiscv",
     targetDirectory: String = "."
 )
@@ -35,16 +36,27 @@ object GenZm {
       opt[Int]("dWays").action((v, c) => c.copy(dWays = v))
       opt[Unit]("seal").action((_, c) => c.copy(seal = true))
       opt[Unit]("relaxedPc").action((_, c) => c.copy(relaxedPc = true))
+      opt[String]("prediction").action((v, c) => c.copy(prediction = v))
       opt[String]("outputFile").action((v, c) => c.copy(outputFile = v))
       opt[String]("targetDirectory").action((v, c) => c.copy(targetDirectory = v))
     }
     p.parse(args, ZmArgs()).get
   }
 
+  // NONE: no prediction at all, a taken branch costs the flush. It removes the
+  // decode-stage I$-word -> static target -> fetch PC cone (fpga/TIMING_FABLE.md),
+  // for +8 % sys fmax over a seed sweep and +16-25 % cycles (fpga/CYCLES.md).
+  def branchPrediction(name: String): BranchPrediction = name match {
+    case "NONE" => NONE
+    case "STATIC" => STATIC
+    case "DYNAMIC_TARGET" => DYNAMIC_TARGET
+    case other => throw new IllegalArgumentException(s"--prediction $other: NONE, STATIC or DYNAMIC_TARGET")
+  }
+
   def iBus(a: ZmArgs) = new IBusCachedPlugin(
     resetVector = null,
     relaxedPcCalculation = a.relaxedPc, // fmax: a register between the PC and the I$ (one more fetch stage)
-    prediction = STATIC,
+    prediction = branchPrediction(a.prediction),
     compressedGen = false,
     memoryTranslatorPortConfig = null,
     config = InstructionCacheConfig(

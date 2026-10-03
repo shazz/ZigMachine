@@ -21,7 +21,7 @@ from typing import Any
 
 from litex.gen import LiteXModule
 from litex.soc.interconnect import wishbone
-from migen import If, Mux, Signal
+from migen import Array, If, Mux, Signal
 
 CTI_INCR, CTI_END = 0b010, 0b111
 # A LiteX wishbone.Interface: untyped, its signals are attributes made at runtime.
@@ -36,6 +36,7 @@ class ReadPort:
     req_len: Signal
     rsp_valid: Signal
     rsp_data: Signal
+    rsp_room: Signal  # the port can take another beat (a clock-crossing queue's space); 1 if undriven
 
 
 @dataclass
@@ -52,7 +53,8 @@ class WritePort:
 
 def read_port(prefix: str) -> ReadPort:
     widths = {"req_valid": 1, "req_ready": 1, "req_addr": 32, "req_len": 10, "rsp_valid": 1, "rsp_data": 64}
-    return ReadPort(**{k: Signal(w, name=f"{prefix}_{k}") for k, w in widths.items()})
+    sigs = {k: Signal(w, name=f"{prefix}_{k}") for k, w in widths.items()}
+    return ReadPort(**sigs, rsp_room=Signal(reset=1, name=f"{prefix}_rsp_room"))
 
 
 def write_port(prefix: str) -> WritePort:
@@ -80,7 +82,7 @@ class ZMVideoDMA(LiteXModule):
         self._grant(reads, write)
         self.comb += [
             bus.cyc.eq(self.active),
-            bus.stb.eq(self.active & (~is_wr | write.dat_valid)),
+            bus.stb.eq(self.active & Mux(is_wr, write.dat_valid, Array(r.rsp_room for r in reads)[self.rd_sel])),
             bus.we.eq(is_wr),
             bus.sel.eq(0xFF),
             bus.adr.eq(self.adr),

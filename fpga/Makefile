@@ -7,6 +7,7 @@
 #   make host-check  native host fingerprints == scene_hash.mjs, every cart
 #   make video-sim CARTS=..  the cart CPU + the RTL video in Verilator vs scene_hash (cycles/video.mk)
 #   make glass / sd  the ARM's program, the SD card (docs/FPGA_GLASS.md)
+#   make vexgen-board  the z7 board's CPU netlists (soc/zm_z7.py; ZM_VEXGEN=1 tools/setup.sh once)
 ZIG      ?= $(HOME)/.local/zig/0.16.0/zig
 ROOT     := $(abspath ..)
 MEMMAP   := $(ROOT)/machine/sdk/memmap.zig
@@ -60,6 +61,13 @@ util: memmap
 
 carts:
 	tools/wasm2rv.sh
+
+# The board's CPU (soc/zm_z7.py BOARD_CORE): sealed, 16 KiB 2-way I$, static branch
+# prediction; and NOPRED_CORE, the same without prediction (+8 % fmax, +16-25 %
+# cycles: CYCLES.md "Branch prediction and the clock"), for --cpu-netlist.
+.PHONY: vexgen-board
+vexgen-board:
+	vexgen/gen.sh I16w2D4Seal:16384:2:4096:1:seal I16w2D4SealNopred:16384:2:4096:1:seal,nopred
 
 # --- plan step 0b-i: the native host (host/README.md) ----------------------
 # Every module goes through wasm2c with its own -n name; the host links

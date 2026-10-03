@@ -1,6 +1,6 @@
 """Board-build timing knobs for the z7 SoC (fpga/README.md, "Timing under openXC7").
 
-- `add_cdc_constraints`: the sys <-> pix crossings as XDC. Every crossing in
+- `add_cdc_constraints`: the crossings between sys, comp and pix as XDC. Every crossing in
   rtl/video and rtl/glass is a toggle synchroniser (ASYNC_REG) or a buffer held
   stable until its toggle lands, so a datapath-only bound of one destination
   period is the honest constraint, not a blanket false path. Vivado honours it.
@@ -23,11 +23,13 @@ SEAL = FPGA / "rtl/seal"
 LiteX = Any
 
 
-def add_cdc_constraints(platform: LiteX, sys_clk: object, pix_clk: object, sys_hz: int, pix_hz: int) -> None:
-    """set_max_delay -datapath_only both ways, one destination period each."""
-    for src, dst, hz in ((sys_clk, pix_clk, pix_hz), (pix_clk, sys_clk, sys_hz)):
-        clocks = "-from [get_clocks -of_objects [get_nets {src}]] -to [get_clocks -of_objects [get_nets {dst}]]"
-        platform.add_platform_command(f"set_max_delay -datapath_only {clocks} {1e9 / hz:.3f}", src=src, dst=dst)
+def add_cdc_constraints(platform: LiteX, clocks: dict[str, tuple[object, int]], pairs: list[tuple[str, str]]) -> None:
+    """set_max_delay -datapath_only both ways between each pair of `clocks` (name ->
+    (clock net, Hz)), one destination period each."""
+    for a, b in pairs:
+        for (src, _), (dst, hz) in ((clocks[a], clocks[b]), (clocks[b], clocks[a])):
+            sel = "-from [get_clocks -of_objects [get_nets {src}]] -to [get_clocks -of_objects [get_nets {dst}]]"
+            platform.add_platform_command(f"set_max_delay -datapath_only {sel} {1e9 / hz:.3f}", src=src, dst=dst)
 
 
 def is_sealed(netlist: Path) -> bool:

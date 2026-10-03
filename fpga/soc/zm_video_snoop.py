@@ -45,6 +45,7 @@ class ZMVideoSnoop(LiteXModule):
         self.we, self.waddr, self.be, self.wdata = Signal(), Signal(21), Signal(4), Signal(32)
         self.sel = Signal(3)  # {beam table, palettes, register block}
         self.empty = Signal()
+        self.hold = Signal()  # deliver nothing this clock (the compositor's clock crossing is full)
         # The tap is pipelined: register the bus, then the window offset, then
         # compare. On the board the CPU's data bus -> subtract -> compare -> queue
         # path was the critical one (79 MHz; 84 with one stage, 97 with all three).
@@ -89,7 +90,7 @@ class ZMVideoSnoop(LiteXModule):
         register (the queue's read mux and the compositor's decode were the next
         critical path once the tap was registered)."""
         fifo, wait = self.fifo, Signal(16)
-        due = wait + 1 >= drain
+        due = (wait + 1 >= drain) & ~self.hold
         pop = fifo.readable & due
         self.comb += [
             fifo.re.eq(due),
@@ -129,10 +130,12 @@ class _Queue(LiteXModule):
 
 def attach_snoop(video: Any, snoop: ZMVideoSnoop) -> list[Any]:
     """The statements that feed `snoop` into a ZMVideo (soc/zm_video_pipe.py)."""
+    port = video.snoop
     return [
-        video.snoop_we.eq(snoop.we),
-        video.snoop_waddr.eq(snoop.waddr),
-        video.snoop_be.eq(snoop.be),
-        video.snoop_wdata.eq(snoop.wdata),
-        video.snoop_sel.eq(snoop.sel),
+        port["we"].eq(snoop.we),
+        port["waddr"].eq(snoop.waddr),
+        port["be"].eq(snoop.be),
+        port["wdata"].eq(snoop.wdata),
+        port["sel"].eq(snoop.sel),
+        snoop.hold.eq(~video.snoop_room),
     ]

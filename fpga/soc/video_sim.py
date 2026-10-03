@@ -16,8 +16,10 @@ the RTL video pipeline, and one shared main RAM, in Verilator.
 - The CPU's stores reach the compositor through the snoop (soc/zm_video_snoop.py)
   on the CPU's main-RAM path, delivered at the store buffer's drain rate.
 
-The clocks: sys at 160 MHz, pix at 40 MHz (4:1; the sim's clocker needs whole
-picosecond half-periods, which 150 MHz has not). Every figure is in sys cycles.
+The clocks: sys at 160 MHz, the compositor's comp at 200 MHz (its own domain,
+as on the board: every crossing of soc/zm_video_cdc.py runs here), pix at 40 MHz
+(the sim's clocker needs whole picosecond half-periods, which 150 MHz has not).
+Every figure is in sys cycles but the compositor's busy count, in comp clocks.
 """
 
 from __future__ import annotations
@@ -47,30 +49,22 @@ from soc.zm_video_snoop import ZMVideoSnoop, attach_snoop
 
 FPGA = Path(__file__).resolve().parent.parent
 OUT = FPGA / "build/soc_video"
-SYS_CLK, PIX_CLK = int(160e6), int(40e6)
+SYS_CLK, COMP_CLK, PIX_CLK = int(160e6), int(200e6), int(40e6)
 MAIN_RAM, MAIN_RAM_SIZE = 0x40000000, 32 << 20  # as soc/cycles_sim.py: cycles/cycles.mk links for it
 WINDOW = 0x90000000  # the compositor's register read-back, in the uncached IO region
 
 
 class _CRG(Module):
-    """sys and pix from the sim's two clockers, each with a power-on reset."""
+    """sys, comp and pix from the sim's three clockers, each with a power-on reset."""
 
-    def __init__(self, sys_clk: Signal, pix_clk: Signal) -> None:
-        self.clock_domains.cd_sys = ClockDomain()
-        self.clock_domains.cd_pix = ClockDomain()
-        self.clock_domains.cd_por = ClockDomain(reset_less=True)
-        self.clock_domains.cd_por_pix = ClockDomain(reset_less=True)
-        por, por_pix = Signal(4, reset=15), Signal(4, reset=15)
-        self.comb += [
-            self.cd_sys.clk.eq(sys_clk),
-            self.cd_por.clk.eq(sys_clk),
-            self.cd_sys.rst.eq(por != 0),
-            self.cd_pix.clk.eq(pix_clk),
-            self.cd_por_pix.clk.eq(pix_clk),
-            self.cd_pix.rst.eq(por_pix != 0),
-        ]
-        self.sync.por += If(por != 0, por.eq(por - 1))
-        self.sync.por_pix += If(por_pix != 0, por_pix.eq(por_pix - 1))
+    def __init__(self, clocks: dict[str, Signal]) -> None:
+        for name, clk in clocks.items():
+            cd, por_cd = ClockDomain(name), ClockDomain(f"por_{name}", reset_less=True)
+            self.clock_domains += cd, por_cd
+            por = Signal(4, reset=15)
+            self.comb += [cd.clk.eq(clk), por_cd.clk.eq(clk), cd.rst.eq(por != 0)]
+            sync = getattr(self.sync, f"por_{name}")
+            sync += If(por != 0, por.eq(por - 1))
 
 
 def add_memory(soc: ZigMachineSoC, platform: SimPlatform) -> None:
@@ -93,12 +87,12 @@ def add_memory(soc: ZigMachineSoC, platform: SimPlatform) -> None:
 
 
 def make_soc() -> ZigMachineSoC:
-    platform = SimPlatform("SIM", [*SIM_IO, ("pix_clk", 0, Pins(1))])
+    platform = SimPlatform("SIM", [*SIM_IO, ("pix_clk", 0, Pins(1)), ("comp_clk", 0, Pins(1))])
     soc = ZigMachineSoC(
         platform, SYS_CLK, "sys", rom_size=0, main_ram_size=0, uart_name="sim", cpu_reset_address=MAIN_RAM
     )
-    soc.crg = _CRG(platform.request("sys_clk"), platform.request("pix_clk"))
-    soc.zmv = ZMVideo(platform, None, cd_pix="pix", max_burst=0)
+    soc.crg = _CRG({name: platform.request(f"{name}_clk") for name in ("sys", "comp", "pix")})
+    soc.zmv = ZMVideo(platform, None, cd_pix="pix", cd_comp="comp", max_burst=0)
     soc.bus.add_slave("zmv_window", soc.zmv.bus, SoCRegion(origin=WINDOW, size=WINDOW_BYTES, cached=False))
     add_memory(soc, platform)
     soc.zm_cycles = ZMCycles(soc.cpu.ibus, soc.cpu.dbus)
@@ -116,6 +110,7 @@ def main() -> None:
     sim_config = SimConfig()
     sim_config.add_clocker("sys_clk", freq_hz=SYS_CLK)
     sim_config.add_clocker("pix_clk", freq_hz=PIX_CLK)
+    sim_config.add_clocker("comp_clk", freq_hz=COMP_CLK)
     sim_config.add_module("serial2console", "serial")
     builder = Builder(soc, output_dir=str(out), compile_software=False)
     builder.build(sim_config=sim_config, run=False, build=True, opt_level="O3")
@@ -126,6 +121,7 @@ def main() -> None:
     if len(init) != 1:
         raise SystemExit(f"video_sim: expected one zm_ram .init file, found {init}")
     meta = {"init": init[0].name, "main_ram": MAIN_RAM, "main_ram_size": MAIN_RAM_SIZE, "sys_clk": SYS_CLK}
+    meta["comp_clk"] = COMP_CLK
     (out / "video_sim.json").write_text(json.dumps(meta, indent=2) + "\n")
 
 

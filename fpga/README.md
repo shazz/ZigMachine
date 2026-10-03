@@ -88,59 +88,86 @@ container. Loading a bitstream onto the board: `boards/microphase_z7_7010/README
 
 ## Timing under openXC7
 
-Measured on 2026-10-02: the glass SoC (PS7 + GP0) with the DDR-framebuffer
-video pipeline, seed 1. The logs are in `build/ps7probe/m_*.log`.
+Where it stands (2026-10-03, timing pass 2; pass 1 is `TIMING_FABLE.md`): the
+glass SoC (PS7 + GP0, the DDR-framebuffer video, the sealed CPU) **meets sys
+100 MHz and comp 125 MHz** with the pinned flow:
 
-**The PS7 routes.** The earlier failure ("overuse grows after *Tieing unused PS7
-inputs to constants*") was not the PS7. On an empty die, a PS7 with every input
-tied off by nextpnr routes in 2 iterations. openXC7's own Zynq demo
-(`demo-projects/ps7-blinky-digilent-pynqz1`) instantiates PS7 the same way we
-do: the used ports connected, everything else left for nextpnr to tie. The
-router heatmap (`--router2-heatmap`) put the overuse in a hot spot of the fabric,
-around VexRiscv and the compositor's registers, nowhere near the PS. So it was
-placement density. `soc/openxc7.py` now passes `--placer-heap-congestion-spread`
-to nextpnr (override it with `OPENXC7_PNR_OPTS`), and the SoC routes in about 15
-iterations. A lower `--placer-heap-beta` alone changed nothing. `--tmg-ripup`
-ran 1,500 iterations and still failed timing.
+    uv run python -m soc.zigmachine_soc --target z7 --build    # sys 100.63, comp 125.19 MHz
 
-**fmax of `sys`** (nextpnr's figure; it does not depend on the target, because
-placement scales with the period):
+**The flow** (`soc/openxc7.py`, all overridable by environment):
+- `synth_xilinx` without `-abc9` (+13 % fmax, +13 % LUTs; `OPENXC7_ABC9=1`);
+- nextpnr `--placer-heap-congestion-spread --placer-heap-timingweight 30`
+  (`OPENXC7_PNR_OPTS`). Without the spreading the PS7 SoC packs into a hot spot
+  the router never clears;
+- **the seed, pinned to 8** (`OPENXC7_SEED`). One netlist gives sys 76-102 MHz
+  over seeds 1-12, so the seed is part of the build. The same netlist and seed
+  give the same result (rerun and a fresh end-to-end build: 100.63 / 125.19 MHz,
+  the same netlist JSON byte for byte). Any netlist change draws again: re-sweep
+  with `SEED=n` P&R-only runs (`build/timing2/pnr.sh`) and re-pin.
 
-| Build | Target | fmax | Limited by |
-|---|---|---|---|
-| LiteX `standard` core | 100 / 125 / 150 | 79.4 MHz | the video snoop: `dBus` cmd → window compare (carry chain) → queue → a wide CE, 12.5 ns, 80 % routing |
-| sealed core, I16w2D4 (`rtl/seal/`) | 100 / 150 | 81.2 MHz | the same path |
-| sealed + `relaxpc` | 150 | 83.6 MHz | the same path |
-| `standard`, snoop fed a dead bus (probe only) | 150 | 94.6 MHz | VexRiscv I$ decode → static prediction → fetch PC, 10 ns |
-| sealed + `relaxpc`, no snoop (probe only) | 150 | 84.7 MHz | VexRiscv stall cone: memory stage → fetch halt → PC CE, 11.7 ns |
+**Seed sweep of the board netlist** (nextpnr's figure; it does not depend on the
+target):
 
-- Before the snoop existed, the limit was LiteX's Wishbone→CSR bridge, which
-  LiteX only registers on SoCs with SDRAM. `ZigMachineSoC.csr_bridge_register`
-  (set for z7) registers it.
-- Every path is 6 to 13 LUTs, but 75 to 85 % of the delay is routing. Cells on
-  one path sit 30 to 60 rows apart.
+| seed | 1 | 2 | 3 | 4 | 5 | 6 | 7 | **8** | 9 | 10 | 11 | 12 |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| sys | 102.0 | 90.9 | 82.8 | 87.4 | 90.6 | 97.0 | 90.2 | **100.6** | 94.8 | 101.1 | 97.3 | 76.1 |
+| comp | 106.8 | 118.4 | 98.9 | 100.6 | 111.7 | 138.8 | 94.9 | **125.2** | 114.2 | 118.2 | 103.0 | 113.4 |
+
+Seed 8 is the only one of the twelve that meets both clocks. A frozen
+placement (`-o preplaced=`, the pinned nextpnr's replay of a reference build's
+bels) would survive small netlist changes better than a seed, but it aborts on
+this build (`std::out_of_range` from `dict::at()` while packing, with even one
+pinned cell): not used.
+
+**Clocks** (`soc/zm_z7.py`): one PLL off the 50 MHz oscillator gives `sys`
+(CPU, bus; 100 MHz), `comp` (the compositor and the scanout fetch, the whole of
+`rtl/video/zm_video_out.v`'s `clk`; 125 MHz), `pix` (40) and `pix5x` (200).
+The compositor crosses to the SoC in `soc/zm_video_cdc.py` (primitives in
+`soc/zm_cdc.py`): the snooped stores through a gray-pointer queue whose writer
+sees `empty` only once the compositor has used every entry (that is the drain
+rule's `drained`), the command and its `painted`/`ready` as echoed toggles, the
+read-back window and each DMA port as toggle requests with data queues in
+distributed RAM, pulses and counters through Migen's synchronisers. The video
+sim runs the same crossing with comp at 200 MHz against sys at 160; tutorial and
+dhs_0pxl0reg hash-match there. `soc/zm_timing.py` writes `set_max_delay
+-datapath_only` for sys/comp/pix both ways (Vivado honours it; nextpnr skips
+it and never puts a cross-domain path in a clock's fmax).
+
+**The CPU core** (`BOARD_CORE`, `make vexgen-board`): VexRiscv, 16 KiB 2-way
+I$, the seal, **static** branch prediction. Without prediction the core closes
+~10 % more sys at the median seed but costs 16-25 % more cycles a frame, so it
+loses per frame; the dynamic-target predictor saves 9-14 % of the cycles but
+does not route yet (`CYCLES.md` "Branch prediction and the clock").
+
+**What limits each clock now:**
+- `sys`: VexRiscv itself, wherever the seed puts it: the execute stage (operand
+  mux -> adder carry chain -> bypass) or the I$ tag RAM -> decode -> register
+  file address. 6-13 LUT levels, 70-80 % routing. The snoop and the bus are
+  no longer on the critical path.
+- `comp`: the plane pass's geometry (`zm_video_plane.v`). Its inputs (the
+  latch's LUTRAM, the live registers) are now registered, and the geometry is
+  computed every clock into `*_q` registers that the pass takes at `start`: comp
+  went from 89-99 MHz to 92-139 (median 112) over the seeds. The inputs are
+  stable for two clocks before `start` by the drain rule and the command
+  crossing; the RTL tests and the video sim check it.
+
+**Cost** (Yosys's count of the pinned build's netlist): 6,049 LUTs (34 % of the
+7010's 17,600) + 90 distributed-RAM cells, 6,343 FFs, 25 RAMB36 + 27 RAMB18, 17
+DSP, 484 CARRY4. The plane stage added 209 FFs (nextpnr's SLICE_FFX, same core);
+the four crossing queues are 16-entry distributed RAMs (about 40 RAM32M,
+estimated from their widths, not counted separately).
+
+**Earlier findings that still hold:**
+- **The PS7 routes.** On an empty die a PS7 with every input tied off routes in
+  2 iterations; the overuse was placement density around VexRiscv and the
+  compositor's registers. `--tmg-ripup` ran 1,500 iterations and failed timing.
+- LiteX registers the Wishbone->CSR bridge only on SoCs with SDRAM;
+  `ZigMachineSoC.csr_bridge_register` (set for z7) registers it.
 - nextpnr-xilinx has no pblocks, and its XDC reader takes only `set_property`,
-  `create_clock` and `set_multicycle_path -to`. Floorplanning and false paths
-  are not available.
+  `create_clock` and `set_multicycle_path -to`.
 - The seal costs no fmax: its check sits in a translation slot that already
   existed.
-- **150 MHz is out of reach under openXC7, and 100 MHz is too, today.**
 
-**Clock crossings:**
-- `soc/zm_timing.py` adds `set_max_delay -datapath_only` between `sys` and
-  `pix`, one destination period each way. Every crossing is a toggle
-  synchroniser (ASYNC_REG) or a buffer held stable until its toggle lands.
-- nextpnr skips these lines with a warning. It reports cross-domain paths only
-  as "Max delay" (1.4 to 2.5 ns here, against a 25 ns bound) and never counts
-  them in a clock's fmax.
-- Vivado honours them.
-
-**What Vivado would settle** (not installed: about 50 GB):
-- a timing-driven place and route of the same netlist, with the CDC constraints
-  honoured;
-- pblocks for VexRiscv and the compositor;
-- the real fmax at 100, 125 and 150 MHz, once the snoop's dBus tap is
-  registered.
-
-The cut that is ours to make first is in `soc/zm_video_snoop.py`: register the
-dBus tap (one cycle) before the window compare.
+**What Vivado would settle** (not installed: about 50 GB): a timing-driven
+place and route with `phys_opt_design`, the CDC constraints honoured, pblocks
+for VexRiscv and the compositor, and fmax without a seed lottery.

@@ -53,7 +53,7 @@ def fields(prefix: str, spec: list[tuple[str, int, str]]) -> list[str]:
 
 def video_lines(csr: dict[str, dict[str, Any]]) -> list[str]:
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-    from soc.zm_video_pipe import CMD_FIELDS, STATUS_FIELDS
+    from soc.zm_video_csr import CMD_FIELDS, STATUS_FIELDS
 
     window = csr["memories"]["zmv_window"]["base"]
     return [f"#define ZMV_WINDOW_ADDR 0x{window:08x}u", *fields("CMD", CMD_FIELDS), *fields("STATUS", STATUS_FIELDS)]

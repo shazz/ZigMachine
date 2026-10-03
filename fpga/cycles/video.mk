@@ -9,6 +9,7 @@
 VCYC      := build/vcycles
 SOC_VID   := build/soc_video
 VID_DEPS  := soc/video_sim.py soc/zm_video_pipe.py soc/zm_video_dma.py soc/zm_video_snoop.py soc/zm_simram.py \
+	soc/zm_cdc.py soc/zm_video_cdc.py soc/zm_video_csr.py \
 	soc/zm_memtiming.py soc/zm_cycles.py soc/zigmachine_soc.py rtl/sim/zm_memcfg.v $(wildcard rtl/video/*.v)
 VRV_CFLAGS = $(subst -I$(CYC)/gen,-I$(VCYC)/gen,$(RV_CFLAGS)) -Ibuild/vdump $(V_aligned)
 VFW_DEPS  := $(FW_DEPS) cycles/vboard.h $(VCYC)/gen/csr_addr.h build/vdump/zm_memmap.h

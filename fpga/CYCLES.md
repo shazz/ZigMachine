@@ -343,7 +343,8 @@ line already.
   estimate.
 - **Builds:** `aligned` (no bounds checks, one `lw`/`sw` per wasm access,
   misalignment trapped) is the board's build.
-- **Clock: 150 MHz still holds.** With the recommended core and path the
+- **Clock: 150 MHz still holds** (in this simulation; under openXC7 the board
+  closes ~100 MHz, see *Branch prediction and the clock* below). With the recommended core and path the
   worst of the four carts that set the clock is skystrike at 119 MHz on the
   unloaded estimate (26 % margin) and 152 MHz on the standard core under a
   saturated DDR; the big I$ takes 10 MHz off skystrike at the nominal
@@ -367,3 +368,71 @@ line already.
 - **Coverage:** four carts on every memory configuration, two on every cache
   geometry; union_beatdis 120 frames, skystrike 48, ulm_dsots and tutorial 30,
   polkadots 12.
+
+## Branch prediction and the clock (timing pass 2)
+
+*Why this section exists: under openXC7 the sealed core's critical path was its
+static branch predictor (fpga/TIMING_FABLE.md: 82 MHz with it, 99.5 without, one
+seed each), so the predictor was put on trial: what it costs in cycles, what it
+buys in fmax, and which wins per frame. Re-run with
+`uv run python tools/mempath_run.py prediction` (cores from
+`vexgen/gen.sh ...:nopred|dynpred`); the table between the markers is
+`tools/mempath_report.py`'s.*
+
+**Cycles.** The recommended core (16 KiB 2-way I$, 4 KiB D$) with static
+prediction, a dynamic target predictor (`dynpred`: VexRiscv's
+`DYNAMIC_TARGET`, a BTB in the fetch stage), none (`nopred`), and none plus
+`relaxpc` (one more fetch stage), on the board's memory path (`hp_wc`,
+`aligned`), MHz for 60 fps on the p95 frame. Unsealed cores: the seal costs no
+cycle (rtl/seal/README.md). Every run's hashes equal scene_hash.mjs's and the
+native host's.
+
+<!-- mempath-prediction:begin -->
+| core | union_beatdis | ulm_dsots | skystrike | tutorial | cycles vs static |
+|---|---|---|---|---|---|
+| I16w2D4 | 52 | 98 | 119 | 26 | +0.0 % / +0.0 % / +0.0 % / +0.0 % |
+| I16w2D4Dyn | 47 | 89 | 107 | 22 | -11.2 % / -9.1 % / -9.8 % / -14.1 % |
+| I16w2D4Nopred | 62 | 114 | 141 | 32 | +18.8 % / +16.5 % / +18.8 % / +24.5 % |
+| I16w2D4RpcNopred | 68 | 123 | 153 | 36 | +29.4 % / +25.3 % / +28.5 % / +37.5 % |
+<!-- mempath-prediction:end -->
+
+**fmax** (nextpnr's figure for `sys`, the glass SoC with the DDR-framebuffer
+video and the compositor on its own clock, openXC7 flow of `soc/openxc7.py`,
+same RTL, seeds 1-6; fpga/README.md "Timing under openXC7"):
+
+| core (sealed) | seeds | sys fmax min / median / max | seeds at >= 100 MHz |
+|---|---|---|---|
+| static (`I16w2D4Seal`, the board's) | 1-12 | 76.1 / 92.9 / 102.0 MHz | 3 (seeds 1, 8, 10) |
+| static, seeds 1-6 only | 1-6 | 82.8 / 90.7 / 102.0 MHz | 1 |
+| none (`I16w2D4SealNopred`) | 1-6 | 90.7 / 99.9 / 108.9 MHz | 3 (seeds 4, 5, 6) |
+| dynamic target (`I16w2D4SealDyn`) | 1, 2 | does not route: overuse climbs past iteration 50 (killed at 25 min, three times) | - |
+
+Without prediction the sys clock gains about 10 % at the median and 7 % at
+the best seed. Pass 1's 82 -> 99.5 MHz was one seed of each core on an earlier
+netlist: the predictor's cone is no longer what limits `sys`. The critical paths
+are VexRiscv's execute stage (operand mux -> adder carry -> bypass, 8 ns of 11
+routing) and the I$ tag RAM -> decode -> register-file address, and they move
+with the seed.
+
+**Verdict.**
+
+- **No prediction loses.** It costs 16.5-24.5 % more cycles a frame for about
+  8-10 % more clock: per frame it is 6-15 % slower than the static core
+  (skystrike: 141 MHz needed against 119; at the median seed 99.9 / 141 = 71 %
+  of real time against 90.7 / 119 = 76 %). The board keeps **static
+  prediction** (`soc/zm_z7.py` `BOARD_CORE`, `make -C fpga vexgen-board`);
+  `I16w2D4SealNopred` is built alongside for `--cpu-netlist`.
+- **A dynamic target predictor would win on cycles** (9-14 % fewer than
+  static: skystrike 107 MHz, ulm_dsots 89) but does not route under openXC7
+  yet. It is the first thing to try in pass 3 (routing congestion, not timing).
+- **What each cart needs on the board core** (static, `hp_wc`, `aligned`, p95
+  frame): union_beatdis 52 MHz, ulm_dsots 98, skystrike 119, tutorial 26.
+  The pinned build closes **sys at 100.6 MHz** (seed 8, fpga/README.md
+  "Timing under openXC7"): union_beatdis and tutorial fit with room, ulm_dsots
+  fits with 3 %, **skystrike does not** (84 % of real time, ~50 fps on its
+  sustained load). So ~100 MHz suffices for three of the four clock-setting
+  carts, not all; the 150 MHz plan above stays out of reach under openXC7.
+- **Not in these numbers:** the sequencer's own time (fpga/rtl/video/README.md
+  "Integration": issuing passes and waiting for them, ~0.65 M sys cycles a frame
+  at 160 MHz in the video sim), which the compositor's own, faster clock shortens
+  but does not remove.

@@ -1,5 +1,11 @@
 # Closing timing on the Z7-Lite under openXC7 (Fable, pass 1, 2026-10-02)
 
+> **Pass 2 (2026-10-03) is done:** the board build meets sys 100 / comp 125 MHz
+> with a pinned seed, the compositor on its own clock, and static prediction
+> kept (no prediction costs more cycles than it buys clock). Results and the
+> current flow: `fpga/README.md` "Timing under openXC7", `fpga/CYCLES.md`
+> "Branch prediction and the clock", `docs/FPGA_STEPS.md` 2026-10-03.
+
 Scope: the glass SoC (`soc/zigmachine_soc.py --target z7`, PS7 + GP0 + DDR-framebuffer
 video) on the XC7Z010-1 through the pinned openXC7 image (Yosys 0.67, openXC7/nextpnr
 `c68c1358`: a **himbächel** build behind a 48-line `nextpnr-xilinx` shim). Everything was

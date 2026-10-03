@@ -8,7 +8,7 @@ A frame's figures (Mc = millions of 160 MHz sys cycles, steady frames only):
   cart    frame() and the HBL handlers;  seq  the sequencer issuing and waiting
           for passes, minus the wait for the swap;  cpu max  their sum, worst frame
   wall    the frame from its first pass to PRESENT, swap wait included
-  comp    cycles a compositor pass was running;  dma  cycles a DMA burst was
+  comp    COMPOSITOR clocks (comp domain) a pass was running;  dma  cycles a DMA burst was
   MB/f    main-RAM bytes a frame: the CPU's, and the compositor's DMA (the
           scanout's 112,000 beats a VBL taken out)
   MB/s    both at 60 frames a second, plus the scanout's 53.8 MB/s

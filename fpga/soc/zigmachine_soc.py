@@ -18,13 +18,11 @@ from pathlib import Path
 from litex.build.generic_platform import Pins, Subsignal
 from litex.build.sim import SimPlatform
 from litex.build.sim.config import SimConfig
-from litex.soc.cores.clock import S7PLL
 from litex.soc.integration.builder import Builder
 from litex.soc.integration.soc import SoCRegion
 from litex.soc.integration.soc_core import SoCCore
 from migen import Cat, ClockDomain, If, Module, Signal
 
-from soc import openxc7, zm_timing
 from soc.zm_glass import ZMGlass, ps7_gp0
 from soc.zm_video import ZMVideoTiming
 from soc.zm_video_pipe import WINDOW_BYTES, ZMVideo
@@ -32,7 +30,6 @@ from soc.zm_video_snoop import ZMVideoSnoop, attach_snoop
 
 FPGA = Path(__file__).resolve().parent.parent
 SYS_CLK_SIM = int(1e6)
-SYS_CLK_Z7 = int(100e6)
 PIX_CLK = int(40e6)  # VESA 800x600 @ 60 Hz, see rtl/video/zm_vtiming.v
 VIDEO_WINDOW = (
     0x90000000  # in the uncached IO region: the video registers, palettes and BEAM table (soc/zm_video_pipe.py)
@@ -63,25 +60,6 @@ class _SimCRG(Module):
         por = Signal(4, reset=15)
         self.comb += [self.cd_sys.clk.eq(clk), self.cd_por.clk.eq(clk), self.cd_sys.rst.eq(por != 0)]
         self.sync.por += If(por != 0, por.eq(por - 1))
-
-
-class _Z7CRG(Module):
-    """sys at 100 MHz, the 40 MHz pixel clock and its 5x for the TMDS serialisers,
-    from the board's PL oscillator."""
-
-    def __init__(self, platform: object, osc_name: str, osc_hz: int, sys_hz: int = SYS_CLK_Z7) -> None:
-        self.clock_domains.cd_sys = ClockDomain()
-        self.clock_domains.cd_pix = ClockDomain()
-        self.clock_domains.cd_pix5x = ClockDomain()
-        self.submodules.pll = pll = S7PLL(speedgrade=-1)
-        clkin = platform.request(osc_name)  # type: ignore[attr-defined]  # untyped LiteX platform
-        # The input period is what timing analysis derives every PLL output from:
-        # without it nextpnr checks all clocks against its 12 MHz default.
-        platform.add_period_constraint(clkin, 1e9 / osc_hz)  # type: ignore[attr-defined]  # untyped LiteX platform
-        pll.register_clkin(clkin, osc_hz)
-        pll.create_clkout(self.cd_sys, sys_hz)  # TIMING: --sys-mhz (soc/zm_timing.py)
-        pll.create_clkout(self.cd_pix, PIX_CLK)
-        pll.create_clkout(self.cd_pix5x, 5 * PIX_CLK)
 
 
 class ZigMachineSoC(SoCCore):
@@ -150,34 +128,10 @@ def build_sim(args: argparse.Namespace) -> None:
     builder.build(sim_config=sim_config, run=args.run, build=args.run)
 
 
-def make_z7(args: argparse.Namespace) -> tuple[ZigMachineSoC, object]:
-    """The board's SoC and its platform (tools/soc_util.py synthesises them)."""
-    from soc import litex_compat
-    from soc.platform_z7 import Platform
-
-    litex_compat.install()  # Verilog is written here, see soc/litex_compat.py
-    platform = Platform(toolchain=args.toolchain)
-    # TIMING (fpga/README.md "Timing under openXC7"): --sys-mhz, --cpu-netlist, the CDC constraints.
-    sys_hz = int(getattr(args, "sys_mhz", SYS_CLK_Z7 / 1e6) * 1e6)
-    # The Z7-Lite UART is on PS MIO (the ARM's), not PL pins: the console runs over USB-JTAG.
-    soc = ZigMachineSoC(platform, sys_hz, "pipe", glass=not args.no_glass, uart_name="jtag_uart")
-    soc.crg = _Z7CRG(platform, args.osc, args.osc_hz, sys_hz)
-    soc.csr_bridge_register = True
-    zm_timing.add_cdc_constraints(platform, soc.crg.cd_sys.clk, soc.crg.cd_pix.clk, sys_hz, PIX_CLK)
-    if getattr(args, "cpu_netlist", None):
-        zm_timing.use_core(soc, platform, Path(args.cpu_netlist).resolve())
-    return soc, platform
-
-
 def build_z7(args: argparse.Namespace) -> None:
-    soc, _ = make_z7(args)
-    in_docker = args.toolchain == "openxc7"  # the tools are in a container: soc/openxc7.py
-    if in_docker:
-        openxc7.prepare_env()
-    builder = Builder(soc, output_dir=str(FPGA / "build/soc_z7"), compile_software=args.build)
-    builder.build(run=args.build and not in_docker)
-    if in_docker and args.build:
-        openxc7.run_build(builder.gateware_dir, soc.get_build_name())
+    from soc import zm_z7  # the board's clocks and core: soc/zm_z7.py (it imports this module)
+
+    zm_z7.build_z7(args)
 
 
 def main() -> None:
@@ -189,8 +143,11 @@ def main() -> None:
     p.add_argument("--osc", default="PL_CLK_50M", help="z7: the XDC port of the PL oscillator (Z7-Lite: 50 MHz on N18)")
     p.add_argument("--osc-hz", type=int, default=int(50e6), help="z7: its frequency (check the schematic)")
     p.add_argument("--no-glass", action="store_true", help="z7: no ARM front panel; the CPU runs from reset (JTAG)")
-    p.add_argument("--sys-mhz", type=float, default=SYS_CLK_Z7 / 1e6, help="z7: the sys clock (CPU, bus, compositor)")
-    p.add_argument("--cpu-netlist", help="z7: a vexgen VexRiscv netlist instead of LiteX's `standard` (vexgen/gen.sh)")
+    p.add_argument("--sys-mhz", type=float, default=100.0, help="z7: the sys clock (CPU, bus)")
+    p.add_argument("--comp-mhz", type=float, default=125.0, help="z7: the compositor's clock (soc/zm_video_cdc.py)")
+    p.add_argument(
+        "--cpu-netlist", help="z7: a vexgen VexRiscv netlist (default soc/zm_z7.py BOARD_CORE), or `standard`"
+    )
     args = p.parse_args()
     (build_sim if args.target == "sim" else build_z7)(args)
 

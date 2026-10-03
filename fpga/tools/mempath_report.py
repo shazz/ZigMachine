@@ -1,5 +1,5 @@
 """Turn build/mempath/uart/<core>/<mem>/<variant>/<cart>.txt into
-build/mempath/report.txt and the two tables of CYCLES.md "Memory path"
+build/mempath/report.txt and the three tables of CYCLES.md "Memory path"
 (between their markers).
 
     uv run python tools/mempath_report.py
@@ -17,7 +17,7 @@ from statistics import mean
 
 from cycles_parse import Run, parse
 from cycles_report import p95, series, steady, verify
-from mempath_cfg import CARTS, CORES, MEM
+from mempath_cfg import CARTS, CORES, MEM, PRED_CORES
 from util import group_cells
 
 FPGA = Path(__file__).resolve().parent.parent
@@ -80,6 +80,20 @@ def cache_table(runs: Runs) -> list[list[str]]:
     return [head, *rows]
 
 
+def prediction_table(runs: Runs) -> list[list[str]]:
+    """MHz per cart on each branch-predictor core, and the change against the first."""
+    head = ["core", *CARTS, "cycles vs static"]
+    base = [runs.get((PRED_CORES[0], "hp_wc", "aligned", t)) for t in CARTS]
+    rows = []
+    for core in PRED_CORES:
+        cells = [mhz(runs, (core, "hp_wc", "aligned", t)) for t in CARTS]
+        cur = [runs.get((core, "hp_wc", "aligned", t)) for t in CARTS]
+        pairs = [(p95(steady(series(b, "cart"))), p95(steady(series(c, "cart")))) for b, c in zip(base, cur) if b and c]
+        delta = "-" if not pairs else " / ".join(f"{100 * (c / b - 1):+.1f} %" for b, c in pairs if b)
+        rows.append([core, *cells, delta])
+    return [head, *rows]
+
+
 def text(table: list[list[str]]) -> list[str]:
     widths = [max(len(x) for x in col) for col in zip(*table, strict=False)]
     return ["  ".join(x.ljust(w) for x, w in zip(r, widths, strict=False)) for r in table]
@@ -100,7 +114,7 @@ def splice(md: str, name: str, table: list[list[str]]) -> str:
 
 def main() -> None:
     runs = load()
-    tables = {"memory": memory_table(runs), "caches": cache_table(runs)}
+    tables = {"memory": memory_table(runs), "caches": cache_table(runs), "prediction": prediction_table(runs)}
     lines = []
     for name, table in tables.items():
         lines += [f"== {name} (MHz for 60 fps, p95 frame)", *text(table), ""]

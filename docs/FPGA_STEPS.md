@@ -18,12 +18,62 @@ says otherwise.
 | — | Board files (XDC, schematic, PS7 bring-up) | **done** | `fpga/tools/fetch_board.sh`, gitignored; HDMI pins re-derived from the schematic |
 | — | Whole SoC elaborated against the real board | **done** | 2,408 LUTs (13.7 %) synthesised |
 | — | Video to the wire: mixer, scanout, TMDS/DVI, in the SoC | **done** | mixer = Chrome byte for byte; 40/40 frames; 90/90 carts replay identically |
-| — | openXC7 toolchain (Docker, pinned) + first bitstream | **done** | `make -C fpga blink`; the full SoC routes, sys 92 MHz of 100 |
+| — | openXC7 toolchain (Docker, pinned) + first bitstream | **done** | `make -C fpga blink`; the full SoC routes |
+| — | Timing closure under openXC7 (pass 2) | **done at 100 MHz** | glass SoC **meets sys 100 / comp 125 MHz** (seed 8, pinned); compositor on its own clock; skystrike needs 119 |
 | — | The glass: ARM loader + OSD menu + USB keyboard/mouse/pads ([`FPGA_GLASS.md`](FPGA_GLASS.md)) | **built, host-tested** | GP0 regs + OSD in RTL (19/19 break tests), Zig `glass` (37 tests), input break tests 18/18, 9 board images land byte for byte; the SoC with PS7 does not route yet |
 | 1–7 | Board work | **waiting for the board** | `openFPGALoader -c digilent_hs2 fpga/build/blink/blink_top.bit` |
 | RTL | Video timing (`zm_vtiming`) | **done** | 64 LUTs, CXXRTL-tested over 2 frames |
 | RTL | Video compositor: planes, palettes, border, BEAM, all modes | **done** | **32/32 frames pixel-identical** to the machine; 25/25 mutants caught; 1,169 LUTs |
 | — | DDR framebuffer video: sequencer, snoop, double buffer, scanout DMA | **done** | the cart CPU + the RTL video in Verilator: **5/5 carts hash = scene_hash** (tutorial, union_main, badflicker, equinox, dhs_0pxl0reg); 49/49 RTL mutants caught |
+
+---
+
+## 2026-10-03
+
+### Timing pass 2: the compositor on its own clock, the predictor on trial, a pinned seed
+
+Details: [`fpga/README.md`](../fpga/README.md) "Timing under openXC7" and
+[`fpga/CYCLES.md`](../fpga/CYCLES.md) "Branch prediction and the clock".
+Logs and the ledger: `fpga/build/timing2/` (`results.txt`).
+
+- **The board build meets timing:** `uv run python -m soc.zigmachine_soc
+  --target z7 --build` gives **sys 100.63 MHz, comp 125.19 MHz** (both pass),
+  reproduced by a fresh end-to-end build (same netlist byte for byte, same
+  result). The seed is pinned in `soc/openxc7.py`: over seeds 1-12 the same
+  netlist gives sys 76-102 MHz, and seed 8 is the only one that meets both
+  clocks. Any netlist change needs a re-sweep.
+- **The compositor runs in `comp`** (`soc/zm_z7.py`'s PLL, 125 MHz), crossing to
+  `sys` through `soc/zm_video_cdc.py`: snooped stores through a gray queue
+  (`drained` = the compositor has used them), command/ready/painted as echoed
+  toggles, read-back and the three DMA ports as toggle requests with queues.
+  5 Migen-sim tests at unrelated clocks; the video sim (comp 200 against sys
+  160) still hash-matches on tutorial and dhs_0pxl0reg; `make -C fpga check`
+  green (122 passed).
+- **comp's own path** was the plane pass's geometry (latch LUTRAM -> compare
+  -> carry chains, 10-11 ns). `zm_video_plane.v` now registers its inputs and
+  its geometry before `start`: comp 89-99 -> 92-139 MHz (median 112) over the
+  seeds. RTL video tests 46/46.
+- **No branch prediction loses.** It removes the static predictor's cone (pass
+  1's 82 -> 99.5 MHz, one seed each), but on this netlist that is worth ~10 %
+  sys at the median seed (90.7 -> 99.9 MHz) against **+16.5-24.5 % cycles**
+  (union_beatdis 52 -> 62 MHz needed, ulm_dsots 98 -> 114, skystrike 119 -> 141,
+  tutorial 26 -> 32). The board keeps static prediction; the no-prediction core
+  is built alongside (`make -C fpga vexgen-board`, `vexgen/gen.sh ...:nopred`).
+  The dynamic-target predictor needs 9-14 % FEWER cycles but does not route
+  (overuse climbs, three attempts).
+- **Is ~100 MHz enough?** For union_beatdis (52), tutorial (26) and ulm_dsots
+  (98, 3 % margin) yes; **skystrike (119) no**, about 50 fps on its sustained
+  load. Plus the sequencer's own wait for the passes, which comp's faster clock
+  shortens.
+- **Not done:** a frozen placement. openXC7's `-o preplaced=` aborts on this
+  build (`dict::at()` while packing, even with one pinned cell), so the seed is
+  the only pin.
+
+**Pass 3 should look at:** routing the dynamic-target core (it would take
+skystrike to 107 MHz needed); the `-o preplaced=` crash (a frozen placement
+would stop every netlist change from redrawing the seed lottery); VexRiscv's
+execute-stage and I$-tag->regfile paths, now `sys`'s limit; and Vivado for one
+honest timing report.
 
 ---
 

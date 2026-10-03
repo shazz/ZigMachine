@@ -277,11 +277,14 @@ load-bearing would need a handler longer than a row store that writes
   store and the next handler, and skipping the PFB store of rows nothing changed
   (done) could extend to the picture. 3-4 plane frames need it to fit 60 fps at
   150 MHz (above).
-- **The compositor on its own clock.** Fable's openXC7 experiment
-  `comp150_sys100` closed the compositor at 117.6 MHz with sys at 102.6. The
-  compositor already crosses to `pix`; its other boundaries (the command and
-  status CSRs, the snoop port, the read-back window, the DMA ports) would need
-  the same toggle/FIFO crossings. Not done.
+- **The compositor on its own clock: done** (timing pass 2). `zm_video_out`'s
+  `clk` is the SoC's `comp` domain (125 MHz on the board, 200 MHz in the video
+  sim against sys 160); every boundary crosses in `soc/zm_video_cdc.py`
+  (fpga/README.md "Timing under openXC7"). The drain rule's `drained` now
+  means the compositor has USED every snooped store, not only received it. The
+  video sim's `comp` column counts comp clocks. `zm_video_plane.v` registers
+  its inputs and its geometry ahead of `start`, which took comp from ~95 to a
+  112 MHz median over the seeds.
 - **The AXI master toward HP0** (`soc/zm_video_dma.py` is Wishbone with
   `cti` bursts; `max_burst=16` splits for AXI) and the HP bridge the snoop moves
   into (on the board it taps the CPU's data bus for now); the seal (the other
