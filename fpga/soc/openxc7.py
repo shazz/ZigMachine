@@ -38,7 +38,11 @@ def prepare_env() -> None:
 # Congestion-driven spreading: without it the glass SoC (PS7 + GP0) packs into a
 # hot spot the router never clears (overuse falls to ~150, then grows); the PS7's
 # own tie-offs route in 2 iterations on an empty die. OPENXC7_PNR_OPTS overrides.
-PNR_OPTS = os.environ.get("OPENXC7_PNR_OPTS", "--placer-heap-congestion-spread")
+# The timing weight is TIMING_FABLE.md P1-2 (92.8 -> 100.3 MHz, seed 1).
+PNR_OPTS = os.environ.get("OPENXC7_PNR_OPTS", "--placer-heap-congestion-spread --placer-heap-timingweight 30")
+# LiteX hardcodes `synth_xilinx ... -abc9`; without it sys gains ~13 % fmax for ~13 % LUTs
+# (TIMING_FABLE.md P1-1: 92.8 -> 105.7 MHz). OPENXC7_ABC9=1 restores it.
+KEEP_ABC9 = os.environ.get("OPENXC7_ABC9") == "1"
 
 
 def add_pnr_opts(script: Path, opts: str = PNR_OPTS) -> None:
@@ -50,7 +54,17 @@ def add_pnr_opts(script: Path, opts: str = PNR_OPTS) -> None:
         script.write_text(text.replace("nextpnr-xilinx ", f"nextpnr-xilinx {opts} ", 1))
 
 
+def drop_abc9(ys: Path) -> None:
+    """Remove -abc9 from LiteX's synth_xilinx line."""
+    text = ys.read_text()
+    if "synth_xilinx" not in text:
+        raise ValueError(f"{ys}: no synth_xilinx line")
+    ys.write_text(text.replace(" -abc9", ""))
+
+
 def run_build(gateware_dir: str, build_name: str) -> None:
     """Run LiteX's generated build_<name>.sh inside the openXC7 container."""
     add_pnr_opts(Path(gateware_dir) / f"build_{build_name}.sh")
+    if not KEEP_ABC9:
+        drop_abc9(Path(gateware_dir) / f"{build_name}.ys")
     subprocess.run([str(WRAPPER), "run", "bash", f"build_{build_name}.sh"], cwd=gateware_dir, check=True)
