@@ -21,12 +21,23 @@ says otherwise.
 | — | openXC7 toolchain (Docker, pinned) + first bitstream | **done** | `make -C fpga blink`; the full SoC routes |
 | — | Timing closure under openXC7 (pass 2) | **done at 100 MHz** | glass SoC **meets sys 100 / comp 125 MHz** (seed 8, pinned); compositor on its own clock; skystrike needs 119 |
 | — | The glass: ARM loader + OSD menu + USB keyboard/mouse/pads ([`FPGA_GLASS.md`](FPGA_GLASS.md)) | **built, host-tested** | GP0 regs + OSD in RTL (19/19 break tests), Zig `glass` (37 tests), input break tests 18/18, 9 board images land byte for byte; the SoC with PS7 does not route yet |
-| 1–7 | Board work | **waiting for the board** | `openFPGALoader -c digilent_hs2 fpga/build/blink/blink_top.bit` |
+| 1–7 | Board work | **started: blink runs on the board** | `openFPGALoader -c digilent_hs2 fpga/build/blink/blink_top.bit` |
 | RTL | Video timing (`zm_vtiming`) | **done** | 64 LUTs, CXXRTL-tested over 2 frames |
 | RTL | Video compositor: planes, palettes, border, BEAM, all modes | **done** | **32/32 frames pixel-identical** to the machine; 25/25 mutants caught; 1,169 LUTs |
 | — | DDR framebuffer video: sequencer, snoop, double buffer, scanout DMA | **done** | the cart CPU + the RTL video in Verilator: **5/5 carts hash = scene_hash** (tutorial, union_main, badflicker, equinox, dhs_0pxl0reg); 49/49 RTL mutants caught |
 
 ---
+
+## 2026-10-03: the board is alive
+
+- **First light.** `openFPGALoader -c digilent_hs2 --detect` sees the JTAG chain:
+  the ARM Cortex-A9 DAP (`0x4ba00477`) and the **xc7z010** (`0x3722093`).
+- `fpga/build/blink/blink_top.bit` (openXC7, 8 LUTs) loaded into the PL SRAM.
+  **PL LED1 and LED2 alternate**, as designed. The open toolchain
+  (Yosys → nextpnr-himbaechel → prjxray → openFPGALoader) is proven end to end
+  on real silicon.
+- Setup: the USB-C **JTAG** port (J6; it also powers the board), the **UART**
+  port (J3, CH340 → `/dev/ttyUSB0`), and jumper **J1 on the JTAG pins**.
 
 ## 2026-10-03
 
