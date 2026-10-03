@@ -5,6 +5,7 @@
 #   make carts     plan step 0a: every cart -> wasm2c -> rv32imf
 #   make host      plan step 0b-i: native host running one cart (CART=stniccc)
 #   make host-check  native host fingerprints == scene_hash.mjs, every cart
+#   make video-sim CARTS=..  the cart CPU + the RTL video in Verilator vs scene_hash (cycles/video.mk)
 #   make glass / sd  the ARM's program, the SD card (docs/FPGA_GLASS.md)
 ZIG      ?= $(HOME)/.local/zig/0.16.0/zig
 ROOT     := $(abspath ..)
@@ -39,8 +40,14 @@ gen/glass_font.vh: $(FONT_RAW) tools/glass_export.zig $(GLASS_MAP)
 
 memmap: gen/memmap.vh gen/memmap.py gen/glass_map.vh gen/glass_map.py gen/glass_font.vh
 
+# One test run at a time, capped at 8 GB: the in-process (wasm) Yosys and the
+# Verilator builds peak at several GB, and two concurrent runs sharing
+# build/tests once OOM-killed a 13 GB pytest and the session with it.
+TEST_MEM ?= 8G
 test: memmap
-	uv run pytest -q
+	@mkdir -p build
+	flock build/test.lock systemd-run --user --scope -q -p MemoryMax=$(TEST_MEM) -p MemorySwapMax=0 \
+		uv run pytest -q
 
 soc: memmap
 	uv run python -m soc.zigmachine_soc --target sim
@@ -107,6 +114,7 @@ host-check: memmap
 	tools/host_check.sh $(CARTS)
 
 include cycles/cycles.mk
+include cycles/video.mk
 
 # --- the glass: the ARM's program and the SD card (docs/FPGA_GLASS.md) -------
 #   make glass   host build (glass sim-load / sim-menu) + the board's static ARM binary
