@@ -150,6 +150,8 @@ NATIVE_TESTS="
     libs/zig/effects/beam_test.zig
     machine/beam_test.zig
     machine/audio/ym_test.zig
+    machine/audio/ym_env_test.zig
+    machine/audio/ym_dac_test.zig
     machine/arena_test.zig
     libs/zig/mem_test.zig
     libs/zig/sndh_call_test.zig
