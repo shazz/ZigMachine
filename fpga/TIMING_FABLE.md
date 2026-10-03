@@ -248,62 +248,100 @@ the pass-2 dyn netlist, seed 2, 15-min cap (chain2): `dyn_tw10_s2` (timing weigh
 `SealDynT8Rfa`. The mirror's `vexgen/src/main/scala/zm/GenZm.scala` + `gen.sh` carry the flags
 (`h4/h6/h8`, `btbdist`, `dynh`, `nopb`, `rfa`, `nobyp`, `lsh`, `ebr`, `mulb`, `shearly`).
 
-### 4. Ledger (variant, seeds, min/median/max sys MHz, cycles, routes)
+### 4. Ledger (variant, seeds, min / median / max sys MHz, cycles, routes)
 
-Filled from `results.txt` as rows land; the static baseline is pass 2's sweep.
+All rows: openXC7 flow of `soc/openxc7.py` (no abc9, spread, timing weight 30), nextpnr's
+routed figure, `build/fable_timing3/results.txt`. Cycles = p95 frame x 60 / 1e6 (MHz for 60 fps)
+on `hp_wc`/`aligned`, union_beatdis / ulm_dsots / skystrike / tutorial, unsealed twins through
+`mempath_run.py pass3`. Everything from `cdc` down carries the P3-1 patch. Pass-2 static
+baseline for the same seeds: 1-4 = 102.0 / 90.9 / 82.8 / 87.4 (median 89.2); 1-6, 8, 12
+median 90.8.
 
-| variant | seeds | sys min / median / max | comp | cycles vs static (p95, MHz for 60 fps: ub / ulm / sky / tut) | routes |
+| variant | seeds | sys min / median / max | comp >= 125 | cycles ub / ulm / sky / tut | routes |
 |---|---|---|---|---|---|
-| static board core (pass 2) | 1-12 | 76.1 / 92.9 / 102.0 | 94.9-138.8 | 52 / 98 / 119 / 26 | yes |
-| static, seeds 1-4 only | 1-4 | 82.8 / 89.2 / 102.0 | | same | yes |
-| `cdc` = static + P3-1 | 1-6, 8, 12 | pending (`cdc`, `cdc_s*`) | | same (no cycle change) | |
-| `frz_all_s3`, `frz_vex_s1-4` | 3 / 1-4 | pending | | same | |
-| `b_RfA` regfile ASYNC (+P3-1) | 1-4 | pending | | same | |
-| `b_NoByp` bypassExecute=false | 1-4 | pending | | pending (`NoByp`, mempath pass3) | |
-| `b_Lsh` LightShifter | 1-4 | pending | | pending (`Lsh`) | |
-| `b_Ebr` earlyBranch | 1-4 | pending | | pending (`Ebr`) | |
-| `b_MulB` MulPlugin in+out buffer | 1-4 | pending | | pending (`MulB`) | |
-| `b_DynT8/T8L/T6L/H/T8Rfa` | 1 | pending | | pending (`DynT8`, `DynT6L`, `DynH`; pass-2 Dyn: 47/89/107/22) | |
-| `dyn_tw10/cw2/beta75/altw_s2` | 2 | pending | | as Dyn | |
-| `locvex_s1-4`, `locall_s1-4`, `nohier_s1-4` | 1-4 | pending | | same | |
+| static board core (pass 2) | 1-12 | 76.1 / 92.9 / 102.0 | 2 of 12 | 52 / 98 / 119 / 26 | 12/12 |
+| **`cdc` = static + P3-1** | 1-6, 8, 12 | **97.3 / 107.5 / 111.8** (seeds 1-4: 104.3 / 107.7 / 111.8) | 2 of 7 | same | **7/8** (seed 8 stalls at 1,377 overuse; routes with `--placer-heap-congestion-weight 2.0`: 103.1) |
+| `b_RfA` regfile ASYNC + P3-1 | 1-4 | 91.5 / 99.3 / 102.6 | 0 | same | 4/4 |
+| `b_NoByp` bypassExecute=false + P3-1 | 1-4 | 101.4 / 106.7 / 111.3 | 2 | 58 / 103 / 120 / 27 (+11 / +5 / +1 / +4 %) | 4/4 |
+| `b_Lsh` LightShifter + P3-1 | 1-4 | 104.7 / 105.4 / 114.0 | 3 | 53 / 100 / 119 / 27 | 4/4 |
+| `b_Ebr` earlyBranch + P3-1 | 1-4 | 69.5 / 71.7 / 73.2 | 1 | 51 / 97 / 118 / 26 | 3/4 |
+| `b_MulB` MulPlugin in+out buffer + P3-1 | 1-4 | 100.7 / 103.9 / 107.6 | 0 | 52 / 98 / 119 / 26 | 4/4 |
+| **`b_DynT8` DYNAMIC_TARGET, BTB 256 (1 RAMB18-class) + P3-1** | 1-4 | **85.3 / 104.1 / 113.5** | 1 | **47 / 89 / 107 / 22** (-10 %) | **4/4** |
+| `b_DynT8L` (same, LUTRAM asked) | 1 | 113.5 | 0 | as DynT8 | 1/1 (Yosys put the 256x56 in BRAM anyway: same placement as DynT8) |
+| `b_DynT6L` BTB 64 | 1 | 109.4 | 0 | 47 / 90 / 107 / 23 | 1/1 |
+| `b_DynH` DYNAMIC (2-bit history, no target) | 1 | 96.0 | 0 | 52 / 97 / 118 / 26 (no gain) | 1/1 |
+| `b_DynT8Rfa` | 1 | 106.5 | 1 | as DynT8 | 1/1 |
+| `b_DynT8_cw2_s2` (congestion weight 2.0) | 2 | 94.5 (default: 103.8) | 0 | as DynT8 | 1/1 |
+| pass-2 dyn netlist (BTB 1024, no P3-1), seed 2: default / tw10 / **cw2** / beta 0.75 / alt weights | 2 | no / 97.9 / **112.3** / no / no | - | 47 / 89 / 107 / 22 | 2/5 |
+| `frz_all_s3` replay of seed 8's placement, every cell, router seed 3 | 3 | 105.5 (11 router iterations) | no (121.9) | same | 1/1 |
+| `frz_vex_s1-4` replay of the 269 VexRiscv-NAMED cells only | 1-4 | 74.5 / 92.1 / 106.6 | 0 | same | 4/4 |
+| `locvex_s1-4` XDC LOC on VexRiscv's 13 BRAMs (seed-8 sites), no P3-1 | 1-4 | 88.0 / 98.9 / 109.5 | 0 | same | 4/4 |
+| `locall_s1-4` LOC on all 52 BRAM + 17 DSP, no P3-1 | 1-4 | 92.7 / 98.7 / 108.1 | 2 | same | 4/4 |
+| `nohier` (synth without `-flatten`) | - | not run: Yosys needs every module read (`zm_tmds_shift` missing) | | | |
 
-Cycle figures: `PYTHONPATH=build/fable_timing3 uv run python tools/mempath_run.py --report-only`
-reads them, or `mempath_report.load()` + `mhz(runs, (core, "hp_wc", "aligned", cart))`.
+Read-outs:
+- **P3-1 alone moves the median from 89-91 to 107.5 MHz** on the same seeds and the same core:
+  the CDC chain was the floor for a third of the seeds and on the path of most others.
+- **The dynamic-target core routes** once its BTB is 256 entries (`DynT8`, 4/4 seeds, median
+  104.1, best 113.5) -- and on the old 1024-entry netlist with `--placer-heap-congestion-weight
+  2.0` (112.3 at seed 2). Its cycles are the pass-2 Dyn figures: skystrike needs **107 MHz**, and
+  seeds 1 and 4 of four exceed it (113.5, 104.4 is 2.5 % short). At the median it is 97 % of real
+  time; the static `cdc` core at its median 107.5 is 90 %.
+- The other generator knobs lose or tie: ASYNC regfile -8 at the median (the LUTRAM read lands
+  in the execute mux), earlyBranch -36, LightShifter and no-bypass tie at +2-5 % cycles, the
+  pipelined DSP multiply -4. DYNAMIC without the target cache saves no cycles.
+- Freezing works mechanically (every cell: routed in 11 iterations at 105.5) but a partial
+  freeze by name pins too little (most of VexRiscv is anonymous `$abc` cells) and hurts; pin by
+  the placement dump's `--match` on a FLATTENED-name prefix is not available. BRAM-only LOC hints
+  give +9-10 at the median on the unpatched netlist; untested on top of P3-1.
+- **`comp` is now the lottery**: with sys at 104-112 most seeds fail comp 125 (2 of 7 `cdc`
+  seeds, 1 of 4 `DynT8`). `zm_video_plane.v`'s geometry is the next timing target, or comp runs
+  at 110-115 (the budget in `rtl/video/README.md`).
+- The router stalls intermittently on an otherwise fine netlist (`cdc_s8`, `b_Ebr_s3`: overuse
+  climbing from iteration 7); `--placer-heap-congestion-weight 2.0` cleared the one case tried.
+  `TMO` in `pnr.sh` turns a stall into a row.
 
 ### Pass 3: apply now
 
-**P3-1. `soc/zm_cdc.py` AsyncQueue: register the writer's view of the reader pointer** (proven
-in `build/fable_timing3/soc/zm_cdc.py`, `tests/test_video_cdc.py` 5/5 against the copy). Replace
-`rbin_w.eq(Cat(*_bin(rgray_w)))` in the comb block by a comb `rbin_w_now` and add
-`rbin_w.eq(rbin_w_now)` to `wsync`. One wcd cycle more before the writer sees an entry gone:
-`level_w` never under-counts and `empty_w` is late by one cycle, both conservative for the drain
-rule; `room = level_w < QUEUE-1` keeps its margin. Removes the 13-ns path that set seeds 4, 5
-and 12 (76-90 MHz) and pass 2's `board_pl`/`static_pl`. Tests: `pytest fpga/tests/test_video_cdc.py`,
-`uv run python tools/video_sim_run.py` (tutorial + dhs_0pxl0reg hash match), then the seed sweep
-(`cdc_s*` rows give the new numbers; re-pin the seed).
+**P3-1. `soc/zm_cdc.py` AsyncQueue: register the writer's view of the reader pointer.** Proven:
+`build/fable_timing3/soc/zm_cdc.py` (diff: comb `rbin_w_now = Cat(*_bin(rgray_w))`, `rbin_w`
+moved to `wsync`), `tests/test_video_cdc.py` 5/5 against the copy, median 89 -> 107.5 MHz over
+seeds 1-6, 12. One wcd cycle more before the writer sees an entry gone: `level_w` never
+under-counts, `empty_w` is late by one cycle, both conservative for the drain rule; the snoop's
+`room = level_w < QUEUE-1` keeps its margin. Tests: `pytest fpga/tests/test_video_cdc.py`,
+`uv run python tools/video_sim_run.py` (tutorial + dhs_0pxl0reg hash match), then re-sweep and
+re-pin the seed (`build/fable_timing3/pnr.sh cdc cdc_sN`). Seed 2 meets both clocks (107.5 /
+128.6).
 
-**P3-2. Freeze the placement through the dump, not the routed JSON.** Add `-o placement=` to
-the board build's nextpnr line (`soc/openxc7.py add_pnr_opts`), ship
-`tools/freeze_placement.py`, and replay with `-o preplaced=<tsv>` once `frz_all_s3` confirms the
-replay reproduces seed 8. A VexRiscv-only freeze (`--match VexRiscv.`) is the one that survives
-edits outside the CPU. Fork bug to report upstream: `apply_preplaced` -> `getBelByName` ->
-`tile_name2idx.at()` throws on a site-form name.
+**P3-2. `vexgen`: `prediction = DYNAMIC_TARGET, historyRamSizeLog2 = 8`** for the board core
+(`GenZm.scala`: add the `historyRamSizeLog2` argument, `gen.sh` flag `h8`; the mirror's copies
+are the patch). -10 % cycles (skystrike 119 -> 107 MHz), routes 4/4, median 104.1, best 113.5.
+Re-run `make -C fpga vexgen-board`, `mempath_run.py prediction` with the new core added to
+`PRED_CORES`, the seal tests (`test_seal_core.py`, `test_rtl_seal.py`: the seal is unchanged),
+then the sweep; pin seed 1 (113.5 / 124.4: comp 0.6 short, see P3-4) or re-sweep for one that
+meets both.
 
-**P3-3. `RegFilePlugin(regFileReadyKind = ASYNC)`** in `vexgen/src/main/scala/zm/GenZm.scala`
-if `b_RfA_s1..4` beat `cdc_s1..4` at the median: no cycle change, removes the top seeds' floor.
-Re-run `make -C fpga vexgen-board`, the mempath `prediction` plan is unaffected.
+**P3-3. Freeze through the placement dump.** `soc/openxc7.py add_pnr_opts`: add
+`-o placement=<gateware>/placement.json`; ship `tools/freeze_placement.py`; replay a whole
+build with `-o preplaced=` (proven `frz_all_s3`). Use it to hold a good build across edits
+outside the CPU, not to pin a subset. Report upstream (`openXC7/nextpnr` c68c1358):
+`apply_preplaced` -> `getBelByName` -> `tile_name2idx.at()` throws on a `SITE/BEL` name.
 
-**P3-4. Dynamic prediction:** apply only the variant whose row routes on 3 of 4 seeds; measure
-its cycles (`mempath pass3` plan) before choosing. If none routes, the placer-density knob that
-routes `dyn_*_s2` goes into `PNR_OPTS` for that core only.
+**P3-4. `comp`.** With sys fixed, comp 125 fails on most seeds: either take `zm_video_plane.v`'s
+geometry through the same per-seed path survey (`tools/critpath.py --clk=comp_clk LOG`) or set
+`--comp-mhz 115` where the frame budget allows. Not done in this pass.
+
+**P3-5. Routing stalls:** add `--placer-heap-congestion-weight 2.0` to `PNR_OPTS` only for a
+seed that stalls (it cost 9 MHz on `DynT8` seed 2 where the default routed); keep `TMO`.
 
 ### Verdict
 
-Not yet at the ceiling: a third of the seeds were limited by one combinational CDC chain outside
-the CPU (P3-1, a 4-line patch with tests passing), the best seeds by a BRAM-to-BRAM path a
-generator flag removes (P3-3), and the frozen-placement path is now understood (a name-space
-mismatch, with a working dump-based route around it) rather than broken. The dynamic predictor's
-failure is placement density, which the queued knobs and smaller BTBs address. Vivado remains
-the honest next step for skystrike's 119 MHz if, after those land, the median still sits under
-~105: openXC7 loses 15-20 % between the placer's estimate and the routed figure and has no
-pblocks to hold VexRiscv off the BRAM column.
+openXC7 was not at its ceiling: one 4-line CDC patch takes the median from 89 to 107.5 MHz on
+the board core, and the dynamic-target predictor routes with a 256-entry BTB, putting skystrike's
+60 fps (107 MHz needed) within reach on the better seeds (113.5 at seed 1) and at 97 % at the
+median. What is left under openXC7 is the seed lottery itself (85-113 on `DynT8`), `comp` 125 now
+failing more often than sys, and the 15-20 % the router loses against the placer's estimate; the
+freeze survives edits but does not raise the median. Vivado remains the step that would turn
+"two seeds of four" into a routine close, with pblocks for VexRiscv off the BRAM column and a
+timing-driven router -- worth it when the 7z010 has to carry polkadots/replicants-class carts,
+not needed to ship skystrike at 60 fps on a pinned seed.
