@@ -11,18 +11,35 @@ const std = @import("std");
 
 pub const YM_CLOCK: f32 = 2000000.0; // Atari ST PSG clock (2 MHz)
 
-// YM2149 has a 32-level (5-bit) DAC. Measured curve (MAME/AY), normalized to 1.0.
-// The envelope indexes all 32 levels; a fixed 4-bit volume v uses level 2*v+1.
-const VOL_TABLE = blk: {
-    const raw = [32]f32{
-        0.0,     0.0,     0.00465, 0.00658, 0.00785, 0.00932, 0.01180, 0.01393,
-        0.01895, 0.02233, 0.02988, 0.03535, 0.04697, 0.05532, 0.07322, 0.08659,
-        0.11498, 0.13584, 0.18018, 0.21287, 0.28281, 0.33417, 0.44399, 0.52471,
-        0.68753, 0.81095, 1.06210, 1.25389, 1.65437, 1.95431, 2.58200, 3.05064,
-    };
+// The DAC: the YM2149's 32 output levels (5 bits), normalised to 1.0 at level 31.
+// The envelope indexes all 32; a fixed 4-bit volume v uses level 2*v+1.
+//
+// The curve is the datasheet's logarithmic one (about 3 dB a volume step, half
+// that an envelope step) with a small offset that pulls the bottom to zero:
+//     amp(L) = (10^(DB_STEP * (L - 31) / 20) - FLOOR) / (1 - FLOOR),  L >= 2
+// DB_STEP and FLOOR are fitted to Paulo Simoes's 2012 measurement of a real ST
+// (one channel; published with Hatari, src/includes/ym2149_fixed_vol.h): every
+// fixed volume 1..15 is within 1.03 dB of it (ym_dac_test.zig). A pure log curve
+// is 7 dB off at volume 1; the table used before this (an AY-style curve) was up
+// to 7.8 dB too quiet at volumes 2..8. jotego's jt49 (the FPGA's YM) is within
+// 1.6 dB of the measurement and within 2 dB of this curve.
+//
+// Channels are summed linearly. A real ST compresses the sum (three channels at
+// 15 are +5.5 dB over one, not +9.5): against the measured 16x16x16 table a
+// linear sum of this curve is within 0.95 dB for half the combinations and
+// 1.74 dB for 90 %, 4.0 dB at worst (all three at 15). Linear is kept: it is
+// what the FPGA's mixer does, and only loud chords are affected
+// (decisions.md, "The YM DAC curve and envelope hold").
+pub const DB_STEP: f64 = 1.6025;
+pub const FLOOR: f64 = 0.0018;
+pub const VOL_TABLE = blk: {
+    @setEvalBranchQuota(10000);
     var t: [32]f32 = undefined;
-    const maxv = raw[31];
-    for (raw, 0..) |v, i| t[i] = v / maxv;
+    for (&t, 0..) |*a, l| {
+        const db = DB_STEP * (@as(f64, @floatFromInt(l)) - 31.0);
+        const amp = (std.math.pow(f64, 10.0, db / 20.0) - FLOOR) / (1.0 - FLOOR);
+        a.* = if (l <= 1) 0.0 else @floatCast(amp);
+    }
     break :blk t;
 };
 
@@ -63,7 +80,7 @@ pub const Ym2149 = struct {
         self.env_pos = if (self.env_attack) 0 else 31;
     }
 
-    fn envStep(self: *Ym2149) void {
+    pub fn envStep(self: *Ym2149) void {
         if (self.env_holding) return;
         if (self.env_attack) {
             if (self.env_pos < 31) {
@@ -83,6 +100,9 @@ pub const Ym2149 = struct {
             return;
         }
         if (self.env_hold) {
+            // HOLD takes the ALTERNATED level when ALT is set (datasheet): 11
+            // (\---) decays then holds high, 15 (/___) attacks then holds low.
+            if (self.env_alt) self.env_pos = 31 - self.env_pos;
             self.env_holding = true;
             return;
         }
