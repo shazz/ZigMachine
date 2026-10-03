@@ -190,3 +190,120 @@ For pass 2: apply P1-1 + P1-2 (+ P1-3 if confirmed), rebuild, record the new cri
 from the log (`awk '/Critical path report for clock .from297_clk/'`); then P1-4/P1-5
 against that number, and read the `cpu_*` and `comp150_sys100` rows for the next pass's
 direction.
+
+## Pass 3 (2026-10-03, Fable): the median, the frozen placement, the dynamic predictor
+
+Run from copies under `fpga/build/fable_timing3/` (mirror of `fpga/` with `soc/`, `rtl/`,
+`vexgen/`, `tools/` copied, the rest symlinked; `run.sh`, `pnr.sh`, `synth.sh`, `chain1.sh`,
+`chain2.sh`, every result line in `results.txt`, logs in `logs/`, heatmaps in `heat/`). Nothing
+under `fpga/rtl`, `fpga/soc`, `fpga/vexgen` was edited. **The queued runs were still in flight
+when this section was written (hand-back at 10:41): chain1/chain2 append to `results.txt` as
+they finish, and `logs/mempath_pass3.log` + `build/mempath/uart/<core>/` carry the cycle runs.**
+Summarise a log with `tools/critpath.py LOG...` (fmax, logic/routing split, endpoints, long nets).
+
+### 1. What limits `sys`, seed by seed (pass-2 board netlist, `tools/critpath.py` over seeds 1-12)
+
+| seeds | fmax | the path | fix |
+|---|---|---|---|
+| 1, 8, 10 | 100.6-102.0 | I$ tag RAMB18 `DOADO` (clk-to-q 2.45) -> way select -> `decode_INSTRUCTION_ANTICIPATED` -> **regfile RAMB18 address** (setup 0.57): 4.4 ns logic of which 3.0 is the two BRAMs, 5.5 routing | `RegFilePlugin(ASYNC)`: the regfile becomes LUTRAM read from the registered decode instruction; the BRAM-to-BRAM floor goes (netlist `VexRiscv_SealRfA`, rows `b_RfA*`) |
+| 2, 3, 7, 9, 11 | 90-97 | jump/redo mux -> `fetchPc_output_payload` (fanout 7: 4 RAMB36 + 2 RAMB18 address pins, **2.0-3.0 ns on one net**) -> I$ tag address; 8-9 ns routing | not duplication (fanout 7): the six I$ BRAMs are spread along the one column. Rows `locvex_s*` / `locall_s*` pin them where seed 8 had them; a compact 2-column arrangement is the next XDC to try |
+| 4, 5, 12 | 76-90 | **not the CPU**: synchroniser out -> gray->bin XOR chain -> `asyncqueue_level_w` subtract -> `writable` -> consumer push -> the NEXT queue's `rnext`, 3 ns logic + 8-10 ns routing, all one sys cycle (`soc/zm_cdc.py` AsyncQueue; pass-2 `board_pl`/`static_pl` were limited by the same `rd_x_asyncqueue` path) | **P3-1 below**: register the writer's view of the reader pointer |
+
+### 2. `-o preplaced=` crash: root cause, reproducer, workaround
+
+- Reproducer (3.6 s): `pnr.sh` on the board netlist with a one-line file
+  `VexRiscv.RegFilePlugin_regFile.0.0<TAB>RAMB18_X0Y38/RAMB18E1` -> `std::out_of_range: dict::at()`
+  (`logs/repro_pre1.log`).
+- Cause (sources at `openXC7/nextpnr` c68c1358): `pack.cc:1297` calls `apply_preplaced(false)`
+  first thing in packing; it resolves the second column with `ctx->getBelByNameStr`, whose
+  himbaechel implementation does `tile_name2idx.at(name[0])` (`himbaechel/arch.cc:212`): the
+  first component must be a **tile** name (`X<gx>Y<gy>` on the 106x129 grid, e.g. the pad lines
+  `X127Y82/IOB_X0Y0.IOB33S.PAD`), and the miss throws instead of returning no bel. Pass 2's
+  `placement_static2_s8.tsv` was built from the routed JSON's `NEXTPNR_BEL`, which is the
+  Vivado-style `SITE/BEL` (`SLICE_X0Y50/D6LUT`); every line misses. Fork fix: guard the lookup
+  (`count()` before `at()`, or accept the site form).
+- Workaround that needs no fork change: `-o placement=<json>` (also `fasm.cc:write_placement`)
+  dumps `cell -> {tile, site, bel, nextpnr_bel, type}` and `nextpnr_bel` is the tile-qualified
+  name. **`tools/freeze_placement.py PLACEMENT.json OUT.tsv [--match PREFIX] [--types ...]`**
+  (in the mirror's `tools/`) writes the replay file. Rows `static_s8_place` (the dump),
+  `frz_all_s3` (every cell, seed 3: expect seed 8's figure) and `frz_vex_s1..4` (VexRiscv's
+  cells only) are the proof runs; `loc_one_probe` checks the XDC `set_property LOC` path
+  (`apply_loc_constraints`, site + type -> bel, no tile names involved) as the second freeze.
+
+### 3. Why the dynamic-target core does not route (`logs/dyn_s2_heat.log`, `heat/`)
+
+`--router2-heatmap` writes four CSVs per iteration, so a killed route still tells. The BTB is
+three RAMB18E1 (1024x18 TDP, `ram_style=block`), +341 LUTs, +138 FFs over static. The overused
+set is **not fixed**: at the 40-90 plateau it churns through VexRiscv's execute/decode nets
+(`_zz_execute_SRC1/2_CTRL`, `_zz_decode_RS2`, the barrel shifter, CSR), on SINGLE/DOUBLE wires,
+in a band x 15-62 / y 32-54 of the tile grid with the **BRAM column x=40 recurring**. That is
+density, not a hard conflict: VexRiscv's cluster straddles the BRAM column and the heap placer
+(timing weight 30) packs it past what the local interconnect carries. Pass 2's `dyn_pl`
+"95.5 MHz" was the placer's estimate; it never routed either. Experiments queued, P&R only on
+the pass-2 dyn netlist, seed 2, 15-min cap (chain2): `dyn_tw10_s2` (timing weight 10),
+`dyn_cw2_s2` (`--placer-heap-congestion-weight 2.0`, default 0.5), `dyn_beta75_s2`
+(`--placer-heap-beta 0.75`, default 0.9), `dyn_altw_s2` (`--router2-alt-weights`). Smaller cores
+(chain1 `b_Dyn*`): `SealDynT8` (BTB 256, 1 RAMB18-ish), `SealDynT8L` (256 in LUTRAM),
+`SealDynT6L` (64 in LUTRAM), `SealDynH` (`DYNAMIC`: 2-bit history, no target cache),
+`SealDynT8Rfa`. The mirror's `vexgen/src/main/scala/zm/GenZm.scala` + `gen.sh` carry the flags
+(`h4/h6/h8`, `btbdist`, `dynh`, `nopb`, `rfa`, `nobyp`, `lsh`, `ebr`, `mulb`, `shearly`).
+
+### 4. Ledger (variant, seeds, min/median/max sys MHz, cycles, routes)
+
+Filled from `results.txt` as rows land; the static baseline is pass 2's sweep.
+
+| variant | seeds | sys min / median / max | comp | cycles vs static (p95, MHz for 60 fps: ub / ulm / sky / tut) | routes |
+|---|---|---|---|---|---|
+| static board core (pass 2) | 1-12 | 76.1 / 92.9 / 102.0 | 94.9-138.8 | 52 / 98 / 119 / 26 | yes |
+| static, seeds 1-4 only | 1-4 | 82.8 / 89.2 / 102.0 | | same | yes |
+| `cdc` = static + P3-1 | 1-6, 8, 12 | pending (`cdc`, `cdc_s*`) | | same (no cycle change) | |
+| `frz_all_s3`, `frz_vex_s1-4` | 3 / 1-4 | pending | | same | |
+| `b_RfA` regfile ASYNC (+P3-1) | 1-4 | pending | | same | |
+| `b_NoByp` bypassExecute=false | 1-4 | pending | | pending (`NoByp`, mempath pass3) | |
+| `b_Lsh` LightShifter | 1-4 | pending | | pending (`Lsh`) | |
+| `b_Ebr` earlyBranch | 1-4 | pending | | pending (`Ebr`) | |
+| `b_MulB` MulPlugin in+out buffer | 1-4 | pending | | pending (`MulB`) | |
+| `b_DynT8/T8L/T6L/H/T8Rfa` | 1 | pending | | pending (`DynT8`, `DynT6L`, `DynH`; pass-2 Dyn: 47/89/107/22) | |
+| `dyn_tw10/cw2/beta75/altw_s2` | 2 | pending | | as Dyn | |
+| `locvex_s1-4`, `locall_s1-4`, `nohier_s1-4` | 1-4 | pending | | same | |
+
+Cycle figures: `PYTHONPATH=build/fable_timing3 uv run python tools/mempath_run.py --report-only`
+reads them, or `mempath_report.load()` + `mhz(runs, (core, "hp_wc", "aligned", cart))`.
+
+### Pass 3: apply now
+
+**P3-1. `soc/zm_cdc.py` AsyncQueue: register the writer's view of the reader pointer** (proven
+in `build/fable_timing3/soc/zm_cdc.py`, `tests/test_video_cdc.py` 5/5 against the copy). Replace
+`rbin_w.eq(Cat(*_bin(rgray_w)))` in the comb block by a comb `rbin_w_now` and add
+`rbin_w.eq(rbin_w_now)` to `wsync`. One wcd cycle more before the writer sees an entry gone:
+`level_w` never under-counts and `empty_w` is late by one cycle, both conservative for the drain
+rule; `room = level_w < QUEUE-1` keeps its margin. Removes the 13-ns path that set seeds 4, 5
+and 12 (76-90 MHz) and pass 2's `board_pl`/`static_pl`. Tests: `pytest fpga/tests/test_video_cdc.py`,
+`uv run python tools/video_sim_run.py` (tutorial + dhs_0pxl0reg hash match), then the seed sweep
+(`cdc_s*` rows give the new numbers; re-pin the seed).
+
+**P3-2. Freeze the placement through the dump, not the routed JSON.** Add `-o placement=` to
+the board build's nextpnr line (`soc/openxc7.py add_pnr_opts`), ship
+`tools/freeze_placement.py`, and replay with `-o preplaced=<tsv>` once `frz_all_s3` confirms the
+replay reproduces seed 8. A VexRiscv-only freeze (`--match VexRiscv.`) is the one that survives
+edits outside the CPU. Fork bug to report upstream: `apply_preplaced` -> `getBelByName` ->
+`tile_name2idx.at()` throws on a site-form name.
+
+**P3-3. `RegFilePlugin(regFileReadyKind = ASYNC)`** in `vexgen/src/main/scala/zm/GenZm.scala`
+if `b_RfA_s1..4` beat `cdc_s1..4` at the median: no cycle change, removes the top seeds' floor.
+Re-run `make -C fpga vexgen-board`, the mempath `prediction` plan is unaffected.
+
+**P3-4. Dynamic prediction:** apply only the variant whose row routes on 3 of 4 seeds; measure
+its cycles (`mempath pass3` plan) before choosing. If none routes, the placer-density knob that
+routes `dyn_*_s2` goes into `PNR_OPTS` for that core only.
+
+### Verdict
+
+Not yet at the ceiling: a third of the seeds were limited by one combinational CDC chain outside
+the CPU (P3-1, a 4-line patch with tests passing), the best seeds by a BRAM-to-BRAM path a
+generator flag removes (P3-3), and the frozen-placement path is now understood (a name-space
+mismatch, with a working dump-based route around it) rather than broken. The dynamic predictor's
+failure is placement density, which the queued knobs and smaller BTBs address. Vivado remains
+the honest next step for skystrike's 119 MHz if, after those land, the median still sits under
+~105: openXC7 loses 15-20 % between the placer's estimate and the routed figure and has no
+pblocks to hold VexRiscv off the BRAM column.
