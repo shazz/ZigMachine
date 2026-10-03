@@ -25,6 +25,7 @@ static void idle() {
     top.p_key__pop.set(false);
     top.p_cart__state__we.set(false);
     top.p_cart__beat__we.set(false);
+    top.p_ptr__ack.set(false);
 }
 
 // AW and W until both are taken; `order` 0 = AW first, 1 = W first, 2 = together.

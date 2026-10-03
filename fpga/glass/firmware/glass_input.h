@@ -5,8 +5,8 @@
  * why the ARM sends neutral events and the routing lives here.
  *
  * Plain C, no LiteX: the board firmware feeds it the CSRs (glass_key_data,
- * glass_key_valid, glass_key_pop, glass_joy) and binds `call` to the cart's
- * exports; tests feed it directly. The map's constants come in as -D defines
+ * glass_key_valid, glass_key_pop, glass_joy, glass_pointer, glass_pointer_ack)
+ * and binds `call` to the cart's exports; tests feed it directly. The map's constants come in as -D defines
  * (fpga/gen/glass_map.py), as for the RTL testbenches. */
 #ifndef GLASS_INPUT_H
 #define GLASS_INPUT_H
@@ -33,5 +33,16 @@ void glass_dispatch(uint32_t event, int owns_keyboard, glass_call_fn call, void*
 
 /* The joypad: input()/inputRelease() for every bit that changed. */
 void glass_joy(uint32_t before, uint32_t now, glass_call_fn call, void* ctx);
+
+/* demo.pointer(x, y, buttons), or NULL for a cart without that export. */
+typedef void (*glass_pointer_fn)(void* ctx, int x, int y, uint32_t buttons);
+
+/* The mouse, once a poll: `ptr` is the glass_pointer CSR (REG_POINTER), `seen`
+ * the SEQ last delivered (0 at boot, as the PL's SEQ resets to 0, so a mouse
+ * never touched calls nothing). When SEQ moved, calls `pointer` (unless NULL),
+ * stores the SEQ in *seen and returns it: the firmware then writes it to
+ * glass_pointer_ack, which drops the buttons the PL latched for it. A cart
+ * without pointer() is still acked, so nothing piles up. Else returns -1. */
+int glass_pointer(uint32_t ptr, uint32_t* seen, glass_pointer_fn pointer, void* ctx);
 
 #endif

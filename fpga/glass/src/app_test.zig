@@ -8,6 +8,7 @@ const sim = @import("sim.zig");
 const zmd = @import("zmd.zig");
 const keymap = @import("keymap.zig");
 const pad = @import("pad.zig");
+const mouse = @import("mouse.zig");
 const App = @import("app.zig").App;
 
 const gpa = std.testing.allocator;
@@ -109,4 +110,28 @@ test "a cart that traps brings the menu back and is held" {
     try std.testing.expect(r.glass.ctrl & map.CTRL_RUN == 0);
     try std.testing.expect(r.glass.ctrl & map.CTRL_OSD != 0);
     try std.testing.expect(std.mem.indexOf(u8, a.menu.status, "trapped (code 5)") != null);
+}
+
+test "the mouse reaches the cart only while the OSD is closed; a held button is released first" {
+    const r = try Rig.init();
+    defer r.deinit();
+    var a = try r.app();
+    defer a.deinit();
+    a.mouseEvent(mouse.EV_REL, mouse.REL_X, 50, 0); // over the menu: dropped
+    a.sync();
+    try std.testing.expectEqual(@as(u32, 0), r.glass.ptr_seq);
+    press(&a, keymap.KEY_ENTER); // load: the OSD closes
+    a.mouseEvent(mouse.EV_REL, mouse.REL_X, 10, 0);
+    a.mouseEvent(mouse.EV_KEY, mouse.BTN_LEFT, 1, 0);
+    a.sync();
+    const held = a.mouse.word(map.PTR_BTN_PRESS);
+    try std.testing.expectEqual(held, r.glass.ptr);
+    try std.testing.expectEqual(@as(u32, 330), a.mouse.x());
+    a.key(keymap.OSD_HOTKEY, 1);
+    try std.testing.expectEqual(a.mouse.word(0), r.glass.ptr); // released, kept in place
+    const seq = r.glass.ptr_seq;
+    a.mouseEvent(mouse.EV_KEY, mouse.BTN_LEFT, 0, 5); // the real release, behind the menu
+    a.mouseEvent(mouse.EV_REL, mouse.REL_Y, 40, 5);
+    a.sync();
+    try std.testing.expectEqual(seq, r.glass.ptr_seq); // nothing reached the cart
 }

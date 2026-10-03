@@ -1,9 +1,10 @@
 // glass: the ZigMachine console's ARM-side program (docs/FPGA_GLASS.md).
 //
-//   glass run [--no-wait] [SHELF_DIR]
+//   glass run [--no-wait] [--mouse-scale=PCT] [SHELF_DIR]
 //                                   the board: /dev/mem windows, evdev input, the OSD menu;
 //                                   --no-wait: do not wait for the firmware's RUNNING
-//                                   (for a firmware that does not report CART_STATE yet)
+//                                   (for a firmware that does not report CART_STATE yet);
+//                                   --mouse-scale: pointer speed, 100 = a pixel a count
 //   glass sim-load DISK OUT [WIN]   desktop: load DISK into a simulated glass + fake DDR of
 //                                   WIN bytes (default the board's), write the placed image
 //                                   to OUT; exit 1 unless the rest of the window is zero
@@ -18,6 +19,7 @@ const App = @import("app.zig").App;
 const devmem = @import("devmem.zig");
 const evdev = @import("evdev.zig");
 const pad = @import("pad.zig");
+const mouse = @import("mouse.zig");
 
 const DEFAULT_SHELF = "/mnt/sd/zigmachine";
 
@@ -26,12 +28,17 @@ pub fn main(init: std.process.Init) !u8 {
     _ = args.next();
     const cmd = args.next() orelse return usage();
     if (std.mem.eql(u8, cmd, "run")) {
-        var wait = true;
-        var dir: []const u8 = DEFAULT_SHELF;
+        var opt = RunOptions{};
         while (args.next()) |a| {
-            if (std.mem.eql(u8, a, "--no-wait")) wait = false else dir = a;
+            if (std.mem.eql(u8, a, "--no-wait")) {
+                opt.wait = false;
+            } else if (std.mem.startsWith(u8, a, "--mouse-scale=")) {
+                const pct = std.fmt.parseInt(i32, a["--mouse-scale=".len..], 10) catch return usage();
+                if (pct < 1 or pct > 10_000) return usage();
+                opt.mouse_scale = @divTrunc(pct * mouse.SCALE_ONE, 100);
+            } else opt.dir = a;
         }
-        return run(init, dir, wait);
+        return run(init, opt);
     }
     if (std.mem.eql(u8, cmd, "sim-load")) {
         const disk = args.next() orelse return usage();
@@ -44,7 +51,7 @@ pub fn main(init: std.process.Init) !u8 {
 }
 
 fn usage() u8 {
-    std.debug.print("usage: glass run [--no-wait] [SHELF_DIR] | sim-load DISK OUT [WINDOW] | sim-menu SHELF_DIR\n", .{});
+    std.debug.print("usage: glass run [--no-wait] [--mouse-scale=PCT] [SHELF_DIR] | sim-load DISK OUT [WINDOW] | sim-menu SHELF_DIR\n", .{});
     return 2;
 }
 
@@ -83,28 +90,52 @@ fn simMenu(init: std.process.Init, dir: []const u8) !u8 {
     return 0;
 }
 
-fn run(init: std.process.Init, dir: []const u8, wait: bool) !u8 {
+const RunOptions = struct { dir: []const u8 = DEFAULT_SHELF, wait: bool = true, mouse_scale: i32 = mouse.SCALE_ONE };
+
+fn run(init: std.process.Init, opt: RunOptions) !u8 {
     const board = try devmem.open();
-    var app = try App.init(init.gpa, init.io, board.regs(), board.ddr(), dir);
+    var app = try App.init(init.gpa, init.io, board.regs(), board.ddr(), opt.dir);
     defer app.deinit();
     app.opt.idle = devmem.napMs;
-    app.opt.wait_boot = wait;
+    app.opt.wait_boot = opt.wait;
+    app.mouse.scale = @max(1, opt.mouse_scale);
     var inputs = evdev.Inputs{};
     defer inputs.closeAll();
     var buf: [64]evdev.Raw = undefined;
-    var ticks: u32 = 0;
-    while (true) : (ticks += 1) {
-        if (ticks % 20 == 0) inputs.rescan(); // every ~2 s: a pad plugged in later
+    // By the clock, not by poll: a moving mouse wakes poll() a thousand times a second.
+    var next_scan: i64 = 0;
+    var next_watch: i64 = 0;
+    while (true) {
+        const now = nowMs();
+        if (now >= next_scan) { // every 2 s: a pad or a mouse plugged in later
+            inputs.rescan();
+            next_scan = now + 2000;
+        }
+        if (now >= next_watch) {
+            app.watch();
+            next_watch = now + 100;
+        }
         const n = inputs.poll(100, &buf);
         for (buf[0..n]) |r| dispatch(&app, &inputs, r);
-        app.watch();
     }
 }
 
+fn nowMs() i64 {
+    var ts: std.os.linux.timespec = undefined;
+    _ = std.os.linux.clock_gettime(.MONOTONIC, &ts);
+    return @as(i64, ts.sec) * 1000 + @divTrunc(@as(i64, ts.nsec), 1_000_000);
+}
+
+// By event, not by device: a combo receiver's one node is a keyboard AND a mouse.
 fn dispatch(app: *App, inputs: *evdev.Inputs, r: evdev.Raw) void {
     const d = inputs.devs[r.dev];
-    // A gamepad's buttons are EV_KEY too, numbered from 0x100 (BTN_MISC) up.
-    if (r.type == pad.EV_ABS or (r.type == pad.EV_KEY and r.code >= 0x100)) {
+    if (r.type == mouse.EV_SYN) {
+        if (r.code == mouse.SYN_REPORT) app.sync();
+    } else if (mouse.isMouse(r.type, r.code)) {
+        app.mouseEvent(r.type, r.code, r.value, r.ms);
+    } else if (r.type == pad.EV_ABS) {
+        if (d.stick) app.padEvent(r.type, r.code, r.value, d.x, d.y);
+    } else if (r.type == pad.EV_KEY and r.code >= 0x100) { // a pad's buttons: 0x100 (BTN_MISC) up
         app.padEvent(r.type, r.code, r.value, d.x, d.y);
     } else if (r.type == pad.EV_KEY) {
         app.key(r.code, r.value);

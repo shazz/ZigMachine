@@ -19,7 +19,7 @@ says otherwise.
 | — | Whole SoC elaborated against the real board | **done** | 2,408 LUTs (13.7 %) synthesised |
 | — | Video to the wire: mixer, scanout, TMDS/DVI, in the SoC | **done** | mixer = Chrome byte for byte; 40/40 frames; 90/90 carts replay identically |
 | — | openXC7 toolchain (Docker, pinned) + first bitstream | **done** | `make -C fpga blink`; the full SoC routes, sys 92 MHz of 100 |
-| — | The glass: ARM loader + OSD menu ([`FPGA_GLASS.md`](FPGA_GLASS.md)) | **built, host-tested** | GP0 regs + OSD in RTL (13/13 break tests), Zig `glass` (23 tests), 9 board images land byte for byte; the SoC with PS7 does not route yet |
+| — | The glass: ARM loader + OSD menu + USB keyboard/mouse/pads ([`FPGA_GLASS.md`](FPGA_GLASS.md)) | **built, host-tested** | GP0 regs + OSD in RTL (19/19 break tests), Zig `glass` (37 tests), input break tests 18/18, 9 board images land byte for byte; the SoC with PS7 does not route yet |
 | 1–7 | Board work | **waiting for the board** | `openFPGALoader -c digilent_hs2 fpga/build/blink/blink_top.bit` |
 | RTL | Video timing (`zm_vtiming`) | **done** | 64 LUTs, CXXRTL-tested over 2 frames |
 | RTL | Video compositor: planes, palettes, border, BEAM, all modes | **done** | **32/32 frames pixel-identical** to the machine; 25/25 mutants caught; 1,169 LUTs |
@@ -46,6 +46,12 @@ says otherwise.
   - the board images `fpga/cycles` links for 9 carts, which go through fat
     disks and `glass sim-load` and land byte for byte;
   - `boot.scr` byte-identical to `mkimage`'s.
+- **The mouse** (added later the same day): a `POINTER` register, with presses
+  latched until the firmware acks them and a `SEQ` the firmware polls, so the
+  cart gets `pointer(x, y, buttons)` with the browser's rules (0..639 × 0..199,
+  any button = bit 0, a double-click pulse = bit 1). `zm_glass_regs` is now
+  254 LUT. Pads gained `xpad` and the Sony, PlayStation, Nintendo and Microsoft
+  HID drivers.
 - **Open:** routing the SoC with the PS7 under openXC7 diverges (overuse 730 to
   1,830 over 51 iterations). Also open: the HP-port master and the board firmware
   that reports `CART_STATE`.

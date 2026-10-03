@@ -7,15 +7,15 @@ first written 2026-10-02. The code is in `fpga/glass/` (the ARM program),
 On a MiSTer, Main_MiSTer on the ARM reads the SD card and the USB devices, and
 an OSD drawn by the FPGA framework lets you pick a core and a file. The
 ZigMachine console works the same way. The ARM lists the `.zmd` shelf on the SD
-card, loads a cart into the cart CPU's DDR, resets it and passes it the keyboard
-and joypad. It does all of that while the console runs in the PL. The ARM never
+card, loads a cart into the cart CPU's DDR, resets it and passes it the keyboard,
+the mouse and the joypad. It does all of that while the console runs in the PL. The ARM never
 runs a cart and is never on the video or audio path. The design is MiSTer's;
 none of MiSTer's code (GPL) or zeST's code (GPL-3) is used.
 
 ```
   SD card ─┐                        PS (dual Cortex-A9, Linux)         PL (XC7Z010)
   USB HID ─┤   glass run  ──/dev/mem──► M_AXI_GP0 ──► zm_glass_regs ──► cart CPU reset
-           │       │                                  │   key FIFO, JOY ──► CSRs ──► cart CPU firmware
+           │       │                                  │   key FIFO, JOY, POINTER ──► CSRs ──► cart CPU firmware
            │       │                                  └── OSD text ──► zm_glass_osd ─┐
            │       └──/dev/mem──► DDR 0x1E000000 ◄── HP port ◄── cart CPU          │
            │                                                                          ▼
@@ -27,12 +27,12 @@ none of MiSTer's code (GPL) or zeST's code (GPL-3) is used.
 | Piece | State | Evidence |
 |---|---|---|
 | Register map, one source (`glass/src/map.zig` → `gen/glass_map.{vh,py}`) | **done** | `make memmap` |
-| `zm_glass_regs` (AXI3 slave, key FIFO, cart reset, reports) | **done**, 223 LUT | CXXRTL testbench; 7/7 break tests caught |
+| `zm_glass_regs` (AXI3 slave, key FIFO, pointer, cart reset, reports) | **done**, 254 LUT | CXXRTL testbench; 13/13 break tests caught |
 | `zm_glass_osd` (32×16 text, ST system font, 2×) | **done**, 45 LUT, 2 BRAM | 3 whole 800×600 frames checked pixel by pixel; 6/6 break tests caught |
 | In the z7 SoC (PS7 GP0, OSD hook, CPU reset) | elaborates and synthesises; **does not route yet** | whole SoC 4,424 LUT (25.1 %), +355 for the glass. openXC7 packs and places the PS7, but routing diverges (below) |
-| ARM program `glass` (loader, menu, keymap, pad, evdev, `/dev/mem`) | **done**, host-tested | 23 Zig tests; static `arm-linux-musleabihf` binary 3.4 MB |
+| ARM program `glass` (loader, menu, keymap, mouse, pad, evdev, `/dev/mem`) | **done**, host-tested | 37 Zig tests, 15 break tests caught; static `arm-linux-musleabihf` binary 4.0 MB |
 | Load path, end to end | **done** | the 9 board images `fpga/cycles` links land byte for byte in the fake DDR |
-| Cart-side input routing (`glass/firmware/glass_input.c`) | **done**, not yet linked into a firmware | 19 cases against `sealed-loader.js`'s rules |
+| Cart-side input routing (`glass/firmware/glass_input.c`) | **done**, not yet linked into a firmware | 19 key cases + 7 pointer polls against `sealed-loader.js`'s rules; 3 break tests caught |
 | SD card staging (`tools/glass_sd.py`), U-Boot script, DTS, Buildroot tree | **written** | `boot.scr` is byte-identical to `mkimage`'s; the DTS compiles against a stub dtsi |
 | Anything on the board | **waiting for the board** | below, "What needs the board" |
 
@@ -59,7 +59,7 @@ clock (the PL drives `MAXIGP0ACLK`), so it lives in one clock domain.
 | Offset | Register | | What it does |
 |---|---|---|---|
 | `0x00` | `ID` | ro | `0x5A4D474C` "ZMGL". The ARM drives nothing until it reads this. |
-| `0x04` | `VERSION` | ro | 1.0.0 |
+| `0x04` | `VERSION` | ro | 1.1.0 (1.1 added `POINTER`) |
 | `0x08` | `CTRL` | rw | bit 0 `RUN`: 0 holds the cart CPU in reset, and 0 is the reset value. bit 1 `OSD`: show the overlay. bit 2 `KEY_FLUSH`: a strobe that empties the FIFO and clears the overflow flag. |
 | `0x0C` | `STATUS` | ro | bit 0 `RUNNING`, bit 1 `KEY_FULL`, bit 2 `KEY_OVERFLOW` (sticky) |
 | `0x10` | `CART_STATE` | ro | Written by the cart CPU's firmware: 0 reset, 1 booting, 2 running, 3 trapped (bits 31:8 = the trap code). Cleared while the CPU is held. |
@@ -71,6 +71,7 @@ clock (the PL drives `MAXIGP0ACLK`), so it lives in one clock domain.
 | `0x28` | `JOY` | rw | Held directions and fire (`JOY_*`) |
 | `0x2C`, `0x30` | `OSD_FG`, `OSD_BG` | rw | Ink and paper, `0x00RRGGBB` |
 | `0x34` | `SCRATCH` | rw | For bring-up: proves the bus before anything else |
+| `0x38` | `POINTER` | rw | The mouse: x (bits 9:0), y (19:10), buttons (23:20). Reads back the cart's view, with SEQ in 31:24. Below, "The mouse". |
 | `0x1000`… | OSD text | wo | 512 words, row-major: `{inverse, glyph}` |
 
 **The AXI slave** takes single beats only, which is what an uncached 32-bit
@@ -96,9 +97,82 @@ bit 24     down (clear = released)
 bit 25     auto-repeat
 ```
 
-On the cart CPU's side the block is four CSRs: `glass_key_data`,
-`glass_key_valid`, `glass_key_pop` (write to pop) and `glass_joy`. There are two
-more that the firmware writes: `glass_cart_state` and `glass_cart_beat`.
+On the cart CPU's side the block is five CSRs: `glass_key_data`,
+`glass_key_valid`, `glass_key_pop` (write to pop), `glass_joy` and
+`glass_pointer`. There are three more that the firmware writes:
+`glass_pointer_ack`, `glass_cart_state` and `glass_cart_beat`.
+
+### The mouse (`POINTER`, `zm_glass_ptr.v`, `glass/src/mouse.zig`)
+
+The browser (`docs/sealed-loader.js`, "Pointer input") calls
+`demo.pointer(x, y, buttons)` on every `mousemove`, on `mousedown` and on
+`mouseup`. Its rules, which the board keeps:
+
+- **Coordinates** are the machine's physical-visible area, 0..639 by 0..199
+  (`hwPhysWidth − 2·hwBorderX` by `hwPhysHeight − 2·hwBorderY`). A low-res cart
+  halves x itself (`gem_desktop.zig`); `union_textracker.zig` clamps.
+- **Buttons:** any mouse button is bit 0. A double-click is a one-off pulse of
+  bit 1, sent after the second release's state and before the release itself
+  (`gem_desktop.zig` opens the item under the pointer on it). There is no wheel.
+- **A click shorter than a frame is still seen:** the browser defers the release
+  by one animation frame.
+
+**Why a register and not FIFO events.** The pointer is a *state*: only the
+newest position matters, and the browser sends one per move. Mouse motion in
+the 16-entry key FIFO would arrive at up to 1 kHz, crowd the keys out and set
+`KEY_OVERFLOW`, and a firmware draining it once a frame would make one cart call
+per stale position. A register holds the newest state and costs the firmware one
+CSR read a frame. What a plain register would lose is the click shorter than a
+poll, so the PL keeps it:
+
+- The ARM writes x, y and the buttons held. Each write adds one to an 8-bit
+  `SEQ`, and every button pressed since the firmware's last ack stays set in
+  the word the cart reads (held | latched).
+- The firmware reads `glass_pointer` once a frame. When `SEQ` differs from the
+  one it last delivered, it calls `pointer()` and writes that `SEQ` to
+  `glass_pointer_ack`.
+- An ack whose `SEQ` is stale (the ARM wrote since) is ignored, so a press can
+  never be acked before the cart has seen it. An ack that drops a latched button
+  the ARM no longer holds adds one to `SEQ`, so the release is delivered on the
+  next poll. This is the browser's one-frame deferred release.
+
+**On the ARM** (`mouse.zig`): `REL_X`/`REL_Y` are summed, scaled by
+`--mouse-scale=PCT` (100 = one pixel a count, kept to 1/256 pixel), into an
+absolute position clamped to 640×200, which starts in the middle. y moves at
+half rate, because a ZigMachine row is twice as tall as a column is wide. The
+position is written once per `SYN_REPORT`, so x and y move together, and a
+sub-pixel nudge writes nothing. Linux has no double-click, so `glass` times it:
+a second press within 400 ms of the first, from the events' own timestamps.
+`REL_WHEEL` is dropped, as the browser has no wheel.
+
+**Routing is per event, not per device** (`main.zig`): `EV_REL` and
+`BTN_LEFT..BTN_TASK` go to the mouse, `EV_ABS` and the other buttons from 0x100
+up to the pad, and the rest to the keymap. A wireless combo receiver that puts
+a keyboard and a mouse on one node therefore works, as does a mouse on its own
+node.
+
+**The firmware** (`glass_input.c`, `glass_pointer()`) skips the call for a cart
+without a `pointer` export, but still acks. The cart CPU's `SEQ` memory starts
+at 0, the PL's reset value, so a mouse nobody has touched calls nothing.
+
+### The joypad (`JOY`, `glass/src/pad.zig`)
+
+`pad.zig` folds a pad's events into the held `JOY_*` bits, which the firmware
+turns into `input()`/`inputRelease()` edges (`glass_joy()`):
+
+- an analog stick counts as pushed past a third of its declared range from the
+  centre, using the range it reports (`EVIOCGABS`);
+- a hat d-pad counts on any step;
+- a d-pad reported as buttons uses `BTN_DPAD_*`;
+- fire is `BTN_TRIGGER` (a joystick), `BTN_SOUTH` or `BTN_EAST`.
+
+A DualShock or DualSense adds a touchpad node and a motion-sensor node, which
+report `ABS_X`/`ABS_Y` too. `evdev.zig` reads each node's `INPUT_PROP_*` bits and
+ignores the axes of a touchpad, touchscreen or accelerometer. The kernel
+(`boot/buildroot/linux.fragment`) has `xpad` (Xbox and XInput pads, and most
+8BitDo pads in X mode), `hid-sony`, `hid-playstation`, `hid-nintendo` and
+`hid-microsoft`, plus the LED class they depend on. Anything else is
+`hid-generic`.
 `cpu_run` drives VexRiscv's reset directly.
 
 ## The DDR layout (512 MiB, one MT41J256M16)
@@ -163,8 +237,9 @@ below the cart window.
   VSYNC), so it needs nothing from `zm_vtiming`.
 - **F12** opens and closes it, as on MiSTer, and F12 never reaches a cart.
   - While it is open the cart gets **no input**. Every key the cart saw go down
-    is released first (as are the joypad bits), so nothing stays held behind the
-    menu.
+    is released first, as are the joypad bits and the mouse buttons, so nothing
+    stays held behind the menu. The pointer stays where it was, and motion over
+    the menu is dropped.
   - **Esc** closes the menu over a running cart (there is nothing to close it
     over before the first load).
 - **The menu:**
@@ -224,7 +299,8 @@ browser.
 | Firmware never reports | 2,000 polls of 1 ms | `CartSilent` | CPU held |
 | Cart traps later | the watchdog poll | the menu reopens, `cart trapped (code N)` | CPU held |
 | Keys arrive faster than the cart drains them | FIFO full | `KEY_OVERFLOW` sticky, the newest key dropped | flushed at the next load |
-| A USB device is unplugged | `read` error | dropped, then found again by a rescan every 2 s | devices still present stay open (no lost releases) |
+| A USB device is unplugged | `read` error | dropped, then found again by a rescan every 2 s (`event0`..`event31`, up to 16 nodes) | devices still present stay open (no lost releases) |
+| Mouse events faster than the cart polls | — | the newest position wins; a press shorter than a poll is latched | nothing to repair |
 | A file on the shelf is not a disk | header parse | listed as `?name` | — |
 | Power cut | — | nothing to repair | the SD card is mounted read-only |
 
@@ -240,14 +316,17 @@ browser.
   - `tests/test_glass.py`:
     - the Zig tests (`zig build test`), against `sim.zig`, a register file with
       the RTL's rules and a stand-in firmware that boots, traps or stays silent;
-    - the cart-side routing (C);
+    - the cart-side routing (C), including the pointer poll and a cart with no
+      `pointer` export;
     - the fat disk;
     - the SD staging;
     - **the load path end to end**: shelf disk + `fw.bin` → zx0pack → fat disk
       → `glass sim-load` → the window must equal `fw.bin` and then zeros. It runs
       on every cart with an `aligned` board image (9 today, or about 85 with
       `ZM_GLASS_ALL=1`), plus a synthetic image.
-- `ZM_RTL_BREAK=1` adds 13 RTL break tests, each required to fail.
+- `ZM_RTL_BREAK=1` adds 19 RTL break tests and `tests/test_glass_input.py`'s 18
+  (the mouse, the pad, the OSD's release, the firmware's pointer poll), each
+  required to fail.
 - The end-to-end test was itself broken once (one word of the image dropped)
   and failed on all 10 images.
 
@@ -282,7 +361,15 @@ no glass. `--no-glass` builds the previous SoC.
      `CART_BEAT` and `glass_input.c` on the CSRs. The loader waits for
      `RUNNING`; until that firmware exists, run `glass run --no-wait`.
 4. **USB:** the ULPI PHY reset on MIO 46 (taken from zeST's PS7 configuration),
-   and the HID keyboard mapping on a real keyboard.
+   and the HID keyboard mapping on a real keyboard. On real devices:
+   - the mouse speed (`--mouse-scale`): a 1,000 DPI mouse moves about 40 counts
+     per centimetre;
+   - the 400 ms double-click time;
+   - a combo receiver, and pads (Xbox, DualShock 4, DualSense, Switch Pro,
+     8BitDo) plugged in alongside them. In particular, check the kernel
+     fragment's driver names against the kernel Buildroot actually builds.
+   A touchpad (absolute `ABS_X` + `BTN_TOUCH`) is not a mouse to `glass`. It is
+   ignored.
 5. **Plan A:** run Buildroot once (`make BR2_EXTERNAL=… zigmachine_z7lite_defconfig`;
    it needs network access and about an hour). The DTS and the kernel fragment
    are unverified until then.

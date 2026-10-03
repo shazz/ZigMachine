@@ -25,6 +25,42 @@ static void expect(uint32_t ev, int owns, const char* want) {
     }
 }
 
+static void record_pointer(void* ctx, int x, int y, uint32_t buttons) {
+    (void)ctx;
+    char one[48];
+    snprintf(one, sizeof one, "%spointer(%d,%d,%u)", log_buf[0] ? " " : "", x, y, (unsigned)buttons);
+    strncat(log_buf, one, sizeof log_buf - strlen(log_buf) - 1);
+}
+
+static uint32_t ptr(uint32_t x, uint32_t y, uint32_t btn, uint32_t seq) {
+    return x << PTR_X_SHIFT | y << PTR_Y_SHIFT | btn << PTR_BTN_SHIFT | seq << PTR_SEQ_SHIFT;
+}
+
+/* One poll; `want_ack` is what the firmware must write to glass_pointer_ack (-1: none). */
+static void expect_ptr(uint32_t word, uint32_t* seen, glass_pointer_fn fn, const char* want, int want_ack) {
+    log_buf[0] = 0;
+    int got = glass_pointer(word, seen, fn, NULL);
+    if (strcmp(log_buf, want) != 0 || got != want_ack) {
+        printf("FAIL pointer 0x%x: got \"%s\" ack %d want \"%s\" ack %d\n", (unsigned)word, log_buf, got, want, want_ack);
+        failures++;
+    }
+}
+
+static void test_pointer(void) {
+    uint32_t seen = 0;
+    expect_ptr(ptr(0, 0, 0, 0), &seen, record_pointer, "", -1);  /* never touched: no call */
+    expect_ptr(ptr(639, 199, PTR_BTN_PRESS, 1), &seen, record_pointer, "pointer(639,199,1)", 1);
+    expect_ptr(ptr(639, 199, PTR_BTN_PRESS, 1), &seen, record_pointer, "", -1);  /* same SEQ: once */
+    expect_ptr(ptr(12, 34, PTR_BTN_DOUBLE | PTR_BTN_PRESS, 2), &seen, record_pointer, "pointer(12,34,3)", 2);
+    expect_ptr(ptr(12, 34, 0, 0), &seen, record_pointer, "pointer(12,34,0)", 0);  /* SEQ wraps */
+    seen = 0;
+    expect_ptr(ptr(5, 6, PTR_BTN_PRESS, 7), &seen, NULL, "", 7);  /* no pointer(): acked, not called */
+    if (seen != 7) {
+        printf("FAIL pointer: a cart without pointer() must still advance SEQ (seen %u)\n", (unsigned)seen);
+        failures++;
+    }
+}
+
 int main(void) {
     const uint32_t D = KEY_DOWN, R = KEY_REPEAT;
     expect(D | KEY_ARROW_UP, 0, "input(0)");
@@ -52,6 +88,7 @@ int main(void) {
         printf("FAIL joy: \"%s\"\n", log_buf);
         failures++;
     }
+    test_pointer();
     if (failures) return 1;
     printf("glass_input: ok\n");
     return 0;

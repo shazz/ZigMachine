@@ -51,3 +51,15 @@ void glass_joy(uint32_t before, uint32_t now, glass_call_fn call, void* ctx) {
         if ((before ^ now) & bits[i]) call(ctx, (now & bits[i]) ? "input" : "inputRelease", dirs[i]);
     }
 }
+
+int glass_pointer(uint32_t ptr, uint32_t* seen, glass_pointer_fn pointer, void* ctx) {
+    uint32_t seq = (ptr >> PTR_SEQ_SHIFT) & PTR_SEQ_MASK;
+    if (seq == *seen) return -1;
+    *seen = seq;
+    if (pointer) {
+        int x = (int)((ptr >> PTR_X_SHIFT) & PTR_COORD_MASK);
+        int y = (int)((ptr >> PTR_Y_SHIFT) & PTR_COORD_MASK);
+        pointer(ctx, x, y, (ptr >> PTR_BTN_SHIFT) & PTR_BTN_MASK);
+    }
+    return (int)seq;
+}

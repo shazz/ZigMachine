@@ -3,7 +3,8 @@
 - `ZMGlass`: the register block. Its AXI3 slave hangs off the PS's M_AXI_GP0
   (`ps7_gp0` wires a PS7 instance to it, clocked from sys so the whole block
   lives in one domain). Its cart side becomes CSRs the cart CPU's firmware
-  reads: the key FIFO, the joypad, and the state and heartbeat it reports.
+  reads: the key FIFO, the joypad, the mouse (`pointer`, acked through
+  `pointer_ack`), and the state and heartbeat it reports.
   `cpu_run` holds the cart CPU in reset until the ARM has placed a cart.
 - `overlay`: the OSD, as the hook soc/zm_video_pipe.py calls between the
   scanout and the DVI encoder (pixel clock).
@@ -20,7 +21,7 @@ from litex.soc.interconnect.csr import CSRStatus, CSRStorage
 from migen import ClockSignal, Instance, ResetSignal, Signal
 
 FPGA = Path(__file__).resolve().parent.parent
-SOURCES = [FPGA / "rtl/glass/zm_glass_regs.v", FPGA / "rtl/glass/zm_glass_osd.v"]
+SOURCES = [FPGA / "rtl/glass/zm_glass_regs.v", FPGA / "rtl/glass/zm_glass_ptr.v", FPGA / "rtl/glass/zm_glass_osd.v"]
 
 # LiteX platforms are untyped Python classes with no common base worth naming.
 Platform = Any
@@ -37,6 +38,8 @@ class ZMGlass(LiteXModule):
         self.key_valid = CSRStatus(1, description="key_data holds an event.")
         self.key_pop = CSRStorage(1, description="Write anything: drop key_data, show the next event.")
         self.joy = CSRStatus(8, description="Joypad bits held now (JOY_*).")
+        self.pointer = CSRStatus(32, description="The mouse: x, y, buttons, SEQ (PTR_*).")
+        self.pointer_ack = CSRStorage(8, description="Write the SEQ just handed to pointer(): drops latched buttons.")
         self.cart_state = CSRStorage(32, description="The firmware's state for the ARM (CART_*).")
         self.cart_beat = CSRStorage(32, description="Frames the firmware has finished: the ARM's watchdog.")
         self.specials += Instance("zm_glass_regs", **self._ports())
@@ -61,6 +64,7 @@ class ZMGlass(LiteXModule):
             "o_key_data": self.key_data.status, "i_key_pop": self.key_pop.re,
             "i_cart_state_we": self.cart_state.re, "i_cart_state_in": self.cart_state.storage,
             "i_cart_beat_we": self.cart_beat.re, "i_cart_beat_in": self.cart_beat.storage,
+            "o_ptr": self.pointer.status, "i_ptr_ack": self.pointer_ack.re, "i_ptr_ack_seq": self.pointer_ack.storage,
         }  # fmt: skip
 
     def overlay(self, module: LiteXModule, pic: Picture, cd_pix: str = "pix") -> Picture:

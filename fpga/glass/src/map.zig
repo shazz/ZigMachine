@@ -16,7 +16,7 @@ pub const GP0_BASE: u32 = 0x43C0_0000;
 pub const WINDOW_BYTES: u32 = 0x1_0000;
 
 pub const ID_VALUE: u32 = 0x5A4D_474C; // "ZMGL": the ARM refuses to drive anything else
-pub const VERSION: u32 = 0x0001_0000; // 1.0.0
+pub const VERSION: u32 = 0x0001_0100; // 1.1.0: REG_POINTER
 
 // --- registers (byte offsets, 32-bit, word access only) ----------------------
 pub const REG_ID: u32 = 0x00; // ro
@@ -33,6 +33,7 @@ pub const REG_JOY: u32 = 0x28; // rw, JOY_* bits held now
 pub const REG_OSD_FG: u32 = 0x2C; // rw, 0x00RRGGBB
 pub const REG_OSD_BG: u32 = 0x30; // rw, 0x00RRGGBB
 pub const REG_SCRATCH: u32 = 0x34; // rw, bring-up: proves the bus before anything else
+pub const REG_POINTER: u32 = 0x38; // rw, the mouse (PTR_*); reads back with the cart's view
 
 // The OSD text: one character a WORD (no byte lanes to get wrong), row-major.
 // Write-only: the ARM keeps the text it wrote, reads return 0.
@@ -96,6 +97,34 @@ pub const JOY_DOWN: u32 = 1 << 1;
 pub const JOY_LEFT: u32 = 1 << 2;
 pub const JOY_RIGHT: u32 = 1 << 3;
 pub const JOY_FIRE: u32 = 1 << 5; // bit 5 = demo.input(5), the browser's fire
+
+// --- the mouse (REG_POINTER): demo.pointer(x, y, buttons) ----------------------
+// A STATE, not an event queue: the browser calls pointer() on every move with
+// the latest position, so only the newest one matters and motion never crowds
+// keys out of the FIFO. The ARM writes x, y and the held buttons; the PL keeps
+// every button pressed since the cart CPU's last ack visible (the browser
+// defers a release by a frame for the same reason: a click shorter than a
+// frame must still be seen), and counts changes in SEQ, so the firmware polls
+// one word. The firmware acks with the SEQ it delivered; an ack that is stale
+// (the ARM wrote since) is ignored, and an ack that drops a latched button the
+// ARM no longer holds bumps SEQ, so that release is delivered next.
+pub const PTR_X_SHIFT: u32 = 0;
+pub const PTR_Y_SHIFT: u32 = 10;
+pub const PTR_BTN_SHIFT: u32 = 20;
+pub const PTR_SEQ_SHIFT: u32 = 24; // read-only: the ARM's write leaves it alone
+pub const PTR_COORD_MASK: u32 = 0x3FF;
+pub const PTR_BTN_MASK: u32 = 0xF;
+pub const PTR_SEQ_MASK: u32 = 0xFF;
+// sealed-loader.js: any mouse button is bit 0, and a double-click is a one-off
+// pulse of bit 1 (gem_desktop.zig opens the item under the pointer on it).
+pub const PTR_BTN_PRESS: u32 = 1 << 0;
+pub const PTR_BTN_DOUBLE: u32 = 1 << 1;
+// The coordinate space: the machine's physical-visible area, what the browser
+// sends (hwPhysWidth - 2*hwBorderX by hwPhysHeight - 2*hwBorderY = 800-160 by
+// 280-80). A low-res cart halves x itself. app_test.zig checks it against
+// machine/sdk/memmap.zig.
+pub const PTR_WIDTH: u32 = 640;
+pub const PTR_HEIGHT: u32 = 200;
 
 // --- REG_CART_STATE, as the cart CPU's firmware reports it --------------------
 pub const CART_RESET: u32 = 0; // also what a CPU held in reset leaves there

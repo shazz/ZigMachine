@@ -12,7 +12,8 @@
 // are held, and the next one is taken once B has been accepted.
 //
 // The cart CPU's side (its firmware, through LiteX CSRs): it pops key events,
-// reads JOY, and reports its state and a heartbeat that the ARM watches.
+// reads JOY and the pointer (zm_glass_ptr.v), and reports its state and a
+// heartbeat that the ARM watches.
 `default_nettype none
 
 module zm_glass_regs (
@@ -59,7 +60,10 @@ module zm_glass_regs (
     input  wire        cart_state_we,
     input  wire [31:0] cart_state_in,
     input  wire        cart_beat_we,
-    input  wire [31:0] cart_beat_in
+    input  wire [31:0] cart_beat_in,
+    output wire [31:0] ptr,                // the mouse, as the cart reads it
+    input  wire        ptr_ack,
+    input  wire [7:0]  ptr_ack_seq
 );
 `include "glass_map.vh"
 
@@ -98,6 +102,12 @@ module zm_glass_regs (
     wire       push = do_write && is_reg && waddr[11:2] == ZG_REG_KEY_PUSH[11:2];
     wire       flush = do_write && is_reg && waddr[11:2] == ZG_REG_CTRL[11:2] && wdata[2];
     wire       pop = key_pop && key_valid;
+    wire       ptr_we = do_write && is_reg && waddr[11:2] == ZG_REG_POINTER[11:2];
+
+    zm_glass_ptr pointer (
+        .clk(clk), .rst(rst), .we(ptr_we), .wdata(wdata[23:0]),
+        .ack(ptr_ack), .ack_seq(ptr_ack_seq), .ptr(ptr)
+    );
 
     always @(posedge clk) begin
         if (rst) begin
@@ -172,6 +182,7 @@ module zm_glass_regs (
             ZG_REG_OSD_FG[11:2]:     rmux = {8'd0, osd_fg};
             ZG_REG_OSD_BG[11:2]:     rmux = {8'd0, osd_bg};
             ZG_REG_SCRATCH[11:2]:    rmux = scratch;
+            ZG_REG_POINTER[11:2]:    rmux = ptr;
             default:                 rmux = 32'd0;
         endcase
         if (s_araddr[15:12] != 4'd0) rmux = 32'd0;

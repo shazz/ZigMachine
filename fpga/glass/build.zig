@@ -31,12 +31,14 @@ pub fn build(b: *std.Build) void {
         .root_source_file = b.path("src/zx0_shim.zig"),
         .imports = &.{.{ .name = "zx0_pack", .module = zx0_pack }},
     });
+    // The machine's memory map: the tests check the pointer's coordinate space against it.
+    const memmap = b.createModule(.{ .root_source_file = b.path("../../machine/sdk/memmap.zig") });
     const tests = b.addTest(.{
         .root_module = b.createModule(.{
             .root_source_file = b.path("src/tests.zig"),
             .target = target,
             .optimize = optimize,
-            .imports = &.{.{ .name = "zx0", .module = zx0_via_pack }},
+            .imports = &.{ .{ .name = "zx0", .module = zx0_via_pack }, .{ .name = "memmap", .module = memmap } },
         }),
     });
     const run = b.addRunArtifact(tests);

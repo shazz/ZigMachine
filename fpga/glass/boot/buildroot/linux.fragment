@@ -14,6 +14,22 @@ CONFIG_USB_HID=y
 CONFIG_HID_GENERIC=y
 CONFIG_INPUT_EVDEV=y
 CONFIG_INPUT_JOYDEV=y
+# Pads whose USB HID is not generic enough for hid-generic. No kernel version is
+# pinned (multi_v7 + Buildroot's default), so these names were checked against
+# 6.14's Kconfig; HID_PLAYSTATION needs >= 5.12, HID_NINTENDO >= 5.16.
+CONFIG_INPUT_JOYSTICK=y
+# Xbox 360/One and XInput pads, including most 8BitDo pads in X mode.
+CONFIG_JOYSTICK_XPAD=y
+# DualShock 3/4 (hid-sony), DualShock 4/DualSense (hid-playstation), Switch Pro
+# and Joy-Cons (hid-nintendo), Microsoft SideWinder and some Xbox pads over HID.
+# The LED class is a hard dependency of all three Sony/Nintendo drivers.
+CONFIG_NEW_LEDS=y
+CONFIG_LEDS_CLASS=y
+CONFIG_LEDS_CLASS_MULTICOLOR=y
+CONFIG_HID_SONY=y
+CONFIG_HID_PLAYSTATION=y
+CONFIG_HID_NINTENDO=y
+CONFIG_HID_MICROSOFT=y
 # The SD card and its FAT partition.
 CONFIG_MMC=y
 CONFIG_MMC_SDHCI=y

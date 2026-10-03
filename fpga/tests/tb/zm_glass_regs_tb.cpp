@@ -120,6 +120,40 @@ static void test_osd_text() {
     CHECK(seen.size() == 1 && seen[0] == (37u << 16 | OSD_INVERSE | 'Z'), "OSD writes seen: %zu", seen.size());
 }
 
+// REG_POINTER: what the ARM writes, what the cart reads, and the ack rules.
+static unsigned ptr_word(unsigned x, unsigned y, unsigned btn) {
+    return x << PTR_X_SHIFT | y << PTR_Y_SHIFT | btn << PTR_BTN_SHIFT;
+}
+
+static void ack(unsigned seq) {
+    top.p_ptr__ack.set(true);
+    top.p_ptr__ack__seq.set(seq);
+    tick();
+    idle();
+}
+
+static void test_pointer() {
+    CHECK(axi_read(REG_POINTER) == 0 && top.p_ptr.get<unsigned>() == 0, "pointer resets to 0");
+    axi_write(REG_POINTER, ptr_word(5, 7, PTR_BTN_PRESS));
+    axi_write(REG_POINTER, ptr_word(639, 199, 0) | 0xFFu << PTR_SEQ_SHIFT);  // released before a poll
+    unsigned want = ptr_word(639, 199, PTR_BTN_PRESS) | 2u << PTR_SEQ_SHIFT;
+    unsigned got = top.p_ptr.get<unsigned>();
+    CHECK(got == want, "a short click stays latched, SEQ counts writes: 0x%x want 0x%x", got, want);
+    CHECK(axi_read(REG_POINTER) == want, "the ARM reads back the cart's view");
+    ack(1);
+    CHECK(top.p_ptr.get<unsigned>() == want, "a stale ack is ignored");
+    ack(2);
+    want = ptr_word(639, 199, 0) | 3u << PTR_SEQ_SHIFT;
+    got = top.p_ptr.get<unsigned>();
+    CHECK(got == want, "the ack drops the latch and owes the release: 0x%x want 0x%x", got, want);
+    ack(3);
+    CHECK(top.p_ptr.get<unsigned>() == want, "nothing more owed");
+    axi_write(REG_POINTER, ptr_word(1, 2, PTR_BTN_PRESS));
+    ack(4);
+    want = ptr_word(1, 2, PTR_BTN_PRESS) | 4u << PTR_SEQ_SHIFT;
+    CHECK(top.p_ptr.get<unsigned>() == want, "a button still held is not a release");
+}
+
 int main() {
     reset();
     test_identity_and_reset();
@@ -127,6 +161,7 @@ int main() {
     test_run_and_cart_reports();
     test_key_fifo();
     test_osd_text();
+    test_pointer();
     if (failures) return 1;
     std::printf("zm_glass_regs: ok\n");
     return 0;

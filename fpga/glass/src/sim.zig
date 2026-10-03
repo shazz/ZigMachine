@@ -22,6 +22,9 @@ pub const Glass = struct {
     text: [map.OSD_CHARS]u32 = [_]u32{0} ** map.OSD_CHARS,
     cart_state: u32 = map.CART_RESET,
     cart_beat: u32 = 0,
+    ptr: u32 = 0, // x, y and the held buttons, as the ARM wrote them
+    ptr_latch: u32 = 0, // buttons pressed since the cart's last ack
+    ptr_seq: u32 = 0,
     // The stand-in firmware: how it behaves, and how many STATE reads it takes to boot.
     cart: CartModel = .boots,
     boot_reads: u32 = 3,
@@ -62,6 +65,7 @@ pub const Glass = struct {
             map.REG_OSD_FG => self.osd_fg,
             map.REG_OSD_BG => self.osd_bg,
             map.REG_SCRATCH => self.scratch,
+            map.REG_POINTER => self.pointer(),
             else => 0,
         };
     }
@@ -103,6 +107,7 @@ pub const Glass = struct {
             map.REG_OSD_FG => self.osd_fg = value & 0xFFFFFF,
             map.REG_OSD_BG => self.osd_bg = value & 0xFFFFFF,
             map.REG_SCRATCH => self.scratch = value,
+            map.REG_POINTER => self.pointerWrite(value),
             else => {},
         }
     }
@@ -129,6 +134,27 @@ pub const Glass = struct {
         }
         self.keys[self.key_len] = event;
         self.key_len += 1;
+    }
+
+    fn pointerWrite(self: *Glass, value: u32) void {
+        self.ptr = value & ((1 << map.PTR_SEQ_SHIFT) - 1);
+        self.ptr_latch |= (value >> map.PTR_BTN_SHIFT) & map.PTR_BTN_MASK;
+        self.ptr_seq = (self.ptr_seq + 1) & map.PTR_SEQ_MASK;
+    }
+
+    /// The word the cart CPU reads (and the ARM reads back): held | latched buttons, SEQ.
+    pub fn pointer(self: *const Glass) u32 {
+        const btn = (self.ptr >> map.PTR_BTN_SHIFT | self.ptr_latch) & map.PTR_BTN_MASK;
+        const keep = self.ptr & ~(map.PTR_BTN_MASK << map.PTR_BTN_SHIFT);
+        return keep | btn << map.PTR_BTN_SHIFT | self.ptr_seq << map.PTR_SEQ_SHIFT;
+    }
+
+    /// The firmware acks the SEQ it delivered (rtl/glass/zm_glass_ptr.v's rules).
+    pub fn pointerAck(self: *Glass, seq: u32) void {
+        if (seq != self.ptr_seq) return; // stale: the ARM wrote since
+        const dropped = self.ptr_latch & ~(self.ptr >> map.PTR_BTN_SHIFT);
+        self.ptr_latch = 0;
+        if (dropped & map.PTR_BTN_MASK != 0) self.ptr_seq = (self.ptr_seq + 1) & map.PTR_SEQ_MASK;
     }
 
     /// What the cart CPU's firmware would pop next (tests).

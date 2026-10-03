@@ -3,13 +3,15 @@
 // resetting, and noticing a cart that died. main.zig gives it the board's
 // /dev/mem windows; app_test.zig gives it the simulated ones.
 //
-// While the OSD is open the cart gets NO input (MiSTer's rule): every key the
-// cart saw go down is released first, so nothing stays held behind the menu.
+// While the OSD is open the cart gets NO input (MiSTer's rule): every key,
+// pad bit and mouse button the cart saw go down is released first, so nothing
+// stays held behind the menu, and the pointer stays where it was.
 const std = @import("std");
 const map = @import("map.zig");
 const bus = @import("bus.zig");
 const keymap = @import("keymap.zig");
 const pad = @import("pad.zig");
+const mouse = @import("mouse.zig");
 const osd = @import("osd.zig");
 const menu = @import("menu.zig");
 const shelf = @import("shelf.zig");
@@ -30,6 +32,7 @@ pub const App = struct {
     osd: osd.Osd = .{},
     mods: keymap.Mods = .{},
     pad: pad.Pad = .{},
+    mouse: mouse.Mouse = .{},
     open: bool = true,
     current: ?usize = null,
     held: [HELD_MAX]u32 = undefined,
@@ -97,6 +100,21 @@ pub const App = struct {
         for (self.held[0..self.n_held]) |code| self.regs.write(map.REG_KEY_PUSH, code);
         self.n_held = 0;
         self.regs.write(map.REG_JOY, 0);
+        if (self.mouse.release()) |w| self.regs.write(map.REG_POINTER, w);
+    }
+
+    /// One evdev mouse record (mouse.isMouse); `ms` is its timestamp.
+    pub fn mouseEvent(self: *App, ev_type: u16, code: u16, value: i32, ms: i64) void {
+        if (!self.open) self.mouse.update(ev_type, code, value, ms);
+    }
+
+    /// SYN_REPORT: a device finished a report, so the pointer moves once per
+    /// report (x and y together), as the browser's mousemove does.
+    pub fn sync(self: *App) void {
+        var words: [2]u32 = undefined;
+        const n = self.mouse.flush(&words);
+        if (self.open) return;
+        for (words[0..n]) |w| self.regs.write(map.REG_POINTER, w);
     }
 
     /// One evdev pad record; `range` is the device's own stick range.

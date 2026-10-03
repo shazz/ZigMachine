@@ -29,11 +29,11 @@ DCRAM = "rtl/video/zm_video_dcram.v"
 
 # (top, sources, testbench, arguments)
 TESTS = [
-    ("zm_glass_regs", ["rtl/glass/zm_glass_regs.v"], "tests/tb/zm_glass_regs_tb.cpp", []),
+    ("zm_glass_regs", ["rtl/glass/zm_glass_regs.v", "rtl/glass/zm_glass_ptr.v"], "tests/tb/zm_glass_regs_tb.cpp", []),
     ("zm_glass_osd", ["rtl/glass/zm_glass_osd.v", DCRAM], "tests/tb/zm_glass_osd_tb.cpp", [str(FONT)]),
 ]
 
-R, O = "rtl/glass/zm_glass_regs.v", "rtl/glass/zm_glass_osd.v"
+R, O, P = "rtl/glass/zm_glass_regs.v", "rtl/glass/zm_glass_osd.v", "rtl/glass/zm_glass_ptr.v"
 # (id, top, file, text, broken text)
 MUTANTS = [
     ("regs_fifo_order", "zm_glass_regs", R, "assign key_data = fifo[rd];", "assign key_data = fifo[wr];"),
@@ -43,6 +43,12 @@ MUTANTS = [
     ("regs_bid_echo", "zm_glass_regs", R, "s_bid <= s_awid;", "s_bid <= 12'd0;"),
     ("regs_osd_bound", "zm_glass_regs", R, "< ZG_OSD_CHARS[9:0]", "<= ZG_OSD_CHARS[9:0]"),
     ("regs_flush_kept", "zm_glass_regs", R, "ctrl <= wdata & 32'h3;", "ctrl <= wdata & 32'h7;"),
+    ("ptr_latch", "zm_glass_regs", P, "latch <= latch | wdata[23:20];", "latch <= latch;"),
+    ("ptr_stale_ack", "zm_glass_regs", P, "ack && ack_seq == seq", "ack"),
+    ("ptr_release_owed", "zm_glass_regs", P, "if ((latch & ~held) != 4'd0) seq", "if (1'b0) seq"),
+    ("ptr_held_kept", "zm_glass_regs", P, "(latch & ~held)", "latch"),
+    ("ptr_readback", "zm_glass_regs", R, "rmux = ptr;", "rmux = {8'd0, ptr[23:0]};"),
+    ("ptr_decode", "zm_glass_regs", R, "== ZG_REG_POINTER[11:2];", "== ZG_REG_SCRATCH[11:2];"),
     ("osd_msb_left", "zm_glass_osd", O, "glyph_row[3'd7 - col2]", "glyph_row[col2]"),
     ("osd_inverse", "zm_glass_osd", O, "^ inv2;", ";"),
     (
