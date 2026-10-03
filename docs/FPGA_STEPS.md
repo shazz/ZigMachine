@@ -45,6 +45,15 @@ says otherwise.
   fabric shifter at 200 MHz into an ODDR (2 bits a clock) works, and that
   serialiser replaces it in the SoC. Variants for future debugging:
   `hdmi-test-{clkonly,lvcmos,rev,inv}`.
+- **The ARM side and DDR work.** With zeST's 7010 `BOOT.BIN` alone on the SD card
+  and J1 on SD: the FSBL and U-Boot 2025.01 come up. The console is the CH340 at
+  **921600 baud** (not 115200). The ARM runs at 666 MHz; **DDR3 is 512 MB at
+  533 MHz**. `mw`/`cmp` and `mtest 0x01000000-0x02000000` show 0 errors.
+  Ctrl-C stops the PXE autoboot at the `Zynq>` prompt. `fpga/tools/uboot.sh`
+  sends commands. **Note:** at the prompt, U-Boot reserves `0x1dac9f20-0x1fffffff`
+  (itself, its stack and its FDT), which overlaps the glass's cart window at
+  `0x1E00_0000`. Under Linux with `mem=480M` that is fine, but a cart loaded
+  from U-Boot must go lower.
 
 ## 2026-10-03
 
