@@ -9,6 +9,42 @@ reconstructed from the commits that made them, so they are shorter.
 
 ---
 
+## 2026-10-03 — The YM DAC curve and envelope hold, fixed from the hardware comparison
+
+**Status:** accepted (`machine/audio/ym.zig`; tests `ym_env_test.zig`, `ym_dac_test.zig`)
+
+**Context:** Putting jotego's jt49 on the FPGA and comparing it with `ym.zig`
+(`docs/FPGA_AUDIO.md` §3) showed two machine bugs. Envelope shapes 11 and 15
+(CONT ALT HOLD) held at the end of the ramp; the datasheet, Hatari's `YmEnvDef`
+and jt49 hold at the *alternated* level (11 `\---` high, 15 `/___` low). And the
+DAC table (an AY-style curve) was up to 7.8 dB too quiet at low volumes against
+Paulo Simoes's measurement of a real ST, so Drooling played 1.8 dB quieter than
+on jt49.
+
+**Decision:** the hold flips the level when ALT is set. The DAC is the
+datasheet's log curve with an offset, `amp(L) = (10^(1.6025 (L-31)/20) - 0.0018)
+/ 0.9982` for L >= 2 (0 below), fitted to the measurement: every fixed volume is
+within 1.03 dB of it (jt49 is within 1.6 dB). Hatari's measured table is GPL, so
+only the two fitted constants and, in the test, 14 rounded dB figures derived
+from the measurement are in the tree. The 3 channels stay a linear sum: against
+the measured 16x16x16 table, median error 0.95 dB, 90th percentile 1.74 dB,
+worst 4.0 dB (all three at 15, where a real ST compresses to +5.5 dB over one
+channel). Drooling vs jt49 after the fix: level +0.51 dB median (was +1.81),
+spectra 0.990 (0.988), strongest partial in the same bin 100 % (98.3 %),
+loudness envelopes correlate 1.000 (0.995).
+
+**Alternatives considered:** jt49's own table (GPL-3, and 1.6 dB off the
+measurement, where the fit is 1.03); a pure 3 dB/step log curve (7 dB off at
+volume 1); a non-linear 3-channel mix (a load-resistor model, `G / (G + 1)`,
+cuts the worst case to 2.0 dB but costs a divide a sample and would make the
+machine disagree with the FPGA's linear mixer, so it waits for both to move).
+
+**Consequences:** every tune's quiet passages and envelope tails get louder
+(up to 7.5 dB at volumes 2..4); volume 15 is unchanged (0.33 of full scale, the
+RTL mix's contract). The render loop is the same code, so the cost is the same.
+
+---
+
 ## 2026-10-02 — The seal's mechanism: U-mode plus fixed windows in VexRiscv's translation slot
 
 **Status:** accepted for review (`fpga/rtl/seal/README.md`; it refines the ADR below, which names no mechanism)
