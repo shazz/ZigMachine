@@ -3,10 +3,10 @@
 Status: **v1 IMPLEMENTED** (2026-09-05). Original proposal 2026-08-22. Companion
 to `HARDWARE_SPEC.md` (the sealed video/audio machine) and `HW_API.md` (the ABI).
 
-> **v1 implemented** — register block in `hw/sdk/memmap.zig` (base `OFF_BLIT`
-> `0x80`), sealed engine in `hw/blitter.zig`, `hwBlit()` export, open wrapper
-> `zigos/blitter.zig` (`Blitter.fill/clear/line/triangle/bob`), demo scene
-> `apps/scenes/blitter_demo.zig` (a rotating filled-vector cube, ~60fps, proven
+> **v1 implemented** — register block in `machine/sdk/memmap.zig` (base `OFF_BLIT`
+> `0x80`), sealed engine in `machine/blitter.zig`, `hwBlit()` export, open wrapper
+> `libs/zig/blitter.zig` (`Blitter.fill/clear/line/triangle/bob`), demo scene
+> `apps/zig/scenes/blitter_demo.zig` (a rotating filled-vector cube, ~60fps, proven
 > in `sealed.html`). Ops live: **FILL** (solid + halftone), **BLIT** (3-source
 > minterm + colour-key cookie-cut + DESC), **LINE** (Bresenham + minterm),
 > **TRIANGLE** (deterministic odd-even scanline fill), plus `CYCLES` readback and
