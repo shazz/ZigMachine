@@ -1,7 +1,7 @@
-// Scanout: reads the display buffers (zm_video_mix.v) in the pixel clock's
+// Scanout: reads the display buffers (zm_video_scanfetch.v fills them) in the pixel clock's
 // domain, where zm_vtiming points, and drives RGB with DE/HSYNC/VSYNC.
 //
-// Raster line y lives in buffer y[0]. The compositor publishes a finished line
+// Raster line y lives in buffer y[0]. The scanout fetch publishes a finished line
 // (`pub`, with the line number) and the scanout hands the buffer back (`freed`)
 // once it has shown that line twice: at the HBL of the next line, or at the VBL
 // for line 279. A line is shown only if its buffer holds THAT line; otherwise

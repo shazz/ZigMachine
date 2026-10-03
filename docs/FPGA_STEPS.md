@@ -23,8 +23,78 @@ says otherwise.
 | 1–7 | Board work | **waiting for the board** | `openFPGALoader -c digilent_hs2 fpga/build/blink/blink_top.bit` |
 | RTL | Video timing (`zm_vtiming`) | **done** | 64 LUTs, CXXRTL-tested over 2 frames |
 | RTL | Video compositor: planes, palettes, border, BEAM, all modes | **done** | **32/32 frames pixel-identical** to the machine; 25/25 mutants caught; 1,169 LUTs |
+| — | DDR framebuffer video: sequencer, snoop, double buffer, scanout DMA | **done** | the cart CPU + the RTL video in Verilator: **5/5 carts hash = scene_hash** (tutorial, union_main, badflicker, equinox, dhs_0pxl0reg); 49/49 RTL mutants caught |
 
 ---
+
+## 2026-10-02 (night)
+
+### The video composites into a DDR framebuffer (ADR 2026-10-02; Fable #1, 4-9)
+
+The line-racing compositor is gone. Every frame is built in the machine's own
+order, at the compositor's speed, into a picture in memory, and the scanout shows
+the previous picture. Details: [`fpga/rtl/video/README.md`](../fpga/rtl/video/README.md).
+
+- **The sequencer is the cart CPU's firmware** (`fpga/cycles/vseq.c`): hwClear's
+  global handlers and BG passes, `frame()`, then per enabled plane LATCH and a
+  PLANE pass a line with the handler called before it, exactly where and with
+  the line numbers `machine/video.zig` uses. Handlers are calls, not interrupts.
+  It waits for `painted` (the pass has read the CPU's state) and `drained` (the
+  handler's stores have reached the compositor) before each pass.
+- **Plane-major, so rows live in memory.** A BG pass stores its PFB row; a PLANE
+  pass loads it, paints, folds it into the picture and stores both. The PFB rows
+  land where the machine keeps its PFB, so `scene_hash` hashes the board's frame.
+- **Double-buffered picture, swap at VBL.** PRESENT marks the back picture
+  complete; a pass that would write a picture waits for the swap. No tearing, one
+  frame of latency. The scanout fetch reads the front picture a line ahead in
+  400-beat bursts; underrun is detected and sticky.
+- **Memory:** 64-bit burst read/write ports; `soc/zm_video_dma.py` serves them
+  (scanout first) over one Wishbone burst master, AXI-shaped (`max_burst` = 16
+  on the board).
+- **The region is snooped** (`soc/zm_video_snoop.py`): it stays DDR, so every
+  cart load reads what wasm would; the CPU's stores to registers, palettes and
+  the BEAM table reach the compositor at the store buffer's drain rate. The
+  sequencer copies the compositor's 4 write-backs into the region.
+
+**The integration test** (Fable #9; `make -C fpga video-sim`,
+`tools/video_sim_run.py`): VexRiscv running the translated cart with the
+sequencer, the RTL pipeline, the scanout in a 40 MHz pixel clock against a
+160 MHz sys clock, and ONE shared main RAM with the board's memory-path model in
+front of the CPU (`hp_sb`) and of the video DMA (24-clock first beat). 60 frames,
+the PFB hash at frame 60 against `scene_hash.mjs` and the native host:
+
+| cart | hashes (frame 60) | cart Mc | seq Mc | CPU max Mc | wall Mc | comp Mc | DMA Mc | CPU MB/frame | comp MB/frame | MB/s at 60 fps |
+|---|---|---|---|---|---|---|---|---|---|---|
+| tutorial | **= scene_hash, = native** | 0.48 | 0.68 | 1.16 | 2.60 | 0.77 | 0.58 | 0.32 | 3.39 | 276 |
+| union_main | **= scene_hash, = native** | 48.16 | 1.76 | 61.72 | 49.96 | 2.45 | 4.02 | 18.11 | 11.09 | 1,806 |
+| badflicker | **= scene_hash, = native** | 0.28 | 0.63 | 0.92 | 2.60 | 0.90 | 0.65 | 0.23 | 3.70 | 289 |
+| equinox | **= scene_hash, = native** | 4.51 | 2.61 | 7.20 | 7.12 | 3.22 | 2.41 | 3.20 | 14.78 | 1,133 |
+| dhs_0pxl0reg | **= scene_hash, = native** | 0.15 | 0.66 | 0.81 | 2.59 | 0.61 | 0.50 | 0.20 | 2.69 | 227 |
+
+Cycles in millions of 160 MHz sys cycles (2.65 M = one 60 Hz frame); full notes in the README.
+
+**Mutants.** The line-major sequencer fails on badflicker and equinox over 60 frames (tutorial, the control, still matches). The
+no-drain sequencer does **not** fail: it issued thousands of commands with a
+store in flight, on three memory configurations up to a saturated DDR, and
+every hash matched, because a pass reads palettes only after its ~450-clock row
+load and the next pass waits for the previous row store. The drain rule is kept
+(free, and exact by construction), but no corpus cart makes it load-bearing.
+
+**Timing (the seal agent's finding).** The snoop's dBus tap was the SoC's
+critical path under openXC7 (79.4 MHz). Pipelined (tap, offset, compare, and a
+registered output with the region decoded into select bits the compositor takes
+as inputs, `TIMING_FABLE.md` P1-4) it is off it: 92.8-96.8 MHz, then limited by
+LiteX's bus-timeout counter (removing the timeout gained nothing, 92.3: P1-5
+dropped). A separate compositor clock (Fable's `comp150_sys100`: 117.6 MHz) is
+the next cut, not done.
+
+**Costs:** `zm_video_comp` 1,691 LUTs (+313), `zm_video_out` 1,960 (+468), BRAM
+unchanged at 8; the z7 glass SoC 5,433 LUTs (30.9 %).
+
+**Next:** overlap row I/O with the next handler (a second line buffer): 3-4 plane
+frames need it to fit 60 fps (equinox: compositor 3.2 Mc a frame); the AXI HP
+master and HP bridge; the cart CPU is the limit for union_main (48 Mc a frame of
+`frame()`, as CYCLES.md found for its float code).
 
 ## 2026-10-02 (evening)
 

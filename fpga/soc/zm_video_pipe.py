@@ -1,20 +1,25 @@
-"""The whole video pipeline (rtl/video/zm_video_out.v + zm_dvi_out.v) as a LiteX
-peripheral, for the board: compositor, plane mixer, scanout, timing, DVI.
+"""The whole video pipeline (rtl/video/zm_video_out.v, + zm_dvi_out.v on the board)
+as a LiteX peripheral: compositor, double-buffered picture, scanout, timing, DVI.
 
-What it gives the cart CPU:
-- **A bus window** (`bus`, Wishbone slave) onto the compositor's CPU port: the
-  video registers, the 4 palettes and the BEAM table at their memmap offsets
-  (region offset = window offset). Stores land; loads read the register block.
-- **Pass commands** through CSRs (`cmd`, `status`): the HBL sequencer is
-  software for now. A write to `cmd` queues one command; `status.ready` says the
-  compositor can take another.
-- **Interrupts**: HBL (a raster line is about to be shown, `hbl_line`), VBL, and
-  pass done. The HBL/VBL strobes come from the pixel clock's domain, synchronised.
-- **A memory master** (`dma`, Wishbone): the compositor's line fetches, at
-  `mem_base` + the region offset it asks for. One word at a time for now; the
-  port is shaped for an AXI HP master to DDR (rtl/video/README.md).
-The compositor runs in `cd` (sys), the timing and scanout in `cd_pix`, the
-serialisers in `cd_pix5x`.
+The video architecture (decisions.md, 2026-10-02): every frame is composited
+into a picture in memory, in the machine's own order and at the compositor's
+speed, and the scanout shows the previous, completed picture. Around the RTL:
+
+- **The sequencer is the cart CPU's firmware** (fpga/cycles/vseq.c): it writes
+  pass commands to `cmd` and calls the HBL handlers between passes as plain
+  calls. `status` says when a pass has read the CPU's state (`painted`), when
+  the CPU's stores have all reached the compositor (`drained`), and when the
+  next command may be written (`ready`).
+- **The snoop** (`snoop_*`, from soc/zm_video_snoop.py, wired by the SoC):
+  the cart's ordinary stores to its video region, the compositor's only input
+  from the CPU. `bus` is a read-only window onto the compositor's register
+  block, for the sequencer to copy its write-backs into memory.
+- **A memory master** (`dma`, 64-bit Wishbone, soc/zm_video_dma.py): plane
+  fetches, PFB and picture rows, and the scanout's reads, in bursts. `vbase`
+  is the bus address of HW_VIDEO_BASE, `fb0`/`fb1` the two pictures'.
+The compositor runs in `sys`, the timing and scanout in `cd_pix`, the
+serialisers in `cd_pix5x`. Without `pads` (the sims) there is no DVI and the
+picture is `self.pic`.
 """
 
 from __future__ import annotations
@@ -29,41 +34,74 @@ from litex.soc.interconnect.csr import CSRField, CSRStatus, CSRStorage
 from litex.soc.interconnect.csr_eventmanager import EventManager, EventSourcePulse
 from migen import ClockSignal, If, Instance, ResetSignal, Signal
 
+from soc.zm_video_dma import ZMVideoDMA, read_port, write_port
+
 FPGA = Path(__file__).resolve().parent.parent
 RTL = FPGA / "rtl" / "video"
 # Every RTL file but the testbench-only ones; the top picks what it uses.
 SOURCES = sorted(p for p in RTL.glob("zm_*.v"))
-WINDOW_BYTES = 1 << 23  # cpu_waddr is 21 bits of words
+WINDOW_BYTES = 1 << 7  # the register block: 32 words
+# The command and status fields, in bit order: the firmware's header is generated
+# from these (tools/cycles_csr.py --video), so they are written once.
+CMD_FIELDS = [
+    ("op", 3, "0 BG, 1 PLANE, 2 LATCH, 3 MIX, 4 PRESENT"),
+    ("plane", 2, ""),
+    ("line", 9, ""),
+    ("mix", 1, "fold this pass into the picture"),
+    ("first", 1, "... as the line's first layer"),
+]
+STATUS_FIELDS = [
+    ("ready", 1, "no command queued or running: one may be written"),
+    ("painted", 1, "the last pass has read the CPU's state"),
+    ("drained", 1, "every CPU store has reached the compositor"),
+    ("pending", 1, "a presented picture waits for the VBL"),
+    ("front", 1, "the picture being shown"),
+    ("underrun", 1, "the scanout showed a line not fetched"),
+    ("overflow", 1, "a plane line was too long to fetch"),
+]
 
 # LiteX platforms are untyped Python classes with no common base worth naming.
 Platform = Any
+Picture = dict[str, Signal]
 
 
 class ZMVideo(LiteXModule):
-    """zm_video_out + zm_dvi_out, with the CPU's bus window, CSRs, IRQs and DMA."""
+    """zm_video_out (+ zm_dvi_out), with the sequencer's CSRs, the snoop port and the DMA."""
 
     def __init__(
         self,
         platform: Platform,
-        pads: dict[str, Signal],
+        pads: dict[str, Signal] | None,
         cd_pix: str = "pix",
         cd_pix5x: str = "pix5x",
-        overlay: Callable[[LiteXModule, dict[str, Signal]], dict[str, Signal]] | None = None,
+        overlay: Callable[[LiteXModule, Picture], Picture] | None = None,
+        max_burst: int = 16,
     ) -> None:
         self.bus = wishbone.Interface(data_width=32)
-        self.dma = wishbone.Interface(data_width=32)
+        self.snoop_we, self.snoop_waddr, self.snoop_be, self.snoop_wdata = Signal(), Signal(21), Signal(4), Signal(32)
+        self.snoop_sel = Signal(3)  # {beam, pal, reg}: the snoop decodes, the compositor does not
+        self.drained = Signal()  # the SoC: no CPU store is still on its way to the snoop
         self._csrs()
         p = self._ports()
-        self._cpu_window(p)
+        self._window(p)
         self._command(p)
-        self._fetch(p)
+        self._memory(p, max_burst)
         self._events(p)
         self.specials += Instance("zm_video_out", **self._out_ports(p, cd_pix))
         # GLASS HOOK (docs/FPGA_GLASS.md): the OSD sits on the finished picture,
         # between the scanout and DVI, so it never touches the machine's pixels.
-        pic = {k: p[k] for k in ("r", "g", "b", "de", "hsync", "vsync")}
+        self.pic = {k: p[k] for k in ("r", "g", "b", "de", "hsync", "vsync")}
         if overlay is not None:
-            pic = overlay(self, pic)
+            self.pic = overlay(self, self.pic)
+        if pads is not None:
+            self._dvi(pads, cd_pix, cd_pix5x)
+        for src in SOURCES:
+            platform.add_source(str(src))
+        platform.add_verilog_include_path(str(FPGA / "gen"))
+        platform.add_verilog_include_path(str(RTL))
+
+    def _dvi(self, pads: dict[str, Signal], cd_pix: str, cd_pix5x: str) -> None:
+        pic = self.pic
         self.specials += Instance(
             "zm_dvi_out",
             i_pix_clk=ClockSignal(cd_pix),
@@ -72,99 +110,74 @@ class ZMVideo(LiteXModule):
             i_r=pic["r"], i_g=pic["g"], i_b=pic["b"], i_de=pic["de"], i_hsync=pic["hsync"], i_vsync=pic["vsync"],
             o_tmds_p=pads["p"], o_tmds_n=pads["n"],
         )  # fmt: skip
-        for src in SOURCES:
-            platform.add_source(str(src))
-        platform.add_verilog_include_path(str(FPGA / "gen"))
-        platform.add_verilog_include_path(str(RTL))
 
     def _csrs(self) -> None:
         self.cmd = CSRStorage(
-            fields=[
-                CSRField("op", size=2, description="0 BG, 1 PLANE, 2 LATCH"),
-                CSRField("plane", size=2),
-                CSRField("line", size=9),
-                CSRField("mix", size=1, description="fold this pass into the picture"),
-                CSRField("last", size=1, description="the line's last pass"),
-            ],
-            description="Writing queues one pass command (rtl/video/zm_video_comp.v).",
+            fields=[CSRField(n, size=w, description=d) for n, w, d in CMD_FIELDS],
+            description="Writing queues one command (rtl/video/zm_video_comp.v).",
         )
-        self.status = CSRStatus(
-            fields=[
-                CSRField("ready", size=1, description="a command may be written"),
-                CSRField("mix_busy", size=1),
-                CSRField("overflow", size=1),
-                CSRField("hazard", size=1),
-                CSRField("underrun", size=1, description="the scanout showed a line not ready"),
-            ]
-        )
-        self.mem_base = CSRStorage(32, description="Bus address of region offset 0 (HW_VIDEO_BASE).")
-        self.hbl_line = CSRStatus(9, description="The raster line the last HBL announced.")
+        self.status = CSRStatus(fields=[CSRField(n, size=w, description=d) for n, w, d in STATUS_FIELDS])
+        self.vbase = CSRStorage(32, description="Bus address of HW_VIDEO_BASE (region offset 0).")
+        self.fb0 = CSRStorage(32, description="Bus address of picture 0 (800 x 280 x 4 bytes).")
+        self.fb1 = CSRStorage(32, description="Bus address of picture 1.")
+        self.swaps = CSRStatus(32, description="Pictures shown so far.")
         self.frame = CSRStatus(32, description="VBLs since reset.")
+        self.comp_busy = CSRStatus(32, description="Cycles a pass was running, mod 2**32.")
+        self.dma_busy = CSRStatus(32, description="Cycles the DMA had a burst in progress, mod 2**32.")
 
     def _ports(self) -> dict[str, Signal]:
         widths = {
-            "cpu_we": 1, "cpu_waddr": 21, "cpu_be": 4, "cpu_wdata": 32, "cpu_rword": 5, "cpu_rdata": 32,
-            "cmd_valid": 1, "cmd_ready": 1, "pass_done": 1, "mem_req_valid": 1, "mem_req_ready": 1,
-            "mem_req_addr": 32, "mem_rsp_valid": 1, "mem_rsp_data": 32, "overflow": 1, "mix_busy": 1,
-            "mix_hazard": 1, "underrun": 1, "hbl": 1, "hbl_line": 9, "vbl": 1,
+            "cpu_rword": 5, "cpu_rdata": 32, "cmd_valid": 1, "cmd_ready": 1, "painted": 1, "pass_done": 1,
+            "overflow": 1, "underrun": 1, "vbl": 1, "front": 1, "pending": 1, "swaps": 32,
             "r": 8, "g": 8, "b": 8, "de": 1, "hsync": 1, "vsync": 1,
         }  # fmt: skip
         return {name: Signal(w, name=f"zmv_{name}") for name, w in widths.items()}
 
-    def _cpu_window(self, p: dict[str, Signal]) -> None:
-        """Wishbone slave -> the CPU port: one-clock writes, combinational register reads."""
+    def _window(self, p: dict[str, Signal]) -> None:
+        """Wishbone slave, read-only: the compositor's register block. Writes are dropped."""
         bus, ack = self.bus, Signal()
-        self.comb += [
-            p["cpu_we"].eq(bus.cyc & bus.stb & bus.we & ~ack),
-            p["cpu_waddr"].eq(bus.adr[:21]),
-            p["cpu_be"].eq(bus.sel),
-            p["cpu_wdata"].eq(bus.dat_w),
-            p["cpu_rword"].eq(bus.adr[:5]),
-            bus.ack.eq(ack),
-        ]
+        self.comb += [p["cpu_rword"].eq(bus.adr[:5]), bus.ack.eq(ack)]
         self.sync += [ack.eq(bus.cyc & bus.stb & ~ack), bus.dat_r.eq(p["cpu_rdata"])]
 
     def _command(self, p: dict[str, Signal]) -> None:
-        valid = Signal()
-        self.sync += If(self.cmd.re, valid.eq(1)).Elif(p["cmd_ready"], valid.eq(0))
+        valid, painted = Signal(), Signal()
+        self.sync += [
+            If(self.cmd.re, valid.eq(1)).Elif(p["cmd_ready"], valid.eq(0)),
+            If(self.cmd.re, painted.eq(0)).Elif(p["painted"], painted.eq(1)),
+        ]
+        f = self.status.fields
         self.comb += [
             p["cmd_valid"].eq(valid),
-            self.status.fields.ready.eq(~valid & p["cmd_ready"]),
-            self.status.fields.mix_busy.eq(p["mix_busy"]),
-            self.status.fields.overflow.eq(p["overflow"]),
-            self.status.fields.hazard.eq(p["mix_hazard"]),
-            self.status.fields.underrun.eq(p["underrun"]),
+            f.ready.eq(~valid & p["cmd_ready"]),
+            f.painted.eq(painted),
+            f.drained.eq(self.drained),
+            f.pending.eq(p["pending"]),
+            f.front.eq(p["front"]),
+            f.underrun.eq(p["underrun"]),
+            f.overflow.eq(p["overflow"]),
         ]
+        busy = Signal(32)
+        self.sync += If(~p["cmd_ready"], busy.eq(busy + 1))
+        self.comb += self.comp_busy.status.eq(busy)
 
-    def _fetch(self, p: dict[str, Signal]) -> None:
-        """The compositor's read port over Wishbone, one request in flight."""
-        dma, busy = self.dma, Signal()
-        self.comb += [
-            p["mem_req_ready"].eq(~busy),
-            dma.cyc.eq(busy),
-            dma.stb.eq(busy),
-            dma.we.eq(0),
-            dma.sel.eq(0xF),
-            p["mem_rsp_valid"].eq(busy & dma.ack),
-            p["mem_rsp_data"].eq(dma.dat_r),
-        ]
-        self.sync += [
-            If(p["mem_req_valid"] & ~busy, busy.eq(1), dma.adr.eq((self.mem_base.storage + p["mem_req_addr"])[2:])),
-            If(busy & dma.ack, busy.eq(0)),
-        ]
+    def _memory(self, p: dict[str, Signal], max_burst: int) -> None:
+        self.rd, self.wr, self.sc = read_port("zmv_rd"), write_port("zmv_wr"), read_port("zmv_sc")
+        self.dma_ctl = ZMVideoDMA([self.sc, self.rd], self.wr, max_burst)
+        self.dma = self.dma_ctl.bus
+        busy = Signal(32)
+        self.sync += If(self.dma_ctl.active, busy.eq(busy + 1))
+        self.comb += self.dma_busy.status.eq(busy)
 
     def _events(self, p: dict[str, Signal]) -> None:
         self.ev = EventManager()
-        self.ev.hbl = EventSourcePulse(description="HBL: a raster line is about to be shown.")
         self.ev.vbl = EventSourcePulse(description="VBL: the raster is complete.")
-        self.ev.pass_done = EventSourcePulse(description="A BG or PLANE pass has finished.")
+        self.ev.pass_done = EventSourcePulse(description="A pass's rows are in memory.")
         self.ev.finalize()
         frame = Signal(32)
         self.sync += If(p["vbl"], frame.eq(frame + 1))
         self.comb += [
-            self.hbl_line.status.eq(p["hbl_line"]),
             self.frame.status.eq(frame),
-            self.ev.hbl.trigger.eq(p["hbl"]),
+            self.swaps.status.eq(p["swaps"]),
             self.ev.vbl.trigger.eq(p["vbl"]),
             self.ev.pass_done.trigger.eq(p["pass_done"]),
         ]
@@ -174,11 +187,20 @@ class ZMVideo(LiteXModule):
         ports: dict[str, object] = {
             "i_clk": ClockSignal("sys"), "i_rst": ResetSignal("sys"),
             "i_pix_clk": ClockSignal(cd_pix), "i_pix_rst": ResetSignal(cd_pix),
-            "i_cmd_op": f.op, "i_cmd_plane": f.plane, "i_cmd_line": f.line, "i_cmd_mix": f.mix, "i_cmd_last": f.last,
-            "i_lb_raddr": 0, "o_lb_rdata": Signal(64), "o_line_ready": Signal(), "o_ready_line": Signal(9),
+            "i_vbase": self.vbase.storage, "i_fb0_base": self.fb0.storage, "i_fb1_base": self.fb1.storage,
+            "i_cpu_we": self.snoop_we, "i_cpu_waddr": self.snoop_waddr, "i_cpu_be": self.snoop_be,
+            "i_cpu_wdata": self.snoop_wdata, "i_cpu_sel": self.snoop_sel, "i_cmd_op": f.op, "i_cmd_plane": f.plane, "i_cmd_line": f.line,
+            "i_cmd_mix": f.mix, "i_cmd_first": f.first,
         }  # fmt: skip
-        inputs = {"cpu_we", "cpu_waddr", "cpu_be", "cpu_wdata", "cpu_rword", "cmd_valid", "mem_req_ready"}
-        inputs |= {"mem_rsp_valid", "mem_rsp_data"}
+        for prefix, port in (("rd", self.rd), ("sc", self.sc)):
+            ports |= {f"o_{prefix}_req_valid": port.req_valid, f"i_{prefix}_req_ready": port.req_ready}
+            ports |= {f"o_{prefix}_req_addr": port.req_addr, f"o_{prefix}_req_len": port.req_len}
+            ports |= {f"i_{prefix}_rsp_valid": port.rsp_valid, f"i_{prefix}_rsp_data": port.rsp_data}
+        w = self.wr
+        ports |= {"o_wr_req_valid": w.req_valid, "i_wr_req_ready": w.req_ready, "o_wr_req_addr": w.req_addr}
+        ports |= {"o_wr_req_len": w.req_len, "o_wr_dat_valid": w.dat_valid, "i_wr_dat_ready": w.dat_ready}
+        ports |= {"o_wr_dat": w.dat, "i_wr_busy": w.busy}
+        inputs = {"cpu_rword", "cmd_valid"}
         for name, sig in p.items():
             ports[("i_" if name in inputs else "o_") + name] = sig
         return ports

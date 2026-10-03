@@ -75,7 +75,7 @@ needs), `riscv64-unknown-elf-gcc` + picolibc (the cycles firmware), openXC7 (Doc
 ```sh
 make -C fpga toolchain   # once: pinned image (docker/openxc7/) + prjxray-db + xc7z010 chipdb -> .tools/
 make -C fpga blink       # rtl/board/blink_top.v -> build/blink/blink_top.bit (+ pnr.log, report.json)
-uv run python -m soc.zigmachine_soc --target z7 --toolchain openxc7 --build   # the full SoC
+uv run --with meson --with ninja python -m soc.zigmachine_soc --target z7 --toolchain openxc7 --build   # the full SoC, glass included (~4 min)
 ```
 
 `tools/openxc7.sh` runs yosys -> nextpnr-xilinx -> fasm2frames -> xc7frames2bit
@@ -85,3 +85,62 @@ is installed on the host. The image is openXC7's own Nix flake
 `docker/openxc7/chipdb.sha256` and is checked on every rebuild. For LiteX,
 `soc/openxc7.py` writes the build script on the host and runs it in the
 container. Loading a bitstream onto the board: `boards/microphase_z7_7010/README.md`.
+
+## Timing under openXC7
+
+Measured on 2026-10-02: the glass SoC (PS7 + GP0) with the DDR-framebuffer
+video pipeline, seed 1. The logs are in `build/ps7probe/m_*.log`.
+
+**The PS7 routes.** The earlier failure ("overuse grows after *Tieing unused PS7
+inputs to constants*") was not the PS7. On an empty die, a PS7 with every input
+tied off by nextpnr routes in 2 iterations. openXC7's own Zynq demo
+(`demo-projects/ps7-blinky-digilent-pynqz1`) instantiates PS7 the same way we
+do: the used ports connected, everything else left for nextpnr to tie. The
+router heatmap (`--router2-heatmap`) put the overuse in a hot spot of the fabric,
+around VexRiscv and the compositor's registers, nowhere near the PS. So it was
+placement density. `soc/openxc7.py` now passes `--placer-heap-congestion-spread`
+to nextpnr (override it with `OPENXC7_PNR_OPTS`), and the SoC routes in about 15
+iterations. A lower `--placer-heap-beta` alone changed nothing. `--tmg-ripup`
+ran 1,500 iterations and still failed timing.
+
+**fmax of `sys`** (nextpnr's figure; it does not depend on the target, because
+placement scales with the period):
+
+| Build | Target | fmax | Limited by |
+|---|---|---|---|
+| LiteX `standard` core | 100 / 125 / 150 | 79.4 MHz | the video snoop: `dBus` cmd → window compare (carry chain) → queue → a wide CE, 12.5 ns, 80 % routing |
+| sealed core, I16w2D4 (`rtl/seal/`) | 100 / 150 | 81.2 MHz | the same path |
+| sealed + `relaxpc` | 150 | 83.6 MHz | the same path |
+| `standard`, snoop fed a dead bus (probe only) | 150 | 94.6 MHz | VexRiscv I$ decode → static prediction → fetch PC, 10 ns |
+| sealed + `relaxpc`, no snoop (probe only) | 150 | 84.7 MHz | VexRiscv stall cone: memory stage → fetch halt → PC CE, 11.7 ns |
+
+- Before the snoop existed, the limit was LiteX's Wishbone→CSR bridge, which
+  LiteX only registers on SoCs with SDRAM. `ZigMachineSoC.csr_bridge_register`
+  (set for z7) registers it.
+- Every path is 6 to 13 LUTs, but 75 to 85 % of the delay is routing. Cells on
+  one path sit 30 to 60 rows apart.
+- nextpnr-xilinx has no pblocks, and its XDC reader takes only `set_property`,
+  `create_clock` and `set_multicycle_path -to`. Floorplanning and false paths
+  are not available.
+- The seal costs no fmax: its check sits in a translation slot that already
+  existed.
+- **150 MHz is out of reach under openXC7, and 100 MHz is too, today.**
+
+**Clock crossings:**
+- `soc/zm_timing.py` adds `set_max_delay -datapath_only` between `sys` and
+  `pix`, one destination period each way. Every crossing is a toggle
+  synchroniser (ASYNC_REG) or a buffer held stable until its toggle lands.
+- nextpnr skips these lines with a warning. It reports cross-domain paths only
+  as "Max delay" (1.4 to 2.5 ns here, against a 25 ns bound) and never counts
+  them in a clock's fmax.
+- Vivado honours them.
+
+**What Vivado would settle** (not installed: about 50 GB):
+- a timing-driven place and route of the same netlist, with the CDC constraints
+  honoured;
+- pblocks for VexRiscv and the compositor;
+- the real fmax at 100, 125 and 150 MHz, once the snoop's dBus tap is
+  registered.
+
+The cut that is ours to make first is in `soc/zm_video_snoop.py`: register the
+dBus tap (one cycle) before the window compare.

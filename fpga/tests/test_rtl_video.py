@@ -2,11 +2,12 @@
 
 Frames are recorded from real carts by tools/video_dump.py (vdump: the native
 host plus a recorder) and from synthetic scenarios rendered by the real
-machine-video (vsynth), then replayed through the RTL under CXXRTL; every pass of
-every line must match the machine's PFB pixel for pixel, and every line of the
-plane mixer's picture must match the browser's (tools/video_rtl.py,
-tools/video_mix.py; that model is checked against Chrome in test_video_mix.py).
-Whole frames then go through the scanout and are checked on the wire.
+machine-video (vsynth), then replayed through the RTL under CXXRTL in the
+machine's own order (plane-major); the PFB row every pass leaves in memory must
+match the machine's pixel for pixel, and the picture each frame builds must
+match the browser's (tools/video_rtl.py, tools/video_mix.py; that model is
+checked against Chrome in test_video_mix.py). Whole frames then go through the
+double-buffered picture and the scanout and are checked on the wire.
 
 Each corpus frame also states what it is there to exercise, checked from its
 records (tools/video_cover.py), so a frame that stops exercising it fails here
@@ -58,9 +59,11 @@ SYNTH = [
     ("bgalpha", [1, 2], {"no_plane", "alpha_partial", "background_per_line"}),
     ("worst", [1, 2], {"layered", "mode_medium_overscan", "beam", "alpha_partial"}),
 ]
-# Multi-plane frames replayed again with the mixer's sweeps overlapping the next
-# passes (no per-pass read-back), as on the board: the line-buffer hazard case.
-TIMING = ["union_main", "tcb_colorshock", "s:layers", "s:alpha", "s:overscan", "s:medium"]
+# Multi-plane frames replayed again against a memory with the HP port's first-beat
+# latency (CYCLES.md "Memory path": +24 clocks) and no stalls: the clock figures
+# of rtl/video/README.md "Throughput", and the picture must still match.
+TIMING = ["union_main", "tcb_colorshock", "s:layers", "s:alpha", "s:overscan", "s:medium", "s:worst"]
+HP_LATENCY = 24
 # One rule of the RTL broken at a time, and the dump that must catch it.
 MUTANTS = json.loads((FPGA / "tests" / "tb" / "video_mutants.json").read_text())
 
@@ -119,15 +122,16 @@ def test_recorded_frames_are_the_reference_hosts(tag: str) -> None:
 
 
 @pytest.mark.parametrize("key", TIMING)
-def test_picture_with_overlapped_sweeps(tb: Path, key: str) -> None:
+def test_frames_against_hp_latency(tb: Path, key: str) -> None:
     frames_dir, frames, _ = _source(key)
-    result = video_rtl.replay(tb, frames_dir, frames, timing=True)
+    result = video_rtl.replay(tb, frames_dir, frames, timing=HP_LATENCY)
     assert result.returncode == 0, result.stdout + result.stderr
     assert result.stdout.count("-> MATCH") == len(frames)
 
 
 # Whole frames on the wire (zm_video_out), the compositor at 100 MHz (the board's
-# sys clock) against the 40 MHz pixel clock: 5:2. `s:worst` is the costliest line.
+# sys clock) against the 40 MHz pixel clock: 5:2. dhs_0pxl0reg's two frames and
+# s:worst's two go through both pictures of the double buffer.
 WIRE = (5, 2)
 WIRE_KEYS = ["union_main", "dhs_0pxl0reg", "s:worst"]
 
@@ -146,10 +150,12 @@ def test_frames_on_the_wire_are_the_browsers_picture(out_tb: Path, key: str) -> 
     assert "-> MATCH" in result.stdout
 
 
-def test_a_compositor_too_slow_for_the_worst_line_underruns(out_tb: Path) -> None:
-    """At 2:1 the worst line (5,060 clocks) misses its 4,224: the scanout must say so."""
-    frames_dir, _, _ = _source("s:worst")
-    result = video_rtl.wire(out_tb, (2, 1), frames_dir, [1])
+def test_a_starved_scanout_fetch_underruns(out_tb: Path) -> None:
+    """The compositor has no deadline any more; the scanout fetch does (a raster
+    line). Given a beat every 16 clocks, 400 beats miss a 5,280-clock line: the
+    scanout must say so."""
+    frames_dir, _, _ = _source("union_main")
+    result = video_rtl.wire(out_tb, WIRE, frames_dir, [300], starve=16)
     assert result.returncode != 0
     assert "underrun 1" in result.stdout
 
@@ -174,5 +180,5 @@ def test_a_broken_rule_is_caught(mutant: dict[str, str]) -> None:
     if on_wire:
         result = video_rtl.wire(exe, WIRE, frames_dir, frames)
     else:
-        result = video_rtl.replay(exe, frames_dir, frames, timing=bool(mutant.get("timing")))
+        result = video_rtl.replay(exe, frames_dir, frames, timing=HP_LATENCY if mutant.get("timing") else None)
     assert result.returncode != 0, f"{name} went unnoticed on {key}:\n{result.stdout}"

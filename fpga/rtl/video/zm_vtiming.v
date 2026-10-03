@@ -7,7 +7,7 @@
 // The HBL strobe `zm_hbl` fires once per RASTER line, at the start of the
 // horizontal blank BEFORE that line's first output line, with `zm_hbl_line`
 // naming the line about to be drawn. A handler or a copper list therefore has
-// the whole blank (264 clocks) to change a palette register before pixel 0.
+// the whole blank (256 clocks: 40 + 128 + 88) before pixel 0.
 // `zm_vbl` fires once a frame, at pixel 0 of the first output line after the
 // raster.
 `default_nettype none

@@ -11,21 +11,25 @@
 # The memory path (soc/zm_memtiming.py) reads zm_memcfg.init from the run
 # directory: $ZM_MEMCFG names one (tools/mempath_run.py writes them), else every
 # parameter is 0, the one-cycle RAM. $ZM_SOC picks another model (default
-# build/soc_cycles, e.g. build/soc_mem/<core>).
+# build/soc_cycles, e.g. build/soc_mem/<core>). The video sim (soc/video_sim.py):
+# ZM_SOC=build/soc_video, $ZM_INIT names the image file its RAM reads
+# (sim_zm_ram.init), and $ZM_DMACFG the video DMA's memory path (zm_dmacfg.init).
 # Writes <run-dir>/uart.txt; exit status is the firmware's "ZM END" code, or 124
 # on a timeout, or 125 if the firmware never reported an end.
 set -uo pipefail
 FPGA="$(cd "$(dirname "$0")/.." && pwd)"
 GW="${ZM_SOC:-$FPGA/build/soc_cycles}/gateware"
 img=$1 run=$2 limit=${3:-86400}
+ram_init=${ZM_INIT:-sim_main_ram.init}
 [ -x "$GW/obj_dir/Vsim" ] || { echo "cycles_sim: no model, run make -C fpga cycles-sim" >&2; exit 2; }
 rm -rf "$run" && mkdir -p "$run/modules"
 for f in "$GW"/sim_config.js "$GW"/*.init; do
-    case $f in *main_ram.init) ;; *) ln -s "$f" "$run/$(basename "$f")" ;; esac
+    [ "$(basename "$f")" = "$ram_init" ] || ln -s "$f" "$run/$(basename "$f")"
 done
 if [ -n "${ZM_MEMCFG:-}" ]; then cp "$ZM_MEMCFG" "$run/zm_memcfg.init"; else echo 0 >"$run/zm_memcfg.init"; fi
+if [ -n "${ZM_DMACFG:-}" ]; then cp "$ZM_DMACFG" "$run/zm_dmacfg.init"; else echo 0 >"$run/zm_dmacfg.init"; fi
 for m in clocker serial2console; do ln -s "$GW/modules/$m.so" "$run/modules/$m.so"; done
-cp "$img" "$run/sim_main_ram.init"
+cp "$img" "$run/$ram_init"
 cd "$run" || exit 2
 # A `sleep` holds stdin open; it is killed as soon as the sim ends.
 exec 3< <(exec sleep "$limit")

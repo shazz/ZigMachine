@@ -40,8 +40,8 @@ def _glob(d: Path, pattern: str) -> tuple[Path, ...]:
 
 BLOCKS = [
     Block("zm_vtiming", "zm_vtiming", (FPGA / "rtl/video/zm_vtiming.v",), "ours: 800x600 timing + HBL"),
-    Block("zm_video_comp", "zm_video_comp", _glob(FPGA / "rtl/video", "zm_video_*.v"), "ours: line compositor"),
-    Block("zm_video_out", "zm_video_out", _glob(FPGA / "rtl/video", "zm_*.v"), "ours: comp + mixer + scanout"),
+    Block("zm_video_comp", "zm_video_comp", _glob(FPGA / "rtl/video", "zm_video_*.v"), "ours: plane-major compositor + row I/O"),
+    Block("zm_video_out", "zm_video_out", _glob(FPGA / "rtl/video", "zm_*.v"), "ours: comp + double buffer + scanout fetch"),
     Block("zm_tmds_enc", "zm_tmds_enc", (FPGA / "rtl/video/zm_tmds_enc.v",), "ours: one TMDS channel"),
     Block("zm_dvi_out", "zm_dvi_out", (FPGA / "rtl/video/zm_dvi_out.v", FPGA / "rtl/video/zm_tmds_enc.v"), "ours: DVI"),
     Block("zm_glass_regs", "zm_glass_regs", (FPGA / "rtl/glass/zm_glass_regs.v", FPGA / "rtl/glass/zm_glass_ptr.v"), "ours: the ARM's GP0 registers"),

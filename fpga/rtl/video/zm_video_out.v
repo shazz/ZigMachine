@@ -1,13 +1,16 @@
-// The video pipeline end to end: the compositor and its plane mixer in the
-// compositor's clock (`clk`, the SoC's system clock on the board), the timing
-// and the scanout in the pixel clock (`pix_clk`, 40 MHz), the display buffers
-// between them. Ports are zm_video_comp's, plus the picture and the HBL/VBL
-// strobes brought into `clk`'s domain for the CPU.
+// The video pipeline end to end. In `clk` (the SoC's system clock): the
+// compositor, which builds each frame into a picture in memory at its own
+// speed, and the scanout fetch, which reads the shown picture back a line ahead
+// of the beam. In `pix_clk` (40 MHz): zm_vtiming and the scanout. The display
+// line buffers cross between them.
 //
-// The compositor may run any number of lines ahead; it stalls by itself when
-// both display buffers hold lines not yet shown (`dp_free`), so whoever issues
-// the passes only has to issue them in order. A compositor clock of at least
-// twice the pixel clock is the design point (fpga/rtl/video/README.md).
+// Two pictures, double-buffered (`fb0_base`, `fb1_base`): the compositor writes
+// the back one while the scanout shows the front one. PRESENT marks the back
+// one complete; the swap happens at the next VBL, and until then a pass that
+// would write a picture is not taken (`d_ok`), so the shown picture is never
+// written and a frame on the screen is always one whole picture, one frame late.
+// The compositor has no deadline; only the scanout fetch has one (a raster
+// line, 2,112 pixel clocks), and `underrun` sticks if it ever misses it.
 `default_nettype none
 
 module zm_video_out (
@@ -15,40 +18,57 @@ module zm_video_out (
     input  wire        rst,
     input  wire        pix_clk,
     input  wire        pix_rst,
+    input  wire [31:0] vbase,
+    input  wire [31:0] fb0_base,
+    input  wire [31:0] fb1_base,
     input  wire        cpu_we,
     input  wire [20:0] cpu_waddr,
     input  wire [3:0]  cpu_be,
     input  wire [31:0] cpu_wdata,
+    input  wire [2:0]  cpu_sel,
     input  wire [4:0]  cpu_rword,
     output wire [31:0] cpu_rdata,
     input  wire        cmd_valid,
     output wire        cmd_ready,
-    input  wire [1:0]  cmd_op,
+    input  wire [2:0]  cmd_op,
     input  wire [1:0]  cmd_plane,
     input  wire [8:0]  cmd_line,
     input  wire        cmd_mix,
-    input  wire        cmd_last,
+    input  wire        cmd_first,
+    output wire        painted,
     output wire        pass_done,
-    output wire        mem_req_valid,
-    input  wire        mem_req_ready,
-    output wire [31:0] mem_req_addr,
-    input  wire        mem_rsp_valid,
-    input  wire [31:0] mem_rsp_data,
-    input  wire [8:0]  lb_raddr,
-    output wire [63:0] lb_rdata,
+    // the compositor's memory ports (zm_video_comp.v) ...
+    output wire        rd_req_valid,
+    input  wire        rd_req_ready,
+    output wire [31:0] rd_req_addr,
+    output wire [9:0]  rd_req_len,
+    input  wire        rd_rsp_valid,
+    input  wire [63:0] rd_rsp_data,
+    output wire        wr_req_valid,
+    input  wire        wr_req_ready,
+    output wire [31:0] wr_req_addr,
+    output wire [9:0]  wr_req_len,
+    output wire        wr_dat_valid,
+    input  wire        wr_dat_ready,
+    output wire [63:0] wr_dat,
+    input  wire        wr_busy,
+    // ... and the scanout fetch's read port
+    output wire        sc_req_valid,
+    input  wire        sc_req_ready,
+    output wire [31:0] sc_req_addr,
+    output wire [9:0]  sc_req_len,
+    input  wire        sc_rsp_valid,
+    input  wire [63:0] sc_rsp_data,
     output wire        overflow,
-    output wire        line_ready,
-    output wire [8:0]  ready_line,
-    output wire        mix_busy,
-    output wire        mix_hazard,
     // the picture, in pix_clk's domain
     output wire [7:0]  r, g, b,
     output wire        de, hsync, vsync,
     output wire        underrun,
-    // in clk's domain: a raster line is about to be shown / the raster is done
-    output wire        hbl,
-    output reg  [8:0]  hbl_line,
-    output wire        vbl
+    // in clk's domain
+    output wire        vbl,              // one clock: the raster is done
+    output reg         front = 1'b0,     // the picture being shown
+    output reg         pending = 1'b0,   // the back picture is complete, waiting for the VBL
+    output reg  [31:0] swaps = 32'd0     // pictures shown so far
 );
     wire t_hs, t_vs, t_de, t_active, t_hbl, t_vbl;
     wire [9:0] t_x;
@@ -57,12 +77,51 @@ module zm_video_out (
         .clk(pix_clk), .rst(pix_rst), .hsync(t_hs), .vsync(t_vs), .de(t_de), .out_x(), .out_y(),
         .zm_active(t_active), .zm_x(t_x), .zm_line(t_line), .zm_hbl(t_hbl), .zm_hbl_line(t_hbl_line),
         .zm_vbl(t_vbl));
+    zm_video_sync u_vbl (.src_clk(pix_clk), .src_pulse(t_vbl), .dst_clk(clk), .dst_pulse(vbl));
+
+    // --- the two pictures: PRESENT makes the back one pending, the VBL swaps ---
+    wire present, swap = pending && vbl;
+    wire front_n = front ^ swap;           // the picture shown from this VBL on
+    always @(posedge clk) begin
+        if (rst) {front, pending, swaps} <= {1'b0, 1'b0, 32'd0};
+        else begin
+            front <= front_n;
+            pending <= (pending && !vbl) || present;
+            if (swap) swaps <= swaps + 32'd1;
+        end
+    end
+
+    zm_video_comp u_comp (
+        .clk(clk), .rst(rst), .vbase(vbase), .dbase(front ? fb0_base : fb1_base), .d_ok(!pending),
+        .cpu_we(cpu_we), .cpu_waddr(cpu_waddr), .cpu_be(cpu_be), .cpu_wdata(cpu_wdata), .cpu_sel(cpu_sel),
+        .cpu_rword(cpu_rword),
+        .cpu_rdata(cpu_rdata), .cmd_valid(cmd_valid), .cmd_ready(cmd_ready), .cmd_op(cmd_op),
+        .cmd_plane(cmd_plane), .cmd_line(cmd_line), .cmd_mix(cmd_mix), .cmd_first(cmd_first),
+        .painted(painted), .pass_done(pass_done), .present(present),
+        .rd_req_valid(rd_req_valid), .rd_req_ready(rd_req_ready), .rd_req_addr(rd_req_addr),
+        .rd_req_len(rd_req_len), .rd_rsp_valid(rd_rsp_valid), .rd_rsp_data(rd_rsp_data),
+        .wr_req_valid(wr_req_valid), .wr_req_ready(wr_req_ready), .wr_req_addr(wr_req_addr),
+        .wr_req_len(wr_req_len), .wr_dat_valid(wr_dat_valid), .wr_dat_ready(wr_dat_ready), .wr_dat(wr_dat),
+        .wr_busy(wr_busy), .overflow(overflow));
+
+    // --- scanout fetch -> display buffers -> scanout, with their hand-over ---
+    wire line_ready, dp_we;
+    wire [8:0] ready_line;
+    wire [9:0] dp_waddr, dp_raddr;
+    wire [47:0] dp_wdata, dp_rdata;
+    reg [1:0] dp_free = 2'b11;
+    zm_video_scanfetch u_fetch (
+        .clk(clk), .rst(rst), .vbl(vbl), .base(front_n ? fb1_base : fb0_base), .dp_free(dp_free),
+        .rd_req_valid(sc_req_valid), .rd_req_ready(sc_req_ready), .rd_req_addr(sc_req_addr),
+        .rd_req_len(sc_req_len), .rd_rsp_valid(sc_rsp_valid), .rd_rsp_data(sc_rsp_data), .dp_we(dp_we),
+        .dp_waddr(dp_waddr), .dp_wdata(dp_wdata), .line_ready(line_ready), .ready_line(ready_line));
+    zm_video_dcram #(.AW(10), .DW(48)) u_disp (.wclk(clk), .we(dp_we), .waddr(dp_waddr), .wdata(dp_wdata),
+        .rclk(pix_clk), .raddr(dp_raddr), .rdata(dp_rdata));
 
     // Publication (clk -> pix_clk) and release (pix_clk -> clk) of each display buffer.
     wire [1:0] pub_c = {line_ready && ready_line[0], line_ready && !ready_line[0]};
     wire [1:0] pub_p, freed_p, freed_c;
     reg [17:0] pub_line;
-    reg [1:0] dp_free = 2'b11;
     always @(posedge clk) begin
         if (pub_c[0]) pub_line[8:0] <= ready_line;
         if (pub_c[1]) pub_line[17:9] <= ready_line;
@@ -76,25 +135,6 @@ module zm_video_out (
             zm_video_sync u_free (.src_clk(pix_clk), .src_pulse(freed_p[i]), .dst_clk(clk), .dst_pulse(freed_c[i]));
         end
     endgenerate
-
-    // The HBL line number is held for a whole raster line, so it is sampled on the pulse.
-    reg [8:0] hbl_line_p;
-    always @(posedge pix_clk) if (t_hbl) hbl_line_p <= t_hbl_line;
-    zm_video_sync u_hbl (.src_clk(pix_clk), .src_pulse(t_hbl), .dst_clk(clk), .dst_pulse(hbl));
-    zm_video_sync u_vbl (.src_clk(pix_clk), .src_pulse(t_vbl), .dst_clk(clk), .dst_pulse(vbl));
-    always @(posedge clk) if (hbl) hbl_line <= hbl_line_p;
-
-    wire [9:0] dp_raddr;
-    wire [47:0] dp_rdata;
-    zm_video_comp u_comp (
-        .clk(clk), .rst(rst), .cpu_we(cpu_we), .cpu_waddr(cpu_waddr), .cpu_be(cpu_be),
-        .cpu_wdata(cpu_wdata), .cpu_rword(cpu_rword), .cpu_rdata(cpu_rdata), .cmd_valid(cmd_valid),
-        .cmd_ready(cmd_ready), .cmd_op(cmd_op), .cmd_plane(cmd_plane), .cmd_line(cmd_line),
-        .cmd_mix(cmd_mix), .cmd_last(cmd_last), .pass_done(pass_done), .mem_req_valid(mem_req_valid),
-        .mem_req_ready(mem_req_ready), .mem_req_addr(mem_req_addr), .mem_rsp_valid(mem_rsp_valid),
-        .mem_rsp_data(mem_rsp_data), .lb_raddr(lb_raddr), .lb_rdata(lb_rdata), .overflow(overflow),
-        .dp_clk(pix_clk), .dp_raddr(dp_raddr), .dp_rdata(dp_rdata), .dp_free(dp_free),
-        .line_ready(line_ready), .ready_line(ready_line), .mix_busy(mix_busy), .mix_hazard(mix_hazard));
 
     zm_video_scan u_scan (
         .clk(pix_clk), .rst(pix_rst), .hsync(t_hs), .vsync(t_vs), .de(t_de), .zm_active(t_active),

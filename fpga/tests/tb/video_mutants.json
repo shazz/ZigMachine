@@ -1,289 +1,354 @@
 [
- {
-  "id": "palette_of_plane0",
-  "file": "zm_video_comp.v",
-  "old": ".raddr({plane, pal_raddr})",
-  "new": ".raddr({2'd0, pal_raddr})",
-  "catch": "s:layers"
- },
- {
-  "id": "border_x_off_by_2",
-  "file": "zm_video_plane.v",
-  "old": "ZM_RASTER_BORDER_X[9:0];",
-  "new": "ZM_RASTER_BORDER_X[9:0] + 10'd2;",
-  "catch": "tutorial"
- },
- {
-  "id": "byte_lane_0",
-  "file": "zm_video_paint.v",
-  "old": "fb_rdata[sel1*8 +: 8]",
-  "new": "fb_rdata[7:0]",
-  "catch": "tutorial"
- },
- {
-  "id": "no_background",
-  "file": "zm_video_bg.v",
-  "old": "lb_data <= colour;",
-  "new": "lb_data <= 32'd0;",
-  "catch": "tutorial"
- },
- {
-  "id": "no_frame_count",
-  "file": "zm_video_bg.v",
-  "old": "frame_inc <= last;",
-  "new": "frame_inc <= 1'b0;",
-  "catch": "tutorial"
- },
- {
-  "id": "ignore_ready",
-  "file": "zm_video_fetch.v",
-  "old": "mem_req_valid && mem_req_ready",
-  "new": "mem_req_valid",
-  "catch": "tutorial"
- },
- {
-  "id": "beam_gap_4",
-  "file": "zm_video_bg.v",
-  "old": "+ ZM_BEAM_MIN_GAP",
-  "new": "+ 32'd4",
-  "catch": "s:beam"
- },
- {
-  "id": "beam_no_snap",
-  "file": "zm_video_bg.v",
-  "old": "e[31:16] & ~(ZM_BEAM_GRID[15:0] - 16'd1)",
-  "new": "e[31:16]",
-  "catch": "s:beam"
- },
- {
-  "id": "beam_no_carry",
-  "file": "zm_video_bg.v",
-  "old": "beam_upd <= beam;",
-  "new": "beam_upd <= 1'b0;",
-  "catch": "s:beam"
- },
- {
-  "id": "beam_no_extra_drops",
-  "file": "zm_video_bg.v",
-  "old": "{16'd0, count} - ZM_BEAM_MAX : 32'd0",
-  "new": "32'd0 : 32'd0",
-  "catch": "s:beam"
- },
- {
-  "id": "fs_no_wrap",
-  "file": "zm_video_paint.v",
-  "old": "s + 16'd1 == stride ? 16'd0 : s + 16'd1",
-  "new": "s + 16'd1",
-  "catch": "s:fullscreen"
- },
- {
-  "id": "fs_no_hscroll",
-  "file": "zm_video_plane.v",
-  "old": "rem_t >= {1'b0, stride} ? rem_t[15:0] - stride : rem_t[15:0]",
-  "new": "16'd0",
-  "catch": "s:fullscreen"
- },
- {
-  "id": "fs_live_hscroll",
-  "file": "zm_video_latch.v",
-  "old": "assign hs = r_hs[plane];",
-  "new": "assign hs = regs[(ZM_REG_HSCROLL + plane * 2) * 8 +: 16];",
-  "catch": "s:fullscreen"
- },
- {
-  "id": "no_align",
-  "file": "zm_video_planepath.v",
-  "old": ".align(fetch_addr[1:0])",
-  "new": ".align(2'd0)",
-  "catch": "s:fullscreen"
- },
- {
-  "id": "no_legacy_fullscreen",
-  "file": "zm_video_plane.v",
-  "old": "(stride == ZM_STRIDE_FULLSCREEN ? FS : NORMAL)",
-  "new": "NORMAL",
-  "catch": "s:fullscreen"
- },
- {
-  "id": "live_base",
-  "file": "zm_video_latch.v",
-  "old": "assign base = r_base[plane];",
-  "new": "assign base = regs[(ZM_REG_FB_BASE + plane * 4) * 8 +: 32];",
-  "catch": "s:scroll"
- },
- {
-  "id": "scroll_no_hscroll",
-  "file": "zm_video_plane.v",
-  "old": "(m == SCROLL ? {16'd0, hs_live} : 32'd0)",
-  "new": "32'd0",
-  "catch": "s:scroll"
- },
- {
-  "id": "row_stride_320",
-  "file": "zm_video_plane.v",
-  "old": "base + row * stride",
-  "new": "base + row * 16'd320",
-  "catch": "s:scroll"
- },
- {
-  "id": "medium_res_ignored",
-  "file": "zm_video_plane.v",
-  "old": "m == MED && res == ZM_RES_MEDIUM",
-  "new": "m == MED",
-  "catch": "res_switch"
- },
- {
-  "id": "medium_halves_swapped",
-  "file": "zm_video_paint.v",
-  "old": "!(single2 && px2[0])",
-  "new": "!(single2 && !px2[0])",
-  "catch": "res_switch"
- },
- {
-  "id": "medium_ovs_threshold",
-  "file": "zm_video_plane.v",
-  "old": "stride >= ZM_RASTER_WIDTH",
-  "new": "stride > ZM_RASTER_WIDTH",
-  "catch": "medium_overscan"
- },
- {
-  "id": "band_not_held_open",
-  "file": "zm_video_plane.v",
-  "old": "(top && (top_open || hit_now))",
-  "new": "(top && hit_now)",
-  "catch": "s:overscan"
- },
- {
-  "id": "noise_step",
-  "file": "zm_video_paint.v",
-  "old": "noise + 8'd37",
-  "new": "noise + 8'd36",
-  "catch": "badflicker"
- },
- {
-  "id": "noise_no_seed",
-  "file": "zm_video_plane.v",
-  "old": "seed * 8'd7",
-  "new": "seed * 8'd0",
-  "catch": "badflicker"
- },
- {
-  "id": "flicker_tolerance",
-  "file": "zm_video_plane.v",
-  "old": "dx <= ZM_OVERSCAN_X_TOL",
-  "new": "dx < ZM_OVERSCAN_X_TOL",
-  "catch": "s:overscan"
- },
- {
-  "id": "mix_tube_black",
-  "file": "zm_video_mix.v",
-  "old": "parameter [23:0] TUBE = 24'h101012",
-  "new": "parameter [23:0] TUBE = 24'h000000",
-  "catch": "gen4_3615"
- },
- {
-  "id": "mix_premul_floor",
-  "file": "zm_video_mix.v",
-  "old": "{1'b0, pm} + 17'd128",
-  "new": "{1'b0, pm} + 17'd0",
-  "catch": "union_main"
- },
- {
-  "id": "mix_over_255",
-  "file": "zm_video_mix.v",
-  "old": "d * (9'd256 - {1'b0, a})",
-  "new": "d * (9'd255 - {1'b0, a})",
-  "catch": "union_main"
- },
- {
-  "id": "mix_alpha_of_pixel0",
-  "file": "zm_video_mix.v",
-  "old": "lb_rdata[(i / 3) * 32 + 24 +: 8]",
-  "new": "lb_rdata[24 +: 8]",
-  "catch": "s:alpha"
- },
- {
-  "id": "mix_never_first",
-  "file": "zm_video_comp.v",
-  "old": ".first(p_first)",
-  "new": ".first(1'b0)",
-  "catch": "s:alpha"
- },
- {
-  "id": "mix_always_first",
-  "file": "zm_video_comp.v",
-  "old": ".first(p_first)",
-  "new": ".first(1'b1)",
-  "catch": "union_main"
- },
- {
-  "id": "mix_last_pass_only",
-  "file": "zm_video_comp.v",
-  "old": "else if (pass_done && pass_mix)",
-  "new": "else if (pass_done && pass_mix && pass_last)",
-  "catch": "union_main"
- },
- {
-  "id": "mix_one_display_buffer",
-  "file": "zm_video_comp.v",
-  "old": ".dbuf(p_line[0])",
-  "new": ".dbuf(1'b0)",
-  "catch": "tutorial"
- },
- {
-  "id": "mix_overtaken",
-  "file": "zm_video_comp.v",
-  "old": "assign cmd_ready = !busy && !pend;",
-  "new": "assign cmd_ready = !busy;",
-  "catch": "s:alpha",
-  "timing": "1"
- },
- {
-  "id": "scan_rgb_misaligned",
-  "file": "zm_video_scan.v",
-  "old": "{de_o, hs_o, vs_o} <= {de1, hs1, vs1};",
-  "new": "{de_o, hs_o, vs_o} <= {de, hsync, vsync};",
-  "catch": "union_main",
-  "tb": "out"
- },
- {
-  "id": "scan_one_buffer",
-  "file": "zm_video_scan.v",
-  "old": "assign dp_raddr = {zm_line[0], zm_x[9:1]};",
-  "new": "assign dp_raddr = {1'b0, zm_x[9:1]};",
-  "catch": "union_main",
-  "tb": "out"
- },
- {
-  "id": "scan_frees_the_wrong_buffer",
-  "file": "zm_video_scan.v",
-  "old": "freed[!zm_hbl_line[0]] <= 1'b1;",
-  "new": "freed[zm_hbl_line[0]] <= 1'b1;",
-  "catch": "union_main",
-  "tb": "out"
- },
- {
-  "id": "scan_no_bars",
-  "file": "zm_video_scan.v",
-  "old": "zm_active && ok, zm_x[0]}",
-  "new": "ok, zm_x[0]}",
-  "catch": "union_main",
-  "tb": "out"
- },
- {
-  "id": "comp_ignores_scanout",
-  "file": "zm_video_comp.v",
-  "old": "(!p_last || dp_free[p_line[0]])",
-  "new": "(!p_last || 1'b1)",
-  "catch": "union_main",
-  "tb": "out"
- },
- {
-  "id": "pub_line_swapped",
-  "file": "zm_video_out.v",
-  "old": "if (pub_c[1]) pub_line[17:9] <= ready_line;",
-  "new": "if (pub_c[1]) pub_line[8:0] <= ready_line;",
-  "catch": "union_main",
-  "tb": "out"
- }
+  {
+    "id": "palette_of_plane0",
+    "file": "zm_video_comp.v",
+    "old": ".raddr({plane, pal_raddr})",
+    "new": ".raddr({2'd0, pal_raddr})",
+    "catch": "s:layers"
+  },
+  {
+    "id": "border_x_off_by_2",
+    "file": "zm_video_plane.v",
+    "old": "ZM_RASTER_BORDER_X[9:0];",
+    "new": "ZM_RASTER_BORDER_X[9:0] + 10'd2;",
+    "catch": "tutorial"
+  },
+  {
+    "id": "byte_lane_0",
+    "file": "zm_video_paint.v",
+    "old": "fb_rdata[sel1*8 +: 8]",
+    "new": "fb_rdata[7:0]",
+    "catch": "tutorial"
+  },
+  {
+    "id": "no_background",
+    "file": "zm_video_bg.v",
+    "old": "lb_data <= colour;",
+    "new": "lb_data <= 32'd0;",
+    "catch": "tutorial"
+  },
+  {
+    "id": "no_frame_count",
+    "file": "zm_video_bg.v",
+    "old": "frame_inc <= last;",
+    "new": "frame_inc <= 1'b0;",
+    "catch": "tutorial"
+  },
+  {
+    "id": "ignore_ready",
+    "file": "zm_video_fetch.v",
+    "old": "if (rd_req_valid && rd_req_ready) asked",
+    "new": "if (rd_req_valid) asked",
+    "catch": "tutorial"
+  },
+  {
+    "id": "beam_gap_4",
+    "file": "zm_video_bg.v",
+    "old": "+ ZM_BEAM_MIN_GAP",
+    "new": "+ 32'd4",
+    "catch": "s:beam"
+  },
+  {
+    "id": "beam_no_snap",
+    "file": "zm_video_bg.v",
+    "old": "e[31:16] & ~(ZM_BEAM_GRID[15:0] - 16'd1)",
+    "new": "e[31:16]",
+    "catch": "s:beam"
+  },
+  {
+    "id": "beam_no_carry",
+    "file": "zm_video_bg.v",
+    "old": "beam_upd <= beam;",
+    "new": "beam_upd <= 1'b0;",
+    "catch": "s:beam"
+  },
+  {
+    "id": "beam_no_extra_drops",
+    "file": "zm_video_bg.v",
+    "old": "{16'd0, count} - ZM_BEAM_MAX : 32'd0",
+    "new": "32'd0 : 32'd0",
+    "catch": "s:beam"
+  },
+  {
+    "id": "fs_no_wrap",
+    "file": "zm_video_paint.v",
+    "old": "s + 16'd1 == stride ? 16'd0 : s + 16'd1",
+    "new": "s + 16'd1",
+    "catch": "s:fullscreen"
+  },
+  {
+    "id": "fs_no_hscroll",
+    "file": "zm_video_plane.v",
+    "old": "rem_t >= {1'b0, stride} ? rem_t[15:0] - stride : rem_t[15:0]",
+    "new": "16'd0",
+    "catch": "s:fullscreen"
+  },
+  {
+    "id": "fs_live_hscroll",
+    "file": "zm_video_latch.v",
+    "old": "assign hs = r_hs[plane];",
+    "new": "assign hs = regs[(ZM_REG_HSCROLL + plane * 2) * 8 +: 16];",
+    "catch": "s:fullscreen"
+  },
+  {
+    "id": "no_align",
+    "file": "zm_video_planepath.v",
+    "old": ".align(fetch_addr[1:0])",
+    "new": ".align(2'd0)",
+    "catch": "s:fullscreen"
+  },
+  {
+    "id": "no_legacy_fullscreen",
+    "file": "zm_video_plane.v",
+    "old": "(stride == ZM_STRIDE_FULLSCREEN ? FS : NORMAL)",
+    "new": "NORMAL",
+    "catch": "s:fullscreen"
+  },
+  {
+    "id": "live_base",
+    "file": "zm_video_latch.v",
+    "old": "assign base = r_base[plane];",
+    "new": "assign base = regs[(ZM_REG_FB_BASE + plane * 4) * 8 +: 32];",
+    "catch": "s:scroll"
+  },
+  {
+    "id": "scroll_no_hscroll",
+    "file": "zm_video_plane.v",
+    "old": "(m == SCROLL ? {16'd0, hs_live} : 32'd0)",
+    "new": "32'd0",
+    "catch": "s:scroll"
+  },
+  {
+    "id": "row_stride_320",
+    "file": "zm_video_plane.v",
+    "old": "base + row * stride",
+    "new": "base + row * 16'd320",
+    "catch": "s:scroll"
+  },
+  {
+    "id": "medium_res_ignored",
+    "file": "zm_video_plane.v",
+    "old": "m == MED && res == ZM_RES_MEDIUM",
+    "new": "m == MED",
+    "catch": "res_switch"
+  },
+  {
+    "id": "medium_halves_swapped",
+    "file": "zm_video_paint.v",
+    "old": "!(single2 && px2[0])",
+    "new": "!(single2 && !px2[0])",
+    "catch": "res_switch"
+  },
+  {
+    "id": "medium_ovs_threshold",
+    "file": "zm_video_plane.v",
+    "old": "stride >= ZM_RASTER_WIDTH",
+    "new": "stride > ZM_RASTER_WIDTH",
+    "catch": "medium_overscan"
+  },
+  {
+    "id": "band_not_held_open",
+    "file": "zm_video_plane.v",
+    "old": "(top && (top_open || hit_now))",
+    "new": "(top && hit_now)",
+    "catch": "s:overscan"
+  },
+  {
+    "id": "noise_step",
+    "file": "zm_video_paint.v",
+    "old": "noise + 8'd37",
+    "new": "noise + 8'd36",
+    "catch": "badflicker"
+  },
+  {
+    "id": "noise_no_seed",
+    "file": "zm_video_plane.v",
+    "old": "seed * 8'd7",
+    "new": "seed * 8'd0",
+    "catch": "badflicker"
+  },
+  {
+    "id": "flicker_tolerance",
+    "file": "zm_video_plane.v",
+    "old": "dx <= ZM_OVERSCAN_X_TOL",
+    "new": "dx < ZM_OVERSCAN_X_TOL",
+    "catch": "s:overscan"
+  },
+  {
+    "id": "mix_tube_black",
+    "file": "zm_video_mix.v",
+    "old": "parameter [23:0] TUBE = 24'h101012",
+    "new": "parameter [23:0] TUBE = 24'h000000",
+    "catch": "gen4_3615"
+  },
+  {
+    "id": "mix_premul_floor",
+    "file": "zm_video_mix.v",
+    "old": "{1'b0, pm} + 17'd128",
+    "new": "{1'b0, pm} + 17'd0",
+    "catch": "union_main"
+  },
+  {
+    "id": "mix_over_255",
+    "file": "zm_video_mix.v",
+    "old": "d * (9'd256 - {1'b0, a})",
+    "new": "d * (9'd255 - {1'b0, a})",
+    "catch": "union_main"
+  },
+  {
+    "id": "mix_alpha_of_pixel0",
+    "file": "zm_video_mix.v",
+    "old": "lb_rdata[(i / 3) * 32 + 24 +: 8]",
+    "new": "lb_rdata[24 +: 8]",
+    "catch": "s:alpha"
+  },
+  {
+    "id": "mix_never_first",
+    "file": "zm_video_comp.v",
+    "old": ".first(mix_first)",
+    "new": ".first(1'b0)",
+    "catch": "s:alpha"
+  },
+  {
+    "id": "mix_always_first",
+    "file": "zm_video_comp.v",
+    "old": ".first(mix_first)",
+    "new": ".first(1'b1)",
+    "catch": "union_main"
+  },
+  {
+    "id": "scan_rgb_misaligned",
+    "file": "zm_video_scan.v",
+    "old": "{de_o, hs_o, vs_o} <= {de1, hs1, vs1};",
+    "new": "{de_o, hs_o, vs_o} <= {de, hsync, vsync};",
+    "catch": "union_main",
+    "tb": "out"
+  },
+  {
+    "id": "scan_one_buffer",
+    "file": "zm_video_scan.v",
+    "old": "assign dp_raddr = {zm_line[0], zm_x[9:1]};",
+    "new": "assign dp_raddr = {1'b0, zm_x[9:1]};",
+    "catch": "union_main",
+    "tb": "out"
+  },
+  {
+    "id": "scan_frees_the_wrong_buffer",
+    "file": "zm_video_scan.v",
+    "old": "freed[!zm_hbl_line[0]] <= 1'b1;",
+    "new": "freed[zm_hbl_line[0]] <= 1'b1;",
+    "catch": "union_main",
+    "tb": "out"
+  },
+  {
+    "id": "scan_no_bars",
+    "file": "zm_video_scan.v",
+    "old": "zm_active && ok, zm_x[0]}",
+    "new": "ok, zm_x[0]}",
+    "catch": "union_main",
+    "tb": "out"
+  },
+  {
+    "id": "pub_line_swapped",
+    "file": "zm_video_out.v",
+    "old": "if (pub_c[1]) pub_line[17:9] <= ready_line;",
+    "new": "if (pub_c[1]) pub_line[8:0] <= ready_line;",
+    "catch": "union_main",
+    "tb": "out"
+  },
+  {
+    "id": "fetch_beat_offset",
+    "file": "zm_video_planepath.v",
+    "old": "+ {8'd0, fetch_addr[2]}",
+    "new": "+ 9'd0",
+    "catch": "s:fullscreen"
+  },
+  {
+    "id": "no_pfb_load",
+    "file": "zm_video_pass.v",
+    "old": "{LOAD, 1'b1, 1'b1, mix && !first}",
+    "new": "{LOAD, 1'b1, 1'b0, mix && !first}",
+    "catch": "tutorial"
+  },
+  {
+    "id": "no_picture_load",
+    "file": "zm_video_pass.v",
+    "old": "{LOAD, 1'b1, 1'b1, mix && !first}",
+    "new": "{LOAD, 1'b1, 1'b1, 1'b0}",
+    "catch": "union_main"
+  },
+  {
+    "id": "bg_rows_not_stored",
+    "file": "zm_video_pass.v",
+    "old": "{STORE, 1'b1, is_bg || dirty, 1'b0}",
+    "new": "{STORE, 1'b1, dirty, 1'b0}",
+    "catch": "tutorial"
+  },
+  {
+    "id": "mixed_rows_not_stored",
+    "file": "zm_video_pass.v",
+    "old": "{STORE, 1'b1, is_pl && dirty, p_mix}",
+    "new": "{STORE, 1'b1, 1'b0, p_mix}",
+    "catch": "tutorial"
+  },
+  {
+    "id": "row_address_3072",
+    "file": "zm_video_pass.v",
+    "old": "wire [31:0] row = {12'd0, line, 11'd0} + {13'd0, line, 10'd0} + {16'd0, line, 7'd0};",
+    "new": "wire [31:0] row = {12'd0, line, 11'd0} + {13'd0, line, 10'd0};",
+    "catch": "tutorial"
+  },
+  {
+    "id": "loads_swapped",
+    "file": "zm_video_rowio.v",
+    "old": "assign rd_req_addr = lq[0] ? pfb_addr : d_addr;",
+    "new": "assign rd_req_addr = lq[0] ? d_addr : pfb_addr;",
+    "catch": "union_main"
+  },
+  {
+    "id": "picture_halves_swapped",
+    "file": "zm_video_rowio.v",
+    "old": "assign ld_acc_data = {rd_rsp_data[55:32], rd_rsp_data[23:0]};",
+    "new": "assign ld_acc_data = {rd_rsp_data[23:0], rd_rsp_data[55:32]};",
+    "catch": "s:alpha"
+  },
+  {
+    "id": "skid_overrun",
+    "file": "zm_video_rowio.v",
+    "old": "count + {2'd0, infl} < 3'd3",
+    "new": "count + {2'd0, infl} < 3'd6",
+    "catch": "tutorial"
+  },
+  {
+    "id": "no_interlock",
+    "file": "zm_video_out.v",
+    "old": ".d_ok(!pending)",
+    "new": ".d_ok(1'b1)",
+    "catch": "s:worst",
+    "tb": "out"
+  },
+  {
+    "id": "swap_without_vbl",
+    "file": "zm_video_out.v",
+    "old": "wire present, swap = pending && vbl;",
+    "new": "wire present, swap = pending;",
+    "catch": "s:worst",
+    "tb": "out"
+  },
+  {
+    "id": "scanout_shows_back",
+    "file": "zm_video_out.v",
+    "old": ".base(front_n ? fb1_base : fb0_base)",
+    "new": ".base(front_n ? fb0_base : fb1_base)",
+    "catch": "union_main",
+    "tb": "out"
+  },
+  {
+    "id": "fetch_ignores_scanout",
+    "file": "zm_video_scanfetch.v",
+    "old": "FREE: if (dp_free[y[0]]) st <= ASK;",
+    "new": "FREE: st <= ASK;",
+    "catch": "union_main",
+    "tb": "out"
+  }
 ]
