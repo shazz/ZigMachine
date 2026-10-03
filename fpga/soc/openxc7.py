@@ -34,6 +34,23 @@ def prepare_env() -> None:
             raise ToolchainMissingError(needed)
 
 
+# nextpnr-xilinx options LiteX has no knob for (fpga/README.md "Timing under openXC7").
+# Congestion-driven spreading: without it the glass SoC (PS7 + GP0) packs into a
+# hot spot the router never clears (overuse falls to ~150, then grows); the PS7's
+# own tie-offs route in 2 iterations on an empty die. OPENXC7_PNR_OPTS overrides.
+PNR_OPTS = os.environ.get("OPENXC7_PNR_OPTS", "--placer-heap-congestion-spread")
+
+
+def add_pnr_opts(script: Path, opts: str = PNR_OPTS) -> None:
+    """Splice `opts` into the nextpnr-xilinx line of LiteX's build script."""
+    text = script.read_text()
+    if "nextpnr-xilinx " not in text:
+        raise ValueError(f"{script}: no nextpnr-xilinx line to add {opts!r} to")
+    if opts and opts not in text:
+        script.write_text(text.replace("nextpnr-xilinx ", f"nextpnr-xilinx {opts} ", 1))
+
+
 def run_build(gateware_dir: str, build_name: str) -> None:
     """Run LiteX's generated build_<name>.sh inside the openXC7 container."""
+    add_pnr_opts(Path(gateware_dir) / f"build_{build_name}.sh")
     subprocess.run([str(WRAPPER), "run", "bash", f"build_{build_name}.sh"], cwd=gateware_dir, check=True)

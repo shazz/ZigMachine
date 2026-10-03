@@ -11,7 +11,7 @@
 #   openxc7.sh bit TOP OUT XDC V...  synth -> pnr -> fasm -> frames -> OUT/TOP.bit
 #   openxc7.sh run CMD...            any command in the container, cwd preserved
 #
-# OPENXC7_MEM caps every container's memory (default 8g: the box is shared).
+# OPENXC7_MEM caps every container's memory (default 6g: the box is shared, one heavy job at a time).
 set -euo pipefail
 
 FPGA="$(cd "$(dirname "$0")/.." && pwd)"
@@ -19,7 +19,7 @@ ROOT="$(cd "$FPGA/.." && pwd)"
 RECIPE="$FPGA/docker/openxc7"
 TAG="$(cat "$RECIPE/Dockerfile" "$RECIPE/entry.sh" "$RECIPE/flake.nix" "$RECIPE/flake.lock" | sha256sum | cut -c1-12)"
 IMAGE="zm-openxc7:$TAG"
-MEM="${OPENXC7_MEM:-8g}"
+MEM="${OPENXC7_MEM:-6g}"
 PART=xc7z010clg400-1
 DBPART=xc7z010clg400  # LiteX and openXC7.mk look up $CHIPDB/$DBPART.bin
 export CHIPDB="$FPGA/.tools/chipdb"

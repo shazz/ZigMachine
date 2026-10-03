@@ -9,6 +9,44 @@ reconstructed from the commits that made them, so they are shorter.
 
 ---
 
+## 2026-10-02 — The seal's mechanism: U-mode plus fixed windows in VexRiscv's translation slot
+
+**Status:** accepted for review (`fpga/rtl/seal/README.md`; it refines the ADR below, which names no mechanism)
+
+**Context:** The cart, the ROM and the firmware share one VexRiscv, and the board
+build has no wasm bounds checks. The previous ADR says "a hardware bus window",
+but there is only one bus master, and the window has to know who is running.
+
+**Decision:**
+- The firmware runs in M and the cart and ROM run in U.
+- `ZmSealPlugin` replaces VexRiscv's static translator. It asks
+  `rtl/seal/zm_seal.v` whether an address may be read, written or executed,
+  using the core's own privilege, against windows fixed at elaboration
+  (`zm_seal_map.vh`).
+- A "no" is a precise trap and the access never reaches the bus. A data denial
+  is reported as a page fault (13/15), because VexRiscv's DataCache ignores
+  non-paging permissions on uncached accesses.
+- The cart calls firmware imports through an instruction-fetch fault at a
+  registered entry point, so cart code is unchanged.
+
+**Alternatives considered:**
+- A privilege CSR outside the core: stores still in flight at the switch get
+  judged wrong (`sw; ecall`).
+- VexRiscv PMP: programmable regions the seal does not need, and by reading,
+  the same uncached-path gap.
+- A Wishbone decoder after the core: no privilege, and a store's `err` is not
+  seen.
+- Bounds checks: −36 % of the cart's cycles.
+
+**Consequences:**
+- About +13 to +84 LUT and +39 FF (Yosys).
+- No per-access cycles and no fmax loss (81 vs 79 MHz under openXC7).
+- About 46 to 51 cycles per gate.
+- The firmware must link into the windows and must validate any address it
+  touches for the cart (misaligned emulation, `hwBlit`).
+
+---
+
 ## 2026-10-02 — FPGA video composites into a DDR framebuffer; the seal is a hardware bus window
 
 **Status:** accepted (Matt, after the Fable review, `fpga/REVIEW_FABLE.md` findings 1–2)

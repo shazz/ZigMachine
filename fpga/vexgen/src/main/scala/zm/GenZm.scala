@@ -20,6 +20,8 @@ case class ZmArgs(
     iWays: Int = 1,
     dCacheSize: Int = 4096,
     dWays: Int = 1,
+    seal: Boolean = false,
+    relaxedPc: Boolean = false,
     outputFile: String = "VexRiscv",
     targetDirectory: String = "."
 )
@@ -31,6 +33,8 @@ object GenZm {
       opt[Int]("iWays").action((v, c) => c.copy(iWays = v))
       opt[Int]("dCacheSize").action((v, c) => c.copy(dCacheSize = v))
       opt[Int]("dWays").action((v, c) => c.copy(dWays = v))
+      opt[Unit]("seal").action((_, c) => c.copy(seal = true))
+      opt[Unit]("relaxedPc").action((_, c) => c.copy(relaxedPc = true))
       opt[String]("outputFile").action((v, c) => c.copy(outputFile = v))
       opt[String]("targetDirectory").action((v, c) => c.copy(targetDirectory = v))
     }
@@ -39,7 +43,7 @@ object GenZm {
 
   def iBus(a: ZmArgs) = new IBusCachedPlugin(
     resetVector = null,
-    relaxedPcCalculation = false,
+    relaxedPcCalculation = a.relaxedPc, // fmax: a register between the PC and the I$ (one more fetch stage)
     prediction = STATIC,
     compressedGen = false,
     memoryTranslatorPortConfig = null,
@@ -64,8 +68,18 @@ object GenZm {
     csrInfo = true
   )
 
-  def pipeline: List[Plugin[VexRiscv]] = List(
-    new StaticMemoryTranslatorPlugin(ioRange = _.msb),
+  // --seal (rtl/seal/README.md): U-mode, illegal CSR/xRET from U trapped,
+  // mscratch for the trap handler's stack swap, and the window translator.
+  def csr(a: ZmArgs) = {
+    val small = CsrPluginConfig.small(mtvecInit = null).copy(mtvecAccess = WRITE_ONLY, ecallGen = true, wfiGenAsNop = true)
+    if (a.seal) small.copy(userGen = true, catchIllegalAccess = true, mscratchGen = true) else small
+  }
+
+  def translator(a: ZmArgs): Plugin[VexRiscv] =
+    if (a.seal) new ZmSealPlugin(ioRange = _.msb) else new StaticMemoryTranslatorPlugin(ioRange = _.msb)
+
+  def pipeline(a: ZmArgs): List[Plugin[VexRiscv]] = List(
+    translator(a),
     new DecoderSimplePlugin(catchIllegalInstruction = true),
     new RegFilePlugin(regFileReadyKind = plugin.SYNC, zeroBoot = false),
     new IntAluPlugin,
@@ -76,9 +90,7 @@ object GenZm {
       pessimisticUseSrc = false, pessimisticWriteRegFile = false, pessimisticAddressMatch = false
     ),
     new BranchPlugin(earlyBranch = false, catchAddressMisaligned = true),
-    new CsrPlugin(
-      CsrPluginConfig.small(mtvecInit = null).copy(mtvecAccess = WRITE_ONLY, ecallGen = true, wfiGenAsNop = true)
-    ),
+    new CsrPlugin(csr(a)),
     new MulPlugin,
     new DivPlugin,
     new ExternalInterruptArrayPlugin(
@@ -98,7 +110,7 @@ object GenZm {
       array.insert(array.indexWhere(_.isInstanceOf[PhaseAllocateNames]) + 1, new ForceRamBlockPhase)
     }
     config.generateVerilog {
-      val cpuConfig = VexRiscvConfig(iBus(a) :: dBus(a) :: pipeline)
+      val cpuConfig = VexRiscvConfig(iBus(a) :: dBus(a) :: pipeline(a))
       val cpu = new VexRiscv(cpuConfig)
       cpu.rework {
         for (p <- cpuConfig.plugins) p match {
