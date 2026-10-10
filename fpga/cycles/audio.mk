@@ -13,11 +13,14 @@
 AUD_WASM_audio := $(ROOT)/docs/demo-audio.wasm
 AUD_WASM_maud  := $(ROOT)/docs/machine-audio.wasm
 AUD_SRC        := host/audio.c host/audio_bridge.c host/audio_imports.c
-AUD_HDRS       := host/haudio.h host/audio_regs.h host/host.h
+AUD_HDRS       := host/haudio.h host/audio_regs.h host/audio_queue.h host/host.h
 
 $(HOST)/common/%.aud.wasm: tools/wasm_env_rename.py tools/wasm_info.py
 	@mkdir -p $(@D)
 	cd tools && uv run python wasm_env_rename.py $(AUD_WASM_$*) aud $(CURDIR)/$@
+# The players' wasm is a prerequisite: an edited player must reach every native model built from it.
+$(HOST)/common/audio.aud.wasm: $(AUD_WASM_audio)
+$(HOST)/common/maud.aud.wasm: $(AUD_WASM_maud)
 $(HOST)/common/aplayer.c: $(HOST)/common/audio.aud.wasm
 	wasm2c $< -n audio -o $@
 $(HOST)/common/maud.c: $(HOST)/common/maud.aud.wasm
@@ -37,6 +40,21 @@ $(HOST)/%/host_audio: $(HOST)/%/env.c $(HOST)/%/cart.o $(HOST_COMMON) $(HOST)/co
 
 .PHONY: host-audio
 host-audio: memmap $(HOST)/$(CART)/host_audio
+
+# --- the native SNDH replays' oracle (tests/test_sndh_native.py): one song, no cart, a digest of
+# the writes a frame; run once with ZM_SNDH_MUSASHI=1 (the reference) and once without.
+#   make sndh-oracle && ZM_AUDIO_DIGEST=/dev/shm/n.d build/host/oracle/sndh_oracle union/beat_dis.sndh 0 600
+# (host.h wants a cart's header for its types: tutorial's.)
+ORACLE_SRC := host/sndh_oracle.c $(AUD_SRC) host/audio_soft.c
+ORACLE_RT  := $(addprefix $(HOST)/common/,rt.o rt-mem.o rt-exc.o)
+$(HOST)/oracle/sndh_oracle: $(ORACLE_SRC) $(AUD_HDRS) host/audio_queue.h host/haudio_soft.h $(ORACLE_RT) \
+		$(HOST)/common/aplayer.o $(HOST)/common/maud.o $(HOST)/tutorial/cart.h
+	@mkdir -p $(@D)/o
+	for s in $(ORACLE_SRC); do \
+		$(HOST_CC) $(HOST_AUD_CFLAGS) -I$(HOST)/tutorial -c $$s -o $(@D)/o/$$(basename $$s .c).o || exit 1; done
+	$(HOST_CC) $(@D)/o/*.o $(ORACLE_RT) $(HOST)/common/aplayer.o $(HOST)/common/maud.o -lm -lpthread -o $@
+.PHONY: sndh-oracle
+sndh-oracle: memmap $(HOST)/oracle/sndh_oracle
 
 # --- the board firmware (cycles/board.mk links these): the players for rv32 (`aligned`, as the
 # cart), the shared audio side, the queue backend and the cart's songs (tools/song_pack.py: the

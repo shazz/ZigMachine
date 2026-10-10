@@ -20,8 +20,8 @@ from migen.fhdl.verilog import convert
 
 FPGA = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(FPGA))
-from soc.zm_hp import hp_interface  # noqa: E402  (after the path insert)
-from soc.zm_sound_cpu import SOUND_CORE, SoundCPU  # noqa: E402
+from soc.zm_hp import hp_interface
+from soc.zm_sound_cpu import SOUND_CORE, SoundCPU
 
 
 class Sources:

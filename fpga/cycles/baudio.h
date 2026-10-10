@@ -20,6 +20,8 @@ struct baudio {
     uint32_t pushed;   /* writes queued */
     uint32_t resyncs;  /* frames that fell behind the sound */
     uint32_t anchors;  /* song loads that took the stamp past the sound's lead */
+    uint32_t dropped;  /* volume writes that changed nothing (host/audio_queue.h) */
+    uint32_t full;     /* writes that found the queue full and waited for room */
 };
 extern struct baudio baudio;
 

@@ -3,7 +3,7 @@
  * (soc/zm_audio_soc.py, rtl/audio/zm_audio_sched.v) at AUDIO_WINDOW.
  *
  * Pacing: the core makes 44.1 kHz from the system clock and counts its samples
- * (NOW). Each frame the players render up to NOW + ZMA_LATENCY, so the writes
+ * (NOW). Each frame the players render up to NOW + the lead, so the writes
  * reach the queue before their samples; the stamps themselves are the
  * machine's (host/audio_imports.c), so the core hears every write at the sample
  * the machine would, whatever the frame's timing. If the cart CPU falls behind
@@ -15,6 +15,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "audio_queue.h"
 #include "audio_regs.h"
 #include "baudio.h"
 #include "board.h"
@@ -24,9 +25,10 @@
 #define ZMA_REG(w) (*(volatile uint32_t*)(ZMA_WINDOW + 4u * (w)))
 enum { ZMA_QA = 0, ZMA_QD = 1, ZMA_NOW = 2, ZMA_LEVEL = 3, ZMA_STATUS = 4, ZMA_PCM_BASE = 5, ZMA_APPLIED = 6,
        ZMA_ID = 7 };
-#define ZMA_DEPTH 2048u    /* zm_audio_soc QAW = 11 */
-#define ZMA_LATENCY 2940u  /* samples ahead of the sound: 67 ms, four 60 Hz frames (the board runs a
-                              * cart at 30-40 fps: a frame must never outlast the lead) */
+/* The lead (host/audio_queue.h zma_lead): samples ahead of the sound, four 60 Hz frames (67 ms;
+ * the board runs a cart at 30-40 fps: a frame must never outlast it), three for a native digi. */
+static uint32_t g_lead = 4u * ZMA_FRAME;
+static zma_dedup g_dedup = {{~0u, ~0u, ~0u}};
 #define ZMA_MAX_RENDER 4096u
 /* The audio words of the debug mailbox (bmailbox.h): ZM_MB_ADDR + 0x80 = PS DDR 0x05ffff80, for
  * `md.l 0x05ffff80 8` from U-Boot: 'ZMAU', pushed, applied, status, resyncs, anchors, now, level. */
@@ -42,15 +44,17 @@ void audio_backend_boot(void) {
 }
 
 /* The players are instantiated (a few Mcycles of data segments): stamp from now on. */
-void audio_backend_start(void) { zma_set_ts(ZMA_REG(ZMA_NOW) + ZMA_LATENCY); }
+void audio_backend_start(void) { zma_set_ts(ZMA_REG(ZMA_NOW) + g_lead); }
+
+void audio_backend_native(uint32_t native) { g_lead = zma_lead(native); }
 
 /* A song was just staged and loaded: that can take a few Mcycles (an SNDH's depack and its
  * 1 MiB of 68000 RAM zeroed), past the sound's lead. Its first write then starts a full lead
  * ahead again, so the song plays from its start, on time (counted in `anchors`). */
 void audio_song_loaded(const char* name) {
     uint32_t now = ZMA_REG(ZMA_NOW);
-    if ((int32_t)(zma_ts() - now) < (int32_t)(ZMA_LATENCY / 2)) {
-        zma_set_ts(now + ZMA_LATENCY);
+    if ((int32_t)(zma_ts() - now) < (int32_t)(g_lead / 2)) {
+        zma_set_ts(now + g_lead);
         baudio.anchors++;
     }
     printf("ZM SONG %lu %lu %s\n", (unsigned long)zma_ts(), (unsigned long)baudio.pushed, name);
@@ -59,12 +63,17 @@ void audio_song_loaded(const char* name) {
 /* Room in the queue: wait while it is full (the core drains it as time passes). */
 static void refill(void) {
     uint32_t level;
-    do level = ZMA_REG(ZMA_LEVEL);
-    while (level >= ZMA_DEPTH);
+    level = ZMA_REG(ZMA_LEVEL);
+    if (level >= ZMA_DEPTH) baudio.full++;
+    while (level >= ZMA_DEPTH) level = ZMA_REG(ZMA_LEVEL);
     g_credits = ZMA_DEPTH - level;
 }
 
 void zma_put(uint32_t addr, uint32_t data) {
+    if (!zma_dedup_keep(&g_dedup, addr, data)) {
+        baudio.dropped++;
+        return;
+    }
     if (!g_credits) refill();
     g_credits--;
     ZMA_REG(ZMA_QA) = (zma_ts() << 10) | (addr & 0x3FFu);
@@ -95,11 +104,11 @@ void baudio_pump(uint32_t min) {
     uint32_t now = ZMA_REG(ZMA_NOW);
     int32_t ahead = (int32_t)(zma_ts() - now);
     if (ahead < 0) { /* fell behind the sound: jump ahead again, count it */
-        zma_set_ts(now + ZMA_LATENCY / 2);
+        zma_set_ts(now + g_lead / 2);
         baudio.resyncs++;
-        ahead = ZMA_LATENCY / 2;
+        ahead = (int32_t)(g_lead / 2);
     }
-    int32_t want = (int32_t)ZMA_LATENCY - ahead;
+    int32_t want = (int32_t)g_lead - ahead;
     if (want >= (int32_t)min) audio_render((uint32_t)want < ZMA_MAX_RENDER ? (uint32_t)want : ZMA_MAX_RENDER);
     mailbox();
 }
@@ -117,8 +126,10 @@ static void mailbox(void) {
 
 void baudio_report(void) {
     if (!baudio.on) return;
-    printf("ZM AUD pushed %lu applied %lu status %lx level %lu now %lu ts %lu resyncs %lu anchors %lu\n",
+    printf("ZM AUD pushed %lu applied %lu status %lx level %lu now %lu ts %lu resyncs %lu anchors %lu"
+           " dropped %lu full %lu\n",
            (unsigned long)baudio.pushed, (unsigned long)ZMA_REG(ZMA_APPLIED), (unsigned long)ZMA_REG(ZMA_STATUS),
            (unsigned long)ZMA_REG(ZMA_LEVEL), (unsigned long)ZMA_REG(ZMA_NOW), (unsigned long)zma_ts(),
-           (unsigned long)baudio.resyncs, (unsigned long)baudio.anchors);
+           (unsigned long)baudio.resyncs, (unsigned long)baudio.anchors, (unsigned long)baudio.dropped,
+           (unsigned long)baudio.full);
 }

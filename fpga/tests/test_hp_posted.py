@@ -141,8 +141,9 @@ def test_idle_stays_low_until_every_buffered_store_is_in_ddr() -> None:
 
 
 def _reads_do_not_wait(self: WishboneHP, depth: int) -> None:  # the mutant: no `wbusy` from the buffer
-    from soc.zm_hp import AW_CACHE, SIZE_4, PostedStores, ddr_word_addr
     from migen import If
+
+    from soc.zm_hp import AW_CACHE, SIZE_4, PostedStores, ddr_word_addr
 
     self.stores = PostedStores(self.bus, self.hp, self.req, depth, word_addr=ddr_word_addr, size=SIZE_4,
                                cache=AW_CACHE)  # fmt: skip

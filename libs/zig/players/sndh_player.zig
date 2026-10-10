@@ -40,6 +40,7 @@ const depackers = @import("depackers");
 const sndh = @import("sndh.zig");
 const dma = @import("ste_dma.zig");
 const mfp_chip = @import("mfp.zig");
+pub const native = @import("sndh_native.zig");
 
 // --- Musashi ---------------------------------------------------------------
 const CPU_TYPE_68000: c_uint = 1; // M68K_CPU_TYPE_68000
@@ -354,6 +355,7 @@ const REG_SR: c_uint = 17;
 const SR_SUPERVISOR_MASKED: u32 = 0x2700;
 
 fn callInterrupt(handler: u32) bool {
+    if (native.interrupt(handler)) return true;
     const sp = STACK_TOP - 6;
     writeWord(sp, @truncate(SR_SUPERVISOR_MASKED));
     writeLong(sp + 2, RETURN_PC);
@@ -406,6 +408,7 @@ pub const SndhPlayer = struct {
     /// for a stack, and move it up to IMAGE_BASE out of the vector table.
     pub fn load(self: *SndhPlayer, len: u32) bool {
         self.* = .{};
+        native.forget(); // a refused file must not leave the last tune's driver armed
         if (len == 0 or len > MAX_IMAGE) return false;
         const packed_file = depackers.isPacked(ram()[0..len]);
         // Check it is an SNDH before anything is moved: a refused file must
@@ -417,6 +420,7 @@ pub const SndhPlayer = struct {
         self.samples_per_frame = @intFromFloat(audio.SAMPLE_RATE / @as(f32, @floatFromInt(self.info.hz)));
 
         heapReset(IMAGE_BASE + image_len);
+        native.recognise(ram()[IMAGE_BASE..][0..image_len], IMAGE_BASE);
 
         // The return stub the replay routine will RTS to.
         writeWord(RETURN_PC, NOP);
@@ -591,6 +595,7 @@ pub const SndhPlayer = struct {
     // block from now on.
     fn call(self: *SndhPlayer, entry: u32, d0: u32) bool {
         _ = self;
+        if (native.call(entry)) return true; // sndh_native.zig: modes 2 and 3
         writeLong(STACK_TOP - 4, RETURN_PC);
         m68k_set_reg(REG_SP, STACK_TOP - 4);
         m68k_set_reg(REG_D0, d0);

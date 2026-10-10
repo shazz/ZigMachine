@@ -126,6 +126,27 @@ export fn audioSndhCall(d0: u32) u32 {
     if (!sndh.active and current_mode == 4) current_mode = 0;
     return @intFromBool(ok);
 }
+/// Which native replay plays the loaded SNDH instead of Musashi, or why none
+/// does (players/digi.zig Status: 0 Musashi, 1 Beat Dis, 2-3 near misses, 4 off).
+export fn audioSndhNative() u32 {
+    return @intFromEnum(players.sndh.native.status);
+}
+/// Off: the next loads play on Musashi, even a recognised driver (the oracle's
+/// reference run, fpga/tests/test_sndh_native.py). On by default.
+export fn audioSndhNativeEnable(on: bool) void {
+    players.sndh.native.enabled = on;
+}
+/// zg.requestSndhMode: 1 the tune's 68000 code on Musashi, 2 native (the same
+/// writes), 3 native with the samples on a PCM channel (players/sndh_native.zig).
+/// The mode now in force: 1 for a tune with no native driver, 0 for a mode that
+/// does not exist (refused, nothing changes).
+export fn audioSndhMode(mode: u32) u32 {
+    return players.sndh.native.setMode(mode);
+}
+/// Test only: a known-wrong native replay (sndh_native.zig mutant), 0 = none.
+export fn audioSndhNativeMutant(n: u32) void {
+    players.sndh.native.mutant = n;
+}
 export fn audioSndhStop() void {
     sndh.stop();
     if (current_mode == 4) current_mode = 0;

@@ -3,6 +3,7 @@
  * starts are the worklet's load messages (docs/audio-worklet-sealed.js) minus the
  * fetch: a song is staged at once, so it starts on the frame that asked for it. The
  * cart's side of the bridge, which calls them, is host/audio_bridge.c. */
+#include <stdio.h>
 #include <string.h>
 
 #include "haudio.h"
@@ -16,6 +17,17 @@ static char g_resident[NAME_MAX + 1]; /* the SNDH playing, for zg.sndhCall; "" w
 
 void audio_backend_boot(void);
 void audio_backend_start(void);
+void audio_backend_native(uint32_t native); /* the player audioSndhNative() names: the board's lead */
+
+/* libs/zig/players/digi.zig Status, as the console says it. Only a native replay
+ * and a near miss are said: the general path, Musashi, is silent. */
+static const char* const NATIVE[] = {
+    NULL,
+    "native beat_dis",
+    "near miss: the digi handler with an unknown sequencer, on Musashi",
+    "near miss: the driver's tables out of range, on Musashi",
+    "native replays off, on Musashi",
+};
 
 void audio_boot(void) {
     wasm_rt_allocate_memory(&g_aud.memory, AUDIO_PAGES, AUDIO_PAGES, false, WASM_DEFAULT_PAGE_SIZE);
@@ -44,6 +56,9 @@ static void play_sndh(const char* name, uint32_t arg, int raw) {
     g_resident[0] = 0;
     int32_t len = stage(name);
     if (len < 0 || !w2c_audio_audioLoadSndh(p, (uint32_t)len)) return;
+    uint32_t native = w2c_audio_audioSndhNative(p);
+    audio_backend_native(native);
+    if (native < sizeof NATIVE / sizeof NATIVE[0] && NATIVE[native]) printf("ZM SNDH %s %s\n", NATIVE[native], name);
     audio_song_loaded(name); /* a load is long (depack, 1 MiB zeroed): the stamp may need to move on */
     if (raw) w2c_audio_audioSndhPlayRaw(p, arg);
     else w2c_audio_audioSndhPlay(p, arg);
@@ -64,6 +79,7 @@ void audio_play(const char* name, uint32_t tune) {
         return;
     }
     g_resident[0] = 0;
+    audio_backend_native(0);
     int32_t len = stage(name);
     if (len < 0) return;
     audio_song_loaded(name);
