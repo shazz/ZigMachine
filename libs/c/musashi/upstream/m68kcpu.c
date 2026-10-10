@@ -998,9 +998,15 @@ int m68k_execute(int num_cycles)
 			REG_PPC = REG_PC;
 
 			/* Record previous D/A register state (in case of bus error) */
+#ifndef ZM_NO_DA_SAVE /* ZIGMACHINE LOCAL CHANGE (libs/c/musashi/README.md): only m68k_pulse_bus_error
+			 * reads REG_DA_SAVE back, the SNDH player never calls it, and this copy of 16
+			 * registers before EVERY instruction was the player's biggest cost on the FPGA. */
 			for (i = 15; i >= 0; i--){
 				REG_DA_SAVE[i] = REG_DA[i];
 			}
+#else
+			(void)i;
+#endif
 
 			/* Read an instruction and call its handler */
 			REG_IR = m68ki_read_imm_16();

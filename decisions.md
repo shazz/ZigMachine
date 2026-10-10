@@ -730,3 +730,19 @@ ABI rather than a Zig API, apps in any language sit on it.
 - A PCM sample the players rewrite less than the lead (67 ms) before it is played would be read new (the STE DMA double buffer case): not met by any cart measured; an audio CPU running in step with the core removes it.
 - The players run with the cart's translation (no bounds checks, M mode, as the whole board firmware today): the seal does not yet separate them.
 - An audio CPU later drives the same queue; a second sound chip gets its own register range behind it.
+
+## 2026-10-10 — One local change to the vendored Musashi: no per-instruction register save
+
+**Status:** accepted
+**Context:** On the FPGA, an emulated 68000 instruction cost the cart CPU about 1,160 cycles. A digidrum SNDH (beat_dis.sndh) ran about 6,840 of them a frame, 8.0 Mcycles against a 1.67 Mcycle budget. A profile of the native player showed Musashi's `m68k_execute` copying D0-A7 into `REG_DA_SAVE` before **every** instruction: 16 loads and 16 stores, so a bus error can restore them. Only `m68k_pulse_bus_error` reads them back, and the SNDH player never calls it.
+**Decision:** `libs/c/musashi/upstream/m68kcpu.c` keeps the loop inside `#ifndef ZM_NO_DA_SAVE`, and `config/zm_musashi.h` defines it. This is the one local change to the vendored code; `libs/c/musashi/README.md` records it and the way to re-apply it after an update.
+**Alternatives considered:**
+- Leave upstream byte-for-byte: the cost stays.
+- Patch a copy at build time (a sed step in build.zig): the change is just as real but harder to see.
+- Change the player instead: it cannot reach the loop.
+
+**Consequences:**
+- beat_dis.sndh costs 6.5 Mcycles a frame on the cart CPU instead of 8.0 (-18 %); x86 native -38 %.
+- The player's stamped chip writes are byte-identical with and without the loop: sos, wow_scroller and beat_dis, 10 s each, native.
+- The SNDH gates pass (`./build.sh --only sndh sndh_call sndh_relocate union_beatdis union_superscroller union_demo_music union_intro_music c_music`). union_superscroller's 4 ms wall-clock budget failed once under a load of 15 on 8 cores; run alone it passes, at 3.43 ms median.
+- A future screen that needs bus-error emulation must `#undef ZM_NO_DA_SAVE`.
