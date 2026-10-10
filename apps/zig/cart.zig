@@ -94,6 +94,8 @@ const scene = switch (opts.index) {
     81 => @import("scenes/snyd_90.zig"), // OMEGA / SYNC / TCB, Swedish New Year Demo 89-90 (original disk)
     82 => @import("scenes/dune_gen4.zig"), // DUNE / GEN4 DEMO 1990 (original ST disk): intro, main part, title, menu, F1, F2
     83 => @import("scenes/naos_nitrowave.zig"), // NAOS / THE NITROWAVE DEMO, menu + F1 + F2 + F3 (ported from the ST disk)
+    84 => @import("scenes/raytrace.zig"), // SDF ray tracer, Q16.16 fixed point (FPGA CPU benchmark)
+    85 => @import("scenes/raytrace_f32.zig"), // the same ray tracer on f32
     else => @compileError("bad cart index"),
 };
 

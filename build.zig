@@ -490,6 +490,8 @@ pub fn build(b: *std.Build) void {
         "demo-snyd_90", // 81 — OMEGA / SYNC / TCB, Swedish New Year Demo 89-90: intro, menu, F1..F6 (ported from the disk; F3..F6 best effort)
         "demo-dune_gen4", // 82 — DUNE / GEN4 DEMO 1990: intro, main part, title, menu, F1, F2 (ported from the ST disk)
         "demo-naos_nitrowave", // 83 — NAOS / THE NITROWAVE DEMO: the menu, F2 big sprite, F3 Sapristi (ported from the ST disk)
+        "demo-raytrace", // 84 — SDF ray-traced scene in Q16.16 fixed point: also the FPGA CPU benchmark
+        "demo-raytrace_f32", // 85 — the same ray tracer on f32 (soft-float on the FPGA), for comparison
     };
     for (cart_names, 0..) |name, idx| {
         if (name.len == 0) continue; // excluded cart (see note above)
