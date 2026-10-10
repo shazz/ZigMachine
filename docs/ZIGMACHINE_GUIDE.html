@@ -58,7 +58,7 @@ select it in <code>apps/floppy.zig</code>.
 screen step by step in Zig, C and Rust, and runs each step on the real machine.
 This page is the reference you reach for afterwards.</p>
 </div>
-      <p class="stamp">Generated 2026-09-27 by tools/gen_docs.py from machine/sdk, libs/zig, rom/gem and docs/*.md</p>
+      <p class="stamp">Generated 2026-10-10 by tools/gen_docs.py from machine/sdk, libs/zig, rom/gem and docs/*.md</p>
     </section>
     <section class="ref" id="examples">
       <header class="sec-h"><span class="eyebrow">Start</span><h2>Examples<small>six scenes, in Zig</small></h2></header>
@@ -893,6 +893,11 @@ requestSong(&quot;sos.sndh&quot;) ──►  polls pollSongRequest() every frame
 <td><code>.raw</code></td>
 <td>8-bit PCM at 12517 Hz</td>
 <td>no</td>
+</tr>
+<tr>
+<td><code>.sap</code></td>
+<td>an Atari 8-bit tune's own 6502 code on the machine's POKEY (<code>libs/zig/players/sap_player.zig</code>): TYPE B and C, mono; D/S/R and STEREO are refused, with the reason on the console</td>
+<td>yes: <code>tune</code> counts from 1, 0 = the file's DEFSONG</td>
 </tr>
 </tbody>
 </table>
