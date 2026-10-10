@@ -8,6 +8,13 @@ setenv bootargs console=ttyPS0,921600 earlycon rootwait
 # menu cannot run (no glass block at GP0), so say so on the UART.
 if fatload mmc 0 0x1000000 zigmachine.bit; then
     fpga loadb 0 0x1000000 ${filesize}
+    # The HP ports' AFI widths, as fpga/tools/board_run.py sets them: 64-bit reads,
+    # 32-bit writes (a 64-bit write channel drops the upper half of every beat: every
+    # odd picture column black, 2026-10-03), HP0 the CPU, HP1 the video, HP2 the
+    # blitter. Only after `fpga loadb`: without the PL these registers hang the ARM.
+    mw.l 0xf8008000 0; mw.l 0xf8008014 0xf01
+    mw.l 0xf8009000 0; mw.l 0xf8009014 0xf01
+    mw.l 0xf800a000 0; mw.l 0xf800a014 0xf01
 else
     echo "zigmachine: no zigmachine.bit on the card, the PL keeps BOOT.BIN's bitstream"
 fi

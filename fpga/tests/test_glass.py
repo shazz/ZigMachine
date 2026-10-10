@@ -151,12 +151,30 @@ def test_sd_staging_lists_what_is_missing_and_refuses_devices(tmp_path: Path) ->
     for name in ("zImage", "zigmachine-z7lite.dtb", "rootfs.cpio.uboot"):
         (images / name).write_bytes(name.encode())
     out = tmp_path / "sd"
-    rows = dict(glass_sd.stage(out, tmp_path / "br", "no-such-variant"))
+    rows = dict(glass_sd.stage(out, tmp_path / "br", tmp_path / "no-firmwares"))
     assert (out / "zigmachine.dtb").read_bytes() == b"zigmachine-z7lite.dtb"
     assert (out / "boot.scr").read_bytes()[:4] == bytes.fromhex("27051956")
     assert rows["zImage"].endswith("zImage") and not any(k.startswith("zigmachine/") for k in rows)
     with pytest.raises(SystemExit, match="device"):
-        glass_sd.stage(Path("/dev/null"), None, "aligned")
+        glass_sd.stage(Path("/dev/null"), None)
+
+
+def test_sd_shelf_takes_board_firmwares_and_skips_one_older_than_the_csr_map(tmp_path: Path) -> None:
+    import os
+
+    fws = tmp_path / "board"
+    for tag in ("tutorial", "blitter"):
+        (fws / tag).mkdir(parents=True)
+        (fws / tag / "fw.bin").write_bytes(bytes(64))
+    csr = tmp_path / "csr_addr.h"
+    csr.write_text("x")
+    os.utime(csr, (100, 100))
+    os.utime(fws / "tutorial" / "fw.bin", (200, 200))
+    os.utime(fws / "blitter" / "fw.bin", (50, 50))  # built against an older map
+    rows = dict(glass_sd.build_shelf(tmp_path / "sd", fws, csr))
+    assert rows["zigmachine/demo-tutorial.zmd"].endswith("docs/demo-tutorial.zmd + " + str(fws / "tutorial" / "fw.bin"))
+    assert rows["zigmachine/demo-blitter.zmd"].startswith("STALE")
+    assert not (tmp_path / "sd" / "demo-blitter.zmd").exists()
 
 
 def _c_test(sources: list[str], test: str, name: str) -> subprocess.CompletedProcess[str]:

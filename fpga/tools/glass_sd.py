@@ -9,10 +9,10 @@ came from, and what is still missing.
 On the card:
     BOOT.BIN                 zeST's (FSBL + U-Boot): DDR, clocks and MIO without Vivado
     boot.scr                 fpga/glass/boot/boot.cmd, compiled
-    zigmachine.bit           the SoC with the glass (build/soc_z7/gateware/platform_z7.bit)
+    zigmachine.bit           the board SoC (--bit; default the blitter one, build/board_hp/zm_blit_vivado_100.bit)
     zImage, zigmachine.dtb, rootfs.cpio.uboot    plan A: our Buildroot Linux (--buildroot)
     uImage, rootfs.ub, glass                     plan B: zeST's Linux + our ARM binary
-    zigmachine/*.zmd         the shelf: fat disks (wasm cart + rv32 board image)
+    zigmachine/*.zmd         the shelf: fat disks (wasm cart + rv32 BOARD image, build/hcycles/board/<cart>/fw.bin)
     zigmachine/shelf.txt     what the OSD says about each cart (tools/shelf_meta.py)
 """
 
@@ -38,7 +38,11 @@ ZEST = FPGA / "boards/microphase_z7_7010/vendor/zest-bin"
 ZEST_TAR = ZEST / "zeST-20260518.tar.xz"
 ZEST_BOOT = ZEST / "zeST-20260518/boards/z7lite_7010/boot.bin"
 BOOT_CMD = FPGA / "glass/boot/boot.cmd"
-BITSTREAM = FPGA / "build/soc_z7/gateware/platform_z7.bit"
+BITSTREAM = FPGA / "build/board_hp/zm_blit_vivado_100.bit"
+# The board firmwares (cycles/board.mk `board-fw`): linked for the bitstream's CSR map. NOT
+# build/cycles/<variant>: those are the cycles SIMULATION's, another map, and trap on the board.
+BOARD_FW = FPGA / "build/hcycles/board"
+CSR_MAP = FPGA / "build/hcycles/gen/csr_addr.h"
 GLASS_ARM = FPGA / "glass/zig-out/arm/bin/glass"
 IH_MAGIC, IH_OS_LINUX, IH_ARCH_ARM, IH_TYPE_SCRIPT = 0x27051956, 5, 2, 6
 
@@ -64,21 +68,25 @@ def zx0pack() -> Path:
     return exe
 
 
-def build_shelf(dest: Path, variant: str) -> list[tuple[str, str]]:
-    """A fat disk for every shelf disk whose cart has a board image of `variant`."""
+def build_shelf(dest: Path, fw_dir: Path, csr_map: Path = CSR_MAP) -> list[tuple[str, str]]:
+    """A fat disk for every shelf disk whose cart has a board image in `fw_dir` (one per cart)."""
     rows = []
     dest.mkdir(parents=True, exist_ok=True)
-    for fw in sorted((FPGA / "build/cycles" / variant).glob("*/fw.bin")):
+    for fw in sorted(fw_dir.glob("*/fw.bin")):
         tag = fw.parent.name
         disk = ROOT / "docs" / f"demo-{tag}.zmd"
         if not disk.exists():
             rows.append((f"zigmachine/demo-{tag}.zmd", f"MISSING: no {disk.name} on the shelf"))
             continue
+        if csr_map.exists() and fw.stat().st_mtime < csr_map.stat().st_mtime:
+            rows.append((f"zigmachine/{disk.name}", f"STALE: {fw} predates the CSR map; make board-fw CART={tag}"))
+            continue
         packed = dest / f"{tag}.rv32.zx0"
         subprocess.run([zx0pack(), fw, packed], check=True, capture_output=True)
         (dest / disk.name).write_bytes(zmd_fat.fatten(disk.read_bytes(), packed.read_bytes()))
         packed.unlink()
-        rows.append((f"zigmachine/{disk.name}", f"{disk.relative_to(ROOT)} + {fw.relative_to(FPGA)}"))
+        src = fw.relative_to(FPGA) if fw.is_relative_to(FPGA) else fw
+        rows.append((f"zigmachine/{disk.name}", f"{disk.relative_to(ROOT)} + {src}"))
     tags = [r[0].removeprefix("zigmachine/demo-").removesuffix(".zmd") for r in rows if not r[1].startswith("MISSING")]
     if not tags:
         return rows
@@ -111,7 +119,7 @@ def _newest_glass_source() -> float:
     return max(p.stat().st_mtime for p in srcs)
 
 
-def stage(out: Path, buildroot: Path | None, variant: str) -> list[tuple[str, str]]:
+def stage(out: Path, buildroot: Path | None, fw_dir: Path = BOARD_FW, bit: Path = BITSTREAM) -> list[tuple[str, str]]:
     if str(out.resolve()).startswith("/dev") or out.is_block_device():
         raise SystemExit("glass_sd: refusing to write to a device; give a directory and copy it yourself")
     out.mkdir(parents=True, exist_ok=True)
@@ -119,16 +127,16 @@ def stage(out: Path, buildroot: Path | None, variant: str) -> list[tuple[str, st
     (out / "boot.scr").write_bytes(script_image(BOOT_CMD.read_bytes(), "zigmachine", epoch))
     rows = [("boot.scr", str(BOOT_CMD.relative_to(ROOT)))]
     rows.append(_copy(ZEST_BOOT, out, "BOOT.BIN", "run fpga/tools/fetch_board.sh (zeST's boot.bin)"))
-    rows.append(_copy(BITSTREAM, out, "zigmachine.bit", "build the SoC: soc.zigmachine_soc --target z7 --build"))
-    if BITSTREAM.exists() and BITSTREAM.stat().st_mtime < _newest_glass_source():
-        rows[-1] = ("zigmachine.bit", f"STALE: {BITSTREAM.name} predates the glass RTL; rebuild the SoC")
+    rows.append(_copy(bit, out, "zigmachine.bit", "build the SoC: soc.zigmachine_soc --target z7 --build"))
+    if bit.exists() and bit.stat().st_mtime < _newest_glass_source():
+        rows[-1] = ("zigmachine.bit", f"STALE: {bit.name} predates the glass RTL; rebuild the SoC")
     images = buildroot / "images" if buildroot else None
     for src, name in (("zImage", "zImage"), ("zigmachine-z7lite.dtb", "zigmachine.dtb"),
                       ("rootfs.cpio.uboot", "rootfs.cpio.uboot")):  # fmt: skip
         rows.append(_copy(images / src if images else None, out, name, "plan A needs --buildroot (Buildroot output)"))
     rows += _zest_linux(out)
     rows.append(_copy(GLASS_ARM, out, "glass", "cd fpga/glass && zig build -Dtarget=arm-linux-musleabihf ..."))
-    return rows + build_shelf(out / "zigmachine", variant)
+    return rows + build_shelf(out / "zigmachine", fw_dir)
 
 
 def manifest(out: Path, rows: list[tuple[str, str]]) -> str:
@@ -144,9 +152,10 @@ def main() -> None:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--out", type=Path, default=FPGA / "build/glass/sd")
     p.add_argument("--buildroot", type=Path, help="Buildroot's output directory (has images/)")
-    p.add_argument("--variant", default="aligned", help="which fpga/cycles board build goes on the shelf")
+    p.add_argument("--fw-dir", type=Path, default=BOARD_FW, help="the board firmwares (<cart>/fw.bin)")
+    p.add_argument("--bit", type=Path, default=BITSTREAM, help="the board bitstream the firmwares were built for")
     a = p.parse_args()
-    print(manifest(a.out, stage(a.out, a.buildroot, a.variant)), end="")
+    print(manifest(a.out, stage(a.out, a.buildroot, a.fw_dir, a.bit)), end="")
 
 
 if __name__ == "__main__":
