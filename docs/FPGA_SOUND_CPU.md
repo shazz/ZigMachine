@@ -21,6 +21,16 @@ replaces the survey in `FPGA_AUDIO_CPU.md`. The departures from that survey are 
 - **The cart CPU sees `SOUND_WINDOW` only.** It copies the sound image to `SOUND_BASE`, sets RUN and forwards the
   cart's song requests (`fpga/cycles/bsound.c`).
 
+## On the board
+
+`soc.zigmachine_soc --target z7 --sound-cpu` (with the glass) builds the board SoC with the sound
+CPU: `add_audio(sound=True)`, the same block as the sim's `hp_sim --sound-cpu`, with HP3 shared between
+the sound CPU and the core's PCM reads through the arbiter. The CSR map is the same as without it:
+the sound CPU's registers are a Wishbone window (`SOUND_WINDOW`), and the audio core's window moves
+behind it. Its cart images are `ZM_AUDIO=snd` (`make board-fw ZM_AUDIO=snd CART=<cart>`, into
+`build/hcycles/board_snd/`). They load the sound image, start it and forward the cart's song
+requests through the mailbox, so the cart CPU spends almost nothing on the music.
+
 ## Registers
 
 `SOUND_WINDOW` = 0x93000000 (uncached), `soc/zm_sound_regs.py`:

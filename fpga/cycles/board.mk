@@ -37,6 +37,9 @@ B_sw     :=
 # ZM_AUDIO=snd: the players on the sound CPU (cycles/sound.mk); this image starts it and forwards
 # the cart's songs (cycles/bsound.c), for a bitstream built with the sound CPU.
 ZM_AUDIO ?= 1
+# ZM_AUDIO=snd images go to build/hcycles/{sim,board}_snd/: never over the cart-CPU-audio ones.
+ASUF_snd := _snd
+ASUF     := $(ASUF_$(ZM_AUDIO))
 A_0      := -DZM_NO_AUDIO
 AUD_CART_SRC_1   := $(AUD_FW_SRC)
 AUD_CART_SRC_0   := $(AUD_FW_SRC)
@@ -61,13 +64,13 @@ $(HCYC)/gen/csr_addr.h: $(SOC_HP)/hp_sim.json build/soc_z7/csr.json tools/cycles
 		$(if $(filter hw,$(ZM_BLIT)),--need-blit)
 
 define hp_rules
-$(HCYC)/$(1)/common/fw.a: $(HFW_DEPS)
+$(HCYC)/$(1)$(ASUF)/common/fw.a: $(HFW_DEPS)
 	@mkdir -p $$(@D)/fw
 	for s in $(HFW_FILES); do \
 		$(RV_CC) $(HRV_CFLAGS) $(H_$(1)) -c $$$$s -o $$(@D)/fw/$$$$(basename $$$$s).o || exit 1; done
 	rm -f $$@ && $(RV_AR) rcs $$@ $$(@D)/fw/*.o
-$(HCYC)/$(1)/%/fw.elf: $(CYC)/aligned/%/cart.o $(CYC)/aligned/common/machine.o $(CYC)/aligned/common/rom.o \
-		$(HCYC)/$(1)/common/fw.a $(HOST)/%/env.c host/boot.c cycles/bmain.c cycles/vseq.c \
+$(HCYC)/$(1)$(ASUF)/%/fw.elf: $(CYC)/aligned/%/cart.o $(CYC)/aligned/common/machine.o $(CYC)/aligned/common/rom.o \
+		$(HCYC)/$(1)$(ASUF)/common/fw.a $(HOST)/%/env.c host/boot.c cycles/bmain.c cycles/vseq.c \
 		$(AUD_FW_DEPS) $(HCYC)/songs/%.c $(AUD_CART_OBJ_$(ZM_AUDIO)) FORCE
 	@mkdir -p $$(@D)
 	rm -f $$(@D)/aud_*.o
@@ -79,9 +82,9 @@ $(HCYC)/$(1)/%/fw.elf: $(CYC)/aligned/%/cart.o $(CYC)/aligned/common/machine.o $
 	$(RV_CC) $(HRV_CFLAGS) $(H_$(1)) -I$(HOST)/$$* -DZM_CART='"$$*"' -c cycles/bmain.c -o $$(@D)/main.o
 	$(RV_CC) $(HRV_LDFLAGS_$(ZM_AUDIO)) -o $$@ $$(@D)/main.o $$(@D)/vseq.o $$(@D)/env.o $$(@D)/boot.o $$< \
 		$$(@D)/aud_*.o $(AUD_CART_OBJ_$(ZM_AUDIO)) \
-		$(CYC)/aligned/common/machine.o $(CYC)/aligned/common/rom.o $(HCYC)/$(1)/common/fw.a -lm
+		$(CYC)/aligned/common/machine.o $(CYC)/aligned/common/rom.o $(HCYC)/$(1)$(ASUF)/common/fw.a -lm
 # fw.bin is what lands at DDR_BASE (soc/zm_hp.py): the CPU's reset vector is its first word.
-$(HCYC)/$(1)/%/fw.bin: $(HCYC)/$(1)/%/fw.elf
+$(HCYC)/$(1)$(ASUF)/%/fw.bin: $(HCYC)/$(1)$(ASUF)/%/fw.elf
 	$(RV_OBJCOPY) -O binary $$< $$@
 	truncate -s %8 $$@
 	test $$$$(stat -c %s $$@) -lt 12582912 || (echo "$$@: over 12 MiB, it would overlap the pictures"; exit 1)
@@ -89,11 +92,11 @@ endef
 $(foreach v,sim board,$(eval $(call hp_rules,$(v))))
 
 # The DDR model is 64 bits wide: one little-endian doubleword a line.
-$(HCYC)/sim/%/zm_ddr.init: $(HCYC)/sim/%/fw.bin
+$(HCYC)/sim$(ASUF)/%/zm_ddr.init: $(HCYC)/sim$(ASUF)/%/fw.bin
 	od -An -v -tx8 -w8 $< | tr -d ' ' >$@
 
 .PHONY: hp-sim board-fw
-board-fw: memmap $(HCYC)/board/$(CART)/fw.bin
-	@ls -l $(HCYC)/board/$(CART)/fw.bin
+board-fw: memmap $(HCYC)/board$(ASUF)/$(CART)/fw.bin
+	@ls -l $(HCYC)/board$(ASUF)/$(CART)/fw.bin
 hp-sim: memmap
 	uv run python tools/hp_sim_run.py $(CART)

@@ -51,9 +51,9 @@ def main() -> int:
     ap.add_argument("--timeout", type=int, default=6 * 3600)
     ap.add_argument("--tag", help="the output directory's name (default: the cart, + _noaudio)")
     a = ap.parse_args()
-    out = OUT / (a.tag or (a.cart if a.audio == "1" else f"{a.cart}_noaudio"))
+    out = OUT / (a.tag or (a.cart if a.audio == "1" else f"{a.cart}_{'snd' if a.audio == 'snd' else 'noaudio'}"))
     out.mkdir(parents=True, exist_ok=True)
-    image = f"build/hcycles/sim/{a.cart}/zm_ddr.init"
+    image = f"build/hcycles/sim{'_snd' if a.audio == 'snd' else ''}/{a.cart}/zm_ddr.init"  # board.mk ASUF
     make(f"build/host/{a.cart}/host_audio")
     make(image, zm_frames=str(a.frames), zm_every=str(a.frames), zm_audio=a.audio)
     native = out / "native"
@@ -62,7 +62,7 @@ def main() -> int:
     subprocess.run([str(host), a.cart, str(a.frames + 8), str(a.frames + 8)], env=env, check=True, capture_output=True)
     rc = run_sim(FPGA / image, a.model, out, a.timeout)
     print(f"sim rc={rc}: {out.relative_to(FPGA)}")
-    if a.audio != "1":
+    if a.audio == "0":
         return rc
     cmp = [sys.executable, str(FPGA / "tools/audio_sim_compare.py"), str(native), str(out / "uart.txt")]
     return subprocess.run([*cmp, str(out / "audio_tap.txt"), "--mode", a.mode]).returncode

@@ -171,6 +171,10 @@ def main() -> None:
     p.add_argument("--no-glass", action="store_true", help="z7: no ARM front panel; the CPU runs from reset (JTAG)")
     p.add_argument("--blit", action="store_true", help="z7: the blitter on HP2 (soc/zm_blit_soc.py; needs the glass)")
     p.add_argument("--no-audio", action="store_true", help="z7: no sound core (HP3) and DVI, not HDMI with audio")
+    p.add_argument(
+        "--sound-cpu", action="store_true",
+        help="z7: the players on the sound CPU (soc/zm_sound_cpu.py), sharing HP3 with the core's PCM",
+    )  # fmt: skip
     p.add_argument("--sys-mhz", type=float, default=100.0, help="z7: the sys clock (CPU, bus)")
     p.add_argument("--comp-mhz", type=float, default=125.0, help="z7: the compositor's clock (soc/zm_video_cdc.py)")
     p.add_argument(
