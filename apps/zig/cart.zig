@@ -98,6 +98,8 @@ const scene = switch (opts.index) {
     85 => @import("scenes/raytrace_f32.zig"), // the same ray tracer on f32
     86 => @import("scenes/sap_test.zig"), // SAP TEST: Atari 8-bit SAP tunes on the POKEY, a jukebox
     87 => @import("scenes/fuji_hobbytronic.zig"), // FUJI HOBBYTRONIC: a 3D Fuji with rasters, to an ASMA SAP tune on the POKEY
+    88 => @import("scenes/replicants_emlyn_f32.zig"), // Emlyn Hughes on the CODEF algorithm in f32 (62 is fixed point)
+    89 => @import("scenes/polkadots_f32.zig"), // POLKA DOTS on the CODEF algorithm in f32 (65 is fixed point)
     else => @compileError("bad cart index"),
 };
 

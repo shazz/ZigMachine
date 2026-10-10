@@ -17,7 +17,11 @@
 // times each mode separately — the comparison table at the end is the point of
 // the screen.
 //
-//   node apps/polkadots_headless.mjs [outdir]
+//   node apps/polkadots_headless.mjs [outdir] [--cart <wasm>]
+//
+// --cart runs the same proof on another build of the screen: the gate runs it
+// on demo-polkadots.wasm (fixed point, the default) and on
+// demo-polkadots_f32.wasm (the CODEF algorithm in f32, kept for the FPU test).
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { cartRam, romRam } from "../docs/wasm_hiwater.js";
 
@@ -143,6 +147,26 @@ class Screen {
         return { blits, sizes };
     }
 
+    // Every cell above the readout as its dot size, or -1 where nothing was
+    // stamped: what two builds of the screen are compared by.
+    cells() {
+        const out = [];
+        for (let cy = 0; cy < CELLS_Y - 1; cy++) {
+            for (let cx = 0; cx < CELLS_X; cx++) {
+                let lit = false, ink = 0;
+                for (let y = 0; y < CELL; y++) {
+                    for (let x = 0; x < CELL; x++) {
+                        const [r] = this.rgb(X_OFF + cx * CELL + x, Y_OFF + cy * CELL + y);
+                        if (r > 0) lit = true;
+                        if (r > 7) ink++;
+                    }
+                }
+                out.push(lit ? TILE_OF_INK.get(ink) ?? 0 : -1);
+            }
+        }
+        return out;
+    }
+
     // The cart's own count, read out of the 24-pixel binary tap in the last
     // row: 8 bits of mode, then 16 bits of blitter operations, LSB first, in an
     // ink that is (0,0,1) — black on screen, a 1 here.
@@ -221,9 +245,11 @@ class Screen {
 // 17, 25, 37, 45, 49 — the halftone ramp itself.
 const TILE_OF_INK = new Map([[0, 0], [1, 1], [5, 2], [9, 3], [13, 4], [17, 5], [25, 6], [37, 7], [45, 8], [49, 9]]);
 
-const out = process.argv[2] || "/tmp/polkadots";
+const argv = process.argv.slice(2);
+const CART = argv.includes("--cart") ? argv[argv.indexOf("--cart") + 1] : "docs/demo-polkadots.wasm";
+const out = argv.find((a, i) => !a.startsWith("--") && argv[i - 1] !== "--cart" && argv[i - 1] !== "--break") || "/tmp/polkadots";
 await mkdir(out, { recursive: true });
-const screen = await boot();
+const screen = await boot(CART);
 
 // --- MODE 1, the port itself: the picture is checked against the original ---
 screen.run(1);
@@ -294,6 +320,35 @@ if (half.ops > solid.ops) throw new Error("HALFTONE should never issue more fill
 if (fills.ops > dot.ops) throw new Error("FILL DOTS should never issue more ops than DOT SIZE: both are one op per lit cell");
 console.log(`  claim: HALFTONE covers the grid in ${half.ops.toFixed(0)} fills where DOT SIZE needs ${dot.ops.toFixed(0)} blits ` +
     `(${(dot.ops / half.ops).toFixed(1)}x fewer operations)`);
+// ONE BENCH, TWO NUMBER SYSTEMS. The default cart projects, lights and fills
+// the torus in integers; polkadots_f32 runs the CODEF algorithm in f32. Their
+// dots must agree a rounding apart: in lockstep over 300 frames (MODE 1, every
+// 5th frame), a cell may be lit in one and dark in the other, or one dot size
+// over, in under 1% of the lit cells, and never further apart than one size.
+// --break fixed compares against a cart a frame AHEAD instead.
+if (CART === "docs/demo-polkadots.wasm") {
+    const a = await boot(CART), b = await boot("docs/demo-polkadots_f32.wasm");
+    if (argv.includes("--break") && argv[argv.indexOf("--break") + 1] === "fixed") b.run(1);
+    let differ = 0, lit = 0, step = 0;
+    for (let f = 1; f <= 300; f++) {
+        a.run(1);
+        b.run(1);
+        if (f % 5) continue;
+        const ca = a.cells(), cb = b.cells();
+        for (let i = 0; i < ca.length; i++) {
+            if (ca[i] >= 0) lit++;
+            if (ca[i] === cb[i]) continue;
+            differ++;
+            step = Math.max(step, Math.abs(ca[i] - cb[i]));
+        }
+    }
+    console.log(`  fixed vs f32, 60 frames: ${differ} of ${lit} lit cells differ, by at most ${step} dot size(s)`);
+    if (differ * 100 >= lit || step > 1) {
+        if (argv.includes("--break")) { console.log("polkadots: PASS (--break fixed was caught)"); process.exit(0); }
+        throw new Error(`the fixed-point cart's dots are not the f32 cart's: ${differ}/${lit} cells differ, by up to ${step}`);
+    }
+    if (argv.includes("--break")) throw new Error("--break fixed was NOT caught");
+}
 // The small canvas and the polygon list come from zg.mem, once per cart load.
 const refused = screen.machine.hwRamAllocFailures();
 if (refused) throw new Error(`${refused} zg.mem allocation(s) refused`);
