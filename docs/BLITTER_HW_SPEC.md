@@ -381,6 +381,7 @@ TRIANGLE (faster too).
 |---|---|
 | FILL solid or halftone, LINE `MT_B` | **1.0** (a write a clock) |
 | FILL_MT / LINE / TRIANGLE combining with the destination (`MT_XOR`, `MT_OR`) | **4.0** (read request, answer, decide, write) |
+| ... where the minterm cannot change the destination (`MT_OR`/`MT_XOR` of a 0: a halftone's background bit, the glenz's other-object rows) | **1.0**: no read, no write, still counted in `CYCLES` |
 | BLIT copy (B only) | **4.0** per pixel (keyed: 4.0 per candidate pixel) |
 | BLIT with A, B and C (cookie-cut) | **6.0** |
 | TRIANGLE, `MT_B` | **1.5** for a large one; about 9 for a 16-row one (35 clocks of divider per edge per scanline) |
