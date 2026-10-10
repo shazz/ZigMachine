@@ -10,3 +10,6 @@ if [ ! -x "$GLASS" ]; then
     exit 1
 fi
 install -D -m 0755 "$GLASS" "$TARGET_DIR/usr/bin/glass"
+# Buildroot's strip pass ran before this script, so the raw zig-out binary
+# (debug_info, symtab: 3.4 MB) would reach the rootfs unstripped (0.5 MB stripped).
+"${TARGET_CROSS}strip" "$TARGET_DIR/usr/bin/glass"
