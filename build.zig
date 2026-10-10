@@ -492,6 +492,7 @@ pub fn build(b: *std.Build) void {
         "demo-naos_nitrowave", // 83 — NAOS / THE NITROWAVE DEMO: the menu, F2 big sprite, F3 Sapristi (ported from the ST disk)
         "demo-raytrace", // 84 — SDF ray-traced scene in Q16.16 fixed point: also the FPGA CPU benchmark
         "demo-raytrace_f32", // 85 — the same ray tracer on f32 (soft-float on the FPGA), for comparison
+        "demo-sap_test", // 86 — SAP TEST: five ASMA tunes, their own 6502 code on the POKEY, picked from a list
     };
     for (cart_names, 0..) |name, idx| {
         if (name.len == 0) continue; // excluded cart (see note above)

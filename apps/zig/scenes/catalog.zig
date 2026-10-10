@@ -99,6 +99,7 @@ pub const ENTRIES = [_]Entry{
     .{ .name = "NAOS NITROWAVE DEMO", .tag = "naos_nitrowave" }, // atari st
     .{ .name = "RAYTRACE FIXED", .tag = "raytrace" }, // zigmachine
     .{ .name = "RAYTRACE F32", .tag = "raytrace_f32" }, // zigmachine
+    .{ .name = "SAP TEST", .tag = "sap_test" }, // zigmachine
     // The Union Demo's screens (union_multifake, union_textracker, ...) are NOT
     // listed: they are reached only through the UNION DEMO hub's doors (Matt,
     // 2026-09-13). Their carts stay in build.zig / cart.zig, so their disks build.
