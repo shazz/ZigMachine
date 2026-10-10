@@ -49,6 +49,8 @@ VIDEO += [f"main_ram_{n}" for n in ("cpu_rd", "cpu_wr", "dma_rd", "dma_wr", "bot
 
 HP_VIDEO = ["cmd", "status", "vbase", "fb0", "fb1", "swaps", "frame", "comp_busy", "dma_busy", "hp_cfg", "hp_probe_probe"]
 HP_GLASS = ["glass_cart_state", "glass_cart_beat"]
+# The input the glass hands the cart (soc/zm_glass.py; cycles/binput.c reads them).
+HP_GLASS += [f"glass_{n}" for n in ("key_data", "key_valid", "key_pop", "joy", "pointer", "pointer_ack")]
 
 
 def hp_header(csr: dict[str, dict[str, Any]]) -> str:

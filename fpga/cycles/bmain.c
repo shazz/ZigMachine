@@ -17,6 +17,7 @@
 
 #include "baudio.h"
 #include "bblit.h"
+#include "binput.h"
 #include "bboard.h"
 #include "bdiag.h"
 #include "bmailbox.h"
@@ -51,6 +52,7 @@ static void hash_pfb(sha256_ctx* h, u32 size) {
 static void frame(sha256_ctx* h, u32 planes, u32 size, long f) {
     struct w2c_env* e = &g_env;
     vseq_clear(e);
+    binput_frame(e); /* the glass's keys, joypad and mouse, before the frame as the browser's */
     uint32_t t0 = board_cycles();
     w2c_cart_frame(&e->cart, 16.6f);
     uint32_t t1 = board_cycles();

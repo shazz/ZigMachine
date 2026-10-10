@@ -155,6 +155,18 @@ SONG_BRIDGE = [("pollSongRequest", []), ("songNamePtr", []), ("songNameLen", [])
                ("pollSndhCalls", []), ("sndhCallD0", ["u32"]), ("sndhCallNamePtr", []), ("sndhCallNameLen", [])]
 
 
+# The input bridge (host.h host_input_bridge), in its field order, with the signature each must have.
+INPUT_BRIDGE = [("ownsKeyboard", "u32", []), ("input", "void", ["u32"]), ("inputRelease", "void", ["u32"]),
+                ("key", "void", ["u32"]), ("keyUp", "void", ["u32"]), ("setShadeMode", "u32", ["u32"]),
+                ("pointer", "void", ["u32", "u32", "u32"])]
+
+
+def input_bridge(cart: dict[str, tuple[str, list[str]]]) -> str:
+    """host_input: each input export the cart has (with the expected type), else NULL."""
+    rows = [f"w2c_cart_{n}" if cart.get(n) == (r, p) else "0" for n, r, p in INPUT_BRIDGE]
+    return "const host_input_bridge host_input = {" + ", ".join(rows) + "};\n"
+
+
 def song_bridge(cart: dict[str, tuple[str, list[str]]]) -> str:
     """host_songs: each export the cart has (with the expected type), else NULL."""
     rows = [f"w2c_cart_{n}" if cart.get(n) == ("u32", p) else "0" for n, p in SONG_BRIDGE]
@@ -190,6 +202,7 @@ def main() -> None:
             parts.append(forwarder(name, ret, params, resolve(name, who, exports), exports))
     parts.append(export_table(exports["cart"]))
     parts.append(song_bridge(exports["cart"]))
+    parts.append(input_bridge(exports["cart"]))
     (a.build / "env.c").write_text("\n".join(parts))
 
 
