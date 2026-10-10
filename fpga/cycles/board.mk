@@ -16,6 +16,7 @@
 # ZM_AUDIO=1 (default): the players run on the cart CPU into the audio core (cycles/baudio.c,
 # cycles/audio.mk); ZM_AUDIO=0: no music (the figures without it). The bitstream has the core
 # unless built with --no-audio.
+# ZM_FPU (cycles/cycles.mk): the hardware-float images, in build/hcycles/{sim,board}_fpu/.
 HCYC     := build/hcycles
 SOC_HP   := build/soc_hp
 ZM_BLIT  ?= hw
@@ -23,14 +24,14 @@ HP_DEPS  := soc/hp_sim.py soc/zm_board_mem.py soc/zm_hp.py soc/zm_simaxi.py soc/
 	soc/zm_blit_soc.py soc/zm_blit_hp.py $(wildcard rtl/blitter/*.v) \
 	soc/zm_z7.py soc/zm_glass.py $(VID_DEPS) $(wildcard rtl/glass/*.v) \
 	soc/zm_audio_soc.py $(wildcard rtl/audio/*.v) rtl/sim/zm_audio_tap.v
-HRV_CFLAGS = $(subst -I$(CYC)/gen,-I$(HCYC)/gen,$(RV_CFLAGS)) -Ibuild/vdump $(V_aligned)
+HRV_CFLAGS = $(subst -I$(CYC)/gen,-I$(HCYC)/gen,$(RV_CFLAGS)) -Ibuild/vdump $(V_$(HV))
 HFW_FILES := $(filter-out cycles/board.c,$(FW_FILES)) cycles/bboard.c cycles/bmailbox.c cycles/bdiag.c cycles/bblit.c
 HFW_DEPS  := $(FW_DEPS) cycles/bmicros.h cycles/bblit.c cycles/bblit.h cycles/bboard.c cycles/bboard.h cycles/bmailbox.c cycles/bmailbox.h cycles/bdiag.c cycles/bdiag.h cycles/vboard.h $(HCYC)/gen/csr_addr.h build/vdump/zm_memmap.h
 # The link of cycles.mk with the top 4 KiB of the window kept free for the debug
 # mailbox (cycles/bmailbox.h): the stack starts below it.
-HRV_LDFLAGS := $(subst __ram_size=0x01000000,__ram_size=0x00fff000,$(RV_LDFLAGS)) -Wl,--wrap=w2c_machine_hwBlit
+HRV_LDFLAGS := $(subst __ram_size=0x01000000,__ram_size=0x00fff000,$(RV_LDFLAGS)) -Wl,--wrap=w2c_machine_hwBlit $(L_$(HV))
 # ZM_AUDIO=snd: the cart's data ends at 28 MiB, the sound CPU's starts there (cycles/sound.mk).
-HRV_LDFLAGS_snd := $(subst __ram_size=0x01000000,__ram_size=0x00C00000,$(RV_LDFLAGS)) -Wl,--wrap=w2c_machine_hwBlit
+HRV_LDFLAGS_snd := $(subst __ram_size=0x01000000,__ram_size=0x00C00000,$(RV_LDFLAGS)) -Wl,--wrap=w2c_machine_hwBlit $(L_$(HV))
 B_hw     := -DZM_BLIT_HW
 B_sw     :=
 # sim: hash and end; board: run forever, report to the glass, print nothing.
@@ -41,8 +42,8 @@ A_0      := -DZM_NO_AUDIO
 AUD_CART_SRC_1   := $(AUD_FW_SRC)
 AUD_CART_SRC_0   := $(AUD_FW_SRC)
 AUD_CART_SRC_snd := host/audio_bridge.c cycles/bsound.c
-AUD_CART_OBJ_1   := $(CYC)/aligned/common/aplayer.o
-AUD_CART_OBJ_0   := $(CYC)/aligned/common/aplayer.o
+AUD_CART_OBJ_1   := $(CYC)/$(HV)/common/aplayer.o
+AUD_CART_OBJ_0   := $(CYC)/$(HV)/common/aplayer.o
 AUD_CART_OBJ_snd := $(HCYC)/snd/play/snd_img.o
 HRV_LDFLAGS_1    := $(HRV_LDFLAGS)
 HRV_LDFLAGS_0    := $(HRV_LDFLAGS)
@@ -52,6 +53,14 @@ H_board  = -DZM_BOARD -DZM_FRAMES=0 -DZM_EVERY=1 $(B_$(ZM_BLIT)) $(A_$(ZM_AUDIO)
 $(SOC_HP)/hp_sim.json: $(HP_DEPS)
 	systemd-run --user --scope -q -p MemoryMax=6G -p MemorySwapMax=0 \
 		uv run python -m soc.hp_sim >$(SOC_HP).log 2>&1 || (tail -20 $(SOC_HP).log; exit 1)
+# The board SoC with the f32 FPU cart core (the ZM_FPU=1 images' sim: tools/hp_sim_run.py --fpu).
+# Same SoC, same CSR map: only the core netlist differs.
+FPU_CORE := build/vexgen/VexRiscv_I16w2D4SealFpu.v
+$(SOC_HP)_fpu/hp_sim.json: $(HP_DEPS) $(FPU_CORE)
+	systemd-run --user --scope -q -p MemoryMax=6G -p MemorySwapMax=0 \
+		uv run python -m soc.hp_sim --core $(FPU_CORE) --out $(SOC_HP)_fpu >$(SOC_HP)_fpu.log 2>&1 || (tail -20 $(SOC_HP)_fpu.log; exit 1)
+$(FPU_CORE):
+	vexgen/gen.sh I16w2D4SealFpu:16384:2:4096:1:seal,fpu
 # The bitstream's CSR map: elaboration only (no toolchain), the same SoC as --build.
 build/soc_z7/csr.json: $(HP_DEPS) soc/zigmachine_soc.py
 	uv run python -m soc.zigmachine_soc --target z7 $(if $(filter hw,$(ZM_BLIT)),--blit) >build/soc_z7.log 2>&1 \
@@ -61,13 +70,13 @@ $(HCYC)/gen/csr_addr.h: $(SOC_HP)/hp_sim.json build/soc_z7/csr.json tools/cycles
 		$(if $(filter hw,$(ZM_BLIT)),--need-blit)
 
 define hp_rules
-$(HCYC)/$(1)/common/fw.a: $(HFW_DEPS)
+$(HCYC)/$(1)$(HSUF)/common/fw.a: $(HFW_DEPS)
 	@mkdir -p $$(@D)/fw
 	for s in $(HFW_FILES); do \
 		$(RV_CC) $(HRV_CFLAGS) $(H_$(1)) -c $$$$s -o $$(@D)/fw/$$$$(basename $$$$s).o || exit 1; done
 	rm -f $$@ && $(RV_AR) rcs $$@ $$(@D)/fw/*.o
-$(HCYC)/$(1)/%/fw.elf: $(CYC)/aligned/%/cart.o $(CYC)/aligned/common/machine.o $(CYC)/aligned/common/rom.o \
-		$(HCYC)/$(1)/common/fw.a $(HOST)/%/env.c host/boot.c cycles/bmain.c cycles/vseq.c \
+$(HCYC)/$(1)$(HSUF)/%/fw.elf: $(CYC)/$(HV)/%/cart.o $(CYC)/$(HV)/common/machine.o $(CYC)/$(HV)/common/rom.o \
+		$(HCYC)/$(1)$(HSUF)/common/fw.a $(HOST)/%/env.c host/boot.c cycles/bmain.c cycles/vseq.c \
 		$(AUD_FW_DEPS) $(HCYC)/songs/%.c $(AUD_CART_OBJ_$(ZM_AUDIO)) FORCE
 	@mkdir -p $$(@D)
 	rm -f $$(@D)/aud_*.o
@@ -79,9 +88,9 @@ $(HCYC)/$(1)/%/fw.elf: $(CYC)/aligned/%/cart.o $(CYC)/aligned/common/machine.o $
 	$(RV_CC) $(HRV_CFLAGS) $(H_$(1)) -I$(HOST)/$$* -DZM_CART='"$$*"' -c cycles/bmain.c -o $$(@D)/main.o
 	$(RV_CC) $(HRV_LDFLAGS_$(ZM_AUDIO)) -o $$@ $$(@D)/main.o $$(@D)/vseq.o $$(@D)/env.o $$(@D)/boot.o $$< \
 		$$(@D)/aud_*.o $(AUD_CART_OBJ_$(ZM_AUDIO)) \
-		$(CYC)/aligned/common/machine.o $(CYC)/aligned/common/rom.o $(HCYC)/$(1)/common/fw.a -lm
+		$(CYC)/$(HV)/common/machine.o $(CYC)/$(HV)/common/rom.o $(HCYC)/$(1)$(HSUF)/common/fw.a -lm
 # fw.bin is what lands at DDR_BASE (soc/zm_hp.py): the CPU's reset vector is its first word.
-$(HCYC)/$(1)/%/fw.bin: $(HCYC)/$(1)/%/fw.elf
+$(HCYC)/$(1)$(HSUF)/%/fw.bin: $(HCYC)/$(1)$(HSUF)/%/fw.elf
 	$(RV_OBJCOPY) -O binary $$< $$@
 	truncate -s %8 $$@
 	test $$$$(stat -c %s $$@) -lt 12582912 || (echo "$$@: over 12 MiB, it would overlap the pictures"; exit 1)
@@ -89,11 +98,12 @@ endef
 $(foreach v,sim board,$(eval $(call hp_rules,$(v))))
 
 # The DDR model is 64 bits wide: one little-endian doubleword a line.
-$(HCYC)/sim/%/zm_ddr.init: $(HCYC)/sim/%/fw.bin
+$(HCYC)/sim$(HSUF)/%/zm_ddr.init: $(HCYC)/sim$(HSUF)/%/fw.bin
 	od -An -v -tx8 -w8 $< | tr -d ' ' >$@
 
-.PHONY: hp-sim board-fw
-board-fw: memmap $(HCYC)/board/$(CART)/fw.bin
-	@ls -l $(HCYC)/board/$(CART)/fw.bin
+.PHONY: hp-sim board-fw soc-hp-fpu
+soc-hp-fpu: $(SOC_HP)_fpu/hp_sim.json
+board-fw: memmap $(HCYC)/board$(HSUF)/$(CART)/fw.bin
+	@ls -l $(HCYC)/board$(HSUF)/$(CART)/fw.bin
 hp-sim: memmap
 	uv run python tools/hp_sim_run.py $(CART)
