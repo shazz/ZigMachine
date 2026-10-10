@@ -20,13 +20,14 @@ import yowasp_yosys
 FPGA = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(FPGA / "tests"))
 import test_rtl  # after the path insert: reuses its compile step
-from audio_scripts import ac_rms, left, write_pcm_script, write_ym_script
+from audio_scripts import ac_rms, left, write_pcm_script, write_pokey_script, write_ym_script
 
 BUILD = FPGA / "build" / "tests" / "audio"
 ZIG = os.environ.get("ZIG", str(Path.home() / ".local/zig/0.16.0/zig"))
 TUNE = FPGA.parent / "docs/music/union/Drooling.ymraw"
 JT49 = [f"third_party/jt49/hdl/jt49{m}.v" for m in ("", "_cen", "_div", "_eg", "_exp", "_noise")]
-CORE = [f"rtl/audio/zm_audio_{m}.v" for m in ("frac", "ym", "pcm", "mix", "core")] + JT49
+POKEY = [f"rtl/audio/zm_pokey{m}.v" for m in ("", "_pair", "_poly")]
+CORE = [f"rtl/audio/zm_audio_{m}.v" for m in ("frac", "ym", "pokey", "pcm", "mix", "core")] + POKEY + JT49
 YM_AUDIO = [*CORE, "rtl/board/zm_dump_player.v", "rtl/board/ym_test_audio.v"]
 HDMI = ["rtl/board/hdmi_pattern.v", "rtl/video/zm_vtiming.v", "rtl/video/zm_tmds_enc.v", *test_rtl.HDMI_SRCS]
 SOC = [*CORE, "rtl/audio/zm_audio_sched.v", "rtl/audio/zm_audio_soc.v", "rtl/video/zm_video_sdpram.v"]
@@ -75,7 +76,9 @@ def oracle() -> None:
     """The Zig harness, the tune's ROM, and the stimulus scripts."""
     BUILD.mkdir(parents=True, exist_ok=True)
     root, eng = FPGA / "tests/audio_ref/audio_ref.zig", FPGA.parent / "machine/audio/engine.zig"
-    cmd = [ZIG, "build-exe", "-OReleaseSafe", "--dep", "engine", f"-Mroot={root}", f"-Mengine={eng}"]
+    pk = FPGA.parent / "machine/audio/pokey.zig"
+    cmd = [ZIG, "build-exe", "-OReleaseSafe", "--dep", "engine", "--dep", "pokey", f"-Mroot={root}", f"-Mengine={eng}",
+           f"-Mpokey={pk}"]
     subprocess.run([*cmd, f"-femit-bin={BUILD / 'audio_ref'}"], check=True, cwd=BUILD)
     rom = [sys.executable, str(FPGA / "tools/ym_rom.py"), str(TUNE), str(BUILD / "tune.hex")]
     subprocess.run([*rom, "--bin", str(BUILD / "tune.bin")], check=True, capture_output=True)
@@ -83,11 +86,12 @@ def oracle() -> None:
     subprocess.run([*rom[:3], *excerpt, "--loop", str(LOOP[1])], check=True, capture_output=True)
     write_pcm_script(BUILD)
     write_ym_script(BUILD)
+    write_pokey_script(BUILD)
     frames = SECONDS * 50
     (BUILD / "tune.txt").write_text(f"rom tune.bin {frames}\n")
     (BUILD / "tune_ym.txt").write_text(f"ymraw {TUNE} {frames}\n")
     (BUILD / "loop.txt").write_text(f"rom loop.bin {LOOP[0] * 2 - LOOP[1]}\n")  # through the loop, twice
-    for s in ("pcm", "ym", "ym_hold", "tune", "tune_ym", "loop"):
+    for s in ("pcm", "ym", "ym_hold", "tune", "tune_ym", "loop", "pokey"):
         r = _run([str(BUILD / "audio_ref"), f"{s}.txt", f"{s}.zig.raw"])
         assert r.returncode == 0, r.stderr
 
@@ -105,8 +109,9 @@ def test_the_rom_plays_as_the_ym_file_in_the_machine() -> None:
         ("ym_loop", ["loop.zig.raw"]),
         ("ym_core", []),
         ("soc", ["pcm.txt", "pcm.zig.raw"]),
+        ("core100", ["pokey.txt", "pokey.zig.raw", "exact"]),
     ],
-    ids=["pcm_exact", "ym_script", "ym_dump", "ym_dump_loop", "ym_test_hdmi", "soc_stamped_exact"],
+    ids=["pcm_exact", "ym_script", "ym_dump", "ym_dump_loop", "ym_test_hdmi", "soc_stamped_exact", "pokey_exact"],
 )
 def test_rtl_audio(bench: str, args: list[str]) -> None:
     r = _run([str(build_bench(bench)), *args])
@@ -147,7 +152,7 @@ MUTANTS = [
     ("pcm_dirty", "core", "rtl/audio/zm_audio_pcm.v", "if (busy) dirty <= dirty | {hit_act, hit_pos};", ""),
     ("pcm_dirty_all", "core", "rtl/audio/zm_audio_pcm.v", "!dirty[0] && !hit_pos", "dirty == 2'b00 && !hit_pos"),
     ("mix_clamp", "core", "rtl/audio/zm_audio_mix.v", "16'h7FFF : c[23:8]", "16'h7FFE : c[23:8]"),
-    ("mix_floor", "core", "rtl/audio/zm_audio_mix.v", "to16(pcm_l + ym)", "to16(pcm_l + ym + 29'sd128)"),
+    ("mix_floor", "core", "rtl/audio/zm_audio_mix.v", "to16(pcm_l + ym + pk)", "to16(pcm_l + ym + pk + 29'sd128)"),
     ("reset_mixer", "core", "rtl/audio/zm_audio_core.v", "8'h3F : 8'h00", "8'h00 : 8'h00"),
     ("ym_clock", "ym_audio", "rtl/audio/zm_audio_ym.v", ".sel(1'b1)", ".sel(1'b0)"),
     ("ym_frame", "ym_audio", "rtl/board/ym_test_audio.v", "FRAME = 882;", "FRAME = 441;"),
@@ -160,6 +165,14 @@ MUTANTS = [
     ("sched_early", "soc", "rtl/audio/zm_audio_sched.v", "ahead == 22'd0 || ahead[21]", "ahead <= 22'd1 || ahead[21]"),
     ("sched_in_mix", "soc", "rtl/audio/zm_audio_sched.v", "due && !mixing && core_ready", "due && core_ready"),
     ("sched_drop", "soc", "rtl/audio/zm_audio_sched.v", "take = push && !full;", "take = push && !full && push_d != 200;"),
+    # The POKEY in the core (zm_audio_pokey): the machine's cycles a sample, in step, then the mix.
+    ("pk_cycles", "core100", "rtl/audio/zm_audio_pokey.v", "left <= more ? 6'd41 : 6'd40;", "left <= 6'd40;"),
+    ("pk_clock_restart", "core100", "rtl/audio/zm_audio_pokey.v", "frac <= 28'd0;", "frac <= frac;"),
+    ("pk_mix_stage", "core100", "rtl/audio/zm_audio_pokey.v", "taken <= ran;", "taken <= cen;"),
+    ("pk_no_wait", "core100", "rtl/audio/zm_audio_core.v", "(pcm_done || pcm_ready) && !pk_busy", "pcm_done"),
+    ("pk_unmixed", "core100", "rtl/audio/zm_audio_mix.v", "pk_p <= pk_sum * kp;", "pk_p <= 32'd0;"),
+    ("pk_no_silence", "core100", "rtl/audio/zm_audio_pokey.v", "if (silence) quiet <= 3'd4;", "if (silence) quiet <= 3'd0;"),
+    ("pk_kp", "core100", "rtl/audio/zm_audio_mix.v", "6'd41: kp = 20'd872961;", "6'd41: kp = 20'd872960;"),
 ]
 ARGS = {
     "core": ["pcm.txt", "pcm.zig.raw", "exact"],
@@ -168,6 +181,7 @@ ARGS = {
     "ym_loop": ["loop.zig.raw"],
     "ym_core": [],
     "soc": ["pcm.txt", "pcm.zig.raw"],
+    "core100": ["pokey.txt", "pokey.zig.raw", "exact"],
 }
 
 

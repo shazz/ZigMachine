@@ -143,3 +143,29 @@ frames.** This is a known gap, not a silent degradation: `ZM AUD ... resyncs` co
 **The next lever is a cheaper Musashi interrupt entry.** The 14.6 k cycles per interrupt are mostly the glue around
 26 instructions: `m68k_execute`'s entry and exit, the instruction hook, and the render block and MFP
 bookkeeping per interrupt. Cutting that helps every digi SNDH at once, with no per-tune work.
+
+## Phase B: Atari SAP tunes on the POKEY
+
+The sound CPU also plays Atari 8-bit music: a `.sap` file's own 6502 code (`libs/zig/players/cpu6502*.zig`,
+`sap_player.zig`) driving the machine's POKEY. Like everything here, it is part of `demo-audio.wasm`. The POKEY is a
+chip of the sealed machine (`machine/audio/pokey.zig`) and of the audio core (`rtl/audio/zm_audio_pokey.v`,
+`docs/FPGA_AUDIO.md`). The design decisions are in `decisions.md` ("SAP: a 6502 of our own").
+
+| What | How it is held |
+|---|---|
+| the 6502 | 14,160 SingleStepTests vectors (MIT): registers, RAM, cycles, every bus write (`cpu6502_test.zig`) |
+| the POKEY RTL | the model, every machine cycle, both clocks, 16 break tests (`test_rtl_pokey.py`) |
+| the POKEY in the core | the machine, every sample (`pokey_exact` in `test_rtl_audio.py`, 7 break tests) |
+| the SAP player | a synthetic TYPE B player assembled in the test, plus five ASMA tunes (`test_sap.py`) |
+| the browser path | `apps/sap_check.mjs`: a PAL tone at its pitch to 0.2 %, unknown writes counted, STEREO refused; `--break ntsc` |
+| the whole chain | Warhawk on the sound CPU (soc_hp_snd) into the audio tap equals the native host: 60 writes, 3,015 samples, 0 differences |
+| against ASAP | optional, black box (asapconv, outside the repo): envelope correlation 0.86-0.94 on five tunes |
+
+**Cost on the sound CPU** (I16w2D4, `make snd-bench MUSIC=<dir> SONG=Warhawk.sap`):
+- **about 125-131 k cycles** a 60 Hz frame with a PLAYER call, **7.7 % of the frame**;
+- about 3.5 k for a frame without one: PLAYER runs at 50 Hz, so one 60 Hz frame in six has no call;
+- the load takes 0.5 M cycles. No resync and no full queue.
+
+**Not played, and said so on the console:** TYPE D/S/R (IRQ-driven and the others), STEREO (a second POKEY).
+ANTIC's DMA cycle-stealing is not modelled: the stamps are early by its share. The tunes are in
+`prototypes/sap_asma/` (SOURCES.txt), not on the site: publishing them is Matt's call.

@@ -1,5 +1,5 @@
 // The machine's sound hardware in the system clock domain: the YM2149
-// (zm_audio_ym: jt49), the four Paula channels (zm_audio_pcm) and the machine's
+// (zm_audio_ym: jt49), the POKEY (zm_audio_pokey), the four Paula channels (zm_audio_pcm) and the machine's
 // mix (zm_audio_mix), one stereo 16-bit sample every `SR_INC / SR_MOD` clocks
 // (44.1 kHz at 50 MHz: 441 / 500000) on `smp_valid`. The YM's 2 MHz is
 // `YM_INC / YM_MOD` of the clock (1 / 25 at 50 MHz). Both are exact fractions
@@ -14,7 +14,10 @@
 //               every channel stopped)
 //   0x044       STATUS (read; any write clears): bit 0 a wrap overran (pcm),
 //               bit 1 a YM count without a K (mix), bit 2 a sample came late
-//   0x048       VERSION: 0x00010100, ZM_AUDIO_VERSION
+//   0x048       VERSION: 0x00010200, ZM_AUDIO_VERSION (1.2.0: the POKEY)
+//   0x080 + 4r  POKEY register r, $D200 + r (machinePokeyWrite): AUDF/AUDC 0-7,
+//               AUDCTL 8, STIMER 9, SKCTL 15; reads the last value
+//   0x0C0       POKEY_CLOCK: bit 0 = 1 PAL, 0 NTSC (machinePokeyClock); reads it
 //   0x100 + 0x40c + 4f  channel c, field f (zm_audio_pcm): DATA, LEN, LOOP_START,
 //               LOOP_LEN (staged for TRIGGER), STEP, VOLUME, PAN, POS, CTRL
 // A write is taken on a clock with `wr` and `ready`; `ready` drops for the clock
@@ -58,6 +61,8 @@ module zm_audio_core #(
     wire       take = wr && ready;
     wire       is_ym = addr[9:6] == 4'd0;
     wire       is_ch = addr[9:8] == 2'd1;
+    wire       is_pk = addr[9:6] == 4'd2;
+    wire       is_pk_clock = addr == 10'h0C0;
     wire       ym_bus = take && is_ym && !(addr[5:2] == 4'd13 && wdata[7:0] == 8'hFF);
     wire       reset_cmd = take && addr == 10'h040 && wdata[0];
 
@@ -77,6 +82,21 @@ module zm_audio_core #(
         if (ym_wr || (take && is_ym)) shadow[ym_addr] <= ym_din;   // R13 = 0xFF is kept, as ym.zig
     end
 
+    // --- the POKEY
+    reg        pk_pal = 1'b1;
+    reg  [7:0] pk_shadow [0:15];
+    always @(posedge clk) begin
+        if (rst) pk_pal <= 1'b1;
+        else if (take && is_pk_clock) pk_pal <= wdata[0];
+        if (take && is_pk) pk_shadow[addr[5:2]] <= wdata[7:0];
+    end
+    wire [11:0] pk_sum;
+    wire [5:0]  pk_cnt;
+    wire        pk_busy;
+    zm_audio_pokey u_pokey (
+        .clk(clk), .rst(rst), .pal(pk_pal), .clock_wr(take && is_pk_clock), .we(take && is_pk), .addr(addr[5:2]),
+        .din(wdata[7:0]), .silence(reset_cmd), .strobe(strobe), .busy(pk_busy), .sum(pk_sum), .cnt(pk_cnt));
+
     // --- the chips and the mix
     wire [15:0] ym_sum;
     wire [6:0]  ym_cnt;
@@ -94,9 +114,15 @@ module zm_audio_core #(
         .acc_l(acc_l), .acc_r(acc_r), .overrun(overrun),
         .mem_req(mem_req), .mem_addr(mem_addr), .mem_ack(mem_ack), .mem_data(mem_data));
 
+    // The mix waits for the PCM mix AND the POKEY's burst (zm_audio_pokey), whichever is last.
+    reg  pcm_ready = 1'b0;
+    wire mix_start = (pcm_done || pcm_ready) && !pk_busy;
+    always @(posedge clk) pcm_ready <= rst ? 1'b0 : mix_start ? 1'b0 : pcm_ready | pcm_done;
+
     wire bad_cnt;
     zm_audio_mix u_mix (
-        .clk(clk), .rst(rst), .start(pcm_done), .pcm_l(acc_l), .pcm_r(acc_r), .ym_sum(ym_sum), .ym_cnt(ym_cnt),
+        .clk(clk), .rst(rst), .start(mix_start), .pcm_l(acc_l), .pcm_r(acc_r), .ym_sum(ym_sum), .ym_cnt(ym_cnt),
+        .pk_sum(pk_sum), .pk_cnt(pk_cnt),
         .valid(smp_valid), .out_l(smp_l), .out_r(smp_r), .bad_cnt(bad_cnt));
 
     // --- status: sticky here (the blocks pulse), cleared by any write to STATUS
@@ -105,20 +131,22 @@ module zm_audio_core #(
     always @(posedge clk) begin
         if (rst) {pcm_busy, late, seen} <= 0;
         else begin
-            pcm_busy <= strobe ? 1'b1 : pcm_done ? 1'b0 : pcm_busy;
+            pcm_busy <= strobe ? 1'b1 : mix_start ? 1'b0 : pcm_busy;
             late <= clear ? 1'b0 : late | (strobe && pcm_busy);
             seen <= clear ? 2'd0 : seen | {bad_cnt, overrun};
         end
     end
     assign status = {late, seen};
     assign tick = strobe;
-    assign mixing = strobe || pcm_busy;
+    assign mixing = strobe || pcm_busy || pcm_ready || pk_busy;
 
     always @(*) begin
         rdata = 32'd0;
         if (is_ym) rdata = {24'd0, shadow[addr[5:2]]};
         else if (addr == 10'h044) rdata = {29'd0, status};
-        else if (addr == 10'h048) rdata = 32'h00010100;
+        else if (addr == 10'h048) rdata = 32'h00010200;
+        else if (is_pk) rdata = {24'd0, pk_shadow[addr[5:2]]};
+        else if (is_pk_clock) rdata = {31'd0, pk_pal};
         else if (is_ch) rdata = ch_rd;
     end
 endmodule

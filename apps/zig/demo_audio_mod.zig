@@ -45,6 +45,7 @@ export fn audioModError() u32 {
 export fn audioModPlay() void {
     m.sfx.songChanged();
     m.ym.stop();
+    m.sap_exports.sap.stop();
     audio.machinePaulaClearScopes();
     m.mod.start();
     m.current_mode = 1;
@@ -56,6 +57,7 @@ export fn audioModPlayBpm(bpm: u32) void {
     if (bpm < 32 or bpm > 255) return audioModPlay();
     m.sfx.songChanged();
     m.ym.stop();
+    m.sap_exports.sap.stop();
     audio.machinePaulaClearScopes();
     m.mod.startAtBpm(@intCast(bpm));
     m.current_mode = 1;

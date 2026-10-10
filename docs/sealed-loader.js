@@ -1032,6 +1032,16 @@ function startAudio() {
                         ? `SNDH playing (${msg.len} bytes staged)`
                         : `SNDH REJECTED (${msg.len} bytes) stuckPc=${hex(msg.stuckPc)} trap=${hex(msg.trap)}`);
                 }
+                else if (msg.type === "sapLoaded") {
+                    // demo_audio_sap.zig audioSapStatus: the refusal, or why the CPU stopped.
+                    const refused = ["", "not a SAP", "no binary data", "a bad tag", "TYPE not B or C",
+                        "STEREO (a second POKEY)", "a missing INIT/MUSIC/PLAYER", "a bad block"][msg.status & 0xFF];
+                    const stop = ["", "a JAM", "an unstable opcode", "a call that never returned"][(msg.status >> 8) & 0xFF];
+                    if (!msg.ok) console.error(`SAP REJECTED (${msg.len} bytes): ${refused}`);
+                    else if (stop) console.error(`SAP STOPPED: ${stop}, opcode $${((msg.status >> 16) & 0xFF).toString(16)} at $${msg.stopPc.toString(16)}`);
+                    else console.log(`SAP playing (${msg.len} bytes, ${msg.songs} songs)` +
+                        (msg.unknown ? `; ${msg.unknown} writes to hardware nothing answers` : ""));
+                }
                 else if (msg.type === "modLoaded" && !msg.ok) {
                     // Only 4-channel ProTracker plays (libs/zig/players/mod_format.zig).
                     const why = ["", "shorter than a MOD header", `not a 4-channel ProTracker MOD (tag "${msg.tag}")`,
@@ -1136,6 +1146,17 @@ async function playSndh(url, tune, gen, d0) {
     const b = document.querySelector('.sound_button'); if (b) b.textContent = "Sound off";
 }
 
+// An Atari 8-bit SAP: its own 6502 code on the machine's POKEY (libs/zig/players/sap_player.zig).
+// `tune` counts from 1, 0 = the file's DEFSONG, as an SNDH's.
+async function playSap(url, tune, gen) {
+    await startAudio();
+    if (!audioNode) return; // no audio in this context
+    const bytes = await fetch(url).then(r => r.arrayBuffer());
+    if (gen !== undefined && gen !== songGen) return; // a newer song request (or a stop) won
+    audioNode.port.postMessage({ type: "loadSap", bytes: bytes, tune: tune || 0 }, [bytes]);
+    const b = document.querySelector('.sound_button'); if (b) b.textContent = "Sound off";
+}
+
 // Stop a raw sample by (re)loading a tiny silent buffer onto the channel — the
 // sealed chip has no raw-stop, so this overwrites it with silence.
 function stopRaw() {
@@ -1170,6 +1191,7 @@ function playSongByName(name, tune) {
     else if (name.endsWith(".ymraw")) playYm(url, gen);
     // Only an SNDH has subtunes; `tune` counts from 1, 0 = the image's default.
     else if (name.endsWith(".sndh")) sndhResident = { name, gen, ready: playSndh(url, tune, gen) };
+    else if (name.endsWith(".sap")) playSap(url, tune, gen);
     else if (name.endsWith(".raw")) playRaw(url, 12517, false, gen);
 }
 // zg.sndhCall(name, d0): INIT(d0) on the SNDH already playing, no fetch and no

@@ -28,7 +28,7 @@ pub const SONG_CAP: usize = 0x100000; // 1 MiB
 pub const AUDIO_PAGES: u32 = 48; // 3 MiB shared, initial == max
 pub const DEMO_GLOBAL_BASE: u64 = 0x100000;
 
-pub const ZM_AUDIO_VERSION: u32 = 0x0001_0100; // 1.1.0 — added machineAudioReset
+pub const ZM_AUDIO_VERSION: u32 = 0x0001_0200; // 1.2.0 — added the POKEY (machinePokey*, machineRenderPokey)
 
 // --- sealed chip control surface (implemented in machine-audio.wasm) ---
 pub extern fn machineAudioInit() void;
@@ -37,6 +37,9 @@ pub extern fn machineClamp(n: u32) void; // clamp the stereo bus [0,n) to [-1,1]
 pub extern fn machineMixPaula(off: u32, len: u32) void; // mix 4 sample channels into [off,off+len)
 pub extern fn machineRenderYm(off: u32, len: u32) void; // render the PSG into [off,off+len)
 pub extern fn machineYmWrite(reg: u32, val: u32) void; // write a YM register (retriggers env on r13)
+pub extern fn machineRenderPokey(off: u32, len: u32) void; // render the POKEY into [off,off+len)
+pub extern fn machinePokeyWrite(reg: u32, val: u32) void; // write a POKEY register ($D200 + reg)
+pub extern fn machinePokeyClock(pal: u32) void; // the POKEY's clock: 1 PAL, 0 NTSC
 pub extern fn machinePaulaClearScopes() void;
 pub extern fn machineAudioReset() void; // silence the chip when a program ends
 

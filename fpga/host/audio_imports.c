@@ -9,7 +9,7 @@
  * sample on, so the stamp is the end of the latest piece rendered (the block's
  * start before any). That is exact for the players here: the SNDH player and
  * the MOD player render the YM and Paula over the same piece before changing
- * either again. */
+ * either again; the SAP player renders the POKEY up to each write's sample. */
 #include "haudio.h"
 #include "audio_regs.h"
 
@@ -43,6 +43,24 @@ void w2c_aud_machineRenderYm(struct w2c_aud* a, u32 off, u32 len) {
     (void)a;
     SOFT(w2c_maud_machineRenderYm(&g_maud, off, len));
     rendered(off, len);
+}
+
+void w2c_aud_machineRenderPokey(struct w2c_aud* a, u32 off, u32 len) {
+    (void)a;
+    SOFT(w2c_maud_machineRenderPokey(&g_maud, off, len));
+    rendered(off, len);
+}
+
+void w2c_aud_machinePokeyWrite(struct w2c_aud* a, u32 reg, u32 val) {
+    (void)a;
+    zma_pokey(reg, val);
+    SOFT(w2c_maud_machinePokeyWrite(&g_maud, reg, val));
+}
+
+void w2c_aud_machinePokeyClock(struct w2c_aud* a, u32 pal) {
+    (void)a;
+    zma_put(ZMA_POKEY_CLOCK, pal ? 1u : 0u);
+    SOFT(w2c_maud_machinePokeyClock(&g_maud, pal));
 }
 
 void w2c_aud_machineMixPaula(struct w2c_aud* a, u32 off, u32 len) {

@@ -66,7 +66,9 @@ The mapping, byte addresses, 32-bit words:
 | `0x000 + 4r` | YM register r (reads back the last write) | `machineYmWrite(r, v)`; R13 = 0xFF does not retrigger the envelope (and is not passed to jt49) |
 | `0x040` | CTRL: write bit 0 | `machineAudioReset` (R7 = 0x3F, R8..R10 = 0, every channel stopped) |
 | `0x044` | STATUS (sticky; any write clears): bit 0 a loop wrap overran, bit 1 a bad YM count, bit 2 a sample came late | — |
-| `0x048` | VERSION = `0x00010100` | `ZM_AUDIO_VERSION` |
+| `0x048` | VERSION = `0x00010200` (1.2.0: the POKEY) | `ZM_AUDIO_VERSION` |
+| `0x080 + 4r` | POKEY register r, `$D200 + r`: AUDF/AUDC 0-7, AUDCTL 8, STIMER 9, SKCTL 15 (reads back the last write) | `machinePokeyWrite(r, v)` |
+| `0x0C0` | POKEY_CLOCK: bit 0 = 1 PAL, 0 NTSC; a write restarts the cycle count | `machinePokeyClock(pal)` |
 | `0x100 + 0x40c + 0x00..0x0C` | channel c: DATA, LEN, LOOP_START, LOOP_LEN (staged) | the arguments of `machinePaulaTrigger` |
 | `+0x10` | STEP (16.16) | `machinePaulaSetStep` |
 | `+0x14` | VOLUME (VOL / 256, 0..511) | `machinePaulaSetVolume` (f32 quantised) |
@@ -74,8 +76,16 @@ The mapping, byte addresses, 32-bit words:
 | `+0x1C` | POS (integer sample) | `machinePaulaSetPos` |
 | `+0x20` | CTRL: bit 1 TRIGGER (staged fields go live, pos 0, active), else bit 0 = active | `machinePaulaTrigger` / `machinePaulaSetActive` |
 
-`machineClear`, `machineMixPaula`, `machineRenderYm` and `machineClamp` have no
-register: the core renders continuously. Timing within a sample: a write to POS,
+`machineClear`, `machineMixPaula`, `machineRenderYm`, `machineRenderPokey` and `machineClamp` have no
+register: the core renders continuously.
+
+**The POKEY is sample-exact** (`rtl/audio/zm_audio_pokey.v`):
+- Each sample runs exactly the machine cycles `machine/audio/pokey.zig` runs for it: the clock's Hz / 44100 as an
+  exact fraction, 40 or 41 cycles, from an accumulator that a POKEY_CLOCK write restarts in both.
+- The cycles run in a burst at the sample strobe, and the mix waits for the burst.
+- A write that comes during a burst is held and lands after it, so every write falls between two samples, as in the
+  model.
+- `pokey_exact` (`tests/test_rtl_audio.py`) holds the core to the machine sample for sample. Timing within a sample: a write to POS,
 TRIGGER or CTRL while that channel's sample is being mixed lands *after* the
 sample (the mix's own `pos += STEP` or end-of-data stop gives way to it, per
 field); VOLUME, PAN and STEP take effect at once, on a sample being mixed too. A write is accepted on `wr && ready`;
@@ -327,7 +337,7 @@ converter to the ROM format (`tools/ym_rom.py` for the YM). A lab player swaps
 | Candidate | Core | Dumps | Licence (to confirm per core) |
 |---|---|---|---|
 | SID 6581 / 8580 | MiSTer C64's SID, or the reDIP SID | register log recorded from `.sid` playback | GPL (MiSTer); check reDIP's |
-| POKEY | MiSTer Atari800 | `.sap` register streams | GPL |
+| POKEY | **ours, from scratch, IN THE CORE** (`rtl/audio/zm_pokey*.v`, `zm_audio_pokey.v`, model `machine/audio/pokey.zig`, decisions.md 2026-10-10; the SAP player: `docs/FPGA_SOUND_CPU.md` "Phase B") | `.sap` (a 6502 on the sound CPU) | MIT (ours); the core with it 1819 LUT / 1043 FF / 5 DSP, +339 LUT over the core without, WNS +0.456 ns at 100 MHz (Vivado OOC, routed) |
 | YM2612 (FM) | jotego jt12 | `.vgm` | GPL-3 |
 | OPL2 / OPL3 | jotego jtopl | `.vgm` | GPL-3 |
 | NES APU | MiSTer NES | `.vgm` / `.nsf` register logs | GPL |

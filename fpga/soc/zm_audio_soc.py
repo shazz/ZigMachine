@@ -41,7 +41,8 @@ AUDIO_WINDOW = 0x92000000  # uncached (bit 31), outside the seal's windows (vide
 AUDIO_WINDOW_BYTES = 0x1000
 PCM_SPAN_LOG2 = 22  # a PCM offset is masked to 4 MiB: the players' memory is 3 MiB
 SOURCES = [
-    *(f"rtl/audio/zm_audio_{m}.v" for m in ("frac", "ym", "pcm", "mix", "core", "sched", "soc", "fifo")),
+    *(f"rtl/audio/zm_audio_{m}.v" for m in ("frac", "ym", "pokey", "pcm", "mix", "core", "sched", "soc", "fifo")),
+    *(f"rtl/audio/zm_pokey{m}.v" for m in ("", "_pair", "_poly")),
     *(f"third_party/jt49/hdl/jt49{m}.v" for m in ("", "_cen", "_div", "_eg", "_exp", "_noise")),
 ]
 HDMI_SOURCES = [f"rtl/hdmi/zm_hdmi_{m}.v" for m in ("acr", "island", "packets", "enc", "tx")]
@@ -53,7 +54,8 @@ SoC = Any
 
 
 def rates(sys_hz: int) -> dict[str, int]:
-    """zm_audio_soc's parameters: 44.1 kHz and the YM's 2 MHz as exact fractions of sys."""
+    """zm_audio_soc's parameters: 44.1 kHz and the YM's 2 MHz as exact fractions of sys. (The
+    POKEY needs none: zm_audio_pokey runs each sample's machine cycles in a burst at the strobe.)"""
     sr, ym = Fraction(44100, sys_hz), Fraction(2_000_000, sys_hz)
     if sr.denominator >= 1 << 24 or ym.numerator >= ym.denominator:
         raise ValueError(f"no exact 44.1 kHz / 2 MHz from a {sys_hz} Hz system clock")

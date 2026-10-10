@@ -5,7 +5,7 @@
 #                                        cart's mailbox commands (one image for every cart)
 #   make hp-sim CART=tutorial ZM_AUDIO=snd   the cart on the cart CPU, its music on the sound CPU
 #                                        (board.mk; needs the soc_hp_snd model: make soc-hp-snd)
-#   make snd-bench SONG=union/wow_scroller.sndh [TUNE=0] [ZM_FRAMES=8]
+#   make snd-bench SONG=union/wow_scroller.sndh [TUNE=0] [ZM_FRAMES=8] [MUSIC=<dir>]
 #                                        one song on the sound CPU, no cart: cycles a frame
 #   ZM_SOC=$PWD/build/soc_hp_snd ZM_INIT=sim_zm_ddr.init tools/cycles_sim.sh \
 #       build/hcycles/snd/bench/zm_ddr.init /dev/shm/sb
@@ -46,10 +46,12 @@ endef
 
 SONG ?= sos.sndh
 TUNE ?= 0
+# Where SONG is, e.g. MUSIC=$(ROOT)/../prototypes/sap_asma SONG=Warhawk.sap.
+MUSIC ?= $(ROOT)/docs/music
 $(SND)/bench/songs.c: tools/song_pack.py FORCE
 	@mkdir -p $(@D)
 	printf 'L 0 0 %s\n' '$(SONG)' >$(@D)/song.w
-	uv run python tools/song_pack.py $(ROOT)/docs/demo-tutorial.wasm $@ --log $(@D)/song.w
+	uv run python tools/song_pack.py $(ROOT)/docs/demo-tutorial.wasm $@ --log $(@D)/song.w --music $(MUSIC)
 $(eval $(call snd_image,play,))
 $(eval $(call snd_image,bench,cycles/bsongs.c $(SND)/bench/songs.c,-DZM_SND_BENCH '-DZM_SONG="$(SONG)"' \
 	-DZM_TUNE=$(TUNE) -DZM_FRAMES=$(ZM_FRAMES)))

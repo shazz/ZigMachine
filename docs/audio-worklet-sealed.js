@@ -108,6 +108,14 @@ class ZigAudioSealedProcessor extends AudioWorkletProcessor {
                 const ok = d.audioLoadYm(len);
                 if (ok) d.audioYmPlay();
                 this.port.postMessage({ type: "ymLoaded", ok: !!ok, len: len });
+            } else if (msg.type === "loadSap") {
+                // An Atari 8-bit SAP: its 6502 code on the machine's POKEY. Subsongs count from 1.
+                const len = writeSong(msg.bytes);
+                const ok = d.audioLoadSap(len);
+                if (ok) d.audioSapPlay(msg.tune || 0);
+                this.port.postMessage({ type: "sapLoaded", ok: !!ok, len: len, status: d.audioSapStatus(),
+                                        stopPc: d.audioSapStopPc(), songs: d.audioSapSongs(),
+                                        unknown: d.audioSapUnknownWrites() });
             } else if (msg.type === "loadSndh") {
                 // An SNDH is 68000 code; the cart depacks it (Pack-Ice) and runs
                 // it on its own CPU. Subtune numbers count from 1.

@@ -26,6 +26,7 @@ The file extension picks the player. Files live under `docs/music/`.
 | `.ymraw` | YM5!/YM6! register dump (**deprecated**, last resort only) | no |
 | `.mod` | ProTracker 4-channel on the Paula channels: tags `M.K.`, `M!K!`, `4CHN`, `FLT4` only (a 6CHN / 8CHN file is **refused**, see below) | no |
 | `.raw` | 8-bit PCM at 12517 Hz | no |
+| `.sap` | an Atari 8-bit tune's own 6502 code on the machine's POKEY (`libs/zig/players/sap_player.zig`): TYPE B and C, mono; D/S/R and STEREO are refused, with the reason on the console | yes: `tune` counts from 1, 0 = the file's DEFSONG |
 
 **The YM dump player is deprecated: use SNDH.** A dump records the chip only
 once per frame, so SID voices, digidrums and samples played through the YM

@@ -32,7 +32,9 @@ const ALLOW = {
     // padding, once the raw players moved to demo_audio_raw.zig (no new static).
     // +28 B (2026-10-10): the native SNDH replay's state and the SNDH mode
     // (players/digi.zig, the Beat Dis driver; keys 1/2/3).
-    "demo-audio.wasm": 590816,
+    // +44 B (2026-10-10): the SAP player's 6502 registers and counters (sap_player.zig,
+    // sap_bus.zig). Its 64 KiB Atari and its write queue live in song RAM, not here.
+    "demo-audio.wasm": 590860,
 };
 
 function uleb(b, p) {
