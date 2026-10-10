@@ -18,9 +18,11 @@ import uboot_serial as us
 from uboot_serial import UBoot, UBootError
 
 BIT = "fpga/build/hp_test/gateware/zm_hp_test.bit"
-BANK = {0: 0x43C00100, 1: 0x43C00200}
-DST = {0: 0x05000000, 1: 0x05100000}
-SEED = {0: 0x10000000, 1: 0x20000000}
+BIT4 = "fpga/build/hp_test4/gateware/zm_hp_test.bit"  # soc.zm_hp_test --ports 4 --toolchain vivado
+BANK = {0: 0x43C00100, 1: 0x43C00200, 2: 0x43C00300, 3: 0x43C00400}
+DST = {0: 0x05000000, 1: 0x05100000, 2: 0x05200000, 3: 0x05300000}
+SEED = {0: 0x10000000, 1: 0x20000000, 2: 0x30000000, 3: 0x40000000}
+AFI_HP23 = "mw.l 0xf800a000 0; mw.l 0xf800a014 0xf01; mw.l 0xf800b000 0; mw.l 0xf800b014 0xf01"
 BEATS = 0x40  # 4 bursts of 16 x 4 bytes
 ROW_BEATS = 0x190
 ROW_ADDR = 0x05F01100
@@ -75,19 +77,21 @@ def check_row(con: UBoot, r: PortResult) -> bool:
     return status == 2 and beats == ROW_BEATS
 
 
-def preflight(con: UBoot, bit: str = BIT) -> list[PortResult]:
+def preflight(con: UBoot, bit: str = BIT, ports: int = 2) -> list[PortResult]:
     con.interrupt()
     us.quiesce(con)
     us.load_pl(bit)
     con.cmd("dcache off")
     us.set_afi(con)
+    if ports == 4:
+        con.cmd(AFI_HP23)
     ident = con.md(0x43C00000, 1)[0]
     if ident != us.ID_HPTEST:
         raise UBootError(f"hp-test ID {ident:#x}, want {us.ID_HPTEST:#x}: wrong bitstream loaded?")
     results = []
-    for n in (0, 1):
+    for n in range(ports):
         r = PortResult(n)
-        r.ok = check_burst(con, n, r) and (n == 0 or check_row(con, r))
+        r.ok = check_burst(con, n, r) and (n != 1 or check_row(con, r))  # the ZMVideoAXI row: HP1 only
         results.append(r)
     return results
 
@@ -102,11 +106,12 @@ def report(results: list[PortResult]) -> int:
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    ap.add_argument("--bit", default=BIT)
+    ap.add_argument("--bit")
+    ap.add_argument("--ports", type=int, choices=[2, 4], default=2, help="4: also HP2/HP3 (the BIT4 bitstream)")
     ap.add_argument("--tty")
     a = ap.parse_args()
     try:
-        return report(preflight(UBoot(a.tty), a.bit))
+        return report(preflight(UBoot(a.tty), a.bit or (BIT4 if a.ports == 4 else BIT), a.ports))
     except UBootError as e:
         print(f"board_preflight: {e}")
         return 2

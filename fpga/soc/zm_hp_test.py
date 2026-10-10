@@ -7,7 +7,9 @@ seconds, without the cart CPU or the compositor (fpga/boards/microphase_z7_7010/
 
 Per port, two engines share one register bank and the port (CTRL.BRIDGE picks; change it
 only while idle): the raw engine (soc/zm_hp_test_axi.py, every AXI field a register) and
-the board SoC's own bridge (soc/zm_hp_test_bridge.py: WishboneHP on HP0, ZMVideoAXI on HP1).
+the board SoC's own bridge (soc/zm_hp_test_bridge.py: WishboneHP on HP0, ZMVideoAXI on HP1..HP3).
+`--ports 4` adds HP2 (the blitter's) and HP3 (the audio core's), banks 2 and 3; `--toolchain vivado`
+builds it in ~3 min with sound primitives (openXC7 ones are suspect on silicon).
 Register map, by byte offset from the GP0 base (0x43c0_0000): see BANK / GLOBAL below.
 """
 
@@ -82,10 +84,10 @@ class HPPort(LiteXModule):
 class HPTest(LiteXModule):
     """The whole bitstream's logic: the PS7, the registers, both ports, two LEDs."""
 
-    def __init__(self, platform: object, sys_hz: int) -> None:
+    def __init__(self, platform: object, sys_hz: int, ports: int = 2) -> None:
         self.crg = _CRG(platform, sys_hz)
-        gp0, self.hp = gp0_interface(), [hp_interface(), hp_interface()]
-        self.specials += ps7_instance(gp0, self.hp[0], self.hp[1])
+        gp0, self.hp = gp0_interface(), [hp_interface() for _ in range(ports)]
+        self.specials += ps7_instance(gp0, *self.hp)
         self.regs = regs = GP0Regs(gp0)
         regs.status(GLOBAL["ID"], Constant(ID, 32))  # a constant, not an undriven reg Yosys may drop
         regs.storage(GLOBAL["SCRATCH"])
@@ -93,10 +95,12 @@ class HPTest(LiteXModule):
         free = Signal(32)
         self.sync += free.eq(free + 1)
         regs.status(GLOBAL["FREE"], free)
-        self.port0, self.port1 = HPPort(regs, 0, self.hp[0]), HPPort(regs, 1, self.hp[1])
+        hp_ports = [HPPort(regs, i, hp) for i, hp in enumerate(self.hp)]
+        for i, port in enumerate(hp_ports):
+            setattr(self, f"port{i}", port)
         req = platform.request  # type: ignore[attr-defined]  # untyped LiteX platform
         busy = Signal()
-        self.comb += busy.eq(Cat(*[p.raw.stats.busy | p.bridge.stats.busy for p in (self.port0, self.port1)]) != 0)
+        self.comb += busy.eq(Cat(*[p.raw.stats.busy | p.bridge.stats.busy for p in hp_ports]) != 0)
         self.comb += [req("PL_LED1").eq(free[26]), req("PL_LED2").eq(busy)]  # alive at ~0.7 Hz; a run in flight
 
 
@@ -117,17 +121,20 @@ def main() -> None:
     p = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     p.add_argument("--sys-mhz", type=float, default=100.0, help="the HP ports' clock (the board SoC's sys)")
     p.add_argument("--out", default=str(FPGA / "build/hp_test"), help="the build directory")
-    p.add_argument("--build", action="store_true", help="run openXC7 (else: Verilog + scripts only)")
+    p.add_argument("--build", action="store_true", help="run the toolchain (else: Verilog + scripts only)")
+    p.add_argument("--toolchain", choices=["openxc7", "vivado"], default="openxc7")
+    p.add_argument("--ports", type=int, choices=[2, 4], default=2, help="4: also HP2 and HP3")
     a = p.parse_args()
     start = time.monotonic()
     litex_compat.install()
-    platform = Platform(toolchain="openxc7")
-    top = HPTest(platform, int(a.sys_mhz * 1e6))
+    platform = Platform(toolchain=a.toolchain)
+    top = HPTest(platform, int(a.sys_mhz * 1e6), a.ports)
     gateware = Path(a.out) / "gateware"
-    if a.build:
+    vivado = a.toolchain == "vivado"
+    if a.build and not vivado:
         openxc7.prepare_env()
-    platform.build(top, build_dir=str(gateware), build_name="zm_hp_test", run=False)
-    if a.build:
+    platform.build(top, build_dir=str(gateware), build_name="zm_hp_test", run=a.build and vivado)
+    if a.build and not vivado:
         openxc7.run_build(str(gateware), "zm_hp_test", time.monotonic() - start)
 
 

@@ -71,7 +71,7 @@ The real variables are in `fpga/cycles/board.mk`:
 | Variable | Default | Meaning |
 |---|---|---|
 | `CART` | none | the cart name, as above |
-| `ZM_BLIT` | `hw` | `hw`: `hwBlit()` runs on the RTL blitter over HP2 (`cycles/bblit.c`), so the **bitstream must have been built with `--blit`**. `sw`: the machine's software blitter on the cart CPU; works with a bitstream without it. The current board bitstream is built without `--blit`, so **use `sw`** |
+| `ZM_BLIT` | `hw` | `hw`: `hwBlit()` runs on the RTL blitter over HP2 (`cycles/bblit.c`), so the **bitstream must have been built with `--blit`**. `sw`: the machine's software blitter on the cart CPU; works with a bitstream without it. The blitter bitstream is `build/board_hp/zm_blit_vivado_100.bit` (2026-10-10: `--blit --vivado-explore`, 100 MHz, with audio); run it with `board_run.py --blit`, which also sets HP2's AFI width |
 | `ZM_AUDIO` | `1` | `1`: the SNDH players run on the cart CPU into the audio core (`cycles/baudio.c`). `0`: no music. The SoC's audio core is work in progress (section 6), and the current bitstream predates it: **use `0` with it** |
 
 What `fw.bin` contains (one flat image, linked at the start of the cart CPU's RAM window, whose
@@ -201,9 +201,12 @@ Does not (yet):
   north_south, dhs_0pxl0reg, ulm_dsots, the menus) stays on its first screen.
 - **Disk streaming.** `diskReadBlock` returns 0, so stniccc (`SCENE1.BIN`) and stream-based carts
   show nothing useful; the `.zmd` loading belongs to the glass too.
-- **The hardware blitter** needs a bitstream built with `--blit` (the board one has none): use
-  `ZM_BLIT=sw`, and the blitter-heavy carts (blitter 7 Mc/frame, tsl_hybridglenz 27 Mc/frame of
-  blitting) are slower than they will be.
+- **The hardware blitter** runs on the board since 2026-10-10 (`zm_blit_vivado_100.bit`, `ZM_BLIT=hw`,
+  `board_run.py --blit`): `blitter` ~45 fps and `tsl_hybridglenz` ~38 fps, both pixel-exact against the
+  native host (`board_shot.py --what pfb`, 0 pixels off). If an op never finishes, the cart traps with
+  `CART_STATE` = `0xB1xxxx03`: `xxxx` is the engine's state (`cycles/bblit.c`). The one cause seen so far is
+  a **wedged HP2 AFI** left by an earlier hang: it survives PL reloads, a board reset clears it, and
+  `board_preflight.py --ports 4` (the `hp_test --ports 4 --toolchain vivado` bitstream) tests HP0-HP3.
 
 **The budget.** The SoC is at **100 MHz**, so a 60 Hz frame is **1.67 M cycles** (the board counts a
 wasm2c'd cart's cycles with the HP-DDR penalties; the table "MHz soft+DDR" and the

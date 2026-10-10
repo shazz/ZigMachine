@@ -67,7 +67,8 @@ def test_preflight_missing_prompt(board: FakeUBoot, monkeypatch: pytest.MonkeyPa
 
 
 def args(fw: Path, **kw: object) -> argparse.Namespace:
-    base = {"bit": "x.bit", "fw": str(fw), "diag": None, "hp_cfg": 0, "shot": None, "preflight": False, "secs": 0.5}
+    base = {"bit": "x.bit", "fw": str(fw), "diag": None, "hp_cfg": 0, "shot": None, "preflight": False, "secs": 0.5,
+            "blit": False}  # fmt: skip
     return argparse.Namespace(**{**base, **kw})
 
 
@@ -96,6 +97,35 @@ def test_run_happy(board: FakeUBoot, tmp_path: Path, monkeypatch: pytest.MonkeyP
     assert ok, log
     assert len(calls) == 1 and "firmware uploaded" in log[0]
     assert board.log[0] == "mw.l 43c00008 0"  # CTRL 0 before anything is loaded
+
+
+@pytest.mark.parametrize("blit", [False, True])
+def test_run_sets_hp2_afi_only_for_a_blit_bitstream(
+    board: FakeUBoot, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, blit: bool
+) -> None:
+    _, loadx = fake_loadx(board)
+    monkeypatch.setattr(us.UBoot, "loadx", loadx)
+    ok, log = board_run.board_run(con_for(board), args(fw_file(tmp_path), blit=blit))
+    assert ok, log
+    hp2 = [i for i, line in enumerate(board.log) if "0xf800a014 0xf01" in line]
+    assert bool(hp2) == blit
+    if blit:  # after the HP0/HP1 widths, so after the PL load (the AFI registers hang the ARM before)
+        assert hp2[0] > next(i for i, line in enumerate(board.log) if "0xf8009014" in line)
+
+
+def test_preflight_four_ports_tests_hp2_and_hp3(board: FakeUBoot) -> None:
+    results = pf.preflight(con_for(board), pf.BIT4, ports=4)
+    assert [r.ok for r in results] == [True, True, True, True]
+    assert board.mem[0x05200000] == 0x30000000 and board.mem[0x05300000] == 0x40000000
+    assert any("0xf800b014 0xf01" in line for line in board.log)
+
+
+def test_preflight_four_ports_reports_a_wedged_hp2(board: FakeUBoot, capsys: pytest.CaptureFixture[str]) -> None:
+    board.wedged.add(2)
+    results = pf.preflight(con_for(board), pf.BIT4, ports=4)
+    assert [r.ok for r in results] == [True, True, False, True]
+    assert pf.report(results) == 1
+    assert "HP2 WEDGED: press RST KEY" in capsys.readouterr().out
 
 
 def test_run_skips_upload_when_crc_matches(board: FakeUBoot, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

@@ -2,7 +2,7 @@
 
     sg dialout -c "uv run --with pyserial --with xmodem python fpga/tools/board_run.py \\
         --bit fpga/build/board_hp/zm_hp_gated_s1_sys80.bit --fw fpga/build/board_hp/fw_tutorial_diag5.bin \\
-        [--diag 3|4] [--hp-cfg N] [--shot name] [--preflight] [--secs 5]"
+        [--blit] [--diag 3|4] [--hp-cfg N] [--shot name] [--preflight] [--secs 5]"
 
 Order, always: CTRL 0 + 1 s, load the PL, AFI widths, firmware to 0x04000000 (skipped when the crc
 already in DDR matches), crc32 against the file's own (mismatch aborts), then cart or diag, then the
@@ -60,7 +60,7 @@ def board_run(con: UBoot, a: argparse.Namespace) -> tuple[bool, list[str]]:
     us.quiesce(con)
     us.load_pl(a.bit)
     con.cmd("dcache off")
-    us.set_afi(con)
+    us.set_afi(con, hp2=a.blit)
     con.mw(bd.CTRL, 0)
     log.append(ensure_firmware(con, a.fw))
     return run_payload(con, a, log)
@@ -91,6 +91,7 @@ def main() -> int:
     ap.add_argument("--shot", help="board_shot name under fpga/build/shots/")
     ap.add_argument("--preflight", action="store_true", help="run the hp-test preflight first")
     ap.add_argument("--secs", type=float, default=5.0, help="how long to poll")
+    ap.add_argument("--blit", action="store_true", help="a --blit bitstream: also set HP2's AFI width")
     ap.add_argument("--tty")
     a = ap.parse_args()
     try:

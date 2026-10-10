@@ -22,6 +22,7 @@ ID_HPTEST = 0x48505431
 INTERRUPT_LIMIT = 10.0  # [s of Ctrl-Cs before giving up; tests shorten]
 PAUSE = 1.0  # [s: the video DMA's last burst; tests set 0]
 AFI_WIDTHS = "mw.l 0xf8008000 0; mw.l 0xf8008014 0xf01; mw.l 0xf8009000 0; mw.l 0xf8009014 0xf01"
+AFI_HP2_WIDTH = "mw.l 0xf800a000 0; mw.l 0xf800a014 0xf01"  # the blitter's port, --blit bitstreams only
 CRC = re.compile(r"==>\s*([0-9a-f]{8})\s*$", re.MULTILINE)
 
 
@@ -127,6 +128,8 @@ def quiesce(con: UBoot) -> None:
     time.sleep(PAUSE)
 
 
-def set_afi(con: UBoot) -> None:
-    """HP0/HP1 widths; only after the PL is loaded (the AFI registers hang the ARM otherwise)."""
+def set_afi(con: UBoot, hp2: bool = False) -> None:
+    """HP0/HP1 (+ HP2 for a --blit bitstream) widths; only after the PL is loaded (the AFI registers hang the ARM otherwise)."""
     con.cmd(AFI_WIDTHS)
+    if hp2:
+        con.cmd(AFI_HP2_WIDTH)

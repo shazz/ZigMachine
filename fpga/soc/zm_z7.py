@@ -53,13 +53,16 @@ class Z7CRG(Module):
         # without it nextpnr checks all clocks against its 12 MHz default.
         platform.add_period_constraint(clkin, 1e9 / osc_hz)  # type: ignore[attr-defined]  # untyped LiteX platform
         pll.register_clkin(clkin, osc_hz)
-        pll.create_clkout(self.cd_sys, sys_hz)
+        # The sys reset reaches every flop with an R pin: from the synchronizer's last FDPE
+        # (ASYNC_REG, so Vivado never replicates it) it was 11.5 ns of route, the worst path of the
+        # --blit SoC at 100 MHz (2026-10-10). A BUFG carries it on the clock network instead.
+        pll.create_clkout(self.cd_sys, sys_hz, reset_buf="bufg")
         if comp_hz == sys_hz:
             # One clock: every sys<->comp crossing becomes a TIMED same-clock path. The board's
             # failures moved with placement on the crossings nextpnr never times (docs/FPGA_STEPS.md).
             self.comb += [self.cd_comp.clk.eq(self.cd_sys.clk), self.cd_comp.rst.eq(self.cd_sys.rst)]
         else:
-            pll.create_clkout(self.cd_comp, comp_hz)
+            pll.create_clkout(self.cd_comp, comp_hz, reset_buf="bufg")
         pll.create_clkout(self.cd_pix, PIX_CLK)
         pll.create_clkout(self.cd_pix5x, 5 * PIX_CLK)
 
@@ -123,6 +126,20 @@ def _board_soc(platform: object, sys_hz: int, glass: bool, blit: bool = False, a
     return soc
 
 
+# --vivado-explore: Vivado's harder place/phys-opt/route passes (about 2x the build time). The
+# --blit SoC at 100 MHz is about 62 % LUTs, and its last misses were placement, not logic.
+EXPLORE = {
+    "vivado_place_directive": "ExtraTimingOpt",
+    "vivado_post_place_phys_opt_directive": "AggressiveExplore",
+    "vivado_route_directive": "AggressiveExplore",
+    "vivado_post_route_phys_opt_directive": "AggressiveExplore",
+}
+
+
+def _vivado_directives(args: argparse.Namespace) -> dict[str, str]:
+    return EXPLORE if args.toolchain == "vivado" and getattr(args, "vivado_explore", False) else {}
+
+
 def build_z7(args: argparse.Namespace) -> None:
     start = time.monotonic()
     soc, _ = make_z7(args)
@@ -131,6 +148,6 @@ def build_z7(args: argparse.Namespace) -> None:
         openxc7.prepare_env()
     out = getattr(args, "out", None) or FPGA / "build/soc_z7"  # --out: sweeps and REUSE bases keep their own
     builder = Builder(soc, output_dir=str(out), compile_software=args.build)
-    builder.build(run=args.build and not in_docker)
+    builder.build(run=args.build and not in_docker, **_vivado_directives(args))
     if in_docker and args.build:
         openxc7.run_build(builder.gateware_dir, soc.get_build_name(), time.monotonic() - start)

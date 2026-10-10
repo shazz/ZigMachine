@@ -18,6 +18,7 @@ module zm_blit_regs (
     input  wire [4:0]   cpu_raddr,
     output wire [31:0]  cpu_rdata,       // combinational: STATUS (word 0, bit 31) and CYCLES (word 24)
     input  wire         busy,            // an op is running
+    input  wire [15:0]  dbg,             // STATUS[15:0], the engine's state (zm_blit_core dbg)
     input  wire         cyc_we,          // the engine stores CYCLES
     input  wire [31:0]  cyc_val,
     output reg          start,           // one clock: COMMAND was written non-zero
@@ -53,5 +54,5 @@ module zm_blit_regs (
 
     // Only the block's two write-backs are read: STATUS and CYCLES. Everything else lives in the
     // region memory the CPU's writes were snooped from, as with the video registers.
-    assign cpu_rdata = cpu_raddr == 5'd24 ? cycles : cpu_raddr == 5'd0 ? {busy || start, 31'd0} : 32'd0;
+    assign cpu_rdata = cpu_raddr == 5'd24 ? cycles : cpu_raddr == 5'd0 ? {busy || start, 15'd0, dbg} : 32'd0;
 endmodule

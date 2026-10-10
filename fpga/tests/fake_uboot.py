@@ -81,7 +81,7 @@ class FakeUBoot(threading.Thread):
         return ""
 
     def after_write(self, a: int, v: int) -> None:
-        for port, base in ((0, 0x43C00100), (1, 0x43C00200)):
+        for port, base in ((0, 0x43C00100), (1, 0x43C00200), (2, 0x43C00300), (3, 0x43C00400)):
             if a == base:
                 self.hp_run(port, base, v)
         if a == 0x43C00008 and v == 1 and self.mem.get(0x05FFFE04) in (3, 4):

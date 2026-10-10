@@ -32,13 +32,19 @@ bblit_stats bblit;
 
 #ifdef ZM_BLIT_HW
 #define BLIT_BUSY (1u << 31)
+#define BLIT_TIMEOUT 100000000u /* cycles: 1 s at 100 MHz; the biggest op is ~27 Mc a frame */
 
 static void blit_rtl(volatile uint8_t* r) {
     uint8_t cmd = r[ZM_BLIT_COMMAND];
     if (cmd == 0) return; /* NOP: the machine leaves STATUS and CYCLES alone */
     volatile uint32_t* w = (volatile uint32_t*)ZMB_WINDOW_ADDR;
     *(volatile uint8_t*)w = cmd;
+    /* An op that never ends (a lost AXI response on HP2, a stuck sequencer) traps the cart
+     * instead of hanging it: CART_STATE = 3 | 0xB1 << 24 | STATUS[15:0] << 8, read by the ARM
+     * (zm_blit_core dbg: {op[2:0], st[2:0], px_idle, rd v/r, wr v/r, wr_pending, seq px_valid[3:0]}). */
+    uint32_t t = board_cycles();
     while (w[0] & BLIT_BUSY) {
+        if (board_cycles() - t > BLIT_TIMEOUT) board_finish((int)(0xB10000u | (w[0] & 0xFFFFu)));
     }
     zmv_flush_dcache();
     *(volatile uint32_t*)(r + ZM_BLIT_CYCLES) = w[ZM_BLIT_CYCLES / 4 - ZM_OFF_BLIT / 4];

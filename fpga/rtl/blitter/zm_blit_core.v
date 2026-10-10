@@ -25,7 +25,8 @@ module zm_blit_core (
     output wire [31:0]  wr_req_addr,
     output wire [31:0]  wr_req_data,
     output wire [3:0]   wr_req_strb,
-    input  wire         wr_pending
+    input  wire         wr_pending,
+    output wire [15:0]  dbg              // STATUS[15:0]: where an op is stuck (cycles/bblit.c's timeout trap)
 );
 `include "zm_blit_fields.vh"
     localparam [2:0] IDLE = 0, CHK = 1, RUN = 2, DRAIN = 3, FIN = 4;
@@ -46,11 +47,21 @@ module zm_blit_core (
     wire [22:0] b_lin = abs_src ? f_b_base[22:0] : ZM_HW_VIDEO_BASE + f_b_base[22:0];
     wire ht_on = f_con2[2] || f_ht != 256'd0;
     wire fill_mt = f_con2[1];
-    wire is_blit = op == ZM_BLIT_CMD_BLIT, is_fill = op == ZM_BLIT_CMD_FILL, is_line = op == ZM_BLIT_CMD_LINE;
+    // Registered decodes and clip box: both are functions of registers that cannot change while
+    // BUSY (writes are dropped), so a copy one clock behind is exact by the time CHK reads it: the
+    // COMMAND store that starts an op comes at least a clock after the stores that set them up.
+    // Without the copies the pixel unit's inputs were 11 to 15 logic levels from the register
+    // block, -1.5 ns at 100 MHz on the board (Vivado, 2026-10-10).
+    reg is_blit, is_fill, is_line;
+    always @(posedge clk) begin
+        is_blit <= op == ZM_BLIT_CMD_BLIT; is_fill <= op == ZM_BLIT_CMD_FILL; is_line <= op == ZM_BLIT_CMD_LINE;
+    end
 
-    wire signed [17:0] cx0, cy0, cx1, cy1, ex0, ey0, ex1, ey1;
+    wire signed [17:0] ccx0, ccy0, ccx1, ccy1, ex0, ey0, ex1, ey1;
+    reg signed [17:0] cx0, cy0, cx1, cy1;
     zm_blit_clip clip (.con(f_con), .ds(f_d_stride), .clip_x(f_clip_x), .clip_y(f_clip_y),
-        .clip_w(f_clip_w), .clip_h(f_clip_h), .x0(cx0), .y0(cy0), .x1(cx1), .y1(cy1));
+        .clip_w(f_clip_w), .clip_h(f_clip_h), .x0(ccx0), .y0(ccy0), .x1(ccx1), .y1(ccy1));
+    always @(posedge clk) {cx0, cy0, cx1, cy1} <= {ccx0, ccy0, ccx1, ccy1};
     wire chk_done, chk_ok;
     zm_blit_chk chk (.clk(clk), .go(start), .cmd(f_cmd), .use_a(f_con[0]), .use_b(f_con[1]), .abs_src(abs_src),
         .d_base(f_d_base), .a_base(f_a_base), .b_base(f_b_base), .ds(f_d_stride), .a_stride(f_a_stride),
@@ -99,6 +110,8 @@ module zm_blit_core (
         .wr_req_valid(wr_req_valid), .wr_req_ready(wr_req_ready), .wr_req_addr(wr_req_addr),
         .wr_req_data(wr_req_data), .wr_req_strb(wr_req_strb));
 
+    // {op[2:0], core st, pixel unit idle, rd valid/ready, wr valid/ready, wr_pending, sequencer px_valid}
+    assign dbg = {op[2:0], st, px_idle, rd_req_valid, rd_req_ready, wr_req_valid, wr_req_ready, wr_pending, v};
     wire counts = op == ZM_BLIT_CMD_BLIT || op == ZM_BLIT_CMD_TRIANGLE;
     wire [31:0] fill_cost = f_w * f_h;
     always @(posedge clk) begin

@@ -171,6 +171,7 @@ def main() -> None:
         "--cpu-netlist", help="z7: a vexgen VexRiscv netlist (default soc/zm_z7.py BOARD_CORE), or `standard`"
     )
     p.add_argument("--out", help="z7: the build directory (default fpga/build/soc_z7)")
+    p.add_argument("--vivado-explore", action="store_true", help="z7, vivado: harder place/route directives (~2x time)")
     args = p.parse_args()
     (build_sim if args.target == "sim" else build_z7)(args)
 

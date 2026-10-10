@@ -6,6 +6,11 @@
 // with the destination through MINTERM).
 // v1 divides per scanline per edge (~35 clocks each); an incremental edge walk (one divide
 // per edge per triangle) would make a small triangle several times faster.
+// The edge setup is pipelined over three clocks (EDGE: pick + order the vertices and
+// subtract; MUL: |dxe| * t; GO: start the divide) so that no path runs vertex mux ->
+// compare -> subtract -> multiply -> divider in one clock: in one, it missed 100 MHz by
+// 4 ns on the board (Vivado, 2026-10-10). Likewise the edge's x is registered (MINMAX)
+// before the min/max. CYCLES counts pixels, not clocks: unchanged.
 `default_nettype none
 
 module zm_blit_tri (
@@ -22,8 +27,8 @@ module zm_blit_tri (
     input  wire               px_ready,
     output reg                done
 );
-    localparam [2:0] IDLE = 0, EDGE = 1, DIV = 2, NEXT = 3, SPAN = 4, PIX = 5, NEXTY = 6;
-    reg [2:0] st;
+    localparam [3:0] IDLE = 0, EDGE = 1, DIV = 2, NEXT = 3, SPAN = 4, PIX = 5, NEXTY = 6, MUL = 7, GO = 8, MINMAX = 9;
+    reg [3:0] st;
     reg [1:0] e;
     reg signed [17:0] y, ymax, xl, xr, x, xend;
 
@@ -39,13 +44,19 @@ module zm_blit_tri (
     wire signed [17:0] dxe = bx - ax, t = y - ay;   // |dxe| < 2^16, 0 <= t < 2^16: one DSP48
     wire neg = dxe[17];
     wire [16:0] adx = neg ? -dxe[16:0] : dxe[16:0];
-    wire [33:0] anum = adx * t[16:0];   // |dxe| * t: the numerator's magnitude, 17 x 17 unsigned
-    wire div_go = st == EDGE && !skip, div_done;
+    // EDGE registers the ordered edge, MUL the product, GO starts the divider from registers
+    reg signed [17:0] e_ax;
+    reg [16:0] e_adx, e_t, e_dye;
+    reg e_neg, e_skip;
+    reg [33:0] anum;   // |dxe| * t: the numerator's magnitude, 17 x 17 unsigned
+    wire div_go = st == GO;
+    wire div_done;
     wire [31:0] q;
     wire [16:0] r;
-    zm_blit_div dv (.clk(clk), .rst(rst), .go(div_go), .num(anum[31:0]), .den(dye[16:0]), .done(div_done), .q(q), .r(r));
+    zm_blit_div dv (.clk(clk), .rst(rst), .go(div_go), .num(anum[31:0]), .den(e_dye), .done(div_done), .q(q), .r(r));
     wire [31:0] up = q + (r != 17'd0);
-    wire signed [17:0] xe = ax + (neg ? -up[17:0] : q[17:0]);
+    wire signed [17:0] xe = e_ax + (e_neg ? -up[17:0] : q[17:0]);
+    reg signed [17:0] xe_q;
 
     // the scanlines: the vertices' y range cut to the clip, which is the check's box (ey0, ey1)
     wire signed [17:0] lo = ey0, hi = ey1 - 18'sd1;
@@ -67,10 +78,22 @@ module zm_blit_tri (
                 if (lo > hi) done <= 1'b1;
                 else st <= EDGE;
             end
-            EDGE: st <= skip ? NEXT : DIV;
+            EDGE: begin
+                e_ax <= ax; e_adx <= adx; e_t <= t[16:0]; e_dye <= dye[16:0]; e_neg <= neg; e_skip <= skip;
+                st <= MUL;
+            end
+            MUL: begin
+                anum <= e_adx * e_t;
+                st <= e_skip ? NEXT : GO;
+            end
+            GO: st <= DIV;
             DIV: if (div_done) begin
-                if (xe < xl) xl <= xe;
-                if (xe > xr) xr <= xe;
+                xe_q <= xe;
+                st <= MINMAX;
+            end
+            MINMAX: begin
+                if (xe_q < xl) xl <= xe_q;
+                if (xe_q > xr) xr <= xe_q;
                 st <= NEXT;
             end
             NEXT: begin
