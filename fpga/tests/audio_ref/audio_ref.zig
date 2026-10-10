@@ -9,6 +9,8 @@
 //!   pcm <file>            the PCM memory: byte n at address n (machinePaulaTrigger's data_abs)
 //!   run <n>               render n samples
 //!   ym <reg> <val>        machineYmWrite
+//!   pk <reg> <val>        machinePokeyWrite (machine/audio/pokey.zig, module `pokey`)
+//!   pkclock <pal>         machinePokeyClock: 1 PAL, 0 NTSC
 //!   trig <c> <data> <len> <loop_start> <loop_len> <pan>   machinePaulaTrigger (pan / 128)
 //!   step|vol|pan|pos|act <c> <v>    machinePaulaSet{Step,Volume (v / 256),Pan (v / 128),Pos,Active}
 //!   reset                 machineAudioReset
@@ -20,6 +22,10 @@
 //! (zm_audio_mix does the same).
 const std = @import("std");
 const eng = @import("engine");
+const pk = @import("pokey");
+var pokey: pk.Pokey = .{};
+var pk_clock: pk.Clock = pk.Clock.pal;
+var pk_frac: u64 = 0;
 
 const FRAME = 882; // 44100 / 50: ym_player's samples_per_frame
 
@@ -65,6 +71,12 @@ fn command(io: std.Io, raw: []const u8) !void {
     } else if (std.mem.eql(u8, op, "ym")) {
         const r = try num(&it);
         engine.ym.writeReg(@intCast(r), @intCast(try num(&it)));
+    } else if (std.mem.eql(u8, op, "pk")) {
+        const r = try num(&it);
+        pokey.write(@intCast(r), @intCast(try num(&it)));
+    } else if (std.mem.eql(u8, op, "pkclock")) {
+        pk_clock = if (try num(&it) != 0) pk.Clock.pal else pk.Clock.ntsc;
+        pk_frac = 0; // machinePokeyClock restarts the cycle count, as zm_audio_pokey does
     } else if (std.mem.eql(u8, op, "reset")) {
         audioReset();
     } else if (std.mem.eql(u8, op, "trig")) {
@@ -115,6 +127,7 @@ fn audioReset() void {
     engine.ym.writeReg(9, 0);
     engine.ym.writeReg(10, 0);
     for (&engine.channels) |*ch| ch.active = false;
+    for (0..4) |c| pokey.write(@intCast(2 * c + 1), 0);
 }
 
 // One block, as a player renders it: clear, Paula, YM, clamp.
@@ -125,6 +138,7 @@ fn render(n_total: usize) !void {
         engine.clearBus(n);
         engine.mixChannels(engine.left[0..n], engine.right[0..n]);
         engine.ym.render(engine.left[0..n], engine.right[0..n]);
+        pokey.renderAdd(engine.left[0..n], engine.right[0..n], 44100, pk_clock, &pk_frac);
         engine.clampBus(n);
         for (0..n) |i| {
             try put(engine.left[i]);

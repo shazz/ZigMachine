@@ -10,6 +10,12 @@
 //   K[c] = round(0.33 x 2^31 / (255 c)), tabled for c = 40..47 (48 kHz takes 41
 // or 42 YM clocks a sample, 44.1 kHz 45 or 46); any other count mixes no YM
 // and pulses `bad_cnt`.
+// The POKEY term is machine/audio/pokey.zig's renderAdd: the mean of its mix
+// (0..60) over the sample, / 60, so four channels at volume 15 are full scale,
+// positive only, on both sides. With zm_audio_pokey's `pk_sum` and `pk_cnt`:
+//   pokey = pk_sum / pk_cnt / 60 = (pk_sum x KP[pk_cnt]) >> 8,
+//   KP[c] = round(2^31 / (60 c)), tabled for c = 38..43 (44.1 kHz takes 40 or 41
+// machine cycles a sample on either clock); any other count mixes no POKEY.
 // Two clocks from `start` to `valid`, one multiplier.
 `default_nettype none
 
@@ -21,6 +27,8 @@ module zm_audio_mix (
     input  wire signed [27:0] pcm_r,
     input  wire [15:0]        ym_sum,
     input  wire [6:0]         ym_cnt,
+    input  wire [11:0]        pk_sum,
+    input  wire [5:0]         pk_cnt,
     output reg                valid = 1'b0,
     output reg  [15:0]        out_l = 16'd0,
     output reg  [15:0]        out_r = 16'd0,
@@ -35,6 +43,15 @@ module zm_audio_mix (
         endcase
     end
 
+    reg [19:0] kp;
+    always @(*) begin
+        case (pk_cnt)
+            6'd38: kp = 20'd941879;  6'd39: kp = 20'd917728;  6'd40: kp = 20'd894785;
+            6'd41: kp = 20'd872961;  6'd42: kp = 20'd852176;  6'd43: kp = 20'd832358;
+            default: kp = 20'd0;
+        endcase
+    end
+
     // The 2^-23 bus, clamped, to 16 bits: an arithmetic shift is the floor.
     function [15:0] to16(input signed [28:0] bus);
         reg signed [28:0] c;
@@ -45,6 +62,8 @@ module zm_audio_mix (
     endfunction
 
     reg  [32:0] ym_p = 33'd0;
+    reg  [31:0] pk_p = 32'd0;
+    wire signed [28:0] pk = $signed({5'd0, pk_p[31:8]});
     reg         stage = 1'b0;
     wire signed [28:0] ym = $signed({4'd0, ym_p[32:8]});
     always @(posedge clk) begin
@@ -56,10 +75,11 @@ module zm_audio_mix (
             valid <= stage;
             if (start) begin
                 ym_p <= ym_sum * k;
+                pk_p <= pk_sum * kp;
             end
             if (stage) begin
-                out_l <= to16(pcm_l + ym);
-                out_r <= to16(pcm_r + ym);
+                out_l <= to16(pcm_l + ym + pk);
+                out_r <= to16(pcm_r + ym + pk);
             end
         end
     end

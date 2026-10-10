@@ -26,11 +26,13 @@ module zm_pokey #(
     parameter integer CEN_INC = 63,
     parameter integer CEN_MOD = 3520,
     parameter integer PAL_INC = 901,
-    parameter integer PAL_MOD = 50805
+    parameter integer PAL_MOD = 50805,
+    parameter integer EXT_CEN = 0     // 1: the machine cycle is `cen_ext` (zm_audio_pokey's bursts)
 ) (
     input  wire        clk,
     input  wire        rst,
     input  wire        pal,            // 1: the PAL machine clock
+    input  wire        cen_ext,        // with EXT_CEN: a machine cycle on every clock it is high
     input  wire        we,
     input  wire [3:0]  addr,
     input  wire [7:0]  din,
@@ -41,7 +43,7 @@ module zm_pokey #(
     wire cen_ntsc, cen_pal;
     zm_audio_frac #(.INC(CEN_INC), .MOD(CEN_MOD)) u_cen (.clk(clk), .rst(rst), .tick(cen_ntsc));
     zm_audio_frac #(.INC(PAL_INC), .MOD(PAL_MOD)) u_pal (.clk(clk), .rst(rst), .tick(cen_pal));
-    assign cen = pal ? cen_pal : cen_ntsc;
+    assign cen = EXT_CEN != 0 ? cen_ext : pal ? cen_pal : cen_ntsc;
 
     reg [7:0] audf [0:3];
     reg [7:0] audc [0:3];

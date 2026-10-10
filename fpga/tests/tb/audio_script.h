@@ -46,6 +46,8 @@ struct Script {
         if (op == "pcm") { std::string p; in >> p; pcm = load(p); return; }
         if (op == "run") in >> c.run;
         else if (op == "ym") in >> a >> b, c.wr.push_back({4 * unsigned(a), uint32_t(b)});
+        else if (op == "pk") in >> a >> b, c.wr.push_back({0x080 + 4 * unsigned(a), uint32_t(b)});
+        else if (op == "pkclock") in >> a, c.wr.push_back({0x0C0, a ? 1u : 0u});
         else if (op == "reset") c.wr.push_back({0x040, 1});
         else if (op == "act") in >> a >> b, c.wr.push_back({ch(a, 8), b ? 1u : 0u});
         else if (op == "trig") trigger(in, c);

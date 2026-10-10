@@ -6,7 +6,7 @@
 // `exact`: every sample equal (the PCM path); `ym`: the music must agree
 // (tests/tb/audio_compare.h) and the differences are reported; `dump`: only
 // write rtl.raw, for tests/test_rtl_audio.py to judge. Also checked:
-// the status flags stay clear, VERSION reads 0x00010100, and the YM registers
+// the status flags stay clear, VERSION reads 0x00010200, and the YM registers
 // read back what was written.
 #include <cstdio>
 #include <cstdlib>
@@ -85,7 +85,7 @@ struct Bench {
 // The registers: status clear, VERSION, the YM registers read back.
 static void check_registers(Bench &b) {
     CHECK(b.top->p_status.get<unsigned>() == 0, "status %x", b.top->p_status.get<unsigned>());
-    CHECK(b.read(0x048) == 0x00010100, "VERSION %08x", b.read(0x048));
+    CHECK(b.read(0x048) == 0x00010200, "VERSION %08x", b.read(0x048));
     for (unsigned r = 0; r < 16; r++)
         CHECK(b.read(4 * r) == b.ym_written[r], "YM R%u reads %u, written %u", r, b.read(4 * r), b.ym_written[r]);
 }

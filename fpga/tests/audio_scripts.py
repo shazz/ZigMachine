@@ -70,3 +70,19 @@ def left(path: Path) -> list[int]:
 def ac_rms(x: list[int]) -> float:
     mean = sum(x) / len(x)
     return (sum((v - mean) ** 2 for v in x) / len(x)) ** 0.5
+
+
+def write_pokey_script(d: Path) -> None:
+    """The POKEY in the core (zm_audio_pokey) against the machine's (machine/audio/pokey.zig): out of
+    init mode, pure tones on all four, the polys, 1.79 MHz and 16-bit pairs, volume-only, the
+    high-pass, both clocks, a register written while a sample is mixed, and reset."""
+    lines = ["pkclock 1", "pk 15 3", "pk 8 0"]
+    for ch, f in enumerate((64, 81, 108, 121)):  # four pure tones at volume 8
+        lines += [f"pk {2 * ch} {f}", f"pk {2 * ch + 1} 168"]
+    lines += ["run 4410", "pk 1 8", "pk 3 38", "pk 5 143", "run 4410"]  # 17-bit noise, poly 4+5, poly 5+17
+    lines += ["pk 8 1", "run 2205", "pk 8 128", "run 2205"]  # 15 kHz base, 9-bit poly
+    lines += ["pk 8 80", "pk 0 32", "pk 2 1", "pk 3 175", "run 4410"]  # ch1 1.79 MHz, 1+2 joined
+    lines += ["pk 8 4", "pk 4 128", "pk 5 170", "pk 1 172", "run 4410"]  # the 1-3 high-pass
+    lines += ["pk 1 31", "run 441", "mid pk 1 16", "run 441"]  # volume-only, written mid-sample
+    lines += ["pk 9 0", "run 441", "pkclock 0", "pk 8 0", "run 4410", "reset", "run 441"]  # STIMER, NTSC, reset
+    (d / "pokey.txt").write_text("\n".join(lines) + "\n")

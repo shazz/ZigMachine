@@ -71,6 +71,7 @@ export fn machinePokeyWrite(reg: u32, val: u32) void {
 /// The POKEY's machine clock: 1 PAL (1773447 Hz, a SAP without the NTSC tag), 0 NTSC.
 export fn machinePokeyClock(pal: u32) void {
     pokey_clock = if (pal != 0) pokey_mod.Clock.pal else pokey_mod.Clock.ntsc;
+    pokey_frac = 0; // the cycle count restarts here, as the FPGA's zm_audio_pokey does: sample for sample
 }
 
 export fn machineYmWrite(reg: u32, val: u32) void {

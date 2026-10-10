@@ -47,6 +47,28 @@ def parse_log(text: str, song_tag: str) -> tuple[list[Write], Song | None, list[
     return writes, song, samples
 
 
+VOLUMES = (0x020, 0x024, 0x028)  # YM regs 8-10 (host/audio_queue.h zma_dedup_keep)
+CTRL = 0x040
+
+
+def board_queue(native: list[Write], song: Song) -> tuple[list[Write], Song]:
+    """The machine's writes as the board queues them (host/audio_queue.h): a YM volume write of the
+    value last queued for its register is dropped, and the chip reset forgets them. The song's
+    write count moves with what was dropped before it."""
+    last: dict[int, int] = {}
+    kept, before = [], 0
+    for i, w in enumerate(native):
+        if w[1] == CTRL:
+            last.clear()
+        elif w[1] in VOLUMES:
+            if last.get(w[1]) == w[2]:
+                continue
+            last[w[1]] = w[2]
+        kept.append(w)
+        before += i < song[1]
+    return kept, (song[0], before)
+
+
 def compare_writes(native: list[Write], ns: Song, board: list[Write], bs: Song, span: int) -> list[str]:
     """Differences, in order. The writes before the song (the boot's: at no common time) by
     value; the song's, by value and sample, counted from its first write."""
@@ -84,8 +106,11 @@ def main() -> int:
     ap.add_argument("uart", type=Path)
     ap.add_argument("tap", type=Path)
     ap.add_argument("--mode", choices=["ym", "exact", "near"], default="ym")
+    ap.add_argument("--no-dedup", action="store_true", help="a board from before the queue dropped repeated volumes")
     a = ap.parse_args()
     nw, ns, _ = parse_log(Path(f"{a.native}.w").read_text(), "L ")
+    if ns is not None and not a.no_dedup:
+        nw, ns = board_queue(nw, ns)
     _, bs, _ = parse_log(a.uart.read_text(errors="replace"), "ZM SONG ")
     bw, _, samples = parse_log(a.tap.read_text(), "-")
     if ns is None or bs is None:
