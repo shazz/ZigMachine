@@ -31,6 +31,12 @@ behind it. Its cart images are `ZM_AUDIO=snd` (`make board-fw ZM_AUDIO=snd CART=
 `build/hcycles/board_snd/`). They load the sound image, start it and forward the cart's song
 requests through the mailbox, so the cart CPU spends almost nothing on the music.
 
+Proved in sim (`hp_sim --sound-cpu`, `tools/audio_sim_run.py tutorial --model build/soc_hp_snd --audio snd
+--frames 60`): the 523 song writes land at the machine's samples, same values, same order, and the core's
+107,047 samples are bit for bit those of the core fed the machine's writes on the same timeline
+(`tools/audio_core_replay.py build/hcycles/audio/tutorial_snd`). The `ym` sound comparison fails the same
+way it does with the music on the cart CPU (jt49's envelope phase, [FPGA_AUDIO.md](FPGA_AUDIO.md)).
+
 ## Registers
 
 `SOUND_WINDOW` = 0x93000000 (uncached), `soc/zm_sound_regs.py`:
