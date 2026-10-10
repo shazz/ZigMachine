@@ -15,22 +15,30 @@
 // drifting near it — a float accumulator that merely approaches 0 would leave
 // the screen on the ZIG code path for ever, drawing the same pixels by a
 // different route.
+//
+// This is replicants_emlyn_f32's Mode, on f32 for the FPU test. The default
+// cart's (mode.zig) is the same machine on an integer angle and a frame count.
 // --------------------------------------------------------------------------
 const THETA_STEP = 0.02;
 const RETURN_STEP = 8 * THETA_STEP;
-const BEND_STEP: f64 = 1.0 / 20.0; // the same 20 frames
+const BEND_STEP: f32 = 1.0 / 20.0; // the same 20 frames
 const PI = 3.141592653589793;
 const TAU = 2 * PI;
 
 pub const Mode = struct {
-    theta: f64,
-    bend: f64,
+    theta: f32,
+    bend: f32,
     zig: bool,
 
     pub fn init(self: *Mode) void {
         self.theta = 0;
         self.bend = 0;
         self.zig = false;
+    }
+
+    /// The scrolltext is dead flat: draw it with the original's plain blit.
+    pub fn flat(self: *const Mode) bool {
+        return self.bend <= 0;
     }
 
     pub fn toggle(self: *Mode) void {

@@ -57,34 +57,37 @@
 // about that point IS turning the group about the camera's z axis: the bars stay
 // perpendicular to the axis the twelve balls are strung along, and widening the
 // ramp over the borders does not shift them.
+//
+// THIS FILE is what both carts share: the table, the HBL that replays it, and
+// the ramp. What FILLS the table each frame is the cart's number back-end:
+// fill_fixed.zig (the default cart: integers, one span per bar per line, the
+// way an ST coder would) or fill_f32.zig (replicants_emlyn_f32: the CODEF port's
+// per-bucket search, in f32, for the FPU test).
 // --------------------------------------------------------------------------
-const std = @import("std");
 const zg = @import("zigos");
-const c3 = zg.zig3d;
 const A = @import("assets.zig");
 
-const PLANE_W: usize = zg.PHYSICAL_WIDTH; // 400: the ramp covers the side borders too
-const PLANE_WF: f64 = PLANE_W;
-const CX = 320.0; // the canvas centre, where the group's origin projects
-const CY = 240.0;
-const BAR_ROWS = 64; // bar.png's source rows; the halved table has BANDS
-const BANDS = 32;
-const BLACK = BANDS; // the 33rd ink: no bar over this point
+pub const PLANE_W: usize = zg.PHYSICAL_WIDTH; // 400: the ramp covers the side borders too
+pub const CX = 320; // the canvas centre, where the group's origin projects
+pub const CY = 240;
+pub const BAR_ROWS = 64; // bar.png's source rows; the halved table has BANDS
+pub const BANDS = 32;
+pub const BLACK = BANDS; // the 33rd ink: no bar over this point
 
 pub const MAX_BUCKETS = 256 - @as(usize, A.FIRST_BUCKET); // 149, what the palette has left
-const LINE_CYCLES = 400.0; // an open line displays 400 pixels, one a cycle
-const CYCLES_PER_ENTRY = 4.5; // movem.l d0-d7,(a0): 72 cycles, 16 registers
+pub const LINE_CYCLES = 400; // an open line displays 400 pixels, one a cycle
+/// movem.l d0-d7,(a0): 72 cycles, 16 registers, so 4.5 cycles an entry; kept as
+/// the fraction 9/2 so the fixed-point cart never needs a float for it.
+pub const CYCLES_PER_ENTRY_X2 = 9;
 
 /// The ink of every bucket of every PHYSICAL row: a band 0..31, or BLACK.
 /// 41,720 B on zg.mem, taken by install() before the HBL that reads it goes in.
-var table: *[zg.PHYSICAL_HEIGHT][MAX_BUCKETS]u8 = undefined;
+pub var table: *[zg.PHYSICAL_HEIGHT][MAX_BUCKETS]u8 = undefined;
 var ink: [BANDS + 1]u32 = undefined;
 /// The background pattern, painted under everything: plane column x shows
 /// bucket x * count / 400, and all the motion is in the palette.
 pub var row: [PLANE_W]u8 = undefined;
-var count: usize = 0;
-/// Bands that fall inside one bucket, per particle (see MERGING).
-var merge: [16]usize = undefined;
+pub var count: usize = 0;
 
 /// Replace openBorders()'s handler with one that ALSO opens the borders: the
 /// machine gives a plane one HBL, and this screen needs both. Runs once per
@@ -109,73 +112,8 @@ fn hbl(fb: *zg.LogicalFB, _: *zg.ZigOS, line: u16, _: u16) void {
     for (table[line][0..count], 0..) |b, i| fb.palette[A.FIRST_BUCKET + i] = ink[b];
 }
 
-/// The colours every scanline of the content window shows this frame.
-/// `particles` come back from projectParticles far to near.
-pub fn build(particles: []const c3.Particle, theta: f64) void {
-    const sin = @sin(theta);
-    const cos = @cos(theta);
-    const band = typicalBand(particles); // one colour band, in canvas pixels
-    setCount(bucketCount(@abs(sin), @abs(cos), band));
-    const width = 2.0 * PLANE_WF / @as(f64, @floatFromInt(count)); // a bucket, in canvas pixels
-    setMerge(particles, @abs(width * sin));
-    const du = width * sin;
-    const t = table; // one load of the arena pointer, not one a row
-    for (0..A.CONTENT_H) |y| {
-        // the ST row's canvas pixel centre, as the sprite port sampled it
-        const yc = 2.0 * @as(f64, @floatFromInt(y)) + 0.5;
-        // plane column 0 is CONTENT_X to the left of canvas 0
-        var u = (-2.0 * @as(f64, A.CONTENT_X) + 0.5 - CX) * sin + (yc - CY) * cos + CY;
-        for (t[A.CONTENT_Y + y][0..count]) |*b| {
-            b.* = inkAt(particles, u);
-            u += du;
-        }
-    }
-}
-
-/// How fine the ramp may be: no finer than one band needs (there is nothing to
-/// show between two), and no finer than a line can rewrite.
-fn bucketCount(sin: f64, cos: f64, band: f64) usize {
-    const need = 2.0 * PLANE_WF * sin / band;
-    const churn = @min(1.0, 2.0 * cos / band); // entries changing per line
-    const budget = if (churn <= 0) @as(f64, MAX_BUCKETS) else LINE_CYCLES / (CYCLES_PER_ENTRY * churn);
-    return @intFromFloat(std.math.clamp(@round(@min(need, budget)), 1, MAX_BUCKETS));
-}
-
-fn setCount(n: usize) void {
+pub fn setCount(n: usize) void {
     if (n == count) return;
     count = n;
     for (&row, 0..) |*p, x| p.* = A.FIRST_BUCKET + @as(u8, @intCast(x * count / PLANE_W));
-}
-
-/// The mean colour band, in canvas pixels: a bar's 32 bands over 64*sy rows.
-fn typicalBand(particles: []const c3.Particle) f64 {
-    if (particles.len == 0) return 2.0;
-    var sum: f64 = 0;
-    for (particles) |p| sum += 2.0 * p.sy;
-    return sum / @as(f64, @floatFromInt(particles.len));
-}
-
-fn setMerge(particles: []const c3.Particle, step: f64) void {
-    for (particles, 0..) |p, i| {
-        const k = @round(step / (2.0 * p.sy));
-        merge[i] = if (k < 1) 1 else @intFromFloat(k);
-    }
-}
-
-/// The nearest bar covering `u` wins, so scan near to far and stop at the first:
-/// the far-to-near painting order with no painting.
-fn inkAt(particles: []const c3.Particle, u: f64) u8 {
-    var i = particles.len;
-    while (i > 0) {
-        i -= 1;
-        const p = particles[i];
-        // bar.png's row under u. The CanvasRenderer never undoes its y flip for
-        // a ParticleCanvasMaterial, so the table reads backwards — measured
-        // against the browser, and kept.
-        const r = @floor((p.y - u) / p.sy) + BAR_ROWS / 2;
-        if (r < 0 or r >= BAR_ROWS) continue;
-        const m = @as(usize, @intFromFloat(r)) / 2;
-        return @intCast(m / merge[i] * merge[i]);
-    }
-    return BLACK;
 }
