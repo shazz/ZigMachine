@@ -128,7 +128,7 @@ module zm_glass_regs #(
         if (rst) begin
             ctrl <= CTRL_INIT;
             {osd_fg, osd_bg} <= {24'hFFFFFF, 24'h000000};
-            {load_base, load_size, joy, scratch} <= {ZG_DDR_CART_BASE, 32'd0, 8'd0, 32'd0};
+            {load_base, load_size, joy, scratch} <= {ZG_LOAD_BASE_RESET, 32'd0, 8'd0, 32'd0};
             audio_vol <= ZG_AUDIO_VOL_RESET[8:0];
         end else if (do_write && is_reg) begin
             case (waddr[11:2])

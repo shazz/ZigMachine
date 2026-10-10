@@ -104,7 +104,7 @@ test "the debug page shows what it is given, and n/a for what Linux lacks" {
     draw(&o, &v);
     var dump: [osd.ROWS * (osd.COLS + 1)]u8 = undefined;
     o.dump(&dump);
-    for ([_][]const u8{ "glass 0.2.0 1a2b3c4d", "PL    ZMGL 1.2.0", "fw    0.1.0", "cart  RUNNING  beat 1234", "fps   49.9     trap -", "up    1:02:03", "ddr   1E000000+32M img 420K", "cpu   n/a", "mem   n/a", "pad   Xbox Wireless Controller" }) |want| {
+    for ([_][]const u8{ "glass 0.2.0 1a2b3c4d", "PL    ZMGL 1.3.0", "fw    0.1.0", "cart  RUNNING  beat 1234", "fps   49.9     trap -", "up    1:02:03", "ddr   1E000000+32M img 420K", "cpu   n/a", "mem   n/a", "pad   Xbox Wireless Controller" }) |want| {
         if (std.mem.indexOf(u8, &dump, want) == null) {
             std.debug.print("missing \"{s}\" in:\n{s}", .{ want, dump });
             return error.TestExpectedEqual;

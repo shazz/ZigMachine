@@ -6,7 +6,9 @@ is `make hp-sim` (cycles/board.mk)."""
 
 from __future__ import annotations
 
+import runpy
 from collections.abc import Generator
+from pathlib import Path
 
 import pytest
 from litex.soc.interconnect import wishbone
@@ -350,3 +352,51 @@ def test_board_bug_a_dma_that_ignores_the_enable_talks_to_the_port_before_run(mo
     bench = Bench(enable=Signal())
     aw_held, _, _, _ = held_and_drained(bench, drop_after=10)
     assert aw_held > 0
+
+
+class _Glass:
+    def __init__(self, load_base: int) -> None:
+        self.load_base = Signal(32, reset=load_base)
+
+
+def _slice_ar(load_base: int | None) -> int:
+    """The AR address the PS7 sees for a master's DDR_BASE + 0x1238, through zm_board_mem.hp_slice."""
+    from litex.gen import LiteXModule
+
+    from soc.zm_board_mem import hp_slice
+
+    soc = LiteXModule()
+    if load_base is not None:
+        soc.glass = _Glass(load_base)
+    master = hp_interface()
+    ps = hp_slice(soc, "hp0", master)
+    seen: list[int] = []
+
+    def drive() -> Sim:
+        yield master.ar.valid.eq(1)
+        yield master.ar.addr.eq(DDR_BASE + 0x1238)
+        yield ps.ar.ready.eq(1)
+        for _ in range(6):
+            yield
+            if (yield ps.ar.valid):
+                seen.append((yield ps.ar.addr))
+
+    run_simulation(soc, drive())
+    assert seen, "no AR reached the PS7 side"
+    return seen[0]
+
+
+def test_slice_places_the_cart_window_at_the_glass_load_base() -> None:
+    assert _slice_ar(0x1E000000) == 0x1E001238  # Linux: the top 32 MiB, kept from the kernel
+
+
+def test_slice_reset_load_base_is_the_u_boot_window_so_board_run_needs_no_write() -> None:
+    from soc.zm_hp import DDR_BASE as U_BOOT_WINDOW
+
+    glass_map = runpy.run_path(str(Path(__file__).resolve().parent.parent / "gen" / "glass_map.py"))
+    assert glass_map["LOAD_BASE_RESET"] == U_BOOT_WINDOW
+    assert _slice_ar(glass_map["LOAD_BASE_RESET"]) == U_BOOT_WINDOW + 0x1238
+
+
+def test_slice_without_a_glass_passes_the_address_through() -> None:
+    assert _slice_ar(None) == DDR_BASE + 0x1238

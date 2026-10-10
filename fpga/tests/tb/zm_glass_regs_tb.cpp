@@ -35,7 +35,7 @@ static void test_identity_and_reset() {
     CHECK(axi_read(REG_ID) == ID_VALUE, "ID");
     CHECK(axi_read(REG_VERSION) == VERSION, "VERSION");
     CHECK(axi_read(REG_CTRL) == 0 && !top.p_cpu__run.get<bool>(), "the cart CPU must start in reset");
-    CHECK(axi_read(REG_LOAD_BASE) == DDR_CART_BASE, "LOAD_BASE resets to DDR_CART_BASE");
+    CHECK(axi_read(REG_LOAD_BASE) == LOAD_BASE_RESET, "LOAD_BASE resets to LOAD_BASE_RESET (the U-Boot window)");
     CHECK(axi_read(REG_OSD_FG) == 0xFFFFFF, "OSD_FG resets to white");
     CHECK(axi_read(0x0FFC) == 0 && axi_read(0x2000) == 0, "unmapped reads 0");
 }

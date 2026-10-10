@@ -105,7 +105,7 @@ clock (the PL drives `MAXIGP0ACLK`), so it lives in one clock domain.
 | `0x0C` | `STATUS` | ro | bit 0 `RUNNING`, bit 1 `KEY_FULL`, bit 2 `KEY_OVERFLOW` (sticky) |
 | `0x10` | `CART_STATE` | ro | Written by the cart CPU's firmware: 0 reset, 1 booting, 2 running, 3 trapped. Bits 31:8: the trap code when trapped (`TRAP_WARM_LOST` = `0xFFFF01` for a warm boot with no memory to keep), the firmware's version (major.minor.patch, 8 bits each) when booting or running. Cleared while the CPU is held. |
 | `0x14` | `CART_BEAT` | ro | The firmware's frame count: the ARM's watchdog |
-| `0x18` | `LOAD_BASE` | rw | The DDR address of the cart CPU's RAM (reset value `0x1E00_0000`) |
+| `0x18` | `LOAD_BASE` | rw | The DDR address of the cart CPU's RAM: bits 31..25 replace the top of every HP0-HP3 address at the PS7 (`soc/zm_board_mem.py` `hp_slice`), so it must be 32 MiB-aligned. Reset value `0x0400_0000`, U-Boot's window (U-Boot relocates itself over `0x1E00_0000`); `glass` writes `0x1E00_0000` before `CTRL.RUN` and refuses a PL older than 1.3.0, which ignores it. Write it only while `RUN` is 0: every HP master is idle then. |
 | `0x1C` | `LOAD_SIZE` | rw | The bytes of image the ARM placed there |
 | `0x20` | `KEY_PUSH` | wo | One key event into the 16-entry FIFO. A push into a full FIFO is dropped and sets `KEY_OVERFLOW`. |
 | `0x24` | `KEY_LEVEL` | ro | Events waiting |

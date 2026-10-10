@@ -11,7 +11,7 @@ pub const FW_VERSION: u32 = 0x00_01_00; // what the stand-in firmware reports, 0
 
 pub const Glass = struct {
     ctrl: u32 = 0,
-    load_base: u32 = map.DDR_CART_BASE,
+    load_base: u32 = map.LOAD_BASE_RESET,
     load_size: u32 = 0,
     joy: u32 = 0,
     osd_fg: u32 = 0xFFFFFF,

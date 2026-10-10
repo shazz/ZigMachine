@@ -730,3 +730,12 @@ ABI rather than a Zig API, apps in any language sit on it.
 - A PCM sample the players rewrite less than the lead (67 ms) before it is played would be read new (the STE DMA double buffer case): not met by any cart measured; an audio CPU running in step with the core removes it.
 - The players run with the cart's translation (no bounds checks, M mode, as the whole board firmware today): the seal does not yet separate them.
 - An audio CPU later drives the same queue; a second sound chip gets its own register range behind it.
+
+## 2026-10-10 — The cart's DDR window follows the glass's LOAD_BASE
+
+**Status:** accepted
+**Context:** The HP bridges hard-coded the cart window at DDR `0x0400_0000`, where U-Boot leaves room for `loadx`. Under Linux that address is the initramfs (`boot.cmd` loads it at `0x4000000`), and the dts reserves `0x1E00_0000` for the cart. The glass already had a `LOAD_BASE` register that `glass` wrote, but the PL left its output unconnected.
+**Decision:** The window comes from `LOAD_BASE[31:25]`, applied once, in the register slice at the PS7 (`hp_slice`), so the four masters keep addressing `DDR_BASE` and the simulation's DDR model is unchanged. Its reset value is `0x0400_0000`, so the U-Boot flow (`board_run.py`) needs no extra write; `glass` writes `0x1E00_0000`, and checks for PL `VERSION` >= 1.3.0 first.
+**Alternatives considered:** Reset to `0x1E00_0000` as the spec said. U-Boot relocates itself into the top of DDR, so a forgotten write would let the cart overwrite U-Boot. Threading a base signal through each bridge means four edits instead of one, and the sim model would have to follow.
+**Consequences:** The base must be 32 MiB-aligned (the low bits are ignored). Change it only while `CTRL.RUN` is 0. `board_shot.py`'s mailbox `ddr_base` is the firmware's constant `0x0400_0000`, so it is right under U-Boot only.
+

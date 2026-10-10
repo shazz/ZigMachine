@@ -16,7 +16,7 @@ pub const GP0_BASE: u32 = 0x43C0_0000;
 pub const WINDOW_BYTES: u32 = 0x1_0000;
 
 pub const ID_VALUE: u32 = 0x5A4D_474C; // "ZMGL": the ARM refuses to drive anything else
-pub const VERSION: u32 = 0x0001_0200; // 1.2.0: REG_AUDIO_VOL, CTRL_WARM (1.1.0: REG_POINTER)
+pub const VERSION: u32 = 0x0001_0300; // 1.3.0: REG_LOAD_BASE moves the HP window (1.2.0: REG_AUDIO_VOL, CTRL_WARM; 1.1.0: REG_POINTER)
 
 // --- registers (byte offsets, 32-bit, word access only) ----------------------
 pub const REG_ID: u32 = 0x00; // ro
@@ -161,6 +161,12 @@ pub const AUDIO_VOL_RESET: u32 = 0xFF;
 pub const DDR_CART_BASE: u32 = 0x1E00_0000;
 pub const DDR_CART_BYTES: u32 = 0x0200_0000;
 pub const CART_CPU_BASE: u32 = 0x4000_0000;
+// LOAD_BASE's reset value: the window U-Boot leaves alone (it relocates itself
+// into the top of DDR, over DDR_CART_BASE), so the U-Boot flow (board_run.py,
+// loadx to 0x0400_0000) needs no write. Under Linux that is the initramfs:
+// the glass writes DDR_CART_BASE before CTRL_RUN. Only bits 31..25 are used
+// (a 32 MiB-aligned window, soc/zm_board_mem.py hp_slice).
+pub const LOAD_BASE_RESET: u32 = 0x0400_0000;
 
 // --- the disk (.zmd) ---------------------------------------------------------
 // A "fat" disk carries the cart's rv32 board image as one more FAT file, found

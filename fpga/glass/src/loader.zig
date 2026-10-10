@@ -10,6 +10,7 @@ const zmd = @import("zmd.zig");
 
 pub const Error = zmd.Error || error{
     NoGlass, // the PL does not answer with ID_VALUE: wrong bitstream, or none
+    OldGlass, // the PL predates 1.3.0: it ignores LOAD_BASE, the cart would run over the initramfs
     WontStop, // the cart CPU did not go into reset
     BadImage, // the board image is a ZX0 container that does not depack
     TooBig, // larger than the cart CPU's window
@@ -44,6 +45,7 @@ pub fn hold(regs: bus.Regs) Error!void {
 
 pub fn checkGlass(regs: bus.Regs) Error!void {
     if (regs.read(map.REG_ID) != map.ID_VALUE) return error.NoGlass;
+    if (regs.read(map.REG_VERSION) < 0x0001_0300) return error.OldGlass;
 }
 
 /// Unpack the board image into a fresh buffer (a raw image is copied as is).

@@ -24,11 +24,11 @@ from typing import Any
 
 from litex.soc.integration.soc import SoCRegion
 from litex.soc.interconnect import axi, stream, wishbone
-from migen import ClockSignal, Instance
+from migen import Cat, ClockSignal, Instance
 
 from soc.zm_cycles import ZMCycles
 from soc.zm_glass import ps7_gp0
-from soc.zm_hp import CPU_BASE, WINDOW, WishboneHP, hp_interface, ps7_hp_ports
+from soc.zm_hp import CPU_BASE, WINDOW, WINDOW_LOG2, WishboneHP, hp_interface, ps7_hp_ports
 
 # A LiteX SoC: untyped, its submodules are attributes made at runtime.
 SoC = Any
@@ -47,13 +47,26 @@ def hp_slice(soc: SoC, name: str, master: axi.AXIInterface) -> axi.AXIInterface:
     every PS7 pin of the port meets a flip-flop and nothing else. nextpnr-xilinx times no
     path into or out of the PS7 (its timing report has none), so logic on those pins is
     placement luck (2026-10-04: the cart CPU dead on some builds of one netlist); with the
-    slice an untimed route is one wire into one flop. Costs a clock each way."""
+    slice an untimed route is one wire into one flop. Costs a clock each way.
+
+    The slice also places the cart window: every master addresses it at zm_hp.DDR_BASE, and the
+    AW/AR address leaves with bits 31..25 replaced by the glass's LOAD_BASE (reset: the same
+    DDR_BASE, U-Boot's window; under Linux the glass writes 0x1E00_0000 before CTRL.RUN). The
+    masters only run while CTRL.RUN, so the base never changes under a burst."""
     ps = hp_interface()
+    glass = getattr(soc, "glass", None)
     for ch, out in (("aw", True), ("w", True), ("ar", True), ("b", False), ("r", False)):
         src, dst = (getattr(master, ch), getattr(ps, ch)) if out else (getattr(ps, ch), getattr(master, ch))
         buf = stream.Buffer(src.description, pipe_valid=True, pipe_ready=True)
         setattr(soc, f"{name}_{ch}_slice", buf)
-        soc.comb += [src.connect(buf.sink), buf.source.connect(dst)]
+        if ch in ("aw", "ar") and glass is not None:
+            soc.comb += [
+                src.connect(buf.sink, omit={"addr"}),
+                buf.sink.addr.eq(Cat(src.addr[:WINDOW_LOG2], glass.load_base[WINDOW_LOG2:])),
+            ]
+        else:
+            soc.comb += src.connect(buf.sink)
+        soc.comb += buf.source.connect(dst)
     return ps
 
 

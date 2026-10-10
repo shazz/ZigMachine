@@ -33,6 +33,7 @@ class ZMGlass(LiteXModule):
     def __init__(self, platform: Platform) -> None:
         self.axi = axi.AXIInterface(data_width=32, address_width=32, id_width=12, version="axi3")
         self.cpu_run = Signal()
+        self.load_base = Signal(32)  # LOAD_BASE: where in DDR the HP ports' cart window sits (zm_board_mem.hp_slice)
         self.osd = {"en": Signal(), "fg": Signal(24), "bg": Signal(24)}
         self.osd_write = {"we": Signal(), "waddr": Signal(9), "wdata": Signal(9)}
         self.key_data = CSRStatus(32, description="The oldest key event (fpga/glass/src/map.zig, KEY_*).")
@@ -62,7 +63,7 @@ class ZMGlass(LiteXModule):
             "o_s_rvalid": a.r.valid, "i_s_rready": a.r.ready, "o_s_rdata": a.r.data, "o_s_rid": a.r.id,
             "o_s_rresp": a.r.resp, "o_s_rlast": a.r.last,
             "o_cpu_run": self.cpu_run, "o_osd_en": self.osd["en"], "o_osd_fg": self.osd["fg"],
-            "o_osd_bg": self.osd["bg"], "o_load_base": Signal(32), "o_load_size": Signal(32),
+            "o_osd_bg": self.osd["bg"], "o_load_base": self.load_base, "o_load_size": Signal(32),
             "o_joy": self.joy.status, "o_osd_we": self.osd_write["we"], "o_osd_waddr": self.osd_write["waddr"],
             "o_osd_wdata": self.osd_write["wdata"], "o_key_valid": self.key_valid.status,
             "o_key_data": self.key_data.status, "i_key_pop": self.key_pop.re,

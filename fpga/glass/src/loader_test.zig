@@ -127,3 +127,25 @@ test "a CPU that will not stop is never written to" {
     try std.testing.expectError(error.WontStop, loader.warm(rig.glass.regs(), .{}));
     try std.testing.expectEqual(@as(u32, 0), rig.glass.ctrl & map.CTRL_RUN);
 }
+
+test "a PL older than 1.3.0 ignores LOAD_BASE, so it gets no cart (it would run over the initramfs)" {
+    const Old = struct {
+        writes: u32 = 0,
+        fn read(_: *anyopaque, reg: u32) u32 {
+            return switch (reg) {
+                map.REG_ID => map.ID_VALUE,
+                map.REG_VERSION => 0x0001_0200,
+                else => 0,
+            };
+        }
+        fn write(ctx: *anyopaque, _: u32, _: u32) void {
+            const self: *@This() = @ptrCast(@alignCast(ctx));
+            self.writes += 1;
+        }
+    };
+    var old = Old{};
+    const regs = bus.Regs{ .ctx = &old, .read_fn = Old.read, .write_fn = Old.write };
+    var rig = Rig{};
+    try std.testing.expectError(error.OldGlass, loader.load(gpa, regs, rig.ddr(), "", .{}));
+    try std.testing.expectEqual(@as(u32, 0), old.writes); // not even CTRL: the running cart is left alone
+}

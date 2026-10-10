@@ -6,7 +6,9 @@
   and it IS PS DDR at `DDR_BASE` (0x0400_0000): bus `CPU_BASE + off` is DDR
   `DDR_BASE + off`. U-Boot leaves 0x0200_0000-0x0FFF_FFFF alone (its `bdinfo`
   reserves 0x1000_0000-0x10FF_FFFF and 0x1DAC_9F20 up), so the ARM can
-  `fatload` the firmware image straight to DDR_BASE.
+  `fatload` the firmware image straight to DDR_BASE. That is where every master here
+  addresses it; on the board, the PS7's register slice moves it to the glass's
+  LOAD_BASE (soc/zm_board_mem.py hp_slice: 0x1E00_0000 under Linux).
 - **HP0: the CPU** (`WishboneHP`): its 32-bit Wishbone becomes 64-bit AXI3, one
   transaction at a time. A cache-line refill (VexRiscv's 8-beat incrementing
   Wishbone burst, `cti` 010...111) is ONE 4-beat AXI burst into a line buffer
