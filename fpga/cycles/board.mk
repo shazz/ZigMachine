@@ -25,7 +25,7 @@ HP_DEPS  := soc/hp_sim.py soc/zm_board_mem.py soc/zm_hp.py soc/zm_simaxi.py soc/
 	soc/zm_audio_soc.py $(wildcard rtl/audio/*.v) rtl/sim/zm_audio_tap.v
 HRV_CFLAGS = $(subst -I$(CYC)/gen,-I$(HCYC)/gen,$(RV_CFLAGS)) -Ibuild/vdump $(V_aligned)
 HFW_FILES := $(filter-out cycles/board.c,$(FW_FILES)) cycles/bboard.c cycles/bmailbox.c cycles/bdiag.c cycles/bblit.c
-HFW_DEPS  := $(FW_DEPS) cycles/bblit.c cycles/bblit.h cycles/bboard.c cycles/bboard.h cycles/bmailbox.c cycles/bmailbox.h cycles/bdiag.c cycles/bdiag.h cycles/vboard.h $(HCYC)/gen/csr_addr.h build/vdump/zm_memmap.h
+HFW_DEPS  := $(FW_DEPS) cycles/bmicros.h cycles/bblit.c cycles/bblit.h cycles/bboard.c cycles/bboard.h cycles/bmailbox.c cycles/bmailbox.h cycles/bdiag.c cycles/bdiag.h cycles/vboard.h $(HCYC)/gen/csr_addr.h build/vdump/zm_memmap.h
 # The link of cycles.mk with the top 4 KiB of the window kept free for the debug
 # mailbox (cycles/bmailbox.h): the stack starts below it.
 HRV_LDFLAGS := $(subst __ram_size=0x01000000,__ram_size=0x00fff000,$(RV_LDFLAGS)) -Wl,--wrap=w2c_machine_hwBlit
@@ -60,7 +60,7 @@ $(HCYC)/$(1)/%/fw.elf: $(CYC)/aligned/%/cart.o $(CYC)/aligned/common/machine.o $
 	@mkdir -p $$(@D)
 	for s in $(AUD_FW_SRC) $(HCYC)/songs/$$*.c; do \
 		$(RV_CC) $(HRV_CFLAGS) $(H_$(1)) -I$(HOST)/$$* -c $$$$s -o $$(@D)/aud_$$$$(basename $$$$s .c).o || exit 1; done
-	$(RV_CC) $(HRV_CFLAGS) -I$(HOST)/$$* -c $(HOST)/$$*/env.c -o $$(@D)/env.o
+	$(RV_CC) $(HRV_CFLAGS) -I$(HOST)/$$* -include bmicros.h -c $(HOST)/$$*/env.c -o $$(@D)/env.o
 	$(RV_CC) $(HRV_CFLAGS) -I$(HOST)/$$* -c host/boot.c -o $$(@D)/boot.o
 	$(RV_CC) $(HRV_CFLAGS) -I$(HOST)/$$* -c cycles/vseq.c -o $$(@D)/vseq.o
 	$(RV_CC) $(HRV_CFLAGS) $(H_$(1)) -I$(HOST)/$$* -DZM_CART='"$$*"' -c cycles/bmain.c -o $$(@D)/main.o

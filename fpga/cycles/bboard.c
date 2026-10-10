@@ -11,6 +11,7 @@
 
 #include "board.h"
 #include "bboard.h"
+#include "bmicros.h"
 
 static int uart_putc(char c, FILE* f) {
     (void)f;
@@ -30,6 +31,21 @@ FILE* const stderr = &g_uart;
 void board_state(uint32_t state) { *(volatile uint32_t*)CSR_GLASS_CART_STATE_ADDR = state; }
 
 void board_beat(uint32_t frames) { *(volatile uint32_t*)CSR_GLASS_CART_BEAT_ADDR = frames; }
+
+#ifndef ZM_SYS_MHZ
+#define ZM_SYS_MHZ 100u /* every board bitstream runs sys at 100 MHz (soc/zm_z7.py --sys-mhz) */
+#endif
+
+/* The cycle counter is 32 bits and wraps every 43 s at 100 MHz: its deltas go into 64 bits,
+ * so the microseconds wrap like the browser's (u32, ~71 min), given calls under 43 s apart. */
+uint32_t board_micros(void) {
+    static uint32_t last;
+    static uint64_t total;
+    uint32_t now = board_cycles();
+    total += (uint32_t)(now - last);
+    last = now;
+    return (uint32_t)(total / ZM_SYS_MHZ);
+}
 
 void board_finish(int code) {
     printf("ZM END %d\n", code);
