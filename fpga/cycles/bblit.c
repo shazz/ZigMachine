@@ -53,15 +53,36 @@ static void blit_rtl(volatile uint8_t* r) {
 }
 #endif
 
+void bblit_frame_reset(void) {
+    for (int i = 0; i < 5; i++) bblit.op_calls[i] = bblit.op_cycles[i] = bblit.op_units[i] = 0;
+    bblit.n_trace = 0;
+    bblit.t_last = board_cycles();
+}
+
 void __wrap_w2c_machine_hwBlit(struct w2c_machine* m) {
     uint32_t t0 = board_cycles();
-#ifdef ZM_BLIT_HW
     volatile uint8_t* r = (volatile uint8_t*)(uintptr_t)ZMV_REG(VBASE);
+    uint8_t cmd = r ? r[ZM_BLIT_COMMAND] : 0;
+#ifdef ZM_BLIT_HW
     if (r && *(volatile uint32_t*)(r + ZM_BLIT_D_BASE) >= ZM_OFF_VRAM) blit_rtl(r);
     else __real_w2c_machine_hwBlit(m);
 #else
     __real_w2c_machine_hwBlit(m);
 #endif
+    uint32_t dt = board_cycles() - t0;
     bblit.calls++;
-    bblit.cycles += board_cycles() - t0;
+    bblit.cycles += dt;
+    int k = cmd <= 4 ? cmd : 0;
+    bblit.op_calls[k]++;
+    bblit.op_cycles[k] += dt;
+    uint32_t units = r && cmd ? *(volatile uint32_t*)(r + ZM_BLIT_CYCLES) : 0;
+    bblit.op_units[k] += units;
+    if (bblit.n_trace < BBLIT_TRACE) {
+        bblit.trace[bblit.n_trace].cmd = cmd;
+        bblit.trace[bblit.n_trace].gap = t0 - bblit.t_last;
+        bblit.trace[bblit.n_trace].cycles = dt;
+        bblit.trace[bblit.n_trace].units = units;
+        bblit.n_trace++;
+    }
+    bblit.t_last = board_cycles();
 }

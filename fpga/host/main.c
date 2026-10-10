@@ -71,10 +71,16 @@ static void run_calls(long f) {
 /* One frame of the host loop (docs/sealed-loader.js): clear, frame, then render
  * every ENABLED plane. HBL handlers only run inside hwRenderPlane, so planes are
  * rendered every frame, sampled or not. */
-static void frame(sha256_ctx* h, u32 planes, u32 size) {
+/* HOST_WARP_MS=<ms>: frame 1's dt instead of 16.6, the firmware's ZM_WARP_MS (cycles/bmain.c). */
+static float frame_dt(long f) {
+    const char* warp = f == 1 ? getenv("HOST_WARP_MS") : NULL;
+    return warp && atof(warp) > 0 ? (float)atof(warp) : 16.6f;
+}
+
+static void frame(sha256_ctx* h, u32 planes, u32 size, long f) {
     struct w2c_env* e = &g_env;
     w2c_machine_hwClear(&e->machine);
-    w2c_cart_frame(&e->cart, 16.6f);
+    w2c_cart_frame(&e->cart, frame_dt(f));
     AUDIO(audio_soft_frame(e));
     for (u32 p = 0; p < planes; p++) {
         if (!w2c_cart_isPlaneEnabled(&e->cart, p)) {
@@ -132,7 +138,7 @@ static void run(const char* cart, long n, long k) {
         run_calls(f);
         int sample = f % k == 0;
         if (sample) sha256_init(&h);
-        frame(sample ? &h : NULL, planes, size);
+        frame(sample ? &h : NULL, planes, size, f);
         if (!sample) continue;
         sha256_hex(&h, hashes[f / k - 1]);
         sha256_update(&total, hashes[f / k - 1], 64);
