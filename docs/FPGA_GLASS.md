@@ -37,7 +37,7 @@ none of MiSTer's code (GPL) or zeST's code (GPL-3) is used.
 | Warm-boot hook in the cart CPU's firmware (`glass/firmware/glass_boot.c`) | **stub**, tested | 13 checks, 4 break tests caught; not linked into a firmware yet |
 | Remote shell over Ethernet (DHCP, dropbear, avahi) | **Linux side written**; the PL's EMIO wiring is not | below, "Remote shell" |
 | Load path, end to end | **done** | the 9 board images `fpga/cycles` links land byte for byte in the fake DDR |
-| Cart-side input routing (`glass/firmware/glass_input.c`) | **done**, not yet linked into a firmware | 19 key cases + 7 pointer polls against `sealed-loader.js`'s rules; 3 break tests caught |
+| Cart-side input routing (`glass/firmware/glass_input.c`) | **done, linked into every board firmware** (2026-10-10): once a frame, before `cart.frame()`, `cycles/binput.c` drains the key FIFO (32 a frame at most), then the joypad and the mouse, through `host/input_bridge.c` into the cart's exports (`host_input`, generated per cart by `tools/host_gen.py`: NULL where a cart has no such export) | 19 key cases + 7 pointer polls against `sealed-loader.js`'s rules; 3 break tests caught. `tests/test_board_input.py`: the native host plays a key-FIFO script (`ZM_GLASS_KEYS`) through the same router, and SPACE on union_beatdis gives the browser's own `key(32)` hashes, a mutant router is caught |
 | SD card staging (`tools/glass_sd.py`), U-Boot script, DTS, Buildroot tree | **written** | `boot.scr` is byte-identical to `mkimage`'s; the DTS compiles against a stub dtsi |
 | Anything on the board | **waiting for the board** | below, "What needs the board" |
 
