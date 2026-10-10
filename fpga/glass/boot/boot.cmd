@@ -16,7 +16,7 @@ if fatload mmc 0 0x1000000 zigmachine.bit; then
     mw.l 0xf8009000 0; mw.l 0xf8009014 0xf01
     mw.l 0xf800a000 0; mw.l 0xf800a014 0xf01
 else
-    echo "zigmachine: no zigmachine.bit on the card, the PL keeps BOOT.BIN's bitstream"
+    echo zigmachine: no zigmachine.bit on the card, the PL keeps the BOOT.BIN bitstream
 fi
 
 # Plan A: our own Linux (Buildroot, fpga/glass/boot/buildroot): it starts the
@@ -31,7 +31,7 @@ fi
 # /dev/mem), its device tree as BOOT.BIN leaves it at 0x800000, a shell on the
 # UART instead of zeST, and mem=480M so Linux never touches the top 32 MiB
 # (the cart window). Then: mount /dev/mmcblk0p1 /mnt && /mnt/glass run /mnt/zigmachine
-echo "zigmachine: no zImage, booting zeST's kernel with a shell (plan B)"
+echo zigmachine: no zImage, booting the zeST kernel with a shell, plan B
 setenv bootargs ${bootargs} mem=480M init=/bin/sh
 fatload mmc 0 0x8000 uImage
 fatload mmc 0 0x900000 rootfs.ub

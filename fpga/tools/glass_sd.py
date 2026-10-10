@@ -56,6 +56,13 @@ def script_image(text: bytes, name: str, epoch: int) -> bytes:
     return head + data
 
 
+def script_text(cmd: bytes) -> bytes:
+    """boot.cmd without its comments or blank lines: zeST's U-Boot (old hush) read a comment's
+    apostrophe as an open quote, a `syntax error` that skipped the whole script (2026-10-10)."""
+    lines = [ln.strip() for ln in cmd.decode("ascii").splitlines()]
+    return "".join(ln + "\n" for ln in lines if ln and not ln.startswith("#")).encode()
+
+
 def zx0pack() -> Path:
     """The repo's own packer, built once into build/glass/."""
     exe = FPGA / "build/glass/zx0pack"
@@ -124,7 +131,7 @@ def stage(out: Path, buildroot: Path | None, fw_dir: Path = BOARD_FW, bit: Path 
         raise SystemExit("glass_sd: refusing to write to a device; give a directory and copy it yourself")
     out.mkdir(parents=True, exist_ok=True)
     epoch = int(time.time())
-    (out / "boot.scr").write_bytes(script_image(BOOT_CMD.read_bytes(), "zigmachine", epoch))
+    (out / "boot.scr").write_bytes(script_image(script_text(BOOT_CMD.read_bytes()), "zigmachine", epoch))
     rows = [("boot.scr", str(BOOT_CMD.relative_to(ROOT)))]
     rows.append(_copy(ZEST_BOOT, out, "BOOT.BIN", "run fpga/tools/fetch_board.sh (zeST's boot.bin)"))
     rows.append(_copy(bit, out, "zigmachine.bit", "build the SoC: soc.zigmachine_soc --target z7 --build"))

@@ -145,6 +145,19 @@ def test_boot_script_image_is_what_mkimage_makes(tmp_path: Path) -> None:
     assert glass_sd.script_image(glass_sd.BOOT_CMD.read_bytes(), "zigmachine", 1700000000) == ref.read_bytes()
 
 
+def test_boot_script_reaches_uboot_without_comments_or_single_quotes() -> None:
+    text = glass_sd.script_text(glass_sd.BOOT_CMD.read_bytes()).decode()
+    lines = text.splitlines()
+    assert "'" not in text and not any(ln.startswith("#") or not ln for ln in lines)
+    assert "bootz 0x2000000 0x4000000 0x1f00000" in lines
+    assert lines[0].startswith("setenv bootargs console=ttyPS0,921600")
+
+
+def test_boot_script_text_rejects_non_ascii() -> None:
+    with pytest.raises(UnicodeDecodeError):
+        glass_sd.script_text("echo café\n".encode())
+
+
 def test_sd_staging_lists_what_is_missing_and_refuses_devices(tmp_path: Path) -> None:
     images = tmp_path / "br" / "images"
     images.mkdir(parents=True)
