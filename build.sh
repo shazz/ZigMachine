@@ -242,6 +242,8 @@ gate sndh node apps/sndh_headless.mjs
 gate sndh_relocate node apps/sndh_relocate_check.mjs   # a tune that installs its own MFP vectors (Alloy Run) plays: images load at $10002
 gate sndh_call node apps/sndh_call_check.mjs   # zg.sndhCall: INIT on the RUNNING tune leaves the untouched channel, Timer A's phase and the position exactly as an untouched run's
 gate sndh_call node apps/sndh_call_check.mjs --break   # ...and a reload in its place is caught
+gate sap node apps/sap_check.mjs   # a SAP's 6502 on the browser's POKEY: a PAL tone at its pitch to 0.2 %, unknown hardware writes counted, STEREO refused
+gate sap node apps/sap_check.mjs --break ntsc   # ...and a POKEY clocked NTSC for a PAL tune is caught
 gate mod_sfx node apps/mod_sfx_check.mjs   # zg.sfxPlay over a MOD: the effect takes the song's fewest-notes channel on exactly its bytes at full volume and that channel's pan, the song writes nothing there and goes on elsewhere, gets it back at the effect's end; a loop holds it until a loop-only stop (4 s timeout); YM writes mixed under a MOD, refused under an SNDH; SNDH -> MOD leaves the MOD alone; no MOD, no effect (counted); 6CHN/8CHN/32CH/untagged/short MODs refused and counted, the four ProTracker tags load; zg.requestModVolume scales the song's channels at once (the output exactly x gain), never the effect's, 1.0 again on a new MOD, over 1.0 / no MOD refused
 gate mod_sfx node apps/mod_sfx_check.mjs --break bytes     # ...and the effect compared with another sample fails
 gate mod_sfx node apps/mod_sfx_check.mjs --break release   # ...and the channel expected held after the effect's end fails

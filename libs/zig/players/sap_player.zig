@@ -124,7 +124,7 @@ pub const SapPlayer = struct {
     /// The next PLAYER call, at its cycle: the CPU idles to it, then runs.
     fn frame(self: *SapPlayer) void {
         const left = bus.queued - self.head; // writes a long call left for the next frame
-        for (0..left) |i| bus.queue[i] = bus.queue[self.head + i];
+        for (0..left) |i| bus.queue()[i] = bus.queue()[self.head + i];
         bus.queued = left;
         self.head = 0;
         if (self.now() < self.next_call) self.cpu.cycles = self.next_call - bus.stall;
@@ -139,14 +139,14 @@ pub const SapPlayer = struct {
         audio.machineClear(@intCast(n));
         var off: u64 = 0;
         while (off < n and self.active) {
-            while (self.head < bus.queued and self.sampleOf(bus.queue[self.head].cycle) <= self.played + off) : (self.head += 1)
-                audio.machinePokeyWrite(bus.queue[self.head].reg, bus.queue[self.head].val);
+            while (self.head < bus.queued and self.sampleOf(bus.queue()[self.head].cycle) <= self.played + off) : (self.head += 1)
+                audio.machinePokeyWrite(bus.queue()[self.head].reg, bus.queue()[self.head].val);
             if (self.head == bus.queued and self.sampleOf(self.next_call) <= self.played + off) {
                 self.frame();
                 continue;
             }
             var to = self.played + n;
-            if (self.head < bus.queued) to = @min(to, self.sampleOf(bus.queue[self.head].cycle));
+            if (self.head < bus.queued) to = @min(to, self.sampleOf(bus.queue()[self.head].cycle));
             if (self.head == bus.queued) to = @min(to, self.sampleOf(self.next_call));
             const len = @max(to - (self.played + off), 1);
             audio.machineRenderPokey(@intCast(off), @intCast(@min(len, n - off)));

@@ -830,3 +830,32 @@ ABI rather than a Zig API, apps in any language sit on it.
 - It is not in the SoC yet. The audio core gives it a register range and adds `mix` to the YM's box filter (the `cen` output marks the machine cycles), on the sound-CPU branch.
 - Accuracy against the real chip is unproven where the documents leave a choice open (listed above). The cycle model is one file, so a correction is a model change plus the matching RTL line, and the bit-exact testbench catches any drift between them.
 - Register writes coinciding with `cen` land after that machine cycle. The testbench does not exercise that case.
+
+## 2026-10-10 — SAP: a 6502 of our own, the POKEY in the machine, sample-exact in the core
+
+**Status:** accepted
+**Context:** Phase B of the sound CPU: Atari 8-bit music (SAP files) next to the ST's. Every existing 6502 or SAP player we could use is GPL: ASAP, the MAME/Atari800 cores, MiSTer's. The POKEY was already written from scratch on feat/pokey, with a model and bit-exact RTL.
+**Decision:**
+- **The 6502** (`libs/zig/players/cpu6502*.zig`): written from public documentation, instruction-stepped with exact cycle counts, and held to 14,160 SingleStepTests vectors (MIT). Those check registers, RAM, cycles and every bus write, in order.
+  - Read-modify-write instructions write the old value first.
+  - The stable unintended opcodes run. The unstable ones and the JAMs stop the tune with the reason; no answer is guessed.
+- **The SAP player** (`sap.zig`, `sap_bus.zig`, `sap_player.zig`): types B and C. D/S/R and STEREO are refused with a reason.
+  - The Atari around the 6502 is the minimum players touch: POKEY, WSYNC, VCOUNT, RANDOM, GTIA's PAL.
+  - Every other hardware write is counted and surfaced, never dropped silently.
+  - Each POKEY write is stamped with the CPU cycle it was made at, so it is heard inside the frame, at its sample.
+  - It runs in `demo-audio.wasm`: the browser, the native host, and the sound CPU through wasm2c.
+- **The POKEY joins the sealed machine** (`machine/audio/pokey.zig` in machine-audio.wasm). Audio ABI 1.2.0: `machinePokeyWrite`, `machinePokeyClock`, `machineRenderPokey`. The chip runs PAL or NTSC, and its clocks are exactly the RTL's ratios.
+- **In the FPGA's audio core** (`zm_audio_pokey.v`) the POKEY does not run free. At each sample strobe it runs exactly the machine cycles the model runs for that sample:
+  - 40 or 41, from the model's own fraction of the clock over 44.1 kHz, restarted by the clock write in both;
+  - as a burst, with the mix waiting for it, and writes held during it.
+  - So the core equals the machine sample for sample (`pokey_exact`), as the Paula channels do.
+**Alternatives considered:**
+- ASAP or a GPL 6502: ruled out by the licence (the code is MIT).
+- Klaus Dormann's functional test as the 6502 oracle: GPL-3.
+- A free-running POKEY enable in the core (the first cut): the cycles fall into the sample windows differently from the model. It agrees to within a few machine cycles a sample, never exactly, and every mismatch would need a judgment call.
+- Stamping a frame's writes at its start: simpler, but a player spreads AUDF/AUDC over its run (the synthetic test's AUDF3 lands 100 lines after AUDF1).
+**Consequences:**
+- The SAP stack is ours end to end and testable at each layer: the 6502 against SingleStepTests, the RTL against the model every machine cycle, the core against the machine every sample. ASAP stays outside the repo as an optional black-box check: envelope correlation 0.86-0.94 on five ASMA tunes.
+- The POKEY costs 339 LUT, 298 FF and 1 DSP in the audio core. The burst holds the mix about 45 clocks of the 2,267 a sample has.
+- Not modelled: ANTIC's DMA cycle-stealing (stamps are early by its share), IRQ-driven players (TYPE D), the second POKEY (STEREO).
+- demo-audio.wasm's zero data grows 44 B; the Atari's 64 KiB and the write queue live in song RAM.

@@ -18,6 +18,7 @@
 const audio = @import("audio_hw");
 
 pub const RAM_AT: usize = 0x80000; // the Atari's RAM, this far into song RAM
+pub const QUEUE_AT: usize = RAM_AT + 0x10000; // the write queue, after it: in song RAM, not a zeroed static
 pub const LINE: u64 = 114; // CPU cycles a scanline
 pub const MAX_WRITES: usize = 512; // POKEY writes queued a frame
 
@@ -29,7 +30,9 @@ pub var frame_start: u64 = 0; // the cycle the current frame began at
 pub var frame_lines: u64 = 312;
 pub var pal: bool = true;
 pub var unknown: u32 = 0; // hardware writes that went nowhere
-pub var queue: [MAX_WRITES]Write = undefined;
+pub fn queue() *[MAX_WRITES]Write {
+    return @ptrFromInt(audio.SONG_BASE + QUEUE_AT);
+}
 pub var queued: usize = 0;
 pub var overflow: u32 = 0; // POKEY writes lost to a full queue
 var poly: u32 = 0x1FFFF;
@@ -68,7 +71,7 @@ pub fn write(a: u16, v: u8) void {
             overflow +%= 1;
             return;
         }
-        queue[queued] = .{ .cycle = now(), .reg = @truncate(a), .val = v };
+        queue()[queued] = .{ .cycle = now(), .reg = @truncate(a), .val = v };
         queued += 1;
     } else if (a == 0xD40A) {
         stall += LINE - (now() - frame_start) % LINE;
