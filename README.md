@@ -81,7 +81,7 @@ docs/               the web root, the built wasm, and the API docs
 
 34 screens ship as cartridges, most of them ports of Atari ST cracktros and demo screens from [WAB](https://wab.com)'s CODEF remakes. The `+` / `−` buttons on the monitor step through them like TV channels, with an analogue-noise transition; the boot menu lists them all.
 
-**Credit belongs to the originals.** Each scene's source header names the demo, its coders, graphicians and musicians, and the author of the CODEF remake it was read from. CODEF itself is MIT-licensed. The music is from the [SNDH archive](https://sndh.atari.org); the SAP TEST screen's Atari 8-bit tunes are from [ASMA](https://asma.atari.org/), the Atari SAP Music Archive: Warhawk (Rob Hubbard), Gauntlet (Ben Daglish), Barbarian (Jakub Husak), Ninja (Steve Coleman, ASMA's attribution is uncertain) and BMX Simulator (David Whittaker). If you are one of the original authors and would rather your work were not here, please open an issue.
+**Credit belongs to the originals.** Each scene's source header names the demo, its coders, graphicians and musicians, and the author of the CODEF remake it was read from. CODEF itself is MIT-licensed. The music is from the [SNDH archive](https://sndh.atari.org); the SAP TEST screen's Atari 8-bit tunes are from [ASMA](https://asma.atari.org/), the Atari SAP Music Archive: Warhawk (Rob Hubbard), Gauntlet (Ben Daglish), Barbarian (Jakub Husak), Ninja (Steve Coleman, ASMA's attribution is uncertain) and BMX Simulator (David Whittaker), and FUJI HOBBYTRONIC's Hobbytronic '92 - 1 (Stephan Duesterhoeft, Benjy, 1992) comes from there too. If you are one of the original authors and would rather your work were not here, please open an issue.
 
 ## Docs
 

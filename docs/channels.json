@@ -75,6 +75,11 @@
   "type": "atari st"
  },
  {
+  "tag": "fuji_hobbytronic",
+  "title": "FUJI HOBBYTRONIC",
+  "type": "zigmachine"
+ },
+ {
   "tag": "c-fujiboink",
   "title": "FUJIBOINK (C)",
   "type": "atari st"
