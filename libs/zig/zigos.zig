@@ -271,6 +271,16 @@ pub fn ymWrite(reg: u8, val: u8) bool {
 pub fn requestModVolume(gain: f32) bool {
     return g_sfx.gain(gain);
 }
+/// How the SNDH playing is played: 1 its own 68000 code on Musashi (as an ST),
+/// 2 a native replay of a recognised driver (the same YM writes, the default),
+/// 3 that native replay with its samples on a PCM channel ("HQ"). Applies to the
+/// song requested before it. A tune with no native driver plays 1 whatever is
+/// asked (the audio thread says so on the console). False when refused (not
+/// 1..3, the queue full): counted in sfxDropped(). Browser only for now: the
+/// board's song bridge carries no effects queue (docs/FPGA_SOUND_CPU.md).
+pub fn requestSndhMode(mode: u8) bool {
+    return g_sfx.sndhMode(mode);
+}
 pub fn sfxDropped() u32 {
     return g_sfx.dropped;
 }

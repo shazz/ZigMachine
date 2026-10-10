@@ -25,6 +25,11 @@
 // rather than both as "fire". On the screen, ESC or SPACE (screen.js:88,
 // 'exit' / 'enter') go back to the hub; RETURN does nothing, as in the remake.
 // A fire that is not a key (touch, pad) answers the question with "any other".
+// 1, 2 and 3 on the screen pick how Beat Dis is played (zg.requestSndhMode,
+// libs/zig/players/sndh_native.zig): 1 its 68000 code emulated, as an ST; 2 the
+// native replay, the same sound, the default; 3 native with the samples on a PCM
+// channel instead of the YM's volumes. Each carries on from the same sample. The
+// 1/2 MB version's Pro BMX has no native driver: it stays 1, and the console says so.
 //
 // Key lock: the remake binds SPACE and RETURN with lock set (main.js:391-392,
 // me.input.bindKey(..., true)), so a key held down to answer the question fires
@@ -143,6 +148,8 @@ pub const Demo = struct {
             },
             .running => if (cp == ' ') {
                 self.leave = true;
+            } else if (cp >= '1' and cp <= '3') {
+                _ = zg.requestSndhMode(@intCast(cp - '0'));
             },
             else => {},
         }

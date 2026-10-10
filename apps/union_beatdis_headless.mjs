@@ -19,12 +19,23 @@
 // 3. The song request (name and subtune 1), the SNDH really playing on the
 //    sealed YM, ESC / SPACE back to the hub, RETURN not, and the frame cost.
 //
+// 3b. The music's modes (zg.requestSndhMode, libs/zig/players/sndh_native.zig): on the
+//    screen, 1 / 2 / 3 queue modes 1, 2 and 3 in order, and only those. On the audio
+//    side, for Beat Dis: switching 2 -> 1 -> 2 -> 1 mid-tune renders exactly the
+//    samples of a run left in 2 (the two paths write the same); mode 3 plays,
+//    differs from the YM path while on, and after going back to 2 the output is
+//    that run's again (the same sample position). A mode that does not exist is
+//    refused (0); Pro BMX, with no native driver, answers 1 to 2 and 3.
+//
 // 4. Key lock (main.js:391-392 binds SPACE/RETURN with lock): per version, a fresh
 //    boot holds its choice key through the question (events at 0 ms, 500 ms,
 //    then every 33 ms to 1.5 s, a pad fire with each): the screen must still be
 //    running. After 150 ms of silence one SPACE must ask for union_demo.
 //
 //   node apps/union_beatdis_headless.mjs [outdir] [cart.wasm]
+//   node apps/union_beatdis_headless.mjs --break modes [outdir] [cart.wasm]
+//     the fail proof of 3b: the native replay switched to its known-wrong mutant
+//     (audioSndhNativeMutant: no VBL overshoot); the 1/2 switch check must catch it
 //   node apps/union_beatdis_headless.mjs --break keylock [outdir] [cart.wasm]
 //     the fail proof: the "held" key repeats every 150 ms, past the quiet period,
 //     so the lock releases between repeats as if it were not there; the hold
@@ -52,7 +63,7 @@ const VERSIONS = [
 const SCREEN2 = "screens/beatdis/screen2.js"; // in the remake's directory
 
 const BREAK = process.argv.includes("--break") ? process.argv[process.argv.indexOf("--break") + 1] : null;
-if (BREAK !== null && BREAK !== "keylock") { console.error(`union_beatdis: --break ${BREAK}: only "keylock" can be broken`); process.exit(1); }
+if (BREAK !== null && BREAK !== "keylock" && BREAK !== "modes") { console.error(`union_beatdis: --break ${BREAK}: only "keylock" and "modes" can be broken`); process.exit(1); }
 const POS = process.argv.slice(2).filter((a, i, all) => a !== "--break" && all[i - 1] !== "--break");
 const outDir = POS[0];
 const cartPath = POS[1] || "docs/demo-union_beatdis.wasm";
@@ -228,7 +239,8 @@ async function holdCheck(v) {
     return null;
 }
 
-async function sndhPlays(song) {
+/** The audio modules with `song` started, or a string saying why not. */
+async function startSndh(song) {
     const memory = new WebAssembly.Memory({ initial: AUDIO_PAGES, maximum: AUDIO_PAGES });
     const machine = (await WebAssembly.instantiate(await readFile("docs/machine-audio.wasm"), { env: { memory } })).instance.exports;
     const env = { memory };
@@ -241,6 +253,13 @@ async function sndhPlays(song) {
     if (!audio.audioLoadSndh(bytes.length)) return `${song.name}: audioLoadSndh refused it`;
     if (audio.audioSndhSubtunes() < song.tune) return `${song.name} has ${audio.audioSndhSubtunes()} subtunes, ${song.tune} requested`;
     audio.audioSndhPlay(song.tune);
+    return { memory, machine, audio };
+}
+
+async function sndhPlays(song) {
+    const started = await startSndh(song);
+    if (typeof started === "string") return started;
+    const { memory, machine, audio } = started;
     const SR = 44100, BLOCK = 882, SECONDS = 8;
     let peak = 0, secPeak = 0, silent = 0;
     for (let done = 0; done < SECONDS * SR; done += BLOCK) {
@@ -250,6 +269,53 @@ async function sndhPlays(song) {
     }
     if (audio.audioMode() !== 4 || audio.audioSndhStuckPc() || silent) return `${song.name}: mode ${audio.audioMode()}, stuck PC $${audio.audioSndhStuckPc().toString(16)}, ${silent} silent s`;
     return `peak ${peak.toFixed(2)}`;
+}
+
+/** `blocks` blocks of 882 samples, left channel, with `modes` {block: mode} asked before
+ * their block: the samples and the answers. */
+async function renderModes(song, blocks, modes, mutant = 0) {
+    const started = await startSndh(song);
+    if (typeof started === "string") return started;
+    const { memory, machine, audio } = started;
+    audio.audioSndhNativeMutant(mutant);
+    const out = new Float32Array(blocks * 882), got = [];
+    for (let b = 0; b < blocks; b++) {
+        if (b in modes) got.push(audio.audioSndhMode(modes[b]));
+        audio.audioRender(882);
+        out.set(new Float32Array(memory.buffer, machine.audioLeftPtr(), 882), b * 882);
+    }
+    return { out, got };
+}
+
+async function sndhModes(song) {
+    const B = 50; // one second of blocks
+    const ref = await renderModes(song, 6 * B, {});
+    if (typeof ref === "string") return ref;
+    const at = (r, b0, b1) => r.out.subarray(b0 * 882, b1 * 882);
+    const same = (a, b) => a.length === b.length && a.every((x, i) => x === b[i]);
+    if (song.name !== "union/beat_dis.sndh") {
+        const r = await renderModes(song, 2, { 0: 2, 1: 3 });
+        return r.got.join() === "1,1" ? null : `${song.name}: modes 2 and 3 answered ${r.got}, not 1 (no native driver)`;
+    }
+    const flip = await renderModes(song, 6 * B, { [B]: 1, [2 * B]: 2, [3 * B]: 1, [4 * B]: 2, [5 * B]: 7 }, BREAK === "modes" ? 1 : 0);
+    if (flip.got.join() !== "1,2,1,2,0") return `modes 1/2/1/2/7 answered ${flip.got}`;
+    if (!same(flip.out, ref.out)) return "switching between modes 1 and 2 changed the samples";
+    const hq = await renderModes(song, 6 * B, { [2 * B]: 3, [4 * B]: 2 });
+    if (hq.got.join() !== "3,2") return `modes 3/2 answered ${hq.got}`;
+    const pcm = at(hq, 2 * B, 4 * B);
+    if (same(pcm, at(ref, 2 * B, 4 * B)) || !pcm.some((x) => Math.abs(x) > 0.01)) return "mode 3 did not play the samples on PCM";
+    if (!same(at(hq, 4 * B + 5, 6 * B), at(ref, 4 * B + 5, 6 * B))) return "back in mode 2, the output is not the YM path's at the same sample";
+    return null;
+}
+
+/** On the screen, 1 / 2 / 3 queue modes 1, 2, 3 (sfx_queue.zig op 5), and 4 / 0 nothing. */
+function modeKeys(booted) {
+    const { demo, memory } = booted;
+    demo.pollSfx();
+    for (const k of "12340") demo.key(k.charCodeAt(0));
+    const n = demo.pollSfx(), dv = new DataView(memory.buffer, demo.sfxEntriesPtr(), 16 * Math.max(n, 1));
+    const queued = Array.from({ length: n }, (_, i) => `${dv.getUint8(16 * i)}:${dv.getUint8(16 * i + 1)}`).join();
+    return queued === "5:1,5:2,5:3" ? null : `keys 1 2 3 4 0 queued [${queued}], not modes 1, 2, 3`;
 }
 
 async function curveMatchesRemake() {
@@ -267,6 +333,15 @@ async function curveMatchesRemake() {
 }
 
 const PROMPT = promptMap(A);
+if (BREAK === "modes") {
+    const wrong = await sndhModes({ name: VERSIONS[0].song, tune: 1 });
+    if (wrong === "switching between modes 1 and 2 changed the samples") {
+        console.log(`=> PASS ✅ fail proof: with a wrong native replay, the mode check catches it (${wrong})`);
+        process.exit(0);
+    }
+    console.log(`=> FAIL ❌ fail proof: a wrong native replay gave "${wrong}"`);
+    process.exit(1);
+}
 if (BREAK === "keylock") {
     const caught = [];
     for (const v of VERSIONS.slice(0, 2)) { const wrong = await holdCheck(v); if (wrong) caught.push(wrong); }
@@ -279,6 +354,7 @@ if (BREAK === "keylock") {
 }
 const report = [await curveMatchesRemake()];
 for (const v of VERSIONS.slice(0, 2)) { const wrong = await holdCheck(v); if (wrong) errors.push(wrong); }
+report.push("modes: keys 1/2/3 queue modes 1/2/3; Beat Dis switched 2-1-2-1-2 renders the samples of 2 alone, 7 refused, mode 3 plays PCM and hands back on the same sample; Pro BMX answers 1");
 report.push("key lock: a held choice key (0, 500, then every 33 ms to 1.5 s, with fire) keeps both screens running, SPACE 150 ms after asks for union_demo");
 for (const v of VERSIONS) {
     const booted = await boot(v.note);
@@ -289,6 +365,9 @@ for (const v of VERSIONS) {
     if (!cart.song || cart.song.name !== v.song || cart.song.tune !== 1) errors.push(`${v.name}: song request ${JSON.stringify(cart.song)}, wanted "${v.song}" tune 1`);
     const played = cart.song ? await sndhPlays(cart.song) : "no song";
     if (!played.startsWith("peak")) errors.push(`${v.name}: ${played}`);
+    const keysWrong = modeKeys(booted);
+    if (keysWrong) errors.push(`${v.name}: ${keysWrong}`);
+    if (v !== VERSIONS[2]) { const modesWrong = await sndhModes(cart.song); if (modesWrong) errors.push(`${v.name}: ${modesWrong}`); }
     if (noteBytes(booted).some((b, i) => b !== planted[i])) errors.push(`${v.name}: the screen changed the hub's note before leaving`);
     booted.demo.key(K_RETURN);
     if (booted.demo.pollCartRequest() !== 0) errors.push(`${v.name}: RETURN left the screen`);

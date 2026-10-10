@@ -100,6 +100,9 @@ class ZigAudioSealedProcessor extends AudioWorkletProcessor {
                 // zg.requestModVolume: the MOD's own channels, not the effect's.
                 if (!d.audioModGain(msg.q16 >>> 0))
                     this.port.postMessage({ type: "sfxMissed", what: "requestModVolume", refused: d.audioSfxRefused() });
+            } else if (msg.type === "sndhMode") {
+                // zg.requestSndhMode: the mode now in force goes back for the console.
+                this.port.postMessage({ type: "sndhMode", asked: msg.mode, got: d.audioSndhMode(msg.mode >>> 0) });
             } else if (msg.type === "loadYm") {
                 const len = writeSong(msg.bytes);
                 const ok = d.audioLoadYm(len);

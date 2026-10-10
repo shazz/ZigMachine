@@ -1,6 +1,7 @@
 // --------------------------------------------------------------------------
 // zg.sfxPlay / zg.sfxStop / zg.ymWrite -- a game's sound effects OVER a MOD,
-// and zg.requestModVolume, the MOD's own level under them.
+// and zg.requestModVolume, the MOD's own level under them; and
+// zg.requestSndhMode, how the SNDH playing is played (players/sndh_native.zig).
 //
 // The audio module plays one song at a time. An SNDH carries its own effect
 // code (zg.sndhCall), a MOD does not: so a cart playing a MOD hands the host
@@ -17,8 +18,9 @@
 // stay put until then (an @embedFile does).
 //
 // Each entry is 16 bytes, little-endian (the host reads them with a DataView):
-//   0 op    1 play, 2 stop, 3 ym, 4 gain
-//   1 a     play: 1 = looped; stop: 1 = only a looped effect; ym: register
+//   0 op    1 play, 2 stop, 3 ym, 4 gain, 5 sndh mode
+//   1 a     play: 1 = looped; stop: 1 = only a looped effect; ym: register;
+//           sndh mode: 1 the 68000 on Musashi, 2 native, 3 native with PCM samples
 //   2 b     ym: the value
 //   3 -     0
 //   4 ptr   play: the PCM (signed 8-bit), a cart address
@@ -35,7 +37,8 @@ pub const PCM_MAX: usize = 64 * 1024;
 pub const RATE_MIN: u32 = 1000;
 pub const RATE_MAX: u32 = 50066;
 
-pub const Op = enum(u8) { play = 1, stop = 2, ym = 3, gain = 4 };
+pub const Op = enum(u8) { play = 1, stop = 2, ym = 3, gain = 4, sndh_mode = 5 };
+pub const SNDH_MODES: u8 = 3; // sndh_native.zig Mode: 1..3
 /// A gain of 1.0 on the wire (entry.len).
 pub const GAIN_ONE: u32 = 65536;
 
@@ -86,6 +89,14 @@ pub const Queue = struct {
         if (!(g >= 0.0 and g <= 1.0)) return self.refuse();
         const q: u32 = @intFromFloat(@round(g * @as(f32, @floatFromInt(GAIN_ONE))));
         return self.push(.{ .op = @intFromEnum(Op.gain), .len = q });
+    }
+
+    /// How the SNDH playing is played (zg.requestSndhMode). A mode that does
+    /// not exist is refused here; a tune with no native driver plays 1 whatever
+    /// is asked, and the audio thread says so.
+    pub fn sndhMode(self: *Queue, mode: u8) bool {
+        if (mode < 1 or mode > SNDH_MODES) return self.refuse();
+        return self.push(.{ .op = @intFromEnum(Op.sndh_mode), .a = mode });
     }
 
     /// The host takes the frame's commands: how many, then entries[0..n].
