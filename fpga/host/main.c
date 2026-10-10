@@ -3,13 +3,19 @@
  *
  *   host <cart-label> [frames=1200] [every=10] [--call F:export:arg,...]
  *
- * <cart-label> is only echoed into the JSON (the cart is linked in). */
+ * <cart-label> is only echoed into the JSON (the cart is linked in).
+ *
+ *   ZM_GLASS_KEYS=F:event,...  the glass's key FIFO as a script: before frame F, the KEY_*
+ *                              event (hex, fpga/glass/src/map.zig) goes through the board
+ *                              firmware's router (host/input_bridge.c), as cycles/binput.c
+ *                              hands it the FIFO: how the board's input is tested here. */
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include "boot.h"
+#include "input_bridge.h"
 #include "sha256.h"
 #include "wasm-rt-exceptions.h" /* wasm_rt_impl_try needs wasm_rt_set_unwind_target */
 #include "wasm-rt-impl.h"
@@ -117,6 +123,23 @@ static void print_json(const char* cart, long n, long k, char (*hashes)[65], lon
     printf("],\"total\":\"%s\"}\n", total);
 }
 
+/* ZM_GLASS_KEYS: this frame's events, through the router (cycles/binput.c's job on the board). */
+static void glass_keys(long f) {
+    static const char* at;
+    static int started;
+    if (!started) at = getenv("ZM_GLASS_KEYS"), started = 1;
+    uint32_t ev[32], n = 0;
+    while (at && *at) {
+        long frame = 0;
+        unsigned long event = 0;
+        int used = 0;
+        if (sscanf(at, "%ld:%lx%n", &frame, &event, &used) != 2 || frame > f) break;
+        at += used + (at[used] == ',');
+        if (frame == f && n < 32) ev[n++] = (uint32_t)event;
+    }
+    input_events(&g_env.cart, ev, n);
+}
+
 static void run(const char* cart, long n, long k) {
     u32 size = w2c_machine_hwPhysWidth(&g_env.machine) * w2c_machine_hwPhysHeight(&g_env.machine) * 4;
     u32 planes = w2c_machine_hwPlanesNumber(&g_env.machine);
@@ -130,6 +153,7 @@ static void run(const char* cart, long n, long k) {
 #endif
     for (long f = 1; f <= n; f++) {
         run_calls(f);
+        glass_keys(f);
         int sample = f % k == 0;
         if (sample) sha256_init(&h);
         frame(sample ? &h : NULL, planes, size);

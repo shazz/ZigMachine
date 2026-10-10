@@ -36,11 +36,17 @@ gen/glass_map.vh: $(GLASS_MAP) tools/glass_export.zig
 gen/glass_map.py: $(GLASS_MAP) tools/glass_export.zig
 	@mkdir -p gen
 	$(GLASS_X) python $@
+# The map as C, for the cart CPU's firmware (fpga/glass/firmware/glass_input.c, host/input_bridge.c):
+# every upper-case integer of glass_map.py, as tests/test_glass.py passes them with -D.
+gen/glass_map.h: gen/glass_map.py
+	uv run python -c "import runpy; v = runpy.run_path('$<'); \
+		print('/* GENERATED from gen/glass_map.py by fpga/Makefile. Do not edit. */\n#ifndef ZM_GLASS_MAP_H\n#define ZM_GLASS_MAP_H'); \
+		[print(f'#define {k} {x:#x}u') for k, x in v.items() if k.isupper() and isinstance(x, int)]; print('#endif')" >$@
 gen/glass_font.vh: $(FONT_RAW) tools/glass_export.zig $(GLASS_MAP)
 	@mkdir -p gen
 	$(GLASS_X) font $(FONT_RAW) $@
 
-memmap: gen/memmap.vh gen/memmap.py gen/glass_map.vh gen/glass_map.py gen/glass_font.vh
+memmap: gen/memmap.vh gen/memmap.py gen/glass_map.vh gen/glass_map.py gen/glass_map.h gen/glass_font.vh
 
 # One test run at a time, capped at 8 GB: the in-process (wasm) Yosys and the
 # Verilator builds peak at several GB, and two concurrent runs sharing
@@ -110,12 +116,17 @@ $(HOST)/%/env.c: $(HOST)/%/cart.c $(HOST)/common/machine.c $(HOST)/common/rom.c 
 	uv run python tools/host_gen.py --build $(HOST)/$* --cart $(ROOT)/docs/demo-$*.wasm
 $(HOST)/%/cart.o: $(HOST)/%/cart.c
 	$(HOST_CC) $(HOST_CFLAGS) -I$(HOST)/$* -c $< -o $@
-$(HOST)/%/host.o: $(HOST)/%/env.c host/main.c host/boot.c host/host.h host/boot.h
+# The board firmware's input router (host/input_bridge.c + glass_router.c), so ZM_GLASS_KEYS tests it.
+INPUT_SRC := host/input_bridge.c host/glass_router.c
+INPUT_DEPS := $(INPUT_SRC) host/input_bridge.h glass/firmware/glass_input.c glass/firmware/glass_input.h gen/glass_map.h
+INPUT_CFLAGS := -Iglass/firmware -Igen
+$(HOST)/%/host.o: $(HOST)/%/env.c host/main.c host/boot.c host/host.h host/boot.h $(INPUT_DEPS)
 	$(HOST_CC) $(HOST_CFLAGS) -I$(HOST)/$* -c $(HOST)/$*/env.c -o $(HOST)/$*/env.o
 	$(HOST_CC) $(HOST_CFLAGS) -I$(HOST)/$* -c host/boot.c -o $(HOST)/$*/boot.o
-	$(HOST_CC) $(HOST_CFLAGS) $(HOST_WALLCLOCK) -I$(HOST)/$* -c host/main.c -o $@
+	for s in $(INPUT_SRC); do $(HOST_CC) $(HOST_CFLAGS) $(INPUT_CFLAGS) -I$(HOST)/$* -c $$s -o $(HOST)/$*/in_$$(basename $$s .c).o || exit 1; done
+	$(HOST_CC) $(HOST_CFLAGS) $(HOST_WALLCLOCK) $(INPUT_CFLAGS) -I$(HOST)/$* -c host/main.c -o $@
 $(HOST)/%/host: $(HOST)/%/host.o $(HOST)/%/cart.o $(HOST_COMMON)
-	$(HOST_CC) $(HOST)/$*/host.o $(HOST)/$*/env.o $(HOST)/$*/boot.o $(HOST)/$*/cart.o $(HOST_COMMON) -lm -lpthread -o $@
+	$(HOST_CC) $(HOST)/$*/host.o $(HOST)/$*/env.o $(HOST)/$*/boot.o $(HOST)/$*/in_*.o $(HOST)/$*/cart.o $(HOST_COMMON) -lm -lpthread -o $@
 
 host: $(HOST)/$(CART)/host
 
