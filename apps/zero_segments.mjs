@@ -30,7 +30,9 @@ const ALLOW = {
     // +24 B (2026-09-27): the sound-effect voice over a MOD and the MOD
     // rejection counters (sfx_voice.zig, demo_audio_mod.zig). +4 B: alignment
     // padding, once the raw players moved to demo_audio_raw.zig (no new static).
-    "demo-audio.wasm": 590788,
+    // +28 B (2026-10-10): the native SNDH replay's state and the SNDH mode
+    // (players/digi.zig, the Beat Dis driver; keys 1/2/3).
+    "demo-audio.wasm": 590816,
 };
 
 function uleb(b, p) {
