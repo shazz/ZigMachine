@@ -169,7 +169,7 @@ def add_audio(soc: SoC, platform: Platform, hp: axi.AXIInterface, tap: bool = Fa
     soc.bus.add_slave("zm_audio", soc.zm_audio.bus, SoCRegion(origin=AUDIO_WINDOW, size=AUDIO_WINDOW_BYTES, cached=False))
 
 
-def hdmi_out(audio: ZMAudio, platform: Platform, pic: dict[str, Signal], pads: dict[str, Signal]) -> Instance:
+def hdmi_out(audio: LiteXModule, platform: Platform, pic: dict[str, Signal], pads: dict[str, Signal]) -> Instance:
     """zm_hdmi_out: the picture `pic` (pix domain) and the audio's samples, on the HDMI pads."""
     for src in HDMI_SOURCES:
         platform.add_source(str(FPGA / src))

@@ -56,7 +56,7 @@ without `~` are measured (Yosys `synth_xilinx`, `tools/util.py`); figures with
 | Cart shelf + load | list the `.zmd` disks, place a cart in DDR, boot it | ARM | built, host-tested | M | — |
 | Cold reset | reload from SD, clear the cart's memory, boot: a power cycle | ARM | **must-have**, built, host-tested | S | — |
 | Warm reset | restart the cart CPU over its memory: the ST's reset button | both | **must-have**, built, host-tested; firmware hook stubbed | M | 1 FF (`CTRL.WARM`, in the 245) |
-| Volume / mute | master volume 0..255 + mute, persisted | both | **must-have**: register + menu built; the mixer's multiply is the audio work's | S | register in the 245; multiply ~1 DSP48 + ~20 LUT |
+| Volume / mute | master volume 0..255 + mute, persisted | both | **must-have**: register, menu and the multiply built (`soc/zm_audio_vol.py`, between the audio core and HDMI, 2026-10-10); not yet heard on the board | S | register in the 245; multiply ~1 DSP48 + ~20 LUT |
 | Debug page | versions, live stats, board info | ARM | **must-have**, built, host-tested | S | — |
 | Cart descriptions | title, group, year, machine, one line, from `shelf.txt` | ARM + tool | **must-have**, built | S | — |
 | Settings persistence | `glass.cfg` on the SD card (volume, mute) | ARM | **must-have**, built, host-tested | S | — |

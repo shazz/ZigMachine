@@ -25,6 +25,7 @@ from litex.soc.interconnect import axi
 from migen import Cat, ClockDomain, If, Module, Signal
 
 from soc.zm_audio_soc import add_audio, hdmi_out
+from soc.zm_audio_vol import ZMAudioVolume
 from soc.zm_glass import ZMGlass, ps7_gp0
 from soc.zm_video import ZMVideoTiming
 from soc.zm_video_pipe import WINDOW_BYTES, ZMVideo
@@ -124,8 +125,11 @@ class ZigMachineSoC(SoCCore):
         self.video = ZMVideo(platform, None if audio else pads, overlay=overlay, hp=hp, hp_enable=run)
         if audio is not None:  # the machine's sound (soc/zm_audio_soc.py), and HDMI with it
             add_audio(self, platform, **audio)  # type: ignore[arg-type]  # values typed by add_audio's own signature
-            if pads is not None:
-                self.specials += hdmi_out(self.zm_audio, platform, self.video.pic, pads)
+            if pads is not None:  # the OSD's volume and mute (REG_AUDIO_VOL), when there is a glass
+                src = ZMAudioVolume(self.zm_audio, self.glass.audio_vol) if glass else self.zm_audio
+                if glass:
+                    self.zm_audio_vol = src
+                self.specials += hdmi_out(src, platform, self.video.pic, pads)
         region = SoCRegion(origin=VIDEO_WINDOW, size=WINDOW_BYTES, cached=False)
         self.bus.add_slave("zm_video", self.video.bus, region)
         if hp is None:
