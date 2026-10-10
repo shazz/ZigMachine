@@ -65,6 +65,27 @@ static void play_sndh(const char* name, uint32_t arg, int raw) {
     strncpy(g_resident, name, NAME_MAX);
 }
 
+/* An Atari SAP (libs/zig/players/sap_player.zig): subsong `tune` (1-based, 0 = DEFSONG).
+ * A refusal or a stop is said, with demo_audio_sap.zig audioSapStatus's reason. */
+static const char* const SAP_REFUSED[] = {"", "not a SAP", "no binary data", "a bad tag", "TYPE not B or C",
+                                          "STEREO (a second POKEY)", "a missing INIT/MUSIC/PLAYER", "a bad block"};
+static void play_sap(const char* name, uint32_t tune) {
+    w2c_audio* p = &g_aud.player;
+    int32_t len = stage(name);
+    if (len < 0) return;
+    if (!w2c_audio_audioLoadSap(p, (uint32_t)len)) {
+        uint32_t why = w2c_audio_audioSapStatus(p) & 0xFFu;
+        printf("ZM SAP refused %s: %s\n", name, why < 8 ? SAP_REFUSED[why] : "?");
+        return;
+    }
+    audio_backend_native(0);
+    audio_song_loaded(name);
+    w2c_audio_audioSapPlay(p, tune);
+    uint32_t st = w2c_audio_audioSapStatus(p);
+    if (st) printf("ZM SAP stopped %s: cpu %u, opcode %02x at %04x\n", name, (unsigned)(st >> 8 & 0xFF),
+                   (unsigned)(st >> 16 & 0xFF), (unsigned)w2c_audio_audioSapStopPc(p));
+}
+
 /* playSongByName: the extension picks the player; "none" stops everything. */
 void audio_play(const char* name, uint32_t tune) {
     w2c_audio* p = &g_aud.player;
@@ -88,6 +109,8 @@ void audio_play(const char* name, uint32_t tune) {
         else w2c_audio_audioModPlay(p);
     } else if (ends_with(name, ".ymraw") && w2c_audio_audioLoadYm(p, (uint32_t)len)) {
         w2c_audio_audioYmPlay(p);
+    } else if (ends_with(name, ".sap")) {
+        play_sap(name, tune);
     } else if (ends_with(name, ".raw")) {
         w2c_audio_audioPlayRaw(p, (uint32_t)len, 12517.0f, 0);
     }

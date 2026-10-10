@@ -17,6 +17,8 @@ void zma_put(uint32_t addr, uint32_t data);
 enum {
     ZMA_YM = 0x000,        /* + 4 r */
     ZMA_CTRL = 0x040,      /* bit 0: machineAudioReset */
+    ZMA_POKEY = 0x080,     /* + 4 r: the POKEY's registers ($D200 + r) */
+    ZMA_POKEY_CLOCK = 0x0C0, /* bit 0: 1 PAL, 0 NTSC (machinePokeyClock) */
     ZMA_CH = 0x100,        /* + 0x40 c + 4 f */
     ZMA_F_DATA = 0, ZMA_F_LEN = 1, ZMA_F_LS = 2, ZMA_F_LL = 3, ZMA_F_STEP = 4,
     ZMA_F_VOL = 5, ZMA_F_PAN = 6, ZMA_F_POS = 7, ZMA_F_CTRL = 8,
@@ -44,6 +46,9 @@ static inline void zma_ym(uint32_t reg, uint32_t val) {
     if (reg < 16) zma_put(ZMA_YM + 4u * reg, val & 0xFFu);
 }
 static inline void zma_reset(void) { zma_put(ZMA_CTRL, 1u); }
+static inline void zma_pokey(uint32_t reg, uint32_t val) {
+    if (reg < 16) zma_put(ZMA_POKEY + 4u * reg, val & 0xFFu);
+}
 
 /* machinePaulaTrigger: the staged fields, the pan, then TRIGGER (pos 0, active). */
 static inline void zma_trigger(uint32_t ch, uint32_t data, uint32_t len, uint32_t ls, uint32_t ll, float pan) {

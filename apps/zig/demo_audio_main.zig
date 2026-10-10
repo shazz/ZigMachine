@@ -19,7 +19,7 @@ pub var mod: ModPlayer = .{};
 pub var sfx: sfx_voice.SfxVoice = .{};
 pub var ym: YmPlayer = .{};
 pub var sndh: SndhPlayer = .{};
-// Active player: 0 none, 1 MOD, 2 YM, 3 raw sample. Drives the scope view type.
+// Active player: 0 none, 1 MOD, 2 YM, 3 raw sample, 4 SNDH, 5 SAP. Drives the scope view type.
 pub var current_mode: u8 = 0;
 
 // The MOD player's and the sound effects' exports (audioLoadMod, audioSfx*),
@@ -27,6 +27,17 @@ pub var current_mode: u8 = 0;
 comptime {
     _ = @import("demo_audio_mod.zig");
     _ = @import("demo_audio_raw.zig");
+}
+pub const sap_exports = @import("demo_audio_sap.zig");
+
+/// Every player stopped, before one starts: they share song RAM (a SAP's Atari
+/// lives in it), so one left "active" under another would read garbage.
+pub fn stopAll() void {
+    sfx.reset();
+    mod.stop();
+    ym.stop();
+    sndh.stop();
+    sap_exports.sap.stop();
 }
 
 /// The stream's ring at SONG_BASE (demo_audio_raw.zig). The host and the
@@ -43,6 +54,7 @@ export fn audioInit() void {
     mod = .{};
     ym = .{};
     sndh = .{};
+    sap_exports.sap = .{};
     sfx = .{};
     current_mode = 0;
 }
@@ -51,6 +63,8 @@ export fn audioRender(frames: u32) void {
     const n: usize = @intCast(frames);
     if (sndh.active) {
         sndh.renderStereo(n);
+    } else if (sap_exports.sap.active) {
+        sap_exports.sap.renderStereo(n);
     } else if (ym.active) {
         ym.renderStereo(n);
     } else if (mod.active) {
@@ -86,6 +100,7 @@ export fn audioLoadYm(len: u32) bool {
     return ym.load(songSlice(len));
 }
 export fn audioYmPlay() void {
+    sap_exports.sap.stop();
     sfx.reset();
     mod.stop();
     audio.machinePaulaClearScopes();
@@ -102,6 +117,7 @@ export fn audioLoadSndh(len: u32) bool {
     return sndh.load(len);
 }
 export fn audioSndhPlay(tune: u8) void {
+    sap_exports.sap.stop();
     sfx.reset();
     mod.stop();
     ym.stop();
@@ -112,6 +128,7 @@ export fn audioSndhPlay(tune: u8) void {
 /// Start the staged SNDH with INIT's d0 exactly as given (audioSndhPlay clamps
 /// it to a subtune): the host's load-then-call fallback for zg.sndhCall.
 export fn audioSndhPlayRaw(d0: u32) void {
+    sap_exports.sap.stop();
     sfx.reset();
     mod.stop();
     ym.stop();
@@ -160,10 +177,7 @@ export fn audioSndhStop() void {
 /// Stopping every player rather than "the one that was playing" is deliberate:
 /// the host would have to track that, and a host that tracks state gets it wrong.
 export fn audioReset() void {
-    mod.stop();
-    ym.stop();
-    sndh.stop();
-    sfx.reset();
+    stopAll();
     audio.machineAudioReset();
     current_mode = 0;
 }

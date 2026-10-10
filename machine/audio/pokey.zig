@@ -189,17 +189,29 @@ pub const Pokey = struct {
     /// machine cycles in its period (a box filter), scaled to 0..1. `frac`
     /// carries the fractional cycle between calls.
     pub fn render(self: *Pokey, out: []f32, rate: u32, clock: Clock, frac: *u64) void {
-        const den = clock.den * rate;
-        for (out) |*s| {
-            frac.* += clock.num;
-            var sum: u64 = 0;
-            var n: u64 = 0;
-            while (frac.* >= den) : (frac.* -= den) {
-                self.step();
-                sum += self.mix();
-                n += 1;
-            }
-            s.* = if (n == 0) 0 else @as(f32, @floatFromInt(sum)) / @as(f32, @floatFromInt(n * 60));
+        for (out) |*s| s.* = self.sample(rate, clock, frac);
+    }
+
+    /// The same, ADDED into both sides of a stereo bus: the machine's mix
+    /// (machine/machine_audio.zig machineRenderPokey), unipolar as the YM's.
+    pub fn renderAdd(self: *Pokey, left: []f32, right: []f32, rate: u32, clock: Clock, frac: *u64) void {
+        for (left, right) |*l, *r| {
+            const s = self.sample(rate, clock, frac);
+            l.* += s;
+            r.* += s;
         }
+    }
+
+    fn sample(self: *Pokey, rate: u32, clock: Clock, frac: *u64) f32 {
+        const den = clock.den * rate;
+        frac.* += clock.num;
+        var sum: u64 = 0;
+        var n: u64 = 0;
+        while (frac.* >= den) : (frac.* -= den) {
+            self.step();
+            sum += self.mix();
+            n += 1;
+        }
+        return if (n == 0) 0 else @as(f32, @floatFromInt(sum)) / @as(f32, @floatFromInt(n * 60));
     }
 };

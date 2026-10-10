@@ -11,6 +11,7 @@ const m = @import("root");
 export fn audioPlayRaw(len: u32, rate: f32, is_unsigned: bool) void {
     m.mod.stop();
     m.ym.stop();
+    m.sap_exports.sap.stop();
     audio.machinePaulaClearScopes();
 
     const n: usize = @intCast(len);
@@ -46,6 +47,7 @@ const STREAM_RING = m.STREAM_RING; // at SONG_BASE
 export fn audioStreamStart(rate: f32) void {
     m.mod.stop();
     m.ym.stop();
+    m.sap_exports.sap.stop();
     audio.machinePaulaClearScopes();
     // Zero the ring so an under-fed start is silence, not garbage.
     @memset(ring(), 0);

@@ -1,7 +1,8 @@
 // --------------------------------------------------------------------------
 // machine-audio.wasm entry point (SEALED).
 //
-// The audio hardware: Paula (4 sample channels) + a YM2149 PSG. Reuses the chip
+// The audio hardware: Paula (4 sample channels) + a YM2149 PSG + an Atari POKEY
+// (audio/pokey.zig, the cycle model the FPGA's zm_pokey is held to). Reuses the chip
 // implementations (audio/engine.zig, audio/ym.zig) unchanged — they ARE the
 // machine primitives. Exposes a small control surface (see sdk/audio.zig) that
 // the OPEN players in demo-audio.wasm drive; both modules share ONE memory on
@@ -11,10 +12,14 @@
 const std = @import("std");
 const engine_mod = @import("audio/engine.zig");
 const Engine = engine_mod.Engine;
+const pokey_mod = @import("audio/pokey.zig");
 
 const FRAC_BITS: u6 = 16; // Paula fixed-point (matches engine.zig)
 
 var engine: Engine = undefined;
+var pokey: pokey_mod.Pokey = .{};
+var pokey_clock: pokey_mod.Clock = pokey_mod.Clock.pal;
+var pokey_frac: u64 = 0;
 
 fn clampFrames(n: u32) usize {
     return @min(@as(usize, @intCast(n)), engine_mod.MAX_FRAMES);
@@ -22,6 +27,9 @@ fn clampFrames(n: u32) usize {
 
 export fn machineAudioInit() void {
     engine.init();
+    pokey = .{}; // power-up: SKCTL 0, init mode, until a player writes 3 as the Atari OS does
+    pokey_frac = 0;
+    pokey_clock = pokey_mod.Clock.pal;
 }
 
 export fn machineClear(n: u32) void {
@@ -44,6 +52,25 @@ export fn machineRenderYm(off: u32, len: u32) void {
     const e: usize = @min(o + @as(usize, @intCast(len)), engine_mod.MAX_FRAMES);
     if (e <= o) return;
     engine.ym.render(engine.left[o..e], engine.right[o..e]);
+}
+
+/// The POKEY's four channels into [off, off+len), added on both sides, unipolar
+/// like the YM: all four at volume 15 is full scale.
+export fn machineRenderPokey(off: u32, len: u32) void {
+    const o: usize = @intCast(off);
+    const e: usize = @min(o + @as(usize, @intCast(len)), engine_mod.MAX_FRAMES);
+    if (e <= o) return;
+    pokey.renderAdd(engine.left[o..e], engine.right[o..e], 44100, pokey_clock, &pokey_frac);
+}
+
+/// A POKEY register ($D200 + reg: AUDF/AUDC 0-7, AUDCTL 8, STIMER 9, SKCTL 15).
+export fn machinePokeyWrite(reg: u32, val: u32) void {
+    pokey.write(@truncate(reg), @truncate(val));
+}
+
+/// The POKEY's machine clock: 1 PAL (1773447 Hz, a SAP without the NTSC tag), 0 NTSC.
+export fn machinePokeyClock(pal: u32) void {
+    pokey_clock = if (pal != 0) pokey_mod.Clock.pal else pokey_mod.Clock.ntsc;
 }
 
 export fn machineYmWrite(reg: u32, val: u32) void {
@@ -71,6 +98,7 @@ export fn machineAudioReset() void {
     engine.ym.writeReg(9, 0); // channel B
     engine.ym.writeReg(10, 0); // channel C
     for (&engine.channels) |*c| c.active = false;
+    for (0..4) |ch| pokey.write(@intCast(2 * ch + 1), 0); // the POKEY's four volumes to zero
     engine.clearScopes();
 }
 
