@@ -48,7 +48,10 @@ AUD_CART_OBJ_snd := $(HCYC)/snd/play/snd_img.o
 HRV_LDFLAGS_1    := $(HRV_LDFLAGS)
 HRV_LDFLAGS_0    := $(HRV_LDFLAGS)
 H_sim    = -DZM_FRAMES=$(ZM_FRAMES) -DZM_EVERY=$(ZM_EVERY) $(B_$(ZM_BLIT)) $(A_$(ZM_AUDIO))
-H_board  = -DZM_BOARD -DZM_FRAMES=0 -DZM_EVERY=1 $(B_$(ZM_BLIT)) $(A_$(ZM_AUDIO))
+# ZM_SYS_MHZ=<n>: a bitstream whose sys clock is not 100 MHz (the FPU test bitstream runs 90):
+# board_micros() (bboard.c, the cart's hostMicros) is the one place the firmware reads the clock.
+ZM_SYS_MHZ ?=
+H_board  = -DZM_BOARD -DZM_FRAMES=0 -DZM_EVERY=1 $(B_$(ZM_BLIT)) $(A_$(ZM_AUDIO)) $(if $(ZM_SYS_MHZ),-DZM_SYS_MHZ=$(ZM_SYS_MHZ)u)
 
 $(SOC_HP)/hp_sim.json: $(HP_DEPS)
 	systemd-run --user --scope -q -p MemoryMax=6G -p MemorySwapMax=0 \
@@ -69,8 +72,17 @@ $(HCYC)/gen/csr_addr.h: $(SOC_HP)/hp_sim.json build/soc_z7/csr.json tools/cycles
 	uv run python tools/cycles_csr.py --hp $(SOC_HP)/csr.json $@ --hp-check build/soc_z7/csr.json \
 		$(if $(filter hw,$(ZM_BLIT)),--need-blit)
 
+# env.hostMicros (cycles/bmicros.h): the board's images have the clock; the sim's answer 0, as the
+# native host and scene_hash.mjs do, so a benchmark cart does its FIXED work a frame and its
+# hashes compare (apps/zig/scenes/raytrace/bench.zig). Its rate in the sim is cycles/frame.
+MICROS_board := -include bmicros.h
+MICROS_sim   :=
 define hp_rules
-$(HCYC)/$(1)$(HSUF)/common/fw.a: $(HFW_DEPS)
+# The clock fw.a was built for: rewritten only when ZM_SYS_MHZ changes, so fw.a follows it.
+$(HCYC)/$(1)$(HSUF)/common/sys_mhz: FORCE
+	@mkdir -p $$(@D)
+	@echo '$(ZM_SYS_MHZ)' | cmp -s - $$@ || echo '$(ZM_SYS_MHZ)' >$$@
+$(HCYC)/$(1)$(HSUF)/common/fw.a: $(HFW_DEPS) $(HCYC)/$(1)$(HSUF)/common/sys_mhz
 	@mkdir -p $$(@D)/fw
 	for s in $(HFW_FILES); do \
 		$(RV_CC) $(HRV_CFLAGS) $(H_$(1)) -c $$$$s -o $$(@D)/fw/$$$$(basename $$$$s).o || exit 1; done
@@ -82,7 +94,7 @@ $(HCYC)/$(1)$(HSUF)/%/fw.elf: $(CYC)/$(HV)/%/cart.o $(CYC)/$(HV)/common/machine.
 	rm -f $$(@D)/aud_*.o
 	for s in $(AUD_CART_SRC_$(ZM_AUDIO)) $(HCYC)/songs/$$*.c; do \
 		$(RV_CC) $(HRV_CFLAGS) $(H_$(1)) -I$(HOST)/$$* -c $$$$s -o $$(@D)/aud_$$$$(basename $$$$s .c).o || exit 1; done
-	$(RV_CC) $(HRV_CFLAGS) -I$(HOST)/$$* -include bmicros.h -c $(HOST)/$$*/env.c -o $$(@D)/env.o
+	$(RV_CC) $(HRV_CFLAGS) -I$(HOST)/$$* $(MICROS_$(1)) -c $(HOST)/$$*/env.c -o $$(@D)/env.o
 	$(RV_CC) $(HRV_CFLAGS) -I$(HOST)/$$* -c host/boot.c -o $$(@D)/boot.o
 	$(RV_CC) $(HRV_CFLAGS) -I$(HOST)/$$* -c cycles/vseq.c -o $$(@D)/vseq.o
 	$(RV_CC) $(HRV_CFLAGS) $(H_$(1)) -I$(HOST)/$$* -DZM_CART='"$$*"' -c cycles/bmain.c -o $$(@D)/main.o
