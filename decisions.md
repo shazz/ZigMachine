@@ -802,3 +802,31 @@ ABI rather than a Zig API, apps in any language sit on it.
 - 50 Hz tunes and Beat Dis fit. The other digi SNDHs (including the 10 sharing Beat Dis's handler) still overrun on the sound CPU and resync, which `ZM AUD resyncs` counts, until each gets a sequencer or Musashi's interrupt entry gets cheaper (the next lever, `docs/FPGA_SOUND_CPU.md`).
 - The native code also runs in the browser (in `demo-audio.wasm`, +2.8 KB). Its output there is the oracle-checked stream, unchanged.
 - New exports: `audioSndhNative`, `audioSndhNativeEnable`, and `audioSndhNativeMutant` (test only).
+
+## 2026-10-10 — POKEY written from scratch, audio only, against a Zig model
+
+**Status:** accepted
+**Context:** Phase B of the sound-CPU plan puts an Atari POKEY (C012294) beside the YM, driven later by a 6502 SAP player. The available HDL cores (MiSTer Atari800 and others) and the reference emulators (MAME `pokey.cpp`, ASAP) are GPL. The project's own code is MIT, so it cannot absorb them. jt49 is the one GPL core already in a bitstream, and it is kept as a separate module (`fpga/third_party/README.md`).
+**Decision:** A POKEY written from public hardware documentation only: the Altirra Hardware Reference Manual's POKEY chapter, Atari's C012294 data sheet, and De Re Atari ch. 7. No GPL source was read. It is audio only: four channels, AUDF/AUDC, every AUDCTL bit, STIMER, and SKCTL init mode. There are no IRQs, serial port, keyboard, pots, RANDOM or two-tone mode.
+- `libs/zig/players/pokey.zig` is the reference model, cycle by cycle. `pokey_test.zig` checks the documented formulas: (N+1)×28 and (N+1)×114 cycles on the bases, N+4 at 1.79 MHz, N16+7 for a joined pair, and poly periods of 15, 31, 511 and 131071.
+- `fpga/rtl/audio/zm_pokey.v` (plus `_pair` and `_poly`) runs on a 315/176 MHz enable from 100 MHz (63/3520, `zm_audio_frac`). `tests/test_rtl_pokey.py` requires its four channel levels to match the model bit for bit after every machine cycle. The scripts cover all 256 AUDCTL values and all 8 distortions on every channel, with and without volume-only: 1.24 M cycles on a fast enable and 60 k on the real one. 16 break tests (`ZM_RTL_BREAK=1`) each break one rule and require a failure.
+- Points the documents leave open were decided as follows. Each is one place in the model and the RTL, so it can be corrected from a recording of a real chip:
+  - The polys are XNOR Fibonacci LFSRs. Init mode clears them to 0, and a poly's output is bit 0. The trinomials (x^4+x+1, x^5+x^2+1, x^9+x^4+1, x^17+x^5+1) were chosen for their periods; the real chip's taps and phase may differ. An XNOR sequence has 15 ones in 31, so 5-bit gating passes 15 borrows of 31.
+  - The 9-bit poly is the 17-bit register with its feedback entering at bit 8 (and 16).
+  - The N+4 and N+7 periods come from a 3-cycle (single) or 6-cycle (joined) reload delay after a borrow, with the counter frozen during it.
+  - A joined low channel rolls over to 0xFF and still clocks its own output flip-flop.
+  - STIMER reloads all four counters and clears the four output flip-flops and both high-pass latches.
+  - A disabled high-pass latch is held at 0, so it passes the signal through. An enabled one latches the filtered channel's output from before the cycle, on the filter channel's borrow (ch3's low-byte borrow when 3+4 are joined).
+  - Init mode holds the polys and the 64/15 kHz dividers at 0. Channels on 1.79 MHz keep counting.
+  - The mix is the plain sum of the four levels (0..60), not the chip's non-linear analog sum.
+
+**Alternatives considered:**
+- A GPL core (MiSTer Atari800) as a separate module, like jt49: quicker, but a second GPL block in the bitstream, and there is no model of our own to test it against.
+- Porting an emulator's C (MAME, ASAP): GPL, and ruled out by the licence.
+- A behavioural model only, no RTL: the FPGA needs the chip, and the sound CPU will drive it directly.
+
+**Consequences:**
+- The cost is small: 207 LUTs, 206 FFs, no BRAM or DSP. Vivado out of context at 100 MHz on the xc7z010-1 gives WNS +4.68 ns (`PERIOD=10 IMPL=1 CLOCK=clk fpga/tools/vivado_ooc.sh zm_pokey ...`). The critical path is the shared `zm_audio_frac` accumulator, not POKEY.
+- It is not in the SoC yet. The audio core gives it a register range and adds `mix` to the YM's box filter (the `cen` output marks the machine cycles), on the sound-CPU branch.
+- Accuracy against the real chip is unproven where the documents leave a choice open (listed above). The cycle model is one file, so a correction is a model change plus the matching RTL line, and the bit-exact testbench catches any drift between them.
+- Register writes coinciding with `cen` land after that machine cycle. The testbench does not exercise that case.

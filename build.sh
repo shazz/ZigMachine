@@ -125,6 +125,7 @@ NATIVE_TESTS="
     libs/zig/players/sndh.zig
     libs/zig/players/mfp_test.zig
     libs/zig/players/digi_test.zig
+    libs/zig/players/pokey_test.zig
     libs/zig/players/mod_format_test.zig
     libs/zig/sfx_queue_test.zig
     libs/zig/depackers/ice_test.zig
