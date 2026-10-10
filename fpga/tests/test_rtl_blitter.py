@@ -43,7 +43,7 @@ MUTANTS = [
     ("halftone_sniff_dropped", "zm_blit_core.v", "f_con2[2] || f_ht != 256'd0", "f_con2[2]"),
     ("fill_ignores_fill_mt", "zm_blit_fill.v", "combine ? mt : 8'hCC", "mt"),
     ("fill_cost_not_wh", "zm_blit_core.v", "cost <= fill_cost;", "cost <= fill_cost + 32'd1;"),
-    ("region_check_off_by_one", "zm_blit_chk.v", "+ dlast <= ZM_REGION_BYTES", "+ dlast < ZM_REGION_BYTES"),
+    ("region_check_off_by_one", "zm_blit_chk.v", "+ dlast_q <= ZM_REGION_BYTES", "+ dlast_q < ZM_REGION_BYTES"),
     ("window_top_off_by_one", "zm_blit_chk.v", "hi <= ZM_ROM_RAM_TOP", "hi < ZM_ROM_RAM_TOP"),
     ("src_abs_ignored", "zm_blit_core.v", "wire abs_src = f_con2[0];", "wire abs_src = 1'b0;"),
     ("writes_accepted_while_busy", "zm_blit_regs.v", "cpu_we && !busy && !start", "cpu_we"),
@@ -55,9 +55,13 @@ MUTANTS = [
     (
         "key_skipped_pixels_counted",
         "zm_blit_px.v",
-        "assign wrote = w_st && !skip && wr_req_ready;",
-        "assign wrote = w_st && wr_req_ready;",
+        "assign wrote = w_st && !skip && (nop || wr_req_ready);",
+        "assign wrote = w_st && (nop || wr_req_ready);",
     ),
+    # the no-op pixel (zm_blit_px.v): an AND (or MT_B) of a 0 is not "unchanged"; a B channel is not a constant
+    ("nop_pixel_ignores_the_minterm", "zm_blit_px.v", "(!m[0] && m[1])", "(!m[0])"),
+    ("nop_pixel_ignores_the_channels", "zm_blit_px.v", "px_flags == 4'b0100 && ident", "px_flags[2] && ident"),
+    ("nop_pixel_not_counted", "zm_blit_px.v", "!skip && (nop || wr_req_ready)", "!skip && !nop && wr_req_ready"),
     ("line_clipped_pixels_uncounted", "zm_blit_core.v", "line_step && is_line", "line_step && is_line && |v"),
 ]
 
