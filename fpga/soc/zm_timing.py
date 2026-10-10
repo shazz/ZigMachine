@@ -23,13 +23,33 @@ SEAL = FPGA / "rtl/seal"
 LiteX = Any
 
 
-def add_cdc_constraints(platform: LiteX, clocks: dict[str, tuple[object, int]], pairs: list[tuple[str, str]]) -> None:
+def add_cdc_constraints(
+    platform: LiteX, clocks: dict[str, tuple[object, int, int]], pairs: list[tuple[str, str]]
+) -> None:
     """set_max_delay -datapath_only both ways between each pair of `clocks` (name ->
-    (clock net, Hz)), one destination period each."""
+    (clock net, Hz, the PLL's CLKOUT index)), one destination period each.
+
+    Vivado: after synthesis (pre_placement_commands), with each clock named by its PLL pin. In
+    the XDC, read before synthesis, the PLL's derived clocks do not exist yet; after synthesis
+    sys_clk and pix_clk are renamed nets (only comp_clk kept its name). Either way every line
+    was a CRITICAL WARNING "No valid object(s) found" and the sys/comp/pix crossings went
+    unconstrained: a 2 ns sys -> comp requirement, WNS -4.6 ns (2026-10-10)."""
+    vivado = hasattr(getattr(platform, "toolchain", None), "pre_placement_commands")
     for a, b in pairs:
-        for (src, _), (dst, hz) in ((clocks[a], clocks[b]), (clocks[b], clocks[a])):
+        for (src, _, si), (dst, hz, di) in ((clocks[a], clocks[b]), (clocks[b], clocks[a])):
+            if vivado:
+                cmd = f"set_max_delay -datapath_only -from {_pll_clock(si)} -to {_pll_clock(di)} {1e9 / hz:.3f}"
+                # LiteX .format()s these lines (build_name): Tcl's braces must be doubled.
+                platform.toolchain.pre_placement_commands.append(cmd.replace("{", "{{").replace("}", "}}"))
+                continue
             sel = "-from [get_clocks -of_objects [get_nets {src}]] -to [get_clocks -of_objects [get_nets {dst}]]"
             platform.add_platform_command(f"set_max_delay -datapath_only {sel} {1e9 / hz:.3f}", src=src, dst=dst)
+
+
+def _pll_clock(index: int) -> str:
+    """The clock on the (only) PLLE2_ADV's CLKOUT<index>, as a Vivado Tcl expression."""
+    pll = "[get_cells -hier -filter {REF_NAME == PLLE2_ADV}]"
+    return f'[get_clocks -of_objects [get_pins -of_objects {pll} -filter "REF_PIN_NAME == CLKOUT{index}"]]'
 
 
 def is_sealed(netlist: Path) -> bool:

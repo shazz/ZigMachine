@@ -65,6 +65,9 @@ class Z7CRG(Module):
             pll.create_clkout(self.cd_comp, comp_hz, reset_buf="bufg")
         pll.create_clkout(self.cd_pix, PIX_CLK)
         pll.create_clkout(self.cd_pix5x, 5 * PIX_CLK)
+        # The PLL's CLKOUT index of each clock, in create_clkout order: Vivado names them by it.
+        comp = 0 if comp_hz == sys_hz else 1
+        self.clkout = {"sys": 0, "comp": comp, "pix": comp + 1, "pix5x": comp + 2}
 
 
 def core_netlist(choice: str | None) -> Path | None:
@@ -93,7 +96,11 @@ def make_z7(args: argparse.Namespace) -> tuple[ZigMachineSoC, object]:
     soc = _board_soc(platform, sys_hz, not args.no_glass, getattr(args, "blit", False), audio)
     soc.crg = crg = Z7CRG(platform, (args.osc, args.osc_hz), sys_hz, comp_hz)
     soc.csr_bridge_register = True
-    clocks = {"sys": (crg.cd_sys.clk, sys_hz), "comp": (crg.cd_comp.clk, comp_hz), "pix": (crg.cd_pix.clk, PIX_CLK)}
+    clocks = {
+        "sys": (crg.cd_sys.clk, sys_hz, crg.clkout["sys"]),
+        "comp": (crg.cd_comp.clk, comp_hz, crg.clkout["comp"]),
+        "pix": (crg.cd_pix.clk, PIX_CLK, crg.clkout["pix"]),
+    }
     pairs = [("sys", "pix")] + ([] if comp_hz == sys_hz else [("comp", "pix"), ("sys", "comp")])
     zm_timing.add_cdc_constraints(platform, clocks, pairs)
     netlist = core_netlist(getattr(args, "cpu_netlist", None))
