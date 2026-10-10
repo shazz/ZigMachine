@@ -12,7 +12,7 @@
  * "ZM VSTAT underrun overflow swaps vbls undrained", "ZM MIS ...", "ZM BLIT calls hw cycles" (bblit.h),
  * "ZM END rc". With the audio (cycles/baudio.c; ZM_NO_AUDIO without): per frame "ZM AF f cart audio"
  * (the cycles of cart.frame() and of the players), "ZM SONG ts name" per song, then "ZM AUD ...".
- * Per frame too: "ZM VF f bg planes present" (the sequencer's cycles), "ZM BF f" + calls/cycles/units
+ * Per frame too: "ZM QF f bg planes present" (the sequencer's cycles), "ZM BF f" + calls/cycles/units
  * of each blitter op and "ZM WF f" + the bus counters (report_frame), and with ZM_TRACE_FRAME = f
  * that frame's ops one by one ("ZM BT"). ZM_WARP_MS starts the cart's timeline late. */
 #include <stdio.h>
@@ -90,7 +90,7 @@ static void frame(sha256_ctx* h, u32 planes, u32 size, long f) {
     vseq_present();
     /* the sequencer's share (sim): BG passes, the planes' passes (and hashes), PRESENT */
 #ifndef ZM_BOARD /* nothing is printed there, but the formatting would still cost */
-    printf("ZM VF %ld %lu %lu %lu\n", f, (unsigned long)(t0 - tc), (unsigned long)(t3 - t2),
+    printf("ZM QF %ld %lu %lu %lu\n", f, (unsigned long)(t0 - tc), (unsigned long)(t3 - t2),
            (unsigned long)(board_cycles() - t3));
 #endif
 }
