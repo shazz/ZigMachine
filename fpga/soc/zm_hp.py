@@ -13,7 +13,10 @@
   the remaining beats are served from; the buffer lives only until the burst
   ends, so nothing goes stale behind the video DMA. A single read is a 1-beat
   burst; a store is a 1-beat 4-byte write, acknowledged on its write response
-  (blocking: no store is posted, so `drained` needs no store-buffer term).
+  (blocking: no store is posted, so `drained` needs no store-buffer term). With
+  `posted=N` a store is acknowledged once it is in an N-entry buffer instead
+  (soc/zm_hp_posted.py); every consumer of "an acknowledged store is in DDR" then
+  waits for `idle`. Off by default: the cart CPU's board path is unchanged.
 - **HP1: the video DMA** (soc/zm_video_axi.py), bursts of up to 16 beats.
 
 **Reads 64-bit, writes 32-bit (WR32).** Each port's read channel runs 64-bit
@@ -34,6 +37,8 @@ from typing import Any
 from litex.gen import LiteXModule
 from litex.soc.interconnect import axi
 from migen import Array, Cat, Constant as Const, If, Mux, Signal
+
+from soc.zm_hp_posted import PostedStores
 
 CPU_BASE = 0x40000000
 DDR_BASE = 0x04000000
@@ -74,8 +79,9 @@ def fixed_fields(ch: Any) -> list[Any]:
 class WishboneHP(LiteXModule):
     """`bus` (32-bit, word-addressed Wishbone slave) -> `hp` (64-bit AXI3 master)."""
 
-    def __init__(self, bus: Bus, hp: axi.AXIInterface) -> None:
+    def __init__(self, bus: Bus, hp: axi.AXIInterface, posted: int = 0) -> None:
         self.bus, self.hp = bus, hp
+        self.idle = Signal(reset=1)  # every acknowledged store is in DDR (always, without `posted`)
         self.ack = ack = Signal()
         self.req = bus.cyc & bus.stb & ~ack
         self.beat = bus.adr[1:]  # 64-bit beat index of the bus address
@@ -85,7 +91,14 @@ class WishboneHP(LiteXModule):
         self.comb += [bus.ack.eq(ack), *fixed_fields(hp.ar), *fixed_fields(hp.aw)]
         self._line_buffer()
         self._read()
-        self._write()
+        self._posted(posted) if posted else self._write()
+
+    def _posted(self, depth: int) -> None:
+        """Stores into PostedStores' buffer; a read waits until it has drained (`wbusy`)."""
+        self.stores = PostedStores(self.bus, self.hp, self.req, depth, word_addr=ddr_word_addr, size=SIZE_4,
+                                   cache=AW_CACHE)  # fmt: skip
+        self.comb += [self.idle.eq(self.stores.idle), self.wbusy.eq(~self.stores.idle)]
+        self.sync += If(self.stores.push, self.ack.eq(1))
 
     def _line_buffer(self) -> None:
         """The beats of the line being refilled, valid until its burst ends."""

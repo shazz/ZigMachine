@@ -34,10 +34,13 @@ from soc.zm_hp import CPU_BASE, WINDOW, WishboneHP, hp_interface, ps7_hp_ports
 SoC = Any
 
 
-def add_cpu_memory(soc: SoC, hp0: axi.AXIInterface) -> None:
-    """main_ram at CPU_BASE on HP0, and the firmware's cycle counter."""
+def add_cpu_memory(soc: SoC, hp0: axi.AXIInterface, posted: int = 0) -> None:
+    """main_ram at CPU_BASE on HP0, and the firmware's cycle counter. `posted`: the bridge's
+    store buffer (soc/zm_hp_posted.py), 0 = blocking stores; its `idle` drives the SoC's
+    `stores_idle`, which the video's `drained` and the blitter's start wait for."""
     bus = wishbone.Interface(data_width=32, address_width=32, addressing="word")
-    soc.main_ram_hp = WishboneHP(bus, hp0)
+    soc.main_ram_hp = WishboneHP(bus, hp0, posted)
+    soc.comb += soc.stores_idle.eq(soc.main_ram_hp.idle)
     soc.bus.add_slave("main_ram", bus, SoCRegion(origin=CPU_BASE, size=WINDOW, mode="rwx"))
     soc.zm_cycles = ZMCycles(soc.cpu.ibus, soc.cpu.dbus)
 
