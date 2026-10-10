@@ -96,6 +96,7 @@ const scene = switch (opts.index) {
     83 => @import("scenes/naos_nitrowave.zig"), // NAOS / THE NITROWAVE DEMO, menu + F1 + F2 + F3 (ported from the ST disk)
     84 => @import("scenes/raytrace.zig"), // SDF ray tracer, Q16.16 fixed point (FPGA CPU benchmark)
     85 => @import("scenes/raytrace_f32.zig"), // the same ray tracer on f32
+    86 => @import("scenes/sap_test.zig"), // SAP TEST: Atari 8-bit SAP tunes on the POKEY, a jukebox
     else => @compileError("bad cart index"),
 };
 

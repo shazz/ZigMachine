@@ -210,6 +210,11 @@
   "type": "atari st"
  },
  {
+  "tag": "sap_test",
+  "title": "SAP TEST",
+  "type": "zigmachine"
+ },
+ {
   "tag": "scroll",
   "title": "SCROLL DEMO",
   "type": "zigmachine"
