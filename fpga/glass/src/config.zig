@@ -3,6 +3,7 @@
 //
 //   volume=200      0..255, 255 = unity (REG_AUDIO_VOL)
 //   mute=0          0 or 1
+//   fps=0           1: the F11 frame-rate overlay is on (app_stats.zig)
 //
 // A missing file means "never saved": the defaults, said nowhere because nothing
 // is wrong. A line that does not parse is reported (the status line and the
@@ -18,6 +19,7 @@ const MAX_BYTES = 4096;
 pub const Settings = struct {
     volume: u8 = @intCast(map.AUDIO_VOL_RESET),
     mute: bool = false,
+    fps: bool = false,
 
     /// The REG_AUDIO_VOL word.
     pub fn audioWord(self: Settings) u32 {
@@ -48,15 +50,21 @@ fn apply(s: *Settings, line: []const u8) bool {
     if (std.mem.eql(u8, key, "volume")) {
         s.volume = std.fmt.parseInt(u8, val, 10) catch return false;
     } else if (std.mem.eql(u8, key, "mute")) {
-        if (val.len != 1 or (val[0] != '0' and val[0] != '1')) return false;
-        s.mute = val[0] == '1';
+        s.mute = flag(val) orelse return false;
+    } else if (std.mem.eql(u8, key, "fps")) {
+        s.fps = flag(val) orelse return false;
     } else return false;
     return true;
 }
 
+fn flag(val: []const u8) ?bool {
+    if (val.len != 1 or (val[0] != '0' and val[0] != '1')) return null;
+    return val[0] == '1';
+}
+
 pub fn format(s: Settings, buf: []u8) []const u8 {
-    const fmt = "# glass.cfg: the console's settings, written by glass (docs/FPGA_GLASS.md)\nvolume={d}\nmute={d}\n";
-    return std.fmt.bufPrint(buf, fmt, .{ s.volume, @intFromBool(s.mute) }) catch unreachable;
+    const fmt = "# glass.cfg: the console's settings, written by glass (docs/FPGA_GLASS.md)\nvolume={d}\nmute={d}\nfps={d}\n";
+    return std.fmt.bufPrint(buf, fmt, .{ s.volume, @intFromBool(s.mute), @intFromBool(s.fps) }) catch unreachable;
 }
 
 pub fn load(io: std.Io, dir: []const u8) Loaded {
@@ -82,12 +90,14 @@ pub fn save(io: std.Io, dir: []const u8, s: Settings) !void {
 
 test "glass.cfg round-trips, and a bad line keeps its default" {
     var buf: [256]u8 = undefined;
-    const s = Settings{ .volume = 77, .mute = true };
+    const s = Settings{ .volume = 77, .mute = true, .fps = true };
     try std.testing.expectEqual(Loaded{ .settings = s }, parse(format(s, &buf)));
     const bad = parse("volume=300\nmute=1\n");
     try std.testing.expectEqual(@as(u32, 1), bad.bad_line);
     try std.testing.expectEqual(Settings{ .volume = 255, .mute = true }, bad.settings);
     try std.testing.expectEqual(@as(u32, 2), parse("# hi\nshader=crt\nvolume=9").bad_line); // unknown key
+    try std.testing.expectEqual(Loaded{ .settings = .{ .fps = true } }, parse("fps=1"));
+    try std.testing.expectEqual(Loaded{ .bad_line = 1 }, parse("fps=yes")); // keeps its default, off
     try std.testing.expectEqual(@as(u32, 0x100 | 9), (Settings{ .volume = 9, .mute = true }).audioWord());
 }
 

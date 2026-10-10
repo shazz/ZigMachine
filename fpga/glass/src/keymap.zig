@@ -37,6 +37,9 @@ pub const KEY_HELP = 138;
 
 /// The hotkey that opens and closes the OSD, MiSTer's choice; it never reaches a cart.
 pub const OSD_HOTKEY = KEY_F12;
+/// The frame-rate overlay's toggle (app_stats.zig); never reaches a cart either
+/// (the browser has no F11 code, so event() has none to send).
+pub const STATS_HOTKEY = KEY_F11;
 
 // Printable rows by evdev code: codes 2..13, 16..27, 30..41, 43..53.
 const Row = struct { first: u16, plain: []const u8, shifted: []const u8 };

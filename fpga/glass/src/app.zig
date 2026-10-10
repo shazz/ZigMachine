@@ -1,6 +1,7 @@
 // The glass program's behaviour, independent of where the registers are: the
 // OSD hotkey, the menu, routing keys and the pad to the cart. What the menu's
-// actions do (loads, resets, settings, the debug page) is app_cart.zig.
+// actions do (loads, resets, settings, the debug page) is app_cart.zig; the
+// F11 frame-rate overlay, app_stats.zig.
 // main.zig gives it the board's /dev/mem windows; the tests the simulated ones.
 //
 // While the OSD is open the cart gets NO input (MiSTer's rule): every key,
@@ -18,6 +19,7 @@ const shelf = @import("shelf.zig");
 const loader = @import("loader.zig");
 const stats = @import("stats.zig");
 const cart = @import("app_cart.zig");
+const overlay = @import("app_stats.zig");
 
 const HELD_MAX = 16;
 pub const OSD_FG: u32 = 0xE0E0E0;
@@ -55,12 +57,14 @@ pub const App = struct {
     pad_name_len: usize = 0,
     inputs: usize = 0, // evdev nodes open (main.zig)
     ticks: u32 = 0,
+    pl_stats: bool = false, // the PL can draw the F11 overlay (app_stats.supported)
 
     /// Check the PL, read the shelf and glass.cfg, and show the menu.
     pub fn init(gpa: std.mem.Allocator, io: std.Io, regs: bus.Regs, ddr: bus.Ddr, dir: []const u8) !App {
         try loader.checkGlass(regs);
         const disks = try shelf.scan(gpa, io, dir);
         var app = App{ .gpa = gpa, .io = io, .regs = regs, .ddr = ddr, .shelf_dir = dir, .disks = disks, .menu = .{ .disks = disks.disks } };
+        app.pl_stats = overlay.supported(regs.read(map.REG_VERSION));
         regs.write(map.REG_OSD_FG, OSD_FG);
         regs.write(map.REG_OSD_BG, OSD_BG);
         cart.loadSettings(&app);
@@ -76,12 +80,13 @@ pub const App = struct {
         if (open) self.releaseAll();
         if (!open) cart.saveSettings(self);
         self.open = open;
-        const ctrl = self.regs.read(map.REG_CTRL) & ~map.CTRL_OSD;
-        self.regs.write(map.REG_CTRL, ctrl | (if (open) map.CTRL_OSD else 0));
+        overlay.place(self);
         self.redraw();
     }
 
+    /// The menu while it is open; the frame-rate overlay (if on) while closed.
     pub fn redraw(self: *App) void {
+        if (!self.open) return overlay.draw(self);
         self.menu.disks = self.disks.disks;
         const view = if (self.menu.page == .debug) cart.debugView(self) else @import("page_debug.zig").View{};
         self.menu.draw(&self.osd, &view);
@@ -92,6 +97,10 @@ pub const App = struct {
     pub fn key(self: *App, code: u16, value: i32) void {
         if (code == keymap.OSD_HOTKEY) {
             if (value == 1) self.setOpen(!self.open);
+            return;
+        }
+        if (code == keymap.STATS_HOTKEY) {
+            if (value == 1) overlay.toggle(self);
             return;
         }
         const ev = keymap.event(code, value, &self.mods) orelse return;
@@ -157,11 +166,12 @@ pub const App = struct {
     }
 
     /// Called about ten times a second (main.zig): the watchdog, the frame-rate
-    /// sample, and the live parts of the OSD (the debug page, a long name scrolling).
+    /// sample, and the live parts of the OSD (the debug page, a long name
+    /// scrolling, the F11 overlay).
     pub fn tick(self: *App) void {
         cart.watch(self);
         self.ticks +%= 1;
-        if (!self.open) return;
+        if (!self.open) return overlay.draw(self);
         switch (self.menu.page) {
             .debug => if (self.ticks % 5 == 0) self.redraw(),
             .shelf => if (self.ticks % 3 == 0) {
