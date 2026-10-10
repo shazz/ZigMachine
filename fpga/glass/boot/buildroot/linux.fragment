@@ -49,5 +49,3 @@ CONFIG_NET_VENDOR_CADENCE=y
 CONFIG_MACB=y
 CONFIG_PHYLIB=y
 CONFIG_REALTEK_PHY=y
-# Everything the glass needs is =y above; the stock multi_v7 module tree is 31 MB of the rootfs.
-# CONFIG_MODULES is not set

@@ -12,4 +12,10 @@ fi
 install -D -m 0755 "$GLASS" "$TARGET_DIR/usr/bin/glass"
 # Buildroot's strip pass ran before this script, so the raw zig-out binary
 # (debug_info, symtab: 3.4 MB) would reach the rootfs unstripped (0.5 MB stripped).
-"${TARGET_CROSS}strip" "$TARGET_DIR/usr/bin/glass"
+# Post-build scripts get HOST_DIR, not TARGET_CROSS: the toolchain's own strip.
+STRIP=$(ls "$HOST_DIR"/bin/*-buildroot-linux-*-strip | head -n 1)
+"$STRIP" "$TARGET_DIR/usr/bin/glass"
+# The stock multi_v7 module tree is 31 MB of a 37 MB rootfs and nothing loads it:
+# everything the glass needs is =y in linux.fragment. (CONFIG_MODULES=n is not
+# the fix: Kconfig then turns every =m into =y, and the zImage grew 11.9 -> 18.3 MB.)
+rm -rf "$TARGET_DIR/lib/modules"
