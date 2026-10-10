@@ -110,7 +110,7 @@ class _Queue(LiteXModule):
     def __init__(self, width: int, depth: int) -> None:
         self.we, self.din, self.writable = Signal(), Signal(width), Signal()
         self.re, self.dout, self.readable = Signal(), Signal(width), Signal()
-        slots = Array(Signal(width) for _ in range(depth))
+        slots = Array(Signal(width, reset_less=True) for _ in range(depth))  # data only: no reset fan-out (Vivado: the worst path at 80 MHz)
         head, tail, level = Signal(max=depth), Signal(max=depth), Signal(max=depth + 1)
         self.level = level
         push, pop = Signal(), Signal()
