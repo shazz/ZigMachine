@@ -1,5 +1,5 @@
 """The POKEY RTL (rtl/audio/zm_pokey*.v) against its Zig model
-(libs/zig/players/pokey.zig), bit for bit.
+(machine/audio/pokey.zig), bit for bit.
 
 tests/pokey_ref runs the model natively on a register-write script
 (pokey_scripts.py) and dumps the four channel levels after every machine
@@ -28,7 +28,7 @@ from pokey_scripts import make_script, short_script
 
 BUILD = FPGA / "build" / "tests" / "pokey"
 ZIG = os.environ.get("ZIG", str(Path.home() / ".local/zig/0.16.0/zig"))
-MODEL = FPGA.parent / "libs/zig/players/pokey.zig"
+MODEL = FPGA.parent / "machine/audio/pokey.zig"
 RTL = ["rtl/audio/zm_audio_frac.v", "rtl/audio/zm_pokey_poly.v", "rtl/audio/zm_pokey_pair.v", "rtl/audio/zm_pokey.v"]
 FAST = (1, 24)  # CEN_INC, CEN_MOD: room for a burst of writes between two cycles
 REAL = (63, 3520)
@@ -88,7 +88,7 @@ def oracle() -> dict[str, Path]:
 
 
 def test_the_model_passes_its_own_tests() -> None:
-    test = FPGA.parent / "libs/zig/players/pokey_test.zig"
+    test = FPGA.parent / "machine/audio/pokey_test.zig"
     r = subprocess.run([ZIG, "test", str(test)], capture_output=True, text=True, check=False)
     assert r.returncode == 0, r.stderr
 

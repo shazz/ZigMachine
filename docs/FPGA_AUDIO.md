@@ -327,7 +327,7 @@ converter to the ROM format (`tools/ym_rom.py` for the YM). A lab player swaps
 | Candidate | Core | Dumps | Licence (to confirm per core) |
 |---|---|---|---|
 | SID 6581 / 8580 | MiSTer C64's SID, or the reDIP SID | register log recorded from `.sid` playback | GPL (MiSTer); check reDIP's |
-| POKEY | **ours, from scratch** (`rtl/audio/zm_pokey*.v`, model `libs/zig/players/pokey.zig`, decisions.md 2026-10-10) | `.sap` register streams | MIT (ours); 207 LUT / 206 FF, WNS +4.68 ns at 100 MHz (Vivado OOC) |
+| POKEY | **ours, from scratch** (`rtl/audio/zm_pokey*.v`, model `machine/audio/pokey.zig`, decisions.md 2026-10-10) | `.sap` register streams | MIT (ours); 207 LUT / 206 FF, WNS +4.68 ns at 100 MHz (Vivado OOC) |
 | YM2612 (FM) | jotego jt12 | `.vgm` | GPL-3 |
 | OPL2 / OPL3 | jotego jtopl | `.vgm` | GPL-3 |
 | NES APU | MiSTer NES | `.vgm` / `.nsf` register logs | GPL |

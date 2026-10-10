@@ -4,7 +4,7 @@
 // The 9-bit poly is the 17-bit register shortened: its feedback enters at bit 8
 // (and bit 16), so bits 0..8 cycle alone. Trinomials x^4+x+1, x^5+x^2+1,
 // x^9+x^4+1, x^17+x^5+1: periods 15, 31, 511, 131071. The same registers as
-// libs/zig/players/pokey.zig `Poly`, which the testbench holds this to.
+// machine/audio/pokey.zig `Poly`, which the testbench holds this to.
 `default_nettype none
 
 module zm_pokey_poly (

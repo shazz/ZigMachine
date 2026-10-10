@@ -2,7 +2,7 @@
 // STIMER, SKCTL's init mode. Written from scratch from public documentation
 // (the Altirra Hardware Reference Manual's POKEY chapter, Atari's C012294 data
 // sheet, De Re Atari ch. 7); no MAME, ASAP or GPL HDL was read or ported.
-// libs/zig/players/pokey.zig is the reference model: the testbench
+// machine/audio/pokey.zig is the reference model: the testbench
 // (tests/test_rtl_pokey.py) requires the four levels to match it, bit for bit,
 // every machine cycle.
 //

@@ -1,4 +1,4 @@
-//! The POKEY oracle for the RTL: libs/zig/players/pokey.zig (module `pokey`,
+//! The POKEY oracle for the RTL: machine/audio/pokey.zig (module `pokey`,
 //! unchanged) run natively on a script of register writes.
 //!
 //!   pokey_ref <script> <trace>

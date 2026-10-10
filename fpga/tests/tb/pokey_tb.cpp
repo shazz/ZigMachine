@@ -1,4 +1,4 @@
-// zm_pokey (Verilator) against libs/zig/players/pokey.zig: plays a register-write
+// zm_pokey (Verilator) against machine/audio/pokey.zig: plays a register-write
 // script (tests/pokey_scripts.py) into the RTL and compares the four channel
 // levels with the oracle's trace (tests/pokey_ref) after EVERY machine cycle.
 // Bit-exact or it fails at the first differing cycle.

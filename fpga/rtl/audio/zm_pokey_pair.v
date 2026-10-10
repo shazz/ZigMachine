@@ -9,7 +9,7 @@
 //     reload: low byte = AUDF lo, high byte = AUDF hi;
 //   - STIMER reloads both now and drops any pending reload.
 // `b_lo` / `b_hi` are this cycle's borrows, valid while `cen` is high.
-// libs/zig/players/pokey.zig `count` / `pair` is the same, line for line.
+// machine/audio/pokey.zig `count` / `pair` is the same, line for line.
 `default_nettype none
 
 module zm_pokey_pair (
