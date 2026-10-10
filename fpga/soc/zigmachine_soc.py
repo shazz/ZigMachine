@@ -21,6 +21,7 @@ from litex.build.sim.config import SimConfig
 from litex.soc.integration.builder import Builder
 from litex.soc.integration.soc import SoCRegion
 from litex.soc.integration.soc_core import SoCCore
+from litex.soc.interconnect import axi
 from migen import Cat, ClockDomain, If, Module, Signal
 
 from soc.zm_glass import ZMGlass, ps7_gp0
@@ -78,6 +79,8 @@ class ZigMachineSoC(SoCCore):
         rom_size: int = 0x8000,
         main_ram_size: int = 0x10000,
         glass: bool = False,
+        video_hp: axi.AXIInterface | None = None,
+        hdmi: bool = True,
         **kwargs: object,
     ) -> None:
         SoCCore.__init__(
@@ -91,28 +94,35 @@ class ZigMachineSoC(SoCCore):
             integrated_main_ram_size=main_ram_size,
             **kwargs,
         )
-        if video_cd == "pipe":  # the board: the whole pipeline, out through HDMI
-            self._add_video_pipe(platform, glass)
+        if video_cd == "pipe":  # the board: the whole pipeline, out through HDMI (not in soc/hp_sim.py)
+            self._add_video_pipe(platform, glass, video_hp, hdmi)
         else:
             self.video = ZMVideoTiming(platform, cd=video_cd)
         self.irq.add("video", use_loc_if_exists=True)
 
-    def _add_video_pipe(self, platform: object, glass: bool) -> None:
-        req = platform.request  # type: ignore[attr-defined]  # untyped LiteX platform
-        lanes = ["D0", "D1", "D2", "CLK"]  # zm_dvi_out's {clock, red, green, blue}, low bit first
-        pads = {s.lower(): Cat(*[req(f"HDMI1_{lane}_{s}") for lane in lanes]) for s in ("P", "N")}
+    def _add_video_pipe(self, platform: object, glass: bool, hp: axi.AXIInterface | None, hdmi: bool) -> None:
+        """hp: the video DMA's AXI3 HP port (soc/zm_board_mem.py), else a Wishbone master on the bus."""
+        pads = None
+        if hdmi:
+            req = platform.request  # type: ignore[attr-defined]  # untyped LiteX platform
+            lanes = ["D0", "D1", "D2", "CLK"]  # zm_dvi_out's {clock, red, green, blue}, low bit first
+            pads = {s.lower(): Cat(*[req(f"HDMI1_{lane}_{s}") for lane in lanes]) for s in ("P", "N")}
         overlay = None
         if glass:  # the ARM's front panel (docs/FPGA_GLASS.md): GP0 registers, the OSD, the cart CPU's reset
             self.glass = ZMGlass(platform)
-            self.specials += ps7_gp0(self.glass.axi)
+            if hp is None:  # with HP ports, soc/zm_board_mem.py makes the one PS7 (GP0 + HP0 + HP1)
+                self.specials += ps7_gp0(self.glass.axi)
             self.comb += self.cpu.reset.eq(~self.glass.cpu_run)
-            overlay = self.glass.overlay
-        self.video = ZMVideo(platform, pads, overlay=overlay)
+            overlay = self.glass.overlay if hdmi else None  # the OSD only exists on the wire
+        run = self.glass.cpu_run if glass else None  # the HP DMA runs only while CTRL.RUN (soc/zm_video_axi.py)
+        self.video = ZMVideo(platform, pads, overlay=overlay, hp=hp, hp_enable=run)
         region = SoCRegion(origin=VIDEO_WINDOW, size=WINDOW_BYTES, cached=False)
         self.bus.add_slave("zm_video", self.video.bus, region)
-        self.bus.add_master(name="zm_video_dma", master=self.video.dma)
+        if hp is None:
+            self.bus.add_master(name="zm_video_dma", master=self.video.dma)
         # VIDEO SNOOP (rtl/video/README.md "The video region"): the cart's stores to its region, tapped
-        # off the CPU's data bus until the HP bridge exists, delivered every cycle.
+        # off the CPU's data bus, delivered every cycle. The HP bridge (soc/zm_hp.py) posts no store: one is
+        # acked on its write response, so a store the snoop has seen is in DDR and `drained` needs no more.
         self.video_snoop = ZMVideoSnoop(self.cpu.dbus, None, self.video.vbase.storage, Signal(16, reset=1))
         self.comb += [*attach_snoop(self.video, self.video_snoop), self.video.drained.eq(self.video_snoop.empty)]
 
@@ -143,11 +153,13 @@ def main() -> None:
     p.add_argument("--osc", default="PL_CLK_50M", help="z7: the XDC port of the PL oscillator (Z7-Lite: 50 MHz on N18)")
     p.add_argument("--osc-hz", type=int, default=int(50e6), help="z7: its frequency (check the schematic)")
     p.add_argument("--no-glass", action="store_true", help="z7: no ARM front panel; the CPU runs from reset (JTAG)")
+    p.add_argument("--blit", action="store_true", help="z7: the blitter on HP2 (soc/zm_blit_soc.py; needs the glass)")
     p.add_argument("--sys-mhz", type=float, default=100.0, help="z7: the sys clock (CPU, bus)")
     p.add_argument("--comp-mhz", type=float, default=125.0, help="z7: the compositor's clock (soc/zm_video_cdc.py)")
     p.add_argument(
         "--cpu-netlist", help="z7: a vexgen VexRiscv netlist (default soc/zm_z7.py BOARD_CORE), or `standard`"
     )
+    p.add_argument("--out", help="z7: the build directory (default fpga/build/soc_z7)")
     args = p.parse_args()
     (build_sim if args.target == "sim" else build_z7)(args)
 

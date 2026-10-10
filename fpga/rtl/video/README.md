@@ -172,7 +172,7 @@ of latency (`tests/tb/video_mem.h`); `--timing` gives it a fixed latency instead
 | `zm_video_dcram.v` | A RAM with a clock per port: the display buffers' clock crossing. |
 | `zm_video_out.v` | Compositor + double buffer + scanout fetch + `zm_vtiming` + scanout, two clock domains. |
 | `zm_video_scan.v`, `zm_video_sync.v` | The scanout; a toggle pulse synchroniser. |
-| `zm_tmds_enc.v`, `zm_dvi_out.v` | One TMDS channel; DVI out (3 encoders, OSERDESE2 10:1, OBUFDS). Board only. |
+| `zm_tmds_enc.v`, `zm_tmds_shift.v`, `zm_dvi_out.v` | One TMDS channel; the 10:1 shifter (fabric, 5x clock); DVI out (3 encoders, shifter + ODDR, OBUFDS). Board only. |
 | `zm_video_memmap.vh` | Includes `gen/memmap.vh` once per module. The generated include guard would otherwise give the constants to the first module only. |
 
 ## How it is tested
@@ -269,6 +269,20 @@ load-bearing would need a handler longer than a row store that writes
 `BACKGROUND` last, which no corpus cart has. The no-copy-back mutant
 (`ZM_NO_COPYBACK`) also passes on tutorial and dhs_0pxl0reg: their handlers set
 `BEAM_COUNT` rather than add to it, and read neither `BACKGROUND` nor `FRAME`.
+
+**DVI out (HDMI1)** (`zm_dvi_out.v`): three TMDS encoders in `pix` (40 MHz,
+800x600@60) and a clock channel sending `0000011111`, each symbol serialised
+**bit 0 first, two bits a `pix5x` clock** (200 MHz) by `zm_tmds_shift.v` (a
+mod-5 counter loads the symbol, a shift by two) into an `ODDR` (D1 first), then
+`OBUFDS` (TMDS_33 from the XDC). **Why not the OSERDESE2 10:1 cascade**, the
+documented 7-series way: under openXC7 it routes correctly (checked in the FASM)
+but gives **no signal on the Z7-Lite** (2026-10-03); the ODDR serialiser shows
+the picture (`make hdmi-test-oddr`). The cascade stays behind
+`SERIALISER="OSERDES"` (default `"ODDR"`), at no cost unless selected. Tested in
+CXXRTL behind the encoder (`tests/tb/zm_tmds_ser_tb.cpp`): the wire is the
+encoder's symbols in order, bit 0 first, at one fixed latency, for all five
+phases of the free-running counter against `pix`; break tests: pair order
+swapped, a one-bit shift, a 6-clock period.
 
 ### What remains before a bitstream
 

@@ -1,10 +1,11 @@
 // zm_dvi_out (rtl/video/zm_dvi_out.v) with bring-up knobs, for the HDMI test
 // bitstreams only (rtl/board/hdmi_test_top.v). With every knob at 0 it is
-// zm_dvi_out exactly: same encoders, same OSERDESE2 10:1 master/slave cascade.
+// zm_dvi_out with SERIALISER="OSERDES" (the cascade that gives no signal on the
+// board); ODDR=1 is zm_dvi_out's default serialiser, the one that works.
 //   REVERSE  send each 10-bit symbol MSB first (all four channels)
 //   INVERT   invert the three data channels (the same as swapping their P and N)
-//   ODDR     no OSERDES cascade: a fabric shifter at 5x the pixel clock feeding an
-//            ODDR, two bits a fast clock, five fast clocks a pixel
+//   ODDR     no OSERDES cascade: zm_dvi_out.v's zm_oddr10, a fabric shifter at 5x
+//            the pixel clock feeding an ODDR, two bits a fast clock
 //   SE       each pair as two single-ended outputs (P = bit, N = its inverse), for an
 //            LVCMOS33 build that bypasses the TMDS_33 driver altogether (needs ODDR)
 `default_nettype none
@@ -39,10 +40,10 @@ module hdmi_dvi_dbg #(
             end
             wire serial, serial_n;
             if (ODDR != 0) begin : g_oddr
-                hdmi_oddr10 u_ser (.clk(pix5x_clk), .d(s), .q(serial));
+                zm_oddr10 u_ser (.clk(pix5x_clk), .d(s), .q(serial));
                 // SE: the N pad needs its own ODDR (an IOB output takes no fabric inverter).
                 if (SE != 0) begin : g_n
-                    hdmi_oddr10 u_ser_n (.clk(pix5x_clk), .d(~s), .q(serial_n));
+                    zm_oddr10 u_ser_n (.clk(pix5x_clk), .d(~s), .q(serial_n));
                 end
             end else begin : g_oserdes
                 zm_oserdes10 u_ser (.clk(pix5x_clk), .clkdiv(pix_clk), .rst(rst), .d(s), .q(serial));
@@ -55,25 +56,6 @@ module hdmi_dvi_dbg #(
             end
         end
     endgenerate
-endmodule
-
-// 10:1 without OSERDES: `d` (pix_clk's domain, from the same PLL as clk, edges
-// aligned) is taken every fifth fast clock and shifted out two bits a clock
-// through an ODDR, bit 0 first. Any phase of the mod-5 counter takes a whole,
-// stable symbol: d changes on a pix edge and is sampled a full fast period later.
-module hdmi_oddr10 (
-    input  wire       clk,
-    input  wire [9:0] d,
-    output wire       q
-);
-    reg [2:0] ph = 3'd0;
-    reg [9:0] sh = 10'd0;
-    always @(posedge clk) begin
-        ph <= (ph == 3'd4) ? 3'd0 : ph + 3'd1;
-        sh <= (ph == 3'd4) ? d : {2'b00, sh[9:2]};
-    end
-    ODDR #(.DDR_CLK_EDGE("SAME_EDGE"), .INIT(1'b0), .SRTYPE("SYNC")) u_oddr (
-        .Q(q), .C(clk), .CE(1'b1), .D1(sh[0]), .D2(sh[1]), .R(1'b0), .S(1'b0));
 endmodule
 
 `default_nettype wire

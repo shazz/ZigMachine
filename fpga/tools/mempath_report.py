@@ -17,7 +17,7 @@ from statistics import mean
 
 from cycles_parse import Run, parse
 from cycles_report import p95, series, steady, verify
-from mempath_cfg import CARTS, CORES, MEM, PRED_CORES
+from mempath_cfg import CARTS, CORES, FPU_CARTS, FPU_CORES, MEM, PRED_CORES
 from util import group_cells
 
 FPGA = Path(__file__).resolve().parent.parent
@@ -94,6 +94,19 @@ def prediction_table(runs: Runs) -> list[list[str]]:
     return [head, *rows]
 
 
+def fpu_table(runs: Runs) -> list[list[str]]:
+    """Cart Mc/frame (p95) and MHz for 60 fps, soft-float core against the f32 FPU core."""
+    (soft, sv), (hard, hv) = FPU_CORES.items()
+    rows = []
+    for t in FPU_CARTS:
+        a, b = runs.get((soft, "hp_wc", sv, t)), runs.get((hard, "hp_wc", hv, t))
+        mc = [p95(steady(series(r, "cart"))) / 1e6 if r else None for r in (a, b)]
+        ratio = f"{100 * (mc[1] / mc[0] - 1):+.0f} %" if mc[0] and mc[1] else "-"
+        rows.append([t, f"{mc[0]:.2f}" if mc[0] else "-", f"{mc[1]:.2f}" if mc[1] else "-",
+                     mhz(runs, (soft, "hp_wc", sv, t)), mhz(runs, (hard, "hp_wc", hv, t)), ratio])  # fmt: skip
+    return [["cart", "soft Mc", "FPU Mc", "soft MHz", "FPU MHz", "cycles"], *rows]
+
+
 def text(table: list[list[str]]) -> list[str]:
     widths = [max(len(x) for x in col) for col in zip(*table, strict=False)]
     return ["  ".join(x.ljust(w) for x, w in zip(r, widths, strict=False)) for r in table]
@@ -114,7 +127,8 @@ def splice(md: str, name: str, table: list[list[str]]) -> str:
 
 def main() -> None:
     runs = load()
-    tables = {"memory": memory_table(runs), "caches": cache_table(runs), "prediction": prediction_table(runs)}
+    tables = {"memory": memory_table(runs), "caches": cache_table(runs), "prediction": prediction_table(runs),
+              "fpu": fpu_table(runs)}
     lines = []
     for name, table in tables.items():
         lines += [f"== {name} (MHz for 60 fps, p95 frame)", *text(table), ""]

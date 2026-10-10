@@ -13,7 +13,7 @@ SOC_CYC    := build/soc_cycles
 ZM_FRAMES  ?= 60
 ZM_EVERY   ?= 20
 VARIANT    ?= nobounds
-VARIANTS   := stock nobounds aligned float
+VARIANTS   := stock nobounds aligned alignedf float
 
 # Same arithmetic as the native host (-ffp-contract=off: wasm never fuses).
 # -fno-strict-aliasing: ZM_ALIGNED (zm_variant.h) moves floats through u32 pointers.
@@ -32,6 +32,12 @@ V_stock    :=
 V_nobounds := -DZM_NO_BOUNDS
 V_aligned  := -DZM_NO_BOUNDS -DZM_ALIGNED
 V_float    := -DZM_NO_BOUNDS -DZM_FCOUNT
+# alignedf: `aligned` for a core with the f32 FPU (vexgen `fpu`): hard-float ABI, picolibc's
+# rv32imf multilib. Later -march/-mabi win over RV_ARCH's, at compile and at link.
+# -ffp-contract=off stays: no fmadd, wasm never fuses (the FPU's FMA rounds twice anyway).
+F_ARCH     := -march=rv32imf -mabi=ilp32f
+V_alignedf := -DZM_NO_BOUNDS -DZM_ALIGNED $(F_ARCH)
+L_alignedf := $(F_ARCH)
 comma      := ,
 # fcount.c's FOPS table IS the wrap list: one -Wl,--wrap per X(routine, ...).
 L_float     = $(addprefix -Wl$(comma)--wrap=,$(shell grep -oE 'X.[_a-z0-9]+,' cycles/fcount.c | sed -E 's/^X.//; s/,$$//' | sort -u))

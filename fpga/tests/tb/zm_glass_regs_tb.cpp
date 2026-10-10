@@ -154,6 +154,28 @@ static void test_pointer() {
     CHECK(top.p_ptr.get<unsigned>() == want, "a button still held is not a release");
 }
 
+// REG_AUDIO_VOL: the master volume the mixer applies, and CTRL.WARM for the firmware.
+static void test_audio_vol_and_warm() {
+    CHECK(axi_read(REG_AUDIO_VOL) == AUDIO_VOL_RESET, "AUDIO_VOL resets to unity: 0x%x", axi_read(REG_AUDIO_VOL));
+    CHECK(top.p_audio__vol.get<unsigned>() == AUDIO_VOL_RESET, "the mixer sees unity after reset");
+    axi_write(REG_AUDIO_VOL, AUDIO_MUTE | 0x40);
+    CHECK(axi_read(REG_AUDIO_VOL) == (AUDIO_MUTE | 0x40), "AUDIO_VOL reads back");
+    CHECK(top.p_audio__vol.get<unsigned>() == (AUDIO_MUTE | 0x40), "the mixer port follows the register");
+    axi_write(REG_AUDIO_VOL, 0xFFFFFFFF);
+    CHECK(axi_read(REG_AUDIO_VOL) == (AUDIO_MUTE | AUDIO_VOL_MASK), "only volume and mute are kept");
+    axi_write(REG_SCRATCH, 0x12);
+    CHECK(top.p_audio__vol.get<unsigned>() == (AUDIO_MUTE | AUDIO_VOL_MASK), "another register leaves it alone");
+    CHECK(!top.p_boot__warm.get<bool>(), "WARM resets clear");
+    axi_write(REG_CTRL, CTRL_WARM | CTRL_KEY_FLUSH);
+    CHECK(top.p_boot__warm.get<bool>() && !top.p_cpu__run.get<bool>(), "WARM is stored, apart from RUN");
+    CHECK(axi_read(REG_CTRL) == CTRL_WARM, "WARM reads back, the flush strobe does not");
+    axi_write(REG_CTRL, CTRL_RUN);
+    CHECK(!top.p_boot__warm.get<bool>(), "a cold start writes CTRL without WARM");
+    axi_write(REG_CTRL, 0);
+    reset();
+    CHECK(axi_read(REG_AUDIO_VOL) == AUDIO_VOL_RESET, "reset restores unity");
+}
+
 int main() {
     reset();
     test_identity_and_reset();
@@ -162,6 +184,7 @@ int main() {
     test_key_fifo();
     test_osd_text();
     test_pointer();
+    test_audio_vol_and_warm();
     if (failures) return 1;
     std::printf("zm_glass_regs: ok\n");
     return 0;

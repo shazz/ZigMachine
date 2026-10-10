@@ -1,0 +1,68 @@
+"""The board's memory, shared by the bitstream (soc/zm_z7.py) and its simulation
+(soc/hp_sim.py) so the two are the same SoC around the PS:
+
+    hp0, hp1 = hp_interface(), hp_interface()
+    soc = ZigMachineSoC(..., video_hp=hp1, rom_size=0, main_ram_size=0, cpu_reset_address=CPU_BASE)
+    add_cpu_memory(soc, hp0)
+    soc.specials += ps7_instance(soc.glass.axi, hp_slice(soc, "hp0", hp0), hp_slice(soc, "hp1", hp1))  # the board
+    soc.ddr = ZMSimAXIRAM(WINDOW, [hp0, hp1])                     # the sim
+
+- main_ram: the 32 MiB cart window at CPU_BASE, through WishboneHP onto HP0
+  (soc/zm_hp.py). No boot ROM: the CPU's reset vector IS the window's first
+  word, and the glass holds the CPU in reset (CTRL.RUN) until the ARM has put
+  the firmware image there.
+- ZMCycles: the cycle counter the firmware times its waits with (cycles/board.h).
+- The PS7: ONE primitive with M_AXI_GP0 (the glass), S_AXI_HP0 (the CPU),
+  S_AXI_HP1 (the video DMA) and, with `--blit`, S_AXI_HP2 (the blitter,
+  soc/zm_blit_soc.py), every port clocked from sys.
+"""
+
+from __future__ import annotations
+
+from typing import Any
+
+from litex.soc.integration.soc import SoCRegion
+from litex.soc.interconnect import axi, stream, wishbone
+from migen import ClockSignal, Instance
+
+from soc.zm_cycles import ZMCycles
+from soc.zm_glass import ps7_gp0
+from soc.zm_hp import CPU_BASE, WINDOW, WishboneHP, hp_interface, ps7_hp_ports
+
+# A LiteX SoC: untyped, its submodules are attributes made at runtime.
+SoC = Any
+
+
+def add_cpu_memory(soc: SoC, hp0: axi.AXIInterface) -> None:
+    """main_ram at CPU_BASE on HP0, and the firmware's cycle counter."""
+    bus = wishbone.Interface(data_width=32, address_width=32, addressing="word")
+    soc.main_ram_hp = WishboneHP(bus, hp0)
+    soc.bus.add_slave("main_ram", bus, SoCRegion(origin=CPU_BASE, size=WINDOW, mode="rwx"))
+    soc.zm_cycles = ZMCycles(soc.cpu.ibus, soc.cpu.dbus)
+
+
+def hp_slice(soc: SoC, name: str, master: axi.AXIInterface) -> axi.AXIInterface:
+    """A full register slice between an HP master and the PS7, returned as the PS7's side:
+    every PS7 pin of the port meets a flip-flop and nothing else. nextpnr-xilinx times no
+    path into or out of the PS7 (its timing report has none), so logic on those pins is
+    placement luck (2026-10-04: the cart CPU dead on some builds of one netlist); with the
+    slice an untimed route is one wire into one flop. Costs a clock each way."""
+    ps = hp_interface()
+    for ch, out in (("aw", True), ("w", True), ("ar", True), ("b", False), ("r", False)):
+        src, dst = (getattr(master, ch), getattr(ps, ch)) if out else (getattr(ps, ch), getattr(master, ch))
+        buf = stream.Buffer(src.description, pipe_valid=True, pipe_ready=True)
+        setattr(soc, f"{name}_{ch}_slice", buf)
+        soc.comb += [src.connect(buf.sink), buf.source.connect(dst)]
+    return ps
+
+
+def ps7_instance(
+    gp0: axi.AXIInterface, hp0: axi.AXIInterface, hp1: axi.AXIInterface, hp2: axi.AXIInterface | None = None
+) -> Instance:
+    """The PS7 with GP0 (soc/zm_glass.py's wiring, reused as is) plus HP0, HP1 and, with the
+    blitter (soc/zm_blit_soc.py), HP2."""
+    clk = ClockSignal("sys")
+    hp2_ports = {} if hp2 is None else ps7_hp_ports("SAXIHP2", hp2, clk)
+    ps7 = Instance("PS7", **ps7_hp_ports("SAXIHP0", hp0, clk), **ps7_hp_ports("SAXIHP1", hp1, clk), **hp2_ports)
+    ps7.items += ps7_gp0(gp0).items
+    return ps7

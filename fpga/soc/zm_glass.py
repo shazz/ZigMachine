@@ -5,7 +5,8 @@
   lives in one domain). Its cart side becomes CSRs the cart CPU's firmware
   reads: the key FIFO, the joypad, the mouse (`pointer`, acked through
   `pointer_ack`), and the state and heartbeat it reports.
-  `cpu_run` holds the cart CPU in reset until the ARM has placed a cart.
+  `cpu_run` holds the cart CPU in reset until the ARM has placed a cart;
+  `boot_warm` tells its firmware a reset is warm; `audio_vol` is for the mixer.
 - `overlay`: the OSD, as the hook soc/zm_video_pipe.py calls between the
   scanout and the DVI encoder (pixel clock).
 """
@@ -42,6 +43,9 @@ class ZMGlass(LiteXModule):
         self.pointer_ack = CSRStorage(8, description="Write the SEQ just handed to pointer(): drops latched buttons.")
         self.cart_state = CSRStorage(32, description="The firmware's state for the ARM (CART_*).")
         self.cart_beat = CSRStorage(32, description="Frames the firmware has finished: the ARM's watchdog.")
+        self.boot_warm = CSRStatus(1, description="CTRL.WARM: this boot keeps the cart's memory (glass_boot.h).")
+        # {mute, volume}: for the audio mixer to multiply into the mix (docs/FPGA_GLASS.md, "Volume").
+        self.audio_vol = Signal(9)
         self.specials += Instance("zm_glass_regs", **self._ports())
         for src in SOURCES:
             platform.add_source(str(src))
@@ -64,6 +68,7 @@ class ZMGlass(LiteXModule):
             "o_key_data": self.key_data.status, "i_key_pop": self.key_pop.re,
             "i_cart_state_we": self.cart_state.re, "i_cart_state_in": self.cart_state.storage,
             "i_cart_beat_we": self.cart_beat.re, "i_cart_beat_in": self.cart_beat.storage,
+            "o_boot_warm": self.boot_warm.status, "o_audio_vol": self.audio_vol,
             "o_ptr": self.pointer.status, "i_ptr_ack": self.pointer_ack.re, "i_ptr_ack_seq": self.pointer_ack.storage,
         }  # fmt: skip
 

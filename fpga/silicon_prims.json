@@ -1,0 +1,357 @@
+{
+  "_doc": "Primitive cells and modes proven on the Z7-Lite's silicon under openXC7 (tools/prim_allowlist.py, key format there). status: proven | suspect | bad. prim_test: the make prim-test lanes that exercise the key (tools/prim_test_read.py). A key that is absent has never been on silicon.",
+  "cells": {
+    "BSCANE2": {
+      "status": "proven",
+      "evidence": "in the running cart SoC (soc_z7_gated, build/board_hp/zm_hp_gated_s1_sys80.bit: tutorial at 60 fps, 2026-10-04); prim-test pending"
+    },
+    "BUFG": {
+      "status": "proven",
+      "evidence": "in the running cart SoC (soc_z7_gated, build/board_hp/zm_hp_gated_s1_sys80.bit: tutorial at 60 fps, 2026-10-04); prim-test pending"
+    },
+    "CARRY4": {
+      "status": "proven",
+      "evidence": "in the running cart SoC (soc_z7_gated, build/board_hp/zm_hp_gated_s1_sys80.bit: tutorial at 60 fps, 2026-10-04); prim-test pending",
+      "prim_test": [
+        "carry4"
+      ]
+    },
+    "DSP48E1 MULTIPLY ONE48 nod op=0x35 alu=0x0 in=0x0": {
+      "status": "pending",
+      "evidence": "a prim-test lane covers it; never on the board yet",
+      "prim_test": [
+        "dsp_c_comb"
+      ]
+    },
+    "DSP48E1 MULTIPLY ONE48 nod op=0x35 alu=0x0 in=0x0 A AC": {
+      "status": "proven",
+      "evidence": "in the running cart SoC (soc_z7_gated, build/board_hp/zm_hp_gated_s1_sys80.bit: tutorial at 60 fps, 2026-10-04); prim-test pending",
+      "prim_test": [
+        "dsp_c_a"
+      ]
+    },
+    "DSP48E1 MULTIPLY ONE48 nod op=0x35 alu=0x0 in=0x0 C": {
+      "status": "pending",
+      "evidence": "a prim-test lane covers it; never on the board yet",
+      "prim_test": [
+        "dsp_c_creg"
+      ]
+    },
+    "DSP48E1 MULTIPLY ONE48 nod op=0x35 alu=0x0 in=0x0 M": {
+      "status": "proven",
+      "evidence": "in the running cart SoC (soc_z7_gated, build/board_hp/zm_hp_gated_s1_sys80.bit: tutorial at 60 fps, 2026-10-04); prim-test pending",
+      "prim_test": [
+        "dsp_c_m"
+      ]
+    },
+    "DSP48E1 MULTIPLY ONE48 nod op=0x5 alu=0x0 in=0x0": {
+      "status": "pending",
+      "evidence": "a prim-test lane covers it; never on the board yet",
+      "prim_test": [
+        "dsp_comb"
+      ]
+    },
+    "DSP48E1 MULTIPLY ONE48 nod op=0x5 alu=0x0 in=0x0 A B M AC BC": {
+      "status": "proven",
+      "evidence": "in the running cart SoC (soc_z7_gated, build/board_hp/zm_hp_gated_s1_sys80.bit: tutorial at 60 fps, 2026-10-04); prim-test pending",
+      "prim_test": [
+        "dsp_abm"
+      ]
+    },
+    "DSP48E1 MULTIPLY ONE48 nod op=0x5 alu=0x0 in=0x0 A M AC": {
+      "status": "proven",
+      "evidence": "in the running cart SoC (soc_z7_gated, build/board_hp/zm_hp_gated_s1_sys80.bit: tutorial at 60 fps, 2026-10-04); prim-test pending",
+      "prim_test": [
+        "dsp_am"
+      ]
+    },
+    "DSP48E1 MULTIPLY ONE48 nod op=0x5 alu=0x0 in=0x0 B M BC": {
+      "status": "proven",
+      "evidence": "in the running cart SoC (soc_z7_gated, build/board_hp/zm_hp_gated_s1_sys80.bit: tutorial at 60 fps, 2026-10-04); prim-test pending",
+      "prim_test": [
+        "dsp_bm"
+      ]
+    },
+    "DSP48E1 MULTIPLY ONE48 nod op=0x5 alu=0x0 in=0x0 M": {
+      "status": "proven",
+      "evidence": "in the running cart SoC (soc_z7_gated, build/board_hp/zm_hp_gated_s1_sys80.bit: tutorial at 60 fps, 2026-10-04); prim-test pending",
+      "prim_test": [
+        "dsp_m"
+      ]
+    },
+    "DSP48E1 MULTIPLY ONE48 nod op=0x5 alu=0x0 in=0x0 M P": {
+      "status": "proven",
+      "evidence": "in the running cart SoC (soc_z7_gated, build/board_hp/zm_hp_gated_s1_sys80.bit: tutorial at 60 fps, 2026-10-04); prim-test pending",
+      "prim_test": [
+        "dsp_mp"
+      ]
+    },
+    "DSP48E1 MULTIPLY ONE48 nod op=dyn alu=0x0 in=0x0 P": {
+      "status": "pending",
+      "evidence": "a prim-test lane covers it; never on the board yet",
+      "prim_test": [
+        "dsp_macc"
+      ]
+    },
+    "FDCE": {
+      "status": "proven",
+      "evidence": "in the running cart SoC (soc_z7_gated, build/board_hp/zm_hp_gated_s1_sys80.bit: tutorial at 60 fps, 2026-10-04); prim-test pending"
+    },
+    "FDPE": {
+      "status": "proven",
+      "evidence": "in the running cart SoC (soc_z7_gated, build/board_hp/zm_hp_gated_s1_sys80.bit: tutorial at 60 fps, 2026-10-04); prim-test pending"
+    },
+    "FDRE": {
+      "status": "proven",
+      "evidence": "in the running cart SoC (soc_z7_gated, build/board_hp/zm_hp_gated_s1_sys80.bit: tutorial at 60 fps, 2026-10-04); prim-test pending"
+    },
+    "FDSE": {
+      "status": "proven",
+      "evidence": "in the running cart SoC (soc_z7_gated, build/board_hp/zm_hp_gated_s1_sys80.bit: tutorial at 60 fps, 2026-10-04); prim-test pending"
+    },
+    "IBUF": {
+      "status": "proven",
+      "evidence": "in the running cart SoC (soc_z7_gated, build/board_hp/zm_hp_gated_s1_sys80.bit: tutorial at 60 fps, 2026-10-04); prim-test pending"
+    },
+    "INV": {
+      "status": "proven",
+      "evidence": "in the running cart SoC (soc_z7_gated, build/board_hp/zm_hp_gated_s1_sys80.bit: tutorial at 60 fps, 2026-10-04); prim-test pending"
+    },
+    "LUT1": {
+      "status": "proven",
+      "evidence": "in the running cart SoC (soc_z7_gated, build/board_hp/zm_hp_gated_s1_sys80.bit: tutorial at 60 fps, 2026-10-04); prim-test pending"
+    },
+    "LUT2": {
+      "status": "proven",
+      "evidence": "in the running cart SoC (soc_z7_gated, build/board_hp/zm_hp_gated_s1_sys80.bit: tutorial at 60 fps, 2026-10-04); prim-test pending"
+    },
+    "LUT3": {
+      "status": "proven",
+      "evidence": "in the running cart SoC (soc_z7_gated, build/board_hp/zm_hp_gated_s1_sys80.bit: tutorial at 60 fps, 2026-10-04); prim-test pending"
+    },
+    "LUT4": {
+      "status": "proven",
+      "evidence": "in the running cart SoC (soc_z7_gated, build/board_hp/zm_hp_gated_s1_sys80.bit: tutorial at 60 fps, 2026-10-04); prim-test pending"
+    },
+    "LUT5": {
+      "status": "proven",
+      "evidence": "in the running cart SoC (soc_z7_gated, build/board_hp/zm_hp_gated_s1_sys80.bit: tutorial at 60 fps, 2026-10-04); prim-test pending"
+    },
+    "LUT6": {
+      "status": "proven",
+      "evidence": "in the running cart SoC (soc_z7_gated, build/board_hp/zm_hp_gated_s1_sys80.bit: tutorial at 60 fps, 2026-10-04); prim-test pending"
+    },
+    "MUXF7": {
+      "status": "proven",
+      "evidence": "in the running cart SoC (soc_z7_gated, build/board_hp/zm_hp_gated_s1_sys80.bit: tutorial at 60 fps, 2026-10-04); prim-test pending",
+      "prim_test": [
+        "muxf7_f8"
+      ]
+    },
+    "MUXF8": {
+      "status": "proven",
+      "evidence": "in the running cart SoC (soc_z7_gated, build/board_hp/zm_hp_gated_s1_sys80.bit: tutorial at 60 fps, 2026-10-04); prim-test pending",
+      "prim_test": [
+        "muxf7_f8"
+      ]
+    },
+    "OBUFDS": {
+      "status": "proven",
+      "evidence": "in the running cart SoC (soc_z7_gated, build/board_hp/zm_hp_gated_s1_sys80.bit: tutorial at 60 fps, 2026-10-04); prim-test pending"
+    },
+    "ODDR": {
+      "status": "proven",
+      "evidence": "in the running cart SoC (soc_z7_gated, build/board_hp/zm_hp_gated_s1_sys80.bit: tutorial at 60 fps, 2026-10-04); prim-test pending"
+    },
+    "PLLE2_ADV": {
+      "status": "proven",
+      "evidence": "in the running cart SoC (soc_z7_gated, build/board_hp/zm_hp_gated_s1_sys80.bit: tutorial at 60 fps, 2026-10-04); prim-test pending"
+    },
+    "PS7": {
+      "status": "proven",
+      "evidence": "in the running cart SoC (soc_z7_gated, build/board_hp/zm_hp_gated_s1_sys80.bit: tutorial at 60 fps, 2026-10-04); prim-test pending"
+    },
+    "RAM32M": {
+      "status": "proven",
+      "evidence": "in the running cart SoC (soc_z7_gated, build/board_hp/zm_hp_gated_s1_sys80.bit: tutorial at 60 fps, 2026-10-04); prim-test pending",
+      "prim_test": [
+        "lut_ram32m"
+      ]
+    },
+    "RAM64M": {
+      "status": "proven",
+      "evidence": "in the running cart SoC (soc_z7_gated, build/board_hp/zm_hp_gated_s1_sys80.bit: tutorial at 60 fps, 2026-10-04); prim-test pending",
+      "prim_test": [
+        "lut_ram64m"
+      ]
+    },
+    "RAMB18E1 SDP r36/0 w0/36 RF/RF reg0/0 we1": {
+      "status": "suspect",
+      "evidence": "board 2026-10-04: a split 64-bit fetch buffer (256 words used) read wrong; the 512-word line buffers looked right. Unsettled until prim-test",
+      "prim_test": [
+        "b18_sdp36",
+        "b18_sdp36_a384",
+        "b18_sdp36_d256",
+        "b18_sdp36_hi256"
+      ]
+    },
+    "RAMB18E1 SDP r36/0 w0/36 RF/RF reg0/0 we4": {
+      "status": "suspect",
+      "evidence": "byte write enables inside one block RAM: board 2026-10-04, RAMB18 TDP x18 with per-byte WE lost byte lanes 1, 2 and 6 of a 64-bit word built from four 16-bit slices. Unsettled until prim-test",
+      "prim_test": [
+        "b18_sdp32_be4x8",
+        "b18_sdp36_be4"
+      ]
+    },
+    "RAMB18E1 TDP r0/1 w1/0 RF/RF reg0/0 we1": {
+      "status": "pending",
+      "evidence": "a prim-test lane covers it; never on the board yet",
+      "prim_test": [
+        "b18_tdp1"
+      ]
+    },
+    "RAMB18E1 TDP r0/18 w18/0 RF/RF reg0/0 we1": {
+      "status": "proven",
+      "evidence": "in the running cart SoC (soc_z7_gated, build/board_hp/zm_hp_gated_s1_sys80.bit: tutorial at 60 fps, 2026-10-04); prim-test pending",
+      "prim_test": [
+        "b18_tdp18"
+      ]
+    },
+    "RAMB18E1 TDP r0/18 w18/0 RF/RF reg0/0 we2": {
+      "status": "suspect",
+      "evidence": "byte write enables inside one block RAM: board 2026-10-04, RAMB18 TDP x18 with per-byte WE lost byte lanes 1, 2 and 6 of a 64-bit word built from four 16-bit slices. Unsettled until prim-test",
+      "prim_test": [
+        "b18_tdp16_be2x8",
+        "b18_tdp18_be2"
+      ]
+    },
+    "RAMB18E1 TDP r0/2 w2/0 RF/RF reg0/0 we1": {
+      "status": "pending",
+      "evidence": "a prim-test lane covers it; never on the board yet",
+      "prim_test": [
+        "b18_tdp2"
+      ]
+    },
+    "RAMB18E1 TDP r0/4 w4/0 RF/RF reg0/0 we1": {
+      "status": "pending",
+      "evidence": "a prim-test lane covers it; never on the board yet",
+      "prim_test": [
+        "b18_tdp4"
+      ]
+    },
+    "RAMB18E1 TDP r0/9 w9/0 RF/RF reg0/0 we1": {
+      "status": "proven",
+      "evidence": "in the running cart SoC (soc_z7_gated, build/board_hp/zm_hp_gated_s1_sys80.bit: tutorial at 60 fps, 2026-10-04); prim-test pending",
+      "prim_test": [
+        "b18_tdp9"
+      ]
+    },
+    "RAMB18E1 TDP r9/0 w0/0 RF/RF reg0/0 we0": {
+      "status": "proven",
+      "evidence": "in the running cart SoC (soc_z7_gated, build/board_hp/zm_hp_gated_s1_sys80.bit: tutorial at 60 fps, 2026-10-04); prim-test pending",
+      "prim_test": [
+        "b18_rom9"
+      ]
+    },
+    "RAMB36E1 SDP r72/0 w0/72 RF/RF reg0/0 we1": {
+      "status": "bad",
+      "evidence": "A half (bits 0-35) of every word wrong on silicon under openXC7; sim right (docs/FPGA_STEPS.md 2026-10-04)",
+      "prim_test": [
+        "b36_sdp72",
+        "b36_sdp72_d256"
+      ]
+    },
+    "RAMB36E1 SDP r72/0 w0/72 RF/RF reg0/0 we8": {
+      "status": "suspect",
+      "evidence": "byte write enables inside one block RAM: board 2026-10-04, RAMB18 TDP x18 with per-byte WE lost byte lanes 1, 2 and 6 of a 64-bit word built from four 16-bit slices. Unsettled until prim-test",
+      "prim_test": [
+        "b36_sdp72_be8"
+      ]
+    },
+    "RAMB36E1 TDP r0/1 w1/0 RF/RF reg0/0 we1": {
+      "status": "pending",
+      "evidence": "a prim-test lane covers it; never on the board yet",
+      "prim_test": [
+        "b36_tdp1"
+      ]
+    },
+    "RAMB36E1 TDP r0/18 w18/0 RF/RF reg0/0 we1": {
+      "status": "proven",
+      "evidence": "in the running cart SoC (soc_z7_gated, build/board_hp/zm_hp_gated_s1_sys80.bit: tutorial at 60 fps, 2026-10-04); prim-test pending",
+      "prim_test": [
+        "b36_tdp18"
+      ]
+    },
+    "RAMB36E1 TDP r0/18 w18/0 RF/RF reg0/0 we2": {
+      "status": "suspect",
+      "evidence": "byte write enables inside one block RAM: board 2026-10-04, RAMB18 TDP x18 with per-byte WE lost byte lanes 1, 2 and 6 of a 64-bit word built from four 16-bit slices. Unsettled until prim-test",
+      "prim_test": [
+        "b36_tdp18_be2"
+      ]
+    },
+    "RAMB36E1 TDP r0/2 w2/0 RF/RF reg0/0 we1": {
+      "status": "pending",
+      "evidence": "a prim-test lane covers it; never on the board yet",
+      "prim_test": [
+        "b36_tdp2"
+      ]
+    },
+    "RAMB36E1 TDP r0/36 w36/0 RF/RF reg0/0 we1": {
+      "status": "pending",
+      "evidence": "a prim-test lane covers it; never on the board yet",
+      "prim_test": [
+        "b36_tdp36"
+      ]
+    },
+    "RAMB36E1 TDP r0/36 w36/0 RF/RF reg0/0 we4": {
+      "status": "suspect",
+      "evidence": "byte write enables inside one block RAM: board 2026-10-04, RAMB18 TDP x18 with per-byte WE lost byte lanes 1, 2 and 6 of a 64-bit word built from four 16-bit slices. Unsettled until prim-test",
+      "prim_test": [
+        "b36_tdp32_be4x8",
+        "b36_tdp36_be4"
+      ]
+    },
+    "RAMB36E1 TDP r0/4 w4/0 RF/RF reg0/0 we1": {
+      "status": "pending",
+      "evidence": "a prim-test lane covers it; never on the board yet",
+      "prim_test": [
+        "b36_tdp4"
+      ]
+    },
+    "RAMB36E1 TDP r0/9 w9/0 RF/RF reg0/0 we1": {
+      "status": "pending",
+      "evidence": "a prim-test lane covers it; never on the board yet",
+      "prim_test": [
+        "b36_tdp9"
+      ]
+    },
+    "RAMB36E1 TDP r18/0 w18/0 RF/RF reg0/0 we1": {
+      "status": "pending",
+      "evidence": "a prim-test lane covers it; never on the board yet",
+      "prim_test": [
+        "b36_sp18_rf"
+      ]
+    },
+    "RAMB36E1 TDP r18/0 w18/0 WF/RF reg0/0 we2": {
+      "status": "suspect",
+      "evidence": "byte write enables inside one block RAM: board 2026-10-04, RAMB18 TDP x18 with per-byte WE lost byte lanes 1, 2 and 6 of a 64-bit word built from four 16-bit slices. Unsettled until prim-test",
+      "prim_test": [
+        "b36_sp18_wf_be2"
+      ]
+    },
+    "SRL16E": {
+      "status": "proven",
+      "evidence": "in the running cart SoC (soc_z7_gated, build/board_hp/zm_hp_gated_s1_sys80.bit: tutorial at 60 fps, 2026-10-04); prim-test pending",
+      "prim_test": [
+        "srl16e"
+      ]
+    },
+    "SRLC32E": {
+      "status": "pending",
+      "evidence": "a prim-test lane covers it; never on the board yet",
+      "prim_test": [
+        "srlc32e"
+      ]
+    }
+  }
+}

@@ -8,6 +8,7 @@
 #   make video-sim CARTS=..  the cart CPU + the RTL video in Verilator vs scene_hash (cycles/video.mk)
 #   make glass / sd  the ARM's program, the SD card (docs/FPGA_GLASS.md)
 #   make vexgen-board  the z7 board's CPU netlists (soc/zm_z7.py; ZM_VEXGEN=1 tools/setup.sh once)
+#   make soc-z7 / soc-dev / sweep / hp-test  bitstreams, fast loop: flow.mk, README.md "When is a full rebuild needed"
 ZIG      ?= $(HOME)/.local/zig/0.16.0/zig
 ROOT     := $(abspath ..)
 MEMMAP   := $(ROOT)/machine/sdk/memmap.zig
@@ -162,14 +163,14 @@ blink: $(BLINK)/blink_top.bit
 #   make hdmi-test      second bitstream: HDMI1 test pattern, 800x600@60 -> build/hdmi_test/hdmi_test_top.bit
 #   make hdmi-test-sim  the pattern in CXXRTL, checked, frames 0 and 60 -> build/hdmi_test/frame_*.png
 #   make hdmi-test-VARIANT  bring-up variants -> build/hdmi_test_VARIANT/hdmi_test_top.bit:
-#     oddr     10:1 by a fabric shifter + ODDR instead of the OSERDESE2 cascade
+#     oddr     10:1 by a fabric shifter + ODDR instead of the OSERDESE2 cascade (zm_dvi_out's default)
 #     clkonly  no serialiser: the 40 MHz pixel clock on the clock pair (ODDR), data pairs constant
 #     rev      symbols sent MSB first          inv  the three data pairs inverted (P/N swapped)
 #     lvcmos   as oddr, but every pair as two LVCMOS33 outputs (P, ~P): no TMDS_33 driver
 # Every P&R takes Fable's container lock (one openXC7 container at a time on this box).
 HDMI_TEST := build/hdmi_test
 HDMI_TEST_V := rtl/board/hdmi_test_top.v rtl/board/hdmi_pattern.v rtl/board/hdmi_dvi_dbg.v \
-	rtl/video/zm_vtiming.v rtl/video/zm_dvi_out.v rtl/video/zm_tmds_enc.v
+	rtl/video/zm_vtiming.v rtl/video/zm_dvi_out.v rtl/video/zm_tmds_enc.v rtl/video/zm_tmds_shift.v
 HDMI_LOCK := flock $(CURDIR)/build/fable_timing3/.container.lock
 HDMI_DEFS_oddr    := -DHDMI_ODDR
 HDMI_DEFS_clkonly := -DHDMI_CLKONLY
@@ -195,3 +196,93 @@ $(addprefix hdmi-test-,$(HDMI_VARIANTS)): hdmi-test-%: build/hdmi_test_%/hdmi_te
 
 hdmi-test-sim: memmap
 	uv run python tools/hdmi_test_sim.py 60
+
+#   make edid-test        third bitstream: the monitor's EDID read over HDMI1's DDC, shown on HDMI1 as hex
+#                         -> build/edid_test/edid_test_top.bit; decode a transcription with tools/edid_decode.py
+#   make hdmi-audio-test  fourth: HDMI with sound, the test pattern + 440/660 Hz tones at 48 kHz in data islands
+#                         -> build/hdmi_audio/hdmi_audio_top.bit
+# Both are simulated by `make test` (tests/tb/edid_core_tb.cpp, tests/tb/hdmi_audio_tb.cpp). Like hdmi-test they
+# take the container lock themselves; under an outer `flock <that lock> make ...` pass HDMI_LOCK= to skip it.
+HDMI_SER_V := rtl/board/hdmi_clk.v rtl/video/zm_dvi_out.v rtl/video/zm_tmds_enc.v rtl/video/zm_tmds_shift.v
+EDID_TEST_V := rtl/board/edid_test_top.v rtl/board/edid_core.v rtl/board/edid_i2c.v rtl/board/edid_reader.v \
+	rtl/board/edid_text.v rtl/video/zm_vtiming.v $(HDMI_SER_V)
+HDMI_AUDIO_V := rtl/board/hdmi_audio_top.v rtl/board/hdmi_audio_core.v rtl/board/hdmi_pattern.v rtl/board/hdmi_tone.v \
+	rtl/video/zm_vtiming.v $(wildcard rtl/hdmi/zm_hdmi_*.v) $(HDMI_SER_V)
+
+.PHONY: edid-test hdmi-audio-test
+
+build/edid_test/%.xdc build/hdmi_audio/%.xdc: rtl/board/%.v $(BOARD_XDC)
+	@mkdir -p $(@D)
+	tools/openxc7.sh xdc $(BOARD_XDC) $< > $@
+	echo 'create_clock -period 20.000 [get_ports PL_CLK_50M]' >> $@
+
+build/edid_test/edid_test_top.bit: $(EDID_TEST_V) gen/memmap.vh gen/glass_font.vh build/edid_test/edid_test_top.xdc
+	$(HDMI_LOCK) tools/openxc7.sh bit edid_test_top $(CURDIR)/$(@D) $(CURDIR)/$(@D)/edid_test_top.xdc \
+		$(addprefix $(CURDIR)/,$(EDID_TEST_V))
+
+build/hdmi_audio/hdmi_audio_top.bit: $(HDMI_AUDIO_V) gen/memmap.vh build/hdmi_audio/hdmi_audio_top.xdc
+	$(HDMI_LOCK) tools/openxc7.sh bit hdmi_audio_top $(CURDIR)/$(@D) $(CURDIR)/$(@D)/hdmi_audio_top.xdc \
+		$(addprefix $(CURDIR)/,$(HDMI_AUDIO_V))
+
+edid-test: build/edid_test/edid_test_top.bit
+hdmi-audio-test: build/hdmi_audio/hdmi_audio_top.bit
+
+#   make osd-test      fifth bitstream: the glass OSD over the test pattern, its registers on the PS's GP0 at
+#                      0x43C0_0000 -> build/osd_test/osd_test_top.bit; drive it from U-Boot: tools/osd_uboot_demo.sh
+#   make osd-test-sim  its logic in CXXRTL through the demo's steps, every pixel checked -> build/osd_test/osd_*.png
+# The PS7 needs the congestion-driven placer (soc/openxc7.py PNR_OPTS). Takes the container lock like hdmi-test.
+OSD_TEST_V := rtl/board/osd_test_top.v rtl/board/osd_test_core.v rtl/board/osd_banner.v rtl/board/hdmi_pattern.v \
+	rtl/glass/zm_glass_regs.v rtl/glass/zm_glass_ptr.v rtl/glass/zm_glass_osd.v rtl/video/zm_video_dcram.v \
+	rtl/video/zm_vtiming.v $(HDMI_SER_V)
+
+.PHONY: osd-test osd-test-sim
+
+build/osd_test/osd_test_top.xdc: rtl/board/osd_test_top.v $(BOARD_XDC)
+	@mkdir -p $(@D)
+	tools/openxc7.sh xdc $(BOARD_XDC) $< > $@
+	echo 'create_clock -period 20.000 [get_ports PL_CLK_50M]' >> $@
+
+build/osd_test/osd_test_top.bit: $(OSD_TEST_V) gen/memmap.vh gen/glass_map.vh gen/glass_font.vh build/osd_test/osd_test_top.xdc
+	OPENXC7_PNR_OPTS="--placer-heap-congestion-spread" $(HDMI_LOCK) tools/openxc7.sh bit osd_test_top \
+		$(CURDIR)/$(@D) $(CURDIR)/$(@D)/osd_test_top.xdc $(addprefix $(CURDIR)/,$(OSD_TEST_V))
+
+osd-test: build/osd_test/osd_test_top.bit
+
+osd-test-sim: memmap
+	uv run python tools/osd_test_sim.py
+
+#   make ym-test   fifth: the YM2149 (jt49, the audio core) playing "Drooling" by 505 from a register dump in
+#                  BRAM, 44.1 kHz over HDMI with the test pattern -> build/ym_test/ym_test_top.bit
+#                  (docs/FPGA_AUDIO.md). Simulated against the Zig machine by `make test` (tests/test_rtl_audio.py).
+YM_TUNE   := $(ROOT)/docs/music/union/Drooling.ymraw
+YM_TEST   := build/ym_test
+YM_TEST_V := $(addprefix rtl/board/,ym_test_top.v ym_test_clk.v ym_test_core.v ym_test_audio.v snd_lab_out.v \
+	zm_dump_player.v hdmi_pattern.v) rtl/video/zm_vtiming.v $(wildcard rtl/audio/zm_audio_*.v) \
+	$(wildcard rtl/hdmi/zm_hdmi_*.v) $(wildcard third_party/jt49/hdl/jt49*.v) \
+	rtl/video/zm_dvi_out.v rtl/video/zm_tmds_enc.v rtl/video/zm_tmds_shift.v
+
+.PHONY: ym-test
+
+# The ROM sits where the container's yosys runs, so ym_test_audio's default path finds it.
+$(YM_TEST)/ym_rom.hex: $(YM_TUNE) tools/ym_rom.py
+	@mkdir -p $(@D)
+	uv run python tools/ym_rom.py $< $@
+
+$(YM_TEST)/ym_test_top.xdc: rtl/board/ym_test_top.v $(BOARD_XDC)
+	@mkdir -p $(@D)
+	tools/openxc7.sh xdc $(BOARD_XDC) $< > $@
+	echo 'create_clock -period 20.000 [get_ports PL_CLK_50M]' >> $@
+
+$(YM_TEST)/ym_test_top.bit: $(YM_TEST_V) gen/memmap.vh $(YM_TEST)/ym_test_top.xdc $(YM_TEST)/ym_rom.hex
+	OPENXC7_DEFS="-defer -DYM_WORDS=$$(wc -l < $(YM_TEST)/ym_rom.hex)" $(HDMI_LOCK) tools/openxc7.sh bit \
+		ym_test_top $(CURDIR)/$(@D) $(CURDIR)/$(@D)/ym_test_top.xdc $(addprefix $(CURDIR)/,$(YM_TEST_V))
+
+ym-test: $(YM_TEST)/ym_test_top.bit
+
+# --- the first cart on the board: main RAM + video DMA in PS DDR over HP0/HP1 (cycles/board.mk) ---
+#   make hp-sim CART=tutorial    the board SoC with a model of the PS, in Verilator: hashes vs scene_hash
+#   make board-fw CART=tutorial  the firmware image U-Boot loads (fpga/boards/microphase_z7_7010/README.md)
+include cycles/board.mk
+
+# --- the edit -> board loop: release / dev (placement replay) builds, seed sweeps, hp-test (flow.mk) ---
+include flow.mk

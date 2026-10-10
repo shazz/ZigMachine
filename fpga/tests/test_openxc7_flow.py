@@ -35,3 +35,13 @@ def test_board_core_choice_standard_means_litexs_own_core() -> None:
 def test_board_core_choice_refuses_a_netlist_that_does_not_exist(tmp_path: Path) -> None:
     with pytest.raises(FileNotFoundError, match="vexgen"):
         zm_z7.core_netlist(str(tmp_path / "VexRiscv_missing.v"))
+
+
+def test_pnr_opts_add_the_timeout_cap_once_so_a_stalled_placement_cannot_hold_the_lock(tmp_path: Path) -> None:
+    script = tmp_path / "build.sh"
+    script.write_text(LITEX_LINE)
+    openxc7.add_pnr_opts(script, "--placer-heap-congestion-spread")
+    openxc7.add_pnr_opts(script, "--placer-heap-congestion-spread")
+    text = script.read_text()
+    assert text.count("timeout ") == 1
+    assert text.startswith(f"timeout {openxc7.PNR_TIMEOUT} nextpnr-xilinx --placer-heap-congestion-spread ")

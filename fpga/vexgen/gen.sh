@@ -9,7 +9,8 @@
 # instantiates rtl/seal/zm_seal.v as a black box); `relaxpc` registers the PC
 # before the I$ (fmax, fpga/README.md "Timing under openXC7"); `nopred` / `dynpred`
 # replace the static branch prediction by none / a dynamic target predictor
-# (`make -C fpga vexgen-board` makes the board core and its `nopred` twin).
+# (`make -C fpga vexgen-board` makes the board core and its `nopred` twin); `h8` sets
+# the dynamic predictor's BTB to 256 entries (TIMING_FABLE.md pass 3); `fpu` adds RV32F.
 # Writes build/vexgen/VexRiscv_<name>.v for each spec; one sbt session for all.
 set -euo pipefail
 FPGA="$(cd "$(dirname "$0")/.." && pwd)"
@@ -29,6 +30,8 @@ for spec in "$@"; do
             relaxpc) opts+=" --relaxedPc" ;;
             nopred) opts+=" --prediction NONE" ;;
             dynpred) opts+=" --prediction DYNAMIC_TARGET" ;;
+            h8) opts+=" --historyRamSizeLog2 8" ;;
+            fpu) opts+=" --fpu" ;;
             *) echo "vexgen: unknown flag $f in $spec" >&2; exit 2 ;;
         esac
     done

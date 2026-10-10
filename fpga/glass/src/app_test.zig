@@ -1,55 +1,15 @@
 // The glass program driven like a user would, against the simulated block:
 // F12, the menu, keys reaching the cart, a load, and a cart that traps.
 const std = @import("std");
-const zx0 = @import("zx0");
 const map = @import("map.zig");
 const bus = @import("bus.zig");
-const sim = @import("sim.zig");
-const zmd = @import("zmd.zig");
 const keymap = @import("keymap.zig");
 const pad = @import("pad.zig");
 const mouse = @import("mouse.zig");
-const App = @import("app.zig").App;
 
-const gpa = std.testing.allocator;
-const io = std.testing.io;
-
-const Rig = struct {
-    glass: sim.Glass = .{},
-    words: [1024]u32 = [_]u32{0} ** 1024,
-    tmp: std.testing.TmpDir,
-    dir: []u8,
-
-    fn init() !*Rig {
-        const r = try gpa.create(Rig);
-        r.* = .{ .tmp = std.testing.tmpDir(.{}), .dir = undefined };
-        r.dir = try std.fmt.allocPrint(gpa, ".zig-cache/tmp/{s}", .{r.tmp.sub_path});
-        const image = try zx0.pack(gpa, "board image bytes", .{});
-        defer gpa.free(image);
-        const disk = try zmd.testDisk(gpa, "Fat Disk", &.{.{ "CART.RV32", map.ZMD_TYPE_RV32, image }});
-        defer gpa.free(disk);
-        try r.tmp.dir.writeFile(io, .{ .sub_path = "a.zmd", .data = disk });
-        const thin = try zmd.testDisk(gpa, "Wasm Only", &.{});
-        defer gpa.free(thin);
-        try r.tmp.dir.writeFile(io, .{ .sub_path = "b.zmd", .data = thin });
-        return r;
-    }
-
-    fn deinit(r: *Rig) void {
-        r.tmp.cleanup();
-        gpa.free(r.dir);
-        gpa.destroy(r);
-    }
-
-    fn app(r: *Rig) !App {
-        return App.init(gpa, io, r.glass.regs(), .{ .words = &r.words }, r.dir);
-    }
-};
-
-fn press(a: *App, code: u16) void {
-    a.key(code, 1);
-    a.key(code, 0);
-}
+const test_rig = @import("test_rig.zig");
+const Rig = test_rig.Rig;
+const press = test_rig.press;
 
 test "the menu comes up, loads a disk, and the OSD gets out of the way" {
     const r = try Rig.init();
@@ -81,7 +41,7 @@ test "keys reach the cart only while the OSD is closed, and are released when it
     try std.testing.expectEqual(@as(?u32, null), r.glass.pop());
     a.key(keymap.KEY_ESC, 1); // Esc closes the menu over a running cart
     try std.testing.expect(r.glass.ctrl & map.CTRL_OSD == 0);
-    a.padEvent(pad.EV_ABS, pad.ABS_HAT0X, 1, .{}, .{});
+    a.padEvent(pad.EV_ABS, pad.ABS_HAT0X, 1, .{}, .{}, "pad");
     try std.testing.expectEqual(map.JOY_RIGHT, r.glass.joy);
 }
 
@@ -94,7 +54,7 @@ test "a disk without a board image says so and nothing runs" {
     press(&a, keymap.KEY_ENTER);
     try std.testing.expect(r.glass.ctrl & map.CTRL_RUN == 0);
     try std.testing.expect(r.glass.ctrl & map.CTRL_OSD != 0);
-    try std.testing.expect(std.mem.indexOf(u8, a.menu.status, "NoBoardImage") != null);
+    try std.testing.expect(std.mem.indexOf(u8, a.menu.status.?, "NoBoardImage") != null);
     a.key(keymap.KEY_ESC, 1); // with no cart to go back to, the menu stays
     try std.testing.expect(r.glass.ctrl & map.CTRL_OSD != 0);
 }
@@ -106,10 +66,10 @@ test "a cart that traps brings the menu back and is held" {
     defer a.deinit();
     press(&a, keymap.KEY_ENTER);
     r.glass.cart = .traps;
-    a.watch();
+    a.tick();
     try std.testing.expect(r.glass.ctrl & map.CTRL_RUN == 0);
     try std.testing.expect(r.glass.ctrl & map.CTRL_OSD != 0);
-    try std.testing.expect(std.mem.indexOf(u8, a.menu.status, "trapped (code 5)") != null);
+    try std.testing.expect(std.mem.indexOf(u8, a.menu.status.?, "trapped (code 5)") != null);
 }
 
 test "the mouse reaches the cart only while the OSD is closed; a held button is released first" {

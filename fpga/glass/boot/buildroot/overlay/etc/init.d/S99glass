@@ -1,7 +1,8 @@
 #!/bin/sh
-# Start the glass menu: mount the SD card's FAT partition read-only (nothing on
-# the card is ever written, so a power cut cannot corrupt it) and keep `glass`
-# running; if it dies, the menu comes back a second later.
+# Start the glass menu: mount the SD card's FAT partition read-only (only a
+# settings save remounts it read-write, for the write itself, so a power cut
+# cannot corrupt it), install the card's ssh key, and keep `glass` running; if
+# it dies, the menu comes back a second later.
 SHELF=/mnt/sd/zigmachine
 
 case "$1" in
@@ -10,6 +11,12 @@ start)
     if ! mount -t vfat -o ro /dev/mmcblk0p1 /mnt/sd; then
         echo "glass: cannot mount the SD card's first partition" >&2
         exit 1
+    fi
+    # ssh logins are by key only: the card's authorized_keys, if there is one.
+    if [ -f /mnt/sd/authorized_keys ]; then
+        mkdir -p -m 0700 /root/.ssh
+        cp /mnt/sd/authorized_keys /root/.ssh/authorized_keys
+        chmod 0600 /root/.ssh/authorized_keys
     fi
     rm -f /tmp/glass.stop
     (while [ ! -e /tmp/glass.stop ]; do

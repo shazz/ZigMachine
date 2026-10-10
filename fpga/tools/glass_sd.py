@@ -13,6 +13,7 @@ On the card:
     zImage, zigmachine.dtb, rootfs.cpio.uboot    plan A: our Buildroot Linux (--buildroot)
     uImage, rootfs.ub, glass                     plan B: zeST's Linux + our ARM binary
     zigmachine/*.zmd         the shelf: fat disks (wasm cart + rv32 board image)
+    zigmachine/shelf.txt     what the OSD says about each cart (tools/shelf_meta.py)
 """
 
 from __future__ import annotations
@@ -30,7 +31,8 @@ from pathlib import Path
 FPGA = Path(__file__).resolve().parent.parent
 ROOT = FPGA.parent
 sys.path.insert(0, str(FPGA / "tools"))
-import zmd_fat  # after the path insert
+import shelf_meta  # after the path insert
+import zmd_fat
 
 ZEST = FPGA / "boards/microphase_z7_7010/vendor/zest-bin"
 ZEST_TAR = ZEST / "zeST-20260518.tar.xz"
@@ -77,6 +79,11 @@ def build_shelf(dest: Path, variant: str) -> list[tuple[str, str]]:
         (dest / disk.name).write_bytes(zmd_fat.fatten(disk.read_bytes(), packed.read_bytes()))
         packed.unlink()
         rows.append((f"zigmachine/{disk.name}", f"{disk.relative_to(ROOT)} + {fw.relative_to(FPGA)}"))
+    tags = [r[0].removeprefix("zigmachine/demo-").removesuffix(".zmd") for r in rows if not r[1].startswith("MISSING")]
+    if not tags:
+        return rows
+    shelf_meta.write(dest, tags)
+    rows.append((f"zigmachine/{shelf_meta.FILE}", f"tools/shelf_meta.py ({len(tags)} carts)"))
     return rows
 
 

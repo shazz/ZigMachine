@@ -2,21 +2,20 @@
 // M_AXI_GP0 (docs/FPGA_GLASS.md). The map is fpga/glass/src/map.zig, through
 // gen/glass_map.vh.
 //
-// The slave speaks AXI3 as the GP port does, but takes single beats only: the
-// ARM program maps the block uncached and makes 32-bit accesses, which the PS
-// sends as one beat each. IDs are echoed, RLAST is always set, and every
-// response is OKAY: an unmapped or read-only address is ignored on write and
-// reads 0, so a stray access can never fault the ARM's menu.
+// AXI3 as the GP port speaks it, single beats only (the ARM maps the block
+// uncached and makes 32-bit accesses). IDs are echoed, RLAST is always set, and
+// every response is OKAY: an unmapped or read-only address is ignored on write
+// and reads 0, so a stray access can never fault the menu. AW and W may arrive
+// in either order or together; the next write is taken once B is accepted.
 //
-// AW and W may arrive in either order or together; the write lands when both
-// are held, and the next one is taken once B has been accepted.
-//
-// The cart CPU's side (its firmware, through LiteX CSRs): it pops key events,
-// reads JOY and the pointer (zm_glass_ptr.v), and reports its state and a
-// heartbeat that the ARM watches.
+// The cart CPU's side (LiteX CSRs): it pops key events, reads JOY, the pointer
+// (zm_glass_ptr.v) and CTRL.WARM at boot, and reports a state and a heartbeat.
+// AUDIO_VOL goes to the audio mixer, which applies it (FPGA_GLASS.md, "Volume").
 `default_nettype none
 
-module zm_glass_regs (
+module zm_glass_regs #(
+    parameter [31:0] CTRL_INIT = 32'd0  // after reset; rtl/board/osd_test_top.v starts with CTRL_OSD
+) (
     input  wire        clk,
     input  wire        rst,
     // AXI3 slave, single beats
@@ -50,6 +49,8 @@ module zm_glass_regs (
     output reg  [31:0] load_base,
     output reg  [31:0] load_size,
     output reg  [7:0]  joy,
+    output wire        boot_warm,          // CTRL.WARM: the firmware's next boot keeps the cart's memory
+    output reg  [8:0]  audio_vol,          // {mute, volume 0..255}, to the audio mixer
     output reg         osd_we,             // one character into the OSD text
     output reg  [8:0]  osd_waddr,
     output reg  [8:0]  osd_wdata,
@@ -68,8 +69,7 @@ module zm_glass_regs (
 `include "glass_map.vh"
 
     reg [31:0] ctrl, cart_state, cart_beat, scratch;
-    assign cpu_run = ctrl[0];
-    assign osd_en = ctrl[1];
+    assign {boot_warm, osd_en, cpu_run} = {ctrl[3], ctrl[1], ctrl[0]};
     assign s_bresp = 2'b00;
     assign s_rresp = 2'b00;
     assign s_rlast = 1'b1;
@@ -126,18 +126,20 @@ module zm_glass_regs (
         osd_waddr <= waddr[10:2];
         osd_wdata <= wdata[8:0];
         if (rst) begin
-            ctrl <= 32'd0;
+            ctrl <= CTRL_INIT;
             {osd_fg, osd_bg} <= {24'hFFFFFF, 24'h000000};
             {load_base, load_size, joy, scratch} <= {ZG_DDR_CART_BASE, 32'd0, 8'd0, 32'd0};
+            audio_vol <= ZG_AUDIO_VOL_RESET[8:0];
         end else if (do_write && is_reg) begin
             case (waddr[11:2])
-                ZG_REG_CTRL[11:2]:      ctrl <= wdata & 32'h3;
+                ZG_REG_CTRL[11:2]:      ctrl <= wdata & (ZG_CTRL_RUN | ZG_CTRL_OSD | ZG_CTRL_WARM);
                 ZG_REG_LOAD_BASE[11:2]: load_base <= wdata;
                 ZG_REG_LOAD_SIZE[11:2]: load_size <= wdata;
                 ZG_REG_JOY[11:2]:       joy <= wdata[7:0];
                 ZG_REG_OSD_FG[11:2]:    osd_fg <= wdata[23:0];
                 ZG_REG_OSD_BG[11:2]:    osd_bg <= wdata[23:0];
                 ZG_REG_SCRATCH[11:2]:   scratch <= wdata;
+                ZG_REG_AUDIO_VOL[11:2]: audio_vol <= wdata[8:0];
                 default: ;
             endcase
         end
@@ -183,6 +185,7 @@ module zm_glass_regs (
             ZG_REG_OSD_BG[11:2]:     rmux = {8'd0, osd_bg};
             ZG_REG_SCRATCH[11:2]:    rmux = scratch;
             ZG_REG_POINTER[11:2]:    rmux = ptr;
+            ZG_REG_AUDIO_VOL[11:2]:  rmux = {23'd0, audio_vol};
             default:                 rmux = 32'd0;
         endcase
         if (s_araddr[15:12] != 4'd0) rmux = 32'd0;

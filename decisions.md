@@ -9,6 +9,85 @@ reconstructed from the commits that made them, so they are shorter.
 
 ---
 
+## 2026-10-04 — A primitive self-test bitstream, and an allowlist of silicon-proven modes in `make check`
+
+**Status:** accepted; the board run is pending (`fpga/rtl/board/prim_test_top.v`, `fpga/tools/prim_allowlist.py`, `fpga/silicon_prims.json`)
+
+**Context:** openXC7 wrote a wrong bitstream twice for a primitive mode that simulates right, gate
+level included: the OSERDESE2 10:1 cascade, and the RAMB36E1 in 72-bit SDP mode (and the RAMB18 in
+SDP x36 is now suspect). No simulation can catch that, and each one cost a night of board work.
+
+**Decision:** One bitstream (`make prim-test`) holds a self-checking lane for every primitive and
+mode the SoC netlist uses. Its memories, multipliers and adders are inferred, not instantiated, so
+it tests what our Yosys flow produces (MUXF8, which ABC will not produce from a lone table, is the
+one instantiated cell). `make check` lists the cells and modes in the board SoC's netlist and fails
+on one marked bad, or never seen on silicon, in `silicon_prims.json`.
+
+**Alternatives considered:** a Vivado cross-check (needs the vendor tool, finds a different
+toolchain's behaviour, not ours); testing each mode only when it first appears (that is how both
+bugs reached the board).
+
+**Consequences:** a new Yosys mapping (a width, byte enables, a DSP register) breaks `make check`
+until a prim-test lane covers it (`pending`, a warning) and the board has run it (`proven`). The
+key is Yosys's choice, so a refactor that changes a memory's shape can fail the check with no
+functional change. Re-run the bitstream on every openXC7 or prjxray-db update.
+
+---
+
+## 2026-10-04 — The blitter on the board SoC: HP2, registers tapped off the CPU's data bus, the start through an M-only window
+
+**Status:** accepted, sim only (`fpga/soc/zm_blit_soc.py`, `zm_blit_hp.py`, `fpga/cycles/bblit.c`; z7 build `--blit`)
+
+**Context:** `rtl/blitter/zm_blit` is proven equal to `machine/blitter.zig`
+standalone (`docs/BLITTER_HW_SPEC.md` §10). On the board the cart's registers are
+ordinary memory in DDR (the video region at `HW_VIDEO_BASE`), the cart CPU reaches
+DDR through HP0 and the video DMA through HP1, and the machine's `hwBlit()` is a
+wasm export the firmware calls synchronously.
+
+**Decision:**
+- *Memory: its own HP port, HP2*, behind a byte-port to 64-bit AXI3 bridge (reads
+  64-bit, 1-beat, up to 4 in flight; writes WR32, 1-beat, up to 8 without their B).
+  The bus address of linear 0 is `VBASE - HW_VIDEO_BASE` (the video's own CSR, no
+  new one) and maps to DDR exactly as the CPU path does: the low 25 bits inside the
+  32 MiB window at `DDR_BASE`, so nothing outside the cart's window is reachable.
+  A read waits for every B and a write for every read's data, because AXI orders
+  neither and zm_blit's contract is "a read after a write sees it".
+- *Registers: tapped off the CPU's data bus*, the way the video snoop does (the
+  D-cache is write-through, every store crosses it). The block stays memory, so the
+  cart's loads read what the machine would. The tap drops the COMMAND byte of the
+  region's stores: the machine runs an op when `hwBlit()` is called, not when
+  COMMAND is stored (a cart may store it twice, or call hwBlit twice).
+- *The start: the firmware's `hwBlit` stores the command byte to `BLIT_WINDOW`*
+  (`0x9100_0000`, uncached, outside every seal window, so M-only). It goes through
+  the SAME tap as the register stores, so it reaches zm_blit after all of them with
+  no fence. The firmware then spins on STATUS.BUSY (which covers the tap, the op and
+  every write's B), invalidates the D-cache and stores CYCLES and STATUS back where
+  the machine leaves them. Before VBASE is set, and for a destination below
+  `OFF_VRAM` (registers, palettes: the RTL's writes would pass behind both snoops),
+  the machine's own code runs instead. The board link wraps the machine's export
+  (`ld --wrap=w2c_machine_hwBlit`), so the native host and the wasm path are unchanged.
+- *Opt-in on the z7 build (`--blit`)* while the gated-DMA timing work owns the
+  bitstream; `soc/hp_sim.py` always has it. `ZM_BLIT=hw|sw` picks the firmware.
+
+**Alternatives considered:** a start on the snooped COMMAND store (the RTL's own
+rule) breaks the machine's call semantics; a Wishbone slave for the registers
+(stores routed away from DDR) would make loads of the block read the RTL, not
+memory, and change what the cart sees; a CSR for the start would reach zm_blit by
+another path than the register stores and need a drain fence; sharing HP0 with the
+CPU would make the blitter's traffic and the CPU's refills wait on each other in
+one bridge; sharing HP1 with the video DMA would put a bulk master in front of the
+only real-time one. The DDR controller arbitrates HP0-HP3 already.
+
+**Consequences:** +2,646 LUT, +1,578 FF, +8 DSP48, 0 BRAM on the board SoC (Yosys,
+6,919 -> 9,565 LUT). U-Boot must set HP2's AFI widths like HP0/HP1's
+(`mw.l 0xf800a000 0; mw.l 0xf800a014 0xf01`), and only on a `--blit` bitstream
+(the AFI hangs without the port's clock). No QoS is set: the video DMA may need
+priority over HP2 if a heavy blit makes the scanout underrun on the board. v1 is a
+pixel at a time and a read costs the full HP latency; pipelined reads and row
+bursts are §10.5's next step.
+
+---
+
 ## 2026-10-03 — The YM DAC curve and envelope hold, fixed from the hardware comparison
 
 **Status:** accepted (`machine/audio/ym.zig`; tests `ym_env_test.zig`, `ym_dac_test.zig`)
@@ -44,6 +123,36 @@ machine disagree with the FPGA's linear mixer, so it waits for both to move).
 RTL mix's contract). The render loop is the same code, so the cost is the same.
 
 ---
+
+
+## 2026-10-03 — Warm reset keeps the cart's memory through a firmware hook; cart text lives in a side file
+
+**Status:** accepted
+**Context:** Matt's must-haves for the glass menu: a cold and a warm reset, a
+persisted master volume, and carts described by more than their file name.
+**Decision:**
+- *Warm reset* is `CTRL.WARM` (bit 3) read once by the cart CPU's firmware at
+  boot. The firmware keeps the machine's memory arena only if a cold boot
+  marked it (`glass/firmware/glass_boot.c`); otherwise it reports
+  `TRAP_WARM_LOST` and runs nothing. It never falls back to a cold boot on its
+  own: the user asked to keep that memory.
+- *Volume* is a register (`AUDIO_VOL`, 0x3C) the mixer multiplies in, so the
+  ARM is still never on the audio path.
+- *Settings* go to `glass.cfg` on the SD card, which stays mounted read-only;
+  a save remounts it read-write for the write and the rename only.
+- *Cart descriptions* are `shelf.txt` beside the disks, generated by
+  `fpga/tools/shelf_meta.py` from the catalog, the cart matrix's comments and
+  the scene headers.
+**Alternatives considered:** warm reset as "run the image in DDR again" (crt0
+and the heap would zero the cart's memory anyway, so it would be a slow cold
+reset); a metadata block inside the `.zmd` (the format has no free room, and the
+browser loader parses those headers); a hand-written metadata list (a second
+list drifts from the catalog); settings in a separate writable partition (a
+repartition for two values).
+**Consequences:** the board firmware must place the arena at a fixed address
+(not a heap `calloc`). Carts whose source records no group or year show none,
+and `shelf_meta.py --check` lists them. A power cut during a settings save can
+leave `glass.cfg.new` beside the old file, which is ignored.
 
 ## 2026-10-02 — The seal's mechanism: U-mode plus fixed windows in VexRiscv's translation slot
 
@@ -592,3 +701,16 @@ and a small set of entry points. "You get the memory map, not the schematics."
 
 **Consequences:** The constraint *is* the console — and because the seal is a wasm
 ABI rather than a Zig API, apps in any language sit on it.
+
+## 2026-10-09 — Vivado for board bitstreams; openXC7 kept as the open flow
+
+**Status:** accepted
+**Context:** The first cart on the Z7-Lite showed a broken picture for several days. A primitive self-test bitstream (`make prim-test`) showed that openXC7/prjxray produces wrong silicon for RAMB36 SDP x72, RAMB36 TDP x9 (parity bit) and SRL16E/SRLC32E, although all of them simulate correctly. The OSERDESE2 cascade had already failed earlier. Working around each one (sliced RAMs, `-nosrl`, register slices on the untimed PS7 pins) removed most of the corruption, but a shear remained. The same RTL built with Vivado ML Standard 2026.1 gave a clean picture once our own scanout phase bug (zm_video_scanfetch) was fixed. openXC7 also needed 19+ min per SoC build and sometimes stalled or failed to place; Vivado takes ~3 min.
+**Decision:** Board bitstreams are built with Vivado (`--toolchain vivado`, `tools/vivado_bit.sh` for small tops). openXC7 stays in the tree as the open-source flow. It runs under the silicon allowlist (`fpga/silicon_prims.json`), with `-nosrl`, and `make prim-test` re-runs after any toolchain update.
+**Alternatives considered:**
+- openXC7 only, avoiding every bad primitive: an unbounded hunt, and slow builds.
+- A compositor-only test design: it would have run through the same broken toolchain.
+**Consequences:**
+- A closed, free-as-in-beer toolchain becomes a build dependency for the board: a licence file node-locked to the machine, ~80 GB, and ncurses5 shims.
+- The free licence has no ILA, so signals are observed through glass registers.
+- The RTL must stay portable to both tools; Vivado rejects two constructs Yosys accepts.

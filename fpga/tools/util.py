@@ -43,7 +43,10 @@ BLOCKS = [
     Block("zm_video_comp", "zm_video_comp", _glob(FPGA / "rtl/video", "zm_video_*.v"), "ours: plane-major compositor + row I/O"),
     Block("zm_video_out", "zm_video_out", _glob(FPGA / "rtl/video", "zm_*.v"), "ours: comp + double buffer + scanout fetch"),
     Block("zm_tmds_enc", "zm_tmds_enc", (FPGA / "rtl/video/zm_tmds_enc.v",), "ours: one TMDS channel"),
-    Block("zm_dvi_out", "zm_dvi_out", (FPGA / "rtl/video/zm_dvi_out.v", FPGA / "rtl/video/zm_tmds_enc.v"), "ours: DVI"),
+    Block("zm_dvi_out", "zm_dvi_out", tuple(FPGA / "rtl/video" / f for f in ("zm_dvi_out.v", "zm_tmds_enc.v", "zm_tmds_shift.v")), "ours: DVI"),
+    Block("zm_hdmi_island", "zm_hdmi_island", (FPGA / "rtl/hdmi/zm_hdmi_island.v",), "ours: data island timing + BCH"),
+    Block("zm_hdmi_packets", "zm_hdmi_packets", (FPGA / "rtl/hdmi/zm_hdmi_packets.v",), "ours: audio/ACR/InfoFrames"),
+    Block("zm_hdmi_tx", "zm_hdmi_tx", (*_glob(FPGA / "rtl/hdmi", "zm_hdmi_*.v"), FPGA / "rtl/video/zm_tmds_enc.v"), "ours: HDMI + audio"),
     Block("zm_glass_regs", "zm_glass_regs", (FPGA / "rtl/glass/zm_glass_regs.v", FPGA / "rtl/glass/zm_glass_ptr.v"), "ours: the ARM's GP0 registers"),
     Block("zm_glass_osd", "zm_glass_osd", (FPGA / "rtl/glass/zm_glass_osd.v", FPGA / "rtl/video/zm_video_dcram.v"), "ours: OSD"),
     Block("jt49", "jt49", _glob(TP / "jt49/hdl", "jt49*.v"), "YM2149 (jotego, GPL-3)"),
@@ -55,9 +58,23 @@ BLOCKS = [
     Block("vexriscv_std", "VexRiscv", (VEX / "VexRiscv.v",), "rv32im, caches (LiteX default)"),
     Block("vexriscv_full", "VexRiscv", (VEX / "VexRiscv_Full.v",), "rv32im, bigger caches, MMU-less full"),
 ]
+# The machine's sound (rtl/audio/, docs/FPGA_AUDIO.md), part by part: yowasp's ABC traps on the
+# flattened zm_audio_core (each part and the glue alone synthesise); build/ym_test/utilization.txt has it whole.
+_AUDIO = FPGA / "rtl/audio"
+_JT49 = _glob(TP / "jt49/hdl", "jt49*.v")
+BLOCKS += [
+    Block("zm_audio_ym", "zm_audio_ym", (_AUDIO / "zm_audio_ym.v", *_JT49), "ours: jt49 + its box filter"),
+    Block("zm_audio_pcm", "zm_audio_pcm", (_AUDIO / "zm_audio_pcm.v",), "ours: 4 Paula channels, one MAC"),
+    Block("zm_audio_mix", "zm_audio_mix", (_AUDIO / "zm_audio_mix.v",), "ours: the machine's mix + clamp"),
+    Block("zm_audio_fifo", "zm_audio_fifo", (_AUDIO / "zm_audio_fifo.v",), "ours: sys -> pixel sample FIFO"),
+    Block("zm_hdmi_acr", "zm_hdmi_acr", (FPGA / "rtl/hdmi/zm_hdmi_acr.v",), "ours: sample strobe + measured CTS"),
+]
+# The blitter (rtl/blitter/, docs/BLITTER_HW_SPEC.md "FPGA implementation"): standalone, no SoC yet.
+BLOCKS += [Block("zm_blit", "zm_blit", _glob(FPGA / "rtl/blitter", "zm_blit*.v"), "ours: the blitter, FILL/BLIT/LINE/TRI")]
+_SEAL = (FPGA / "rtl/seal/zm_seal.v",)  # the sealed cores instantiate it as a black box
 # The cache variants vexgen/gen.sh has generated (CYCLES.md "Memory path"), if any.
 BLOCKS += [
-    Block(f"vex_{v.stem.removeprefix('VexRiscv_')}", "VexRiscv", (v,), "standard, other I$/D$ (vexgen)")
+    Block(f"vex_{v.stem.removeprefix('VexRiscv_')}", "VexRiscv", (v, *_SEAL * ("Seal" in v.stem)), "standard, other I$/D$ (vexgen)")
     for v in sorted((FPGA / "build/vexgen").glob("VexRiscv_*.v"))
 ]
 

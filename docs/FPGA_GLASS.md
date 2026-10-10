@@ -27,14 +27,55 @@ none of MiSTer's code (GPL) or zeST's code (GPL-3) is used.
 | Piece | State | Evidence |
 |---|---|---|
 | Register map, one source (`glass/src/map.zig` → `gen/glass_map.{vh,py}`) | **done** | `make memmap` |
-| `zm_glass_regs` (AXI3 slave, key FIFO, pointer, cart reset, reports) | **done**, 254 LUT | CXXRTL testbench; 13/13 break tests caught |
+| `zm_glass_regs` (AXI3 slave, key FIFO, pointer, cart reset, reports, `AUDIO_VOL`, `CTRL.WARM`) | **done**, 245 LUT, 411 FF (Yosys, 2026-10-03) | CXXRTL testbench; 20/20 break tests caught |
 | `zm_glass_osd` (32×16 text, ST system font, 2×) | **done**, 45 LUT, 2 BRAM | 3 whole 800×600 frames checked pixel by pixel; 6/6 break tests caught |
 | In the z7 SoC (PS7 GP0, OSD hook, CPU reset) | elaborates and synthesises; **does not route yet** | whole SoC 4,424 LUT (25.1 %), +355 for the glass. openXC7 packs and places the PS7, but routing diverges (below) |
-| ARM program `glass` (loader, menu, keymap, mouse, pad, evdev, `/dev/mem`) | **done**, host-tested | 37 Zig tests, 15 break tests caught; static `arm-linux-musleabihf` binary 4.0 MB |
+| ARM program `glass` (loader, menu pages, keymap, mouse, pad, evdev, `/dev/mem`) | **done**, host-tested | 56 Zig tests, 26 break tests caught; static `arm-linux-musleabihf` binary 3.7 MB |
+| Console page: cold and warm reset, volume and mute, `glass.cfg` | **done**, host-tested | below, "Cold and warm reset", "Volume", "Settings" |
+| Debug page (versions, live stats, board) | **done**, host-tested | below, "The debug page" |
+| Cart descriptions (`shelf.txt`, `tools/shelf_meta.py`) | **done** | 73 catalog carts described, 55 with a field nobody wrote down (`--check` lists them) |
+| Warm-boot hook in the cart CPU's firmware (`glass/firmware/glass_boot.c`) | **stub**, tested | 13 checks, 4 break tests caught; not linked into a firmware yet |
+| Remote shell over Ethernet (DHCP, dropbear, avahi) | **Linux side written**; the PL's EMIO wiring is not | below, "Remote shell" |
 | Load path, end to end | **done** | the 9 board images `fpga/cycles` links land byte for byte in the fake DDR |
 | Cart-side input routing (`glass/firmware/glass_input.c`) | **done**, not yet linked into a firmware | 19 key cases + 7 pointer polls against `sealed-loader.js`'s rules; 3 break tests caught |
 | SD card staging (`tools/glass_sd.py`), U-Boot script, DTS, Buildroot tree | **written** | `boot.scr` is byte-identical to `mkimage`'s; the DTS compiles against a stub dtsi |
 | Anything on the board | **waiting for the board** | below, "What needs the board" |
+
+## Features at a glance
+
+Every glass feature, built or planned. Where: **core** = in the PL, **ARM** =
+the `glass` program or Linux, **both** = a PL register (or the cart CPU's
+firmware) plus ARM code. FPGA cost is what the feature adds to the PL. Figures
+without `~` are measured (Yosys `synth_xilinx`, `tools/util.py`); figures with
+`~` are **estimates**, not measurements. "—" = ARM only, no PL cost.
+
+| Name | Description | Where | Status | Complexity | FPGA cost (LUT / BRAM / DSP) |
+|---|---|---|---|---|---|
+| OSD | 32×16 text over the picture, F12 | core | built, host-tested; on the board via the OSD test bitstream | S | 45 / 2 / 0 |
+| Register block (GP0) | the ARM's view of the console | core | built, host-tested | M | 245 / 0 / 0 (411 FF, 6 LUTRAM) |
+| Cart shelf + load | list the `.zmd` disks, place a cart in DDR, boot it | ARM | built, host-tested | M | — |
+| Cold reset | reload from SD, clear the cart's memory, boot: a power cycle | ARM | **must-have**, built, host-tested | S | — |
+| Warm reset | restart the cart CPU over its memory: the ST's reset button | both | **must-have**, built, host-tested; firmware hook stubbed | M | 1 FF (`CTRL.WARM`, in the 245) |
+| Volume / mute | master volume 0..255 + mute, persisted | both | **must-have**: register + menu built; the mixer's multiply is the audio work's | S | register in the 245; multiply ~1 DSP48 + ~20 LUT |
+| Debug page | versions, live stats, board info | ARM | **must-have**, built, host-tested | S | — |
+| Cart descriptions | title, group, year, machine, one line, from `shelf.txt` | ARM + tool | **must-have**, built | S | — |
+| Settings persistence | `glass.cfg` on the SD card (volume, mute) | ARM | **must-have**, built, host-tested | S | — |
+| USB keyboard | evdev → neutral key events → the cart's exports | both | built, host-tested | M | key FIFO, in the 245 |
+| USB mouse | evdev → `POINTER`, clicks latched | both | built, host-tested | M | `zm_glass_ptr`, in the 245 |
+| USB joystick | evdev → `JOY` → `input()`; the OSD works with it | both | **must-have**, built, host-tested; board checklist below | S | `JOY`, in the 245 |
+| Remote shell over Ethernet | ssh over the RJ45: DHCP, dropbear, `zigmachine.local` | ARM (+ PL wiring) | **near-term**: Linux config done, PL EMIO wiring to do | M | ~10 LUT + 1 IOBUF (MDIO); the MII is wires |
+| Cart upload over the network | `scp` a `.zmd` into the shelf; glass rescans | ARM | **near-term**, nearly free once the shell runs | S | — |
+| Hard-drive emulation | a block device for carts, backed by an image on the SD | ARM (+ firmware) | future | M | — |
+| CRT screen effects (SC1425-like) | scanlines, mask, bloom, curvature on the scanout | core | future | L | ~1,500–3,000 / ~2–4 / ~4–8 |
+| Adebug-like debugger | halt, step, breakpoints, registers, memory, disassembly | both | future | XL | ~300–600 (VexRiscv debug plugin + a GP0 port) |
+| USB floppy | `.st`/`.msa`/`.zmd` from a USB floppy drive | ARM | future | M | — |
+| Console network (bridged) | carts see a network device, the ARM bridges it | both | future | XL | ~300–600 / ~1–2 / 0 (a packet FIFO) |
+| Scanlines / scaling / 50-60 Hz / border | display options | core | future | M | ~200–800 / 0–2 / 0–2 |
+| Key and pad remap | which key or button is which | ARM | future | S | — |
+| Favourites / recent / folders | shelf organisation | ARM | future | S | — |
+| Screenshot to SD | the ARM reads the physical framebuffer from DDR | ARM | future | S | — |
+| Save states | freeze the cart's memory and the machine's state | both | future | L | ~0 (the ARM copies DDR while the CPU is held) |
+| Settings beyond volume | everything else in `glass.cfg` | ARM | future | S | — |
 
 ## The ARM software stack (ADR 2026-10-02)
 
@@ -59,10 +100,10 @@ clock (the PL drives `MAXIGP0ACLK`), so it lives in one clock domain.
 | Offset | Register | | What it does |
 |---|---|---|---|
 | `0x00` | `ID` | ro | `0x5A4D474C` "ZMGL". The ARM drives nothing until it reads this. |
-| `0x04` | `VERSION` | ro | 1.1.0 (1.1 added `POINTER`) |
-| `0x08` | `CTRL` | rw | bit 0 `RUN`: 0 holds the cart CPU in reset, and 0 is the reset value. bit 1 `OSD`: show the overlay. bit 2 `KEY_FLUSH`: a strobe that empties the FIFO and clears the overflow flag. |
+| `0x04` | `VERSION` | ro | 1.2.0 (1.1 added `POINTER`; 1.2 `AUDIO_VOL` and `CTRL.WARM`) |
+| `0x08` | `CTRL` | rw | bit 0 `RUN`: 0 holds the cart CPU in reset, and 0 is the reset value. bit 1 `OSD`: show the overlay. bit 2 `KEY_FLUSH`: a strobe that empties the FIFO and clears the overflow flag. bit 3 `WARM`: the next boot keeps the cart's memory (below, "Cold and warm reset"); the firmware reads it at boot through the `glass_boot_warm` CSR. |
 | `0x0C` | `STATUS` | ro | bit 0 `RUNNING`, bit 1 `KEY_FULL`, bit 2 `KEY_OVERFLOW` (sticky) |
-| `0x10` | `CART_STATE` | ro | Written by the cart CPU's firmware: 0 reset, 1 booting, 2 running, 3 trapped (bits 31:8 = the trap code). Cleared while the CPU is held. |
+| `0x10` | `CART_STATE` | ro | Written by the cart CPU's firmware: 0 reset, 1 booting, 2 running, 3 trapped. Bits 31:8: the trap code when trapped (`TRAP_WARM_LOST` = `0xFFFF01` for a warm boot with no memory to keep), the firmware's version (major.minor.patch, 8 bits each) when booting or running. Cleared while the CPU is held. |
 | `0x14` | `CART_BEAT` | ro | The firmware's frame count: the ARM's watchdog |
 | `0x18` | `LOAD_BASE` | rw | The DDR address of the cart CPU's RAM (reset value `0x1E00_0000`) |
 | `0x1C` | `LOAD_SIZE` | rw | The bytes of image the ARM placed there |
@@ -72,6 +113,7 @@ clock (the PL drives `MAXIGP0ACLK`), so it lives in one clock domain.
 | `0x2C`, `0x30` | `OSD_FG`, `OSD_BG` | rw | Ink and paper, `0x00RRGGBB` |
 | `0x34` | `SCRATCH` | rw | For bring-up: proves the bus before anything else |
 | `0x38` | `POINTER` | rw | The mouse: x (bits 9:0), y (19:10), buttons (23:20). Reads back the cart's view, with SEQ in 31:24. Below, "The mouse". |
+| `0x3C` | `AUDIO_VOL` | rw | The master volume: bits 7:0 the level (255 = unity), bit 8 `MUTE`. Reset value `0x0FF`: unity, not muted. An output port to the audio mixer. Below, "Volume". |
 | `0x1000`… | OSD text | wo | 512 words, row-major: `{inverse, glyph}` |
 
 **The AXI slave** takes single beats only, which is what an uncached 32-bit
@@ -99,8 +141,9 @@ bit 25     auto-repeat
 
 On the cart CPU's side the block is five CSRs: `glass_key_data`,
 `glass_key_valid`, `glass_key_pop` (write to pop), `glass_joy` and
-`glass_pointer`. There are three more that the firmware writes:
-`glass_pointer_ack`, `glass_cart_state` and `glass_cart_beat`.
+`glass_pointer`, plus `glass_boot_warm` (`CTRL.WARM`). There are three more
+that the firmware writes: `glass_pointer_ack`, `glass_cart_state` and
+`glass_cart_beat`.
 
 ### The mouse (`POINTER`, `zm_glass_ptr.v`, `glass/src/mouse.zig`)
 
@@ -175,6 +218,27 @@ ignores the axes of a touchpad, touchscreen or accelerometer. The kernel
 `hid-generic`.
 `cpu_run` drives VexRiscv's reset directly.
 
+**USB joystick support is a must-have** (Matt, 2026-10-03), and it is built:
+`pad.zig` → `JOY` → `glass_joy()` in the firmware, the drivers above, and the
+OSD driven by the d-pad (Left/Right too) and fire. The debug page shows the
+evdev name of the last pad that sent an event, so a pad that is plugged in but
+dead is told apart from one Linux never bound.
+
+**On-board checklist, once Linux runs.** Plug each pad in next to the keyboard
+and the mouse (through the hub on the one USB host port). For each: the four
+directions and fire reach the cart (a screen that reads the joystick, e.g.
+the Union demo's doors), the OSD moves and loads with it, and the debug page's
+`pad` row names it.
+
+| Pad | Driver expected | Notes |
+|---|---|---|
+| A generic USB joystick | `hid-generic` | sticks are `ABS_X/Y`, fire `BTN_TRIGGER` |
+| An Xbox-style pad (360 / One / XInput) | `xpad` | d-pad as hat or buttons, fire = A |
+| DualShock 4 / DualSense | `hid-playstation` (DS4 may bind `hid-sony`) | its touchpad and motion nodes must not move the stick (`evdev.zig`) |
+| Switch Pro | `hid-nintendo` | needs kernel ≥ 5.16 |
+| 8BitDo (X mode, then D mode) | `xpad`, then `hid-generic` | try both modes |
+| Atari-style stick via USB adapter (2600-daptor, Retro-Bit) | `hid-generic` | a digital stick reports a hat or ±full-range axes; one fire button |
+
 ## The DDR layout (512 MiB, one MT41J256M16)
 
 | PS physical | Size | Who | What |
@@ -242,12 +306,90 @@ below the cart window.
     the menu is dropped.
   - **Esc** closes the menu over a running cart (there is nothing to close it
     over before the first load).
-- **The menu:**
-  - Row 0 is the title bar and rows 2..13 list the disks, the cursor's row
-    inverse.
-  - Row 15 is the status line: a hint, `loading…`, or the last error.
-  - Keys: ↑/↓ move, Enter or Space loads, R reloads the current cart.
-  - A joypad works too: the d-pad moves and fire loads.
+- **The menu** has three pages (`menu.zig`, one file a page). Row 15 is always
+  the status line: the page's hint, `loading…`, or the last error. A joypad
+  works everywhere: the d-pad is the arrows and fire is Enter; Back is an item,
+  as a pad has no Esc. `glass sim-menu DIR [shelf|console|debug]` prints any
+  page on a desktop (the drawings below are its output; `*` marks the cart in
+  the window, and the cursor's row is inverse on the screen).
+
+### The shelf page (`page_shelf.zig`)
+
+```
+ ZIGMACHINE  SHELF     2/5   >      title bar (inverse), cursor/count, > = console
+ TEX B.I.G. DEMO                    rows 1..9: the carts by title
+*OXYGENE STNICCC 2000               (cursor row inverse, * = loaded)
+ TLB TWIDDLE DEMO
+ tutorial                           a disk shelf.txt does not list: its own title
+ VEX 2025 GTA VI
+
+
+
+--------------------------------
+Oxygene 2000            atari st    group, year, machine
+Oxygene / STNICCC 2000, the         the one-line description,
+polygon flight (scene1.bin          word-wrapped over 3 rows,
+stream)                             '~' if it does not fit
+ENTER load  > console  F12 close    status
+```
+
+↑/↓ move, Enter or Space loads, → opens the console page, Esc closes the OSD
+over a running cart, and R and W are the cold and warm reset. A title longer
+than its 31 columns is cut with `~` in the list and **scrolls** (a marquee,
+holding at each end) while it is the selected one. A disk that `shelf.txt` does
+not list shows `no shelf.txt entry` and its file name in the details.
+
+### The console page (`page_console.zig`)
+
+```
+ ZIGMACHINE  CONSOLE       < Esc
+                                
+ Cold reset                         cursor row inverse
+ Warm reset
+ Volume  ################ 100%      ←/→ change it, 16 steps
+ Mute    off                        Enter or ←/→ toggle
+ Debug...
+ Back
+
+--------------------------------
+Reload the cart from the SD         what the selected item does
+card, clear all its memory and
+boot it: a power cycle. (R on
+the shelf)
+ENTER do  <> change  Esc back
+```
+
+A volume or mute change reaches `AUDIO_VOL` at once and is saved to `glass.cfg`
+when you leave the page (Esc, Back, or closing the OSD), so holding ← does not
+write the card sixteen times.
+
+### The debug page (`page_debug.zig`)
+
+Read-only, redrawn twice a second while it is open (`App.tick`). Any key that
+means "back" returns to the console page.
+
+```
+ ZIGMACHINE  DEBUG     live  Esc
+glass 0.2.0 db551a22                the ARM program: version + git hash (build.zig)
+PL    ZMGL 1.2.0                    ID + VERSION from the registers
+fw    0.1.0                         the cart CPU firmware (CART_STATE 31:8)
+cart  RUNNING  beat 41226           CART_STATE, CART_BEAT = frames run
+fps   50.0     trap -               measured from the beat over 1 s; last trap code
+loads 3  last 412 ms                loads since start, the last one's time
+up    1:02:03                       the glass program's uptime
+ddr   1E000000+32M img 412K         the cart window, LOAD_SIZE
+cpu   46.8 C                        Zynq die temperature (XADC, iio)
+mem   390/480 MB free               /proc/meminfo
+pad   Xbox Wireless Controller      the last pad heard from (evdev name)
+input 3 evdev nodes                 devices open
+                                
+                                
+read-only, live      Esc back
+```
+
+The temperature comes from the kernel's `xilinx-xadc` iio device
+(`in_temp0_raw + offset`, times `scale`); without it the row says `n/a (no
+XADC)`, as does `mem` without `/proc`. `fw` shows `-` while no cart runs.
 
 ## Cart load sequence (`fpga/glass/src/loader.zig`)
 
@@ -269,8 +411,134 @@ below the cart window.
 8. Close the OSD. From then on `glass` polls `CART_STATE` about ten times a
    second. A trap holds the CPU and reopens the menu with the trap code.
 
-Reset (R) is a reload of the same disk. The image in DDR may have been written
-by the cart, so re-running it in place would not be a clean reset.
+## Cold and warm reset
+
+Two menu items (and R and W on the shelf page), with exactly these effects:
+
+| | Cold reset (R) | Warm reset (W) |
+|---|---|---|
+| What it is | a power cycle of the console | the ST's reset button |
+| The image on the SD card | re-read and depacked | not read |
+| The cart window in DDR | rewritten: the image, then zeros to the end (`.data`, `.bss`, heap, stack and the machine's 7 MiB memory all cleared), read back | **untouched** |
+| The cart CPU | held, then booted with `CTRL.WARM` clear | held, then booted with `CTRL.WARM` set |
+| The firmware's own C statics | crt0: `.data` copied, `.bss` zeroed | the same (crt0 always runs) |
+| The machine's memory arena (wasm linear memory) | zeroed, data segments applied, marked | **kept**: no zeroing, no data segments |
+| The cart | `init` runs over fresh memory | `init` runs again over its old memory |
+| The key FIFO | flushed | flushed |
+| Keys, joypad bits, mouse buttons held | released when the OSD opened | released when the OSD opened |
+| `POINTER` SEQ, `AUDIO_VOL`, the OSD | kept | kept |
+| `CART_STATE`, `CART_BEAT` | cleared while held | cleared while held |
+| Load count (debug page) | +1 | unchanged |
+
+**The warm-boot hook** (`glass/firmware/glass_boot.{h,c}`, a stub: no board
+firmware links it yet). At boot the firmware reads `glass_boot_warm` and asks
+`glass_boot_kind()`:
+
+- **COLD**: lay the machine's arena out at a FIXED address past `.bss` (not a
+  heap `calloc`, so a later warm boot can find it), zero it, apply the wasm
+  modules' data segments, then `glass_boot_mark()` the two words below it
+  (magic `ZMME` and a check tied to the arena's size), and call the cart's
+  `init`.
+- **WARM**: the mark is there, so keep the arena as it is; the modules' globals
+  (the stack pointer among them) start afresh, and the cart's `init` runs over
+  its old memory.
+- **WARM_LOST**: `WARM` was set but the mark is missing (a cold load zeroed the
+  window, or the last cold boot never got as far as marking). Nothing runs; the
+  firmware reports `CART_TRAPPED` with `TRAP_WARM_LOST`. The ARM holds the CPU
+  and says `warm reset: memory lost, use R`. It never quietly cold-boots: the
+  user asked to keep that memory.
+
+`glass_boot_plan()` turns the kind into the steps (zero the arena, apply data
+segments, call init, the first `CART_STATE` word), which is what the board
+firmware's `main()` will follow. The firmware reports its version in
+`CART_STATE` bits 31:8 while booting and running (`GLASS_FW_VERSION`, 0.1.0).
+
+**On the ARM** (`loader.warm`): check `ID`, hold the CPU (`WontStop` if it does
+not stop), write `CTRL` = `WARM | KEY_FLUSH` then `WARM | RUN`, wait for
+`RUNNING` as a load does, and clear `WARM` once the cart is up, so that any later
+boot is cold unless asked. `hold()` always drops `WARM`.
+
+**A failed load and the window.** A disk refused before the CPU is stopped
+(unreadable, not a disk, no board image, bad ZX0, too big) leaves the old cart
+running and in the window, so R and W still reset it. Once the window has been
+written (`DdrMismatch`, `CartTrapped`, `CartSilent`), it holds the new disk: R
+reloads that disk, and W reports `memory lost`.
+
+## Volume (`AUDIO_VOL`)
+
+`AUDIO_VOL` is an output port of `zm_glass_regs` (`audio_vol[8:0]` = `{mute,
+volume}`, sys clock), exported by `soc/zm_glass.py` as `glass.audio_vol`. The
+audio mixer (`fpga/rtl/audio/`, built separately) must apply it **in the mix,
+after the voices are summed and before the HDMI sample FIFO**:
+
+```
+gain = mute ? 0 : vol + vol[7]          // 0..256: 255 is exactly unity
+out  = (mixed_sample * gain) >>> 8      // signed, one DSP48 per channel or one shared
+```
+
+It is a slow, quasi-static control: synchronise it into the audio clock with
+two flops per bit; a change that lands mid-sample gives one sample at a mixed
+gain, which is inaudible. The reset value (`AUDIO_VOL_RESET` = 255, not muted)
+plays at unity, so a bitstream with no glass program running is never silent.
+`glass` writes it at start from `glass.cfg`, and on every change in the console
+page.
+
+## Settings (`glass.cfg`)
+
+`<SHELF_DIR>/glass.cfg` (`/mnt/sd/zigmachine/glass.cfg`), `config.zig`:
+
+```
+# glass.cfg: the console's settings, written by glass (docs/FPGA_GLASS.md)
+volume=200
+mute=0
+```
+
+- **Missing** means "never saved": the defaults (255, not muted), and nothing
+  is reported, as nothing is wrong.
+- **A line that does not parse** (`volume=300`, `mute=yes`, an unknown key) is
+  reported on the status line (`glass.cfg: bad line N`) and in the log; its key
+  keeps its default, and every good line still applies.
+- **Saving.** The SD card stays mounted read-only (a power cut cannot hurt it).
+  A save remounts it read-write (`mount(MS_REMOUNT)`), writes `glass.cfg.new`,
+  renames it over `glass.cfg`, and remounts read-only. A cut mid-write leaves the
+  old file (vfat renames one directory entry). If the card will not go
+  read-write, the status says `not saved: card read-only` and the change stays
+  pending for the next save; the volume already applies.
+
+## Cart descriptions (`shelf.txt`)
+
+The shelf shows each cart's catalog title, and the selected one's group, year,
+machine and a one-line description. They come from `<SHELF_DIR>/shelf.txt`, one
+line a disk, tab-separated:
+
+```
+FILE              TITLE                 GROUP    YEAR  TYPE      DESCRIPTION
+demo-stniccc.zmd  OXYGENE STNICCC 2000  Oxygene  2000  atari st  Oxygene / STNICCC 2000, the polygon flight ...
+```
+
+**Why a side file, not a block in the `.zmd`.** The disk format has no free
+room for it without a format change, and the browser loader parses those
+headers. A side file needs neither, and a fix to a description needs no disk
+repacked.
+
+**Where the text comes from** (`fpga/tools/shelf_meta.py`; nothing is typed a
+second time):
+
+- TITLE and TYPE: `apps/zig/scenes/catalog.zig`, through `tools/channels.py`'s
+  parser (its 22-character cap and machine types);
+- DESCRIPTION: the cart matrix's comment in `build.zig` (`"demo-stniccc", // 38 —
+  Oxygene / STNICCC 2000, ...`), else `cart.zig`'s comment on the import, else
+  the first sentence of the scene's header comment;
+- GROUP: the capitalised name before the first ` / ` of that description;
+- YEAR: the first year (1985..2029) in the description or the header.
+
+Text is folded to ASCII (the OSD draws the ST's 8-bit font). A field nobody
+wrote down stays empty: `shelf_meta.py --check` lists those carts (55 of 73
+today, mostly a missing year), and the fix is a better comment at the source,
+not a second list. `tools/glass_sd.py` writes `shelf.txt` next to the fat disks
+it stages. A missing `shelf.txt` is not an error: the menu shows each disk's own
+title and says `no shelf.txt: titles only`. A line with fewer than two fields is
+counted and reported (`shelf.txt: N bad lines`).
 
 ## The fat disk
 
@@ -302,7 +570,14 @@ browser.
 | A USB device is unplugged | `read` error | dropped, then found again by a rescan every 2 s (`event0`..`event31`, up to 16 nodes) | devices still present stay open (no lost releases) |
 | Mouse events faster than the cart polls | — | the newest position wins; a press shorter than a poll is latched | nothing to repair |
 | A file on the shelf is not a disk | header parse | listed as `?name` | — |
-| Power cut | — | nothing to repair | the SD card is mounted read-only |
+| Warm reset with no memory to keep | `CART_STATE` = trapped, `TRAP_WARM_LOST` | `warm reset: memory lost, use R` | CPU held; R reloads |
+| Reset with no cart loaded | — | `no cart to reset` | nothing touched |
+| Cold reset of a disk since removed from the card | file read | `<file>: FileNotFound` | the cart keeps running |
+| `glass.cfg` bad line | parse | `glass.cfg: bad line N` | that key's default, the rest applied |
+| `glass.cfg` cannot be saved | remount / write error | `not saved: <why>` | the change applies, the save stays pending |
+| No `shelf.txt`, or bad lines in it | file read / parse | `no shelf.txt: titles only`, `shelf.txt: N bad lines` | titles from the disks' own descriptors |
+| No XADC, no `/proc` | file read | `n/a` on the debug page | — |
+| Power cut | — | nothing to repair | the SD card is mounted read-only, except during a settings save (`glass.cfg.new` + rename) |
 
 ## How it is tested (without the board)
 
@@ -324,9 +599,21 @@ browser.
       → `glass sim-load` → the window must equal `fw.bin` and then zeros. It runs
       on every cart with an `aligned` board image (9 today, or about 85 with
       `ZM_GLASS_ALL=1`), plus a synthetic image.
-- `ZM_RTL_BREAK=1` adds 19 RTL break tests and `tests/test_glass_input.py`'s 18
-  (the mouse, the pad, the OSD's release, the firmware's pointer poll), each
-  required to fail.
+    - the console page (`console_test.zig`, `menu_test.zig`): cold reset clears
+      the window, warm reset keeps it, a warm reset with no memory to keep, a
+      reset with no cart and with its disk gone, the volume reaching
+      `AUDIO_VOL` and `glass.cfg` and coming back at start, a bad `glass.cfg`, a
+      card that will not go read-write, the debug page's live rows;
+    - the cart CPU's warm-boot hook (`tests/tb/glass_boot_test.c`);
+    - `shelf_meta.py` over the real catalog, and `glass sim-menu` showing a
+      `shelf.txt` description;
+    - the board device tree compiled with `dtc` (Ethernet node), and the
+      Buildroot config carrying DHCP, dropbear and avahi.
+- `ZM_RTL_BREAK=1` adds 26 RTL break tests (7 for `AUDIO_VOL` and `CTRL.WARM`)
+  and `tests/test_glass_input.py`'s 33 (the mouse, the pad, the OSD's release,
+  the firmware's pointer poll; the console page's 11; the warm-boot hook's 4),
+  each required to fail **at run time**: a mutant that does not compile is
+  refused, as it proves nothing.
 - The end-to-end test was itself broken once (one word of the image dropped)
   and failed on all 10 images.
 
@@ -349,12 +636,101 @@ There are three ways forward:
 Until then `glass_sd.py` marks the old `platform_z7.bit` STALE, because it has
 no glass. `--no-glass` builds the previous SoC.
 
+## Remote shell over Ethernet (near-term)
+
+ssh to the board over its RJ45; no Wi-Fi dongle is needed.
+
+- **Hardware.** The PHY is a Realtek **RTL8201F** (10/100, MII + MDIO; the
+  reference manual says "Giga ETH" and "RGMII", but the part and zeST's pinout
+  are 10/100 MII). It sits on **PL pins** (`vendor/zest/xdc/z7lite.xdc`: TXD
+  M14/L15/M15/N15, TX_EN N16, TX_CLK L14, RXD J14/K14/M18/M17, RX_DV K18, RX_CLK
+  K17, MDC G14, MDIO J15; `nRST` H20 in `Z7_LITE.xdc`). zeST reaches it from the
+  PS's GEM0 through **EMIO**, and so must we.
+- **Linux side (written).** `linux.fragment`: `MACB` (the GEM driver),
+  `REALTEK_PHY`, `INET`, `PACKET`, `IP_MULTICAST`. The defconfig:
+  `BR2_SYSTEM_DHCP="eth0"` (ifupdown + busybox `udhcpc`, started by
+  `S40network`), dropbear (`S50dropbear`) and avahi-daemon (`S50avahi-daemon`):
+  Buildroot's own init scripts start them. The DTS enables `&gem0` with
+  `phy-mode = "mii"` and no `phy-handle`, so `macb` scans MDIO for the PHY
+  whatever its strapped address.
+- **PL side (to do).** The bitstream must wire the PS7 cell's ENET0 EMIO ports
+  to those pins: `EMIOENET0GMIITXD[3:0]` and `GMIITXEN` out, `GMIIRXD[3:0]`,
+  `GMIIRXDV`, `GMIITXCLK`, `GMIIRXCLK` in, and MDIO through one IOBUF
+  (`ENET0MDIOMDC`, `MDIOO`, `MDIOTN`, `MDIOI`), plus `nRST` held high. That goes
+  into `ps7_gp0` (`soc/zm_glass.py`) and the z7 platform's pins, after the PS7
+  routing problem above. zeST's FSBL already enables ENET0 on EMIO. Until then:
+  plan B (zeST's own bitstream and Linux) has working Ethernet for a shell.
+- **Logging in.** Keys only: root has no password, and dropbear refuses an
+  empty one. Put your public key on the card as `authorized_keys` (next to
+  `boot.scr`); `S99glass` installs it at boot. Then
+  `ssh root@zigmachine.local` (avahi answers mDNS for the hostname
+  `zigmachine`), or find the address in your router's DHCP leases, or on the
+  UART (`ip addr show eth0`).
+- **Cart upload over the network** comes nearly free with it:
+  `ssh root@zigmachine.local mount -o remount,rw /mnt/sd`, then `scp
+  demo-x.zmd root@zigmachine.local:/mnt/sd/zigmachine/` and remount read-only.
+  What is missing is a shelf **rescan** in `glass` (today the shelf is read at
+  start: restart `glass` or pick it up on F12), keeping the loaded cart's
+  index stable across it.
+- Unverified until Buildroot builds the image and the bitstream carries the
+  EMIO wiring.
+
+## Future work (recorded, not implemented)
+
+Matt's list (2026-10-03), roughly by value for the effort, with how each would
+work on this board:
+
+1. **Cart upload without removing the SD card.** After the remote shell: `scp`
+   (above) plus a rescan; later a tiny HTTP upload page served by `glass`, or a
+   USB gadget mode (the one USB port is a host, so gadget means a second port).
+   The uploaded `.zmd` joins the shelf and loads at once.
+2. **Hard-drive emulation.** An ACSI/IDE-like block device for carts, backed by
+   an image file on the SD card (as zeST does with `hdd.img`), through the
+   existing disk/drive ABI (`diskReadBlock` etc.): the ARM serves blocks into a
+   DDR mailbox the firmware maps to the drive ABI.
+3. **CRT screen effects** like Leonard/Oxygene's SC1425 emulation
+   (http://leonard.oxg.free.fr/SC1425/SC1425.html): scanlines, shadow mask,
+   bloom/glow, curvature, as a post-process in the PL between the mixer and
+   TMDS. Line buffers in BRAM, the weights in DSPs; bloom and curvature are the
+   expensive parts, so presets that drop them fit the 7010. A menu toggle and
+   presets in `glass.cfg`.
+4. **An Adebug-like debugger on the ARM** (Brainstorm's ST debugger) for a
+   running cart: halt/step the cart CPU, breakpoints, registers, memory view and
+   edit, disassembly (rv32, mapped back to the wasm and Zig source), in the OSD
+   or over the network. It needs debug support in the cart CPU (VexRiscv's
+   debug plugin, or a halt-and-step interface through GP0), and the seal must
+   still hold: the debugger sees the machine through the same windows a host
+   does, never a cart's private state by a side door.
+5. **USB floppy disk support.** A USB floppy drive read by Linux: `.st`,
+   `.msa` or `.zmd` image files, or real ST floppies. Limit: USB floppy drives
+   speak UFI and read only PC formats (9 sectors, 80 tracks); an ST disk with 10
+   or 11 sectors a track, or copy protection, is unreadable this way and needs
+   a flux converter (Greaseweazle and the like) instead.
+6. **Ethernet for the console, bridged by the ARM.** Carts see a network device
+   (a register/FIFO interface in the machine, mirrored in the wasm machine
+   first); the ARM bridges it over the wired Ethernet first, Wi-Fi optional
+   later through a USB dongle on a hub with its kernel driver in the fragment.
+
+The NICE-TO-HAVE list:
+
+- **Display:** scanlines, scaling, 50/60 Hz, border on or off.
+- **Key and joypad remap**; **mouse speed** in the menu (today `--mouse-scale`).
+- **Shelf:** favourites, recently played, folders.
+- **Screenshot to SD:** the ARM copies the physical framebuffer out of DDR.
+- **Save states:** hold the CPU, copy the cart window and the PL's state out;
+  restore the same way. Needs every PL register a cart can set to be readable.
+- **Settings beyond volume** in `glass.cfg` (the parser already skips unknown
+  keys, so an older `glass` reads a newer file).
+
 ## What needs the board
 
 1. **GP0 answers.** Run `devmem 0x43C00000` (expect `0x5A4D474C`), then write
    and read back `SCRATCH`. This proves zeST's FSBL leaves GP0 usable with our
    bitstream, and that openXC7 routes the PS7 cell.
 2. **The OSD on HDMI.** Set `CTRL` = 2, then write a few text words.
+   Steps 1 and 2 have their own bitstream, without the SoC: `make -C fpga osd-test`
+   (the OSD over the HDMI test pattern, the register block on GP0), driven from the
+   U-Boot prompt by `fpga/tools/osd_uboot_demo.sh` (`md.l`/`mw.l` in place of `devmem`).
 3. **The cart CPU running from DDR.** This needs work that is not done here:
    - the HP-port master (today the SoC's `main_ram` is 64 KiB of BRAM);
    - a board firmware: `fpga/cycles/main.c`'s loop, plus `CART_STATE`,
@@ -374,3 +750,11 @@ no glass. `--no-glass` builds the previous SoC.
    it needs network access and about an hour). The DTS and the kernel fragment
    are unverified until then.
 6. **Timing:** the measured refill and posted-write costs (`FPGA_STEPS.md`).
+7. **The console page:** that `AUDIO_VOL` reaches the mixer (once the audio
+   path is in the SoC), that a settings save can remount `/mnt/sd` read-write
+   and back, and the XADC's iio name (`xadc`) on the kernel Buildroot builds.
+8. **Warm reset for real:** a board firmware linking `glass_boot.c` with the
+   arena at a fixed address; then W on a cart that keeps state (the Union
+   demo's doors) shows it kept.
+9. **Joysticks:** the checklist under "The joypad".
+10. **Ethernet:** the PL's EMIO wiring, then DHCP, `ssh root@zigmachine.local`.

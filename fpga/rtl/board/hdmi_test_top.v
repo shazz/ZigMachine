@@ -1,8 +1,10 @@
 // The second bitstream: HDMI1 out, nothing of the machine but its video timing
 // and its DVI encoder. A test pattern (rtl/board/hdmi_pattern.v) at VESA
-// 800x600@60 leaves through rtl/board/hdmi_dvi_dbg.v: by default exactly
-// rtl/video/zm_dvi_out.v (TMDS encoders + 10:1 DDR OSERDESE2), with `define`d
-// bring-up variants (Makefile hdmi-test-*). DVI only: HPD and DDC unconnected.
+// 800x600@60 leaves through rtl/board/hdmi_dvi_dbg.v: by default
+// rtl/video/zm_dvi_out.v with its OSERDESE2 cascade (no signal on the board),
+// with `define`d bring-up variants (Makefile hdmi-test-*); hdmi-test-oddr is
+// zm_dvi_out's default serialiser, the one that works. DVI only: HPD and DDC
+// unconnected.
 //
 // Clocks: one PLLE2 off PL_CLK_50M (N18), VCO 50 x 20 = 1000 MHz (the -1 grade's
 // PLL VCO range is 800-1600 MHz, PFD 19-450 MHz: DIVCLK 1 puts it at 50), /25 =
@@ -52,7 +54,7 @@ module hdmi_test_top (
     hdmi_pattern u_pat (.clk(pix_clk), .rst(rst), .r(r), .g(g), .b(b), .de(de), .hsync(hsync), .vsync(vsync));
 
     // Bring-up variants (Makefile hdmi-test-*), chosen by `define: the default is
-    // rtl/video/zm_dvi_out.v's behaviour exactly.
+    // rtl/video/zm_dvi_out.v with SERIALISER="OSERDES".
 `ifdef HDMI_REVERSE
     localparam integer REVERSE = 1;
 `else

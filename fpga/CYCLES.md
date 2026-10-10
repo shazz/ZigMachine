@@ -436,3 +436,72 @@ with the seed.
   "Integration": issuing passes and waiting for them, ~0.65 M sys cycles a frame
   at 160 MHz in the video sim), which the compositor's own, faster clock shortens
   but does not remove.
+
+## f32 FPU
+
+*Matt approved an f32 FPU as "good enough for an oldskool machine"; this is its
+bill. Re-run with `vexgen/gen.sh I16w2D4SealDynT8Fpu:16384:2:4096:1:seal,dynpred,h8,fpu`
+and `uv run python tools/mempath_run.py fpu` (the table is `tools/mempath_report.py`'s).*
+
+**The core.** VexRiscv's `FpuPlugin`, single precision only (`FpuParameter(withDouble =
+false, mulWidthA = 24, mulWidthB = 17)`: a mantissa product is two 25x18 DSP48E1, the
+register file is synchronous), on the pass-3 board core (sealed, 16 KiB 2-way I$, 4 KiB D$,
+`DYNAMIC_TARGET` with a 256-entry BTB: `vexgen` flags `dynpred,h8,fpu`). The baseline is
+the same core without `fpu`. Firmware: `cycles.mk` variant `alignedf` = `aligned` built
+`-march=rv32imf -mabi=ilp32f` (picolibc has the multilib), `-ffp-contract=off` kept, and
+`trap_install()` sets `mstatus.FS` (an F instruction is illegal while FS is Off).
+
+**Cost** (Yosys `synth_xilinx`, `tools/util.py`, sealed cores; the board SoC is the
+whole-design `synth_xilinx` of `soc.zigmachine_soc --target z7`):
+
+| | LUT | FF | BRAM (18 Kb) | DSP | LUTRAM |
+|---|---|---|---|---|---|
+| core, no FPU (`I16w2D4SealDynT8`) | 2,137 | 1,534 | 14 | 4 | 0 |
+| core + f32 FPU | 4,485 | 3,434 | 17 | 6 | 5 |
+| **FPU increment** | **+2,348 (13 % of the 7010)** | +1,900 | +3 | +2 | +5 |
+| board SoC, no FPU | 9.7 K (55 %) | 8.5 K | 36 | 17 | |
+| board SoC + FPU | 13.6 K (77 %) | 11.8 K | 39 | 19 | |
+
+**Cycles** (cart CPU, p95 frame, `hp_wc` memory path; MHz for 60 fps; soft = libgcc
+soft-float on the non-FPU core, FPU = hard-float on the FPU core). Every run's hashes
+equal scene_hash.mjs's and the native host's (16/16 `ok`), so `-ffp-contract=off`, the
+FPU's rounding, NaN and subnormal handling change no result in these 8 carts.
+
+<!-- mempath-fpu:begin -->
+| cart | soft Mc | FPU Mc | soft MHz | FPU MHz | cycles |
+|---|---|---|---|---|---|
+| union_beatdis | 0.78 | 0.78 | 47 | 47 | -0 % |
+| ulm_dsots | 1.49 | 1.49 | 89 | 89 | -0 % |
+| skystrike | 1.79 | 1.79 | 107 | 107 | +0 % |
+| tutorial | 0.37 | 0.37 | 22 | 22 | +0 % |
+| blitter | 0.10 | 0.06 | 6 | 4 | -39 % |
+| tsl_hybridglenz | 0.09 | 0.07 | 5 | 4 | -19 % |
+| polkadots | 20.95 | 22.18 | 1257 | 1331 | +6 % |
+| replicants_emlyn | 4.99 | 5.25 | 300 | 315 | +5 % |
+<!-- mempath-fpu:end -->
+
+**Verdict.**
+
+- **The FPU saves nothing that matters.** The four carts that set the clock
+  (union_beatdis 47, ulm_dsots 89, skystrike 107, tutorial 22 MHz) are bit for bit as fast
+  without it: they have no f32 work. blitter and tsl_hybridglenz gain 19-39 % of a
+  load that is 4-6 MHz anyway. polkadots and replicants_emlyn compute in **f64**, which
+  an f32 FPU does not run, and they get 5-6 % *slower* (cause not chased: the
+  f64 stays in libgcc, now built for the hard-float ABI). Their need
+  (1.3 GHz, 300 MHz) stays out of reach: the fix is in the scenes (f32 or fixed point).
+- **LUTs.** +2,348 LUT (+1,900 FF) for the core, the board SoC from 55 % to 77 % of the
+  7010's LUTs, with the blitter and the audio still to come (~10.6 K LUT used before this
+  one). It still fits on paper; it leaves about 4 K LUT for the blitter + audio.
+- **fmax.** the non-FPU board SoC (sealed DynT8 core, seed 5, current tree) routes
+  and gives **sys 91.7 MHz** (comp 112.3). The FPU SoC (13.6 K LUT, 77 %) **did not place**:
+  nextpnr-xilinx's HeAP placer stalls after its 5th iteration (`congestion-spread`
+  loop, 100 % CPU, no output) and was killed at the 1,500 s cap and again at 3,600 s,
+  seed 5, the board flow of `soc/openxc7.py`. So there is no FPU fmax; the flow
+  as pinned cannot build this core, and finding out why (density? more seeds,
+  `--placer-heap-congestion-weight`, no `-spread`) is the first job if the FPU is
+  ever wanted.
+- **Call:** the oldskool-machine argument is real (carts written in f32 become possible),
+  but no cart of the shelf runs faster for it and it costs 13 % of the chip and
+  fmax margin. Keep it as an opt-in core (`vexgen ... fpu`), not the board core, until a
+  cart is written in f32. If it is wanted, `-mno-fdiv` plus `withDiv/withSqrt = false`
+  would trim it further (not measured).

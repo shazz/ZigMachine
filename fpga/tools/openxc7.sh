@@ -38,7 +38,7 @@ image() {
 
 run() {  # run CMD...: in the container, as the caller, repo at its own path
     image
-    docker run --rm --memory "$MEM" --user "$(id -u):$(id -g)" \
+    docker run --rm --init --memory "$MEM" --user "$(id -u):$(id -g)" \
         -v "$ROOT:$ROOT" -w "$PWD" \
         -e CHIPDB \
         "$IMAGE" "$@"
@@ -82,20 +82,25 @@ xdc_for() {  # xdc_for BOARD_XDC TOP_V: the board's lines for the top's ports on
     grep -E "get_ports\s+\{?\s*($ports)(\[[0-9]+\])?\s*\}?\s*\]" "$1"
 }
 
-bit() {  # bit TOP OUT XDC VERILOG...  (`include`s resolve in fpga/gen, or OPENXC7_INC; OPENXC7_DEFS=-DX)
-    local top=$1 out=$2 xdc=$3 inc="${OPENXC7_INC:-$FPGA/gen}" defs="${OPENXC7_DEFS:-}"; shift 3
+bit() {  # bit TOP OUT XDC VERILOG...  (`include`s resolve in fpga/gen, or OPENXC7_INC; OPENXC7_DEFS=-DX;
+         #  OPENXC7_PNR_OPTS: extra nextpnr-xilinx options, e.g. --placer-heap-congestion-spread for a PS7)
+    local top=$1 out=$2 xdc=$3 inc="${OPENXC7_INC:-$FPGA/gen}" defs="${OPENXC7_DEFS:-}" pnr="${OPENXC7_PNR_OPTS:-}"
+    local tmo="${OPENXC7_PNR_TIMEOUT:-1500}"  # a stalled placer or router (2026-10-03: 52 min, 20 min) must not hold the lock
+    shift 3
     [ -f "$CHIPDB/$DBPART.bin" ] || chipdb
     mkdir -p "$out"
     run bash -c 'set -euo pipefail
-        top=$1 out=$2 xdc=$3 part=$4 chipdb=$5 db=$6 inc=$7 defs=$8; shift 8
-        cd "$out"
-        yosys -q -l synth.log -p "read_verilog -sv -I$inc $defs $*; synth_xilinx -flatten -abc9 -arch xc7 -top $top; tee -o utilization.txt stat; write_json $top.json"
-        nextpnr-xilinx --chipdb "$chipdb" --xdc "$xdc" --json "$top.json" \
+        top=$1 out=$2 xdc=$3 part=$4 chipdb=$5 db=$6 inc=$7 defs=$8 pnr=$9 tmo=${10}; shift 10
+        cd "$out"; : > stages.txt
+        zm_stage() { local n=$1 t=$EPOCHREALTIME; shift; "$@"; echo "$n $t $EPOCHREALTIME" >> stages.txt; }
+        zm_stage synth yosys -q -l synth.log -p "read_verilog -sv -I$inc $defs $*; synth_xilinx -nosrl -flatten -abc9 -arch xc7 -top $top; tee -o utilization.txt stat; write_json $top.json"
+        zm_stage pnr timeout "$tmo" nextpnr-xilinx $pnr --chipdb "$chipdb" --xdc "$xdc" --json "$top.json" \
             --write "${top}_routed.json" --fasm "$top.fasm" --report report.json --log pnr.log
-        fasm2frames --part "$part" --db-root "$db/zynq7" "$top.fasm" > "$top.frames"
-        xc7frames2bit --part_file "$db/zynq7/$part/part.yaml" --part_name "$part" \
+        zm_stage frames fasm2frames --part "$part" --db-root "$db/zynq7" "$top.fasm" > "$top.frames"
+        zm_stage bit xc7frames2bit --part_file "$db/zynq7/$part/part.yaml" --part_name "$part" \
             --frm_file "$top.frames" --output_file "$top.bit"' \
-        _ "$top" "$out" "$xdc" "$PART" "$CHIPDB/$DBPART.bin" "$PRJXRAY_DB_DIR" "$inc" "$defs" "$@"
+        _ "$top" "$out" "$xdc" "$PART" "$CHIPDB/$DBPART.bin" "$PRJXRAY_DB_DIR" "$inc" "$defs" "$pnr" "$tmo" "$@"
+    python3 "$FPGA/tools/build_times.py" "$out" --label "$top" || true  # per-stage times + build/build_times.txt
     echo "openxc7: $out/$top.bit"
 }
 

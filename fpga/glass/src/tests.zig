@@ -2,6 +2,7 @@
 test {
     _ = @import("bus.zig");
     _ = @import("sim.zig");
+    _ = @import("sim_test.zig");
     _ = @import("zmd.zig");
     _ = @import("loader_test.zig");
     _ = @import("keymap.zig");
@@ -10,8 +11,16 @@ test {
     _ = @import("mouse_test.zig");
     _ = @import("osd.zig");
     _ = @import("menu.zig");
+    _ = @import("menu_test.zig");
     _ = @import("shelf.zig");
+    _ = @import("config.zig");
+    _ = @import("meta.zig");
+    _ = @import("stats.zig");
+    _ = @import("board_info.zig");
     _ = @import("evdev.zig");
     _ = @import("devmem.zig");
     _ = @import("app_test.zig");
+    _ = @import("console_test.zig");
+    _ = @import("text.zig");
+    _ = @import("page_debug.zig");
 }

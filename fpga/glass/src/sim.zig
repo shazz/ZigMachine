@@ -1,12 +1,13 @@
 // A simulated glass: the register block as rtl/glass/zm_glass_regs.v behaves,
-// a fake DDR window, and a stand-in for the cart CPU's firmware that reports
-// BOOTING then RUNNING (or a trap, or nothing) once it is let out of reset.
-// The ARM program runs against this on a desktop exactly as on the board.
+// and a stand-in for the cart CPU's firmware that reports BOOTING then RUNNING
+// (or a trap, or nothing) once let out of reset, warm boots as glass_boot.c
+// decides. The ARM program runs against this exactly as on the board.
 const std = @import("std");
 const map = @import("map.zig");
 const bus = @import("bus.zig");
 
 pub const CartModel = enum { boots, traps, silent };
+pub const FW_VERSION: u32 = 0x00_01_00; // what the stand-in firmware reports, 0.1.0 (glass_boot.h)
 
 pub const Glass = struct {
     ctrl: u32 = 0,
@@ -30,6 +31,10 @@ pub const Glass = struct {
     boot_reads: u32 = 3,
     reads_since_run: u32 = 0,
     resets: u32 = 0,
+    audio_vol: u32 = map.AUDIO_VOL_RESET,
+    marked: bool = false, // a cold boot marked the cart's memory (glass_boot_mark)
+    warm_boots: u32 = 0,
+    stuck: bool = false, // a CPU that never leaves RUNNING: the loader's WontStop
 
     pub fn regs(self: *Glass) bus.Regs {
         return .{ .ctx = self, .read_fn = readThunk, .write_fn = writeThunk };
@@ -66,13 +71,14 @@ pub const Glass = struct {
             map.REG_OSD_BG => self.osd_bg,
             map.REG_SCRATCH => self.scratch,
             map.REG_POINTER => self.pointer(),
+            map.REG_AUDIO_VOL => self.audio_vol,
             else => 0,
         };
     }
 
     fn status(self: *const Glass) u32 {
         var s: u32 = 0;
-        if (self.running()) s |= map.ST_RUNNING;
+        if (self.running() or self.stuck) s |= map.ST_RUNNING;
         if (self.key_len == map.KEY_DEPTH) s |= map.ST_KEY_FULL;
         if (self.overflow) s |= map.ST_KEY_OVERFLOW;
         return s;
@@ -84,12 +90,18 @@ pub const Glass = struct {
         if (!self.running()) return map.CART_RESET;
         self.reads_since_run += 1;
         if (self.reads_since_run < self.boot_reads) return map.CART_BOOTING;
+        const warm = self.ctrl & map.CTRL_WARM != 0;
+        if (warm and !self.marked) return map.CART_TRAPPED | map.TRAP_WARM_LOST << map.CART_ARG_SHIFT;
         self.cart_state = switch (self.cart) {
-            .boots => map.CART_RUNNING,
+            .boots => map.CART_RUNNING | FW_VERSION << map.CART_ARG_SHIFT,
             .traps => map.CART_TRAPPED | (5 << 8),
             .silent => map.CART_BOOTING,
         };
-        if (self.cart == .boots) self.cart_beat += 1;
+        if (self.cart == .boots) {
+            if (self.cart_beat == 0 and warm) self.warm_boots += 1;
+            self.marked = true;
+            self.cart_beat += 1;
+        }
         return self.cart_state;
     }
 
@@ -101,13 +113,17 @@ pub const Glass = struct {
         switch (offset) {
             map.REG_CTRL => self.writeCtrl(value),
             map.REG_LOAD_BASE => self.load_base = value,
-            map.REG_LOAD_SIZE => self.load_size = value,
+            map.REG_LOAD_SIZE => { // a cold load rewrote the window: no mark survives it
+                self.load_size = value;
+                self.marked = false;
+            },
             map.REG_KEY_PUSH => self.push(value),
             map.REG_JOY => self.joy = value & 0xFF,
             map.REG_OSD_FG => self.osd_fg = value & 0xFFFFFF,
             map.REG_OSD_BG => self.osd_bg = value & 0xFFFFFF,
             map.REG_SCRATCH => self.scratch = value,
             map.REG_POINTER => self.pointerWrite(value),
+            map.REG_AUDIO_VOL => self.audio_vol = value & (map.AUDIO_MUTE | map.AUDIO_VOL_MASK),
             else => {},
         }
     }
@@ -118,7 +134,7 @@ pub const Glass = struct {
             self.overflow = false;
         }
         const was = self.running();
-        self.ctrl = value & (map.CTRL_RUN | map.CTRL_OSD);
+        self.ctrl = value & (map.CTRL_RUN | map.CTRL_OSD | map.CTRL_WARM);
         if (was and !self.running()) self.resets += 1;
         if (!self.running()) {
             self.cart_state = map.CART_RESET;
@@ -166,18 +182,3 @@ pub const Glass = struct {
         return v;
     }
 };
-
-test "the simulated block keeps the RTL's rules" {
-    var g = Glass{};
-    const r = g.regs();
-    try std.testing.expectEqual(map.ID_VALUE, r.read(map.REG_ID));
-    try std.testing.expectEqual(@as(u32, 0), r.read(map.REG_STATUS) & map.ST_RUNNING);
-    for (0..map.KEY_DEPTH + 1) |i| r.write(map.REG_KEY_PUSH, @intCast(i));
-    try std.testing.expect(r.read(map.REG_STATUS) & map.ST_KEY_OVERFLOW != 0);
-    try std.testing.expectEqual(@as(?u32, 0), g.pop());
-    r.write(map.REG_CTRL, map.CTRL_KEY_FLUSH);
-    try std.testing.expectEqual(@as(u32, 0), r.read(map.REG_KEY_LEVEL));
-    try std.testing.expectEqual(@as(u32, 0), r.read(map.REG_CTRL));
-    r.write(map.REG_CTRL, map.CTRL_RUN);
-    try std.testing.expectEqual(map.CART_BOOTING, r.read(map.REG_CART_STATE));
-}

@@ -70,14 +70,63 @@ the full-SoC simulation; setup unpacks the libevent/json-c headers its harness
 needs), `riscv64-unknown-elf-gcc` + picolibc (the cycles firmware), openXC7 (Docker) or Vivado ML Standard (bitstreams), and Icarus
 (cocotb).
 
-## Bitstreams (openXC7 in Docker)
+## Bitstreams: Vivado for the board, openXC7 kept as the open flow
+
+**Board builds use Vivado** (ML Standard 2026.1, free licence) since 2026-10-09 (ADR in `decisions.md`).
+The same RTL that openXC7 turned into a broken picture gave the first clean one under Vivado, in about
+3 min instead of 19+.
+
+```sh
+export PATH=/opt/vivado/2026.1/Vivado/bin:$PATH LD_LIBRARY_PATH=$HOME/.local/lib/vivado-compat
+uv run python -m soc.zigmachine_soc --target z7 --build --toolchain vivado --sys-mhz 80 --comp-mhz 80 --out build/soc_z7_vivado
+tools/vivado_bit.sh TOP OUTDIR XDC "DEFINES" FILE...   # a small board top (hdmi_test, osd_test, ...)
+```
+
+- **Setup:**
+  - the licence lives in `~/.Xilinx/Xilinx.lic` (node-locked to the wired MAC);
+  - Vivado needs `libncurses.so.5` / `libtinfo.so.5`, which Ubuntu no longer ships, so
+    `~/.local/lib/vivado-compat` symlinks them to the `.so.6` versions.
+- **The free licence refuses ILA debug cores.** To observe a signal, route it to a glass register
+  (e.g. SCRATCH, `0x43c0_0034`) and read it with `md.l` from U-Boot.
+- **Write Verilog both tools accept:** no `wire a, b = expr;`, and no identifiers that are Verilog-2001
+  keywords (`cell`, `config`, `design`, `instance`, `library`, `use`, ...). Yosys lets both pass.
+
+**openXC7 on silicon** (`make prim-test`, read with `tools/prim_test_read.py --uboot`; status in
+`silicon_prims.json`, checked by `tools/prim_allowlist.py`): these primitives FAIL on the board although
+they simulate fine:
+- RAMB36 SDP x72: the A half is lost;
+- RAMB36 TDP x9: the parity bit is lost;
+- SRL16E / SRLC32E: so synthesis runs with `-nosrl`;
+- the OSERDESE2 10:1 cascade: no signal.
+
+Two more traps:
+- nextpnr doesn't time the PS7 pins, so every HP channel gets a register slice;
+- large FF-heavy netlists stall HeAP placement or fail with "Unable to find legal placement … SLICE_FFX".
+
+Re-run `make prim-test` after any openXC7 update.
+
+### openXC7 in Docker
 
 ```sh
 make -C fpga toolchain   # once: pinned image (docker/openxc7/) + prjxray-db + xc7z010 chipdb -> .tools/
 make -C fpga blink       # rtl/board/blink_top.v -> build/blink/blink_top.bit (+ pnr.log, report.json)
 make -C fpga hdmi-test   # rtl/board/hdmi_test_top.v: HDMI1 test pattern -> build/hdmi_test/hdmi_test_top.bit
-uv run --with meson --with ninja python -m soc.zigmachine_soc --target z7 --toolchain openxc7 --build   # the full SoC, glass included (~4 min)
+make -C fpga soc-z7      # the full SoC, glass included: the release build, pinned seed -> build/soc_z7
 ```
+
+### When is a full rebuild needed
+
+Every build prints its stage times and logs them to `build/build_times.txt`; the
+measurements, the replay and the sweep are in [`BUILD_LOOP.md`](BUILD_LOOP.md).
+
+| The change | Do | Costs |
+|---|---|---|
+| firmware only (`cycles/`, carts, `fw.bin`) | `make board-fw`, then `loadx` + CTRL.RUN from U-Boot: **no build** | seconds |
+| a runtime knob (a CSR such as `video_hp_cfg`, an AFI register) | write it from the firmware or U-Boot: **no build** | seconds |
+| a DDR / AFI / HP-port question | `make hp-test` once (~7 min), then `mw`/`md` from U-Boot (`boards/.../README.md` "hp-test") | seconds a question |
+| board health before a test, or a whole board run (load order, fw crc, cart/diag verdict) | `tools/board_preflight.py` / `tools/board_run.py` (`boards/.../README.md` "Tools"); tests `tests/test_board_tools.py` on a fake U-Boot | ~1 min / ~1-2 min a run |
+| a small RTL edit | `make soc-dev`: replays what did not change of the last dev build's placement (`FRESH=1`: new base) | today a full build (an edit re-maps most cells); the same netlist ~2.5 min |
+| a netlist-wide change, or a release | `make soc-z7`, `make sweep SEEDS="1 2 3 4 5 6"`, pin the best seed in `soc/openxc7.py` | 4-6 min + 3 x P&R |
 
 `tools/openxc7.sh` runs yosys -> nextpnr-xilinx -> fasm2frames -> xc7frames2bit
 in the container, as the caller, with the repo mounted at its own path; nothing
@@ -100,7 +149,8 @@ glass SoC (PS7 + GP0, the DDR-framebuffer video, the sealed CPU) **meets sys
 - nextpnr `--placer-heap-congestion-spread --placer-heap-timingweight 30`
   (`OPENXC7_PNR_OPTS`). Without the spreading the PS7 SoC packs into a hot spot
   the router never clears;
-- **the seed, pinned to 8** (`OPENXC7_SEED`). One netlist gives sys 76-102 MHz
+- **the seed, pinned to 5** (`OPENXC7_SEED`; it was 8 until the ODDR
+  serialiser changed the netlist, see below). One netlist gives sys 76-102 MHz
   over seeds 1-12, so the seed is part of the build. The same netlist and seed
   give the same result (rerun and a fresh end-to-end build: 100.63 / 125.19 MHz,
   the same netlist JSON byte for byte). Any netlist change draws again: re-sweep
@@ -114,7 +164,12 @@ target):
 | sys | 102.0 | 90.9 | 82.8 | 87.4 | 90.6 | 97.0 | 90.2 | **100.6** | 94.8 | 101.1 | 97.3 | 76.1 |
 | comp | 106.8 | 118.4 | 98.9 | 100.6 | 111.7 | 138.8 | 94.9 | **125.2** | 114.2 | 118.2 | 103.0 | 113.4 |
 
-Seed 8 is the only one of the twelve that meets both clocks. A frozen
+Seed 8 is the only one of the twelve that meets both clocks. **Re-swept for the ODDR
+serialiser** (`rtl/video/zm_dvi_out.v`, 2026-10-03; `build/hdmi_oddr_soc/`):
+seed 8 now gives sys 93.1 / comp 107.5; seeds 1-5 give sys 100.9 / 98.2 /
+97.9 / 104.4 / **102.3** and comp 118.0 / 112.1 / 110.7 / 99.8 / **118.4** MHz.
+Seed 5 is pinned: sys passes, **comp misses 125 MHz** on every seed tried. The
+serialiser's own 200 MHz domain closes on all of them (310-405 MHz). A frozen
 placement (`-o preplaced=`, the pinned nextpnr's replay of a reference build's
 bels) would survive small netlist changes better than a seed, but it aborts on
 this build (`std::out_of_range` from `dict::at()` while packing, with even one

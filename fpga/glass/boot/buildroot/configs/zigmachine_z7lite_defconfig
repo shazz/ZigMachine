@@ -24,3 +24,11 @@ BR2_LINUX_KERNEL_CUSTOM_DTS_PATH="$(BR2_EXTERNAL_ZIGMACHINE_PATH)/../zigmachine-
 BR2_TARGET_ROOTFS_CPIO=y
 BR2_TARGET_ROOTFS_CPIO_UIMAGE=y
 # BR2_TARGET_ROOTFS_TAR is not set
+# The remote shell over the RJ45 (docs/FPGA_GLASS.md, "Remote shell"): DHCP on
+# eth0 (ifupdown + busybox udhcpc, S40network), ssh (dropbear, S50dropbear, keys
+# only: root has no password), and mDNS so the board answers as zigmachine.local
+# (avahi-daemon, S50avahi-daemon).
+BR2_SYSTEM_DHCP="eth0"
+BR2_PACKAGE_DROPBEAR=y
+BR2_PACKAGE_AVAHI=y
+BR2_PACKAGE_AVAHI_DAEMON=y

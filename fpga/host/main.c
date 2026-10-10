@@ -80,6 +80,25 @@ static void frame(sha256_ctx* h, u32 planes, u32 size) {
     }
 }
 
+/* HOST_DUMP_PFB=<path>: the PFB after the last frame, as the board's
+ * tools/board_shot.py --what pfb dumps it (its --expect). */
+static void dump_pfb(u32 size) {
+    const char* path = getenv("HOST_DUMP_PFB");
+    if (!path) return;
+    FILE* f = fopen(path, "wb");
+    if (!f || fwrite(g_env.memory.data + w2c_machine_hwPhysicalPtr(&g_env.machine), 1, size, f) != size) {
+        fprintf(stderr, "host: cannot write %s\n", path);
+        exit(1);
+    }
+    fclose(f);
+    const char* vpath = getenv("HOST_DUMP_VRAM"); /* the region's VRAM, 64 KiB: board VRAM compares */
+    if (!vpath) return;
+    u32 vram = w2c_machine_hwPhysicalPtr(&g_env.machine) - 0x101100u + 0x1100u; /* - OFF_PFB + OFF_VRAM */
+    FILE* v = fopen(vpath, "wb");
+    if (!v || fwrite(g_env.memory.data + vram, 1, 65536, v) != 65536) exit(1);
+    fclose(v);
+}
+
 static void print_json(const char* cart, long n, long k, char (*hashes)[65], long count, const char* total) {
     printf("{\"cart\":\"%s\",\"frames\":%ld,\"every\":%ld,\"calls\":[", cart, n, k);
     for (int i = 0; i < g_ncalls; i++) printf("%s\"%s\"", i ? "," : "", g_calls[i].spec);
@@ -117,6 +136,7 @@ static void run(const char* cart, long n, long k) {
     char hex[65];
     sha256_hex(&total, hex);
     print_json(cart, n, k, hashes, count, hex);
+    dump_pfb(size);
     free(hashes);
 }
 

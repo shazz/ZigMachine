@@ -16,6 +16,7 @@ pub const Error = zmd.Error || error{
     DdrMismatch, // the window did not read back what was written
     CartTrapped, // the firmware reported a trap while booting
     CartSilent, // the firmware never reported RUNNING
+    WarmLost, // a warm boot found no cart memory to keep (TRAP_WARM_LOST): reset cold
     OutOfMemory,
 };
 
@@ -32,11 +33,12 @@ pub const Options = struct {
 
 fn noIdle() void {}
 
-pub const Report = struct { image_bytes: u32, packed_bytes: u32, polls: u32, trap: u32 = 0 };
+pub const Report = struct { image_bytes: u32, packed_bytes: u32, polls: u32, trap: u32 = 0, fw: u32 = 0 };
 
-/// Stop the cart CPU, keeping the OSD bit as it is.
+/// Stop the cart CPU, keeping the OSD bit as it is (and dropping WARM: the next
+/// boot is cold unless warm() asks again).
 pub fn hold(regs: bus.Regs) Error!void {
-    regs.write(map.REG_CTRL, regs.read(map.REG_CTRL) & ~map.CTRL_RUN);
+    regs.write(map.REG_CTRL, regs.read(map.REG_CTRL) & ~(map.CTRL_RUN | map.CTRL_WARM));
     if (regs.read(map.REG_STATUS) & map.ST_RUNNING != 0) return error.WontStop;
 }
 
@@ -78,15 +80,33 @@ pub fn load(gpa: std.mem.Allocator, regs: bus.Regs, ddr: bus.Ddr, disk: []const 
     return report;
 }
 
+/// The ST's reset button: the cart CPU restarts over the memory it has, which
+/// nothing here touches. The firmware sees CTRL_WARM at boot (glass_boot.h); a
+/// cold load writes CTRL without it, and so does this once the cart is up.
+pub fn warm(regs: bus.Regs, opt: Options) Error!Report {
+    try checkGlass(regs);
+    try hold(regs);
+    const osd_bit = regs.read(map.REG_CTRL) & map.CTRL_OSD;
+    regs.write(map.REG_CTRL, osd_bit | map.CTRL_WARM | map.CTRL_KEY_FLUSH);
+    regs.write(map.REG_CTRL, osd_bit | map.CTRL_WARM | map.CTRL_RUN);
+    var report = Report{ .image_bytes = regs.read(map.REG_LOAD_SIZE), .packed_bytes = 0, .polls = 0 };
+    if (opt.wait_boot) try waitBoot(regs, opt, &report);
+    regs.write(map.REG_CTRL, regs.read(map.REG_CTRL) & ~map.CTRL_WARM);
+    return report;
+}
+
 fn waitBoot(regs: bus.Regs, opt: Options, report: *Report) Error!void {
     while (report.polls < opt.boot_polls) : (report.polls += 1) {
         const state = regs.read(map.REG_CART_STATE);
-        switch (state & 0xFF) {
-            map.CART_RUNNING => return,
+        switch (state & map.CART_STATE_MASK) {
+            map.CART_RUNNING => {
+                report.fw = state >> map.CART_ARG_SHIFT;
+                return;
+            },
             map.CART_TRAPPED => {
-                report.trap = state >> 8;
+                report.trap = state >> map.CART_ARG_SHIFT;
                 try hold(regs);
-                return error.CartTrapped;
+                return if (report.trap == map.TRAP_WARM_LOST) error.WarmLost else error.CartTrapped;
             },
             else => opt.idle(),
         }

@@ -19,12 +19,171 @@ says otherwise.
 | — | Whole SoC elaborated against the real board | **done** | 2,408 LUTs (13.7 %) synthesised |
 | — | Video to the wire: mixer, scanout, TMDS/DVI, in the SoC | **done** | mixer = Chrome byte for byte; 40/40 frames; 90/90 carts replay identically |
 | — | openXC7 toolchain (Docker, pinned) + first bitstream | **done** | `make -C fpga blink`; the full SoC routes |
+| — | f32 FPU variant of the cart CPU (`vexgen ... fpu`, RV32F, no D) | **measured, not adopted** | +2,348 LUT / +1,900 FF / +2 DSP (13 % of the 7010); hashes 16/16 equal; no clock-setting cart gains a cycle, the f64 carts get 5-6 % slower; fmax: **does not place** under openXC7 (base 91.7 MHz); see `fpga/CYCLES.md` "f32 FPU" |
 | — | Timing closure under openXC7 (pass 2) | **done at 100 MHz** | glass SoC **meets sys 100 / comp 125 MHz** (seed 8, pinned); compositor on its own clock; skystrike needs 119 |
 | — | The glass: ARM loader + OSD menu + USB keyboard/mouse/pads ([`FPGA_GLASS.md`](FPGA_GLASS.md)) | **built, host-tested** | GP0 regs + OSD in RTL (19/19 break tests), Zig `glass` (37 tests), input break tests 18/18, 9 board images land byte for byte; **GP0 + OSD proven on the board from U-Boot** |
-| 1–7 | **Board bring-up on the real Z7-Lite** | **5 milestones on silicon** | blink · HDMI video · U-Boot + DDR · HDMI audio · ARM→GP0→OSD (see "the board is alive") |
+| 1–7 | **Board bring-up on the real Z7-Lite** | **7 milestones on silicon** | blink · HDMI video · U-Boot + DDR · HDMI audio · ARM→GP0→OSD · YM music · **the first cart at 60 fps from DDR** (picture fix pending on the board: see "the picture bug hunt") |
 | RTL | Video timing (`zm_vtiming`) | **done** | 64 LUTs, CXXRTL-tested over 2 frames |
 | RTL | Video compositor: planes, palettes, border, BEAM, all modes | **done** | **32/32 frames pixel-identical** to the machine; 25/25 mutants caught; 1,169 LUTs |
 | — | DDR framebuffer video: sequencer, snoop, double buffer, scanout DMA | **done** | the cart CPU + the RTL video in Verilator: **5/5 carts hash = scene_hash** (tutorial, union_main, badflicker, equinox, dhs_0pxl0reg); 49/49 RTL mutants caught |
+| — | The blitter on the board SoC: `zm_blit` on **HP2**, registers tapped off the CPU's stores, the start from the firmware's `hwBlit` (ADR 2026-10-04; z7 `--blit`) | **sim done** | `make hp-sim` (`ZM_BLIT=hw`): **blitter (10 frames) and tsl_hybridglenz (10, and 120) hash = scene_hash**; a dropped register store and a DDR base one beat off are caught; hwBlit **26 K cycles vs 386 K** a call (blitter, 15x), **116 K vs 4.6 M** (tsl, 39x); tsl frame 2.3 Mc vs 29.1 Mc; +2,646 LUT, +1,578 FF, +8 DSP |
+
+---
+
+## 2026-10-04: the picture bug hunt, and what it taught us
+
+Milestone 7, the first cart (`tutorial`) running at 60 fps from DDR, came with a
+broken picture: half the columns wrong and the colours off. Finding out why took a
+night and about ten bitstreams. Most theories were wrong, and the wrong ones are kept
+here because each one taught something.
+
+### Solved (2026-10-09): the first clean picture on the monitor
+
+The tutorial cart runs at 60 fps on the monitor, clean (milestone 8), built with **Vivado 2026.1**
+(`fpga/build/board_hp/zm_hp_vivado_fetchsync_80.bit`). Three more lessons after the night below:
+- **The primitive self-test settled the openXC7 question in 3 ms** (`make prim-test`, 39/45 pass):
+  RAMB36 SDP x72, RAMB36 TDP x9 (the parity bit) and SRL16E/SRLC32E fail on silicon. `-nosrl` removed
+  the last vertical lines; a remaining shear under openXC7 vanished under Vivado with the same RTL.
+- **Vivado is the oracle:** synth + P&R in ~3 min (openXC7: 19+ min for this netlist), timing on every
+  path. Two RTL lines Yosys accepted needed fixing (`wire a, b = …`; a function named `cell`).
+- **The last bug was ours:** `zm_video_scanfetch.v` could lock the scanout fetch ~88 lines out of phase
+  with the beam (HP1 is held until CTRL.RUN, which lands mid-frame, and a remembered VBL kept restarting
+  it early), so every line showed black. Now the fetch waits for a fresh VBL and locks within a frame.
+  Found without an ILA (the free licence refuses debug cores) by a netlist ECO that routed the scanout
+  state to the glass SCRATCH register, read from U-Boot.
+
+### What it was
+
+- **The real cause: openXC7 writes a wrong bitstream for a RAMB36E1 in 72-bit SDP
+  mode.** The A half (bits 0-35) of every word is wrong on silicon. Yosys picks that
+  mode for any inferred RAM wider than 36 bits. Here that was the compositor's 48-bit
+  accumulator and the 64-bit plane fetch buffer. Simulation, gate-level included, gets
+  that mode right, so no sim could ever show the bug.
+  - **Fix:** `rtl/video/zm_video_sdpram.v` builds any RAM wider than 32 bits from
+    ≤32-bit slices (RAMB18s, which work). Proven in sim; the board check is pending.
+  - **Rule:** under openXC7, never let Yosys infer a RAM wider than 36 bits.
+- **A second fault: nextpnr does not time the PS7's HP pins.** Its timing report has
+  no path through the PS7, so the logic between the HP ports and the fabric meets
+  timing or not by luck of placement. The CPU running on some builds of an identical
+  netlist and not on others fits that.
+  - **Fix:** a register slice on every HP0/HP1/HP2 channel at the PS7
+    (`soc/zm_board_mem.py` `hp_slice()`), so each pin meets one flip-flop.
+
+### Theories that were wrong, in order
+
+| # | Theory | What we tried | Why it was wrong |
+|---|---|---|---|
+| 1 | A 32-bit AFI write channel drops the upper half of each 64-bit write beat | WR32: every write as 4-byte beats, AFI `WRCHAN_CTRL = 0xf01` | Real (UG585 5.3.6), and kept, but not this bug. The diagnostic firmware showed CPU stores and plain row writes were exact |
+| 2 | The sys→comp LUTRAM crossing queue on the read path | That queue in flip-flops, plus a read probe | The probe showed the data arrives intact on both sides of the crossing |
+| 3 | The LUTRAM write queue | Two copies of the write queue (LUTRAM and FF) plus a write probe | That bitstream killed the CPU outright, at 100 and at 80 MHz (likely the untimed HP pins) |
+| 4 | An untimed clock crossing | sys and comp on one 80 MHz clock, every path timed | The picture stayed wrong. On a clean port, the output was byte-for-byte identical to the two-clock build. That ruled out queues, CDC and placement, and pointed at something deterministic |
+| 5 | The CPU dies from a failed sys timing | A rebuild at sys 80 that met timing | The CPU still didn't run. The cause was elsewhere (see the HP pins) |
+
+### The trap that wasted half the night: a wedged HP port
+
+A PL reload in the middle of a DMA write burst left the HP1 AFI (on the PS side)
+waiting for data beats that never came. **That survives every PL reload.** From then
+on, every HP1 write hung, on every bitstream, so every result after that point
+measured the wedge, not the RTL. `hp-test` exposed it (HP0 raw writes fine, HP1 hung
+with 0 beats), and an RST KEY cleared it.
+
+- **Rule:** before any reload, stop the cart (`mw.l 0x43c00008 0`) and wait for the
+  DMA to go idle.
+- **Fix:** the video DMA now waits for CTRL.RUN, and CTRL 0 drains it to idle
+  (`soc/zm_video_axi.py` `enable`). A fresh bitstream can't talk to an unconfigured
+  AFI, and a reload never cuts a burst.
+- **Open:** the first gated bitstream stalled the CPU at boot (CART_STATE 1, no
+  mailbox). That build predates the HP slices.
+
+### What worked as debugging tools
+
+- **The diagnostic firmware** (`cycles/bdiag.c`): a mode word in DDR picks a
+  self-test instead of the cart, so there is no rebuild per question. diag5 also
+  writes `5A<wait#><STATUS>` to CART_BEAT while it waits, so a hang shows which
+  status bit never came.
+- **Probes in CSRs** (`soc/zm_hp_probe.py`): latch the first beats at RDATA and
+  after the crossing. One run tells the AXI side from the PL side.
+- **`make hp-test`**: a small design with raw AXI engines on HP0/HP1 and the real
+  `ZMVideoAXI`. It builds once, in about 7 min; after that every DDR-port question
+  is a few U-Boot `mw`/`md`. It found the wedge and cleared the AXI side.
+- **`board_shot.py`**: a screenshot through U-Boot from the debug mailbox, no camera.
+- **Comparing two builds byte for byte**: identical output from very different
+  netlists means a deterministic cause (a primitive, a protocol), not timing.
+
+### The tooling we lacked (each would have cut hours)
+
+1. **A primitive self-test bitstream.** One design that uses every primitive and
+   mode the SoC uses (RAMB36 SDP x72, RAMB18, the LUTRAMs, SRL, DSP, carry, ODDR),
+   each checking itself against a pattern and reporting over GP0. Run it once per
+   openXC7 version, and the x72 bug shows in minutes. openXC7 has now failed us
+   twice on a primitive mode (the OSERDES cascade, the x72 RAM).
+2. **A primitive allowlist in `make check`.** List the cells and modes Yosys
+   inferred, and fail on any not yet proven on silicon by (1).
+3. **An on-chip logic analyser.** LiteScope (part of LiteX) captures chosen signals
+   into BRAM on a trigger, readable over GP0 from U-Boot. One capture of the
+   accumulator RAM's input and output would have shown the bug directly, instead of
+   a hand-made probe CSR per theory.
+4. **A board preflight.** Before any SoC test, run `hp-test` raw writes and reads
+   on every HP port. It would have caught the wedged HP1 before the night's runs
+   instead of after.
+5. **One command per board run.** Load, AFI, loadx, crc, run, probe and shot as a
+   single script with a pass/fail result. Doing it by hand cost time and caused
+   mistakes (stale prefills, a reload mid-burst).
+6. **A lint that every PS7 pin goes through a register.** nextpnr doesn't time them.
+7. **A Vivado cross-check** of the same RTL. If it works there and not with
+   openXC7, it's the toolchain. The WebPACK edition covers the 7010.
+
+**1 and 2 are built (2026-10-04), not yet run on the board.**
+- `make -C fpga prim-test` (`rtl/board/prim_test_top.v`, `rtl/board/prim_test/`): one lane per mode, each an
+  INFERRED memory or operator written the way the SoC's RTL writes it, so Yosys maps it to the mode
+  under test (45 lanes): RAMB36 SDP x72 (512 and 256 words, 8 byte enables), RAMB18 SDP x36 (512 words, a
+  256-word memory, words 256-511 and 384-511 of 512, 9- and 8-bit byte enables), RAMB18/RAMB36 TDP
+  at every width (x1 to x36), and every width that has bytes (x16/x18, x32/x36, x72) with per-byte
+  write enables too, 9-bit and 8-bit, one-port write-first (2 byte enables, as
+  VexRiscv) and read-first, the ROM, RAM32M, RAM64M, SRL16E, SRLC32E, the 11 DSP48E1 configurations
+  of the SoC and blitter netlists plus a multiply-accumulate, CARRY4, MUXF7/MUXF8. Each writes an
+  LFSR pattern and its inverse, reads back and compares with a reference built in the fabric
+  (another LFSR, a shift-and-add multiplier, a bit-serial adder); results on GP0 for U-Boot
+  (`tools/prim_test_read.py`, which also names the failed byte lanes; `boards/microphase_z7_7010/README.md`
+  "prim-test"). All 45 pass in
+  CXXRTL (`tests/test_rtl_prim_test.py`); a reference bit inverted in any of 10 lanes, one of each
+  kind, is reported as that lane failing alone (`ZM_RTL_BREAK=1`). 12 k LUT, 11 k FF, 25 BRAM,
+  11 DSP; about 7 min to build.
+- `tools/prim_allowlist.py` + `fpga/silicon_prims.json`: every cell type, and for block RAMs and
+  DSPs every mode (widths, write modes, write-enable count; OPMODE and registers), with a status:
+  proven, pending (a prim-test lane covers it, no board result yet), suspect, bad. Seeded from the
+  running cart SoC (`soc_z7_gated`), with SDP x72 bad, SDP x36 suspect, and every block RAM with
+  per-byte write enables suspect (board: RAMB18 TDP x18 with byte WE lost byte lanes 1, 2, 6 of a
+  64-bit word). The write-enable pattern is part of the key (`we1` whole word, `we2/4/8` byte
+  enables: the count of distinct nets on WEA/WEBWE).
+  `tests/test_prim_allowlist.py` fails `make check` when the board SoC netlist uses a bad mode or
+  one never on silicon; pending and suspect are warnings (`--strict` makes them errors).
+
+### The build loop (`fpga/BUILD_LOOP.md`)
+
+- **Every build prints its stage times** (`build/build_times.txt`). Placement is
+  55-70 % of a 4-6 min full build.
+- **`make sweep SEEDS=…`** runs P&R on an existing netlist, two seeds at a time.
+  Its 900 s cap is too short for a 15K-cell netlist: four of six seeds hit it.
+- **`make soc-dev`** replays the previous placement. That saves time only on an
+  identical netlist (64 s instead of 226 s of P&R); after a real edit it saves
+  nothing, because Yosys renumbers cells everywhere. The fix would be to synthesise
+  each module separately; not done.
+- **Every nextpnr run is capped** (`OPENXC7_PNR_TIMEOUT`, 1500 s): an uncapped HeAP
+  placement once ran 52 min.
+- **Size is speed:** the FF crossing queues (+4.3K FF) grew the netlist from 9.4K
+  to 15K cells. Full builds went from 4-6 min to 25+ min, and the `--blit` build
+  could no longer place ("Unable to find legal placement … SLICE_FFX"). Those queues
+  turned out not to be the cause, so they go back to LUTRAM once the RAM fix is
+  confirmed.
+
+### Board rules learned (also in `fpga/boards/microphase_z7_7010/README.md`)
+
+- Load the PL BEFORE touching the AFI registers (`0xF800_8000`…), or the ARM hangs.
+- Never change an AFI width while PL traffic runs.
+- Never reload the PL while an HP DMA may be mid-burst (see the wedge above).
+- After a reset, U-Boot's network-boot retry loop can ignore a single Ctrl-C.
+  Sending Ctrl-C every 0.1 s across the reset catches the countdown.
 
 ---
 
@@ -36,6 +195,7 @@ says otherwise.
 | 2 | **HDMI test pattern** (`hdmi-test-oddr`) | the video path at 800×600@60, through an ODDR serialiser (the OSERDES cascade fails under openXC7) |
 | 3 | **U-Boot + DDR** (zeST `BOOT.BIN` on SD) | the ARM side boots; DDR3 512 MB at 533 MHz; `mtest` clean |
 | 4 | **HDMI audio** (`hdmi-audio-test`) | data islands + InfoFrames + ACR: a 440/660 Hz stereo tone from the monitor's speakers |
+| 6 | **The YM2149 plays "Drooling" by 505** (`ym-test`) | jt49 from a BRAM register dump, the audio core (YM + 4-ch PCM + mixer), 44.1 kHz over HDMI with exact alternating CTS: real ST music from the hardware YM |
 | 5 | **The OSD, driven by the ARM** (`osd-test`) | GP0 at `0x43C0_0000` from U-Boot (ID `5a4d474c`, scratch read-back), "HELLO FROM THE ARM" + the time, OSD on/off, recoloured live |
 
 - **First light.** `openFPGALoader -c digilent_hs2 --detect` sees the JTAG chain:
@@ -54,6 +214,15 @@ says otherwise.
   reference sink in the testbench decodes 3 frames (14 break tests).
   `make -C fpga edid-test` shows a monitor's EDID as hex on screen
   (`tools/edid_decode.py` decodes it).
+- **The machine's sound, built for the board** (`make -C fpga ym-test`, not yet
+  loaded): HDMI audio at **44.1 kHz with exact timing** (N 6272, CTS measured
+  from the sample strobe's own accumulator: 44444/44445, the average exact), the
+  audio core (`rtl/audio/`: jt49 as the ST's YM, the four Paula channels, the
+  machine's mix; **PCM sample-identical to the Zig machine**, 1,270 LUTs) and a
+  bitstream playing "Drooling" (505) from a YM dump in BRAM. The ABI as
+  registers, the verification and the YM findings (jt49 is closer to a real ST
+  than `ym.zig`, whose envelope shapes 11 and 15 hold at the wrong end):
+  [`FPGA_AUDIO.md`](FPGA_AUDIO.md).
 - **HDMI works** (`make -C fpga hdmi-test-oddr`): 800×600@60 colour bars, the
   bouncing box and the 8-bit ramps on a monitor, from the PL alone. **Finding:**
   the OSERDESE2 10:1 master/slave cascade (`zm_dvi_out`) routes correctly under
@@ -94,7 +263,90 @@ says otherwise.
   (`tests/tb/osd_test_tb.cpp`, 5 break tests); `make -C fpga osd-test-sim` draws them
   (`build/osd_test/osd_*.png`).
 
+### The first cart, built for the board: main RAM and video in PS DDR over HP0/HP1
+
+No Linux: U-Boot puts the firmware image in DDR, the PL is loaded over JTAG, and
+a GP0 write releases the cart CPU (procedure: `fpga/boards/microphase_z7_7010/README.md`,
+"Running a cart from U-Boot"; files in `fpga/build/board_hp/`).
+
+- **Memory** (`soc/zm_board_mem.py`): the cart CPU's 32 MiB main RAM at bus
+  `0x4000_0000` IS PS DDR `0x0400_0000` (free under U-Boot). The CPU reaches it
+  on **S_AXI_HP0** through `soc/zm_hp.py` (32-bit Wishbone -> 64-bit AXI3; a
+  cache-line refill is one 4-beat burst, a store one blocking write), the video
+  DMA on **S_AXI_HP1** through `soc/zm_video_axi.py` (bursts of 16, pipelined,
+  never across 128 bytes). One PS7 instance carries GP0 + HP0 + HP1. No boot
+  ROM: the reset vector is the window's first word, the CPU held in reset by the
+  glass until CTRL.RUN. No posted-write buffer yet (the 8-entry one CYCLES.md
+  recommends is next).
+- **Firmware** (`cycles/bmain.c`, `cycles/bboard.c`, `make board-fw CART=..`):
+  the sequencer firmware of the video sim, linked for the board's CSR map
+  (checked equal to the sim's by `tools/cycles_csr.py --hp-check`); it reports
+  CART_STATE / CART_BEAT through the glass, prints nothing.
+- **Sim** (`soc/hp_sim.py`, `make hp-sim CART=tutorial`): the same SoC and the
+  same board core, with a DDR model behind HP0/HP1 (20-clock first beat, answers
+  only inside the window, poisons writes on a WLAST/AWLEN mismatch) and a
+  "U-Boot" that writes CTRL.RUN over GP0. **tutorial: frames 5 and 10 hash =
+  scene_hash.mjs = native**, no underrun; 1.40-1.65 M sys clocks a frame at
+  100 MHz (60 fps). 7 Migen tests, 3 of them mutants (lane select, wrong DDR
+  map, late WLAST), all caught.
+- **Bitstream** (seed 5, `fpga/build/board_hp/zm_hp_s5_comp125.bit`): sys
+  **109.5 MHz** (pass at 100), comp **121.7** (misses 125 by 2.6 %), pix 130.8,
+  pix5x 458.5. 10,600 LUTs (30 %), 7,084 FFs, 9 RAMB36 + 16 RAMB18, 17 DSP.
+
+### On the board: the cart runs at 60 fps; every odd picture column was never written (fixed: WR32)
+
+- First load (`zm_hp_s5_comp125.bit`): CART_STATE 2, CART_BEAT ~60/s, the
+  tutorial's layout and colours in place, but **every second column pure black**:
+  the upper 32-bit half of every 64-bit WRITE beat never reached DDR, on HP1
+  (pictures) and on HP0 (the CPU's stores into VRAM: the staggered block, the
+  broken checker at the bottom). Reads of both halves were fine (the CPU runs code
+  from odd words). The RTL and the routed netlist drive all 64 WDATA bits and
+  WSTRB 0xFF; UG585 5.3.6: a 32-bit AFI write channel "expands" an 8-byte beat and
+  keeps WDATA[31:0] only, which is exactly this.
+- **Fix (WR32):** every write is now 4-byte beats on WDATA[31:0] / WSTRB[3:0]
+  (the DMA sends a 64-bit beat as two, bursts of 16 aligned to 64 bytes, which
+  the AFI upsizes), and U-Boot sets both AFI write channels 32-bit
+  (`WRCHAN_CTRL = 0xf01`); reads stay 64-bit. The sim's DDR model now runs its
+  write channels that way: the old RTL reproduces the black columns there
+  (`tests/test_board_mem.py`, a break test), the new one hash-matches tutorial
+  (frames 5, 10 = scene_hash). `zm_hp_wr32_s5_comp120.bit`: sys 109.5, comp
+  120.2 (at 120), pix 136.4, pix5x 462.5 MHz, all pass.
+- **WR32 did not fix it; the diagnostic narrowed it** (`cycles/bdiag.c`, a mode
+  word in DDR picks a test instead of the cart, no rebuild): CPU stores and loads
+  over HP0 are exact (modes 1, 2). A BG pass writes its row exactly (mode 3), and
+  AWCACHE 0 vs 0b0011 changes nothing. Only a pass that READS through the
+  compositor's read port (mode 4, a MIX of a known row) is wrong: even pixels
+  are constants (`0054aa55` / `00fdfeff`), odd pixels keep bits 44-55 and lose
+  bits 32-43 to constants. The constants depend only on the beat's parity, never
+  on the data, so no AXI lane, size or width setting can produce them.
+  - The fault is in the PL between RDATA and the mixer. The RTL sim, and a
+    gate-level sim of that path's Yosys netlist (RAM32M models, `fpga/build/gl_queue/`), are both exact. So it
+    arises after synthesis (placement, routing or bitgen of the sys->comp LUTRAM
+    queue under openXC7) or on silicon.
+  - Next bitstream: that one queue in flip-flops (all four did not place: a
+    52-min placer stall, now capped by `OPENXC7_PNR_TIMEOUT`), plus a probe CSR
+    (`soc/zm_hp_probe.py`) that latches the first two beats at RDATA and at the
+    queue's output, so one run tells the AXI side from the crossing.
+- **ROOT CAUSE (2026-10-04): wide block RAMs.** With a clean HP1 (after an RST; a
+  burst cut by a PL reload had wedged its AFI overnight, and that survives reloads), the
+  mode-4 output was byte-identical on a two-clock LUTRAM build and a one-clock FF build,
+  so it was neither the queues, the clock crossing nor the placement. The read probe was
+  clean, and hp-test replaying ZMVideoAXI's exact write pattern on HP1 wrote DDR
+  perfectly. The bad bits are 0-35 of the compositor's 48-bit accumulator word
+  ({pix1 RGB, pix0 RGB}): exactly the A half of a RAMB36E1 in SDP 72-bit mode, which
+  is how Yosys maps any RAM wider than 36 bits (the accumulator, and the plane fetch
+  buffer `u_fbuf`, 64-bit). The 36-bit SDP RAMB18s (the line buffers) work. Simulation,
+  gate-level included, models the primitive right, so this lives in the openXC7 /
+  prjxray bitstream for that mode. Fix: `rtl/video/zm_video_sdpram.v` builds anything
+  wider than 32 bits from <= 32-bit slices (RAMB18s).
+- **Screenshots without a camera:** a debug mailbox at DDR `0x05ff_ff00`
+  (`cycles/bmailbox.h`: fixed picture addresses, frame count, PFB, a freeze
+  handshake) and `tools/board_shot.py` (U-Boot `md.l`, checked line by line,
+  PNG); `HOST_DUMP_PFB` on the native host gives the expected PFB to compare with.
+
 ## 2026-10-03
+
+- **The blitter, in RTL, standalone** (`fpga/rtl/blitter/`, `docs/BLITTER_HW_SPEC.md` §10): FILL, BLIT, LINE, TRIANGLE with the register block and `CYCLES`, behind separate read/write ports. `machine/blitter.zig`, run natively, is the oracle: **910 scripted ops + 8,200 random ones**, each in two memory-timing modes, identical in memory, `CYCLES` and `STATUS` after every op; 23/23 break tests caught. **2,596 LUT, 1,340 FF, 0 BRAM, 8 DSP**; 1 pixel/clock for a plain fill or line, 4-6 clocks for the read-modify-write ops (single-word v1, pipelined reads and bursts next). Not on the SoC yet (HP2, a snoop on the store buffer, `hwBlit` = write `COMMAND` and poll).
 
 ### Timing pass 2: the compositor on its own clock, the predictor on trial, a pinned seed
 
@@ -238,6 +490,15 @@ master and HP bridge; the cart CPU is the limit for union_main (48 Mc a frame of
   any button = bit 0, a double-click pulse = bit 1). `zm_glass_regs` is now
   254 LUT. Pads gained `xpad` and the Sony, PlayStation, Nintendo and Microsoft
   HID drivers.
+- **The console page** (2026-10-03, Matt's must-haves): **cold reset** (reload
+  from SD, window zeroed) and **warm reset** (`CTRL.WARM`: the CPU restarts over
+  its memory; firmware hook `glass/firmware/glass_boot.c`, stubbed), a master
+  **volume + mute** in a new `AUDIO_VOL` register (0x3C, VERSION 1.2.0) for the
+  audio mixer to multiply in, persisted in `glass.cfg`; a live **debug page**
+  (versions + git hash, CART_STATE/beat/fps, loads, uptime, DDR, XADC
+  temperature, memory, the pad's name); **cart descriptions** from `shelf.txt`
+  (`fpga/tools/shelf_meta.py`); the Linux side of an ssh shell over Ethernet.
+  `zm_glass_regs` 245 LUT; 56 Zig tests, 26 RTL + 33 ARM/firmware break tests.
 - **Open:** routing the SoC with the PS7 under openXC7 diverges (overuse 730 to
   1,830 over 51 iterations). Also open: the HP-port master and the board firmware
   that reports `CART_STATE`.

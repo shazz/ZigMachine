@@ -16,7 +16,7 @@ pub const GP0_BASE: u32 = 0x43C0_0000;
 pub const WINDOW_BYTES: u32 = 0x1_0000;
 
 pub const ID_VALUE: u32 = 0x5A4D_474C; // "ZMGL": the ARM refuses to drive anything else
-pub const VERSION: u32 = 0x0001_0100; // 1.1.0: REG_POINTER
+pub const VERSION: u32 = 0x0001_0200; // 1.2.0: REG_AUDIO_VOL, CTRL_WARM (1.1.0: REG_POINTER)
 
 // --- registers (byte offsets, 32-bit, word access only) ----------------------
 pub const REG_ID: u32 = 0x00; // ro
@@ -34,6 +34,7 @@ pub const REG_OSD_FG: u32 = 0x2C; // rw, 0x00RRGGBB
 pub const REG_OSD_BG: u32 = 0x30; // rw, 0x00RRGGBB
 pub const REG_SCRATCH: u32 = 0x34; // rw, bring-up: proves the bus before anything else
 pub const REG_POINTER: u32 = 0x38; // rw, the mouse (PTR_*); reads back with the cart's view
+pub const REG_AUDIO_VOL: u32 = 0x3C; // rw, AUDIO_*: the master volume and mute the PL's mixer applies
 
 // The OSD text: one character a WORD (no byte lanes to get wrong), row-major.
 // Write-only: the ARM keeps the text it wrote, reads return 0.
@@ -54,6 +55,10 @@ pub const OSD_Y0: u32 = (600 - OSD_HEIGHT) / 2; // 172
 pub const CTRL_RUN: u32 = 1 << 0; // 0 holds the cart CPU in reset (the reset value)
 pub const CTRL_OSD: u32 = 1 << 1; // show the OSD over the picture
 pub const CTRL_KEY_FLUSH: u32 = 1 << 2; // strobe: empty the key FIFO, clear ST_KEY_OVERFLOW
+// The next boot is WARM: the firmware keeps the cart's memory and re-enters the
+// cart's boot (the ST's reset button). Stored; the firmware reads it once, at boot
+// (glass/firmware/glass_boot.h). A cold load writes CTRL without it.
+pub const CTRL_WARM: u32 = 1 << 3;
 
 pub const ST_RUNNING: u32 = 1 << 0; // the cart CPU is out of reset
 pub const ST_KEY_FULL: u32 = 1 << 1;
@@ -131,6 +136,23 @@ pub const CART_RESET: u32 = 0; // also what a CPU held in reset leaves there
 pub const CART_BOOTING: u32 = 1;
 pub const CART_RUNNING: u32 = 2;
 pub const CART_TRAPPED: u32 = 3; // bits 31:8 = the wasm2c trap code
+// Bits 31:8 carry an argument: TRAPPED's trap code; BOOTING's and RUNNING's
+// firmware version (major.minor.patch, 8 bits each), which the debug page shows.
+pub const CART_ARG_SHIFT: u32 = 8;
+pub const CART_STATE_MASK: u32 = 0xFF;
+// A warm boot found no cart memory to keep (a cold load zeroed it, or the cart
+// never finished its cold boot): the ARM offers a cold reset instead.
+pub const TRAP_WARM_LOST: u32 = 0xFF_FF01;
+
+// --- the master volume (REG_AUDIO_VOL) -----------------------------------------
+// The mixer (fpga/rtl/audio/) multiplies every mixed sample before the HDMI
+// sample FIFO: gain = vol + vol[7] (0..256, so 255 is exactly unity), out =
+// (sample * gain) >>> 8, and 0 while AUDIO_MUTE is set. The ARM restores it from
+// glass.cfg at start; the reset value plays at unity, so a PL with no glass
+// program running is never silent.
+pub const AUDIO_VOL_MASK: u32 = 0xFF;
+pub const AUDIO_MUTE: u32 = 1 << 8;
+pub const AUDIO_VOL_RESET: u32 = 0xFF;
 
 // --- DDR (PS physical addresses) ---------------------------------------------
 // The cart CPU's whole RAM: the top 32 MiB of the Z7-Lite's 512 MiB, kept from

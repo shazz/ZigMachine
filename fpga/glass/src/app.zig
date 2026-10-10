@@ -1,7 +1,7 @@
 // The glass program's behaviour, independent of where the registers are: the
-// OSD hotkey, the menu, routing keys and the pad to the cart, loading and
-// resetting, and noticing a cart that died. main.zig gives it the board's
-// /dev/mem windows; app_test.zig gives it the simulated ones.
+// OSD hotkey, the menu, routing keys and the pad to the cart. What the menu's
+// actions do (loads, resets, settings, the debug page) is app_cart.zig.
+// main.zig gives it the board's /dev/mem windows; the tests the simulated ones.
 //
 // While the OSD is open the cart gets NO input (MiSTer's rule): every key,
 // pad bit and mouse button the cart saw go down is released first, so nothing
@@ -16,10 +16,16 @@ const osd = @import("osd.zig");
 const menu = @import("menu.zig");
 const shelf = @import("shelf.zig");
 const loader = @import("loader.zig");
+const stats = @import("stats.zig");
+const cart = @import("app_cart.zig");
 
 const HELD_MAX = 16;
 pub const OSD_FG: u32 = 0xE0E0E0;
 pub const OSD_BG: u32 = 0x202848;
+
+fn noClock() i64 {
+    return 0;
+}
 
 pub const App = struct {
     gpa: std.mem.Allocator,
@@ -34,18 +40,30 @@ pub const App = struct {
     pad: pad.Pad = .{},
     mouse: mouse.Mouse = .{},
     open: bool = true,
-    current: ?usize = null,
+    current: ?usize = null, // the cart running now
     held: [HELD_MAX]u32 = undefined,
     n_held: usize = 0,
     opt: loader.Options = .{},
+    stats: stats.Stats = .{},
+    clock: *const fn () i64 = noClock, // ms, monotonic
+    /// The board makes the read-only SD card writable for a save (true) and
+    /// read-only again (false); returns false if it could not. null: always writable.
+    sd_writable: ?*const fn (bool) bool = null,
+    settings_dirty: bool = false,
+    sys_root: []const u8 = "/", // where board_info reads /proc and /sys
+    pad_name: [32]u8 = undefined,
+    pad_name_len: usize = 0,
+    inputs: usize = 0, // evdev nodes open (main.zig)
+    ticks: u32 = 0,
 
-    /// Check the PL, read the shelf, and show the menu.
+    /// Check the PL, read the shelf and glass.cfg, and show the menu.
     pub fn init(gpa: std.mem.Allocator, io: std.Io, regs: bus.Regs, ddr: bus.Ddr, dir: []const u8) !App {
         try loader.checkGlass(regs);
         const disks = try shelf.scan(gpa, io, dir);
-        var app = App{ .gpa = gpa, .io = io, .regs = regs, .ddr = ddr, .shelf_dir = dir, .disks = disks, .menu = .{ .titles = disks.titles } };
+        var app = App{ .gpa = gpa, .io = io, .regs = regs, .ddr = ddr, .shelf_dir = dir, .disks = disks, .menu = .{ .disks = disks.disks } };
         regs.write(map.REG_OSD_FG, OSD_FG);
         regs.write(map.REG_OSD_BG, OSD_BG);
+        cart.loadSettings(&app);
         app.setOpen(true);
         return app;
     }
@@ -54,8 +72,9 @@ pub const App = struct {
         self.disks.deinit();
     }
 
-    fn setOpen(self: *App, open: bool) void {
+    pub fn setOpen(self: *App, open: bool) void {
         if (open) self.releaseAll();
+        if (!open) cart.saveSettings(self);
         self.open = open;
         const ctrl = self.regs.read(map.REG_CTRL) & ~map.CTRL_OSD;
         self.regs.write(map.REG_CTRL, ctrl | (if (open) map.CTRL_OSD else 0));
@@ -63,8 +82,9 @@ pub const App = struct {
     }
 
     pub fn redraw(self: *App) void {
-        self.menu.titles = self.disks.titles;
-        self.menu.draw(&self.osd);
+        self.menu.disks = self.disks.disks;
+        const view = if (self.menu.page == .debug) cart.debugView(self) else @import("page_debug.zig").View{};
+        self.menu.draw(&self.osd, &view);
         _ = self.osd.flush(self.regs);
     }
 
@@ -75,7 +95,7 @@ pub const App = struct {
             return;
         }
         const ev = keymap.event(code, value, &self.mods) orelse return;
-        if (self.open) return self.act(self.menu.key(ev));
+        if (self.open) return cart.act(self, self.menu.key(ev));
         self.track(ev);
         self.regs.write(map.REG_KEY_PUSH, ev);
     }
@@ -117,60 +137,38 @@ pub const App = struct {
         for (words[0..n]) |w| self.regs.write(map.REG_POINTER, w);
     }
 
-    /// One evdev pad record; `range` is the device's own stick range.
-    pub fn padEvent(self: *App, ev_type: u16, code: u16, value: i32, x: pad.Range, y: pad.Range) void {
+    /// One evdev pad record; `range` is the device's own stick range, `name`
+    /// its evdev name (the debug page shows the last pad heard from).
+    pub fn padEvent(self: *App, ev_type: u16, code: u16, value: i32, x: pad.Range, y: pad.Range, name: []const u8) void {
+        self.pad_name_len = @min(name.len, self.pad_name.len);
+        @memcpy(self.pad_name[0..self.pad_name_len], name[0..self.pad_name_len]);
         const before = self.pad.bits;
         self.pad.x = x;
         self.pad.y = y;
         if (!self.pad.update(ev_type, code, value)) return;
         if (!self.open) return self.regs.write(map.REG_JOY, self.pad.bits);
         const pressed = self.pad.bits & ~before; // the menu takes the pad's down edges as keys
-        if (pressed & map.JOY_UP != 0) self.act(self.menu.key(map.KEY_ARROW_UP | map.KEY_DOWN));
-        if (pressed & map.JOY_DOWN != 0) self.act(self.menu.key(map.KEY_ARROW_DOWN | map.KEY_DOWN));
-        if (pressed & map.JOY_FIRE != 0) self.act(self.menu.key(map.KEY_ENTER | map.KEY_DOWN));
-    }
-
-    fn act(self: *App, action: menu.Action) void {
-        switch (action) {
-            .none => {},
-            .close => if (self.current != null) self.setOpen(false),
-            .reset => if (self.current) |i| self.load(i),
-            .load => |i| self.load(i),
-        }
-        self.redraw();
-    }
-
-    /// Load disk `i`; on success the OSD closes on the running cart.
-    pub fn load(self: *App, i: usize) void {
-        self.menu.setStatus("loading {s}...", .{self.disks.titles[i]});
-        self.redraw();
-        self.loadDisk(i) catch |err| {
-            self.current = null;
-            self.menu.setStatus("{s}: {t}", .{ self.disks.disks[i].file, err });
-            std.log.warn("load {s}: {t}", .{ self.disks.disks[i].file, err });
-            return self.redraw();
+        const keys = [_][2]u32{
+            .{ map.JOY_UP, map.KEY_ARROW_UP },     .{ map.JOY_DOWN, map.KEY_ARROW_DOWN },
+            .{ map.JOY_LEFT, map.KEY_ARROW_LEFT }, .{ map.JOY_RIGHT, map.KEY_ARROW_RIGHT },
+            .{ map.JOY_FIRE, map.KEY_ENTER },
         };
-        self.current = i;
-        self.menu.setStatus("{s} running", .{self.disks.titles[i]});
-        self.setOpen(false);
+        for (keys) |k| if (pressed & k[0] != 0) cart.act(self, self.menu.key(k[1] | map.KEY_DOWN));
     }
 
-    fn loadDisk(self: *App, i: usize) !void {
-        const path = try self.disks.path(self.shelf_dir, i);
-        const disk = try std.Io.Dir.cwd().readFileAlloc(self.io, path, self.gpa, .limited(shelf.MAX_DISK));
-        defer self.gpa.free(disk);
-        const rep = try loader.load(self.gpa, self.regs, self.ddr, disk, self.opt);
-        std.log.info("{s}: {d} bytes ({d} packed), up after {d} polls", .{ path, rep.image_bytes, rep.packed_bytes, rep.polls });
-    }
-
-    /// Called a few times a second: a cart that trapped brings the menu back.
-    pub fn watch(self: *App) void {
-        if (self.current == null) return;
-        const state = self.regs.read(map.REG_CART_STATE);
-        if (state & 0xFF != map.CART_TRAPPED) return;
-        _ = loader.hold(self.regs) catch {};
-        self.menu.setStatus("cart trapped (code {d})", .{state >> 8});
-        self.current = null;
-        self.setOpen(true);
+    /// Called about ten times a second (main.zig): the watchdog, the frame-rate
+    /// sample, and the live parts of the OSD (the debug page, a long name scrolling).
+    pub fn tick(self: *App) void {
+        cart.watch(self);
+        self.ticks +%= 1;
+        if (!self.open) return;
+        switch (self.menu.page) {
+            .debug => if (self.ticks % 5 == 0) self.redraw(),
+            .shelf => if (self.ticks % 3 == 0) {
+                self.menu.list.phase +%= 1;
+                self.redraw();
+            },
+            .console => {},
+        }
     }
 };

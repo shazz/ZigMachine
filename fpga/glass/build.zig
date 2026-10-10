@@ -6,6 +6,14 @@
 //                                                    the board binary (Zynq-7000: dual Cortex-A9)
 const std = @import("std");
 
+const VERSION = "0.2.0"; // 0.2: the console page (cold/warm reset, volume), debug page, shelf.txt
+
+fn gitHash(b: *std.Build) []const u8 {
+    var code: u8 = 0;
+    const out = b.runAllowFail(&.{ "git", "-C", b.pathFromRoot("."), "rev-parse", "--short=8", "HEAD" }, &code, .ignore) catch return "nogit";
+    return std.mem.trim(u8, out, " \n");
+}
+
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
@@ -14,13 +22,19 @@ pub fn build(b: *std.Build) void {
     const zx0 = b.createModule(.{ .root_source_file = b.path("../../libs/zig/depackers/zx0.zig") });
     const zx0_pack = b.createModule(.{ .root_source_file = b.path("../../libs/zig/depackers/zx0_pack.zig") });
 
+    // The glass program's version and the commit it was built from, for the OSD's debug page.
+    const info = b.addOptions();
+    info.addOption([]const u8, "version", VERSION);
+    info.addOption([]const u8, "git", b.option([]const u8, "git", "commit hash to report (default: git rev-parse)") orelse gitHash(b));
+    const build_info = info.createModule();
+
     const exe = b.addExecutable(.{
         .name = "glass",
         .root_module = b.createModule(.{
             .root_source_file = b.path("src/main.zig"),
             .target = target,
             .optimize = optimize,
-            .imports = &.{.{ .name = "zx0", .module = zx0 }},
+            .imports = &.{ .{ .name = "zx0", .module = zx0 }, .{ .name = "build_info", .module = build_info } },
         }),
     });
     b.installArtifact(exe);
@@ -38,7 +52,11 @@ pub fn build(b: *std.Build) void {
             .root_source_file = b.path("src/tests.zig"),
             .target = target,
             .optimize = optimize,
-            .imports = &.{ .{ .name = "zx0", .module = zx0_via_pack }, .{ .name = "memmap", .module = memmap } },
+            .imports = &.{
+                .{ .name = "zx0", .module = zx0_via_pack },
+                .{ .name = "memmap", .module = memmap },
+                .{ .name = "build_info", .module = build_info },
+            },
         }),
     });
     const run = b.addRunArtifact(tests);

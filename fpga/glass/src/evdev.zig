@@ -37,7 +37,21 @@ pub fn decode(dev: u8, rec: *const [EVENT_BYTES]u8) Raw {
 // `stick`: whether this node's ABS_X/ABS_Y are a pad's stick. A touchpad or an
 // accelerometer (a DualShock's motion node) reports the same axes, and would
 // otherwise push the joypad around.
-pub const Device = struct { fd: i32, num: u8, x: pad.Range, y: pad.Range, stick: bool = true, dead: bool = false };
+// `name`: the device's own (EVIOCGNAME), for the debug page.
+pub const Device = struct {
+    fd: i32,
+    num: u8,
+    x: pad.Range,
+    y: pad.Range,
+    stick: bool = true,
+    dead: bool = false,
+    name_buf: [32]u8 = undefined,
+    name_len: usize = 0,
+
+    pub fn name(self: *const Device) []const u8 {
+        return self.name_buf[0..self.name_len];
+    }
+};
 
 pub const Inputs = struct {
     devs: [MAX_DEVICES]Device = undefined,
@@ -64,6 +78,7 @@ pub const Inputs = struct {
             const fd: i32 = @intCast(rc);
             const stick = absIsStick(props(fd));
             self.devs[self.n] = .{ .fd = fd, .num = @intCast(i), .x = absRange(fd, pad.ABS_X), .y = absRange(fd, pad.ABS_Y), .stick = stick };
+            self.devs[self.n].name_len = devName(fd, &self.devs[self.n].name_buf);
             self.n += 1;
         }
     }
@@ -123,6 +138,14 @@ fn props(fd: i32) u32 {
     const req: u32 = (2 << 30) | (@sizeOf(u32) << 16) | ('E' << 8) | 0x09;
     _ = linux.ioctl(fd, req, @intFromPtr(&bits));
     return bits;
+}
+
+// EVIOCGNAME(len) = _IOC(_IOC_READ, 'E', 0x06, len): the name, NUL-terminated.
+fn devName(fd: i32, buf: *[32]u8) usize {
+    @memset(buf, 0);
+    const req: u32 = (2 << 30) | (@as(u32, buf.len) << 16) | ('E' << 8) | 0x06;
+    if (linux.errno(linux.ioctl(fd, req, @intFromPtr(buf))) != .SUCCESS) return 0;
+    return std.mem.indexOfScalar(u8, buf, 0) orelse buf.len;
 }
 
 // EVIOCGABS(axis) = _IOR('E', 0x40 + axis, struct input_absinfo): six s32.

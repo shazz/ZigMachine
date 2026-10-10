@@ -8,6 +8,13 @@
 // waits for the VBL, where zm_video_out.v swaps the pictures, and samples the
 // picture to show (`base`) then: a frame on the screen is always ONE picture.
 // It starts at reset as if a VBL had just happened.
+//
+// Only a VBL seen WHILE waiting counts. The frees come one a raster line
+// whatever the buffers hold, so a fetch that starts out of phase (on the board
+// HP1 is gated until CTRL.RUN, which lands anywhere in a frame) stays out of
+// phase line for line; a VBL remembered from mid-frame restarted it at once
+// and kept it there forever (all black, 2026-10-09). Waiting for a fresh VBL
+// costs one black frame and locks the fetch to the beam.
 `default_nettype none
 
 module zm_video_scanfetch (
@@ -34,7 +41,6 @@ module zm_video_scanfetch (
     reg [1:0]  st = FREE;
     reg [8:0]  y = 9'd0, rx;
     reg [31:0] fbase;
-    reg        vbl_seen = 1'b0;
     wire [31:0] row = {12'd0, y, 11'd0} + {13'd0, y, 10'd0} + {16'd0, y, 7'd0};  // y * 3200
 
     assign rd_req_valid = st == ASK;
@@ -47,12 +53,11 @@ module zm_video_scanfetch (
     always @(posedge clk) begin
         line_ready <= 1'b0;
         if (rst) begin
-            {st, y, vbl_seen} <= {FREE, 9'd0, 1'b0};
+            {st, y} <= {FREE, 9'd0};
             fbase <= base;
         end else begin
-            if (vbl) vbl_seen <= 1'b1;
             case (st)
-                FRAME: if (vbl || vbl_seen) {st, fbase, vbl_seen} <= {FREE, base, 1'b0};
+                FRAME: if (vbl) {st, fbase} <= {FREE, base};
                 FREE: if (dp_free[y[0]]) st <= ASK;
                 ASK: if (rd_req_ready) {st, rx} <= {RECV, 9'd0};
                 RECV: if (rd_rsp_valid) begin

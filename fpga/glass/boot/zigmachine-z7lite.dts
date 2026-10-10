@@ -3,7 +3,8 @@
 // (vendor/zest/vivado/zest_z7lite.tcl): UART0 on MIO 14/15 at 921600, SD0 on
 // MIO 40..45 without card detect, USB0 ULPI on MIO 28..39 with its PHY reset on
 // MIO 46. The glass needs nothing else from Linux: it reaches the PL and the
-// cart window through /dev/mem (fpga/glass/src/devmem.zig).
+// cart window through /dev/mem (fpga/glass/src/devmem.zig). GEM0 is for the
+// remote shell: through EMIO (as zeST routes it) to the RTL8201F on PL pins.
 //
 // Unverified until Buildroot builds it (docs/FPGA_GLASS.md, "What needs the board").
 /dts-v1/;
@@ -16,6 +17,7 @@
 	aliases {
 		serial0 = &uart0;
 		mmc0 = &sdhci0;
+		ethernet0 = &gem0;
 	};
 
 	chosen {
@@ -65,4 +67,13 @@
 	status = "okay";
 	dr_mode = "host";
 	usb-phy = <&usb_phy0>;
+};
+
+// GEM0 through EMIO to the RTL8201F (10/100, MII; zeST's z7lite.xdc has the
+// pins). No phy-handle: the PHY's MDIO address depends on its strapping, so
+// macb scans the bus and takes the PHY it finds. The bitstream must route the
+// PS7's ENET0 EMIO ports (GMII nibble, MDIO) to those pins.
+&gem0 {
+	status = "okay";
+	phy-mode = "mii";
 };

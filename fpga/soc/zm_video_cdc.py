@@ -48,8 +48,9 @@ Ports = dict[str, Signal]
 class ReadPortCross(LiteXModule):
     """The RTL's read port `c` (in `cd`) onto the DMA's read port `s` (in sys)."""
 
-    def __init__(self, c: ReadPort, s: ReadPort, cd: str) -> None:
-        self.req, self.rsp = req, rsp = ReqCross(42, cd, "sys"), AsyncQueue(64, QUEUE, "sys", cd)
+    def __init__(self, c: ReadPort, s: ReadPort, cd: str, ff: bool = False) -> None:
+        # ff: the read data in flip-flops (soc/zm_cdc.py, the board's corrupted read path).
+        self.req, self.rsp = req, rsp = ReqCross(42, cd, "sys"), AsyncQueue(64, QUEUE, "sys", cd, ff=ff)
         sync = getattr(self.sync, cd)
         self.comb += [
             req.s_valid.eq(c.req_valid),
@@ -71,8 +72,9 @@ class WritePortCross(LiteXModule):
     One burst at a time end to end: `c.busy` from the request until the DMA's
     last beat, as the RTL's STORE requires before it reports a row written."""
 
-    def __init__(self, c: WritePort, s: WritePort, cd: str) -> None:
-        self.req, self.dat = req, dat = ReqCross(42, cd, "sys"), AsyncQueue(64, QUEUE, cd, "sys")
+    def __init__(self, c: WritePort, s: WritePort, cd: str, ff: bool = False) -> None:
+        """ff: the data queue in flip-flops (soc/zm_cdc.py), as the board's read queue."""
+        self.req, self.dat = req, dat = ReqCross(42, cd, "sys"), AsyncQueue(64, QUEUE, cd, "sys", ff=ff)
         fin, fin_c, was_busy = Signal(), Signal(), Signal()
         self.specials += MultiReg(fin, fin_c, cd)
         self.sync += [was_busy.eq(s.busy), If(was_busy & ~s.busy, fin.eq(req.ack))]

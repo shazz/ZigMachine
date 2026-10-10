@@ -5,8 +5,9 @@ Yosys/Vivado see as ASYNC_REG chains) and on values held stable until their
 toggle has landed, the discipline rtl/video/zm_video_sync.v already uses
 between `sys` and `pix`:
 
-- `AsyncQueue`: a FIFO with gray-coded pointers, the data in distributed RAM
-  (written in the writer's clock, read asynchronously by the reader). Besides
+- `AsyncQueue`: a FIFO with gray-coded pointers, the data in flip-flops
+  (`ff`) or distributed RAM, written in the writer's clock, read
+  through a mux by the reader. Besides
   the usual `writable` / `readable`, the writer sees `empty_w`: every entry it
   wrote has been taken by the reader. That is what the drain rule needs: the
   sequencer may only start a pass once the snooped stores have reached the
@@ -20,8 +21,15 @@ between `sys` and `pix`:
 from __future__ import annotations
 
 from litex.gen import LiteXModule
-from migen import Cat, If, Memory, Signal
+from migen import Array, Cat, If, Memory, Signal
 from migen.genlib.cdc import MultiReg
+
+
+# BOARD (2026-10-03): the compositor's READ queue holds its entries in flip-flops, not LUTRAM
+# (`ff=True`; all four queues in FFs did not place under openXC7). On the Z7-Lite
+# the compositor's read data reached the mixer as constants that depended only on the beat's
+# parity, while the AXI side and the write queue were proven clean (bdiag modes 1-4,
+# docs/FPGA_STEPS.md); the sys->comp LUTRAM queue was the one stage left between them.
 
 
 def _gray(v: Signal) -> Signal:
@@ -46,7 +54,9 @@ class AsyncQueue(LiteXModule):
     registers `dout` has used the entry before the writer can see it gone.
     """
 
-    def __init__(self, width: int, depth: int, wcd: str, rcd: str) -> None:
+    def __init__(self, width: int, depth: int, wcd: str, rcd: str, ff: bool = False) -> None:
+        """ff: the entries in flip-flops instead of distributed RAM (the note above)."""
+        self.ff = ff
         assert depth >= 2 and depth & (depth - 1) == 0, "the gray pointers need a power-of-two depth"
         aw = depth.bit_length() - 1
         self.we, self.din, self.writable, self.empty_w = Signal(), Signal(width), Signal(), Signal()
@@ -75,7 +85,13 @@ class AsyncQueue(LiteXModule):
         self._storage(width, depth, wcd, push, wbin[:aw], rbin[:aw])
 
     def _storage(self, width: int, depth: int, wcd: str, push: Signal, wadr: Signal, radr: Signal) -> None:
-        """Distributed RAM: written in the writer's clock, read asynchronously."""
+        """Flip-flops (`ff`): written in the writer's clock, read through a mux. Else
+        distributed RAM, written in the writer's clock, read asynchronously."""
+        if self.ff:
+            slots = Array(Signal(width, name=f"q{i}") for i in range(depth))
+            getattr(self.sync, wcd).__iadd__(If(push, slots[wadr].eq(self.din)))
+            self.comb += self.dout.eq(slots[radr])
+            return
         mem = Memory(width, depth)
         wport = mem.get_port(write_capable=True, clock_domain=wcd)
         rport = mem.get_port(async_read=True)

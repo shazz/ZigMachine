@@ -2,19 +2,22 @@
 // the title its descriptor carries. Only the header is read here (the menu
 // needs titles, not carts); the loader reads the whole disk when one is chosen.
 // A file that is not a disk is listed under its file name, marked, so a bad
-// copy is visible in the menu instead of silently missing.
+// copy is visible in the menu instead of silently missing. shelf.txt (meta.zig)
+// gives a disk its catalog title, group, year and description when it lists it.
 const std = @import("std");
 const zmd = @import("zmd.zig");
+const meta = @import("meta.zig");
 
 pub const MAX_DISK = 16 << 20; // the host's disk cap (docs/FLOPPY_DISK.md)
 const HEADER = 0xC00; // v2's boot sector + descriptor + FAT; v1 needs less
 
-pub const Disk = struct { file: []const u8, title: []const u8 };
+pub const Disk = struct { file: []const u8, title: []const u8, meta: ?meta.Meta = null };
 
 pub const Shelf = struct {
     arena: std.heap.ArenaAllocator,
     disks: []Disk = &.{},
     titles: [][]const u8 = &.{},
+    table: meta.Table = .{},
 
     pub fn deinit(self: *Shelf) void {
         self.arena.deinit();
@@ -52,6 +55,14 @@ pub fn scan(gpa: std.mem.Allocator, io: std.Io, dir_path: []const u8) !Shelf {
         const name = try a.dupe(u8, e.name);
         try list.append(a, .{ .file = name, .title = try titleOf(a, io, dir, name) });
     }
+    shelf.table = meta.load(a, io, dir) catch |err| blk: {
+        std.log.warn("{s}: {t}", .{ meta.FILE, err });
+        break :blk .{ .missing = true };
+    };
+    for (list.items) |*d| if (shelf.table.find(d.file)) |m| {
+        d.meta = m;
+        d.title = m.title;
+    };
     std.mem.sort(Disk, list.items, {}, lessByName);
     shelf.disks = list.items;
     shelf.titles = try a.alloc([]const u8, list.items.len);
@@ -76,4 +87,11 @@ test "the shelf lists disks by file name, titles from their descriptors" {
     try std.testing.expectEqual(@as(usize, 2), shelf.disks.len);
     try std.testing.expectEqualStrings("?a-broken.ZMD", shelf.titles[0]);
     try std.testing.expectEqualStrings("Union Demo", shelf.titles[1]);
+    try std.testing.expect(shelf.table.missing and shelf.disks[1].meta == null);
+    try tmp.dir.writeFile(io, .{ .sub_path = meta.FILE, .data = "b-union.zmd\tUNION DEMO\tThe Union\t1989\n" });
+    var again = try scan(gpa, io, dir_path);
+    defer again.deinit();
+    try std.testing.expectEqualStrings("UNION DEMO", again.titles[1]);
+    try std.testing.expectEqualStrings("1989", again.disks[1].meta.?.year);
+    try std.testing.expectEqualStrings("?a-broken.ZMD", again.titles[0]); // not listed: its own name
 }

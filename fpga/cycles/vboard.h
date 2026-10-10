@@ -30,11 +30,14 @@ static inline uint32_t zmv_reg(int w) { return ((volatile uint32_t*)ZMV_WINDOW_A
  * video DMA wrote behind it (LiteX's flush_cpu_dcache). */
 static inline void zmv_flush_dcache(void) { __asm__ volatile(".word(0x500F)\n" ::: "memory"); }
 
-/* Main RAM traffic since reset, mod 2^32: soc/zm_simram.py COUNTERS order. */
+/* Main RAM traffic since reset, mod 2^32: soc/zm_simram.py COUNTERS order (the
+ * video sim only; the board's main RAM, cycles/board.mk, has no counters). */
+#ifdef CSR_MAIN_RAM_CPU_RD_ADDR
 #define ZMV_NRAM 5
 static inline void zmv_ram_counters(uint32_t out[ZMV_NRAM]) {
     volatile uint32_t* r = (volatile uint32_t*)CSR_MAIN_RAM_CPU_RD_ADDR;
     for (int i = 0; i < ZMV_NRAM; i++) out[i] = r[i];
 }
+#endif
 
 #endif

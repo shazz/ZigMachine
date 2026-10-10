@@ -56,4 +56,8 @@ void zm_trap(uint32_t* regs) {
 void trap_install(void) {
     extern void zm_trap_entry(void);
     __asm__ volatile(ZICSR("csrw mtvec, %0") ::"r"(zm_trap_entry));
+#ifdef __riscv_flen
+    /* mstatus.FS = Initial: an F instruction traps as illegal while it is Off (VexRiscv FpuPlugin). */
+    __asm__ volatile(ZICSR("csrs mstatus, %0") ::"r"(1u << 13));
+#endif
 }

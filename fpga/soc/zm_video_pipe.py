@@ -30,12 +30,15 @@ from pathlib import Path
 from typing import Any
 
 from litex.gen import LiteXModule
-from litex.soc.interconnect import wishbone
+from litex.soc.interconnect import axi, wishbone
+from litex.soc.interconnect.csr import CSRStorage
 from litex.soc.interconnect.csr_eventmanager import EventManager, EventSourcePulse
 from migen import ClockSignal, If, Instance, ResetSignal, Signal
 
 from soc.zm_video_cdc import ReadPortCross, WritePortCross, ZMVideoCDC
 from soc.zm_video_csr import ZMVideoCSRs
+from soc.zm_hp_probe import ZMHPProbe
+from soc.zm_video_axi import ZMVideoAXI
 from soc.zm_video_dma import ZMVideoDMA, read_port, write_port
 
 FPGA = Path(__file__).resolve().parent.parent
@@ -61,6 +64,8 @@ class ZMVideo(ZMVideoCSRs, LiteXModule):
         cd_comp: str = "comp",
         overlay: Overlay = None,
         max_burst: int = 16,
+        hp: axi.AXIInterface | None = None,
+        hp_enable: Signal | None = None,
     ) -> None:
         self.bus = wishbone.Interface(data_width=32)
         self.drained = Signal()  # the SoC: no CPU store is still on its way to the snoop
@@ -72,7 +77,7 @@ class ZMVideo(ZMVideoCSRs, LiteXModule):
         # reg} selects decoded; `snoop_room` holds the delivery back while the crossing is full.
         self.snoop, self.snoop_room, snoop_empty = x.snoop(cd_comp)
         self._command(x, snoop_empty)
-        self._memory(cd_comp, max_burst)
+        self._memory(cd_comp, max_burst, hp, hp_enable)
         self._events(x)
         self._rtl(platform, p, pads, overlay, (cd_pix, cd_pix5x, cd_comp))
 
@@ -126,15 +131,22 @@ class ZMVideo(ZMVideoCSRs, LiteXModule):
             self.comp_busy.status.eq(x.comp_busy),
         ]
 
-    def _memory(self, cd_comp: str, max_burst: int) -> None:
-        """The DMA in sys; the RTL's ports (`*_c`, in cd_comp) cross onto its ports."""
+    def _memory(self, cd_comp: str, max_burst: int, hp: axi.AXIInterface | None, hp_enable: Signal | None) -> None:
+        """The DMA in sys; the RTL's ports (`*_c`, in cd_comp) cross onto its ports. With `hp`
+        (the board) the ports are served straight onto that AXI3 HP port (soc/zm_video_axi.py)."""
         self.rd, self.wr, self.sc = read_port("zmv_rd"), write_port("zmv_wr"), read_port("zmv_sc")
         self.rd_c, self.wr_c, self.sc_c = read_port("zmv_rd_c"), write_port("zmv_wr_c"), read_port("zmv_sc_c")
-        self.rd_x = ReadPortCross(self.rd_c, self.rd, cd_comp)
+        self.rd_x = ReadPortCross(self.rd_c, self.rd, cd_comp, ff=False)  # LUTRAM: proven on silicon (make prim-test, 2026-10-09); FF + -nosrl does not place under openXC7
         self.sc_x = ReadPortCross(self.sc_c, self.sc, cd_comp)
-        self.wr_x = WritePortCross(self.wr_c, self.wr, cd_comp)
-        self.dma_ctl = ZMVideoDMA([self.sc, self.rd], self.wr, max_burst)
-        self.dma = self.dma_ctl.bus
+        self.wr_x = WritePortCross(self.wr_c, self.wr, cd_comp, ff=False)  # LUTRAM, as above
+        if hp is None:
+            self.dma_ctl = ZMVideoDMA([self.sc, self.rd], self.wr, max_burst)
+            self.dma = self.dma_ctl.bus
+        else:
+            # How the DMA writes the HP port (soc/zm_video_axi.py cfg), chosen at run time.
+            self.hp_cfg = CSRStorage(2, description="bit 0 UPSIZE (AWCACHE 0b0011), bit 1 W64 (8-byte write beats).")
+            self.dma_ctl = ZMVideoAXI([self.sc, self.rd], self.wr, hp, self.hp_cfg.storage, hp_enable)
+            self.hp_probe = ZMHPProbe(self.rd, self.rd_c, cd_comp)  # board debug (soc/zm_hp_probe.py)
         busy = Signal(32)
         self.sync += If(self.dma_ctl.active, busy.eq(busy + 1))
         self.comb += self.dma_busy.status.eq(busy)

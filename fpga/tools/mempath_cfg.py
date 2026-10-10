@@ -38,13 +38,18 @@ MEM: dict[str, dict[str, int]] = {
 
 # Frames per cart image (hashed at the last one): enough to reach each cart's
 # heavy phase (union_beatdis's effects after frame 30, skystrike's after 30).
-FRAMES = {"union_beatdis": 120, "skystrike": 48, "ulm_dsots": 30, "tutorial": 30, "polkadots": 12}
+FRAMES = {"union_beatdis": 120, "skystrike": 48, "ulm_dsots": 30, "tutorial": 30, "polkadots": 12,
+          "blitter": 30, "tsl_hybridglenz": 30, "replicants_emlyn": 12}  # fmt: skip
 CARTS = ["union_beatdis", "ulm_dsots", "skystrike", "tutorial"]
 CORES = ["std", "I4D4", "I16D4", "I16w2D4", "I32w2D4", "I16w2D16w2", "I4D16w2"]
 # The branch predictor (fpga/README.md "Timing under openXC7"): the recommended core
 # with static prediction (the board's), a dynamic target predictor (`dynpred`), none (`nopred`), none plus
 # relaxpc (one more fetch stage). Unsealed: the seal costs no cycle (rtl/seal/README.md).
 PRED_CORES = ["I16w2D4", "I16w2D4Dyn", "I16w2D4Nopred", "I16w2D4RpcNopred"]
+# The f32 FPU (CYCLES.md "f32 FPU"): the pass-3 board core (sealed twins: the seal costs no cycle)
+# with and without RV32F, on the board's memory path. FPU_CARTS is the CYCLES sample.
+FPU_CORES = {"I16w2D4DynT8": "aligned", "I16w2D4DynT8Fpu": "alignedf"}  # core -> build variant
+FPU_CARTS = [*CARTS, "blitter", "tsl_hybridglenz", "polkadots", "replicants_emlyn"]
 
 
 @dataclass(frozen=True)
@@ -70,6 +75,7 @@ PLANS = {
     + [Plan("std", ["sram"], carts=["polkadots"])],
     # What dropping the branch predictor costs, on the board's memory path.
     "prediction": [Plan(core, ["hp_wc"]) for core in PRED_CORES],
+    "fpu": [Plan(core, ["hp_wc"], carts=FPU_CARTS, variants=[v]) for core, v in FPU_CORES.items()],
 }
 
 

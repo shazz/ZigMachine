@@ -18,14 +18,17 @@
 from __future__ import annotations
 
 import argparse
+import time
 from pathlib import Path
 
 from litex.soc.cores.clock import S7PLL
 from litex.soc.integration.builder import Builder
 from migen import ClockDomain, Module
 
-from soc import openxc7, zm_timing
+from soc import openxc7, zm_board_mem, zm_timing
 from soc.zigmachine_soc import PIX_CLK, ZigMachineSoC
+from soc.zm_blit_soc import add_blitter
+from soc.zm_hp import CPU_BASE, hp_interface
 
 FPGA = Path(__file__).resolve().parent.parent
 SYS_CLK = int(100e6)
@@ -51,7 +54,12 @@ class Z7CRG(Module):
         platform.add_period_constraint(clkin, 1e9 / osc_hz)  # type: ignore[attr-defined]  # untyped LiteX platform
         pll.register_clkin(clkin, osc_hz)
         pll.create_clkout(self.cd_sys, sys_hz)
-        pll.create_clkout(self.cd_comp, comp_hz)
+        if comp_hz == sys_hz:
+            # One clock: every sys<->comp crossing becomes a TIMED same-clock path. The board's
+            # failures moved with placement on the crossings nextpnr never times (docs/FPGA_STEPS.md).
+            self.comb += [self.cd_comp.clk.eq(self.cd_sys.clk), self.cd_comp.rst.eq(self.cd_sys.rst)]
+        else:
+            pll.create_clkout(self.cd_comp, comp_hz)
         pll.create_clkout(self.cd_pix, PIX_CLK)
         pll.create_clkout(self.cd_pix5x, 5 * PIX_CLK)
 
@@ -78,23 +86,47 @@ def make_z7(args: argparse.Namespace) -> tuple[ZigMachineSoC, object]:
     sys_hz = int(getattr(args, "sys_mhz", SYS_CLK / 1e6) * 1e6)
     comp_hz = int(getattr(args, "comp_mhz", COMP_CLK / 1e6) * 1e6)
     # The Z7-Lite UART is on PS MIO (the ARM's), not PL pins: the console runs over USB-JTAG.
-    soc = ZigMachineSoC(platform, sys_hz, "pipe", glass=not args.no_glass, uart_name="jtag_uart")
+    soc = _board_soc(platform, sys_hz, not args.no_glass, getattr(args, "blit", False))
     soc.crg = crg = Z7CRG(platform, (args.osc, args.osc_hz), sys_hz, comp_hz)
     soc.csr_bridge_register = True
     clocks = {"sys": (crg.cd_sys.clk, sys_hz), "comp": (crg.cd_comp.clk, comp_hz), "pix": (crg.cd_pix.clk, PIX_CLK)}
-    zm_timing.add_cdc_constraints(platform, clocks, [("sys", "pix"), ("comp", "pix"), ("sys", "comp")])
+    pairs = [("sys", "pix")] + ([] if comp_hz == sys_hz else [("comp", "pix"), ("sys", "comp")])
+    zm_timing.add_cdc_constraints(platform, clocks, pairs)
     netlist = core_netlist(getattr(args, "cpu_netlist", None))
     if netlist is not None:
         zm_timing.use_core(soc, platform, netlist)
     return soc, platform
 
 
+def _board_soc(platform: object, sys_hz: int, glass: bool, blit: bool = False) -> ZigMachineSoC:
+    """With the glass: the cart CPU's RAM and the video DMA in PS DDR over HP0/HP1, the CPU
+    reset into it (soc/zm_board_mem.py), and with `blit` the blitter on HP2 (soc/zm_blit_soc.py).
+    Without: on-chip RAM and the BIOS, run over JTAG."""
+    if not glass:
+        return ZigMachineSoC(platform, sys_hz, "pipe", uart_name="jtag_uart")
+    hp0, hp1 = hp_interface(), hp_interface()
+    soc = ZigMachineSoC(
+        platform, sys_hz, "pipe", glass=True, video_hp=hp1, uart_name="jtag_uart",
+        rom_size=0, main_ram_size=0, cpu_reset_address=CPU_BASE,
+    )  # fmt: skip
+    zm_board_mem.add_cpu_memory(soc, hp0)
+    hp2 = hp_interface() if blit else None
+    if hp2 is not None:
+        add_blitter(soc, platform, hp2)
+    # Every HP port through a register slice at the PS7 (zm_board_mem.hp_slice: its pins are untimed).
+    ps = [None if hp is None else zm_board_mem.hp_slice(soc, f"hp{i}", hp) for i, hp in enumerate((hp0, hp1, hp2))]
+    soc.specials += zm_board_mem.ps7_instance(soc.glass.axi, *ps)
+    return soc
+
+
 def build_z7(args: argparse.Namespace) -> None:
+    start = time.monotonic()
     soc, _ = make_z7(args)
     in_docker = args.toolchain == "openxc7"  # the tools are in a container: soc/openxc7.py
     if in_docker:
         openxc7.prepare_env()
-    builder = Builder(soc, output_dir=str(FPGA / "build/soc_z7"), compile_software=args.build)
+    out = getattr(args, "out", None) or FPGA / "build/soc_z7"  # --out: sweeps and REUSE bases keep their own
+    builder = Builder(soc, output_dir=str(out), compile_software=args.build)
     builder.build(run=args.build and not in_docker)
     if in_docker and args.build:
-        openxc7.run_build(builder.gateware_dir, soc.get_build_name())
+        openxc7.run_build(builder.gateware_dir, soc.get_build_name(), time.monotonic() - start)

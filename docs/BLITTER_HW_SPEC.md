@@ -300,3 +300,123 @@ one byte per pixel. Their purpose (odd-pixel masked bob blits) is just an arbitr
   This blitter is flat-fill + halftone + minterms, true to the era.
 - **Depends on nothing.** The base+stride addressing works under both today's
   fixed planes and the VRAM/stride shifter model, so this doesn't block on §12/B.
+
+---
+
+## 10. FPGA implementation
+
+Status: **standalone RTL, proven equal to the machine** (2026-10-03). `fpga/rtl/blitter/`,
+top `zm_blit`. The oracle is `machine/blitter.zig` itself, run natively and unchanged.
+**On the board SoC in simulation since 2026-10-04** (`fpga/soc/zm_blit_soc.py`, HP2
+via `zm_blit_hp.py`, the start through an M-only window from the firmware's
+`hwBlit`, `fpga/cycles/bblit.c`; z7 build `--blit`): see the ADR of that date in
+`decisions.md`.
+
+### 10.1 Blocks
+
+| File | What |
+|---|---|
+| `zm_blit_regs.v` | the register block of §3, written the way the CPU writes the region (word index, byte enables); `COMMAND` written non-zero starts the op; writes while `BUSY` are dropped; `STATUS` and `CYCLES` are the only reads |
+| `zm_blit_chk.v`, `zm_blit_clip.v` | what `execute()` checks before it draws: the clip rectangle, `opBox`, `destInRegion`, `BlitSetup.load` (zero size, the source rectangle in the region or in ONE readable window). A refusal means "draw nothing, `CYCLES` = 0" |
+| `zm_blit_fill.v`, `_blit.v`, `_line.v`, `_tri.v` | one sequencer per op: geometry in, pixels out (x, y, B colour, minterm, channel flags). BLIT walks the clipped box ascending or `DESC`; LINE is the Bresenham of the machine with its `e2` tie-break; TRIANGLE is `crossSpan` with a sequential divider (`_div.v`) for the floor division |
+| `zm_blit_px.v` | the pixel unit and the **only** owner of the memory ports: reads the channels the minterm depends on (a minterm that ignores A, B or C never reads it, which cannot be seen), computes `D = LF(A,B,C)` per bit, writes one byte; a keyed pixel is not written and not counted |
+| `zm_blit_core.v` | decode, the op FSM (`IDLE, CHK, RUN, DRAIN, FIN`), the one destination address generator `dlin + y*stride + x`, the `CYCLES` model |
+
+`CYCLES` is the machine's: pixels written (BLIT, TRIANGLE), every step of the line
+including the clipped ones, `W*H` for FILL (clipped pixels count), 0 when refused
+or for an unknown command. A `NOP` leaves it alone.
+
+### 10.2 The memory port
+
+A master with **separate read and write ports**, the video RTL's valid/ready style,
+sized for an AXI HP master behind it (`soc/zm_hp.py` is that bridge). Addresses are the
+machine's linear byte addresses (the video region is `0x300000 + offset`; SRC_ABS
+sources are absolute); the SoC adds its DDR base.
+
+| Port | Signals | Contract |
+|---|---|---|
+| Read | `rd_req_valid/ready/addr`, `rd_rsp_valid/data[31:0]` | one request per byte, taken on `valid && ready`; the aligned word comes back **at least one clock later, in request order**, no back-pressure; the byte lane is `addr[1:0]` |
+| Write | `wr_req_valid/ready/addr/data[31:0]/strb[3:0]` | one byte per request (aligned word, data replicated, one strobe); a read issued after a write is taken sees it |
+| Settle | `wr_pending` | high until the memory has landed every write taken (an AXI B response); `BUSY` stays up until it falls, so "not busy" means "the pixels are in DDR" |
+| CPU | `cpu_we`, `cpu_waddr[4:0]`, `cpu_be`, `cpu_wdata`, `cpu_raddr`, `cpu_rdata`, `busy` | the snoop style of `zm_video_regs`: writes are seen as the CPU's stores leave its store buffer; reads return `STATUS` (word 0, bit 31) and `CYCLES` (word 24) |
+
+v1 is **one byte per access, one pixel at a time**. Where bursts would help: a BLIT
+row is `W` consecutive bytes per channel (one 16-beat burst per channel per row, a
+byte-lane shifter for the unaligned ends); a FILL row is a burst of writes with
+strobes; the read-modify-write ops (`FILL_MT`, LINE, TRIANGLE, `USEC`) want the
+destination row prefetched and the next pixel's reads issued before the previous
+write retires. None of that changes a register or a result.
+
+### 10.3 Sharing DDR with the video DMA
+
+The video region lives in PS DDR (FPGA_STEPS: video on **HP1**, the cart CPU's RAM
+on **HP0**). The blitter is a third master and takes **HP2**, behind a
+32-bit-to-64-bit AXI3 bridge like `zm_hp.py`. No fabric arbitration is needed: the
+DDR controller arbitrates the four HP ports, and the video DMA, the only real-time
+master, gets the higher QoS / priority (the HP FIFOs and `video_hp_cfg` already exist for
+that). The blitter's traffic is bursty and a late pixel only lengthens an op; a late
+scanline is a visible tear. Ordering:
+
+- CPU stores to the source pixels and to the register block leave the **same store
+  buffer in order**, so the `COMMAND` snoop comes after every store before it;
+- `BUSY` includes `wr_pending`, so a CPU load, a compositor pass or the next op after
+  "not busy" sees every pixel;
+- the machine's `hwBlit()` export becomes "write `COMMAND`, spin on `STATUS`": the same
+  synchronous contract (§6) with a real `BUSY`.
+
+### 10.4 Cost (Yosys `synth_xilinx`, xc7, before place and route)
+
+`make -C fpga util` (block `zm_blit`): **2,596 LUT (14.8 % of the 7010), 1,340 FF,
+0 BRAM, 8 DSP48**. By module: the checks 750 (a third of it the three range
+checks), TRIANGLE 570 (the vertex muxes, the swap, the span clip, the divider), LINE
+375, BLIT 220, the 256-bit halftone read 140, the clip 110, the register block 135 +
+737 FF (the halftone is 256 of them), the pixel unit 120, FILL 105. Possible cuts if the
+budget needs them: the halftone in LUTRAM (about -100 LUT, -256 FF), the check's
+bounding box accumulated serially (about -100), an incremental edge walk for
+TRIANGLE (faster too).
+
+### 10.5 Throughput (CXXRTL, memory that answers at once, 1 clock read latency)
+
+| Op | clocks per `CYCLES` unit |
+|---|---|
+| FILL solid or halftone, LINE `MT_B` | **1.0** (a write a clock) |
+| FILL_MT / LINE / TRIANGLE combining with the destination (`MT_XOR`, `MT_OR`) | **4.0** (read request, answer, decide, write) |
+| BLIT copy (B only) | **4.0** per pixel (keyed: 4.0 per candidate pixel) |
+| BLIT with A, B and C (cookie-cut) | **6.0** |
+| TRIANGLE, `MT_B` | **1.5** for a large one; about 9 for a 16-row one (35 clocks of divider per edge per scanline) |
+
+That is 0.25 to 1 pixel per clock before the memory. Behind an HP port a read costs
++24 clocks unloaded (+62 saturated, at 150 MHz: FPGA_STEPS), so the read-bound ops are
+about 25 clocks a pixel there (4 Mpx/s at 100 MHz: a 32x32 bob in 0.26 ms, a full
+320x200 copy in 16 ms: too slow), and a solid fill stays near 1 clock a pixel. Pipelined
+reads (all three requests in flight, the next pixel's behind them) bring the
+read-bound ops to about 3 clocks a pixel whatever the latency, and row bursts to
+roughly 1 pixel a clock for a copy, 4 to 8 for a fill (a 64-bit beat carries 8
+pixels). That is the first thing to do at integration.
+
+### 10.6 Proof
+
+`fpga/tests/test_rtl_blitter.py` (`make -C fpga check`): `tests/blitter_ref` runs
+`machine/blitter.zig` natively on the register writes of a script over a 6 MiB
+memory image mapped at the machine's own addresses; `tests/tb/blitter_tb.cpp` plays
+the same script into the RTL behind ports that answer like a loaded DDR (ready 3
+clocks in 4, reads 1 to 4 clocks late, `wr_pending` held 0 to 5 clocks, junk register
+writes while `BUSY`). After **every** op the `CYCLES` readback, `STATUS` and a hash of
+the whole 6 MiB must be identical. Scripts: a hand-written set of edge cases (zero
+size, fully clipped, negative origin, lines along and one pixel off the clip edge,
+degenerate triangles, the region and every window boundary at the byte, `DESC` over an
+overlap in both directions) and randomised ops over every op, 12 minterm classes,
+clip on/off, halftone declared / sniffed / all-zero, `SRC_ABS`, `DESC`, colour key,
+stale registers. 23 break tests (`ZM_RTL_BREAK=1`) each break one rule of the RTL
+(minterm index, clip off by one, the Bresenham tie-break, the triangle edge rule, the
+floor division, `DESC`, the key, the halftone bit order, the region check, a window
+top, `SRC_ABS`, register writes while busy, the byte lane, the `CYCLES` model...) and
+all are caught.
+
+### 10.7 Limits
+
+`CON.IFE`/`EFE` (area fill) stay reserved, as in the machine. The register block keeps
+no read-back but `STATUS` and `CYCLES` (the region memory holds what was written).
+TRIANGLE inputs whose `(bx-ax)*(y-ay)` overflows an `i32` are outside what the Zig
+machine defines; the RTL does not model that wrap. Register writes while `BUSY` are
+dropped (the machine is synchronous, so a program cannot make them).

@@ -11,6 +11,7 @@ package zm
 import spinal.core._
 import spinal.core.internals.{PhaseAllocateNames, PhaseContext}
 import vexriscv._
+import vexriscv.ip.fpu.FpuParameter
 import vexriscv.ip.{DataCacheConfig, InstructionCacheConfig}
 import vexriscv.plugin.CsrAccess.WRITE_ONLY
 import vexriscv.plugin._
@@ -23,6 +24,8 @@ case class ZmArgs(
     seal: Boolean = false,
     relaxedPc: Boolean = false,
     prediction: String = "STATIC", // NONE | STATIC | DYNAMIC_TARGET (fpga/README.md "Timing under openXC7")
+    historyRamSizeLog2: Int = 10, // DYNAMIC_TARGET's BTB: 2^n entries (TIMING_FABLE.md pass 3: 8 routes)
+    fpu: Boolean = false, // RV32F, single precision only (fpga/CYCLES.md "f32 FPU")
     outputFile: String = "VexRiscv",
     targetDirectory: String = "."
 )
@@ -37,6 +40,8 @@ object GenZm {
       opt[Unit]("seal").action((_, c) => c.copy(seal = true))
       opt[Unit]("relaxedPc").action((_, c) => c.copy(relaxedPc = true))
       opt[String]("prediction").action((v, c) => c.copy(prediction = v))
+      opt[Int]("historyRamSizeLog2").action((v, c) => c.copy(historyRamSizeLog2 = v))
+      opt[Unit]("fpu").action((_, c) => c.copy(fpu = true))
       opt[String]("outputFile").action((v, c) => c.copy(outputFile = v))
       opt[String]("targetDirectory").action((v, c) => c.copy(targetDirectory = v))
     }
@@ -57,6 +62,7 @@ object GenZm {
     resetVector = null,
     relaxedPcCalculation = a.relaxedPc, // fmax: a register between the PC and the I$ (one more fetch stage)
     prediction = branchPrediction(a.prediction),
+    historyRamSizeLog2 = a.historyRamSizeLog2,
     compressedGen = false,
     memoryTranslatorPortConfig = null,
     config = InstructionCacheConfig(
@@ -87,6 +93,12 @@ object GenZm {
     if (a.seal) small.copy(userGen = true, catchIllegalAccess = true, mscratchGen = true) else small
   }
 
+  // RV32F only (no D): a 25x18 DSP48E1 takes a 24 x 17 unsigned mantissa product, so the
+  // multiplier is split in two DSPs a mantissa; the register file is synchronous (BRAM).
+  def fpuPlugin(a: ZmArgs): List[Plugin[VexRiscv]] =
+    if (!a.fpu) Nil
+    else List(new FpuPlugin(externalFpu = false, p = FpuParameter(withDouble = false, mulWidthA = 24, mulWidthB = 17)))
+
   def translator(a: ZmArgs): Plugin[VexRiscv] =
     if (a.seal) new ZmSealPlugin(ioRange = _.msb) else new StaticMemoryTranslatorPlugin(ioRange = _.msb)
 
@@ -109,7 +121,7 @@ object GenZm {
       machineMaskCsrId = 0xbc0, machinePendingsCsrId = 0xfc0,
       supervisorMaskCsrId = 0x9c0, supervisorPendingsCsrId = 0xdc0
     )
-  )
+  ) ++ fpuPlugin(a)
 
   def main(args: Array[String]): Unit = {
     val a = parse(args)

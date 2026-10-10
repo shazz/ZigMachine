@@ -80,7 +80,8 @@ module zm_video_out (
     zm_video_sync u_vbl (.src_clk(pix_clk), .src_pulse(t_vbl), .dst_clk(clk), .dst_pulse(vbl));
 
     // --- the two pictures: PRESENT makes the back one pending, the VBL swaps ---
-    wire present, swap = pending && vbl;
+    wire present;
+    wire swap = pending && vbl;
     wire front_n = front ^ swap;           // the picture shown from this VBL on
     always @(posedge clk) begin
         if (rst) {front, pending, swaps} <= {1'b0, 1'b0, 32'd0};

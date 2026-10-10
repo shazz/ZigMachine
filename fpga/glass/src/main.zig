@@ -8,7 +8,8 @@
 //   glass sim-load DISK OUT [WIN]   desktop: load DISK into a simulated glass + fake DDR of
 //                                   WIN bytes (default the board's), write the placed image
 //                                   to OUT; exit 1 unless the rest of the window is zero
-//   glass sim-menu SHELF_DIR        desktop: the menu the OSD would show, as text
+//   glass sim-menu SHELF_DIR [PAGE] desktop: the menu the OSD would show, as text;
+//                                   PAGE = shelf (default), console or debug
 const std = @import("std");
 const map = @import("map.zig");
 const bus = @import("bus.zig");
@@ -16,11 +17,13 @@ const sim = @import("sim.zig");
 const loader = @import("loader.zig");
 const osd = @import("osd.zig");
 const App = @import("app.zig").App;
+const menu = @import("menu.zig");
 const devmem = @import("devmem.zig");
 const evdev = @import("evdev.zig");
 const pad = @import("pad.zig");
 const mouse = @import("mouse.zig");
 
+const linux = std.os.linux;
 const DEFAULT_SHELF = "/mnt/sd/zigmachine";
 
 pub fn main(init: std.process.Init) !u8 {
@@ -46,12 +49,16 @@ pub fn main(init: std.process.Init) !u8 {
         const win = if (args.next()) |w| try std.fmt.parseInt(u32, w, 0) else map.DDR_CART_BYTES;
         return simLoad(init, disk, out, win);
     }
-    if (std.mem.eql(u8, cmd, "sim-menu")) return simMenu(init, args.next() orelse return usage());
+    if (std.mem.eql(u8, cmd, "sim-menu")) {
+        const dir = args.next() orelse return usage();
+        const page = std.meta.stringToEnum(menu.Page, args.next() orelse "shelf") orelse return usage();
+        return simMenu(init, dir, page);
+    }
     return usage();
 }
 
 fn usage() u8 {
-    std.debug.print("usage: glass run [--no-wait] [--mouse-scale=PCT] [SHELF_DIR] | sim-load DISK OUT [WINDOW] | sim-menu SHELF_DIR\n", .{});
+    std.debug.print("usage: glass run [--no-wait] [--mouse-scale=PCT] [SHELF_DIR] | sim-load DISK OUT [WINDOW] | sim-menu SHELF_DIR [shelf|console|debug]\n", .{});
     return 2;
 }
 
@@ -79,11 +86,13 @@ fn simLoad(init: std.process.Init, disk_path: []const u8, out_path: []const u8, 
     return 0;
 }
 
-fn simMenu(init: std.process.Init, dir: []const u8) !u8 {
+fn simMenu(init: std.process.Init, dir: []const u8, page: menu.Page) !u8 {
     var glass = sim.Glass{};
     var words = [_]u32{0} ** 4;
     var app = try App.init(init.gpa, init.io, glass.regs(), .{ .words = &words }, dir);
     defer app.deinit();
+    app.menu.page = page;
+    app.redraw();
     var text: [osd.ROWS * (osd.COLS + 1)]u8 = undefined;
     app.osd.dump(&text);
     std.debug.print("{s}", .{text});
@@ -99,6 +108,9 @@ fn run(init: std.process.Init, opt: RunOptions) !u8 {
     app.opt.idle = devmem.napMs;
     app.opt.wait_boot = opt.wait;
     app.mouse.scale = @max(1, opt.mouse_scale);
+    app.clock = nowMs;
+    app.stats.start_ms = nowMs();
+    app.sd_writable = sdWritable;
     var inputs = evdev.Inputs{};
     defer inputs.closeAll();
     var buf: [64]evdev.Raw = undefined;
@@ -109,10 +121,11 @@ fn run(init: std.process.Init, opt: RunOptions) !u8 {
         const now = nowMs();
         if (now >= next_scan) { // every 2 s: a pad or a mouse plugged in later
             inputs.rescan();
+            app.inputs = inputs.n;
             next_scan = now + 2000;
         }
         if (now >= next_watch) {
-            app.watch();
+            app.tick();
             next_watch = now + 100;
         }
         const n = inputs.poll(100, &buf);
@@ -126,6 +139,18 @@ fn nowMs() i64 {
     return @as(i64, ts.sec) * 1000 + @divTrunc(@as(i64, ts.nsec), 1_000_000);
 }
 
+// The SD card stays mounted read-only (S99glass) so a power cut cannot hurt it;
+// a settings save remounts it read-write for the write and the rename only.
+const SD_MOUNT = "/mnt/sd";
+
+fn sdWritable(rw: bool) bool {
+    const flags: u32 = if (rw) linux.MS.REMOUNT else linux.MS.REMOUNT | linux.MS.RDONLY;
+    const rc = linux.mount(null, SD_MOUNT, null, flags, 0);
+    if (linux.errno(rc) == .SUCCESS) return true;
+    std.log.warn("remount {s} {s}: {t}", .{ SD_MOUNT, if (rw) "rw" else "ro", linux.errno(rc) });
+    return false;
+}
+
 // By event, not by device: a combo receiver's one node is a keyboard AND a mouse.
 fn dispatch(app: *App, inputs: *evdev.Inputs, r: evdev.Raw) void {
     const d = inputs.devs[r.dev];
@@ -134,9 +159,9 @@ fn dispatch(app: *App, inputs: *evdev.Inputs, r: evdev.Raw) void {
     } else if (mouse.isMouse(r.type, r.code)) {
         app.mouseEvent(r.type, r.code, r.value, r.ms);
     } else if (r.type == pad.EV_ABS) {
-        if (d.stick) app.padEvent(r.type, r.code, r.value, d.x, d.y);
+        if (d.stick) app.padEvent(r.type, r.code, r.value, d.x, d.y, d.name());
     } else if (r.type == pad.EV_KEY and r.code >= 0x100) { // a pad's buttons: 0x100 (BTN_MISC) up
-        app.padEvent(r.type, r.code, r.value, d.x, d.y);
+        app.padEvent(r.type, r.code, r.value, d.x, d.y, d.name());
     } else if (r.type == pad.EV_KEY) {
         app.key(r.code, r.value);
     }
