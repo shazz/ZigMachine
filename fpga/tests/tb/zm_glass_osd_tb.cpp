@@ -5,6 +5,9 @@
 //
 // Frame 0: OSD off, the stream must pass through untouched (3 clocks late).
 // Frame 1+: OSD on, text with inverse cells; every pixel must be the model's.
+// Then the F11 overlay: STATS (plain spaces transparent, inverse ones not) and
+// the window moved by x0/y0: to the corner, half off the edge, and far enough
+// right or down that a beam left of or above it must not wrap into it.
 #include <cstdio>
 #include <cstdlib>
 #include <deque>
@@ -31,6 +34,18 @@ static unsigned char font_raw[256 * 64];
 static unsigned text[OSD_CHARS];
 
 struct In { unsigned rgb; bool de, hs, vs; int x, y; };
+// What the quasi-static inputs hold. A frame changes them during VSYNC, so the
+// whole next frame sees them settled.
+struct Cfg { bool en, stats; int x0, y0; };
+static Cfg live{false, false, int(OSD_X0), int(OSD_Y0)};
+
+static void apply(const Cfg& c) {
+    top.p_en.set(c.en);
+    top.p_stats.set(c.stats);
+    top.p_x0.set(unsigned(c.x0));
+    top.p_y0.set(unsigned(c.y0));
+    live = c;
+}
 
 static void tick() {
     top.p_clk.set(false);
@@ -45,7 +60,7 @@ static void write_text() {
     for (unsigned i = 0; i < OSD_CHARS; i++) {
         unsigned c = (i * 7 + 33) & 0xFF;
         if (i / OSD_COLS == 3) c |= OSD_INVERSE;   // a whole inverse row: the menu's cursor
-        if (i % 5 == 0) c = ' ';
+        if (i % 5 == 0) c = (i / OSD_COLS == 3) ? (' ' | OSD_INVERSE) : ' ';  // the cursor bar stays solid
         text[i] = c;
         top.p_we.set(true);
         top.p_waddr.set(i);
@@ -55,17 +70,20 @@ static void write_text() {
     top.p_we.set(false);
 }
 
-static unsigned model(const In& in, bool osd) {
-    int ox = in.x - int(OSD_X0), oy = in.y - int(OSD_Y0);
-    if (!osd || !in.de || ox < 0 || oy < 0 || ox >= int(OSD_WIDTH) || oy >= int(OSD_HEIGHT)) return in.rgb;
+static unsigned model(const In& in, const Cfg& k) {
+    int ox = in.x - k.x0, oy = in.y - k.y0;
+    if (!k.en || !in.de || ox < 0 || oy < 0 || ox >= int(OSD_WIDTH) || oy >= int(OSD_HEIGHT)) return in.rgb;
     unsigned c = text[(oy / 16) * OSD_COLS + ox / 16];
+    if (k.stats && c == ' ') return in.rgb;
     bool ink = font_raw[(c & 0xFF) * 64 + ((oy / 2) % 8) * 8 + (ox / 2) % 8] == 1;
     if (c & OSD_INVERSE) ink = !ink;
     return ink ? FG : BG;
 }
 
-// One frame; outputs are compared with the input three clocks earlier.
-static void frame(bool osd, std::deque<In>& pipe) {
+// One frame under `live`, which becomes `next` at VSYNC; outputs are compared
+// with the input three clocks earlier.
+static void frame(const Cfg& next, std::deque<In>& pipe) {
+    const Cfg cur = live;
     for (int y = 0; y < V_TOTAL; y++)
         for (int x = 0; x < H_TOTAL; x++) {
             In in{(unsigned(x * 3) & 0xFF) << 16 | (unsigned(y) & 0xFF) << 8 | 0x5A, x < 800 && y < 600,
@@ -76,6 +94,7 @@ static void frame(bool osd, std::deque<In>& pipe) {
             top.p_de.set(in.de);
             top.p_hsync.set(in.hs);
             top.p_vsync.set(in.vs);
+            if (y == V_SYNC0 && x == 0) apply(next);
             tick();
             pipe.push_back(in);
             if (pipe.size() < 3) continue;
@@ -83,8 +102,9 @@ static void frame(bool osd, std::deque<In>& pipe) {
             unsigned got = top.p_r__o.get<unsigned>() << 16 | top.p_g__o.get<unsigned>() << 8 | top.p_b__o.get<unsigned>();
             CHECK(top.p_de__o.get<bool>() == old.de && top.p_hs__o.get<bool>() == old.hs &&
                       top.p_vs__o.get<bool>() == old.vs, "syncs not 3 clocks late at (%d,%d)", old.x, old.y);
-            unsigned want = model(old, osd);
-            CHECK(got == want, "osd %d at (%d,%d): got %06x want %06x", osd, old.x, old.y, got, want);
+            unsigned want = model(old, old.y < V_SYNC0 ? cur : live);
+            CHECK(got == want, "osd %d stats %d at %d,%d: (%d,%d): got %06x want %06x", cur.en, cur.stats, cur.x0,
+                  cur.y0, old.x, old.y, got, want);
             pipe.pop_front();
         }
 }
@@ -105,10 +125,10 @@ int main(int argc, char** argv) {
     std::deque<In> pipe;
     // Start a little before VSYNC so the overlay has seen one and knows where y=0 is.
     for (int i = 0; i < 3; i++) tick();
-    top.p_en.set(false);
-    frame(false, pipe);
-    top.p_en.set(true);
-    frame(true, pipe);
+    const Cfg centred{true, false, int(OSD_X0), int(OSD_Y0)};
+    apply({false, false, int(OSD_X0), int(OSD_Y0)});
+    frame(centred, pipe);
+    frame(centred, pipe);
     text[0] = 'A' | OSD_INVERSE;           // a rewrite between frames shows on the next one
     top.p_we.set(true);
     top.p_waddr.set(0);
@@ -116,7 +136,15 @@ int main(int argc, char** argv) {
     tick();
     top.p_we.set(false);
     pipe.clear();
-    frame(true, pipe);
+    const Cfg moves[] = {
+        {true, true, int(OSD_X0), int(OSD_Y0)},  // the stats overlay, still centred
+        {true, true, 0, 0},                      // in the corner, as F11 puts it
+        {true, false, 700, 500},                 // half off the right and bottom edges: clipped
+        {true, true, 2000, 100},                 // right of the screen: a beam left of it must not wrap in
+        {true, false, 100, 1000},                // below it: likewise for the lines above
+        {false, false, int(OSD_X0), int(OSD_Y0)},
+    };
+    for (const Cfg& next : moves) frame(next, pipe);  // each shows the one before it
     if (failures) return 1;
     std::printf("zm_glass_osd: ok\n");
     return 0;

@@ -52,8 +52,10 @@ module osd_test_core (
     hdmi_pattern u_pat (.clk(clk), .rst(rst), .r(pat_r), .g(pat_g), .b(pat_b), .de(pat_de), .hsync(pat_hs),
                         .vsync(pat_vs));
 
-    wire        osd_en, regs_we, banner_we;
+    wire        osd_en, osd_stats, regs_we, banner_we;
     wire [23:0] osd_fg, osd_bg;
+    wire [10:0] osd_x0;
+    wire [9:0]  osd_y0;
     wire [8:0]  regs_waddr, regs_wdata, banner_waddr, banner_wdata;
     zm_glass_regs #(.CTRL_INIT(ZG_CTRL_OSD)) u_regs (
         .clk(clk), .rst(rst),
@@ -63,7 +65,7 @@ module osd_test_core (
         .s_arvalid(s_arvalid), .s_arready(s_arready), .s_araddr(s_araddr), .s_arid(s_arid),
         .s_rvalid(s_rvalid), .s_rready(s_rready), .s_rdata(s_rdata), .s_rid(s_rid), .s_rresp(s_rresp),
         .s_rlast(s_rlast),
-        .cpu_run(), .osd_en(osd_en), .osd_fg(osd_fg), .osd_bg(osd_bg), .load_base(), .load_size(), .joy(),
+        .cpu_run(), .osd_en(osd_en), .osd_stats(osd_stats), .osd_x0(osd_x0), .osd_y0(osd_y0), .osd_fg(osd_fg), .osd_bg(osd_bg), .load_base(), .load_size(), .joy(),
         .osd_we(regs_we), .osd_waddr(regs_waddr), .osd_wdata(regs_wdata),
         .key_valid(), .key_data(), .key_pop(1'b0), .cart_state_we(1'b0), .cart_state_in(32'd0),
         .cart_beat_we(1'b0), .cart_beat_in(32'd0), .ptr(), .ptr_ack(1'b0), .ptr_ack_seq(8'd0)
@@ -75,7 +77,8 @@ module osd_test_core (
     // The banner owns the port for the 512 clocks after reset; the ARM cannot
     // have written yet (the PL was configuring, or its PLL relocking).
     zm_glass_osd u_osd (
-        .clk(clk), .rst(rst), .en(osd_en), .fg(osd_fg), .bg(osd_bg), .wclk(clk),
+        .clk(clk), .rst(rst), .en(osd_en), .stats(osd_stats), .fg(osd_fg), .bg(osd_bg), .x0(osd_x0), .y0(osd_y0),
+        .wclk(clk),
         .we(banner_we || regs_we), .waddr(banner_we ? banner_waddr : regs_waddr),
         .wdata(banner_we ? banner_wdata : regs_wdata),
         .r(pat_r), .g(pat_g), .b(pat_b), .de(pat_de), .hsync(pat_hs), .vsync(pat_vs),

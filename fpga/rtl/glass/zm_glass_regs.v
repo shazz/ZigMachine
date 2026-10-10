@@ -1,16 +1,14 @@
-// The glass's register block: the ARM's view of the console, over the PS's
-// M_AXI_GP0 (docs/FPGA_GLASS.md). The map is fpga/glass/src/map.zig, through
-// gen/glass_map.vh.
+// The glass's register block: the ARM's view of the console, over the PS's M_AXI_GP0
+// (docs/FPGA_GLASS.md). The map is fpga/glass/src/map.zig, through gen/glass_map.vh.
 //
-// AXI3 as the GP port speaks it, single beats only (the ARM maps the block
-// uncached and makes 32-bit accesses). IDs are echoed, RLAST is always set, and
-// every response is OKAY: an unmapped or read-only address is ignored on write
-// and reads 0, so a stray access can never fault the menu. AW and W may arrive
-// in either order or together; the next write is taken once B is accepted.
-//
+// AXI3 as the GP port speaks it, single beats only (the ARM maps the block uncached,
+// 32-bit accesses). IDs are echoed, RLAST is always set, and every response is OKAY:
+// an unmapped or read-only address is ignored on write and reads 0, so a stray access
+// can never fault the menu. AW and W may come in either order or together; the next
+// write is taken once B is accepted.
 // The cart CPU's side (LiteX CSRs): it pops key events, reads JOY, the pointer
 // (zm_glass_ptr.v) and CTRL.WARM at boot, and reports a state and a heartbeat.
-// AUDIO_VOL goes to the audio mixer, which applies it (FPGA_GLASS.md, "Volume").
+// AUDIO_VOL goes to the audio mixer (FPGA_GLASS.md, "Volume"); OSD_* to zm_glass_osd.
 `default_nettype none
 
 module zm_glass_regs #(
@@ -43,7 +41,9 @@ module zm_glass_regs #(
     output wire        s_rlast,
     // to the console
     output wire        cpu_run,            // 0 holds the cart CPU in reset
-    output wire        osd_en,
+    output wire        osd_en, osd_stats,  // CTRL_OSD, CTRL_OSD_STATS
+    output reg  [10:0] osd_x0,             // REG_OSD_POS: the window's top-left
+    output reg  [9:0]  osd_y0,
     output reg  [23:0] osd_fg,
     output reg  [23:0] osd_bg,
     output reg  [31:0] load_base,
@@ -69,10 +69,8 @@ module zm_glass_regs #(
 `include "glass_map.vh"
 
     reg [31:0] ctrl, cart_state, cart_beat, scratch;
-    assign {boot_warm, osd_en, cpu_run} = {ctrl[3], ctrl[1], ctrl[0]};
-    assign s_bresp = 2'b00;
-    assign s_rresp = 2'b00;
-    assign s_rlast = 1'b1;
+    assign {osd_stats, boot_warm, osd_en, cpu_run} = {ctrl[4], ctrl[3], ctrl[1], ctrl[0]};
+    assign s_bresp = 2'b00, s_rresp = 2'b00, s_rlast = 1'b1;
 
     // --- the key FIFO: KEY_DEPTH entries, pushed by the ARM, popped by the cart
     localparam integer KD = ZG_KEY_DEPTH;
@@ -127,12 +125,12 @@ module zm_glass_regs #(
         osd_wdata <= wdata[8:0];
         if (rst) begin
             ctrl <= CTRL_INIT;
-            {osd_fg, osd_bg} <= {24'hFFFFFF, 24'h000000};
+            {osd_fg, osd_bg, osd_x0, osd_y0} <= {24'hFFFFFF, 24'h000000, ZG_OSD_X0[10:0], ZG_OSD_Y0[9:0]};
             {load_base, load_size, joy, scratch} <= {ZG_LOAD_BASE_RESET, 32'd0, 8'd0, 32'd0};
             audio_vol <= ZG_AUDIO_VOL_RESET[8:0];
         end else if (do_write && is_reg) begin
             case (waddr[11:2])
-                ZG_REG_CTRL[11:2]:      ctrl <= wdata & (ZG_CTRL_RUN | ZG_CTRL_OSD | ZG_CTRL_WARM);
+                ZG_REG_CTRL[11:2]:      ctrl <= wdata & (ZG_CTRL_RUN | ZG_CTRL_OSD | ZG_CTRL_WARM | ZG_CTRL_OSD_STATS);
                 ZG_REG_LOAD_BASE[11:2]: load_base <= wdata;
                 ZG_REG_LOAD_SIZE[11:2]: load_size <= wdata;
                 ZG_REG_JOY[11:2]:       joy <= wdata[7:0];
@@ -140,6 +138,7 @@ module zm_glass_regs #(
                 ZG_REG_OSD_BG[11:2]:    osd_bg <= wdata[23:0];
                 ZG_REG_SCRATCH[11:2]:   scratch <= wdata;
                 ZG_REG_AUDIO_VOL[11:2]: audio_vol <= wdata[8:0];
+                ZG_REG_OSD_POS[11:2]:   {osd_y0, osd_x0} <= {wdata[25:16], wdata[10:0]};
                 default: ;
             endcase
         end
@@ -186,6 +185,7 @@ module zm_glass_regs #(
             ZG_REG_SCRATCH[11:2]:    rmux = scratch;
             ZG_REG_POINTER[11:2]:    rmux = ptr;
             ZG_REG_AUDIO_VOL[11:2]:  rmux = {23'd0, audio_vol};
+            ZG_REG_OSD_POS[11:2]:    rmux = {6'd0, osd_y0, 5'd0, osd_x0};
             default:                 rmux = 32'd0;
         endcase
         if (s_araddr[15:12] != 4'd0) rmux = 32'd0;
