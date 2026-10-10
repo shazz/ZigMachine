@@ -16,6 +16,9 @@ pub const Glass = struct {
     joy: u32 = 0,
     osd_fg: u32 = 0xFFFFFF,
     osd_bg: u32 = 0,
+    osd_pos: u32 = map.OSD_POS_RESET,
+    osd_pos_writes: u32 = 0, // an older PL has no REG_OSD_POS: the glass must not need it
+    version: u32 = map.VERSION, // set lower to stand in for an older PL
     scratch: u32 = 0,
     keys: [map.KEY_DEPTH]u32 = undefined,
     key_len: u32 = 0,
@@ -58,7 +61,7 @@ pub const Glass = struct {
         if (offset >= 0x1000) return 0; // the OSD text is write-only, the rest unmapped
         return switch (offset) {
             map.REG_ID => map.ID_VALUE,
-            map.REG_VERSION => map.VERSION,
+            map.REG_VERSION => self.version,
             map.REG_CTRL => self.ctrl,
             map.REG_STATUS => self.status(),
             map.REG_CART_STATE => self.cartState(),
@@ -72,6 +75,7 @@ pub const Glass = struct {
             map.REG_SCRATCH => self.scratch,
             map.REG_POINTER => self.pointer(),
             map.REG_AUDIO_VOL => self.audio_vol,
+            map.REG_OSD_POS => self.osd_pos,
             else => 0,
         };
     }
@@ -124,6 +128,10 @@ pub const Glass = struct {
             map.REG_SCRATCH => self.scratch = value,
             map.REG_POINTER => self.pointerWrite(value),
             map.REG_AUDIO_VOL => self.audio_vol = value & (map.AUDIO_MUTE | map.AUDIO_VOL_MASK),
+            map.REG_OSD_POS => {
+                self.osd_pos = value & (map.OSD_POS_X_MASK << map.OSD_POS_X_SHIFT | map.OSD_POS_Y_MASK << map.OSD_POS_Y_SHIFT);
+                self.osd_pos_writes += 1;
+            },
             else => {},
         }
     }
@@ -134,7 +142,8 @@ pub const Glass = struct {
             self.overflow = false;
         }
         const was = self.running();
-        self.ctrl = value & (map.CTRL_RUN | map.CTRL_OSD | map.CTRL_WARM);
+        const stats = if (self.version >= map.VERSION_OSD_STATS) map.CTRL_OSD_STATS else 0;
+        self.ctrl = value & (map.CTRL_RUN | map.CTRL_OSD | map.CTRL_WARM | stats);
         if (was and !self.running()) self.resets += 1;
         if (!self.running()) {
             self.cart_state = map.CART_RESET;

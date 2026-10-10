@@ -34,7 +34,14 @@ class ZMGlass(LiteXModule):
         self.axi = axi.AXIInterface(data_width=32, address_width=32, id_width=12, version="axi3")
         self.cpu_run = Signal()
         self.load_base = Signal(32)  # LOAD_BASE: where in DDR the HP ports' cart window sits (zm_board_mem.hp_slice)
-        self.osd = {"en": Signal(), "fg": Signal(24), "bg": Signal(24)}
+        self.osd = {
+            "en": Signal(),
+            "stats": Signal(),
+            "fg": Signal(24),
+            "bg": Signal(24),
+            "x0": Signal(11),
+            "y0": Signal(10),
+        }
         self.osd_write = {"we": Signal(), "waddr": Signal(9), "wdata": Signal(9)}
         self.key_data = CSRStatus(32, description="The oldest key event (fpga/glass/src/map.zig, KEY_*).")
         self.key_valid = CSRStatus(1, description="key_data holds an event.")
@@ -62,7 +69,8 @@ class ZMGlass(LiteXModule):
             "i_s_arvalid": a.ar.valid, "o_s_arready": a.ar.ready, "i_s_araddr": a.ar.addr[:16], "i_s_arid": a.ar.id,
             "o_s_rvalid": a.r.valid, "i_s_rready": a.r.ready, "o_s_rdata": a.r.data, "o_s_rid": a.r.id,
             "o_s_rresp": a.r.resp, "o_s_rlast": a.r.last,
-            "o_cpu_run": self.cpu_run, "o_osd_en": self.osd["en"], "o_osd_fg": self.osd["fg"],
+            "o_cpu_run": self.cpu_run, "o_osd_en": self.osd["en"], "o_osd_stats": self.osd["stats"],
+            "o_osd_x0": self.osd["x0"], "o_osd_y0": self.osd["y0"], "o_osd_fg": self.osd["fg"],
             "o_osd_bg": self.osd["bg"], "o_load_base": self.load_base, "o_load_size": Signal(32),
             "o_joy": self.joy.status, "o_osd_we": self.osd_write["we"], "o_osd_waddr": self.osd_write["waddr"],
             "o_osd_wdata": self.osd_write["wdata"], "o_key_valid": self.key_valid.status,
@@ -78,8 +86,8 @@ class ZMGlass(LiteXModule):
         out = {k: Signal(len(v), name=f"osd_{k}") for k, v in pic.items()}
         module.specials += Instance(
             "zm_glass_osd",
-            i_clk=ClockSignal(cd_pix), i_rst=ResetSignal(cd_pix), i_en=self.osd["en"],
-            i_fg=self.osd["fg"], i_bg=self.osd["bg"], i_wclk=ClockSignal("sys"),
+            i_clk=ClockSignal(cd_pix), i_rst=ResetSignal(cd_pix), i_en=self.osd["en"], i_stats=self.osd["stats"],
+            i_fg=self.osd["fg"], i_bg=self.osd["bg"], i_x0=self.osd["x0"], i_y0=self.osd["y0"], i_wclk=ClockSignal("sys"),
             i_we=self.osd_write["we"], i_waddr=self.osd_write["waddr"], i_wdata=self.osd_write["wdata"],
             i_r=pic["r"], i_g=pic["g"], i_b=pic["b"], i_de=pic["de"], i_hsync=pic["hsync"], i_vsync=pic["vsync"],
             o_r_o=out["r"], o_g_o=out["g"], o_b_o=out["b"], o_de_o=out["de"], o_hs_o=out["hsync"],

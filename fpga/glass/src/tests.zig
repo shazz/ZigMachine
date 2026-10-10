@@ -20,6 +20,7 @@ test {
     _ = @import("evdev.zig");
     _ = @import("devmem.zig");
     _ = @import("app_test.zig");
+    _ = @import("app_stats_test.zig");
     _ = @import("console_test.zig");
     _ = @import("text.zig");
     _ = @import("page_debug.zig");

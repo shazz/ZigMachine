@@ -176,8 +176,35 @@ static void test_audio_vol_and_warm() {
     CHECK(axi_read(REG_AUDIO_VOL) == AUDIO_VOL_RESET, "reset restores unity");
 }
 
+// REG_OSD_POS and CTRL_OSD_STATS (1.4.0): the F11 frame-rate overlay's window.
+static unsigned osd_pos_port() {
+    return top.p_osd__y0.get<unsigned>() << OSD_POS_Y_SHIFT | top.p_osd__x0.get<unsigned>() << OSD_POS_X_SHIFT;
+}
+
+static void test_osd_pos_and_stats() {
+    CHECK(axi_read(REG_OSD_POS) == OSD_POS_RESET, "OSD_POS resets centred: 0x%x", axi_read(REG_OSD_POS));
+    CHECK(osd_pos_port() == OSD_POS_RESET, "the OSD sees the centred place after reset");
+    CHECK(!top.p_osd__stats.get<bool>(), "STATS resets clear");
+    unsigned pos = 0x2A5u << OSD_POS_Y_SHIFT | 0x5A3u << OSD_POS_X_SHIFT;
+    axi_write(REG_OSD_POS, pos);
+    CHECK(axi_read(REG_OSD_POS) == pos && osd_pos_port() == pos, "OSD_POS: 0x%x", axi_read(REG_OSD_POS));
+    axi_write(REG_OSD_POS, 0xFFFFFFFF);
+    unsigned all = OSD_POS_Y_MASK << OSD_POS_Y_SHIFT | OSD_POS_X_MASK << OSD_POS_X_SHIFT;
+    CHECK(axi_read(REG_OSD_POS) == all && osd_pos_port() == all, "only x and y are kept: 0x%x", axi_read(REG_OSD_POS));
+    axi_write(REG_CTRL, CTRL_OSD | CTRL_OSD_STATS);
+    CHECK(top.p_osd__stats.get<bool>() && top.p_osd__en.get<bool>() && !top.p_cpu__run.get<bool>() &&
+              !top.p_boot__warm.get<bool>(), "STATS is its own bit");
+    CHECK(axi_read(REG_CTRL) == (CTRL_OSD | CTRL_OSD_STATS), "STATS reads back");
+    axi_write(REG_CTRL, CTRL_OSD);
+    CHECK(!top.p_osd__stats.get<bool>(), "STATS clears");
+    axi_write(REG_CTRL, 0);
+    reset();
+    CHECK(axi_read(REG_OSD_POS) == OSD_POS_RESET, "reset re-centres the window");
+}
+
 int main() {
     reset();
+    test_osd_pos_and_stats();
     test_identity_and_reset();
     test_write_orders();
     test_run_and_cart_reports();

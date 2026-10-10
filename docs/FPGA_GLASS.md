@@ -27,10 +27,10 @@ none of MiSTer's code (GPL) or zeST's code (GPL-3) is used.
 | Piece | State | Evidence |
 |---|---|---|
 | Register map, one source (`glass/src/map.zig` → `gen/glass_map.{vh,py}`) | **done** | `make memmap` |
-| `zm_glass_regs` (AXI3 slave, key FIFO, pointer, cart reset, reports, `AUDIO_VOL`, `CTRL.WARM`) | **done**, 245 LUT, 411 FF (Yosys, 2026-10-03) | CXXRTL testbench; 20/20 break tests caught |
-| `zm_glass_osd` (32×16 text, ST system font, 2×) | **done**, 45 LUT, 2 BRAM | 3 whole 800×600 frames checked pixel by pixel; 6/6 break tests caught |
+| `zm_glass_regs` (AXI3 slave, key FIFO, pointer, cart reset, reports, `AUDIO_VOL`, `CTRL.WARM`, `OSD_POS`) | **done**, 269 LUT, 433 FF (Yosys, 2026-10-10) | CXXRTL testbench; 24/24 break tests caught |
+| `zm_glass_osd` (32×16 text, ST system font, 2×; movable, transparent spaces) | **done**, 91 LUT, 154 FF, 2 BRAM (Yosys); Vivado P&R 71 LUT, WNS +19.1 ns at 40 MHz | 8 whole 800×600 frames checked pixel by pixel; 13/13 break tests caught |
 | In the z7 SoC (PS7 GP0, OSD hook, CPU reset) | elaborates and synthesises; **does not route yet** | whole SoC 4,424 LUT (25.1 %), +355 for the glass. openXC7 packs and places the PS7, but routing diverges (below) |
-| ARM program `glass` (loader, menu pages, keymap, mouse, pad, evdev, `/dev/mem`) | **done**, host-tested | 56 Zig tests, 26 break tests caught; static `arm-linux-musleabihf` binary 3.7 MB |
+| ARM program `glass` (loader, menu pages, keymap, mouse, pad, evdev, `/dev/mem`) | **done**, host-tested | 62 Zig tests, 43 break tests caught; static `arm-linux-musleabihf` binary 3.7 MB |
 | Console page: cold and warm reset, volume and mute, `glass.cfg` | **done**, host-tested | below, "Cold and warm reset", "Volume", "Settings" |
 | Debug page (versions, live stats, board) | **done**, host-tested | below, "The debug page" |
 | Cart descriptions (`shelf.txt`, `tools/shelf_meta.py`) | **done** | 73 catalog carts described, 55 with a field nobody wrote down (`--check` lists them) |
@@ -51,15 +51,16 @@ without `~` are measured (Yosys `synth_xilinx`, `tools/util.py`); figures with
 
 | Name | Description | Where | Status | Complexity | FPGA cost (LUT / BRAM / DSP) |
 |---|---|---|---|---|---|
-| OSD | 32×16 text over the picture, F12 | core | built, host-tested; on the board via the OSD test bitstream | S | 45 / 2 / 0 |
-| Register block (GP0) | the ARM's view of the console | core | built, host-tested | M | 245 / 0 / 0 (411 FF, 6 LUTRAM) |
+| OSD | 32×16 text over the picture, F12 | core | built, host-tested; on the board via the OSD test bitstream | S | 91 / 2 / 0 (with the overlay's position and transparency) |
+| Frame-rate overlay | `FPS 38.2` in the corner, F11, the picture still visible | both | built, host-tested; not yet on the board | S | in the OSD's 91 (+46 LUT over the fixed OSD); `OSD_POS` in the register block's 269 |
+| Register block (GP0) | the ARM's view of the console | core | built, host-tested | M | 269 / 0 / 0 (433 FF, 6 LUTRAM) |
 | Cart shelf + load | list the `.zmd` disks, place a cart in DDR, boot it | ARM | built, host-tested | M | — |
 | Cold reset | reload from SD, clear the cart's memory, boot: a power cycle | ARM | **must-have**, built, host-tested | S | — |
 | Warm reset | restart the cart CPU over its memory: the ST's reset button | both | **must-have**, built, host-tested; firmware hook stubbed | M | 1 FF (`CTRL.WARM`, in the 245) |
 | Volume / mute | master volume 0..255 + mute, persisted | both | **must-have**: register, menu and the multiply built (`soc/zm_audio_vol.py`, between the audio core and HDMI, 2026-10-10); not yet heard on the board | S | register in the 245; multiply ~1 DSP48 + ~20 LUT |
 | Debug page | versions, live stats, board info | ARM | **must-have**, built, host-tested | S | — |
 | Cart descriptions | title, group, year, machine, one line, from `shelf.txt` | ARM + tool | **must-have**, built | S | — |
-| Settings persistence | `glass.cfg` on the SD card (volume, mute) | ARM | **must-have**, built, host-tested | S | — |
+| Settings persistence | `glass.cfg` on the SD card (volume, mute, the F11 overlay) | ARM | **must-have**, built, host-tested | S | — |
 | USB keyboard | evdev → neutral key events → the cart's exports | both | built, host-tested | M | key FIFO, in the 245 |
 | USB mouse | evdev → `POINTER`, clicks latched | both | built, host-tested | M | `zm_glass_ptr`, in the 245 |
 | USB joystick | evdev → `JOY` → `input()`; the OSD works with it | both | **must-have**, built, host-tested; board checklist below | S | `JOY`, in the 245 |
@@ -100,8 +101,8 @@ clock (the PL drives `MAXIGP0ACLK`), so it lives in one clock domain.
 | Offset | Register | | What it does |
 |---|---|---|---|
 | `0x00` | `ID` | ro | `0x5A4D474C` "ZMGL". The ARM drives nothing until it reads this. |
-| `0x04` | `VERSION` | ro | 1.2.0 (1.1 added `POINTER`; 1.2 `AUDIO_VOL` and `CTRL.WARM`) |
-| `0x08` | `CTRL` | rw | bit 0 `RUN`: 0 holds the cart CPU in reset, and 0 is the reset value. bit 1 `OSD`: show the overlay. bit 2 `KEY_FLUSH`: a strobe that empties the FIFO and clears the overflow flag. bit 3 `WARM`: the next boot keeps the cart's memory (below, "Cold and warm reset"); the firmware reads it at boot through the `glass_boot_warm` CSR. |
+| `0x04` | `VERSION` | ro | 1.4.0 (1.1 added `POINTER`; 1.2 `AUDIO_VOL` and `CTRL.WARM`; 1.3 `LOAD_BASE` moves the HP window; 1.4 `OSD_POS` and `CTRL.OSD_STATS`) |
+| `0x08` | `CTRL` | rw | bit 0 `RUN`: 0 holds the cart CPU in reset, and 0 is the reset value. bit 1 `OSD`: show the overlay. bit 2 `KEY_FLUSH`: a strobe that empties the FIFO and clears the overflow flag. bit 3 `WARM`: the next boot keeps the cart's memory (below, "Cold and warm reset"); the firmware reads it at boot through the `glass_boot_warm` CSR. bit 4 `OSD_STATS` (1.4): a text cell holding a plain space (no inverse) is transparent, so only the text covers the picture (below, "The frame-rate overlay"). |
 | `0x0C` | `STATUS` | ro | bit 0 `RUNNING`, bit 1 `KEY_FULL`, bit 2 `KEY_OVERFLOW` (sticky) |
 | `0x10` | `CART_STATE` | ro | Written by the cart CPU's firmware: 0 reset, 1 booting, 2 running, 3 trapped. Bits 31:8: the trap code when trapped (`TRAP_WARM_LOST` = `0xFFFF01` for a warm boot with no memory to keep), the firmware's version (major.minor.patch, 8 bits each) when booting or running. Cleared while the CPU is held. |
 | `0x14` | `CART_BEAT` | ro | The firmware's frame count: the ARM's watchdog |
@@ -114,6 +115,7 @@ clock (the PL drives `MAXIGP0ACLK`), so it lives in one clock domain.
 | `0x34` | `SCRATCH` | rw | For bring-up: proves the bus before anything else |
 | `0x38` | `POINTER` | rw | The mouse: x (bits 9:0), y (19:10), buttons (23:20). Reads back the cart's view, with SEQ in 31:24. Below, "The mouse". |
 | `0x3C` | `AUDIO_VOL` | rw | The master volume: bits 7:0 the level (255 = unity), bit 8 `MUTE`. Reset value `0x0FF`: unity, not muted. An output port to the audio mixer. Below, "Volume". |
+| `0x40` | `OSD_POS` | rw | (1.4) The OSD window's top-left on the 800×600 output: x in bits 10:0, y in 25:16. Reset value `0x00AC_0090`, (144, 172): centred, as before 1.4. A window partly past the right or bottom edge is clipped; one wholly past it is not drawn. |
 | `0x1000`… | OSD text | wo | 512 words, row-major: `{inverse, glyph}` |
 
 **The AXI slave** takes single beats only, which is what an uncached 32-bit
@@ -291,7 +293,8 @@ below the cart window.
 
 - **Window:** 32 × 16 characters of the machine's own 8×8 system font
   (`machine/assets/fonts/system_font_atari_1bit.raw`), drawn 2×. That is 512 ×
-  256 pixels at (144, 172), centred on the 800 × 600 output.
+  256 pixels at (144, 172), centred on the 800 × 600 output (`OSD_POS`'s reset
+  value; the frame-rate overlay moves it).
 - **Where it sits:** on the pixel stream between `zm_video_scan` and
   `zm_dvi_out`. It is the last layer, after the mixer, so it never changes a pixel
   the scene-hash oracle checks. The hook is one marked block in
@@ -306,6 +309,33 @@ below the cart window.
     the menu is dropped.
   - **Esc** closes the menu over a running cart (there is nothing to close it
     over before the first load).
+- **F11** toggles the frame-rate overlay while the menu is closed (below). Like
+  F12 it never reaches a cart; with the menu open it does nothing.
+
+### The frame-rate overlay (F11, `app_stats.zig`)
+
+`FPS 38.2` in the top-left corner over a running cart, without hiding the
+picture. It is the same OSD, put in another mode rather than a second block:
+
+- `glass` writes `OSD_POS` = (16, 16), sets `CTRL.OSD | CTRL.OSD_STATS`, and
+  writes row 0 only; every other cell is a plain space, which `OSD_STATS` makes
+  transparent. The text keeps its paper (`OSD_BG`), so it stays legible over any
+  picture.
+- The number is `stats.zig`'s: `CART_BEAT` frames over a one-second window of the
+  ARM's clock, `--.-` until a whole window has been seen (after a load, a reset).
+  `glass` redraws it on every tick (ten a second); only changed cells cross the
+  bus, so that is one write burst a second.
+- **Opening the menu** (F12, or a trapped cart) puts the window back centred and
+  opaque; **closing it** brings the overlay back if it was on.
+- The toggle is saved in `glass.cfg` (`fps=1`), so it survives a restart.
+- **A PL older than 1.4.0** has neither the bit nor `OSD_POS`. F11 then does
+  nothing (it would show an opaque blank window mid-screen) and the setting is
+  kept for a newer bitstream. It is never a reason to refuse the PL.
+- In the PL it costs the two position subtractions (from constants to
+  registers), the space compare and the synchronisers: the OSD went from 45 to
+  91 LUT and 154 FF (Yosys). Vivado out of context, placed and routed at the
+  40 MHz pixel clock: 71 LUT, 159 FF, 1 BRAM tile, WNS +19.1 ns (the worst path
+  is font ROM → pixel mux, 3 logic levels).
 - **The menu** has three pages (`menu.zig`, one file a page). Row 15 is always
   the status line: the page's hint, `loading…`, or the last error. A joypad
   works everywhere: the d-pad is the arrows and fire is Enter; Back is an item,
@@ -491,7 +521,10 @@ page.
 # glass.cfg: the console's settings, written by glass (docs/FPGA_GLASS.md)
 volume=200
 mute=0
+fps=0
 ```
+
+`fps=1`: the F11 frame-rate overlay is on. F11 saves it at once.
 
 - **Missing** means "never saved": the defaults (255, not muted), and nothing
   is reported, as nothing is wrong.
@@ -586,7 +619,10 @@ browser.
     - The register testbench drives GP0 the way the PS does, with AW and W in
       every order, B and R back-pressured at random, and garbage on any channel
       whose VALID is low.
-    - The OSD testbench sends 3 whole VESA frames and checks every pixel against
+    - The OSD testbench sends 8 whole VESA frames (off, centred, a text
+      rewrite, the `OSD_STATS` overlay centred and in the corner, a window
+      clipped by the right and bottom edges, and windows wholly right of and
+      below the screen) and checks every pixel against
       a model built from the font **file**, not from the generated ROM.
   - `tests/test_glass.py`:
     - the Zig tests (`zig build test`), against `sim.zig`, a register file with
@@ -609,9 +645,11 @@ browser.
       `shelf.txt` description;
     - the board device tree compiled with `dtc` (Ethernet node), and the
       Buildroot config carrying DHCP, dropbear and avahi.
-- `ZM_RTL_BREAK=1` adds 26 RTL break tests (7 for `AUDIO_VOL` and `CTRL.WARM`)
-  and `tests/test_glass_input.py`'s 33 (the mouse, the pad, the OSD's release,
-  the firmware's pointer poll; the console page's 11; the warm-boot hook's 4),
+- `ZM_RTL_BREAK=1` adds 37 RTL break tests (7 for `AUDIO_VOL` and `CTRL.WARM`,
+  12 for `OSD_POS`, `OSD_STATS` and transparency) and
+  `tests/test_glass_input.py`'s 43 (the mouse, the pad, the OSD's release, the
+  firmware's pointer poll; the console page's 12; the F11 overlay's 9; the
+  warm-boot hook's 4),
   each required to fail **at run time**: a mutant that does not compile is
   refused, as it proves nothing.
 - The end-to-end test was itself broken once (one word of the image dropped)

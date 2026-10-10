@@ -16,7 +16,7 @@ pub const GP0_BASE: u32 = 0x43C0_0000;
 pub const WINDOW_BYTES: u32 = 0x1_0000;
 
 pub const ID_VALUE: u32 = 0x5A4D_474C; // "ZMGL": the ARM refuses to drive anything else
-pub const VERSION: u32 = 0x0001_0300; // 1.3.0: REG_LOAD_BASE moves the HP window (1.2.0: REG_AUDIO_VOL, CTRL_WARM; 1.1.0: REG_POINTER)
+pub const VERSION: u32 = 0x0001_0400; // 1.4.0: REG_OSD_POS, CTRL_OSD_STATS (1.3.0: REG_LOAD_BASE moves the HP window; 1.2.0: REG_AUDIO_VOL, CTRL_WARM; 1.1.0: REG_POINTER)
 
 // --- registers (byte offsets, 32-bit, word access only) ----------------------
 pub const REG_ID: u32 = 0x00; // ro
@@ -35,6 +35,7 @@ pub const REG_OSD_BG: u32 = 0x30; // rw, 0x00RRGGBB
 pub const REG_SCRATCH: u32 = 0x34; // rw, bring-up: proves the bus before anything else
 pub const REG_POINTER: u32 = 0x38; // rw, the mouse (PTR_*); reads back with the cart's view
 pub const REG_AUDIO_VOL: u32 = 0x3C; // rw, AUDIO_*: the master volume and mute the PL's mixer applies
+pub const REG_OSD_POS: u32 = 0x40; // rw, OSD_POS_*: the OSD window's top-left on the output (1.4.0)
 
 // The OSD text: one character a WORD (no byte lanes to get wrong), row-major.
 // Write-only: the ARM keeps the text it wrote, reads return 0.
@@ -51,6 +52,18 @@ pub const OSD_HEIGHT: u32 = OSD_ROWS * 8 * OSD_SCALE; // 256
 pub const OSD_X0: u32 = (800 - OSD_WIDTH) / 2; // 144
 pub const OSD_Y0: u32 = (600 - OSD_HEIGHT) / 2; // 172
 
+// REG_OSD_POS: where the window's top-left sits, in output pixels. The reset
+// value is the centred place above, so a glass older than 1.4.0 sees no change.
+// Part of the window past the right or bottom edge is simply not drawn.
+pub const OSD_POS_X_SHIFT: u32 = 0;
+pub const OSD_POS_Y_SHIFT: u32 = 16;
+pub const OSD_POS_X_MASK: u32 = 0x7FF;
+pub const OSD_POS_Y_MASK: u32 = 0x3FF;
+pub const OSD_POS_RESET: u32 = OSD_X0 << OSD_POS_X_SHIFT | OSD_Y0 << OSD_POS_Y_SHIFT;
+// The PL that has REG_OSD_POS and CTRL_OSD_STATS; an older one simply has no
+// frame-rate overlay (glass checks, never refuses).
+pub const VERSION_OSD_STATS: u32 = 0x0001_0400;
+
 // --- CTRL / STATUS bits ------------------------------------------------------
 pub const CTRL_RUN: u32 = 1 << 0; // 0 holds the cart CPU in reset (the reset value)
 pub const CTRL_OSD: u32 = 1 << 1; // show the OSD over the picture
@@ -59,6 +72,9 @@ pub const CTRL_KEY_FLUSH: u32 = 1 << 2; // strobe: empty the key FIFO, clear ST_
 // cart's boot (the ST's reset button). Stored; the firmware reads it once, at boot
 // (glass/firmware/glass_boot.h). A cold load writes CTRL without it.
 pub const CTRL_WARM: u32 = 1 << 3;
+// The stats overlay (F11): a character cell holding a plain space (no inverse)
+// is TRANSPARENT, so only the text covers the picture; other cells draw as ever.
+pub const CTRL_OSD_STATS: u32 = 1 << 4;
 
 pub const ST_RUNNING: u32 = 1 << 0; // the cart CPU is out of reset
 pub const ST_KEY_FULL: u32 = 1 << 1;

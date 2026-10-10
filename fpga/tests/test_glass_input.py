@@ -73,6 +73,31 @@ CONSOLE_MUTANTS = [
     ("meta_short_line", Q, "if (i < 2 or f[0].len == 0 or f[1].len == 0) return null;", "if (i < 1) return null;"),
     ("meta_title", T, "d.title = m.title;", ""),
     ("fps_restart", S, "self.t0 == 0 or beat < self.beat0", "self.t0 == 0"),
+    ("cfg_fps", H, "s.fps = flag(val) orelse return false;", "s.fps = false;"),
+]
+
+# The F11 frame-rate overlay (src/app_stats.zig).
+AS = "src/app_stats.zig"
+STATS_MUTANTS = [
+    (
+        "stats_menu_opaque",
+        AS,
+        "if (app.open) map.CTRL_OSD else",
+        "if (app.open) map.CTRL_OSD | map.CTRL_OSD_STATS else",
+    ),
+    ("stats_closed_only", AS, "    if (app.open) return;\n", ""),
+    ("stats_old_pl_gate", AS, "return app.pl_stats and app.menu", "return app.menu"),
+    ("stats_old_pl_toggle", AS, "if (!app.pl_stats) return std.log", "if (false) return std.log"),
+    ("stats_corner", AS, "if (on(app)) CORNER else", "if (on(app)) map.OSD_POS_RESET else"),
+    ("stats_recentre", AS, "CORNER else map.OSD_POS_RESET", "CORNER else CORNER"),
+    ("stats_saved", AS, "    cart.saveSettings(app);\n", ""),
+    ("stats_plain_text", AS, "&buf), false);", "&buf), true);"),
+    (
+        "stats_tick",
+        A,
+        "+%= 1;\n        if (!self.open) return overlay.draw(self);",
+        "+%= 1;\n        if (!self.open) return;",
+    ),
 ]
 
 F = "glass_input.c"
@@ -117,6 +142,12 @@ def test_a_broken_input_rule_is_caught_on_the_arm(name: str, file: str, old: str
 @BREAK
 @pytest.mark.parametrize(("name", "file", "old", "new"), CONSOLE_MUTANTS, ids=[m[0] for m in CONSOLE_MUTANTS])
 def test_a_broken_console_rule_is_caught_on_the_arm(name: str, file: str, old: str, new: str) -> None:
+    test_a_broken_input_rule_is_caught_on_the_arm(name, file, old, new)
+
+
+@BREAK
+@pytest.mark.parametrize(("name", "file", "old", "new"), STATS_MUTANTS, ids=[m[0] for m in STATS_MUTANTS])
+def test_a_broken_stats_overlay_rule_is_caught_on_the_arm(name: str, file: str, old: str, new: str) -> None:
     test_a_broken_input_rule_is_caught_on_the_arm(name, file, old, new)
 
 
