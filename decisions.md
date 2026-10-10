@@ -714,3 +714,21 @@ ABI rather than a Zig API, apps in any language sit on it.
 - A closed, free-as-in-beer toolchain becomes a build dependency for the board: a licence file node-locked to the machine, ~80 GB, and ncurses5 shims.
 - The free licence has no ILA, so signals are observed through glass registers.
 - The RTL must stay portable to both tools; Vivado rejects two constructs Yosys accepts.
+
+## 2026-10-10 — `hostMicros`: a host clock import, for benchmarks only
+
+**Status:** accepted
+**Context:** The raytrace carts are the FPGA CPU benchmark, so they have to report a measured rate (pixels per second) on both the browser and the board. No cart could read a clock: the machine ABI has the frame counter (`REG_FRAME`, one per host call) and `BLIT_CYCLES`. `dt` is wall time in the browser, but every FPGA host passes a constant 16.6. The board firmware does time `cart.frame()` with the SoC cycle counter, but the cart cannot see that number.
+**Decision:** Carts can import `env.hostMicros() u32`, a free-running microsecond counter that wraps about every 71 minutes. Like `diskReadBlock` or `hostAudioFeed`, the host provides it to the cart directly; it is not a machine register.
+- The browser (`docs/sealed-loader.js`) derives it from `performance.now()`. The board defines `HOST_MICROS()` from the cycle counter, and `fpga/tools/host_gen.py` calls that hook.
+- A host that does not provide it answers **0**: the harness and `host_gen` no-op stub does, and so does `disk_check`'s env. A cart must treat 0 as "no clock" and fall back to a fixed amount of work per frame. That fallback keeps gate frame counts and fingerprints deterministic.
+- **It is a benchmark aid only.** No screen may use it for choreography, pacing or animation. Carts stay frame-locked: the machine runs at a fixed 60 Hz and a screen counts frames.
+
+**Alternatives considered:**
+- A machine timer register (an MFP-like counter in the register block): this bumps the ABI version. The machine module would also have to import a host clock, so all 84 places that instantiate it would need the new import.
+- Bounding work from `dt`: in the browser `dt` is quantised to 60 Hz ticks and says nothing about headroom, and on the board it is a constant.
+- Reading the board's cycle counter from outside the cart (`ZM AF`): this gives no number in the browser and none on screen.
+
+**Consequences:**
+- Only carts that import it are affected, and an older disk has no such import.
+- The browser's `performance.now()` is coarsened to about 0.1 ms without cross-origin isolation. That is fine for an 8 ms budget, but not for timing a single pixel.

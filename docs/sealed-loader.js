@@ -452,6 +452,10 @@ async function boot() {
             hostAudioStreamStart: (rate) => hostAudioStreamStart(rate), // begin ring streaming
             hostAudioFeed: (ptr, len) => hostAudioFeed(ptr, len), // append samples to the ring
             hostAudioStreamStop: () => hostAudioStreamStop(), // silence the ring
+            // Free-running microseconds, u32 (wraps every ~71 min). A BENCHMARK aid
+            // (the raytrace carts): carts stay frame-locked, never time-driven.
+            // decisions.md 2026-10-10.
+            hostMicros: () => Math.floor(performance.now() * 1000) >>> 0,
             // RETIRED imports, kept as no-ops. The env object is an ABI: every
             // cart ever built links against the names that existed when it was
             // packed, and a .zmd carries its wasm frozen inside it. Dropping a
