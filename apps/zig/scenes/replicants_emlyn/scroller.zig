@@ -37,10 +37,10 @@
 // distortion lab: cascade-archeology.js:76-79, amp HALVED and inc DOUBLED for
 // ST, offset per frame unchanged. The filter is codef_fx.siny and is NOT
 // reimplemented here — libs/zig/effects/wave.zig already is it (its own header
-// says so), so this is the shared one. `.multiply` rather than CODEF's
-// accumulate because the phase has to be a function of the SCREEN column: the
-// glyphs are blitted one at a time, not walked as one strip, and both forms
-// give phase = value + inc*x.
+// says so), so this is the shared one; the curve it is fed is curve.zig's, in
+// the cart's numbers. The phase is a function of the SCREEN column (CODEF's
+// `.multiply` form, value + inc*x) because the glyphs are blitted one at a
+// time, not walked as one strip.
 // --------------------------------------------------------------------------
 const zg = @import("zigos");
 const blit = zg.blit;
@@ -77,69 +77,61 @@ comptime {
     if (@mod(START_C - EXIT_C, SPEED) != 0) @compileError("EXIT_C is not on the scroll's step");
 }
 
-// CODEF 484's middle scroller (cascade-archeology.js:76-79), halved and doubled.
-const TERMS = 2;
-const AMP = [TERMS]f64{ 10, 20 }; // the short ripple, then the long swell
-const INC = [TERMS]f64{ 0.06, 0.02 }; // radians a column: the wavelengths
-const OFFSET = [TERMS]f64{ -0.05, -0.04 }; // radians a frame: the travel
-
 comptime {
     @setEvalBranchQuota(4 * TEXT.len + 1000);
     for (TEXT) |c| if (c < FIRST_CHAR or c >= FIRST_CHAR + TILES) @compileError("scrolltext character outside font.png");
 }
 
-pub const Scroller = struct {
-    posx: [LETTERS]i32, // canvas pixels, always even
-    ltr: [LETTERS]u8,
-    offset: usize, // scroffset
-    phase: [TERMS]f64, // 484's `value`, advanced by OFFSET a frame
+/// `Curve` is the cart's: curve.zig's CurveFixed or CurveF32 (with the Mode
+/// its sweep() reads the bend from).
+pub fn Scroller(comptime Curve: type, comptime Mode: type) type {
+    return struct {
+        const Self = @This();
+        posx: [LETTERS]i32, // canvas pixels, always even
+        ltr: [LETTERS]u8,
+        offset: usize, // scroffset
+        curve: Curve, // 484's `value`, advanced a frame
 
-    pub fn init(self: *Scroller) void {
-        self.offset = 0;
-        self.phase = .{ 0, 0 };
-        for (&self.posx, &self.ltr, 0..) |*x, *c, i| {
-            x.* = @intCast(START_C + i * TILE_C);
-            c.* = TEXT[self.offset];
-            self.offset += 1;
-        }
-    }
-
-    /// The first half of draw(): every letter moves, and one that has left the
-    /// canvas rejoins the back of the ring with the next character.
-    pub fn update(self: *Scroller) void {
-        for (&self.phase, OFFSET) |*v, d| v.* += d;
-        for (&self.posx, &self.ltr) |*x, *c| {
-            x.* -= SPEED;
-            if (x.* > EXIT_C) continue;
-            x.* += RING_C;
-            c.* = TEXT[self.offset];
-            self.offset += 1;
-            if (self.offset > TEXT.len - 1) self.offset = 0;
-        }
-    }
-
-    /// `bend` is 0 in ORIGINAL mode — and then this is the original's own plain
-    /// blit, not a flat sweep, so the frame is bit-identical to the faithful
-    /// port. Above 0 the letters ride 484's curve, scaled by it, so switching
-    /// modes grows and flattens the bend instead of snapping it.
-    pub fn draw(self: *const Scroller, dst: blit.Dst, font: blit.Image, bend: f64) void {
-        for (self.posx, self.ltr) |x, c| {
-            const g: usize = c - FIRST_CHAR;
-            const cell = blit.Rect{ .x = g % COLS * TILE, .y = g / COLS * TILE, .w = TILE, .h = TILE };
-            const dx = @divExact(x, 2) + ORIGIN_X;
-            if (bend <= 0) {
-                blit.blit(dst, font, cell, dx, ROW, A.TRANSPARENT, .copy);
-                continue;
+        pub fn init(self: *Self) void {
+            self.offset = 0;
+            self.curve.init();
+            for (&self.posx, &self.ltr, 0..) |*x, *c, i| {
+                x.* = @intCast(START_C + i * TILE_C);
+                c.* = TEXT[self.offset];
+                self.offset += 1;
             }
-            const curve = wave.SineSum(f64, TERMS){
-                .amp = .{ AMP[0] * bend, AMP[1] * bend },
-                .phase = self.phase,
-                .inc = INC,
-                .step = .multiply,
-                .rounding = .round,
-            };
-            var it = curve.sweep(dx);
-            wave.siny(dst, font, cell, dx, ROW, 1, &it, A.TRANSPARENT, .copy);
         }
-    }
-};
+
+        /// The first half of draw(): every letter moves, and one that has left
+        /// the canvas rejoins the back of the ring with the next character.
+        pub fn update(self: *Self) void {
+            self.curve.step();
+            for (&self.posx, &self.ltr) |*x, *c| {
+                x.* -= SPEED;
+                if (x.* > EXIT_C) continue;
+                x.* += RING_C;
+                c.* = TEXT[self.offset];
+                self.offset += 1;
+                if (self.offset > TEXT.len - 1) self.offset = 0;
+            }
+        }
+
+        /// A flat mode (ORIGINAL, bend 0) draws the original's own plain blit,
+        /// not a flat sweep, so the frame is the faithful port's. Bent, the
+        /// letters ride 484's curve scaled by the bend, so switching modes grows
+        /// and flattens the bend instead of snapping it.
+        pub fn draw(self: *const Self, dst: blit.Dst, font: blit.Image, mode: *const Mode) void {
+            for (self.posx, self.ltr) |x, c| {
+                const g: usize = c - FIRST_CHAR;
+                const cell = blit.Rect{ .x = g % COLS * TILE, .y = g / COLS * TILE, .w = TILE, .h = TILE };
+                const dx = @divExact(x, 2) + ORIGIN_X;
+                if (mode.flat()) {
+                    blit.blit(dst, font, cell, dx, ROW, A.TRANSPARENT, .copy);
+                    continue;
+                }
+                var it = self.curve.sweep(mode, dx);
+                wave.siny(dst, font, cell, dx, ROW, 1, &it, A.TRANSPARENT, .copy);
+            }
+        }
+    };
+}

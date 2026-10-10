@@ -80,6 +80,11 @@ static void run(void) {
         if (sample) sha256_init(&h);
         prof_clear();
         fcount_clear();
+#ifdef ZM_FIRE_AT
+        /* Measure a cart's Fire-switched mode (replicants_emlyn's ZIG): the
+         * host's Space is input(5). Hashes then differ from the references. */
+        if (f == ZM_FIRE_AT) w2c_cart_input(&g_env.cart, 5);
+#endif
         frame(sample ? &h : NULL, planes, size);
         print_line("F", f);
         if (!sample) continue;

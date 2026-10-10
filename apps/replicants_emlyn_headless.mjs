@@ -10,7 +10,12 @@
 // Geometry: an overscan plane, 400x280, content window at (40,20). The physical
 // framebuffer is 800x280 with x DOUBLED, so plane pixel (X, Y) is at (2X, Y).
 //
-//   node apps/replicants_emlyn_headless.mjs [outdir] [--break <what>]
+//   node apps/replicants_emlyn_headless.mjs [outdir] [--break <what>] [--cart <wasm>]
+//
+// --cart runs the same proof on another build of the screen: the gate runs it
+// on demo-replicants_emlyn.wasm (fixed point, the default) and on
+// demo-replicants_emlyn_f32.wasm (the CODEF algorithm in f32, kept for the FPU
+// test). Both must show the same screen.
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { cartRam, romRam } from "../docs/wasm_hiwater.js";
 
@@ -29,6 +34,8 @@ const RETURN_FRAMES = 21; // 0.80 rad home at 0.16 a frame: 5, and 20 from the f
 // --break <what> SABOTAGES one measurement and passes only if the check it
 // belongs to notices: a check nobody can fail is not a check.
 const broke = process.argv.includes("--break") ? process.argv[process.argv.indexOf("--break") + 1] : "";
+const DEFAULT_CART = "docs/demo-replicants_emlyn.wasm", F32_CART = "docs/demo-replicants_emlyn_f32.wasm";
+const CART = process.argv.includes("--cart") ? process.argv[process.argv.indexOf("--cart") + 1] : DEFAULT_CART;
 let failures = 0;
 function check(name, got, want) {
     const ok = got === want;
@@ -84,7 +91,7 @@ async function sndhPlay(name, tune) {
     return { peak, stuckPc: audio.audioSndhStuckPc(), unhandled };
 }
 
-const { memory, machine, demo } = await boot("docs/demo-replicants_emlyn.wasm");
+const { memory, machine, demo } = await boot(CART);
 const W = machine.hwPhysWidth(), H = machine.hwPhysHeight();
 const VB = machine.hwVideoBase();
 const regs = new DataView(memory.buffer, VB, OFF_PAL);
@@ -244,8 +251,8 @@ check("Escape still leaves for the menu", demo.pollCartRequest(), -1);
 const EDGE_FROM = 190, EDGE_TO = 240; // letter 0 reaches the left border at frame 176 and leaves at 212
 const OLD_EXIT_X = 8; // canvas -64 halved, on the raster
 {
-    const a = await boot("docs/demo-replicants_emlyn.wasm");
-    const b = await boot("docs/demo-replicants_emlyn.wasm");
+    const a = await boot(CART);
+    const b = await boot(CART);
     b.demo.input(DIR_FIRE);
     const plane = (m) => {
         const r = new DataView(m.memory.buffer, m.machine.hwVideoBase(), OFF_PAL);
@@ -309,6 +316,38 @@ check("the tune plays (not silence, no stuck PC)", !r.why && r.peak > 0.01 && !r
 check("no hardware write went unanswered", r.unhandled?.length, 0);
 
 check("no zg.mem allocation was refused", machine.hwRamAllocFailures(), 0);
+
+// ONE SCREEN, TWO NUMBER SYSTEMS. The default cart computes in integers
+// (emlyn/fixed.zig) and replicants_emlyn_f32 runs the CODEF algorithm in f32;
+// they must show the same screen, a rounding apart: a band edge one line or one
+// bucket over, a scrolltext column one row over. Both run in lockstep through
+// ZIG mode (every angle, so every ramp width) and back; every 10th frame the
+// rendered planes are compared pixel for pixel. --break fixed compares against
+// a cart a frame AHEAD instead, which a real difference in the bars looks like.
+if (CART === DEFAULT_CART) {
+    const a = await boot(CART), b = await boot(F32_CART);
+    const pixels = (m) => {
+        m.machine.hwRenderPlane(0);
+        const w = m.machine.hwPhysWidth(), px = new Uint32Array(m.memory.buffer, m.machine.hwPhysicalPtr(), w * H);
+        return Uint32Array.from({ length: PW * H }, (_, i) => px[Math.floor(i / PW) * w + (i % PW) * 2]);
+    };
+    if (broke === "fixed") b.demo.frame(16.6);
+    a.demo.input(DIR_FIRE);
+    b.demo.input(DIR_FIRE);
+    let worst = 0, worstAt = 0;
+    for (let n = 1; n <= 420; n++) {
+        if (n === 330) { a.demo.input(DIR_FIRE); b.demo.input(DIR_FIRE); } // and home again
+        a.demo.frame(16.6);
+        b.demo.frame(16.6);
+        if (n % 10) continue;
+        const pa = pixels(a), pb = pixels(b);
+        let d = 0;
+        for (let i = 0; i < pa.length; i++) if (pa[i] !== pb[i]) d++;
+        if (d > worst) { worst = d; worstAt = n; }
+    }
+    console.log(`  fixed vs f32, 42 frames over ZIG and back: at most ${worst} of ${PW * H} pixels differ (frame ${worstAt})`);
+    check("the fixed-point cart shows the f32 cart's screen (under 1% of the pixels on every frame)", worst < PW * H / 100, true);
+}
 
 // Warm frame cost in ZIG mode, which is the expensive one: 600 frames sweep
 // almost two full turns, so the average covers every ramp width from 1 bucket

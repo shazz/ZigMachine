@@ -31,6 +31,7 @@ pub const palette = @import("effects/palette.zig"); // scale colours from a base
 pub const scrollring = @import("effects/scrollring.zig"); // CODEF letter-ring scroller state
 pub const pathchain = @import("effects/pathchain.zig"); // sprites trailing each other along one ripped path
 pub const wave = @import("effects/wave.zig"); // CODEF FX.siny: SineSum + column-shifted strip blit
+pub const fixtrig = @import("effects/fixtrig.zig"); // integer sine table + u32 angles: trig with no float
 pub const spans = @import("effects/spans.zig"); // comptime ink runs of a sparse overlay
 pub const zig3d = @import("effects/zig3d.zig"); // CODEF codef3D (three.js r49 canvas faces), replayed exactly
 pub const canvas_poly = @import("effects/canvas_poly.zig"); // a doubled canvas's path fill, shown halved

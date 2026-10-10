@@ -1,36 +1,33 @@
 // --------------------------------------------------------------------------
-// ORIGINAL or ZIG, and the two numbers that say how far between them we are.
-// Space switches (the scene's input(), via the host's Fire), and both numbers
-// move over the same 20 frames so the bars and the scrolltext never disagree.
+// ORIGINAL or ZIG, and how far between them we are, in INTEGERS: the default
+// cart's Mode. mode_f32.zig is the same machine on f32 and explains the numbers
+// (a sweep of 0.02 rad a frame, home the short way at 0.16, the scrolltext's
+// bend grown and flattened over the same 20 frames).
 //
-//   theta  the raster bars' angle. ZIG sweeps it; ORIGINAL brings it home.
-//   bend   0 = the scrolltext is dead flat, 1 = the full 484 curve.
-//
-// Neither number is the original's — screen 17 has no bar angle and passes its
-// scrolltext no sinparam. THETA_STEP is half the group's own 0.04 and the same
-// number the logo's sine steps by, so a full turn takes 2*pi / 0.02 = 314
-// frames (5.2 s), the logo's bob period. Coming BACK answers a keypress, so it
-// has to read as immediate: eight times the sweep, the SHORT way round, at most
-// pi / 0.16 = 20 frames. Both land exactly on their end value rather than
-// drifting near it — a float accumulator that merely approaches 0 would leave
-// the screen on the ZIG code path for ever, drawing the same pixels by a
-// different route.
+// The angle is a fixtrig Angle, so a full turn wraps exactly at 2^32 — the
+// float version has to test and subtract TAU — and "home" is exactly 0, never
+// a float that merely approaches it. The bend is a frame count 0..20.
 // --------------------------------------------------------------------------
-const THETA_STEP = 0.02;
-const RETURN_STEP = 8 * THETA_STEP;
-const BEND_STEP: f64 = 1.0 / 20.0; // the same 20 frames
-const PI = 3.141592653589793;
-const TAU = 2 * PI;
+const trig = @import("zigos").fixtrig;
+
+const THETA_STEP = trig.angle(0.02);
+const RETURN_STEP = trig.angle(8 * 0.02);
+const HALF_TURN: trig.Angle = 1 << 31;
+pub const BEND_FRAMES = 20;
 
 pub const Mode = struct {
-    theta: f64,
-    bend: f64,
+    theta: trig.Angle,
+    bend: u8, // 0 = dead flat .. BEND_FRAMES = the full 484 curve
     zig: bool,
 
     pub fn init(self: *Mode) void {
         self.theta = 0;
         self.bend = 0;
         self.zig = false;
+    }
+
+    pub fn flat(self: *const Mode) bool {
+        return self.bend == 0;
     }
 
     pub fn toggle(self: *Mode) void {
@@ -42,28 +39,24 @@ pub const Mode = struct {
         self.bendText();
     }
 
-    /// ZIG sweeps the angle; ORIGINAL turns it home whichever way is nearer.
-    /// Still a turn, never a snap — but it starts on the frame the key arrives.
     fn turnBars(self: *Mode) void {
         if (self.zig) {
-            self.theta += THETA_STEP;
-            if (self.theta >= TAU) self.theta -= TAU;
+            self.theta +%= THETA_STEP;
             return;
         }
         if (self.theta == 0) return;
-        const left = if (self.theta <= PI) self.theta else TAU - self.theta;
+        const back = self.theta <= HALF_TURN; // nearer home going backwards
+        const left = if (back) self.theta else 0 -% self.theta;
         if (left <= RETURN_STEP) {
             self.theta = 0;
             return;
         }
-        self.theta += if (self.theta <= PI) -RETURN_STEP else RETURN_STEP;
+        self.theta = if (back) self.theta - RETURN_STEP else self.theta + RETURN_STEP;
     }
 
     fn bendText(self: *Mode) void {
         if (self.zig) {
-            self.bend = if (self.bend + BEND_STEP >= 1) 1 else self.bend + BEND_STEP;
-        } else {
-            self.bend = if (self.bend <= BEND_STEP) 0 else self.bend - BEND_STEP;
-        }
+            if (self.bend < BEND_FRAMES) self.bend += 1;
+        } else if (self.bend > 0) self.bend -= 1;
     }
 };
