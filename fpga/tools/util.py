@@ -68,6 +68,7 @@ BLOCKS += [
     Block("zm_audio_mix", "zm_audio_mix", (_AUDIO / "zm_audio_mix.v",), "ours: the machine's mix + clamp"),
     Block("zm_audio_fifo", "zm_audio_fifo", (_AUDIO / "zm_audio_fifo.v",), "ours: sys -> pixel sample FIFO"),
     Block("zm_hdmi_acr", "zm_hdmi_acr", (FPGA / "rtl/hdmi/zm_hdmi_acr.v",), "ours: sample strobe + measured CTS"),
+    Block("zm_pokey", "zm_pokey", (_AUDIO / "zm_audio_frac.v", *_glob(_AUDIO, "zm_pokey*.v")), "ours: POKEY audio, standalone"),
 ]
 # The blitter (rtl/blitter/, docs/BLITTER_HW_SPEC.md "FPGA implementation"): standalone, no SoC yet.
 BLOCKS += [Block("zm_blit", "zm_blit", _glob(FPGA / "rtl/blitter", "zm_blit*.v"), "ours: the blitter, FILL/BLIT/LINE/TRI")]
