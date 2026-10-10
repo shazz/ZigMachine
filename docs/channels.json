@@ -160,6 +160,16 @@
   "type": "zigmachine"
  },
  {
+  "tag": "raytrace_f32",
+  "title": "RAYTRACE F32",
+  "type": "zigmachine"
+ },
+ {
+  "tag": "raytrace",
+  "title": "RAYTRACE FIXED",
+  "type": "zigmachine"
+ },
+ {
   "tag": "replicants_emlyn",
   "title": "REPLICANTS EMLYN",
   "type": "atari st"

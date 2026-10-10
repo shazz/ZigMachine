@@ -101,3 +101,16 @@ def test_forwarder_refuses_a_span_that_returns_a_value() -> None:
     exports = {"machine": {"hwBlit": ("u32", [])}, "cart": {}, "rom": {}}
     with pytest.raises(SystemExit, match="span"):
         host_gen.forwarder("hwBlit", "u32", [], "machine", exports)
+
+
+def test_host_micros_calls_the_board_hook_whose_default_is_the_stubs_zero() -> None:
+    clock = host_gen.forwarder("hostMicros", "u32", [], None, EXPORTS)
+    assert clock == "u32 w2c_env_hostMicros(struct w2c_env* e) { (void)e; return HOST_MICROS(); }\n"
+    assert "#define HOST_MICROS() 0u" in host_gen.HOOK_DEFAULTS
+
+
+def test_host_micros_with_the_wrong_signature_is_refused() -> None:
+    with pytest.raises(SystemExit):
+        host_gen.forwarder("hostMicros", "f32", [], None, EXPORTS)
+    with pytest.raises(SystemExit):
+        host_gen.forwarder("hostMicros", "u32", ["u32"], None, EXPORTS)
