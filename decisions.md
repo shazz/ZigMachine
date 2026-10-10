@@ -756,3 +756,49 @@ ABI rather than a Zig API, apps in any language sit on it.
 **Consequences:**
 - Only carts that import it are affected, and an older disk has no such import.
 - The browser's `performance.now()` is coarsened to about 0.1 ms without cross-origin isolation. That is fine for an 8 ms budget, but not for timing a single pixel.
+
+## 2026-10-10 — One local change to the vendored Musashi: no per-instruction register save
+
+**Status:** accepted
+**Context:** On the FPGA, an emulated 68000 instruction cost the cart CPU about 1,160 cycles. A digidrum SNDH (beat_dis.sndh) ran about 6,840 of them a frame, 8.0 Mcycles against a 1.67 Mcycle budget. A profile of the native player showed Musashi's `m68k_execute` copying D0-A7 into `REG_DA_SAVE` before **every** instruction: 16 loads and 16 stores, so a bus error can restore them. Only `m68k_pulse_bus_error` reads them back, and the SNDH player never calls it.
+**Decision:** `libs/c/musashi/upstream/m68kcpu.c` keeps the loop inside `#ifndef ZM_NO_DA_SAVE`, and `config/zm_musashi.h` defines it. This is the one local change to the vendored code; `libs/c/musashi/README.md` records it and the way to re-apply it after an update.
+**Alternatives considered:**
+- Leave upstream byte-for-byte: the cost stays.
+- Patch a copy at build time (a sed step in build.zig): the change is just as real but harder to see.
+- Change the player instead: it cannot reach the loop.
+
+**Consequences:**
+- beat_dis.sndh costs 6.5 Mcycles a frame on the cart CPU instead of 8.0 (-18 %); x86 native -38 %.
+- The player's stamped chip writes are byte-identical with and without the loop: sos, wow_scroller and beat_dis, 10 s each, native.
+- The SNDH gates pass (`./build.sh --only sndh sndh_call sndh_relocate union_beatdis union_superscroller union_demo_music union_intro_music c_music`). union_superscroller's 4 ms wall-clock budget failed once under a load of 15 on 8 cores; run alone it passes, at 3.43 ms median.
+- A future screen that needs bus-error emulation must `#undef ZM_NO_DA_SAVE`.
+
+## 2026-10-10 — The sound CPU, and native replays for recognised SNDH drivers
+
+**Status:** accepted
+**Context:** On the cart CPU the players cost a 50 Hz SNDH ~17 % of the frame and a digi SNDH 3-5× the frame (the 2026-10-09 ADR). `FPGA_AUDIO_CPU.md` recommended a small VexRiscv with a small cache, from DDR. Measured on the hp_sim:
+- Musashi's stores and its code size dominate. A small I$ is 2-3× slower than 16 KiB.
+- A write-through D$ with blocking stores waits on every AXI B response.
+- beat_dis interrupts 263 times a frame at ~14.6 k cycles each, so even at the routed ~149 MHz it would cost 154 % of a frame.
+**Decision:**
+- **The sound CPU** (`docs/FPGA_SOUND_CPU.md`): a second VexRiscv (`Snd`: 16 KiB 2-way I$, 4 KiB D$), running the same `demo-audio.wasm` through wasm2c.
+  - It runs from DDR on **HP3, shared with the audio core's PCM reads through an arbiter**; no new HP port.
+  - Its stores are posted: a `WishboneHP` option, default off elsewhere. Every "acked means in DDR" consumer (the video snoop, the blitter start, read-after-write) waits for `idle`.
+  - It talks to the cart CPU through a two-bank mailbox at `SOUND_WINDOW`.
+  - It stays at the sys clock: no CDC island.
+- **Native replays** (`libs/zig/players/digi.zig`): for a recognised driver (handler + sequencer signatures, tables in range), the SNDH player's 68000 calls run as Zig on the same bus. Everything else is unchanged.
+  - A near miss plays on Musashi and is logged.
+  - The oracle (`fpga/tests/test_sndh_native.py`) holds the native writes to Musashi's over the whole tune.
+  - Beat Dis is the first driver.
+- **The board's queue** drops volume writes that repeat the last queued value. A native digi runs a 3-frame lead (`host/audio_queue.h`).
+**Alternatives considered:**
+- The survey's small core (I4D4, 1841 LUT): beat_dis 10.8 Mc, wow_scroller over budget.
+- A 32 KiB I$ / 16 KiB D$: wow_scroller 73 % instead of ~100 %, for 15 BRAM tiles instead of 8.5. Kept for later.
+- A 150 MHz sound island: ~149 MHz routed out of context, still 154 % for beat_dis, plus a CDC at three interfaces.
+- fx68k: GPL-3, 3.4K LUTs, and it would not fix the per-interrupt cost of a digi tune.
+- A standalone native player outside the SNDH player: two clocks and two MFPs to keep equal, by hand.
+**Consequences:**
+- The cart CPU's frame no longer pays for the music.
+- 50 Hz tunes and Beat Dis fit. The other digi SNDHs (including the 10 sharing Beat Dis's handler) still overrun on the sound CPU and resync, which `ZM AUD resyncs` counts, until each gets a sequencer or Musashi's interrupt entry gets cheaper (the next lever, `docs/FPGA_SOUND_CPU.md`).
+- The native code also runs in the browser (in `demo-audio.wasm`, +2.8 KB). Its output there is the oracle-checked stream, unchanged.
+- New exports: `audioSndhNative`, `audioSndhNativeEnable`, and `audioSndhNativeMutant` (test only).

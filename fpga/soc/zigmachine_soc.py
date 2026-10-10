@@ -28,7 +28,7 @@ from soc.zm_audio_soc import add_audio, hdmi_out
 from soc.zm_glass import ZMGlass, ps7_gp0
 from soc.zm_video import ZMVideoTiming
 from soc.zm_video_pipe import WINDOW_BYTES, ZMVideo
-from soc.zm_video_snoop import ZMVideoSnoop, attach_snoop
+from soc.zm_video_snoop import ZMVideoSnoop, attach_snoop, drained
 
 FPGA = Path(__file__).resolve().parent.parent
 SYS_CLK_SIM = int(1e6)
@@ -131,10 +131,16 @@ class ZigMachineSoC(SoCCore):
         if hp is None:
             self.bus.add_master(name="zm_video_dma", master=self.video.dma)
         # VIDEO SNOOP (rtl/video/README.md "The video region"): the cart's stores to its region, tapped
-        # off the CPU's data bus, delivered every cycle. The HP bridge (soc/zm_hp.py) posts no store: one is
-        # acked on its write response, so a store the snoop has seen is in DDR and `drained` needs no more.
+        # off the CPU's data bus, delivered every cycle. A store the snoop has seen is in DDR once the HP
+        # bridge (soc/zm_hp.py) has no store left to post: `stores_idle`, driven by add_cpu_memory, is
+        # always high for the blocking bridge (a store is acked on its write response) and low while a
+        # posted one (soc/zm_hp_posted.py) is not yet in DDR. `drained` waits for both.
+        self.stores_idle = Signal(reset=1)
         self.video_snoop = ZMVideoSnoop(self.cpu.dbus, None, self.video.vbase.storage, Signal(16, reset=1))
-        self.comb += [*attach_snoop(self.video, self.video_snoop), self.video.drained.eq(self.video_snoop.empty)]
+        self.comb += [
+            *attach_snoop(self.video, self.video_snoop),
+            self.video.drained.eq(drained(self.video_snoop, self.stores_idle)),
+        ]
 
 
 def build_sim(args: argparse.Namespace) -> None:

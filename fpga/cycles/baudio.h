@@ -20,11 +20,15 @@ struct baudio {
     uint32_t pushed;   /* writes queued */
     uint32_t resyncs;  /* frames that fell behind the sound */
     uint32_t anchors;  /* song loads that took the stamp past the sound's lead */
+    uint32_t dropped;  /* volume writes that changed nothing (host/audio_queue.h) */
+    uint32_t full;     /* writes that found the queue full and waited for room */
 };
 extern struct baudio baudio;
 
 void baudio_boot(void);                  /* after host_boot: the players, their reset */
 void baudio_frame(struct w2c_env* e);    /* after the cart's frame: songs, then render ahead */
+void baudio_pump(uint32_t min);          /* render up to the lead, if `min` samples are due */
 void baudio_report(void);                /* the sim's "ZM AUD" line */
+void baudio_report_log(void);            /* the sound CPU's console so far (cycles/bsound.c only) */
 
 #endif

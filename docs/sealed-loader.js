@@ -1043,6 +1043,14 @@ function startAudio() {
                         (msg.what === "ymWrite" ? "an SNDH or a YM dump drives the YM"
                             : msg.what === "requestModVolume" ? "no MOD playing" : "no MOD playing, or a bad length / rate"));
                 }
+                else if (msg.type === "sndhMode") {
+                    // zg.requestSndhMode (libs/zig/players/sndh_native.zig): 0 = refused, and a
+                    // tune with no native driver answers 1 whatever was asked.
+                    const name = ["refused", "the 68000 on Musashi", "native", "native, samples on PCM"];
+                    if (msg.got === msg.asked) console.log(`SNDH mode ${msg.got}: ${name[msg.got]}`);
+                    else console.warn(`zg.requestSndhMode(${msg.asked}): ` + (msg.got === 0
+                        ? "no such mode, refused" : `no native driver for this tune, mode ${msg.got}: ${name[msg.got]}`));
+                }
                 else if (msg.type === "sndhCallMissed") {
                     const hex = (v) => "$" + (v >>> 0).toString(16);
                     console.warn(`zg.sndhCall(d0=${hex(msg.d0)}) found no SNDH playing` +
@@ -1181,7 +1189,7 @@ function sndhCallByName(name, d0) {
     sndhResident = { name, gen, ready: playSndh("music/" + name, 0, gen, d0) };
 }
 
-// zg.sfxPlay / sfxStop / ymWrite / requestModVolume: `n` 16-byte entries at `at` in the cart's
+// zg.sfxPlay / sfxStop / ymWrite / requestModVolume / requestSndhMode: `n` 16-byte entries at `at` in the cart's
 // memory (layout: libs/zig/sfx_queue.zig). A play's PCM is copied NOW, while
 // the cart's pointer is good. Each message waits for the load of the song
 // requested before it (songPosted), so an effect never lands on the tune it
@@ -1200,6 +1208,7 @@ function postSfx(mem, at, n) {
         } else if (op === 2) msgs.push({ type: "sfxStop", loopOnly: a });
         else if (op === 3) msgs.push({ type: "sfxYm", reg: a, val: dv.getUint8(o + 2) });
         else if (op === 4) msgs.push({ type: "modGain", q16: dv.getUint32(o + 8, true) }); // zg.requestModVolume
+        else if (op === 5) msgs.push({ type: "sndhMode", mode: a }); // zg.requestSndhMode
     }
     const after = songPosted;
     sfxChain = sfxChain.then(() => after).then(() => {

@@ -74,16 +74,19 @@ class _UBoot(Module):
         ]
 
 
-def make_soc(blit_break: str = "", audio_break: str = "") -> ZigMachineSoC:
+def make_soc(
+    blit_break: str = "", audio_break: str = "", core: Path = BOARD_CORE, posted: int = 0, sound: bool = False
+) -> ZigMachineSoC:
     platform = SimPlatform("SIM", [*SIM_IO, ("pix_clk", 0, Pins(1)), ("comp_clk", 0, Pins(1))])
     hp0, hp1, hp2, hp3 = hp_interface(), hp_interface(), hp_interface(), hp_interface()
-    audio = {"hp": hp3, "tap": True, "break_": audio_break}  # the sound core, its tap (rtl/sim/zm_audio_tap.v)
+    # the sound core and its tap (rtl/sim/zm_audio_tap.v); `sound`: its players on the sound CPU
+    audio = {"hp": hp3, "tap": True, "break_": audio_break, "sound": sound}
     soc = ZigMachineSoC(
         platform, SYS_CLK, "pipe", glass=True, video_hp=hp1, hdmi=False, uart_name="sim",
         rom_size=0, main_ram_size=0, cpu_reset_address=CPU_BASE, audio=audio,
     )  # fmt: skip
-    zm_board_mem.add_cpu_memory(soc, hp0)
-    zm_timing.use_core(soc, platform, BOARD_CORE)
+    zm_board_mem.add_cpu_memory(soc, hp0, posted)
+    zm_timing.use_core(soc, platform, core)
     # No OSD without a wire; and its `inside` net is a SystemVerilog keyword to Verilator.
     platform.sources = [s for s in platform.sources if not s[0].endswith("zm_glass_osd.v")]
     soc.crg = _CRG({name: platform.request(f"{name}_clk") for name in ("sys", "comp", "pix")})
@@ -101,10 +104,13 @@ def main() -> None:
     ap.add_argument("--out", type=Path, default=OUT, help="build directory")
     ap.add_argument("--blit-break", choices=["", "drop", "base"], default="", help="a blitter mutant (zm_blit_soc.py)")
     ap.add_argument("--audio-break", choices=["", "drop", "base"], default="", help="an audio mutant (zm_audio_soc.py)")
+    ap.add_argument("--core", type=Path, default=BOARD_CORE, help="the CPU netlist (vexgen/gen.sh)")
+    ap.add_argument("--posted", type=int, default=0, help="the CPU bridge's store buffer (soc/zm_hp_posted.py)")
+    ap.add_argument("--sound-cpu", action="store_true", help="the players on the sound CPU (soc/zm_sound_cpu.py)")
     a = ap.parse_args()
     out = a.out if a.out.is_absolute() else FPGA / a.out
     litex_compat.install()
-    soc = make_soc(a.blit_break, a.audio_break)
+    soc = make_soc(a.blit_break, a.audio_break, a.core.resolve(), a.posted, a.sound_cpu)
     sim_config = SimConfig()
     for name, hz in (("sys_clk", SYS_CLK), ("pix_clk", PIX_CLK), ("comp_clk", COMP_CLK)):
         sim_config.add_clocker(name, freq_hz=hz)

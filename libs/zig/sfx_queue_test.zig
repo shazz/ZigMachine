@@ -77,3 +77,14 @@ test "a MOD gain below 0, above 1 or NaN is refused and counted, never clamped" 
     try std.testing.expectEqual(@as(u32, 4), s.dropped);
     try std.testing.expectEqual(@as(usize, 0), s.take());
 }
+
+test "an SNDH mode goes on the wire in `a`; 0 and 4+ are refused and counted" {
+    var queue: q.Queue = .{};
+    try std.testing.expect(queue.sndhMode(3));
+    try std.testing.expect(!queue.sndhMode(0));
+    try std.testing.expect(!queue.sndhMode(4));
+    try std.testing.expectEqual(@as(usize, 1), queue.take());
+    try std.testing.expectEqual(@as(u8, 5), queue.entries[0].op);
+    try std.testing.expectEqual(@as(u8, 3), queue.entries[0].a);
+    try std.testing.expectEqual(@as(u32, 2), queue.dropped);
+}

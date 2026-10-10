@@ -33,6 +33,9 @@
 // Returning non-zero means "handled": no exception, execution simply carries on
 // after the TRAP. (2 == M68K_OPT_SPECIFY_HANDLER.)
 #define M68K_TRAP_HAS_CALLBACK 2
+// The player never pulses a bus error, so the per-instruction register save for one is dead
+// weight (upstream/m68kcpu.c, our one local change; libs/c/musashi/README.md).
+#define ZM_NO_DA_SAVE 1
 #define M68K_TRAP_CALLBACK(trap) zmSndhTrap(trap)
 
 extern void zmSndhInstructionHook(unsigned int pc);

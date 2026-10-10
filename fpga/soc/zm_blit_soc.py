@@ -11,7 +11,9 @@ register port fed from the CPU's stores, its memory on HP2 (soc/zm_blit_hp.py).
   byte of the region's stores. The start is a store of the command byte to word 0 of
   `BLIT_WINDOW`, made by the firmware's hwBlit (cycles/bblit.c). It goes through the
   SAME tap, so it reaches zm_blit after every register store before it, in program
-  order, with no fence.
+  order, with no fence. With the CPU's stores POSTED (soc/zm_hp_posted.py, `stores_idle`
+  low while any is not yet in DDR), a start waits in the tap until they have drained, so
+  an op never reads pixels still in the bridge's buffer; STATUS reads BUSY meanwhile.
 - **BLIT_WINDOW is M-only**: it sits outside every seal window (rtl/seal/zm_seal_map.vh),
   so the cart reaches nothing it could not before; it can only ask through hwBlit.
   Reads: word 0 = STATUS (bit 31 BUSY, also while a store is still in the tap), word 24
@@ -26,7 +28,7 @@ from typing import Any
 from litex.gen import LiteXModule
 from litex.soc.integration.soc import SoCRegion
 from litex.soc.interconnect import axi, wishbone
-from migen import Cat, ClockSignal, Instance, Mux, ResetSignal, Signal
+from migen import Cat, ClockSignal, If, Instance, Mux, ResetSignal, Signal
 
 from gen import memmap as mm
 from soc.zm_blit_hp import BlitHP
@@ -45,9 +47,10 @@ SoC = Any
 
 class ZMBlitTap(LiteXModule):
     """The CPU's stores to the BLIT_* block and to BLIT_WINDOW, as zm_blit's write port.
-    `vbase`: the bus byte address of HW_VIDEO_BASE (the video's VBASE CSR)."""
+    `vbase`: the bus byte address of HW_VIDEO_BASE (the video's VBASE CSR); `stores_idle`:
+    the CPU's acknowledged stores are all in DDR (WishboneHP.idle)."""
 
-    def __init__(self, dbus: Bus, vbase: Signal, break_: str = "") -> None:
+    def __init__(self, dbus: Bus, vbase: Signal, break_: str = "", stores_idle: Signal | int = 1) -> None:
         self.we, self.waddr, self.be, self.wdata = Signal(), Signal(5), Signal(4), Signal(32)
         self.pending = Signal()  # a store is still in the tap: it may be a start
         t_store, t_adr, t_sel, t_dat = Signal(), Signal(30), Signal(4), Signal(32)
@@ -63,14 +66,19 @@ class ZMBlitTap(LiteXModule):
         if break_ == "drop":  # the break test: the tap loses the stores to D_STRIDE (word 9)
             region = region & (off != REG_W0 + 9)
         word0 = off[:5] == 0
+        held, h_sel, h_dat = Signal(), Signal(4), Signal(32)  # a start waiting for the stores to drain
+        start = o_store & go
+        fire = held & stores_idle  # nothing reaches the tap while a start is held: hwBlit spins on BUSY
         self.sync += [
-            self.we.eq(o_store & (region | go)),
-            self.waddr.eq(Mux(go, 0, off[:5])),
+            self.we.eq((o_store & region) | (start & stores_idle) | fire),
+            self.waddr.eq(Mux(go | fire, 0, off[:5])),
             # A start writes COMMAND only; a region store never writes it.
-            self.be.eq(Mux(go, o_sel & 0b0001, Mux(word0, o_sel & 0b1110, o_sel))),
-            self.wdata.eq(o_dat),
-        ]
-        self.comb += self.pending.eq(t_store | o_store | self.we)
+            self.be.eq(Mux(fire, h_sel & 0b0001, Mux(go, o_sel & 0b0001, Mux(word0, o_sel & 0b1110, o_sel)))),
+            self.wdata.eq(Mux(fire, h_dat, o_dat)),
+            If(start & ~stores_idle, held.eq(1), h_sel.eq(o_sel), h_dat.eq(o_dat)),
+            If(fire, held.eq(0)),
+        ]  # fmt: skip
+        self.comb += self.pending.eq(t_store | o_store | self.we | held)
 
 
 class ZMBlit(LiteXModule):
@@ -79,7 +87,7 @@ class ZMBlit(LiteXModule):
     def __init__(self, platform: object, dbus: Bus, vbase: Signal, hp: axi.AXIInterface, **kw: Any) -> None:
         enable, break_ = kw.get("enable"), kw.get("break_", "")
         self.bus = wishbone.Interface(data_width=32, address_width=32, addressing="word")
-        self.tap = ZMBlitTap(dbus, vbase, break_)
+        self.tap = ZMBlitTap(dbus, vbase, break_, kw.get("stores_idle", 1))
         base = Signal(32)  # the bus address of linear 0: VBASE less HW_VIDEO_BASE, registered
         skew = 8 if break_ == "base" else 0  # the break test: the DDR map off by one beat
         self.sync += base.eq(vbase - mm.HW_VIDEO_BASE + skew)
@@ -125,6 +133,8 @@ def _add_sources(platform: Any) -> None:  # Any: an untyped LiteX platform
 def add_blitter(soc: SoC, platform: object, hp: axi.AXIInterface, break_: str = "") -> None:
     """The blitter on `hp` (HP2), its window on the bus; the video pipe must exist (its VBASE)."""
     enable = soc.glass.cpu_run if hasattr(soc, "glass") else None
-    soc.zm_blit = ZMBlit(platform, soc.cpu.dbus, soc.video.vbase.storage, hp, enable=enable, break_=break_)
+    idle = getattr(soc, "stores_idle", 1)  # zm_board_mem.add_cpu_memory's: the bridge's posted stores
+    soc.zm_blit = ZMBlit(platform, soc.cpu.dbus, soc.video.vbase.storage, hp, enable=enable, break_=break_,
+                         stores_idle=idle)  # fmt: skip
     region = SoCRegion(origin=BLIT_WINDOW, size=BLIT_WINDOW_BYTES, cached=False)
     soc.bus.add_slave("zm_blit", soc.zm_blit.bus, region)

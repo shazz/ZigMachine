@@ -139,3 +139,10 @@ def attach_snoop(video: Any, snoop: ZMVideoSnoop) -> list[Any]:
         port["sel"].eq(snoop.sel),
         snoop.hold.eq(~video.snoop_room),
     ]
+
+
+def drained(snoop: ZMVideoSnoop, stores_idle: Signal) -> Any:  # Any: a Migen expression
+    """The video's `drained`: every store the CPU has had acknowledged has reached the compositor's
+    copy (the snoop is empty) AND DDR (`stores_idle`: the HP bridge holds no posted store,
+    soc/zm_hp_posted.py; constant high for the blocking bridge)."""
+    return snoop.empty & stores_idle
