@@ -29,6 +29,7 @@ pub const Menu = struct {
     console: page_console.State = .{},
     settings: config.Settings = .{},
     loaded: ?usize = null, // the disk in the cart window, marked '*'
+    fps_x10: ?u32 = null, // the running cart's frame rate: the shelf's title shows it
     status: ?[]const u8 = null, // null: the page's own hint
     status_buf: [osd.COLS]u8 = undefined,
 
@@ -90,7 +91,7 @@ pub const Menu = struct {
     pub fn draw(self: *const Menu, o: *osd.Osd, view: *const page_debug.View) void {
         o.clear();
         switch (self.page) {
-            .shelf => self.list.draw(o, self.disks, self.loaded),
+            .shelf => self.list.draw(o, self.disks, self.loaded, self.fps_x10),
             .console => self.console.draw(o, self.settings),
             .debug => page_debug.draw(o, view),
         }

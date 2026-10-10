@@ -51,6 +51,11 @@ test "the shelf shows titles, the loaded mark, and the selected cart's details" 
     var o = osd.Osd{};
     m.draw(&o, &View{});
     try std.testing.expectEqualStrings(" ZIGMACHINE  SHELF     2/3   >", row(&o, 0));
+    m.fps_x10 = 382; // a cart running: its frame rate replaces SHELF
+    m.draw(&o, &View{});
+    try std.testing.expectEqualStrings(" ZIGMACHINE  38.2 FPS   2/3  >", row(&o, 0));
+    m.fps_x10 = null;
+    m.draw(&o, &View{});
     try std.testing.expectEqualStrings("*UNION DEMO", row(&o, page_shelf.FIRST));
     try std.testing.expect(o.text[(page_shelf.FIRST + 1) * osd.COLS] & map.OSD_INVERSE != 0);
     try std.testing.expectEqualStrings(" A TITLE FAR TOO LONG FOR THE O~", row(&o, page_shelf.FIRST + 2));

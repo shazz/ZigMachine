@@ -83,6 +83,7 @@ pub const App = struct {
 
     pub fn redraw(self: *App) void {
         self.menu.disks = self.disks.disks;
+        self.menu.fps_x10 = if (self.current != null) self.stats.fps_x10 else null;
         const view = if (self.menu.page == .debug) cart.debugView(self) else @import("page_debug.zig").View{};
         self.menu.draw(&self.osd, &view);
         _ = self.osd.flush(self.regs);

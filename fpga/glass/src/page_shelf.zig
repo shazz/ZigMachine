@@ -47,10 +47,15 @@ pub const State = struct {
         return .none;
     }
 
-    pub fn draw(self: *const State, o: *osd.Osd, disks: []const shelf.Disk, loaded: ?usize) void {
+    /// `fps_x10`: the running cart's frame rate, shown in the title instead of SHELF.
+    pub fn draw(self: *const State, o: *osd.Osd, disks: []const shelf.Disk, loaded: ?usize, fps_x10: ?u32) void {
         var bar: [osd.COLS]u8 = undefined;
         const at = if (disks.len == 0) 0 else self.cursor + 1;
-        o.line(0, std.fmt.bufPrint(&bar, " ZIGMACHINE  SHELF   {d:>3}/{d:<3} >", .{ at, disks.len }) catch "", true);
+        const title = if (fps_x10) |f|
+            std.fmt.bufPrint(&bar, " ZIGMACHINE {d:>3}.{d} FPS {d:>3}/{d:<3}>", .{ f / 10, f % 10, at, disks.len })
+        else
+            std.fmt.bufPrint(&bar, " ZIGMACHINE  SHELF   {d:>3}/{d:<3} >", .{ at, disks.len });
+        o.line(0, title catch "", true);
         if (disks.len == 0) o.put(1, FIRST, "no .zmd disk on the card", false);
         var row: u32 = FIRST;
         var i = self.top;
