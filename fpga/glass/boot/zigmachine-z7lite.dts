@@ -67,6 +67,10 @@
 	status = "okay";
 	dr_mode = "host";
 	usb-phy = <&usb_phy0>;
+	// ChipIdea finds a legacy PHY by `phys`, not `usb-phy`: without it the
+	// controller probed before phy0, found nothing and gave up silently
+	// (-ENXIO, no ci_hdrc line); a manual bind later worked (2026-10-10).
+	phys = <&usb_phy0>;
 };
 
 // GEM0 through EMIO to the RTL8201F (10/100, MII; zeST's z7lite.xdc has the

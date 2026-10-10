@@ -22,8 +22,10 @@ pub const Error = zmd.Error || error{
 };
 
 pub const Options = struct {
-    /// Polls of CART_STATE before giving up on a boot.
-    boot_polls: u32 = 2000,
+    /// Polls of CART_STATE before giving up on a boot. A cart sits in BOOTING ~2.5 s on the
+    /// board (the wasm data image and both pictures written over HP0), so the old 2,000 (2 s)
+    /// stopped every cart as CartSilent (2026-10-10); 10 s leaves 4x room.
+    boot_polls: u32 = 10_000,
     /// Called between polls (the board sleeps a millisecond; tests do nothing).
     idle: *const fn () void = noIdle,
     /// Read the whole window back after writing it.
