@@ -41,6 +41,10 @@ int audio_bridge(struct w2c_env* e);
  * stops everything); `tune` is an SNDH's subtune or a MOD's start BPM. */
 void audio_play(const char* name, uint32_t tune);
 
+/* zg.sndhCall: INIT with `d0` on the SNDH `name` if it is the one playing, else load
+ * it and make d0 its first INIT. */
+void audio_sndh_call(const char* name, uint32_t d0);
+
 /* Render `n` samples (any n: chunks of MAX_FRAMES), advancing zma_ts() by n. */
 void audio_render(uint32_t n);
 

@@ -12,7 +12,7 @@
 # memories stay apart (the players' 3 MiB is not the cart's 7 MiB).
 AUD_WASM_audio := $(ROOT)/docs/demo-audio.wasm
 AUD_WASM_maud  := $(ROOT)/docs/machine-audio.wasm
-AUD_SRC        := host/audio.c host/audio_imports.c
+AUD_SRC        := host/audio.c host/audio_bridge.c host/audio_imports.c
 AUD_HDRS       := host/haudio.h host/audio_regs.h host/host.h
 
 $(HOST)/common/%.aud.wasm: tools/wasm_env_rename.py tools/wasm_info.py
@@ -43,7 +43,7 @@ host-audio: memmap $(HOST)/$(CART)/host_audio
 # songs host_audio started in SONG_FRAMES frames, plus the cart's literal song names).
 SONG_FRAMES ?= 600
 HCYC        := build/hcycles
-AUD_FW_SRC  := $(AUD_SRC) cycles/baudio.c
+AUD_FW_SRC  := $(AUD_SRC) cycles/baudio.c cycles/bsongs.c
 AUD_FW_DEPS := $(AUD_FW_SRC) $(AUD_HDRS) cycles/baudio.h $(CYC)/aligned/common/aplayer.o $(HOST)/common/aplayer.h
 $(CYC)/aligned/common/aplayer.o: $(CYC)/src/aplayer.c
 	@mkdir -p $(@D)

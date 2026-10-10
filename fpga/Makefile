@@ -284,6 +284,7 @@ ym-test: $(YM_TEST)/ym_test_top.bit
 #   make board-fw CART=tutorial  the firmware image U-Boot loads (fpga/boards/microphase_z7_7010/README.md)
 include cycles/audio.mk
 include cycles/board.mk
+include cycles/sound.mk
 
 # --- the edit -> board loop: release / dev (placement replay) builds, seed sweeps, hp-test (flow.mk) ---
 include flow.mk

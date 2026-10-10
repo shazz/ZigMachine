@@ -9,7 +9,9 @@
  * the machine would, whatever the frame's timing. If the cart CPU falls behind
  * (a frame longer than the latency), the stamp jumps ahead of NOW again and the
  * jump is counted (`resyncs`); the writes in between land late (STATUS.late).
- * The songs are linked in (tools/song_pack.py: the cart's literal song names). */
+ * The songs are linked in (tools/song_pack.py: the cart's literal song names), and found
+ * by name in cycles/bsongs.c; on the sound CPU a song comes in its mailbox command
+ * (cycles/sound/smain.c). */
 #include <stdio.h>
 #include <string.h>
 
@@ -70,18 +72,6 @@ void zma_put(uint32_t addr, uint32_t data) {
     baudio.pushed++;
 }
 
-int32_t audio_song(const char* name, uint8_t* dst, uint32_t cap) {
-    for (const zm_song* s = zm_songs; s->name; s++) {
-        if (strcmp(s->name, name) != 0) continue;
-        uint32_t n = s->len < cap ? s->len : cap;
-        memcpy(dst, s->data, n);
-        return (int32_t)n;
-    }
-    printf("ZM SONG MISSING %s\n", name);
-    return -1;
-}
-
-
 void baudio_boot(void) {
     if (ZMA_REG(ZMA_ID) != 0x5A410100u) {
         printf("ZM AUDIO none (id %08lx)\n", (unsigned long)ZMA_REG(ZMA_ID));
@@ -92,9 +82,16 @@ void baudio_boot(void) {
     audio_boot();
 }
 
+#ifndef ZM_SND /* the sound CPU's image has no cart, so no bridge: it calls baudio_pump itself */
 void baudio_frame(struct w2c_env* e) {
     if (!baudio.on) return;
     audio_bridge(e);
+    baudio_pump(1);
+}
+#endif
+
+/* Render up to the lead, if at least `min` samples are due; the debug mailbox after. */
+void baudio_pump(uint32_t min) {
     uint32_t now = ZMA_REG(ZMA_NOW);
     int32_t ahead = (int32_t)(zma_ts() - now);
     if (ahead < 0) { /* fell behind the sound: jump ahead again, count it */
@@ -102,8 +99,8 @@ void baudio_frame(struct w2c_env* e) {
         baudio.resyncs++;
         ahead = ZMA_LATENCY / 2;
     }
-    uint32_t want = (uint32_t)((int32_t)ZMA_LATENCY - ahead);
-    if ((int32_t)want > 0) audio_render(want < ZMA_MAX_RENDER ? want : ZMA_MAX_RENDER);
+    int32_t want = (int32_t)ZMA_LATENCY - ahead;
+    if (want >= (int32_t)min) audio_render((uint32_t)want < ZMA_MAX_RENDER ? (uint32_t)want : ZMA_MAX_RENDER);
     mailbox();
 }
 

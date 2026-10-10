@@ -26,6 +26,7 @@ case class ZmArgs(
     prediction: String = "STATIC", // NONE | STATIC | DYNAMIC_TARGET (fpga/README.md "Timing under openXC7")
     historyRamSizeLog2: Int = 10, // DYNAMIC_TARGET's BTB: 2^n entries (TIMING_FABLE.md pass 3: 8 routes)
     fpu: Boolean = false, // RV32F, single precision only (fpga/CYCLES.md "f32 FPU")
+    prefix: String = "", // prepended to every module name: a second core in the same SoC (the sound CPU)
     outputFile: String = "VexRiscv",
     targetDirectory: String = "."
 )
@@ -42,6 +43,7 @@ object GenZm {
       opt[String]("prediction").action((v, c) => c.copy(prediction = v))
       opt[Int]("historyRamSizeLog2").action((v, c) => c.copy(historyRamSizeLog2 = v))
       opt[Unit]("fpu").action((_, c) => c.copy(fpu = true))
+      opt[String]("prefix").action((v, c) => c.copy(prefix = v))
       opt[String]("outputFile").action((v, c) => c.copy(outputFile = v))
       opt[String]("targetDirectory").action((v, c) => c.copy(targetDirectory = v))
     }
@@ -128,7 +130,8 @@ object GenZm {
     val config = SpinalConfig(
       defaultConfigForClockDomains = ClockDomainConfig(resetKind = spinal.core.SYNC),
       netlistFileName = a.outputFile + ".v",
-      targetDirectory = a.targetDirectory
+      targetDirectory = a.targetDirectory,
+      globalPrefix = a.prefix
     )
     config.phasesInserters += { array =>
       array.insert(array.indexWhere(_.isInstanceOf[PhaseAllocateNames]) + 1, new ForceRamBlockPhase)

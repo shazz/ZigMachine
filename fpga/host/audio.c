@@ -1,8 +1,8 @@
-/* The audio side's boot, the cart's song bridge and the render loop (haudio.h),
- * shared by the native host and the board firmware. The bridge is
- * docs/sealed-loader.js's playSongByName / sndhCallByName and the worklet's
- * load messages (docs/audio-worklet-sealed.js), minus the fetch: a song is
- * staged at once, so it starts on the frame that asked for it. */
+/* The audio side's boot, its song starts and the render loop (haudio.h), shared by
+ * the native host, the board firmware and the sound CPU's (cycles/sound/). The
+ * starts are the worklet's load messages (docs/audio-worklet-sealed.js) minus the
+ * fetch: a song is staged at once, so it starts on the frame that asked for it. The
+ * cart's side of the bridge, which calls them, is host/audio_bridge.c. */
 #include <string.h>
 
 #include "haudio.h"
@@ -77,39 +77,11 @@ void audio_play(const char* name, uint32_t tune) {
     }
 }
 
-/* A name from the cart's memory, bounded and NUL-terminated. */
-static void cart_name(struct w2c_env* e, uint32_t ptr, uint32_t len, char out[NAME_MAX + 1]) {
-    if (len > NAME_MAX) len = NAME_MAX;
-    if ((uint64_t)ptr + len > e->memory.size) len = 0;
-    memcpy(out, e->memory.data + ptr, len);
-    out[len] = 0;
-}
-
-static void sndh_calls(struct w2c_env* e) {
-    const host_song_bridge* b = &host_songs;
-    uint32_t n = b->sndh_poll ? b->sndh_poll(&e->cart) : 0;
-    if (!n) return;
-    char name[NAME_MAX + 1];
-    cart_name(e, b->sndh_name_ptr(&e->cart), b->sndh_name_len(&e->cart), name);
-    if (!ends_with(name, ".sndh") || strstr(name, "..") || name[0] == '/') return;
-    for (uint32_t i = 0; i < n; i++) {
-        uint32_t d0 = b->sndh_d0(&e->cart, i);
-        if (strcmp(name, g_resident) == 0) w2c_audio_audioSndhCall(&g_aud.player, d0);
-        else play_sndh(name, d0, 1); /* not the image playing: load it, d0 its first INIT */
-    }
-}
-
-int audio_bridge(struct w2c_env* e) {
-    const host_song_bridge* b = &host_songs;
-    int started = 0;
-    if (b->poll && b->poll(&e->cart)) {
-        char name[NAME_MAX + 1];
-        cart_name(e, b->name_ptr(&e->cart), b->name_len(&e->cart), name);
-        audio_play(name, b->tune ? b->tune(&e->cart) : 0);
-        started = 1;
-    }
-    sndh_calls(e);
-    return started;
+/* One zg.sndhCall: INIT with d0 on the SNDH playing if it is `name`, else load `name`
+ * and make d0 its first INIT (the image is not the one playing). */
+void audio_sndh_call(const char* name, uint32_t d0) {
+    if (strcmp(name, g_resident) == 0) w2c_audio_audioSndhCall(&g_aud.player, d0);
+    else play_sndh(name, d0, 1);
 }
 
 void audio_render(uint32_t n) {

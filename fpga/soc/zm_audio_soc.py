@@ -86,8 +86,27 @@ class AudioHP(LiteXModule):
         ]  # fmt: skip
 
 
+class PcmWB(LiteXModule):
+    """AudioHP's byte port as one 32-bit Wishbone read a byte, for a master that shares a bridge
+    (the sound CPU's, soc/zm_sound_cpu.py): the offset is masked to 4 MiB as on HP3."""
+
+    def __init__(self, bus: wishbone.Interface, base: Signal, enable: Signal | int = 1) -> None:
+        self.req, self.addr, self.ack, self.data = Signal(), Signal(32), Signal(), Signal(8)
+        busy, lane, at = Signal(), Signal(2), Signal(32)
+        lanes = Array(bus.dat_r[8 * i : 8 * i + 8] for i in range(4))
+        self.comb += [at.eq(base + self.addr[:PCM_SPAN_LOG2]), bus.we.eq(0), bus.sel.eq(0xF), bus.cti.eq(0)]
+        self.sync += [
+            self.ack.eq(0),
+            If(self.req & ~busy & ~self.ack,
+               If(enable, bus.cyc.eq(1), bus.stb.eq(1), bus.adr.eq(at[2:]), busy.eq(1), lane.eq(at[:2]))
+               .Else(self.ack.eq(1), self.data.eq(0))),
+            If(busy & bus.ack, bus.cyc.eq(0), bus.stb.eq(0), busy.eq(0), self.ack.eq(1), self.data.eq(lanes[lane])),
+        ]  # fmt: skip
+
+
 class ZMAudio(LiteXModule):
-    """zm_audio_soc, its window (`bus`, a Wishbone slave), its HP3 reader; `smp_*` (sys)."""
+    """zm_audio_soc, its window (`bus`, a Wishbone slave), its PCM reader on HP3 (`hp`), or on the
+    Wishbone `pcm_bus` a sound CPU shares with it (soc/zm_sound_cpu.py); `smp_*` (sys)."""
 
     def __init__(self, platform: Platform, sys_hz: int, hp: axi.AXIInterface, **kw: Any) -> None:
         enable, tap, break_ = kw.get("enable"), kw.get("tap", False), kw.get("break_", "")
@@ -96,7 +115,8 @@ class ZMAudio(LiteXModule):
         wr, rdata, base, core = Signal(), Signal(32), Signal(32), {k: Signal(n) for k, n in _CORE.items()}
         self.comb += wr.eq(bus.cyc & bus.stb & bus.we & ~bus.ack & ~self._dropped(bus, break_))
         self.sync += [bus.ack.eq(bus.cyc & bus.stb & ~bus.ack), bus.dat_r.eq(rdata)]
-        self.mem = mem = AudioHP(hp, base + (1 if break_ == "base" else 0), 1 if enable is None else enable)
+        at, en, pcm_bus = base + (1 if break_ == "base" else 0), 1 if enable is None else enable, kw.get("pcm_bus")
+        self.mem = mem = AudioHP(hp, at, en) if pcm_bus is None else PcmWB(pcm_bus, at, en)
         rst = ResetSignal("sys") if enable is None else ResetSignal("sys") | ~enable
         self.specials += Instance(
             "zm_audio_soc", **rates(sys_hz), i_clk=ClockSignal("sys"), i_rst=rst,
@@ -134,8 +154,14 @@ class ZMAudio(LiteXModule):
 _CORE = {"core_wr": 1, "core_addr": 10, "core_wdata": 32, "now": 32}
 
 
-def add_audio(soc: SoC, platform: Platform, hp: axi.AXIInterface, tap: bool = False, break_: str = "") -> None:
-    """The audio on `hp` (HP3), its window on the bus; held in reset with the CPU (the glass)."""
+def add_audio(soc: SoC, platform: Platform, hp: axi.AXIInterface, tap: bool = False, break_: str = "",
+              sound: bool = False) -> None:  # fmt: skip
+    """The audio on `hp` (HP3), its window on the bus; held in reset with the CPU (the glass).
+    `sound`: the players on the sound CPU instead (soc/zm_sound_cpu.py), which then owns the window."""
+    if sound:
+        from soc.zm_sound_cpu import add_sound  # it builds on ZMAudio: imported here, not at the top
+
+        return add_sound(soc, platform, hp, tap, break_)
     enable = soc.glass.cpu_run if hasattr(soc, "glass") else None
     soc.zm_audio = ZMAudio(platform, int(soc.sys_clk_freq), hp, enable=enable, tap=tap, break_=break_)
     soc.bus.add_slave("zm_audio", soc.zm_audio.bus, SoCRegion(origin=AUDIO_WINDOW, size=AUDIO_WINDOW_BYTES, cached=False))

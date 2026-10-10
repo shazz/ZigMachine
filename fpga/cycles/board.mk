@@ -29,11 +29,23 @@ HFW_DEPS  := $(FW_DEPS) cycles/bblit.c cycles/bblit.h cycles/bboard.c cycles/bbo
 # The link of cycles.mk with the top 4 KiB of the window kept free for the debug
 # mailbox (cycles/bmailbox.h): the stack starts below it.
 HRV_LDFLAGS := $(subst __ram_size=0x01000000,__ram_size=0x00fff000,$(RV_LDFLAGS)) -Wl,--wrap=w2c_machine_hwBlit
+# ZM_AUDIO=snd: the cart's data ends at 28 MiB, the sound CPU's starts there (cycles/sound.mk).
+HRV_LDFLAGS_snd := $(subst __ram_size=0x01000000,__ram_size=0x00C00000,$(RV_LDFLAGS)) -Wl,--wrap=w2c_machine_hwBlit
 B_hw     := -DZM_BLIT_HW
 B_sw     :=
 # sim: hash and end; board: run forever, report to the glass, print nothing.
+# ZM_AUDIO=snd: the players on the sound CPU (cycles/sound.mk); this image starts it and forwards
+# the cart's songs (cycles/bsound.c), for a bitstream built with the sound CPU.
 ZM_AUDIO ?= 1
 A_0      := -DZM_NO_AUDIO
+AUD_CART_SRC_1   := $(AUD_FW_SRC)
+AUD_CART_SRC_0   := $(AUD_FW_SRC)
+AUD_CART_SRC_snd := host/audio_bridge.c cycles/bsound.c
+AUD_CART_OBJ_1   := $(CYC)/aligned/common/aplayer.o
+AUD_CART_OBJ_0   := $(CYC)/aligned/common/aplayer.o
+AUD_CART_OBJ_snd := $(HCYC)/snd/play/snd_img.o
+HRV_LDFLAGS_1    := $(HRV_LDFLAGS)
+HRV_LDFLAGS_0    := $(HRV_LDFLAGS)
 H_sim    = -DZM_FRAMES=$(ZM_FRAMES) -DZM_EVERY=$(ZM_EVERY) $(B_$(ZM_BLIT)) $(A_$(ZM_AUDIO))
 H_board  = -DZM_BOARD -DZM_FRAMES=0 -DZM_EVERY=1 $(B_$(ZM_BLIT)) $(A_$(ZM_AUDIO))
 
@@ -56,16 +68,17 @@ $(HCYC)/$(1)/common/fw.a: $(HFW_DEPS)
 	rm -f $$@ && $(RV_AR) rcs $$@ $$(@D)/fw/*.o
 $(HCYC)/$(1)/%/fw.elf: $(CYC)/aligned/%/cart.o $(CYC)/aligned/common/machine.o $(CYC)/aligned/common/rom.o \
 		$(HCYC)/$(1)/common/fw.a $(HOST)/%/env.c host/boot.c cycles/bmain.c cycles/vseq.c \
-		$(AUD_FW_DEPS) $(HCYC)/songs/%.c FORCE
+		$(AUD_FW_DEPS) $(HCYC)/songs/%.c $(AUD_CART_OBJ_$(ZM_AUDIO)) FORCE
 	@mkdir -p $$(@D)
-	for s in $(AUD_FW_SRC) $(HCYC)/songs/$$*.c; do \
+	rm -f $$(@D)/aud_*.o
+	for s in $(AUD_CART_SRC_$(ZM_AUDIO)) $(HCYC)/songs/$$*.c; do \
 		$(RV_CC) $(HRV_CFLAGS) $(H_$(1)) -I$(HOST)/$$* -c $$$$s -o $$(@D)/aud_$$$$(basename $$$$s .c).o || exit 1; done
 	$(RV_CC) $(HRV_CFLAGS) -I$(HOST)/$$* -c $(HOST)/$$*/env.c -o $$(@D)/env.o
 	$(RV_CC) $(HRV_CFLAGS) -I$(HOST)/$$* -c host/boot.c -o $$(@D)/boot.o
 	$(RV_CC) $(HRV_CFLAGS) -I$(HOST)/$$* -c cycles/vseq.c -o $$(@D)/vseq.o
 	$(RV_CC) $(HRV_CFLAGS) $(H_$(1)) -I$(HOST)/$$* -DZM_CART='"$$*"' -c cycles/bmain.c -o $$(@D)/main.o
-	$(RV_CC) $(HRV_LDFLAGS) -o $$@ $$(@D)/main.o $$(@D)/vseq.o $$(@D)/env.o $$(@D)/boot.o $$< \
-		$$(@D)/aud_*.o $(CYC)/aligned/common/aplayer.o \
+	$(RV_CC) $(HRV_LDFLAGS_$(ZM_AUDIO)) -o $$@ $$(@D)/main.o $$(@D)/vseq.o $$(@D)/env.o $$(@D)/boot.o $$< \
+		$$(@D)/aud_*.o $(AUD_CART_OBJ_$(ZM_AUDIO)) \
 		$(CYC)/aligned/common/machine.o $(CYC)/aligned/common/rom.o $(HCYC)/$(1)/common/fw.a -lm
 # fw.bin is what lands at DDR_BASE (soc/zm_hp.py): the CPU's reset vector is its first word.
 $(HCYC)/$(1)/%/fw.bin: $(HCYC)/$(1)/%/fw.elf
