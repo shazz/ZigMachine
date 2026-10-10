@@ -505,3 +505,58 @@ FPU's rounding, NaN and subnormal handling change no result in these 8 carts.
   fmax margin. Keep it as an opt-in core (`vexgen ... fpu`), not the board core, until a
   cart is written in f32. If it is wanted, `-mno-fdiv` plus `withDiv/withSqrt = false`
   would trim it further (not measured).
+
+## The two float carts, rewritten (2026-10-10)
+
+*The* Verdict *above said the fix for polkadots and replicants_emlyn is in the
+scenes. It is done: both default carts now run integers (fixtrig sine tables,
+Q16.16, spans), and the CODEF algorithms they replaced are kept, in f32, as
+the twin carts `polkadots_f32` and `replicants_emlyn_f32` for the f32 FPU.*
+
+**Method.** The cycles sim of this file's first table (`standard` core, 4 KiB
+I$, one-cycle SRAM), build `aligned` for the cart figure and `float` for the
+soft-float share; cart cycles per frame averaged after frame 5. Run by hand:
+`make cycles-fw CART=<tag> VARIANT=aligned` then `tools/cycles_sim.sh`
+(8-14 frames each, so the hashes were not compared with scene_hash.mjs: the
+harnesses compare the pictures instead, see below). ZIG mode (Space) is
+measured with `-DZM_FIRE_AT=1` in `V_aligned`: `cycles/main.c` then calls
+`input(5)` before frame 1; the bars reach their widest ramp by frame 8.
+
+| cart | before (f64) | after | MHz for 60 fps | soft-float |
+|---|---|---|---|---|
+| replicants_emlyn, ORIGINAL | 7.74 Mc | **0.20 Mc** | 464 -> **12** | 42 % -> 0 |
+| replicants_emlyn, ZIG (Space) | 301 Mc at frame 8, still rising | **1.55 Mc** (p95 1.59) | > 18,000 -> **96** | |
+| polkadots | 35.65 Mc | **1.32 Mc** | 2139 -> **80** | 49 % -> 0 |
+| replicants_emlyn_f32, ORIGINAL | | 2.17 Mc | 130 | 47 % |
+| replicants_emlyn_f32, ZIG | | 30 Mc on frame 1, rising | | |
+| polkadots_f32 | | 17.04 Mc | 1023 | 42 % |
+
+Where the cycles went (removing one part at a time, same sim):
+- **emlyn**: after the integer rewrite the ORIGINAL frame was 3.3 Mc, of which
+  the CPU logo blit (112,000 keyed pixels) was 1.8 and the ramp copy under it
+  (112 KB) 0.9. Both now go to the blitter: the logo cookie-cut from cart RAM,
+  the ramp written once and doubled down the plane in nine copies. In ZIG mode
+  the raster fill (the bars painted once into a 1/16 px strip along the bars'
+  axis, each line a walk along it) and the HBL's per-line palette writes (up
+  to 149 entries x 280 lines, 0.64 Mc: the price of real rasters) are the rest.
+- **polkadots**: the fill had been 0.95 Mc of 1.65 because libgcc's 64-bit
+  divide (one per edge, two per vertex) costs about a thousand cycles on rv32;
+  every divide is now one 32-bit hardware divide.
+
+**The look.** Both default carts are compared with the old f64 builds and
+with their f32 twins (`apps/*_headless.mjs` now checks fixed against f32):
+emlyn ORIGINAL differs from the f64 build in at most 400 of 112,000 pixels a
+frame (one band edge one line over), ZIG in at most 391; polkadots in 5 of
+13,174 lit cells over 60 frames, each one dot size apart.
+
+**The f32 FPU.** The f32 twins are what an F-only FPU can speed up: replacing
+their soft-float by the FPU costs of *FPU estimate* saves **46 %** of
+replicants_emlyn_f32's frame and **40 %** of polkadots_f32's (float-build
+basis), against 1 % for the old f64 carts. A few f64 calls remain inside
+compiler-rt's `sinf`/`cosf` (23-30 a frame).
+
+**Board estimate** (100 MHz board clock, +15 % for the DDR path's read
+latency, *Memory path*): emlyn ORIGINAL 0.23 Mc of a 1.67 Mc frame, 60 fps; ZIG
+1.8 Mc, about 55 fps at the widest ramp and 60 below it; polkadots 1.5 Mc,
+60 fps (it ran at 2 fps). Not counted: the blitter's own time for the logo and
+the ramp (RTL, 224,000 pixels a frame in the worst case).
