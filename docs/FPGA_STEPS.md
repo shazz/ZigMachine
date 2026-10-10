@@ -26,7 +26,69 @@ says otherwise.
 | RTL | Video timing (`zm_vtiming`) | **done** | 64 LUTs, CXXRTL-tested over 2 frames |
 | RTL | Video compositor: planes, palettes, border, BEAM, all modes | **done** | **32/32 frames pixel-identical** to the machine; 25/25 mutants caught; 1,169 LUTs |
 | — | DDR framebuffer video: sequencer, snoop, double buffer, scanout DMA | **done** | the cart CPU + the RTL video in Verilator: **5/5 carts hash = scene_hash** (tutorial, union_main, badflicker, equinox, dhs_0pxl0reg); 49/49 RTL mutants caught |
+| — | **Sound on the board SoC**: the audio core behind a stamped write queue, HDMI with audio, the players (SNDH = Musashi) in software on the cart CPU (ADR 2026-10-09) | **sim done, on the board, to be heard** | the core applies the machine's writes at the machine's samples: **1,261 / 1,261 writes** (sos.sndh, 94,080 samples) and the core's output = the core fed the machine's writes, **148,010 / 148,010 samples bit for bit**; MOD within 25 LSB (off-grid gains); a dropped YM write and a PCM address one byte off are caught; Vivado **sys 100 MHz met** (WNS +0.139 ns); easy SNDH **0.28 Mc a frame (17 %)**, a 7.6 kHz digidrum **2.95 Mc (177 %)**, a 15.7 kHz one **7.95 Mc (477 %)** at 100 MHz |
 | — | The blitter on the board SoC: `zm_blit` on **HP2**, registers tapped off the CPU's stores, the start from the firmware's `hwBlit` (ADR 2026-10-04; z7 `--blit`) | **sim done** | `make hp-sim` (`ZM_BLIT=hw`): **blitter (10 frames) and tsl_hybridglenz (10, and 120) hash = scene_hash**; a dropped register store and a DDR base one beat off are caught; hwBlit **26 K cycles vs 386 K** a call (blitter, 15x), **116 K vs 4.6 M** (tsl, 39x); tsl frame 2.3 Mc vs 29.1 Mc; +2,646 LUT, +1,578 FF, +8 DSP |
+
+---
+
+## 2026-10-09: sound on the board SoC
+
+The board SoC plays the machine's music: the audio core (`fpga/rtl/audio/`) is in the
+SoC, the picture leaves through HDMI with 44.1 kHz audio instead of DVI, and the
+players (MOD, YM dump, SNDH = the tune's 68000 code on Musashi) run in software on
+the cart CPU (ADR 2026-10-09 "SNDH in software on the cart CPU"; an audio CPU later).
+Design and numbers: [`FPGA_AUDIO.md`](FPGA_AUDIO.md) section 6.
+
+- **The register path.** `demo-audio.wasm` through wasm2c in the firmware, its own
+  3 MiB memory in DDR; each chip call becomes the core's register writes, stamped
+  with the sample it lands before in the machine's stream; the firmware pushes them to
+  `AUDIO_WINDOW` (0x9200_0000, M-only: outside every seal window) and
+  `rtl/audio/zm_audio_sched.v` (2,048 entries) applies each at its sample, between
+  two mixes. The firmware renders 67 ms ahead of the sound.
+- **PCM** is read where the machine keeps it, in the players' memory in DDR, one
+  byte at a time on **HP3** (`soc/zm_audio_soc.py AudioHP`).
+- **Proof in sim** (`tools/audio_sim_run.py`: the board SoC in Verilator, a tap on the
+  core, against `host_audio`, the native host with the machine's own chips):
+  - tutorial (sos.sndh), 120 frames: **1,261 of 1,261 writes** land in the core at the
+    machine's sample counted from the song's start, same value, same order;
+  - the core's output equals the core on its own fed the machine's writes on the same
+    timeline (`tools/audio_core_replay.py`): **148,010 of 148,010 samples, bit for bit**;
+  - tsl_hybridglenz (a MOD), 40 frames: 87 / 87 writes; samples within **25 LSB**
+    (the MOD player's gains, v / 64 / 1.4 and pan +-0.6, are off the register grid
+    VOL / 256, PAN / 128 and get rounded; on the grid the PCM is exact: the
+    `soc_stamped_exact` bench, 13,466 samples);
+  - break tests: a YM R8 write dropped in the window (`--audio-break drop`): 1,228
+    write differences; the PCM base one byte off (`--audio-break base`): 21,675 samples
+    off (worst 3,436 LSB); `sched_early`, `sched_in_mix`, `sched_drop` mutants of the
+    queue fail `soc_stamped_exact`.
+- **Against the machine's sound**, the YM is jt49 vs ym.zig (section 3): on sos.sndh
+  the envelope passages differ, and jt49's result depends on how long it has run
+  since reset (replays with different reset-to-song gaps start the shape-10 envelope
+  at opposite ends). Spectral similarity 0.935 median, partials 68 %: **listen for the
+  bass envelope** on the board.
+- **The cost on the cart CPU** (board core, DDR model, sys 100 MHz; budget 1.67 Mc a
+  frame at 60 fps): sos.sndh (50 Hz, no timer) **0.28 Mc a frame** avg, 0.42 p95 (one PLAY ~315 kc;
+  in the tutorial cart 364 kc avg, 588 kc p95, beside the cart's 466 kc); a MOD 8 kc
+  (Paula is RTL); **wow_scroller.sndh (timer A 7.6 kHz digidrum) 2.95 Mc, beat_dis.sndh
+  (15.7 kHz) 7.95 Mc a frame**: a digidrum SNDH does not fit the cart CPU at 100 MHz:
+  that is the audio CPU's job. A song load is a one-off 21-30 Mc (the 1 MiB of 68000
+  RAM zeroed, the image depacked): the stamp re-anchors after it, so the tune starts on
+  time. On the board, tutorial runs **45.3 fps without music, 35.7 with**.
+- **A firmware bug found on the way**: `cycles/trap.S` never wrote the frame's x0 slot,
+  so an emulated misaligned `sw zero` / `sh zero` stored stale stack instead of 0. wasm2c
+  clears structs with x0 stores; the MOD player's channel table came out as garbage on
+  rv32 (found with a players-only firmware in the cycles sim, bisected to the emulated stores). Fixed (`sw zero, 0(sp)`);
+  every `aligned` board and cycles image built before it may have stored garbage on a
+  misaligned zero store (carts: rare, their hashes passed).
+- **Vivado** (`--sys-mhz 100 --comp-mhz 100`, `build/soc_z7_audio`): timing met, WNS
+  +0.139 ns, WHS +0.024 ns, after registering the PCM multiplier's gain operands (the
+  path c -> LUTRAM -> min() -> DSP missed by 54 ps). 8,602 LUT (48.9 %), 9,592 FF,
+  34.5 BRAM tiles, 10 DSP; `zm_audio_soc` 1,375 LUT + 9 RAMB18 + 4 DSP, `zm_hdmi_out`
+  597 LUT.
+- **On the board** (tutorial, `ZM_BLIT=sw`): the cart runs; after 5 s `md.l 0x05ffff80 8`
+  read status 0 (nothing late, nothing dropped), resyncs 0, the core at 44.1 kHz
+  (223,809 samples in 5.07 s), 584 writes a second (sos.sndh's 12 a tick at 50 Hz).
+  **Not yet heard**: Matt listens.
 
 ---
 
@@ -740,3 +802,4 @@ Commits: `c007033` (doc), `da85e28` (`fpga/`), `a4d086d` (host).
 - **The board package:** `board.xdc` and `ps7_init` go into
   `fpga/boards/microphase_z7_7010/`. Nothing past simulation can start without
   them.
+- [FPGA_TUTORIAL.md](FPGA_TUTORIAL.md): running your Zig screen on the real board, step by step.

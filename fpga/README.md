@@ -227,3 +227,4 @@ estimated from their widths, not counted separately).
 **What Vivado would settle** (not installed: about 50 GB): a timing-driven
 place and route with `phys_opt_design`, the CDC constraints honoured, pblocks
 for VexRiscv and the compositor, and fmax without a seed lottery.
+- [FPGA_TUTORIAL.md](../docs/FPGA_TUTORIAL.md): running your Zig screen on the real board, step by step.

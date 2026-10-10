@@ -13,12 +13,16 @@
 # ZM_BLIT=hw (default): hwBlit() runs on rtl/blitter's zm_blit over HP2 (cycles/bblit.c,
 # soc/zm_blit_soc.py), so the bitstream must be built with --blit; ZM_BLIT=sw: the
 # machine's software blitter, for a bitstream without it (and the SW figures).
+# ZM_AUDIO=1 (default): the players run on the cart CPU into the audio core (cycles/baudio.c,
+# cycles/audio.mk); ZM_AUDIO=0: no music (the figures without it). The bitstream has the core
+# unless built with --no-audio.
 HCYC     := build/hcycles
 SOC_HP   := build/soc_hp
 ZM_BLIT  ?= hw
 HP_DEPS  := soc/hp_sim.py soc/zm_board_mem.py soc/zm_hp.py soc/zm_simaxi.py soc/zm_video_axi.py \
 	soc/zm_blit_soc.py soc/zm_blit_hp.py $(wildcard rtl/blitter/*.v) \
-	soc/zm_z7.py soc/zm_glass.py $(VID_DEPS) $(wildcard rtl/glass/*.v)
+	soc/zm_z7.py soc/zm_glass.py $(VID_DEPS) $(wildcard rtl/glass/*.v) \
+	soc/zm_audio_soc.py $(wildcard rtl/audio/*.v) rtl/sim/zm_audio_tap.v
 HRV_CFLAGS = $(subst -I$(CYC)/gen,-I$(HCYC)/gen,$(RV_CFLAGS)) -Ibuild/vdump $(V_aligned)
 HFW_FILES := $(filter-out cycles/board.c,$(FW_FILES)) cycles/bboard.c cycles/bmailbox.c cycles/bdiag.c cycles/bblit.c
 HFW_DEPS  := $(FW_DEPS) cycles/bblit.c cycles/bblit.h cycles/bboard.c cycles/bboard.h cycles/bmailbox.c cycles/bmailbox.h cycles/bdiag.c cycles/bdiag.h cycles/vboard.h $(HCYC)/gen/csr_addr.h build/vdump/zm_memmap.h
@@ -28,8 +32,10 @@ HRV_LDFLAGS := $(subst __ram_size=0x01000000,__ram_size=0x00fff000,$(RV_LDFLAGS)
 B_hw     := -DZM_BLIT_HW
 B_sw     :=
 # sim: hash and end; board: run forever, report to the glass, print nothing.
-H_sim    = -DZM_FRAMES=$(ZM_FRAMES) -DZM_EVERY=$(ZM_EVERY) $(B_$(ZM_BLIT))
-H_board  = -DZM_BOARD -DZM_FRAMES=0 -DZM_EVERY=1 $(B_$(ZM_BLIT))
+ZM_AUDIO ?= 1
+A_0      := -DZM_NO_AUDIO
+H_sim    = -DZM_FRAMES=$(ZM_FRAMES) -DZM_EVERY=$(ZM_EVERY) $(B_$(ZM_BLIT)) $(A_$(ZM_AUDIO))
+H_board  = -DZM_BOARD -DZM_FRAMES=0 -DZM_EVERY=1 $(B_$(ZM_BLIT)) $(A_$(ZM_AUDIO))
 
 $(SOC_HP)/hp_sim.json: $(HP_DEPS)
 	systemd-run --user --scope -q -p MemoryMax=6G -p MemorySwapMax=0 \
@@ -49,13 +55,17 @@ $(HCYC)/$(1)/common/fw.a: $(HFW_DEPS)
 		$(RV_CC) $(HRV_CFLAGS) $(H_$(1)) -c $$$$s -o $$(@D)/fw/$$$$(basename $$$$s).o || exit 1; done
 	rm -f $$@ && $(RV_AR) rcs $$@ $$(@D)/fw/*.o
 $(HCYC)/$(1)/%/fw.elf: $(CYC)/aligned/%/cart.o $(CYC)/aligned/common/machine.o $(CYC)/aligned/common/rom.o \
-		$(HCYC)/$(1)/common/fw.a $(HOST)/%/env.c host/boot.c cycles/bmain.c cycles/vseq.c FORCE
+		$(HCYC)/$(1)/common/fw.a $(HOST)/%/env.c host/boot.c cycles/bmain.c cycles/vseq.c \
+		$(AUD_FW_DEPS) $(HCYC)/songs/%.c FORCE
 	@mkdir -p $$(@D)
+	for s in $(AUD_FW_SRC) $(HCYC)/songs/$$*.c; do \
+		$(RV_CC) $(HRV_CFLAGS) $(H_$(1)) -I$(HOST)/$$* -c $$$$s -o $$(@D)/aud_$$$$(basename $$$$s .c).o || exit 1; done
 	$(RV_CC) $(HRV_CFLAGS) -I$(HOST)/$$* -c $(HOST)/$$*/env.c -o $$(@D)/env.o
 	$(RV_CC) $(HRV_CFLAGS) -I$(HOST)/$$* -c host/boot.c -o $$(@D)/boot.o
 	$(RV_CC) $(HRV_CFLAGS) -I$(HOST)/$$* -c cycles/vseq.c -o $$(@D)/vseq.o
 	$(RV_CC) $(HRV_CFLAGS) $(H_$(1)) -I$(HOST)/$$* -DZM_CART='"$$*"' -c cycles/bmain.c -o $$(@D)/main.o
 	$(RV_CC) $(HRV_LDFLAGS) -o $$@ $$(@D)/main.o $$(@D)/vseq.o $$(@D)/env.o $$(@D)/boot.o $$< \
+		$$(@D)/aud_*.o $(CYC)/aligned/common/aplayer.o \
 		$(CYC)/aligned/common/machine.o $(CYC)/aligned/common/rom.o $(HCYC)/$(1)/common/fw.a -lm
 # fw.bin is what lands at DDR_BASE (soc/zm_hp.py): the CPU's reset vector is its first word.
 $(HCYC)/$(1)/%/fw.bin: $(HCYC)/$(1)/%/fw.elf

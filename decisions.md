@@ -714,3 +714,19 @@ ABI rather than a Zig API, apps in any language sit on it.
 - A closed, free-as-in-beer toolchain becomes a build dependency for the board: a licence file node-locked to the machine, ~80 GB, and ncurses5 shims.
 - The free licence has no ILA, so signals are observed through glass registers.
 - The RTL must stay portable to both tools; Vivado rejects two constructs Yosys accepts.
+
+## 2026-10-09 — SNDH in software on the cart CPU; the audio core behind a stamped write queue
+
+**Status:** accepted
+**Context:** The board SoC had pictures but no sound. The audio core (`fpga/rtl/audio/`: jt49 + the four Paula channels, PCM sample-exact to the Zig machine) and HDMI audio (`fpga/rtl/hdmi/`) were proven on the board on their own (`make ym-test`). The machine's music is mostly SNDH: the tune's own 68000 code on Musashi (`libs/zig/players/sndh_player.zig`, in `demo-audio.wasm`). The plan had an audio CPU for it. The 7010 is at ~49 % LUTs with the audio core in, and a second CPU plus its memory path is a large step.
+**Decision:** For now the players (MOD, YM dump, SNDH = Musashi) run in software on the cart CPU: `demo-audio.wasm` through wasm2c, in its own 3 MiB memory in DDR, driven by the firmware (`fpga/cycles/baudio.c`) after each cart frame. Their chip calls (`machine*` imports) become the core's register writes, each STAMPED with the sample it lands before in the machine's stream (`fpga/host/audio_imports.c`). The firmware renders ahead of the sound (67 ms) and pushes the writes into a 2,048-entry queue (`rtl/audio/zm_audio_sched.v`) that applies each at its sample, between two mixes. The core's register window (`AUDIO_WINDOW`, 0x9200_0000) is outside every seal window: only the firmware reaches it. PCM bytes are read from the players' memory in DDR on HP3, one 8-byte read per byte. HDMI with audio (`rtl/video/zm_hdmi_out.v`) replaces DVI.
+**Alternatives considered:**
+- An audio CPU now (the plan): the right end state, but a second core, its RAM and its own bus on a nearly full 7010, before the music is even heard.
+- Writes applied when the CPU makes them (no stamps): the YM would hear the frame's writes in one burst at frame time, so a 50 Hz tune jitters and a digidrum (a write every timer tick, 7-16 kHz) collapses.
+- The PCM in BRAM: the song RAM is 1 MiB; the 7010 has 240 KB of BRAM.
+**Consequences:**
+- The music costs cart-CPU cycles every frame (`docs/FPGA_AUDIO.md` "6. In the SoC", 1.67 Mcycles a frame at 100 MHz): a 50 Hz SNDH ~0.28 Mc (17 %), a MOD 8 kc, but a digidrum SNDH 2.95 Mc (7.6 kHz timer) to 7.95 Mc (15.7 kHz): those do not fit, which is what the audio CPU is for.
+- The stamps make the sound independent of the CPU's timing: the sim proves the core applies the machine's writes at the machine's samples.
+- A PCM sample the players rewrite less than the lead (67 ms) before it is played would be read new (the STE DMA double buffer case): not met by any cart measured; an audio CPU running in step with the core removes it.
+- The players run with the cart's translation (no bounds checks, M mode, as the whole board firmware today): the seal does not yet separate them.
+- An audio CPU later drives the same queue; a second sound chip gets its own register range behind it.

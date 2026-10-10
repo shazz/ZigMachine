@@ -1,0 +1,124 @@
+/* The audio side's boot, the cart's song bridge and the render loop (haudio.h),
+ * shared by the native host and the board firmware. The bridge is
+ * docs/sealed-loader.js's playSongByName / sndhCallByName and the worklet's
+ * load messages (docs/audio-worklet-sealed.js), minus the fetch: a song is
+ * staged at once, so it starts on the frame that asked for it. */
+#include <string.h>
+
+#include "haudio.h"
+
+#define AUDIO_PAGES 48u   /* machine/sdk/audio.zig AUDIO_PAGES: 3 MiB, initial == maximum */
+#define MAX_FRAMES 4096u  /* machine/sdk/audio.zig MAX_FRAMES: the most audioRender takes */
+#define NAME_MAX 64u      /* libs/zig/zigos.zig g_song_name */
+
+struct w2c_aud g_aud;
+static char g_resident[NAME_MAX + 1]; /* the SNDH playing, for zg.sndhCall; "" when none */
+
+void audio_backend_boot(void);
+void audio_backend_start(void);
+
+void audio_boot(void) {
+    wasm_rt_allocate_memory(&g_aud.memory, AUDIO_PAGES, AUDIO_PAGES, false, WASM_DEFAULT_PAGE_SIZE);
+    audio_backend_boot(); /* the soft chips first: their data segments are the low MiB */
+    wasm2c_audio_instantiate(&g_aud.player, &g_aud);
+    audio_backend_start(); /* the first write is next: the backend sets the stamp */
+    w2c_audio_audioInit(&g_aud.player);
+    w2c_audio_audioReset(&g_aud.player); /* the host's "reset" on every cart instantiation */
+}
+
+static int ends_with(const char* s, const char* tail) {
+    size_t n = strlen(s), m = strlen(tail);
+    return n >= m && strcmp(s + n - m, tail) == 0;
+}
+
+/* The file into song RAM; its length, or -1 (no such file: the fetch failed). */
+static int32_t stage(const char* name) {
+    w2c_audio* p = &g_aud.player;
+    uint8_t* song = g_aud.memory.data + w2c_audio_audioSongPtr(p);
+    return audio_song(name, song, w2c_audio_audioSongCapacity(p));
+}
+
+/* worklet "loadSndh": INIT with subtune `tune`, or with d0 exactly (raw). */
+static void play_sndh(const char* name, uint32_t arg, int raw) {
+    w2c_audio* p = &g_aud.player;
+    g_resident[0] = 0;
+    int32_t len = stage(name);
+    if (len < 0 || !w2c_audio_audioLoadSndh(p, (uint32_t)len)) return;
+    audio_song_loaded(name); /* a load is long (depack, 1 MiB zeroed): the stamp may need to move on */
+    if (raw) w2c_audio_audioSndhPlayRaw(p, arg);
+    else w2c_audio_audioSndhPlay(p, arg);
+    strncpy(g_resident, name, NAME_MAX);
+}
+
+/* playSongByName: the extension picks the player; "none" stops everything. */
+void audio_play(const char* name, uint32_t tune) {
+    w2c_audio* p = &g_aud.player;
+    if (strcmp(name, "none") == 0) {
+        g_resident[0] = 0;
+        w2c_audio_audioReset(p);
+        return;
+    }
+    if (!name[0] || strstr(name, "..") || name[0] == '/') return;
+    if (ends_with(name, ".sndh")) {
+        play_sndh(name, tune, 0);
+        return;
+    }
+    g_resident[0] = 0;
+    int32_t len = stage(name);
+    if (len < 0) return;
+    audio_song_loaded(name);
+    if (ends_with(name, ".mod") && w2c_audio_audioLoadMod(p, (uint32_t)len)) {
+        if (tune) w2c_audio_audioModPlayBpm(p, tune); /* a MOD's tune field is its start BPM */
+        else w2c_audio_audioModPlay(p);
+    } else if (ends_with(name, ".ymraw") && w2c_audio_audioLoadYm(p, (uint32_t)len)) {
+        w2c_audio_audioYmPlay(p);
+    } else if (ends_with(name, ".raw")) {
+        w2c_audio_audioPlayRaw(p, (uint32_t)len, 12517.0f, 0);
+    }
+}
+
+/* A name from the cart's memory, bounded and NUL-terminated. */
+static void cart_name(struct w2c_env* e, uint32_t ptr, uint32_t len, char out[NAME_MAX + 1]) {
+    if (len > NAME_MAX) len = NAME_MAX;
+    if ((uint64_t)ptr + len > e->memory.size) len = 0;
+    memcpy(out, e->memory.data + ptr, len);
+    out[len] = 0;
+}
+
+static void sndh_calls(struct w2c_env* e) {
+    const host_song_bridge* b = &host_songs;
+    uint32_t n = b->sndh_poll ? b->sndh_poll(&e->cart) : 0;
+    if (!n) return;
+    char name[NAME_MAX + 1];
+    cart_name(e, b->sndh_name_ptr(&e->cart), b->sndh_name_len(&e->cart), name);
+    if (!ends_with(name, ".sndh") || strstr(name, "..") || name[0] == '/') return;
+    for (uint32_t i = 0; i < n; i++) {
+        uint32_t d0 = b->sndh_d0(&e->cart, i);
+        if (strcmp(name, g_resident) == 0) w2c_audio_audioSndhCall(&g_aud.player, d0);
+        else play_sndh(name, d0, 1); /* not the image playing: load it, d0 its first INIT */
+    }
+}
+
+int audio_bridge(struct w2c_env* e) {
+    const host_song_bridge* b = &host_songs;
+    int started = 0;
+    if (b->poll && b->poll(&e->cart)) {
+        char name[NAME_MAX + 1];
+        cart_name(e, b->name_ptr(&e->cart), b->name_len(&e->cart), name);
+        audio_play(name, b->tune ? b->tune(&e->cart) : 0);
+        started = 1;
+    }
+    sndh_calls(e);
+    return started;
+}
+
+void audio_render(uint32_t n) {
+    while (n) {
+        uint32_t k = n < MAX_FRAMES ? n : MAX_FRAMES;
+        uint32_t t = zma_ts();
+        zma_set_ts(t);
+        w2c_audio_audioRender(&g_aud.player, k);
+        zma_set_ts(t + k);
+        n -= k;
+    }
+}

@@ -1,0 +1,30 @@
+/* The board firmware's audio (cycles/baudio.c): the players on the cart CPU,
+ * their chip calls queued to the RTL audio core (soc/zm_audio_soc.py). */
+#ifndef ZM_BAUDIO_H
+#define ZM_BAUDIO_H
+
+#include <stdint.h>
+
+#include "host.h"
+
+/* The songs linked into the image (tools/song_pack.py), NULL-terminated. */
+typedef struct {
+    const char* name; /* the path under docs/music/ the cart asks for */
+    const uint8_t* data;
+    uint32_t len;
+} zm_song;
+extern const zm_song zm_songs[];
+
+struct baudio {
+    int on;            /* the bitstream has the core (its ID answered) */
+    uint32_t pushed;   /* writes queued */
+    uint32_t resyncs;  /* frames that fell behind the sound */
+    uint32_t anchors;  /* song loads that took the stamp past the sound's lead */
+};
+extern struct baudio baudio;
+
+void baudio_boot(void);                  /* after host_boot: the players, their reset */
+void baudio_frame(struct w2c_env* e);    /* after the cart's frame: songs, then render ahead */
+void baudio_report(void);                /* the sim's "ZM AUD" line */
+
+#endif

@@ -18,6 +18,14 @@
 #include <time.h>
 #endif
 
+/* host_audio (cycles/audio.mk): the same host plus the machine's audio side. */
+#ifdef HOST_AUDIO
+#include "haudio_soft.h"
+#define AUDIO(call) call
+#else
+#define AUDIO(call) ((void)0)
+#endif
+
 #define MAX_CALLS 64
 
 typedef struct {
@@ -67,6 +75,7 @@ static void frame(sha256_ctx* h, u32 planes, u32 size) {
     struct w2c_env* e = &g_env;
     w2c_machine_hwClear(&e->machine);
     w2c_cart_frame(&e->cart, 16.6f);
+    AUDIO(audio_soft_frame(e));
     for (u32 p = 0; p < planes; p++) {
         if (!w2c_cart_isPlaneEnabled(&e->cart, p)) {
             char off[16];
@@ -154,7 +163,9 @@ int main(int argc, char** argv) {
     wasm_rt_trap_t trap = wasm_rt_impl_try();
     if (trap) { fprintf(stderr, "host: %s: trap: %s\n", pos[0], wasm_rt_strerror(trap)); return 1; }
     host_boot(&g_env);
+    AUDIO(audio_soft_boot());
     run(pos[0], n, k);
+    AUDIO(audio_soft_close());
     /* As scene_hash.mjs: a cart refused a zg.mem buffer ran on a bad pointer. */
     u32 refused = w2c_machine_hwRamAllocFailures(&g_env.machine);
     if (refused) {

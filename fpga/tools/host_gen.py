@@ -133,6 +133,17 @@ def export_table(cart: dict[str, tuple[str, list[str]]]) -> str:
     return "\n".join(out) + "\n\nconst host_export host_exports[] = {\n" + "\n".join(rows) + "\n    {0, 0},\n};\n"
 
 
+# The song bridge (host.h host_song_bridge), in its field order, with the signature each must have.
+SONG_BRIDGE = [("pollSongRequest", []), ("songNamePtr", []), ("songNameLen", []), ("songTune", []),
+               ("pollSndhCalls", []), ("sndhCallD0", ["u32"]), ("sndhCallNamePtr", []), ("sndhCallNameLen", [])]
+
+
+def song_bridge(cart: dict[str, tuple[str, list[str]]]) -> str:
+    """host_songs: each export the cart has (with the expected type), else NULL."""
+    rows = [f"w2c_cart_{n}" if cart.get(n) == ("u32", p) else "0" for n, p in SONG_BRIDGE]
+    return "const host_song_bridge host_songs = {" + ", ".join(rows) + "};\n"
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--build", type=Path, required=True, help="build/host/<tag> (holds cart.h)")
@@ -160,6 +171,7 @@ def main() -> None:
         if name != "memory":
             parts.append(forwarder(name, ret, params, resolve(name, who, exports), exports))
     parts.append(export_table(exports["cart"]))
+    parts.append(song_bridge(exports["cart"]))
     (a.build / "env.c").write_text("\n".join(parts))
 
 

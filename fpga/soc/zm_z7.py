@@ -86,7 +86,8 @@ def make_z7(args: argparse.Namespace) -> tuple[ZigMachineSoC, object]:
     sys_hz = int(getattr(args, "sys_mhz", SYS_CLK / 1e6) * 1e6)
     comp_hz = int(getattr(args, "comp_mhz", COMP_CLK / 1e6) * 1e6)
     # The Z7-Lite UART is on PS MIO (the ARM's), not PL pins: the console runs over USB-JTAG.
-    soc = _board_soc(platform, sys_hz, not args.no_glass, getattr(args, "blit", False))
+    audio = not getattr(args, "no_audio", False)
+    soc = _board_soc(platform, sys_hz, not args.no_glass, getattr(args, "blit", False), audio)
     soc.crg = crg = Z7CRG(platform, (args.osc, args.osc_hz), sys_hz, comp_hz)
     soc.csr_bridge_register = True
     clocks = {"sys": (crg.cd_sys.clk, sys_hz), "comp": (crg.cd_comp.clk, comp_hz), "pix": (crg.cd_pix.clk, PIX_CLK)}
@@ -98,23 +99,26 @@ def make_z7(args: argparse.Namespace) -> tuple[ZigMachineSoC, object]:
     return soc, platform
 
 
-def _board_soc(platform: object, sys_hz: int, glass: bool, blit: bool = False) -> ZigMachineSoC:
+def _board_soc(platform: object, sys_hz: int, glass: bool, blit: bool = False, audio: bool = True) -> ZigMachineSoC:
     """With the glass: the cart CPU's RAM and the video DMA in PS DDR over HP0/HP1, the CPU
-    reset into it (soc/zm_board_mem.py), and with `blit` the blitter on HP2 (soc/zm_blit_soc.py).
-    Without: on-chip RAM and the BIOS, run over JTAG."""
+    reset into it (soc/zm_board_mem.py), with `blit` the blitter on HP2 (soc/zm_blit_soc.py),
+    and with `audio` the sound core on HP3 and HDMI with audio (soc/zm_audio_soc.py).
+    Without the glass: on-chip RAM and the BIOS, run over JTAG, DVI only."""
     if not glass:
         return ZigMachineSoC(platform, sys_hz, "pipe", uart_name="jtag_uart")
     hp0, hp1 = hp_interface(), hp_interface()
+    hp3 = hp_interface() if audio else None
     soc = ZigMachineSoC(
         platform, sys_hz, "pipe", glass=True, video_hp=hp1, uart_name="jtag_uart",
-        rom_size=0, main_ram_size=0, cpu_reset_address=CPU_BASE,
+        rom_size=0, main_ram_size=0, cpu_reset_address=CPU_BASE, audio=None if hp3 is None else {"hp": hp3},
     )  # fmt: skip
     zm_board_mem.add_cpu_memory(soc, hp0)
     hp2 = hp_interface() if blit else None
     if hp2 is not None:
         add_blitter(soc, platform, hp2)
     # Every HP port through a register slice at the PS7 (zm_board_mem.hp_slice: its pins are untimed).
-    ps = [None if hp is None else zm_board_mem.hp_slice(soc, f"hp{i}", hp) for i, hp in enumerate((hp0, hp1, hp2))]
+    hps = (hp0, hp1, hp2, hp3)
+    ps = [None if hp is None else zm_board_mem.hp_slice(soc, f"hp{i}", hp) for i, hp in enumerate(hps)]
     soc.specials += zm_board_mem.ps7_instance(soc.glass.axi, *ps)
     return soc
 

@@ -56,10 +56,16 @@ module zm_audio_pcm (
     wire signed [10:0] m_l = (m_l0 > 11'sd128) ? 11'sd128 : m_l0;
     wire signed [10:0] m_r = (m_r0 > 11'sd128) ? 11'sd128 : m_r0;
 
-    // The one multiplier: VOL x m in M1/M2, s x gain in M3/M4.
+    // The one multiplier: VOL x m in M1/M2, s x gain in M3/M4. Its gain operands are
+    // registered while the byte is fetched (TIMING: c -> the channel LUTRAM -> min() ->
+    // the DSP was the board SoC's critical path at 100 MHz), so a VOLUME or PAN write
+    // lands on the sample being mixed up to its FETCH, after it from M1 on.
+    reg  [8:0]  vol_q = 9'd0;
+    reg  signed [10:0] ml_q = 11'sd0, mr_q = 11'sd0;
+    always @(posedge clk) if (st == FETCH) {vol_q, ml_q, mr_q} <= {vol[c], m_l, m_r};
     wire        gains = st == M1 || st == M2;
-    wire signed [17:0] mx = gains ? $signed({9'd0, vol[c]}) : {{10{s[7]}}, s};
-    wire signed [17:0] my = (st == M1) ? {{7{m_l[10]}}, m_l} : (st == M2) ? {{7{m_r[10]}}, m_r}
+    wire signed [17:0] mx = gains ? $signed({9'd0, vol_q}) : {{10{s[7]}}, s};
+    wire signed [17:0] my = (st == M1) ? {{7{ml_q[10]}}, ml_q} : (st == M2) ? {{7{mr_q[10]}}, mr_q}
                           : (st == M3) ? gl : gr;
     wire signed [35:0] prod = mx * my;
 

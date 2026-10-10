@@ -10,7 +10,10 @@ of the PS7, in Verilator.
   CPU in reset, ZMCycles. Built by the same calls (soc/zm_board_mem.py), so the
   CSR map is the board's: the firmware image that runs here runs there.
 - The blitter (soc/zm_blit_soc.py, the board's `--blit`) on HP2; `--blit-break` builds a mutant.
-- The PS: ZMSimAXIRAM (soc/zm_simaxi.py, write channels 32-bit as on the board) answers HP0-HP2 from one 64-bit
+- The sound core (soc/zm_audio_soc.py) on HP3, with its tap: every write landing and every
+  sample goes to audio_tap.txt in the run directory (tools/audio_sim_run.py); `--audio-break`
+  builds a mutant (a YM write dropped, the PCM base a byte off).
+- The PS: ZMSimAXIRAM (soc/zm_simaxi.py, write channels 32-bit as on the board) answers HP0-HP3 from one 64-bit
   memory that only answers inside the DDR window (DDR_BASE), with an HP-like
   first-beat latency; and a "U-Boot" that writes the glass's CTRL.RUN over GP0
   after `BOOT_DELAY` cycles, as `mw.l 0x43c00008 1` does on the board.
@@ -71,12 +74,13 @@ class _UBoot(Module):
         ]
 
 
-def make_soc(blit_break: str = "") -> ZigMachineSoC:
+def make_soc(blit_break: str = "", audio_break: str = "") -> ZigMachineSoC:
     platform = SimPlatform("SIM", [*SIM_IO, ("pix_clk", 0, Pins(1)), ("comp_clk", 0, Pins(1))])
-    hp0, hp1, hp2 = hp_interface(), hp_interface(), hp_interface()
+    hp0, hp1, hp2, hp3 = hp_interface(), hp_interface(), hp_interface(), hp_interface()
+    audio = {"hp": hp3, "tap": True, "break_": audio_break}  # the sound core, its tap (rtl/sim/zm_audio_tap.v)
     soc = ZigMachineSoC(
         platform, SYS_CLK, "pipe", glass=True, video_hp=hp1, hdmi=False, uart_name="sim",
-        rom_size=0, main_ram_size=0, cpu_reset_address=CPU_BASE,
+        rom_size=0, main_ram_size=0, cpu_reset_address=CPU_BASE, audio=audio,
     )  # fmt: skip
     zm_board_mem.add_cpu_memory(soc, hp0)
     zm_timing.use_core(soc, platform, BOARD_CORE)
@@ -84,7 +88,7 @@ def make_soc(blit_break: str = "") -> ZigMachineSoC:
     platform.sources = [s for s in platform.sources if not s[0].endswith("zm_glass_osd.v")]
     soc.crg = _CRG({name: platform.request(f"{name}_clk") for name in ("sys", "comp", "pix")})
     add_blitter(soc, platform, hp2, blit_break)  # the board's `--blit`: zm_blit on HP2 (soc/zm_blit_soc.py)
-    ps = [zm_board_mem.hp_slice(soc, f"hp{i}", hp) for i, hp in enumerate((hp0, hp1, hp2))]  # as the board
+    ps = [zm_board_mem.hp_slice(soc, f"hp{i}", hp) for i, hp in enumerate((hp0, hp1, hp2, hp3))]  # as the board
     soc.ddr = ZMSimAXIRAM(WINDOW, ps, latency=HP_LATENCY, wr32=True)  # the board: WRCHAN 32-bit
     soc.uboot = _UBoot(soc.glass.axi, BOOT_DELAY)
     soc.csr.add("sim_finish", n=FINISH_LOC)
@@ -96,10 +100,11 @@ def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--out", type=Path, default=OUT, help="build directory")
     ap.add_argument("--blit-break", choices=["", "drop", "base"], default="", help="a blitter mutant (zm_blit_soc.py)")
+    ap.add_argument("--audio-break", choices=["", "drop", "base"], default="", help="an audio mutant (zm_audio_soc.py)")
     a = ap.parse_args()
     out = a.out if a.out.is_absolute() else FPGA / a.out
     litex_compat.install()
-    soc = make_soc(a.blit_break)
+    soc = make_soc(a.blit_break, a.audio_break)
     sim_config = SimConfig()
     for name, hz in (("sys_clk", SYS_CLK), ("pix_clk", PIX_CLK), ("comp_clk", COMP_CLK)):
         sim_config.add_clocker(name, freq_hz=hz)

@@ -13,8 +13,9 @@
   the firmware image there.
 - ZMCycles: the cycle counter the firmware times its waits with (cycles/board.h).
 - The PS7: ONE primitive with M_AXI_GP0 (the glass), S_AXI_HP0 (the CPU),
-  S_AXI_HP1 (the video DMA) and, with `--blit`, S_AXI_HP2 (the blitter,
-  soc/zm_blit_soc.py), every port clocked from sys.
+  S_AXI_HP1 (the video DMA), with `--blit` S_AXI_HP2 (the blitter,
+  soc/zm_blit_soc.py) and, unless `--no-audio`, S_AXI_HP3 (the audio core's PCM
+  reads, soc/zm_audio_soc.py), every port clocked from sys.
 """
 
 from __future__ import annotations
@@ -57,12 +58,19 @@ def hp_slice(soc: SoC, name: str, master: axi.AXIInterface) -> axi.AXIInterface:
 
 
 def ps7_instance(
-    gp0: axi.AXIInterface, hp0: axi.AXIInterface, hp1: axi.AXIInterface, hp2: axi.AXIInterface | None = None
+    gp0: axi.AXIInterface,
+    hp0: axi.AXIInterface,
+    hp1: axi.AXIInterface,
+    hp2: axi.AXIInterface | None = None,
+    hp3: axi.AXIInterface | None = None,
 ) -> Instance:
     """The PS7 with GP0 (soc/zm_glass.py's wiring, reused as is) plus HP0, HP1 and, with the
-    blitter (soc/zm_blit_soc.py), HP2."""
+    blitter (soc/zm_blit_soc.py), HP2, and with the audio (soc/zm_audio_soc.py), HP3."""
     clk = ClockSignal("sys")
-    hp2_ports = {} if hp2 is None else ps7_hp_ports("SAXIHP2", hp2, clk)
-    ps7 = Instance("PS7", **ps7_hp_ports("SAXIHP0", hp0, clk), **ps7_hp_ports("SAXIHP1", hp1, clk), **hp2_ports)
+    more = {}
+    for name, hp in (("SAXIHP2", hp2), ("SAXIHP3", hp3)):
+        if hp is not None:
+            more |= ps7_hp_ports(name, hp, clk)
+    ps7 = Instance("PS7", **ps7_hp_ports("SAXIHP0", hp0, clk), **ps7_hp_ports("SAXIHP1", hp1, clk), **more)
     ps7.items += ps7_gp0(gp0).items
     return ps7

@@ -282,6 +282,7 @@ ym-test: $(YM_TEST)/ym_test_top.bit
 # --- the first cart on the board: main RAM + video DMA in PS DDR over HP0/HP1 (cycles/board.mk) ---
 #   make hp-sim CART=tutorial    the board SoC with a model of the PS, in Verilator: hashes vs scene_hash
 #   make board-fw CART=tutorial  the firmware image U-Boot loads (fpga/boards/microphase_z7_7010/README.md)
+include cycles/audio.mk
 include cycles/board.mk
 
 # --- the edit -> board loop: release / dev (placement replay) builds, seed sweeps, hp-test (flow.mk) ---

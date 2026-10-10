@@ -19,6 +19,8 @@
 //               LOOP_LEN (staged for TRIGGER), STEP, VOLUME, PAN, POS, CTRL
 // A write is taken on a clock with `wr` and `ready`; `ready` drops for the clock
 // after a YM write (jt49 needs the gap) and for the 8 clocks of a reset.
+// `tick` and `mixing` let a writer (zm_audio_sched) land each write between two
+// samples' mixes, at the sample it was stamped for.
 `default_nettype none
 
 module zm_audio_core #(
@@ -41,7 +43,9 @@ module zm_audio_core #(
     output wire        smp_valid,
     output wire [15:0] smp_l,
     output wire [15:0] smp_r,
-    output wire [2:0]  status
+    output wire [2:0]  status,
+    output wire        tick,             // the sample strobe: sample n's mix starts (zm_audio_sched counts these)
+    output wire        mixing            // the strobe or the PCM mix is running: no write may land now
 );
     wire strobe, ym_cen;
     zm_audio_frac #(.INC(SR_INC), .MOD(SR_MOD)) u_sr (.clk(clk), .rst(rst), .tick(strobe));
@@ -107,6 +111,8 @@ module zm_audio_core #(
         end
     end
     assign status = {late, seen};
+    assign tick = strobe;
+    assign mixing = strobe || pcm_busy;
 
     always @(*) begin
         rdata = 32'd0;

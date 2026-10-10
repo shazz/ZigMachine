@@ -24,6 +24,7 @@ from litex.soc.integration.soc_core import SoCCore
 from litex.soc.interconnect import axi
 from migen import Cat, ClockDomain, If, Module, Signal
 
+from soc.zm_audio_soc import add_audio, hdmi_out
 from soc.zm_glass import ZMGlass, ps7_gp0
 from soc.zm_video import ZMVideoTiming
 from soc.zm_video_pipe import WINDOW_BYTES, ZMVideo
@@ -81,6 +82,7 @@ class ZigMachineSoC(SoCCore):
         glass: bool = False,
         video_hp: axi.AXIInterface | None = None,
         hdmi: bool = True,
+        audio: dict[str, object] | None = None,
         **kwargs: object,
     ) -> None:
         SoCCore.__init__(
@@ -95,13 +97,17 @@ class ZigMachineSoC(SoCCore):
             **kwargs,
         )
         if video_cd == "pipe":  # the board: the whole pipeline, out through HDMI (not in soc/hp_sim.py)
-            self._add_video_pipe(platform, glass, video_hp, hdmi)
+            self._add_video_pipe(platform, glass, video_hp, hdmi, audio)
         else:
             self.video = ZMVideoTiming(platform, cd=video_cd)
         self.irq.add("video", use_loc_if_exists=True)
 
-    def _add_video_pipe(self, platform: object, glass: bool, hp: axi.AXIInterface | None, hdmi: bool) -> None:
-        """hp: the video DMA's AXI3 HP port (soc/zm_board_mem.py), else a Wishbone master on the bus."""
+    def _add_video_pipe(
+        self, platform: object, glass: bool, hp: axi.AXIInterface | None, hdmi: bool, audio: dict[str, object] | None
+    ) -> None:
+        """hp: the video DMA's AXI3 HP port (soc/zm_board_mem.py), else a Wishbone master on the bus.
+        audio: soc/zm_audio_soc.py add_audio's arguments (its HP port `hp`, `tap`, `break_`); the
+        picture then leaves through zm_hdmi_out with the sound, not zm_dvi_out."""
         pads = None
         if hdmi:
             req = platform.request  # type: ignore[attr-defined]  # untyped LiteX platform
@@ -115,7 +121,11 @@ class ZigMachineSoC(SoCCore):
             self.comb += self.cpu.reset.eq(~self.glass.cpu_run)
             overlay = self.glass.overlay if hdmi else None  # the OSD only exists on the wire
         run = self.glass.cpu_run if glass else None  # the HP DMA runs only while CTRL.RUN (soc/zm_video_axi.py)
-        self.video = ZMVideo(platform, pads, overlay=overlay, hp=hp, hp_enable=run)
+        self.video = ZMVideo(platform, None if audio else pads, overlay=overlay, hp=hp, hp_enable=run)
+        if audio is not None:  # the machine's sound (soc/zm_audio_soc.py), and HDMI with it
+            add_audio(self, platform, **audio)  # type: ignore[arg-type]  # values typed by add_audio's own signature
+            if pads is not None:
+                self.specials += hdmi_out(self.zm_audio, platform, self.video.pic, pads)
         region = SoCRegion(origin=VIDEO_WINDOW, size=WINDOW_BYTES, cached=False)
         self.bus.add_slave("zm_video", self.video.bus, region)
         if hp is None:
@@ -154,6 +164,7 @@ def main() -> None:
     p.add_argument("--osc-hz", type=int, default=int(50e6), help="z7: its frequency (check the schematic)")
     p.add_argument("--no-glass", action="store_true", help="z7: no ARM front panel; the CPU runs from reset (JTAG)")
     p.add_argument("--blit", action="store_true", help="z7: the blitter on HP2 (soc/zm_blit_soc.py; needs the glass)")
+    p.add_argument("--no-audio", action="store_true", help="z7: no sound core (HP3) and DVI, not HDMI with audio")
     p.add_argument("--sys-mhz", type=float, default=100.0, help="z7: the sys clock (CPU, bus)")
     p.add_argument("--comp-mhz", type=float, default=125.0, help="z7: the compositor's clock (soc/zm_video_cdc.py)")
     p.add_argument(

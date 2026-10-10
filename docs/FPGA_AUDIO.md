@@ -163,17 +163,152 @@ envelope **buzzer bass** comes in on channel B (sawtooth/triangle envelope shape
 toggles every 22,050 samples sent: the 44.1 kHz clock); lit steadily means a FIFO
 fault. PL_LED2 is lit while the PLL is locked.
 
-## 6. Next: into the SoC
+## 6. In the SoC (2026-10-09)
 
-After the ODDR-serialiser and OSD work lands: `zm_hdmi_tx` (44.1 kHz parameters)
-replaces `zm_dvi_out` in `soc/zigmachine_soc.py`, the pixel clock's audio side is
-`snd_lab_out`'s FIFO + tx minus the test pattern, and `zm_audio_core`'s register
-block goes on the cart CPU's bus inside the seal window (a Wishbone adapter:
-`wr && ready` is its ack), with its PCM port on the memory path to the song RAM in
-DDR (a byte fetch with a small line buffer; one sample period is 2,268 system
-clocks at 100 MHz, the four channels need about 40). The machine's audio SDK
-calls then become register writes, and the SNDH coprocessor (the plan's audio
-CPU) drives the same registers.
+The board SoC (`soc/zm_z7.py`, unless `--no-audio`) has the sound: the core in
+the system clock domain, HDMI with audio in place of DVI, the players in software
+on the cart CPU (ADR 2026-10-09 "SNDH in software on the cart CPU").
+
+```
+cart CPU (firmware, M)                      fabric
+  cart.frame()                                 
+  song bridge (zg.requestSong / sndhCall)      
+  demo-audio.wasm via wasm2c  --QA/QD-->  zm_audio_sched (2,048 stamped writes)
+   (MOD, YM dump, SNDH=Musashi)               | each at its sample, between two mixes
+   machine* -> stamped writes                zm_audio_core (jt49 + Paula + mix) <-- HP3: PCM bytes
+                                              | 44.1 kHz, sys clock          (players' memory in DDR)
+                                             zm_hdmi_out: FIFO -> pix -> zm_hdmi_tx -> ODDR -> HDMI1
+```
+
+**The register path.** The machine's audio ABI is calls (`machine/sdk/audio.zig`),
+made by the open players in `demo-audio.wasm`. The firmware runs that module through
+wasm2c (`fpga/cycles/audio.mk`; its imports renamed `env` -> `aud` by
+`tools/wasm_env_rename.py`, so its 3 MiB memory stays apart from the cart's 7 MiB),
+and serves its `machine*` imports (`fpga/host/audio_imports.c`): each call becomes the
+core's register writes (`fpga/host/audio_regs.h`, the map of section 2), **stamped with
+the sample it lands before** in the machine's own stream: the end of the last piece
+the player rendered (`machineRenderYm/MixPaula(off, len)`), the block's start before
+any. The firmware (`fpga/cycles/baudio.c`) pushes each as two stores to
+`AUDIO_WINDOW` (0x9200_0000: QA = {stamp, address}, QD = data), and
+`rtl/audio/zm_audio_sched.v` applies it when the core's sample counter reaches the
+stamp, while no mix runs. So the chips see the machine's writes in program order,
+each at the machine's sample, however the cart CPU's time is spread over the frame:
+a 50 Hz replay and a 15 kHz digidrum alike. The window is outside every seal window:
+only the firmware reaches it, as only the sealed audio module calls the chips in the
+browser.
+
+| Word | Register | |
+|---|---|---|
+| 0 | QA (W) | {stamp[21:0], core byte address[9:0]} of the next write |
+| 1 | QD (W) | its data; pushes {QA, QD} (dropped and `overflow` set if full) |
+| 2 | NOW (R) | samples started since reset |
+| 3 | LEVEL (R) | writes queued |
+| 4 | STATUS (R; W clears) | {core status[2:0], overflow, late} |
+| 5 | PCM_BASE (RW) | bus address of the players' memory |
+| 6 | APPLIED (R) | writes landed |
+| 7 | ID (R) | 0x5A410100 |
+
+**Pacing.** Each frame, after `cart.frame()` and the song bridge (the loader's
+order), the players render up to NOW + 2,940 samples (67 ms). A song load (an SNDH:
+depack, 1 MiB of 68000 RAM zeroed; a few Mcycles) re-anchors the stamp a full lead
+ahead, so the tune starts on time (`anchors`). A frame longer than the lead makes the
+stamp jump ahead (`resyncs`) and those writes land late (`late`). The counters are in
+the debug mailbox for U-Boot: `md.l 0x05ffff80 8` = 'ZMAU', pushed, applied, status,
+resyncs, anchors, now, level.
+
+**PCM memory.** Where the machine keeps it: in the players' own wasm memory (the
+song RAM at 0x200000 of it), here calloc'd in the firmware's heap in DDR. A Paula
+DATA address is an offset in that memory; the core asks one byte at a time, and
+`AudioHP` (`soc/zm_audio_soc.py`) reads it as one 1-beat 8-byte read on **HP3**
+(PCM_BASE + offset masked to 4 MiB, mapped into the cart CPU's 32 MiB DDR window
+like every HP master), about 25 clocks: four channels take ~100 of the 2,268 clocks
+of a sample. No cache: the CPU's stores are write-through and acknowledged by DDR, so
+a byte the players wrote is the byte read. Not BRAM: the song RAM is 1 MiB. The core
+and the reader are held in reset while CTRL.RUN is low: no HP3 read can be cut by a
+PL reload. Known limit: a PCM byte the players rewrite less than the lead before it is
+played (an STE DMA double buffer) is heard new.
+
+**HDMI.** `rtl/video/zm_hdmi_out.v`: `zm_audio_fifo` (sys -> pix), `zm_hdmi_tx` at
+44.1 kHz (N 6272, CTS measured), the four TMDS lanes through `zm_oddr10` as
+`zm_dvi_out` did. The sample rate on each side is an exact fraction of the one
+crystal (`soc/zm_audio_soc.py rates()`: 441 / 1,000,000 of 100 MHz, the YM's 2 MHz
+1 / 50), so the FIFO never drifts. The OSD still sits on the picture before it.
+
+**Timing pass**: the PCM mix's multiplier operands are registered during FETCH
+(`zm_audio_pcm.v`); the path `c -> channel LUTRAM -> min() -> DSP` failed 100 MHz by
+54 ps. A VOLUME or PAN write now lands on the sample being mixed up to its FETCH
+(the queue never writes during a mix). `pcm_exact` still passes; the PCM and queue
+mutants still fail.
+
+### Results
+
+How it was checked, from the RTL up (`make -C fpga test`; the SoC runs with
+`tools/audio_sim_run.py`, which builds the firmware, runs `host_audio` (the native host
+with the machine's own chips, `fpga/host/audio_soft.c`) and the board SoC in Verilator
+with a tap on the core (`rtl/sim/zm_audio_tap.v`), then `tools/audio_sim_compare.py`):
+
+| Check | Result |
+|---|---|
+| `soc_stamped_exact`: the PCM script of section 3 as stamped writes through QA/QD, pushed ahead while the core runs | **13,466 samples identical** to the machine; every write landed at its stamp, between two mixes; none late or dropped |
+| Queue mutants (`ZM_RTL_BREAK=1`): a write a sample early, a write during a mix, a write dropped | all 3 caught |
+| tutorial (sos.sndh), 120 frames: the writes | **1,261 / 1,261** land at the machine's sample counted from the song's start, same values, same order |
+| tutorial: the core's output vs the core on its own fed the machine's writes on the SoC's timeline (`tools/audio_core_replay.py`, the `core100` bench) | **148,010 / 148,010 samples bit for bit** |
+| tutorial: the sound vs the machine's ym.zig (`ym`) | spectra 0.935 median, partials 68 %, envelopes do not correlate: see below |
+| tsl_hybridglenz (a MOD), 40 frames | 87 / 87 writes; every sample within **25 LSB** (`near`): the MOD player's gains (v / 64 / 1.4, pan +-0.6) are off the VOL / 256, PAN / 128 grid and get rounded (`host/audio_regs.h`); on the grid the PCM is exact |
+| Break: one YM R8 write dropped in the window (`hp_sim --audio-break drop`) | caught: 1,228 write differences |
+| Break: the PCM base a byte off (`--audio-break base`) | caught: 21,675 samples off, worst 3,436 LSB |
+
+**The YM against the machine.** The SoC adds nothing (the bit-exact replay), so what
+differs is jt49 vs ym.zig, the question of section 3. On sos.sndh it is the envelope
+(channel A on shape 10, period 42): jt49's output there depends on how long the chip
+has run since its reset: replays of the same writes with different reset-to-song gaps
+start the envelope at opposite ends (loud first vs silent first). The 60-frame run
+matched the machine's shape, the 120-frame run did not. Open: whether jt49's envelope
+restart (latched, applied on its 1/256 enable) loses the R13 write's phase; listen to
+the bass envelope on the board.
+
+**The cost on the cart CPU** (the board core, the DDR model, sys 100 MHz; the budget is
+1.67 Mcycles a frame at 60 fps). The players alone (`make -C fpga audio-bench SONG=...`, `cycles/baudio_bench.c`: no
+cart, the song started, then 735 samples rendered a frame, the writes pushed into the
+real queue, run on the board SoC sim):
+
+| Tune | Driver | Cycles a 60 Hz frame | Share of 1.67 Mc |
+|---|---|---|---|
+| sos.sndh (tutorial) | 50 Hz PLAY, no timer | 275 kc avg, 417 kc p95 (a PLAY ~315 kc) | 16.5 % |
+| union/wow_scroller.sndh (union_superscroller) | timer A 7.6 kHz digidrum | 2,952 kc avg, 2,977 kc max | **177 %** |
+| union/beat_dis.sndh (union_beatdis) | timer A 15.7 kHz digidrum | 7,948 kc avg (20 frames) | **477 %** |
+| hybridglenz.mod (tsl_hybridglenz) | MOD (Paula is RTL) | 8 kc avg, 16 kc p95 | 0.5 % |
+
+In the tutorial cart (sim, 120 frames): cart.frame() 466 kc, the music 364 kc avg, 588
+kc p95, 669 kc max. A song load is a one-off 21-30 Mc (the 68000's 1 MiB zeroed, the
+image depacked); the stamp re-anchors after it, so the tune starts on time. On the
+board the tutorial runs 45.3 fps without music and 35.7 with (it was under 60 before:
+the cart and the frame's waits). **A digidrum SNDH does not fit the cart CPU at 100
+MHz**: every timer interrupt is a Musashi call (the replay's 68000 handler,
+emulated). That is the audio CPU's job (ADR 2026-10-09).
+
+**Timing and size** (Vivado 2026.1, `--sys-mhz 100 --comp-mhz 100`): met, WNS +0.139 ns,
+WHS +0.024 ns. The SoC: 8,602 LUT (48.9 % of the 7010), 9,592 FF, 34.5 BRAM tiles,
+10 DSP. `zm_audio_soc` 1,375 LUT, 900 FF, 9 RAMB18 (the queue), 4 DSP; `zm_hdmi_out`
+597 LUT.
+
+**On the board** (`build/soc_z7_audio`, tutorial with `ZM_BLIT=sw`): after 5 s the
+mailbox read status 0, resyncs 0, the core at 44.1 kHz (223,809 samples in 5.07 s),
+584 writes a second (sos.sndh: 12 a tick at 50 Hz). Heard: not yet.
+
+```sh
+# the bitstream (one heavy build at a time)
+flock fpga/build/fable_timing3/.container.lock env PATH=/opt/vivado/2026.1/Vivado/bin:$PATH \
+  LD_LIBRARY_PATH=$HOME/.local/lib/vivado-compat uv run python -m soc.zigmachine_soc --target z7 --build \
+  --toolchain vivado --sys-mhz 100 --comp-mhz 100 --out build/soc_z7_audio        # from fpga/
+make -C fpga board-fw CART=tutorial ZM_BLIT=sw                                     # no --blit in that bitstream
+sg dialout -c "uv run --project fpga --with pyserial --with xmodem python fpga/tools/board_run.py \
+  --bit fpga/build/soc_z7_audio/gateware/platform_z7.bit --fw fpga/build/hcycles/board/tutorial/fw.bin --secs 5"
+# if its upload fails: the cart is stopped now, so upload by hand, then board_run again (crc matches)
+sg dialout -c "uv run --project fpga --with xmodem --with pyserial python fpga/tools/uboot_loadx.py \
+  fpga/build/hcycles/board/tutorial/fw.bin 0x04000000"
+# the counters, from U-Boot: md.l 0x05ffff80 8  ('ZMAU' pushed applied status resyncs anchors now level)
+```
 
 ## 7. Next: the sound-chip lab
 

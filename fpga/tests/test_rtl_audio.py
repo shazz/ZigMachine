@@ -29,6 +29,7 @@ JT49 = [f"third_party/jt49/hdl/jt49{m}.v" for m in ("", "_cen", "_div", "_eg", "
 CORE = [f"rtl/audio/zm_audio_{m}.v" for m in ("frac", "ym", "pcm", "mix", "core")] + JT49
 YM_AUDIO = [*CORE, "rtl/board/zm_dump_player.v", "rtl/board/ym_test_audio.v"]
 HDMI = ["rtl/board/hdmi_pattern.v", "rtl/video/zm_vtiming.v", "rtl/video/zm_tmds_enc.v", *test_rtl.HDMI_SRCS]
+SOC = [*CORE, "rtl/audio/zm_audio_sched.v", "rtl/audio/zm_audio_soc.v", "rtl/video/zm_video_sdpram.v"]
 YM_CORE = [*YM_AUDIO, "rtl/audio/zm_audio_fifo.v", "rtl/board/snd_lab_out.v", "rtl/board/ym_test_core.v", *HDMI]
 FAST = "-chparam SR_MOD 40000 -chparam YM_MOD 2"  # a 4 MHz system clock: same fractions, 12x fewer clocks
 SECONDS = 3
@@ -39,9 +40,12 @@ LOOP = (120, 40)  # the loop test's ROM: Drooling's first 120 frames, looping ba
 BENCHES = {
     "core": ("zm_audio_core", CORE, "tests/tb/audio_core_tb.cpp", "", "tune"),
     "core_fast": ("zm_audio_core", CORE, "tests/tb/audio_core_tb.cpp", FAST, "tune"),
+    "core100": ("zm_audio_core", CORE, "tests/tb/audio_core_tb.cpp", "-chparam SR_MOD 1000000 -chparam YM_MOD 50", "tune"),
     "ym_audio": ("ym_test_audio", YM_AUDIO, "tests/tb/ym_audio_tb.cpp", FAST + " -chparam WORDS {words}", "tune"),
     "ym_loop": ("ym_test_audio", YM_AUDIO, "tests/tb/ym_audio_tb.cpp", FAST + " -chparam WORDS {words}", "loop"),
     "ym_core": ("ym_test_core", YM_CORE, "tests/tb/ym_test_tb.cpp", "-chparam WORDS {words}", "tune"),
+    # the board SoC's core: stamped writes through zm_audio_sched (453 clocks a sample: room for a burst)
+    "soc": ("zm_audio_soc", SOC, "tests/tb/audio_soc_tb.cpp", "-chparam SR_MOD 200000 -chparam YM_MOD 10", "tune"),
 }
 
 
@@ -100,8 +104,9 @@ def test_the_rom_plays_as_the_ym_file_in_the_machine() -> None:
         ("ym_audio", ["tune.zig.raw"]),
         ("ym_loop", ["loop.zig.raw"]),
         ("ym_core", []),
+        ("soc", ["pcm.txt", "pcm.zig.raw"]),
     ],
-    ids=["pcm_exact", "ym_script", "ym_dump", "ym_dump_loop", "ym_test_hdmi"],
+    ids=["pcm_exact", "ym_script", "ym_dump", "ym_dump_loop", "ym_test_hdmi", "soc_stamped_exact"],
 )
 def test_rtl_audio(bench: str, args: list[str]) -> None:
     r = _run([str(build_bench(bench)), *args])
@@ -152,6 +157,9 @@ MUTANTS = [
     ("player_wait", "ym_audio", "rtl/board/zm_dump_player.v", "word[14:0] - 15'd1", "word[14:0]"),
     ("fifo_order", "ym_core", "rtl/audio/zm_audio_fifo.v", "mem[rbin[AW - 1:0]]", "mem[wbin[AW - 1:0]]"),
     ("fifo_no_start", "ym_core", "rtl/audio/zm_audio_fifo.v", "rreq && started && !empty", "rreq && !empty"),
+    ("sched_early", "soc", "rtl/audio/zm_audio_sched.v", "ahead == 22'd0 || ahead[21]", "ahead <= 22'd1 || ahead[21]"),
+    ("sched_in_mix", "soc", "rtl/audio/zm_audio_sched.v", "due && !mixing && core_ready", "due && core_ready"),
+    ("sched_drop", "soc", "rtl/audio/zm_audio_sched.v", "take = push && !full;", "take = push && !full && push_d != 200;"),
 ]
 ARGS = {
     "core": ["pcm.txt", "pcm.zig.raw", "exact"],
@@ -159,6 +167,7 @@ ARGS = {
     "ym_audio": ["tune.zig.raw"],
     "ym_loop": ["loop.zig.raw"],
     "ym_core": [],
+    "soc": ["pcm.txt", "pcm.zig.raw"],
 }
 
 

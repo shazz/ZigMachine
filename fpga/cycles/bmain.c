@@ -10,10 +10,12 @@
  *
  * Lines (sim): "ZM BOOT c", per frame "ZM HF f cycles", the scene_hash JSON,
  * "ZM VSTAT underrun overflow swaps vbls undrained", "ZM MIS ...", "ZM BLIT calls hw cycles" (bblit.h),
- * "ZM END rc". */
+ * "ZM END rc". With the audio (cycles/baudio.c; ZM_NO_AUDIO without): per frame "ZM AF f cart audio"
+ * (the cycles of cart.frame() and of the players), "ZM SONG ts name" per song, then "ZM AUD ...". */
 #include <stdio.h>
 #include <stdlib.h>
 
+#include "baudio.h"
 #include "bblit.h"
 #include "bboard.h"
 #include "bdiag.h"
@@ -30,6 +32,12 @@
 #define PICTURE_BYTES (ZM_RASTER_WIDTH * ZM_RASTER_HEIGHT * 4u)
 #define SAMPLES (ZM_FRAMES / (ZM_EVERY ? ZM_EVERY : 1) + 1)
 
+#ifdef ZM_NO_AUDIO
+#define AUDIO(call) ((void)0)
+#else
+#define AUDIO(call) call
+#endif
+
 static struct w2c_env g_env;
 static char g_hashes[SAMPLES][65];
 
@@ -40,10 +48,14 @@ static void hash_pfb(sha256_ctx* h, u32 size) {
     sha256_update(h, g_env.memory.data + w2c_machine_hwPhysicalPtr(&g_env.machine), size);
 }
 
-static void frame(sha256_ctx* h, u32 planes, u32 size) {
+static void frame(sha256_ctx* h, u32 planes, u32 size, long f) {
     struct w2c_env* e = &g_env;
     vseq_clear(e);
+    uint32_t t0 = board_cycles();
     w2c_cart_frame(&e->cart, 16.6f);
+    uint32_t t1 = board_cycles();
+    AUDIO(baudio_frame(e)); /* the song bridge, then the players up to the sound's lead */
+    printf("ZM AF %ld %lu %lu\n", f, (unsigned long)(t1 - t0), (unsigned long)(board_cycles() - t1));
     int first = 1;
     for (u32 p = 0; p < planes; p++) {
         if (!w2c_cart_isPlaneEnabled(&e->cart, p)) {
@@ -77,7 +89,7 @@ static void run(void) {
         int sample = ZM_FRAMES && f % ZM_EVERY == 0;
         uint32_t t0 = board_cycles();
         if (sample) sha256_init(&h);
-        frame(sample ? &h : NULL, planes, size);
+        frame(sample ? &h : NULL, planes, size, f);
         board_beat((uint32_t)f);
         mb_frame_done((uint32_t)f);
         printf("ZM HF %ld %lu\n", f, (unsigned long)(board_cycles() - t0));
@@ -104,6 +116,7 @@ static void boot(void) {
     mb_init(pfb, w2c_machine_hwPhysWidth(m), w2c_machine_hwPhysHeight(m));
     printf("ZM MB pfb %08lx %lu x %lu\n", (unsigned long)pfb, (unsigned long)w2c_machine_hwPhysWidth(m),
            (unsigned long)w2c_machine_hwPhysHeight(m));
+    AUDIO(baudio_boot());
     printf("ZM BOOT %lu\n", (unsigned long)(board_cycles() - t0));
 }
 
@@ -126,5 +139,6 @@ int main(void) {
            (unsigned long)ZMV_REG(FRAME), (unsigned long)vseq.undrained);
     printf("ZM MIS %lu %lu\n", (unsigned long)zm_misaligned[0], (unsigned long)zm_misaligned[1]);
     printf("ZM BLIT %lu %lu %lu\n", (unsigned long)bblit.calls, (unsigned long)bblit.hw, (unsigned long)bblit.cycles);
+    AUDIO(baudio_report());
     board_finish(w2c_machine_hwRamAllocFailures(&g_env.machine) ? 1 : 0);
 }
