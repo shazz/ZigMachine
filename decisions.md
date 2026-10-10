@@ -826,7 +826,7 @@ ABI rather than a Zig API, apps in any language sit on it.
 - A behavioural model only, no RTL: the FPGA needs the chip, and the sound CPU will drive it directly.
 
 **Consequences:**
-- The cost is small: 207 LUTs, 206 FFs, no BRAM or DSP. Vivado out of context at 100 MHz on the xc7z010-1 gives WNS +4.68 ns (`PERIOD=10 IMPL=1 CLOCK=clk fpga/tools/vivado_ooc.sh zm_pokey ...`). The critical path is the shared `zm_audio_frac` accumulator, not POKEY.
+- The cost is small: 207 LUTs, 206 FFs, no BRAM or DSP. With the PAL enable added on feat/sap (a `pal` input, 100 MHz × 901/50805 = 1773447.495 Hz; the model's `Clock` is the same two ratios), it is 241 LUTs, 231 FFs, WNS +4.17 ns. Vivado out of context at 100 MHz on the xc7z010-1 gives WNS +4.68 ns (`PERIOD=10 IMPL=1 CLOCK=clk fpga/tools/vivado_ooc.sh zm_pokey ...`). The critical path is the shared `zm_audio_frac` accumulator, not POKEY.
 - It is not in the SoC yet. The audio core gives it a register range and adds `mix` to the YM's box filter (the `cen` output marks the machine cycles), on the sound-CPU branch.
 - Accuracy against the real chip is unproven where the documents leave a choice open (listed above). The cycle model is one file, so a correction is a model change plus the matching RTL line, and the bit-exact testbench catches any drift between them.
 - Register writes coinciding with `cen` land after that machine cycle. The testbench does not exercise that case.

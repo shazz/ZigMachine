@@ -3,7 +3,7 @@
 // levels with the oracle's trace (tests/pokey_ref) after EVERY machine cycle.
 // Bit-exact or it fails at the first differing cycle.
 //
-//   pokey_tb <script> <trace>
+//   pokey_tb <script> <trace>      ZM_POKEY_PAL=1: on the PAL enable (zm_pokey `pal`)
 //
 // A write goes in on a clock where `cen` is low (between machine cycles, as the
 // model's write() lands); the levels are read one clock after each `cen` clock
@@ -62,6 +62,7 @@ int main(int argc, char** argv) {
     std::ifstream script(argv[1]);
     std::vector<unsigned char> trace = slurp(argv[2]);
     d = new Vzm_pokey;
+    d->pal = getenv("ZM_POKEY_PAL") != nullptr;
     d->rst = 1;
     tick();
     tick();

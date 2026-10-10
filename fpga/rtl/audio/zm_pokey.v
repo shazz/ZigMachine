@@ -9,8 +9,11 @@
 // NOT here: IRQs, the serial port, keyboard scan, pots, RANDOM / any read, and
 // two-tone mode. The chip's non-linear analog mixer is the plain sum `mix`.
 //
-// The machine cycle is `cen`, a fractional enable from the system clock:
-// 315/176 MHz (NTSC, 1789772.7 Hz) = 100 MHz x 63 / 3520. Each cen cycle, in
+// The machine cycle is `cen`, a fractional enable from the system clock, NTSC
+// or PAL by `pal` (the SAP's NTSC tag): 315/176 MHz (NTSC, 1789772.7 Hz) =
+// 100 MHz x 63 / 3520, or 1773447.495 Hz (PAL, 0.003 ppm under the real
+// 1773447.5) = 100 MHz x 901 / 50805; the model's Clock is the same two ratios.
+// Change `pal` only between tunes: switching mid-run is not modelled. Each cen cycle, in
 // order: the channels count, sampling the polys as they were before it; the
 // high-pass latches take the outputs as they were before it; the polys shift.
 // Register writes (`we`, one a clock) land between machine cycles; a write in a
@@ -21,10 +24,13 @@
 
 module zm_pokey #(
     parameter integer CEN_INC = 63,
-    parameter integer CEN_MOD = 3520
+    parameter integer CEN_MOD = 3520,
+    parameter integer PAL_INC = 901,
+    parameter integer PAL_MOD = 50805
 ) (
     input  wire        clk,
     input  wire        rst,
+    input  wire        pal,            // 1: the PAL machine clock
     input  wire        we,
     input  wire [3:0]  addr,
     input  wire [7:0]  din,
@@ -32,7 +38,10 @@ module zm_pokey #(
     output reg  [15:0] level = 16'd0,  // channel n in bits 4(n-1)+3 .. 4(n-1)
     output reg  [5:0]  mix = 6'd0      // the four levels summed, 0..60
 );
-    zm_audio_frac #(.INC(CEN_INC), .MOD(CEN_MOD)) u_cen (.clk(clk), .rst(rst), .tick(cen));
+    wire cen_ntsc, cen_pal;
+    zm_audio_frac #(.INC(CEN_INC), .MOD(CEN_MOD)) u_cen (.clk(clk), .rst(rst), .tick(cen_ntsc));
+    zm_audio_frac #(.INC(PAL_INC), .MOD(PAL_MOD)) u_pal (.clk(clk), .rst(rst), .tick(cen_pal));
+    assign cen = pal ? cen_pal : cen_ntsc;
 
     reg [7:0] audf [0:3];
     reg [7:0] audc [0:3];

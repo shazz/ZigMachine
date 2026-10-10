@@ -13,14 +13,22 @@
 // Not modelled: IRQs, serial, keyboard, pots, RANDOM, two-tone; only audio.
 // The analog mixer (non-linear on the chip) is the plain sum of the levels.
 //
-// One `step()` is one machine cycle (NTSC 315/176 MHz = 1789772.7 Hz): init
+// One `step()` is one machine cycle, NTSC or PAL (Clock): init
 // clears the polys and bases; the channels count and the high-pass latches
 // latch, all seeing the state before the cycle; the polys shift. A `write()`
 // lands between two cycles.
 // --------------------------------------------------------------------------
 
-pub const CLOCK_NUM: u64 = 315_000_000; // the NTSC machine clock is CLOCK_NUM / CLOCK_DEN Hz
-pub const CLOCK_DEN: u64 = 176;
+/// The machine clock, `num / den` Hz: EXACTLY the RTL's enables from the 100 MHz
+/// system clock (zm_pokey.v CEN_* and PAL_*), so model and chip never drift.
+/// NTSC is 100 MHz x 63/3520 = 315/176 MHz = 1789772.7 Hz, the real one. PAL is
+/// 100 MHz x 901/50805 = 1773447.495 Hz, 0.003 ppm under the real 1773447.5.
+pub const Clock = struct {
+    num: u64,
+    den: u64,
+    pub const ntsc = Clock{ .num = 100_000_000 * 63, .den = 3520 };
+    pub const pal = Clock{ .num = 100_000_000 * 901, .den = 50805 };
+};
 
 pub const AUDF1 = 0x0; // AUDFn = 2(n-1), AUDCn = 2(n-1)+1
 pub const AUDC1 = 0x1;
@@ -180,10 +188,10 @@ pub const Pokey = struct {
     /// Fill `out` with the mix at `rate` Hz, each sample the mean over the
     /// machine cycles in its period (a box filter), scaled to 0..1. `frac`
     /// carries the fractional cycle between calls.
-    pub fn render(self: *Pokey, out: []f32, rate: u32, frac: *u64) void {
-        const den = CLOCK_DEN * rate;
+    pub fn render(self: *Pokey, out: []f32, rate: u32, clock: Clock, frac: *u64) void {
+        const den = clock.den * rate;
         for (out) |*s| {
-            frac.* += CLOCK_NUM;
+            frac.* += clock.num;
             var sum: u64 = 0;
             var n: u64 = 0;
             while (frac.* >= den) : (frac.* -= den) {

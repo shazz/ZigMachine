@@ -6,13 +6,15 @@ tests/pokey_ref runs the model natively on a register-write script
 cycle; tests/tb/pokey_tb.cpp plays the same script into the RTL in Verilator
 and requires the same levels, every cycle. Two scripts of all 256 AUDCTL values
 and every distortion, on a fast enable (a machine cycle every 24 clocks); and a
-prefix of one on the real 100 MHz enable (63 / 3520), to prove the parameters.
+prefix of one on the real 100 MHz enables, NTSC (63 / 3520) and PAL
+(901 / 50805, the `pal` input), to prove the parameters and the select.
 
 Needs Verilator (skipped without it). Break tests (ZM_RTL_BREAK=1) break one
 rule of the RTL at a time and require a failure.
 """
 
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -30,6 +32,7 @@ MODEL = FPGA.parent / "libs/zig/players/pokey.zig"
 RTL = ["rtl/audio/zm_audio_frac.v", "rtl/audio/zm_pokey_poly.v", "rtl/audio/zm_pokey_pair.v", "rtl/audio/zm_pokey.v"]
 FAST = (1, 24)  # CEN_INC, CEN_MOD: room for a burst of writes between two cycles
 REAL = (63, 3520)
+PAL = (901, 50805)  # zm_pokey PAL_INC / PAL_MOD
 SCRIPTS = {"seed1": lambda: make_script(1), "seed2": lambda: make_script(2), "real": lambda: short_script(3, 60_000)}
 
 pytestmark = pytest.mark.skipif(shutil.which("verilator") is None, reason="needs verilator")
@@ -55,8 +58,9 @@ MUTANTS = [
 ]
 
 
-def _run(cmd: list[str]) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(cmd, cwd=BUILD, capture_output=True, text=True, timeout=900, check=False)
+def _run(cmd: list[str], env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(cmd, cwd=BUILD, capture_output=True, text=True, timeout=900, check=False,
+                          env={**os.environ, **(env or {})})
 
 
 def build_tb(cen: tuple[int, int], root: Path = FPGA, out: Path = BUILD / "fast") -> Path:
@@ -115,6 +119,16 @@ def test_the_rtl_matches_on_the_real_100mhz_enable(oracle: dict[str, Path]) -> N
     r = _run([str(build_tb(REAL, out=BUILD / "real")), "real.txt", str(oracle["real"])])
     print(r.stdout)
     assert r.returncode == 0, r.stdout + r.stderr
+
+
+def test_the_rtl_matches_on_the_pal_enable_and_runs_at_its_rate(oracle: dict[str, Path]) -> None:
+    tb = build_tb(REAL, out=BUILD / "real")
+    pal = _run([str(tb), "real.txt", str(oracle["real"])], env={"ZM_POKEY_PAL": "1"})
+    ntsc = _run([str(tb), "real.txt", str(oracle["real"])])
+    assert pal.returncode == 0, pal.stdout + pal.stderr
+    # The same machine cycles take more system clocks at PAL's slower enable.
+    clocks = [int(re.search(r"(\d+) clocks", r.stdout).group(1)) for r in (pal, ntsc)]
+    assert clocks[0] > clocks[1] * (1789772.7 / 1773447.5) * 0.999
 
 
 @pytest.mark.skipif(os.environ.get("ZM_RTL_BREAK") != "1", reason="set ZM_RTL_BREAK=1 to run the break tests")

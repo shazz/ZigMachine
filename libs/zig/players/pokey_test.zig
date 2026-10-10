@@ -167,7 +167,7 @@ test "render: a 50 % square wave at full volume averages 15/60 of full scale" {
     k.write(p.AUDF1, 9);
     var buf: [4410]f32 = undefined;
     var frac: u64 = 0;
-    k.render(&buf, 44100, &frac);
+    k.render(&buf, 44100, p.Clock.ntsc, &frac);
     var sum: f64 = 0;
     for (buf) |s| sum += s;
     try std.testing.expectApproxEqAbs(@as(f64, 0.125), sum / buf.len, 0.002);
@@ -178,4 +178,11 @@ test "an unmapped register write (POTGO, SKREST) changes nothing" {
     k.write(0xA, 0xFF);
     k.write(0xB, 0xFF);
     try expectEqual(running(), k);
+}
+
+test "the two clocks are the RTL's enables: NTSC 315/176 MHz, PAL 1773447.5 Hz to 0.01 ppm" {
+    try expectEqual(@as(u64, 1_789_772), p.Clock.ntsc.num / p.Clock.ntsc.den);
+    try expectEqual(@as(u64, 315_000_000 * p.Clock.ntsc.den), 176 * p.Clock.ntsc.num);
+    const pal = @as(f64, @floatFromInt(p.Clock.pal.num)) / @as(f64, @floatFromInt(p.Clock.pal.den));
+    try std.testing.expectApproxEqRel(@as(f64, 1_773_447.5), pal, 1e-8);
 }
