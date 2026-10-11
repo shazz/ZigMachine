@@ -9,9 +9,12 @@
 #define KEYS_A_FRAME 32u
 #define CSR(name) (*(volatile uint32_t*)CSR_GLASS_##name##_ADDR)
 
-#ifdef ZM_SIM_KEYS
+#if defined(ZM_SIM_KEYS) || defined(ZM_SIM_POINTER)
 #include <stdio.h>
 #include <stdlib.h>
+#endif
+
+#ifdef ZM_SIM_KEYS
 /* The sim has no keyboard: ZM_SIM_KEYS="F:event,..." (cycles/board.mk, sim images only) is
  * host/main.c's ZM_GLASS_KEYS script, read as if the FIFO had held it, frames counted from 1. */
 static uint32_t sim_keys(uint32_t* ev, uint32_t n) {
@@ -37,6 +40,21 @@ static uint32_t sim_keys(uint32_t* ev, uint32_t n) {
 #define sim_keys(ev, n) (n)
 #endif
 
+#ifdef ZM_SIM_POINTER
+/* ZM_SIM_POINTER="F:word,..." (sim images only): host/main.c's ZM_GLASS_POINTER, the mouse the
+ * ARM would have written, in place of the CSR. */
+static uint32_t sim_pointer(uint32_t csr) {
+    static const char* at = ZM_SIM_POINTER;
+    static uint32_t ptr;
+    static long f;
+    (void)csr;
+    if (input_pointer_script(&at, ++f, &ptr)) printf("ZM SIM POINTER bad before frame %ld\n", f);
+    return ptr;
+}
+#else
+#define sim_pointer(csr) (csr)
+#endif
+
 void binput_frame(struct w2c_env* e) {
     static uint32_t joy, seen;
     uint32_t ev[KEYS_A_FRAME], n = 0;
@@ -49,6 +67,6 @@ void binput_frame(struct w2c_env* e) {
     uint32_t now = CSR(JOY);
     input_joy(&e->cart, joy, now);
     joy = now;
-    int seq = input_pointer(&e->cart, CSR(POINTER), &seen);
+    int seq = input_pointer(&e->cart, sim_pointer(CSR(POINTER)), &seen);
     if (seq >= 0) CSR(POINTER_ACK) = (uint32_t)seq;
 }

@@ -1,6 +1,7 @@
 """Stage the ZigMachine console's SD card in a DIRECTORY (docs/FPGA_GLASS.md).
 
     uv run python tools/glass_sd.py [--out build/glass/sd] [--buildroot BR_OUTPUT_DIR]
+    uv run python tools/glass_sd.py --shelf      # the shelf's carts (SHELF), what `make board-shelf` builds
 
 Nothing is written to a device: copy the directory's contents onto the card's
 first (FAT32) partition yourself. MANIFEST.txt in it lists every file, where it
@@ -44,6 +45,13 @@ BITSTREAM = FPGA / "build/board_hp/zm_blit_vivado_100.bit"
 BOARD_FW = FPGA / "build/hcycles/board"
 CSR_MAP = FPGA / "build/hcycles/gen/csr_addr.h"
 GLASS_ARM = FPGA / "glass/zig-out/arm/bin/glass"
+# The carts the card carries: `make -C fpga board-shelf` builds a board firmware for each, and the
+# staging names any of them without one (MISSING) instead of leaving it off the card unnoticed. A
+# firmware in --fw-dir that is not listed is staged too (a cart being tried out).
+SHELF = (
+    "blitter", "fuji_hobbytronic", "gem", "polkadots", "raytrace", "raytrace_f32", "replicants_emlyn",
+    "sap_test", "skystrike", "stniccc", "tsl_hybridglenz", "tutorial", "ulm_dsots", "union_beatdis",
+)  # fmt: skip
 IH_MAGIC, IH_OS_LINUX, IH_ARCH_ARM, IH_TYPE_SCRIPT = 0x27051956, 5, 2, 6
 
 
@@ -75,12 +83,17 @@ def zx0pack() -> Path:
     return exe
 
 
-def build_shelf(dest: Path, fw_dir: Path, csr_map: Path = CSR_MAP) -> list[tuple[str, str]]:
-    """A fat disk for every shelf disk whose cart has a board image in `fw_dir` (one per cart)."""
+def build_shelf(
+    dest: Path, fw_dir: Path, csr_map: Path = CSR_MAP, shelf: tuple[str, ...] = SHELF
+) -> list[tuple[str, str]]:
+    """A fat disk for every shelf cart with a board image in `fw_dir` (one per cart)."""
     rows = []
     dest.mkdir(parents=True, exist_ok=True)
-    for fw in sorted(fw_dir.glob("*/fw.bin")):
-        tag = fw.parent.name
+    for tag in sorted(set(shelf) | {fw.parent.name for fw in fw_dir.glob("*/fw.bin")}):
+        fw = fw_dir / tag / "fw.bin"
+        if not fw.exists():
+            rows.append((f"zigmachine/demo-{tag}.zmd", f"MISSING: no {fw}; make -C fpga board-fw CART={tag}"))
+            continue
         disk = ROOT / "docs" / f"demo-{tag}.zmd"
         if not disk.exists():
             rows.append((f"zigmachine/demo-{tag}.zmd", f"MISSING: no {disk.name} on the shelf"))
@@ -161,7 +174,11 @@ def main() -> None:
     p.add_argument("--buildroot", type=Path, help="Buildroot's output directory (has images/)")
     p.add_argument("--fw-dir", type=Path, default=BOARD_FW, help="the board firmwares (<cart>/fw.bin)")
     p.add_argument("--bit", type=Path, default=BITSTREAM, help="the board bitstream the firmwares were built for")
+    p.add_argument("--shelf", action="store_true", help="print the shelf's carts and stop")
     a = p.parse_args()
+    if a.shelf:
+        print(" ".join(SHELF))
+        return
     print(manifest(a.out, stage(a.out, a.buildroot, a.fw_dir, a.bit)), end="")
 
 

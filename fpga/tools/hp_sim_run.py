@@ -8,6 +8,8 @@ references equal). The DDR holds the cart's shelf disk as the glass places it
     uv run python tools/hp_sim_run.py tutorial                 # 10 frames, hashed every 5
     uv run python tools/hp_sim_run.py tutorial --frames 4 --every 2
     uv run python tools/hp_sim_run.py raytrace_f32 --fpu       # hard-float images on the FPU core (make soc-hp-fpu)
+    uv run python tools/hp_sim_run.py gem --no-build --run-id wt1   # images built beforehand (under build.lock);
+                                                                     # /dev/shm/zm_hp_gem_wt1, not another checkout's
 """
 
 from __future__ import annotations

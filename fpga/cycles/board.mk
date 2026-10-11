@@ -6,6 +6,7 @@
 #   make hp-sim CART=tutorial          soc/hp_sim.py (the board SoC with a model of the PS) in Verilator:
 #                                      the frame hashes against apps/scene_hash.mjs (tools/hp_sim_run.py)
 #   make board-fw CART=tutorial        build/hcycles/board/<cart>/fw.bin: the image U-Boot loads to DDR
+#   make board-shelf [ZM_AUDIO=snd]    board-fw for every cart of the SD card's shelf (tools/glass_sd.py SHELF)
 #
 # One image is linked for one CSR map: the header comes from the sim's csr.json,
 # and tools/cycles_csr.py --hp-check refuses it if the bitstream's map differs.
@@ -59,10 +60,12 @@ ZM_WARP_MS ?= 0
 ZM_TRACE_FRAME ?= 0
 # ZM_SIM_KEYS=F:event,... (sim only): the glass's key FIFO as a script (cycles/binput.c), the
 # native host's ZM_GLASS_KEYS, so a sim can press the keys the board's input would.
+# ZM_SIM_POINTER=F:word,... (sim only): the mouse the same way (ZM_GLASS_POINTER).
 # ZM_MODES (sim only): several of a cart's modes in one hp sim (cycles/bmain.c).
 ZM_MODES ?=
 H_sim    = -DZM_FRAMES=$(ZM_FRAMES) -DZM_EVERY=$(ZM_EVERY) -DZM_WARP_MS=$(ZM_WARP_MS) -DZM_TRACE_FRAME=$(ZM_TRACE_FRAME) \
-	$(B_$(ZM_BLIT)) $(A_$(ZM_AUDIO)) $(if $(ZM_SIM_KEYS),'-DZM_SIM_KEYS="$(ZM_SIM_KEYS)"') $(if $(ZM_MODES),-DZM_MODES=$(ZM_MODES))
+	$(B_$(ZM_BLIT)) $(A_$(ZM_AUDIO)) $(if $(ZM_SIM_KEYS),'-DZM_SIM_KEYS="$(ZM_SIM_KEYS)"') \
+	$(if $(ZM_SIM_POINTER),'-DZM_SIM_POINTER="$(ZM_SIM_POINTER)"') $(if $(ZM_MODES),-DZM_MODES=$(ZM_MODES))
 # ZM_SYS_MHZ=<n>: a bitstream whose sys clock is not 100 MHz (the FPU test bitstream runs 80):
 # board_micros() (bboard.c, the cart's hostMicros) is the one place the firmware reads the clock.
 ZM_SYS_MHZ ?=
@@ -130,9 +133,11 @@ $(foreach v,sim board,$(eval $(call hp_rules,$(v))))
 $(HCYC)/sim$(ASUF)$(HSUF)/%/zm_ddr.init: $(HCYC)/sim$(ASUF)$(HSUF)/%/fw.bin tools/ddr_init.py
 	uv run python tools/ddr_init.py $< $@ $(if $(wildcard $(ROOT)/docs/demo-$*.zmd),--disk $(ROOT)/docs/demo-$*.zmd)
 
-.PHONY: hp-sim board-fw soc-hp-fpu
+.PHONY: hp-sim board-fw board-shelf soc-hp-fpu
 soc-hp-fpu: $(SOC_HP)_fpu/hp_sim.json
 board-fw: memmap $(HCYC)/board$(ASUF)$(HSUF)/$(CART)/fw.bin
 	@ls -l $(HCYC)/board$(ASUF)$(HSUF)/$(CART)/fw.bin
+board-shelf: memmap
+	for c in $$(uv run python tools/glass_sd.py --shelf); do $(MAKE) --no-print-directory board-fw CART=$$c || exit 1; done
 hp-sim: memmap
 	uv run python tools/hp_sim_run.py $(CART)

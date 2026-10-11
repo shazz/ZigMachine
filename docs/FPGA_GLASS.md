@@ -202,6 +202,23 @@ node.
 without a `pointer` export, but still acks. The cart CPU's `SEQ` memory starts
 at 0, the PL's reset value, so a mouse nobody has touched calls nothing.
 
+**Without a mouse** (`host/input_bridge.c` `input_pointer_script()`): a script
+`F:word,...` plays what the ARM would write to `REG_POINTER` before frame F
+(`word` in hex: `x | y<<10 | buttons<<20`), each write adding one to `SEQ` as the
+PL does, into the same `glass_pointer()` poll. The native host reads it from
+`ZM_GLASS_POINTER` and a sim image from `ZM_SIM_POINTER` (`cycles/board.mk`), the
+mouse twins of `ZM_GLASS_KEYS` / `ZM_SIM_KEYS`. The PL's button latch is not
+modelled (a script holds a press for a frame; the latch has its own RTL tests).
+`tests/test_board_pointer.py` drives the GEM desktop with it: a click on the
+FLOPPY DISK icon and the double-click pulse give the hashes of the browser's own
+`pointer()` calls, a malformed script is refused, and two mutant routers (the
+call dropped, x and y swapped) are caught. In the board-SoC sim (2026-10-11), a
+GEM image built with `ZM_SIM_POINTER=2:7828,3:107828,4:7828,5:207828,6:7828` (move
+to the floppy, click, double-click) gave, for frames 2/4/6, `71dbd6ea…`,
+`51dfe723…` (icon selected), `22934ae1…` (`Drive A: is empty`), total
+`b84fbef4…`: the native host's `ZM_GLASS_POINTER` run and `scene_hash.mjs` with
+the same `--call F:pointer:40,30,b`, byte for byte.
+
 ### The joypad (`JOY`, `glass/src/pad.zig`)
 
 `pad.zig` folds a pad's events into the held `JOY_*` bits, which the firmware
@@ -602,6 +619,33 @@ bootable and a data disk stays a data disk. The packed images are 60 to 360 KB.
 fpga toolchain, which `./build.sh` does not run, so `tools/glass_sd.py` makes
 the fat shelf for the SD card. A FAT entry of type 3 is invisible to the
 browser.
+
+**Which carts.** `tools/glass_sd.py` `SHELF` lists the carts the card carries, and
+`make -C fpga board-shelf` builds a board firmware for each (`ZM_AUDIO=snd` for
+the sound-CPU images). A listed cart with no firmware is staged as `MISSING` in
+`MANIFEST.txt` rather than silently left off; a firmware in `--fw-dir` that is not
+listed is still staged (a cart being tried out).
+
+**GEM on the shelf** (`demo-gem.zmd`, the cart `apps/zig/scenes/gem_desktop.zig`
+over the ROM's desktop). Its board images are 1.66 MB (`board/gem/fw.bin`) and
+1.68 MB (`board_snd/gem/fw.bin`); its fat disk is 247 KB. It boots in the board-SoC
+sim (`tools/hp_sim_run.py gem --frames 6 --every 2`: `ok`, no underrun, hashes
+= `scene_hash.mjs` = the native host). Mouse and keyboard come
+through the glass like any cart's (it owns the keyboard, so every key goes to
+`key()`). What it does not get on the board yet:
+
+- **No disk.** The browser hands GEM the mounted disk's FAT listing
+  (`diskDirPtr`, `setDiskFileCount`) and tells it an app disk is in
+  (`insertDisk(1)`); `bmain.c` does neither, exactly as `scene_hash.mjs` does not.
+  Opening FLOPPY DISK therefore shows TOS's own `Drive A: is empty` alert, and
+  there is nothing to launch. The disk itself is in DDR now ("The disk in DDR"
+  below); GEM additionally needs the FAT listing written into its buffer and
+  `insertDisk` called once it is booted.
+- **No program launch.** A double-clicked program becomes `pollCartRequest() == 3`
+  (run a file off the disk as the next cart). The board firmware never polls cart
+  requests; the glass would have to load that file as a cart.
+- **The OSD title** is the catalog's `EXIT TO GEM` (the browser menu's name for
+  it), as `shelf.txt` takes titles from `catalog.zig`.
 
 ## The disk in DDR
 
