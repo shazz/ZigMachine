@@ -8,6 +8,8 @@
  *   ZM_SNDH_MUTANT=n    a known-wrong native replay (audioSndhNativeMutant), for the test
  *   ZM_SNDH_MODES=f:m,f:m...  zg.requestSndhMode(m) before frame f's render; each prints
  *                       "ZM SNDH mode f asked m got g" (g = 0: refused; 1 for 2/3: no native driver)
+ *   ZM_SNDH_MODE_AT=s:m  zg.requestSndhMode(m) at sample s from the song's first write (its "L"
+ *                       line): where the board applied it (tools/bard_fx_run.py), mid-frame
  *
  * Frames are 735 samples (60 Hz), rendered whole, as the board renders them. */
 #include <stdio.h>
@@ -30,6 +32,27 @@ static void modes(const char** at, int f) {
     }
 }
 
+/* A frame of 735 samples, split at ZM_SNDH_MODE_AT's sample if it falls inside. */
+static void render_frame(uint32_t song0) {
+    static const char* at;
+    static int started;
+    if (!started) at = getenv("ZM_SNDH_MODE_AT"), started = 1;
+    unsigned long s = 0;
+    unsigned mode = 0;
+    uint32_t left = 735;
+    if (at && sscanf(at, "%lu:%u", &s, &mode) == 2) {
+        uint32_t pos = zma_ts() - song0;
+        if (s >= pos && s < pos + left) {
+            audio_soft_render((uint32_t)s - pos);
+            left -= (uint32_t)s - pos;
+            uint32_t got = w2c_audio_audioSndhMode(&g_aud.player, mode);
+            printf("ZM SNDH mode at %lu asked %u got %u\n", s, mode, (unsigned)got);
+            at = NULL;
+        }
+    }
+    audio_soft_render(left);
+}
+
 int main(int argc, char** argv) {
     if (argc < 4) {
         fprintf(stderr, "usage: sndh_oracle <song> <tune> <frames> [<call frame> <d0>]\n");
@@ -43,13 +66,14 @@ int main(int argc, char** argv) {
     if (getenv("ZM_SNDH_MUSASHI")) w2c_audio_audioSndhNativeEnable(&g_aud.player, 0);
     if (getenv("ZM_SNDH_MUTANT")) w2c_audio_audioSndhNativeMutant(&g_aud.player, (uint32_t)atoi(getenv("ZM_SNDH_MUTANT")));
     audio_play(argv[1], (uint32_t)atoi(argv[2]));
+    uint32_t song0 = zma_ts();
     printf("ZM ORACLE native %u\n", (unsigned)w2c_audio_audioSndhNative(&g_aud.player));
     audio_soft_digest(0); /* the load's writes: frame 0 */
     const char* plan = getenv("ZM_SNDH_MODES");
     for (int f = 1; f <= frames; f++) {
         if (f == call_at) audio_sndh_call(argv[1], call_d0);
         modes(&plan, f);
-        audio_soft_render(735);
+        render_frame(song0);
         audio_soft_digest((uint32_t)f);
     }
     audio_soft_close();

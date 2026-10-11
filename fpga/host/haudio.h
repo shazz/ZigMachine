@@ -45,6 +45,21 @@ void audio_play(const char* name, uint32_t tune);
  * it and make d0 its first INIT. */
 void audio_sndh_call(const char* name, uint32_t d0);
 
+/* zg.sfxPlay / sfxStop / ymWrite / requestModVolume / requestSndhMode: one entry of the cart's
+ * effects queue (libs/zig/sfx_queue.zig Entry), as docs/sealed-loader.js postSfx reads it. A
+ * play's PCM is `pcm`, already a pointer this side can read (the cart's memory, bounds-checked). */
+enum { FX_PLAY = 1, FX_STOP = 2, FX_YM = 3, FX_GAIN = 4, FX_SNDH_MODE = 5 };
+typedef struct {
+    uint8_t op, a, b; /* sfx_queue.zig: op; a (loop / loop only / register / mode); b (the YM value) */
+    uintptr_t pcm;    /* play: the bytes */
+    uint32_t len;     /* play: their length; gain: the MOD's gain x 65536 */
+    uint32_t rate;    /* play: Hz */
+} audio_fx;
+
+/* The frame's effects, in the cart's order, applied as docs/audio-worklet-sealed.js applies
+ * each message: after the frame's song request and sndhCalls (audio_bridge's order). */
+void audio_effects(const audio_fx* fx, uint32_t n);
+
 /* Render `n` samples (any n: chunks of MAX_FRAMES), advancing zma_ts() by n. */
 void audio_render(uint32_t n);
 

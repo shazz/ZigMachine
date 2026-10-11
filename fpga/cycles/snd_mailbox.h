@@ -31,7 +31,13 @@ enum { SND_C2S = 0, SND_S2C = 32, SND_CTRL = 64, SND_CYCLES = 65, SND_IBUS_WAIT 
 /* C2S: the command. */
 enum { C_SEQ = 0, C_OP = 1, C_ARG = 2, C_PTR = 3, C_LEN = 4, C_NAME = 8 };
 #define C_NAME_WORDS 16u /* 64 bytes, NUL-padded: libs/zig/zigos.zig g_song_name's 64 */
-enum { OP_PLAY = 1, OP_SNDH_CALL = 2 };
+enum { OP_PLAY = 1, OP_SNDH_CALL = 2, OP_EFFECTS = 3 };
+/* OP_EFFECTS: ARG effects (haudio.h audio_fx, libs/zig/sfx_queue.zig), C_FX_WORDS words each
+ * from C_FX, over the name's words (the command has none): op | a << 8 | b << 16, the PCM's
+ * address in DDR (a play's bytes, the cart's memory), len, rate. A frame's queue goes over in
+ * as many commands as it needs, in its order. */
+enum { C_FX = 8, C_FX_WORDS = 4 };
+#define C_FX_MAX ((32u - C_FX) / C_FX_WORDS) /* 6 a command */
 
 /* S2C: the answer and the sound CPU's counters (the cart prints them in the sim's report). */
 enum { S_ACK = 0, S_READY = 1, S_PUSHED = 2, S_APPLIED = 3, S_STATUS = 4, S_RESYNCS = 5, S_ANCHORS = 6,
