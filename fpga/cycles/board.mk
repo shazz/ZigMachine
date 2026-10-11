@@ -54,7 +54,10 @@ AUD_CART_OBJ_0   := $(CYC)/aligned/common/aplayer.o
 AUD_CART_OBJ_snd := $(HCYC)/snd/play/snd_img.o
 HRV_LDFLAGS_1    := $(HRV_LDFLAGS)
 HRV_LDFLAGS_0    := $(HRV_LDFLAGS)
-H_sim    = -DZM_FRAMES=$(ZM_FRAMES) -DZM_EVERY=$(ZM_EVERY) $(B_$(ZM_BLIT)) $(A_$(ZM_AUDIO))
+# ZM_SIM_KEYS=F:event,... (sim only): the glass's key FIFO as a script (cycles/binput.c), the
+# native host's ZM_GLASS_KEYS, so a sim can press the keys the board's input would.
+H_sim    = -DZM_FRAMES=$(ZM_FRAMES) -DZM_EVERY=$(ZM_EVERY) $(B_$(ZM_BLIT)) $(A_$(ZM_AUDIO)) \
+	$(if $(ZM_SIM_KEYS),'-DZM_SIM_KEYS="$(ZM_SIM_KEYS)"')
 H_board  = -DZM_BOARD -DZM_FRAMES=0 -DZM_EVERY=1 $(B_$(ZM_BLIT)) $(A_$(ZM_AUDIO))
 
 $(SOC_HP)/hp_sim.json: $(HP_DEPS)
@@ -84,7 +87,7 @@ $(HCYC)/$(1)$(ASUF)/%/fw.elf: $(CYC)/aligned/%/cart.o $(CYC)/aligned/common/mach
 	$(RV_CC) $(HRV_CFLAGS) -I$(HOST)/$$* -include bmicros.h -c $(HOST)/$$*/env.c -o $$(@D)/env.o
 	$(RV_CC) $(HRV_CFLAGS) -I$(HOST)/$$* -c host/boot.c -o $$(@D)/boot.o
 	$(RV_CC) $(HRV_CFLAGS) -I$(HOST)/$$* -c cycles/vseq.c -o $$(@D)/vseq.o
-	for s in $(HIN_SRC); do $(RV_CC) $(HRV_CFLAGS) -I$(HOST)/$$* -c $$$$s -o $$(@D)/in_$$$$(basename $$$$s .c).o || exit 1; done
+	for s in $(HIN_SRC); do $(RV_CC) $(HRV_CFLAGS) $(H_$(1)) -I$(HOST)/$$* -c $$$$s -o $$(@D)/in_$$$$(basename $$$$s .c).o || exit 1; done
 	$(RV_CC) $(HRV_CFLAGS) $(H_$(1)) -I$(HOST)/$$* -DZM_CART='"$$*"' -c cycles/bmain.c -o $$(@D)/main.o
 	$(RV_CC) $(HRV_LDFLAGS_$(ZM_AUDIO)) -o $$@ $$(@D)/main.o $$(@D)/vseq.o $$(@D)/env.o $$(@D)/boot.o $$(@D)/in_*.o $$< \
 		$$(@D)/aud_*.o $(AUD_CART_OBJ_$(ZM_AUDIO)) \

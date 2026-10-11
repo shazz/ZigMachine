@@ -7,8 +7,11 @@ name the cart passes to zg.requestSong (a path under docs/music/), the board
 finds it in this table. The names: the songs the native host started when it
 ran the cart (`--log`, host_audio's "L ts writes name" lines: a short name is often
 built from immediates, never a string in the module), plus the module's own
-string literals that end in a song extension; each must name a file that
-exists. A song neither finds is missing on the board ("ZM SONG MISSING"): silent.
+string literals that end in a song extension (SONG_EXTS: every extension
+host/audio.c's audio_play has a player for). A name that is no file is an
+error, not a skip: the cart asks for it and the board would play nothing. A
+song neither finds is missing on the board: the sound CPU's console says
+"ZM SONG MISSING <name>" and the old song stops.
 """
 
 import argparse
@@ -17,14 +20,24 @@ import sys
 from pathlib import Path
 
 FPGA = Path(__file__).resolve().parent.parent
-NAME = re.compile(rb"[A-Za-z0-9_][A-Za-z0-9_./-]{0,62}\.(?:sndh|mod|ymraw|raw)(?![A-Za-z0-9])")
+# The players' extensions: tests/test_audio_soc.py holds this to host/audio.c's audio_play.
+SONG_EXTS = ("sndh", "mod", "ymraw", "raw", "sap")
+NAME = re.compile(rb"[A-Za-z0-9_][A-Za-z0-9_./-]{0,62}\.(?:" + "|".join(SONG_EXTS).encode() + rb")(?![A-Za-z0-9])")
+
+
+class MissingSong(Exception):
+    """A song the cart names that is no file under the music directory."""
 
 
 def song_names(wasm: bytes, music: Path, log: str = "") -> list[str]:
-    """Every song the log started or a literal in the module names, that is a file under `music`."""
+    """Every song the log started or a literal in the module names; each must be a file under `music`."""
     found = {m.group().decode() for m in NAME.finditer(wasm)}
     found |= {line.split(" ", 3)[3] for line in log.splitlines() if line.startswith("L ") and line.count(" ") >= 3}
-    return sorted(n for n in found if ".." not in n and not n.startswith("/") and (music / n).is_file())
+    names = sorted(n for n in found if ".." not in n and not n.startswith("/"))
+    missing = [n for n in names if not (music / n).is_file()]
+    if missing:
+        raise MissingSong(f"no such song under {music}: {', '.join(missing)}")
+    return names
 
 
 def c_table(names: list[str], music: Path) -> str:
@@ -47,7 +60,10 @@ def main() -> None:
     ap.add_argument("--music", type=Path, default=FPGA.parent / "docs/music")
     ap.add_argument("--log", type=Path, help="host_audio's write log (<prefix>.w)")
     a = ap.parse_args()
-    names = song_names(a.cart.read_bytes(), a.music, a.log.read_text() if a.log else "")
+    try:
+        names = song_names(a.cart.read_bytes(), a.music, a.log.read_text() if a.log else "")
+    except MissingSong as e:
+        sys.exit(f"song_pack: {a.cart.name}: {e}")
     a.out.parent.mkdir(parents=True, exist_ok=True)
     a.out.write_text(c_table(names, a.music))
     print(f"song_pack: {a.cart.name}: {', '.join(names) or 'no song'}", file=sys.stderr)

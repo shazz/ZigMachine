@@ -6,6 +6,7 @@ comparison's write check (tools/audio_sim_compare.py), each with its failing cas
 The RTL itself is tests/test_rtl_audio.py (`soc_stamped_exact`, the sched_* mutants).
 """
 
+import re
 import sys
 from pathlib import Path
 
@@ -69,9 +70,28 @@ def test_song_pack_takes_the_logged_songs_and_the_literals_that_exist(tmp_path: 
     (tmp_path / "union").mkdir()
     for n in ("a.sndh", "union/b.mod"):
         (tmp_path / n).write_bytes(b"x")
-    wasm = b"\0asm\0\x0bunion/b.mod\0missing.sndh\0"
+    wasm = b"\0asm\0\x0bunion/b.mod\0"
     names = song_pack.song_names(wasm, tmp_path, "W 0 040 00000001\nL 735 1 a.sndh\nL 9 1 ../x.sndh\n")
     assert names == ["a.sndh", "union/b.mod"]
+
+
+def test_song_pack_refuses_a_song_the_cart_names_that_is_no_file(tmp_path: Path) -> None:
+    (tmp_path / "a.sap").write_bytes(b"x")
+    with pytest.raises(song_pack.MissingSong, match="missing.sap"):
+        song_pack.song_names(b"\0a.sap\0missing.sap\0", tmp_path)
+
+
+def test_song_pack_knows_every_extension_the_players_play() -> None:
+    played = set(re.findall(r'ends_with\(name, "\.(\w+)"\)', (FPGA / "host/audio.c").read_text()))
+    assert played == set(song_pack.SONG_EXTS)  # a format the packer misses is a song the board lacks
+
+
+def test_song_pack_takes_every_tune_of_the_sap_jukebox() -> None:
+    # The cart starts Warhawk.sap and asks for the other four on Enter (apps/zig/scenes/sap_test):
+    # the board's table had only the one the native host heard in its first 600 frames.
+    tunes = re.findall(r'\.file = "([^"]+)"', (ROOT / "apps/zig/scenes/sap_test/tunes.zig").read_text())
+    names = song_pack.song_names((ROOT / "docs/demo-sap_test.wasm").read_bytes(), ROOT / "docs/music")
+    assert len(tunes) == 5 and names == sorted(tunes)
 
 
 def test_song_pack_table_is_null_terminated_with_exact_lengths(tmp_path: Path) -> None:
