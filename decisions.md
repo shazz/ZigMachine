@@ -859,3 +859,21 @@ ABI rather than a Zig API, apps in any language sit on it.
 - The POKEY costs 339 LUT, 298 FF and 1 DSP in the audio core. The burst holds the mix about 45 clocks of the 2,267 a sample has.
 - Not modelled: ANTIC's DMA cycle-stealing (stamps are early by its share), IRQ-driven players (TYPE D), the second POKEY (STEREO).
 - demo-audio.wasm's zero data grows 44 B; the Atari's 64 KiB and the write queue live in song RAM.
+
+## 2026-10-11 — The blitter's pixel unit is pipelined; reads pass writes only where they cannot alias
+
+**Status:** accepted
+**Context:** On the board the blitter cart ran GLENZ at 40 fps, RUBBER 17, TILES 9, DELAY 27. The hp sim showed why: one pixel in flight, every access a single-beat AXI transaction, and the HP2 bridge holding every read until every write had its B. Any op that reads memory paid a whole HP read (~22 clocks) per pixel: 24-36 clocks a pixel for keyed BLITs and triangles.
+**Decision:**
+- `zm_blit_px` issues a pixel's reads and moves on; up to 32 pixels wait in `zm_blit_pxq` and are combined and written in order, through a one-word buffer (consecutive bytes = one strobed write).
+- A read may run ahead of an earlier pixel's write only where it provably cannot alias it: C always (an op writes each byte once), A/B when `zm_blit_chk` proves the source spans disjoint from the destination span from the registers; otherwise (`ordered`) the v1 order.
+- A channel whose byte is in the word it fetched last reuses that word (same proof), so a row costs W/4 reads per channel; nothing is reused across ops.
+- The HP2 bridge holds a read only behind a write in flight covering its byte; writes go back to back.
+- The sim DDR model takes `reads=8` outstanding read bursts per port in the hp sim (the AFI's acceptance).
+**Alternatives considered:**
+- A per-pixel CAM of in-flight destinations (exact for every BLIT, scrolls included): 2 x 34 x 23-bit compares on the read path, at 100 MHz with the SoC already tight; the register-level span test costs two adders and four compares, and only an op over its own destination falls back.
+- AXI row bursts with a prefetch buffer: fewer transactions still, but with word reuse the pixel unit's one pixel a clock is already the limit for all but the 3-channel cookie-cut.
+**Consequences:**
+- hp sim, blitter cart: GLENZ 39 -> 60+ fps, RUBBER 18 -> 31 (now the cart's own CPU work), TILES 9.6 -> 53, DELAY 25 -> 59; tsl_hybridglenz 12.9 -> 19.4 fps (the rest is its CPU). Every hash unchanged.
+- An `ordered` BLIT (a smear or scroll over its own destination) stays at the v1 rate.
+- About +700 LUT and +500 FF for the blitter (Vivado OOC), no BRAM.

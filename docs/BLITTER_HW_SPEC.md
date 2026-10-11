@@ -375,10 +375,23 @@ keeps the v1 order. The rule, per channel:
   are sent back to back, up to 8 without their B.
 - Ops never overlap: DRAIN waits until the unit is empty and `wr_pending` is low.
 
-Not done (no register or result would change): row bursts (one 16-beat read per
-channel per row) and reusing a fetched word for the next pixels of the same channel;
-both cut the number of HP transactions, which caps the read-bound ops once the AFI's
-8 outstanding reads are full.
+#### Word reuse
+
+The AFI accepts 8 reads per HP port at a time, so with one read per byte the
+read-bound ops would stall at about 8 reads per HP latency. A channel whose byte lies
+in the 32-bit word that channel fetched last is **not read again**: the pixel takes
+its byte from that word, in pixel order (`zm_blit_px` P stage decides against
+`lw_*`, `zm_blit_pxq` keeps the last fetched word per channel, `hw_*`). A row of `W`
+bytes then costs `W/4` reads per channel. It is the same safety argument as above:
+the word cannot have changed since it was read in port order, for C (no other pixel
+of the op writes this byte) and for A/B when the op is not `ordered` (no write of the
+op touches a source). Nothing is reused across ops: the reuse state clears whenever
+the unit runs dry, which `DRAIN` guarantees between ops.
+
+Not done (no register or result would change): AXI row bursts (one 16-beat read per
+channel per row, a prefetch buffer) and 64-bit words (8 bytes per read instead of 4).
+Both would cut HP transactions further; at 4 bytes a read the pixel unit's one pixel
+a clock is the limit for every op but the 3-channel cookie-cut.
 
 ### 10.3 Sharing DDR with the video DMA
 
@@ -408,25 +421,33 @@ budget needs them: the halftone in LUTRAM (about -100 LUT, -256 FF), the check's
 bounding box accumulated serially (about -100), an incremental edge walk for
 TRIANGLE (faster too).
 
-### 10.5 Throughput (CXXRTL, memory that answers at once, 1 clock read latency)
+Vivado out of context, placed and routed at 100 MHz (`fpga/tools/vivado_ooc.sh`, 2026-10-11):
+v1 2,173 LUT / 1,481 FF / 8 DSP, WNS +0.14 ns; pipelined 2,836 LUT / 2,031 FF / 8 DSP / 0 BRAM,
+WNS +0.11 ns (the queue's slots and tags are LUTRAM). The worst paths are still the
+sequencers' `base + y*stride + x` (a DSP and two carry chains) into the pixel unit's
+first register; nothing in the queue, the write buffer or the reuse compare is near them.
 
-| Op | clocks per `CYCLES` unit |
-|---|---|
-| FILL solid or halftone, LINE `MT_B` | **1.0** (a write a clock) |
-| FILL_MT / LINE / TRIANGLE combining with the destination (`MT_XOR`, `MT_OR`) | **4.0** (read request, answer, decide, write) |
-| ... where the minterm cannot change the destination (`MT_OR`/`MT_XOR` of a 0: a halftone's background bit, the glenz's other-object rows) | **1.0**: no read, no write, still counted in `CYCLES` |
-| BLIT copy (B only) | **4.0** per pixel (keyed: 4.0 per candidate pixel) |
-| BLIT with A, B and C (cookie-cut) | **6.0** |
-| TRIANGLE, `MT_B` | **1.5** for a large one; about 9 for a 16-row one (35 clocks of divider per edge per scanline) |
+### 10.5 Throughput
 
-That is 0.25 to 1 pixel per clock before the memory. Behind an HP port a read costs
-+24 clocks unloaded (+62 saturated, at 150 MHz: FPGA_STEPS), so the read-bound ops are
-about 25 clocks a pixel there (4 Mpx/s at 100 MHz: a 32x32 bob in 0.26 ms, a full
-320x200 copy in 16 ms: too slow), and a solid fill stays near 1 clock a pixel. Pipelined
-reads (all three requests in flight, the next pixel's behind them) bring the
-read-bound ops to about 3 clocks a pixel whatever the latency, and row bursts to
-roughly 1 pixel a clock for a copy, 4 to 8 for a fill (a 64-bit beat carries 8
-pixels). That is the first thing to do at integration.
+**Behind HP2 in the board sim** (`soc/hp_sim.py`: 20-clock first beat, 8 reads in flight per
+port), `ZM BF` lines, CPU clocks per pixel including the per-call cost (start, spin, D-cache
+flush, about 400 clocks a call), before (v1, one pixel in flight) -> after (2026-10-11):
+
+| Op (where) | v1 | pipelined + word reuse |
+|---|---|---|
+| FILL `MT_B` (blitter cart, every mode) | 3.03 | **1.03** |
+| keyed BLIT, 74x60 tiles x 80 (TILE), per candidate pixel | 23.7 | **0.89** |
+| keyed BLIT, 320x1 rows x 200 (RUBBER), per candidate pixel | 30.0 | **2.2** (half of it per-call cost) |
+| keyed BLIT, 26x20 x 121 (DELAY), per candidate pixel | 30.4 | **1.8** (idem) |
+| TRIANGLE `MT_OR_BC` (blitter GLENZ), per pixel | 36.0 | **4.6** (the divider: 35 clocks per edge per scanline) |
+| TRIANGLE `MT_OR_BC` + halftone (tsl_hybridglenz, 39.5 K units) | 21.5 | **6.1** |
+| BLIT, tsl_hybridglenz (66 small bobs) | 1.41 Mc a frame | **0.073 Mc** |
+
+**In CXXRTL** (`blitter_tb deep`: reads 16-31 clocks late, ready 3 clocks in 4), clocks
+per `CYCLES` unit: FILL 1.08, FILL_MT XOR 1.12 (v1 28.2), BLIT copy 1.12 (28.2), keyed 1.28
+(31.9), cookie-cut A+B+C 1.76 (34.4), TRIANGLE `MT_OR_BC` 1.92 (28.7), `MT_B` 1.81 (the
+divider). An `ordered` BLIT (a smear over its own destination) stays at the v1 rate,
+29.1 (28.2): one pixel's read waits for the previous pixel's write.
 
 ### 10.6 Proof
 
@@ -441,11 +462,21 @@ size, fully clipped, negative origin, lines along and one pixel off the clip edg
 degenerate triangles, the region and every window boundary at the byte, `DESC` over an
 overlap in both directions) and randomised ops over every op, 12 minterm classes,
 clip on/off, halftone declared / sniffed / all-zero, `SRC_ABS`, `DESC`, colour key,
-stale registers. 23 break tests (`ZM_RTL_BREAK=1`) each break one rule of the RTL
-(minterm index, clip off by one, the Bresenham tie-break, the triangle edge rule, the
-floor division, `DESC`, the key, the halftone bit order, the region check, a window
-top, `SRC_ABS`, register writes while busy, the byte lane, the `CYCLES` model...) and
-all are caught.
+stale registers, smears one pixel / one row behind on A and B, two ops back to back on
+one word. Three memory modes: `fast` (1 clock), `random` (above), `deep` (reads 16-31
+clocks late: dozens in flight); the testbench also fails any write taken over an
+unanswered earlier read of its bytes. 39 break tests (`ZM_RTL_BREAK=1`) each break one
+rule of the RTL (minterm index, clip off by one, the Bresenham tie-break, the triangle
+edge rule, the floor division, `DESC`, the key, the halftone bit order, the region
+check, a window top, `SRC_ABS`, register writes while busy, the byte lane, the `CYCLES`
+model, a read passing an aliasing write, the overlap test without A or one row long, an
+answer paired with the wrong read, a pixel leaving before its answers, bytes merged
+across words, a word reused across ops / while ordered / stale...) and all are caught
+(random memory first, `deep` if random missed). The HP2 bridge's ordering is
+`tests/test_blit_hp_order.py`, with its two breaks. On the board SoC sim (`hp_sim`), the
+blitter cart (10 frames and its GLENZ/RUBBER/TILE/DELAY modes), tsl_hybridglenz frame 12
+(warped to the glenz) and replicants_emlyn hash equal to `scene_hash.mjs` and the native
+host.
 
 ### 10.7 Limits
 
