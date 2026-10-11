@@ -171,7 +171,7 @@ NATIVE_TESTS="
     rom/gem/gui/grid.zig
     apps/zig/scenes/stniccc/stream.zig
     apps/zig/scenes/stniccc/polyfill.zig
-    apps/zig/scenes/stniccc/player.zig
+    apps/zig/scenes/stniccc/player_test.zig
 "
 # Compiled and run GATE_TEST_JOBS (default 4) at a time -- the zig cache is
 # safe to share, and a zig test is CPU, not RAM, bound -- then
