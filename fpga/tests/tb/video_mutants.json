@@ -350,5 +350,29 @@
     "new": "FREE: st <= ASK;",
     "catch": "union_main",
     "tb": "out"
+  },
+  {
+    "id": "fill_mix_row_not_stored",
+    "file": "zm_video_pass.v",
+    "old": "is_pl && dirty || p_fill",
+    "new": "is_pl && dirty",
+    "catch": "s:plain",
+    "fuse": true
+  },
+  {
+    "id": "fill_live_background",
+    "file": "zm_video_comp.v",
+    "old": ".bg(fill ? fill_bg :",
+    "new": ".bg(fill ? regs[ZM_REG_BACKGROUND * 8 +: 32] ^ 32'h1 :",
+    "catch": "tutorial",
+    "fuse": true
+  },
+  {
+    "id": "clear_frame_counted_twice",
+    "file": "zm_video_comp.v",
+    "old": ".last_line(!fill && line",
+    "new": ".last_line(line",
+    "catch": "tutorial",
+    "fuse": true
   }
 ]

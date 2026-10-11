@@ -7,6 +7,7 @@
 
 vseq_stats vseq;
 static uint8_t* g_r; /* the region: HW_VIDEO_BASE in the cart's linear memory */
+static int g_fill;  /* this frame's clear was one CLEAR: the first layer's passes paint its lines */
 
 static inline uint32_t r32(uint32_t off) { return *(volatile uint32_t*)(g_r + off); }
 static inline uint16_t r16(uint32_t off) { return *(volatile uint16_t*)(g_r + off); }
@@ -28,21 +29,21 @@ static void drain(void) {
 }
 
 /* Write one command once the previous one has finished and the stores have landed. */
-static void issue(int op, int plane, int line, int mix, int first) {
+static void issue(int op, int plane, int line, int mix, int first, int fill) {
     wait_bits(ZMV_BIT(READY));
     drain();
-    zmv_cmd(op, plane, line, mix, first);
+    zmv_cmd(op, plane, line, mix, first, fill);
 }
 
 /* A pass: issued, and run until it has read everything the next handler may change. */
-static void pass(int op, int plane, int line, int mix, int first) {
-    issue(op, plane, line, mix, first);
+static void pass(int op, int plane, int line, int mix, int first, int fill) {
+    issue(op, plane, line, mix, first, fill);
     wait_bits(ZMV_BIT(PAINTED));
 }
 
-/* A one-clock command (LATCH, PRESENT): issued and taken. */
+/* A one-clock command (LATCH, PRESENT, CLEAR): issued and taken. */
 static void instant(int op, int plane) {
-    issue(op, plane, 0, 0, 0);
+    issue(op, plane, 0, 0, 0, 0);
     wait_bits(ZMV_BIT(READY));
 }
 
@@ -78,12 +79,23 @@ static void copy_back(int beam, int last) {
     if (last) w32(ZM_REG_FRAME, zmv_reg(ZM_REG_FRAME / 4));
 }
 
+/* With no global handler and no BEAM writes every line of the clear is BACKGROUND:
+ * one CLEAR latches it (and counts the frame), and the first layer's passes paint
+ * it where they would have loaded the BG pass's row. ZM_NO_FUSE: a BG pass a line. */
 void vseq_clear(struct w2c_env* e) {
     uint16_t gid = r16(ZM_REG_GLOBAL_HBL_ID);
+#ifndef ZM_NO_FUSE
+    g_fill = !gid && !r16(ZM_REG_BEAM_COUNT);
+    if (g_fill) {
+        instant(ZMV_CLEAR, 0);
+        copy_back(0, 1);
+        return;
+    }
+#endif
     for (uint32_t y = 0; y < ZM_RASTER_HEIGHT; y++) {
         if (gid) w2c_env_hblDispatch(e, gid, 0, y, 0);
         int beam = r16(ZM_REG_BEAM_COUNT) != 0;
-        pass(ZMV_BG, 0, (int)y, 0, 0);
+        pass(ZMV_BG, 0, (int)y, 0, 0, 0);
         copy_back(beam, y == ZM_RASTER_HEIGHT - 1);
     }
 }
@@ -118,12 +130,12 @@ void vseq_line_major(struct w2c_env* e, unsigned planes) {
     for (uint32_t y = 0; y < ZM_RASTER_HEIGHT; y++) {
         if (gid) w2c_env_hblDispatch(e, gid, 0, y, 0);
         int beam = r16(ZM_REG_BEAM_COUNT) != 0;
-        pass(ZMV_BG, 0, (int)y, 0, 0);
+        pass(ZMV_BG, 0, (int)y, 0, 0, 0);
         copy_back(beam, y == ZM_RASTER_HEIGHT - 1);
         for (int p = 0; p < 4; p++) {
             if (!((planes >> p) & 1)) continue;
             if (hid[p] && y >= oy[p] && y < oy[p] + rows[p]) w2c_env_hblDispatch(e, hid[p], (u32)p, y - oy[p], hpos[p]);
-            pass(ZMV_PLANE, p, (int)y, 1, p == first);
+            pass(ZMV_PLANE, p, (int)y, 1, p == first, 0);
         }
     }
 }
@@ -137,13 +149,13 @@ void vseq_plane(struct w2c_env* e, int p, int first) {
     instant(ZMV_LATCH, p);
     for (uint32_t y = 0; y < ZM_RASTER_HEIGHT; y++) {
         if (hid && y >= oy && y < oy + rows) w2c_env_hblDispatch(e, hid, (u32)p, y - oy, hpos);
-        pass(ZMV_PLANE, p, (int)y, 1, first);
+        pass(ZMV_PLANE, p, (int)y, 1, first, first && g_fill);
     }
 }
 
 void vseq_mix_only(void) {
     wait_swap();
-    for (int y = 0; y < (int)ZM_RASTER_HEIGHT; y++) pass(ZMV_MIX, 0, y, 1, 1);
+    for (int y = 0; y < (int)ZM_RASTER_HEIGHT; y++) pass(ZMV_MIX, 0, y, 1, 1, g_fill);
 }
 
 void vseq_present(void) { instant(ZMV_PRESENT, 0); }

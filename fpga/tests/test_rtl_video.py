@@ -57,6 +57,7 @@ SYNTH = [
     ("layers", [1, 2], {"mode_normal", "mode_scroll", "mode_medium", "mode_fullscreen", "background_per_line"}),
     ("alpha", [1, 2], {"layered", "alpha_partial", "alpha_zero", "mode_medium", "mode_overscan"}),
     ("bgalpha", [1, 2], {"no_plane", "alpha_partial", "background_per_line"}),
+    ("plain", [1, 2], {"no_plane", "alpha_partial"}),
     ("worst", [1, 2], {"layered", "mode_medium_overscan", "beam", "alpha_partial"}),
 ]
 # Multi-plane frames replayed again against a memory with the HP port's first-beat
@@ -102,6 +103,25 @@ def test_compositor_matches_the_machine_pixel_for_pixel(tb: Path, key: str) -> N
     assert result.stdout.count("-> MATCH") == len(frames)
 
 
+@pytest.mark.parametrize("key", KEYS)
+def test_a_fused_clear_matches_the_machine_pixel_for_pixel(tb: Path, key: str) -> None:
+    """cycles/vseq.c's clear where no line of it can differ: one CLEAR, then the first
+    layer's passes paint each line over its colour (`fill`) into a poisoned PFB."""
+    frames_dir, frames, _ = _source(key)
+    result = video_rtl.replay(tb, frames_dir, frames, fuse=True)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert result.stdout.count("-> MATCH") == len(frames)
+
+
+def test_the_fused_clear_is_exercised(tb: Path) -> None:
+    """Most of the corpus clears to one colour, so `fill` is what those frames ran."""
+    fused = 0
+    for key in KEYS:
+        frames_dir, frames, _ = _source(key)
+        fused += video_rtl.replay(tb, frames_dir, frames, fuse=True).stdout.count("fused 1 ->")
+    assert fused >= 5
+
+
 @pytest.mark.parametrize("tag", [c[0] for c in CARTS])
 def test_recorded_frames_are_the_reference_hosts(tag: str) -> None:
     """vdump must not perturb the machine: its PFBs hash like fpga/host's samples."""
@@ -121,10 +141,11 @@ def test_recorded_frames_are_the_reference_hosts(tag: str) -> None:
         assert json.loads(out.stdout)["samples"][0]["hash"] == h.hexdigest()
 
 
+@pytest.mark.parametrize("fuse", [False, True], ids=["bg", "fused"])
 @pytest.mark.parametrize("key", TIMING)
-def test_frames_against_hp_latency(tb: Path, key: str) -> None:
+def test_frames_against_hp_latency(tb: Path, key: str, fuse: bool) -> None:
     frames_dir, frames, _ = _source(key)
-    result = video_rtl.replay(tb, frames_dir, frames, timing=HP_LATENCY)
+    result = video_rtl.replay(tb, frames_dir, frames, timing=HP_LATENCY, fuse=fuse)
     assert result.returncode == 0, result.stdout + result.stderr
     assert result.stdout.count("-> MATCH") == len(frames)
 
@@ -180,5 +201,6 @@ def test_a_broken_rule_is_caught(mutant: dict[str, str]) -> None:
     if on_wire:
         result = video_rtl.wire(exe, WIRE, frames_dir, frames)
     else:
-        result = video_rtl.replay(exe, frames_dir, frames, timing=HP_LATENCY if mutant.get("timing") else None)
+        timing = HP_LATENCY if mutant.get("timing") else None
+        result = video_rtl.replay(exe, frames_dir, frames, timing=timing, fuse=bool(mutant.get("fuse")))
     assert result.returncode != 0, f"{name} went unnoticed on {key}:\n{result.stdout}"

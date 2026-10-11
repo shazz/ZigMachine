@@ -14,13 +14,13 @@
 #define ZMV_BIT(name) (ZMV_STATUS_##name##_MASK << ZMV_STATUS_##name##_SHIFT)
 
 /* rtl/video/zm_video_comp.v's commands. */
-enum { ZMV_BG = 0, ZMV_PLANE = 1, ZMV_LATCH = 2, ZMV_MIX = 3, ZMV_PRESENT = 4 };
+enum { ZMV_BG = 0, ZMV_PLANE = 1, ZMV_LATCH = 2, ZMV_MIX = 3, ZMV_PRESENT = 4, ZMV_CLEAR = 5 };
 
 static inline uint32_t zmv_status(void) { return ZMV_REG(STATUS); }
 
-static inline void zmv_cmd(int op, int plane, int line, int mix, int first) {
+static inline void zmv_cmd(int op, int plane, int line, int mix, int first, int fill) {
     ZMV_REG(CMD) = ZMV_FIELD(CMD, OP, op) | ZMV_FIELD(CMD, PLANE, plane) | ZMV_FIELD(CMD, LINE, line) |
-                   ZMV_FIELD(CMD, MIX, mix) | ZMV_FIELD(CMD, FIRST, first);
+                   ZMV_FIELD(CMD, MIX, mix) | ZMV_FIELD(CMD, FIRST, first) | ZMV_FIELD(CMD, FILL, fill);
 }
 
 /* The compositor's own copy of register word `w` (offset / 4). */

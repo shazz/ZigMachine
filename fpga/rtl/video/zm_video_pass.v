@@ -10,6 +10,10 @@
 //   PLANE  LOAD PFB (+ picture) -> PAINT the plane -> MIX       -> STORE PFB (if painted) + picture
 //   MIX    LOAD PFB (+ picture) ->                    MIX       -> STORE picture
 //
+// With `fill` (after a CLEAR) a PLANE or MIX pass paints the line in the CLEAR
+// colour (zm_video_bg) instead of loading the PFB row, and always stores it:
+// the BG pass of that line, folded into the first layer's.
+//
 // MIX is a PLANE pass that paints nothing: the cleared PFB shown on its own when
 // no plane is enabled. `first`: the line's first fold of the frame, over the
 // tube, so the picture row is not loaded. `painted` pulses once the pass has
@@ -24,6 +28,7 @@ module zm_video_pass (
     input  wire [2:0]  op,
     input  wire [8:0]  line,
     input  wire        mix, first,
+    input  wire        fill,           // PLANE / MIX: paint the CLEAR colour, not LOAD PFB
     input  wire [31:0] vbase,          // bus address of region offset 0
     input  wire [31:0] dbase,          // bus address of the picture being built
     output reg  [31:0] pfb_addr, d_addr,
@@ -41,10 +46,10 @@ module zm_video_pass (
 );
 `include "zm_video_memmap.vh"
 
-    localparam [2:0] IDLE = 3'd0, LOAD = 3'd1, PAINT = 3'd2, MIX = 3'd3, STORE = 3'd4;
+    localparam [2:0] IDLE = 3'd0, LOAD = 3'd1, PAINT = 3'd2, MIX = 3'd3, STORE = 3'd4, FILL = 3'd5;
     localparam [2:0] OP_BG = 3'd0, OP_PLANE = 3'd1, OP_MIX = 3'd3;
     reg [2:0] st = IDLE;
-    reg       is_bg, is_pl, p_mix, p_first, dirty;
+    reg       is_bg, is_pl, p_mix, p_first, p_fill, dirty;
     wire [31:0] row = {12'd0, line, 11'd0} + {13'd0, line, 10'd0} + {16'd0, line, 7'd0};  // y * 3200
 
     always @(posedge clk) begin
@@ -54,7 +59,7 @@ module zm_video_pass (
         if (take) begin
             pfb_addr <= vbase + ZM_OFF_PFB + row;
             d_addr <= dbase + row;
-            {is_bg, is_pl, p_mix, p_first} <= {op == OP_BG, op == OP_PLANE, mix, first};
+            {is_bg, is_pl, p_mix, p_first, p_fill} <= {op == OP_BG, op == OP_PLANE, mix, first, fill && op != OP_BG};
             mix_first <= first;
         end
         if (rst) {st, busy, fetching} <= {IDLE, 2'b00};
@@ -62,8 +67,10 @@ module zm_video_pass (
             IDLE: if (take && (op == OP_BG || op == OP_PLANE || op == OP_MIX)) begin
                 busy <= 1'b1;
                 if (op == OP_BG) {st, start_bg} <= {PAINT, 1'b1};
+                else if (fill) {st, start_bg} <= {FILL, 1'b1};
                 else {st, ld_start, ld_pfb, ld_d} <= {LOAD, 1'b1, 1'b1, mix && !first};
             end
+            FILL: if (bg_done) {st, ld_start, ld_pfb, ld_d} <= {LOAD, 1'b1, 1'b0, p_mix && !p_first};
             LOAD: if (ld_done) begin
                 if (is_pl) {st, start_pl, fetching} <= {PAINT, 2'b11};
                 else {st, painted, start_mix} <= {MIX, 1'b1, p_mix};
@@ -71,9 +78,9 @@ module zm_video_pass (
             PAINT: if (is_bg ? bg_done : pl_done) begin
                 {painted, fetching} <= 2'b10;
                 if (is_pl && p_mix) {st, start_mix} <= {MIX, 1'b1};
-                else {st, st_start, st_pfb, st_d} <= {STORE, 1'b1, is_bg || dirty, 1'b0};
+                else {st, st_start, st_pfb, st_d} <= {STORE, 1'b1, is_bg || dirty || p_fill, 1'b0};
             end
-            MIX: if (mix_done || !p_mix) {st, st_start, st_pfb, st_d} <= {STORE, 1'b1, is_pl && dirty, p_mix};
+            MIX: if (mix_done || !p_mix) {st, st_start, st_pfb, st_d} <= {STORE, 1'b1, is_pl && dirty || p_fill, p_mix};
             STORE: if (st_done) {st, busy, done} <= {IDLE, 2'b01};
             default: st <= IDLE;
         endcase

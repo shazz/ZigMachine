@@ -10,10 +10,16 @@
 //   2 LATCH    latch plane `cmd_plane`'s frame registers         (top of renderPlane)
 //   3 MIX      fold the PFB row alone into the picture           (no plane enabled)
 //   4 PRESENT  the picture is complete: show it from the next VBL (zm_video_out.v)
+//   5 CLEAR    hwClear in one clock, when no line of it can differ (no global HBL
+//              handler, no BEAM writes): latch BACKGROUND as the fill colour and
+//              count the frame as BG line 279 does. The lines are painted later,
+//              by the first layer's passes taken with `cmd_fill`.
 // A PLANE pass taken with `cmd_mix` also folds the row into the picture, as the
 // browser stacks canvas k over canvases 0..k-1 (zm_video_mix.v); `cmd_first`
-// marks a line's first fold of the frame. The PFB rows go back to the region,
-// where the machine keeps its PFB, so the frame is hashable as scene_hash does.
+// marks a line's first fold of the frame; `cmd_fill` (PLANE / MIX) paints the
+// line in the CLEAR colour where the pass would load the PFB row BG left. The
+// PFB rows go back to the region, where the machine keeps its PFB, so the frame
+// is hashable as scene_hash does.
 //
 // Between passes is where the HBL handlers run: the sequencer (the cart CPU's
 // firmware, fpga/cycles/vseq.c) calls the handler, waits until its stores have
@@ -46,6 +52,7 @@ module zm_video_comp (
     input  wire [8:0]  cmd_line,
     input  wire        cmd_mix,          // fold this pass into the picture (zm_video_mix.v)
     input  wire        cmd_first,        // ... as the line's first layer of the frame
+    input  wire        cmd_fill,         // ... over the CLEAR colour, not the PFB row
     output wire        painted,          // one clock: the pass has read all the CPU's state
     output wire        pass_done,        // one clock: the pass's rows are in memory
     output wire        present,          // one clock: a PRESENT command
@@ -80,16 +87,22 @@ module zm_video_comp (
     wire take = cmd_valid && cmd_ready;
     wire latch = take && cmd_op == 3'd2;
     assign present = take && cmd_op == 3'd4;
+    wire clear = take && cmd_op == 3'd5;
     always @(posedge clk) if (take) plane <= cmd_plane;
+    reg [31:0] fill_bg;
+    reg fill;
+    always @(posedge clk) if (take) fill <= cmd_fill && (cmd_op == 3'd1 || cmd_op == 3'd3);
 
     // --- registers ---
     wire [1023:0] regs;
-    wire beam_upd, frame_inc;
+    wire beam_upd, bg_frame_inc;
+    wire frame_inc = bg_frame_inc || clear;
     wire [31:0] beam_bg, beam_drops;
     zm_video_regs u_regs (
         .clk(clk), .cpu_we(cpu_we && reg_sel), .cpu_word(cpu_waddr[4:0]), .cpu_be(cpu_be),
         .cpu_wdata(cpu_wdata), .cpu_rword(cpu_rword), .cpu_rdata(cpu_rdata), .beam_upd(beam_upd),
         .beam_bg(beam_bg), .beam_drops(beam_drops), .frame_inc(frame_inc), .regs(regs));
+    always @(posedge clk) if (clear) fill_bg <= regs[ZM_REG_BACKGROUND * 8 +: 32];
 
     // --- memories: palettes, BEAM table, fetch buffer (64-bit beats), line buffer (two halves) ---
     wire [7:0] pal_raddr, fb_raddr, fb_waddr;
@@ -124,6 +137,7 @@ module zm_video_comp (
     wire [31:0] pfb_addr, d_addr;
     zm_video_pass u_pass (
         .clk(clk), .rst(rst), .take(take), .op(cmd_op), .line(cmd_line), .mix(cmd_mix), .first(cmd_first),
+        .fill(cmd_fill),
         .vbase(vbase), .dbase(dbase), .pfb_addr(pfb_addr), .d_addr(d_addr), .busy(busy), .fetching(fetching),
         .start_bg(start_bg), .start_pl(start_pl), .start_mix(start_mix), .mix_first(mix_first),
         .bg_done(bg_done), .pl_done(pl_done), .mix_done(mix_done), .ld_start(ld_start), .ld_pfb(ld_pfb),
@@ -134,11 +148,12 @@ module zm_video_comp (
     reg [8:0] line;
     always @(posedge clk) if (take) line <= cmd_line;
     zm_video_bg u_bg (
-        .clk(clk), .rst(rst), .start(start_bg), .last_line(line == ZM_RASTER_HEIGHT - 1),
-        .bg(regs[ZM_REG_BACKGROUND * 8 +: 32]), .count(regs[ZM_REG_BEAM_COUNT * 8 +: 16]),
+        .clk(clk), .rst(rst), .start(start_bg), .last_line(!fill && line == ZM_RASTER_HEIGHT - 1),
+        .bg(fill ? fill_bg : regs[ZM_REG_BACKGROUND * 8 +: 32]),
+        .count(fill ? 16'd0 : regs[ZM_REG_BEAM_COUNT * 8 +: 16]),
         .beam_raddr(beam_raddr), .beam_rdata(beam_rdata), .lb_we(bg_we), .lb_addr(bg_addr),
         .lb_data(bg_data), .done(bg_done), .beam_upd(beam_upd), .beam_bg(beam_bg),
-        .beam_drops(beam_drops), .frame_inc(frame_inc));
+        .beam_drops(beam_drops), .frame_inc(bg_frame_inc));
 
     // --- plane pass: its fetch and the row loads share the read port, by phase ---
     wire pl_rd_valid, rw_rd_valid;
