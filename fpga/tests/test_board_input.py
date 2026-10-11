@@ -70,7 +70,7 @@ def test_a_router_that_drops_key_is_caught(tmp_path: Path) -> None:
         ["clang", *cflags, *inc, "-c", str(tmp_path / "input_bridge.c"), "-o", str(tmp_path / "in.o")], check=True
     )
     common = [FPGA / f"build/host/common/{n}.o" for n in ("machine", "rom", "rt", "rt-mem", "rt-exc", "sha256")]
-    objs = [obj / n for n in ("host.o", "env.o", "boot.o", "in_glass_router.o", "cart.o")]
+    objs = [obj / n for n in ("host.o", "env.o", "boot.o", "host_io.o", "in_glass_router.o", "cart.o")]
     mutant = tmp_path / "host"
     subprocess.run(
         ["clang", *map(str, objs), str(tmp_path / "in.o"), *map(str, common), "-lm", "-lpthread", "-o", str(mutant)],

@@ -86,7 +86,7 @@ def mutant(tmp_path: Path, src: str, old: str, new: str) -> Path:
     subprocess.run(["clang", *cflags, *(f"-I{d}" for d in dirs), "-c", str(unit), "-o", str(tmp_path / "m.o")],
                    check=True)  # fmt: skip
     keep = "in_glass_router.o" if src == "input_bridge.c" else "in_input_bridge.o"
-    objs = [obj / n for n in ("host.o", "env.o", "boot.o", keep, "cart.o")]
+    objs = [obj / n for n in ("host.o", "env.o", "boot.o", "host_io.o", keep, "cart.o")]
     common = [FPGA / f"build/host/common/{n}.o" for n in ("machine", "rom", "rt", "rt-mem", "rt-exc", "sha256")]
     exe = tmp_path / "host"
     subprocess.run(["clang", *map(str, objs), str(tmp_path / "m.o"), *map(str, common), "-lm", "-lpthread",
