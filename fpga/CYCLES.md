@@ -94,7 +94,9 @@ variant; rows for the rest of the shelf appear as their runs land
 *From the 9-cart sample (every run's hashes equal scene_hash.mjs's and the
 native host's). stniccc is blind: without its disk stream (`diskReadBlock` is a
 no-op in scene_hash.mjs and in both hosts) its cart does almost nothing, so its
-row is not evidence.*
+row is not evidence. Since 2026-10-11 both hosts take `--disk` and the board
+firmware serves the disk from DDR (docs/FPGA_GLASS.md, "The disk in DDR"); this
+cycles sim still runs without one.*
 
 **Clock: plan for 150 MHz, not 100.** Six of the eight measurable carts fit a
 VexRiscv `standard` at a realistic clock: blitter 9, tsl_hybridglenz 10,
