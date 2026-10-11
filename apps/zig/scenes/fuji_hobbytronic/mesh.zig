@@ -1,6 +1,6 @@
 // --------------------------------------------------------------------------
 // FUJI HOBBYTRONIC: the Atari Fuji as a solid. GENERATED, do not edit by hand:
-//   python3 prototypes/fuji_logo/gen_mesh.py
+//   python3 tools/gen_fuji_mesh.py
 // traced from the Fuji of https://logos-world.net/wp-content/uploads/2021/08/Atari-Logo.png
 // (marching squares on the symbol's coverage, Douglas-Peucker to 69 outline
 // points: 32, 4, 33 for the three prongs, ear-clipped caps), then extruded
