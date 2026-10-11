@@ -63,10 +63,11 @@ sndh-oracle: memmap $(HOST)/oracle/sndh_oracle
 SONG_FRAMES ?= 600
 HCYC        := build/hcycles
 AUD_FW_SRC  := $(AUD_SRC) cycles/baudio.c cycles/bsongs.c
-AUD_FW_DEPS := $(AUD_FW_SRC) $(AUD_HDRS) cycles/baudio.h $(CYC)/aligned/common/aplayer.o $(HOST)/common/aplayer.h
-$(CYC)/aligned/common/aplayer.o: $(CYC)/src/aplayer.c
+AUD_FW_DEPS := $(AUD_FW_SRC) $(AUD_HDRS) cycles/baudio.h $(CYC)/$(HV)/common/aplayer.o $(HOST)/common/aplayer.h
+# The players for rv32, in a cycles.mk variant: `aligned` (soft-float), `alignedf` (board.mk ZM_FPU=1).
+$(CYC)/%/common/aplayer.o: $(CYC)/src/aplayer.c
 	@mkdir -p $(@D)
-	$(RV_CC) $(RV_CFLAGS) $(V_aligned) -c $< -o $@
+	$(RV_CC) $(RV_CFLAGS) $(V_$*) -c $< -o $@
 $(HCYC)/songs/%.c: $(ROOT)/docs/demo-%.wasm $(HOST)/%/host_audio tools/song_pack.py
 	@mkdir -p $(@D)
 	ZM_AUDIO_LOG=$(HCYC)/songs/$* $(HOST)/$*/host_audio $* $(SONG_FRAMES) $(SONG_FRAMES) >/dev/null

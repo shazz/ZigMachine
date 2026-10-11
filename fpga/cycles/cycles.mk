@@ -38,6 +38,19 @@ V_float    := -DZM_NO_BOUNDS -DZM_FCOUNT
 F_ARCH     := -march=rv32imf -mabi=ilp32f
 V_alignedf := -DZM_NO_BOUNDS -DZM_ALIGNED $(F_ARCH)
 L_alignedf := $(F_ARCH)
+# ZM_FPU=1 (cycles/board.mk, cycles/audio.mk): the hardware-float BOARD firmware, for a
+# bitstream whose cart core has the f32 FPU (vexgen `seal,fpu`: VexRiscv_I16w2D4SealFpu.v).
+# Every object is `alignedf` (-march=rv32imf -mabi=ilp32f: the wasm2c modules, the players, the
+# host, picolibc's rv32imf multilib), -ffp-contract=off kept; trap_install() sets mstatus.FS
+# before the first F instruction. Images go to build/hcycles/{sim,board}_fpu/, never over the
+# soft-float ones. Default 0: soft-float.
+ZM_FPU   ?= 0
+HV_0     := aligned
+HV_1     := alignedf
+HV       := $(HV_$(ZM_FPU))
+HSUF_1   := _fpu
+HSUF     := $(HSUF_$(ZM_FPU))
+# HV is the variant the board's wasm2c objects come from; HSUF the image directory's suffix.
 comma      := ,
 # fcount.c's FOPS table IS the wrap list: one -Wl,--wrap per X(routine, ...).
 L_float     = $(addprefix -Wl$(comma)--wrap=,$(shell grep -oE 'X.[_a-z0-9]+,' cycles/fcount.c | sed -E 's/^X.//; s/,$$//' | sort -u))

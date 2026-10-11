@@ -171,9 +171,9 @@ static void boot(void) {
 }
 
 int main(void) {
+    trap_install(); /* first: it sets mstatus.FS, and on an FPU core (ZM_FPU=1) any F instruction before traps */
     diag_maybe(); /* the write-path diagnostic, when the ARM asked for one (bdiag.h) */
     board_state(ZM_CART_BOOTING);
-    trap_install();
     wasm_rt_init();
     wasm_rt_trap_t trap = wasm_rt_impl_try();
     if (trap) {

@@ -6,6 +6,7 @@ references equal).
 
     uv run python tools/hp_sim_run.py tutorial                 # 10 frames, hashed every 5
     uv run python tools/hp_sim_run.py tutorial --frames 4 --every 2
+    uv run python tools/hp_sim_run.py raytrace_f32 --fpu       # hard-float images on the FPU core (make soc-hp-fpu)
 """
 
 from __future__ import annotations
@@ -26,14 +27,14 @@ HCYC = FPGA / "build/hcycles"
 SOC = FPGA / "build/soc_hp"
 
 
-def run_one(tag: str, timeout: int) -> str:
-    rundir = Path("/dev/shm") / f"zm_hp_{tag}"
-    env = dict(os.environ, ZM_SOC=str(SOC), ZM_INIT="sim_zm_ddr.init")
-    image = HCYC / "sim" / tag / "zm_ddr.init"
+def run_one(tag: str, timeout: int, fpu: bool = False) -> str:
+    rundir = Path("/dev/shm") / f"zm_hp_{tag}{'_fpu' if fpu else ''}"
+    env = dict(os.environ, ZM_SOC=f"{SOC}{'_fpu' if fpu else ''}", ZM_INIT="sim_zm_ddr.init")
+    image = HCYC / f"sim{'_fpu' if fpu else ''}" / tag / "zm_ddr.init"
     cmd = ["systemd-run", "--user", "--scope", "-q", "-p", "MemoryMax=6G", "-p", "MemorySwapMax=0"]
     cmd += [str(FPGA / "tools/cycles_sim.sh"), str(image), str(rundir), str(timeout)]
     rc = subprocess.run(cmd, env=env, check=False).returncode
-    dst = HCYC / "uart" / f"{tag}.txt"
+    dst = HCYC / "uart" / f"{tag}{'_fpu' if fpu else ''}.txt"
     dst.parent.mkdir(parents=True, exist_ok=True)
     uart = rundir / "uart.txt"
     dst.write_bytes(uart.read_bytes() if uart.exists() else b"")
@@ -48,14 +49,16 @@ def main() -> int:
     ap.add_argument("--frames", type=int, default=10)
     ap.add_argument("--every", type=int, default=5)
     ap.add_argument("--timeout", type=int, default=4 * 3600)
+    ap.add_argument("--fpu", action="store_true", help="ZM_FPU=1 images on build/soc_hp_fpu (the f32 FPU core)")
     a = ap.parse_args()
-    images = [f"build/hcycles/sim/{t}/zm_ddr.init" for t in a.carts]
+    sim = "sim_fpu" if a.fpu else "sim"
+    images = [f"build/hcycles/{sim}/{t}/zm_ddr.init" for t in a.carts]
     cycles_run.make("memmap", *[f"build/host/{t}/host" for t in a.carts], frames=a.frames, every=a.every, jobs=1)
-    cycles_run.make(*images, frames=a.frames, every=a.every, jobs=1)
+    cycles_run.make(*images, *(["ZM_FPU=1"] if a.fpu else []), frames=a.frames, every=a.every, jobs=1)
     bad = 0
     for tag in a.carts:
         cycles_run.references(tag, a.frames, a.every)
-        line = run_one(tag, a.timeout)
+        line = run_one(tag, a.timeout, a.fpu)
         print(line, flush=True)
         bad += not line.split("  (")[0].endswith(" ok")
     return 1 if bad else 0
