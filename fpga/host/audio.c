@@ -1,8 +1,9 @@
 /* The audio side's boot, its song starts and the render loop (haudio.h), shared by
  * the native host, the board firmware and the sound CPU's (cycles/sound/). The
  * starts are the worklet's load messages (docs/audio-worklet-sealed.js) minus the
- * fetch: a song is staged at once, so it starts on the frame that asked for it. The
- * cart's side of the bridge, which calls them, is host/audio_bridge.c. */
+ * fetch: a song is staged at once, so it starts on the frame that asked for it; the
+ * effects (audio_effects) are the worklet's sfx / sndhMode messages. The cart's side of
+ * the bridge, which calls them, is host/audio_bridge.c. */
 #include <stdio.h>
 #include <string.h>
 
@@ -121,6 +122,42 @@ void audio_play(const char* name, uint32_t tune) {
 void audio_sndh_call(const char* name, uint32_t d0) {
     if (strcmp(name, g_resident) == 0) w2c_audio_audioSndhCall(&g_aud.player, d0);
     else play_sndh(name, d0, 1);
+}
+
+/* worklet "sfxPlay": the PCM into the effect buffer (0 while no MOD plays: an SNDH's RAM is
+ * there), then onto the MOD's quiet channel. */
+static int sfx_play(const audio_fx* fx) {
+    w2c_audio* p = &g_aud.player;
+    uint32_t at = w2c_audio_audioSfxBufPtr(p), cap = w2c_audio_audioSfxBufCapacity(p);
+    uint32_t len = at ? (fx->len < cap ? fx->len : cap) : 0;
+    if (len) memcpy(g_aud.memory.data + at, (const void*)fx->pcm, len);
+    return (int)w2c_audio_audioSfxPlay(p, len, fx->rate, fx->a ? 1u : 0u);
+}
+
+/* One effect, as the worklet's message of the same name; a refusal is said, as the console's. */
+static void effect(const audio_fx* fx) {
+    w2c_audio* p = &g_aud.player;
+    const char* missed = NULL;
+    if (fx->op == FX_PLAY) {
+        if (!sfx_play(fx)) missed = "sfxPlay";
+    } else if (fx->op == FX_STOP) {
+        w2c_audio_audioSfxStop(p, fx->a ? 1u : 0u);
+    } else if (fx->op == FX_YM) {
+        if (!w2c_audio_audioSfxYm(p, fx->a, fx->b)) missed = "ymWrite";
+    } else if (fx->op == FX_GAIN) {
+        if (!w2c_audio_audioModGain(p, fx->len)) missed = "requestModVolume";
+    } else if (fx->op == FX_SNDH_MODE) {
+        /* The stamp: tools/bard_fx_run.py replays the switch at this sample from the song's start. */
+        uint32_t got = w2c_audio_audioSndhMode(p, fx->a);
+        printf("ZM SNDH mode asked %u got %u at %lu\n", (unsigned)fx->a, (unsigned)got, (unsigned long)zma_ts());
+    } else {
+        printf("ZM FX bad op %u\n", (unsigned)fx->op);
+    }
+    if (missed) printf("ZM FX %s refused (%u so far)\n", missed, (unsigned)w2c_audio_audioSfxRefused(p));
+}
+
+void audio_effects(const audio_fx* fx, uint32_t n) {
+    for (uint32_t i = 0; i < n; i++) effect(&fx[i]);
 }
 
 void audio_render(uint32_t n) {

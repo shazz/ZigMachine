@@ -152,7 +152,8 @@ def export_table(cart: dict[str, tuple[str, list[str]]]) -> str:
 
 # The song bridge (host.h host_song_bridge), in its field order, with the signature each must have.
 SONG_BRIDGE = [("pollSongRequest", []), ("songNamePtr", []), ("songNameLen", []), ("songTune", []),
-               ("pollSndhCalls", []), ("sndhCallD0", ["u32"]), ("sndhCallNamePtr", []), ("sndhCallNameLen", [])]
+               ("pollSndhCalls", []), ("sndhCallD0", ["u32"]), ("sndhCallNamePtr", []), ("sndhCallNameLen", []),
+               ("pollSfx", []), ("sfxEntriesPtr", [])]
 
 
 # The input bridge (host.h host_input_bridge), in its field order, with the signature each must have.

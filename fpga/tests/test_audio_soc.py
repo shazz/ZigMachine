@@ -58,12 +58,12 @@ def test_song_bridge_lists_the_carts_exports_and_nulls_the_missing() -> None:
     table = host_gen.song_bridge(cart)
     assert table == (
         "const host_song_bridge host_songs = {w2c_cart_pollSongRequest, w2c_cart_songNamePtr, 0, 0, "
-        "0, w2c_cart_sndhCallD0, 0, 0};\n"
+        "0, w2c_cart_sndhCallD0, 0, 0, 0, 0};\n"
     )
 
 
 def test_song_bridge_refuses_an_export_of_the_wrong_type() -> None:
-    assert host_gen.song_bridge({"songTune": ("f32", [])}).count("0") == 8
+    assert host_gen.song_bridge({"songTune": ("f32", [])}).count("0") == 10
 
 
 def test_song_pack_takes_the_logged_songs_and_the_literals_that_exist(tmp_path: Path) -> None:

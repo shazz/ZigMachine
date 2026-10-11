@@ -1,9 +1,9 @@
 /* The cart CPU's audio when the players run on the sound CPU (soc/zm_sound_cpu.py,
  * docs/FPGA_SOUND_CPU.md): the same baudio_* entry points as cycles/baudio.c, but the
  * players are not here. This side loads the sound image, starts it, forwards the cart's
- * song requests as mailbox commands (cycles/snd_mailbox.h), and prints the sound CPU's
- * console between frames. The song bridge itself is host/audio_bridge.c's, unchanged:
- * its audio_play / audio_sndh_call land here. */
+ * song requests and effects as mailbox commands (cycles/snd_mailbox.h), and prints the
+ * sound CPU's console between frames. The song bridge itself is host/audio_bridge.c's:
+ * its audio_play / audio_sndh_call / audio_effects land here. */
 #include <stdio.h>
 #include <string.h>
 
@@ -55,11 +55,16 @@ void baudio_boot(void) {
     drain_log();
 }
 
-/* Post one command; the previous one must be done first (a song load takes a few Mcycles). */
-static void post(uint32_t op, const char* name, uint32_t arg) {
-    if (!baudio.on) return;
+/* The previous command is done (a song load takes a few Mcycles). */
+static void wait_ack(void) {
     while (SND_REG(SND_S2C + S_ACK) != g_seq) {
     }
+}
+
+/* Post one command; the previous one must be done first. */
+static void post(uint32_t op, const char* name, uint32_t arg) {
+    if (!baudio.on) return;
+    wait_ack();
     const uint8_t* data = NULL;
     int32_t len = -1;
     for (const zm_song* s = zm_songs; s->name; s++) {
@@ -81,6 +86,34 @@ static void post(uint32_t op, const char* name, uint32_t arg) {
 
 void audio_play(const char* name, uint32_t tune) { post(OP_PLAY, name, tune); }
 void audio_sndh_call(const char* name, uint32_t d0) { post(OP_SNDH_CALL, name, d0); }
+
+/* The frame's effects, C_FX_MAX a command. A play's bytes are read by the sound CPU from the
+ * cart's memory while it runs the command, so a command holding one is waited for: the
+ * browser copies them as it drains the queue, and the cart may reuse the buffer next frame. */
+void audio_effects(const audio_fx* fx, uint32_t n) {
+#ifdef ZM_SND_FX_DROP /* the mutant tools/bard_fx_run.py --drop builds: the requests never reach BARD */
+    (void)fx, (void)n;
+    return;
+#endif
+    if (!baudio.on) return;
+    for (uint32_t i = 0; i < n; i += C_FX_MAX) {
+        uint32_t k = n - i < C_FX_MAX ? n - i : C_FX_MAX, plays = 0;
+        wait_ack();
+        for (uint32_t j = 0; j < k; j++) {
+            const audio_fx* f = &fx[i + j];
+            volatile uint32_t* w = &SND_REG(SND_C2S + C_FX + C_FX_WORDS * j);
+            w[0] = f->op | (uint32_t)f->a << 8 | (uint32_t)f->b << 16;
+            w[1] = (uint32_t)f->pcm;
+            w[2] = f->len;
+            w[3] = f->rate;
+            plays += f->op == FX_PLAY;
+        }
+        SND_REG(SND_C2S + C_OP) = OP_EFFECTS;
+        SND_REG(SND_C2S + C_ARG) = k;
+        SND_REG(SND_C2S + C_SEQ) = ++g_seq;
+        if (plays) wait_ack();
+    }
+}
 
 void baudio_frame(struct w2c_env* e) {
     if (!baudio.on) return;

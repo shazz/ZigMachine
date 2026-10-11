@@ -277,8 +277,8 @@ pub fn requestModVolume(gain: f32) bool {
 /// 3 that native replay with its samples on a PCM channel ("HQ"). Applies to the
 /// song requested before it. A tune with no native driver plays 1 whatever is
 /// asked (the audio thread says so on the console). False when refused (not
-/// 1..3, the queue full): counted in sfxDropped(). Browser only for now: the
-/// board's song bridge carries no effects queue (docs/FPGA_SOUND_CPU.md).
+/// 1..3, the queue full): counted in sfxDropped(). The board's song bridge
+/// carries it to the players too (docs/FPGA_SOUND_CPU.md "Effects").
 pub fn requestSndhMode(mode: u8) bool {
     return g_sfx.sndhMode(mode);
 }

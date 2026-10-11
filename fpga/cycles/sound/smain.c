@@ -3,7 +3,8 @@
  * queue (cycles/baudio.c), paced by the core's own sample counter and nothing else.
  *
  *   default        the cart CPU's mailbox commands (cycles/snd_mailbox.h, sent by
- *                  cycles/bsound.c): PLAY and SNDH_CALL, the song's bytes in the cart's image
+ *                  cycles/bsound.c): PLAY and SNDH_CALL, the song's bytes in the cart's image;
+ *                  EFFECTS, the cart's sfx / ymWrite / requestModVolume / requestSndhMode
  *   ZM_SND_BENCH   no cart: ZM_SONG (linked in, cycles/bsongs.c) starts at once, then
  *                  ZM_FRAMES frames of 735 samples, each timed ("F frame cycles" and the
  *                  bus waits, as cycles/baudio_bench.c prints on the cart CPU), then the end
@@ -72,11 +73,36 @@ int32_t audio_song(const char* name, uint8_t* dst, uint32_t cap) {
     return (int32_t)n;
 }
 
+/* VexRiscv: invalidate the write-through D-cache (vboard.h zmv_flush_dcache), so a play's bytes
+ * are read from DDR, not from a line an earlier effect left at the same address. */
+static inline void flush_dcache(void) { __asm__ volatile(".word(0x500F)\n" ::: "memory"); }
+
+/* OP_EFFECTS: the cart's frame of effects (cycles/bsound.c), applied as host/audio.c applies them. */
+static void effects(uint32_t n) {
+    audio_fx fx[C_FX_MAX];
+    if (n > C_FX_MAX) {
+        printf("ZM SND bad effects %lu\n", (unsigned long)n);
+        return;
+    }
+    for (uint32_t i = 0; i < n; i++) {
+        uint32_t w0 = C2S(C_FX + C_FX_WORDS * i);
+        fx[i] = (audio_fx){.op = (uint8_t)w0, .a = (uint8_t)(w0 >> 8), .b = (uint8_t)(w0 >> 16),
+                           .pcm = C2S(C_FX + C_FX_WORDS * i + 1), .len = C2S(C_FX + C_FX_WORDS * i + 2),
+                           .rate = C2S(C_FX + C_FX_WORDS * i + 3)};
+    }
+    flush_dcache();
+    audio_effects(fx, n);
+}
+
 static void command(void) {
+    uint32_t op = C2S(C_OP), arg = C2S(C_ARG);
+    if (op == OP_EFFECTS) {
+        effects(arg);
+        return;
+    }
     uint32_t words[C_NAME_WORDS + 1] = {0};
     for (uint32_t i = 0; i < C_NAME_WORDS; i++) words[i] = C2S(C_NAME + i);
     const char* name = (const char*)words;
-    uint32_t op = C2S(C_OP), arg = C2S(C_ARG);
     g_song = (const uint8_t*)(uintptr_t)C2S(C_PTR);
     g_song_len = (int32_t)C2S(C_LEN);
     if (op == OP_PLAY) audio_play(name, arg);

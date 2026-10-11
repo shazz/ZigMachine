@@ -9,6 +9,10 @@
 #                                        one song on the sound CPU, no cart: cycles a frame
 #   ZM_SOC=$PWD/build/soc_hp_snd ZM_INIT=sim_zm_ddr.init tools/cycles_sim.sh \
 #       build/hcycles/snd/bench/zm_ddr.init /dev/shm/sb
+#   make snd-fx SONG=union/beat_dis.sndh TUNE=1 FX_AT=6 FX_MODE=3 ZM_FRAMES=14 [FX_DROP=1]
+#                                        a scripted cart (cycles/sound/sfx_cart.c) on the cart CPU,
+#                                        the play image on the sound CPU: a song, then one
+#                                        requestSndhMode through the mailbox (tools/bard_fx_run.py)
 #
 # The link: code at SND_BASE (14 MiB into the cart window, above the pictures, at most 2 MiB),
 # data, heap (the players' 3 MiB) and a 256 KiB stack in the window's top 4 MiB, under the
@@ -72,8 +76,30 @@ $(SOC_SND)/hp_sim.json: $(HP_DEPS) soc/zm_sound_cpu.py soc/zm_sound_regs.py rtl/
 $(SND_CORE):
 	vexgen/gen.sh Snd:16384:2:4096:1:snd
 
-.PHONY: snd-fw snd-bench soc-hp-snd
+# The effects bench (cycles/sound/sfx_cart.c): the real cart-side path and the play image.
+# FX_DROP=1 is the mutant whose bsound.c drops every effect (build/hcycles/snd/fx_drop/).
+FX_AT   ?= 6
+FX_MODE ?= 3
+FXD     := $(SND)/fx$(if $(FX_DROP),_drop)
+FX_SRC  := cycles/sound/sfx_cart.c cycles/bsound.c host/audio_bridge.c
+$(FXD)/songs.c: tools/song_pack.py FORCE
+	@mkdir -p $(@D)
+	printf 'L 0 0 %s\n' '$(SONG)' >$(@D)/song.w
+	uv run python tools/song_pack.py $(ROOT)/docs/demo-tutorial.wasm $@ --log $(@D)/song.w --music $(MUSIC)
+$(FXD)/fw.elf: $(SND)/play/snd_img.o $(FX_SRC) $(FXD)/songs.c $(AUD_HDRS) cycles/snd_mailbox.h \
+		$(HCYC)/sim/common/fw.a FORCE
+	for s in $(FX_SRC) $(FXD)/songs.c; do \
+		$(RV_CC) $(SND_CFLAGS) '-DZM_SONG="$(SONG)"' -DZM_TUNE=$(TUNE) -DZM_FRAMES=$(ZM_FRAMES) \
+			-DZM_FX_AT=$(FX_AT) -DZM_FX_MODE=$(FX_MODE) $(if $(FX_DROP),-DZM_SND_FX_DROP) \
+			-c $$s -o $(@D)/c_$$(basename $$s .c).o || exit 1; done
+	$(RV_CC) $(HRV_LDFLAGS_snd) -o $@ $(@D)/c_*.o $< $(HCYC)/sim/common/fw.a -lm
+$(FXD)/zm_ddr.init: $(FXD)/fw.elf
+	$(RV_OBJCOPY) -O binary $< $(@D)/fw.bin && truncate -s %8 $(@D)/fw.bin
+	od -An -v -tx8 -w8 $(@D)/fw.bin | tr -d ' ' >$@
+
+.PHONY: snd-fw snd-bench snd-fx soc-hp-snd
 snd-fw: memmap $(SND)/play/snd.bin
 	@ls -l $(SND)/play/snd.bin
 snd-bench: memmap $(SND)/bench/zm_ddr.init
+snd-fx: memmap $(FXD)/zm_ddr.init
 soc-hp-snd: $(SOC_SND)/hp_sim.json

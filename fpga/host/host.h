@@ -44,6 +44,8 @@ typedef struct {
     u32 (*sndh_d0)(w2c_cart*, u32);  /* sndhCallD0 */
     u32 (*sndh_name_ptr)(w2c_cart*); /* sndhCallNamePtr */
     u32 (*sndh_name_len)(w2c_cart*); /* sndhCallNameLen */
+    u32 (*sfx_poll)(w2c_cart*);      /* pollSfx: the effects queue (libs/zig/sfx_queue.zig) */
+    u32 (*sfx_entries)(w2c_cart*);   /* sfxEntriesPtr */
 } host_song_bridge;
 
 extern const host_song_bridge host_songs;
