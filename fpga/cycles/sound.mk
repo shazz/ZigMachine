@@ -9,7 +9,7 @@
 #                                        one song on the sound CPU, no cart: cycles a frame
 #   ZM_SOC=$PWD/build/soc_hp_snd ZM_INIT=sim_zm_ddr.init tools/cycles_sim.sh \
 #       build/hcycles/snd/bench/zm_ddr.init /dev/shm/sb
-#   make snd-fx SONG=union/beat_dis.sndh TUNE=1 FX_AT=4 FX_MODE=3 ZM_FRAMES=12 [FX_DROP=1]
+#   make snd-fx SONG=union/beat_dis.sndh TUNE=1 FX_AT=6 FX_MODE=3 ZM_FRAMES=14 [FX_DROP=1]
 #                                        a scripted cart (cycles/sound/sfx_cart.c) on the cart CPU,
 #                                        the play image on the sound CPU: a song, then one
 #                                        requestSndhMode through the mailbox (tools/bard_fx_run.py)
@@ -78,7 +78,7 @@ $(SND_CORE):
 
 # The effects bench (cycles/sound/sfx_cart.c): the real cart-side path and the play image.
 # FX_DROP=1 is the mutant whose bsound.c drops every effect (build/hcycles/snd/fx_drop/).
-FX_AT   ?= 4
+FX_AT   ?= 6
 FX_MODE ?= 3
 FXD     := $(SND)/fx$(if $(FX_DROP),_drop)
 FX_SRC  := cycles/sound/sfx_cart.c cycles/bsound.c host/audio_bridge.c

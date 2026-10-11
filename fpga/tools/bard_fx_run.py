@@ -30,7 +30,9 @@ FPGA = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(FPGA / "tools"))
 import audio_sim_compare as cmp
 
-SONG, TUNE, FX_AT, FX_MODE, FRAMES = "union/beat_dis.sndh", 1, 4, 3, 10
+# The cart waits out the song's load after frame 1; the song is heard a lead (3 frames) after it, so
+# the switch at frame 6 lands a few frames into it, and 14 frames leave ~10 of the song to compare.
+SONG, TUNE, FX_AT, FX_MODE, FRAMES = "union/beat_dis.sndh", 1, 6, 3, 14
 MODEL = FPGA / "build/soc_hp_snd"
 ORACLE = FPGA / "build/host/oracle/sndh_oracle"
 FRAME = 735
@@ -82,16 +84,22 @@ def differences(prefix: Path, uart: str, tap: str) -> tuple[list[str], int]:
     return cmp.compare_writes(nw, ns, bw, bs, span), span
 
 
+def happy_offset() -> int:
+    """Nothing reached BARD (the mutant): the switch where the happy run's BARD applied it, else
+    where the cart asked for it, counted from the song's request."""
+    uart = FPGA / "build/hcycles/audio/bard_fx/uart.txt"
+    text = uart.read_text(errors="replace") if uart.exists() else ""
+    song, switch = re.search(r"^ZM SONG (\d+) ", text, re.MULTILINE), MODE_AT.search(text)
+    return int(switch.group(3)) - int(song.group(1)) if song and switch else (FX_AT - 1) * FRAME
+
+
 def check(out: Path, drop: bool) -> int:
     uart = (out / "uart.txt").read_text(errors="replace")
     tap = (out / "audio_tap.txt").read_text()
     song = re.search(r"^ZM SONG (\d+) \d+ (\S+)$", uart, re.MULTILINE)
     switch = MODE_AT.search(uart)
     print(f"bard_fx: song {song.group(0) if song else None}; BARD: {switch.group(0) if switch else 'no mode switch'}")
-    if switch and song:
-        at = int(switch.group(3)) - int(song.group(1))
-    else:  # nothing reached BARD: the switch where the cart asked for it, a frame after the song's
-        at = (FX_AT - 1) * FRAME
+    at = int(switch.group(3)) - int(song.group(1)) if switch and song else happy_offset()
     said = oracle(out / "with", FRAMES + 8, at)
     oracle(out / "without", FRAMES + 8, None)
     print("bard_fx: oracle: " + " / ".join(line for line in said.splitlines() if "mode" in line))
@@ -102,7 +110,9 @@ def check(out: Path, drop: bool) -> int:
     for line in with_bad[:5]:
         print("  " + line)
     print(f"bard_fx: against the oracle WITHOUT it: {len(without_bad)} differences")
-    ok = switch is not None and int(switch.group(2)) == FX_MODE and not with_bad and bool(without_bad)
+    if span <= at:
+        print(f"bard_fx: the tap ends {at - span} samples before the switch: nothing to compare")
+    ok = switch is not None and int(switch.group(2)) == FX_MODE and span > at and not with_bad and bool(without_bad)
     print("bard_fx: " + ("ok" if ok else "FAIL") + (" (the mutant)" if drop else ""))
     return 0 if ok else 1
 

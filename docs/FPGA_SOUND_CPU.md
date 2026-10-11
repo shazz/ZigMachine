@@ -61,8 +61,63 @@ Each bank has one writer, so no word ever has two masters.
   may have left `READY` set.
 - **A command.** The cart waits for the previous ACK, then writes OP (PLAY or SNDH_CALL), ARG, the song's pointer
   and length in its own image, and the name. Then it bumps `C_SEQ`. The sound CPU acts on it, then echoes the SEQ.
+  EFFECTS is the third op: see "Effects".
 - **Between commands** the sound CPU renders whenever a frame (735 samples) is due. Its stdout goes to a 64 KiB
   ring at 0x41FEF000, which the cart prints between frames.
+
+## Effects
+
+The cart's effects queue (`libs/zig/sfx_queue.zig`: `zg.sfxPlay`, `sfxStop`, `ymWrite`, `requestModVolume`,
+`requestSndhMode`) reaches the players on the board as it does in the browser. Before this, the board's song
+bridge carried only songs and `sndhCall`s, so on KESTREL with BARD, Beat Dis's keys 2 and 3 did nothing.
+
+- **ZIGGY drains the queue.** `host/audio_bridge.c` reads `pollSfx` / `sfxEntriesPtr` after the frame's song
+  request and `sndhCall`s, the order of `docs/sealed-loader.js` `postSfx`. A play whose bytes are not in the
+  cart's memory is dropped and logged (`ZM FX sfxPlay out of the cart's memory`). The cart exports join the
+  song bridge table (`tools/host_gen.py`).
+- **The players apply each entry** (`host/audio.c` `audio_effects`) as `docs/audio-worklet-sealed.js` does:
+
+| Entry | Applied on BARD (and on the native host, and on ZIGGY without BARD) |
+|---|---|
+| `requestSndhMode(m)` | `audioSndhMode(m)`, logged as `ZM SNDH mode asked m got g at <sample>` |
+| `sfxPlay` | the PCM is copied into `audioSfxBufPtr` (none while no MOD plays), then `audioSfxPlay(len, rate, loop)` |
+| `sfxStop` | `audioSfxStop(loop only)` |
+| `ymWrite` | `audioSfxYm(reg, val)` |
+| `requestModVolume` | `audioModGain(q16)` |
+
+  A refusal is logged with the count, as the browser's console does (`ZM FX ymWrite refused (n so far)`).
+- **Across the mailbox (ZIGGY to BARD)**, `OP_EFFECTS` carries ARG entries of 4 words each from `C2S` word 8:
+  `op | a << 8 | b << 16`, the PCM's DDR address, len, rate. That is 6 entries a command. A frame's queue
+  (at most 32 entries) goes over in as many commands as it needs, in order.
+- **A play's PCM stays in the cart's memory.** BARD reads it while it runs the command, after it invalidates its
+  D-cache. The browser copies the bytes as it drains the queue. So ZIGGY waits for the ACK of any command that
+  holds a play, and the cart may then reuse its buffer the next frame.
+- **Timing.** An effect takes hold at BARD's write stamp when BARD reads the command. That is up to the lead
+  (3-4 frames) ahead of what is heard, the same latency as a song request. The browser applies it at the
+  worklet's next block.
+
+**The proof.**
+
+- **Natively** (`tests/test_bard_effects.py`): union_beatdis's own key 3, sent through the glass's router
+  (`ZM_GLASS_KEYS`), goes through the cart's queue and the bridge to the players. The result equals
+  `sndh_oracle` switching to mode 3 at the same sample (`ZM_SNDH_MODE_AT`). Over 190 frames, that is
+  78,808 writes, against 149,674 without the switch. Key 2 (the default mode) changes no write.
+- **On BARD** (`tools/bard_fx_run.py`, `make snd-fx`): ZIGGY runs a scripted cart (`cycles/sound/sfx_cart.c`)
+  over the real bridge and mailbox. It starts Beat Dis at frame 1, waits out the load (about 0.6 s on BARD), and asks for mode 3 five frames
+  later. BARD runs
+  the play image every cart uses. CHORUS's writes, from the audio tap, are compared with the oracle's at the
+  sample where BARD applied the switch.
+  BARD applied the switch 3,675 samples into the song. Over the 7,466 samples the tap holds, the core
+  applied 2,667 writes, and they equal the oracle's with the switch: 0 differences. Without the switch,
+  the oracle makes 5,112 writes over the same span (the YM volumes the PCM channel replaces).
+- **The mutant** (`FX_DROP=1`) drops the request in `bsound.c`. Nothing reaches BARD, and the check fails.
+  Its core writes equal the oracle's without the switch: 0 differences. Against the oracle with the switch,
+  they part at the switch's sample (+3,675): the oracle zeroes the YM volumes and starts the PCM channel, and
+  the core plays on.
+
+The sim takes about 40 minutes (`ZM_BARD_SIM=1` runs it from the test; otherwise the test checks the last
+run again). The scripted cart waits out the song's load before it counts frames. Without that wait, the
+frames lost to the load were caught up at once, and the sim ended before the song was heard.
 
 ## Size
 
@@ -146,8 +201,8 @@ to 1, 2 and 3.
   That is why a switch either way carries on from the same sample.
 - A mode that doesn't exist is refused (the answer is 0) and logged.
 - A tune with no native driver answers 1 to modes 2 and 3, and the console says so.
-- **Browser only for now:** the board's song bridge (`fpga/host/audio_bridge.c`) carries no effects queue (`sfxPlay`,
-  `ymWrite`, `requestModVolume` are browser-only too). On the board Beat Dis plays in mode 2.
+- **On the board too** (since 2026-10-10): the song bridge carries the effects queue, so keys 1-3 switch the
+  mode there as in the browser. See "Effects".
 
 ## The gap, and the next lever
 

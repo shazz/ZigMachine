@@ -6,7 +6,11 @@
  * The cart is its exports (host.h host_song_bridge) over a small memory of its own: frame 1
  * requests ZM_SONG (subtune ZM_TUNE), frame ZM_FX_AT queues one requestSndhMode(ZM_FX_MODE),
  * as libs/zig/sfx_queue.zig lays the entry out. A frame is 1/60 s of the sys clock (the cart CPU
- * does not see the audio core's sample counter); after ZM_FRAMES the sim ends. */
+ * does not see the audio core's sample counter); after ZM_FRAMES the sim ends.
+ *
+ * The song's load on the sound CPU (depack, its 68000 RAM zeroed) takes ~0.6 s, as long as a real
+ * screen's: frame 2 waits for it (its ACK), so ZM_FX_AT counts frames of the song playing, and a
+ * frame never catches up on time lost (that would run the rest of the script at once). */
 #include <stdio.h>
 #include <string.h>
 
@@ -48,6 +52,9 @@ int main(void) {
         t += FRAME_CLOCKS;
         baudio_frame(&g_env);
         printf("ZM FXF %ld\n", g_frame);
+        if (g_frame == 1)
+            while (SND_REG(SND_S2C + S_ACK) != SND_REG(SND_C2S + C_SEQ)) baudio_report_log();
+        if (board_cycles() - t > FRAME_CLOCKS) t = board_cycles();
     }
     baudio_report();
     board_finish(0);
