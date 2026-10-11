@@ -56,12 +56,29 @@ pub fn build(parts: []const Part, theta: trig.Angle) void {
     const t = R.table; // one load of the arena pointer, not one a row
     var u_line = u_origin - u_min; // >= 0 on every line and bucket
     for (0..A.CONTENT_H) |y| {
-        var u = u_line;
-        for (t[A.CONTENT_Y + y][0..R.count]) |*b| {
-            b.* = strip[@intCast(u >> STEP)];
+        walk(&t[A.CONTENT_Y + y], u_line, du);
+        u_line += dy;
+    }
+}
+
+/// One line of the table: the strip read from `u` on, `du` a bucket. Four
+/// buckets go out as ONE word store (the cart's D-cache writes through, so
+/// every store is a bus write); the last count % 4 one at a time, never past
+/// `count`, whose u would leave the strip.
+fn walk(line: *[R.ROW]u8, u_first: i32, du: i32) void {
+    const words: *[R.WORDS]u32 = @ptrCast(@alignCast(line)); // rows are whole words
+    var u = u_first;
+    for (words[0 .. R.count / 4]) |*w| {
+        var v: u32 = 0;
+        inline for (0..4) |k| {
+            v |= @as(u32, strip[@intCast(u >> STEP)]) << (8 * k);
             u += du;
         }
-        u_line += dy;
+        w.* = v; // little-endian: bucket 4i is the low byte, as the HBL reads it
+    }
+    for (line[R.count / 4 * 4 .. R.count]) |*b| {
+        b.* = strip[@intCast(u >> STEP)];
+        u += du;
     }
 }
 
@@ -98,12 +115,19 @@ fn paint(p: Part, u_min: i32, n: usize, du: i32) void {
     const half = HALF_ROWS * p.sy;
     const lo = @max(0, ((p.y - half - u_min) >> STEP) - 1);
     const hi = @min(@as(i32, @intCast(n)) - 1, ((p.y + half - u_min) >> STEP) + 1);
+    // bar.png's row under u, read backwards as the port measured, is
+    // trig.mul(y - u, inv) >> 16 = ((y - u) * inv) >> 32 (the product's top
+    // word: |(y - u) * inv| >> 16 stays far inside an i32 within the bar). u
+    // moves one entry at a time, so the product moves by a constant: one 64-bit
+    // subtract an entry instead of a 64-bit multiply.
+    const u_lo = u_min + (lo << STEP) + (1 << (STEP - 1)); // entry lo's centre
+    var prod: i64 = @as(i64, p.y - u_lo) * p.inv;
+    const dprod: i64 = @as(i64, p.inv) << STEP;
     var i = lo;
     while (i <= hi) : (i += 1) {
-        const u = u_min + (i << STEP) + (1 << (STEP - 1)); // the entry's centre
-        // bar.png's row under u, read backwards as the port measured
-        const row = (trig.mul(p.y - u, p.inv) >> 16) + HALF_ROWS;
+        const row = @as(i32, @intCast(prod >> 32)) + HALF_ROWS;
         if (row >= 0 and row < R.BAR_ROWS) strip[@intCast(i)] = map[@intCast(row >> 1)];
+        prod -= dprod;
     }
 }
 
