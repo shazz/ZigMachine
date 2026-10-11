@@ -5,9 +5,8 @@
 // the same pattern on every row, changing only when rasters.count does. So a
 // frame needs the ramp back only where LAST frame drew over it: the logo's
 // clipped rectangle and the scrolltext's band. Everything else is still the
-// ramp it was. On the board this is what the frame costs: the blitter walks
-// pixels at ~31 clocks each, and repainting all 112,000 of them under a logo
-// that covers about 79,000 was two thirds of the frame.
+// ramp it was. Every pixel the blitter writes costs, so all 112,000 of them
+// under a logo that covers about 79,000 are repainted only when they must be.
 //
 // And at count = 1 (ORIGINAL mode's bars, theta = 0) the ramp is ONE index,
 // FIRST_BUCKET, on every pixel. So the logo's transparent index is recoded to
@@ -88,21 +87,17 @@ pub const Ramp = struct {
     }
 };
 
-/// The ramp over `r`: the CPU writes its first row and the blitter doubles it
-/// down (1, 2, 4 ... rows a copy), so a full plane is nine operations.
+/// The ramp over `r`: ONE blitter op whose source is rasters.row in cart RAM,
+/// read at stride 0 for every row. The plane is never its own source: a
+/// plane-to-plane copy (the old "write the first row, double it down") makes
+/// CHISEL wait for each write before the next read wherever source and
+/// destination spans may overlap, ~31 clocks a pixel on the board, which was
+/// 3.5 Mc of a ZIG frame; from cart RAM it streams.
 fn paint(bl: *zg.Blitter, fb: *zg.LogicalFB, r: Rect) void {
     if (r.isEmpty()) return;
     const x0: usize = @intCast(r.x0);
     const w: usize = @intCast(r.x1 - r.x0);
-    const h: u16 = @intCast(r.y1 - r.y0);
-    const top = @as(usize, @intCast(r.y0)) * fb.stride + x0;
-    @memcpy(fb.fb[top..][0..w], rasters.row[x0..][0..w]);
-    var done: u16 = 1;
-    while (done < h) {
-        const n = @min(done, h - done);
-        bl.blitCopy(fb, @intCast(r.x0), @intCast(r.y0 + done), fb, @intCast(r.x0), @intCast(r.y0), @intCast(w), n);
-        done += n;
-    }
+    bl.blitRow(fb, @intCast(r.x0), @intCast(r.y0), rasters.row[x0..][0..w], @intCast(r.y1 - r.y0), null);
 }
 
 /// The ramp over `r` at count = 1, where every column is FIRST_BUCKET.

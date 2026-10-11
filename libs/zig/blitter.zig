@@ -198,18 +198,32 @@ pub const Blitter = struct {
         const cw = @min(w, src_w - sx);
         const ch: u16 = @intCast(@min(h, rows - sy));
         if (cw == 0 or ch == 0) return;
-        const addr = @intFromPtr(pixels.ptr) + @as(usize, sy) * src_w + sx;
+        self.blitAbs(dst, dx, dy, @intFromPtr(pixels.ptr) + @as(usize, sy) * src_w + sx, src_w, cw, ch, key);
+    }
+
+    // `row` (a run of 8bpp pixels anywhere in the cart's RAM) onto EVERY one of
+    // `h` rows of `dst` from (dx,dy): one op whose source stride is 0. A pattern
+    // that is the same on every row (a raster ramp, a gradient strip) is then
+    // never kept as a picture, and the blitter reads cart RAM, not the plane it
+    // writes — a plane-to-plane copy must wait for each write before its next
+    // read where the spans may overlap; this one never has to.
+    pub fn blitRow(self: *Blitter, dst: *LogicalFB, dx: i16, dy: i16, row: []const u8, h: u16, key: ?u8) void {
+        if (row.len == 0 or h == 0) return;
+        self.blitAbs(dst, dx, dy, @intFromPtr(row.ptr), 0, @intCast(row.len), h, key);
+    }
+
+    fn blitAbs(self: *Blitter, dst: *LogicalFB, dx: i16, dy: i16, addr: usize, stride: u16, w: u16, h: u16, key: ?u8) void {
         self.setDest(dst);
         self.w8(hw.BLIT_CON2, hw.CON2_SRC_ABS);
         self.w32(hw.BLIT_B_BASE, @intCast(addr));
-        self.w16(hw.BLIT_B_STRIDE, src_w);
+        self.w16(hw.BLIT_B_STRIDE, stride);
         self.w8(hw.BLIT_CON, if (key != null) hw.CON_USEB | hw.CON_KEY_EN else hw.CON_USEB);
         self.w8(hw.BLIT_MINTERM, hw.MT_B);
         self.w8(hw.BLIT_COLOR_KEY, key orelse 0);
         self.wi16(hw.BLIT_X0, dx);
         self.wi16(hw.BLIT_Y0, dy);
-        self.w16(hw.BLIT_W, cw);
-        self.w16(hw.BLIT_H, ch);
+        self.w16(hw.BLIT_W, w);
+        self.w16(hw.BLIT_H, h);
         self.w8(hw.BLIT_COMMAND, hw.BLIT_CMD_BLIT);
         hw.hwBlit();
     }
