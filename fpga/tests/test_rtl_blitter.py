@@ -74,6 +74,13 @@ MUTANTS = [
     ("reuse_takes_an_older_word", "zm_blit_pxq.v", "if (h_need[2]) hw_c <= wc;", "if (h_need[2] && hw_c == 0) hw_c <= wc;"),
     ("reuse_ignores_the_word_address", "zm_blit_px.v", "lw_c == p_dst[22:2]", "lw_c[20:4] == p_dst[22:6]"),
     ("merged_byte_in_the_wrong_lane", "zm_blit_pxq.v", "c_data[{h_dst[1:0], 3'b000} +: 8]", "c_data[{~h_dst[1:0], 3'b000} +: 8]"),
+    # the row walk (zm_blit_row): the first row from a settled box, the next one in the op's direction
+    ("first_row_from_the_box_before_it_settles", "zm_blit_row.v", "s_j <= ys - yorg;", "s_j <= s_y3 - yorg;"),
+    ("row_walk_ignores_the_direction", "zm_blit_row.v", "s_str3 <= dn ? -str : str;", "s_str3 <= str;"),
+    ("row_walk_never_moves", "zm_blit_row.v", "wire moved = y == ry_nx;", "wire moved = 1'b0;"),
+    ("source_origin_x_ignored", "zm_blit_row.v", "base - {{5{xorg[17]}}, xorg}", "base"),
+    ("upward_line_walks_down", "zm_blit_core.v", "is_line && !(sx(f_y0) < sx(f_y1))", "1'b0"),
+    ("desc_blit_first_dest_row_is_the_top", "zm_blit_core.v", "is_blit && f_con[6] ? ey1 - 18'sd1 : ", ""),
 ]
 
 

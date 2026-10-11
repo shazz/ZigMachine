@@ -13,6 +13,9 @@
 // The products are registered a clock before the sums and compares that use them (one
 // clock held a 16x16 multiply, a 25-bit add and three window compares: -2.5 ns at 100 MHz
 // on the board, Vivado 2026-10-10).
+// The box is written at state 2, three clocks before the core's `go` reaches the sequencers:
+// zm_blit_row's setup pipeline (each channel's first row) takes exactly those three clocks,
+// so a box written later would need `go` later too.
 `default_nettype none
 `include "memmap.vh"
 

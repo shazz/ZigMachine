@@ -877,3 +877,17 @@ ABI rather than a Zig API, apps in any language sit on it.
 - hp sim, blitter cart: GLENZ 39 -> 60+ fps, RUBBER 18 -> 31 (now the cart's own CPU work), TILES 9.6 -> 53, DELAY 25 -> 59; tsl_hybridglenz 12.9 -> 19.4 fps (the rest is its CPU). Every hash unchanged.
 - An `ordered` BLIT (a smear or scroll over its own destination) stays at the v1 rate.
 - About +700 LUT and +500 FF for the blitter (Vivado OOC), no BRAM.
+
+## 2026-10-11 — The blitter's addresses follow the sequencer's y; no multiplier on the pixel path
+
+**Status:** accepted
+**Context:** With the f32 FPU cart core the full SoC (87.5 % LUT) missed 100 MHz by 0.45 ns on 29 endpoints, all the same family: a register -> `y - y0` -> DSP (`* stride`) -> `+ base` -> `+ x` into the pixel unit's first register (`zm_blit_px` `p_a`/`p_b`; `p_dst` the same minus the subtract). Without the FPU it met by 0.02 ns.
+**Decision:** `zm_blit_row` holds, per channel (A, B in the BLIT sequencer; D in the core for all four ops), the address of the row the sequencer is on and of the next one in the op's direction (`dn`: BLIT DESC, a LINE drawn upwards); every sequencer moves y by at most one row a clock and one way per op, so the pixel address is a compare, a 2:1 mux and `+ x`. The first row's product comes from a free-running 3-clock setup pipeline fed by the check's box, which is final three clocks before `go` reaches the sequencers: no clock added to any op.
+**Alternatives considered:**
+- A register stage between the sequencers and the pixel unit (a skid slice with valid/ready): one clock of latency per op and still a DSP + two adders in one clock, only moved.
+- Pure incremental counters in each sequencer (+1 per pixel, +stride per row): exact for BLIT/FILL, but TRIANGLE starts each span at an arbitrary x and LINE moves both ways; the row walk covers all four with one module.
+- Starting the walk after `go` (multiply after the start): +3 clocks on every op.
+**Consequences:**
+- Results and clocks per op unchanged (`blitter_tb` traces, cycles column included, identical in fast/random/deep); hp sim blitter cart equal to `scene_hash.mjs` and native.
+- Vivado OOC P&R at 10 ns: WNS +0.108 -> +0.188 ns, the address family out of the worst paths (the worst is now the check's `bx1`); synthesis estimate +0.412 -> +0.736. About +490 LUT / +435 FF.
+- A hidden contract: the box must be final three clocks before `go` (zm_blit_chk's header says so; a break test computes the first row a clock early and is caught).

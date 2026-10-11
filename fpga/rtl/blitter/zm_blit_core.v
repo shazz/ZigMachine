@@ -94,17 +94,22 @@ module zm_blit_core (
         .cx0(cx0), .cx1(cx1), .ey0(ey0), .ey1(ey1), .hx(hx_t), .hy(hy_t), .px_valid(v[3]), .px_x(x_t),
         .px_y(y_t), .px_bimm(bi_t), .px_mt(mt_t), .px_ready(px_ready), .done(sdone[3]));
 
-    // One destination address generator for all four: D = dlin + y * stride + x.
+    // One destination address generator for all four: D = dlin + y * stride + x, walked with
+    // y from the op's first row (zm_blit_row), each sequencer's own: BLIT's (DESC: the box's
+    // bottom), a LINE's y0 (walking up when y1 < y0), else the box's top.
     wire signed [17:0] px_y = is_blit ? y_b : is_fill ? y_f : is_line ? y_l : y_t;
     wire signed [17:0] px_x = is_blit ? x_b : is_fill ? x_f : is_line ? x_l : x_t;
-    wire [22:0] drow;
-    zm_blit_row rd (.base(dlin), .stride(f_d_stride), .y(px_y), .addr(drow));
+    wire signed [17:0] d_ys = is_blit && f_con[6] ? ey1 - 18'sd1 : is_line ? sx(f_y0) : ey0;
+    wire d_dn = is_blit ? f_con[6] : is_line && !(sx(f_y0) < sx(f_y1));
+    wire [22:0] d_addr;
+    zm_blit_row rd (.clk(clk), .base(dlin), .stride(f_d_stride), .xorg(18'sd0), .yorg(18'sd0), .ys(d_ys),
+        .dn(d_dn), .ld(|go), .y(px_y), .x(px_x), .addr(d_addr));
     wire [7:0] px_mt = is_blit ? f_mt : is_fill ? mt_f : is_line ? mt_l : mt_t;
     wire [7:0] px_bimm = is_fill ? bi_f : is_line ? bi_l : is_blit ? 8'd0 : bi_t;
     // {KEY_EN, USEC, USEB, USEA}: BLIT's own, FILL/LINE/TRIANGLE read the destination only
     wire [3:0] px_flags = is_blit ? {f_con[3], f_con[2], f_con[1], f_con[0]} : 4'b0100;
     wire px_idle, wrote;
-    zm_blit_px pxu (.clk(clk), .rst(rst), .px_valid(|v), .px_ready(px_ready), .px_dst(drow + {5'd0, px_x}),
+    zm_blit_px pxu (.clk(clk), .rst(rst), .px_valid(|v), .px_ready(px_ready), .px_dst(d_addr),
         .px_aaddr(aaddr), .px_baddr(baddr), .px_bimm(px_bimm), .px_mt(px_mt), .px_key(f_key), .px_flags(px_flags),
         .ordered(is_blit && overlap), .px_idle(px_idle), .wrote(wrote), .rd_req_valid(rd_req_valid), .rd_req_ready(rd_req_ready),
         .rd_req_addr(rd_req_addr), .rd_rsp_valid(rd_rsp_valid), .rd_rsp_data(rd_rsp_data),
