@@ -32,6 +32,9 @@ def fills(s: Script) -> None:
     do(s, FILL, mt=mm.MT_OR_BC, con2=mm.CON2_FILL_MT | mm.CON2_HALFTONE_EN)
     do(s, FILL, mt=mm.MT_B, con2=mm.CON2_FILL_MT)
     do(s, FILL, mt=mm.MT_XOR_BC, con2=0)  # FILL ignores MINTERM without FILL_MT
+    # back to back on one word: the second op must read what the first wrote (no word kept across ops)
+    for _ in range(2):
+        do(s, FILL, mt=mm.MT_XOR_BC, con2=mm.CON2_FILL_MT, color=0x5A, w=3, h=1, x0=8, y0=7)
 
 
 def lines(s: Script) -> None:
@@ -116,7 +119,17 @@ def blits(s: Script) -> None:
             x0=0,
             y0=0,
         )
-    do(s, BLIT, con=mm.CON_USEB, b=mm.REGION_BYTES - 10, w=11, h=1)  # reads one byte past the region
+    # Smears: the source one pixel / one row behind the destination in the walk order, so each
+    # pixel reads the byte the one before it (or the row before it) has just written. The pixel
+    # unit must not read ahead of those writes (zm_blit_chk `overlap`, zm_blit_px `ordered`).
+    smears = ((mm.CON_USEB, 99, 40, 3, 0), (mm.CON_USEB, 101, 40, 3, DESC), (mm.CON_USEA, 99, 24, 2, 0))
+    smears += ((mm.CON_USEA, 100 - 320, 8, 6, 0), (mm.CON_USEB, 100 + 320, 8, 6, DESC))
+    for use, src, w, h, con in smears:
+        s.lines.append("seed 9")
+        a, b = (PLANE + src, 0) if use == mm.CON_USEA else (0, PLANE + src)
+        mt = mm.MT_A if use == mm.CON_USEA else mm.MT_B
+        do(s, BLIT, con=use | con, d=PLANE + 100, a=a, b=b, as_=320, bs=320, ds=320, mt=mt, w=w, h=h, x0=0, y0=0)
+    do(s, BLIT, con=mm.CON_USEB, mt=mm.MT_B, b=mm.REGION_BYTES - 10, w=11, h=1)  # reads one byte past the region
     do(s, BLIT, b=mm.REGION_BYTES - 11, w=11, h=1)  # ... exactly to its end
     do(s, BLIT, b=mm.REGION_BYTES - 5, bs=1000, w=2, h=1)
     abs_ = regs(con=mm.CON_USEB, con2=mm.CON2_SRC_ABS, w=16, h=4, x0=0, y0=0, mt=mm.MT_B)

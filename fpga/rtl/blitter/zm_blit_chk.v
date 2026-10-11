@@ -6,6 +6,10 @@
 //     or inside ONE readable window (SRC_ABS).
 // `ok` low means "draw nothing, CYCLES = 0", which is what the Zig machine does for
 // every one of its early returns.
+// `overlap` (BLIT): a used source rectangle may share a byte with the destination box, so the
+// pixel unit must not read A or B ahead of an earlier pixel's write (zm_blit_px `ordered`).
+// The test is on spans, conservative: source [base, base + (h-1)*stride + w) against the
+// destination [dlin, dlin + (ey1-1)*ds + ex1), both linear and below 2^23 once the checks pass.
 // The products are registered a clock before the sums and compares that use them (one
 // clock held a 16x16 multiply, a 25-bit add and three window compares: -2.5 ns at 100 MHz
 // on the board, Vivado 2026-10-10).
@@ -23,13 +27,15 @@ module zm_blit_chk (
     input  wire signed [17:0] cx0, cy0, cx1, cy1,
     output reg                done,
     output reg                ok,
-    output reg signed [17:0]  ex0, ey0, ex1, ey1
+    output reg signed [17:0]  ex0, ey0, ex1, ey1,
+    output reg                overlap
 );
     reg [2:0] st;
     reg signed [17:0] bx0, by0, bx1, by1;
     reg [31:0] prod_a, prod_b;
     reg [25:0] dlast_q;
     reg blit_ok_q;
+    reg [23:0] a_hi, b_hi;   // the sources' exclusive ends, linear
     wire is_rect = cmd == ZM_BLIT_CMD_FILL || cmd == ZM_BLIT_CMD_BLIT;
     wire is_poly = cmd == ZM_BLIT_CMD_LINE || cmd == ZM_BLIT_CMD_TRIANGLE;
     wire signed [17:0] vx2 = cmd == ZM_BLIT_CMD_TRIANGLE ? x2 : x0;  // a LINE has two vertices
@@ -62,6 +68,14 @@ module zm_blit_chk (
     wire blit_ok = cmd != ZM_BLIT_CMD_BLIT
         || (w != 16'd0 && h != 16'd0 && (!use_a || src_ok(a_base, prod_a)) && (!use_b || src_ok(b_base, prod_b)));
 
+    wire [22:0] a_lin = abs_src ? a_base[22:0] : ZM_HW_VIDEO_BASE + a_base[22:0];
+    wire [22:0] b_lin = abs_src ? b_base[22:0] : ZM_HW_VIDEO_BASE + b_base[22:0];
+    wire [22:0] d_lin = ZM_HW_VIDEO_BASE + d_base[22:0];
+    wire [23:0] d_hi = {1'b0, d_lin} + {1'b0, dlast_q[22:0]};
+    function apart(input [22:0] lo, input [23:0] hi);  // [lo, hi) and the destination share no byte
+        apart = hi <= {1'b0, d_lin} || d_hi <= {1'b0, lo};
+    endfunction
+
     always @(posedge clk) begin
         done <= 1'b0;
         case (st)
@@ -83,12 +97,15 @@ module zm_blit_chk (
                 blit_ok_q <= blit_ok;
                 st <= 3'd3;
             end
-            3'd3: begin  // the destination's last byte
+            3'd3: begin  // the destination's last byte; the sources' ends
                 dlast_q <= dlast;
+                a_hi <= {1'b0, a_lin} + {1'b0, prod_a[22:0]} + {8'd0, w};
+                b_hi <= {1'b0, b_lin} + {1'b0, prod_b[22:0]} + {8'd0, w};
                 st <= 3'd4;
             end
             default: begin
                 ok <= dest_ok && blit_ok_q;
+                overlap <= (use_a && !apart(a_lin, a_hi)) || (use_b && !apart(b_lin, b_hi));
                 done <= 1'b1;
                 st <= 3'd0;
             end

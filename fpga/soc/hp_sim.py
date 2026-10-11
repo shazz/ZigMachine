@@ -51,6 +51,7 @@ FPGA = Path(__file__).resolve().parent.parent
 OUT = FPGA / "build/soc_hp"
 SYS_CLK, COMP_CLK, PIX_CLK = int(100e6), int(125e6), int(40e6)
 HP_LATENCY = 20  # sys clocks to an HP read's first beat (soc/zm_memtiming.py HP: 24 at 150 MHz)
+HP_READS = 8  # read bursts an HP port accepts at a time (UG585 5.3.1, its command FIFO)
 BOOT_DELAY = 64  # sys clocks before "U-Boot" releases the CPU
 CTRL_RUN = (0x8, 0x1)  # gen/glass_map.py REG_CTRL, CTRL_RUN
 FINISH_LOC = 31  # the last CSR page: the board has nothing there
@@ -92,7 +93,7 @@ def make_soc(
     soc.crg = _CRG({name: platform.request(f"{name}_clk") for name in ("sys", "comp", "pix")})
     add_blitter(soc, platform, hp2, blit_break)  # the board's `--blit`: zm_blit on HP2 (soc/zm_blit_soc.py)
     ps = [zm_board_mem.hp_slice(soc, f"hp{i}", hp) for i, hp in enumerate((hp0, hp1, hp2, hp3))]  # as the board
-    soc.ddr = ZMSimAXIRAM(WINDOW, ps, latency=HP_LATENCY, wr32=True)  # the board: WRCHAN 32-bit
+    soc.ddr = ZMSimAXIRAM(WINDOW, ps, latency=HP_LATENCY, wr32=True, reads=HP_READS)  # the board: WRCHAN 32-bit
     soc.uboot = _UBoot(soc.glass.axi, BOOT_DELAY)
     soc.csr.add("sim_finish", n=FINISH_LOC)
     soc.sim_finish = SimFinish()

@@ -1,6 +1,6 @@
 // CXXRTL testbench for rtl/blitter/zm_blit.v against the Zig oracle (tests/blitter_ref).
 //
-//   blitter_tb <script> <expected trace> [fast|random [seed]] [out trace]
+//   blitter_tb <script> <expected trace> [fast|random|deep [seed]] [out trace]
 //
 // The script is the oracle's (see tests/blitter_ref/blitter_ref.zig); the registers are
 // written through the CPU port as a CPU writes the region (byte enables, word index), the
@@ -8,7 +8,13 @@
 // after every `run` the trace line (cycles, status, hash of the whole window) must equal
 // the oracle's. `random` answers the ports like a loaded DDR: ready on three clocks in
 // four, reads 1 to 4 clocks late, wr_pending up for 0 to 5 clocks after a write; and it
-// drops register writes at an op in flight, which the block must ignore.
+// drops register writes at an op in flight, which the block must ignore. `deep` is
+// `random` with the reads 16 to 31 clocks late (an HP port's latency), so the pixel
+// unit runs with dozens of reads in flight.
+// The memory applies each access when the port takes it (a read and a write in the same
+// clock: the read first), which is the port's contract. It also enforces the half of the
+// contract a memory cannot see by itself: no write may be taken while an earlier read of
+// one of its bytes is still unanswered (soc/zm_blit_hp.py lets writes pass reads).
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -26,9 +32,9 @@ static const uint32_t LO = 0x100000, HI = 0x700000, VIDEO = 0x300000, REGS_END =
 static const uint8_t PAL[8] = {0, 1, 2, 0x55, 0xAA, 0xFF, 0x0F, 0xF0};
 static std::vector<uint8_t> mem(HI, 0);
 static uint64_t rng = 1, lcg = 12345;
-static bool randomize = false;
+static bool randomize = false, deep = false;
 static long now = 0, bad = 0, pending_until = 0;
-struct Rsp { long due; uint32_t data; };
+struct Rsp { long due; uint32_t data, addr; };
 static std::deque<Rsp> rsp_q;
 
 static uint64_t next() { rng ^= rng << 13; rng ^= rng >> 7; rng ^= rng << 17; return rng; }
@@ -72,13 +78,19 @@ static void tick() {
         else {
             uint32_t w;
             memcpy(&w, &mem[a & ~3u], 4);
-            rsp_q.push_back({now + 1 + (randomize ? long(rnd(4)) : 0), w});
+            long late = deep ? 16 + long(rnd(16)) : randomize ? long(rnd(4)) : 0;
+            rsp_q.push_back({now + 1 + late, w, a});
         }
     }
     if (top.p_wr__req__valid.get<bool>() && wr) {
         uint32_t a = top.p_wr__req__addr.get<uint32_t>(), d = top.p_wr__req__data.get<uint32_t>();
         unsigned strb = top.p_wr__req__strb.get<unsigned>();
-        if (!in_window(a) || (a & 3) || strb == 0 || (strb & (strb - 1))) bad++;
+        for (const Rsp &r : rsp_q)  // an unanswered earlier read of one of these bytes
+            if ((r.addr & ~3u) == a && (strb >> (r.addr & 3) & 1)) {
+                std::printf("write %06x strb %x taken over the unanswered read of %06x\n", a, strb, r.addr);
+                bad++;
+            }
+        if (!in_window(a) || (a & 3) || strb == 0 || strb > 15) bad++;
         else
             for (int i = 0; i < 4; i++)
                 if (strb >> i & 1) mem[a + i] = uint8_t(d >> (8 * i));
@@ -125,8 +137,9 @@ static long run(unsigned cmd, bool junk, std::string &err) {
 }
 
 int main(int argc, char **argv) {
-    if (argc < 3) return std::puts("usage: blitter_tb <script> <expected> [fast|random [seed]] [out]"), 2;
-    randomize = argc > 3 && !strcmp(argv[3], "random");
+    if (argc < 3) return std::puts("usage: blitter_tb <script> <expected> [fast|random|deep [seed]] [out]"), 2;
+    deep = argc > 3 && !strcmp(argv[3], "deep");
+    randomize = deep || (argc > 3 && !strcmp(argv[3], "random"));
     lcg += argc > 4 ? strtoull(argv[4], nullptr, 0) : 0;
     std::ifstream script(argv[1]), expect(argv[2]);
     std::ofstream out(argc > 5 ? argv[5] : "/dev/null");
