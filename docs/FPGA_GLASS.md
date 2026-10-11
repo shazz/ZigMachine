@@ -210,7 +210,12 @@ modelled (a script holds a press for a frame; the latch has its own RTL tests).
 `tests/test_board_pointer.py` drives the GEM desktop with it: a click on the
 FLOPPY DISK icon and the double-click pulse give the hashes of the browser's own
 `pointer()` calls, a malformed script is refused, and two mutant routers (the
-call dropped, x and y swapped) are caught.
+call dropped, x and y swapped) are caught. In the board-SoC sim (2026-10-11), a
+GEM image built with `ZM_SIM_POINTER=2:7828,3:107828,4:7828,5:207828,6:7828` (move
+to the floppy, click, double-click) gave, for frames 2/4/6, `71dbd6ea…`,
+`51dfe723…` (icon selected), `22934ae1…` (`Drive A: is empty`), total
+`b84fbef4…`: the native host's `ZM_GLASS_POINTER` run and `scene_hash.mjs` with
+the same `--call F:pointer:40,30,b`, byte for byte.
 
 ### The joypad (`JOY`, `glass/src/pad.zig`)
 
@@ -607,7 +612,9 @@ listed is still staged (a cart being tried out).
 
 **GEM on the shelf** (`demo-gem.zmd`, the cart `apps/zig/scenes/gem_desktop.zig`
 over the ROM's desktop). Its board images are 1.66 MB (`board/gem/fw.bin`) and
-1.68 MB (`board_snd/gem/fw.bin`); its fat disk is 247 KB. Mouse and keyboard come
+1.68 MB (`board_snd/gem/fw.bin`); its fat disk is 247 KB. It boots in the board-SoC
+sim (`tools/hp_sim_run.py gem --frames 6 --every 2`: `ok`, no underrun, hashes
+= `scene_hash.mjs` = the native host). Mouse and keyboard come
 through the glass like any cart's (it owns the keyboard, so every key goes to
 `key()`). What it does not get on the board yet:
 
