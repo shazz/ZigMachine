@@ -134,13 +134,16 @@ module zm_video_plane (
         nbase <= nbase_q;
     end
 
-    // Fullscreen: s0 = hs % stride by restoring division, one bit a clock.
+    // Fullscreen: s0 = hs % stride by restoring division, one bit a clock. It
+    // divides by stage 1's stride (the same value: DIV runs after `go`, with
+    // the inputs held), not the latch's, whose read goes through the command
+    // path's plane mux (the comp path after the address was fixed).
     always @(posedge clk)
         if (st == IDLE) {s0, num, k} <= {16'd0, hs, 5'd16};
         else if (st == DIV && k != 5'd0) begin
             k <= k - 5'd1;
             num <= num << 1;
-            s0 <= rem_t >= {1'b0, stride} ? rem_t[15:0] - stride : rem_t[15:0];
+            s0 <= rem_t >= {1'b0, stride_i} ? rem_t[15:0] - stride_i : rem_t[15:0];
         end
 
     always @(posedge clk) begin

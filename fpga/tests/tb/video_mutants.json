@@ -79,7 +79,7 @@
   {
     "id": "fs_no_hscroll",
     "file": "zm_video_plane.v",
-    "old": "rem_t >= {1'b0, stride} ? rem_t[15:0] - stride : rem_t[15:0]",
+    "old": "rem_t >= {1'b0, stride_i} ? rem_t[15:0] - stride_i : rem_t[15:0]",
     "new": "16'd0",
     "catch": "s:fullscreen"
   },
