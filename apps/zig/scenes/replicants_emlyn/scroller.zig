@@ -46,6 +46,8 @@ const zg = @import("zigos");
 const blit = zg.blit;
 const wave = zg.wave;
 const A = @import("assets.zig");
+const Rect = @import("dirty.zig").Rect;
+const REACH = @import("curve.zig").REACH;
 
 /// screen.js:76, exactly. Its authors' words, not ours.
 pub const TEXT = "abcdefghij      THE FUCKING BEST REPLICANTS ST AMIGOS PRESENTS:- EMLYN HUGUES FOOTBALL - BROKEN BY THE REPLICANTS     ONLY A FEW FUCKINGS TO NOCKTANAL THE CANADIANS DICKHEAD, OVERWANKERS DAY AFTER DAY YEAR AFTER YEAR YOU ARE LAMEST AND LAMEST JUST SOME GREETINGS TO OUR BEST FRIENDS: MCA, AUTOMATION, HOTLINE, TCB, TEX, DEREK MD...  CREDITS FOR THIS SCREEN                    CODING -VICKERS-                    AMIGAFONT RIPPER -VANTAGE- FROM ST CONNEXION                    BIG REPLICANTS LOGO BY -PULSAR- FROM NEXT                    MUSIX -MAD MAX- FROM -T-          END OF SCROLL       ";
@@ -61,6 +63,7 @@ const START_C = WIDE * TILE_C; // 704: the ring loops i = 0 to wide INCLUSIVE
 pub const ROW = 390 / 2 + @as(i32, @intCast(A.CONTENT_Y)); // draw(390) halved, on the raster
 const ORIGIN_X: i32 = @intCast(A.CONTENT_X);
 const RASTER_W: i32 = @intCast(A.CONTENT_W + 2 * A.CONTENT_X); // 400, the whole plane row
+const RASTER_H: i32 = @intCast(A.CONTENT_H + 2 * A.CONTENT_Y); // 280
 
 /// Canvas x at which a letter's right edge reaches plane column 0: -144, not
 /// the remake's -64 (which is plane column 8, still inside the left border).
@@ -80,6 +83,13 @@ comptime {
 comptime {
     @setEvalBranchQuota(4 * TEXT.len + 1000);
     for (TEXT) |c| if (c < FIRST_CHAR or c >= FIRST_CHAR + TILES) @compileError("scrolltext character outside font.png");
+}
+
+/// Every pixel draw() can touch, the whole raster wide: the tile's own rows
+/// when flat, and the curve's reach above and below them when bent.
+pub fn band(flat: bool) Rect {
+    const m: i32 = if (flat) 0 else REACH;
+    return .{ .x0 = 0, .y0 = @max(0, ROW - m), .x1 = RASTER_W, .y1 = @min(RASTER_H, ROW + TILE + m) };
 }
 
 /// `Curve` is the cart's: curve.zig's CurveFixed or CurveF32 (with the Mode

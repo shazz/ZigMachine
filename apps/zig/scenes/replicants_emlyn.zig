@@ -38,8 +38,9 @@
 //     the distortion lab. Both grow in and flatten out over the same 20 frames.
 //
 // ONE plane, one palette: 107 entries of art (unquantized) + up to 149 raster
-// buckets. Per frame: a colour table, a 400-byte pattern per plane row, one
-// clipped logo blit and 14 glyphs.
+// buckets. Per frame: a colour table, the 400-byte ramp pattern put back where
+// last frame drew over it (all of it only when the bucket count changes:
+// emlyn/dirty.zig), one clipped logo blit and 14 glyphs.
 //
 // NUMBERS. The remake computes in JavaScript doubles, and so did this port
 // until the board's cart CPU (rv32im, no FPU) measured it at 9 Mc a frame in

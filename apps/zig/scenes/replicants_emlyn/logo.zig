@@ -23,6 +23,7 @@ const zg = @import("zigos");
 const blit = zg.blit;
 const trig = zg.fixtrig;
 const A = @import("assets.zig");
+const Rect = @import("dirty.zig").Rect;
 
 // Plane column X is content x + CONTENT_X, plane row Y is content y + CONTENT_Y
 // — the same canvas-to-raster mapping rasters.zig uses for the ramp.
@@ -102,19 +103,29 @@ pub fn Logo(comptime Bob: type) type {
         /// stopping at an edge that is no longer there. Only the CLIPPING
         /// changes — the position arithmetic is still the remake's.
         ///
-        /// By the BLITTER, cookie-cut on the transparent index: up to 112,000
-        /// keyed pixels a frame were 1.8 Mc of the cart CPU's 3.3 (measured on
-        /// the board's core). The CPU only clips the 2190x314 image to the
-        /// raster, so the blitter walks the visible part and nothing else.
-        pub fn draw(self: *const Self, bl: *zg.Blitter, fb: *zg.LogicalFB, image: blit.Image) void {
+        /// This is that clipped rectangle (empty when the logo is off the
+        /// raster): draw() blits it, and dirty.zig restores the ramp under it.
+        pub fn rect(self: *const Self, fb: *const zg.LogicalFB, image: blit.Image) Rect {
             const x = @divExact(CX + self.posx - HANDLE_X * 2, 2) + ORIGIN_X;
             const y = self.bob.row() + ORIGIN_Y;
-            const x0 = @max(0, x);
-            const y0 = @max(0, y);
-            const x1 = @min(@as(i32, @intCast(fb.fb_w)), x + @as(i32, @intCast(image.w)));
-            const y1 = @min(@as(i32, @intCast(fb.fb_h)), y + @as(i32, @intCast(image.h)));
-            if (x0 >= x1 or y0 >= y1) return;
-            bl.blitImage(fb, @intCast(x0), @intCast(y0), image.data, @intCast(image.w), @intCast(x0 - x), @intCast(y0 - y), @intCast(x1 - x0), @intCast(y1 - y0), A.TRANSPARENT);
+            return .{
+                .x0 = @max(0, x),
+                .y0 = @max(0, y),
+                .x1 = @min(@as(i32, @intCast(fb.fb_w)), x + @as(i32, @intCast(image.w))),
+                .y1 = @min(@as(i32, @intCast(fb.fb_h)), y + @as(i32, @intCast(image.h))),
+            };
+        }
+
+        /// By the BLITTER, cookie-cut on `key` (null: an opaque copy, see
+        /// dirty.zig): up to 112,000 keyed pixels a frame were 1.8 Mc of the
+        /// cart CPU's 3.3 (measured on the board's core). The CPU only clips
+        /// the 2190x314 image to the raster, so the blitter walks the visible
+        /// part and nothing else.
+        pub fn draw(self: *const Self, bl: *zg.Blitter, fb: *zg.LogicalFB, image: blit.Image, r: Rect, key: ?u8) void {
+            if (r.isEmpty()) return;
+            const x = @divExact(CX + self.posx - HANDLE_X * 2, 2) + ORIGIN_X;
+            const y = self.bob.row() + ORIGIN_Y;
+            bl.blitImage(fb, @intCast(r.x0), @intCast(r.y0), image.data, @intCast(image.w), @intCast(r.x0 - x), @intCast(r.y0 - y), @intCast(r.x1 - r.x0), @intCast(r.y1 - r.y0), key);
         }
     };
 }

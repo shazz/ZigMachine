@@ -22,6 +22,8 @@ const TERMS = 2;
 const AMP = [TERMS]i32{ 10, 20 }; // the short ripple, then the long swell
 const INC = [TERMS]f64{ 0.06, 0.02 }; // radians a column: the wavelengths
 const OFFSET = [TERMS]f64{ -0.05, -0.04 }; // radians a frame: the travel
+/// The furthest a column moves, at full bend: |y| <= the amplitudes' sum.
+pub const REACH = AMP[0] + AMP[1];
 
 pub const CurveFixed = struct {
     phase: [TERMS]trig.Angle, // 484's `value`, advanced by OFFSET a frame
