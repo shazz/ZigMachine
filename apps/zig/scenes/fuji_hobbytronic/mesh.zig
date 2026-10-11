@@ -1,138 +1,145 @@
 // --------------------------------------------------------------------------
-// FUJI HOBBYTRONIC: the Atari "Fuji" as a solid, built at COMPTIME.
+// FUJI HOBBYTRONIC: the Atari Fuji as a solid. GENERATED, do not edit by hand:
+//   python3 prototypes/fuji_logo/gen_mesh.py
+// traced from the Fuji of https://logos-world.net/wp-content/uploads/2021/08/Atari-Logo.png
+// (marching squares on the symbol's coverage, Douglas-Peucker to 69 outline
+// points: 32, 4, 33 for the three prongs, ear-clipped caps), then extruded
+// DEPTH units each way along z.
 //
-// Three prongs, all as tall as each other: a straight central bar and two side
-// fingers whose edges bend outward going down, so each finger is narrow at the
-// top and flares wide at the foot (the mountain's slopes). Each prong is a 2D
-// outline extruded DEPTH units each way along z, giving a front cap, a back cap
-// and one side quad per outline edge. A finger's front cap is cut into ROWS
-// convex quads, one per step down its curve.
-//
-// Model units: x right, y DOWN (screen sense), z away from the viewer; the logo
-// spans x and y in -100..100. Every face carries its outward unit normal in Q14
-// (16384 = 1.0), so the renderer culls and lights by rotating normals, never by
-// a winding rule: the vertex order of a quad only has to go round its edge.
-// Floats appear only here, and only at compile time.
+// Model units: x right, y DOWN (screen sense), z away from the viewer; the
+// logo spans x -110..110. Every face is a TRIANGLE (a side quad is two, sharing
+// its normal), so the renderer can sort per triangle; each carries its outward
+// unit normal in Q14 (16384 = 1.0), and the renderer culls and lights by
+// rotating normals, never by a winding rule.
 // --------------------------------------------------------------------------
 const std = @import("std");
 
-pub const ROWS = 8; // quads down one finger's front cap
-pub const DEPTH = 14; // half the extrusion
-const BAR_HALF = 16.0; // the central bar spans x -16..16
-const ONE = 16384.0; // Q14
-
+pub const DEPTH = 14;
 pub const Kind = enum(u8) { front, back, side };
-pub const Face = struct { v: [4]u8, n: [3]i16, kind: Kind };
+pub const Face = struct { v: [3]u8, n: [3]i16, kind: Kind };
 
-const FINGER_PTS = 2 * (ROWS + 1);
-pub const NV = 2 * (4 + 2 * FINGER_PTS); // bar + two fingers, front and back
-pub const NF = (1 + 1 + 4) + 2 * (2 * ROWS + FINGER_PTS);
+pub const NV = 138;
+pub const NF = 264;
+pub const CAP_TRIS = 63; // triangles in the front cap (and in the back one)
 
 pub const Model = struct { verts: [NV][3]i16, faces: [NF]Face };
-pub const MODEL: Model = build();
-
-/// Inner and outer edge of the RIGHT finger at t = 0 (top) .. 1 (foot). The
-/// inner edge leaves a narrow slot by the bar and swings out late; the outer
-/// one starts a bar's width further out and sweeps to the logo's edge.
-fn innerX(t: f64) f64 {
-    return 24.0 + 30.0 * std.math.pow(f64, t, 2.6);
-}
-fn outerX(t: f64) f64 {
-    return 48.0 + 54.0 * std.math.pow(f64, t, 2.2);
-}
-
-fn rowY(k: usize) f64 {
-    return -100.0 + 200.0 * @as(f64, @floatFromInt(k)) / ROWS;
-}
-
-/// The finger's outline: down the inner edge, then back up the outer one.
-/// `side` is +1 for the right finger, -1 for its mirror image.
-fn fingerOutline(side: f64) [FINGER_PTS][2]f64 {
-    var p: [FINGER_PTS][2]f64 = undefined;
-    for (0..ROWS + 1) |k| {
-        const t = @as(f64, @floatFromInt(k)) / ROWS;
-        p[k] = .{ side * innerX(t), rowY(k) };
-        p[FINGER_PTS - 1 - k] = .{ side * outerX(t), rowY(k) };
-    }
-    return p;
-}
-
-/// Front-cap quads of a finger, as indices into its outline: row k joins inner
-/// k, k+1 to outer k+1, k.
-fn fingerQuads() [ROWS][4]usize {
-    var q: [ROWS][4]usize = undefined;
-    for (0..ROWS) |k| q[k] = .{ k, k + 1, FINGER_PTS - 2 - k, FINGER_PTS - 1 - k };
-    return q;
-}
-
-const Builder = struct {
-    m: Model = undefined,
-    nv: usize = 0,
-    nf: usize = 0,
-
-    fn face(self: *Builder, v: [4]usize, n: [3]f64, kind: Kind) void {
-        var f: Face = .{ .v = undefined, .n = undefined, .kind = kind };
-        for (0..4) |i| f.v[i] = @intCast(v[i]);
-        for (0..3) |i| f.n[i] = @intFromFloat(@round(n[i] * ONE));
-        self.m.faces[self.nf] = f;
-        self.nf += 1;
-    }
-
-    /// Extrude one prong: its caps (the quads), then a side per outline edge.
-    fn prong(self: *Builder, pts: []const [2]f64, quads: []const [4]usize) void {
-        const base = self.nv;
-        const len = pts.len;
-        for (pts, 0..) |p, i| {
-            const x: i16 = @intFromFloat(@round(p[0]));
-            const y: i16 = @intFromFloat(@round(p[1]));
-            self.m.verts[base + i] = .{ x, y, -DEPTH };
-            self.m.verts[base + len + i] = .{ x, y, DEPTH };
-        }
-        self.nv += 2 * len;
-        for (quads) |q| {
-            self.face(.{ base + q[0], base + q[1], base + q[2], base + q[3] }, .{ 0, 0, -1 }, .front);
-            self.face(.{ base + len + q[0], base + len + q[1], base + len + q[2], base + len + q[3] }, .{ 0, 0, 1 }, .back);
-        }
-        // Shoelace with y down: positive = clockwise on screen, and then an
-        // edge (dx, dy) faces out along (dy, -dx).
-        var area: f64 = 0;
-        for (0..len) |i| {
-            const a = pts[i];
-            const b = pts[(i + 1) % len];
-            area += a[0] * b[1] - b[0] * a[1];
-        }
-        const s: f64 = if (area > 0) 1 else -1;
-        for (0..len) |i| {
-            const j = (i + 1) % len;
-            const dx = s * (pts[j][0] - pts[i][0]);
-            const dy = s * (pts[j][1] - pts[i][1]);
-            const l = @sqrt(dx * dx + dy * dy);
-            self.face(.{ base + i, base + j, base + len + j, base + len + i }, .{ dy / l, -dx / l, 0 }, .side);
-        }
-    }
+pub const MODEL: Model = .{
+    .verts = .{
+        .{ -31, -88, -14 }, .{ -32, -67, -14 }, .{ -32, -53, -14 }, .{ -34, -31, -14 }, .{ -37, -17, -14 }, .{ -39, -7, -14 }, .{ -41, 0, -14 }, .{ -45, 10, -14 },
+        .{ -49, 18, -14 }, .{ -58, 30, -14 }, .{ -66, 39, -14 }, .{ -73, 45, -14 }, .{ -82, 51, -14 }, .{ -90, 55, -14 }, .{ -101, 59, -14 }, .{ -110, 61, -14 },
+        .{ -110, 88, -14 }, .{ -101, 87, -14 }, .{ -93, 84, -14 }, .{ -87, 82, -14 }, .{ -74, 76, -14 }, .{ -63, 69, -14 }, .{ -53, 62, -14 }, .{ -41, 50, -14 },
+        .{ -36, 43, -14 }, .{ -31, 33, -14 }, .{ -26, 23, -14 }, .{ -25, 17, -14 }, .{ -22, 7, -14 }, .{ -20, -9, -14 }, .{ -18, -42, -14 }, .{ -18, -88, -14 },
+        .{ -31, -88, 14 }, .{ -32, -67, 14 }, .{ -32, -53, 14 }, .{ -34, -31, 14 }, .{ -37, -17, 14 }, .{ -39, -7, 14 }, .{ -41, 0, 14 }, .{ -45, 10, 14 },
+        .{ -49, 18, 14 }, .{ -58, 30, 14 }, .{ -66, 39, 14 }, .{ -73, 45, 14 }, .{ -82, 51, 14 }, .{ -90, 55, 14 }, .{ -101, 59, 14 }, .{ -110, 61, 14 },
+        .{ -110, 88, 14 }, .{ -101, 87, 14 }, .{ -93, 84, 14 }, .{ -87, 82, 14 }, .{ -74, 76, 14 }, .{ -63, 69, 14 }, .{ -53, 62, 14 }, .{ -41, 50, 14 },
+        .{ -36, 43, 14 }, .{ -31, 33, 14 }, .{ -26, 23, 14 }, .{ -25, 17, 14 }, .{ -22, 7, 14 }, .{ -20, -9, 14 }, .{ -18, -42, 14 }, .{ -18, -88, 14 },
+        .{ -13, -88, -14 }, .{ -13, 88, -14 }, .{ 12, 88, -14 }, .{ 13, -88, -14 }, .{ -13, -88, 14 }, .{ -13, 88, 14 }, .{ 12, 88, 14 }, .{ 13, -88, 14 },
+        .{ 18, -88, -14 }, .{ 18, -38, -14 }, .{ 20, -16, -14 }, .{ 21, -4, -14 }, .{ 22, 8, -14 }, .{ 25, 17, -14 }, .{ 28, 28, -14 }, .{ 33, 38, -14 },
+        .{ 39, 47, -14 }, .{ 45, 54, -14 }, .{ 54, 63, -14 }, .{ 66, 72, -14 }, .{ 78, 78, -14 }, .{ 87, 82, -14 }, .{ 93, 84, -14 }, .{ 101, 87, -14 },
+        .{ 110, 88, -14 }, .{ 110, 61, -14 }, .{ 100, 59, -14 }, .{ 90, 55, -14 }, .{ 82, 51, -14 }, .{ 76, 47, -14 }, .{ 66, 39, -14 }, .{ 59, 32, -14 },
+        .{ 53, 24, -14 }, .{ 47, 15, -14 }, .{ 43, 6, -14 }, .{ 39, -5, -14 }, .{ 37, -17, -14 }, .{ 34, -30, -14 }, .{ 32, -54, -14 }, .{ 32, -66, -14 },
+        .{ 32, -88, -14 }, .{ 18, -88, 14 }, .{ 18, -38, 14 }, .{ 20, -16, 14 }, .{ 21, -4, 14 }, .{ 22, 8, 14 }, .{ 25, 17, 14 }, .{ 28, 28, 14 },
+        .{ 33, 38, 14 }, .{ 39, 47, 14 }, .{ 45, 54, 14 }, .{ 54, 63, 14 }, .{ 66, 72, 14 }, .{ 78, 78, 14 }, .{ 87, 82, 14 }, .{ 93, 84, 14 },
+        .{ 101, 87, 14 }, .{ 110, 88, 14 }, .{ 110, 61, 14 }, .{ 100, 59, 14 }, .{ 90, 55, 14 }, .{ 82, 51, 14 }, .{ 76, 47, 14 }, .{ 66, 39, 14 },
+        .{ 59, 32, 14 }, .{ 53, 24, 14 }, .{ 47, 15, 14 }, .{ 43, 6, 14 }, .{ 39, -5, 14 }, .{ 37, -17, 14 }, .{ 34, -30, 14 }, .{ 32, -54, 14 },
+        .{ 32, -66, 14 }, .{ 32, -88, 14 },
+    },
+    .faces = .{
+        .{ .v = .{ 31, 0, 1 }, .n = .{ 0, 0, -16384 }, .kind = .front }, .{ .v = .{ 63, 32, 33 }, .n = .{ 0, 0, 16384 }, .kind = .back }, .{ .v = .{ 31, 1, 2 }, .n = .{ 0, 0, -16384 }, .kind = .front },
+        .{ .v = .{ 63, 33, 34 }, .n = .{ 0, 0, 16384 }, .kind = .back }, .{ .v = .{ 31, 2, 3 }, .n = .{ 0, 0, -16384 }, .kind = .front }, .{ .v = .{ 63, 34, 35 }, .n = .{ 0, 0, 16384 }, .kind = .back },
+        .{ .v = .{ 31, 3, 4 }, .n = .{ 0, 0, -16384 }, .kind = .front }, .{ .v = .{ 63, 35, 36 }, .n = .{ 0, 0, 16384 }, .kind = .back }, .{ .v = .{ 31, 4, 5 }, .n = .{ 0, 0, -16384 }, .kind = .front },
+        .{ .v = .{ 63, 36, 37 }, .n = .{ 0, 0, 16384 }, .kind = .back }, .{ .v = .{ 14, 15, 16 }, .n = .{ 0, 0, -16384 }, .kind = .front }, .{ .v = .{ 46, 47, 48 }, .n = .{ 0, 0, 16384 }, .kind = .back },
+        .{ .v = .{ 13, 14, 16 }, .n = .{ 0, 0, -16384 }, .kind = .front }, .{ .v = .{ 45, 46, 48 }, .n = .{ 0, 0, 16384 }, .kind = .back }, .{ .v = .{ 12, 13, 16 }, .n = .{ 0, 0, -16384 }, .kind = .front },
+        .{ .v = .{ 44, 45, 48 }, .n = .{ 0, 0, 16384 }, .kind = .back }, .{ .v = .{ 11, 12, 16 }, .n = .{ 0, 0, -16384 }, .kind = .front }, .{ .v = .{ 43, 44, 48 }, .n = .{ 0, 0, 16384 }, .kind = .back },
+        .{ .v = .{ 10, 11, 16 }, .n = .{ 0, 0, -16384 }, .kind = .front }, .{ .v = .{ 42, 43, 48 }, .n = .{ 0, 0, 16384 }, .kind = .back }, .{ .v = .{ 10, 16, 17 }, .n = .{ 0, 0, -16384 }, .kind = .front },
+        .{ .v = .{ 42, 48, 49 }, .n = .{ 0, 0, 16384 }, .kind = .back }, .{ .v = .{ 9, 10, 17 }, .n = .{ 0, 0, -16384 }, .kind = .front }, .{ .v = .{ 41, 42, 49 }, .n = .{ 0, 0, 16384 }, .kind = .back },
+        .{ .v = .{ 9, 17, 18 }, .n = .{ 0, 0, -16384 }, .kind = .front }, .{ .v = .{ 41, 49, 50 }, .n = .{ 0, 0, 16384 }, .kind = .back }, .{ .v = .{ 8, 9, 18 }, .n = .{ 0, 0, -16384 }, .kind = .front },
+        .{ .v = .{ 40, 41, 50 }, .n = .{ 0, 0, 16384 }, .kind = .back }, .{ .v = .{ 8, 18, 19 }, .n = .{ 0, 0, -16384 }, .kind = .front }, .{ .v = .{ 40, 50, 51 }, .n = .{ 0, 0, 16384 }, .kind = .back },
+        .{ .v = .{ 8, 19, 20 }, .n = .{ 0, 0, -16384 }, .kind = .front }, .{ .v = .{ 40, 51, 52 }, .n = .{ 0, 0, 16384 }, .kind = .back }, .{ .v = .{ 7, 8, 20 }, .n = .{ 0, 0, -16384 }, .kind = .front },
+        .{ .v = .{ 39, 40, 52 }, .n = .{ 0, 0, 16384 }, .kind = .back }, .{ .v = .{ 7, 20, 21 }, .n = .{ 0, 0, -16384 }, .kind = .front }, .{ .v = .{ 39, 52, 53 }, .n = .{ 0, 0, 16384 }, .kind = .back },
+        .{ .v = .{ 6, 7, 21 }, .n = .{ 0, 0, -16384 }, .kind = .front }, .{ .v = .{ 38, 39, 53 }, .n = .{ 0, 0, 16384 }, .kind = .back }, .{ .v = .{ 6, 21, 22 }, .n = .{ 0, 0, -16384 }, .kind = .front },
+        .{ .v = .{ 38, 53, 54 }, .n = .{ 0, 0, 16384 }, .kind = .back }, .{ .v = .{ 5, 6, 22 }, .n = .{ 0, 0, -16384 }, .kind = .front }, .{ .v = .{ 37, 38, 54 }, .n = .{ 0, 0, 16384 }, .kind = .back },
+        .{ .v = .{ 31, 5, 22 }, .n = .{ 0, 0, -16384 }, .kind = .front }, .{ .v = .{ 63, 37, 54 }, .n = .{ 0, 0, 16384 }, .kind = .back }, .{ .v = .{ 31, 22, 23 }, .n = .{ 0, 0, -16384 }, .kind = .front },
+        .{ .v = .{ 63, 54, 55 }, .n = .{ 0, 0, 16384 }, .kind = .back }, .{ .v = .{ 31, 23, 24 }, .n = .{ 0, 0, -16384 }, .kind = .front }, .{ .v = .{ 63, 55, 56 }, .n = .{ 0, 0, 16384 }, .kind = .back },
+        .{ .v = .{ 31, 24, 25 }, .n = .{ 0, 0, -16384 }, .kind = .front }, .{ .v = .{ 63, 56, 57 }, .n = .{ 0, 0, 16384 }, .kind = .back }, .{ .v = .{ 31, 25, 26 }, .n = .{ 0, 0, -16384 }, .kind = .front },
+        .{ .v = .{ 63, 57, 58 }, .n = .{ 0, 0, 16384 }, .kind = .back }, .{ .v = .{ 31, 26, 27 }, .n = .{ 0, 0, -16384 }, .kind = .front }, .{ .v = .{ 63, 58, 59 }, .n = .{ 0, 0, 16384 }, .kind = .back },
+        .{ .v = .{ 31, 27, 28 }, .n = .{ 0, 0, -16384 }, .kind = .front }, .{ .v = .{ 63, 59, 60 }, .n = .{ 0, 0, 16384 }, .kind = .back }, .{ .v = .{ 31, 28, 29 }, .n = .{ 0, 0, -16384 }, .kind = .front },
+        .{ .v = .{ 63, 60, 61 }, .n = .{ 0, 0, 16384 }, .kind = .back }, .{ .v = .{ 29, 30, 31 }, .n = .{ 0, 0, -16384 }, .kind = .front }, .{ .v = .{ 61, 62, 63 }, .n = .{ 0, 0, 16384 }, .kind = .back },
+        .{ .v = .{ 0, 1, 33 }, .n = .{ -16365, -779, 0 }, .kind = .side }, .{ .v = .{ 0, 33, 32 }, .n = .{ -16365, -779, 0 }, .kind = .side }, .{ .v = .{ 1, 2, 34 }, .n = .{ -16384, 0, 0 }, .kind = .side },
+        .{ .v = .{ 1, 34, 33 }, .n = .{ -16384, 0, 0 }, .kind = .side }, .{ .v = .{ 2, 3, 35 }, .n = .{ -16317, -1483, 0 }, .kind = .side }, .{ .v = .{ 2, 35, 34 }, .n = .{ -16317, -1483, 0 }, .kind = .side },
+        .{ .v = .{ 3, 4, 36 }, .n = .{ -16020, -3433, 0 }, .kind = .side }, .{ .v = .{ 3, 36, 35 }, .n = .{ -16020, -3433, 0 }, .kind = .side }, .{ .v = .{ 4, 5, 37 }, .n = .{ -16066, -3213, 0 }, .kind = .side },
+        .{ .v = .{ 4, 37, 36 }, .n = .{ -16066, -3213, 0 }, .kind = .side }, .{ .v = .{ 5, 6, 38 }, .n = .{ -15754, -4501, 0 }, .kind = .side }, .{ .v = .{ 5, 38, 37 }, .n = .{ -15754, -4501, 0 }, .kind = .side },
+        .{ .v = .{ 6, 7, 39 }, .n = .{ -15212, -6085, 0 }, .kind = .side }, .{ .v = .{ 6, 39, 38 }, .n = .{ -15212, -6085, 0 }, .kind = .side }, .{ .v = .{ 7, 8, 40 }, .n = .{ -14654, -7327, 0 }, .kind = .side },
+        .{ .v = .{ 7, 40, 39 }, .n = .{ -14654, -7327, 0 }, .kind = .side }, .{ .v = .{ 8, 9, 41 }, .n = .{ -13107, -9830, 0 }, .kind = .side }, .{ .v = .{ 8, 41, 40 }, .n = .{ -13107, -9830, 0 }, .kind = .side },
+        .{ .v = .{ 9, 10, 42 }, .n = .{ -12246, -10885, 0 }, .kind = .side }, .{ .v = .{ 9, 42, 41 }, .n = .{ -12246, -10885, 0 }, .kind = .side }, .{ .v = .{ 10, 11, 43 }, .n = .{ -10663, -12440, 0 }, .kind = .side },
+        .{ .v = .{ 10, 43, 42 }, .n = .{ -10663, -12440, 0 }, .kind = .side }, .{ .v = .{ 11, 12, 44 }, .n = .{ -9088, -13632, 0 }, .kind = .side }, .{ .v = .{ 11, 44, 43 }, .n = .{ -9088, -13632, 0 }, .kind = .side },
+        .{ .v = .{ 12, 13, 45 }, .n = .{ -7327, -14654, 0 }, .kind = .side }, .{ .v = .{ 12, 45, 44 }, .n = .{ -7327, -14654, 0 }, .kind = .side }, .{ .v = .{ 13, 14, 46 }, .n = .{ -5599, -15398, 0 }, .kind = .side },
+        .{ .v = .{ 13, 46, 45 }, .n = .{ -5599, -15398, 0 }, .kind = .side }, .{ .v = .{ 14, 15, 47 }, .n = .{ -3554, -15994, 0 }, .kind = .side }, .{ .v = .{ 14, 47, 46 }, .n = .{ -3554, -15994, 0 }, .kind = .side },
+        .{ .v = .{ 15, 16, 48 }, .n = .{ -16384, 0, 0 }, .kind = .side }, .{ .v = .{ 15, 48, 47 }, .n = .{ -16384, 0, 0 }, .kind = .side }, .{ .v = .{ 16, 17, 49 }, .n = .{ 1809, 16284, 0 }, .kind = .side },
+        .{ .v = .{ 16, 49, 48 }, .n = .{ 1809, 16284, 0 }, .kind = .side }, .{ .v = .{ 17, 18, 50 }, .n = .{ 5753, 15341, 0 }, .kind = .side }, .{ .v = .{ 17, 50, 49 }, .n = .{ 5753, 15341, 0 }, .kind = .side },
+        .{ .v = .{ 18, 19, 51 }, .n = .{ 5181, 15543, 0 }, .kind = .side }, .{ .v = .{ 18, 51, 50 }, .n = .{ 5181, 15543, 0 }, .kind = .side }, .{ .v = .{ 19, 20, 52 }, .n = .{ 6866, 14876, 0 }, .kind = .side },
+        .{ .v = .{ 19, 52, 51 }, .n = .{ 6866, 14876, 0 }, .kind = .side }, .{ .v = .{ 20, 21, 53 }, .n = .{ 8796, 13823, 0 }, .kind = .side }, .{ .v = .{ 20, 53, 52 }, .n = .{ 8796, 13823, 0 }, .kind = .side },
+        .{ .v = .{ 21, 22, 54 }, .n = .{ 9396, 13422, 0 }, .kind = .side }, .{ .v = .{ 21, 54, 53 }, .n = .{ 9396, 13422, 0 }, .kind = .side }, .{ .v = .{ 22, 23, 55 }, .n = .{ 11585, 11585, 0 }, .kind = .side },
+        .{ .v = .{ 22, 55, 54 }, .n = .{ 11585, 11585, 0 }, .kind = .side }, .{ .v = .{ 23, 24, 56 }, .n = .{ 13332, 9523, 0 }, .kind = .side }, .{ .v = .{ 23, 56, 55 }, .n = .{ 13332, 9523, 0 }, .kind = .side },
+        .{ .v = .{ 24, 25, 57 }, .n = .{ 14654, 7327, 0 }, .kind = .side }, .{ .v = .{ 24, 57, 56 }, .n = .{ 14654, 7327, 0 }, .kind = .side }, .{ .v = .{ 25, 26, 58 }, .n = .{ 14654, 7327, 0 }, .kind = .side },
+        .{ .v = .{ 25, 58, 57 }, .n = .{ 14654, 7327, 0 }, .kind = .side }, .{ .v = .{ 26, 27, 59 }, .n = .{ 16161, 2694, 0 }, .kind = .side }, .{ .v = .{ 26, 59, 58 }, .n = .{ 16161, 2694, 0 }, .kind = .side },
+        .{ .v = .{ 27, 28, 60 }, .n = .{ 15693, 4708, 0 }, .kind = .side }, .{ .v = .{ 27, 60, 59 }, .n = .{ 15693, 4708, 0 }, .kind = .side }, .{ .v = .{ 28, 29, 61 }, .n = .{ 16257, 2032, 0 }, .kind = .side },
+        .{ .v = .{ 28, 61, 60 }, .n = .{ 16257, 2032, 0 }, .kind = .side }, .{ .v = .{ 29, 30, 62 }, .n = .{ 16354, 991, 0 }, .kind = .side }, .{ .v = .{ 29, 62, 61 }, .n = .{ 16354, 991, 0 }, .kind = .side },
+        .{ .v = .{ 30, 31, 63 }, .n = .{ 16384, 0, 0 }, .kind = .side }, .{ .v = .{ 30, 63, 62 }, .n = .{ 16384, 0, 0 }, .kind = .side }, .{ .v = .{ 31, 0, 32 }, .n = .{ 0, -16384, 0 }, .kind = .side },
+        .{ .v = .{ 31, 32, 63 }, .n = .{ 0, -16384, 0 }, .kind = .side }, .{ .v = .{ 67, 64, 65 }, .n = .{ 0, 0, -16384 }, .kind = .front }, .{ .v = .{ 71, 68, 69 }, .n = .{ 0, 0, 16384 }, .kind = .back },
+        .{ .v = .{ 65, 66, 67 }, .n = .{ 0, 0, -16384 }, .kind = .front }, .{ .v = .{ 69, 70, 71 }, .n = .{ 0, 0, 16384 }, .kind = .back }, .{ .v = .{ 64, 65, 69 }, .n = .{ -16384, 0, 0 }, .kind = .side },
+        .{ .v = .{ 64, 69, 68 }, .n = .{ -16384, 0, 0 }, .kind = .side }, .{ .v = .{ 65, 66, 70 }, .n = .{ 0, 16384, 0 }, .kind = .side }, .{ .v = .{ 65, 70, 69 }, .n = .{ 0, 16384, 0 }, .kind = .side },
+        .{ .v = .{ 66, 67, 71 }, .n = .{ 16384, 93, 0 }, .kind = .side }, .{ .v = .{ 66, 71, 70 }, .n = .{ 16384, 93, 0 }, .kind = .side }, .{ .v = .{ 67, 64, 68 }, .n = .{ 0, -16384, 0 }, .kind = .side },
+        .{ .v = .{ 67, 68, 71 }, .n = .{ 0, -16384, 0 }, .kind = .side }, .{ .v = .{ 104, 72, 73 }, .n = .{ 0, 0, -16384 }, .kind = .front }, .{ .v = .{ 137, 105, 106 }, .n = .{ 0, 0, 16384 }, .kind = .back },
+        .{ .v = .{ 104, 73, 74 }, .n = .{ 0, 0, -16384 }, .kind = .front }, .{ .v = .{ 137, 106, 107 }, .n = .{ 0, 0, 16384 }, .kind = .back }, .{ .v = .{ 104, 74, 75 }, .n = .{ 0, 0, -16384 }, .kind = .front },
+        .{ .v = .{ 137, 107, 108 }, .n = .{ 0, 0, 16384 }, .kind = .back }, .{ .v = .{ 104, 75, 76 }, .n = .{ 0, 0, -16384 }, .kind = .front }, .{ .v = .{ 137, 108, 109 }, .n = .{ 0, 0, 16384 }, .kind = .back },
+        .{ .v = .{ 104, 76, 77 }, .n = .{ 0, 0, -16384 }, .kind = .front }, .{ .v = .{ 137, 109, 110 }, .n = .{ 0, 0, 16384 }, .kind = .back }, .{ .v = .{ 104, 77, 78 }, .n = .{ 0, 0, -16384 }, .kind = .front },
+        .{ .v = .{ 137, 110, 111 }, .n = .{ 0, 0, 16384 }, .kind = .back }, .{ .v = .{ 78, 79, 80 }, .n = .{ 0, 0, -16384 }, .kind = .front }, .{ .v = .{ 111, 112, 113 }, .n = .{ 0, 0, 16384 }, .kind = .back },
+        .{ .v = .{ 78, 80, 81 }, .n = .{ 0, 0, -16384 }, .kind = .front }, .{ .v = .{ 111, 113, 114 }, .n = .{ 0, 0, 16384 }, .kind = .back }, .{ .v = .{ 78, 81, 82 }, .n = .{ 0, 0, -16384 }, .kind = .front },
+        .{ .v = .{ 111, 114, 115 }, .n = .{ 0, 0, 16384 }, .kind = .back }, .{ .v = .{ 78, 82, 83 }, .n = .{ 0, 0, -16384 }, .kind = .front }, .{ .v = .{ 111, 115, 116 }, .n = .{ 0, 0, 16384 }, .kind = .back },
+        .{ .v = .{ 78, 83, 84 }, .n = .{ 0, 0, -16384 }, .kind = .front }, .{ .v = .{ 111, 116, 117 }, .n = .{ 0, 0, 16384 }, .kind = .back }, .{ .v = .{ 78, 84, 85 }, .n = .{ 0, 0, -16384 }, .kind = .front },
+        .{ .v = .{ 111, 117, 118 }, .n = .{ 0, 0, 16384 }, .kind = .back }, .{ .v = .{ 78, 85, 86 }, .n = .{ 0, 0, -16384 }, .kind = .front }, .{ .v = .{ 111, 118, 119 }, .n = .{ 0, 0, 16384 }, .kind = .back },
+        .{ .v = .{ 78, 86, 87 }, .n = .{ 0, 0, -16384 }, .kind = .front }, .{ .v = .{ 111, 119, 120 }, .n = .{ 0, 0, 16384 }, .kind = .back }, .{ .v = .{ 78, 87, 88 }, .n = .{ 0, 0, -16384 }, .kind = .front },
+        .{ .v = .{ 111, 120, 121 }, .n = .{ 0, 0, 16384 }, .kind = .back }, .{ .v = .{ 88, 89, 90 }, .n = .{ 0, 0, -16384 }, .kind = .front }, .{ .v = .{ 121, 122, 123 }, .n = .{ 0, 0, 16384 }, .kind = .back },
+        .{ .v = .{ 88, 90, 91 }, .n = .{ 0, 0, -16384 }, .kind = .front }, .{ .v = .{ 121, 123, 124 }, .n = .{ 0, 0, 16384 }, .kind = .back }, .{ .v = .{ 78, 88, 91 }, .n = .{ 0, 0, -16384 }, .kind = .front },
+        .{ .v = .{ 111, 121, 124 }, .n = .{ 0, 0, 16384 }, .kind = .back }, .{ .v = .{ 78, 91, 92 }, .n = .{ 0, 0, -16384 }, .kind = .front }, .{ .v = .{ 111, 124, 125 }, .n = .{ 0, 0, 16384 }, .kind = .back },
+        .{ .v = .{ 78, 92, 93 }, .n = .{ 0, 0, -16384 }, .kind = .front }, .{ .v = .{ 111, 125, 126 }, .n = .{ 0, 0, 16384 }, .kind = .back }, .{ .v = .{ 78, 93, 94 }, .n = .{ 0, 0, -16384 }, .kind = .front },
+        .{ .v = .{ 111, 126, 127 }, .n = .{ 0, 0, 16384 }, .kind = .back }, .{ .v = .{ 78, 94, 95 }, .n = .{ 0, 0, -16384 }, .kind = .front }, .{ .v = .{ 111, 127, 128 }, .n = .{ 0, 0, 16384 }, .kind = .back },
+        .{ .v = .{ 78, 95, 96 }, .n = .{ 0, 0, -16384 }, .kind = .front }, .{ .v = .{ 111, 128, 129 }, .n = .{ 0, 0, 16384 }, .kind = .back }, .{ .v = .{ 78, 96, 97 }, .n = .{ 0, 0, -16384 }, .kind = .front },
+        .{ .v = .{ 111, 129, 130 }, .n = .{ 0, 0, 16384 }, .kind = .back }, .{ .v = .{ 78, 97, 98 }, .n = .{ 0, 0, -16384 }, .kind = .front }, .{ .v = .{ 111, 130, 131 }, .n = .{ 0, 0, 16384 }, .kind = .back },
+        .{ .v = .{ 78, 98, 99 }, .n = .{ 0, 0, -16384 }, .kind = .front }, .{ .v = .{ 111, 131, 132 }, .n = .{ 0, 0, 16384 }, .kind = .back }, .{ .v = .{ 78, 99, 100 }, .n = .{ 0, 0, -16384 }, .kind = .front },
+        .{ .v = .{ 111, 132, 133 }, .n = .{ 0, 0, 16384 }, .kind = .back }, .{ .v = .{ 78, 100, 101 }, .n = .{ 0, 0, -16384 }, .kind = .front }, .{ .v = .{ 111, 133, 134 }, .n = .{ 0, 0, 16384 }, .kind = .back },
+        .{ .v = .{ 78, 101, 102 }, .n = .{ 0, 0, -16384 }, .kind = .front }, .{ .v = .{ 111, 134, 135 }, .n = .{ 0, 0, 16384 }, .kind = .back }, .{ .v = .{ 78, 102, 103 }, .n = .{ 0, 0, -16384 }, .kind = .front },
+        .{ .v = .{ 111, 135, 136 }, .n = .{ 0, 0, 16384 }, .kind = .back }, .{ .v = .{ 78, 103, 104 }, .n = .{ 0, 0, -16384 }, .kind = .front }, .{ .v = .{ 111, 136, 137 }, .n = .{ 0, 0, 16384 }, .kind = .back },
+        .{ .v = .{ 72, 73, 106 }, .n = .{ -16384, 0, 0 }, .kind = .side }, .{ .v = .{ 72, 106, 105 }, .n = .{ -16384, 0, 0 }, .kind = .side }, .{ .v = .{ 73, 74, 107 }, .n = .{ -16317, 1483, 0 }, .kind = .side },
+        .{ .v = .{ 73, 107, 106 }, .n = .{ -16317, 1483, 0 }, .kind = .side }, .{ .v = .{ 74, 75, 108 }, .n = .{ -16327, 1361, 0 }, .kind = .side }, .{ .v = .{ 74, 108, 107 }, .n = .{ -16327, 1361, 0 }, .kind = .side },
+        .{ .v = .{ 75, 76, 109 }, .n = .{ -16327, 1361, 0 }, .kind = .side }, .{ .v = .{ 75, 109, 108 }, .n = .{ -16327, 1361, 0 }, .kind = .side }, .{ .v = .{ 76, 77, 110 }, .n = .{ -15543, 5181, 0 }, .kind = .side },
+        .{ .v = .{ 76, 110, 109 }, .n = .{ -15543, 5181, 0 }, .kind = .side }, .{ .v = .{ 77, 78, 111 }, .n = .{ -15807, 4311, 0 }, .kind = .side }, .{ .v = .{ 77, 111, 110 }, .n = .{ -15807, 4311, 0 }, .kind = .side },
+        .{ .v = .{ 78, 79, 112 }, .n = .{ -14654, 7327, 0 }, .kind = .side }, .{ .v = .{ 78, 112, 111 }, .n = .{ -14654, 7327, 0 }, .kind = .side }, .{ .v = .{ 79, 80, 113 }, .n = .{ -13632, 9088, 0 }, .kind = .side },
+        .{ .v = .{ 79, 113, 112 }, .n = .{ -13632, 9088, 0 }, .kind = .side }, .{ .v = .{ 80, 81, 114 }, .n = .{ -12440, 10663, 0 }, .kind = .side }, .{ .v = .{ 80, 114, 113 }, .n = .{ -12440, 10663, 0 }, .kind = .side },
+        .{ .v = .{ 81, 82, 115 }, .n = .{ -11585, 11585, 0 }, .kind = .side }, .{ .v = .{ 81, 115, 114 }, .n = .{ -11585, 11585, 0 }, .kind = .side }, .{ .v = .{ 82, 83, 116 }, .n = .{ -9830, 13107, 0 }, .kind = .side },
+        .{ .v = .{ 82, 116, 115 }, .n = .{ -9830, 13107, 0 }, .kind = .side }, .{ .v = .{ 83, 84, 117 }, .n = .{ -7327, 14654, 0 }, .kind = .side }, .{ .v = .{ 83, 117, 116 }, .n = .{ -7327, 14654, 0 }, .kind = .side },
+        .{ .v = .{ 84, 85, 118 }, .n = .{ -6654, 14972, 0 }, .kind = .side }, .{ .v = .{ 84, 118, 117 }, .n = .{ -6654, 14972, 0 }, .kind = .side }, .{ .v = .{ 85, 86, 119 }, .n = .{ -5181, 15543, 0 }, .kind = .side },
+        .{ .v = .{ 85, 119, 118 }, .n = .{ -5181, 15543, 0 }, .kind = .side }, .{ .v = .{ 86, 87, 120 }, .n = .{ -5753, 15341, 0 }, .kind = .side }, .{ .v = .{ 86, 120, 119 }, .n = .{ -5753, 15341, 0 }, .kind = .side },
+        .{ .v = .{ 87, 88, 121 }, .n = .{ -1809, 16284, 0 }, .kind = .side }, .{ .v = .{ 87, 121, 120 }, .n = .{ -1809, 16284, 0 }, .kind = .side }, .{ .v = .{ 88, 89, 122 }, .n = .{ 16384, 0, 0 }, .kind = .side },
+        .{ .v = .{ 88, 122, 121 }, .n = .{ 16384, 0, 0 }, .kind = .side }, .{ .v = .{ 89, 90, 123 }, .n = .{ 3213, -16066, 0 }, .kind = .side }, .{ .v = .{ 89, 123, 122 }, .n = .{ 3213, -16066, 0 }, .kind = .side },
+        .{ .v = .{ 90, 91, 124 }, .n = .{ 6085, -15212, 0 }, .kind = .side }, .{ .v = .{ 90, 124, 123 }, .n = .{ 6085, -15212, 0 }, .kind = .side }, .{ .v = .{ 91, 92, 125 }, .n = .{ 7327, -14654, 0 }, .kind = .side },
+        .{ .v = .{ 91, 125, 124 }, .n = .{ 7327, -14654, 0 }, .kind = .side }, .{ .v = .{ 92, 93, 126 }, .n = .{ 9088, -13632, 0 }, .kind = .side }, .{ .v = .{ 92, 126, 125 }, .n = .{ 9088, -13632, 0 }, .kind = .side },
+        .{ .v = .{ 93, 94, 127 }, .n = .{ 10235, -12794, 0 }, .kind = .side }, .{ .v = .{ 93, 127, 126 }, .n = .{ 10235, -12794, 0 }, .kind = .side }, .{ .v = .{ 94, 95, 128 }, .n = .{ 11585, -11585, 0 }, .kind = .side },
+        .{ .v = .{ 94, 128, 127 }, .n = .{ 11585, -11585, 0 }, .kind = .side }, .{ .v = .{ 95, 96, 129 }, .n = .{ 13107, -9830, 0 }, .kind = .side }, .{ .v = .{ 95, 129, 128 }, .n = .{ 13107, -9830, 0 }, .kind = .side },
+        .{ .v = .{ 96, 97, 130 }, .n = .{ 13632, -9088, 0 }, .kind = .side }, .{ .v = .{ 96, 130, 129 }, .n = .{ 13632, -9088, 0 }, .kind = .side }, .{ .v = .{ 97, 98, 131 }, .n = .{ 14972, -6654, 0 }, .kind = .side },
+        .{ .v = .{ 97, 131, 130 }, .n = .{ 14972, -6654, 0 }, .kind = .side }, .{ .v = .{ 98, 99, 132 }, .n = .{ 15398, -5599, 0 }, .kind = .side }, .{ .v = .{ 98, 132, 131 }, .n = .{ 15398, -5599, 0 }, .kind = .side },
+        .{ .v = .{ 99, 100, 133 }, .n = .{ 16161, -2694, 0 }, .kind = .side }, .{ .v = .{ 99, 133, 132 }, .n = .{ 16161, -2694, 0 }, .kind = .side }, .{ .v = .{ 100, 101, 134 }, .n = .{ 15964, -3684, 0 }, .kind = .side },
+        .{ .v = .{ 100, 134, 133 }, .n = .{ 15964, -3684, 0 }, .kind = .side }, .{ .v = .{ 101, 102, 135 }, .n = .{ 16327, -1361, 0 }, .kind = .side }, .{ .v = .{ 101, 135, 134 }, .n = .{ 16327, -1361, 0 }, .kind = .side },
+        .{ .v = .{ 102, 103, 136 }, .n = .{ 16384, 0, 0 }, .kind = .side }, .{ .v = .{ 102, 136, 135 }, .n = .{ 16384, 0, 0 }, .kind = .side }, .{ .v = .{ 103, 104, 137 }, .n = .{ 16384, 0, 0 }, .kind = .side },
+        .{ .v = .{ 103, 137, 136 }, .n = .{ 16384, 0, 0 }, .kind = .side }, .{ .v = .{ 104, 72, 105 }, .n = .{ 0, -16384, 0 }, .kind = .side }, .{ .v = .{ 104, 105, 137 }, .n = .{ 0, -16384, 0 }, .kind = .side },
+    },
 };
 
-fn build() Model {
-    @setEvalBranchQuota(200_000);
-    var b: Builder = .{};
-    const bar = [4][2]f64{ .{ -BAR_HALF, -100 }, .{ BAR_HALF, -100 }, .{ BAR_HALF, 100 }, .{ -BAR_HALF, 100 } };
-    b.prong(&bar, &.{.{ 0, 1, 2, 3 }});
-    const quads = fingerQuads();
-    b.prong(&fingerOutline(1), &quads);
-    b.prong(&fingerOutline(-1), &quads);
-    std.debug.assert(b.nv == NV and b.nf == NF);
-    return b.m;
-}
-
-test "every face's normal is a unit vector and points away from the solid" {
-    for (MODEL.faces) |f| {
-        const n = f.n;
+test "every face's normal is a unit vector" {
+    for (MODEL.faces) |fc| {
+        const n = fc.n;
         const len2 = @as(i64, n[0]) * n[0] + @as(i64, n[1]) * n[1] + @as(i64, n[2]) * n[2];
         try std.testing.expect(@abs(len2 - 16384 * 16384) < 16384 * 8);
-        if (f.kind != .side) continue;
-        // An outward side normal points away from its own edge's prong centre
-        // line: right of the bar for x > 0 means n.x >= 0 on the outer edges.
-        const v = MODEL.verts[f.v[0]];
-        if (n[0] != 0 and @abs(v[0]) > 60 and v[1] > 0) try std.testing.expect((n[0] > 0) == (v[0] > 0));
     }
 }

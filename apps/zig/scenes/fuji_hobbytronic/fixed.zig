@@ -30,7 +30,7 @@ pub fn cos(a: i32) i32 {
 /// Where the camera sits and how it projects: the logo's centre is Z0 units in
 /// front of the eye, and FOCAL is the screen distance in pixels.
 pub const Z0 = 360;
-pub const FOCAL = 200;
+pub const FOCAL = 216;
 
 /// A yaw (about y) then a pitch (about x), both in angle units, as Q14 factors.
 pub const Rot = struct {
@@ -59,10 +59,10 @@ pub fn project(p: [3]i32, cx: i32, cy: i32) [2]i16 {
 }
 
 /// A face is seen when its normal points back at the eye: n . (P - eye) < 0,
-/// with P the face's vertex SUM (4x its centre) so no divide is needed. The
+/// with P the face's vertex SUM (3x its centre: a triangle) so no divide is needed. The
 /// eye is at z = -Z0 in the rotated frame.
 pub fn facing(n: [3]i32, sum: [3]i32) bool {
-    return n[0] * sum[0] + n[1] * sum[1] + n[2] * (sum[2] + 4 * Z0) < 0;
+    return n[0] * sum[0] + n[1] * sum[1] + n[2] * (sum[2] + 3 * Z0) < 0;
 }
 
 /// The light's travel direction, Q14: from the upper left, in front.
@@ -100,7 +100,7 @@ test "unrotated, the front faces are seen and the back faces are not" {
             front += 1;
         }
     }
-    try std.testing.expectEqual(@as(usize, 1 + 2 * mesh.ROWS), front);
+    try std.testing.expectEqual(@as(usize, mesh.CAP_TRIS), front);
 }
 
 test "projection: the centre maps to the screen centre, and nearer is bigger" {
