@@ -409,6 +409,7 @@ gate_timed union_tnt2 node apps/union_tnt2_headless.mjs "$SHOTS"   # TNT2: TEX l
 gate_timed union_beatdis node apps/union_beatdis_headless.mjs "$SHOTS"   # TCB1: loader depack + question, both versions replayed pixel for pixel, both SNDHs play
 gate_timed union_beatdis node apps/union_beatdis_headless.mjs --break keylock "$SHOTS"   # ...and a key lock that releases between repeats fails the hold check
 gate union_beatdis node apps/union_beatdis_headless.mjs --break modes   # ...and a wrong native Beat Dis replay fails the 1/2 mode-switch check
+gate union_beatdis node apps/union_beatdis_headless.mjs --break hq   # ...and mode 3 playing Beat Dis's bytes raw (unsigned, inverted) fails the sound check
 gate_timed union_superscroller node apps/union_superscroller_headless.mjs "$SHOTS"   # TCB2: TEX loader depack, screen.js with Chrome's filtering replayed pixel for pixel, the SNDH plays
 gate automation442 node apps/automation442_headless.mjs "$SHOTS/automation442"   # AUTOMATION 442: the panned overscan scroll plane through one bgcount cycle
 gate_timed big_demo node apps/big_demo_headless.mjs   # TEX B.I.G. DEMO: wait screen hands over at frame 201, TEX's own 118 rows ripped from RAM, cursor clamps [2,115], all 45 named SNDH present, bands cycle

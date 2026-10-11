@@ -38,7 +38,7 @@ pub var enabled: bool = true;
 pub var status: digi.Status = .musashi;
 /// A deliberately wrong native replay, for the oracle to prove it would catch
 /// one: 1 = the segment's end checked every interrupt, not every VBL; 2 = mode 3
-/// plays the bytes raw, unconverted (the 2026-10-11 bug). Test only.
+/// plays the tune's bytes raw, not the shadow (the 2026-10-11 bug). Test only.
 pub var mutant: u32 = 0;
 
 var driver: ?Driver = null; // what the image is, whatever the mode
@@ -148,7 +148,7 @@ fn buildShadow(d: Driver, end: u32, top: u32) ?Shadow {
     const to = ((hi + 0xF) & ~@as(u32, 0xF)) + (lo & 0xF);
     if (lo >= end or to + (hi - lo) > top) return null;
     const ram: [*]u8 = @ptrFromInt(audio.SONG_BASE);
-    for (ram[to..][0 .. hi - lo], ram[lo..hi]) |*o, b| o.* = if (mutant == 2) b else digi.handler.linear(b);
+    for (ram[to..][0 .. hi - lo], ram[lo..hi]) |*o, b| o.* = digi.handler.linear(b);
     return .{ .lo = lo, .hi = hi, .to = to };
 }
 
@@ -161,7 +161,8 @@ fn pcmStart(d: Driver) void {
     const end = m.rd32(d.base + 0x2E) & 0xFF_FFFF;
     if (pos < sh.lo or pos >= sh.hi) return pcmStop();
     const len = @min(@max(end + 1, pos) - pos + OVERSHOOT, sh.hi - pos);
-    audio.machinePaulaTrigger(CH, audio.songAddr(sh.to + (pos - sh.lo)), len, 0, 0, 0.0);
+    const at = if (mutant == 2) pos else sh.to + (pos - sh.lo); // mutant 2: the raw bytes
+    audio.machinePaulaTrigger(CH, audio.songAddr(at), len, 0, 0, 0.0);
     audio.machinePaulaSetStep(CH, @intFromFloat(TIMER_HZ / audio.SAMPLE_RATE * audio.FRAC_ONE));
     audio.machinePaulaSetVolume(CH, PCM_VOLUME);
 }

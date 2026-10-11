@@ -23,7 +23,8 @@
 //    screen, 1 / 2 / 3 queue modes 1, 2 and 3 in order, and only those. On the audio
 //    side, for Beat Dis: switching 2 -> 1 -> 2 -> 1 mid-tune renders exactly the
 //    samples of a run left in 2 (the two paths write the same); mode 3 plays,
-//    differs from the YM path while on, and after going back to 2 the output is
+//    differs from the YM path while on but follows it (correlation >= 0.8: the
+//    bytes converted, not raw), and after going back to 2 the output is
 //    that run's again (the same sample position). A mode that does not exist is
 //    refused (0); Pro BMX, with no native driver, answers 1 to 2 and 3.
 //
@@ -36,6 +37,9 @@
 //   node apps/union_beatdis_headless.mjs --break modes [outdir] [cart.wasm]
 //     the fail proof of 3b: the native replay switched to its known-wrong mutant
 //     (audioSndhNativeMutant: no VBL overshoot); the 1/2 switch check must catch it
+//   node apps/union_beatdis_headless.mjs --break hq [outdir] [cart.wasm]
+//     the fail proof of mode 3's sound: the samples played raw (mutant 2, the
+//     2026-10-11 board bug), unconverted; the check against the YM path must catch it
 //   node apps/union_beatdis_headless.mjs --break keylock [outdir] [cart.wasm]
 //     the fail proof: the "held" key repeats every 150 ms, past the quiet period,
 //     so the lock releases between repeats as if it were not there; the hold
@@ -63,7 +67,7 @@ const VERSIONS = [
 const SCREEN2 = "screens/beatdis/screen2.js"; // in the remake's directory
 
 const BREAK = process.argv.includes("--break") ? process.argv[process.argv.indexOf("--break") + 1] : null;
-if (BREAK !== null && BREAK !== "keylock" && BREAK !== "modes") { console.error(`union_beatdis: --break ${BREAK}: only "keylock" and "modes" can be broken`); process.exit(1); }
+if (BREAK !== null && !["keylock", "modes", "hq"].includes(BREAK)) { console.error(`union_beatdis: --break ${BREAK}: only "keylock", "modes" and "hq" can be broken`); process.exit(1); }
 const POS = process.argv.slice(2).filter((a, i, all) => a !== "--break" && all[i - 1] !== "--break");
 const outDir = POS[0];
 const cartPath = POS[1] || "docs/demo-union_beatdis.wasm";
@@ -287,6 +291,15 @@ async function renderModes(song, blocks, modes, mutant = 0) {
     return { out, got };
 }
 
+let hqCorrelation = 0; // mode 3 against the YM path, for the report
+
+function correlation(a, b) {
+    const ma = a.reduce((s, x) => s + x, 0) / a.length, mb = b.reduce((s, x) => s + x, 0) / b.length;
+    let ab = 0, aa = 0, bb = 0;
+    for (let i = 0; i < a.length; i++) { const x = a[i] - ma, y = b[i] - mb; ab += x * y; aa += x * x; bb += y * y; }
+    return ab / Math.sqrt(aa * bb);
+}
+
 async function sndhModes(song) {
     const B = 50; // one second of blocks
     const ref = await renderModes(song, 6 * B, {});
@@ -300,10 +313,15 @@ async function sndhModes(song) {
     const flip = await renderModes(song, 6 * B, { [B]: 1, [2 * B]: 2, [3 * B]: 1, [4 * B]: 2, [5 * B]: 7 }, BREAK === "modes" ? 1 : 0);
     if (flip.got.join() !== "1,2,1,2,0") return `modes 1/2/1/2/7 answered ${flip.got}`;
     if (!same(flip.out, ref.out)) return "switching between modes 1 and 2 changed the samples";
-    const hq = await renderModes(song, 6 * B, { [2 * B]: 3, [4 * B]: 2 });
+    const hq = await renderModes(song, 6 * B, { [2 * B]: 3, [4 * B]: 2 }, BREAK === "hq" ? 2 : 0);
     if (hq.got.join() !== "3,2") return `modes 3/2 answered ${hq.got}`;
     const pcm = at(hq, 2 * B, 4 * B);
     if (same(pcm, at(ref, 2 * B, 4 * B)) || !pcm.some((x) => Math.abs(x) > 0.01)) return "mode 3 did not play the samples on PCM";
+    // The bytes are unsigned and inverted (digi_handler.zig linear): converted, mode 3 follows the YM
+    // path (0.87); raw, each sample folds at its midpoint (0.43): "noisy plus weird loops".
+    const r = correlation(pcm, at(ref, 2 * B, 4 * B));
+    if (r < 0.8) return `mode 3 does not follow the YM path (correlation ${r.toFixed(2)}): its samples played raw`;
+    hqCorrelation = r;
     if (!same(at(hq, 4 * B + 5, 6 * B), at(ref, 4 * B + 5, 6 * B))) return "back in mode 2, the output is not the YM path's at the same sample";
     return null;
 }
@@ -342,6 +360,12 @@ if (BREAK === "modes") {
     console.log(`=> FAIL ❌ fail proof: a wrong native replay gave "${wrong}"`);
     process.exit(1);
 }
+if (BREAK === "hq") {
+    const wrong = await sndhModes({ name: VERSIONS[0].song, tune: 1 });
+    const ok = wrong && wrong.startsWith("mode 3 does not follow the YM path");
+    console.log(ok ? `=> PASS ✅ fail proof: mode 3's raw bytes are caught (${wrong})` : `=> FAIL ❌ fail proof: mode 3's raw bytes gave "${wrong}"`);
+    process.exit(ok ? 0 : 1);
+}
 if (BREAK === "keylock") {
     const caught = [];
     for (const v of VERSIONS.slice(0, 2)) { const wrong = await holdCheck(v); if (wrong) caught.push(wrong); }
@@ -354,7 +378,7 @@ if (BREAK === "keylock") {
 }
 const report = [await curveMatchesRemake()];
 for (const v of VERSIONS.slice(0, 2)) { const wrong = await holdCheck(v); if (wrong) errors.push(wrong); }
-report.push("modes: keys 1/2/3 queue modes 1/2/3; Beat Dis switched 2-1-2-1-2 renders the samples of 2 alone, 7 refused, mode 3 plays PCM and hands back on the same sample; Pro BMX answers 1");
+report.push("modes: keys 1/2/3 queue modes 1/2/3; Beat Dis switched 2-1-2-1-2 renders the samples of 2 alone, 7 refused, mode 3 plays PCM that follows the YM path and hands back on the same sample; Pro BMX answers 1");
 report.push("key lock: a held choice key (0, 500, then every 33 ms to 1.5 s, with fire) keeps both screens running, SPACE 150 ms after asks for union_demo");
 for (const v of VERSIONS) {
     const booted = await boot(v.note);
@@ -387,6 +411,7 @@ if (errors.length) {
     console.error(`union_beatdis: WRONG\n  ${errors.slice(0, 12).join("\n  ")}`);
     process.exit(1);
 }
+report.push(`mode 3 against the YM path: correlation ${hqCorrelation.toFixed(2)}`);
 console.log(`union_beatdis: loader panel + question exact, screen = screen.js/screen2.js replay at frames ${FRAMES.join(",")} + '!' frames; ${report.join("; ")}`);
 
 function png(rgba) {
