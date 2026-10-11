@@ -24,7 +24,7 @@ const PAGES = 112; // SHARED_PAGES in machine/sdk/memmap.zig
 function makeDrive(memory, mountedDisk) {
     function diskReadBlock(block, dstOff) {
         if (!mountedDisk) return 0;
-        const start = block * 512;
+        const start = (block >>> 0) * 512; // the i32 is a u32 block: >= 2^31 is past the end, not from it
         const src = mountedDisk.buf.subarray(start, start + 512);
         if (src.length === 0) return 0;
         new Uint8Array(memory.buffer, dstOff, src.length).set(src);

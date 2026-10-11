@@ -4,8 +4,9 @@ DDR"), exactly as docs/sealed-loader.js serves it in the browser.
 
 - The drive (host/disk.h, the code the firmware and the native host link) against the
   browser's OWN diskReadBlock, taken out of sealed-loader.js and run in node: every
-  result and the whole memory after every call, full, partial, past-the-end and
-  "negative" blocks, a dst outside memory (the JS's RangeError), no disk.
+  result and the whole memory after every call, full, partial and past-the-end blocks
+  (0x80000000 and up included: unsigned, never counted from the end), a dst outside
+  memory (the JS's RangeError), no disk.
 - scene_hash.mjs's --disk drive is the browser's function, text for text.
 - The firmware's descriptor check (cycles/bdisk.c) on what the glass writes.
 - The glass gives back every shelf disk in docs/ byte for byte from its fat disk, and puts
@@ -109,8 +110,8 @@ def test_drive_answers_every_block_and_dst_as_the_browser_does(disk_test: Path, 
         assert result[(3, 0)] == 0 and result[(0x40, 0)] == 0  # past the end: nothing, no error
         assert result[(3, 0xFFFF_FFFF)] == 0  # nothing to copy: dst is never looked at
         assert result[(0, MEM - 100)] == -1 and result[(0, 0x8000_0000)] == -1  # RangeError: a trap
-        assert result[(0xFFFF_FFFE, 0)] == 512  # -2: subarray counts from the end, as the browser does
-        assert result[(0xFFFF_FFFF, 0)] == 0 and result[(0x8000_0000, 0)] == 0
+        for b in (0x7FFF_FFFF, 0x8000_0000, 0xFFFF_FFFE, 0xFFFF_FFFF):  # unsigned: past the end, dst unread
+            assert all(result[(b, d)] == 0 for d in DSTS), hex(b)
 
 
 def test_drive_without_a_disk_answers_zero_and_writes_nothing(disk_test: Path) -> None:

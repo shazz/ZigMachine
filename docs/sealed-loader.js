@@ -101,7 +101,7 @@ function diskFile(name) {
 // bytes copied (0 = past end / no disk).
 function diskReadBlock(block, dstOff) {
     if (!mountedDisk) return 0;
-    const start = block * 512;
+    const start = (block >>> 0) * 512; // the i32 is a u32 block: >= 2^31 is past the end, not from it
     const src = mountedDisk.buf.subarray(start, start + 512);
     if (src.length === 0) return 0;
     new Uint8Array(memory.buffer, dstOff, src.length).set(src);
