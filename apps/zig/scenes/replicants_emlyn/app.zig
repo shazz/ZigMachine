@@ -17,7 +17,9 @@ const packed_assets = @import("packed_assets");
 const A = @import("assets.zig");
 const rasters = @import("rasters.zig");
 const Logo = @import("logo.zig").Logo;
-const Scroller = @import("scroller.zig").Scroller;
+const scroller = @import("scroller.zig");
+const Scroller = scroller.Scroller;
+const dirty = @import("dirty.zig");
 
 // The tune is Mad Max's, and the remake plays it as screens/017/zic.ym, a YM
 // register dump. This project ships SNDH only, so the dump was matched against
@@ -51,6 +53,7 @@ pub fn Demo(comptime B: type) type {
         scroller: Scroller(B.Curve, B.Mode),
         bars: B.Bars, // the vectorball group and its raster table
         blitter: zg.Blitter, // the logo and the ramp's copies
+        ramp: dirty.Ramp, // where the plane still shows the ramp (dirty.zig)
         started: bool, // go() has drawn once, so the logo may move
         mode: B.Mode, // ORIGINAL or ZIG, and how far between (mode.zig)
 
@@ -62,6 +65,7 @@ pub fn Demo(comptime B: type) type {
             self.scroller.init();
             self.bars.init();
             self.blitter.init();
+            self.ramp.init();
 
             // On zg.mem, not borrowed above hwRamUsed(): the raster table is in
             // the arena too, and the next allocation would hand a borrow out
@@ -69,6 +73,7 @@ pub fn Demo(comptime B: type) type {
             // the free RAM it prints overstates the truth by that much.
             const buf = zg.mem.alloc(u8, A.TOTAL) orelse return fail("no free RAM for the assets");
             if (zx0.depack(packed_assets.replicants_emlyn, buf) == null) return fail("depack failed");
+            dirty.recode(buf[0 .. A.LOGO_W * A.LOGO_H]);
             self.images = A.Images.split(buf);
 
             // The ST's border is colour 0; black here, so the closed side
@@ -111,27 +116,15 @@ pub fn Demo(comptime B: type) type {
             // but what it feeds is the HBL's colour table, not a blit.
             self.bars.build(&self.mode);
             const fb = &zigos.lfbs[PLANE];
-            self.ramp(fb);
             // Rasters, then the logo, then the scrolltext — the remake's order.
             // All three take the WHOLE raster now: nothing stops at an edge
-            // this screen no longer has.
-            self.logo.draw(&self.blitter, fb, self.images.logo);
+            // this screen no longer has. The ramp is only put back where last
+            // frame drew over it (dirty.zig).
+            const logo = self.logo.rect(fb, self.images.logo);
+            const opaque_logo = self.ramp.prepare(&self.blitter, fb, logo);
+            self.logo.draw(&self.blitter, fb, self.images.logo, logo, if (opaque_logo) null else dirty.LOGO_KEY);
             self.scroller.draw(blit.Dst.plane(fb), self.images.font, &self.mode);
-        }
-
-        /// The bucket ramp under everything, on every one of the 280 rows. The
-        /// CPU writes row 0 and the blitter doubles it down the plane (1, 2,
-        /// 4 ... rows a copy): nine operations, where 112 KB of CPU copying
-        /// cost 0.9 Mc a frame on the board's core.
-        fn ramp(self: *Self, fb: *zg.LogicalFB) void {
-            @memcpy(fb.fb[0..rasters.row.len], &rasters.row);
-            const h: u16 = @intCast(fb.fb_h);
-            var done: u16 = 1;
-            while (done < h) {
-                const n = @min(done, h - done);
-                self.blitter.blitCopy(fb, 0, @intCast(done), fb, 0, 0, rasters.row.len, n);
-                done += n;
-            }
+            self.ramp.drew(logo, scroller.band(self.mode.flat()));
         }
     };
 }
