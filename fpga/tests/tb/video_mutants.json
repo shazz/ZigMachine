@@ -280,15 +280,15 @@
   {
     "id": "bg_rows_not_stored",
     "file": "zm_video_pass.v",
-    "old": "{STORE, 1'b1, is_bg || dirty, 1'b0}",
-    "new": "{STORE, 1'b1, dirty, 1'b0}",
+    "old": "{STORE, 1'b1, is_bg || dirty || p_fill, 1'b0}",
+    "new": "{STORE, 1'b1, dirty || p_fill, 1'b0}",
     "catch": "tutorial"
   },
   {
     "id": "mixed_rows_not_stored",
     "file": "zm_video_pass.v",
-    "old": "{STORE, 1'b1, is_pl && dirty, p_mix}",
-    "new": "{STORE, 1'b1, 1'b0, p_mix}",
+    "old": "{STORE, 1'b1, is_pl && dirty || p_fill, p_mix}",
+    "new": "{STORE, 1'b1, p_fill, p_mix}",
     "catch": "tutorial"
   },
   {
