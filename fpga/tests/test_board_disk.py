@@ -7,7 +7,7 @@ DDR"), exactly as docs/sealed-loader.js serves it in the browser.
   result and the whole memory after every call, full, partial and past-the-end blocks
   (0x80000000 and up included: unsigned, never counted from the end), a dst outside
   memory (the JS's RangeError), no disk.
-- scene_hash.mjs's --disk drive is the browser's function, text for text.
+- scene_hash.mjs's --disk drive (scene_hash_disk.mjs) is the browser's function, text for text.
 - The firmware's descriptor check (cycles/bdisk.c) on what the glass writes.
 - The glass gives back every shelf disk in docs/ byte for byte from its fat disk, and puts
   it where tools/ddr_init.py (the board SoC sim's DDR image) puts it.
@@ -129,7 +129,7 @@ def test_scene_hash_drive_is_the_browsers_function_text_for_text() -> None:
         assert m, path
         return [line.strip() for line in m.group(2).splitlines()]
 
-    assert body(ROOT / "apps/scene_hash.mjs") == body(ROOT / "docs/sealed-loader.js")
+    assert body(ROOT / "apps/scene_hash_disk.mjs") == body(ROOT / "docs/sealed-loader.js")
 
 
 def _desc(disk_test: Path, rows: list[tuple[int, ...]]) -> list[str]:

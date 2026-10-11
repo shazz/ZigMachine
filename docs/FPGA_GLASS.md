@@ -38,6 +38,7 @@ none of MiSTer's code (GPL) or zeST's code (GPL-3) is used.
 | Remote shell over Ethernet (DHCP, dropbear, avahi) | **Linux side written**; the PL's EMIO wiring is not | below, "Remote shell" |
 | Load path, end to end | **done** | the 9 board images `fpga/cycles` links land byte for byte in the fake DDR |
 | Disk streaming: ZWINDOW places the shelf disk in DDR, ZIGGY serves `diskReadBlock` from it | **done in the sim** (2026-10-11): no RTL change, no new CSR | every `docs/` shelf disk comes back byte for byte from its fat disk; the drive answers as the browser's own function on every case (`tests/test_board_disk.py`); stniccc streams SCENE1.BIN in the board SoC sim with the browser's hashes (below, "The disk in DDR") |
+| GEM over a data disk: the firmware tells GEM the disk is in and hands it the FAT listing, from the disk in DDR | **done in the sim** (2026-10-11): no RTL change, no new CSR, no descriptor flag | the listing is the browser's byte for byte (`tests/test_board_gemdisk.py`); GEM opens ST Replay's floppy in the board SoC sim with the browser's hashes (below, "GEM over a data disk") |
 | Cart-side input routing (`glass/firmware/glass_input.c`) | **done, linked into every board firmware** (2026-10-10): once a frame, before `cart.frame()`, `cycles/binput.c` drains the key FIFO (32 a frame at most), then the joypad and the mouse, through `host/input_bridge.c` into the cart's exports (`host_input`, generated per cart by `tools/host_gen.py`: NULL where a cart has no such export) | 19 key cases + 7 pointer polls against `sealed-loader.js`'s rules; 3 break tests caught. `tests/test_board_input.py`: the native host plays a key-FIFO script (`ZM_GLASS_KEYS`) through the same router, and SPACE on union_beatdis gives the browser's own `key(32)` hashes, a mutant router is caught |
 | SD card staging (`tools/glass_sd.py`), U-Boot script, DTS, Buildroot tree | **written** | `boot.scr` is byte-identical to `mkimage`'s; the DTS compiles against a stub dtsi |
 | Anything on the board | **waiting for the board** | below, "What needs the board" |
@@ -634,13 +635,10 @@ sim (`tools/hp_sim_run.py gem --frames 6 --every 2`: `ok`, no underrun, hashes
 through the glass like any cart's (it owns the keyboard, so every key goes to
 `key()`). What it does not get on the board yet:
 
-- **No disk.** The browser hands GEM the mounted disk's FAT listing
-  (`diskDirPtr`, `setDiskFileCount`) and tells it an app disk is in
-  (`insertDisk(1)`); `bmain.c` does neither, exactly as `scene_hash.mjs` does not.
-  Opening FLOPPY DISK therefore shows TOS's own `Drive A: is empty` alert, and
-  there is nothing to launch. The disk itself is in DDR now ("The disk in DDR"
-  below); GEM additionally needs the FAT listing written into its buffer and
-  `insertDisk` called once it is booted.
+- **Its own disk is not a data disk.** `demo-gem.zmd` is bootable, so the browser
+  boots it with `diskApp` false and GEM's FLOPPY DISK says `Drive A: is empty`; the
+  board does the same. GEM gets a disk to open from a DATA disk on the shelf
+  (`st_replay`), below, "GEM over a data disk".
 - **No program launch.** A double-clicked program becomes `pollCartRequest() == 3`
   (run a file off the disk as the next cart). The board firmware never polls cart
   requests; the glass would have to load that file as a cart.
@@ -707,6 +705,68 @@ blocks for each 64 KB part of its stream.
 image with the shelf disk and the descriptor where ZWINDOW puts them, and
 `tools/hp_sim_run.py` compares the result with `scene_hash.mjs --disk` and
 `host --disk`.
+
+## GEM over a data disk
+
+A disk whose boot sector does not sum to `$1234` (`docs/zmdisk.js`: a *data*
+disk; today only `demo-st_replay.zmd`, with `BOOT.WSM` and `SAMPLE.RAW`) is not a
+cart. The browser boots GEM for it, and after every `demo.frame()` it
+(`docs/sealed-loader.js`):
+
+1. polls `pollCartRequest()` (a double-clicked program is request 3, below,
+   "Programs off a data disk");
+2. calls `insertDisk(1)`, so FLOPPY DISK opens the disk instead of the empty
+   drive's alert;
+3. once `isBooted()`, writes the disk's FAT listing into `diskDirPtr()` (records
+   of `rom.deskDirEntryBytes()` bytes, at most `rom.deskDirMaxFiles()`: a 16-byte
+   name, the type at +16, the size u32 LE at +17, a v2 disk's date u32 LE at +21)
+   and calls `setDiskFileCount(n)`, once.
+
+**On the shelf** (`tools/glass_shelf.py`). `st_replay` is in `SHELF`. A data
+disk's fat disk carries GEM's board image (`board/gem/fw.bin`), not its own, and
+nothing else marks it: ZWINDOW places the disk in DDR exactly as for any cart
+("The disk in DDR"), and the firmware decides from the disk's boot sector, as
+the browser does. No descriptor flag, no register. `make board-shelf` also
+builds `board/st_replay/fw.bin`: the program GEM launches (next section).
+
+**In the firmware** (`cycles/bdiskapp.c`, `host/disk_app.h`, `host/zmd_dir.h`).
+At boot, after the drive found its disk, `bdiskapp_boot` parses it (`ZM GEMDISK
+data n`). A bootable disk, a disk that does not parse, or none: nothing happens
+(`ZM GEMDISK off rc`), as the browser with `diskApp` false. Each frame, after
+`cart.frame()` and before the song bridge, `disk_app_frame` does the three steps
+above through the cart's exports (`host_dapp`, generated per cart by
+`tools/host_gen.py`; a cart without one gets no call). A request is reported
+once, `ZM CARTREQ f req name found`. The listing is the browser's byte for byte,
+including what a JS object does to it: a repeated name keeps its first place and
+the last entry's values; array-index names (`"0"`, `"17"`) come first in numeric
+order; `__proto__` is never listed; a name is UTF-8-decoded with U+FFFD for bad
+bytes and a leading BOM dropped, then cut at the first NUL that no line break
+follows (`cstr`'s `/\0.*$/`). The one limit beyond the browser's: at most 256
+FAT entries (the format holds 24). Where the browser throws (a short disk, no
+magic, a corrupt v1 checksum, a FAT past the end, records past the memory's
+end), the firmware traps the same way the cart would.
+
+**Proof.** `tests/test_board_gemdisk.py` runs the browser's own `parseDisk` and
+listing block in node against `zmd_dir.h` on ST Replay's disk and 11 built ones
+(v1, v2 with a date, repeated and array-index names, bad UTF-8, a BOM, NUL cuts,
+`__proto__`, more files than the ROM's cap, no files, a type byte past the end,
+and every error), at three record layouts. `scene_hash.mjs --data-disk` runs the
+loader's step text for text (`apps/scene_hash_disk.mjs`), and the native host's
+`--data-disk` equals it: GEM, the mouse onto FLOPPY DISK (40,30), a click, the
+double-click pulse, then a double-click on `BOOT.WSM` (75,65) in the window,
+40 frames every 5: `IDENTICAL` (`54bb583d…`), the window showing `782756 bytes
+used in 2 items` with both icons (without the disk the same clicks give
+`Drive A: is empty`, `22934ae1…`). Both report `cart request 3 "BOOT.WSM" (on
+the disk)` at frame 32. A bootable disk given as `--data-disk` is refused by
+both. **The board-SoC sim** (`tools/hp_sim_run.py gem --frames 12 --every 2
+--data-disk st_replay --pointer 2:40:30:0,3:40:30:1,4:40:30:0,5:40:30:2,6:40:30:0,8:75:65:0,9:75:65:2,10:75:65:0`,
+`tools/hp_sim_variant.py`: ST Replay's disk in DDR where ZWINDOW puts it, the
+image built with `ZM_SIM_POINTER`, the references with `--data-disk` and the same
+mouse, run id `gemdisk-b`, 2026-10-11): `ok`, no underrun, frames 2/4/6/8/10/12
+`71dbd6ea…`, `51dfe723…` (icon selected), `9fb30d47…`, `bd591683…` (the window
+opening), `9f51b9ac…`, `9f51b9ac…` (the listing, `BOOT.WSM` double-clicked), total
+`fdeb2e45…` = `scene_hash.mjs --data-disk` = the native host, byte for byte. The
+UART says `ZM GEMDISK data 2` at boot and `ZM CARTREQ 9 3 BOOT.WSM 1` at frame 9.
 
 ## Error handling
 

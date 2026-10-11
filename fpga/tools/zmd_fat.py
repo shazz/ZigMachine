@@ -45,6 +45,13 @@ def _be_sum(buf: bytes) -> int:
     return sum((buf[2 * i] << 8) | buf[2 * i + 1] for i in range(len(buf) // 2)) & 0xFFFF
 
 
+def bootable(img: bytes) -> bool:
+    """docs/zmdisk.js parseDisk's rule: a v1 boot sector (512 B) or a v2 one (1 KB) whose
+    big-endian words sum to $1234. Anything else is a data disk, which boots GEM."""
+    version, _, _ = _layout(img)
+    return _be_sum(img[: BLOCK * version]) == 0x1234
+
+
 def _retune_v1(img: bytearray, total_blocks: int) -> None:
     """New total-blocks at $0A, then the checksum word back to the sum it had."""
     target = _be_sum(img[:BLOCK])

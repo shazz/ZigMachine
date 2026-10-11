@@ -10,6 +10,8 @@ references equal). The DDR holds the cart's shelf disk as the glass places it
     uv run python tools/hp_sim_run.py raytrace_f32 --fpu       # hard-float images on the FPU core (make soc-hp-fpu)
     uv run python tools/hp_sim_run.py gem --no-build --run-id wt1   # images built beforehand (under build.lock);
                                                                      # /dev/shm/zm_hp_gem_wt1, not another checkout's
+    uv run python tools/hp_sim_run.py gem --data-disk st_replay --pointer 5:40:30:0,10:40:30:1,...
+                                    # GEM over ST Replay's data disk, the mouse scripted (tools/hp_sim_variant.py)
 """
 
 from __future__ import annotations
@@ -25,24 +27,26 @@ sys.path.insert(0, str(FPGA))
 # After the path insert: tools/ is not a package.
 import cycles_run
 import video_sim_report
+from hp_sim_variant import Variant, parse_pointer
 
 HCYC = FPGA / "build/hcycles"
 SOC = FPGA / "build/soc_hp"
 
 
-def run_one(tag: str, timeout: int, fpu: bool = False, run_id: str = "") -> str:
+def run_one(tag: str, timeout: int, fpu: bool = False, run_id: str = "", var: Variant | None = None) -> str:
+    var = var or Variant()
     rundir = Path("/dev/shm") / f"zm_hp_{tag}{'_fpu' if fpu else ''}{run_id and '_' + run_id}"
     env = dict(os.environ, ZM_SOC=f"{SOC}{'_fpu' if fpu else ''}", ZM_INIT="sim_zm_ddr.init")
-    image = HCYC / f"sim{'_fpu' if fpu else ''}" / tag / "zm_ddr.init"
+    image = HCYC / f"sim{'_fpu' if fpu else ''}" / tag / f"zm_ddr{var.suffix}.init"
     cmd = ["systemd-run", "--user", "--scope", "-q", "-p", "MemoryMax=6G", "-p", "MemorySwapMax=0"]
     cmd += [str(FPGA / "tools/cycles_sim.sh"), str(image), str(rundir), str(timeout)]
     rc = subprocess.run(cmd, env=env, check=False).returncode
-    dst = HCYC / "uart" / f"{tag}{'_fpu' if fpu else ''}.txt"
+    dst = HCYC / "uart" / f"{tag}{'_fpu' if fpu else ''}{var.suffix}.txt"
     dst.parent.mkdir(parents=True, exist_ok=True)
     uart = rundir / "uart.txt"
     dst.write_bytes(uart.read_bytes() if uart.exists() else b"")
     subprocess.run(["rm", "-rf", str(rundir)], check=False)
-    verdict = video_sim_report.verdict(tag, video_sim_report.parse(dst.read_text()), disk=True)
+    verdict = video_sim_report.verdict(tag, video_sim_report.parse(dst.read_text()), disk=True, suffix=var.suffix)
     return f"hp {tag:16} rc={rc} {verdict}  ({dst.relative_to(FPGA)})"
 
 
@@ -58,19 +62,28 @@ def main() -> int:
     # --build-only under prototypes/_gate_logs/build.lock, then --no-build under a sim lock.
     ap.add_argument("--build-only", action="store_true", help="build the images and the references, run nothing")
     ap.add_argument("--no-build", action="store_true", help="run what --build-only built")
+    ap.add_argument("--data-disk", help="mount docs/demo-<TAG>.zmd as a data disk (GEM), not the cart's own")
+    ap.add_argument("--pointer", default="", help="the mouse: F:x:y:buttons,... (ZM_SIM_POINTER / --call pointer)")
     a = ap.parse_args()
+    var = Variant(a.data_disk, parse_pointer(a.pointer))
     sim = "sim_fpu" if a.fpu else "sim"
     images = [f"build/hcycles/{sim}/{t}/zm_ddr.init" for t in a.carts]
     if not a.no_build:
         cycles_run.make("memmap", *[f"build/host/{t}/host" for t in a.carts], frames=a.frames, every=a.every, jobs=1)
-        cycles_run.make(*images, *(["ZM_FPU=1"] if a.fpu else []), frames=a.frames, every=a.every, jobs=1)
+        cycles_run.make(*images, *(["ZM_FPU=1"] if a.fpu else []), *var.make_vars(), frames=a.frames,
+                        every=a.every, jobs=1)  # fmt: skip
         for tag in a.carts:
-            cycles_run.references(tag, a.frames, a.every, disk=True)
+            if var.suffix:
+                zmd = cycles_run.shelf_disk(tag)
+                var.image(tag, zmd)
+                var.references(tag, a.frames, a.every, ["--disk", str(zmd)] if zmd else [])
+            else:
+                cycles_run.references(tag, a.frames, a.every, disk=True)
     if a.build_only:
         return 0
     bad = 0
     for tag in a.carts:
-        line = run_one(tag, a.timeout, a.fpu, a.run_id)
+        line = run_one(tag, a.timeout, a.fpu, a.run_id, var)
         print(line, flush=True)
         bad += not line.split("  (")[0].endswith(" ok")
     return 1 if bad else 0

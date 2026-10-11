@@ -15,13 +15,15 @@
  * Per frame too: "ZM QF f bg planes present" (the sequencer's cycles), "ZM BF f" + calls/cycles/units
  * of each blitter op and "ZM WF f" + the bus counters (report_frame), and with ZM_TRACE_FRAME = f
  * that frame's ops one by one ("ZM BT"). ZM_WARP_MS starts the cart's timeline late.
- * The drive (bdisk.h): "ZM DISK ..." at boot, before the cart's init can read it, and at the end. */
+ * The drive (bdisk.h): "ZM DISK ..." at boot, before the cart's init can read it, and at the end;
+ * GEM over a data disk (bdiskapp.h): "ZM GEMDISK ..." at boot, "ZM CARTREQ ..." on a request. */
 #include <stdio.h>
 #include <stdlib.h>
 
 #include "baudio.h"
 #include "bblit.h"
 #include "bdisk.h"
+#include "bdiskapp.h"
 #include "binput.h"
 #include "bboard.h"
 #include "bdiag.h"
@@ -80,6 +82,7 @@ static void frame(sha256_ctx* h, u32 planes, u32 size, long f) {
     binput_frame(e); /* the glass's keys, joypad and mouse, before the frame as the browser's */
     uint32_t t0 = board_cycles();
     w2c_cart_frame(&e->cart, f == 1 && ZM_WARP_MS ? (float)ZM_WARP_MS : 16.6f);
+    bdiskapp_frame(e, f); /* GEM over a data disk: the browser's step after the frame */
     uint32_t t1 = board_cycles();
     AUDIO(baudio_frame(e)); /* the song bridge, then the players up to the sound's lead */
     printf("ZM AF %ld %lu %lu\n", f, (unsigned long)(t1 - t0), (unsigned long)(board_cycles() - t1));
@@ -105,24 +108,6 @@ static void frame(sha256_ctx* h, u32 planes, u32 size, long f) {
            (unsigned long)(board_cycles() - t3));
 #endif
 }
-
-/* Per frame (sim): "ZM BF f" then calls/cpu-cycles/units for BLIT FILL LINE TRIANGLE (bblit.h),
- * and "ZM WF f ibus_wait dbus_rd dbus_wr dbus_wait" (soc/zm_cycles.py) over the whole frame. */
-#ifndef ZM_BOARD
-static void report_frame(long f, const uint32_t* c0, const uint32_t* c1) {
-    printf("ZM BF %ld", f);
-    for (int k = 1; k <= 4; k++)
-        printf(" %lu %lu %lu", (unsigned long)bblit.op_calls[k], (unsigned long)bblit.op_cycles[k],
-               (unsigned long)bblit.op_units[k]);
-    if (f == ZM_TRACE_FRAME)
-        for (uint32_t i = 0; i < bblit.n_trace; i++)
-            printf("\nZM BT %ld %lu %u %lu %lu %lu", f, (unsigned long)i, (unsigned)bblit.trace[i].cmd,
-                   (unsigned long)bblit.trace[i].gap, (unsigned long)bblit.trace[i].cycles,
-                   (unsigned long)bblit.trace[i].units);
-    printf("\nZM WF %ld %lu %lu %lu %lu\n", f, (unsigned long)(c1[2] - c0[2]), (unsigned long)(c1[3] - c0[3]),
-           (unsigned long)(c1[4] - c0[4]), (unsigned long)(c1[5] - c0[5]));
-}
-#endif
 
 static void print_json(char* total) {
     printf("{\"cart\":\"%s\",\"frames\":%d,\"every\":%d,\"calls\":[],\"samples\":[", ZM_CART, ZM_FRAMES, ZM_EVERY);
@@ -158,7 +143,7 @@ static void run(void) {
         printf("ZM HF %ld %lu\n", f, (unsigned long)(board_cycles() - t0));
         board_counters(c1);
 #ifndef ZM_BOARD
-        report_frame(f, c0, c1);
+        bblit_report_frame(f, ZM_TRACE_FRAME, c0, c1);
 #endif
         if (!sample) continue;
         sha256_hex(&h, g_hashes[f / ZM_EVERY - 1]);
@@ -173,6 +158,7 @@ static void boot(void) {
     uint32_t t0 = board_cycles();
     bdisk_boot(); /* host_boot runs the cart's init, which may already read the disk */
     host_boot(&g_env);
+    bdiskapp_boot(); /* after bdisk_boot: the disk it found decides */
     /* The pictures at fixed addresses (bmailbox.h), black until the first swap. */
     for (uint32_t i = 0; i < PICTURE_BYTES / 4; i++) {
         ((volatile uint32_t*)ZM_FB0_ADDR)[i] = 0;

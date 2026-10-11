@@ -28,10 +28,12 @@ HP_DEPS  := soc/hp_sim.py soc/zm_board_mem.py soc/zm_hp.py soc/zm_simaxi.py soc/
 HRV_CFLAGS = $(subst -I$(CYC)/gen,-I$(HCYC)/gen,$(RV_CFLAGS)) -Ibuild/vdump $(V_$(HV)) -Iglass/firmware -Igen
 HFW_FILES := $(filter-out cycles/board.c,$(FW_FILES)) cycles/bboard.c cycles/bmailbox.c cycles/bdiag.c cycles/bblit.c cycles/bdisk.c \
 	host/glass_router.c
-# The glass's input into the cart: per cart, as env.c (they see the cart's w2c_env through host.h).
-HIN_SRC := cycles/binput.c host/input_bridge.c
+# The glass's input into the cart, and GEM's data disk (bdiskapp.c): per cart, as env.c (they see
+# the cart's w2c_env through host.h).
+HIN_SRC := cycles/binput.c host/input_bridge.c cycles/bdiskapp.c
 HFW_DEPS  := $(FW_DEPS) cycles/bmicros.h cycles/bdisk.c cycles/bblit.c cycles/bblit.h cycles/bboard.c cycles/bboard.h cycles/bmailbox.c cycles/bmailbox.h cycles/bdiag.c cycles/bdiag.h cycles/vboard.h $(HCYC)/gen/csr_addr.h build/vdump/zm_memmap.h \
 	cycles/binput.c cycles/binput.h host/input_bridge.c host/input_bridge.h host/glass_router.c \
+	cycles/bdiskapp.c cycles/bdiskapp.h host/disk_app.h host/zmd_dir.h host/zmd_dir_fat.h \
 	glass/firmware/glass_input.c glass/firmware/glass_input.h gen/glass_map.h
 # The link of cycles.mk with the top 4 KiB of the window kept free for the debug
 # mailbox (cycles/bmailbox.h): the stack starts below it.

@@ -123,7 +123,8 @@ INPUT_DEPS := $(INPUT_SRC) host/input_bridge.h glass/firmware/glass_input.c glas
 INPUT_CFLAGS := -Iglass/firmware -Igen
 # The native host's scripted inputs (--call, --disk, ZM_GLASS_KEYS / ZM_GLASS_POINTER).
 HOST_IO := host/host_io.c host/host_io.h
-$(HOST)/%/host.o: $(HOST)/%/env.c host/main.c host/boot.c host/host.h host/boot.h host/disk.h $(HOST_IO) $(INPUT_DEPS)
+$(HOST)/%/host.o: $(HOST)/%/env.c host/main.c host/boot.c host/host.h host/boot.h host/disk.h $(HOST_IO) $(INPUT_DEPS) \
+		host/disk_app.h host/zmd_dir.h host/zmd_dir_fat.h
 	$(HOST_CC) $(HOST_CFLAGS) -I$(HOST)/$* -c $(HOST)/$*/env.c -o $(HOST)/$*/env.o
 	$(HOST_CC) $(HOST_CFLAGS) -I$(HOST)/$* -c host/boot.c -o $(HOST)/$*/boot.o
 	$(HOST_CC) $(HOST_CFLAGS) $(INPUT_CFLAGS) -I$(HOST)/$* -c host/host_io.c -o $(HOST)/$*/host_io.o

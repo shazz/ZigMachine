@@ -22,6 +22,9 @@ typedef struct {
 } bblit_stats;
 
 void bblit_frame_reset(void);
+/* The sim's per-frame lines (bmain.c): "ZM BF f" + the ops' counters since the reset, the
+ * calls one by one ("ZM BT") when f == trace, "ZM WF f" + the bus counters c1 - c0. */
+void bblit_report_frame(long f, long trace, const uint32_t* c0, const uint32_t* c1);
 
 extern bblit_stats bblit;
 
