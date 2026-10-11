@@ -80,9 +80,14 @@ pub const LINE_CYCLES = 400; // an open line displays 400 pixels, one a cycle
 /// the fraction 9/2 so the fixed-point cart never needs a float for it.
 pub const CYCLES_PER_ENTRY_X2 = 9;
 
+/// A table row: MAX_BUCKETS inks padded to whole words, so the HBL compares
+/// a line with the one above four buckets at a time.
+pub const ROW = (MAX_BUCKETS + 3) / 4 * 4; // 152
+pub const WORDS = ROW / 4;
+
 /// The ink of every bucket of every PHYSICAL row: a band 0..31, or BLACK.
-/// 41,720 B on zg.mem, taken by install() before the HBL that reads it goes in.
-pub var table: *[zg.PHYSICAL_HEIGHT][MAX_BUCKETS]u8 = undefined;
+/// 42,560 B on zg.mem, taken by install() before the HBL that reads it goes in.
+pub var table: *align(4) [zg.PHYSICAL_HEIGHT][ROW]u8 = undefined;
 var ink: [BANDS + 1]u32 = undefined;
 /// The background pattern, painted under everything: plane column x shows
 /// bucket x * count / 400, and all the motion is in the palette.
@@ -93,7 +98,7 @@ pub var count: usize = 0;
 /// machine gives a plane one HBL, and this screen needs both. Runs once per
 /// cart load (Demo.init), so the table is allocated once.
 pub fn install(fb: *zg.LogicalFB) void {
-    table = zg.mem.mustAlloc([MAX_BUCKETS]u8, zg.PHYSICAL_HEIGHT)[0..zg.PHYSICAL_HEIGHT];
+    table = @ptrCast(zg.mem.mustAlloc(u32, zg.PHYSICAL_HEIGHT * WORDS).ptr);
     for (&ink, 0..) |*c, i| c.* = if (i == BLACK) A.BLACK_RGBA else A.bar_rgba[i];
     for (table) |*r| @memset(r, BLACK);
     for (0..MAX_BUCKETS) |b| fb.palette[A.FIRST_BUCKET + b] = A.BLACK_RGBA;
@@ -109,7 +114,22 @@ fn hbl(fb: *zg.LogicalFB, _: *zg.ZigOS, line: u16, _: u16) void {
     // rasters run edge to edge. That per-line cost is the trick's real price.
     fb.flickerBorder();
     if (line >= zg.PHYSICAL_HEIGHT) return;
-    for (table[line][0..count], 0..) |b, i| fb.palette[A.FIRST_BUCKET + i] = ink[b];
+    // Only the entries whose colour CHANGED since the line above are written —
+    // the raster coder's rule, and the budget bucketCount() was sized on. The
+    // palette always holds the line above: line 0 follows line 279 of the last
+    // frame, and both are BLACK in every bucket, as install() left them.
+    const above = if (line == 0) zg.PHYSICAL_HEIGHT - 1 else line - 1;
+    const now: *const [ROW]u8 = &table[line];
+    const was: *const [ROW]u8 = &table[above];
+    const now_w: *const [WORDS]u32 = @ptrCast(@alignCast(now)); // ROW is whole words
+    const was_w: *const [WORDS]u32 = @ptrCast(@alignCast(was));
+    const pal = fb.palette + A.FIRST_BUCKET;
+    for (0..(count + 3) / 4) |w| {
+        if (now_w[w] == was_w[w]) continue;
+        for (w * 4..@min(w * 4 + 4, count)) |i| {
+            if (now[i] != was[i]) pal[i] = ink[now[i]];
+        }
+    }
 }
 
 pub fn setCount(n: usize) void {

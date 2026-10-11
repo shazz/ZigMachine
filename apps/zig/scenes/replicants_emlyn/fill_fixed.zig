@@ -53,15 +53,39 @@ pub fn build(parts: []const Part, theta: trig.Angle) void {
     const n: usize = @intCast(((u_max - u_min) >> STEP) + 1);
     @memset(strip[0..n], R.BLACK);
     for (parts) |p| paint(p, u_min, n, du);
+    walk(u_origin - u_min, du, dy); // u >= 0 on every line and bucket
+}
+
+/// The table from the strip: bucket i of content line y reads the strip at
+/// u + i*du + y*dy. Walked FOUR BUCKETS AT A TIME DOWN THE LINES, not along
+/// each line: a line's buckets lie du apart (~60 entries at 149 buckets), so a
+/// line touches up to 9 KB of strip and every read missed the 4 KB D-cache
+/// (~1.2 Mc a frame), while down a column the reads move by dy, at most 32
+/// entries, and share cache lines. Four buckets make ONE word store (the
+/// D-cache writes through: every store is a bus write); the last count % 4
+/// one at a time, never past `count`, whose u would leave the strip.
+fn walk(u_first: i32, du: i32, dy: i32) void {
     const t = R.table; // one load of the arena pointer, not one a row
-    var u_line = u_origin - u_min; // >= 0 on every line and bucket
-    for (0..A.CONTENT_H) |y| {
-        var u = u_line;
-        for (t[A.CONTENT_Y + y][0..R.count]) |*b| {
-            b.* = strip[@intCast(u >> STEP)];
-            u += du;
+    const groups = R.count / 4;
+    for (0..groups) |g| {
+        var u: [4]i32 = undefined;
+        for (&u, 0..) |*v, k| v.* = u_first + @as(i32, @intCast(4 * g + k)) * du;
+        for (t[A.CONTENT_Y..][0..A.CONTENT_H]) |*line| {
+            var v: u32 = 0;
+            inline for (0..4) |k| {
+                v |= @as(u32, strip[@intCast(u[k] >> STEP)]) << (8 * k);
+                u[k] += dy;
+            }
+            // little-endian: bucket 4g is the low byte, as the HBL reads it
+            @as(*[R.WORDS]u32, @ptrCast(@alignCast(line)))[g] = v; // rows are whole words
         }
-        u_line += dy;
+    }
+    for (groups * 4..R.count) |i| {
+        var u = u_first + @as(i32, @intCast(i)) * du;
+        for (t[A.CONTENT_Y..][0..A.CONTENT_H]) |*line| {
+            line[i] = strip[@intCast(u >> STEP)];
+            u += dy;
+        }
     }
 }
 
@@ -98,12 +122,19 @@ fn paint(p: Part, u_min: i32, n: usize, du: i32) void {
     const half = HALF_ROWS * p.sy;
     const lo = @max(0, ((p.y - half - u_min) >> STEP) - 1);
     const hi = @min(@as(i32, @intCast(n)) - 1, ((p.y + half - u_min) >> STEP) + 1);
+    // bar.png's row under u, read backwards as the port measured, is
+    // trig.mul(y - u, inv) >> 16 = ((y - u) * inv) >> 32 (the product's top
+    // word: |(y - u) * inv| >> 16 stays far inside an i32 within the bar). u
+    // moves one entry at a time, so the product moves by a constant: one 64-bit
+    // subtract an entry instead of a 64-bit multiply.
+    const u_lo = u_min + (lo << STEP) + (1 << (STEP - 1)); // entry lo's centre
+    var prod: i64 = @as(i64, p.y - u_lo) * p.inv;
+    const dprod: i64 = @as(i64, p.inv) << STEP;
     var i = lo;
     while (i <= hi) : (i += 1) {
-        const u = u_min + (i << STEP) + (1 << (STEP - 1)); // the entry's centre
-        // bar.png's row under u, read backwards as the port measured
-        const row = (trig.mul(p.y - u, p.inv) >> 16) + HALF_ROWS;
+        const row = @as(i32, @intCast(prod >> 32)) + HALF_ROWS;
         if (row >= 0 and row < R.BAR_ROWS) strip[@intCast(i)] = map[@intCast(row >> 1)];
+        prod -= dprod;
     }
 }
 

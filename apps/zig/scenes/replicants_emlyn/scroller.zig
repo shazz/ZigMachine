@@ -35,16 +35,15 @@
 //
 // ZIG MODE bends it on CODEF 484's middle scroller, the curve picked out of the
 // distortion lab: cascade-archeology.js:76-79, amp HALVED and inc DOUBLED for
-// ST, offset per frame unchanged. The filter is codef_fx.siny and is NOT
-// reimplemented here — libs/zig/effects/wave.zig already is it (its own header
-// says so), so this is the shared one; the curve it is fed is curve.zig's, in
-// the cart's numbers. The phase is a function of the SCREEN column (CODEF's
+// ST, offset per frame unchanged. The filter is codef_fx.siny with 1-px
+// columns, i.e. libs/zig/effects/wave.zig's siny, drawn here by bent() with the
+// same pixels in row order (the board's cart CPU paid for siny's call per
+// column); the curve it is fed is curve.zig's, in the cart's numbers. The phase is a function of the SCREEN column (CODEF's
 // `.multiply` form, value + inc*x) because the glyphs are blitted one at a
 // time, not walked as one strip.
 // --------------------------------------------------------------------------
 const zg = @import("zigos");
 const blit = zg.blit;
-const wave = zg.wave;
 const A = @import("assets.zig");
 const Rect = @import("dirty.zig").Rect;
 const REACH = @import("curve.zig").REACH;
@@ -140,8 +139,35 @@ pub fn Scroller(comptime Curve: type, comptime Mode: type) type {
                     continue;
                 }
                 var it = self.curve.sweep(mode, dx);
-                wave.siny(dst, font, cell, dx, ROW, 1, &it, A.TRANSPARENT, .copy);
+                bent(dst, font, cell, dx, &it);
             }
         }
     };
+}
+
+/// wave.siny(dst, font, cell, dx, ROW, 1, sweep, TRANSPARENT, .copy), pixel for
+/// pixel, walked ROW by row instead of column by column: siny makes one
+/// clipped blit per 1-px column (448 calls a frame, each a clip and a switch
+/// for 32 pixels), where this takes the 32 column offsets first (consuming
+/// the sweep exactly as siny does, drawn or not) and then reads each glyph row
+/// once, left to right. Every column writes its own x, so the order the
+/// pixels go down in changes nothing.
+fn bent(dst: blit.Dst, font: blit.Image, cell: blit.Rect, dx: i32, sweep: anytype) void {
+    var top: [TILE]i32 = undefined; // the plane row of each column's first pixel
+    for (&top) |*t| t.* = ROW + sweep.next();
+    const w: i32 = @intCast(dst.w);
+    const h: i32 = @intCast(dst.h);
+    const c0: usize = @intCast(@min(TILE, @max(0, -dx))); // the columns on the plane
+    const c1: usize = @intCast(@max(0, @min(TILE, w - dx)));
+    if (c0 >= c1) return;
+    for (0..TILE) |r| {
+        const in = font.data[(cell.y + r) * font.w + cell.x ..][0..TILE];
+        for (c0..c1) |c| {
+            const p = in[c];
+            if (p == A.TRANSPARENT) continue;
+            const y = top[c] + @as(i32, @intCast(r));
+            if (y < 0 or y >= h) continue;
+            dst.buf[@as(usize, @intCast(y)) * dst.stride + @as(usize, @intCast(dx + @as(i32, @intCast(c))))] = p;
+        }
+    }
 }
