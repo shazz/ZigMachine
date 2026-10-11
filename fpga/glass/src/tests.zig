@@ -4,6 +4,7 @@ test {
     _ = @import("sim.zig");
     _ = @import("sim_test.zig");
     _ = @import("zmd.zig");
+    _ = @import("zmd_test.zig");
     _ = @import("loader_test.zig");
     _ = @import("keymap.zig");
     _ = @import("pad.zig");

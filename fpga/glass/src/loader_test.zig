@@ -28,6 +28,14 @@ fn diskWith(image: []const u8) ![]u8 {
     return zmd.testDisk(gpa, "fat", &.{ .{ "BOOT.WSM", 0, "\x00asm" }, .{ "CART.RV32", map.ZMD_TYPE_RV32, image } });
 }
 
+/// The window against the load's plan (image, disk, descriptor, zeros): the first word that differs.
+fn landed(rig: *Rig, disk: []const u8) !?usize {
+    var p = try loader.plan(gpa, disk, WINDOW_WORDS * 4);
+    defer p.deinit(gpa);
+    const parts = p.parts();
+    return rig.ddr().verifyParts(&parts);
+}
+
 test "a packed board image lands in DDR exactly and the cart runs" {
     var raw: [5000]u8 = undefined;
     fakeImage(&raw);
@@ -39,7 +47,7 @@ test "a packed board image lands in DDR exactly and the cart runs" {
     rig.glass.ctrl = map.CTRL_OSD | map.CTRL_RUN; // a cart was running, the menu open
     rig.glass.push(0xE012);
     const rep = try loader.load(gpa, rig.glass.regs(), rig.ddr(), disk, .{});
-    try std.testing.expectEqual(@as(?usize, null), rig.ddr().verify(&raw));
+    try std.testing.expectEqual(@as(?usize, null), try landed(&rig, disk));
     try std.testing.expectEqualSlices(u8, &raw, std.mem.sliceAsBytes(rig.words[0..1250]));
     try std.testing.expectEqual(@as(u32, 5000), rep.image_bytes);
     try std.testing.expectEqual(@as(u32, 5000), rig.glass.load_size);
@@ -54,7 +62,8 @@ test "an unpacked image loads as is" {
     const disk = try diskWith("RAWIMAGE");
     defer gpa.free(disk);
     _ = try loader.load(gpa, rig.glass.regs(), rig.ddr(), disk, .{});
-    try std.testing.expectEqual(@as(?usize, null), rig.ddr().verify("RAWIMAGE"));
+    try std.testing.expectEqual(@as(?usize, null), try landed(&rig, disk));
+    try std.testing.expectEqualStrings("RAWIMAGE", std.mem.sliceAsBytes(rig.words[0..2]));
 }
 
 test "failures leave the cart CPU held in reset" {
@@ -148,4 +157,36 @@ test "a PL older than 1.3.0 ignores LOAD_BASE, so it gets no cart (it would run 
     var rig = Rig{};
     try std.testing.expectError(error.OldGlass, loader.load(gpa, regs, rig.ddr(), "", .{}));
     try std.testing.expectEqual(@as(u32, 0), old.writes); // not even CTRL: the running cart is left alone
+}
+
+test "the shelf disk lands after the image, and the descriptor says where" {
+    var raw: [5000]u8 = undefined;
+    fakeImage(&raw);
+    const disk = try diskWith(&raw);
+    defer gpa.free(disk);
+    var rig = Rig{};
+    const rep = try loader.load(gpa, rig.glass.regs(), rig.ddr(), disk, .{});
+    const shelf = try (try zmd.parse(disk)).shelfDisk(gpa);
+    defer gpa.free(shelf);
+    try std.testing.expectEqual(@as(u32, 0x2000), rep.disk_at); // 5000 rounded up to DISK_ALIGN
+    try std.testing.expectEqual(@as(u32, @intCast(shelf.len)), rep.disk_bytes);
+    const bytes = std.mem.sliceAsBytes(&rig.words);
+    try std.testing.expectEqualSlices(u8, shelf, bytes[0x2000..][0..shelf.len]);
+    const top = WINDOW_WORDS - map.DISK_DESC_FROM_TOP / 4;
+    const size: u32 = @intCast(shelf.len);
+    try std.testing.expectEqualSlices(u32, &.{ map.DISK_MAGIC, 0x2000, size, ~(map.DISK_MAGIC ^ 0x2000 ^ size) }, rig.words[top..][0..4]);
+    try std.testing.expectEqual(@as(u32, 1), (try zmd.parse(shelf)).file_count); // the board image is gone
+}
+
+test "a disk that does not fit below the descriptor is refused before the cart CPU is touched" {
+    var rig = Rig{};
+    rig.glass.ctrl = map.CTRL_RUN;
+    var raw = [_]u8{0x55} ** (WINDOW_WORDS * 4 - 0x800); // fits the window, but leaves no room for the disk
+    const disk = try diskWith(&raw);
+    defer gpa.free(disk);
+    try std.testing.expectError(error.DiskTooBig, loader.load(gpa, rig.glass.regs(), rig.ddr(), disk, .{}));
+    try std.testing.expectEqual(map.CTRL_RUN, rig.glass.ctrl);
+    try std.testing.expectEqual(@as(u32, 0xA5A5_A5A5), rig.words[0]);
+    try std.testing.expectError(error.DiskTooBig, loader.diskAt(0x10, map.DISK_END, 32 << 20)); // past the pictures
+    try std.testing.expectEqual(@as(u32, 0x0020_0000), try loader.diskAt(0x1F_F001, map.DISK_END - 0x20_0000, 32 << 20)); // exactly fills
 }

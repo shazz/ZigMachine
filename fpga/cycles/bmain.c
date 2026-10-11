@@ -14,12 +14,14 @@
  * (the cycles of cart.frame() and of the players), "ZM SONG ts name" per song, then "ZM AUD ...".
  * Per frame too: "ZM QF f bg planes present" (the sequencer's cycles), "ZM BF f" + calls/cycles/units
  * of each blitter op and "ZM WF f" + the bus counters (report_frame), and with ZM_TRACE_FRAME = f
- * that frame's ops one by one ("ZM BT"). ZM_WARP_MS starts the cart's timeline late. */
+ * that frame's ops one by one ("ZM BT"). ZM_WARP_MS starts the cart's timeline late.
+ * The drive (bdisk.h): "ZM DISK ..." at boot, before the cart's init can read it, and at the end. */
 #include <stdio.h>
 #include <stdlib.h>
 
 #include "baudio.h"
 #include "bblit.h"
+#include "bdisk.h"
 #include "binput.h"
 #include "bboard.h"
 #include "bdiag.h"
@@ -169,6 +171,7 @@ static void run(void) {
 
 static void boot(void) {
     uint32_t t0 = board_cycles();
+    bdisk_boot(); /* host_boot runs the cart's init, which may already read the disk */
     host_boot(&g_env);
     /* The pictures at fixed addresses (bmailbox.h), black until the first swap. */
     for (uint32_t i = 0; i < PICTURE_BYTES / 4; i++) {
@@ -205,5 +208,6 @@ int main(void) {
     printf("ZM MIS %lu %lu\n", (unsigned long)zm_misaligned[0], (unsigned long)zm_misaligned[1]);
     printf("ZM BLIT %lu %lu %lu\n", (unsigned long)bblit.calls, (unsigned long)bblit.hw, (unsigned long)bblit.cycles);
     AUDIO(baudio_report());
+    bdisk_report();
     board_finish(w2c_machine_hwRamAllocFailures(&g_env.machine) ? 1 : 0);
 }

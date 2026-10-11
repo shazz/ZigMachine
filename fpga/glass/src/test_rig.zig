@@ -6,13 +6,15 @@ const map = @import("map.zig");
 const sim = @import("sim.zig");
 const zmd = @import("zmd.zig");
 const App = @import("app.zig").App;
+const bus = @import("bus.zig");
+const loader = @import("loader.zig");
 
 const gpa = std.testing.allocator;
 const io = std.testing.io;
 
 pub const Rig = struct {
     glass: sim.Glass = .{},
-    words: [1024]u32 = [_]u32{0} ** 1024,
+    words: [4096]u32 = [_]u32{0} ** 4096, // 16 KiB: the image, the shelf disk, its descriptor
     tmp: std.testing.TmpDir,
     dir: []u8,
 
@@ -35,6 +37,16 @@ pub const Rig = struct {
         r.tmp.cleanup();
         gpa.free(r.dir);
         gpa.destroy(r);
+    }
+
+    /// The window against what loading a.zmd writes: the first word that differs, or null.
+    pub fn loaded(r: *Rig) !?usize {
+        const disk = try r.tmp.dir.readFileAlloc(io, "a.zmd", gpa, .limited(1 << 20));
+        defer gpa.free(disk);
+        var p = try loader.plan(gpa, disk, r.words.len * 4);
+        defer p.deinit(gpa);
+        const parts = p.parts();
+        return (bus.Ddr{ .words = &r.words }).verifyParts(&parts);
     }
 
     pub fn app(r: *Rig) !App {

@@ -37,6 +37,7 @@ none of MiSTer's code (GPL) or zeST's code (GPL-3) is used.
 | Warm-boot hook in the cart CPU's firmware (`glass/firmware/glass_boot.c`) | **stub**, tested | 13 checks, 4 break tests caught; not linked into a firmware yet |
 | Remote shell over Ethernet (DHCP, dropbear, avahi) | **Linux side written**; the PL's EMIO wiring is not | below, "Remote shell" |
 | Load path, end to end | **done** | the 9 board images `fpga/cycles` links land byte for byte in the fake DDR |
+| Disk streaming: ZWINDOW places the shelf disk in DDR, ZIGGY serves `diskReadBlock` from it | **done in the sim** (2026-10-11): no RTL change, no new CSR | every `docs/` shelf disk comes back byte for byte from its fat disk; the drive answers as the browser's own function on every case (`tests/test_board_disk.py`); stniccc streams SCENE1.BIN in the board SoC sim with the browser's hashes (below, "The disk in DDR") |
 | Cart-side input routing (`glass/firmware/glass_input.c`) | **done, linked into every board firmware** (2026-10-10): once a frame, before `cart.frame()`, `cycles/binput.c` drains the key FIFO (32 a frame at most), then the joypad and the mouse, through `host/input_bridge.c` into the cart's exports (`host_input`, generated per cart by `tools/host_gen.py`: NULL where a cart has no such export) | 19 key cases + 7 pointer polls against `sealed-loader.js`'s rules; 3 break tests caught. `tests/test_board_input.py`: the native host plays a key-FIFO script (`ZM_GLASS_KEYS`) through the same router, and SPACE on union_beatdis gives the browser's own `key(32)` hashes, a mutant router is caught |
 | SD card staging (`tools/glass_sd.py`), U-Boot script, DTS, Buildroot tree | **written** | `boot.scr` is byte-identical to `mkimage`'s; the DTS compiles against a stub dtsi |
 | Anything on the board | **waiting for the board** | below, "What needs the board" |
@@ -55,6 +56,7 @@ without `~` are measured (Yosys `synth_xilinx`, `tools/util.py`); figures with
 | Frame-rate overlay | `FPS 38.2` in the corner, F11, the picture still visible | both | built, host-tested; not yet on the board | S | in the OSD's 91 (+46 LUT over the fixed OSD); `OSD_POS` in the register block's 269 |
 | Register block (GP0) | the ARM's view of the console | core | built, host-tested | M | 269 / 0 / 0 (433 FF, 6 LUTRAM) |
 | Cart shelf + load | list the `.zmd` disks, place a cart in DDR, boot it | ARM | built, host-tested | M | — |
+| Disk drive | the cart reads its own disk block by block (`diskReadBlock`), as in the browser | both | built, sim-tested; not yet on the board | S | — (a descriptor in DDR, no register) |
 | Cold reset | reload from SD, clear the cart's memory, boot: a power cycle | ARM | **must-have**, built, host-tested | S | — |
 | Warm reset | restart the cart CPU over its memory: the ST's reset button | both | **must-have**, built, host-tested; firmware hook stubbed | M | 1 FF (`CTRL.WARM`, in the 245) |
 | Volume / mute | master volume 0..255 + mute, persisted | both | **must-have**: register, menu and the multiply built (`soc/zm_audio_vol.py`, between the audio core and HDMI, 2026-10-10); not yet heard on the board | S | register in the 245; multiply ~1 DSP48 + ~20 LUT |
@@ -248,16 +250,28 @@ the Union demo's doors), the OSD moves and loads with it, and the debug page's
 | `0x0000_0000` | 480 MiB | Linux | The kernel, the rootfs in RAM, and `glass` |
 | `0x1E00_0000` | 32 MiB | **the cart CPU** | Its whole RAM, seen at `0x4000_0000` (LiteX `main_ram`). Reserved with `no-map` (`zigmachine-z7lite.dts`); plan B uses `mem=480M`. |
 
-Inside the cart window, the layout is exactly the one `fpga/cycles` links
-(`cycles.mk`):
+Inside the cart window, the layout is the one `fpga/cycles` links
+(`cycles.mk`, `board.mk`, `sound.mk`), plus what ZWINDOW places for the drive.
+Offsets are from the window's start; the cart CPU (ZIGGY) sees offset 0 at
+`0x4000_0000`, the PS at `0x1E00_0000`.
 
-- the image (`fw.bin`): code, constants and `.data`'s load copy, from offset 0,
-  in 16 MiB;
-- `.data`, `.bss`, the heap and a 1 MiB stack, from offset 16 MiB.
+| Offset | CPU address | Size | What | Written by |
+|---|---|---|---|---|
+| `0x0000_0000` | `0x4000_0000` | the image, < 12 MiB | `fw.bin`: code, constants, `.data`'s load copy (ends at `__data_source_end`) | ZWINDOW (load) |
+| image end, rounded up to 4 KiB | | the disk, up to `0x00C0_0000` | **the shelf disk** (`DISK_*`, below "The disk in DDR") | ZWINDOW (load) |
+| `0x00C0_0000` | `0x40C0_0000` | 1 MiB + 1 MiB | the two pictures (`cycles/bmailbox.h`) | ZIGGY |
+| `0x00E0_0000` | `0x40E0_0000` | 2 MiB | the sound CPU's image (`ZM_AUDIO=snd` only) | in `fw.bin`'s link |
+| `0x0100_0000` | `0x4100_0000` | 16 MiB (12 with `snd`) | `.data`, `.bss`, the machine's 7 MiB arena, the heap, a 1 MiB stack | ZIGGY |
+| `0x01C0_0000` | `0x41C0_0000` | to `0x01FE_F000` | the sound CPU's RAM (`snd` only) | BARD |
+| `0x01FE_F000` | `0x41FE_F000` | 64 KiB | the sound CPU's console ring (`snd` only) | BARD |
+| `0x01FF_FC00` | `0x41FF_FC00` | 16 B | **the disk descriptor** (`DISK_DESC_*`) | ZWINDOW (load) |
+| `0x01FF_FE00` | `0x41FF_FE00` | 12 B | the write-path diagnostic's control (`cycles/bdiag.h`) | the ARM, on request |
+| `0x01FF_FF00` | `0x41FF_FF00` | 256 B | the debug mailbox (`cycles/bmailbox.h`) | ZIGGY |
 
 The machine's 7 MiB shared memory (cart window, VRAM, PFB, ROM window) is
-`calloc`'d from that heap by the firmware, as on the native host. The ARM writes
-the image and zeroes everything after it. It never touches anything else.
+`calloc`'d from that heap by the firmware, as on the native host. A load writes
+the image, the disk and its descriptor, and zeroes everything else. A warm reset
+touches nothing.
 
 The **OSD buffer is not in DDR.** It is 2 KB of text RAM, plus the 2 KB font,
 in BRAM inside `zm_glass_osd`, as MiSTer's OSD is. That costs no DDR bandwidth
@@ -427,13 +441,15 @@ XADC)`, as does `mem` without `/proc`. `fw` shows `-` while no cart runs.
 2. Parse the `.zmd` (v1 or v2), and find the FAT file of type 3 (`CART.RV32`):
    `NoBoardImage`.
 3. Depack it with the machine's ZX0 depacker (an unpacked image is taken as it
-   is), and check the result fits the window: `BadImage`, `TooBig`.
+   is), and check the result fits the window: `BadImage`, `TooBig`. Rebuild the
+   shelf disk from the fat disk and check it fits between the image and the
+   pictures: `BadFat`, `DiskTooBig` (`loader.plan`, below "The disk in DDR").
    **Steps 1 to 3 touch neither DDR nor the CPU**, so a bad disk leaves the
    running cart running.
 4. Clear `RUN`, and check that `STATUS.RUNNING` dropped: `WontStop`.
-5. Write the image into the window one word at a time, zero the rest, then read
-   the whole window back: `DdrMismatch`. The mapping is uncached, so nothing is
-   left in a cache when the CPU starts.
+5. Write the image, the shelf disk and its descriptor into the window one word
+   at a time, zero the rest, then read the whole window back: `DdrMismatch`. The
+   mapping is uncached, so nothing is left in a cache when the CPU starts.
 6. Write `LOAD_BASE` and `LOAD_SIZE`, and strobe `KEY_FLUSH`, so no keys typed
    for the menu reach the new cart.
 7. Set `RUN`. Poll `CART_STATE` until it reads `RUNNING`: `CartTrapped` with the
@@ -449,7 +465,7 @@ Two menu items (and R and W on the shelf page), with exactly these effects:
 |---|---|---|
 | What it is | a power cycle of the console | the ST's reset button |
 | The image on the SD card | re-read and depacked | not read |
-| The cart window in DDR | rewritten: the image, then zeros to the end (`.data`, `.bss`, heap, stack and the machine's 7 MiB memory all cleared), read back | **untouched** |
+| The cart window in DDR | rewritten: the image, the shelf disk and its descriptor, zeros everywhere else (`.data`, `.bss`, heap, stack and the machine's 7 MiB memory all cleared), read back | **untouched** |
 | The cart CPU | held, then booted with `CTRL.WARM` clear | held, then booted with `CTRL.WARM` set |
 | The firmware's own C statics | crt0: `.data` copied, `.bss` zeroed | the same (crt0 always runs) |
 | The machine's memory arena (wasm linear memory) | zeroed, data segments applied, marked | **kept**: no zeroing, no data segments |
@@ -587,13 +603,74 @@ fpga toolchain, which `./build.sh` does not run, so `tools/glass_sd.py` makes
 the fat shelf for the SD card. A FAT entry of type 3 is invisible to the
 browser.
 
+## The disk in DDR
+
+A cart that streams from its disk (stniccc's SCENE1.BIN, the stream cart, any
+`zg.disk` user) calls `env.diskReadBlock(block, dst)`. In the browser that is
+`docs/sealed-loader.js`'s drive over the mounted `.zmd`. On the board ZWINDOW
+already holds the disk when it loads the cart, so it leaves a copy in the cart
+window, and ZIGGY's firmware serves the call from it. No register is involved
+and nothing changes in the PL.
+
+**What ZWINDOW places** (`loader.plan`, `zmd.Disk.shelfDisk`). The disk the
+browser mounts, which is not the fat disk. `shelfDisk` undoes
+`tools/zmd_fat.py` byte for byte: it cuts the board image off the end, zeroes
+its FAT entry, puts the file count back, and for a v1 disk restores the
+total-blocks field and the checksum word. A fat disk whose board image is not
+the last file, ending the disk, is refused (`BadFat`). The rebuilt disk goes on
+the first 4 KiB boundary after the image (`DISK_ALIGN`) and must end by the
+pictures at offset 12 MiB (`DISK_END`), or the load stops with `DiskTooBig`
+before the CPU is touched. With today's images (1.7 to 2.4 MB) that leaves
+about 9.5 MiB for a disk; the largest shelf disk is 1.1 MiB.
+
+**The descriptor** (`map.zig`, four little-endian words at window offset
+`DDR_CART_BYTES - DISK_DESC_FROM_TOP` = `0x01FF_FC00`, CPU `0x41FF_FC00`, in the
+top 4 KiB that the link keeps free):
+
+| Word | Value |
+|---|---|
+| 0 | `DISK_MAGIC` = `0x4B44_4D5A` ("ZMDK") |
+| 1 | the disk's window offset (not a CPU address: ZWINDOW never sees `CART_CPU_BASE`) |
+| 2 | the disk's bytes |
+| 3 | `~(magic ^ offset ^ bytes)` |
+
+**What ZIGGY does** (`cycles/bdisk.c`). It reads the descriptor at boot, cold or
+warm, before `host_boot` runs the cart's init, because init may already read
+the disk (stniccc's does). It accepts the descriptor only if the magic and the
+check hold, the disk starts at or after its own image's end
+(`__data_source_end`), and it ends by `DISK_END`. Anything else, including
+U-Boot's `loadx` flow and a glass older than this, means no disk, and
+`diskReadBlock` answers 0, as `scene_hash.mjs`'s stub does. ZIGGY never writes
+the disk or the descriptor, and ZWINDOW wrote both before the CPU left reset,
+so the D-cache never holds a stale line of them.
+
+**The drive's answers** (`fpga/host/disk.h`, the same code in the native host
+and the firmware). It does exactly what the browser's function does:
+
+| Call | Answer |
+|---|---|
+| no disk | 0; nothing is written, and `dst` is never looked at |
+| block `b` | `buf.subarray(b*512, b*512+512)` copied to `dst`, returns its length: 512, or less for a partial last block |
+| past the end | 0, `dst` never looked at |
+| `b` ≥ `0x8000_0000` | the browser sees it as a negative i32, and `subarray` counts from the end: `0xFFFF_FFFE` reads the second-to-last block, `0xFFFF_FFFF` and `0x8000_0000` read nothing. Kept, because it is what the browser does. |
+| `dst` + n past the 7 MiB memory, or `dst` ≥ `0x8000_0000` | the browser throws a `RangeError` out of the cart. Here it is a wasm trap (`WASM_RT_TRAP_OOB`), which the firmware reports as `CART_TRAPPED` |
+
+The call is synchronous in both: the bytes are in memory when it returns. One
+block is one `memcpy` from DDR to DDR through the D-cache. stniccc reads 128
+blocks for each 64 KB part of its stream.
+
+**The board SoC sim** loads the same picture. `tools/ddr_init.py` writes the DDR
+image with the shelf disk and the descriptor where ZWINDOW puts them, and
+`tools/hp_sim_run.py` compares the result with `scene_hash.mjs --disk` and
+`host --disk`.
+
 ## Error handling
 
 | Failure | Detected by | What you see | State left |
 |---|---|---|---|
 | No or wrong bitstream | `ID` ≠ `ZMGL` | `glass: NoGlass` on the UART, and `S99glass` retries every second | nothing driven |
 | `/dev/mem` refused | `open`/`mmap` errno | logged, `glass` exits and is restarted | — |
-| Disk unreadable, not a disk, no board image, bad ZX0, too big | parse/depack | the status line shows `<file>: <Error>` | the old cart keeps running |
+| Disk unreadable, not a disk, no board image, bad ZX0, too big, a board image that is not the last file (`BadFat`), a shelf disk that does not fit below the pictures (`DiskTooBig`) | parse/depack | the status line shows `<file>: <Error>` | the old cart keeps running |
 | CPU will not stop | `STATUS.RUNNING` | `WontStop` | the bitstream is wrong |
 | DDR read-back differs | full read-back | `DdrMismatch` | CPU held |
 | Firmware traps while booting | `CART_STATE` = 3 | `CartTrapped`, with the code | CPU held |
@@ -632,9 +709,21 @@ browser.
     - the fat disk;
     - the SD staging;
     - **the load path end to end**: shelf disk + `fw.bin` → zx0pack → fat disk
-      → `glass sim-load` → the window must equal `fw.bin` and then zeros. It runs
-      on every cart with an `aligned` board image (9 today, or about 85 with
-      `ZM_GLASS_ALL=1`), plus a synthetic image.
+      → `glass sim-load` → the window must equal `fw.bin`, the shelf disk, its
+      descriptor and zeros. It runs on every cart with an `aligned` board image
+      (9 today, or about 85 with `ZM_GLASS_ALL=1`), plus a synthetic image.
+  - `tests/test_board_disk.py` (the drive, "The disk in DDR"):
+    - `host/disk.h` against the browser's own `diskReadBlock`, cut out of
+      `sealed-loader.js` and run in node, over 80 (block, dst) pairs on a disk
+      with a partial last block and on stniccc's: every answer and the whole
+      memory after each call; no disk;
+    - `scene_hash.mjs`'s drive is the browser's function, text for text;
+    - the firmware's descriptor check, on the descriptor `glass sim-load` writes
+      and on six it must refuse;
+    - every shelf disk in `docs/` comes back byte for byte through the glass;
+    - the glass and `tools/ddr_init.py` put the disk in the same place;
+    - the native host with `--disk` equals `scene_hash.mjs --disk` on stniccc,
+      and the run without a disk differs.
     - the console page (`console_test.zig`, `menu_test.zig`): cold reset clears
       the window, warm reset keeps it, a warm reset with no memory to keep, a
       reset with no cart and with its disk gone, the volume reaching
@@ -725,7 +814,9 @@ work on this board:
 2. **Hard-drive emulation.** An ACSI/IDE-like block device for carts, backed by
    an image file on the SD card (as zeST does with `hdd.img`), through the
    existing disk/drive ABI (`diskReadBlock` etc.): the ARM serves blocks into a
-   DDR mailbox the firmware maps to the drive ABI.
+   DDR mailbox the firmware maps to the drive ABI. The floppy half is done:
+   the cart's own disk is in DDR ("The disk in DDR"). A hard drive too big to
+   copy whole needs the mailbox.
 3. **CRT screen effects** like Leonard/Oxygene's SC1425 emulation
    (http://leonard.oxg.free.fr/SC1425/SC1425.html): scanlines, shadow mask,
    bloom/glow, curvature, as a post-process in the PL between the mixer and

@@ -31,7 +31,7 @@ test "cold reset reloads the cart from the card and clears its memory" {
     press(&a, keymap.OSD_HOTKEY);
     press(&a, KEY_R);
     try std.testing.expectEqual(@as(u32, 0), r.words[100]);
-    try std.testing.expectEqual(@as(?usize, null), (bus.Ddr{ .words = &r.words }).verify("board image bytes"));
+    try std.testing.expectEqual(@as(?usize, null), try r.loaded());
     try std.testing.expectEqual(@as(u32, 2), a.stats.loads);
     try std.testing.expect(r.glass.ctrl & map.CTRL_RUN != 0 and r.glass.ctrl & map.CTRL_OSD == 0);
 }
