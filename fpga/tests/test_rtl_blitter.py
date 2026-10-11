@@ -31,14 +31,14 @@ RTL = [f for f in FILES if f.endswith(".v")]
 SCRIPTS = {"edges": edge_script, "random1": lambda: make_script(1, 400), "random2": lambda: make_script(2, 400)}
 # (name, file, the text, its broken form): each rule of the blitter, broken one at a time.
 MUTANTS = [
-    ("minterm_index_swapped", "zm_blit_px.v", "mt[{a_v[i], bval[i], c_v[i]}]", "mt[{c_v[i], bval[i], a_v[i]}]"),
+    ("minterm_index_swapped", "zm_blit_pxq.v", "mt[{h_a[i], bval[i], h_c[i]}]", "mt[{h_c[i], bval[i], h_a[i]}]"),
     ("clip_bottom_off_by_one", "zm_blit_clip.v", "ry < dh ? ry : dh", "ry < dh ? ry + 18'sd1 : dh"),
     ("bresenham_tie_break", "zm_blit_line.v", "mx = e2 >= dy", "mx = e2 > dy"),
     ("triangle_bottom_edge_closed", "zm_blit_tri.v", "y >= by;", "y > by;"),
     ("triangle_top_edge_open", "zm_blit_tri.v", "y < ay ||", "y <= ay ||"),
     ("triangle_floor_is_truncation", "zm_blit_tri.v", "neg ? -up[17:0] : q[17:0]", "neg ? -q[17:0] : q[17:0]"),
     ("desc_ignored", "zm_blit_core.v", ".desc(f_con[6])", ".desc(1'b0)"),
-    ("key_compare_inverted", "zm_blit_px.v", "bval == key", "bval != key"),
+    ("key_compare_inverted", "zm_blit_pxq.v", "bval == key", "bval != key"),
     ("halftone_bit_order", "zm_blit_htbit.v", "ht[{y, x}]", "ht[{x, y}]"),
     ("halftone_sniff_dropped", "zm_blit_core.v", "f_con2[2] || f_ht != 256'd0", "f_con2[2]"),
     ("fill_ignores_fill_mt", "zm_blit_fill.v", "combine ? mt : 8'hCC", "mt"),
@@ -47,22 +47,28 @@ MUTANTS = [
     ("window_top_off_by_one", "zm_blit_chk.v", "hi <= ZM_ROM_RAM_TOP", "hi < ZM_ROM_RAM_TOP"),
     ("src_abs_ignored", "zm_blit_core.v", "wire abs_src = f_con2[0];", "wire abs_src = 1'b0;"),
     ("writes_accepted_while_busy", "zm_blit_regs.v", "cpu_we && !busy && !start", "cpu_we"),
-    ("write_lane_wrong", "zm_blit_px.v", "4'b0001 << dst[1:0]", "4'b0001 << dst[3:2]"),
+    ("write_lane_wrong", "zm_blit_pxq.v", "c_strb <= 4'b0001 << h_dst[1:0];", "c_strb <= 4'b0001 << h_dst[3:2];"),
     ("halftone_declared_ignored", "zm_blit_core.v", "f_con2[2] || f_ht != 256'd0", "f_ht != 256'd0"),
     ("clip_right_off_by_one", "zm_blit_clip.v", "rx < sds ? rx : sds", "rx < sds ? rx + 18'sd1 : sds"),
     ("fullscreen_height_ignored", "zm_blit_clip.v", "ZM_PHYSICAL_HEIGHT : ZM_HEIGHT", "ZM_HEIGHT : ZM_HEIGHT"),
     ("triangle_span_not_clipped", "zm_blit_tri.v", "x <= xl > cx0 ? xl : cx0;", "x <= xl;"),
-    (
-        "key_skipped_pixels_counted",
-        "zm_blit_px.v",
-        "assign wrote = w_st && !skip && (nop || wr_req_ready);",
-        "assign wrote = w_st && (nop || wr_req_ready);",
-    ),
+    ("key_skipped_pixels_counted", "zm_blit_pxq.v", "assign wrote = h_ret && !skip;", "assign wrote = h_ret;"),
     # the no-op pixel (zm_blit_px.v): an AND (or MT_B) of a 0 is not "unchanged"; a B channel is not a constant
     ("nop_pixel_ignores_the_minterm", "zm_blit_px.v", "(!m[0] && m[1])", "(!m[0])"),
     ("nop_pixel_ignores_the_channels", "zm_blit_px.v", "px_flags == 4'b0100 && ident", "px_flags[2] && ident"),
-    ("nop_pixel_not_counted", "zm_blit_px.v", "!skip && (nop || wr_req_ready)", "!skip && !nop && wr_req_ready"),
+    ("nop_pixel_not_counted", "zm_blit_pxq.v", "assign wrote = h_ret && !skip;", "assign wrote = h_ret && !skip && !h_nop;"),
     ("line_clipped_pixels_uncounted", "zm_blit_core.v", "line_step && is_line", "line_step && is_line && |v"),
+    # the pipeline (zm_blit_px/_pxq): reads ahead of writes only where they cannot alias, answers
+    # paired with the request that asked, merged bytes in their own word and lane
+    ("read_passes_an_aliasing_write", "zm_blit_core.v", ".ordered(is_blit && overlap)", ".ordered(1'b0)"),
+    ("overlap_ignores_channel_a", "zm_blit_chk.v", "(use_a && !apart(a_lin, a_hi)) || ", ""),
+    ("overlap_source_is_one_row", "zm_blit_chk.v", "+ {1'b0, prod_a[22:0]} + {8'd0, w}", "+ {8'd0, w}"),
+    ("answer_paired_with_the_newest_read", "zm_blit_px.v", "tag[tr[LT-1:0]]", "tag[tw[LT-1:0] - 1'b1]"),
+    ("answer_byte_from_the_wrong_lane", "zm_blit_px.v", "rd_rsp_data >> {lane, 3'b000}", "rd_rsp_data >> {raddr[1:0], 3'b000}"),
+    ("pixel_leaves_before_its_answers", "zm_blit_pxq.v", "h_got == q_need[hs]", "h_got[0] == q_need[hs][0]"),
+    ("bytes_merged_across_words", "zm_blit_pxq.v", "wire same = cv && c_word == h_dst[22:2];", "wire same = cv;"),
+    ("unread_channel_keeps_a_stale_byte", "zm_blit_pxq.v", "q_need[hs][2] ? q_c[hs] : 8'd0", "q_c[hs]"),
+    ("merged_byte_in_the_wrong_lane", "zm_blit_pxq.v", "c_data[{h_dst[1:0], 3'b000} +: 8]", "c_data[{~h_dst[1:0], 3'b000} +: 8]"),
 ]
 
 
@@ -126,7 +132,7 @@ def test_the_scripts_exercise_every_op(oracle: dict[str, Path]) -> None:
         assert any(r[2] == "0" for r in rows), f"{name}: no op was refused"
 
 
-@pytest.mark.parametrize("mode", ["fast", "random"])
+@pytest.mark.parametrize("mode", ["fast", "random", "deep"])
 @pytest.mark.parametrize("name", list(SCRIPTS))
 def test_the_rtl_matches_the_machine(name: str, mode: str, tb: Path, oracle: dict[str, Path]) -> None:
     r = _run([str(tb), f"{name}.txt", str(oracle[name]), mode, "11"])

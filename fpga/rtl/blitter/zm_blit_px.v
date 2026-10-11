@@ -1,21 +1,37 @@
-// The pixel unit: one destination pixel at a time. It reads the channels the minterm
-// actually depends on (a minterm that ignores A, B or C never causes that read, which is
-// invisible: reads have no side effects), computes D = LF(A,B,C) per bit, and writes the
-// byte. A pixel whose B equals the key (KEY_EN) is not written and not counted.
+// The pixel unit: reads the channels the minterm actually depends on (a minterm that
+// ignores A, B or C never causes that read, which is invisible: reads have no side
+// effects), computes D = LF(A,B,C) per bit, and writes the byte. A pixel whose B equals
+// the key (KEY_EN) is not written and not counted.
 //
-// Memory ports (one word = 32 bits, the byte lane is addr[1:0]): single accesses, one read
-// in flight per channel request, responses in request order at least one clock later with
-// no back-pressure; a write is taken on wr_req_valid && wr_req_ready and a read issued
-// after it sees it. Bursts would help here: a BLIT row is W consecutive bytes per channel.
+// Pipelined: the issue stage (I, here) requests a pixel's reads and moves on to the next
+// pixel without waiting for the data; up to 2^LQ pixels wait for theirs in zm_blit_pxq,
+// which combines and writes them in order. Each read carries a tag (the pixel's slot,
+// the channel, the byte lane) through a FIFO, since the answers come back in request
+// order with no back-pressure.
+//
+// Memory ports (one word = 32 bits, the byte lane is addr[1:0]): responses in request
+// order at least one clock later; a write may carry several strobes (bytes of one word).
+// Port order is the contract: a read sees every write taken before it, and a read and a
+// write taken in the same clock are the read first.
+//
+// Ordering. A read is issued ahead of the writes of the pixels before it, so it may only
+// run ahead of a write it provably cannot alias:
+//   - C (the destination byte) never aliases an earlier pixel's write: an op never visits
+//     the same (x, y) twice and 0 <= x < D_STRIDE (the clip), so every pixel of an op
+//     writes its own byte;
+//   - A and B may: a BLIT over its own destination (a scroll, a smear). zm_blit_chk
+//     proves the source rectangles and the destination span disjoint from the registers;
+//     when it cannot (`ordered`), a read waits until every earlier pixel's write has been
+//     taken by the port (queue, H and the write buffer empty), which is the v1 order.
 //
 // A pixel the minterm cannot change touches no memory: channel C only (no A, no B, no key)
 // and LF(0, b, c) == c for every bit b of the constant B, e.g. a halftone's background
 // bit OR'd (the glenz's rows of the other object) or XOR'd into the destination. Reading
 // the byte and writing it back unchanged leaves memory as it was, so the pixel is counted
-// (CYCLES is pixels written) and passed in one clock instead of a read and a write.
+// (CYCLES is pixels written) and passed with no access.
 `default_nettype none
 
-module zm_blit_px (
+module zm_blit_px #(parameter LQ = 5, parameter LT = 5) (
     input  wire              clk,
     input  wire              rst,
     input  wire              px_valid,
@@ -23,10 +39,11 @@ module zm_blit_px (
     input  wire [22:0]       px_dst,          // linear byte address of the destination pixel (= channel C)
     input  wire [22:0]       px_aaddr, px_baddr,
     input  wire [7:0]        px_bimm,         // B when channel B is not read (a constant colour, or 0)
-    input  wire [7:0]        px_mt, px_key,
-    input  wire [3:0]        px_flags,        // {KEY_EN, USEC, USEB, USEA}
+    input  wire [7:0]        px_mt, px_key,   // per op: the same for every pixel of one op
+    input  wire [3:0]        px_flags,        // {KEY_EN, USEC, USEB, USEA}, per op
+    input  wire              ordered,         // per op: A/B reads wait for the earlier writes
     output wire              px_idle,
-    output wire              wrote,           // a byte was written this clock
+    output wire              wrote,           // a pixel was written (or passed as a no-op) this clock
     output wire              rd_req_valid,
     input  wire              rd_req_ready,
     output wire [31:0]       rd_req_addr,
@@ -38,14 +55,6 @@ module zm_blit_px (
     output wire [31:0]       wr_req_data,
     output wire [3:0]        wr_req_strb
 );
-    localparam [1:0] IDLE = 2'd0, READ = 2'd1, WRITE = 2'd2;
-    reg [1:0]  st;
-    reg [22:0] dst, aaddr, baddr;
-    reg [7:0]  bimm, mt, key;
-    reg        ben, keyen, nop;
-    reg [2:0]  pend, iss, got;   // channels still to request / requested / answered: {C,B,A}
-    reg [7:0]  a_v, b_v, c_v;
-
     function [2:0] need(input [7:0] m, input aen, ben, cen, ken);
         reg a_dc, b_dc, c_dc;
         begin
@@ -61,55 +70,66 @@ module zm_blit_px (
         ident = (&b || (!m[0] && m[1])) && (~|b || (!m[2] && m[3]));
     endfunction
 
-    wire [7:0] bval = ben ? b_v : bimm;
-    wire skip = keyen && bval == key;
-    wire w_st = st == WRITE;
-    assign px_ready = st == IDLE || (w_st && (skip || nop || wr_req_ready));
-    assign px_idle = st == IDLE;
+    // per op
+    reg [7:0] mt, key;
+    reg ben, keyen;
+
+    // I: the pixel whose reads are being requested
+    reg        iv, i_nop;
+    reg [22:0] i_dst, i_a, i_b;
+    reg [7:0]  i_bimm;
+    reg [2:0]  i_need, i_pend;   // channels to read / still to request: {C,B,A}
+
+    wire [LQ-1:0] wslot;
+    wire q_full, drained;
+    reg [LT:0] tw, tr;           // the tag FIFO: a wrap bit, as the queue's pointers
+    wire t_full = tw == {~tr[LT], tr[LT-1:0]};
+    // ordered: no read while an earlier pixel's write is not yet taken by the port
+    wire may_read = !ordered || drained;
+
+    wire [2:0] low = i_pend & (~i_pend + 3'd1);
+    wire [1:0] ch = low[0] ? 2'd0 : low[1] ? 2'd1 : 2'd2;
+    wire [22:0] raddr = low[0] ? i_a : low[1] ? i_b : i_dst;
+    assign rd_req_valid = iv && i_pend != 3'd0 && !q_full && !t_full && may_read;
+    assign rd_req_addr = {9'd0, raddr};
+    wire rtake = rd_req_valid && rd_req_ready;
+    wire [2:0] pend_after = i_pend & ~(rtake ? low : 3'd0);
+    wire push = iv && !q_full && pend_after == 3'd0;
+    assign px_ready = !iv || push;
     wire acc = px_valid && px_ready;
-    assign wrote = w_st && !skip && (nop || wr_req_ready);
     wire [2:0] nd = need(px_mt, px_flags[0], px_flags[1], px_flags[2], px_flags[3]);
     wire px_nop = px_flags == 4'b0100 && ident(px_mt, px_bimm);
 
-    wire [2:0] low = pend & (~pend + 3'd1);
-    assign rd_req_valid = st == READ && pend != 3'd0;
-    assign rd_req_addr = {9'd0, low[0] ? aaddr : low[1] ? baddr : dst};
-    wire [2:0] out = iss & ~got;
-    wire [2:0] rl = out & (~out + 3'd1);
-    wire [22:0] raddr = rl[0] ? aaddr : rl[1] ? baddr : dst;
-    wire [7:0] rbyte = rd_rsp_data >> {raddr[1:0], 3'b000};
+    // the tags: {slot, channel, lane} of every read in flight, in request order
+    reg [LQ+3:0] tag [0:(1 << LT)-1];
+    wire [LQ+3:0] t_head = tag[tr[LT-1:0]];
+    wire [1:0] lane = t_head[1:0];
+    wire [7:0] rbyte = rd_rsp_data >> {lane, 3'b000};
+    always @(posedge clk) if (rtake) tag[tw[LT-1:0]] <= {wslot, ch, raddr[1:0]};
 
-    wire [7:0] res;
-    genvar i;
-    generate
-        for (i = 0; i < 8; i = i + 1) begin : lf
-            assign res[i] = mt[{a_v[i], bval[i], c_v[i]}];
-        end
-    endgenerate
-    assign wr_req_valid = w_st && !skip && !nop;
-    assign wr_req_addr = {9'd0, dst[22:2], 2'b00};
-    assign wr_req_data = {4{res}};
-    assign wr_req_strb = 4'b0001 << dst[1:0];
+    zm_blit_pxq #(.LQ(LQ)) q (.clk(clk), .rst(rst), .push(push), .p_dst(i_dst), .p_bimm(i_bimm),
+        .p_need(i_need), .p_nop(i_nop), .wslot(wslot), .q_full(q_full),
+        .rsp_we(rd_rsp_valid), .rsp_slot(t_head[LQ+3:4]), .rsp_ch(t_head[3:2]),
+        .rsp_byte(rbyte), .mt(mt), .key(key), .ben(ben), .keyen(keyen),
+        .drained(drained), .wrote(wrote), .wr_req_valid(wr_req_valid), .wr_req_ready(wr_req_ready),
+        .wr_req_addr(wr_req_addr), .wr_req_data(wr_req_data), .wr_req_strb(wr_req_strb));
+
+    assign px_idle = !iv && drained;
 
     always @(posedge clk) begin
-        if (rst) st <= IDLE;
-        else begin
-            if (st == READ) begin
-                if (rd_req_valid && rd_req_ready) begin pend <= pend & ~low; iss <= iss | low; end
-                if (rd_rsp_valid) begin
-                    got <= got | rl;
-                    if (rl[0]) a_v <= rbyte;
-                    if (rl[1]) b_v <= rbyte;
-                    if (rl[2]) c_v <= rbyte;
-                end
-                if (pend == 3'd0 && iss == got) st <= WRITE;
-            end else if (w_st && (skip || nop || wr_req_ready)) st <= IDLE;
+        if (rst) begin
+            iv <= 1'b0; tw <= 0; tr <= 0;
+        end else begin
+            if (rtake) tw <= tw + 1'b1;
+            if (rd_rsp_valid) tr <= tr + 1'b1;
             if (acc) begin
-                dst <= px_dst; aaddr <= px_aaddr; baddr <= px_baddr; bimm <= px_bimm; mt <= px_mt; key <= px_key;
-                ben <= px_flags[1]; keyen <= px_flags[3]; nop <= px_nop;
-                pend <= px_nop ? 3'd0 : nd; iss <= 3'd0; got <= 3'd0;
-                a_v <= 8'd0; b_v <= 8'd0; c_v <= 8'd0;
-                st <= px_nop || nd == 3'd0 ? WRITE : READ;
+                iv <= 1'b1;
+                i_dst <= px_dst; i_a <= px_aaddr; i_b <= px_baddr; i_bimm <= px_bimm;
+                i_nop <= px_nop; i_need <= px_nop ? 3'd0 : nd; i_pend <= px_nop ? 3'd0 : nd;
+                mt <= px_mt; key <= px_key; ben <= px_flags[1]; keyen <= px_flags[3];
+            end else begin
+                if (push) iv <= 1'b0;
+                i_pend <= pend_after;
             end
         end
     end

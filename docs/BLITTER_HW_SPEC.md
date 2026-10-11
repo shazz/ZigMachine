@@ -319,7 +319,8 @@ via `zm_blit_hp.py`, the start through an M-only window from the firmware's
 | `zm_blit_regs.v` | the register block of §3, written the way the CPU writes the region (word index, byte enables); `COMMAND` written non-zero starts the op; writes while `BUSY` are dropped; `STATUS` and `CYCLES` are the only reads |
 | `zm_blit_chk.v`, `zm_blit_clip.v` | what `execute()` checks before it draws: the clip rectangle, `opBox`, `destInRegion`, `BlitSetup.load` (zero size, the source rectangle in the region or in ONE readable window). A refusal means "draw nothing, `CYCLES` = 0" |
 | `zm_blit_fill.v`, `_blit.v`, `_line.v`, `_tri.v` | one sequencer per op: geometry in, pixels out (x, y, B colour, minterm, channel flags). BLIT walks the clipped box ascending or `DESC`; LINE is the Bresenham of the machine with its `e2` tie-break; TRIANGLE is `crossSpan` with a sequential divider (`_div.v`) for the floor division |
-| `zm_blit_px.v` | the pixel unit and the **only** owner of the memory ports: reads the channels the minterm depends on (a minterm that ignores A, B or C never reads it, which cannot be seen), computes `D = LF(A,B,C)` per bit, writes one byte; a keyed pixel is not written and not counted |
+| `zm_blit_px.v` | the pixel unit and the **only** owner of the memory ports: reads the channels the minterm depends on (a minterm that ignores A, B or C never reads it, which cannot be seen), computes `D = LF(A,B,C)` per bit, writes one byte; a keyed pixel is not written and not counted. Pipelined: its issue stage requests a pixel's reads and moves on, each read tagged (slot, channel, byte lane) |
+| `zm_blit_pxq.v` | the back of the pixel unit: up to 32 pixels whose reads are in flight (LUTRAM slots, answers land by tag), the head combined and written **in order**, through a one-word write buffer that sends consecutive bytes of a word as one strobed write |
 | `zm_blit_core.v` | decode, the op FSM (`IDLE, CHK, RUN, DRAIN, FIN`), the one destination address generator `dlin + y*stride + x`, the `CYCLES` model |
 
 `CYCLES` is the machine's: pixels written (BLIT, TRIANGLE), every step of the line
@@ -335,17 +336,49 @@ sources are absolute); the SoC adds its DDR base.
 
 | Port | Signals | Contract |
 |---|---|---|
-| Read | `rd_req_valid/ready/addr`, `rd_rsp_valid/data[31:0]` | one request per byte, taken on `valid && ready`; the aligned word comes back **at least one clock later, in request order**, no back-pressure; the byte lane is `addr[1:0]` |
-| Write | `wr_req_valid/ready/addr/data[31:0]/strb[3:0]` | one byte per request (aligned word, data replicated, one strobe); a read issued after a write is taken sees it |
+| Read | `rd_req_valid/ready/addr`, `rd_rsp_valid/data[31:0]` | one request per byte, taken on `valid && ready`, **any number in flight**; the aligned word comes back **at least one clock later, in request order**, no back-pressure; the byte lane is `addr[1:0]` |
+| Write | `wr_req_valid/ready/addr/data[31:0]/strb[3:0]` | an aligned word with one to four strobes (bytes of one word combined); writes are taken in pixel order |
+| Order | | **port order**: a read sees every write taken before it; a read and a write taken in the same clock count as the read first. The block never asks for a write while an earlier read of one of its bytes is unanswered |
 | Settle | `wr_pending` | high until the memory has landed every write taken (an AXI B response); `BUSY` stays up until it falls, so "not busy" means "the pixels are in DDR" |
 | CPU | `cpu_we`, `cpu_waddr[4:0]`, `cpu_be`, `cpu_wdata`, `cpu_raddr`, `cpu_rdata`, `busy` | the snoop style of `zm_video_regs`: writes are seen as the CPU's stores leave its store buffer; reads return `STATUS` (word 0, bit 31) and `CYCLES` (word 24) |
 
-v1 is **one byte per access, one pixel at a time**. Where bursts would help: a BLIT
-row is `W` consecutive bytes per channel (one 16-beat burst per channel per row, a
-byte-lane shifter for the unaligned ends); a FILL row is a burst of writes with
-strobes; the read-modify-write ops (`FILL_MT`, LINE, TRIANGLE, `USEC`) want the
-destination row prefetched and the next pixel's reads issued before the previous
-write retires. None of that changes a register or a result.
+v1 was **one byte per access, one pixel at a time**: every read paid the whole HP
+latency (~22 clocks), so any op that reads cost 25-37 clocks a pixel on the board.
+Since 2026-10-10 the pixel unit is **pipelined** (`zm_blit_px` + `zm_blit_pxq`): the
+reads of the next pixels are requested while earlier pixels wait for their data, up to
+32 pixels and 32 reads in flight, and the bytes of one word leave as one write.
+
+#### Ordering: when a read may run ahead of a write
+
+A pixel's reads are issued before the writes of the pixels in front of it. That is
+only allowed where the read **provably cannot alias** those writes; everything else
+keeps the v1 order. The rule, per channel:
+
+- **C** (the destination byte) never aliases an earlier pixel's write: an op never
+  produces the same `(x, y)` twice (FILL/BLIT boxes, TRIANGLE spans one per scanline,
+  Bresenham always steps) and the clip keeps `0 <= x < D_STRIDE`, so every pixel of an
+  op writes its own byte. C reads always run ahead.
+- **A and B** (BLIT sources) may alias: a BLIT over its own destination (a scroll, a
+  smear). `zm_blit_chk` compares spans from the registers: each used source
+  `[base, base + (H-1)*stride + W)` against the destination `[dlin, dlin + (ey1-1)*D_STRIDE + ex1)`,
+  all linear and below 2^23 once the checks pass. Disjoint: A/B reads run ahead.
+  Not provably disjoint (`ordered`): an A/B read waits until every earlier pixel's
+  write has been **taken by the port** (nothing in the queue, the head or the write
+  buffer), which is v1's order. The test is conservative (whole spans, not boxes):
+  a false "may overlap" only costs speed.
+- **Writes never wait for reads** at the port: a pixel is written after its own reads
+  and every earlier pixel's have come back (answers are in order), so no unanswered
+  earlier read can cover its bytes. `blitter_tb` checks exactly that on every write.
+- **On HP2** (`soc/zm_blit_hp.py`): AXI orders neither reads behind writes nor writes
+  behind reads, so the bridge holds a read whose byte a write still in flight (taken,
+  no B yet) covers, until that B; any other read passes the writes in flight. Writes
+  are sent back to back, up to 8 without their B.
+- Ops never overlap: DRAIN waits until the unit is empty and `wr_pending` is low.
+
+Not done (no register or result would change): row bursts (one 16-beat read per
+channel per row) and reusing a fetched word for the next pixels of the same channel;
+both cut the number of HP transactions, which caps the read-bound ops once the AFI's
+8 outstanding reads are full.
 
 ### 10.3 Sharing DDR with the video DMA
 

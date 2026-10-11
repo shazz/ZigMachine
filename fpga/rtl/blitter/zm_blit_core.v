@@ -1,6 +1,7 @@
 // The blitter engine: decodes the register block, runs the checks (zm_blit_chk), starts the
 // sequencer of the op (FILL, BLIT, LINE, TRIANGLE: each turns geometry into pixels) and
-// feeds their pixels through the one pixel unit (zm_blit_px), which owns the memory ports.
+// feeds their pixels through the one pixel unit (zm_blit_px), which owns the memory ports
+// and keeps many pixels in flight; DRAIN waits until the last is written and landed.
 // CYCLES is the Zig machine's model: pixels written (BLIT, TRIANGLE), every step (LINE),
 // W*H (FILL, clipped pixels included); 0 when the checks refuse the op.
 //   IDLE -> CHK -> RUN (sequencer) -> DRAIN (pixel unit idle, writes landed) -> FIN -> IDLE
@@ -62,12 +63,12 @@ module zm_blit_core (
     zm_blit_clip clip (.con(f_con), .ds(f_d_stride), .clip_x(f_clip_x), .clip_y(f_clip_y),
         .clip_w(f_clip_w), .clip_h(f_clip_h), .x0(ccx0), .y0(ccy0), .x1(ccx1), .y1(ccy1));
     always @(posedge clk) {cx0, cy0, cx1, cy1} <= {ccx0, ccy0, ccx1, ccy1};
-    wire chk_done, chk_ok;
+    wire chk_done, chk_ok, overlap;
     zm_blit_chk chk (.clk(clk), .go(start), .cmd(f_cmd), .use_a(f_con[0]), .use_b(f_con[1]), .abs_src(abs_src),
         .d_base(f_d_base), .a_base(f_a_base), .b_base(f_b_base), .ds(f_d_stride), .a_stride(f_a_stride),
         .b_stride(f_b_stride), .w(f_w), .h(f_h), .x0(sx(f_x0)), .y0(sx(f_y0)), .x1(sx(f_x1)), .y1(sx(f_y1)),
         .x2(sx(f_x2)), .y2(sx(f_y2)), .cx0(cx0), .cy0(cy0), .cx1(cx1), .cy1(cy1),
-        .done(chk_done), .ok(chk_ok), .ex0(ex0), .ey0(ey0), .ex1(ex1), .ey1(ey1));
+        .done(chk_done), .ok(chk_ok), .ex0(ex0), .ey0(ey0), .ex1(ex1), .ey1(ey1), .overlap(overlap));
 
     // The sequencers: each turns its op's geometry into pixels (x, y, B colour, minterm, channel flags).
     wire [3:0] hx_f, hy_f, hx_t, hy_t;
@@ -105,7 +106,7 @@ module zm_blit_core (
     wire px_idle, wrote;
     zm_blit_px pxu (.clk(clk), .rst(rst), .px_valid(|v), .px_ready(px_ready), .px_dst(drow + {5'd0, px_x}),
         .px_aaddr(aaddr), .px_baddr(baddr), .px_bimm(px_bimm), .px_mt(px_mt), .px_key(f_key), .px_flags(px_flags),
-        .px_idle(px_idle), .wrote(wrote), .rd_req_valid(rd_req_valid), .rd_req_ready(rd_req_ready),
+        .ordered(is_blit && overlap), .px_idle(px_idle), .wrote(wrote), .rd_req_valid(rd_req_valid), .rd_req_ready(rd_req_ready),
         .rd_req_addr(rd_req_addr), .rd_rsp_valid(rd_rsp_valid), .rd_rsp_data(rd_rsp_data),
         .wr_req_valid(wr_req_valid), .wr_req_ready(wr_req_ready), .wr_req_addr(wr_req_addr),
         .wr_req_data(wr_req_data), .wr_req_strb(wr_req_strb));
