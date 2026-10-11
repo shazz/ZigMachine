@@ -51,7 +51,43 @@ pub const Disk = struct {
         }
         return error.NoBoardImage;
     }
+
+    /// The disk the browser mounts: this fat disk with fpga/tools/zmd_fat.py
+    /// undone, byte for byte. The board image is cut off (zmd_fat appends it,
+    /// block-aligned, after the shelf disk's last byte), its FAT entry zeroed
+    /// and the count put back, and a v1 boot sector gets its total-blocks field
+    /// and the checksum word that keeps the sum it has. A disk zmd_fat did not
+    /// write that way (the board image not last) is refused: a drive must not
+    /// hand a cart a disk the browser would not.
+    pub fn shelfDisk(self: Disk, gpa: std.mem.Allocator) (Error || error{OutOfMemory})![]u8 {
+        if (self.file_count == 0) return error.NoBoardImage;
+        const last = self.file_count - 1;
+        const f = try self.file(last);
+        if (f.kind != map.ZMD_TYPE_RV32) return error.BadFat;
+        const end = std.mem.alignForward(usize, @as(usize, f.start) + f.length, BLOCK);
+        if (f.start % BLOCK != 0 or end != self.image.len) return error.BadFat;
+        const l = try layout(self.image);
+        if (f.start < l.fat + FAT_MAX * FAT_ENTRY) return error.BadFat;
+        const out = try gpa.dupe(u8, self.image[0..f.start]);
+        @memset(out[l.fat + last * FAT_ENTRY ..][0..FAT_ENTRY], 0);
+        std.mem.writeInt(u16, out[l.count..][0..2], last, .little);
+        if (l.version == 1) {
+            const sum = beSum(self.image[0..BLOCK]);
+            std.mem.writeInt(u32, out[0x0A..0x0E], f.start / BLOCK, .little);
+            std.mem.writeInt(u16, out[0x1FE..0x200], 0, .big);
+            std.mem.writeInt(u16, out[0x1FE..0x200], sum -% beSum(out[0..BLOCK]), .big);
+        }
+        return out;
+    }
 };
+
+/// The boot sector's checksum: its big-endian words summed mod 2^16 (zmd_fat.py _be_sum).
+fn beSum(buf: []const u8) u16 {
+    var s: u16 = 0;
+    var i: usize = 0;
+    while (i + 1 < buf.len) : (i += 2) s +%= std.mem.readInt(u16, buf[i..][0..2], .big);
+    return s;
+}
 
 const Layout = struct { version: u16, title: usize, count: usize, fat: usize };
 
@@ -136,4 +172,58 @@ test "a v2 disk is found by its descriptor" {
     const d = try parse(&img);
     try std.testing.expectEqual(@as(u16, 2), d.version);
     try std.testing.expectEqualStrings("REPL", d.title);
+}
+
+/// zmd_fat.py's fatten, for the tests: pad, append `board`, one more FAT entry,
+/// and a v1 boot sector re-tuned to the sum it had.
+fn testFatten(gpa: std.mem.Allocator, disk: []const u8, board: []const u8) ![]u8 {
+    const l = try layout(disk);
+    var img: std.ArrayList(u8) = .empty;
+    errdefer img.deinit(gpa);
+    try img.appendSlice(gpa, disk);
+    try img.appendNTimes(gpa, 0, (BLOCK - img.items.len % BLOCK) % BLOCK);
+    const start: u32 = @intCast(img.items.len);
+    try img.appendSlice(gpa, board);
+    try img.appendNTimes(gpa, 0, (BLOCK - img.items.len % BLOCK) % BLOCK);
+    const count = std.mem.readInt(u16, img.items[l.count..][0..2], .little);
+    const e = img.items[l.fat + count * FAT_ENTRY ..][0..FAT_ENTRY];
+    @memcpy(e[0..9], "CART.RV32");
+    std.mem.writeInt(u32, e[0x10..0x14], start, .little);
+    std.mem.writeInt(u32, e[0x14..0x18], @intCast(board.len), .little);
+    e[0x18] = map.ZMD_TYPE_RV32;
+    std.mem.writeInt(u16, img.items[l.count..][0..2], count + 1, .little);
+    if (l.version == 1) {
+        const sum = beSum(img.items[0..BLOCK]);
+        std.mem.writeInt(u32, img.items[0x0A..0x0E], @intCast(img.items.len / BLOCK), .little);
+        std.mem.writeInt(u16, img.items[0x1FE..0x200], 0, .big);
+        std.mem.writeInt(u16, img.items[0x1FE..0x200], sum -% beSum(img.items[0..BLOCK]), .big);
+    }
+    return img.toOwnedSlice(gpa);
+}
+
+test "the shelf disk comes back byte for byte from a fat disk" {
+    const gpa = std.testing.allocator;
+    const shelf = try testDisk(gpa, "Stream", &.{ .{ "SCENE1.BIN", 1, "x" ** 700 }, .{ "B.RAW", 1, "yz" } });
+    defer gpa.free(shelf);
+    std.mem.writeInt(u32, shelf[0x0A..0x0E], @intCast(shelf.len / BLOCK), .little);
+    std.mem.writeInt(u16, shelf[0x1FE..0x200], 0x1234 -% beSum(shelf[0..BLOCK]), .big); // bootable
+    const fat = try testFatten(gpa, shelf, "rv32 image" ** 100);
+    defer gpa.free(fat);
+    const back = try (try parse(fat)).shelfDisk(gpa);
+    defer gpa.free(back);
+    try std.testing.expectEqualSlices(u8, shelf, back);
+    try std.testing.expectEqual(@as(u16, 0x1234), beSum(back[0..BLOCK]));
+}
+
+test "a disk whose board image is not zmd_fat's last file is refused" {
+    const gpa = std.testing.allocator;
+    const img = try testDisk(gpa, "odd", &.{ .{ "CART.RV32", 3, "rv32" }, .{ "SAMPLE.RAW", 1, "abc" } });
+    defer gpa.free(img);
+    try std.testing.expectError(error.BadFat, (try parse(img)).shelfDisk(gpa));
+    const plain = try testDisk(gpa, "plain", &.{.{ "SAMPLE.RAW", 1, "abc" }});
+    defer gpa.free(plain);
+    try std.testing.expectError(error.BadFat, (try parse(plain)).shelfDisk(gpa));
+    const fat = try testFatten(gpa, plain, "rv32" ** 200);
+    defer gpa.free(fat);
+    try std.testing.expectError(error.Truncated, (try parse(fat[0 .. fat.len - BLOCK])).shelfDisk(gpa));
 }
