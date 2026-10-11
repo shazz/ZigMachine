@@ -77,7 +77,8 @@ def main() -> int:
     if a.audio == "0":
         return rc
     cmp = [sys.executable, str(FPGA / "tools/audio_sim_compare.py"), str(native), str(out / "uart.txt")]
-    return subprocess.run([*cmp, str(out / "audio_tap.txt"), "--mode", a.mode]).returncode
+    songs = ["--songs"] if a.keys else []  # keys may change the song: each one from its own start
+    return subprocess.run([*cmp, str(out / "audio_tap.txt"), "--mode", a.mode, *songs]).returncode
 
 
 if __name__ == "__main__":

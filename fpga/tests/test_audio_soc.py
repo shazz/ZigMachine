@@ -124,3 +124,25 @@ def test_compare_writes_catches_a_dropped_write_and_a_late_one() -> None:
     assert any("024" in b for b in bad) and any("4 writes by the machine, 3" in b for b in bad)
     late = [(4000, 0x040, 1), (5000, 0x020, 0x10), (5001, 0x024, 0), (5882, 0x020, 0x0F)]
     assert audio_sim_compare.compare_writes(NATIVE, (735, 1), late, (5000, 1), 2000)[0].startswith("write 2:")
+
+
+# Two songs: the second starts 2 frames in on the machine, 4 on a sim running the cart at 30 fps.
+TWO = [(0, 0x040, 1), (0, 0x0A0, 0x50), (1470, 0x040, 1), (1470, 0x0A0, 0x20), (1500, 0x0A4, 0xAF)]
+TWO_LOG = "L 0 1 a.sap\nL 0 1 a.sap\nL 1470 3 a.sap\nL 1470 3 a.sap\n"
+TWO_UART = "ZM SONG 9000 1 a.sap\nZM SONG 11940 3 a.sap\n"
+
+
+def test_song_segments_time_each_song_from_its_own_start() -> None:
+    board = [(8995, 0x040, 1), (9000, 0x0A0, 0x50), (11940, 0x040, 1), (11940, 0x0A0, 0x20), (11970, 0x0A4, 0xAF)]
+    ns, bs = audio_sim_compare.song_starts(TWO_LOG, "L "), audio_sim_compare.song_starts(TWO_UART, "ZM SONG ")
+    assert ns == [(0, 1, "a.sap"), (1470, 3, "a.sap")]
+    segs = list(audio_sim_compare.song_segments(TWO, ns, board, bs, (3000, 15000)))
+    assert [s[5] for s in segs] == [1470, 1530]
+    assert all(audio_sim_compare.compare_writes(n, n0, b, b0, span) == [] for _, n, n0, b, b0, span in segs)
+
+
+def test_song_segments_catch_a_second_song_that_lost_a_write() -> None:
+    board = [(8995, 0x040, 1), (9000, 0x0A0, 0x50), (11940, 0x040, 1), (11940, 0x0A0, 0x20)]
+    ns, bs = audio_sim_compare.song_starts(TWO_LOG, "L "), audio_sim_compare.song_starts(TWO_UART, "ZM SONG ")
+    _, n, n0, b, b0, span = list(audio_sim_compare.song_segments(TWO, ns, board, bs, (3000, 15000)))[1]
+    assert audio_sim_compare.compare_writes(n, n0, b, b0, span)[-1].startswith("2 writes by the machine, 1")

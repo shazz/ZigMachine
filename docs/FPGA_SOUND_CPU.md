@@ -84,9 +84,24 @@ started. Every other request reached BARD with no bytes. BARD printed `ZM SONG M
 - on BARD, a request with no bytes still prints `ZM SONG MISSING <name>`.
 
 **Proof without a board.** `ZM_SIM_KEYS=F:event,...` (sim images only, `cycles/binput.c`) feeds the glass's key FIFO
-from the same script as the native host's `ZM_GLASS_KEYS`. `tools/audio_sim_run.py sap_test --model build/soc_hp_snd
---audio snd --keys ...` presses the same keys in both and compares the writes. The numbers are in the table under
-"Phase B".
+from the same script as the native host's `ZM_GLASS_KEYS`. With `--keys`, `tools/audio_sim_run.py` presses the same
+keys on both sides, and `tools/audio_sim_compare.py --songs` checks every song from its own start. The two sides
+start a song at different samples: in the sim, `sap_test`'s frame takes about 2.05 Mcycles (20.5 ms at 100 MHz), so
+the cart runs at 30 fps there. The sound is compared for the first song only, because a later song starts on chip
+state (tone phases, polynomial counters) that the earlier song left after playing a different length of time on each
+side.
+
+    tools/audio_sim_run.py sap_test --model build/soc_hp_snd --audio snd --frames 16 --mode exact \
+        --keys 3:100e020,4:e020,6:100000d,7:d,9:100e023,10:e023     # Up (to BMX), Enter, Right (song 2)
+
+| Song | Samples | Writes | Differences |
+|---|---|---|---|
+| Warhawk.sap (at start) | 3,675 | 45 | 0, and the sound: 0 of 3,675 samples |
+| BMX_Simulator.sap song 1 (Enter) | 2,205 | 24 | 0 |
+| BMX_Simulator.sap song 2 (Right) | 11,760 | 123 | 0 |
+
+`sap_test`'s image, all five tunes included: 1,719,888 bytes for ZM_AUDIO=snd and 1,694,304 for ZM_AUDIO=1, against
+the 12 MiB cap in `board.mk`. The five files are 12,555 bytes.
 
 ## Size
 
