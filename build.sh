@@ -173,6 +173,7 @@ NATIVE_TESTS="
     apps/zig/scenes/stniccc/polyfill.zig
     apps/zig/scenes/stniccc/player.zig
     apps/zig/scenes/blitter_demo/wobble.zig
+    apps/zig/scenes/blitter_demo/soft.zig
 "
 # Compiled and run GATE_TEST_JOBS (default 4) at a time -- the zig cache is
 # safe to share, and a zig test is CPU, not RAM, bound -- then
@@ -284,6 +285,9 @@ gate replicants_garfield node apps/replicants_garfield_headless.mjs "$SHOTS/repl
 gate replicants_garfield node apps/replicants_garfield_headless.mjs --break noclear "$SHOTS/replicants_garfield"   # ...and a border that is never painted per line is caught
 gate_timed tsl_hybridglenz node apps/tsl_hybridglenz_headless.mjs "$SHOTS/tsl_hybridglenz"   # HYBRID GLENZ: the blitter's OR minterm really makes 1|2=3 in the panel, the two objects interlace onto odd/even plane rows and morph apart, the square flies in and dissolves into the framed panel, the three text overlays and the logo's white flash are palette fades, the bar and scroller run the full raster
 gate_timed tsl_hybridglenz node apps/tsl_hybridglenz_headless.mjs --break spin "$SHOTS/tsl_hybridglenz"   # ...and objects that never turn is caught
+gate blitter node apps/blitter_headless.mjs "$SHOTS/blitter"   # BLITTER DEMO: key B draws all seven effects on the CPU with the blitter's exact pixels and palette, not one hwBlit() issued; the corner says BLITTER/CPU; B again returns, Escape asks for the menu
+gate blitter node apps/blitter_headless.mjs "$SHOTS/blitter" --break pixel   # ...and a CPU frame one pixel off is caught
+gate blitter node apps/blitter_headless.mjs "$SHOTS/blitter" --break nokey   # ...and a B that never arrived is caught
 gate scrolllab node apps/scrolllab_headless.mjs "$SHOTS/scrolllab"   # SCROLLTEXT LAB: the ten distortions over one text (codef_fx siny/sinx/zoomy, a 2D path with a loop, screen 345's table) all render and all differ from FLAT, and Escape leaves
 gate_timed polkadots node apps/polkadots_headless.mjs "$SHOTS/polkadots"   # POLKA DOTS: the flat-shaded torus reaches the dot grid (100-700 cells stamped, never the whole grid), the light still makes big dots as well as small ones, all FOUR render modes draw a different picture at the op count the cart itself reports, and every one of them holds 60 fps; this fixed-point cart's dots match the f32 cart's (under 1% of lit cells, never more than one dot size apart)
 gate_timed polkadots node apps/polkadots_headless.mjs "$SHOTS/polkadots_break" --break fixed   # ...and a fixed-point cart a frame off the f32 one (the dots the two number systems draw no longer agree) is caught
