@@ -16,6 +16,8 @@ const config = @import("config.zig");
 const board_info = @import("board_info.zig");
 const page_debug = @import("page_debug.zig");
 const App = @import("app.zig").App;
+const map_cart = @import("map_cart.zig");
+const request = @import("app_request.zig");
 
 pub fn act(app: *App, action: menu.Action) void {
     switch (action) {
@@ -51,7 +53,7 @@ pub fn load(app: *App, i: usize) void {
 // A disk refused before the CPU was stopped leaves the old cart running and in
 // the window (loader.zig, steps 1 to 3). Past that, the CPU is held; once the
 // window was written it holds disk `i`, which is what R and W must then reset.
-fn failed(app: *App, i: usize, err: anyerror) void {
+pub fn failed(app: *App, i: usize, err: anyerror) void {
     switch (err) {
         error.WontStop => app.current = null,
         error.DdrMismatch, error.CartTrapped, error.CartSilent => {
@@ -87,11 +89,15 @@ fn warm(app: *App) void {
     app.setOpen(false);
 }
 
-/// Called a few times a second: a cart that trapped brings the menu back.
+/// Called a few times a second: a cart that trapped brings the menu back; a cart asking
+/// for a cart swap gets it (app_request.zig).
 pub fn watch(app: *App) void {
     if (app.current == null) return;
     app.stats.sample(app.clock(), app.regs.read(map.REG_CART_BEAT));
     const state = app.regs.read(map.REG_CART_STATE);
+    if (state & map.CART_STATE_MASK == map_cart.CART_REQUEST) return request.poll(app, state);
+    app.req_done = false; // a cart that is not asking: the next request is a new one
+    app.req_polls = 0;
     if (state & map.CART_STATE_MASK != map.CART_TRAPPED) return;
     _ = loader.hold(app.regs) catch {};
     app.stats.last_trap = state >> map.CART_ARG_SHIFT;

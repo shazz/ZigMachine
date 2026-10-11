@@ -3,7 +3,8 @@
  *
  *   disk_test drive DISK|-   stdin "block dst" lines -> "n fnv" (n = -1: the JS's RangeError;
  *                            fnv: FNV-1a of the whole 64 KiB memory after the call)
- *   disk_test desc           stdin "w0 w1 w2 w3 image_end" (hex) -> "ok at size" | "none" */
+ *   disk_test desc           stdin "w0 w1 w2 w3 image_end" (hex) -> "ok at size" | "prog at size"
+ *                            (DISK_MAGIC_PROGRAM) | "none" */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -45,7 +46,8 @@ static int desc(void) {
     unsigned long v[5];
     while (scanf("%lx %lx %lx %lx %lx", &v[0], &v[1], &v[2], &v[3], &v[4]) == 5) {
         uint32_t w[4] = {(uint32_t)v[0], (uint32_t)v[1], (uint32_t)v[2], (uint32_t)v[3]}, at, size;
-        if (bdisk_parse(w, (uint32_t)v[4], &at, &size)) printf("ok %x %x\n", at, size);
+        int role = bdisk_parse(w, (uint32_t)v[4], &at, &size);
+        if (role) printf("%s %x %x\n", role == BDISK_PROGRAM ? "prog" : "ok", at, size);
         else printf("none\n");
     }
     return 0;

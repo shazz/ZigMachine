@@ -4,6 +4,7 @@
 // decides. The ARM program runs against this exactly as on the board.
 const std = @import("std");
 const map = @import("map.zig");
+const map_cart = @import("map_cart.zig");
 const bus = @import("bus.zig");
 
 pub const CartModel = enum { boots, traps, silent };
@@ -38,6 +39,7 @@ pub const Glass = struct {
     marked: bool = false, // a cold boot marked the cart's memory (glass_boot_mark)
     warm_boots: u32 = 0,
     stuck: bool = false, // a CPU that never leaves RUNNING: the loader's WontStop
+    request: u32 = 0, // a booted stand-in asks for a cart swap: CART_REQUEST (map_cart.zig)
 
     pub fn regs(self: *Glass) bus.Regs {
         return .{ .ctx = self, .read_fn = readThunk, .write_fn = writeThunk };
@@ -97,7 +99,7 @@ pub const Glass = struct {
         const warm = self.ctrl & map.CTRL_WARM != 0;
         if (warm and !self.marked) return map.CART_TRAPPED | map.TRAP_WARM_LOST << map.CART_ARG_SHIFT;
         self.cart_state = switch (self.cart) {
-            .boots => map.CART_RUNNING | FW_VERSION << map.CART_ARG_SHIFT,
+            .boots => if (self.request != 0) map_cart.CART_REQUEST | self.request << map.CART_ARG_SHIFT else map.CART_RUNNING | FW_VERSION << map.CART_ARG_SHIFT,
             .traps => map.CART_TRAPPED | (5 << 8),
             .silent => map.CART_BOOTING,
         };
@@ -149,6 +151,7 @@ pub const Glass = struct {
             self.cart_state = map.CART_RESET;
             self.cart_beat = 0;
             self.reads_since_run = 0;
+            self.request = 0; // the next cart starts without one
         }
     }
 

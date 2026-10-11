@@ -7,7 +7,7 @@ DDR"), exactly as docs/sealed-loader.js serves it in the browser.
   result and the whole memory after every call, full, partial and past-the-end blocks
   (0x80000000 and up included: unsigned, never counted from the end), a dst outside
   memory (the JS's RangeError), no disk.
-- scene_hash.mjs's --disk drive is the browser's function, text for text.
+- scene_hash.mjs's --disk drive (scene_hash_disk.mjs) is the browser's function, text for text.
 - The firmware's descriptor check (cycles/bdisk.c) on what the glass writes.
 - The glass gives back every shelf disk in docs/ byte for byte from its fat disk, and puts
   it where tools/ddr_init.py (the board SoC sim's DDR image) puts it.
@@ -32,6 +32,7 @@ WORK = FPGA / "build" / "board_disk"
 sys.path.insert(0, str(FPGA / "tools"))
 sys.path.insert(0, str(FPGA / "gen"))
 import ddr_init
+import glass_cart
 import glass_map
 import glass_sd
 import zmd_fat
@@ -129,7 +130,7 @@ def test_scene_hash_drive_is_the_browsers_function_text_for_text() -> None:
         assert m, path
         return [line.strip() for line in m.group(2).splitlines()]
 
-    assert body(ROOT / "apps/scene_hash.mjs") == body(ROOT / "docs/sealed-loader.js")
+    assert body(ROOT / "apps/scene_hash_disk.mjs") == body(ROOT / "docs/sealed-loader.js")
 
 
 def _desc(disk_test: Path, rows: list[tuple[int, ...]]) -> list[str]:
@@ -149,8 +150,11 @@ def test_firmware_takes_the_descriptor_the_glass_writes_and_refuses_anything_els
         (magic, end - 0x1000, 0x1001, ~(magic ^ (end - 0x1000) ^ 0x1001), 0),  # past the pictures
         (magic, end - 0x10, 0xFFFF_FFFF, ~(magic ^ (end - 0x10) ^ 0xFFFF_FFFF), 0),  # size wraps
         (magic, end, 0, ~(magic ^ end), 0),  # an empty disk at the very end: reads give 0
+        (*struct.unpack("<4I", ddr_init.descriptor(0x30_0000, 650_240, glass_cart.DISK_MAGIC_PROGRAM)), 0x2F_0000),
+        (glass_cart.DISK_MAGIC_PROGRAM, *good[1:], 0x2F_0000),  # the other magic, the first's check
     ]
-    assert _desc(disk_test, rows) == ["ok 300000 9ec00", "none", "none", "none", "none", "none", f"ok {end:x} 0"]
+    want = ["ok 300000 9ec00", "none", "none", "none", "none", "none", f"ok {end:x} 0", "prog 300000 9ec00", "none"]
+    assert _desc(disk_test, rows) == want
 
 
 @pytest.fixture(scope="module")

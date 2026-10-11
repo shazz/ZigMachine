@@ -2,9 +2,12 @@
  * JSON on stdout, so the two outputs compare with `scene_hash.mjs --compare`.
  *
  *   host <cart-label> [frames=1200] [every=10] [--call F:export:arg,...] [--disk X.zmd]
+ *        [--data-disk X.zmd [--program]]
  *
  * --disk mounts X.zmd in the drive (host/disk.h), as scene_hash.mjs --disk and the
- * browser do; without it diskReadBlock answers 0, scene_hash.mjs's stub.
+ * browser do; without it diskReadBlock answers 0, scene_hash.mjs's stub. --data-disk
+ * mounts a data disk and plays the browser's GEM-over-a-data-disk step (host/disk_app.h);
+ * --program: the cart is a program launched off it, which gets no listing.
  *
  * <cart-label> is only echoed into the JSON (the cart is linked in).
  *
@@ -54,6 +57,7 @@ static void frame(sha256_ctx* h, u32 planes, u32 size, long f) {
     struct w2c_env* e = &g_env;
     w2c_machine_hwClear(&e->machine);
     w2c_cart_frame(&e->cart, frame_dt(f));
+    host_io_disk_frame(e, f); /* --data-disk: before the song bridge, as the browser's step */
     AUDIO(audio_soft_frame(e));
     for (u32 p = 0; p < planes; p++) {
         if (!w2c_cart_isPlaneEnabled(&e->cart, p)) {
@@ -136,9 +140,11 @@ int main(int argc, char** argv) {
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "--call") == 0 && i + 1 < argc) host_io_parse_call(argv[++i]);
         else if (strcmp(argv[i], "--disk") == 0 && i + 1 < argc) host_io_mount_disk(argv[++i]);
+        else if (strcmp(argv[i], "--data-disk") == 0 && i + 1 < argc) host_io_data_disk(argv[++i]);
+        else if (strcmp(argv[i], "--program") == 0) host_io_program();
         else if (npos < 3) pos[npos++] = argv[i];
     }
-    if (!pos[0]) { fprintf(stderr, "usage: host <cart> [frames] [every] [--call F:name:args]\n"); return 2; }
+    if (!pos[0]) { fprintf(stderr, "usage: host <cart> [frames] [every] [--call F:name:args] [--disk X.zmd] [--data-disk X.zmd]\n"); return 2; }
     long n = strtol(pos[1], NULL, 10), k = strtol(pos[2], NULL, 10);
     if (k <= 0) { fprintf(stderr, "host: every must be > 0\n"); return 2; }
     wasm_rt_init();

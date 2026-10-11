@@ -1,4 +1,4 @@
-/* The native host's scripted inputs (host/main.c): --call, --disk, and the glass's key
+/* The native host's scripted inputs (host/main.c): --call, --disk, --data-disk, and the glass's key
  * FIFO and mouse as ZM_GLASS_KEYS / ZM_GLASS_POINTER scripts, through the board's router. */
 #include "host_io.h"
 
@@ -9,6 +9,7 @@
 
 #include "boot.h"
 #include "disk.h"
+#include "disk_app.h"
 #include "input_bridge.h"
 
 #define MAX_CALLS 64
@@ -57,6 +58,34 @@ void host_io_mount_disk(const char* path) {
     }
     fclose(f);
     host_disk = (host_disk_t){.data = buf, .size = (uint32_t)n};
+}
+
+/* --data-disk: mounted as --disk, and GEM gets what the browser gives it over a data disk. */
+static zmd_dir_t g_dir;
+static disk_app_t g_dapp;
+static int g_data_disk, g_program;
+
+void host_io_data_disk(const char* path) {
+    host_io_mount_disk(path);
+    int rc = zmd_dir_parse(host_disk.data, host_disk.size, &g_dir);
+    if (rc || g_dir.bootable) {
+        fprintf(stderr, "host: %s: %s\n", path, rc ? "not a disk the browser mounts" : "bootable, not a data disk");
+        exit(2);
+    }
+    g_dapp = (disk_app_t){.dir = &g_dir, .dir_set = g_program};
+    g_data_disk = 1;
+}
+
+void host_io_program(void) {
+    g_program = 1;
+    g_dapp.dir_set = 1;
+}
+
+void host_io_disk_frame(struct w2c_env* e, long f) {
+    if (!g_data_disk || !disk_app_frame(e, &g_dapp)) return;
+    fprintf(stderr, "host: cart request %u \"%.*s\"%s at frame %ld\n", (unsigned)g_dapp.req,
+            (int)(g_dapp.name_len < ZMD_FIND_MAX ? g_dapp.name_len : ZMD_FIND_MAX), (const char*)g_dapp.name,
+            g_dapp.req != 3 ? "" : g_dapp.file ? " (on the disk)" : " (not on the disk)", f);
 }
 
 const char* host_io_call_spec(int i) { return i < g_ncalls ? g_calls[i].spec : NULL; }

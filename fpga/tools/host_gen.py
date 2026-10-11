@@ -23,7 +23,7 @@ import sys
 from pathlib import Path
 
 import wasm_info
-from host_bridges import export_table, input_bridge, song_bridge
+from host_bridges import disk_app_bridge, export_table, input_bridge, song_bridge
 
 FPGA = Path(__file__).resolve().parent.parent
 ROOT = FPGA.parent
@@ -185,6 +185,7 @@ def main() -> None:
     parts.append(export_table(exports["cart"]))
     parts.append(song_bridge(exports["cart"]))
     parts.append(input_bridge(exports["cart"]))
+    parts.append(disk_app_bridge(exports["cart"]))
     (a.build / "env.c").write_text("\n".join(parts))
 
 

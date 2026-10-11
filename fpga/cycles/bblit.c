@@ -21,6 +21,8 @@
  * zm_blit's writes go to DDR behind both snoops (its own and the compositor's). */
 #include "bblit.h"
 
+#include <stdio.h>
+
 #include "vboard.h"
 #include "zm_memmap.h"
 
@@ -86,3 +88,21 @@ void __wrap_w2c_machine_hwBlit(struct w2c_machine* m) {
     }
     bblit.t_last = board_cycles();
 }
+
+/* Per frame (sim): "ZM BF f" then calls/cpu-cycles/units for BLIT FILL LINE TRIANGLE (bblit.h),
+ * and "ZM WF f ibus_wait dbus_rd dbus_wr dbus_wait" (soc/zm_cycles.py) over the whole frame. */
+#ifndef ZM_BOARD
+void bblit_report_frame(long f, long trace, const uint32_t* c0, const uint32_t* c1) {
+    printf("ZM BF %ld", f);
+    for (int k = 1; k <= 4; k++)
+        printf(" %lu %lu %lu", (unsigned long)bblit.op_calls[k], (unsigned long)bblit.op_cycles[k],
+               (unsigned long)bblit.op_units[k]);
+    if (f == trace)
+        for (uint32_t i = 0; i < bblit.n_trace; i++)
+            printf("\nZM BT %ld %lu %u %lu %lu %lu", f, (unsigned long)i, (unsigned)bblit.trace[i].cmd,
+                   (unsigned long)bblit.trace[i].gap, (unsigned long)bblit.trace[i].cycles,
+                   (unsigned long)bblit.trace[i].units);
+    printf("\nZM WF %ld %lu %lu %lu %lu\n", f, (unsigned long)(c1[2] - c0[2]), (unsigned long)(c1[3] - c0[3]),
+           (unsigned long)(c1[4] - c0[4]), (unsigned long)(c1[5] - c0[5]));
+}
+#endif

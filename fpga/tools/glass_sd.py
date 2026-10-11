@@ -13,7 +13,9 @@ On the card:
     zigmachine.bit           the board SoC (--bit; default the blitter one, build/board_hp/zm_blit_vivado_100.bit)
     zImage, zigmachine.dtb, rootfs.cpio.uboot    plan A: our Buildroot Linux (--buildroot)
     uImage, rootfs.ub, glass                     plan B: zeST's Linux + our ARM binary
-    zigmachine/*.zmd         the shelf: fat disks (wasm cart + rv32 BOARD image, build/hcycles/board/<cart>/fw.bin)
+    zigmachine/*.zmd         the shelf: fat disks (wasm cart + rv32 BOARD image, build/hcycles/board/<cart>/fw.bin;
+                             a data disk carries GEM's: tools/glass_shelf.py)
+    zigmachine/progs/demo-<tag>/<NAME>.zmd   a data disk's programs, prebuilt (glass/src/app_request.zig)
     zigmachine/shelf.txt     what the OSD says about each cart (tools/shelf_meta.py)
 """
 
@@ -22,7 +24,6 @@ from __future__ import annotations
 import argparse
 import shutil
 import struct
-import subprocess
 import sys
 import tarfile
 import time
@@ -32,26 +33,15 @@ from pathlib import Path
 FPGA = Path(__file__).resolve().parent.parent
 ROOT = FPGA.parent
 sys.path.insert(0, str(FPGA / "tools"))
-import shelf_meta  # after the path insert
-import zmd_fat
+from glass_shelf import BOARD_FW, SHELF, build_shelf, zx0pack  # after the path insert; re-exported
 
 ZEST = FPGA / "boards/microphase_z7_7010/vendor/zest-bin"
 ZEST_TAR = ZEST / "zeST-20260518.tar.xz"
 ZEST_BOOT = ZEST / "zeST-20260518/boards/z7lite_7010/boot.bin"
 BOOT_CMD = FPGA / "glass/boot/boot.cmd"
 BITSTREAM = FPGA / "build/board_hp/zm_blit_vivado_100.bit"
-# The board firmwares (cycles/board.mk `board-fw`): linked for the bitstream's CSR map. NOT
-# build/cycles/<variant>: those are the cycles SIMULATION's, another map, and trap on the board.
-BOARD_FW = FPGA / "build/hcycles/board"
-CSR_MAP = FPGA / "build/hcycles/gen/csr_addr.h"
 GLASS_ARM = FPGA / "glass/zig-out/arm/bin/glass"
-# The carts the card carries: `make -C fpga board-shelf` builds a board firmware for each, and the
-# staging names any of them without one (MISSING) instead of leaving it off the card unnoticed. A
-# firmware in --fw-dir that is not listed is staged too (a cart being tried out).
-SHELF = (
-    "blitter", "fuji_hobbytronic", "gem", "polkadots", "raytrace", "raytrace_f32", "replicants_emlyn",
-    "sap_test", "skystrike", "stniccc", "tsl_hybridglenz", "tutorial", "ulm_dsots", "union_beatdis",
-)  # fmt: skip
+__all__ = ["BOARD_FW", "SHELF", "build_shelf", "zx0pack"]  # the shelf's half lives in glass_shelf.py
 IH_MAGIC, IH_OS_LINUX, IH_ARCH_ARM, IH_TYPE_SCRIPT = 0x27051956, 5, 2, 6
 
 
@@ -69,50 +59,6 @@ def script_text(cmd: bytes) -> bytes:
     apostrophe as an open quote, a `syntax error` that skipped the whole script (2026-10-10)."""
     lines = [ln.strip() for ln in cmd.decode("ascii").splitlines()]
     return "".join(ln + "\n" for ln in lines if ln and not ln.startswith("#")).encode()
-
-
-def zx0pack() -> Path:
-    """The repo's own packer, built once into build/glass/."""
-    exe = FPGA / "build/glass/zx0pack"
-    if not exe.exists():
-        exe.parent.mkdir(parents=True, exist_ok=True)
-        zig = Path.home() / ".local/zig/0.16.0/zig"
-        subprocess.run([zig, "build-exe", "-OReleaseFast", "--dep", "zx0_pack", f"-Mroot={ROOT}/tools/zx0pack/main.zig",
-                        f"-Mzx0_pack={ROOT}/libs/zig/depackers/zx0_pack.zig", f"-femit-bin={exe}"],
-                       check=True, cwd=exe.parent)  # fmt: skip
-    return exe
-
-
-def build_shelf(
-    dest: Path, fw_dir: Path, csr_map: Path = CSR_MAP, shelf: tuple[str, ...] = SHELF
-) -> list[tuple[str, str]]:
-    """A fat disk for every shelf cart with a board image in `fw_dir` (one per cart)."""
-    rows = []
-    dest.mkdir(parents=True, exist_ok=True)
-    for tag in sorted(set(shelf) | {fw.parent.name for fw in fw_dir.glob("*/fw.bin")}):
-        fw = fw_dir / tag / "fw.bin"
-        if not fw.exists():
-            rows.append((f"zigmachine/demo-{tag}.zmd", f"MISSING: no {fw}; make -C fpga board-fw CART={tag}"))
-            continue
-        disk = ROOT / "docs" / f"demo-{tag}.zmd"
-        if not disk.exists():
-            rows.append((f"zigmachine/demo-{tag}.zmd", f"MISSING: no {disk.name} on the shelf"))
-            continue
-        if csr_map.exists() and fw.stat().st_mtime < csr_map.stat().st_mtime:
-            rows.append((f"zigmachine/{disk.name}", f"STALE: {fw} predates the CSR map; make board-fw CART={tag}"))
-            continue
-        packed = dest / f"{tag}.rv32.zx0"
-        subprocess.run([zx0pack(), fw, packed], check=True, capture_output=True)
-        (dest / disk.name).write_bytes(zmd_fat.fatten(disk.read_bytes(), packed.read_bytes()))
-        packed.unlink()
-        src = fw.relative_to(FPGA) if fw.is_relative_to(FPGA) else fw
-        rows.append((f"zigmachine/{disk.name}", f"{disk.relative_to(ROOT)} + {src}"))
-    tags = [r[0].removeprefix("zigmachine/demo-").removesuffix(".zmd") for r in rows if not r[1].startswith("MISSING")]
-    if not tags:
-        return rows
-    shelf_meta.write(dest, tags)
-    rows.append((f"zigmachine/{shelf_meta.FILE}", f"tools/shelf_meta.py ({len(tags)} carts)"))
-    return rows
 
 
 def _copy(src: Path | None, out: Path, name: str, why_missing: str) -> tuple[str, str]:
