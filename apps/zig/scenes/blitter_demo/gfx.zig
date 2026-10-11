@@ -63,3 +63,13 @@ fn surface(fb: *LogicalFB) soft.Surface {
 fn sv(v: Vec2) soft.Vec2 {
     return .{ .x = v.x, .y = v.y };
 }
+
+// A re-strided view onto an existing plane's buffer, for treating a scratch
+// plane as a packed tile ring / small render target (same backing bytes).
+pub fn view(src: *LogicalFB, stride: u16, w: u16, h: u16) LogicalFB {
+    var v = src.*;
+    v.stride = stride;
+    v.fb_w = w;
+    v.fb_h = h;
+    return v;
+}

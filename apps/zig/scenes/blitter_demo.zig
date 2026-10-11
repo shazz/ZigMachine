@@ -45,7 +45,7 @@ pub const Demo = struct {
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
         Console.log("blitter_demo init", .{});
-        self.fx.gfx.init();
+        self.fx.init();
         self.wants_quit = false;
         const fb: *LogicalFB = &zigos.lfbs[0];
         fb.is_enabled = true;

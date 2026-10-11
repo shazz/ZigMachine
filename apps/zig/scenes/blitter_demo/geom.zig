@@ -28,6 +28,9 @@ const LIGHT = [3]f32{ 0.32, 0.42, -0.85 }; // toward the viewer (-z)
 // 4x4 Bayer ordered-dither thresholds (0..15), tiled to the 16x16 halftone reg.
 const BAYER = [16]u8{ 0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5 };
 
+// An inclusive pixel box.
+pub const Box = struct { x0: i32, y0: i32, x1: i32, y1: i32 };
+
 pub const Cube = struct {
     ax: f32 = 0,
     ay: f32 = 0,
@@ -62,6 +65,20 @@ pub const Cube = struct {
                 .y = @intFromFloat(oy + self.pos[i][1] * fov / zc),
             };
         }
+    }
+
+    // The box the cube's triangles can touch, clipped to a w x h target (every
+    // span the blitter draws lies between its vertices); null when it is off it.
+    pub fn bounds(self: *const Cube, w: i32, h: i32) ?Box {
+        var b = Box{ .x0 = w, .y0 = h, .x1 = -1, .y1 = -1 };
+        for (self.screen) |v| {
+            b.x0 = @min(b.x0, v.x);
+            b.y0 = @min(b.y0, v.y);
+            b.x1 = @max(b.x1, v.x);
+            b.y1 = @max(b.y1, v.y);
+        }
+        b = .{ .x0 = @max(b.x0, 0), .y0 = @max(b.y0, 0), .x1 = @min(b.x1, w - 1), .y1 = @min(b.y1, h - 1) };
+        return if (b.x1 < b.x0 or b.y1 < b.y0) null else b;
     }
 
     pub fn brightness(self: *const Cube, face: u8) f32 {

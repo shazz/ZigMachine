@@ -7,14 +7,13 @@ const ZigOS = zg.ZigOS;
 const LogicalFB = zg.LogicalFB;
 const geom = @import("geom.zig");
 const Cube = geom.Cube;
-pub const Gfx = @import("gfx.zig").Gfx;
+const gfx = @import("gfx.zig");
+pub const Gfx = gfx.Gfx;
+const Wobble = @import("wobble.zig").Wobble;
 
 const WIDTH: i32 = zg.WIDTH;
 const HEIGHT: i32 = zg.HEIGHT;
 
-// RUBBER: per-row horizontal sine displacement (strip blits).
-const WOB_AMP: f32 = 14.0;
-const WOB_FREQ: f32 = 0.11;
 // TILE: render the cube once into a TILE_W×TILE_H corner of a scratch plane, then
 // block-copy that tile across a GRID_X×GRID_Y grid — the whole screen for the
 // cost of copies, one rasterisation.
@@ -46,7 +45,13 @@ pub const Fx = struct {
     gfx: Gfx = .{},
     cube: Cube = .{},
     wob: f32 = 0, // rubber-wobble phase
+    wobble: Wobble = .{}, // RUBBER's per-row offsets (wobble.zig)
     head: u32 = 0, // DELAY ring write position
+
+    pub fn init(self: *Fx) void {
+        self.gfx.init();
+        self.wobble.init();
+    }
 
     pub fn step(self: *Fx) void {
         self.cube.spin();
@@ -69,17 +74,29 @@ pub const Fx = struct {
     }
 
     // RUBBER: render the cube (flat) into a scratch plane once, then strip-blit it
-    // back row-by-row with a per-row sine X offset — a bitmap deformation for the
-    // cost of H one-row BLITs (the classic "rubber" wobble).
+    // back with a per-row sine X offset — a bitmap deformation (the classic
+    // "rubber" wobble). Only the rows and columns the cube can cover are copied
+    // (the rest of the scratch is the key colour, which a keyed blit skips
+    // anyway), and rows that share an offset go in one blit: the same pixels as
+    // 200 full-width one-row blits, for a fraction of the calls.
     fn renderRubber(self: *Fx, zigos: *ZigOS, fb: *LogicalFB) void {
         const scratch = &zigos.lfbs[1];
-        const g = &self.gfx;
-        g.clear(scratch, 0);
+        self.gfx.clear(scratch, 0);
         self.drawFacesFlat(scratch);
-        var y: i16 = 0;
-        while (y < HEIGHT) : (y += 1) {
-            const dx: i16 = @intFromFloat(WOB_AMP * @sin(@as(f32, @floatFromInt(y)) * WOB_FREQ + self.wob));
-            g.bob(fb, dx, y, scratch, 0, y, @intCast(WIDTH), 1, 0); // key 0 keeps the frame
+        const box = self.cube.bounds(WIDTH, HEIGHT) orelse return;
+        const w: u16 = @intCast(box.x1 - box.x0 + 1);
+        var y = box.y0;
+        var dx = self.wobble.dx(@intCast(y), self.wob);
+        while (y <= box.y1) {
+            var end = y + 1;
+            var next: i16 = dx;
+            while (end <= box.y1) : (end += 1) {
+                next = self.wobble.dx(@intCast(end), self.wob);
+                if (next != dx) break;
+            }
+            self.gfx.bob(fb, @intCast(box.x0 + dx), @intCast(y), scratch, @intCast(box.x0), @intCast(y), w, @intCast(end - y), 0);
+            y = end;
+            dx = next;
         }
     }
 
@@ -109,8 +126,8 @@ pub const Fx = struct {
     // tall, so the machine's stride->height clip leaves the slots addressable.
     fn renderDelay(self: *Fx, zigos: *ZigOS, fb: *LogicalFB) void {
         const g = &self.gfx;
-        var tile = view(&zigos.lfbs[2], DTILE_W, DTILE_W, DTILE_H); // current-frame tile
-        var ring = view(&zigos.lfbs[1], @intCast(DN * DTILE_W), @intCast(DN * DTILE_W), DTILE_H);
+        var tile = gfx.view(&zigos.lfbs[2], DTILE_W, DTILE_W, DTILE_H); // current-frame tile
+        var ring = gfx.view(&zigos.lfbs[1], @intCast(DN * DTILE_W), @intCast(DN * DTILE_W), DTILE_H);
 
         g.fill(&tile, 0, 0, DTILE_W, DTILE_H, 0);
         self.cube.project(geom.FOV * @as(f32, @floatFromInt(DTILE_W)) / @as(f32, @floatFromInt(WIDTH)), DTILE_W / 2, DTILE_H / 2);
@@ -174,13 +191,3 @@ pub const Fx = struct {
         g.fill(fb, @intCast(WIDTH - 4), 0, 4, h, FRAME_COL);
     }
 };
-
-// A re-strided view onto an existing plane's buffer, for treating a scratch
-// plane as a packed tile ring / small render target (same backing bytes).
-fn view(src: *LogicalFB, stride: u16, w: u16, h: u16) LogicalFB {
-    var v = src.*;
-    v.stride = stride;
-    v.fb_w = w;
-    v.fb_h = h;
-    return v;
-}
