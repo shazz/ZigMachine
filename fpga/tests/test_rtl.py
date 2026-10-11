@@ -46,6 +46,7 @@ RTL_TESTS = [
     ),
     ("hdmi_audio_core", HDMI_AUDIO_SRCS, "tests/tb/hdmi_audio_tb.cpp"),
     ("hdmi_audio44", [*HDMI_AUDIO_SRCS, "tests/tb/hdmi_audio44_top.v"], "tests/tb/hdmi_audio44_tb.cpp"),
+    ("zm_video_plane", ["rtl/video/zm_video_plane.v"], "tests/tb/zm_video_plane_tb.cpp"),
 ]
 
 
@@ -120,13 +121,21 @@ MUTANTS = [
         "2'd2) {c1, k1} = {hex(rd_data[3:0])",
         "2'd2) {c1, k1} = {hex(rd_data[7:4])",
     ),
+    # The plane's address is four registers deep: a start one clock too early
+    # fetches the previous geometry's address; no hold at all, the same sooner.
+    ("plane_start_early", "zm_video_plane", "rtl/video/zm_video_plane.v", "!moved && held == 2'd2", "held >= 2'd1"),
+    ("plane_late_move", "zm_video_plane", "rtl/video/zm_video_plane.v", "!moved && held == 2'd2", "held == 2'd2"),
+    ("plane_no_hold", "zm_video_plane", "rtl/video/zm_video_plane.v", "(start || pend) && !moved && held == 2'd2", "start"),
+    # ... and a hold that costs a real pass a clock is caught by the timing check.
+    ("plane_start_late", "zm_video_plane", "rtl/video/zm_video_plane.v", "!moved && held == 2'd2", "!moved && !start"),
 ]
 
 
 def _cxxrtl(top: str, sources: list[str], root: Path = FPGA, build: Path = BUILD) -> Path:
     out = build / f"{top}.cc"
     reads = " ".join(str(root / s) for s in sources)
-    script = f"read_verilog -I{FPGA / 'gen'} {reads}; hierarchy -top {top}; proc; write_cxxrtl {out}"
+    # rtl/video: the compositor's modules include zm_video_memmap.vh, which a mutant's copy lacks.
+    script = f"read_verilog -I{FPGA / 'gen'} -I{FPGA / 'rtl' / 'video'} {reads}; hierarchy -top {top}; proc; write_cxxrtl {out}"
     rc = yowasp_yosys.run_yosys(["-q", "-p", script])
     assert rc == 0, f"yosys failed on {top}"
     return out

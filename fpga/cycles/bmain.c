@@ -14,12 +14,14 @@
  * (the cycles of cart.frame() and of the players), "ZM SONG ts name" per song, then "ZM AUD ...".
  * Per frame too: "ZM QF f bg planes present" (the sequencer's cycles), "ZM BF f" + calls/cycles/units
  * of each blitter op and "ZM WF f" + the bus counters (report_frame), and with ZM_TRACE_FRAME = f
- * that frame's ops one by one ("ZM BT"). ZM_WARP_MS starts the cart's timeline late. */
+ * that frame's ops one by one ("ZM BT"). ZM_WARP_MS starts the cart's timeline late.
+ * The drive (bdisk.h): "ZM DISK ..." at boot, before the cart's init can read it, and at the end. */
 #include <stdio.h>
 #include <stdlib.h>
 
 #include "baudio.h"
 #include "bblit.h"
+#include "bdisk.h"
 #include "binput.h"
 #include "bboard.h"
 #include "bdiag.h"
@@ -43,6 +45,13 @@
 /* ZM_TRACE_FRAME (sim only): that frame's hwBlit calls one by one, "ZM BT f i cmd gap cycles units". */
 #ifndef ZM_TRACE_FRAME
 #define ZM_TRACE_FRAME 0
+#endif
+
+/* ZM_MODES (sim only): "a,b,c" -> setShadeMode(a) before frame 1, b before frame 1 + ZM_MODE_FRAMES,
+ * ... so one run measures several of a cart's modes (blitter_demo's GLENZ/RUBBER/TILE/DELAY). The
+ * native host takes the same calls as --call F:setShadeMode:N, for the reference hashes. */
+#ifndef ZM_MODE_FRAMES
+#define ZM_MODE_FRAMES 3
 #endif
 
 #define PICTURE_BYTES (ZM_RASTER_WIDTH * ZM_RASTER_HEIGHT * 4u)
@@ -131,6 +140,14 @@ static void run(void) {
     for (long f = 1; ZM_FRAMES == 0 || f <= ZM_FRAMES; f++) {
         int sample = ZM_FRAMES && f % ZM_EVERY == 0;
         uint32_t c0[ZM_NCOUNT], c1[ZM_NCOUNT];
+#ifdef ZM_MODES
+        static const int modes[] = {ZM_MODES};
+        long mi = (f - 1) / ZM_MODE_FRAMES;
+        if ((f - 1) % ZM_MODE_FRAMES == 0 && mi < (long)(sizeof modes / sizeof modes[0])) {
+            double arg = modes[mi];
+            host_call(&g_env, "setShadeMode", &arg, 1);
+        }
+#endif
         bblit_frame_reset();
         board_counters(c0);
         uint32_t t0 = board_cycles();
@@ -154,6 +171,7 @@ static void run(void) {
 
 static void boot(void) {
     uint32_t t0 = board_cycles();
+    bdisk_boot(); /* host_boot runs the cart's init, which may already read the disk */
     host_boot(&g_env);
     /* The pictures at fixed addresses (bmailbox.h), black until the first swap. */
     for (uint32_t i = 0; i < PICTURE_BYTES / 4; i++) {
@@ -190,5 +208,6 @@ int main(void) {
     printf("ZM MIS %lu %lu\n", (unsigned long)zm_misaligned[0], (unsigned long)zm_misaligned[1]);
     printf("ZM BLIT %lu %lu %lu\n", (unsigned long)bblit.calls, (unsigned long)bblit.hw, (unsigned long)bblit.cycles);
     AUDIO(baudio_report());
+    bdisk_report();
     board_finish(w2c_machine_hwRamAllocFailures(&g_env.machine) ? 1 : 0);
 }

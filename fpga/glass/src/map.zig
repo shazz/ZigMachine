@@ -184,6 +184,24 @@ pub const CART_CPU_BASE: u32 = 0x4000_0000;
 // (a 32 MiB-aligned window, soc/zm_board_mem.py hp_slice).
 pub const LOAD_BASE_RESET: u32 = 0x0400_0000;
 
+// --- the disk in the cart window (docs/FPGA_GLASS.md, "The disk in DDR") -----
+// ZWINDOW places the whole shelf disk (the .zmd the browser mounts: the fat
+// disk minus its board image) in the window, after the image, so ZIGGY's
+// firmware serves env.diskReadBlock from DDR as sealed-loader.js serves it from
+// the JS heap. ZWINDOW then writes a descriptor of DISK_DESC_WORDS words at
+// window end - DISK_DESC_FROM_TOP (CPU 0x41FF_FC00, in the top 4 KiB the link
+// keeps free): DISK_MAGIC, the disk's window offset, its bytes, and the check
+// ~(magic ^ offset ^ bytes). Offsets, not CPU addresses: the ARM never sees
+// CART_CPU_BASE. No descriptor (U-Boot's flow, an old glass): no disk, the
+// drive answers 0 as scene_hash.mjs's does.
+pub const DISK_DESC_FROM_TOP: u32 = 0x400;
+pub const DISK_DESC_WORDS: u32 = 4;
+pub const DISK_MAGIC: u32 = 0x4B44_4D5A; // "ZMDK"
+pub const DISK_ALIGN: u32 = 0x1000; // the disk starts on the first 4 KiB boundary after the image
+// The disk must end by here: the two pictures (cycles/bmailbox.h ZM_FB0_ADDR,
+// window offset 12 MiB), where the image's own limit is too (cycles/board.mk).
+pub const DISK_END: u32 = 0x00C0_0000;
+
 // --- the disk (.zmd) ---------------------------------------------------------
 // A "fat" disk carries the cart's rv32 board image as one more FAT file, found
 // by type (fpga/tools/zmd_fat.py writes it, ZX0-packed like the wasm cart).

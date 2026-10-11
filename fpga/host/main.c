@@ -1,7 +1,10 @@
 /* The native twin of apps/scene_hash.mjs: same arguments, same frame loop, same
  * JSON on stdout, so the two outputs compare with `scene_hash.mjs --compare`.
  *
- *   host <cart-label> [frames=1200] [every=10] [--call F:export:arg,...]
+ *   host <cart-label> [frames=1200] [every=10] [--call F:export:arg,...] [--disk X.zmd]
+ *
+ * --disk mounts X.zmd in the drive (host/disk.h), as scene_hash.mjs --disk and the
+ * browser do; without it diskReadBlock answers 0, scene_hash.mjs's stub.
  *
  * <cart-label> is only echoed into the JSON (the cart is linked in).
  *
@@ -18,6 +21,7 @@
 #include <string.h>
 
 #include "boot.h"
+#include "disk.h"
 #include "input_bridge.h"
 #include "sha256.h"
 #include "wasm-rt-exceptions.h" /* wasm_rt_impl_try needs wasm_rt_set_unwind_target */
@@ -69,6 +73,19 @@ static void parse_call(const char* spec) {
         p = strchr(p, ',');
         if (p) p++;
     }
+}
+
+/* --disk: the whole image in memory, as the browser's mountDisk holds it. */
+static void mount_disk(const char* path) {
+    FILE* f = fopen(path, "rb");
+    long n = f && fseek(f, 0, SEEK_END) == 0 ? ftell(f) : -1;
+    uint8_t* buf = n > 0 ? malloc((size_t)n) : NULL;
+    if (!buf || fseek(f, 0, SEEK_SET) != 0 || fread(buf, 1, (size_t)n, f) != (size_t)n) {
+        fprintf(stderr, "host: cannot read disk %s\n", path);
+        exit(1);
+    }
+    fclose(f);
+    host_disk = (host_disk_t){.data = buf, .size = (uint32_t)n};
 }
 
 static void run_calls(long f) {
@@ -202,6 +219,7 @@ int main(int argc, char** argv) {
     int npos = 0;
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "--call") == 0 && i + 1 < argc) parse_call(argv[++i]);
+        else if (strcmp(argv[i], "--disk") == 0 && i + 1 < argc) mount_disk(argv[++i]);
         else if (npos < 3) pos[npos++] = argv[i];
     }
     if (!pos[0]) { fprintf(stderr, "usage: host <cart> [frames] [every] [--call F:name:args]\n"); return 2; }

@@ -4,19 +4,36 @@
 // frames. It exists to prove that a library migration is byte-identical: take
 // a fingerprint before the change, rebuild, take one after, compare.
 //
-//   node apps/scene_hash.mjs <cart.wasm> [frames=1200] [every=10] [--call F:export:arg,...]
+//   node apps/scene_hash.mjs <cart.wasm> [frames=1200] [every=10] [--call F:export:arg,...] [--disk X.zmd]
 //   node apps/scene_hash.mjs --compare a.json b.json
 //
 // Writes JSON to stdout: { cart, frames, every, samples: [{frame, hash}], total }.
 // `--call 300:key:32` invokes demo.key(32) before frame 300 (repeatable, for
-// scenes that wait on input). `--compare` exits 1 on the first differing frame.
+// scenes that wait on input). `--disk X.zmd` mounts X in the drive, as the
+// browser does; without it diskReadBlock is a stub answering 0 (no disk).
+// `--compare` exits 1 on the first differing frame.
 import { readFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { cartRam, romRam } from "../docs/wasm_hiwater.js";
 
 const PAGES = 112; // SHARED_PAGES in machine/sdk/memmap.zig
 
-async function boot(cartPath, machineDir) {
+// The drive over one mounted disk: the function body is docs/sealed-loader.js's
+// diskReadBlock VERBATIM (fpga/tests/test_board_disk.py checks the two texts are
+// equal, and the native host's and the board's host/disk.h against it).
+function makeDrive(memory, mountedDisk) {
+    function diskReadBlock(block, dstOff) {
+        if (!mountedDisk) return 0;
+        const start = (block >>> 0) * 512; // the i32 is a u32 block: >= 2^31 is past the end, not from it
+        const src = mountedDisk.buf.subarray(start, start + 512);
+        if (src.length === 0) return 0;
+        new Uint8Array(memory.buffer, dstOff, src.length).set(src);
+        return src.length;
+    }
+    return diskReadBlock;
+}
+
+async function boot(cartPath, machineDir, diskPath) {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
     let demo;
     const machine = (await WebAssembly.instantiate(await readFile(`${machineDir}/machine-video.wasm`), {
@@ -43,6 +60,7 @@ async function boot(cartPath, machineDir) {
         hwRomRamFree: machine.hwRomRamFree,
         ...rom,
     };
+    if (diskPath) env.diskReadBlock = makeDrive(memory, { buf: new Uint8Array(await readFile(diskPath)) });
     for (const imp of WebAssembly.Module.imports(new WebAssembly.Module(cartBytes)))
         if (imp.module === "env" && !(imp.name in env)) env[imp.name] = noop;
     demo = (await WebAssembly.instantiate(cartBytes, { env })).instance.exports;
@@ -66,14 +84,16 @@ function parseCalls(list) {
 
 async function fingerprint(argv) {
     const pos = [], callSpecs = [];
+    let disk = null;
     for (let i = 0; i < argv.length; i++) {
         if (argv[i] === "--call") callSpecs.push(argv[++i]);
+        else if (argv[i] === "--disk") disk = argv[++i];
         else pos.push(argv[i]);
     }
     const [cart, frames = "1200", every = "10"] = pos;
     const N = Number(frames), K = Number(every);
     const calls = parseCalls(callSpecs);
-    const { memory, machine, demo } = await boot(cart, process.env.MACHINE_DIR || "docs");
+    const { memory, machine, demo } = await boot(cart, process.env.MACHINE_DIR || "docs", disk);
     const size = machine.hwPhysWidth() * machine.hwPhysHeight() * 4;
     const planes = machine.hwPlanesNumber();
     const total = createHash("sha256");

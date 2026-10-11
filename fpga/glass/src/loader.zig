@@ -14,6 +14,7 @@ pub const Error = zmd.Error || error{
     WontStop, // the cart CPU did not go into reset
     BadImage, // the board image is a ZX0 container that does not depack
     TooBig, // larger than the cart CPU's window
+    DiskTooBig, // the shelf disk does not fit between the image and the pictures (map.DISK_END)
     DdrMismatch, // the window did not read back what was written
     CartTrapped, // the firmware reported a trap while booting
     CartSilent, // the firmware never reported RUNNING
@@ -36,7 +37,7 @@ pub const Options = struct {
 
 fn noIdle() void {}
 
-pub const Report = struct { image_bytes: u32, packed_bytes: u32, polls: u32, trap: u32 = 0, fw: u32 = 0 };
+pub const Report = struct { image_bytes: u32, packed_bytes: u32, polls: u32, trap: u32 = 0, fw: u32 = 0, disk_at: u32 = 0, disk_bytes: u32 = 0 };
 
 /// Stop the cart CPU, keeping the OSD bit as it is (and dropping WARM: the next
 /// boot is cold unless warm() asks again).
@@ -65,21 +66,71 @@ pub fn unpack(gpa: std.mem.Allocator, image: []const u8, window: usize) Error![]
     return out;
 }
 
+/// What a load writes into the window, worked out before anything is touched:
+/// the image at 0, the shelf disk after it, the disk's descriptor near the top
+/// (map.zig, "the disk in the cart window"). Everything else is zero.
+pub const Plan = struct {
+    image: []u8,
+    disk: []u8,
+    disk_at: u32,
+    desc: [map.DISK_DESC_WORDS * 4]u8,
+    desc_at: u32,
+    packed_bytes: u32,
+
+    pub fn parts(self: *const Plan) [3]bus.Part {
+        return .{
+            .{ .at = 0, .bytes = self.image },
+            .{ .at = self.disk_at, .bytes = self.disk },
+            .{ .at = self.desc_at, .bytes = &self.desc },
+        };
+    }
+
+    pub fn deinit(self: *Plan, gpa: std.mem.Allocator) void {
+        gpa.free(self.image);
+        gpa.free(self.disk);
+    }
+};
+
+/// Steps 2 and 3 of the load (and the disk's place): parse, depack, fit. Touches nothing.
+pub fn plan(gpa: std.mem.Allocator, disk: []const u8, window: usize) Error!Plan {
+    const d = try zmd.parse(disk);
+    const board = try d.boardImage();
+    const image = try unpack(gpa, board, window);
+    errdefer gpa.free(image);
+    const shelf = try d.shelfDisk(gpa);
+    errdefer gpa.free(shelf);
+    const at = try diskAt(image.len, shelf.len, window);
+    var p = Plan{ .image = image, .disk = shelf, .disk_at = at, .desc = undefined, .desc_at = @intCast(window - map.DISK_DESC_FROM_TOP), .packed_bytes = @intCast(board.len) };
+    const size: u32 = @intCast(shelf.len);
+    const words = [map.DISK_DESC_WORDS]u32{ map.DISK_MAGIC, at, size, ~(map.DISK_MAGIC ^ at ^ size) };
+    for (words, 0..) |w, i| std.mem.writeInt(u32, p.desc[i * 4 ..][0..4], w, .little);
+    return p;
+}
+
+/// Where the disk goes: the first DISK_ALIGN boundary after the image, ending
+/// by the pictures (DISK_END) and below the descriptor.
+pub fn diskAt(image_len: usize, disk_len: usize, window: usize) Error!u32 {
+    const at = std.mem.alignForward(usize, image_len, map.DISK_ALIGN);
+    const end = @min(map.DISK_END, window - map.DISK_DESC_FROM_TOP);
+    if (at + disk_len > end) return error.DiskTooBig;
+    return @intCast(at);
+}
+
 /// The whole sequence, from a disk image in memory to a running cart.
 pub fn load(gpa: std.mem.Allocator, regs: bus.Regs, ddr: bus.Ddr, disk: []const u8, opt: Options) Error!Report {
     try checkGlass(regs);
-    const board = try (try zmd.parse(disk)).boardImage();
-    const image = try unpack(gpa, board, ddr.bytes());
-    defer gpa.free(image);
+    var p = try plan(gpa, disk, ddr.bytes());
+    defer p.deinit(gpa);
+    const parts = p.parts();
     try hold(regs);
-    ddr.place(image);
-    if (opt.verify and ddr.verify(image) != null) return error.DdrMismatch;
+    ddr.placeParts(&parts);
+    if (opt.verify and ddr.verifyParts(&parts) != null) return error.DdrMismatch;
     regs.write(map.REG_LOAD_BASE, map.DDR_CART_BASE);
-    regs.write(map.REG_LOAD_SIZE, @intCast(image.len));
+    regs.write(map.REG_LOAD_SIZE, @intCast(p.image.len));
     // Keys typed for the previous cart (or the menu) must not reach this one.
     regs.write(map.REG_CTRL, (regs.read(map.REG_CTRL) & map.CTRL_OSD) | map.CTRL_KEY_FLUSH);
     regs.write(map.REG_CTRL, regs.read(map.REG_CTRL) | map.CTRL_RUN);
-    var report = Report{ .image_bytes = @intCast(image.len), .packed_bytes = @intCast(board.len), .polls = 0 };
+    var report = Report{ .image_bytes = @intCast(p.image.len), .packed_bytes = p.packed_bytes, .polls = 0, .disk_at = p.disk_at, .disk_bytes = @intCast(p.disk.len) };
     if (opt.wait_boot) try waitBoot(regs, opt, &report);
     return report;
 }

@@ -26,11 +26,11 @@ HP_DEPS  := soc/hp_sim.py soc/zm_board_mem.py soc/zm_hp.py soc/zm_simaxi.py soc/
 	soc/zm_z7.py soc/zm_glass.py $(VID_DEPS) $(wildcard rtl/glass/*.v) \
 	soc/zm_audio_soc.py $(wildcard rtl/audio/*.v) rtl/sim/zm_audio_tap.v
 HRV_CFLAGS = $(subst -I$(CYC)/gen,-I$(HCYC)/gen,$(RV_CFLAGS)) -Ibuild/vdump $(V_$(HV)) -Iglass/firmware -Igen
-HFW_FILES := $(filter-out cycles/board.c,$(FW_FILES)) cycles/bboard.c cycles/bmailbox.c cycles/bdiag.c cycles/bblit.c \
+HFW_FILES := $(filter-out cycles/board.c,$(FW_FILES)) cycles/bboard.c cycles/bmailbox.c cycles/bdiag.c cycles/bblit.c cycles/bdisk.c \
 	host/glass_router.c
 # The glass's input into the cart: per cart, as env.c (they see the cart's w2c_env through host.h).
 HIN_SRC := cycles/binput.c host/input_bridge.c
-HFW_DEPS  := $(FW_DEPS) cycles/bmicros.h cycles/bblit.c cycles/bblit.h cycles/bboard.c cycles/bboard.h cycles/bmailbox.c cycles/bmailbox.h cycles/bdiag.c cycles/bdiag.h cycles/vboard.h $(HCYC)/gen/csr_addr.h build/vdump/zm_memmap.h \
+HFW_DEPS  := $(FW_DEPS) cycles/bmicros.h cycles/bdisk.c cycles/bblit.c cycles/bblit.h cycles/bboard.c cycles/bboard.h cycles/bmailbox.c cycles/bmailbox.h cycles/bdiag.c cycles/bdiag.h cycles/vboard.h $(HCYC)/gen/csr_addr.h build/vdump/zm_memmap.h \
 	cycles/binput.c cycles/binput.h host/input_bridge.c host/input_bridge.h host/glass_router.c \
 	glass/firmware/glass_input.c glass/firmware/glass_input.h gen/glass_map.h
 # The link of cycles.mk with the top 4 KiB of the window kept free for the debug
@@ -61,10 +61,12 @@ ZM_TRACE_FRAME ?= 0
 # ZM_SIM_KEYS=F:event,... (sim only): the glass's key FIFO as a script (cycles/binput.c), the
 # native host's ZM_GLASS_KEYS, so a sim can press the keys the board's input would.
 # ZM_SIM_POINTER=F:word,... (sim only): the mouse the same way (ZM_GLASS_POINTER).
+# ZM_MODES (sim only): several of a cart's modes in one hp sim (cycles/bmain.c).
+ZM_MODES ?=
 H_sim    = -DZM_FRAMES=$(ZM_FRAMES) -DZM_EVERY=$(ZM_EVERY) -DZM_WARP_MS=$(ZM_WARP_MS) -DZM_TRACE_FRAME=$(ZM_TRACE_FRAME) \
 	$(B_$(ZM_BLIT)) $(A_$(ZM_AUDIO)) $(if $(ZM_SIM_KEYS),'-DZM_SIM_KEYS="$(ZM_SIM_KEYS)"') \
-	$(if $(ZM_SIM_POINTER),'-DZM_SIM_POINTER="$(ZM_SIM_POINTER)"')
-# ZM_SYS_MHZ=<n>: a bitstream whose sys clock is not 100 MHz (the FPU test bitstream runs 90):
+	$(if $(ZM_SIM_POINTER),'-DZM_SIM_POINTER="$(ZM_SIM_POINTER)"') $(if $(ZM_MODES),-DZM_MODES=$(ZM_MODES))
+# ZM_SYS_MHZ=<n>: a bitstream whose sys clock is not 100 MHz (the FPU test bitstream runs 80):
 # board_micros() (bboard.c, the cart's hostMicros) is the one place the firmware reads the clock.
 ZM_SYS_MHZ ?=
 H_board  = -DZM_BOARD -DZM_FRAMES=0 -DZM_EVERY=1 $(B_$(ZM_BLIT)) $(A_$(ZM_AUDIO)) $(if $(ZM_SYS_MHZ),-DZM_SYS_MHZ=$(ZM_SYS_MHZ)u)
@@ -126,9 +128,10 @@ $(HCYC)/$(1)$(ASUF)$(HSUF)/%/fw.bin: $(HCYC)/$(1)$(ASUF)$(HSUF)/%/fw.elf
 endef
 $(foreach v,sim board,$(eval $(call hp_rules,$(v))))
 
-# The DDR model is 64 bits wide: one little-endian doubleword a line.
-$(HCYC)/sim$(ASUF)$(HSUF)/%/zm_ddr.init: $(HCYC)/sim$(ASUF)$(HSUF)/%/fw.bin
-	od -An -v -tx8 -w8 $< | tr -d ' ' >$@
+# The DDR model is 64 bits wide: one little-endian doubleword a line. With the cart's
+# shelf disk where ZWINDOW puts it, when docs/ has one (tools/ddr_init.py, cycles/bdisk.c).
+$(HCYC)/sim$(ASUF)$(HSUF)/%/zm_ddr.init: $(HCYC)/sim$(ASUF)$(HSUF)/%/fw.bin tools/ddr_init.py
+	uv run python tools/ddr_init.py $< $@ $(if $(wildcard $(ROOT)/docs/demo-$*.zmd),--disk $(ROOT)/docs/demo-$*.zmd)
 
 .PHONY: hp-sim board-fw board-shelf soc-hp-fpu
 soc-hp-fpu: $(SOC_HP)_fpu/hp_sim.json

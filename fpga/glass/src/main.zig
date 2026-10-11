@@ -7,7 +7,9 @@
 //                                   --mouse-scale: pointer speed, 100 = a pixel a count
 //   glass sim-load DISK OUT [WIN]   desktop: load DISK into a simulated glass + fake DDR of
 //                                   WIN bytes (default the board's), write the placed image
-//                                   to OUT; exit 1 unless the rest of the window is zero
+//                                   to OUT, the placed disk to OUT.disk and its descriptor
+//                                   to OUT.desc; exit 1 unless
+//                                   the window is image, disk, descriptor and zeros
 //   glass sim-menu SHELF_DIR [PAGE] desktop: the menu the OSD would show, as text;
 //                                   PAGE = shelf (default), console or debug
 const std = @import("std");
@@ -75,14 +77,24 @@ fn simLoad(init: std.process.Init, disk_path: []const u8, out_path: []const u8, 
         std.debug.print("sim-load {s}: {t}\n", .{ disk_path, err });
         return 1;
     };
-    const placed = std.mem.sliceAsBytes(words)[0..rep.image_bytes];
-    const tail = std.mem.sliceAsBytes(words)[std.mem.alignForward(usize, rep.image_bytes, 4)..];
-    if (std.mem.indexOfNone(u8, tail, &.{0}) != null or glass.ctrl & map.CTRL_RUN == 0) {
-        std.debug.print("sim-load {s}: window not clean after the image, or the cart is not running\n", .{disk_path});
+    // The window must be exactly the plan's parts and zeros; OUT gets the image as it
+    // landed, OUT.disk the disk as the cart CPU will read it.
+    var p = try loader.plan(gpa, disk, window);
+    defer p.deinit(gpa);
+    const parts = p.parts();
+    if ((bus.Ddr{ .words = words }).verifyParts(&parts) != null or glass.ctrl & map.CTRL_RUN == 0) {
+        std.debug.print("sim-load {s}: window is not image, disk, descriptor and zeros, or the cart is not running\n", .{disk_path});
         return 1;
     }
-    try std.Io.Dir.cwd().writeFile(init.io, .{ .sub_path = out_path, .data = placed });
-    std.debug.print("{s}: {d} bytes ({d} packed) at 0x{X:0>8}, cart up after {d} polls\n", .{ disk_path, rep.image_bytes, rep.packed_bytes, glass.load_base, rep.polls });
+    const all = std.mem.sliceAsBytes(words);
+    try std.Io.Dir.cwd().writeFile(init.io, .{ .sub_path = out_path, .data = all[0..rep.image_bytes] });
+    const disk_out = try std.fmt.allocPrint(gpa, "{s}.disk", .{out_path});
+    defer gpa.free(disk_out);
+    try std.Io.Dir.cwd().writeFile(init.io, .{ .sub_path = disk_out, .data = all[rep.disk_at..][0..rep.disk_bytes] });
+    const desc_out = try std.fmt.allocPrint(gpa, "{s}.desc", .{out_path});
+    defer gpa.free(desc_out);
+    try std.Io.Dir.cwd().writeFile(init.io, .{ .sub_path = desc_out, .data = all[p.desc_at..][0 .. map.DISK_DESC_WORDS * 4] });
+    std.debug.print("{s}: {d} bytes ({d} packed) at 0x{X:0>8}, disk {d} bytes at +0x{X}, cart up after {d} polls\n", .{ disk_path, rep.image_bytes, rep.packed_bytes, glass.load_base, rep.disk_bytes, rep.disk_at, rep.polls });
     return 0;
 }
 

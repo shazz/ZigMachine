@@ -192,7 +192,9 @@ headless Chrome screenshots (`tools/mix_chrome.mjs`; the cosmetic CRT veil is
 left out). A GPU compositor rounds partial alpha differently, by up to 4.
 
 **The mixer** sweeps the line buffer once per PLANE (or MIX) pass, 2 pixels a
-clock (400 clocks), `D = over(L, D)` with 12 multipliers (DSPs), from the tube
+clock (400 clocks, 4 deep: the block RAM reads are registered before the
+products, for the 125 MHz comp clock), `D = over(L, D)` with 12 multipliers
+(DSPs, `use_dsp`: Vivado had put them in LUTs), from the tube
 on the line's first fold of the frame (`cmd_first`), else from the picture row
 loaded into the accumulator. Canvas `k` re-shows lower planes' pixels it does
 not cover, so every pass folds the whole row: a PLANE pass runs on all 280
@@ -298,7 +300,9 @@ swapped, a one-bit shift, a 6-clock period.
   means the compositor has USED every snooped store, not only received it. The
   video sim's `comp` column counts comp clocks. `zm_video_plane.v` registers
   its inputs and its geometry ahead of `start`, which took comp from ~95 to a
-  112 MHz median over the seeds.
+  112 MHz median over the seeds; the address (`base + row * stride + hs`)
+  is four registers deep since, and a `start` sooner than four clocks after
+  the inputs moved waits for them (none the sequencer issues does).
 - **The AXI master toward HP0** (`soc/zm_video_dma.py` is Wishbone with
   `cti` bursts; `max_burst=16` splits for AXI) and the HP bridge the snoop moves
   into (on the board it taps the CPU's data bus for now); the seal (the other

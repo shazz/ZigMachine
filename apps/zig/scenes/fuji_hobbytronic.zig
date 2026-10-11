@@ -11,7 +11,7 @@
 // Written as a challenge for the FPGA SoC, whose cart CPU is an RV32IM at
 // 100 MHz with no FPU, so the frame path has no floats at all:
 //   - the logo (fuji_hobbytronic/mesh.zig) is the real Fuji, traced from the
-//     logo by prototypes/fuji_logo/gen_mesh.py and extruded: 138 vertices,
+//     logo by tools/gen_fuji_mesh.py and extruded: 138 vertices,
 //     264 triangles; fixed.zig turns, projects, culls and lights it in Q14;
 //   - logo.zig sorts the visible triangles far to near and fills each with
 //     one hardware BLITTER triangle op;

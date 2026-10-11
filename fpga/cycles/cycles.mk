@@ -77,7 +77,7 @@ $(CYC)/src/%/cart.c: $(HOST)/%/cart.c cycles/zm_variant.h
 # STOCK wasm2c runtime (through cycles/shim) and the native host's sha256.
 FW_FILES := $(addprefix cycles/,board.c prof.c trap.c trap.S fcount.c) host/sha256.c \
 	$(addprefix $(W2C_RT)/,wasm-rt-impl.c wasm-rt-mem-impl.c wasm-rt-exceptions-impl.c)
-FW_DEPS  := $(FW_FILES) $(wildcard cycles/*.h cycles/shim/*.h cycles/shim/sys/*.h)
+FW_DEPS  := $(FW_FILES) host/disk.h $(wildcard cycles/*.h cycles/shim/*.h cycles/shim/sys/*.h)
 
 # One variant's rules: common objects, then per-cart objects, image and init.
 define variant_rules

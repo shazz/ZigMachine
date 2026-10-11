@@ -15,7 +15,7 @@ make -C fpga host-check                         # every cart; tools/host_check.s
 make -C fpga host CART=stniccc HOST_WALLCLOCK=-DHOST_WALLCLOCK   # + ms/frame on stderr
 ```
 
-The arguments are scene_hash.mjs's: `<cart> [frames=1200] [every=10] [--call F:export:args]`.
+The arguments are scene_hash.mjs's: `<cart> [frames=1200] [every=10] [--call F:export:args] [--disk X.zmd]`.
 The cart is linked in, so `<cart>` is only echoed into the JSON. That keeps the
 two outputs identical byte for byte, so `cmp` is enough to compare them.
 
@@ -63,13 +63,19 @@ three modules. `tools/host_gen.py` writes those definitions per cart into
 | `hblDispatch` (machine) | `cart.hblDispatch` | scene_hash's closure |
 | rom export names (`gui*`, `desk*`, `dialog*`, `fileSel*`, `romScratch*`, `romInstallPalettePlane`, ...) | rom | `...rom` |
 | the 16 machine names above | machine | the explicit list |
-| anything else (`jsConsoleLog*`, `consoleLogJS`, `diskReadBlock`, `hostAudio*`, `machine*` audio) | **stub** | scene_hash's `noop` |
+| `diskReadBlock` | `disk.h`, over `host_disk` (defined in `env.c`, empty) | the drive: sealed-loader.js's function; scene_hash's `noop` until `--disk` |
+| anything else (`jsConsoleLog*`, `consoleLogJS`, `hostAudio*`, `machine*` audio) | **stub** | scene_hash's `noop` |
 
 The stubs do what `() => {}` does across the JS-to-wasm boundary: `undefined`
 becomes 0 for an i32 and NaN for a float, and an i64 result would throw a
-TypeError (here it traps). So `diskReadBlock` returns 0 in both hosts: no disk,
-no console, no audio. That is faithful to the oracle, not to the browser. A
-screen that streams from disk (stniccc) renders the same frame in both.
+TypeError (here it traps). No console, no audio. Faithful to the oracle, not to
+the browser.
+
+The drive is empty unless both hosts get `--disk X.zmd`: then `diskReadBlock`
+reads X exactly as the browser does (`disk.h`; `docs/FPGA_GLASS.md`, "The disk
+in DDR"), and a screen that streams from disk (stniccc) plays in both. Without
+it, `diskReadBlock` returns 0 in both, and stniccc renders the same frame
+throughout. The board firmware fills the same `host_disk` from DDR.
 
 The generator also refuses what the JS refuses. A module whose `env.memory`
 limits do not admit 112 pages (`demo-audio.wasm`, max 48: a LinkError in node)

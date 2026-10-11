@@ -21,7 +21,7 @@ test "the menu comes up, loads a disk, and the OSD gets out of the way" {
     press(&a, keymap.KEY_ENTER); // the cursor starts on a.zmd
     try std.testing.expect(r.glass.ctrl & map.CTRL_RUN != 0);
     try std.testing.expect(r.glass.ctrl & map.CTRL_OSD == 0);
-    try std.testing.expectEqual(@as(?usize, null), (bus.Ddr{ .words = &r.words }).verify("board image bytes"));
+    try std.testing.expectEqual(@as(?usize, null), try r.loaded());
     try std.testing.expectEqual(@as(?usize, 0), a.current);
 }
 
