@@ -234,10 +234,15 @@ to 1, 2 and 3.
 |---|---|---|
 | 1 | the tune's 68000 code on Musashi | the reference |
 | 2 (default) | the native replay: the same writes | `test_sndh_native.py`, and switching 1/2 mid-tune changes no sample (`union_beatdis_headless.mjs` 3b) |
-| 3 | native, the samples on a PCM channel at the timer's rate (8-bit, full rate, level matched by RMS) | the PCM channel plays, the YM path resumes on the same sample after |
+| 3 | native, the samples on a PCM channel at the timer's rate (8-bit, full rate, level matched by AC RMS: 129/256), from a converted copy | `test_sndh_native.py`: it follows the YM path (correlation 0.87), the raw bytes (mutant 2) do not; the YM path resumes on the same sample after |
 
 - In mode 3 the timer still runs and moves the sample pointer; only its YM writes are left out.
   That is why a switch either way carries on from the same sample.
+- **The bytes are not signed PCM.** Beat Dis's are unsigned and inverted: its volume table sums loudest
+  at byte 0 and silent at 255. A PCM channel plays signed bytes, so until 2026-10-11 mode 3 folded every
+  sample at its midpoint: "noisy plus weird loops" on the board, and the same noise in the browser,
+  which no test listened to. The load now writes the samples converted (`127 - byte`) into a shadow above
+  the image, reserved from the 68000's heap, and the channel plays that (ADR 2026-10-11).
 - A mode that doesn't exist is refused (the answer is 0) and logged.
 - A tune with no native driver answers 1 to modes 2 and 3, and the console says so.
 - **On the board too** (since 2026-10-10): the song bridge carries the effects queue, so keys 1-3 switch the

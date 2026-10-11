@@ -63,6 +63,11 @@ pub fn match(image: []const u8, base: u32) ?Driver {
     return .{ .base = base + code, .handler = h };
 }
 
+/// Where the sample bytes start (every playlist entry points at or past it).
+pub fn samples(d: Driver) u32 {
+    return d.base + DATA;
+}
+
 /// The handler reads this sequencer's state and table, and init's expansion
 /// stays in the playlist buffer and points into the image.
 pub fn tablesFit(image: []const u8, base: u32, d: Driver) bool {

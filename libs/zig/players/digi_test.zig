@@ -142,3 +142,49 @@ test "play moves on only once the pointer is PAST the end, and wraps at the -1 t
     digi.beat_dis.call(Bus, d, 8);
     try std.testing.expectEqual(@as(u16, 0), std.mem.readInt(u16, ram[d.base + 0x36 ..][0..2], .big));
 }
+
+// --- mode 3: what a sample byte means ----------------------------------------
+/// The table's three volumes for `byte`, summed as amplitudes (3 dB a step).
+fn level(byte: u8) f64 {
+    const e = CODE + 0x212 + @as(u32, byte ^ 0x80) * 8; // the handler's addi.b #$80, lsl #3
+    var sum: f64 = 0;
+    for ([_]u32{ 1, 3, 5 }) |k| {
+        const v = HEAD[e + k] & 15;
+        if (v != 0) sum += std.math.pow(f64, 2.0, (@as(f64, @floatFromInt(v)) - 15.0) / 2.0);
+    }
+    return sum;
+}
+
+fn correlation(comptime f: fn (u8) f64) f64 {
+    var sx: f64 = 0;
+    var sy: f64 = 0;
+    for (0..256) |i| sx += level(@intCast(i));
+    for (0..256) |i| sy += f(@intCast(i));
+    const mx, const my = .{ sx / 256, sy / 256 };
+    var xy: f64 = 0;
+    var xx: f64 = 0;
+    var yy: f64 = 0;
+    for (0..256) |i| {
+        const x, const y = .{ level(@intCast(i)) - mx, f(@intCast(i)) - my };
+        xy += x * y;
+        xx += x * x;
+        yy += y * y;
+    }
+    return xy / @sqrt(xx * yy);
+}
+
+fn asLinear(b: u8) f64 {
+    return @floatFromInt(@as(i8, @bitCast(digi.handler.linear(b))));
+}
+
+fn asSigned(b: u8) f64 {
+    return @floatFromInt(@as(i8, @bitCast(b)));
+}
+
+test "Beat Dis's bytes are unsigned and inverted: linear() follows the YM level, the raw signed byte does not" {
+    _ = fresh();
+    try std.testing.expect(level(0) > level(0x7F) and level(0x80) > level(0xFF)); // falls in each half
+    try std.testing.expectEqual(@as(f64, 0), level(0xFF)); // 255 is silence
+    try std.testing.expect(correlation(asLinear) > 0.97); // measured 0.979
+    try std.testing.expect(correlation(asSigned) < 0.6); // measured 0.49: the fold at the midpoint
+}

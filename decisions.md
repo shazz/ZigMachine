@@ -891,3 +891,17 @@ ABI rather than a Zig API, apps in any language sit on it.
 - Results and clocks per op unchanged (`blitter_tb` traces, cycles column included, identical in fast/random/deep); hp sim blitter cart equal to `scene_hash.mjs` and native.
 - Vivado OOC P&R at 10 ns: WNS +0.108 -> +0.188 ns, the address family out of the worst paths (the worst is now the check's `bx1`); synthesis estimate +0.412 -> +0.736. About +490 LUT / +435 FF.
 - A hidden contract: the box must be final three clocks before `go` (zm_blit_chk's header says so; a break test computes the first row a clock early and is caught).
+
+## 2026-10-11 — Mode 3 plays a converted copy of the digi samples, above the image in 68000 RAM
+
+**Status:** accepted
+**Context:** Beat Dis in mode 3 (the samples on a PCM channel) was "inaudible: noisy plus weird loops" on the board. The board was not at fault: the board SoC sim's PCM output equals the native host's sample for sample, and the browser plays the same noise. The tune's bytes are unsigned and inverted (its volume table sums loudest at byte 0, silent at 255), and a Paula channel plays signed bytes, so every sample folded at its midpoint (correlation with the YM rendering 0.44). The 2026-10-10 tests checked that mode 3 played and handed back, not what it sounded like.
+**Decision:** At load, a recognised digi driver's samples (from the sample data to the image's end plus the handler's 320-byte overshoot) are written converted (`127 - byte`, `digi_handler.zig linear`) into a shadow just above the image, reserved from the 68000's bump heap (`sndh_native.recognise` returns where the heap may start). Mode 3 triggers the channel in the shadow. No room below the heap's limit: mode 3 is not offered (asking answers 2).
+**Alternatives considered:**
+- Converting the tune's bytes in place on entering mode 3 and back on leaving: no extra RAM, but ~420 KB rewritten at every key press (a resync on BARD), and the 68000's data changed under Musashi's feet.
+- A buffer in demo-audio's own memory: about 280 KB is free there; a whole Beat Dis is 421 KB, and per-segment copies (up to 124 KB) would have to be timed against the board's 3-frame lead.
+- An unsigned/inverted sample format in the PCM channel (engine.zig and zm_audio_pcm.v): a new ABI field and a new bitstream for one tune's encoding.
+**Consequences:**
+- Firmware only: BARD's play image (demo-audio.wasm) changes; no bitstream.
+- The load does ~421 KB more byte work, inside the load the stamp already re-anchors after (`audio_song_loaded`).
+- Mode 3 follows the YM rendering (correlation 0.87-0.89, level matched by AC RMS: 129/256); `test_sndh_native.py` holds it and its mutant 2 (the raw bytes) fails; `bard_fx_run.py` holds the board sim's mode-3 samples to the machine's exactly across two segment changes.
