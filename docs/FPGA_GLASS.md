@@ -652,7 +652,7 @@ and the firmware). It does exactly what the browser's function does:
 | no disk | 0; nothing is written, and `dst` is never looked at |
 | block `b` | `buf.subarray(b*512, b*512+512)` copied to `dst`, returns its length: 512, or less for a partial last block |
 | past the end | 0, `dst` never looked at |
-| `b` ≥ `0x8000_0000` | the browser sees it as a negative i32, and `subarray` counts from the end: `0xFFFF_FFFE` reads the second-to-last block, `0xFFFF_FFFF` and `0x8000_0000` read nothing. Kept, because it is what the browser does. |
+| `b` ≥ `0x8000_0000` | past the end like any other: 0, `dst` never looked at. The block is unsigned (`block >>> 0` in the browser, which once read it as a negative i32 and counted it from the end). |
 | `dst` + n past the 7 MiB memory, or `dst` ≥ `0x8000_0000` | the browser throws a `RangeError` out of the cart. Here it is a wasm trap (`WASM_RT_TRAP_OOB`), which the firmware reports as `CART_TRAPPED` |
 
 The call is synchronous in both: the bytes are in memory when it returns. One

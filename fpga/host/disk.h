@@ -4,9 +4,9 @@
  * against the browser's own function.
  *
  * The browser's, line by line: no disk -> 0. The block's bytes are
- * buf.subarray(block * 512, block * 512 + 512): block arrives SIGNED (a wasm i32 is a JS
- * Number), and subarray counts a negative index from the end, so 0xFFFFFFFE reads the
- * disk's second-to-last block. Nothing there (past the end) -> 0, dst never looked at.
+ * buf.subarray(start, start + 512) with start = (block >>> 0) * 512: the block is unsigned,
+ * so 0x80000000 and up are past the end like any other (before `>>> 0` the browser got them
+ * signed and subarray counted them from the end). Nothing there -> 0, dst never looked at.
  * Else new Uint8Array(memory.buffer, dstOff, n) throws a RangeError for a negative dstOff
  * or one whose n bytes pass the memory's end: HOST_DISK_RANGE_ERROR, which the caller
  * turns into a trap. Else copy and return n: 512, or fewer for a partial last block.
@@ -30,15 +30,12 @@ typedef struct {
 /* The drive's one disk: tools/host_gen.py defines it in every cart's env.c, empty. */
 extern host_disk_t host_disk;
 
-/* TypedArray.prototype.subarray's index: negative counts from the end, then clamped to [0, len]. */
-static inline int64_t host_disk_index(int64_t i, int64_t len) {
-    if (i < 0) return i + len > 0 ? i + len : 0;
-    return i < len ? i : len;
-}
+/* TypedArray.prototype.subarray's index for the non-negative ones it gets: clamped to len. */
+static inline int64_t host_disk_index(int64_t i, int64_t len) { return i < len ? i : len; }
 
 static inline int64_t host_disk_read(host_disk_t* d, uint32_t block, uint32_t dst, uint8_t* mem, uint64_t mem_size) {
     if (!d->data) return 0;
-    int64_t start = (int64_t)(int32_t)block * HOST_DISK_BLOCK;
+    int64_t start = (int64_t)block * HOST_DISK_BLOCK;
     int64_t from = host_disk_index(start, d->size), to = host_disk_index(start + HOST_DISK_BLOCK, d->size);
     if (to <= from) return 0;
     int64_t n = to - from;
