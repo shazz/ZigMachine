@@ -63,7 +63,7 @@ void host_io_mount_disk(const char* path) {
 /* --data-disk: mounted as --disk, and GEM gets what the browser gives it over a data disk. */
 static zmd_dir_t g_dir;
 static disk_app_t g_dapp;
-static int g_data_disk;
+static int g_data_disk, g_program;
 
 void host_io_data_disk(const char* path) {
     host_io_mount_disk(path);
@@ -72,8 +72,13 @@ void host_io_data_disk(const char* path) {
         fprintf(stderr, "host: %s: %s\n", path, rc ? "not a disk the browser mounts" : "bootable, not a data disk");
         exit(2);
     }
-    g_dapp = (disk_app_t){.dir = &g_dir};
+    g_dapp = (disk_app_t){.dir = &g_dir, .dir_set = g_program};
     g_data_disk = 1;
+}
+
+void host_io_program(void) {
+    g_program = 1;
+    g_dapp.dir_set = 1;
 }
 
 void host_io_disk_frame(struct w2c_env* e, long f) {

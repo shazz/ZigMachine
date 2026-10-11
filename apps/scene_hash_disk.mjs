@@ -26,11 +26,11 @@ export function makeDrive(memory, mountedDisk) {
 // cannot swap carts. A request to run a program that is not on the disk fails in the browser
 // (no such file, or bytes that are not a program: only a type-0 file is one) and the running
 // cart keeps going and polling; any other request swaps the cart, so polling stops.
-export function makeDataDisk(memory, rom, mountedDisk) {
+export function makeDataDisk(memory, rom, mountedDisk, program = false) {
     const text_encoder = new TextEncoder();
     const text_decoder = new TextDecoder();
     const diskApp = true;
-    let diskDirSet = false, swapping = false, demo;
+    let diskDirSet = program, swapping = false, demo; // a launched program: GEM had the listing
     const swapCart = (req) => {
         const name = req === 1 || req === 3 ? text_decoder.decode(
             new Uint8Array(memory.buffer, demo.getCartTagPtr(), demo.getCartTagLen())) : "";

@@ -42,11 +42,22 @@ gen/glass_map.h: gen/glass_map.py
 	uv run python -c "import runpy; v = runpy.run_path('$<'); \
 		print('/* GENERATED from gen/glass_map.py by fpga/Makefile. Do not edit. */\n#ifndef ZM_GLASS_MAP_H\n#define ZM_GLASS_MAP_H'); \
 		[print(f'#define {k} {x:#x}u') for k, x in v.items() if k.isupper() and isinstance(x, int)]; print('#endif')" >$@
+# The cart swap's words (glass/src/map_cart.zig): software between ZWINDOW and ZIGGY, so
+# Python and C only (no .vh: nothing in the PL reads them).
+GLASS_CART := glass/src/map_cart.zig
+gen/glass_cart.py: $(GLASS_CART) tools/glass_export.zig
+	@mkdir -p gen
+	$(ZIG) run --dep glass_map -Mroot=tools/glass_export.zig -Mglass_map=$(GLASS_CART) -- python $@
+gen/glass_cart.h: gen/glass_cart.py
+	uv run python -c "import runpy; v = runpy.run_path('$<'); \
+		print('/* GENERATED from gen/glass_cart.py by fpga/Makefile. Do not edit. */\n#ifndef ZM_GLASS_CART_H\n#define ZM_GLASS_CART_H'); \
+		[print(f'#define {k} {x:#x}u') for k, x in v.items() if k.isupper() and isinstance(x, int)]; print('#endif')" >$@
 gen/glass_font.vh: $(FONT_RAW) tools/glass_export.zig $(GLASS_MAP)
 	@mkdir -p gen
 	$(GLASS_X) font $(FONT_RAW) $@
 
-memmap: gen/memmap.vh gen/memmap.py gen/glass_map.vh gen/glass_map.py gen/glass_map.h gen/glass_font.vh
+memmap: gen/memmap.vh gen/memmap.py gen/glass_map.vh gen/glass_map.py gen/glass_map.h gen/glass_font.vh \
+	gen/glass_cart.py gen/glass_cart.h
 
 # One test run at a time, capped at 8 GB: the in-process (wasm) Yosys and the
 # Verilator builds peak at several GB, and two concurrent runs sharing

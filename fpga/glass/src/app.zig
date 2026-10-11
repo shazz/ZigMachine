@@ -58,6 +58,8 @@ pub const App = struct {
     inputs: usize = 0, // evdev nodes open (main.zig)
     ticks: u32 = 0,
     pl_stats: bool = false, // the PL can draw the F11 overlay (app_stats.supported)
+    req_done: bool = false, // the running cart's cart-swap request was handled (app_request.zig)
+    req_polls: u32 = 0, // polls of a request whose block did not check yet
 
     /// Check the PL, read the shelf and glass.cfg, and show the menu.
     pub fn init(gpa: std.mem.Allocator, io: std.Io, regs: bus.Regs, ddr: bus.Ddr, dir: []const u8) !App {

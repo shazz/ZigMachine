@@ -15,6 +15,7 @@ On the card:
     uImage, rootfs.ub, glass                     plan B: zeST's Linux + our ARM binary
     zigmachine/*.zmd         the shelf: fat disks (wasm cart + rv32 BOARD image, build/hcycles/board/<cart>/fw.bin;
                              a data disk carries GEM's: tools/glass_shelf.py)
+    zigmachine/progs/demo-<tag>/<NAME>.zmd   a data disk's programs, prebuilt (glass/src/app_request.zig)
     zigmachine/shelf.txt     what the OSD says about each cart (tools/shelf_meta.py)
 """
 

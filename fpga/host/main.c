@@ -1,11 +1,13 @@
 /* The native twin of apps/scene_hash.mjs: same arguments, same frame loop, same
  * JSON on stdout, so the two outputs compare with `scene_hash.mjs --compare`.
  *
- *   host <cart-label> [frames=1200] [every=10] [--call F:export:arg,...] [--disk X.zmd] [--data-disk X.zmd]
+ *   host <cart-label> [frames=1200] [every=10] [--call F:export:arg,...] [--disk X.zmd]
+ *        [--data-disk X.zmd [--program]]
  *
  * --disk mounts X.zmd in the drive (host/disk.h), as scene_hash.mjs --disk and the
  * browser do; without it diskReadBlock answers 0, scene_hash.mjs's stub. --data-disk
- * mounts a data disk and plays the browser's GEM-over-a-data-disk step (host/disk_app.h).
+ * mounts a data disk and plays the browser's GEM-over-a-data-disk step (host/disk_app.h);
+ * --program: the cart is a program launched off it, which gets no listing.
  *
  * <cart-label> is only echoed into the JSON (the cart is linked in).
  *
@@ -139,6 +141,7 @@ int main(int argc, char** argv) {
         if (strcmp(argv[i], "--call") == 0 && i + 1 < argc) host_io_parse_call(argv[++i]);
         else if (strcmp(argv[i], "--disk") == 0 && i + 1 < argc) host_io_mount_disk(argv[++i]);
         else if (strcmp(argv[i], "--data-disk") == 0 && i + 1 < argc) host_io_data_disk(argv[++i]);
+        else if (strcmp(argv[i], "--program") == 0) host_io_program();
         else if (npos < 3) pos[npos++] = argv[i];
     }
     if (!pos[0]) { fprintf(stderr, "usage: host <cart> [frames] [every] [--call F:name:args] [--disk X.zmd] [--data-disk X.zmd]\n"); return 2; }

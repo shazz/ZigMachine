@@ -4,8 +4,19 @@
 
 #include <stdio.h>
 
+#include "bboard.h"
+#include "bcartreq.h"
+#include "bdisk.h"
 #include "disk.h"
 #include "disk_app.h"
+#include "glass_cart.h"
+#include "glass_map.h"
+
+/* The request block (glass/src/map_cart.zig), between the descriptor and the diagnostic's control. */
+#define REQ_ADDR (CART_CPU_BASE + DDR_CART_BYTES - CART_REQ_FROM_TOP)
+_Static_assert(CART_REQ_FROM_TOP < DISK_DESC_FROM_TOP - DISK_DESC_WORDS * 4, "the block is over the descriptor");
+_Static_assert(CART_REQ_FROM_TOP - CART_REQ_HEAD_WORDS * 4 - CART_REQ_NAME_MAX >= 0x200, "the block is over bdiag");
+_Static_assert(CART_REQ_NAME_MAX >= ZMD_DIR_KEY, "a FAT name must fit the block");
 
 static zmd_dir_t g_dir; /* 15 KB: the parsed FAT, in .bss */
 static disk_app_t g_dapp;
@@ -18,9 +29,21 @@ void bdiskapp_boot(void) {
         printf("ZM GEMDISK off %d\n", rc);
         return;
     }
-    g_dapp = (disk_app_t){.dir = &g_dir};
+    /* A program GEM launched off the disk: the browser handed GEM the listing, not it. */
+    g_dapp = (disk_app_t){.dir = &g_dir, .dir_set = bdisk_role == BDISK_PROGRAM};
     g_on = 1;
-    printf("ZM GEMDISK data %lu\n", (unsigned long)g_dir.n);
+    printf("ZM GEMDISK data %lu%s\n", (unsigned long)g_dir.n, g_dapp.dir_set ? " program" : "");
+}
+
+/* The swap is ZWINDOW's (glass/src/app_request.zig): the block, then CART_STATE. The cart
+ * keeps running until the glass holds it for the next load. The D-cache is write-through, so
+ * the block is on its way to DDR before the CSR write; the glass takes it once its check holds. */
+static void bdiskapp_signal(uint32_t req, const uint8_t* name, uint32_t len) {
+    volatile uint32_t* w = (volatile uint32_t*)(uintptr_t)REQ_ADDR;
+    bcartreq_write(w, req, name, len);
+    printf("ZM REQBLOCK %08lx %lu %lu %08lx\n", (unsigned long)w[0], (unsigned long)w[1], (unsigned long)w[2],
+           (unsigned long)w[3]);
+    board_state(CART_REQUEST | req << ZM_CART_ARG_SHIFT);
 }
 
 void bdiskapp_frame(struct w2c_env* e, long f) {
@@ -28,4 +51,8 @@ void bdiskapp_frame(struct w2c_env* e, long f) {
     uint32_t n = g_dapp.name_len < ZMD_FIND_MAX ? g_dapp.name_len : ZMD_FIND_MAX;
     printf("ZM CARTREQ %ld %lu %.*s %d\n", f, (unsigned long)g_dapp.req, (int)n, (const char*)g_dapp.name,
            g_dapp.file != 0);
+    if (g_dapp.req == REQ_RUN_PROGRAM && g_dapp.file)
+        bdiskapp_signal(REQ_RUN_PROGRAM, g_dapp.file->key, g_dapp.file->key_len);
+    else if (g_dapp.req == REQ_BACK_TO_OS)
+        bdiskapp_signal(REQ_BACK_TO_OS, 0, 0);
 }

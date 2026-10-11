@@ -33,6 +33,9 @@ pub const Options = struct {
     verify: bool = true,
     /// Wait for the firmware to report RUNNING (false until board firmware exists).
     wait_boot: bool = true,
+    /// The descriptor's magic: DISK_MAGIC, or map_cart.zig's DISK_MAGIC_PROGRAM for a
+    /// program launched off the disk (app_request.zig).
+    disk_magic: u32 = map.DISK_MAGIC,
 };
 
 fn noIdle() void {}
@@ -93,6 +96,11 @@ pub const Plan = struct {
 
 /// Steps 2 and 3 of the load (and the disk's place): parse, depack, fit. Touches nothing.
 pub fn plan(gpa: std.mem.Allocator, disk: []const u8, window: usize) Error!Plan {
+    return planAs(gpa, disk, window, map.DISK_MAGIC);
+}
+
+/// plan, the descriptor saying `magic` (Options.disk_magic).
+pub fn planAs(gpa: std.mem.Allocator, disk: []const u8, window: usize, magic: u32) Error!Plan {
     const d = try zmd.parse(disk);
     const board = try d.boardImage();
     const image = try unpack(gpa, board, window);
@@ -102,7 +110,7 @@ pub fn plan(gpa: std.mem.Allocator, disk: []const u8, window: usize) Error!Plan 
     const at = try diskAt(image.len, shelf.len, window);
     var p = Plan{ .image = image, .disk = shelf, .disk_at = at, .desc = undefined, .desc_at = @intCast(window - map.DISK_DESC_FROM_TOP), .packed_bytes = @intCast(board.len) };
     const size: u32 = @intCast(shelf.len);
-    const words = [map.DISK_DESC_WORDS]u32{ map.DISK_MAGIC, at, size, ~(map.DISK_MAGIC ^ at ^ size) };
+    const words = [map.DISK_DESC_WORDS]u32{ magic, at, size, ~(magic ^ at ^ size) };
     for (words, 0..) |w, i| std.mem.writeInt(u32, p.desc[i * 4 ..][0..4], w, .little);
     return p;
 }
@@ -119,7 +127,7 @@ pub fn diskAt(image_len: usize, disk_len: usize, window: usize) Error!u32 {
 /// The whole sequence, from a disk image in memory to a running cart.
 pub fn load(gpa: std.mem.Allocator, regs: bus.Regs, ddr: bus.Ddr, disk: []const u8, opt: Options) Error!Report {
     try checkGlass(regs);
-    var p = try plan(gpa, disk, ddr.bytes());
+    var p = try planAs(gpa, disk, ddr.bytes(), opt.disk_magic);
     defer p.deinit(gpa);
     const parts = p.parts();
     try hold(regs);

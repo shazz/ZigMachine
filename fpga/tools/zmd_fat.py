@@ -45,6 +45,17 @@ def _be_sum(buf: bytes) -> int:
     return sum((buf[2 * i] << 8) | buf[2 * i + 1] for i in range(len(buf) // 2)) & 0xFFFF
 
 
+def files(img: bytes) -> list[tuple[str, int, int, int]]:
+    """The FAT: (name, start, length, type) per file, in order."""
+    _, count_at, fat_at = _layout(img)
+    out = []
+    for i in range(struct.unpack_from("<H", img, count_at)[0]):
+        e = img[fat_at + i * FAT_ENTRY : fat_at + (i + 1) * FAT_ENTRY]
+        name = e[:16].split(b"\0")[0].decode("latin-1")
+        out.append((name, *struct.unpack_from("<II", e, 16), e[0x18]))
+    return out
+
+
 def bootable(img: bytes) -> bool:
     """docs/zmdisk.js parseDisk's rule: a v1 boot sector (512 B) or a v2 one (1 KB) whose
     big-endian words sum to $1234. Anything else is a data disk, which boots GEM."""

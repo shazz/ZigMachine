@@ -39,6 +39,7 @@ none of MiSTer's code (GPL) or zeST's code (GPL-3) is used.
 | Load path, end to end | **done** | the 9 board images `fpga/cycles` links land byte for byte in the fake DDR |
 | Disk streaming: ZWINDOW places the shelf disk in DDR, ZIGGY serves `diskReadBlock` from it | **done in the sim** (2026-10-11): no RTL change, no new CSR | every `docs/` shelf disk comes back byte for byte from its fat disk; the drive answers as the browser's own function on every case (`tests/test_board_disk.py`); stniccc streams SCENE1.BIN in the board SoC sim with the browser's hashes (below, "The disk in DDR") |
 | GEM over a data disk: the firmware tells GEM the disk is in and hands it the FAT listing, from the disk in DDR | **done in the sim** (2026-10-11): no RTL change, no new CSR, no descriptor flag | the listing is the browser's byte for byte (`tests/test_board_gemdisk.py`); GEM opens ST Replay's floppy in the board SoC sim with the browser's hashes (below, "GEM over a data disk") |
+| Programs off a data disk: ZIGGY asks (request block + `CART_STATE`), ZWINDOW loads the program's prebuilt image over the same disk, and GEM again on request 4 | **built, host-tested** (2026-10-11): no RTL change, no new CSR | firmware block = glass's reader; the glass's swap in its zig tests; the request in the board SoC sim (below, "Programs off a data disk"); the swap itself needs the board |
 | Cart-side input routing (`glass/firmware/glass_input.c`) | **done, linked into every board firmware** (2026-10-10): once a frame, before `cart.frame()`, `cycles/binput.c` drains the key FIFO (32 a frame at most), then the joypad and the mouse, through `host/input_bridge.c` into the cart's exports (`host_input`, generated per cart by `tools/host_gen.py`: NULL where a cart has no such export) | 19 key cases + 7 pointer polls against `sealed-loader.js`'s rules; 3 break tests caught. `tests/test_board_input.py`: the native host plays a key-FIFO script (`ZM_GLASS_KEYS`) through the same router, and SPACE on union_beatdis gives the browser's own `key(32)` hashes, a mutant router is caught |
 | SD card staging (`tools/glass_sd.py`), U-Boot script, DTS, Buildroot tree | **written** | `boot.scr` is byte-identical to `mkimage`'s; the DTS compiles against a stub dtsi |
 | Anything on the board | **waiting for the board** | below, "What needs the board" |
@@ -283,6 +284,7 @@ Offsets are from the window's start; the cart CPU (ZIGGY) sees offset 0 at
 | `0x01C0_0000` | `0x41C0_0000` | to `0x01FE_F000` | the sound CPU's RAM (`snd` only) | BARD |
 | `0x01FE_F000` | `0x41FE_F000` | 64 KiB | the sound CPU's console ring (`snd` only) | BARD |
 | `0x01FF_FC00` | `0x41FF_FC00` | 16 B | **the disk descriptor** (`DISK_DESC_*`) | ZWINDOW (load) |
+| `0x01FF_FD00` | `0x41FF_FD00` | 64 B | **the cart-swap request block** (`CART_REQ_*`, "Programs off a data disk") | ZIGGY |
 | `0x01FF_FE00` | `0x41FF_FE00` | 12 B | the write-path diagnostic's control (`cycles/bdiag.h`) | the ARM, on request |
 | `0x01FF_FF00` | `0x41FF_FF00` | 256 B | the debug mailbox (`cycles/bmailbox.h`) | ZIGGY |
 
@@ -639,9 +641,7 @@ through the glass like any cart's (it owns the keyboard, so every key goes to
   boots it with `diskApp` false and GEM's FLOPPY DISK says `Drive A: is empty`; the
   board does the same. GEM gets a disk to open from a DATA disk on the shelf
   (`st_replay`), below, "GEM over a data disk".
-- **No program launch.** A double-clicked program becomes `pollCartRequest() == 3`
-  (run a file off the disk as the next cart). The board firmware never polls cart
-  requests; the glass would have to load that file as a cart.
+- **Program launch** is ZWINDOW's (below, "Programs off a data disk").
 - **The OSD title** is the catalog's `EXIT TO GEM` (the browser menu's name for
   it), as `shelf.txt` takes titles from `catalog.zig`.
 
@@ -768,6 +768,90 @@ opening), `9f51b9ac…`, `9f51b9ac…` (the listing, `BOOT.WSM` double-clicked),
 `fdeb2e45…` = `scene_hash.mjs --data-disk` = the native host, byte for byte. The
 UART says `ZM GEMDISK data 2` at boot and `ZM CARTREQ 9 3 BOOT.WSM 1` at frame 9.
 
+## Programs off a data disk
+
+Double-clicking `BOOT.WSM` in GEM's floppy window makes `pollCartRequest()`
+return 3 with the file's name at `getCartTagPtr/Len`. The browser then runs that
+FAT file's wasm as the next cart over the same memory, the disk still mounted;
+the program quits with request 4 (ST Replay's `X`), and the browser brings GEM
+back over the same disk and hands it the listing again (`sealed-loader.js`
+`swapCart`). On the board a cart is native code, so the swap is a load by
+ZWINDOW of a board image built beforehand. **No register and no RTL change**:
+everything below is software over what the PL already has.
+
+**The program's board image** (`tools/glass_shelf.py`). For every program
+(type-0 FAT file) on a shelf data disk, the shelf depacks it with the machine's
+own depacker (`tools/zx0unpack.zig`, `libs/zig/depackers/zx0.zig`) and finds the
+cart whose `docs/demo-<cart>.wasm` has the same bytes (`mkdisks.sh` writes
+`BOOT.WSM` from `demo-st_replay.wasm`: they are identical). That cart's board
+image (`board/st_replay/fw.bin`, which `make board-shelf` builds) goes into a fat
+disk of the **same data disk** at `zigmachine/progs/demo-<tag>/<NAME>.zmd`:
+outside the shelf's scan, so the menu never lists it. A program that is no cart
+of the matrix, or whose firmware is not built, is `MISSING` in the manifest.
+
+**ZIGGY asks** (`cycles/bdiskapp.c`, `cycles/bcartreq.h`). On request 3 for a
+program that is on the disk (type 0; anything else fails in the browser too, and
+the cart keeps polling), or on request 4, the firmware writes the **request
+block** at window offset `DDR_CART_BYTES - CART_REQ_FROM_TOP` (CPU
+`0x41FF_FD00`, between the disk descriptor and the diagnostic's control in the
+top 4 KiB the link keeps free), then sets `CART_STATE = CART_REQUEST (4) |
+request << 8`. The block (`glass/src/map_cart.zig`, exported to
+`gen/glass_cart.{py,h}`): `CART_REQ_MAGIC` ("ZMRQ"), the request, the name's
+bytes, `~(magic ^ request ^ bytes)`, then the name (the FAT name it matched, at
+most 48 bytes). The name words go first and the magic last; the D-cache is
+write-through. The cart keeps running until ZWINDOW holds it. Sim line:
+`ZM REQBLOCK magic req bytes check`.
+
+**ZWINDOW swaps** (`glass/src/app_request.zig`, from the watchdog's poll).
+While `CART_STATE` says `CART_REQUEST` it reads the block; a block whose check
+does not hold yet is polled again, and refused (`BadRequestBlock`) after
+`BLOCK_POLLS`. Request 3: the name must be a FAT name (1 to 16 of
+`[A-Za-z0-9._-]`, no leading dot: the cart wrote it, so it never becomes a path
+of its own, CWE-22), its fat disk must exist under `progs/`, and carry a type-0
+file of that name (`NotAProgram`). It is then loaded like any cart (`loader.load`,
+the window rewritten, the CPU booted cold), with the descriptor's magic
+`DISK_MAGIC_PROGRAM` ("ZMDP"): the same disk is back in DDR, and the program's
+firmware (`bdisk_role == BDISK_PROGRAM`) tells it the disk is in but hands no
+listing, as the browser's `diskDirSet` is already true then. Request 4 reloads
+the shelf entry (GEM over its disk, `DISK_MAGIC`), which hands the listing
+again. The shelf entry stays current throughout, so `R` brings back GEM. A
+request that fails leaves the cart running with `<name>: <error>` on the status
+line, and is not retried until the cart stops asking (a reload).
+
+**What differs from the browser.** The browser runs the program over the SAME
+memory (only `hwInit()` again); the board boots it cold over a zeroed window.
+Nothing the program reads survives a swap in the browser either (it is a fresh
+instance whose `boot()` initialises its statics), but a program that read
+memory GEM left behind would see zeros here.
+
+**Proof.**
+- `tests/test_board_cartreq.py`: the firmware's block writer (`bcartreq.h`, run
+  natively) gives the words of `map_cart.zig`'s rule for request 3 and 4 and a
+  name cut at 48 bytes; the block sits between the descriptor and the
+  diagnostic; the shelf prebuilds `progs/demo-st_replay/BOOT.WSM.zmd` from
+  `board/st_replay/fw.bin` (the same data disk, plus `CART.RV32`), says
+  `MISSING` without the firmware or for a program that is no cart; a program's
+  sim image carries `DISK_MAGIC_PROGRAM`; ST Replay run as GEM launched it
+  (`--data-disk ... --program`, `X` at frame 10) asks for request 4 in the
+  native host and `scene_hash.mjs` alike, hashes equal.
+- `tests/test_board_disk.py`: ZIGGY takes `DISK_MAGIC_PROGRAM` as a program's
+  descriptor and refuses it with the other magic's check.
+- `glass/src/app_request_test.zig` (`zig build test`), against the simulated
+  glass and DDR: GEM asks for `BOOT.WSM`, the window then holds exactly the
+  program's fat disk's plan with `DISK_MAGIC_PROGRAM`; the program asks for 4
+  and the window holds the shelf entry's plan with `DISK_MAGIC`; a name with a
+  path in it, a missing program disk, a data file, an unknown request and a block
+  that never checks each leave the cart running with the reason, handled once.
+- The board-SoC sim of GEM opening the floppy and double-clicking `BOOT.WSM`
+  (above), rebuilt with this firmware (run id `gemdisk-c`): `ok`, the same hashes
+  (total `fdeb2e45…`), and at frame 9 `ZM CARTREQ 9 3 BOOT.WSM 1` then
+  `ZM REQBLOCK 51524d5a 3 8 aeadb2ae`: the block read back from DDR through HP0
+  with "ZMRQ", request 3, 8 name bytes and the check `~(magic ^ 3 ^ 8)`.
+
+**Not proved without the board:** the ARM reading the block a CPU wrote through
+HP0 (the order of the CSR write and the DDR write as the ARM sees them, which is
+why the glass waits for the check), and the swap's timing.
+
 ## Error handling
 
 | Failure | Detected by | What you see | State left |
@@ -787,6 +871,7 @@ UART says `ZM GEMDISK data 2` at boot and `ZM CARTREQ 9 3 BOOT.WSM 1` at frame 9
 | Warm reset with no memory to keep | `CART_STATE` = trapped, `TRAP_WARM_LOST` | `warm reset: memory lost, use R` | CPU held; R reloads |
 | Reset with no cart loaded | — | `no cart to reset` | nothing touched |
 | Cold reset of a disk since removed from the card | file read | `<file>: FileNotFound` | the cart keeps running |
+| A cart's swap request it cannot serve (a bad block, a name with a path, no `progs/` disk, not a program, an unknown request) | `app_request.zig` | `<name>: <Error>` on the status line | the cart keeps running; not retried until it stops asking |
 | `glass.cfg` bad line | parse | `glass.cfg: bad line N` | that key's default, the rest applied |
 | `glass.cfg` cannot be saved | remount / write error | `not saved: <why>` | the change applies, the save stays pending |
 | No `shelf.txt`, or bad lines in it | file read / parse | `no shelf.txt: titles only`, `shelf.txt: N bad lines` | titles from the disks' own descriptors |

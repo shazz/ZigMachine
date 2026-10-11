@@ -32,6 +32,7 @@ WORK = FPGA / "build" / "board_disk"
 sys.path.insert(0, str(FPGA / "tools"))
 sys.path.insert(0, str(FPGA / "gen"))
 import ddr_init
+import glass_cart
 import glass_map
 import glass_sd
 import zmd_fat
@@ -149,8 +150,11 @@ def test_firmware_takes_the_descriptor_the_glass_writes_and_refuses_anything_els
         (magic, end - 0x1000, 0x1001, ~(magic ^ (end - 0x1000) ^ 0x1001), 0),  # past the pictures
         (magic, end - 0x10, 0xFFFF_FFFF, ~(magic ^ (end - 0x10) ^ 0xFFFF_FFFF), 0),  # size wraps
         (magic, end, 0, ~(magic ^ end), 0),  # an empty disk at the very end: reads give 0
+        (*struct.unpack("<4I", ddr_init.descriptor(0x30_0000, 650_240, glass_cart.DISK_MAGIC_PROGRAM)), 0x2F_0000),
+        (glass_cart.DISK_MAGIC_PROGRAM, *good[1:], 0x2F_0000),  # the other magic, the first's check
     ]
-    assert _desc(disk_test, rows) == ["ok 300000 9ec00", "none", "none", "none", "none", "none", f"ok {end:x} 0"]
+    want = ["ok 300000 9ec00", "none", "none", "none", "none", "none", f"ok {end:x} 0", "prog 300000 9ec00", "none"]
+    assert _desc(disk_test, rows) == want
 
 
 @pytest.fixture(scope="module")

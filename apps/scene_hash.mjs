@@ -5,7 +5,7 @@
 // a fingerprint before the change, rebuild, take one after, compare.
 //
 //   node apps/scene_hash.mjs <cart.wasm> [frames=1200] [every=10] [--call F:export:arg,...] [--disk X.zmd]
-//                            [--data-disk X.zmd]
+//                            [--data-disk X.zmd [--program]]
 //   node apps/scene_hash.mjs --compare a.json b.json
 //
 // Writes JSON to stdout: { cart, frames, every, samples: [{frame, hash}], total }.
@@ -13,7 +13,8 @@
 // scenes that wait on input). `--disk X.zmd` mounts X in the drive, as the
 // browser does; without it diskReadBlock is a stub answering 0 (no disk).
 // `--data-disk X.zmd` mounts a data disk and, after each frame, does what the browser
-// does for GEM over one (insertDisk, the FAT listing; scene_hash_disk.mjs).
+// does for GEM over one (insertDisk, the FAT listing; scene_hash_disk.mjs); `--program`: the
+// cart is a program GEM launched off it (swapCart req 3), which the browser hands no listing.
 // `--compare` exits 1 on the first differing frame.
 import { readFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
@@ -22,7 +23,7 @@ import { makeDataDisk, makeDrive, mountDataDisk } from "./scene_hash_disk.mjs";
 
 const PAGES = 112; // SHARED_PAGES in machine/sdk/memmap.zig
 
-async function boot(cartPath, machineDir, diskPath, dataDiskPath) {
+async function boot(cartPath, machineDir, diskPath, dataDiskPath, program) {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
     let demo;
     const machine = (await WebAssembly.instantiate(await readFile(`${machineDir}/machine-video.wasm`), {
@@ -59,7 +60,7 @@ async function boot(cartPath, machineDir, diskPath, dataDiskPath) {
     machine.hwInit();
     demo.boot();
     demo.skipBoot();
-    const dataDisk = mounted ? makeDataDisk(memory, rom, mounted) : null;
+    const dataDisk = mounted ? makeDataDisk(memory, rom, mounted, program) : null;
     return { memory, machine, demo, dataDisk };
 }
 
@@ -76,17 +77,18 @@ function parseCalls(list) {
 
 async function fingerprint(argv) {
     const pos = [], callSpecs = [];
-    let disk = null, dataDisk = null;
+    let disk = null, dataDisk = null, program = false;
     for (let i = 0; i < argv.length; i++) {
         if (argv[i] === "--call") callSpecs.push(argv[++i]);
         else if (argv[i] === "--disk") disk = argv[++i];
         else if (argv[i] === "--data-disk") dataDisk = argv[++i];
+        else if (argv[i] === "--program") program = true;
         else pos.push(argv[i]);
     }
     const [cart, frames = "1200", every = "10"] = pos;
     const N = Number(frames), K = Number(every);
     const calls = parseCalls(callSpecs);
-    const { memory, machine, demo, dataDisk: step } = await boot(cart, process.env.MACHINE_DIR || "docs", disk, dataDisk);
+    const { memory, machine, demo, dataDisk: step } = await boot(cart, process.env.MACHINE_DIR || "docs", disk, dataDisk, program);
     const size = machine.hwPhysWidth() * machine.hwPhysHeight() * 4;
     const planes = machine.hwPlanesNumber();
     const total = createHash("sha256");
