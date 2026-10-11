@@ -5,9 +5,17 @@
 //
 // Pipelined: the issue stage (I, here) requests a pixel's reads and moves on to the next
 // pixel without waiting for the data; up to 2^LQ pixels wait for theirs in zm_blit_pxq,
-// which combines and writes them in order. Each read carries a tag (the pixel's slot,
-// the channel, the byte lane) through a FIFO, since the answers come back in request
-// order with no back-pressure.
+// which combines and writes them in order. Each read carries a tag (the pixel's slot and
+// channel) through a FIFO, since the answers come back in request order with no
+// back-pressure.
+//
+// Word reuse: a channel whose byte lies in the word that channel asked for last (P checks
+// it against lw_*) is not read again; zm_blit_pxq takes the byte from that word, in pixel
+// order. A row of W bytes costs W/4 reads per channel instead of W. Safe where the word
+// cannot have changed since it was read in port order: C, because no other pixel of the
+// op writes this pixel's byte (below); A/B only when the op is not `ordered` (no write of
+// the op touches a source). Nothing is reused across ops (lw_v clears whenever the unit is
+// idle, which DRAIN guarantees between ops).
 //
 // Memory ports (one word = 32 bits, the byte lane is addr[1:0]): responses in request
 // order at least one clock later; a write may carry several strobes (bytes of one word).
@@ -74,11 +82,24 @@ module zm_blit_px #(parameter LQ = 5, parameter LT = 5) (
     reg [7:0] mt, key;
     reg ben, keyen;
 
+    // P: the pixel just taken from the sequencer, its reuse decided against the words already asked for
+    reg        pv, p_nop;
+    reg [22:0] p_dst, p_a, p_b;
+    reg [7:0]  p_bimm;
+    reg [2:0]  p_need;
+    // the word each channel last asked for (addr[22:2]), valid until the unit next idles
+    reg [20:0] lw_a, lw_b, lw_c;
+    reg [2:0]  lw_v;
+    wire [2:0] may_reuse = {1'b1, !ordered, !ordered};   // C always; A/B unless sources may be written
+    wire [2:0] hit = p_need & may_reuse & lw_v
+        & {lw_c == p_dst[22:2], lw_b == p_b[22:2], lw_a == p_a[22:2]};
+    wire [2:0] fetch = p_need & ~hit;
+
     // I: the pixel whose reads are being requested
     reg        iv, i_nop;
     reg [22:0] i_dst, i_a, i_b;
     reg [7:0]  i_bimm;
-    reg [2:0]  i_need, i_pend;   // channels to read / still to request: {C,B,A}
+    reg [2:0]  i_need, i_pend, i_reuse;   // channels used / still to request / taken from the last word: {C,B,A}
 
     wire [LQ-1:0] wslot;
     wire q_full, drained;
@@ -95,41 +116,52 @@ module zm_blit_px #(parameter LQ = 5, parameter LT = 5) (
     wire rtake = rd_req_valid && rd_req_ready;
     wire [2:0] pend_after = i_pend & ~(rtake ? low : 3'd0);
     wire push = iv && !q_full && pend_after == 3'd0;
-    assign px_ready = !iv || push;
+    wire p_move = pv && (!iv || push);
+    assign px_ready = !pv || p_move;
     wire acc = px_valid && px_ready;
     wire [2:0] nd = need(px_mt, px_flags[0], px_flags[1], px_flags[2], px_flags[3]);
     wire px_nop = px_flags == 4'b0100 && ident(px_mt, px_bimm);
 
-    // the tags: {slot, channel, lane} of every read in flight, in request order
-    reg [LQ+3:0] tag [0:(1 << LT)-1];
-    wire [LQ+3:0] t_head = tag[tr[LT-1:0]];
-    wire [1:0] lane = t_head[1:0];
-    wire [7:0] rbyte = rd_rsp_data >> {lane, 3'b000};
-    always @(posedge clk) if (rtake) tag[tw[LT-1:0]] <= {wslot, ch, raddr[1:0]};
+    // the tags: {slot, channel} of every read in flight, in request order
+    reg [LQ+1:0] tag [0:(1 << LT)-1];
+    wire [LQ+1:0] t_head = tag[tr[LT-1:0]];
+    always @(posedge clk) if (rtake) tag[tw[LT-1:0]] <= {wslot, ch};
 
     zm_blit_pxq #(.LQ(LQ)) q (.clk(clk), .rst(rst), .push(push), .p_dst(i_dst), .p_bimm(i_bimm),
-        .p_need(i_need), .p_nop(i_nop), .wslot(wslot), .q_full(q_full),
-        .rsp_we(rd_rsp_valid), .rsp_slot(t_head[LQ+3:4]), .rsp_ch(t_head[3:2]),
-        .rsp_byte(rbyte), .mt(mt), .key(key), .ben(ben), .keyen(keyen),
+        .p_need(i_need), .p_reuse(i_reuse), .p_alane(i_a[1:0]), .p_blane(i_b[1:0]), .p_nop(i_nop),
+        .wslot(wslot), .q_full(q_full), .rsp_we(rd_rsp_valid), .rsp_slot(t_head[LQ+1:2]), .rsp_ch(t_head[1:0]),
+        .rsp_word(rd_rsp_data), .mt(mt), .key(key), .ben(ben), .keyen(keyen),
         .drained(drained), .wrote(wrote), .wr_req_valid(wr_req_valid), .wr_req_ready(wr_req_ready),
         .wr_req_addr(wr_req_addr), .wr_req_data(wr_req_data), .wr_req_strb(wr_req_strb));
 
-    assign px_idle = !iv && drained;
+    assign px_idle = !pv && !iv && drained;
 
     always @(posedge clk) begin
         if (rst) begin
-            iv <= 1'b0; tw <= 0; tr <= 0;
+            pv <= 1'b0; iv <= 1'b0; tw <= 0; tr <= 0; lw_v <= 3'd0;
         end else begin
             if (rtake) tw <= tw + 1'b1;
             if (rd_rsp_valid) tr <= tr + 1'b1;
             if (acc) begin
-                iv <= 1'b1;
-                i_dst <= px_dst; i_a <= px_aaddr; i_b <= px_baddr; i_bimm <= px_bimm;
-                i_nop <= px_nop; i_need <= px_nop ? 3'd0 : nd; i_pend <= px_nop ? 3'd0 : nd;
+                pv <= 1'b1;
+                p_dst <= px_dst; p_a <= px_aaddr; p_b <= px_baddr; p_bimm <= px_bimm;
+                p_nop <= px_nop; p_need <= px_nop ? 3'd0 : nd;
                 mt <= px_mt; key <= px_key; ben <= px_flags[1]; keyen <= px_flags[3];
+            end else if (p_move) pv <= 1'b0;
+            if (p_move) begin
+                iv <= 1'b1;
+                i_dst <= p_dst; i_a <= p_a; i_b <= p_b; i_bimm <= p_bimm; i_nop <= p_nop;
+                i_need <= p_need; i_pend <= fetch; i_reuse <= hit;
+                if (fetch[0]) lw_a <= p_a[22:2];
+                if (fetch[1]) lw_b <= p_b[22:2];
+                if (fetch[2]) lw_c <= p_dst[22:2];
+                lw_v <= lw_v | fetch;
             end else begin
                 if (push) iv <= 1'b0;
                 i_pend <= pend_after;
+                // between ops (and whenever the unit runs dry) nothing fetched is reused: the
+                // op that just ended may have written those words
+                if (px_idle) lw_v <= 3'd0;
             end
         end
     end

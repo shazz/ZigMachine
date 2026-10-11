@@ -32,6 +32,9 @@ def fills(s: Script) -> None:
     do(s, FILL, mt=mm.MT_OR_BC, con2=mm.CON2_FILL_MT | mm.CON2_HALFTONE_EN)
     do(s, FILL, mt=mm.MT_B, con2=mm.CON2_FILL_MT)
     do(s, FILL, mt=mm.MT_XOR_BC, con2=0)  # FILL ignores MINTERM without FILL_MT
+    # back to back on one word: the second op must read what the first wrote (no word kept across ops)
+    for _ in range(2):
+        do(s, FILL, mt=mm.MT_XOR_BC, con2=mm.CON2_FILL_MT, color=0x5A, w=3, h=1, x0=8, y0=7)
 
 
 def lines(s: Script) -> None:

@@ -64,10 +64,15 @@ MUTANTS = [
     ("overlap_ignores_channel_a", "zm_blit_chk.v", "(use_a && !apart(a_lin, a_hi)) || ", ""),
     ("overlap_source_is_one_row", "zm_blit_chk.v", "+ {1'b0, prod_a[22:0]} + {8'd0, w}", "+ {8'd0, w}"),
     ("answer_paired_with_the_newest_read", "zm_blit_px.v", "tag[tr[LT-1:0]]", "tag[tw[LT-1:0] - 1'b1]"),
-    ("answer_byte_from_the_wrong_lane", "zm_blit_px.v", "rd_rsp_data >> {lane, 3'b000}", "rd_rsp_data >> {raddr[1:0], 3'b000}"),
+    ("answer_byte_from_the_wrong_lane", "zm_blit_pxq.v", "wa >> {h_lanes[1:0], 3'b000}", "wa >> {h_lanes[3:2], 3'b000}"),
     ("pixel_leaves_before_its_answers", "zm_blit_pxq.v", "h_got == q_need[hs]", "h_got[0] == q_need[hs][0]"),
     ("bytes_merged_across_words", "zm_blit_pxq.v", "wire same = cv && c_word == h_dst[22:2];", "wire same = cv;"),
-    ("unread_channel_keeps_a_stale_byte", "zm_blit_pxq.v", "q_need[hs][2] ? q_c[hs] : 8'd0", "q_c[hs]"),
+    ("unread_channel_keeps_a_stale_byte", "zm_blit_pxq.v", "h_need[2] ? wc >> {hd[1:0], 3'b000} : 8'd0", "wc >> {hd[1:0], 3'b000}"),
+    # word reuse: never across ops, never a source an ordered op may write, always the last word fetched
+    ("reuse_survives_between_ops", "zm_blit_px.v", "if (px_idle) lw_v <= 3'd0;", ""),
+    ("reuse_of_sources_while_ordered", "zm_blit_px.v", "{1'b1, !ordered, !ordered}", "3'b111"),
+    ("reuse_takes_an_older_word", "zm_blit_pxq.v", "if (h_need[2]) hw_c <= wc;", "if (h_need[2] && hw_c == 0) hw_c <= wc;"),
+    ("reuse_ignores_the_word_address", "zm_blit_px.v", "lw_c == p_dst[22:2]", "lw_c[20:4] == p_dst[22:6]"),
     ("merged_byte_in_the_wrong_lane", "zm_blit_pxq.v", "c_data[{h_dst[1:0], 3'b000} +: 8]", "c_data[{~h_dst[1:0], 3'b000} +: 8]"),
 ]
 
@@ -153,8 +158,10 @@ def test_a_broken_rule_is_caught(name: str, file: str, old: str, new: str, oracl
     assert text.count(old) == 1, f"{name}: the text to break is not unique in {file}"
     (work / "rtl/blitter" / file).write_text(text.replace(old, new))
     exe = build_tb(work, work)
-    caught = [
-        _run([str(exe), f"{n}.txt", str(oracle[n]), "random", "11"]).returncode != 0
+    # random first; deep (reads 16-31 clocks late, many in flight) only if random missed it
+    caught = any(
+        _run([str(exe), f"{n}.txt", str(oracle[n]), mode, "11"]).returncode != 0
+        for mode in ("random", "deep")
         for n in ("edges", "random1", "random2")
-    ]
-    assert any(caught), f"{name} went unnoticed"
+    )
+    assert caught, f"{name} went unnoticed"
