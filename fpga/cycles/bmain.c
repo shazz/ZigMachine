@@ -44,6 +44,13 @@
 #define ZM_TRACE_FRAME 0
 #endif
 
+/* ZM_MODES (sim only): "a,b,c" -> setShadeMode(a) before frame 1, b before frame 1 + ZM_MODE_FRAMES,
+ * ... so one run measures several of a cart's modes (blitter_demo's GLENZ/RUBBER/TILE/DELAY). The
+ * native host takes the same calls as --call F:setShadeMode:N, for the reference hashes. */
+#ifndef ZM_MODE_FRAMES
+#define ZM_MODE_FRAMES 3
+#endif
+
 #define PICTURE_BYTES (ZM_RASTER_WIDTH * ZM_RASTER_HEIGHT * 4u)
 #define SAMPLES (ZM_FRAMES / (ZM_EVERY ? ZM_EVERY : 1) + 1)
 
@@ -129,6 +136,14 @@ static void run(void) {
     for (long f = 1; ZM_FRAMES == 0 || f <= ZM_FRAMES; f++) {
         int sample = ZM_FRAMES && f % ZM_EVERY == 0;
         uint32_t c0[ZM_NCOUNT], c1[ZM_NCOUNT];
+#ifdef ZM_MODES
+        static const int modes[] = {ZM_MODES};
+        long mi = (f - 1) / ZM_MODE_FRAMES;
+        if ((f - 1) % ZM_MODE_FRAMES == 0 && mi < (long)(sizeof modes / sizeof modes[0])) {
+            double arg = modes[mi];
+            host_call(&g_env, "setShadeMode", &arg, 1);
+        }
+#endif
         bblit_frame_reset();
         board_counters(c0);
         uint32_t t0 = board_cycles();
