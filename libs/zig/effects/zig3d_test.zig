@@ -94,3 +94,44 @@ test "a scaled group of particles lands where three.js r49 puts them" {
     };
     try expectEqual(want, ps[0..3].*);
 }
+
+test "projectView through a View built once is projectEx, bit for bit" {
+    const lens = c3.Lens.init(640, 400, 25, 1, 10000);
+    const m = c3.mesh(&SQUARE, &FACES);
+    const camera = c3.Vec3{ .x = 0, .y = 0, .z = 10 };
+    const view = c3.View.init(&lens, camera);
+    var s1: [4]c3.Screen = undefined;
+    var s2: [4]c3.Screen = undefined;
+    var o1: [2]c3.Poly = undefined;
+    var o2: [2]c3.Poly = undefined;
+    for (0..64) |i| {
+        const t: f64 = @floatFromInt(i);
+        const pos = c3.Vec3{ .x = t * 3 - 90, .y = 40 - t, .z = -700 + t * 20 };
+        const rot = c3.Vec3{ .x = t * 0.1, .y = t * 0.07, .z = t * 0.13 };
+        const a = c3.projectEx(&lens, camera, pos, rot, &m, &s1, &o1, .{ .double_sided = i % 2 == 0 });
+        const b = c3.projectView(&view, pos, rot, &m, &s2, &o2, .{ .double_sided = i % 2 == 0 });
+        try expectEqual(a.len, b.len);
+        for (a, b) |p, q| try expectEqual(p, q);
+    }
+}
+
+fn refRound(v: f64) i16 {
+    return @intFromFloat(@round(@max(-4096.0, @min(4096.0, v))));
+}
+
+test "roundClamped is the float chain on ties, their neighbours, NaN and the limits" {
+    const specials = [_]f64{ 0, -0.0, std.math.nan(f64), -std.math.nan(f64), std.math.inf(f64), -std.math.inf(f64), 4096, -4096, 4095.5, -4095.5, 1e300, -1e300, 5e-324, 0.49999999999999994, -0.49999999999999994 };
+    for (specials) |v| try expectEqual(refRound(v), c3.roundClamped(v, 4096));
+    var k: f64 = -4200;
+    while (k <= 4200) : (k += 0.25) {
+        try expectEqual(refRound(k), c3.roundClamped(k, 4096));
+        try expectEqual(refRound(std.math.nextAfter(f64, k, std.math.inf(f64))), c3.roundClamped(std.math.nextAfter(f64, k, std.math.inf(f64)), 4096));
+        try expectEqual(refRound(std.math.nextAfter(f64, k, -std.math.inf(f64))), c3.roundClamped(std.math.nextAfter(f64, k, -std.math.inf(f64)), 4096));
+    }
+    var prng = std.Random.DefaultPrng.init(417);
+    const rnd = prng.random();
+    for (0..200_000) |_| {
+        const v: f64 = @bitCast(rnd.int(u64));
+        try expectEqual(refRound(v), c3.roundClamped(v, 4096));
+    }
+}

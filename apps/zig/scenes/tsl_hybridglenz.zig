@@ -58,7 +58,7 @@ pub const Demo = struct {
     ok: bool,
     images: A.Images,
     blitter: zg.Blitter,
-    lens: c3.Lens,
+    view: c3.View, // the lens and the fixed CAMERA, derived once
     objects: [2]glenz.Glenz,
     scroller: Scroller,
     clock: f32, // seconds since init: the whole timeline's t
@@ -72,7 +72,8 @@ pub const Demo = struct {
         self.fade_sig = -1; // nothing uploaded yet: force the first palette
         self.scroller.init();
         self.blitter.init();
-        self.lens = c3.Lens.init(glenz.CANVAS, glenz.CANVAS, glenz.FOV, glenz.NEAR, glenz.FAR);
+        const lens = c3.Lens.init(glenz.CANVAS, glenz.CANVAS, glenz.FOV, glenz.NEAR, glenz.FAR);
+        self.view = c3.View.init(&lens, glenz.CAMERA);
         // Object 1 owns the ODD plane rows (its canvas row 0 lands on 85),
         // object 2 the even ones (row 0 on 86) — the interlace, in hardware.
         self.objects[0].init(&obj.MORPH1, STEP1, stage.PANEL_X, stage.PANEL_Y, glenz.ODD_ROWS);
@@ -142,7 +143,7 @@ pub const Demo = struct {
     /// go(), likewise: panel, both glenz objects, logo, bar, scrolltext.
     fn drawMain(self: *Demo, fb: *zg.LogicalFB, bl: *zg.Blitter) void {
         stage.panel(fb, bl);
-        for (&self.objects) |*o| o.draw(fb, bl, &self.lens);
+        for (&self.objects) |*o| o.draw(fb, bl, &self.view);
         stage.logo(fb, bl, self.images.logo);
         const bar_y: i16 = @intFromFloat(timeline.BAR_TO / 2);
         stage.bar(fb, bl, bar_y);

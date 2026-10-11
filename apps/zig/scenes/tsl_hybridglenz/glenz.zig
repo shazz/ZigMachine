@@ -54,10 +54,6 @@ fn stripes(comptime odd: bool) [16]u16 {
 pub const ODD_ROWS = stripes(true);
 pub const EVEN_ROWS = stripes(false);
 
-fn round(v: f64) i16 {
-    return @intFromFloat(@round(@max(-4096.0, @min(4096.0, v))));
-}
-
 pub const Glenz = struct {
     verts: [14]Vec3,
     centroids: [24]Vec3,
@@ -94,9 +90,11 @@ pub const Glenz = struct {
         obj.morph(self.stages, t, &self.verts);
     }
 
-    pub fn draw(self: *Glenz, fb: *LogicalFB, bl: *Blitter, lens: *const c3.Lens) void {
+    /// `view` is View.init(lens, CAMERA): the camera never moves, so its
+    /// matrices and frustum are built once, not per object per frame.
+    pub fn draw(self: *Glenz, fb: *LogicalFB, bl: *Blitter, view: *const c3.View) void {
         const origin = Vec3{ .x = 0, .y = 0, .z = 0 };
-        const polys = c3.projectEx(lens, CAMERA, origin, self.rotation, &self.mesh, &screen_scratch, &poly_scratch, OPTS);
+        const polys = c3.projectView(view, origin, self.rotation, &self.mesh, &screen_scratch, &poly_scratch, OPTS);
         bl.setHalftone(self.halftone);
         for (polys) |p| {
             bl.triangleEx(fb, self.at(p, 0), self.at(p, 1), self.at(p, 2), p.ink, 0, .glenz);
@@ -106,8 +104,9 @@ pub const Glenz = struct {
 
     /// Canvas pixels to plane pixels. Clamped before the cast: the object
     /// never reaches 73 px from the canvas centre, but @intFromFloat on an
-    /// out-of-range float is illegal, not merely wrong.
+    /// out-of-range float is illegal, not merely wrong. roundClamped is that
+    /// clamp-round-cast, bit for bit, in integer operations.
     fn at(self: *const Glenz, p: c3.Poly, i: usize) Vec2 {
-        return .{ .x = self.left + round(p.pts[i][0]), .y = self.top + round(p.pts[i][1]) };
+        return .{ .x = self.left + c3.roundClamped(p.pts[i][0], 4096), .y = self.top + c3.roundClamped(p.pts[i][1], 4096) };
     }
 };

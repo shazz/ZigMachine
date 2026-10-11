@@ -178,6 +178,18 @@ pub const Mat4 = struct {
         };
     }
 
+    /// point() for a matrix whose last row is (0, 0, 0, 1), as every compose()
+    /// is. There w = 0*x + 0*y + 0*z + 1 is exactly 1 for finite x, y, z (each
+    /// product is +-0) and a product by 1/w = 1 is exact, so this IS point(), bit
+    /// for bit, without its five soft-float operations a coordinate.
+    fn affinePoint(m: *const Mat4, v: Vec3) Vec3 {
+        return .{
+            .x = m.at(0) * v.x + m.at(4) * v.y + m.at(8) * v.z + m.at(12),
+            .y = m.at(1) * v.x + m.at(5) * v.y + m.at(9) * v.z + m.at(13),
+            .z = m.at(2) * v.x + m.at(6) * v.y + m.at(10) * v.z + m.at(14),
+        };
+    }
+
     /// multiplyVector4 of (v, 1).
     fn clip(m: *const Mat4, v: Vec3) Vec4 {
         return .{
@@ -284,13 +296,34 @@ pub fn project(lens: *const Lens, camera: Vec3, position: Vec3, rotation: Vec3, 
 
 /// project() for a mesh whose `faces()` call did not take the defaults.
 pub fn projectEx(lens: *const Lens, camera: Vec3, position: Vec3, rotation: Vec3, m: *const Mesh, screen: []Screen, out: []Poly, opts: Options) []Poly {
+    return projectView(&View.init(lens, camera), position, rotation, m, screen, out, opts);
+}
+
+/// Everything a draw derives from the lens and the camera alone: the camera's
+/// inverse, view . projection and the frustum's six normalised planes. three.js
+/// rebuilds them every draw; they are the same numbers each time, so a screen
+/// whose camera holds still builds a View once and calls projectView().
+pub const View = struct {
+    lens: Lens,
+    vp: Mat4,
+    planes: [6][4]f64,
+
+    pub fn init(lens: *const Lens, camera: Vec3) View {
+        const view = Mat4.compose(camera, .{ .x = 0, .y = 0, .z = 0 }).inverse();
+        const vp = lens.projection.mul(&view);
+        return .{ .lens = lens.*, .vp = vp, .planes = frustumPlanes(&vp) };
+    }
+};
+
+/// projectEx() through a View built beforehand: the same numbers, bit for bit.
+pub fn projectView(view: *const View, position: Vec3, rotation: Vec3, m: *const Mesh, screen: []Screen, out: []Poly, opts: Options) []Poly {
+    const lens = &view.lens;
+    const vp = &view.vp;
     const model = Mat4.compose(position, rotation);
-    const view = Mat4.compose(camera, .{ .x = 0, .y = 0, .z = 0 }).inverse();
-    const vp = lens.projection.mul(&view);
-    if (!insideFrustum(&vp, &model, m.radius)) return out[0..0];
+    if (!insideFrustum(&view.planes, &model, m.radius)) return out[0..0];
 
     for (m.verts, screen[0..m.verts.len]) |v, *s| {
-        const c = vp.clip(model.point(v));
+        const c = vp.clip(model.affinePoint(v));
         s.* = .{ .x = c.x / c.w, .y = c.y / c.w, .usable = c.z > lens.near and c.z < lens.far };
     }
     var n: usize = 0;
@@ -299,7 +332,7 @@ pub fn projectEx(lens: *const Lens, camera: Vec3, position: Vec3, rotation: Vec3
         if (!s[f.v[0]].usable or !s[f.v[1]].usable or !s[f.v[2]].usable) continue;
         if (f.n == 4 and !s[f.v[3]].usable) continue;
         if (!opts.double_sided and !clockwise(f, s)) continue;
-        var p = Poly{ .pts = undefined, .n = f.n, .ink = f.ink, .z = vp.point(model.point(centroid)).z };
+        var p = Poly{ .pts = undefined, .n = f.n, .ink = f.ink, .z = vp.point(model.affinePoint(centroid)).z };
         for (0..f.n) |i| p.pts[i] = .{ s[f.v[i]].x * lens.half_w, s[f.v[i]].y * lens.half_h };
         if (opts.overdraw) overdraw(&p);
         for (p.pts[0..f.n]) |*pt| {
@@ -371,31 +404,62 @@ fn fartherParticle(_: void, a: Particle, b: Particle) bool {
     return b.z - a.z < 0;
 }
 
-/// Frustum.setFromMatrix(vp) then Frustum.contains(mesh).
-/// Its six planes are row 3 minus/plus rows 0, 0, 1, 1, 2, 2 of vp.
-fn insideFrustum(vp: *const Mat4, model: *const Mat4, radius: f64) bool {
+/// Frustum.setFromMatrix(vp): row 3 minus/plus rows 0, 0, 1, 1, 2, 2 of vp,
+/// each normalised.
+fn frustumPlanes(vp: *const Mat4) [6][4]f64 {
     const Plane = struct { row: usize, minus: bool };
-    const planes = [6]Plane{
+    const rows = [6]Plane{
         .{ .row = 0, .minus = true },  .{ .row = 0, .minus = false },
         .{ .row = 1, .minus = false }, .{ .row = 1, .minus = true },
         .{ .row = 2, .minus = true },  .{ .row = 2, .minus = false },
     };
-    const limit = -radius * model.maxScaleOnAxis();
-    for (planes) |plane| {
-        var pl: [4]f64 = undefined;
+    var planes: [6][4]f64 = undefined;
+    for (rows, &planes) |plane, *pl| {
         for (0..4) |c| {
             const w = vp.at(3 + 4 * c);
             const v = vp.at(plane.row + 4 * c);
             pl[c] = if (plane.minus) w - v else w + v;
         }
         const len = @sqrt(pl[0] * pl[0] + pl[1] * pl[1] + pl[2] * pl[2]);
-        if (len != 0) for (&pl) |*x| {
+        if (len != 0) for (pl) |*x| {
             x.* /= len;
         };
+    }
+    return planes;
+}
+
+/// Frustum.contains(mesh), against the planes of frustumPlanes().
+fn insideFrustum(planes: *const [6][4]f64, model: *const Mat4, radius: f64) bool {
+    const limit = -radius * model.maxScaleOnAxis();
+    for (planes) |pl| {
         const d = pl[0] * model.at(12) + pl[1] * model.at(13) + pl[2] * model.at(14) + pl[3];
         if (d <= limit) return false;
     }
     return true;
+}
+
+/// @intFromFloat(@round(@max(-limit, @min(limit, v)))) for a power-of-two
+/// `limit` (a NaN gives +limit, as @min/@max return the non-NaN operand),
+/// bit for bit, in 32-bit integer operations: a soft-float core spends a few
+/// hundred cycles on the float chain and this is a dozen instructions.
+/// Rounding half away from zero is floor(|v| + 1/2) on the magnitude. Below the
+/// limit |v| = M / 2^S, M the 53-bit mantissa and S = 1075 - e >= 53 -
+/// log2(limit) >= 39, so the half (2^(S-1)) and the result both sit in the
+/// high word and the low word cannot carry into them: floor(|v| + 1/2) =
+/// (m + 2^(s-1)) >> s exactly, m the high word's 21 mantissa bits with the
+/// hidden one and s = S - 32. |v| < 1/2 (e < 1022, zeros and subnormals) is 0,
+/// and -0 rounds to 0 as @round(-0.0) does.
+pub fn roundClamped(v: f64, comptime limit: u16) i16 {
+    comptime std.debug.assert(std.math.isPowerOfTwo(limit) and limit <= 1 << 14);
+    const top_e: u32 = 1023 + @as(u32, std.math.log2_int(u16, limit)); // |v| >= limit from here
+    const hi: u32 = @truncate(@as(u64, @bitCast(v)) >> 32);
+    const e = (hi >> 20) & 0x7FF;
+    const mag: i16 = if (e < 1022) 0 else if (e < top_e) blk: {
+        const s: u5 = @intCast(1043 - e);
+        const m = (hi & 0xFFFFF) | 0x100000;
+        break :blk @intCast((m + (@as(u32, 1) << (s - 1))) >> s);
+    } else if (std.math.isNan(v)) return limit else limit;
+    return if (hi >> 31 != 0) -mag else mag;
 }
 
 /// Projector's facing test, in divided clip space.
