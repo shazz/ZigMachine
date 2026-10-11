@@ -599,7 +599,14 @@ second time):
   Oxygene / STNICCC 2000, ...`), else `cart.zig`'s comment on the import, else
   the first sentence of the scene's header comment;
 - GROUP: the capitalised name before the first ` / ` of that description;
-- YEAR: the first year (1985..2029) in the description or the header.
+- YEAR: the first year (1985..2029) in the description or the header;
+- except `OVERRIDES` in `shelf_meta.py`, the one place a field is typed: where the
+  catalog's title is the browser menu's verb rather than the cart's name (GEM:
+  `EXIT TO GEM` becomes `GEM DESKTOP`, Digital Research, 1985, TOS 1.00's
+  desktop), or the source names no group (`st_replay`: `Microdeal`, from its
+  description). An empty override field keeps what the repo says, and
+  `tests/test_shelf_titles.py` holds each override to a catalog cart and the
+  OSD's 22-character, upper-case, ASCII title.
 
 Text is folded to ASCII (the OSD draws the ST's 8-bit font). A field nobody
 wrote down stays empty: `shelf_meta.py --check` lists those carts (55 of 73
@@ -642,8 +649,10 @@ through the glass like any cart's (it owns the keyboard, so every key goes to
   board does the same. GEM gets a disk to open from a DATA disk on the shelf
   (`st_replay`), below, "GEM over a data disk".
 - **Program launch** is ZWINDOW's (below, "Programs off a data disk").
-- **The OSD title** is the catalog's `EXIT TO GEM` (the browser menu's name for
-  it), as `shelf.txt` takes titles from `catalog.zig`.
+- **The OSD title** is `GEM DESKTOP` (Digital Research, 1985), not the catalog's
+  `EXIT TO GEM`, which is the browser menu's verb for it; `st_replay` keeps its
+  catalog title, `ST REPLAY`, with the group `Microdeal` (`shelf_meta.py`
+  `OVERRIDES`, below, "Cart descriptions").
 
 ## The disk in DDR
 

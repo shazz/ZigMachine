@@ -7,7 +7,8 @@ One line a disk, tab-separated: FILE, TITLE, GROUP, YEAR, TYPE, DESCRIPTION
 from where the repo already keeps it:
 
 - TITLE and TYPE: apps/zig/scenes/catalog.zig (tools/channels.py's parser, so
-  the same 22-character cap and machine types apply);
+  the same 22-character cap and machine types apply), except where OVERRIDES
+  names the cart (GEM's catalog title is the menu's "EXIT TO GEM");
 - DESCRIPTION: the cart matrix's comment in build.zig ("61 - vEctRoniX / VEX
   2025, the GTA VI cracktro ..."), else cart.zig's comment on the scene's
   import, else the first line of the scene's header comment;
@@ -39,6 +40,13 @@ SCENES = ROOT / "apps/zig"
 FILE = "shelf.txt"
 YEAR = re.compile(r"\b(198[5-9]|199\d|20[0-2]\d)\b")
 FOLD = {"—": "-", "–": "-", "·": "-", "‘": "'", "’": "'", "“": '"', "”": '"'}
+# The one place a field is typed here: where the catalog's TITLE is the browser menu's verb, not
+# the cart's name (catalog.zig calls GEM "EXIT TO GEM", its menu entry), or the source names no
+# group or year. tag -> (title, group, year); an empty field keeps what the repo says.
+OVERRIDES = {
+    "gem": ("GEM DESKTOP", "Digital Research", "1985"),  # TOS 1.00's desktop (rom/gem/desktop/about.zig)
+    "st_replay": ("", "Microdeal", ""),  # its description: "a homage to Microdeal's 8-bit sampler"
+}
 
 
 def ascii_text(s: str) -> str:
@@ -127,7 +135,10 @@ def records(tags: list[str] | None = None) -> list[tuple[str, ...]]:
         if tags is not None and tag not in tags:
             continue
         group, year, desc = describe(tag, name, comments, scenes)
-        out.append((f"demo-{tag}.zmd", ascii_text(name), group, year, kind, desc))
+        title, group, year = (
+            o or d for o, d in zip(OVERRIDES.get(tag, ("", "", "")), (name, group, year), strict=True)
+        )
+        out.append((f"demo-{tag}.zmd", ascii_text(title), group, year, kind, desc))
     return out
 
 
