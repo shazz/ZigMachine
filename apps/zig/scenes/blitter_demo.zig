@@ -18,7 +18,13 @@
 // The scene owns only the mesh, rotation and palette; the machine owns the fill
 // rule (the sealed ethos). Plane 0 displays; planes 1 (ring) and 2 (tile) are
 // borrowed as blitter scratch. Index 0 = transparent. The parts live in
-// blitter_demo/: geom.zig (cube + palette), effects.zig (the seven modes).
+// blitter_demo/: geom.zig (cube + palette), effects.zig (the seven modes),
+// gfx.zig (who draws) and soft.zig (the CPU's blitter).
+//
+//   key B    draw with CHISEL (BLITTER, the default) or with ZIGGY (CPU): the
+//            same pixels either way, so only the frame rate changes (F11 on the
+//            board's OSD). The bottom-right corner says which is drawing.
+//   Escape   back to the menu.
 // --------------------------------------------------------------------------
 const zg = @import("zigos");
 const ZigOS = zg.ZigOS;
@@ -29,14 +35,18 @@ const fx = @import("blitter_demo/effects.zig");
 
 const NAMES = [7][]const u8{ "FLAT", "LIT", "HALFTONE", "GLENZ", "RUBBER", "TILE", "DELAY" };
 const MODE_MAX: u32 = 6;
+const K_ESC: u32 = 0xE012; // demo_main.zig's code for Escape
+const LABEL_Y: i16 = zg.HEIGHT - 16; // bottom-right, just inside the 4-px frame
 
 pub const Demo = struct {
     fx: fx.Fx = .{},
     mode: u8 = 0,
+    wants_quit: bool = false, // demo_main's pollCartRequest: back to the menu
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
         Console.log("blitter_demo init", .{});
         self.fx.gfx.init();
+        self.wants_quit = false;
         const fb: *LogicalFB = &zigos.lfbs[0];
         fb.is_enabled = true;
         fb.setPaletteEntry(0, .{ .r = 0, .g = 0, .b = 0, .a = 0 });
@@ -53,6 +63,17 @@ pub const Demo = struct {
         Console.log("blitter_demo mode -> {s}", .{NAMES[self.mode]});
     }
 
+    // Declaring key() means this cart gets EVERY key (demo_main.zig), so Escape is
+    // handled here. 1-7 still arrive through setShadeMode: the cart does not own
+    // the keyboard, so the host keeps routing them.
+    pub fn key(self: *Demo, cp: u32) void {
+        if (cp == K_ESC) self.wants_quit = true;
+        if (cp == 'b' or cp == 'B') {
+            self.fx.gfx.cpu = !self.fx.gfx.cpu;
+            Console.log("blitter_demo drawing on the {s}", .{label(self.fx.gfx.cpu)});
+        }
+    }
+
     pub fn update(self: *Demo, zigos: *ZigOS, dt: f32) void {
         _ = dt;
         self.fx.step();
@@ -64,5 +85,11 @@ pub const Demo = struct {
         const fb: *LogicalFB = &zigos.lfbs[0];
         self.fx.render(zigos, self.mode);
         zigos.printText(fb, NAMES[self.mode], 10, 8, fx.TEXT_COL, 0);
+        const who = label(self.fx.gfx.cpu);
+        zigos.printText(fb, who, @intCast(zg.WIDTH - 10 - 8 * who.len), LABEL_Y, fx.TEXT_COL, 0);
     }
 };
+
+fn label(cpu: bool) []const u8 {
+    return if (cpu) "CPU" else "BLITTER";
+}

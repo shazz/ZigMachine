@@ -7,7 +7,7 @@ const ZigOS = zg.ZigOS;
 const LogicalFB = zg.LogicalFB;
 const geom = @import("geom.zig");
 const Cube = geom.Cube;
-pub const Gfx = zg.Blitter;
+pub const Gfx = @import("gfx.zig").Gfx;
 
 const WIDTH: i32 = zg.WIDTH;
 const HEIGHT: i32 = zg.HEIGHT;
