@@ -112,25 +112,31 @@ pub const Cube = struct {
 // --- palette -----------------------------------------------------------
 // Reprogram the shared palette for the active mode each frame: flat = static
 // hues, lit = hue*brightness per face, glenz = additive blend of face bits.
-pub fn programPalette(cube: *const Cube, mode: u8, fb: *LogicalFB) void {
-    switch (mode) {
-        1 => for (0..6) |f| fb.setPaletteEntry(@intCast(f + 1), rgb(HUE[f], cube.brightness(@intCast(f)))),
-        3 => programGlenz(fb),
-        else => for (HUE, 0..) |c, f| fb.setPaletteEntry(@intCast(f + 1), rgb(c, 1.0)), // flat hues (0,2,4,5)
-    }
-}
+// Only LIT changes with the cube; the flat hues and the 63 glenz blends are
+// worked out once (the same f32 maths) and copied in, like an ST palette table.
+pub const Palettes = struct {
+    flat: [6]Color = undefined,
+    glenz: [63]Color = undefined,
 
-fn programGlenz(fb: *LogicalFB) void {
-    var i: u8 = 1;
-    while (i < 64) : (i += 1) {
-        var acc = [3]f32{ 0, 0, 0 };
-        for (0..6) |f| if (i & (@as(u8, 1) << @intCast(f)) != 0) {
-            for (0..3) |k| acc[k] += HUE[f][k];
-        };
-        fb.setPaletteEntry(i, rgb(acc, 0.72)); // <1 keeps single faces translucent
-        if (i == 63) break;
+    pub fn init(self: *Palettes) void {
+        for (HUE, 0..) |c, f| self.flat[f] = rgb(c, 1.0);
+        for (&self.glenz, 1..) |*g, i| {
+            var acc = [3]f32{ 0, 0, 0 };
+            for (0..6) |f| if (i & (@as(usize, 1) << @intCast(f)) != 0) {
+                for (0..3) |k| acc[k] += HUE[f][k];
+            };
+            g.* = rgb(acc, 0.72); // <1 keeps single faces translucent
+        }
     }
-}
+
+    pub fn program(self: *const Palettes, cube: *const Cube, mode: u8, fb: *LogicalFB) void {
+        switch (mode) {
+            1 => for (0..6) |f| fb.setPaletteEntry(@intCast(f + 1), rgb(HUE[f], cube.brightness(@intCast(f)))),
+            3 => for (self.glenz, 1..) |c, i| fb.setPaletteEntry(@intCast(i), c),
+            else => for (self.flat, 1..) |c, i| fb.setPaletteEntry(@intCast(i), c), // flat hues (0,2,4,5)
+        }
+    }
+};
 
 // Build a 16x16 halftone pattern whose set-bit density tracks `b` (0..1) via a
 // tiled 4x4 Bayer matrix — denser where brighter, for ordered-dither shading.

@@ -41,11 +41,13 @@ const LABEL_Y: i16 = zg.HEIGHT - 16; // bottom-right, just inside the 4-px frame
 pub const Demo = struct {
     fx: fx.Fx = .{},
     mode: u8 = 0,
+    pal: geom.Palettes = .{},
     wants_quit: bool = false, // demo_main's pollCartRequest: back to the menu
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
         Console.log("blitter_demo init", .{});
         self.fx.init();
+        self.pal.init();
         self.wants_quit = false;
         const fb: *LogicalFB = &zigos.lfbs[0];
         fb.is_enabled = true;
@@ -77,7 +79,7 @@ pub const Demo = struct {
     pub fn update(self: *Demo, zigos: *ZigOS, dt: f32) void {
         _ = dt;
         self.fx.step();
-        geom.programPalette(&self.fx.cube, self.mode, &zigos.lfbs[0]);
+        self.pal.program(&self.fx.cube, self.mode, &zigos.lfbs[0]);
     }
 
     pub fn render(self: *Demo, zigos: *ZigOS, dt: f32) void {
