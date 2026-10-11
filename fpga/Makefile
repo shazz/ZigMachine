@@ -112,7 +112,8 @@ $(HOST)/common/%.o: $(HOST)/common/%.c
 $(HOST)/%/cart.c: $(ROOT)/docs/demo-%.wasm
 	@mkdir -p $(@D)
 	wasm2c $< -n cart -o $@
-$(HOST)/%/env.c: $(HOST)/%/cart.c $(HOST)/common/machine.c $(HOST)/common/rom.c tools/host_gen.py tools/wasm_info.py gen/memmap.py
+$(HOST)/%/env.c: $(HOST)/%/cart.c $(HOST)/common/machine.c $(HOST)/common/rom.c tools/host_gen.py tools/host_bridges.py \
+		tools/wasm_info.py gen/memmap.py
 	uv run python tools/host_gen.py --build $(HOST)/$* --cart $(ROOT)/docs/demo-$*.wasm
 $(HOST)/%/cart.o: $(HOST)/%/cart.c
 	$(HOST_CC) $(HOST_CFLAGS) -I$(HOST)/$* -c $< -o $@
@@ -120,13 +121,17 @@ $(HOST)/%/cart.o: $(HOST)/%/cart.c
 INPUT_SRC := host/input_bridge.c host/glass_router.c
 INPUT_DEPS := $(INPUT_SRC) host/input_bridge.h glass/firmware/glass_input.c glass/firmware/glass_input.h gen/glass_map.h
 INPUT_CFLAGS := -Iglass/firmware -Igen
-$(HOST)/%/host.o: $(HOST)/%/env.c host/main.c host/boot.c host/host.h host/boot.h host/disk.h $(INPUT_DEPS)
+# The native host's scripted inputs (--call, --disk, ZM_GLASS_KEYS / ZM_GLASS_POINTER).
+HOST_IO := host/host_io.c host/host_io.h
+$(HOST)/%/host.o: $(HOST)/%/env.c host/main.c host/boot.c host/host.h host/boot.h host/disk.h $(HOST_IO) $(INPUT_DEPS)
 	$(HOST_CC) $(HOST_CFLAGS) -I$(HOST)/$* -c $(HOST)/$*/env.c -o $(HOST)/$*/env.o
 	$(HOST_CC) $(HOST_CFLAGS) -I$(HOST)/$* -c host/boot.c -o $(HOST)/$*/boot.o
+	$(HOST_CC) $(HOST_CFLAGS) $(INPUT_CFLAGS) -I$(HOST)/$* -c host/host_io.c -o $(HOST)/$*/host_io.o
 	for s in $(INPUT_SRC); do $(HOST_CC) $(HOST_CFLAGS) $(INPUT_CFLAGS) -I$(HOST)/$* -c $$s -o $(HOST)/$*/in_$$(basename $$s .c).o || exit 1; done
 	$(HOST_CC) $(HOST_CFLAGS) $(HOST_WALLCLOCK) $(INPUT_CFLAGS) -I$(HOST)/$* -c host/main.c -o $@
 $(HOST)/%/host: $(HOST)/%/host.o $(HOST)/%/cart.o $(HOST_COMMON)
-	$(HOST_CC) $(HOST)/$*/host.o $(HOST)/$*/env.o $(HOST)/$*/boot.o $(HOST)/$*/in_*.o $(HOST)/$*/cart.o $(HOST_COMMON) -lm -lpthread -o $@
+	$(HOST_CC) $(HOST)/$*/host.o $(HOST)/$*/env.o $(HOST)/$*/boot.o $(HOST)/$*/host_io.o $(HOST)/$*/in_*.o \
+		$(HOST)/$*/cart.o $(HOST_COMMON) -lm -lpthread -o $@
 
 host: $(HOST)/$(CART)/host
 
