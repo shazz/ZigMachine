@@ -72,7 +72,12 @@ pub const Ramp = struct {
             return ENABLED and rasters.count == 1;
         }
         if (rasters.count != 1) {
-            for (self.drawn) |r| paint(bl, fb, r);
+            // the logo's rectangle, then the scrolltext band minus it: the
+            // two overlap wherever the logo crosses the band, and a pixel
+            // painted twice is a blitter pixel paid twice
+            paint(bl, fb, self.drawn[0]);
+            var parts: [4]Rect = undefined;
+            for (subtract(self.drawn[1], self.drawn[0], &parts)) |p| paint(bl, fb, p);
             return false;
         }
         for (self.drawn) |r| {
