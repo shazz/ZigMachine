@@ -96,7 +96,15 @@ def make_z7(args: argparse.Namespace) -> tuple[ZigMachineSoC, object]:
     sound = getattr(args, "sound_cpu", False)
     if sound and not audio:
         raise SystemExit("zm_z7: --sound-cpu needs the audio core (drop --no-audio)")
-    soc = _board_soc(platform, sys_hz, not args.no_glass, getattr(args, "blit", False), audio, sound)
+    soc = _board_soc(
+        platform,
+        sys_hz,
+        not args.no_glass,
+        getattr(args, "blit", False),
+        audio,
+        sound,
+        getattr(args, "hp_probe", False),
+    )
     soc.crg = crg = Z7CRG(platform, (args.osc, args.osc_hz), sys_hz, comp_hz)
     soc.csr_bridge_register = True
     clocks = {
@@ -113,7 +121,13 @@ def make_z7(args: argparse.Namespace) -> tuple[ZigMachineSoC, object]:
 
 
 def _board_soc(
-    platform: object, sys_hz: int, glass: bool, blit: bool = False, audio: bool = True, sound: bool = False
+    platform: object,
+    sys_hz: int,
+    glass: bool,
+    blit: bool = False,
+    audio: bool = True,
+    sound: bool = False,
+    hp_probe: bool = False,
 ) -> ZigMachineSoC:
     """With the glass: the cart CPU's RAM and the video DMA in PS DDR over HP0/HP1, the CPU
     reset into it (soc/zm_board_mem.py), with `blit` the blitter on HP2 (soc/zm_blit_soc.py),
@@ -129,6 +143,7 @@ def _board_soc(
     soc = ZigMachineSoC(
         platform, sys_hz, "pipe", glass=True, video_hp=hp1, uart_name="stub",
         rom_size=0, main_ram_size=0, cpu_reset_address=CPU_BASE, audio=None if hp3 is None else {"hp": hp3, "sound": sound},
+        hp_probe=hp_probe,
     )  # fmt: skip
     zm_board_mem.add_cpu_memory(soc, hp0)
     hp2 = hp_interface() if blit else None
