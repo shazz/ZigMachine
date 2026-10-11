@@ -4,11 +4,14 @@
 // over the frame before), so frame n is rebuilt by replaying from the last
 // frame at or before n that clears the screen. Each frame's offset, clear flag
 // and palette are recorded the first time it is decoded, which is what makes
-// seeking back (the rewind) cheap. Pure (no ZigOS); tested at the bottom.
+// seeking back (the rewind) cheap, and with a Snaps (snaps.zig) a seek also
+// starts from a kept keyframe instead of the clear frame. Pure (no ZigOS);
+// tested in player_test.zig.
 // --------------------------------------------------------------------------
 const std = @import("std");
 const st = @import("stream.zig");
 const polyfill = @import("polyfill.zig");
+const snaps_mod = @import("snaps.zig");
 
 pub const MAX_FRAMES: u32 = 1800;
 pub const SRC_W: u32 = 256; // the stream's coordinate space
@@ -33,6 +36,8 @@ pub const Player = struct {
     next: u32, // stream offset of frame `known`
     total: u32, // frame count once $FD has been read, else 0
     shown: ?u32, // the frame on screen, or null when the screen was disturbed
+    snaps: ?*snaps_mod.Snaps, // keyframes for seeks; null: a seek replays from the clear frame
+    drawn: u32, // frames the last show() drew: what a seek costs
 
     pub fn init(self: *Player, source: st.Source, buf: *[st.BLOCK]u8, index: *Index) void {
         self.stream = .{ .source = source, .buf = buf };
@@ -41,6 +46,8 @@ pub const Player = struct {
         self.next = 0;
         self.total = 0;
         self.shown = null;
+        self.snaps = null;
+        self.drawn = 0;
     }
 
     pub fn palette(self: *const Player, n: u32) *const [16]u16 {
@@ -48,13 +55,39 @@ pub const Player = struct {
     }
 
     /// Draw frame n. The next frame after the one on screen decodes just that
-    /// frame; anything else replays from the last clear frame at or before n.
+    /// frame; anything else replays from the last clear frame at or before n,
+    /// or from the latest keyframe kept since it.
     pub fn show(self: *Player, n: u32, view: View) st.Error!void {
         try self.indexTo(n);
         const sequential = if (self.shown) |s| n == s + 1 else false;
-        var f = if (sequential) n else self.lastClear(n);
-        while (f <= n) : (f += 1) try self.draw(f, view);
+        var f = if (sequential) n else self.seekFrom(n, view);
+        self.drawn = 0;
+        while (f <= n) : (f += 1) {
+            try self.draw(f, view);
+            self.keep(f, view);
+            self.drawn += 1;
+        }
         self.shown = n;
+    }
+
+    // The first frame a seek to n draws: after the latest keyframe since n's
+    // clear frame, painted back first, or else that clear frame.
+    fn seekFrom(self: *Player, n: u32, view: View) u32 {
+        const c = self.lastClear(n);
+        const s = self.snaps orelse return c;
+        s.bind(snaps_mod.keyOf(view.target, view.w, view.h));
+        const i = s.find(c, n) orelse return c;
+        s.restore(i, view.target);
+        return s.frame(i) + 1;
+    }
+
+    // Keep every snaps.EVERY-th frame of a delta chain, as just drawn.
+    fn keep(self: *Player, f: u32, view: View) void {
+        const s = self.snaps orelse return;
+        const into = f - self.lastClear(f);
+        if (into == 0 or into % snaps_mod.EVERY != 0) return;
+        s.bind(snaps_mod.keyOf(view.target, view.w, view.h));
+        s.save(f, view.target);
     }
 
     fn lastClear(self: *const Player, n: u32) u32 {

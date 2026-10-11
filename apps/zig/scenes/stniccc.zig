@@ -9,7 +9,8 @@
 // bigger size rather than scaling pixels. It lives on the disk as SCENE1.BIN and
 // is read one 64 KB block at a time, as the ST loaded it. The rewind works
 // because stniccc/player.zig can redraw any frame by replaying from the last
-// frame that clears the screen.
+// frame that clears the screen, or from a keyframe it kept on the way forward
+// (stniccc/snaps.zig: a replay is up to ~100 frames, seconds on the board).
 //
 // Data: scene1.bin, the demo's own stream (MIT notice in
 // assets/screens/stniccc/LICENSE.txt). Music: "STNICCC 2000++" by Dolby (SNDH).
@@ -18,6 +19,7 @@
 const zg = @import("zigos");
 const st = @import("stniccc/stream.zig");
 const player_mod = @import("stniccc/player.zig");
+const snaps_mod = @import("stniccc/snaps.zig");
 
 const ZigOS = zg.ZigOS;
 const Color = zg.Color;
@@ -95,6 +97,9 @@ pub const Demo = struct {
         const lay = zg.disk.mount() orelse return self.fail(fb);
         self.file = zg.disk.find(lay, SCENE_FILE) orelse return self.fail(fb);
         self.player.init(.{ .ctx = self, .readFn = readDiskBlock }, self.block, self.index);
+        const snaps = &zg.mem.mustAlloc(snaps_mod.Snaps, 1)[0];
+        snaps.init(zg.mem.mustAlloc(u8, snaps_mod.POOL_BYTES));
+        self.player.snaps = snaps; // until the rewind is over: nothing seeks back after it
         zg.requestSong(MUSIC);
     }
 
@@ -138,6 +143,7 @@ pub const Demo = struct {
         self.act = act;
         self.t = 0;
         if (act == .rewinding) self.speed = 0;
+        if (act == .message) self.player.snaps = null; // no more keyframes to keep or use
         if (act == .fullscreen) {
             self.pos = 0;
             self.player.shown = null; // the zoom left frame 0 drawn at its own rect
