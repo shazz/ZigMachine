@@ -12,6 +12,10 @@
 // BEAM_DROPPED, FRAME) are checked against the machine's next state record
 // instead of being overwritten unseen. `check_picture` compares the picture
 // the frame built with the browser's (f<N>.mix).
+//
+// With `fuse`, a frame whose clear cannot differ line to line (no global HBL
+// handler, no BEAM writes) is cleared as cycles/vseq.c does it: one CLEAR, then
+// the first layer's passes taken with `fill` paint each line over its colour.
 #pragma once
 #include <cstdio>
 #include <cstring>
@@ -30,6 +34,8 @@ template <typename RigT> struct Replay {
     RigT& rig;
     const Frame* f = nullptr;
     bool check_passes = true;
+    bool fuse = false;  // CLEAR + `fill` where the clear allows it (vseq.c)
+    bool fused = false; // ... and this frame was
     uint32_t dbase = Mem::kFb0;  // the picture this frame builds (zm_video_comp alone)
     uint32_t pal[PAL_WORDS] = {}, beam[BEAM_WORDS] = {};  // what the RTL RAMs hold
     long bad_pixels = 0, bad_regs = 0, bad_picture = 0;
@@ -66,8 +72,19 @@ template <typename RigT> struct Replay {
                 std::printf("FAIL pass %d line %d x %d: rtl %08x machine %08x\n", k, y, x, got, want[x]);
         }
     }
-    void pass(int op, int p, int y, bool first) {
-        long c = rig.command(op, p, y, op != 0, first);
+    static uint32_t half(const State& s, uint32_t off) { return s[size_t(off / 4)] >> (off % 4 * 8) & 0xFFFF; }
+    // vseq.c's test: nothing can change between the clear's lines.
+    bool clearable() const {
+        const State& s = *f->consumed(0, 0);
+        return half(s, ZM_REG_GLOBAL_HBL_ID) == 0 && half(s, ZM_REG_BEAM_COUNT) == 0;
+    }
+    void clear_fused() {
+        apply_regs(*f->consumed(0, 0));
+        rig.command(5, 0, 0);
+        if (f->end[0]) check_own(*f->end[0], LINES - 1);
+    }
+    void pass(int op, int p, int y, bool first, bool fill = false) {
+        long c = rig.command(op, p, y, op != 0, first, fill);
         line_clocks[y] += c;
         if (c > max_pass) max_pass = c;
     }
@@ -80,12 +97,12 @@ template <typename RigT> struct Replay {
         if (next) check_own(*next, y);
         compare(0, y);
     }
-    void plane_line(int p, int y, bool first) {
+    void plane_line(int p, int y, bool first, bool fill) {
         const int k = p + 1;
         const State& s = *f->consumed(k, y);
         apply_regs(s);
         apply_ram(s, PAL0 + p * ZM_PAL_ENTRIES, ZM_PAL_ENTRIES, pal + p * ZM_PAL_ENTRIES, ZM_OFF_PAL + p * ZM_PAL_BYTES);
-        pass(1, p, y, first);
+        pass(1, p, y, first, fill);
         compare(k, y);
     }
     void check_picture() {
@@ -104,18 +121,27 @@ template <typename RigT> struct Replay {
         std::memset(rig.mem.bytes.data() + ZM_OFF_PFB, 0xA5, ZM_PFB_BYTES);
         std::memset(line_clocks, 0, sizeof line_clocks);
         long t0 = rig.cycles;
-        for (int y = 0; y < LINES; y++) bg_line(y);
+        fused = fuse && clearable();
+        if (fused) clear_fused();
+        else
+            for (int y = 0; y < LINES; y++) bg_line(y);
         bool first = true;
+        StateP last = f->end[0];
         for (int p = 0; p < ZM_NB_PLANES; p++) {
             if (!((f->planes >> p) & 1)) continue;
             apply_regs(*f->start[p + 1]);
             rig.command(2, p, 0);
-            for (int y = 0; y < LINES; y++) plane_line(p, y, first);
+            for (int y = 0; y < LINES; y++) plane_line(p, y, first, first && fused);
             first = false;
+            if (f->end[p + 1]) last = f->end[p + 1];
         }
         if (first)  // no plane enabled: the loader shows the cleared PFB on canvas 0
-            for (int y = 0; y < LINES; y++) pass(3, 0, y, true);
+            for (int y = 0; y < LINES; y++) {
+                pass(3, 0, y, true, fused);
+                if (fused) compare(0, y);  // the clear's row, painted by this pass
+            }
         rig.command(4, 0, 0);
+        if (last) check_own(*last, LINES - 1);  // the passes after the clear wrote none of them
         frame_clocks = rig.cycles - t0;
         for (long c : line_clocks) max_line = c > max_line ? c : max_line;
     }

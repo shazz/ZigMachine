@@ -10,11 +10,12 @@ from __future__ import annotations
 from litex.soc.interconnect.csr import CSRField, CSRStatus, CSRStorage
 
 CMD_FIELDS = [
-    ("op", 3, "0 BG, 1 PLANE, 2 LATCH, 3 MIX, 4 PRESENT"),
+    ("op", 3, "0 BG, 1 PLANE, 2 LATCH, 3 MIX, 4 PRESENT, 5 CLEAR"),
     ("plane", 2, ""),
     ("line", 9, ""),
     ("mix", 1, "fold this pass into the picture"),
     ("first", 1, "... as the line's first layer"),
+    ("fill", 1, "PLANE / MIX: paint the line in the CLEAR colour instead of loading the PFB row"),
 ]
 STATUS_FIELDS = [
     ("ready", 1, "no command queued or running: one may be written"),

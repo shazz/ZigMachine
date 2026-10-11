@@ -57,10 +57,10 @@ static uint32_t mode_3_dma(void) {
     ZMV_REG(FB1) = (uint32_t)(uintptr_t)CPU(DIAG_PIC_DDR);
     r[ZM_REG_BACKGROUND / 4] = DIAG_BG; /* reaches the compositor through the snoop, whatever DDR does */
     wait_bits(ZMV_BIT(READY) | ZMV_BIT(DRAINED));
-    zmv_cmd(ZMV_BG, 0, 0, 0, 0);
+    zmv_cmd(ZMV_BG, 0, 0, 0, 0, 0);
     wait_bits(ZMV_BIT(PAINTED));
     wait_bits(ZMV_BIT(READY));
-    zmv_cmd(ZMV_MIX, 0, 0, 1, 1);
+    zmv_cmd(ZMV_MIX, 0, 0, 1, 1, 0);
     wait_bits(ZMV_BIT(PAINTED));
     wait_bits(ZMV_BIT(READY));
     return 3;
@@ -73,7 +73,7 @@ static uint32_t mode_4_mix(void) {
     ZMV_REG(FB0) = (uint32_t)(uintptr_t)CPU(DIAG_PIC_DDR);
     ZMV_REG(FB1) = (uint32_t)(uintptr_t)CPU(DIAG_PIC_DDR);
     wait_bits(ZMV_BIT(READY) | ZMV_BIT(DRAINED));
-    zmv_cmd(ZMV_MIX, 0, 0, 1, 1);
+    zmv_cmd(ZMV_MIX, 0, 0, 1, 1, 0);
     wait_bits(ZMV_BIT(PAINTED));
     wait_bits(ZMV_BIT(READY));
     /* The read path's probe (soc/zm_hp_probe.py): 8 CSR words, most significant first:

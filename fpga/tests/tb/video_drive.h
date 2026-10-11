@@ -69,19 +69,20 @@ public:
 
     // Issue one command and wait until it is taken; then, for a pass, until
     // `pass_done` (its rows are in memory). Returns the pass's clocks.
-    long command(int op, int plane, int line, bool mix = false, bool first = false) {
+    long command(int op, int plane, int line, bool mix = false, bool first = false, bool fill = false) {
         top.p_cmd__op.template set<uint32_t>(uint32_t(op));
         top.p_cmd__plane.template set<uint32_t>(uint32_t(plane));
         top.p_cmd__line.template set<uint32_t>(uint32_t(line));
         top.p_cmd__mix.set(mix);
         top.p_cmd__first.set(first);
+        top.p_cmd__fill.set(fill);
         top.step();
         // A picture pass may wait for the shown picture to swap: up to a frame.
         wait_for([&] { return top.p_cmd__ready.template get<bool>(); }, "taken", op, line, 20000000);
         top.p_cmd__valid.set(true);
         cycle();
         top.p_cmd__valid.set(false);
-        if (op == 2 || op == 4) return 0;
+        if (op == 2 || op == 4 || op == 5) return 0;
         long t0 = cycles;
         wait_for([&] { return top.p_pass__done.template get<bool>(); }, "finished", op, line, 2000000);
         cycle();

@@ -1,6 +1,6 @@
 // Replay testbench for rtl/video/zm_video_comp.v against the wasm machine.
 //
-//   video_comp_tb [--timing LAT] <dump dir> <frame>...
+//   video_comp_tb [--timing LAT] [--fuse] <dump dir> <frame>...
 //
 // For each frame recorded by tools/video_dump.py it runs the compositor in the
 // machine's order (video_replay.h) against a memory that stalls at random
@@ -8,7 +8,9 @@
 // equals the machine's, and the picture the frame builds equals the browser's
 // (f<N>.mix, tools/video_mix.py). `--timing LAT` serves memory as a port with
 // LAT clocks of first-beat latency and a beat a clock, skips the per-pass
-// read-back, and reports the clocks a pass, a line and a frame take.
+// read-back, and reports the clocks a pass, a line and a frame take. `--fuse`
+// clears as cycles/vseq.c does where it can: one CLEAR, the lines painted by
+// the first layer's `fill` passes (video_replay.h).
 // Exits non-zero on any difference.
 #include <cstdio>
 #include <cstdlib>
@@ -38,9 +40,9 @@ int run_frame(Rig& rig, vd::Replay<Rig>& r, const char* dir, const char* frame) 
     bool overflow = rig.top.p_overflow.get<bool>();
     bool ok = r.bad_pixels == 0 && r.bad_regs == 0 && r.bad_picture == 0 && rig.mem.bad == 0 && !overflow;
     std::printf("frame %s: planes %x vram_changed %d: %ld bad pixels, %ld bad picture pixels, %ld bad registers, "
-                "%ld bad accesses, overflow %d, max %ld clocks/pass, %ld clocks/line, %ld clocks/frame -> %s\n",
+                "%ld bad accesses, overflow %d, max %ld clocks/pass, %ld clocks/line, %ld clocks/frame, fused %d -> %s\n",
                 frame, f.planes, f.vram_changed, r.bad_pixels, r.bad_picture, r.bad_regs, rig.mem.bad,
-                int(overflow), r.max_pass, r.max_line, r.frame_clocks, ok ? "MATCH" : "DIFFER");
+                int(overflow), r.max_pass, r.max_line, r.frame_clocks, int(r.fused), ok ? "MATCH" : "DIFFER");
     return ok ? 0 : 1;
 }
 
@@ -48,9 +50,15 @@ int run_frame(Rig& rig, vd::Replay<Rig>& r, const char* dir, const char* frame) 
 
 int main(int argc, char** argv) {
     int lat = -1, first_arg = 1;
-    if (argc > 2 && !std::strcmp(argv[1], "--timing")) lat = std::atoi(argv[2]), first_arg = 3;
+    bool fuse = false;
+    for (;;) {
+        if (argc > first_arg + 1 && !std::strcmp(argv[first_arg], "--timing"))
+            lat = std::atoi(argv[first_arg + 1]), first_arg += 2;
+        else if (argc > first_arg && !std::strcmp(argv[first_arg], "--fuse")) fuse = true, first_arg++;
+        else break;
+    }
     if (argc < first_arg + 2) {
-        std::fprintf(stderr, "usage: video_comp_tb [--timing LAT] <dump dir> <frame>...\n");
+        std::fprintf(stderr, "usage: video_comp_tb [--timing LAT] [--fuse] <dump dir> <frame>...\n");
         return 2;
     }
     static Rig rig;  // the CXXRTL model is large: keep it off the stack
@@ -60,6 +68,7 @@ int main(int argc, char** argv) {
     rig.top.p_d__ok.set(true);
     static vd::Replay<Rig> r(rig);
     r.check_passes = lat < 0;
+    r.fuse = fuse;
     int failed = 0;
     for (int i = first_arg + 1; i < argc; i++) {
         int verdict = run_frame(rig, r, argv[first_arg], argv[i]);

@@ -162,6 +162,13 @@ static void bgalpha_setup(void) {
     vs_w16(ZM_REG_GLOBAL_HBL_ID, ZM_HBL_GLOBAL_ID);
 }
 
+/* --- plain: no plane, one translucent background, no global HBL: the clear a
+ * sequencer may fuse into the MIX passes (cycles/vseq.c CLEAR + fill) --- */
+static void plain_setup(void) {
+    alpha_setup();
+    vs_w32(ZM_REG_BACKGROUND, 0x80406020u);
+}
+
 /* --- worst: the most a line can cost the compositor. Four medium planes with
  * 800-byte strides (800 columns 1:1, all 280 lines), blending, over a BEAM
  * list of BEAM_MAX entries on every line --- */
@@ -188,6 +195,7 @@ const vs_scenario vs_scenarios[] = {
     {"layers", 2, 0xF, layer_setup, reset_bases, layer_hbl},
     {"alpha", 2, 0xF, alpha_setup, reset_bases, alpha_hbl},
     {"bgalpha", 2, 0x0, bgalpha_setup, reset_bases, alpha_hbl},
+    {"plain", 2, 0x0, plain_setup, reset_bases, alpha_hbl},
     {"worst", 2, 0xF, worst_setup, reset_bases, worst_hbl},
     {0, 0, 0, 0, 0, 0},
 };

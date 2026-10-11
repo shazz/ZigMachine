@@ -11,7 +11,10 @@
  * Lines (sim): "ZM BOOT c", per frame "ZM HF f cycles", the scene_hash JSON,
  * "ZM VSTAT underrun overflow swaps vbls undrained", "ZM MIS ...", "ZM BLIT calls hw cycles" (bblit.h),
  * "ZM END rc". With the audio (cycles/baudio.c; ZM_NO_AUDIO without): per frame "ZM AF f cart audio"
- * (the cycles of cart.frame() and of the players), "ZM SONG ts name" per song, then "ZM AUD ...". */
+ * (the cycles of cart.frame() and of the players), "ZM SONG ts name" per song, then "ZM AUD ...".
+ * Per frame too: "ZM QF f bg planes present" (the sequencer's cycles), "ZM BF f" + calls/cycles/units
+ * of each blitter op and "ZM WF f" + the bus counters (report_frame), and with ZM_TRACE_FRAME = f
+ * that frame's ops one by one ("ZM BT"). ZM_WARP_MS starts the cart's timeline late. */
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -29,6 +32,18 @@
 #include "wasm-rt-exceptions.h"
 #include "wasm-rt-impl.h"
 #include "zm_memmap.h"
+
+/* ZM_WARP_MS (sim only): frame 1's dt, to start a cart's timeline late (a part that starts after
+ * 25 s would take hours of sim to reach); 0 = every frame is 16.6 ms, as on the board. The native
+ * host's HOST_WARP_MS is the same switch, for the reference hashes. */
+#ifndef ZM_WARP_MS
+#define ZM_WARP_MS 0
+#endif
+
+/* ZM_TRACE_FRAME (sim only): that frame's hwBlit calls one by one, "ZM BT f i cmd gap cycles units". */
+#ifndef ZM_TRACE_FRAME
+#define ZM_TRACE_FRAME 0
+#endif
 
 #define PICTURE_BYTES (ZM_RASTER_WIDTH * ZM_RASTER_HEIGHT * 4u)
 #define SAMPLES (ZM_FRAMES / (ZM_EVERY ? ZM_EVERY : 1) + 1)
@@ -51,13 +66,15 @@ static void hash_pfb(sha256_ctx* h, u32 size) {
 
 static void frame(sha256_ctx* h, u32 planes, u32 size, long f) {
     struct w2c_env* e = &g_env;
+    uint32_t tc = board_cycles();
     vseq_clear(e);
     binput_frame(e); /* the glass's keys, joypad and mouse, before the frame as the browser's */
     uint32_t t0 = board_cycles();
-    w2c_cart_frame(&e->cart, 16.6f);
+    w2c_cart_frame(&e->cart, f == 1 && ZM_WARP_MS ? (float)ZM_WARP_MS : 16.6f);
     uint32_t t1 = board_cycles();
     AUDIO(baudio_frame(e)); /* the song bridge, then the players up to the sound's lead */
     printf("ZM AF %ld %lu %lu\n", f, (unsigned long)(t1 - t0), (unsigned long)(board_cycles() - t1));
+    uint32_t t2 = board_cycles();
     int first = 1;
     for (u32 p = 0; p < planes; p++) {
         if (!w2c_cart_isPlaneEnabled(&e->cart, p)) {
@@ -70,9 +87,33 @@ static void frame(sha256_ctx* h, u32 planes, u32 size, long f) {
         if (h) hash_pfb(h, size);
     }
     if (first) vseq_mix_only();
+    uint32_t t3 = board_cycles();
     mb_presenting();
     vseq_present();
+    /* the sequencer's share (sim): BG passes, the planes' passes (and hashes), PRESENT */
+#ifndef ZM_BOARD /* nothing is printed there, but the formatting would still cost */
+    printf("ZM QF %ld %lu %lu %lu\n", f, (unsigned long)(t0 - tc), (unsigned long)(t3 - t2),
+           (unsigned long)(board_cycles() - t3));
+#endif
 }
+
+/* Per frame (sim): "ZM BF f" then calls/cpu-cycles/units for BLIT FILL LINE TRIANGLE (bblit.h),
+ * and "ZM WF f ibus_wait dbus_rd dbus_wr dbus_wait" (soc/zm_cycles.py) over the whole frame. */
+#ifndef ZM_BOARD
+static void report_frame(long f, const uint32_t* c0, const uint32_t* c1) {
+    printf("ZM BF %ld", f);
+    for (int k = 1; k <= 4; k++)
+        printf(" %lu %lu %lu", (unsigned long)bblit.op_calls[k], (unsigned long)bblit.op_cycles[k],
+               (unsigned long)bblit.op_units[k]);
+    if (f == ZM_TRACE_FRAME)
+        for (uint32_t i = 0; i < bblit.n_trace; i++)
+            printf("\nZM BT %ld %lu %u %lu %lu %lu", f, (unsigned long)i, (unsigned)bblit.trace[i].cmd,
+                   (unsigned long)bblit.trace[i].gap, (unsigned long)bblit.trace[i].cycles,
+                   (unsigned long)bblit.trace[i].units);
+    printf("\nZM WF %ld %lu %lu %lu %lu\n", f, (unsigned long)(c1[2] - c0[2]), (unsigned long)(c1[3] - c0[3]),
+           (unsigned long)(c1[4] - c0[4]), (unsigned long)(c1[5] - c0[5]));
+}
+#endif
 
 static void print_json(char* total) {
     printf("{\"cart\":\"%s\",\"frames\":%d,\"every\":%d,\"calls\":[],\"samples\":[", ZM_CART, ZM_FRAMES, ZM_EVERY);
@@ -89,12 +130,19 @@ static void run(void) {
     sha256_init(&total);
     for (long f = 1; ZM_FRAMES == 0 || f <= ZM_FRAMES; f++) {
         int sample = ZM_FRAMES && f % ZM_EVERY == 0;
+        uint32_t c0[ZM_NCOUNT], c1[ZM_NCOUNT];
+        bblit_frame_reset();
+        board_counters(c0);
         uint32_t t0 = board_cycles();
         if (sample) sha256_init(&h);
         frame(sample ? &h : NULL, planes, size, f);
         board_beat((uint32_t)f);
         mb_frame_done((uint32_t)f);
         printf("ZM HF %ld %lu\n", f, (unsigned long)(board_cycles() - t0));
+        board_counters(c1);
+#ifndef ZM_BOARD
+        report_frame(f, c0, c1);
+#endif
         if (!sample) continue;
         sha256_hex(&h, g_hashes[f / ZM_EVERY - 1]);
         sha256_update(&total, g_hashes[f / ZM_EVERY - 1], 64);
