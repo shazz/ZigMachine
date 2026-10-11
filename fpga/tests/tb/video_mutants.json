@@ -198,8 +198,8 @@
   {
     "id": "mix_alpha_of_pixel0",
     "file": "zm_video_mix.v",
-    "old": "lb_rdata[(i / 3) * 32 + 24 +: 8]",
-    "new": "lb_rdata[24 +: 8]",
+    "old": "l_r[(i / 3) * 32 + 24 +: 8]",
+    "new": "l_r[24 +: 8]",
     "catch": "s:alpha"
   },
   {

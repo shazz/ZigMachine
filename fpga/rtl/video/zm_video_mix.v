@@ -41,11 +41,13 @@ module zm_video_mix #(
     reg        run = 1'b0;
     reg [8:0]  m;
     reg        f_r;
-    // Pipeline: 1 = L and accumulator data, 2 = products, 3 = result written.
-    reg        v1, v2, v3;
-    reg [8:0]  m1, m2, m3;
+    // Pipeline: 1 = L and accumulator data out of the block RAMs, 2 = the same
+    // registered (a block RAM's clock-to-out plus the LUT multipliers missed the
+    // 125 MHz comp clock by 1.9 ns as one stage), 3 = products, 4 = result written.
+    reg        v1, v2, v3, v4;
+    reg [8:0]  m1, m2, m3, m4;
     assign lb_raddr = m;
-    assign busy = run || v1 || v2 || v3;
+    assign busy = run || v1 || v2 || v3 || v4;
 
     always @(posedge clk) begin
         if (rst) run <= 1'b0;
@@ -57,25 +59,29 @@ module zm_video_mix #(
         {v1, m1} <= {run && !rst, m};
         {v2, m2} <= {v1 && !rst, m1};
         {v3, m3} <= {v2 && !rst, m2};
-        done <= v3 && !v2 && !rst;
+        {v4, m4} <= {v3 && !rst, m3};
+        done <= v4 && !v3 && !rst;
     end
 
     // The accumulator line: D between the sweeps of one line.
     wire [47:0] acc_rdata, mixed;
-    zm_video_sdpram #(.AW(9), .DW(48)) u_acc (.clk(clk), .we({6{v3 || ld_we}}), .waddr(v3 ? m3 : ld_addr),
-        .wdata(v3 ? mixed : ld_data), .raddr(run ? m : st_raddr), .rdata(acc_rdata));
+    zm_video_sdpram #(.AW(9), .DW(48)) u_acc (.clk(clk), .we({6{v4 || ld_we}}), .waddr(v4 ? m4 : ld_addr),
+        .wdata(v4 ? mixed : ld_data), .raddr(run ? m : st_raddr), .rdata(acc_rdata));
     assign st_rdata = acc_rdata;
-    wire [47:0] dst = f_r ? {TUBE, TUBE} : acc_rdata;
+    reg [63:0] l_r;
+    reg [47:0] dst;
+    always @(posedge clk) {l_r, dst} <= {lb_rdata, f_r ? {TUBE, TUBE} : acc_rdata};
 
-    // Six channels: 2 pixels x {R, G, B}. Stage 2 registers the products.
+    // Six channels: 2 pixels x {R, G, B}. Stage 3 registers the products.
     genvar i;
     generate
         for (i = 0; i < 6; i = i + 1) begin : ch
-            wire [7:0] a = lb_rdata[(i / 3) * 32 + 24 +: 8];
-            wire [7:0] c = lb_rdata[(i / 3) * 32 + (i % 3) * 8 +: 8];
+            wire [7:0] a = l_r[(i / 3) * 32 + 24 +: 8];
+            wire [7:0] c = l_r[(i / 3) * 32 + (i % 3) * 8 +: 8];
             wire [7:0] d = dst[i * 8 +: 8];
-            reg [15:0] pm;
-            reg [16:0] ov;
+            // In DSPs: as LUTs, d * (256 - a) alone took the whole 8 ns clock.
+            (* use_dsp = "yes" *) reg [15:0] pm;
+            (* use_dsp = "yes" *) reg [16:0] ov;
             always @(posedge clk) begin
                 pm <= c * a;
                 ov <= d * (9'd256 - {1'b0, a});
