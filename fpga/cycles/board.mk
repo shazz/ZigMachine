@@ -59,8 +59,10 @@ ZM_WARP_MS ?= 0
 ZM_TRACE_FRAME ?= 0
 # ZM_SIM_KEYS=F:event,... (sim only): the glass's key FIFO as a script (cycles/binput.c), the
 # native host's ZM_GLASS_KEYS, so a sim can press the keys the board's input would.
+# ZM_SIM_POINTER=F:word,... (sim only): the mouse the same way (ZM_GLASS_POINTER).
 H_sim    = -DZM_FRAMES=$(ZM_FRAMES) -DZM_EVERY=$(ZM_EVERY) -DZM_WARP_MS=$(ZM_WARP_MS) -DZM_TRACE_FRAME=$(ZM_TRACE_FRAME) \
-	$(B_$(ZM_BLIT)) $(A_$(ZM_AUDIO)) $(if $(ZM_SIM_KEYS),'-DZM_SIM_KEYS="$(ZM_SIM_KEYS)"')
+	$(B_$(ZM_BLIT)) $(A_$(ZM_AUDIO)) $(if $(ZM_SIM_KEYS),'-DZM_SIM_KEYS="$(ZM_SIM_KEYS)"') \
+	$(if $(ZM_SIM_POINTER),'-DZM_SIM_POINTER="$(ZM_SIM_POINTER)"')
 # ZM_SYS_MHZ=<n>: a bitstream whose sys clock is not 100 MHz (the FPU test bitstream runs 90):
 # board_micros() (bboard.c, the cart's hostMicros) is the one place the firmware reads the clock.
 ZM_SYS_MHZ ?=

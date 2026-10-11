@@ -8,7 +8,10 @@
  *   ZM_GLASS_KEYS=F:event,...  the glass's key FIFO as a script: before frame F, the KEY_*
  *                              event (hex, fpga/glass/src/map.zig) goes through the board
  *                              firmware's router (host/input_bridge.c), as cycles/binput.c
- *                              hands it the FIFO: how the board's input is tested here. */
+ *                              hands it the FIFO: how the board's input is tested here.
+ *   ZM_GLASS_POINTER=F:word,...  the mouse the same way: before frame F, the ARM writes `word`
+ *                              (hex, REG_POINTER's x | y<<10 | buttons<<20) and the CSR, its SEQ
+ *                              bumped, goes through glass_pointer() as binput.c polls it. */
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -146,6 +149,20 @@ static void glass_keys(long f) {
     input_events(&g_env.cart, ev, n);
 }
 
+/* ZM_GLASS_POINTER: this frame's REG_POINTER, polled and acked as cycles/binput.c does. */
+static void glass_mouse(long f) {
+    static const char* at;
+    static int started;
+    static uint32_t ptr, seen;
+    if (!started) at = getenv("ZM_GLASS_POINTER"), started = 1;
+    if (!at) return;
+    if (input_pointer_script(&at, f, &ptr)) {
+        fprintf(stderr, "host: bad ZM_GLASS_POINTER entry before frame %ld\n", f);
+        exit(2);
+    }
+    (void)input_pointer(&g_env.cart, ptr, &seen); /* the ack: nothing latched to drop here */
+}
+
 static void run(const char* cart, long n, long k) {
     u32 size = w2c_machine_hwPhysWidth(&g_env.machine) * w2c_machine_hwPhysHeight(&g_env.machine) * 4;
     u32 planes = w2c_machine_hwPlanesNumber(&g_env.machine);
@@ -160,6 +177,7 @@ static void run(const char* cart, long n, long k) {
     for (long f = 1; f <= n; f++) {
         run_calls(f);
         glass_keys(f);
+        glass_mouse(f);
         int sample = f % k == 0;
         if (sample) sha256_init(&h);
         frame(sample ? &h : NULL, planes, size, f);

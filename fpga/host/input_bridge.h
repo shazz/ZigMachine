@@ -14,4 +14,11 @@ void input_events(w2c_cart* cart, const uint32_t* events, uint32_t n); /* KEY_* 
 void input_joy(w2c_cart* cart, uint32_t before, uint32_t now);         /* JOY_* bits held */
 int input_pointer(w2c_cart* cart, uint32_t ptr, uint32_t* seen);       /* PTR_*: the SEQ to ack, or -1 */
 
+/* The mouse as a script (host/main.c ZM_GLASS_POINTER, cycles/binput.c ZM_SIM_POINTER):
+ * "F:word,..." with `word` (hex) what the ARM writes to REG_POINTER before frame F (x, y and the
+ * held buttons, PTR_*). Each write bumps SEQ, as the PL does, so *ptr ends as the CSR the cart CPU
+ * reads at frame f. The PL's button latch is not modelled: a script holds a press for a frame.
+ * Returns 0, or -1 at a malformed entry (the rest of the script is dropped). */
+int input_pointer_script(const char** at, long f, uint32_t* ptr);
+
 #endif
