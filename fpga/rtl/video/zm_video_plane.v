@@ -65,7 +65,6 @@ module zm_video_plane (
     // the fetcher refuses and flags (`overflow`) instead of wrapping silently.
     wire [10:0] fs_len = stride_i > 16'd1021 ? 11'h7FF : stride_i[10:0];
     wire [10:0] len = m == FS ? fs_len : m == OVS ? 11'd400 : m == MED ? med_len : 11'd320;
-    wire [31:0] addr = base_i + row * stride_i + (m == SCROLL ? {16'd0, hs_live_i} : 32'd0);
     // Overscan: did this line's HBL flicker, and on the magic column?
     wire flk = flicker_i != seen_i;
     wire [15:0] dx = hpos_i > ZM_OVERSCAN_MAGIC_X ? hpos_i - ZM_OVERSCAN_MAGIC_X : ZM_OVERSCAN_MAGIC_X - hpos_i;
@@ -81,21 +80,51 @@ module zm_video_plane (
     // The pass's geometry, computed every clock into `*_q` and taken as the pass
     // starts (comp-clock timing, fpga/README.md "Timing under openXC7": the
     // latch -> compare -> carry cones were the compositor's critical path). The
-    // inputs are still for at least two clocks before `start` (stage 1, then
-    // this one): the sequencer's command, the latch and the drained stores all
-    // settle before the pass's LOAD, and `seen`/`top_open` change only one clock
-    // after a previous pass's start.
-    reg [31:0] addr_q;
+    // address, base + row * stride + HSCROLL, takes three more stages so the
+    // mode decode, the multiply and the 32-bit add each end in a register (as
+    // one it missed 125 MHz by 1.6 ns): row and the scroll term, then the
+    // product (a DSP's M register) beside base + scroll, then the sum.
+    reg [8:0]  row_2;
+    reg [15:0] stride_2, sc_2;
+    reg [31:0] base_2, bs_3, addr_q;
+    reg [24:0] prod_3;
+    always @(posedge clk) begin
+        {row_2, stride_2, sc_2, base_2} <= {row, stride_i, m == SCROLL ? hs_live_i : 16'd0, base_i};
+        prod_3 <= row_2 * stride_2;    // 25 bits wide here, not 16 as in a {}
+        bs_3 <= base_2 + {16'd0, sc_2};
+        addr_q <= bs_3 + {7'd0, prod_3};
+    end
     reg [10:0] len_q;
     reg [2:0]  m_q;
     reg [7:0]  nbase_q;
     reg        phys_q, vis_q, med_q, hit_q, flk_q, top_q, bot_q, open_q;
     always @(posedge clk) begin
-        {addr_q, len_q, m_q, nbase_q} <= {addr, len, m, py_i[7:0] * 8'd101 + seed_i * 8'd7};
+        {len_q, m_q, nbase_q} <= {len, m, py_i[7:0] * 8'd101 + seed_i * 8'd7};
         {phys_q, vis_q, med_q, hit_q, flk_q, top_q, bot_q} <= {phys, vis, med_line, hit_now, flk, top, bot};
         open_q <= (top && (top_open_i || hit_now)) || (bot && (bot_open_i || hit_now));
     end
-    always @(posedge clk) if (st == IDLE && start) begin
+
+    // `addr_q` is right four clocks after the inputs last moved. The sequencer
+    // holds them far longer (a pass takes its command, then loads a whole
+    // 400-beat PFB row before `start`; the drain rule keeps the CPU's stores
+    // out until `painted`; `seen`/`top_open` move one clock after a start), but
+    // the pass does not lean on that: a `start` that comes sooner waits
+    // (`pend`) until every input has held for the four clocks before it. No
+    // pass the sequencer issues ever waits, so the clocks are what they were.
+    // `moved` is registered (the compare from the latch's LUTRAM straight into
+    // `go`'s fanout was the next comp path): it says the inputs moved one
+    // clock before, so `held` reaching 2 with no move since is four clocks.
+    reg       moved = 1'b1;
+    reg [1:0] held = 2'd0;             // clocks the inputs have held, saturating
+    reg       pend = 1'b0;
+    wire      go = (start || pend) && !moved && held == 2'd2;
+    always @(posedge clk) begin
+        moved <= {base, stride, hpos, seen, hs_live, flicker, py, mode, seed, res, top_open, bot_open}
+            != {base_i, stride_i, hpos_i, seen_i, hs_live_i, flicker_i, py_i, mode_i, seed_i, res_i, top_open_i, bot_open_i};
+        held <= moved ? 2'd0 : held == 2'd2 ? held : held + 2'd1;
+        pend <= !rst && st == IDLE && (start || pend) && !go;
+    end
+    always @(posedge clk) if (st == IDLE && go) begin
         fetch_addr <= addr_q;
         fetch_len <= len_q;
         ncols <= m_q == FS ? ZM_PHYSICAL_WIDTH[9:0] : len_q[9:0];
@@ -118,7 +147,7 @@ module zm_video_plane (
         {upd, upd_top, upd_bot, fetch_start, paint_start, done} <= 6'b0;
         if (rst) st <= IDLE;
         else case (st)
-            IDLE: if (start) begin
+            IDLE: if (go) begin
                 upd <= 1'b1;
                 upd_top <= m_q == OVS && top_q && hit_q;
                 upd_bot <= m_q == OVS && bot_q && hit_q;

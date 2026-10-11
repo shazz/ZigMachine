@@ -203,9 +203,14 @@ does not route yet (`CYCLES.md` "Branch prediction and the clock").
 - `comp`: the plane pass's geometry (`zm_video_plane.v`). Its inputs (the
   latch's LUTRAM, the live registers) are now registered, and the geometry is
   computed every clock into `*_q` registers that the pass takes at `start`: comp
-  went from 89-99 MHz to 92-139 (median 112) over the seeds. The inputs are
-  stable for two clocks before `start` by the drain rule and the command
-  crossing; the RTL tests and the video sim check it.
+  went from 89-99 MHz to 92-139 (median 112) over the seeds. Under Vivado the
+  one-clock `base + row * stride + hs` (mode decode -> row -> DSP multiply ->
+  32-bit add) still missed 125 MHz by 1.56 ns, so the address now takes four
+  registers (inputs, row, product / base + scroll, sum). The inputs hold for
+  hundreds of clocks before `start` (a PLANE pass loads a 400-beat PFB row
+  first; the drain rule keeps the CPU's stores out until `painted`), and the
+  plane holds a sooner `start` until they have held four clocks itself, so
+  the guarantee is local (`tests/tb/zm_video_plane_tb.cpp` and its mutants).
 
 **Cost** (Yosys's count of the pinned build's netlist): 6,049 LUTs (34 % of the
 7010's 17,600) + 90 distributed-RAM cells, 6,343 FFs, 25 RAMB36 + 27 RAMB18, 17
