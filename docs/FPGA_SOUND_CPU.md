@@ -64,6 +64,45 @@ Each bank has one writer, so no word ever has two masters.
 - **Between commands** the sound CPU renders whenever a frame (735 samples) is due. Its stdout goes to a 64 KiB
   ring at 0x41FEF000, which the cart prints between frames.
 
+### Which songs a cart image holds
+
+KESTREL has no file system for the players. Every song ZIGGY can ask BARD for is linked into the cart's own image
+(`build/hcycles/songs/<cart>.c`, `fpga/tools/song_pack.py`), and the PLAY command points BARD at those bytes. The
+table takes two sources. One is the songs the native host started in its first 600 frames with no input. The other is
+every string literal in the cart that ends in a player's extension (`SONG_EXTS`, held to `host/audio.c`'s
+`audio_play` by a test). A song a cart only reaches through input, like the jukebox's rows, gets in by the second
+source alone.
+
+**The bug this closed (2026-10-10).** `sap_test` (cart 86) played Warhawk on the board, but Enter did nothing. The
+packer's extension list had no `.sap`, so the table held only Warhawk, the one song the 600 input-free frames
+started. Every other request reached BARD with no bytes. BARD printed `ZM SONG MISSING` and Warhawk played on. Now:
+
+- the packer takes `.sap`, so `sap_test`'s table holds all five files. BMX Simulator's three songs are tune numbers
+  of one file, passed in `C_ARG`;
+- a song-named literal that is no file under `docs/music/` fails the build (`song_pack: ... no such song`). It is
+  no longer skipped;
+- on BARD, a request with no bytes still prints `ZM SONG MISSING <name>`.
+
+**Proof without a board.** `ZM_SIM_KEYS=F:event,...` (sim images only, `cycles/binput.c`) feeds the glass's key FIFO
+from the same script as the native host's `ZM_GLASS_KEYS`. With `--keys`, `tools/audio_sim_run.py` presses the same
+keys on both sides, and `tools/audio_sim_compare.py --songs` checks every song from its own start. The two sides
+start a song at different samples: in the sim, `sap_test`'s frame takes about 2.05 Mcycles (20.5 ms at 100 MHz), so
+the cart runs at 30 fps there. The sound is compared for the first song only, because a later song starts on chip
+state (tone phases, polynomial counters) that the earlier song left after playing a different length of time on each
+side.
+
+    tools/audio_sim_run.py sap_test --model build/soc_hp_snd --audio snd --frames 16 --mode exact \
+        --keys 3:100e020,4:e020,6:100000d,7:d,9:100e023,10:e023     # Up (to BMX), Enter, Right (song 2)
+
+| Song | Samples | Writes | Differences |
+|---|---|---|---|
+| Warhawk.sap (at start) | 3,675 | 45 | 0, and the sound: 0 of 3,675 samples |
+| BMX_Simulator.sap song 1 (Enter) | 2,205 | 24 | 0 |
+| BMX_Simulator.sap song 2 (Right) | 11,760 | 123 | 0 |
+
+`sap_test`'s image, all five tunes included: 1,719,888 bytes for ZM_AUDIO=snd and 1,694,304 for ZM_AUDIO=1, against
+the 12 MiB cap in `board.mk`. The five files are 12,555 bytes.
+
 ## Size
 
 `fpga/tools/sound_ooc.py`: Vivado out of context on the xc7z010-1, the whole block (core, decoder, arbiter, posted

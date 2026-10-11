@@ -6,6 +6,7 @@ comparison's write check (tools/audio_sim_compare.py), each with its failing cas
 The RTL itself is tests/test_rtl_audio.py (`soc_stamped_exact`, the sched_* mutants).
 """
 
+import re
 import sys
 from pathlib import Path
 
@@ -69,9 +70,28 @@ def test_song_pack_takes_the_logged_songs_and_the_literals_that_exist(tmp_path: 
     (tmp_path / "union").mkdir()
     for n in ("a.sndh", "union/b.mod"):
         (tmp_path / n).write_bytes(b"x")
-    wasm = b"\0asm\0\x0bunion/b.mod\0missing.sndh\0"
+    wasm = b"\0asm\0\x0bunion/b.mod\0"
     names = song_pack.song_names(wasm, tmp_path, "W 0 040 00000001\nL 735 1 a.sndh\nL 9 1 ../x.sndh\n")
     assert names == ["a.sndh", "union/b.mod"]
+
+
+def test_song_pack_refuses_a_song_the_cart_names_that_is_no_file(tmp_path: Path) -> None:
+    (tmp_path / "a.sap").write_bytes(b"x")
+    with pytest.raises(song_pack.MissingSong, match="missing.sap"):
+        song_pack.song_names(b"\0a.sap\0missing.sap\0", tmp_path)
+
+
+def test_song_pack_knows_every_extension_the_players_play() -> None:
+    played = set(re.findall(r'ends_with\(name, "\.(\w+)"\)', (FPGA / "host/audio.c").read_text()))
+    assert played == set(song_pack.SONG_EXTS)  # a format the packer misses is a song the board lacks
+
+
+def test_song_pack_takes_every_tune_of_the_sap_jukebox() -> None:
+    # The cart starts Warhawk.sap and asks for the other four on Enter (apps/zig/scenes/sap_test):
+    # the board's table had only the one the native host heard in its first 600 frames.
+    tunes = re.findall(r'\.file = "([^"]+)"', (ROOT / "apps/zig/scenes/sap_test/tunes.zig").read_text())
+    names = song_pack.song_names((ROOT / "docs/demo-sap_test.wasm").read_bytes(), ROOT / "docs/music")
+    assert len(tunes) == 5 and names == sorted(tunes)
 
 
 def test_song_pack_table_is_null_terminated_with_exact_lengths(tmp_path: Path) -> None:
@@ -104,3 +124,25 @@ def test_compare_writes_catches_a_dropped_write_and_a_late_one() -> None:
     assert any("024" in b for b in bad) and any("4 writes by the machine, 3" in b for b in bad)
     late = [(4000, 0x040, 1), (5000, 0x020, 0x10), (5001, 0x024, 0), (5882, 0x020, 0x0F)]
     assert audio_sim_compare.compare_writes(NATIVE, (735, 1), late, (5000, 1), 2000)[0].startswith("write 2:")
+
+
+# Two songs: the second starts 2 frames in on the machine, 4 on a sim running the cart at 30 fps.
+TWO = [(0, 0x040, 1), (0, 0x0A0, 0x50), (1470, 0x040, 1), (1470, 0x0A0, 0x20), (1500, 0x0A4, 0xAF)]
+TWO_LOG = "L 0 1 a.sap\nL 0 1 a.sap\nL 1470 3 a.sap\nL 1470 3 a.sap\n"
+TWO_UART = "ZM SONG 9000 1 a.sap\nZM SONG 11940 3 a.sap\n"
+
+
+def test_song_segments_time_each_song_from_its_own_start() -> None:
+    board = [(8995, 0x040, 1), (9000, 0x0A0, 0x50), (11940, 0x040, 1), (11940, 0x0A0, 0x20), (11970, 0x0A4, 0xAF)]
+    ns, bs = audio_sim_compare.song_starts(TWO_LOG, "L "), audio_sim_compare.song_starts(TWO_UART, "ZM SONG ")
+    assert ns == [(0, 1, "a.sap"), (1470, 3, "a.sap")]
+    segs = list(audio_sim_compare.song_segments(TWO, ns, board, bs, (3000, 15000)))
+    assert [s[5] for s in segs] == [1470, 1530]
+    assert all(audio_sim_compare.compare_writes(n, n0, b, b0, span) == [] for _, n, n0, b, b0, span in segs)
+
+
+def test_song_segments_catch_a_second_song_that_lost_a_write() -> None:
+    board = [(8995, 0x040, 1), (9000, 0x0A0, 0x50), (11940, 0x040, 1), (11940, 0x0A0, 0x20)]
+    ns, bs = audio_sim_compare.song_starts(TWO_LOG, "L "), audio_sim_compare.song_starts(TWO_UART, "ZM SONG ")
+    _, n, n0, b, b0, span = list(audio_sim_compare.song_segments(TWO, ns, board, bs, (3000, 15000)))[1]
+    assert audio_sim_compare.compare_writes(n, n0, b, b0, span)[-1].startswith("2 writes by the machine, 1")
