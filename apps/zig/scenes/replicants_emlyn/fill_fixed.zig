@@ -53,32 +53,39 @@ pub fn build(parts: []const Part, theta: trig.Angle) void {
     const n: usize = @intCast(((u_max - u_min) >> STEP) + 1);
     @memset(strip[0..n], R.BLACK);
     for (parts) |p| paint(p, u_min, n, du);
-    const t = R.table; // one load of the arena pointer, not one a row
-    var u_line = u_origin - u_min; // >= 0 on every line and bucket
-    for (0..A.CONTENT_H) |y| {
-        walk(&t[A.CONTENT_Y + y], u_line, du);
-        u_line += dy;
-    }
+    walk(u_origin - u_min, du, dy); // u >= 0 on every line and bucket
 }
 
-/// One line of the table: the strip read from `u` on, `du` a bucket. Four
-/// buckets go out as ONE word store (the cart's D-cache writes through, so
-/// every store is a bus write); the last count % 4 one at a time, never past
-/// `count`, whose u would leave the strip.
-fn walk(line: *[R.ROW]u8, u_first: i32, du: i32) void {
-    const words: *[R.WORDS]u32 = @ptrCast(@alignCast(line)); // rows are whole words
-    var u = u_first;
-    for (words[0 .. R.count / 4]) |*w| {
-        var v: u32 = 0;
-        inline for (0..4) |k| {
-            v |= @as(u32, strip[@intCast(u >> STEP)]) << (8 * k);
-            u += du;
+/// The table from the strip: bucket i of content line y reads the strip at
+/// u + i*du + y*dy. Walked FOUR BUCKETS AT A TIME DOWN THE LINES, not along
+/// each line: a line's buckets lie du apart (~60 entries at 149 buckets), so a
+/// line touches up to 9 KB of strip and every read missed the 4 KB D-cache
+/// (~1.2 Mc a frame), while down a column the reads move by dy, at most 32
+/// entries, and share cache lines. Four buckets make ONE word store (the
+/// D-cache writes through: every store is a bus write); the last count % 4
+/// one at a time, never past `count`, whose u would leave the strip.
+fn walk(u_first: i32, du: i32, dy: i32) void {
+    const t = R.table; // one load of the arena pointer, not one a row
+    const groups = R.count / 4;
+    for (0..groups) |g| {
+        var u: [4]i32 = undefined;
+        for (&u, 0..) |*v, k| v.* = u_first + @as(i32, @intCast(4 * g + k)) * du;
+        for (t[A.CONTENT_Y..][0..A.CONTENT_H]) |*line| {
+            var v: u32 = 0;
+            inline for (0..4) |k| {
+                v |= @as(u32, strip[@intCast(u[k] >> STEP)]) << (8 * k);
+                u[k] += dy;
+            }
+            // little-endian: bucket 4g is the low byte, as the HBL reads it
+            @as(*[R.WORDS]u32, @ptrCast(@alignCast(line)))[g] = v; // rows are whole words
         }
-        w.* = v; // little-endian: bucket 4i is the low byte, as the HBL reads it
     }
-    for (line[R.count / 4 * 4 .. R.count]) |*b| {
-        b.* = strip[@intCast(u >> STEP)];
-        u += du;
+    for (groups * 4..R.count) |i| {
+        var u = u_first + @as(i32, @intCast(i)) * du;
+        for (t[A.CONTENT_Y..][0..A.CONTENT_H]) |*line| {
+            line[i] = strip[@intCast(u >> STEP)];
+            u += dy;
+        }
     }
 }
 
