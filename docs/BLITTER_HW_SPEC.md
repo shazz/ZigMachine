@@ -423,9 +423,17 @@ TRIANGLE (faster too).
 
 Vivado out of context, placed and routed at 100 MHz (`fpga/tools/vivado_ooc.sh`, 2026-10-11):
 v1 2,173 LUT / 1,481 FF / 8 DSP, WNS +0.14 ns; pipelined 2,836 LUT / 2,031 FF / 8 DSP / 0 BRAM,
-WNS +0.11 ns (the queue's slots and tags are LUTRAM). The worst paths are still the
-sequencers' `base + y*stride + x` (a DSP and two carry chains) into the pixel unit's
-first register; nothing in the queue, the write buffer or the reuse compare is near them.
+WNS +0.11 ns (the queue's slots and tags are LUTRAM). The worst paths were the
+sequencers' `base + y*stride + x` (a subtract, a DSP and two carry chains) into the pixel
+unit's first register: -0.45 ns in the full SoC with the FPU core (2026-10-11). Since then
+no multiply sits between a sequencer and the pixel unit (`zm_blit_row`): each channel
+(A, B, D) follows its sequencer's y, holding the row it is on and the next row in the
+op's direction (every sequencer moves y by one at most per clock, one way per op), so the
+pixel address is a compare, a 2:1 mux and one add of x. The first row's product is
+computed in a free-running 3-clock setup pipeline from the check's box, which is final
+three clocks before `go` reaches the sequencers: no clock is added to any op. Out of
+context, placed and routed: 3,324 LUT / 2,466 FF / 8 DSP, WNS +0.19 ns (+0.11 before), the
+worst paths now the check's box (`bx1`), not the addresses.
 
 ### 10.5 Throughput
 
@@ -465,13 +473,14 @@ clip on/off, halftone declared / sniffed / all-zero, `SRC_ABS`, `DESC`, colour k
 stale registers, smears one pixel / one row behind on A and B, two ops back to back on
 one word. Three memory modes: `fast` (1 clock), `random` (above), `deep` (reads 16-31
 clocks late: dozens in flight); the testbench also fails any write taken over an
-unanswered earlier read of its bytes. 39 break tests (`ZM_RTL_BREAK=1`) each break one
+unanswered earlier read of its bytes. 45 break tests (`ZM_RTL_BREAK=1`) each break one
 rule of the RTL (minterm index, clip off by one, the Bresenham tie-break, the triangle
 edge rule, the floor division, `DESC`, the key, the halftone bit order, the region
 check, a window top, `SRC_ABS`, register writes while busy, the byte lane, the `CYCLES`
 model, a read passing an aliasing write, the overlap test without A or one row long, an
 answer paired with the wrong read, a pixel leaving before its answers, bytes merged
-across words, a word reused across ops / while ordered / stale...) and all are caught
+across words, a word reused across ops / while ordered / stale, a first row computed
+from the box before it settles, a row walk that ignores the direction or never moves...) and all are caught
 (random memory first, `deep` if random missed). The HP2 bridge's ordering is
 `tests/test_blit_hp_order.py`, with its two breaks. On the board SoC sim (`hp_sim`), the
 blitter cart (10 frames and its GLENZ/RUBBER/TILE/DELAY modes), tsl_hybridglenz frame 12

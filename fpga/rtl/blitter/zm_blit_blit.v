@@ -21,18 +21,17 @@ module zm_blit_blit (
 );
     reg run;
     reg signed [17:0] x, y;
-    wire [22:0] arow, brow;
-    wire signed [17:0] j = y - y0, i = x - x0;
-    zm_blit_row ra (.base(a_lin), .stride(a_stride), .y(j), .addr(arow));
-    zm_blit_row rb (.base(b_lin), .stride(b_stride), .y(j), .addr(brow));
+    wire signed [17:0] xs = desc ? ex1 - 18'sd1 : ex0, xe = desc ? ex0 : ex1 - 18'sd1;
+    wire signed [17:0] ys = desc ? ey1 - 18'sd1 : ey0, ye = desc ? ey0 : ey1 - 18'sd1;
+    // A and B at (x - x0, y - y0) of their rectangles, walked with y (zm_blit_row)
+    zm_blit_row ra (.clk(clk), .base(a_lin), .stride(a_stride), .xorg(x0), .yorg(y0), .ys(ys), .dn(desc),
+        .ld(go), .y(y), .x(x), .addr(px_aaddr));
+    zm_blit_row rb (.clk(clk), .base(b_lin), .stride(b_stride), .xorg(x0), .yorg(y0), .ys(ys), .dn(desc),
+        .ld(go), .y(y), .x(x), .addr(px_baddr));
     assign px_valid = run;
     assign px_x = x;
     assign px_y = y;
-    assign px_aaddr = arow + {5'd0, i};
-    assign px_baddr = brow + {5'd0, i};
 
-    wire signed [17:0] xs = desc ? ex1 - 18'sd1 : ex0, xe = desc ? ex0 : ex1 - 18'sd1;
-    wire signed [17:0] ys = desc ? ey1 - 18'sd1 : ey0, ye = desc ? ey0 : ey1 - 18'sd1;
     wire signed [17:0] step = desc ? -18'sd1 : 18'sd1;
     wire last_x = x == xe, last_y = y == ye;
     always @(posedge clk) begin
