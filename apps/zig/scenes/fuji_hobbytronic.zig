@@ -10,10 +10,11 @@
 //
 // Written as a challenge for the FPGA SoC, whose cart CPU is an RV32IM at
 // 100 MHz with no FPU, so the frame path has no floats at all:
-//   - the logo (fuji_hobbytronic/mesh.zig) is a comptime solid of 80 vertices
-//     and 74 faces; fixed.zig turns, projects, culls and lights it in Q14;
-//   - logo.zig sorts the visible faces far to near and fills each with two
-//     hardware BLITTER triangles;
+//   - the logo (fuji_hobbytronic/mesh.zig) is the real Fuji, traced from the
+//     logo by prototypes/fuji_logo/gen_mesh.py and extruded: 138 vertices,
+//     264 triangles; fixed.zig turns, projects, culls and lights it in Q14;
+//   - logo.zig sorts the visible triangles far to near and fills each with
+//     one hardware BLITTER triangle op;
 //   - the colours running through the front cap are REAL rasters
 //     (fuji_hobbytronic/raster.zig): one palette index, rewritten per scanline
 //     by the plane's HBL handler, never bars drawn as pixels;
@@ -34,7 +35,7 @@ pub const SONG: u8 = 1;
 
 const PLANE = 0;
 const CX = 160;
-const CY = 94; // the logo's centre line, between the title and the scroller
+const CY = 92; // the logo's centre line, between the title and the scroller
 
 const YAW_STEP = 3; // angle units a frame: a full turn in 341 frames
 const TILT = 64; // the wobble's peak pitch, angle units (22.5 degrees)

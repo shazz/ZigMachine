@@ -1,12 +1,12 @@
 // --------------------------------------------------------------------------
 // FUJI HOBBYTRONIC: the solid Fuji, transformed in fixed point and filled by
-// the HARDWARE BLITTER, one TRIANGLE op per half quad.
+// the HARDWARE BLITTER, one TRIANGLE op per face.
 //
-// Per frame: rotate the 80 vertices (Q14), project them (one divide each),
-// rotate each face's normal, drop the faces turned away from the eye, sort the
-// rest far to near on their summed depth (painter's algorithm; every prong is
-// convex and they never interpenetrate, so a per-face sort is enough), then
-// hand each to the blitter. Colour: the front cap is raster.FRONT and the back
+// Per frame: rotate the vertices (Q14), project them (one divide each), rotate
+// each triangle's normal, drop the ones turned away from the eye, sort the rest
+// far to near on their summed depth, then hand each to the blitter. The sort is
+// PER TRIANGLE (painter's algorithm): the traced fingers are concave and curved,
+// so a whole cap or side strip has no single depth, but its small triangles do. Colour: the front cap is raster.FRONT and the back
 // cap raster.BACK, both one index whose colour the HBL changes per line; the
 // sides take a flat Lambert shade from the SIDE ramp.
 // --------------------------------------------------------------------------
@@ -18,7 +18,7 @@ const raster = @import("raster.zig");
 pub const SIDE: u8 = 6; // SIDE .. SIDE + SIDE_LEVELS - 1: the side faces' shades
 pub const SIDE_LEVELS = 8;
 
-const Visible = struct { key: i32, face: u8, ink: u8 };
+const Visible = struct { key: i32, face: u16, ink: u8 };
 
 var screen: [mesh.NV][2]i16 = undefined;
 var rotated: [mesh.NV][3]i32 = undefined;
@@ -33,7 +33,7 @@ pub fn sidePalette(fb: *zg.LogicalFB) void {
 }
 
 /// Draw the Fuji turned by `yaw` then `pitch` (angle units), centred at (cx, cy).
-/// Returns the number of faces drawn.
+/// Returns the number of triangles drawn.
 pub fn draw(fb: *zg.LogicalFB, bl: *zg.Blitter, yaw: i32, pitch: i32, cx: i32, cy: i32) usize {
     const r = fx.Rot.init(yaw, pitch);
     for (mesh.MODEL.verts, 0..) |v, i| {
@@ -43,9 +43,8 @@ pub fn draw(fb: *zg.LogicalFB, bl: *zg.Blitter, yaw: i32, pitch: i32, cx: i32, c
     const n = collect(r);
     sortFarToNear(visible[0..n]);
     for (visible[0..n]) |vf| {
-        const q = mesh.MODEL.faces[vf.face].v;
-        bl.triangle(fb, at(q[0]), at(q[1]), at(q[2]), vf.ink);
-        bl.triangle(fb, at(q[0]), at(q[2]), at(q[3]), vf.ink);
+        const t = mesh.MODEL.faces[vf.face].v;
+        bl.triangle(fb, at(t[0]), at(t[1]), at(t[2]), vf.ink);
     }
     return n;
 }
@@ -75,7 +74,7 @@ fn collect(r: fx.Rot) usize {
     return n;
 }
 
-/// Insertion sort, deepest first: about 40 faces, nearly in order frame to frame.
+/// Insertion sort, deepest first: about 120 triangles a frame.
 fn sortFarToNear(list: []Visible) void {
     var i: usize = 1;
     while (i < list.len) : (i += 1) {
