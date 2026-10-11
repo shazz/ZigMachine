@@ -178,7 +178,11 @@ def test_sd_staging_lists_what_is_missing_and_refuses_devices(tmp_path: Path) ->
     rows = dict(glass_sd.stage(out, tmp_path / "br", tmp_path / "no-firmwares"))
     assert (out / "zigmachine.dtb").read_bytes() == b"zigmachine-z7lite.dtb"
     assert (out / "boot.scr").read_bytes()[:4] == bytes.fromhex("27051956")
-    assert rows["zImage"].endswith("zImage") and not any(k.startswith("zigmachine/") for k in rows)
+    assert rows["zImage"].endswith("zImage")
+    shelf = {k: v for k, v in rows.items() if k.startswith("zigmachine/")}
+    assert set(shelf) == {f"zigmachine/demo-{t}.zmd" for t in glass_sd.SHELF}  # every listed cart is named...
+    assert all(v.startswith("MISSING: no ") for v in shelf.values())  # ...as missing its firmware
+    assert not list((out / "zigmachine").glob("*.zmd"))
     with pytest.raises(SystemExit, match="device"):
         glass_sd.stage(Path("/dev/null"), None)
 
@@ -195,7 +199,8 @@ def test_sd_shelf_takes_board_firmwares_and_skips_one_older_than_the_csr_map(tmp
     os.utime(csr, (100, 100))
     os.utime(fws / "tutorial" / "fw.bin", (200, 200))
     os.utime(fws / "blitter" / "fw.bin", (50, 50))  # built against an older map
-    rows = dict(glass_sd.build_shelf(tmp_path / "sd", fws, csr))
+    rows = dict(glass_sd.build_shelf(tmp_path / "sd", fws, csr, ("tutorial", "gem")))
+    assert rows["zigmachine/demo-gem.zmd"] == f"MISSING: no {fws / 'gem' / 'fw.bin'}; make -C fpga board-fw CART=gem"
     assert rows["zigmachine/demo-tutorial.zmd"].endswith("docs/demo-tutorial.zmd + " + str(fws / "tutorial" / "fw.bin"))
     assert rows["zigmachine/demo-blitter.zmd"].startswith("STALE")
     assert not (tmp_path / "sd" / "demo-blitter.zmd").exists()

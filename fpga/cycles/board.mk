@@ -6,6 +6,7 @@
 #   make hp-sim CART=tutorial          soc/hp_sim.py (the board SoC with a model of the PS) in Verilator:
 #                                      the frame hashes against apps/scene_hash.mjs (tools/hp_sim_run.py)
 #   make board-fw CART=tutorial        build/hcycles/board/<cart>/fw.bin: the image U-Boot loads to DDR
+#   make board-shelf [ZM_AUDIO=snd]    board-fw for every cart of the SD card's shelf (tools/glass_sd.py SHELF)
 #
 # One image is linked for one CSR map: the header comes from the sim's csr.json,
 # and tools/cycles_csr.py --hp-check refuses it if the bitstream's map differs.
@@ -129,9 +130,11 @@ $(foreach v,sim board,$(eval $(call hp_rules,$(v))))
 $(HCYC)/sim$(ASUF)$(HSUF)/%/zm_ddr.init: $(HCYC)/sim$(ASUF)$(HSUF)/%/fw.bin
 	od -An -v -tx8 -w8 $< | tr -d ' ' >$@
 
-.PHONY: hp-sim board-fw soc-hp-fpu
+.PHONY: hp-sim board-fw board-shelf soc-hp-fpu
 soc-hp-fpu: $(SOC_HP)_fpu/hp_sim.json
 board-fw: memmap $(HCYC)/board$(ASUF)$(HSUF)/$(CART)/fw.bin
 	@ls -l $(HCYC)/board$(ASUF)$(HSUF)/$(CART)/fw.bin
+board-shelf: memmap
+	for c in $$(uv run python tools/glass_sd.py --shelf); do $(MAKE) --no-print-directory board-fw CART=$$c || exit 1; done
 hp-sim: memmap
 	uv run python tools/hp_sim_run.py $(CART)
