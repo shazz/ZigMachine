@@ -6,11 +6,14 @@ for the video DMA).
   32BitEn = 1, fpga/boards/microphase_z7_7010/README.md). Only WDATA[31:0] and
   WSTRB[3:0] count, placed by the byte address; a 64-bit beat keeps its low
   word only, which is exactly the board's first picture (every odd pixel black).
-- Each port takes one read burst and one write burst at a time. A read burst's
-  first beat comes `latency` cycles after its AR (the HP path's first-beat
-  cost, soc/zm_memtiming.py's `HP` figure); the rest stream a beat a cycle.
-  Writes take their beats as they come and answer once the burst's last beat
-  is in.
+- Each port takes up to `reads` read bursts at a time (the AFI's read command
+  acceptance; 1, the default, is one burst at a time) and answers them in order:
+  a burst's first beat comes `latency` cycles after its AR (the HP path's
+  first-beat cost, soc/zm_memtiming.py's `HP` figure) or right behind the burst
+  before it, the rest stream a beat a cycle. So several reads in flight pay the
+  latency once, as on the board. Writes take one burst at a time, their beats
+  as they come; a burst's B is queued once its last beat is in, and the next AW
+  is taken while earlier Bs wait.
 - The memory has one data path, as the DDR has: one beat a cycle over all
   ports, round robin when several want it.
 - **Only the DDR window answers.** A burst outside DDR_BASE .. DDR_BASE +
@@ -26,7 +29,7 @@ from __future__ import annotations
 
 from litex.gen import LiteXModule
 from litex.soc.interconnect import axi
-from migen import Cat, If, Memory, Mux, Signal
+from migen import Array, Cat, If, Memory, Mux, Signal
 
 from soc.zm_hp import DDR_BASE
 
@@ -36,7 +39,7 @@ BAD = 0xBADD_BADD_BADD_BADD
 class ZMSimAXIRAM(LiteXModule):
     def __init__(
         self, size: int, ports: list[axi.AXIInterface], latency: int = 20, name: str = "zm_ddr", base: int = DDR_BASE,
-        wr32: bool = False,
+        wr32: bool = False, reads: int = 1,
     ) -> None:
         depth = size // 8
         self.aw, self.base, self.wr32 = depth.bit_length() - 1, base, wr32
@@ -44,7 +47,9 @@ class ZMSimAXIRAM(LiteXModule):
         mem = Memory(64, depth, init=[0], name=name)
         self.port = mem.get_port(write_capable=True, we_granularity=8, async_read=True)
         self.specials += mem, self.port
-        self.latency = latency
+        self.latency, self.reads = latency, reads
+        self.now = Signal(16)  # a free-running clock: a burst's first beat is due at its AR's `now` + latency + 1
+        self.sync += self.now.eq(self.now + 1)
         self.error = Signal()  # sticky: a write burst whose WLAST disagreed with its AWLEN
         self.wants = [Signal(name=f"ddr_want{i}") for i in range(len(ports))]
         self.grants = [Signal(name=f"ddr_grant{i}") for i in range(len(ports))]
@@ -57,28 +62,20 @@ class ZMSimAXIRAM(LiteXModule):
 
     def _slave(self, hp: axi.AXIInterface, want: Signal, grant: Signal) -> None:
         """One port's read and write sides; `want`/`grant`: its turn on the memory."""
-        r_on, r_ok, r_adr, r_left, r_wait = Signal(), Signal(), Signal(self.aw), Signal(5), Signal(8)
-        w_on, w_ok, w_left, w_size = Signal(), Signal(), Signal(5), Signal(2)
+        w_on, w_ok, w_left, w_size, b_due = Signal(), Signal(), Signal(5), Signal(2), Signal(4)
         w_adr = Signal(self.aw + 3)  # a BYTE address: a 32-bit write channel moves by AxSIZE
         port = self.port
         w_go = w_on & hp.w.valid  # a write beat is waiting: it goes before this port's reads
-        r_go = r_on & (r_wait == 0) & (~hp.r.valid | hp.r.ready) & ~w_go  # a read beat can load now
+        r_go, rd = self._reads(hp, grant, w_go)
         self.comb += [
-            hp.ar.ready.eq(~r_on), hp.aw.ready.eq(~w_on & ~hp.b.valid),
+            hp.aw.ready.eq(~w_on & ~b_due[-1]), hp.b.valid.eq(b_due != 0),
             want.eq(r_go | w_go), hp.w.ready.eq(grant & w_go),
             hp.r.resp.eq(0), hp.b.resp.eq(0), hp.r.id.eq(0), hp.b.id.eq(0),
-            If(grant, port.adr.eq(r_adr),
+            If(grant, port.adr.eq(rd),
                If(w_go, port.adr.eq(w_adr[3:]), *self._write_lanes(hp, w_adr, w_ok))),
         ]  # fmt: skip
+        last = hp.w.valid & hp.w.ready & (w_left == 1)
         self.sync += [
-            If(hp.ar.valid & hp.ar.ready,
-               r_on.eq(1), r_ok.eq(self._inside(hp.ar.addr)), r_adr.eq(hp.ar.addr[3:]),
-               r_left.eq(hp.ar.len + 1), r_wait.eq(self.latency)),
-            If(r_wait != 0, r_wait.eq(r_wait - 1)),
-            If(hp.r.valid & hp.r.ready, hp.r.valid.eq(0)),
-            If(grant & r_go,
-               hp.r.valid.eq(1), hp.r.data.eq(Mux(r_ok, port.dat_r, BAD)), hp.r.last.eq(r_left == 1),
-               r_adr.eq(r_adr + 1), r_left.eq(r_left - 1), If(r_left == 1, r_on.eq(0))),
             # A burst the AFI would UPSIZE (wr32): on the board that path wrote twice the row
             # and wrong words. The model refuses it: the burst and every later write are lost.
             If(hp.aw.valid & hp.aw.ready & self._upsized(hp), self.error.eq(1)),
@@ -91,9 +88,38 @@ class ZMSimAXIRAM(LiteXModule):
             If(hp.w.valid & hp.w.ready,
                w_adr.eq(w_adr + (1 << w_size)), w_left.eq(w_left - 1),
                If(hp.w.last != (w_left == 1), self.error.eq(1), w_ok.eq(0)),
-               If(w_left == 1, w_on.eq(0), hp.b.valid.eq(1))),
-            If(hp.b.valid & hp.b.ready, hp.b.valid.eq(0)),
+               If(w_left == 1, w_on.eq(0))),
+            b_due.eq(b_due + last - (hp.b.valid & hp.b.ready)),
         ]  # fmt: skip
+
+    def _reads(self, hp: axi.AXIInterface, grant: Signal, w_go: object) -> tuple[Signal, Signal]:
+        """The read side: up to `reads` bursts queued, served in order. Returns (r_go, the word
+        address of the beat r_go would load)."""
+        n, aw = self.reads, self.aw
+        q_adr, q_len = Array(Signal(aw) for _ in range(n)), Array(Signal(4) for _ in range(n))
+        q_ok, q_due = Array(Signal() for _ in range(n)), Array(Signal(16) for _ in range(n))
+        head, tail, count, off = Signal(max=max(n, 2)), Signal(max=max(n, 2)), Signal(max=n + 1), Signal(4)
+        step = (lambda p: Mux(p == n - 1, 0, p + 1)) if n > 1 else (lambda p: p)
+        due = (self.now - q_due[head])[15] == 0  # now >= due, the gap well under 2^15 cycles
+        r_go, rd = Signal(), Signal(aw)
+        port = self.port
+        self.comb += [
+            hp.ar.ready.eq(count != n),
+            rd.eq(q_adr[head] + off),
+            r_go.eq((count != 0) & due & (~hp.r.valid | hp.r.ready) & ~w_go),
+        ]  # fmt: skip
+        end = off == q_len[head]
+        self.sync += [
+            If(hp.ar.valid & hp.ar.ready,
+               q_adr[tail].eq(hp.ar.addr[3:]), q_len[tail].eq(hp.ar.len), q_ok[tail].eq(self._inside(hp.ar.addr)),
+               q_due[tail].eq(self.now + self.latency + 1), tail.eq(step(tail))),
+            If(hp.r.valid & hp.r.ready, hp.r.valid.eq(0)),
+            If(grant & r_go,
+               hp.r.valid.eq(1), hp.r.data.eq(Mux(q_ok[head], port.dat_r, BAD)), hp.r.last.eq(end),
+               off.eq(Mux(end, 0, off + 1)), If(end, head.eq(step(head)))),
+            count.eq(count + (hp.ar.valid & hp.ar.ready) - (grant & r_go & end)),
+        ]  # fmt: skip
+        return r_go, rd
 
     def _upsized(self, hp: axi.AXIInterface) -> object:
         """UG585 5.3.6: a 32-bit write channel upsizes an INCR burst of an even number of beats,
