@@ -86,11 +86,14 @@ class ZigMachineSoC(SoCCore):
         audio: dict[str, object] | None = None,
         **kwargs: object,
     ) -> None:
+        if glass:  # the board's SoC and soc/hp_sim.py: the firmware times itself with ZMCycles and
+            # never reads timer0 or the identifier string, so neither is built (LUTs)
+            kwargs.setdefault("with_timer", False)
         SoCCore.__init__(
             self,
             platform,
             clk_freq=sys_clk,
-            ident="ZigMachine",
+            ident="" if glass else "ZigMachine",
             cpu_type="vexriscv",
             cpu_variant="standard",
             integrated_rom_size=rom_size,
