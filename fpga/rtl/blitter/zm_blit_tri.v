@@ -6,10 +6,12 @@
 // with the destination through MINTERM).
 // v1 divides per scanline per edge (~35 clocks each); an incremental edge walk (one divide
 // per edge per triangle) would make a small triangle several times faster.
-// The edge setup is pipelined over three clocks (EDGE: pick + order the vertices and
+// The edge setup is pipelined over four clocks (PICK: pick + order the vertices; EDGE:
 // subtract; MUL: |dxe| * t; GO: start the divide) so that no path runs vertex mux ->
 // compare -> subtract -> multiply -> divider in one clock: in one, it missed 100 MHz by
-// 4 ns on the board (Vivado, 2026-10-10). Likewise the edge's x is registered (MINMAX)
+// 4 ns on the board (Vivado, 2026-10-10); with the pick and the subtract in one clock the
+// full SoC still missed by 1.0 ns, register -> vertex mux -> compare -> subtract -> the
+// DSP's input register (2026-10-11), hence PICK. Likewise the edge's x is registered (MINMAX)
 // before the min/max. CYCLES counts pixels, not clocks: unchanged.
 `default_nettype none
 
@@ -27,7 +29,8 @@ module zm_blit_tri (
     input  wire               px_ready,
     output reg                done
 );
-    localparam [3:0] IDLE = 0, EDGE = 1, DIV = 2, NEXT = 3, SPAN = 4, PIX = 5, NEXTY = 6, MUL = 7, GO = 8, MINMAX = 9;
+    localparam [3:0] IDLE = 0, EDGE = 1, DIV = 2, NEXT = 3, SPAN = 4, PIX = 5, NEXTY = 6, MUL = 7, GO = 8, MINMAX = 9,
+                     PICK = 10;
     reg [3:0] st;
     reg [1:0] e;
     reg signed [17:0] y, ymax, xl, xr, x, xend;
@@ -37,8 +40,8 @@ module zm_blit_tri (
     wire signed [17:0] pax = e == 0 ? x0 : e == 1 ? x1 : x2, pay = e == 0 ? y0 : e == 1 ? y1 : y2;
     wire signed [17:0] pbx = eb == 0 ? x0 : eb == 1 ? x1 : x2, pby = eb == 0 ? y0 : eb == 1 ? y1 : y2;
     wire swap = pay > pby;
-    wire signed [17:0] ax = swap ? pbx : pax, ay = swap ? pby : pay;
-    wire signed [17:0] bx = swap ? pax : pbx, by = swap ? pay : pby;
+    // PICK registers the ordered edge; EDGE subtracts from those registers
+    reg signed [17:0] ax, ay, bx, by;
     wire skip = ay == by || y < ay || y >= by;
     wire signed [17:0] dye = by - ay;
     wire signed [17:0] dxe = bx - ax, t = y - ay;   // |dxe| < 2^16, 0 <= t < 2^16: one DSP48
@@ -76,7 +79,12 @@ module zm_blit_tri (
             IDLE: if (go) begin
                 y <= lo; ymax <= hi; e <= 2'd0; xl <= 18'sh1FFFF; xr <= 18'sh20000;
                 if (lo > hi) done <= 1'b1;
-                else st <= EDGE;
+                else st <= PICK;
+            end
+            PICK: begin
+                ax <= swap ? pbx : pax; ay <= swap ? pby : pay;
+                bx <= swap ? pax : pbx; by <= swap ? pay : pby;
+                st <= EDGE;
             end
             EDGE: begin
                 e_ax <= ax; e_adx <= adx; e_t <= t[16:0]; e_dye <= dye[16:0]; e_neg <= neg; e_skip <= skip;
@@ -98,7 +106,7 @@ module zm_blit_tri (
             end
             NEXT: begin
                 e <= e + 2'd1;
-                st <= e == 2'd2 ? SPAN : EDGE;
+                st <= e == 2'd2 ? SPAN : PICK;
             end
             SPAN: begin
                 x <= xl > cx0 ? xl : cx0;
@@ -112,7 +120,7 @@ module zm_blit_tri (
             default: begin  // NEXTY
                 y <= y + 18'sd1; e <= 2'd0; xl <= 18'sh1FFFF; xr <= 18'sh20000;
                 if (y == ymax) begin st <= IDLE; done <= 1'b1; end
-                else st <= EDGE;
+                else st <= PICK;
             end
         endcase
     end
