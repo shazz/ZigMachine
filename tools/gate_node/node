@@ -1,0 +1,8 @@
+#!/bin/sh
+# The gate's node (tools/gate_lib.sh puts this directory first on PATH): the real node,
+# single-threaded. Node 24 can deadlock in process.exit() while a V8 platform worker
+# thread is still busy: the harness prints its verdict, then never exits, and the gate
+# kills it after GATE_JOB_TIMEOUT as "a wedged harness" (union_demo_music, dhs_0pxl0reg,
+# 2026-10-10/11: 4-6 of 12 parallel runs hung; 0 of 10 with --single-threaded, which is
+# not allowed in NODE_OPTIONS). Timed harnesses keep their budgets (raytrace 8.3 ms a frame).
+exec "$GATE_REAL_NODE" --single-threaded "$@"

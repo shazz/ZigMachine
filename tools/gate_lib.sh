@@ -29,6 +29,13 @@ _cores=$(nproc 2>/dev/null || echo 2)
 _half=$((_cores / 2)); [ "$_half" -ge 1 ] || _half=1; [ "$_half" -le 6 ] || _half=6
 GATE_JOBS=${GATE_JOBS:-$_half}
 GATE_JOB_TIMEOUT=${GATE_JOB_TIMEOUT:-1800}
+# Every harness's `node` is tools/gate_node/node: the real one, single-threaded (it explains why).
+if [ -z "${GATE_REAL_NODE:-}" ]; then
+    GATE_REAL_NODE=$(command -v node)
+    export GATE_REAL_NODE
+    PATH="$(cd "$(dirname "$0")" && pwd)/tools/gate_node:$PATH"
+    export PATH
+fi
 GATE_Q=$(mktemp -d)
 _gate_n=0
 
