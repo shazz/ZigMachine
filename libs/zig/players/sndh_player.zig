@@ -419,8 +419,8 @@ pub const SndhPlayer = struct {
         self.tune = self.info.default_tune;
         self.samples_per_frame = @intFromFloat(audio.SAMPLE_RATE / @as(f32, @floatFromInt(self.info.hz)));
 
-        heapReset(IMAGE_BASE + image_len);
-        native.recognise(ram()[IMAGE_BASE..][0..image_len], IMAGE_BASE);
+        // The heap starts past anything the native replay keeps above the image (mode 3's shadow).
+        heapReset(native.recognise(ram()[IMAGE_BASE..][0..image_len], IMAGE_BASE, STACK_TOP - STACK_ROOM));
 
         // The return stub the replay routine will RTS to.
         writeWord(RETURN_PC, NOP);

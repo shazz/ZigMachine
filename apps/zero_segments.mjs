@@ -34,7 +34,9 @@ const ALLOW = {
     // (players/digi.zig, the Beat Dis driver; keys 1/2/3).
     // +44 B (2026-10-10): the SAP player's 6502 registers and counters (sap_player.zig,
     // sap_bus.zig). Its 64 KiB Atari and its write queue live in song RAM, not here.
-    "demo-audio.wasm": 590860,
+    // +16 B (2026-10-11): where mode 3's converted samples are (sndh_native.zig Shadow);
+    // the samples themselves live in the 68000's RAM above the image, not here.
+    "demo-audio.wasm": 590876,
 };
 
 function uleb(b, p) {

@@ -13,6 +13,13 @@
 // runs and still moves the sample pointer, only its three YM writes are left
 // out. So a switch, either way and at any moment, carries on from the same
 // sample. A tune with no native driver plays in mode 1 whatever is asked.
+//
+// Mode 3 cannot play the tune's bytes as they are: they are UNSIGNED and
+// INVERTED (digi_handler.zig linear), and a PCM channel plays signed bytes.
+// Played raw, every sample folded at its midpoint: noise in rhythm, on the board
+// and in the browser alike (2026-10-11). So the load also writes the samples,
+// converted, into a SHADOW above the image, reserved from the 68000's heap, and
+// the channel plays the shadow. The tune's own bytes are never touched.
 // --------------------------------------------------------------------------
 const audio = @import("audio_hw");
 const digi = @import("digi.zig");
@@ -30,7 +37,8 @@ pub var enabled: bool = true;
 /// What the last load found (digi.Status), for the host to report.
 pub var status: digi.Status = .musashi;
 /// A deliberately wrong native replay, for the oracle to prove it would catch
-/// one: 1 = the segment's end checked every interrupt, not every VBL. Test only.
+/// one: 1 = the segment's end checked every interrupt, not every VBL; 2 = mode 3
+/// plays the tune's bytes raw, not the shadow (the 2026-10-11 bug). Test only.
 pub var mutant: u32 = 0;
 
 var driver: ?Driver = null; // what the image is, whatever the mode
@@ -50,19 +58,25 @@ const Bus68 = struct {
 };
 
 /// A tune was just loaded at 68000 address `base`: which driver, and the mode.
-pub fn recognise(image: []const u8, base: u32) void {
-    pcmStop();
+/// Returns where the 68000's heap may start: past the image and mode 3's shadow,
+/// which must end by `top` (else mode 3 is not offered).
+pub fn recognise(image: []const u8, base: u32, top: u32) u32 {
+    forget();
     const r = digi.recognise(image, base);
     status = r.status;
     driver = r.driver;
     mode = if (driver != null and enabled) .native else .st;
     if (driver != null and !enabled) status = .disabled;
+    const end = base + @as(u32, @intCast(image.len));
+    if (mode == .native) shadow = buildShadow(driver.?, end, top);
+    return if (shadow) |sh| sh.to + (sh.hi - sh.lo) else end;
 }
 
 /// No tune: a refused load must not leave the last one's driver armed.
 pub fn forget() void {
     pcmStop();
     driver = null;
+    shadow = null;
     status = .musashi;
     mode = .st;
 }
@@ -97,9 +111,10 @@ pub fn interrupt(handler: u32) bool {
 /// zg.requestSndhMode: the mode now in force, or 0 for a mode that does not
 /// exist (refused: nothing changes). A tune with no native driver stays in 1.
 pub fn setMode(m: u32) u32 {
-    const want = if (m >= 1 and m <= 3) @as(Mode, @enumFromInt(m)) else return 0;
+    var want = if (m >= 1 and m <= 3) @as(Mode, @enumFromInt(m)) else return 0;
     const d = driver orelse return @intFromEnum(Mode.st);
-    if (want == mode) return m;
+    if (want == .pcm and shadow == null) want = .native; // no room for the converted samples
+    if (want == mode) return @intFromEnum(want);
     if (mode == .pcm) pcmStop();
     mode = want;
     if (want == .pcm) {
@@ -109,7 +124,7 @@ pub fn setMode(m: u32) u32 {
         }
         pcmStart(d);
     }
-    return m;
+    return @intFromEnum(want);
 }
 
 pub fn current() u32 {
@@ -120,17 +135,34 @@ pub fn current() u32 {
 const CH: u32 = 0; // ste_dma.zig's left channel: a digi tune does not use the DMA chip
 const OVERSHOOT: u32 = 320; // the handler plays past `end` until the next 50 Hz play: <= 316 bytes
 const TIMER_HZ: f32 = 2457600.0 / 4.0 / 39.0; // the driver's Timer A
-const RAM_SIZE: u32 = @intCast(audio.SONG_CAP);
+
+/// The samples' 68000 range [lo, hi) and its converted copy at `to`.
+const Shadow = struct { lo: u32, hi: u32, to: u32 };
+var shadow: ?Shadow = null;
+
+/// The samples to the end of the image and the handler's overshoot past it,
+/// each byte made linear, written above it (same phase mod 4) if they fit by `top`.
+fn buildShadow(d: Driver, end: u32, top: u32) ?Shadow {
+    const lo = digi.beat_dis.samples(d);
+    const hi = end + OVERSHOOT;
+    const to = ((hi + 0xF) & ~@as(u32, 0xF)) + (lo & 0xF);
+    if (lo >= end or to + (hi - lo) > top) return null;
+    const ram: [*]u8 = @ptrFromInt(audio.SONG_BASE);
+    for (ram[to..][0 .. hi - lo], ram[lo..hi]) |*o, b| o.* = digi.handler.linear(b);
+    return .{ .lo = lo, .hi = hi, .to = to };
+}
 
 /// Play from the sample pointer to the segment's end and on as far as the
-/// handler would, at the timer's rate; play() starts the next segment.
+/// handler would, at the timer's rate, from the shadow; play() starts the next segment.
 fn pcmStart(d: Driver) void {
+    const sh = shadow orelse return pcmStop();
     const m = digi.Access(Bus68);
     const pos = m.rd32(d.base + 0x2A) & 0xFF_FFFF;
     const end = m.rd32(d.base + 0x2E) & 0xFF_FFFF;
-    if (pos >= RAM_SIZE) return pcmStop();
-    const len = @min(@max(end + 1, pos) - pos + OVERSHOOT, RAM_SIZE - pos);
-    audio.machinePaulaTrigger(CH, audio.songAddr(pos), len, 0, 0, 0.0);
+    if (pos < sh.lo or pos >= sh.hi) return pcmStop();
+    const len = @min(@max(end + 1, pos) - pos + OVERSHOOT, sh.hi - pos);
+    const at = if (mutant == 2) pos else sh.to + (pos - sh.lo); // mutant 2: the raw bytes
+    audio.machinePaulaTrigger(CH, audio.songAddr(at), len, 0, 0, 0.0);
     audio.machinePaulaSetStep(CH, @intFromFloat(TIMER_HZ / audio.SAMPLE_RATE * audio.FRAC_ONE));
     audio.machinePaulaSetVolume(CH, PCM_VOLUME);
 }
@@ -139,7 +171,7 @@ fn pcmStop() void {
     audio.machinePaulaSetActive(CH, 0);
 }
 
-/// The PCM channel's level against the YM's: Beat Dis's first 20 s measure RMS
-/// 3898 in mode 2 and 11164 in mode 3 at 1.0, so 0.35, here as 90/256 (the audio
-/// core's volume grid, host/audio_regs.h zma_vol).
-const PCM_VOLUME: f32 = 90.0 / 256.0;
+/// The PCM channel's level against the YM's: Beat Dis's first 20 s measure an AC
+/// RMS of 3900 in mode 2 and 7734 in mode 3 at 1.0, so 0.504, here as 129/256
+/// (the audio core's volume grid, host/audio_regs.h zma_vol).
+const PCM_VOLUME: f32 = 129.0 / 256.0;

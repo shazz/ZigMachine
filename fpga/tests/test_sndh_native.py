@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import os
 import re
+import statistics
 import subprocess
 from pathlib import Path
 
@@ -153,6 +154,39 @@ def test_mode_3_plays_the_samples_on_pcm_and_hands_back_on_the_same_sample(tmp_p
     late = [w for w in writes if int(w[1]) > 10 * 735]
     assert late and all(int(w[2], 16) >= 0x100 for w in late)  # PCM channel fields, no YM volumes
     assert len((tmp_path / "p3.pcm").read_bytes()) == 120 * 735 * 4
+
+
+def left(pcm: bytes) -> list[int]:  # host/audio_soft.c's .pcm: s16 stereo
+    return [int.from_bytes(pcm[i : i + 2], "little", signed=True) for i in range(0, len(pcm), 4)]
+
+
+def correlation(x: list[int], y: list[int]) -> float:
+    mx, my = sum(x) / len(x), sum(y) / len(y)
+    xy = sum((a - mx) * (b - my) for a, b in zip(x, y, strict=True))
+    return xy / (sum((a - mx) ** 2 for a in x) * sum((b - my) ** 2 for b in y)) ** 0.5
+
+
+def sound(tmp: Path, name: str, plan: str | None, frames: int, mutant: int = 0) -> list[int]:
+    """The machine's own samples (machine-audio's engine, the browser's), mode 3 from `plan`."""
+    env = {k: v for k, v in os.environ.items() if not k.startswith("ZM_SNDH_")}
+    env.update({"ZM_AUDIO_LOG": str(tmp / name), "ZM_MUSIC_DIR": str(MUSIC)})
+    if plan:
+        env["ZM_SNDH_MODES"] = plan
+    if mutant:
+        env["ZM_SNDH_MUTANT"] = str(mutant)
+    subprocess.run([str(ORACLE), BEAT_DIS, "0", str(frames)], env=env, check=True, capture_output=True)
+    return left((tmp / f"{name}.pcm").read_bytes())[10 * 735 :]  # from frame 10: mode 3 settled
+
+
+def test_mode_3_sounds_like_the_ym_and_the_raw_bytes_would_not(tmp_path: Path) -> None:
+    """Mode 3's samples follow the YM path's (digi_handler.zig linear). Raw (mutant 2, the 2026-10-11
+    bug: "noisy, with weird loops" on the board) each sample folds at its midpoint."""
+    ym = sound(tmp_path, "ym", None, 600)
+    pcm = sound(tmp_path, "pcm", "1:3", 600)
+    raw = sound(tmp_path, "raw", "1:3", 600, mutant=2)
+    assert correlation(ym, pcm) > 0.85  # measured 0.87
+    assert correlation(ym, raw) < 0.6  # measured 0.43
+    assert 0.9 < statistics.pstdev(pcm) / statistics.pstdev(ym) < 1.1  # the level matched (PCM_VOLUME)
 
 
 def test_an_unknown_mode_is_refused_and_changes_nothing(tmp_path: Path) -> None:

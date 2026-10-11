@@ -11,7 +11,9 @@ real cart-side path (host/audio_bridge.c, cycles/bsound.c, the mailbox) and the 
 image. BARD says where it applied the switch ("ZM SNDH mode asked m got g at ts"); the oracle
 replays the song with the switch at that sample from the song's start, and once without it.
 The core's writes (the audio tap) must be the oracle's with the switch, and must differ from
-the oracle's without it (the switch changed something). Exit 0 when both hold.
+the oracle's without it (the switch changed something). And from SETTLE samples after the switch
+(mode 3: the YM silent, the samples on PCM) to the end, the core's samples must be the machine's
+(machine-audio's engine, the browser's) EXACTLY, over two segment changes. Exit 0 when all hold.
 The mutant never reaches BARD: it is checked against the switch at FX_AT's frame and must fail.
 Writes build/hcycles/audio/bard_fx[_drop]/: uart.txt, audio_tap.txt, the oracle's logs.
 """
@@ -31,8 +33,12 @@ sys.path.insert(0, str(FPGA / "tools"))
 import audio_sim_compare as cmp
 
 # The cart waits out the song's load after frame 1; the song is heard a lead (3 frames) after it, so
-# the switch at frame 6 lands a few frames into it, and 14 frames leave ~10 of the song to compare.
-SONG, TUNE, FX_AT, FX_MODE, FRAMES = "union/beat_dis.sndh", 1, 6, 3, 14
+# the switch at frame 6 lands a few frames into it. Beat Dis changes segment 7,791 and 19,257 samples
+# after a switch at +3,675: 36 frames hear both (the PCM channel retriggered from the shadow).
+SONG, TUNE, FX_AT, FX_MODE, FRAMES = "union/beat_dis.sndh", 1, 6, 3, 36
+# The switch's own sample is not compared: the YM's last level is still in jt49's output
+# stage (ym.zig is another model, audio_sim_compare `ym`); from the next one on only PCM is heard.
+SETTLE = 1
 MODEL = FPGA / "build/soc_hp_snd"
 ORACLE = FPGA / "build/host/oracle/sndh_oracle"
 FRAME = 735
@@ -84,6 +90,20 @@ def differences(prefix: Path, uart: str, tap: str) -> tuple[list[str], int]:
     return cmp.compare_writes(nw, ns, bw, bs, span), span
 
 
+def pcm_differences(prefix: Path, uart: str, tap: str, at: int) -> tuple[int, int]:
+    """(samples compared, samples that differ) from SETTLE after the switch, each side from its song."""
+    _, ns, _ = cmp.parse_log(Path(f"{prefix}.w").read_text(), "L ")
+    _, bs, _ = cmp.parse_log(uart, "ZM SONG ")
+    _, _, samples = cmp.parse_log(tap, "-")
+    pcm = Path(f"{prefix}.pcm").read_bytes()
+    if ns is None or bs is None:
+        return 0, 0
+    n0, b0 = ns[0] + at + SETTLE, bs[0] + at + SETTLE
+    rtl = cmp.raw(samples[b0:])
+    span = min(len(rtl), len(pcm) - 4 * n0) // 4
+    return span, sum(rtl[4 * i : 4 * i + 4] != pcm[4 * (n0 + i) : 4 * (n0 + i) + 4] for i in range(max(span, 0)))
+
+
 def happy_offset() -> int:
     """Nothing reached BARD (the mutant): the switch where the happy run's BARD applied it, else
     where the cart asked for it, counted from the song's request."""
@@ -112,7 +132,10 @@ def check(out: Path, drop: bool) -> int:
     print(f"bard_fx: against the oracle WITHOUT it: {len(without_bad)} differences")
     if span <= at:
         print(f"bard_fx: the tap ends {at - span} samples before the switch: nothing to compare")
+    heard, off = pcm_differences(out / "with", uart, tap, at)
+    print(f"bard_fx: mode 3's sound from +{at + SETTLE}: {heard} samples, {off} differ from the machine's")
     ok = switch is not None and int(switch.group(2)) == FX_MODE and span > at and not with_bad and bool(without_bad)
+    ok = ok and heard > 19_257 - SETTLE and off == 0
     print("bard_fx: " + ("ok" if ok else "FAIL") + (" (the mutant)" if drop else ""))
     return 0 if ok else 1
 

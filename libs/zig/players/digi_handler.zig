@@ -74,6 +74,15 @@ pub fn irq(comptime Bus: type, h: Handler) void {
     m.wr32(PSG, 0x0A00_0000 | @as(u32, c) << 8);
 }
 
+/// A sample byte as a signed PCM sample, for mode 3. The byte is UNSIGNED and
+/// INVERTED: its table entry is `byte ^ 0x80` (the addi.b), and the three
+/// volumes there sum loudest at byte 0 and silent at 255 (digi_test.zig measures
+/// Beat Dis's table). So the level is 127 - byte, which is byte ^ 0x7F in 8 bits.
+/// Read as signed, the raw byte folds the wave at its midpoint: noise.
+pub fn linear(b: u8) u8 {
+    return b ^ 0x7F;
+}
+
 /// Mode 3 (sndh_native.zig): the interrupt moves the pointer on and writes
 /// nothing, so the PCM channel and a switch back to the YM agree on the sample.
 pub fn skip(comptime Bus: type, h: Handler) void {
