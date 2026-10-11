@@ -8,6 +8,7 @@
 test {
     _ = @import("scenes/fuji_hobbytronic/fixed.zig");
     _ = @import("scenes/dbug_sync.zig");
+    _ = @import("scenes/stniccc/rewind_test.zig");
     _ = @import("scenes/union_demo/charly_test.zig");
     _ = @import("scenes/union_demo/return_note.zig");
     _ = @import("scenes/union_demo/hub_note.zig");
