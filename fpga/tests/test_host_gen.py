@@ -78,9 +78,17 @@ def test_resolve_refuses_a_cart_that_imports_hbldispatch() -> None:
 
 
 def test_stub_returns_what_undefined_converts_to() -> None:
-    assert "return 0;" in host_gen.forwarder("diskReadBlock", "u32", ["u32", "u32"], None, EXPORTS)
+    assert "return 0;" in host_gen.forwarder("hostAudioFeed2", "u32", ["u32", "u32"], None, EXPORTS)
     assert "return NAN;" in host_gen.forwarder("f", "f32", [], None, EXPORTS)
     assert "wasm_rt_trap" in host_gen.forwarder("g", "u64", [], None, EXPORTS)
+
+
+def test_disk_read_block_is_the_drive_and_its_range_error_traps() -> None:
+    drive = host_gen.forwarder("diskReadBlock", "u32", ["u32", "u32"], None, EXPORTS)
+    assert "host_disk_read(&host_disk, a0, a1, e->memory.data, e->memory.size)" in drive
+    assert "if (n < 0) wasm_rt_trap(WASM_RT_TRAP_OOB);" in drive
+    with pytest.raises(SystemExit, match="drive"):
+        host_gen.forwarder("diskReadBlock", "void", ["u32", "u32"], None, EXPORTS)
 
 
 def test_forwarder_refuses_a_signature_mismatch() -> None:

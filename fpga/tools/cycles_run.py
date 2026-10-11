@@ -37,13 +37,23 @@ def make(*targets: str, frames: int, every: int, jobs: int) -> None:
             sys.exit(f"cycles_run: build failed, see {log}")
 
 
-def references(tag: str, frames: int, every: int) -> None:
-    """scene_hash.mjs (the oracle) and the native host, for the same frames."""
+def shelf_disk(tag: str) -> Path | None:
+    """The cart's shelf disk (docs/demo-<tag>.zmd), what the browser and the board mount."""
+    disk = ROOT / "docs" / f"demo-{tag}.zmd"
+    return disk if disk.exists() else None
+
+
+def references(tag: str, frames: int, every: int, disk: bool = False) -> None:
+    """scene_hash.mjs (the oracle) and the native host, for the same frames. disk: both
+    mount the cart's shelf disk (--disk), as the board SoC sim's DDR holds it
+    (tools/ddr_init.py); their JSONs are then <kind>+disk."""
     ref = CYC / "ref"
     ref.mkdir(parents=True, exist_ok=True)
     args = [f"docs/demo-{tag}.wasm", str(frames), str(every)]
+    zmd = shelf_disk(tag) if disk else None
+    args += ["--disk", str(zmd)] if zmd else []
     for name, cmd in (("js", ["node", "apps/scene_hash.mjs"]), ("native", [str(FPGA / f"build/host/{tag}/host")])):
-        out = ref / f"{tag}.{frames}.{every}.{name}.json"
+        out = ref / f"{tag}.{frames}.{every}.{name}{'+disk' if disk else ''}.json"
         if not out.exists():
             with out.open("w") as f:
                 subprocess.run([*cmd, *args], cwd=ROOT, stdout=f, stderr=subprocess.DEVNULL, check=False)

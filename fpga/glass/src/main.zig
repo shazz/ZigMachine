@@ -7,7 +7,8 @@
 //                                   --mouse-scale: pointer speed, 100 = a pixel a count
 //   glass sim-load DISK OUT [WIN]   desktop: load DISK into a simulated glass + fake DDR of
 //                                   WIN bytes (default the board's), write the placed image
-//                                   to OUT and the placed disk to OUT.disk; exit 1 unless
+//                                   to OUT, the placed disk to OUT.disk and its descriptor
+//                                   to OUT.desc; exit 1 unless
 //                                   the window is image, disk, descriptor and zeros
 //   glass sim-menu SHELF_DIR [PAGE] desktop: the menu the OSD would show, as text;
 //                                   PAGE = shelf (default), console or debug
@@ -90,6 +91,9 @@ fn simLoad(init: std.process.Init, disk_path: []const u8, out_path: []const u8, 
     const disk_out = try std.fmt.allocPrint(gpa, "{s}.disk", .{out_path});
     defer gpa.free(disk_out);
     try std.Io.Dir.cwd().writeFile(init.io, .{ .sub_path = disk_out, .data = all[rep.disk_at..][0..rep.disk_bytes] });
+    const desc_out = try std.fmt.allocPrint(gpa, "{s}.desc", .{out_path});
+    defer gpa.free(desc_out);
+    try std.Io.Dir.cwd().writeFile(init.io, .{ .sub_path = desc_out, .data = all[p.desc_at..][0 .. map.DISK_DESC_WORDS * 4] });
     std.debug.print("{s}: {d} bytes ({d} packed) at 0x{X:0>8}, disk {d} bytes at +0x{X}, cart up after {d} polls\n", .{ disk_path, rep.image_bytes, rep.packed_bytes, glass.load_base, rep.disk_bytes, rep.disk_at, rep.polls });
     return 0;
 }

@@ -57,16 +57,17 @@ def parse(text: str) -> Run:
     return run
 
 
-def verdict(tag: str, run: Run) -> str:
+def verdict(tag: str, run: Run, disk: bool = False) -> str:
     """'ok' only if it ran to the end, the scanout never underran, and the hashes
-    equal both references for the same frames."""
+    equal both references for the same frames (disk: the ones that mounted the
+    cart's shelf disk, cycles_run.references)."""
     if run.trap or run.end != 0 or run.json is None:
         return f"FAIL {run.trap or f'end {run.end}'}"
     if not run.vstat or run.vstat[0] or run.vstat[1]:
         return f"FAIL underrun/overflow {run.vstat}"
     j = run.json
     for kind in ("js", "native"):
-        ref = REF / f"{tag}.{j['frames']}.{j['every']}.{kind}.json"
+        ref = REF / f"{tag}.{j['frames']}.{j['every']}.{kind}{'+disk' if disk else ''}.json"
         if not ref.exists():
             return f"no-{kind}"
         r = json.loads(ref.read_text())

@@ -120,7 +120,7 @@ $(HOST)/%/cart.o: $(HOST)/%/cart.c
 INPUT_SRC := host/input_bridge.c host/glass_router.c
 INPUT_DEPS := $(INPUT_SRC) host/input_bridge.h glass/firmware/glass_input.c glass/firmware/glass_input.h gen/glass_map.h
 INPUT_CFLAGS := -Iglass/firmware -Igen
-$(HOST)/%/host.o: $(HOST)/%/env.c host/main.c host/boot.c host/host.h host/boot.h $(INPUT_DEPS)
+$(HOST)/%/host.o: $(HOST)/%/env.c host/main.c host/boot.c host/host.h host/boot.h host/disk.h $(INPUT_DEPS)
 	$(HOST_CC) $(HOST_CFLAGS) -I$(HOST)/$* -c $(HOST)/$*/env.c -o $(HOST)/$*/env.o
 	$(HOST_CC) $(HOST_CFLAGS) -I$(HOST)/$* -c host/boot.c -o $(HOST)/$*/boot.o
 	for s in $(INPUT_SRC); do $(HOST_CC) $(HOST_CFLAGS) $(INPUT_CFLAGS) -I$(HOST)/$* -c $$s -o $(HOST)/$*/in_$$(basename $$s .c).o || exit 1; done
