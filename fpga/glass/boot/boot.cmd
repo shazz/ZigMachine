@@ -15,6 +15,8 @@ if fatload mmc 0 0x1000000 zigmachine.bit; then
     mw.l 0xf8008000 0; mw.l 0xf8008014 0xf01
     mw.l 0xf8009000 0; mw.l 0xf8009014 0xf01
     mw.l 0xf800a000 0; mw.l 0xf800a014 0xf01
+    # HP3: the sound CPU's memory (--sound-cpu), and the PCM reader's, which only reads.
+    mw.l 0xf800b000 0; mw.l 0xf800b014 0xf01
 else
     echo zigmachine: no zigmachine.bit on the card, the PL keeps the BOOT.BIN bitstream
 fi

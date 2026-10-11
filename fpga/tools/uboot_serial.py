@@ -21,7 +21,13 @@ PROMPT = b"Zynq>"
 ID_HPTEST = 0x48505431
 INTERRUPT_LIMIT = 10.0  # [s of Ctrl-Cs before giving up; tests shorten]
 PAUSE = 1.0  # [s: the video DMA's last burst; tests set 0]
-AFI_WIDTHS = "mw.l 0xf8008000 0; mw.l 0xf8008014 0xf01; mw.l 0xf8009000 0; mw.l 0xf8009014 0xf01"
+# HP3 too: the sound CPU writes its memory there (--sound-cpu); with the reset 64-bit write channel
+# the upper half of every store is dropped and the music never plays (2026-10-10). The PCM reader
+# that shares HP3 only reads, so 32-bit writes cost it nothing on any bitstream.
+AFI_WIDTHS = (
+    "mw.l 0xf8008000 0; mw.l 0xf8008014 0xf01; mw.l 0xf8009000 0; mw.l 0xf8009014 0xf01; "
+    "mw.l 0xf800b000 0; mw.l 0xf800b014 0xf01"
+)
 AFI_HP2_WIDTH = "mw.l 0xf800a000 0; mw.l 0xf800a014 0xf01"  # the blitter's port, --blit bitstreams only
 CRC = re.compile(r"==>\s*([0-9a-f]{8})\s*$", re.MULTILINE)
 

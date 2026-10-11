@@ -29,6 +29,7 @@ ZIG = os.environ.get("ZIG", str(Path.home() / ".local/zig/0.16.0/zig"))
 sys.path.insert(0, str(FPGA / "tools"))
 import glass_sd
 import shelf_meta
+import uboot_serial
 import zmd_fat
 
 WINDOW = "0x400000"  # 4 MiB: every board image so far is under 0.6 MB
@@ -151,6 +152,16 @@ def test_boot_script_reaches_uboot_without_comments_or_single_quotes() -> None:
     assert "'" not in text and not any(ln.startswith("#") or not ln for ln in lines)
     assert "bootz 0x2000000 0x4000000 0x1f00000" in lines
     assert lines[0].startswith("setenv bootargs console=ttyPS0,921600")
+
+
+def test_boot_script_sets_every_hp_ports_write_width_including_the_sound_cpus() -> None:
+    text = glass_sd.script_text(glass_sd.BOOT_CMD.read_bytes()).decode()
+    for base in ("f8008", "f8009", "f800a", "f800b"):  # HP0..HP3
+        assert f"mw.l 0x{base}014 0xf01" in text
+
+
+def test_uboot_tool_sets_hp3_on_every_bitstream() -> None:
+    assert "0xf800b014 0xf01" in uboot_serial.AFI_WIDTHS
 
 
 def test_boot_script_text_rejects_non_ascii() -> None:
