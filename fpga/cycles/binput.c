@@ -3,6 +3,8 @@
  * changes, then the mouse, through host/input_bridge.c into the cart's exports. */
 #include "binput.h"
 
+#include "bcursor.h"
+
 #include "csr_addr.h"
 #include "input_bridge.h"
 
@@ -67,6 +69,10 @@ void binput_frame(struct w2c_env* e) {
     uint32_t now = CSR(JOY);
     input_joy(&e->cart, joy, now);
     joy = now;
-    int seq = input_pointer(&e->cart, sim_pointer(CSR(POINTER)), &seen);
-    if (seq >= 0) CSR(POINTER_ACK) = (uint32_t)seq;
+    uint32_t ptr = sim_pointer(CSR(POINTER));
+    int seq = input_pointer(&e->cart, ptr, &seen);
+    if (seq >= 0) {
+        CSR(POINTER_ACK) = (uint32_t)seq;
+        bcursor_track(ptr);
+    }
 }

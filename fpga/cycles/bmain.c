@@ -24,6 +24,7 @@
 #include "bblit.h"
 #include "bdisk.h"
 #include "bdiskapp.h"
+#include "bcursor.h"
 #include "binput.h"
 #include "bboard.h"
 #include "bdiag.h"
@@ -100,6 +101,7 @@ static void frame(sha256_ctx* h, u32 planes, u32 size, long f) {
     }
     if (first) vseq_mix_only();
     uint32_t t3 = board_cycles();
+    bcursor_draw(); /* the board has no host cursor: GEM's arrow over the picture */
     mb_presenting();
     vseq_present();
     /* the sequencer's share (sim): BG passes, the planes' passes (and hashes), PRESENT */
