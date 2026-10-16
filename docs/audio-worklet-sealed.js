@@ -81,6 +81,13 @@ class ZigAudioSealedProcessor extends AudioWorkletProcessor {
                 const tag = String.fromCharCode(...new Uint8Array(mem.buffer, d.audioSongPtr() + 1080, 4));
                 this.port.postMessage({ type: "modLoaded", ok: !!ok, len: len, error: d.audioModError(),
                                         rejected: d.audioModRejected(), tag });
+            } else if (msg.type === "loadXm") {
+                // A FastTracker 2 song (libs/zig/players/xm.zig): staged, checked, played at
+                // its own tempo (msg.bpm 0) or the start BPM a cart asked for.
+                const len = writeSong(msg.bytes);
+                const ok = d.audioLoadXm(len);
+                if (ok) d.audioXmPlay(msg.bpm || 0);
+                this.port.postMessage({ type: "xmLoaded", ok: !!ok, len: len, error: d.audioXmError(), rejected: d.audioXmRejected() });
             } else if (msg.type === "sfxPlay") {
                 // zg.sfxPlay: the PCM into the effect buffer, then onto the MOD's
                 // quiet channel (libs/zig/players/sfx_voice.zig).

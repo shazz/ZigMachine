@@ -13,12 +13,14 @@ const players = @import("players"); // open ZigOS players (named module)
 const ModPlayer = players.ModPlayer;
 const YmPlayer = players.YmPlayer;
 const SndhPlayer = players.SndhPlayer;
+const XmPlayer = players.XmPlayer;
 const sfx_voice = players.sfx_voice;
 
 pub var mod: ModPlayer = .{};
 pub var sfx: sfx_voice.SfxVoice = .{};
 pub var ym: YmPlayer = .{};
 pub var sndh: SndhPlayer = .{};
+pub var xm: XmPlayer = .{};
 // Active player: 0 none, 1 MOD, 2 YM, 3 raw sample, 4 SNDH, 5 SAP. Drives the scope view type.
 pub var current_mode: u8 = 0;
 
@@ -27,6 +29,7 @@ pub var current_mode: u8 = 0;
 comptime {
     _ = @import("demo_audio_mod.zig");
     _ = @import("demo_audio_raw.zig");
+    _ = @import("demo_audio_xm.zig");
 }
 pub const sap_exports = @import("demo_audio_sap.zig");
 
@@ -37,6 +40,7 @@ pub fn stopAll() void {
     mod.stop();
     ym.stop();
     sndh.stop();
+    xm.stop();
     sap_exports.sap.stop();
 }
 
@@ -71,6 +75,8 @@ export fn audioRender(frames: u32) void {
         mod.mix_ym = sfx.ym_live;
         mod.renderStereo(n);
         sfx.advance(&mod, @intCast(@min(n, audio.MAX_FRAMES)));
+    } else if (xm.active) {
+        xm.renderStereo(n);
     } else {
         // Nothing sequencing: mix any live Paula channels (the raw streamer) —
         // or silence. Mirrors the pre-seal engine.render() Paula path.
@@ -103,6 +109,7 @@ export fn audioYmPlay() void {
     sap_exports.sap.stop();
     sfx.reset();
     mod.stop();
+    xm.stop();
     audio.machinePaulaClearScopes();
     ym.start();
     current_mode = 2;
@@ -120,6 +127,7 @@ export fn audioSndhPlay(tune: u8) void {
     sap_exports.sap.stop();
     sfx.reset();
     mod.stop();
+    xm.stop();
     ym.stop();
     audio.machinePaulaClearScopes();
     sndh.start(tune);
@@ -131,6 +139,7 @@ export fn audioSndhPlayRaw(d0: u32) void {
     sap_exports.sap.stop();
     sfx.reset();
     mod.stop();
+    xm.stop();
     ym.stop();
     audio.machinePaulaClearScopes();
     sndh.startRaw(d0);
