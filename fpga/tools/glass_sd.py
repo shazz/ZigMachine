@@ -2,6 +2,8 @@
 
     uv run python tools/glass_sd.py [--out build/glass/sd] [--buildroot BR_OUTPUT_DIR]
     uv run python tools/glass_sd.py --shelf      # the shelf's carts (SHELF), what `make board-shelf` builds
+    uv run python tools/glass_sd.py --system build/hcycles/split/board_snd/sys.bin --fw-dir build/hcycles/split/carts
+                                                 # the split card (decisions.md 2026-10-15): `make board-split`
 
 Nothing is written to a device: copy the directory's contents onto the card's
 first (FAT32) partition yourself. MANIFEST.txt in it lists every file, where it
@@ -16,6 +18,8 @@ On the card:
     zigmachine/*.zmd         the shelf: fat disks (wasm cart + rv32 BOARD image, build/hcycles/board/<cart>/fw.bin;
                              a data disk carries GEM's: tools/glass_shelf.py)
     zigmachine/progs/demo-<tag>/<NAME>.zmd   a data disk's programs, prebuilt (glass/src/app_request.zig)
+    zigmachine/system.rv32   --system: firmware + machine + ROM + BARD, once; the fat disks then carry lean
+                             carts (<fw-dir>/<cart>/cart.bin) that it runs (tools/glass_shelf.py Images)
     zigmachine/shelf.txt     what the OSD says about each cart (tools/shelf_meta.py)
 """
 
@@ -85,7 +89,9 @@ def _newest_glass_source() -> float:
     return max(p.stat().st_mtime for p in srcs)
 
 
-def stage(out: Path, buildroot: Path | None, fw_dir: Path = BOARD_FW, bit: Path = BITSTREAM) -> list[tuple[str, str]]:
+def stage(
+    out: Path, buildroot: Path | None, fw_dir: Path = BOARD_FW, bit: Path = BITSTREAM, system: Path | None = None
+) -> list[tuple[str, str]]:
     if str(out.resolve()).startswith("/dev") or out.is_block_device():
         raise SystemExit("glass_sd: refusing to write to a device; give a directory and copy it yourself")
     out.mkdir(parents=True, exist_ok=True)
@@ -102,7 +108,7 @@ def stage(out: Path, buildroot: Path | None, fw_dir: Path = BOARD_FW, bit: Path 
         rows.append(_copy(images / src if images else None, out, name, "plan A needs --buildroot (Buildroot output)"))
     rows += _zest_linux(out)
     rows.append(_copy(GLASS_ARM, out, "glass", "cd fpga/glass && zig build -Dtarget=arm-linux-musleabihf ..."))
-    return rows + build_shelf(out / "zigmachine", fw_dir)
+    return rows + build_shelf(out / "zigmachine", fw_dir, system=system)
 
 
 def manifest(out: Path, rows: list[tuple[str, str]]) -> str:
@@ -121,11 +127,12 @@ def main() -> None:
     p.add_argument("--fw-dir", type=Path, default=BOARD_FW, help="the board firmwares (<cart>/fw.bin)")
     p.add_argument("--bit", type=Path, default=BITSTREAM, help="the board bitstream the firmwares were built for")
     p.add_argument("--shelf", action="store_true", help="print the shelf's carts and stop")
+    p.add_argument("--system", type=Path, help="the split system image (sys.bin): --fw-dir then holds lean carts")
     a = p.parse_args()
     if a.shelf:
         print(" ".join(SHELF))
         return
-    print(manifest(a.out, stage(a.out, a.buildroot, a.fw_dir, a.bit)), end="")
+    print(manifest(a.out, stage(a.out, a.buildroot, a.fw_dir, a.bit, a.system)), end="")
 
 
 if __name__ == "__main__":
