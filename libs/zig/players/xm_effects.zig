@@ -50,7 +50,8 @@ fn sampleOffset(p: *const XmPlayer, c: *xv.Chan) void {
         c.mix.active = false;
         return;
     }
-    c.mix.pos = @intCast(off << 16);
+    c.mix.idx = @intCast(off);
+    c.mix.frac = 0;
 }
 
 fn eRowEffect(p: *XmPlayer, c: *xv.Chan) void {
@@ -93,7 +94,8 @@ fn eTickEffect(p: *XmPlayer, ch: usize) void {
     const y = c.param & 0x0F;
     switch (x) {
         0x9 => if (y != 0 and p.tick % y == 0) {
-            c.mix.pos = 0;
+            c.mix.idx = 0;
+            c.mix.frac = 0;
         },
         0xC => if (p.tick == y) {
             c.vol = 0;

@@ -5,13 +5,14 @@
 // Two voices share one Paula channel, so each is attenuated by half before
 // they add: a pair's sum is then within the signed 8-bit range by
 // construction (-128..126), and the Paula channel's volume (mod.zig's
-// chipVolume, HEADROOM included) is the only gain stage left. Positions are
-// Q16 frames and step through each output frame by the voice's step; a
-// ping-pong or forward loop folds the position back inside itself.
+// chipVolume, HEADROOM included) is the only gain stage left.
 //
-// 32-bit throughout: BARD's rv32im has no 64-bit ALU, so a sample is at most
-// inst.MAX_SAMPLE_FRAMES frames (the Q16 position then fits an i32) and loop
-// folds subtract instead of dividing.
+// A position is a frame index (i32: a ping-pong may step below 0 before its
+// fold) and a u16 fraction, so a sample has no length cap beyond song RAM. The
+// step is a Q16 u32 (xm_tables.stepOf), split the same way: its integer part is
+// added to the index, its fraction to the fraction, and the fraction's carry
+// goes to the index. That is the Q16 arithmetic, with no 64-bit operation
+// anywhere (BARD is rv32im). A loop fold subtracts the loop length.
 // Pure: no chip, no allocation. Tested natively (xm_mix_test.zig).
 // --------------------------------------------------------------------------
 const std = @import("std");
@@ -22,8 +23,9 @@ const inst = @import("xm_instr.zig");
 pub const Voice = struct {
     active: bool = false,
     sample: u16 = 0, // index into the song's sample table
-    pos: i32 = 0, // Q16 frames into the sample (signed: a ping-pong runs backward)
-    step: u32 = 0, // Q16 frames per output frame, below 2^31 (xm_tables.stepOf)
+    idx: i32 = 0, // frame index into the sample (signed: a ping-pong runs backward)
+    frac: u16 = 0, // fraction of a frame, Q16
+    step: u32 = 0, // Q16 frames per output frame (xm_tables.stepOf: below 2^31)
     dir: i8 = 1, // +1 forward, -1 while a ping-pong loop runs backward
     gain: u32 = 0, // 0..64
 };
@@ -32,29 +34,42 @@ pub const Voice = struct {
 /// `out`. A voice that runs off a sample with no loop goes inactive.
 pub fn mixVoice(v: *Voice, src: []const i8, s: *const inst.Sample, out: []i8) void {
     if (!v.active) return;
-    const step: i32 = @intCast(v.step);
+    const step_int: i32 = @intCast(v.step >> 16);
+    const step_frac: u32 = v.step & 0xFFFF;
     for (out) |*o| {
         if (!fold(v, src.len, s)) {
             v.active = false;
             return;
         }
-        const idx: usize = @intCast(v.pos >> 16);
-        const c: i32 = (@as(i32, src[idx]) * @as(i32, @intCast(v.gain))) >> 7;
+        const c: i32 = (@as(i32, src[@intCast(v.idx)]) * @as(i32, @intCast(v.gain))) >> 7;
         o.* = @intCast(@as(i32, o.*) + c);
-        v.pos += if (v.dir > 0) step else -step;
+        advance(v, step_int, step_frac);
     }
 }
 
-/// Bring the position inside the sample: a loop is followed, a ping-pong turns
+/// One output frame's step: the fraction adds (or subtracts, backward) and its
+/// carry (or borrow) moves the index. The same as Q16 addition, split in two.
+fn advance(v: *Voice, step_int: i32, step_frac: u32) void {
+    if (v.dir > 0) {
+        const sum: u32 = @as(u32, v.frac) + step_frac;
+        v.frac = @truncate(sum);
+        v.idx += step_int + @as(i32, @intCast(sum >> 16));
+    } else {
+        const diff: i32 = @as(i32, v.frac) - @as(i32, @intCast(step_frac));
+        const borrow: i32 = if (diff < 0) 1 else 0;
+        v.frac = @intCast(diff + borrow * 65536);
+        v.idx -= step_int + borrow;
+    }
+}
+
+/// Bring the index inside the sample: a loop is followed, a ping-pong turns
 /// round, a sample with no loop ends (false) once it has run out.
 fn fold(v: *Voice, len: usize, s: *const inst.Sample) bool {
-    const idx: i32 = v.pos >> 16;
-    if (s.loop == inst.LOOP_NONE) return idx >= 0 and idx < @as(i32, @intCast(len));
+    if (s.loop == inst.LOOP_NONE) return v.idx >= 0 and v.idx < @as(i32, @intCast(len));
     const start: i32 = @intCast(s.loop_start);
     const end: i32 = @intCast(s.loop_start + s.loop_len);
-    if (idx >= end or idx < start) {
-        const next = if (s.loop == inst.LOOP_FORWARD) forwardIndex(idx, start, end) else pingPongIndex(v, idx, start, end);
-        v.pos = (next << 16) | (v.pos & 0xFFFF);
+    if (v.idx >= end or v.idx < start) {
+        v.idx = if (s.loop == inst.LOOP_FORWARD) forwardIndex(v.idx, start, end) else pingPongIndex(v, v.idx, start, end);
     }
     return true;
 }
