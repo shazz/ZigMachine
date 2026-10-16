@@ -11,8 +11,14 @@ replaces the survey in `FPGA_AUDIO_CPU.md`. The departures from that survey are 
 
 `fpga/soc/zm_sound_cpu.py`, built with `hp_sim --sound-cpu` (`make soc-hp-snd`).
 
-- **The core** is vexgen's `Snd` netlist: RV32IM with a 16 KiB 2-way I$ and a 4 KiB D$. Every module is prefixed
-  `ZmSnd_` so it can sit next to the cart CPU's VexRiscv. It boots from `SOUND_BASE`, 14 MiB into the cart window.
+- **The core** is vexgen's `SndNd` netlist: RV32I + Zmmul with a 16 KiB 2-way I$ and a 4 KiB D$. Every module is
+  prefixed `ZmSnd_` so it can sit next to the cart CPU's VexRiscv. It boots from `SOUND_BASE`, 14 MiB into the cart
+  window.
+- **It has no divider** (vexgen `nodiv`, 2026-10-15): -191 LUT, -106 FF in the board SoC. DIV/REM trap, so its
+  firmware is built `-march=rv32i_zmmul` and divides in libgcc; `snd.elf` is refused if a DIV/REM gets in.
+  `cycles/sound/zmmul.c` gives that libgcc a hardware `__mulsi3`/`__muldi3`. Cost in `make snd-bench`, Mc per
+  frame: beat_dis 0.889 -> 1.015 (53 % -> 61 %, its player divides), wow_scroller 2.173 -> 2.161, Warhawk
+  0.097 -> 0.113.
 - **Its memory is DDR on HP3.** It shares the port with the audio core's PCM reads through one Wishbone arbiter
   (I-bus, D-bus, the core's PCM port) in front of one `WishboneHP`, so no new HP port is used. Stores are
   **posted** (8 entries, `soc/zm_hp_posted.py`); see "Where the cycles go".

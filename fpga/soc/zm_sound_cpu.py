@@ -1,9 +1,10 @@
 """The sound CPU (docs/FPGA_SOUND_CPU.md): a second VexRiscv that runs the machine's
 players (the SNDH player = Musashi, via wasm2c) instead of the cart CPU.
 
-- **The core**: vexgen's `Snd` netlist (`vexgen/gen.sh Snd:16384:2:4096:1:snd`): RV32IM,
-  16 KiB 2-way I$, 4 KiB D$, every module prefixed ZmSnd_ so it sits next to the cart CPU's
-  VexRiscv. Reset vector SOUND_BASE, in the cart window (cycles/sound.mk links there).
+- **The core**: vexgen's `SndNd` netlist (`vexgen/gen.sh SndNd:16384:2:4096:1:snd,nodiv`): RV32I + Zmmul
+  (no divider, DIV/REM trap: the firmware divides in libgcc, cycles/sound.mk SND_ARCH), 16 KiB 2-way I$,
+  4 KiB D$, every module prefixed ZmSnd_ so it sits next to the cart CPU's VexRiscv. Reset vector
+  SOUND_BASE, in the cart window (cycles/sound.mk links there).
 - **Its memory is the cart window in DDR, on HP3**, which it shares with the audio core's
   PCM reads: one Wishbone arbiter (I-bus, D-bus to DDR, the core's `PcmWB`) in front of
   one WishboneHP, with POSTED stores (soc/zm_hp_posted.py: the player's Musashi stores
@@ -33,7 +34,7 @@ from soc.zm_hp import CPU_BASE, WINDOW, WishboneHP
 from soc.zm_sound_regs import SoundRegs
 
 FPGA = Path(__file__).resolve().parent.parent
-SOUND_CORE = FPGA / "build/vexgen/VexRiscv_Snd.v"
+SOUND_CORE = FPGA / "build/vexgen/VexRiscv_SndNd.v"
 SOUND_WINDOW = 0x93000000  # uncached (bit 31), outside the seal's windows, next to AUDIO_WINDOW
 SOUND_WINDOW_BYTES = 0x1000
 SOUND_BASE = CPU_BASE + 0x00E00000  # the sound image: 14 MiB into the cart window, above the pictures (cycles/sound.mk)
@@ -68,7 +69,7 @@ class SoundCPU(LiteXModule):
     def __init__(self, platform: Platform, hp: axi.AXIInterface, audio: wishbone.Interface, pcm: wishbone.Interface,
                  enable: Signal | None = None, core: Path = SOUND_CORE) -> None:  # fmt: skip
         if not core.exists():
-            raise FileNotFoundError(f"{core}: generate it with vexgen/gen.sh Snd:16384:2:4096:1:snd")
+            raise FileNotFoundError(f"{core}: generate it with vexgen/gen.sh SndNd:16384:2:4096:1:snd,nodiv")
         self.cart = _wb()
         ibus, dbus, dmem, regs, mem = _wb(), _wb(), _wb(), _wb(), _wb()
         self.regs = SoundRegs(self.cart, regs, ibus, dbus)

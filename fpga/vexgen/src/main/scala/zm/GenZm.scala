@@ -27,6 +27,7 @@ case class ZmArgs(
     historyRamSizeLog2: Int = 10, // DYNAMIC_TARGET's BTB: 2^n entries (TIMING_FABLE.md pass 3: 8 routes)
     fpu: Boolean = false, // RV32F, single precision only (fpga/CYCLES.md "f32 FPU")
     prefix: String = "", // prepended to every module name: a second core in the same SoC (the sound CPU)
+    noDiv: Boolean = false, // Zmmul: MUL/MULH only, DIV/REM trap (the sound CPU: docs/FPGA_SOUND_CPU.md)
     outputFile: String = "VexRiscv",
     targetDirectory: String = "."
 )
@@ -44,6 +45,7 @@ object GenZm {
       opt[Int]("historyRamSizeLog2").action((v, c) => c.copy(historyRamSizeLog2 = v))
       opt[Unit]("fpu").action((_, c) => c.copy(fpu = true))
       opt[String]("prefix").action((v, c) => c.copy(prefix = v))
+      opt[Unit]("noDiv").action((_, c) => c.copy(noDiv = true))
       opt[String]("outputFile").action((v, c) => c.copy(outputFile = v))
       opt[String]("targetDirectory").action((v, c) => c.copy(targetDirectory = v))
     }
@@ -117,8 +119,8 @@ object GenZm {
     ),
     new BranchPlugin(earlyBranch = false, catchAddressMisaligned = true),
     new CsrPlugin(csr(a)),
-    new MulPlugin,
-    new DivPlugin,
+    new MulPlugin
+  ) ++ (if (a.noDiv) Nil else List(new DivPlugin)) ++ List(
     new ExternalInterruptArrayPlugin(
       machineMaskCsrId = 0xbc0, machinePendingsCsrId = 0xfc0,
       supervisorMaskCsrId = 0x9c0, supervisorPendingsCsrId = 0xdc0
