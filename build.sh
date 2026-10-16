@@ -129,6 +129,9 @@ NATIVE_TESTS="
     libs/zig/players/cpu6502_test.zig
     libs/zig/players/sap_test.zig
     libs/zig/players/mod_format_test.zig
+    libs/zig/players/xm_format_test.zig
+    libs/zig/players/xm_instr_test.zig
+    libs/zig/players/xm_mix_test.zig
     libs/zig/sfx_queue_test.zig
     libs/zig/depackers/ice_test.zig
     libs/zig/depackers/zx0_test.zig
@@ -260,6 +263,9 @@ gate mod_sfx node apps/mod_sfx_check.mjs --break release   # ...and the channel 
 gate mod_sfx node apps/mod_sfx_check.mjs --break loop      # ...and the loop expected free before its stop fails
 gate mod_sfx node apps/mod_sfx_check.mjs --break reject    # ...and an 8CHN file expected to load fails
 gate mod_sfx node apps/mod_sfx_check.mjs --break gain      # ...and the effect's channel expected scaled with the song by zg.requestModVolume fails
+gate xm node apps/xm_check.mjs   # FastTracker 2 (.XM) player: the generated 8-channel test song (apps/xm_song.mjs) loads and plays as mode 1 through the sealed Paula channels, never over full scale, not silent; 9-channel / non-XM / truncated files refused with their reasons and counted; rendering it twice is byte-identical and matches the pinned sha256
+gate xm node apps/xm_check.mjs --break refuse   # ...and a 9-channel file expected to load fails
+gate xm node apps/xm_check.mjs --break pin      # ...and a wrong pin fails
 gate_timed c_music timeout 180 node apps/c_music_check.mjs   # a C cart's song request reaches the sealed YM (timeout: it once hung a gate)
 gate union_demo_music node apps/union_demo_music_check.mjs   # the Union Demo menu's and cracktro's SNDH tunes are requested by name and play
 gate union_demo_music node apps/union_demo_music_check.mjs --fail-proof   # ...and a wrong tune name fails that check
