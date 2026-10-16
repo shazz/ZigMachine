@@ -2,7 +2,7 @@
 the core, its decoder, the arbiter, the posted HP bridge, the register block) written as one
 Verilog top with its buses as ports, then Vivado out-of-context synthesis (tools/vivado_ooc.sh).
 
-    uv run python tools/sound_ooc.py [--out build/ooc_sound] [--core build/vexgen/VexRiscv_Snd.v]
+    uv run python tools/sound_ooc.py [--out build/ooc_sound] [--core build/vexgen/VexRiscv_SndNd.v]
     PERIOD=6.667 IMPL=1 uv run python tools/sound_ooc.py ...   # and its routed timing at 150 MHz
 """
 

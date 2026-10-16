@@ -60,7 +60,11 @@ def hp_slice(soc: SoC, name: str, master: axi.AXIInterface) -> axi.AXIInterface:
     glass = getattr(soc, "glass", None)
     for ch, out in (("aw", True), ("w", True), ("ar", True), ("b", False), ("r", False)):
         src, dst = (getattr(master, ch), getattr(ps, ch)) if out else (getattr(ps, ch), getattr(master, ch))
-        buf = stream.Buffer(src.description, pipe_valid=True, pipe_ready=True)
+        # Outbound (aw/w/ar) the payload and valid leave from flip-flops (pipe_valid) and READY
+        # comes back combinationally: the skid half (pipe_ready) put a 2:1 mux on every PS7 pin
+        # (~450 LUT, ~1,000 FF over four ports). Vivado times the PS7's pins, unlike nextpnr-xilinx.
+        # Inbound (b/r) keeps both halves, so RREADY/BREADY leave from a flop too.
+        buf = stream.Buffer(src.description, pipe_valid=True, pipe_ready=not out)
         setattr(soc, f"{name}_{ch}_slice", buf)
         if ch in ("aw", "ar") and glass is not None:
             soc.comb += [

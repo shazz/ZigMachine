@@ -84,13 +84,19 @@ class ZigMachineSoC(SoCCore):
         video_hp: axi.AXIInterface | None = None,
         hdmi: bool = True,
         audio: dict[str, object] | None = None,
+        hp_probe: bool = False,
         **kwargs: object,
     ) -> None:
+        if glass:  # the board's SoC and soc/hp_sim.py: the firmware times itself with ZMCycles and
+            # never reads timer0 or the identifier string, so neither is built (LUTs). Nor is the 8 KiB
+            # SRAM at 0x1000_0000: everything links in DDR, and with no ROM LiteX builds no BIOS to need it
+            kwargs.setdefault("with_timer", False)
+            kwargs.setdefault("integrated_sram_size", 0)
         SoCCore.__init__(
             self,
             platform,
             clk_freq=sys_clk,
-            ident="ZigMachine",
+            ident="" if glass else "ZigMachine",
             cpu_type="vexriscv",
             cpu_variant="standard",
             integrated_rom_size=rom_size,
@@ -98,17 +104,24 @@ class ZigMachineSoC(SoCCore):
             **kwargs,
         )
         if video_cd == "pipe":  # the board: the whole pipeline, out through HDMI (not in soc/hp_sim.py)
-            self._add_video_pipe(platform, glass, video_hp, hdmi, audio)
+            self._add_video_pipe(platform, glass, video_hp, hdmi, audio, hp_probe)
         else:
             self.video = ZMVideoTiming(platform, cd=video_cd)
         self.irq.add("video", use_loc_if_exists=True)
 
     def _add_video_pipe(
-        self, platform: object, glass: bool, hp: axi.AXIInterface | None, hdmi: bool, audio: dict[str, object] | None
+        self,
+        platform: object,
+        glass: bool,
+        hp: axi.AXIInterface | None,
+        hdmi: bool,
+        audio: dict[str, object] | None,
+        hp_probe: bool = False,
     ) -> None:
         """hp: the video DMA's AXI3 HP port (soc/zm_board_mem.py), else a Wishbone master on the bus.
         audio: soc/zm_audio_soc.py add_audio's arguments (its HP port `hp`, `tap`, `break_`); the
-        picture then leaves through zm_hdmi_out with the sound, not zm_dvi_out."""
+        picture then leaves through zm_hdmi_out with the sound, not zm_dvi_out.
+        hp_probe: the read path's debug probe (soc/zm_hp_probe.py), for board-debug builds only."""
         pads = None
         if hdmi:
             req = platform.request  # type: ignore[attr-defined]  # untyped LiteX platform
@@ -122,7 +135,7 @@ class ZigMachineSoC(SoCCore):
             self.comb += self.cpu.reset.eq(~self.glass.cpu_run)
             overlay = self.glass.overlay if hdmi else None  # the OSD only exists on the wire
         run = self.glass.cpu_run if glass else None  # the HP DMA runs only while CTRL.RUN (soc/zm_video_axi.py)
-        self.video = ZMVideo(platform, None if audio else pads, overlay=overlay, hp=hp, hp_enable=run)
+        self.video = ZMVideo(platform, None if audio else pads, overlay=overlay, hp=hp, hp_enable=run, probe=hp_probe)
         if audio is not None:  # the machine's sound (soc/zm_audio_soc.py), and HDMI with it
             add_audio(self, platform, **audio)  # type: ignore[arg-type]  # values typed by add_audio's own signature
             if pads is not None:  # the OSD's volume and mute (REG_AUDIO_VOL), when there is a glass
@@ -185,6 +198,7 @@ def main() -> None:
         "--cpu-netlist", help="z7: a vexgen VexRiscv netlist (default soc/zm_z7.py BOARD_CORE), or `standard`"
     )
     p.add_argument("--out", help="z7: the build directory (default fpga/build/soc_z7)")
+    p.add_argument("--hp-probe", action="store_true", help="z7: the read path's debug probe (cycles/bdiag.c mode 4)")
     p.add_argument("--vivado-explore", action="store_true", help="z7, vivado: harder place/route directives (~2x time)")
     args = p.parse_args()
     (build_sim if args.target == "sim" else build_z7)(args)

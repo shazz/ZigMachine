@@ -78,8 +78,10 @@ static uint32_t mode_4_mix(void) {
     wait_bits(ZMV_BIT(READY));
     /* The read path's probe (soc/zm_hp_probe.py): 8 CSR words, most significant first:
      * q1.hi q1.lo q0.hi q0.lo axi1.hi axi1.lo axi0.hi axi0.lo. */
+#ifdef CSR_ZMV_HP_PROBE_PROBE_ADDR /* only a --hp-probe build has it (tools/cycles_csr.py) */
     volatile uint32_t* probe = (volatile uint32_t*)CSR_ZMV_HP_PROBE_PROBE_ADDR;
     for (int i = 0; i < 8; i++) CPU(DIAG_PROBE_DDR)[i] = probe[i];
+#endif
     return 4;
 }
 

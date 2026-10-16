@@ -48,6 +48,9 @@ VIDEO += [f"main_ram_{n}" for n in ("cpu_rd", "cpu_wr", "dma_rd", "dma_wr", "bot
 
 
 HP_VIDEO = ["cmd", "status", "vbase", "fb0", "fb1", "swaps", "frame", "comp_busy", "dma_busy", "hp_cfg", "hp_probe_probe"]
+# Registers only a debug build has (soc/zm_z7.py --hp-probe): no #define without them, and the
+# firmware (cycles/bdiag.c) leaves the probe out.
+HP_OPTIONAL = {"video_hp_probe_probe"}
 HP_GLASS = ["glass_cart_state", "glass_cart_beat"]
 # The input the glass hands the cart (soc/zm_glass.py; cycles/binput.c reads them).
 HP_GLASS += [f"glass_{n}" for n in ("key_data", "key_valid", "key_pop", "joy", "pointer", "pointer_ack")]
@@ -57,6 +60,7 @@ def hp_header(csr: dict[str, dict[str, Any]]) -> str:
     """--hp: the names the firmware uses (CSR_ZMV_*) for the board SoC's video_* registers."""
     regs = csr["csr_registers"]
     names = {n: n for n in NEEDED + HP_GLASS} | {f"zmv_{v}": f"video_{v}" for v in HP_VIDEO}
+    names = {n: src for n, src in names.items() if src in regs or src not in HP_OPTIONAL}
     missing = [src for src in names.values() if src not in regs]
     if missing:
         sys.exit(f"cycles_csr: the SoC has no {missing}; is it soc/hp_sim.py's?")
@@ -77,8 +81,9 @@ def hp_check(sim: dict[str, dict[str, Any]], board: dict[str, dict[str, Any]], n
     """The bitstream's map must give every register the firmware uses the sim's address."""
     used = [*NEEDED, *HP_GLASS, *(f"video_{v}" for v in HP_VIDEO)]
     s, b = sim["csr_registers"], board["csr_registers"]
-    bad = [n for n in used if n in b and b[n]["addr"] != s[n]["addr"]]
-    bad += [n for n in used if n not in b and not n.startswith(("sim_finish", "uart_"))]
+    bad = [n for n in used if n in b and n in s and b[n]["addr"] != s[n]["addr"]]
+    bad += [n for n in used if n not in b and n not in HP_OPTIONAL and not n.startswith(("sim_finish", "uart_"))]
+    bad += [n for n in HP_OPTIONAL if (n in b) != (n in s)]  # a probe in one map only moves what follows it
     if sim["memories"]["zm_video"] != board["memories"]["zm_video"]:
         bad.append("zm_video window")
     # An image built for the blitter (--need-blit) runs only on a bitstream that has it, at the sim's address.

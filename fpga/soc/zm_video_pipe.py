@@ -66,7 +66,10 @@ class ZMVideo(ZMVideoCSRs, LiteXModule):
         max_burst: int = 16,
         hp: axi.AXIInterface | None = None,
         hp_enable: Signal | None = None,
+        probe: bool = False,
     ) -> None:
+        """probe: the read path's debug probe (soc/zm_hp_probe.py, with `hp`); off unless a
+        board-debug build asks (soc/zm_z7.py --hp-probe): it is ~100 LUT and 512 FF."""
         self.bus = wishbone.Interface(data_width=32)
         self.drained = Signal()  # the SoC: no CPU store is still on its way to the snoop
         self._csrs()
@@ -77,7 +80,7 @@ class ZMVideo(ZMVideoCSRs, LiteXModule):
         # reg} selects decoded; `snoop_room` holds the delivery back while the crossing is full.
         self.snoop, self.snoop_room, snoop_empty = x.snoop(cd_comp)
         self._command(x, snoop_empty)
-        self._memory(cd_comp, max_burst, hp, hp_enable)
+        self._memory(cd_comp, max_burst, hp, hp_enable, probe)
         self._events(x)
         self._rtl(platform, p, pads, overlay, (cd_pix, cd_pix5x, cd_comp))
 
@@ -131,7 +134,9 @@ class ZMVideo(ZMVideoCSRs, LiteXModule):
             self.comp_busy.status.eq(x.comp_busy),
         ]
 
-    def _memory(self, cd_comp: str, max_burst: int, hp: axi.AXIInterface | None, hp_enable: Signal | None) -> None:
+    def _memory(
+        self, cd_comp: str, max_burst: int, hp: axi.AXIInterface | None, hp_enable: Signal | None, probe: bool
+    ) -> None:
         """The DMA in sys; the RTL's ports (`*_c`, in cd_comp) cross onto its ports. With `hp`
         (the board) the ports are served straight onto that AXI3 HP port (soc/zm_video_axi.py)."""
         self.rd, self.wr, self.sc = read_port("zmv_rd"), write_port("zmv_wr"), read_port("zmv_sc")
@@ -146,7 +151,8 @@ class ZMVideo(ZMVideoCSRs, LiteXModule):
             # How the DMA writes the HP port (soc/zm_video_axi.py cfg), chosen at run time.
             self.hp_cfg = CSRStorage(2, description="bit 0 UPSIZE (AWCACHE 0b0011), bit 1 W64 (8-byte write beats).")
             self.dma_ctl = ZMVideoAXI([self.sc, self.rd], self.wr, hp, self.hp_cfg.storage, hp_enable)
-            self.hp_probe = ZMHPProbe(self.rd, self.rd_c, cd_comp)  # board debug (soc/zm_hp_probe.py)
+            if probe:
+                self.hp_probe = ZMHPProbe(self.rd, self.rd_c, cd_comp)  # board debug (soc/zm_hp_probe.py)
         busy = Signal(32)
         self.sync += If(self.dma_ctl.active, busy.eq(busy + 1))
         self.comb += self.dma_busy.status.eq(busy)
