@@ -8,6 +8,8 @@ pub const SndhPlayer = @import("sndh_player.zig").SndhPlayer;
 pub const ste_dma = @import("ste_dma.zig");
 pub const sndh = @import("sndh_player.zig");
 pub const SapPlayer = @import("sap_player.zig").SapPlayer;
+pub const XmPlayer = @import("xm.zig").XmPlayer;
+pub const xm_format = @import("xm_format.zig");
 pub const sap_bus = @import("sap_bus.zig");
 
 /// Diagnosis for a tune that will not run: the 68000 PC where a replay call
