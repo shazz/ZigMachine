@@ -313,6 +313,7 @@ ym-test: $(YM_TEST)/ym_test_top.bit
 include cycles/audio.mk
 include cycles/board.mk
 include cycles/sound.mk
+include cycles/split.mk
 
 # --- the edit -> board loop: release / dev (placement replay) builds, seed sweeps, hp-test (flow.mk) ---
 include flow.mk

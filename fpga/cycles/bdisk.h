@@ -17,6 +17,9 @@ extern int bdisk_role; /* bdisk_boot's answer */
  * no magic, a bad check, a disk over the image (which ends at window offset image_end) or
  * past the pictures. */
 int bdisk_parse(const uint32_t w[4], uint32_t image_end, uint32_t* at, uint32_t* size);
+/* Where the image the disk must follow ends (window offset): 0, the image's own load copy
+ * (the monolithic image); the split system sets the lean cart's .bss end (cycles/bsys.c). */
+extern uint32_t bdisk_image_end;
 /* At boot (cold or warm: the descriptor and the disk are ZWINDOW's, never the cart's). */
 void bdisk_boot(void);
 void bdisk_report(void);
