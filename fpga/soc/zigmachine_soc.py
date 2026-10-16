@@ -88,8 +88,10 @@ class ZigMachineSoC(SoCCore):
         **kwargs: object,
     ) -> None:
         if glass:  # the board's SoC and soc/hp_sim.py: the firmware times itself with ZMCycles and
-            # never reads timer0 or the identifier string, so neither is built (LUTs)
+            # never reads timer0 or the identifier string, so neither is built (LUTs). Nor is the 8 KiB
+            # SRAM at 0x1000_0000: everything links in DDR, and with no ROM LiteX builds no BIOS to need it
             kwargs.setdefault("with_timer", False)
+            kwargs.setdefault("integrated_sram_size", 0)
         SoCCore.__init__(
             self,
             platform,
