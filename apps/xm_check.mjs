@@ -15,7 +15,10 @@ import { createHash } from "node:crypto";
 import { testSong } from "./xm_song.mjs";
 
 const SR = 44100, SECONDS = 4, FRAMES = SR * SECONDS;
-const PINNED = "71fa68a8de127b048bd42c91ca33d370f1e45cbfe647b0cf80d2b3fce485ba79";
+// Re-pinned 2026-10-15 for the 32-bit mixer (BARD has no 64-bit ALU): the linear
+// pitch table is Q16 (not Q24), and a 9xx past the sample's end is silent, as FT2
+// has it, where it used to wrap. Both move the output; the render stays identical run to run.
+const PINNED = "ff2208a333a9941fb7dad91ac6cbce4b36aa52ef085ad43e9eed344b3ff74696";
 const BREAKS = ["refuse", "pin"];
 const bi = process.argv.indexOf("--break");
 const broke = bi > 0 ? process.argv[bi + 1] : null;

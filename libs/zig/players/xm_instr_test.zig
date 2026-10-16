@@ -111,3 +111,19 @@ test "a loop that runs past its sample is refused, and so is a sample past the f
     const after2 = try pat.scan(b[0..end2], &h2, &pats);
     try std.testing.expectError(error.Truncated, inst.parseAll(b[0..end2], &h2, after2, &t));
 }
+
+test "a sample longer than the mixer's 32-bit positions allow is refused" {
+    var b: [HDR_LEN + 512]u8 = undefined;
+    const deltas = [_]u8{ 1, 1, 1, 1 };
+    const end = oneSample(&b, false, 0, 0, 0, &deltas);
+    put32(&b, HDR_LEN + 10 + 263, fmt.MAX_SAMPLE_FRAMES + 1); // the length, in bytes (8-bit)
+    var h = try fmt.parse(b[0..end]);
+    var pats: [fmt.MAX_PATTERNS]pat.PatInfo = undefined;
+    const after = try pat.scan(b[0..end], &h, &pats);
+    var t: inst.Tables = .{};
+    try std.testing.expectError(error.SampleTooLong, inst.parseAll(b[0..end], &h, after, &t));
+    put32(&b, HDR_LEN + 10 + 263, fmt.MAX_SAMPLE_FRAMES);
+    var h2 = try fmt.parse(b[0..end]);
+    const after2 = try pat.scan(b[0..end], &h2, &pats);
+    try std.testing.expectError(error.Truncated, inst.parseAll(b[0..end], &h2, after2, &t));
+}

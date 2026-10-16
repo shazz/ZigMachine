@@ -136,9 +136,10 @@ fn sampleHeader(data: []u8, h: usize, pcm: usize) Error!Sample {
     const is16 = data[h + 14] & 0x10 != 0;
     const kind = data[h + 14] & 3;
     if (kind == 3) return error.BadInstrument;
-    if (pcm + bytes > data.len) return error.Truncated;
     const frame: u32 = if (is16) 2 else 1;
     const len = bytes / frame;
+    if (len > fmt.MAX_SAMPLE_FRAMES) return error.SampleTooLong;
+    if (pcm + bytes > data.len) return error.Truncated;
     var s: Sample = .{
         .off = @intCast(pcm),
         .len = len,
@@ -153,7 +154,7 @@ fn sampleHeader(data: []u8, h: usize, pcm: usize) Error!Sample {
         s.loop = LOOP_NONE;
         s.loop_len = 0;
     } else {
-        if (@as(u64, s.loop_start) + s.loop_len > len) return error.BadInstrument;
+        if (s.loop_start > len or s.loop_len > len - s.loop_start) return error.BadInstrument;
         s.loop = if (kind == 2) LOOP_PINGPONG else LOOP_FORWARD;
     }
     decodeDelta(data[pcm..][0..bytes], is16);

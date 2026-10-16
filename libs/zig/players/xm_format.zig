@@ -15,6 +15,9 @@ pub const MAX_PATTERNS: usize = 256;
 pub const MAX_INSTRUMENTS: usize = 128;
 pub const MAX_SAMPLES: usize = 256;
 pub const MAX_ROWS: u16 = 256;
+/// The longest sample, in frames. The mixer's Q16 position is an i32 (BARD has
+/// no 64-bit ALU): 32000 frames plus the largest step (80 frames) stays under 2^31.
+pub const MAX_SAMPLE_FRAMES: u32 = 32000;
 pub const MAGIC = "Extended Module: ";
 const HDR_BASE: usize = 60; // the header-size field's own offset; hdr_size counts from here
 const ORDER_OFF: usize = 80;
@@ -51,6 +54,8 @@ pub const Error = error{
     BadOrder,
     /// Too big for the song RAM beside the mixer's buffers (xm_chip.BUF_OFFSET).
     TooLarge,
+    /// A sample over MAX_SAMPLE_FRAMES frames (the mixer's positions are 32-bit).
+    SampleTooLong,
 };
 
 /// The host's numbering of the reasons (audioXmError): 0 = loaded.
@@ -71,6 +76,7 @@ pub fn code(e: Error) u32 {
         error.BadInstrument => 13,
         error.BadOrder => 14,
         error.TooLarge => 15,
+        error.SampleTooLong => 16,
     };
 }
 
