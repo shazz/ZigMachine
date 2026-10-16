@@ -18,12 +18,14 @@ from __future__ import annotations
 
 import subprocess
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 
 FPGA = Path(__file__).resolve().parent.parent
 ROOT = FPGA.parent
 sys.path.insert(0, str(FPGA / "tools"))
 import shelf_meta  # after the path insert
+import split_image
 import zmd_fat
 
 # The board firmwares (cycles/board.mk `board-fw`): linked for the bitstream's CSR map. NOT
@@ -39,6 +41,33 @@ SHELF = (
     "sap_test", "skystrike", "st_replay", "stniccc", "tsl_hybridglenz", "tutorial", "ulm_dsots", "union_beatdis",
 )  # fmt: skip
 OS_CART = "gem"  # what the browser boots for a data disk
+SYS_FILE = "system.rv32"  # glass/src/system.zig FILE
+
+
+@dataclass(frozen=True)
+class Images:
+    """Where the board images come from: <fw_dir>/<cart>/fw.bin, monolithic; or, given the
+    system's table version, the lean <fw_dir>/<cart>/cart.bin that system runs (decisions.md
+    2026-10-15: the card then carries the system once, as system.rv32)."""
+
+    fw_dir: Path
+    system_version: int | None = None
+
+    def path(self, cart: str) -> Path:
+        return self.fw_dir / cart / ("fw.bin" if self.system_version is None else "cart.bin")
+
+    def problem(self, cart: str) -> str | None:
+        """Why the card cannot carry `cart`'s image (MISSING / REFUSED), or None."""
+        fw = self.path(cart)
+        if not fw.exists():
+            how = "board-fw" if self.system_version is None else "split-cart"
+            return f"MISSING: no {fw}; make -C fpga {how} CART={cart}"
+        if self.system_version is not None:
+            try:
+                split_image.check_pair(self.system_version, fw.read_bytes())
+            except split_image.SplitError as e:
+                return f"REFUSED: {fw}: {e}"
+        return None
 
 
 def zx0pack() -> Path:
@@ -70,8 +99,12 @@ def program_cart(packed: bytes, work: Path) -> str | None:
     raw = packed
     if packed[:4] == b"ZX0!":
         (work / "prog.zx0").write_bytes(packed)
-        subprocess.run([zx0unpack(), work / "prog.zx0", work / "prog.wasm"], check=True, capture_output=True)
-        raw = (work / "prog.wasm").read_bytes()
+        try:
+            subprocess.run([zx0unpack(), work / "prog.zx0", work / "prog.wasm"], check=True, capture_output=True)
+            raw = (work / "prog.wasm").read_bytes()
+        finally:  # `work` is the card's staging directory: leave nothing behind on it
+            (work / "prog.zx0").unlink(missing_ok=True)
+            (work / "prog.wasm").unlink(missing_ok=True)
     size = len(raw)
     hits = [
         w for w in sorted((ROOT / "docs").glob("demo-*.wasm")) if w.stat().st_size == size and w.read_bytes() == raw
@@ -79,7 +112,7 @@ def program_cart(packed: bytes, work: Path) -> str | None:
     return hits[0].name.removeprefix("demo-").removesuffix(".wasm") if hits else None
 
 
-def programs(tag: str, img: bytes, fw_dir: Path, dest: Path) -> list[tuple[str, str]]:
+def programs(tag: str, img: bytes, images: Images, dest: Path) -> list[tuple[str, str]]:
     """A fat disk per program on data disk `tag` (`img`): progs/demo-<tag>/<NAME>.zmd."""
     rows = []
     for name, start, length, kind in zmd_fat.files(img):
@@ -87,13 +120,11 @@ def programs(tag: str, img: bytes, fw_dir: Path, dest: Path) -> list[tuple[str, 
             continue
         out = f"zigmachine/progs/demo-{tag}/{name}.zmd"
         cart = program_cart(img[start : start + length], dest)
-        fw = fw_dir / str(cart) / "fw.bin"
-        if cart is None or not fw.exists():
-            why = (
-                "no docs/demo-*.wasm is this program" if cart is None else f"no {fw}; make -C fpga board-fw CART={cart}"
-            )
-            rows.append((out, f"MISSING: {why}"))
+        why = "MISSING: no docs/demo-*.wasm is this program" if cart is None else images.problem(cart)
+        if why:
+            rows.append((out, why))
             continue
+        fw = images.path(str(cart))
         (dest / "progs" / f"demo-{tag}").mkdir(parents=True, exist_ok=True)
         packed = dest / f"{tag}.{name}.rv32.zx0"
         subprocess.run([zx0pack(), fw, packed], check=True, capture_output=True)
@@ -108,17 +139,17 @@ def boots(disk: bytes) -> str:
     return "" if zmd_fat.bootable(disk) else OS_CART
 
 
-def _fat_disk(tag: str, fw_dir: Path, csr_map: Path, dest: Path) -> list[tuple[str, str]]:
+def _fat_disk(tag: str, images: Images, csr_map: Path, dest: Path) -> list[tuple[str, str]]:
     name = f"zigmachine/demo-{tag}.zmd"
     disk = ROOT / "docs" / f"demo-{tag}.zmd"
     if not disk.exists():
         return [(name, f"MISSING: no {disk.name} on the shelf")]
     img = disk.read_bytes()
     cart = boots(img) or tag
-    fw = fw_dir / cart / "fw.bin"
-    if not fw.exists():
-        return [(name, f"MISSING: no {fw}; make -C fpga board-fw CART={cart}")]
-    if csr_map.exists() and fw.stat().st_mtime < csr_map.stat().st_mtime:
+    fw = images.path(cart)
+    if why := images.problem(cart):
+        return [(name, why)]
+    if images.system_version is None and csr_map.exists() and fw.stat().st_mtime < csr_map.stat().st_mtime:
         return [(name, f"STALE: {fw} predates the CSR map; make board-fw CART={cart}")]
     packed = dest / f"{tag}.rv32.zx0"
     subprocess.run([zx0pack(), fw, packed], check=True, capture_output=True)
@@ -126,16 +157,36 @@ def _fat_disk(tag: str, fw_dir: Path, csr_map: Path, dest: Path) -> list[tuple[s
     packed.unlink()
     src = fw.relative_to(FPGA) if fw.is_relative_to(FPGA) else fw
     return [(name, f"{disk.relative_to(ROOT)} + {src}" + (" (a data disk: GEM boots)" if cart != tag else "")),
-            *(programs(tag, img, fw_dir, dest) if cart != tag else [])]  # fmt: skip
+            *(programs(tag, img, images, dest) if cart != tag else [])]  # fmt: skip
+
+
+def stage_system(dest: Path, system: Path, csr_map: Path) -> tuple[tuple[str, str], int]:
+    """The card's system.rv32 (split_image.sys_file, ZX0-packed) and the table version it serves."""
+    image = system.read_bytes()
+    version = split_image.table_version(image)
+    raw = dest / f"{SYS_FILE}.raw"
+    raw.write_bytes(split_image.sys_file(image, version))
+    subprocess.run([zx0pack(), raw, dest / SYS_FILE], check=True, capture_output=True)
+    raw.unlink()
+    src = system.relative_to(FPGA) if system.is_relative_to(FPGA) else system
+    note = f"{src} (table {split_image.vtext(version)})"
+    if csr_map.exists() and system.stat().st_mtime < csr_map.stat().st_mtime:
+        note = f"STALE: {src} predates the CSR map; make board-split"
+    return (f"zigmachine/{SYS_FILE}", note), version
 
 
 def build_shelf(
-    dest: Path, fw_dir: Path, csr_map: Path = CSR_MAP, shelf: tuple[str, ...] = SHELF
+    dest: Path, fw_dir: Path, csr_map: Path = CSR_MAP, shelf: tuple[str, ...] = SHELF, system: Path | None = None
 ) -> list[tuple[str, str]]:
-    """A fat disk for every shelf cart with a board image in `fw_dir` (one per cart)."""
+    """A fat disk for every shelf cart with a board image in `fw_dir` (one per cart); with a
+    `system` image, the card's system.rv32 and lean carts (Images)."""
     dest.mkdir(parents=True, exist_ok=True)
-    every = sorted(set(shelf) | {fw.parent.name for fw in fw_dir.glob("*/fw.bin")})
-    rows = [row for tag in every for row in _fat_disk(tag, fw_dir, csr_map, dest)]
+    rows, images = [], Images(fw_dir)
+    if system is not None:
+        row, version = stage_system(dest, system, csr_map)
+        rows, images = [row], Images(fw_dir, version)
+    every = sorted(set(shelf) | {fw.parent.name for fw in fw_dir.glob(f"*/{images.path('x').name}")})
+    rows += [row for tag in every for row in _fat_disk(tag, images, csr_map, dest)]
     shelf_rows = [r for r in rows if r[0].startswith("zigmachine/demo-") and not r[1].startswith("MISSING")]
     tags = [r[0].removeprefix("zigmachine/demo-").removesuffix(".zmd") for r in shelf_rows]
     if not tags:

@@ -110,6 +110,8 @@ node apps/zero_segments.mjs docs/demo-*.wasm   # no zero-filled static of 64 KB+
 node apps/zero_segments.mjs --break            # ...and a synthetic cart with a 70 KB zero segment is caught
 node apps/ram_check.mjs
 early rom_abi node apps/rom_abi_check.mjs   # the ROM survives hostile arguments from any language (~40 s: started in the background, reported with the harnesses)
+python3 fpga/tools/sys_abi.py --check   # the board's system table (fpga/cycles/sys_abi.txt) is today's ROM/machine exports, under the version that says so
+python3 fpga/tools/sys_abi.py --break   # ...and a table changed without a version bump is caught (lean carts would bind to the wrong entries)
 node apps/blitter_check.mjs   # blitter sources: plane offsets, cart RAM (SRC_ABS), refusals
 node apps/beam_check.mjs      # BEAM (1.6.0): mid-line colour-0 cells across the whole line, persistence, no drops
 node apps/beam_check.mjs --break   # ...and writes 4 px apart (faster than a move.w) are caught and counted as drops

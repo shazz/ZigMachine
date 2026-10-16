@@ -43,8 +43,8 @@ static inline void disk_app_request(struct w2c_env* e, disk_app_t* s, uint32_t r
     s->file = 0;
     s->requested = req != 3;
     if ((req != 1 && req != 3) || !host_dapp.tag_ptr || !host_dapp.tag_len) return;
-    uint32_t len = host_dapp.tag_len(&e->cart);
-    const uint8_t* tag = disk_app_mem(e, host_dapp.tag_ptr(&e->cart), len);
+    uint32_t len = host_dapp.tag_len(HOST_CART(e));
+    const uint8_t* tag = disk_app_mem(e, host_dapp.tag_ptr(HOST_CART(e)), len);
     s->name_len = len;
     memcpy(s->name, tag, len < ZMD_FIND_MAX ? len : ZMD_FIND_MAX);
     const zmd_file_t* f = req == 3 ? zmd_dir_find(s->dir, tag, len) : 0;
@@ -54,22 +54,22 @@ static inline void disk_app_request(struct w2c_env* e, disk_app_t* s, uint32_t r
 
 /* The listing, once the cart says it is booted (the browser's `diskDirSet` block). */
 static inline void disk_app_listing(struct w2c_env* e, disk_app_t* s) {
-    if (s->dir_set || !host_dapp.dir_ptr || !host_dapp.is_booted || !host_dapp.is_booted(&e->cart)) return;
+    if (s->dir_set || !host_dapp.dir_ptr || !host_dapp.is_booted || !host_dapp.is_booted(HOST_CART(e))) return;
     uint32_t ent = w2c_rom_deskDirEntryBytes(&e->rom), maxf = w2c_rom_deskDirMaxFiles(&e->rom);
-    uint32_t ptr = host_dapp.dir_ptr(&e->cart);
+    uint32_t ptr = host_dapp.dir_ptr(HOST_CART(e));
     if (ptr > e->memory.size) wasm_rt_trap(WASM_RT_TRAP_OOB);
     int64_t n = zmd_dir_records(s->dir, ent, maxf, e->memory.data + ptr, e->memory.size - ptr);
     if (n < 0) wasm_rt_trap(WASM_RT_TRAP_OOB);
     if (!host_dapp.set_count) wasm_rt_trap(WASM_RT_TRAP_UNREACHABLE); /* demo.setDiskFileCount is not a function */
-    host_dapp.set_count(&e->cart, (u32)n);
+    host_dapp.set_count(HOST_CART(e), (u32)n);
     s->dir_set = 1;
 }
 
 /* After the cart's frame: the request this frame made (0: none), see the top. */
 static inline uint32_t disk_app_frame(struct w2c_env* e, disk_app_t* s) {
     uint32_t req = 0;
-    if (!s->requested && host_dapp.poll && (req = host_dapp.poll(&e->cart)) != 0) disk_app_request(e, s, req);
-    if (host_dapp.insert_disk) host_dapp.insert_disk(&e->cart, 1);
+    if (!s->requested && host_dapp.poll && (req = host_dapp.poll(HOST_CART(e))) != 0) disk_app_request(e, s, req);
+    if (host_dapp.insert_disk) host_dapp.insert_disk(HOST_CART(e), 1);
     disk_app_listing(e, s);
     return req;
 }

@@ -18,6 +18,7 @@ const page_debug = @import("page_debug.zig");
 const App = @import("app.zig").App;
 const map_cart = @import("map_cart.zig");
 const request = @import("app_request.zig");
+const system = @import("system.zig");
 
 pub fn act(app: *App, action: menu.Action) void {
     switch (action) {
@@ -39,7 +40,12 @@ pub fn load(app: *App, i: usize) void {
     const t0 = app.clock();
     const rep = loadDisk(app, i) catch |err| {
         failed(app, i, err);
-        app.menu.setStatus("{s}: {t}", .{ app.disks.disks[i].file, err });
+        const abi = system.last_abi;
+        if (err == error.CartAbi) {
+            app.menu.setStatus("needs system {d}.{d}, card {d}.{d}", .{ abi.need >> 16, abi.need & 0xFFFF, abi.have >> 16, abi.have & 0xFFFF });
+        } else if (err == error.NoSystem) {
+            app.menu.setStatus("no {s} on the card", .{system.FILE});
+        } else app.menu.setStatus("{s}: {t}", .{ app.disks.disks[i].file, err });
         std.log.warn("load {s}: {t}", .{ app.disks.disks[i].file, err });
         return app.redraw();
     };
@@ -56,7 +62,7 @@ pub fn load(app: *App, i: usize) void {
 pub fn failed(app: *App, i: usize, err: anyerror) void {
     switch (err) {
         error.WontStop => app.current = null,
-        error.DdrMismatch, error.CartTrapped, error.CartSilent => {
+        error.DdrMismatch, error.CartTrapped, error.CartSilent, error.SystemRefused, error.NoCart => {
             app.current = null;
             app.menu.loaded = i;
         },

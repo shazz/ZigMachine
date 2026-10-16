@@ -25,13 +25,13 @@ static void cart_name(struct w2c_env* e, uint32_t ptr, uint32_t len, char out[NA
 
 static void sndh_calls(struct w2c_env* e) {
     const host_song_bridge* b = &host_songs;
-    uint32_t n = b->sndh_poll ? b->sndh_poll(&e->cart) : 0;
+    uint32_t n = b->sndh_poll ? b->sndh_poll(HOST_CART(e)) : 0;
     if (!n) return;
     char name[NAME_MAX + 1];
-    cart_name(e, b->sndh_name_ptr(&e->cart), b->sndh_name_len(&e->cart), name);
+    cart_name(e, b->sndh_name_ptr(HOST_CART(e)), b->sndh_name_len(HOST_CART(e)), name);
     if (!ends_with(name, ".sndh") || strstr(name, "..") || name[0] == '/') return;
     for (uint32_t i = 0; i < n; i++) {
-        uint32_t d0 = b->sndh_d0(&e->cart, i);
+        uint32_t d0 = b->sndh_d0(HOST_CART(e), i);
         audio_sndh_call(name, d0);
     }
 }
@@ -42,9 +42,9 @@ static uint32_t le32(const uint8_t* p) { return p[0] | p[1] << 8 | (uint32_t)p[2
  * bytes must lie in the cart's memory (the browser's Uint8Array would throw), else it is dropped. */
 static void effects(struct w2c_env* e) {
     const host_song_bridge* b = &host_songs;
-    uint32_t n = b->sfx_poll ? b->sfx_poll(&e->cart) : 0;
+    uint32_t n = b->sfx_poll ? b->sfx_poll(HOST_CART(e)) : 0;
     if (!n) return;
-    uint32_t at = b->sfx_entries(&e->cart);
+    uint32_t at = b->sfx_entries(HOST_CART(e));
     if (n > FX_CAP || (uint64_t)at + 16u * n > e->memory.size) {
         printf("ZM FX bad queue %lu at %08lx\n", (unsigned long)n, (unsigned long)at);
         return;
@@ -68,10 +68,10 @@ static void effects(struct w2c_env* e) {
 int audio_bridge(struct w2c_env* e) {
     const host_song_bridge* b = &host_songs;
     int started = 0;
-    if (b->poll && b->poll(&e->cart)) {
+    if (b->poll && b->poll(HOST_CART(e))) {
         char name[NAME_MAX + 1];
-        cart_name(e, b->name_ptr(&e->cart), b->name_len(&e->cart), name);
-        audio_play(name, b->tune ? b->tune(&e->cart) : 0);
+        cart_name(e, b->name_ptr(HOST_CART(e)), b->name_len(HOST_CART(e)), name);
+        audio_play(name, b->tune ? b->tune(HOST_CART(e)) : 0);
         started = 1;
     }
     sndh_calls(e);
