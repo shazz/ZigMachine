@@ -6,6 +6,8 @@
 // fine slides, note cut, note delay, pattern delay, speed, jump and break), and
 // packed as well as unpacked cells, so the reader's both forms are exercised.
 // Delta-coded PCM, as FastTracker 2 writes it.
+// docs/music/zm_test.xm is this song, written by:
+//   node --input-type=module -e "import {writeFileSync} from 'node:fs'; import {testSong} from './apps/xm_song.mjs'; writeFileSync('docs/music/zm_test.xm', testSong());"
 
 const u16 = (v) => [v & 255, (v >> 8) & 255];
 const u32 = (v) => [v & 255, (v >>> 8) & 255, (v >>> 16) & 255, (v >>> 24) & 255];

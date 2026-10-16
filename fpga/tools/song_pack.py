@@ -21,7 +21,7 @@ from pathlib import Path
 
 FPGA = Path(__file__).resolve().parent.parent
 # The players' extensions: tests/test_audio_soc.py holds this to host/audio.c's audio_play.
-SONG_EXTS = ("sndh", "mod", "ymraw", "raw", "sap")
+SONG_EXTS = ("sndh", "mod", "xm", "ymraw", "raw", "sap")
 NAME = re.compile(rb"[A-Za-z0-9_][A-Za-z0-9_./-]{0,62}\.(?:" + "|".join(SONG_EXTS).encode() + rb")(?![A-Za-z0-9])")
 
 
