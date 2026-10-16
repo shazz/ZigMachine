@@ -130,3 +130,26 @@ test "vibrato is a sine of its phase, zero at the start and the middle" {
     try std.testing.expect(xt.vibratoDelta(16, 15) > 0);
     try std.testing.expectEqual(@as(i32, 0), xt.vibratoDelta(16, 0));
 }
+
+test "a sample over 65536 frames loops at its own end, past the old 16.16 range" {
+    // Frame i holds i % 100; gain 128 makes the output the frame's value exactly.
+    var data: [70000]i8 = undefined;
+    for (&data, 0..) |*d, i| d.* = @intCast(i % 100);
+    const s = inst.Sample{ .len = 70000, .loop = inst.LOOP_FORWARD, .loop_start = 60000, .loop_len = 10000 };
+    var v = xmix.Voice{ .active = true, .idx = 69995, .step = 1 << 16, .gain = 128 };
+    var out = [_]i8{0} ** 12;
+    xmix.mixVoice(&v, &data, &s, &out);
+    try std.testing.expectEqualSlices(i8, &.{ 95, 96, 97, 98, 99, 0, 1, 2, 3, 4, 5, 6 }, &out);
+    try std.testing.expect(v.active);
+}
+
+test "a fractional step carries into the frame index across 65536" {
+    var data: [70000]i8 = undefined;
+    for (&data, 0..) |*d, i| d.* = @intCast(i % 100);
+    const s = inst.Sample{ .len = 70000 };
+    // Step 1.5: frames 65534, 65535.5, 65537, 65538.5, 65540, 65541.5 (the fraction carried).
+    var v = xmix.Voice{ .active = true, .idx = 65534, .step = 98304, .gain = 128 };
+    var out = [_]i8{0} ** 6;
+    xmix.mixVoice(&v, &data, &s, &out);
+    try std.testing.expectEqualSlices(i8, &.{ 34, 35, 37, 38, 40, 41 }, &out);
+}

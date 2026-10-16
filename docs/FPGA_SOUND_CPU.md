@@ -83,7 +83,7 @@ source alone.
 **FastTracker 2 (`.xm`).** `host/audio.c` stages an `.xm` and calls `audioLoadXm` then `audioXmPlay` (its tune field
 is the start BPM, 0 = the song's own tempo), the same way a `.mod` goes. The eight voices are mixed in software two
 to a Paula channel (`libs/zig/players/xm.zig`), so the sound CPU needs no more channels than a MOD. Its 32-bit mixer
-takes samples up to 32000 frames; a longer one is refused (`SampleTooLong`). The test song is `docs/music/zm_test.xm`
+keeps each position as a 32-bit frame index plus a 16-bit fraction, so a sample has no length cap beyond song RAM. The test song is `docs/music/zm_test.xm`
 (`apps/xm_song.mjs` writes it).
 
 **The bug this closed (2026-10-10).** `sap_test` (cart 86) played Warhawk on the board, but Enter did nothing. The

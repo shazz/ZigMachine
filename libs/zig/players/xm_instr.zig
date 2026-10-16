@@ -138,7 +138,6 @@ fn sampleHeader(data: []u8, h: usize, pcm: usize) Error!Sample {
     if (kind == 3) return error.BadInstrument;
     const frame: u32 = if (is16) 2 else 1;
     const len = bytes / frame;
-    if (len > fmt.MAX_SAMPLE_FRAMES) return error.SampleTooLong;
     if (pcm + bytes > data.len) return error.Truncated;
     var s: Sample = .{
         .off = @intCast(pcm),
