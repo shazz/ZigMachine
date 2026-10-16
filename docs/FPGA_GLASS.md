@@ -276,8 +276,9 @@ Offsets are from the window's start; the cart CPU (ZIGGY) sees offset 0 at
 
 | Offset | CPU address | Size | What | Written by |
 |---|---|---|---|---|
-| `0x0000_0000` | `0x4000_0000` | the image, < 12 MiB | `fw.bin`: code, constants, `.data`'s load copy (ends at `__data_source_end`) | ZWINDOW (load) |
-| image end, rounded up to 4 KiB | | the disk, up to `0x00C0_0000` | **the shelf disk** (`DISK_*`, below "The disk in DDR") | ZWINDOW (load) |
+| `0x0000_0000` | `0x4000_0000` | the image, < 12 MiB | `fw.bin`: code, constants, `.data`'s load copy (ends at `__data_source_end`). Split: the **system image** `sys.bin`, < 3 MiB | ZWINDOW (load) |
+| `0x0030_0000` | `0x4030_0000` | split only | the **lean cart image** `cart.bin`, its header first; its `.bss` follows (`CART_IMG_AT`, "System image and lean carts") | ZWINDOW (load) |
+| image end (split: the cart's `.bss` end), rounded up to 4 KiB | | the disk, up to `0x00C0_0000` | **the shelf disk** (`DISK_*`, below "The disk in DDR") | ZWINDOW (load) |
 | `0x00C0_0000` | `0x40C0_0000` | 1 MiB + 1 MiB | the two pictures (`cycles/bmailbox.h`) | ZIGGY |
 | `0x00E0_0000` | `0x40E0_0000` | 2 MiB | the sound CPU's image (`ZM_AUDIO=snd` only) | in `fw.bin`'s link |
 | `0x0100_0000` | `0x4100_0000` | 16 MiB (12 with `snd`) | `.data`, `.bss`, the machine's 7 MiB arena, the heap, a 1 MiB stack | ZIGGY |
@@ -654,6 +655,37 @@ through the glass like any cart's (it owns the keyboard, so every key goes to
   catalog title, `ST REPLAY`, with the group `Microdeal` (`shelf_meta.py`
   `OVERRIDES`, below, "Cart descriptions").
 
+## System image and lean carts
+
+decisions.md 2026-10-15. A monolithic board image repeats ~1.65 MB of firmware, machine,
+ROM and BARD image in every fat disk. The split puts them in one **system image**, on the
+card once as `zigmachine/system.rv32`, and leaves each fat disk a **lean cart image**: the
+wasm2c'd cart, its env forwarders and its songs (`make -C fpga board-split ZM_AUDIO=snd`,
+then `tools/glass_sd.py --system build/hcycles/split/board_snd/sys.bin --fw-dir
+build/hcycles/split/carts`). Measured on the 15-cart shelf: 7.66 MB → 3.92 MB; a cart's
+packed board image ~270 KB → 11 to 112 KB (skystrike 396 KB and Beat Dis 250 KB are their
+songs); `system.rv32` is 257 KB.
+
+- **The table.** The cart calls the machine, the ROM, the wasm2c runtime and libc/libm
+  through `zm_sys_table`, which the system hands to the cart's `bind()`; the system calls
+  the cart through the header at the start of its image (`zm_cart_hdr`: entry points,
+  bridges, `.bss` range, sizes). `fpga/cycles/sys_abi.txt` is the layout and its version
+  (`major.minor`); `tools/sys_abi.py --check` in `build.sh` fails a layout that changed
+  without a bump (`--update` bumps: minor for an appended ROM export, major otherwise).
+- **Versions.** A cart runs on a system of the same major and at least its minor. glass
+  checks when it loads the disk (`system.zig`), before DDR or the CPU are touched; the
+  firmware checks again (`cycles/bsys.c`) and reports `TRAP_CART_ABI`.
+- **Loading.** glass reads `system.rv32` once at start-up. A fat disk whose board image
+  starts with `CART_HDR_MAGIC` is a lean cart: the system goes at offset 0, the cart at
+  `CART_IMG_AT`, the shelf disk after the cart's `.bss`. A monolithic image loads as before,
+  so both kinds of disk can share a card.
+- **The firmware.** `bsys_link()` finds the cart, checks its version, zeroes its `.bss`
+  (cold or warm) and binds it before `bdisk_boot` and `host_boot`. The cart has no `.data`,
+  TLS or libc (`cycles/cart.ld` refuses them); its wasm call-depth counter is its own.
+- **The sim.** `tools/hp_sim_split.py <carts>` runs the pair in the board SoC sim with the
+  sound CPU, against the references the monolithic image is held to; `--abi-skew` builds
+  carts claiming another version and expects the refusal.
+
 ## The disk in DDR
 
 A cart that streams from its disk (stniccc's SCENE1.BIN, the stream cart, any
@@ -870,6 +902,8 @@ why the glass waits for the check), and the swap's timing.
 | Disk unreadable, not a disk, no board image, bad ZX0, too big, a board image that is not the last file (`BadFat`), a shelf disk that does not fit below the pictures (`DiskTooBig`) | parse/depack | the status line shows `<file>: <Error>` | the old cart keeps running |
 | CPU will not stop | `STATUS.RUNNING` | `WontStop` | the bitstream is wrong |
 | DDR read-back differs | full read-back | `DdrMismatch` | CPU held |
+| A lean cart for another system table, or no `system.rv32` on the card ("System image and lean carts") | the cart's header against the system's version | `needs system a.b, card c.d` / `no system.rv32 on the card` | the old cart keeps running |
+| The firmware refuses the cart's table, or finds no cart at `CART_IMG_AT` | `CART_STATE` = trapped, `TRAP_CART_ABI` / `TRAP_NO_CART` | `SystemRefused` / `NoCart`; the sim prints `ZM CARTABI ...` | CPU held |
 | Firmware traps while booting | `CART_STATE` = 3 | `CartTrapped`, with the code | CPU held |
 | Firmware never reports | 2,000 polls of 1 ms | `CartSilent` | CPU held |
 | Cart traps later | the watchdog poll | the menu reopens, `cart trapped (code N)` | CPU held |

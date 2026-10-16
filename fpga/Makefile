@@ -156,13 +156,15 @@ include cycles/video.mk
 # --- the glass: the ARM's program and the SD card (docs/FPGA_GLASS.md) -------
 #   make glass   host build (glass sim-load / sim-menu) + the board's static ARM binary
 #   make sd      stage the SD card in build/glass/sd (never a device; see its MANIFEST.txt)
+#   make sd ZM_SPLIT=1 ZM_AUDIO=snd   the same with system.rv32 once + lean carts (make board-split first)
 .PHONY: glass sd
 glass: memmap
 	cd glass && $(ZIG) build
 	cd glass && $(ZIG) build -Dtarget=arm-linux-musleabihf -Dcpu=cortex_a9 -Doptimize=ReleaseSafe --prefix zig-out/arm
 
 sd: glass
-	uv run python tools/glass_sd.py $(if $(BR_OUT),--buildroot $(BR_OUT))
+	uv run python tools/glass_sd.py $(if $(BR_OUT),--buildroot $(BR_OUT)) \
+		$(if $(ZM_SPLIT),--system $(SPLIT)/board$(ASUF)$(HSUF)/sys.bin --fw-dir $(SPLIT)/carts$(HSUF))
 
 clean:
 	rm -rf build gen
