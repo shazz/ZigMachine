@@ -15,6 +15,9 @@
 //   7 ID        R  0x5A410100 ("ZA", 1.0)
 `default_nettype none
 
+// keep_hierarchy: without it Vivado optimises zm_audio_sched/zm_audio_pcm across this boundary
+// and lands on one of two shapes (~1,795 or ~1,965 LUT) depending on unrelated changes elsewhere.
+(* keep_hierarchy = "yes" *)
 module zm_audio_soc #(
     parameter integer SR_INC = 441,
     parameter integer SR_MOD = 1000000,    // 44.1 kHz at 100 MHz
