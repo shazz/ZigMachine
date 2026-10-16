@@ -19,12 +19,13 @@ pub const PERIOD_MIN: i32 = 1;
 pub const PERIOD_MAX: i32 = 7680 * 2; // two octaves below C-0, the widest a tune reaches
 
 /// 16.16 step for a linear period: LIN_BASE / RATE * 2^((4608 - p) / 768).
-const LIN_STEP_BASE: u64 = @intFromFloat(@round(LIN_BASE / RATE * 65536.0));
-/// 2^(r / 768) as Q24, r = 0..767.
+const LIN_STEP_BASE: u32 = @intFromFloat(@round(LIN_BASE / RATE * 65536.0));
+/// 2^(r / 768) as Q16, r = 0..767. Q16 (not Q24) keeps base * frac inside a u32:
+/// BARD has no 64-bit multiply in the per-tick path.
 const LIN_FRAC: [768]u32 = blk: {
     @setEvalBranchQuota(100_000);
     var t: [768]u32 = undefined;
-    for (&t, 0..) |*v, r| v.* = @intFromFloat(@round(std.math.pow(f64, 2.0, @as(f64, @floatFromInt(r)) / 768.0) * 16777216.0));
+    for (&t, 0..) |*v, r| v.* = @intFromFloat(@round(std.math.pow(f64, 2.0, @as(f64, @floatFromInt(r)) / 768.0) * 65536.0));
     break :blk t;
 };
 /// 16.16 step * period for an Amiga period: 7093789.2 / (2 * RATE) * 65536.
@@ -54,9 +55,8 @@ pub fn linearStep(p: i32) u32 {
     const m: i32 = 4608 - clampPeriod(p);
     const q: i32 = @divFloor(m, 768);
     const r: usize = @intCast(m - q * 768);
-    const base: u64 = (LIN_STEP_BASE * LIN_FRAC[r]) >> 24;
-    const shifted: u64 = if (q >= 0) base << @as(u6, @intCast(q)) else base >> @as(u6, @intCast(-q));
-    return @intCast(@min(shifted, std.math.maxInt(u32)));
+    const base: u32 = (LIN_STEP_BASE * LIN_FRAC[r]) >> 16;
+    return if (q >= 0) base << @as(u5, @intCast(q)) else base >> @as(u5, @intCast(-q));
 }
 
 /// The step of Amiga period `p`: AMIGA_STEP_K / p.

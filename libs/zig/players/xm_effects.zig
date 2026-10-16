@@ -35,12 +35,22 @@ pub fn rowEffect(p: *XmPlayer, ch: usize) void {
         } else p.setBpm(c.param),
         0xB => p.jump_pos = c.param,
         0xD => p.break_row = @intCast(@as(u16, c.param >> 4) * 10 + (c.param & 0x0F)),
-        0x9 => if (c.mix.active) {
-            c.mix.pos = (@as(i64, c.param) * 256) << 16;
-        },
+        0x9 => sampleOffset(p, c),
         0xE => eRowEffect(p, c),
         else => {},
     }
+}
+
+/// 9xx: start the sample at param x 256 frames. Past the sample's end the note is
+/// silent, as FT2 has it, rather than wrapped.
+fn sampleOffset(p: *const XmPlayer, c: *xv.Chan) void {
+    if (!c.mix.active) return;
+    const off: u32 = @as(u32, c.param) * 256;
+    if (off >= p.tabs.samps[c.mix.sample].len) {
+        c.mix.active = false;
+        return;
+    }
+    c.mix.pos = @intCast(off << 16);
 }
 
 fn eRowEffect(p: *XmPlayer, c: *xv.Chan) void {

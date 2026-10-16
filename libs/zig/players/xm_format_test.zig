@@ -85,9 +85,8 @@ test "an order naming a pattern the file does not hold is refused" {
 }
 
 test "every reason has its own number for the host" {
-    const errs = [_]fmt.Error{ error.TooShort, error.NotXm, error.BadVersion, error.BadHeaderSize, error.TooManyChannels, error.BadSongLength, error.TooManyPatterns, error.TooManyInstruments, error.TooManySamples, error.BadPattern, error.Truncated, error.BadTempo, error.BadInstrument, error.BadOrder, error.TooLarge };
+    const errs = [_]fmt.Error{ error.TooShort, error.NotXm, error.BadVersion, error.BadHeaderSize, error.TooManyChannels, error.BadSongLength, error.TooManyPatterns, error.TooManyInstruments, error.TooManySamples, error.BadPattern, error.Truncated, error.BadTempo, error.BadInstrument, error.BadOrder, error.TooLarge, error.SampleTooLong };
     for (errs, 0..) |e, i| try std.testing.expectEqual(@as(u32, @intCast(i + 1)), fmt.code(e));
-    try std.testing.expectEqual(@as(u32, 15), fmt.code(error.TooLarge));
 }
 
 test "a packed cell reads only the fields its flag byte names" {
