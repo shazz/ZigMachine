@@ -25,6 +25,7 @@ The file extension picks the player. Files live under `docs/music/`.
 | `.sndh` | the tune's own 68000 code on the sealed YM (preferred) | yes: `tune` counts from 1, 0 = the file's default |
 | `.ymraw` | YM5!/YM6! register dump (**deprecated**, last resort only) | no |
 | `.mod` | ProTracker 4-channel on the Paula channels: tags `M.K.`, `M!K!`, `4CHN`, `FLT4` only (a 6CHN / 8CHN file is **refused**, see below) | no |
+| `.xm` | FastTracker 2 module: up to 12 channels, mixed in software onto the four Paula channels (two voices a channel up to 8 channels, three a channel for 9..12); 8- and 16-bit samples, envelopes, the effects in `libs/zig/players/xm.zig` | no |
 | `.raw` | 8-bit PCM at 12517 Hz | no |
 | `.sap` | an Atari 8-bit tune's own 6502 code on the machine's POKEY (`libs/zig/players/sap_player.zig`): TYPE B and C, mono; D/S/R and STEREO are refused, with the reason on the console | yes: `tune` counts from 1, 0 = the file's DEFSONG |
 
