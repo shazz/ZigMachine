@@ -21,6 +21,7 @@
 // '/' are blank (no glyph in the outline sheet), matching the original assets.
 // --------------------------------------------------------------------------
 const std = @import("std");
+const rows = @import("blit_rows.zig");
 
 pub const Config = struct {
     glyph_w: u16 = 32,
@@ -124,35 +125,60 @@ pub fn Scroller(comptime num_slots: usize) type {
             }
         }
 
-        fn drawGlyph(self: *const Self, dst: []u8, stride: usize, dst_w: u16, x: i32, ch: u8) void {
+        // The old loop clipped every pixel and stored up to two bytes a pixel
+        // (the raster ink, then the outline over it), each a blocking bus write
+        // on the board. Now the clip is one column range a glyph and each row's
+        // final pixels go out a word at a time (blit_rows) -- the same bytes:
+        // the outline where it is non-zero, else the raster where the mask bit
+        // is set, else untouched (scrolltext2_test.zig).
+        pub fn drawGlyph(self: *const Self, dst: []u8, stride: usize, dst_w: u16, x: i32, ch: u8) void {
             const cfg = self.cfg;
             const idx: u16 = @as(u16, ch - cfg.ascii_base);
             const gcol: u16 = idx % cfg.cols;
             const grow: u16 = idx / cfg.cols;
             const sheet_w: usize = cfg.font_out_sheet_w;
+            const gx0: usize = @intCast(@max(0, -x));
+            const gx1: usize = @intCast(@max(0, @min(@as(i32, cfg.glyph_w), @as(i32, dst_w) - x)));
+            if (gx1 <= gx0) return;
+            const dpx0: usize = @intCast(x + @as(i32, @intCast(gx0)));
+            const n = gx1 - gx0;
+            const rx0 = dpx0 % cfg.raster_w;
             var gy: u16 = 0;
             while (gy < cfg.glyph_h) : (gy += 1) {
                 const bit_row = @as(usize, grow) * cfg.glyph_h + gy;
-                var gx: u16 = 0;
-                while (gx < cfg.glyph_w) : (gx += 1) {
-                    const px = x + @as(i32, gx);
-                    if (px < 0 or px >= dst_w) continue;
-                    const bit_col = @as(usize, gcol) * cfg.glyph_w + gx;
-                    const sheet_off = bit_row * sheet_w + bit_col;
-                    const dpx: usize = @intCast(px);
-                    const doff = @as(usize, gy) * stride + dpx;
-
-                    const byte = cfg.font_in_bits[sheet_off / 8];
-                    const bit = (byte >> @intCast(7 - (sheet_off % 8))) & 1;
-                    if (bit == 1) {
-                        const rx = dpx % cfg.raster_w;
-                        const ry = @as(usize, gy) % cfg.raster_h;
-                        dst[doff] = cfg.raster[ry * @as(usize, cfg.raster_w) + rx];
-                    }
-                    const outline = cfg.font_out[sheet_off];
-                    if (outline != 0) dst[doff] = outline;
-                }
+                const sheet0 = bit_row * sheet_w + @as(usize, gcol) * cfg.glyph_w + gx0;
+                var px = GlyphRow{
+                    .bits = cfg.font_in_bits.ptr,
+                    .so = sheet0,
+                    .raster = cfg.raster[(@as(usize, gy) % cfg.raster_h) * @as(usize, cfg.raster_w) ..].ptr,
+                    .rx = rx0,
+                    .rw = cfg.raster_w,
+                };
+                rows.row(dst[@as(usize, gy) * stride + dpx0 ..][0..n], cfg.font_out[sheet0..][0..n], &px, GlyphRow.pick, false);
             }
         }
+
+        // One glyph row's pixels for rows.row, which calls pick once per pixel
+        // in order: `so` (the sheet offset) and `rx` (the raster column) step
+        // along with it. The outline where it is non-zero, else the raster where
+        // the mask bit is set, else nothing.
+        const GlyphRow = struct {
+            bits: [*]const u8,
+            so: usize,
+            raster: [*]const u8,
+            rx: usize,
+            rw: usize,
+
+            inline fn pick(g: *GlyphRow, outline: u8, _: u8, _: usize) rows.Px {
+                const bit = (g.bits[g.so >> 3] >> @intCast(7 - (g.so & 7))) & 1;
+                const r = g.raster[g.rx];
+                g.so += 1;
+                g.rx += 1;
+                if (g.rx == g.rw) g.rx = 0;
+                if (outline != 0) return rows.put(outline);
+                return if (bit == 1) rows.put(r) else rows.skip;
+            }
+        };
+
     };
 }
