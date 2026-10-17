@@ -5,6 +5,7 @@
 // --------------------------------------------------------------------------
 const std = @import("std");
 const zg = @import("zigos");
+const fx = @import("tex_fix.zig");
 const convertU8ArraytoColors = zg.convertU8ArraytoColors;
 
 const ZigOS = zg.ZigOS;
@@ -34,34 +35,36 @@ const logo_b = @embedFile(DIR ++ "logo.raw");
 const back_b = @embedFile(DIR ++ "back.raw");
 const BACK_POS: u16 = 200 - 87;
 
-/// A 640x400 canvas coordinate on the 320x200 screen. The browser draws an
-/// unscaled image at the ROUNDED canvas coordinate (measured on the original),
-/// so it covers 2x-pixels round(c)..; halving floors that onto the ST grid.
-fn halve(canvas_coord: f64) i32 {
-    return @divFloor(@as(i32, @intFromFloat(@round(canvas_coord))), 2);
+/// A 640x400 canvas coordinate (already rounded) on the 320x200 screen: the browser
+/// draws an unscaled image at the ROUNDED canvas coordinate (measured on the
+/// original), so halving floors that onto the ST grid.
+fn half(canvas_coord: i32) i32 {
+    return canvas_coord >> 1;
 }
 
 // starfield — screen.js:36-39 and codef_starfield.js:99-121 (starfield2D_dot) on
 // the 640x190 star canvas: each layer's stars start at random*640, random*190,
 // are plotted as a 2x2 fillRect and THEN move by speedx, wrapping x < 0 to 640.
-const STAR_CANVAS_W: f64 = 640;
-const STAR_CANVAS_H: f64 = 190;
+// Integers: x in Q32 canvas pixels (random*640 is just seed*640 in Q32), the row a
+// star is plotted on is fixed at birth (y never moves).
+const Q32: i64 = 1 << 32;
+const STAR_CANVAS_W: i64 = 640 * Q32;
 const STAR_ROWS: i32 = 95;
-const StarLayer = struct { nb: usize, speedx: f64, color: u8 };
+const StarLayer = struct { nb: usize, speedx: i64, color: u8 };
 const STAR_LAYERS = [_]StarLayer{
-    .{ .nb = 25, .speedx = -5.0, .color = 2 }, // #E0E0E0
-    .{ .nb = 30, .speedx = -1.2, .color = 1 }, // #606060
+    .{ .nb = 25, .speedx = -5 * Q32, .color = 2 }, // #E0E0E0
+    .{ .nb = 30, .speedx = -5153960755, // round(-1.2 * 2^32) .color = 1 }, // #606060
 };
 const NB_STARS = 25 + 30;
 /// Math.random cannot be replayed, so the stars are seeded from this xorshift32.
 /// The Chrome reference page substitutes the same generator for Math.random.
 const STAR_SEED: u32 = 0x2545F491;
-const Star = struct { x: f64, y: f64, speedx: f64, color: u8 };
+const Star = struct { x: i64, row: i32, speedx: i64, color: u8 };
 
 // logo — screen.js:91 and 110-112: mid-handled 416x194 image, so its top-left
 // is 320 + sin(sinx)*(100*sin(inc)) - 208 across and 97 - 97 down.
-const LOGO_SINX_INC: f64 = 0.13;
-const LOGO_INC_INC: f64 = 0.008;
+const LOGO_SINX_INC = fx.turns(0.13);
+const LOGO_INC_INC = fx.turns(0.008);
 
 // sprites — screen.js:51-75 and go() at 114-118: eleven 32x16 images (16x8 here)
 // in one chain along x = 305 + 306*sin(p), y = 86 + 84*cos(1.5p), each 0.3 of
@@ -70,8 +73,8 @@ const LOGO_INC_INC: f64 = 0.008;
 // Index 0 of each image is transparent (tools/private_tools/tex_assets.py).
 const NB_SPRITES = 11;
 const SPRITE_W = 16;
-const SPRITE_PHASE_STEP: f64 = 0.3;
-const SPRITE_PHASE_INC: f64 = 0.04;
+const SPRITE_PHASE_STEP = fx.turns(0.3); // phases are u64 turns (tex_fix.zig)
+const SPRITE_PHASE_INC = fx.turns(0.04);
 const delta_img = blit.Image.init(@embedFile(DIR ++ "delta.raw"), SPRITE_W);
 const sprite_imgs = [NB_SPRITES]blit.Image{
     delta_img, delta_img, delta_img,
@@ -111,15 +114,15 @@ comptime {
 pub const Demo = struct {
     logo: Sprite = undefined,
     back: Sprite = undefined,
-    // f64 like the JS numbers, so every phase stays on the original's however
-    // long the screen runs (f32 drifts by 0.16 rad in ten minutes).
-    logo_sinx: f64 = undefined,
-    logo_inc: f64 = undefined,
-    sprite_phase: [NB_SPRITES]f64 = undefined,
+    // u64 turns: exact to ~1e-19 of a revolution, so every phase stays on the
+    // original's doubles however long the screen runs.
+    logo_sinx: u64 = undefined,
+    logo_inc: u64 = undefined,
+    sprite_phase: [NB_SPRITES]u64 = undefined,
     sprite_x: [NB_SPRITES]i32 = undefined,
     sprite_y: [NB_SPRITES]i32 = undefined,
     stars: [NB_STARS]Star = undefined,
-    star_drawn_x: [NB_STARS]f64 = undefined,
+    star_drawn_x: [NB_STARS]i64 = undefined,
     letters: [NB_LETTERS]Letter = undefined,
     text_offset: usize = undefined,
 
@@ -147,7 +150,7 @@ pub const Demo = struct {
         self.logo_sinx = 0;
         self.logo_inc = 0;
         for (0..NB_SPRITES) |i| {
-            self.sprite_phase[i] = SPRITE_PHASE_STEP * @as(f64, @floatFromInt(i + 1));
+            self.sprite_phase[i] = SPRITE_PHASE_STEP *% (i + 1);
             self.sprite_x[i] = 0;
             self.sprite_y[i] = 0;
         }
@@ -178,28 +181,37 @@ pub const Demo = struct {
         var t: usize = 0;
         for (STAR_LAYERS) |layer| {
             for (0..layer.nb) |_| {
-                const x = nextRandom(&seed) * STAR_CANVAS_W;
-                const y = nextRandom(&seed) * STAR_CANVAS_H;
-                self.stars[t] = .{ .x = x, .y = y, .speedx = layer.speedx, .color = layer.color };
+                const x: i64 = @as(i64, nextRandom(&seed)) * 640;
+                const y: u64 = @as(u64, nextRandom(&seed)) * 190; // y in Q32
+                // floor(floor(y + 1) / 2): the ST row of the 2x2 dot
+                const row: i32 = @intCast((y + Q32) >> 33);
+                self.stars[t] = .{ .x = x, .row = row, .speedx = layer.speedx, .color = layer.color };
                 self.star_drawn_x[t] = x;
                 t += 1;
             }
         }
     }
 
-    /// xorshift32 in [0, 1): the stand-in for Math.random.
-    fn nextRandom(seed: *u32) f64 {
+    /// xorshift32, the raw 32 bits (random = bits / 2^32): the stand-in for Math.random.
+    fn nextRandom(seed: *u32) u32 {
         seed.* ^= seed.* << 13;
         seed.* ^= seed.* >> 17;
         seed.* ^= seed.* << 5;
-        return @as(f64, @floatFromInt(seed.*)) / 4294967296.0;
+        return seed.*;
     }
 
     pub fn update(self: *Demo, zigos: *ZigOS, elapsed_time: f32) void {
         _ = zigos;
         _ = elapsed_time;
 
-        // starfield2D_dot.draw(): plot where the star is, then move it
+        /// A 640x400 canvas coordinate (already rounded) on the 320x200 screen: the browser
+/// draws an unscaled image at the ROUNDED canvas coordinate (measured on the
+/// original), so halving floors that onto the ST grid.
+fn half(canvas_coord: i32) i32 {
+    return canvas_coord >> 1;
+}
+
+// starfield2D_dot.draw(): plot where the star is, then move it
         for (&self.stars, &self.star_drawn_x) |*star, *drawn_x| {
             drawn_x.* = star.x;
             star.x += star.speedx;
@@ -207,16 +219,18 @@ pub const Demo = struct {
             if (star.x < 0) star.x = STAR_CANVAS_W;
         }
 
-        self.logo_sinx += LOGO_SINX_INC;
-        self.logo_inc += LOGO_INC_INC;
-        self.logo.update(halve(320 + @sin(self.logo_sinx) * (100 * @sin(self.logo_inc)) - 208), null, null, null);
+        self.logo_sinx +%= LOGO_SINX_INC;
+        self.logo_inc +%= LOGO_INC_INC;
+        // halve(320 + sin(sinx) * (100 * sin(inc)) - 208), the canvas coordinate rounded
+        const wave = (fx.sin(fx.hi(self.logo_sinx)) * fx.sin(fx.hi(self.logo_inc))) >> 30;
+        self.logo.update(half(fx.roundQ30(112, 100, wave)), null, null, null);
 
         // go() advances each phase BEFORE drawing (screen.js:116-117)
         for (0..NB_SPRITES) |i| {
-            self.sprite_phase[i] += SPRITE_PHASE_INC;
+            self.sprite_phase[i] +%= SPRITE_PHASE_INC;
             const p = self.sprite_phase[i];
-            self.sprite_x[i] = halve(305 + 306 * @sin(p));
-            self.sprite_y[i] = halve(86 + 84 * @cos(p * 1.5));
+            self.sprite_x[i] = half(fx.roundQ30(305, 306, fx.sin(fx.hi(p))));
+            self.sprite_y[i] = half(fx.roundQ30(86, 84, fx.cos(fx.hi(p +% (p >> 1)))));
         }
 
         self.updateScroller();
@@ -255,8 +269,8 @@ pub const Demo = struct {
     fn renderStars(self: *Demo, fb: *LogicalFB) void {
         fb.clearFrameBuffer(0);
         for (self.stars, self.star_drawn_x) |star, drawn_x| {
-            const x = @divFloor(@as(i32, @intFromFloat(@floor(drawn_x + 1))), 2);
-            const y = @divFloor(@as(i32, @intFromFloat(@floor(star.y + 1))), 2);
+            const x: i32 = @intCast((drawn_x + Q32) >> 33);
+            const y = star.row;
             if (x < 0 or x >= WIDTH or y >= STAR_ROWS) continue;
             fb.setPixelValue(@intCast(x), @intCast(y), star.color);
         }
