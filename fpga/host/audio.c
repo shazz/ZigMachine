@@ -28,6 +28,7 @@ static const char* const NATIVE[] = {
     "near miss: the digi handler with an unknown sequencer, on Musashi",
     "near miss: the driver's tables out of range, on Musashi",
     "native replays off, on Musashi",
+    "native monty",
 };
 
 void audio_boot(void) {

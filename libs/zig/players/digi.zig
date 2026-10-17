@@ -19,6 +19,7 @@
 const std = @import("std");
 pub const handler = @import("digi_handler.zig");
 pub const beat_dis = @import("digi_beatdis.zig");
+pub const monty = @import("digi_monty.zig");
 
 pub const Status = enum(u32) {
     musashi = 0, // no known handler: the general path
@@ -26,19 +27,26 @@ pub const Status = enum(u32) {
     near_miss_sequencer = 2, // the handler is there, the sequencer is not one we know
     near_miss_data = 3, // the driver matched, its tables point outside the image
     disabled = 4, // a known driver, but native replays are switched off
+    monty = 5, // native, players/digi_monty.zig (Mad Max's Monty digidrums, Timer D)
+};
+
+pub const Driver = union(enum) {
+    beat_dis: beat_dis.Driver,
+    monty: monty.Driver,
 };
 
 pub const Recognition = struct {
     status: Status = .musashi,
-    driver: ?beat_dis.Driver = null,
+    driver: ?Driver = null,
 };
 
 /// `image` is the tune as loaded, at 68000 address `base`.
 pub fn recognise(image: []const u8, base: u32) Recognition {
+    if (monty.match(image, base)) |d| return .{ .status = .monty, .driver = .{ .monty = d } };
     const found = handler.find(image) orelse return .{};
     const d = beat_dis.match(image, base) orelse return .{ .status = .near_miss_sequencer };
     if (d.handler.addr != base + found or !beat_dis.tablesFit(image, base, d)) return .{ .status = .near_miss_data };
-    return .{ .status = .beat_dis, .driver = d };
+    return .{ .status = .beat_dis, .driver = .{ .beat_dis = d } };
 }
 
 /// FNV-1a 64 over `bytes` with the ranges in `holes` read as zero: a signature
@@ -84,6 +92,22 @@ pub fn Access(comptime Bus: type) type {
         pub fn wr32(a: u32, v: u32) void {
             Bus.write16(a, @truncate(v >> 16));
             Bus.write16(a +% 2, @truncate(v));
+        }
+        pub fn rd8(a: u32) u8 {
+            return Bus.read8(a);
+        }
+        pub fn wr8(a: u32, v: u8) void {
+            Bus.write8(a, v);
+        }
+        /// bset / bclr #bit on a byte in memory: a read, then a write.
+        pub fn bset(a: u32, bit: u3) void {
+            Bus.write8(a, Bus.read8(a) | @as(u8, 1) << bit);
+        }
+        pub fn bclr(a: u32, bit: u3) void {
+            Bus.write8(a, Bus.read8(a) & ~(@as(u8, 1) << bit));
+        }
+        pub fn btst(a: u32, bit: u3) bool {
+            return Bus.read8(a) & @as(u8, 1) << bit != 0;
         }
     };
 }

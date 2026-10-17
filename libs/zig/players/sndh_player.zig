@@ -284,10 +284,14 @@ const XBIOS_XBTIMER = 0x1F;
 
 fn xbtimer(sp: u32) void {
     const t = readWord(sp + 2);
-    if (t > 3) return;
     const ctrl: u8 = @truncate(readWord(sp + 4));
     const data: u8 = @truncate(readWord(sp + 6));
-    const vector = readLong(sp + 8);
+    xbtimerSet(t, ctrl, data, readLong(sp + 8));
+}
+
+/// The call itself, for a native INIT (sndh_native.zig) as for the trap.
+pub fn xbtimerSet(t: u16, ctrl: u8, data: u8, vector: u32) void {
+    if (t > 3) return;
     const install = vector != 0 and vector < RAM_SIZE;
     mfp.xbtimer(t, ctrl, data, install);
     if (install) writeLong(mfp.vectorSlot(t), vector);

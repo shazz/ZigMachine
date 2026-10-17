@@ -25,7 +25,7 @@ fn status(img: []const u8) digi.Status {
 test "Beat Dis is recognised, its addresses taken from its own code" {
     const r = digi.recognise(fresh(), BASE);
     try std.testing.expectEqual(digi.Status.beat_dis, r.status);
-    const d = r.driver.?;
+    const d = r.driver.?.beat_dis;
     try std.testing.expectEqual(BASE + CODE, d.base);
     try std.testing.expectEqual(BASE + CODE + 0x1B4, d.handler.addr);
     try std.testing.expectEqual(BASE + CODE + 0x2A, d.handler.cur);
@@ -71,7 +71,7 @@ test "the code moved by a longer header is still found" {
     for ([_]usize{ 2, 6, 10 }) |disp| moved[disp + 1] += 2; // the three header branches
     const r = digi.recognise(&moved, BASE);
     try std.testing.expectEqual(digi.Status.beat_dis, r.status);
-    try std.testing.expectEqual(BASE + CODE + 2, r.driver.?.base);
+    try std.testing.expectEqual(BASE + CODE + 2, r.driver.?.beat_dis.base);
 }
 
 // --- the routines on a recording bus ---------------------------------------
@@ -104,7 +104,7 @@ const Bus = struct {
 };
 
 test "init plays entry 0 and silences the YM; each interrupt is one byte through the table" {
-    const d = digi.recognise(fresh(), BASE).driver.?;
+    const d = digi.recognise(fresh(), BASE).driver.?.beat_dis;
     @memset(&ram, 0);
     @memcpy(ram[BASE..][0..FILE_LEN], &image);
     psg = [_]u8{0xFF} ** 16;
@@ -123,7 +123,7 @@ test "init plays entry 0 and silences the YM; each interrupt is one byte through
 }
 
 test "play moves on only once the pointer is PAST the end, and wraps at the -1 to entry 0" {
-    const d = digi.recognise(fresh(), BASE).driver.?;
+    const d = digi.recognise(fresh(), BASE).driver.?.beat_dis;
     @memset(&ram, 0);
     @memcpy(ram[BASE..][0..FILE_LEN], &image);
     digi.beat_dis.call(Bus, d, 0);

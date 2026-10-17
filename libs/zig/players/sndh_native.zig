@@ -24,7 +24,9 @@
 const audio = @import("audio_hw");
 const digi = @import("digi.zig");
 const sndh = @import("sndh.zig");
-const Driver = digi.beat_dis.Driver;
+const Driver = digi.Driver;
+const BeatDis = digi.beat_dis.Driver;
+const xbtimerSet = @import("sndh_player.zig").xbtimerSet;
 
 extern fn m68k_read_memory_8(address: c_uint) c_uint;
 extern fn m68k_write_memory_8(address: c_uint, value: c_uint) void;
@@ -38,7 +40,8 @@ pub var enabled: bool = true;
 pub var status: digi.Status = .musashi;
 /// A deliberately wrong native replay, for the oracle to prove it would catch
 /// one: 1 = the segment's end checked every interrupt, not every VBL; 2 = mode 3
-/// plays the tune's bytes raw, not the shadow (the 2026-10-11 bug). Test only.
+/// plays the tune's bytes raw, not the shadow (the 2026-10-11 bug); 3 = Monty's
+/// play writes volume C over its drums (digi_monty_seq.zig). Test only.
 pub var mutant: u32 = 0;
 
 var driver: ?Driver = null; // what the image is, whatever the mode
@@ -55,6 +58,7 @@ const Bus68 = struct {
     pub inline fn write16(a: u32, v: u16) void {
         m68k_write_memory_16(a, v);
     }
+    pub const xbtimer = xbtimerSet; // XBIOS Xbtimer, as the SNDH player answers the trap
 };
 
 /// A tune was just loaded at 68000 address `base`: which driver, and the mode.
@@ -68,7 +72,7 @@ pub fn recognise(image: []const u8, base: u32, top: u32) u32 {
     mode = if (driver != null and enabled) .native else .st;
     if (driver != null and !enabled) status = .disabled;
     const end = base + @as(u32, @intCast(image.len));
-    if (mode == .native) shadow = buildShadow(driver.?, end, top);
+    if (mode == .native and driver.? == .beat_dis) shadow = buildShadow(driver.?.beat_dis, end, top);
     return if (shadow) |sh| sh.to + (sh.hi - sh.lo) else end;
 }
 
@@ -83,8 +87,16 @@ pub fn forget() void {
 
 /// One of INIT / EXIT / PLAY, natively if the mode says so. False: Musashi's.
 pub fn call(entry: u32) bool {
-    const d = driver orelse return false;
+    const any = driver orelse return false;
     if (mode == .st) return false;
+    const d = switch (any) {
+        .beat_dis => |bd| bd,
+        .monty => |md| {
+            digi.monty.seq.mutant = mutant;
+            digi.monty.call(Bus68, md, entry);
+            return true;
+        },
+    };
     const was = digi.Access(Bus68).rd32(d.base + 0x2A);
     digi.beat_dis.call(Bus68, d, entry); // its INIT ignores d0
     if (entry == sndh.EXIT) {
@@ -97,8 +109,17 @@ pub fn call(entry: u32) bool {
 
 /// A timer interrupt to `handler`, natively if it is the driver's. False: Musashi's.
 pub fn interrupt(handler: u32) bool {
-    const d = driver orelse return false;
-    if (mode == .st or handler != d.handler.addr) return false;
+    const any = driver orelse return false;
+    if (mode == .st) return false;
+    const d = switch (any) {
+        .beat_dis => |bd| bd,
+        .monty => |md| {
+            if (handler != md.handlerAddr()) return false;
+            digi.monty.irq(Bus68, md);
+            return true;
+        },
+    };
+    if (handler != d.handler.addr) return false;
     if (mode == .pcm) {
         digi.handler.skip(Bus68, d.handler);
     } else {
@@ -112,12 +133,13 @@ pub fn interrupt(handler: u32) bool {
 /// exist (refused: nothing changes). A tune with no native driver stays in 1.
 pub fn setMode(m: u32) u32 {
     var want = if (m >= 1 and m <= 3) @as(Mode, @enumFromInt(m)) else return 0;
-    const d = driver orelse return @intFromEnum(Mode.st);
-    if (want == .pcm and shadow == null) want = .native; // no room for the converted samples
+    const any = driver orelse return @intFromEnum(Mode.st);
+    if (want == .pcm and shadow == null) want = .native; // no room for the converted samples, or no PCM path (Monty)
     if (want == mode) return @intFromEnum(want);
     if (mode == .pcm) pcmStop();
     mode = want;
     if (want == .pcm) {
+        const d = any.beat_dis; // only Beat Dis has a shadow
         for ([_]u16{ 8, 9, 10 }) |reg| { // the YM's volumes off: the channel plays instead
             Bus68.write16(0xFF8800, reg << 8);
             Bus68.write16(0xFF8802, 0);
@@ -142,7 +164,7 @@ var shadow: ?Shadow = null;
 
 /// The samples to the end of the image and the handler's overshoot past it,
 /// each byte made linear, written above it (same phase mod 4) if they fit by `top`.
-fn buildShadow(d: Driver, end: u32, top: u32) ?Shadow {
+fn buildShadow(d: BeatDis, end: u32, top: u32) ?Shadow {
     const lo = digi.beat_dis.samples(d);
     const hi = end + OVERSHOOT;
     const to = ((hi + 0xF) & ~@as(u32, 0xF)) + (lo & 0xF);
@@ -154,7 +176,7 @@ fn buildShadow(d: Driver, end: u32, top: u32) ?Shadow {
 
 /// Play from the sample pointer to the segment's end and on as far as the
 /// handler would, at the timer's rate, from the shadow; play() starts the next segment.
-fn pcmStart(d: Driver) void {
+fn pcmStart(d: BeatDis) void {
     const sh = shadow orelse return pcmStop();
     const m = digi.Access(Bus68);
     const pos = m.rd32(d.base + 0x2A) & 0xFF_FFFF;
