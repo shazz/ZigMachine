@@ -127,6 +127,7 @@ NATIVE_TESTS="
     libs/zig/players/sndh.zig
     libs/zig/players/mfp_test.zig
     libs/zig/players/digi_test.zig
+    libs/zig/players/digi_monty_test.zig
     machine/audio/pokey_test.zig
     libs/zig/players/cpu6502_test.zig
     libs/zig/players/sap_test.zig
@@ -404,6 +405,8 @@ gate tex_loader_fx node apps/tex_loader_fx_headless.mjs "$SHOTS/tex_loader_fx"  
 gate_timed tex node apps/tex_headless.mjs "$SHOTS"             # the eleven sprites on screen.js's chain
 gate equinox node apps/equinox_headless.mjs "$SHOTS"   # the dragons morph egg -> dragon -> egg
 gate tex_neoshow node apps/tex_neoshow_headless.mjs "$SHOTS/tex_neoshow"   # TEX NEO SHOW: the scroller band is a REAL per-line raster (copper), full plane width
+gate tex_neoshow_music node apps/monty_native_check.mjs   # its tune (Monty, Timer D digidrums) played natively = the 68000, bit for bit over 50 s, modes 1/2 unbroken
+gate tex_neoshow_music node apps/monty_native_check.mjs --break   # ...and volume C written over the drums (mutant 3) is caught
 gate mpp_truecolor node apps/mpp_truecolor_headless.mjs "$SHOTS"   # per-line palettes: colours on screen = captions
 gate_timed union_textracker node apps/union_textracker_headless.mjs "$SHOTS"   # TEX loader depack, then screen.js replayed pixel for pixel
 gate_timed union_demo_intro node apps/union_demo_intro_headless.mjs "$SHOTS"   # TEX loader depack, then every pixel on the screen.js replay
