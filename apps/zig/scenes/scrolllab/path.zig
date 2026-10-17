@@ -33,12 +33,15 @@ const PATH = [_][2]f64{
 const MAX_PTS = 896;
 /// 7,168 B on zg.mem, taken once by buildPath() (modes.init, once per cart load).
 var path: *[MAX_PTS][2]f32 = undefined;
+/// The unit normal at each point, worked out once: the frame has no sqrt or divide.
+var normal: *[MAX_PTS][2]f32 = undefined;
 var path_len: usize = 0;
 
 /// Walk the Catmull-Rom finely, then emit a point every arc pixel.
 pub fn buildPath() void {
     const STEP = 400;
     path = zg.mem.mustAlloc([2]f32, MAX_PTS)[0..MAX_PTS];
+    normal = zg.mem.mustAlloc([2]f32, MAX_PTS)[0..MAX_PTS];
     var prev = sample(0, 0);
     var acc: f64 = 0;
     path[0] = .{ @floatCast(prev[0]), @floatCast(prev[1]) };
@@ -54,6 +57,14 @@ pub fn buildPath() void {
                 acc -= 1.0;
             }
         }
+    }
+    for (0..path_len) |i| {
+        const a = path[(i + path_len - 1) % path_len];
+        const b = path[(i + 1) % path_len];
+        const dx = b[0] - a[0];
+        const dy = b[1] - a[1];
+        const d = @sqrt(dx * dx + dy * dy);
+        normal[i] = if (d == 0) .{ 0, 0 } else .{ -dy / d, dx / d }; // the tangent turned 90 degrees
     }
 }
 
@@ -73,29 +84,26 @@ fn sample(i: usize, f: f64) [2]f64 {
 /// Half-pixel steps along the path AND across the column, so the outside of a
 /// tight bend does not open gaps. Where the track crosses itself the later
 /// column simply draws over the earlier one: no depth model, by choice.
-pub fn draw(dst: blit.Dst, strip: *const [TILE][W]u8, drift: f64) void {
+pub fn draw(dst: blit.Dst, strip: *const [TILE][W]u8, drift_q4: i64) void {
     if (path_len < 4) return;
-    const n: f64 = @floatFromInt(path_len);
+    // Arc position in QUARTER pixels: half-pixel steps plus a drift that is a
+    // whole number of quarters, so the modulo is exact integer arithmetic.
+    const n4: i64 = @as(i64, @intCast(path_len)) * 4;
     const pts = path; // one load of the arena pointer, not three a column
+    const nrm = normal;
     for (0..2 * W) |sub| {
         const col = sub / 2;
-        var s = @mod(@as(f64, @floatFromInt(sub)) * 0.5 + drift, n);
-        if (s < 1) s += n - 2;
-        const i: usize = @intFromFloat(s);
+        var s4 = @mod(@as(i64, @intCast(sub)) * 2 + drift_q4, n4);
+        if (s4 < 4) s4 += n4 - 8;
+        const i: usize = @intCast(s4 >> 2);
         const p = pts[i];
-        const a = pts[(i + path_len - 1) % path_len];
-        const b = pts[(i + 1) % path_len];
-        const dx = b[0] - a[0];
-        const dy = b[1] - a[1];
-        const d = @sqrt(dx * dx + dy * dy);
-        if (d == 0) continue;
-        const nx = -dy / d; // the normal: the tangent turned 90 degrees
-        const ny = dx / d;
+        const nv = nrm[i];
+        if (nv[0] == 0 and nv[1] == 0) continue;
         for (0..2 * TILE) |k| {
-            const t = @as(f32, @floatFromInt(k)) * 0.5 - TILE / 2;
             const ink = strip[k / 2][col];
             if (ink == 0) continue;
-            plot(dst, p[0] + nx * t, p[1] + ny * t, ink);
+            const t = @as(f32, @floatFromInt(k)) * 0.5 - TILE / 2;
+            plot(dst, p[0] + nv[0] * t, p[1] + nv[1] * t, ink);
         }
     }
 }

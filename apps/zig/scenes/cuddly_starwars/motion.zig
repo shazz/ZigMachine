@@ -87,10 +87,14 @@ pub const BAND_ROWS: usize = 100;
 
 pub const PerspectiveRow = struct {
     band_row: u16, // screen row - 100
-    coverage: f64, // how much of the row the ph-tall draw covers
     src_row: i32, // upper text-canvas row of the bilinear pair
-    src_frac: f64, // weight of src_row + 1
-    zoom: f64, // 0.8 * scale
+    // All Q16 (65536 = 1.0), worked out here at comptime so the frame loop is integer.
+    cov: u32, // how much of the row the ph-tall draw covers
+    sf: u32, // weight of src_row + 1
+    zoom_q16: u32, // 0.8 * scale
+    // sourceX(x) = fx_base + x * fx_step, Q24: the text-canvas x a column's centre samples
+    fx_base: i64,
+    fx_step: i64,
     x_first: u16, // screen columns whose centres fall inside the stretched row
     x_last: u16,
 };
@@ -123,12 +127,15 @@ fn buildPerspective() struct { rows: [MAX_ROWS]PerspectiveRow, len: usize } {
             const band = @as(i32, @intFromFloat(row)) - TMP_FIRST_ROW;
             if (coverage <= 0 or band < 0 or band >= BAND_ROWS) continue;
             const sy = @as(f64, @floatFromInt(src_top)) + (row + 0.5 - top) - 0.5;
+            const inv = 1.0 / zoom;
             rows[len] = .{
                 .band_row = @intCast(band),
-                .coverage = coverage,
                 .src_row = @intFromFloat(@floor(sy)),
-                .src_frac = sy - @floor(sy),
-                .zoom = zoom,
+                .cov = @intFromFloat(@round(coverage * 65536.0)),
+                .sf = @intFromFloat(@round((sy - @floor(sy)) * 65536.0)),
+                .zoom_q16 = @intFromFloat(@round(zoom * 65536.0)),
+                .fx_base = @intFromFloat(@floor((159.5 - 159.5 * inv) * 16777216.0)),
+                .fx_step = @intFromFloat(@round(inv * 16777216.0)),
                 .x_first = x_first,
                 .x_last = x_last,
             };

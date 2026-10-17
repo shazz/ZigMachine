@@ -123,22 +123,43 @@ pub const Scroller = struct {
     /// Floor row y = 2Y - 360 of damierCan drawn with drawPart(main, -16y,
     /// 360+y, 0, y*corr, 704, 1, 1, 0, 1+0.04y, 1): source x at canvas x cx is
     /// floor((cx + 0.5 + 16y) / zoom), the source row floor(y*corr + 0.5).
+    ///
+    /// zoom = 1 + y/25 to within an f64 ulp, so the quotient is the exact
+    /// rational (4bx + 49 + 32y) * 25 / (2 * (25 + y)): walked along the row as
+    /// a quotient and a remainder, no divide a pixel. Only where that rational
+    /// is a whole number can the ulp decide the floor, and there (about one
+    /// pixel in a hundred) the original f64 expression runs.
     fn floorRow(self: *const Scroller, Y: usize, out: []u8) void {
         const y = 2 * (Y - FLOOR_TOP);
         const fy: f64 = @floatFromInt(y);
         const x0: f64 = 0 - fy * 16;
         const zoom: f64 = 1 + fy * ZOOM_STEP;
         const v: i32 = @intFromFloat(@floor(fy * self.corr[y] + 0.5));
-        const top_half = @mod(v - self.ty, 8 * DAMIER_W) < 4 * DAMIER_W;
+        const top_half = ((v - self.ty) & (8 * DAMIER_W - 1)) < 4 * DAMIER_W;
+        const den: u32 = @intCast(2 * (25 + y));
+        const num0: u32 = @intCast((49 + 32 * y) * 25);
+        var q: u32 = num0 / den;
+        var r: u32 = num0 % den;
+        const sq: u32 = 100 / den;
+        const sr: u32 = 100 % den;
         for (out, 0..) |*p, bx| {
-            const cx: f64 = @floatFromInt(2 * (bx + BOX_X));
-            const u = @floor((cx + 0.5 - x0) / zoom);
+            var u: u32 = q;
+            if (r == 0) {
+                const cx: f64 = @floatFromInt(2 * (bx + BOX_X));
+                u = @intFromFloat(@floor((cx + 0.5 - x0) / zoom));
+            }
+            r += sr;
+            q += sq;
+            if (r >= den) {
+                r -= den;
+                q += 1;
+            }
             if (u >= FLOOR_W) {
                 // only floor row 0 stops short (at x 704): the shadow alone is there
                 p.* = if (y < SHADOW_ROWS) A.SHADOW_BARE else 0;
                 continue;
             }
-            const left_half = @mod(@as(i32, @intFromFloat(u)) - self.tx, 2 * DAMIER_W) < DAMIER_W;
+            const left_half = ((@as(i32, @intCast(u)) - self.tx) & (2 * DAMIER_W - 1)) < DAMIER_W;
             p.* = if (left_half == top_half) A.CHECK_LIGHT else A.CHECK_DARK;
         }
     }
