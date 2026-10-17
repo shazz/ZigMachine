@@ -11,7 +11,7 @@
 // fonts are disjoint, so here one glyph carries both: grey ink indices, MASK
 // where the ras colour shows through, 0 where nothing is drawn.
 
-use super::fmath::{ceil, half, sin};
+use super::fmath::{ceil, half, sin_q24, TURN_0_05};
 
 const FONT: &[u8] = include_bytes!("../../assets/screens/v8_populous/font.bin");
 const RAS: &[u8] = include_bytes!("../../assets/screens/v8_populous/ras.bin");
@@ -20,6 +20,11 @@ const GH: i32 = 15;
 const GLYPHS: u8 = 60; // 10x6 sheet, from char 32
 const MASK: u8 = 255;
 const LETTERS: usize = 20; // wide = ceil(640/36)+1 = 19, letters 0..=19
+// Letter x stays f64 on purpose (20 subtractions and compares a frame, nothing
+// next to the sines): the remake's 1.4 px/frame step is inexact in binary, and
+// at the integer crossings its rounding noise decides which pixel a letter lands
+// on. Exact integer steps move 4% of the frames by a column; f64 keeps them
+// byte-identical.
 const RING: f64 = 19.0 * 36.0; // wide * fontw, the re-entry point
 
 pub const W: i32 = 320;
@@ -102,12 +107,12 @@ impl Ring {
 /// its mask gets ras_d at canvas y 72.
 pub struct Wave {
     ring: Ring,
-    value: f64,
+    value: u64, // phase in u64 turns, see fmath
 }
 
 impl Wave {
     pub const fn new(text: &'static [u8]) -> Wave {
-        Wave { ring: Ring::new(text), value: 0.0 }
+        Wave { ring: Ring::new(text), value: 0 }
     }
 
     pub fn draw(&mut self, vram: &mut [u8]) {
@@ -115,17 +120,18 @@ impl Wave {
         // sticks to the text; otherwise it drifts back by `offset` each frame.
         let mut base = self.value;
         for _ in 0..self.ring.advance(2.0) {
-            base += 0.8;
+            base = base.wrapping_add(16 * TURN_0_05); // 0.8 rad
         }
         let first = self.ring.leftmost();
         self.value = base;
         for k in 0..LETTERS {
             let i = (first + k) % LETTERS;
-            let y = 110.0 + sin(self.value) * 40.0;
-            glyph(vram, self.ring.ch[i], half(self.ring.x[i]), half(y), 36);
-            self.value += 0.8;
+            // half(110 + sin*40) = floor(55.5 + 20 sin), in Q24
+            let y = ((55 << 24) + (1 << 23) + 20 * sin_q24(self.value)) >> 24;
+            glyph(vram, self.ring.ch[i], half(self.ring.x[i]), y, 36);
+            self.value = self.value.wrapping_add(16 * TURN_0_05);
         }
-        self.value = base + -0.05;
+        self.value = base.wrapping_sub(TURN_0_05); // offset -0.05
     }
 }
 
@@ -148,7 +154,7 @@ impl Totor {
         for i in 0..LETTERS {
             let col = ceil(self.ring.x[i]);
             if let Some(&dy) = usize::try_from(col).ok().and_then(|c| SCROLLPOS.get(c)) {
-                let y = half(f64::from(dy) + 140.0);
+                let y = (i32::from(dy) + 141) >> 1; // half(dy + 140)
                 glyph(vram, self.ring.ch[i], half(self.ring.x[i]), y, 108);
             }
         }
