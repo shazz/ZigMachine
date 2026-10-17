@@ -46,6 +46,7 @@
 // --------------------------------------------------------------------------
 const std = @import("std");
 const zg = @import("zigos");
+const fx = @import("turns_fix.zig");
 const convertU8ArraytoColors = zg.convertU8ArraytoColors;
 
 const ZigOS = zg.ZigOS;
@@ -139,12 +140,13 @@ const SCROLL_TEXT =
 // --- the original's tables, halved where they are pixel amplitudes ---------
 // myfxparam1: {amp 150, inc 0.04, offset -0.05} + {amp -100, inc 0.01, offset 0.08}
 // The inc is per 640-space ROW, so a halved row costs two of them.
-const DIST_AMP_A: f32 = 75.0;
-const DIST_AMP_B: f32 = -50.0;
-const DIST_INC_A: f32 = 0.08;
-const DIST_INC_B: f32 = 0.02;
-const DIST_OFF_A: f32 = -0.05;
-const DIST_OFF_B: f32 = 0.08;
+// The phases are u64 turns and the two sines Q30 (turns_fix.zig): no libm per row.
+const DIST_AMP_A: i64 = 75;
+const DIST_AMP_B: i64 = -50;
+const DIST_INC_A = fx.turns(0.08);
+const DIST_INC_B = fx.turns(0.02);
+const DIST_OFF_A = fx.turns(-0.05);
+const DIST_OFF_B = fx.turns(0.08);
 
 // scrollfxparam: {amp 100, inc 0.0005, offset 0.02} — inc is per 640-space
 // COLUMN, so 0.001 per ST column. posy 100 + the scrollcanvas' own 100 = 100
@@ -160,8 +162,10 @@ const WAVE_MID: f32 = 100.0;
 // edge, so the side borders are simply x < 0 and x >= 320 — the mapping extends
 // into them unchanged. Stepped in 16.16 fixed point (see renderBand).
 const SRC_STEP_FX: i32 = @intFromFloat(2.0 / 1.8 * 65536.0);
-fn srcStartFx(shift: f32) i32 {
-    return @intFromFloat((((2.0 * @as(f32, @floatFromInt(-BX))) + 250.0) / 1.8 - shift) * 65536.0);
+/// Q16 start column for a row whose sine sum is `shift_q30` (Q30 source pixels).
+const SRC_START_FX: i32 = @intFromFloat((((2.0 * @as(f32, -BX)) + 250.0) / 1.8) * 65536.0);
+fn srcStartFx(shift_q30: i64) i32 {
+    return SRC_START_FX - @as(i32, @intCast(shift_q30 >> 14));
 }
 
 // --- the intro (prego1..prego3), in halved coordinates --------------------
@@ -172,8 +176,9 @@ const DHS_CROSSINGS: u8 = 6; // CODEF flag >= 6
 const FADE_STEP: f32 = 0.01;
 
 // --- the bob (fx == 1) ----------------------------------------------------
-const BOB_LIMIT: f32 = 40.0; // CODEF 80
-const BOB_STEP: f32 = 1.5; // CODEF 3
+// kept doubled (half pixels): the 1.5 step is whole there
+const BOB_LIMIT: i32 = 80; // 40 px, CODEF 80
+const BOB_STEP: i32 = 3; // 1.5 px, CODEF 3
 
 const Phase = enum { fade_in, bounce, fade_out, main };
 
@@ -217,13 +222,13 @@ pub const Demo = struct {
     crossings: u8 = 0,
 
     // main
-    dist_a: f32 = 0.0,
-    dist_b: f32 = 0.0,
+    dist_a: u64 = 0,
+    dist_b: u64 = 0,
     wave: f32 = 0.0,
     ring: zg.scrollring.Ring(f32, NB_LETTERS) = undefined,
     bob_on: bool = false,
-    bob_y: f32 = 0.0,
-    bob_inc: f32 = -BOB_STEP, // CODEF yyinc = -3: it rises first
+    bob_y: i32 = 0, // doubled
+    bob_inc: i32 = -BOB_STEP, // CODEF yyinc = -3: it rises first
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
         Console.log("NOEXTRA init", .{});
@@ -247,11 +252,11 @@ pub const Demo = struct {
         self.dhs_y = DHS_Y_MIN;
         self.dhs_inc = 1;
         self.crossings = 0;
-        self.dist_a = 0.0;
-        self.dist_b = 0.0;
+        self.dist_a = 0;
+        self.dist_b = 0;
         self.wave = 0.0;
         self.bob_on = false;
-        self.bob_y = 0.0;
+        self.bob_y = 0;
         self.bob_inc = -BOB_STEP;
     }
 
@@ -293,8 +298,8 @@ pub const Demo = struct {
 
     fn updateMain(self: *Demo) void {
         // the two distorter phases and the scroll wave advance once per frame
-        self.dist_a += DIST_OFF_A;
-        self.dist_b += DIST_OFF_B;
+        self.dist_a +%= DIST_OFF_A;
+        self.dist_b +%= DIST_OFF_B;
         self.wave += WAVE_OFF;
 
         _ = self.ring.step(SCROLL_SPEED);
@@ -314,7 +319,7 @@ pub const Demo = struct {
         _ = elapsed_time;
 
         // the layout's top row in physical coordinates
-        const top: i32 = BY + @as(i32, @intFromFloat(self.bob_y));
+        const top: i32 = BY + @divTrunc(self.bob_y, 2); // trunc, as the float cast was
 
         var fb: *LogicalFB = &zigos.lfbs[0];
         @memset(fb.fb[0..FB_LEN], 0);
@@ -355,9 +360,9 @@ pub const Demo = struct {
         while (r < BAND_H) : (r += 1) {
             const py = top + BAND_TOP + r;
             if (py < 0 or py >= PH) continue;
-            const fr: f32 = @floatFromInt(r);
-            const shift = DIST_AMP_A * @sin(self.dist_a + DIST_INC_A * fr) +
-                DIST_AMP_B * @sin(self.dist_b + DIST_INC_B * fr);
+            const ur: u64 = @intCast(r);
+            const shift = DIST_AMP_A * fx.sin(fx.hi(self.dist_a +% DIST_INC_A *% ur)) +
+                DIST_AMP_B * fx.sin(fx.hi(self.dist_b +% DIST_INC_B *% ur));
             const row: usize = @as(usize, @intCast(py)) * @as(usize, @intCast(PW));
             var u: i32 = srcStartFx(shift);
             var px: usize = 0;

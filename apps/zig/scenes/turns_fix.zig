@@ -44,7 +44,8 @@ pub fn cos(a: u32) i64 {
 /// radians -> u64 turns, at comptime (a constant, not per-frame float).
 pub fn turns(comptime rad: comptime_float) u64 {
     const t: comptime_float = rad / (2.0 * std.math.pi);
-    return @intFromFloat(t * 18446744073709551616.0);
+    const frac: comptime_float = t - @floor(t); // a negative step wraps, as u64 turns do
+    return @intFromFloat(frac * 18446744073709551616.0);
 }
 
 pub fn hi(a: u64) u32 {
