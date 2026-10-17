@@ -8,7 +8,10 @@ from where the repo already keeps it:
 
 - TITLE and TYPE: apps/zig/scenes/catalog.zig (tools/channels.py's parser, so
   the same 22-character cap and machine types apply), except where OVERRIDES
-  names the cart (GEM's catalog title is the menu's "EXIT TO GEM");
+  names the cart (GEM's catalog title is the menu's "EXIT TO GEM"). A cart the
+  catalog leaves out because only a hub's doors reach it (the Union Demo's
+  screens) takes its TITLE from its matrix comment ("The Union Demo / TNT3, the
+  TNT Crew's vector screen" -> "TNT3") and its TYPE from its hub's entry (HUBS);
 - DESCRIPTION: the cart matrix's comment in build.zig ("61 - vEctRoniX / VEX
   2025, the GTA VI cracktro ..."), else cart.zig's comment on the scene's
   import, else the first line of the scene's header comment;
@@ -46,7 +49,10 @@ FOLD = {"—": "-", "–": "-", "·": "-", "‘": "'", "’": "'", "“": '"', "
 OVERRIDES = {
     "gem": ("GEM DESKTOP", "Digital Research", "1985"),  # TOS 1.00's desktop (rom/gem/desktop/about.zig)
     "st_replay": ("", "Microdeal", ""),  # its description: "a homage to Microdeal's 8-bit sampler"
+    "union_textracker": ("TEX SAMPLE-MON ST", "The Union Demo", ""),  # "The Union Demo hidden screen, TEX's ..."
 }
+# Hub-only carts (catalog.zig's note: reached only through a hub's doors): tag prefix -> the hub's tag.
+HUBS = {"union_": "union_intro_screen"}
 
 
 def ascii_text(s: str) -> str:
@@ -139,7 +145,25 @@ def records(tags: list[str] | None = None) -> list[tuple[str, ...]]:
             o or d for o, d in zip(OVERRIDES.get(tag, ("", "", "")), (name, group, year), strict=True)
         )
         out.append((f"demo-{tag}.zmd", ascii_text(title), group, year, kind, desc))
+    kinds = {tag: kind for _, tag, kind in channels.entries()}
+    for tag in [t for t in cart_tags() if t not in kinds and (tags is None or t in tags)]:
+        hub = next((h for p, h in HUBS.items() if tag.startswith(p)), "")
+        if hub and (tags is not None or (ROOT / f"docs/demo-{tag}.zmd").exists()):
+            group, year, desc = describe(tag, "", comments, scenes)
+            title, group, year = (
+                o or d for o, d in zip(OVERRIDES.get(tag, ("", "", "")), (hub_title(desc), group, year))
+            )
+            out.append((f"demo-{tag}.zmd", ascii_text(title), group, year, kinds[hub], desc))
     return out
+
+
+def hub_title(desc: str) -> str:
+    """'The Union Demo / DELTA FORCE Sphericool screen (melonJS remake)' -> 'DELTA FORCE SPHERICOOL':
+    after the group, up to a comma or a parenthesis, upper-case, cut at a word to the OSD's 22."""
+    name = re.split(r",|\s\(", desc.split(" / ", 1)[-1])[0].upper()
+    while len(name) > channels.MAX_NAME_LEN and " " in name:
+        name = name.rsplit(" ", 1)[0]
+    return name[: channels.MAX_NAME_LEN]
 
 
 def write(dest: Path, tags: list[str] | None = None) -> Path:

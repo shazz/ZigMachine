@@ -612,11 +612,17 @@ second time):
   `EXIT TO GEM` becomes `GEM DESKTOP`, Digital Research, 1985, TOS 1.00's
   desktop), or the source names no group (`st_replay`: `Microdeal`, from its
   description). An empty override field keeps what the repo says, and
-  `tests/test_shelf_titles.py` holds each override to a catalog cart and the
-  OSD's 22-character, upper-case, ASCII title.
+  `tests/test_shelf_titles.py` holds each override to a matrix cart and the
+  OSD's 22-character, upper-case, ASCII title;
+- a cart the catalog leaves out because only a hub's doors reach it (the Union
+  Demo's screens, `HUBS` in `shelf_meta.py`): its TITLE is its matrix comment
+  after the group, up to a comma or parenthesis, cut at a word to 22 characters
+  (`The Union Demo / TNT3, the TNT Crew's vector screen` gives `TNT3`), and its
+  TYPE is its hub's (`union_intro_screen`, atari st). `union_textracker`'s comment
+  names no title, so it has an override (`TEX SAMPLE-MON ST`).
 
 Text is folded to ASCII (the OSD draws the ST's 8-bit font). A field nobody
-wrote down stays empty: `shelf_meta.py --check` lists those carts (55 of 73
+wrote down stays empty: `shelf_meta.py --check` lists those carts (60 of 91
 today, mostly a missing year), and the fix is a better comment at the source,
 not a second list. `tools/glass_sd.py` writes `shelf.txt` next to the fat disks
 it stages. A missing `shelf.txt` is not an error: the menu shows each disk's own
