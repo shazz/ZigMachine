@@ -27,6 +27,7 @@ pub const PHYSICAL_HEIGHT: u16 = zg.PHYSICAL_HEIGHT;
 const Vec3 = za.Vec3;
 const Vec4 = za.Vec4;
 const Mat4 = za.Mat4;
+const wf = zg.wireframe;
 // --------------------------------------------------------------------------
 // Variables
 // --------------------------------------------------------------------------
@@ -85,28 +86,15 @@ pub const Demo = struct {
 
     pub fn update(self: *Demo, zigos: *ZigOS, time_elapsed: f32) void {
 
-        for(self.triangle, 0..) |triangle_vertex, idx| {
-
-            const rot_scale = Mat4.fromScale(Vec3.new(self.zoom, self.zoom, self.zoom));
-            const vertex_after_scale = rot_scale.vec4mulByMat4(triangle_vertex);
-
-            const rot_mat = Mat4.fromEulerAngles(Vec3.new(self.angle_x, self.angle_y, self.angle_z));
-            const vertex_after_rot = rot_mat.vec4mulByMat4(vertex_after_scale);
-
-            const vertex_after_cam = self.camera.vec4mulByMat4(vertex_after_rot);
-            const vertex_after_proj = self.projection.vec4mulByMat4(vertex_after_cam);
-                    
-            const norm = Vec4.set(1/vertex_after_proj.w());
-            const vertex_after_norm = vertex_after_proj.mul(norm);
-
-            const vertex_after_screen = self.screen.vec4mulByMat4(vertex_after_norm);
-
-            const coord_x: i16 = @as(i16, @intFromFloat(vertex_after_screen.x())); 
-            const coord_y: i16 = @as(i16, @intFromFloat(vertex_after_screen.y())); 
-
-            self.projected_vertices[idx].x=coord_x;
-            self.projected_vertices[idx].y=coord_y;
-        }        
+        // Scale, then one Euler X/Y/Z matrix, built once a frame (wf.Rot), then
+        // the shared camera -> projection -> 1/w -> screen tail: the same
+        // float steps in the same order as the hand-written loop it replaces.
+        const zoom_spin = wf.Rot.chain(&.{
+            Mat4.fromScale(Vec3.new(self.zoom, self.zoom, self.zoom)),
+            Mat4.fromEulerAngles(Vec3.new(self.angle_x, self.angle_y, self.angle_z)),
+        });
+        const cam: wf.Camera = .{ .camera = self.camera, .projection = self.projection, .screen = self.screen };
+        cam.project(&self.triangle, &self.projected_vertices, zoom_spin, wf.Rot.apply);
 
         // self.angle_x += 1.8;
         // self.angle_y += 0.55;
