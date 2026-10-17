@@ -20,6 +20,7 @@ const zg = @import("zigos");
 const st = @import("stniccc/stream.zig");
 const player_mod = @import("stniccc/player.zig");
 const snaps_mod = @import("stniccc/snaps.zig");
+const gpu = @import("stniccc/gpu.zig");
 
 const ZigOS = zg.ZigOS;
 const Color = zg.Color;
@@ -93,7 +94,7 @@ pub const Demo = struct {
         for (0..256) |i| fb.setPaletteEntry(@intCast(i), Color{ .r = 0, .g = 0, .b = 0, .a = 255 });
         fb.setPaletteEntry(RED, Color{ .r = 255, .g = 0, .b = 0, .a = 255 });
         fb.setPaletteEntry(WHITE, Color{ .r = 255, .g = 255, .b = 255, .a = 255 });
-        fb.clearFrameBuffer(BLACK);
+        gpu.clearPlane(fb.fb[0 .. @as(usize, fb.stride) * fb.fb_h], fb.stride, fb.fb_h, BLACK);
         const lay = zg.disk.mount() orelse return self.fail(fb);
         self.file = zg.disk.find(lay, SCENE_FILE) orelse return self.fail(fb);
         self.player.init(.{ .ctx = self, .readFn = readDiskBlock }, self.block, self.index);
@@ -163,7 +164,7 @@ pub const Demo = struct {
             },
             .zooming => {
                 if (!self.wide) self.goFullscreen(fb); // borders open FIRST: the margin is black anyway
-                fb.clearFrameBuffer(0); // the view is smaller than the plane until the last frame
+                gpu.clearPlane(fb.fb[0 .. @as(usize, fb.stride) * fb.fb_h], fb.stride, fb.fb_h, 0); // the view is smaller than the plane until the last frame
                 self.player.shown = null; // the rect moved, so frame 0 is redrawn every frame
                 self.drawFrame(fb) catch self.fail(fb);
             },
@@ -181,13 +182,16 @@ pub const Demo = struct {
 
     fn goFullscreen(self: *Demo, fb: *LogicalFB) void {
         fb.openBorders(.all); // a 400x280 overscan plane, every border open
-        fb.clearFrameBuffer(0);
+        gpu.clearPlane(fb.fb[0 .. @as(usize, fb.stride) * fb.fb_h], fb.stride, fb.fb_h, 0);
         self.wide = true;
         self.player.shown = null;
     }
 
     fn drawFrame(self: *Demo, fb: *LogicalFB) st.Error!void {
-        if (self.player.total != 0) self.pos = @mod(self.pos, @as(f32, @floatFromInt(self.player.total)));
+        // Wrap by subtraction: pos advances by at most REWIND_MAX a VBL, so this equals @mod
+        // (a libm fmod routine every frame) exactly.
+        const total: f32 = @floatFromInt(self.player.total);
+        if (self.player.total != 0) while (self.pos >= total) : (self.pos -= total) {};
         const n: u32 = @intFromFloat(self.pos);
         if (self.player.shown == n) return;
         try self.player.show(n, self.view(fb));
@@ -197,9 +201,10 @@ pub const Demo = struct {
     fn view(self: *const Demo, fb: *LogicalFB) player_mod.View {
         const px = fb.fb[0 .. @as(usize, fb.stride) * fb.fb_h];
         if (self.act == .zooming) return self.zoomView(fb);
-        if (self.wide) return .{ .target = .{ .px = px, .stride = fb.stride, .w = fb.fb_w, .h = fb.fb_h, .ox = 0 }, .w = fb.fb_w, .h = fb.fb_h };
+        // Every fill goes to the blitter (stniccc/gpu.zig): the CPU memset was the cost.
+        if (self.wide) return .{ .target = gpu.begin(.{ .px = px, .stride = fb.stride, .w = fb.fb_w, .h = fb.fb_h, .ox = 0 }), .w = fb.fb_w, .h = fb.fb_h };
         return .{
-            .target = .{ .px = px, .stride = fb.stride, .w = player_mod.SRC_W, .h = player_mod.SRC_H, .ox = SMALL_OX },
+            .target = gpu.begin(.{ .px = px, .stride = fb.stride, .w = player_mod.SRC_W, .h = player_mod.SRC_H, .ox = SMALL_OX }),
             .w = player_mod.SRC_W,
             .h = player_mod.SRC_H,
         };
@@ -218,7 +223,7 @@ pub const Demo = struct {
         // polyfill.Target has an ox but no oy: start the slice oy rows in instead.
         const px = fb.fb[oy * @as(usize, fb.stride) ..][0 .. @as(usize, fb.stride) * h];
         return .{
-            .target = .{ .px = px, .stride = fb.stride, .w = w, .h = h, .ox = (@as(usize, fb.fb_w) - w) / 2 },
+            .target = gpu.begin(.{ .px = px, .stride = fb.stride, .w = w, .h = h, .ox = (@as(usize, fb.fb_w) - w) / 2 }),
             .w = @intCast(w),
             .h = @intCast(h),
         };
@@ -227,7 +232,7 @@ pub const Demo = struct {
     // Fail loud: no disk, no SCENE1.BIN, or a corrupt stream stops the scene with a red screen.
     fn fail(self: *Demo, fb: *LogicalFB) void {
         self.act = .failed;
-        fb.clearFrameBuffer(RED);
+        gpu.clearPlane(fb.fb[0 .. @as(usize, fb.stride) * fb.fb_h], fb.stride, fb.fb_h, RED);
     }
 };
 

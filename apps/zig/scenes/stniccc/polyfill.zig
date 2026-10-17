@@ -11,7 +11,16 @@ pub const Point = struct { x: i32, y: i32 };
 
 // Where to draw: `w` x `h` pixels inside `px`, starting `ox` pixels into each
 // `stride`-wide row. Nothing outside that window is ever written.
-pub const Target = struct { px: []u8, stride: usize, w: usize, h: usize, ox: usize };
+/// `rect`, when set, fills a rectangle (x counted from the row start, so `ox`
+/// is included) instead of the CPU writing the bytes: the scene routes it to the blitter.
+pub const Target = struct {
+    px: []u8,
+    stride: usize,
+    w: usize,
+    h: usize,
+    ox: usize,
+    rect: ?*const fn (x: usize, y: usize, w: usize, h: usize, color: u8) void = null,
+};
 
 pub fn fill(t: Target, pts: []const Point, color: u8) void {
     // A real branch, not std.debug.assert (gone in ReleaseSmall): an empty list
@@ -62,6 +71,7 @@ fn span(t: Target, x0: i32, x1: i32, y: i32, color: u8) void {
     const start = @max(0, (x0 + 0x7FFF) >> 16);
     const end = @min(w, (x1 + 0x7FFF) >> 16);
     if (start >= end) return;
+    if (t.rect) |rect| return rect(t.ox + @as(usize, @intCast(start)), @intCast(y), @intCast(end - start), 1, color);
     const row = @as(usize, @intCast(y)) * t.stride + t.ox;
     @memset(t.px[row + @as(usize, @intCast(start)) .. row + @as(usize, @intCast(end))], color);
 }
