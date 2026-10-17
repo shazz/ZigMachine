@@ -38,22 +38,19 @@ pub const Background = struct {
         _ = self;
     }
 
+    // One @memcpy, not a byte loop: the loop stored one byte per pixel (64,000
+    // bus writes for a full plane on the board, where the D-cache is
+    // write-through) and reloaded the plane pointer around each store.
     pub fn render(self: *Background) void {
-
         switch (self.target) {
             .fb => |fb| {
-                const buffer = fb.fb; // [*]u8 view into the shared logical framebuffer
-                
-                // Copy bitmap data
-                for (self.data, 0..) |value, index| {
-                    buffer[index + (self.pos_y * WIDTH)] = value;
-                }
+                const off: usize = self.pos_y * WIDTH;
+                @memcpy(fb.fb[off..][0..self.data.len], self.data);
             },
             .render_buffer => |rbuf| {
-                for (self.data, 0..) |value, index| {
-                    rbuf.buffer[index + (self.pos_y * rbuf.width)] = value;
-                }   
-            }
+                const off: usize = self.pos_y * rbuf.width; // u16 product, as the loop computed it
+                @memcpy(rbuf.buffer[off..][0..self.data.len], self.data);
+            },
         }
     }
 };
