@@ -453,14 +453,46 @@ cpu   46.8 C                        Zynq die temperature (XADC, iio)
 mem   390/480 MB free               /proc/meminfo
 pad   Xbox Wireless Controller      the last pad heard from (evdev name)
 input 3 evdev nodes                 devices open
-                                
-                                
+music BARD SNDH 68k 198%/228%       who plays the music, the player, its load now/peak
+song  auf_weidersehen_monty_digi    the song the cart asked for
 read-only, live      Esc back
 ```
 
 The temperature comes from the kernel's `xilinx-xadc` iio device
 (`in_temp0_raw + offset`, times `scale`); without it the row says `n/a (no
 XADC)`, as does `mem` without `/proc`. `fw` shows `-` while no cart runs.
+
+#### Who plays the music (`snd_info.zig`, `cycles/bsndinfo.h`)
+
+The `music` and `song` rows come from the **music block**, the last 96 bytes of the cart
+window (CPU `0x41FF_FFA0`, the debug mailbox's words 40..63, `cycles/bmailbox.h`). The CPU
+that runs the players writes it: BARD, or ZIGGY in a `ZM_AUDIO=1` image (`cycles/baudio.c`).
+Nothing new in the PL: the glass already maps the window. The layout is
+`glass/src/map_cart.zig` ("the music: who plays it"), exported to `gen/glass_cart.h`:
+
+| Word | What |
+|---|---|
+| 0 | `'ZMSI'`; absent = this firmware has no music |
+| 1 | SEQ: odd while the writer is mid-update; the glass takes a copy only if SEQ is even and unchanged |
+| 2 | block version (7:0, now 1) \| route (15:8) \| player (23:16) \| native driver (31:24) |
+| 3 | the request's tune (an SNDH subtune, a MOD's start BPM) |
+| 4 | bit 0: the player started (clear: no such file, or the player refused it) |
+| 5, 6 | the last render: its cycles, and how many 44.1 kHz samples it made |
+| 7, 8 | the dearest render per sample since the song started: cycles, samples |
+| 9..23 | the song's name, NUL-padded (59 bytes at most) |
+
+- **Route**: 1 ZIGGY, 2 BARD, 3 BARD never answered (no music). 0, or no block, = none.
+- **Player**: by the name's extension, as `host/audio.c` `audio_play` picks it: 1 SNDH, 2 SAP,
+  3 MOD, 4 XM, 5 YM dump (`.ymraw`), 6 raw PCM, 255 an extension no player takes, 0 none.
+- **Native** (SNDH): `audioSndhNative()`: 0 Musashi, 1 Beat Dis native, 2 and 3 near misses
+  (on Musashi, shown `68k~`), 4 native replays off.
+- **Load** = cycles × 44100 / (samples × 100 MHz): the share of real time the render took.
+  Over 100 % on BARD, the music falls behind and plays slow; on ZIGGY it is cart time lost.
+
+A code the glass doesn't know is printed by number (`player#9`, `SNDH n#7`, `route#5`), and
+a newer block version as `? block v2`. The block is only read from a mailbox of version 2 or
+later (`ZM_MB_VERSION`), whose firmware zeroes the whole page at boot, so a cart with no
+music never shows the previous cart's; an older firmware shows `music ? firmware too old`.
 
 ## Cart load sequence (`fpga/glass/src/loader.zig`)
 
