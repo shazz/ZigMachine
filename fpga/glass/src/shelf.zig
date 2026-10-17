@@ -1,5 +1,6 @@
-// The shelf: every .zmd on the SD card's shelf directory, by file name, with
-// the title its descriptor carries. Only the header is read here (the menu
+// The shelf: every .zmd on the SD card's shelf directory, in the order of the
+// titles the menu shows (case ignored, then file name), with the title its
+// descriptor carries. Only the header is read here (the menu
 // needs titles, not carts); the loader reads the whole disk when one is chosen.
 // A file that is not a disk is listed under its file name, marked, so a bad
 // copy is visible in the menu instead of silently missing. shelf.txt (meta.zig)
@@ -28,8 +29,14 @@ pub const Shelf = struct {
     }
 };
 
-fn lessByName(_: void, a: Disk, b: Disk) bool {
-    return std.mem.lessThan(u8, a.file, b.file);
+// The menu shows titles, so it is sorted by them: by file name, "demo-c-fujiboink"
+// landed among the C titles far from "FUJIBOINK (C)" (Matt, 2026-10-17).
+fn lessByTitle(_: void, a: Disk, b: Disk) bool {
+    return switch (std.ascii.orderIgnoreCase(a.title, b.title)) {
+        .lt => true,
+        .gt => false,
+        .eq => std.mem.lessThan(u8, a.file, b.file),
+    };
 }
 
 fn titleOf(a: std.mem.Allocator, io: std.Io, dir: std.Io.Dir, name: []const u8) ![]const u8 {
@@ -63,14 +70,14 @@ pub fn scan(gpa: std.mem.Allocator, io: std.Io, dir_path: []const u8) !Shelf {
         d.meta = m;
         d.title = m.title;
     };
-    std.mem.sort(Disk, list.items, {}, lessByName);
+    std.mem.sort(Disk, list.items, {}, lessByTitle);
     shelf.disks = list.items;
     shelf.titles = try a.alloc([]const u8, list.items.len);
     for (list.items, shelf.titles) |d, *t| t.* = d.title;
     return shelf;
 }
 
-test "the shelf lists disks by file name, titles from their descriptors" {
+test "the shelf lists disks by title, titles from their descriptors" {
     const gpa = std.testing.allocator;
     const io = std.testing.io;
     var tmp = std.testing.tmpDir(.{});
@@ -94,4 +101,24 @@ test "the shelf lists disks by file name, titles from their descriptors" {
     try std.testing.expectEqualStrings("UNION DEMO", again.titles[1]);
     try std.testing.expectEqualStrings("1989", again.disks[1].meta.?.year);
     try std.testing.expectEqualStrings("?a-broken.ZMD", again.titles[0]); // not listed: its own name
+}
+
+test "the shelf sorts by the title shown, not the file name" {
+    const gpa = std.testing.allocator;
+    const io = std.testing.io;
+    var tmp = std.testing.tmpDir(.{});
+    defer tmp.cleanup();
+    for ([_][2][]const u8{ .{ "demo-a.zmd", "zebra" }, .{ "demo-b.zmd", "Apple" }, .{ "demo-c.zmd", "mango" } }) |d| {
+        const disk = try zmd.testDisk(gpa, d[1], &.{});
+        defer gpa.free(disk);
+        try tmp.dir.writeFile(io, .{ .sub_path = d[0], .data = disk });
+    }
+    const dir_path = try std.fmt.allocPrint(gpa, ".zig-cache/tmp/{s}", .{tmp.sub_path});
+    defer gpa.free(dir_path);
+    var shelf = try scan(gpa, io, dir_path);
+    defer shelf.deinit();
+    try std.testing.expectEqualStrings("Apple", shelf.titles[0]);
+    try std.testing.expectEqualStrings("mango", shelf.titles[1]);
+    try std.testing.expectEqualStrings("zebra", shelf.titles[2]);
+    try std.testing.expectEqualStrings("demo-b.zmd", shelf.disks[0].file);
 }

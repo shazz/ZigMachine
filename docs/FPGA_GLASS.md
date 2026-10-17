@@ -348,7 +348,8 @@ below the cart window.
   F12 it never reaches a cart; with the menu open it does nothing.
 - **Shift+F12** reads the shelf again (`app_shelf.zig`): the `.zmd` files and
   `shelf.txt`, so a cart copied to the card since `glass` started is listed
-  without a restart (which would kill the running cart). The menu opens on
+  without a restart (which would kill the running cart). The list is sorted by
+  the titles it shows, case ignored. The menu opens on
   `shelf: N carts`. The running cart, the `*` mark and the cursor follow their
   file names; the settings are untouched. A running cart whose disk vanished
   stays listed until another is loaded (R then says `FileNotFound`).

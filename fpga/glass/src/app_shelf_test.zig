@@ -38,10 +38,10 @@ test "Shift+F12 lists a disk copied since start, over the running cart" {
     var a = try running(r);
     defer a.deinit();
     const resets = r.glass.resets;
-    try addDisk(r, "0-new.zmd", "Uploaded"); // sorts first: every index moves
+    try addDisk(r, "0-new.zmd", "An Upload"); // its title sorts first: every index moves
     rescan(&a);
     try std.testing.expectEqual(@as(usize, 3), a.disks.disks.len);
-    try std.testing.expectEqualStrings("Uploaded", a.disks.titles[0]);
+    try std.testing.expectEqualStrings("An Upload", a.disks.titles[0]);
     try std.testing.expectEqualStrings("shelf: 3 carts", a.menu.status.?);
     try std.testing.expect(a.open and r.glass.ctrl & map.CTRL_OSD != 0); // shown in the menu
     try std.testing.expectEqual(resets, r.glass.resets); // the cart was not touched
