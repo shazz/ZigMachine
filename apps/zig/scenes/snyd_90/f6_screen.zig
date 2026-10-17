@@ -15,6 +15,7 @@
 // Hatari (x0 below); the rest of the beam race is not modelled.
 // --------------------------------------------------------------------------
 const st = @import("../swedish_newyear/st.zig");
+const chunky = @import("chunky.zig");
 const sh = @import("shifter.zig");
 
 const RASTER: u32 = 0x127FA;
@@ -37,7 +38,7 @@ pub fn capture(r: *const st.Ram, screen: u32) void {
             continue;
         }
         const y = py - sh.OY;
-        st.lineToChunky(r.bytes(screen + @as(u32, @intCast(y)) * st.LINE, st.LINE), out[sh.OX..][0..320]);
+        chunky.lineToChunky(r.bytes(screen + @as(u32, @intCast(y)) * st.LINE, st.LINE), out[sh.OX..][0..320]);
         var regs: [sh.MAXC]u32 = undefined;
         regs[0..16].* = if (y < LOGO_LINE) balls else logo;
         var n: usize = 16;

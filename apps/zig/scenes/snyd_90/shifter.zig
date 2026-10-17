@@ -13,6 +13,7 @@
 // --------------------------------------------------------------------------
 const zg = @import("zigos");
 const st = @import("../swedish_newyear/st.zig");
+const chunky = @import("chunky.zig");
 
 pub const PW: usize = zg.PHYSICAL_WIDTH; // 400
 pub const PH: usize = zg.PHYSICAL_HEIGHT; // 280
@@ -61,11 +62,12 @@ pub fn captureScreen(r: *const st.Ram, screen: u32, pal: [16]u16) void {
     const regs = rgba(pal);
     for (0..PH) |py| {
         const out = &buf.chunky[py];
-        @memset(out, 0);
         if (py >= OY and py < OY + 200) {
             const y: u32 = @intCast(py - OY);
-            st.lineToChunky(r.bytes(screen + y * st.LINE, st.LINE), out[OX..][0..320]);
-        }
+            @memset(out[0..OX], 0); // the borders only: the window is overwritten
+            @memset(out[OX + 320 ..], 0);
+            chunky.lineToChunky(r.bytes(screen + y * st.LINE, st.LINE), out[OX..][0..320]);
+         else @memset(out, 0);
         setRegs(py, &regs);
     }
     @memset(&open_next, false);
@@ -122,8 +124,9 @@ pub fn blank(border: u32) void {
 
 /// Start of a host frame: the captured frame becomes what the machine shows.
 pub fn present(fb: *zg.LogicalFB) void {
-    for (buf.chunky, 0..) |*r, py| @memcpy(fb.fb[py * PW ..][0..PW], r);
-    buf.now.* = buf.next.*;
+    @memcpy(fb.fb[0 .. PH * PW], @as([*]const u8, @ptrCast(buf.chunky))[0 .. PH * PW]); // rows are contiguous
+    // Only the entries a line uses (16 of the 48 slots, mostly): planeHbl reads no more.
+    for (0..PH) |py| @memcpy(buf.now[py][0..used_next[py]], buf.next[py][0..used_next[py]]);
     used_now = used_next;
     open_now = open_next;
 }

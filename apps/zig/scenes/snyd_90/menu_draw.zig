@@ -16,6 +16,7 @@
 // shift's buffer twice (at col and col + 160), then copies 160 bytes a row
 // to line 140. 4 pixels a frame, $FF restarts the text at $1718.
 // --------------------------------------------------------------------------
+const std = @import("std");
 const st = @import("../swedish_newyear/st.zig");
 
 pub const DRAW: u32 = 0x3818; // the screen being drawn
@@ -111,22 +112,31 @@ pub fn sprites(r: *const st.Ram, x: u16, y: u16) void {
     }
 }
 
+fn rd(p: []const u8) u16 {
+    return std.mem.readInt(u16, p[0..2], .big);
+}
+
+/// The masked copy, a row at a time over slices: one bounds check for the
+/// bitmap and one a row, not one per word (it is 62 rows x 5 columns x 8 words).
 fn blit(r: *const st.Ram, dst: u32, s: Sprite, sh: u5) void {
+    const cols: usize = s.cols;
+    const src = r.bytes(s.src, ROWS * cols * 8);
     for (0..ROWS) |row| {
+        const d = r.bytes(dst +% @as(u32, @intCast(row * st.LINE)), (cols + 1) * 8);
+        const sr = src[row * cols * 8 ..][0 .. cols * 8];
         var prev = [4]u16{ 0, 0, 0, 0 };
-        for (0..@as(usize, s.cols) + 1) |k| {
+        for (0..cols + 1) |k| {
             var out: [4]u16 = undefined;
             var mask: u16 = 0;
             for (&out, &prev, 0..) |*o, *pv, p| {
-                const w: u16 = if (k < s.cols) r.w(s.src + @as(u32, @intCast(((row * s.cols + k) * 4 + p) * 2))) else 0;
+                const w: u16 = if (k < cols) rd(sr[(k * 4 + p) * 2 ..]) else 0;
                 o.* = @truncate((@as(u32, pv.*) << 16 | w) >> sh);
                 pv.* = w;
                 mask |= o.*;
             }
-            const at = dst +% @as(u32, @intCast(row * st.LINE + k * 8));
             for (out, 0..) |o, p| {
-                const q = at + 2 * @as(u32, @intCast(p));
-                r.sw(q, (r.w(q) & ~mask) | o);
+                const q = d[k * 8 + 2 * p ..][0..2];
+                std.mem.writeInt(u16, q, (rd(q) & ~mask) | o, .big);
             }
         }
     }
