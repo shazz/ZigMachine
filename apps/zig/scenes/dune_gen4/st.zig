@@ -7,7 +7,9 @@
 // resolution on every line, so the plane's own pixels (index 0) are the border.
 //
 // ST line y is physical row y + 40, pixel x is physical x + 40 (OX, OY).
+const std = @import("std");
 const zg = @import("zigos");
+const planar = @import("planar.zig");
 
 const LogicalFB = zg.LogicalFB;
 const ZigOS = zg.ZigOS;
@@ -94,13 +96,33 @@ pub fn clear(fb: *LogicalFB) void {
 }
 
 /// Sixteen pixels' worth of one bitplane word: OR bit `plane` into each pixel
-/// whose bit is set (bit 15 = leftmost), clipped to the 320-pixel line.
+/// whose bit is set (bit 15 = leftmost), clipped to the 320-pixel line. A word
+/// wholly on the line (all but the scroller's edge glyphs) goes in as two u64 ORs
+/// from the planar table; the clipped ones keep the bit loop.
 pub fn orWord(px: *[W]u8, x: i32, word: u16, plane: u3) void {
     if (word == 0) return;
+    if (x >= 0 and x <= W - 16) {
+        const at: usize = @intCast(x);
+        inline for (0..2) |h| {
+            const bits = planar.spread[0][(word >> (8 - 8 * h)) & 0xFF] << plane;
+            const dst = px[at + 8 * h ..][0..8];
+            std.mem.writeInt(u64, dst, std.mem.readInt(u64, dst, .little) | bits, .little);
+        }
+        return;
+    }
     const bit = @as(u8, 1) << plane;
     for (0..16) |i| {
         const xx = x + @as(i32, @intCast(i));
         if (xx < 0 or xx >= W) continue;
         if ((word >> @intCast(15 - i)) & 1 != 0) px[@intCast(xx)] |= bit;
+    }
+}
+
+/// Clear plane 3 of a line (keep planes 0..2), eight pixels a store.
+pub fn maskPlane3(px: *[W]u8) void {
+    var i: usize = 0;
+    while (i < W) : (i += 8) {
+        const dst = px[i..][0..8];
+        std.mem.writeInt(u64, dst, std.mem.readInt(u64, dst, .little) & 0x0707070707070707, .little);
     }
 }

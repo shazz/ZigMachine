@@ -6,6 +6,8 @@
 // that comes out the same. The screen on show is turned into palette indices
 // once a frame (hades.zig).
 
+const planar = @import("../planar.zig");
+
 pub const LINE = 160;
 /// Lines 0..199 and the lower border the scroller is copied into (to 227).
 pub const LINES = 232;
@@ -29,18 +31,10 @@ pub fn groupAt(x: usize, y: usize) usize {
     return y * LINE + (x & 0xFFF0) / 2;
 }
 
-/// The palette indices of line `y`'s 320 pixels, through the shifter.
+/// The palette indices of line `y`'s 320 pixels, through the shifter
+/// (planar.zig's tables; the screen holds big-endian plane words).
 pub fn pixels(s: *const Screen, y: usize, px: *[320]u8) void {
-    for (0..20) |g| {
-        const at = y * LINE + g * 8;
-        const p = [4]u16{ r16(s, at), r16(s, at + 2), r16(s, at + 4), r16(s, at + 6) };
-        for (0..16) |i| {
-            const b: u4 = @intCast(15 - i);
-            var v: u8 = 0;
-            for (p, 0..) |w, k| v |= @as(u8, @intCast((w >> b) & 1)) << @intCast(k);
-            px[g * 16 + i] = v;
-        }
-    }
+    for (0..20) |g| planar.group(s[y * LINE + g * 8 ..][0..8], px[g * 16 ..][0..16]);
 }
 
 test "the shifter reads plane k as bit k, leftmost pixel first" {
