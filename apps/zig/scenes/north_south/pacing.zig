@@ -9,26 +9,32 @@
 //           which is simulated here in cycle time with the sequencer below,
 //           so the sound's CPU load follows which samples play when;
 //   phase = where in the VBL the loop top was reached.
-// Every value is an f64 computed in the model's order, so the VBL counts are
-// the model's (96.5 % of them are the real game's).
+// Times are exact integers in 1/U CPU cycles (U = 614400, the denominator of
+// the Timer A period 4*rate*8021247/2457600), so the interrupt loop runs in
+// i64 (no soft-float on ZIGGY). Only the per-frame fitted work() stays f64 and
+// is rounded to 1/U once; the VBL counts are the model's.
 // --------------------------------------------------------------------------
 const A = @import("assets.zig");
 const cost = @import("cost.zig");
 
-const VBL: f64 = 512 * 313;
-const TIMERC: f64 = @divTrunc(8021247, 200); // the model's integer //
-const CPU_HZ: f64 = 8021247;
-const MFP_HZ: f64 = 2457600;
+const U: i64 = 614400; // time unit: 1/U of a CPU cycle
+const VBL: i64 = 512 * 313 * U;
+const TIMERC: i64 = 8021247 / 200 * U; // the model's integer //
 // pacing_params.json
-const C_VBL: f64 = 2654;
-const C_VBL_START: f64 = 500;
-const C_TC: f64 = 200;
-const C_IRQ: f64 = 296;
-const C_IRQ_STOP: f64 = 207;
-const TAIL: f64 = 164;
+const C_VBL: i64 = 2654 * U;
+const C_VBL_START: i64 = 500 * U;
+const C_TC: i64 = 200 * U;
+const C_IRQ: i64 = 296 * U;
+const C_IRQ_STOP: i64 = 207 * U;
+const TAIL: i64 = 164 * U;
 const PLAY_BASE: f64 = 149707;
 /// Where frame 0 starts after a VBL: the setup's length, per field.
-const PHASE0 = [3]f64{ 142476, 137344, 142492 };
+const PHASE0 = [3]i64{ 142476 * U, 137344 * U, 142492 * U };
+
+/// A float cycle count (per-frame fit, once) in time units.
+fn units(x: f64) i64 {
+    return @intFromFloat(@round(x * @as(f64, @floatFromInt(U))));
+}
 
 const MAX_PLAYS = 64;
 
@@ -41,8 +47,8 @@ pub const Sequencer = struct {
     loop: bool,
     playing: bool,
     left: i32, // bytes still to be read, including the 0
-    period: f64, // Timer A period in CPU cycles
-    next_irq: ?f64,
+    period: i64, // Timer A period
+    next_irq: ?i64,
     cut: bool,
 
     pub fn reset(self: *Sequencer) void {
@@ -63,7 +69,7 @@ pub const Sequencer = struct {
     }
 
     /// $49D4: true if a sample was started (the handler then costs more).
-    fn vbl(self: *Sequencer, now: f64) bool {
+    fn vbl(self: *Sequencer, now: i64) bool {
         if (!self.active or self.playing) return false;
         var smp = seqByte(self.seq, 2 * self.index);
         var rate: u16 = if (smp != 0xFF) seqByte(self.seq, 2 * self.index + 1) else 0;
@@ -80,7 +86,7 @@ pub const Sequencer = struct {
         self.playing = true;
         self.cut = false;
         self.left = smpLen(smp);
-        self.period = @as(f64, @floatFromInt(4 * @as(i64, if (rate != 0) rate else 256) * 8021247)) / MFP_HZ;
+        self.period = @as(i64, if (rate != 0) rate else 256) * 8021247; // 4*rate*8021247/2457600 cycles = rate*8021247 units
         self.next_irq = now + self.period;
         return true;
     }
@@ -130,12 +136,12 @@ fn seqByte(n: u16, i: u16) u16 {
     return A.sound[body + A.be16(A.sound, 4 + 2 * nsmp + 2 * @as(usize, n)) + i];
 }
 
-const Play = struct { off: f64, n: u16, flags: u16 };
+const Play = struct { off: i64, n: u16, flags: u16 };
 
 pub const Pacer = struct {
-    now: ?f64,
-    next_vbl: f64,
-    next_tc: f64,
+    now: ?i64,
+    next_vbl: i64,
+    next_tc: i64,
     last_vbls: u32,
     vbl_count: u32,
     plays: [MAX_PLAYS]Play,
@@ -155,11 +161,11 @@ pub const Pacer = struct {
     /// A play_seq call: its offset in the frame, from the counters so far.
     pub fn play(self: *Pacer, snapshot: *const cost.Cost, n: u16, flags: u16) void {
         if (self.nplays == MAX_PLAYS) return;
-        self.plays[self.nplays] = .{ .off = PLAY_BASE + snapshot.work() - cost.CONST, .n = n, .flags = flags };
+        self.plays[self.nplays] = .{ .off = units(PLAY_BASE + snapshot.work() - cost.CONST), .n = n, .flags = flags };
         self.nplays += 1;
     }
 
-    fn nextEvent(self: *const Pacer, with_irq: bool) f64 {
+    fn nextEvent(self: *const Pacer, with_irq: bool) i64 {
         var nxt = @min(self.next_vbl, self.next_tc);
         if (with_irq) if (self.snd.next_irq) |i| {
             nxt = @min(nxt, i);
@@ -172,14 +178,14 @@ pub const Pacer = struct {
         if (self.now == null) {
             const ph = PHASE0[field];
             self.now = ph;
-            self.next_tc = ph + 1000;
+            self.next_tc = ph + 1000 * U;
         }
         self.vbl_count = 0;
-        const w = c.work();
+        const w = units(c.work());
         sortPlays(self.plays[0..self.nplays]);
         var head: usize = 0;
         const plays = self.plays[0..self.nplays];
-        var done: f64 = 0;
+        var done: i64 = 0;
         var t = self.now.?;
         while (true) {
             var target = if (head < plays.len) plays[head].off else w;
@@ -217,7 +223,7 @@ pub const Pacer = struct {
     }
 
     /// Serve the earliest due interrupt at time t; returns the time after it.
-    fn interrupt(self: *Pacer, t: f64) f64 {
+    fn interrupt(self: *Pacer, t: i64) i64 {
         if (self.snd.playing) if (self.snd.next_irq) |i| {
             if (i <= t and i <= @min(self.next_vbl, self.next_tc)) {
                 return t + (if (self.snd.irq()) C_IRQ_STOP else C_IRQ);

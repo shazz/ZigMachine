@@ -32,6 +32,7 @@
 
 const std = @import("std");
 const zg = @import("zigos");
+const hp = @import("hp_trig.zig");
 const assert = std.debug.assert;
 
 const ZigOS = zg.ZigOS;
@@ -75,19 +76,15 @@ const FADE_GREYS = [_]u8{
 // area, so it is a plain wrap of one tile.
 const TILE: usize = 32;
 const BG_ROWS: usize = 190; // mycanvas_fond is 380 tall; below it the fill stays black
-const BG_X: f64 = 280;
-const BG_AMP_X: f64 = 80;
-const BG_Y: f64 = 180;
-const BG_AMP_Y: f64 = 180;
-const BG_HANDLE_X: f64 = 960; // (640*3)/2
-const BG_HANDLE_Y: f64 = 480; // (320*3)/2
 const BG_PERIOD: f64 = 200; // vbl*PI/200
+// tile grid x = (280 - sin*80 - 960)/2, y = (180 - cos*180 - 480)/2 (canvas 640x320 x3 handle)
+// text px = 160 + 32j - indice*sin(a)*1.25, py = y - 24*sin(a - j*0.5), then /2
 const TILE_FRAMES: u32 = 7; // vbl_head 0..6 elite1, 7..13 elite2
 
 // write_text(mycanvas_rasters, 160, y, screens[n], font, 1, indice): one line
 // per call, so the per-line terms (i*0.15, i*42, -i) are all zero.
-const TextLine = struct { y: f64, indice: f64, text: []const u8 };
-const TEXT_X: f64 = 160;
+const TextLine = struct { y: i32, indice: i32, text: []const u8 };
+const TEXT_X: i32 = 160;
 const TEXT = [_]TextLine{
     .{ .y = 70, .indice = 32, .text = "   JIMMY  " },
     .{ .y = 106, .indice = 48, .text = "   WHITE  " },
@@ -96,10 +93,7 @@ const TEXT = [_]TextLine{
     .{ .y = 256, .indice = 96, .text = " DR. TRAP " },
 };
 const TEXT_ANGLE_STEP: f64 = 0.002; // textAngle += 0.002 per character
-const TEXT_X_SCALE: f64 = 1.25; // indice * sin(textAngle) * 1.25
-const TEXT_Y_AMP: f64 = 12 * 2; // 12 * sin(textAngle - j*0.5) * 2
 const TEXT_CHAR_PHASE: f64 = 0.5;
-const FONT_CANVAS: f64 = 32; // taille += 32
 const FONT: usize = 16; // the 32x32 tiles halved
 const FONT_COLS: usize = 10;
 const FONT_FIRST: u8 = 32;
@@ -148,13 +142,21 @@ comptime {
     }
 }
 
+const ONE30: i64 = 1 << 30;
+
 const Phase = enum { fade, main };
 const Glyph = struct { x: i32, y: i32, cell: blit.Rect };
 
-/// JS Math.round: halves go up, negative values included.
-fn jsRound(x: f64) f64 {
-    return @floor(x + 0.5);
+/// JS Math.round, the original float expression: only for values the integer
+/// sine leaves within a hair of a .5 tie, where the float's own rounding decides.
+fn jsRound(x: f64) i32 {
+    return @intFromFloat(@floor(x + 0.5));
 }
+
+// Constant phases (u64 turns), folded at compile time (float is fine there).
+const BG_STEP = hp.phase(std.math.pi / BG_PERIOD);
+const TEXT_STEP = hp.phase(TEXT_ANGLE_STEP);
+const TEXT_CHAR = hp.phase(TEXT_CHAR_PHASE);
 
 fn fillRows(dst: blit.Dst, first: usize, end: usize, index: u8) void {
     for (first..end) |k| @memset(dst.buf[k * dst.stride ..][0..dst.w], index);
@@ -168,7 +170,7 @@ pub const Demo = struct {
     vbl: u32, // go()'s vbl for the frame being shown
     bg_x: i32, // ST offset of the tile grid
     bg_y: i32,
-    text_angle: f64,
+    text_phase: u64, // textAngle, one turn = 2^64
     glyphs: [TEXT_GLYPHS]Glyph,
     letter_x: [SCROLL_LETTERS]i32, // canvas x
     letter_ch: [SCROLL_LETTERS]u8,
@@ -180,7 +182,7 @@ pub const Demo = struct {
         self.vbl = 0;
         self.bg_x = 0;
         self.bg_y = 0;
-        self.text_angle = 0;
+        self.text_phase = 0;
         @memset(&self.glyphs, .{ .x = 0, .y = 0, .cell = .{ .x = 0, .y = 0, .w = 0, .h = 0 } });
         // letters[i] = (ceil(wide*fontw + i*fontw), scrtxt[scroffset++])
         for (0..SCROLL_LETTERS) |i| {
@@ -226,25 +228,36 @@ pub const Demo = struct {
         }
     }
 
-    /// go()'s state for this frame, in its order.
+    /// go()'s state for this frame, in its order. Integer maths (zig3d_fixed's
+    /// Q30 sine on u64 phases), so the pixel offsets are the float original's:
+    /// a value within a hair of a rounding tie is redone with the original
+    /// f64 expression, so a tie falls as the float fell.
     fn advanceMain(self: *Demo) void {
         self.vbl = self.frame - MAIN_FIRST_FRAME;
-        const t = @as(f64, @floatFromInt(self.vbl)) * std.math.pi / BG_PERIOD;
-        // canvas offset of the tile grid, rounded to the nearest ST pixel
-        self.bg_x = @intFromFloat(jsRound((BG_X - @sin(t) * BG_AMP_X - BG_HANDLE_X) / 2));
-        self.bg_y = @intFromFloat(jsRound((BG_Y - @cos(t) * BG_AMP_Y - BG_HANDLE_Y) / 2));
+        const tp = BG_STEP *% @as(u64, self.vbl);
+        const ta = hp.top(tp);
+        // canvas offset of the tile grid: (280 - sin*80 - 960)/2, (180 - cos*180 - 480)/2
+        self.bg_x = hp.roundQ(-340 * ONE30 - 40 * @as(i64, hp.sinQ(ta)), 30) orelse
+            jsRound((280 - @sin(hp.rad(tp)) * 80 - 960) / 2);
+        self.bg_y = hp.roundQ(-150 * ONE30 - 90 * @as(i64, hp.cosQ(ta)), 30) orelse
+            jsRound((180 - @cos(hp.rad(tp)) * 180 - 480) / 2);
 
         var g: usize = 0;
         for (TEXT) |line| {
             for (line.text, 0..) |c, j| {
-                self.text_angle += TEXT_ANGLE_STEP;
-                const jf: f64 = @floatFromInt(j);
-                const px = TEXT_X + FONT_CANVAS * jf - line.indice * @sin(self.text_angle) * TEXT_X_SCALE;
-                const py = line.y - TEXT_Y_AMP * @sin(self.text_angle - jf * TEXT_CHAR_PHASE);
+                self.text_phase +%= TEXT_STEP;
+                const jj: i64 = @intCast(j);
+                const pa = self.text_phase;
+                const pb = pa -% TEXT_CHAR *% @as(u64, @intCast(j));
+                // px/2 = 80 + 16j - indice*5/8*sin (Q33), py/2 = y/2 - 12*sin (Q30)
+                const sa: i64 = hp.sinQ(hp.top(pa));
+                const sb: i64 = hp.sinQ(hp.top(pb));
                 const n: usize = c - FONT_FIRST;
                 self.glyphs[g] = .{
-                    .x = @intFromFloat(jsRound(px / 2)),
-                    .y = @intFromFloat(jsRound(py / 2)),
+                    .x = hp.roundQ(((80 + 16 * jj) << 33) - line.indice * 5 * sa, 33) orelse
+                        jsRound((160 + 32 * @as(f64, @floatFromInt(j)) - @as(f64, @floatFromInt(line.indice)) * @sin(hp.rad(pa)) * 1.25) / 2),
+                    .y = hp.roundQ((@as(i64, line.y) << 29) - 12 * sb, 30) orelse
+                        jsRound((@as(f64, @floatFromInt(line.y)) - 24 * @sin(hp.rad(pb))) / 2),
                     .cell = .{ .x = (n % FONT_COLS) * FONT, .y = (n / FONT_COLS) * FONT, .w = FONT, .h = FONT },
                 };
                 g += 1;

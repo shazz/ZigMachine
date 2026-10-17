@@ -54,6 +54,7 @@
 // Imports
 // --------------------------------------------------------------------------
 const zg = @import("zigos");
+const hp = @import("hp_trig.zig");
 const convertU8ArraytoColors = zg.convertU8ArraytoColors;
 
 const ZigOS = zg.ZigOS;
@@ -124,6 +125,20 @@ const FW2: f32 = 0.09 / 1.2;
 const FW3: f32 = 0.04 / 1.2;
 const FW4: f32 = 0.07 / 1.2;
 
+// The side copies' wobble depends on the strip row only, so the whole x
+// table is built here once (f32 maths exactly as the original ran it).
+const SIDE_X: [SCLINE_N][2]i32 = blk: {
+    @setEvalBranchQuota(100_000);
+    var t: [SCLINE_N][2]i32 = undefined;
+    var sinus: f32 = 0;
+    for (&t) |*e| {
+        const wobble = @sin(sinus) * SIDE_AMP;
+        e.* = .{ @intFromFloat(SIDE_L_X - wobble), @intFromFloat(SIDE_R_X + wobble) };
+        sinus += SINUS_INC;
+    }
+    break :blk t;
+};
+
 // Which points are joined. Straight from the original's eleven line() calls.
 const SNAKE_EDGES = [_][2]u8{
     .{ 0, 1 }, .{ 0, 2 }, .{ 1, 3 }, .{ 2, 4 }, .{ 3, 5 }, .{ 4, 6 },
@@ -164,6 +179,7 @@ const logo_runs = zg.spans.build(logo_b, SCREEN_W, 0);
 // SCLINE[i] = how many screen rows strip row i occupies. 109 entries, summing
 // to exactly 200. LGLINE[row] = the centre copy's width on that screen row.
 // --------------------------------------------------------------------------
+const SCLINE_N = 109;
 const SCLINE = [_]u8{
     3, 3, 3, 2, 2, 3, 3, 2, 2, 2, 3, 2, 2, 2, 2, 2,
     2, 2, 2, 2, 2, 2, 2, 2, 1, 2, 2, 2, 1, 1, 2, 2,
@@ -200,6 +216,12 @@ comptime {
 // --------------------------------------------------------------------------
 // Demo
 // --------------------------------------------------------------------------
+/// cosf without libm: the argument's exact value as an angle, the Q30 cosine
+/// from zig3d_fixed, rounded to f32 (what a correctly rounded cosf returns).
+fn cosF(x: f32) f32 {
+    return hp.toF32(hp.cosQ(hp.f32Angle(x)));
+}
+
 pub const Demo = struct {
     // the vertical scroll strip, as palette indices
     strip: [STRIP_H][STRIP_W]u8,
@@ -208,10 +230,9 @@ pub const Demo = struct {
     top_row: usize,
 
     // the snake's Lissajous phases (see the per-frame vs per-point note above)
-    w1: f32,
-    w2: f32,
-    w3: f32,
-    w4: f32,
+    // The phases stay f32 (hardware adds, exactly the original's rounding);
+    // only the cosine of them is integer: Q30, correctly rounded to f32.
+    w: [4]f32,
     sx: [SNAKE_POINTS]f32,
     sy: [SNAKE_POINTS]f32,
 
@@ -233,10 +254,7 @@ pub const Demo = struct {
         // up whatever the previous cart left behind.
         self.top_char = 0;
         self.top_row = 0;
-        self.w1 = 0;
-        self.w2 = 0;
-        self.w3 = 0;
-        self.w4 = 0;
+        self.w = .{ 0, 0, 0, 0 };
         @memset(&self.sx, 0);
         @memset(&self.sy, 0);
 
@@ -279,22 +297,19 @@ pub const Demo = struct {
         // advance, then the phases rewound to their per-FRAME advance, so the
         // shape crawls slowly while its points stay spread out. Reproducing that
         // two-speed trick is the whole character of the movement.
-        var w1 = self.w1;
-        var w2 = self.w2;
-        var w3 = self.w3;
-        var w4 = self.w4;
+        var w = self.w;
         for (&self.sx, &self.sy) |*px, *py| {
-            px.* = AMP_BIG * @cos(w1 + P1) + AMP_SMALL * @cos(w2 + P2);
-            py.* = AMP_BIG * @cos(w3 + P3) + AMP_SMALL * @cos(w4 + P4);
-            w1 += DW1;
-            w2 += DW2;
-            w3 += DW3;
-            w4 += DW4;
+            px.* = AMP_BIG * cosF(w[0] + P1) + AMP_SMALL * cosF(w[1] + P2);
+            py.* = AMP_BIG * cosF(w[2] + P3) + AMP_SMALL * cosF(w[3] + P4);
+            w[0] += DW1;
+            w[1] += DW2;
+            w[2] += DW3;
+            w[3] += DW4;
         }
-        self.w1 += FW1;
-        self.w2 += FW2;
-        self.w3 += FW3;
-        self.w4 += FW4;
+        self.w[0] += FW1;
+        self.w[1] += FW2;
+        self.w[2] += FW3;
+        self.w[3] += FW4;
     }
 
     pub fn render(self: *Demo, zigos: *ZigOS, dt: f32) void {
@@ -312,10 +327,9 @@ pub const Demo = struct {
     /// screen rows carrying three copies of it.
     fn drawScrollers(self: *Demo, fb: *LogicalFB) void {
         var y: usize = 0;
-        var sinus: f32 = 0;
         for (SCLINE, 0..) |repeat, strip_row| {
             const src = &self.strip[@min(strip_row, STRIP_H - 1)];
-            const wobble = @sin(sinus) * SIDE_AMP;
+            const xs = SIDE_X[strip_row];
 
             for (0..repeat) |_| {
                 if (y >= SCREEN_H) break;
@@ -325,11 +339,10 @@ pub const Demo = struct {
                 stretchRow(row, src, LGLINE[y]);
                 // left and right copies at 1:1, wobbling in opposite directions;
                 // the right one mirrored (the original's negative x scale)
-                copyRow(row, src, SIDE_L_X - wobble, false);
-                copyRow(row, src, SIDE_R_X + wobble, true);
+                copyRow(row, src, xs[0], false);
+                copyRow(row, src, xs[1], true);
                 y += 1;
             }
-            sinus += SINUS_INC;
         }
     }
 
@@ -337,8 +350,7 @@ pub const Demo = struct {
         for (SNAKE_EDGES) |e| {
             const a = e[0];
             const b = e[1];
-            line(fb, SNAKE_CX + self.sx[a], SNAKE_CY + self.sy[a],
-                 SNAKE_CX + self.sx[b], SNAKE_CY + self.sy[b]);
+            line(fb, @intFromFloat(SNAKE_CX + self.sx[a]), @intFromFloat(SNAKE_CY + self.sy[a]), @intFromFloat(SNAKE_CX + self.sx[b]), @intFromFloat(SNAKE_CY + self.sy[b]));
         }
     }
 };
@@ -366,8 +378,8 @@ fn stretchRow(row: *[SCREEN_W]u8, src: *const [STRIP_W]u8, width: usize) void {
 
 /// A side copy: the strip row at 1:1, centred on `cx`, optionally mirrored
 /// (the original's negative horizontal scale on the right-hand copy).
-fn copyRow(row: *[SCREEN_W]u8, src: *const [STRIP_W]u8, cx: f32, mirror: bool) void {
-    const left = @as(i32, @intFromFloat(cx)) - @as(i32, STRIP_W / 2);
+fn copyRow(row: *[SCREEN_W]u8, src: *const [STRIP_W]u8, cx: i32, mirror: bool) void {
+    const left = cx - @as(i32, STRIP_W / 2);
 
     for (0..STRIP_W) |i| {
         const x = left + @as(i32, @intCast(i));
@@ -390,11 +402,9 @@ fn drawLogo(fb: *LogicalFB) void {
 
 /// Bresenham, colouring each pixel with the gradient entry for its own row —
 /// which is what the original's 'source-in' composite amounts to.
-fn line(fb: *LogicalFB, x0f: f32, y0f: f32, x1f: f32, y1f: f32) void {
-    var x0: i32 = @intFromFloat(x0f);
-    var y0: i32 = @intFromFloat(y0f);
-    const x1: i32 = @intFromFloat(x1f);
-    const y1: i32 = @intFromFloat(y1f);
+fn line(fb: *LogicalFB, ax: i32, ay: i32, x1: i32, y1: i32) void {
+    var x0 = ax;
+    var y0 = ay;
 
     const dx: i32 = @intCast(@abs(x1 - x0));
     const dy: i32 = -@as(i32, @intCast(@abs(y1 - y0)));

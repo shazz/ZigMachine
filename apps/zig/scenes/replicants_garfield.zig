@@ -83,10 +83,12 @@ var copper_tables: [2]copper.Table = undefined;
 
 // raster bars (640-space) — order is paint order: gray ends up on top
 const BAR_ROWS: i32 = 22;
-const RASTERS_TOP: f64 = 50;
-const RASTERS_BOTTOM: f64 = 270;
-const BAR_START = [4]f64{ RASTERS_TOP, RASTERS_TOP + 100, RASTERS_TOP + 200, 192 };
-const BAR_INC = [4]f64{ 1.5, 1.5, 1.5, -1.5 };
+// bar positions in TENTHS of a 640-space pixel: 1.5 steps are exact in f64, so
+// integers reproduce the JS positions bit for bit
+const RASTERS_TOP: i32 = 500;
+const RASTERS_BOTTOM: i32 = 2700;
+const BAR_START = [4]i32{ RASTERS_TOP, RASTERS_TOP + 1000, RASTERS_TOP + 2000, 1920 };
+const BAR_INC = [4]i32{ 15, 15, 15, -15 };
 
 // the logo window (640-space)
 const LOGO_TOP: f64 = 16;
@@ -99,9 +101,9 @@ const LOGO_W: usize = 268;
 const LOGO_H: usize = 163;
 
 // fx.sinx parameters, verbatim
-const SIN_AMP: f64 = 20;
-const SIN_INC: f64 = 0.06;
-const SIN_OFFSET: f64 = -0.06;
+const SIN_AMP: i32 = 20;
+// angle = phase + 0.06*i with phase = -0.06*frame: one integer count of 0.06 rad
+const SIN_STEP = zg.fixtrig.angle(0.06);
 
 // rasterFont4.png stacked six times, scrolled 3/frame, reset at +-60
 const GRAD_ROWS: i32 = 60;
@@ -152,7 +154,7 @@ comptime {
     assert(SCROLL_X_ST + MASK_W <= WIDTH and SCROLL_Y_ST + TEXT_Y_ST + GLYPH <= HEIGHT);
     // the sine-shifted logo never leaves the screen. drawScanline drops a run
     // whose end equals the width, hence the strict <
-    const shift_max: i32 = @intFromFloat(SIN_AMP / 2.0);
+    const shift_max: i32 = SIN_AMP / 2;
     assert(LOGO_X_ST - shift_max >= 0 and LOGO_X_ST + shift_max + LOGO_W < WIDTH);
 }
 
@@ -300,14 +302,15 @@ fn borderHbl(zigos: *ZigOS, line: u16) void {
 // Demo
 // --------------------------------------------------------------------------
 pub const Demo = struct {
-    // f64, as JS numbers are: the 1.8 steps accumulate the same rounding.
-    sin_phase: f64,
-    sin_drawn: f64, // phase fx.sinx used this frame
+    sin_phase: i32, // frames elapsed, in -0.06 rad steps
+    sin_drawn: i32, // phase fx.sinx used this frame
+    // f64 on purpose, one add a frame: the 1.8 steps accumulate JS's rounding,
+    // which decides the .5 ties of the window's top row
     logo_pos: f64,
     logo_inc: f64,
-    bar_pos: [4]f64,
-    bar_inc: [4]f64,
-    bar_drawn: [4]f64,
+    bar_pos: [4]i32, // tenths of a 640-space pixel
+    bar_inc: [4]i32,
+    bar_drawn: [4]i32,
     grad_pos: i32,
     grad_drawn: i32,
     ring: zg.scrollring.Ring(i32, SCROLL_LETTERS), // scroll canvas x, quarter ST pixels
@@ -346,7 +349,7 @@ pub const Demo = struct {
         _ = dt;
 
         self.sin_drawn = self.sin_phase;
-        self.sin_phase += SIN_OFFSET;
+        self.sin_phase -= 1;
 
         self.logo_pos += self.logo_inc;
         if (self.logo_pos <= LOGO_TOP + 10) self.logo_inc = LOGO_STEP;
@@ -389,13 +392,13 @@ pub const Demo = struct {
     /// bars in go()'s order, then the tubes over them, as background.png was
     /// drawn over the bars. A bar at a fractional 640-space y covers ST line k
     /// with its row floor(2k - pos).
-    fn buildRasterLines(table: *copper.Table, bars: [4]f64) void {
+    fn buildRasterLines(table: *copper.Table, bars: [4]i32) void {
         @memset(table, BLACK.toRGBA());
         const line = table[VBORDER..][0..HEIGHT];
         for (bars, 0..) |pos, b| {
-            var k: i32 = @intFromFloat(@ceil(pos / 2.0));
+            var k: i32 = -@divFloor(-pos, 20);
             while (k < HEIGHT) : (k += 1) {
-                const r: i32 = @intFromFloat(@floor(@as(f64, @floatFromInt(2 * k)) - pos));
+                const r: i32 = @divFloor(20 * k - pos, 10);
                 if (r >= BAR_ROWS) break;
                 if (k >= 0 and r >= 0) line[@intCast(k)] = rows[b * BAR_ROWS + @as(usize, @intCast(r))].toRGBA();
             }
@@ -424,9 +427,10 @@ pub const Demo = struct {
         for (@as(usize, @intCast(first))..@as(usize, @intCast(end))) |y| {
             const s = y - LOGO_Y_ST;
             // fx.sinx: source row i (640-space, = 2*s) shifted by sin(phase + i*0.06)*20
-            const prov = SIN_AMP * @sin(self.sin_drawn + SIN_INC * @as(f64, @floatFromInt(2 * s)));
-            // >= 0 and run ends < WIDTH: asserted at comptime above
-            const x: i32 = LOGO_X_ST + @as(i32, @intFromFloat(@floor(prov / 2.0)));
+            const a: u32 = @bitCast(self.sin_drawn + @as(i32, @intCast(2 * s)));
+            const sn = zg.fixtrig.sin(a *% SIN_STEP);
+            // floor(20*sin/2); >= 0 and run ends < WIDTH: asserted at comptime above
+            const x: i32 = LOGO_X_ST + ((SIN_AMP / 2 * sn) >> 16);
             for (logo.row(s)) |span| {
                 fb.drawScanline(@intCast(x + span.x0), @intCast(x + span.x1), @intCast(y), LOGO_INK);
             }
