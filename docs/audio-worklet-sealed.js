@@ -10,6 +10,8 @@
 // loop, calling the sealed chip to mix; we then copy the stereo buffers out.
 // --------------------------------------------------------------------------
 const AUDIO_PAGES = 48; // must match src/sdk/audio.zig AUDIO_PAGES
+const RING = 32768; // the stream ring at SONG_BASE: STREAM_RING in demo_audio_main.zig
+const CUSHION = 4096; // a sample's bytes kept written ahead of the channel (fpga/host/audio_pcm.c)
 
 class ZigAudioSealedProcessor extends AudioWorkletProcessor {
     constructor(options) {
@@ -17,6 +19,7 @@ class ZigAudioSealedProcessor extends AudioWorkletProcessor {
         this.ready = false;
         this.tick = 0;
         this.ringWrite = 0; // streamFeed write cursor into the 32 KiB ring at SONG_BASE
+        this.sample = null; // zg.samplePlay's sample, refilled into the ring before each block
 
         const { machineBytes, demoBytes } = options.processorOptions;
         (async () => {
@@ -64,6 +67,7 @@ class ZigAudioSealedProcessor extends AudioWorkletProcessor {
             if (!this.demo) return;
             const d = this.demo, mem = this.memory;
             const writeSong = (bytes) => {
+                this.sample = null; // a song takes song RAM, the ring with it
                 const cap = d.audioSongCapacity();
                 const dst = new Uint8Array(mem.buffer, d.audioSongPtr(), cap);
                 const src = new Uint8Array(bytes);
@@ -141,13 +145,24 @@ class ZigAudioSealedProcessor extends AudioWorkletProcessor {
             } else if (msg.type === "streamStart") {
                 d.audioStreamStart(msg.rate);
                 this.ringWrite = 0;
+                this.sample = null;
             } else if (msg.type === "streamStop") {
                 d.audioStreamStop();
                 this.ringWrite = 0;
+                this.sample = null;
+            } else if (msg.type === "samplePlay") {
+                // zg.samplePlay: the whole sample, played from here with no cart in the
+                // loop: the stream ring, refilled ahead of its channel before each block.
+                d.audioStreamStart(msg.rate);
+                this.ringWrite = 0;
+                // The channel's own step (demo_audio_raw.zig: rate / SAMPLE_RATE * FRAC_ONE, f32).
+                const step = Math.trunc(Math.fround(Math.fround(msg.rate / 44100) * 65536));
+                this.sample = { src: new Uint8Array(msg.bytes), pos: 0, loop: !!msg.loop, step, read: 0, written: 0 };
+                this.refillSample(0);
+            } else if (msg.type === "sampleStop") {
+                if (this.sample) { d.audioStreamStop(); this.ringWrite = 0; this.sample = null; }
             } else if (msg.type === "streamFeed") {
-                // Append signed-8-bit bytes into the ring at SONG_BASE, wrapping at
-                // RING (must match STREAM_RING in demo_audio_main.zig).
-                const RING = 32768;
+                // Append signed-8-bit bytes into the ring at SONG_BASE, wrapping at RING.
                 const ring = new Uint8Array(mem.buffer, d.audioSongPtr(), RING);
                 const src = new Uint8Array(msg.bytes);
                 for (let i = 0; i < src.length; i++) {
@@ -169,6 +184,7 @@ class ZigAudioSealedProcessor extends AudioWorkletProcessor {
             } else if (msg.type === "reset") {
                 // The machine reclaiming the sound chip when a program ends.
                 // Sent by the host on every cart instantiation.
+                this.sample = null;
                 d.audioReset();
             } else if (msg.type === "beepStop") {
                 this.machine.machineYmWrite(8, 0); // silence channel A
@@ -196,6 +212,7 @@ class ZigAudioSealedProcessor extends AudioWorkletProcessor {
             this.bip += frames;
             if (this.bip >= 7200) { m.machineYmWrite(8, 0); this.beep = false; } // ~160 ms → done
         } else {
+            this.refillSample(frames);
             this.demo.audioRender(frames);
         }
 
@@ -215,5 +232,28 @@ class ZigAudioSealedProcessor extends AudioWorkletProcessor {
         return true;
     }
 }
+
+// zg.samplePlay, before the players render `n` frames: the ring written up to
+// where the channel will have read after them, plus CUSHION; past a one-shot's
+// end, silence, and once the channel has read it all, the channel off.
+// fpga/host/audio_pcm.c does the same on the board.
+ZigAudioSealedProcessor.prototype.refillSample = function (n) {
+    const s = this.sample;
+    if (!s) return;
+    s.read += n * s.step; // 16.16: where the channel's position will be
+    const read = Math.floor(s.read / 65536), len = s.src.length;
+    if (!s.loop && s.pos >= len && read >= len) {
+        this.demo.audioStreamStop();
+        this.ringWrite = 0;
+        this.sample = null;
+        return;
+    }
+    const ring = new Uint8Array(this.memory.buffer, this.demo.audioSongPtr(), RING);
+    for (; s.written < read + CUSHION; s.written++) {
+        ring[this.ringWrite] = s.pos < len ? s.src[s.pos++] : 0;
+        if (s.loop && s.pos === len) s.pos = 0;
+        this.ringWrite = (this.ringWrite + 1) % RING;
+    }
+};
 
 registerProcessor("zig-audio-sealed", ZigAudioSealedProcessor);

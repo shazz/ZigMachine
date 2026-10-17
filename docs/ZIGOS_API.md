@@ -234,7 +234,12 @@ Players are open ZigOS code that drive the sealed chips. Four ship today:
   channels down under them, never the effect's; each MOD load starts at 1.0 (docs/MUSIC.md,
   "Sound effects over a MOD").
 - **YM** (`YmPlayer`) — YM5!/YM6! register dump, writes the YM2149 registers. **Deprecated**: screens use the SNDH player; a dump is the last resort when no SNDH of the tune exists (see docs/MUSIC.md).
-- **raw sample** — streams 8-bit PCM on one Paula channel.
+- **raw sample** — streams 8-bit PCM on one Paula channel, the stream ring. Two ways to fill it:
+  the cart feeds it itself, paced by its frame's dt (`zg.audioStreamStart(rate)`, `zg.audioFeed(bytes)`,
+  `zg.audioStreamStop()`), or it hands the whole sample over once (`zg.samplePlay(pcm, rate, loop)`,
+  `zg.sampleStop()`) and the audio side plays it on its own: the audio thread in the browser, the sound
+  CPU (BARD) on the board. A `samplePlay` sample is read while it plays, so it stays put until it stops
+  (ST Replay's ALTernate O/P switches between the two: `apps/zig/scenes/st_replay_play.zig`).
 
 They run on the audio thread and are swappable — add your own by driving the same
 chip ABI (see HW_API.md §5). The active player's mode + per-channel scopes are

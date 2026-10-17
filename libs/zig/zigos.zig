@@ -282,6 +282,20 @@ pub fn requestModVolume(gain: f32) bool {
 pub fn requestSndhMode(mode: u8) bool {
     return g_sfx.sndhMode(mode);
 }
+/// Hand the WHOLE of `pcm` (signed 8-bit, at `rate` Hz) to the audio side, which
+/// plays it by itself, looped if `loop`, with nothing more from the cart: the
+/// sound CPU on the board, the audio thread in the browser. It takes the stream
+/// ring (audioStreamStart's), so it replaces a stream or a song playing. The
+/// bytes are read WHILE it plays: keep them unchanged until sampleStop() or
+/// the end. False when refused (empty, over 2 MiB, rate outside 1000..50066,
+/// the queue full): counted in sfxDropped().
+pub fn samplePlay(pcm: []const u8, rate: u32, loop: bool) bool {
+    return g_sfx.sample(pcm, rate, loop);
+}
+/// Stop the sample samplePlay started (nothing when none plays).
+pub fn sampleStop() bool {
+    return g_sfx.sampleStop();
+}
 pub fn sfxDropped() u32 {
     return g_sfx.dropped;
 }

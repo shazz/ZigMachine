@@ -88,3 +88,29 @@ test "an SNDH mode goes on the wire in `a`; 0 and 4+ are refused and counted" {
     try std.testing.expectEqual(@as(u8, 3), queue.entries[0].a);
     try std.testing.expectEqual(@as(u32, 2), queue.dropped);
 }
+
+test "a sample goes on the wire whole, past an effect's 64 KiB, and its stop after it" {
+    var s: q.Queue = .{};
+    const long = [_]u8{0} ** (q.PCM_MAX + 1);
+    try std.testing.expect(s.sample(&long, 10000, true));
+    try std.testing.expect(s.sampleStop());
+    try std.testing.expectEqual(@as(usize, 2), s.take());
+    const e = s.entries[0];
+    try std.testing.expectEqual(@as(u8, 6), e.op);
+    try std.testing.expectEqual(@as(u8, 1), e.a);
+    try std.testing.expectEqual(@as(u32, q.PCM_MAX + 1), e.len);
+    try std.testing.expectEqual(@as(u32, 10000), e.rate);
+    try std.testing.expectEqual(@as(u32, @truncate(@intFromPtr(&long))), e.ptr);
+    try std.testing.expectEqual(@as(u8, 7), s.entries[1].op);
+    try std.testing.expectEqual(@as(u32, 0), s.dropped);
+}
+
+test "an empty sample, one over the RAM window or a rate out of range is refused and counted" {
+    var s: q.Queue = .{};
+    try std.testing.expect(!s.sample(&.{}, 10000, false));
+    try std.testing.expect(!s.sample(@as([*]const u8, &pcm)[0 .. q.SAMPLE_MAX + 1], 10000, false));
+    try std.testing.expect(!s.sample(&pcm, q.RATE_MIN - 1, false));
+    try std.testing.expect(!s.sample(&pcm, q.RATE_MAX + 1, false));
+    try std.testing.expectEqual(@as(u32, 4), s.dropped);
+    try std.testing.expectEqual(@as(usize, 0), s.take());
+}

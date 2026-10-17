@@ -739,7 +739,7 @@ const KEY_CODES = {
     F1: 0xE001, F2: 0xE002, F3: 0xE003, F4: 0xE004, F5: 0xE005,
     F6: 0xE006, F7: 0xE007, F8: 0xE008, F9: 0xE009, F10: 0xE00A,
     Insert: 0xE00B, Delete: 0xE00C,
-    Undo: 0xE010, Help: 0xE011, Escape: 0xE012,
+    Undo: 0xE010, Help: 0xE011, Escape: 0xE012, Alt: 0xE013,
 };
 // The modifier keys, told apart by SIDE (evt.code, not evt.key): a game may bind
 // left Ctrl and left Shift as buttons of their own (Rick Dangerous: fire up /
@@ -792,7 +792,10 @@ window.document.body.addEventListener('keydown', function (evt) {
         if (evt.key === "Backspace") { evt.preventDefault(); demo.key(8); }
         else if (evt.key === "Enter") demo.key(13);
         else if (evt.key.length === 1) demo.key(evt.key.charCodeAt(0));
-        else if (KEY_CODES[evt.key] !== undefined) { evt.preventDefault(); demo.key(KEY_CODES[evt.key]); }
+        else if (KEY_CODES[evt.key] !== undefined) {
+            evt.preventDefault();
+            if (!(evt.key === "Alt" && evt.repeat)) demo.key(KEY_CODES[evt.key]); // Alt is a toggle: once a press
+        }
         else if (MOD_CODES[evt.code] !== undefined && !evt.repeat) demo.key(MOD_CODES[evt.code]);
     }
 });
@@ -1231,6 +1234,12 @@ function postSfx(mem, at, n) {
         else if (op === 3) msgs.push({ type: "sfxYm", reg: a, val: dv.getUint8(o + 2) });
         else if (op === 4) msgs.push({ type: "modGain", q16: dv.getUint32(o + 8, true) }); // zg.requestModVolume
         else if (op === 5) msgs.push({ type: "sndhMode", mode: a }); // zg.requestSndhMode
+        else if (op === 6) { // zg.samplePlay: the whole sample, played by the audio thread on its own
+            const ptr = dv.getUint32(o + 4, true), len = dv.getUint32(o + 8, true);
+            const bytes = new Uint8Array(mem.buffer, ptr, len).slice().buffer;
+            msgs.push({ type: "samplePlay", bytes, rate: dv.getUint32(o + 12, true), loop: a });
+            sndhResident = null; // the stream ring is written over the SNDH's 68000 RAM
+        } else if (op === 7) msgs.push({ type: "sampleStop" });
     }
     const after = songPosted;
     sfxChain = sfxChain.then(() => after).then(() => {
