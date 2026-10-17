@@ -346,6 +346,12 @@ below the cart window.
     over before the first load).
 - **F11** toggles the frame-rate overlay while the menu is closed (below). Like
   F12 it never reaches a cart; with the menu open it does nothing.
+- **Shift+F12** reads the shelf again (`app_shelf.zig`): the `.zmd` files and
+  `shelf.txt`, so a cart copied to the card since `glass` started is listed
+  without a restart (which would kill the running cart). The menu opens on
+  `shelf: N carts`. The running cart, the `*` mark and the cursor follow their
+  file names; the settings are untouched. A running cart whose disk vanished
+  stays listed until another is loaded (R then says `FileNotFound`).
 
 ### The frame-rate overlay (F11, `app_stats.zig`)
 
@@ -1028,9 +1034,7 @@ ssh to the board over its RJ45; no Wi-Fi dongle is needed.
 - **Cart upload over the network** comes nearly free with it:
   `ssh root@zigmachine.local mount -o remount,rw /mnt/sd`, then `scp
   demo-x.zmd root@zigmachine.local:/mnt/sd/zigmachine/` and remount read-only.
-  What is missing is a shelf **rescan** in `glass` (today the shelf is read at
-  start: restart `glass` or pick it up on F12), keeping the loaded cart's
-  index stable across it.
+  Then **Shift+F12** in `glass` rescans the shelf over the running cart.
 - Unverified until Buildroot builds the image and the bitstream carries the
   EMIO wiring.
 

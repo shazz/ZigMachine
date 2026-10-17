@@ -213,5 +213,4 @@ _Bool isPlaneEnabled(u8 id) { return id == 0; }
 
 __attribute__((export_name("skipBoot")))     void skipBoot(void) { zm_tvnoise_stop(); }
 __attribute__((export_name("setShadeMode"))) void setShadeMode(u32 m) { (void)m; }
-__attribute__((export_name("pointer")))      void pointer(int x, int y, u32 b) { (void)x; (void)y; (void)b; }
 __attribute__((export_name("input")))        void input(u8 dir) { (void)dir; }

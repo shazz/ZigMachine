@@ -8,7 +8,8 @@ written straight into the shared video region.
 ## The contract this app implements
 - **Imports** (`env`): `memory`, `hwVideoBase()`, `consoleLogJS(ptr,len)`.
 - **Exports**: `boot()`, `frame(f32)`, `isPlaneEnabled(i)->bool` (required), plus
-  no-op `hblDispatch/skipBoot/setShadeMode/pointer/input`.
+  no-op `hblDispatch/skipBoot/setShadeMode/input`. `pointer(x,y,b)` only if the
+  cart uses the mouse (the board draws its arrow for any cart that exports it).
 - **Draw**: palette-index bytes at `hwVideoBase()+OFF_VRAM`; RGBA palette at
   `+OFF_PAL` (**alpha 255 = opaque**). Offsets mirror `machine/sdk/memmap.zig`.
 - **Link layout** (must match `build.zig`'s demo module): `--import-memory`,

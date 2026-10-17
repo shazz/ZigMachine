@@ -96,7 +96,7 @@ are the last step. They are short enough to read in one sitting.</p>
       <div class="picker" id="picker" hidden>
         <p class="picker-q">Which language do you want to read this in?
           <span class="picker-sub">You can switch any time.</span></p>
-        <div class="picker-cards"><button class="card" data-lang="zig" type="button"><b>Zig</b><span class="card-n">138 lines</span><span class="card-v">through the ZigOS library</span></button><button class="card" data-lang="c" type="button"><b>C</b><span class="card-n">191 lines</span><span class="card-v">straight at the sealed ABI</span></button><button class="card" data-lang="rust" type="button"><b>Rust</b><span class="card-n">263 lines</span><span class="card-v">straight at the sealed ABI, no_std</span></button></div>
+        <div class="picker-cards"><button class="card" data-lang="zig" type="button"><b>Zig</b><span class="card-n">138 lines</span><span class="card-v">through the ZigOS library</span></button><button class="card" data-lang="c" type="button"><b>C</b><span class="card-n">190 lines</span><span class="card-v">straight at the sealed ABI</span></button><button class="card" data-lang="rust" type="button"><b>Rust</b><span class="card-n">261 lines</span><span class="card-v">straight at the sealed ABI, no_std</span></button></div>
       </div>
     </section>
 <section class="plain" id="before-you-start"><header class="step-h"><h2>Before you start</h2></header><div class="shared"><p class="lead lead-note"><strong>The machine in one paragraph.</strong> ZigMachine is a sealed console. Its hardware
@@ -141,10 +141,12 @@ The build scripts pick up every file there.</p>
 <p class="lead lead-concept"><strong>Concept.</strong> The host calls your cart through a handful of exports. <code>boot()</code>
 runs once. <code>frame(dt)</code> runs every frame. <code>isPlaneEnabled(p)</code> tells the host
 which planes to show. The rest (<code>hblDispatch</code>, <code>skipBoot</code>, <code>setShadeMode</code>,
-<code>pointer</code>, <code>input</code>) must exist even as stubs: the build scripts export all
-eight names, and linking fails if one is missing. <code>inputRelease(dir)</code> is
-OPTIONAL and not one of the eight: the host calls it on key-up, only for a cart
-that exports it, so a held direction stops exactly on release.</p>
+<code>input</code>) must exist even as stubs: the build scripts export all
+seven names, and linking fails if one is missing. <code>inputRelease(dir)</code> is
+OPTIONAL and not one of the seven: the host calls it on key-up, only for a cart
+that exports it, so a held direction stops exactly on release. So is
+<code>pointer(x, y, buttons)</code>, the mouse: export it only if your screen uses the
+mouse, because the board draws its arrow for any cart that has it.</p>
 <p>A Zig scene does not write these exports. <code>apps/zig/demo_main.zig</code> does, and it
 calls your <code>Demo</code>'s <code>init</code> once, then <code>update</code> and <code>render</code> every frame.</p></div><div class="langs"><section class="lang" data-lang="zig" id="step-1-zig"><h3>Zig</h3><figure class="cb" data-lang=zig><figcaption><span class="cb-lang">zig</span><span class="cb-n">21 lines</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code><span class="tok-kw">const</span> zg = @<span class="tok-fn">import</span>(<span class="tok-str">&quot;zigos&quot;</span>);
 <span class="tok-kw">const</span> ZigOS = zg.ZigOS;
@@ -166,7 +168,7 @@ calls your <code>Demo</code>'s <code>init</code> once, then <code>update</code> 
         _ = zigos;
         _ = dt;
     }
-};</code></pre></figure></section><section class="lang" data-lang="c" id="step-1-c"><h3>C</h3><figure class="cb" data-lang=c><figcaption><span class="cb-lang">c</span><span class="cb-n">20 lines</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code><span class="tok-kw">typedef</span> <span class="tok-kw">unsigned</span> <span class="tok-kw">char</span> <span class="tok-kw">u8</span>;
+};</code></pre></figure></section><section class="lang" data-lang="c" id="step-1-c"><h3>C</h3><figure class="cb" data-lang=c><figcaption><span class="cb-lang">c</span><span class="cb-n">19 lines</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code><span class="tok-kw">typedef</span> <span class="tok-kw">unsigned</span> <span class="tok-kw">char</span> <span class="tok-kw">u8</span>;
 <span class="tok-kw">typedef</span> <span class="tok-kw">unsigned</span> <span class="tok-kw">short</span> <span class="tok-kw">u16</span>;
 <span class="tok-kw">typedef</span> <span class="tok-kw">unsigned</span> <span class="tok-kw">int</span> <span class="tok-kw">u32</span>;
 
@@ -184,8 +186,7 @@ calls your <code>Demo</code>'s <code>init</code> once, then <code>update</code> 
 <span class="tok-kw">void</span> <span class="tok-fn">hblDispatch</span>(<span class="tok-kw">u32</span> id, <span class="tok-kw">u32</span> plane, <span class="tok-kw">u32</span> line, <span class="tok-kw">u32</span> x) { (<span class="tok-kw">void</span>)id; (<span class="tok-kw">void</span>)plane; (<span class="tok-kw">void</span>)line; (<span class="tok-kw">void</span>)x; }
 <span class="tok-fn">__attribute__</span>((<span class="tok-fn">export_name</span>(<span class="tok-str">&quot;skipBoot&quot;</span>)))     <span class="tok-kw">void</span> <span class="tok-fn">skipBoot</span>(<span class="tok-kw">void</span>) {}
 <span class="tok-fn">__attribute__</span>((<span class="tok-fn">export_name</span>(<span class="tok-str">&quot;setShadeMode&quot;</span>))) <span class="tok-kw">void</span> <span class="tok-fn">setShadeMode</span>(<span class="tok-kw">u32</span> m) { (<span class="tok-kw">void</span>)m; }
-<span class="tok-fn">__attribute__</span>((<span class="tok-fn">export_name</span>(<span class="tok-str">&quot;pointer&quot;</span>)))      <span class="tok-kw">void</span> <span class="tok-fn">pointer</span>(<span class="tok-kw">int</span> x, <span class="tok-kw">int</span> y, <span class="tok-kw">u32</span> b) { (<span class="tok-kw">void</span>)x; (<span class="tok-kw">void</span>)y; (<span class="tok-kw">void</span>)b; }
-<span class="tok-fn">__attribute__</span>((<span class="tok-fn">export_name</span>(<span class="tok-str">&quot;input&quot;</span>)))        <span class="tok-kw">void</span> <span class="tok-fn">input</span>(<span class="tok-kw">u8</span> dir) { (<span class="tok-kw">void</span>)dir; }</code></pre></figure></section><section class="lang" data-lang="rust" id="step-1-rust"><h3>Rust</h3><figure class="cb" data-lang=rust><figcaption><span class="cb-lang">rust</span><span class="cb-n">32 lines</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code><span class="tok-at">#![no_std]</span>
+<span class="tok-fn">__attribute__</span>((<span class="tok-fn">export_name</span>(<span class="tok-str">&quot;input&quot;</span>)))        <span class="tok-kw">void</span> <span class="tok-fn">input</span>(<span class="tok-kw">u8</span> dir) { (<span class="tok-kw">void</span>)dir; }</code></pre></figure></section><section class="lang" data-lang="rust" id="step-1-rust"><h3>Rust</h3><figure class="cb" data-lang=rust><figcaption><span class="cb-lang">rust</span><span class="cb-n">30 lines</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code><span class="tok-at">#![no_std]</span>
 <span class="tok-at">#![no_main]</span>
 
 <span class="tok-kw">use</span> core::panic::PanicInfo;
@@ -214,8 +215,6 @@ calls your <code>Demo</code>'s <code>init</code> once, then <code>update</code> 
 <span class="tok-at">#[no_mangle]</span>
 <span class="tok-kw">pub</span> <span class="tok-kw">extern</span> <span class="tok-str">&quot;C&quot;</span> <span class="tok-kw">fn</span> <span class="tok-fn">setShadeMode</span>(_m: <span class="tok-kw">u32</span>) {}
 <span class="tok-at">#[no_mangle]</span>
-<span class="tok-kw">pub</span> <span class="tok-kw">extern</span> <span class="tok-str">&quot;C&quot;</span> <span class="tok-kw">fn</span> <span class="tok-fn">pointer</span>(_x: <span class="tok-kw">i32</span>, _y: <span class="tok-kw">i32</span>, _b: <span class="tok-kw">u32</span>) {}
-<span class="tok-at">#[no_mangle]</span>
 <span class="tok-kw">pub</span> <span class="tok-kw">extern</span> <span class="tok-str">&quot;C&quot;</span> <span class="tok-kw">fn</span> <span class="tok-fn">input</span>(_dir: <span class="tok-kw">u8</span>) {}</code></pre></figure>
 <p><code>no_std</code> because there is no operating system. <code>no_main</code> because the host calls
 your exports, so there is no <code>main</code>. The panic handler is required without <code>std</code>.</p></section></div><div class="shared after"><p class="lead lead-see"><strong>What you should see.</strong> Nothing but the background. In Zig it is dark grey:
@@ -224,7 +223,7 @@ the machine's reset leaves the background at 0, which has <strong>alpha 0</stron
 page behind the canvas shows through (black on the default page).</p>
 <p class="lead lead-mistakes"><strong>Common mistakes.</strong></p>
 <ul>
-<li><em>Link error <code>symbol not defined</code> in C or Rust.</em> One of the eight exports is
+<li><em>Link error <code>symbol not defined</code> in C or Rust.</em> One of the seven exports is
   missing. Keep the stubs.</li>
 <li><em>The Zig cart is not built.</em> The scene is missing from <code>cart.zig</code> or
   <code>build.zig</code>, or its index differs between them.</li>

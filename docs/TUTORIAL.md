@@ -89,10 +89,12 @@ The build scripts pick up every file there.
 **Concept.** The host calls your cart through a handful of exports. `boot()`
 runs once. `frame(dt)` runs every frame. `isPlaneEnabled(p)` tells the host
 which planes to show. The rest (`hblDispatch`, `skipBoot`, `setShadeMode`,
-`pointer`, `input`) must exist even as stubs: the build scripts export all
-eight names, and linking fails if one is missing. `inputRelease(dir)` is
-OPTIONAL and not one of the eight: the host calls it on key-up, only for a cart
-that exports it, so a held direction stops exactly on release.
+`input`) must exist even as stubs: the build scripts export all
+seven names, and linking fails if one is missing. `inputRelease(dir)` is
+OPTIONAL and not one of the seven: the host calls it on key-up, only for a cart
+that exports it, so a held direction stops exactly on release. So is
+`pointer(x, y, buttons)`, the mouse: export it only if your screen uses the
+mouse, because the board draws its arrow for any cart that has it.
 
 A Zig scene does not write these exports. `apps/zig/demo_main.zig` does, and it
 calls your `Demo`'s `init` once, then `update` and `render` every frame.
@@ -144,7 +146,6 @@ __attribute__((export_name("hblDispatch")))
 void hblDispatch(u32 id, u32 plane, u32 line, u32 x) { (void)id; (void)plane; (void)line; (void)x; }
 __attribute__((export_name("skipBoot")))     void skipBoot(void) {}
 __attribute__((export_name("setShadeMode"))) void setShadeMode(u32 m) { (void)m; }
-__attribute__((export_name("pointer")))      void pointer(int x, int y, u32 b) { (void)x; (void)y; (void)b; }
 __attribute__((export_name("input")))        void input(u8 dir) { (void)dir; }
 ```
 
@@ -180,8 +181,6 @@ pub extern "C" fn skipBoot() {}
 #[no_mangle]
 pub extern "C" fn setShadeMode(_m: u32) {}
 #[no_mangle]
-pub extern "C" fn pointer(_x: i32, _y: i32, _b: u32) {}
-#[no_mangle]
 pub extern "C" fn input(_dir: u8) {}
 ```
 
@@ -195,7 +194,7 @@ page behind the canvas shows through (black on the default page).
 
 **Common mistakes.**
 
-- *Link error `symbol not defined` in C or Rust.* One of the eight exports is
+- *Link error `symbol not defined` in C or Rust.* One of the seven exports is
   missing. Keep the stubs.
 - *The Zig cart is not built.* The scene is missing from `cart.zig` or
   `build.zig`, or its index differs between them.
