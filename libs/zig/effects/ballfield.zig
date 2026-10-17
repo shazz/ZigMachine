@@ -17,6 +17,10 @@
 // No ZigOS import: it tests natively (ballfield_test.zig).
 // --------------------------------------------------------------------------
 
+/// The integer twin for whole-number speed and ratio (every Union screen):
+/// ballfield_fixed.Field(params). Same balls, no f64 per ball.
+pub const fixed = @import("ballfield_fixed.zig");
+
 pub const Ball = struct { x: f64, y: f64, z: f64, px: f64, py: f64 };
 
 /// new ballfield(dest, nb, speed, w, h, centx, centy, ratio, offsetx, offsety, balls, nbballs)
@@ -126,6 +130,18 @@ pub const XorShift32 = struct {
         self.s ^= self.s >> 17;
         self.s ^= self.s << 5;
         return @as(f64, @floatFromInt(self.s)) / 4294967296.0;
+    }
+
+    /// The next 32 bits themselves: next() is raw / 2^32 (ballfield_fixed.spawn).
+    pub fn nextRaw(self: *XorShift32) u32 {
+        self.s ^= self.s << 13;
+        self.s ^= self.s >> 17;
+        self.s ^= self.s << 5;
+        return self.s;
+    }
+
+    pub fn threeRaw(self: *XorShift32) [3]u32 {
+        return .{ self.nextRaw(), self.nextRaw(), self.nextRaw() };
     }
 
     pub fn three(self: *XorShift32) [3]f64 {
