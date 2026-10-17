@@ -100,6 +100,8 @@ void vseq_clear(struct w2c_env* e) {
     }
 }
 
+uint8_t vseq_plane_mode(int p) { return r8(ZM_REG_FB_MODE + (uint32_t)p); }
+
 /* The raster lines a plane's handler runs on, and its first (video.zig renderPlane*). */
 static void plane_lines(int p, uint32_t* oy, uint32_t* rows) {
     uint8_t mode = r8(ZM_REG_FB_MODE + (uint32_t)p);

@@ -38,5 +38,7 @@ void vseq_line_major(struct w2c_env* e, unsigned planes);
 void vseq_present(void);
 /* Until no command is queued or running: every row is in memory. */
 void vseq_idle(void);
+/* Plane p's ZM_FB_MODE_* as the cart last set it (the pointer's pixel width). */
+uint8_t vseq_plane_mode(int p);
 
 #endif
