@@ -46,6 +46,9 @@ static void run(void) {
     #define ZMA_NOW (*(volatile uint32_t*)0x92000008u) /* soc/zm_audio_soc.py AUDIO_WINDOW, word 2 */
     uint32_t t0 = SND_REG(SND_CYCLES);
     audio_play(ZM_SONG, ZM_TUNE);
+#ifdef ZM_SND_MODE /* make snd-bench SND_MODE=3: zg.requestSndhMode before the first frame */
+    printf("MODE asked %d got %lu\n", ZM_SND_MODE, (unsigned long)w2c_audio_audioSndhMode(&g_aud.player, ZM_SND_MODE));
+#endif
     printf("LOAD %lu\n", (unsigned long)(SND_REG(SND_CYCLES) - t0));
     for (int f = 0; f < ZM_FRAMES; f++) {
         while ((int32_t)(zma_ts() - ZMA_NOW) > (int32_t)(2940u - FRAME)) {
