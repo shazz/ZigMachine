@@ -21,6 +21,15 @@ const BY: u16 = 40;
 const VW: u16 = 640; // visible window
 const VH: u16 = 200;
 
+const PERIOD = 78;
+// RAINBOW[i] = the border colour at diagonal distance i (mod PERIOD), long enough
+// for any row's window.
+const RAINBOW: [PERIOD + RW]u8 = blk: {
+    var t: [PERIOD + RW]u8 = undefined;
+    for (&t, 0..) |*v, i| v.* = @intCast(@divFloor(@as(i32, @intCast(i % PERIOD)), 6) + 3);
+    break :blk t;
+};
+
 pub const Demo = struct {
     fc: u32 = 0,
 
@@ -48,20 +57,17 @@ pub const Demo = struct {
     // Redraw each frame so the border pattern animates (proving it's live content
     // in the border area, not a static blank).
     fn paint(self: *Demo, fb: *LogicalFB) void {
+        // Every row is the same 78-px rainbow, rotated by (y - phase): copy a
+        // window of RAINBOW instead of 224,000 setPixelValue calls, then drop the
+        // dark visible window in with one @memset a row (bit-identical output).
         const ph: i32 = @intCast(self.fc);
+        const w: usize = @min(@as(usize, RW), fb.fb_w);
         var y: u16 = 0;
-        while (y < RH) : (y += 1) {
-            const inWinY = (y >= BY and y < BY + VH);
-            var x: u16 = 0;
-            while (x < RW) : (x += 1) {
-                if (inWinY and x >= BX and x < BX + VW) {
-                    fb.setPixelValue(x, y, 0); // dark visible area
-                } else {
-                    // animated diagonal rainbow in the BORDER region (indices 3..15)
-                    const d = @mod(@as(i32, x) + @as(i32, y) - ph, 78);
-                    fb.setPixelValue(x, y, @intCast(@divFloor(d, 6) + 3));
-                }
-            }
+        while (y < @min(RH, fb.fb_h)) : (y += 1) {
+            const row = fb.fb[@as(usize, y) * fb.stride ..][0..w];
+            const s: usize = @intCast(@mod(@as(i32, y) - ph, PERIOD));
+            @memcpy(row, RAINBOW[s..][0..w]);
+            if (y >= BY and y < BY + VH and BX < w) @memset(row[BX..@min(w, BX + VW)], 0);
         }
         // bright frame at the very physical edge (only overscan can reach it)
         drawFrame(fb);
