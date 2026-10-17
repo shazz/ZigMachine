@@ -116,3 +116,36 @@ test "mix and srcOver are Skia's integer forms" {
     try expectEqual(@as(u8, 64), cd.srcOver(64, 255, 200)); // opaque replaces it
     try expectEqual(@as(u8, 128 + 127), cd.srcOver(128, 128, 255)); // never past 255
 }
+
+/// The original float formulation, kept as the oracle for the Q32 integer path.
+fn refTaps(y: f64, part_y: u16, part_h: u16, image_h: u16, row: i32) ?cd.Taps {
+    const fy: f64 = @as(f32, @floatCast(y));
+    const r: f64 = @floatFromInt(row);
+    if (!(fy < r + 0.5 and r + 0.5 <= fy + @as(f64, @floatFromInt(part_h)))) return null;
+    const v = r - fy;
+    const top = @floor(v);
+    const first = @as(f64, @floatFromInt(part_y)) + top;
+    const hi: f64 = @floatFromInt(image_h - 1);
+    return .{
+        .top = @intFromFloat(std.math.clamp(first, 0, hi)),
+        .bottom = @intFromFloat(std.math.clamp(first + 1, 0, hi)),
+        .w = @intFromFloat(@floor((v - top) * 16)),
+    };
+}
+
+test "the Q32 integer path draws every row the float formulation does" {
+    var y: f64 = -420.3;
+    while (y < 420) : (y += 3.35 + 1.0 / 128.0) {
+        var row: i32 = -2;
+        while (row < 402) : (row += 7) {
+            const want = refTaps(y, 32, 32, 128, row);
+            const got = cd.partTapsFy(cd.fyOf(y), 32, 32, 128, row);
+            try std.testing.expectEqual(want == null, got == null);
+            if (want) |w| try expectTaps(w, got);
+            const whole = cd.tapsFy(cd.fyOf(y), 400, row);
+            const ref = refTaps(y, 0, 400, 400, row);
+            try std.testing.expectEqual(ref == null, whole == null);
+            if (ref) |w| try expectTaps(w, whole);
+        }
+    }
+}
