@@ -142,6 +142,7 @@ NATIVE_TESTS="
     libs/zig/effects/blit_rows_test.zig
     libs/zig/effects/scrolltext2_test.zig
     libs/zig/effects/parallax_test.zig
+    libs/zig/effects/tilemap_test.zig
     libs/zig/effects/copper_test.zig
     libs/zig/effects/palette_test.zig
     libs/zig/effects/scrollring_test.zig
