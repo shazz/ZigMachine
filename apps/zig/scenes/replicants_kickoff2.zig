@@ -36,6 +36,7 @@
 
 const std = @import("std");
 const zg = @import("zigos");
+const trig = zg.fixtrig;
 const assert = std.debug.assert;
 
 const ZigOS = zg.ZigOS;
@@ -120,10 +121,10 @@ const SCROLL_TEXT = "     THE FUCKING BEST REPLICANTS STRIKE AGAIN WITH KICK OFF
 
 // the 11 sprites: x = 299 + 264*sin(p), y = 186 + 84*cos(p*1.5), p += 0.06
 const SPRITES: usize = 11;
-const ORBIT_CX: f64 = 299;
-const ORBIT_RX: f64 = 264;
-const ORBIT_CY: f64 = 186;
-const ORBIT_RY: f64 = 84;
+const ORBIT_CX: i32 = 299;
+const ORBIT_RX: i32 = 264;
+const ORBIT_CY: i32 = 186;
+const ORBIT_RY: i32 = 84;
 const ORBIT_Y_FREQ: f64 = 1.5;
 const ORBIT_STEP: f64 = 0.06;
 const SPACING_SETS: f64 = 0.1; // spritesPos[k] = 0.1*(k+1): skulls, balls
@@ -183,9 +184,13 @@ const SpriteSet = enum { letters, skulls, balls };
 const Phase = enum { title, main };
 
 /// JS Math.round for the non-negative values it sees here.
-fn jsRound(x: f64) f64 {
-    return @floor(x + 0.5);
+fn q16Round(v: i32) i32 {
+    return (v + (trig.ONE >> 1)) >> 16;
 }
+
+// Constant angles, folded at compile time (float is fine there).
+const STEP_X = trig.angle(ORBIT_STEP);
+const STEP_Y = trig.angle(ORBIT_STEP * ORBIT_Y_FREQ);
 
 /// Blit an image the asset script halved per canvas parity. (cx, cy) is the
 /// canvas position; `cell` is the variant for even x and y, and the odd
@@ -211,8 +216,12 @@ pub const Demo = struct {
     vscroll_drawn: i32,
     scroll_head: usize, // text index of the leftmost letter
     scroll_x: i32, // its canvas x
-    orbit_sets: [SPRITES]f64, // spritesPos
-    orbit_letters: [SPRITES]f64, // spritesPos1
+    // fixtrig angles (u32 turns). x uses p, y uses p*1.5, so both phases are
+    // kept: p*1.5 does not survive wrapping p.
+    orbit_sets: [SPRITES]trig.Angle, // spritesPos
+    orbit_letters: [SPRITES]trig.Angle, // spritesPos1
+    orbit_sets_y: [SPRITES]trig.Angle,
+    orbit_letters_y: [SPRITES]trig.Angle
     sprite_clock: u32, // time1
     sprite_set: SpriteSet,
 
@@ -225,9 +234,11 @@ pub const Demo = struct {
         self.scroll_head = 0;
         self.scroll_x = SCROLL_START_X;
         for (0..SPRITES) |k| {
-            const n: f64 = @floatFromInt(k + 1);
-            self.orbit_sets[k] = SPACING_SETS * n;
-            self.orbit_letters[k] = SPACING_LETTERS * n;
+            const n: u32 = @intCast(k + 1);
+            self.orbit_sets[k] = n *% trig.angle(SPACING_SETS);
+            self.orbit_letters[k] = n *% trig.angle(SPACING_LETTERS);
+            self.orbit_sets_y[k] = n *% trig.angle(SPACING_SETS * ORBIT_Y_FREQ);
+            self.orbit_letters_y[k] = n *% trig.angle(SPACING_LETTERS * ORBIT_Y_FREQ);
         }
         self.sprite_clock = 0;
         self.sprite_set = .letters;
@@ -303,9 +314,11 @@ pub const Demo = struct {
             self.scroll_head = (self.scroll_head + 1) % SCROLL_TEXT.len;
         }
 
-        for (&self.orbit_sets, &self.orbit_letters) |*a, *b| {
-            a.* += ORBIT_STEP;
-            b.* += ORBIT_STEP;
+        for (&self.orbit_sets, &self.orbit_letters, &self.orbit_sets_y, &self.orbit_letters_y) |*a, *b, *ay, *by| {
+            a.* +%= STEP_X;
+            b.* +%= STEP_X;
+            ay.* +%= STEP_Y;
+            by.* +%= STEP_Y;
         }
         self.sprite_set = if (self.sprite_clock <= CLOCK_LETTERS_LAST)
             .letters
@@ -344,13 +357,13 @@ pub const Demo = struct {
     /// nearest canvas pixel, whose parity picks the halved variant.
     fn drawSprites(self: *const Demo, screen: blit.Dst) void {
         for (0..SPRITES) |k| {
-            const spr, const p = switch (self.sprite_set) {
-                .letters => .{ LETTERS[k], self.orbit_letters[k] },
-                .skulls => .{ SKULL, self.orbit_sets[k] },
-                .balls => .{ BALLS[k], self.orbit_sets[k] },
+            const spr, const p, const py = switch (self.sprite_set) {
+                .letters => .{ LETTERS[k], self.orbit_letters[k], self.orbit_letters_y[k] },
+                .skulls => .{ SKULL, self.orbit_sets[k], self.orbit_sets_y[k] },
+                .balls => .{ BALLS[k], self.orbit_sets[k], self.orbit_sets_y[k] },
             };
-            const cx: i32 = @intFromFloat(jsRound(ORBIT_CX + ORBIT_RX * @sin(p)));
-            const cy: i32 = @intFromFloat(jsRound(ORBIT_CY + ORBIT_RY * @cos(p * ORBIT_Y_FREQ)));
+            const cx = q16Round(ORBIT_CX * trig.ONE + ORBIT_RX * trig.sin(p));
+            const cy = q16Round(ORBIT_CY * trig.ONE + ORBIT_RY * trig.cos(py));
             drawHalved(screen, spr.img, .{ .x = 0, .y = 0, .w = spr.vw, .h = spr.vh }, spr.vw, spr.vh, cx, cy);
         }
     }
