@@ -20,6 +20,9 @@
 const std = @import("std");
 
 pub const ONE30: i32 = 1 << 30;
+/// Canvas coordinates are fixed point with PX fraction bits (1 px = ONE_PX).
+pub const PX = 14;
+pub const ONE_PX: i32 = 1 << PX;
 pub const Angle = u32;
 
 /// sin(k * 2pi / 1024) for k = 0..256, Q30. Rounded integers, so the
@@ -133,10 +136,10 @@ pub fn isqrt(v: u64) u64 {
     return std.math.sqrt(v);
 }
 
-/// A Q12 coordinate rounded half away from zero to a whole pixel and clamped
+/// A canvas coordinate (1 px = ONE_PX) rounded half away from zero to a whole pixel and clamped
 /// to +-limit: zig3d.roundClamped's job on a fixed-point value.
 pub fn roundPx(v: i32, comptime limit: i32) i16 {
-    const mag: i64 = @intCast((@abs(@as(i64, v)) + 2048) >> 12);
+    const mag: i64 = @intCast((@abs(@as(i64, v)) + ONE_PX / 2) >> PX);
     const r: i64 = if (v < 0) -mag else mag;
     return @intCast(std.math.clamp(r, -limit, limit));
 }

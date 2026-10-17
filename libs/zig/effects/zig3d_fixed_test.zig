@@ -5,6 +5,7 @@ const std = @import("std");
 const c3 = @import("zig3d.zig");
 const zf = @import("zig3d_fixed.zig");
 const fm = zf.math;
+const P = fm.ONE_PX; // one canvas pixel
 
 test "sinCos is within 4e-9 of the true sine over a whole turn" {
     var worst: f64 = 0;
@@ -29,10 +30,10 @@ test "phase: a step accumulates to the radians it was given" {
 }
 
 test "roundPx rounds half away from zero and clamps" {
-    try std.testing.expectEqual(@as(i16, 3), fm.roundPx(3 * 4096 + 2047, 4096));
-    try std.testing.expectEqual(@as(i16, 4), fm.roundPx(3 * 4096 + 2048, 4096));
-    try std.testing.expectEqual(@as(i16, -4), fm.roundPx(-(3 * 4096 + 2048), 4096));
-    try std.testing.expectEqual(@as(i16, 0), fm.roundPx(-2047, 4096));
+    try std.testing.expectEqual(@as(i16, 3), fm.roundPx(3 * P + P / 2 - 1, 4096));
+    try std.testing.expectEqual(@as(i16, 4), fm.roundPx(3 * P + P / 2, 4096));
+    try std.testing.expectEqual(@as(i16, -4), fm.roundPx(-(3 * P + P / 2), 4096));
+    try std.testing.expectEqual(@as(i16, 0), fm.roundPx(-(P / 2 - 1), 4096));
     try std.testing.expectEqual(@as(i16, -16), fm.roundPx(-1 << 30, 16));
 }
 
@@ -70,7 +71,7 @@ fn compare(case: Case, m: *const c3.Mesh, comptime nv: usize, comptime nf: usize
         for (want, got) |a, b| {
             try std.testing.expectEqual(a.ink, b.ink);
             for (a.pts[0..a.n], b.pts[0..a.n]) |pa, pb| for (0..2) |k| {
-                worst = @max(worst, @abs(pa[k] - @as(f64, @floatFromInt(pb[k])) / 4096.0));
+                worst = @max(worst, @abs(pa[k] - @as(f64, @floatFromInt(pb[k])) / P));
             };
         }
         rot = .{ .x = rot.x + case.step.x, .y = rot.y + case.step.y, .z = rot.z + case.step.z };
@@ -138,4 +139,12 @@ test "a mesh behind the camera is culled whole, as zig3d culls it" {
     var out: [2]zf.Poly = undefined;
     const got = zf.project(&zl, zf.q16(v(0, 0, 10)), zf.q16(v(0, 0, 500)), .{ 0, 0, 0 }, &zm, &s, &out, .{});
     try std.testing.expectEqual(@as(usize, 0), got.len);
+}
+
+const SQUARE_Q = zf.comptimeMesh(c3.mesh(&SQUARE, &QUADS));
+
+test "comptimeMesh is a global constant, in Q16" {
+    try std.testing.expectEqual(@as(i32, -50 << 16), SQUARE_Q.verts[0].x);
+    try std.testing.expectEqual(@as(usize, 2), SQUARE_Q.centroids.len);
+    try std.testing.expectEqual(@as(i32, 0), SQUARE_Q.centroids[0].z);
 }

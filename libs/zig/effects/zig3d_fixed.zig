@@ -11,7 +11,9 @@
 //
 //   world     Q16.16 (i32): vertices, positions, the camera
 //   matrix    Q30 (zig3d_fixed_math.rotation, from u32 angles)
-//   canvas    Q12 (i32): 1/4096 px, range +-262144 px, because a vertex just
+//   canvas    Q14 (i32, math.PX): 1/16384 px, held to +-65536 px. Q14 because
+//             union_tnt3 replays three.js pixel for pixel (Q12 left one ball
+//             pixel off in its 21 checked frames); the range because a vertex just
 //             in front of the camera projects far off the canvas and the fill
 //             still needs its true position
 //
@@ -48,6 +50,7 @@ pub const Mesh = struct {
     faces: []const Face,
     centroids: []const Vec,
     radius: i32,
+    alias: ?[]const u16 = null, // zig3d.Mesh.alias: twins copy the first copy's Screen
 };
 
 /// A zig3d mesh converted at run time (init): `verts` and `centroids` need
@@ -55,20 +58,23 @@ pub const Mesh = struct {
 pub fn fromMesh(m: *const c3.Mesh, verts: []Vec, centroids: []Vec) Mesh {
     for (m.verts, verts[0..m.verts.len]) |v, *o| o.* = q16(v);
     for (m.centroids, centroids[0..m.centroids.len]) |c, *o| o.* = q16(c);
-    return .{ .verts = verts[0..m.verts.len], .faces = m.faces, .centroids = centroids[0..m.centroids.len], .radius = toQ16(m.radius) };
+    return .{ .verts = verts[0..m.verts.len], .faces = m.faces, .centroids = centroids[0..m.centroids.len], .radius = toQ16(m.radius), .alias = m.alias };
 }
 
 /// A zig3d mesh known at compile time, converted at compile time.
 pub fn comptimeMesh(comptime m: c3.Mesh) Mesh {
-    const conv = comptime blk: {
-        @setEvalBranchQuota(100_000);
-        var v: [m.verts.len]Vec = undefined;
-        var c: [m.centroids.len]Vec = undefined;
-        for (m.verts, &v) |x, *o| o.* = q16(x);
-        for (m.centroids, &c) |x, *o| o.* = q16(x);
-        break :blk .{ v, c };
+    const T = struct { // container constants: global, so a run-time Mesh may point at them
+        const verts = convert(m.verts);
+        const centroids = convert(m.centroids);
     };
-    return .{ .verts = &conv[0], .faces = m.faces, .centroids = &conv[1], .radius = toQ16(m.radius) };
+    return .{ .verts = &T.verts, .faces = m.faces, .centroids = &T.centroids, .radius = toQ16(m.radius), .alias = m.alias };
+}
+
+fn convert(comptime in: []const c3.Vec3) [in.len]Vec {
+    @setEvalBranchQuota(100_000);
+    var out: [in.len]Vec = undefined;
+    for (in, &out) |x, *o| o.* = q16(x);
+    return out;
 }
 
 /// A frustum plane through the camera's origin frame: Q30 normal, Q16 offset.
@@ -78,7 +84,7 @@ const Plane = struct { n: [3]i32, d: i32 };
 pub const Lens = struct {
     kx: i64, // P[0] * half width, Q20
     ky: i64, // P[5] * half height, Q20
-    half_w: i32, // Q12
+    half_w: i32, // canvas pixels, 1 px = fm.ONE_PX
     half_h: i32,
     zr_lo: i32, // camera-space z (Q16) strictly between these: clip z in (near, far)
     zr_hi: i32,
@@ -91,8 +97,8 @@ pub const Lens = struct {
         var out = Lens{
             .kx = @intFromFloat(@round(@as(f64, p[0]) * l.half_w * 1048576.0)),
             .ky = @intFromFloat(@round(@as(f64, p[5]) * l.half_h * 1048576.0)),
-            .half_w = @intFromFloat(l.half_w * 4096.0),
-            .half_h = @intFromFloat(l.half_h * 4096.0),
+            .half_w = @intFromFloat(l.half_w * fm.ONE_PX),
+            .half_h = @intFromFloat(l.half_h * fm.ONE_PX),
             // c.z = P10 Zr + P14 with P10 < 0: c.z > near <=> Zr < (near - P14) / P10
             .zr_lo = @intFromFloat(@floor((l.far - p14) / p10 * 65536.0)),
             .zr_hi = @intFromFloat(@ceil((l.near - p14) / p10 * 65536.0)),
@@ -126,13 +132,17 @@ fn inside(lens: *const Lens, rel: Vec, radius: i32) bool {
 
 /// zig3d.projectEx in integers: `m` placed at `position`, turned by `rot`,
 /// seen from `camera` (no rotation). `screen` needs m.verts.len entries,
-/// `out` m.faces.len. Returns the faces to fill, far to near, in Q12 canvas
+/// `out` m.faces.len. Returns the faces to fill, far to near, in fixed-point canvas
 /// pixels. Every coordinate here stays inside +-32767 world units.
 pub fn project(lens: *const Lens, camera: Vec, position: Vec, rot: [3]Angle, m: *const Mesh, screen: []Screen, out: []Poly, opts: Options) []Poly {
     const r = fm.rotation(rot);
     const rel = sub(position, camera);
     if (!inside(lens, rel, m.radius)) return out[0..0];
-    for (m.verts, screen[0..m.verts.len]) |v, *s| {
+    for (m.verts, screen[0..m.verts.len], 0..) |v, *s, i| {
+        if (m.alias) |al| if (al[i] != i) {
+            s.* = screen[al[i]];
+            continue;
+        };
         const zr = fm.dot(r[2], v.x, v.y, v.z) + rel.z;
         if (zr <= lens.zr_lo or zr >= lens.zr_hi) {
             s.usable = false;
@@ -159,9 +169,9 @@ pub fn project(lens: *const Lens, camera: Vec, position: Vec, rot: [3]Angle, m: 
 }
 
 /// k * coordinate / w, k in Q20 and the coordinate and w in Q16: Q20 canvas
-/// pixels, rounded to Q12 and held to +-2^18 px so the sum with the half
+/// pixels, rounded to PX bits and held to +-2^(30-PX) px so the sum with the half
 /// width cannot overflow.
 fn perspective(num: i64, w: i64) i32 {
-    const q = std.math.clamp(@divTrunc(num, w), -(1 << 38), 1 << 38);
-    return @intCast((q + 128) >> 8);
+    const q = std.math.clamp(@divTrunc(num, w), -(1 << (50 - fm.PX)), 1 << (50 - fm.PX));
+    return @intCast((q + (1 << (19 - fm.PX))) >> (20 - fm.PX));
 }

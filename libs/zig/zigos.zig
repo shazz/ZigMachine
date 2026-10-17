@@ -36,6 +36,7 @@ pub const spans = @import("effects/spans.zig"); // comptime ink runs of a sparse
 pub const zig3d = @import("effects/zig3d.zig"); // CODEF codef3D (three.js r49 canvas faces), replayed exactly
 pub const zig3d_fixed = @import("effects/zig3d_fixed.zig"); // zig3d's projector in integers: per-frame 3D with no soft-float
 pub const canvas_poly = @import("effects/canvas_poly.zig"); // a doubled canvas's path fill, shown halved
+pub const canvas_poly_fixed = @import("effects/canvas_poly_fixed.zig"); // canvas_poly in integers, exact for zig3d_fixed's fixed-point paths
 pub const colour_bank = @import("effects/colour_bank.zig"); // per-frame RGB -> palette entry allocation
 pub const ballfield = @import("effects/ballfield.zig"); // CODEF ballfield: 3D ball bobs flying at the viewer
 pub const chrome_draw = @import("effects/chrome_draw.zig"); // Chrome's drawImage (of a part) at a fractional y: taps, mix, srcOver

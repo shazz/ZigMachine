@@ -1,5 +1,5 @@
 // --------------------------------------------------------------------------
-// zig3d_fixed's per-face steps, on Q12 canvas pixels: the usability and
+// zig3d_fixed's per-face steps, on fixed-point canvas pixels (PX fraction bits): the usability and
 // facing tests, CanvasRenderer's 1 px overdraw push, and the depth order.
 // Each is zig3d's (which says what three.js does), in integer arithmetic.
 // --------------------------------------------------------------------------
@@ -7,10 +7,10 @@ const std = @import("std");
 const Face = @import("zig3d.zig").Face;
 const fm = @import("zig3d_fixed_math.zig");
 
-/// One projected vertex in Q12 canvas pixels (x right, y down).
+/// One projected vertex in canvas pixels, 1 px = fm.ONE_PX (x right, y down).
 pub const Screen = struct { x: i32, y: i32, usable: bool };
 
-/// A face ready to fill, in Q12 canvas pixels. `depth` is its centroid's
+/// A face ready to fill, in canvas pixels (1 px = fm.ONE_PX). `depth` is its centroid's
 /// distance in front of the camera, Q16: larger is farther (three.js sorts by
 /// the centroid's NDC z, which grows with that distance).
 pub const Poly = struct { pts: [4][2]i32, n: u8, ink: u8, depth: i32 };
@@ -68,7 +68,7 @@ pub fn overdraw(p: *Poly) void {
     push(&pt[2], &v4);
 }
 
-/// Nb(a, b): a and b each move 1 px (4096) apart along their line. The
+/// Nb(a, b): a and b each move 1 px (fm.ONE_PX) apart along their line. The
 /// difference is normalised to 30 bits first, so the integer square root has
 /// full precision for a short edge and cannot overflow for a long one.
 fn push(a: *[2]i32, b: *[2]i32) void {
@@ -80,7 +80,7 @@ fn push(a: *[2]i32, b: *[2]i32) void {
     const sx = shift(dx, 30 - have);
     const sy = shift(dy, 30 - have);
     const len: i64 = @intCast(fm.isqrt(@intCast(sx * sx + sy * sy)));
-    const inv = @divTrunc(@as(i64, 1) << 42, len); // 2^42 / len: |s| <= len keeps s*inv in 2^42
+    const inv = @divTrunc(@as(i64, 1) << (30 + fm.PX), len); // |s| <= len keeps s*inv in 2^(30+PX)
     const ux: i32 = @intCast((sx * inv + (1 << 29)) >> 30);
     const uy: i32 = @intCast((sy * inv + (1 << 29)) >> 30);
     b[0] += ux;
