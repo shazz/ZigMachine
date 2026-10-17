@@ -85,7 +85,7 @@ pub const Demo = struct {
     logo: Sprite = undefined,
     grid: Sprite = undefined,
     scroller_target: RenderTarget = undefined,
-    sin_counter: f32 = undefined,
+    sin_counter: zg.fixtrig.Angle = 0, // u32 turns, wraps exactly at 2 PI
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
         Console.log("Demo init", .{});
@@ -140,14 +140,16 @@ pub const Demo = struct {
         self.scrolltext.update();
         self.logo.update(null, null, null, null);
 
-        const f_sin: f32 = @sin(-self.sin_counter) * 32 * 3.2; 
-        const f_cos: f32 = @cos(-self.sin_counter) * 32 * 3.2;
-        const delta_x = -32 + @mod(@as(i16, @intFromFloat(f_sin)), 32);
-        const delta_y = -32 + @mod(@as(i16, @intFromFloat(f_cos)), 32);
+        // sin/cos(-counter) * 32 * 3.2, truncated: 102.4 in Q16.16 is 6710886
+        const neg = 0 -% self.sin_counter;
+        const f_sin: i16 = @intCast(@divTrunc(@as(i64, zg.fixtrig.sin(neg)) * 6710886, 1 << 32));
+        const f_cos: i16 = @intCast(@divTrunc(@as(i64, zg.fixtrig.cos(neg)) * 6710886, 1 << 32));
+        const delta_x = -32 + @mod(f_sin, 32);
+        const delta_y = -32 + @mod(f_cos, 32);
 
         self.grid.update(delta_x, delta_y, null, null);
 
-        self.sin_counter += 0.034;
+        self.sin_counter +%= zg.fixtrig.angle(0.034);
         _ = zigos;
         _ = elapsed_time;
     }

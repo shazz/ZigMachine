@@ -102,21 +102,35 @@ const RASTER_BACK: i32 = -22;
 const STRIP_W: i32 = 320;
 const STRIP_H: i32 = 16;
 const NB_LETTERS: usize = 22;
-const SCROLL_SPEED: f32 = 2.0;
-const SCROLL_START: f32 = 21.0 * 16.0; // wide*fontw, halved
+const SCROLL_SPEED: i32 = 2; // whole pixels, so the integer ring is bit-exact
+const SCROLL_START: i32 = 21 * 16; // wide*fontw, halved
 
 // FX.siny(0, 340) over the strip: every source COLUMN is drawn at
 // y = 340 + sin(v0)*30 + sin(v1)*100, v0/v1 advancing 0.03/0.01 per doubled
 // column and drifting -0.05/-0.04 per frame. Halved: amplitudes and the base y
 // halve, the per-column incs double (an ST column is two CODEF columns), the
 // per-frame drift is a phase and does not change.
-const SINY_AMP_A: f32 = 15.0;
-const SINY_AMP_B: f32 = 50.0;
-const SINY_INC_A: f32 = 0.06;
-const SINY_INC_B: f32 = 0.02;
-const SINY_OFF_A: f32 = -0.05;
-const SINY_OFF_B: f32 = -0.04;
-const SINY_Y: f32 = 170.0; // CODEF posy 340
+// Phases are u32 turns (zg.fixtrig), the sine a table: no float per column.
+const SINY_AMP_A: i32 = 15;
+const SINY_AMP_B: i32 = 50;
+const SINY_INC_A = zg.fixtrig.angle(0.06);
+const SINY_INC_B = zg.fixtrig.angle(0.02);
+const SINY_OFF_A = zg.fixtrig.angle(-0.05);
+const SINY_OFF_B = zg.fixtrig.angle(-0.04);
+const SINY_Y: i32 = 170; // CODEF posy 340
+
+/// wave.SineSum(2) in integers: yields SINY_Y + 15 sin(a) + 50 sin(b) per
+/// column (truncated), the phases advancing by their incs.
+const SinySweep = struct {
+    a: zg.fixtrig.Angle,
+    b: zg.fixtrig.Angle,
+    pub fn next(it: *SinySweep) i32 {
+        const q = SINY_Y * zg.fixtrig.ONE + SINY_AMP_A * zg.fixtrig.sin(it.a) + SINY_AMP_B * zg.fixtrig.sin(it.b);
+        it.a +%= SINY_INC_A;
+        it.b +%= SINY_INC_B;
+        return @divTrunc(q, zg.fixtrig.ONE);
+    }
+};
 const SCROLL_X: i32 = 28 + X_OFF; // distcanvas is blitted at CODEF x=56
 
 // The screen's own scrolltext, verbatim from screen.js.
@@ -144,23 +158,23 @@ fn handler_overscan(fb: *LogicalFB, zigos: *ZigOS, line: u16, col: u16) void {
 
 pub const Demo = struct {
     raster_y: i32 = 0,
-    siny_a: f32 = 0.0,
-    siny_b: f32 = 0.0,
-    ring: zg.scrollring.Ring(f32, NB_LETTERS) = undefined,
+    siny_a: zg.fixtrig.Angle = 0,
+    siny_b: zg.fixtrig.Angle = 0,
+    ring: zg.scrollring.Ring(i32, NB_LETTERS) = undefined,
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
         Console.log("SUPPLEX FS2 init", .{});
 
         // demo_main.zig holds the cart as `undefined`, so no default applies.
         self.raster_y = 0;
-        self.siny_a = 0.0;
-        self.siny_b = 0.0;
+        self.siny_a = 0;
+        self.siny_b = 0;
 
         setupPlanes(zigos);
         drawBackground(&zigos.lfbs[0]);
         drawTextPanel(&zigos.lfbs[1]);
 
-        self.ring = zg.scrollring.Ring(f32, NB_LETTERS).init(SCROLL_TEXT, SCROLL_START, @as(f32, GW));
+        self.ring = zg.scrollring.Ring(i32, NB_LETTERS).init(SCROLL_TEXT, SCROLL_START, GW);
         // No music: the screen plays "shaolin title.hip" through UADE, an Amiga
         // Hippel/TFMX player binary the machine has no player for. See report.
     }
@@ -172,8 +186,8 @@ pub const Demo = struct {
         self.raster_y -= 1;
         if (self.raster_y <= RASTER_RESET) self.raster_y = RASTER_BACK;
 
-        self.siny_a += SINY_OFF_A;
-        self.siny_b += SINY_OFF_B;
+        self.siny_a +%= SINY_OFF_A;
+        self.siny_b +%= SINY_OFF_B;
 
         _ = self.ring.step(SCROLL_SPEED);
     }
@@ -214,7 +228,7 @@ pub const Demo = struct {
         while (i < NB_LETTERS) : (i += 1) {
             const c = self.ring.c[i];
             if (c < FIRST_CHAR or c > LAST_CHAR) continue;
-            const x0: i32 = @intFromFloat(@floor(self.ring.x[i]));
+            const x0: i32 = self.ring.x[i];
             blitGlyphToStrip(c, x0);
         }
     }
@@ -222,8 +236,7 @@ pub const Demo = struct {
     // FX.siny + the flat grey fill: source column i goes to (SCROLL_X + i,
     // SINY_Y + sin(a)*15 + sin(b)*50), and every drawn pixel is index 1.
     fn blitStrip(self: *Demo, fb: *LogicalFB) void {
-        const sum = zg.wave.SineSum(f32, 2){ .base = SINY_Y, .amp = .{ SINY_AMP_A, SINY_AMP_B }, .phase = .{ self.siny_a, self.siny_b }, .inc = .{ SINY_INC_A, SINY_INC_B } };
-        var it = sum.sweep(0);
+        var it = SinySweep{ .a = self.siny_a, .b = self.siny_b };
         zg.wave.siny(zg.blit.Dst.plane(fb), zg.blit.Image.init(&strip, @intCast(STRIP_W)), null, SCROLL_X, 0, 1, &it, 0, .{ .flat = 1 });
     }
 };
