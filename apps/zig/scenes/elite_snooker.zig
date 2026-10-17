@@ -32,7 +32,7 @@
 
 const std = @import("std");
 const zg = @import("zigos");
-const trig = zg.fixtrig;
+const hp = @import("hp_trig.zig");
 const assert = std.debug.assert;
 
 const ZigOS = zg.ZigOS;
@@ -142,18 +142,21 @@ comptime {
     }
 }
 
+const ONE30: i64 = 1 << 30;
+
 const Phase = enum { fade, main };
 const Glyph = struct { x: i32, y: i32, cell: blit.Rect };
 
-/// JS Math.round of a Q16.16 value: halves go up, negative values included.
-fn q16Round(v: i32) i32 {
-    return (v + (trig.ONE >> 1)) >> 16;
+/// JS Math.round, the original float expression: only for values the integer
+/// sine leaves within a hair of a .5 tie, where the float's own rounding decides.
+fn jsRound(x: f64) i32 {
+    return @intFromFloat(@floor(x + 0.5));
 }
 
-// Constant angles, folded at compile time (float is fine there).
-const BG_ANGLE = trig.angle(std.math.pi / BG_PERIOD);
-const TEXT_STEP = trig.angle(TEXT_ANGLE_STEP);
-const TEXT_PHASE = trig.angle(TEXT_CHAR_PHASE);
+// Constant phases (u64 turns), folded at compile time (float is fine there).
+const BG_STEP = hp.phase(std.math.pi / BG_PERIOD);
+const TEXT_STEP = hp.phase(TEXT_ANGLE_STEP);
+const TEXT_CHAR = hp.phase(TEXT_CHAR_PHASE);
 
 fn fillRows(dst: blit.Dst, first: usize, end: usize, index: u8) void {
     for (first..end) |k| @memset(dst.buf[k * dst.stride ..][0..dst.w], index);
@@ -167,7 +170,7 @@ pub const Demo = struct {
     vbl: u32, // go()'s vbl for the frame being shown
     bg_x: i32, // ST offset of the tile grid
     bg_y: i32,
-    text_angle: trig.Angle,
+    text_phase: u64, // textAngle, one turn = 2^64
     glyphs: [TEXT_GLYPHS]Glyph,
     letter_x: [SCROLL_LETTERS]i32, // canvas x
     letter_ch: [SCROLL_LETTERS]u8,
@@ -179,7 +182,7 @@ pub const Demo = struct {
         self.vbl = 0;
         self.bg_x = 0;
         self.bg_y = 0;
-        self.text_angle = 0;
+        self.text_phase = 0;
         @memset(&self.glyphs, .{ .x = 0, .y = 0, .cell = .{ .x = 0, .y = 0, .w = 0, .h = 0 } });
         // letters[i] = (ceil(wide*fontw + i*fontw), scrtxt[scroffset++])
         for (0..SCROLL_LETTERS) |i| {
@@ -225,29 +228,36 @@ pub const Demo = struct {
         }
     }
 
-    /// go()'s state for this frame, in its order. Integer maths: fixtrig
-    /// angles (u32 turns) and Q16.16 sines; every offset is rounded to the
-    /// nearest ST pixel like the JS Math.round of the original (floor(x+.5)).
+    /// go()'s state for this frame, in its order. Integer maths (zig3d_fixed's
+    /// Q30 sine on u64 phases), so the pixel offsets are the float original's:
+    /// a value within a hair of a rounding tie is redone with the original
+    /// f64 expression, so a tie falls as the float fell.
     fn advanceMain(self: *Demo) void {
         self.vbl = self.frame - MAIN_FIRST_FRAME;
-        const t: trig.Angle = self.vbl *% BG_ANGLE;
+        const tp = BG_STEP *% @as(u64, self.vbl);
+        const ta = hp.top(tp);
         // canvas offset of the tile grid: (280 - sin*80 - 960)/2, (180 - cos*180 - 480)/2
-        self.bg_x = q16Round(-340 * trig.ONE - 40 * trig.sin(t));
-        self.bg_y = q16Round(-150 * trig.ONE - 90 * trig.cos(t));
+        self.bg_x = hp.roundQ(-340 * ONE30 - 40 * @as(i64, hp.sinQ(ta)), 30) orelse
+            jsRound((280 - @sin(hp.rad(tp)) * 80 - 960) / 2);
+        self.bg_y = hp.roundQ(-150 * ONE30 - 90 * @as(i64, hp.cosQ(ta)), 30) orelse
+            jsRound((180 - @cos(hp.rad(tp)) * 180 - 480) / 2);
 
         var g: usize = 0;
         for (TEXT) |line| {
             for (line.text, 0..) |c, j| {
-                self.text_angle +%= TEXT_STEP;
-                const ja: u32 = @intCast(j);
-                const sx = trig.sin(self.text_angle);
-                const sy = trig.sin(self.text_angle -% ja *% TEXT_PHASE);
-                const x2 = (TEXT_X / 2 + 16 * @as(i32, @intCast(j))) * trig.ONE - @divTrunc(line.indice * 5 * sx, 8);
-                const y2 = line.y * (trig.ONE / 2) - 12 * sy;
+                self.text_phase +%= TEXT_STEP;
+                const jj: i64 = @intCast(j);
+                const pa = self.text_phase;
+                const pb = pa -% TEXT_CHAR *% @as(u64, @intCast(j));
+                // px/2 = 80 + 16j - indice*5/8*sin (Q33), py/2 = y/2 - 12*sin (Q30)
+                const sa: i64 = hp.sinQ(hp.top(pa));
+                const sb: i64 = hp.sinQ(hp.top(pb));
                 const n: usize = c - FONT_FIRST;
                 self.glyphs[g] = .{
-                    .x = q16Round(x2),
-                    .y = q16Round(y2),
+                    .x = hp.roundQ(((80 + 16 * jj) << 33) - line.indice * 5 * sa, 33) orelse
+                        jsRound((160 + 32 * @as(f64, @floatFromInt(j)) - @as(f64, @floatFromInt(line.indice)) * @sin(hp.rad(pa)) * 1.25) / 2),
+                    .y = hp.roundQ((@as(i64, line.y) << 29) - 12 * sb, 30) orelse
+                        jsRound((@as(f64, @floatFromInt(line.y)) - 24 * @sin(hp.rad(pb))) / 2),
                     .cell = .{ .x = (n % FONT_COLS) * FONT, .y = (n / FONT_COLS) * FONT, .w = FONT, .h = FONT },
                 };
                 g += 1;

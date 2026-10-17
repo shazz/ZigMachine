@@ -36,7 +36,7 @@
 
 const std = @import("std");
 const zg = @import("zigos");
-const trig = zg.fixtrig;
+const hp = @import("hp_trig.zig");
 const assert = std.debug.assert;
 
 const ZigOS = zg.ZigOS;
@@ -180,17 +180,18 @@ comptime {
     }
 }
 
+const ONE30: i64 = 1 << 30;
 const SpriteSet = enum { letters, skulls, balls };
 const Phase = enum { title, main };
 
 /// JS Math.round for the non-negative values it sees here.
-fn q16Round(v: i32) i32 {
-    return (v + (trig.ONE >> 1)) >> 16;
+fn jsRound(x: f64) i32 {
+    return @intFromFloat(@floor(x + 0.5));
 }
 
 // Constant angles, folded at compile time (float is fine there).
-const STEP_X = trig.angle(ORBIT_STEP);
-const STEP_Y = trig.angle(ORBIT_STEP * ORBIT_Y_FREQ);
+const STEP_X = hp.phase(ORBIT_STEP);
+const STEP_Y = hp.phase(ORBIT_STEP * ORBIT_Y_FREQ);
 
 /// Blit an image the asset script halved per canvas parity. (cx, cy) is the
 /// canvas position; `cell` is the variant for even x and y, and the odd
@@ -216,12 +217,12 @@ pub const Demo = struct {
     vscroll_drawn: i32,
     scroll_head: usize, // text index of the leftmost letter
     scroll_x: i32, // its canvas x
-    // fixtrig angles (u32 turns). x uses p, y uses p*1.5, so both phases are
+    // u64 phases (one turn = 2^64). x uses p, y uses p*1.5, so both phases are
     // kept: p*1.5 does not survive wrapping p.
-    orbit_sets: [SPRITES]trig.Angle, // spritesPos
-    orbit_letters: [SPRITES]trig.Angle, // spritesPos1
-    orbit_sets_y: [SPRITES]trig.Angle,
-    orbit_letters_y: [SPRITES]trig.Angle,
+    orbit_sets: [SPRITES]u64, // spritesPos
+    orbit_letters: [SPRITES]u64, // spritesPos1
+    orbit_sets_y: [SPRITES]u64,
+    orbit_letters_y: [SPRITES]u64,
     sprite_clock: u32, // time1
     sprite_set: SpriteSet,
 
@@ -234,11 +235,11 @@ pub const Demo = struct {
         self.scroll_head = 0;
         self.scroll_x = SCROLL_START_X;
         for (0..SPRITES) |k| {
-            const n: u32 = @intCast(k + 1);
-            self.orbit_sets[k] = n *% trig.angle(SPACING_SETS);
-            self.orbit_letters[k] = n *% trig.angle(SPACING_LETTERS);
-            self.orbit_sets_y[k] = n *% trig.angle(SPACING_SETS * ORBIT_Y_FREQ);
-            self.orbit_letters_y[k] = n *% trig.angle(SPACING_LETTERS * ORBIT_Y_FREQ);
+            const n: u64 = @intCast(k + 1);
+            self.orbit_sets[k] = n *% hp.phase(SPACING_SETS);
+            self.orbit_letters[k] = n *% hp.phase(SPACING_LETTERS);
+            self.orbit_sets_y[k] = n *% hp.phase(SPACING_SETS * ORBIT_Y_FREQ);
+            self.orbit_letters_y[k] = n *% hp.phase(SPACING_LETTERS * ORBIT_Y_FREQ);
         }
         self.sprite_clock = 0;
         self.sprite_set = .letters;
@@ -362,8 +363,11 @@ pub const Demo = struct {
                 .skulls => .{ SKULL, self.orbit_sets[k], self.orbit_sets_y[k] },
                 .balls => .{ BALLS[k], self.orbit_sets[k], self.orbit_sets_y[k] },
             };
-            const cx = q16Round(ORBIT_CX * trig.ONE + ORBIT_RX * trig.sin(p));
-            const cy = q16Round(ORBIT_CY * trig.ONE + ORBIT_RY * trig.cos(py));
+            // Q30 sine; within a hair of a .5 tie the original f64 expression decides
+            const cx = hp.roundQ(@as(i64, ORBIT_CX) * ONE30 + @as(i64, ORBIT_RX) * hp.sinQ(hp.top(p)), 30) orelse
+                jsRound(ORBIT_CX + ORBIT_RX * @sin(hp.rad(p)));
+            const cy = hp.roundQ(@as(i64, ORBIT_CY) * ONE30 + @as(i64, ORBIT_RY) * hp.cosQ(hp.top(py)), 30) orelse
+                jsRound(ORBIT_CY + ORBIT_RY * @cos(hp.rad(py)));
             drawHalved(screen, spr.img, .{ .x = 0, .y = 0, .w = spr.vw, .h = spr.vh }, spr.vw, spr.vh, cx, cy);
         }
     }

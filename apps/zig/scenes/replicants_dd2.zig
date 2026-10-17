@@ -54,7 +54,7 @@
 // Imports
 // --------------------------------------------------------------------------
 const zg = @import("zigos");
-const trig = zg.fixtrig;
+const hp = @import("hp_trig.zig");
 const convertU8ArraytoColors = zg.convertU8ArraytoColors;
 
 const ZigOS = zg.ZigOS;
@@ -106,10 +106,10 @@ const SINUS_INC: f32 = 0.058; // per strip row, straight from the original
 // The snake. Amplitudes are already in 320-space in the original (it draws into
 // a 320x240 offscreen), so they are NOT halved; only the centre moves, 120 -> 100.
 const SNAKE_POINTS: usize = 11;
-const SNAKE_CX: i32 = 160;
-const SNAKE_CY: i32 = 100;
-const AMP_BIG: i32 = 64;
-const AMP_SMALL: i32 = 16;
+const SNAKE_CX: f32 = 160.0;
+const SNAKE_CY: f32 = 100.0;
+const AMP_BIG: f32 = 64.0;
+const AMP_SMALL: f32 = 16.0;
 const P1: f32 = 45.0;
 const P2: f32 = 23.0;
 const P3: f32 = 62.0;
@@ -124,12 +124,6 @@ const FW1: f32 = 0.03 / 1.2;
 const FW2: f32 = 0.09 / 1.2;
 const FW3: f32 = 0.04 / 1.2;
 const FW4: f32 = 0.07 / 1.2;
-
-// The same phases as fixtrig angles (u32 turns), folded at compile time
-// (float is fine there): the snake costs table lookups, not soft-float cos.
-const A_P = [4]trig.Angle{ trig.angle(P1), trig.angle(P2), trig.angle(P3), trig.angle(P4) };
-const A_DW = [4]trig.Angle{ trig.angle(DW1), trig.angle(DW2), trig.angle(DW3), trig.angle(DW4) };
-const A_FW = [4]trig.Angle{ trig.angle(FW1), trig.angle(FW2), trig.angle(FW3), trig.angle(FW4) };
 
 // The side copies' wobble depends on the strip row only, so the whole x
 // table is built here once (f32 maths exactly as the original ran it).
@@ -222,6 +216,12 @@ comptime {
 // --------------------------------------------------------------------------
 // Demo
 // --------------------------------------------------------------------------
+/// cosf without libm: the argument's exact value as an angle, the Q30 cosine
+/// from zig3d_fixed, rounded to f32 (what a correctly rounded cosf returns).
+fn cosF(x: f32) f32 {
+    return hp.toF32(hp.cosQ(hp.f32Angle(x)));
+}
+
 pub const Demo = struct {
     // the vertical scroll strip, as palette indices
     strip: [STRIP_H][STRIP_W]u8,
@@ -230,9 +230,11 @@ pub const Demo = struct {
     top_row: usize,
 
     // the snake's Lissajous phases (see the per-frame vs per-point note above)
-    w: [4]trig.Angle,
-    sx: [SNAKE_POINTS]i32, // ST pixels
-    sy: [SNAKE_POINTS]i32,
+    // The phases stay f32 (hardware adds, exactly the original's rounding);
+    // only the cosine of them is integer: Q30, correctly rounded to f32.
+    w: [4]f32,
+    sx: [SNAKE_POINTS]f32,
+    sy: [SNAKE_POINTS]f32,
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
         Console.log("Demo init", .{});
@@ -297,14 +299,17 @@ pub const Demo = struct {
         // two-speed trick is the whole character of the movement.
         var w = self.w;
         for (&self.sx, &self.sy) |*px, *py| {
-            const x = AMP_BIG * trig.cos(w[0] +% A_P[0]) + AMP_SMALL * trig.cos(w[1] +% A_P[1]);
-            const y = AMP_BIG * trig.cos(w[2] +% A_P[2]) + AMP_SMALL * trig.cos(w[3] +% A_P[3]);
-            // centre + offset is positive, so the shift truncates like the float cast
-            px.* = (SNAKE_CX * trig.ONE + x) >> 16;
-            py.* = (SNAKE_CY * trig.ONE + y) >> 16;
-            for (&w, A_DW) |*q, d| q.* +%= d;
+            px.* = AMP_BIG * cosF(w[0] + P1) + AMP_SMALL * cosF(w[1] + P2);
+            py.* = AMP_BIG * cosF(w[2] + P3) + AMP_SMALL * cosF(w[3] + P4);
+            w[0] += DW1;
+            w[1] += DW2;
+            w[2] += DW3;
+            w[3] += DW4;
         }
-        for (&self.w, A_FW) |*q, d| q.* +%= d;
+        self.w[0] += FW1;
+        self.w[1] += FW2;
+        self.w[2] += FW3;
+        self.w[3] += FW4;
     }
 
     pub fn render(self: *Demo, zigos: *ZigOS, dt: f32) void {
@@ -345,7 +350,7 @@ pub const Demo = struct {
         for (SNAKE_EDGES) |e| {
             const a = e[0];
             const b = e[1];
-            line(fb, self.sx[a], self.sy[a], self.sx[b], self.sy[b]);
+            line(fb, @intFromFloat(SNAKE_CX + self.sx[a]), @intFromFloat(SNAKE_CY + self.sy[a]), @intFromFloat(SNAKE_CX + self.sx[b]), @intFromFloat(SNAKE_CY + self.sy[b]));
         }
     }
 };
