@@ -56,3 +56,24 @@ test "random quads and triangles: pixel for pixel the f64 fill" {
         try std.testing.expectEqualSlices(u8, &a, &b);
     }
 }
+
+test "paths reaching far past every edge: the stepped edges still land as the f64 fill" {
+    var prng = std.Random.DefaultPrng.init(0xfa7);
+    const r = prng.random();
+    var a = [_]u8{0} ** (64 * 40);
+    var b = [_]u8{0} ** (64 * 40);
+    for (0..2000) |i| {
+        const n: usize = 3 + i % 3;
+        var q: [5][2]i32 = undefined;
+        var f: [5][2]f64 = undefined;
+        for (0..n) |k| {
+            const x = r.intRangeAtMost(i32, -3000 * P, 3000 * P);
+            const y = r.intRangeAtMost(i32, -3000 * P, 3000 * P);
+            q[k] = .{ x, y };
+            f[k] = .{ @as(f64, @floatFromInt(x)) / P, @as(f64, @floatFromInt(y)) / P };
+        }
+        f64fill.fill(Dst.buffer(&a, 64), f[0..n], @intCast(1 + i % 200));
+        qfill.fill(Dst.buffer(&b, 64), q[0..n], @intCast(1 + i % 200));
+        try std.testing.expectEqualSlices(u8, &a, &b);
+    }
+}
