@@ -6,6 +6,8 @@
 // headless harness replays them: halve(c) = floor(round(c) / 2).
 // --------------------------------------------------------------------------
 const blit = @import("zigos").blit;
+const stretch = @import("../union_common/stretch.zig");
+const sintab = @import("../union_common/sintab.zig");
 
 pub fn halve(c: f64) i32 {
     const r: i32 = @intFromFloat(@floor(c + 0.5)); // JS Math.round
@@ -64,7 +66,7 @@ pub const The = struct {
     drawn: f64, // the value this frame is drawn with
 
     const LEFT = (300 - 160 / 2) / 2;
-    const CENTRE_Y: f64 = 176.0 / 2.0;
+    const CENTRE_Q16: i32 = 88 << 16; // 176 / 2
     const STEP: f64 = 0.1;
 
     pub fn init(self: *The) void {
@@ -78,7 +80,7 @@ pub const The = struct {
     }
 
     pub fn draw(self: *const The, dst: blit.Dst, img: blit.Image) void {
-        blit.stretchY(dst, img, LEFT, CENTRE_Y, @sin(self.drawn), 0, .copy);
+        stretch.stretchY(dst, img, LEFT, CENTRE_Q16, stretch.toQ30(@sin(self.drawn)), 0, .copy);
     }
 };
 
@@ -89,11 +91,12 @@ pub const Carebears = struct {
     phase: f64, // logosinx
     drawn: f64, // oldlogosinx: this frame's first row
 
-    const X: f64 = 16;
-    const AMP: f64 = 20;
+    const X = 16;
+    const AMP = 20;
     const STEP: f64 = 0.1;
     const TOP = 194 / 2;
     const CANVAS_ROWS = 50;
+    const Sin = sintab.SinTab(CANVAS_ROWS, STEP); // sin(drawn + 0.1 i), the JS loop's running sum
 
     pub fn init(self: *Carebears) void {
         self.phase = 0;
@@ -106,13 +109,12 @@ pub const Carebears = struct {
     }
 
     pub fn draw(self: *const Carebears, dst: blit.Dst, img: blit.Image) void {
-        var s = self.drawn; // accumulated row by row, as the JS loop does
-        for (0..CANVAS_ROWS) |i| {
-            if (i % 2 == 0) {
-                const row = i / 2;
-                blit.blit(dst, img, .{ .x = 0, .y = row, .w = img.w, .h = 1 }, halve(X + @sin(s) * AMP), @intCast(TOP + row), 0, .copy);
-            }
-            s += STEP;
+        const sin = Sin.init(self.drawn); // two libm calls a frame, not 25
+        var i: usize = 0;
+        while (i < CANVAS_ROWS) : (i += 2) {
+            const row = i / 2;
+            const x = @divFloor(sin.round(i, X, AMP), 2); // halve(X + sin * AMP)
+            blit.blit(dst, img, .{ .x = 0, .y = row, .w = img.w, .h = 1 }, x, @intCast(TOP + row), 0, .copy);
         }
     }
 };
