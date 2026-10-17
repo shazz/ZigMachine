@@ -44,6 +44,7 @@ const blit = zg.blit;
 const depackers = @import("depackers");
 const tex = depackers.tex_loader;
 const DepackFx = depackers.depack_fx.Runner(zg, null); // fx none: no tvnoise
+const fx = @import("turns_fix.zig");
 const packed_intro = @import("packed_assets").union_demo_intro;
 
 // Mad Max's "Union Demo LOADER" (ThinkTwice.ym holds U_LOADER.BIN). The archive's
@@ -78,13 +79,14 @@ const palette = zg.convertU8ArraytoColors(@embedFile("../assets/screens/union_de
 // screen.js's own numbers, in canvas units.
 const BG_STEP = 3;
 const BG_TOP = -96;
-const LOGO_INC = 0.008;
-const LOGO_SIN = 0.08;
+// The phases are u64 turns (turns_fix.zig): the doubles' sums without soft-float.
+const LOGO_INC = fx.turns(0.008);
+const LOGO_SIN = fx.turns(0.08);
 const LOGO_CX = 320;
 const LOGO_SWAY = 170;
 const LOGO_CY = 32 + 6;
-const LETTER_STEP = 0.06;
-const LETTER_PHASE = 0.3;
+const LETTER_STEP = fx.turns(0.06);
+const LETTER_PHASE = fx.turns(0.3);
 const TEXT_X = 70;
 const TEXT_Y = 136;
 const TILE_W = 32;
@@ -123,18 +125,13 @@ const DIR_BACK: u8 = 6;
 
 var ink_row: [zg.HEIGHT]u8 = undefined; // palette index per ST row for .row ink
 
-/// Canvas coordinate -> ST pixel, rounding to nearest (Math.round's tie rule).
-fn half(v: f64) i32 {
-    return @intFromFloat(@floor(v / 2 + 0.5));
-}
-
 pub const Demo = struct {
     data: []u8, // the depacked blob
     depacking: bool,
     bg_pos: i32, // bgposy
-    logo_inc: f64, // logoInc
-    logo_sin: f64, // logosin1
-    letters: f64, // sinlettersx == sinlettersy after update()
+    logo_inc: u64, // logoInc
+    logo_sin: u64, // logosin1
+    letters: u64, // sinlettersx == sinlettersy after update()
     credits: bool, // FIRST_LOADER (demoloader.js) is on screen
     credits_ticks: u32, // Tween.tick calls so far
     credits_clock: u32, // ms of tween clock for this frame's draw
@@ -193,11 +190,11 @@ pub const Demo = struct {
             self.credits_ticks += 1;
             return;
         }
-        self.logo_inc += LOGO_INC;
+        self.logo_inc +%= LOGO_INC;
         self.bg_pos += BG_STEP;
         if (self.bg_pos >= 0) self.bg_pos = BG_TOP;
-        self.logo_sin += LOGO_SIN;
-        self.letters += LETTER_STEP;
+        self.logo_sin +%= LOGO_SIN;
+        self.letters +%= LETTER_STEP;
     }
 
     pub fn render(self: *Demo, zigos: *ZigOS, dt: f32) void {
@@ -224,28 +221,36 @@ pub const Demo = struct {
     }
 
     fn drawLogo(self: *Demo, fb: *zg.LogicalFB) void {
-        const left = LOGO_CX + @sin(self.logo_sin) * (LOGO_SWAY * @sin(self.logo_inc)) - LOGO_W; // setmidhandle
-        const column: i32 = @intFromFloat(@floor(left + 0.5)); // nearest canvas column
+        // left = LOGO_CX + sin(a) * (LOGO_SWAY * sin(b)) - LOGO_W (setmidhandle), rounded
+        const wave = (fx.sin(fx.hi(self.logo_sin)) * fx.sin(fx.hi(self.logo_inc))) >> 30;
+        const column = fx.roundQ30(LOGO_CX - LOGO_W, LOGO_SWAY, wave); // nearest canvas column
         const img = blit.Image.init(self.data[LOGO..][0 .. LOGO_W * LOGO_H], LOGO_W);
         blit.blit(blit.Dst.plane(fb), img, null, @divFloor(column, 2), (LOGO_CY - LOGO_H) / 2, 0, .copy);
     }
 
     /// The loop of screen.js:118-128, with its running phases: sy restarts from
     /// the frame's phase on every row and gains 0.3 a tile; sx gains 0.3 a row.
+    /// sin(sy) depends on the tile column only, so it is taken sixteen times, not 224.
     fn drawLetters(self: *Demo, fb: *zg.LogicalFB) void {
         const dst = blit.Dst.plane(fb);
         const font = blit.Image.init(self.data[FONT..][0 .. FONT_W * FONT_H], FONT_W);
+        var swing_y: [TILES_X]i64 = undefined; // sin(sy) * SWING_Y, Q30
+        var sy = self.letters;
+        for (&swing_y) |*w| {
+            w.* = fx.sin(fx.hi(sy)) * SWING_Y;
+            sy +%= LETTER_PHASE;
+        }
         var sx = self.letters;
         for (0..TILES_Y) |ty| {
-            var sy = self.letters;
+            const swing_x = fx.sin(fx.hi(sx)) * SWING_X;
             for (0..TILES_X) |tx| {
-                const x = @as(f64, @floatFromInt(TEXT_X + TILE_W * tx)) + @sin(sx) * SWING_X;
-                const y = @as(f64, @floatFromInt(TEXT_Y + TILE_H * ty)) + @sin(sy) * SWING_Y;
                 const part = blit.Rect{ .x = tx * TILE_W / 2, .y = ty * TILE_H / 2, .w = TILE_W / 2, .h = TILE_H / 2 };
-                blit.blit(dst, font, part, half(x), half(y), 0, .{ .row = &ink_row });
-                sy += LETTER_PHASE;
+                // half(v) = Math.round(v / 2) = floor((v + 1) / 2), v = tile origin + swing
+                const hx: i32 = @intCast(((@as(i64, TEXT_X + TILE_W * tx + 1) << 30) + swing_x) >> 31);
+                const hy: i32 = @intCast(((@as(i64, TEXT_Y + TILE_H * ty + 1) << 30) + swing_y[tx]) >> 31);
+                blit.blit(dst, font, part, hx, hy, 0, .{ .row = &ink_row });
             }
-            sx += LETTER_PHASE;
+            sx +%= LETTER_PHASE;
         }
     }
 
