@@ -33,6 +33,7 @@ const packed_assets = @import("packed_assets");
 
 const A = @import("union_tnt2/assets.zig");
 const motion = @import("union_tnt2/motion.zig");
+const gpu = @import("union_common/gpu.zig");
 const controls = @import("union_tnt2/controls.zig");
 const hub_note = @import("union_demo/hub_note.zig").HubNote("union_tnt2");
 
@@ -65,6 +66,7 @@ pub const Demo = struct {
     note: ?hub_note.Note, // the hub's return note, when it was left for this door
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
+        gpu.init();
         self.phase = .failed;
         self.leave = false;
         self.blue.init(-2); // screen.js:39-41
@@ -108,14 +110,14 @@ pub const Demo = struct {
     pub fn render(self: *Demo, zigos: *ZigOS, dt: f32) void {
         _ = dt;
         if (self.phase != .running) return;
-        const dst = blit.Dst.plane(&zigos.lfbs[0]);
-        @memset(dst.buf, A.BLACK); // maincanvas.fill('#000000')
-        drawPiece(dst, self.images.overlay2, A.OVERLAY2);
-        self.blue.draw(dst, self.images.blue, A.BLUE.y);
-        self.brown.draw(dst, self.images.brown, A.BROWN.y);
-        self.green.draw(dst, self.images.green, A.GREEN.y);
-        self.scroller.draw(dst, self.images.font);
-        drawPiece(dst, self.images.overlay, A.OVERLAY);
+        const fb = &zigos.lfbs[0];
+        gpu.clear(fb, A.BLACK); // maincanvas.fill('#000000'), on CHISEL: the CPU memset was 64,000 byte stores
+        drawPiece(fb, self.images.overlay2, A.OVERLAY2);
+        self.blue.draw(fb, self.images.blue, A.BLUE.y);
+        self.brown.draw(fb, self.images.brown, A.BROWN.y);
+        self.green.draw(fb, self.images.green, A.GREEN.y);
+        self.scroller.draw(fb, self.images.font);
+        drawPiece(fb, self.images.overlay, A.OVERLAY);
     }
 
     /// Letters and Escape are the screen's (A..D must not also steer).
@@ -199,8 +201,8 @@ pub const Demo = struct {
     }
 };
 
-fn drawPiece(dst: blit.Dst, img: blit.Image, p: A.Piece) void {
-    blit.blit(dst, img, null, p.x, p.y, 0, .copy);
+fn drawPiece(fb: *zg.LogicalFB, img: blit.Image, p: A.Piece) void {
+    gpu.put(fb, img, null, p.x, p.y, 0);
 }
 
 fn fail(why: []const u8) void {
