@@ -49,3 +49,16 @@ def test_the_keys_start_a_second_tune_and_the_board_image_holds_it(started: list
 def test_the_packer_refuses_a_started_song_that_is_no_file(tmp_path: Path) -> None:
     with pytest.raises(song_pack.MissingSong, match="Nowhere.sap"):
         song_pack.song_names(b"\0asm", tmp_path, "L 0 24 Nowhere.sap\n")
+
+
+def test_a_local_song_is_packed_when_present_and_left_out_when_absent(tmp_path: Path) -> None:
+    wasm = b"\0asm zm_test.xm\0local.xm\0"
+    (tmp_path / "zm_test.xm").write_bytes(b"x")
+    assert song_pack.song_names(wasm, tmp_path) == ["zm_test.xm"]
+    (tmp_path / "local.xm").write_bytes(b"y")
+    assert song_pack.song_names(wasm, tmp_path) == ["local.xm", "zm_test.xm"]
+
+
+def test_only_the_local_name_is_optional(tmp_path: Path) -> None:
+    with pytest.raises(song_pack.MissingSong, match="other.xm"):
+        song_pack.song_names(b"\0asm other.xm\0local.xm\0", tmp_path)
