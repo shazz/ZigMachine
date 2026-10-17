@@ -14,7 +14,9 @@
 
 #include "glass_cart.h" /* gen/: map_cart.zig's SND_INFO_*, SI_*, ROUTE_*, PLAYER_* */
 
+#ifndef ZM_SND_INFO /* tests/test_snd_info.py points it at an array */
 #define ZM_SND_INFO ((volatile uint32_t*)(0x42000000u - SND_INFO_FROM_TOP)) /* the window's end */
+#endif
 
 static inline void sndinfo_open(void) { ZM_SND_INFO[SI_SEQ] = ZM_SND_INFO[SI_SEQ] | 1u; }
 static inline void sndinfo_close(void) { ZM_SND_INFO[SI_SEQ] = ZM_SND_INFO[SI_SEQ] + 1u; }
