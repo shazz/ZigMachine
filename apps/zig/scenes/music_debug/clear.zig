@@ -4,16 +4,16 @@
 // pixel. Every plane is cleared whole once at init; after that
 //   - the starfield erases last frame's 200 star pixels,
 //   - the text and logo planes clear only the rows they can reach,
-//   - the scope plane is cleared only while a scope is (or just was) drawn.
+//   - the scope plane is cleared (and shown) only while a scope is drawn.
 // The pixels are the same as a full clear, since nothing else writes there.
 // --------------------------------------------------------------------------
 const zg = @import("zigos");
 const LogicalFB = zg.LogicalFB;
 
-// Rows [first, last] of `fb` back to `color`.
-pub fn rows(fb: *LogicalFB, first: u16, last: u16, color: u8) void {
-    const s: usize = fb.stride;
-    @memset(fb.fb[@as(usize, first) * s .. (@as(usize, last) + 1) * s], color);
+// Rows [first, last] of `fb` back to `color`, by CHISEL: a fill is about a clock a
+// pixel, where the CPU's memset is a write-through store (a DDR round trip) a word.
+pub fn rows(blit: *zg.Blitter, fb: *LogicalFB, first: u16, last: u16, color: u8) void {
+    blit.fill(fb, 0, @intCast(first), fb.fb_w, last - first + 1, color);
 }
 
 // The star pixels Starfield3D.render() drew (its rule: a star whose previous

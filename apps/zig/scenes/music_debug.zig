@@ -105,7 +105,7 @@ pub const Demo = struct {
     logo_phase: f32 = 0.0, // slow, drives the logo distortion
     flow_frame: u32 = 0, // scope electron-flow timer
     scope: scope.Scope = .{},
-    scope_drawn: bool = false, // the scope plane holds a curve
+    blit: zg.Blitter = .{}, // CHISEL: the per-frame clears
     stars: clear.StarEraser(NB_STARS) = .{},
     starfield: Starfield3D(NB_STARS) = undefined,
 
@@ -116,6 +116,7 @@ pub const Demo = struct {
         raster_offset = 0;
         raster_phase = 0.0;
         zigos.setBackgroundColor(BGCOL); // black borders
+        self.blit.init();
 
         // plane 0: 3D starfield (back). init() sets its own brightness palette.
         var p0: *LogicalFB = &zigos.lfbs[0];
@@ -126,7 +127,7 @@ pub const Demo = struct {
 
         // plane 1: scope (transparent bg so the starfield shows through)
         var p1: *LogicalFB = &zigos.lfbs[1];
-        p1.is_enabled = true;
+        p1.is_enabled = false; // on only while a scope is drawn (render)
         scope.setPalette(p1);
         p1.clearFrameBuffer(0);
 
@@ -200,14 +201,16 @@ pub const Demo = struct {
 
         // plane 1: scope
         const p1: *LogicalFB = &zigos.lfbs[1];
-        if (self.scope_drawn) p1.clearFrameBuffer(0);
+        // An empty plane still costs the board's compositor a pass a line (~0.9 Mc a frame),
+        // and the board never drives the scope (no audio mirror): off while there is none.
+        p1.is_enabled = scope.drawsIn(zigos.audio_mode);
+        if (p1.is_enabled) self.blit.clear(p1, 0);
         self.scope.draw(zigos, p1, self.flow_frame, self.phase);
-        self.scope_drawn = zigos.audio_mode >= 1 and zigos.audio_mode <= 4;
 
         // plane 2 is FULLSCREEN, so coordinates are physical: the visible screen
         // sits at +HBORD,+VBORD (40,40), so menu text keeps its on-screen place.
         const p2: *LogicalFB = &zigos.lfbs[2];
-        clear.rows(p2, TEXT_FIRST_ROW, TEXT_LAST_ROW, CLEAR);
+        clear.rows(&self.blit, p2, TEXT_FIRST_ROW, TEXT_LAST_ROW, CLEAR);
         for (MENU) |line| {
             text.drawText8(p2, line.text, MENU_X, MENU_Y + line.dy, WHITE, MENU_WAVE_AMP, self.phase + line.dphase);
         }
@@ -217,7 +220,7 @@ pub const Demo = struct {
 
         // plane 3: logo with a 3-frame darkening trail (oldest/darkest first)
         const p3: *LogicalFB = &zigos.lfbs[3];
-        clear.rows(p3, 0, logo.LAST_ROW, 0);
+        clear.rows(&self.blit, p3, 0, logo.LAST_ROW, 0);
         logo.draw(p3, self.logo_phase - 2.4, 96);
         logo.draw(p3, self.logo_phase - 1.6, 64);
         logo.draw(p3, self.logo_phase - 0.8, 32);

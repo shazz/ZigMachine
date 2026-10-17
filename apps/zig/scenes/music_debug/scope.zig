@@ -46,6 +46,11 @@ fn stroke(fb: *LogicalFB, x: usize, prev: i32, yy: i32, col: u8) void {
     }
 }
 
+// The audio modes that draw a scope (the switch in Scope.draw).
+pub fn drawsIn(audio_mode: u8) bool {
+    return audio_mode >= 1 and audio_mode <= 4;
+}
+
 pub const Scope = struct {
     flow_pos: f32 = 0.0,
     flow_active: bool = false,
