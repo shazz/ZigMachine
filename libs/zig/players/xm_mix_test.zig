@@ -93,16 +93,43 @@ test "an envelope loop wraps its time between two points" {
     try std.testing.expectEqual(@as(u32, 12), xv.envValue(&e, 12, true));
 }
 
-test "the fadeout falls only once the key is up, and the note restarts it" {
+test "the fadeout falls only once the key is up, at FT2's rate, and the note restarts it" {
+    const ins = inst.Instrument{ .fadeout = 2048 };
     var c = xv.Chan{ .key_on = true };
-    xv.tickEnvelope(&c, 4096);
+    xv.tickEnvelope(&c, &ins);
     try std.testing.expectEqual(@as(u32, 65536), c.fade);
     c.key_on = false;
-    xv.tickEnvelope(&c, 4096);
+    xv.tickEnvelope(&c, &ins);
+    // FT2 takes 2048 off its 32768: a sixteenth, so 4096 off this Q16 65536.
     try std.testing.expectEqual(@as(u32, 61440), c.fade);
     xv.keyOn(&c);
     try std.testing.expectEqual(@as(u32, 65536), c.fade);
     try std.testing.expectEqual(@as(u32, 0), c.env_tick);
+}
+
+test "a held note stops at the sustain point, and key-off releases from there" {
+    var ins = inst.Instrument{};
+    ins.vol = .{ .on = true, .sustain_on = true, .n = 3, .sustain = 1 };
+    ins.vol.pts[0] = pt(0, 0);
+    ins.vol.pts[1] = pt(10, 64);
+    ins.vol.pts[2] = pt(20, 0);
+    var c = xv.Chan{};
+    xv.keyOn(&c);
+    for (0..100) |_| xv.tickEnvelope(&c, &ins);
+    try std.testing.expectEqual(@as(u32, 10), c.env_tick);
+    xv.keyOff(&c, &ins.vol);
+    for (0..5) |_| xv.tickEnvelope(&c, &ins);
+    try std.testing.expectEqual(@as(u32, 32), xv.envValue(&ins.vol, c.env_tick, c.key_on));
+}
+
+test "key-off cuts a note with no volume envelope, and only releases one with" {
+    var c = xv.Chan{ .vol = 50, .key_on = true };
+    xv.keyOff(&c, &inst.Envelope{});
+    try std.testing.expectEqual(@as(u8, 0), c.vol);
+    var d = xv.Chan{ .vol = 50, .key_on = true };
+    xv.keyOff(&d, &inst.Envelope{ .on = true, .n = 2 });
+    try std.testing.expectEqual(@as(u8, 50), d.vol);
+    try std.testing.expect(!d.key_on);
 }
 
 test "linear step: a semitone is 2^(1/12), and C-4 plays at 8363 Hz" {

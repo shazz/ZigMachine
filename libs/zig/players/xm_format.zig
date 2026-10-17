@@ -14,7 +14,8 @@ pub const MAX_CH: usize = 8; // the eight voices, mixed in pairs onto four Paula
 pub const MAX_PATTERNS: usize = 256;
 pub const MAX_INSTRUMENTS: usize = 128;
 pub const MAX_SAMPLES: usize = 256;
-pub const MAX_ROWS: u16 = 256;pub const MAGIC = "Extended Module: ";
+pub const MAX_ROWS: u16 = 256;
+pub const MAGIC = "Extended Module: ";
 const HDR_BASE: usize = 60; // the header-size field's own offset; hdr_size counts from here
 const ORDER_OFF: usize = 80;
 

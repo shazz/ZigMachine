@@ -22,12 +22,14 @@ pub fn tick(p: *XmPlayer) void {
         if (!p.repeat) processRow(p);
         p.repeat = false;
     } else {
-        for (0..n) |ch| {
-            effects.tickEnvelope(p, ch);
-            effects.tickEffect(p, ch);
-        }
+        for (0..n) |ch| effects.tickEffect(p, ch);
     }
-    for (0..n) |ch| effects.apply(p, ch);
+    // The envelope moves on every tick, tick 0 included (FT2): it is read first,
+    // so a note's first tick plays its envelope's first point.
+    for (0..n) |ch| {
+        effects.apply(p, ch);
+        effects.tickEnvelope(p, ch);
+    }
     p.tick += 1;
     if (p.tick >= p.speed) {
         p.tick = 0;
@@ -49,8 +51,25 @@ pub fn trigger(p: *XmPlayer, ch: usize, note: u8) void {
     c.base_period = xt.periodOf(c.semi, c.ft, p.hdr.linear);
     c.period = c.base_period;
     c.vib_pos = 0;
-    c.vol = s.volume;
     xv.keyOn(c);
+}
+
+/// An instrument number resets the volume to its sample's and restarts the
+/// envelope (FT2), with or without a note; a note alone keeps the volume.
+fn resetInstrument(p: *const XmPlayer, c: *xv.Chan) void {
+    const ins = instrumentOf(p, c.inst) orelse return;
+    if (ins.count == 0) return;
+    c.vol = p.tabs.samps[c.mix.sample].volume;
+    xv.keyOn(c);
+}
+
+/// Note 97 or Kxx: key-off through the channel's instrument envelope.
+pub fn keyOff(p: *const XmPlayer, c: *xv.Chan) void {
+    const ins = instrumentOf(p, c.inst) orelse {
+        c.key_on = false;
+        return;
+    };
+    xv.keyOff(c, &ins.vol);
 }
 
 fn instrumentOf(p: *const XmPlayer, one_based: u8) ?*const inst.Instrument {
@@ -65,15 +84,16 @@ fn processRow(p: *XmPlayer) void {
     for (0..p.hdr.channels) |ch| rowChannel(p, ch, cells[ch]);
 }
 
-/// A note starts (or, under 3xx / 5xx, is only the portamento's target) before the
-/// volume column and the row effect take their say, as FT2 orders them.
+/// A note starts (or, under 3xx / 5xx, is only the portamento's target), then the
+/// instrument number resets the volume, then the volume column and the row
+/// effect take their say, as FT2 orders them.
 fn rowChannel(p: *XmPlayer, ch: usize, cell: xp.Cell) void {
     const c = &p.chan[ch];
     c.eff = cell.eff;
     c.param = effects.memoParam(c, cell.eff, cell.param);
     if (cell.inst != 0) c.inst = cell.inst;
     if (cell.note == 97) {
-        c.key_on = false;
+        keyOff(p, c);
     } else if (cell.note >= 1 and cell.note <= 96) {
         if (cell.eff == 3 or cell.eff == 5) {
             setTarget(p, c, cell.note);
@@ -83,7 +103,9 @@ fn rowChannel(p: *XmPlayer, ch: usize, cell: xp.Cell) void {
             trigger(p, ch, cell.note);
         }
     }
-    if (cell.vol >= 0x10 and cell.vol <= 0x50) c.vol = cell.vol - 0x10;
+    if (cell.inst != 0 and cell.note != 97) resetInstrument(p, c);
+    c.vcol = cell.vol;
+    effects.volumeColumnRow(c);
     effects.rowEffect(p, ch);
 }
 
@@ -99,6 +121,10 @@ fn setTarget(p: *const XmPlayer, c: *xv.Chan, note: u8) void {
 fn readCells(p: *XmPlayer, cells: *[fmt.MAX_CH]xp.Cell) void {
     const pat = p.hdr.orders[p.order_pos];
     const info = p.pats[pat];
+    if (info.end == info.off) { // FT2 saves an empty pattern with no packed data
+        @memset(cells, .{});
+        return;
+    }
     const bytes = p.data[0..info.end];
     var off: usize = info.off;
     var r: u16 = 0;

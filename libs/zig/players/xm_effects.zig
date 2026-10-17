@@ -4,14 +4,16 @@
 // mixer's step and gain every tick. Implemented: 0 arpeggio, 1/2 portamento,
 // 3 tone portamento, 4 vibrato, 5/6 slide with portamento or vibrato, A volume
 // slide, B/D jumps, C set volume, F speed/BPM, E1 E2 EA EB (fine slides and
-// volume), E9 (retrigger), EC (cut), ED (delay), EE (pattern delay).
-// The rest are read and ignored (xm.zig's header lists them).
-// Memoised parameters (1 2 3 4 5 6 A) keep their last non-zero value, as FT2
-// does; processRow resolves them into c.param before any effect runs.
+// volume), E9 (retrigger), EC (cut), ED (delay), EE (pattern delay), K (key-off),
+// and the volume column's slides (6x 7x 8x 9x). The rest are read and ignored
+// (xm.zig's header lists them). Memoised parameters (1 2 3 4 A, and 5 6 which
+// share A's, as FT2 has it) keep their last non-zero value; processRow resolves
+// them into c.param before any effect runs.
 // --------------------------------------------------------------------------
 const std = @import("std");
 const xt = @import("xm_tables.zig");
 const xv = @import("xm_voice.zig");
+const rows = @import("xm_rows.zig");
 const XmPlayer = @import("xm.zig").XmPlayer;
 
 /// The parameter an effect runs with: a memoised effect reuses its last non-zero one.
@@ -21,8 +23,9 @@ pub fn memoParam(c: *xv.Chan, eff: u8, param: u8) u8 {
         else => false,
     };
     if (!memoised) return param;
-    if (param != 0) c.memo[eff] = param;
-    return c.memo[eff];
+    const slot: usize = if (eff == 5 or eff == 6) 0xA else eff; // their slide is A's
+    if (param != 0) c.memo[slot] = param;
+    return c.memo[slot];
 }
 
 /// The effect's first-tick part, after the row's note has been handled.
@@ -37,6 +40,31 @@ pub fn rowEffect(p: *XmPlayer, ch: usize) void {
         0xD => p.break_row = @intCast(@as(u16, c.param >> 4) * 10 + (c.param & 0x0F)),
         0x9 => sampleOffset(p, c),
         0xE => eRowEffect(p, c),
+        0x14 => if (c.param == 0) rows.keyOff(p, c),
+        else => {},
+    }
+}
+
+/// The volume column's first-tick part: set volume, or a fine slide.
+pub fn volumeColumnRow(c: *xv.Chan) void {
+    const v = c.vcol;
+    switch (v >> 4) {
+        0x1...0x4 => c.vol = v - 0x10,
+        0x5 => if (v == 0x50) {
+            c.vol = 64;
+        },
+        0x8 => c.vol -|= v & 0x0F,
+        0x9 => c.vol = @min(c.vol + (v & 0x0F), 64),
+        else => {},
+    }
+}
+
+/// The volume column's slides on ticks 1..speed-1.
+fn volumeColumnTick(c: *xv.Chan) void {
+    const v = c.vcol;
+    switch (v >> 4) {
+        0x6 => c.vol -|= v & 0x0F,
+        0x7 => c.vol = @min(c.vol + (v & 0x0F), 64),
         else => {},
     }
 }
@@ -69,6 +97,7 @@ fn eRowEffect(p: *XmPlayer, c: *xv.Chan) void {
 /// The effect's part on ticks 1..speed-1.
 pub fn tickEffect(p: *XmPlayer, ch: usize) void {
     const c = &p.chan[ch];
+    volumeColumnTick(c);
     switch (c.eff) {
         0x1 => c.period = xt.clampPeriod(c.period - 4 * @as(i32, c.param)),
         0x2 => c.period = xt.clampPeriod(c.period + 4 * @as(i32, c.param)),
@@ -84,6 +113,7 @@ pub fn tickEffect(p: *XmPlayer, ch: usize) void {
         },
         0xA => volumeSlide(c, c.param),
         0xE => eTickEffect(p, ch),
+        0x14 => if (p.tick == c.param) rows.keyOff(p, c),
         else => {},
     }
 }
@@ -94,8 +124,8 @@ fn eTickEffect(p: *XmPlayer, ch: usize) void {
     const y = c.param & 0x0F;
     switch (x) {
         0x9 => if (y != 0 and p.tick % y == 0) {
-            c.mix.idx = 0;
-            c.mix.frac = 0;
+            // A retrigger revives a note whose sample had run out.
+            c.mix = .{ .active = p.tabs.samps[c.mix.sample].len > 0, .sample = c.mix.sample };
         },
         0xC => if (p.tick == y) {
             c.vol = 0;
@@ -158,5 +188,5 @@ fn arpPeriod(p: *const XmPlayer, c: *const xv.Chan) i32 {
 pub fn tickEnvelope(p: *XmPlayer, ch: usize) void {
     const c = &p.chan[ch];
     if (c.inst == 0 or c.inst > p.hdr.num_instruments) return;
-    xv.tickEnvelope(c, p.tabs.insts[c.inst - 1].fadeout);
+    xv.tickEnvelope(c, &p.tabs.insts[c.inst - 1]);
 }

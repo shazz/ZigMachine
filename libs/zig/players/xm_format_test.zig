@@ -135,3 +135,19 @@ test "a pattern that is not packing type 0, or runs past the file, is refused" {
     put16(&b, HDR_LEN + 7, 200);
     try std.testing.expectError(error.Truncated, pat.scan(&b, &h, &pats));
 }
+
+test "an empty pattern saved with no packed data (as FT2 saves one) is accepted" {
+    var b: [HDR_LEN + 64]u8 = undefined;
+    header(&b, .{ .ch = 2, .song_len = 2, .npat = 2 });
+    var o = HDR_LEN;
+    put32(&b, o, 9);
+    b[o + 4] = 0;
+    put16(&b, o + 5, 64);
+    put16(&b, o + 7, 0);
+    o = emptyPattern(&b, o + 9, 4, 2);
+    var h = try fmt.parse(&b);
+    var pats: [fmt.MAX_PATTERNS]pat.PatInfo = undefined;
+    try std.testing.expectEqual(o, try pat.scan(&b, &h, &pats));
+    try std.testing.expectEqual(@as(u16, 64), pats[0].rows);
+    try std.testing.expectEqual(pats[0].off, pats[0].end);
+}

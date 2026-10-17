@@ -13,7 +13,7 @@ const fmt = @import("xm_format.zig");
 pub const Cell = struct {
     note: u8 = 0, // 1..96 = C-0..B-7, 97 = key off, 0 = none
     inst: u8 = 0, // 1-based, 0 = none
-    vol: u8 = 0, // the volume column: 0x10..0x50 = set volume, 0 = none
+    vol: u8 = 0, // the volume column: 0x10..0x50 set volume, 0x60..0x9F slides, 0 = none
     eff: u8 = 0,
     param: u8 = 0,
 };
@@ -81,13 +81,14 @@ pub fn scan(data: []const u8, hdr: *const fmt.Header, out: *[fmt.MAX_PATTERNS]Pa
         const off = pos + hl;
         const end = off + packed_size;
         if (end > data.len) return error.Truncated;
+        out[p] = .{ .off = @intCast(off), .end = @intCast(end), .rows = rows };
+        pos = end;
+        if (packed_size == 0) continue; // an empty pattern: FT2 stores no cells at all
         var o = off;
         for (0..rows) |_| {
             o = readRow(data[0..end], o, hdr.channels, &cells);
             if (o > end) return error.Truncated;
         }
-        out[p] = .{ .off = @intCast(off), .end = @intCast(end), .rows = rows };
-        pos = end;
     }
     return pos;
 }

@@ -21,6 +21,7 @@ pub const Chan = struct {
     /// The last non-zero parameter of each memoised effect (see effects.zig).
     memo: [16]u8 = undefined, // zeroed by XmPlayer.start (a zero default would be data-segment bytes)
     pending: u8 = 0, // EDx: the note a note delay will start (0 = none)
+    vcol: u8 = 0, // the current row's volume column (0x60..0x9F slide, xm_effects.zig)
     eff: u8 = 0, // the current row's effect
     param: u8 = 0,
     env_tick: u32 = 0, // ticks since the note: the envelope's position
@@ -71,10 +72,22 @@ pub fn gainOf(c: *const Chan, e: *const inst.Envelope) u32 {
 }
 
 /// Advance the envelope and the fadeout by one tick. The fadeout only falls
-/// once the key is up.
-pub fn tickEnvelope(c: *Chan, fadeout: u16) void {
-    c.env_tick +|= 1;
-    if (!c.key_on) c.fade -|= fadeout;
+/// once the key is up. FT2 counts its fadeout down from 32768, so on this Q16
+/// scale it falls by twice the instrument's value. While the key is down the
+/// position stops at the sustain point, so a key-off releases from there (not
+/// from however long the note was held, past the release).
+pub fn tickEnvelope(c: *Chan, ins: *const inst.Instrument) void {
+    const e = &ins.vol;
+    const held = e.on and e.sustain_on and c.key_on and e.sustain < e.n and c.env_tick >= e.pts[e.sustain].x;
+    if (!held) c.env_tick +|= 1;
+    if (!c.key_on) c.fade -|= 2 * @as(u32, ins.fadeout);
+}
+
+/// Key-off (note 97, Kxx). With no volume envelope there is nothing to release
+/// through, so FT2 cuts the note: songs rely on it as a note-cut.
+pub fn keyOff(c: *Chan, e: *const inst.Envelope) void {
+    c.key_on = false;
+    if (!e.on) c.vol = 0;
 }
 
 /// Start a note: the envelope and fadeout restart with it, the key goes down.

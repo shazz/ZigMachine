@@ -18,7 +18,12 @@ const SR = 44100, SECONDS = 4, FRAMES = SR * SECONDS;
 // Re-pinned 2026-10-15 for the 32-bit mixer (BARD has no 64-bit ALU): the linear
 // pitch table is Q16 (not Q24), and a 9xx past the sample's end is silent, as FT2
 // has it, where it used to wrap. Both move the output; the render stays identical run to run.
-const PINNED = "ff2208a333a9941fb7dad91ac6cbce4b36aa52ef085ad43e9eed344b3ff74696";
+// Re-pinned 2026-10-17 for FT2 behaviour checked against libopenmpt: the envelope
+// moves on every tick and holds at its sustain point, the fadeout runs at FT2's
+// rate, key-off cuts an envelope-less note, an instrument number resets the
+// volume (a bare note keeps it), vibrato is FT2's depth, and the volume column
+// slides. (Amiga pitch was fixed too; this song is linear.)
+const PINNED = "b2ccec0f0e35b96a32bee8e7f4f38eb8fc3c8472afd6449728dc2e51d9185fe3";
 const BREAKS = ["refuse", "pin"];
 const bi = process.argv.indexOf("--break");
 const broke = bi > 0 ? process.argv[bi + 1] : null;

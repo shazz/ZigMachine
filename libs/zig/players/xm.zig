@@ -8,14 +8,19 @@
 //
 // Supported: 1..8 channels; linear and Amiga frequency tables; 8- and 16-bit
 // delta-coded samples with forward and ping-pong loops; the volume envelope
-// with sustain, loop and fadeout; the volume column's set-volume; effects
-// 0 1 2 3 4 5 6 A B C D E1 E2 E9 EA EB EC ED EE F and K (xm_effects.zig).
-// Refused (xm_format.zig, with a reason): not an XM, a version before 1.02,
-// more than 8 channels, a truncated file, a pattern or order out of range.
-// Ignored: the other effects and volume-column commands, the panning
-// envelope, instrument vibrato, global volume, sample panning, E4..E8 and
-// E3/E6/E7/EF. Per-voice XM panning is not kept: each Paula channel carries
-// its pair's voices at the pan of mod.zig's channel for that pair.
+// with sustain, loop and fadeout (key-off cuts a note with no envelope); the
+// instrument number's volume reset; the volume column's set-volume and slides;
+// effects 0 1 2 3 4 5 6 9 A B C D E1 E2 E9 EA EB EC ED EE F and K
+// (xm_effects.zig). Refused (xm_format.zig, with a reason): not an XM, a
+// version before 1.02, more than 8 channels, a truncated file, a pattern or
+// order out of range. Ignored: 7 (tremolo), 8 / P (panning), G / H (global
+// volume), L (envelope position), R (multi retrigger), T (tremor), X1 / X2
+// (extra-fine slides), E3 E4 E5 E6 E7 E8 EF, the volume column's vibrato,
+// panning and tone portamento (Ax Bx Cx Dx Ex Fx), the panning envelope,
+// instrument auto-vibrato and sample panning. No interpolation and no volume
+// ramping (8-bit pair buffers, as Paula). Per-voice XM panning is not kept:
+// each Paula channel carries its pair's voices at the pan of mod.zig's
+// channel for that pair.
 // --------------------------------------------------------------------------
 const fmt = @import("xm_format.zig");
 const pat = @import("xm_pattern.zig");
