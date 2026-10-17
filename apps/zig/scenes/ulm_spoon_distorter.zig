@@ -67,8 +67,11 @@ const Y0: usize = (PH - SCREEN_H) / 2; // 5
 // the remake's default sample (you-low.wav / CODEF player): bounce_decal 0
 const SAMPLE_LENGTH: f64 = 12891.249;
 const BOUNCE_DECAL: f64 = 0;
-const BOUNCE_BACK_AMP: f64 = 25;
-const BOUNCE_FRONT_AMP: f64 = 10;
+const BOUNCE_BACK_AMP: i64 = 25;
+const BOUNCE_FRONT_AMP: i64 = 10;
+// The bounce phase advances 1000 / SAMPLE_LENGTH radians an iteration; as a u32
+// turn count (zg.fixtrig) it is folded once, at compile time, and wraps exactly.
+const BOUNCE_STEP = zg.fixtrig.angle(1000.0 / SAMPLE_LENGTH);
 const BACK_ROW_OFFSET: usize = 150;
 const FONT_ROW_OFFSET: usize = 2;
 const MS_PER_ITERATION: f64 = 20;
@@ -262,9 +265,10 @@ pub const Demo = struct {
         if (self.scroll_built_for != self.letter_num) buildScrollCanvas(self.letter_num);
         self.scroll_built_for = self.letter_num;
 
-        const phase = BOUNCE_DECAL + @as(f64, @floatFromInt(self.iteration)) * 1000.0 / SAMPLE_LENGTH;
-        const bounce_back: usize = @intFromFloat(@floor(@abs(BOUNCE_BACK_AMP * @sin(phase))));
-        const bounce_front: usize = @intFromFloat(@floor(@abs(BOUNCE_FRONT_AMP * @sin(phase))));
+        const phase: u32 = zg.fixtrig.angle(BOUNCE_DECAL) +% @as(u32, @truncate(@as(u64, @intCast(self.iteration)))) *% BOUNCE_STEP;
+        const sin_abs: i64 = @intCast(@abs(zg.fixtrig.sin(phase))); // Q16.16
+        const bounce_back: usize = @intCast((BOUNCE_BACK_AMP * sin_abs) >> 16);
+        const bounce_front: usize = @intCast((BOUNCE_FRONT_AMP * sin_abs) >> 16);
 
         const fb = &zigos.lfbs[PLANE];
         const screen = fb.fb[0 .. PW * PH];
