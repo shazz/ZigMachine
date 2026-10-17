@@ -208,8 +208,8 @@ console.log(`  frame 120: ${c.count} bucket(s), scroller rows ${c.fontTop}..${c.
 check("ORIGINAL keeps the scroller flat, inside ST rows 195..226", c.fontTop >= SCROLL_TOP && c.fontBottom <= SCROLL_BOTTOM, true);
 check("the scrolltext runs into the LEFT and RIGHT borders too", c.fontSide > 0, true);
 
-// Space switches ORIGINAL -> ZIG (the host sends it as input(5); this cart
-// declares no key(), so it keeps the host's Escape). Sabotage: never press it.
+// Space switches ORIGINAL -> ZIG (the host sends it as input(5): the cart does
+// not own the keyboard). Sabotage: never press it.
 if (broke !== "spin") demo.input(DIR_FIRE);
 run(SPIN_FRAMES);
 await shot(`${out}/0160-zig.ppm`);
@@ -229,7 +229,7 @@ console.log(`  ORIGINAL + ${RETURN_FRAMES}: ${c.count} buckets, ${c.tilted} tilt
 check("Space switches back to ORIGINAL within 20 frames", c.count === 1 && c.tilted === 0, true);
 check("... and the scrolltext is dead flat again with it", c.fontBottom - c.fontTop < 32, true);
 
-// The cart declares no key(), so demo_main's own Escape -> menu still applies.
+// The cart declares key() (for F), so Escape is its own: wants_quit -> menu.
 demo.key(K_ESC);
 check("Escape still leaves for the menu", demo.pollCartRequest(), -1);
 
@@ -324,29 +324,53 @@ check("no zg.mem allocation was refused", machine.hwRamAllocFailures(), 0);
 // ZIG mode (every angle, so every ramp width) and back; every 10th frame the
 // rendered planes are compared pixel for pixel. --break fixed compares against
 // a cart a frame AHEAD instead, which a real difference in the bars looks like.
+//
+// F switches either cart's maths live (emlyn/app.zig, swap.zig). Pressed before
+// the first frame, the default cart must BE the f32 cart, pixel for pixel, and
+// pressed twice it must be itself again; pressed mid-sweep, it must carry the
+// state across (the screen stays within the rounding of the other cart, never
+// restarts). --break fkey never presses F, so the identity has to fail.
 if (CART === DEFAULT_CART) {
-    const a = await boot(CART), b = await boot(F32_CART);
     const pixels = (m) => {
         m.machine.hwRenderPlane(0);
         const w = m.machine.hwPhysWidth(), px = new Uint32Array(m.memory.buffer, m.machine.hwPhysicalPtr(), w * H);
         return Uint32Array.from({ length: PW * H }, (_, i) => px[Math.floor(i / PW) * w + (i % PW) * 2]);
     };
+    // The worst pixel count apart, every 10th of 420 frames: ZIG at once, home at 330.
+    // `keys(n)` returns the keys each cart gets before frame n: [a's, b's].
+    const lockstep = (a, b, keys = () => [[], []]) => {
+        a.demo.input(DIR_FIRE);
+        b.demo.input(DIR_FIRE);
+        let worst = 0, worstAt = 0;
+        for (let n = 1; n <= 420; n++) {
+            if (n === 330) { a.demo.input(DIR_FIRE); b.demo.input(DIR_FIRE); } // and home again
+            const [ka, kb] = keys(n);
+            for (const k of ka) a.demo.key(k);
+            for (const k of kb) b.demo.key(k);
+            a.demo.frame(16.6);
+            b.demo.frame(16.6);
+            if (n % 10) continue;
+            const pa = pixels(a), pb = pixels(b);
+            let d = 0;
+            for (let i = 0; i < pa.length; i++) if (pa[i] !== pb[i]) d++;
+            if (d > worst) { worst = d; worstAt = n; }
+        }
+        return { worst, worstAt };
+    };
+    const K_F = 0x66, fkey = broke === "fkey" ? [] : [K_F];
+    const a = await boot(CART), b = await boot(F32_CART);
     if (broke === "fixed") b.demo.frame(16.6);
-    a.demo.input(DIR_FIRE);
-    b.demo.input(DIR_FIRE);
-    let worst = 0, worstAt = 0;
-    for (let n = 1; n <= 420; n++) {
-        if (n === 330) { a.demo.input(DIR_FIRE); b.demo.input(DIR_FIRE); } // and home again
-        a.demo.frame(16.6);
-        b.demo.frame(16.6);
-        if (n % 10) continue;
-        const pa = pixels(a), pb = pixels(b);
-        let d = 0;
-        for (let i = 0; i < pa.length; i++) if (pa[i] !== pb[i]) d++;
-        if (d > worst) { worst = d; worstAt = n; }
-    }
-    console.log(`  fixed vs f32, 42 frames over ZIG and back: at most ${worst} of ${PW * H} pixels differ (frame ${worstAt})`);
-    check("the fixed-point cart shows the f32 cart's screen (under 1% of the pixels on every frame)", worst < PW * H / 100, true);
+    let r = lockstep(a, b);
+    console.log(`  fixed vs f32, 42 frames over ZIG and back: at most ${r.worst} of ${PW * H} pixels differ (frame ${r.worstAt})`);
+    check("the fixed-point cart shows the f32 cart's screen (under 1% of the pixels on every frame)", r.worst < PW * H / 100, true);
+
+    r = lockstep(await boot(CART), await boot(F32_CART), (n) => [n === 1 ? fkey : [], []]);
+    check("F before frame 1: the default cart IS the f32 cart, pixel for pixel", r.worst, 0);
+    r = lockstep(await boot(CART), await boot(CART), (n) => [n === 1 ? [...fkey, ...fkey] : [], []]);
+    check("F twice: the default cart is itself again, pixel for pixel", r.worst, 0);
+    r = lockstep(await boot(CART), await boot(F32_CART), (n) => [n === 200 ? fkey : [], []]);
+    console.log(`  F at frame 200 (mid-sweep) vs the f32 cart: at most ${r.worst} pixels differ (frame ${r.worstAt})`);
+    check("F mid-sweep carries the screen across (under 1% from the f32 cart)", r.worst < PW * H / 100, true);
 }
 
 // Warm frame cost in ZIG mode, which is the expensive one: 600 frames sweep
