@@ -7,40 +7,61 @@
 // so the doubles are the ones three.js got. Only the sphere needs cos/sin: its
 // vertices are built at run time (Ball.build), where the machine's trigonometry
 // is fdlibm's, as the browser's is.
+//
+// The tables stay the source's doubles; what the show runs per frame is their
+// zig3d_fixed form (Q16 vertices, u64 phases for the angles), converted at
+// compile time here (the ball at init).
 // --------------------------------------------------------------------------
 const std = @import("std");
 const zg = @import("zigos");
 const c3 = zg.zig3d;
+const zf = zg.zig3d_fixed;
 const A = @import("assets.zig");
 const Vec3 = c3.Vec3;
 const Face = c3.Face;
 
 pub const Model = struct {
-    parts: []const c3.Mesh, // one codef3D engine each, drawn in order
-    camera: Vec3, // nextCamPosition
-    rotation: Vec3, // nextObjRotation
-    speed: Vec3, // nextObjRotSpeed
+    parts: []const zf.Mesh, // one codef3D engine each, drawn in order
+    camera: zf.Vec, // nextCamPosition, Q16
+    rotation: [3]u64, // nextObjRotation, as phases (one turn = 2^64)
+    speed: [3]u64, // nextObjRotSpeed, likewise
 };
+
+fn phases(comptime r: Vec3) [3]u64 {
+    return .{ zf.math.phase(r.x), zf.math.phase(r.y), zf.math.phase(r.z) };
+}
+
+/// A Model from the source's doubles, converted at compile time.
+fn model(comptime parts: []const c3.Mesh, comptime camera: Vec3, comptime rotation: Vec3, comptime speed: Vec3) Model {
+    const T = struct { // a container constant: global, so the Model may point at it
+        const fixed = blk: {
+            var out: [parts.len]zf.Mesh = undefined;
+            for (parts, &out) |m, *o| o.* = zf.comptimeMesh(m);
+            break :blk out;
+        };
+    };
+    return .{ .parts = &T.fixed, .camera = zf.q16(camera), .rotation = phases(rotation), .speed = phases(speed) };
+}
 
 const PI = std.math.pi;
 const TURN = Vec3{ .x = 0.02, .y = 0.02, .z = 0.02 };
 const ORIGIN = Vec3{ .x = 0, .y = 0, .z = 0 };
 
-pub const UNION = Model{ .parts = &.{c3.mesh(&uv2_verts, &UV2_FACES)}, .camera = ORIGIN, .rotation = .{ .x = 0, .y = 0, .z = PI }, .speed = TURN };
-pub const TNT = Model{ .parts = &.{c3.mesh(&tnt_verts, &TNT_FACES)}, .camera = .{ .x = 0, .y = 0, .z = 100 }, .rotation = .{ .x = 0, .y = 0, .z = PI }, .speed = TURN };
+pub const UNION = model(&.{c3.mesh(&uv2_verts, &UV2_FACES)}, ORIGIN, .{ .x = 0, .y = 0, .z = PI }, TURN);
+pub const TNT = model(&.{c3.mesh(&tnt_verts, &TNT_FACES)}, .{ .x = 0, .y = 0, .z = 100 }, .{ .x = 0, .y = 0, .z = PI }, TURN);
 // BALL is built at run time: see Ball below.
-pub const GLIDER = Model{
-    .parts = &.{ c3.mesh(&glider_verts, &GLIDER_BASE), c3.mesh(&glider_verts, &GLIDER_TOP) },
-    .camera = ORIGIN,
-    .rotation = .{ .x = -PI / 2.0, .y = 0, .z = 0 },
-    .speed = .{ .x = 0.033, .y = 0.032, .z = 0.031 },
-};
-pub const CARRIER = Model{
-    .parts = &.{ c3.mesh(&carrier_verts, &CARRIER_BOTTOM), c3.mesh(&carrier_verts, &CARRIER_PLANE), c3.mesh(&carrier_verts, &CARRIER_TOP) },
-    .camera = .{ .x = 0, .y = 70, .z = 100 },
-    .rotation = .{ .x = -PI / 2.0, .y = 0, .z = PI / 3.0 },
-    .speed = .{ .x = 0, .y = 0, .z = 0.02 },
-};
+pub const GLIDER = model(
+    &.{ c3.mesh(&glider_verts, &GLIDER_BASE), c3.mesh(&glider_verts, &GLIDER_TOP) },
+    ORIGIN,
+    .{ .x = -PI / 2.0, .y = 0, .z = 0 },
+    .{ .x = 0.033, .y = 0.032, .z = 0.031 },
+);
+pub const CARRIER = model(
+    &.{ c3.mesh(&carrier_verts, &CARRIER_BOTTOM), c3.mesh(&carrier_verts, &CARRIER_PLANE), c3.mesh(&carrier_verts, &CARRIER_TOP) },
+    .{ .x = 0, .y = 70, .z = 100 },
+    .{ .x = -PI / 2.0, .y = 0, .z = PI / 3.0 },
+    .{ .x = 0, .y = 0, .z = 0.02 },
+);
 
 pub const MAX_PARTS = 3;
 pub const MAX_VERTS = SPHERE_VERTS;
@@ -188,12 +209,15 @@ const SPHERE_FACE_TABLE = blk: {
     break :blk f;
 };
 
-/// The ball's run-time half, ~15 KB: the scene keeps it on zg.mem, since
+/// The ball's run-time half, ~23 KB: the scene keeps it on zg.mem, since
 /// a module-scope array is written into the cart's data segment as zeros.
 pub const Ball = struct {
-    verts: [SPHERE_VERTS]Vec3,
+    verts: [SPHERE_VERTS]Vec3, // the source's doubles, built once
     centroids: [SPHERE_FACES]Vec3,
-    parts: [1]c3.Mesh,
+    twin: [SPHERE_VERTS]u16,
+    qverts: [SPHERE_VERTS]zf.Vec, // what the show projects
+    qcentroids: [SPHERE_FACES]zf.Vec,
+    parts: [1]zf.Mesh,
     model: Model,
 
     /// Builds the ball in place; the other objects are compile-time data.
@@ -207,8 +231,12 @@ pub const Ball = struct {
             v[2] = spherePoint(theta + STEP, phi + STEP);
             v[3] = if (theta > -90 and theta < 90) spherePoint(theta, phi + STEP) else v[2];
         };
-        self.parts[0] = c3.build(&self.verts, &SPHERE_FACE_TABLE, &self.centroids);
-        self.model = .{ .parts = &self.parts, .camera = ORIGIN, .rotation = ORIGIN, .speed = TURN };
+        var m = c3.build(&self.verts, &SPHERE_FACE_TABLE, &self.centroids);
+        // Facet by facet, each of the 144 points is held 3-4 times over the 512
+        // vertices: project each once (zig3d's aliases).
+        m.alias = c3.aliases(&self.verts, &self.twin);
+        self.parts[0] = zf.fromMesh(&m, &self.qverts, &self.qcentroids);
+        self.model = .{ .parts = &self.parts, .camera = zf.q16(ORIGIN), .rotation = phases(ORIGIN), .speed = phases(TURN) };
     }
 };
 

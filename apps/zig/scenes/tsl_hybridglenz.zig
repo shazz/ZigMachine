@@ -31,6 +31,7 @@ const zg = @import("zigos");
 const ZigOS = zg.ZigOS;
 const Color = zg.Color;
 const c3 = zg.zig3d;
+const zf = zg.zig3d_fixed;
 const zx0 = @import("depackers").zx0;
 const packed_assets = @import("packed_assets");
 
@@ -48,9 +49,14 @@ const MUSIC = "hybridglenz.mod";
 
 const PLANE = 0;
 
-// go() (screen.js:281-291): the group turns before the draw, every frame.
-const STEP1 = c3.Vec3{ .x = 0.01, .y = 0.022, .z = 0.028 };
-const STEP2 = c3.Vec3{ .x = 0.012, .y = 0.02, .z = 0.028 };
+// go() (screen.js:281-291): the group turns before the draw, every frame, by
+// these radians, held as u64 phases (one turn = 2^64) so the sum never drifts.
+const STEP1 = steps(0.01, 0.022, 0.028);
+const STEP2 = steps(0.012, 0.02, 0.028);
+
+fn steps(comptime x: f64, comptime y: f64, comptime z: f64) [3]u64 {
+    return .{ zf.math.phase(x), zf.math.phase(y), zf.math.phase(z) };
+}
 
 var palette_scratch: [256]Color = undefined;
 
@@ -58,7 +64,7 @@ pub const Demo = struct {
     ok: bool,
     images: A.Images,
     blitter: zg.Blitter,
-    view: c3.View, // the lens and the fixed CAMERA, derived once
+    lens: zf.Lens, // three.js's projection, derived once (in float) at init
     objects: [2]glenz.Glenz,
     scroller: Scroller,
     clock: f32, // seconds since init: the whole timeline's t
@@ -73,7 +79,7 @@ pub const Demo = struct {
         self.scroller.init();
         self.blitter.init();
         const lens = c3.Lens.init(glenz.CANVAS, glenz.CANVAS, glenz.FOV, glenz.NEAR, glenz.FAR);
-        self.view = c3.View.init(&lens, glenz.CAMERA);
+        self.lens = zf.Lens.init(&lens);
         // Object 1 owns the ODD plane rows (its canvas row 0 lands on 85),
         // object 2 the even ones (row 0 on 86) — the interlace, in hardware.
         self.objects[0].init(&obj.MORPH1, STEP1, stage.PANEL_X, stage.PANEL_Y, glenz.ODD_ROWS);
@@ -143,7 +149,7 @@ pub const Demo = struct {
     /// go(), likewise: panel, both glenz objects, logo, bar, scrolltext.
     fn drawMain(self: *Demo, fb: *zg.LogicalFB, bl: *zg.Blitter) void {
         stage.panel(fb, bl);
-        for (&self.objects) |*o| o.draw(fb, bl, &self.view);
+        for (&self.objects) |*o| o.draw(fb, bl, &self.lens);
         stage.logo(fb, bl, self.images.logo);
         const bar_y: i16 = @intFromFloat(timeline.BAR_TO / 2);
         stage.bar(fb, bl, bar_y);
