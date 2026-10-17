@@ -66,9 +66,18 @@ test "a file that is not an XM, or is too short for its header, is refused" {
     try std.testing.expectError(error.TooShort, fmt.parse(b[0..100]));
 }
 
-test "more than eight channels, a version before 1.02, or a speed of 0 is refused" {
+test "a twelve-channel header, the most the voices hold, parses" {
     var b: [HDR_LEN + 64]u8 = undefined;
-    header(&b, .{ .ch = 9 });
+    header(&b, .{ .ch = 12, .song_len = 2, .npat = 2 });
+    const h = try fmt.parse(&b);
+    try std.testing.expectEqual(@as(u8, 12), h.channels);
+}
+
+test "more than twelve channels, a version before 1.02, or a speed of 0 is refused" {
+    var b: [HDR_LEN + 64]u8 = undefined;
+    header(&b, .{ .ch = 13 });
+    try std.testing.expectError(error.TooManyChannels, fmt.parse(&b));
+    header(&b, .{ .ch = 0 });
     try std.testing.expectError(error.TooManyChannels, fmt.parse(&b));
     header(&b, .{ .speed = 0 });
     try std.testing.expectError(error.BadTempo, fmt.parse(&b));

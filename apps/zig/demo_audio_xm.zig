@@ -2,7 +2,7 @@
 // demo-audio.wasm: the FastTracker 2 (.XM) player's exports (libs/zig/players/
 // xm.zig). The host stages the file in the song RAM, audioLoadXm checks it
 // (refusing with a reason, counted, as audioLoadMod does), audioXmPlay starts
-// it. The eight voices are mixed onto the four Paula channels, so the scope view
+// it. The voices (up to 12) are mixed onto the four Paula channels, so the scope view
 // is the MOD's (mode 1).
 // --------------------------------------------------------------------------
 const audio = @import("audio_hw");

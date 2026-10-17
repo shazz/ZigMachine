@@ -10,7 +10,9 @@
 // --------------------------------------------------------------------------
 const std = @import("std");
 
-pub const MAX_CH: usize = 8; // the eight voices, mixed in pairs onto four Paula channels
+/// The twelve voices: xm_chip.zig mixes them onto the four Paula channels, two to a
+/// channel up to 8 channels and three to a channel above that.
+pub const MAX_CH: usize = 12;
 pub const MAX_PATTERNS: usize = 256;
 pub const MAX_INSTRUMENTS: usize = 128;
 pub const MAX_SAMPLES: usize = 256;
