@@ -56,8 +56,8 @@ static inline u32 *palette(void) { return (u32 *)(video_base + OFF_PAL); }
 static inline u32 rgba(u32 r, u32 g, u32 b) { return 0xFF000000u | b << 16 | g << 8 | r; }
 
 static void fill_rect(int x, int y, int w, int h, u8 index) {
-    for (int j = y; j < y + h; j++)
-        for (int i = x; i < x + w; i++) vram()[j * W + i] = index;
+    if (w <= 0) return;
+    for (int j = y; j < y + h; j++) __builtin_memset(vram() + j * W + x, index, w); // a row is one memory.fill
 }
 
 static void draw_floor(void) {
