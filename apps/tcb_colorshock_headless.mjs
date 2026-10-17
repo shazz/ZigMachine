@@ -165,8 +165,7 @@ await screen.shot(`${out}/03-strip-high.ppm`);  // movescroll is climbing out of
 screen.run(350);
 await screen.shot(`${out}/04-strip-low.ppm`);   // ...and down at the top of its travel
 
-// Soak. vbl is an f32 accumulator that does NOT wrap back to a bit-exact 0, so
-// the Lissajous phase creeps; the pan bound survives that by construction (the
+// Soak. The pan phases are u32 turn counts that wrap exactly; the pan bound holds by construction (the
 // x is clamped, the y is taken mod the tile height) and checkPan proves it frame
 // by frame. movescroll's 937-frame cycle is covered several times over.
 const t0 = performance.now();
