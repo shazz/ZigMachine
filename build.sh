@@ -128,6 +128,7 @@ NATIVE_TESTS="
     libs/zig/players/mfp_test.zig
     libs/zig/players/digi_test.zig
     libs/zig/players/digi_monty_test.zig
+    libs/zig/players/digi_wow_test.zig
     machine/audio/pokey_test.zig
     libs/zig/players/cpu6502_test.zig
     libs/zig/players/sap_test.zig
@@ -423,6 +424,8 @@ gate_timed union_beatdis node apps/union_beatdis_headless.mjs --break keylock "$
 gate union_beatdis node apps/union_beatdis_headless.mjs --break modes   # ...and a wrong native Beat Dis replay fails the 1/2 mode-switch check
 gate union_beatdis node apps/union_beatdis_headless.mjs --break hq   # ...and mode 3 playing Beat Dis's bytes raw (unsigned, inverted) fails the sound check
 gate_timed union_superscroller node apps/union_superscroller_headless.mjs "$SHOTS"   # TCB2: TEX loader depack, screen.js with Chrome's filtering replayed pixel for pixel, the SNDH plays
+gate union_superscroller_music node apps/wow_native_check.mjs   # its tune (Wow Scroller, Timer A digi) natively = the 68000 bit for bit, modes 1/2 unbroken, mode 3 on PCM follows the YM path
+gate union_superscroller_music node apps/wow_native_check.mjs --break   # ...and Beat Dis's handler on Wow's bytes (mutant 4) is caught
 gate automation442 node apps/automation442_headless.mjs "$SHOTS/automation442"   # AUTOMATION 442: the panned overscan scroll plane through one bgcount cycle
 gate_timed big_demo node apps/big_demo_headless.mjs   # TEX B.I.G. DEMO: wait screen hands over at frame 201, TEX's own 118 rows ripped from RAM, cursor clamps [2,115], all 45 named SNDH present, bands cycle
 gate_timed big_demo node apps/big_demo_headless.mjs --break nav   # ...and a list that never moves fails the clamp checks

@@ -25,7 +25,9 @@
 // "PRESS SPACE TO ENTER" wait is not kept: the screen starts when the data is in.
 //
 // Leaving: Escape or Space ('exit' / 'enter', screen.js:93-97) goes back to the
-// hub, as me.state.change(MENU_LOADER) does.
+// hub, as me.state.change(MENU_LOADER) does. 1, 2 and 3 pick how the tune is
+// played (zg.requestSndhMode, libs/zig/players/sndh_native.zig), as on BEAT DIS:
+// 1 its 68000 code, 2 native (the same sound, the default), 3 the samples on PCM.
 //
 // The text starts at jsApp.mainscrollerPos (screen.js:44, 61), from the hub's ROM
 // scratch note (union_demo/hub_note.zig) when it is this door's; our text is a
@@ -117,6 +119,7 @@ pub const Demo = struct {
 
     pub fn key(self: *Demo, cp: u32) void {
         if (cp == K_ESC or (cp == ' ' and self.phase == .running)) self.leaveForHub();
+        if (self.phase == .running and cp >= '1' and cp <= '3') _ = zg.requestSndhMode(@intCast(cp - '0'));
     }
 
     pub fn pollCart(self: *Demo) i32 {
