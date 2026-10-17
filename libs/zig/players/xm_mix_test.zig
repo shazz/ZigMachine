@@ -112,14 +112,18 @@ test "linear step: a semitone is 2^(1/12), and C-4 plays at 8363 Hz" {
     try std.testing.expectApproxEqRel(@as(f64, 2.0), @as(f64, @floatFromInt(c5)) / @as(f64, @floatFromInt(c4)), 1e-3);
 }
 
-test "amiga step: C-2 (period 428) is 7093789.2 / 856 Hz" {
-    const want = 7093789.2 / 856.0 / xt.RATE;
-    try std.testing.expectApproxEqRel(want, @as(f64, @floatFromInt(xt.amigaStep(428))) / 65536.0, 1e-3);
+test "amiga step: C-4 (FT2 period 1712) plays at 8363 Hz, as in a linear song" {
+    const want = 8363.0 / xt.RATE;
+    try std.testing.expectApproxEqRel(want, @as(f64, @floatFromInt(xt.amigaStep(1712))) / 65536.0, 1e-3);
+    // The same note in both tables: an Amiga song is not two octaves off a linear one.
+    try std.testing.expectApproxEqRel(@as(f64, @floatFromInt(xt.linearStep(4608))), @as(f64, @floatFromInt(xt.amigaStep(xt.periodOf(48, 0, false)))), 1e-3);
 }
 
-test "a note's period: C-4 is 4608 in linear, C-2 is 428 in Amiga, and a period out of range is clamped" {
+test "a note's period: C-4 is 4608 in linear, 1712 in Amiga (C-0 27392), and a period out of range is clamped" {
     try std.testing.expectEqual(@as(i32, 4608), xt.periodOf(48, 0, true));
-    try std.testing.expectEqual(@as(i32, 428), xt.periodOf(24, 0, false));
+    try std.testing.expectEqual(@as(i32, 1712), xt.periodOf(48, 0, false));
+    try std.testing.expectEqual(@as(i32, 27392), xt.periodOf(0, 0, false));
+    try std.testing.expectEqual(@as(u32, 0), xt.linearStep(xt.PERIOD_MAX)); // far down: silent, not a bad shift
     try std.testing.expectEqual(xt.PERIOD_MAX, xt.clampPeriod(1 << 20));
     try std.testing.expectEqual(xt.PERIOD_MIN, xt.clampPeriod(-5));
 }
@@ -129,6 +133,8 @@ test "vibrato is a sine of its phase, zero at the start and the middle" {
     try std.testing.expectEqual(@as(i32, 0), xt.vibratoDelta(32, 15));
     try std.testing.expect(xt.vibratoDelta(16, 15) > 0);
     try std.testing.expectEqual(@as(i32, 0), xt.vibratoDelta(16, 0));
+    // FT2's depth: (255 x F) >> 5 = 119 periods at the crest, not a quarter of it.
+    try std.testing.expectEqual(@as(i32, 120), xt.vibratoDelta(16, 15));
 }
 
 test "a sample over 65536 frames loops at its own end, past the old 16.16 range" {
