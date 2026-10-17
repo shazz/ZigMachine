@@ -17,6 +17,7 @@ const std = @import("std");
 const State = @import("state.zig");
 const St = State.St;
 const chain = @import("cyc_chain.zig");
+const fold = @import("cyc_fold.zig");
 
 const TABLE = @embedFile("../../assets/screens/joust/costs.bin");
 const VAR: u16 = 0xFFFF;
@@ -42,7 +43,7 @@ inline fn entry(a: i64) ?*const [4]u8 {
     return TABLE[i..][0..4];
 }
 
-pub fn len(a: i64) i64 {
+pub inline fn len(a: i64) i64 {
     const e = entry(a) orelse return 0;
     return e[2];
 }
@@ -52,8 +53,16 @@ pub fn flags(a: i64) u8 {
     return e[3];
 }
 
-/// The fixed cost of the instruction at TEXT a.
-pub fn cost(a: i64) i64 {
+/// The fixed cost of the instruction at TEXT a: a constant for a literal a
+/// (cyc_fold.zig).
+pub inline fn cost(a: i64) i64 {
+    if (fold.known(a)) {
+        if (comptime fold.cost(TABLE, a)) |c| return c;
+    }
+    return costRt(a);
+}
+
+fn costRt(a: i64) i64 {
     const e = entry(a) orelse {
         fail(a);
         return 0;
@@ -71,8 +80,16 @@ pub fn buildChains() void {
     chain.build(TABLE);
 }
 
-/// The sum of the fixed costs of every instruction in [lo, hi).
-pub fn span(lo: i64, hi: i64) i64 {
+/// The sum of the fixed costs of every instruction in [lo, hi): a constant
+/// for literal bounds (cyc_fold.zig), else the run tables (cyc_chain.zig).
+pub inline fn span(lo: i64, hi: i64) i64 {
+    if (fold.known(lo) and fold.known(hi)) {
+        if (comptime fold.span(TABLE, lo, hi)) |s| return s;
+    }
+    return spanRt(lo, hi);
+}
+
+fn spanRt(lo: i64, hi: i64) i64 {
     return chain.lookup(lo, hi) orelse walk(lo, hi);
 }
 
@@ -87,7 +104,7 @@ fn walk(lo: i64, hi: i64) i64 {
             fail(a);
             return s;
         }
-        s += cost(a);
+        s += costRt(a);
         a += n;
     }
     if (a != hi) fail(hi);
@@ -95,7 +112,7 @@ fn walk(lo: i64, hi: i64) i64 {
 }
 
 /// A Bcc at a: taken 12, not taken 8 (.b) / 12 (.w).
-pub fn brc(a: i64, taken: bool) i64 {
+pub inline fn brc(a: i64, taken: bool) i64 {
     if (taken) return 12;
     return if (len(a) == 4) 12 else 8;
 }
