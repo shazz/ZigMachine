@@ -32,6 +32,7 @@ pub const Glass = struct {
     ptr_seq: u32 = 0,
     // The stand-in firmware: how it behaves, and how many STATE reads it takes to boot.
     cart: CartModel = .boots,
+    trap_code: u32 = 5, // what .traps reports (a wasm2c trap; or TRAP_CART_ABI, map_cart.zig)
     boot_reads: u32 = 3,
     reads_since_run: u32 = 0,
     resets: u32 = 0,
@@ -100,7 +101,7 @@ pub const Glass = struct {
         if (warm and !self.marked) return map.CART_TRAPPED | map.TRAP_WARM_LOST << map.CART_ARG_SHIFT;
         self.cart_state = switch (self.cart) {
             .boots => if (self.request != 0) map_cart.CART_REQUEST | self.request << map.CART_ARG_SHIFT else map.CART_RUNNING | FW_VERSION << map.CART_ARG_SHIFT,
-            .traps => map.CART_TRAPPED | (5 << 8),
+            .traps => map.CART_TRAPPED | self.trap_code << map.CART_ARG_SHIFT,
             .silent => map.CART_BOOTING,
         };
         if (self.cart == .boots) {

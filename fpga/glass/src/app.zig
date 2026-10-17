@@ -17,6 +17,7 @@ const osd = @import("osd.zig");
 const menu = @import("menu.zig");
 const shelf = @import("shelf.zig");
 const loader = @import("loader.zig");
+const system = @import("system.zig");
 const stats = @import("stats.zig");
 const cart = @import("app_cart.zig");
 const overlay = @import("app_stats.zig");
@@ -67,6 +68,7 @@ pub const App = struct {
         const disks = try shelf.scan(gpa, io, dir);
         var app = App{ .gpa = gpa, .io = io, .regs = regs, .ddr = ddr, .shelf_dir = dir, .disks = disks, .menu = .{ .disks = disks.disks } };
         app.pl_stats = overlay.supported(regs.read(map.REG_VERSION));
+        app.opt.system = system.load(gpa, io, dir); // once: every lean cart runs on it
         regs.write(map.REG_OSD_FG, OSD_FG);
         regs.write(map.REG_OSD_BG, OSD_BG);
         cart.loadSettings(&app);
@@ -75,6 +77,7 @@ pub const App = struct {
     }
 
     pub fn deinit(self: *App) void {
+        if (self.opt.system) |s| s.deinit(self.gpa);
         self.disks.deinit();
     }
 

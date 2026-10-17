@@ -20,6 +20,7 @@ _Static_assert(CART_CPU_BASE + DISK_END == ZM_FB0_ADDR, "the disk must end where
 _Static_assert(DISK_DESC_WORDS == 4, "bdisk_parse reads four words");
 
 int bdisk_role;
+uint32_t bdisk_image_end;
 
 int bdisk_parse(const uint32_t w[4], uint32_t image_end, uint32_t* at, uint32_t* size) {
     if ((w[0] != DISK_MAGIC && w[0] != DISK_MAGIC_PROGRAM) || w[3] != ~(w[0] ^ w[1] ^ w[2])) return 0;
@@ -33,7 +34,8 @@ void bdisk_boot(void) {
     const volatile uint32_t* d = (const volatile uint32_t*)(uintptr_t)DISK_DESC_ADDR;
     uint32_t w[4] = {d[0], d[1], d[2], d[3]};
     uint32_t at, size;
-    bdisk_role = bdisk_parse(w, (uint32_t)(uintptr_t)__data_source_end - CART_CPU_BASE, &at, &size);
+    uint32_t end = bdisk_image_end ? bdisk_image_end : (uint32_t)(uintptr_t)__data_source_end - CART_CPU_BASE;
+    bdisk_role = bdisk_parse(w, end, &at, &size);
     if (!bdisk_role) {
         printf("ZM DISK none\n");
         return;
