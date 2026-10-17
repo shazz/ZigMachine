@@ -193,6 +193,7 @@ const SPHERE_FACE_TABLE = blk: {
 pub const Ball = struct {
     verts: [SPHERE_VERTS]Vec3,
     centroids: [SPHERE_FACES]Vec3,
+    twin: [SPHERE_VERTS]u16,
     parts: [1]c3.Mesh,
     model: Model,
 
@@ -208,6 +209,9 @@ pub const Ball = struct {
             v[3] = if (theta > -90 and theta < 90) spherePoint(theta, phi + STEP) else v[2];
         };
         self.parts[0] = c3.build(&self.verts, &SPHERE_FACE_TABLE, &self.centroids);
+        // Facet by facet, each of the 144 points is held 3-4 times over the 512
+        // vertices: project each once (zig3d's aliases; bit for bit the same).
+        self.parts[0].alias = c3.aliases(&self.verts, &self.twin);
         self.model = .{ .parts = &self.parts, .camera = ORIGIN, .rotation = ORIGIN, .speed = TURN };
     }
 };

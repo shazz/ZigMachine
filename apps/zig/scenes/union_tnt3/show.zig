@@ -39,7 +39,10 @@ pub const Work = struct {
     polys: [M.MAX_FACES]c3.Poly,
 };
 
-const Engine = struct { camera: Vec3, z: f64, rotation: Vec3 };
+/// `view` is what c3.project would derive from the lens and `camera` on every
+/// draw (an inverse, a product, six normalised planes: ~400 soft-float
+/// operations); it is rebuilt only when the camera has moved. Same numbers.
+const Engine = struct { camera: Vec3, z: f64, rotation: Vec3, view: c3.View = undefined, seen: ?Vec3 = null };
 
 pub const Show = struct {
     work: *Work,
@@ -67,6 +70,7 @@ pub const Show = struct {
         self.changing = false;
         self.exiting = false;
         self.finished = false;
+        self.refreshViews();
     }
 
     pub fn update(self: *Show, keys: Keys) void {
@@ -78,6 +82,15 @@ pub const Show = struct {
         } else self.spin = self.speed;
         if (self.changing) self.change();
         self.read(keys);
+        self.refreshViews();
+    }
+
+    fn refreshViews(self: *Show) void {
+        for (self.engines[0..self.count]) |*e| {
+            if (e.seen) |s| if (s.x == e.camera.x and s.y == e.camera.y and s.z == e.camera.z) continue;
+            e.view = c3.View.init(&self.lens, e.camera);
+            e.seen = e.camera;
+        }
     }
 
     fn change(self: *Show) void {
@@ -121,7 +134,7 @@ pub const Show = struct {
         const w = self.work;
         for (self.engines[0..self.count], self.shown.parts[0..self.count]) |e, *part| {
             const position = Vec3{ .x = 0, .y = 0, .z = e.z };
-            const faces = c3.project(&self.lens, e.camera, position, e.rotation, part, &w.screen, &w.polys);
+            const faces = c3.projectView(&e.view, position, e.rotation, part, &w.screen, &w.polys, .{});
             for (faces) |p| zg.canvas_poly.fill(dst, p.pts[0..p.n], p.ink);
         }
     }

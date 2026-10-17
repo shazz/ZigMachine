@@ -178,6 +178,13 @@ pub const Mat4 = struct {
         };
     }
 
+    /// point(m, v).z alone, the same operations in the same order: the depth
+    /// sort reads nothing else, and x and y cost 14 soft-float operations.
+    fn pointZ(m: *const Mat4, v: Vec3) f64 {
+        const f = 1.0 / (m.at(3) * v.x + m.at(7) * v.y + m.at(11) * v.z + m.at(15));
+        return (m.at(2) * v.x + m.at(6) * v.y + m.at(10) * v.z + m.at(14)) * f;
+    }
+
     /// point() for a matrix whose last row is (0, 0, 0, 1), as every compose()
     /// is. There w = 0*x + 0*y + 0*z + 1 is exactly 1 for finite x, y, z (each
     /// product is +-0) and a product by 1/w = 1 is exact, so this IS point(), bit
@@ -217,7 +224,33 @@ pub const Mesh = struct {
     faces: []const Face,
     centroids: []const Vec3,
     radius: f64,
+    /// alias[i] = the first vertex bit-for-bit equal to vertex i (i itself
+    /// when none is). A projected vertex is a pure function of its bits, so
+    /// projecting each distinct one once and copying it to its twins changes
+    /// nothing on screen; a sphere built facet by facet holds each point
+    /// three or four times. See aliases().
+    alias: ?[]const u16 = null,
 };
+
+/// Fill `out` (verts.len entries) with the alias table Mesh.alias describes.
+/// Bits are compared as integers: no soft-float compare, and -0 stays apart
+/// from +0, as it must for "bit for bit".
+pub fn aliases(verts: []const Vec3, out: []u16) []const u16 {
+    for (verts, out[0..verts.len], 0..) |v, *a, i| {
+        a.* = @intCast(i);
+        for (verts[0..i], 0..) |u, j| if (same(u, v)) {
+            a.* = @intCast(j);
+            break;
+        };
+    }
+    return out[0..verts.len];
+}
+
+fn same(a: Vec3, b: Vec3) bool {
+    const B = u64;
+    return @as(B, @bitCast(a.x)) == @as(B, @bitCast(b.x)) and @as(B, @bitCast(a.y)) == @as(B, @bitCast(b.y)) and
+        @as(B, @bitCast(a.z)) == @as(B, @bitCast(b.z));
+}
 
 /// A mesh built at compile time from its vertices and faces. Vertices that
 /// need trigonometry belong in `build` instead: comptime float functions are
@@ -307,13 +340,36 @@ pub const View = struct {
     lens: Lens,
     vp: Mat4,
     planes: [6][4]f64,
+    sparse: bool, // vp has a translating camera's zeros: see clipSparse
 
     pub fn init(lens: *const Lens, camera: Vec3) View {
         const view = Mat4.compose(camera, .{ .x = 0, .y = 0, .z = 0 }).inverse();
         const vp = lens.projection.mul(&view);
-        return .{ .lens = lens.*, .vp = vp, .planes = frustumPlanes(&vp) };
+        return .{ .lens = lens.*, .vp = vp, .planes = frustumPlanes(&vp), .sparse = isSparse(&vp) };
     }
 };
+
+/// A symmetric frustum seen from a camera that only translates leaves vp
+/// with zeros at 1, 2, 3, 4, 6, 7, 8, 9 and -1 at 11.
+fn isSparse(vp: *const Mat4) bool {
+    for ([_]usize{ 1, 2, 3, 4, 6, 7, 8, 9 }) |i| if (vp.e[i] != 0) return false;
+    return vp.e[11] == -1;
+}
+
+/// clip() on a sparse vp, without the products by 0 and by 1. A product by
+/// 0 of a finite coordinate is +-0 and adding it leaves a sum unchanged but
+/// for the sign of a zero; the products by 1 and -1 are exact. A zero's sign
+/// cannot reach the screen: x/w and y/w only meet + half_w and differences,
+/// and z/w only comparisons. So the faces and their paths are bit for bit
+/// clip()'s, for 12 fewer soft-float operations a vertex.
+fn clipSparse(m: *const Mat4, v: Vec3) Vec4 {
+    return .{
+        .x = m.at(0) * v.x + m.at(12),
+        .y = m.at(5) * v.y + m.at(13),
+        .z = m.at(10) * v.z + m.at(14),
+        .w = -v.z + m.at(15),
+    };
+}
 
 /// projectEx() through a View built beforehand: the same numbers, bit for bit.
 pub fn projectView(view: *const View, position: Vec3, rotation: Vec3, m: *const Mesh, screen: []Screen, out: []Poly, opts: Options) []Poly {
@@ -322,8 +378,13 @@ pub fn projectView(view: *const View, position: Vec3, rotation: Vec3, m: *const 
     const model = Mat4.compose(position, rotation);
     if (!insideFrustum(&view.planes, &model, m.radius)) return out[0..0];
 
-    for (m.verts, screen[0..m.verts.len]) |v, *s| {
-        const c = vp.clip(model.affinePoint(v));
+    for (m.verts, screen[0..m.verts.len], 0..) |v, *s, i| {
+        if (m.alias) |al| if (al[i] != i) {
+            s.* = screen[al[i]]; // a twin of a vertex already projected
+            continue;
+        };
+        const p = model.affinePoint(v);
+        const c = if (view.sparse) clipSparse(vp, p) else vp.clip(p);
         s.* = .{ .x = c.x / c.w, .y = c.y / c.w, .usable = c.z > lens.near and c.z < lens.far };
     }
     var n: usize = 0;
@@ -332,7 +393,7 @@ pub fn projectView(view: *const View, position: Vec3, rotation: Vec3, m: *const 
         if (!s[f.v[0]].usable or !s[f.v[1]].usable or !s[f.v[2]].usable) continue;
         if (f.n == 4 and !s[f.v[3]].usable) continue;
         if (!opts.double_sided and !clockwise(f, s)) continue;
-        var p = Poly{ .pts = undefined, .n = f.n, .ink = f.ink, .z = vp.point(model.affinePoint(centroid)).z };
+        var p = Poly{ .pts = undefined, .n = f.n, .ink = f.ink, .z = vp.pointZ(model.affinePoint(centroid)) };
         for (0..f.n) |i| p.pts[i] = .{ s[f.v[i]].x * lens.half_w, s[f.v[i]].y * lens.half_h };
         if (opts.overdraw) overdraw(&p);
         for (p.pts[0..f.n]) |*pt| {
