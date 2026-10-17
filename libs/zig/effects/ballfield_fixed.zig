@@ -50,7 +50,7 @@ pub fn Field(comptime p: Params) type {
             @setEvalBranchQuota(depth * 100 + 1000);
             var t: [depth + 1]u64 = undefined;
             t[0] = 0; // z = 0 never projects
-            for (1..depth + 1) |z| t[z] = (1 << 48) / z;
+            for (1..depth + 1) |z| t[z] = (@as(u64, 1) << 48) / @as(u64, z);
             break :blk t;
         };
         const tile: [depth + 1]u8 = blk: {
