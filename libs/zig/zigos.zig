@@ -20,6 +20,7 @@ const hw = @import("hardware"); // sealed video ABI header (named module)
 // the audio chip ABI and belong only to the demo-audio build.
 // --------------------------------------------------------------------------
 pub const Console = @import("utils/debug.zig").Console;
+pub const libm_f32 = @import("libm_f32.zig"); // pure-f32 sinf/cosf (demo_main exports them)
 pub const Starfield3D = @import("effects/starfield_3D.zig").Starfield3D;
 pub const Boot = @import("effects/boot.zig").Boot;
 pub const parallax = @import("effects/parallax.zig"); // Parallax(n) + Layer

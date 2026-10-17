@@ -173,6 +173,15 @@ comptime {
     if (@hasDecl(Cart, "pointer")) @export(&pointer, .{ .name = "pointer" });
 }
 
+// f32 @sin/@cos call sinf/cosf/sincosf. compiler-rt's (weak) versions compute
+// in f64, which is soft-float on the board's single-precision FPU; these strong
+// pure-f32 ones (libs/zig/libm_f32.zig) win the link. A cart whose harness
+// compares against an EXTERNAL truth that the ulp change breaks opts out with
+// `pub const keep_compiler_rt_trig = true;` on its Cart.
+comptime {
+    if (!@hasDecl(Cart, "keep_compiler_rt_trig")) zg.libm_f32.exportAll();
+}
+
 // The host reports whether an app-disk is inserted (e.g. GEM booted for the ST
 // Replay data disk) and fills the FAT listing shown in GEM's FLOPPY window.
 export fn insertDisk(present: u32) void {
