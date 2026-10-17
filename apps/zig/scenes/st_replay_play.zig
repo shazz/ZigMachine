@@ -11,11 +11,18 @@
 //             to its end: the sound CPU (BARD) on the board, the audio thread in
 //             the browser. The cart only follows it with the playhead.
 //
-// Both keep the playhead on the same clock (the frame's dt), in integers: the
-// cart CPU has no FPU, so no float in the per-frame path but dt's own
-// conversion (the host hands it over as f32).
+// Both keep the playhead on the same clock, in integers: the cart CPU has no
+// FPU, so no float in the per-frame path but dt's own conversion (the host
+// hands it over as f32). The clock is the host's microseconds when it has one
+// (env.hostMicros): the speaker plays in real time, and on the board dt is a
+// constant 16.6 ms while ST Replay draws at ~15 fps, so a feed paced by dt
+// would hand over a quarter of what the ring plays. A host without the clock
+// answers 0 (scene_hash.mjs, the native host, the harnesses): dt paces it, and
+// the frames stay deterministic. decisions.md 2026-10-17.
 // --------------------------------------------------------------------------
 const zg = @import("zigos");
+
+extern fn hostMicros() u32;
 
 pub const Output = enum { internal, external };
 
@@ -33,6 +40,7 @@ pub const Replay = struct {
     hz: u32 = 0,
     tail: usize = 0, // INTERNAL after a one-shot's end: silence still draining
     looped: bool = false, // the loop flag an EXTERNAL sample was started with
+    last_us: u32 = 0, // hostMicros() at the last tick, 0 = no clock (dt paces)
 
     /// Start `pcm` at `hz` from its first byte. INTERNAL feeds an eighth of a
     /// second at once, so a late frame never starves the ring.
@@ -42,6 +50,7 @@ pub const Replay = struct {
         self.pos = 0;
         self.owed = 0;
         self.tail = 0;
+        self.last_us = hostMicros();
         self.playing = true;
         self.live = self.out;
         switch (self.out) {
@@ -68,9 +77,17 @@ pub const Replay = struct {
         self.tail = 0;
     }
 
-    /// Whole bytes the frame's `dt` (ms) is worth at the replay rate.
+    /// Whole bytes the time since the last tick is worth at the replay rate:
+    /// the host's clock if it has one, else the frame's `dt` (ms).
     fn bytesFor(self: *Replay, dt: f32) usize {
-        const us: u64 = if (dt > 0) @intFromFloat(@min(dt, 600_000.0) * 1000.0) else 0;
+        const now = hostMicros();
+        const us: u64 = if (now != 0 and self.last_us != 0)
+            now -% self.last_us
+        else if (dt > 0)
+            @intFromFloat(@min(dt, 600_000.0) * 1000.0)
+        else
+            0;
+        self.last_us = now;
         self.owed += us * self.hz;
         const n = self.owed / US;
         self.owed %= US;

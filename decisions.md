@@ -905,3 +905,16 @@ ABI rather than a Zig API, apps in any language sit on it.
 - Firmware only: BARD's play image (demo-audio.wasm) changes; no bitstream.
 - The load does ~421 KB more byte work, inside the load the stamp already re-anchors after (`audio_song_loaded`).
 - Mode 3 follows the YM rendering (correlation 0.87-0.89, level matched by AC RMS: 129/256); `test_sndh_native.py` holds it and its mutant 2 (the raw bytes) fails; `bard_fx_run.py` holds the board sim's mode-3 samples to the machine's exactly across two segment changes.
+
+## 2026-10-17 — `hostMicros` may pace a cart's audio feed (amends 2026-10-10)
+
+**Status:** accepted (amends "`hostMicros`: a host clock import, for benchmarks only"), pending Matt's review
+**Context:** ST Replay's INTERNAL output feeds the stream ring from the cart every frame (`apps/zig/scenes/st_replay_play.zig`). The speaker plays in real time, so the feed must follow real time. In the browser `dt` is real; on the board every host passes a constant 16.6 ms, and ST Replay runs ~15 fps there (hp_sim: 6.74 Mcycles a frame at 100 MHz). Paced by `dt`, the cart hands over a quarter of what the ring plays and the replay is mostly stale bytes. The 2026-10-10 entry forbids `hostMicros` for pacing.
+**Decision:** A cart may pace an AUDIO feed (bytes handed to the speaker, and a playhead that follows them) by `hostMicros` when it answers non-zero, and falls back to `dt` when it answers 0. Animation and choreography stay frame-locked, as before.
+**Alternatives considered:**
+- Pass the board's real frame time as `dt`: every cart that animates by `dt` changes speed on the board, and hp_sim stops matching scene_hash.
+- A ring-level register the cart polls (a DAC FIFO's half-full flag): the honest hardware model, but a new import, a worklet-to-page position report, and a BARD mailbox word. Worth it if a second cart needs it.
+- Make ST Replay reach 60 fps on the board (its panel is redrawn every frame): still fragile, any slow frame starves the ring.
+**Consequences:**
+- The 0 fallback keeps scene_hash, the native host and every harness deterministic: they never see the clock.
+- The EXTERNAL output (zg.samplePlay) needs no clock to sound right (BARD paces itself); it uses the same clock only for its playhead.
