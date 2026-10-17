@@ -15,11 +15,14 @@
 //   row 10  mem    Linux's available / total memory
 //   row 11  pad    the last joypad that sent an event (its evdev name)
 //   row 12  input  evdev nodes open
+//   row 13  music  who plays it (BARD, ZIGGY, nobody), the player, its load now/peak (snd_info.zig)
+//   row 14  song   the song's name
 const std = @import("std");
 const map = @import("map.zig");
 const osd = @import("osd.zig");
 const text = @import("text.zig");
 const board_info = @import("board_info.zig");
+const snd_info = @import("snd_info.zig");
 
 pub const View = struct {
     glass_version: []const u8 = "?",
@@ -39,6 +42,7 @@ pub const View = struct {
     board: board_info.Info = .{},
     pad: []const u8 = "",
     inputs: usize = 0,
+    snd: snd_info.Info = .{},
 };
 
 const state_names = [_][]const u8{ "RESET", "BOOTING", "RUNNING", "TRAPPED" };
@@ -64,6 +68,8 @@ pub fn draw(o: *osd.Osd, v: *const View) void {
         mem(&b[9], v.board),
         p(&b[10], "pad   {s}", .{if (v.pad.len > 0) v.pad else "none seen"}),
         p(&b[11], "input {d} evdev nodes", .{v.inputs}),
+        snd_info.musicLine(&b[12], &v.snd),
+        snd_info.songLine(&b[13], &v.snd),
     };
     for (lines, 0..) |l, i| o.line(@intCast(1 + i), l, false);
 }

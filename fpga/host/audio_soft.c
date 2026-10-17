@@ -78,6 +78,8 @@ void zma_put(uint32_t addr, uint32_t data) {
 
 void audio_backend_native(uint32_t native) { g_q.lead = zma_lead(native); }
 
+void audio_backend_song(const char* name, uint32_t tune) { (void)name, (void)tune; }
+
 void audio_soft_digest(uint32_t frame) {
     if (!g_digest) return;
     fprintf(g_digest, "%u %u %016llx\n", (unsigned)frame, (unsigned)g_fn, (unsigned long long)g_fh);

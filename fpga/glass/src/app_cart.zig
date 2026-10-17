@@ -15,6 +15,7 @@ const loader = @import("loader.zig");
 const config = @import("config.zig");
 const board_info = @import("board_info.zig");
 const page_debug = @import("page_debug.zig");
+const snd_info = @import("snd_info.zig");
 const App = @import("app.zig").App;
 const map_cart = @import("map_cart.zig");
 const request = @import("app_request.zig");
@@ -166,5 +167,6 @@ pub fn debugView(app: *App) page_debug.View {
         .board = board_info.read(app.io, app.sys_root),
         .pad = app.pad_name[0..app.pad_name_len],
         .inputs = app.inputs,
+        .snd = if (app.current != null) snd_info.read(app.ddr) else .{},
     };
 }

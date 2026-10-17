@@ -20,6 +20,16 @@
 #include "baudio.h"
 #include "board.h"
 #include "haudio.h"
+#include "bsndinfo.h"
+
+#ifdef ZM_SND /* the players on BARD: its own cycle counter (the cart CPU's CSRs are not on its bus) */
+#include "snd_mailbox.h"
+#define SND_ROUTE ROUTE_BARD
+static inline uint32_t render_clock(void) { return SND_REG(SND_CYCLES); }
+#else
+#define SND_ROUTE ROUTE_ZIGGY
+static inline uint32_t render_clock(void) { return board_cycles(); }
+#endif
 
 #define ZMA_WINDOW 0x92000000u /* soc/zm_audio_soc.py AUDIO_WINDOW */
 #define ZMA_REG(w) (*(volatile uint32_t*)(ZMA_WINDOW + 4u * (w)))
@@ -36,6 +46,7 @@ static zma_dedup g_dedup = {{~0u, ~0u, ~0u}};
 
 struct baudio baudio;
 static uint32_t g_credits;
+static uint32_t g_native; /* the last audio_backend_native: the debug page's player */
 static void mailbox(void);
 
 void audio_backend_boot(void) {
@@ -46,7 +57,13 @@ void audio_backend_boot(void) {
 /* The players are instantiated (a few Mcycles of data segments): stamp from now on. */
 void audio_backend_start(void) { zma_set_ts(ZMA_REG(ZMA_NOW) + g_lead); }
 
-void audio_backend_native(uint32_t native) { g_lead = zma_lead(native); }
+void audio_backend_native(uint32_t native) {
+    g_lead = zma_lead(native);
+    g_native = native;
+}
+
+/* A song request (host/audio.c): the debug page's song until its player starts. */
+void audio_backend_song(const char* name, uint32_t tune) { sndinfo_song(SND_ROUTE, name, tune); }
 
 /* A song was just staged and loaded: that can take a few Mcycles (an SNDH's depack and its
  * 1 MiB of 68000 RAM zeroed), past the sound's lead. Its first write then starts a full lead
@@ -57,6 +74,7 @@ void audio_song_loaded(const char* name) {
         zma_set_ts(now + g_lead);
         baudio.anchors++;
     }
+    sndinfo_started(g_native);
     printf("ZM SONG %lu %lu %s\n", (unsigned long)zma_ts(), (unsigned long)baudio.pushed, name);
 }
 
@@ -88,6 +106,7 @@ void baudio_boot(void) {
     }
     baudio.on = 1;
     g_credits = 0;
+    sndinfo_boot(SND_ROUTE);
     audio_boot();
 }
 
@@ -109,7 +128,11 @@ void baudio_pump(uint32_t min) {
         ahead = (int32_t)(g_lead / 2);
     }
     int32_t want = (int32_t)g_lead - ahead;
-    if (want >= (int32_t)min) audio_render((uint32_t)want < ZMA_MAX_RENDER ? (uint32_t)want : ZMA_MAX_RENDER);
+    if (want >= (int32_t)min) {
+        uint32_t n = (uint32_t)want < ZMA_MAX_RENDER ? (uint32_t)want : ZMA_MAX_RENDER, t0 = render_clock();
+        audio_render(n);
+        sndinfo_render(render_clock() - t0, n);
+    }
     mailbox();
 }
 

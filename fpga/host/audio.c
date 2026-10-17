@@ -90,6 +90,7 @@ static void play_sap(const char* name, uint32_t tune) {
 /* playSongByName: the extension picks the player; "none" stops everything. */
 void audio_play(const char* name, uint32_t tune) {
     w2c_audio* p = &g_aud.player;
+    audio_backend_song(name, tune);
     if (strcmp(name, "none") == 0) {
         g_resident[0] = 0;
         w2c_audio_audioReset(p);
@@ -120,8 +121,12 @@ void audio_play(const char* name, uint32_t tune) {
 /* One zg.sndhCall: INIT with d0 on the SNDH playing if it is `name`, else load `name`
  * and make d0 its first INIT (the image is not the one playing). */
 void audio_sndh_call(const char* name, uint32_t d0) {
-    if (strcmp(name, g_resident) == 0) w2c_audio_audioSndhCall(&g_aud.player, d0);
-    else play_sndh(name, d0, 1);
+    if (strcmp(name, g_resident) == 0) {
+        w2c_audio_audioSndhCall(&g_aud.player, d0);
+        return;
+    }
+    audio_backend_song(name, d0);
+    play_sndh(name, d0, 1);
 }
 
 /* worklet "sfxPlay": the PCM into the effect buffer (0 while no MOD plays: an SNDH's RAM is

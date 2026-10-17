@@ -73,4 +73,9 @@ int32_t audio_song(const char* name, uint8_t* dst, uint32_t cap);
  * "ts writes-so-far name", the anchor tools/audio_sim_compare.py aligns on. */
 void audio_song_loaded(const char* name);
 
+/* The backend's hook, once per song request (audio_play, or an audio_sndh_call that loads),
+ * before anything is staged: the board's debug page shows the song (cycles/bsndinfo.h); the
+ * native host ignores it. Nothing it does reaches the sound. */
+void audio_backend_song(const char* name, uint32_t tune);
+
 #endif

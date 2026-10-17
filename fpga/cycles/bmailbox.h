@@ -13,7 +13,10 @@
  *  11 cpu_base  12 ddr_base
  *  13 freeze: the ARM writes 1; the firmware stops after its next whole frame
  *  14 frozen: the frame it stopped on (0 while running); clear `freeze` to resume
- *  15 front: the video's FRONT bit when frozen */
+ *  15 front: the video's FRONT bit when frozen
+ * Version 2: mb_init zeroes the whole page (ZM_MB_PAGE_WORDS), and its tail is the players':
+ *  32..39 'ZMAU' and the audio core's counters (cycles/baudio.c)
+ *  40..63 the music block, 'ZMSI': who plays what, and its cost (cycles/bsndinfo.h) */
 #ifndef ZM_BMAILBOX_H
 #define ZM_BMAILBOX_H
 
@@ -21,7 +24,8 @@
 
 #define ZM_MB_ADDR 0x41ffff00u
 #define ZM_MB_MAGIC 0x424d4d5au /* "ZMMB" */
-#define ZM_MB_VERSION 1u
+#define ZM_MB_VERSION 2u /* glass/src/map_cart.zig MB_VERSION_SND_INFO */
+#define ZM_MB_PAGE_WORDS 64u
 /* The two pictures at fixed addresses (DDR 0x04c00000, 0x04d00000): above the
  * firmware image (< 12 MiB, checked by board.mk), below the data at 0x41000000. */
 #define ZM_FB0_ADDR 0x40c00000u
