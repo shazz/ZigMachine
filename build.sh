@@ -132,6 +132,7 @@ NATIVE_TESTS="
     libs/zig/players/xm_format_test.zig
     libs/zig/players/xm_instr_test.zig
     libs/zig/players/xm_mix_test.zig
+    libs/zig/players/xm_ring_test.zig
     libs/zig/sfx_queue_test.zig
     libs/zig/depackers/ice_test.zig
     libs/zig/depackers/zx0_test.zig

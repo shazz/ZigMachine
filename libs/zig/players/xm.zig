@@ -48,6 +48,7 @@ pub const XmPlayer = struct {
     jump_pos: i16 = -1, // pending position jump target
     row_delay: u8 = 0, // EEx: rows still to repeat
     repeat: bool = false, // the row just counted down is not read again
+    ring_pos: u32 = 0, // the next block's place in the channel rings (xm_ring.zig)
     cache_pat: u16 = 0xFFFF, // the row cache (xm_rows.zig readCells)
     cache_row: u16 = undefined, // read only once cache_pat matches (xm_rows.zig readCells)
     cache_off: usize = undefined,
@@ -79,6 +80,7 @@ pub const XmPlayer = struct {
         self.jump_pos = -1;
         self.row_delay = 0;
         self.repeat = false;
+        self.ring_pos = 0;
         self.cache_pat = 0xFFFF;
         for (&self.chan) |*c| {
             c.* = .{};

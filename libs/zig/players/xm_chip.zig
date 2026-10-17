@@ -3,18 +3,20 @@
 // channel for a song of 8 or fewer channels (the original pairing, bit for bit)
 // and three to a channel for 9..12 channels. The channel count fixes the group
 // size and so the attenuation (xm_mix.zig's SCALE_*), once per song.
-// Each block (a span of one tick, or part of it) the four channel buffers are
-// rebuilt from the voices and each Paula channel plays its buffer
-// ONCE at one source frame per output frame: a re-trigger every block, so the
-// chip reads exactly the block just written. The channels' step and volume
-// are set once at start (setup); only the trigger, which holds the pan, runs
-// per block. The channel buffers are static, in the demo-audio module's memory,
-// which the sealed chip shares.
+// Each block (a span of one tick, or part of it) is mixed from the voices into
+// the next span of each Paula channel's ring (xm_ring.zig: on the board the
+// chip plays a block up to four frames after it was written, so a block's bytes
+// must outlive that), and each channel plays that span ONCE at one source frame
+// per output frame: a re-trigger every block. The channels' step and volume are
+// set once at start (setup); only the trigger, which holds the pan, runs per
+// block. The rings are in song RAM, in the demo-audio module's memory, which
+// the sealed chip shares.
 // --------------------------------------------------------------------------
 const audio = @import("audio_hw");
 const mod = @import("mod.zig");
 const xmix = @import("xm_mix.zig");
 const inst = @import("xm_instr.zig");
+const ring = @import("xm_ring.zig");
 const XmPlayer = @import("xm.zig").XmPlayer;
 
 /// Songs of up to this many channels mix two voices to a Paula channel.
@@ -30,14 +32,14 @@ pub fn groupingOf(channels: u8) Grouping {
         .{ .per = 2, .scale = xmix.SCALE_PAIR };
 }
 
-/// The four pair buffers sit at the top of song RAM, past the largest song that
-/// fits beside them: a static buffer would be 16 KB of zeros in demo-audio's data
+/// The four channel rings sit at the top of song RAM, past the largest song that
+/// fits beside them: a static ring would be 64 KB of zeros in demo-audio's data
 /// segment (zero_segments). A song longer than BUF_OFFSET is refused at load.
-pub const BUF_OFFSET: usize = audio.SONG_CAP - audio.NUM_CHANNELS * audio.MAX_FRAMES;
+pub const BUF_OFFSET: usize = audio.SONG_CAP - audio.NUM_CHANNELS * ring.FRAMES;
 
-fn pairBuf(pair: usize, block: u32) []i8 {
-    const p: [*]i8 = @ptrFromInt(audio.SONG_BASE + BUF_OFFSET + pair * audio.MAX_FRAMES);
-    return p[0..block];
+/// Channel `pair`'s ring, from its start: the offset in song RAM.
+fn ringOffset(pair: usize, start: u32) usize {
+    return BUF_OFFSET + pair * ring.FRAMES + start;
 }
 
 /// The Paula channels for XM: one source frame per output frame (step 1.0), and
@@ -52,11 +54,14 @@ pub fn setup() void {
 /// Mix `block` frames of every Paula channel's voices onto the bus at `off`.
 pub fn mixBlock(p: *XmPlayer, off: u32, block: u32) void {
     const g = groupingOf(p.hdr.channels);
+    const start = ring.place(p.ring_pos, block);
+    p.ring_pos = start + block;
     for (0..audio.NUM_CHANNELS) |pair| {
-        const buf = pairBuf(pair, block);
+        const at = ringOffset(pair, start);
+        const buf = @as([*]i8, @ptrFromInt(audio.SONG_BASE + at))[0..block];
         @memset(buf, 0);
         mixPair(p, pair, g, buf);
-        audio.machinePaulaTrigger(@intCast(pair), audio.songAddr(BUF_OFFSET + pair * audio.MAX_FRAMES), block, 0, 0, mod.pan(pair));
+        audio.machinePaulaTrigger(@intCast(pair), audio.songAddr(at), block, 0, 0, mod.pan(pair));
     }
     audio.machineMixPaula(off, block);
 }
