@@ -37,7 +37,7 @@ mod fmath;
 #[path = "v8_populous/scroll.rs"]
 mod scroll;
 
-use fmath::{half, sin};
+use fmath::{sin_q24, TURN_0_1};
 use scroll::{Totor, Wave, H, W};
 
 // The remake loads "Custodian 1.ym" (screen.js:167), a YM5 dump. Subtune 1 of
@@ -83,9 +83,9 @@ struct Screen {
     vbl: u32,
     vbl_fade: u32,
     reprise: i32,  // reprise2: when the logo waves
-    stop: f64,     // stop2: the wave amplitude, 0 or 5
-    sin1: f64,     // mysin1_gd / mysin2_gd
-    sin2: f64,
+    stop: i32,     // stop2: the wave amplitude, 0 or 5
+    sin1: u64,     // mysin1_gd / mysin2_gd, as u64 turns (fmath)
+    sin2: u64,
     wave: Wave,
     totor: Totor,
 }
@@ -94,7 +94,7 @@ impl Screen {
     const fn new(video: usize) -> Screen {
         Screen {
             video, part: Part::White, grey: 0, fade: 0.0, fade2: 0.0, vbl: 0, vbl_fade: 0,
-            reprise: -1, stop: 5.0, sin1: 0.0, sin2: 0.0,
+            reprise: -1, stop: 5, sin1: 0, sin2: 0,
             wave: Wave::new(WAVE_TEXT), totor: Totor::new(TOTOR_TEXT),
         }
     }
@@ -138,8 +138,8 @@ impl Screen {
         }
     }
 
-    fn logo_row(&self, row: usize, left: f64, top: i32) {
-        let (x0, y) = (half(left), half(f64::from(top)));
+    /// Tile `row` at ST pixel (x0, y).
+    fn logo_row(&self, row: usize, x0: i32, y: i32) {
         if !(0..H).contains(&y) {
             return;
         }
@@ -154,24 +154,28 @@ impl Screen {
 
     /// logo.drawTile(i, 316 + sin(s1)*stop2 + sin(s2)*stop2, 112 + 2i): 79 tiles,
     /// but the 110x140 image holds 70, so the last 9 draw nothing (and still turn
-    /// the phases). The midhandle puts a tile's top-left at (x - 55, y - 1).
+    /// the phases). The midhandle puts a tile's top-left at (x - 55, y - 1), i.e.
+    /// ST pixel x0 = half(261 + a) = 131 + floor(a / 2) and y = half(111 + 2i)
+    /// = 56 + i. Phases: row step 0.2 / 0.3 rad, frame step 0.1 / 0.2 rad.
     fn wave_logo(&mut self) {
         self.reprise += 1;
         let (old1, old2) = (self.sin1, self.sin2);
-        if self.reprise <= 40 { self.stop = 0.0; }
-        if self.reprise > 41 && self.reprise <= 400 { self.stop = 5.0; }
-        if self.reprise > 401 && self.reprise <= 700 { self.stop = 0.0; }
+        if self.reprise <= 40 { self.stop = 0; }
+        if self.reprise > 41 && self.reprise <= 400 { self.stop = 5; }
+        if self.reprise > 401 && self.reprise <= 700 { self.stop = 0; }
         if self.reprise > 701 { self.reprise = -1; }
-        for i in 0..79 {
-            if i < LOGO_ROWS {
-                let x = 316.0 + sin(self.sin1) * self.stop + sin(self.sin2) * self.stop;
-                self.logo_row(i, x - 55.0, 111 + 2 * i as i32);
-            }
-            self.sin1 += 0.2;
-            self.sin2 += 0.3;
+        for i in 0..LOGO_ROWS {
+            let a = if self.stop == 0 {
+                0
+            } else {
+                (sin_q24(self.sin1) + sin_q24(self.sin2)) * self.stop
+            };
+            self.logo_row(i, 131 + (a >> 25), 56 + i as i32);
+            self.sin1 = self.sin1.wrapping_add(2 * TURN_0_1);
+            self.sin2 = self.sin2.wrapping_add(3 * TURN_0_1);
         }
-        self.sin1 = old1 + 0.10;
-        self.sin2 = old2 + 0.20;
+        self.sin1 = old1.wrapping_add(TURN_0_1);
+        self.sin2 = old2.wrapping_add(2 * TURN_0_1);
     }
 
     /// go(), screen.js:221.
@@ -186,7 +190,7 @@ impl Screen {
         }
         if self.vbl <= 150 {
             for row in 0..LOGO_ROWS {
-                self.logo_row(row, 316.0 - 55.0, 181 - 70 + 2 * row as i32);
+                self.logo_row(row, 131, 56 + row as i32);
             }
         } else {
             self.wave.draw(self.vram());
@@ -224,6 +228,7 @@ pub extern "C" fn boot() {
     let s = screen();
     // SAFETY: a plain import from the machine; it returns the fixed region base.
     *s = Screen::new(unsafe { hwVideoBase() } as usize);
+    fmath::init();
     s.palette().copy_from_slice(PAL);
     const MSG: &[u8] = b"screen 490 (V8 / Populous) - Rust cart, Custodian SNDH";
     // SAFETY: (ptr, len) names a 'static byte string.
