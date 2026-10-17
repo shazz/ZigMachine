@@ -6,6 +6,7 @@ test {
     _ = @import("zmd.zig");
     _ = @import("zmd_test.zig");
     _ = @import("loader_test.zig");
+    _ = @import("system_test.zig");
     _ = @import("keymap.zig");
     _ = @import("pad.zig");
     _ = @import("pad_test.zig");
@@ -23,6 +24,7 @@ test {
     _ = @import("app_test.zig");
     _ = @import("app_request_test.zig");
     _ = @import("app_stats_test.zig");
+    _ = @import("app_shelf_test.zig");
     _ = @import("console_test.zig");
     _ = @import("text.zig");
     _ = @import("page_debug.zig");

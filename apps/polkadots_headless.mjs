@@ -17,7 +17,7 @@
 // times each mode separately — the comparison table at the end is the point of
 // the screen.
 //
-//   node apps/polkadots_headless.mjs [outdir] [--cart <wasm>]
+//   node apps/polkadots_headless.mjs [outdir] [--cart <wasm>] [--break fixed|fkey]
 //
 // --cart runs the same proof on another build of the screen: the gate runs it
 // on demo-polkadots.wasm (fixed point, the default) and on
@@ -320,6 +320,46 @@ if (half.ops > solid.ops) throw new Error("HALFTONE should never issue more fill
 if (fills.ops > dot.ops) throw new Error("FILL DOTS should never issue more ops than DOT SIZE: both are one op per lit cell");
 console.log(`  claim: HALFTONE covers the grid in ${half.ops.toFixed(0)} fills where DOT SIZE needs ${dot.ops.toFixed(0)} blits ` +
     `(${(dot.ops / half.ops).toFixed(1)}x fewer operations)`);
+// F switches either cart's maths live (polkadots/app.zig). Pressed before the
+// first frame, the default cart must BE the f32 cart, every pixel of the frame
+// (the readout's F32 included); pressed twice it must be itself again; pressed
+// mid-turn it must carry the pose across (the dots stay a rounding from the f32
+// cart's, never a restart). --break fkey never presses F: the identity fails.
+if (CART === "docs/demo-polkadots.wasm") {
+    const K_F = 0x66, fkey = argv.includes("--break") && argv[argv.indexOf("--break") + 1] === "fkey" ? [] : [K_F];
+    const same = (a, b) => a.snaps.every((s, p) => Buffer.compare(s, b.snaps[p]) === 0);
+    const lockstep = async (other, keysAt) => {
+        const a = await boot(CART), b = await boot(other);
+        let worst = 0, apart = 0, lit = 0;
+        for (let f = 1; f <= 300; f++) {
+            for (const k of keysAt(f)) a.demo.key(k);
+            a.run(1);
+            b.run(1);
+            if (f % 5) continue;
+            if (!same(a, b)) apart++;
+            const ca = a.cells(), cb = b.cells();
+            for (let i = 0; i < ca.length; i++) {
+                if (ca[i] >= 0) lit++;
+                if (ca[i] !== cb[i]) worst = Math.max(worst, Math.abs(ca[i] - cb[i]) + 0.001);
+            }
+        }
+        return { apart, worst, lit };
+    };
+    const F32 = "docs/demo-polkadots_f32.wasm";
+    const once = await lockstep(F32, (f) => (f === 1 ? fkey : []));
+    const twice = await lockstep(CART, (f) => (f === 1 ? [...fkey, ...fkey] : []));
+    const mid = await lockstep(F32, (f) => (f === 150 ? fkey : []));
+    console.log(`  F: before frame 1, ${once.apart}/60 frames differ from the f32 cart; twice, ${twice.apart}/60 from itself; ` +
+        `at frame 150, dots at most ${Math.floor(mid.worst)} size(s) from the f32 cart's`);
+    const ok = once.apart === 0 && twice.apart === 0 && mid.worst < 2;
+    if (fkey.length === 0) {
+        if (ok) throw new Error("--break fkey was NOT caught");
+        console.log("polkadots: PASS (--break fkey was caught)");
+        process.exit(0);
+    }
+    if (!ok) throw new Error("F does not switch the maths cleanly (see the line above)");
+}
+
 // ONE BENCH, TWO NUMBER SYSTEMS. The default cart projects, lights and fills
 // the torus in integers; polkadots_f32 runs the CODEF algorithm in f32. Their
 // dots must agree a rounding apart: in lockstep over 300 frames (MODE 1, every

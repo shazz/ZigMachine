@@ -105,6 +105,25 @@ test "GEM runs BOOT.WSM off the disk, and the program goes back to GEM over it" 
     try std.testing.expect(r.glass.ctrl & map.CTRL_RUN != 0);
 }
 
+test "the F11 overlay stays see-through over the program and back over GEM" {
+    // The loader once kept CTRL_OSD but dropped CTRL_OSD_STATS, and nothing after a
+    // program load put it back: an opaque window sat in the corner over the program.
+    const r = try Rig.init();
+    defer r.deinit();
+    var a = try started(r);
+    defer a.deinit();
+    const overlay = map.CTRL_OSD | map.CTRL_OSD_STATS;
+    press(&a, keymap.STATS_HOTKEY);
+    try std.testing.expectEqual(overlay, r.glass.ctrl & overlay);
+    r.ask(mc.REQ_RUN_PROGRAM, "BOOT.WSM");
+    a.tick();
+    try std.testing.expectEqualStrings("BOOT.WSM running", status(&a));
+    try std.testing.expectEqual(overlay, r.glass.ctrl & overlay);
+    r.ask(mc.REQ_BACK_TO_OS, "");
+    a.tick();
+    try std.testing.expectEqual(overlay, r.glass.ctrl & overlay);
+}
+
 fn refused(r: *Rig, a: *App, why: []const u8) !void {
     const resets = r.glass.resets;
     a.tick();

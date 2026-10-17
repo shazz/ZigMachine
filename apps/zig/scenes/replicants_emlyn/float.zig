@@ -1,9 +1,10 @@
 // --------------------------------------------------------------------------
-// The f32 cart's numbers (replicants_emlyn_f32): the CODEF port's algorithm
-// as it was — three.js's projection, a per-bucket search with a divide and a
-// floor per bar tried, libm sines — on f32 instead of JavaScript's doubles,
-// because the FPU planned for the board is single precision only. It exists
-// to measure that FPU; fixed.zig is what the default cart runs.
+// The f32 numbers (F in the cart, and the side replicants_emlyn_f32 boots on):
+// the CODEF port's algorithm as it was — three.js's projection, a per-bucket
+// search with a divide and a floor per bar tried, libm sines — on f32 instead
+// of JavaScript's doubles, because the board's FPU is single precision only.
+// This is the one INTENTIONAL float-per-frame path in the screen: it exists to
+// measure that FPU against fixed.zig, which is what the cart boots on.
 // --------------------------------------------------------------------------
 const balls = @import("balls_f32.zig");
 const fill = @import("fill_f32.zig");

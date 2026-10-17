@@ -164,9 +164,13 @@ export fn setShadeMode(mode: u32) bool {
 }
 
 // Pointer state from the host (mouse over the canvas), in 320x200 visible coords.
-// Only scenes that declare pointer() react (e.g. the GEM windowing app).
-export fn pointer(x: i32, y: i32, buttons: u32) void {
-    if (booted and @hasDecl(Cart, "pointer")) cart.pointer(x, y, buttons);
+// Exported ONLY by a scene that declares pointer() (GEM, ST Replay, the tracker):
+// the export's presence is how the board firmware knows to draw the mouse arrow.
+fn pointer(x: i32, y: i32, buttons: u32) callconv(.c) void {
+    if (booted) cart.pointer(x, y, buttons);
+}
+comptime {
+    if (@hasDecl(Cart, "pointer")) @export(&pointer, .{ .name = "pointer" });
 }
 
 // The host reports whether an app-disk is inserted (e.g. GEM booted for the ST

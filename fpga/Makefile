@@ -123,6 +123,9 @@ $(HOST)/common/%.o: $(HOST)/common/%.c
 $(HOST)/%/cart.c: $(ROOT)/docs/demo-%.wasm
 	@mkdir -p $(@D)
 	wasm2c $< -n cart -o $@
+# wasm2c writes cart.h beside cart.c: named, so a rule that only wants the header (cycles/sound.mk's
+# snd.elf, tutorial's types) builds it in a fresh tree.
+$(HOST)/%/cart.h: $(HOST)/%/cart.c ;
 $(HOST)/%/env.c: $(HOST)/%/cart.c $(HOST)/common/machine.c $(HOST)/common/rom.c tools/host_gen.py tools/host_bridges.py \
 		tools/wasm_info.py gen/memmap.py
 	uv run python tools/host_gen.py --build $(HOST)/$* --cart $(ROOT)/docs/demo-$*.wasm
@@ -156,13 +159,15 @@ include cycles/video.mk
 # --- the glass: the ARM's program and the SD card (docs/FPGA_GLASS.md) -------
 #   make glass   host build (glass sim-load / sim-menu) + the board's static ARM binary
 #   make sd      stage the SD card in build/glass/sd (never a device; see its MANIFEST.txt)
+#   make sd ZM_SPLIT=1 ZM_AUDIO=snd   the same with system.rv32 once + lean carts (make board-split first)
 .PHONY: glass sd
 glass: memmap
 	cd glass && $(ZIG) build
 	cd glass && $(ZIG) build -Dtarget=arm-linux-musleabihf -Dcpu=cortex_a9 -Doptimize=ReleaseSafe --prefix zig-out/arm
 
 sd: glass
-	uv run python tools/glass_sd.py $(if $(BR_OUT),--buildroot $(BR_OUT))
+	uv run python tools/glass_sd.py $(if $(BR_OUT),--buildroot $(BR_OUT)) \
+		$(if $(ZM_SPLIT),--system $(SPLIT)/board$(ASUF)$(HSUF)/sys.bin --fw-dir $(SPLIT)/carts$(HSUF))
 
 clean:
 	rm -rf build gen
@@ -313,6 +318,7 @@ ym-test: $(YM_TEST)/ym_test_top.bit
 include cycles/audio.mk
 include cycles/board.mk
 include cycles/sound.mk
+include cycles/split.mk
 
 # --- the edit -> board loop: release / dev (placement replay) builds, seed sweeps, hp-test (flow.mk) ---
 include flow.mk

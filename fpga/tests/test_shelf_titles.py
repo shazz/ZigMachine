@@ -39,7 +39,23 @@ def test_shelf_txt_carries_the_overridden_titles(tmp_path: Path) -> None:
 
 @pytest.mark.parametrize("tag", list(shelf_meta.OVERRIDES))
 def test_every_override_is_a_catalog_cart_and_fits_the_osd(tag: str) -> None:
-    assert tag in {t for _, t, _ in shelf_meta.channels.entries()}  # an override for no cart is a typo
+    assert tag in shelf_meta.cart_tags()  # an override for no cart is a typo
     title, group, year = shelf_meta.OVERRIDES[tag]
     assert len(title) <= 22 and title == shelf_meta.ascii_text(title) and title.upper() == title  # the catalog's cap
     assert group == shelf_meta.ascii_text(group) and (year == "" or shelf_meta.YEAR.fullmatch(year))
+
+
+def test_a_hub_only_cart_takes_its_title_from_the_matrix_and_its_type_from_its_hub() -> None:
+    assert "union_tnt3" not in {t for _, t, _ in shelf_meta.channels.entries()}  # only UNION DEMO's doors reach it
+    assert _row("union_tnt3")[1:5] == ("TNT3", "The Union Demo", "1989", "atari st")
+    assert _row("union_deltaforce")[1] == "DELTA FORCE SPHERICOOL"  # "... Sphericool screen": cut at a word to 22
+    assert _row("union_textracker")[1:3] == ("TEX SAMPLE-MON ST", "The Union Demo")  # its comment names no title
+
+
+def test_a_cart_outside_the_catalog_and_every_hub_gets_no_line() -> None:
+    assert shelf_meta.records(["tutorial_steps"]) == []  # in the matrix, in no hub: nothing invented
+
+
+def test_hub_title_cuts_at_a_word_and_keeps_the_osd_cap() -> None:
+    assert shelf_meta.hub_title("G / ONE TWO THREE FOUR FIVE SIX (x)") == "ONE TWO THREE FOUR"
+    assert shelf_meta.hub_title("G / ABCDEFGHIJKLMNOPQRSTUVWXYZ") == "ABCDEFGHIJKLMNOPQRSTUV"  # one word: hard cut

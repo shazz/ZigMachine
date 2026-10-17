@@ -8,12 +8,15 @@
 #include "host.h"
 
 /* The songs linked into the image (tools/song_pack.py), NULL-terminated. */
-typedef struct {
+typedef struct zm_song {
     const char* name; /* the path under docs/music/ the cart asks for */
     const uint8_t* data;
     uint32_t len;
 } zm_song;
 extern const zm_song zm_songs[];
+#ifdef ZM_SPLIT_SYS /* the split system image: the songs are the lean cart's (its header) */
+#define zm_songs (zm_cart->song_files)
+#endif
 
 struct baudio {
     int on;            /* the bitstream has the core (its ID answered) */

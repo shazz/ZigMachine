@@ -168,5 +168,4 @@ __attribute__((export_name("hblDispatch")))
 void hblDispatch(u32 id, u32 plane, u32 line, u32 x) { (void)id;(void)plane;(void)line;(void)x; }
 __attribute__((export_name("skipBoot")))    void skipBoot(void) {}
 __attribute__((export_name("setShadeMode"))) void setShadeMode(u32 m) { (void)m; }
-__attribute__((export_name("pointer")))     void pointer(int x, int y, u32 b) { (void)x;(void)y;(void)b; }
 __attribute__((export_name("input")))       void input(u8 dir) { (void)dir; }

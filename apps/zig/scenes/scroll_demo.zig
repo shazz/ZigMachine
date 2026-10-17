@@ -22,13 +22,19 @@ const WIDTH: u32 = zg.WIDTH; // 320 visible
 const HEIGHT: u32 = zg.HEIGHT; // 200 visible
 const BUF_W: u16 = 640;
 const BUF_H: u16 = 400;
-const PAN_X_MAX: f32 = 320.0; // BUF_W - WIDTH
-const PAN_Y_MAX: f32 = 200.0; // BUF_H - HEIGHT
-const DISTORT_AMP: f32 = 24.0;
+const ft = zg.fixtrig;
+const PAN_X_MAX: i32 = 320; // BUF_W - WIDTH
+const PAN_Y_MAX: i32 = 200; // BUF_H - HEIGHT
+const DISTORT_AMP: i32 = 24;
+// Per-frame / per-line angle steps (radians, folded to u32 turns at compile time).
+const PAN_X_STEP = ft.angle(0.006);
+const PAN_Y_STEP = ft.angle(0.0047);
+const PHASE_STEP = ft.angle(0.05);
+const LINE_STEP = ft.angle(0.08);
 
 // Handler + update communicate through module state (an HBL handler is a plain fn).
 var g_mode: u8 = 0;
-var g_phase: f32 = 0;
+var g_phase: ft.Angle = 0;
 
 pub const Demo = struct {
     fc: u32 = 0, // frame counter (elapsed_time from the loader is in ms, unreliable for phase)
@@ -62,12 +68,11 @@ pub const Demo = struct {
     pub fn update(self: *Demo, zigos: *ZigOS, dt: f32) void {
         _ = dt;
         self.fc += 1;
-        const t: f32 = @floatFromInt(self.fc);
-        g_phase = t * 0.05;
+        g_phase +%= PHASE_STEP;
         const fb: *LogicalFB = &zigos.lfbs[0];
         if (g_mode == 0) {
-            const sx: u32 = @intFromFloat((0.5 + 0.5 * @sin(t * 0.006)) * PAN_X_MAX);
-            const sy: u32 = @intFromFloat((0.5 + 0.5 * @sin(t * 0.0047)) * PAN_Y_MAX);
+            const sx = pan(self.fc *% PAN_X_STEP, PAN_X_MAX);
+            const sy = pan(self.fc *% PAN_Y_STEP, PAN_Y_MAX);
             fb.setScroll(sx, sy);
         } else {
             fb.setScroll(0, 0); // distort keeps the window fixed; the HBL bends each line
@@ -82,6 +87,11 @@ pub const Demo = struct {
     }
 };
 
+// (0.5 + 0.5 sin a) * max, in whole pixels.
+fn pan(a: ft.Angle, max: i32) u32 {
+    return @intCast((max * ft.ONE + max * ft.sin(a)) >> 17);
+}
+
 // Per-scanline horizontal offset. In PAN mode it stays 0; in DISTORT it follows a
 // travelling sine so each line samples the image shifted — a wavy screen.
 fn distortHBL(fb: *LogicalFB, zigos: *ZigOS, line: u16, x: u16) void {
@@ -91,8 +101,8 @@ fn distortHBL(fb: *LogicalFB, zigos: *ZigOS, line: u16, x: u16) void {
         fb.setScrollFine(0);
         return;
     }
-    const s = @sin(@as(f32, @floatFromInt(line)) * 0.08 + g_phase);
-    fb.setScrollFine(@intFromFloat(DISTORT_AMP + DISTORT_AMP * s));
+    const s = ft.sin(g_phase +% @as(u32, line) *% LINE_STEP); // Q16.16
+    fb.setScrollFine(@intCast((DISTORT_AMP * ft.ONE + DISTORT_AMP * s) >> 16));
 }
 
 // Fill the 640x400 buffer with an XOR moiré + a few text banners.
@@ -111,7 +121,7 @@ fn paint(zigos: *ZigOS, fb: *LogicalFB) void {
     }
 }
 
-// A 64-step rainbow (RGB from a hue wheel).
+// A 64-step rainbow (RGB from a hue wheel). Float is fine here: init-time only, 64 calls.
 fn wheel(i: u8) Color {
     const h: f32 = @as(f32, @floatFromInt(i)) / 64.0 * 6.0;
     const f = h - @floor(h);

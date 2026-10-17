@@ -221,5 +221,4 @@ int setShadeMode(u32 m) {
 }
 
 __attribute__((export_name("skipBoot"))) void skipBoot(void) {}
-__attribute__((export_name("pointer")))  void pointer(int x, int y, u32 b) { (void)x; (void)y; (void)b; }
 __attribute__((export_name("input")))    void input(u8 dir) { (void)dir; }

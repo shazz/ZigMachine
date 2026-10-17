@@ -110,10 +110,10 @@ const PIC_Y: usize = 29;
 const PIC_W: usize = 320;
 const PIC_LEN: u32 = 210; // frames per picture
 const FIRST_IMG: i32 = -210; // iteration_img: 210 black frames first
-const FADE: f32 = 30;
+const FADE: u32 = 30; // alpha is a whole number of 30ths
 const FADE_IN_END: u32 = 30;
 const FADE_OUT_FROM: u32 = 179;
-const FADE_OUT_END: f32 = 209;
+const FADE_OUT_END: u32 = 209;
 const STAR_STEP: u32 = 10;
 const STAR_FRAMES: u32 = 5;
 const SHIMMER_X: usize = 326;
@@ -226,18 +226,19 @@ fn jsRound(n: u32, d: u32) u32 {
 }
 
 /// The fade of display_image / display_einhorn / display_midearth.
-fn fadeAlpha(n: u32) f32 {
-    if (n <= FADE_IN_END) return @as(f32, @floatFromInt(n)) / FADE;
-    if (n >= FADE_OUT_FROM) return (FADE_OUT_END - @as(f32, @floatFromInt(n))) / FADE;
-    return 1.0;
+/// Returned in 30ths (0..FADE), so the blend below is integer.
+fn fadeAlpha(n: u32) u32 {
+    if (n <= FADE_IN_END) return n;
+    if (n >= FADE_OUT_FROM) return FADE_OUT_END -| n;
+    return FADE;
 }
 
-/// src drawn at globalAlpha a over dst.
-fn over(src: [3]u8, dst: [3]u8, a: f32) [3]u8 {
+/// src drawn at globalAlpha a/FADE over dst, rounded half up.
+fn over(src: [3]u8, dst: [3]u8, a: u32) [3]u8 {
     var out: [3]u8 = undefined;
     for (&out, src, dst) |*o, s, d| {
-        const v = @as(f32, @floatFromInt(s)) * a + @as(f32, @floatFromInt(d)) * (1.0 - a);
-        o.* = @intFromFloat(@round(v));
+        const v: u32 = s * a + d * (FADE - a);
+        o.* = @intCast((2 * v + FADE) / (2 * FADE));
     }
     return out;
 }
@@ -388,7 +389,7 @@ pub const Demo = struct {
     }
 
     /// display_einhorn: stars, then the unicorn, both at alpha a over black.
-    fn einhorn(self: *Demo, fb: *LogicalFB, a: f32) []const u8 {
+    fn einhorn(self: *Demo, fb: *LogicalFB, a: u32) []const u8 {
         const star = jsRound(self.pic_n, STAR_STEP) % STAR_FRAMES;
         if (self.einhorn_star != star) {
             @memcpy(einhorn_canvas, einhorn_raw);

@@ -65,12 +65,12 @@ void binput_frame(struct w2c_env* e) {
         CSR(KEY_POP) = 1u;
     }
     n = sim_keys(ev, n);
-    input_events(&e->cart, ev, n);
+    input_events(HOST_CART(e), ev, n);
     uint32_t now = CSR(JOY);
-    input_joy(&e->cart, joy, now);
+    input_joy(HOST_CART(e), joy, now);
     joy = now;
     uint32_t ptr = sim_pointer(CSR(POINTER));
-    int seq = input_pointer(&e->cart, ptr, &seen);
+    int seq = input_pointer(HOST_CART(e), ptr, &seen);
     if (seq >= 0) {
         CSR(POINTER_ACK) = (uint32_t)seq;
         bcursor_track(ptr);

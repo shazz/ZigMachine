@@ -7,15 +7,16 @@ host_disk_app_bridge)."""
 FROM_NUMBER = {"u32": "host_to_i32(a[{i}])", "f32": "(f32)a[{i}]", "f64": "a[{i}]"}
 
 
-def export_table(cart: dict[str, tuple[str, list[str]]]) -> str:
-    """--call wrappers for every cart export whose parameters a JS Number can feed."""
+def export_table(cart: dict[str, tuple[str, list[str]]], inst: str = "&e->cart") -> str:
+    """--call wrappers for every cart export whose parameters a JS Number can feed; `inst` is the
+    cart instance (the lean cart image keeps its own pointer, tools/host_split.py)."""
     out, rows = [], []
     for name, (_, params) in sorted(cart.items()):
         if any(t not in FROM_NUMBER for t in params):
             continue
         args = "".join(", " + FROM_NUMBER[t].format(i=i) for i, t in enumerate(params))
         out.append(
-            f"static void x_{name}(struct w2c_env* e, const double* a) {{ (void)a; w2c_cart_{name}(&e->cart{args}); }}"
+            f"static void x_{name}(struct w2c_env* e, const double* a) {{ (void)a; w2c_cart_{name}({inst}{args}); }}"
         )
         rows.append(f'    {{"{name.replace("__", "_")}", x_{name}}},')
     return "\n".join(out) + "\n\nconst host_export host_exports[] = {\n" + "\n".join(rows) + "\n    {0, 0},\n};\n"

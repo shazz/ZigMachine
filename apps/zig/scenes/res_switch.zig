@@ -57,8 +57,10 @@ pub const Demo = struct {
         _ = dt;
         self.fc += 1;
         // Sweep the low-res band up and down the screen.
-        const t: f32 = @floatFromInt(self.fc);
-        g_lo = @intFromFloat((0.5 + 0.5 * @sin(t * 0.02)) * @as(f32, @floatFromInt(@as(i32, MH) - BAND)));
+        // (0.5 + 0.5 sin) * (MH - BAND), truncated; angle is u32 turns (fixtrig).
+        const sw: i64 = @as(i32, MH) - BAND;
+        const a: u32 = self.fc *% zg.fixtrig.angle(0.02);
+        g_lo = @intCast((sw * (zg.fixtrig.ONE + zg.fixtrig.sin(a))) >> 17);
     }
 
     pub fn render(self: *Demo, os: *ZigOS, dt: f32) void {

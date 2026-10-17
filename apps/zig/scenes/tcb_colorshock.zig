@@ -185,7 +185,8 @@ const Slot = struct { x: i32, glyph: u8 };
 pub const Demo = struct {
     // NOTE: demo_main holds the cart as `undefined`, so a field's declared
     // default never runs. Every one of these is assigned in init().
-    vbl: f32,
+    vbl_x: zg.fixtrig.Angle, // sin(vbl*PI/100) phase, u32 turns (wraps exactly)
+    vbl_y: zg.fixtrig.Angle, // cos(vbl*PI/200) phase
     pos_scroll: usize,
     strip_y: u16, // plane row the strip is drawn at this frame
     erase_y: u16, // ...and where it was last frame, the band to erase
@@ -210,7 +211,8 @@ pub const Demo = struct {
         ink.setPaletteEntry(0, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
         blit(ink, logo_b, LOGO_W, LOGO_X, LOGO_Y, LOGO_W, LOGO_H, false);
 
-        self.vbl = 0.0;
+        self.vbl_x = 0;
+        self.vbl_y = 0;
         self.pos_scroll = 0;
         self.strip_y = OY + (movescroll(0) >> 1);
         self.erase_y = self.strip_y;
@@ -249,26 +251,22 @@ pub const Demo = struct {
         }
     }
 
-    // go(): vbl += 0.8, which CODEF lets grow forever (f64). Here it is wrapped
-    // at 400.0 — a whole number of turns for both sin(vbl*PI/100) (250 frames)
-    // and cos(vbl*PI/200) (500) — so vbl stays in [0,400) and one f32 step keeps
-    // ~5 significant digits however long the screen runs.
-    // It does NOT come back bit-exact: 500 additions of the f32 nearest 0.8 land
-    // on 399.99847, so the wrap fires one frame late and leaves a residue of
-    // ~0.798. The Lissajous phase therefore creeps (about 9 frames' worth over
-    // 3M frames) instead of repeating exactly. Nothing reads the phase but @sin
-    // and @cos, so that is invisible; what matters for the pan bound is that
-    // sx is clamped and sy is taken mod TILE_H, which holds for ANY vbl.
+    // go(): vbl += 0.8, which CODEF lets grow forever (f64). Here the two phases
+    // sin(vbl*PI/100) and cos(vbl*PI/200) are u32 turn counts (zg.fixtrig): they
+    // wrap exactly at 2 PI (250 and 500 frames), so the Lissajous repeats
+    // bit-for-bit, and the pan costs two table lookups, no soft-float.
+    // sx is clamped and sy is taken mod TILE_H, which holds for ANY phase.
+    const STEP_X = zg.fixtrig.angle(0.8 * std.math.pi / 100.0);
+    const STEP_Y = zg.fixtrig.angle(0.8 * std.math.pi / 200.0);
     fn pan(self: *Demo, bg: *LogicalFB) void {
-        const x = 200.0 + @sin(self.vbl * std.math.pi / 100.0) * 200.0;
-        const y = 158.0 + @cos(self.vbl * std.math.pi / 200.0) * 150.0;
-        const sx: i32 = @intFromFloat(@round(x));
-        const sy: i32 = @intFromFloat(@round(y));
+        const one = zg.fixtrig.ONE;
+        const sx: i32 = (200 * one + 200 * zg.fixtrig.sin(self.vbl_x) + one / 2) >> 16;
+        const sy: i32 = (158 * one + 150 * zg.fixtrig.cos(self.vbl_y) + one / 2) >> 16;
         pan_row = @intCast(@mod(sy, @as(i32, TILE_H)));
         bg.setScroll(@intCast(std.math.clamp(sx, 0, 400)), pan_row);
 
-        self.vbl += 0.8;
-        if (self.vbl >= 400.0) self.vbl -= 400.0;
+        self.vbl_x +%= STEP_X;
+        self.vbl_y +%= STEP_Y;
     }
 
     pub fn render(self: *Demo, zigos: *ZigOS, dt: f32) void {

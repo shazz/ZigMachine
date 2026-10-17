@@ -19,7 +19,7 @@ OUT=../../docs
 
 # Layout MUST match build.zig's demo module (see apps/c/build.sh for the why).
 MEM=7340032; GLOBAL_BASE=1048576                 # 112*65536 (memmap.SHARED_PAGES) ; 0x100000
-EXPORTS=(boot frame isPlaneEnabled hblDispatch skipBoot setShadeMode pointer input)
+EXPORTS=(boot frame isPlaneEnabled hblDispatch skipBoot setShadeMode input)
 # --no-stack-first: rustc's wasm32 default puts the 1 MiB stack FIRST, growing
 # down from --global-base -- i.e. from 0x100000 into the MACHINE's RAM below the
 # cart window -- and leaves .bss out of the data segments, so the host's

@@ -1,0 +1,153 @@
+# fpga/cycles/sys_abi.txt: the KESTREL system table and cart header (decisions.md 2026-10-15).
+# GENERATED and checked by fpga/tools/sys_abi.py (build.sh runs --check): never edit by hand;
+# `python3 fpga/tools/sys_abi.py --update` rewrites it and bumps the version.
+version 1.0
+const CART_IMG_AT 0x300000
+const CART_HDR_MAGIC 0x41434d5a
+const CART_HDR_VERSION_AT 0x4
+const CART_HDR_BSS_END_AT 0x10
+const SYS_MAGIC 0x59534d5a
+const SYS_HEAD_WORDS 0x4
+rt w2c_env_memory wasm_rt_memory_t*(struct w2c_env*)
+rt wasm_rt_trap void(wasm_rt_trap_t)
+rt wasm_rt_is_initialized bool()
+rt wasm_rt_allocate_funcref_table void(wasm_rt_funcref_table_t*,uint32_t,uint32_t)
+rt wasm_rt_free_funcref_table void(wasm_rt_funcref_table_t*)
+rt __assert_func void(const char*,int,const char*,const char*)
+rt memcpy void*(void*,const void*,size_t)
+rt memmove void*(void*,const void*,size_t)
+rt memset void*(void*,int,size_t)
+rt memcmp int(const void*,const void*,size_t)
+rt floor double(double)
+rt floorf float(float)
+rt ceil double(double)
+rt ceilf float(float)
+rt trunc double(double)
+rt truncf float(float)
+rt nearbyint double(double)
+rt nearbyintf float(float)
+rt sqrt double(double)
+rt sqrtf float(float)
+rt fabs double(double)
+rt fabsf float(float)
+rt host_to_i32 uint32_t(double)
+rt zm_host_micros uint32_t()
+rt zm_disk_read uint32_t(struct w2c_env*,uint32_t,uint32_t)
+type host_export { const char* name; void (*fn)(struct w2c_env* e, const double* args); }
+type host_song_bridge { u32 (*poll)(w2c_cart*); u32 (*name_ptr)(w2c_cart*); u32 (*name_len)(w2c_cart*); u32 (*tune)(w2c_cart*); u32 (*sndh_poll)(w2c_cart*); u32 (*sndh_d0)(w2c_cart*, u32); u32 (*sndh_name_ptr)(w2c_cart*); u32 (*sndh_name_len)(w2c_cart*); u32 (*sfx_poll)(w2c_cart*); u32 (*sfx_entries)(w2c_cart*); }
+type host_input_bridge { u32 (*owns_keyboard)(w2c_cart*); void (*input)(w2c_cart*, u32); void (*input_release)(w2c_cart*, u32); void (*key)(w2c_cart*, u32); void (*key_up)(w2c_cart*, u32); u32 (*shade)(w2c_cart*, u32); void (*pointer)(w2c_cart*, u32, u32, u32); }
+type host_disk_app_bridge { void (*insert_disk)(w2c_cart*, u32); u32 (*is_booted)(w2c_cart*); u32 (*dir_ptr)(w2c_cart*); void (*set_count)(w2c_cart*, u32); u32 (*poll)(w2c_cart*); u32 (*tag_ptr)(w2c_cart*); u32 (*tag_len)(w2c_cart*); }
+type zm_song { const char* name; const uint8_t* data; uint32_t len; }
+type zm_sys_table {uint32_t magic; uint32_t version; uint32_t count; zm_fn fn[ZM_SYS_COUNT];}
+hdr magic uint32_t {}
+hdr version uint32_t {}
+hdr hdr_bytes uint32_t {}
+hdr bss_start char* {}
+hdr bss_end char* {}
+hdr pages uint32_t {}
+hdr cart_high uint32_t {}
+hdr inst_bytes uint32_t {}
+hdr bind void (*{})(const struct zm_sys_table*)
+hdr instantiate void (*{})(struct w2c_cart*, struct w2c_env*)
+hdr boot void (*{})(struct w2c_cart*)
+hdr skip_boot void (*{})(struct w2c_cart*)
+hdr frame void (*{})(struct w2c_cart*, float)
+hdr plane_enabled uint32_t (*{})(struct w2c_cart*, uint32_t)
+hdr hbl_dispatch void (*{})(struct w2c_cart*, uint32_t, uint32_t, uint32_t, uint32_t)
+hdr songs const struct host_song_bridge* {}
+hdr input const struct host_input_bridge* {}
+hdr dapp const struct host_disk_app_bridge* {}
+hdr exports const struct host_export* {}
+hdr song_files const struct zm_song* {}
+hdr tag char {}[16]
+bridge songs pollSongRequest u32()
+bridge songs songNamePtr u32()
+bridge songs songNameLen u32()
+bridge songs songTune u32()
+bridge songs pollSndhCalls u32()
+bridge songs sndhCallD0 u32(u32)
+bridge songs sndhCallNamePtr u32()
+bridge songs sndhCallNameLen u32()
+bridge songs pollSfx u32()
+bridge songs sfxEntriesPtr u32()
+bridge input ownsKeyboard u32()
+bridge input input void(u32)
+bridge input inputRelease void(u32)
+bridge input key void(u32)
+bridge input keyUp void(u32)
+bridge input setShadeMode u32(u32)
+bridge input pointer void(u32,u32,u32)
+bridge dapp insertDisk void(u32)
+bridge dapp isBooted u32()
+bridge dapp diskDirPtr u32()
+bridge dapp setDiskFileCount void(u32)
+bridge dapp pollCartRequest u32()
+bridge dapp getCartTagPtr u32()
+bridge dapp getCartTagLen u32()
+env deskBeginFrame rom void()
+env deskDirCap rom u32()
+env deskDirEntryBytes rom u32()
+env deskDirMaxFiles rom u32()
+env deskDirPtr rom u32()
+env deskEndFrame rom void()
+env deskInitPlane rom void(u32,u32,u32)
+env deskInput rom void(u32)
+env deskKey rom void(u32)
+env deskLaunchName rom u32(u32,u32)
+env deskRender rom u32()
+env deskRequestOpenAt rom void(u32,u32)
+env deskSetDiskApp rom void(u32)
+env deskSetFileCount rom void(u32)
+env deskSetPointer rom void(u32,u32,u32)
+env deskSetScreen rom void(u32,u32)
+env dialogActive rom u32(u32)
+env dialogAlert rom void(u32,u32,u32,u32,u32)
+env dialogClose rom void(u32)
+env dialogOpen rom u32()
+env dialogProcess rom u32(u32,u32)
+env fileSelActive rom u32(u32)
+env fileSelAdd rom void(u32,u32,u32)
+env fileSelChosen rom u32(u32,u32,u32)
+env fileSelClose rom void(u32)
+env fileSelKey rom void(u32,u32)
+env fileSelOpen rom u32()
+env fileSelProcess rom u32(u32,u32)
+env fileSelShow rom void(u32,u32,u32)
+env guiBeginFrame rom void(u32)
+env guiBox rom void(u32,u32,u32,u32,u32,u32)
+env guiButton rom u32(u32,u32,u32,u32,u32,u32,u32,u32,u32)
+env guiClose rom void(u32)
+env guiEdge rom u32(u32)
+env guiEndFrame rom void(u32)
+env guiFill rom void(u32,u32,u32,u32,u32,u32)
+env guiFrame rom void(u32,u32,u32,u32,u32,u32)
+env guiHit rom u32(u32,u32,u32,u32,u32)
+env guiOpenPlane rom u32(u32,u32,u32)
+env guiPlot rom void(u32,u32,u32,u32)
+env guiRect rom void(u32,u32,u32,u32,u32,u32)
+env guiResize rom void(u32,u32,u32)
+env guiSetPointer rom void(u32,u32,u32,u32)
+env guiText rom void(u32,u32,u32,u32,u32,u32,u32)
+env guiTextAlign rom void(u32,u32,u32,u32,u32,u32,u32,u32,u32)
+env hwBlit machine void()
+env hwRamAlloc machine u32(u32,u32)
+env hwRamAllocFailures machine u32()
+env hwRamBase machine u32()
+env hwRamFree machine u32()
+env hwRamMark machine u32()
+env hwRamRelease machine void(u32)
+env hwRamSize machine u32()
+env hwRamTop machine u32()
+env hwRamUsed machine u32()
+env hwRomRamBase machine u32()
+env hwRomRamFree machine u32()
+env hwRomRamSize machine u32()
+env hwRomRamTop machine u32()
+env hwRomRamUsed machine u32()
+env hwVideoBase machine u32()
+env romDepack rom u32(u32,u32,u32,u32)
+env romInstallPalettePlane rom void(u32)
+env romReset rom void()
+env romScratchLen rom u32()
+env romScratchPtr rom u32()
+history 1.0 fa4a662ec3dc87d5

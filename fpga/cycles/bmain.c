@@ -30,6 +30,7 @@
 #include "bdiag.h"
 #include "bmailbox.h"
 #include "boot.h"
+#include "bsys.h"
 #include "sha256.h"
 #include "trap.h"
 #include "vboard.h"
@@ -82,7 +83,7 @@ static void frame(sha256_ctx* h, u32 planes, u32 size, long f) {
     vseq_clear(e);
     binput_frame(e); /* the glass's keys, joypad and mouse, before the frame as the browser's */
     uint32_t t0 = board_cycles();
-    w2c_cart_frame(&e->cart, f == 1 && ZM_WARP_MS ? (float)ZM_WARP_MS : 16.6f);
+    HOST_CART_FRAME(e, f == 1 && ZM_WARP_MS ? (float)ZM_WARP_MS : 16.6f);
     bdiskapp_frame(e, f); /* GEM over a data disk: the browser's step after the frame */
     uint32_t t1 = board_cycles();
     AUDIO(baudio_frame(e)); /* the song bridge, then the players up to the sound's lead */
@@ -90,7 +91,7 @@ static void frame(sha256_ctx* h, u32 planes, u32 size, long f) {
     uint32_t t2 = board_cycles();
     int first = 1;
     for (u32 p = 0; p < planes; p++) {
-        if (!w2c_cart_isPlaneEnabled(&e->cart, p)) {
+        if (!HOST_CART_PLANE_ON(e, p)) {
             char off[16];
             if (h) sha256_update(h, off, (size_t)snprintf(off, sizeof off, "off%u", (unsigned)p));
             continue;
@@ -112,7 +113,7 @@ static void frame(sha256_ctx* h, u32 planes, u32 size, long f) {
 }
 
 static void print_json(char* total) {
-    printf("{\"cart\":\"%s\",\"frames\":%d,\"every\":%d,\"calls\":[],\"samples\":[", ZM_CART, ZM_FRAMES, ZM_EVERY);
+    printf("{\"cart\":\"%s\",\"frames\":%d,\"every\":%d,\"calls\":[],\"samples\":[", HOST_CART_TAG, ZM_FRAMES, ZM_EVERY);
     for (int i = 0; i < ZM_FRAMES / ZM_EVERY; i++)
         printf("%s{\"frame\":%d,\"hash\":\"%s\"}", i ? "," : "", (i + 1) * ZM_EVERY, g_hashes[i]);
     printf("],\"total\":\"%s\"}\n", total);
@@ -158,6 +159,9 @@ static void run(void) {
 
 static void boot(void) {
     uint32_t t0 = board_cycles();
+#ifdef ZM_SPLIT_SYS
+    bsys_link(); /* the lean cart image first (bsys.h): its header says where the disk may start */
+#endif
     bdisk_boot(); /* host_boot runs the cart's init, which may already read the disk */
     host_boot(&g_env);
     bdiskapp_boot(); /* after bdisk_boot: the disk it found decides */

@@ -36,6 +36,7 @@ pub const Pad = struct {
             1 => DOWN,
             2 => LEFT,
             3 => RIGHT,
+            5 => FIRE, // the board's joystick button (glass_joy); the page sends a cart that owns the keyboard none
             else => 0,
         };
         if (down) self.arrows |= b else self.arrows &= ~b;

@@ -1,10 +1,14 @@
 // --------------------------------------------------------------------------
-// POLKA DOTS, generic over its NUMBERS: polkadots.zig runs it on fixed.zig
-// (integers: the default cart, what the FPU-less board CPU can afford) and
-// polkadots_f32.zig on float.zig (the CODEF port's algorithm in f32, to
-// measure a single-precision FPU). Everything after the intensity grid — the
-// four render modes, the readout, the keys — is shared, so the two carts are
-// the same bench. polkadots.zig's header describes the screen itself.
+// POLKA DOTS, with its NUMBERS switchable live: F projects, lights and fills
+// the torus with shade_fixed.zig (integers: the rewrite that took the board
+// from 2 fps to 28) or with shade_f32.zig (the CODEF port's algorithm, kept
+// from before that rewrite, in f32 for the FPU), and F again switches back.
+// On a board built with the f32 FPU (ZM_FPU=1) the float side runs on it,
+// elsewhere it is soft-float and only slower. Everything after the intensity
+// grid -- the four render modes, the readout, the keys -- is shared, so it is
+// one bench either way; the readout says F32 while the float side is live.
+// polkadots.zig boots on the integers, polkadots_f32.zig on f32; replicants_
+// emlyn's F is the same switch. polkadots.zig's header describes the screen.
 // --------------------------------------------------------------------------
 const zg = @import("zigos");
 const ZigOS = zg.ZigOS;
@@ -15,6 +19,9 @@ const shade = @import("shade.zig");
 const dots = @import("dots.zig");
 const modes = @import("modes.zig");
 const readout = @import("readout.zig");
+const fixed = @import("shade_fixed.zig");
+const float = @import("shade_f32.zig");
+const trig = zg.fixtrig;
 
 const PLANE = 0;
 const K_ESC: u32 = 0xE012;
@@ -31,12 +38,14 @@ var owned = false;
 var grid: shade.Grid = undefined;
 var palette_scratch: [256]Color = undefined;
 
-/// `B` is the cart's number back-end: fixed.zig or float.zig.
-pub fn Demo(comptime B: type) type {
+/// `start_fpu`: the numbers the cart boots on (F switches them at any time).
+pub fn Demo(comptime start_fpu: bool) type {
     return struct {
         const Self = @This();
 
-        rotation: B.Rotation,
+        rot_fixed: fixed.Rotation, // the turn in integers
+        rot_float: float.Rotation, // ... and in f32: only the `fpu` one moves
+        fpu: bool, // the f32 side is the live one
         mode: modes.Mode,
         blitter: zg.Blitter,
         cost: dots.Cost, // last frame's blitter operations, for the label and the tap
@@ -44,7 +53,9 @@ pub fn Demo(comptime B: type) type {
         wants_quit: bool, // demo_main returns to the menu on this
 
         pub fn init(self: *Self, zigos: *ZigOS) void {
-            self.rotation.init();
+            self.rot_fixed.init();
+            self.rot_float.init();
+            self.fpu = start_fpu;
             self.mode = .dot_size;
             self.cost = .{};
             self.loads = 0;
@@ -54,7 +65,8 @@ pub fn Demo(comptime B: type) type {
                 geometry = &zg.mem.mustAlloc(torus.Geometry, 1)[0];
                 shade.alloc();
                 const mesh = geometry.build();
-                B.init(geometry, &mesh);
+                fixed.init(geometry, &mesh); // fixed first: its tables keep their place
+                float.init(geometry, &mesh);
                 owned = true;
             }
 
@@ -74,11 +86,23 @@ pub fn Demo(comptime B: type) type {
             _ = dt;
         }
 
-        /// 1..4 pick the renderer, Space cycles, Escape leaves. A screen that
-        /// declares key() owns every key, Escape included.
+        /// 1..4 pick the renderer, Space cycles, F switches the numbers,
+        /// Escape leaves. A screen that declares key() owns every key.
         pub fn key(self: *Self, cp: u32) void {
             if (cp == K_ESC) self.wants_quit = true;
             if (cp >= '1' and cp <= '0' + modes.NAMES.len) self.mode = @enumFromInt(cp - '1');
+            if (cp == 'f' or cp == 'F') self.switchNumbers();
+        }
+
+        /// The turn carried across, so the torus keeps its pose. Float here
+        /// runs once a keypress, never a frame.
+        fn switchNumbers(self: *Self) void {
+            if (self.fpu) {
+                self.rot_fixed = .{ .x = trig.fromRadians(self.rot_float.x), .y = trig.fromRadians(self.rot_float.y) };
+            } else {
+                self.rot_float = .{ .x = trig.toRadians(self.rot_fixed.x), .y = trig.toRadians(self.rot_fixed.y) };
+            }
+            self.fpu = !self.fpu;
         }
 
         pub fn input(self: *Self, dir: u8) void {
@@ -94,8 +118,15 @@ pub fn Demo(comptime B: type) type {
         pub fn render(self: *Self, zigos: *ZigOS, dt: f32) void {
             _ = dt;
             const fb = &zigos.lfbs[PLANE];
-            self.rotation.step(STEP_X, STEP_Y);
-            B.render(&self.rotation, &grid);
+            // shade_f32 is the one INTENTIONAL float-per-frame path: it is
+            // there to measure the board's FPU against shade_fixed.
+            if (self.fpu) {
+                self.rot_float.step(STEP_X, STEP_Y);
+                float.render(&self.rot_float, &grid);
+            } else {
+                self.rot_fixed.step(STEP_X, STEP_Y);
+                fixed.render(&self.rot_fixed, &grid);
+            }
             // The clear is a FILL like any other, so the halftone pattern mode 2
             // left loaded would dither it. Drop it before clearing, every frame.
             self.blitter.clearHalftone();
@@ -108,7 +139,7 @@ pub fn Demo(comptime B: type) type {
                 .fill_dots => modes.fillDots(fb, &self.blitter, &grid),
             };
             const m = @intFromEnum(self.mode);
-            readout.label(zigos, fb, m, modes.NAMES[m], self.cost.ops, self.cost.px);
+            readout.label(zigos, fb, m, modes.NAMES[m], self.cost.ops, self.cost.px, self.fpu);
             readout.tap(fb, m, self.cost.ops);
         }
     };

@@ -175,6 +175,4 @@ pub extern "C" fn skipBoot() {}
 #[no_mangle]
 pub extern "C" fn setShadeMode(_m: u32) {}
 #[no_mangle]
-pub extern "C" fn pointer(_x: i32, _y: i32, _b: u32) {}
-#[no_mangle]
 pub extern "C" fn input(_dir: u8) {}

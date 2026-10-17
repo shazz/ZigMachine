@@ -1,4 +1,5 @@
-// POLKA DOTS F32: the same halftone torus bench as polkadots.zig, on the CODEF
-// port's own algorithm in f32 (soft-float on the FPU-less board CPU), kept to
-// measure the single-precision FPU planned for it.
-pub const Demo = @import("polkadots/app.zig").Demo(@import("polkadots/shade_f32.zig"));
+// POLKA DOTS F32: the same halftone torus bench as polkadots.zig, booting with
+// its maths on the CODEF port's own algorithm in f32 (the FPU test cart:
+// hardware float on a ZM_FPU=1 board, soft-float elsewhere). F switches it to
+// the integers and back, as on polkadots.
+pub const Demo = @import("polkadots/app.zig").Demo(true);
