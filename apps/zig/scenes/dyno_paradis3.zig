@@ -127,6 +127,41 @@ fn getWave(intro: []const i16, main: []const i16, i: u64) i64 {
     return getSum(i16, main, i - intro.len, intro[intro.len - 1]);
 }
 
+/// getWave walked one index at a time. A frame reads 276 consecutive indices
+/// from each wave, and getWave costs two 64-bit divisions (software on ZIGGY) per
+/// call: the cursor pays them once at the start and then only steps.
+const WaveCursor = struct {
+    intro: []const i16,
+    main: []const i16,
+    in_intro: bool,
+    idx: usize,
+    reps: i64, // completed repeats of `main` (0 while in the intro)
+
+    fn at(intro: []const i16, main: []const i16, i: u64) WaveCursor {
+        if (i < intro.len) return .{ .intro = intro, .main = main, .in_intro = true, .idx = @intCast(i), .reps = 0 };
+        const m = i - intro.len;
+        return .{ .intro = intro, .main = main, .in_intro = false, .idx = @intCast(m % main.len), .reps = @intCast(m / main.len) };
+    }
+
+    /// == getWave(intro, main, index) for the current index
+    fn value(self: *const WaveCursor) i64 {
+        if (self.in_intro) return self.intro[self.idx];
+        return self.intro[self.intro.len - 1] + self.reps * self.main[self.main.len - 1] + self.main[self.idx];
+    }
+
+    fn next(self: *WaveCursor) void {
+        self.idx += 1;
+        if (self.in_intro) {
+            if (self.idx < self.intro.len) return;
+            self.in_intro = false;
+            self.idx = 0;
+        } else if (self.idx == self.main.len) {
+            self.idx = 0;
+            self.reps += 1;
+        }
+    }
+};
+
 /// getPosition: x where letter i starts
 fn getPosition(i: i64) i64 {
     if (i <= 0) return 0;
@@ -175,6 +210,7 @@ pub const Demo = struct {
     letter_num: i64,
     letter_decal: i64,
     scroll_built_for: i64, // letter_num the scroll canvas currently holds
+    bl: zg.Blitter, // CHISEL: the main part's row copies and the black fills
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
         // A cart's Demo arrives zeroed: every field is set here.
@@ -191,6 +227,7 @@ pub const Demo = struct {
         self.letter_decal = 0;
         self.scroll_built_for = -1;
 
+        self.bl.init();
         allocOffscreens();
         for (0..BACK_H) |y| for (0..BACK_CANVAS_W) |x| {
             back_canvas[y * BACK_CANVAS_W + x] = back_b[y * BACK_W + x % BACK_W];
@@ -238,15 +275,14 @@ pub const Demo = struct {
         _ = dt;
         const fb = &zigos.lfbs[PLANE];
         const view = blit.Dst.plane(fb).window(0, Y0, PW, SCREEN_H);
-        const view_len = (SCREEN_H - 1) * view.stride + PW;
         switch (self.phase) {
             .intro => {
-                @memset(view.buf[0..view_len], BLACK);
+                self.bl.fill(fb, 0, Y0, PW, SCREEN_H, BLACK); // the 110 KB memset, on CHISEL
                 const intro_img = blit.Image.init(intro_canvas, INTRO_W);
                 blit.blit(view, intro_img, null, -@as(i32, CROP_X), INTRO_Y, 0, .copy);
             },
-            .splash => @memset(view.buf[0..view_len], BLACK),
-            .main => self.renderMain(view),
+            .splash => self.bl.fill(fb, 0, Y0, PW, SCREEN_H, BLACK),
+            .main => self.renderMain(fb),
         }
     }
 
@@ -297,8 +333,10 @@ pub const Demo = struct {
     /// animDemo's "Calc decal_x" and "Calc first letter".
     fn findFirstLetter(self: *Demo) void {
         var decal_x: i64 = std.math.maxInt(i64);
-        for (front_row, 0..) |*v, line| {
-            v.* = getWave(&t.front_intro_wave, &t.front_main_wave, self.front_pos + line);
+        var wave = WaveCursor.at(&t.front_intro_wave, &t.front_main_wave, self.front_pos);
+        for (front_row) |*v| {
+            v.* = wave.value();
+            wave.next();
             if (v.* < decal_x) decal_x = @max(v.*, 0);
         }
 
@@ -311,7 +349,7 @@ pub const Demo = struct {
         self.letter_decal = getPosition(self.letter_num);
     }
 
-    fn renderMain(self: *Demo, view: blit.Dst) void {
+    fn renderMain(self: *Demo, fb: *zg.LogicalFB) void {
         if (self.scroll_built_for != self.letter_num) buildScrollCanvas(self.letter_num);
         self.scroll_built_for = self.letter_num;
 
@@ -320,8 +358,10 @@ pub const Demo = struct {
         const bounce_front: usize = t.bounce_front[bounce];
         const scroll_img = blit.Image.init(scroll_canvas, SCROLL_W);
 
+        var wave = WaveCursor.at(&t.back_intro_wave, &t.back_main_wave, self.back_pos);
         for (0..SCREEN_H) |line| {
-            const back_wave = getWave(&t.back_intro_wave, &t.back_main_wave, self.back_pos + line);
+            const back_wave = wave.value();
+            wave.next();
             // The back main table ends at -23, so the wave drifts down on every
             // repeat and after ~2 repeats (~2.5 min) the remake's JS % goes
             // negative. drawPart then draws the row from x = -back_x: original
@@ -330,16 +370,27 @@ pub const Demo = struct {
             // crop, so for every VISIBLE column the mathematical @mod is exact.
             const back_x: usize = @intCast(@mod(BACK_X_BIAS + @divFloor(back_wave, 2), BACK_W));
             const back_y = (line + bounce_back) % BACK_H;
-            @memcpy(view.buf[line * view.stride ..][0..PW],back_canvas[back_y * BACK_CANVAS_W + back_x + CROP_X ..][0..PW]);
+            const y: i16 = @intCast(Y0 + line);
+            // Both row copies are CHISEL ops (the CPU's two 400-byte copies a
+            // line were most of the frame): the back row, then the text row keyed
+            // over it, exactly as the two CPU copies were.
+            self.bl.blitImage(fb, 0, y, back_canvas, BACK_CANVAS_W, @intCast(back_x + CROP_X), @intCast(back_y), PW, 1, null);
 
             // Original column x shows scroll column x + scroll_x, clipped to the
             // canvas on both sides; that covers drawPart's negative-partx branch
             // (a front value below 0 while decal_x is clamped to 0). The plane
             // shows original columns 8..407.
-            const scroll_x = front_row[line] - self.letter_decal;
-            const row = blit.Rect{ .x = 0, .y = (line + bounce_front) % FONT_H, .w = SCROLL_W, .h = 1 };
-            blit.blit(view, scroll_img, row, @intCast(-(scroll_x + CROP_X)), @intCast(line), 0, .copy);
+            const dx = -(front_row[line] - self.letter_decal + CROP_X);
+            self.scrollRow(fb, dx, y, (line + bounce_front) % FONT_H);
         }
+    }
+
+    // blit.blit's clip for one row of the scroll canvas at dx: the part that lands on the plane.
+    fn scrollRow(self: *Demo, fb: *zg.LogicalFB, dx: i64, y: i16, src_row: usize) void {
+        const x0 = @max(dx, 0);
+        const x1 = @min(dx + SCROLL_W, @as(i64, PW));
+        if (x1 <= x0) return;
+        self.bl.blitImage(fb, @intCast(x0), y, scroll_canvas, SCROLL_W, @intCast(x0 - dx), @intCast(src_row), @intCast(x1 - x0), 1, 0);
     }
 };
 
