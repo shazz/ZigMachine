@@ -41,8 +41,9 @@ fn word(buf: []u8, at: usize, s: []const u8) usize {
     return at + s.len;
 }
 
-/// "2 HALFTONE 84 OPS 39K PX" along the bottom of the screen.
-pub fn label(zigos: *zg.ZigOS, fb: *zg.LogicalFB, mode: u8, name: []const u8, ops: u32, px: u32) void {
+/// "2 HALFTONE 84 OPS 39K PX" along the bottom of the screen, then " F32"
+/// while the torus is computed in f32 (F); the integer label is unchanged.
+pub fn label(zigos: *zg.ZigOS, fb: *zg.LogicalFB, mode: u8, name: []const u8, ops: u32, px: u32, f32_maths: bool) void {
     var buf: [40]u8 = undefined;
     var i = decimal(&buf, 0, mode + 1);
     i = word(&buf, i, " ");
@@ -52,6 +53,7 @@ pub fn label(zigos: *zg.ZigOS, fb: *zg.LogicalFB, mode: u8, name: []const u8, op
     i = word(&buf, i, " OPS ");
     i = decimal(&buf, i, px / 1000);
     i = word(&buf, i, "K PX");
+    if (f32_maths) i = word(&buf, i, " F32");
     zigos.printText(fb, buf[0..i], 1, LABEL_Y, dots.LABEL_INK, 0);
 }
 
