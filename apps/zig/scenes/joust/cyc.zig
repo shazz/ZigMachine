@@ -16,6 +16,8 @@
 const std = @import("std");
 const State = @import("state.zig");
 const St = State.St;
+const chain = @import("cyc_chain.zig");
+const fold = @import("cyc_fold.zig");
 
 const TABLE = @embedFile("../../assets/screens/joust/costs.bin");
 const VAR: u16 = 0xFFFF;
@@ -35,13 +37,13 @@ fn fail(a: i64) void {
     errors += 1;
 }
 
-fn entry(a: i64) ?*const [4]u8 {
+inline fn entry(a: i64) ?*const [4]u8 {
     if (a < 0 or (a + 1) * 4 > TABLE.len) return null;
     const i: usize = @intCast(a * 4);
     return TABLE[i..][0..4];
 }
 
-pub fn len(a: i64) i64 {
+pub inline fn len(a: i64) i64 {
     const e = entry(a) orelse return 0;
     return e[2];
 }
@@ -51,8 +53,16 @@ pub fn flags(a: i64) u8 {
     return e[3];
 }
 
-/// The fixed cost of the instruction at TEXT a.
-pub fn cost(a: i64) i64 {
+/// The fixed cost of the instruction at TEXT a: a constant for a literal a
+/// (cyc_fold.zig).
+pub inline fn cost(a: i64) i64 {
+    if (fold.known(a)) {
+        if (comptime fold.cost(TABLE, a)) |c| return c;
+    }
+    return costRt(a);
+}
+
+fn costRt(a: i64) i64 {
     const e = entry(a) orelse {
         fail(a);
         return 0;
@@ -65,8 +75,27 @@ pub fn cost(a: i64) i64 {
     return c;
 }
 
-/// The sum of the fixed costs of every instruction in [lo, hi).
-pub fn span(lo: i64, hi: i64) i64 {
+/// The run tables span() reads (cyc_chain.zig): once, at the scene's init.
+pub fn buildChains() void {
+    chain.build(TABLE);
+}
+
+/// The sum of the fixed costs of every instruction in [lo, hi): a constant
+/// for literal bounds (cyc_fold.zig), else the run tables (cyc_chain.zig).
+pub inline fn span(lo: i64, hi: i64) i64 {
+    if (fold.known(lo) and fold.known(hi)) {
+        if (comptime fold.span(TABLE, lo, hi)) |s| return s;
+    }
+    return spanRt(lo, hi);
+}
+
+fn spanRt(lo: i64, hi: i64) i64 {
+    return chain.lookup(lo, hi) orelse walk(lo, hi);
+}
+
+/// span() the long way, one instruction at a time: what the run tables do
+/// not hold, and every transcription error (counted here, as before).
+fn walk(lo: i64, hi: i64) i64 {
     var s: i64 = 0;
     var a = lo;
     while (a < hi) {
@@ -75,7 +104,7 @@ pub fn span(lo: i64, hi: i64) i64 {
             fail(a);
             return s;
         }
-        s += cost(a);
+        s += costRt(a);
         a += n;
     }
     if (a != hi) fail(hi);
@@ -83,7 +112,7 @@ pub fn span(lo: i64, hi: i64) i64 {
 }
 
 /// A Bcc at a: taken 12, not taken 8 (.b) / 12 (.w).
-pub fn brc(a: i64, taken: bool) i64 {
+pub inline fn brc(a: i64, taken: bool) i64 {
     if (taken) return 12;
     return if (len(a) == 4) 12 else 8;
 }
@@ -111,17 +140,17 @@ pub const Cy = struct {
     pub fn init(st: *St) Cy {
         return .{ .st = st, .pend = 0, .total = 0 };
     }
-    pub fn run(self: *Cy, lo: i64, hi: i64) void {
+    pub inline fn run(self: *Cy, lo: i64, hi: i64) void {
         self.pend += span(lo, hi);
     }
-    pub fn one(self: *Cy, a: i64) void {
+    pub inline fn one(self: *Cy, a: i64) void {
         self.pend += cost(a);
     }
-    pub fn br(self: *Cy, a: i64, taken: bool) bool {
+    pub inline fn br(self: *Cy, a: i64, taken: bool) bool {
         self.pend += brc(a, taken);
         return taken;
     }
-    pub fn add(self: *Cy, n: i64) void {
+    pub inline fn add(self: *Cy, n: i64) void {
         self.pend += n;
     }
     pub fn flush(self: *Cy) void {
@@ -146,17 +175,17 @@ pub const Clk = struct {
     pub fn init(st: *St) Clk {
         return .{ .st = st, .total = 0, .pending = 0 };
     }
-    pub fn add(self: *Clk, n: i64) void {
+    pub inline fn add(self: *Clk, n: i64) void {
         self.total += n;
         self.pending += n;
     }
-    pub fn r(self: *Clk, a: i64, hi: i64) void {
+    pub inline fn r(self: *Clk, a: i64, hi: i64) void {
         self.add(span(a, hi));
     }
-    pub fn i(self: *Clk, a: i64) void {
+    pub inline fn i(self: *Clk, a: i64) void {
         self.add(cost(a));
     }
-    pub fn b(self: *Clk, a: i64, cond: bool) bool {
+    pub inline fn b(self: *Clk, a: i64, cond: bool) bool {
         self.add(brc(a, cond));
         return cond;
     }
@@ -168,13 +197,13 @@ pub const Clk = struct {
         self.add((base + 2 * (cnt & 63) + 3) & ~@as(i64, 3));
     }
     // package D's routines count into a Clk through Cy's names
-    pub fn run(self: *Clk, a: i64, b2: i64) void {
+    pub inline fn run(self: *Clk, a: i64, b2: i64) void {
         self.r(a, b2);
     }
-    pub fn one(self: *Clk, a: i64) void {
+    pub inline fn one(self: *Clk, a: i64) void {
         self.i(a);
     }
-    pub fn br(self: *Clk, a: i64, cond: bool) bool {
+    pub inline fn br(self: *Clk, a: i64, cond: bool) bool {
         return self.b(a, cond);
     }
     pub fn flush(self: *Clk) void {
@@ -196,7 +225,7 @@ pub const Clock = struct {
     pub fn init(st: *St, n: i64) Clock {
         return .{ .st = st, .n = n };
     }
-    pub fn add(self: *Clock, k: i64) void {
+    pub inline fn add(self: *Clock, k: i64) void {
         self.n += k;
     }
     pub fn done(self: *Clock) void {

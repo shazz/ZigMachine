@@ -18,6 +18,8 @@ const zg = @import("zigos");
 const pacing = @import("pacing.zig");
 const sound = @import("sound.zig");
 const m68k = @import("m68k.zig");
+const screen = @import("screen.zig");
+const bus = @import("bus.zig");
 pub const V = @import("vars.zig");
 
 pub const BASE: i64 = 0x10000;
@@ -103,73 +105,56 @@ pub const St = struct {
     }
 
     // ---- TEXT-offset access (unsigned) ----
-    pub fn get(self: *St, off: i64, n: u8) i64 {
+    // All inline: a read is one call of bus.zig's sized reader (see there).
+    pub inline fn get(self: *St, off: i64, n: u8) i64 {
         return self.rd(BASE + off, n);
     }
-    pub fn put(self: *St, off: i64, n: u8, v: i64) void {
+    pub inline fn put(self: *St, off: i64, n: u8, v: i64) void {
         self.wr(BASE + off, n, v);
     }
-    pub fn rb(self: *St, off: i64) i64 {
-        return self.get(off, 1);
+    pub inline fn rb(self: *St, off: i64) i64 {
+        return bus.rd8(self, BASE + off);
     }
-    pub fn rw(self: *St, off: i64) i64 {
-        return self.get(off, 2);
+    pub inline fn rw(self: *St, off: i64) i64 {
+        return bus.rd16(self, BASE + off);
     }
-    pub fn rl(self: *St, off: i64) i64 {
-        return self.get(off, 4);
+    pub inline fn rl(self: *St, off: i64) i64 {
+        return bus.rd32(self, BASE + off);
     }
-    pub fn wb(self: *St, off: i64, v: i64) void {
-        self.put(off, 1, v);
+    pub inline fn wb(self: *St, off: i64, v: i64) void {
+        bus.wr8(self, BASE + off, v);
     }
-    pub fn ww(self: *St, off: i64, v: i64) void {
-        self.put(off, 2, v);
+    pub inline fn ww(self: *St, off: i64, v: i64) void {
+        bus.wr16(self, BASE + off, v);
     }
-    pub fn wl(self: *St, off: i64, v: i64) void {
-        self.put(off, 4, v);
+    pub inline fn wl(self: *St, off: i64, v: i64) void {
+        bus.wr32(self, BASE + off, v);
     }
 
     /// A named variable (vars.zig), unsigned.
-    pub fn g(self: *St, v: V.Var) i64 {
+    pub inline fn g(self: *St, v: V.Var) i64 {
         return self.get(v.off, v.n);
     }
-    pub fn s(self: *St, v: V.Var, x: i64) void {
+    pub inline fn s(self: *St, v: V.Var, x: i64) void {
         self.put(v.off, v.n, x);
     }
 
-    // ---- absolute-address access, as the 68000 sees it ----
-    // Every 68000 access of every transcribed routine lands here, and reads
-    // the arena pointer once: one load where a static array had a constant.
-    fn where(self: *St, a: i64, n: u8) ?[]u8 {
-        const x = a & 0xFFFFFF;
-        const len: i64 = n;
-        if (x >= BASE and x + len <= BASE + @as(i64, MEM_LEN)) {
-            const o: usize = @intCast(x - BASE);
-            return mem[o .. o + n];
-        }
-        const lo = SCREEN - @as(i64, BELOW);
-        if (x >= lo and x + len <= SCREEN + 32000) {
-            const o: usize = @intCast(x - lo);
-            return scr[o .. o + n];
-        }
-        self.oob += 1;
-        return null;
+    // ---- absolute-address access, as the 68000 sees it (bus.zig) ----
+    // n is comptime-known at nearly every call, and the switch folds away.
+    pub inline fn rd(self: *St, a: i64, n: u8) i64 {
+        return switch (n) {
+            1 => bus.rd8(self, a),
+            2 => bus.rd16(self, a),
+            4 => bus.rd32(self, a),
+            else => bus.rdN(self, a, n),
+        };
     }
-
-    pub fn rd(self: *St, a: i64, n: u8) i64 {
-        const b = self.where(a, n) orelse return 0;
-        var v: i64 = 0;
-        for (b) |c| v = (v << 8) | c;
-        return v;
-    }
-
-    pub fn wr(self: *St, a: i64, n: u8, v: i64) void {
-        const b = self.where(a, n) orelse return;
-        var x: u64 = @bitCast(v);
-        var i: usize = n;
-        while (i > 0) {
-            i -= 1;
-            b[i] = @truncate(x);
-            x >>= 8;
+    pub inline fn wr(self: *St, a: i64, n: u8, v: i64) void {
+        switch (n) {
+            1 => bus.wr8(self, a, v),
+            2 => bus.wr16(self, a, v),
+            4 => bus.wr32(self, a, v),
+            else => bus.wrN(self, a, n, v),
         }
     }
 
@@ -269,6 +254,7 @@ fn loadImage() void {
     // inherit the last run's screen or the RAM below it: the model starts both
     // empty.
     @memset(scr, 0);
+    screen.touchAll();
 }
 
 // ---- 68000 arithmetic (m68k.zig), re-exported ----
