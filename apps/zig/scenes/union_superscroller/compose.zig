@@ -31,12 +31,13 @@ const Layers = struct { back: ?cd.Taps, overs: [2]?cd.Taps, raster: ?u32 };
 const Sample = struct { back: [2]u8, over: [4]u8, ink: bool };
 
 pub fn drawFrame(dst: zg.blit.Dst, img: *const A.Images, m: *const M.Motion, pal: *Palette) void {
-    for (0..A.H) |y| drawRow(dst.buf[y * dst.stride ..][0..A.W], y, img, m, pal);
+    const ys = m.backCopies();
+    for (0..A.H) |y| drawRow(dst.buf[y * dst.stride ..][0..A.W], y, img, m, &ys, pal);
 }
 
-fn drawRow(row: *[A.W]u8, y: usize, img: *const A.Images, m: *const M.Motion, pal: *Palette) void {
+fn drawRow(row: *[A.W]u8, y: usize, img: *const A.Images, m: *const M.Motion, ys: *const [3]cd.Fy, pal: *Palette) void {
     const cy: u16 = @intCast(2 * y);
-    const l = layersAt(img, m, cy);
+    const l = layersAt(img, m, ys, cy);
     var ink = [_]bool{false} ** A.W;
     if (l.raster != null) markInk(&ink, img, m, @as(i32, cy) - SCROLL_Y);
     pal.beginRow(y);
@@ -53,16 +54,15 @@ fn drawRow(row: *[A.W]u8, y: usize, img: *const A.Images, m: *const M.Motion, pa
     }
 }
 
-fn layersAt(img: *const A.Images, m: *const M.Motion, cy: u16) Layers {
-    const ys = m.backCopies();
+fn layersAt(img: *const A.Images, m: *const M.Motion, ys: *const [3]cd.Fy, cy: u16) Layers {
     var back: ?cd.Taps = null;
     for (ys) |yc| {
-        if (cd.taps(yc, BACK_H, cy)) |t| back = t; // later copies are drawn over earlier ones
+        if (cd.tapsFy(yc, BACK_H, cy)) |t| back = t; // later copies are drawn over earlier ones
     }
     const s = @as(i32, cy) - SCROLL_Y;
     return .{
         .back = back,
-        .overs = .{ cd.taps(ys[0], BACK_H, cy), cd.taps(ys[1], BACK_H, cy) },
+        .overs = .{ cd.tapsFy(ys[0], BACK_H, cy), cd.tapsFy(ys[1], BACK_H, cy) },
         .raster = if (s >= 0 and s < SCROLL_H) rasterAt(img, m, s) else null,
     };
 }

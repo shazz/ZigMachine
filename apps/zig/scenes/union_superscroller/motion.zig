@@ -60,9 +60,11 @@ pub const Motion = struct {
         return self.ring.next;
     }
 
-    /// posVertScrollY1..3: Y2 = Y1 + 398, Y3 = Y2 + 398 (added in that order).
-    pub fn backCopies(self: *const Motion) [3]f64 {
+    /// posVertScrollY1..3: Y2 = Y1 + 398, Y3 = Y2 + 398 (added in that order),
+    /// each as Skia's float32 in Q32. The frame's only float work: three f64
+    /// adds, taken once, where the rows then test integers.
+    pub fn backCopies(self: *const Motion) [3]zg.chrome_draw.Fy {
         const y2 = self.y1 + BACK_STEP;
-        return .{ self.y1, y2, y2 + BACK_STEP };
+        return .{ zg.chrome_draw.fyOf(self.y1), zg.chrome_draw.fyOf(y2), zg.chrome_draw.fyOf(y2 + BACK_STEP) };
     }
 };
