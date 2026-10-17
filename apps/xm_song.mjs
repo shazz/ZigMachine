@@ -1,5 +1,6 @@
 // The XM test song (apps/xm_check.mjs): generated here, not ripped, so there is
-// no licence to carry. 8 channels, 2 patterns of 16 rows, 2 instruments: an 8-bit
+// no licence to carry. 8 channels (testSong(12): 12, with sustained notes on
+// channels 8..11 so every voice sounds at once), 2 patterns of 16 rows, 2 instruments: an 8-bit
 // sawtooth with a forward loop, a volume envelope and fadeout, and a 16-bit sine
 // with a ping-pong loop. Its cells cover the effects the player implements (arpeggio,
 // portamento, vibrato, volume slide, tone portamento, retrigger, sample offset,
@@ -74,9 +75,9 @@ function cell([note = 0, inst = 0, vol = 0, eff = 0, param = 0]) {
     return [flag, ...f.filter((x) => x !== 0)];
 }
 
-/** A pattern from `rows`: each row a list of 8 cells, [] = empty. */
-function pattern(rows) {
-    const packed = rows.flatMap((row) => Array.from({ length: 8 }, (_, ch) => cell(row[ch] ?? [])).flat());
+/** A pattern from `rows`: each row a list of `channels` cells, [] = empty. */
+function pattern(rows, channels) {
+    const packed = rows.flatMap((row) => Array.from({ length: channels }, (_, ch) => cell(row[ch] ?? [])).flat());
     return [...u32(9), 0, ...u16(rows.length), ...u16(packed.length), ...packed];
 }
 
@@ -106,17 +107,27 @@ const PAT1 = withCells([
     [8, 4, [0, 0, 0, 0xe, 0xe1]],
 ]);
 
-/** The song: the header, the orders, the patterns, the instruments and their PCM. */
-export function testSong() {
+/** Channels 8..11 of a 9..12-channel song: notes held through the patterns, so every voice sounds at once. */
+const EXTRA = [[0, 8, [49, 2]], [0, 9, [53, 1]], [0, 10, [56, 2]], [0, 11, [45, 1]]];
+
+/** A copy of `rows` with EXTRA's cells added for a song of `channels` (the 8-channel song is unchanged). */
+function extend(rows, channels) {
+    const out = rows.map((row) => row.slice());
+    if (channels > 8) for (const [r, ch, c] of EXTRA) if (ch < channels) out[r][ch] = c;
+    return out;
+}
+
+/** The song: the header, the orders, the patterns, the instruments and their PCM. `channels` is 8 (the default) to 12. */
+export function testSong(channels = 8) {
     const sawBytes = deltas8(SAW);
     const sineBytes = deltas16(SINE);
     const headerSize = 276; // the 20 fixed bytes after the size, and the 256-byte order table
     const orders = [0, 1, 0, 1];
     const head = [...'Extended Module: '].map((c) => c.charCodeAt(0));
     const h = pad([...head, ...text('ZigTest', 20), 0x1a, ...text('xm_song.mjs', 20), ...u16(0x0104), ...u32(headerSize),
-        ...u16(orders.length), ...u16(0), ...u16(8), ...u16(2), ...u16(2), ...u16(1), ...u16(6), ...u16(125)], 80);
+        ...u16(orders.length), ...u16(0), ...u16(channels), ...u16(2), ...u16(2), ...u16(1), ...u16(6), ...u16(125)], 80);
     const table = pad(orders, 256);
-    const body = [...pattern(PAT0), ...pattern(PAT1)];
+    const body = [...pattern(extend(PAT0, channels), channels), ...pattern(extend(PAT1, channels), channels)];
     const inst1 = [...instrument8(), ...sampleHeader(sawBytes.length, 0, sawBytes.length, 1, 48), ...sawBytes];
     const inst2 = [...instrument16(), ...sampleHeader(sineBytes.length, 32, 192, 0x10 | 2, 64), ...sineBytes];
     return Uint8Array.from([...h, ...table, ...body, ...inst1, ...inst2]);

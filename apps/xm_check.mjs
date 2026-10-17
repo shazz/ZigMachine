@@ -1,15 +1,17 @@
 // FastTracker 2 (.XM) player, on the real audio modules (docs/machine-audio.wasm +
-// docs/demo-audio.wasm), playing apps/xm_song.mjs's test song through the sealed
-// Paula channels the eight voices are mixed onto.
-//   loads     the song is staged, checked and played (mode 1, the MOD's scope view)
-//   refused   a 9-channel file, a non-XM, and a file cut short are refused, each
+// docs/demo-audio.wasm), playing apps/xm_song.mjs's test songs through the sealed
+// Paula channels the voices are mixed onto.
+//   loads     the 8-channel song is staged, checked and played (mode 1, the MOD's scope view)
+//   refused   a 13-channel file, a non-XM, and a file cut short are refused, each
 //             with its reason (audioXmError) and counted (audioXmRejected)
 //   plays     four seconds: never over full scale, not silent, both channels
 //   pinned    the same song rendered twice is byte-identical, and matches the
 //             sha256 pinned below (any change to the mixer, the sequencer or the
 //             tables moves it: re-pin only with a reason)
+//   twelve    the 12-channel song (three voices a Paula channel) loads, plays, never
+//             over full scale, not silent, and renders byte-identically twice
 //   node apps/xm_check.mjs [--break refuse|pin]
-//     refuse: a 9-channel file expected to load fails; pin: a wrong pin fails
+//     refuse: a 13-channel file expected to load fails; pin: a wrong pin fails
 import { readFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { testSong } from "./xm_song.mjs";
@@ -66,13 +68,13 @@ async function play(bytes) {
 /** Refused, with a reason, and counted: each of the three bad files. */
 async function refusals(errors, notes) {
     const good = testSong();
-    const nine = Uint8Array.from(good);
-    nine[68] = 9; // channels
+    const thirteen = Uint8Array.from(good);
+    thirteen[68] = 13; // channels
     const notXm = Uint8Array.from(good);
     notXm[0] = 0x58; // 'X'
     const cut = good.slice(0, 400); // the second pattern runs past the end
-    const cases = [[nine, 5, "9 channels"], [notXm, 2, "not an XM"], [cut, 11, "truncated"]];
-    if (broke === "refuse") cases[0] = [good, 5, "9 channels (--break refuse: the 8-channel song sent as 9)"];
+    const cases = [[thirteen, 5, "13 channels"], [notXm, 2, "not an XM"], [cut, 11, "truncated"]];
+    if (broke === "refuse") cases[0] = [good, 5, "13 channels (--break refuse: the 8-channel song sent as 13)"];
     const x = await machine();
     for (const [bytes, want, what] of cases) {
         const ok = x.a.audioLoadXm(x.stage(bytes));
@@ -80,7 +82,31 @@ async function refusals(errors, notes) {
         else if (x.a.audioXmError() !== want) errors.push(`refuse: ${what} gave reason ${x.a.audioXmError()}, not ${want}`);
     }
     if (x.a.audioXmRejected() !== cases.length) errors.push(`refuse: ${x.a.audioXmRejected()} rejections counted, not ${cases.length}`);
-    notes.push(`${cases.length} bad files refused with their reasons and counted (9 channels, not an XM, truncated)`);
+    notes.push(`${cases.length} bad files refused with their reasons and counted (13 channels, not an XM, truncated)`);
+}
+
+/** The peak and RMS of a render, both channels. */
+function levels(out) {
+    let peak = 0, sum = 0;
+    for (let i = 0; i < FRAMES; i++) {
+        for (const v of [out.left[i], out.right[i]]) {
+            peak = Math.max(peak, Math.abs(v));
+            sum += v * v;
+        }
+    }
+    return { peak, rms: Math.sqrt(sum / (2 * FRAMES)) };
+}
+
+/** The 12-channel song: loads, plays within full scale and not silent, renders the same twice. */
+async function twelve(errors, notes) {
+    const first = await play(testSong(12));
+    if (first.x.a.audioMode() !== 1) errors.push(`twelve: audioMode ${first.x.a.audioMode()}, not 1`);
+    const { peak, rms } = levels(first.out);
+    if (peak > 1.0) errors.push(`twelve: peak ${peak.toFixed(3)} over full scale`);
+    if (!(rms > 0.01)) errors.push(`twelve: silent (rms ${rms.toFixed(4)})`);
+    const again = await play(testSong(12));
+    if (again.hash !== first.hash) errors.push("twelve: a second render of the 12-channel song differs");
+    notes.push(`twelve: 12 channels, peak ${peak.toFixed(3)}, rms ${rms.toFixed(3)}, ${first.hash.slice(0, 16)}...`);
 }
 
 const errors = [], notes = [];
@@ -88,14 +114,7 @@ const song = testSong();
 await refusals(errors, notes);
 const first = await play(song);
 if (first.x.a.audioMode() !== 1) errors.push(`loads: audioMode ${first.x.a.audioMode()}, not 1`);
-let peak = 0, sum = 0;
-for (let i = 0; i < FRAMES; i++) {
-    for (const v of [first.out.left[i], first.out.right[i]]) {
-        peak = Math.max(peak, Math.abs(v));
-        sum += v * v;
-    }
-}
-const rms = Math.sqrt(sum / (2 * FRAMES));
+const { peak, rms } = levels(first.out);
 if (peak > 1.0) errors.push(`plays: peak ${peak.toFixed(3)} over full scale`);
 if (!(rms > 0.01)) errors.push(`plays: silent (rms ${rms.toFixed(4)})`);
 notes.push(`plays: ${SECONDS} s, peak ${peak.toFixed(3)}, rms ${rms.toFixed(3)}`);
@@ -105,6 +124,7 @@ const pin = broke === "pin" ? "0".repeat(64) : PINNED;
 if (pin === PINNED && PINNED === "PIN_PENDING") errors.push(`pinned: no pin yet (rendered sha256 ${first.hash})`);
 else if (first.hash !== pin) errors.push(`pinned: sha256 ${first.hash} is not the pin`);
 notes.push(`pinned: sha256 ${first.hash.slice(0, 16)}...`);
+await twelve(errors, notes);
 
 for (const n of notes) console.log(`  ${n}`);
 // exitCode, never process.exit() (see apps/mod_sfx_check.mjs: node 24 deadlocks at exit).
