@@ -19,7 +19,6 @@ const zg = @import("zigos");
 const blit = zg.blit;
 const A = @import("assets.zig");
 const Band = @import("band.zig").Band;
-const stretch = @import("../union_common/stretch.zig");
 const sintab = @import("../union_common/sintab.zig");
 
 pub const TEXT = @embedFile("../../assets/screens/union_deltaforce/scrolltext.txt"); // screen.js:112, verbatim
@@ -118,6 +117,6 @@ pub const Scroller = struct {
         for (self.ring.x, self.ring.c) |x, c| band.letter(&img.font, c, x);
         var sweep = sintab.Flat{ .y = @intFromFloat(@round(self.text_y)) }; // amp 0: one y for every column
         band.compose(&sweep, img.gold, gold_y);
-        band.draw(dst, 0, CENTRE_Q16, stretch.toQ30(@cos(self.twist)));
+        band.draw(dst, 0, CENTRE_Q16, @cos(self.twist));
     }
 };

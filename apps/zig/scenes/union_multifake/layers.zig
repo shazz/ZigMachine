@@ -80,7 +80,7 @@ pub const The = struct {
     }
 
     pub fn draw(self: *const The, dst: blit.Dst, img: blit.Image) void {
-        stretch.stretchY(dst, img, LEFT, CENTRE_Q16, stretch.toQ30(@sin(self.drawn)), 0, .copy);
+        stretch.stretchY(dst, img, LEFT, CENTRE_Q16, @sin(self.drawn), 0, .copy);
     }
 };
 

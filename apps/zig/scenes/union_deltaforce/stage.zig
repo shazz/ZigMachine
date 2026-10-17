@@ -72,7 +72,7 @@ const LAST_FRAME = 15;
 
 pub fn draw(dst: blit.Dst, img: *const A.Images, logo: *const Logo, voices: *const Voices) void {
     blit.blit(dst, img.floor, null, FLOOR_X, FLOOR_Y, 0, .copy);
-    stretch.stretchY(dst, img.logo(logo.tile), 0, Logo.CENTRE_Q16, stretch.toQ30(logo.height), null, .copy);
+    stretch.stretchY(dst, img.logo(logo.tile), 0, Logo.CENTRE_Q16, logo.height, null, .copy);
     for (voices.level, 0..) |level, k| {
         const frame: usize = LAST_FRAME - level;
         const part = blit.Rect{ .x = frame * A.BALL_W, .y = 0, .w = A.BALL_W, .h = A.BALL_H };

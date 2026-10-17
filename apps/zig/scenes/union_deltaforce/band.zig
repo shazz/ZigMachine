@@ -73,7 +73,7 @@ pub const Band = struct {
 
     /// mergecanvas.drawPart(main, x, y, 0, 0, w, 110, 1, 0, 1, scale) on a
     /// mid-handled canvas: left edge at `dx`, stretched about `centre_y`.
-    pub fn draw(self: *const Band, dst: blit.Dst, dx: i32, centre_q16: i32, scale_q30: i32) void {
-        stretch.stretchY(dst, blit.Image.init(self.merge, self.w), dx, centre_q16, scale_q30, 0, .copy);
+    pub fn draw(self: *const Band, dst: blit.Dst, dx: i32, centre_q16: i32, scale: f64) void {
+        stretch.stretchY(dst, blit.Image.init(self.merge, self.w), dx, centre_q16, scale, 0, .copy);
     }
 };

@@ -14,7 +14,6 @@ const zg = @import("zigos");
 const blit = zg.blit;
 const A = @import("assets.zig");
 const Band = @import("band.zig").Band;
-const stretch = @import("../union_common/stretch.zig");
 const sintab = @import("../union_common/sintab.zig");
 const Wave = sintab.SinTab(1280, 0.004); // 0.004 a canvas column, 1280 of them
 
@@ -122,7 +121,7 @@ pub const Intro = struct {
         }
         var sweep = Sweep{ .wave = Wave.init(self.drawn_wave) };
         band.compose(&sweep, img.gold, gold_y);
-        band.draw(dst, @divFloor(self.pos, 2), CENTRE_Q16, stretch.toQ30(@cos(twist)));
+        band.draw(dst, @divFloor(self.pos, 2), CENTRE_Q16, @cos(twist));
     }
 };
 
