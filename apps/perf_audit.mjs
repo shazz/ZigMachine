@@ -20,7 +20,8 @@ const pad = (s, n) => String(s).padEnd(n);
 export async function auditCart(cart, o) {
     const dyn = await costOf(cart, o, true);
     const findings = crossCheck(dyn, await readFile(cart), dyn.cartNames);
-    delete dyn.profiles; delete dyn.cartNames;
+    for (const f of findings) f.src = f.mod === "cart" && f.at !== "-" ? dyn.cartSrc(parseInt(f.at, 16)) : null;
+    delete dyn.profiles; delete dyn.cartNames; delete dyn.cartSrc;
     return { ...dyn, findings };
 }
 
@@ -31,7 +32,7 @@ export function printAudit(r, n, out = console.log) {
     if (!shown.length) out("  no per-frame finding");
     for (const [i, f] of shown.entries())
         out(`  ${String(i + 1).padStart(2)}. ${pad(f.status, 9)} ${String(f.mc).padStart(6)} Mc  ${pad(f.pattern, 24)} `
-            + `${short(f.func)} ${f.loop >= 0 ? "loop@" : "@"}${f.at}: ${f.detail}\n      fix: ${f.hint}`);
+            + `${short(f.func)} ${f.loop >= 0 ? "loop@" : "@"}${f.at}${f.src ? " (" + f.src + ")" : ""}: ${f.detail}\n      fix: ${f.hint}`);
     if (cold) out(`  (${cold} static finding(s) in code that did not run in frames ${r.warmup + 1}..${r.warmup + r.frames}: --json lists them)`);
 }
 

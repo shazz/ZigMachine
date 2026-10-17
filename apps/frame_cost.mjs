@@ -75,7 +75,9 @@ export async function costOf(cart, o, keep = false) {
     const cn = twinNames(cart, o.namesDir), rn = twinNames(`${o.machineDir}/rom.wasm`, o.namesDir);
     const r = await measure(cart, { ...o, calls: parseCalls(o.callSpecs), disk,
         names: { cart: cn.names, rom: rn.names } });
-    if (keep) r.cartNames = cn.names;
+    const src = { cart: cn.src, rom: rn.src };
+    for (const h of r.hot) h.src = src[h.mod](parseInt(h.at, 16));
+    if (keep) Object.assign(r, { cartNames: cn.names, cartSrc: cn.src });
     else delete r.profiles;
     return { tag, ...r, disk, namesWhy: `cart ${cn.why}, rom ${rn.why}` };
 }

@@ -23,7 +23,7 @@ export function printOne(r, out = console.log) {
     if (r.palette.writes) out(`  palette stores/frame: ${r.palette.writes}, ${r.palette.unchanged} of them rewrite the colour already there`);
     for (const c of r.clears) out(`  big fill ${c.mod}:${c.func} ${c.len} B ${c.perFrame}/frame, ${c.overwritten}% overwritten later in the frame${c.wasted ? "  <- cleared then redrawn" : ""}`);
     out(`  hot regions (Mc/frame, iterations/frame, cause):`);
-    for (const h of r.hot) out(`    ${lpad(h.mc, 6)}  ${lpad(h.iters, 8)}  ${pad(h.mod + ":" + short(h.func), 52)} ${h.loop >= 0 ? "loop@" + h.at : "body@" + h.at}  ${h.cause}`);
+    for (const h of r.hot) out(`    ${lpad(h.mc, 6)}  ${lpad(h.iters, 8)}  ${pad(h.mod + ":" + short(h.func), 52)} ${h.loop >= 0 ? "loop@" + h.at : "body@" + h.at}  ${h.cause}${h.src ? "  " + h.src : ""}`);
 }
 
 export function printRanking(rows, out = console.log) {
