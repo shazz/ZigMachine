@@ -42,7 +42,12 @@ fn noIdle() void {}
 
 pub const Report = struct { image_bytes: u32, packed_bytes: u32, polls: u32, trap: u32 = 0, fw: u32 = 0, disk_at: u32 = 0, disk_bytes: u32 = 0 };
 
-/// Stop the cart CPU, keeping the OSD bit as it is (and dropping WARM: the next
+/// Both OSD bits, which a load or a reset leaves as they are: the window the user sees
+/// is the app's (app_stats.place), and a program run off a disk (app_request.zig) loads
+/// with nothing after it to put a dropped OSD_STATS back (an opaque box in the corner).
+const OSD_BITS = map.CTRL_OSD | map.CTRL_OSD_STATS;
+
+/// Stop the cart CPU, keeping the OSD bits as they are (and dropping WARM: the next
 /// boot is cold unless warm() asks again).
 pub fn hold(regs: bus.Regs) Error!void {
     regs.write(map.REG_CTRL, regs.read(map.REG_CTRL) & ~(map.CTRL_RUN | map.CTRL_WARM));
@@ -136,7 +141,7 @@ pub fn load(gpa: std.mem.Allocator, regs: bus.Regs, ddr: bus.Ddr, disk: []const 
     regs.write(map.REG_LOAD_BASE, map.DDR_CART_BASE);
     regs.write(map.REG_LOAD_SIZE, @intCast(p.image.len));
     // Keys typed for the previous cart (or the menu) must not reach this one.
-    regs.write(map.REG_CTRL, (regs.read(map.REG_CTRL) & map.CTRL_OSD) | map.CTRL_KEY_FLUSH);
+    regs.write(map.REG_CTRL, (regs.read(map.REG_CTRL) & OSD_BITS) | map.CTRL_KEY_FLUSH);
     regs.write(map.REG_CTRL, regs.read(map.REG_CTRL) | map.CTRL_RUN);
     var report = Report{ .image_bytes = @intCast(p.image.len), .packed_bytes = p.packed_bytes, .polls = 0, .disk_at = p.disk_at, .disk_bytes = @intCast(p.disk.len) };
     if (opt.wait_boot) try waitBoot(regs, opt, &report);
@@ -149,9 +154,9 @@ pub fn load(gpa: std.mem.Allocator, regs: bus.Regs, ddr: bus.Ddr, disk: []const 
 pub fn warm(regs: bus.Regs, opt: Options) Error!Report {
     try checkGlass(regs);
     try hold(regs);
-    const osd_bit = regs.read(map.REG_CTRL) & map.CTRL_OSD;
-    regs.write(map.REG_CTRL, osd_bit | map.CTRL_WARM | map.CTRL_KEY_FLUSH);
-    regs.write(map.REG_CTRL, osd_bit | map.CTRL_WARM | map.CTRL_RUN);
+    const osd_bits = regs.read(map.REG_CTRL) & OSD_BITS;
+    regs.write(map.REG_CTRL, osd_bits | map.CTRL_WARM | map.CTRL_KEY_FLUSH);
+    regs.write(map.REG_CTRL, osd_bits | map.CTRL_WARM | map.CTRL_RUN);
     var report = Report{ .image_bytes = regs.read(map.REG_LOAD_SIZE), .packed_bytes = 0, .polls = 0 };
     if (opt.wait_boot) try waitBoot(regs, opt, &report);
     regs.write(map.REG_CTRL, regs.read(map.REG_CTRL) & ~map.CTRL_WARM);
