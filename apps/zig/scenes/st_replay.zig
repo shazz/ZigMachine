@@ -25,12 +25,10 @@ const hw = @import("hardware");
 const rom = @import("rom_sdk");
 const ui = @import("st_replay_ui.zig");
 const draw = @import("st_replay_draw.zig");
+const Replay = @import("st_replay_play.zig").Replay;
 const Rect = rom.Rect;
 
 const WAVE_LEN: usize = 1280; // display resolution (host downsamples the .raw into it)
-// How long to sweep the playhead when the host has not told us the sample's real
-// length. Only a display fallback — it never gates playback.
-const FALLBACK_SECS: f32 = 1.0;
 const SILENCE: u8 = 0; // .raw samples are SIGNED 8-bit, so silence is zero
 // The sample lives in the machine's own RAM. The drive hands over blocks; the
 // program does the loading, the downsampling and the playback itself.
@@ -52,7 +50,6 @@ const SILENCE: u8 = 0; // .raw samples are SIGNED 8-bit, so silence is zero
 // (the panel shows it): since the buffer moved to the RAM arena, check_fits no
 // longer sees it and reports those 1.5 MiB as free.
 const MAX_PCM: usize = 1536 * 1024;
-const RING: usize = 32768; // the audio ring (STREAM_RING in demo_audio_main.zig)
 const PLANE: u32 = 0; // the app owns plane 0
 
 // The sample itself, in machine RAM: allocated from the cart RAM arena
@@ -80,10 +77,8 @@ pub const App = struct {
     dialog: rom.Dialog = .{},
     fsel: rom.FileSel = .{}, // GEM's ITEM SELECTOR, opened by "Load from disc"
     sample: [WAVE_LEN]u8 = [_]u8{SILENCE} ** WAVE_LEN, // the display view, built here
-    pos: usize = 0, // how far the replay has fed the audio ring
-    budget: f32 = 0, // fractional bytes owed to the ring (paces the feed to dt)
+    replay: Replay = .{}, // the replay, through the INTERNAL or EXTERNAL output (Alt)
     rate: usize = 2, // index into ui.RATES; the real thing boots at 10 KHz
-    playing: bool = false,
     looping: bool = false,
     marked: bool = false,
     low: u32 = 0,
@@ -92,8 +87,6 @@ pub const App = struct {
     // into `sample` for display, so the display buffer's size says nothing about
     // the sample — every count the panel reports comes from here.
     bytes: u32 = 0,
-    hz: u32 = 0, // its playback rate, so the view has a real TIME axis
-    playhead: f32 = 0,
     wants_quit: bool = false,
 
     // "Load from disc": GEM's ITEM SELECTOR, listing what is ACTUALLY on the
@@ -122,7 +115,6 @@ pub const App = struct {
         self.bytes = @intCast(n);
         self.low = 0;
         self.high = self.bytes;
-        self.pos = 0;
         self.buildView();
         if (n < ent.len) self.dlg("Load from disc", "Sample truncated to fit RAM.");
     }
@@ -142,25 +134,6 @@ pub const App = struct {
             const si = i * @as(usize, self.bytes) / WAVE_LEN;
             self.sample[i] = pcm[si];
         }
-    }
-
-    // Is there anything to play? The host reports the byte count, but that is an
-    // extra ABI call that an older host (or a cached loader) may not make — so
-    // fall back to asking the display buffer itself. Silence is SILENCE; anything
-    // else means a sample arrived.
-    fn loaded(self: *const App) bool {
-        if (self.bytes > 0) return true;
-        for (self.sample) |v| {
-            if (v != SILENCE) return true;
-        }
-        return false;
-    }
-
-    // Seconds of audio in the loaded sample.
-    fn duration(self: *const App) f32 {
-        const hz = ui.RATES[self.rate]; // replaying faster makes the sample shorter
-        if (self.bytes == 0 or hz == 0) return FALLBACK_SECS; // count not reported
-        return @as(f32, @floatFromInt(self.bytes)) / @as(f32, @floatFromInt(hz));
     }
 
     pub fn init(self: *App, os: *ZigOS) void {
@@ -186,7 +159,7 @@ pub const App = struct {
         rom.installPalette(PLANE);
         ui.installPalette(fb);
         self.wants_quit = false;
-        self.playing = false;
+        self.replay = .{}; // INTERNAL, silent: init runs over `undefined` memory
         // The cart lives in `undefined` memory until init, so the display buffer
         // has to be silenced explicitly — otherwise the leftover bytes read as a
         // loaded sample (SILENCE is 128, not 0).
@@ -194,9 +167,6 @@ pub const App = struct {
         // set, not assumed. A garbage `fsel.active` swallowed the keyboard.
         self.fsel = rom.FileSel.open();
         self.dialog = rom.Dialog.open();
-        self.playhead = 0;
-        self.pos = 0;
-        self.budget = 0;
         self.bytes = 0;
         self.low = 0;
         self.looping = false;
@@ -214,8 +184,9 @@ pub const App = struct {
             .rate = self.rate,
             .looping = self.looping,
             .marked = self.marked,
-            .playing = self.playing,
-            .playhead = self.playhead,
+            .playing = self.replay.playing,
+            .external = self.replay.out == .external,
+            .playhead = self.playhead(),
             .low = self.low,
             .high = self.high,
             .bytes = self.bytes,
@@ -250,6 +221,7 @@ pub const App = struct {
                 self.wants_quit = true;
             },
             'r', 'R' => self.reverse(),
+            ui.K_ALT => self.alternate(),
             'w', 'W' => self.wipe(),
             ui.K_UNDO => { // RESET cursors
                 self.low = 0;
@@ -258,7 +230,7 @@ pub const App = struct {
             },
             // Space is the transport: play if stopped, stop if playing. Esc only
             // ever STOPS — a panic key should never start something.
-            ' ' => if (self.playing) self.stop() else self.play(),
+            ' ' => if (self.replay.playing) self.stop() else self.play(),
             ui.K_ESC => self.stop(),
             else => {},
         }
@@ -271,14 +243,17 @@ pub const App = struct {
         switch (dir) {
             0 => self.rate = (self.rate + ui.RATE_ROWS - 1) % ui.RATE_ROWS, // up
             1 => self.rate = (self.rate + 1) % ui.RATE_ROWS, // down
-            else => {},
+            else => return,
         }
+        if (self.replay.playing) self.play(); // at the new rate, as fkey does
     }
 
-    // f1..f8 pick the replay rate; f10 replays.
+    // f1..f8 pick the replay rate; f10 replays. A new rate while playing replays
+    // at it: the output's clock was set at the start.
     fn fkey(self: *App, n: usize) void {
         if (n < ui.RATE_ROWS) {
             self.rate = n;
+            if (self.replay.playing) self.play();
         } else switch (n) {
             9 => self.play(), // f10 = Replay
             else => {}, // f9 Magnify needs a zoomable view we do not have yet
@@ -288,28 +263,36 @@ pub const App = struct {
     // Nothing to replay until a sample has been loaded — Replay is a no-op on an
     // empty machine rather than a silent "playing" state.
     fn play(self: *App) void {
-        if (!self.loaded()) return;
-        self.playing = true;
-        self.playhead = 0;
-        self.pos = 0;
-        self.budget = 0;
-        zg.audioStreamStart(@floatFromInt(ui.RATES[self.rate])); // the speaker, nothing more
+        if (self.bytes == 0) return;
+        self.replay.start(pcm[0..self.bytes], ui.RATES[self.rate], self.looping);
     }
     fn stop(self: *App) void {
-        self.playing = false;
-        self.pos = 0;
-        zg.audioStreamStop();
+        self.replay.stop();
+    }
+    // Alt: ALTernate O/P, INTERNAL (the cart CPU feeds the speaker) or EXTERNAL
+    // (the sample hardware plays it). A replay in progress carries on through the
+    // other output, from the top.
+    fn alternate(self: *App) void {
+        const was = self.replay.playing;
+        self.stop();
+        self.replay.out = if (self.replay.out == .internal) .external else .internal;
+        if (was) self.play();
+    }
+    // Where the replay is, on the display's axis (0..WAVE_LEN).
+    fn playhead(self: *const App) u32 {
+        if (self.bytes == 0) return 0;
+        return @intCast(@as(u64, self.replay.pos) * WAVE_LEN / self.bytes);
     }
     // Wipe area: silence the sample itself. It must NOT touch the dialogs or the
     // rest of the app's state — an editor command edits, it does not reboot.
     fn wipe(self: *App) void {
+        self.stop(); // first: an EXTERNAL replay reads `pcm` while it plays
         @memset(&self.sample, SILENCE);
         @memset(pcm, SILENCE);
         self.bytes = 0;
         self.low = 0;
         self.high = 0;
         self.marked = false;
-        self.stop();
     }
 
     fn reverse(self: *App) void {
@@ -325,32 +308,7 @@ pub const App = struct {
         _ = os;
         self.g.beginFrame();
         self.clicks();
-        if (self.playing) self.feed(dt);
-    }
-
-    // One frame of replay: hand the speaker the next slice of OUR sample. At the
-    // selected rate that is rate * dt bytes — f1..f6 change the pitch simply by
-    // changing how much we feed. It is paced by the frame's REAL dt, not rate/60:
-    // the speaker plays on its own clock, so a fixed slice overran the ring at
-    // 144 Hz and starved it at 18 fps (apps/stream_pacing_check.mjs).
-    fn feed(self: *App, dt: f32) void {
-        self.budget += @as(f32, @floatFromInt(ui.RATES[self.rate])) * @max(dt, 0) / 1000.0;
-        var chunk: usize = @intFromFloat(self.budget);
-        self.budget -= @floatFromInt(chunk);
-        // Whole rings of backlog (a hidden tab) would only lap the ring onto itself:
-        // skip them in the sample and feed the rest.
-        const skip = chunk - chunk % RING;
-        self.pos = @min(self.pos + skip, @as(usize, self.bytes));
-        chunk -= skip;
-        const end = @min(self.pos + chunk, @as(usize, self.bytes));
-        if (end > self.pos) {
-            zg.audioFeed(pcm[self.pos..end]);
-            self.pos = end;
-        }
-        self.playhead = @as(f32, @floatFromInt(self.pos)) /
-            @as(f32, @floatFromInt(@max(self.bytes, 1))) * @as(f32, WAVE_LEN);
-        if (self.pos < self.bytes) return;
-        if (self.looping) self.play() else self.playing = false;
+        self.replay.tick(pcm, self.bytes, dt, self.looping);
     }
 
     // Every binding row is also a BUTTON: a click on it dispatches the row's own
