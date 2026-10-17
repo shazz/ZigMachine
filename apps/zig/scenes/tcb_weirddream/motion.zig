@@ -8,6 +8,7 @@
 // positions; an ST places at whole pixels, so the nearest one is used.
 // --------------------------------------------------------------------------
 const std = @import("std");
+const fx = @import("../turns_fix.zig");
 
 const DEG: f64 = std.math.pi / 180.0;
 
@@ -71,31 +72,32 @@ pub const Layout = struct {
 };
 
 /// The phases go() reads and then steps. The two logo angles step by whole
-/// degrees (steprep = 2/180*PI, steptcb = 7/180*PI), so they are kept as
-/// integer degrees mod 360: exactly periodic, where the original's float
-/// accumulators drift. offsetscr steps by 0.1 rad and is never periodic, so it
-/// stays the original's f64 accumulator, bit for bit.
+/// degrees (steprep = 2/180*PI, steptcb = 7/180*PI), so their layouts are a
+/// comptime table of 360 frames (exactly periodic, where the original's float
+/// accumulators drift). offsetscr steps by 0.1 rad and is never periodic: it is
+/// u64 turns, which like the original's f64 accumulator never drifts visibly.
 pub const Phase = struct {
     vbl: u32,
-    rep_deg: u16,
-    tcb_deg: u16,
-    offsetscr: f64,
+    offsetscr: u64,
 
     pub fn reset(self: *Phase) void {
         self.vbl = 0;
-        self.rep_deg = 0;
-        self.tcb_deg = 0;
         self.offsetscr = 0;
     }
 
     pub fn layout(self: *const Phase, out: *Layout) void {
-        logos(self.rep_deg, self.tcb_deg, out);
+        const l = logo_table[self.vbl % LOGO_PERIOD];
+        out.rep = .{ .zoom = l.rep_zoom, .top = l.rep_top };
+        out.tcb = .{ .zoom = l.tcb_zoom, .top = l.tcb_top };
+        out.tcb_on_top = l.tcb_on_top;
+        // stRow(280 + 35 + cos(at) * 35) = floor((316 + 35 cos) / 2), in Q30
         for (&out.col_y, 0..) |*y, c| {
-            const at = self.offsetscr + @as(f64, @floatFromInt(c)) * 0.1;
-            y.* = stRow(280 + 35 + @cos(at) * 35);
+            const at = fx.hi(self.offsetscr +% @as(u64, c) *% STEP_SCR);
+            y.* = @intCast(((316 << 30) + 35 * fx.cos(at)) >> 31);
         }
-        out.sprite_y[0] = stRow(326 - @abs(@cos(self.offsetscr) * 24));
-        out.sprite_y[1] = stRow(326 - @abs(@sin(self.offsetscr) * 24));
+        const a = fx.hi(self.offsetscr);
+        out.sprite_y[0] = stRowAbs(fx.cos(a));
+        out.sprite_y[1] = stRowAbs(fx.sin(a));
         // The 8-pixel `letter` canvas reaches stream pixel 0 on draw 16 and the
         // 768-wide strip appends it at x=760, one draw a frame: after draw n the
         // strip's x holds stream pixel 8n - 888 + x, read from x 64 + scroll_x.
@@ -105,33 +107,48 @@ pub const Phase = struct {
     }
 
     pub fn step(self: *Phase) void {
-        self.rep_deg = (self.rep_deg + 2) % 360;
-        self.tcb_deg = (self.tcb_deg + 7) % 360;
-        self.offsetscr += 0.1;
+        self.offsetscr +%= STEP_SCR;
         self.vbl +%= 1;
     }
 };
 
-fn stRow(doubled: f64) u8 {
-    return @intFromFloat(@floor(doubled / 2.0 + 0.5));
+const STEP_SCR = fx.turns(0.1);
+
+/// stRow(326 - |v * 24|) for v in Q30.
+fn stRowAbs(v: i64) u8 {
+    const m = if (v < 0) -v else v;
+    return @intCast(((327 << 30) - 24 * m) >> 31);
 }
 
 fn jsRound(v: f64) i32 {
     return @intFromFloat(@floor(v + 0.5));
 }
 
-// screen.js:406-430, verbatim.
-fn logos(rep_deg: u16, tcb_deg: u16, out: *Layout) void {
-    const offrep = @as(f64, @floatFromInt(rep_deg)) * DEG;
-    const offtcb = @as(f64, @floatFromInt(tcb_deg)) * DEG;
-    const zrep = @max(0.0, (1 + @sin(offrep)) / 2);
-    const yrep = 140 + (@cos(offrep) + @sin(offrep)) * 40;
-    const ztcb = zrep + @cos(offtcb) / 8;
-    const ytcb = yrep + @sin(offtcb) * (70 * zrep);
-    out.rep = .{ .zoom = @intCast(jsRound(zrep * 35)), .top = jsRound(yrep) - 22 };
-    out.tcb = .{ .zoom = @intCast(jsRound(4 + ztcb * 32)), .top = jsRound(ytcb) - 25 };
-    out.tcb_on_top = ztcb >= zrep;
-}
+// screen.js:406-430, verbatim, for the 360-frame joint period of the two logo
+// angles (2 degrees and 7 degrees a frame). Built at comptime: no per-frame trig.
+const LOGO_PERIOD = 360;
+const LogoRow = struct { rep_zoom: u8, rep_top: i32, tcb_zoom: u8, tcb_top: i32, tcb_on_top: bool };
+
+const logo_table: [LOGO_PERIOD]LogoRow = blk: {
+    @setEvalBranchQuota(100_000);
+    var t: [LOGO_PERIOD]LogoRow = undefined;
+    for (&t, 0..) |*row, f| {
+        const offrep = @as(f64, @floatFromInt(f * 2 % 360)) * DEG;
+        const offtcb = @as(f64, @floatFromInt(f * 7 % 360)) * DEG;
+        const zrep = @max(0.0, (1 + @sin(offrep)) / 2);
+        const yrep = 140 + (@cos(offrep) + @sin(offrep)) * 40;
+        const ztcb = zrep + @cos(offtcb) / 8;
+        const ytcb = yrep + @sin(offtcb) * (70 * zrep);
+        row.* = .{
+            .rep_zoom = @intCast(jsRound(zrep * 35)),
+            .rep_top = jsRound(yrep) - 22,
+            .tcb_zoom = @intCast(jsRound(4 + ztcb * 32)),
+            .tcb_top = jsRound(ytcb) - 25,
+            .tcb_on_top = ztcb >= zrep,
+        };
+    }
+    break :blk t;
+};
 
 // --------------------------------------------------------------------------
 // The starfield (starfield2D_dot over the 640x280 `stars` canvas)
