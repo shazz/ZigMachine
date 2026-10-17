@@ -5,7 +5,7 @@
 // --------------------------------------------------------------------------
 const std = @import("std");
 const zg = @import("zigos");
-const fx = @import("tex_fix.zig");
+const fx = @import("turns_fix.zig");
 const convertU8ArraytoColors = zg.convertU8ArraytoColors;
 
 const ZigOS = zg.ZigOS;
@@ -73,7 +73,7 @@ const LOGO_INC_INC = fx.turns(0.008);
 // Index 0 of each image is transparent (tools/private_tools/tex_assets.py).
 const NB_SPRITES = 11;
 const SPRITE_W = 16;
-const SPRITE_PHASE_STEP = fx.turns(0.3); // phases are u64 turns (tex_fix.zig)
+const SPRITE_PHASE_STEP = fx.turns(0.3); // phases are u64 turns (turns_fix.zig)
 const SPRITE_PHASE_INC = fx.turns(0.04);
 const delta_img = blit.Image.init(@embedFile(DIR ++ "delta.raw"), SPRITE_W);
 const sprite_imgs = [NB_SPRITES]blit.Image{

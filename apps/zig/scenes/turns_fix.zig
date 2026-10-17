@@ -1,4 +1,5 @@
-// TEX's maths in integers. The screen follows screen.js's doubles; the board has no
+// Integer maths shared by the scenes that followed JS doubles (TEX, TCB spreadpoint).
+// The screens follow screen.js's doubles; the board has no
 // f64, so the phases are u64 turns (2^64 = one revolution: no drift at any run
 // length, like the JS doubles) and sin/cos are a Q30 Taylor series (error ~1e-9),
 // so every rounded canvas coordinate lands where the double version's did.
