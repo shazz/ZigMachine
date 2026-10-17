@@ -34,26 +34,51 @@ pub fn taps(y: f64, h: u16, row: i32) ?Taps {
     return partTaps(y, 0, h, h, row);
 }
 
+/// A float32 y (what Skia's translate holds) in Q32. Exact whenever the f32's
+/// ulp is a multiple of 2^-32 (|y| >= 2^-8). Finer values are rounded AWAY from
+/// zero: the only boundary they can sit beside is 0 (taps tests halves and
+/// sixteenths), and 1e-14 is not 0 there -- it blends row r-1 at 15/16 where
+/// -1e-14 snaps to row r.
+pub const Fy = i64;
+
+const FY_LIMIT: f32 = 1073741824.0; // 2^30 rows: far off any image, kept clear of i64 overflow
+
+/// y as Skia holds it, in Q32. The only float work: callers take it once per
+/// layer per frame, not once per row, and it is single precision.
+pub fn fyOf(y: f64) Fy {
+    const f: f32 = std.math.clamp(@as(f32, @floatCast(y)), -FY_LIMIT, FY_LIMIT);
+    const q = f * 4294967296.0;
+    return @intFromFloat(if (q < 0) @floor(q) else @ceil(q));
+}
+
 /// Canvas row `row` of image rows part_y .. part_y+part_h (drawImage's source
 /// rectangle) of an image `image_h` rows tall, drawn with its top at y; null
 /// when Chrome does not draw that row.
 pub fn partTaps(y: f64, part_y: u16, part_h: u16, image_h: u16, row: i32) ?Taps {
+    return partTapsFy(fyOf(y), part_y, part_h, image_h, row);
+}
+
+/// partTaps for a y already in Q32: two compares, a shift and a mask, no float.
+pub fn partTapsFy(fy: Fy, part_y: u16, part_h: u16, image_h: u16, row: i32) ?Taps {
     if (part_h == 0 or image_h == 0) return null;
-    const fy: f64 = @as(f32, @floatCast(y));
-    const r: f64 = @floatFromInt(row);
-    if (!(fy < r + 0.5 and r + 0.5 <= fy + @as(f64, @floatFromInt(part_h)))) return null;
-    const v = r - fy;
-    const top = @floor(v);
-    const first = @as(f64, @floatFromInt(part_y)) + top;
+    const centre: i64 = (@as(i64, row) << 32) + (1 << 31); // row + 0.5
+    if (!(fy < centre and centre <= fy + (@as(i64, part_h) << 32))) return null;
+    const v = (@as(i64, row) << 32) - fy; // > -0.5 here
+    const first = @as(i64, part_y) + (v >> 32);
     return .{
         .top = clampRow(first, image_h),
         .bottom = clampRow(first + 1, image_h),
-        .w = @intFromFloat(@floor((v - top) * 16)),
+        .w = @intCast((v & 0xFFFF_FFFF) >> 28), // floor(frac * 16)
     };
 }
 
-fn clampRow(r: f64, h: u16) u16 {
-    return @intFromFloat(std.math.clamp(r, 0, @as(f64, @floatFromInt(h - 1))));
+/// taps() for a y already in Q32.
+pub fn tapsFy(fy: Fy, h: u16, row: i32) ?Taps {
+    return partTapsFy(fy, 0, h, h, row);
+}
+
+fn clampRow(r: i64, h: u16) u16 {
+    return @intCast(std.math.clamp(r, 0, @as(i64, h) - 1));
 }
 
 /// One channel (or alpha) between the two taps.

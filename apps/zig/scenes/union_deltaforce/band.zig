@@ -15,6 +15,7 @@ const zg = @import("zigos");
 const blit = zg.blit;
 const wave = zg.wave;
 const A = @import("assets.zig");
+const stretch = @import("../union_common/stretch.zig");
 
 pub const STRIP_ROWS = A.GLYPH_ROWS[1];
 pub const MERGE_ROWS = 55; // new canvas(..., 110)
@@ -72,7 +73,7 @@ pub const Band = struct {
 
     /// mergecanvas.drawPart(main, x, y, 0, 0, w, 110, 1, 0, 1, scale) on a
     /// mid-handled canvas: left edge at `dx`, stretched about `centre_y`.
-    pub fn draw(self: *const Band, dst: blit.Dst, dx: i32, centre_y: f64, scale: f64) void {
-        blit.stretchY(dst, blit.Image.init(self.merge, self.w), dx, centre_y, scale, 0, .copy);
+    pub fn draw(self: *const Band, dst: blit.Dst, dx: i32, centre_q16: i32, scale: f64) void {
+        stretch.stretchY(dst, blit.Image.init(self.merge, self.w), dx, centre_q16, scale, 0, .copy);
     }
 };

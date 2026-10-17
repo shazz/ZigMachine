@@ -14,6 +14,8 @@ const zg = @import("zigos");
 const blit = zg.blit;
 const A = @import("assets.zig");
 const Band = @import("band.zig").Band;
+const sintab = @import("../union_common/sintab.zig");
+const Wave = sintab.SinTab(1280, 0.004); // 0.004 a canvas column, 1280 of them
 
 const Word = struct { left: *const [10]u8, right: *const [10]u8, hold: u32 };
 
@@ -41,11 +43,10 @@ const LEFT_END = -640;
 const GLYPH_C = 64;
 // scrollfxparam_intro: {value: 10, amp: 30, inc: 0.004, offset: -0.09}, siny(0, 110/2 - 16)
 const WAVE_START: f64 = 10;
-const WAVE_AMP: f64 = 30;
-const WAVE_INC: f64 = 0.004;
+const WAVE_AMP = 30;
 const WAVE_OFFSET: f64 = -0.09;
-const WAVE_Y: f64 = 110 / 2 - 16;
-const CENTRE_Y: f64 = (280.0 + 110.0 / 2.0) / 2.0;
+const WAVE_Y = 110 / 2 - 16;
+const CENTRE_Q16: i32 = (280 + 110 / 2) * 32768; // (280 + 110/2) / 2 in Q16
 
 pub const Intro = struct {
     part: Part,
@@ -118,10 +119,20 @@ pub const Intro = struct {
             band.letter(&img.font, l, x);
             band.letter(&img.font, r, 640 + x);
         }
-        const sum = zg.wave.SineSum(f64, 1){ .base = WAVE_Y, .amp = .{WAVE_AMP}, .phase = .{self.drawn_wave}, .inc = .{WAVE_INC}, .rounding = .round };
-        var sweep = sum.sweep(0);
+        var sweep = Sweep{ .wave = Wave.init(self.drawn_wave) };
         band.compose(&sweep, img.gold, gold_y);
-        band.draw(dst, @divFloor(self.pos, 2), CENTRE_Y, @cos(twist));
+        band.draw(dst, @divFloor(self.pos, 2), CENTRE_Q16, @cos(twist));
+    }
+};
+
+/// FX.siny's value per canvas column: round(WAVE_Y + WAVE_AMP * sin(phase + 0.004 j)).
+const Sweep = struct {
+    wave: Wave,
+    j: usize = 0,
+
+    pub fn next(it: *Sweep) i32 {
+        defer it.j += 1;
+        return it.wave.round(it.j, WAVE_Y, WAVE_AMP);
     }
 };
 

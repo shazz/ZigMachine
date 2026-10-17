@@ -90,6 +90,7 @@ comptime {
 
 /// new ballfield(ballcanvas, n, 2.0, 640,400, 640/2,400/2, 60,0,0, balls, 17)
 const FIELD = ballfield.Params{ .w = 640, .h = 400, .centx = 320, .centy = 200, .speed = 2.0, .ratio = 60, .tiles = TILES };
+const Balls = ballfield.fixed.Field(FIELD); // whole-number speed and ratio: integers, no f64 per ball
 const SEED: u32 = 0x1D872B41; // apps/union_tnt1_replay.mjs SEED
 const START_BALLS = 60;
 const MAX_BALLS = 550;
@@ -108,7 +109,7 @@ const Pass = struct { spots: [MAX_BALLS]Spot, n: usize };
 /// The balls and their two draw lists, ~29 KB: on zg.mem next to the depacked
 /// images, since a module-scope array is written into the cart's data
 /// segment as zeros, `undefined` or not.
-const Work = struct { balls: [MAX_BALLS]ballfield.Ball, passes: [2]Pass };
+const Work = struct { balls: [MAX_BALLS]ballfield.fixed.Ball, passes: [2]Pass };
 
 // Module scope: the runner needs a stable address.
 var depack: DepackFx = undefined;
@@ -120,7 +121,6 @@ pub const Demo = struct {
     phase: Phase,
     images: Images,
     work: *Work,
-    field: ballfield.Field,
     random: ballfield.XorShift32,
     nb_balls: usize,
     wanted: usize, // a number key's count, applied by the next update
@@ -131,7 +131,6 @@ pub const Demo = struct {
     pub fn init(self: *Demo, zigos: *ZigOS) void {
         self.phase = .failed;
         self.leave = false;
-        self.field = ballfield.Field.init(FIELD);
         self.random = ballfield.XorShift32.init(SEED);
         self.note = hub_note.accepted(TEXT.len);
         const offset: usize = if (self.note) |n| n.scroll else 0; // jsApp.mainscrollerPos
@@ -223,7 +222,7 @@ pub const Demo = struct {
 
     /// new ballfield(...): `n` balls from the next 3n random numbers.
     fn spawn(self: *Demo, n: usize) void {
-        for (self.work.balls[0..n]) |*b| b.* = self.field.spawn(self.random.three());
+        for (self.work.balls[0..n]) |*b| b.* = Balls.spawn(self.random.threeRaw());
         self.nb_balls = n;
         self.wanted = n;
     }
@@ -232,9 +231,9 @@ pub const Demo = struct {
     fn step(self: *Demo, pass: *Pass) void {
         pass.n = 0;
         for (self.work.balls[0..self.nb_balls]) |*b| {
-            const d = self.field.step(b) orelse continue;
+            const d = Balls.step(b) orelse continue;
             if (d.tile >= TILES) continue; // drawTile past the one-row sheet draws nothing
-            pass.spots[pass.n] = .{ .x = toSt(d.x), .y = toSt(d.y), .tile = @intCast(d.tile) };
+            pass.spots[pass.n] = .{ .x = @intCast(ballfield.fixed.halfRound(d.x)), .y = @intCast(ballfield.fixed.halfRound(d.y)), .tile = @intCast(d.tile) };
             pass.n += 1;
         }
     }
@@ -246,11 +245,6 @@ fn drawPass(dst: blit.Dst, pass: *const Pass, sheet: blit.Image, atop: bool) voi
         const part = blit.Rect{ .x = @as(usize, s.tile) * TILE, .y = 0, .w = TILE, .h = TILE };
         blit.blit(dst, sheet, part, s.x, s.y, 0, ink);
     }
-}
-
-/// Canvas x or y (strictly inside 640x400) to the nearest ST pixel: Math.round(c/2).
-fn toSt(c: f64) i16 {
-    return @intFromFloat(@floor(c / 2 + 0.5));
 }
 
 fn split(buf: []const u8) Images {

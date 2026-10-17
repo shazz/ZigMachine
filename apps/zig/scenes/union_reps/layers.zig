@@ -11,10 +11,8 @@ const std = @import("std");
 const zg = @import("zigos");
 const blit = zg.blit;
 const A = @import("assets.zig");
+const sintab = @import("../union_common/sintab.zig");
 
-pub fn halve(c: f64) i32 {
-    return @divFloor(@as(i32, @intFromFloat(@floor(c + 0.5))), 2);
-}
 
 /// Six 640-wide raster images, three over each window, bouncing 2 canvas px a
 /// frame inside [94,160] and [204,270] (screen.js:77-91, 152-168).
@@ -96,10 +94,11 @@ pub const Rasters = struct {
 /// THE REPLICANTS: sprite i circles (40+40i, 180) with radius 30, its phase
 /// starting at i*0.5 and gaining 0.08 a frame (screen.js:36, 170-175).
 pub const Sprites = struct {
-    counter: [LETTERS.len]f64,
+    base: f64, // sprite 0's phase; sprite i is base + 0.5 i (they all gain STEP together)
 
     const LETTERS = "THE REPLICANTS"; // screen.js:62-75
     const STEP = 0.08;
+    const Sin = sintab.SinTab(LETTERS.len, 0.5);
     const SHEET: [LETTERS.len]?usize = blk: {
         var t: [LETTERS.len]?usize = undefined;
         for (LETTERS, 0..) |ch, i| t[i] = std.mem.indexOfScalar(u8, A.SPRITE_LETTERS, ch);
@@ -107,20 +106,20 @@ pub const Sprites = struct {
     };
 
     pub fn init(self: *Sprites) void {
-        for (&self.counter, 0..) |*c, i| c.* = @as(f64, @floatFromInt(i)) * 0.5;
+        self.base = 0;
     }
 
     pub fn update(self: *Sprites) void {
-        for (&self.counter) |*c| c.* += STEP;
+        self.base += STEP;
     }
 
     /// In index order, so a later letter overlaps an earlier one.
     pub fn draw(self: *const Sprites, dst: blit.Dst, sheet: []const blit.Image) void {
-        for (self.counter, SHEET, 0..) |c, sprite, i| {
+        const sin = Sin.init(self.base); // two libm calls a frame, not 28
+        for (SHEET, 0..) |sprite, i| {
             const s = sprite orelse continue; // the space
-            const fi: f64 = @floatFromInt(i);
-            const x = halve((40 + fi * 40) + 30 * @cos(c));
-            const y = halve(180 + 30 * @sin(c));
+            const x = @divFloor(sin.roundCos(i, 40 + 40 * @as(i64, @intCast(i)), 30), 2); // halve(40+40i + 30 cos)
+            const y = @divFloor(sin.round(i, 180, 30), 2); // halve(180 + 30 sin)
             blit.blit(dst, sheet[s], null, x, y, 0, .copy);
         }
     }

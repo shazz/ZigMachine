@@ -90,3 +90,44 @@ test "xorshift32 matches the JS stand-in's first values" {
     s ^= s << 5;
     try expectEqual(@as(f64, @floatFromInt(s)) / 4294967296.0, first);
 }
+
+test "the integer field draws the f64 field's balls, step for step" {
+    const Q = bf.fixed.Field(TNT1);
+    const f = bf.Field.init(TNT1);
+    var ra = bf.XorShift32.init(0x1d872b41);
+    var rb = bf.XorShift32.init(0x1d872b41);
+    var drawn: usize = 0;
+    for (0..550) |_| {
+        var a = f.spawn(ra.three());
+        var b = Q.spawn(rb.threeRaw());
+        try expectEqual(a.z, @as(f64, @floatFromInt(b.z)));
+        for (0..700) |_| {
+            const da = f.step(&a);
+            const db = Q.step(&b);
+            try expectEqual(da == null, db == null);
+            const x = da orelse continue;
+            const y = db.?;
+            drawn += 1;
+            try expectEqual(x.tile, y.tile);
+            // the ST pixel the scene draws at: Math.round(c / 2)
+            try expectEqual(@as(i32, @intFromFloat(@floor(x.x / 2 + 0.5))), bf.fixed.halfRound(y.x));
+            try expectEqual(@as(i32, @intFromFloat(@floor(x.y / 2 + 0.5))), bf.fixed.halfRound(y.y));
+        }
+    }
+    try std.testing.expect(drawn > 100_000);
+}
+
+test "the integer field's far plane and z = 0 follow the f64 rules" {
+    const Q = bf.fixed.Field(TNT1);
+    var b = Q.spawn(.{ 1 << 31, 1 << 31, 0 });
+    b.z = 2;
+    b.px = 100 << 32;
+    b.py = 100 << 32;
+    try expectEqual(@as(u32, 0), Q.step(&b).?.tile); // 0 is not < 0: no wrap
+    try expectEqual(@as(?bf.fixed.Draw, null), Q.step(&b)); // wraps to 518, last was x/0
+    try expectEqual(@as(i32, 518), b.z);
+    b.z = 522;
+    b.px = 10 << 32;
+    b.py = 10 << 32;
+    try expectEqual(@as(u32, 17), Q.step(&b).?.tile); // 520: the far plane, one past 17 tiles
+}

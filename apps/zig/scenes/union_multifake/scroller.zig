@@ -13,7 +13,7 @@
 const std = @import("std");
 const zg = @import("zigos");
 const blit = zg.blit;
-const halve = @import("layers.zig").halve;
+const sintab = @import("../union_common/sintab.zig");
 
 pub const TEXT = @embedFile("../../assets/screens/union_multifake/scrolltext.txt"); // screen.js:45, verbatim
 
@@ -21,13 +21,14 @@ const FIRST_CHAR = 32; // font.initTile(64,64,32)
 const GLYPH_C: i32 = 64;
 const GLYPH = 32; // halved
 const SHEET_COLS = 16; // 1024 / 64
+const Sin = sintab.SinTab(12, 0.6); // the letter's phase: first + 0.6 * rank
 const LETTERS = 12; // wide = ceil(640/64)+1 = 11, letters 0..wide
 const START_C: i32 = 11 * GLYPH_C;
 const SPEED_C: i32 = 1; // scrolltext.init(scrollcanvas, font, 1, scrollparam)
-const AMP: f64 = 120; // scrollparam (screen.js:30)
+const AMP = 120; // scrollparam (screen.js:30)
 const INC: f64 = 0.6;
 const OFFSET: f64 = -0.04;
-const POSY_C: f64 = 240 - 16; // scrolltext.draw(240-16)
+const POSY_C = 240 - 16; // scrolltext.draw(240-16)
 
 comptime {
     @setEvalBranchQuota(4 * TEXT.len + 1000);
@@ -59,14 +60,13 @@ pub const Scroller = struct {
         var order: [LETTERS]u8 = undefined;
         for (&order, 0..) |*o, i| o.* = @intCast(i);
         std.sort.insertion(u8, &order, &self.ring.x, lessX); // stable, as Array.sort
-        var phase = self.first;
-        for (order) |i| {
+        const sin = Sin.init(self.first); // two libm calls a frame, not 12
+        for (order, 0..) |i, rank| {
             const g: usize = self.ring.c[i] - FIRST_CHAR;
             const part = blit.Rect{ .x = g % SHEET_COLS * GLYPH, .y = g / SHEET_COLS * GLYPH, .w = GLYPH, .h = GLYPH };
             const x = @divFloor(self.ring.x[i] - GLYPH_C / 2, 2);
-            const y = halve(@sin(phase) * AMP + POSY_C - GLYPH_C / 2);
+            const y = @divFloor(sin.round(rank, POSY_C - GLYPH_C / 2, AMP), 2); // halve(sin * AMP + POSY_C - 32)
             blit.blit(dst, font, part, x, y, 0, .{ .row = rasters });
-            phase += INC;
         }
     }
 
