@@ -4,12 +4,12 @@
 // registers, as one plane of palette indices -- once a host frame. No
 // rasters: JOUST sets its palette with Setpalette / Setcolor only.
 //
-// Only the LINES the game wrote since the last host frame are converted: the
-// plane keeps palette indices, so a colour change is just the 16 registers,
-// and the plane's other lines already hold what the ST screen holds. Every
-// screen write goes through St.wr (touch) or loadImage (touchAll). The game
-// runs ~25 frames a second against a 60 Hz host, and moves a few sprites a
-// frame: most host frames convert nothing, the rest a few dozen lines.
+// Only the 16-pixel groups the game wrote since the last host frame are
+// converted: the plane keeps palette indices, so a colour change is just the
+// 16 registers, and the rest of the plane already holds what the ST screen
+// holds. Every screen write goes through bus.zig (touch) or loadImage
+// (touchAll). The game runs ~25 frames a second against a 60 Hz host and
+// moves a few sprites a frame: most host frames convert nothing.
 // --------------------------------------------------------------------------
 const std = @import("std");
 const zg = @import("zigos");
@@ -17,23 +17,27 @@ const State = @import("state.zig");
 
 const LINE: usize = 160;
 const LINES: usize = 200;
-const WORDS = (LINES + 31) / 32;
+const GROUPS = LINE / 8; // 16 pixels: four plane words
 
-/// One bit a line: written since the last present().
-var dirty: [WORDS]u32 = @splat(0);
+/// A bit per 16-pixel group, a word per line: written since the last present().
+var dirty: [LINES]u32 = @splat(0);
 
-/// A write of n bytes at screen offset o (St.wr, inside the 32000 bytes).
-pub fn touch(o: u32, n: u8) void {
+/// A write of n bytes at screen offset o (St.wr, inside the 32000 bytes): the
+/// group of its first byte and of its last (a long can straddle two).
+pub inline fn touch(o: u32, n: u8) void {
     if (n == 0) return;
-    const r0 = o / LINE;
-    const r1 = (o + n - 1) / LINE;
-    dirty[r0 >> 5] |= @as(u32, 1) << @intCast(r0 & 31);
-    dirty[r1 >> 5] |= @as(u32, 1) << @intCast(r1 & 31);
+    mark(o);
+    mark(o + n - 1);
+}
+
+inline fn mark(o: u32) void {
+    const y = o / LINE;
+    dirty[y] |= @as(u32, 1) << @intCast((o - y * LINE) / 8);
 }
 
 /// The whole screen (a fresh image, or a fresh plane).
 pub fn touchAll() void {
-    @memset(&dirty, 0xFFFF_FFFF);
+    @memset(&dirty, (1 << GROUPS) - 1);
 }
 
 /// One plane byte -> eight pixels, one byte lane each, MSB = leftmost pixel.
@@ -51,25 +55,23 @@ const SPREAD: [256]u64 = blk: {
 
 pub fn present(pal: *const [16]u16, fb: *zg.LogicalFB) void {
     for (0..16) |i| fb.palette[i] = stColor(pal[i]);
-    const pixels = fb.fb[0 .. @as(usize, fb.stride) * LINES];
-    for (0..WORDS) |w| {
-        var bits = dirty[w];
-        dirty[w] = 0;
-        while (bits != 0) : (bits &= bits - 1) {
-            const y = w * 32 + @ctz(bits);
-            if (y < LINES) line(pixels[y * fb.stride ..][0..zg.WIDTH], y);
-        }
+    for (0..LINES) |y| {
+        var bits = dirty[y];
+        if (bits == 0) continue;
+        dirty[y] = 0;
+        const src = State.scr[State.BELOW + y * LINE ..][0..LINE];
+        const dst = fb.fb[y * @as(usize, fb.stride) ..][0..zg.WIDTH];
+        while (bits != 0) : (bits &= bits - 1) group(dst, src, @ctz(bits));
     }
 }
 
-fn line(dst: []u8, y: usize) void {
-    const src = State.scr[State.BELOW + y * LINE ..][0..LINE];
-    // two passes of 8 pixels per group: the high bytes, then the low
-    for (0..LINE / 4) |h| {
-        const g = (h >> 1) * 8 + (h & 1);
+/// 16 pixels: two passes of 8, the high bytes of the four plane words, then the low.
+fn group(dst: *[zg.WIDTH]u8, src: *const [LINE]u8, gi: usize) void {
+    inline for (0..2) |half| {
+        const g = gi * 8 + half;
         const v = SPREAD[src[g]] | SPREAD[src[g + 2]] << 1 |
             SPREAD[src[g + 4]] << 2 | SPREAD[src[g + 6]] << 3;
-        std.mem.writeInt(u64, dst[h * 8 ..][0..8], v, .little);
+        std.mem.writeInt(u64, dst[gi * 16 + half * 8 ..][0..8], v, .little);
     }
 }
 
