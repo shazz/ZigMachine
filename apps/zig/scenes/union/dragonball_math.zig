@@ -44,12 +44,24 @@ pub const CENTER: f32 = 32.0;
 
 // three.js Euler order 'XYZ' with rotation.z always 0 here reduces to Rx * Ry.
 pub fn rotate(v: Vec3, ax: f32, ay: f32) Vec3 {
-    const sy = @sin(ay);
-    const cy = @cos(ay);
+    return rotateSC(v, sincos(ax), sincos(ay));
+}
+
+pub const SinCos = struct { s: f32, c: f32 };
+
+pub fn sincos(a: f32) SinCos {
+    return .{ .s = @sin(a), .c = @cos(a) };
+}
+
+// rotate() with the angles' sin/cos already taken: a star turns all 11 vertices
+// by the same two angles, so taking them per vertex was 44 libm calls a star.
+pub fn rotateSC(v: Vec3, x: SinCos, y: SinCos) Vec3 {
+    const sy = y.s;
+    const cy = y.c;
     const x1 = v.x * cy + v.z * sy;
     const z1 = -v.x * sy + v.z * cy;
-    const sx = @sin(ax);
-    const cx = @cos(ax);
+    const sx = x.s;
+    const cx = x.c;
     const y2 = v.y * cx - z1 * sx;
     const z2 = v.y * sx + z1 * cx;
     return .{ .x = x1, .y = y2, .z = z2 };
@@ -79,40 +91,60 @@ pub fn fillTriangle(buf: *[BALL_SIZE * BALL_SIZE]u8, v0: Vec2, v1: Vec2, v2: Vec
     var ymax = @max(ys[0], @max(ys[1], ys[2]));
     if (ymin < 0) ymin = 0;
     if (ymax > @as(f32, BALL_SIZE - 1)) ymax = @as(f32, BALL_SIZE - 1);
-    var y: i32 = @intFromFloat(@ceil(ymin));
-    const ylast: i32 = @intFromFloat(@floor(ymax));
+    // The edges are oriented top to bottom once per triangle (they were, per
+    // row), and each row's x is the same ax + (bx-ax)*(fy-ay)/(by-ay).
+    var edges: [3]Edge = undefined;
+    var n: usize = 0;
+    for (0..3) |e| {
+        var ay = ys[e];
+        var ax = xs[e];
+        var by = ys[(e + 1) % 3];
+        var bx = xs[(e + 1) % 3];
+        if (ay == by) continue;
+        if (ay > by) {
+            const ty = ay;
+            ay = by;
+            by = ty;
+            const tx = ax;
+            ax = bx;
+            bx = tx;
+        }
+        edges[n] = .{ .ax = ax, .ay = ay, .dx = bx - ax, .dy = by - ay, .by = by };
+        n += 1;
+    }
+    var y: i32 = ceilI(ymin);
+    const ylast: i32 = floorI(ymax);
     while (y <= ylast) : (y += 1) {
         const fy: f32 = @floatFromInt(y);
         var xl: f32 = 1e9;
         var xr: f32 = -1e9;
-        var e: usize = 0;
-        while (e < 3) : (e += 1) {
-            var ay = ys[e];
-            var ax = xs[e];
-            var by = ys[(e + 1) % 3];
-            var bx = xs[(e + 1) % 3];
-            if (ay == by) continue;
-            if (ay > by) {
-                const ty = ay;
-                ay = by;
-                by = ty;
-                const tx = ax;
-                ax = bx;
-                bx = tx;
-            }
-            if (fy < ay or fy >= by) continue;
-            const x = ax + (bx - ax) * (fy - ay) / (by - ay);
+        for (edges[0..n]) |ed| {
+            if (fy < ed.ay or fy >= ed.by) continue;
+            const x = ed.ax + ed.dx * (fy - ed.ay) / ed.dy;
             xl = @min(xl, x);
             xr = @max(xr, x);
         }
         if (xr < xl) continue;
-        var l: i32 = @intFromFloat(@ceil(xl));
-        var r: i32 = @intFromFloat(@floor(xr));
+        var l: i32 = ceilI(xl);
+        var r: i32 = floorI(xr);
         if (l < 0) l = 0;
         if (r > @as(i32, BALL_SIZE - 1)) r = BALL_SIZE - 1;
         if (r < l) continue;
         const row: usize = @as(usize, @intCast(y)) * BALL_SIZE;
-        var x: i32 = l;
-        while (x <= r) : (x += 1) buf[row + @as(usize, @intCast(x))] = color;
+        @memset(buf[row + @as(usize, @intCast(l)) .. row + @as(usize, @intCast(r)) + 1], color);
     }
 }
+
+// ceil / floor of a screen coordinate (|x| far below 2^31) without the libm
+// ceilf / floorf call: truncate, then step if truncation went the wrong way.
+inline fn ceilI(x: f32) i32 {
+    const t: i32 = @intFromFloat(x);
+    return if (@as(f32, @floatFromInt(t)) < x) t + 1 else t;
+}
+
+inline fn floorI(x: f32) i32 {
+    const t: i32 = @intFromFloat(x);
+    return if (@as(f32, @floatFromInt(t)) > x) t - 1 else t;
+}
+
+const Edge = struct { ax: f32, ay: f32, dx: f32, dy: f32, by: f32 };

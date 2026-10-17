@@ -44,10 +44,16 @@ pub const Dragonballs = struct {
     }
 
     pub fn update(self: *Dragonballs) void {
-        self.rotx = @mod(self.rotx + 0.01, TWO_PI);
-        self.roty = @mod(self.roty + 0.06, TWO_PI);
-        self.u = @mod(self.u + 0.2, TWO_PI);
-        self.angle = @mod(self.angle + 0.05, TWO_PI);
+        self.rotx = wrap(self.rotx + 0.01);
+        self.roty = wrap(self.roty + 0.06);
+        self.u = wrap(self.u + 0.2);
+        self.angle = wrap(self.angle + 0.05);
+    }
+
+    // @mod(v, 2pi) for a phase that was already in [0, 2pi) and grew by < 2pi:
+    // fmod's answer is v - 2pi, exact (Sterbenz), without the fmodf call.
+    fn wrap(v: f32) f32 {
+        return if (v >= TWO_PI) v - TWO_PI else v;
     }
 
     pub fn draw(self: *Dragonballs, zigos: *ZigOS) void {
@@ -58,12 +64,13 @@ pub const Dragonballs = struct {
         const sx = 1.0 + @sin(self.u) / 6.0;
         const sy = 1.0 + @sin(self.u + 10.0) / 6.0;
         const p1: *LogicalFB = &zigos.lfbs[1];
+        const cols = buildCols(sx);
         var i: usize = 0;
         while (i < 6) : (i += 1) {
             const fi: f32 = @floatFromInt(i);
             const cx = 40.0 + 64.0 * fi;
             const cy = 307.0 - 64.0 * @abs(@sin(self.angle + 0.25 * fi));
-            blitBall(p1, cx, cy, sx, sy);
+            blitBall(p1, cx, cy, sx, sy, &cols);
         }
     }
 
@@ -75,11 +82,14 @@ pub const Dragonballs = struct {
     fn renderBall(self: *Dragonballs) void {
         @memset(&ball_buf, 0);
 
+        // One sin/cos pair per angle (rotx for every star, one roty per star),
+        // not one per vertex: 12 libm calls a ball instead of 220.
         var proj: [gm.NSTARS][gm.NVERTS]gm.Vec2 = undefined;
+        const rx = gm.sincos(self.rotx);
         for (0..gm.NSTARS) |s| {
             const phase: f32 = @as(f32, @floatFromInt(s)) * (TWO_PI / @as(f32, gm.NSTARS));
-            const ay = self.roty + phase;
-            for (0..gm.NVERTS) |v| proj[s][v] = gm.project(gm.rotate(gm.VERTS[v], self.rotx, ay));
+            const ry = gm.sincos(self.roty + phase);
+            for (0..gm.NVERTS) |v| proj[s][v] = gm.project(gm.rotateSC(gm.VERTS[v], rx, ry));
         }
 
         drawStars(&proj, false); // back-facing first (under the disc)
@@ -101,29 +111,51 @@ pub const Dragonballs = struct {
     }
 
     fn drawDisc() void {
-        var y: usize = 0;
-        while (y < BS) : (y += 1) {
-            const dy = (@as(f32, @floatFromInt(y)) + 0.5 - gm.CENTER) / DISC_R;
-            var x: usize = 0;
-            while (x < BS) : (x += 1) {
-                const dx = (@as(f32, @floatFromInt(x)) + 0.5 - gm.CENTER) / DISC_R;
-                if (dx * dx + dy * dy > 1.0) continue;
-                const idx = y * BS + x;
-                ball_buf[idx] = switch (ball_buf[idx]) {
+        for (DISC, 0..) |span, y| {
+            if (span.x1 <= span.x0) continue;
+            for (ball_buf[y * BS + span.x0 .. y * BS + span.x1]) |*p| {
+                p.* = switch (p.*) {
                     PAL_BACK => PAL_DISC_ON_BACK,
                     0 => PAL_DISC,
-                    else => ball_buf[idx],
+                    else => p.*,
                 };
             }
         }
     }
 };
 
+// The disc never changes size (the squash is applied at blit time), so which
+// pixels it covers is a table: per row the run x0..x1 (exclusive) of pixels with
+// dx*dx + dy*dy <= 1, from the same f32 expressions drawDisc used to evaluate
+// 4096 times a frame. The compile fails if a row's pixels are not one run.
+const Span = struct { x0: u8, x1: u8 };
+const DISC: [BS]Span = blk: {
+    @setEvalBranchQuota(100_000);
+    var t: [BS]Span = undefined;
+    for (0..BS) |y| {
+        const dy = (@as(f32, @floatFromInt(y)) + 0.5 - gm.CENTER) / DISC_R;
+        var x0: usize = BS;
+        var x1: usize = 0;
+        var n: usize = 0;
+        for (0..BS) |x| {
+            const dx = (@as(f32, @floatFromInt(x)) + 0.5 - gm.CENTER) / DISC_R;
+            if (dx * dx + dy * dy > 1.0) continue;
+            if (n == 0) x0 = x;
+            x1 = x + 1;
+            n += 1;
+        }
+        if (n != 0 and x1 - x0 != n) @compileError("dragonball disc row is not one run");
+        t[y] = .{ .x0 = if (n == 0) 0 else x0, .x1 = if (n == 0) 0 else x1 };
+    }
+    break :blk t;
+};
+
 // Blit the BSxBS ball sprite centred at (cx,cy), scaled by (sx,sy) about its
 // centre (the squash), onto `fb`, clipped to bounds; index 0 is transparent.
 // Inverse-mapped (iterate dest, sample source) so there are no gaps.
-fn blitBall(fb: *LogicalFB, cx: f32, cy: f32, sx: f32, sy: f32) void {
+fn blitBall(fb: *LogicalFB, cx: f32, cy: f32, sx: f32, sy: f32, cols: *const [COLS]i8) void {
     const pw: i32 = @intCast(fb.fb_w);
+    const cxi: i32 = @intFromFloat(cx); // 40 + 64 i: a whole number, so px - cxi is exact
     const ph: i32 = @intCast(fb.fb_h);
     const hw_ = gm.CENTER * sx; // scaled half-width
     const hh_ = gm.CENTER * sy;
@@ -138,14 +170,30 @@ fn blitBall(fb: *LogicalFB, cx: f32, cy: f32, sx: f32, sy: f32) void {
         if (svy < 0 or svy >= @as(f32, BS)) continue;
         const srow = @as(usize, @intFromFloat(svy)) * BS;
         const drow = @as(usize, @intCast(py)) * fb.stride;
-        var px: i32 = px0;
-        while (px < px1) : (px += 1) {
-            if (px < 0 or px >= pw) continue;
-            const svx = gm.CENTER + (@as(f32, @floatFromInt(px)) + 0.5 - cx) / sx;
-            if (svx < 0 or svx >= @as(f32, BS)) continue;
-            const idx = ball_buf[srow + @as(usize, @intFromFloat(svx))];
+        var px: i32 = @max(px0, 0);
+        const pend = @min(px1, pw);
+        while (px < pend) : (px += 1) {
+            const col = cols[@intCast(px - cxi + COL_OFF)];
+            if (col < 0) continue;
+            const idx = ball_buf[srow + @as(usize, @intCast(col))];
             if (idx == 0) continue;
             fb.fb[drow + @as(usize, @intCast(px))] = idx;
         }
     }
+}
+
+// Source column for destination column cx + d: the same
+// BALL_CENTER + (d + 0.5) / sx the per-pixel loop divided out for every pixel of
+// every ball (d + 0.5 is exactly px + 0.5 - cx). The squash is one sx for all
+// six balls, so one table a frame replaces ~19,000 divides. -1: outside the sprite.
+const COLS = 96;
+const COL_OFF = 48; // a squashed ball spans d in [-38, 38)
+fn buildCols(sx: f32) [COLS]i8 {
+    var t: [COLS]i8 = undefined;
+    for (&t, 0..) |*c, i| {
+        const d: f32 = @floatFromInt(@as(i32, @intCast(i)) - COL_OFF);
+        const svx = gm.CENTER + (d + 0.5) / sx;
+        c.* = if (svx < 0 or svx >= @as(f32, BS)) -1 else @intCast(@as(usize, @intFromFloat(svx)));
+    }
+    return t;
 }
