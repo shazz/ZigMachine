@@ -68,3 +68,19 @@ pub fn cos(a: Angle) i32 {
 pub fn mul(a: i32, b: i32) i32 {
     return @truncate((@as(i64, a) * b) >> 16);
 }
+
+/// An Angle as f32 radians in [0, 2*pi). Float, so NOT for a per-frame path:
+/// it is the bridge a cart crosses once when it hands its state to an f32
+/// twin of its maths (the F key of replicants_emlyn and polkadots).
+pub fn toRadians(a: Angle) f32 {
+    return @floatCast(@as(f64, @floatFromInt(a)) * (2.0 * std.math.pi / 4294967296.0));
+}
+
+/// f32 radians, any sign and any number of turns (an f32 accumulator never
+/// wraps), as the nearest Angle. toRadians' way back, with the same caveat.
+pub fn fromRadians(rad: f32) Angle {
+    const tau = 2.0 * std.math.pi;
+    const turns = @mod(@as(f64, rad), tau) / tau;
+    const raw: u64 = @intFromFloat(@round(turns * 4294967296.0));
+    return @truncate(raw);
+}

@@ -57,8 +57,9 @@
 // until the board's cart CPU (rv32im, no FPU) measured it at 36 Mc a frame:
 // 2.2 GHz for 60 fps, 2 fps on the board. This cart now projects, lights and
 // fills the torus in integers (polkadots/shade_fixed.zig, project_fixed.zig).
-// The CODEF algorithm itself is kept, in f32, as the separate cart
-// polkadots_f32 (polkadots/shade_f32.zig), to measure a single-precision FPU
-// against. polkadots/app.zig is the one Demo both instantiate.
+// The CODEF algorithm itself is kept in f32 (polkadots/shade_f32.zig), to
+// measure a single-precision FPU against: F switches this cart's maths to it
+// and back, live (polkadots/app.zig), and the readout says F32 meanwhile. The
+// twin cart polkadots_f32 is the same Demo booting on the f32 side.
 // --------------------------------------------------------------------------
-pub const Demo = @import("polkadots/app.zig").Demo(@import("polkadots/shade_fixed.zig"));
+pub const Demo = @import("polkadots/app.zig").Demo(false);
