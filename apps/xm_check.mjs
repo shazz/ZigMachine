@@ -25,7 +25,12 @@ const SR = 44100, SECONDS = 4, FRAMES = SR * SECONDS;
 // rate, key-off cuts an envelope-less note, an instrument number resets the
 // volume (a bare note keeps it), vibrato is FT2's depth, and the volume column
 // slides. (Amiga pitch was fixed too; this song is linear.)
-const PINNED = "b2ccec0f0e35b96a32bee8e7f4f38eb8fc3c8472afd6449728dc2e51d9185fe3";
+// Re-pinned 2026-10-17 again for loudness only: XM's Paula channels play at
+// xm_chip.VOLUME = 240/256 instead of MOD's 1/1.4 headroom (x1.3125, +2.4 dB; Matt
+// found XMs quiet on the board). The voices, mixer and sequencer are unchanged.
+// 240/256, on the audio core's 1/256 grid, keeps the loudest bundled song (Keygen
+// 9000, whole song) at peak 0.990: a 1 % margin (242/256 would reach 0.998, 1.0 clips).
+const PINNED = "b60b83d74338fc22e4aa6c19c02e785f75ba592774942e3380dc7fd182a626e5";
 const BREAKS = ["refuse", "pin"];
 const bi = process.argv.indexOf("--break");
 const broke = bi > 0 ? process.argv[bi + 1] : null;

@@ -42,12 +42,21 @@ fn ringOffset(pair: usize, start: u32) usize {
     return BUF_OFFSET + pair * ring.FRAMES + start;
 }
 
-/// The Paula channels for XM: one source frame per output frame (step 1.0), and
-/// the volume mod.zig gives a full-scale channel (HEADROOM included).
+/// Every XM Paula channel's volume: 240/256, louder than a MOD's full-scale
+/// channel (mod.chipVolume(64) = 1/1.4) by x1.3125, +2.4 dB. The voices already
+/// share a channel attenuated (xm_mix.zig's SCALE_*), so MOD's 1/1.4 headroom left
+/// XMs quiet (Matt, on the board). Measured over whole songs through demo-audio,
+/// L and R: Keygen 9000 peaks 0.754 at 1/1.4, so x1.4 (volume 1.0) would clip at
+/// 1.056; here it peaks 0.990. Poppy Flower Girls 0.504 -> 0.662. A multiple of
+/// 1/256, the audio core's VOLUME grid (fpga/host/audio_regs.h), so the board
+/// plays the browser's level exactly.
+pub const VOLUME: f32 = 240.0 / 256.0;
+
+/// The Paula channels for XM: one source frame per output frame (step 1.0), at VOLUME.
 pub fn setup() void {
     for (0..audio.NUM_CHANNELS) |ch| {
         audio.machinePaulaSetStep(@intCast(ch), 1 << 16);
-        audio.machinePaulaSetVolume(@intCast(ch), mod.chipVolume(64));
+        audio.machinePaulaSetVolume(@intCast(ch), VOLUME);
     }
 }
 
