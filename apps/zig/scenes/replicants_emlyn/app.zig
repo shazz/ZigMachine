@@ -1,25 +1,25 @@
 // --------------------------------------------------------------------------
-// The Emlyn Hughes cracktro, generic over its NUMBERS: replicants_emlyn.zig
-// runs it on fixed.zig (integers: the default cart, what the FPU-less board
-// CPU can afford) and replicants_emlyn_f32.zig on float.zig (the CODEF port's
-// algorithm in f32, to measure a single-precision FPU). Everything that is not
-// arithmetic — assets, the HBL and its table, the logo sweep, the scroll ring,
-// the draw order — is shared, so the two carts show the same screen.
-// replicants_emlyn.zig's header describes the screen itself.
+// The Emlyn Hughes cracktro, with its NUMBERS switchable live: F runs the
+// per-frame maths on fixed.zig (integers: what the FPU-less board CPU can
+// afford) or on float.zig (the CODEF port's algorithm in f32), and F again
+// switches back. That is the FPU comparison on ONE cart: on a board built with
+// the f32 FPU (ZM_FPU=1) the float side runs on it, elsewhere it is soft-float
+// and only slower. motion.zig holds what moves, one per number system, and
+// swap.zig carries the state across a press. Everything that is not
+// arithmetic — assets, the HBL and its table, the ramp, the draw order — is
+// shared, so both show the same screen. replicants_emlyn.zig starts on the
+// integers, replicants_emlyn_f32.zig on f32; its header describes the screen.
 // --------------------------------------------------------------------------
 const zg = @import("zigos");
 const ZigOS = zg.ZigOS;
 const Color = zg.Color;
-const blit = zg.blit;
 const zx0 = @import("depackers").zx0;
 const packed_assets = @import("packed_assets");
 
 const A = @import("assets.zig");
 const rasters = @import("rasters.zig");
-const Logo = @import("logo.zig").Logo;
-const scroller = @import("scroller.zig");
-const Scroller = scroller.Scroller;
 const dirty = @import("dirty.zig");
+const swap = @import("swap.zig");
 
 // The tune is Mad Max's, and the remake plays it as screens/017/zic.ym, a YM
 // register dump. This project ships SNDH only, so the dump was matched against
@@ -41,29 +41,30 @@ const MUSIC_TUNE: u8 = 9;
 
 const PLANE = 0;
 const DIR_FIRE = 5; // the host maps Space AND Enter to input(5)
+const K_ESC: u32 = 0xE012; // demo_main.zig's code for Escape
 
-/// `B` is the cart's number back-end: fixed.zig or float.zig.
-pub fn Demo(comptime B: type) type {
+/// `start_fpu`: the numbers the cart boots on (F switches them at any time).
+pub fn Demo(comptime start_fpu: bool) type {
     return struct {
         const Self = @This();
 
         ok: bool,
         images: A.Images,
-        logo: Logo(B.Bob),
-        scroller: Scroller(B.Curve, B.Mode),
-        bars: B.Bars, // the vectorball group and its raster table
+        fixed: swap.Fixed, // what moves, in integers
+        float: swap.Float, // ... and in f32: only the `fpu` one runs
+        fpu: bool, // the f32 side is the live one
         blitter: zg.Blitter, // the logo and the ramp's copies
         ramp: dirty.Ramp, // where the plane still shows the ramp (dirty.zig)
         started: bool, // go() has drawn once, so the logo may move
-        mode: B.Mode, // ORIGINAL or ZIG, and how far between (mode.zig)
+        wants_quit: bool, // demo_main's pollCartRequest: back to the menu
 
         pub fn init(self: *Self, zigos: *ZigOS) void {
             self.ok = false;
             self.started = false;
-            self.mode.init();
-            self.logo.init();
-            self.scroller.init();
-            self.bars.init();
+            self.wants_quit = false;
+            self.fpu = start_fpu;
+            self.fixed.init();
+            self.float.init();
             self.blitter.init();
             self.ramp.init();
 
@@ -90,41 +91,44 @@ pub fn Demo(comptime B: type) type {
             self.ok = true;
         }
 
-        /// No key() and no ownsKeyboard() on purpose: the host maps Space to
-        /// input(5) for a cart that does not own the keyboard, and keeps its own
-        /// Escape -> menu (demo_main.zig). Declaring key() here would take
-        /// Escape away with it and strand the screen.
+        /// Space still arrives here: the host maps it to input(5) for a cart
+        /// that does not own the keyboard (no ownsKeyboard() on purpose).
         pub fn input(self: *Self, dir: u8) void {
-            if (dir == DIR_FIRE) self.mode.toggle();
+            if (dir != DIR_FIRE) return;
+            // only the live side: swap.zig carries `zig` across with the rest
+            if (self.fpu) self.float.mode.toggle() else self.fixed.mode.toggle();
+        }
+
+        /// Declaring key() means this cart gets EVERY key (demo_main.zig), so
+        /// Escape is handled here, as blitter_demo's B toggle does.
+        pub fn key(self: *Self, cp: u32) void {
+            if (cp == K_ESC) self.wants_quit = true;
+            if (cp == 'f' or cp == 'F') self.switchNumbers();
+        }
+
+        fn switchNumbers(self: *Self) void {
+            if (self.fpu) swap.toFixed(&self.float, &self.fixed) else swap.toFloat(&self.fixed, &self.float);
+            self.fpu = !self.fpu;
+            zg.Console.log("replicants_emlyn: maths in {s}", .{if (self.fpu) "f32 (the FPU)" else "fixed point"});
         }
 
         pub fn update(self: *Self, zigos: *ZigOS, dt: f32) void {
             _ = zigos;
             _ = dt;
             if (!self.ok) return;
-            self.bars.turn(); // go() turns the group before drawing
-            self.scroller.update();
-            if (self.started) self.logo.move(); // ... and moves the logo after
+            if (self.fpu) self.float.update(self.started) else self.fixed.update(self.started);
             self.started = true;
-            self.mode.update();
         }
 
         pub fn render(self: *Self, zigos: *ZigOS, dt: f32) void {
             _ = dt;
             if (!self.ok) return;
-            // my3d.draw(), split in two: the projection is still three.js's,
-            // but what it feeds is the HBL's colour table, not a blit.
-            self.bars.build(&self.mode);
             const fb = &zigos.lfbs[PLANE];
-            // Rasters, then the logo, then the scrolltext — the remake's order.
-            // All three take the WHOLE raster now: nothing stops at an edge
-            // this screen no longer has. The ramp is only put back where last
-            // frame drew over it (dirty.zig).
-            const logo = self.logo.rect(fb, self.images.logo);
-            const opaque_logo = self.ramp.prepare(&self.blitter, fb, logo);
-            self.logo.draw(&self.blitter, fb, self.images.logo, logo, if (opaque_logo) null else dirty.LOGO_KEY);
-            self.scroller.draw(blit.Dst.plane(fb), self.images.font, &self.mode);
-            self.ramp.drew(logo, scroller.band(self.mode.flat()));
+            if (self.fpu) {
+                self.float.render(&self.blitter, &self.ramp, fb, &self.images);
+            } else {
+                self.fixed.render(&self.blitter, &self.ramp, fb, &self.images);
+            }
         }
     };
 }

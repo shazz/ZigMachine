@@ -47,8 +47,9 @@
 // ORIGINAL mode — 550 MHz for 60 fps, two thirds of it soft-float. This cart
 // now runs the screen the way the ST coder would have: a sine table, Q16.16
 // and one span per bar per line (emlyn/fixed.zig). The CODEF algorithm itself
-// is kept, in f32, as the separate cart replicants_emlyn_f32 (emlyn/float.zig),
-// to measure a single-precision FPU against. Same screen either way:
-// emlyn/app.zig is the one Demo both instantiate.
+// is kept in f32 (emlyn/float.zig), to measure a single-precision FPU against:
+// F switches this cart's per-frame maths to it and back, live (emlyn/app.zig),
+// so one cart shows both speeds on the board's frame counter. The twin cart
+// replicants_emlyn_f32 is the same Demo booting on the f32 side.
 // --------------------------------------------------------------------------
-pub const Demo = @import("replicants_emlyn/app.zig").Demo(@import("replicants_emlyn/fixed.zig"));
+pub const Demo = @import("replicants_emlyn/app.zig").Demo(false);
