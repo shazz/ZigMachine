@@ -168,3 +168,46 @@ test "plane view uses the plane's stride" {
     try expectEqualSlices(u8, &.{ BG, BG, 1, 2, BG }, mem[8..13]); // col 4 is outside fb_w
     try expectEqualSlices(u8, &.{ BG, BG, 4, 5, BG }, mem[16..21]);
 }
+
+test "every placement and part matches a per-pixel reference (clip in u32)" {
+    var buf: [W * H]u8 = undefined;
+    var ref: [W * H]u8 = undefined;
+    const parts = [_]?b.Rect{ null, .{ .x = 1, .y = 0, .w = 9, .h = 1 }, .{ .x = 2, .y = 1, .w = 1, .h = 5 } };
+    var dy: i32 = -3;
+    while (dy <= H) : (dy += 1) {
+        var dx: i32 = -4;
+        while (dx <= W) : (dx += 1) for (parts) |part| {
+            b.blit(fresh(&buf), src, part, dx, dy, 3, .copy);
+            @memset(&ref, BG);
+            const p = part orelse b.Rect{ .x = 0, .y = 0, .w = 3, .h = 2 };
+            for (p.y..@min(p.y + p.h, 2)) |sy| for (p.x..@min(p.x + p.w, 3)) |sx| {
+                const x = dx + @as(i32, @intCast(sx - p.x));
+                const y = dy + @as(i32, @intCast(sy - p.y));
+                const v = src_px[sy * 3 + sx];
+                if (x >= 0 and x < W and y >= 0 and y < H and v != 3) ref[@intCast(y * W + x)] = v;
+            };
+            try expectEqualSlices(u8, &ref, &buf);
+        };
+    }
+}
+
+test "fill clips to the view on every side" {
+    var buf: [W * H]u8 = undefined;
+    var ref: [W * H]u8 = undefined;
+    var y: i32 = -3;
+    while (y <= H) : (y += 1) {
+        var x: i32 = -3;
+        while (x <= W) : (x += 1) for ([_]usize{ 0, 1, 2, 9 }) |w| for ([_]usize{ 0, 1, 5 }) |h| {
+            fresh(&buf).fill(x, y, w, h, 9);
+            @memset(&ref, BG);
+            for (0..H) |ry| for (0..W) |rx| {
+                const ix: i32 = @intCast(rx);
+                const iy: i32 = @intCast(ry);
+                if (ix >= x and ix < x + @as(i32, @intCast(w)) and iy >= y and iy < y + @as(i32, @intCast(h))) ref[ry * W + rx] = 9;
+            };
+            try expectEqualSlices(u8, &ref, &buf);
+        };
+    }
+    fresh(&buf).window(1, 1, 2, 2).fill(-1, -1, 9, 9, 4); // a window clips it too
+    try expectEqualSlices(u8, &.{ BG, BG, BG, BG, BG, BG, BG, 4, 4, BG }, buf[0..10]);
+}

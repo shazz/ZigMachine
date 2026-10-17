@@ -18,6 +18,7 @@
 // file testable natively (blit_test.zig).
 // --------------------------------------------------------------------------
 const std = @import("std");
+const rows = @import("blit_rows.zig");
 
 /// Where pixels go. `stride` is the distance between rows in `buf`; `w`/`h` are
 /// the drawable size, which for a window is smaller than the stride.
@@ -54,6 +55,15 @@ pub const Dst = struct {
         const ch = @min(h, self.h - y);
         if (cw == 0 or ch == 0) return empty;
         return .{ .buf = self.buf[y * self.stride + x ..], .stride = self.stride, .w = cw, .h = ch };
+    }
+
+    /// Fill the w x h rectangle at signed (x, y) with `v`, clipped to the view:
+    /// one @memset (word stores) a row, for the bands and boxes carts filled
+    /// pixel by pixel through setPixelValue.
+    pub fn fill(self: Dst, x: i32, y: i32, w: usize, h: usize, v: u8) void {
+        const cx = axis(x, w, self.w) orelse return;
+        const cy = axis(y, h, self.h) orelse return;
+        for (cy.at..cy.at + cy.n) |r| @memset(self.buf[r * self.stride + cx.at ..][0..cx.n], v);
     }
 };
 
@@ -133,25 +143,19 @@ pub fn stretchY(dst: Dst, src: Image, dx: i32, centre_y: f64, sy: f64, key: ?u8,
 fn clip(dst: Dst, src: Image, part: ?Rect, dx: i32, dy: i32) ?Span {
     const p = part orelse Rect{ .x = 0, .y = 0, .w = src.w, .h = src.h };
     if (p.x >= src.w or p.y >= src.h) return null;
-    const sw: i64 = @intCast(@min(p.w, src.w - p.x));
-    const sh: i64 = @intCast(@min(p.h, src.h - p.y));
-    // the destination rectangle, clipped to the view, in i64 so nothing wraps
-    const ix: i64 = dx;
-    const iy: i64 = dy;
-    const zero: i64 = 0;
-    const x0: i64 = @max(ix, zero);
-    const y0: i64 = @max(iy, zero);
-    const x1: i64 = @min(ix + sw, @as(i64, @intCast(dst.w)));
-    const y1: i64 = @min(iy + sh, @as(i64, @intCast(dst.h)));
-    if (x1 <= x0 or y1 <= y0) return null;
-    return .{
-        .sx = p.x + @as(usize, @intCast(x0 - ix)),
-        .sy = p.y + @as(usize, @intCast(y0 - iy)),
-        .dx = @intCast(x0),
-        .dy = @intCast(y0),
-        .w = @intCast(x1 - x0),
-        .h = @intCast(y1 - y0),
-    };
+    const x = axis(dx, @min(p.w, src.w - p.x), dst.w) orelse return null;
+    const y = axis(dy, @min(p.h, src.h - p.y), dst.h) orelse return null;
+    return .{ .sx = p.x + x.skip, .sy = p.y + y.skip, .dx = x.at, .dy = y.at, .w = x.n, .h = y.n };
+}
+
+/// One axis of the clip: `len` source pixels placed at `d` on a destination of
+/// `lim`. In unsigned 32-bit arithmetic (no i64, which rv32 does in pairs of
+/// instructions), and nothing can wrap: `skip` is |d| only when d < 0.
+fn axis(d: i32, len: usize, lim: usize) ?struct { skip: usize, at: usize, n: usize } {
+    const skip: usize = if (d < 0) @abs(d) else 0;
+    const at: usize = if (d < 0) 0 else @intCast(d);
+    if (skip >= len or at >= lim) return null;
+    return .{ .skip = skip, .at = at, .n = @min(len - skip, lim - at) };
 }
 
 /// Narrow the span to the destination pixels the pattern covers.
@@ -180,37 +184,16 @@ fn draw(dst: Dst, src: Image, s: Span, comptime tag: std.meta.Tag(Ink), v: anyty
         const out = dst.buf[y * dst.stride + s.dx ..][0..s.w];
         const in = src.data[(s.sy + r) * src.w + s.sx ..][0..s.w];
         switch (tag) {
-            .copy => if (keyed) {
-                for (in, out) |p, *d| if (p != key) {
-                    d.* = p;
-                };
-            } else @memcpy(out, in),
-            .flat => for (in, out) |p, *d| if (!keyed or p != key) {
-                d.* = v;
-            },
-            .offset => for (in, out) |p, *d| if (!keyed or p != key) {
-                d.* = p +% v;
-            },
-            .lut => for (in, out) |p, *d| if (!keyed or p != key) {
-                d.* = v[p];
-            },
-            .row => {
-                const c = v[y];
-                for (in, out) |p, *d| if (!keyed or p != key) {
-                    d.* = c;
-                };
-            },
+            .copy => if (keyed) rows.row(out, in, key, rows.keyedCopy, false) else @memcpy(out, in),
+            .row => rows.row(out, in, rows.Inked(u8, keyed){ .key = key, .v = v[y] }, rows.Inked(u8, keyed).flat, false),
             .pattern => {
                 const py: usize = @intCast(@as(i64, @intCast(y)) - v.oy);
                 const px: usize = @intCast(@as(i64, @intCast(s.dx)) - v.ox);
                 const pat = v.img.data[py * v.img.w + px ..][0..s.w];
-                for (in, out, pat) |p, *d, c| if (!keyed or p != key) {
-                    d.* = c;
-                };
+                rows.row(out, in, rows.Inked([]const u8, keyed){ .key = key, .v = pat }, rows.Inked([]const u8, keyed).pattern, false);
             },
-            .select => for (in, out) |p, *d| if ((!keyed or p != key) and v.set[d.*] == v.inside) {
-                d.* = p;
-            },
+            .select => rows.row(out, in, rows.Inked(Select, keyed){ .key = key, .v = v }, rows.Inked(Select, keyed).select, true),
+            else => rows.row(out, in, rows.Inked(@TypeOf(v), keyed){ .key = key, .v = v }, @field(rows.Inked(@TypeOf(v), keyed), @tagName(tag)), false),
         }
     }
 }
