@@ -152,11 +152,10 @@ pub const Demo = struct {
         fb.clearFrameBuffer(0);
         self.scrolltext.render();
 
-        // copy scrolltext at the bottom
-        var i: u16 = 0;
-        while(i < WIDTH*SCROLL_CHAR_HEIGHT) : ( i += 1){
-            fb.fb[i + ((HEIGHT-SCROLL_CHAR_HEIGHT) * WIDTH)] = fb.fb[i];
-        }
+        // copy scrolltext at the bottom: one memcpy (the bands do not overlap),
+        // not 10240 byte moves
+        const band: usize = @as(usize, WIDTH) * SCROLL_CHAR_HEIGHT;
+        @memcpy(fb.fb[(HEIGHT - SCROLL_CHAR_HEIGHT) * @as(usize, WIDTH) ..][0..band], fb.fb[0..band]);
 
         _ = elapsed_time;
 
