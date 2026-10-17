@@ -1,6 +1,8 @@
 // --------------------------------------------------------------------------
-// One of the screen's two glenz objects: three.js r49's projector (via
-// zg.zig3d) feeding the BLITTER's OR minterm.
+// One of the screen's two glenz objects: three.js r49's projector feeding the
+// BLITTER's OR minterm. Per frame it is all integers (zg.zig3d_fixed: Q16
+// vertices, a Q30 rotation from u32 angles, one divide per coordinate); the
+// f64 zg.zig3d only builds the lens and the centroids, once, at init.
 //
 // THE INTERLACE. go() (screen.js:293-296) composites the two 352x352 3D
 // canvases into the panel in 2-row bands, obj1 at 171+u and obj2 at 173+u for
@@ -21,6 +23,7 @@
 // --------------------------------------------------------------------------
 const zg = @import("zigos");
 const c3 = zg.zig3d;
+const zf = zg.zig3d_fixed;
 const Blitter = zg.Blitter;
 const Vec2 = zg.BlitVec2;
 const LogicalFB = zg.LogicalFB;
@@ -32,7 +35,7 @@ const Vec3 = c3.Vec3;
 /// aspect is 1 either way, so the projection matrix is identical and only the
 /// half-width changes.
 pub const CANVAS = 176;
-pub const CAMERA = Vec3{ .x = 0, .y = 0, .z = 900 };
+pub const CAMERA = zf.Vec{ .x = 0, .y = 0, .z = 900 << 16 }; // Q16
 pub const FOV = 40.0;
 pub const NEAR = 1.0;
 pub const FAR = 3000.0;
@@ -42,8 +45,8 @@ const OPTS = c3.Options{ .double_sided = true, .overdraw = false };
 
 // Shared scratch: the two objects are projected one after the other, and this
 // keeps 1.5 KB out of every Demo (and out of the cart's data segment budget).
-var screen_scratch: [14]c3.Screen = undefined;
-var poly_scratch: [24]c3.Poly = undefined;
+var screen_scratch: [14]zf.Screen = undefined;
+var poly_scratch: [24]zf.Poly = undefined;
 
 /// Rows of the 16x16 halftone an object owns. `odd` selects plane rows 1,3,5...
 fn stripes(comptime odd: bool) [16]u16 {
@@ -55,25 +58,26 @@ pub const ODD_ROWS = stripes(true);
 pub const EVEN_ROWS = stripes(false);
 
 pub const Glenz = struct {
-    verts: [14]Vec3,
-    centroids: [24]Vec3,
-    mesh: c3.Mesh,
-    rotation: Vec3,
-    step: Vec3,
+    verts: [14]zf.Vec,
+    centroids: [24]zf.Vec,
+    mesh: zf.Mesh,
+    spin: zf.math.Spin, // go()'s myobj.rotation, as u64 phases
+    step: [3]u64,
     stages: *const [4]obj.Stage,
     left: i16, // plane column the canvas's column 0 lands on
     top: i16, // plane row the canvas's row 0 lands on
     halftone: [16]u16,
 
-    pub fn init(self: *Glenz, stages: *const [4]obj.Stage, step: Vec3, left: i16, top: i16, halftone: [16]u16) void {
-        self.verts = obj.CUBE;
-        self.centroids = undefined;
+    pub fn init(self: *Glenz, stages: *const [4]obj.Stage, step: [3]u64, left: i16, top: i16, halftone: [16]u16) void {
         // faces() computes the centroids and the bounding sphere ONCE, from
         // myobjvert[1]; the tween then moves the vertices and never recomputes
-        // either. Building from CUBE and re-pointing the slice keeps that.
-        self.mesh = c3.build(&obj.CUBE, &obj.FACES, &self.centroids);
+        // either. Building from CUBE (in float, once) and re-pointing the
+        // vertex slice keeps that.
+        var cube_centroids: [24]Vec3 = undefined;
+        const cube = c3.build(&obj.CUBE, &obj.FACES, &cube_centroids);
+        self.mesh = zf.fromMesh(&cube, &self.verts, &self.centroids);
         self.mesh.verts = &self.verts;
-        self.rotation = .{ .x = 0, .y = 0, .z = 0 };
+        self.spin = .{};
         self.step = step;
         self.stages = stages;
         self.left = left;
@@ -84,17 +88,14 @@ pub const Glenz = struct {
     /// go() turns the group, then computes normals, then draws. `t` is seconds
     /// since tween3d() armed the chain.
     pub fn update(self: *Glenz, t: f32) void {
-        self.rotation.x += self.step.x;
-        self.rotation.y += self.step.y;
-        self.rotation.z += self.step.z;
+        self.spin.add(self.step);
         obj.morph(self.stages, t, &self.verts);
     }
 
-    /// `view` is View.init(lens, CAMERA): the camera never moves, so its
-    /// matrices and frustum are built once, not per object per frame.
-    pub fn draw(self: *Glenz, fb: *LogicalFB, bl: *Blitter, view: *const c3.View) void {
-        const origin = Vec3{ .x = 0, .y = 0, .z = 0 };
-        const polys = c3.projectView(view, origin, self.rotation, &self.mesh, &screen_scratch, &poly_scratch, OPTS);
+    /// The camera never moves, so the lens and the camera are fixed values.
+    pub fn draw(self: *Glenz, fb: *LogicalFB, bl: *Blitter, lens: *const zf.Lens) void {
+        const origin = zf.Vec{ .x = 0, .y = 0, .z = 0 };
+        const polys = zf.project(lens, CAMERA, origin, self.spin.top(), &self.mesh, &screen_scratch, &poly_scratch, OPTS);
         bl.setHalftone(self.halftone);
         for (polys) |p| {
             bl.triangleEx(fb, self.at(p, 0), self.at(p, 1), self.at(p, 2), p.ink, 0, .glenz);
@@ -102,11 +103,10 @@ pub const Glenz = struct {
         bl.clearHalftone();
     }
 
-    /// Canvas pixels to plane pixels. Clamped before the cast: the object
-    /// never reaches 73 px from the canvas centre, but @intFromFloat on an
-    /// out-of-range float is illegal, not merely wrong. roundClamped is that
-    /// clamp-round-cast, bit for bit, in integer operations.
-    fn at(self: *const Glenz, p: c3.Poly, i: usize) Vec2 {
-        return .{ .x = self.left + c3.roundClamped(p.pts[i][0], 4096), .y = self.top + c3.roundClamped(p.pts[i][1], 4096) };
+    /// Canvas pixels (Q12) to plane pixels, rounded as zig3d.roundClamped
+    /// rounds: the object never reaches 73 px from the canvas centre, and the
+    /// clamp keeps a bad value from wrapping the blitter's i16.
+    fn at(self: *const Glenz, p: zf.Poly, i: usize) Vec2 {
+        return .{ .x = self.left + zf.math.roundPx(p.pts[i][0], 4096), .y = self.top + zf.math.roundPx(p.pts[i][1], 4096) };
     }
 };
