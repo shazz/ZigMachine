@@ -18,6 +18,7 @@ const zg = @import("zigos");
 const pacing = @import("pacing.zig");
 const sound = @import("sound.zig");
 const m68k = @import("m68k.zig");
+const screen = @import("screen.zig");
 pub const V = @import("vars.zig");
 
 pub const BASE: i64 = 0x10000;
@@ -139,37 +140,51 @@ pub const St = struct {
     // ---- absolute-address access, as the 68000 sees it ----
     // Every 68000 access of every transcribed routine lands here, and reads
     // the arena pointer once: one load where a static array had a constant.
-    fn where(self: *St, a: i64, n: u8) ?[]u8 {
-        const x = a & 0xFFFFFF;
-        const len: i64 = n;
-        if (x >= BASE and x + len <= BASE + @as(i64, MEM_LEN)) {
-            const o: usize = @intCast(x - BASE);
-            return mem[o .. o + n];
-        }
-        const lo = SCREEN - @as(i64, BELOW);
-        if (x >= lo and x + len <= SCREEN + 32000) {
-            const o: usize = @intCast(x - lo);
-            return scr[o .. o + n];
-        }
+    // In u32: the 24-bit bus fits, and on the board's rv32 an i64 compare or
+    // add is two instructions and a carry where this is one.
+    fn where(self: *St, a: i64, n: u8) ?[*]u8 {
+        const x: u32 = @as(u32, @truncate(@as(u64, @bitCast(a)))) & 0xFFFFFF;
+        const base: u32 = @intCast(BASE);
+        if (x >= base and x + n <= base + MEM_LEN) return mem[x - base ..].ptr;
+        const lo: u32 = @intCast(SCREEN - @as(i64, BELOW));
+        if (x >= lo and x + n <= @as(u32, @intCast(SCREEN)) + 32000) return scr[x - lo ..].ptr;
         self.oob += 1;
         return null;
     }
 
     pub fn rd(self: *St, a: i64, n: u8) i64 {
         const b = self.where(a, n) orelse return 0;
-        var v: i64 = 0;
-        for (b) |c| v = (v << 8) | c;
-        return v;
+        return switch (n) {
+            1 => b[0],
+            2 => @as(u16, b[0]) << 8 | b[1],
+            4 => std.mem.readInt(u32, b[0..4], .big),
+            else => blk: {
+                var v: i64 = 0;
+                for (b[0..n]) |c| v = (v << 8) | c;
+                break :blk v;
+            },
+        };
     }
 
     pub fn wr(self: *St, a: i64, n: u8, v: i64) void {
         const b = self.where(a, n) orelse return;
-        var x: u64 = @bitCast(v);
-        var i: usize = n;
-        while (i > 0) {
-            i -= 1;
-            b[i] = @truncate(x);
-            x >>= 8;
+        const at: u32 = @as(u32, @truncate(@as(u64, @bitCast(a)))) & 0xFFFFFF;
+        const scr0: u32 = @intCast(SCREEN);
+        if (at >= scr0) screen.touch(at - scr0, n); // where() said yes: on the screen
+        const x: u32 = @truncate(@as(u64, @bitCast(v)));
+        switch (n) {
+            1 => b[0] = @truncate(x),
+            2 => std.mem.writeInt(u16, b[0..2], @truncate(x), .big),
+            4 => std.mem.writeInt(u32, b[0..4], x, .big),
+            else => {
+                var y: u64 = @bitCast(v);
+                var i: usize = n;
+                while (i > 0) {
+                    i -= 1;
+                    b[i] = @truncate(y);
+                    y >>= 8;
+                }
+            },
         }
     }
 
@@ -269,6 +284,7 @@ fn loadImage() void {
     // inherit the last run's screen or the RAM below it: the model starts both
     // empty.
     @memset(scr, 0);
+    screen.touchAll();
 }
 
 // ---- 68000 arithmetic (m68k.zig), re-exported ----
