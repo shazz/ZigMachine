@@ -8,6 +8,7 @@
 #include <string.h>
 
 #include "baudio.h"
+#include "bsndinfo.h"
 #include "haudio.h"
 #include "snd_mailbox.h"
 #include "vboard.h"
@@ -37,6 +38,7 @@ void baudio_boot(void) {
         return;
     }
     SND_REG(SND_CTRL) = 0;
+    sndinfo_boot(ROUTE_BARD_DOWN); /* until BARD's own boot says otherwise (cycles/baudio.c) */
     memcpy((void*)SND_BASE, _binary_snd_bin_start, (size_t)(_binary_snd_bin_end - _binary_snd_bin_start));
     /* S2C is the sound CPU's alone, and an earlier run may have left READY in it: the boot answers
      * a nonce instead, the SEQ written before it starts, echoed in ACK once it polls. */

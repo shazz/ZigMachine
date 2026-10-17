@@ -33,7 +33,7 @@ SND_CFLAGS  = $(HRV_CFLAGS) -Icycles/sound -I$(HOST)/tutorial -DZM_SND
 SND_COMMON := cycles/sound/sboard.c cycles/sound/zmmul.c cycles/trap.c cycles/trap.S \
 	$(addprefix $(W2C_RT)/,wasm-rt-impl.c wasm-rt-mem-impl.c wasm-rt-exceptions-impl.c)
 SND_PLAY   := host/audio.c host/audio_imports.c cycles/baudio.c cycles/sound/smain.c
-SND_DEPS   := $(SND_COMMON) $(SND_PLAY) cycles/bsongs.c $(wildcard cycles/sound/*.h) cycles/snd_mailbox.h \
+SND_DEPS   := $(SND_COMMON) $(SND_PLAY) cycles/bsongs.c $(wildcard cycles/sound/*.h) cycles/snd_mailbox.h cycles/bsndinfo.h gen/glass_cart.h \
 	$(AUD_HDRS) cycles/baudio.h $(CYC)/alignedz/common/aplayer.o $(HOST)/common/aplayer.h \
 	$(HCYC)/gen/csr_addr.h $(HOST)/tutorial/cart.h
 

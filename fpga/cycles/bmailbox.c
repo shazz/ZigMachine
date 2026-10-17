@@ -9,7 +9,8 @@
 #define MB ((volatile uint32_t*)ZM_MB_ADDR)
 
 void mb_init(uint32_t pfb, uint32_t pfb_w, uint32_t pfb_h) {
-    for (int i = 0; i < MB_WORDS; i++) MB[i] = 0;
+    /* The whole page: a cart with no music must not show the last cart's (bmailbox.h). */
+    for (uint32_t i = 0; i < ZM_MB_PAGE_WORDS; i++) MB[i] = 0;
     MB[MB_VERSION] = ZM_MB_VERSION;
     MB[MB_FB0] = ZM_FB0_ADDR;
     MB[MB_FB1] = ZM_FB1_ADDR;

@@ -47,3 +47,55 @@ pub const SYS_HEAD_WORDS: u32 = 4;
 // table version than the system has; nothing that is a cart sits at CART_IMG_AT.
 pub const TRAP_CART_ABI: u32 = 0xFF_FF02;
 pub const TRAP_NO_CART: u32 = 0xFF_FF03;
+
+// --- the music: who plays it (the debug page, docs/FPGA_GLASS.md "Who plays the music") --
+// The debug mailbox (cycles/bmailbox.h) is the cart window's last MB_BYTES; its first words
+// are MB_MAGIC and the mailbox version. From MB_VERSION_SND_INFO, ZIGGY's firmware zeroes
+// the whole page at boot, and its last SND_INFO_WORDS words (window end - SND_INFO_FROM_TOP,
+// CPU 0x41FF_FFA0) are the music block, written by whichever CPU runs the players (BARD,
+// or ZIGGY in a ZM_AUDIO=1 image; cycles/bsndinfo.h): no magic there = no music in this
+// firmware. The writer bumps SI_SEQ to odd, writes, bumps it to even: a reader that sees
+// the same even SI_SEQ before and after its copy has a whole block.
+pub const MB_BYTES: u32 = 0x100;
+pub const MB_MAGIC: u32 = 0x424D_4D5A; // "ZMMB"
+pub const MB_VERSION_SND_INFO: u32 = 2;
+pub const SND_INFO_FROM_TOP: u32 = 0x60;
+pub const SND_INFO_WORDS: u32 = 24;
+pub const SND_INFO_MAGIC: u32 = 0x4953_4D5A; // "ZMSI"
+pub const SND_INFO_VERSION: u32 = 1; // SI_HEAD bits 7:0: a reader decodes only a version it knows
+pub const SI_MAGIC: u32 = 0;
+pub const SI_SEQ: u32 = 1;
+pub const SI_HEAD: u32 = 2; // version | route << 8 | player << 16 | native << 24
+pub const SI_TUNE: u32 = 3; // the request's tune: an SNDH's subtune, a MOD's start BPM
+pub const SI_FLAGS: u32 = 4; // SIF_*
+pub const SI_CYCLES: u32 = 5; // the last render: its CPU cycles ...
+pub const SI_SAMPLES: u32 = 6; // ... for this many 44.1 kHz samples
+pub const SI_PEAK_CYCLES: u32 = 7; // the dearest render per sample since the song started
+pub const SI_PEAK_SAMPLES: u32 = 8;
+pub const SI_NAME: u32 = 9; // the song's name, NUL-padded, to the block's end
+pub const SND_NAME_MAX: u32 = (SND_INFO_WORDS - SI_NAME) * 4 - 1; // 59 bytes and a NUL
+pub const SIF_STARTED: u32 = 1 << 0; // its player started (else: no such file, or refused)
+// The render's clock: both CPUs run at the sys clock, so a 60 Hz frame's 735 samples have
+// 1.67 Mc of it: load = cycles * SND_RATE_HZ / (samples * SND_CLOCK_HZ).
+pub const SND_CLOCK_HZ: u32 = 100_000_000;
+pub const SND_RATE_HZ: u32 = 44_100;
+// SI_HEAD's route: who runs the players.
+pub const ROUTE_NONE: u32 = 0; // never written: no music in this firmware
+pub const ROUTE_ZIGGY: u32 = 1; // the cart CPU (a ZM_AUDIO=1 image)
+pub const ROUTE_BARD: u32 = 2; // the sound CPU
+pub const ROUTE_BARD_DOWN: u32 = 3; // built for BARD, which never answered: no music
+// SI_HEAD's player: what host/audio.c's audio_play picks by the name's extension.
+pub const PLAYER_NONE: u32 = 0; // nothing asked yet, or "none"
+pub const PLAYER_SNDH: u32 = 1; // the tune's 68000 code: Musashi, or a native driver (SI_HEAD's native)
+pub const PLAYER_SAP: u32 = 2; // 6502 + POKEY
+pub const PLAYER_MOD: u32 = 3;
+pub const PLAYER_XM: u32 = 4; // FT2
+pub const PLAYER_YM: u32 = 5; // a .ymraw register dump
+pub const PLAYER_PCM: u32 = 6; // .raw
+pub const PLAYER_UNKNOWN: u32 = 0xFF; // an extension no player takes
+// SI_HEAD's native (PLAYER_SNDH only): demo-audio's audioSndhNative() (players/digi.zig Status).
+pub const NATIVE_MUSASHI: u32 = 0;
+pub const NATIVE_BEAT_DIS: u32 = 1;
+pub const NATIVE_NEAR_SEQ: u32 = 2; // the digi handler with an unknown sequencer: on Musashi
+pub const NATIVE_NEAR_TABLES: u32 = 3; // the driver's tables out of range: on Musashi
+pub const NATIVE_OFF: u32 = 4; // native replays switched off: on Musashi
