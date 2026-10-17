@@ -152,10 +152,9 @@ pub fn project(lens: *const Lens, camera: Vec, position: Vec, rot: [3]Angle, m: 
         var p = Poly{ .pts = undefined, .n = f.n, .ink = f.ink, .depth = -(fm.dot(r[2], c.x, c.y, c.z) + rel.z) };
         for (0..f.n) |i| p.pts[i] = .{ screen[f.v[i]].x, screen[f.v[i]].y };
         if (opts.overdraw) poly.overdraw(&p);
-        out[n] = p;
+        poly.insert(out[0 .. n + 1], p);
         n += 1;
     }
-    std.sort.insertion(Poly, out[0..n], {}, poly.farther);
     return out[0..n];
 }
 

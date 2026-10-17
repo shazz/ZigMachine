@@ -93,7 +93,11 @@ fn shift(v: i64, by: i32) i64 {
     return if (by >= 0) v << @intCast(by) else v >> @intCast(-by);
 }
 
-/// Far to near, ties in their original order (insertion sort is stable).
-pub fn farther(_: void, a: Poly, b: Poly) bool {
-    return a.depth > b.depth;
+/// Put `p` into `list` (whose last slot is free) keeping it far to near, after
+/// any face of equal depth: zig3d's stable insertion sort, done as the faces
+/// arrive, moving each 40-byte face once per place instead of swapping it.
+pub fn insert(list: []Poly, p: Poly) void {
+    var j = list.len - 1;
+    while (j > 0 and list[j - 1].depth < p.depth) : (j -= 1) list[j] = list[j - 1];
+    list[j] = p;
 }
