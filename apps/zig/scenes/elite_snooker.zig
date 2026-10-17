@@ -32,6 +32,7 @@
 
 const std = @import("std");
 const zg = @import("zigos");
+const trig = zg.fixtrig;
 const assert = std.debug.assert;
 
 const ZigOS = zg.ZigOS;
@@ -75,19 +76,15 @@ const FADE_GREYS = [_]u8{
 // area, so it is a plain wrap of one tile.
 const TILE: usize = 32;
 const BG_ROWS: usize = 190; // mycanvas_fond is 380 tall; below it the fill stays black
-const BG_X: f64 = 280;
-const BG_AMP_X: f64 = 80;
-const BG_Y: f64 = 180;
-const BG_AMP_Y: f64 = 180;
-const BG_HANDLE_X: f64 = 960; // (640*3)/2
-const BG_HANDLE_Y: f64 = 480; // (320*3)/2
 const BG_PERIOD: f64 = 200; // vbl*PI/200
+// tile grid x = (280 - sin*80 - 960)/2, y = (180 - cos*180 - 480)/2 (canvas 640x320 x3 handle)
+// text px = 160 + 32j - indice*sin(a)*1.25, py = y - 24*sin(a - j*0.5), then /2
 const TILE_FRAMES: u32 = 7; // vbl_head 0..6 elite1, 7..13 elite2
 
 // write_text(mycanvas_rasters, 160, y, screens[n], font, 1, indice): one line
 // per call, so the per-line terms (i*0.15, i*42, -i) are all zero.
-const TextLine = struct { y: f64, indice: f64, text: []const u8 };
-const TEXT_X: f64 = 160;
+const TextLine = struct { y: i32, indice: i32, text: []const u8 };
+const TEXT_X: i32 = 160;
 const TEXT = [_]TextLine{
     .{ .y = 70, .indice = 32, .text = "   JIMMY  " },
     .{ .y = 106, .indice = 48, .text = "   WHITE  " },
@@ -96,10 +93,7 @@ const TEXT = [_]TextLine{
     .{ .y = 256, .indice = 96, .text = " DR. TRAP " },
 };
 const TEXT_ANGLE_STEP: f64 = 0.002; // textAngle += 0.002 per character
-const TEXT_X_SCALE: f64 = 1.25; // indice * sin(textAngle) * 1.25
-const TEXT_Y_AMP: f64 = 12 * 2; // 12 * sin(textAngle - j*0.5) * 2
 const TEXT_CHAR_PHASE: f64 = 0.5;
-const FONT_CANVAS: f64 = 32; // taille += 32
 const FONT: usize = 16; // the 32x32 tiles halved
 const FONT_COLS: usize = 10;
 const FONT_FIRST: u8 = 32;
@@ -151,10 +145,15 @@ comptime {
 const Phase = enum { fade, main };
 const Glyph = struct { x: i32, y: i32, cell: blit.Rect };
 
-/// JS Math.round: halves go up, negative values included.
-fn jsRound(x: f64) f64 {
-    return @floor(x + 0.5);
+/// JS Math.round of a Q16.16 value: halves go up, negative values included.
+fn q16Round(v: i32) i32 {
+    return (v + (trig.ONE >> 1)) >> 16;
 }
+
+// Constant angles, folded at compile time (float is fine there).
+const BG_ANGLE = trig.angle(std.math.pi / BG_PERIOD);
+const TEXT_STEP = trig.angle(TEXT_ANGLE_STEP);
+const TEXT_PHASE = trig.angle(TEXT_CHAR_PHASE);
 
 fn fillRows(dst: blit.Dst, first: usize, end: usize, index: u8) void {
     for (first..end) |k| @memset(dst.buf[k * dst.stride ..][0..dst.w], index);
@@ -168,7 +167,7 @@ pub const Demo = struct {
     vbl: u32, // go()'s vbl for the frame being shown
     bg_x: i32, // ST offset of the tile grid
     bg_y: i32,
-    text_angle: f64,
+    text_angle: trig.Angle,
     glyphs: [TEXT_GLYPHS]Glyph,
     letter_x: [SCROLL_LETTERS]i32, // canvas x
     letter_ch: [SCROLL_LETTERS]u8,
@@ -226,25 +225,29 @@ pub const Demo = struct {
         }
     }
 
-    /// go()'s state for this frame, in its order.
+    /// go()'s state for this frame, in its order. Integer maths: fixtrig
+    /// angles (u32 turns) and Q16.16 sines; every offset is rounded to the
+    /// nearest ST pixel like the JS Math.round of the original (floor(x+.5)).
     fn advanceMain(self: *Demo) void {
         self.vbl = self.frame - MAIN_FIRST_FRAME;
-        const t = @as(f64, @floatFromInt(self.vbl)) * std.math.pi / BG_PERIOD;
-        // canvas offset of the tile grid, rounded to the nearest ST pixel
-        self.bg_x = @intFromFloat(jsRound((BG_X - @sin(t) * BG_AMP_X - BG_HANDLE_X) / 2));
-        self.bg_y = @intFromFloat(jsRound((BG_Y - @cos(t) * BG_AMP_Y - BG_HANDLE_Y) / 2));
+        const t: trig.Angle = self.vbl *% BG_ANGLE;
+        // canvas offset of the tile grid: (280 - sin*80 - 960)/2, (180 - cos*180 - 480)/2
+        self.bg_x = q16Round(-340 * trig.ONE - 40 * trig.sin(t));
+        self.bg_y = q16Round(-150 * trig.ONE - 90 * trig.cos(t));
 
         var g: usize = 0;
         for (TEXT) |line| {
             for (line.text, 0..) |c, j| {
-                self.text_angle += TEXT_ANGLE_STEP;
-                const jf: f64 = @floatFromInt(j);
-                const px = TEXT_X + FONT_CANVAS * jf - line.indice * @sin(self.text_angle) * TEXT_X_SCALE;
-                const py = line.y - TEXT_Y_AMP * @sin(self.text_angle - jf * TEXT_CHAR_PHASE);
+                self.text_angle +%= TEXT_STEP;
+                const ja: u32 = @intCast(j);
+                const sx = trig.sin(self.text_angle);
+                const sy = trig.sin(self.text_angle -% ja *% TEXT_PHASE);
+                const x2 = (TEXT_X / 2 + 16 * @as(i32, @intCast(j))) * trig.ONE - @divTrunc(line.indice * 5 * sx, 8);
+                const y2 = line.y * (trig.ONE / 2) - 12 * sy;
                 const n: usize = c - FONT_FIRST;
                 self.glyphs[g] = .{
-                    .x = @intFromFloat(jsRound(px / 2)),
-                    .y = @intFromFloat(jsRound(py / 2)),
+                    .x = q16Round(x2),
+                    .y = q16Round(y2),
                     .cell = .{ .x = (n % FONT_COLS) * FONT, .y = (n / FONT_COLS) * FONT, .w = FONT, .h = FONT },
                 };
                 g += 1;
