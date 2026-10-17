@@ -124,19 +124,19 @@ pub const Demo = struct {
         self.starfield.update();
         self.scrolltext.update();
 
-        self.cam.project(&vertices, &self.projected_vertices, self, rotateXY);
+        // The logo's own transform: rotate about X, then Y (no Z, unlike maxi),
+        // the matrices built once for the frame's 35 vertices.
+        const spin = wf.Rot.chain(&.{
+            Mat4.fromEulerAngles(Vec3.new(self.angle_x, 0, 0)),
+            Mat4.fromEulerAngles(Vec3.new(0, self.angle_y, 0)),
+        });
+        self.cam.project(&vertices, &self.projected_vertices, spin, wf.Rot.apply);
 
         self.angle_x += 3.50;
         self.angle_y += 3.50;   
 
         _ = zigos;
         _ = elapsed_time;
-    }
-
-    // The logo's own transform: rotate about X, then Y (no Z, unlike maxi).
-    fn rotateXY(self: *Demo, v: Vec4) Vec4 {
-        const after_x = Mat4.fromEulerAngles(Vec3.new(self.angle_x, 0, 0)).vec4mulByMat4(v);
-        return Mat4.fromEulerAngles(Vec3.new(0, self.angle_y, 0)).vec4mulByMat4(after_x);
     }
 
     pub fn render(self: *Demo, zigos: *ZigOS, elapsed_time: f32) void {
