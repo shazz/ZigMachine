@@ -99,6 +99,7 @@ pub const App = struct {
     /// One evdev key record (value 0 up, 1 down, 2 repeat).
     pub fn key(self: *App, code: u16, value: i32) void {
         if (code == keymap.OSD_HOTKEY) {
+            if (value == 1 and (self.mods.shift_l or self.mods.shift_r)) return self.rescan();
             if (value == 1) self.setOpen(!self.open);
             return;
         }
@@ -110,6 +111,12 @@ pub const App = struct {
         if (self.open) return cart.act(self, self.menu.key(ev));
         self.track(ev);
         self.regs.write(map.REG_KEY_PUSH, ev);
+    }
+
+    /// Shift+F12: the shelf read again (app_shelf.zig), shown in the menu.
+    fn rescan(self: *App) void {
+        @import("app_shelf.zig").rescan(self);
+        if (self.open) self.redraw() else self.setOpen(true);
     }
 
     // Remember what the cart holds down, so opening the OSD can let go of it.
