@@ -122,3 +122,19 @@ def test_host_micros_with_the_wrong_signature_is_refused() -> None:
         host_gen.forwarder("hostMicros", "f32", [], None, EXPORTS)
     with pytest.raises(SystemExit):
         host_gen.forwarder("hostMicros", "u32", ["u32"], None, EXPORTS)
+
+
+def test_the_stream_imports_call_their_hooks_whose_default_is_the_stubs_no_op() -> None:
+    feed = host_gen.forwarder("hostAudioFeed", "void", ["u32", "u32"], None, EXPORTS)
+    assert feed == "void w2c_env_hostAudioFeed(struct w2c_env* e, u32 a0, u32 a1) { HOST_AUDIO_FEED(e, a0, a1); }\n"
+    start = host_gen.forwarder("hostAudioStreamStart", "void", ["f32"], None, EXPORTS)
+    assert "HOST_AUDIO_STREAM_START(e, a0);" in start
+    assert "HOST_AUDIO_STREAM_STOP(e);" in host_gen.forwarder("hostAudioStreamStop", "void", [], None, EXPORTS)
+    assert "#define HOST_AUDIO_FEED(e, ptr, len) ((void)(e), (void)(ptr), (void)(len))" in host_gen.STREAM_DEFAULTS
+
+
+def test_a_stream_import_with_the_wrong_signature_is_refused() -> None:
+    with pytest.raises(SystemExit, match="stream"):
+        host_gen.forwarder("hostAudioFeed", "void", ["u32"], None, EXPORTS)
+    with pytest.raises(SystemExit, match="stream"):
+        host_gen.forwarder("hostAudioStreamStart", "u32", ["f32"], None, EXPORTS)

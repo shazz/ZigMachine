@@ -23,7 +23,7 @@ import sys
 from pathlib import Path
 
 import wasm_info
-from host_bridges import disk_app_bridge, export_table, input_bridge, song_bridge
+from host_bridges import STREAM, STREAM_DEFAULTS, disk_app_bridge, export_table, input_bridge, song_bridge
 
 FPGA = Path(__file__).resolve().parent.parent
 ROOT = FPGA.parent
@@ -128,6 +128,11 @@ def forwarder(name: str, ret: str, params: list[str], target: str | None, export
         if target is not None or ret != want or params:
             sys.exit(f"host_gen: env.{name} must be the host hook {want} {name}(void), not {ret}{params} via {target}")
         return f"{head} {{ (void)e; return {macro}(); }}\n"
+    if name in STREAM:
+        want_ret, want_params, macro = STREAM[name]
+        if target is not None or (ret, params) != (want_ret, want_params):
+            sys.exit(f"host_gen: env.{name} must be the stream's {want_ret}{want_params}, not {ret}{params} via {target}")
+        return f"{head} {{ {macro}({', '.join(['e', *(f'a{i}' for i in range(len(params)))])}); }}\n"
     if name in DRIVE:
         if target is not None or (ret, params) != DRIVE[name]:
             sys.exit(f"host_gen: env.{name} must be the drive's {DRIVE[name]}, not {ret}{params} via {target}")
@@ -174,6 +179,7 @@ def main() -> None:
         '#include <math.h>\n#include "host.h"\n#include "disk.h"\n',
         SPAN_HOOKS,
         HOOK_DEFAULTS,
+        STREAM_DEFAULTS,
         DRIVE_DEF,
         f"const uint32_t host_pages = {SHARED_PAGES}u;",
         f"const uint32_t host_rom_high = {rom_high:#x}u;",

@@ -12,8 +12,8 @@
 # memories stay apart (the players' 3 MiB is not the cart's 7 MiB).
 AUD_WASM_audio := $(ROOT)/docs/demo-audio.wasm
 AUD_WASM_maud  := $(ROOT)/docs/machine-audio.wasm
-AUD_SRC        := host/audio.c host/audio_bridge.c host/audio_imports.c
-AUD_HDRS       := host/haudio.h host/audio_regs.h host/audio_queue.h host/host.h
+AUD_SRC        := host/audio.c host/audio_bridge.c host/audio_imports.c host/audio_pcm.c
+AUD_HDRS       := host/haudio.h host/audio_regs.h host/audio_queue.h host/host.h host/hstream.h
 
 $(HOST)/common/%.aud.wasm: tools/wasm_env_rename.py tools/wasm_info.py
 	@mkdir -p $(@D)
@@ -29,7 +29,8 @@ $(HOST)/common/aplayer.h: $(HOST)/common/aplayer.c
 $(HOST)/common/maud.h: $(HOST)/common/maud.c
 
 # --- native: host_audio, the oracle ---
-HOST_AUD_CFLAGS = $(HOST_CFLAGS) -DZM_AUDIO_SOFT -DHOST_AUDIO -DHOST_MUSIC_DIR='"$(ROOT)/docs/music"'
+# -include host/hstream.h: the cart's stream imports reach the ring (tools/host_gen.py STREAM hooks).
+HOST_AUD_CFLAGS = $(HOST_CFLAGS) -DZM_AUDIO_SOFT -DHOST_AUDIO -DHOST_MUSIC_DIR='"$(ROOT)/docs/music"' -include host/hstream.h
 $(HOST)/%/host_audio: $(HOST)/%/env.c $(HOST)/%/cart.o $(HOST_COMMON) $(HOST)/common/aplayer.o \
 		$(HOST)/common/maud.o $(AUD_SRC) $(AUD_HDRS) host/audio_soft.c host/haudio_soft.h host/main.c host/boot.c \
 		$(HOST_IO) $(INPUT_DEPS)

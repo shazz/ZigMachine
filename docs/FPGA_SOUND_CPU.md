@@ -129,11 +129,17 @@ bridge carried only songs and `sndhCall`s, so on KESTREL with BARD, Beat Dis's k
 | `sfxStop` | `audioSfxStop(loop only)` |
 | `ymWrite` | `audioSfxYm(reg, val)` |
 | `requestModVolume` | `audioModGain(q16)` |
+| `samplePlay` | `audioStreamStart(rate)`, then `host/audio_pcm.c` refills the stream ring from the cart's bytes before every render, 4 KiB ahead of the channel, looping or to its end (then `audioStreamStop`); the worklet's `refillSample` is the same |
+| `sampleStop` | `audioStreamStop()`, if a sample plays |
+| the stream imports | `zg.audioStreamStart` / `audioFeed` / `audioStreamStop` are env imports, not queue entries. `tools/host_gen.py` routes them through `host/hstream.h` to `host/audio_bridge.c`, which applies each at once (mid-frame, as the browser posts them) as an effect `0x81..0x83`. A feed's bytes are copied while BARD runs its command (ZIGGY waits for the ACK), since a cart may reuse its buffer within the frame |
 
   A refusal is logged with the count, as the browser's console does (`ZM FX ymWrite refused (n so far)`).
 - **Across the mailbox (ZIGGY to BARD)**, `OP_EFFECTS` carries ARG entries of 4 words each from `C2S` word 8:
   `op | a << 8 | b << 16`, the PCM's DDR address, len, rate. That is 6 entries a command. A frame's queue
   (at most 32 entries) goes over in as many commands as it needs, in order.
+- **The stream ring was silent on the board until 2026-10-17**: the three stream imports were `host_gen`'s no-op
+  stubs, so ST Replay's F10 and `stream`'s music fed nothing. A `samplePlay` sample is read from the cart's
+  memory in DDR for as long as it plays (BARD flushes its D-cache when the command arrives); the cart keeps it.
 - **A play's PCM stays in the cart's memory.** BARD reads it while it runs the command, after it invalidates its
   D-cache. The browser copies the bytes as it drains the queue. So ZIGGY waits for the ACK of any command that
   holds a play, and the cart may then reuse its buffer the next frame.

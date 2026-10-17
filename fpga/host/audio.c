@@ -48,6 +48,7 @@ static int ends_with(const char* s, const char* tail) {
 static int32_t stage(const char* name) {
     w2c_audio* p = &g_aud.player;
     uint8_t* song = g_aud.memory.data + w2c_audio_audioSongPtr(p);
+    audio_pcm_forget(); /* the song takes song RAM, the stream ring with it */
     return audio_song(name, song, w2c_audio_audioSongCapacity(p));
 }
 
@@ -92,6 +93,7 @@ void audio_play(const char* name, uint32_t tune) {
     w2c_audio* p = &g_aud.player;
     if (strcmp(name, "none") == 0) {
         g_resident[0] = 0;
+        audio_pcm_forget();
         w2c_audio_audioReset(p);
         return;
     }
@@ -138,7 +140,9 @@ static int sfx_play(const audio_fx* fx) {
 static void effect(const audio_fx* fx) {
     w2c_audio* p = &g_aud.player;
     const char* missed = NULL;
-    if (fx->op == FX_PLAY) {
+    if (audio_pcm_effect(fx)) {
+        /* the stream ring: host/audio_pcm.c */
+    } else if (fx->op == FX_PLAY) {
         if (!sfx_play(fx)) missed = "sfxPlay";
     } else if (fx->op == FX_STOP) {
         w2c_audio_audioSfxStop(p, fx->a ? 1u : 0u);
@@ -165,6 +169,7 @@ void audio_render(uint32_t n) {
         uint32_t k = n < MAX_FRAMES ? n : MAX_FRAMES;
         uint32_t t = zma_ts();
         zma_set_ts(t);
+        audio_pcm_refill(k);
         w2c_audio_audioRender(&g_aud.player, k);
         zma_set_ts(t + k);
         n -= k;
