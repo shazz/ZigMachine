@@ -3,9 +3,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ZigMachine — Programmer's Guide</title>
 <meta name="description" content="The ZigMachine reference: video and blitter registers, the sealed HW ABI, the disk and music formats, and the ZigOS / GEM library, generated from the sources.">
-<link rel="stylesheet" href="css/docs.css?v=3f1bd301">
-<link rel="stylesheet" href="css/code.css?v=0edb2f47">
-<link rel="stylesheet" href="css/guide.css?v=ece899e9">
+<link rel="stylesheet" href="css/docs.css">
+<link rel="stylesheet" href="css/code.css">
+<link rel="stylesheet" href="css/guide.css">
 </head>
 <body>
 <header class="topbar">
@@ -1080,17 +1080,53 @@ cannot carry: channel panning, global volume and unmapped effects.</p>
 libopenmpt renders a module (<code>ffmpeg -i song.xm -ar 44100 ref.wav</code>), and the
 song rendered through <code>demo-audio.wasm</code> should match it second by second. A
 real 1995 S3M, converted, matched at a spectral similarity of 0.995, in tune in
-90 % of the windows (<code>docs/music/zm_test.xm</code> is the player's own generated test
-song, <code>apps/xm_song.mjs</code>).</p>
+90 % of the windows. The player's own generated test song (<code>apps/xm_song.mjs</code>,
+<code>testSong(8)</code> and <code>testSong(12)</code>) is for the harnesses, built in memory: it is not
+shipped as music.</p>
 <p><strong>A tracker module needs a licence that allows bundling it.</strong> The Mod Archive's
 default "Mod Archive Distribution license" allows redistributing the original,
 unmodified file only, not converting it or bundling it in a cart or a firmware
 image. Pick a Public Domain or Creative Commons module, or the artist's
 permission, and record the source URL, artist and licence in the scene's music
 comment and here.</p>
+<h5 id="music-sndh-player-zig-c-rust-bundled-modules">Bundled modules</h5>
+<p>The XMs the carts ship (music debug key 5, XM TEST keys 1 and 2), each the
+archive's file byte for byte (<code>apps/xm_test_check.mjs</code> holds the md5s):</p>
+<table>
+<thead>
+<tr>
+<th>File</th>
+<th>Title, artist</th>
+<th>Channels, size</th>
+<th>Licence</th>
+<th>Source</th>
+<th>md5</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>keygen_9000.xm</code></td>
+<td>"Keygen 9000", Drozerix (chiptune)</td>
+<td>8, 55 KB</td>
+<td>Public Domain</td>
+<td>https://modarchive.org/module.php?173938</td>
+<td><code>02b1f1dad70ea15a0b064c45468caa55</code></td>
+</tr>
+<tr>
+<td><code>poppy_flower_girls.xm</code></td>
+<td>"Poppy Flower Girls", Drozerix (demo style); <code>drozerix_-_poppy_flower_girls.xm</code> on the archive</td>
+<td>12, 91 KB</td>
+<td>Public Domain</td>
+<td>https://modarchive.org/module.php?175325</td>
+<td><code>251ef415c7e4a64b589f2fc3f86582df</code></td>
+</tr>
+</tbody>
+</table>
+<p>What the player leaves out of them (<code>xm.zig</code>'s ignored list): the volume column's
+vibrato in both, and in Poppy Flower Girls the 8xx panning, the Hxx global volume
+slide and the volume column's panning slide.</p>
 <p><strong>A song you may only keep for yourself</strong> goes in <code>docs/music/local.xm</code>, which
-git ignores. The music debug screen plays it on key 6 (key 5 plays the
-committed test song). In the browser it is fetched like any other song. On the
+git ignores. The music debug screen plays it on key 6, XM TEST on key 3. In the browser it is fetched like any other song. On the
 board, songs are linked into the firmware, so build <code>make board-fw CART=music</code>
 with the file in place: <code>fpga/tools/song_pack.py</code> packs <code>local.xm</code> when it is
 there and leaves it out, with a note, when it is not. That firmware then holds
@@ -1239,5 +1275,5 @@ the song: keep it off anything you publish.</p>
 <article class="api" id="Desktop.input"><code class="sig"><b class="fn">input</b>(self: *Desktop, dir: u32) <span class="ret">void</span></code><a class="anchor" href="#Desktop.input" aria-label="Link to input">#</a><p class="doc">Directional input from the host (0=up 1=down 2=left 3=right). The desktop only uses left/right, and only to walk the caret in the name field of an open INFORMATION / NEW FOLDER box.</p></article></section>
   </main>
 </div>
-<script src="guide.js?v=3eb64558"></script>
+<script src="guide.js"></script>
 </body></html>

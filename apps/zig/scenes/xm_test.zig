@@ -7,6 +7,14 @@
 // CPU plays. This one is one plane of text, drawn only when something changes,
 // so the cart costs nothing a frame and the music is all there is to hear.
 //
+// The songs are real modules from The Mod Archive, both by Drozerix and both
+// Public Domain, so they may be bundled (docs/MUSIC.md "Bundled modules"):
+//   1  keygen_9000.xm          "Keygen 9000", 8 channels, 55 KB, chiptune
+//      https://modarchive.org/module.php?173938  md5 02b1f1dad70ea15a0b064c45468caa55
+//   2  poppy_flower_girls.xm   "Poppy Flower Girls", 12 channels, 91 KB, demo style
+//      (drozerix_-_poppy_flower_girls.xm on the archive, same bytes)
+//      https://modarchive.org/module.php?175325  md5 251ef415c7e4a64b589f2fc3f86582df
+//
 // Keys 1-3 ask for a song BY NAME (zg.requestSong), key 4 stops it. They come in
 // through setShadeMode, as the loader and the board's glass send digits 1-7
 // (mode = digit - 1): no 0 reaches a cart, so stop is 4. local.xm is a song kept
@@ -30,8 +38,8 @@ const DIM: u8 = 3;
 
 /// The songs keys 1..3 ask for, under docs/music/ (the board's song table is
 /// built from these literals: fpga/tools/song_pack.py).
-pub const SONGS = [_][]const u8{ "zm_test.xm", "zm_test12.xm", "local.xm" };
-const LABELS = [_][]const u8{ "1  ZM_TEST.XM    8 CH", "2  ZM_TEST12.XM 12 CH", "3  LOCAL.XM     (OPTIONAL)" };
+pub const SONGS = [_][]const u8{ "keygen_9000.xm", "poppy_flower_girls.xm", "local.xm" };
+const LABELS = [_][]const u8{ "1  KEYGEN 9000         8 CH", "2  POPPY FLOWER GIRLS 12 CH", "3  LOCAL.XM          (OPTIONAL)" };
 pub const STOP_MODE: u32 = SONGS.len; // key 4
 const NONE: u8 = 0xFF;
 

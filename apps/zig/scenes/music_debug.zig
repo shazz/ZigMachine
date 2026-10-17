@@ -285,13 +285,15 @@ pub const Demo = struct {
     // cart depacks it (Pack-Ice) and runs its 68000 code on Musashi, and the
     // scope below is then watching a real replay routine drive the chip.
     //
-    // Key 5's XM is the player's own generated test song (apps/xm_song.mjs). Key 6
+    // Key 5's XM is "Keygen 9000" by Drozerix, 8 channels, Public Domain (The Mod
+    // Archive, https://modarchive.org/module.php?173938, md5 02b1f1dad70ea15a0b064c45468caa55;
+    // docs/MUSIC.md "Bundled modules"). Key 6
     // asks for docs/music/local.xm: a song the owner keeps on their own machine
     // only (gitignored), for a tune whose licence does not allow bundling it. A
     // checkout without one plays nothing on 6, and the board's song table leaves
     // it out (fpga/tools/song_pack.py LOCAL_SONGS). See docs/MUSIC.md.
     const TUNES = [_][]const u8{
-        "lollapalooza.mod", "concerto.ymraw", "smp1.raw", "crystallized.sndh", "zm_test.xm", "local.xm",
+        "lollapalooza.mod", "concerto.ymraw", "smp1.raw", "crystallized.sndh", "keygen_9000.xm", "local.xm",
     };
     pub fn setShadeMode(self: *Demo, mode: u32) void {
         _ = self;
@@ -320,7 +322,7 @@ pub const Demo = struct {
         drawText8(p2, "2  YM2149  CONCERTO", mx, 106 + VBORD, WHITE, 2.5, self.phase + 0.4);
         drawText8(p2, "3  SAMPLE  DIGI 12517HZ", mx, 120 + VBORD, WHITE, 2.5, self.phase + 0.8);
         drawText8(p2, "4  SNDH    CRYSTALLIZED", mx, 134 + VBORD, WHITE, 2.5, self.phase + 1.2);
-        drawText8(p2, "5  XM      TEST SONG", mx, 148 + VBORD, WHITE, 2.5, self.phase + 1.6);
+        drawText8(p2, "5  XM      KEYGEN 9000", mx, 148 + VBORD, WHITE, 2.5, self.phase + 1.6);
         drawText8(p2, "6  XM      LOCAL.XM", mx, 162 + VBORD, WHITE, 2.5, self.phase + 2.0);
         drawText8(p2, "PRESS 1 TO 6", mx, 180 + VBORD, WHITE, 2.5, self.phase + 2.4);
         self.drawScroller(zigos, p2);

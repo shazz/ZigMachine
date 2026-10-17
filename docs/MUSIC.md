@@ -249,8 +249,9 @@ cannot carry: channel panning, global volume and unmapped effects.
 libopenmpt renders a module (`ffmpeg -i song.xm -ar 44100 ref.wav`), and the
 song rendered through `demo-audio.wasm` should match it second by second. A
 real 1995 S3M, converted, matched at a spectral similarity of 0.995, in tune in
-90 % of the windows (`docs/music/zm_test.xm` is the player's own generated test
-song, `apps/xm_song.mjs`).
+90 % of the windows. The player's own generated test song (`apps/xm_song.mjs`,
+`testSong(8)` and `testSong(12)`) is for the harnesses, built in memory: it is not
+shipped as music.
 
 **A tracker module needs a licence that allows bundling it.** The Mod Archive's
 default "Mod Archive Distribution license" allows redistributing the original,
@@ -259,9 +260,22 @@ image. Pick a Public Domain or Creative Commons module, or the artist's
 permission, and record the source URL, artist and licence in the scene's music
 comment and here.
 
+### Bundled modules
+
+The XMs the carts ship (music debug key 5, XM TEST keys 1 and 2), each the
+archive's file byte for byte (`apps/xm_test_check.mjs` holds the md5s):
+
+| File | Title, artist | Channels, size | Licence | Source | md5 |
+|---|---|---|---|---|---|
+| `keygen_9000.xm` | "Keygen 9000", Drozerix (chiptune) | 8, 55 KB | Public Domain | https://modarchive.org/module.php?173938 | `02b1f1dad70ea15a0b064c45468caa55` |
+| `poppy_flower_girls.xm` | "Poppy Flower Girls", Drozerix (demo style); `drozerix_-_poppy_flower_girls.xm` on the archive | 12, 91 KB | Public Domain | https://modarchive.org/module.php?175325 | `251ef415c7e4a64b589f2fc3f86582df` |
+
+What the player leaves out of them (`xm.zig`'s ignored list): the volume column's
+vibrato in both, and in Poppy Flower Girls the 8xx panning, the Hxx global volume
+slide and the volume column's panning slide.
+
 **A song you may only keep for yourself** goes in `docs/music/local.xm`, which
-git ignores. The music debug screen plays it on key 6 (key 5 plays the
-committed test song). In the browser it is fetched like any other song. On the
+git ignores. The music debug screen plays it on key 6, XM TEST on key 3. In the browser it is fetched like any other song. On the
 board, songs are linked into the firmware, so build `make board-fw CART=music`
 with the file in place: `fpga/tools/song_pack.py` packs `local.xm` when it is
 there and leaves it out, with a note, when it is not. That firmware then holds

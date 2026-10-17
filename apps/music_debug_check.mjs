@@ -6,7 +6,8 @@
 //   names     key n asks for TUNES[n-1]; each committed one is a file in docs/music/
 //             (the board's song table is built from those names: fpga/tools/song_pack.py)
 //   local     key 6 asks for local.xm, which is gitignored and never committed
-//   xm        key 5's XM loads in the real audio modules and plays (mode 1, not silent)
+//   xm        key 5's XM (keygen_9000.xm, a Public Domain module: docs/MUSIC.md) loads in
+//             the real audio modules and plays (mode 1, not silent)
 //   node apps/music_debug_check.mjs [--break name]
 //     name: key 5 is expected to ask for another file, so the check must fail
 import { readFile } from "node:fs/promises";
@@ -16,7 +17,7 @@ import { cartRam, romRam } from "../docs/wasm_hiwater.js";
 const PAGES = 112, AUDIO_PAGES = 48, SR = 44100, SECONDS = 4;
 const BROKE = process.argv.includes("--break");
 const WANT = ["lollapalooza.mod", "concerto.ymraw", "smp1.raw", "crystallized.sndh",
-    BROKE ? "other.xm" : "zm_test.xm", "local.xm"];
+    BROKE ? "other.xm" : "keygen_9000.xm", "local.xm"];
 const LOCAL = "local.xm";
 
 async function bootCart(path) {
@@ -85,9 +86,9 @@ const tracked = execFileSync("git", ["ls-files", "docs/music"], { encoding: "utf
 for (const name of WANT.filter((n) => n !== LOCAL && !n.startsWith("other")))
     if (!tracked.includes(`docs/music/${name}`)) errors.push(`names: ${name} is not a committed file in docs/music/`);
 if (tracked.includes(`docs/music/${LOCAL}`)) errors.push(`local: docs/music/${LOCAL} is committed: it must stay on its owner's machine`);
-const xm = await xmPlays("zm_test.xm");
+const xm = await xmPlays("keygen_9000.xm");
 console.log(`  key 5's XM: ${xm.why}`);
-if (!xm.ok) errors.push(`xm: zm_test.xm does not play (${xm.why})`);
+if (!xm.ok) errors.push(`xm: keygen_9000.xm does not play (${xm.why})`);
 
 // exitCode, never process.exit() (see apps/mod_sfx_check.mjs: node 24 deadlocks at exit).
 if (BROKE) {

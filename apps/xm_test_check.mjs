@@ -2,23 +2,30 @@
 // board. Boots the cart over the real machine + ROM, presses 1..4 through setShadeMode
 // (what the browser loader and the board's glass send a digit to) and polls the song
 // bridge the way the loader does.
-//   names     keys 1..3 ask for zm_test.xm, zm_test12.xm, local.xm; key 4 asks for "none"
-//             (zg.SONG_STOP); the committed ones are git-tracked files in docs/music/
+//   names     keys 1..3 ask for keygen_9000.xm, poppy_flower_girls.xm, local.xm; key 4 asks
+//             for "none" (zg.SONG_STOP); the committed ones are git-tracked files in docs/music/
 //             (the board's song table is built from those names: fpga/tools/song_pack.py)
-//   songs     docs/music/zm_test{,12}.xm are apps/xm_song.mjs's testSong(8) and testSong(12)
-//             byte for byte, and each plays in the real audio modules (mode 1, not silent)
+//   songs     the two bundled modules are The Mod Archive's files byte for byte (the md5 its
+//             page gives: their Public Domain licence is for THAT file, docs/MUSIC.md), have
+//             the channel count the screen shows, and play in the real audio modules
+//             (mode 1, not silent). The generated test songs (apps/xm_song.mjs) are covered
+//             in memory by apps/xm_check.mjs and are not shipped.
 //   local     local.xm is never committed
 //   node apps/xm_test_check.mjs [--break name]
 //     name: key 2 is expected to ask for another file, so the check must fail
 import { readFile } from "node:fs/promises";
 import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { cartRam, romRam } from "../docs/wasm_hiwater.js";
-import { testSong } from "./xm_song.mjs";
 
 const PAGES = 112, AUDIO_PAGES = 48, SR = 44100, SECONDS = 2;
 const BROKE = process.argv.includes("--break");
-const WANT = ["zm_test.xm", BROKE ? "other.xm" : "zm_test12.xm", "local.xm", "none"];
-const GENERATED = { "zm_test.xm": 8, "zm_test12.xm": 12 };
+const WANT = ["keygen_9000.xm", BROKE ? "other.xm" : "poppy_flower_girls.xm", "local.xm", "none"];
+/** The bundled modules: The Mod Archive's md5 (module.php?173938 and ?175325) and channel count. */
+const BUNDLED = {
+    "keygen_9000.xm": { md5: "02b1f1dad70ea15a0b064c45468caa55", channels: 8 },
+    "poppy_flower_girls.xm": { md5: "251ef415c7e4a64b589f2fc3f86582df", channels: 12 },
+};
 
 async function bootCart(path) {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
@@ -82,11 +89,13 @@ for (const [i, want] of WANT.entries()) {
     if (got !== want) errors.push(`names: key ${i + 1} asked for ${got}, not ${want}`);
 }
 const tracked = execFileSync("git", ["ls-files", "docs/music"], { encoding: "utf8" }).split("\n");
-for (const [name, channels] of Object.entries(GENERATED)) {
+for (const [name, { md5, channels }] of Object.entries(BUNDLED)) {
     if (!tracked.includes(`docs/music/${name}`)) { errors.push(`songs: ${name} is not a committed file in docs/music/`); continue; }
     const bytes = new Uint8Array(await readFile(`docs/music/${name}`));
-    if (Buffer.compare(Buffer.from(bytes), Buffer.from(testSong(channels))) !== 0)
-        errors.push(`songs: ${name} is not testSong(${channels}): regenerate it (apps/xm_song.mjs)`);
+    const got = createHash("md5").update(bytes).digest("hex");
+    if (got !== md5) errors.push(`songs: ${name} md5 ${got}, not the archive's ${md5}: its licence covers that file`);
+    const ch = bytes[68] | (bytes[69] << 8); // the XM header's channel count
+    if (ch !== channels) errors.push(`songs: ${name} has ${ch} channels, the screen says ${channels}`);
     const xm = await xmPlays(bytes);
     console.log(`  ${name}: ${xm.why}`);
     if (!xm.ok) errors.push(`songs: ${name} does not play (${xm.why})`);

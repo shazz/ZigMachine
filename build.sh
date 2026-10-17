@@ -269,7 +269,7 @@ gate xm node apps/xm_check.mjs --break refuse   # ...and a 13-channel file expec
 gate xm node apps/xm_check.mjs --break pin      # ...and a wrong pin fails
 gate music node apps/music_debug_check.mjs   # MUSIC DEBUG: keys 1..6 (setShadeMode, as the loader and the board's glass send them) ask for MOD / YM / sample / SNDH / XM / local XM by name; every committed name is a git-tracked file in docs/music/ (the board's song table is built from them), local.xm never is; key 5's XM plays as mode 1
 gate music node apps/music_debug_check.mjs --break name   # ...and key 5 expected to ask for another file fails
-gate xm_test node apps/xm_test_check.mjs   # XM TEST: keys 1..4 (setShadeMode) ask for zm_test.xm / zm_test12.xm / local.xm / "none" by name; the committed XMs are testSong(8) and testSong(12) byte for byte and play (mode 1, not silent); local.xm never committed
+gate xm_test node apps/xm_test_check.mjs   # XM TEST: keys 1..4 (setShadeMode) ask for keygen_9000.xm / poppy_flower_girls.xm / local.xm / "none" by name; the bundled XMs are The Mod Archive's Public Domain files byte for byte (md5), 8 and 12 channels, and play (mode 1, not silent); local.xm never committed
 gate xm_test node apps/xm_test_check.mjs --break name   # ...and key 2 expected to ask for another file fails
 gate_timed c_music timeout 180 node apps/c_music_check.mjs   # a C cart's song request reaches the sealed YM (timeout: it once hung a gate)
 gate union_demo_music node apps/union_demo_music_check.mjs   # the Union Demo menu's and cracktro's SNDH tunes are requested by name and play
