@@ -36,6 +36,7 @@ const zg = @import("zigos");
 const convertU8ArraytoColors = zg.convertU8ArraytoColors;
 const tables = @import("cuddly_starwars/tables.zig");
 const motion = @import("cuddly_starwars/motion.zig");
+const fixed = @import("cuddly_starwars/fixed.zig");
 const assert = std.debug.assert;
 
 const ZigOS = zg.ZigOS;
@@ -72,13 +73,15 @@ const BG_H: usize = 73;
 
 // starfield
 const STARS: usize = 400;
-const STAR_Z_SIZE: f64 = (320.0 / 2.0 + 200.0 / 2.0) / 2.0; // 130
-const STAR_Z_SPEED: f64 = 15;
-const STAR_SPLIT: f64 = STAR_Z_SIZE / 3.0; // starcolsplit
-const STAR_GREYS = [3]f32{ 0xff, 0xaa, 0x55 }; // near .. far
+// z runs in units of 25 milli (STAR_Z_SIZE = 130 = 5200 units, lattice spacing 0.325 = 13
+// units, speed 1.5 per frame = 60 units); see fixed.zig for k = 128 / z.
+const STAR_Z_UNITS: i32 = 5200;
+const STAR_Z_PITCH: i32 = 13;
+const STAR_Z_SPEED: i32 = 60;
+const STAR_GREYS = [3]u32{ 0xff, 0xaa, 0x55 }; // near .. far
 const ROT_START: f64 = 180;
-const ROT_STEP: f64 = 0.02;
-const STAR_FOCAL: f64 = 128;
+const ROT_STEP_C = fixed.q30(@cos(0.02));
+const ROT_STEP_S = fixed.q30(@sin(-0.02)); // rot -= 0.02
 
 // starwars scroller
 const SW_GLYPH_W: usize = 17;
@@ -108,7 +111,7 @@ const COLUMNS: usize = 20;
 const COLUMN_W: usize = 16;
 const COLUMN_Y: i32 = 26;
 const RASTER_PERIOD: usize = 72;
-const RASTER_STEP: f64 = 0.5;
+const RASTER_STEP2: i32 = 1; // half rows: rastc -= 0.5
 
 // sprites
 const SPRITES: usize = 8;
@@ -117,10 +120,24 @@ const SPRITE_H: usize = 10;
 const SPRITE_STRIP_W: usize = 128;
 const SPRITE_SPACING: usize = 5; // db
 const SPRITE_GAP_FROM: usize = 3; // "THE" + gap + "UNION"
-const WOBBLE_X: f64 = 10;
-const WOBBLE_Y: f64 = 5;
-const WOBBLE_X_RATE: f64 = 0.07;
-const WOBBLE_Y_RATE: f64 = 0.09;
+const WOBBLE_X: i64 = 10;
+const WOBBLE_Y: i64 = 5;
+const WOBX_C = fixed.q30(@cos(0.07));
+const WOBX_S = fixed.q30(@sin(0.07));
+const WOBY_C = fixed.q30(@cos(0.09));
+const WOBY_S = fixed.q30(@sin(0.09));
+// sprite i adds a phase of i radians: sin(a + i) = sin a cos i + cos a sin i
+const PHASE_C = blk: {
+    var t: [SPRITES]i32 = undefined;
+    for (0..SPRITES) |i| t[i] = fixed.q30(@cos(@as(f64, @floatFromInt(i))));
+    break :blk t;
+};
+const PHASE_S = blk: {
+    var t: [SPRITES]i32 = undefined;
+    for (0..SPRITES) |i| t[i] = fixed.q30(@sin(@as(f64, @floatFromInt(i))));
+    break :blk t;
+};
+const ROTOR_ZERO = fixed.Rotor{ .c = 1 << 30, .s = 0 };
 
 // --------------------------------------------------------------------------
 // Assets
@@ -152,22 +169,20 @@ comptime {
     assert(RASTER_PERIOD * 4 >= H + 73);
 }
 
+const grey_lut = fixed.greyLut(GREY_BASE, GREY_LEVELS);
+
 const palette: [256]Color = blk: {
     var p = base_pal;
     for (0..GREY_LEVELS) |k| {
-        const g: u8 = @intFromFloat(@round(@as(f64, @floatFromInt(k)) * 255.0 / (GREY_LEVELS - 1)));
+        const g: u8 = grey_lut[GREY_BASE + k];
         p[GREY_BASE + k] = .{ .r = g, .g = g, .b = g, .a = 255 };
     }
     break :blk p;
 };
 
-inline fn greyOf(index: u8) f32 {
-    return if (index >= GREY_BASE) @floatFromInt(palette[index].r) else 0;
-}
-
-inline fn greyIndex(value: f32) u8 {
-    const level: u32 = @intFromFloat(@round(@min(value, 255) * (GREY_LEVELS - 1) / 255.0));
-    return GREY_BASE + @as(u8, @intCast(level));
+/// The palette index of a Q16 grey (0..255 << 16), rounded to the 128 levels.
+inline fn greyIndex(v: u32) u8 {
+    return GREY_BASE + @as(u8, @intCast(fixed.levelOf(v, GREY_LEVELS)));
 }
 
 // --------------------------------------------------------------------------
@@ -179,8 +194,8 @@ inline fn greyIndex(value: f32) u8 {
 // imports its memory). raster_line stays static: the HBL reads it, and it is
 // only 800 B.
 // --------------------------------------------------------------------------
-var star_x: *[STARS]f64 = undefined;
-var star_y: *[STARS]f64 = undefined;
+var star_x: *[STARS]i16 = undefined;
+var star_y: *[STARS]i16 = undefined;
 var raster_line: [H]Color = undefined;
 var scroll_canvas: *[SCROLL_H * W]u8 = undefined;
 var text_canvas: *[motion.TEXT_ROWS * W]u8 = undefined;
@@ -189,14 +204,14 @@ var text_canvas: *[motion.TEXT_ROWS * W]u8 = undefined;
 // only samples the span between them.
 var text_row_left: [motion.TEXT_ROWS]u16 = undefined;
 var text_row_right: [motion.TEXT_ROWS]u16 = undefined;
-var band_alpha: *[motion.BAND_ROWS * W]f32 = undefined;
+var band_alpha: *[motion.BAND_ROWS * W]u32 = undefined; // Q16 coverage
 
 fn allocBuffers() void {
-    star_x = zg.mem.mustAlloc(f64, STARS)[0..STARS];
-    star_y = zg.mem.mustAlloc(f64, STARS)[0..STARS];
+    star_x = zg.mem.mustAlloc(i16, STARS)[0..STARS];
+    star_y = zg.mem.mustAlloc(i16, STARS)[0..STARS];
     scroll_canvas = zg.mem.mustAlloc(u8, SCROLL_H * W)[0 .. SCROLL_H * W];
     text_canvas = zg.mem.mustAlloc(u8, motion.TEXT_ROWS * W)[0 .. motion.TEXT_ROWS * W];
-    band_alpha = zg.mem.mustAlloc(f32, motion.BAND_ROWS * W)[0 .. motion.BAND_ROWS * W];
+    band_alpha = zg.mem.mustAlloc(u32, motion.BAND_ROWS * W)[0 .. motion.BAND_ROWS * W];
 }
 
 // A normal plane's HBL gets LOGICAL lines 0..199.
@@ -212,16 +227,18 @@ pub const Demo = struct {
     blitter: zg.Blitter = .{},
     flash_counter: u32,
     fade: f64,
-    rot: f64, // rotc
-    star_z: f64, // staraddz
+    star_rot: fixed.Rotor, // cos/sin of rotc
+    star_base: i32, // staraddz in z units, mod STAR_Z_UNITS
     sw_offset: i32, // ssspeed: 0..-16
     sw_line: usize, // addword
-    raster_pos: f64, // rastc: 0..-72
+    raster2: i32, // rastc in half rows: 0..-144
     dist_index: usize, // dcount
     letter_x: [LETTERS]i32,
     letter_char: [LETTERS]u8,
     text_offset: usize, // scroffset
     sprite_step: usize, // sC
+    wob_x: fixed.Rotor, // sin/cos of sC * 0.07
+    wob_y: fixed.Rotor, // sin/cos of sC * 0.09
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
         // A cart's Demo arrives zeroed (or holding the previous cart's bytes):
@@ -229,13 +246,15 @@ pub const Demo = struct {
         self.blitter.init();
         self.flash_counter = 0;
         self.fade = 0;
-        self.rot = ROT_START;
-        self.star_z = 0;
+        self.star_rot = fixed.Rotor.at(ROT_START); // init-time float
+        self.star_base = 0;
         self.sw_offset = 0;
         self.sw_line = 0;
-        self.raster_pos = 0;
+        self.raster2 = 0;
         self.dist_index = motion.DIST_RESET;
         self.sprite_step = 0;
+        self.wob_x = ROTOR_ZERO;
+        self.wob_y = ROTOR_ZERO;
         self.text_offset = 0;
         for (0..LETTERS) |i| {
             self.letter_x[i] = RING_BACK + @as(i32, @intCast(i)) * GLYPH_W;
@@ -247,8 +266,8 @@ pub const Demo = struct {
         // Math.random() in the original; any fixed sequence is as faithful.
         var seed: u32 = 12345;
         for (0..STARS) |i| {
-            star_x[i] = @floor(nextRandom(&seed) * 320);
-            star_y[i] = @floor(nextRandom(&seed) * 200);
+            star_x[i] = @intCast((@as(u64, nextRandom(&seed)) * 320) >> 32);
+            star_y[i] = @intCast((@as(u64, nextRandom(&seed)) * 200) >> 32);
         }
         @memset(&raster_line, raster[0]);
 
@@ -271,8 +290,8 @@ pub const Demo = struct {
         if (self.flash_counter == FLASH_AT) self.fade = FADE_START;
         self.fade = if (self.fade > 0) self.fade - FADE_STEP else 0;
 
-        self.star_z += STAR_Z_SPEED * 0.1;
-        self.rot -= ROT_STEP;
+        self.star_base = @mod(self.star_base + STAR_Z_SPEED, STAR_Z_UNITS);
+        self.star_rot.turn(ROT_STEP_C, ROT_STEP_S);
 
         self.sw_offset -= 1;
         if (self.sw_offset < -(SW_PITCH_Y - 1)) {
@@ -281,8 +300,8 @@ pub const Demo = struct {
             if (self.sw_line > tables.starwars_lines.len - SW_LINES) self.sw_line = 0;
         }
 
-        self.raster_pos -= RASTER_STEP;
-        if (self.raster_pos < -@as(f64, RASTER_PERIOD)) self.raster_pos = 0;
+        self.raster2 -= RASTER_STEP2;
+        if (self.raster2 < -@as(i32, RASTER_PERIOD) * 2) self.raster2 = 0;
 
         self.dist_index += 1;
         if (self.dist_index > motion.DIST_LIMIT) self.dist_index = motion.DIST_RESET;
@@ -290,7 +309,13 @@ pub const Demo = struct {
         self.stepScrolltext();
 
         self.sprite_step += 1;
-        if (self.sprite_step > tables.sprite_x.len) self.sprite_step = 0;
+        self.wob_x.turn(WOBX_C, WOBX_S);
+        self.wob_y.turn(WOBY_C, WOBY_S);
+        if (self.sprite_step > tables.sprite_x.len) {
+            self.sprite_step = 0;
+            self.wob_x = ROTOR_ZERO;
+            self.wob_y = ROTOR_ZERO;
+        }
     }
 
     /// scrolltext_horizontal.draw: a ring of 12 letters; the one that reaches
@@ -330,23 +355,22 @@ pub const Demo = struct {
     }
 
     fn drawStars(self: *Demo, screen: []u8) void {
-        const cos = @cos(self.rot);
-        const sin = @sin(self.rot);
-        const xs = star_x;
-        const ys = star_y;
+        const cos: i64 = self.star_rot.c;
+        const sin: i64 = self.star_rot.s;
         for (0..STARS) |i| {
-            var z = @as(f64, @floatFromInt(i)) * (STAR_Z_SIZE / @as(f64, STARS)) - self.star_z;
-            if (z > STAR_Z_SIZE) z -= STAR_Z_SIZE * @floor(z / STAR_Z_SIZE);
-            if (z < 0) z -= STAR_Z_SIZE * @floor(z / STAR_Z_SIZE);
+            var z: i32 = @as(i32, @intCast(i)) * STAR_Z_PITCH - self.star_base;
+            if (z < 0) z += STAR_Z_UNITS;
             if (z == 0) continue; // 128/0: the canvas ignores a non-finite rect
-            const dx = xs[i] - 160;
-            const dy = ys[i] - 100;
-            const k = STAR_FOCAL / z;
-            const sx = (dx * cos - dy * sin) * k + 160;
-            const sy = (dx * sin + dy * cos) * k + 100;
+            const dx: i64 = @as(i64, star_x[i]) - 160;
+            const dy: i64 = @as(i64, star_y[i]) - 100;
+            const k: i64 = fixed.star_k[@intCast(z)];
+            const rx = (dx * cos - dy * sin) >> 6; // Q24
+            const ry = (dx * sin + dy * cos) >> 6;
+            const sx = ((rx * k) >> 24) + (160 << 16); // Q16
+            const sy = ((ry * k) >> 24) + (100 << 16);
             var grey = STAR_GREYS[0];
             for (1..STAR_GREYS.len) |c| {
-                if (z > STAR_SPLIT * @as(f64, @floatFromInt(c))) grey = STAR_GREYS[c];
+                if (z * 3 > STAR_Z_UNITS * @as(i32, @intCast(c))) grey = STAR_GREYS[c];
             }
             plotStar(screen, sx, sy, grey);
         }
@@ -364,17 +388,21 @@ pub const Demo = struct {
             const ink = inkSpan(p.src_row);
             const band = band_alpha[@as(usize, p.band_row) * W ..][0..W];
             var x = firstInkedColumn(p, ink.left);
-            while (x <= p.x_last) : (x += 1) {
-                const fx = sourceX(p.zoom, x);
-                const x0 = @floor(fx);
-                const xi: i32 = @intFromFloat(x0);
+            var fx: i64 = p.fx_base + p.fx_step * @as(i64, @intCast(x)); // Q24 source x
+            const one = fixed.ONE;
+            while (x <= p.x_last) : ({
+                x += 1;
+                fx += p.fx_step;
+            }) {
+                const xi: i32 = @intCast(fx >> 24);
                 // sourceX never decreases with x: every column from here samples zeros
                 if (xi > ink.right) break;
-                const tx = fx - x0;
+                const tx: u32 = @intCast((fx >> 8) & 0xffff);
                 const upper = sampleRow(upper_row, xi, tx);
                 const lower = sampleRow(lower_row, xi, tx);
-                const a: f32 = @floatCast((upper * (1 - p.src_frac) + lower * p.src_frac) * p.coverage);
-                if (a > 0) band[x] = a + band[x] * (1 - a);
+                const mix = (@as(u64, upper) * (one - p.sf) + @as(u64, lower) * p.sf) >> 16;
+                const a: u32 = @intCast((mix * p.cov) >> 16);
+                if (a > 0) band[x] = a + @as(u32, @intCast((@as(u64, band[x]) * (one - a)) >> 16));
             }
         }
 
@@ -383,7 +411,7 @@ pub const Demo = struct {
             const band = band_alpha[r * W ..][0..W];
             const dst = screen[(SW_BAND_Y + r) * W ..][0..W];
             for (band, dst) |a, *d| {
-                if (a > 0) d.* = greyIndex(255 * a + greyOf(d.*) * (1 - a));
+                if (a > 0) d.* = greyIndex(255 * a + @as(u32, grey_lut[d.*]) * (fixed.ONE - a));
             }
         }
     }
@@ -407,10 +435,10 @@ pub const Demo = struct {
     /// the two rows it falls between (measured in Chrome).
     fn buildRasterLines(self: *Demo) void {
         for (0..H) |y| {
-            const v = @as(f64, @floatFromInt(y)) - self.raster_pos;
-            const row: usize = @intFromFloat(@floor(v));
+            const v2: usize = @intCast(@as(i32, @intCast(y)) * 2 - self.raster2);
+            const row = v2 >> 1;
             const c0 = raster[row % RASTER_PERIOD];
-            if (v == @floor(v)) {
+            if (v2 & 1 == 0) {
                 raster_line[y] = c0;
                 continue;
             }
@@ -446,16 +474,22 @@ pub const Demo = struct {
     }
 
     fn drawSprites(self: *Demo, screen: []u8) void {
-        const step = @as(f64, @floatFromInt(self.sprite_step));
+        const sx: i64 = self.wob_x.s;
+        const cx: i64 = self.wob_x.c;
+        const sy: i64 = self.wob_y.s;
+        const cy: i64 = self.wob_y.c;
         for (0..SPRITES) |i| {
             const gap: usize = if (i >= SPRITE_GAP_FROM) SPRITE_SPACING else 0;
             // the path array is pushed onto itself: indexing past its end wraps
             const at = (self.sprite_step + i * SPRITE_SPACING + gap) % tables.sprite_x.len;
-            const fi = @as(f64, @floatFromInt(i));
-            // drawn at sub-pixel positions in the original; nearest pixel here
-            const x = motion.jsRound(@as(f64, @floatFromInt(tables.sprite_x[at])) + WOBBLE_X * @sin(step * WOBBLE_X_RATE + fi));
-            const y = motion.jsRound(@as(f64, @floatFromInt(tables.sprite_y[at])) + WOBBLE_Y * @cos(step * WOBBLE_Y_RATE + fi));
-            blitSprite(screen, (SPRITES - 1 - i) * SPRITE_W, @intFromFloat(x), @intFromFloat(y));
+            // drawn at sub-pixel positions in the original; nearest pixel here (Math.round)
+            const pc: i64 = PHASE_C[i];
+            const ps: i64 = PHASE_S[i];
+            const wx = (sx * pc + cx * ps) >> 30; // sin(step * 0.07 + i), Q30
+            const wy = (cy * pc - sy * ps) >> 30; // cos(step * 0.09 + i), Q30
+            const x = ((@as(i64, tables.sprite_x[at]) << 30) + WOBBLE_X * wx + (1 << 29)) >> 30;
+            const y = ((@as(i64, tables.sprite_y[at]) << 30) + WOBBLE_Y * wy + (1 << 29)) >> 30;
+            blitSprite(screen, (SPRITES - 1 - i) * SPRITE_W, @intCast(x), @intCast(y));
         }
     }
 };
@@ -463,35 +497,36 @@ pub const Demo = struct {
 // --------------------------------------------------------------------------
 // Helpers
 // --------------------------------------------------------------------------
-fn nextRandom(seed: *u32) f64 {
+fn nextRandom(seed: *u32) u32 {
     seed.* = seed.* *% 1664525 +% 1013904223;
-    return @as(f64, @floatFromInt(seed.*)) / 4294967296.0;
+    return seed.*;
 }
 
-/// fillRect(x, y, 1, 1) at a sub-pixel position: each of the four pixels it
+/// fillRect(x, y, 1, 1) at a sub-pixel position (Q16): each of the four pixels it
 /// touches takes the star's grey by the area it covers.
-fn plotStar(screen: []u8, x: f64, y: f64, grey: f32) void {
-    if (!(x > -1 and x < W and y > -1 and y < H)) return;
-    const x0 = @floor(x);
-    const y0 = @floor(y);
-    const fx: f32 = @floatCast(x - x0);
-    const fy: f32 = @floatCast(y - y0);
-    const xi: i32 = @intFromFloat(x0);
-    const yi: i32 = @intFromFloat(y0);
+fn plotStar(screen: []u8, x: i64, y: i64, grey: u32) void {
+    const one = fixed.ONE;
+    if (!(x > -@as(i64, one) and x < @as(i64, W) * one and y > -@as(i64, one) and y < @as(i64, H) * one)) return;
+    const xi: i32 = @intCast(x >> 16);
+    const yi: i32 = @intCast(y >> 16);
+    const fx: u32 = @intCast(x & 0xffff);
+    const fy: u32 = @intCast(y & 0xffff);
     for (0..2) |dy| {
         for (0..2) |dx| {
             const px = xi + @as(i32, @intCast(dx));
             const py = yi + @as(i32, @intCast(dy));
             if (px < 0 or px >= W or py < 0 or py >= H) continue;
-            const cover = (if (dx == 0) 1 - fx else fx) * (if (dy == 0) 1 - fy else fy);
-            if (cover <= 0) continue;
+            const wx = if (dx == 0) one - fx else fx;
+            const wy = if (dy == 0) one - fy else fy;
+            const cover: u32 = @intCast((@as(u64, wx) * wy) >> 16);
+            if (cover == 0) continue;
             const d = &screen[@as(usize, @intCast(py)) * W + @as(usize, @intCast(px))];
             // the flashing logo is not grey: a star keeps it unless it mostly covers it
             if (d.* == BG_ORANGE or d.* == BG_GREY) {
-                if (cover >= 0.5) d.* = greyIndex(grey * cover);
+                if (cover >= one / 2) d.* = greyIndex(grey * cover);
                 continue;
             }
-            d.* = greyIndex(grey * cover + greyOf(d.*) * (1 - cover));
+            d.* = greyIndex(grey * cover + @as(u32, grey_lut[d.*]) * (one - cover));
         }
     }
 }
@@ -519,33 +554,27 @@ fn inkSpan(row: i32) struct { left: i32, right: i32 } {
     return .{ .left = left, .right = right };
 }
 
-/// The text-canvas x a screen column's centre samples through the stretch.
-/// Division by a positive zoom keeps it monotonic in x, which the clipping
-/// in drawStarwars relies on.
-inline fn sourceX(zoom: f64, x: usize) f64 {
-    return 160 + (@as(f64, @floatFromInt(x)) + 0.5 - 160) / zoom - 0.5;
-}
-
 /// The first screen column of `p` worth sampling: every column before it reads
 /// columns xi, xi+1 both left of `ink_left`, so its alpha is exactly 0. The
 /// inverse stretch is only a guess; it is kept only if the column just before
 /// it really does sample clear of the ink, otherwise the scan starts at x_first.
 fn firstInkedColumn(p: motion.PerspectiveRow, ink_left: i32) usize {
     const first: usize = p.x_first;
-    const guess = (@as(f64, @floatFromInt(ink_left - 1)) + 0.5 - 160) * p.zoom + 160 - 0.5 - 2;
-    if (!(guess >= @as(f64, @floatFromInt(first)) + 1)) return first;
-    // ink_left <= 319 and zoom < 1.2 bound the guess well inside usize
-    const start: usize = @intFromFloat(guess);
-    const xi_before: i32 = @intFromFloat(@floor(sourceX(p.zoom, start - 1)));
+    // (ink_left - 1 + 0.5 - 160) * zoom + 160 - 0.5 - 2, Q16
+    const guess = @divTrunc((2 * @as(i64, ink_left) - 321) * p.zoom_q16, 2) + 10321920;
+    if (guess < (@as(i64, @intCast(first)) + 1) * fixed.ONE) return first;
+    const start: usize = @intCast(guess >> 16);
+    const xi_before = (p.fx_base + p.fx_step * @as(i64, @intCast(start - 1))) >> 24;
     return if (xi_before + 1 < ink_left) start else first;
 }
 
-/// One row of the text canvas, linearly filtered between columns xi and xi+1.
-fn sampleRow(row: ?*const [W]u8, xi: i32, tx: f64) f64 {
+/// One row of the text canvas (ink is 0 or 1), linearly filtered between columns
+/// xi and xi+1 by tx (Q16); the result is Q16.
+fn sampleRow(row: ?*const [W]u8, xi: i32, tx: u32) u32 {
     const line = row orelse return 0;
-    const left: f64 = if (xi >= 0 and xi < W) @floatFromInt(line[@intCast(xi)]) else 0;
-    const right: f64 = if (xi + 1 >= 0 and xi + 1 < W) @floatFromInt(line[@intCast(xi + 1)]) else 0;
-    return left * (1 - tx) + right * tx;
+    const left: u32 = if (xi >= 0 and xi < W) line[@intCast(xi)] else 0;
+    const right: u32 = if (xi + 1 >= 0 and xi + 1 < W) line[@intCast(xi + 1)] else 0;
+    return left * (fixed.ONE - tx) + right * tx;
 }
 
 fn blitTextGlyph(nb: usize, x: usize, top: i32) void {
