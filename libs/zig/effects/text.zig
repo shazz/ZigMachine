@@ -7,6 +7,7 @@ const ZigOS = @import("../zigos.zig").ZigOS;
 const LogicalFB = @import("../zigos.zig").LogicalFB;
 const Color = @import("../zigos.zig").Color;
 const RenderTarget = @import("../zigos.zig").RenderTarget;
+const text_plot = @import("text_plot.zig");
 
 const Console = @import("../utils/debug.zig").Console;
 
@@ -60,43 +61,13 @@ pub const Text = struct {
             const slice_offset_end: u16 = (@as(u16, @intCast(letter)) + 1) * (self.font_width * self.font_height) - 1;
         
             const char_data = self.font_img[slice_offset_start..slice_offset_end];
-            var letter_pos: u32 = initial_position + (@as(u32, @intCast(nb)) * @as(u32, @intCast(self.font_width)));
+            const letter_pos: u32 = initial_position + (@as(u32, @intCast(nb)) * @as(u32, @intCast(self.font_width)));
 
-            // Console.log("Char {c}({} - {} = {}) to display at ({}, {}) offset: {}", .{char, char, self.font_chars[0], letter, x, y, slice_offset_start});
-            // Console.log("Char {c} to display at ({}, {}) position in buffer: {}", .{char, x, y, letter_pos});
-            
+            // text_plot: the same bytes at the same places, run by run, where the
+            // loop took a modulo (a divide) and a byte store per pixel.
             switch (self.target) {
-                .fb => |fb| {
-                    const buffer = fb.fb; // [*]u8 view into the shared logical framebuffer
-
-                    for (char_data, 0..) |pixel, idx| {
-
-                        if(transparent_color) |color| {
-                            if(pixel != color) buffer[letter_pos] = pixel;
-                        } else {
-                            buffer[letter_pos] = pixel;
-                        }
-
-                        if (idx > 0 and (idx % self.font_width == 0)) {
-                            letter_pos += (WIDTH - self.font_width + 1);
-                        } else {
-                            letter_pos += 1;
-                        }
-                    }
-                },
-
-                .render_buffer => |rbuf| {
-
-                    for (char_data, 0..) |pixel, idx| {
-                        rbuf.buffer[letter_pos] = pixel;
-
-                        if (idx > 0 and (idx % self.font_width == 0)) {
-                            letter_pos += (@as(u32, @intCast((rbuf.width) - @as(u32, @intCast(self.font_width)) + 1)));
-                        } else {
-                            letter_pos += 1;
-                        }
-                    }
-                }
+                .fb => |fb| text_plot.plot(fb.fb, letter_pos, WIDTH - self.font_width + 1, char_data, self.font_width, transparent_color),
+                .render_buffer => |rbuf| text_plot.plot(rbuf.buffer.ptr, letter_pos, @as(u32, @intCast((rbuf.width) - @as(u32, @intCast(self.font_width)) + 1)), char_data, self.font_width, null),
             }
         }
     }
