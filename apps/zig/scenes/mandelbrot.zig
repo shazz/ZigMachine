@@ -11,27 +11,33 @@
 // mandelbrot.zig); only where the pixels go changed.
 //
 // The image is static, but the old scene recomputed all 112,000 pixels (up to
-// 255 iterations each) every frame. It is now computed once, ROWS_PER_FRAME rows
-// a frame, so the picture draws itself in top to bottom over the first second
-// or so and then costs nothing.
+// 255 iterations each) every frame, and later ROWS_PER_FRAME rows a frame in f32
+// on a CPU with no divide to speak of (the board took seconds). The escape counts
+// are now computed ONCE, on the host, by mandelbrot/gen_mandelbrot.zig (the same
+// f32 loop) into mandelbrot/image.rle (27 KB, run-length coded per row); the
+// scene unpacks ROWS_PER_FRAME rows a frame with the same top-to-bottom draw-in
+// as before, frame for frame, and then costs nothing.
 // --------------------------------------------------------------------------
 const zg = @import("zigos");
 
 const ZigOS = zg.ZigOS;
 const Color = zg.Color;
-const Mandelbrot = zg.Mandelbrot;
 
 const PW: usize = zg.PHYSICAL_WIDTH;
 const PH: usize = zg.PHYSICAL_HEIGHT;
 const PLANE: usize = 0;
 const ROWS_PER_FRAME: usize = 4;
+// (run - 1, value) pairs, row after row, 400 pixels a row. Regenerate with gen_mandelbrot.zig.
+const IMAGE = @embedFile("mandelbrot/image.rle");
 
 pub const Demo = struct {
     next_row: usize,
+    at: usize, // where the next row's runs begin in IMAGE
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
         // The Demo arrives as stale bytes on a re-entry from the menu: assign all.
         self.next_row = 0;
+        self.at = 0;
 
         const fb = &zigos.lfbs[PLANE];
         fb.is_enabled = true;
@@ -58,7 +64,12 @@ pub const Demo = struct {
         var y = self.next_row;
         while (y < last) : (y += 1) {
             const row = screen[y * PW ..][0..PW];
-            for (row, 0..) |*px, x| px.* = Mandelbrot.escapeTime(@intCast(x), @intCast(y));
+            var x: usize = 0;
+            while (x < PW) : (self.at += 2) {
+                const n = @as(usize, IMAGE[self.at]) + 1;
+                @memset(row[x..][0..n], IMAGE[self.at + 1]);
+                x += n;
+            }
         }
         self.next_row = last;
     }
