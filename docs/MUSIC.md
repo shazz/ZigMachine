@@ -25,6 +25,7 @@ The file extension picks the player. Files live under `docs/music/`.
 | `.sndh` | the tune's own 68000 code on the sealed YM (preferred) | yes: `tune` counts from 1, 0 = the file's default |
 | `.ymraw` | YM5!/YM6! register dump (**deprecated**, last resort only) | no |
 | `.mod` | ProTracker 4-channel on the Paula channels: tags `M.K.`, `M!K!`, `4CHN`, `FLT4` only (a 6CHN / 8CHN file is **refused**, see below) | no |
+| `.xm` | FastTracker 2, up to 8 channels, mixed two voices to a Paula channel (`libs/zig/players/xm.zig`, see [XM](#xm-fasttracker-2) below) | no |
 | `.raw` | 8-bit PCM at 12517 Hz | no |
 | `.sap` | an Atari 8-bit tune's own 6502 code on the machine's POKEY (`libs/zig/players/sap_player.zig`): TYPE B and C, mono; D/S/R and STEREO are refused, with the reason on the console | yes: `tune` counts from 1, 0 = the file's DEFSONG |
 
@@ -226,6 +227,45 @@ Proofs: `apps/mod_sfx_check.mjs` (every rule above, on the real audio modules),
 `libs/zig/players/mod_format_test.zig` and `libs/zig/sfx_queue_test.zig` (native),
 and SKYSTRIKE's ZIG mode (`apps/skystrike_zig_sound.mjs`: a game's own effects
 and engine note over its flight MOD).
+
+## XM (FastTracker 2)
+
+`zg.requestSong("song.xm")` plays a FastTracker 2 module, in the browser and on
+BARD. Its eight voices are mixed two to a Paula channel, so a song of more than
+8 channels is **refused** (`audioXmError` 5), as are a version before 1.02 and a
+truncated file. The player follows FT2 for the envelope (sustain, loop,
+fadeout), key-off (it cuts a note with no envelope), the instrument number's
+volume reset, both frequency tables, and effects 0-6 9 A-F K E1 E2 E9-EE plus
+the volume column's set and slides. It ignores tremolo, panning, global volume,
+tremor, multi-retrigger, extra-fine slides, auto-vibrato and the panning
+envelope (`xm.zig`'s header lists them all). There is no interpolation and no
+volume ramping: the voices play through 8-bit buffers, like Paula.
+
+A ScreamTracker 3 module becomes an XM with `tools/s3m2xm.py in.s3m out.xm`
+(`--drop 6,7,8,9` removes tracks; by default all are kept). It prints what XM
+cannot carry: channel panning, global volume and unmapped effects.
+
+**Check a song against a reference player**, not by ear alone: ffmpeg's
+libopenmpt renders a module (`ffmpeg -i song.xm -ar 44100 ref.wav`), and the
+song rendered through `demo-audio.wasm` should match it second by second. A
+real 1995 S3M, converted, matched at a spectral similarity of 0.995, in tune in
+90 % of the windows (`docs/music/zm_test.xm` is the player's own generated test
+song, `apps/xm_song.mjs`).
+
+**A tracker module needs a licence that allows bundling it.** The Mod Archive's
+default "Mod Archive Distribution license" allows redistributing the original,
+unmodified file only, not converting it or bundling it in a cart or a firmware
+image. Pick a Public Domain or Creative Commons module, or the artist's
+permission, and record the source URL, artist and licence in the scene's music
+comment and here.
+
+**A song you may only keep for yourself** goes in `docs/music/local.xm`, which
+git ignores. The music debug screen plays it on key 6 (key 5 plays the
+committed test song). In the browser it is fetched like any other song. On the
+board, songs are linked into the firmware, so build `make board-fw CART=music`
+with the file in place: `fpga/tools/song_pack.py` packs `local.xm` when it is
+there and leaves it out, with a note, when it is not. That firmware then holds
+the song: keep it off anything you publish.
 
 ## Rules and limits
 

@@ -58,7 +58,7 @@ select it in <code>apps/floppy.zig</code>.
 screen step by step in Zig, C and Rust, and runs each step on the real machine.
 This page is the reference you reach for afterwards.</p>
 </div>
-      <p class="stamp">Generated 2026-10-11 by tools/gen_docs.py from machine/sdk, libs/zig, rom/gem and docs/*.md</p>
+      <p class="stamp">Generated 2026-10-17 by tools/gen_docs.py from machine/sdk, libs/zig, rom/gem and docs/*.md</p>
     </section>
     <section class="ref" id="examples">
       <header class="sec-h"><span class="eyebrow">Start</span><h2>Examples<small>six scenes, in Zig</small></h2></header>
@@ -851,7 +851,7 @@ tunes it so the sector sums to <code>$1234</code>. <strong>Run:</strong> <code>s
 - After <code>hwInit()</code> plane 0 is already a normal 320×200 plane with its default framebuffer
   base — read <code>REG_FB_BASE</code> (as above) rather than hard-coding the address.
 - Keep it small: check <code>ls -l docs/boot-&lt;name&gt;.wasm</code> ≤ 1015 B; <code>mkdisk</code> prints the headroom.</p></div></section>
-<section class="ref" id="music-sndh-player-zig-c-rust"><header class="sec-h"><span class="eyebrow">Formats</span><h2>Music<small>docs/MUSIC.md</small></h2></header><div class="chapter"><ul class="toc"><li class="toc-3"><a href="#music-sndh-player-zig-c-rust-music-the-sndh-player-from-zig-c-and-rust">Music — the SNDH player, from Zig, C and Rust</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-formats">Formats</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-zig">Zig</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-c">C</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-rust">Rust</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-stopping-the-music">Stopping the music</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-sound-effects-calling-the-running-sndh">Sound effects: calling the running SNDH</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-sound-effects-over-a-mod">Sound effects over a MOD</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-rules-and-limits">Rules and limits</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-proving-a-tune-plays-headless">Proving a tune plays (headless)</a></li></ul><h3 id="music-sndh-player-zig-c-rust-music-the-sndh-player-from-zig-c-and-rust">Music — the SNDH player, from Zig, C and Rust</h3>
+<section class="ref" id="music-sndh-player-zig-c-rust"><header class="sec-h"><span class="eyebrow">Formats</span><h2>Music<small>docs/MUSIC.md</small></h2></header><div class="chapter"><ul class="toc"><li class="toc-3"><a href="#music-sndh-player-zig-c-rust-music-the-sndh-player-from-zig-c-and-rust">Music — the SNDH player, from Zig, C and Rust</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-formats">Formats</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-zig">Zig</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-c">C</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-rust">Rust</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-stopping-the-music">Stopping the music</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-sound-effects-calling-the-running-sndh">Sound effects: calling the running SNDH</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-sound-effects-over-a-mod">Sound effects over a MOD</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-xm-fasttracker-2">XM (FastTracker 2)</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-rules-and-limits">Rules and limits</a></li><li class="toc-4"><a href="#music-sndh-player-zig-c-rust-proving-a-tune-plays-headless">Proving a tune plays (headless)</a></li></ul><h3 id="music-sndh-player-zig-c-rust-music-the-sndh-player-from-zig-c-and-rust">Music — the SNDH player, from Zig, C and Rust</h3>
 <p>ZigMachine plays real Atari ST music. An <strong>SNDH</strong> file carries the tune's own
 68000 replay routine; the machine runs that code on an emulated 68000 (Musashi)
 driving the sealed YM2149, exactly as the ST did. Nothing is pre-rendered, and
@@ -887,6 +887,11 @@ requestSong(&quot;sos.sndh&quot;) ──►  polls pollSongRequest() every frame
 <tr>
 <td><code>.mod</code></td>
 <td>ProTracker 4-channel on the Paula channels: tags <code>M.K.</code>, <code>M!K!</code>, <code>4CHN</code>, <code>FLT4</code> only (a 6CHN / 8CHN file is <strong>refused</strong>, see below)</td>
+<td>no</td>
+</tr>
+<tr>
+<td><code>.xm</code></td>
+<td>FastTracker 2, up to 8 channels, mixed two voices to a Paula channel (<code>libs/zig/players/xm.zig</code>, see <a href="#xm-fasttracker-2">XM</a> below)</td>
 <td>no</td>
 </tr>
 <tr>
@@ -1057,6 +1062,39 @@ logs <code>MOD REJECTED</code> with the file's tag.</p>
 <code>libs/zig/players/mod_format_test.zig</code> and <code>libs/zig/sfx_queue_test.zig</code> (native),
 and SKYSTRIKE's ZIG mode (<code>apps/skystrike_zig_sound.mjs</code>: a game's own effects
 and engine note over its flight MOD).</p>
+<h4 id="music-sndh-player-zig-c-rust-xm-fasttracker-2">XM (FastTracker 2)</h4>
+<p><code>zg.requestSong("song.xm")</code> plays a FastTracker 2 module, in the browser and on
+BARD. Its eight voices are mixed two to a Paula channel, so a song of more than
+8 channels is <strong>refused</strong> (<code>audioXmError</code> 5), as are a version before 1.02 and a
+truncated file. The player follows FT2 for the envelope (sustain, loop,
+fadeout), key-off (it cuts a note with no envelope), the instrument number's
+volume reset, both frequency tables, and effects 0-6 9 A-F K E1 E2 E9-EE plus
+the volume column's set and slides. It ignores tremolo, panning, global volume,
+tremor, multi-retrigger, extra-fine slides, auto-vibrato and the panning
+envelope (<code>xm.zig</code>'s header lists them all). There is no interpolation and no
+volume ramping: the voices play through 8-bit buffers, like Paula.</p>
+<p>A ScreamTracker 3 module becomes an XM with <code>tools/s3m2xm.py in.s3m out.xm</code>
+(<code>--drop 6,7,8,9</code> removes tracks; by default all are kept). It prints what XM
+cannot carry: channel panning, global volume and unmapped effects.</p>
+<p><strong>Check a song against a reference player</strong>, not by ear alone: ffmpeg's
+libopenmpt renders a module (<code>ffmpeg -i song.xm -ar 44100 ref.wav</code>), and the
+song rendered through <code>demo-audio.wasm</code> should match it second by second. A
+real 1995 S3M, converted, matched at a spectral similarity of 0.995, in tune in
+90 % of the windows (<code>docs/music/zm_test.xm</code> is the player's own generated test
+song, <code>apps/xm_song.mjs</code>).</p>
+<p><strong>A tracker module needs a licence that allows bundling it.</strong> The Mod Archive's
+default "Mod Archive Distribution license" allows redistributing the original,
+unmodified file only, not converting it or bundling it in a cart or a firmware
+image. Pick a Public Domain or Creative Commons module, or the artist's
+permission, and record the source URL, artist and licence in the scene's music
+comment and here.</p>
+<p><strong>A song you may only keep for yourself</strong> goes in <code>docs/music/local.xm</code>, which
+git ignores. The music debug screen plays it on key 6 (key 5 plays the
+committed test song). In the browser it is fetched like any other song. On the
+board, songs are linked into the firmware, so build <code>make board-fw CART=music</code>
+with the file in place: <code>fpga/tools/song_pack.py</code> packs <code>local.xm</code> when it is
+there and leaves it out, with a note, when it is not. That firmware then holds
+the song: keep it off anything you publish.</p>
 <h4 id="music-sndh-player-zig-c-rust-rules-and-limits">Rules and limits</h4>
 <ul>
 <li><strong>Names</strong> are paths under <code>docs/music/</code>, at most 64 bytes, no <code>..</code> and no
