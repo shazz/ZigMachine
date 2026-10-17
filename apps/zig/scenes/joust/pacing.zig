@@ -113,6 +113,7 @@ pub const Pacer = struct {
     pub fn waitPacket(self: *Pacer, st: *St, event: i64) void {
         var at_tst = true;
         while (true) {
+            self.skipPairs(event);
             if (event <= self.t) {
                 self.t += JOY_SERVICE;
                 self.run(st, if (at_tst) TST + BEQ_N else BEQ_T + TST + BEQ_N);
@@ -121,6 +122,17 @@ pub const Pacer = struct {
             self.run(st, if (at_tst) TST else BEQ_T);
             at_tst = !at_tst;
         }
+    }
+
+    /// The wait loop's tst + beq pairs (32 cycles, from either one) that end
+    /// before the packet AND before the next interrupt falls due, in one add:
+    /// the loop above checks the packet ~2,600 times a frame, and no step of
+    /// these would have serviced anything (irq() only acts on a due time <= t).
+    fn skipPairs(self: *Pacer, event: i64) void {
+        var due = @min(event, @min(self.ntc, self.nv));
+        if (self.nkeys > 0) due = @min(due, self.keys[0].at);
+        const room = due - self.t - 1;
+        if (room >= TST + BEQ_T) self.t += @divFloor(room, TST + BEQ_T) * (TST + BEQ_T);
     }
 
     /// VBLs elapsed during this frame: the `bra $18` after call 17 (12 cycles),
