@@ -67,7 +67,8 @@ $(SPLIT)/$(1)$(ASUF)$(HSUF)/sys.elf: $(HCYC)/$(1)$(ASUF)$(HSUF)/common/fw.a $(HO
 $(SPLIT)/$(1)$(ASUF)$(HSUF)/sys.bin: $(SPLIT)/$(1)$(ASUF)$(HSUF)/sys.elf
 	$(RV_OBJCOPY) -O binary $$< $$@
 	truncate -s %8 $$@
-	test $$$$(stat -c %s $$@) -le $$$$(( $(shell awk '/define CART_IMG_AT/{print $$3}' gen/glass_cart.h | tr -d u) )) \
+	@# the shell call runs with the recipe, not at eval: in a fresh tree, memmap makes gen/glass_cart.h first
+	test $$$$(stat -c %s $$@) -le $$$$(( $$(shell awk '/define CART_IMG_AT/{print $$$$3}' gen/glass_cart.h | tr -d u) )) \
 		|| (echo "$$@: past CART_IMG_AT, it would overlap the cart image"; exit 1)
 endef
 $(foreach v,sim board,$(eval $(call split_rules,$(v))))
