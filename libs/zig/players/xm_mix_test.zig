@@ -153,3 +153,13 @@ test "a fractional step carries into the frame index across 65536" {
     xmix.mixVoice(&v, &data, &s, &out);
     try std.testing.expectEqualSlices(i8, &.{ 34, 35, 37, 38, 40, 41 }, &out);
 }
+
+test "a ping-pong sample plays its attack before the loop, not reflected into it" {
+    // Loop over frames 2..3: frames 0 and 1 are the attack, then 2 3 2 3 ... at step 1.
+    const data = [_]i8{ 10, 20, 30, 40 };
+    const s = inst.Sample{ .len = 4, .loop = inst.LOOP_PINGPONG, .loop_start = 2, .loop_len = 2 };
+    var v = voice(1, 64);
+    var out = [_]i8{0} ** 6;
+    xmix.mixVoice(&v, &data, &s, &out);
+    try std.testing.expectEqualSlices(i8, &.{ 5, 10, 15, 20, 15, 20 }, &out);
+}

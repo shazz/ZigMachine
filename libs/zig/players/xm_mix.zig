@@ -68,7 +68,9 @@ fn fold(v: *Voice, len: usize, s: *const inst.Sample) bool {
     if (s.loop == inst.LOOP_NONE) return v.idx >= 0 and v.idx < @as(i32, @intCast(len));
     const start: i32 = @intCast(s.loop_start);
     const end: i32 = @intCast(s.loop_start + s.loop_len);
-    if (v.idx >= end or v.idx < start) {
+    // Below the loop and still running forward is the sample's attack, before the
+    // loop is reached: only a backward run turns round at the loop start.
+    if (v.idx >= end or (v.idx < start and v.dir < 0)) {
         v.idx = if (s.loop == inst.LOOP_FORWARD) forwardIndex(v.idx, start, end) else pingPongIndex(v, v.idx, start, end);
     }
     return true;
