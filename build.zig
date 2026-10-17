@@ -496,6 +496,7 @@ pub fn build(b: *std.Build) void {
         "demo-fuji_hobbytronic", // 87 — FUJI HOBBYTRONIC: fixed-point 3D Fuji, blitter-filled, HBL rasters, Hobbytronic '92 on the POKEY
         "demo-replicants_emlyn_f32", // 88 — cart 62's CODEF algorithm kept in f32 (62 is fixed point now), for the FPU test
         "demo-polkadots_f32", // 89 — cart 65's CODEF algorithm kept in f32 (65 is fixed point now), for the FPU test
+        "demo-xm_test", // 90 — XM TEST: the minimal XM player screen (one text plane), to hear an XM on the board
     };
     for (cart_names, 0..) |name, idx| {
         if (name.len == 0) continue; // excluded cart (see note above)
