@@ -72,6 +72,7 @@ pub fn val(what: u32) callconv(.c) u32 {
         5 => st.oob,
         6 => cyc.errors,
         7 => st.sfx_n,
+        0x100, 0x101 => mm.joy[what - 0x100], // the IKBD stick bytes the cart made this frame: P1, P2
         else => if (what - 8 < st.sfx_n) st.sfx_log[what - 8] else 0,
     };
 }

@@ -258,6 +258,15 @@ async function live() {
     const mem = () => new Uint8Array(memory.buffer, demo.rickTestMemPtr(), 0x80000);
     const rickX = () => (mem()[0x3a1d4] << 8) | mem()[0x3a1d5];
     if (mem()[0x3a1d1] !== 1) errors.push("Rick is not in slot 1 after the intro");
+    // the board's joystick fire (direction 5) DOES something: held up+fire fires the gun, down+fire lays a stick of dynamite (the HUD's
+    // counters, $3ADAC bullets and $3ADAE dynamite, each go down by one)
+    for (const [dir, at, name] of [[0, 0x3adac, "up + fire (the gun)"], [1, 0x3adae, "down + fire (dynamite)"]]) {
+        step(50, 20); // Rick standing where the level starts him (on the ground: shoot() needs it)
+        const n0 = mem()[at];
+        demo.input(dir); demo.input(5); step(8, 20); demo.inputRelease(5); demo.inputRelease(dir);
+        step(20, 20);
+        if (mem()[at] !== n0 - 1) errors.push(`joystick ${name}: its counter went ${n0} -> ${mem()[at]}, not down by one`);
+    }
     const x0 = rickX();
     demo.input(3); step(40, 20); demo.inputRelease(3); step(5, 20);
     if (rickX() <= x0) errors.push(`right did not move Rick (x ${x0} -> ${rickX()})`);
@@ -269,6 +278,17 @@ async function live() {
         demo.keyUp(code); step(1, 20);
         if (stick() !== 0) errors.push(`${name} released left the stick at $${stick().toString(16)}`);
         step(30, 20);
+    }
+    // the board's joystick (glass_joy): fire is direction 5, one more bit of the same stick byte,
+    // so it combines with the held directions and each releases on its own
+    for (const [seq, want] of [
+        [[[0, 1], [5, 1]], 0x81], [[[5, 0]], 0x01], [[[0, 0]], 0x00],     // up, +fire, -fire, -up
+        [[[5, 1], [1, 1]], 0x82], [[[1, 0]], 0x80], [[[5, 0]], 0x00],     // fire, +down, -down, -fire
+    ]) {
+        for (const [dir, down] of seq) down ? demo.input(dir) : demo.inputRelease(dir);
+        step(1, 20);
+        if (stick() !== want) errors.push(`stick events ${JSON.stringify(seq)} left $${stick().toString(16)}, not $${want.toString(16)}`);
+        step(4, 20);
     }
     // a 60 Hz host keeps the ST's 50 Hz: 10 s = ~500 VBLs
     const v0 = demo.rickTestVal(10);
@@ -289,7 +309,7 @@ async function live() {
     if (demo.pollCartRequest() !== -1) errors.push("Escape on the title did not leave for the menu");
     if (machine.hwRamAllocFailures()) errors.push(`${machine.hwRamAllocFailures()} zg.mem allocation(s) refused`);
     console.log(`  live: the title (${colours.size} colours, its tune), FIRE -> select -> intro -> level 1, ` +
-        `Rick walks, left Ctrl = up+fire and left Shift = down+fire, ${dv} ST VBLs in 10 s at 60 Hz, P pauses and resumes, Escape -> title -> leaves`);
+        `Rick walks, left Ctrl = up+fire and left Shift = down+fire, the joystick: fire combines with the held direction (shot, dynamite), ${dv} ST VBLs in 10 s at 60 Hz, P pauses and resumes, Escape -> title -> leaves`);
     return errors;
 }
 
