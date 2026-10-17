@@ -65,7 +65,7 @@ pub const Demo = struct {
     playing: usize,
     play_ms: f32,
     scroll_px: u32,
-    pulse: f32,
+    pulse: zg.fixtrig.Angle, // u32 turns: wraps exactly at 2 pi
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
         self.cursor = 0;
@@ -125,10 +125,10 @@ pub const Demo = struct {
         if (dt > 0 and dt < 1000) self.play_ms += dt;
         self.scroll_px +%= 1;
         raster.offset +%= 1;
-        self.pulse += 0.12;
-        if (self.pulse > 2 * std.math.pi) self.pulse -= 2 * std.math.pi; // bounded: sin() keeps its precision
-        const g: f32 = 0.6 + 0.4 * @sin(self.pulse);
-        zigos.lfbs[PLANE].setPaletteEntry(PLAY, Color{ .r = @intFromFloat(90 * g), .g = @intFromFloat(255 * g), .b = @intFromFloat(120 * g), .a = 255 });
+        self.pulse +%= zg.fixtrig.angle(0.12);
+        // g = 0.6 + 0.4 sin, in Q16.16
+        const g: i64 = 39322 + (26214 * @as(i64, zg.fixtrig.sin(self.pulse)) >> 16);
+        zigos.lfbs[PLANE].setPaletteEntry(PLAY, Color{ .r = @intCast(90 * g >> 16), .g = @intCast(255 * g >> 16), .b = @intCast(120 * g >> 16), .a = 255 });
     }
 
     pub fn render(self: *Demo, zigos: *ZigOS, dt: f32) void {
@@ -180,7 +180,8 @@ pub const Demo = struct {
         for (text, 0..) |c, k| {
             const x = x0 + @as(i32, @intCast(k * 8));
             if (x <= -8 or x >= 320) continue;
-            const wob: i32 = @intFromFloat(@sin(@as(f32, @floatFromInt(x)) * 0.04 + self.pulse) * 3);
+            const a = self.pulse +% @as(u32, @bitCast(x)) *% zg.fixtrig.angle(0.04);
+            const wob: i32 = @divTrunc(3 * zg.fixtrig.sin(a), zg.fixtrig.ONE);
             zigos.printText(fb, &[_]u8{c}, @intCast(x), @intCast(SCROLL_Y + 4 + wob), SCROLL, BG);
         }
     }
