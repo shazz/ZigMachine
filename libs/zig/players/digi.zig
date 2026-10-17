@@ -20,6 +20,7 @@ const std = @import("std");
 pub const handler = @import("digi_handler.zig");
 pub const beat_dis = @import("digi_beatdis.zig");
 pub const monty = @import("digi_monty.zig");
+pub const wow = @import("digi_wow.zig");
 
 pub const Status = enum(u32) {
     musashi = 0, // no known handler: the general path
@@ -28,12 +29,27 @@ pub const Status = enum(u32) {
     near_miss_data = 3, // the driver matched, its tables point outside the image
     disabled = 4, // a known driver, but native replays are switched off
     monty = 5, // native, players/digi_monty.zig (Mad Max's Monty digidrums, Timer D)
+    wow = 6, // native, players/digi_wow.zig (MAN Cool's Wow Scroller, Timer A)
 };
 
 pub const Driver = union(enum) {
     beat_dis: beat_dis.Driver,
     monty: monty.Driver,
+    wow: wow.Driver,
 };
+
+/// What mode 3 needs of a byte-a-tick driver: where its sample pointer and the
+/// segment's end live, where its samples start, and the timer's rate. Its bytes
+/// are unsigned and inverted, as handler.linear says (the same volume table).
+pub const Pcm = struct { cur: u32, end: u32, lo: u32, hz: f32 };
+
+pub fn pcmOf(d: Driver) ?Pcm {
+    return switch (d) {
+        .beat_dis => |bd| .{ .cur = bd.handler.cur, .end = bd.handler.cur + 4, .lo = beat_dis.samples(bd), .hz = 2457600.0 / 4.0 / 39.0 },
+        .wow => |wd| .{ .cur = wd.base + wow.CUR, .end = wd.base + wow.END, .lo = wd.base + wow.DATA, .hz = wow.HZ },
+        .monty => null, // 4-bit drums on one channel, not this table: no PCM path
+    };
+}
 
 pub const Recognition = struct {
     status: Status = .musashi,
@@ -43,6 +59,10 @@ pub const Recognition = struct {
 /// `image` is the tune as loaded, at 68000 address `base`.
 pub fn recognise(image: []const u8, base: u32) Recognition {
     if (monty.match(image, base)) |d| return .{ .status = .monty, .driver = .{ .monty = d } };
+    if (wow.match(image, base)) |d| {
+        if (!wow.tablesFit(image)) return .{ .status = .near_miss_data };
+        return .{ .status = .wow, .driver = .{ .wow = d } };
+    }
     const found = handler.find(image) orelse return .{};
     const d = beat_dis.match(image, base) orelse return .{ .status = .near_miss_sequencer };
     if (d.handler.addr != base + found or !beat_dis.tablesFit(image, base, d)) return .{ .status = .near_miss_data };

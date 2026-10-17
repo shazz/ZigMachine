@@ -29,6 +29,7 @@ static const char* const NATIVE[] = {
     "near miss: the driver's tables out of range, on Musashi",
     "native replays off, on Musashi",
     "native monty",
+    "native wow_scroller",
 };
 
 void audio_boot(void) {
