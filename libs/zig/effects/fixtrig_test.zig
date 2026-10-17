@@ -38,3 +38,18 @@ test "angle() wraps negative radians and an accumulator wraps a full turn" {
 test "mul is a Q16 product, signs included" {
     try std.testing.expectEqual(@as(i32, -3 << 15), t.mul(3 << 16, -(1 << 15)));
 }
+
+test "toRadians/fromRadians: a round trip lands within f32's precision, any turn" {
+    try std.testing.expectEqual(@as(f32, 0), t.toRadians(0));
+    try std.testing.expectEqual(@as(t.Angle, 0), t.fromRadians(0));
+    try std.testing.expectEqual(t.angle(-0.5), t.fromRadians(-0.5));
+    // two turns on: f32 holds 4*pi + 0.25 to ~1e-6 rad, about 700 Angle steps
+    const far: i32 = @bitCast(t.fromRadians(0.25 + 4.0 * std.math.pi) -% t.angle(0.25));
+    try std.testing.expect(@abs(far) < 1 << 11);
+    var a: u64 = 1;
+    while (a < (1 << 32)) : (a += 77777 * 37) {
+        const back = t.fromRadians(t.toRadians(@intCast(a)));
+        const d: i32 = @bitCast(back -% @as(t.Angle, @intCast(a)));
+        try std.testing.expect(@abs(d) <= 1 << 8); // f32 keeps 24 of the 32 bits
+    }
+}

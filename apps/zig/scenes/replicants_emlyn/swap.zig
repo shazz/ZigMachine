@@ -18,8 +18,8 @@ const BEND_FRAMES = @import("mode.zig").BEND_FRAMES;
 pub const Fixed = Motion(@import("fixed.zig"));
 pub const Float = Motion(@import("float.zig"));
 
-const TAU: f64 = 2.0 * std.math.pi;
-const TURN: f64 = 4294967296.0;
+const radians = trig.toRadians;
+const angle = trig.fromRadians;
 
 pub fn toFloat(src: *const Fixed, dst: *Float) void {
     copyShared(src, dst);
@@ -48,17 +48,4 @@ fn copyShared(src: anytype, dst: anytype) void {
     dst.scroller.posx = src.scroller.posx;
     dst.scroller.ltr = src.scroller.ltr;
     dst.scroller.offset = src.scroller.offset;
-}
-
-/// An Angle as radians in [0, 2*pi).
-fn radians(a: trig.Angle) f32 {
-    return @floatCast(@as(f64, @floatFromInt(a)) * (TAU / TURN));
-}
-
-/// Radians (any sign, any number of turns: the f32 accumulators never wrap)
-/// as an Angle, rounded to the nearest step.
-fn angle(rad: f32) trig.Angle {
-    const turns = @mod(@as(f64, rad), TAU) / TAU;
-    const raw: u64 = @intFromFloat(@round(turns * TURN));
-    return @truncate(raw);
 }
