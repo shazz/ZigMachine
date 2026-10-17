@@ -53,10 +53,11 @@ var vertices_yellow = wf.vec4s(yellow.verts.len, yellow.verts);
 var vertices_red = wf.vec4s(red.verts.len, red.verts);
 
 // Every object shares one pose per frame: spin X/Y/Z, then slide along x.
-const Pose = struct { ax: f32, ay: f32, az: f32, tx: f32 };
+// The spin's matrices are built once a frame (wf.Rot), not per vertex.
+const Pose = struct { spin: wf.Rot, tx: f32 };
 
 fn posed(p: Pose, v: Vec4) Vec4 {
-    return wf.rotateXYZ(v, p.ax, p.ay, p.az).add(Vec4.new(p.tx, 0.0, 0.0, 0.0));
+    return p.spin.apply(v).add(Vec4.new(p.tx, 0.0, 0.0, 0.0));
 }
 
 // --------------------------------------------------------------------------
@@ -151,7 +152,7 @@ pub const Demo = struct {
         self.angle_y -= (base_incr * 2);
         self.angle_z -= (base_incr * 4);
 
-        const pose: Pose = .{ .ax = self.angle_x, .ay = self.angle_y, .az = self.angle_z, .tx = f_sin };
+        const pose: Pose = .{ .spin = wf.Rot.xyz(self.angle_x, self.angle_y, self.angle_z), .tx = f_sin };
         self.cam.project(&vertices_rectangle, &self.projected_vertices_rectangle, pose, posed);
         self.cam.project(&vertices_yellow, &self.projected_vertices_yellow, pose, posed);
         self.cam.project(&vertices_red, &self.projected_vertices_red, pose, posed);
