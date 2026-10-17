@@ -53,7 +53,7 @@ const STAR_ROWS: i32 = 95;
 const StarLayer = struct { nb: usize, speedx: i64, color: u8 };
 const STAR_LAYERS = [_]StarLayer{
     .{ .nb = 25, .speedx = -5 * Q32, .color = 2 }, // #E0E0E0
-    .{ .nb = 30, .speedx = -5153960755, // round(-1.2 * 2^32) .color = 1 }, // #606060
+    .{ .nb = 30, .speedx = -5153960755, .color = 1 }, // #606060, speed round(-1.2 * 2^32)
 };
 const NB_STARS = 25 + 30;
 /// Math.random cannot be replayed, so the stars are seeded from this xorshift32.
@@ -75,6 +75,10 @@ const NB_SPRITES = 11;
 const SPRITE_W = 16;
 const SPRITE_PHASE_STEP = fx.turns(0.3); // phases are u64 turns (turns_fix.zig)
 const SPRITE_PHASE_INC = fx.turns(0.04);
+// cos(1.5 p) is its own accumulator: halving a phase already reduced mod a turn
+// would lose the turn count.
+const SPRITE_PHASE15_STEP = fx.turns(0.45);
+const SPRITE_PHASE15_INC = fx.turns(0.06);
 const delta_img = blit.Image.init(@embedFile(DIR ++ "delta.raw"), SPRITE_W);
 const sprite_imgs = [NB_SPRITES]blit.Image{
     delta_img, delta_img, delta_img,
@@ -119,6 +123,7 @@ pub const Demo = struct {
     logo_sinx: u64 = undefined,
     logo_inc: u64 = undefined,
     sprite_phase: [NB_SPRITES]u64 = undefined,
+    sprite_phase15: [NB_SPRITES]u64 = undefined,
     sprite_x: [NB_SPRITES]i32 = undefined,
     sprite_y: [NB_SPRITES]i32 = undefined,
     stars: [NB_STARS]Star = undefined,
@@ -151,6 +156,7 @@ pub const Demo = struct {
         self.logo_inc = 0;
         for (0..NB_SPRITES) |i| {
             self.sprite_phase[i] = SPRITE_PHASE_STEP *% (i + 1);
+            self.sprite_phase15[i] = SPRITE_PHASE15_STEP *% (i + 1);
             self.sprite_x[i] = 0;
             self.sprite_y[i] = 0;
         }
@@ -204,14 +210,7 @@ pub const Demo = struct {
         _ = zigos;
         _ = elapsed_time;
 
-        /// A 640x400 canvas coordinate (already rounded) on the 320x200 screen: the browser
-/// draws an unscaled image at the ROUNDED canvas coordinate (measured on the
-/// original), so halving floors that onto the ST grid.
-fn half(canvas_coord: i32) i32 {
-    return canvas_coord >> 1;
-}
-
-// starfield2D_dot.draw(): plot where the star is, then move it
+        // starfield2D_dot.draw(): plot where the star is, then move it
         for (&self.stars, &self.star_drawn_x) |*star, *drawn_x| {
             drawn_x.* = star.x;
             star.x += star.speedx;
@@ -228,9 +227,10 @@ fn half(canvas_coord: i32) i32 {
         // go() advances each phase BEFORE drawing (screen.js:116-117)
         for (0..NB_SPRITES) |i| {
             self.sprite_phase[i] +%= SPRITE_PHASE_INC;
+            self.sprite_phase15[i] +%= SPRITE_PHASE15_INC;
             const p = self.sprite_phase[i];
             self.sprite_x[i] = half(fx.roundQ30(305, 306, fx.sin(fx.hi(p))));
-            self.sprite_y[i] = half(fx.roundQ30(86, 84, fx.cos(fx.hi(p +% (p >> 1)))));
+            self.sprite_y[i] = half(fx.roundQ30(86, 84, fx.cos(fx.hi(self.sprite_phase15[i]))));
         }
 
         self.updateScroller();
