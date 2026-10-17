@@ -21,6 +21,15 @@ const BY: u16 = 40;
 const VW: u16 = 640; // visible window
 const VH: u16 = 200;
 
+// Diagonal rainbow: pixel (x,y) = ((x + y - phase) mod 78) / 6 + 3; indexed from the
+// row's start offset, so RING[s + x] for x in 0..RW. (Generator: this block.)
+const PERIOD: i32 = 78;
+const RING: [RW + PERIOD]u8 = blk: {
+    var t: [RW + PERIOD]u8 = undefined;
+    for (&t, 0..) |*v, j| v.* = @intCast(@divFloor(@as(i32, @intCast(j)) % PERIOD, 6) + 3);
+    break :blk t;
+};
+
 pub const Demo = struct {
     fc: u32 = 0,
 
@@ -46,37 +55,29 @@ pub const Demo = struct {
     }
 
     // Redraw each frame so the border pattern animates (proving it's live content
-    // in the border area, not a static blank).
+    // in the border area, not a static blank). A row is one memcpy from the
+    // diagonal ring (the original per-pixel mod/divFloor, tabulated), then a
+    // memset for the dark window: ~280 block moves instead of 224,000 pixel calls.
     fn paint(self: *Demo, fb: *LogicalFB) void {
         const ph: i32 = @intCast(self.fc);
         var y: u16 = 0;
         while (y < RH) : (y += 1) {
-            const inWinY = (y >= BY and y < BY + VH);
-            var x: u16 = 0;
-            while (x < RW) : (x += 1) {
-                if (inWinY and x >= BX and x < BX + VW) {
-                    fb.setPixelValue(x, y, 0); // dark visible area
-                } else {
-                    // animated diagonal rainbow in the BORDER region (indices 3..15)
-                    const d = @mod(@as(i32, x) + @as(i32, y) - ph, 78);
-                    fb.setPixelValue(x, y, @intCast(@divFloor(d, 6) + 3));
-                }
-            }
+            const row = fb.fb + @as(usize, y) * RW;
+            const s: usize = @intCast(@mod(@as(i32, y) - ph, PERIOD));
+            @memcpy(row[0..RW], RING[s..][0..RW]);
+            if (y >= BY and y < BY + VH) @memset(row[BX .. BX + VW], 0);
         }
         // bright frame at the very physical edge (only overscan can reach it)
         drawFrame(fb);
     }
 
     fn drawFrame(fb: *LogicalFB) void {
-        var x: u16 = 0;
-        while (x < RW) : (x += 1) {
-            fb.setPixelValue(x, 0, 2);
-            fb.setPixelValue(x, RH - 1, 2);
-        }
-        var y: u16 = 0;
+        @memset(fb.fb[0..RW], 2);
+        @memset(fb.fb[@as(usize, RH - 1) * RW ..][0..RW], 2);
+        var y: usize = 0;
         while (y < RH) : (y += 1) {
-            fb.setPixelValue(0, y, 2);
-            fb.setPixelValue(RW - 1, y, 2);
+            fb.fb[y * RW] = 2;
+            fb.fb[y * RW + RW - 1] = 2;
         }
     }
 
