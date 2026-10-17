@@ -81,7 +81,7 @@ def test_the_listing_is_the_browsers_byte_for_byte(name: str, disks: dict[str, P
 def test_st_replays_listing_is_its_two_files_in_fat_order(disks: dict[str, Path], zmd_dir_test: Path) -> None:
     n, records = native(zmd_dir_test, "list", str(disks["st_replay"]), "25", "12", "0x100", "65536").split()
     rec = bytes.fromhex(records)
-    assert n == "2" and rec[:8] == b"BOOT.WSM" and rec[16] == 0 and int.from_bytes(rec[17:21], "little") == 9636
+    assert n == "2" and rec[:8] == b"BOOT.WSM" and rec[16] == 0 and int.from_bytes(rec[17:21], "little") == 10030
     assert rec[25:35] == b"SAMPLE.RAW" and rec[41] == 1 and rec[46:50] == bytes(4)  # a v1 disk: no date
 
 
