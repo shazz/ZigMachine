@@ -131,6 +131,11 @@ pub fn dot(row: [3]i32, x: i32, y: i32, z: i32) i32 {
     return @intCast((s + (1 << 29)) >> 30);
 }
 
+/// dot() before its rounding shift: Q46, for comparisons finer than Q16.
+pub fn dotWide(row: [3]i32, x: i32, y: i32, z: i32) i64 {
+    return @as(i64, row[0]) * x + @as(i64, row[1]) * y + @as(i64, row[2]) * z;
+}
+
 /// floor(sqrt(v)), bit by bit: no float, and exact.
 pub fn isqrt(v: u64) u64 {
     return std.math.sqrt(v);

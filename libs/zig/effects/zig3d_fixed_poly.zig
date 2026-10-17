@@ -10,10 +10,12 @@ const fm = @import("zig3d_fixed_math.zig");
 /// One projected vertex in canvas pixels, 1 px = fm.ONE_PX (x right, y down).
 pub const Screen = struct { x: i32, y: i32, usable: bool };
 
-/// A face ready to fill, in canvas pixels (1 px = fm.ONE_PX). `depth` is its centroid's
-/// distance in front of the camera, Q16: larger is farther (three.js sorts by
-/// the centroid's NDC z, which grows with that distance).
-pub const Poly = struct { pts: [4][2]i32, n: u8, ink: u8, depth: i32 };
+/// A face ready to fill, in canvas pixels (1 px = fm.ONE_PX). `depth` is its
+/// centroid's distance in front of the camera, larger is farther (three.js
+/// sorts by the centroid's NDC z, which grows with it). It is Q46, unrounded:
+/// a symmetric mesh has faces whose depths differ by less than a Q16 step,
+/// and three.js still orders them.
+pub const Poly = struct { pts: [4][2]i32, n: u8, ink: u8, depth: i64 };
 
 pub fn usable(f: Face, s: []const Screen) bool {
     for (f.v[0..f.n]) |i| if (!s[i].usable) return false;

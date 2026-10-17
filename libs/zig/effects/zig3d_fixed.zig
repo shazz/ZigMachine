@@ -159,7 +159,7 @@ pub fn project(lens: *const Lens, camera: Vec, position: Vec, rot: [3]Angle, m: 
     for (m.faces, m.centroids) |f, c| {
         if (!poly.usable(f, screen)) continue;
         if (!opts.double_sided and !poly.clockwise(f, screen)) continue;
-        var p = Poly{ .pts = undefined, .n = f.n, .ink = f.ink, .depth = -(fm.dot(r[2], c.x, c.y, c.z) + rel.z) };
+        var p = Poly{ .pts = undefined, .n = f.n, .ink = f.ink, .depth = -(fm.dotWide(r[2], c.x, c.y, c.z) + (@as(i64, rel.z) << 30)) };
         for (0..f.n) |i| p.pts[i] = .{ screen[f.v[i]].x, screen[f.v[i]].y };
         if (opts.overdraw) poly.overdraw(&p);
         poly.insert(out[0 .. n + 1], p);
