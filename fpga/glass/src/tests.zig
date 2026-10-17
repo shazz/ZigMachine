@@ -28,4 +28,5 @@ test {
     _ = @import("console_test.zig");
     _ = @import("text.zig");
     _ = @import("page_debug.zig");
+    _ = @import("snd_info_test.zig");
 }
