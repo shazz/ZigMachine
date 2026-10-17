@@ -179,7 +179,9 @@ pub const Demo = struct {
         const wasd: u8 = if (typing) 0 else self.wasd;
         const f1: u8 = if (self.fire1 and !typing) J_FIRE else 0;
         const f2: u8 = if (self.fire2 and !typing) J_FIRE else 0;
-        var p1: u8 = self.arrows | f1;
+        // The glass's joystick fire arrives with the arrows (direction 5); held back while typing, as fire1 is.
+        const arrows: u8 = if (typing) self.arrows & ~J_FIRE else self.arrows;
+        var p1: u8 = arrows | f1;
         var p2: u8 = wasd | f2;
         if (self.m.st.g(State.V.two_player) == 0) { // one player: both sets drive P1
             p1 |= p2;
@@ -267,6 +269,7 @@ fn arrowBit(dir: u8) u8 {
         1 => J_DOWN,
         2 => J_LEFT,
         3 => J_RIGHT,
+        5 => J_FIRE, // the board's joystick button (glass_joy); the page sends a cart that owns the keyboard none
         else => 0,
     };
 }

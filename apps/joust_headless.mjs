@@ -195,6 +195,20 @@ async function live() {
     demo.inputRelease(3);
     const sfx = songs.slice(n0).filter(([n]) => n === MUSIC);
     if (sfx.length < 3) errors.push(`only ${sfx.length} SFX requests while flapping`);
+    // the board's joystick (glass_joy): fire is direction 5, one more bit of the P1 stick byte, so
+    // it combines with the held direction and each releases on its own
+    const stick = () => demo.joustTestVal(0x100);
+    const jbad = [];
+    for (const [seq, want] of [
+        [[[2, 1], [5, 1]], 0x84], [[[5, 0]], 0x04], [[[2, 0]], 0x00],     // left, +fire, -fire, -left
+        [[[5, 1], [3, 1]], 0x88], [[[3, 0]], 0x80], [[[5, 0]], 0x00],     // fire, +right, -right, -fire
+    ]) {
+        for (const [dir, down] of seq) down ? input(demo, dir) : demo.inputRelease(dir);
+        step(1, 20);
+        if (stick() !== want) jbad.push(`${JSON.stringify(seq)} left $${stick().toString(16)}, not $${want.toString(16)}`);
+        step(4, 20);
+    }
+    if (jbad.length) errors.push(`joystick fire (direction 5): ${jbad.join("; ")}`);
     // P pauses (the frame stops; the machine polls the keyboard across host
     // frames), any key resumes, R restarts to the title, Escape leaves
     demo.key(0x70);
@@ -216,7 +230,7 @@ async function live() {
     if (demo.pollCartRequest() !== -1) errors.push("Escape did not leave for the menu");
     if (songs.at(-1)?.[0] !== "none") errors.push(`Escape did not stop the sound: ${JSON.stringify(songs.at(-1))}`);
     console.log(`  live: title (${colours.size} colours, tune requested), '1' starts the game, ` +
-        `${dv} ST VBLs in 10 s at 60 Hz, ${sfx.length} SFX requests in 3 s of flapping ` +
+        `${dv} ST VBLs in 10 s at 60 Hz, ${sfx.length} SFX requests in 3 s of flapping, joystick fire combines with the held direction ` +
         `(subtunes ${[...new Set(sfx.map(([, t]) => t))].sort((a, b) => a - b).join(",")})`);
     return errors;
 }
