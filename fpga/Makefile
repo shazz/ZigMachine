@@ -123,6 +123,9 @@ $(HOST)/common/%.o: $(HOST)/common/%.c
 $(HOST)/%/cart.c: $(ROOT)/docs/demo-%.wasm
 	@mkdir -p $(@D)
 	wasm2c $< -n cart -o $@
+# wasm2c writes cart.h beside cart.c: without this rule a fresh tree cannot build anything that
+# names the header first (the sound CPU's play image needs build/host/tutorial/cart.h).
+$(HOST)/%/cart.h: $(HOST)/%/cart.c ;
 $(HOST)/%/env.c: $(HOST)/%/cart.c $(HOST)/common/machine.c $(HOST)/common/rom.c tools/host_gen.py tools/host_bridges.py \
 		tools/wasm_info.py gen/memmap.py
 	uv run python tools/host_gen.py --build $(HOST)/$* --cart $(ROOT)/docs/demo-$*.wasm
