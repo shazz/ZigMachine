@@ -19,6 +19,8 @@ const zg = @import("zigos");
 const blit = zg.blit;
 const A = @import("assets.zig");
 const Band = @import("band.zig").Band;
+const stretch = @import("../union_common/stretch.zig");
+const sintab = @import("../union_common/sintab.zig");
 
 pub const TEXT = @embedFile("../../assets/screens/union_deltaforce/scrolltext.txt"); // screen.js:112, verbatim
 
@@ -31,7 +33,7 @@ const SINE_STEP: f64 = 0.1;
 const TEXT_Y: f64 = 110 / 2 - 16; // scrollfx_noFX.siny(0, (110/2) - 16)
 const SINE_Y: f64 = 110 / 2 - 24; // siny(0, (110/2) - 24 + (30*Math.sin(this.sine)))
 const SINE_AMP: f64 = 30;
-const CENTRE_Y: f64 = (300.0 + 110.0 / 2.0) / 2.0; // drawPart(main, 320, 300+(110/2), ...)
+const CENTRE_Q16: i32 = (300 + 110 / 2) * 32768; // (300 + 110/2) / 2 in Q16 // drawPart(main, 320, 300+(110/2), ...)
 
 comptime {
     @setEvalBranchQuota(4 * TEXT.len + 1000);
@@ -114,9 +116,8 @@ pub const Scroller = struct {
         if (!self.visible) return;
         band.clear();
         for (self.ring.x, self.ring.c) |x, c| band.letter(&img.font, c, x);
-        const flat = zg.wave.SineSum(f64, 1){ .base = self.text_y, .amp = .{0}, .phase = .{0}, .inc = .{0}, .rounding = .round };
-        var sweep = flat.sweep(0);
+        var sweep = sintab.Flat{ .y = @intFromFloat(@round(self.text_y)) }; // amp 0: one y for every column
         band.compose(&sweep, img.gold, gold_y);
-        band.draw(dst, 0, CENTRE_Y, @cos(self.twist));
+        band.draw(dst, 0, CENTRE_Q16, stretch.toQ30(@cos(self.twist)));
     }
 };

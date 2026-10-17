@@ -6,6 +6,7 @@
 const zg = @import("zigos");
 const blit = zg.blit;
 const A = @import("assets.zig");
+const stretch = @import("../union_common/stretch.zig");
 
 /// logoHeight / logoSize / logoTile / logoCounter.
 pub const Logo = struct {
@@ -16,7 +17,7 @@ pub const Logo = struct {
 
     const SIZE: f64 = 0.035;
     const HOLD = 45 * 3; // frames at full height, less one
-    const CENTRE_Y: f64 = 65.0 / 2.0; // drawTile(..., 320, 65, 1, 0, 1, logoHeight), mid-handled
+    const CENTRE_Q16: i32 = 65 * 32768; // 65/2 in Q16: drawTile(..., 320, 65, 1, 0, 1, logoHeight), mid-handled
 
     pub fn init(self: *Logo) void {
         self.height = 1;
@@ -71,7 +72,7 @@ const LAST_FRAME = 15;
 
 pub fn draw(dst: blit.Dst, img: *const A.Images, logo: *const Logo, voices: *const Voices) void {
     blit.blit(dst, img.floor, null, FLOOR_X, FLOOR_Y, 0, .copy);
-    blit.stretchY(dst, img.logo(logo.tile), 0, Logo.CENTRE_Y, logo.height, null, .copy);
+    stretch.stretchY(dst, img.logo(logo.tile), 0, Logo.CENTRE_Q16, stretch.toQ30(logo.height), null, .copy);
     for (voices.level, 0..) |level, k| {
         const frame: usize = LAST_FRAME - level;
         const part = blit.Rect{ .x = frame * A.BALL_W, .y = 0, .w = A.BALL_W, .h = A.BALL_H };
