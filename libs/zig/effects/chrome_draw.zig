@@ -35,8 +35,10 @@ pub fn taps(y: f64, h: u16, row: i32) ?Taps {
 }
 
 /// A float32 y (what Skia's translate holds) in Q32. Exact whenever the f32's
-/// ulp is a multiple of 2^-32 (|y| >= 2^-8); finer values are floored, which
-/// cannot cross a half or a sixteenth (the only boundaries taps tests).
+/// ulp is a multiple of 2^-32 (|y| >= 2^-8). Finer values are rounded AWAY from
+/// zero: the only boundary they can sit beside is 0 (taps tests halves and
+/// sixteenths), and 1e-14 is not 0 there -- it blends row r-1 at 15/16 where
+/// -1e-14 snaps to row r.
 pub const Fy = i64;
 
 const FY_LIMIT: f32 = 1073741824.0; // 2^30 rows: far off any image, kept clear of i64 overflow
@@ -45,7 +47,8 @@ const FY_LIMIT: f32 = 1073741824.0; // 2^30 rows: far off any image, kept clear 
 /// layer per frame, not once per row, and it is single precision.
 pub fn fyOf(y: f64) Fy {
     const f: f32 = std.math.clamp(@as(f32, @floatCast(y)), -FY_LIMIT, FY_LIMIT);
-    return @intFromFloat(@floor(f * 4294967296.0));
+    const q = f * 4294967296.0;
+    return @intFromFloat(if (q < 0) @floor(q) else @ceil(q));
 }
 
 /// Canvas row `row` of image rows part_y .. part_y+part_h (drawImage's source

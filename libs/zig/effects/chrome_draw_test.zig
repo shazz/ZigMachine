@@ -149,3 +149,14 @@ test "the Q32 integer path draws every row the float formulation does" {
         }
     }
 }
+
+test "a y a hair either side of 0 is not 0: +1e-14 blends 15/16 from the row above" {
+    for ([_]f64{ 1.7e-14, -1.7e-14, 0 }) |y| {
+        for ([_]i32{ 0, 1, 31, 32 }) |row| {
+            const want = refTaps(y, 32, 32, 128, row);
+            const got = cd.partTaps(y, 32, 32, 128, row);
+            try std.testing.expectEqual(want == null, got == null);
+            if (want) |w| try expectTaps(w, got);
+        }
+    }
+}
