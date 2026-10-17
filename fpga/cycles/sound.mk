@@ -20,16 +20,21 @@
 # down to 16-28 MiB (board.mk HRV_LDFLAGS with ZM_AUDIO=snd).
 SND        := $(HCYC)/snd
 SOC_SND    := build/soc_hp_snd
-SND_CORE   := build/vexgen/VexRiscv_Snd.v
-SND_LDFLAGS := $(RV_ARCH) -Wl,--defsym=__flash=0x40E00000,--defsym=__flash_size=0x00200000 \
+SND_CORE   := build/vexgen/VexRiscv_SndNd.v
+# The core has no divider (vexgen `nodiv`: DIV/REM trap), so everything it runs is Zmmul: MUL in
+# hardware, division through libgcc (__divsi3...), the libs from the rv32i multilib. Later -march wins.
+SND_ARCH   := -march=rv32i_zmmul -mabi=ilp32
+V_alignedz := $(V_aligned) $(SND_ARCH)
+RV_OBJDUMP ?= riscv64-unknown-elf-objdump
+SND_LDFLAGS := $(RV_ARCH) $(SND_ARCH) -Wl,--defsym=__flash=0x40E00000,--defsym=__flash_size=0x00200000 \
 	-Wl,--defsym=__ram=0x41C00000,--defsym=__ram_size=0x003EF000,--defsym=__stack_size=0x00040000 \
 	-Tpicolibc.ld
 SND_CFLAGS  = $(HRV_CFLAGS) -Icycles/sound -I$(HOST)/tutorial -DZM_SND
-SND_COMMON := cycles/sound/sboard.c cycles/trap.c cycles/trap.S \
+SND_COMMON := cycles/sound/sboard.c cycles/sound/zmmul.c cycles/trap.c cycles/trap.S \
 	$(addprefix $(W2C_RT)/,wasm-rt-impl.c wasm-rt-mem-impl.c wasm-rt-exceptions-impl.c)
 SND_PLAY   := host/audio.c host/audio_imports.c cycles/baudio.c cycles/sound/smain.c
 SND_DEPS   := $(SND_COMMON) $(SND_PLAY) cycles/bsongs.c $(wildcard cycles/sound/*.h) cycles/snd_mailbox.h \
-	$(AUD_HDRS) cycles/baudio.h $(CYC)/aligned/common/aplayer.o $(HOST)/common/aplayer.h \
+	$(AUD_HDRS) cycles/baudio.h $(CYC)/alignedz/common/aplayer.o $(HOST)/common/aplayer.h \
 	$(HCYC)/gen/csr_addr.h $(HOST)/tutorial/cart.h
 
 # One sound image: $(1) = its name (play | bench), $(2) = extra sources, $(3) = extra flags.
@@ -37,8 +42,9 @@ define snd_image
 $(SND)/$(1)/snd.elf: $(SND_DEPS) $(2) FORCE
 	@mkdir -p $$(@D)/o
 	for s in $(SND_COMMON) $(SND_PLAY) $(2); do \
-		$(RV_CC) $(SND_CFLAGS) $(3) -c $$$$s -o $$(@D)/o/$$$$(basename $$$$s).o || exit 1; done
-	$(RV_CC) $(SND_LDFLAGS) -o $$@ $$(@D)/o/*.o $(CYC)/aligned/common/aplayer.o -lm
+		$(RV_CC) $(SND_CFLAGS) $(SND_ARCH) $(3) -c $$$$s -o $$(@D)/o/$$$$(basename $$$$s).o || exit 1; done
+	$(RV_CC) $(SND_LDFLAGS) -o $$@ $$(@D)/o/*.o $(CYC)/alignedz/common/aplayer.o -lm
+	! $(RV_OBJDUMP) -d $$@ | grep -qP '\t(divu?|remu?)\t' || (echo "$$@: a DIV/REM, which the sound core traps"; rm $$@; exit 1)
 $(SND)/$(1)/snd.bin: $(SND)/$(1)/snd.elf
 	$(RV_OBJCOPY) -O binary $$< $$@
 	test $$$$(stat -c %s $$@) -le 2097152 || (echo "$$@: over 2 MiB, it would overlap the cart's data"; exit 1)
@@ -74,7 +80,7 @@ $(SOC_SND)/hp_sim.json: $(HP_DEPS) soc/zm_sound_cpu.py soc/zm_sound_regs.py rtl/
 	systemd-run --user --scope -q -p MemoryMax=6G -p MemorySwapMax=0 \
 		uv run python -m soc.hp_sim --sound-cpu --out $(SOC_SND) >$(SOC_SND).log 2>&1 || (tail -20 $(SOC_SND).log; exit 1)
 $(SND_CORE):
-	vexgen/gen.sh Snd:16384:2:4096:1:snd
+	vexgen/gen.sh SndNd:16384:2:4096:1:snd,nodiv
 
 # The effects bench (cycles/sound/sfx_cart.c): the real cart-side path and the play image.
 # FX_DROP=1 is the mutant whose bsound.c drops every effect (build/hcycles/snd/fx_drop/).

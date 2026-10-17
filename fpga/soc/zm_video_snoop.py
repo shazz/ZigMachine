@@ -26,7 +26,7 @@ from __future__ import annotations
 from typing import Any
 
 from litex.gen import LiteXModule
-from migen import Array, Cat, If, Mux, Signal
+from migen import Cat, If, Memory, Mux, Signal
 
 from gen import memmap as mm
 
@@ -104,25 +104,33 @@ class ZMVideoSnoop(LiteXModule):
 
 
 class _Queue(LiteXModule):
-    """A small FIFO in flip-flops (no RAM: 16 entries; and Migen's simulator cannot
-    run the pinned migen's write-only FIFO memory ports)."""
+    """A small FIFO in distributed RAM (16 x 60: ten RAM32M, where flip-flops and their
+    16:1 read mux took ~250 LUT and 960 FF): written on the clock, read asynchronously at
+    `head`, so `dout` is valid as soon as the entry is, as the flip-flop version's was."""
 
     def __init__(self, width: int, depth: int) -> None:
         self.we, self.din, self.writable = Signal(), Signal(width), Signal()
         self.re, self.dout, self.readable = Signal(), Signal(width), Signal()
-        slots = Array(Signal(width, reset_less=True) for _ in range(depth))  # data only: no reset fan-out (Vivado: the worst path at 80 MHz)
+        # Locals, not attributes: LiteX's AutoCSR would map a Memory attribute onto the CSR bus.
+        mem = Memory(width, depth)
+        wp, rp = mem.get_port(write_capable=True, async_read=True), mem.get_port(async_read=True)
+        self.specials += mem, wp, rp
         head, tail, level = Signal(max=depth), Signal(max=depth), Signal(max=depth + 1)
         self.level = level
         push, pop = Signal(), Signal()
         self.comb += [
             self.writable.eq(level != depth),
             self.readable.eq(level != 0),
-            self.dout.eq(slots[head]),
+            rp.adr.eq(head),
+            self.dout.eq(rp.dat_r),
+            wp.adr.eq(tail),
+            wp.dat_w.eq(self.din),
+            wp.we.eq(push),
             push.eq(self.we & self.writable),
             pop.eq(self.re & self.readable),
         ]
         self.sync += [
-            If(push, slots[tail].eq(self.din), tail.eq(Mux(tail == depth - 1, 0, tail + 1))),
+            If(push, tail.eq(Mux(tail == depth - 1, 0, tail + 1))),
             If(pop, head.eq(Mux(head == depth - 1, 0, head + 1))),
             level.eq(level + push - pop),
         ]

@@ -30,9 +30,9 @@ HFW_FILES := $(filter-out cycles/board.c,$(FW_FILES)) cycles/bboard.c cycles/bma
 	host/glass_router.c
 # The glass's input into the cart, and GEM's data disk (bdiskapp.c): per cart, as env.c (they see
 # the cart's w2c_env through host.h).
-HIN_SRC := cycles/binput.c host/input_bridge.c cycles/bdiskapp.c
+HIN_SRC := cycles/binput.c cycles/bcursor.c host/input_bridge.c cycles/bdiskapp.c
 HFW_DEPS  := $(FW_DEPS) cycles/bmicros.h cycles/bdisk.c cycles/bblit.c cycles/bblit.h cycles/bboard.c cycles/bboard.h cycles/bmailbox.c cycles/bmailbox.h cycles/bdiag.c cycles/bdiag.h cycles/vboard.h $(HCYC)/gen/csr_addr.h build/vdump/zm_memmap.h \
-	cycles/binput.c cycles/binput.h host/input_bridge.c host/input_bridge.h host/glass_router.c \
+	cycles/binput.c cycles/binput.h cycles/bcursor.c cycles/bcursor.h host/input_bridge.c host/input_bridge.h host/glass_router.c \
 	cycles/bdiskapp.c cycles/bdiskapp.h cycles/bcartreq.h host/disk_app.h host/zmd_dir.h host/zmd_dir_fat.h gen/glass_cart.h \
 	glass/firmware/glass_input.c glass/firmware/glass_input.h gen/glass_map.h
 # The link of cycles.mk with the top 4 KiB of the window kept free for the debug
