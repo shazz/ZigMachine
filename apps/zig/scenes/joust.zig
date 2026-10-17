@@ -42,6 +42,7 @@ const Color = zg.Color;
 
 const State = @import("joust/state.zig");
 const machine = @import("joust/machine.zig");
+const cyc = @import("joust/cyc.zig");
 const screen = @import("joust/screen.zig");
 const keys = @import("joust/keys.zig");
 const testapi = @import("joust/testapi.zig");
@@ -115,6 +116,7 @@ pub const Demo = struct {
         self.held = 0;
         self.wants_quit = false;
         State.allocMemory(); // once per cart load: reset() and restarts only re-fill it
+        cyc.buildChains(); // span()'s run tables, from the same arena
         self.m.reset(SEED);
         g_demo = self;
         testapi.m = &self.m;

@@ -16,6 +16,7 @@
 const std = @import("std");
 const State = @import("state.zig");
 const St = State.St;
+const chain = @import("cyc_chain.zig");
 
 const TABLE = @embedFile("../../assets/screens/joust/costs.bin");
 const VAR: u16 = 0xFFFF;
@@ -65,8 +66,19 @@ pub fn cost(a: i64) i64 {
     return c;
 }
 
+/// The run tables span() reads (cyc_chain.zig): once, at the scene's init.
+pub fn buildChains() void {
+    chain.build(TABLE);
+}
+
 /// The sum of the fixed costs of every instruction in [lo, hi).
 pub fn span(lo: i64, hi: i64) i64 {
+    return chain.lookup(lo, hi) orelse walk(lo, hi);
+}
+
+/// span() the long way, one instruction at a time: what the run tables do
+/// not hold, and every transcription error (counted here, as before).
+fn walk(lo: i64, hi: i64) i64 {
     var s: i64 = 0;
     var a = lo;
     while (a < hi) {
