@@ -124,6 +124,21 @@ test "rotateXYZ: X, then Y, then Z" {
     try expectEqual(@as(f32, 20), r.y());
 }
 
+test "Rot: built once, applies its matrices in order, like rotateXYZ" {
+    const rot = wf.Rot.xyz(2, 1, 4);
+    for ([_]V4{ V4.new(3, 5, 0, 1), V4.new(-1, 0.5, 2, 1) }) |v| {
+        try expectEqual(wf.rotateXYZ(v, 2, 1, 4), rot.apply(v));
+    }
+    // the first matrix runs first: (x * 2) then + 1
+    const scale_then_shift = wf.Rot.chain(&.{ M4.fromEulerAngles(FakeMath.Vec3.new(2, 0, 0)), M4.fromEulerAngles(FakeMath.Vec3.new(0, 1, 0)) });
+    try expectEqual(@as(f32, 7), scale_then_shift.apply(V4.new(3, 0, 0, 1)).x());
+}
+
+test "Rot: an empty chain leaves the vertex alone" {
+    const v = V4.new(1, 2, 3, 1);
+    try expectEqual(v, wf.Rot.chain(&.{}).apply(v));
+}
+
 const P = struct { x: i16 = 0, y: i16 = 0 };
 
 fn shiftX(dx: f32, v: V4) V4 {
