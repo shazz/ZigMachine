@@ -221,7 +221,8 @@ pub const Demo = struct {
     dhs_inc: i32 = 1, // CODEF yinc = 2
     crossings: u8 = 0,
 
-    // main
+    // main. The distorter phases are u64 turns: the old f32 accumulators drifted (~9e-4 rad by
+    // frame 900, growing), so the frames differ from the f32 cart from frame 910 by <= 0.15 source px.
     dist_a: u64 = 0,
     dist_b: u64 = 0,
     wave: f32 = 0.0,
