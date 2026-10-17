@@ -44,25 +44,33 @@ pub const Cube = struct {
         self.az += 0.013;
     }
 
-    pub fn project(self: *Cube, fov: f32, cx_i: i32, cy_i: i32) void {
+    // Rotate the mesh into camera space. Once a frame: step() calls it, and the
+    // tile/delay modes then only re-project (they used to redo six sin/cos for it).
+    pub fn rotate(self: *Cube) void {
         const sx = @sin(self.ax);
         const cx = @cos(self.ax);
         const sy = @sin(self.ay);
         const cy = @cos(self.ay);
         const sz = @sin(self.az);
         const cz = @cos(self.az);
-        const ox: f32 = @floatFromInt(cx_i);
-        const oy: f32 = @floatFromInt(cy_i);
         for (CUBE, 0..) |p, i| {
             const y1 = p[1] * cx - p[2] * sx;
             const z1 = p[1] * sx + p[2] * cx;
             const x2 = p[0] * cy + z1 * sy;
             const z2 = -p[0] * sy + z1 * cy;
             self.pos[i] = .{ x2 * cz - y1 * sz, x2 * sz + y1 * cz, z2 };
-            const zc = z2 + DIST;
+        }
+    }
+
+    // Perspective-project the rotated vertices around (cx_i, cy_i).
+    pub fn project(self: *Cube, fov: f32, cx_i: i32, cy_i: i32) void {
+        const ox: f32 = @floatFromInt(cx_i);
+        const oy: f32 = @floatFromInt(cy_i);
+        for (self.pos, 0..) |p, i| {
+            const zc = p[2] + DIST;
             self.screen[i] = .{
-                .x = @intFromFloat(ox + self.pos[i][0] * fov / zc),
-                .y = @intFromFloat(oy + self.pos[i][1] * fov / zc),
+                .x = @intFromFloat(ox + p[0] * fov / zc),
+                .y = @intFromFloat(oy + p[1] * fov / zc),
             };
         }
     }
@@ -138,20 +146,26 @@ pub const Palettes = struct {
     }
 };
 
-// Build a 16x16 halftone pattern whose set-bit density tracks `b` (0..1) via a
-// tiled 4x4 Bayer matrix — denser where brighter, for ordered-dither shading.
-pub fn genHalftone(b: f32) [16]u16 {
-    const level: i32 = @intFromFloat(@min(b, 1.0) * 16.0);
-    var rows: [16]u16 = undefined;
-    for (0..16) |y| {
-        var row: u16 = 0;
-        for (0..16) |x| {
-            const t: i32 = BAYER[(y % 4) * 4 + (x % 4)];
-            if (level > t) row |= @as(u16, 1) << @intCast(x);
+// A 16x16 halftone pattern whose set-bit density tracks `b` (0..1) via a
+// tiled 4x4 Bayer matrix: denser where brighter, for ordered-dither shading.
+// Only 17 levels exist, so they are built once at compile time (the loop that
+// ran 256 steps per face per frame, kept as the generator) and indexed.
+const HALFTONES: [17][16]u16 = blk: {
+    var t: [17][16]u16 = undefined;
+    for (&t, 0..) |*rows, level| {
+        for (0..16) |y| {
+            var row: u16 = 0;
+            for (0..16) |x| {
+                if (level > BAYER[(y % 4) * 4 + (x % 4)]) row |= @as(u16, 1) << @intCast(x);
+            }
+            rows[y] = row;
         }
-        rows[y] = row;
     }
-    return rows;
+    break :blk t;
+};
+
+pub fn genHalftone(b: f32) [16]u16 {
+    return HALFTONES[@intCast(@as(i32, @intFromFloat(@min(b, 1.0) * 16.0)))];
 }
 
 fn rgb(c: [3]f32, s: f32) Color {
