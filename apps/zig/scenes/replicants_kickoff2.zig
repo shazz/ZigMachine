@@ -221,7 +221,7 @@ pub const Demo = struct {
     orbit_sets: [SPRITES]trig.Angle, // spritesPos
     orbit_letters: [SPRITES]trig.Angle, // spritesPos1
     orbit_sets_y: [SPRITES]trig.Angle,
-    orbit_letters_y: [SPRITES]trig.Angle
+    orbit_letters_y: [SPRITES]trig.Angle,
     sprite_clock: u32, // time1
     sprite_set: SpriteSet,
 
