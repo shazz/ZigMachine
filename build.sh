@@ -164,6 +164,7 @@ NATIVE_TESTS="
     machine/audio/ym_dac_test.zig
     machine/arena_test.zig
     libs/zig/mem_test.zig
+    libs/zig/libm_f32_test.zig
     libs/zig/sndh_call_test.zig
     libs/zig/shapes_test.zig
     libs/zig/wireframe_test.zig
