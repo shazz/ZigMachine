@@ -177,6 +177,7 @@ NATIVE_TESTS="
     apps/zig/scenes/stniccc/player_test.zig
     apps/zig/scenes/blitter_demo/wobble.zig
     apps/zig/scenes/blitter_demo/soft.zig
+    apps/zig/scenes/music_debug/fsin.zig
 "
 # Compiled and run GATE_TEST_JOBS (default 4) at a time -- the zig cache is
 # safe to share, and a zig test is CPU, not RAM, bound -- then
