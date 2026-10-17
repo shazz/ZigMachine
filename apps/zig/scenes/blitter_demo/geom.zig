@@ -151,6 +151,7 @@ pub const Palettes = struct {
 // Only 17 levels exist, so they are built once at compile time (the loop that
 // ran 256 steps per face per frame, kept as the generator) and indexed.
 const HALFTONES: [17][16]u16 = blk: {
+    @setEvalBranchQuota(100_000);
     var t: [17][16]u16 = undefined;
     for (&t, 0..) |*rows, level| {
         for (0..16) |y| {

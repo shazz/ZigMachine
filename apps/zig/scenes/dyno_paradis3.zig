@@ -356,7 +356,6 @@ pub const Demo = struct {
         const bounce: usize = @intCast(@mod(self.iteration, t.bounce_back.len));
         const bounce_back: usize = t.bounce_back[bounce];
         const bounce_front: usize = t.bounce_front[bounce];
-        const scroll_img = blit.Image.init(scroll_canvas, SCROLL_W);
 
         var wave = WaveCursor.at(&t.back_intro_wave, &t.back_main_wave, self.back_pos);
         for (0..SCREEN_H) |line| {
