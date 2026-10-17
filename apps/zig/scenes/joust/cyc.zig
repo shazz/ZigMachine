@@ -36,7 +36,7 @@ fn fail(a: i64) void {
     errors += 1;
 }
 
-fn entry(a: i64) ?*const [4]u8 {
+inline fn entry(a: i64) ?*const [4]u8 {
     if (a < 0 or (a + 1) * 4 > TABLE.len) return null;
     const i: usize = @intCast(a * 4);
     return TABLE[i..][0..4];
@@ -123,17 +123,17 @@ pub const Cy = struct {
     pub fn init(st: *St) Cy {
         return .{ .st = st, .pend = 0, .total = 0 };
     }
-    pub fn run(self: *Cy, lo: i64, hi: i64) void {
+    pub inline fn run(self: *Cy, lo: i64, hi: i64) void {
         self.pend += span(lo, hi);
     }
-    pub fn one(self: *Cy, a: i64) void {
+    pub inline fn one(self: *Cy, a: i64) void {
         self.pend += cost(a);
     }
-    pub fn br(self: *Cy, a: i64, taken: bool) bool {
+    pub inline fn br(self: *Cy, a: i64, taken: bool) bool {
         self.pend += brc(a, taken);
         return taken;
     }
-    pub fn add(self: *Cy, n: i64) void {
+    pub inline fn add(self: *Cy, n: i64) void {
         self.pend += n;
     }
     pub fn flush(self: *Cy) void {
@@ -158,17 +158,17 @@ pub const Clk = struct {
     pub fn init(st: *St) Clk {
         return .{ .st = st, .total = 0, .pending = 0 };
     }
-    pub fn add(self: *Clk, n: i64) void {
+    pub inline fn add(self: *Clk, n: i64) void {
         self.total += n;
         self.pending += n;
     }
-    pub fn r(self: *Clk, a: i64, hi: i64) void {
+    pub inline fn r(self: *Clk, a: i64, hi: i64) void {
         self.add(span(a, hi));
     }
-    pub fn i(self: *Clk, a: i64) void {
+    pub inline fn i(self: *Clk, a: i64) void {
         self.add(cost(a));
     }
-    pub fn b(self: *Clk, a: i64, cond: bool) bool {
+    pub inline fn b(self: *Clk, a: i64, cond: bool) bool {
         self.add(brc(a, cond));
         return cond;
     }
@@ -180,13 +180,13 @@ pub const Clk = struct {
         self.add((base + 2 * (cnt & 63) + 3) & ~@as(i64, 3));
     }
     // package D's routines count into a Clk through Cy's names
-    pub fn run(self: *Clk, a: i64, b2: i64) void {
+    pub inline fn run(self: *Clk, a: i64, b2: i64) void {
         self.r(a, b2);
     }
-    pub fn one(self: *Clk, a: i64) void {
+    pub inline fn one(self: *Clk, a: i64) void {
         self.i(a);
     }
-    pub fn br(self: *Clk, a: i64, cond: bool) bool {
+    pub inline fn br(self: *Clk, a: i64, cond: bool) bool {
         return self.b(a, cond);
     }
     pub fn flush(self: *Clk) void {
@@ -208,7 +208,7 @@ pub const Clock = struct {
     pub fn init(st: *St, n: i64) Clock {
         return .{ .st = st, .n = n };
     }
-    pub fn add(self: *Clock, k: i64) void {
+    pub inline fn add(self: *Clock, k: i64) void {
         self.n += k;
     }
     pub fn done(self: *Clock) void {

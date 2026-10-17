@@ -64,12 +64,11 @@ pub fn build(t: []const u8) void {
 }
 
 /// The walk's sum from lo to hi, when one run holds both; null otherwise.
-pub fn lookup(lo: i64, hi: i64) ?i64 {
+pub inline fn lookup(lo: i64, hi: i64) ?i64 {
     const t = tab orelse return null;
-    if (lo < 0 or lo > hi or (lo | hi) & 1 != 0) return null;
+    if (lo < 0 or lo > hi or (lo | hi) & 1 != 0 or hi >> 1 >= t.len) return null;
     const il: usize = @intCast(lo >> 1);
     const ih: usize = @intCast(hi >> 1);
-    if (ih >= t.len) return null;
     const el = t[il];
     const eh = t[ih];
     if (el >> 16 == 0 or el >> 16 != eh >> 16) return null;
