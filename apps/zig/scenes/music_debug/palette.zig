@@ -62,18 +62,15 @@ pub const COPPER = blk: {
     break :blk t;
 };
 
-// The logo plane: the TRSI palette (index 0 transparent) and three dimmed
-// copies at 32/64/96 for the darkening trail frames. Init only.
-pub fn logoPalette(p3: *zg.LogicalFB) void {
-    p3.setPalette(trsi_pal);
-    p3.setPaletteEntry(0, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
-    const trail_bases = [3]u8{ 32, 64, 96 };
-    const trail_fac = [3]f32{ 0.5, 0.28, 0.14 };
-    for (trail_bases, trail_fac) |base, f| {
+// The logo's entries from `base`: the TRSI palette's 1..31 and three dimmed
+// copies at +32/+64/+96 for the darkening trail frames. Init only.
+pub fn logoPalette(fb: *zg.LogicalFB, base: u8) void {
+    const trail_fac = [4]f32{ 1, 0.5, 0.28, 0.14 };
+    for (trail_fac, 0..) |f, k| {
         var i: u8 = 1;
         while (i < 32) : (i += 1) {
             const c = trsi_pal[i];
-            p3.setPaletteEntry(base + i, Color{
+            fb.setPaletteEntry(base + @as(u8, @intCast(k * 32)) + i, if (k == 0) c else Color{
                 .r = @intFromFloat(@as(f32, @floatFromInt(c.r)) * f),
                 .g = @intFromFloat(@as(f32, @floatFromInt(c.g)) * f),
                 .b = @intFromFloat(@as(f32, @floatFromInt(c.b)) * f),

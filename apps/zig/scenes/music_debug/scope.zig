@@ -10,6 +10,7 @@ const zg = @import("zigos");
 const ZigOS = zg.ZigOS;
 const LogicalFB = zg.LogicalFB;
 const fsin = @import("fsin.zig");
+const View = @import("view.zig").View;
 const palette = @import("palette.zig");
 const FLOW_N = palette.FLOW_N;
 
@@ -17,18 +18,16 @@ const WIDTH: u16 = zg.WIDTH;
 const HEIGHT: u16 = zg.HEIGHT;
 const SCOPE_LEN: usize = zg.SCOPE_LEN;
 
-pub const SCOPE = [4]u8{ 6, 7, 8, 9 }; // palette entries of the curves
-pub const FLOW_BASE: u8 = 16; // first of FLOW_N gradient palette entries
+pub const SCOPE = [4]u8{ 42, 43, 44, 45 }; // palette entries of the curves
+pub const FLOW_BASE: u8 = 48; // first of FLOW_N gradient palette entries
 const FLOW_BAND: f32 = 24.0; // half-width of the moving band (~48px pulse)
 const FLOW_PERIOD: u32 = 300; // ~5s at 60fps
 const FLOW_PULSE: u32 = 45; // frames the band takes to cross (fast)
 
-// The scope plane: transparent background (the starfield shows through),
-// medium-dark grey curves, and the flow gradient for the sweeping pulse.
-pub fn setPalette(p1: *LogicalFB) void {
-    p1.setPaletteEntry(0, zg.Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
-    for (SCOPE) |e| p1.setPaletteEntry(e, zg.Color{ .r = 90, .g = 90, .b = 96, .a = 255 });
-    for (palette.FLOWGRAD, 0..) |c, k| p1.setPaletteEntry(FLOW_BASE + @as(u8, @intCast(k)), c);
+// The scope's entries: medium-dark grey curves, and the flow gradient for the sweeping pulse.
+pub fn setPalette(fb: *LogicalFB) void {
+    for (SCOPE) |e| fb.setPaletteEntry(e, zg.Color{ .r = 90, .g = 90, .b = 96, .a = 255 });
+    for (palette.FLOWGRAD, 0..) |c, k| fb.setPaletteEntry(FLOW_BASE + @as(u8, @intCast(k)), c);
 }
 
 fn hashRand(x: usize, seed: u32) f32 {
@@ -38,24 +37,17 @@ fn hashRand(x: usize, seed: u32) f32 {
 }
 
 // One column's vertical stroke from the previous sample to this one.
-fn stroke(fb: *LogicalFB, x: usize, prev: i32, yy: i32, col: u8) void {
+fn stroke(v: View, x: usize, prev: i32, yy: i32, col: u8) void {
     var yl = @min(prev, yy);
     const yh = @max(prev, yy);
-    while (yl <= yh) : (yl += 1) {
-        if (yl >= 0 and yl < HEIGHT) fb.setPixelValue(@intCast(x), @intCast(yl), col);
-    }
-}
-
-// The audio modes that draw a scope (the switch in Scope.draw).
-pub fn drawsIn(audio_mode: u8) bool {
-    return audio_mode >= 1 and audio_mode <= 4;
+    while (yl <= yh) : (yl += 1) v.put(@intCast(x), yl, col);
 }
 
 pub const Scope = struct {
     flow_pos: f32 = 0.0,
     flow_active: bool = false,
 
-    pub fn draw(self: *Scope, zigos: *ZigOS, fb: *LogicalFB, flow_frame: u32, phase: f32) void {
+    pub fn draw(self: *Scope, zigos: *ZigOS, v: View, flow_frame: u32, phase: f32) void {
         // update the sweeping "electron flow" band
         const inp = flow_frame % FLOW_PERIOD;
         self.flow_active = inp < FLOW_PULSE;
@@ -65,9 +57,9 @@ pub const Scope = struct {
             self.flow_pos = (@as(f32, WIDTH) + FLOW_BAND) - p * (@as(f32, WIDTH) + 2 * FLOW_BAND);
         }
         switch (zigos.audio_mode) {
-            2, 4 => self.drawYm(zigos, fb, phase), // YM dump and SNDH both drive the PSG
-            1 => self.drawWaves(zigos, fb, 4),
-            3 => self.drawWaves(zigos, fb, 1),
+            2, 4 => self.drawYm(zigos, v, phase), // YM dump and SNDH both drive the PSG
+            1 => self.drawWaves(zigos, v, 4),
+            3 => self.drawWaves(zigos, v, 1),
             else => {},
         }
     }
@@ -82,7 +74,7 @@ pub const Scope = struct {
         return FLOW_BASE + @as(u8, @intCast(gi));
     }
 
-    fn drawWaves(self: *const Scope, zigos: *ZigOS, fb: *LogicalFB, n: usize) void {
+    fn drawWaves(self: *const Scope, zigos: *ZigOS, v: View, n: usize) void {
         const top: i32 = 42;
         const band: i32 = @divTrunc(@as(i32, HEIGHT - 60), @as(i32, @intCast(n)));
         const amp: f32 = if (n == 1) 46.0 else @as(f32, @floatFromInt(band)) * 0.42;
@@ -92,13 +84,13 @@ pub const Scope = struct {
             var prev: i32 = cy;
             for (0..WIDTH) |x| {
                 const yy: i32 = cy + @as(i32, @intFromFloat(samples[x * SCOPE_LEN / WIDTH] * amp));
-                stroke(fb, x, prev, yy, self.color(ch, x));
+                stroke(v, x, prev, yy, self.color(ch, x));
                 prev = yy;
             }
         }
     }
 
-    fn drawYm(self: *const Scope, zigos: *ZigOS, fb: *LogicalFB, phase: f32) void {
+    fn drawYm(self: *const Scope, zigos: *ZigOS, view: View, phase: f32) void {
         const cy = [3]i32{ 66, 108, 150 };
         const regs = &zigos.ym_regs;
         const seed: u32 = @intFromFloat(phase * 7.0);
@@ -122,7 +114,7 @@ pub const Scope = struct {
                     v = if (tone_on) v + nz * 0.4 else nz;
                 }
                 const yy: i32 = cy[ch] + @as(i32, @intFromFloat(v));
-                stroke(fb, x, prev, yy, self.color(ch, x));
+                stroke(view, x, prev, yy, self.color(ch, x));
                 prev = yy;
             }
         }

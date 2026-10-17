@@ -8,11 +8,12 @@
 // computed once a draw, so the inner loop is a load and a store per pixel.
 // --------------------------------------------------------------------------
 const zg = @import("zigos");
-const LogicalFB = zg.LogicalFB;
 const fsin = @import("fsin.zig");
+const View = @import("view.zig").View;
 
 pub const W: usize = 208;
 pub const H: usize = 109;
+pub const BASE: u8 = 128; // the logo's palette entries: 128 + 1..31, trails at +32/+64/+96
 const WIDTH: i32 = zg.WIDTH;
 const HEIGHT: i32 = zg.HEIGHT;
 const AMP: f32 = 8.0; // column wave amplitude
@@ -45,7 +46,7 @@ const runs: Runs = blk: {
     var r: [N_RUNS]Run = undefined;
     var n: usize = 0;
     var top: usize = H;
-    var bottom: usize = 0;
+    var bottom: usize = 0; // the source rows that hold ink
     for (0..W) |x| {
         first[x] = @intCast(n);
         var y: usize = 0;
@@ -63,9 +64,6 @@ const runs: Runs = blk: {
     break :blk Runs{ .first = first, .run = r, .top = top, .bottom = bottom };
 };
 
-// The last screen row the logo can reach (its last opaque row, column wave at +AMP).
-pub const LAST_ROW: u16 = @intCast(BASE_Y + @as(i32, runs.bottom) + @as(i32, @intFromFloat(AMP)));
-
 // The row wave never pushes a row off the plane: |hoff| <= HAMP_MAX keeps
 // START_X + hoff .. + W inside 0..WIDTH, so only the column wave needs clipping.
 comptime {
@@ -74,9 +72,9 @@ comptime {
 }
 
 // Draw the logo at distortion phase `lphase`, palette entries offset by
-// `pal_base` (0 = full colour, 32/64/96 = the dimmer trail copies).
-pub fn draw(fb: *LogicalFB, lphase: f32, pal_base: u8) void {
-    const stride: i32 = fb.stride;
+// `pal_base` (BASE = full colour, BASE + 32/64/96 = the dimmer trail copies).
+pub fn draw(v: View, lphase: f32, pal_base: u8) void {
+    const stride: i32 = v.stride;
     // horizontal distortion amplitude breathes over time (progress/regress)
     const hamp: f32 = (fsin.sin(lphase * 0.7) * 0.5 + 0.5) * HAMP_MAX;
     var rowoff: [H]i32 = undefined; // screen offset of source row r at dy = 0, less BASE_Y rows
@@ -94,7 +92,7 @@ pub fn draw(fb: *LogicalFB, lphase: f32, pal_base: u8) void {
             const y1 = @min(hi, @as(usize, run.y0) + run.len);
             var py: usize = @max(lo, run.y0);
             while (py < y1) : (py += 1) {
-                fb.fb[@intCast(base + rowoff[py])] = pal_base + raw[py * W + px];
+                v.px[@intCast(base + rowoff[py])] = pal_base + raw[py * W + px];
             }
         }
     }

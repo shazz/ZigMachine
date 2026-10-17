@@ -3,14 +3,15 @@
 //
 // Real hardware rasters (per-scanline palette[0] + border background) + a
 // sine-distorted TRSI logo + a player-adaptive YM/MOD/sample oscilloscope +
-// an 8x8-font menu + a 16x16-font bottom scrolltext. Four planes:
-//   plane 0 = 3D starfield (behind)
-//   plane 1 = scope (transparent bg)
-//   plane 2 = menu + fullscreen scrolltext, raster-filled from the HBL
-//   plane 3 = TRSI logo with its trail (transparent bg, on top)
+// an 8x8-font menu + a 16x16-font bottom scrolltext + a 3D starfield, all on
+// ONE 400x280 overscan plane, drawn back to front: stars, scope, menu and
+// scroller, logo. The layers were four planes once; on KESTREL each plane costs
+// FRESCO a pass a line, ~0.9 Mc a frame even when empty, and every layer above
+// the stars is opaque or index 0, so painting them in plane order on one plane
+// gives the same picture (the stars stay translucent over the black background).
 //
-// Board speed (KESTREL, ZIGGY's f32 FPU): the waves use music_debug/fsin.zig,
-// one sine a column, and each plane clears only what it drew (clear.zig).
+// Board speed (ZIGGY's f32 FPU): the waves use music_debug/fsin.zig, one sine a
+// column; CHISEL clears the window and the scroller's band each frame.
 //
 // Keys 1..6 play MOD / YM / sample / SNDH / XM / a local XM. The host only forwards a digit to
 // setShadeMode (docs/sealed-loader.js in the browser, fpga/glass/firmware/glass_input.c on
@@ -38,16 +39,13 @@ const COPPER = palette.COPPER;
 const text = @import("music_debug/text.zig");
 const logo = @import("music_debug/logo.zig");
 const scope = @import("music_debug/scope.zig");
-const clear = @import("music_debug/clear.zig");
+const view = @import("music_debug/view.zig");
 
-// plane 1 (text) palette entries
-const CLEAR: u8 = 0;
-const WHITE: u8 = 1;
-const YELLOW: u8 = 2;
-const GREEN: u8 = 3;
-const CYAN: u8 = 4;
-const DIM: u8 = 5;
-const SCROLL: u8 = 10; // scrolltext colour, raster-cycled per scanline
+// Palette of the one plane: 0 the black background, 1..30 the stars (Starfield3D's
+// greys; 31..39 stay transparent, it can index up to 35), 40.. text, 42.. the scope
+// (scope.zig), 128.. the logo (logo.BASE).
+const WHITE: u8 = 40;
+const SCROLL: u8 = 41; // scrolltext colour, raster-cycled per scanline
 const BGCOL = Color{ .r = 0, .g = 0, .b = 0, .a = 255 };
 
 const RASTER_SPEED: f32 = 0.6; // scrolltext raster cycle speed (lower = slower)
@@ -68,10 +66,10 @@ const MENU = [_]MenuLine{
     .{ .text = "6  XM      LOCAL.XM", .dy = 70, .dphase = 2.0 },
     .{ .text = "PRESS 1 TO 6", .dy = 88, .dphase = 2.4 },
 };
-// The text plane's rows that ever hold a pixel: the menu (2 px of wobble) down to the
-// scroller (6 px of wobble); only these are cleared each frame.
-const TEXT_FIRST_ROW: u16 = MENU_Y - 2;
-const TEXT_LAST_ROW: u16 = SCROLL_Y + 15 + 6;
+// Everything is drawn inside the 320x200 window but the scroller, whose rows (6 px of
+// wobble either side of its 16) cross the borders: the two areas cleared each frame.
+const BAND_Y: i16 = SCROLL_Y - 6;
+const BAND_H: u16 = 16 + 2 * 6;
 
 const MESSAGE =
     "WELCOME TO THE ZIGMACHINE MUSIC DEBUG SCREEN ....   " ++
@@ -86,7 +84,7 @@ const MESSAGE =
 var raster_offset: u16 = 0;
 var raster_phase: f32 = 0.0;
 
-// Per-scanline HBL handler on the text plane: cycles the scrolltext colour
+// Per-scanline HBL handler on the plane: cycles the scrolltext colour
 // through the copper gradient so the letters are raster-filled. Merged with
 // the overscan trick: the scroller spills past 320px into the borders, so
 // they must stay open every line too — both are per-scanline palette/latch
@@ -106,7 +104,6 @@ pub const Demo = struct {
     flow_frame: u32 = 0, // scope electron-flow timer
     scope: scope.Scope = .{},
     blit: zg.Blitter = .{}, // CHISEL: the per-frame clears
-    stars: clear.StarEraser(NB_STARS) = .{},
     starfield: Starfield3D(NB_STARS) = undefined,
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
@@ -118,40 +115,22 @@ pub const Demo = struct {
         zigos.setBackgroundColor(BGCOL); // black borders
         self.blit.init();
 
-        // plane 0: 3D starfield (back). init() sets its own brightness palette.
-        var p0: *LogicalFB = &zigos.lfbs[0];
+        // The one plane: FULLSCREEN (Option-B overscan), so its border columns hold
+        // the scroller that spills past the 320px screen. Coordinates are PHYSICAL;
+        // the window layers draw through a view.View at (40, 40).
+        const p0: *LogicalFB = &zigos.lfbs[0];
         p0.is_enabled = true;
+        p0.setOverscanBuffer();
+        // Starfield3D.init sets the stars' greys (1..30) on its target.
         self.starfield = Starfield3D(NB_STARS).init(p0.getRenderTarget(), WIDTH, HEIGHT, 2, false);
         p0.setPaletteEntry(0, BGCOL); // black background
+        p0.setPaletteEntry(WHITE, Color{ .r = 245, .g = 245, .b = 250, .a = 255 });
+        p0.setPaletteEntry(SCROLL, COPPER[0]);
+        scope.setPalette(p0);
+        palette.logoPalette(p0, logo.BASE);
+        p0.setFrameBufferHBLHandler(zg.OVERSCAN_MAGIC_X, scrollRasterHandler); // raster-fill + overscan flicker
         p0.clearFrameBuffer(0);
-
-        // plane 1: scope (transparent bg so the starfield shows through)
-        var p1: *LogicalFB = &zigos.lfbs[1];
-        p1.is_enabled = false; // on only while a scope is drawn (render)
-        scope.setPalette(p1);
-        p1.clearFrameBuffer(0);
-
-        // plane 2: menu + FULLSCREEN scroll text (its border columns hold the
-        // scroller that spills past the 320px screen — real Option-B overscan,
-        // no physical-framebuffer poke). Coordinates on this plane are PHYSICAL.
-        var p2: *LogicalFB = &zigos.lfbs[2];
-        p2.is_enabled = true;
-        p2.setOverscanBuffer();
-        p2.setPaletteEntry(CLEAR, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
-        p2.setPaletteEntry(WHITE, Color{ .r = 245, .g = 245, .b = 250, .a = 255 });
-        p2.setPaletteEntry(YELLOW, Color{ .r = 255, .g = 220, .b = 90, .a = 255 });
-        p2.setPaletteEntry(GREEN, Color{ .r = 130, .g = 240, .b = 150, .a = 255 });
-        p2.setPaletteEntry(CYAN, Color{ .r = 130, .g = 210, .b = 250, .a = 255 });
-        p2.setPaletteEntry(DIM, Color{ .r = 190, .g = 190, .b = 210, .a = 255 });
-        p2.setPaletteEntry(SCROLL, COPPER[0]);
-        p2.setFrameBufferHBLHandler(zg.OVERSCAN_MAGIC_X, scrollRasterHandler); // raster-fill + overscan flicker
-        p2.clearFrameBuffer(CLEAR);
-
-        // plane 3: TRSI logo (its own palette, index 0 transparent), on top
-        var p3: *LogicalFB = &zigos.lfbs[3];
-        p3.is_enabled = true;
-        palette.logoPalette(p3);
-        p3.clearFrameBuffer(0);
+        for (zigos.lfbs[1..]) |*p| p.is_enabled = false;
     }
 
     pub fn update(self: *Demo, zigos: *ZigOS, time_elapsed: f32) void {
@@ -192,38 +171,24 @@ pub const Demo = struct {
 
     pub fn render(self: *Demo, zigos: *ZigOS, time_elapsed: f32) void {
         _ = time_elapsed;
-
-        // plane 0: starfield
         const p0: *LogicalFB = &zigos.lfbs[0];
-        self.stars.erase(p0);
-        self.starfield.render();
-        self.stars.record(p0, &self.starfield.starfield_table, self.starfield.width, self.starfield.height);
+        const v = view.View.of(p0);
+        self.blit.fill(p0, view.X0, view.Y0, WIDTH, HEIGHT, 0);
+        self.blit.fill(p0, 0, BAND_Y, p0.fb_w, BAND_H, 0);
 
-        // plane 1: scope
-        const p1: *LogicalFB = &zigos.lfbs[1];
-        // An empty plane still costs the board's compositor a pass a line (~0.9 Mc a frame),
-        // and the board never drives the scope (no audio mirror): off while there is none.
-        p1.is_enabled = scope.drawsIn(zigos.audio_mode);
-        if (p1.is_enabled) self.blit.clear(p1, 0);
-        self.scope.draw(zigos, p1, self.flow_frame, self.phase);
-
-        // plane 2 is FULLSCREEN, so coordinates are physical: the visible screen
-        // sits at +HBORD,+VBORD (40,40), so menu text keeps its on-screen place.
-        const p2: *LogicalFB = &zigos.lfbs[2];
-        clear.rows(&self.blit, p2, TEXT_FIRST_ROW, TEXT_LAST_ROW, CLEAR);
+        // back to front, as the planes were stacked
+        view.drawStars(v, &self.starfield);
+        self.scope.draw(zigos, v, self.flow_frame, self.phase);
         for (MENU) |line| {
-            text.drawText8(p2, line.text, MENU_X, MENU_Y + line.dy, WHITE, MENU_WAVE_AMP, self.phase + line.dphase);
+            text.drawText8(p0, line.text, MENU_X, MENU_Y + line.dy, WHITE, MENU_WAVE_AMP, self.phase + line.dphase);
         }
         // the scroller across the full physical width: visible-space x -> physical
         const base_x: i32 = @as(i32, @intFromFloat(self.scroll_x)) + HBORD;
-        text.drawScroller(p2, MESSAGE, base_x, SCROLL_Y, SCROLL, SCROLL_WAVE_AMP, self.phase);
-
-        // plane 3: logo with a 3-frame darkening trail (oldest/darkest first)
-        const p3: *LogicalFB = &zigos.lfbs[3];
-        clear.rows(&self.blit, p3, 0, logo.LAST_ROW, 0);
-        logo.draw(p3, self.logo_phase - 2.4, 96);
-        logo.draw(p3, self.logo_phase - 1.6, 64);
-        logo.draw(p3, self.logo_phase - 0.8, 32);
-        logo.draw(p3, self.logo_phase, 0);
+        text.drawScroller(p0, MESSAGE, base_x, SCROLL_Y, SCROLL, SCROLL_WAVE_AMP, self.phase);
+        // the logo with a 3-frame darkening trail (oldest/darkest first)
+        logo.draw(v, self.logo_phase - 2.4, logo.BASE + 96);
+        logo.draw(v, self.logo_phase - 1.6, logo.BASE + 64);
+        logo.draw(v, self.logo_phase - 0.8, logo.BASE + 32);
+        logo.draw(v, self.logo_phase, logo.BASE);
     }
 };
