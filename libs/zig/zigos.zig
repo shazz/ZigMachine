@@ -637,8 +637,14 @@ pub const LogicalFB = struct {
     }
 
     // --- Palette management ---
+    // Stores only the entries that change: on the board every store is a bus
+    // write (write-through D-cache) and a load is not, and screens call this
+    // from HBL handlers with a palette that is mostly what the plane holds.
     pub fn setPalette(self: *LogicalFB, entries: [256]Color) void {
-        for (entries, 0..) |c, i| self.palette[i] = c.toRGBA();
+        for (entries, 0..) |c, i| {
+            const v = c.toRGBA();
+            if (self.palette[i] != v) self.palette[i] = v;
+        }
     }
 
     pub fn setPaletteEntry(self: *LogicalFB, entry: u8, value: Color) void {
@@ -688,6 +694,13 @@ pub const LogicalFB = struct {
     pub fn clearFrameBufferHBLHandler(self: *LogicalFB) void {
         self.fb_hbl_handler = null;
         writeU16(hw.REG_FB_HBL_ID + @as(usize, self.id) * 2, 0);
+    }
+
+    // Fill a rectangle (signed, clipped to the plane) with one index: a @memset
+    // a row, where carts looped over setPixelValue (a bounds test, a multiply
+    // and a bus write per pixel on the board).
+    pub fn fillRect(self: *LogicalFB, x: i32, y: i32, w: usize, h: usize, pal_entry: u8) void {
+        blit.Dst.plane(self).fill(x, y, w, h, pal_entry);
     }
 };
 
