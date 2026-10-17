@@ -3,9 +3,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ZigMachine — Programmer's Guide</title>
 <meta name="description" content="The ZigMachine reference: video and blitter registers, the sealed HW ABI, the disk and music formats, and the ZigOS / GEM library, generated from the sources.">
-<link rel="stylesheet" href="css/docs.css?v=3f1bd301">
-<link rel="stylesheet" href="css/code.css?v=0edb2f47">
-<link rel="stylesheet" href="css/guide.css?v=ece899e9">
+<link rel="stylesheet" href="css/docs.css">
+<link rel="stylesheet" href="css/code.css">
+<link rel="stylesheet" href="css/guide.css">
 </head>
 <body>
 <header class="topbar">
@@ -891,7 +891,7 @@ requestSong(&quot;sos.sndh&quot;) ──►  polls pollSongRequest() every frame
 </tr>
 <tr>
 <td><code>.xm</code></td>
-<td>FastTracker 2, up to 8 channels, mixed two voices to a Paula channel (<code>libs/zig/players/xm.zig</code>, see <a href="#xm-fasttracker-2">XM</a> below)</td>
+<td>FastTracker 2, up to 12 channels, mixed in software onto the four Paula channels (two voices a channel up to 8 channels, three a channel for 9..12; <code>libs/zig/players/xm.zig</code>, see <a href="#xm-fasttracker-2">XM</a> below)</td>
 <td>no</td>
 </tr>
 <tr>
@@ -1064,9 +1064,9 @@ and SKYSTRIKE's ZIG mode (<code>apps/skystrike_zig_sound.mjs</code>: a game's ow
 and engine note over its flight MOD).</p>
 <h4 id="music-sndh-player-zig-c-rust-xm-fasttracker-2">XM (FastTracker 2)</h4>
 <p><code>zg.requestSong("song.xm")</code> plays a FastTracker 2 module, in the browser and on
-BARD. Its eight voices are mixed two to a Paula channel, so a song of more than
-8 channels is <strong>refused</strong> (<code>audioXmError</code> 5), as are a version before 1.02 and a
-truncated file. The player follows FT2 for the envelope (sustain, loop,
+BARD. Its voices are mixed onto the four Paula channels, two a channel up to 8
+channels and three a channel for 9 to 12, so a song of more than 12 channels is
+<strong>refused</strong> (<code>audioXmError</code> 5), as are a version before 1.02 and a truncated file. The player follows FT2 for the envelope (sustain, loop,
 fadeout), key-off (it cuts a note with no envelope), the instrument number's
 volume reset, both frequency tables, and effects 0-6 9 A-F K E1 E2 E9-EE plus
 the volume column's set and slides. It ignores tremolo, panning, global volume,
@@ -1239,5 +1239,5 @@ the song: keep it off anything you publish.</p>
 <article class="api" id="Desktop.input"><code class="sig"><b class="fn">input</b>(self: *Desktop, dir: u32) <span class="ret">void</span></code><a class="anchor" href="#Desktop.input" aria-label="Link to input">#</a><p class="doc">Directional input from the host (0=up 1=down 2=left 3=right). The desktop only uses left/right, and only to walk the caret in the name field of an open INFORMATION / NEW FOLDER box.</p></article></section>
   </main>
 </div>
-<script src="guide.js?v=3eb64558"></script>
+<script src="guide.js"></script>
 </body></html>

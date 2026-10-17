@@ -81,8 +81,9 @@ every string literal in the cart that ends in a player's extension (`SONG_EXTS`,
 source alone.
 
 **FastTracker 2 (`.xm`).** `host/audio.c` stages an `.xm` and calls `audioLoadXm` then `audioXmPlay` (its tune field
-is the start BPM, 0 = the song's own tempo), the same way a `.mod` goes. The eight voices are mixed in software two
-to a Paula channel (`libs/zig/players/xm.zig`), so the sound CPU needs no more channels than a MOD. Its 32-bit mixer
+is the start BPM, 0 = the song's own tempo), the same way a `.mod` goes. The voices (up to twelve) are mixed in
+software onto the Paula channels (`libs/zig/players/xm.zig`): two to a channel for up to 8 channels, three to a channel
+for 9..12, so the sound CPU needs no more channels than a MOD. Its 32-bit mixer
 keeps each position as a 32-bit frame index plus a 16-bit fraction, so a sample has no length cap beyond song RAM. The test song is `docs/music/zm_test.xm`
 (`apps/xm_song.mjs` writes it).
 

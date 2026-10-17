@@ -1,26 +1,27 @@
 // --------------------------------------------------------------------------
-// The FastTracker 2 .XM player: an OPEN ZigOS player, the 8-voice sibling of
+// The FastTracker 2 .XM player: an OPEN ZigOS player, the 12-voice sibling of
 // mod.zig. It sequences an XM image held in the shared song RAM and plays it
-// through the SAME four Paula channels the MOD player uses, with its eight
-// voices mixed two to a channel in software (xm_mix.zig, xm_chip.zig): so it
-// runs on the sealed audio chip in the browser and on BARD (the FPGA sound
-// CPU), where no chip has more than four channels.
+// through the SAME four Paula channels the MOD player uses, with its voices
+// mixed in software onto them (xm_mix.zig, xm_chip.zig): two to a channel for
+// up to 8 channels, three to a channel for 9..12. So it runs on the sealed
+// audio chip in the browser and on BARD (the FPGA sound CPU), where no chip
+// has more than four channels.
 //
-// Supported: 1..8 channels; linear and Amiga frequency tables; 8- and 16-bit
+// Supported: 1..12 channels; linear and Amiga frequency tables; 8- and 16-bit
 // delta-coded samples with forward and ping-pong loops; the volume envelope
 // with sustain, loop and fadeout (key-off cuts a note with no envelope); the
 // instrument number's volume reset; the volume column's set-volume and slides;
 // effects 0 1 2 3 4 5 6 9 A B C D E1 E2 E9 EA EB EC ED EE F and K
 // (xm_effects.zig). Refused (xm_format.zig, with a reason): not an XM, a
-// version before 1.02, more than 8 channels, a truncated file, a pattern or
+// version before 1.02, more than 12 channels, a truncated file, a pattern or
 // order out of range. Ignored: 7 (tremolo), 8 / P (panning), G / H (global
 // volume), L (envelope position), R (multi retrigger), T (tremor), X1 / X2
 // (extra-fine slides), E3 E4 E5 E6 E7 E8 EF, the volume column's vibrato,
 // panning and tone portamento (Ax Bx Cx Dx Ex Fx), the panning envelope,
 // instrument auto-vibrato and sample panning. No interpolation and no volume
 // ramping (8-bit pair buffers, as Paula). Per-voice XM panning is not kept:
-// each Paula channel carries its pair's voices at the pan of mod.zig's
-// channel for that pair.
+// each Paula channel carries its group's voices at the pan of mod.zig's
+// channel for that group.
 // --------------------------------------------------------------------------
 const fmt = @import("xm_format.zig");
 const pat = @import("xm_pattern.zig");

@@ -25,7 +25,7 @@ The file extension picks the player. Files live under `docs/music/`.
 | `.sndh` | the tune's own 68000 code on the sealed YM (preferred) | yes: `tune` counts from 1, 0 = the file's default |
 | `.ymraw` | YM5!/YM6! register dump (**deprecated**, last resort only) | no |
 | `.mod` | ProTracker 4-channel on the Paula channels: tags `M.K.`, `M!K!`, `4CHN`, `FLT4` only (a 6CHN / 8CHN file is **refused**, see below) | no |
-| `.xm` | FastTracker 2, up to 8 channels, mixed two voices to a Paula channel (`libs/zig/players/xm.zig`, see [XM](#xm-fasttracker-2) below) | no |
+| `.xm` | FastTracker 2, up to 12 channels, mixed in software onto the four Paula channels (two voices a channel up to 8 channels, three a channel for 9..12; `libs/zig/players/xm.zig`, see [XM](#xm-fasttracker-2) below) | no |
 | `.raw` | 8-bit PCM at 12517 Hz | no |
 | `.sap` | an Atari 8-bit tune's own 6502 code on the machine's POKEY (`libs/zig/players/sap_player.zig`): TYPE B and C, mono; D/S/R and STEREO are refused, with the reason on the console | yes: `tune` counts from 1, 0 = the file's DEFSONG |
 
@@ -231,9 +231,9 @@ and engine note over its flight MOD).
 ## XM (FastTracker 2)
 
 `zg.requestSong("song.xm")` plays a FastTracker 2 module, in the browser and on
-BARD. Its eight voices are mixed two to a Paula channel, so a song of more than
-8 channels is **refused** (`audioXmError` 5), as are a version before 1.02 and a
-truncated file. The player follows FT2 for the envelope (sustain, loop,
+BARD. Its voices are mixed onto the four Paula channels, two a channel up to 8
+channels and three a channel for 9 to 12, so a song of more than 12 channels is
+**refused** (`audioXmError` 5), as are a version before 1.02 and a truncated file. The player follows FT2 for the envelope (sustain, loop,
 fadeout), key-off (it cuts a note with no envelope), the instrument number's
 volume reset, both frequency tables, and effects 0-6 9 A-F K E1 E2 E9-EE plus
 the volume column's set and slides. It ignores tremolo, panning, global volume,

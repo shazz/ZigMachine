@@ -1051,7 +1051,7 @@ function startAudio() {
                 else if (msg.type === "xmLoaded" && !msg.ok) {
                     // libs/zig/players/xm_format.zig: the reasons, in its numbering (code()).
                     const why = ["", "shorter than an XM header", "not an Extended Module", "a version before 1.02",
-                        "a bad header size", "not 1 to 8 channels", "a song length of 0 or over 256", "too many patterns",
+                        "a bad header size", "not 1 to 12 channels", "a song length of 0 or over 256", "too many patterns",
                         "too many instruments", "too many samples", "a bad pattern", "a truncated file", "a speed of 0 or a BPM under 32",
                         "a bad instrument", "an order past the patterns", "too big for the song RAM beside the mixer"][msg.error] || `error ${msg.error}`;
                     console.error(`XM REJECTED (${msg.len} bytes, ${msg.rejected} so far): ${why}`);

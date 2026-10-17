@@ -263,8 +263,8 @@ gate mod_sfx node apps/mod_sfx_check.mjs --break release   # ...and the channel 
 gate mod_sfx node apps/mod_sfx_check.mjs --break loop      # ...and the loop expected free before its stop fails
 gate mod_sfx node apps/mod_sfx_check.mjs --break reject    # ...and an 8CHN file expected to load fails
 gate mod_sfx node apps/mod_sfx_check.mjs --break gain      # ...and the effect's channel expected scaled with the song by zg.requestModVolume fails
-gate xm node apps/xm_check.mjs   # FastTracker 2 (.XM) player: the generated 8-channel test song (apps/xm_song.mjs) loads and plays as mode 1 through the sealed Paula channels, never over full scale, not silent; 9-channel / non-XM / truncated files refused with their reasons and counted; rendering it twice is byte-identical and matches the pinned sha256
-gate xm node apps/xm_check.mjs --break refuse   # ...and a 9-channel file expected to load fails
+gate xm node apps/xm_check.mjs   # FastTracker 2 (.XM) player: the generated 8-channel test song (apps/xm_song.mjs) loads and plays as mode 1 through the sealed Paula channels, never over full scale, not silent; the 12-channel song (three voices a channel) loads, plays and renders twice identically; 13-channel / non-XM / truncated files refused with their reasons and counted; rendering it twice is byte-identical and matches the pinned sha256
+gate xm node apps/xm_check.mjs --break refuse   # ...and a 13-channel file expected to load fails
 gate xm node apps/xm_check.mjs --break pin      # ...and a wrong pin fails
 gate music node apps/music_debug_check.mjs   # MUSIC DEBUG: keys 1..6 (setShadeMode, as the loader and the board's glass send them) ask for MOD / YM / sample / SNDH / XM / local XM by name; every committed name is a git-tracked file in docs/music/ (the board's song table is built from them), local.xm never is; key 5's XM plays as mode 1
 gate music node apps/music_debug_check.mjs --break name   # ...and key 5 expected to ask for another file fails

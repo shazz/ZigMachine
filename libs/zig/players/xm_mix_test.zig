@@ -16,7 +16,7 @@ test "a forward loop wraps a voice back to its loop start, output unchanged in l
     const s = inst.Sample{ .len = 4, .loop = inst.LOOP_FORWARD, .loop_start = 0, .loop_len = 4 };
     var v = voice(2, 64);
     var out = [_]i8{0} ** 4;
-    xmix.mixVoice(&v, &data, &s, &out);
+    xmix.mixVoice(&v, &data, &s, &out, xmix.SCALE_PAIR);
     try std.testing.expectEqualSlices(i8, &.{ 5, 15, 5, 15 }, &out);
     try std.testing.expect(v.active);
 }
@@ -26,7 +26,7 @@ test "a ping-pong loop turns round at each end and runs back to the start" {
     const s = inst.Sample{ .len = 4, .loop = inst.LOOP_PINGPONG, .loop_start = 0, .loop_len = 4 };
     var v = voice(1, 64);
     var out = [_]i8{0} ** 8;
-    xmix.mixVoice(&v, &data, &s, &out);
+    xmix.mixVoice(&v, &data, &s, &out, xmix.SCALE_PAIR);
     try std.testing.expectEqualSlices(i8, &.{ 5, 10, 15, 20, 15, 10, 5, 10 }, &out);
 }
 
@@ -35,7 +35,7 @@ test "a voice with no loop runs off the end of its sample and goes silent" {
     const s = inst.Sample{ .len = 2 };
     var v = voice(1, 64);
     var out = [_]i8{0} ** 4;
-    xmix.mixVoice(&v, &data, &s, &out);
+    xmix.mixVoice(&v, &data, &s, &out, xmix.SCALE_PAIR);
     try std.testing.expectEqualSlices(i8, &.{ 5, 10, 0, 0 }, &out);
     try std.testing.expect(!v.active);
 }
@@ -45,7 +45,7 @@ test "an inactive voice adds nothing to the bus" {
     const s = inst.Sample{ .len = 2 };
     var v = xmix.Voice{};
     var out = [_]i8{7} ** 2;
-    xmix.mixVoice(&v, &data, &s, &out);
+    xmix.mixVoice(&v, &data, &s, &out, xmix.SCALE_PAIR);
     try std.testing.expectEqualSlices(i8, &.{ 7, 7 }, &out);
 }
 
@@ -171,7 +171,7 @@ test "a sample over 65536 frames loops at its own end, past the old 16.16 range"
     const s = inst.Sample{ .len = 70000, .loop = inst.LOOP_FORWARD, .loop_start = 60000, .loop_len = 10000 };
     var v = xmix.Voice{ .active = true, .idx = 69995, .step = 1 << 16, .gain = 128 };
     var out = [_]i8{0} ** 12;
-    xmix.mixVoice(&v, &data, &s, &out);
+    xmix.mixVoice(&v, &data, &s, &out, xmix.SCALE_PAIR);
     try std.testing.expectEqualSlices(i8, &.{ 95, 96, 97, 98, 99, 0, 1, 2, 3, 4, 5, 6 }, &out);
     try std.testing.expect(v.active);
 }
@@ -183,7 +183,7 @@ test "a fractional step carries into the frame index across 65536" {
     // Step 1.5: frames 65534, 65535.5, 65537, 65538.5, 65540, 65541.5 (the fraction carried).
     var v = xmix.Voice{ .active = true, .idx = 65534, .step = 98304, .gain = 128 };
     var out = [_]i8{0} ** 6;
-    xmix.mixVoice(&v, &data, &s, &out);
+    xmix.mixVoice(&v, &data, &s, &out, xmix.SCALE_PAIR);
     try std.testing.expectEqualSlices(i8, &.{ 34, 35, 37, 38, 40, 41 }, &out);
 }
 
@@ -193,6 +193,47 @@ test "a ping-pong sample plays its attack before the loop, not reflected into it
     const s = inst.Sample{ .len = 4, .loop = inst.LOOP_PINGPONG, .loop_start = 2, .loop_len = 2 };
     var v = voice(1, 64);
     var out = [_]i8{0} ** 6;
-    xmix.mixVoice(&v, &data, &s, &out);
+    xmix.mixVoice(&v, &data, &s, &out, xmix.SCALE_PAIR);
     try std.testing.expectEqualSlices(i8, &.{ 5, 10, 15, 20, 15, 20 }, &out);
+}
+
+test "three voices at full gain and full scale never wrap: 127 x3 is 123, -128 x3 is -126" {
+    const s = inst.Sample{ .len = 1 };
+    for ([_]struct { sample: i8, want: i8 }{ .{ .sample = 127, .want = 123 }, .{ .sample = -128, .want = -126 } }) |c| {
+        const data = [_]i8{c.sample};
+        var out = [_]i8{0};
+        for (0..3) |_| {
+            var v = voice(1, 64);
+            xmix.mixVoice(&v, &data, &s, &out, xmix.SCALE_TRIPLE);
+        }
+        try std.testing.expectEqual(c.want, out[0]);
+    }
+}
+
+test "a triple voice adds a third of its sample at full gain, and a pair half" {
+    const data = [_]i8{ 90, -90 };
+    const s = inst.Sample{ .len = 2 };
+    var t = voice(1, 64);
+    var tout = [_]i8{ 0, 0 };
+    xmix.mixVoice(&t, &data, &s, &tout, xmix.SCALE_TRIPLE);
+    try std.testing.expectEqualSlices(i8, &.{ 29, -30 }, &tout);
+    var p = voice(1, 64);
+    var pout = [_]i8{ 0, 0 };
+    xmix.mixVoice(&p, &data, &s, &pout, xmix.SCALE_PAIR);
+    try std.testing.expectEqualSlices(i8, &.{ 45, -45 }, &pout);
+}
+
+test "a pair's scale is the shift the two-voice mixer always used, at every gain" {
+    var data: [256]i8 = undefined;
+    for (&data, 0..) |*d, i| d.* = @intCast(@as(i32, @intCast(i)) - 128);
+    const s = inst.Sample{ .len = 256 };
+    for ([_]u32{ 1, 17, 64 }) |gain| {
+        var v = xmix.Voice{ .active = true, .step = 1 << 16, .gain = gain };
+        var out = [_]i8{0} ** 256;
+        xmix.mixVoice(&v, &data, &s, &out, xmix.SCALE_PAIR);
+        for (data, out) |d, o| {
+            const want: i32 = (@as(i32, d) * @as(i32, @intCast(gain))) >> 7;
+            try std.testing.expectEqual(@as(i8, @intCast(want)), o);
+        }
+    }
 }

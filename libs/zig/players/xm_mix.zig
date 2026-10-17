@@ -2,10 +2,17 @@
 // The XM voice mixer: the arithmetic that turns the eight voices into the
 // four PCM buffers the Paula channels play (xm.zig owns the chip writes).
 //
-// Two voices share one Paula channel, so each is attenuated by half before
-// they add: a pair's sum is then within the signed 8-bit range by
-// construction (-128..126), and the Paula channel's volume (mod.zig's
-// chipVolume, HEADROOM included) is the only gain stage left.
+// Voices sharing one Paula channel are attenuated before they add, so their
+// sum stays in the signed 8-bit range by construction. The scale is the
+// number of voices on the channel (xm_chip.zig picks it per song):
+//   two voices: SCALE_PAIR, half of full scale each. -128 + -128 = -128 at
+//     worst and 63 + 63 = 126: exactly the 8-bit range.
+//   three voices: SCALE_TRIPLE, a third of full scale each, rounded DOWN so
+//     that the worst case, -128 at full gain, is -42 (not -43): three of them
+//     sum to -126, and 41 + 41 + 41 = 123 at the top. A third exactly (21845)
+//     would give -43 each and wrap to +125 at -129.
+// The Paula channel's volume (mod.zig's chipVolume, HEADROOM included) is the
+// only gain stage left after that.
 //
 // A position is a frame index (i32: a ping-pong may step below 0 before its
 // fold) and a u16 fraction, so a sample has no length cap beyond song RAM. The
@@ -30,9 +37,17 @@ pub const Voice = struct {
     gain: u32 = 0, // 0..64
 };
 
+/// The Q22 attenuation per voice: a voice adds src * gain * scale >> 22, so at
+/// gain 64 it adds src * scale / 65536. SCALE_PAIR = 2^15 gives src * gain >> 7,
+/// the exact shift the two-voice mixer always used (bit-identical output).
+pub const SCALE_PAIR: i32 = 1 << 15;
+/// 21504 = 42 * 512: 2^22 / 192 rounded down, see the header.
+pub const SCALE_TRIPLE: i32 = 21504;
+
 /// Mix `out.len` output frames of `v` (its sample's frames `src`) ADDED into
-/// `out`. A voice that runs off a sample with no loop goes inactive.
-pub fn mixVoice(v: *Voice, src: []const i8, s: *const inst.Sample, out: []i8) void {
+/// `out`, each attenuated by `scale` (SCALE_PAIR or SCALE_TRIPLE). A voice that
+/// runs off a sample with no loop goes inactive.
+pub fn mixVoice(v: *Voice, src: []const i8, s: *const inst.Sample, out: []i8, scale: i32) void {
     if (!v.active) return;
     const step_int: i32 = @intCast(v.step >> 16);
     const step_frac: u32 = v.step & 0xFFFF;
@@ -41,7 +56,7 @@ pub fn mixVoice(v: *Voice, src: []const i8, s: *const inst.Sample, out: []i8) vo
             v.active = false;
             return;
         }
-        const c: i32 = (@as(i32, src[@intCast(v.idx)]) * @as(i32, @intCast(v.gain))) >> 7;
+        const c: i32 = (@as(i32, src[@intCast(v.idx)]) * @as(i32, @intCast(v.gain)) * scale) >> 22;
         o.* = @intCast(@as(i32, o.*) + c);
         advance(v, step_int, step_frac);
     }
