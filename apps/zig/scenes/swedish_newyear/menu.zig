@@ -13,7 +13,7 @@ const texts = @import("texts.zig");
 const image = @import("image.zig");
 const sc = @import("scroller.zig");
 
-const FONT_W: f64 = 95;
+const FONT_W: i32 = 95;
 const FONT_H: i32 = 55;
 const SCROLL_Y: i32 = 397;
 const FONT_FIRST: u8 = 32;
@@ -22,7 +22,7 @@ pub const Menu = struct {
     scroll: sc.Scroller,
 
     pub fn init(self: *Menu) void {
-        self.scroll.init(texts.menu, FONT_W, 640, 10, null); // init(mycanvas, font7, 10)
+        self.scroll.init(texts.menu, FONT_W, 640, 10); // init(mycanvas, font7, 10)
     }
 
     pub fn step(self: *Menu) void {
@@ -49,7 +49,7 @@ pub const Menu = struct {
             const party = @divFloor(nb, 10) * FONT_H;
             if (party + FONT_H > 330) continue; // CODEF: parth <= 0, nothing drawn
             const partx = @mod(nb, 10) * 95;
-            const posx: i32 = @intFromFloat(self.scroll.posx[k]);
+            const posx: i32 = self.scroll.posx[k];
             var y: i32 = 199;
             while (y < 225) : (y += 1) {
                 const srow = @divFloor(nb, 10) * 27 + @divFloor(2 * y - SCROLL_Y - 1, 2);

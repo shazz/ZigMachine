@@ -46,6 +46,7 @@
 // --------------------------------------------------------------------------
 const zg = @import("zigos");
 const pal = @import("tcb_spreadpoint/palette.zig");
+const fx = @import("turns_fix.zig");
 const raster = @import("tcb_spreadpoint/raster.zig");
 const logo = @import("tcb_spreadpoint/logo.zig");
 const dna = @import("tcb_spreadpoint/dna.zig");
@@ -235,16 +236,19 @@ fn drawScroll(screen: blit.Dst, ite: u64) void {
 
 /// draw_balls: x = 151 + round(151 sin(5 (ite/71 + j/47))),
 ///             y =  50 + round( 50 sin(8 (ite/71 + j/47)))
+/// The angles are u64 turns: ite * (5/71 rad) + j * (5/47 rad), exact for any run
+/// length (turns_fix.zig).
+const BALL_X_ITE = fx.turns(5.0 / 71.0);
+const BALL_X_J = fx.turns(5.0 / 47.0);
+const BALL_Y_ITE = fx.turns(8.0 / 71.0);
+const BALL_Y_J = fx.turns(8.0 / 47.0);
+
 fn drawBalls(screen: blit.Dst, ite: u64) void {
-    const t = @as(f64, @floatFromInt(ite)) / 71.0;
     for (0..BALL_COUNT) |j| {
-        const phase = t + @as(f64, @floatFromInt(j)) / 47.0;
-        const x = 151 + jsRound(151.0 * @sin(5.0 * phase));
-        const y = 50 + jsRound(50.0 * @sin(8.0 * phase));
+        const ax = ite *% BALL_X_ITE +% @as(u64, j) *% BALL_X_J;
+        const ay = ite *% BALL_Y_ITE +% @as(u64, j) *% BALL_Y_J;
+        const x = 151 + fx.roundQ30(0, 151, fx.sin(fx.hi(ax)));
+        const y = 50 + fx.roundQ30(0, 50, fx.sin(fx.hi(ay)));
         blit.blit(screen, ball, null, x, y, 0, .copy);
     }
-}
-
-fn jsRound(v: f64) i32 {
-    return @intFromFloat(@floor(v + 0.5)); // Math.round
 }

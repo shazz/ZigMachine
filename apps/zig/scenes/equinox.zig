@@ -102,6 +102,11 @@ const LOGO_BASE: u8 = 32; // logo colours live after backtop's 24 entries
 const LOGO_COLOURS = 5;
 const LOGO_PERIOD = 400; // `if(frames % 400 == 0) timeToShowLogo = 1`
 const LOGO_STEP_FRAMES = 10; // alphaTime == 10
+const LOGO_ALPHA_BYTE = blk: {
+    var t: [11]u8 = undefined;
+    for (&t, 0..) |*b, k| b.* = @intCast((255 * k + 5) / 10);
+    break :blk t;
+};
 
 // --------------------------------------------------------------------------
 // Plane 2: the dragons (screen.js:152-185, 216-268, 301-306)
@@ -195,8 +200,10 @@ pub const Demo = struct {
     road_frame: usize = 0, // screen.js `counter`
     // the logo
     logo_showing: bool = false, // timeToShowLogo
-    logo_alpha: f64 = 0,
-    logo_inc: f64 = 0,
+    // screen.js's logoAlpha moves in whole tenths (+0.1, then -0.2, then +0.2 a step,
+    // with a 1e-7 floor that only ever rounds the same way), so it is kept in tenths.
+    logo_alpha: u8 = 0,
+    logo_inc: i8 = 0,
     logo_ticks: u32 = 0, // alphaTime
     // the dragons
     tabpos: usize = 0, // trajectory index of the lead dragon for the NEXT frame
@@ -215,8 +222,8 @@ pub const Demo = struct {
         self.frames = 1;
         self.road_frame = 0;
         self.logo_showing = false;
-        self.logo_alpha = 0.00000001;
-        self.logo_inc = 0.1;
+        self.logo_alpha = 0;
+        self.logo_inc = 1;
         self.logo_ticks = 0;
         self.tabpos = 0;
         self.drawn_tabpos = 0;
@@ -298,13 +305,14 @@ pub const Demo = struct {
         if (!self.logo_showing) return;
         self.logo_ticks += 1;
         if (self.logo_ticks != LOGO_STEP_FRAMES) return;
-        self.logo_alpha += self.logo_inc;
-        if (self.logo_alpha >= 1.0) {
-            self.logo_inc = -0.2;
-            self.logo_alpha = 1.0;
-        } else if (self.logo_alpha < 0.1) {
-            self.logo_inc = 0.2;
-            self.logo_alpha = 0.0000001;
+        const next: i8 = @as(i8, @intCast(self.logo_alpha)) + self.logo_inc;
+        self.logo_alpha = @intCast(@max(next, 0));
+        if (next >= 10) {
+            self.logo_inc = -2;
+            self.logo_alpha = 10;
+        } else if (next < 1) {
+            self.logo_inc = 2;
+            self.logo_alpha = 0;
             self.logo_showing = false;
         }
         self.logo_ticks = 0;
@@ -314,7 +322,7 @@ pub const Demo = struct {
     // canvas layer, so the same composite is the palette ALPHA of the logo's
     // entries, blended by the host over the road beneath.
     fn setLogoAlpha(self: *Demo, fb: *LogicalFB) void {
-        const a: u8 = @intFromFloat(@round(@max(0.0, @min(1.0, self.logo_alpha)) * 255.0));
+        const a: u8 = LOGO_ALPHA_BYTE[self.logo_alpha]; // round(tenths / 10 * 255), ties up as the 1e-8 nudge did
         for (0..LOGO_COLOURS) |i| {
             if (i == LOGO_FIELD) continue;
             var c = logo_pal[i];
