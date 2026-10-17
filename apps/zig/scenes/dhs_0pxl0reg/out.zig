@@ -23,20 +23,31 @@ pub var list: *[LINES][SLOTS]u32 = undefined; // x << 16 | ST colour word; ram.z
 var start_set: [LINES]bool = undefined;
 var start_col: [LINES]u16 = undefined;
 var top: u16 = 0; // colour 0 at the top of the frame (model `bg`)
+// The colour the last PROCESSED write left in the register. A write of the same
+// word changes no pixel (the register keeps its value across lines and the HBL
+// keeps the background), so it is never queued: an ST coder would not write it
+// either, and every skipped one saves a list slot and a beam.write in the HBL.
+var cur: u16 = 0;
 
 /// A new frame: nothing written yet, colour 0 is `bg` from the top.
 pub fn begin(bg: u16) void {
     @memset(&count, 0);
     @memset(&start_set, false);
     top = bg;
+    cur = bg;
 }
 
 /// One move.w to colour 0, at cycle `rel` after a kernel's sync.
-pub fn emit(l0: u32, rel: u32, v: u16) void {
+pub inline fn emit(l0: u32, rel: u32, v: u16) void {
+    if (v != cur) emitChange(l0, rel, v);
+}
+
+fn emitChange(l0: u32, rel: u32, v: u16) void {
     const k = rel + 177;
     const st = l0 + (k >> 9);
     const cx: i32 = @intCast(k & 511);
     if (st < 23) return;
+    cur = v; // every write from here on is processed (queued, or the line's start colour)
     const y = st - 23;
     const px = cx - 9;
     if (px < 0) return startColour(y, v);
