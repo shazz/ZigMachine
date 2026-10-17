@@ -11,6 +11,7 @@
 //                     the same in every frame -- 15 star pixels -- and only
 //                     those are drawn, as measured (bottom_rows.py).
 // --------------------------------------------------------------------------
+const std = @import("std");
 const zg = @import("zigos");
 const st = @import("st.zig");
 const LINE = @import("menu_vbl.zig").LINE;
@@ -38,14 +39,40 @@ const stars = [_]Star{
 pub const Lines = struct { first: usize, end: usize };
 pub const MENU_LINES = Lines{ .first = 0, .end = LINES };
 
+/// The planar lines last converted, so a line the VBL did not touch is not
+/// converted again: the menu and F2 change a few dozen of their 255 lines a frame.
+/// `reset()` (a new part) forgets them and repaints everything.
+var shadow: []u8 = &.{};
+var shadow_ok = false;
+
+pub fn reset() void {
+    shadow_ok = false;
+}
+
+fn same(a: []const u8, b: []const u8) bool {
+    var i: usize = 0;
+    while (i + 4 <= a.len) : (i += 4) {
+        if (std.mem.readInt(u32, a[i..][0..4], .little) != std.mem.readInt(u32, b[i..][0..4], .little)) return false;
+    }
+    while (i < a.len) : (i += 1) if (a[i] != b[i]) return false;
+    return true;
+}
+
 /// The frame the shifter shows from `base` into the plane's 400x280 indices.
+/// The plane keeps its pixels between frames (only menuStars() adds to it, the
+/// same pixels each time), so only the lines whose planar bytes changed are redone.
 pub fn present(r: *const st.Ram, base: u32, lines: Lines, px: []u8) void {
-    @memset(px[0 .. (TOP + lines.first) * PW], 0);
+    if (shadow.len == 0) shadow = zg.mem.mustAlloc(u8, LINES * LINE);
+    if (!shadow_ok) @memset(px[0 .. (TOP + lines.first) * PW], 0);
     for (lines.first..lines.end) |y| {
         const line = r.bytes(base + 160 + LINE * @as(u32, @intCast(y)), LINE);
+        const kept = shadow[y * LINE ..][0..LINE];
+        if (shadow_ok and same(line, kept)) continue;
+        @memcpy(kept, line);
         st.lineToChunky(line, FIRST_PX, px[(TOP + y) * PW ..][0..PW]);
     }
-    @memset(px[(TOP + lines.end) * PW .. PH * PW], 0);
+    if (!shadow_ok) @memset(px[(TOP + lines.end) * PW .. PH * PW], 0);
+    shadow_ok = true;
 }
 
 /// The menu's bottom rows, as measured.
