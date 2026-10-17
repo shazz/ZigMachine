@@ -146,7 +146,7 @@ pub const Demo = struct {
             align_x = @intCast(@mod(x, TILE)); // every letter shares this phase
         }
         modes.fillStrip(self.font, &glyphs);
-        modes.draw(self.mode, dst, ROW, align_x, TRAVEL_STEP * @as(f64, @floatFromInt(self.travel)), self.frame);
+        modes.draw(self.mode, dst, ROW, align_x, self.travel, self.frame);
         label(dst, self.font, modes.NAMES[@intFromEnum(self.mode)], LABEL_Y);
         var line: [12]u8 = "TRAVEL     ".* ++ [_]u8{0};
         line[7] = if (self.travel < 0) '-' else ' '; // the font sheet has no '+'

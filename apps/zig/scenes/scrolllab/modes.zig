@@ -28,6 +28,9 @@ const zg = @import("zigos");
 const blit = zg.blit;
 const path = @import("path.zig"); // mode 9: a 2D track, loop included
 const table345 = @import("table345.zig"); // mode 10: screen 345's own playlist
+const sines = @import("sines.zig"); // the term walk, in integers
+const Param = sines.Param;
+const MAX_TERMS = sines.MAX_TERMS;
 
 pub const Mode = enum(u8) { flat, sine_letter, sine_column, codef484, codef484_static, coaster, rubber, pipe, path, table345 };
 pub const NAMES = [_][]const u8{
@@ -47,9 +50,6 @@ pub const TILE = 32; // the font's cell, and one letter of the ring
 /// Longer than the screen: mode 9's track is a squiggle whose arc length is
 /// twice the width, and the text fills all of it. Modes 1-8 clip past 320.
 pub const W = 704;
-const MAX_TERMS = 4;
-/// codef_fx's `params` entry, with its names.
-const Param = struct { value: f64, amp: f64, inc: f64, offset: f64 };
 // V8 Populous (apps/rust/scenes/v8_populous/scroll.rs:124): one sine, amp 40
 // canvas = 20 ST, stepped per LETTER — the baseline Matt called too nice. `inc`
 // is PER COLUMN, identical to p_column's, and siny multiplies it by the stride,
@@ -58,7 +58,9 @@ const Param = struct { value: f64, amp: f64, inc: f64, offset: f64 };
 // and aliased the baseline into noise.)
 var p_letter = [_]Param{.{ .value = 0, .amp = 20, .inc = 0.55 / @as(f64, TILE), .offset = -0.05 }};
 // The same curve per COLUMN: same inc, so only the sampling differs.
-var p_column = [_]Param{.{ .value = 0, .amp = 20, .inc = 0.55 / @as(f64, TILE), .offset = -0.05 }};// CODEF 484 VERBATIM (cascade-archeology.js:76-79), halved/doubled for ST; 484
+var p_column = [_]Param{.{ .value = 0, .amp = 20, .inc = 0.55 / @as(f64, TILE), .offset = -0.05 }};
+
+// CODEF 484 VERBATIM (cascade-archeology.js:76-79), halved/doubled for ST; 484
 // feeds these to sinx, its siny scroller (72-73) differing only in amp 50.
 var p_484 = [_]Param{
     .{ .value = 0, .amp = 10, .inc = 0.06, .offset = -0.05 }, // the short ripple
@@ -97,6 +99,7 @@ pub fn init() void {
     strip = zg.mem.mustAlloc([W]u8, TILE)[0..TILE];
     path.buildPath();
     table345.buildTable();
+    for ([_][]Param{ &p_letter, &p_column, &p_484, &p_484_static, &p_coaster, &p_rubber, &p_pipe }) |ps| sines.prepare(ps, TILE);
 }
 
 pub fn fillStrip(font: blit.Image, glyphs: []const Glyph) void {
@@ -122,12 +125,14 @@ fn paramsOf(mode: Mode) []Param {
 /// steps on the letter boundaries. `travel` is the lab's live knob: pixels a
 /// frame the curve slides, on top of the mode's offsets, as a rigid
 /// translation (offset = -travel*inc). Mode 9 reads it as arc pixels a frame.
-pub fn draw(mode: Mode, dst: blit.Dst, row: i32, align_x: usize, travel: f64, frame: u32) void {
+/// `steps` is the travel in quarter pixels (the lab's TRAVEL_STEP units).
+pub fn draw(mode: Mode, dst: blit.Dst, row: i32, align_x: usize, steps: i32, frame: u32) void {
+    const travel: f64 = 0.25 * @as(f64, @floatFromInt(steps));
     const src = blit.Image.init(std.mem.asBytes(strip), W);
     const p = paramsOf(mode);
     switch (mode) {
         .flat => blit.blit(dst, src, null, 0, row, 0, .copy),
-        .path => path.draw(dst, strip, travel * @as(f64, @floatFromInt(frame))),
+        .path => path.draw(dst, strip, @as(i64, steps) * frame),
         .table345 => table345.draw(dst, src, row, frame),
         .rubber => sinx(dst, src, p, row, travel),
         .pipe => zoomy(dst, src, p, row, travel),
@@ -136,70 +141,58 @@ pub fn draw(mode: Mode, dst: blit.Dst, row: i32, align_x: usize, travel: f64, fr
     }
 }
 
-fn sum(params: []const Param) f64 {
-    var v: f64 = 0;
-    for (params) |p| v += @sin(p.value) * p.amp;
-    return v;
-}
-fn round(v: f64) i32 {
-    return @intFromFloat(@round(v));
-}
-
-/// codef_fx's bookkeeping: snapshot, walk, restore plus the per-frame step.
-fn advance(params: []Param, old: *const [MAX_TERMS]f64, travel: f64) void {
-    for (params, 0..) |*p, j| p.value = old[j] + p.offset - travel * p.inc;
-}
-fn snapshot(params: []const Param, old: *[MAX_TERMS]f64) void {
-    for (params, 0..) |p, j| old[j] = p.value;
-}
-
 /// codef_fx.siny: column i goes to (i, sum + posy); `stride` columns share one
 /// phase step — 1 per column, TILE per letter.
 fn siny(dst: blit.Dst, src: blit.Image, params: []Param, posy: i32, travel: f64, stride: usize, align_x: usize) void {
-    var old: [MAX_TERMS]f64 = undefined;
-    snapshot(params, &old);
+    var w = sines.begin(params);
     for (0..src.w) |i| {
         const cell = blit.Rect{ .x = i, .y = 0, .w = 1, .h = src.h };
-        blit.blit(dst, src, cell, @intCast(i), posy + round(sum(params)), 0, .copy);
+        blit.blit(dst, src, cell, @intCast(i), posy + sines.roundQ38(sines.sumQ38(params, &w)), 0, .copy);
         // the LAST column of each aligned block: every column of a letter
         // shares one phase, and the step lands on the boundary between letters
-        if (i % stride == (align_x + stride - 1) % stride) for (params) |*p| {
-            p.value += p.inc * @as(f64, @floatFromInt(stride));
-        };
+        if (i % stride == (align_x + stride - 1) % stride) sines.step(params, &w, stride != 1);
     }
-    advance(params, &old, travel);
+    sines.advance(params, travel);
 }
 
 /// codef_fx.sinx: source ROW i goes to (sum + posx, i).
 fn sinx(dst: blit.Dst, src: blit.Image, params: []Param, posy: i32, travel: f64) void {
-    var old: [MAX_TERMS]f64 = undefined;
-    snapshot(params, &old);
+    var w = sines.begin(params);
     for (0..src.h) |i| {
         const cell = blit.Rect{ .x = 0, .y = i, .w = src.w, .h = 1 };
-        blit.blit(dst, src, cell, round(sum(params)), posy + @as(i32, @intCast(i)), 0, .copy);
-        for (params) |*p| p.value += p.inc;
+        blit.blit(dst, src, cell, sines.roundQ38(sines.sumQ38(params, &w)), posy + @as(i32, @intCast(i)), 0, .copy);
+        sines.step(params, &w, false);
     }
-    advance(params, &old, travel);
+    sines.advance(params, travel);
 }
 
 /// codef_fx.zoomy: the sum is a vertical SCALE, the column growing downward
-/// from posy. Written out: nothing here scales a single column.
+/// from posy. Written out: nothing here scales a single column. The source row
+/// of output row r is round(r / zoom), walked as r * (1 / zoom) in Q24: one f32
+/// divide a column, none a pixel.
 fn zoomy(dst: blit.Dst, src: blit.Image, params: []Param, posy: i32, travel: f64) void {
-    var old: [MAX_TERMS]f64 = undefined;
-    snapshot(params, &old);
+    var w = sines.begin(params);
     const band = strip; // one load of the arena pointer, not one a pixel
+    const h: i32 = @intCast(src.h);
     for (0..src.w) |i| {
-        const zoom = PIPE_BASE + sum(params);
-        for (params) |*p| p.value += p.inc;
-        if (zoom <= 0 or i >= dst.w) continue;
+        const zoom_q16: i32 = 65536 + @as(i32, @intCast((sines.sumQ38(params, &w) + (1 << 21)) >> 22));
+        sines.step(params, &w, false);
+        if (zoom_q16 <= 0 or i >= dst.w) continue;
+        const rows = (h * zoom_q16 + 32768) >> 16; // round(src.h * zoom)
+        const inv = 65536.0 / @as(f32, @floatFromInt(zoom_q16)); // 1 / zoom
+        const inv_q24: i32 = @intFromFloat(inv * 16777216.0);
+        var acc: i32 = 0;
         var r: i32 = 0;
-        while (r < round(@as(f64, @floatFromInt(src.h)) * zoom)) : (r += 1) {
-            const sr = round(@as(f64, @floatFromInt(r)) / zoom);
+        while (r < rows) : ({
+            r += 1;
+            acc += inv_q24;
+        }) {
+            const sr = (acc + (1 << 23)) >> 24;
             const y = posy + r;
-            if (sr < 0 or sr >= src.h or y < 0 or y >= dst.h) continue;
+            if (sr < 0 or sr >= h or y < 0 or y >= dst.h) continue;
             const p = band[@intCast(sr)][i];
             if (p != 0) dst.buf[@as(usize, @intCast(y)) * dst.stride + i] = p;
         }
     }
-    advance(params, &old, travel);
+    sines.advance(params, travel);
 }
