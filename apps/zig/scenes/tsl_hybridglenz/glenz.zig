@@ -103,7 +103,7 @@ pub const Glenz = struct {
         bl.clearHalftone();
     }
 
-    /// Canvas pixels (Q12) to plane pixels, rounded as zig3d.roundClamped
+    /// Canvas pixels (fixed point) to plane pixels, rounded as zig3d.roundClamped
     /// rounds: the object never reaches 73 px from the canvas centre, and the
     /// clamp keeps a bad value from wrapping the blitter's i16.
     fn at(self: *const Glenz, p: zf.Poly, i: usize) Vec2 {
