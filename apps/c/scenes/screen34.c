@@ -177,7 +177,7 @@ void frame(float dt) {
     (void)dt;
     if (zm_tvnoise_frame()) return; // a channel change: snow first
     u8 *dst = vram();
-    for (int i = 0; i < PW * PH; i++) dst[i] = 0; // the original's fill('#000000')
+    __builtin_memset(dst, 0, PW * PH); // the original's fill('#000000'): one memory.fill, not 112,000 byte stores
 
     // logo: CODEF (320,80) -> ST (160,40) -> physical (+BX,+BY)
     blit_centred(LOGO, LOGO_W, LOGO_H, BX + 160, LAYOUT_Y + 40);

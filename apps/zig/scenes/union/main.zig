@@ -245,10 +245,10 @@ pub const Demo = struct {
     }
 
     fn fill(fb: *LogicalFB, y0: i16, y1: i16, idx: u8) void {
-        var y: i16 = y0;
-        while (y < y1) : (y += 1) {
-            var x: i16 = 0;
-            while (x < PW) : (x += 1) fb.setPixelValue(@intCast(x), @intCast(y), idx);
-        }
+        // Whole rows are one @memset each (was PW setPixelValue calls a row). A row
+        // past the plane's height stays unwritten, as setPixelValue's bounds check did.
+        const w: usize = @min(@as(usize, @intCast(PW)), fb.fb_w);
+        var y: usize = @intCast(y0);
+        while (y < y1 and y < fb.fb_h) : (y += 1) @memset(fb.fb[y * fb.stride ..][0..w], idx);
     }
 };
