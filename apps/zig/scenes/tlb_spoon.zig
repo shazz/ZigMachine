@@ -51,6 +51,7 @@ const LogicalFB = zg.LogicalFB;
 const Color = zg.Color;
 const Console = zg.Console;
 const convertU8ArraytoColors = zg.convertU8ArraytoColors;
+const trig = @import("tlb_spoon/trig.zig");
 
 const W = zg.WIDTH; // 320
 const H = zg.HEIGHT; // 200
@@ -116,19 +117,59 @@ const SCROLL_TEXT = "             " ++
 // --------------------------------------------------------------------------
 // Starfield (screen.js:96-130)
 // --------------------------------------------------------------------------
-const FIELD_X: f64 = 320;
-const FIELD_Y: f64 = 200;
-const FIELD_Z: f64 = 200;
+const FIELD_X: f32 = 320;
+const FIELD_Y: f32 = 200;
+const FIELD_Z: f32 = 200;
 const STAR_NR: usize = 200;
+
+// The drift state is Q40 fixed point in i64: the remake's f64 accumulators step
+// 200 times a frame and a soft-float add costs ~100 cycles. Q40 keeps the
+// 0.0000003 ramp to 1.5e-6 of itself. Float below is comptime-only.
+const Q40: f64 = 1099511627776.0;
+fn q40(v: f64) i64 {
+    return @intFromFloat(@round(v * Q40));
+}
+const RAMP_XY: i64 = q40(0.0000003);
+const RAMP_Z: i64 = q40(0.0000005);
+const FIELD_X_Q16: i64 = 320 << 16;
+const FIELD_Y_Q16: i64 = 200 << 16;
+const FIELD_Z_Q16: i64 = 200 << 16;
 
 // The three drift tables the field steers towards, one triple every 300 frames.
 // They hold FIFTEEN entries and the remake's wrap is `if (nextdata>15)`, so on
 // the sixteenth step it reads xnextdata[15] === undefined: every comparison
 // against it is false and xadd/yadd/zadd simply FREEZE for that period. That
 // off-by-one is the sixteenth "entry" here, and DRIFT_FREEZE reproduces it.
-const DRIFT_X = [_]f64{ 0.02, 0.01, 0.00, 0.00, -0.01, 0.00, 0.00, 0.00, 0.00, 0.00, 0.01, 0.01, -0.01, -0.01, 0.02 };
-const DRIFT_Y = [_]f64{ 0.00, 0.00, 0.00, 0.00, -0.01, -0.01, 0.00, 0.00, 0.01, 0.01, 0.02, 0.01, 0.00, 0.00, 0.00 };
-const DRIFT_Z = [_]f64{ 0.00, 0.01, 0.01, 0.01, -0.01, -0.01, -0.02, -0.02, -0.02, 0.00, 0.01, 0.02, 0.00, 0.01, 0.00 };
+const DRIFT_X = driftQ40(.{ 0.02, 0.01, 0.00, 0.00, -0.01, 0.00, 0.00, 0.00, 0.00, 0.00, 0.01, 0.01, -0.01, -0.01, 0.02 });
+const DRIFT_Y = driftQ40(.{ 0.00, 0.00, 0.00, 0.00, -0.01, -0.01, 0.00, 0.00, 0.01, 0.01, 0.02, 0.01, 0.00, 0.00, 0.00 });
+const DRIFT_Z = driftQ40(.{ 0.00, 0.01, 0.01, 0.01, -0.01, -0.01, -0.02, -0.02, -0.02, 0.00, 0.01, 0.02, 0.00, 0.01, 0.00 });
+fn driftQ40(v: [15]f64) [15]i64 {
+    var out: [15]i64 = undefined;
+    for (v, 0..) |x, i| out[i] = q40(x);
+    return out;
+}
+
+// The intro's wave: slice j of frame n reads sin(0.02 * (j + 1 - n)) -- the
+// angle gains 0.02 per slice and loses 81 * 0.02 a frame -- so the whole wave
+// is one table indexed by (j + 1 - n), built here at comptime.
+const INTRO_Y: [INTRO_FRAMES + 81]i8 = blk: {
+    @setEvalBranchQuota(100_000);
+    var t: [INTRO_FRAMES + 81]i8 = undefined;
+    for (&t, 0..) |*y, i| {
+        const m: f64 = @as(f64, @floatFromInt(i)) - @as(f64, INTRO_FRAMES);
+        y.* = @intFromFloat(@round(30 * @sin(0.02 * m)));
+    }
+    break :blk t;
+};
+
+// The scroller's phase and rotation advance by constants; see tlb_spoon/trig.zig.
+const LETTER_STEP = trig.Step.of(10 * 0.04 + 0.004); // next letter: 0.4 + one 0.004 scfx step
+const FRAME_STEP = trig.Step.of(0.03 + 14 * 0.004); // c * 0.03 and 14 scfx steps
+const JUMP_STEP = trig.Step.of(44 * 0.008);
+const THETA_STEP = trig.Step.of(-0.015);
+const LOGO1_STEP = trig.Step.of(0.03);
+const LOGO2_STEP = trig.Step.of(0.06);
+const LETTER_ANGLE_SCALE: f32 = -50.0 * 0.5 * (std.math.pi / 180.0);
 const DRIFT_FREEZE: usize = 15;
 
 // --------------------------------------------------------------------------
@@ -178,38 +219,37 @@ pub const Demo = struct {
     counter: u32,
 
     // intro()
-    angle: f64,
     introx: i32,
     draw_introx: i32, // the pan THIS frame draws with: intro() blits, THEN advances
     slice_y: [80]i16,
 
     // starballs()
-    starx: [STAR_NR]f64,
-    stary: [STAR_NR]f64,
-    starz: [STAR_NR]f64,
+    starx: [STAR_NR]i16,
+    stary: [STAR_NR]i16, // starz[i] = i
     startimer: u32,
     nextdata: usize,
-    xnext: f64,
-    ynext: f64,
-    znext: f64,
+    xnext: i64, // Q40
+    ynext: i64,
+    znext: i64,
     drift_frozen: bool,
-    xadd: f64,
-    yadd: f64,
-    zadd: f64,
-    xaddspeed: f64,
-    yaddspeed: f64,
-    zaddspeed: f64,
+    xadd: i64,
+    yadd: i64,
+    zadd: i64,
+    xaddspeed: i64,
+    yaddspeed: i64,
+    zaddspeed: i64,
     balls: [STAR_NR]Ball,
 
     // logo()
-    loangle1: f64,
-    loangle2: f64,
+    lo1: trig.Rotor, // loangle1
+    lo2: trig.Rotor, // loangle2
     logo_x: i32,
     logo_y: i32,
 
     // scroller()
     sm: i32,
-    scfx: f64,
+    ph: trig.Rotor, // phase of letter 0: c * 0.03 + scfx + 0.004
+    th: trig.Rotor, // the scroll plane's theta
     letternext: usize,
     letters: [NB_LETTERS]Letter,
     frame: Frame,
@@ -230,38 +270,37 @@ pub const Demo = struct {
         // Struct defaults never run (demo_main holds the cart as `undefined`),
         // so every field is assigned here.
         self.counter = 0;
-        self.angle = 0;
         self.introx = 0;
         self.draw_introx = 0;
         self.slice_y = [_]i16{0} ** 80;
 
         self.rng = 0x1d872b41;
         for (0..STAR_NR) |i| {
-            self.starx[i] = @floor(self.random() * FIELD_X);
-            self.stary[i] = @floor(self.random() * FIELD_Y);
-            self.starz[i] = @as(f64, @floatFromInt(i)) * (FIELD_Z / @as(f64, STAR_NR));
+            self.starx[i] = @intFromFloat(@floor(self.random() * 320.0)); // init-time float
+            self.stary[i] = @intFromFloat(@floor(self.random() * 200.0));
             self.balls[i] = .{ .x = 0, .y = 0, .s = 0 };
         }
         self.startimer = 0;
         self.nextdata = 0;
-        self.xnext = 0.02;
-        self.ynext = 0.00;
-        self.znext = 0.00;
+        self.xnext = q40(0.02);
+        self.ynext = 0;
+        self.znext = 0;
         self.drift_frozen = false;
-        self.xadd = 0.02;
+        self.xadd = q40(0.02);
         self.yadd = 0;
         self.zadd = 0;
-        self.xaddspeed = 0.02;
-        self.yaddspeed = 0.01;
-        self.zaddspeed = 0.01;
+        self.xaddspeed = q40(0.02);
+        self.yaddspeed = q40(0.01);
+        self.zaddspeed = q40(0.01);
 
-        self.loangle1 = 0;
-        self.loangle2 = 0;
+        self.lo1 = trig.Rotor.at(0);
+        self.lo2 = trig.Rotor.at(0);
         self.logo_x = 0;
         self.logo_y = 0;
 
         self.sm = 0;
-        self.scfx = 0;
+        self.ph = trig.Rotor.at(@as(f64, INTRO_FRAMES) * 0.03 + 0.004); // init-time float
+        self.th = trig.Rotor.at(std.math.pi / 180.0 - @as(f64, INTRO_FRAMES) * 0.015);
         self.letternext = 0;
         self.letters = [_]Letter{.{ .tile = GLYPH_TILES, .ox = 0, .oy = 0, .cb = 1, .sb = 0 }} ** NB_LETTERS;
         self.frame = .{ .ct = 1, .st = 0, .cx = 0, .cy = 0, .sx = 0, .sy = 0 };
@@ -317,11 +356,8 @@ pub const Demo = struct {
     // The strip itself is never materialised here: a strip column maps straight
     // back to a glyph column of introfont.raw, which saves 64 KB and a blit.
     fn updateIntro(self: *Demo) void {
-        for (&self.slice_y) |*y| {
-            self.angle += 0.02;
-            y.* = @intFromFloat(@round(30 * @sin(self.angle)));
-        }
-        self.angle -= 81 * 0.02;
+        const base: i32 = 1 - @as(i32, @intCast(self.counter)) + INTRO_FRAMES;
+        for (&self.slice_y, 0..) |*y, j| y.* = INTRO_Y[@intCast(base + @as(i32, @intCast(j)))];
         self.draw_introx = self.introx;
         self.introx += 3;
     }
@@ -364,28 +400,38 @@ pub const Demo = struct {
 
         for (0..STAR_NR) |i| {
             if (!self.drift_frozen) {
-                if (self.xnext > self.xadd) self.xadd += 0.0000003;
-                if (self.xnext < self.xadd) self.xadd -= 0.0000003;
-                if (self.ynext > self.yadd) self.yadd += 0.0000003;
-                if (self.ynext < self.yadd) self.yadd -= 0.0000003;
-                if (self.znext > self.zadd) self.zadd += 0.0000005;
-                if (self.znext < self.zadd) self.zadd -= 0.0000005;
+                if (self.xnext > self.xadd) self.xadd += RAMP_XY;
+                if (self.xnext < self.xadd) self.xadd -= RAMP_XY;
+                if (self.ynext > self.yadd) self.yadd += RAMP_XY;
+                if (self.ynext < self.yadd) self.yadd -= RAMP_XY;
+                if (self.znext > self.zadd) self.zadd += RAMP_Z;
+                if (self.znext < self.zadd) self.zadd -= RAMP_Z;
             }
             self.xaddspeed += self.xadd;
             self.yaddspeed += self.yadd;
             self.zaddspeed += self.zadd;
 
-            const px = wrapField(self.starx[i] + self.xaddspeed, FIELD_X);
-            const py = wrapField(self.stary[i] + self.yaddspeed, FIELD_Y);
-            const pz = wrapField(self.starz[i] - self.zaddspeed, FIELD_Z);
+            const px = wrapQ16((@as(i64, self.starx[i]) << 16) + (self.xaddspeed >> 24), FIELD_X_Q16);
+            const py = wrapQ16((@as(i64, self.stary[i]) << 16) + (self.yaddspeed >> 24), FIELD_Y_Q16);
+            const pz = wrapQ16((@as(i64, @intCast(i)) << 16) - (self.zaddspeed >> 24), FIELD_Z_Q16);
+            if (pz == 0) {
+                self.balls[i] = .{ .x = 1.0e6, .y = 1.0e6, .s = 1 }; // z = 0 projects to infinity
+                continue;
+            }
 
-            const k = 128 / pz;
+            const pzf = q16f(pz);
+            const k = 128 / pzf;
             self.balls[i] = .{
-                .x = clampPlot((px - FIELD_X / 2) * k + FIELD_X / 2),
-                .y = clampPlot((py - FIELD_Y / 2) * k + FIELD_Y / 2),
-                .s = @floatCast(1 - pz / FIELD_Z),
+                .x = clampPlot((q16f(px) - FIELD_X / 2) * k + FIELD_X / 2),
+                .y = clampPlot((q16f(py) - FIELD_Y / 2) * k + FIELD_Y / 2),
+                .s = 1 - pzf / FIELD_Z,
             };
         }
+        // The speeds only matter modulo the field (stars start on whole units),
+        // and an unbounded Q40 would overflow after hours.
+        self.xaddspeed = wrapQ40(self.xaddspeed, FIELD_X_Q16);
+        self.yaddspeed = wrapQ40(self.yaddspeed, FIELD_Y_Q16);
+        self.zaddspeed = wrapQ40(self.zaddspeed, FIELD_Z_Q16);
     }
 
     fn drawStars(self: *Demo, fb: *LogicalFB) void {
@@ -399,10 +445,11 @@ pub const Demo = struct {
     // logo() — screen.js:299-306
     // ----------------------------------------------------------------------
     fn updateLogo(self: *Demo) void {
-        self.loangle1 += 0.03;
-        self.loangle2 += 0.06;
-        self.logo_x = @intFromFloat(@round(80 * @sin(self.loangle1) + 80));
-        self.logo_y = @intFromFloat(@round(-50 * @cos(self.loangle2) + 55));
+        self.lo1.turn(LOGO1_STEP);
+        self.lo2.turn(LOGO2_STEP);
+        // round(80 sin + 80) and round(55 - 50 cos): both positive, so floor(v + 0.5)
+        self.logo_x = @intCast(((@as(i64, 80) * self.lo1.s + (@as(i64, 80) << 30)) + (1 << 29)) >> 30);
+        self.logo_y = @intCast((((@as(i64, 55) << 30) - @as(i64, 50) * self.lo2.c) + (1 << 29)) >> 30);
     }
 
     fn drawLogo(self: *Demo, fb: *LogicalFB) void {
@@ -440,7 +487,7 @@ pub const Demo = struct {
     // So this screen paints, and it paints into ONE plane.
     fn updateScroller(self: *Demo) void {
         if (self.sm < -31) {
-            self.scfx += 44 * 0.008;
+            self.ph.turn(JUMP_STEP);
             self.sm = 0;
             self.letternext += 1;
             if (self.letternext > SCROLL_TEXT.len - 12) self.letternext = 0;
@@ -450,42 +497,42 @@ pub const Demo = struct {
         // The transform the frame is SHOWN through is the previous frame's (see
         // the note by SCROLL_W). Before there is one, the letters go up 1:1 at
         // (-40,0) — the identity testcanvas the remake starts with.
-        const c: f64 = @floatFromInt(self.counter);
-        const theta: f64 = if (self.first_main) 0 else std.math.pi / 180.0 - (c - 1) * 0.015;
-        const ct = @cos(theta);
-        const st = @sin(theta);
-        self.frame = if (self.first_main)
+        const first = self.first_main;
+        const ct: f32 = if (first) 1 else self.th.cosF();
+        const st: f32 = if (first) 0 else self.th.sinF();
+        self.frame = if (first)
             Frame{ .ct = 1, .st = 0, .cx = -40, .cy = 0, .sx = 0, .sy = 0 }
         else
-            Frame{ .ct = @floatCast(ct), .st = @floatCast(st), .cx = 160, .cy = 100, .sx = 200, .sy = 120 };
+            Frame{ .ct = ct, .st = st, .cx = 160, .cy = 100, .sx = 200, .sy = 120 };
         self.first_main = false;
 
+        var phase = self.ph;
         for (&self.letters, 0..) |*slot, i| {
-            self.scfx += 0.004;
-            const phase = c * 0.03 + self.scfx + @as(f64, @floatFromInt(i)) * (10 * 0.04);
-            const scx: f64 = @floatFromInt(self.sm + 32 * @as(i32, @intCast(i)));
-            const scy: f64 = 50 * @cos(phase) + 90;
-            const letter_angle = (-50 * @sin(phase) * 0.5) * std.math.pi / 180.0;
-
+            if (i > 0) phase.turn(LETTER_STEP);
             slot.* = .{ .tile = GLYPH_TILES, .ox = 0, .oy = 0, .cb = 1, .sb = 0 };
             const idx = i + self.letternext;
             if (idx >= SCROLL_TEXT.len) continue; // charAt() past the end draws nothing
             const ch = SCROLL_TEXT[idx];
             if (ch < GLYPH_FIRST or ch - GLYPH_FIRST >= GLYPH_TILES) continue;
 
+            const scx: f32 = @floatFromInt(self.sm + 32 * @as(i32, @intCast(i)));
+            const scy: f32 = 50 * phase.cosF() + 90;
+            const la = trig.sinCosSmall(phase.sinF() * LETTER_ANGLE_SCALE);
+
             // Glyph point g lands at O + R(theta + letter_angle) * g, where O is
             // the image of the glyph's own (scx,scy) origin.
-            const dx = scx - @as(f64, self.frame.sx);
-            const dy = scy - @as(f64, self.frame.sy);
-            const b = theta + letter_angle;
+            const dx = scx - self.frame.sx;
+            const dy = scy - self.frame.sy;
             slot.* = .{
                 .tile = ch - GLYPH_FIRST,
-                .ox = @floatCast(@as(f64, self.frame.cx) + ct * dx - st * dy),
-                .oy = @floatCast(@as(f64, self.frame.cy) + st * dx + ct * dy),
-                .cb = @floatCast(@cos(b)),
-                .sb = @floatCast(@sin(b)),
+                .ox = self.frame.cx + ct * dx - st * dy,
+                .oy = self.frame.cy + st * dx + ct * dy,
+                .cb = ct * la.c - st * la.s,
+                .sb = st * la.c + ct * la.s,
             };
         }
+        self.ph.turn(FRAME_STEP);
+        if (!first) self.th.turn(THETA_STEP);
     }
 
     fn drawScroller(self: *Demo, fb: *LogicalFB) void {
@@ -499,20 +546,33 @@ pub const Demo = struct {
 // --------------------------------------------------------------------------
 // Helpers
 // --------------------------------------------------------------------------
-// `if(p>size) p-=size*floor(p/size); if(p<0) p-=size*floor(p/size);` — the two
-// branches are exclusive and both are a modulo; p == size is left alone, which
-// is why this is not simply @mod (a star that landed exactly on the far z plane
-// would flip from size to 0 and project to infinity).
-fn wrapField(p: f64, size: f64) f64 {
-    if (p > size or p < 0) return p - size * @floor(p / size);
-    return p;
+// `if(p>size) p-=size*floor(p/size); if(p<0) p-=size*floor(p/size);` on a Q16
+// value that is at most a few units out of range: a conditional add/subtract
+// does the modulo with no divide.
+fn wrapQ16(p: i64, size: i64) i32 {
+    var v = p;
+    while (v >= size) v -= size;
+    while (v < 0) v += size;
+    return @intCast(v);
+}
+
+fn wrapQ40(v: i64, size_q16: i64) i64 {
+    var r = v;
+    const size = size_q16 << 24;
+    while (r >= size) r -= size;
+    while (r < 0) r += size;
+    return r;
+}
+
+inline fn q16f(v: i32) f32 {
+    return @as(f32, @floatFromInt(v)) * (1.0 / 65536.0);
 }
 
 // A star at z -> 0 projects arbitrarily far away; keep the value representable
 // so the blit's bounding box arithmetic cannot overflow.
-fn clampPlot(v: f64) f32 {
+fn clampPlot(v: f32) f32 {
     if (!(v > -1.0e6) or !(v < 1.0e6)) return 1.0e6;
-    return @floatCast(v);
+    return v;
 }
 
 // One column of the intro's virtual strip: strip x -> glyph column of the sheet.
@@ -544,21 +604,26 @@ fn drawScaledBall(fb: *LogicalFB, b: Ball) void {
     const y1 = @min(H, @as(i32, @intFromFloat(@ceil(b.y + span - 0.5))));
     if (x0 >= x1 or y0 >= y1) return;
 
+    // A ball is at most 8 px wide: its source columns are worked out once, not per row.
+    const inv = 1.0 / b.s;
+    var cols: [BALL_SIZE + 1]u8 = undefined;
+    const nx: usize = @intCast(@min(BALL_SIZE + 1, x1 - x0));
+    for (0..nx) |i| cols[i] = sampleIndex(@as(f32, @floatFromInt(x0 + @as(i32, @intCast(i)))) + 0.5 - b.x, inv);
+
     var y = y0;
     while (y < y1) : (y += 1) {
-        const sy = sampleIndex(@as(f32, @floatFromInt(y)) + 0.5 - b.y, b.s);
+        const sy = sampleIndex(@as(f32, @floatFromInt(y)) + 0.5 - b.y, inv);
         const src = ball_b[sy * BALL_SIZE ..];
-        const dst = fb.fb[@as(usize, @intCast(y)) * W ..];
-        var x = x0;
-        while (x < x1) : (x += 1) {
-            const v = src[sampleIndex(@as(f32, @floatFromInt(x)) + 0.5 - b.x, b.s)];
-            if (v != 0) dst[@intCast(x)] = v;
+        const dst = fb.fb[@as(usize, @intCast(y)) * W + @as(usize, @intCast(x0)) ..];
+        for (cols[0..nx], 0..) |c, i| {
+            const v = src[c];
+            if (v != 0) dst[i] = v;
         }
     }
 }
 
-fn sampleIndex(offset: f32, scale: f32) usize {
-    const i = @as(i32, @intFromFloat(@floor(offset / scale)));
+fn sampleIndex(offset: f32, inv_scale: f32) u8 {
+    const i = @as(i32, @intFromFloat(@floor(offset * inv_scale)));
     return @intCast(@min(BALL_SIZE - 1, @max(0, i)));
 }
 
