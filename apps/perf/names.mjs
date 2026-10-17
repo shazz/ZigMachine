@@ -22,9 +22,10 @@ function sameCode(a, b) {
 // -> { names: Map | null, why: string }
 export function twinNames(wasmPath, dir = DEFAULT_NAMES_DIR) {
     const twin = `${dir}/${basename(wasmPath)}`;
-    if (!existsSync(twin)) return { names: null, why: `no twin (${twin}; run tools/perf_names.sh)` };
-    const a = parseModule(readFileSync(wasmPath)), b = parseModule(readFileSync(twin));
+    const a = parseModule(readFileSync(wasmPath));
     if (a.names.size) return { names: a.names, why: "own name section" };
+    if (!existsSync(twin)) return { names: null, why: `no twin (${twin}; run tools/perf_names.sh)` };
+    const b = parseModule(readFileSync(twin));
     if (!b.names.size) return { names: null, why: `twin ${twin} has no name section` };
     if (!sameCode(a, b)) return { names: null, why: `twin ${twin} is stale (code differs): rebuild it` };
     return { names: b.names, why: "twin" };

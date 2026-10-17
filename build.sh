@@ -468,6 +468,10 @@ gate stniccc node apps/stniccc_headless.mjs "$SHOTS/stniccc"   # STNICCC 2000 (O
 gate cuddly_starwars node apps/cuddly_starwars_headless.mjs "$SHOTS/cuddly_starwars"   # CUDDLY STAR WARS: the harness existed but no gate ran it; fails on a refused zg.mem allocation
 gate ulm_spoon_distorter node apps/ulm_spoon_distorter_headless.mjs "$SHOTS/ulm_spoon_distorter"   # ULM SPOON DISTORTER: the harness existed but no gate ran it; fails on a refused zg.mem allocation
 gate tlb_spoon node apps/tlb_spoon_headless.mjs "$SHOTS/tlb_spoon"   # TLB TWIDDLE: the sine intro, then starballs + logo + the rotating-letter scroller
+gate perf_audit node apps/perf_audit_test.mjs   # the KESTREL perf suite: each bad pattern planted in a tiny cart is found statically and (dynamic ones) hot in a real run, the byte-loop clear first at ~2 Mc, the f64 loop first; each clean twin is not; the counts are deterministic
+gate perf_audit node apps/perf_audit_test.mjs --break bytefill   # ...and the byte-loop clear swapped for its memset twin fails the byte_fill checks
+gate perf_audit node apps/perf_audit_test.mjs --break f64        # ...and the f64 loop swapped for integer maths fails the f64 checks
+gate perf_report sh tools/perf_audit.sh --report --jobs 2   # REPORT, never fails the gate: the shelf ranked by ESTIMATED Mc/frame on ZIGGY with each cart's first hot finding (JSON: zig-out/perf_audit.json)
 run_gates
 echo "shots in $SHOTS"
 

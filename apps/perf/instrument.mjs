@@ -5,17 +5,25 @@
 import { parseModule, encU32, encName, section, funcName } from "./wasm_bin.mjs";
 import { decodeFunction } from "./wasm_body.mjs";
 import { OP } from "./wasm_ops.mjs";
-import { opCost, isLibm, CLASSES, CLS } from "./cost_model.mjs";
+import { opCost, isLibm, CLASSES, CLS, CONST_DIV } from "./cost_model.mjs";
+import { producers, source } from "./flow.mjs";
 import { inc, fillHook, copyHook, palHook, PAL_STORES, FIRST_COUNTER } from "./hooks.mjs";
 
 const NCLS = CLASSES.length;
 const TEMPS = 5; // i32 scratch locals added to a function that carries a hook
+const DIVIDES = new Set([0x6d, 0x6e, 0x6f, 0x70, 0x7f, 0x80, 0x81, 0x82]);
 
-function segStatics(m, d, seg, plan, s) {
+// A divide by a constant: GCC turns wasm2c's x / 7 into a multiply-high and shifts.
+function constDivisor(d, args, i) {
+    const v = source(d, args, args[i][1]);
+    return v >= 0 && (d.instrs[v].op === OP.i32_const || d.instrs[v].op === OP.i64_const);
+}
+
+function segStatics(m, d, args, seg, plan, s) {
     let instr = 0, stores = 0, fetch = 0;
     for (let i = seg.first; i <= seg.last; i++) {
         const { op, imm } = d.instrs[i];
-        const [c, cls, st] = opCost(op);
+        const [c, cls, st] = DIVIDES.has(op) && constDivisor(d, args, i) ? [op < 0x7f ? CONST_DIV : 4 * CONST_DIV, -1, 0] : opCost(op);
         instr += c; stores += st;
         fetch += Math.min(c, 3); // inline rv32 instructions: a soft-float op is a call into shared libgcc
         if (cls >= 0) { plan.cls[s * NCLS + cls]++; plan.clsCyc[s * NCLS + cls] += c; }
@@ -55,13 +63,14 @@ function hookFor(d, i, ctx) {
 
 function rewriteBody(m, k, ctx) {
     const d = decodeFunction(m, k), plan = ctx.plan, regionIds = new Map();
+    const args = producers(m, d);
     const heads = new Map();
     for (const seg of d.segs) {
         const s = plan.segFunc.length;
         plan.segFunc.push(d.fi); plan.segRegion.push(regionOf(d, seg.loop, plan, regionIds));
         plan.segWord.push(ctx.next); plan.segAt.push(d.instrs[seg.first].at);
         heads.set(seg.first, [inc(ctx.next++), s]);
-        segStatics(m, d, seg, plan, s);
+        segStatics(m, d, args, seg, plan, s);
     }
     const code = [];
     let hooked = false;

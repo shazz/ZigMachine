@@ -44,6 +44,7 @@ export const FILL_WORD = 1.5;     // memset/memcpy instructions per 32-bit word 
 export const ICACHE = 16384;
 export const ICACHE_MISS_CPI = 5;
 export const icacheCycles = (instr, codeBytes) => instr * ICACHE_MISS_CPI * Math.max(0, 1 - ICACHE / Math.max(1, codeBytes));
+export const CONST_DIV = 5;      // i32 divide by a constant (mulhu + shifts); i64: 4x
 export const MHZ = 100;
 export const FRAME_MC = MHZ / 60; // 1.667 Mc: a 60 Hz frame
 

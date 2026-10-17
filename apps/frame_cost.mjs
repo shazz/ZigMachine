@@ -21,33 +21,37 @@ import { twinNames, DEFAULT_NAMES_DIR } from "./perf/names.mjs";
 import { printOne } from "./perf/print.mjs";
 import { runAll } from "./perf/run_all.mjs";
 
+// option -> [takes a value, set(o, value), forwarded to each cart's child under --all]
+const OPTIONS = {
+    "--frames": [true, (o, v) => { o.frames = Number(v); }, true],
+    "--warmup": [true, (o, v) => { o.warmup = Number(v); }, true],
+    "--top": [true, (o, v) => { o.top = Number(v); }, true],
+    "--call": [true, (o, v) => { o.callSpecs.push(v); }, true],
+    "--disk": [true, (o, v) => { o.disk = v; }, true],
+    "--no-disk": [false, (o) => { o.disk = null; }, true],
+    "--names": [true, (o, v) => { o.namesDir = v; }, true],
+    "--machine": [true, (o, v) => { o.machineDir = v; }, true],
+    "--no-pal": [false, (o) => { o.pal = false; }, true],
+    "--json": [false, (o) => { o.json = true; }, false],
+    "--all": [false, (o) => { o.all = true; }, false],
+    "--jobs": [true, (o, v) => { o.jobs = Number(v); }, false],
+    "--top-n": [true, (o, v) => { o.topN = Number(v); }, false],
+    "--out": [true, (o, v) => { o.out = v; }, false],
+};
+
 export function parseArgs(argv) {
     const o = { frames: 60, warmup: 120, top: 10, callSpecs: [], disk: "auto", json: false, pal: true,
-        namesDir: DEFAULT_NAMES_DIR, machineDir: process.env.MACHINE_DIR || "docs", all: false, jobs: 4, topN: 20, out: null, pos: [], pass: [] };
-    const ALL_ONLY = new Set(["--all", "--json", "--jobs", "--out", "--top-n"]);
-    argv.forEach((a, i) => {
-        const prev = argv[i - 1];
-        if (!ALL_ONLY.has(a) && !["--jobs", "--out", "--top-n"].includes(prev) && a.startsWith("--") | (prev ?? "").startsWith("--"))
-            o.pass.push(a);
-    });
+        namesDir: DEFAULT_NAMES_DIR, machineDir: process.env.MACHINE_DIR || "docs", all: false, jobs: 4, topN: 20,
+        out: null, pos: [], pass: [] };
     for (let i = 0; i < argv.length; i++) {
-        const a = argv[i];
-        if (a === "--frames") o.frames = Number(argv[++i]);
-        else if (a === "--warmup") o.warmup = Number(argv[++i]);
-        else if (a === "--top") o.top = Number(argv[++i]);
-        else if (a === "--top-n") o.topN = Number(argv[++i]);
-        else if (a === "--jobs") o.jobs = Number(argv[++i]);
-        else if (a === "--call") o.callSpecs.push(argv[++i]);
-        else if (a === "--disk") o.disk = argv[++i];
-        else if (a === "--no-disk") o.disk = null;
-        else if (a === "--names") o.namesDir = argv[++i];
-        else if (a === "--machine") o.machineDir = argv[++i];
-        else if (a === "--json") o.json = true;
-        else if (a === "--no-pal") o.pal = false;
-        else if (a === "--all") o.all = true;
-        else if (a === "--out") o.out = argv[++i];
-        else if (a.startsWith("--")) throw new Error(`frame_cost: unknown option ${a}`);
-        else o.pos.push(a);
+        const a = argv[i], spec = OPTIONS[a];
+        if (!spec && a.startsWith("--")) throw new Error(`frame_cost: unknown option ${a}`);
+        if (!spec) { o.pos.push(a); continue; }
+        const [hasValue, set, forward] = spec;
+        const v = hasValue ? argv[++i] : undefined;
+        if (hasValue && v === undefined) throw new Error(`frame_cost: ${a} needs a value`);
+        set(o, v);
+        if (forward) o.pass.push(a, ...(hasValue ? [v] : []));
     }
     if (!(o.frames > 0) || !(o.warmup >= 0)) throw new Error("frame_cost: --frames must be > 0, --warmup >= 0");
     return o;
@@ -85,6 +89,6 @@ async function main() {
     else printOne(r);
 }
 
-if (import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
+if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
     main().catch((e) => { console.error(e.stack ?? e.message); process.exit(2); });
 }
