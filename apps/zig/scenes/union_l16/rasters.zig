@@ -44,16 +44,18 @@ pub const Rasters = struct {
 
     /// This frame's colour for every physical row of both entries.
     pub fn fill(self: *const Rasters, raster: *zg.copper.Table, water: *zg.copper.Table, images: A.Images) void {
+        const raster_fy = cd.fyOf(self.raster_y); // the frame's float work: two conversions
+        const water_fy = cd.fyOf(self.water_y);
         for (raster, water, 0..) |*r, *w, y| {
             const row = A.canvasRow(y);
-            r.* = rowColour(images.raster, row, self.raster_y);
-            w.* = rowColour(images.water, row, self.water_y);
+            r.* = rowColour(images.raster, row, raster_fy);
+            w.* = rowColour(images.water, row, water_fy);
         }
     }
 };
 
-fn rowColour(gradient: []const u8, row: i32, y: f64) u32 {
+fn rowColour(gradient: []const u8, row: i32, y: cd.Fy) u32 {
     const n = gradient.len / 3;
-    const t = cd.taps(y, @intCast(n), row) orelse return OPAQUE; // maincanvas.fill('#000000')
+    const t = cd.tapsFy(y, @intCast(n), row) orelse return OPAQUE; // maincanvas.fill('#000000')
     return OPAQUE | cd.mixRgb(gradient[@as(usize, t.top) * 3 ..][0..3].*, gradient[@as(usize, t.bottom) * 3 ..][0..3].*, t.w);
 }

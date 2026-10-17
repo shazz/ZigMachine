@@ -28,6 +28,7 @@ pub const COLUMN_X = 736; // scrolltext.draw(736)
 pub const COLUMN_W = 32;
 const FIRST_CHAR = 32; // font.initTile(32,32,32)
 const GLYPH: f64 = 32;
+const GLYPH_ROWS = 32; // the same, as integer rows
 const SHEET_COLS = 16; // 512 / 32
 const LETTERS = 20; // wide = ceil(572/32)+1 = 19, letters 0..wide
 const WIDE: f64 = 19 * 32;
@@ -83,10 +84,11 @@ pub const Scroller = struct {
         for (self.posy, self.ltr) |posy, ltr| {
             const g: usize = ltr - FIRST_CHAR;
             const sx = g % SHEET_COLS * (A.FONT_W / SHEET_COLS);
-            const sy = g / SHEET_COLS * @as(usize, @intFromFloat(GLYPH));
-            const rows = planeRows(posy, column.h);
+            const sy = g / SHEET_COLS * GLYPH_ROWS;
+            const fy = cd.fyOf(posy);
+            const rows = planeRows(fy, column.h);
             for (rows.start..rows.end) |y| {
-                const t = cd.partTaps(posy, @intCast(sy), @intFromFloat(GLYPH), A.FONT_H, A.canvasRow(y)) orelse continue;
+                const t = cd.partTapsFy(fy, @intCast(sy), GLYPH_ROWS, A.FONT_H, A.canvasRow(y)) orelse continue;
                 const row_a = font[@as(usize, t.top) * A.FONT_W + sx ..][0..column.w];
                 const row_b = font[@as(usize, t.bottom) * A.FONT_W + sx ..][0..column.w];
                 const out = column.buf[y * column.stride ..][0..column.w];
@@ -103,14 +105,13 @@ pub const Scroller = struct {
 };
 
 /// The plane rows whose canvas rows a letter's 32 drawn rows may cover: from
-/// round(y), y as Chrome's float32 (chrome_draw.partTaps).
-fn planeRows(posy: f64, h: usize) Range {
-    const fy: f64 = @as(f32, @floatCast(posy));
-    const top = @floor(fy + 0.5) - A.CROP_Y;
-    const first = @max(0, @ceil(top / 2));
-    const last = @min(@as(f64, @floatFromInt(h)), @ceil((top + GLYPH) / 2));
+/// round(y), y as Chrome's float32 in Q32 (chrome_draw.fyOf), all in integers.
+fn planeRows(fy: cd.Fy, h: usize) Range {
+    const top: i64 = ((fy + (1 << 31)) >> 32) - A.CROP_Y; // floor(y + 0.5) - CROP_Y
+    const first = @max(0, (top + 1) >> 1); // ceil(top / 2)
+    const last = @min(@as(i64, @intCast(h)), (top + GLYPH_ROWS + 1) >> 1); // ceil((top + 32) / 2)
     if (last <= first) return .{ .start = 0, .end = 0 };
-    return .{ .start = @intFromFloat(first), .end = @intFromFloat(last) };
+    return .{ .start = @intCast(first), .end = @intCast(last) };
 }
 
 const Range = struct { start: usize, end: usize };
