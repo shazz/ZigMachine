@@ -205,6 +205,10 @@ var text_canvas: *[motion.TEXT_ROWS * W]u8 = undefined;
 var text_row_left: [motion.TEXT_ROWS]u16 = undefined;
 var text_row_right: [motion.TEXT_ROWS]u16 = undefined;
 var band_alpha: *[motion.BAND_ROWS * W]u32 = undefined; // Q16 coverage
+// The columns of each band row the perspective visited this frame (lo > hi: none).
+// Everything outside is still 0, so only these spans are cleared and composited.
+var band_lo: [motion.BAND_ROWS]u16 = undefined;
+var band_hi: [motion.BAND_ROWS]u16 = undefined;
 
 fn allocBuffers() void {
     star_x = zg.mem.mustAlloc(i16, STARS)[0..STARS];
@@ -270,6 +274,12 @@ pub const Demo = struct {
             star_y[i] = @intCast((@as(u64, nextRandom(&seed)) * 200) >> 32);
         }
         @memset(&raster_line, raster[0]);
+        @memset(text_canvas, 0);
+        @memset(&text_row_left, W);
+        @memset(&text_row_right, 0);
+        @memset(band_alpha, 0);
+        @memset(&band_lo, W);
+        @memset(&band_hi, 0);
 
         zg.requestSong(MUSIC);
 
@@ -380,7 +390,11 @@ pub const Demo = struct {
         self.layoutText();
 
         // the perspective into a 100-row alpha band ('source-over' accumulation)
-        @memset(band_alpha, 0);
+        for (0..motion.BAND_ROWS) |r| {
+            if (band_lo[r] <= band_hi[r]) @memset(band_alpha[r * W + band_lo[r] ..][0 .. @as(usize, band_hi[r]) + 1 - band_lo[r]], 0);
+            band_lo[r] = W;
+            band_hi[r] = 0;
+        }
         for (motion.perspective) |p| {
             const upper_row = inkedRow(p.src_row);
             const lower_row = inkedRow(p.src_row + 1);
@@ -388,6 +402,7 @@ pub const Demo = struct {
             const ink = inkSpan(p.src_row);
             const band = band_alpha[@as(usize, p.band_row) * W ..][0..W];
             var x = firstInkedColumn(p, ink.left);
+            const x_start = x;
             var fx: i64 = p.fx_base + p.fx_step * @as(i64, @intCast(x)); // Q24 source x
             const one = fixed.ONE;
             while (x <= p.x_last) : ({
@@ -404,12 +419,19 @@ pub const Demo = struct {
                 const a: u32 = @intCast((mix * p.cov) >> 16);
                 if (a > 0) band[x] = a + @as(u32, @intCast((@as(u64, band[x]) * (one - a)) >> 16));
             }
+            if (x > x_start) { // columns x_start .. x - 1 were visited
+                band_lo[p.band_row] = @min(band_lo[p.band_row], @as(u16, @intCast(x_start)));
+                band_hi[p.band_row] = @max(band_hi[p.band_row], @as(u16, @intCast(@min(x, W) - 1)));
+            }
         }
 
         // white text over what is already there (only stars reach these rows)
         for (0..motion.BAND_ROWS) |r| {
-            const band = band_alpha[r * W ..][0..W];
-            const dst = screen[(SW_BAND_Y + r) * W ..][0..W];
+            if (band_lo[r] > band_hi[r]) continue;
+            const lo: usize = band_lo[r];
+            const hi: usize = @as(usize, band_hi[r]) + 1;
+            const band = band_alpha[r * W + lo ..][0 .. hi - lo];
+            const dst = screen[(SW_BAND_Y + r) * W + lo ..][0 .. hi - lo];
             for (band, dst) |a, *d| {
                 if (a > 0) d.* = greyIndex(255 * a + @as(u32, grey_lut[d.*]) * (fixed.ONE - a));
             }
@@ -418,9 +440,13 @@ pub const Demo = struct {
 
     /// print() of 30 lines of the starwars text onto the (flat) text canvas.
     fn layoutText(self: *Demo) void {
-        @memset(text_canvas, 0);
-        @memset(&text_row_left, W);
-        @memset(&text_row_right, 0);
+        for (0..motion.TEXT_ROWS) |r| { // only the spans the last frame inked
+            if (text_row_left[r] <= text_row_right[r]) {
+                @memset(text_canvas[r * W + text_row_left[r] ..][0 .. text_row_right[r] - text_row_left[r] + 1], 0);
+            }
+            text_row_left[r] = W;
+            text_row_right[r] = 0;
+        }
         for (0..SW_LINES) |j| {
             const top = @as(i32, @intCast(j)) * SW_PITCH_Y + self.sw_offset;
             if (top >= motion.TEXT_ROWS) break;
