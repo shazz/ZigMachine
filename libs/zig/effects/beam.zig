@@ -47,9 +47,31 @@ pub fn Beam(comptime HW: type, comptime l: Layout) type {
             HW.w16(l.count, n +| 1);
         }
 
-        /// A row of equal cells: `colours[i]` from x0 + i * w.
+        /// write() for each of `entries` (x << 16 | st, the table's own form),
+        /// in order. COUNT is read once and stored once, where write() loads
+        /// and stores it per entry: on the board each store is a blocking bus
+        /// write, and a screen queues thousands a frame. Same table, same COUNT.
+        pub fn writeAll(entries: []const u32) void {
+            const n = HW.r16(l.count);
+            for (entries, 0..) |e, i| {
+                const at = @as(usize, n) + i;
+                if (at >= l.max) break;
+                HW.w32(l.table + at * 4, e);
+            }
+            HW.w16(l.count, n +| @as(u16, @intCast(@min(entries.len, 0xFFFF))));
+        }
+
+        /// A row of equal cells: `colours[i]` from x0 + i * w. COUNT read and
+        /// stored once, as writeAll().
         pub fn cells(x0: u16, w: u16, colours: []const u16) void {
-            for (colours, 0..) |c, i| write(x0 +% @as(u16, @intCast(i)) *% w, c);
+            const n = HW.r16(l.count);
+            for (colours, 0..) |c, i| {
+                const at = @as(usize, n) + i;
+                if (at >= l.max) break;
+                const x = x0 +% @as(u16, @intCast(i)) *% w;
+                HW.w32(l.table + at * 4, (@as(u32, x) << 16) | c);
+            }
+            HW.w16(l.count, n +| @as(u16, @intCast(@min(colours.len, 0xFFFF))));
         }
 
         /// Writes queued for this line so far.

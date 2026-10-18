@@ -75,3 +75,24 @@ test "dropped() reads the machine's counter, clearDropped() zeroes it" {
     beam.clearDropped();
     try expectEqual(@as(u32, 0), beam.dropped());
 }
+
+test "writeAll() and cells() leave the table and COUNT exactly as write() one by one" {
+    var entries: [80]u32 = undefined;
+    for (&entries, 0..) |*e, i| e.* = @as(u32, @intCast(i * 5)) << 16 | @as(u32, @intCast(i * 3));
+    var colours: [80]u16 = undefined;
+    for (&colours, 0..) |*c, i| c.* = @intCast(i * 7);
+    for ([_]usize{ 0, 3, 60 }) |pre| for ([_]usize{ 0, 1, 4, 80 }) |len| {
+        @memset(&mem, 0x5C);
+        beam.begin();
+        for (0..pre) |i| beam.write(@intCast(i), 1);
+        for (entries[0..len]) |e| beam.write(@intCast(e >> 16), @truncate(e));
+        for (colours[0..len], 0..) |c, i| beam.write(@as(u16, 2) +% @as(u16, @intCast(i)) *% 9, c);
+        const want = mem;
+        @memset(&mem, 0x5C);
+        beam.begin();
+        for (0..pre) |i| beam.write(@intCast(i), 1);
+        beam.writeAll(entries[0..len]);
+        beam.cells(2, 9, colours[0..len]);
+        try std.testing.expectEqualSlices(u8, &want, &mem);
+    };
+}
