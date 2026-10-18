@@ -42,6 +42,7 @@ pub const colour_bank = @import("effects/colour_bank.zig"); // per-frame RGB -> 
 pub const ballfield = @import("effects/ballfield.zig"); // CODEF ballfield: 3D ball bobs flying at the viewer
 pub const chrome_draw = @import("effects/chrome_draw.zig"); // Chrome's drawImage (of a part) at a fractional y: taps, mix, srcOver
 pub const spanfont = @import("effects/spanfont.zig"); // big 1-bit font as ink runs, sampled at half resolution
+const glyph_line = @import("effects/glyph_line.zig");
 pub const linepal = @import("effects/linepal.zig"); // rgb(); LinePalette below
 /// Up to `n` palette entries per visible line, allocated per pixel colour, replayed by an HBL.
 pub fn LinePalette(comptime n: usize) type {
@@ -650,7 +651,13 @@ pub const LogicalFB = struct {
 
     // --- Palette management ---
     pub fn setPalette(self: *LogicalFB, entries: [256]Color) void {
-        for (entries, 0..) |c, i| self.palette[i] = c.toRGBA();
+        // Stores only the entries that change: on the board every store is a
+        // bus write (write-through D-cache) and a load is not, and screens call
+        // this from HBL handlers with a palette that is mostly what it holds.
+        for (entries, 0..) |c, i| {
+            const v = c.toRGBA();
+            if (self.palette[i] != v) self.palette[i] = v;
+        }
     }
 
     pub fn setPaletteEntry(self: *LogicalFB, entry: u8, value: Color) void {
@@ -701,6 +708,13 @@ pub const LogicalFB = struct {
         self.fb_hbl_handler = null;
         writeU16(hw.REG_FB_HBL_ID + @as(usize, self.id) * 2, 0);
     }
+
+    // Fill a rectangle (signed, clipped to the plane) with one index: a @memset
+    // a row, where carts looped over setPixelValue (a bounds test, a multiply
+    // and a bus write per pixel on the board).
+    pub fn fillRect(self: *LogicalFB, x: i32, y: i32, w: usize, h: usize, pal_entry: u8) void {
+        blit.Dst.plane(self).fill(x, y, w, h, pal_entry);
+    }
 };
 
 // --------------------------------------------------------------------------
@@ -723,30 +737,9 @@ pub const Clip = struct {
 // right edge is CUT instead of wrapping onto the next scanline (which used to
 // spray window titles and icon labels across the desktop).
 fn blitGlyphs(lfb: *LogicalFB, text: []const u8, x: i16, y: i16, ink: u8, paper: u8, font: []const u8, fw: i16, fh: i16, clip: Clip) void {
-    const w = @min(@as(i16, @intCast(lfb.fb_w)), clip.x1);
-    const h = @min(@as(i16, @intCast(lfb.fb_h)), clip.y1);
-    const x_lo = @max(0, clip.x0);
-    const y_lo = @max(0, clip.y0);
-    const cell: usize = @intCast(fw * fh);
-    for (text, 0..) |char, nb| {
-        const gx = x + @as(i16, @intCast(nb)) * fw;
-        if (gx >= w) return; // the rest of the string is off the right edge
-        if (gx + fw <= x_lo) continue; // wholly off the left edge
-        const g0 = @as(usize, char) * cell;
-        var r: i16 = 0;
-        while (r < fh) : (r += 1) {
-            const py = y + r;
-            if (py < y_lo or py >= h) continue;
-            const row = @as(u32, @intCast(py)) * lfb.stride;
-            var c: i16 = 0;
-            while (c < fw) : (c += 1) {
-                const px = gx + c;
-                if (px < x_lo or px >= w) continue;
-                const on = font[g0 + @as(usize, @intCast(r * fw + c))] == 1;
-                lfb.fb[row + @as(u32, @intCast(px))] = if (on) ink else paper;
-            }
-        }
-    }
+    // One clipped span a screen row, a word store at a time (glyph_line.zig);
+    // it was four edge tests and a byte store per pixel.
+    glyph_line.draw(.{ .fb = lfb.fb, .stride = lfb.stride, .w = lfb.fb_w, .h = lfb.fb_h }, text, x, y, ink, paper, font, fw, fh, .{ .x0 = clip.x0, .y0 = clip.y0, .x1 = clip.x1, .y1 = clip.y1 });
 }
 
 pub const ZigOS = struct {

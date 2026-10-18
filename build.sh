@@ -145,6 +145,12 @@ NATIVE_TESTS="
     libs/zig/depackers/tex_loader_test.zig
     libs/zig/effects/charpanel_test.zig
     libs/zig/effects/blit_test.zig
+    libs/zig/effects/blit_rows_test.zig
+    libs/zig/effects/scrolltext2_test.zig
+    libs/zig/effects/parallax_test.zig
+    libs/zig/effects/tilemap_test.zig
+    libs/zig/effects/text_plot_test.zig
+    libs/zig/effects/glyph_line_test.zig
     libs/zig/effects/copper_test.zig
     libs/zig/effects/palette_test.zig
     libs/zig/effects/scrollring_test.zig

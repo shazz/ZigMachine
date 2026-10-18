@@ -96,7 +96,12 @@ pub fn LinePalette(comptime FB: type, comptime OS: type, comptime g: Geometry, c
             const self = active orelse return;
             const row: usize = if (fb.hblLinesArePhysical()) @as(usize, line) -% g.visible_top else line;
             if (row >= g.rows) return;
-            for (self.colours[row][0..self.used[row]], 0..) |c, i| fb.palette[FIRST + i] = c;
+            // Only the entries that change: a raster coder never rewrites a
+            // register that already holds the colour, and on the board every
+            // store is a bus write (write-through D-cache) where a load is not.
+            for (self.colours[row][0..self.used[row]], 0..) |c, i| {
+                if (fb.palette[FIRST + i] != c) fb.palette[FIRST + i] = c;
+            }
         }
     };
 }

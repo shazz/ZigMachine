@@ -95,7 +95,12 @@ pub fn Copper(comptime FB: type, comptime OS: type, comptime g: Geometry) type {
             if (flicker[id]) fb.flickerBorder();
             const row = physicalRow(fb.hblLinesArePhysical(), line);
             if (row >= g.rows) return;
-            for (entries[id][0..used[id]], 0..) |e, s| fb.palette[e] = bank[id][s][row];
+            // A register that already holds the colour is not rewritten: on the
+            // board every store is a bus write (write-through D-cache), a load is not.
+            for (entries[id][0..used[id]], 0..) |e, s| {
+                const c = bank[id][s][row];
+                if (fb.palette[e] != c) fb.palette[e] = c;
+            }
         }
     };
 }

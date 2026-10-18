@@ -8,9 +8,10 @@
 // band by frac*tw pixels; map value v draws sheet tile (v - id_base), v < id_base
 // is empty. The map is wider than the visible window and pre-wrapped (a tail of
 // columns repeats the head) so `col + abs` never needs a modulo.
+//
+// No ZigOS import: `fb` is anything with fb/fb_w/fb_h/stride (a LogicalFB), so
+// it tests natively (tilemap_test.zig).
 // --------------------------------------------------------------------------
-const zsrc = @import("../zigos.zig");
-const LogicalFB = zsrc.LogicalFB;
 
 pub const TileSheet = struct {
     raw: []const u8, // sheet_w * (rows*th) indexed pixels
@@ -31,7 +32,7 @@ pub const Layer = struct {
     dst_y: i16 = 0,
     key: u8 = 0, // transparent index
 
-    pub fn draw(self: *const Layer, fb: *LogicalFB, pos_tiles: f32) void {
+    pub fn draw(self: *const Layer, fb: anytype, pos_tiles: f32) void {
         const tw: i16 = @intCast(self.sheet.tw);
         const th: i16 = @intCast(self.sheet.th);
         const abs: usize = @intFromFloat(pos_tiles);
@@ -69,7 +70,7 @@ pub const RatioScroll = tilegrid.RatioScroll;
 /// SHEET's tile size (the grid's own tw/th may be in other units, e.g. the
 /// original map pixels); `cam_x` is the view's left edge in sheet pixels, rows
 /// start at `dst_y`. Only the columns the plane can show are visited.
-pub fn drawGrid(fb: *LogicalFB, grid: *const Grid, sheet: *const TileSheet, cam_x: i32, dst_y: i32, id_base: u8, key: u8) void {
+pub fn drawGrid(fb: anytype, grid: *const Grid, sheet: *const TileSheet, cam_x: i32, dst_y: i32, id_base: u8, key: u8) void {
     const tw: i32 = sheet.tw;
     const th: i32 = sheet.th;
     const cols: i32 = @intCast(grid.cols);
@@ -92,26 +93,9 @@ pub fn drawGrid(fb: *LogicalFB, grid: *const Grid, sheet: *const TileSheet, cam_
 }
 
 // Blit one tile with left/right/top/bottom clipping; `key` pixels stay clear.
-fn blitTile(sheet: *const TileSheet, fb: *LogicalFB, tile: u16, dx: i16, dy: i16, key: u8) void {
-    const tw: i16 = @intCast(sheet.tw);
-    const th: i16 = @intCast(sheet.th);
-    const pw: i16 = @intCast(fb.fb_w);
-    const ph: i16 = @intCast(fb.fb_h);
-    const scol: usize = @as(usize, tile % sheet.cols) * sheet.tw;
-    const srow: usize = @as(usize, tile / sheet.cols) * sheet.th;
-    var ty: i16 = 0;
-    while (ty < th) : (ty += 1) {
-        const py = dy + ty;
-        if (py < 0 or py >= ph) continue;
-        const drow = @as(usize, @intCast(py)) * fb.stride;
-        const srow_off = (srow + @as(usize, @intCast(ty))) * sheet.sheet_w + scol;
-        var tx: i16 = 0;
-        while (tx < tw) : (tx += 1) {
-            const px = dx + tx;
-            if (px < 0 or px >= pw) continue;
-            const idx = sheet.raw[srow_off + @as(usize, @intCast(tx))];
-            if (idx == key) continue;
-            fb.fb[drow + @as(usize, @intCast(px))] = idx;
-        }
-    }
+// Through blit.blit: clipped once, then keyed word stores (blit_rows), where the
+// old loop tested both edges and stored a byte per pixel. Same pixels.
+pub fn blitTile(sheet: *const TileSheet, fb: anytype, tile: u16, dx: i16, dy: i16, key: u8) void {
+    const part = blit.Rect{ .x = @as(usize, tile % sheet.cols) * sheet.tw, .y = @as(usize, tile / sheet.cols) * sheet.th, .w = sheet.tw, .h = sheet.th };
+    blit.blit(blit.Dst.plane(fb), blit.Image.init(sheet.raw, sheet.sheet_w), part, dx, dy, key, .copy);
 }
