@@ -2,8 +2,9 @@
 each tune's timer interrupt in Zig, its init and play on Musashi. The audio core's writes,
 digested a frame at a time (host/sndh_oracle.c), must be the same over the length given, across
 a mid-tune sndhCall and mode switches 1/2; mutant 5 (the steps play patches into the handler
-frozen when it was armed), 6 (the stream handler's registers 9 and 10 swapped) and 10 (maxYMiser's
-8-bit drum routine without its addi.b) must fail. The helpers are test_sndh_native.py's.
+frozen when it was armed), 6 (the stream handler's registers 9 and 10 swapped), 8 (the one-byte
+handler's pointer kept past play's rewind) and 10 (maxYMiser's 8-bit drum routine without its
+addi.b) must fail. The helpers are test_sndh_native.py's.
 Needs `make sndh-oracle` and docs/demo-audio.wasm."""
 
 from __future__ import annotations
@@ -29,10 +30,16 @@ TUNES = [
     ("snyd90_f6.sndh", 1, 6_000, 12),  # snyd_90's part 6: a 3-voice mixer on Timer C
     ("tcb_spreadpoint.sndh", 1, 6_000, 13),  # TCB's Spreadpoint screen: three volume streams
     ("crystallized.sndh", 1, 6_000, 14),  # D-Bug and music: maxYMiser's drums, from frame 769
+    # Swedish New Year's TCB #1: play's 10 rewinds of the first segment end at ~410 frames, then the second loops
+    ("swedish_newyear_tcb_digi.sndh", 1, 6_000, 10),
+    # and its SYNC screens: the self-modifying 4-voice mixer, past the song's wrap (FRMS 21,470 at 50 Hz)
+    ("Swedish_New_Year_Demo_Sync.sndh", 1, 27_000, 11),
 ]
-# song, the mutant that must be caught (sndh_native.zig): 5 = steps frozen at arming, 6 = registers 9/10 swapped.
+# song, the mutant that must be caught (sndh_native.zig): 5 = steps frozen at arming, 6 = registers 9/10 swapped,
+# 8 = the one-byte handler's pointer kept in Zig past play's rewind, 10 = maxYMiser's drum routine without its addi.b.
 MUTANTS = [("union/thalion_forever.sndh", 5), ("digital/Ace_2.sndh", 5), ("snyd90_f6.sndh", 5),
-           ("tcb_spreadpoint.sndh", 6), ("crystallized.sndh", 10)]
+           ("tcb_spreadpoint.sndh", 6), ("crystallized.sndh", 10), ("swedish_newyear_tcb_digi.sndh", 8),
+           ("Swedish_New_Year_Demo_Sync.sndh", 5)]
 
 
 @pytest.fixture(scope="module", autouse=True)

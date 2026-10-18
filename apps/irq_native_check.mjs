@@ -8,7 +8,8 @@
 //
 //   node apps/irq_native_check.mjs --song union/thalion_forever.sndh --status 8 --seconds 60
 //   ... --break [--mutant 6]   (mutant 5, the default: the steps play patches into the handler
-//                  frozen when it was armed; 6: the stream handler's registers 9 and 10 swapped.
+//                  frozen when it was armed; 6: the stream handler's registers 9 and 10 swapped; 8: the one-byte
+//                  handler's pointer kept in Zig past play's rewind.
 //                  The check must fail, then exits 0)
 import { firstDifference, render } from "./sndh_native_lib.mjs";
 

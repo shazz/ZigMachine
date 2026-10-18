@@ -133,6 +133,8 @@ NATIVE_TESTS="
     libs/zig/players/digi_mix4_test.zig
     libs/zig/players/digi_mix3_test.zig
     libs/zig/players/digi_mym_test.zig
+    libs/zig/players/digi_tcb_test.zig
+    libs/zig/players/digi_sync4_test.zig
     machine/audio/pokey_test.zig
     libs/zig/players/cpu6502_test.zig
     libs/zig/players/sap_test.zig
@@ -467,6 +469,10 @@ gate tcb_spreadpoint_music node apps/irq_native_check.mjs --song tcb_spreadpoint
 gate tcb_spreadpoint_music node apps/irq_native_check.mjs --song tcb_spreadpoint.sndh --status 13 --seconds 20 --break --mutant 6   # ...and registers 9 and 10 swapped (mutant 6) are caught
 gate dbug_music node apps/irq_native_check.mjs --song crystallized.sndh --status 14 --seconds 40   # maxYMiser's drum interrupts (from 12.8 s) natively = the 68000 bit for bit, modes 1/2 unbroken
 gate dbug_music node apps/irq_native_check.mjs --song crystallized.sndh --status 14 --seconds 20 --break --mutant 10   # ...and the 8-bit drum routine without its addi.b (mutant 10) is caught
+gate swedish_newyear_music node apps/irq_native_check.mjs --song swedish_newyear_tcb_digi.sndh --status 10 --seconds 40   # TCB #1's one-byte digi interrupt natively = the 68000 bit for bit, modes 1/2 unbroken
+gate swedish_newyear_music node apps/irq_native_check.mjs --song swedish_newyear_tcb_digi.sndh --status 10 --seconds 20 --break --mutant 8   # ...and the pointer kept in Zig past play's rewind (mutant 8) is caught
+gate swedish_newyear_music node apps/irq_native_check.mjs --song Swedish_New_Year_Demo_Sync.sndh --status 11 --seconds 40   # SYNC's self-modifying 4-voice mixer interrupt natively = the 68000 bit for bit, modes 1/2 unbroken
+gate swedish_newyear_music node apps/irq_native_check.mjs --song Swedish_New_Year_Demo_Sync.sndh --status 11 --seconds 20 --break   # ...and the ends play patches frozen at arming (mutant 5) are caught
 gate automation442 node apps/automation442_headless.mjs "$SHOTS/automation442"   # AUTOMATION 442: the panned overscan scroll plane through one bgcount cycle
 gate_timed big_demo node apps/big_demo_headless.mjs   # TEX B.I.G. DEMO: wait screen hands over at frame 201, TEX's own 118 rows ripped from RAM, cursor clamps [2,115], all 45 named SNDH present, bands cycle
 gate_timed big_demo node apps/big_demo_headless.mjs --break nav   # ...and a list that never moves fails the clamp checks
