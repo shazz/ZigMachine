@@ -21,12 +21,14 @@ pub const big = @import("digi_big.zig");
 pub const mix4 = @import("digi_mix4.zig");
 pub const mix3 = @import("digi_mix3.zig");
 pub const tcb3 = @import("digi_tcb3.zig");
+pub const mym = @import("digi_mym.zig");
 
 pub const Driver = union(enum) {
     big: big.Driver,
     mix4: mix4.Driver,
     mix3: mix3.Driver,
     tcb3: tcb3.Driver,
+    mym: mym.Driver,
 };
 
 /// What the next interrupt must do first: check the handler in RAM (after a load or an INIT).
@@ -38,6 +40,8 @@ pub var frozen: bool = false;
 /// Mutant 6 (test only): the stream handler (digi_tcb3.zig) writes voice 2's byte to register 10
 /// and voice 3's to 9.
 pub var swapped: bool = false;
+/// Mutant 10 (test only): maxYMiser's 8-bit drum routine (digi_mym.zig) leaves out its addi.b.
+pub var no_offset: bool = false;
 var cache: [4]u32 = .{0} ** 4;
 
 /// Voice `i`'s step, the immediate at `at` that play patches: read every interrupt.
@@ -51,6 +55,7 @@ pub fn recognise(image: []const u8, base: u32) ?Driver {
     if (mix4.match(image, base)) |d| return .{ .mix4 = d };
     if (mix3.match(image, base)) |d| return .{ .mix3 = d };
     if (tcb3.match(image, base)) |d| return .{ .tcb3 = d };
+    if (mym.match(image, base)) |d| return .{ .mym = d };
     return null;
 }
 
@@ -60,6 +65,7 @@ pub fn status(d: Driver) digi.Status {
         .mix4 => .hippel_mix4,
         .mix3 => .mix3_timer_c,
         .tcb3 => .tcb_streams,
+        .mym => .mym_drums,
     };
 }
 
@@ -81,7 +87,8 @@ pub fn refused() bool {
 
 /// One interrupt to `handler`, natively if it is the driver's. False: Musashi's.
 pub fn irq(comptime Bus: type, d: *Driver, handler: u32) bool {
-    if (handler != handlerAddr(d.*) or state == .refused) return false;
+    // maxYMiser's routines are many addresses (digi_mym.zig matches each); the others are one.
+    if ((d.* != .mym and handler != handlerAddr(d.*)) or state == .refused) return false;
     if (state == .unarmed) {
         const ok = switch (d.*) {
             inline else => |*x, tag| blk: {
@@ -94,6 +101,7 @@ pub fn irq(comptime Bus: type, d: *Driver, handler: u32) bool {
         if (!ok) return false;
     }
     switch (d.*) {
+        .mym => |*x| return mym.irq(Bus, x, handler),
         inline else => |x, tag| @field(@This(), @tagName(tag)).irq(Bus, x),
     }
     return true;
