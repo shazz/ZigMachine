@@ -37,7 +37,7 @@ CSR_MAP = FPGA / "build/hcycles/gen/csr_addr.h"
 # firmware in --fw-dir that is not listed is staged too (a cart being tried out). st_replay is a
 # data disk: its fat disk carries GEM's image, and its own firmware is the program GEM launches.
 SHELF = (
-    "blitter", "fuji_hobbytronic", "gem", "polkadots", "raytrace", "raytrace_f32", "replicants_emlyn",
+    "blitter", "fuji_hobbytronic", "gem", "music", "polkadots", "raytrace", "raytrace_f32", "replicants_emlyn",
     "sap_test", "skystrike", "st_replay", "stniccc", "tsl_hybridglenz", "tutorial", "ulm_dsots", "union_beatdis",
 )  # fmt: skip
 OS_CART = "gem"  # what the browser boots for a data disk

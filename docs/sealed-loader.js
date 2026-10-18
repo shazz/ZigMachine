@@ -1051,6 +1051,14 @@ function startAudio() {
                         "a song length of 0 or over 128"][msg.error] || `error ${msg.error}`;
                     console.error(`MOD REJECTED (${msg.len} bytes, ${msg.rejected} so far): ${why}`);
                 }
+                else if (msg.type === "xmLoaded" && !msg.ok) {
+                    // libs/zig/players/xm_format.zig: the reasons, in its numbering (code()).
+                    const why = ["", "shorter than an XM header", "not an Extended Module", "a version before 1.02",
+                        "a bad header size", "not 1 to 12 channels", "a song length of 0 or over 256", "too many patterns",
+                        "too many instruments", "too many samples", "a bad pattern", "a truncated file", "a speed of 0 or a BPM under 32",
+                        "a bad instrument", "an order past the patterns", "too big for the song RAM beside the mixer"][msg.error] || `error ${msg.error}`;
+                    console.error(`XM REJECTED (${msg.len} bytes, ${msg.rejected} so far): ${why}`);
+                }
                 else if (msg.type === "sfxMissed") {
                     console.warn(`zg.${msg.what} refused on the audio thread (${msg.refused} so far): ` +
                         (msg.what === "ymWrite" ? "an SNDH or a YM dump drives the YM"
@@ -1128,6 +1136,16 @@ async function playMod(url, gen, bpm) {
     audioNode.port.postMessage({ type: "loadMod", bytes: bytes, bpm: bpm || 0 }, [bytes]);
     const b = document.querySelector('.sound_button'); if (b) b.textContent = "Sound off";
 }
+// An FastTracker 2 .xm (libs/zig/players/xm.zig): the same request as a MOD, the
+// worklet checks it and says so (xmLoaded: ok, or the refusal's reason).
+async function playXm(url, gen, bpm) {
+    await startAudio();
+    if (!audioNode) return; // no audio in this context
+    const bytes = await fetch(url).then(r => r.arrayBuffer());
+    if (gen !== undefined && gen !== songGen) return; // a newer song request (or a stop) won
+    audioNode.port.postMessage({ type: "loadXm", bytes: bytes, bpm: bpm || 0 }, [bytes]);
+    const b = document.querySelector('.sound_button'); if (b) b.textContent = "Sound off";
+}
 async function playYm(url, gen) {
     await startAudio();
     if (!audioNode) return; // no audio in this context
@@ -1191,6 +1209,7 @@ function playSongByName(name, tune) {
     const url = "music/" + name;
     // An effect queued after this request waits until its load is posted.
     if (name.endsWith(".mod")) songPosted = playMod(url, gen, tune).catch(() => {}); // a MOD's tune field is its start BPM
+    else if (name.endsWith(".xm")) songPosted = playXm(url, gen, tune).catch(() => {}); // an XM's too
     else if (name.endsWith(".ymraw")) playYm(url, gen);
     // Only an SNDH has subtunes; `tune` counts from 1, 0 = the image's default.
     else if (name.endsWith(".sndh")) sndhResident = { name, gen, ready: playSndh(url, tune, gen) };

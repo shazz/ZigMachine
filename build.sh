@@ -131,6 +131,10 @@ NATIVE_TESTS="
     libs/zig/players/cpu6502_test.zig
     libs/zig/players/sap_test.zig
     libs/zig/players/mod_format_test.zig
+    libs/zig/players/xm_format_test.zig
+    libs/zig/players/xm_instr_test.zig
+    libs/zig/players/xm_mix_test.zig
+    libs/zig/players/xm_ring_test.zig
     libs/zig/sfx_queue_test.zig
     libs/zig/depackers/ice_test.zig
     libs/zig/depackers/zx0_test.zig
@@ -266,6 +270,13 @@ gate mod_sfx node apps/mod_sfx_check.mjs --break release   # ...and the channel 
 gate mod_sfx node apps/mod_sfx_check.mjs --break loop      # ...and the loop expected free before its stop fails
 gate mod_sfx node apps/mod_sfx_check.mjs --break reject    # ...and an 8CHN file expected to load fails
 gate mod_sfx node apps/mod_sfx_check.mjs --break gain      # ...and the effect's channel expected scaled with the song by zg.requestModVolume fails
+gate xm node apps/xm_check.mjs   # FastTracker 2 (.XM) player: the generated 8-channel test song (apps/xm_song.mjs) loads and plays as mode 1 through the sealed Paula channels, never over full scale, not silent; the 12-channel song (three voices a channel) loads, plays and renders twice identically; 13-channel / non-XM / truncated files refused with their reasons and counted; rendering it twice is byte-identical and matches the pinned sha256
+gate xm node apps/xm_check.mjs --break refuse   # ...and a 13-channel file expected to load fails
+gate xm node apps/xm_check.mjs --break pin      # ...and a wrong pin fails
+gate music node apps/music_debug_check.mjs   # MUSIC DEBUG: keys 1..6 (setShadeMode, as the loader and the board's glass send them) ask for MOD / YM / sample / SNDH / XM / local XM by name; every committed name is a git-tracked file in docs/music/ (the board's song table is built from them), local.xm never is; key 5's XM plays as mode 1
+gate music node apps/music_debug_check.mjs --break name   # ...and key 5 expected to ask for another file fails
+gate xm_test node apps/xm_test_check.mjs   # XM TEST: keys 1..4 (setShadeMode) ask for keygen_9000.xm / poppy_flower_girls.xm / local.xm / "none" by name; the bundled XMs are The Mod Archive's Public Domain files byte for byte (md5), 8 and 12 channels, and play (mode 1, not silent); local.xm never committed
+gate xm_test node apps/xm_test_check.mjs --break name   # ...and key 2 expected to ask for another file fails
 gate_timed c_music timeout 180 node apps/c_music_check.mjs   # a C cart's song request reaches the sealed YM (timeout: it once hung a gate)
 gate union_demo_music node apps/union_demo_music_check.mjs   # the Union Demo menu's and cracktro's SNDH tunes are requested by name and play
 gate union_demo_music node apps/union_demo_music_check.mjs --fail-proof   # ...and a wrong tune name fails that check

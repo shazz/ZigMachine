@@ -358,5 +358,10 @@
   "tag": "vex",
   "title": "VEX 2025 GTA VI",
   "type": "atari st"
+ },
+ {
+  "tag": "xm_test",
+  "title": "XM TEST",
+  "type": "zigmachine"
  }
 ]

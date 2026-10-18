@@ -12,6 +12,11 @@ host/audio.c's audio_play has a player for). A name that is no file is an
 error, not a skip: the cart asks for it and the board would play nothing. A
 song neither finds is missing on the board: the sound CPU's console says
 "ZM SONG MISSING <name>" and the old song stops.
+
+One name is optional: LOCAL_SONGS (a song the owner keeps on their own machine
+only, never in git: docs/music/local.xm is gitignored). It is packed when the
+file is there and left out, with a note, when it is not, so a clean checkout
+builds and a personal one plays it.
 """
 
 import argparse
@@ -21,8 +26,10 @@ from pathlib import Path
 
 FPGA = Path(__file__).resolve().parent.parent
 # The players' extensions: tests/test_audio_soc.py holds this to host/audio.c's audio_play.
-SONG_EXTS = ("sndh", "mod", "ymraw", "raw", "sap")
+SONG_EXTS = ("sndh", "mod", "xm", "ymraw", "raw", "sap")
 NAME = re.compile(rb"[A-Za-z0-9_][A-Za-z0-9_./-]{0,62}\.(?:" + "|".join(SONG_EXTS).encode() + rb")(?![A-Za-z0-9])")
+# Songs that may be absent: kept on the owner's machine only (gitignored), never committed.
+LOCAL_SONGS = frozenset({"local.xm"})
 
 
 class MissingSong(Exception):
@@ -30,10 +37,14 @@ class MissingSong(Exception):
 
 
 def song_names(wasm: bytes, music: Path, log: str = "") -> list[str]:
-    """Every song the log started or a literal in the module names; each must be a file under `music`."""
+    """Every song the log started or a literal in the module names; each must be a file under `music`
+    (a LOCAL_SONGS name that is no file is left out instead)."""
     found = {m.group().decode() for m in NAME.finditer(wasm)}
     found |= {line.split(" ", 3)[3] for line in log.splitlines() if line.startswith("L ") and line.count(" ") >= 3}
-    names = sorted(n for n in found if ".." not in n and not n.startswith("/"))
+    absent_local = {n for n in found & LOCAL_SONGS if not (music / n).is_file()}
+    if absent_local:
+        print(f"song_pack: no local song {', '.join(sorted(absent_local))}: not packed", file=sys.stderr)
+    names = sorted(n for n in found - absent_local if ".." not in n and not n.startswith("/"))
     missing = [n for n in names if not (music / n).is_file()]
     if missing:
         raise MissingSong(f"no such song under {music}: {', '.join(missing)}")

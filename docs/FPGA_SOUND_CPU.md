@@ -80,6 +80,17 @@ every string literal in the cart that ends in a player's extension (`SONG_EXTS`,
 `audio_play` by a test). A song a cart only reaches through input, like the jukebox's rows, gets in by the second
 source alone.
 
+**FastTracker 2 (`.xm`).** `host/audio.c` stages an `.xm` and calls `audioLoadXm` then `audioXmPlay` (its tune field
+is the start BPM, 0 = the song's own tempo), the same way a `.mod` goes. The voices (up to twelve) are mixed in
+software onto the Paula channels (`libs/zig/players/xm.zig`): two to a channel for up to 8 channels, three to a channel
+for 9..12, so the sound CPU needs no more channels than a MOD. Its 32-bit mixer
+keeps each position as a 32-bit frame index plus a 16-bit fraction, so a sample has no length cap beyond song RAM. The bench's test song is `testSong()` from
+`apps/xm_song.mjs`, written outside `docs/music` (it is not shipped) and benched with `MUSIC=<that dir>
+SONG=zm_test.xm`; the carts ship real modules (docs/MUSIC.md "Bundled modules"). Each block is mixed into the next span of a 16 KiB ring per Paula channel
+(`xm_ring.zig`), never into one reused buffer: the audio core plays a stamped trigger up to the lead (four frames)
+after BARD wrote it, and a single buffer had been overwritten by three or four later blocks by then. The board played
+that as noise while the browser, whose chip reads the buffer at once, played the song (2026-10-17).
+
 **The bug this closed (2026-10-10).** `sap_test` (cart 86) played Warhawk on the board, but Enter did nothing. The
 packer's extension list had no `.sap`, so the table held only Warhawk, the one song the 600 input-free frames
 started. Every other request reached BARD with no bytes. BARD printed `ZM SONG MISSING` and Warhawk played on. Now:

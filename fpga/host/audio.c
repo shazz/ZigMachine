@@ -111,6 +111,8 @@ void audio_play(const char* name, uint32_t tune) {
     if (ends_with(name, ".mod") && w2c_audio_audioLoadMod(p, (uint32_t)len)) {
         if (tune) w2c_audio_audioModPlayBpm(p, tune); /* a MOD's tune field is its start BPM */
         else w2c_audio_audioModPlay(p);
+    } else if (ends_with(name, ".xm") && w2c_audio_audioLoadXm(p, (uint32_t)len)) {
+        w2c_audio_audioXmPlay(p, tune); /* an XM's tune field is its start BPM too (0 = the song's own) */
     } else if (ends_with(name, ".ymraw") && w2c_audio_audioLoadYm(p, (uint32_t)len)) {
         w2c_audio_audioYmPlay(p);
     } else if (ends_with(name, ".sap")) {
