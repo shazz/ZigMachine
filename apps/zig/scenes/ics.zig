@@ -57,6 +57,7 @@ const grid_b = @embedFile("../assets/screens/ics/grid_large.raw");
 // Variables
 // --------------------------------------------------------------------------
 var raster_index: u8 = 0;
+var chisel: zg.Blitter = .{}; // the grid window copy; init() points it at the video region
 
 // The scroller's letters are drawn into this strip first. The wave moves a letter
 // at most 39 rows down (the sine table's peak), so nothing below row 54 is ever
@@ -139,6 +140,7 @@ pub const Demo = struct {
         // HBL Handler for the raster effect
         fb.setFrameBufferHBLHandler(0, handler_scroller);        
 
+        chisel.init();
         @memset(&text_strip, 0);
         self.scroller_target = .{ .render_buffer = &strip_buffer };
         self.scrolltext = Scrolltext(NB_FONTS).init(self.scroller_target, fonts_b, SCROLL_CHARS, SCROLL_CHAR_WIDTH, SCROLL_CHAR_HEIGHT, SCROLL_TEXT, SCROLL_SPEED, 0, null, &g_y_offset_table_b, false);
@@ -227,16 +229,9 @@ fn renderScroller(fb: *LogicalFB) void {
 
 /// Plane 1 = the 384x288 grid seen through a 320x200 window at (-dx, -dy): what
 /// the sprite's clipped, transparent-skipping draw over a cleared plane left.
+/// One CHISEL copy of the window (the CPU packed and stored 16,000 words a frame).
 fn renderGrid(fb: *LogicalFB) void {
-    const x0: usize = @intCast(-grid_dx);
-    const y0: usize = @intCast(-grid_dy);
-    const out: [*]u32 = @ptrCast(@alignCast(fb.fb));
-    for (0..200) |y| {
-        const src = grid_b[(y + y0) * GRID_W + x0 ..][0..WIDTH];
-        const dst = out[y * ROW_WORDS ..][0..ROW_WORDS];
-        for (dst, 0..) |*w, i| {
-            const j = i * 4;
-            w.* = @as(u32, src[j]) | @as(u32, src[j + 1]) << 8 | @as(u32, src[j + 2]) << 16 | @as(u32, src[j + 3]) << 24;
-        }
-    }
+    const x0: u16 = @intCast(-grid_dx);
+    const y0: u16 = @intCast(-grid_dy);
+    chisel.blitImage(fb, 0, 0, grid_b, GRID_W, x0, y0, WIDTH, 200, null);
 }
