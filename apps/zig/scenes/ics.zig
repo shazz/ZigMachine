@@ -57,6 +57,27 @@ const grid_b = @embedFile("../assets/screens/ics/grid_large.raw");
 // Variables
 // --------------------------------------------------------------------------
 var raster_index: u8 = 0;
+
+// The bottom 37 rows of the screen: black, with the 137x31 logo at (WIDTH/2-68, HEIGHT-29) in
+// it, as palette slots LOGO_SLOT + the logo's own index (the old plane 2 drew these once).
+const BAND_ROWS = 37;
+const BAND_TOP = HEIGHT - BAND_ROWS;
+const LOGO_SLOT = 100;
+const LOGO_W = 137;
+const LOGO_H = 31;
+var logo_band: [WIDTH * BAND_ROWS]u8 align(4) = undefined;
+
+fn buildBand() void {
+    @memset(&logo_band, LOGO_SLOT); // the logo palette's index 0 is black
+    const top = HEIGHT - 29 - BAND_TOP; // the logo's first row, in band rows
+    for (0..LOGO_H) |y| {
+        if (top + y >= BAND_ROWS) break; // the plane ends at row 199
+        for (0..LOGO_W) |x| {
+            const idx = logo_b[y * LOGO_W + x];
+            if (idx != 0) logo_band[(top + y) * WIDTH + (WIDTH / 2 - 68) + x] = LOGO_SLOT + idx;
+        }
+    }
+}
 var chisel: zg.Blitter = .{}; // the grid window copy; init() points it at the video region
 
 // The scroller's letters are drawn into this strip first. The wave moves a letter
@@ -121,7 +142,6 @@ pub const Demo = struct {
   
     name: u8 = 0,
     scrolltext: Scrolltext(NB_FONTS) = undefined,
-    logo: Sprite = undefined,
     grid: Sprite = undefined,
     scroller_target: RenderTarget = undefined,
     sin_counter: zg.fixtrig.Angle = 0, // u32 turns, wraps exactly at 2 PI
@@ -154,24 +174,11 @@ pub const Demo = struct {
         fb.setPaletteEntry(0, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });            
         self.grid.init(fb.getRenderTarget(), grid_b, 384, 288, 0, 0, null, null); 
 
-        // third plane
-        fb = &zigos.lfbs[2];
-        fb.is_enabled = true; 
-
-        fb.setPalette(logo_pal);
-        fb.setPaletteEntry(255, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });      
-
-        self.logo.init(fb.getRenderTarget(), logo_b, 137, 31, WIDTH/2-68, HEIGHT-29, null, null); 
-     
-        fb.clearFrameBuffer(255);
-        var i = (WIDTH*(HEIGHT-37));
-        while(i < (200*WIDTH)) : ( i+= 1) {
-            fb.fb[i] = 0;
-        }
-
-        // The logo never moves and nothing else draws on this plane (the clears
-        // above ran first, so they cannot erase it): drawn once, not every frame.
-        self.logo.render(null);
+        // The logo plane is gone: its black band and the logo are one more picture drawn on the
+        // grid's plane, over the grid (the logo plane lay above it), in slots 100.. of its palette.
+        // FRESCO paints every enabled plane (1.09 Mc each), and this one only ever held the band.
+        for (0..8) |i| fb.setPaletteEntry(@intCast(LOGO_SLOT + i), logo_pal[i]);
+        buildBand();
 
         self.sin_counter = 0;
 
@@ -204,6 +211,7 @@ pub const Demo = struct {
         self.scrolltext.render();
         renderScroller(&zigos.lfbs[0]);
         renderGrid(&zigos.lfbs[1]);
+        chisel.blitImage(&zigos.lfbs[1], 0, BAND_TOP, &logo_band, WIDTH, 0, 0, WIDTH, BAND_ROWS, null);
 
         _ = elapsed_time;
 
@@ -216,14 +224,16 @@ pub const Demo = struct {
 fn renderScroller(fb: *LogicalFB) void {
     for (&merged, 0..) |*g, b| mergeChain(g, b, TEXT_ROWS - 1);
     const out: [*]u32 = @ptrCast(@alignCast(fb.fb));
-    for (0..SCROLL_PLANE_ROWS) |k| {
-        const row = k + SCROLL_TOP;
-        const dst = out[k * ROW_WORDS ..][0..ROW_WORDS];
-        if (row >= TEXT_ROWS - 1) {
-            dst.* = merged[row % 16];
-        } else {
-            mergeChain(dst, row % 16, row);
-        }
+    const first_merged = TEXT_ROWS - 1 - SCROLL_TOP; // from this plane row down the rows are merged[row % 16]
+    for (0..first_merged) |k| mergeChain(out[k * ROW_WORDS ..][0..ROW_WORDS], (k + SCROLL_TOP) % 16, k + SCROLL_TOP);
+    // The rest is the 16 merged rows over and over: CHISEL copies them out in blocks of up to 16
+    // rows (SCROLL_TOP is a multiple of 16, so plane row k shows merged[k % 16]).
+    const rows: [*]const u8 = @ptrCast(&merged);
+    var k: usize = first_merged;
+    while (k < SCROLL_PLANE_ROWS) {
+        const n = @min(16 - k % 16, SCROLL_PLANE_ROWS - k);
+        chisel.blitImage(fb, 0, @intCast(k), rows[0 .. 16 * WIDTH], WIDTH, 0, @intCast(k % 16), WIDTH, @intCast(n), null);
+        k += n;
     }
 }
 
