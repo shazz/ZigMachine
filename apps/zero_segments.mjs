@@ -41,7 +41,8 @@ const ALLOW = {
     // RAM (xm_chip.zig BUF_OFFSET), not in this segment.
     // +12 B (2026-10-17): the Monty replay's d7, mutant and unknown-command count
     // (digi_monty_fx.zig, _seq.zig, _cmd.zig); its state lives in the 68000's RAM.
-    "demo-audio.wasm": 590892,
+    // +4 B (2026-10-17): ST Replay's PCM stream state (audio_pcm / samplePlay), merged with the two above.
+    "demo-audio.wasm": 590896,
 };
 
 function uleb(b, p) {
