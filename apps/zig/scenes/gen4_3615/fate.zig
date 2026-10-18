@@ -8,11 +8,10 @@
 // f64 exactly as the JS numbers do, and ~~ is truncation toward zero.
 // --------------------------------------------------------------------------
 const std = @import("std");
-const A = @import("assets.zig");
+const fate_draw = @import("fate_draw.zig");
+const zorder = @import("zorder.zig");
 
 pub const SLICES = 113; // i = 0..112
-const ROWS = 112; // the_fate.png is 320x112: slice 111 is one row, 112 none
-const SRC_W = 320;
 const SPEED: f64 = 0.095; // fateSpeed
 const INC: f64 = 0.018; // fateInc
 const PERSP: f64 = 200; // fatePersp
@@ -93,8 +92,10 @@ pub const Fate = struct {
         if (!self.shown) return;
         var pos: [SLICES]Pos = undefined;
         curve(self.wave, self.half, self.third, &pos);
-        std.sort.insertion(Pos, &pos, {}, byZ); // stable, like V8's Array.sort
-        for (&self.slices, pos) |*s, p| {
+        var order: [SLICES]u8 = undefined;
+        zorder.sort(SLICES, &pos, &order);
+        for (&self.slices, order) |*s, k| {
+            const p = pos[k];
             s.* = .{
                 .i = p.i,
                 .x = trunc(600 * PERSP / (p.z + PERSP) - 357),
@@ -106,46 +107,17 @@ pub const Fate = struct {
         self.third = self.third.turn(THIRD_ROT);
     }
 
+    pub const Rows = fate_draw.Rows;
+
     /// Draw the slices into `bg`, a `bg_w`-wide buffer whose (0, 0) is ST
-    /// pixel (ox, oy). ST pixel (X, Y) is canvas pixel (2X, 2Y), so a slice
-    /// shows only on its even canvas rows and columns.
-    pub fn draw(self: *const Fate, bg: []u8, bg_w: usize, ox: i32, oy: i32) void {
-        if (!self.placed) return;
-        const bg_h: i32 = @intCast(bg.len / bg_w);
-        for (self.slices) |s| {
-            for (0..2) |dy| {
-                const cy = s.y + @as(i32, @intCast(dy));
-                const row = @as(usize, s.i) + dy;
-                if (@mod(cy, 2) != 0 or row >= ROWS) continue;
-                const by = @divExact(cy, 2) - oy;
-                if (by < 0 or by >= bg_h) continue;
-                const out = bg[@as(usize, @intCast(by)) * bg_w ..][0..bg_w];
-                sliceRow(out, ox, s, A.fate.data[(row >> 1) * A.fate.w ..][0..A.fate.w]);
-            }
-        }
+    /// pixel (ox, oy), and say which rows were painted. ST pixel (X, Y) is
+    /// canvas pixel (2X, 2Y), so a slice shows only on its even canvas rows
+    /// and columns.
+    pub fn draw(self: *const Fate, bg: []u8, bg_w: usize, ox: i32, oy: i32) Rows {
+        if (!self.placed) return .{ .lo = 0, .hi = 0 };
+        return fate_draw.draw(&self.slices, bg, bg_w, ox, oy);
     }
 };
-
-/// One destination row of a slice: the 320-wide source row scaled to l
-/// pixels the way Chrome's nearest-neighbour scaler steps it, a 16.16 source
-/// x starting half a step in, the step truncated (measured against Chrome:
-/// see gen4_3615_replay.mjs).
-fn sliceRow(out: []u8, ox: i32, s: Slice, src: []const u8) void {
-    if (s.l <= 0) return; // 264 + 5.6z >= 152 on every curve; drawImage would draw nothing
-    const step: i64 = @divTrunc(@as(i64, SRC_W) << 16, s.l);
-    const first = @max(@divFloor(s.x + 1, 2), ox); // first even canvas x >= s.x, as ST x
-    const end = @min(@divFloor(s.x + s.l + 1, 2), ox + @as(i32, @intCast(out.len)));
-    var X = first;
-    while (X < end) : (X += 1) {
-        const d: i64 = 2 * X - s.x;
-        const u: usize = @intCast((@divFloor(step, 2) + d * step) >> 16);
-        out[@intCast(X - ox)] = src[u >> 1];
-    }
-}
-
-fn byZ(_: void, a: Pos, b: Pos) bool {
-    return a.z < b.z;
-}
 
 fn trunc(v: f64) i32 {
     return @intFromFloat(@trunc(v));

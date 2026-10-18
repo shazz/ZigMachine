@@ -8,15 +8,16 @@
 // is opaque. So the big ULM font is a window: the letters are filled with sky,
 // floor and logo, and everything else in the box is black.
 //
-// Here the box's contents are painted into a 352x88 buffer (sky and floor are
-// raster INKS, the copper colours them per line), and each glyph is blitted
-// with zg.blit's .pattern ink, which takes that buffer's pixel under it.
+// Here the box's contents are painted into a 352x88 buffer in cart RAM (sky
+// and floor are raster INKS, the copper colours them per line), and CHISEL
+// writes each glyph's mask ANDed with that buffer to the plane (chisel.zig).
 // --------------------------------------------------------------------------
 const std = @import("std");
 const zg = @import("zigos");
-const blit = zg.blit;
 const A = @import("assets.zig");
 const Fate = @import("fate.zig").Fate;
+const floor = @import("floor.zig");
+const chisel = @import("chisel.zig");
 
 // the scroll canvas at (24, 268), 704x176, in ST pixels
 pub const BOX_X = 12;
@@ -26,17 +27,10 @@ pub const BOX_H = 88;
 
 pub const SKY_TOP = 135; // fillRect(24, 270, 704, 90): the sky pattern's rows 0..44
 pub const FLOOR_TOP = 180; // the floor's 90 canvas rows from 360
-pub const FLOOR_ROWS = 90;
 const FLOOR_W = 704; // drawPart's partw
-const DAMIER_W = 16; // damierWidth: the pattern tile is 32x128, light at (0..15, 0..63) and (16..31, 64..127)
 const DAMIER_AMPL: f64 = 400;
 const PI: f64 = std.math.pi; // Math.PI: typed, so PI / 250 rounds in f64 as the JS does
 const DAMIER_SPEED: f64 = PI / 250;
-/// floor row y comes from source row y*corr, corr walking down from 10
-const CORR_START: f64 = 10;
-const CORR_STEP: f64 = 0.051;
-const ZOOM_STEP: f64 = 0.04;
-pub const SHADOW_ROWS = 70; // damierShadow's heights: 4+4+6+6+8+8+10+12+12
 
 // scrolltext_horizontal.init(scrollCan, font, 12), in canvas pixels
 const GLYPH = 192;
@@ -46,11 +40,11 @@ const LETTERS = WIDE + 1;
 const Ring = zg.scrollring.Ring(i32, LETTERS);
 
 /// What the box holds before the glyphs cut it out, and each letter's glyph
-/// unpacked to 0/1 (re-unpacked only when its character changes). Both come
+/// unpacked to a 0x00 / 0xFF mask (re-unpacked only when its character changes). Both come
 /// from the cart RAM arena (zg.mem) at init: as module-scope arrays they were
 /// 82 KB of zeros in the data segment (the zero-segment gate's 64 KB limit).
-var box: *[BOX_W * BOX_H]u8 = undefined;
-var glyph_px: *[LETTERS][A.FONT_W * A.FONT_H]u8 = undefined;
+var box: *align(4) [BOX_W * BOX_H]u8 = undefined;
+var glyph_px: *align(4) [LETTERS][A.FONT_W * A.FONT_H]u8 = undefined;
 
 pub const Scroller = struct {
     ring: Ring,
@@ -58,21 +52,22 @@ pub const Scroller = struct {
     damier_ctr: f64,
     tx: i32, // the chessboard pattern's translation this frame
     ty: i32,
-    corr: [FLOOR_ROWS]f64, // damier()'s float walk, kept as the JS computes it
+    dirty: Fate.Rows, // the box rows the logo painted over last frame
 
     pub fn init(self: *Scroller) void {
-        box = zg.mem.mustAlloc(u8, BOX_W * BOX_H)[0 .. BOX_W * BOX_H];
-        glyph_px = zg.mem.mustAlloc([A.FONT_W * A.FONT_H]u8, LETTERS)[0..LETTERS];
+        // as words: floor.row stores four pixels at a time
+        box = @ptrCast(zg.mem.mustAlloc(u32, BOX_W * BOX_H / 4)[0 .. BOX_W * BOX_H / 4]);
+        glyph_px = @ptrCast(zg.mem.mustAlloc(u32, LETTERS * A.FONT_W * A.FONT_H / 4)[0 .. LETTERS * A.FONT_W * A.FONT_H / 4]);
         self.ring = Ring.init(A.text, WIDE * GLYPH, GLYPH);
         self.cached = @splat(0);
         self.damier_ctr = 0;
         self.tx = 0;
         self.ty = 0;
-        var c = CORR_START;
-        for (&self.corr) |*v| {
-            v.* = c;
-            c -= CORR_STEP;
-        }
+        // canvas rows 268-269: nothing is drawn there; then the sky, which only
+        // the logo ever paints over (render puts those rows back)
+        @memset(box[0..BOX_W], 0);
+        @memset(box[BOX_W .. (FLOOR_TOP - BOX_Y) * BOX_W], A.SKY_INK);
+        self.dirty = .{ .lo = 0, .hi = 0 };
     }
 
     /// damier()'s part of go(): the pattern offset it draws with, then the step.
@@ -102,73 +97,78 @@ pub const Scroller = struct {
         _ = self.ring.step(SPEED);
     }
 
-    /// Paint the box: sky, floor, logo, then keep only the glyphs.
-    pub fn render(self: *Scroller, canvas: blit.Dst, fate: *const Fate) void {
-        @memset(box[0..BOX_W], 0); // canvas rows 268-269: nothing drawn yet
-        @memset(box[BOX_W .. (FLOOR_TOP - BOX_Y) * BOX_W], A.SKY_INK);
-        for (FLOOR_TOP..BOX_Y + BOX_H) |Y| self.floorRow(Y, box[(Y - BOX_Y) * BOX_W ..][0..BOX_W]);
-        fate.draw(box, BOX_W, BOX_X, BOX_Y);
+    /// Paint the box (sky, floor, logo) in cart RAM, then let CHISEL keep only
+    /// the glyphs: each glyph's mask ANDed with the box under it goes straight
+    /// to the plane, at canvas (cx, cy) + the box's place. Columns no glyph
+    /// covers (none while the letters sit 96 apart, edge to edge) are filled black.
+    pub fn render(self: *Scroller, fb: *zg.LogicalFB, bl: *zg.Blitter, cx: i16, cy: i16, fate: *const Fate) void {
+        for (self.dirty.lo..self.dirty.hi) |r| skyRow(r);
+        comptime std.debug.assert(FLOOR_TOP + floor.ROWS == BOX_Y + BOX_H and floor.W == BOX_W and BOX_W % 4 == 0);
+        for (0..floor.ROWS) |k| floor.row(k, self.tx, self.ty, @alignCast(box[(FLOOR_TOP - BOX_Y + k) * BOX_W ..][0..BOX_W]));
+        self.dirty = fate.draw(box, BOX_W, BOX_X, BOX_Y);
 
-        const hole = canvas.window(BOX_X, BOX_Y, BOX_W, BOX_H);
-        const ink = blit.Ink{ .pattern = .{ .img = blit.Image.init(box, BOX_W), .ox = 0, .oy = 0 } };
+        const hx = cx + BOX_X;
+        const hy = cy + BOX_Y;
+        var spans: [LETTERS][2]u16 = undefined;
+        var n: usize = 0;
         for (self.ring.x, self.ring.c, 0..) |x, c, i| {
             const gx = @divExact(x, 2);
-            if (gx >= BOX_W or gx + A.FONT_W <= 0) continue;
+            const lo: u16 = @intCast(std.math.clamp(gx, 0, BOX_W));
+            const hi: u16 = @intCast(std.math.clamp(gx + A.FONT_W, 0, BOX_W));
+            if (lo >= hi) continue;
             if (self.cached[i] != c) unpack(&glyph_px[i], c);
             self.cached[i] = c;
-            blit.blit(hole, blit.Image.init(&glyph_px[i], A.FONT_W), null, gx, 0, 0, ink);
+            const mask = glyph_px[i][@intCast(lo - gx)..];
+            chisel.andBlit(fb, hx + @as(i16, @intCast(lo)), hy, mask.ptr, A.FONT_W, box[lo..].ptr, BOX_W, hi - lo, BOX_H);
+            spans[n] = .{ lo, hi };
+            n += 1;
         }
-    }
-
-    /// Floor row y = 2Y - 360 of damierCan drawn with drawPart(main, -16y,
-    /// 360+y, 0, y*corr, 704, 1, 1, 0, 1+0.04y, 1): source x at canvas x cx is
-    /// floor((cx + 0.5 + 16y) / zoom), the source row floor(y*corr + 0.5).
-    ///
-    /// zoom = 1 + y/25 to within an f64 ulp, so the quotient is the exact
-    /// rational (4bx + 49 + 32y) * 25 / (2 * (25 + y)): walked along the row as
-    /// a quotient and a remainder, no divide a pixel. Only where that rational
-    /// is a whole number can the ulp decide the floor, and there (about one
-    /// pixel in a hundred) the original f64 expression runs.
-    fn floorRow(self: *const Scroller, Y: usize, out: []u8) void {
-        const y = 2 * (Y - FLOOR_TOP);
-        const fy: f64 = @floatFromInt(y);
-        const x0: f64 = 0 - fy * 16;
-        const zoom: f64 = 1 + fy * ZOOM_STEP;
-        const v: i32 = @intFromFloat(@floor(fy * self.corr[y] + 0.5));
-        const top_half = ((v - self.ty) & (8 * DAMIER_W - 1)) < 4 * DAMIER_W;
-        const den: u32 = @intCast(2 * (25 + y));
-        const num0: u32 = @intCast((49 + 32 * y) * 25);
-        var q: u32 = num0 / den;
-        var r: u32 = num0 % den;
-        const sq: u32 = 100 / den;
-        const sr: u32 = 100 % den;
-        for (out, 0..) |*p, bx| {
-            var u: u32 = q;
-            if (r == 0) {
-                const cx: f64 = @floatFromInt(2 * (bx + BOX_X));
-                u = @intFromFloat(@floor((cx + 0.5 - x0) / zoom));
-            }
-            r += sr;
-            q += sq;
-            if (r >= den) {
-                r -= den;
-                q += 1;
-            }
-            if (u >= FLOOR_W) {
-                // only floor row 0 stops short (at x 704): the shadow alone is there
-                p.* = if (y < SHADOW_ROWS) A.SHADOW_BARE else 0;
-                continue;
-            }
-            const left_half = ((@as(i32, @intCast(u)) - self.tx) & (2 * DAMIER_W - 1)) < DAMIER_W;
-            p.* = if (left_half == top_half) A.CHECK_LIGHT else A.CHECK_DARK;
+        std.sort.insertion([2]u16, spans[0..n], {}, spanLess);
+        var edge: u16 = 0; // glyphs are cut edge to edge: none overlaps another
+        for (spans[0..n]) |sp| {
+            if (sp[0] > edge) bl.fill(fb, hx + @as(i16, @intCast(edge)), hy, sp[0] - edge, BOX_H, 0);
+            edge = @max(edge, sp[1]);
         }
+        if (edge < BOX_W) bl.fill(fb, hx + @as(i16, @intCast(edge)), hy, BOX_W - edge, BOX_H, 0);
     }
 };
 
-fn unpack(out: *[A.FONT_W * A.FONT_H]u8, c: u8) void {
-    const bits = A.font[@as(usize, c - A.FONT_FIRST) * A.FONT_H * A.FONT_ROW_BYTES ..][0 .. A.FONT_H * A.FONT_ROW_BYTES];
-    for (out, 0..) |*p, i| p.* = (bits[i >> 3] >> @intCast(7 - (i & 7))) & 1;
+comptime {
+    std.debug.assert(GLYPH / 2 == A.FONT_W and A.FONT_H >= BOX_H); // the glyphs tile the box
 }
+
+fn spanLess(_: void, a: [2]u16, b: [2]u16) bool {
+    return a[0] < b[0];
+}
+
+/// Box row r as it is before the logo: black, then the sky (the floor rows
+/// are repainted every frame anyway).
+fn skyRow(r: usize) void {
+    if (r >= FLOOR_TOP - BOX_Y) return;
+    const v: u32 = if (r == 0) 0 else @as(u32, A.SKY_INK) * 0x0101_0101;
+    const words: *[BOX_W / 4]u32 = @ptrCast(@alignCast(box[r * BOX_W ..][0..BOX_W]));
+    for (words) |*w| w.* = v;
+}
+
+/// A glyph's bits (pixel 0 in a byte's top bit) as 0x00 / 0xFF bytes, a word
+/// (one nibble of the font) at a time.
+fn unpack(out: *align(4) [A.FONT_W * A.FONT_H]u8, c: u8) void {
+    const bits = A.font[@as(usize, c - A.FONT_FIRST) * A.FONT_H * A.FONT_ROW_BYTES ..][0 .. A.FONT_H * A.FONT_ROW_BYTES];
+    const words: *[A.FONT_W * A.FONT_H / 4]u32 = @ptrCast(out);
+    for (words, 0..) |*w, j| w.* = nibble_mask[(bits[j >> 1] >> @intCast(4 - 4 * (j & 1))) & 0xF];
+}
+
+/// nibble_mask[n]: byte b is 0xFF where n's bit 3 - b is set (pixel order).
+const nibble_mask: [16]u32 = blk: {
+    var t: [16]u32 = undefined;
+    for (&t, 0..) |*m, n| {
+        m.* = 0;
+        for (0..4) |b| if ((n >> (3 - b)) & 1 != 0) {
+            m.* |= @as(u32, 0xFF) << (8 * b);
+        };
+    }
+    break :blk t;
+};
 
 fn trunc(v: f64) i32 {
     return @intFromFloat(@trunc(v));
