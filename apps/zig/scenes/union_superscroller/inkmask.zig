@@ -1,40 +1,15 @@
 // --------------------------------------------------------------------------
-// Where a row's pixels CHANGE, as bit masks, so the compositor looks at the few
-// pixels that start a new run instead of every pixel (the oldskool rule: only
-// touch what changes). back.png and overlay.png are static: their per-image-row
-// "differs from the pixel on its left" masks are built once at start; a screen
-// row ORs the masks of the (up to six) image rows it is made of, plus the edges
-// of the letter ink, and only the set bits cost a colour lookup. The result is
-// the same run structure the per-pixel loop found (its key was injective over
-// exactly these sources), so the palette entries are handed out in the same order.
+// Bit masks over one row's 320 pixels (the letters' ink), and the per-row
+// colour-key cache: a pixel's sources (two back taps, four overlay taps, ink)
+// pack into a 17-bit key, and one row sees far fewer distinct keys than pixels,
+// so the colour maths and the palette hash run once per key, not per pixel.
+// Loads are cheap on ZIGGY and every store is a blocking DDR write, so the row
+// is also written four pixels to a u32.
 // --------------------------------------------------------------------------
 const A = @import("assets.zig");
 
 pub const WORDS = A.W / 32;
 pub const Mask = [WORDS]u32;
-
-pub const Edges = struct {
-    back: [A.H]Mask,
-    overlay: [A.H]Mask,
-
-    pub fn build(self: *Edges, img: *const A.Images) void {
-        for (0..A.H) |y| {
-            rowEdges(&self.back[y], img.back[y * A.W ..][0..A.W]);
-            rowEdges(&self.overlay[y], img.overlay[y * A.W ..][0..A.W]);
-        }
-    }
-};
-
-fn rowEdges(m: *Mask, px: *const [A.W]u8) void {
-    m.* = [_]u32{0} ** WORDS;
-    for (1..A.W) |x| {
-        if (px[x] != px[x - 1]) m[x >> 5] |= @as(u32, 1) << @intCast(x & 31);
-    }
-}
-
-pub fn orInto(dst: *Mask, src: *const Mask) void {
-    for (dst, src) |*d, s| d.* |= s;
-}
 
 /// Set bits x0..x1 (exclusive) of `m`.
 pub fn setRange(m: *Mask, x0: usize, x1: usize) void {
@@ -49,15 +24,41 @@ pub fn setRange(m: *Mask, x0: usize, x1: usize) void {
     }
 }
 
-/// OR into `dst` the pixels where `ink` differs from the pixel on its left.
-pub fn orInkEdges(dst: *Mask, ink: *const Mask) void {
-    var carry: u32 = 0; // bit 31 of the previous word: the pixel left of bit 0
-    for (dst, ink) |*d, w| {
-        d.* |= w ^ ((w << 1) | carry);
-        carry = w >> 31;
-    }
+pub inline fn bit(m: *const Mask, x: usize) u32 {
+    return (m[x >> 5] >> @intCast(x & 31)) & 1;
 }
 
-pub inline fn bit(m: *const Mask, x: usize) bool {
-    return (m[x >> 5] >> @intCast(x & 31)) & 1 != 0;
-}
+const SLOTS = 1024;
+
+/// key -> palette entry for the row being drawn; valid where stamp == gen.
+pub const KeyCache = struct {
+    keys: [SLOTS]u32,
+    vals: [SLOTS]u8,
+    stamp: [SLOTS]u32,
+    gen: u32,
+
+    pub fn init(self: *KeyCache) void {
+        @memset(&self.stamp, 0);
+        self.gen = 0;
+    }
+
+    pub fn nextRow(self: *KeyCache) void {
+        self.gen += 1;
+    }
+
+    pub inline fn slot(key: u32) usize {
+        return (key *% 0x9E37_79B1) >> (32 - 10);
+    }
+
+    pub inline fn find(self: *const KeyCache, key: u32) ?u8 {
+        const s = slot(key);
+        return if (self.stamp[s] == self.gen and self.keys[s] == key) self.vals[s] else null;
+    }
+
+    pub fn put(self: *KeyCache, key: u32, v: u8) void {
+        const s = slot(key);
+        self.stamp[s] = self.gen;
+        self.keys[s] = key;
+        self.vals[s] = v;
+    }
+};
