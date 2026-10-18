@@ -51,7 +51,8 @@ const copper = zg.copper;
 const A = @import("gen4_3615/assets.zig");
 const rasters = @import("gen4_3615/rasters.zig");
 const Fate = @import("gen4_3615/fate.zig").Fate;
-const Scroller = @import("gen4_3615/scroller.zig").Scroller;
+const scroller_mod = @import("gen4_3615/scroller.zig");
+const Scroller = scroller_mod.Scroller;
 
 // The remake's own SNDH (ICE-packed; prototypes/sndh_lf/The_Fate/3615_Gen4_Demo.sndh
 // is the same tune unpacked, identical YM registers after 1 s), FLAG ~y.
@@ -92,7 +93,7 @@ const placement = [_]Placed{
 /// A canvas rectangle the frame redraws; everything outside the DYNAMIC ones is
 /// static (the black and the potiches), drawn once in init.
 const Rect = struct { x: i32, y: i32, w: usize, h: usize };
-const BOX = Rect{ .x = Scroller.BOX_X, .y = Scroller.BOX_Y, .w = Scroller.BOX_W, .h = Scroller.BOX_H };
+const BOX = Rect{ .x = scroller_mod.BOX_X, .y = scroller_mod.BOX_Y, .w = scroller_mod.BOX_W, .h = scroller_mod.BOX_H };
 const MOCHE_RECT = Rect{ .x = MOCHE_X, .y = MOCHE_Y, .w = MOCHE_W, .h = MOCHE_LINES };
 const DYNAMIC_FIXED = [_]Rect{
     BOX,

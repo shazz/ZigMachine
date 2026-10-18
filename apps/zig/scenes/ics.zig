@@ -213,7 +213,7 @@ pub const Demo = struct {
 /// rows repeating, so those are merged once a frame and copied.
 fn renderScroller(fb: *LogicalFB) void {
     for (&merged, 0..) |*g, b| mergeChain(g, b, TEXT_ROWS - 1);
-    const out: [*]u32 = @ptrCast(@alignCast(fb.fb.ptr));
+    const out: [*]u32 = @ptrCast(@alignCast(fb.fb));
     for (0..SCROLL_PLANE_ROWS) |k| {
         const row = k + SCROLL_TOP;
         const dst = out[k * ROW_WORDS ..][0..ROW_WORDS];
@@ -230,7 +230,7 @@ fn renderScroller(fb: *LogicalFB) void {
 fn renderGrid(fb: *LogicalFB) void {
     const x0: usize = @intCast(-grid_dx);
     const y0: usize = @intCast(-grid_dy);
-    const out: [*]u32 = @ptrCast(@alignCast(fb.fb.ptr));
+    const out: [*]u32 = @ptrCast(@alignCast(fb.fb));
     for (0..200) |y| {
         const src = grid_b[(y + y0) * GRID_W + x0 ..][0..WIDTH];
         const dst = out[y * ROW_WORDS ..][0..ROW_WORDS];
