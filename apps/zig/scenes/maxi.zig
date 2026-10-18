@@ -67,6 +67,10 @@ fn posed(p: Pose, v: Vec4) Vec4 {
 // arena (zg.mem) in init, since as a module-scope array it was 89,600 zero
 // bytes of the data section. render_buffer.buffer is pointed at it there.
 var overcan_buffer: *[320 * 280]u8 = undefined;
+// The cleared buffer with the (static) text drawn on it, made once in init():
+// each frame starts from a copy of it instead of a clear plus ~1100 glyphs
+// drawn a pixel at a time.
+var text_page: *[320 * 280]u8 = undefined;
 var render_buffer: RenderBuffer = .{ .width = 320, .height = 280 };
 
 // --------------------------------------------------------------------------
@@ -119,9 +123,15 @@ pub const Demo = struct {
         overcan_buffer = zg.mem.mustAlloc(u8, 320 * 280)[0 .. 320 * 280]; // once per cart load
         render_buffer.buffer = overcan_buffer;
         self.render_target = .{ .render_buffer = &render_buffer };  
-        self.render_target.clearFrameBuffer(0); 
-
         self.text.init(self.render_target, fonts_b, fonts_chars, 8, 8);
+
+        // the text page: the same clear + text the frame used to redraw
+        text_page = zg.mem.mustAlloc(u8, 320 * 280)[0 .. 320 * 280];
+        render_buffer.buffer = text_page;
+        self.render_target.clearFrameBuffer(0);
+        self.render_text();
+        render_buffer.buffer = overcan_buffer;
+        self.render_target.clearFrameBuffer(0);
 
         for (&vertices_rectangle) |*v| v.* = v.add(Vec4.new(-1.2, -0.5, -0.0, 0.0));
         for (&vertices_yellow) |*v| v.* = v.add(Vec4.new(-1.2, -0.5, 0.35, 0.0));
@@ -163,8 +173,7 @@ pub const Demo = struct {
 
     pub fn render(self: *Demo, zigos: *ZigOS, elapsed_time: f32) void {
 
-        self.render_target.clearFrameBuffer(0);
-        self.render_text();
+        @memcpy(overcan_buffer, text_page); // the clear + text, made once in init()
 
         wf.drawEdges(self.render_target, &rect.edges, &self.projected_vertices_rectangle, 2, shapes.drawLine);
         wf.drawEdges(self.render_target, &yellow.edges, &self.projected_vertices_yellow, 3, shapes.drawLine);
@@ -179,10 +188,7 @@ pub const Demo = struct {
         const border: usize = zg.OVERSCAN_MAGIC_X;
         const src = overcan_buffer; // a local: the global pointer is not reloaded per pixel
         var y: usize = 0;
-        while (y < ph) : (y += 1) {
-            var x: usize = 0;
-            while (x < vw) : (x += 1) fb.fb[y * pw + x + border] = src[y * vw + x];
-        }
+        while (y < ph) : (y += 1) @memcpy(fb.fb[y * pw + border ..][0..vw], src[y * vw ..][0..vw]);
 
         _ = elapsed_time;
     }
