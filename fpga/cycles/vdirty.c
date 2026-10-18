@@ -5,6 +5,8 @@
 
 #include <string.h>
 
+#include "vdrows.h"
+
 #define H VD_LINES
 #define ROWMAX ZM_RASTER_WIDTH /* the longest fetch a comparable line makes (medium overscan) */
 /* The break mutants (fpga/tests/test_vdirty.py, ZM_RTL_BREAK=1): each forgets one input,
@@ -22,7 +24,7 @@ typedef struct {
 } pcfg;
 
 typedef struct {
-    uint8_t rows[ZM_NB_PLANES][H][ROWMAX]; /* first: 32-byte aligned rows (cmpcpy's blocks) */
+    uint8_t rows[ZM_NB_PLANES][H][ROWMAX]; /* first: 32-byte aligned rows (vdrows.c's blocks) */
     uint32_t pal[ZM_NB_PLANES][ZM_PAL_ENTRIES];
     uint32_t ver[H];      /* each line's input version */
     uint32_t built[2][H]; /* version + 1 each picture's row was built from, 0 = none */
@@ -72,33 +74,6 @@ static const uint8_t* fetch(const vd_frame* fr, int p, const pcfg* c, uint32_t y
     return at + c->len <= fr->mem_size ? fr->mem + at : 0;
 }
 
-/* dst := src; whether they differed. Word-aligned rows go 32 bytes at a time into
- * registers: the board's D$ is direct-mapped, and the source and its copy can
- * share a set, so word by word they would evict each other on every load. */
-static int cmpcpy(uint8_t* dst, const uint8_t* src, uint32_t n) {
-    if (((uintptr_t)src | (uintptr_t)dst | n) & 3) {
-        if (!memcmp(dst, src, n)) return 0;
-        memcpy(dst, src, n);
-        return 1;
-    }
-    const uint32_t* a = (const uint32_t*)src;
-    uint32_t* b = (uint32_t*)dst;
-    uint32_t i = 0, nw = n / 4;
-    for (; i + 8 <= nw; i += 8) {
-        uint32_t a0 = a[i], a1 = a[i + 1], a2 = a[i + 2], a3 = a[i + 3];
-        uint32_t a4 = a[i + 4], a5 = a[i + 5], a6 = a[i + 6], a7 = a[i + 7];
-        __asm__ volatile("" ::: "memory"); /* the source's block is in registers before its copy is read */
-        if ((a0 ^ b[i]) | (a1 ^ b[i + 1]) | (a2 ^ b[i + 2]) | (a3 ^ b[i + 3]) | (a4 ^ b[i + 4]) | (a5 ^ b[i + 5]) |
-            (a6 ^ b[i + 6]) | (a7 ^ b[i + 7]))
-            break;
-    }
-    for (; i < nw && a[i] == b[i]; i++) {
-    }
-    if (i == nw) return 0;
-    memcpy(b + i, a + i, 4 * (nw - i));
-    return 1;
-}
-
 void vd_unknown(void) {
     vd.frames++, vd.unknown++;
     s.rows_on = 0;
@@ -129,7 +104,7 @@ static void plan_bg(const vd_frame* fr) {
 /* Plane p's palette against its copy; its rows are compared line by line (vd_line). */
 static void plan_plane(const vd_frame* fr, int p, const pcfg* c) {
     const uint8_t* pal = fr->mem + ZM_HW_VIDEO_BASE + ZM_OFF_PAL + (uint32_t)p * ZM_PAL_BYTES;
-    int moved = cmpcpy((uint8_t*)s.pal[p], pal, ZM_PAL_BYTES);
+    int moved = vdr_cmpcpy((uint8_t*)s.pal[p], pal, ZM_PAL_BYTES);
 #ifdef VD_BREAK_PAL
     moved = 0;
 #endif
@@ -186,7 +161,8 @@ int vd_line(int pic, uint32_t y) {
     for (int p = 0; p < (int)ZM_NB_PLANES; p++) {
         const pcfg* c = &s.cfg[p];
         if (!((s.rows_on >> p) & 1) || y < c->oy || y >= c->oy + c->rows) continue;
-        if (ROW_MOVED(cmpcpy(s.rows[p][y], s.src[p][y], c->len)) || s.fresh[p]) bump(y, 1);
+        if (s.fresh[p]) vdr_queue(s.rows[p][y], s.src[p][y], c->len), bump(y, 1);
+        else if (ROW_MOVED(vdr_differ(s.rows[p][y], s.src[p][y], c->len))) bump(y, 1);
     }
     int skip = s.built[pic][y] == s.ver[y] + 1;
     s.built[pic][y] = s.ver[y] + 1;
@@ -195,6 +171,8 @@ int vd_line(int pic, uint32_t y) {
 #endif
     return skip;
 }
+
+int vd_spare(int n) { return vdr_copy(n); }
 
 void vd_overdrawn(int pic, uint32_t y0, uint32_t n) {
 #ifdef VD_BREAK_OVERDRAWN

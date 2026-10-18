@@ -64,6 +64,9 @@ void vd_unknown(void);
  * composites every line it does not skip. Line by line so that the board can
  * compare the next line while the compositor runs this one (vseq_decide). */
 int vd_line(int pic, uint32_t y);
+/* The rows' copies vd_line left queued (vdrows.h): up to n of them, all if n < 0;
+ * all of them before any cart code runs again. Returns how many are left. */
+int vd_spare(int n);
 /* Rows [y0, y0 + n) of picture `pic` were drawn over after the composite. */
 void vd_overdrawn(int pic, uint32_t y0, uint32_t n);
 

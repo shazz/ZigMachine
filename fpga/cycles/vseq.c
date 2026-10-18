@@ -9,6 +9,7 @@ vseq_stats vseq;
 vseq_clear_rec vseq_rec;
 const uint8_t* vseq_skip;
 int (*vseq_decide)(int y);
+void (*vseq_spare)(int all);
 static uint8_t* g_r; /* the region: HW_VIDEO_BASE in the cart's linear memory */
 static int g_fill;  /* this frame's clear was one CLEAR: the first layer's passes paint its lines */
 
@@ -154,11 +155,13 @@ void vseq_line_major(struct w2c_env* e, unsigned planes) {
  * CPU work the sequencer would otherwise spend waiting. Later layers read vseq_skip. */
 static void layer(struct w2c_env* e, int op, int p, int first, uint16_t hid, uint32_t oy, uint32_t rows, uint16_t hpos) {
     int ask = first && vseq_decide, next = ask ? vseq_decide(0) : 0;
+    if (hid && vseq_spare) vseq_spare(1); /* before cart code runs: the planner's copies take the fetched bytes */
     for (uint32_t y = 0; y < ZM_RASTER_HEIGHT; y++) {
         if (hid && y >= oy && y < oy + rows) w2c_env_hblDispatch(e, hid, (u32)p, y - oy, hpos);
         int skip = ask ? next : vseq_skip && vseq_skip[y];
         if (!skip) issue(op, p, (int)y, 1, first, first && g_fill);
         if (ask && y + 1 < ZM_RASTER_HEIGHT) next = vseq_decide((int)y + 1);
+        if (!skip && !hid && vseq_spare) vseq_spare(0);
         if (!skip) wait_bits(ZMV_BIT(PAINTED)); /* a pass(): it has read what the next handler may change */
     }
 }

@@ -47,6 +47,9 @@ static void check_end(long f) {
 }
 #endif
 
+/* vseq_spare: one of the rows' queued copies while a pass runs, or all of them. */
+static void spare(int all) { vd_spare(all ? -1 : 1); }
+
 /* vseq_decide: line y, as the frame's first layer reaches it. */
 static int decide(int y) {
     int skip = vd_line(g_pic, (uint32_t)y);
@@ -73,7 +76,7 @@ int vplan_frame(struct w2c_env* e, unsigned enabled, int full) {
     vseq_wait_swap(); /* the back picture is now the one this frame builds */
     g_pic = (zmv_status() & ZMV_BIT(FRONT)) ? 0 : 1;
     g_full = full, g_composited = 0, g_decided = 0, g_planned = 1;
-    vseq_skip = g_skip, vseq_decide = decide;
+    vseq_skip = g_skip, vseq_decide = decide, vseq_spare = spare;
     return handler;
 }
 
@@ -92,7 +95,8 @@ void vplan_end(long f) {
 #endif
     if (!g_planned) return;
     g_planned = 0;
-    vseq_skip = NULL, vseq_decide = NULL;
+    vseq_skip = NULL, vseq_decide = NULL, vseq_spare = NULL;
+    vd_spare(-1); /* before the next frame's cart code: the copies take the bytes this frame fetched */
     if (g_decided != VD_LINES) vd_mask_moved(); /* no layer asked for every line: trust no row */
     vplan.lines += VD_LINES, vplan.skipped += VD_LINES - (uint32_t)g_composited;
 #ifdef ZM_VSEQ_CHECK
