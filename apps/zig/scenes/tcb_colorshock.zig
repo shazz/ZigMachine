@@ -121,10 +121,20 @@ var pan_row: u32 = 0;
 fn panHbl(fb: *LogicalFB, _: *ZigOS, line: u16, _: u16) void {
     fb.flickerBorder();
     const row: usize = (pan_row + line) % TILE_H;
-    const src = fond_rows[row * ROW_PAL_BYTES ..][0..ROW_PAL_BYTES];
-    const dst = @as([*]u8, @ptrCast(fb.palette))[0..ROW_PAL_BYTES];
-    @memcpy(dst, src);
+    // Word stores into the palette registers, one by one: the memcpy this was costs ~60 cycles a
+    // word on the board (picolibc), a plain store ~27, and 105 of them run on each of 280 lines.
+    const src = fond_words[row * ROW_COLOURS ..][0..ROW_COLOURS];
+    const dst: [*]volatile u32 = fb.palette;
+    for (src, 0..) |v, i| dst[i] = v;
 }
+
+/// fond_rows.pal as aligned little-endian words (the palette entries' own format).
+const fond_words: [fond_rows.len / 4]u32 align(4) = blk: {
+    @setEvalBranchQuota(1_000_000);
+    var w: [fond_rows.len / 4]u32 = undefined;
+    for (&w, 0..) |*x, i| x.* = std.mem.readInt(u32, fond_rows[i * 4 ..][0..4], .little);
+    break :blk w;
+};
 
 // --------------------------------------------------------------------------
 // The scroll strip (mycanvas_scroll, 600x500 = ST 300x250)
