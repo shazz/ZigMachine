@@ -141,7 +141,8 @@ def boots(disk: bytes) -> str:
 
 def _fat_disk(tag: str, images: Images, csr_map: Path, dest: Path) -> list[tuple[str, str]]:
     name = f"zigmachine/demo-{tag}.zmd"
-    disk = ROOT / "docs" / f"demo-{tag}.zmd"
+    native = images.fw_dir / tag / "disk.zmd"  # a native cart's board-only disk (tools/native_cart.py)
+    disk = native if native.exists() else ROOT / "docs" / f"demo-{tag}.zmd"
     if not disk.exists():
         return [(name, f"MISSING: no {disk.name} on the shelf")]
     img = disk.read_bytes()
@@ -153,10 +154,11 @@ def _fat_disk(tag: str, images: Images, csr_map: Path, dest: Path) -> list[tuple
         return [(name, f"STALE: {fw} predates the CSR map; make board-fw CART={cart}")]
     packed = dest / f"{tag}.rv32.zx0"
     subprocess.run([zx0pack(), fw, packed], check=True, capture_output=True)
-    (dest / disk.name).write_bytes(zmd_fat.fatten(img, packed.read_bytes()))
+    (dest / f"demo-{tag}.zmd").write_bytes(zmd_fat.fatten(img, packed.read_bytes()))
     packed.unlink()
     src = fw.relative_to(FPGA) if fw.is_relative_to(FPGA) else fw
-    return [(name, f"{disk.relative_to(ROOT)} + {src}" + (" (a data disk: GEM boots)" if cart != tag else "")),
+    disk = disk.relative_to(ROOT) if disk.is_relative_to(ROOT) else disk
+    return [(name, f"{disk} + {src}" + (" (a data disk: GEM boots)" if cart != tag else "")),
             *(programs(tag, img, images, dest) if cart != tag else [])]  # fmt: skip
 
 
