@@ -355,6 +355,36 @@ native = 68000 bit for bit over 40 s, and mode 3 correlates at 0.95 and hands ba
 
 No resync and no full queue in any of the three.
 
+### Quartet (SingSong, Timer A, the state in registers)
+
+The Dune Gen4 Demo's title and F3 play `dune_gen4_quartet.sndh`: Audio Visual Research's SingSong replay
+(`prototypes/dune_gen4_re/quartet/`), four sample voices mixed by a Timer A interrupt at 2457600 / 4 / 38 =
+**16,168 Hz**, about 270 a 60 Hz frame, with the sequencer on Timer C (PLAY, TC200). The survey put it at
+11.8 k 68000 instructions and 273 Musashi calls a frame: **~374 % of BARD** (273 × 17.8 k + 11.8 k × 100
++ 0.2 M = 6.2 Mc), so the music played slow on the board.
+
+Its handler is small, but its state is not in RAM: d0-d3 are the four voices' positions (offset word,
+fraction word), a0-a3 their samples and a4 the PSG, left live in the registers between interrupts, and the
+sequencer starts a note by writing d_i and a_i itself. `libs/zig/players/digi_quartet.zig` (status 9,
+handler only, `digi_irq.zig`) therefore reads them from Musashi's register file at each interrupt and writes
+back what the 68000 leaves (`Bus.getReg` / `setReg`, 10 reads and 6 writes), so a PLAY in between sees
+exactly the 68000's registers. The Timer A vector is the SNDH glue's wrapper (it saves d0 to memory, since
+the engine's PLAY arrives with d0 = 0); the driver follows its `ta_orig` to SingSong's handler at arming,
+checks the handler and its wrap routine (relocated absolute addresses in the holes) and reads the table,
+the four step longs, the four loop longs and the silence buffer off the instruction stream. A loop long with
+a low word ($FFFFFFFF: no loop) sends a finished voice to 256 bytes of silence; a loop length is subtracted.
+
+**The proof:** `fpga/tests/test_sndh_irq.py`: all four subtunes native = Musashi over 4,000 frames each,
+across a `sndhCall` and 1/2 switches; mutant 7 (the sample index read unsigned) fails from frame 2;
+and the survey must show Musashi called at most 4 times a frame (the PLAYs), because a handler refused
+in RAM would pass the digest trivially. `apps/irq_native_check.mjs --song dune_gen4_quartet.sndh --status 9`
+(gate `dune_gen4_music`, with `--break --mutant 7`): the browser's modules, 40 s bit for bit, modes
+2-1-2-1-2 unbroken. Unit tests: `digi_quartet_test.zig`.
+
+**Estimated cost on BARD** (from the survey, not measured): 3.3 PLAY calls × 17.8 k + 211 instructions ×
+100 + 273 native interrupts × ~2.5 k (plus the 16 register accesses each) + 0.2 M base ≈ **1.0-1.1 Mc, 60-66 %**
+of the frame, down from ~374 %.
+
 ## The gap, and the next lever
 
 The other 10 tunes with the same handler (Robocop, Sidewinder, Joe Blade 2, Dominator, Laser Dance, Tonic Tile,

@@ -135,6 +135,7 @@ NATIVE_TESTS="
     libs/zig/players/digi_mym_test.zig
     libs/zig/players/digi_tcb_test.zig
     libs/zig/players/digi_sync4_test.zig
+    libs/zig/players/digi_quartet_test.zig
     machine/audio/pokey_test.zig
     libs/zig/players/cpu6502_test.zig
     libs/zig/players/sap_test.zig
@@ -427,6 +428,8 @@ gate dune_gen4 node apps/dune_gen4_headless.mjs --break lag "$SHOTS/dune_gen4_br
 gate dune_gen4 node apps/dune_gen4_headless.mjs --break music "$SHOTS/dune_gen4_break"    # ...and the menu playing the main part's tune is caught
 gate dune_gen4 node apps/dune_gen4_headless.mjs --break quartet "$SHOTS/dune_gen4_break"  # ...and the title asking for the wrong Quartet song is caught
 gate dune_gen4 node apps/dune_gen4_headless.mjs --break sound "$SHOTS/dune_gen4_break"    # ...and F3 opening on the wrong song is caught
+gate dune_gen4_music node apps/irq_native_check.mjs --song dune_gen4_quartet.sndh --status 9 --seconds 40   # the title's Quartet tune: SingSong's 4-voice interrupt, its state in d0-d3/a0-a3, natively = the 68000 bit for bit, modes 1/2 unbroken
+gate dune_gen4_music node apps/irq_native_check.mjs --song dune_gen4_quartet.sndh --status 9 --seconds 20 --break --mutant 7   # ...and the sample index read unsigned (mutant 7) is caught
 gate dune_gen4 node apps/sndh_headless.mjs docs/music/dune_gen4_quartet.sndh 4             # the Quartet SNDH (SingSong + SOUND2.SET + DUNE.PRG's songs) plays the title's song on the sealed YM
 gate dune_gen4 node apps/sndh_headless.mjs docs/music/dune_gen4_quartet.sndh 2             # ...and another subtune (F3's)
 gate c_fujiboink node apps/c_fujiboink_headless.mjs "$SHOTS/c_fujiboink"   # FUJIBOINK! (C, START 1986): nine Hatari captures of FUJIBOIN.PRG, six pixel for pixel and three within a one-VBL mid-frame sliver; the rainbow is Timer B's 73 register lines (every pixel an ST index, entry 4 rewritten per line); the thud SNDH lands with the fuji and decays; F-key freeze, Space and Escape leave
