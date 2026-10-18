@@ -38,6 +38,7 @@ pub const Status = enum(u32) {
     mix3_timer_c = 12, // handler native, digi_mix3.zig (a 3-voice mixer on Timer C: snyd_90's part 6)
     tcb_streams = 13, // handler native, digi_tcb3.zig (three volume streams: TCB's Spreadpoint)
     mym_drums = 14, // handler native, digi_mym.zig (maxYMiser's digidrums: crystallized)
+    game_sfx = 15, // handler native, digi_sfx.zig (North & South's and Rick Dangerous's sampled effects)
 };
 
 pub const Driver = union(enum) {

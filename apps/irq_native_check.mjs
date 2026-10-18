@@ -7,7 +7,7 @@
 // 3. Switched 2-1-2-1-2 mid-tune, the samples do not change.
 //
 //   node apps/irq_native_check.mjs --song union/thalion_forever.sndh --status 8 --seconds 60
-//   ... --break [--mutant 6]   (mutant 5, the default: the steps play patches into the handler
+//   ... [--tune n] --break [--mutant 6]   (mutant 5, the default: the steps play patches into the handler
 //                  frozen when it was armed; 6: the stream handler's registers 9 and 10 swapped; 8: the one-byte
 //                  handler's pointer kept in Zig past play's rewind.
 //                  The check must fail, then exits 0)
@@ -22,6 +22,7 @@ const STATUS = Number(arg("status"));
 const SECONDS = Number(arg("seconds", "30")), B = 50, BLOCKS = SECONDS * B;
 const BREAK = process.argv.includes("--break");
 const MUTANT = Number(arg("mutant", "5"));
+const TUNE = Number(arg("tune", "1"));
 const TAG = `irq_native ${SONG}`;
 if (!SONG || !STATUS) {
     console.log("usage: irq_native_check.mjs --song <file> --status <n> [--seconds s] [--break]");
@@ -30,13 +31,13 @@ if (!SONG || !STATUS) {
 
 async function check(mutant) {
     const errors = [];
-    const ref = await render(SONG, false, BLOCKS);
+    const ref = await render(SONG, false, BLOCKS, {}, 0, TUNE);
     if (ref.status !== 4) errors.push(`with native replays off, audioSndhNative says ${ref.status}, not 4`);
-    const nat = await render(SONG, true, BLOCKS, {}, mutant);
+    const nat = await render(SONG, true, BLOCKS, {}, mutant, TUNE);
     if (nat.status !== STATUS) errors.push(`audioSndhNative says ${nat.status}, not ${STATUS}`);
     const d = firstDifference(ref.out, nat.out);
     if (d >= 0) errors.push(`native differs from the 68000 from block ${d} (${(d / B).toFixed(2)} s)`);
-    const flip = await render(SONG, true, 6 * B, { [B]: 1, [2 * B]: 2, [3 * B]: 1, [4 * B]: 2 }, mutant);
+    const flip = await render(SONG, true, 6 * B, { [B]: 1, [2 * B]: 2, [3 * B]: 1, [4 * B]: 2 }, mutant, TUNE);
     if (flip.got.join() !== "1,2,1,2") errors.push(`modes 1/2/1/2 answered ${flip.got}`);
     if (firstDifference(ref.out.subarray(0, flip.out.length), flip.out) >= 0) errors.push("switching between modes 1 and 2 changed the samples");
     return errors;

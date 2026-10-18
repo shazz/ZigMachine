@@ -102,3 +102,25 @@ def test_one_changed_byte_of_the_handler_plays_on_musashi(tmp_path: Path) -> Non
     out = subprocess.run([str(ORACLE), "t.sndh", "1", "5"], env=env, check=True, capture_output=True,
                          text=True).stdout
     assert native_status(out) == 0
+
+
+# The games' sampled effects (digi_sfx.zig): every subtune is an effect or a tune; each is compared.
+SFX = [("north_south_digi.sndh", 47), ("rick_dangerous.sndh", 87)]
+
+
+@pytest.mark.parametrize(("song", "tunes"), SFX)
+def test_every_effect_of_the_games_is_the_68000s(tmp_path: Path, song: str, tunes: int) -> None:
+    statuses = set()
+    for tune in range(1, tunes + 1):
+        ref, _ = run(tmp_path, song, tune, 400, musashi=True)
+        got, out = run(tmp_path, song, tune, 400)
+        statuses.add(native_status(out))
+        assert first_difference(ref, got) is None, f"subtune {tune}"
+    assert statuses == {15}
+
+
+@pytest.mark.parametrize(("song", "tune"), [("north_south_digi.sndh", 33), ("rick_dangerous.sndh", 9)])
+def test_the_oracle_catches_an_effect_pointer_stored_past_its_end(tmp_path: Path, song: str, tune: int) -> None:
+    ref, _ = run(tmp_path, song, tune, 400, musashi=True)
+    got, _ = run(tmp_path, song, tune, 400, mutant=11)
+    assert first_difference(ref, got) is not None

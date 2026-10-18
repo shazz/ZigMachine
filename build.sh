@@ -469,6 +469,10 @@ gate tcb_spreadpoint_music node apps/irq_native_check.mjs --song tcb_spreadpoint
 gate tcb_spreadpoint_music node apps/irq_native_check.mjs --song tcb_spreadpoint.sndh --status 13 --seconds 20 --break --mutant 6   # ...and registers 9 and 10 swapped (mutant 6) are caught
 gate dbug_music node apps/irq_native_check.mjs --song crystallized.sndh --status 14 --seconds 40   # maxYMiser's drum interrupts (from 12.8 s) natively = the 68000 bit for bit, modes 1/2 unbroken
 gate dbug_music node apps/irq_native_check.mjs --song crystallized.sndh --status 14 --seconds 20 --break --mutant 10   # ...and the 8-bit drum routine without its addi.b (mutant 10) is caught
+gate north_south_music node apps/irq_native_check.mjs --song north_south_digi.sndh --tune 33 --status 15 --seconds 8   # an effect's interrupt natively = the 68000 bit for bit (all 47 in test_sndh_irq.py)
+gate north_south_music node apps/irq_native_check.mjs --song north_south_digi.sndh --tune 33 --status 15 --seconds 8 --break --mutant 11   # ...and the pointer stored past the 0 byte (mutant 11) is caught
+gate rick_dangerous_music node apps/irq_native_check.mjs --song rick_dangerous.sndh --tune 9 --status 15 --seconds 8   # an effect's interrupt natively = the 68000 bit for bit (all 87 in test_sndh_irq.py)
+gate rick_dangerous_music node apps/irq_native_check.mjs --song rick_dangerous.sndh --tune 9 --status 15 --seconds 8 --break --mutant 11   # ...and the pointer stored past the 0 byte (mutant 11) is caught
 gate swedish_newyear_music node apps/irq_native_check.mjs --song swedish_newyear_tcb_digi.sndh --status 10 --seconds 40   # TCB #1's one-byte digi interrupt natively = the 68000 bit for bit, modes 1/2 unbroken
 gate swedish_newyear_music node apps/irq_native_check.mjs --song swedish_newyear_tcb_digi.sndh --status 10 --seconds 20 --break --mutant 8   # ...and the pointer kept in Zig past play's rewind (mutant 8) is caught
 gate swedish_newyear_music node apps/irq_native_check.mjs --song Swedish_New_Year_Demo_Sync.sndh --status 11 --seconds 40   # SYNC's self-modifying 4-voice mixer interrupt natively = the 68000 bit for bit, modes 1/2 unbroken

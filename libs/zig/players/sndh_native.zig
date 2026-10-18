@@ -43,7 +43,8 @@ pub var status: digi.Status = .musashi;
 /// stream handler's registers 9 and 10 swapped (digi_tcb3.zig); 7 and 9 belong
 /// to the Quartet branch; 8 = the one-byte handler's pointer kept in Zig from
 /// arming (digi_tcb.zig); 10 = maxYMiser's 8-bit drum routine without its
-/// addi.b (digi_mym.zig). Test only.
+/// addi.b (digi_mym.zig); 11 = a game effect's pointer stored past its 0 byte
+/// (digi_sfx.zig). Test only.
 pub var mutant: u32 = 0;
 
 var driver: ?Driver = null; // what the image is, whatever the mode
@@ -141,6 +142,7 @@ pub fn interrupt(handler: u32) bool {
             digi.irq.frozen = mutant == 5;
             digi.irq.swapped = mutant == 6;
             digi.irq.no_offset = mutant == 10;
+            digi.irq.sfx_end_stores = mutant == 11;
             digi.irq.pointer_kept = mutant == 8;
             return digi.irq.irq(Bus68, &driver.?.irq, handler);
         },

@@ -22,6 +22,7 @@ pub const mix4 = @import("digi_mix4.zig");
 pub const mix3 = @import("digi_mix3.zig");
 pub const tcb3 = @import("digi_tcb3.zig");
 pub const mym = @import("digi_mym.zig");
+pub const sfx = @import("digi_sfx.zig");
 pub const tcb = @import("digi_tcb.zig");
 pub const sync4 = @import("digi_sync4.zig");
 
@@ -31,6 +32,7 @@ pub const Driver = union(enum) {
     mix3: mix3.Driver,
     tcb3: tcb3.Driver,
     mym: mym.Driver,
+    sfx: sfx.Driver,
     tcb: tcb.Driver,
     sync4: sync4.Driver,
 };
@@ -46,6 +48,8 @@ pub var frozen: bool = false;
 pub var swapped: bool = false;
 /// Mutant 10 (test only): maxYMiser's 8-bit drum routine (digi_mym.zig) leaves out its addi.b.
 pub var no_offset: bool = false;
+/// Mutant 11 (test only): the games' effect handlers (digi_sfx.zig) store the pointer past the 0 byte.
+pub var sfx_end_stores: bool = false;
 /// Mutant 8 (test only): the one-byte handler (digi_tcb.zig) keeps its sample pointer in Zig from
 /// arming on, as if play never rewound it.
 pub var pointer_kept: bool = false;
@@ -63,6 +67,7 @@ pub fn recognise(image: []const u8, base: u32) ?Driver {
     if (mix3.match(image, base)) |d| return .{ .mix3 = d };
     if (tcb3.match(image, base)) |d| return .{ .tcb3 = d };
     if (mym.match(image, base)) |d| return .{ .mym = d };
+    if (sfx.match(image, base)) |d| return .{ .sfx = d };
     if (tcb.match(image, base)) |d| return .{ .tcb = d };
     if (sync4.match(image, base)) |d| return .{ .sync4 = d };
     return null;
@@ -75,6 +80,7 @@ pub fn status(d: Driver) digi.Status {
         .mix3 => .mix3_timer_c,
         .tcb3 => .tcb_streams,
         .mym => .mym_drums,
+        .sfx => .game_sfx,
         .tcb => .tcb_digi,
         .sync4 => .sync_mix4,
     };
@@ -98,8 +104,8 @@ pub fn refused() bool {
 
 /// One interrupt to `handler`, natively if it is the driver's. False: Musashi's.
 pub fn irq(comptime Bus: type, d: *Driver, handler: u32) bool {
-    // maxYMiser's routines are many addresses (digi_mym.zig matches each); the others are one.
-    if ((d.* != .mym and handler != handlerAddr(d.*)) or state == .refused) return false;
+    // maxYMiser's and the games' routines are many addresses (each matched where it is); the others one.
+    if ((d.* != .mym and d.* != .sfx and handler != handlerAddr(d.*)) or state == .refused) return false;
     if (state == .unarmed) {
         const ok = switch (d.*) {
             inline else => |*x, tag| blk: {
@@ -113,6 +119,7 @@ pub fn irq(comptime Bus: type, d: *Driver, handler: u32) bool {
     }
     switch (d.*) {
         .mym => |*x| return mym.irq(Bus, x, handler),
+        .sfx => |*x| return sfx.irq(Bus, x, handler),
         inline else => |x, tag| @field(@This(), @tagName(tag)).irq(Bus, x),
     }
     return true;

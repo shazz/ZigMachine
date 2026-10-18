@@ -38,6 +38,7 @@ static const char* const NATIVE[] = {
     "native mix3_timer_c (handler)",
     "native tcb_streams (handler)",
     "native mym_drums (handler)",
+    "native game_sfx (handler)",
 };
 
 void audio_boot(void) {
