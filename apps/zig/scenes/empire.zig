@@ -61,6 +61,21 @@ var vertices = wf.vec4s(logo.verts.len, logo.verts);
 // --------------------------------------------------------------------------
 // Variables
 // --------------------------------------------------------------------------
+// One plane for the three layers: the font is 0..12, the stars' greys and the
+// logo's white go above it.
+const STAR_BASE: u8 = 12; // + the star's speed 1..4
+const LOGO_INK: u8 = 17;
+
+var scroll_pixels = [_]u8{0} ** (WIDTH * SCROLL_CHAR_HEIGHT);
+var scroll_band: zg.RenderBuffer = .{ .buffer = &scroll_pixels, .width = WIDTH, .height = SCROLL_CHAR_HEIGHT };
+
+// The band over the plane from row `y`, index 0 left see-through.
+fn overlay(dst: [*]u8, y: u16) void {
+    const out = dst[@as(usize, y) * WIDTH ..][0 .. WIDTH * SCROLL_CHAR_HEIGHT];
+    for (out, &scroll_pixels) |*d, px| {
+        if (px != 0) d.* = px;
+    }
+}
 
 // --------------------------------------------------------------------------
 // Demo
@@ -83,24 +98,24 @@ pub const Demo = struct {
         // Nothing happens until the user turns sound on — the request just waits.
         zg.requestSongTune(MUSIC, MUSIC_TUNE);
 
-        // first plane
-        var fb: *LogicalFB = &zigos.lfbs[0];
-
-        fb = &zigos.lfbs[0];
+        // ONE plane. The screen used three (stars, logo, scroller), and every
+        // enabled plane is a full compositor pass a frame (about 0.8 Mc on the
+        // board); they never needed to be apart. The font keeps its own indices
+        // (0..12), the stars and the logo take free entries above them, and the
+        // layers are drawn bottom to top, so the picture is the one the three
+        // planes composed.
+        const fb: *LogicalFB = &zigos.lfbs[0];
         fb.is_enabled = true;
+        fb.setPalette(font_pal);
+        fb.setPaletteEntry(STAR_BASE + 4, Color{ .r = 0xF0, .g = 0xF0, .b = 0xF0, .a = 255 });
+        fb.setPaletteEntry(STAR_BASE + 3, Color{ .r = 0xA0, .g = 0xA0, .b = 0xA0, .a = 255 });
+        fb.setPaletteEntry(STAR_BASE + 2, Color{ .r = 0x60, .g = 0x60, .b = 0x60, .a = 255 });
+        fb.setPaletteEntry(STAR_BASE + 1, Color{ .r = 0x40, .g = 0x40, .b = 0x40, .a = 255 });
+        fb.setPaletteEntry(LOGO_INK, Color{ .r = 255, .g = 255, .b = 255, .a = 255 });
+
         self.starfield = Starfield(NB_STARS).init(fb.getRenderTarget(), WIDTH, HEIGHT-64, 32, 1, 4, StarfieldDirection.LEFT);
+        for (&self.starfield.starfield_table) |*star| star.color += STAR_BASE; // speed 1..4 -> its grey
 
-        fb.setPaletteEntry(0, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
-        fb.setPaletteEntry(4, Color{ .r = 0xF0, .g = 0xF0, .b = 0xF0, .a = 255 });
-        fb.setPaletteEntry(3, Color{ .r = 0xA0, .g = 0xA0, .b = 0xA0, .a = 255 });
-        fb.setPaletteEntry(2, Color{ .r = 0x60, .g = 0x60, .b = 0x60, .a = 255 });
-        fb.setPaletteEntry(1, Color{ .r = 0x40, .g = 0x40, .b = 0x40, .a = 255 });
-
-        // 2nd plane
-        fb = &zigos.lfbs[1];
-        fb.is_enabled = true;
-        fb.setPaletteEntry(0, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
-        fb.setPaletteEntry(1, Color{ .r = 255, .g = 255, .b = 255, .a = 255 });
         self.cam = .{
             .projection = za.perspective(40.0, 200.0 / 320.0, 20, 1800),
             .camera = za.camera(Vec3.new(0.0, 0.0, -14.0), 0, 0),
@@ -109,12 +124,8 @@ pub const Demo = struct {
 
         for (&vertices) |*v| v.* = v.add(Vec4.new(-3.0, 0.50, 0.0, 0));
 
-        // 3rd plane
-        fb = &zigos.lfbs[2];
-        fb.is_enabled = true;
-        fb.setPalette(font_pal);
-
-        self.scrolltext = Scrolltext(NB_FONTS).init(fb.getRenderTarget(), fonts_b, SCROLL_CHARS, SCROLL_CHAR_WIDTH, SCROLL_CHAR_HEIGHT, SCROLL_TEXT, SCROLL_SPEED, 0, null, null, null);
+        // the scroller draws into its own 320x32 band, laid over the plane twice
+        self.scrolltext = Scrolltext(NB_FONTS).init(.{ .render_buffer = &scroll_band }, fonts_b, SCROLL_CHARS, SCROLL_CHAR_WIDTH, SCROLL_CHAR_HEIGHT, SCROLL_TEXT, SCROLL_SPEED, 0, null, null, null);
 
         Console.log("demo init done!", .{});
     }
@@ -140,24 +151,18 @@ pub const Demo = struct {
     }
 
     pub fn render(self: *Demo, zigos: *ZigOS, elapsed_time: f32) void {
-
-        self.starfield.target.clearFrameBuffer(0);
+        const fb = &zigos.lfbs[0];
+        fb.clearFrameBuffer(0);
         self.starfield.render();
+        wf.drawEdges(fb.getRenderTarget(), &logo.edges, &self.projected_vertices, LOGO_INK, shapes.drawLine);
 
-        var fb = &zigos.lfbs[1];
-        fb.clearFrameBuffer(0);
-        wf.drawEdges(fb.getRenderTarget(), &logo.edges, &self.projected_vertices, 1, shapes.drawLine);
-
-        fb = &zigos.lfbs[2];
-        fb.clearFrameBuffer(0);
+        // the scroller on top, at the top and again at the bottom: its index 0 is
+        // the see-through colour, as it was on its own plane
+        @memset(&scroll_pixels, 0);
         self.scrolltext.render();
-
-        // copy scrolltext at the bottom: one memcpy (the bands do not overlap),
-        // not 10240 byte moves
-        const band: usize = @as(usize, WIDTH) * SCROLL_CHAR_HEIGHT;
-        @memcpy(fb.fb[(HEIGHT - SCROLL_CHAR_HEIGHT) * @as(usize, WIDTH) ..][0..band], fb.fb[0..band]);
+        overlay(fb.fb[0..], 0);
+        overlay(fb.fb[0..], HEIGHT - SCROLL_CHAR_HEIGHT);
 
         _ = elapsed_time;
-
     }
 };
