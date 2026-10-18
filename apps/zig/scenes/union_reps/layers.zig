@@ -136,8 +136,14 @@ const UNDER_RANK: [256]u8 = blk: {
 /// soft pixel takes its blend with the index under it. Only BLEND_UNDER can be
 /// under one (the harness checks every soft pixel against that).
 pub fn drawUnion(dst: blit.Dst, img: blit.Image, y0: usize) void {
+    drawUnionRows(dst, img, y0, 0, dst.h);
+}
+
+/// drawUnion, only on the plane rows lo..hi.
+pub fn drawUnionRows(dst: blit.Dst, img: blit.Image, y0: usize, lo: usize, hi: usize) void {
     if (img.w != dst.w or y0 + img.h > dst.h) return;
     for (0..img.h) |r| {
+        if (y0 + r < lo or y0 + r >= hi) continue;
         const src = img.data[r * img.w ..][0..img.w];
         const out = dst.buf[(y0 + r) * dst.stride ..][0..img.w];
         for (src, out) |s, *d| {

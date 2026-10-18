@@ -30,6 +30,7 @@
 // loader.js (zx0.Fx.tex_loader, build.zig). Its "PRESS SPACE" wait is not kept.
 // Leaving: Escape, or Space once running ('exit' / 'enter', screen.js:99-103).
 // --------------------------------------------------------------------------
+const std = @import("std");
 const zg = @import("zigos");
 const ZigOS = zg.ZigOS;
 const Color = zg.Color;
@@ -75,6 +76,8 @@ pub const Demo = struct {
     rasters: R.Rasters,
     scroller: S.Scroller,
     sprite_pos: usize,
+    /// Where the bob was last drawn on the top plane: the picture under it is put back before the next one.
+    bob_at: ?struct { x: i32, y: i32 },
     note: ?hub_note.Note, // the hub's note for this door with a scroll inside the text, rewritten on leaving
     warned: bool,
     leave: bool,
@@ -84,6 +87,7 @@ pub const Demo = struct {
         self.leave = false;
         self.warned = false;
         self.sprite_pos = 0;
+        self.bob_at = null;
         self.rasters.init();
         self.note = hub_note.accepted(S.TEXT.len);
         self.scroller.init(SCROLL_FIRST, if (self.note) |n| n.scroll else 0); // jsApp.mainscrollerPos
@@ -123,11 +127,15 @@ pub const Demo = struct {
             self.warned = true;
             fail("scroller blends outran the palette");
         }
-        @memcpy(top.buf[0 .. A.W * A.H], self.images.picture);
+        // The picture was copied into the plane once, at start: only the bob moves,
+        // so put the picture back under its last position and draw it at the next
+        // (the ST's erase-at-the-old-position, not a 64,000-byte copy a frame).
+        if (self.bob_at) |at| restore(top, self.images.picture, at.x, at.y, self.images.bob);
         const i = self.sprite_pos % A.CURVE_LEN;
         const x = A.planeX(SPRITE_X0 + 2 * A.curve_x[i] - BOB_HANDLE);
         const y = @divExact(SPRITE_Y0 + 2 * A.curve_y[i] - BOB_HANDLE - A.CROP_Y, 2);
         blit.blit(top, self.images.bob, null, x, y, 0, .copy);
+        self.bob_at = .{ .x = x, .y = y };
     }
 
     /// Host input ids: 5 fire, 6 back.
@@ -167,11 +175,22 @@ pub const Demo = struct {
         top.openBorders(.all);
         top.setPalette(A.picture_palette);
         top.setPaletteEntry(0, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
+        @memcpy(blit.Dst.plane(top).buf[0 .. A.W * A.H], self.images.picture);
 
         zg.requestSong(MUSIC); // onResetEvent
         self.phase = .running;
     }
 };
+
+/// The picture's pixels under a `bob` drawn at (x, y), clipped to the plane.
+fn restore(top: blit.Dst, picture: []const u8, x: i32, y: i32, bob: blit.Image) void {
+    const x0: usize = @intCast(@max(x, 0));
+    const y0: usize = @intCast(@max(y, 0));
+    const x1: usize = @intCast(std.math.clamp(x + @as(i32, @intCast(bob.w)), 0, @as(i32, A.W)));
+    const y1: usize = @intCast(std.math.clamp(y + @as(i32, @intCast(bob.h)), 0, @as(i32, A.H)));
+    if (x1 <= x0 or y1 <= y0) return;
+    for (y0..y1) |row| @memcpy(top.buf[row * top.stride + x0 ..][0 .. x1 - x0], picture[row * A.W + x0 ..][0 .. x1 - x0]);
+}
 
 /// A gradient's canvas columns, all rows: its colour comes from the copper.
 fn fillColumns(dst: blit.Dst, canvas_x: i32, canvas_w: i32, entry: u8) void {

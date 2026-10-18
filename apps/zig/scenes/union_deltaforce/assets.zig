@@ -13,6 +13,9 @@ const blit = zg.blit;
 
 pub const palette = zg.convertU8ArraytoColors(@embedFile("../../assets/screens/union_deltaforce/pal.dat"));
 pub const BLACK: u8 = 1;
+/// The scroller and credits bands are stretched about rows 167..177 by at most 55 rows,
+/// so they only ever touch rows from here down: everything above is the stage.
+pub const BOTTOM_Y: usize = 140;
 
 pub const FLOOR_W = 298; // floor.png 596x62
 pub const FLOOR_H = 31;

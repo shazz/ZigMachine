@@ -105,6 +105,10 @@ comptime {
     for (texts.scroll) |c| if (c < FIRST_CHAR or c - FIRST_CHAR >= FONT_COLS * 6) @compileError("scroll text character outside the font");
 }
 
+const BLACK_SHOWN: u8 = PICTURES;
+const MAIN_SHOWN: u8 = PICTURES + 1;
+const NOTHING_SHOWN: u8 = 255;
+
 const View = enum { picture, black, main };
 
 pub const Demo = struct {
@@ -115,6 +119,7 @@ pub const Demo = struct {
     intro_colour: Color,
     iteration: u64, // the main part's, as drawn this frame
     next_iteration: u64,
+    shown: u8, // what the plane holds: an intro picture 0..3, BLACK_SHOWN, or MAIN_SHOWN (redrawn every frame)
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
         self.view = .picture;
@@ -123,6 +128,7 @@ pub const Demo = struct {
         self.intro_colour = Color{ .r = 0, .g = 0, .b = 0, .a = 255 };
         self.iteration = 0;
         self.next_iteration = 0;
+        self.shown = NOTHING_SHOWN;
 
         logo.init();
         dna.init();
@@ -170,6 +176,15 @@ pub const Demo = struct {
         _ = dt;
         const fb = &zigos.lfbs[PLANE];
         const screen = blit.Dst.plane(fb);
+        // An intro picture is static (only INTRO_INK's palette entry fades), so it is drawn
+        // once per picture, not cleared and rebuilt bit by bit on every frame.
+        const want: u8 = switch (self.view) {
+            .picture => @intCast(self.picture),
+            .black => BLACK_SHOWN,
+            .main => MAIN_SHOWN,
+        };
+        if (want != MAIN_SHOWN and self.shown == want) return;
+        self.shown = want;
         @memset(fb.fb[0 .. W * H], 0);
         switch (self.view) {
             .picture => drawPicture(screen, self.picture),
