@@ -11,6 +11,7 @@
 // fills the *_next tables, present() at the start of the next makes them
 // current. Plane and borders then show the same iteration.
 // --------------------------------------------------------------------------
+const std = @import("std");
 const zg = @import("zigos");
 const st = @import("../swedish_newyear/st.zig");
 const chunky = @import("chunky.zig");
@@ -26,6 +27,7 @@ pub const Line = [MAXC]u32;
 
 const Buffers = struct {
     chunky: *[PH][PW]u8, // the next frame, palette indices
+    shown: *[PH][PW]u8, // the frame the plane holds now: present() copies only the rows that differ
     now: *[PH]Line, // the colours the plane shows this frame
     next: *[PH]Line,
 };
@@ -36,14 +38,20 @@ var used_next: [PH]u8 = undefined;
 var c0_next: [PH]u32 = undefined; // closed borders, read by the global HBL
 var open_now: [PH]bool = undefined; // lines whose borders a part opened
 var open_next: [PH]bool = undefined;
+/// Something was captured since the last present(): when nothing was (a part
+/// that stands still, the intro's picture), the plane already shows it all.
+var captured: bool = true;
 
 /// Once per cart load: the buffers (zg.mem), the plane and both HBLs.
 pub fn init(zigos: *zg.ZigOS) void {
     buf = .{
         .chunky = zg.mem.mustAlloc([PW]u8, PH)[0..PH],
+        .shown = zg.mem.mustAlloc([PW]u8, PH)[0..PH],
         .now = zg.mem.mustAlloc(Line, PH)[0..PH],
         .next = zg.mem.mustAlloc(Line, PH)[0..PH],
     };
+    for (buf.shown) |*r| @memset(r, 0); // the plane was just cleared
+    captured = true;
     @memset(&used_now, 0);
     @memset(&used_next, 0);
     @memset(&c0_next, st.color(0));
@@ -59,6 +67,7 @@ pub fn init(zigos: *zg.ZigOS) void {
 /// A low-res ST screen at `screen` in `r`, every line under the colour
 /// registers `pal` (no rasters); the borders show its colour 0.
 pub fn captureScreen(r: *const st.Ram, screen: u32, pal: [16]u16) void {
+    captured = true;
     const regs = rgba(pal);
     for (0..PH) |py| {
         const out = &buf.chunky[py];
@@ -75,12 +84,14 @@ pub fn captureScreen(r: *const st.Ram, screen: u32, pal: [16]u16) void {
 
 /// Physical row `py` as palette indices, to fill directly (overscan).
 pub fn physRow(py: usize) *[PW]u8 {
+    captured = true;
     return &buf.chunky[py];
 }
 
 /// Physical row `py`'s colour registers (at most MAXC); entry 0 is also
 /// what its closed borders show.
 pub fn setRegs(py: usize, regs: []const u32) void {
+    captured = true;
     @memcpy(buf.next[py][0..regs.len], regs);
     used_next[py] = @intCast(regs.len);
     c0_next[py] = regs[0];
@@ -89,6 +100,7 @@ pub fn setRegs(py: usize, regs: []const u32) void {
 /// Whether physical row `py`'s borders are open: the plane's HBL then
 /// flickers the line (zg's res-flicker, the ST's 50/60 Hz or res switch).
 pub fn setOpen(py: usize, open: bool) void {
+    captured = true;
     open_next[py] = open;
 }
 
@@ -101,18 +113,21 @@ pub fn rgba(pal: [16]u16) [16]u32 {
 
 /// The window row `y` (0..199) as palette indices, to fill directly.
 pub fn row(y: usize) *[320]u8 {
+    captured = true;
     return buf.chunky[OY + y][OX..][0..320];
 }
 
 /// Line `y` of the window: its colour registers as RGBA (at most MAXC). Call
 /// blank() first: it sets the lines outside the window.
 pub fn setLine(y: usize, regs: []const u32) void {
+    captured = true;
     @memcpy(buf.next[OY + y][0..regs.len], regs);
     used_next[OY + y] = @intCast(regs.len);
 }
 
 /// Clear the whole plane to index 0 and every line to one colour 0.
 pub fn blank(border: u32) void {
+    captured = true;
     for (buf.chunky) |*r| @memset(r, 0);
     for (0..PH) |py| {
         buf.next[py][0] = border;
@@ -124,7 +139,15 @@ pub fn blank(border: u32) void {
 
 /// Start of a host frame: the captured frame becomes what the machine shows.
 pub fn present(fb: *zg.LogicalFB) void {
-    @memcpy(fb.fb[0 .. PH * PW], @as([*]const u8, @ptrCast(buf.chunky))[0 .. PH * PW]); // rows are contiguous
+    if (!captured) return;
+    captured = false;
+    // Only the rows that changed since the last frame: every store is a bus
+    // write on the board, and the plane's rows are read back for free. Each
+    // capture rewrites every row, so the two buffers just swap roles.
+    for (0..PH) |py| {
+        if (!std.mem.eql(u8, &buf.chunky[py], &buf.shown[py])) @memcpy(fb.fb[py * PW ..][0..PW], &buf.chunky[py]);
+    }
+    std.mem.swap(*[PH][PW]u8, &buf.chunky, &buf.shown);
     // Only the entries a line uses (16 of the 48 slots, mostly): planeHbl reads no more.
     for (0..PH) |py| @memcpy(buf.now[py][0..used_next[py]], buf.next[py][0..used_next[py]]);
     used_now = used_next;
@@ -134,7 +157,11 @@ pub fn present(fb: *zg.LogicalFB) void {
 fn planeHbl(fb: *zg.LogicalFB, _: *zg.ZigOS, line: u16, _: u16) void {
     if (line >= PH) return;
     if (open_now[line]) fb.flickerBorder();
-    for (buf.now[line][0..used_now[line]], 0..) |c, i| fb.palette[i] = c;
+    // Only the entries that change: a raster coder never rewrites a register
+    // that already holds the colour (a load is free on the board, a store is not).
+    for (buf.now[line][0..used_now[line]], 0..) |c, i| {
+        if (fb.palette[i] != c) fb.palette[i] = c;
+    }
 }
 
 fn borderHbl(zigos: *zg.ZigOS, line: u16) void {

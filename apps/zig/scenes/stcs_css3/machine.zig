@@ -12,6 +12,9 @@ const A = @import("assets.zig");
 pub var screen: *[A.SCREEN_BYTES]u8 = undefined;
 /// The four scroll buffers ($1B452, $1DE52, $20852, $23252), 19 lines each.
 pub var bufs: *[4][A.BUF_BYTES]u8 = undefined;
+/// The screen as `present` last converted it: only the 16-pixel groups that
+/// differ are converted again.
+pub var prev: *[A.SCREEN_BYTES]u8 = undefined;
 var owned = false;
 
 /// Both come from the RAM arena (zg.mem), once per cart load: as module-scope
@@ -19,7 +22,10 @@ var owned = false;
 /// memory is not known to be zero.
 fn allocBuffers() void {
     if (owned) return;
-    screen = zg.mem.mustAlloc(u8, A.SCREEN_BYTES)[0..A.SCREEN_BYTES];
+    // u32 elements: the screen is read as words by display.present.
+    const words = zg.mem.mustAlloc(u32, A.SCREEN_BYTES / 4);
+    screen = @ptrCast(words.ptr);
+    prev = @ptrCast(zg.mem.mustAlloc(u32, A.SCREEN_BYTES / 4).ptr);
     bufs = zg.mem.mustAlloc([A.BUF_BYTES]u8, 4)[0..4];
     owned = true;
 }
@@ -46,6 +52,7 @@ pub const Machine = struct {
     stars_on: bool, // $828's first opcode: nop = on, rts = off
     columns_on: bool, // $930
     scroller_on: bool, // $CAE
+    prev_valid: bool, // `prev` holds what the plane shows
     columns_calls: u16, // $E718
     letter: u16, // $E712, the letter drawn next
     path: u16, // $E714
@@ -65,6 +72,7 @@ pub const Machine = struct {
         // The buffers start zeroed: the 12 KB ripped at start was all zeros.
         for (bufs) |*b| @memset(b, 0);
         @memcpy(&self.raster, A.raster);
+        self.prev_valid = false;
         self.bar_up = false;
         self.warp = 0;
         self.seedStars();

@@ -59,7 +59,6 @@ comptime {
 // buffer holds two of them, so a read at any offset inside the first band still
 // has a whole band's worth of pixels ahead of it.
 const BAND_ROWS: u16 = SCROLL_CHAR_HEIGHT + SCROLL_INTERSPACE;
-const BAND_BYTES: usize = BAND_ROWS * WIDTH;
 const SCROLLER_ROWS: u16 = BAND_ROWS * 2;
 
 // --------------------------------------------------------------------------
@@ -99,12 +98,25 @@ fn handler_scroller(fb: *LogicalFB, zigos: *ZigOS, line: u16, col: u16) void {
     _ = col;
 }
 
+// The ramp row for each of the BAR_PERIOD slide positions (WIDTH is a multiple
+// of BAR_PERIOD): rasterbars_b[(frame + x) % BAR_PERIOD], built at compile time.
+const ramp_rows: [BAR_PERIOD][WIDTH]u8 = blk: {
+    @setEvalBranchQuota(100000);
+    var t: [BAR_PERIOD][WIDTH]u8 = undefined;
+    for (&t, 0..) |*r, f| for (r, 0..) |*px, x| {
+        px.* = rasterbars_b[(f + x) % BAR_PERIOD];
+    };
+    break :blk t;
+};
+
 var scroller_owned: ?*[WIDTH * SCROLLER_ROWS]u8 = null;
 
 /// The scroller's off-screen buffer, from zg.mem once per cart load.
 fn scrollerBuffer() *[WIDTH * SCROLLER_ROWS]u8 {
     if (scroller_owned) |b| return b;
-    const b = zg.mem.mustAlloc(u8, WIDTH * SCROLLER_ROWS)[0 .. WIDTH * SCROLLER_ROWS];
+    // u32 elements so the buffer is word-aligned for the word clear in render().
+    const words = zg.mem.mustAlloc(u32, WIDTH * SCROLLER_ROWS / 4);
+    const b: *[WIDTH * SCROLLER_ROWS]u8 = @ptrCast(words.ptr);
     scroller_owned = b;
     return b;
 }
@@ -125,6 +137,7 @@ pub const Demo = struct {
     // 26 KB of zeros written into the cart binary.
     scroller_buffer: *[WIDTH * SCROLLER_ROWS]u8,
     scroller_render_buffer: RenderBuffer = undefined,
+    blitter: zg.Blitter = .{},
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
         Console.log("Demo init", .{});
@@ -144,6 +157,7 @@ pub const Demo = struct {
         // The scroller's ink colour, a real raster: one palette write per scanline.
         fb.setFrameBufferHBLHandler(0, handler_scroller);
 
+        self.blitter.init();
         self.scroller_buffer = scrollerBuffer();
         @memset(self.scroller_buffer, 0);
         self.scroller_render_buffer = .{ .buffer = self.scroller_buffer, .width = WIDTH, .height = SCROLLER_ROWS };
@@ -171,35 +185,31 @@ pub const Demo = struct {
 
     pub fn render(self: *Demo, zigos: *ZigOS, elapsed_time: f32) void {
 
-        // Every row of the background is the same 10-pixel ramp (WIDTH is a
-        // multiple of BAR_PERIOD), so build the row once and copy it down
-        // instead of taking a modulo per pixel.
-        var row: [WIDTH]u8 = undefined;
-        for (&row, 0..) |*px, x| px.* = rasterbars_b[(self.frame_counter + x) % BAR_PERIOD];
+        // The background is the same ramp row on every line, slid one pixel per
+        // frame: CHISEL repeats the frame's precomputed row down the plane.
+        self.blitter.blitRow(&zigos.lfbs[0], 0, 0, &ramp_rows[self.frame_counter], HEIGHT, null);
 
-        var fb = &zigos.lfbs[0];
-        for (0..HEIGHT) |y| @memcpy(fb.fb[y * WIDTH ..][0..WIDTH], &row);
-
-        fb = &zigos.lfbs[1];
-        self.scroller_target.clearFrameBuffer(0);
+        // Only the first band holds the font (rows 0..29); clear it by words.
+        const band_words: []u32 = @as([*]u32, @ptrCast(@alignCast(self.scroller_buffer)))[0 .. SCROLL_CHAR_HEIGHT * WIDTH / 4];
+        for (band_words) |*w| w.* = 0;
         self.scrolltext.render();
 
-        // A second copy of the font band below the first, so a band read at any
-        // scroll offset always has a whole band of pixels ahead of it.
-        const band = self.scroller_buffer[0 .. SCROLL_CHAR_HEIGHT * WIDTH];
-        @memcpy(self.scroller_buffer[BAND_BYTES..][0 .. SCROLL_CHAR_HEIGHT * WIDTH], band);
-
-        // The plane is that band, repeated down the screen from the current
-        // vertical offset: six whole bands and whatever is left of the seventh.
-        const offset = self.scroller_pos_y * WIDTH;
-        const source = self.scroller_buffer[offset..][0..BAND_BYTES];
-        const whole_bands = (WIDTH * HEIGHT) / BAND_BYTES;
-        for (0..whole_bands) |b| @memcpy(fb.fb[b * BAND_BYTES ..][0..BAND_BYTES], source);
-
-        const tail = (WIDTH * HEIGHT) - whole_bands * BAND_BYTES;
-        @memcpy(fb.fb[whole_bands * BAND_BYTES ..][0..tail], source[0..tail]);
+        // The plane is that band (font rows plus the blank gap) repeated down the
+        // screen from the current vertical offset, wrapping inside the band: two
+        // blits per band, seven bands, CHISEL reading the cart-RAM buffer.
+        const fb = &zigos.lfbs[1];
+        const split: u16 = BAND_ROWS - self.scroller_pos_y;
+        var y: u16 = 0;
+        while (y < HEIGHT) : (y += BAND_ROWS) {
+            self.blitBand(fb, y, self.scroller_pos_y, split);
+            self.blitBand(fb, y + split, 0, self.scroller_pos_y);
+        }
 
         _ = elapsed_time;
+    }
 
+    fn blitBand(self: *Demo, fb: *LogicalFB, y: u16, sy: u16, rows: u16) void {
+        if (y >= HEIGHT) return;
+        self.blitter.blitImage(fb, 0, @intCast(y), self.scroller_buffer, WIDTH, 0, sy, WIDTH, @min(rows, HEIGHT - y), null);
     }
 };

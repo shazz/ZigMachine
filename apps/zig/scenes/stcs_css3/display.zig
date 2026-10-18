@@ -43,32 +43,52 @@ const SPREAD: [256]u64 = blk: {
     break :blk t;
 };
 
-/// The screen through the colour registers. `lit` is false before the
-/// picture: the program set all 16 registers to 0 and Timer B is not running.
-pub fn present(m: *const Machine, lit: bool, fb: *zg.LogicalFB) void {
-    latch(m, lit, &shown, &shown_line);
+/// Palettes and line map built at the END of the last frame, for the state the
+/// next present() shows (the border needed them then, so they are built once).
+var built: [PALETTES][16]u32 = undefined;
+var built_line: [LINES]u8 = undefined;
+
+/// The screen through the colour registers. The palettes are the ones
+/// buildBorder latched for exactly this state. Most of the picture never moves,
+/// so a 16-pixel group is converted only when its four plane words changed.
+pub fn present(m: *Machine, fb: *zg.LogicalFB) void {
+    shown = built;
+    shown_line = built_line;
+    const cur: [*]const u32 = @ptrCast(@alignCast(machine.screen));
+    const old: [*]u32 = @ptrCast(@alignCast(machine.prev));
+    const all = !m.prev_valid;
+    m.prev_valid = true;
     const pixels = fb.fb[0 .. @as(usize, fb.stride) * LINES];
     for (0..LINES) |y| {
         const src = machine.screen[y * A.LINE ..][0..A.LINE];
         const dst = pixels[y * fb.stride ..][0..zg.WIDTH];
-        for (0..A.LINE / 4) |h| {
-            const g = (h >> 1) * 8 + (h & 1);
-            const v = SPREAD[src[g]] | SPREAD[src[g + 2]] << 1 |
-                SPREAD[src[g + 4]] << 2 | SPREAD[src[g + 6]] << 3;
-            std.mem.writeInt(u64, dst[h * 8 ..][0..8], v, .little);
+        for (0..A.LINE / 8) |k| {
+            const w = (y * A.LINE / 4) + 2 * k;
+            if (!all and cur[w] == old[w] and cur[w + 1] == old[w + 1]) continue;
+            old[w] = cur[w];
+            old[w + 1] = cur[w + 1];
+            convertGroup(src[8 * k ..][0..8], dst[16 * k ..][0..16]);
         }
     }
 }
 
+/// Four plane words -> 16 pixels: the high bytes are the left eight.
+fn convertGroup(src: *const [8]u8, dst: *[16]u8) void {
+    inline for (0..2) |half| {
+        const v = SPREAD[src[half]] | SPREAD[src[half + 2]] << 1 |
+            SPREAD[src[half + 4]] << 2 | SPREAD[src[half + 6]] << 3;
+        std.mem.writeInt(u64, dst[half * 8 ..][0..8], v, .little);
+    }
+}
+
 /// The border rows for the state `m` holds: top border = the top palette's
-/// colour 0 (the VBL installs it), bottom border = the last line's.
+/// colour 0 (the VBL installs it), bottom border = the last line's. Also
+/// latches the palettes the next present() will show.
 pub fn buildBorder(m: *const Machine, lit: bool) void {
-    var pals: [PALETTES][16]u32 = undefined;
-    var line: [LINES]u8 = undefined;
-    latch(m, lit, &pals, &line);
-    @memset(border[0..TOP], pals[0][0]);
-    for (line, 0..) |p, y| border[TOP + y] = pals[p][0];
-    @memset(border[TOP + LINES ..], pals[line[LINES - 1]][0]);
+    latch(m, lit, &built, &built_line);
+    @memset(border[0..TOP], built[0][0]);
+    for (built_line, 0..) |p, y| border[TOP + y] = built[p][0];
+    @memset(border[TOP + LINES ..], built[built_line[LINES - 1]][0]);
 }
 
 fn latch(m: *const Machine, lit: bool, pals: *[PALETTES][16]u32, line: *[LINES]u8) void {

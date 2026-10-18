@@ -8,6 +8,7 @@
 const zg = @import("zigos");
 const ZigOS = zg.ZigOS;
 const Color = zg.Color;
+const gpu = @import("../union_common/gpu.zig");
 const LogicalFB = zg.LogicalFB;
 const convertU8ArraytoColors = zg.convertU8ArraytoColors;
 
@@ -74,7 +75,7 @@ pub const Runner = struct {
     // slowed-down sprite loses its speed streak.
     pub fn draw(self: *Runner, zigos: *ZigOS, scale: f32) void {
         const p1: *LogicalFB = &zigos.lfbs[1];
-        p1.clearFrameBuffer(0);
+        gpu.clear(p1, 0);
         const f: usize = @intFromFloat(self.nb);
         // Ghosts outermost (dimmest) first — each horizontally x-zoomed about its
         // centre for the speed streak — then the opaque runner on top.

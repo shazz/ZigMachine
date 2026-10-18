@@ -33,6 +33,9 @@ comptime {
     if (set.scroller_y + 8 > 280 - set.hud_bottom_margin) @compileError("the scroller must clear the monitor's frame");
 }
 
+/// The colour the bottom border was last painted in whole.
+var last_band: ?u8 = null;
+
 /// The title's scroller loop is running (2005-2006).
 pub fn running() bool {
     return flow.pc == .l2005 or flow.pc == .l2006;
@@ -56,8 +59,18 @@ pub fn ink() u16 {
 /// zeroed once the mouse key is up, so while it is held (a click that left
 /// the hall of fame) ti is still the last loop's, and the zone the ST shows
 /// is the scene's, no letter in it yet.
-pub fn draw(ov: []u8, y0: usize, band: u8) void {
-    @memset(ov[y0 * W ..], band);
+/// `fresh`: the overlay below row `y0` is not what the last frame left (the
+/// scene was drawn whole). Otherwise the band stands and only the rows the
+/// credits line and the scroller write ink on are put back to it.
+pub fn draw(ov: []u8, y0: usize, band: u8, fresh: bool) void {
+    if (fresh or last_band != band) {
+        @memset(ov[y0 * W ..], band);
+        last_band = band;
+    } else {
+        const credits_y = set.scroller_y - 10; // zig_credits.Y
+        @memset(ov[credits_y * W ..][0 .. 8 * W], band);
+        @memset(ov[set.scroller_y * W ..][0 .. 8 * W], band);
+    }
     if (flow.pc == .l2006) letters(ov[set.scroller_y * W ..][0 .. 8 * W]);
 }
 
