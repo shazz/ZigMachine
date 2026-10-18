@@ -24,6 +24,7 @@ pub const tcb3 = @import("digi_tcb3.zig");
 pub const mym = @import("digi_mym.zig");
 pub const tcb = @import("digi_tcb.zig");
 pub const sync4 = @import("digi_sync4.zig");
+pub const quartet = @import("digi_quartet.zig");
 
 pub const Driver = union(enum) {
     big: big.Driver,
@@ -33,6 +34,7 @@ pub const Driver = union(enum) {
     mym: mym.Driver,
     tcb: tcb.Driver,
     sync4: sync4.Driver,
+    quartet: quartet.Driver,
 };
 
 /// What the next interrupt must do first: check the handler in RAM (after a load or an INIT).
@@ -49,6 +51,8 @@ pub var no_offset: bool = false;
 /// Mutant 8 (test only): the one-byte handler (digi_tcb.zig) keeps its sample pointer in Zig from
 /// arming on, as if play never rewound it.
 pub var pointer_kept: bool = false;
+/// Mutant 7 (test only): SingSong's `(a0,d0.w)` read with the offset word unsigned (digi_quartet.zig).
+pub var unsigned_index: bool = false;
 var cache: [4]u32 = .{0} ** 4;
 
 /// Voice `i`'s step, the immediate at `at` that play patches: read every interrupt.
@@ -65,6 +69,7 @@ pub fn recognise(image: []const u8, base: u32) ?Driver {
     if (mym.match(image, base)) |d| return .{ .mym = d };
     if (tcb.match(image, base)) |d| return .{ .tcb = d };
     if (sync4.match(image, base)) |d| return .{ .sync4 = d };
+    if (quartet.match(image, base)) |d| return .{ .quartet = d };
     return null;
 }
 
@@ -77,6 +82,7 @@ pub fn status(d: Driver) digi.Status {
         .mym => .mym_drums,
         .tcb => .tcb_digi,
         .sync4 => .sync_mix4,
+        .quartet => .quartet_singsong,
     };
 }
 
