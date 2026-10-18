@@ -55,7 +55,8 @@ const logo_b = @embedFile("../assets/screens/stcs/logo.raw");
 // --------------------------------------------------------------------------
 // Variables
 // --------------------------------------------------------------------------
-const ScrollerPeriods = enum { threelines, big_font, interlaced_mirror, interlaced_big_font, inverted, interlaced_steam, inverted_mirror };
+const strip = @import("stcs_strip.zig");
+const ScrollerPeriods = strip.Period;
 var scroller_period: ScrollerPeriods = .threelines;
 
 // --------------------------------------------------------------------------
@@ -92,41 +93,48 @@ fn handler(fb: *LogicalFB, zigos: *ZigOS, line: u16, col: u16) void {
     _ = col;
 }
 
+// The palette a line of the scroller plane wants. The HBL used to copy all 256
+// entries on EVERY line (51,200 stores a frame, each a bus write on the board);
+// the bands change it at most 3 times a frame, so it is installed only on a change.
+fn scrollerPalette(line: u16) *const [256]Color {
+    return switch (scroller_period) {
+        .threelines => switch (line) {
+            84...84 + SCROLL_CHAR_HEIGHT + 5 => &font_pal1,
+            84 + SCROLL_CHAR_HEIGHT + 5 + 1...84 + 2 * (SCROLL_CHAR_HEIGHT + 5) => &font_pal2,
+            84 + 2 * (SCROLL_CHAR_HEIGHT + 5) + 1...200 => &font_pal3,
+            else => &font_pal1,
+        },
+        .inverted_mirror => switch (line) {
+            84...117 => &font_pal1,
+            118...150 => &font_pal2,
+            151...200 => &font_pal3,
+            else => &font_pal1,
+        },
+        .inverted => switch (line) {
+            84...140 => &font_pal1,
+            141...200 => &font_pal2,
+            else => &font_pal1,
+        },
+        else => &font_pal1,
+    };
+}
+
+// The palette plane 1 holds now (null: not one of the three, as after init).
+var scroller_pal: ?*const [256]Color = null;
+
 fn handler_scroller(fb: *LogicalFB, zigos: *ZigOS, line: u16, col: u16) void {
-
-    switch(scroller_period) {
-
-        .threelines => {
-            switch(line) {
-                84...84 + SCROLL_CHAR_HEIGHT + 5  => fb.setPalette(font_pal1),
-                84 + SCROLL_CHAR_HEIGHT + 5 + 1...84 + 2*(SCROLL_CHAR_HEIGHT + 5)   => fb.setPalette(font_pal2),
-                84 + 2*(SCROLL_CHAR_HEIGHT + 5) + 1...200 => fb.setPalette(font_pal3),
-                else => fb.setPalette(font_pal1)
-            }
-        },
-        .inverted_mirror => {
-            switch(line) {
-                84...117 => fb.setPalette(font_pal1),
-                118...150 => fb.setPalette(font_pal2),
-                151...200 => fb.setPalette(font_pal3),
-                else => fb.setPalette(font_pal1)
-            }
-        },
-        .inverted => {
-            switch(line) {
-                84...140 => fb.setPalette(font_pal1),
-                141...200 => fb.setPalette(font_pal2),
-                else => fb.setPalette(font_pal1),
-            }
-        },
-        else => fb.setPalette(font_pal1)
-    }        
-
+    const pal = scrollerPalette(line);
+    if (scroller_pal != pal) {
+        fb.setPalette(pal.*);
+        scroller_pal = pal;
+    }
     _ = zigos;
     _ = col;
 }
 
-
+// The scroller's off-screen strip: static, not init's stack frame (it outlives init).
+var scroller_pixels = [_]u8{0} ** (WIDTH * SCROLL_CHAR_HEIGHT);
+var scroller_buffer: RenderBuffer = .{ .buffer = &scroller_pixels, .width = WIDTH, .height = SCROLL_CHAR_HEIGHT };
 
 pub const Demo = struct {
   
@@ -135,6 +143,7 @@ pub const Demo = struct {
     scrolltext: Scrolltext(NB_FONTS) = undefined,
     scroller_target: RenderTarget = undefined,
     logo: Background = undefined,
+    logo_drawn: bool = false, // the logo plane never changes: drawn once
     scroller_y_pos: i16 = 0,
     scroller_y_dir: i16 = 1,
 
@@ -150,7 +159,8 @@ pub const Demo = struct {
         var fb: *LogicalFB = &zigos.lfbs[0];
         fb.is_enabled = true;
         fb.setPalette(logo_pal);
-        self.logo.init(fb.getRenderTarget(), logo_b, 0);        
+        self.logo.init(fb.getRenderTarget(), logo_b, 0);
+        self.logo_drawn = false;
         
         // HBL Handler for the raster effect
         fb.setFrameBufferHBLHandler(0, handler);   
@@ -159,10 +169,10 @@ pub const Demo = struct {
         fb.is_enabled = true; 
         fb.setPalette(font_pal1);    
         fb.setPaletteEntry(0, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
+        scroller_pal = null; // entry 0 is not font_pal1's: the first line installs it
 
-        var buffer = [_]u8{0} ** (WIDTH * SCROLL_CHAR_HEIGHT);
-        var render_buffer: RenderBuffer = .{ .buffer = &buffer, .width = WIDTH, .height = SCROLL_CHAR_HEIGHT };   
-        self.scroller_target = .{ .render_buffer = &render_buffer };  
+        @memset(&scroller_pixels, 0);
+        self.scroller_target = .{ .render_buffer = &scroller_buffer };  
 
         self.scrolltext = Scrolltext(NB_FONTS).init(self.scroller_target, fonts_b, SCROLL_CHARS, SCROLL_CHAR_WIDTH, SCROLL_CHAR_HEIGHT, SCROLL_TEXT, SCROLL_SPEED, 0, null, null, null);
         fb.setFrameBufferHBLHandler(0, handler_scroller);   
@@ -199,157 +209,24 @@ pub const Demo = struct {
 
     pub fn render(self: *Demo, zigos: *ZigOS, elapsed_time: f32) void {
 
-        self.logo.render();
+        if (!self.logo_drawn) self.logo.render();
+        self.logo_drawn = true;
 
-        self.scroller_target.clearFrameBuffer(0);
+        // Word stores (@memset), not a byte loop: a quarter of the bus writes.
+        @memset(&scroller_pixels, 0);
         self.scrolltext.render();
 
         // copy scrolltext to FB
-        var fb = &zigos.lfbs[1];
-        fb.clearFrameBuffer(0);
+        const fb = &zigos.lfbs[1];
+        @memset(fb.fb[0 .. @as(u32, fb.fb_h) * fb.stride], 0);
 
-        if(scroller_period == ScrollerPeriods.threelines) {
-
-            const top_pos: u16 = SCROLL_TOP_POS*WIDTH;
-            var i: u16 = 0;
-            while(i < (WIDTH*SCROLL_CHAR_HEIGHT)) : ( i += 1){
-                const pal_entry = self.scroller_target.render_buffer.buffer[i];
-                fb.fb[top_pos + i] = pal_entry;
-                fb.fb[top_pos + i + ((SCROLL_CHAR_HEIGHT+SCROLL_CHAR_HEIGHT+10) * WIDTH)] = pal_entry;            
-                fb.fb[top_pos + i + ((SCROLL_CHAR_HEIGHT+5) * WIDTH)] = pal_entry;
-                fb.fb[top_pos + i + ((SCROLL_CHAR_HEIGHT+SCROLL_CHAR_HEIGHT+10) * WIDTH)] = pal_entry;
-            }
+        // The big fonts bounce on 0..56 lines.
+        if (scroller_period == .big_font or scroller_period == .interlaced_big_font) {
+            self.scroller_y_pos += self.scroller_y_dir;
+            if (self.scroller_y_pos > 55) self.scroller_y_dir = -1;
+            if (self.scroller_y_pos <= 0) self.scroller_y_dir = 1;
         }
-
-
-        if( scroller_period == ScrollerPeriods.big_font ) {
-        
-            // big font
-            self.scroller_y_pos += self.scroller_y_dir ;
-            if(self.scroller_y_pos > 55) self.scroller_y_dir = -1;
-            if(self.scroller_y_pos <= 0) self.scroller_y_dir = 1;
-
-            const top_pos: u16 = (78 + @as(u16, @intCast(self.scroller_y_pos)))*WIDTH;
-            var y: u16 = 0;
-            while(y < SCROLL_CHAR_HEIGHT) : (y += 1) {
-                var x: u16 = 0;
-                while(x < WIDTH) : (x += 1) { 
-                    const pos = x + (y * WIDTH);
-                    const pal_entry = self.scroller_target.render_buffer.buffer[pos];
-
-                    // double height font and sinus incr/decr on 16 pixels
-                    fb.fb[x + top_pos + ((2*y) * WIDTH)] = pal_entry;
-                    fb.fb[x + top_pos + ((2*y+1) * WIDTH)] = pal_entry;
-                }
-            }
-        }
-
-        if( scroller_period == ScrollerPeriods.interlaced_big_font) {
-
-            // big interlaced font
-            self.scroller_y_pos += self.scroller_y_dir ;
-            if(self.scroller_y_pos > 55) self.scroller_y_dir = -1;
-            if(self.scroller_y_pos <= 0) self.scroller_y_dir = 1;
-
-            const top_pos: u16 = (78 + @as(u16, @intCast(self.scroller_y_pos)))*WIDTH;
-            var y: u16 = 0;
-            while(y < SCROLL_CHAR_HEIGHT) : (y += 1) {
-                var x: u16 = 0;
-                while(x < WIDTH) : (x += 1) { 
-                    const pos = x + (y * WIDTH);
-                    const pal_entry = self.scroller_target.render_buffer.buffer[pos];
-                    fb.fb[x + top_pos + ((2*y) * WIDTH)] = pal_entry;
-                }
-            }     
-
-        }
-
-        if( scroller_period == ScrollerPeriods.interlaced_mirror) {
-
-            // big interlaced font mirrored
-            const top_pos: u16 = 88*WIDTH;
-            var y: u16 = 0;
-            while(y < SCROLL_CHAR_HEIGHT) : (y += 1) {
-                var x: u16 = 0;
-                while(x < WIDTH) : (x += 1) { 
-                    const pos = x + (y * WIDTH);
-                    const pal_entry = self.scroller_target.render_buffer.buffer[pos];
-
-                    // normal line
-                    fb.fb[x + top_pos + (y * WIDTH) - ((x / 16) * WIDTH)] = pal_entry;
-
-                    // mirrored interlaced
-                    fb.fb[x + top_pos + (((SCROLL_CHAR_HEIGHT)+5)*WIDTH) + (((2*SCROLL_CHAR_HEIGHT)-(2*y)) * WIDTH) - ((x / 16) * WIDTH)] = pal_entry;
-                }
-            }     
-        }
-
-        if( scroller_period == ScrollerPeriods.interlaced_steam) {
-
-            // big interlaced font mirrored
-            const top_pos: u16 = 164*WIDTH;
-            var y: u16 = 0;
-            while(y < SCROLL_CHAR_HEIGHT) : (y += 1) {
-                var x: u16 = 0;
-                while(x < WIDTH) : (x += 1) { 
-                    const pos = x + (y * WIDTH);
-                    const pal_entry = self.scroller_target.render_buffer.buffer[pos];
-
-                    // normal line
-                    fb.fb[x + top_pos + (y * WIDTH)] = pal_entry;
-
-                    // mirrored interlaced
-                    fb.fb[x + (76*WIDTH) + ((2*y) * WIDTH) + ((x / 16) * 2 * WIDTH)] = pal_entry;
-                }
-            }     
-        }        
-
-        if( scroller_period == ScrollerPeriods.inverted) {
-
-            const top_pos: u16 = 86*WIDTH;
-            var y: u16 = 0;
-            while(y < SCROLL_CHAR_HEIGHT) : (y += 1) {
-                var x: u16 = 0;
-                while(x < WIDTH) : (x += 1) { 
-                    const pos = x + (y * WIDTH);
-                    const pal_entry = self.scroller_target.render_buffer.buffer[pos];
-                    // top line with 16 pixel increment
-                    fb.fb[x + top_pos + (y * WIDTH) + ((x / 16) * WIDTH)] = pal_entry;
-
-                    // bottom line reversed with 16 pixel decrement
-                    fb.fb[x + (156*WIDTH) + ((SCROLL_CHAR_HEIGHT-y) * WIDTH) - ((x / 16) * WIDTH)] = pal_entry;
-                }
-            }  
-        }
-
-        if(scroller_period == ScrollerPeriods.inverted_mirror) {
-
-            var y: u16 = 0;
-            while(y < SCROLL_CHAR_HEIGHT) : (y += 1) {
-                var x: u16 = 0;
-                while(x < WIDTH) : (x += 1) { 
-                    const pos = x + (y * WIDTH);
-                    const pal_entry = self.scroller_target.render_buffer.buffer[pos];
-
-                    // 1st line 16 pixel decrement then increment
-                    if(x < 160) {
-                        fb.fb[x + (90*WIDTH) + (y * WIDTH) - ((x / 16) * WIDTH)] = pal_entry;
-                    } else {
-                        fb.fb[x + (80*WIDTH) + (y * WIDTH) + (((x-160) / 16) * WIDTH)] = pal_entry;
-                    }
-
-                    // 2nd line inverted 16 pixel increment then decrement
-                    if(x < 160) {
-                        fb.fb[x + (110*WIDTH) + ((SCROLL_CHAR_HEIGHT-y) * WIDTH) + ((x / 16) * WIDTH)] = pal_entry;
-                    } else {
-                        fb.fb[x + (120*WIDTH) + ((SCROLL_CHAR_HEIGHT-y) * WIDTH) - (((x-160) / 16) * WIDTH)] = pal_entry;
-                    }                    
-
-                    // last line normal
-                    fb.fb[x + (160*WIDTH) + (y * WIDTH)] = pal_entry;
-                }
-            }  
-        }            
+        strip.draw(fb.fb, &scroller_pixels, scroller_period, self.scroller_y_pos);
 
         _ = elapsed_time;
 

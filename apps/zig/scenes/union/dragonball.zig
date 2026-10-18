@@ -19,6 +19,8 @@ const gm = @import("dragonball_math.zig");
 const TWO_PI: f32 = std.math.pi * 2.0;
 const BS = gm.BALL_SIZE; // 64
 const DISC_R: f32 = 26.0; // codef_dragonball.js mycircle radius 52, halved
+// The widest squashed ball: 64 * (1 + 1/6) = 74.7, plus the floor/ceil pixel.
+const MAX_SPAN: usize = 80;
 
 const PAL_DISC: u8 = 64; // translucent disc over background
 const PAL_FRONT: u8 = 128; // star front (kolor 0xD94345), opaque
@@ -26,6 +28,25 @@ const PAL_BACK: u8 = 129; // star back, opaque, dimmer (drawn under the disc)
 const PAL_DISC_ON_BACK: u8 = 192; // precomputed disc(a=0.5) over PAL_BACK, opaque
 
 var ball_buf: [BS * BS]u8 = undefined; // module-level scratch (heap-free)
+
+// The disc never changes size (the squash is applied at blit time), so which
+// texels it covers is computed once, with the same f32 test as before, instead
+// of 8,192 divides a frame.
+var disc_mask: [BS * BS]bool = undefined;
+var disc_ready = false;
+
+fn discMask() *const [BS * BS]bool {
+    if (disc_ready) return &disc_mask;
+    for (0..BS) |y| {
+        const dy = (@as(f32, @floatFromInt(y)) + 0.5 - gm.CENTER) / DISC_R;
+        for (0..BS) |x| {
+            const dx = (@as(f32, @floatFromInt(x)) + 0.5 - gm.CENTER) / DISC_R;
+            disc_mask[y * BS + x] = dx * dx + dy * dy <= 1.0;
+        }
+    }
+    disc_ready = true;
+    return &disc_mask;
+}
 
 pub const Dragonballs = struct {
     rotx: f32 = 0, // shared star rotation.x (all 5 phases share one accumulator)
@@ -101,20 +122,14 @@ pub const Dragonballs = struct {
     }
 
     fn drawDisc() void {
-        var y: usize = 0;
-        while (y < BS) : (y += 1) {
-            const dy = (@as(f32, @floatFromInt(y)) + 0.5 - gm.CENTER) / DISC_R;
-            var x: usize = 0;
-            while (x < BS) : (x += 1) {
-                const dx = (@as(f32, @floatFromInt(x)) + 0.5 - gm.CENTER) / DISC_R;
-                if (dx * dx + dy * dy > 1.0) continue;
-                const idx = y * BS + x;
-                ball_buf[idx] = switch (ball_buf[idx]) {
-                    PAL_BACK => PAL_DISC_ON_BACK,
-                    0 => PAL_DISC,
-                    else => ball_buf[idx],
-                };
-            }
+        const mask = discMask();
+        for (&ball_buf, mask) |*px, inside| {
+            if (!inside) continue;
+            px.* = switch (px.*) {
+                PAL_BACK => PAL_DISC_ON_BACK,
+                0 => PAL_DISC,
+                else => px.*,
+            };
         }
     }
 };
@@ -131,6 +146,18 @@ fn blitBall(fb: *LogicalFB, cx: f32, cy: f32, sx: f32, sy: f32) void {
     const px1: i32 = @intFromFloat(@ceil(cx + hw_));
     const py0: i32 = @intFromFloat(@floor(cy - hh_));
     const py1: i32 = @intFromFloat(@ceil(cy + hh_));
+    // The source column depends on px only: one divide a column, not a pixel.
+    // cols[k] is the texel column for px0 + k, or -1 when off the plane or the ball.
+    var cols: [MAX_SPAN]i16 = undefined;
+    const span: usize = @intCast(@max(0, @min(px1 - px0, MAX_SPAN)));
+    for (0..span) |k| {
+        const px = px0 + @as(i32, @intCast(k));
+        cols[k] = -1;
+        if (px < 0 or px >= pw) continue;
+        const svx = gm.CENTER + (@as(f32, @floatFromInt(px)) + 0.5 - cx) / sx;
+        if (svx < 0 or svx >= @as(f32, BS)) continue;
+        cols[k] = @intFromFloat(svx);
+    }
     var py: i32 = py0;
     while (py < py1) : (py += 1) {
         if (py < 0 or py >= ph) continue;
@@ -138,14 +165,11 @@ fn blitBall(fb: *LogicalFB, cx: f32, cy: f32, sx: f32, sy: f32) void {
         if (svy < 0 or svy >= @as(f32, BS)) continue;
         const srow = @as(usize, @intFromFloat(svy)) * BS;
         const drow = @as(usize, @intCast(py)) * fb.stride;
-        var px: i32 = px0;
-        while (px < px1) : (px += 1) {
-            if (px < 0 or px >= pw) continue;
-            const svx = gm.CENTER + (@as(f32, @floatFromInt(px)) + 0.5 - cx) / sx;
-            if (svx < 0 or svx >= @as(f32, BS)) continue;
-            const idx = ball_buf[srow + @as(usize, @intFromFloat(svx))];
+        for (cols[0..span], 0..) |c, k| {
+            if (c < 0) continue;
+            const idx = ball_buf[srow + @as(usize, @intCast(c))];
             if (idx == 0) continue;
-            fb.fb[drow + @as(usize, @intCast(px))] = idx;
+            fb.fb[drow + @as(usize, @intCast(px0 + @as(i32, @intCast(k))))] = idx;
         }
     }
 }

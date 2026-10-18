@@ -19,8 +19,9 @@ const LogicalFB = zg.LogicalFB;
 const CANVAS_W: f64 = 768; // index.html:58 sequencer_InitAndStart(768, 540, ...)
 const CANVAS_H: f64 = 540;
 const IMAGE: f64 = 264; // eflogowab5.png
-const TILE: f64 = 33; // eflogowabentry.js:31
-const HALF_TILE: f64 = TILE / 2; // setmidhandle: drawPart translates by -partw/2
+const wab_blit = @import("wab_blit.zig");
+const TILE: f64 = wab_blit.TILE; // eflogowabentry.js:31
+const HALF_TILE: f64 = wab_blit.HALF_TILE; // setmidhandle: drawPart translates by -partw/2
 const GRID: usize = 8;
 const NT: usize = GRID * GRID;
 const ENDVBL: u32 = 110; // eflogowabentry.js:53, generateTilesHelper's aSpeed
@@ -37,8 +38,7 @@ const PLANE_W: i32 = @intCast(zg.PHYSICAL_WIDTH);
 const PLANE_H: i32 = @intCast(zg.PHYSICAL_HEIGHT);
 const ORIGIN_X: f64 = 8; // canvas (0,0) on the plane, as placement.zig
 const ORIGIN_Y: f64 = 5;
-const LOGO: usize = 132; // wab.raw is 132x132
-const LOGO_F: f64 = LOGO;
+const LOGO: usize = wab_blit.LOGO;
 const LOGO_X: i16 = @intFromFloat((CANVAS_W - IMAGE) / 2 / 2 + ORIGIN_X); // 134
 const LOGO_Y: i16 = @intFromFloat((CANVAS_H - IMAGE) / 2 / 2 + ORIGIN_Y); // 74
 const LEVELS: f64 = 32; // wab_shade.dat rows + the untouched level
@@ -164,32 +164,17 @@ pub const Part = struct {
 
 /// Tile (tx,ty) centred on canvas (cx,cy), turned by (cs,sn), in halved logo texels.
 fn blitTurned(fb: *LogicalFB, tx: f64, ty: f64, cx: f64, cy: f64, cs: f64, sn: f64, level: usize) void {
-    const x0 = planeSpan(cx - REACH, ORIGIN_X, PLANE_W, false);
-    const x1 = planeSpan(cx + REACH, ORIGIN_X, PLANE_W, true);
-    const y0 = planeSpan(cy - REACH, ORIGIN_Y, PLANE_H, false);
-    const y1 = planeSpan(cy + REACH, ORIGIN_Y, PLANE_H, true);
+    const sp = wab_blit.Span{
+        .x0 = planeSpan(cx - REACH, ORIGIN_X, PLANE_W, false),
+        .x1 = planeSpan(cx + REACH, ORIGIN_X, PLANE_W, true),
+        .y0 = planeSpan(cy - REACH, ORIGIN_Y, PLANE_H, false),
+        .y1 = planeSpan(cy + REACH, ORIGIN_Y, PLANE_H, true),
+        .ox = ORIGIN_X,
+        .oy = ORIGIN_Y,
+    };
     const shade = if (level < LEVELS) wab_shade[(level - 1) * 256 ..][0..256] else null;
-    var py = y0;
-    while (py < y1) : (py += 1) {
-        const qy = 2 * (@as(f64, @floatFromInt(py)) - ORIGIN_Y) + 1 - cy;
-        const row = @as(usize, @intCast(py)) * @as(usize, fb.stride);
-        var px = x0;
-        while (px < x1) : (px += 1) {
-            const qx = 2 * (@as(f64, @floatFromInt(px)) - ORIGIN_X) + 1 - cx;
-            const u = cs * qx + sn * qy + HALF_TILE;
-            const v = -sn * qx + cs * qy + HALF_TILE;
-            // Drawn when the pixel's 2x2 canvas box overlaps the tile: a texel split by
-            // an odd tile edge belongs to BOTH tiles, or an empty (never animated)
-            // neighbour would leave a hole in the assembled logo.
-            if (u <= -1 or u >= TILE + 1 or v <= -1 or v >= TILE + 1) continue;
-            const sx = @floor((tx * TILE + u) / 2);
-            const sy = @floor((ty * TILE + v) / 2);
-            if (sx < 0 or sx >= LOGO_F or sy < 0 or sy >= LOGO_F) continue;
-            const idx = wab_raw[@as(usize, @intFromFloat(sy)) * LOGO + @as(usize, @intFromFloat(sx))];
-            if (idx == 0) continue;
-            fb.fb[row + @as(usize, @intCast(px))] = if (shade) |s| s[idx] else idx;
-        }
-    }
+    const t = wab_blit.Tile{ .tx = tx, .ty = ty, .cx = cx, .cy = cy, .cs = cs, .sn = sn };
+    wab_blit.blitTurned(fb, t, sp, wab_raw, shade);
 }
 
 /// First (or one past the last) plane coordinate whose pixel can reach canvas `c`.
