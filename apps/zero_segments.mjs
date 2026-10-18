@@ -36,7 +36,9 @@ const ALLOW = {
     // sap_bus.zig). Its 64 KiB Atari and its write queue live in song RAM, not here.
     // +16 B (2026-10-11): where mode 3's converted samples are (sndh_native.zig Shadow);
     // the samples themselves live in the 68000's RAM above the image, not here.
-    "demo-audio.wasm": 590876,
+    // +12 B (2026-10-17): the Monty replay's d7, mutant and unknown-command count
+    // (digi_monty_fx.zig, _seq.zig, _cmd.zig); its state lives in the 68000's RAM.
+    "demo-audio.wasm": 590888,
 };
 
 function uleb(b, p) {
