@@ -62,6 +62,7 @@ export async function bootGem() {
             audioPlay: noop, audioStop: noop, loadSample: noop, beep: noop,
             diskReadBlock: noop, hostAudioStreamStart: noop, hostAudioFeed: noop,
             hostAudioStreamStop: noop,
+            hostMicros: () => 0, // ST Replay's BOOT.WSM imports it (decisions.md 2026-10-17); 0 = frame time
         },
     };
     const gemBytes = await readFile("docs/demo-gem.wasm");
