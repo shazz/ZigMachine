@@ -24,14 +24,21 @@ const Mandelbrot = zg.Mandelbrot;
 const PW: usize = zg.PHYSICAL_WIDTH;
 const PH: usize = zg.PHYSICAL_HEIGHT;
 const PLANE: usize = 0;
+const K_ESC: u32 = 0xE012; // demo_main.zig's code for Escape
+const K_F: u32 = 'f';
+const K_F_UP: u32 = 'F';
 const ROWS_PER_FRAME: usize = 4;
 
 pub const Demo = struct {
     next_row: usize,
+    fixed: bool, // F: the escape loop in Q5.27 integers instead of f32
+    wants_quit: bool, // demo_main returns to the menu on this
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
         // The Demo arrives as stale bytes on a re-entry from the menu: assign all.
         self.next_row = 0;
+        self.fixed = false;
+        self.wants_quit = false;
 
         const fb = &zigos.lfbs[PLANE];
         fb.is_enabled = true;
@@ -42,6 +49,16 @@ pub const Demo = struct {
             fb.setPaletteEntry(v, Color{ .r = v, .g = v, .b = v, .a = v });
         }
         fb.clearFrameBuffer(0);
+    }
+
+    // F switches the maths live and the picture redraws top to bottom with the
+    // other loop. Declaring key() takes every key from the host, so Escape is ours.
+    pub fn key(self: *Demo, cp: u32) void {
+        if (cp == K_ESC) self.wants_quit = true;
+        if (cp == K_F or cp == K_F_UP) {
+            self.fixed = !self.fixed;
+            self.next_row = 0;
+        }
     }
 
     pub fn update(self: *Demo, zigos: *ZigOS, elapsed_time: f32) void {
@@ -58,7 +75,11 @@ pub const Demo = struct {
         var y = self.next_row;
         while (y < last) : (y += 1) {
             const row = screen[y * PW ..][0..PW];
-            for (row, 0..) |*px, x| px.* = Mandelbrot.escapeTime(@intCast(x), @intCast(y));
+            if (self.fixed) {
+                for (row, 0..) |*px, x| px.* = Mandelbrot.escapeTimeFixed(@intCast(x), @intCast(y));
+            } else {
+                for (row, 0..) |*px, x| px.* = Mandelbrot.escapeTime(@intCast(x), @intCast(y));
+            }
         }
         self.next_row = last;
     }
