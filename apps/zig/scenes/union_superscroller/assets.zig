@@ -25,8 +25,10 @@ const FONT_ROWS = 127; // unique rows, as the asset script reports them
 const FONT_SPANS = 201;
 const COLOURS = BACK_COLOURS + OVER_COLOURS + RASTER_COLOURS + 1;
 
-pub const TOTAL = 2 * W * H + RASTER_ROWS + 3 * COLOURS +
-    GLYPHS * SAMPLED_ROWS + 2 * (FONT_ROWS + 1) + 4 * FONT_SPANS;
+/// The images and colours: once this many bytes are depacked, the layer tables
+/// (layers.zig) can be built; the font follows.
+pub const LAYER_BYTES = 2 * W * H + RASTER_ROWS + 3 * COLOURS;
+pub const TOTAL = LAYER_BYTES + GLYPHS * SAMPLED_ROWS + 2 * (FONT_ROWS + 1) + 4 * FONT_SPANS;
 
 pub const Images = struct {
     back: []const u8,
