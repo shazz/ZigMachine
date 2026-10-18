@@ -74,6 +74,11 @@ export const CONST_DIV = 5;      // i32 divide by a constant (mulhu + shifts); i
 // (fpga/CYCLES.md "Memory path") plus the burst. The board fit puts it at its floor (10):
 // the misses the model sees are already paid for inside CPI.
 export const DMISS = 10;
+// A wasm access that really is misaligned: ZIGGY's ALIGNED translation emits one lw/sw, the
+// core traps and trap.S/trap.c emulate it byte by byte after saving 31 registers (each a
+// blocking DDR store). Fitted to ics on the board (08655fd's grid copy: ~12,000 misaligned
+// loads a frame took it from the model's 5.2 Mc to the board's ~13 Mc).
+export const MISALIGNED = 700;
 export const MHZ = 100;
 export const FRAME_MC = MHZ / 60; // 1.667 Mc: a 60 Hz frame
 

@@ -17,7 +17,7 @@ export const I = {
     call: (f) => [0x10, ...encU32(f)], drop: [0x1a],
     add: [0x6a], mul: [0x6c], divu: [0x6e], remu: [0x70], shl: [0x74],
     i64add: [0x7c], i64mul: [0x7e], i64ext: [0xad], f64add: [0xa0], f64mul: [0xa2], f32add: [0x92], f32cvt: [0xb3],
-    load8: (o) => ma(0x2d, 0, o), load: (o) => ma(0x28, 2, o), f32load: (o) => ma(0x2a, 2, o),
+    load8: (o) => ma(0x2d, 0, o), load: (o) => ma(0x28, 2, o), load1: (o) => ma(0x28, 0, o), f32load: (o) => ma(0x2a, 2, o),
     store8: (o) => ma(0x3a, 0, o), store16: (o) => ma(0x3b, 1, o), store: (o) => ma(0x36, 2, o), and: [0x71], i64store: (o) => ma(0x37, 3, o),
     f64store: (o) => ma(0x39, 3, o), f32store: (o) => ma(0x38, 2, o),
     fill: [0xfc, 0x0b, 0x00], copy: [0xfc, 0x0a, 0x00, 0x00],
