@@ -15,6 +15,7 @@
 #include <string.h>
 
 #include "baudio.h"
+#include "dflush.h"
 #include "haudio.h"
 #include "snd_mailbox.h"
 #include "sound.h"
@@ -78,7 +79,7 @@ int32_t audio_song(const char* name, uint8_t* dst, uint32_t cap) {
 
 /* VexRiscv: invalidate the write-through D-cache (vboard.h zmv_flush_dcache), so a play's bytes
  * are read from DDR, not from a line an earlier effect left at the same address. */
-static inline void flush_dcache(void) { __asm__ volatile(".word(0x500F)\n" ::: "memory"); }
+static inline void flush_dcache(void) { zm_dflush(); }
 
 /* OP_EFFECTS: the cart's frame of effects (cycles/bsound.c), applied as host/audio.c applies them. */
 static void effects(uint32_t n) {

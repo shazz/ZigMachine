@@ -7,13 +7,14 @@
  * REPORT tag * 1000000 + value: 1/2 cycles of case 1/2's step 4 (cold I-cache), 6/7 the same
  * again (warm, as on the board after the first blit), 8 a 16x16 tile's (warm), 3 a whole-cache
  * invalidate, 4 refills of the unrelated line, 5 a 128-line range, 9 the cases that fell back to
- * the whole cache (bit n = case n). */
+ * the whole cache (bit n = case n), 10/11 reads of a cached line after a branch skipped/took zmv_flush_dcache
+ * (dflush.h's wrong-path guard). */
 #include <stdint.h>
 
 #include "bdinval.h"
 
 /* vboard.h's, without the SoC's CSR headers it pulls in. */
-static inline void zmv_flush_dcache(void) { __asm__ volatile(".word(0x500F)\n" ::: "memory"); }
+static inline void zmv_flush_dcache(void) { zm_dflush(); }
 
 #define DEV ((volatile uint32_t*)0xf0000000u)
 #define REGION ((volatile uint8_t*)0x40100000u) /* the video region: registers, then pixels */
@@ -113,8 +114,25 @@ static int run_case(uint32_t n, const op_t* o) {
     return stale;
 }
 
+static volatile uint32_t take; /* the branch's condition, opaque to the compiler */
+
+/* A caller's `if (take) zmv_flush_dcache();` with the flush right behind the branch (asm goto
+ * pins the layout): REPORT tag = bus reads of a line cached before it (0 when the branch skipped
+ * the flush and nothing ran on the wrong path, 8 = one 32-byte refill when the flush ran). */
+static __attribute__((noinline)) void branch_flush(uint32_t tag) {
+    volatile uint32_t* line = (volatile uint32_t*)0x40300000u;
+    sink = *line;
+    DEV[4] = (uint32_t)(uintptr_t)line;
+    __asm__ goto("beqz %0, %l[skip]" ::"r"(take)::skip);
+    zmv_flush_dcache();
+skip:
+    sink = *line;
+    report(tag, DEV[5]);
+}
+
 int main(void) {
     int bad = 0;
+    for (int k = 0; k < 2; k++) take = 0, branch_flush(10), take = 1, branch_flush(11); /* last: warm */
     for (uint32_t n = 0; n < NOPS; n++)
         if (run_case(n, &OPS[n]) && !bad) bad = 10 + (int)n;
     uint32_t t = DEV[1];

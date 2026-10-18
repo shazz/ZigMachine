@@ -1,6 +1,7 @@
 // Waste findings from a run (waste.mjs + the store-watch counters), each with its
 // estimated WASTED Mc/frame: the cycles that would go if only what changes were written.
 import { paletteWrites } from "./report.mjs";
+import { cycleReport } from "./cycle_report.mjs";
 import { SNOOP_OVERFLOW, STORE_DRAIN, BLIT_DFLUSH, BLIT_CALL, BLIT_UNIT, FRESCO_PLANE, fillCycles, copyCycles } from "./cost_model.mjs";
 import { WATCH_WORDS } from "./watch_hook.mjs";
 import { funcName } from "./wasm_bin.mjs";
@@ -11,7 +12,7 @@ export const WASTE_HINTS = {
     clear_then_redraw: "save-under or dirty rects: restore only what the moving parts covered, not the whole plane",
     static_plane: "draw it once (it never changes); the dirty-line compositor (perf/vseq-dirty) then skips it",
     palette_rewrite: "write only the colour registers that change (a raster coder never rewrites one)",
-    tiny_blits: "batch tiny ops into one blit, do them with CPU word stores, or flush only the range (perf/blit-dcache-range)",
+    tiny_blits: "batch tiny ops into one blit, or do them with CPU word stores",
     scroll_band: "pan it (REG_HSCROLL / FB_BASE) or blit-shift the band and draw only the new column",
 };
 const MIN_BYTES = 1024;            // per frame: below this, nothing worth reporting
@@ -85,8 +86,11 @@ function blitFindings(W, profiles, F) {
     return [...W.blits.values()].filter((b) => b.tiny / F >= 1).map((b) => {
         const P = profiles.find((x) => x.tag === b.mod);
         return { pattern: "tiny_blits", mod: b.mod, fi: b.fi, func: b.fi >= 0 ? funcName(P.plan.module, b.fi) : "?", loop: -1,
-            at: b.site >= 0 ? hex(P.plan.blits[b.site].at) : "-", waste: Mc((b.tiny * BLIT_DFLUSH) / F),
-            detail: `${Math.round(b.tiny / F)} of ${Math.round(b.ops / F)} blits a frame under ${256} B, each paying a full D$ flush`,
+            // a tiny op's fixed cost (start, spin, D$ range flush) against CPU word stores of its bytes
+            at: b.site >= 0 ? hex(P.plan.blits[b.site].at) : "-",
+            waste: Mc(Math.max(0, b.tiny * BLIT_CALL - (b.tinyBytes / 4) * STORE_DRAIN) / F),
+            detail: `${Math.round(b.tiny / F)} of ${Math.round(b.ops / F)} blits a frame under 256 B, each paying `
+                + `~${BLIT_CALL} cycles of start, spin and D$ flush (${BLIT_DFLUSH})`,
             hint: WASTE_HINTS.tiny_blits };
     });
 }
@@ -119,7 +123,7 @@ export function wasteReport(W, profiles, planesOn, overflow = 0) {
     const F = Math.max(1, W.frames);
     const findings = [...redundantStores(profiles, F), ...fillFindings(W, profiles, F), ...clearFindings(W, profiles),
         ...planeFindings(W, F), ...blitFindings(W, profiles, F), ...scrollFindings(W, F),
-        ...paletteFindings(profiles, overflow)].sort((a, b) => b.waste - a.waste);
+        ...paletteFindings(profiles, overflow), ...cycleReport(profiles, F)].sort((a, b) => b.waste - a.waste);
     const lines = W.lines / F;
     return { stored: Math.round(W.stored / F), changed: Math.round(W.changed / F), lines: Math.round(lines),
         dirtyGainMc: Mc(planesOn * FRESCO_PLANE * (1 - lines / PFB_H)),

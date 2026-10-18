@@ -3,6 +3,7 @@
 // 1-4 i32, 5-6 i64, 7-8 f64, 9-10 f32. fn(0) is the first helper (sinf, setPixel) where a case declares one.
 import { I, loop, fn, BUF, BUF2, PAL } from "./fixture.mjs";
 import { WASTE_CASES } from "./test_cases_waste.mjs";
+import { CYCLE_CASES } from "./test_cases_cycles.mjs";
 
 const fill = (dst, v, n) => [...I.i32(dst), ...I.i32(v), ...I.i32(n), ...I.fill];
 // compiler-rt's sinf works in f64: promote, a polynomial, demote
@@ -50,4 +51,5 @@ export const CASES = [
         without: [...counter, ...loop(1, 600, [...I.get(1), ...I.i32(255), 0x71, ...I.i32(2), ...I.shl, // ...each a new colour
             ...I.get(4), ...I.i32(1000), ...I.mul, ...I.get(1), ...I.add, ...I.store(PAL)])] },
     ...WASTE_CASES,
+    ...CYCLE_CASES,
 ];

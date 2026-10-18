@@ -56,7 +56,7 @@ function hbl(hw, mods, call) {
 // Returns { memory, machine, demo, hw, mods: [{tag, plan, mem}], vlo }.
 export async function bootInstrumented(cartBytes, { machineDir = "docs", disk = null, pal = true, names = {} } = {}) {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
-    const hw = { blits: 0, blitUnits: 0, blitCycles: 0, hbls: 0, hblStores: 0, snoopOverflow: 0, misaligned: 0, cmd: [0, 0, 0, 0, 0], blitLog: [] };
+    const hw = { blits: 0, blitUnits: 0, blitCycles: 0, hbls: 0, hblStores: 0, snoopOverflow: 0, diskBlocks: 0, misaligned: 0, cmd: [0, 0, 0, 0, 0], blitLog: [] };
     const mods = [{ tag: "cart" }, { tag: "rom" }];
     let demo;
     const machine = (await WebAssembly.instantiate(await readFile(`${machineDir}/machine-video.wasm`), {
@@ -75,7 +75,10 @@ export async function bootInstrumented(cartBytes, { machineDir = "docs", disk = 
 
     const cartI = instrument(cartBytes, { pal: palWin, vlo, names: names.cart });
     const env = envFor(machine, { memory, hwBlit, ...rom });
-    if (disk) env.diskReadBlock = makeDrive(memory, { buf: new Uint8Array(await readFile(disk)) });
+    if (disk) { // counted: on the board each 512-byte block is copied out of DDR by the firmware
+        const drive = makeDrive(memory, { buf: new Uint8Array(await readFile(disk)) });
+        env.diskReadBlock = (block, dst) => { const n = drive(block, dst); if (n) hw.diskBlocks++; return n; };
+    }
     const noop = () => {};
     for (const imp of WebAssembly.Module.imports(new WebAssembly.Module(cartBytes)))
         if (imp.module === "env" && !(imp.name in env)) env[imp.name] = noop;

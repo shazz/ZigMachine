@@ -8,13 +8,13 @@ import { OP, isLoad, isStore, LOAD_WIDTH, STORE_WIDTH } from "./wasm_ops.mjs";
 import { opCost, isLibm, CLASSES, CLS, CONST_DIV } from "./cost_model.mjs";
 import { producers, source } from "./flow.mjs";
 import { inc, FIRST_COUNTER } from "./hooks.mjs";
-import { hookFor, TEMP_DECLS, blitImports } from "./sites.mjs";
+import { hookFor, TEMP_DECLS, TEMP_GROUPS, blitImports } from "./sites.mjs";
 
 const NCLS = CLASSES.length;
 const DIVIDES = new Set([0x6d, 0x6e, 0x6f, 0x70, 0x7f, 0x80, 0x81, 0x82]);
 
 // A divide by a constant: GCC turns wasm2c's x / 7 into a multiply-high and shifts.
-function constDivisor(d, args, i) {
+export function constDivisor(d, args, i) {
     const v = source(d, args, args[i][1]);
     return v >= 0 && (d.instrs[v].op === OP.i32_const || d.instrs[v].op === OP.i64_const);
 }
@@ -59,11 +59,12 @@ function rewriteBody(m, k, ctx) {
     let hooked = false;
     for (let i = 0; i < d.instrs.length; i++) {
         if (heads.has(i)) { const [b, s] = heads.get(i); code.push(...b); ctx.seg = s; }
+        ctx.args = args; ctx.i = i;
         const h = hookFor(d, i, ctx);
         if (h) { hooked = true; code.push(...h); } else code.push(...ctx.buf.subarray(d.instrs[i].at, d.instrs[i].next));
     }
     const decls = d.localDecls.map(([n, t]) => [...encU32(n), t]).flat();
-    const nDecls = d.localDecls.length + (hooked ? 2 : 0);
+    const nDecls = d.localDecls.length + (hooked ? TEMP_GROUPS : 0);
     const body = [...encU32(nDecls), ...decls, ...(hooked ? TEMP_DECLS : []), ...code];
     return [...encU32(body.length), ...body];  // array literals spread without the call stack
 }
@@ -109,14 +110,15 @@ function vecStart(buf, p) { while (buf[p] & 0x80) p++; return p + 1; }
 
 // pal: [lo, hi) absolute byte addresses of the palette window, or null for no check.
 // vlo: the VRAM pool's absolute base (stores into it are watched), or null.
+// probes: the round-3 probes (D$ model, value repeats, i64 fits, branch flips).
 // names: a Map(function index -> name) from an unstripped twin (names.mjs), for a
 // stripped release build.
-export function instrument(buf, { pal = null, vlo = null, names = null } = {}) {
+export function instrument(buf, { pal = null, vlo = null, names = null, probes = true } = {}) {
     const m = parseModule(buf);
     if (names && m.names.size === 0) m.names = names;
     const plan = { names: m.names, regions: [], segFunc: [], segRegion: [], segWord: [], segAt: [],
-        segInstr: [], segStores: [], segFetch: [], cls: [], fills: [], copies: [], watch: [], blits: [] };
-    const ctx = { buf, plan, pal, vlo, blit: blitImports(m), next: FIRST_COUNTER };
+        segInstr: [], segStores: [], segFetch: [], cls: [], fills: [], copies: [], watch: [], blits: [], probes: [], calls: [] };
+    const ctx = { buf, m, plan, pal, vlo, probes, blit: blitImports(m), next: FIRST_COUNTER };
     const nSegGuess = m.bodies.length * 64;
     plan.cls = new Uint32Array(nSegGuess * NCLS);
     plan.clsCyc = new Float32Array(nSegGuess * NCLS);

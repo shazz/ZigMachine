@@ -5,7 +5,7 @@
 // Memory 1 layout (bytes / u32 words):
 //   [0, SNAP_BYTES)    a copy of the VRAM pool taken before each frame (the host writes
 //                      it), so a store can be compared with what its byte held at frame start
-//   LOG_COUNT, BLIT_SITE, STORE_TOTAL, PAL_TOTAL, MIS_LOADS, MIS_STORES, then LOG_MAX log entries [kind<<28 | site, dest, len, value|src]
+//   LOG_COUNT, BLIT_SITE, STORE_TOTAL, PAL_TOTAL, DTAGS[128], MIS_LOADS, MIS_STORES, then LOG_MAX log entries [kind<<28 | site, dest, len, value|src]
 //                      for big fills/copies and every fill/copy into VRAM, this frame
 //   BUCKETS            bytes stored into VRAM this frame, per 256-byte bucket
 //   FIRST_COUNTER ...  the per-segment and per-site counters (u32, cumulative)
@@ -18,9 +18,10 @@ export const LOG_COUNT = SNAP_BYTES / 4;
 export const BLIT_SITE = LOG_COUNT + 1;          // the hwBlit call site about to run (-1: none)
 export const STORE_TOTAL = LOG_COUNT + 2;        // every watched store, ever (HBL share: run_cart)
 export const PAL_TOTAL = LOG_COUNT + 3;          // every palette store, ever (per-HBL snoop queue: run_cart)
-export const MIS_LOADS = LOG_COUNT + 4;          // loads wider than a byte at an address not a multiple of their width, ever
-export const MIS_STORES = LOG_COUNT + 5;         // the same for integer stores (the board's `aligned` build traps each: trap.c)
-export const LOG_BASE = LOG_COUNT + 6;
+export const DTAGS = LOG_COUNT + 4;               // the D$ model's 128 line tags (probe_hooks.mjs)
+export const MIS_LOADS = DTAGS + 128;            // loads wider than a byte at an address not a multiple of their width, ever
+export const MIS_STORES = DTAGS + 129;           // the same for integer stores (the board's `aligned` build traps each: trap.c)
+export const LOG_BASE = DTAGS + 130;
 export const BUCKET_SHIFT = 8;
 export const BUCKETS = LOG_BASE + 4 * LOG_MAX;
 export const FIRST_COUNTER = BUCKETS + (VRAM_BYTES >> BUCKET_SHIFT);
