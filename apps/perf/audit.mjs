@@ -4,8 +4,11 @@
 // (init-only, or a path the run did not take). Dynamic-only findings (palette rewrites,
 // cleared-then-redrawn planes, hot narrow-store loops the static rules missed) join in.
 import { lintModule, HINTS } from "./lint.mjs";
+import { CLASSES, CPI } from "./cost_model.mjs";
 
 export const HOT_MC = 0.05;         // 3 % of a 60 Hz frame at 100 MHz
+const OWN_CLASSES = { div_loop: ["i32_div", "i64_div"], f64_loop: ["f64"], i64_loop: ["i64_mul", "i64_div", "i64_shift", "i64_other"] };
+const NCLS = CLASSES.length;
 const Mc = (c) => Math.round(c / 1e4) / 100;
 
 function regionIndex(P) {
@@ -22,9 +25,12 @@ function measured(P, idx, f) {
     const F = Math.max(1, P.frames);
     const regs = f.loop >= 0 ? [idx.byLoop.get(`${f.fi}:${f.loop}`)] : idx.byFunc.get(f.fi) ?? [];
     let cycles = 0, runs = 0;
+    const classes = OWN_CLASSES[f.pattern];
     for (const r of regs) {
         if (r === undefined) continue;
-        cycles += P.sum.cycles[r];
+        // an op-class pattern costs what its ops cost, not the whole loop: a divide on a
+        // rare path of an 87K-iteration loop is not 87K divides
+        cycles += classes ? classes.reduce((a, c) => a + P.sum.clsCyc[r * NCLS + CLASSES.indexOf(c)] * CPI, 0) : P.sum.cycles[r];
         if (P.headSeg[r] >= 0) runs = Math.max(runs, P.sum.seg[P.headSeg[r]]);
     }
     // A libm call's cost is in the callee: charge the loop its calls x the callee's cost a call.
@@ -65,7 +71,10 @@ export function crossCheck(dyn, cartBytes, names) {
     });
     for (const f of findings) if (f.pattern === "table_rebuild" && f.status !== "cold") f.pattern = "table_rebuild_per_frame";
     const keys = new Set(findings.map((f) => `cart:${f.fi}:${f.loop}`));
-    const all = [...findings, ...dynamicOnly(dyn, keys)];
+    const dyns = dynamicOnly(dyn, keys);
+    // a dynamic finding (measured on the real stream) replaces the static one of its pattern in that loop
+    const measuredHere = new Set(dyns.map((f) => `${f.pattern}:${f.fi}:${f.loop}`));
+    const all = [...findings.filter((f) => !measuredHere.has(`${f.pattern}:${f.fi}:${f.loop}`)), ...dyns];
     const order = { hot: 0, "per-frame": 1, cold: 2 };
     all.sort((a, b) => order[a.status] - order[b.status] || b.mc - a.mc || a.func.localeCompare(b.func));
     return all;

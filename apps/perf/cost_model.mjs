@@ -27,7 +27,7 @@ export const STORE_DRAIN = 30;    // cycles per store while the store buffer is 
 // cart's working set misses again after it). BLIT_DFLUSH is the part a range flush
 // (perf/blit-dcache-range) would remove; tiny_blits charges it as the waste of a tiny op.
 export const BLIT_START = 150;
-export const BLIT_DFLUSH = 250;
+export const BLIT_DFLUSH = 30;    // since 7993ff78 bblit.c invalidates only the op's lines (was ~250: the whole D$)
 export const BLIT_CALL = BLIT_START + BLIT_DFLUSH;
 // clocks per CYCLES unit by COMMAND (1 BLIT, 2 FILL, 3 LINE, 4 TRIANGLE), plain vs
 // read-modify-write (the minterm reads the destination C): BLITTER_HW_SPEC 10.5 and the
@@ -52,7 +52,12 @@ export const HBL_CALL = 60;
 // the old stcs would confirm or refute it.
 export const SNOOP_QUEUE = 16;
 export const SNOOP_OVERFLOW = 1900; // cycles per palette store beyond the queue, within one handler       // per hblDispatch: interrupt entry/exit on ZIGGY
-export const FILL_WORD = 1.5;     // memset/memcpy instructions per 32-bit word (picolibc)
+// memset/memcpy (wasm memory.fill/copy -> picolibc) cost per 32-bit word ON THE BOARD:
+// fitted to the 2026-10-18 board fps of empire (3.7 Mc measured, 2.48 by the round-2 model:
+// 74 KB of fills + 14 KB of copies a frame) and maxi (5.3 vs 2.59: 192 KB of copies), which
+// agree on ~86 cycles a word -- against ~31 a STORE for a byte loop (empire's old clear).
+// So a memset is only ~1.5x a byte loop on ZIGGY; a CHISEL fill is ~1.85 clocks a byte.
+export const FILL_WORD_CYCLES = 86;
 // I$ (16 KiB, 2-way): when the rv32 code a frame runs is bigger, a share of its
 // instruction fetches miss; a miss refills a 32-byte line (8 instructions) in ~40 cycles.
 // Joust (~24 KB a frame) is where this shows: without it the model is ~2x under its sim.
@@ -60,6 +65,10 @@ export const ICACHE = 16384;
 export const ICACHE_MISS_CPI = 5;
 export const icacheCycles = (instr, codeBytes) => instr * ICACHE_MISS_CPI * Math.max(0, 1 - ICACHE / Math.max(1, codeBytes));
 export const CONST_DIV = 5;      // i32 divide by a constant (mulhu + shifts); i64: 4x
+// A D$ miss (4 KiB direct-mapped, 32-byte lines, modelled on the cart's real load stream by
+// probe_hooks.mjs): a line refill from DDR over HP0, the first word ~24-62 cycles late
+// (fpga/CYCLES.md "Memory path") plus the burst. Calibrated with CPI on the board-SoC sims.
+export const DMISS = 40;
 export const MHZ = 100;
 export const FRAME_MC = MHZ / 60; // 1.667 Mc: a 60 Hz frame
 
@@ -111,8 +120,8 @@ export function opCost(op) {
 }
 
 // Run-time bytes of memory.fill / memory.copy, as cycles (word loop, bus-bound on stores).
-export const fillCycles = (bytes) => (bytes / 4) * Math.max(STORE_DRAIN, FILL_WORD * CPI);
-export const copyCycles = (bytes) => (bytes / 4) * Math.max(STORE_DRAIN, 2 * FILL_WORD * CPI);
+export const fillCycles = (bytes) => (bytes / 4) * FILL_WORD_CYCLES;
+export const copyCycles = (bytes) => (bytes / 4) * FILL_WORD_CYCLES;
 
 // A region's cycles for one frame: its instructions, or its store stream if that is
 // the slower of the two (the roofline of a loop against the store buffer's drain).
