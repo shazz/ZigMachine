@@ -129,6 +129,8 @@ NATIVE_TESTS="
     libs/zig/players/digi_test.zig
     libs/zig/players/digi_monty_test.zig
     libs/zig/players/digi_wow_test.zig
+    libs/zig/players/digi_big_test.zig
+    libs/zig/players/digi_mix4_test.zig
     machine/audio/pokey_test.zig
     libs/zig/players/cpu6502_test.zig
     libs/zig/players/sap_test.zig
@@ -453,6 +455,10 @@ gate union_beatdis node apps/union_beatdis_headless.mjs --break hq   # ...and mo
 gate_timed union_superscroller node apps/union_superscroller_headless.mjs "$SHOTS"   # TCB2: TEX loader depack, screen.js with Chrome's filtering replayed pixel for pixel, the SNDH plays
 gate union_superscroller_music node apps/wow_native_check.mjs   # its tune (Wow Scroller, Timer A digi) natively = the 68000 bit for bit, modes 1/2 unbroken, mode 3 on PCM follows the YM path
 gate union_superscroller_music node apps/wow_native_check.mjs --break   # ...and Beat Dis's handler on Wow's bytes (mutant 4) is caught
+gate union_textracker_music node apps/irq_native_check.mjs --song union/thalion_forever.sndh --status 8 --seconds 60   # its tune's 4-voice mixer interrupt natively = the 68000 bit for bit, modes 1/2 unbroken
+gate union_textracker_music node apps/irq_native_check.mjs --song union/thalion_forever.sndh --status 8 --seconds 20 --break   # ...and the steps play patches frozen at arming (mutant 5) are caught
+gate big_demo_music node apps/irq_native_check.mjs --song digital/Ace_2.sndh --status 7 --seconds 40   # the digital screen's 3-voice mixer interrupt natively = the 68000 bit for bit, modes 1/2 unbroken
+gate big_demo_music node apps/irq_native_check.mjs --song digital/Ace_2.sndh --status 7 --seconds 20 --break   # ...and the steps play patches frozen at arming (mutant 5) are caught
 gate automation442 node apps/automation442_headless.mjs "$SHOTS/automation442"   # AUTOMATION 442: the panned overscan scroll plane through one bgcount cycle
 gate_timed big_demo node apps/big_demo_headless.mjs   # TEX B.I.G. DEMO: wait screen hands over at frame 201, TEX's own 118 rows ripped from RAM, cursor clamps [2,115], all 45 named SNDH present, bands cycle
 gate_timed big_demo node apps/big_demo_headless.mjs --break nav   # ...and a list that never moves fails the clamp checks
