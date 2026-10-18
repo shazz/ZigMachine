@@ -2,7 +2,7 @@
 each tune's timer interrupt in Zig, its init and play on Musashi. The audio core's writes,
 digested a frame at a time (host/sndh_oracle.c), must be the same over the length given, across
 a mid-tune sndhCall and mode switches 1/2; mutant 5 (the steps play patches into the handler
-frozen when it was armed) must fail. The helpers are test_sndh_native.py's.
+frozen when it was armed) and 6 (the stream handler's registers 9 and 10 swapped) must fail. The helpers are test_sndh_native.py's.
 Needs `make sndh-oracle` and docs/demo-audio.wasm."""
 
 from __future__ import annotations
@@ -25,7 +25,12 @@ TUNES = [
     ("digital/Sanxion.sndh", 1, 3_000, 7),
     ("digital/Starpaws.sndh", 1, 3_000, 7),
     ("big/Labello.sndh", 1, 3_000, 7),
+    ("snyd90_f6.sndh", 1, 6_000, 12),  # snyd_90's part 6: a 3-voice mixer on Timer C
+    ("tcb_spreadpoint.sndh", 1, 6_000, 13),  # TCB's Spreadpoint screen: three volume streams
 ]
+# song, the mutant that must be caught (sndh_native.zig): 5 = steps frozen at arming, 6 = registers 9/10 swapped.
+MUTANTS = [("union/thalion_forever.sndh", 5), ("digital/Ace_2.sndh", 5), ("snyd90_f6.sndh", 5),
+           ("tcb_spreadpoint.sndh", 6)]
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -61,7 +66,7 @@ def test_the_native_handler_writes_the_same_as_musashi(tmp_path: Path, song: str
     assert first_difference(ref, got) is None
 
 
-@pytest.mark.parametrize("song", ["union/thalion_forever.sndh", "digital/Ace_2.sndh"])
+@pytest.mark.parametrize("song", [m[0] for m in MUTANTS])
 def test_a_sndh_call_and_mode_switches_mid_tune_change_nothing(tmp_path: Path, song: str) -> None:
     ref, _ = run(tmp_path, song, 1, 1_600, musashi=True, call=(777, 1))
     got, _ = run(tmp_path, song, 1, 1_600, call=(777, 1))
@@ -72,10 +77,10 @@ def test_a_sndh_call_and_mode_switches_mid_tune_change_nothing(tmp_path: Path, s
     assert first_difference(ref, got) is None
 
 
-@pytest.mark.parametrize("song", ["union/thalion_forever.sndh", "digital/Ace_2.sndh"])
-def test_the_oracle_catches_steps_frozen_at_arming(tmp_path: Path, song: str) -> None:
+@pytest.mark.parametrize(("song", "mutant"), MUTANTS)
+def test_the_oracle_catches_a_wrong_handler(tmp_path: Path, song: str, mutant: int) -> None:
     ref, _ = run(tmp_path, song, 1, 600, musashi=True)
-    got, _ = run(tmp_path, song, 1, 600, mutant=5)
+    got, _ = run(tmp_path, song, 1, 600, mutant=mutant)
     assert first_difference(ref, got) is not None
 
 

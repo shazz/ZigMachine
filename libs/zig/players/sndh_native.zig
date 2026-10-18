@@ -25,6 +25,7 @@ const xbtimerSet = @import("sndh_player.zig").xbtimerSet;
 extern fn m68k_read_memory_8(address: c_uint) c_uint;
 extern fn m68k_write_memory_8(address: c_uint, value: c_uint) void;
 extern fn m68k_write_memory_16(address: c_uint, value: c_uint) void;
+extern fn m68k_set_reg(reg: c_uint, value: c_uint) void;
 
 pub const Mode = enum(u32) { st = 1, native = 2, pcm = 3 };
 
@@ -37,7 +38,8 @@ pub var status: digi.Status = .musashi;
 /// mode 3 plays the tune's bytes raw, not the shadow (the 2026-10-11 bug); 3 =
 /// Monty's play writes volume C over its drums (digi_monty_seq.zig); 4 = Wow
 /// Scroller's interrupt reads its byte through Beat Dis's `addi.b #$80`; 5 = a
-/// handler-only driver's steps frozen when it was armed (digi_irq.zig). Test only.
+/// handler-only driver's steps frozen when it was armed (digi_irq.zig); 6 = the
+/// stream handler's registers 9 and 10 swapped (digi_tcb3.zig). Test only.
 pub var mutant: u32 = 0;
 
 var driver: ?Driver = null; // what the image is, whatever the mode
@@ -56,6 +58,10 @@ const Bus68 = struct {
         m68k_write_memory_16(a, v);
     }
     pub const xbtimer = xbtimerSet; // XBIOS Xbtimer, as the SNDH player answers the trap
+    /// A6, which a handler that does not save it leaves changed (digi_mix3.zig).
+    pub fn setA6(v: u32) void {
+        m68k_set_reg(14, v); // M68K_REG_A6
+    }
 };
 
 /// A tune was just loaded at 68000 address `base`: which driver, and the mode.
@@ -124,6 +130,7 @@ pub fn interrupt(handler: u32) bool {
     switch (d) {
         .irq => {
             digi.irq.frozen = mutant == 5;
+            digi.irq.swapped = mutant == 6;
             return digi.irq.irq(Bus68, &driver.?.irq, handler);
         },
         .beat_dis => |bd| {

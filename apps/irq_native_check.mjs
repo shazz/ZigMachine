@@ -7,8 +7,9 @@
 // 3. Switched 2-1-2-1-2 mid-tune, the samples do not change.
 //
 //   node apps/irq_native_check.mjs --song union/thalion_forever.sndh --status 8 --seconds 60
-//   ... --break   (mutant 5: the steps play patches into the handler frozen when it was armed;
-//                  the check must fail, then exits 0)
+//   ... --break [--mutant 6]   (mutant 5, the default: the steps play patches into the handler
+//                  frozen when it was armed; 6: the stream handler's registers 9 and 10 swapped.
+//                  The check must fail, then exits 0)
 import { firstDifference, render } from "./sndh_native_lib.mjs";
 
 const arg = (name, dflt) => {
@@ -19,6 +20,7 @@ const SONG = arg("song");
 const STATUS = Number(arg("status"));
 const SECONDS = Number(arg("seconds", "30")), B = 50, BLOCKS = SECONDS * B;
 const BREAK = process.argv.includes("--break");
+const MUTANT = Number(arg("mutant", "5"));
 const TAG = `irq_native ${SONG}`;
 if (!SONG || !STATUS) {
     console.log("usage: irq_native_check.mjs --song <file> --status <n> [--seconds s] [--break]");
@@ -39,13 +41,13 @@ async function check(mutant) {
     return errors;
 }
 
-const errors = await check(BREAK ? 5 : 0);
+const errors = await check(BREAK ? MUTANT : 0);
 if (BREAK) {
     if (errors.some((e) => e.startsWith("native differs"))) {
         console.log(`${TAG} --break: caught (${errors[0]})`);
         process.exit(0);
     }
-    console.log(`${TAG} --break: FAILED -- steps frozen at arming went unnoticed`);
+    console.log(`${TAG} --break: FAILED -- mutant ${MUTANT} went unnoticed`);
     process.exit(1);
 }
 if (errors.length) {

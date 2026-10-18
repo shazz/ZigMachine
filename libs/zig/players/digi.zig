@@ -33,6 +33,8 @@ pub const Status = enum(u32) {
     wow = 6, // native, players/digi_wow.zig (MAN Cool's Wow Scroller, Timer A)
     big_digital = 7, // handler native, digi_big.zig (Mad Max's 3-voice mixer: the B.I.G. Demo's digital tunes)
     hippel_mix4 = 8, // handler native, digi_mix4.zig (Hippel's 4-voice mixer: Thalion Forever)
+    mix3_timer_c = 12, // handler native, digi_mix3.zig (a 3-voice mixer on Timer C: snyd_90's part 6)
+    tcb_streams = 13, // handler native, digi_tcb3.zig (three volume streams: TCB's Spreadpoint)
 };
 
 pub const Driver = union(enum) {

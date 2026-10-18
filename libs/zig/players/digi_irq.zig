@@ -19,10 +19,14 @@
 const digi = @import("digi.zig");
 pub const big = @import("digi_big.zig");
 pub const mix4 = @import("digi_mix4.zig");
+pub const mix3 = @import("digi_mix3.zig");
+pub const tcb3 = @import("digi_tcb3.zig");
 
 pub const Driver = union(enum) {
     big: big.Driver,
     mix4: mix4.Driver,
+    mix3: mix3.Driver,
+    tcb3: tcb3.Driver,
 };
 
 /// What the next interrupt must do first: check the handler in RAM (after a load or an INIT).
@@ -31,6 +35,9 @@ var state: enum { unarmed, armed, refused } = .unarmed;
 /// Mutant 5 (sndh_native.zig, test only): every voice's step as it was when the handler was armed,
 /// as if the code play patches were constant. The self-modification it misses must be caught.
 pub var frozen: bool = false;
+/// Mutant 6 (test only): the stream handler (digi_tcb3.zig) writes voice 2's byte to register 10
+/// and voice 3's to 9.
+pub var swapped: bool = false;
 var cache: [4]u32 = .{0} ** 4;
 
 /// Voice `i`'s step, the immediate at `at` that play patches: read every interrupt.
@@ -42,6 +49,8 @@ pub fn recognise(image: []const u8, base: u32) ?Driver {
     state = .unarmed;
     if (big.match(image, base)) |d| return .{ .big = d };
     if (mix4.match(image, base)) |d| return .{ .mix4 = d };
+    if (mix3.match(image, base)) |d| return .{ .mix3 = d };
+    if (tcb3.match(image, base)) |d| return .{ .tcb3 = d };
     return null;
 }
 
@@ -49,6 +58,8 @@ pub fn status(d: Driver) digi.Status {
     return switch (d) {
         .big => .big_digital,
         .mix4 => .hippel_mix4,
+        .mix3 => .mix3_timer_c,
+        .tcb3 => .tcb_streams,
     };
 }
 
