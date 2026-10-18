@@ -26,6 +26,7 @@ extern fn m68k_read_memory_8(address: c_uint) c_uint;
 extern fn m68k_write_memory_8(address: c_uint, value: c_uint) void;
 extern fn m68k_write_memory_16(address: c_uint, value: c_uint) void;
 extern fn m68k_set_reg(reg: c_uint, value: c_uint) void;
+extern fn m68k_get_reg(context: ?*anyopaque, reg: c_uint) c_uint;
 
 pub const Mode = enum(u32) { st = 1, native = 2, pcm = 3 };
 
@@ -39,9 +40,10 @@ pub var status: digi.Status = .musashi;
 /// Monty's play writes volume C over its drums (digi_monty_seq.zig); 4 = Wow
 /// Scroller's interrupt reads its byte through Beat Dis's `addi.b #$80`; 5 = a
 /// handler-only driver's steps frozen when it was armed (digi_irq.zig); 6 = the
-/// stream handler's registers 9 and 10 swapped (digi_tcb3.zig); 7-9 belong to
-/// the Quartet and Swedish New Year branches; 10 = maxYMiser's 8-bit drum
-/// routine without its addi.b (digi_mym.zig). Test only.
+/// stream handler's registers 9 and 10 swapped (digi_tcb3.zig); 7 and 9 belong
+/// to the Quartet branch; 8 = the one-byte handler's pointer kept in Zig from
+/// arming (digi_tcb.zig); 10 = maxYMiser's 8-bit drum routine without its
+/// addi.b (digi_mym.zig). Test only.
 pub var mutant: u32 = 0;
 
 var driver: ?Driver = null; // what the image is, whatever the mode
@@ -64,6 +66,10 @@ const Bus68 = struct {
     /// A6, which a handler that does not save it leaves changed (digi_mix3.zig).
     pub fn setA6(v: u32) void {
         m68k_set_reg(14, v); // M68K_REG_A6
+    }
+    /// D7 as the interrupted code left it: a mixer whose first voice is off sums onto it (digi_sync4.zig).
+    pub fn d7() u32 {
+        return m68k_get_reg(null, 7); // M68K_REG_D7
     }
 };
 
@@ -135,6 +141,7 @@ pub fn interrupt(handler: u32) bool {
             digi.irq.frozen = mutant == 5;
             digi.irq.swapped = mutant == 6;
             digi.irq.no_offset = mutant == 10;
+            digi.irq.pointer_kept = mutant == 8;
             return digi.irq.irq(Bus68, &driver.?.irq, handler);
         },
         .beat_dis => |bd| {

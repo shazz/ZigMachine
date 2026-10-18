@@ -22,6 +22,8 @@ pub const mix4 = @import("digi_mix4.zig");
 pub const mix3 = @import("digi_mix3.zig");
 pub const tcb3 = @import("digi_tcb3.zig");
 pub const mym = @import("digi_mym.zig");
+pub const tcb = @import("digi_tcb.zig");
+pub const sync4 = @import("digi_sync4.zig");
 
 pub const Driver = union(enum) {
     big: big.Driver,
@@ -29,6 +31,8 @@ pub const Driver = union(enum) {
     mix3: mix3.Driver,
     tcb3: tcb3.Driver,
     mym: mym.Driver,
+    tcb: tcb.Driver,
+    sync4: sync4.Driver,
 };
 
 /// What the next interrupt must do first: check the handler in RAM (after a load or an INIT).
@@ -42,6 +46,9 @@ pub var frozen: bool = false;
 pub var swapped: bool = false;
 /// Mutant 10 (test only): maxYMiser's 8-bit drum routine (digi_mym.zig) leaves out its addi.b.
 pub var no_offset: bool = false;
+/// Mutant 8 (test only): the one-byte handler (digi_tcb.zig) keeps its sample pointer in Zig from
+/// arming on, as if play never rewound it.
+pub var pointer_kept: bool = false;
 var cache: [4]u32 = .{0} ** 4;
 
 /// Voice `i`'s step, the immediate at `at` that play patches: read every interrupt.
@@ -56,6 +63,8 @@ pub fn recognise(image: []const u8, base: u32) ?Driver {
     if (mix3.match(image, base)) |d| return .{ .mix3 = d };
     if (tcb3.match(image, base)) |d| return .{ .tcb3 = d };
     if (mym.match(image, base)) |d| return .{ .mym = d };
+    if (tcb.match(image, base)) |d| return .{ .tcb = d };
+    if (sync4.match(image, base)) |d| return .{ .sync4 = d };
     return null;
 }
 
@@ -66,6 +75,8 @@ pub fn status(d: Driver) digi.Status {
         .mix3 => .mix3_timer_c,
         .tcb3 => .tcb_streams,
         .mym => .mym_drums,
+        .tcb => .tcb_digi,
+        .sync4 => .sync_mix4,
     };
 }
 
