@@ -20,6 +20,7 @@
 // scroller runs in the bottom border instead (zig_scroller.zig).
 // Nothing here writes game state; the sandbox puts back all it touches.
 // --------------------------------------------------------------------------
+const std = @import("std");
 const zg = @import("zigos");
 const scr = @import("scr.zig");
 const sprite = @import("sprite.zig");
@@ -56,9 +57,26 @@ var sector: i32 = 0;
 var built: u32 = 0;
 var ok: bool = false;
 
+/// The physic screen as the overlay last showed it, and the sprites too: the
+/// next frame redraws only the rows where either differs (see draw()).
+var shadow: []u8 = &.{};
+var seen: [16]sprite.Spr = [_]sprite.Spr{.{}} ** 16;
+var zone_was: bool = false;
+/// The overlay's top H rows hold a drawn scene (nothing else has written them since).
+var painted: bool = false;
+/// This frame's draw() was a whole one: whatever is below row H is stale too.
+pub var fresh: bool = false;
+
+/// Whoever else draws on the overlay calls this: the next scene is drawn whole.
+pub fn invalidate() void {
+    painted = false;
+}
+
 /// Once per cart load, from zg.mem.
 pub fn alloc() void {
     if (tiles.len == 0) tiles = zg.mem.mustAlloc(u8, W * H);
+    if (shadow.len == 0) shadow = zg.mem.mustAlloc(u8, scr.W * scr.H);
+    painted = false;
 }
 
 /// hooks.shows(.scene): the sector line 1000 last drew live is this one;
@@ -71,24 +89,98 @@ pub fn shown() void {
     for (0..ZH) |j| @memcpy(zone[j * ZW ..][0..ZW], p[(ZY + j) * scr.W + ZX ..][0..ZW]);
 }
 
+/// The scene into the overlay's top H rows. Every store to VRAM is a blocking
+/// bus write on the board and the borders (tiles) never change between a
+/// screen's builds, so after one whole draw only the rows that differ are
+/// redrawn: the physic screen's changed rows, the rows a sprite left or came
+/// to, the scroller zone's rows when it starts or stops. Byte-identical to
+/// drawing everything every frame.
 pub fn draw(ov: []u8) void {
     if (tiles.len == 0) return;
-    if (!ok or built != hooks.screen_gen) build();
+    const rebuilt = !ok or built != hooks.screen_gen;
+    if (rebuilt) build();
     const p = scr.get(.physic);
+    fresh = rebuilt or !painted;
+    if (fresh) whole(ov, p) else changed(ov, p);
+}
+
+fn whole(ov: []u8, p: []const u8) void {
     @memcpy(ov[0 .. W * H], tiles);
-    sprites(ov);
+    sprites(ov[0 .. W * H], H, 0);
     for (0..scr.H) |y| @memcpy(ov[(Y0 + y) * W + X0 ..][0..scr.W], p[y * scr.W ..][0..scr.W]);
-    if (scroller.running()) {
-        for (0..ZH) |j| @memcpy(ov[(Y0 + ZY + j) * W + X0 + ZX ..][0..ZW], zone[j * ZW ..][0..ZW]);
+    if (scroller.running()) putZone(ov, 0, H);
+    @memcpy(shadow, p);
+    seen = sprite.shown;
+    zone_was = scroller.running();
+    painted = true;
+}
+
+fn changed(ov: []u8, p: []const u8) void {
+    var dirty = [_]bool{false} ** H;
+    for (0..scr.H) |y| {
+        const row = p[y * scr.W ..][0..scr.W];
+        const old = shadow[y * scr.W ..][0..scr.W];
+        if (std.mem.eql(u8, row, old)) continue;
+        @memcpy(old, row);
+        dirty[Y0 + y] = true;
+    }
+    for (&seen, sprite.shown) |*was, now| {
+        if (was.on == now.on and (!now.on or (was.x == now.x and was.y == now.y and was.img == now.img))) continue;
+        markSprite(&dirty, was.*);
+        markSprite(&dirty, now);
+        was.* = now;
+    }
+    const z = scroller.running();
+    if (z != zone_was) {
+        for (Y0 + ZY..Y0 + ZY + ZH) |r| dirty[r] = true;
+        zone_was = z;
+    }
+    var y: usize = 0;
+    while (y < H) {
+        if (!dirty[y]) {
+            y += 1;
+            continue;
+        }
+        var e = y;
+        while (e < H and dirty[e]) e += 1;
+        band(ov, p, y, e);
+        y = e;
     }
 }
 
+/// Rows lo..hi from scratch, in draw order: borders, sprites, screen, zone.
+fn band(ov: []u8, p: []const u8, lo: usize, hi: usize) void {
+    const rows = ov[lo * W .. hi * W];
+    @memcpy(rows, tiles[lo * W .. hi * W]);
+    sprites(rows, hi - lo, lo);
+    for (@max(lo, Y0)..@min(hi, Y0 + scr.H)) |r| @memcpy(ov[r * W + X0 ..][0..scr.W], p[(r - Y0) * scr.W ..][0..scr.W]);
+    if (scroller.running()) putZone(ov, lo, hi);
+}
+
+/// The scroller's zone as the scene held it, for the rows of it inside lo..hi.
+fn putZone(ov: []u8, lo: usize, hi: usize) void {
+    for (0..ZH) |j| {
+        const r = Y0 + ZY + j;
+        if (r >= lo and r < hi) @memcpy(ov[r * W + X0 + ZX ..][0..ZW], zone[j * ZW ..][0..ZW]);
+    }
+}
+
+/// The overlay rows a sprite covers.
+fn markSprite(dirty: *[H]bool, s: sprite.Spr) void {
+    if (!s.on or s.img <= 0 or s.img >= sprite.NIMG) return;
+    const im = sprite.imgs[@intCast(s.img)];
+    const top = @as(i32, s.y) - im.hy + @as(i32, Y0);
+    const lo: usize = @intCast(std.math.clamp(top, 0, H));
+    const hi: usize = @intCast(std.math.clamp(top + im.h, 0, H));
+    for (lo..hi) |r| dirty[r] = true;
+}
+
 /// The sprites as the last UPDATE drew them, 15 first, the pointer last,
-/// over the whole frame (the screen's own pixels then go on top).
-fn sprites(ov: []u8) void {
+/// over `h` rows of the frame from row `top` (the screen's own pixels then go on top).
+fn sprites(buf: []u8, h: usize, top: usize) void {
     for (0..sprite.shown.len) |i| {
         const s = sprite.shown[sprite.shown.len - 1 - i];
-        if (s.on) sprite.blitClip(ov[0 .. W * H], W, H, s.img, s.x + X0, s.y + Y0);
+        if (s.on) sprite.blitClip(buf, W, @intCast(h), s.img, s.x + X0, s.y + Y0 - @as(i32, @intCast(top)));
     }
 }
 
