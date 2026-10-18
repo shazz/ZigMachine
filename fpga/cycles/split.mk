@@ -31,7 +31,8 @@ gen/zm_sys_abi.h: $(SYS_ABI_DEPS)
 	uv run python tools/sys_abi_c.py header $@
 gen/zm_cart_rt.c: $(SYS_ABI_DEPS)
 	uv run python tools/sys_abi_c.py cart-rt $@
-$(HOST)/common/sys_env.c: $(HOST)/common/machine.c $(HOST)/common/rom.c tools/host_split.py gen/zm_sys_abi.h gen/memmap.py
+$(HOST)/common/sys_env.c: $(HOST)/common/machine.c $(HOST)/common/rom.c tools/host_split.py tools/host_bridges.py \
+		gen/zm_sys_abi.h gen/memmap.py
 	uv run python tools/host_split.py system $@
 $(HOST)/%/cart_env.c: $(HOST)/%/cart.c $(HOST)/common/machine.c $(HOST)/common/rom.c tools/host_split.py \
 		gen/zm_sys_abi.h gen/memmap.py
@@ -58,7 +59,7 @@ $(SPLIT)/$(1)$(ASUF)$(HSUF)/sys.elf: $(HCYC)/$(1)$(ASUF)$(HSUF)/common/fw.a $(HO
 	rm -f $$(@D)/o/*.o
 	for s in $(AUD_CART_SRC_$(ZM_AUDIO)) $(HIN_SRC); do \
 		$(RV_CC) $(SPL_CFLAGS) $(H_$(1)) -c $$$$s -o $$(@D)/o/s_$$$$(basename $$$$s .c).o || exit 1; done
-	$(RV_CC) $(SPL_CFLAGS) $(MICROS_$(1)) -c $(HOST)/common/sys_env.c -o $$(@D)/o/sys_env.o
+	$(RV_CC) $(SPL_CFLAGS) $(MICROS_$(1)) $(STREAM_$(ZM_AUDIO)) -c $(HOST)/common/sys_env.c -o $$(@D)/o/sys_env.o
 	$(RV_CC) $(SPL_CFLAGS) -c cycles/vseq.c -o $$(@D)/o/vseq.o
 	$(RV_CC) $(SPL_CFLAGS) -c cycles/bsys.c -o $$(@D)/o/bsys.o
 	$(RV_CC) $(SPL_CFLAGS) $(H_$(1)) -c cycles/bmain.c -o $$(@D)/o/main.o
