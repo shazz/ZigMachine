@@ -21,6 +21,7 @@ pub const handler = @import("digi_handler.zig");
 pub const beat_dis = @import("digi_beatdis.zig");
 pub const monty = @import("digi_monty.zig");
 pub const wow = @import("digi_wow.zig");
+pub const irq = @import("digi_irq.zig");
 
 pub const Status = enum(u32) {
     musashi = 0, // no known handler: the general path
@@ -30,12 +31,15 @@ pub const Status = enum(u32) {
     disabled = 4, // a known driver, but native replays are switched off
     monty = 5, // native, players/digi_monty.zig (Mad Max's Monty digidrums, Timer D)
     wow = 6, // native, players/digi_wow.zig (MAN Cool's Wow Scroller, Timer A)
+    big_digital = 7, // handler native, digi_big.zig (Mad Max's 3-voice mixer: the B.I.G. Demo's digital tunes)
+    hippel_mix4 = 8, // handler native, digi_mix4.zig (Hippel's 4-voice mixer: Thalion Forever)
 };
 
 pub const Driver = union(enum) {
     beat_dis: beat_dis.Driver,
     monty: monty.Driver,
     wow: wow.Driver,
+    irq: irq.Driver, // the timer handler only: init, play and exit on Musashi (digi_irq.zig)
 };
 
 /// What mode 3 needs of a byte-a-tick driver: where its sample pointer and the
@@ -48,6 +52,7 @@ pub fn pcmOf(d: Driver) ?Pcm {
         .beat_dis => |bd| .{ .cur = bd.handler.cur, .end = bd.handler.cur + 4, .lo = beat_dis.samples(bd), .hz = 2457600.0 / 4.0 / 39.0 },
         .wow => |wd| .{ .cur = wd.base + wow.CUR, .end = wd.base + wow.END, .lo = wd.base + wow.DATA, .hz = wow.HZ },
         .monty => null, // 4-bit drums on one channel, not this table: no PCM path
+        .irq => null, // mixers and other tables: no PCM path
     };
 }
 
@@ -59,6 +64,7 @@ pub const Recognition = struct {
 /// `image` is the tune as loaded, at 68000 address `base`.
 pub fn recognise(image: []const u8, base: u32) Recognition {
     if (monty.match(image, base)) |d| return .{ .status = .monty, .driver = .{ .monty = d } };
+    if (irq.recognise(image, base)) |d| return .{ .status = irq.status(d), .driver = .{ .irq = d } };
     if (wow.match(image, base)) |d| {
         if (!wow.tablesFit(image)) return .{ .status = .near_miss_data };
         return .{ .status = .wow, .driver = .{ .wow = d } };

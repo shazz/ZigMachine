@@ -30,6 +30,8 @@ static const char* const NATIVE[] = {
     "native replays off, on Musashi",
     "native monty",
     "native wow_scroller",
+    "native big_digital (handler)",
+    "native hippel_mix4 (handler)",
 };
 
 void audio_boot(void) {

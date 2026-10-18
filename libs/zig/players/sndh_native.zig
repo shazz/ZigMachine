@@ -36,7 +36,8 @@ pub var status: digi.Status = .musashi;
 /// one: 1 = Beat Dis's segment end checked every interrupt, not every VBL; 2 =
 /// mode 3 plays the tune's bytes raw, not the shadow (the 2026-10-11 bug); 3 =
 /// Monty's play writes volume C over its drums (digi_monty_seq.zig); 4 = Wow
-/// Scroller's interrupt reads its byte through Beat Dis's `addi.b #$80`. Test only.
+/// Scroller's interrupt reads its byte through Beat Dis's `addi.b #$80`; 5 = a
+/// handler-only driver's steps frozen when it was armed (digi_irq.zig). Test only.
 pub var mutant: u32 = 0;
 
 var driver: ?Driver = null; // what the image is, whatever the mode
@@ -86,6 +87,10 @@ pub fn forget() void {
 /// One of INIT / EXIT / PLAY, natively if the mode says so. False: Musashi's.
 pub fn call(entry: u32) bool {
     const d = driver orelse return false;
+    if (d == .irq) { // its init, play and exit are the 68000's, in every mode
+        if (entry == sndh.INIT) digi.irq.reinit(); // which may move the handler: armed again
+        return false;
+    }
     if (mode == .st) return false;
     const p = digi.pcmOf(d);
     const was = if (p) |q| digi.Access(Bus68).rd32(q.cur) else 0;
@@ -96,6 +101,7 @@ pub fn call(entry: u32) bool {
             digi.monty.seq.mutant = mutant;
             digi.monty.call(Bus68, md, entry); // and Monty's
         },
+        .irq => unreachable, // answered above
     }
     if (entry == sndh.EXIT) {
         pcm.stop();
@@ -116,6 +122,10 @@ pub fn interrupt(handler: u32) bool {
         return true;
     }
     switch (d) {
+        .irq => {
+            digi.irq.frozen = mutant == 5;
+            return digi.irq.irq(Bus68, &driver.?.irq, handler);
+        },
         .beat_dis => |bd| {
             if (handler != bd.handler.addr) return false;
             digi.handler.irq(Bus68, bd.handler);
@@ -138,6 +148,7 @@ fn handlerOf(d: Driver) u32 {
         .beat_dis => |bd| bd.handler.addr,
         .wow => |wd| wd.base + digi.wow.HANDLER,
         .monty => |md| md.handlerAddr(),
+        .irq => |x| digi.irq.handlerAddr(x),
     };
 }
 
