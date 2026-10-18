@@ -2,8 +2,9 @@
 // memory.copy, integer stores (watch_hook.mjs), calls to the hwBlit import. Each site gets
 // its counters in memory 1 and an entry in the plan, with the segment it sits in (so its
 // counts land in the right loop).
-import { OP } from "./wasm_ops.mjs";
-import { fillHook, copyHook, blitSiteHook } from "./hooks.mjs";
+import { OP, LOAD_WIDTH } from "./wasm_ops.mjs";
+const LOAD_BYTES = LOAD_WIDTH;
+import { fillHook, copyHook, blitSiteHook, inc, I32, LGET, LTEE, MIS_LOADS } from "./hooks.mjs";
 import { watchHook, WATCHED, WATCH_WORDS } from "./watch_hook.mjs";
 import { encU32 } from "./wasm_bin.mjs";
 
@@ -32,6 +33,9 @@ export function hookFor(d, i, ctx) {
     if (op === OP.call && ctx.blit.has(imm)) {
         ctx.plan.blits.push({ fi: d.fi, at, seg: ctx.seg });
         return blitSiteHook(ctx.plan.blits.length - 1, orig);
+    }
+    if (imm && imm.mem === 0 && LOAD_BYTES[op] > 1) { // [addr] -> count a misaligned one, then the load
+        return [...LTEE(t.a), ...I32(imm.offset), 0x6a, ...I32(LOAD_BYTES[op] - 1), 0x71, 0x04, 0x40, ...inc(MIS_LOADS), 0x0b, ...LGET(t.a), ...orig];
     }
     if (ctx.vlo !== null && WATCHED.has(op) && imm.mem === 0) {
         site(ctx.plan.watch);

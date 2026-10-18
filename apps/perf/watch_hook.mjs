@@ -5,7 +5,7 @@
 //     (the snapshot in memory 1: a static page redrawn, a clear undone by its redraw), and
 //     add the bytes to the address's 256-byte bucket (per-plane / per-row accounting).
 // Counters per site: [pal writes, pal unchanged, vram stores, vram bytes, same stores, same bytes].
-import { I32, LGET, LSET, LTEE, inc, BUCKETS, BUCKET_SHIFT, VRAM_BYTES, STORE_TOTAL, PAL_TOTAL } from "./hooks.mjs";
+import { I32, LGET, LSET, LTEE, inc, BUCKETS, BUCKET_SHIFT, VRAM_BYTES, STORE_TOTAL, PAL_TOTAL, MIS_STORES } from "./hooks.mjs";
 import { encU32 } from "./wasm_bin.mjs";
 
 export const WATCH_WORDS = 6;
@@ -57,11 +57,19 @@ function vramBlock(word, op, offset, vlo, t) {
     ];
 }
 
+// A wide store at an address that is not a multiple of its width traps on the board.
+function misaligned(word, op, offset, t) {
+    const w = STORES[op][0];
+    if (w === 1) return [];
+    return [...LGET(t.a), ...I32(offset), 0x6a, ...I32(w - 1), 0x71, 0x04, 0x40, ...inc(word), 0x0b];
+}
+
 // [addr val] on the stack -> the checks, then the original store
 export function watchHook(word, op, offset, pal, vlo, t, original) {
     const wide = STORES[op][1];
     return [
         ...LSET(wide ? t.w : t.v), ...LSET(t.a), ...inc(STORE_TOTAL),
+        ...misaligned(MIS_STORES, op, offset, t),
         ...palBlock(word, op, offset, pal, t), ...vramBlock(word, op, offset, vlo, t),
         ...LGET(t.a), ...LGET(wide ? t.w : t.v), ...original,
     ];

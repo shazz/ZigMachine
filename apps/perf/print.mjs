@@ -1,3 +1,4 @@
+import { TRAP_CYCLES } from "./cost_model.mjs";
 // Text rendering of frame_cost results (one cart, and the --all ranking).
 const pad = (s, n) => String(s).padEnd(n);
 const lpad = (s, n) => String(s).padStart(n);
@@ -25,6 +26,8 @@ export function printOne(r, out = console.log) {
     out(`  code run per frame: ~${r.codeKB} KB of rv32 (I$ 16 KB)`);
     out(`  causes %: ${Object.entries(r.causes).map(([k, v]) => `${k} ${v}`).join(", ")}`);
     out(`  per frame: ${Object.entries(r.classes).filter(([, v]) => v).map(([k, v]) => `${k} ${v}`).join(", ")}`);
+    if (r.misaligned) out(`  MISALIGNED wide accesses/frame: ${r.misaligned} (each traps on the board, ~${TRAP_CYCLES} cycles: ${(r.misaligned * TRAP_CYCLES / 1e6).toFixed(2)} Mc in the estimate)`);
+    if (r.misaligned) for (const h of r.hints) out(`      ${lpad(h.hints, 7)} wide accesses of unproven alignment  ${h.mod}:${short(h.func)} ${h.loop >= 0 ? "loop@" + h.at : "body@" + h.at}`);
     if (Object.keys(r.libm).length) out(`  libm calls/frame: ${Object.entries(r.libm).map(([k, v]) => `${k} ${v}`).join(", ")}`);
     if (r.palette.writes) out(`  palette stores/frame: ${r.palette.writes}, ${r.palette.unchanged} of them rewrite the colour already there`);
     out(`  ${wasteLine(r.waste)}`);

@@ -41,6 +41,10 @@ export const blitCycles = (cmd, units, minterm) =>
 // FRESCO paints each ENABLED plane in a pass the CPU waits for (cycles/bmain.c: the plane
 // passes follow cart.frame): 0.77-0.82 Mc a frame per plane in every board-SoC sim log
 // (ZM QF), 3.5 Mc for music_debug's four planes. Empty planes cost the same.
+// A misaligned lw/sw on the board's `aligned` build traps (fpga/cycles/trap.S: 30 registers saved
+// and restored on the write-through stack, then the access redone byte by byte). A fit, set from
+// the board fps of naos_nitrowave and skystrike against their counts (notes in the commit).
+export const TRAP_CYCLES = 450;
 export const FRESCO_PLANE = 0.8e6;
 export const HBL_CALL = 60;
 // A HYPOTHESIS, calibrated on ONE point: stcs before perf/board-slow-carts ran 1 fps on the
@@ -65,7 +69,12 @@ export const FRAME_MC = MHZ / 60; // 1.667 Mc: a 60 Hz frame
 
 // op class names, in report order
 export const CLASSES = ["narrow_store", "store32", "store64", "f64", "f32_divsqrt", "f32", "i32_div",
-    "i64_mul", "i64_div", "i64_shift", "i64_other", "load", "call", "libm_call"];
+    "i64_mul", "i64_div", "i64_shift", "i64_other", "load", "call", "libm_call", "unaligned"];
+// "unaligned" is a COUNT, not a cost (no cycles in the estimate): loads/stores wider than a byte
+// whose memarg alignment hint is below their width. The board's `aligned` build turns every one
+// into a single lw/sw, and a MISALIGNED address traps (fpga/cycles/trap.c: ~1,000 cycles each,
+// registers saved to the write-through stack). Zig emits the hint from the pointer type, so a
+// u32 read out of a byte buffer (an emulated 68000's RAM) shows here; a u32 array does not.
 
 const C = Object.fromEntries(CLASSES.map((c, i) => [c, i]));
 export const CLS = C;
