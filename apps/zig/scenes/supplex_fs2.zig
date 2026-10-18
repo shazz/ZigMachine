@@ -202,7 +202,7 @@ pub const Demo = struct {
         // 'source-atop' raster is exactly a palette animation here.
         self.shiftRaster(&zigos.lfbs[1]);
 
-        var scroll: *LogicalFB = &zigos.lfbs[2];
+        const scroll: *LogicalFB = &zigos.lfbs[2];
         // Only the band the sine can reach is wiped, by CHISEL: columns SCROLL_X..+320,
         // rows SINY_Y +-65 (+ the 16-row strip) with a margin. The rest of the
         // plane is zero from init and nothing else writes it. It was a 112,000-byte
