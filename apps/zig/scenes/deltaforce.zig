@@ -148,6 +148,7 @@ pub const Demo = struct {
         const fb = &zigos.lfbs[1];
         const strip: usize = 52 * @as(usize, WIDTH);
         const strip_len: usize = @as(usize, WIDTH) * SCROLL_CHAR_HEIGHT;
+        @memset(fb.fb[strip .. strip + strip_len], 0);
         letter_rows.draw(&self.scrolltext, fb.fb + strip, WIDTH, WIDTH, SCROLL_CHAR_WIDTH, SCROLL_CHAR_HEIGHT);
 
         // copy scrolltext 3 times

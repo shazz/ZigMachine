@@ -213,9 +213,9 @@ pub const Demo = struct {
         if (!self.logo_drawn) self.logo.render();
         self.logo_drawn = true;
 
-        // The nine letters tile the strip edge to edge (zero pixels included), so
-        // each is copied as whole rows with no clear first: the library Sprite
-        // walked every pixel with a per-pixel clamp and divide (10,934 a frame).
+        // Letters as whole-row copies: the library Sprite walked every pixel with
+        // a per-pixel clamp and divide (10,934 a frame). Word stores for the clear.
+        @memset(&scroller_pixels, 0);
         letter_rows.draw(&self.scrolltext, &scroller_pixels, WIDTH, WIDTH, SCROLL_CHAR_WIDTH, SCROLL_CHAR_HEIGHT);
 
         // copy scrolltext to FB

@@ -272,7 +272,7 @@ pub const Demo = struct {
     pub fn render(self: *Demo, zigos: *ZigOS, dt: f32) void {
         _ = dt;
         const ink: *LogicalFB = &zigos.lfbs[1];
-        clearStale(ink, self.erase_y, self.strip_y);
+        clearStrip(ink, self.erase_y);
 
         // The original's order: the glyphs into the strip, then scroll_acc over
         // them. The strip clips at its own 300-wide edges, so a glyph leaving it
@@ -302,17 +302,14 @@ fn installRowPalette(bg: *LogicalFB, row: usize) void {
 }
 
 // Erase where the strip was — the exact band drawn last frame, so nothing ever
-// trails — except the rows the new band covers: its glyphs sit edge to edge over
-// the whole 300 columns, zero texels included, so they overwrite those anyway.
+// trails.
 // The logo sits at plane rows 49..81 and the strip can only reach rows
 // 85..207 (movescroll's even entries are 91..283, halved, +OY, +STRIP_H), so the
 // logo is never touched and never needs redrawing.
-fn clearStale(ink: *LogicalFB, old_y: u16, new_y: u16) void {
+fn clearStrip(ink: *LogicalFB, old_y: u16) void {
     var row: u16 = 0;
     while (row < STRIP_H) : (row += 1) {
-        const y = old_y + row;
-        if (y >= new_y and y < new_y + STRIP_H) continue;
-        const at = @as(usize, y) * zg.PHYSICAL_WIDTH + STRIP_XU;
+        const at = @as(usize, old_y + row) * zg.PHYSICAL_WIDTH + STRIP_XU;
         @memset(ink.fb[at..][0..STRIP_WU], 0);
     }
 }

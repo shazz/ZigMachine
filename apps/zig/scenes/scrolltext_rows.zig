@@ -2,10 +2,10 @@
 // Whole-row letter copy for a zg.Scrolltext strip. The library's Sprite.render
 // walks the letter a pixel at a time (clamp tests, a divide, a narrow store each);
 // on ZIGGY every store is a blocking bus write, so this copies each letter's rows
-// with @memcpy instead. The letters of a Scrolltext sit edge to edge, zero pixels
-// included, so over a strip they cover it completely and the strip needs no clear
-// first. Pixel-identical to Sprite.render onto a cleared strip whose colour 0 is
-// transparent (a letter clipped by the strip's edges is cut the same way).
+// with @memcpy instead. Zero pixels are copied too, so the strip must be cleared
+// first (the ring momentarily leaves a gap when a letter wraps). Pixel-identical
+// to Sprite.render onto a cleared strip whose colour 0 is transparent (a letter
+// clipped by the strip's edges is cut the same way).
 // --------------------------------------------------------------------------
 const std = @import("std");
 
