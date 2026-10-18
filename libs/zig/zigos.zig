@@ -405,10 +405,7 @@ pub const RenderTarget = union(enum) {
     pub fn clearFrameBuffer(self: RenderTarget, pal_entry: u8) void {
         switch (self) {
             .fb => |fb| fb.clearFrameBuffer(pal_entry),
-            .render_buffer => |rbuf| {
-                var i: u32 = 0;
-                while (i < rbuf.buffer.len) : (i += 1) rbuf.buffer[i] = pal_entry;
-            },
+            .render_buffer => |rbuf| @memset(rbuf.buffer, pal_entry),
         }
     }
 
@@ -676,20 +673,20 @@ pub const LogicalFB = struct {
 
     pub fn drawScanline(self: *LogicalFB, x1: u16, x2: u16, y: u16, pal_entry: u8) void {
         if ((x1 < self.fb_w) and (x2 < self.fb_w) and (y < self.fb_h)) {
-            const delta = x2 - x1;
-            var index: u32 = @as(u32, y) * @as(u32, self.stride) + @as(u32, x1);
-            var i: u16 = 0;
-            while (i < delta) : (i += 1) {
-                self.fb[index] = pal_entry;
-                index += 1;
-            }
+            // x1 up to x2 EXCLUSIVE (empty when x2 <= x1), as the byte loop drew it.
+            if (x2 <= x1) return;
+            const index: u32 = @as(u32, y) * @as(u32, self.stride) + @as(u32, x1);
+            @memset(self.fb[index..][0 .. x2 - x1], pal_entry);
         }
     }
 
+    // One memset (wasm memory.fill), not a byte loop: the loop reloaded
+    // self.fb for every pixel (the store may alias it) and stored a byte at a
+    // time, about 2 Mc a 64000-pixel plane on ZIGGY; a scene clearing three
+    // planes spent half its frame here.
     pub fn clearFrameBuffer(self: *LogicalFB, pal_entry: u8) void {
         const n: u32 = @as(u32, self.fb_h) * @as(u32, self.stride);
-        var i: u32 = 0;
-        while (i < n) : (i += 1) self.fb[i] = pal_entry;
+        @memset(self.fb[0..n], pal_entry);
     }
 
     pub fn setFrameBufferHBLHandler(self: *LogicalFB, position: u16, handler: *const fn (*LogicalFB, *ZigOS, u16, u16) void) void {

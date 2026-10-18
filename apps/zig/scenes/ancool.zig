@@ -150,7 +150,13 @@ pub const Demo = struct {
         self.starfield_3D.update();
         self.scrolltext.update();
 
-        self.cam.project(&vertices, &self.projected_vertices, self, zoomSpin);
+        // The letters' own transform: scale, then one Euler X/Y/Z matrix, both
+        // built once a frame (wf.Rot), not per vertex.
+        const zoom_spin = wf.Rot.chain(&.{
+            Mat4.fromScale(Vec3.new(self.zoom, self.zoom, self.zoom)),
+            Mat4.fromEulerAngles(Vec3.new(self.angle_x, self.angle_y, self.angle_z)),
+        });
+        self.cam.project(&vertices, &self.projected_vertices, zoom_spin, wf.Rot.apply);
 
         self.angle_x += 3;
         self.angle_y += 3.5;    
@@ -164,12 +170,6 @@ pub const Demo = struct {
 
         _ = zigos;
         _ = elapsed_time;
-    }
-
-    // The letters' own transform: scale, then one Euler X/Y/Z matrix.
-    fn zoomSpin(self: *Demo, v: Vec4) Vec4 {
-        const after_scale = Mat4.fromScale(Vec3.new(self.zoom, self.zoom, self.zoom)).vec4mulByMat4(v);
-        return Mat4.fromEulerAngles(Vec3.new(self.angle_x, self.angle_y, self.angle_z)).vec4mulByMat4(after_scale);
     }
 
     pub fn render(self: *Demo, zigos: *ZigOS, elapsed_time: f32) void {

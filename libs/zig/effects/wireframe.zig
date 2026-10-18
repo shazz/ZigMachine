@@ -33,11 +33,43 @@ pub fn With(comptime math: type) type {
             return out;
         }
 
-        // Rotate about X, then Y, then Z, one matrix at a time (maxi, fallen_angels).
+        // A frame's model transform: up to three matrices applied in turn, built
+        // ONCE a frame. The scenes used to build them per vertex, and each Euler
+        // matrix is six libm sin/cos (computed in f64: soft-double on ZIGGY, even
+        // with the f32 FPU), three normalisations and two Mat4 products: that
+        // was nearly all of a frame on the board. The matrices depend only on the
+        // frame's angles, and each vertex still goes through them one at a time
+        // in the same order, so the vertices are bit-identical.
+        pub const Rot = struct {
+            mats: [3]Mat4 = undefined,
+            len: u8 = 0,
+
+            pub fn chain(mats: []const Mat4) Rot {
+                var r: Rot = .{ .len = @intCast(mats.len) };
+                for (mats, 0..) |m, i| r.mats[i] = m;
+                return r;
+            }
+
+            // About X, then Y, then Z, one matrix each (maxi, fallen_angels).
+            pub fn xyz(angle_x: f32, angle_y: f32, angle_z: f32) Rot {
+                return chain(&.{
+                    Mat4.fromEulerAngles(Vec3.new(angle_x, 0, 0)),
+                    Mat4.fromEulerAngles(Vec3.new(0, angle_y, 0)),
+                    Mat4.fromEulerAngles(Vec3.new(0, 0, angle_z)),
+                });
+            }
+
+            pub fn apply(self: Rot, v: Vec4) Vec4 {
+                var out = v;
+                for (self.mats[0..self.len]) |m| out = m.vec4mulByMat4(out);
+                return out;
+            }
+        };
+
+        // Rotate about X, then Y, then Z. One vertex: a frame's worth should
+        // build Rot.xyz once and apply it to each.
         pub fn rotateXYZ(v: Vec4, angle_x: f32, angle_y: f32, angle_z: f32) Vec4 {
-            const after_x = Mat4.fromEulerAngles(Vec3.new(angle_x, 0, 0)).vec4mulByMat4(v);
-            const after_y = Mat4.fromEulerAngles(Vec3.new(0, angle_y, 0)).vec4mulByMat4(after_x);
-            return Mat4.fromEulerAngles(Vec3.new(0, 0, angle_z)).vec4mulByMat4(after_y);
+            return Rot.xyz(angle_x, angle_y, angle_z).apply(v);
         }
 
         pub const Camera = struct {

@@ -183,7 +183,9 @@ pub const Demo = struct {
             grid_vertices[i] = Vec4.new(grid_vertices[i].x(), grid_vertices[i].y(), offset, 1.0);
         }        
 
-        self.cam.project(&grid_vertices, &self.grid_projected_vertices, self, spin);
+        // The spin's matrices once a frame, not per vertex (wf.Rot).
+        const spin = wf.Rot.xyz(self.angle_x, self.angle_y, self.angle_z);
+        self.cam.project(&grid_vertices, &self.grid_projected_vertices, spin, wf.Rot.apply);
 
         // not sure when time_Counter becomes nan ???
         // self.time_counter += elapsed_time;
@@ -206,24 +208,18 @@ pub const Demo = struct {
             // rows 0..6 come from the 7-row strip; row 7 is the gap between lines
             // (reading it went past the strip, into whatever lay after it)
             @memset(fb.fb[(i * 8 + SCROLL_CHAR_HEIGHT) * WIDTH ..][0..WIDTH], 0);
+            // The line's x offset: a sine once the intro is over, else a
+            // slant. One sin per LINE (it was recomputed for each of its 7 rows,
+            // a libm sinf in soft f64 every time), and each row one memcpy.
+            const offset_x: u16 = if (self.time_counter > 7*16*50)
+                @as(u16, @intFromFloat(self.scroll_sinx_incr + (@sin(self.scroll_sinx + (@as(f32, @floatFromInt(i))/5.0)) * self.scroll_sinx_incr)))
+            else
+                i*3;
+            const strip = self.scroller_target.render_buffer.buffer;
             var y: u16 = 0;
             while(y < SCROLL_CHAR_HEIGHT) : (y += 1){
-                var x: u16 = 0;
-
-                // no sin at the beginning just decrement
-                if(self.time_counter > 7*16*50) {
-                    const f_sin: f32 = self.scroll_sinx_incr + (@sin(self.scroll_sinx + (@as(f32, @floatFromInt(i))/5.0)) * self.scroll_sinx_incr);
-                    const offset_x: u16 = @as(u16, @intFromFloat(f_sin));
-
-                    while(x < WIDTH) : (x += 1) {
-                        fb.fb[x + y*WIDTH + (i*8*WIDTH)] = self.scroller_target.render_buffer.buffer[offset_x + x + y*WIDTH*2];
-                    }
-                } else {
-                    const offset_x: u16 = i*3;
-                    while(x < WIDTH) : (x += 1) {
-                        fb.fb[x + y*WIDTH + (i*8*WIDTH)] = self.scroller_target.render_buffer.buffer[offset_x + x + y*WIDTH*2];
-                    }
-                }
+                const src = @as(usize, offset_x) + @as(usize, y)*WIDTH*2;
+                @memcpy(fb.fb[@as(usize, y)*WIDTH + @as(usize, i)*8*WIDTH ..][0..WIDTH], strip[src..][0..WIDTH]);
             }
         }
 
@@ -238,9 +234,5 @@ pub const Demo = struct {
         }
 
         _ = elapsed_time;
-    }
-
-    fn spin(self: *Demo, v: Vec4) Vec4 {
-        return wf.rotateXYZ(v, self.angle_x, self.angle_y, self.angle_z);
     }
 };
