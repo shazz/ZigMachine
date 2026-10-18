@@ -169,7 +169,7 @@ pub const Demo = struct {
         self.painted = true;
         const bar_y: i16 = @intFromFloat(timeline.BAR_TO / 2);
         stage.bar(fb, bl, bar_y);
-        self.scroller.draw(fb, bl, self.images.font, bar_y + stage.TEXT_DY, stage.PLANE_W);
+        self.scroller.draw(fb, self.images.font, bar_y + stage.TEXT_DY, stage.PLANE_W);
     }
 };
 

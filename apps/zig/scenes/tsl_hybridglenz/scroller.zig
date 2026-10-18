@@ -10,7 +10,7 @@
 // The text is THE SILENTS', 1993, word for word.
 // --------------------------------------------------------------------------
 const zg = @import("zigos");
-const Blitter = zg.Blitter;
+const blit = zg.blit;
 const LogicalFB = zg.LogicalFB;
 const A = @import("assets.zig");
 
@@ -95,13 +95,21 @@ pub const Scroller = struct {
     /// draw(y): glyphs from curroffset until the destination is covered. The
     /// bound is the plane's width rather than the remake's canvas width, since
     /// the bar under the text runs the full raster (borders included).
-    pub fn draw(self: *const Scroller, fb: *LogicalFB, bl: *Blitter, font: []const u8, y: i16, width: u16) void {
+    ///
+    /// The CPU copies the glyphs (zg.blit, the same keyed copy and clip the
+    /// blitter does): ~60 glyphs of 16x12 are ~60 tiny blitter ops a frame,
+    /// each paying an op's set-up and the D-cache invalidate after it (on the
+    /// board every op ends with one), for ~190 pixels apiece.
+    pub fn draw(self: *const Scroller, fb: *LogicalFB, font: []const u8, y: i16, width: u16) void {
+        const dst = blit.Dst.plane(fb);
+        const sheet = blit.Image.init(font, A.FONT_W);
         const limit: i32 = @as(i32, width) * 2 + TILE_W;
         var x: f32 = self.pos;
         var i = self.curr;
         while (x < @as(f32, @floatFromInt(limit)) and i < LEN) : (i += 1) {
-            const tile: u16 = @as(u16, charAt(i) - FIRST_CHAR) * (TILE_W / 2);
-            bl.blitImage(fb, @intFromFloat(@round(x / 2)), y, font, A.FONT_W, tile, 0, TILE_W / 2, TILE_H / 2, A.KEY);
+            const tile: usize = @as(usize, charAt(i) - FIRST_CHAR) * (TILE_W / 2);
+            const part = blit.Rect{ .x = tile, .y = 0, .w = TILE_W / 2, .h = TILE_H / 2 };
+            blit.blit(dst, sheet, part, @intFromFloat(@round(x / 2)), y, A.KEY, .copy);
             x += @floatFromInt(advanceOf(i));
         }
     }
