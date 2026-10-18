@@ -68,6 +68,7 @@ var start_raster_line: u16 = 0;
 var off_buffer: []u8 = undefined;
 // Rows of the plane that are not all 0.
 var dirty: draw.Dirty = .{};
+var chisel: zg.Blitter = .{}; // the zoomed lines' copies; init() points it at the video region
 
 // The scroller is drawn 50 pixels wide and zoomed 8 times into the overscan
 // ((320 + 80) / 8). Small, so a static; cleared in init.
@@ -126,6 +127,7 @@ pub const Demo = struct {
         // HBL: open the borders + raster bars (must fire at the magic column)
         fb.setFrameBufferHBLHandler(zg.OVERSCAN_MAGIC_X, handler_scroller);
 
+        chisel.init();
         @memset(&scroller_pixels, 0);
         scroller_render_buffer = .{ .buffer = &scroller_pixels, .width = 50, .height = SCROLL_CHAR_HEIGHT };
         self.scroller_target = .{ .render_buffer = &scroller_render_buffer };
@@ -184,7 +186,7 @@ pub const Demo = struct {
         // whole band, so only the rows the last frame touched outside it are cleared
         const band = draw.Dirty.rows(start_raster_line, @as(i32, start_raster_line) + SCROLL_CHAR_HEIGHT * draw.ZOOM);
         draw.clearStale(off_buffer, dirty, band);
-        draw.zoomScroller(self.overscan_target, self.scroller_target, start_raster_line, SCROLL_CHAR_HEIGHT);
+        draw.zoomScrollerGpu(&zigos.lfbs[0], &chisel, self.scroller_target, start_raster_line, SCROLL_CHAR_HEIGHT);
         self.logo.render(100);
         const ly = LOGO_Y + self.sync.logo_dy;
         const now = band.merge(draw.Dirty.rows(ly, ly + 38));
