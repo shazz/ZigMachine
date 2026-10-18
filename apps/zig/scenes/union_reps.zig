@@ -53,6 +53,19 @@ const UNION_BOTTOM_Y = 156; // scrollOverlay.draw(maincanvas, 0, 312)
 const K_ESC: u32 = 0xE012;
 const STEP_MS: f32 = 1000.0 / 60.0; // the screen steps once a frame
 
+/// The plane rows something moves in: the red scroller (RED_Y, 32 rows), the mask and
+/// the sprites (rows 73..127: the mask's 54 rows, the sprites' circles 75..105 + 16),
+/// the blue scroller (BLUE_Y). Every other row is the overlay (and the union) as drawn
+/// at start.
+const DYNAMIC_ROWS = [_][2]usize{ .{ 7, 39 }, .{ 73, 127 }, .{ 163, 195 } };
+
+/// Colour 0 and the overlay again on rows a..b: what the plane held before anything moved.
+fn restoreRows(dst: blit.Dst, overlay: blit.Image, a: usize, b: usize) void {
+    const win = dst.window(0, a, dst.w, b - a);
+    win.fill(0, 0, win.w, win.h, 0);
+    blit.blit(win, overlay, .{ .x = 0, .y = a, .w = overlay.w, .h = b - a }, 0, 0, 0, .copy);
+}
+
 // Module scope: the runner needs a stable address.
 var depack: DepackFx = undefined;
 
@@ -113,17 +126,20 @@ pub const Demo = struct {
         const dst = blit.Dst.plane(fb);
         const img = &self.images;
         // Colour 0 everywhere under the picture: the bars are its colour per line.
-        @memset(dst.buf, 0);
         self.bars.paint(raster.background(fb), img);
         var next = self.bars; // the border is painted before the next frame's update
         next.update();
         next.paint(raster.nextBorder(), img);
-        blit.blit(dst, img.overlay, null, 0, 0, 0, .copy);
+        // The plane holds the static picture since start(): only the rows the
+        // scrollers, the mask and the sprites move in are put back and redrawn.
+        for (DYNAMIC_ROWS) |r| restoreRows(dst, img.overlay, r[0], r[1]);
         self.scroller.draw(dst, img.font);
         self.rasters.draw(dst, img.mask, img.rasters, raster.maskInk(fb));
         self.sprites.draw(dst, &img.sprites);
-        layers.drawUnion(dst, img.theunion, 0);
-        layers.drawUnion(dst, img.theunion, UNION_BOTTOM_Y);
+        for (DYNAMIC_ROWS) |r| {
+            layers.drawUnionRows(dst, img.theunion, 0, r[0], r[1]);
+            layers.drawUnionRows(dst, img.theunion, UNION_BOTTOM_Y, r[0], r[1]);
+        }
     }
 
     /// Host input ids: 0-3 directions, 5 fire, 6 back.
@@ -171,6 +187,11 @@ pub const Demo = struct {
         fb.is_enabled = true;
         fb.setPalette(A.palette);
         raster.install(zigos, fb);
+        const dst = blit.Dst.plane(fb); // colour 0 under the picture, then the picture and the union
+        @memset(dst.buf, 0);
+        blit.blit(dst, self.images.overlay, null, 0, 0, 0, .copy);
+        layers.drawUnion(dst, self.images.theunion, 0);
+        layers.drawUnion(dst, self.images.theunion, UNION_BOTTOM_Y);
         zg.requestSong(MUSIC); // onResetEvent
         self.phase = .running;
     }

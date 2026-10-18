@@ -44,6 +44,7 @@ const packed_assets = @import("packed_assets");
 const A = @import("union_superscroller/assets.zig");
 const Motion = @import("union_superscroller/motion.zig").Motion;
 const compose = @import("union_superscroller/compose.zig");
+const inkmask = @import("union_superscroller/inkmask.zig");
 const hub_note = @import("union_demo/hub_note.zig").HubNote("union_superscroller");
 const TEXT_LEN = @import("union_superscroller/motion.zig").TEXT.len;
 
@@ -74,6 +75,8 @@ pub const Demo = struct {
     motion: Motion,
     /// 200 lines x 80 colours: on zg.mem next to the depacked image, not in the cart's data.
     palette: *compose.Palette,
+    /// The row's colour-key cache (inkmask.zig): on zg.mem, not in the cart's data.
+    cache: *inkmask.KeyCache,
     /// The hub's note for this door, peeked at init; null: none, or another door's.
     note: ?hub_note.Note,
     leave: bool,
@@ -89,6 +92,9 @@ pub const Demo = struct {
         self.buf = zg.mem.alloc(u8, A.TOTAL) orelse return self.abandon("no free RAM to depack into");
         const palette = zg.mem.alloc(compose.Palette, 1) orelse return self.abandon("no free RAM for the palette");
         self.palette = &palette[0];
+        const cache = zg.mem.alloc(inkmask.KeyCache, 1) orelse return self.abandon("no free RAM for the colour cache");
+        self.cache = &cache[0];
+        self.cache.init();
         self.palette.init();
         if (!depack.start(zigos, packed_assets.union_superscroller, self.buf, DEPACK_BYTES_PER_LINE))
             return self.abandon("packed image unreadable");
@@ -109,7 +115,7 @@ pub const Demo = struct {
     pub fn render(self: *Demo, zigos: *ZigOS, dt: f32) void {
         _ = dt;
         if (self.phase != .running) return;
-        compose.drawFrame(zg.blit.Dst.plane(&zigos.lfbs[0]), &self.images, &self.motion, self.palette);
+        compose.drawFrame(zg.blit.Dst.plane(&zigos.lfbs[0]), &self.images, self.cache, &self.motion, self.palette);
     }
 
     /// Host input ids: 5 fire, 6 back.
