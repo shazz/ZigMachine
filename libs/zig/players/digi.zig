@@ -33,6 +33,7 @@ pub const Status = enum(u32) {
     wow = 6, // native, players/digi_wow.zig (MAN Cool's Wow Scroller, Timer A)
     big_digital = 7, // handler native, digi_big.zig (Mad Max's 3-voice mixer: the B.I.G. Demo's digital tunes)
     hippel_mix4 = 8, // handler native, digi_mix4.zig (Hippel's 4-voice mixer: Thalion Forever)
+    quartet_singsong = 9, // handler native, digi_quartet.zig (SingSong's 4-voice replay in registers: Dune Gen4's Quartet tunes)
     tcb_digi = 10, // handler native, digi_tcb.zig (the Swedish New Year Demo's TCB 1 one-byte digi)
     sync_mix4 = 11, // handler native, digi_sync4.zig (the Swedish New Year Demo's self-modifying 4-voice mixer)
     mix3_timer_c = 12, // handler native, digi_mix3.zig (a 3-voice mixer on Timer C: snyd_90's part 6)

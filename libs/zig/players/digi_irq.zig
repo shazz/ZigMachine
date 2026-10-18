@@ -25,6 +25,7 @@ pub const mym = @import("digi_mym.zig");
 pub const sfx = @import("digi_sfx.zig");
 pub const tcb = @import("digi_tcb.zig");
 pub const sync4 = @import("digi_sync4.zig");
+pub const quartet = @import("digi_quartet.zig");
 
 pub const Driver = union(enum) {
     big: big.Driver,
@@ -35,6 +36,7 @@ pub const Driver = union(enum) {
     sfx: sfx.Driver,
     tcb: tcb.Driver,
     sync4: sync4.Driver,
+    quartet: quartet.Driver,
 };
 
 /// What the next interrupt must do first: check the handler in RAM (after a load or an INIT).
@@ -53,7 +55,19 @@ pub var sfx_end_stores: bool = false;
 /// Mutant 8 (test only): the one-byte handler (digi_tcb.zig) keeps its sample pointer in Zig from
 /// arming on, as if play never rewound it.
 pub var pointer_kept: bool = false;
+/// Mutant 7 (test only): SingSong's `(a0,d0.w)` read with the offset word unsigned (digi_quartet.zig).
+pub var unsigned_index: bool = false;
 var cache: [4]u32 = .{0} ** 4;
+
+/// sndh_native.zig's mutant, as the flags above.
+pub fn setMutant(n: u32) void {
+    frozen = n == 5;
+    swapped = n == 6;
+    unsigned_index = n == 7;
+    pointer_kept = n == 8;
+    no_offset = n == 10;
+    sfx_end_stores = n == 11;
+}
 
 /// Voice `i`'s step, the immediate at `at` that play patches: read every interrupt.
 pub fn step(comptime Bus: type, at: u32, i: usize) u32 {
@@ -70,6 +84,7 @@ pub fn recognise(image: []const u8, base: u32) ?Driver {
     if (sfx.match(image, base)) |d| return .{ .sfx = d };
     if (tcb.match(image, base)) |d| return .{ .tcb = d };
     if (sync4.match(image, base)) |d| return .{ .sync4 = d };
+    if (quartet.match(image, base)) |d| return .{ .quartet = d };
     return null;
 }
 
@@ -83,6 +98,7 @@ pub fn status(d: Driver) digi.Status {
         .sfx => .game_sfx,
         .tcb => .tcb_digi,
         .sync4 => .sync_mix4,
+        .quartet => .quartet_singsong,
     };
 }
 

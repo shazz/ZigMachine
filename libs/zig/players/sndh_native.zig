@@ -40,8 +40,8 @@ pub var status: digi.Status = .musashi;
 /// Monty's play writes volume C over its drums (digi_monty_seq.zig); 4 = Wow
 /// Scroller's interrupt reads its byte through Beat Dis's `addi.b #$80`; 5 = a
 /// handler-only driver's steps frozen when it was armed (digi_irq.zig); 6 = the
-/// stream handler's registers 9 and 10 swapped (digi_tcb3.zig); 7 and 9 belong
-/// to the Quartet branch; 8 = the one-byte handler's pointer kept in Zig from
+/// stream handler's registers 9 and 10 swapped (digi_tcb3.zig); 7 = SingSong's
+/// sample index read unsigned (digi_quartet.zig); 8 = the one-byte handler's pointer kept in Zig from
 /// arming (digi_tcb.zig); 10 = maxYMiser's 8-bit drum routine without its
 /// addi.b (digi_mym.zig); 11 = a game effect's pointer stored past its 0 byte
 /// (digi_sfx.zig). Test only.
@@ -71,6 +71,13 @@ const Bus68 = struct {
     /// D7 as the interrupted code left it: a mixer whose first voice is off sums onto it (digi_sync4.zig).
     pub fn d7() u32 {
         return m68k_get_reg(null, 7); // M68K_REG_D7
+    }
+    /// A register the handler keeps its state in, d0-d7 then a0-a7 (digi_quartet.zig).
+    pub fn getReg(n: u4) u32 {
+        return m68k_get_reg(null, n);
+    }
+    pub fn setReg(n: u4, v: u32) void {
+        m68k_set_reg(n, v);
     }
 };
 
@@ -139,11 +146,7 @@ pub fn interrupt(handler: u32) bool {
     }
     switch (d) {
         .irq => {
-            digi.irq.frozen = mutant == 5;
-            digi.irq.swapped = mutant == 6;
-            digi.irq.no_offset = mutant == 10;
-            digi.irq.sfx_end_stores = mutant == 11;
-            digi.irq.pointer_kept = mutant == 8;
+            digi.irq.setMutant(mutant);
             return digi.irq.irq(Bus68, &driver.?.irq, handler);
         },
         .beat_dis => |bd| {

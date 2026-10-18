@@ -153,7 +153,7 @@ export fn audioSndhCall(d0: u32) u32 {
     return @intFromBool(ok);
 }
 /// Which native replay plays the loaded SNDH instead of Musashi, or why none
-/// does (players/digi.zig Status: 0 Musashi, 1 Beat Dis, 2-3 near misses, 4 off, 5 Monty, 6 Wow Scroller, 7 B.I.G. digital, 8 Hippel 4-voice, 10 Swedish New Year TCB one-byte, 11 Swedish New Year Sync 4-voice, 12 Timer C 3-voice, 13 TCB streams, 14 maxYMiser drums, 15 game effects: handler only).
+/// does (players/digi.zig Status: 0 Musashi, 1 Beat Dis, 2-3 near misses, 4 off, 5 Monty, 6 Wow Scroller, 7 B.I.G. digital, 8 Hippel 4-voice, 9 Quartet SingSong, 10 Swedish New Year TCB one-byte, 11 Swedish New Year Sync 4-voice, 12 Timer C 3-voice, 13 TCB streams, 14 maxYMiser drums, 15 game effects: handler only).
 export fn audioSndhNative() u32 {
     return @intFromEnum(players.sndh.native.status);
 }

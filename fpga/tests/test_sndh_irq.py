@@ -2,10 +2,11 @@
 each tune's timer interrupt in Zig, its init and play on Musashi. The audio core's writes,
 digested a frame at a time (host/sndh_oracle.c), must be the same over the length given, across
 a mid-tune sndhCall and mode switches 1/2; mutant 5 (the steps play patches into the handler
-frozen when it was armed), 6 (the stream handler's registers 9 and 10 swapped), 8 (the one-byte
-handler's pointer kept past play's rewind) and 10 (maxYMiser's 8-bit drum routine without its
-addi.b) must fail. The helpers are test_sndh_native.py's.
-Needs `make sndh-oracle` and docs/demo-audio.wasm."""
+frozen when it was armed), 6 (the stream handler's registers 9 and 10 swapped), 7 (SingSong's sample
+index unsigned), 8 (the one-byte handler's pointer kept past play's rewind) and 10 (maxYMiser's 8-bit
+drum routine without its addi.b) must fail. A handler refused in RAM plays on Musashi and passes the
+digest trivially, so the survey (host/sndh_survey) must also show Musashi called only for PLAY. The
+helpers are test_sndh_native.py's. Needs `make sndh-oracle sndh-survey` and docs/demo-audio.wasm."""
 
 from __future__ import annotations
 
@@ -17,6 +18,7 @@ import pytest
 from test_sndh_native import FPGA, MUSIC, first_difference, native_status
 
 ORACLE = FPGA / "build/host/oracle/sndh_oracle"
+SURVEY = FPGA / "build/host/oracle/sndh_survey"
 # song, tune, frames (past each tune's first wrap where it has one), the status it must be.
 TUNES = [
     ("union/thalion_forever.sndh", 1, 6_000, 8),  # the Union Demo's TEX tracker screen
@@ -34,17 +36,22 @@ TUNES = [
     ("swedish_newyear_tcb_digi.sndh", 1, 6_000, 10),
     # and its SYNC screens: the self-modifying 4-voice mixer, past the song's wrap (FRMS 21,470 at 50 Hz)
     ("Swedish_New_Year_Demo_Sync.sndh", 1, 27_000, 11),
+    ("dune_gen4_quartet.sndh", 1, 4_000, 9),  # Dune Gen4's Quartet tunes: SingSong's replay, its state in registers
+    ("dune_gen4_quartet.sndh", 2, 4_000, 9),
+    ("dune_gen4_quartet.sndh", 3, 4_000, 9),
+    ("dune_gen4_quartet.sndh", 4, 4_000, 9),
 ]
 # song, the mutant that must be caught (sndh_native.zig): 5 = steps frozen at arming, 6 = registers 9/10 swapped,
-# 8 = the one-byte handler's pointer kept in Zig past play's rewind, 10 = maxYMiser's drum routine without its addi.b.
+# 7 = SingSong's sample index unsigned, 8 = the one-byte handler's pointer kept in Zig past play's rewind,
+# 10 = maxYMiser's drum routine without its addi.b.
 MUTANTS = [("union/thalion_forever.sndh", 5), ("digital/Ace_2.sndh", 5), ("snyd90_f6.sndh", 5),
            ("tcb_spreadpoint.sndh", 6), ("crystallized.sndh", 10), ("swedish_newyear_tcb_digi.sndh", 8),
-           ("Swedish_New_Year_Demo_Sync.sndh", 5)]
+           ("Swedish_New_Year_Demo_Sync.sndh", 5), ("dune_gen4_quartet.sndh", 7)]
 
 
 @pytest.fixture(scope="module", autouse=True)
 def oracle() -> None:
-    subprocess.run(["make", "-s", "sndh-oracle"], cwd=FPGA, check=True, capture_output=True)
+    subprocess.run(["make", "-s", "sndh-oracle", "sndh-survey"], cwd=FPGA, check=True, capture_output=True)
 
 
 def run(tmp: Path, song: str, tune: int, frames: int, *, musashi: bool = False, mutant: int = 0,
@@ -73,6 +80,18 @@ def test_the_native_handler_writes_the_same_as_musashi(tmp_path: Path, song: str
     assert native_status(ref_out) == 4 and native_status(out) == status
     assert sum(int(x.split()[1]) for x in got) > 50 * frames  # a digi: many writes a frame (drums: in bursts)
     assert first_difference(ref, got) is None
+
+
+@pytest.mark.parametrize(("song", "tune", "frames", "status"), TUNES)
+def test_the_handler_is_taken_natively_so_musashi_runs_only_the_plays(tmp_path: Path, song: str, tune: int,
+                                                                   frames: int, status: int) -> None:
+    env = {**os.environ, "ZM_AUDIO_DIGEST": str(tmp_path / "s.d"), "ZM_MUSIC_DIR": str(MUSIC), "ZM_SNDH_TIMERS": "1"}
+    env.pop("ZM_SNDH_MUSASHI", None)
+    out = subprocess.run([str(SURVEY), song, str(tune), "60"], env=env, check=True, capture_output=True,
+                         text=True).stdout
+    counts = [line.split() for line in out.splitlines() if line.startswith("ZM COUNT ")]
+    calls = [int(c[4]) for c in counts[10:]]  # "ZM COUNT f insns calls", past the frames that arm
+    assert native_status(out) == status and calls and max(calls) <= 4  # a 200 Hz play at most: no interrupt
 
 
 @pytest.mark.parametrize("song", [m[0] for m in MUTANTS])

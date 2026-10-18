@@ -32,7 +32,7 @@ static const char* const NATIVE[] = {
     "native wow_scroller",
     "native big_digital (handler)",
     "native hippel_mix4 (handler)",
-    NULL, /* 9: kept for a driver on another branch */
+    "native quartet_singsong (handler)",
     "native tcb_digi (handler)",
     "native sync_mix4 (handler)",
     "native mix3_timer_c (handler)",
