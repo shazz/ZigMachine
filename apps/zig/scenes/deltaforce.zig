@@ -15,6 +15,7 @@ const Scrolltext = zg.Scrolltext;
 const Background = zg.Background;
 
 const Console = zg.Console;
+const letter_rows = @import("scrolltext_rows.zig");
 
 // --------------------------------------------------------------------------
 // Constants
@@ -147,8 +148,7 @@ pub const Demo = struct {
         const fb = &zigos.lfbs[1];
         const strip: usize = 52 * @as(usize, WIDTH);
         const strip_len: usize = @as(usize, WIDTH) * SCROLL_CHAR_HEIGHT;
-        @memset(fb.fb[strip .. strip + strip_len], 0);
-        self.scrolltext.render();
+        letter_rows.draw(&self.scrolltext, fb.fb + strip, WIDTH, WIDTH, SCROLL_CHAR_WIDTH, SCROLL_CHAR_HEIGHT);
 
         // copy scrolltext 3 times
         inline for (.{ 39, 78, 117 }) |rows| {
