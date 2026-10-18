@@ -3,15 +3,16 @@
 import { readFile } from "node:fs/promises";
 import { bootInstrumented, hostFrame } from "./run_cart.mjs";
 import { Profile } from "./profile.mjs";
-import { HBL_CALL, SNOOP_OVERFLOW, FRESCO_PLANE, FRAME_MC, MHZ, icacheCycles } from "./cost_model.mjs";
+import { HBL_CALL, SNOOP_OVERFLOW, DISK_BLOCK, FRESCO_PLANE, FRAME_MC, MHZ, icacheCycles } from "./cost_model.mjs";
 import { hotRegions, classTotals, causeTotals, libmCalls, paletteWrites } from "./report.mjs";
 import { Waste } from "./waste.mjs";
 import { wasteReport } from "./waste_report.mjs";
+import { fitDump } from "./fit_dump.mjs";
 
 const pct = (xs, q) => { const s = [...xs].sort((a, b) => a - b); return s[Math.min(s.length - 1, Math.floor(q * s.length))]; };
 const Mc = (c) => Math.round(c / 1e4) / 100;
 
-// One host frame and its cost parts: [cart, rom, icache, blit, hbl, fresco] cycles.
+// One host frame and its cost parts: [cart, rom, icache, blit, hbl, fresco, disk] cycles.
 function stepFrame(run, profiles, acc, hw0) {
     hostFrame(run);
     const cyc = profiles.map((P) => P.frame(acc));
@@ -21,14 +22,15 @@ function stepFrame(run, profiles, acc, hw0) {
     for (let p = 0; p < run.machine.hwPlanesNumber(); p++) planes += run.demo.isPlaneEnabled(p) ? 1 : 0;
     const code = profiles.reduce((a, P) => a + P.last.code, 0);
     const ic = icacheCycles(profiles.reduce((a, P) => a + P.last.fetch, 0), code);
-    return { parts: [cyc[0], cyc[1], ic, blit, hbl, planes * FRESCO_PLANE], code, planes };
+    const disk = (run.hw.diskBlocks - hw0.diskBlocks) * DISK_BLOCK;
+    return { parts: [cyc[0], cyc[1], ic, blit, hbl, planes * FRESCO_PLANE, disk], code, planes };
 }
 
 // opts: { frames, warmup, calls: Map(frame -> [[name, args]]), disk, top, pal, names: {cart, rom} }
 export async function measure(cartPath, opts) {
     const run = await bootInstrumented(await readFile(cartPath), opts);
     const profiles = run.mods.map((m) => new Profile(m.tag, m.plan, m.mem));
-    const keys = ["cart", "rom", "icache", "blit", "hbl", "fresco"];
+    const keys = ["cart", "rom", "icache", "blit", "hbl", "fresco", "disk"];
     const w = { series: [], split: Object.fromEntries(keys.map((k) => [k, 0])), code: 0, hw: null, planes: 0 };
     const waste = new Waste(run);
     for (let f = 1; f <= opts.warmup + opts.frames; f++) {
@@ -49,6 +51,7 @@ export async function measure(cartPath, opts) {
     }
     const r = summarize(cartPath, opts, run, profiles, w);
     r.waste = wasteReport(waste.w, profiles, w.planes / w.series.length, r.snoopOverflow);
+    r.fit = fitDump(profiles, w, run);
     return { ...r, profiles };
 }
 
