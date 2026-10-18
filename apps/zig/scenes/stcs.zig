@@ -134,7 +134,8 @@ fn handler_scroller(fb: *LogicalFB, zigos: *ZigOS, line: u16, col: u16) void {
 }
 
 // The scroller's off-screen strip: static, not init's stack frame (it outlives init).
-var scroller_pixels = [_]u8{0} ** (WIDTH * SCROLL_CHAR_HEIGHT);
+// align(16): strip.zig copies it 16 bytes at a time as words, and a misaligned word load TRAPS on the board (~450 cycles each)
+var scroller_pixels align(16) = [_]u8{0} ** (WIDTH * SCROLL_CHAR_HEIGHT);
 var scroller_buffer: RenderBuffer = .{ .buffer = &scroller_pixels, .width = WIDTH, .height = SCROLL_CHAR_HEIGHT };
 
 pub const Demo = struct {
