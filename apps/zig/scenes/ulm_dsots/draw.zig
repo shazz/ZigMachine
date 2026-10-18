@@ -43,11 +43,54 @@ pub fn background(fb: *LogicalFB, offset: i32) void {
     }
 }
 
-/// The Foreground layer through the viewport, in its visible rows only.
-pub fn foreground(fb: *LogicalFB, view: *const View) void {
-    const dst = blit.Dst.plane(fb).window(OX, OY + TOP_BAR, CANVAS_W, VIEW_H - TOP_BAR);
+/// What the plane holds, so a frame whose camera and parallax stand still
+/// redraws only under the griffin (every store is a blocking bus write on the
+/// board; the 384x240 background and tiles used to be rewritten whole).
+pub const Cache = struct {
+    valid: bool = false,
+    cx: i32 = 0,
+    cy: i32 = 0,
+    off: i32 = 0,
+    box: Box = .{},
+};
+
+/// A canvas rectangle, half-open.
+const Box = struct { x0: i32 = 0, y0: i32 = 0, x1: i32 = 0, y1: i32 = 0 };
+
+/// One frame: background, Foreground, griffin. The bars are the plane's black
+/// from clearFrameBuffer(BLACK) and nothing draws on them: the background keeps
+/// to rows TOP_BAR..LOW_BAR, the Foreground to TOP_BAR..VIEW_H, the griffin is
+/// clipped to TOP_BAR..LOW_BAR (the bars used to be drawn over it).
+pub fn frame(fb: *LogicalFB, view: *const View, offset: i32, g: *const Griffin, c: *Cache) void {
     const cx: i32 = @intFromFloat(@divFloor(view.x, 2));
     const cy: i32 = @as(i32, @intFromFloat(@divFloor(view.y, 2))) + TOP_BAR;
+    if (c.valid and c.cx == cx and c.cy == cy and c.off == offset) {
+        restore(fb, cx, cy, offset, c.box);
+    } else {
+        background(fb, offset);
+        foregroundIn(blit.Dst.plane(fb).window(OX, OY + TOP_BAR, CANVAS_W, VIEW_H - TOP_BAR), cx, cy);
+        c.* = .{ .valid = true, .cx = cx, .cy = cy, .off = offset };
+    }
+    c.box = griffin(fb, g, view);
+}
+
+/// The layers back over the rectangle the griffin was drawn in.
+fn restore(fb: *LogicalFB, cx: i32, cy: i32, offset: i32, b: Box) void {
+    if (b.x1 <= b.x0 or b.y1 <= b.y0) return;
+    const off: usize = @intCast(@divFloor(offset, 2));
+    const x0: usize = @intCast(b.x0);
+    const w: usize = @intCast(b.x1 - b.x0);
+    for (@as(usize, @intCast(b.y0))..@as(usize, @intCast(b.y1))) |y| {
+        @memcpy(fb.fb[(OY + y) * fb.stride + OX + x0 ..][0..w], A.back_rows[y * A.BACK_ROW + off + x0 ..][0..w]);
+    }
+    const fy1 = @min(b.y1, VIEW_H);
+    if (fy1 <= b.y0) return;
+    const win = blit.Dst.plane(fb).window(OX + x0, OY + @as(usize, @intCast(b.y0)), w, @intCast(fy1 - b.y0));
+    foregroundIn(win, cx + b.x0, cy + b.y0 - TOP_BAR);
+}
+
+/// The Foreground layer into `dst`, whose top-left shows map pixel (cx, cy).
+fn foregroundIn(dst: blit.Dst, cx: i32, cy: i32) void {
     const t: i32 = @intCast(A.TILE);
     const c0 = firstTile(cx);
     const r0 = firstTile(cy);
@@ -85,22 +128,21 @@ const OPAQUE: [A.tileset.h / A.TILE * A.SHEET_COLS]bool = blk: {
     break :blk o;
 };
 
-/// The griffin's frame at ~~(pos - view), anywhere on the canvas.
-pub fn griffin(fb: *LogicalFB, g: *const Griffin, view: *const View) void {
-    const dst = blit.Dst.plane(fb).window(OX, OY, CANVAS_W, CANVAS_H);
+/// The griffin's frame at ~~(pos - view), clipped to the canvas between the
+/// bars; returns the rectangle it covers.
+fn griffin(fb: *LogicalFB, g: *const Griffin, view: *const View) Box {
+    const dst = blit.Dst.plane(fb).window(OX, OY + TOP_BAR, CANVAS_W, LOW_BAR - TOP_BAR);
     const s: usize = g.sprite();
     const part = blit.Rect{ .x = (s % 4) * A.FRAME, .y = (s / 4) * A.FRAME, .w = A.FRAME, .h = A.FRAME };
     // Past the floor's end (column 663) nothing stops a fall, so y has no
     // bound: clamp before the cast, which is not checked in ReleaseSmall.
     const sx: i32 = @intFromFloat(@trunc(std.math.clamp(g.x - view.x, -OFF_CANVAS, OFF_CANVAS)));
     const sy: i32 = @intFromFloat(@trunc(std.math.clamp(g.y - view.y, -OFF_CANVAS, OFF_CANVAS)));
-    blit.blit(dst, if (g.flip) A.griffin_flip else A.griffin, part, halfCeil(sx), halfCeil(sy), 0, .copy);
-}
-
-/// The overlay's bars and the plane outside the canvas.
-pub fn bars(fb: *LogicalFB) void {
-    @memset(fb.fb[0 .. (OY + TOP_BAR) * fb.stride], A.BLACK);
-    @memset(fb.fb[(OY + LOW_BAR) * fb.stride .. @as(usize, fb.fb_h) * fb.stride], A.BLACK); // u16 * u16 overflows
+    const hx = halfCeil(sx);
+    const hy = halfCeil(sy);
+    blit.blit(dst, if (g.flip) A.griffin_flip else A.griffin, part, hx, hy - TOP_BAR, 0, .copy);
+    const f: i32 = @intCast(A.FRAME);
+    return .{ .x0 = @max(hx, 0), .y0 = @max(hy, TOP_BAR), .x1 = @min(hx + f, CANVAS_W), .y1 = @min(hy + f, LOW_BAR) };
 }
 
 /// The tile under screen pixel `at` (the view's edge), or 0 above/left of the map.

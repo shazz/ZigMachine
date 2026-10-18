@@ -76,7 +76,7 @@ pub const Hud = struct {
 
     pub fn draw(self: *const Hud, fb: *LogicalFB) void {
         // The scroll band is colour 0 per line (raster.zig), so it is only a fill.
-        for (RASTERS_Y..fb.fb_h) |y| world.fillRow(fb, y, raster.BG);
+        world.fillRows(fb, RASTERS_Y, fb.fb_h, raster.BG);
         const dst = blit.Dst.plane(fb);
         const pano = blit.Pattern{ .img = A.panorama, .ox = @intFromFloat(@ceil(self.pano / 2)), .oy = SCROLL_Y };
         for (self.letters) |l| {
@@ -88,11 +88,11 @@ pub const Hud = struct {
                 .h = A.GLYPH_H,
             };
             const x = world.halfCeil(l.posx);
-            blit.blit(dst, A.font, part, x, SCROLL_Y, 0, .copy); // the field
+            world.put(fb, A.font, part, x, SCROLL_Y, 0); // the field
             var holes = part;
             holes.h = A.panorama.h; // the strip's 16 rows; row 17 stays clear
             blit.blit(dst, A.font, holes, x, SCROLL_Y, A.colors.FONT_FIELD, .{ .pattern = pano });
         }
-        blit.blit(dst, A.logo, null, LOGO_X, 0, 0, .copy);
+        world.put(fb, A.logo, null, LOGO_X, 0, 0);
     }
 };

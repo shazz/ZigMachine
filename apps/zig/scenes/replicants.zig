@@ -57,7 +57,27 @@ const logo_b = @embedFile("../assets/screens/reps4/logo.raw");
 // --------------------------------------------------------------------------
 // Variables
 // --------------------------------------------------------------------------
+// The scroller's mask rows (fonts_mask.raw rows 10..25, the 16 rows the AND below
+// covers) as aligned 32-bit words, built at compile time, so the per-frame AND is
+// one load/store per 4 pixels instead of per byte through a byte-aligned embed.
+const MASK_FIRST: usize = (SCROLL_POS - 159) * WIDTH;
+const MASK_WORDS: usize = WIDTH * SCROLL_CHAR_HEIGHT / 4;
+const mask_words: [MASK_WORDS]u32 = blk: {
+    @setEvalBranchQuota(20_000);
+    var w: [MASK_WORDS]u32 = undefined;
+    for (&w, 0..) |*x, i| x.* = std.mem.readInt(u32, fonts_mask_b[MASK_FIRST + i * 4 ..][0..4], .little);
+    break :blk w;
+};
+
+// Logo sprite geometry (Sprite.init in Demo.init) for the blitter path.
+const LOGO_W: u16 = 268;
+const LOGO_H: u16 = 105;
+const LOGO_X: i32 = (320 - 268) / 2;
+const LOGO_Y: i32 = 35;
+
 var raster_index: u8 = 0;
+var blitter: zg.Blitter = .{};
+var logo_drawn_idx: u16 = 0xFFFF; // the table index the logo plane currently shows
 var logo_raster_pos: i16 = 0;
 var logo_raster_dir: i16 = 1;
 
@@ -82,7 +102,7 @@ fn handler_rasterbars(fb: *LogicalFB, zigos: *ZigOS, line: u16, col: u16) void {
         (line >= rasters[2].position and line < rasters[2].position + 11) or
         (line >= rasters[3].position and line < rasters[3].position + 11) ) {
 
-        for(rasters) |raster| {
+        for(&rasters) |*raster| {
             if(line >= raster.position and line < raster.position + 11) {
                 fb.setPaletteEntry(0, raster.colors[line - raster.position]);
                 fb.setPaletteEntry(255, raster.colors[line - raster.position]);
@@ -134,6 +154,8 @@ pub const Demo = struct {
         raster_index = 0;
         logo_raster_pos = 0;
         logo_raster_dir = 1;
+        logo_drawn_idx = 0xFFFF;
+        blitter.init();
 
         // first plane for rasters
         var fb: *LogicalFB = &zigos.lfbs[0];
@@ -143,6 +165,11 @@ pub const Demo = struct {
         fb.setPaletteEntry(255, Color{ .r = 255, .g = 255, .b = 255, .a = 0 });
         self.back_top.init(fb.getRenderTarget(), back_top_b, 320, 31, 0, 0, null, null); 
         self.back_bottom.init(fb.getRenderTarget(), back_bottom_b, 320, 53, 0, 200-54, null, null); 
+        // Both pictures are static (the raster is palette writes from the HBL):
+        // draw them once. A zero pixel is skipped or written as 0 on a plane that
+        // is already 0, so the first frame cannot differ either way.
+        self.back_top.render(null);
+        self.back_bottom.render(null);
 
         // HBL Handler for the raster effect
         fb.setFrameBufferHBLHandler(0, handler_rasterbars); 
@@ -187,6 +214,7 @@ pub const Demo = struct {
         fb.setPaletteEntry(0, Color{ .r = 0, .g = 0, .b = 0, .a = 0 }); 
         fb.setPaletteEntry(255, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });       
         self.back_bottom_mask.init(fb.getRenderTarget(), back_bottom_mask_b, 320, 53, 0, 200-54, null, null); 
+        self.back_bottom_mask.render(null); // static and never cleared: once is enough
 
         self.table_index = 0;
 
@@ -227,30 +255,48 @@ pub const Demo = struct {
     }
 
     pub fn render(self: *Demo, zigos: *ZigOS, elapsed_time: f32) void {
+        self.renderLogo(&zigos.lfbs[1]);
 
-        var fb = &zigos.lfbs[0];
-        fb.clearFrameBuffer(0);
-
-        self.back_top.render(null);
-        self.back_bottom.render(null);
-
-        self.logo.target.clearFrameBuffer(0);
-        self.logo.render(null);
-
-        fb = &zigos.lfbs[2];
-        fb.clearFrameBuffer(0);
+        // The scroller draws on rows 169..184 only: CHISEL clears those.
+        const fb = &zigos.lfbs[2];
+        blitter.fill(fb, 0, SCROLL_POS, WIDTH, SCROLL_CHAR_HEIGHT, 0);
         self.scrolltext.render();
 
-        var i: usize = SCROLL_POS * WIDTH;
-        var tx: usize = (SCROLL_POS - 159) * WIDTH;
-        while(i < (SCROLL_POS * WIDTH) + (WIDTH * SCROLL_CHAR_HEIGHT)) : ( i += 1) {         
-            fb.fb[i] = fb.fb[i] & fonts_mask_b[tx];
-            tx += 1;
-        }
-
-        self.back_bottom_mask.render(null);
+        const strip: []u32 = @as([*]u32, @ptrCast(@alignCast(fb.fb + SCROLL_POS * WIDTH)))[0..MASK_WORDS];
+        for (strip, mask_words) |*px, m| px.* &= m;
 
         _ = elapsed_time;
+    }
 
+    // The logo sprite shifts each ROW sideways by logo_offset_table[(idx + row)
+    // % 256], and Sprite.render ADDS the shift to its running offset, so row r
+    // sits at the sum of the shifts above it (the drift is part of the look).
+    // It only changes when table_index does (every other frame): then each row
+    // is one keyed CHISEL blit instead of 28k Sprite pixel stores.
+    fn renderLogo(self: *Demo, fb: *LogicalFB) void {
+        const idx: u16 = self.logo.x_offset_index; // what update() gave the sprite (before table_index stepped)
+        if (idx == logo_drawn_idx) return;
+        logo_drawn_idx = idx;
+        // rows 34 and 141 too: a row pushed off an edge wraps onto its neighbour
+        blitter.fill(fb, 0, LOGO_Y - 1, WIDTH, LOGO_H + 2, 0);
+        var x: i32 = LOGO_X;
+        for (0..LOGO_H) |r| {
+            const row = logo_b[r * LOGO_W ..][0..LOGO_W];
+            const y: i32 = LOGO_Y + @as(i32, @intCast(r));
+            if (x >= 0 and x + LOGO_W <= WIDTH) {
+                blitter.blitImage(fb, @intCast(x), @intCast(y), logo_b, LOGO_W, 0, @intCast(r), LOGO_W, 1, 0);
+            } else {
+                wrapRow(fb, row, y * WIDTH + x);
+            }
+            x += self.logo_offset_table[(idx + r) % self.logo_offset_table.len];
+        }
+    }
+
+    // A row that leaves the plane's edge continues on the neighbouring row, as
+    // the sprite's linear offset did.
+    fn wrapRow(fb: *LogicalFB, row: []const u8, at: i32) void {
+        for (row, 0..) |px, i| {
+            if (px != 0) fb.fb[@intCast(at + @as(i32, @intCast(i)))] = px;
+        }
     }
 };

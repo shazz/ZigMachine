@@ -50,6 +50,7 @@ const packed_assets = @import("packed_assets");
 
 const A = @import("union_beatdis/assets.zig");
 const prompt = @import("union_beatdis/prompt.zig");
+const gpu = @import("union_common/gpu.zig");
 const hub_note = @import("union_demo/hub_note.zig").HubNote("union_beatdis");
 const Screen = @import("union_beatdis/screen.zig").Screen;
 const TEXT = @import("union_beatdis/screen.zig").TEXT;
@@ -89,6 +90,7 @@ pub const Demo = struct {
     leave: bool,
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
+        gpu.init();
         self.phase = .failed;
         self.chosen = null;
         self.hub = null;
@@ -129,7 +131,7 @@ pub const Demo = struct {
     pub fn render(self: *Demo, zigos: *ZigOS, dt: f32) void {
         _ = dt;
         if (self.phase != .running) return;
-        self.screen.draw(zg.blit.Dst.plane(&zigos.lfbs[0]), self.images);
+        self.screen.draw(&zigos.lfbs[0], self.images);
     }
 
     pub fn ownsKeyboard(self: *Demo) u32 {

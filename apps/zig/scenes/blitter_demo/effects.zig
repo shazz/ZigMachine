@@ -55,6 +55,7 @@ pub const Fx = struct {
 
     pub fn step(self: *Fx) void {
         self.cube.spin();
+        self.cube.rotate();
         self.wob += 0.14;
         self.cube.project(geom.FOV, @divTrunc(WIDTH, 2), @divTrunc(HEIGHT, 2));
     }

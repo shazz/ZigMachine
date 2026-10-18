@@ -48,12 +48,14 @@ pub const Demo = struct {
     az: f32 = 0,
     pos: *[obj.MAX_VERTS][3]f32 = undefined,
     screen: *[obj.MAX_VERTS]Vec2 = undefined,
+    keys: *[obj.MAX_FACES]f32 = undefined, // per-face depth for sortFaces
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
         Console.log("obj_demo init", .{});
         self.mesh = &zg.mem.mustAlloc(obj.Mesh, 1)[0];
         self.pos = zg.mem.mustAlloc([3]f32, obj.MAX_VERTS)[0..obj.MAX_VERTS];
         self.screen = zg.mem.mustAlloc(Vec2, obj.MAX_VERTS)[0..obj.MAX_VERTS];
+        self.keys = zg.mem.mustAlloc(f32, obj.MAX_FACES)[0..obj.MAX_FACES];
         self.os = zigos;
         self.blitter.init();
         const fb: *LogicalFB = &zigos.lfbs[0];
@@ -215,15 +217,21 @@ pub const Demo = struct {
         return @intFromFloat(@min(d, 0.999) * @as(f32, LEVELS - 1));
     }
 
+    // Painter's order, far first. The depth keys are summed once per face: the
+    // insertion sort used to re-sum two faces' keys in every comparison.
     fn sortFaces(self: *Demo, order: *[obj.MAX_FACES]u16) void {
         const n = self.mesh.nfaces;
-        for (0..n) |i| order[i] = @intCast(i);
+        const keys = self.keys;
+        for (0..n) |i| {
+            order[i] = @intCast(i);
+            keys[i] = self.avgZ(@intCast(i));
+        }
         var i: usize = 1;
         while (i < n) : (i += 1) {
             const cur = order[i];
-            const key = self.avgZ(cur);
+            const key = keys[cur];
             var j: usize = i;
-            while (j > 0 and self.avgZ(order[j - 1]) < key) : (j -= 1) order[j] = order[j - 1];
+            while (j > 0 and keys[order[j - 1]] < key) : (j -= 1) order[j] = order[j - 1];
             order[j] = cur;
         }
     }

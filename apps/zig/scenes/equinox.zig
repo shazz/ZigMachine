@@ -74,13 +74,26 @@ const road_sum = [ROAD_FRAMES][10]u8{
     .{ 0, 6, 10, 22, 42, 68, 102, 156, 170, 0 }, .{ 0, 6, 12, 24, 44, 70, 106, 162, 170, 0 },
 };
 
-// drawRoad(): band `band` of animation frame `i`, copied row-for-row.
-fn drawRoadBand(view: blit.Dst, road: blit.Image, i: usize, band: usize) void {
-    const h = road_offsets[i][band] / 2;
-    if (h == 0) return;
-    const top = road_sum[i][band] / 2;
-    const part = blit.Rect{ .x = 0, .y = top, .w = SCREEN_W, .h = h };
-    blit.blit(view, road, part, 0, @intCast(ROAD_Y + top), null, .copy);
+// The bands of every frame tile the same ROAD_ROWS rows exactly (each offsets row
+// sums to 170 canvas rows), so the road area is rewritten whole by the bands and
+// the black fill under it never shows: the plane is cleared and filled once.
+const ROAD_ROWS = 85;
+comptime {
+    for (road_offsets) |row| {
+        var sum: usize = 0;
+        for (row) |h| sum += h;
+        std.debug.assert(sum == 2 * ROAD_ROWS);
+    }
+}
+
+/// Which road image each road row shows this frame: 1 = road1 (even bands), 2 = road2.
+fn roadWanted(i: usize) [ROAD_ROWS]u8 {
+    var want: [ROAD_ROWS]u8 = undefined;
+    for (0..9) |band| {
+        const top = road_sum[i][band] / 2;
+        for (top..top + road_offsets[i][band] / 2) |r| want[r] = if (band % 2 == 1) 2 else 1;
+    }
+    return want;
 }
 
 // --------------------------------------------------------------------------
@@ -190,6 +203,7 @@ const LETTERS: usize = WIDE + 1; // `for(i=0;i<=this.wide;i++)`
 const SCROLL_Y: i32 = 201; // scrolltext.draw(400+(28*2)-(26*2)-2) = 402
 
 const Letter = struct { x: i32, char: u8 };
+const Box = struct { x: i32 = 0, y: i32 = 0, w: usize = 0, h: usize = 0 };
 
 // --------------------------------------------------------------------------
 // Demo
@@ -215,6 +229,11 @@ pub const Demo = struct {
     // the scrolltext
     letters: [LETTERS]Letter = undefined,
     scroffset: usize = 0,
+    // The road image (1/2) each road row holds now, 0 = not drawn yet: a row is
+    // copied again only when the band over it changed parity.
+    road_src: [ROAD_ROWS]u8 = undefined,
+    // Where each dragon was drawn last render, to erase just those boxes.
+    dragon_box: [NB_DRAGONS]Box = undefined,
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
         zg.requestSong(MUSIC);
@@ -232,6 +251,8 @@ pub const Demo = struct {
         self.alive_inc = 1;
         self.state_ticks = 0;
         self.scroffset = 0;
+        @memset(&self.road_src, 0);
+        self.dragon_box = [_]Box{.{}} ** NB_DRAGONS;
         for (&self.letters, 0..) |*l, i| {
             l.* = .{ .x = WIDE * FONT_W + @as(i32, @intCast(i)) * FONT_W, .char = SCROLL_TEXT[self.scroffset] };
             self.scroffset += 1;
@@ -240,19 +261,25 @@ pub const Demo = struct {
         var fb: *LogicalFB = &zigos.lfbs[0];
         openPlane(fb, road_pal);
         fb.setPaletteEntry(ROAD_CLEAR, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
+        @memset(blit.Dst.plane(fb).buf, ROAD_CLEAR);
+        const road_view = screenView(fb);
+        @memset(road_view.buf[0 .. (road_view.h - 1) * road_view.stride + road_view.w], BLACK);
 
         fb = &zigos.lfbs[1];
         openPlane(fb, backtop_pal);
         fb.setPaletteEntry(BACKDROP_CLEAR, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
         self.setLogoAlpha(fb);
+        drawBackdrop(fb); // all of it static (the logo fades by palette alpha): drawn once
 
         fb = &zigos.lfbs[2];
         openPlane(fb, bob_pal);
         fb.setPaletteEntry(0, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
+        fb.clearFrameBuffer(0);
 
         fb = &zigos.lfbs[3];
         openPlane(fb, font_pal);
         fb.setPaletteEntry(0, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
+        fb.clearFrameBuffer(0);
     }
 
     fn openPlane(fb: *LogicalFB, palette: [256]Color) void {
@@ -278,18 +305,29 @@ pub const Demo = struct {
     pub fn render(self: *Demo, zigos: *ZigOS, dt: f32) void {
         _ = dt;
         self.drawRoads(&zigos.lfbs[0]);
-        drawBackdrop(&zigos.lfbs[1]);
         self.drawDragons(&zigos.lfbs[2]);
         self.drawScrolltext(&zigos.lfbs[3]);
     }
 
-    // screen.js:280-289: road2 on the odd bands first, then road1 on the even ones
+    // screen.js:280-289: road2 on the odd bands, road1 on the even ones. Only the
+    // runs of rows whose road image changed since the last frame are copied.
     fn drawRoads(self: *Demo, fb: *LogicalFB) void {
-        const all = blit.Dst.plane(fb);
-        @memset(all.buf, ROAD_CLEAR);
         const view = screenView(fb);
-        @memset(view.buf[0 .. (view.h - 1) * view.stride + view.w], BLACK);
-        for (0..9) |band| drawRoadBand(view, if (band % 2 == 1) road2_img else road1_img, self.road_frame, band);
+        const want = roadWanted(self.road_frame);
+        var r: usize = 0;
+        while (r < ROAD_ROWS) {
+            if (want[r] == self.road_src[r]) {
+                r += 1;
+                continue;
+            }
+            var end = r + 1;
+            while (end < ROAD_ROWS and want[end] == want[r] and self.road_src[end] != want[r]) end += 1;
+            const road = if (want[r] == 2) road2_img else road1_img;
+            const part = blit.Rect{ .x = 0, .y = r, .w = SCREEN_W, .h = end - r };
+            blit.blit(view, road, part, 0, @intCast(ROAD_Y + r), null, .copy);
+            @memset(self.road_src[r..end], want[r]);
+            r = end;
+        }
     }
 
     fn drawBackdrop(fb: *LogicalFB) void {
@@ -363,12 +401,15 @@ pub const Demo = struct {
 
     // screen.js:301-304: seven dragons, one morph frame, 18 trajectory entries apart
     fn drawDragons(self: *Demo, fb: *LogicalFB) void {
-        @memset(blit.Dst.plane(fb).buf, 0);
         const view = screenView(fb);
+        for (self.dragon_box) |b| view.fill(b.x, b.y, b.w, b.h, 0);
         const img = blit.Image.init(dragon_frames[self.morph_frame], DRAGON_W);
         for (0..NB_DRAGONS) |n| {
             const idx = self.drawn_tabpos + n * TRAIL;
-            blit.blit(view, img, null, trajectory.x[idx % X_WRAP], trajectory.y[idx % Y_WRAP], 0, .copy);
+            const x = trajectory.x[idx % X_WRAP];
+            const y = trajectory.y[idx % Y_WRAP];
+            blit.blit(view, img, null, x, y, 0, .copy);
+            self.dragon_box[n] = .{ .x = x, .y = y, .w = img.w, .h = img.h };
         }
     }
 
@@ -386,15 +427,17 @@ pub const Demo = struct {
     }
 
     // drawTile(dst, ltr - 32, posx, posy): letters are 64 canvas px apart, so
-    // they never overlap and the draw order by posx does not matter.
+    // they never overlap and the draw order by posx does not matter. Their 32 px
+    // tiles are contiguous and run past both ends of the view, so copying them
+    // WHOLE (transparent index 0 included) rewrites every pixel of the band the
+    // old clear + keyed draw did, and nothing outside the view is ever touched.
     fn drawScrolltext(self: *Demo, fb: *LogicalFB) void {
-        @memset(blit.Dst.plane(fb).buf, 0);
         const view = screenView(fb);
         const glyph_size = GLYPH_W * FONT_H;
         for (self.letters) |l| {
             const nb: usize = l.char - FONT_FIRST;
             const glyph = blit.Image.init(font_strip[nb * glyph_size ..][0..glyph_size], GLYPH_W);
-            blit.blit(view, glyph, null, @divFloor(l.x, 2), SCROLL_Y, 0, .copy);
+            blit.blit(view, glyph, null, @divFloor(l.x, 2), SCROLL_Y, null, .copy);
         }
     }
 };

@@ -16,6 +16,7 @@ const std = @import("std");
 const zg = @import("zigos");
 const ZigOS = zg.ZigOS;
 const Color = zg.Color;
+const gpu = @import("../union_common/gpu.zig");
 const LogicalFB = zg.LogicalFB;
 const convertU8ArraytoColors = zg.convertU8ArraytoColors;
 
@@ -103,7 +104,7 @@ pub const Scroller = struct {
 
     pub fn draw(self: *Scroller, zigos: *ZigOS) void {
         const p2: *LogicalFB = &zigos.lfbs[2];
-        p2.clearFrameBuffer(0);
+        gpu.clear(p2, 0);
 
         @memset(strip, 0);
         self.fx.draw(strip, STRIP_W, STRIP_W);
