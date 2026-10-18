@@ -11,6 +11,7 @@
 // fonts are disjoint, so here one glyph carries both: grey ink indices, MASK
 // where the ras colour shows through, 0 where nothing is drawn.
 
+use super::dirty::Dirty;
 use super::fmath::{ceil, half, sin_q24, TURN_0_05};
 
 const FONT: &[u8] = include_bytes!("../../assets/screens/v8_populous/font.bin");
@@ -32,7 +33,8 @@ pub const H: i32 = 200;
 
 /// One glyph at ST (x, y). `ras_top` is the ST row where ras_d was drawn into this
 /// scroller's mask canvas: `source-in` keeps the mask only where ras_d covers it.
-fn glyph(vram: &mut [u8], ch: u8, x: i32, y: i32, ras_top: i32) {
+fn glyph(vram: &mut [u8], dirty: &mut Dirty, ch: u8, x: i32, y: i32, ras_top: i32) {
+    dirty.add(x, y, GW, GH);
     let g = ch.wrapping_sub(32);
     if g >= GLYPHS {
         return; // past the sheet: drawImage's source rect is empty
@@ -115,7 +117,7 @@ impl Wave {
         Wave { ring: Ring::new(text), value: 0 }
     }
 
-    pub fn draw(&mut self, vram: &mut [u8]) {
+    pub fn draw(&mut self, vram: &mut [u8], dirty: &mut Dirty) {
         // A wrapping letter carries the phase along (oldvalue += inc), so the wave
         // sticks to the text; otherwise it drifts back by `offset` each frame.
         let mut base = self.value;
@@ -128,7 +130,7 @@ impl Wave {
             let i = (first + k) % LETTERS;
             // half(110 + sin*40) = floor(55.5 + 20 sin), in Q24
             let y = ((55 << 24) + (1 << 23) + 20 * sin_q24(self.value)) >> 24;
-            glyph(vram, self.ring.ch[i], half(self.ring.x[i]), y, 36);
+            glyph(vram, dirty, self.ring.ch[i], half(self.ring.x[i]), y, 36);
             self.value = self.value.wrapping_add(16 * TURN_0_05);
         }
         self.value = base.wrapping_sub(TURN_0_05); // offset -0.05
@@ -149,13 +151,13 @@ impl Totor {
         Totor { ring: Ring::new(text) }
     }
 
-    pub fn draw(&mut self, vram: &mut [u8]) {
+    pub fn draw(&mut self, vram: &mut [u8], dirty: &mut Dirty) {
         self.ring.advance(1.4);
         for i in 0..LETTERS {
             let col = ceil(self.ring.x[i]);
             if let Some(&dy) = usize::try_from(col).ok().and_then(|c| SCROLLPOS.get(c)) {
                 let y = (i32::from(dy) + 141) >> 1; // half(dy + 140)
-                glyph(vram, self.ring.ch[i], half(self.ring.x[i]), y, 108);
+                glyph(vram, dirty, self.ring.ch[i], half(self.ring.x[i]), y, 108);
             }
         }
     }
