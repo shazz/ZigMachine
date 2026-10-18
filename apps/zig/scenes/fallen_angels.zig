@@ -147,7 +147,7 @@ pub const Demo = struct {
 
         // third plane
         fb = &zigos.lfbs[2];
-        fb.is_enabled = true; 
+        fb.is_enabled = false; // nothing is drawn on it until the grid starts (render): FRESCO skips a disabled plane
         // set lines colors
         fb.setPaletteEntry(0, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
         fb.setPaletteEntry(1, Color{ .r = 0xff, .g = 0x00, .b = 0x00, .a = 255 });
@@ -237,6 +237,7 @@ pub const Demo = struct {
 
         if(self.time_counter > 16*60*6) {
             fb = &zigos.lfbs[2];
+            fb.is_enabled = true;
             if (self.grid_drawn) {
                 wf.drawEdges(fb.getRenderTarget(), &grid.edges, &self.drawn_grid, 0, shapes.drawLine);
             } else {
