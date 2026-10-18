@@ -1,6 +1,6 @@
 // --------------------------------------------------------------------------
 // Which CHISEL FILLs clear a plane exactly as @memset(fb[0 .. rows * stride])
-// does. The driver is libs/zig/plane_clear.zig; this half is pure arithmetic so
+// does. The driver is libs/zig/chisel.zig; this half is pure arithmetic so
 // chisel_clear_test.zig can check it natively against the machine's clip rule.
 //
 // Why: on the board a memset is ~86 cycles a WORD (every store is a blocking
@@ -11,8 +11,9 @@
 // stride implies: 280 rows for the 400-wide fullscreen stride, else 200) and
 // refuses one whose box leaves the video region; and the board's CHISEL takes
 // only destinations at or above OFF_VRAM (it runs the machine's software fill on
-// the CPU otherwise). So the clear is a run of full-stride fills of at most
-// that many rows each, stacked down the buffer, or no fill at all.
+// the CPU otherwise). So a clear (or any w x h rectangle, w <= stride) is a
+// run of fills of at most that many rows each, stacked down the buffer, or no
+// fill at all.
 // --------------------------------------------------------------------------
 
 /// The memory-map facts the plan needs (machine/sdk/memmap.zig).
@@ -29,15 +30,16 @@ pub fn rowsPerFill(g: Geometry, stride: u16) u16 {
     return if (stride == g.full_stride) g.full_h else g.normal_h;
 }
 
-/// True when the buffer at region offset `off`, `rows` x `stride`, can be
-/// cleared by CHISEL fills (whole buffer inside [vram, region)).
-pub fn usable(g: Geometry, off: usize, stride: u16, rows: u16) bool {
-    if (stride == 0 or rows == 0) return false;
-    const end: u64 = @as(u64, off) + @as(u64, rows) * stride;
+/// True when the `w` x `rows` rectangle at region offset `off` (rows `stride`
+/// apart) can be filled by CHISEL: 0 < w <= stride and every byte inside
+/// [vram, region). A whole-plane clear is w = stride.
+pub fn usable(g: Geometry, off: usize, stride: u16, w: u16, rows: u16) bool {
+    if (w == 0 or w > stride or rows == 0) return false;
+    const end: u64 = @as(u64, off) + @as(u64, rows - 1) * stride + w;
     return off >= g.vram and end <= g.region;
 }
 
-/// One fill: `h` rows of `stride` at region offset `off`.
+/// One fill: `h` rows (the caller's width, `stride` apart) at region offset `off`.
 pub const Fill = struct { off: usize, h: u16 };
 
 /// The i-th fill of the clear (null past the last one).
