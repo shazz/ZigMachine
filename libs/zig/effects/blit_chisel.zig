@@ -6,7 +6,7 @@
 // Each returns true when it did the op on CHISEL, byte-identically (the box is
 // in a video plane, the source in a window the blitter may read, the two do not
 // overlap), else false having written nothing, and the caller does it on the
-// CPU. On the board a memset is ~86 cycles a word of blocking DDR stores and a
+// CPU. On the board a memset is ~60 cycles a word of blocking DDR stores and a
 // keyed byte loop ~20 cycles a pixel, CHISEL ~1-2 cycles a pixel; below
 // MIN_BYTES the register setup (~20-30 stores) costs more than it saves.
 // --------------------------------------------------------------------------

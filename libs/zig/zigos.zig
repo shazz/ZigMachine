@@ -689,8 +689,8 @@ pub const LogicalFB = struct {
     }
 
     // CHISEL fills (chisel.zig), same bytes as the memset they replace:
-    // on the board a memset is ~86 cycles a word of blocking DDR stores, a
-    // CHISEL fill ~1.85 cycles a byte (64000 bytes: ~1.4 Mc -> ~0.12 Mc).
+    // on the board a memset is ~60 cycles a word of blocking DDR stores, a
+    // CHISEL fill ~1.85 cycles a byte (64000 bytes: ~1 Mc -> ~0.12 Mc).
     pub fn clearFrameBuffer(self: *LogicalFB, pal_entry: u8) void {
         chisel.clear(g_base, self.fb, self.stride, self.fb_h, pal_entry);
     }

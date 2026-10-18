@@ -2,7 +2,7 @@
 // ZigOS's own CHISEL ops: a plane clear (clearFrameBuffer), a filled box
 // (blit.Dst.fill) and a copied box (blit.blit's copy ink, keyed or not) as
 // blitter ops instead of CPU stores, with the same bytes as a result. On the
-// board a store is a blocking DDR write (a memset ~86 cycles a word, a keyed
+// board a store is a blocking DDR write (a memset ~60 cycles a word, a keyed
 // byte loop ~20 cycles a pixel) and CHISEL ~1-2 cycles a pixel.
 // effects/chisel_clear.zig decides which ops are byte-identical, and why.
 //

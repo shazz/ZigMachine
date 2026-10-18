@@ -3,9 +3,9 @@
 // does. The driver is libs/zig/chisel.zig; this half is pure arithmetic so
 // chisel_clear_test.zig can check it natively against the machine's clip rule.
 //
-// Why: on the board a memset is ~86 cycles a WORD (every store is a blocking
+// Why: on the board a memset is ~60 cycles a WORD (every store is a blocking
 // DDR write), a CHISEL fill ~1.85 cycles a BYTE, so a 64000-byte clear drops
-// from ~1.4 Mc to ~0.12 Mc.
+// from ~1 Mc to ~0.12 Mc (board-fitted cost model).
 //
 // The machine clips a FILL to the destination (x < stride, y < the height its
 // stride implies: 280 rows for the 400-wide fullscreen stride, else 200) and
