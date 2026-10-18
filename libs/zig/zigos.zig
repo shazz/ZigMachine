@@ -638,10 +638,10 @@ pub const LogicalFB = struct {
     }
 
     // --- Palette management ---
-    // Stores only the entries that change: on the board every store is a bus
-    // write (write-through D-cache) and a load is not, and screens call this
-    // from HBL handlers with a palette that is mostly what the plane holds.
     pub fn setPalette(self: *LogicalFB, entries: [256]Color) void {
+        // Stores only the entries that change: on the board every store is a
+        // bus write (write-through D-cache) and a load is not, and screens call
+        // this from HBL handlers with a palette that is mostly what it holds.
         for (entries, 0..) |c, i| {
             const v = c.toRGBA();
             if (self.palette[i] != v) self.palette[i] = v;
