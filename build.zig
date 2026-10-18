@@ -21,6 +21,11 @@ pub fn build(b: *std.Build) void {
     // Kept for compatibility with the old `-Drelease=true` invocation.
     const release = b.option(bool, "release", "Build in ReleaseSmall mode.") orelse false;
     const optimize: std.builtin.OptimizeMode = if (release) .ReleaseSmall else b.standardOptimizeOption(.{});
+    // Keep the debug info (and so the wasm "name" section) in the carts and the ROM: the
+    // perf tools (apps/frame_cost.mjs, apps/wasm_lint.mjs) need function names, and a
+    // release build strips them. The code is the same bytes; tools/perf_names.sh builds
+    // into a scratch prefix and checks that, so docs/ never holds these builds.
+    const keep_names = b.option(bool, "names", "Keep function names (perf tools); never for docs/.") orelse false;
 
     if (!build_wasm) return;
 
@@ -345,6 +350,7 @@ pub fn build(b: *std.Build) void {
             },
         }),
     });
+    if (keep_names) rom_chip.root_module.strip = false;
     rom_chip.entry = .disabled;
     rom_chip.rdynamic = true;
     rom_chip.import_memory = true;
@@ -537,6 +543,7 @@ pub fn build(b: *std.Build) void {
                 },
             }),
         });
+        if (keep_names) exe.root_module.strip = false;
         exe.entry = .disabled;
         exe.rdynamic = true;
         exe.import_memory = true;

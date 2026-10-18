@@ -312,6 +312,8 @@ gate replicants_garfield node apps/replicants_garfield_headless.mjs "$SHOTS/repl
 gate replicants_garfield node apps/replicants_garfield_headless.mjs --break noclear "$SHOTS/replicants_garfield"   # ...and a border that is never painted per line is caught
 gate_timed tsl_hybridglenz node apps/tsl_hybridglenz_headless.mjs "$SHOTS/tsl_hybridglenz"   # HYBRID GLENZ: the blitter's OR minterm really makes 1|2=3 in the panel, the two objects interlace onto odd/even plane rows and morph apart, the square flies in and dissolves into the framed panel, the three text overlays and the logo's white flash are palette fades, the bar and scroller run the full raster
 gate_timed tsl_hybridglenz node apps/tsl_hybridglenz_headless.mjs --break spin "$SHOTS/tsl_hybridglenz"   # ...and objects that never turn is caught
+gate mandelbrot node apps/mandelbrot_headless.mjs   # MANDELBROT: the f32 default draws a real fractal top to bottom, F switches the escape loop LIVE to Q5.27 integers (a picture a rounding apart from the f32 one), F twice is the f32 picture again
+gate mandelbrot node apps/mandelbrot_headless.mjs --break fkey   # ...and an F that never arrived is caught
 gate blitter node apps/blitter_headless.mjs "$SHOTS/blitter"   # BLITTER DEMO: key B draws all seven effects on the CPU with the blitter's exact pixels and palette, not one hwBlit() issued; the corner says BLITTER/CPU; B again returns, Escape asks for the menu
 gate blitter node apps/blitter_headless.mjs "$SHOTS/blitter" --break pixel   # ...and a CPU frame one pixel off is caught
 gate blitter node apps/blitter_headless.mjs "$SHOTS/blitter" --break nokey   # ...and a B that never arrived is caught
@@ -468,6 +470,16 @@ gate stniccc node apps/stniccc_headless.mjs "$SHOTS/stniccc"   # STNICCC 2000 (O
 gate cuddly_starwars node apps/cuddly_starwars_headless.mjs "$SHOTS/cuddly_starwars"   # CUDDLY STAR WARS: the harness existed but no gate ran it; fails on a refused zg.mem allocation
 gate ulm_spoon_distorter node apps/ulm_spoon_distorter_headless.mjs "$SHOTS/ulm_spoon_distorter"   # ULM SPOON DISTORTER: the harness existed but no gate ran it; fails on a refused zg.mem allocation
 gate tlb_spoon node apps/tlb_spoon_headless.mjs "$SHOTS/tlb_spoon"   # TLB TWIDDLE: the sine intro, then starballs + logo + the rotating-letter scroller
+gate perf_audit node apps/perf_audit_test.mjs   # the KESTREL perf suite: each bad pattern planted in a tiny cart is found statically and (dynamic ones) hot in a real run, the byte-loop clear first at ~2 Mc, the f64 loop first; each clean twin is not; the counts are deterministic
+gate perf_audit node apps/perf_audit_test.mjs --break bytefill   # ...and the byte-loop clear swapped for its memset twin fails the byte_fill checks
+gate perf_audit node apps/perf_audit_test.mjs --break f64        # ...and the f64 loop swapped for integer maths fails the f64 checks
+gate perf_audit node apps/perf_audit_test.mjs --break redundant  # ...and a static page redrawn every frame swapped for a changing one fails redundant_store
+gate perf_audit node apps/perf_audit_test.mjs --break clear      # ...and clear-then-redraw-the-same swapped for drawing only what changes fails clear_then_redraw
+gate perf_audit node apps/perf_audit_test.mjs --break static     # ...and a plane drawn once swapped for one that changes fails static_plane
+gate perf_audit node apps/perf_audit_test.mjs --break lines      # ...and one changed row a frame swapped for all rows fails the lines_changed count
+gate perf_audit node apps/perf_audit_test.mjs --break tiny       # ...and twenty 4x4 blits swapped for one big one fails tiny_blits
+gate perf_audit node apps/perf_audit_test.mjs --break scroll     # ...and a band shifted by the CPU swapped for a band redrawn with new content fails scroll_band
+gate perf_report sh tools/perf_audit.sh --report --jobs 2   # REPORT, never fails the gate: the shelf ranked by ESTIMATED Mc/frame on ZIGGY with each cart's first hot finding (JSON: zig-out/perf_audit.json)
 run_gates
 echo "shots in $SHOTS"
 

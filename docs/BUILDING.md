@@ -15,6 +15,7 @@ pushed without it. This page is how the gate stays fast without guaranteeing les
 | `./build.sh --only <tags>` | as above, harnesses picked by tag substring | ~1 min |
 | `./build.sh --fast` | wasm + disks + channels, **nothing checked** | seconds |
 | `git push` | the pre-push hook: stamp, selective or full (below) | 0 s / ~1 min / ~5 min |
+| `tools/perf_audit.sh <tag>` / `--all` | not a gate: a cart's estimated Mc/frame on KESTREL and its bad patterns ([PERF_AUDIT.md](PERF_AUDIT.md)); the gate prints the shelf's ranking as `perf_report` | ~1 s / ~45 s |
 
 Every build and every gate runs under the one lock, because two concurrent gates
 once OOM-killed a push on the 15 GB box:
