@@ -56,6 +56,7 @@ const logo_b = @embedFile("../assets/screens/stcs/logo.raw");
 // Variables
 // --------------------------------------------------------------------------
 const strip = @import("stcs_strip.zig");
+const letter_rows = @import("scrolltext_rows.zig");
 const ScrollerPeriods = strip.Period;
 var scroller_period: ScrollerPeriods = .threelines;
 
@@ -212,9 +213,10 @@ pub const Demo = struct {
         if (!self.logo_drawn) self.logo.render();
         self.logo_drawn = true;
 
-        // Word stores (@memset), not a byte loop: a quarter of the bus writes.
+        // Letters as whole-row copies: the library Sprite walked every pixel with
+        // a per-pixel clamp and divide (10,934 a frame). Word stores for the clear.
         @memset(&scroller_pixels, 0);
-        self.scrolltext.render();
+        letter_rows.draw(&self.scrolltext, &scroller_pixels, WIDTH, WIDTH, SCROLL_CHAR_WIDTH, SCROLL_CHAR_HEIGHT);
 
         // copy scrolltext to FB
         const fb = &zigos.lfbs[1];

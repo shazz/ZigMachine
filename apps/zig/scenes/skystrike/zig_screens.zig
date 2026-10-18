@@ -48,10 +48,16 @@ pub fn draw(ov: []u8) void {
     switch (hooks.screen) {
         .scene => {
             intro.draw(ov);
-            scroller.draw(ov, intro.H, mostly(p, scr.H - 1));
+            scroller.draw(ov, intro.H, mostly(p, scr.H - 1), intro.fresh);
         },
-        .hall => hall.draw(ov),
-        .picture => picture(ov, p),
+        .hall => {
+            intro.invalidate();
+            hall.draw(ov);
+        },
+        .picture => {
+            intro.invalidate();
+            picture(ov, p);
+        },
     }
 }
 
