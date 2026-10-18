@@ -66,14 +66,21 @@ var vertices = wf.vec4s(logo.verts.len, logo.verts);
 const STAR_BASE: u8 = 12; // + the star's speed 1..4
 const LOGO_INK: u8 = 17;
 
-var scroll_pixels = [_]u8{0} ** (WIDTH * SCROLL_CHAR_HEIGHT);
-var scroll_band: zg.RenderBuffer = .{ .buffer = &scroll_pixels, .width = WIDTH, .height = SCROLL_CHAR_HEIGHT };
-
-// The band over the plane from row `y`, index 0 left see-through.
-fn overlay(dst: [*]u8, y: u16) void {
-    const out = dst[@as(usize, y) * WIDTH ..][0 .. WIDTH * SCROLL_CHAR_HEIGHT];
-    for (out, &scroll_pixels) |*d, px| {
-        if (px != 0) d.* = px;
+// The scroller's letters go straight onto the plane, twice (top and bottom
+// band), as CHISEL cookie-cut blits from the font: index 0 is see-through, as
+// it was on the scroller's own plane. ZIGGY used to draw them a pixel at a time
+// into a 320x32 band and lay the band over the plane, about 0.8 Mc a frame of
+// byte stores; each letter is now one blit (11 a band). Same clamping as
+// Sprite.render() into a 320-wide band at y 0, so the same pixels.
+fn blitScroller(bl: *zg.Blitter, fb: *LogicalFB, st: anytype, y: i16) void {
+    for (&st.fonts) |*font| {
+        const x = font.sprite.x_position;
+        if (x >= WIDTH or x + SCROLL_CHAR_WIDTH < 0) continue;
+        const skip: u16 = if (x < 0) @intCast(-x) else 0;
+        const left: u16 = if (x < 0) 0 else @intCast(x);
+        const cols: u16 = @min(SCROLL_CHAR_WIDTH - skip, WIDTH - left);
+        if (cols == 0) continue;
+        bl.blitImage(fb, @intCast(left), y, font.sprite.data, SCROLL_CHAR_WIDTH, skip, 0, cols, SCROLL_CHAR_HEIGHT, 0);
     }
 }
 
@@ -91,6 +98,7 @@ pub const Demo = struct {
     projected_vertices: [logo.verts.len]Coord = undefined,
     angle_y: f32 = 0.0,
     angle_x: f32 = 0.0,
+    blitter: zg.Blitter = .{},
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
         Console.log("Demo init", .{});
@@ -106,6 +114,7 @@ pub const Demo = struct {
         // planes composed.
         const fb: *LogicalFB = &zigos.lfbs[0];
         fb.is_enabled = true;
+        self.blitter.init();
         fb.setPalette(font_pal);
         fb.setPaletteEntry(STAR_BASE + 4, Color{ .r = 0xF0, .g = 0xF0, .b = 0xF0, .a = 255 });
         fb.setPaletteEntry(STAR_BASE + 3, Color{ .r = 0xA0, .g = 0xA0, .b = 0xA0, .a = 255 });
@@ -124,8 +133,8 @@ pub const Demo = struct {
 
         for (&vertices) |*v| v.* = v.add(Vec4.new(-3.0, 0.50, 0.0, 0));
 
-        // the scroller draws into its own 320x32 band, laid over the plane twice
-        self.scrolltext = Scrolltext(NB_FONTS).init(.{ .render_buffer = &scroll_band }, fonts_b, SCROLL_CHARS, SCROLL_CHAR_WIDTH, SCROLL_CHAR_HEIGHT, SCROLL_TEXT, SCROLL_SPEED, 0, null, null, null);
+        // the scroller only keeps the letters' positions: render() blits them
+        self.scrolltext = Scrolltext(NB_FONTS).init(fb.getRenderTarget(), fonts_b, SCROLL_CHARS, SCROLL_CHAR_WIDTH, SCROLL_CHAR_HEIGHT, SCROLL_TEXT, SCROLL_SPEED, 0, null, null, null);
 
         Console.log("demo init done!", .{});
     }
@@ -152,16 +161,13 @@ pub const Demo = struct {
 
     pub fn render(self: *Demo, zigos: *ZigOS, elapsed_time: f32) void {
         const fb = &zigos.lfbs[0];
-        fb.clearFrameBuffer(0);
+        self.blitter.clear(fb, 0); // CHISEL fills the plane; ZIGGY stored 64,000 bytes
         self.starfield.render();
         wf.drawEdges(fb.getRenderTarget(), &logo.edges, &self.projected_vertices, LOGO_INK, shapes.drawLine);
 
-        // the scroller on top, at the top and again at the bottom: its index 0 is
-        // the see-through colour, as it was on its own plane
-        @memset(&scroll_pixels, 0);
-        self.scrolltext.render();
-        overlay(fb.fb[0..], 0);
-        overlay(fb.fb[0..], HEIGHT - SCROLL_CHAR_HEIGHT);
+        // the scroller on top, at the top and again at the bottom
+        blitScroller(&self.blitter, fb, &self.scrolltext, 0);
+        blitScroller(&self.blitter, fb, &self.scrolltext, HEIGHT - SCROLL_CHAR_HEIGHT);
 
         _ = elapsed_time;
     }
