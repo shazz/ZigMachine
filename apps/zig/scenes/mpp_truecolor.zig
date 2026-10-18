@@ -23,7 +23,7 @@
 //
 // Each picture and mode is a ZX0-packed blob (build.zig: packed_assets.mpp_truecolor).
 // Unpacked they overflow the 2 MB cart window, so the one on screen is depacked into
-// one working buffer per switch (mpp_truecolor/blob.zig); the HBL is one @memcpy.
+// one working buffer per switch (mpp_truecolor/blob.zig); the HBL stores only the entries that change.
 // --------------------------------------------------------------------------
 const std = @import("std");
 const zg = @import("zigos");
@@ -66,16 +66,29 @@ fn count(picture: usize, i: usize) u32 {
 // HBL handlers take no user pointer: the depacked view lives at module scope (empty: nothing loaded).
 var view: blob.View = .{ .map = &.{}, .idx = &.{}, .pal = &.{} };
 
-// Load this line's palette run for this plane: one copy, no conversion.
+// The record last loaded into each plane's palette: the same record again (GLOBAL mode: all
+// 180 lines) needs no compare at all. apply() forgets them, as it rewrites entries itself.
+var loaded: [PLANES]u64 = .{std.math.maxInt(u64)} ** PLANES;
+
+// Load this line's palette run for this plane, storing only the entries that change.
 fn hbl(fb: *LogicalFB, _: *ZigOS, line: u16, _: u16) void {
     if (line >= H or view.map.len == 0) return;
     const rec = view.map[(@as(usize, fb.id) * H + line) * MAP_REC ..][0..MAP_REC];
     const n: usize = std.mem.readInt(u16, rec[6..8], .little);
     if (n == 0) return;
+    const id: u64 = std.mem.readInt(u64, rec[0..8], .little);
+    if (loaded[fb.id] == id) return;
+    loaded[fb.id] = id;
     const off: usize = std.mem.readInt(u32, rec[0..4], .little);
     const first: usize = std.mem.readInt(u16, rec[4..6], .little);
-    const dst: [*]u8 = @ptrCast(fb.palette);
-    @memcpy(dst[first * 4 ..][0 .. n * 4], view.pal[off..][0 .. n * 4]);
+    // Only the entries that differ from what the palette holds: on the board every store
+    // is a bus write and a load is not, and GLOBAL mode reloads one palette on all 180 lines.
+    const src = view.pal[off..][0 .. n * 4];
+    const dst = fb.palette[first..][0..n];
+    for (dst, 0..) |*d, i| {
+        const v = std.mem.readInt(u32, src[i * 4 ..][0..4], .little);
+        if (d.* != v) d.* = v;
+    }
 }
 
 pub const Demo = struct {
@@ -141,6 +154,7 @@ pub const Demo = struct {
         view = blob.load(PACKED[self.picture][self.mode], m.planes, self.work) orelse
             return self.fail("depack failed");
         const lfbs = &self.os.lfbs;
+        loaded = .{std.math.maxInt(u64)} ** PLANES;
         for (lfbs, 0..) |*fb, p| {
             fb.is_enabled = p < m.planes;
             fb.setPaletteEntry(0, .{ .r = 0, .g = 0, .b = 0, .a = 0 });

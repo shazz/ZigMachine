@@ -61,7 +61,6 @@ const PW: i32 = zg.PHYSICAL_WIDTH; // 400
 const PH: i32 = zg.PHYSICAL_HEIGHT; // 280
 const BX: i32 = zg.HORIZONTAL_BORDERS_WIDTH; // 40 — visible window left edge
 const BY: i32 = zg.VERTICAL_BORDERS_HEIGHT; // 40 — visible window top edge
-const FB_LEN: usize = @as(usize, @intCast(PW)) * @as(usize, @intCast(PH));
 
 // music — "Mega 4", the YM6! register dump the CODEF screen plays. Shipped as
 // .ymraw because that is the extension the host's YM player is wired to; the
@@ -180,6 +179,7 @@ const FADE_STEP: f32 = 0.01;
 const BOB_LIMIT: i32 = 80; // 40 px, CODEF 80
 const BOB_STEP: i32 = 3; // 1.5 px, CODEF 3
 
+const Shown = enum { nothing, intro, main };
 const Phase = enum { fade_in, bounce, fade_out, main };
 
 // --------------------------------------------------------------------------
@@ -231,6 +231,11 @@ pub const Demo = struct {
     bob_y: i32 = 0, // doubled
     bob_inc: i32 = -BOB_STEP, // CODEF yyinc = -3: it rises first
 
+    // what the plane holds, so a frame repaints only what changed
+    shown: Shown = .nothing,
+    logo_x: i32 = 0, // where the intro's D.H.S. logo was drawn
+    logo_y: i32 = 0,
+
     pub fn init(self: *Demo, zigos: *ZigOS) void {
         Console.log("NOEXTRA init", .{});
 
@@ -259,6 +264,9 @@ pub const Demo = struct {
         self.bob_on = false;
         self.bob_y = 0;
         self.bob_inc = -BOB_STEP;
+        self.shown = .nothing;
+        self.logo_x = 0;
+        self.logo_y = 0;
     }
 
     pub fn update(self: *Demo, zigos: *ZigOS, elapsed_time: f32) void {
@@ -322,10 +330,16 @@ pub const Demo = struct {
         // the layout's top row in physical coordinates
         const top: i32 = BY + @divTrunc(self.bob_y, 2); // trunc, as the float cast was
 
-        var fb: *LogicalFB = &zigos.lfbs[0];
-        @memset(fb.fb[0..FB_LEN], 0);
+        const fb: *LogicalFB = &zigos.lfbs[0];
 
         if (self.phase == .main) {
+            // The band repaints its own rows edge to edge; the CHISEL blackens the rest
+            // (a CPU memset of the whole plane was 0.84 Mc, the fills are ~0.15).
+            const band_top: i32 = std.math.clamp(top + BAND_TOP, 0, PH);
+            const band_end: i32 = std.math.clamp(top + BAND_TOP + BAND_H, 0, PH);
+            self.fillRows(fb, 0, band_top);
+            self.fillRows(fb, band_end, PH);
+            self.shown = .main;
             // CODEF's own order: raster, gradient bars, logos, then the scroller
             // on top of everything.
             self.showFade(fb, 1.0);
@@ -340,8 +354,27 @@ pub const Demo = struct {
             // The canvas alpha is reproduced by scaling the palette, which over
             // a black ground is the same composite.
             self.showFade(fb, @min(self.fade, 1.0));
-            self.blitter.blitImage(fb, @intCast(BX + 160 - @divTrunc(DHS_W, 2)), @intCast(top + self.dhs_y - @divTrunc(DHS_H, 2)), dhs_b, @intCast(DHS_W), 0, 0, @intCast(DHS_W), @intCast(DHS_H), 0);
+            self.drawLogo(fb, BX + 160 - @divTrunc(DHS_W, 2), top + self.dhs_y - @divTrunc(DHS_H, 2));
         }
+    }
+
+    fn fillRows(self: *Demo, fb: *LogicalFB, from: i32, to: i32) void {
+        if (to > from) self.blitter.fill(fb, 0, @intCast(from), @intCast(PW), @intCast(to - from), 0);
+    }
+
+    /// The logo is keyed on black: moving it means blackening where it was, not the plane.
+    /// It sits still through the fades, and then nothing is repainted at all.
+    fn drawLogo(self: *Demo, fb: *LogicalFB, x: i32, y: i32) void {
+        if (self.shown == .intro) {
+            if (x == self.logo_x and y == self.logo_y) return;
+            self.blitter.fill(fb, @intCast(self.logo_x), @intCast(self.logo_y), @intCast(DHS_W), @intCast(DHS_H), 0);
+        } else {
+            self.fillRows(fb, 0, PH);
+        }
+        self.shown = .intro;
+        self.logo_x = x;
+        self.logo_y = y;
+        self.blitter.blitImage(fb, @intCast(x), @intCast(y), dhs_b, @intCast(DHS_W), 0, 0, @intCast(DHS_W), @intCast(DHS_H), 0);
     }
 
     // Re-writing the palette is pointless once the fade has settled, and `main`
@@ -364,16 +397,22 @@ pub const Demo = struct {
             const ur: u64 = @intCast(r);
             const shift = DIST_AMP_A * fx.sin(fx.hi(self.dist_a +% DIST_INC_A *% ur)) +
                 DIST_AMP_B * fx.sin(fx.hi(self.dist_b +% DIST_INC_B *% ur));
-            const row: usize = @as(usize, @intCast(py)) * @as(usize, @intCast(PW));
+            // four pixels a store: the plane is bus-bound on the board, one byte store each cost
+            // as much as a word. 400 columns and every row start are multiples of 4.
+            const words: [*]u32 = @ptrCast(@alignCast(fb.fb + @as(usize, @intCast(py)) * @as(usize, @intCast(PW))));
             var u: i32 = srcStartFx(shift);
-            var px: usize = 0;
-            while (px < @as(usize, @intCast(PW))) : (px += 1) {
-                // Widening past the original's 320 runs off the ends of the
-                // 640-wide source; hold the edge pixel rather than punch a
-                // moving black wedge into the side border (see the report).
-                const c: i32 = @min(@max(u >> 16, 0), RASTER_W - 1);
-                fb.fb[row + px] = raster_b[@intCast(c)];
-                u += SRC_STEP_FX;
+            var g: usize = 0;
+            while (g < @as(usize, @intCast(PW)) / 4) : (g += 1) {
+                var w: u32 = 0;
+                inline for (0..4) |k| {
+                    // Widening past the original's 320 runs off the ends of the
+                    // 640-wide source; hold the edge pixel rather than punch a
+                    // moving black wedge into the side border (see the report).
+                    const c: i32 = @min(@max(u >> 16, 0), RASTER_W - 1);
+                    w |= @as(u32, raster_b[@intCast(c)]) << (8 * k);
+                    u += SRC_STEP_FX;
+                }
+                words[g] = w;
             }
         }
     }

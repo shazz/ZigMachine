@@ -23,6 +23,9 @@ pub const H: usize = 200;
 
 /// Colour registers 0..15 on each physical line, as palette RGBA.
 pub var regs: [PH][16]u32 = undefined;
+/// The words every line of `regs` holds when they are all the same palette (setPalette's
+/// last, until a per-line write): a frame that loads the palette it already holds stores nothing.
+var uniform: ?[16]u16 = null;
 
 pub fn init(zigos: *ZigOS) *LogicalFB {
     const fb = &zigos.lfbs[0];
@@ -31,6 +34,7 @@ pub fn init(zigos: *ZigOS) *LogicalFB {
     fb.setFrameBufferHBLHandler(zg.OVERSCAN_MAGIC_X, hbl);
     zigos.setBackgroundColor(zg.Color{ .r = 0, .g = 0, .b = 0, .a = 255 });
     for (&regs) |*line| @memset(line, BLACK);
+    uniform = null;
     return fb;
 }
 
@@ -52,6 +56,8 @@ pub fn color(w: u16) u32 {
 
 /// The whole frame under one palette (what a VBL's palette load does).
 pub fn setPalette(words: *const [16]u16) void {
+    if (uniform) |u| if (std.mem.eql(u16, &u, words)) return;
+    uniform = words.*;
     var line: [16]u32 = undefined;
     for (&line, words) |*c, w| c.* = color(w);
     for (&regs) |*r| r.* = line;
@@ -59,6 +65,7 @@ pub fn setPalette(words: *const [16]u16) void {
 
 /// All sixteen registers loaded on ST line `y`, held to the end of the frame.
 pub fn setPaletteFrom(y: usize, words: *const [16]u16) void {
+    uniform = null;
     var line: [16]u32 = undefined;
     for (&line, words) |*c, w| c.* = color(w);
     for (regs[y + OY ..]) |*r| r.* = line;
@@ -67,6 +74,7 @@ pub fn setPaletteFrom(y: usize, words: *const [16]u16) void {
 /// Register `reg` holds `w` from ST line `y` down to the end of the frame, as a
 /// Timer B write does until the next VBL reloads the palette.
 pub fn setFrom(y: usize, reg: usize, w: u16) void {
+    uniform = null;
     const c = color(w);
     for (regs[y + OY ..]) |*r| r[reg] = c;
 }
@@ -74,6 +82,7 @@ pub fn setFrom(y: usize, reg: usize, w: u16) void {
 /// Register `reg` holds `w` on ST line `y` only (a Timer B write the next
 /// line's overwrites).
 pub fn set(y: usize, reg: usize, w: u16) void {
+    uniform = null;
     regs[y + OY][reg] = color(w);
 }
 
@@ -93,6 +102,11 @@ pub fn copyRows(fb: *LogicalFB, pic: *const [W * H]u8, from: usize, to: usize, n
 
 pub fn clear(fb: *LogicalFB) void {
     @memset(fb.fb[0 .. PW * PH], 0);
+}
+
+/// Blank screen lines y..y+n (the 320 columns the picture lives in; past line 199 nothing).
+pub fn clearRows(fb: *LogicalFB, y: usize, n: usize) void {
+    for (y..@min(y + n, H)) |l| @memset(row(fb, l), 0);
 }
 
 /// Sixteen pixels' worth of one bitplane word: OR bit `plane` into each pixel
