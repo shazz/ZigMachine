@@ -16,6 +16,7 @@ const zg = @import("zigos");
 const A = @import("assets.zig");
 const M = @import("motion.zig");
 const cd = zg.chrome_draw;
+const edges_of = @import("runs.zig");
 
 /// Most colours a line needs: 56 over 3000 frames of the Chrome-exact replay.
 pub const Palette = zg.LinePalette(80);
@@ -30,28 +31,41 @@ const Layers = struct { back: ?cd.Taps, overs: [2]?cd.Taps, raster: ?u32 };
 /// What a pixel is made of: the back taps, the overlay taps, a letter or not.
 const Sample = struct { back: [2]u8, over: [4]u8, ink: bool };
 
-pub fn drawFrame(dst: zg.blit.Dst, img: *const A.Images, m: *const M.Motion, pal: *Palette) void {
+pub fn drawFrame(dst: zg.blit.Dst, img: *const A.Images, edges: *const edges_of.Edges, m: *const M.Motion, pal: *Palette) void {
     const ys = m.backCopies();
-    for (0..A.H) |y| drawRow(dst.buf[y * dst.stride ..][0..A.W], y, img, m, &ys, pal);
+    for (0..A.H) |y| drawRow(dst.buf[y * dst.stride ..][0..A.W], y, img, edges, m, &ys, pal);
 }
 
-fn drawRow(row: *[A.W]u8, y: usize, img: *const A.Images, m: *const M.Motion, ys: *const [3]cd.Fy, pal: *Palette) void {
+fn drawRow(row: *[A.W]u8, y: usize, img: *const A.Images, edges: *const edges_of.Edges, m: *const M.Motion, ys: *const [3]cd.Fy, pal: *Palette) void {
     const cy: u16 = @intCast(2 * y);
     const l = layersAt(img, m, ys, cy);
-    var ink = [_]bool{false} ** A.W;
+    var ink: edges_of.Mask = [_]u32{0} ** edges_of.WORDS;
+    var chg: edges_of.Mask = [_]u32{0} ** edges_of.WORDS;
     if (l.raster != null) markInk(&ink, img, m, @as(i32, cy) - SCROLL_Y);
-    pal.beginRow(y);
-    var last_key: u32 = std.math.maxInt(u32);
-    var entry: u8 = 0;
-    for (row, 0..) |*px, x| {
-        const s = sample(img, l, ink[x], x);
-        const key = keyOf(s);
-        if (key != last_key) {
-            entry = pal.entry(colour(img, l, s));
-            last_key = key;
-        }
-        px.* = entry;
+    edges_of.orInkEdges(&chg, &ink);
+    if (l.back) |t| {
+        edges_of.orInto(&chg, &edges.back[t.top >> 1]);
+        edges_of.orInto(&chg, &edges.back[t.bottom >> 1]);
     }
+    for (l.overs) |over| {
+        const t = over orelse continue;
+        edges_of.orInto(&chg, &edges.overlay[t.top >> 1]);
+        edges_of.orInto(&chg, &edges.overlay[t.bottom >> 1]);
+    }
+    chg[0] |= 1; // the first pixel always starts a run
+    pal.beginRow(y);
+    var start: usize = 0;
+    var entry: u8 = 0;
+    for (chg, 0..) |word, wi| {
+        var w = word;
+        while (w != 0) : (w &= w - 1) {
+            const x = wi * 32 + @ctz(w);
+            if (x != 0) @memset(row[start..x], entry);
+            entry = pal.entry(colour(img, l, sample(img, l, edges_of.bit(&ink, x), x)));
+            start = x;
+        }
+    }
+    @memset(row[start..], entry);
 }
 
 fn layersAt(img: *const A.Images, m: *const M.Motion, ys: *const [3]cd.Fy, cy: u16) Layers {
@@ -78,7 +92,7 @@ fn rasterAt(img: *const A.Images, m: *const M.Motion, s: i32) u32 {
 }
 
 /// The columns of scroll-canvas row `s` (even) that a letter's ink covers.
-fn markInk(ink: *[A.W]bool, img: *const A.Images, m: *const M.Motion, s: i32) void {
+fn markInk(ink: *edges_of.Mask, img: *const A.Images, m: *const M.Motion, s: i32) void {
     const glyph_row: usize = @intCast(@divExact(s, 2));
     for (m.ring.x, m.ring.c) |pos, ch| {
         if (pos >= 2 * W_I or pos + M.TILE_W <= 0) continue;
@@ -87,7 +101,7 @@ fn markInk(ink: *[A.W]bool, img: *const A.Images, m: *const M.Motion, s: i32) vo
             const cols = zg.spanfont.halfColumns(pos, run);
             const x0: usize = @intCast(std.math.clamp(cols[0], 0, W_I));
             const x1: usize = @intCast(std.math.clamp(cols[1], 0, W_I));
-            if (x1 > x0) @memset(ink[x0..x1], true);
+            if (x1 > x0) edges_of.setRange(ink, x0, x1);
         }
     }
 }
@@ -101,12 +115,6 @@ fn sample(img: *const A.Images, l: Layers, ink: bool, x: usize) Sample {
         s.over[2 * k + 1] = img.overlay[(t.bottom >> 1) * A.W + x];
     }
     return s;
-}
-
-fn keyOf(s: Sample) u32 {
-    var k: u32 = @as(u32, s.back[0]) | (@as(u32, s.back[1]) << 2) | (@as(u32, @intFromBool(s.ink)) << 4);
-    for (s.over, 0..) |o, i| k |= @as(u32, o) << @intCast(5 + 3 * i);
-    return k;
 }
 
 fn colour(img: *const A.Images, l: Layers, s: Sample) u32 {
