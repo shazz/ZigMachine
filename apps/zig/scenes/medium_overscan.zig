@@ -27,6 +27,7 @@ const PERIOD = 78;
 // that a pitch-1 blit (row y starts one pixel after row y-1) can read the whole
 // raster: first column = the phase (< PERIOD) + the last row (RH) + the row (RW).
 const RAINBOW: [PERIOD + RH + RW]u8 = blk: {
+    @setEvalBranchQuota(10_000);
     var t: [PERIOD + RH + RW]u8 = undefined;
     for (&t, 0..) |*v, i| v.* = @intCast(@divFloor(@as(i32, @intCast(i % PERIOD)), 6) + 3);
     break :blk t;
@@ -68,26 +69,37 @@ pub const Demo = struct {
         var rows = Rows.open(fb, 1, null);
         const x1: u16 = RW - 1; // the frame's own pixels stay
         const y1: u16 = RH - 1;
-        band(&rows, s0, 1, 1, x1 - 1, BY - 1); // top
-        band(&rows, s0, 1, BY + VH, x1 - 1, y1 - (BY + VH)); // bottom
-        band(&rows, s0, 1, BY, BX - 1, VH); // left
-        band(&rows, s0, BX + VW, BY, x1 - (BX + VW), VH); // right
+        // The blitter clips this 800-stride plane to 200 rows, so the bands are
+        // cut at row 200 and the lower part is drawn from a second base.
+        band(&rows, s0, 1, 1, 0, x1 - 1, BY - 1); // top
+        band(&rows, s0, 1, BY, 0, BX - 1, 200 - BY); // left, upper
+        band(&rows, s0, BX + VW, BY, 0, x1 - (BX + VW), 200 - BY); // right, upper
+        rows.destRow(fb, 200);
+        band(&rows, s0, 1, 200, 200, BX - 1, BY + VH - 200); // left, lower
+        band(&rows, s0, BX + VW, 200, 200, x1 - (BX + VW), BY + VH - 200); // right, lower
+        band(&rows, s0, 1, BY + VH, 200, x1 - 1, y1 - (BY + VH)); // bottom
     }
 
-    fn band(rows: *Rows, s0: usize, x: u16, y: u16, w: u16, h: u16) void {
-        rows.blit(@intFromPtr(&RAINBOW) + s0 + y + x, @intCast(x), @intCast(y), w, h);
+    // One band at plane (x,y), `base` the row the destination starts at.
+    fn band(rows: *Rows, s0: usize, x: u16, y: u16, base: u16, w: u16, h: u16) void {
+        rows.blit(@intFromPtr(&RAINBOW) + s0 + y + x, @intCast(x), @intCast(y - base), w, h);
     }
 
     // The dark visible window and the bright frame at the very physical edge
-    // (only overscan can reach it): constant, drawn once.
+    // (only overscan can reach it): constant, drawn once (by the CPU: the
+    // blitter cannot reach rows 200+ of this plane from its own base, see paint).
     fn drawStatic(fb: *LogicalFB) void {
-        var bl: zg.Blitter = undefined;
-        bl.init();
-        bl.fill(fb, 0, 0, RW, RH, 0);
-        bl.fill(fb, 0, 0, RW, 1, 2);
-        bl.fill(fb, 0, RH - 1, RW, 1, 2);
-        bl.fill(fb, 0, 0, 1, RH, 2);
-        bl.fill(fb, RW - 1, 0, 1, RH, 2);
+        fb.clearFrameBuffer(0);
+        var x: u16 = 0;
+        while (x < RW) : (x += 1) {
+            fb.setPixelValue(x, 0, 2);
+            fb.setPixelValue(x, RH - 1, 2);
+        }
+        var y: u16 = 0;
+        while (y < RH) : (y += 1) {
+            fb.setPixelValue(0, y, 2);
+            fb.setPixelValue(RW - 1, y, 2);
+        }
     }
 
     pub fn render(self: *Demo, os: *ZigOS, dt: f32) void {

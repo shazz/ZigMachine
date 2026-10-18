@@ -43,6 +43,15 @@ pub const Rows = struct {
         return r;
     }
 
+    /// Aim the destination at row `row0` of the plane: `blit`'s dy is then
+    /// relative to it. The blitter clips a stride-800 (medium overscan) plane
+    /// to 200 rows, so rows beyond are reached through a second base.
+    pub fn destRow(self: *Rows, fb: *zg.LogicalFB, row0: u16) void {
+        const at = @intFromPtr(fb.fb) - self.base + @as(usize, row0) * fb.stride;
+        self.w32(hw.BLIT_D_BASE, @intCast(at));
+        self.y0 = -1;
+    }
+
     /// Copy the w x h block at `src` (cart RAM address) to (dx,dy) of the plane.
     pub fn blit(self: *Rows, src: usize, dx: i16, dy: i16, w: u16, h: u16) void {
         self.w32(hw.BLIT_B_BASE, @intCast(src));
