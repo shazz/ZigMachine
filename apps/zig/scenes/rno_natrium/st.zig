@@ -65,29 +65,47 @@ pub fn fromIlbm(dst: *Screen, body: []const u8, row0: usize, rows: usize) void {
     }
 }
 
-/// Byte -> eight pixel bytes (bit 7 = leftmost), as a little-endian u64.
-const spread: [256]u64 = blk: {
+/// Byte -> eight pixel bytes (bit 7 = leftmost), as two little-endian u32
+/// halves: spread_lo is pixels 0..3, spread_hi pixels 4..7. (One u64 table was
+/// two-word maths on rv32, and its `writeInt` into a byte slice compiled to
+/// eight byte stores: 64,000 bus writes a frame.)
+const spread_lo: [256]u32 = spreadTable(0);
+const spread_hi: [256]u32 = spreadTable(4);
+
+fn spreadTable(comptime first: usize) [256]u32 {
     @setEvalBranchQuota(10000);
-    var t: [256]u64 = undefined;
+    var t: [256]u32 = undefined;
     for (0..256) |b| {
-        var v: u64 = 0;
-        for (0..8) |k| v |= @as(u64, (b >> (7 - k)) & 1) << @intCast(8 * k);
+        var v: u32 = 0;
+        for (0..4) |k| v |= @as(u32, (b >> @intCast(7 - first - k)) & 1) << @intCast(8 * k);
         t[b] = v;
     }
-    break :blk t;
-};
+    return t;
+}
 
 /// The shifter: planes -> palette index p0 + 2p1 + 4p2 + 8p3, 320 x 200.
+/// Eight pixels are two aligned u32 stores when the plane allows it.
 pub fn toChunky(s: *const Screen, out: []u8, stride: usize) void {
+    const aligned = @intFromPtr(out.ptr) & 3 == 0 and stride & 3 == 0;
     for (0..200) |y| {
         const line = s[y * LINE ..][0..LINE];
         const row = out[y * stride ..][0..320];
         for (0..20) |g| {
             const w = line[g * 8 ..][0..8];
             inline for (0..2) |half| {
-                const v = spread[w[half]] | (spread[w[2 + half]] << 1) |
-                    (spread[w[4 + half]] << 2) | (spread[w[6 + half]] << 3);
-                std.mem.writeInt(u64, row[g * 16 + half * 8 ..][0..8], v, .little);
+                const lo = spread_lo[w[half]] | (spread_lo[w[2 + half]] << 1) |
+                    (spread_lo[w[4 + half]] << 2) | (spread_lo[w[6 + half]] << 3);
+                const hi = spread_hi[w[half]] | (spread_hi[w[2 + half]] << 1) |
+                    (spread_hi[w[4 + half]] << 2) | (spread_hi[w[6 + half]] << 3);
+                const at = g * 16 + half * 8;
+                if (aligned) {
+                    const wp: [*]u32 = @ptrCast(@alignCast(row.ptr));
+                    wp[at / 4] = lo;
+                    wp[at / 4 + 1] = hi;
+                } else {
+                    std.mem.writeInt(u32, row[at..][0..4], lo, .little);
+                    std.mem.writeInt(u32, row[at + 4 ..][0..4], hi, .little);
+                }
             }
         }
     }
