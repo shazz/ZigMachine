@@ -37,7 +37,6 @@ const SCROLL_POS = 169;
 // palettes
 const font_pal = convertU8ArraytoColors(@embedFile("../assets/screens/reps4/fonts_pal.dat"));
 const back_top_pal = convertU8ArraytoColors(@embedFile("../assets/screens/reps4/back_top_pal.dat"));
-const back_mask_pal = convertU8ArraytoColors(@embedFile("../assets/screens/reps4/back_mask_pal.dat"));
 const fonts_mask_pal = convertU8ArraytoColors(@embedFile("../assets/screens/reps4/fonts_mask_pal.dat"));
 
 // rasters
@@ -62,10 +61,24 @@ const logo_b = @embedFile("../assets/screens/reps4/logo.raw");
 // one load/store per 4 pixels instead of per byte through a byte-aligned embed.
 const MASK_FIRST: usize = (SCROLL_POS - 159) * WIDTH;
 const MASK_WORDS: usize = WIDTH * SCROLL_CHAR_HEIGHT / 4;
+// back_mask.raw (the bottom picture's foreground, drawn ABOVE the scroller) is folded
+// in too: where it is opaque the mask byte is 0, so the scroller is transparent there
+// and plane 0 shows through. Every opaque back_mask pixel has exactly the colour of
+// the back_bottom pixel under it (same RGB, other index), so the composed frame is
+// the same (the logo plane between them never reaches row 146) and the mask needs no
+// plane of its own: one FRESCO pass, ~0.8 Mc a frame, saved.
+const BACK_MASK_FIRST: usize = (SCROLL_POS - BACK_BOTTOM_Y) * WIDTH;
+const BACK_BOTTOM_Y: usize = 200 - 54;
 const mask_words: [MASK_WORDS]u32 = blk: {
-    @setEvalBranchQuota(20_000);
+    @setEvalBranchQuota(100_000);
     var w: [MASK_WORDS]u32 = undefined;
-    for (&w, 0..) |*x, i| x.* = std.mem.readInt(u32, fonts_mask_b[MASK_FIRST + i * 4 ..][0..4], .little);
+    for (&w, 0..) |*x, i| {
+        var bytes: [4]u8 = fonts_mask_b[MASK_FIRST + i * 4 ..][0..4].*;
+        for (&bytes, 0..) |*b, k| {
+            if (back_bottom_mask_b[BACK_MASK_FIRST + i * 4 + k] != 0) b.* = 0;
+        }
+        x.* = std.mem.readInt(u32, &bytes, .little);
+    }
     break :blk w;
 };
 
@@ -138,7 +151,6 @@ pub const Demo = struct {
     scrolltext: Scrolltext(NB_FONTS) = undefined,
     back_top: Sprite = undefined,
     back_bottom: Sprite = undefined,
-    back_bottom_mask: Sprite = undefined,
     logo: Sprite = undefined,
     logo_offset_table: [256]i16 = undefined,
     table_index: u16 = 0,
@@ -208,13 +220,8 @@ pub const Demo = struct {
         fb.setPaletteEntry(0, Color{ .r = 0, .g = 0, .b = 0, .a = 0 }); 
         self.scrolltext = Scrolltext(NB_FONTS).init(fb.getRenderTarget(), fonts_b, SCROLL_CHARS, SCROLL_CHAR_WIDTH, SCROLL_CHAR_HEIGHT, SCROLL_TEXT, SCROLL_SPEED, SCROLL_POS, null, null, null);
 
-        fb = &zigos.lfbs[3];
-        fb.is_enabled = true; 
-        fb.setPalette(back_mask_pal);
-        fb.setPaletteEntry(0, Color{ .r = 0, .g = 0, .b = 0, .a = 0 }); 
-        fb.setPaletteEntry(255, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });       
-        self.back_bottom_mask.init(fb.getRenderTarget(), back_bottom_mask_b, 320, 53, 0, 200-54, null, null); 
-        self.back_bottom_mask.render(null); // static and never cleared: once is enough
+        // No fourth plane: back_mask.raw lives in mask_words (see there).
+        zigos.lfbs[3].is_enabled = false;
 
         self.table_index = 0;
 
