@@ -58,6 +58,44 @@ const grid_b = @embedFile("../assets/screens/ics/grid_large.raw");
 // --------------------------------------------------------------------------
 var raster_index: u8 = 0;
 
+// The scroller's letters are drawn into this strip first. The wave moves a letter
+// at most 39 rows down (the sine table's peak), so nothing below row 54 is ever
+// drawn: the strip is 56 rows, not the 200 of the plane (it used to be cleared,
+// copied onto itself and copied to the plane, all whole).
+const TEXT_ROWS = 56;
+const ROW_WORDS = WIDTH / 4;
+var text_strip: [WIDTH * TEXT_ROWS]u8 align(4) = undefined;
+var strip_buffer: RenderBuffer = .{ .buffer = &text_strip, .width = WIDTH, .height = TEXT_ROWS };
+// G[b]: strip rows b, b+16, b+32, b+48 merged, the topmost opaque pixel winning.
+var merged: [16][ROW_WORDS]u32 = undefined;
+// The grid sprite's offset, from the cart's own wobble (always -32..-1 each way).
+var grid_dx: i32 = -32;
+var grid_dy: i32 = -32;
+const GRID_W = 384;
+const SCROLL_TOP = 32; // the plane's first row shows scroll row 32
+const SCROLL_PLANE_ROWS = 200 - SCROLL_TOP; // the rows of the plane the scroller writes
+
+/// 0xFF in every byte of `w` that is not 0.
+inline fn opaqueBytes(w: u32) u32 {
+    const high = (((w & 0x7f7f7f7f) +% 0x7f7f7f7f) | w) & 0x80808080;
+    return (high >> 7) * 0xFF;
+}
+
+/// Strip rows base, base+16, ... up to `last`, merged into `out`: each pixel is
+/// the first non-zero one going down the chain. That is what copying every
+/// non-zero pixel 16 rows down, row after row (the 'copy 9 times' pass), left.
+fn mergeChain(out: *[ROW_WORDS]u32, base: usize, last: usize) void {
+    const words: *const [TEXT_ROWS * ROW_WORDS]u32 = @ptrCast(&text_strip);
+    for (out, 0..) |*o, i| {
+        var acc: u32 = 0; // kept in a register: `out` may be the plane, a store each
+        var row = base;
+        while (row <= last and row < TEXT_ROWS) : (row += 16) {
+            acc |= words[row * ROW_WORDS + i] & ~opaqueBytes(acc);
+        }
+        o.* = acc;
+    }
+}
+
 // --------------------------------------------------------------------------
 // Demo
 // --------------------------------------------------------------------------
@@ -101,9 +139,8 @@ pub const Demo = struct {
         // HBL Handler for the raster effect
         fb.setFrameBufferHBLHandler(0, handler_scroller);        
 
-        var buffer = [_]u8{0} ** (WIDTH * HEIGHT); 
-        var render_buffer: RenderBuffer = .{ .buffer = &buffer, .width = WIDTH, .height = HEIGHT };  
-        self.scroller_target = .{ .render_buffer = &render_buffer };   
+        @memset(&text_strip, 0);
+        self.scroller_target = .{ .render_buffer = &strip_buffer };
         self.scrolltext = Scrolltext(NB_FONTS).init(self.scroller_target, fonts_b, SCROLL_CHARS, SCROLL_CHAR_WIDTH, SCROLL_CHAR_HEIGHT, SCROLL_TEXT, SCROLL_SPEED, 0, null, &g_y_offset_table_b, false);
 
         // second plane
@@ -130,6 +167,10 @@ pub const Demo = struct {
             fb.fb[i] = 0;
         }
 
+        // The logo never moves and nothing else draws on this plane (the clears
+        // above ran first, so they cannot erase it): drawn once, not every frame.
+        self.logo.render(null);
+
         self.sin_counter = 0;
 
         Console.log("demo init done!", .{});
@@ -138,7 +179,6 @@ pub const Demo = struct {
     pub fn update(self: *Demo, zigos: *ZigOS, elapsed_time: f32) void {
 
         self.scrolltext.update();
-        self.logo.update(null, null, null, null);
 
         // sin/cos(-counter) * 32 * 3.2, truncated: 102.4 in Q16.16 is 6710886
         const neg = 0 -% self.sin_counter;
@@ -148,6 +188,8 @@ pub const Demo = struct {
         const delta_y = -32 + @mod(f_cos, 32);
 
         self.grid.update(delta_x, delta_y, null, null);
+        grid_dx = delta_x;
+        grid_dy = delta_y;
 
         self.sin_counter +%= zg.fixtrig.angle(0.034);
         _ = zigos;
@@ -156,36 +198,45 @@ pub const Demo = struct {
 
     pub fn render(self: *Demo, zigos: *ZigOS, elapsed_time: f32) void {
 
-        // clear the render target
         self.scroller_target.clearFrameBuffer(0);
-
         self.scrolltext.render();
+        renderScroller(&zigos.lfbs[0]);
+        renderGrid(&zigos.lfbs[1]);
 
-        // copy scrolltext 9 times in the rendertarget
-        var i: u16 = 0;
-        const width: u16 = self.scroller_target.render_buffer.width;
-        const height: u16 = self.scroller_target.render_buffer.height-SCROLL_CHAR_HEIGHT;
-
-        while(i < width * height) : ( i += 1){
-            const pix_entry = self.scroller_target.render_buffer.buffer[i];
-            if (pix_entry != 0) {
-                self.scroller_target.render_buffer.buffer[i + (16*1 * width)] = pix_entry;
-            }
-        }
-
-        // copy the rendertarget to the fb
-        var fb = &zigos.lfbs[0];
-        i = 0;
-        while(i < self.scroller_target.render_buffer.buffer.len - (32*width)) : (i += 1) {
-            fb.fb[i] = self.scroller_target.render_buffer.buffer[i + (32*width)];
-        }
-
-        self.grid.target.clearFrameBuffer(0);
-        self.grid.render(null);
-
-        self.logo.render(null);        
-  
         _ = elapsed_time;
 
     } 
 };
+
+/// Plane 0 = scroll rows 32.. of the strip once every non-zero pixel has been
+/// copied 16 rows down, over and over. Rows from 54 down are the same 16 merged
+/// rows repeating, so those are merged once a frame and copied.
+fn renderScroller(fb: *LogicalFB) void {
+    for (&merged, 0..) |*g, b| mergeChain(g, b, TEXT_ROWS - 1);
+    const out: [*]u32 = @ptrCast(@alignCast(fb.fb.ptr));
+    for (0..SCROLL_PLANE_ROWS) |k| {
+        const row = k + SCROLL_TOP;
+        const dst = out[k * ROW_WORDS ..][0..ROW_WORDS];
+        if (row >= TEXT_ROWS - 1) {
+            dst.* = merged[row % 16];
+        } else {
+            mergeChain(dst, row % 16, row);
+        }
+    }
+}
+
+/// Plane 1 = the 384x288 grid seen through a 320x200 window at (-dx, -dy): what
+/// the sprite's clipped, transparent-skipping draw over a cleared plane left.
+fn renderGrid(fb: *LogicalFB) void {
+    const x0: usize = @intCast(-grid_dx);
+    const y0: usize = @intCast(-grid_dy);
+    const out: [*]u32 = @ptrCast(@alignCast(fb.fb.ptr));
+    for (0..200) |y| {
+        const src = grid_b[(y + y0) * GRID_W + x0 ..][0..WIDTH];
+        const dst = out[y * ROW_WORDS ..][0..ROW_WORDS];
+        for (dst, 0..) |*w, i| {
+            const j = i * 4;
+            w.* = @as(u32, src[j]) | @as(u32, src[j + 1]) << 8 | @as(u32, src[j + 2]) << 16 | @as(u32, src[j + 3]) << 24;
+        }
+    }
+}
