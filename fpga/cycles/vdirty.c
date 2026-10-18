@@ -22,6 +22,8 @@ typedef struct {
 } pcfg;
 
 typedef struct {
+    uint8_t rows[ZM_NB_PLANES][H][ROWMAX]; /* first: 32-byte aligned rows (cmpcpy's blocks) */
+    uint32_t pal[ZM_NB_PLANES][ZM_PAL_ENTRIES];
     uint32_t ver[H];      /* each line's input version */
     uint32_t built[2][H]; /* version + 1 each picture's row was built from, 0 = none */
     uint32_t bg[H];
@@ -33,11 +35,9 @@ typedef struct {
     uint8_t fresh[ZM_NB_PLANES];  /* this frame: rows[p] are refilled, every covered line is new */
     unsigned rows_on;             /* this frame: the planes whose rows vd_line compares */
     const uint8_t* src[ZM_NB_PLANES][H]; /* this frame: where each line's fetch starts */
-    uint32_t pal[ZM_NB_PLANES][ZM_PAL_ENTRIES];
-    uint8_t rows[ZM_NB_PLANES][H][ROWMAX];
 } vd_state;
 
-static vd_state s;
+static vd_state s __attribute__((aligned(32)));
 vd_stats vd;
 
 static uint32_t rd(const vd_frame* fr, uint32_t off, int n) {
@@ -72,27 +72,31 @@ static const uint8_t* fetch(const vd_frame* fr, int p, const pcfg* c, uint32_t y
     return at + c->len <= fr->mem_size ? fr->mem + at : 0;
 }
 
-/* dst := src; whether they differed. Aligned rows go 32 bytes at a time into
+/* dst := src; whether they differed. Word-aligned rows go 32 bytes at a time into
  * registers: the board's D$ is direct-mapped, and the source and its copy can
- * share a set, so word-by-word they would evict each other on every load. */
+ * share a set, so word by word they would evict each other on every load. */
 static int cmpcpy(uint8_t* dst, const uint8_t* src, uint32_t n) {
-    if (((uintptr_t)src | (uintptr_t)dst | n) & 31) {
+    if (((uintptr_t)src | (uintptr_t)dst | n) & 3) {
         if (!memcmp(dst, src, n)) return 0;
         memcpy(dst, src, n);
         return 1;
     }
     const uint32_t* a = (const uint32_t*)src;
     uint32_t* b = (uint32_t*)dst;
-    for (uint32_t i = 0; i < n / 4; i += 8) {
+    uint32_t i = 0, nw = n / 4;
+    for (; i + 8 <= nw; i += 8) {
         uint32_t a0 = a[i], a1 = a[i + 1], a2 = a[i + 2], a3 = a[i + 3];
         uint32_t a4 = a[i + 4], a5 = a[i + 5], a6 = a[i + 6], a7 = a[i + 7];
+        __asm__ volatile("" ::: "memory"); /* the source's block is in registers before its copy is read */
         if ((a0 ^ b[i]) | (a1 ^ b[i + 1]) | (a2 ^ b[i + 2]) | (a3 ^ b[i + 3]) | (a4 ^ b[i + 4]) | (a5 ^ b[i + 5]) |
-            (a6 ^ b[i + 6]) | (a7 ^ b[i + 7])) {
-            memcpy(b + i, a + i, n - 4 * i);
-            return 1;
-        }
+            (a6 ^ b[i + 6]) | (a7 ^ b[i + 7]))
+            break;
     }
-    return 0;
+    for (; i < nw && a[i] == b[i]; i++) {
+    }
+    if (i == nw) return 0;
+    memcpy(b + i, a + i, 4 * (nw - i));
+    return 1;
 }
 
 void vd_unknown(void) {

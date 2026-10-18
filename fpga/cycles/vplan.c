@@ -61,6 +61,10 @@ static int decide(int y) {
 }
 
 int vplan_frame(struct w2c_env* e, unsigned enabled, int full) {
+#ifdef ZM_NO_VPLAN /* the baseline: every line of every layer, the sequencer as it was */
+    (void)e, (void)enabled, (void)full;
+    return 1;
+#endif
     vd_frame fr = {e->memory.data, (uint32_t)e->memory.size, enabled, vseq_rec.fill, vseq_rec.bg, vseq_rec.beam};
     zmv_flush_dcache(); /* plane rows the blitter wrote behind the D$, and the pictures' */
     uint32_t t0 = board_cycles();
