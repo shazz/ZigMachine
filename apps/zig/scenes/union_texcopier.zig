@@ -62,11 +62,15 @@ pub const Demo = struct {
     copier: Copier,
     space: bool, // 'enter' pressed since the last update
     leave: bool,
+    blitter: zg.Blitter,
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
         self.phase = .loading;
         self.space = false;
         self.leave = false;
+        self.blitter = .{};
+        self.blitter.init();
+        draw.reset();
         self.copier.init();
         // On zg.mem, taken once: init runs once per cart load.
         const buf = zg.mem.alloc(u8, A.TOTAL) orelse return self.abandon("no free RAM to depack into");
@@ -92,14 +96,15 @@ pub const Demo = struct {
         if (self.phase != .running or self.leave) return;
         const fb = &zigos.lfbs[0];
         const dst = blit.Dst.plane(fb);
-        draw.clear(dst);
+        // Everything but the text line is static (colour 0 fill, the panel; the
+        // rasters are palette writes): only the line's rows are cleared and redrawn.
+        self.blitter.fill(fb, 0, draw.TEXT_TOP, zg.WIDTH, draw.TEXT_ROWS, raster.BG);
         draw.rasters(raster.background(fb), &self.copier, self.images.rasters);
         // The border is painted before the next frame's update: give it that
         // frame's windows. Keys never move the rasters, so `false` is exact.
         var next = self.copier;
         next.update(false);
         draw.rasters(raster.nextBorder(), &next, self.images.rasters);
-        draw.display(dst, self.images);
         draw.textLine(dst, &self.copier, self.images);
     }
 
@@ -128,6 +133,8 @@ pub const Demo = struct {
         fb.is_enabled = true;
         fb.setPalette(A.palette);
         raster.install(zigos, fb);
+        self.blitter.fill(fb, 0, 0, zg.WIDTH, zg.HEIGHT, raster.BG); // maincanvas.fill
+        draw.display(&self.blitter, fb, self.images);
         zg.requestSongTune(MUSIC, MUSIC_TUNE); // onResetEvent
         self.phase = .running;
     }

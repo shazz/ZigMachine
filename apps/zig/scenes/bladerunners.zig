@@ -102,7 +102,8 @@ pub const Demo = struct {
     // Backing store for scroller_target's render_buffer view. Was previously a
     // stack-local in init() (dangling pointer once init() returned) — must live
     // as long as the Demo instance, so it is a struct field now.
-    scroller_buffer: [WIDTH * SCROLL_CHAR_HEIGHT]u8 = undefined,
+    scroller_buffer: [WIDTH * SCROLL_CHAR_HEIGHT]u8 align(4) = undefined,
+    blitter: zg.Blitter = .{},
     scroller_render_buffer: RenderBuffer = undefined,
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
@@ -112,6 +113,7 @@ pub const Demo = struct {
         zg.requestSong(MUSIC);
 
         // first plane
+        self.blitter.init();
         var fb: *LogicalFB = &zigos.lfbs[0];
         fb.is_enabled = true;
   
@@ -165,37 +167,25 @@ pub const Demo = struct {
 
     pub fn render(self: *Demo, zigos: *ZigOS, elapsed_time: f32) void {
 
-        var fb = &zigos.lfbs[1];
-        fb.clearFrameBuffer(0);
-        self.scroller_target.clearFrameBuffer(0);
+        const fb = &zigos.lfbs[1];
+        // 32-bit stores: a quarter of the byte-clear's iterations.
+        const words: []u32 = @as([*]u32, @ptrCast(&self.scroller_buffer))[0 .. self.scroller_buffer.len / 4];
+        for (words) |*w| w.* = 0;
         self.scrolltext.render();
 
-        // copy scrolltext 7 times
-        var one_row: u16 = 0;
+        // The strip repeats every 32 rows, shifted up by the sine: CHISEL copies
+        // it from the cart-RAM buffer, so no row needs a CPU copy (and the
+        // segments tile the whole plane, so the plane is not cleared first).
         const sine_offset: u16 = self.offset_table[self.scroller_offset];
-        var row_height: u16 = WIDTH * (SCROLL_CHAR_HEIGHT - sine_offset);
-
-        while(one_row < row_height) : ( one_row += 1) {
-            fb.fb[one_row] = self.scroller_target.render_buffer.buffer[one_row + (WIDTH * sine_offset)];
-        }
-
-        var i: u16 = 0;
-        while(i < (WIDTH*SCROLL_CHAR_HEIGHT)) : ( i += 1) {
-            
-            fb.fb[i + (( 32 - sine_offset ) * WIDTH)] = self.scroller_target.render_buffer.buffer[i];
-            fb.fb[i + (( 64 - sine_offset ) * WIDTH)] = self.scroller_target.render_buffer.buffer[i];
-            fb.fb[i + (( 96 - sine_offset ) * WIDTH)] = self.scroller_target.render_buffer.buffer[i];
-            fb.fb[i + (( 128 - sine_offset ) * WIDTH)] = self.scroller_target.render_buffer.buffer[i];
-            fb.fb[i + (( 160 - sine_offset ) * WIDTH)] = self.scroller_target.render_buffer.buffer[i];
-        }
-
-        one_row = 0;
-        row_height = WIDTH * @min(32, 200 - (192 - sine_offset));
-        while(one_row < row_height) : ( one_row += 1) {
-            fb.fb[one_row + (( 192 - sine_offset ) * WIDTH)] = self.scroller_target.render_buffer.buffer[one_row];
+        const src: []const u8 = &self.scroller_buffer;
+        self.blitter.blitImage(fb, 0, 0, src, WIDTH, 0, sine_offset, WIDTH, SCROLL_CHAR_HEIGHT - sine_offset, null);
+        var k: u16 = 1;
+        while (k <= 6) : (k += 1) {
+            const y: u16 = k * 32 - sine_offset;
+            const h: u16 = @min(SCROLL_CHAR_HEIGHT, 200 - y);
+            self.blitter.blitImage(fb, 0, @intCast(y), src, WIDTH, 0, 0, WIDTH, h, null);
         }
 
         _ = elapsed_time;
-
     }
 };

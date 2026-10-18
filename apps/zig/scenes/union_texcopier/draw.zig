@@ -20,12 +20,6 @@ const DISPLAY_X = 160 / 2; // display.draw(maincanvas, 160, 74)
 const DISPLAY_Y = 74 / 2;
 const TEXT_Y = 360 / 2; // textcanvas.draw(maincanvas, 0, 360)
 
-/// maincanvas.fill('#000000'): colour 0, which the raster windows recolour per
-/// line. The whole view: dst must be the normal 320x200 plane.
-pub fn clear(dst: blit.Dst) void {
-    @memset(dst.buf, raster.BG);
-}
-
 /// drawPart(maincanvas, 0, rastersPos[i], 0, rasterScrollY - 4i, 640, 32) for the
 /// six windows. Each image row is uniform across its 640 columns, so every ST row
 /// is one colour, the texel at source row v = rasterScrollY - 4i + (canvas row -
@@ -59,9 +53,33 @@ fn rasterTexel(image: []const u8, row: i32) zg.Color {
     return .{ .r = image[3 * k], .g = image[3 * k + 1], .b = image[3 * k + 2], .a = 255 };
 }
 
-/// display.draw(maincanvas, 160, 74): opaque.
-pub fn display(dst: blit.Dst, img: A.Images) void {
-    blit.blit(dst, img.display, null, DISPLAY_X, DISPLAY_Y, null, .copy);
+/// The text line's rows, first and count: all that changes on the plane.
+pub const TEXT_TOP = TEXT_Y;
+pub const TEXT_ROWS = A.GLYPH_H;
+
+/// display.draw(maincanvas, 160, 74): opaque. Static, so once, at the start.
+pub fn display(blitter: *zg.Blitter, fb: *zg.LogicalFB, img: A.Images) void {
+    blitter.blitImage(fb, DISPLAY_X, DISPLAY_Y, img.display.data, A.DISPLAY_W, 0, 0, A.DISPLAY_W, A.DISPLAY_H, null);
+}
+
+/// Forget the cached glyph mask (a new cart load, a new font buffer).
+pub fn reset() void {
+    mask_for = null;
+}
+
+// Which text-line pixels are holes in the black font (the texture shows there),
+// per row, for the line named by `mask_for`. Rebuilt only when the line changes
+// (every 7 seconds), so the per-frame loop has no glyph lookups or divisions.
+var mask: [A.GLYPH_H * W]u8 = undefined;
+var mask_for: ?*const [text.LEN]u8 = null;
+
+fn buildMask(line: *const [text.LEN]u8, font: []const u8) void {
+    for (0..A.GLYPH_H) |y| for (0..W) |x| {
+        const g: usize = line[x / A.GLYPH_W] - text.FIRST_CHAR;
+        const cell = (g / A.GLYPHS_PER_ROW * A.GLYPH_H + y) * A.FONT_W + g % A.GLYPHS_PER_ROW * A.GLYPH_W;
+        mask[y * W + x] = @intFromBool(font[cell + x % A.GLYPH_W] == 0);
+    };
+    mask_for = line;
 }
 
 /// The texture at scrollerRastersPos, the font's black field over it, at canvas
@@ -76,13 +94,13 @@ pub fn textLine(dst: blit.Dst, c: *const Copier, img: A.Images) void {
     var keep: [8]u8 = undefined;
     for (&keep, 0..) |*k, id| k.* = if (id > c.removed()) @intCast(id) else 0;
     const shift: usize = @intCast(-c.pos2);
+    if (mask_for != line) buildMask(line, img.font);
     for (0..A.GLYPH_H) |y| {
         const out = dst.buf[(TEXT_Y + y) * dst.stride ..][0..W];
         const row = texels[y * A.TEXTURE_W ..][0..A.TEXTURE_W];
-        for (out, 0..) |*px, x| {
-            const g: usize = line[x / A.GLYPH_W] - text.FIRST_CHAR;
-            const cell = (g / A.GLYPHS_PER_ROW * A.GLYPH_H + y) * A.FONT_W + g % A.GLYPHS_PER_ROW * A.GLYPH_W;
-            if (img.font[cell + x % A.GLYPH_W] != 0) continue; // the black field, already filled
+        const holes = mask[y * W ..][0..W];
+        for (out, holes, 0..) |*px, hole, x| {
+            if (hole == 0) continue; // the black field, already filled
             const q = 4 * x + shift;
             px.* = table[keep[row[q >> 1]]][keep[row[(q + 1) >> 1]]];
         }
