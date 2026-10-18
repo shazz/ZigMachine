@@ -43,9 +43,6 @@ extern vseq_clear_rec vseq_rec;
  * on every line they cover whatever is skipped. */
 extern const uint8_t* vseq_skip;
 extern int (*vseq_decide)(int y);
-/* Called while a pass runs, with nothing else to do (all = 0: a little work), and
- * before a layer whose HBL handler will run (all = 1: finish it). */
-extern void (*vseq_spare)(int all);
 
 /* After host_boot: where the region and the two pictures are, then every
  * snooped word stored again (boot wrote them before the snoop knew the region). */

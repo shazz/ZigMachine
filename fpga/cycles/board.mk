@@ -71,7 +71,7 @@ ZM_VSEQ_CHECK ?=
 # ZM_NO_VPLAN=1: no plan, every line composited (the baseline the plan is measured against).
 ZM_NO_VPLAN ?=
 # The dirty-line planner (cycles/vplan.h), compiled with the image as vseq.c is: ZM_VSEQ_CHECK reaches it.
-VPLAN_SRC := cycles/vplan.c cycles/vdirty.c cycles/vdrows.c
+VPLAN_SRC := cycles/vplan.c cycles/vdirty.c
 H_sim    = $(if $(ZM_VSEQ_CHECK),-DZM_VSEQ_CHECK) $(if $(ZM_NO_VPLAN),-DZM_NO_VPLAN) -DZM_FRAMES=$(ZM_FRAMES) -DZM_EVERY=$(ZM_EVERY) -DZM_WARP_MS=$(ZM_WARP_MS) -DZM_TRACE_FRAME=$(ZM_TRACE_FRAME) \
 	$(B_$(ZM_BLIT)) $(A_$(ZM_AUDIO)) $(if $(ZM_SIM_KEYS),'-DZM_SIM_KEYS="$(ZM_SIM_KEYS)"') \
 	$(if $(ZM_SIM_POINTER),'-DZM_SIM_POINTER="$(ZM_SIM_POINTER)"') $(if $(ZM_MODES),-DZM_MODES=$(ZM_MODES))

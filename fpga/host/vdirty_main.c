@@ -93,7 +93,6 @@ static uint32_t frame(long f, u32 planes, uint32_t* composited) {
     int handler = vd_plan(&fr);
     *composited = 0;
     for (uint32_t y = 0; y < VD_LINES; y++) *composited += !(g_skip[y] = (uint8_t)vd_line(pic, y));
-    vd_spare(-1); /* the board does them under later passes, always before cart code runs */
     int first = 1;
     for (u32 p = 0; p < planes; p++) {
         int en = (on >> p) & 1;
