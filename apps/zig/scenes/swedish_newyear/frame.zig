@@ -72,6 +72,12 @@ pub fn clear() void {
     for (ram.buf.px) |*row| @memset(row, 0);
 }
 
+/// Clear physical rows [y0, y1) only: the rows a part redraws every frame, when
+/// the rest of the picture is already in place (the menu, below its picture).
+pub fn clearRows(y0: usize, y1: usize) void {
+    for (ram.buf.px[y0..y1]) |*row| @memset(row, 0);
+}
+
 /// Plot a gid at mycanvas-ST coordinates (the 320x225 remake canvas, halved).
 pub inline fn put(x: i32, y: i32, g: u16) void {
     const X = x + OX;
@@ -88,9 +94,16 @@ pub fn setC0(table: *[PH]u32, y: i32, rgba: u32) void {
 
 /// Rows -> plane indices, handing out each line's entries.
 pub fn present(fb: *LogicalFB) void {
+    presentRows(fb, 0, PH);
+}
+
+/// present() for physical rows [y0, y1). A row's indices, entries and `used` depend
+/// on that row's gids alone, so rows left alone keep exactly what an earlier
+/// present() made of them.
+pub fn presentRows(fb: *LogicalFB, y0: usize, y1: usize) void {
     const px = ram.buf.px;
     const bank = ram.buf.bank;
-    for (0..PH) |y| {
+    for (y0..y1) |y| {
         stamp_gen +%= 1;
         if (stamp_gen == 0) {
             @memset(&stamp, 0);

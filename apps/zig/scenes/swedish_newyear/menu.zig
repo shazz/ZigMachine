@@ -25,16 +25,28 @@ pub const Menu = struct {
         self.scroll.init(texts.menu, FONT_W, 640, 10); // init(mycanvas, font7, 10)
     }
 
-    pub fn step(self: *Menu) void {
-        drawPicture();
+    /// The picture is the same every frame and only physical rows PIC_END_ROW..
+    /// change (the scroller and the blocks, ST lines 199..224), so a frame after
+    /// the first (`full` false) clears and redraws just those rows.
+    pub const FIRST_ROW: usize = @intCast(frame.OY + 199);
+    pub const END_ROW: usize = @intCast(frame.OY + 225);
+
+    pub fn step(self: *Menu, full: bool) void {
+        if (full) {
+            frame.clear();
+            drawPicture(0, 200);
+        } else {
+            frame.clearRows(FIRST_ROW, END_ROW);
+            drawPicture(199, 200); // the picture's last line shares ST line 199 with the scroller
+        }
         self.scroll.advance();
         self.drawScroller();
         drawBlock(0);
         drawBlock(304); // 608 in the remake
     }
 
-    fn drawPicture() void {
-        for (0..200) |y| {
+    fn drawPicture(y0: usize, y1: usize) void {
+        for (y0..y1) |y| {
             const row = assets.main_px[y * 320 ..][0..320];
             for (row, 0..) |i, x| frame.put(@intCast(x), @intCast(y), gen.main_lut[y][i]);
         }
