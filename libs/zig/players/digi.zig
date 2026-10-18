@@ -121,28 +121,28 @@ pub fn Access(comptime Bus: type) type {
             const x = a & 0xFFFFFF;
             return if (x + n <= m.len) m[x..][0..n] else null;
         }
-        pub fn rd16(a: u32) u16 {
+        pub inline fn rd16(a: u32) u16 {
             if (ram(a, 2)) |r| return std.mem.readInt(u16, r, .big);
             return (@as(u16, Bus.read8(a)) << 8) | Bus.read8(a +% 1);
         }
-        pub fn rd32(a: u32) u32 {
+        pub inline fn rd32(a: u32) u32 {
             if (ram(a, 4)) |r| return std.mem.readInt(u32, r, .big);
             return (@as(u32, rd16(a)) << 16) | rd16(a +% 2);
         }
-        pub fn wr16(a: u32, v: u16) void {
+        pub inline fn wr16(a: u32, v: u16) void {
             if (ram(a, 2)) |r| return std.mem.writeInt(u16, r, v, .big);
             Bus.write16(a, v);
         }
-        pub fn wr32(a: u32, v: u32) void {
+        pub inline fn wr32(a: u32, v: u32) void {
             if (ram(a, 4)) |r| return std.mem.writeInt(u32, r, v, .big);
             Bus.write16(a, @truncate(v >> 16));
             Bus.write16(a +% 2, @truncate(v));
         }
-        pub fn rd8(a: u32) u8 {
+        pub inline fn rd8(a: u32) u8 {
             if (ram(a, 1)) |r| return r[0];
             return Bus.read8(a);
         }
-        pub fn wr8(a: u32, v: u8) void {
+        pub inline fn wr8(a: u32, v: u8) void {
             if (ram(a, 1)) |r| {
                 r[0] = v;
                 return;
