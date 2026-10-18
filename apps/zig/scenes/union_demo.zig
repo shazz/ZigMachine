@@ -36,6 +36,7 @@ const world = @import("union_demo/world.zig");
 const doors = @import("union_demo/doors.zig");
 const menu_loader = @import("union_demo/loading.zig"); // menuloader.js before the street
 const raster = @import("union_demo/raster.zig");
+const gpu = @import("union_common/gpu.zig");
 const hud = @import("union_demo/hud.zig");
 
 // "Union Demo MENU" is Mad Max's Alloy Run, and this is the REAL tune: the
@@ -95,6 +96,7 @@ pub const Demo = struct {
         self.launch = null;
         self.launch_pending = false;
 
+        gpu.init();
         const fb = &zigos.lfbs[0];
         fb.is_enabled = true;
         fb.setPalette(A.palette);

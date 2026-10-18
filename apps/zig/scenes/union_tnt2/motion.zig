@@ -11,6 +11,8 @@
 // --------------------------------------------------------------------------
 const zg = @import("zigos");
 const blit = zg.blit;
+const gpu = @import("../union_common/gpu.zig");
+const LogicalFB = zg.LogicalFB;
 
 pub const CANVAS_W: i32 = 640;
 
@@ -36,10 +38,10 @@ pub const Layer = struct {
     }
 
     /// Drawn at scroll and scroll + 640 (screen.js:175-180).
-    pub fn draw(self: *const Layer, dst: blit.Dst, img: blit.Image, top: i32) void {
+    pub fn draw(self: *const Layer, fb: *LogicalFB, img: blit.Image, top: i32) void {
         const x = stX(self.scroll);
-        blit.blit(dst, img, null, x, top, 0, .copy);
-        blit.blit(dst, img, null, x + @divExact(CANVAS_W, 2), top, 0, .copy);
+        gpu.put(fb, img, null, x, top, 0);
+        gpu.put(fb, img, null, x + @divExact(CANVAS_W, 2), top, 0);
     }
 };
 
@@ -82,11 +84,11 @@ pub const Scroller = struct {
 
     /// No sinparam, so no phase walks the sorted letters, and letters 64 px
     /// apart never overlap: drawing order does not matter.
-    pub fn draw(self: *const Scroller, dst: blit.Dst, font: blit.Image) void {
+    pub fn draw(self: *const Scroller, fb: *LogicalFB, font: blit.Image) void {
         for (self.ring.x, self.ring.c) |x, c| {
             const g: usize = c - FIRST_CHAR;
             const part = blit.Rect{ .x = g % SHEET_COLS * GLYPH_W, .y = g / SHEET_COLS * GLYPH_H, .w = GLYPH_W, .h = GLYPH_H };
-            blit.blit(dst, font, part, stX(x), POSY, 0, .copy);
+            gpu.put(fb, font, part, stX(x), POSY, 0);
         }
     }
 };

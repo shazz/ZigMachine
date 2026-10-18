@@ -11,6 +11,7 @@
 const zg = @import("zigos");
 const ZigOS = zg.ZigOS;
 const Color = zg.Color;
+const gpu = @import("../union_common/gpu.zig");
 const LogicalFB = zg.LogicalFB;
 const convertU8ArraytoColors = zg.convertU8ArraytoColors;
 
@@ -156,6 +157,7 @@ pub const Demo = struct {
     };
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
+        gpu.init();
         self.pos = 0;
         self.frame = 0;
         self.grad_idx = 0;
@@ -205,7 +207,7 @@ pub const Demo = struct {
     pub fn render(self: *Demo, zigos: *ZigOS, dt: f32) void {
         _ = dt;
         const p0: *LogicalFB = &zigos.lfbs[0];
-        p0.clearFrameBuffer(0); // index 0 = sky, recoloured per scanline by the HBL
+        gpu.clear(p0, 0); // index 0 = sky, recoloured per scanline by the HBL (CHISEL: the CPU loop was 112,000 byte stores)
         self.px.draw(p0, 0, @intCast(PW));
         // Ground: floorback is a 16px pink strip (behind world row 8); the
         // scrolling layer_b1/b2 parallax fills 179..211 below it; bottomback
@@ -244,11 +246,9 @@ pub const Demo = struct {
         zg.requestSong(name);
     }
 
+    // Solid bands: one CHISEL fill each (was a setPixelValue call per pixel,
+    // 400 x 85 of them a frame).
     fn fill(fb: *LogicalFB, y0: i16, y1: i16, idx: u8) void {
-        // Whole rows are one @memset each (was PW setPixelValue calls a row). A row
-        // past the plane's height stays unwritten, as setPixelValue's bounds check did.
-        const w: usize = @min(@as(usize, @intCast(PW)), fb.fb_w);
-        var y: usize = @intCast(y0);
-        while (y < y1 and y < fb.fb_h) : (y += 1) @memset(fb.fb[y * fb.stride ..][0..w], idx);
+        gpu.fill(fb, 0, y0, @min(PW, @as(i16, @intCast(fb.fb_w))), y1 - y0, idx);
     }
 };

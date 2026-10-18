@@ -107,7 +107,7 @@ pub const Charly = struct {
         self.vy = limit(friction(self.vy), self.max[1]);
         self.collide(map);
         const unwrapped = self.x + self.vx;
-        self.x = @mod(unwrapped, MAP_W);
+        self.x = wrapX(unwrapped);
         self.y += self.vy;
         if (self.vx != 0 or self.vy != 0) self.animate();
         return self.x - unwrapped;
@@ -151,8 +151,13 @@ pub const Charly = struct {
     }
 };
 
+// x is within one street-length of the street (a step moves at most 8, a
+// teleport lands inside it), so a single add/subtract is exactly fmod's answer
+// without the libm fmodf call (three a step).
 fn wrapX(x: f32) f32 {
-    return @mod(x, MAP_W);
+    if (x < 0) return x + MAP_W;
+    if (x >= MAP_W) return x - MAP_W;
+    return x;
 }
 
 // The first collidable cell of two probe points, as checkCollision tries its
