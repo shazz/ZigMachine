@@ -1,9 +1,7 @@
-// The glass program's behaviour, independent of where the registers are: the
-// OSD hotkey, the menu, routing keys and the pad to the cart. What the menu's
-// actions do (loads, resets, settings, the debug page) is app_cart.zig; the
-// F11 frame-rate overlay, app_stats.zig.
-// main.zig gives it the board's /dev/mem windows; the tests the simulated ones.
-//
+// The glass program's behaviour, independent of where the registers are: the OSD
+// hotkey, the menu, routing keys and the pad to the cart. The menu's actions (loads,
+// resets, settings, the debug page) are app_cart.zig; the F11 overlay app_stats.zig;
+// the control channel app_ctl.zig. main.zig gives it the board's /dev/mem windows.
 // While the OSD is open the cart gets NO input (MiSTer's rule): every key,
 // pad bit and mouse button the cart saw go down is released first, so nothing
 // stays held behind the menu, and the pointer stays where it was.
@@ -61,6 +59,7 @@ pub const App = struct {
     pl_stats: bool = false, // the PL can draw the F11 overlay (app_stats.supported)
     req_done: bool = false, // the running cart's cart-swap request was handled (app_request.zig)
     req_polls: u32 = 0, // polls of a request whose block did not check yet
+    ctl: @import("app_ctl.zig").State = .{}, // the control channel's held tap (app_ctl.zig)
 
     /// Check the PL, read the shelf and glass.cfg, and show the menu.
     pub fn init(gpa: std.mem.Allocator, io: std.Io, regs: bus.Regs, ddr: bus.Ddr, dir: []const u8) !App {
@@ -110,7 +109,11 @@ pub const App = struct {
             if (value == 1) overlay.toggle(self);
             return;
         }
-        const ev = keymap.event(code, value, &self.mods) orelse return;
+        self.keyEvent(keymap.event(code, value, &self.mods) orelse return);
+    }
+
+    /// A key event (map.zig KEY_*), keyboard or control channel: the menu's while open.
+    pub fn keyEvent(self: *App, ev: u32) void {
         if (self.open) return cart.act(self, self.menu.key(ev));
         self.track(ev);
         self.regs.write(map.REG_KEY_PUSH, ev);
@@ -183,6 +186,7 @@ pub const App = struct {
     /// scrolling, the F11 overlay).
     pub fn tick(self: *App) void {
         cart.watch(self);
+        @import("app_ctl.zig").tick(self);
         self.ticks +%= 1;
         if (!self.open) return overlay.draw(self);
         switch (self.menu.page) {

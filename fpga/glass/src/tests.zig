@@ -29,4 +29,7 @@ test {
     _ = @import("text.zig");
     _ = @import("page_debug.zig");
     _ = @import("snd_info_test.zig");
+    _ = @import("beats.zig");
+    _ = @import("ctl_test.zig");
+    _ = @import("app_ctl_test.zig");
 }

@@ -1,7 +1,12 @@
 // The live numbers the debug page shows: loads, how long the last one took, the
 // last trap, and the cart's frame rate measured from CART_BEAT (the firmware's
-// frame count) against the ARM's clock. Pure: the caller passes the time.
+// frame count) against the ARM's clock, its last minute (beats.zig), and why no cart
+// runs (the control channel's ZMSTAT state). Pure: the caller passes the time.
 const std = @import("std");
+const Beats = @import("beats.zig").Beats;
+
+/// Why the cart CPU is not running a cart, when it is not.
+pub const Stop = enum { idle, trapped, failed, quit };
 
 const WINDOW_MS = 1000; // the frame rate is re-measured once a second
 
@@ -14,11 +19,15 @@ pub const Stats = struct {
     fps_x10: ?u32 = null, // null until a whole window was seen
     beat0: u32 = 0,
     t0: i64 = 0,
+    beats: Beats = .{},
+    stop: Stop = .idle,
+    last_err: ?anyerror = null, // the last load's error (a load that worked clears it)
 
     pub fn loaded(self: *Stats, took_ms: i64, fw: u32) void {
         self.loads += 1;
         self.last_load_ms = took_ms;
         self.fw = fw;
+        self.last_err = null;
         self.restart(0, 0);
     }
 
@@ -26,12 +35,21 @@ pub const Stats = struct {
         self.beat0 = beat;
         self.t0 = now;
         self.fps_x10 = null;
+        self.beats.reset();
+    }
+
+    /// A load or a request that failed: what the ZMSTAT line reports until the next load.
+    pub fn failed(self: *Stats, err: anyerror) void {
+        self.last_err = err;
+        self.stop = if (err == error.CartTrapped) .trapped else .failed;
     }
 
     /// One look at CART_BEAT. A beat that went backwards (the CPU was reset) or
     /// a first sample starts a new window.
     pub fn sample(self: *Stats, now: i64, beat: u32) void {
-        if (self.t0 == 0 or beat < self.beat0) return self.restart(now, beat);
+        if (self.t0 == 0 or beat < self.beat0) self.restart(now, beat);
+        self.beats.push(now, beat);
+        if (self.t0 == now) return;
         const dt = now - self.t0;
         if (dt < WINDOW_MS) return;
         const frames: i64 = beat - self.beat0;
