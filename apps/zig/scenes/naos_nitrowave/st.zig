@@ -32,8 +32,14 @@ pub const Ram = struct {
     pub inline fn w(self: *const Ram, a: u32) u16 {
         return std.mem.readInt(u16, self.m[self.at(a, 2)..][0..2], .big);
     }
+    // A long sits on any EVEN address, so half of them are not word aligned. The board's
+    // build turns a 32-bit access into one lw/sw and a misaligned one TRAPS (about a
+    // thousand cycles, fpga/cycles/trap.c): the menu's VBL reads and writes thousands of
+    // longs a frame. Two aligned halfwords instead for those.
     pub inline fn l(self: *const Ram, a: u32) u32 {
-        return std.mem.readInt(u32, self.m[self.at(a, 4)..][0..4], .big);
+        const o = self.at(a, 4);
+        if ((@intFromPtr(self.m.ptr) + o) & 3 == 0) return std.mem.readInt(u32, self.m[o..][0..4], .big);
+        return @as(u32, std.mem.readInt(u16, self.m[o..][0..2], .big)) << 16 | std.mem.readInt(u16, self.m[o + 2 ..][0..2], .big);
     }
     pub inline fn sb(self: *const Ram, a: u32, v: u8) void {
         self.m[self.at(a, 1)] = v;
@@ -42,7 +48,10 @@ pub const Ram = struct {
         std.mem.writeInt(u16, self.m[self.at(a, 2)..][0..2], v, .big);
     }
     pub inline fn sl(self: *const Ram, a: u32, v: u32) void {
-        std.mem.writeInt(u32, self.m[self.at(a, 4)..][0..4], v, .big);
+        const o = self.at(a, 4);
+        if ((@intFromPtr(self.m.ptr) + o) & 3 == 0) return std.mem.writeInt(u32, self.m[o..][0..4], v, .big);
+        std.mem.writeInt(u16, self.m[o..][0..2], @truncate(v >> 16), .big);
+        std.mem.writeInt(u16, self.m[o + 2 ..][0..2], @truncate(v), .big);
     }
     pub inline fn bytes(self: *const Ram, a: u32, n: usize) []u8 {
         return self.m[self.at(a, n)..][0..n];
