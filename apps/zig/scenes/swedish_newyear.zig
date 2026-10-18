@@ -47,6 +47,7 @@ pub const Demo = struct {
     ym: *const [16]u8, // the YM registers the SNDH leaves: OMEGA's meters read them
     wants_quit: bool,
     loaded: ?assets.Set, // the part in the part buffer (null: none usable)
+    menu_cached: bool, // the menu's picture is already in the plane (render(): only its bottom rows change)
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
         self.part = .menu;
@@ -54,6 +55,7 @@ pub const Demo = struct {
         self.ym = &zigos.ym_regs;
         self.wants_quit = false;
         self.loaded = null;
+        self.menu_cached = false;
         frame.init(zigos);
         music.play(.scout);
     }
@@ -69,9 +71,19 @@ pub const Demo = struct {
         frame.st_mode = false;
         frame.flipColour0();
         frame.setBorders(.bottom);
-        frame.clear();
-        if (self.load()) self.menu.step();
-        frame.present(fb);
+        // Past the first frame only the menu's bottom rows change (menu.zig).
+        const shown = self.load();
+        if (shown) {
+            self.menu.step(!self.menu_cached);
+        } else {
+            frame.clear();
+        }
+        if (shown and self.menu_cached) {
+            frame.presentRows(fb, Menu.FIRST_ROW, Menu.END_ROW);
+        } else {
+            frame.present(fb);
+        }
+        self.menu_cached = shown;
         @memset(&frame.c0_next, frame.BLACK);
     }
 
@@ -79,6 +91,7 @@ pub const Demo = struct {
     /// its VBLs and captures the next (st_show.zig).
     fn renderSt(self: *Demo, fb: *zg.LogicalFB, dt: f32) void {
         const px = fb.fb[0 .. frame.PW * frame.PH];
+        self.menu_cached = false; // the parts draw on the plane themselves
         if (!self.load()) {
             frame.st_mode = false;
             frame.setBorders(.closed);
@@ -182,6 +195,7 @@ pub const Demo = struct {
 
     fn go(self: *Demo, part: Part, tune: music.Tune) void {
         self.part = part;
+        self.menu_cached = false;
         // The loader reads the menu from the disk again after every part, so
         // its scroller starts over (the remake's kept its place).
         if (part == .menu) self.menu.init();
