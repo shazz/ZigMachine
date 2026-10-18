@@ -2,7 +2,8 @@
 // The pixel loop of Sprite.render, without ZigOS so it can be tested natively
 // (sprite_draw_test.zig keeps the original loop verbatim and compares).
 //
-// What changed from the original loop, with the bytes in the target the same:
+// What changed from the original loop, with the bytes in the target the same
+// (a table-less sprite goes to CHISEL when it can, see onChisel):
 //   - a pixel is stored only when the target does not already hold it. Every
 //     store is a blocking DDR write on ZIGGY; a read hits the data cache. A
 //     sprite redrawn over its own previous frame (a scroller letter, a logo)
@@ -11,6 +12,8 @@
 //     the pixel loop: one u16 displacement per column, added with the same
 //     wrap-around arithmetic.
 // --------------------------------------------------------------------------
+const chisel = @import("blit_chisel.zig");
+
 const MAX_COLS = 512;
 
 pub const Job = struct {
@@ -34,6 +37,17 @@ pub const Job = struct {
     x_index: u16,
 };
 
+/// A sprite with no offset tables is a w x h box: rows `width` apart in data
+/// (every clamp combination above advances dc by exactly `width` a row) and
+/// `screen_width` apart in out. CHISEL draws it as one keyed blit when it can
+/// (blit_chisel.zig), with the bytes the loop would leave.
+fn onChisel(j: Job) bool {
+    if (j.y_table != null or j.x_table != null) return false;
+    if (@as(usize, j.nb_cols) * j.rows < chisel.MIN_BYTES) return false;
+    const f = chisel.copy orelse return false;
+    return f(j.out.ptr + j.offset, j.screen_width, j.data.ptr + j.data_counter, j.width, j.nb_cols, j.rows, j.skip);
+}
+
 /// The u16 distance the y table moves column `col` (negative offsets wrap).
 fn yShift(j: Job, table: []const i16, col: u16) u16 {
     var counter: u16 = col + j.left_x_position + j.y_index;
@@ -44,6 +58,7 @@ fn yShift(j: Job, table: []const i16, col: u16) u16 {
 }
 
 pub fn plot(j: Job) void {
+    if (onChisel(j)) return;
     var shifts: [MAX_COLS]u16 = undefined;
     const tabled = j.y_table != null and j.nb_cols <= MAX_COLS;
     if (tabled) {
