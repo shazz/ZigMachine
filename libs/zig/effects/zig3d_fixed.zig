@@ -35,6 +35,7 @@ pub const Options = c3.Options;
 pub const Vec = struct { x: i32, y: i32, z: i32 };
 pub const Screen = poly.Screen;
 pub const Poly = poly.Poly;
+pub const sortFarToNear = poly.sortFarToNear;
 
 /// A float vector in Q16 (init or comptime only).
 pub fn q16(v: c3.Vec3) Vec {
@@ -159,12 +160,13 @@ pub fn project(lens: *const Lens, camera: Vec, position: Vec, rot: [3]Angle, m: 
     for (m.faces, m.centroids) |f, c| {
         if (!poly.usable(f, screen)) continue;
         if (!opts.double_sided and !poly.clockwise(f, screen)) continue;
-        var p = Poly{ .pts = undefined, .n = f.n, .ink = f.ink, .depth = -(fm.dotWide(r[2], c.x, c.y, c.z) + (@as(i64, rel.z) << 30)) };
+        const p = &out[n];
+        p.* = .{ .pts = undefined, .n = f.n, .ink = f.ink, .depth = -(fm.dotWide(r[2], c.x, c.y, c.z) + (@as(i64, rel.z) << 30)) };
         for (0..f.n) |i| p.pts[i] = .{ screen[f.v[i]].x, screen[f.v[i]].y };
-        if (opts.overdraw) poly.overdraw(&p);
-        poly.insert(out[0 .. n + 1], p);
+        if (opts.overdraw) poly.overdraw(p);
         n += 1;
     }
+    poly.sortFarToNear(out[0..n]);
     return out[0..n];
 }
 

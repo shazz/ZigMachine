@@ -166,6 +166,7 @@ NATIVE_TESTS="
     libs/zig/effects/tilegrid_test.zig
     libs/zig/effects/zig3d_test.zig
     libs/zig/effects/zig3d_fixed_test.zig
+    libs/zig/effects/zig3d_fixed_int_test.zig
     libs/zig/effects/zig3d_sparse_test.zig
     libs/zig/effects/canvas_poly_test.zig
     libs/zig/effects/canvas_poly_fixed_test.zig
