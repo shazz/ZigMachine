@@ -54,8 +54,11 @@ fn apply(m: *const [3]V3, v: V3) V3 {
     };
 }
 
-/// The faces to fill this frame, far to near, in small-canvas pixels.
-pub fn project(lens: *const Lens, m: *const [3]V3, verts: []const V3, centroids: []const V3, faces: []const c3.Face, screen: []Screen, out: []Poly) []Poly {
+/// The faces to fill this frame, in small-canvas pixels: `out` holds them in
+/// mesh order and the returned indices put them far to near. Sorting the
+/// 2-byte indices (the same insertion sort, so the same order) moves a u16 a
+/// step where sorting the 44-byte Polys moved eleven words.
+pub fn project(lens: *const Lens, m: *const [3]V3, verts: []const V3, centroids: []const V3, faces: []const c3.Face, screen: []Screen, out: []Poly, order: []u16) []const u16 {
     for (verts, screen[0..verts.len]) |v, *s| {
         const w = apply(m, v);
         const cw = shade.CAM_Z - w.z;
@@ -74,16 +77,17 @@ pub fn project(lens: *const Lens, m: *const [3]V3, verts: []const V3, centroids:
         overdraw(&p);
         for (&p.pts) |*pt| pt.* = .{ pt[0] + lens.half_w, -pt[1] + lens.half_h };
         out[n] = p;
+        order[n] = @intCast(n);
         n += 1;
     }
-    std.sort.insertion(Poly, out[0..n], {}, farther);
-    return out[0..n];
+    std.sort.insertion(u16, order[0..n], @as([]const Poly, out), farther);
+    return order[0..n];
 }
 
 pub const ScreenBuf = [torus.VERTS]Screen;
 
-fn farther(_: void, a: Poly, b: Poly) bool {
-    return b.z - a.z < 0;
+fn farther(polys: []const Poly, a: u16, b: u16) bool {
+    return polys[b].z - polys[a].z < 0;
 }
 
 /// Projector's facing test, in divided clip space (a Face4).

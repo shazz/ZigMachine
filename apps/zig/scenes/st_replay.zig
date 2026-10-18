@@ -88,6 +88,14 @@ pub const App = struct {
     // the sample — every count the panel reports comes from here.
     bytes: u32 = 0,
     wants_quit: bool = false,
+    // What is on the glass: the screen is redrawn only where the state moved
+    // (st_replay_draw.changed), the whole of it while a dialog or the selector
+    // is up and once more after they close. It was ~200 ROM draw calls a frame
+    // (4 Mc of the 4.2) to repaint a picture that had not changed.
+    shown: draw.View = undefined,
+    shown_sample: [WAVE_LEN]u8 = [_]u8{SILENCE} ** WAVE_LEN,
+    shown_valid: bool = false,
+    was_busy: bool = false,
 
     // "Load from disc": GEM's ITEM SELECTOR, listing what is ACTUALLY on the
     // mounted floppy — the FAT is walked here, by the machine, not handed over by
@@ -159,6 +167,8 @@ pub const App = struct {
         rom.installPalette(PLANE);
         ui.installPalette(fb);
         self.wants_quit = false;
+        self.shown_valid = false;
+        self.was_busy = false;
         self.replay = .{}; // INTERNAL, silent: init runs over `undefined` memory
         // The cart lives in `undefined` memory until init, so the display buffer
         // has to be silenced explicitly — otherwise the leftover bytes read as a
@@ -331,7 +341,14 @@ pub const App = struct {
         _ = os;
         _ = dt;
         const g = self.g; // a handle, copied by value — there is nothing to alias
-        draw.screen(g, self.view());
+        const v = self.view();
+        const busy = self.dialog.active() or self.fsel.active();
+        if (busy or self.was_busy or !self.shown_valid) draw.screen(g, v) else draw.changed(g, self.shown, v);
+        self.shown = v;
+        self.shown_sample = self.sample;
+        self.shown.sample = &self.shown_sample;
+        self.shown_valid = true;
+        self.was_busy = busy;
         _ = self.dialog.process(g);
         switch (self.fsel.process(g)) {
             .ok => {
