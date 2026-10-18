@@ -22,6 +22,13 @@
 //     scrolltext at y=410; i += 0.2
 // All of those coordinates are CODEF's 640x480 canvas = 320x240 doubled, so they
 // are halved here and then shifted into the 400x280 physical buffer.
+//
+// The three never overlap (logo rows 7..73, flag 82..189, scroller 205..236), so
+// the picture is not rebuilt every frame: the black fill and the logo are drawn
+// once, the flag's rectangle is rewritten when its tile changes (every 5th
+// frame), and only the scroller band is rewritten each frame, as opaque rows.
+// A store to VRAM is a blocking bus write on the board; the old frame made
+// ~112,000 bytes of them for a picture that moves in a 400x32 band.
 // ---------------------------------------------------------------------------
 #include "../assets/screens/screen34/data.h"
 #include "../zigmachine_music.h"
@@ -82,6 +89,8 @@ extern void consoleLogJS(const char *ptr, int len);
 static int video_base;
 static float anim;    // the original's `i`, advancing 0.2 per frame
 static float scroll;  // scroller x offset, in ST pixels
+static int drawn;      // the black fill and the logo are on the plane
+static int flag_drawn; // the flag tile shown (-1: none)
 
 static inline u8 *reg(void) { return (u8 *)(video_base + OFF_REG); }
 static inline u8 *pal(void) { return (u8 *)(video_base + OFF_PAL); }
@@ -120,20 +129,26 @@ static void blit_centred(const u8 *src, int w, int h, int cx, int cy) {
     }
 }
 
-// One glyph of the 32x32 font sheet, at a top-left position.
-static void blit_glyph(int glyph, int gx, int gy) {
-    const u8 *src = FONT + (unsigned)glyph * (GLYPH * GLYPH);
+// An indexed image copied whole, index 0 included, into a rectangle that is
+// black underneath: the same pixels as blit_centred, as row copies.
+static void copy_centred(const u8 *src, int w, int h, int cx, int cy) {
+    const int x0 = cx - w / 2, y0 = cy - h / 2;
     u8 *dst = vram();
-    for (int y = 0; y < GLYPH; y++) {
-        const int py = gy + y;
-        if (py < 0 || py >= PH) continue;
-        const int row = py * PW;
-        for (int x = 0; x < GLYPH; x++) {
-            const int px = gx + x;
-            if (px < 0 || px >= PW) continue;
-            const u8 v = src[y * GLYPH + x];
-            if (v) dst[row + px] = v;
-        }
+    for (int y = 0; y < h; y++)
+        __builtin_memcpy(dst + (y0 + y) * PW + x0, src + (unsigned)y * (unsigned)w, (unsigned)w);
+}
+
+// Row `y` of the scroller band: the glyphs side by side from `px`, opaque (a
+// space or an unknown character is zeros), clipped to the 400-wide buffer.
+static void scroller_row(int y, int px, int first, int row_y) {
+    u8 *dst = vram() + row_y * PW;
+    for (int slot = 0; px < PW; slot++, px += GLYPH) {
+        const int ch = TEXT[(first + slot) % TEXT_LEN];
+        const int g = (ch < FIRST_CHAR || ch >= FIRST_CHAR + NB_GLYPHS) ? 0 : ch - FIRST_CHAR;
+        const int from = px < 0 ? -px : 0;
+        const int to = px + GLYPH > PW ? PW - px : GLYPH;
+        if (g) __builtin_memcpy(dst + px + from, FONT + (unsigned)g * (GLYPH * GLYPH) + y * GLYPH + from, (unsigned)(to - from));
+        else __builtin_memset(dst + px + from, 0, (unsigned)(to - from));
     }
 }
 
@@ -155,6 +170,7 @@ void boot(void) {
     w16(REG_FB_HBL_POS + 0 * 2, OVERSCAN_MAGIC_X);
 
     anim = 0.0f;
+    drawn = 0;
     scroll = 0.0f;
     static const char msg[] = "screen 34 (Mad Vision / Fred) - C cart, overscan";
     consoleLogJS(msg, (int)sizeof(msg) - 1);
@@ -175,33 +191,32 @@ void hblDispatch(u32 id, u32 plane, u32 line, u32 x) {
 __attribute__((export_name("frame")))
 void frame(float dt) {
     (void)dt;
-    if (zm_tvnoise_frame()) return; // a channel change: snow first
-    u8 *dst = vram();
-    __builtin_memset(dst, 0, PW * PH); // the original's fill('#000000'): one memory.fill, not 112,000 byte stores
-
-    // logo: CODEF (320,80) -> ST (160,40) -> physical (+BX,+BY)
-    blit_centred(LOGO, LOGO_W, LOGO_H, BX + 160, LAYOUT_Y + 40);
+    if (zm_tvnoise_frame()) { drawn = 0; return; } // a channel change: snow first, then redraw whole
+    if (!drawn) {
+        __builtin_memset(vram(), 0, PW * PH); // the original's fill('#000000')
+        // logo: CODEF (320,80) -> ST (160,40) -> physical (+BX,+BY); it never moves
+        blit_centred(LOGO, LOGO_W, LOGO_H, BX + 160, LAYOUT_Y + 40);
+        drawn = 1;
+        flag_drawn = -1;
+    }
 
     // flag: CODEF (320,270) -> ST (160,135). Frame 9-floor(i)%10, i += 0.2, so
     // the animation advances one frame every five.
     int f = 9 - ((int)anim % FLAG_FRAMES);
     if (f < 0) f += FLAG_FRAMES;
-    blit_centred(FLAG + (unsigned)f * (FLAG_W * FLAG_H), FLAG_W, FLAG_H,
-                 BX + 160, LAYOUT_Y + 135);
+    if (f != flag_drawn) {
+        copy_centred(FLAG + (unsigned)f * (FLAG_W * FLAG_H), FLAG_W, FLAG_H,
+                     BX + 160, LAYOUT_Y + 135);
+        flag_drawn = f;
+    }
 
     // scroller: CODEF y=410 -> ST y=205, which is BELOW the visible 200 lines.
     // It is legible only because the bottom border is open.
     const int sy = LAYOUT_Y + 205;
     const int off = (int)scroll;
-    int first = off / GLYPH;
-    int px = -(off % GLYPH);
-    for (int slot = 0; px < PW; slot++, px += GLYPH) {
-        const int ch = TEXT[(first + slot) % TEXT_LEN];
-        const int g = (ch < FIRST_CHAR || ch >= FIRST_CHAR + NB_GLYPHS)
-                          ? 0 // anything the font lacks shows as a space
-                          : ch - FIRST_CHAR;
-        if (g) blit_glyph(g, px, sy);
-    }
+    const int first = off / GLYPH;
+    const int px = -(off % GLYPH);
+    for (int y = 0; y < GLYPH; y++) scroller_row(y, px, first, sy + y); // an unknown character shows as a space
 
     anim += 0.2f;                 // the original's i += 0.2
     scroll += 2.0f;               // CODEF speed 4 on a doubled canvas = 2 ST px
