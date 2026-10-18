@@ -89,6 +89,32 @@ const placement = [_]Placed{
     .{ .img = A.whoelse, .x = 70, .y = 233 },
 };
 
+/// A canvas rectangle the frame redraws; everything outside the DYNAMIC ones is
+/// static (the black and the potiches), drawn once in init.
+const Rect = struct { x: i32, y: i32, w: usize, h: usize };
+const BOX = Rect{ .x = Scroller.BOX_X, .y = Scroller.BOX_Y, .w = Scroller.BOX_W, .h = Scroller.BOX_H };
+const MOCHE_RECT = Rect{ .x = MOCHE_X, .y = MOCHE_Y, .w = MOCHE_W, .h = MOCHE_LINES };
+const DYNAMIC_FIXED = [_]Rect{
+    BOX,
+    MOCHE_RECT,
+    .{ .x = VU_X[0], .y = rasters.VU_TOP, .w = VU_W, .h = rasters.VU_ROWS },
+    .{ .x = VU_X[1], .y = rasters.VU_TOP, .w = VU_W, .h = rasters.VU_ROWS },
+    .{ .x = VU_X[2], .y = rasters.VU_TOP, .w = VU_W, .h = rasters.VU_ROWS },
+};
+
+/// The columns the ULM logo's rows can reach (drawUlm's x over the whole table).
+fn ulmRect() Rect {
+    var lo: i32 = std.math.maxInt(i32);
+    var hi: i32 = std.math.minInt(i32);
+    for (0..A.ULM_DIST_LEN) |i| {
+        const x = @divFloor(A.ulmDist(i) + 1, 2);
+        lo = @min(lo, x);
+        hi = @max(hi, x);
+    }
+    const left = @max(lo, 0);
+    return .{ .x = left, .y = ULM_TOP, .w = @intCast(@max(hi + @as(i32, @intCast(A.ulm.w)) - left, 0)), .h = ULM_BOTTOM + 1 - ULM_TOP };
+}
+
 const palette: [256]Color = blk: {
     var p = A.palette;
     p[A.VU_INK] = rasters.BLACK;
@@ -111,6 +137,7 @@ pub const Demo = struct {
     moche_drawn: usize,
     last_vol: [3]f64, // sc68_vumeter.js _lastVol1..3
     levels: [3]i32,
+    ulm_rect: Rect,
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
         // A cart's Demo arrives zeroed: every field is set here.
@@ -135,6 +162,9 @@ pub const Demo = struct {
         copper.install(fb, &rasters.SLOTS, &rasters.tables, .{ .flicker = true });
         rasters.build(fb, CANVAS_Y);
         fb.clearFrameBuffer(0);
+        self.ulm_rect = ulmRect();
+        const canvas = blit.Dst.plane(fb).window(CANVAS_X, CANVAS_Y, CANVAS_W, CANVAS_H);
+        for (placement) |p| blit.blit(canvas, p.img, null, p.x, p.y, 0, .copy);
     }
 
     /// go()'s state, advanced in go()'s order, keeping what each part draws.
@@ -159,13 +189,22 @@ pub const Demo = struct {
     pub fn render(self: *Demo, zigos: *ZigOS, dt: f32) void {
         _ = dt;
         const fb = &zigos.lfbs[PLANE];
-        fb.clearFrameBuffer(0);
         const canvas = blit.Dst.plane(fb).window(CANVAS_X, CANVAS_Y, CANVAS_W, CANVAS_H);
+        // Only what moves is cleared and redrawn: the black outside it and the
+        // potiches there were drawn in init. The potiches go back over each
+        // dynamic rectangle (clipped to it), after everything dynamic, as before.
+        var dynamic: [DYNAMIC_FIXED.len + 1]Rect = undefined;
+        dynamic[0..DYNAMIC_FIXED.len].* = DYNAMIC_FIXED;
+        dynamic[DYNAMIC_FIXED.len] = self.ulm_rect;
+        for (dynamic) |r| canvas.fill(r.x, r.y, r.w, r.h, 0);
         self.scroller.render(canvas, &self.fate);
         self.drawVu(canvas);
         self.drawUlm(canvas);
         self.drawMoche(canvas);
-        for (placement) |p| blit.blit(canvas, p.img, null, p.x, p.y, 0, .copy);
+        for (dynamic) |r| {
+            const view = canvas.window(@intCast(r.x), @intCast(r.y), r.w, r.h);
+            for (placement) |p| blit.blit(view, p.img, null, p.x - r.x, p.y - r.y, 0, .copy);
+        }
     }
 
     /// getVolumeVoiceN: max(vol * 100 / 15, last * 0.9), the volume register's
