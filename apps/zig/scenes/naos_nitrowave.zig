@@ -148,6 +148,7 @@ pub const Demo = struct {
     fn go(self: *Demo, part: Part) void {
         self.part = part;
         self.acc = 0;
+        show.reset();
         self.ok = assets.load(&self.ram, part);
         if (!self.ok) return zg.Console.log("naos_nitrowave: the {s} image does not depack", .{@tagName(part)});
         self.fb.setFrameBufferHBLHandler(zg.OVERSCAN_MAGIC_X, hblFor(part));

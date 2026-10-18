@@ -18,6 +18,7 @@
 // per-line register writes, lossless. Space leaves for the menu ($109C).
 // --------------------------------------------------------------------------
 const st = @import("../swedish_newyear/st.zig");
+const chunky = @import("chunky.zig");
 const shifter = @import("shifter.zig");
 
 pub const SCREEN_LEN = 32000;
@@ -41,7 +42,7 @@ pub fn show(spu: *const [LEN]u8) void {
     var carry: u16 = 0; // colour 0 of set 0: the previous line's last colour 0
     for (0..200) |y| {
         var line: [320]u8 = undefined;
-        st.lineToChunky(spu[y * st.LINE ..][0..st.LINE], &line);
+        chunky.lineToChunky(spu[y * st.LINE ..][0..st.LINE], &line);
         const out = shifter.row(y);
         if (y == 0) { // no palette: the registers are all black
             @memset(out, 0);

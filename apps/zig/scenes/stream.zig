@@ -102,7 +102,7 @@ pub const Demo = struct {
     pub fn render(self: *Demo, zigos: *ZigOS, elapsed_time: f32) void {
         _ = elapsed_time;
         var fb: *LogicalFB = &zigos.lfbs[0];
-        fb.clearFrameBuffer(0);
+        @memset(fb.fb[0 .. W * H], 0); // block clear (the lib's clearFrameBuffer is a byte loop)
 
         // waveform of the most-recent streamed block (512 samples -> 320 columns)
         var x: usize = 0;
@@ -116,8 +116,9 @@ pub const Demo = struct {
         const prog: usize = if (self.total_blocks == 0) 0 else self.cur * W / self.total_blocks;
         var by: usize = 182;
         while (by < 192) : (by += 1) {
-            var bx: usize = 0;
-            while (bx < W) : (bx += 1) fb.fb[by * W + bx] = if (bx < prog) 3 else 2;
+            const row = fb.fb + by * W;
+            @memset(row[0..prog], 3);
+            @memset(row[prog..W], 2);
         }
     }
 };

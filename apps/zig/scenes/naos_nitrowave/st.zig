@@ -54,13 +54,15 @@ pub const Ram = struct {
 };
 
 /// ST colour word -> Color, channel c * 255 / 7 as the other ST ports do.
+/// (A table of the 8 levels: rows load 16 colours each, 247 rows a frame.)
+const LEVEL: [8]u8 = blk: {
+    var t: [8]u8 = undefined;
+    for (&t, 0..) |*v, c| v.* = @intCast(c * 255 / 7);
+    break :blk t;
+};
+
 pub fn color(v: u16) zg.Color {
-    const c = struct {
-        fn ch(x: u16) u8 {
-            return @intCast(@as(u32, x & 7) * 255 / 7);
-        }
-    };
-    return .{ .r = c.ch(v >> 8), .g = c.ch(v >> 4), .b = c.ch(v), .a = 255 };
+    return .{ .r = LEVEL[(v >> 8) & 7], .g = LEVEL[(v >> 4) & 7], .b = LEVEL[v & 7], .a = 255 };
 }
 
 /// The shifter's planar -> chunky (planar.zig: no zigos import, so its test

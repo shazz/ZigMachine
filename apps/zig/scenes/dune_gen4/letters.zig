@@ -41,9 +41,7 @@ pub const Letters = struct {
 
     /// The letters' plane-3 bits, over lines top..199 cleared of plane 3.
     pub fn draw(self: *const Letters, fb: *zg.LogicalFB, top: usize) void {
-        for (top..st.H) |y| {
-            for (st.row(fb, y)) |*p| p.* &= 7;
-        }
+        for (top..st.H) |y| st.maskPlane3(st.row(fb, y));
         for (0..8) |k| {
             const x: i32 = @intCast(T.LETTER_X[k] / 8 * 16);
             for (0..LINES) |l| {

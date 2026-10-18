@@ -5,7 +5,9 @@
 // leaves for it, and the rows whose border the part opens are flickered open
 // by the plane's HBL, as the ST's 50/60 Hz or resolution switch opens them.
 // --------------------------------------------------------------------------
+const std = @import("std");
 const st = @import("../swedish_newyear/st.zig");
+const chunky = @import("chunky.zig");
 const sh = @import("shifter.zig");
 
 /// A low-res screen at `screen` under per-line registers: ST line y (the
@@ -14,16 +16,24 @@ const sh = @import("shifter.zig");
 /// the screen runs on below the window; the side borders stay closed
 /// (colour 0). Rows above the window and past pals.len are border.
 pub fn capture(r: *const st.Ram, screen: u32, pals: []const [16]u16, open_from: usize) void {
+    var last: [16]u16 = undefined; // the registers rarely change line to line: convert on change
+    var regs: [16]u32 = undefined;
+    var have = false;
     for (0..sh.PH) |py| {
         const out = sh.physRow(py);
         @memset(out, 0);
         const y = py -% sh.OY;
         const k = if (py < sh.OY) 0 else @min(y, pals.len - 1);
-        sh.setRegs(py, &sh.rgba(pals[k]));
+        if (!have or !std.mem.eql(u16, &last, &pals[k])) {
+            last = pals[k];
+            regs = sh.rgba(last);
+            have = true;
+        }
+        sh.setRegs(py, &regs);
         sh.setOpen(py, py >= sh.OY and y < pals.len and y >= open_from);
         if (py < sh.OY or y >= pals.len) continue;
         const line = r.bytes(screen + @as(u32, @intCast(y)) * st.LINE, st.LINE);
-        st.lineToChunky(line, out[sh.OX..][0..320]);
+        chunky.lineToChunky(line, out[sh.OX..][0..320]);
     }
 }
 
@@ -49,7 +59,7 @@ pub fn captureFull(r: *const st.Ram, start: u32, lines: usize, comptime first: i
         if (!inside) continue;
         var px: [416]u8 = undefined;
         const line = r.bytes(start + @as(u32, @intCast(py - top)) * FULL_LINE, 26 * 8);
-        for (0..26) |g| st.groupToChunky(line[g * 8 ..][0..8], px[g * 16 ..][0..16]);
+        for (0..26) |g| chunky.groupToChunky(line[g * 8 ..][0..8], px[g * 16 ..][0..16]);
         @memcpy(out, px[FULL_SKIP..][0..sh.PW]);
     }
 }

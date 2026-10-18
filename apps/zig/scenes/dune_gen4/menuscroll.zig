@@ -80,7 +80,7 @@ pub const MenuScroll = struct {
     pub fn draw(self: *const MenuScroll, fb: *zg.LogicalFB) void {
         for (self.rows, 0..) |r, l| {
             const px = st.row(fb, TOP + l);
-            for (px) |*p| p.* &= 7;
+            st.maskPlane3(px);
             for (r, 0..) |w, g| st.orWord(px, @intCast(g * 16), w, 3);
         }
     }
