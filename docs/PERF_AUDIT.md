@@ -101,6 +101,27 @@ now estimates 1 fps. No other measurement constrains it. It predicts snyd_90 (~7
 swedish_newyear (~7 fps) are slow for the same reason; a 6-frame board-SoC sim of the old
 stcs, or snyd_90 on the board, confirms or refutes it.
 
+## Fitted to the board (2026-10-18)
+
+The model's parameters are fitted to MEASURED frame times of 92 carts on the board
+(glass-ctl ZMSTAT, 12-17 s after load), each cart estimated over the same window of its
+board build:
+
+```sh
+PERF_NO_CART_ARGS=1 node apps/frame_cost.mjs --all --warmup 720 --frames 300 \
+    --machine <the board's docs/> --out calib.json
+node apps/perf_fit.mjs calib.json fps.csv            # fit; --fixed: the current model's errors
+```
+
+Result: median error 4%, 63 carts within 10%, 77 within 20%, 85 within 50%; 23 of the 30
+carts the board runs at 60 fps predicted at 60. Fitted: CPI 1.0 (weakly identified: the
+loss is flat from 0.6 to 1.35), STORE_DRAIN 27, FILL_WORD_CYCLES 60, FRESCO_PLANE 1.09 Mc;
+DMISS and HBL_CALL at their floor; SNOOP_OVERFLOW 240 (snyd_90's 60 fps refutes the 1,900
+the old stcs suggested). Still off by 2x or more: naos_nitrowave (129 ms on the board, 18
+predicted), union_superscroller (1,638 vs 451), st_replay (16.5 vs 38: its ROM/GEM work),
+union_intro (21 vs 41), stniccc (41 vs 21) -- most likely a different phase on the board at
+12 s, or an unmodelled cost; the loss caps each cart at a 2x miss so they cannot drag the fit.
+
 ## It is an estimate
 
 Calibration (2026-10-17): empire's byte-loop clear (~2 Mc a 64,000-byte plane, so ~30

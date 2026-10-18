@@ -17,7 +17,9 @@ export function shelf(dir = "docs") {
 
 function runOne(script, cart, passArgs) {
     const tag = cart.replace(/^.*demo-/, "").replace(/\.wasm$/, "");
-    const args = [script, cart, "--json", ...passArgs, ...(CART_ARGS[tag] ?? [])];
+    // PERF_NO_CART_ARGS=1: no scripted keys, as the board runs a cart unattended (calibration)
+    const extra = process.env.PERF_NO_CART_ARGS ? [] : CART_ARGS[tag] ?? [];
+    const args = [script, cart, "--json", ...passArgs, ...extra];
     return new Promise((resolve) => {
         execFile(process.execPath, args, { maxBuffer: 64 << 20, timeout: TIMEOUT_MS }, (err, stdout, stderr) => {
             if (err) return resolve({ tag, error: (stderr || err.message).trim().split("\n").pop().slice(0, 160) });

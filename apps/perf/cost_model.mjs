@@ -6,7 +6,14 @@
 // the model cannot see: cache misses (D$ 4 KiB, I$ 16 KiB 2-way), GCC folding a compare
 // into its branch, spills. Those are absorbed by CPI below, calibrated on board numbers.
 //
-// Calibration points (2026-10-17 board tour, 100 MHz, 1.67 Mc per 60 Hz frame):
+// FITTED 2026-10-18 to MEASURED board frame times of 92 carts (glass-ctl ZMSTAT, 12-17 s
+// after load; apps/perf_fit.mjs over the same window of each cart's board build):
+// median error 4%, p90 ~35%. CPI is only weakly identified (the fit's loss is flat from
+// 0.6 to 1.35: it trades against STORE_DRAIN through the roofline) and is pinned at 1.0;
+// DMISS and HBL_CALL fall to their floor: the board shows no cost for them beyond what the
+// instructions already carry. FRESCO_PLANE, FILL_WORD_CYCLES and STORE_DRAIN are well set.
+//
+// Earlier calibration points (2026-10-17 board tour, 100 MHz, 1.67 Mc per 60 Hz frame):
 //   - empire's LogicalFB.clearFrameBuffer byte loop: ~2 Mc per 64,000-byte plane, i.e.
 //     ~31 cycles a byte store when stores come back to back -> STORE_DRAIN.
 //     (The 8-entry store buffer hides a store only while the code between stores is
@@ -20,8 +27,8 @@
 //     op (docs/BLITTER_HW_SPEC.md 10.5: FILL 1.03, keyed BLIT 0.9-2.2, TRIANGLE 4.6-6.1);
 //     the CPU spins on BUSY, so blitter time is cart time.
 
-export const CPI = 1.35;          // cycles per modelled rv32 instruction (pipeline + I$/D$ misses)
-export const STORE_DRAIN = 30;    // cycles per store while the store buffer is full (empire)
+export const CPI = 1.0;           // cycles per modelled rv32 instruction (board fit: weakly identified)
+export const STORE_DRAIN = 27;    // cycles per store while the store buffer is full (board fit; empire's old clear said ~31)
 // CPU cycles per hwBlit beyond the blitter's own time: start + spin, and the FULL D$
 // invalidate fpga/cycles/bblit.c does after every op (128 lines of a 4 KiB D$, and the
 // cart's working set misses again after it). BLIT_DFLUSH is the part a range flush
@@ -39,25 +46,22 @@ const readsDest = (minterm) => ((minterm ^ (minterm >> 1)) & 0x55) !== 0;
 export const blitCycles = (cmd, units, minterm) =>
     BLIT_CALL + units * ((readsDest(minterm) ? BLIT_UNIT_RMW : BLIT_UNIT)[cmd] ?? 1.5);
 // FRESCO paints each ENABLED plane in a pass the CPU waits for (cycles/bmain.c: the plane
-// passes follow cart.frame): 0.77-0.82 Mc a frame per plane in every board-SoC sim log
-// (ZM QF), 3.5 Mc for music_debug's four planes. Empty planes cost the same.
-export const FRESCO_PLANE = 0.8e6;
-export const HBL_CALL = 60;
-// A HYPOTHESIS, calibrated on ONE point: stcs before perf/board-slow-carts ran 1 fps on the
-// board (~100 Mc a frame) where everything else in the model says ~8 Mc; it is the only
-// cart whose HBL handler writes far more palette entries in one call (256, every line) than
-// the compositor's snoop queue holds (16; soc/zm_video_snoop.py), and the sequencer waits
-// for that queue to drain before each line's pass. Every other cart, and every board-SoC
-// sim log, stays under 16 a call, so nothing else constrains this number: a 6-frame sim of
-// the old stcs would confirm or refute it.
+// passes follow cart.frame): 0.77-0.82 Mc a plane in the board-SoC sim logs (ZM QF); the
+// board fit says ~1.09 Mc. Empty planes cost the same.
+export const FRESCO_PLANE = 1.09e6;
+export const HBL_CALL = 0;     // per hblDispatch beyond the handler's own instructions (board fit: ~0)
+export const DISK_BLOCK = 0;  // cycles per 512-byte disk block read (the board's firmware copies it out of DDR)
+// Palette stores past the compositor's 16-entry snoop queue within one HBL handler
+// (soc/zm_video_snoop.py). First fitted at 1,900 to the old stcs alone (1 fps on the
+// board); the 2026-10-18 board table REFUTES that: snyd_90 makes 1,556 such stores a frame
+// and runs 60 fps. The fit puts the cost at ~240 cycles; the old stcs stays unexplained.
 export const SNOOP_QUEUE = 16;
-export const SNOOP_OVERFLOW = 1900; // cycles per palette store beyond the queue, within one handler       // per hblDispatch: interrupt entry/exit on ZIGGY
+export const SNOOP_OVERFLOW = 240; // cycles per palette store beyond the queue, within one handler
 // memset/memcpy (wasm memory.fill/copy -> picolibc) cost per 32-bit word ON THE BOARD:
-// fitted to the 2026-10-18 board fps of empire (3.7 Mc measured, 2.48 by the round-2 model:
-// 74 KB of fills + 14 KB of copies a frame) and maxi (5.3 vs 2.59: 192 KB of copies), which
-// agree on ~86 cycles a word -- against ~31 a STORE for a byte loop (empire's old clear).
-// So a memset is only ~1.5x a byte loop on ZIGGY; a CHISEL fill is ~1.85 clocks a byte.
-export const FILL_WORD_CYCLES = 86;
+// first fitted to empire and maxi alone (~86 a word), then to the 92-cart board table: ~60
+// a word, against ~27 a store for a byte loop. A memset is ~2x a byte loop on ZIGGY; a
+// CHISEL fill is ~1.85 clocks a byte.
+export const FILL_WORD_CYCLES = 60;
 // I$ (16 KiB, 2-way): when the rv32 code a frame runs is bigger, a share of its
 // instruction fetches miss; a miss refills a 32-byte line (8 instructions) in ~40 cycles.
 // Joust (~24 KB a frame) is where this shows: without it the model is ~2x under its sim.
@@ -67,8 +71,9 @@ export const icacheCycles = (instr, codeBytes) => instr * ICACHE_MISS_CPI * Math
 export const CONST_DIV = 5;      // i32 divide by a constant (mulhu + shifts); i64: 4x
 // A D$ miss (4 KiB direct-mapped, 32-byte lines, modelled on the cart's real load stream by
 // probe_hooks.mjs): a line refill from DDR over HP0, the first word ~24-62 cycles late
-// (fpga/CYCLES.md "Memory path") plus the burst. Calibrated with CPI on the board-SoC sims.
-export const DMISS = 40;
+// (fpga/CYCLES.md "Memory path") plus the burst. The board fit puts it at its floor (10):
+// the misses the model sees are already paid for inside CPI.
+export const DMISS = 10;
 export const MHZ = 100;
 export const FRAME_MC = MHZ / 60; // 1.667 Mc: a 60 Hz frame
 
