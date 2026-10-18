@@ -76,6 +76,7 @@ pub const Demo = struct {
     view: view_mod.View,
     parallax: view_mod.Parallax,
     controls: Controls,
+    cache: draw.Cache,
     clock: f32,
     steps: u32, // 60 Hz steps run (the harness's frame count)
     ready: bool, // zg.mem gave the built views
@@ -89,6 +90,7 @@ pub const Demo = struct {
         self.griffin.init(A.map.SPAWN_X, A.map.SPAWN_Y, level.TILE);
         self.view.follow(self.griffin.x, self.griffin.y); // viewport.follow's forced update
         self.controls.init();
+        self.cache = .{};
         self.clock = 0;
         self.steps = 0;
         self.launch_pending = false;
@@ -141,10 +143,7 @@ pub const Demo = struct {
         _ = dt;
         if (!self.ready) return;
         const fb = &zigos.lfbs[0];
-        draw.background(fb, self.parallax.offset);
-        draw.foreground(fb, &self.view);
-        draw.griffin(fb, &self.griffin, &self.view);
-        draw.bars(fb);
+        draw.frame(fb, &self.view, self.parallax.offset, &self.griffin, &self.cache);
     }
 
     pub fn input(self: *Demo, dir: u8) void {

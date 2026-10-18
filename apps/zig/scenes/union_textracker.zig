@@ -103,6 +103,12 @@ const K_ESC: u32 = 0xE012;
 const K_SPACE: u32 = ' ';
 
 const Point = struct { x: i32, y: i32 };
+const TRAIL_TILES = 4; // tiles 0..3, at 0, 8, 16 and 24 frames old
+
+/// A size x size square at p, clipped to the plane (the pointer is clamped to it).
+fn clipTile(p: Point, size: usize) struct { w: u16, h: u16 } {
+    return .{ .w = @intCast(@min(size, W - @as(usize, @intCast(p.x)))), .h = @intCast(@min(size, H - @as(usize, @intCast(p.y)))) };
+}
 
 pub const Demo = struct {
     depacking: bool,
@@ -112,6 +118,9 @@ pub const Demo = struct {
     history: [HISTORY]Point,
     newest: u8, // history[newest] = mousePos[0]
     leaving: bool,
+    blitter: zg.Blitter,
+    drawn: [TRAIL_TILES]Point, // where the tiles were drawn last frame
+    have_drawn: bool, // the menu picture is on the plane
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
         self.depacking = false;
@@ -121,6 +130,9 @@ pub const Demo = struct {
         self.history = [_]Point{.{ .x = 0, .y = 0 }} ** HISTORY;
         self.newest = 0;
         self.leaving = false;
+        self.blitter = .{};
+        self.blitter.init();
+        self.have_drawn = false;
 
         // On zg.mem, taken once: init runs once per cart load.
         const buf = zg.mem.alloc(u8, SCREEN_LEN) orelse return self.abandon("no free RAM to depack into");
@@ -162,17 +174,37 @@ pub const Demo = struct {
         if (self.depacking or self.screen.len != SCREEN_LEN) return;
         const fb = &zigos.lfbs[0];
         setRaster(fb, RASTER_COLORS[self.raster]);
-        const dst = blit.Dst.plane(fb);
-        const sheet = blit.Image.init(self.screen[W * H ..], SHEET_W);
-        blit.blit(dst, blit.Image.init(self.screen[0 .. W * H], W), null, 0, 0, null, .copy);
+
+        // The menu is static and the raster is a palette entry, so only the
+        // tiles move: CHISEL puts the menu back under last frame's tiles (the
+        // whole picture on the first frame), then draws this frame's.
+        const menu = self.screen[0 .. W * H];
+        if (self.have_drawn) {
+            for (self.drawn) |q| self.restore(fb, menu, q);
+        } else {
+            self.blitter.blitImage(fb, 0, 0, menu, W, 0, 0, W, H, null);
+        }
+        const sheet = self.screen[W * H ..];
         for ([_]usize{ 3, 2, 1 }) |tile| { // for (i=3; i>0; i--), oldest underneath
             const p = self.ago(tile * TRAIL_STEP);
-            blit.blit(dst, sheet, tileRect(tile), p.x, p.y, 0, .copy);
+            const c = clipTile(p, TILE);
+            self.blitter.blitImage(fb, @intCast(p.x), @intCast(p.y), sheet, SHEET_W, @intCast(tile * TILE), 0, c.w, c.h, 0);
         }
         const p = self.ago(0);
-        const quad = [_]u8{RASTER} ** (QUAD * QUAD);
-        blit.blit(dst, blit.Image.init(&quad, QUAD), null, p.x, p.y, null, .copy);
-        drawBlended(dst, sheet, p);
+        const q = clipTile(p, QUAD);
+        self.blitter.fill(fb, @intCast(p.x), @intCast(p.y), q.w, q.h, RASTER);
+        drawBlended(blit.Dst.plane(fb), blit.Image.init(sheet, SHEET_W), p);
+
+        for (&self.drawn, 0..) |*d, i| d.* = self.ago(i * TRAIL_STEP);
+        self.have_drawn = true;
+    }
+
+    /// Put the menu picture back under the tile that was drawn at `q`.
+    fn restore(self: *Demo, fb: *zg.LogicalFB, menu: []const u8, q: Point) void {
+        const c = clipTile(q, TILE);
+        const x: u16 = @intCast(q.x);
+        const y: u16 = @intCast(q.y);
+        self.blitter.blitImage(fb, @intCast(x), @intCast(y), menu, W, x, y, c.w, c.h, null);
     }
 
     /// mousePos[frames]: the position `frames` updates old.

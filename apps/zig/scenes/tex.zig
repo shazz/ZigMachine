@@ -32,6 +32,7 @@ const back_pal = convertU8ArraytoColors(@embedFile(DIR ++ "back_pal.dat"));
 const blue_back_pal = convertU8ArraytoColors(@embedFile(DIR ++ "blue_back_pal.dat"));
 
 const logo_b = @embedFile(DIR ++ "logo.raw");
+const logo_img = blit.Image.init(logo_b, 208);
 const back_b = @embedFile(DIR ++ "back.raw");
 const BACK_POS: u16 = 200 - 87;
 
@@ -107,6 +108,13 @@ const SCROLL_CHAR_H = 17;
 const SCROLL_POS: u16 = 142;
 const font_img = blit.Image.init(@embedFile(DIR ++ "fonts.raw"), SCROLL_CHAR_W); // one 32x17 tile per ASCII code
 const Letter = struct { x: i32, ch: u8 };
+const Box = struct { x: i32 = 0, y: i32 = 0, w: usize = 0, h: usize = 0 };
+const STAR_NONE: u32 = 0xFFFF_FFFF;
+
+// The font background's rows under the scroller band, as a word-aligned copy so
+// the font mask below ANDs a word at a time (the embedded file is byte-aligned).
+const BAND_PIXELS: usize = @as(usize, WIDTH) * SCROLL_CHAR_H;
+const back_band: [BAND_PIXELS]u8 align(4) = back_b[(SCROLL_POS - BACK_POS) * WIDTH ..][0..BAND_PIXELS].*;
 
 comptime {
     std.debug.assert(SCROLL_TEXT.len >= NB_LETTERS);
@@ -128,6 +136,12 @@ pub const Demo = struct {
     sprite_y: [NB_SPRITES]i32 = undefined,
     stars: [NB_STARS]Star = undefined,
     star_drawn_x: [NB_STARS]i64 = undefined,
+    // The plane index each star's dot was written at last render (STAR_NONE: not
+    // drawn). Only these dots are erased, where the plane used to be cleared whole.
+    star_px: [NB_STARS]u32 = undefined,
+    // Where the logo and each sprite were drawn last render (a w == 0 box is
+    // nothing): only those boxes are cleared before the next draw.
+    dirty: [1 + NB_SPRITES]Box = undefined,
     letters: [NB_LETTERS]Letter = undefined,
     text_offset: usize = undefined,
 
@@ -144,6 +158,8 @@ pub const Demo = struct {
         fb.setPaletteEntry(2, Color{ .r = 0xE0, .g = 0xE0, .b = 0xE0, .a = 255 });
         fb.setPaletteEntry(1, Color{ .r = 0x60, .g = 0x60, .b = 0x60, .a = 255 });
         self.initStars();
+        fb.clearFrameBuffer(0);
+        @memset(&self.star_px, STAR_NONE);
 
         // second plane: logo and sprites
         fb = &zigos.lfbs[1];
@@ -151,6 +167,8 @@ pub const Demo = struct {
         fb.setPalette(logo_pal);
         fb.setPaletteEntry(0, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
         fb.setPaletteEntry(255, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
+        fb.clearFrameBuffer(0);
+        self.dirty = [_]Box{.{}} ** (1 + NB_SPRITES);
         self.logo.init(fb.getRenderTarget(), logo_b, 208, 97, 0, 0, null, null);
         self.logo_sinx = 0;
         self.logo_inc = 0;
@@ -168,12 +186,17 @@ pub const Demo = struct {
         fb.setPaletteEntry(0, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
         fb.setPaletteEntry(255, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
         self.back.init(fb.getRenderTarget(), back_b, 320, 87, 0, BACK_POS, null, null);
+        // The red font background never moves and nothing else draws on this
+        // plane: it is drawn once, not every frame.
+        fb.clearFrameBuffer(0);
+        self.back.render(null);
 
         // 4th plane: the scrolltext
         fb = &zigos.lfbs[3];
         fb.is_enabled = true;
         fb.setPalette(blue_back_pal);
         fb.setPaletteEntry(0, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
+        fb.clearFrameBuffer(0); // render() clears only the scroller's band
         for (&self.letters, 0..) |*letter, i| {
             letter.* = .{ .x = SCROLL_WIDE * SCROLL_TILE_W + @as(i32, @intCast(i)) * SCROLL_TILE_W, .ch = SCROLL_TEXT[i] };
         }
@@ -251,33 +274,43 @@ pub const Demo = struct {
     pub fn render(self: *Demo, zigos: *ZigOS, elapsed_time: f32) void {
         _ = elapsed_time;
         self.renderStars(&zigos.lfbs[0]);
-
-        zigos.lfbs[1].clearFrameBuffer(0);
-        self.logo.render(null);
-        const sprites_dst = blit.Dst.plane(&zigos.lfbs[1]);
-        for (sprite_imgs, self.sprite_x, self.sprite_y) |img, x, y| {
-            blit.blit(sprites_dst, img, null, x, y, 0, .copy);
-        }
-
-        self.back.render(null);
-
+        self.renderLogo(&zigos.lfbs[1]);
         self.renderScroller(&zigos.lfbs[3]);
+    }
+
+    /// Erase last frame's boxes, then draw the logo and the sprites in order. The
+    /// logo is blitted with key 0, which is what Sprite.render did (palette 0 has
+    /// alpha 0, so index 0 is transparent).
+    fn renderLogo(self: *Demo, fb: *LogicalFB) void {
+        for (self.dirty) |b| fb.fillRect(b.x, b.y, b.w, b.h, 0);
+        const dst = blit.Dst.plane(fb);
+        const logo_x = self.logo.x_position;
+        blit.blit(dst, logo_img, null, logo_x, 0, 0, .copy);
+        self.dirty[0] = .{ .x = logo_x, .y = 0, .w = logo_img.w, .h = logo_img.h };
+        for (sprite_imgs, self.sprite_x, self.sprite_y, self.dirty[1..]) |img, x, y, *box| {
+            blit.blit(dst, img, null, x, y, 0, .copy);
+            box.* = .{ .x = x, .y = y, .w = img.w, .h = img.h };
+        }
     }
 
     /// A 2x2 canvas dot is one ST pixel: the one holding the dot's centre.
     /// Later stars cover earlier ones, as they do on the canvas.
     fn renderStars(self: *Demo, fb: *LogicalFB) void {
-        fb.clearFrameBuffer(0);
-        for (self.stars, self.star_drawn_x) |star, drawn_x| {
+        for (self.star_px) |at| {
+            if (at != STAR_NONE) fb.fb[at] = 0;
+        }
+        for (self.stars, self.star_drawn_x, &self.star_px) |star, drawn_x, *at| {
             const x: i32 = @intCast((drawn_x + Q32) >> 33);
             const y = star.row;
+            at.* = STAR_NONE;
             if (x < 0 or x >= WIDTH or y >= STAR_ROWS) continue;
-            fb.setPixelValue(@intCast(x), @intCast(y), star.color);
+            at.* = @as(u32, @intCast(y)) * fb.stride + @as(u32, @intCast(x));
+            fb.fb[at.*] = star.color;
         }
     }
 
     fn renderScroller(self: *Demo, fb: *LogicalFB) void {
-        fb.clearFrameBuffer(0);
+        fb.fillRect(0, SCROLL_POS, WIDTH, SCROLL_CHAR_H, 0); // the only rows the letters touch
         const dst = blit.Dst.plane(fb);
         for (self.letters) |letter| {
             const tile: usize = if (letter.ch >= SCROLL_FIRST_CHAR) letter.ch - SCROLL_FIRST_CHAR else 0;
@@ -286,9 +319,8 @@ pub const Demo = struct {
         }
 
         // the font's colour mask against the font background, as before
-        const row_start: usize = SCROLL_POS * WIDTH;
-        const back_start: usize = (SCROLL_POS - BACK_POS) * WIDTH;
-        const n: usize = WIDTH * SCROLL_CHAR_H;
-        for (fb.fb[row_start..][0..n], back_b[back_start..][0..n]) |*d, m| d.* &= m;
+        const band: *[BAND_PIXELS / 4]u32 = @ptrCast(@alignCast(fb.fb[SCROLL_POS * WIDTH ..][0..BAND_PIXELS]));
+        const mask: *const [BAND_PIXELS / 4]u32 = @ptrCast(&back_band);
+        for (band, mask) |*d, m| d.* &= m;
     }
 };

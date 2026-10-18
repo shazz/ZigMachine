@@ -20,6 +20,7 @@ const blit = zg.blit;
 const pathchain = zg.pathchain;
 const A = @import("assets.zig");
 const curve = @import("curve.zig");
+const gpu = @import("../union_common/gpu.zig");
 const hub_assets = @import("../union_demo/assets.zig");
 
 pub const Version = enum { k1024, k512 };
@@ -94,40 +95,41 @@ pub const Screen = struct {
     }
 
     /// Every pixel is written: backStLow.png is opaque and covers the plane.
-    pub fn draw(self: *const Screen, dst: blit.Dst, img: A.Images) void {
-        blit.blit(dst, img.background, null, 0, 0, null, .copy);
-        blit.blit(dst, img.frame, null, 0, FRAME_Y, null, .copy);
-        const vert = dst.window(0, 0, A.SCREEN_W, VERT_H);
-        for (self.vert_y) |y| blit.blit(vert, img.beatdis, null, 0, @divExact(y, 2), null, .copy);
-        const back = dst.window(CANVAS_X, BACK_Y, CANVAS_W, A.BACK_H);
-        blit.blit(back, img.scrollback, null, halveX(self.back_x), 0, null, .copy);
-        self.drawLetters(dst.window(CANVAS_X, TEXT_Y, CANVAS_W, TEXT_H), img);
-        if (self.version == .k512) self.drawSprites(dst, img.sprites);
+    /// All on CHISEL (union_common/gpu.zig): the same ops in the same order.
+    pub fn draw(self: *const Screen, fb: *zg.LogicalFB, img: A.Images) void {
+        gpu.put(fb, img.background, null, 0, 0, null);
+        gpu.put(fb, img.frame, null, 0, FRAME_Y, null);
+        const vert = gpu.Win{ .x = 0, .y = 0, .w = A.SCREEN_W, .h = VERT_H };
+        for (self.vert_y) |y| gpu.putIn(fb, vert, img.beatdis, null, 0, @divExact(y, 2), null);
+        const back = gpu.Win{ .x = CANVAS_X, .y = BACK_Y, .w = CANVAS_W, .h = A.BACK_H };
+        gpu.putIn(fb, back, img.scrollback, null, halveX(self.back_x), 0, null);
+        self.drawLetters(fb, gpu.Win{ .x = CANVAS_X, .y = TEXT_Y, .w = CANVAS_W, .h = TEXT_H }, img);
+        if (self.version == .k512) self.drawSprites(fb, img.sprites);
     }
 
     /// The letters sit 96 apart and never overlap, so CODEF's sort by x changes nothing.
-    fn drawLetters(self: *const Screen, win: blit.Dst, img: A.Images) void {
+    fn drawLetters(self: *const Screen, fb: *zg.LogicalFB, win: gpu.Win, img: A.Images) void {
         for (self.letters.x, self.letters.c) |x, c| {
             const x_st = halveX(x);
             if (c == '!' and @mod(x, 2) == 1) {
-                blit.blit(win, img.bang_odd, null, x_st, 0, 0, .copy);
+                gpu.putIn(fb, win, img.bang_odd, null, x_st, 0, 0);
                 continue;
             }
             const g: usize = c - FIRST_CHAR;
             const part = blit.Rect{ .x = g % A.FONT_COLS * A.GLYPH_W, .y = g / A.FONT_COLS * A.GLYPH_H, .w = A.GLYPH_W, .h = A.GLYPH_H };
-            blit.blit(win, img.font, part, x_st, 0, 0, .copy);
+            gpu.putIn(fb, win, img.font, part, x_st, 0, 0);
         }
     }
 
     /// for (i = sprites.length-1; i >= 0; i--): T lands on top.
-    fn drawSprites(self: *const Screen, dst: blit.Dst, sheet: blit.Image) void {
+    fn drawSprites(self: *const Screen, fb: *zg.LogicalFB, sheet: blit.Image) void {
         var i: u32 = SPRITE_CELLS.len;
         while (i > 0) {
             i -= 1;
             const cell = SPRITE_CELLS[i] orelse continue;
             const p = pathchain.at(u16, &curve.X, &curve.Y, self.sprite_step, i, SPRITE_LAG) orelse continue;
             const part = blit.Rect{ .x = @as(usize, cell) * A.SPRITE, .y = 0, .w = A.SPRITE, .h = A.SPRITE };
-            blit.blit(dst, sheet, part, p.x, p.y, 0, .copy);
+            gpu.put(fb, sheet, part, p.x, p.y, 0);
         }
     }
 };

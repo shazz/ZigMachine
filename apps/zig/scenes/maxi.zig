@@ -42,6 +42,7 @@ const font_pal = convertU8ArraytoColors(@embedFile("../assets/screens/reps/font_
 const Vec3 = za.Vec3;
 const Vec4 = za.Vec4;
 const wf = zg.wireframe;
+const lines = @import("maxi/lines.zig");
 
 // The MAXI logo: a frame, the yellow letters and the red letters, each its own
 // .obj (drawn in its own colour), centred in init().
@@ -63,13 +64,10 @@ fn posed(p: Pose, v: Vec4) Vec4 {
 // --------------------------------------------------------------------------
 // Variables
 // --------------------------------------------------------------------------
-// The 320x280 frame, drawn here and blitted into the plane: from the cart RAM
-// arena (zg.mem) in init, since as a module-scope array it was 89,600 zero
-// bytes of the data section. render_buffer.buffer is pointed at it there.
-var overcan_buffer: *[320 * 280]u8 = undefined;
-// The cleared buffer with the (static) text drawn on it, made once in init():
-// each frame starts from a copy of it instead of a clear plus ~1100 glyphs
-// drawn a pixel at a time.
+// The text page: the cleared 320x280 window with the (static) text drawn on
+// it, made once in init() in the cart RAM arena (zg.mem; as a module-scope
+// array it was 89,600 zero bytes of the data section). It goes into the plane
+// once; afterwards it is only read, to put back what last frame's lines covered.
 var text_page: *[320 * 280]u8 = undefined;
 var render_buffer: RenderBuffer = .{ .width = 320, .height = 280 };
 
@@ -87,6 +85,12 @@ fn handler_vertical_borders(fb: *LogicalFB, zigos: *ZigOS, line: u16, column: u1
     if (line < 40 or line >= 240) fb.flickerBorder();
 }
 
+// The 320x280 window of the 400-wide overscan plane that MAXI draws in.
+fn planeWindow(fb: *LogicalFB) lines.Plane {
+    const border: usize = zg.OVERSCAN_MAGIC_X;
+    return .{ .px = fb.fb + border, .stride = fb.stride, .page = text_page };
+}
+
 pub const Demo = struct {
   
     name: u8 = 0,
@@ -100,6 +104,11 @@ pub const Demo = struct {
     text: Text = undefined,
     render_target: RenderTarget = undefined,
     pos_x: f32 = 0,
+    // last frame's lines, to take them back off the plane (lines.zig)
+    prev_rectangle: [rect.verts.len]Coord = undefined,
+    prev_yellow: [yellow.verts.len]Coord = undefined,
+    prev_red: [red.verts.len]Coord = undefined,
+    drawn: bool = false,
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
         Console.log("Demo init", .{});
@@ -119,19 +128,19 @@ pub const Demo = struct {
         // HBL: open the top/bottom borders (must fire at the magic column)
         fb.setFrameBufferHBLHandler(zg.OVERSCAN_MAGIC_X, handler_vertical_borders);
 
-        // create text buffer
-        overcan_buffer = zg.mem.mustAlloc(u8, 320 * 280)[0 .. 320 * 280]; // once per cart load
-        render_buffer.buffer = overcan_buffer;
-        self.render_target = .{ .render_buffer = &render_buffer };  
-        self.text.init(self.render_target, fonts_b, fonts_chars, 8, 8);
-
-        // the text page: the same clear + text the frame used to redraw
-        text_page = zg.mem.mustAlloc(u8, 320 * 280)[0 .. 320 * 280];
+        // the text page: the clear + text the frame used to redraw, built once
+        text_page = zg.mem.mustAlloc(u8, 320 * 280)[0 .. 320 * 280]; // once per cart load
         render_buffer.buffer = text_page;
+        self.render_target = .{ .render_buffer = &render_buffer };
+        self.text.init(self.render_target, fonts_b, fonts_chars, 8, 8);
         self.render_target.clearFrameBuffer(0);
         self.render_text();
-        render_buffer.buffer = overcan_buffer;
-        self.render_target.clearFrameBuffer(0);
+
+        // ...and into the plane, once: the 320-wide window centred (x+40) so the
+        // visible window lines up; the side borders stay closed (black)
+        const window = planeWindow(fb);
+        var y: usize = 0;
+        while (y < lines.H) : (y += 1) @memcpy(window.px[y * window.stride ..][0..lines.W], text_page[y * lines.W ..][0..lines.W]);
 
         for (&vertices_rectangle) |*v| v.* = v.add(Vec4.new(-1.2, -0.5, -0.0, 0.0));
         for (&vertices_yellow) |*v| v.* = v.add(Vec4.new(-1.2, -0.5, 0.35, 0.0));
@@ -172,23 +181,21 @@ pub const Demo = struct {
     }
 
     pub fn render(self: *Demo, zigos: *ZigOS, elapsed_time: f32) void {
-
-        @memcpy(overcan_buffer, text_page); // the clear + text, made once in init()
-
-        wf.drawEdges(self.render_target, &rect.edges, &self.projected_vertices_rectangle, 2, shapes.drawLine);
-        wf.drawEdges(self.render_target, &yellow.edges, &self.projected_vertices_yellow, 3, shapes.drawLine);
-        wf.drawEdges(self.render_target, &red.edges, &self.projected_vertices_red, 4, shapes.drawLine);
-
-        // Blit the 320-wide overscan buffer into the 400-wide plane, centred (x+40) so
-        // the visible window lines up; side borders stay closed (black).
-        const fb = &zigos.lfbs[0];
-        const pw: usize = zg.PHYSICAL_WIDTH;
-        const ph: usize = zg.PHYSICAL_HEIGHT;
-        const vw: usize = WIDTH;
-        const border: usize = zg.OVERSCAN_MAGIC_X;
-        const src = overcan_buffer; // a local: the global pointer is not reloaded per pixel
-        var y: usize = 0;
-        while (y < ph) : (y += 1) @memcpy(fb.fb[y * pw + border ..][0..vw], src[y * vw ..][0..vw]);
+        // Only what moves: last frame's lines back to the text under them, then
+        // this frame's, in the order the full redraw drew them (lines.zig).
+        const window = planeWindow(&zigos.lfbs[0]);
+        if (self.drawn) {
+            lines.edges(window, &rect.edges, &self.prev_rectangle, 2, lines.Plane.restore);
+            lines.edges(window, &yellow.edges, &self.prev_yellow, 3, lines.Plane.restore);
+            lines.edges(window, &red.edges, &self.prev_red, 4, lines.Plane.restore);
+        }
+        lines.edges(window, &rect.edges, &self.projected_vertices_rectangle, 2, lines.Plane.plot);
+        lines.edges(window, &yellow.edges, &self.projected_vertices_yellow, 3, lines.Plane.plot);
+        lines.edges(window, &red.edges, &self.projected_vertices_red, 4, lines.Plane.plot);
+        self.prev_rectangle = self.projected_vertices_rectangle;
+        self.prev_yellow = self.projected_vertices_yellow;
+        self.prev_red = self.projected_vertices_red;
+        self.drawn = true;
 
         _ = elapsed_time;
     }

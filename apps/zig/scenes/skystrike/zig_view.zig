@@ -24,6 +24,7 @@ const hud = @import("zig_hud.zig");
 const tracers = @import("zig_tracers.zig");
 const help = @import("zig_help.zig");
 const screens = @import("zig_screens.zig");
+const intro = @import("zig_intro.zig");
 const scroller = @import("zig_scroller.zig");
 const set = @import("zig_settings.zig");
 
@@ -45,6 +46,7 @@ pub fn render(zigos: *zg.ZigOS) void {
     colours(zigos);
     hud.tickNotice(zigos);
     if (!hooks.flightView()) return original(zigos);
+    intro.invalidate(); // the flight draws over the overlay: the next scene is drawn whole
     zigos.lfbs[PLANE0].is_enabled = false;
     zigos.lfbs[scroll.WORLD_PLANE].is_enabled = true;
     zigos.lfbs[scroll.OVERLAY_PLANE].is_enabled = true;

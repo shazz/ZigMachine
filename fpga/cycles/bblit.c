@@ -13,8 +13,9 @@
  *      after every register store before it;
  *   3. spin on STATUS.BUSY, which covers the tap, the op and every write's B
  *      response: when it falls the pixels are in DDR;
- *   4. invalidate the D-cache (the CPU's lines of those pixels are stale), and
- *      store CYCLES and STATUS where the machine leaves them, for the cart's loads.
+ *   4. invalidate the D-cache lines of the op's clipped box (the CPU's lines of those pixels
+ *      are stale; bdinval.h, the whole cache when the box is bigger than it), and store
+ *      CYCLES and STATUS where the machine leaves them, for the cart's loads.
  * The machine's code runs instead (its CPU stores are snooped like any other) before
  * vseq_init sets VBASE (the tap has no region yet), and for an op whose destination
  * starts below OFF_VRAM: D may legally write the region's registers and palettes, and
@@ -23,6 +24,7 @@
 
 #include <stdio.h>
 
+#include "bdinval.h"
 #include "vboard.h"
 #include "zm_memmap.h"
 
@@ -48,7 +50,7 @@ static void blit_rtl(volatile uint8_t* r) {
     while (w[0] & BLIT_BUSY) {
         if (board_cycles() - t > BLIT_TIMEOUT) board_finish((int)(0xB10000u | (w[0] & 0xFFFFu)));
     }
-    zmv_flush_dcache();
+    if (!bdi_range(r, cmd)) bdi_inval_all();
     *(volatile uint32_t*)(r + ZM_BLIT_CYCLES) = w[ZM_BLIT_CYCLES / 4 - ZM_OFF_BLIT / 4];
     r[ZM_BLIT_STATUS] = 0;
     bblit.hw++;

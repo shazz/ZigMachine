@@ -9,6 +9,7 @@ const LogicalFB = @import("../zigos.zig").LogicalFB;
 const Color = @import("../zigos.zig").Color;
 
 const Console = @import("../utils/debug.zig").Console;
+const draw = @import("sprite_draw.zig");
 
 // --------------------------------------------------------------------------
 // Constants
@@ -151,82 +152,36 @@ pub const Sprite = struct {
         } 
 
         // offset in Framebuffer
-        var offset: u16 = left_x_position + ( (@as(u16, @intCast(self.y_position)) + clamped_y_top_position) * screen_width );
+        const offset: u16 = left_x_position + ( (@as(u16, @intCast(self.y_position)) + clamped_y_top_position) * screen_width );
         // Console.log("offset in FB left: {} y: {} clamp y: {} => {}", .{left_x_position, @as(u16, @intCast(self.y_position)), clamped_y_top_position, offset});  
 
-        // counter for each sprite row
-        var row_counter: u16 = 0;
-
         // counter for each pixel (palette entry) of the sprite
-        var data_counter: u32 = left_x_clamped + (clamped_y_top_position * self.width);
+        const data_counter: u32 = left_x_clamped + (clamped_y_top_position * self.width);
 
         if (clamp_sprite == false) {
-
-            // Console.log("Plotting sprite at ({}, {}) with {} cols", .{left_x_position, clamped_y_position, nb_cols});
-
-            while (row_counter < self.height - clamped_y_top_position - clamped_y_bottom_position) : (row_counter += 1) {
-
-                // counter for each pixel of the sprite for a given row
-                var col_counter: u16 = 0;
-                while (col_counter < nb_cols) : (col_counter += 1) {
-
-                    // apply y offset
-                    var new_offset = offset;
-
-                    if (self.y_offset_table) |y_table| {
-     
-                        var counter: u16 = col_counter + left_x_position + self.y_offset_index;
-                        if(counter >= y_table.len) counter -= @as(u16, @intCast(y_table.len));
-
-                        const off = y_table[counter];
-                        if (off < 0) {
-                            new_offset -= (@as(u16, @intCast(-off)) * screen_width);
-                        } else {
-                            new_offset += (@as(u16, @intCast(off)) * screen_width);
-                        }
-                    }
-
-                    // clamp if outside buffer
-                    const pal_entry = self.data[data_counter];
-                    if(!is_tranparent or pal_entry != transparent_color) { 
-
-                        if ((new_offset + col_counter < self.data.len) or (new_offset + col_counter >= 0)) {
-
-                            switch (self.target) {
-                                .fb => |fb| {
-                                    fb.fb[new_offset + col_counter] = self.data[data_counter];
-                                },
-                                .render_buffer => |rbuf| {
-                                    rbuf.buffer[new_offset + col_counter] = self.data[data_counter];
-                                }
-                            }
-                        }
-                    }
-                    data_counter += 1;
-                }
-
-                // update pointer if right or left clamp
-                if (right_clamp == true) {
-                    data_counter += (self.width - nb_cols - left_x_clamped);
-                }
-
-                if (left_clamp == true) {
-                    data_counter += left_x_clamped;
-                }
-                // Console.log("Left/Right clamp: advance pointer of {} + {} pixels", .{left_x_clamped, self.width - nb_cols - left_x_clamped});
-
-                // recompute FB offset
-                if(self.x_offset_table) |table| {
-                    const delta: i16 = table[(self.x_offset_index + row_counter) % table.len];
-                    if(delta < 0) {
-                        offset = offset - @as(u16, @intCast(-delta)) + screen_width;
-                    } else {
-                        offset = offset + @as(u16, @intCast(delta)) + screen_width;
-                    }                    
-                } else {
-                    offset += screen_width;
-                }
-            }
+            const out: []u8 = switch (self.target) {
+                .fb => |fb| fb.fb[0 .. @as(usize, screen_width) * screen_height],
+                .render_buffer => |rbuf| rbuf.buffer,
+            };
+            draw.plot(.{
+                .out = out,
+                .data = self.data,
+                .data_counter = data_counter,
+                .offset = offset,
+                .rows = self.height - clamped_y_top_position - clamped_y_bottom_position,
+                .nb_cols = nb_cols,
+                .width = self.width,
+                .screen_width = screen_width,
+                .left_x_position = left_x_position,
+                .left_x_clamped = left_x_clamped,
+                .left_clamp = left_clamp,
+                .right_clamp = right_clamp,
+                .skip = if (is_tranparent) transparent_color else null,
+                .y_table = self.y_offset_table,
+                .y_index = if (self.y_offset_table != null) self.y_offset_index else 0,
+                .x_table = self.x_offset_table,
+                .x_index = if (self.x_offset_table != null) self.x_offset_index else 0,
+            });
         }
     }
 };

@@ -52,9 +52,22 @@ pub const Rot = struct {
     }
 };
 
-/// Perspective onto the screen, centre (cx, cy): one divide, two multiplies.
+/// FOCAL << 16 over each depth 1..RECIP_MAX-1, built at compile time: the same
+/// integers @divTrunc gives, without a software divide (the core has none) per
+/// vertex. Depths outside it, or behind the eye, still divide.
+const RECIP_MAX = 1024;
+const RECIP: [RECIP_MAX]i32 = blk: {
+    @setEvalBranchQuota(10_000);
+    var t: [RECIP_MAX]i32 = undefined;
+    t[0] = 0;
+    for (t[1..], 1..) |*r, d| r.* = @divTrunc(@as(i32, FOCAL) << 16, d);
+    break :blk t;
+};
+
+/// Perspective onto the screen, centre (cx, cy): a table lookup, two multiplies.
 pub fn project(p: [3]i32, cx: i32, cy: i32) [2]i16 {
-    const inv = @divTrunc(@as(i32, FOCAL) << 16, p[2] + Z0);
+    const depth = p[2] + Z0;
+    const inv = if (depth > 0 and depth < RECIP_MAX) RECIP[@intCast(depth)] else @divTrunc(@as(i32, FOCAL) << 16, depth);
     return .{ @intCast(cx + ((p[0] * inv) >> 16)), @intCast(cy + ((p[1] * inv) >> 16)) };
 }
 

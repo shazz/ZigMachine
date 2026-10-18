@@ -50,6 +50,8 @@ const back_b = @embedFile("../assets/screens/leonard/back.raw");
 // bob
 const ball_b = @embedFile("../assets/screens/leonard/ball.raw");
 const NB_BOBS = 312;
+// Table length as a constant so `%` below is a multiply-shift, not a soft divide.
+const LUT_LEN: usize = 360 * 2;
 const bobs_images: [NB_BOBS][]const u8 = [_][]const u8{ball_b} ** NB_BOBS;
 
 // --------------------------------------------------------------------------
@@ -68,6 +70,7 @@ pub const Demo = struct {
     lutSin: [360 * 2]i16 = undefined,
     lutCos: [360 * 2]i16 = undefined,
     lutLen: usize = 360 * 2,
+    blitter: zg.Blitter = .{},
     pxa1: usize = 0,
     pxa2: usize = 0,
     pya1: usize = 0,
@@ -86,12 +89,16 @@ pub const Demo = struct {
         fb.is_enabled = true;
         fb.setPalette(back_pal);
         self.background.init(fb.getRenderTarget(), back_b, 0);
+        // The picture never changes and planes persist: draw it once, not every frame.
+        self.background.render();
+        self.blitter.init();
 
         // second plane
         fb = &zigos.lfbs[1];
         fb.is_enabled = true;
         fb.setPalette(ball_pal);
         self.bobs = Bobs(NB_BOBS).init(fb.getRenderTarget(), bobs_images, 16, 16);
+        self.blitter.clear(fb, 0);
 
         self.lutLen = self.lutSin.len;
         var i: u16 = 0;
@@ -105,6 +112,7 @@ pub const Demo = struct {
         fb = &zigos.lfbs[2];
         fb.is_enabled = true;
         fb.setPalette(font_pal);
+        self.blitter.clear(fb, 0);
         self.scrolltext = Scrolltext(NB_FONTS).init(fb.getRenderTarget(), fonts_b, SCROLL_CHARS, SCROLL_CHAR_WIDTH, SCROLL_CHAR_HEIGHT, SCROLL_TEXT, SCROLL_SPEED, 194, null, null, null);
 
         Console.log("demo init done!", .{});
@@ -117,8 +125,8 @@ pub const Demo = struct {
         var pyb2 = self.pya2;
         var i: usize = 0;
         while (i < NB_BOBS) : (i += 1) {
-            const x_idx: i32 = (160 - 8) + ((76 * @as(i32, @intCast(self.lutCos[@mod(pxb1, self.lutLen)])) + 76 * @as(i32, @intCast(self.lutSin[@mod(pxb2, self.lutLen)]))) >> 15);
-            const y_idx: i32 = (100 - 8) + ((44 * @as(i32, @intCast(self.lutCos[@mod(pyb1, self.lutLen)])) + 44 * @as(i32, @intCast(self.lutSin[@mod(pyb2, self.lutLen)]))) >> 15);
+            const x_idx: i32 = (160 - 8) + ((76 * @as(i32, @intCast(self.lutCos[pxb1 % LUT_LEN])) + 76 * @as(i32, @intCast(self.lutSin[pxb2 % LUT_LEN]))) >> 15);
+            const y_idx: i32 = (100 - 8) + ((44 * @as(i32, @intCast(self.lutCos[pyb1 % LUT_LEN])) + 44 * @as(i32, @intCast(self.lutSin[pyb2 % LUT_LEN]))) >> 15);
 
             const x: i16 = @as(i16, @intCast(x_idx));
             const y: i16 = @as(i16, @intCast(y_idx));
@@ -146,15 +154,18 @@ pub const Demo = struct {
     }
 
     pub fn render(self: *Demo, zigos: *ZigOS, elapsed_time: f32) void {
-        self.background.render();
+        // 312 keyed 16x16 blits (colour 0 is transparent: ball_pal[0] has alpha 0,
+        // which is what Sprite.render keyed on) instead of 80k CPU pixel stores.
+        const bobs_fb = &zigos.lfbs[1];
+        self.blitter.clear(bobs_fb, 0);
+        for (0..NB_BOBS) |i| {
+            self.blitter.blitImage(bobs_fb, self.bobs.positions_x[i], self.bobs.positions_y[i], ball_b, 16, 0, 0, 16, 16, 0);
+        }
 
-        self.bobs.target.clearFrameBuffer(0);
-        self.bobs.render();
-
-        self.scrolltext.target.clearFrameBuffer(0);
+        // The scroller only ever draws on the last six rows: clear just those.
+        self.blitter.fill(&zigos.lfbs[2], 0, 194, WIDTH, SCROLL_CHAR_HEIGHT, 0);
         self.scrolltext.render();
 
-        _ = zigos;
         _ = elapsed_time;
     }
 };
