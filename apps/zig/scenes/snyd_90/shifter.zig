@@ -67,7 +67,7 @@ pub fn captureScreen(r: *const st.Ram, screen: u32, pal: [16]u16) void {
             @memset(out[0..OX], 0); // the borders only: the window is overwritten
             @memset(out[OX + 320 ..], 0);
             chunky.lineToChunky(r.bytes(screen + y * st.LINE, st.LINE), out[OX..][0..320]);
-         else @memset(out, 0);
+        } else @memset(out, 0);
         setRegs(py, &regs);
     }
     @memset(&open_next, false);

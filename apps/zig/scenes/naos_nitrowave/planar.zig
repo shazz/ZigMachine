@@ -34,7 +34,7 @@ pub fn groupToChunky(q: *const [8]u8, out: *[16]u8) void {
 pub fn lineToChunky(line: []const u8, first: usize, out: []u8) void {
     var group: [16]u8 = undefined;
     var g: usize = first / 16;
-    var k: usize = first % 16;
+    const k: usize = first % 16;
     var x: usize = 0;
     if (k != 0 and out.len > 0) {
         groupToChunky(line[g * 8 ..][0..8], &group);
