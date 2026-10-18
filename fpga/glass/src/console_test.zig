@@ -144,7 +144,7 @@ test "the debug page shows the live cart, the pad, and n/a for a board Linux lac
     for (0..5) |_| a.tick(); // the page redraws itself while open
     var dump: [osd.ROWS * (osd.COLS + 1)]u8 = undefined;
     a.osd.dump(&dump);
-    for ([_][]const u8{ "glass 0.2.0", "PL    ZMGL 1.4.0", "fw    0.1.0", "cart  RUNNING", "loads 1", "pad   8BitDo Pro 2", "cpu   n/a", "mem   n/a" }) |want| {
+    for ([_][]const u8{ "glass 0.3.0", "PL    ZMGL 1.4.0", "fw    0.1.0", "cart  RUNNING", "loads 1", "pad   8BitDo Pro 2", "cpu   n/a", "mem   n/a" }) |want| {
         if (!has(&dump, want)) {
             std.debug.print("missing \"{s}\" in:\n{s}", .{ want, dump });
             return error.TestExpectedEqual;

@@ -8,6 +8,7 @@
 #include <stdint.h>
 
 #include "board.h"
+#include "dflush.h"
 
 #define ZMV_REG(name) (*(volatile uint32_t*)CSR_ZMV_##name##_ADDR)
 #define ZMV_FIELD(kind, name, v) (((uint32_t)(v) & ZMV_##kind##_##name##_MASK) << ZMV_##kind##_##name##_SHIFT)
@@ -27,8 +28,8 @@ static inline void zmv_cmd(int op, int plane, int line, int mix, int first, int 
 static inline uint32_t zmv_reg(int w) { return ((volatile uint32_t*)ZMV_WINDOW_ADDR)[w]; }
 
 /* VexRiscv: invalidate the (write-through) data cache, so loads see what the
- * video DMA wrote behind it (LiteX's flush_cpu_dcache). */
-static inline void zmv_flush_dcache(void) { __asm__ volatile(".word(0x500F)\n" ::: "memory"); }
+ * video DMA wrote behind it (LiteX's flush_cpu_dcache; dflush.h: safe behind a branch). */
+static inline void zmv_flush_dcache(void) { zm_dflush(); }
 
 /* Main RAM traffic since reset, mod 2^32: soc/zm_simram.py COUNTERS order (the
  * video sim only; the board's main RAM, cycles/board.mk, has no counters). */

@@ -217,6 +217,10 @@ fn physRow(y: usize) usize {
     return Y0 + y;
 }
 
+/// What the picture area's INDEX pixels depend on. The fades are palette work, so the
+/// pixels are redrawn only when the picture, its star frame or its shimmer frame moves.
+const PicKey = struct { picture: ?Picture, sub: u32 };
+
 const Letter = struct { x: i32, char: u8 };
 
 /// Math.round(n / d) for n >= 0. Widened so 2n cannot wrap once `iteration`
@@ -267,6 +271,8 @@ pub const Demo = struct {
     pic_n: u32,
     bottom_row: usize,
     einhorn_star: ?u32, // star frame einhorn_canvas holds
+    drawn: ?PicKey, // what the picture area (rows above the scroller) holds
+    bottom_drawn: ?usize, // the bottom.png frame row the bottom strip holds
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
         // A cart's Demo arrives zeroed: every field is set here.
@@ -285,6 +291,8 @@ pub const Demo = struct {
         self.pic_n = 0;
         self.bottom_row = 0;
         self.einhorn_star = null;
+        self.drawn = null;
+        self.bottom_drawn = null;
         einhorn_canvas = zg.mem.mustAlloc(u8, PIC_W * 200)[0 .. PIC_W * 200]; // once per cart load
 
         zg.requestSong(MUSIC);
@@ -327,6 +335,8 @@ pub const Demo = struct {
         const view = blit.Dst.plane(fb).window(0, Y0, PW, SCREEN_H);
         self.drawPicture(fb, view);
         self.drawScroller(view);
+        if (self.bottom_drawn == self.bottom_row) return; // 12 frames, one change every 3rd
+        self.bottom_drawn = self.bottom_row;
         fillRows(view, BOTTOM_Y, SCREEN_H - BOTTOM_Y, BOTTOM_BG);
         const frame = blit.Rect{ .x = 0, .y = self.bottom_row, .w = PIC_W, .h = BOTTOM_FRAME_H };
         blit.blit(view, bottom_img, frame, PIC_X - CROP_X, BOTTOM_IMG_Y, null, .{ .offset = BOTTOM_BASE });
@@ -370,27 +380,40 @@ pub const Demo = struct {
         }
     }
 
+    /// The star frame (einhorn) or shimmer frame (midearth) the picture shows now.
+    fn subFrame(pic: Picture, n: u32) u32 {
+        return switch (pic) {
+            .einhorn => jsRound(n, STAR_STEP) % STAR_FRAMES,
+            .midearth => jsRound(n, SHIMMER_STEP) % SHIMMER_FRAMES,
+            else => 0,
+        };
+    }
+
     fn drawPicture(self: *Demo, fb: *LogicalFB, view: blit.Dst) void {
         const fill = if (self.picture == .midearth) MIDEARTH_FILL else BLACK;
         fb.setPaletteEntry(FILL, rgb(fill));
+        const key = PicKey{ .picture = self.picture, .sub = if (self.picture) |p| subFrame(p, self.pic_n) else 0 };
+        var raw: []const u8 = &.{};
+        if (self.picture) |pic| {
+            const a = fadeAlpha(self.pic_n);
+            raw = if (pic == .einhorn) self.einhorn(fb, a, key.sub) else blk: {
+                const s = single(pic);
+                for (s.pal, 0..) |c, k| fb.setPaletteEntry(PIC_BASE + @as(u8, @intCast(k)), rgb(over(c, fill, a)));
+                break :blk s.raw;
+            };
+        }
+        if (self.drawn) |d| if (d.picture == key.picture and d.sub == key.sub) return;
+        self.drawn = key;
         fillRows(view, 0, SCROLL_Y, FILL); // rows below are the band's and the bottom's
         const pic = self.picture orelse return;
-        const a = fadeAlpha(self.pic_n);
-        const raw: []const u8 = if (pic == .einhorn) self.einhorn(fb, a) else blk: {
-            const s = single(pic);
-            for (s.pal, 0..) |c, k| fb.setPaletteEntry(PIC_BASE + @as(u8, @intCast(k)), rgb(over(c, fill, a)));
-            break :blk s.raw;
-        };
         blit.blit(view, blit.Image.init(raw, PIC_W), null, PIC_X - CROP_X, PIC_Y, null, .{ .offset = PIC_BASE });
         if (pic != .midearth) return;
-        const cycle = jsRound(self.pic_n, SHIMMER_STEP) % SHIMMER_FRAMES;
-        const part = blit.Rect{ .x = 0, .y = SHIMMER_H * cycle, .w = SHIMMER_W, .h = SHIMMER_H };
+        const part = blit.Rect{ .x = 0, .y = SHIMMER_H * key.sub, .w = SHIMMER_W, .h = SHIMMER_H };
         blit.blit(view, shimmer_img, part, SHIMMER_X - CROP_X, SHIMMER_Y, 0, .{ .offset = SHIMMER_OFFSET });
     }
 
     /// display_einhorn: stars, then the unicorn, both at alpha a over black.
-    fn einhorn(self: *Demo, fb: *LogicalFB, a: u32) []const u8 {
-        const star = jsRound(self.pic_n, STAR_STEP) % STAR_FRAMES;
+    fn einhorn(self: *Demo, fb: *LogicalFB, a: u32, star: u32) []const u8 {
         if (self.einhorn_star != star) {
             @memcpy(einhorn_canvas, einhorn_raw);
             for (t.star_frames[star]) |s| einhorn_canvas[s.at] += s.colour;

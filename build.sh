@@ -483,6 +483,12 @@ gate perf_audit node apps/perf_audit_test.mjs --break static     # ...and a plan
 gate perf_audit node apps/perf_audit_test.mjs --break lines      # ...and one changed row a frame swapped for all rows fails the lines_changed count
 gate perf_audit node apps/perf_audit_test.mjs --break tiny       # ...and twenty 4x4 blits swapped for one big one fails tiny_blits
 gate perf_audit node apps/perf_audit_test.mjs --break scroll     # ...and a band shifted by the CPU swapped for a band redrawn with new content fails scroll_band
+gate perf_audit node apps/perf_audit_test.mjs --break div        # ...and a divide by a fixed value swapped for a multiply fails div_loop
+gate perf_audit node apps/perf_audit_test.mjs --break recompute  # ...and a product of loop-invariant values swapped for a varying one fails recompute
+gate perf_audit node apps/perf_audit_test.mjs --break cache      # ...and a 256-byte-stride walk swapped for a sequential one fails cache_hostile
+gate perf_audit node apps/perf_audit_test.mjs --break call       # ...and a per-iteration call swapped for the inline add fails call_in_loop
+gate perf_audit node apps/perf_audit_test.mjs --break i64fit     # ...and i64 maths that always fits swapped for maths that never does fails i64_fits_i32
+gate perf_audit node apps/perf_audit_test.mjs --break branch     # ...and a frame-constant test swapped for an alternating one fails invariant_branch
 gate perf_report sh tools/perf_audit.sh --report --jobs 2   # REPORT, never fails the gate: the shelf ranked by ESTIMATED Mc/frame on ZIGGY with each cart's first hot finding (JSON: zig-out/perf_audit.json)
 run_gates
 echo "shots in $SHOTS"

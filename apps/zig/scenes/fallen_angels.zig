@@ -22,6 +22,7 @@ const shapes = zg.shapes;
 const Coord = shapes.Coord;
 
 const Console = zg.Console;
+const Rows = @import("rowblit.zig").Rows;
 
 // --------------------------------------------------------------------------
 // Constants
@@ -102,6 +103,10 @@ pub const Demo = struct {
     angle_z: f32 = 0.0,    
     time_counter: f32 = 0.0,
     distort: f32 = 0.0,
+    blitter: zg.Blitter = .{},
+    drawn_logo_x: i16 = WIDTH / 2 - 45, // where the logo was last drawn (init's place)
+    drawn_grid: [grid.verts.len]Coord = undefined, // the grid as last drawn
+    grid_drawn: bool = false,
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
         Console.log("Demo init", .{});
@@ -109,9 +114,12 @@ pub const Demo = struct {
         // Nothing happens until the user turns sound on — the request just waits.
         zg.requestSong(MUSIC);
 
+        self.blitter.init();
+
         // first plane
         var fb: *LogicalFB = &zigos.lfbs[0];
         fb.is_enabled = true;
+        self.blitter.clear(fb, 0); // the scroller's gap rows are never drawn again
         fb.setPalette(fonts_pal);
         fb.setPaletteEntry(0, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
         
@@ -133,12 +141,13 @@ pub const Demo = struct {
         fb.setPalette(logo_pal);
         fb.setPaletteEntry(1, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });      
 
+        self.blitter.clear(fb, 1); // the logo's background; render() restores it under the logo only
         self.logo.init(fb.getRenderTarget(), logo_b, 89, 16, WIDTH/2-45, HEIGHT-16, null, null); 
         self.sin_counter = 0;
 
         // third plane
         fb = &zigos.lfbs[2];
-        fb.is_enabled = true; 
+        fb.is_enabled = false; // nothing is drawn on it until the grid starts (render): FRESCO skips a disabled plane
         // set lines colors
         fb.setPaletteEntry(0, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
         fb.setPaletteEntry(1, Color{ .r = 0xff, .g = 0x00, .b = 0x00, .a = 255 });
@@ -197,40 +206,46 @@ pub const Demo = struct {
 
     pub fn render(self: *Demo, zigos: *ZigOS, elapsed_time: f32) void {
 
-        // copy render target to fb
+        // Only what moved is redrawn. The scroller plane is 25 CHISEL blits (a line
+        // of 7 rows each, straight off the 640-wide strip; the gap rows are zero
+        // from init), the logo plane restores the background under the logo's
+        // OLD place, and the grid is erased by redrawing last frame's edges in
+        // colour 0. Each was a whole-plane CPU rewrite (64,000 blocking stores).
         var fb: *LogicalFB = &zigos.lfbs[0];
 
         self.scroller_target.clearFrameBuffer(0);
         self.scrolltext.render();
 
+        const strip = @intFromPtr(self.scroller_target.render_buffer.buffer.ptr);
+        var rows = Rows.open(fb, WIDTH * 2, null);
         var i: u16 = 0;
         while(i < 25) : ( i += 1) {
-            // rows 0..6 come from the 7-row strip; row 7 is the gap between lines
-            // (reading it went past the strip, into whatever lay after it)
-            @memset(fb.fb[(i * 8 + SCROLL_CHAR_HEIGHT) * WIDTH ..][0..WIDTH], 0);
             // The line's x offset: a sine once the intro is over, else a
             // slant. One sin per LINE (it was recomputed for each of its 7 rows,
-            // a libm sinf in soft f64 every time), and each row one memcpy.
+            // a libm sinf in soft f64 every time).
             const offset_x: u16 = if (self.time_counter > 7*16*50)
                 @as(u16, @intFromFloat(self.scroll_sinx_incr + (@sin(self.scroll_sinx + (@as(f32, @floatFromInt(i))/5.0)) * self.scroll_sinx_incr)))
             else
                 i*3;
-            const strip = self.scroller_target.render_buffer.buffer;
-            var y: u16 = 0;
-            while(y < SCROLL_CHAR_HEIGHT) : (y += 1){
-                const src = @as(usize, offset_x) + @as(usize, y)*WIDTH*2;
-                @memcpy(fb.fb[@as(usize, y)*WIDTH + @as(usize, i)*8*WIDTH ..][0..WIDTH], strip[src..][0..WIDTH]);
-            }
+            rows.blit(strip + offset_x, 0, @intCast(i * 8), WIDTH, SCROLL_CHAR_HEIGHT);
         }
 
         fb = &zigos.lfbs[1];
-        fb.clearFrameBuffer(1);
-        self.logo.render(null);        
+        self.blitter.fill(fb, self.drawn_logo_x, HEIGHT - 16, 89, 16, 1);
+        self.drawn_logo_x = @intCast(self.logo.x_position);
+        self.logo.render(null);
 
         if(self.time_counter > 16*60*6) {
             fb = &zigos.lfbs[2];
-            fb.clearFrameBuffer(0);
+            fb.is_enabled = true;
+            if (self.grid_drawn) {
+                wf.drawEdges(fb.getRenderTarget(), &grid.edges, &self.drawn_grid, 0, shapes.drawLine);
+            } else {
+                self.blitter.clear(fb, 0);
+            }
             wf.drawEdges(fb.getRenderTarget(), &grid.edges, &self.grid_projected_vertices, 1, shapes.drawLine);
+            self.drawn_grid = self.grid_projected_vertices;
+            self.grid_drawn = true;
         }
 
         _ = elapsed_time;

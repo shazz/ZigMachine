@@ -26,6 +26,12 @@ function walk(r, end) {
         const { op, imm } = decode(r);
         const ins = { op, imm, at, next: r.pos, loop: inner };
         instrs.push(ins);
+        // a branch INSIDE the innermost loop's body: an `if`, or a br_if to a block nested
+        // in that loop (not the back edge, not an exit): the per-iteration decisions
+        if (op === OP.if || op === OP.br_if) {
+            const innerPos = ctl.lastIndexOf(inner), target = op === OP.if ? ctl.length : ctl.length - 1 - imm;
+            ins.bodyBranch = inner >= 0 && target > innerPos;
+        }
         if (op === OP.block || op === OP.if) ctl.push(null);
         else if (op === OP.loop) {
             loops.push({ idx: instrs.length - 1, at, parent: inner, depth: ctl.filter((c) => c !== null).length });

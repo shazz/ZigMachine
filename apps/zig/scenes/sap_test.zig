@@ -59,6 +59,9 @@ const Row = struct {
     }
 };
 
+/// Everything the two status rows print: they are redrawn only when one of these moves.
+const StatusKey = struct { playing: usize, song: u8, secs: u32, running: bool };
+
 pub const Demo = struct {
     cursor: usize,
     songs: [TUNES.len]u8, // the song shown per tune, from 1
@@ -66,12 +69,16 @@ pub const Demo = struct {
     play_ms: f32,
     scroll_px: u32,
     pulse: zg.fixtrig.Angle, // u32 turns: wraps exactly at 2 pi
+    list_drawn: bool, // title, list and help are on the plane (any input clears this)
+    status_drawn: ?StatusKey, // what the status rows show
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
         self.cursor = 0;
         self.songs = [_]u8{1} ** TUNES.len;
         self.scroll_px = 0;
         self.pulse = 0;
+        self.list_drawn = false;
+        self.status_drawn = null;
         raster.offset = 0;
         zigos.setBackgroundColor(Color{ .r = 0, .g = 0, .b = 0, .a = 255 });
         const fb = &zigos.lfbs[PLANE];
@@ -92,11 +99,13 @@ pub const Demo = struct {
         zg.requestSongTune(TUNES[i].file, self.songs[i]);
         self.playing = i;
         self.play_ms = 0;
+        self.list_drawn = false;
     }
 
     /// Host input: 0 up, 1 down, 2 left, 3 right, 5 fire (Space/Enter).
     pub fn input(self: *Demo, dir: u8) void {
         const n = TUNES.len;
+        self.list_drawn = false;
         switch (dir) {
             0 => self.cursor = (self.cursor + n - 1) % n,
             1 => self.cursor = (self.cursor + 1) % n,
@@ -134,12 +143,18 @@ pub const Demo = struct {
     pub fn render(self: *Demo, zigos: *ZigOS, dt: f32) void {
         _ = dt;
         const fb = &zigos.lfbs[PLANE];
-        fb.clearFrameBuffer(BG);
-        zigos.printText(fb, "ZIGMACHINE POKEY - SAP TEST", 52, 6, TITLE, BG);
-        zigos.printText(fb, "ATARI 8-BIT TUNES FROM ASMA", 52, 18, DIM, BG);
-        for (TUNES, 0..) |t, i| self.drawTune(zigos, fb, t, i);
+        // Only what moved is redrawn: the list on input, the status rows when their text
+        // changes (once a second), and the scroller's band every frame.
+        if (!self.list_drawn) {
+            fb.clearFrameBuffer(BG);
+            zigos.printText(fb, "ZIGMACHINE POKEY - SAP TEST", 52, 6, TITLE, BG);
+            zigos.printText(fb, "ATARI 8-BIT TUNES FROM ASMA", 52, 18, DIM, BG);
+            for (TUNES, 0..) |t, i| self.drawTune(zigos, fb, t, i);
+            zigos.printText(fb, "UP/DN PICK  FIRE PLAY  L/R SONG  ESC", 16, HELP_Y, DIM, BG);
+            self.list_drawn = true;
+            self.status_drawn = null;
+        }
         self.drawStatus(zigos, fb);
-        zigos.printText(fb, "UP/DN PICK  FIRE PLAY  L/R SONG  ESC", 16, HELP_Y, DIM, BG);
         self.drawScroller(zigos, fb);
     }
 
@@ -163,19 +178,25 @@ pub const Demo = struct {
     fn drawStatus(self: *Demo, zigos: *ZigOS, fb: *LogicalFB) void {
         const t = TUNES[self.playing];
         const secs: u32 = @intFromFloat(self.play_ms / 1000);
+        const running = zigos.audio_mode == AUDIO_MODE_SAP;
+        const key = StatusKey{ .playing = self.playing, .song = self.songs[self.playing], .secs = secs, .running = running };
+        if (self.status_drawn) |k| if (std.meta.eql(k, key)) return;
+        self.status_drawn = key;
         var row = Row{};
         row.print(0, "{s} {d}/{d}", .{ t.title, self.songs[self.playing], t.times.len });
         row.print(24, "{d}:{d:0>2} / {s}", .{ secs / 60, secs % 60, t.times[self.songs[self.playing] - 1] });
         zigos.printText(fb, &row.buf, 8, STATUS_Y, INK, BG);
         // The machine's own word on it: the audio thread's player mode, mirrored in.
-        const running = zigos.audio_mode == AUDIO_MODE_SAP;
-        const msg = if (running) "POKEY: 6502 SAP PLAYER RUNNING" else "POKEY: SILENT (SOUND ON TO HEAR IT)";
-        zigos.printText(fb, msg, 8, STATUS_Y + 10, if (running) PLAY else DIM, BG);
+        var msg = Row{}; // padded to the full row: a shorter message must wipe a longer one
+        msg.put(0, if (running) "POKEY: 6502 SAP PLAYER RUNNING" else "POKEY: SILENT (SOUND ON TO HEAR IT)");
+        zigos.printText(fb, &msg.buf, 8, STATUS_Y + 10, if (running) PLAY else DIM, BG);
     }
 
     fn drawScroller(self: *Demo, zigos: *ZigOS, fb: *LogicalFB) void {
         const text = tunes.CREDITS;
         const span = (text.len + COLS) * 8;
+        // the glyphs ride SCROLL_Y + 4 +- 3 (8 rows tall): wipe that band, then draw the cells
+        fb.fillRect(0, SCROLL_Y + 1, 320, 14, BG);
         const x0: i32 = 320 - @as(i32, @intCast(self.scroll_px % span));
         for (text, 0..) |c, k| {
             const x = x0 + @as(i32, @intCast(k * 8));

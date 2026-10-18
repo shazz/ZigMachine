@@ -61,6 +61,7 @@ pub fn load(app: *App, i: usize) void {
 // the window (loader.zig, steps 1 to 3). Past that, the CPU is held; once the
 // window was written it holds disk `i`, which is what R and W must then reset.
 pub fn failed(app: *App, i: usize, err: anyerror) void {
+    app.stats.failed(err);
     switch (err) {
         error.WontStop => app.current = null,
         error.DdrMismatch, error.CartTrapped, error.CartSilent, error.SystemRefused, error.NoCart => {
@@ -85,6 +86,7 @@ fn warm(app: *App) void {
     const i = app.menu.loaded orelse return app.menu.setStatus("no cart to reset", .{});
     const rep = loader.warm(app.regs, app.opt) catch |err| {
         app.current = null;
+        app.stats.failed(err);
         app.stats.last_trap = if (err == error.WarmLost) map.TRAP_WARM_LOST else app.stats.last_trap;
         if (err == error.WarmLost) return app.menu.setStatus("warm reset: memory lost, use R", .{});
         app.menu.setStatus("warm reset: {t}", .{err});
@@ -108,6 +110,7 @@ pub fn watch(app: *App) void {
     if (state & map.CART_STATE_MASK != map.CART_TRAPPED) return;
     _ = loader.hold(app.regs) catch {};
     app.stats.last_trap = state >> map.CART_ARG_SHIFT;
+    app.stats.stop = .trapped;
     app.menu.setStatus("cart trapped (code {d})", .{state >> map.CART_ARG_SHIFT});
     app.current = null;
     app.setOpen(true);

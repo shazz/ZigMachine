@@ -113,7 +113,8 @@ fn ok(w: *std.Io.Writer, i: *const Info) void {
     if (loadPct(i.peak_cycles, i.peak_samples)) |pk| w.print("/{d}%", .{pk}) catch {};
 }
 
-fn player(w: *std.Io.Writer, i: *const Info) void {
+/// The player's name, as the debug page shows it (the control channel's ZMSTAT too).
+pub fn player(w: *std.Io.Writer, i: *const Info) void {
     const label: []const u8 = switch (i.player) {
         mc.PLAYER_SNDH => return sndh(w, i.native),
         mc.PLAYER_SAP => "SAP 6502",

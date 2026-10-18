@@ -16,6 +16,7 @@
 // first VBL comes 182 VBLs after the bounce's last. The disk loads before the
 // bounce happen on a black screen and are left out; the intro's own fade-in
 // runs on a cleared screen, so it is kept as black.
+const std = @import("std");
 const zg = @import("zigos");
 const st = @import("st.zig");
 const tny = @import("tny.zig");
@@ -41,6 +42,8 @@ pub const Intro = struct {
     up: bool, // $1DA4 > 0: the step grows, the logo rises
     drawn: [2]?u8, // the line each screen's logo was drawn at
     hidden: u1,
+    lit: Lit, // what the plane holds
+
 
     pub fn init(self: *Intro) void {
         self.n = 0;
@@ -48,6 +51,7 @@ pub const Intro = struct {
         self.up = true;
         self.drawn = .{ null, null };
         self.hidden = 0;
+        self.lit = .unknown;
     }
 
     /// One VBL. True when it is the main part's first instead.
@@ -71,23 +75,42 @@ pub const Intro = struct {
         self.drawn[self.hidden] = A.T.DROP[self.step];
     }
 
-    pub fn render(self: *const Intro, fb: *zg.LogicalFB, pic: *const tny.Picture) void {
-        st.clear(fb);
+    pub fn render(self: *Intro, fb: *zg.LogicalFB, pic: *const tny.Picture) void {
         if (self.n <= START_BLACK or (self.n > BOUNCE_END and self.n <= FADE_START)) {
-            return st.setPalette(&BLACK);
+            st.setPalette(&BLACK);
+            return self.paint(fb, pic, .blank);
         }
         if (self.n <= BOUNCE_END) {
             st.setPalette(&pic.palette);
             // on show: the screen the VBL before drew (the swap just made
             // the other one hidden again)
-            if (self.drawn[self.hidden]) |y| st.copyRows(fb, &pic.px, 0, y, LOGO_LINES);
-            return;
+            return self.paint(fb, pic, if (self.drawn[self.hidden]) |y| .{ .bounce = y } else .blank);
         }
         const pal = fade.at(&pic.palette, self.n - FADE_START, fade.MAIN);
         st.setPalette(&pal);
-        st.copyRows(fb, &pic.px, PARK_FROM, 0, PARK_LINES);
+        self.paint(fb, pic, .parked);
+    }
+
+    /// The plane keeps its pixels from frame to frame: a frame that wants what is
+    /// already there draws nothing, and a bouncing logo blanks only the lines it left.
+    fn paint(self: *Intro, fb: *zg.LogicalFB, pic: *const tny.Picture, want: Lit) void {
+        if (std.meta.eql(self.lit, want)) return;
+        switch (self.lit) {
+            .bounce => |old| st.clearRows(fb, old, LOGO_LINES),
+            .blank => {},
+            else => st.clear(fb),
+        }
+        self.lit = want;
+        switch (want) {
+            .bounce => |y| st.copyRows(fb, &pic.px, 0, y, LOGO_LINES),
+            .parked => st.copyRows(fb, &pic.px, PARK_FROM, 0, PARK_LINES),
+            else => {},
+        }
     }
 };
+
+/// What the plane shows: nothing known, black, the logo at a line, or the parked logo.
+const Lit = union(enum) { unknown, blank, bounce: u8, parked };
 
 const BLACK = [_]u16{0} ** 16;
 

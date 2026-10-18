@@ -63,6 +63,32 @@ Mc/frame**: the estimated cycles that would go if only what changes were written
 | `scroll_band` | rows that are last frame's shifted by k px, rewritten by the CPU | pan (HSCROLL / FB_BASE), or blit-shift + new column |
 | `palette_rewrite` | colour writes of the value already there | write only changes |
 
+**Cycle wastes (round 3).** Probes measure the CPU's own streams: every load runs through
+a D$ model (4 KiB, direct-mapped, 32-byte lines; its misses now cost `DMISS` = 40 cycles in
+every estimate), costly ops (divides, f64, f32 div/sqrt, libm calls) compare their operands
+with their previous execution, i64 arithmetic checks whether its result fits in an i32, and
+every branch inside a loop body counts how often it flips.
+
+| finding | what it means | fix |
+|---|---|---|
+| `div_loop` | divides by a non-constant, executed (not just present) per frame | a hoisted reciprocal or a reciprocal table |
+| `recompute` | a costly op or libm call fed the same inputs as its previous execution | hoist it / keep the last result |
+| `cache_hostile` | a loop whose loads miss the D$ model, mostly a line or more apart | walk in memory order, transpose, tile |
+| `call_in_loop` | a small function called per iteration | inline it, or one call per span |
+| `i64_fits_i32` | i64 arithmetic whose every result fits in an i32 | u32/i32 |
+| `invariant_branch` | a test inside a loop body that never flips during the frame | test once outside: two loops |
+
+A static op-class finding (`div_loop`, `f64_loop`, `i64_loop`) is now charged what its ops
+cost, not the whole loop's time: leonard's Sprite.render loop runs 87K times a frame but its
+divide only 1.2K times.
+
+**memset/memcpy on the board (calibrated 2026-10-18).** The board fps of empire (3.7 Mc) and
+maxi (5.3 Mc) against the round-2 model (2.48, 2.59) agree on ~86 cycles a 32-bit word of
+memory.fill/memory.copy (`FILL_WORD_CYCLES`): a memset is only ~1.5x a byte loop (~31 a
+byte store), and a CHISEL fill (~1.85 a byte) is far better. The tutorial board-SoC sim
+(0.48 Mc) disagrees (its 51 KB memset would cost ~1.1 Mc at 86): the sim's memory path is
+the optimistic one; the board wins.
+
 Waste figures are estimates on top of an estimate: a region's waste is its cycles times the
 share of its stores that were redundant.
 
@@ -75,6 +101,27 @@ now estimates 1 fps. No other measurement constrains it. It predicts snyd_90 (~7
 swedish_newyear (~7 fps) are slow for the same reason; a 6-frame board-SoC sim of the old
 stcs, or snyd_90 on the board, confirms or refutes it.
 
+## Fitted to the board (2026-10-18)
+
+The model's parameters are fitted to MEASURED frame times of 92 carts on the board
+(glass-ctl ZMSTAT, 12-17 s after load), each cart estimated over the same window of its
+board build:
+
+```sh
+PERF_NO_CART_ARGS=1 node apps/frame_cost.mjs --all --warmup 720 --frames 300 \
+    --machine <the board's docs/> --out calib.json
+node apps/perf_fit.mjs calib.json fps.csv            # fit; --fixed: the current model's errors
+```
+
+Result: median error 4%, 63 carts within 10%, 77 within 20%, 85 within 50%; 23 of the 30
+carts the board runs at 60 fps predicted at 60. Fitted: CPI 1.0 (weakly identified: the
+loss is flat from 0.6 to 1.35), STORE_DRAIN 27, FILL_WORD_CYCLES 60, FRESCO_PLANE 1.09 Mc;
+DMISS and HBL_CALL at their floor; SNOOP_OVERFLOW 240 (snyd_90's 60 fps refutes the 1,900
+the old stcs suggested). Still off by 2x or more: naos_nitrowave (129 ms on the board, 18
+predicted), union_superscroller (1,638 vs 451), st_replay (16.5 vs 38: its ROM/GEM work),
+union_intro (21 vs 41), stniccc (41 vs 21) -- most likely a different phase on the board at
+12 s, or an unmodelled cost; the loss caps each cart at a 2x miss so they cannot drag the fit.
+
 ## It is an estimate
 
 Calibration (2026-10-17): empire's byte-loop clear (~2 Mc a 64,000-byte plane, so ~30
@@ -84,7 +131,7 @@ cart cycles, `ZM QF` plane passes):
 
 | cart (board-SoC sim, cart Mc) | sim | estimate |
 |---|---|---|
-| tutorial | 0.48 | 0.56 |
+| tutorial | 0.48 | 1.28 (its memset at the board rate, see below) |
 | fuji_hobbytronic | 0.76 | 0.77 |
 | music_debug (perf/music-board) | 1.82 | 1.95 |
 | tsl_hybridglenz | 1.24 | 1.27 |

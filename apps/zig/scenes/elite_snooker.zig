@@ -142,6 +142,25 @@ comptime {
     }
 }
 
+// The scrolling background is one CHISEL blit a frame, not 190 rows of 32-pixel CPU copies:
+// each tile repeated over BIG_W x BIG_H, so any (bg_x, bg_y) is a 320x190 window of it.
+// Screen (x, y) shows tile ((x - bg_x) mod 32, (y - bg_y) mod 32) = big (x + start_x, y + off_y),
+// start_x and off_y being the offsets mod 32 (at most 31): 319 + 31 < BIG_W, 189 + 31 < BIG_H.
+const BIG_W: usize = 11 * TILE;
+const BIG_H: usize = 7 * TILE;
+var bigs: [2][]u8 = undefined; // from zg.mem, once per cart load
+
+fn buildBigTiles() void {
+    for (&bigs, tiles) |*big, tile| {
+        big.* = zg.mem.mustAlloc(u8, BIG_W * BIG_H);
+        for (0..TILE) |r| {
+            const row = big.*[r * BIG_W ..][0..BIG_W];
+            for (0..BIG_W / TILE) |k| @memcpy(row[k * TILE ..][0..TILE], tile[r * TILE ..][0..TILE]);
+        }
+        for (1..BIG_H / TILE) |k| @memcpy(big.*[k * TILE * BIG_W ..][0 .. TILE * BIG_W], big.*[0 .. TILE * BIG_W]);
+    }
+}
+
 const ONE30: i64 = 1 << 30;
 
 const Phase = enum { fade, main };
@@ -175,6 +194,7 @@ pub const Demo = struct {
     letter_x: [SCROLL_LETTERS]i32, // canvas x
     letter_ch: [SCROLL_LETTERS]u8,
     scroll_offset: usize,
+    blitter: zg.Blitter,
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
         // A cart's Demo arrives zeroed: every field is set here, never by default.
@@ -190,6 +210,8 @@ pub const Demo = struct {
             self.letter_ch[i] = SCROLL_TEXT[i];
         }
         self.scroll_offset = SCROLL_LETTERS;
+        self.blitter.init();
+        buildBigTiles();
 
         const fb = &zigos.lfbs[PLANE];
         fb.is_enabled = true;
@@ -224,7 +246,7 @@ pub const Demo = struct {
                 fb.setPaletteEntry(FADE, Color{ .r = grey, .g = grey, .b = grey, .a = 255 });
                 if (self.frame == FADE_FIRST_FRAME) fillRows(screen, 0, H, FADE);
             },
-            .main => self.drawMain(screen),
+            .main => self.drawMain(fb, screen),
         }
     }
 
@@ -277,8 +299,8 @@ pub const Demo = struct {
         }
     }
 
-    fn drawMain(self: *const Demo, screen: blit.Dst) void {
-        self.drawBackground(screen);
+    fn drawMain(self: *Demo, fb: *zg.LogicalFB, screen: blit.Dst) void {
+        self.drawBackground(fb);
         fillRows(screen, BG_ROWS, H, BLACK);
 
         const raster = screen.window(0, RASTER_TOP, W, RASTER_ROWS);
@@ -294,23 +316,11 @@ pub const Demo = struct {
         }
     }
 
-    /// Screen pixel (x, y) shows tile pixel ((x - bg_x) mod 32, (y - bg_y) mod 32):
-    /// each row is the tile row copied in runs from its starting phase.
-    fn drawBackground(self: *const Demo, screen: blit.Dst) void {
-        const tile = tiles[(self.vbl % (2 * TILE_FRAMES)) / TILE_FRAMES];
-        const start_x: usize = @intCast(@mod(-self.bg_x, @as(i32, TILE)));
-        for (0..BG_ROWS) |y| {
-            const ty: usize = @intCast(@mod(@as(i32, @intCast(y)) - self.bg_y, @as(i32, TILE)));
-            const src = tile[ty * TILE ..][0..TILE];
-            const out = screen.buf[y * screen.stride ..][0..W];
-            var x: usize = 0;
-            var s = start_x;
-            while (x < W) {
-                const n = @min(TILE - s, W - x);
-                @memcpy(out[x..][0..n], src[s..][0..n]);
-                x += n;
-                s = 0;
-            }
-        }
+    /// Screen pixel (x, y) shows tile pixel ((x - bg_x) mod 32, (y - bg_y) mod 32).
+    fn drawBackground(self: *Demo, fb: *zg.LogicalFB) void {
+        const big = bigs[(self.vbl % (2 * TILE_FRAMES)) / TILE_FRAMES];
+        const start_x: u16 = @intCast(@mod(-self.bg_x, @as(i32, TILE)));
+        const off_y: u16 = @intCast(@mod(-self.bg_y, @as(i32, TILE)));
+        self.blitter.blitImage(fb, 0, 0, big, BIG_W, start_x, off_y, W, BG_ROWS, null);
     }
 };

@@ -68,6 +68,7 @@ pub const Demo = struct {
     logo: stage.Logo,
     voices: stage.Voices,
     gold_y: u32,
+    painted: stage.Painted,
     intro: Intro,
     scroller: Scroller,
     intro_band: Band,
@@ -80,6 +81,7 @@ pub const Demo = struct {
         self.skip_intro = false;
         self.leave = false;
         self.gold_y = 0;
+        self.painted = .{};
         self.logo.init();
         self.voices.init();
         self.intro.init();
@@ -127,10 +129,12 @@ pub const Demo = struct {
         _ = dt;
         if (self.phase != .running) return;
         const dst = blit.Dst.plane(&zigos.lfbs[0]);
-        @memset(dst.buf, A.BLACK); // maincanvas.fill('#000000')
-        stage.draw(dst, &self.images, &self.logo, &self.voices);
-        self.scroller.draw(dst, &self.scroll_band, &self.images, self.gold_y);
-        self.intro.draw(dst, &self.intro_band, &self.images, self.gold_y, self.scroller.twist);
+        stage.draw(dst, &self.images, &self.logo, &self.voices, &self.painted);
+        // Only the bands move every frame (the gold texture scrolls): their rows are cleared each time.
+        const low = dst.window(0, A.BOTTOM_Y, dst.w, dst.h - A.BOTTOM_Y);
+        low.fill(0, 0, low.w, low.h, A.BLACK);
+        self.scroller.draw(low, &self.scroll_band, &self.images, self.gold_y);
+        self.intro.draw(low, &self.intro_band, &self.images, self.gold_y, self.scroller.twist);
     }
 
     /// Host input ids: 5 fire, 6 back.

@@ -8,7 +8,8 @@
 //   node apps/perf_audit_test.mjs --break bytefill   frame() gets the clean twin where the
 //   node apps/perf_audit_test.mjs --break f64        byte-loop clear / f64 loop was planted:
 //                                                    passes only if the checks catch it; the same
-//   for redundant | clear | static | lines | tiny | scroll (the waste detectors)
+//   for redundant | clear | static | lines | tiny | scroll (the waste detectors) and
+//   div | recompute | cache | call | i64fit | branch (the cycle-waste probes)
 import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { CASES } from "./perf/test_cases.mjs";
@@ -20,7 +21,9 @@ import { auditCart } from "./perf_audit.mjs";
 const bi = process.argv.indexOf("--break");
 const broke = bi > 0 ? process.argv[bi + 1] : null;
 const BREAKS = { bytefill: "byte_fill", f64: "f64_loop", redundant: "redundant_store", clear: "clear_then_redraw",
-    static: "static_plane", lines: "lines_changed", tiny: "tiny_blits", scroll: "scroll_band" };
+    static: "static_plane", lines: "lines_changed", tiny: "tiny_blits", scroll: "scroll_band",
+    div: "div_loop", recompute: "recompute", cache: "cache_hostile", call: "call_in_loop", i64fit: "i64_fits_i32",
+    branch: "invariant_branch" };
 if (broke && !BREAKS[broke]) throw new Error(`--break ${Object.keys(BREAKS).join(" | ")}`);
 
 const dir = mkdtempSync(`${tmpdir()}/perf_audit_test-`);

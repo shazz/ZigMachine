@@ -161,6 +161,7 @@ pub const Demo = struct {
     siny_a: zg.fixtrig.Angle = 0,
     siny_b: zg.fixtrig.Angle = 0,
     ring: zg.scrollring.Ring(i32, NB_LETTERS) = undefined,
+    blitter: zg.Blitter = .{},
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
         Console.log("SUPPLEX FS2 init", .{});
@@ -171,6 +172,8 @@ pub const Demo = struct {
         self.siny_b = 0;
 
         setupPlanes(zigos);
+        self.blitter.init();
+        self.blitter.clear(&zigos.lfbs[2], 0);
         drawBackground(&zigos.lfbs[0]);
         drawTextPanel(&zigos.lfbs[1]);
 
@@ -199,8 +202,12 @@ pub const Demo = struct {
         // 'source-atop' raster is exactly a palette animation here.
         self.shiftRaster(&zigos.lfbs[1]);
 
-        var scroll: *LogicalFB = &zigos.lfbs[2];
-        scroll.clearFrameBuffer(0);
+        const scroll: *LogicalFB = &zigos.lfbs[2];
+        // Only the band the sine can reach is wiped, by CHISEL: columns SCROLL_X..+320,
+        // rows SINY_Y +-65 (+ the 16-row strip) with a margin. The rest of the
+        // plane is zero from init and nothing else writes it. It was a 112,000-byte
+        // CPU memset (~0.9 Mc a frame).
+        self.blitter.fill(scroll, SCROLL_X, SINY_Y - 74, STRIP_W, 2 * 74 + STRIP_H, 0);
         self.buildStrip();
         self.blitStrip(scroll);
     }

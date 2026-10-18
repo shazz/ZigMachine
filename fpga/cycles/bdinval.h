@@ -23,6 +23,7 @@
 
 #include <stdint.h>
 
+#include "dflush.h"
 #include "zm_memmap.h"
 
 #define BDI_LINE 32u
@@ -36,12 +37,10 @@ static inline void bdi_inval_line(uintptr_t a) {
 #define BDI_INVAL_LINE(a) bdi_inval_line(a)
 #endif
 
-/* The whole cache, as vboard.h zmv_flush_dcache, behind two nops. The core resolves a branch in
- * MEMORY (GenZm: earlyBranch = false) and DataCache starts its flusher from EXECUTE once no memory
- * op is in flight, so a flush fetched on the wrong side of a branch runs before the branch kills it:
- * `if (!bdi_range()) flush` swept the whole cache after every range (tests/dcache/ saw it). The
- * nops keep the flush out of EXECUTE until any older branch has resolved. */
-static inline void bdi_inval_all(void) { __asm__ volatile("nop\n nop\n .word(0x500F)\n" ::: "memory"); }
+/* The whole cache, as vboard.h zmv_flush_dcache. dflush.h's two nops are what stop
+ * `if (!bdi_range()) bdi_inval_all()` sweeping the whole cache after every range on the wrong
+ * path (tests/dcache/ saw it). */
+static inline void bdi_inval_all(void) { zm_dflush(); }
 
 typedef struct {
     int32_t x0, y0, x1, y1; /* x1, y1 exclusive */

@@ -69,14 +69,22 @@ var raster_index: u16 = 0;
 // Demo
 // --------------------------------------------------------------------------
 
+fn setInk(fb: *LogicalFB, c: Color) void {
+    const rgba = c.toRGBA();
+    if (fb.palette[1] != rgba) fb.palette[1] = rgba;
+}
+
 fn handler(fb: *LogicalFB, zigos: *ZigOS, line: u16, col: u16) void {
     const back_color: Color = Color{ .r = 0, .g = 0, .b = 0, .a = 0 };
 
-    if (line > 40 and line < 240 ) {
-        fb.setPaletteEntry(1, rasters_b[(raster_index + line - 40) % 152]);
+    // A colour register is only written when its colour changes (a raster coder
+    // never rewrites a register that already holds the right value): the 40
+    // lines below the picture all want back_color, one store instead of 40.
+    if (line > 40 and line < 240) {
+        setInk(fb, rasters_b[(raster_index + line - 40) % 152]);
     }
     if (line > 240) {
-        fb.setPaletteEntry(1, back_color);
+        setInk(fb, back_color);
     }
 
     _ = zigos;
@@ -95,12 +103,19 @@ pub const Demo = struct {
     angle_x: f32 = 0.0,
     angle_z: f32 = 0.0,
     zoom: f32 = 0.0,
+    blitter: zg.Blitter = .{},
+    // Last frame's projected letters: erased by redrawing them in colour 0
+    // instead of clearing the whole 64,000-byte plane under 24 thin lines.
+    drawn_vertices: [letters.verts.len]Coord = undefined,
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
         Console.log("Demo init", .{});
 
         // Nothing happens until the user turns sound on — the request just waits.
         zg.requestSong(MUSIC);
+
+        self.blitter.init();
+        self.drawn_vertices = std.mem.zeroes([letters.verts.len]Coord);
 
         // first plane
         var fb: *LogicalFB = &zigos.lfbs[0];
@@ -174,14 +189,17 @@ pub const Demo = struct {
 
     pub fn render(self: *Demo, zigos: *ZigOS, elapsed_time: f32) void {
 
-        self.starfield_3D.target.clearFrameBuffer(0);
+        // Whole-plane clears are CHISEL fills (1 px a clock) rather than 64,000
+        // blocking CPU stores each. The letters plane is erased where they were.
+        self.blitter.clear(&zigos.lfbs[0], 0);
         self.starfield_3D.render();
 
         const fb = &zigos.lfbs[1];
-        fb.clearFrameBuffer(0);
+        wf.drawEdges(fb.getRenderTarget(), &letters.edges, &self.drawn_vertices, 0, shapes.drawLine);
         wf.drawEdges(fb.getRenderTarget(), &letters.edges, &self.projected_vertices, 1, shapes.drawLine);
+        self.drawn_vertices = self.projected_vertices;
 
-        self.scrolltext.target.clearFrameBuffer(0);
+        self.blitter.clear(&zigos.lfbs[2], 0);
         self.scrolltext.render();
 
         _ = elapsed_time;
