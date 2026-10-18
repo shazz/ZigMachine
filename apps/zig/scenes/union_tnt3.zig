@@ -5,7 +5,8 @@
 // and music belong to them, The Union and Mad Max.
 //
 // On screen, in draw order (screen.js:806-838), one plane, one palette:
-//   stars.png, static
+//   stars.png, static: one CHISEL copy from cart RAM a frame (the CPU's
+//     64 KB read + 64 KB write-through was the frame's biggest memory cost)
 //   the chosen object: one to three codef3D engines (three.js r49 canvas faces,
 //     replayed exactly by zg.zig3d), each filling its faces far to near
 //   a black band over the top 18 canvas rows, and the up-and-down scroller in
@@ -64,6 +65,7 @@ pub const Demo = struct {
     images: A.Images,
     show: Show,
     scroller: Scroller,
+    blitter: zg.Blitter,
     keys: show_mod.Keys, // pressed since the last update
     leave: bool,
 
@@ -72,6 +74,7 @@ pub const Demo = struct {
         self.leave = false;
         self.keys = .initEmpty();
         self.scroller.init();
+        self.blitter.init();
         // On zg.mem, taken once: init runs once per cart load.
         const buf = zg.mem.alloc(u8, A.TOTAL) orelse return fail("no free RAM to depack into");
         const work = zg.mem.alloc(Work, 1) orelse return fail("no free RAM for the show");
@@ -101,8 +104,12 @@ pub const Demo = struct {
     pub fn render(self: *Demo, zigos: *ZigOS, dt: f32) void {
         _ = dt;
         if (self.phase != .running) return;
-        const dst = blit.Dst.plane(&zigos.lfbs[0]);
-        blit.blit(dst, self.images.stars, null, 0, 0, null, .copy);
+        const fb = &zigos.lfbs[0];
+        const dst = blit.Dst.plane(fb);
+        // The blitter reads the stars where the depack left them (cart RAM)
+        // and returns when the pixels are in the plane, so the CPU's fills
+        // below land on top, as screen.js draws them.
+        self.blitter.blitImage(fb, 0, 0, self.images.stars.data, A.STARS_W, 0, 0, A.STARS_W, A.STARS_H, null);
         self.show.draw(dst);
         @memset(dst.buf[0 .. BAND_ROWS * dst.stride], A.BLACK); // quad(0,0,640,0,640,18,0,18)
         self.scroller.draw(dst, self.images.font);

@@ -7,13 +7,19 @@
 // Why: canvas_poly computes every edge crossing of every sample row as an f64
 // expression with a divide, which on the board's FPU-less cart CPU is a chain
 // of soft-float calls per row per edge. Here the decision is EXACT for the
-// fixed-point path, with no rounding at all: along the row sy, an edge (p0, p1) with
-// p0.y <= sy < p1.y (or the reverse) crosses at x = x0 + n/d, n = (sy - y0)
-// (x1 - x0), d = y1 - y0, and the first sample at or right of it is
+// fixed-point path, with no rounding at all: along the row sy, an edge
+// (p0, p1) with p0.y <= sy < p1.y (or the reverse) crosses at x = x0 + n/d,
+// n = (sy - y0)(x1 - x0), d = y1 - y0, and the first sample at or right of it is
 //   k = ceil((x - HALF) / TWO) = ceil((d (x0 - HALF) + n) / (TWO d))   (d > 0)
 // (sample 2k + 0.5 canvas px = TWO k + HALF). Crossings are ordered
 // by k: two crossings with the same k bound an empty span, so their order
 // cannot change a pixel.
+//
+// Incremental, the way a span filler steps an edge: k is divided out once at
+// an edge's first row, then each row adds the edge's whole step (q) and carries
+// its remainder, so a row costs additions and compares, not a 64-bit divide
+// (a libgcc call on the rv32 cart CPU). The numbers are the same as dividing
+// on every row, exactly.
 //
 // Coordinates must stay within +-2^30 (zig3d_fixed holds them to +-2^30).
 // No ZigOS import: canvas_poly_fixed_test.zig runs it natively.
@@ -28,43 +34,66 @@ pub const MAX_POINTS = 16;
 
 const Crossing = struct { k: i64, dir: i8 };
 
+/// One edge over the sample rows [y, end): k = ceil(num / den) on row y, held
+/// as k and r = k den - num (0 <= r < den); a row adds step = sq den + sr.
+const Edge = struct { y: i64, end: i64, k: i64, r: i64, sq: i64, sr: i64, den: i64, dir: i8 };
+
 /// Fill the closed path `pts` (fixed-point canvas pixels, doubled) with `ink`.
 pub fn fill(dst: Dst, pts: []const [2]i32, ink: u8) void {
     if (pts.len < 3 or pts.len > MAX_POINTS or dst.w == 0) return;
-    var lo = pts[0][1];
-    var hi = pts[0][1];
-    for (pts[1..]) |p| {
-        lo = @min(lo, p[1]);
-        hi = @max(hi, p[1]);
-    }
     const h: i64 = @intCast(dst.h);
-    const first = clampK(firstSample(lo), h);
-    const last = clampK(firstSample(hi), h); // exclusive: sample < hi
-    var y = first;
-    while (y < last) : (y += 1) row(dst, pts, @intCast(y), ink);
+    var edges: [MAX_POINTS]Edge = undefined;
+    var n: usize = 0;
+    var top: i64 = h;
+    var bottom: i64 = 0;
+    for (pts, 0..) |p0, i| {
+        const e = edge(p0, pts[(i + 1) % pts.len], h) orelse continue;
+        edges[n] = e;
+        n += 1;
+        top = @min(top, e.y);
+        bottom = @max(bottom, e.end);
+    }
+    var y = top;
+    while (y < bottom) : (y += 1) row(dst, edges[0..n], y, ink);
 }
 
-fn row(dst: Dst, pts: []const [2]i32, y: usize, ink: u8) void {
-    const sy: i64 = @as(i64, @intCast(y)) * TWO + HALF;
+/// The edge p0 -> p1 on the rows whose sample it spans, clipped to 0..h;
+/// null when it spans none (a horizontal edge spans none).
+fn edge(p0: [2]i32, p1: [2]i32, h: i64) ?Edge {
+    const down = p0[1] < p1[1];
+    const a = if (down) p0 else p1;
+    const b = if (down) p1 else p0;
+    const y = @max(firstSample(a[1]), 0);
+    const end = @min(firstSample(b[1]), h); // exclusive: sample < b.y
+    if (y >= end) return null;
+    const d: i64 = @as(i64, b[1]) - a[1];
+    const dx: i64 = @as(i64, b[0]) - a[0];
+    const den = TWO * d;
+    const num = (y * TWO + HALF - a[1]) * dx + d * (@as(i64, a[0]) - HALF);
+    const k = ceilDiv(num, den);
+    const step = TWO * dx;
+    const sq = @divFloor(step, den);
+    return .{ .y = y, .end = end, .k = k, .r = k * den - num, .sq = sq, .sr = step - sq * den, .den = den, .dir = if (down) 1 else -1 };
+}
+
+fn row(dst: Dst, edges: []Edge, y: i64, ink: u8) void {
     var xs: [MAX_POINTS]Crossing = undefined;
     var n: usize = 0;
-    for (pts, 0..) |p0, i| {
-        const p1 = pts[(i + 1) % pts.len];
-        const y0: i64 = p0[1];
-        const y1: i64 = p1[1];
-        const down = y0 <= sy and sy < y1;
-        if (!down and !(y1 <= sy and sy < y0)) continue;
-        // the same crossing from either end, with a positive divisor
-        const a = if (down) p0 else p1;
-        const b = if (down) p1 else p0;
-        const d: i64 = @as(i64, b[1]) - a[1];
-        const num = (sy - a[1]) * (@as(i64, b[0]) - a[0]) + d * (@as(i64, a[0]) - HALF);
-        xs[n] = .{ .k = ceilDiv(num, TWO * d), .dir = if (down) 1 else -1 };
+    for (edges) |*e| {
+        if (y < e.y or y >= e.end) continue;
+        xs[n] = .{ .k = e.k, .dir = e.dir };
         n += 1;
+        // next row: num += step, so k += sq and r -= sr, carrying one when r < 0
+        e.k += e.sq;
+        e.r -= e.sr;
+        if (e.r < 0) {
+            e.r += e.den;
+            e.k += 1;
+        }
     }
     std.sort.insertion(Crossing, xs[0..n], {}, leftOf);
     const w: i64 = @intCast(dst.w);
-    const line = dst.buf[y * dst.stride ..][0..dst.w];
+    const line = dst.buf[@as(usize, @intCast(y)) * dst.stride ..][0..dst.w];
     var winding: i32 = 0;
     for (xs[0..n], 0..) |c, i| {
         winding += c.dir;

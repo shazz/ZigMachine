@@ -70,12 +70,14 @@ pub const Demo = struct {
     clock: f32, // seconds since init: the whole timeline's t
     morph: f32, // seconds since tween3d() armed the 21 s chain
     fade_sig: f32, // last uploaded fade state (see timeline.fadeSignature)
+    painted: bool, // go()'s still parts are on the plane (see render)
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
         self.ok = false;
         self.clock = 0;
         self.morph = 0;
         self.fade_sig = -1; // nothing uploaded yet: force the first palette
+        self.painted = false;
         self.scroller.init();
         self.blitter.init();
         const lens = c3.Lens.init(glenz.CANVAS, glenz.CANVAS, glenz.FOV, glenz.NEAR, glenz.FAR);
@@ -128,8 +130,12 @@ pub const Demo = struct {
         const fb = &zigos.lfbs[PLANE];
         const bl = &self.blitter;
         const s = timeline.State.at(self.clock);
-        stage.background(fb, bl);
-        if (s.running) self.drawMain(fb, bl) else self.drawIntro(fb, bl, s);
+        if (!s.running) {
+            self.painted = false;
+            stage.background(fb, bl);
+            return self.drawIntro(fb, bl, s);
+        }
+        self.drawMain(fb, bl);
     }
 
     /// part1(), in its own drawing order.
@@ -147,13 +153,23 @@ pub const Demo = struct {
     }
 
     /// go(), likewise: panel, both glenz objects, logo, bar, scrolltext.
+    /// The plane keeps its pixels from frame to frame, and in go() the
+    /// fill, the white frame and most of the logo never change: they are
+    /// painted on go()'s first frame only. After that a frame repaints what
+    /// moves: the inner panel, the objects, the logo rows over the panel, the
+    /// bar and its text. ~143k blitter pixels (the 400x280 fill and the frame)
+    /// and one 360x94 blit fewer a frame, same picture.
     fn drawMain(self: *Demo, fb: *zg.LogicalFB, bl: *zg.Blitter) void {
-        stage.panel(fb, bl);
+        if (self.painted) stage.inner(fb, bl) else {
+            stage.background(fb, bl);
+            stage.panel(fb, bl);
+        }
         for (&self.objects) |*o| o.draw(fb, bl, &self.lens);
-        stage.logo(fb, bl, self.images.logo);
+        if (self.painted) stage.logoOverPanel(fb, bl, self.images.logo) else stage.logo(fb, bl, self.images.logo);
+        self.painted = true;
         const bar_y: i16 = @intFromFloat(timeline.BAR_TO / 2);
         stage.bar(fb, bl, bar_y);
-        self.scroller.draw(fb, bl, self.images.font, bar_y + stage.TEXT_DY, stage.PLANE_W);
+        self.scroller.draw(fb, self.images.font, bar_y + stage.TEXT_DY, stage.PLANE_W);
     }
 };
 

@@ -48,6 +48,12 @@ pub fn background(fb: *LogicalFB, bl: *Blitter) void {
 /// index 0 before a single triangle lands on it.
 pub fn panel(fb: *LogicalFB, bl: *Blitter) void {
     bl.fill(fb, PANEL_X, PANEL_Y, PANEL_SIZE, PANEL_SIZE, A.WHITE);
+    inner(fb, bl);
+}
+
+/// The panel inside its white frame: all a glenz frame has to clear, since
+/// the objects never come within 14 px of the frame.
+pub fn inner(fb: *LogicalFB, bl: *Blitter) void {
     bl.fill(fb, INNER_X, INNER_Y, INNER_SIZE, INNER_SIZE, A.PANEL);
 }
 
@@ -82,6 +88,18 @@ pub fn bar(fb: *LogicalFB, bl: *Blitter, y: i16) void {
 
 pub fn logo(fb: *LogicalFB, bl: *Blitter, pixels: []const u8) void {
     bl.blitImage(fb, X_OFF, 0, pixels, A.LOGO_W, 0, 0, A.LOGO_W, A.LOGO_H, A.KEY);
+}
+
+/// The logo's rows that hang over the inner panel (86..93): inner() wipes
+/// them, so they go back after the objects, as the whole logo did. Keyed onto
+/// pixels it already drew, the strip changes nothing outside the panel.
+pub fn logoOverPanel(fb: *LogicalFB, bl: *Blitter, pixels: []const u8) void {
+    const top: u16 = @intCast(INNER_Y);
+    bl.blitImage(fb, X_OFF, INNER_Y, pixels, A.LOGO_W, 0, top, A.LOGO_W, A.LOGO_H - top, A.KEY);
+}
+
+comptime {
+    if (A.LOGO_H > INNER_Y + INNER_SIZE or INNER_Y < PANEL_Y) @compileError("logoOverPanel assumes the logo ends inside the panel's top");
 }
 
 /// txt1/2/3 are stored as their bounding box; the remake draws them at (0,0).
