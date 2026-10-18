@@ -12,6 +12,7 @@
 // --------------------------------------------------------------------------
 const std = @import("std");
 const hw = @import("hardware"); // sealed video ABI header (named module)
+const plane_clear = @import("plane_clear.zig");
 
 // --------------------------------------------------------------------------
 // Re-exports so scenes (in the separate `apps` module) can reach the whole open
@@ -687,13 +688,11 @@ pub const LogicalFB = struct {
         }
     }
 
-    // One memset (wasm memory.fill), not a byte loop: the loop reloaded
-    // self.fb for every pixel (the store may alias it) and stored a byte at a
-    // time, about 2 Mc a 64000-pixel plane on ZIGGY; a scene clearing three
-    // planes spent half its frame here.
+    // CHISEL fills (plane_clear.zig), same bytes as the memset they replace:
+    // on the board a memset is ~86 cycles a word of blocking DDR stores, a
+    // CHISEL fill ~1.85 cycles a byte (64000 bytes: ~1.4 Mc -> ~0.12 Mc).
     pub fn clearFrameBuffer(self: *LogicalFB, pal_entry: u8) void {
-        const n: u32 = @as(u32, self.fb_h) * @as(u32, self.stride);
-        @memset(self.fb[0..n], pal_entry);
+        plane_clear.clear(g_base, self.fb, self.stride, self.fb_h, pal_entry);
     }
 
     pub fn setFrameBufferHBLHandler(self: *LogicalFB, position: u16, handler: *const fn (*LogicalFB, *ZigOS, u16, u16) void) void {
