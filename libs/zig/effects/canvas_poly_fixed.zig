@@ -26,17 +26,19 @@
 // --------------------------------------------------------------------------
 const std = @import("std");
 const Dst = @import("blit.zig").Dst;
+const span_fill = @import("span_fill.zig");
 const PX = @import("zig3d_fixed_math.zig").PX;
 const HALF: i64 = 1 << (PX - 1); // 0.5 canvas px
 const TWO: i64 = 2 << PX; // 2 canvas px: one ST pixel
 
 pub const MAX_POINTS = 16;
 
-const Crossing = struct { k: i64, dir: i8 };
-
 /// One edge over the sample rows [y, end): k = ceil(num / den) on row y, held
 /// as k and r = k den - num (0 <= r < den); a row adds step = sq den + sr.
-const Edge = struct { y: i64, end: i64, k: i64, r: i64, sq: i64, sr: i64, den: i64, dir: i8 };
+/// k is i32: on a row the edge spans, its crossing lies between its end points
+/// (|x| <= 2^30, so |k| <= 2^15 + 1); the steps wrap (+%) so the value after the
+/// last row, which is never read, cannot overflow. r and den stay i64.
+const Edge = struct { y: i32, end: i32, k: i32, sq: i32, r: i64, sr: i64, den: i64, dir: i8 };
 
 /// Fill the closed path `pts` (fixed-point canvas pixels, doubled) with `ink`.
 pub fn fill(dst: Dst, pts: []const [2]i32, ink: u8) void {
@@ -44,8 +46,8 @@ pub fn fill(dst: Dst, pts: []const [2]i32, ink: u8) void {
     const h: i64 = @intCast(dst.h);
     var edges: [MAX_POINTS]Edge = undefined;
     var n: usize = 0;
-    var top: i64 = h;
-    var bottom: i64 = 0;
+    var top: i32 = std.math.maxInt(i32);
+    var bottom: i32 = 0;
     for (pts, 0..) |p0, i| {
         const e = edge(p0, pts[(i + 1) % pts.len], h) orelse continue;
         edges[n] = e;
@@ -73,34 +75,48 @@ fn edge(p0: [2]i32, p1: [2]i32, h: i64) ?Edge {
     const k = ceilDiv(num, den);
     const step = TWO * dx;
     const sq = @divFloor(step, den);
-    return .{ .y = y, .end = end, .k = k, .r = k * den - num, .sq = sq, .sr = step - sq * den, .den = den, .dir = if (down) 1 else -1 };
+    return .{
+        .y = @intCast(y),
+        .end = @intCast(end),
+        .k = @intCast(k),
+        .sq = @truncate(sq), // only ever added mod 2^32 to an in-range k
+        .r = k * den - num,
+        .sr = step - sq * den,
+        .den = den,
+        .dir = if (down) 1 else -1,
+    };
 }
 
-fn row(dst: Dst, edges: []Edge, y: i64, ink: u8) void {
-    var xs: [MAX_POINTS]Crossing = undefined;
+/// One sample row. A crossing is packed as (clamped k) << 2 | (dir + 1): a
+/// pixel's ink depends only on how many crossings, of which direction, lie at
+/// or left of it, and k <= x is clampK(k) <= x for every x in 0..w, so sorting
+/// the clamped keys (one u32 each, no struct swaps) fills the same spans.
+fn row(dst: Dst, edges: []Edge, y: i32, ink: u8) void {
+    var xs: [MAX_POINTS]u32 = undefined;
     var n: usize = 0;
+    const w: i32 = @intCast(dst.w);
     for (edges) |*e| {
         if (y < e.y or y >= e.end) continue;
-        xs[n] = .{ .k = e.k, .dir = e.dir };
+        const ck: u32 = @intCast(std.math.clamp(e.k, 0, w));
+        xs[n] = ck << 2 | @as(u32, @intCast(e.dir + 1));
         n += 1;
         // next row: num += step, so k += sq and r -= sr, carrying one when r < 0
-        e.k += e.sq;
+        e.k +%= e.sq;
         e.r -= e.sr;
         if (e.r < 0) {
             e.r += e.den;
-            e.k += 1;
+            e.k +%= 1;
         }
     }
-    std.sort.insertion(Crossing, xs[0..n], {}, leftOf);
-    const w: i64 = @intCast(dst.w);
+    std.sort.insertion(u32, xs[0..n], {}, std.sort.asc(u32));
     const line = dst.buf[@as(usize, @intCast(y)) * dst.stride ..][0..dst.w];
     var winding: i32 = 0;
     for (xs[0..n], 0..) |c, i| {
-        winding += c.dir;
+        winding += @as(i32, @intCast(c & 3)) - 1;
         if (winding == 0 or i + 1 == n) continue;
-        const a = clampK(c.k, w);
-        const b = clampK(xs[i + 1].k, w);
-        if (a < b) @memset(line[@intCast(a)..@intCast(b)], ink);
+        const a = c >> 2;
+        const b = xs[i + 1] >> 2;
+        if (a < b) span_fill.fill(line[a..b], ink);
     }
 }
 
@@ -109,15 +125,7 @@ fn firstSample(c: i32) i64 {
     return ceilDiv(@as(i64, c) - HALF, TWO);
 }
 
-fn clampK(k: i64, limit: i64) i64 {
-    return std.math.clamp(k, 0, limit);
-}
-
 /// ceil(a / b) for b > 0.
 fn ceilDiv(a: i64, b: i64) i64 {
     return -@divFloor(-a, b);
-}
-
-fn leftOf(_: void, a: Crossing, b: Crossing) bool {
-    return a.k < b.k;
 }

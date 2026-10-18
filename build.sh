@@ -170,6 +170,8 @@ NATIVE_TESTS="
     libs/zig/effects/zig3d_sparse_test.zig
     libs/zig/effects/canvas_poly_test.zig
     libs/zig/effects/canvas_poly_fixed_test.zig
+    libs/zig/effects/canvas_poly_fixed_prev_test.zig
+    libs/zig/effects/span_fill_test.zig
     libs/zig/effects/colour_bank_test.zig
     libs/zig/effects/beam_test.zig
     machine/beam_test.zig
