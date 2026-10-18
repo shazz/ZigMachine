@@ -61,6 +61,22 @@ const VBL_US: u64 = 20_000;
 const MAX_CATCH_UP: u64 = 4;
 const MAX_FRAME_US: u64 = 1_000_000;
 
+/// floor(dt * 1000) for a finite dt > 0 (else 0), capped at MAX_FRAME_US, from
+/// the f32's own bits: dt * 1000 is exact in f64 (34 significant bits), so this
+/// is the same integer the soft-f64 multiply gave, without any f64 per frame.
+fn msToUs(dt: f32) u64 {
+    const bits: u32 = @bitCast(dt);
+    const exp: i32 = @intCast((bits >> 23) & 0xFF);
+    if (bits >> 31 != 0 or exp == 0xFF) return 0; // negative, NaN or inf
+    const frac: u64 = bits & 0x7FFFFF;
+    const man: u64 = if (exp == 0) frac else frac | (1 << 23);
+    const scale: i32 = (if (exp == 0) 1 else exp) - 150;
+    const prod = man * 1000;
+    if (scale >= 0) return if (scale >= 21) MAX_FRAME_US else @min(prod << @intCast(scale), MAX_FRAME_US);
+    if (-scale >= 64) return 0;
+    return @min(prod >> @intCast(-scale), MAX_FRAME_US);
+}
+
 pub const Demo = struct {
     // demo_main holds the cart as `undefined`: every field is set in init().
     m: Machine,
@@ -82,10 +98,7 @@ pub const Demo = struct {
 
     pub fn update(self: *Demo, zigos: *ZigOS, dt: f32) void {
         _ = zigos;
-        if (std.math.isFinite(dt) and dt > 0) {
-            const us: u64 = @intFromFloat(@min(@as(f64, dt) * 1000.0, @as(f64, MAX_FRAME_US)));
-            self.clock_us += us;
-        }
+        self.clock_us += msToUs(dt);
     }
 
     /// Show the state the border already shows (hwClear painted it from the
@@ -94,7 +107,7 @@ pub const Demo = struct {
     /// that is always the picture's own.
     pub fn render(self: *Demo, zigos: *ZigOS, dt: f32) void {
         _ = dt;
-        display.present(&self.m, self.lit(), &zigos.lfbs[PLANE]);
+        display.present(&self.m, &zigos.lfbs[PLANE]);
         const due = self.clock_us / VBL_US;
         var n: u64 = 0;
         while (self.vbls < due) : (n += 1) {
