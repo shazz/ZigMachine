@@ -36,6 +36,6 @@ export async function runAll(o, script, passArgs = [], print = printRanking) {
     rows.sort((a, b) => (b.mc?.avg ?? -1) - (a.mc?.avg ?? -1));
     if (o.out) writeFileSync(o.out, JSON.stringify({ carts: rows.length, rows }, null, 1));
     if (o.json) console.log(JSON.stringify(rows));
-    else print(o.topN ? rows.slice(0, Math.max(o.topN, rows.filter((r) => r.error).length)) : rows);
+    else print(rows, o.topN || rows.length);
     return rows;
 }

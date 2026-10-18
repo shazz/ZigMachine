@@ -2,43 +2,53 @@
 // One Profile per instrumented module; frame() is called after every host frame and
 // returns that frame's cycles, accumulate=true adds the frame to the window sums.
 import { CLASSES, regionCycles, fillCycles, copyCycles } from "./cost_model.mjs";
-import { LOG_COUNT, LOG_BASE } from "./hooks.mjs";
+import { LOG_COUNT, LOG_BASE, BUCKETS, FIRST_COUNTER, KIND_COPY, VRAM_BYTES, BUCKET_SHIFT } from "./hooks.mjs";
+import { WATCH_WORDS } from "./watch_hook.mjs";
 
 const NCLS = CLASSES.length;
+const NBUCKETS = VRAM_BYTES >> BUCKET_SHIFT;
 
 export class Profile {
     constructor(tag, plan, mem) {
         this.tag = tag; this.plan = plan; this.mem = mem;
-        this.prev = new Uint32Array(plan.words);
+        this.prev = new Uint32Array(plan.words); this.d = new Uint32Array(plan.words);
         const nR = plan.regions.length, nS = plan.segFunc.length;
         this.rInstr = new Float64Array(nR); this.rStores = new Float64Array(nR); this.rExtra = new Float64Array(nR);
         this.sum = { cycles: new Float64Array(nR), iters: new Float64Array(nR), cls: new Float64Array(nR * NCLS), clsCyc: new Float64Array(nR * NCLS),
             instr: new Float64Array(nR), stores: new Float64Array(nR), seg: new Float64Array(nS),
             fill: new Float64Array(plan.fills.length), copy: new Float64Array(plan.copies.length),
-            pal: new Float64Array(plan.pals.length * 2) };
+            watch: new Float64Array(plan.watch.length * WATCH_WORDS) };
         this.headSeg = new Int32Array(nR).fill(-1);
         for (let s = 0; s < nS; s++) if (this.headSeg[plan.segRegion[s]] < 0) this.headSeg[plan.segRegion[s]] = s;
         this.frames = 0;
     }
 
     delta() {
-        const cur = new Uint32Array(this.mem.buffer, 0, this.plan.words);
-        const d = new Uint32Array(this.plan.words);
-        for (let i = 0; i < d.length; i++) d[i] = (cur[i] - this.prev[i]) >>> 0;
-        this.prev.set(cur);
+        const cur = new Uint32Array(this.mem.buffer, 0, this.plan.words), d = this.d;
+        for (let i = FIRST_COUNTER; i < d.length; i++) d[i] = (cur[i] - this.prev[i]) >>> 0;
+        this.prev.set(cur.subarray(FIRST_COUNTER), FIRST_COUNTER);
         return d;
     }
 
-    // Big fills logged this frame, then the log is emptied: [{site, dest, len, value}]
+    // The VRAM pool as it is at frame start, for the store watch to compare with.
+    snapshot(vram) { new Uint8Array(this.mem.buffer, 0, vram.length).set(vram); }
+
+    // This frame's logged fills/copies, then the log is emptied: [{copy, site, dest, len, x}]
     takeLog() {
         const w = new Uint32Array(this.mem.buffer);
         const out = [];
-        for (let i = 0; i < w[LOG_COUNT]; i++) {
+        for (let i = 0; i < Math.min(w[LOG_COUNT], 4096); i++) {
             const e = LOG_BASE + 4 * i;
-            out.push({ site: w[e], dest: w[e + 1], len: w[e + 2], value: w[e + 3] & 0xff });
+            out.push({ copy: w[e] >>> 28 === KIND_COPY, site: w[e] & 0xfffffff, dest: w[e + 1], len: w[e + 2], x: w[e + 3] });
         }
         w[LOG_COUNT] = 0;
-        this.prev[LOG_COUNT] = 0;
+        return out;
+    }
+
+    // Bytes stored into VRAM this frame per 256-byte bucket, then zeroed.
+    takeBuckets() {
+        const b = new Uint32Array(this.mem.buffer, 4 * BUCKETS, NBUCKETS), out = b.slice();
+        b.fill(0);
         return out;
     }
 
@@ -61,7 +71,7 @@ export class Profile {
         }
         p.fills.forEach((f, i) => { const b = d[f.word]; this.rExtra[p.segRegion[f.seg]] += fillCycles(b); if (accumulate) S.fill[i] += b; });
         p.copies.forEach((f, i) => { const b = d[f.word]; this.rExtra[p.segRegion[f.seg]] += copyCycles(b); if (accumulate) S.copy[i] += b; });
-        if (accumulate) p.pals.forEach((f, i) => { S.pal[2 * i] += d[f.word]; S.pal[2 * i + 1] += d[f.word + 1]; });
+        if (accumulate) p.watch.forEach((f, i) => { for (let k = 0; k < WATCH_WORDS; k++) S.watch[i * WATCH_WORDS + k] += d[f.word + k]; });
         let total = 0;
         for (let r = 0; r < this.rInstr.length; r++) {
             const c = regionCycles(this.rInstr[r], this.rStores[r]) + this.rExtra[r];

@@ -1,7 +1,8 @@
 // The planted patterns of perf_audit_test.mjs: frame() bodies WITH each bad pattern and
 // a clean twin doing the same work the right way. Locals (fixture.mjs): 0 dt (f32),
-// 1-4 i32, 5-6 i64, 7-8 f64, 9-10 f32. Function 5 is "sinf" where a case declares it.
-import { I, loop, BUF, BUF2, PAL } from "./fixture.mjs";
+// 1-4 i32, 5-6 i64, 7-8 f64, 9-10 f32. fn(0) is the first helper (sinf, setPixel) where a case declares one.
+import { I, loop, fn, BUF, BUF2, PAL } from "./fixture.mjs";
+import { WASTE_CASES } from "./test_cases_waste.mjs";
 
 const fill = (dst, v, n) => [...I.i32(dst), ...I.i32(v), ...I.i32(n), ...I.fill];
 // compiler-rt's sinf works in f64: promote, a polynomial, demote
@@ -23,12 +24,12 @@ export const CASES = [
             ...I.i32(0), ...I.get(7), ...I.f64store(BUF)],
         without: i32Loop },
     { pattern: "libm_loop", opts: SINF, dynamic: "table_rebuild_per_frame", lintAs: "libm_loop",
-        with: loop(1, 1024, [...I.get(1), ...I.i32(2), ...I.shl, ...I.get(1), ...I.f32cvt, ...I.call(5), ...I.f32store(BUF)]),
+        with: loop(1, 1024, [...I.get(1), ...I.i32(2), ...I.shl, ...I.get(1), ...I.f32cvt, ...I.call(fn(0)), ...I.f32store(BUF)]),
         without: [...loop(1, 1024, [...I.get(1), ...I.i32(2), ...I.shl, ...I.get(1), ...I.f32cvt, ...I.f32store(BUF)]),
-            ...I.f32(1), ...I.call(5), ...I.drop] },
+            ...I.f32(1), ...I.call(fn(0)), ...I.drop] },
     { pattern: "table_rebuild", opts: SINF,
-        with: loop(1, 256, [...I.get(1), ...I.i32(2), ...I.shl, ...I.get(1), ...I.f32cvt, ...I.call(5), ...I.f32store(BUF)]),
-        without: [...I.f32(1), ...I.call(5), ...I.drop] },
+        with: loop(1, 256, [...I.get(1), ...I.i32(2), ...I.shl, ...I.get(1), ...I.f32cvt, ...I.call(fn(0)), ...I.f32store(BUF)]),
+        without: [...I.f32(1), ...I.call(fn(0)), ...I.drop] },
     { pattern: "div_loop", dynamic: "div_loop",
         with: [...I.i32(0), ...I.i32(7), ...I.store(BUF2), ...I.i32(0), ...I.load(BUF2), ...I.set(3),
             ...loop(1, 20000, [...I.get(1), ...I.get(1), ...I.get(3), ...I.divu, ...I.store8(BUF)])],
@@ -42,13 +43,11 @@ export const CASES = [
         without: [...I.i32(BUF), ...I.set(2), ...I.get(2), ...I.get(2), ...I.load(0), ...I.i32(1), ...I.add, ...I.store(0)] },
     { pattern: "pixel_call", dynamic: "pixel_call", // setPixel(x, c) called per pixel, vs the store in the loop
         opts: { extra: [{ name: "setPixel", type: "i32i32v", body: [...I.get(0), ...I.get(1), ...I.store8(BUF)] }] },
-        with: loop(1, 20000, [...I.get(1), ...I.get(1), ...I.call(5)]),
+        with: loop(1, 20000, [...I.get(1), ...I.get(1), ...I.call(fn(0))]),
         without: loop(1, 20000, [...I.get(1), ...I.get(1), ...I.store8(BUF)]) },
-    { pattern: "palette_rewrite", dynamicOnly: true, dynamic: "palette_rewrite", // 600 colour writes a frame...
+    { pattern: "palette_rewrite", dynamicOnly: true, waste: true, // 600 colour writes a frame...
         with: loop(1, 600, [...I.get(1), ...I.i32(255), 0x71, ...I.i32(2), ...I.shl, ...I.i32(0x00112233), ...I.store(PAL)]),
         without: [...counter, ...loop(1, 600, [...I.get(1), ...I.i32(255), 0x71, ...I.i32(2), ...I.shl, // ...each a new colour
             ...I.get(4), ...I.i32(1000), ...I.mul, ...I.get(1), ...I.add, ...I.store(PAL)])] },
-    { pattern: "cleared_redrawn", dynamicOnly: true, dynamic: "cleared_redrawn", // the plane cleared, then all of it drawn
-        with: [...fill(BUF, 0, 64000), ...loop(1, 16000, [...I.get(1), ...I.i32(2), ...I.shl, ...I.i32(0x01010101), ...I.store(BUF)])],
-        without: [...fill(BUF, 0, 64000), ...loop(1, 100, [...I.get(1), ...I.i32(2), ...I.shl, ...I.i32(0x01010101), ...I.store(BUF)])] },
+    ...WASTE_CASES,
 ];

@@ -45,6 +45,36 @@ Names: release carts are stripped. `tools/perf_names.sh` builds the same tree wi
 carry the release build's instructions (up to 10 % may differ: LLVM moves a little with debug
 info on), and take file:line from its DWARF line table. C carts have no names.
 
+## Waste: only modify what needs to be modified
+
+Every integer store into the VRAM pool is compared, as it happens, with the byte(s) there
+at frame START (a snapshot in the counters' memory); fills and copies into VRAM are logged
+and compared the same way; after each frame the pool, each enabled plane and the composed
+picture are diffed against the previous frame. `--all` ranks the shelf by **wasted
+Mc/frame**: the estimated cycles that would go if only what changes were written.
+
+| finding | what it means | fix |
+|---|---|---|
+| `redundant_store` | a loop (or memset/memcpy) whose VRAM stores mostly rewrite what was there | draw the static page once, dirty rects/rows |
+| `clear_then_redraw` | a big fill redrawn in the same frame, all of it or mostly back to what it was | save-under / dirty rects |
+| `static_plane` | an enabled plane that never changed in the window | draw once; the dirty-line compositor skips it |
+| `lines_changed` | composed lines that changed a frame (`lines`, `dirty` = FRESCO Mc a dirty-line compositor saves) | perf/vseq-dirty |
+| `tiny_blits` | blits under 256 B, each paying bblit.c's full D$ invalidate (`BLIT_DFLUSH`) | batch, CPU, or a range flush |
+| `scroll_band` | rows that are last frame's shifted by k px, rewritten by the CPU | pan (HSCROLL / FB_BASE), or blit-shift + new column |
+| `palette_rewrite` | colour writes of the value already there | write only changes |
+
+Waste figures are estimates on top of an estimate: a region's waste is its cycles times the
+share of its stores that were redundant.
+
+**The snoop-queue term (a hypothesis).** stcs before perf/board-slow-carts ran 1 fps on the
+board; the model said ~13. stcs was the only cart writing far more palette entries in ONE
+HBL call (256, every line) than the compositor's 16-entry snoop queue holds, and FRESCO
+waits for that queue before each line's pass. `SNOOP_OVERFLOW` (cycles per palette store
+past the queue within one handler) is fitted to that single point (1,900): the old stcs
+now estimates 1 fps. No other measurement constrains it. It predicts snyd_90 (~7 fps) and
+swedish_newyear (~7 fps) are slow for the same reason; a 6-frame board-SoC sim of the old
+stcs, or snyd_90 on the board, confirms or refutes it.
+
 ## It is an estimate
 
 Calibration (2026-10-17): empire's byte-loop clear (~2 Mc a 64,000-byte plane, so ~30
@@ -61,10 +91,8 @@ cart cycles, `ZM QF` plane passes):
 | raytrace_f32 (frames 2-7) | 6.1 | 4.8 |
 
 What it cannot see: D$ misses (a column walk over a row-major picture), the I$ beyond a
-working-set estimate, DDR contention, BARD (music runs there, not in the cart). Known miss:
-stcs before perf/board-slow-carts ran at 1 fps on the board; the model says ~13 fps (but it
-ranks the very loops that were fixed: byte clears, byte copies, 50,873 unchanged colour
-writes a frame).
+working-set estimate, DDR contention, BARD (music runs there, not in the cart). stcs before perf/board-slow-carts
+(1 fps on the board) is matched only through the snoop-queue hypothesis above.
 
 ## In the gate
 

@@ -6,7 +6,6 @@
 import { lintModule, HINTS } from "./lint.mjs";
 
 export const HOT_MC = 0.05;         // 3 % of a 60 Hz frame at 100 MHz
-const PAL_UNCHANGED_MIN = 256;      // unchanged colour-register writes a frame worth a finding
 const Mc = (c) => Math.round(c / 1e4) / 100;
 
 function regionIndex(P) {
@@ -44,15 +43,8 @@ const status = (mc, perFrame) => (mc >= HOT_MC ? "hot" : perFrame > 0 ? "per-fra
 
 function dynamicOnly(dyn, staticKeys) {
     const out = [];
-    const pal = dyn.palette;
-    if (pal.unchanged >= PAL_UNCHANGED_MIN) for (const s of pal.sites.filter((x) => x.unchanged >= PAL_UNCHANGED_MIN / 4))
-        out.push({ pattern: "palette_rewrite", mod: s.mod, func: s.func, at: s.at, loop: -1,
-            detail: `${s.unchanged} of ${s.writes} colour writes a frame rewrite the same value`, hint: HINTS.palette_rewrite,
-            mc: Mc(s.unchanged * 30), status: "hot" });
-    for (const c of dyn.clears.filter((x) => x.wasted))
-        out.push({ pattern: "cleared_redrawn", mod: c.mod, func: c.func, at: "-", loop: -1,
-            detail: `${c.len} B filled ${c.perFrame}x a frame, ${c.overwritten}% overwritten in the same frame`,
-            hint: HINTS.cleared_redrawn, mc: Mc((c.len / 4) * 30 * c.perFrame), status: "hot" });
+    // the waste detectors (waste_report.mjs): ranked by the Mc/frame they waste
+    for (const f of dyn.waste.findings) out.push({ ...f, mc: f.waste, status: f.waste >= HOT_MC ? "hot" : "per-frame" });
     for (const h of dyn.hot.filter((x) => x.cause === "bus: narrow stores" && x.mc >= HOT_MC))
         if (!staticKeys.has(`${h.mod}:${h.fi}:${h.loop}`))
             out.push({ pattern: "narrow_store_hot", mod: h.mod, func: h.func, at: h.at, loop: h.loop,

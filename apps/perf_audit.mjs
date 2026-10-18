@@ -13,13 +13,14 @@ import { pathToFileURL, fileURLToPath } from "node:url";
 import { parseArgs, costOf } from "./frame_cost.mjs";
 import { crossCheck } from "./perf/audit.mjs";
 import { runAll } from "./perf/run_all.mjs";
-import { topCause, short } from "./perf/print.mjs";
+import { topCause, short, wasteLine } from "./perf/print.mjs";
 
 const pad = (s, n) => String(s).padEnd(n);
 
 export async function auditCart(cart, o) {
     const dyn = await costOf(cart, o, true);
     const findings = crossCheck(dyn, await readFile(cart), dyn.cartNames);
+    for (const f of dyn.waste.findings) f.src = f.mod === "cart" && f.at !== "-" ? dyn.cartSrc(parseInt(f.at, 16)) : null;
     for (const f of findings) f.src = f.mod === "cart" && f.at !== "-" ? dyn.cartSrc(parseInt(f.at, 16)) : null;
     delete dyn.profiles; delete dyn.cartNames; delete dyn.cartSrc;
     return { ...dyn, findings };
@@ -27,6 +28,7 @@ export async function auditCart(cart, o) {
 
 export function printAudit(r, n, out = console.log) {
     out(`${r.tag}: est ${r.mc.avg} Mc/frame (p95 ${r.mc.p95}) ~${r.fps} fps on ZIGGY (ESTIMATE, apps/perf/cost_model.mjs); ${topCause(r)}`);
+    out(`  ${wasteLine(r.waste)}`);
     const shown = r.findings.filter((f) => f.status !== "cold").slice(0, n);
     const cold = r.findings.filter((f) => f.status === "cold").length;
     if (!shown.length) out("  no per-frame finding");
@@ -36,14 +38,19 @@ export function printAudit(r, n, out = console.log) {
     if (cold) out(`  (${cold} static finding(s) in code that did not run in frames ${r.warmup + 1}..${r.warmup + r.frames}: --json lists them)`);
 }
 
-function printRanking(rows, out = console.log) {
-    out(`${pad("cart", 24)} ${"est Mc".padStart(7)} ${"fps".padStart(5)}  first finding`);
-    for (const r of rows) {
-        if (r.error) { out(`${pad(r.tag, 24)} ${"ERR".padStart(7)}        ${r.error}`); continue; }
-        const f = r.findings.find((x) => x.status === "hot");
-        const what = f ? `${f.pattern} in ${short(f.func)} (${f.mc} Mc)` : topCause(r);
-        out(`${pad(r.tag, 24)} ${String(r.mc.avg).padStart(7)} ${String(r.fps).padStart(5)}  ${what}`);
+// --all: ranked by WASTED Mc/frame (what "only modify what changes" would save), then the
+// carts' total estimate; the dirty-line column is FRESCO time a dirty-line compositor saves.
+function printRanking(all, n = all.length, out = console.log) {
+    const ok = all.filter((r) => !r.error).sort((a, b) => b.waste.wasteMc - a.waste.wasteMc || b.mc.avg - a.mc.avg);
+    out(`${pad("cart", 22)} ${"waste".padStart(6)} ${"est Mc".padStart(7)} ${"fps".padStart(5)} ${"lines".padStart(5)} ${"dirty".padStart(5)}  biggest waste | first hot finding`);
+    for (const r of ok.slice(0, n)) {
+        const w = r.waste.findings[0], f = r.findings.find((x) => x.status === "hot");
+        const what = w && w.waste > 0 ? `${w.pattern} ${short(w.func)}${w.src ? " (" + w.src + ")" : ""} ${w.waste}`
+            : f ? `${f.pattern} in ${short(f.func)} (${f.mc} Mc)` : topCause(r);
+        out(`${pad(r.tag, 22)} ${String(r.waste.wasteMc).padStart(6)} ${String(r.mc.avg).padStart(7)} ${String(r.fps).padStart(5)} `
+            + `${String(r.waste.lines).padStart(5)} ${String(r.waste.dirtyGainMc).padStart(5)}  ${what}`);
     }
+    for (const r of all.filter((x) => x.error)) out(`${pad(r.tag, 22)} ERR    ${r.error}`);
 }
 
 async function main() {

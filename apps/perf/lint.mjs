@@ -18,7 +18,6 @@ export const HINTS = {
     table_rebuild: "build the table once at init, not every frame",
     float_phase: "a u32 phase + zg.fixtrig: a float accumulator drifts and costs FPU/soft-float time",
     palette_rewrite: "write only the colour registers that change (a raster coder never rewrites one)",
-    cleared_redrawn: "drop the clear: the frame's drawing covers the plane anyway",
     pixel_call: "write the span in the loop (pointer + stride, u32 where aligned) or blit: one call per pixel",
 };
 

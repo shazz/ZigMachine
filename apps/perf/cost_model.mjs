@@ -22,7 +22,13 @@
 
 export const CPI = 1.35;          // cycles per modelled rv32 instruction (pipeline + I$/D$ misses)
 export const STORE_DRAIN = 30;    // cycles per store while the store buffer is full (empire)
-export const BLIT_CALL = 400;     // CPU cycles per hwBlit beyond the blitter's own time
+// CPU cycles per hwBlit beyond the blitter's own time: start + spin, and the FULL D$
+// invalidate fpga/cycles/bblit.c does after every op (128 lines of a 4 KiB D$, and the
+// cart's working set misses again after it). BLIT_DFLUSH is the part a range flush
+// (perf/blit-dcache-range) would remove; tiny_blits charges it as the waste of a tiny op.
+export const BLIT_START = 150;
+export const BLIT_DFLUSH = 250;
+export const BLIT_CALL = BLIT_START + BLIT_DFLUSH;
 // clocks per CYCLES unit by COMMAND (1 BLIT, 2 FILL, 3 LINE, 4 TRIANGLE), plain vs
 // read-modify-write (the minterm reads the destination C): BLITTER_HW_SPEC 10.5 and the
 // board-SoC sims of tsl_hybridglenz (1.24 Mc cart: 120 K fill + 107 K triangle units) and
@@ -36,7 +42,16 @@ export const blitCycles = (cmd, units, minterm) =>
 // passes follow cart.frame): 0.77-0.82 Mc a frame per plane in every board-SoC sim log
 // (ZM QF), 3.5 Mc for music_debug's four planes. Empty planes cost the same.
 export const FRESCO_PLANE = 0.8e6;
-export const HBL_CALL = 60;       // per hblDispatch: interrupt entry/exit on ZIGGY
+export const HBL_CALL = 60;
+// A HYPOTHESIS, calibrated on ONE point: stcs before perf/board-slow-carts ran 1 fps on the
+// board (~100 Mc a frame) where everything else in the model says ~8 Mc; it is the only
+// cart whose HBL handler writes far more palette entries in one call (256, every line) than
+// the compositor's snoop queue holds (16; soc/zm_video_snoop.py), and the sequencer waits
+// for that queue to drain before each line's pass. Every other cart, and every board-SoC
+// sim log, stays under 16 a call, so nothing else constrains this number: a 6-frame sim of
+// the old stcs would confirm or refute it.
+export const SNOOP_QUEUE = 16;
+export const SNOOP_OVERFLOW = 1900; // cycles per palette store beyond the queue, within one handler       // per hblDispatch: interrupt entry/exit on ZIGGY
 export const FILL_WORD = 1.5;     // memset/memcpy instructions per 32-bit word (picolibc)
 // I$ (16 KiB, 2-way): when the rv32 code a frame runs is bigger, a share of its
 // instruction fetches miss; a miss refills a 32-byte line (8 instructions) in ~40 cycles.

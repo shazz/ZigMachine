@@ -2,6 +2,7 @@
 // libm calls, palette rewrites, the cart-level cost split. Plain data (JSON-ready).
 import { CLASSES, CAUSES, CPI, STORE_DRAIN, isLibm } from "./cost_model.mjs";
 import { funcName } from "./wasm_bin.mjs";
+import { WATCH_WORDS } from "./watch_hook.mjs";
 
 const NCLS = CLASSES.length;
 const Mc = (c) => Math.round(c / 1e4) / 100;
@@ -87,8 +88,8 @@ export function paletteWrites(profiles) {
     const sites = [];
     for (const P of profiles) {
         const F = Math.max(1, P.frames);
-        P.plan.pals.forEach((s, i) => {
-            const w = P.sum.pal[2 * i] / F, u = P.sum.pal[2 * i + 1] / F;
+        P.plan.watch.forEach((s, i) => {
+            const w = P.sum.watch[WATCH_WORDS * i] / F, u = P.sum.watch[WATCH_WORDS * i + 1] / F;
             writes += w; same += u;
             if (w) sites.push({ mod: P.tag, func: funcName(P.plan.module, s.fi), at: hex(s.at), writes: Math.round(w),
                 unchanged: Math.round(u), fi: s.fi, region: P.plan.segRegion[s.seg] });

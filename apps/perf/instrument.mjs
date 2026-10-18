@@ -1,5 +1,5 @@
 // Rewrite a wasm module with a counter at the head of every segment (wasm_body.mjs),
-// byte counters on memory.fill/memory.copy, and optional palette-store checks.
+// byte counters on memory.fill/memory.copy, watched stores (palette, VRAM) and hwBlit sites.
 // Returns the new bytes and the PLAN: what each counter means and the static contents
 // of every segment, so a segment's count x its contents = exact dynamic op counts.
 import { parseModule, encU32, encName, section, funcName } from "./wasm_bin.mjs";
@@ -7,10 +7,10 @@ import { decodeFunction } from "./wasm_body.mjs";
 import { OP } from "./wasm_ops.mjs";
 import { opCost, isLibm, CLASSES, CLS, CONST_DIV } from "./cost_model.mjs";
 import { producers, source } from "./flow.mjs";
-import { inc, fillHook, copyHook, palHook, PAL_STORES, FIRST_COUNTER } from "./hooks.mjs";
+import { inc, FIRST_COUNTER } from "./hooks.mjs";
+import { hookFor, TEMP_DECLS, blitImports } from "./sites.mjs";
 
 const NCLS = CLASSES.length;
-const TEMPS = 5; // i32 scratch locals added to a function that carries a hook
 const DIVIDES = new Set([0x6d, 0x6e, 0x6f, 0x70, 0x7f, 0x80, 0x81, 0x82]);
 
 // A divide by a constant: GCC turns wasm2c's x / 7 into a multiply-high and shifts.
@@ -43,24 +43,6 @@ function regionOf(d, loopIdx, plan, regionIds) {
     return regionIds.get(key);
 }
 
-function hookFor(d, i, ctx) {
-    const { op, imm, at, next } = d.instrs[i];
-    const orig = [...ctx.buf.subarray(at, next)];
-    const t = { n: d.numLocals, v: d.numLocals + 1, d: d.numLocals + 2, c: d.numLocals + 3, a: d.numLocals + 4 };
-    if (op === OP.memory_fill) {
-        const site = ctx.plan.fills.push({ fi: d.fi, at, word: ctx.next, seg: ctx.seg }) - 1;
-        return fillHook(ctx.next++, site, t, orig);
-    }
-    if (op === OP.memory_copy) { ctx.plan.copies.push({ fi: d.fi, at, word: ctx.next, seg: ctx.seg }); return copyHook(ctx.next++, t, orig); }
-    if (ctx.pal && PAL_STORES.has(op) && imm.mem === 0) {
-        ctx.plan.pals.push({ fi: d.fi, at, word: ctx.next, seg: ctx.seg });
-        const h = palHook(ctx.next, op, imm.offset, ctx.pal[0], ctx.pal[1], t, orig);
-        ctx.next += 2;
-        return h;
-    }
-    return null;
-}
-
 function rewriteBody(m, k, ctx) {
     const d = decodeFunction(m, k), plan = ctx.plan, regionIds = new Map();
     const args = producers(m, d);
@@ -80,8 +62,8 @@ function rewriteBody(m, k, ctx) {
         if (h) { hooked = true; code.push(...h); } else code.push(...ctx.buf.subarray(d.instrs[i].at, d.instrs[i].next));
     }
     const decls = d.localDecls.map(([n, t]) => [...encU32(n), t]).flat();
-    const nDecls = d.localDecls.length + (hooked ? 1 : 0);
-    const body = [...encU32(nDecls), ...decls, ...(hooked ? [...encU32(TEMPS), 0x7f] : []), ...code];
+    const nDecls = d.localDecls.length + (hooked ? 2 : 0);
+    const body = [...encU32(nDecls), ...decls, ...(hooked ? TEMP_DECLS : []), ...code];
     return [...encU32(body.length), ...body];  // array literals spread without the call stack
 }
 
@@ -125,14 +107,15 @@ function assemble(m, codeParts, words) {
 function vecStart(buf, p) { while (buf[p] & 0x80) p++; return p + 1; }
 
 // pal: [lo, hi) absolute byte addresses of the palette window, or null for no check.
+// vlo: the VRAM pool's absolute base (stores into it are watched), or null.
 // names: a Map(function index -> name) from an unstripped twin (names.mjs), for a
 // stripped release build.
-export function instrument(buf, { pal = null, names = null } = {}) {
+export function instrument(buf, { pal = null, vlo = null, names = null } = {}) {
     const m = parseModule(buf);
     if (names && m.names.size === 0) m.names = names;
     const plan = { names: m.names, regions: [], segFunc: [], segRegion: [], segWord: [], segAt: [],
-        segInstr: [], segStores: [], segFetch: [], cls: [], fills: [], copies: [], pals: [] };
-    const ctx = { buf, plan, pal, next: FIRST_COUNTER };
+        segInstr: [], segStores: [], segFetch: [], cls: [], fills: [], copies: [], watch: [], blits: [] };
+    const ctx = { buf, plan, pal, vlo, blit: blitImports(m), next: FIRST_COUNTER };
     const nSegGuess = m.bodies.length * 64;
     plan.cls = new Uint32Array(nSegGuess * NCLS);
     plan.clsCyc = new Float32Array(nSegGuess * NCLS);

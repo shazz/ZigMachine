@@ -7,7 +7,8 @@
 //   node apps/perf_audit_test.mjs                    all checks; exit 1 on a failure
 //   node apps/perf_audit_test.mjs --break bytefill   frame() gets the clean twin where the
 //   node apps/perf_audit_test.mjs --break f64        byte-loop clear / f64 loop was planted:
-//                                                    passes only if the checks catch it
+//                                                    passes only if the checks catch it; the same
+//   for redundant | clear | static | lines | tiny | scroll (the waste detectors)
 import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { CASES } from "./perf/test_cases.mjs";
@@ -18,7 +19,8 @@ import { auditCart } from "./perf_audit.mjs";
 
 const bi = process.argv.indexOf("--break");
 const broke = bi > 0 ? process.argv[bi + 1] : null;
-const BREAKS = { bytefill: "byte_fill", f64: "f64_loop" };
+const BREAKS = { bytefill: "byte_fill", f64: "f64_loop", redundant: "redundant_store", clear: "clear_then_redraw",
+    static: "static_plane", lines: "lines_changed", tiny: "tiny_blits", scroll: "scroll_band" };
 if (broke && !BREAKS[broke]) throw new Error(`--break ${Object.keys(BREAKS).join(" | ")}`);
 
 const dir = mkdtempSync(`${tmpdir()}/perf_audit_test-`);
@@ -31,6 +33,20 @@ async function audit(name, bytes) {
     return auditCart(path, parseArgs([path, "--warmup", "2", "--frames", "4", "--no-disk", "--names", dir]));
 }
 
+// the waste detectors: found in the planted cart (any status), not in its twin; a metric in range
+async function wasteChecks(c, withB, withoutB) {
+    const a = await audit(`${c.pattern}_with`, withB), b = await audit(`${c.pattern}_without`, withoutB);
+    if (c.metric) {
+        check(`${c.pattern}: planted`, c.withIs(c.metric(a)), `got ${c.metric(a)}`);
+        check(`${c.pattern}: clean twin`, c.withoutIs(c.metric(b)), `got ${c.metric(b)}`);
+        return;
+    }
+    const of = (r) => r.waste.findings.filter((f) => f.pattern === c.pattern);
+    check(`${c.pattern}: dynamic finds it`, of(a).length > 0, JSON.stringify(a.waste.findings.slice(0, 3)));
+    check(`${c.pattern}: dynamic, clean twin`, of(b).length === 0, JSON.stringify(of(b)));
+    if (c.pattern !== "static_plane") check(`${c.pattern}: wastes cycles`, of(a).some((f) => f.waste > 0), JSON.stringify(of(a)));
+}
+
 for (const c of CASES) {
     const planted = broke && BREAKS[broke] === c.pattern ? c.without : c.with; // --break: the pattern removed
     const withB = cart(planted, c.opts), withoutB = cart(c.without, c.opts);
@@ -39,6 +55,7 @@ for (const c of CASES) {
         check(`${c.pattern}: static finds it`, lintModule(withB).some((f) => f.pattern === want), `no ${want} finding`);
         check(`${c.pattern}: static, clean twin`, !lintModule(withoutB).some((f) => f.pattern === want), `${want} reported`);
     }
+    if (c.waste || c.metric) { await wasteChecks(c, withB, withoutB); continue; }
     if (!c.dynamic) continue;
     const a = await audit(`${c.pattern}_with`, withB), b = await audit(`${c.pattern}_without`, withoutB);
     const hit = a.findings.find((f) => f.pattern === c.dynamic && f.status === "hot");
