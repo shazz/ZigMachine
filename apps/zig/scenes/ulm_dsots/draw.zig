@@ -59,10 +59,31 @@ pub fn foreground(fb: *LogicalFB, view: *const View) void {
             if (gid == 0) continue;
             const tile: usize = gid - 1;
             const part = blit.Rect{ .x = (tile % A.SHEET_COLS) * A.TILE, .y = (tile / A.SHEET_COLS) * A.TILE, .w = A.TILE, .h = A.TILE };
-            blit.blit(dst, A.tileset, part, @as(i32, @intCast(c)) * t - cx, @as(i32, @intCast(r)) * t - cy, 0, .copy);
+            // A tile with no transparent texel is the same drawn unkeyed: row copies
+            // (word stores) instead of a test and a byte store per pixel.
+            const key: ?u8 = if (OPAQUE[tile]) null else 0;
+            blit.blit(dst, A.tileset, part, @as(i32, @intCast(c)) * t - cx, @as(i32, @intCast(r)) * t - cy, key, .copy);
         }
     }
 }
+
+/// OPAQUE[t]: tileset tile t has no index-0 (transparent) texel. Built at compile
+/// time from tileset.raw; 68 of its 160 tiles, 55% of the foreground's placements.
+const OPAQUE: [A.tileset.h / A.TILE * A.SHEET_COLS]bool = blk: {
+    @setEvalBranchQuota(4 * A.tileset.data.len);
+    var o: [A.tileset.h / A.TILE * A.SHEET_COLS]bool = undefined;
+    for (&o, 0..) |*f, tile| {
+        const x0 = (tile % A.SHEET_COLS) * A.TILE;
+        const y0 = (tile / A.SHEET_COLS) * A.TILE;
+        f.* = true;
+        for (0..A.TILE) |y| {
+            for (A.tileset.data[(y0 + y) * A.tileset.w + x0 ..][0..A.TILE]) |p| {
+                if (p == 0) f.* = false;
+            }
+        }
+    }
+    break :blk o;
+};
 
 /// The griffin's frame at ~~(pos - view), anywhere on the canvas.
 pub fn griffin(fb: *LogicalFB, g: *const Griffin, view: *const View) void {
