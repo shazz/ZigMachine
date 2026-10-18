@@ -14,38 +14,64 @@
 
 vplan_stats vplan;
 static uint8_t g_skip[VD_LINES];
-static int g_planned, g_composited;
-static uint32_t g_plan_cycles; /* the comparison: what the plan costs the CPU */
+static int g_planned, g_full, g_pic, g_composited;
+static uint32_t g_decided, g_plan_cycles; /* g_plan_cycles: the frame's comparisons before the swap */
 
 #ifdef ZM_VSEQ_CHECK
-static volatile uint32_t* picture(int pic) { return (volatile uint32_t*)(uintptr_t)(pic ? ZM_FB1_ADDR : ZM_FB0_ADDR); }
-
 /* The rows the plan would have skipped, as the picture held them before this frame. */
 static uint32_t g_before[VD_LINES][ZM_RASTER_WIDTH];
-static int g_pic;
+static uint8_t g_would[VD_LINES];
 
-static void check_begin(int pic) {
-    zmv_flush_dcache(); /* the compositor wrote the picture behind the D$ */
-    for (uint32_t y = 0; y < VD_LINES; y++)
-        if (g_skip[y]) memcpy(g_before[y], (const void*)(picture(pic) + y * ZM_RASTER_WIDTH), ROW_BYTES);
-    g_pic = pic;
+static volatile uint32_t* row_of(uint32_t y) {
+    return (volatile uint32_t*)(uintptr_t)(g_pic ? ZM_FB1_ADDR : ZM_FB0_ADDR) + y * ZM_RASTER_WIDTH;
+}
+
+/* Before line y's first pass: the row as the picture holds it (the D$ was flushed at the swap). */
+static void check_row(int y) {
+    memcpy(g_before[y], (const void*)row_of((uint32_t)y), ROW_BYTES);
+    g_would[y] = 1;
 }
 
 static void check_end(long f) {
     uint32_t rows = 0, bad = 0;
     vseq_idle();
-    zmv_flush_dcache();
+    zmv_flush_dcache(); /* the compositor wrote the rows behind the D$ */
     for (uint32_t y = 0; y < VD_LINES; y++) {
-        if (!g_skip[y]) continue;
-        rows++;
-        if (memcmp(g_before[y], (const void*)(picture(g_pic) + y * ZM_RASTER_WIDTH), ROW_BYTES)) {
-            if (bad++ < 4) printf("ZM VCHK %ld row %lu differs\n", f, (unsigned long)y);
-        }
+        if (!g_would[y]) continue;
+        rows++, g_would[y] = 0;
+        if (memcmp(g_before[y], (const void*)row_of(y), ROW_BYTES) && bad++ < 4)
+            printf("ZM VCHK %ld row %lu differs\n", f, (unsigned long)y);
     }
     vplan.checked += rows, vplan.mismatched += bad;
     printf("ZM VCHK %ld %lu %lu\n", f, (unsigned long)rows, (unsigned long)bad);
 }
 #endif
+
+/* vseq_decide: line y, as the frame's first layer reaches it. */
+static int decide(int y) {
+    int skip = vd_line(g_pic, (uint32_t)y);
+    g_composited += !skip, g_decided++;
+#ifdef ZM_VSEQ_CHECK
+    if (skip) check_row(y);
+    skip = 0;
+#endif
+    if (g_full) skip = 0;
+    g_skip[y] = (uint8_t)skip;
+    return skip;
+}
+
+int vplan_frame(struct w2c_env* e, unsigned enabled, int full) {
+    vd_frame fr = {e->memory.data, (uint32_t)e->memory.size, enabled, vseq_rec.fill, vseq_rec.bg, vseq_rec.beam};
+    zmv_flush_dcache(); /* plane rows the blitter wrote behind the D$, and the pictures' */
+    uint32_t t0 = board_cycles();
+    int handler = vd_plan(&fr);
+    g_plan_cycles = board_cycles() - t0;
+    vseq_wait_swap(); /* the back picture is now the one this frame builds */
+    g_pic = (zmv_status() & ZMV_BIT(FRONT)) ? 0 : 1;
+    g_full = full, g_composited = 0, g_decided = 0, g_planned = 1;
+    vseq_skip = g_skip, vseq_decide = decide;
+    return handler;
+}
 
 /* The rest of this frame composites every line; its skipped ones are not trusted (vdirty.h). */
 void vplan_mask_moved(void) {
@@ -53,34 +79,13 @@ void vplan_mask_moved(void) {
     vseq_skip = NULL;
 }
 
-int vplan_frame(struct w2c_env* e, unsigned enabled, int full) {
-    vd_frame fr = {e->memory.data, (uint32_t)e->memory.size, enabled, vseq_rec.fill, vseq_rec.bg, vseq_rec.beam};
-    zmv_flush_dcache(); /* plane rows the blitter wrote behind the D$ */
-    uint32_t t0 = board_cycles();
-    int handler = vd_plan(&fr);
-    g_plan_cycles = board_cycles() - t0;
-    vseq_wait_swap(); /* the back picture is now the one this frame builds */
-    int pic = (zmv_status() & ZMV_BIT(FRONT)) ? 0 : 1;
-    g_composited = vd_target(pic, g_skip);
-    g_planned = 1;
-    vplan.lines += VD_LINES;
-#ifdef ZM_VSEQ_CHECK
-    (void)full;
-    check_begin(pic);
-#else
-    if (!full) {
-        vseq_skip = g_skip;
-        vplan.skipped += VD_LINES - (uint32_t)g_composited;
-    }
-#endif
-    return handler;
-}
-
 void vplan_end(long f) {
     if (!g_planned) return;
     g_planned = 0;
-    vseq_skip = NULL;
-#ifndef ZM_BOARD /* the lines the plan composites (all of them in a check), and its cost */
+    vseq_skip = NULL, vseq_decide = NULL;
+    if (g_decided != VD_LINES) vd_mask_moved(); /* no layer asked for every line: trust no row */
+    vplan.lines += VD_LINES, vplan.skipped += VD_LINES - (uint32_t)g_composited;
+#ifndef ZM_BOARD /* the lines the plan composites (a check or a hashed frame: would), and its cost */
     printf("ZM VD %ld %d %lu\n", f, g_composited, (unsigned long)g_plan_cycles);
 #endif
 #ifdef ZM_VSEQ_CHECK

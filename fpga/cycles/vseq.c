@@ -8,6 +8,7 @@
 vseq_stats vseq;
 vseq_clear_rec vseq_rec;
 const uint8_t* vseq_skip;
+int (*vseq_decide)(int y);
 static uint8_t* g_r; /* the region: HW_VIDEO_BASE in the cart's linear memory */
 static int g_fill;  /* this frame's clear was one CLEAR: the first layer's passes paint its lines */
 
@@ -148,23 +149,32 @@ void vseq_line_major(struct w2c_env* e, unsigned planes) {
 }
 #endif
 
+/* One layer's passes (a plane's, or MIX), each line's after its handler. The first layer asks
+ * vseq_decide which lines to skip, the next line while this line's pass runs: the comparison is
+ * CPU work the sequencer would otherwise spend waiting. Later layers read vseq_skip. */
+static void layer(struct w2c_env* e, int op, int p, int first, uint16_t hid, uint32_t oy, uint32_t rows, uint16_t hpos) {
+    int ask = first && vseq_decide, next = ask ? vseq_decide(0) : 0;
+    for (uint32_t y = 0; y < ZM_RASTER_HEIGHT; y++) {
+        if (hid && y >= oy && y < oy + rows) w2c_env_hblDispatch(e, hid, (u32)p, y - oy, hpos);
+        int skip = ask ? next : vseq_skip && vseq_skip[y];
+        if (!skip) issue(op, p, (int)y, 1, first, first && g_fill);
+        if (ask && y + 1 < ZM_RASTER_HEIGHT) next = vseq_decide((int)y + 1);
+        if (!skip) wait_bits(ZMV_BIT(PAINTED)); /* a pass(): it has read what the next handler may change */
+    }
+}
+
 void vseq_plane(struct w2c_env* e, int p, int first) {
     uint32_t oy, rows;
     plane_lines(p, &oy, &rows);
     uint16_t hid = r16(ZM_REG_FB_HBL_ID + 2u * (uint32_t)p), hpos = r16(ZM_REG_FB_HBL_POS + 2u * (uint32_t)p);
     if (first) vseq_wait_swap();
     instant(ZMV_LATCH, p);
-    for (uint32_t y = 0; y < ZM_RASTER_HEIGHT; y++) {
-        if (hid && y >= oy && y < oy + rows) w2c_env_hblDispatch(e, hid, (u32)p, y - oy, hpos);
-        if (vseq_skip && vseq_skip[y]) continue;
-        pass(ZMV_PLANE, p, (int)y, 1, first, first && g_fill);
-    }
+    layer(e, ZMV_PLANE, p, first, hid, oy, rows, hpos);
 }
 
 void vseq_mix_only(void) {
     vseq_wait_swap();
-    for (int y = 0; y < (int)ZM_RASTER_HEIGHT; y++)
-        if (!vseq_skip || !vseq_skip[y]) pass(ZMV_MIX, 0, y, 1, 1, g_fill);
+    layer(NULL, ZMV_MIX, 0, 1, 0, 0, 0, 0);
 }
 
 void vseq_present(void) { instant(ZMV_PRESENT, 0); }

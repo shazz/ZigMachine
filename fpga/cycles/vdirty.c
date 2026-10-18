@@ -30,6 +30,9 @@ typedef struct {
     unsigned enabled;
     int fill, valid;              /* valid: the copies below are the last frame's */
     uint8_t row_ok[ZM_NB_PLANES]; /* rows[p] and pal[p] hold plane p's last frame */
+    uint8_t fresh[ZM_NB_PLANES];  /* this frame: rows[p] are refilled, every covered line is new */
+    unsigned rows_on;             /* this frame: the planes whose rows vd_line compares */
+    const uint8_t* src[ZM_NB_PLANES][H]; /* this frame: where each line's fetch starts */
     uint32_t pal[ZM_NB_PLANES][ZM_PAL_ENTRIES];
     uint8_t rows[ZM_NB_PLANES][H][ROWMAX];
 } vd_state;
@@ -94,6 +97,7 @@ static int cmpcpy(uint8_t* dst, const uint8_t* src, uint32_t n) {
 
 void vd_unknown(void) {
     vd.frames++, vd.unknown++;
+    s.rows_on = 0;
     bump(0, H);
     memset(s.built, 0, sizeof s.built);
     s.valid = 0;
@@ -101,6 +105,7 @@ void vd_unknown(void) {
 
 void vd_mask_moved(void) {
     vd.mask_moved++;
+    s.rows_on = 0;
     bump(0, H);
     memset(s.built, 0, sizeof s.built);
     s.valid = 0;
@@ -117,17 +122,15 @@ static void plan_bg(const vd_frame* fr) {
     }
 }
 
-/* Plane p's palette and the rows it fetches, against their copies. */
-static void plan_plane(const vd_frame* fr, int p, const pcfg* c, const uint8_t* src[H]) {
+/* Plane p's palette against its copy; its rows are compared line by line (vd_line). */
+static void plan_plane(const vd_frame* fr, int p, const pcfg* c) {
     const uint8_t* pal = fr->mem + ZM_HW_VIDEO_BASE + ZM_OFF_PAL + (uint32_t)p * ZM_PAL_BYTES;
     int moved = cmpcpy((uint8_t*)s.pal[p], pal, ZM_PAL_BYTES);
 #ifdef VD_BREAK_PAL
     moved = 0;
 #endif
     if (moved || !s.row_ok[p]) bump(c->oy, c->rows);
-    for (uint32_t y = c->oy; y < c->oy + c->rows; y++)
-        if (ROW_MOVED(cmpcpy(s.rows[p][y], src[y], c->len)) && s.row_ok[p]) bump(y, 1);
-    s.row_ok[p] = 1;
+    s.fresh[p] = !s.row_ok[p], s.row_ok[p] = 1, s.rows_on |= 1u << p;
 }
 
 /* The last enabled plane, if it has an HBL handler: its stores land between its
@@ -145,16 +148,16 @@ static int handler_plane(const vd_frame* fr) {
 }
 
 int vd_plan(const vd_frame* fr) {
-    static const uint8_t* src[ZM_NB_PLANES][H];
     pcfg cur[ZM_NB_PLANES];
     memset(cur, 0, sizeof cur);
+    s.rows_on = 0;
     int h = handler_plane(fr);
     if (h == -2) return vd_unknown(), 1;
     for (int p = 0; p < (int)ZM_NB_PLANES; p++) {
         if (!((fr->enabled >> p) & 1)) continue;
         int ok = geom(fr, p, &cur[p]);
         for (uint32_t y = cur[p].oy; ok && p != h && y < cur[p].oy + cur[p].rows; y++)
-            ok = (src[p][y] = fetch(fr, p, &cur[p], y)) != 0;
+            ok = (s.src[p][y] = fetch(fr, p, &cur[p], y)) != 0;
         if (!ok) return vd_unknown(), h >= 0;
     }
     vd.frames++;
@@ -164,7 +167,7 @@ int vd_plan(const vd_frame* fr) {
     }
     plan_bg(fr);
     for (int p = 0; p < (int)ZM_NB_PLANES; p++) {
-        if (((fr->enabled >> p) & 1) && p != h) plan_plane(fr, p, &cur[p], src[p]);
+        if (((fr->enabled >> p) & 1) && p != h) plan_plane(fr, p, &cur[p]);
         else s.row_ok[p] = 0;
     }
 #ifndef VD_BREAK_HANDLER
@@ -175,17 +178,18 @@ int vd_plan(const vd_frame* fr) {
     return h >= 0;
 }
 
-int vd_target(int pic, uint8_t skip[VD_LINES]) {
-    int n = 0;
-    for (uint32_t y = 0; y < H; y++) {
-        skip[y] = s.built[pic][y] == s.ver[y] + 1;
-        n += !skip[y];
-        s.built[pic][y] = s.ver[y] + 1;
-#ifdef VD_BREAK_PICTURE /* one picture, not two: a row is trusted one frame after it changed */
-        s.built[!pic][y] = s.ver[y] + 1;
-#endif
+int vd_line(int pic, uint32_t y) {
+    for (int p = 0; p < (int)ZM_NB_PLANES; p++) {
+        const pcfg* c = &s.cfg[p];
+        if (!((s.rows_on >> p) & 1) || y < c->oy || y >= c->oy + c->rows) continue;
+        if (ROW_MOVED(cmpcpy(s.rows[p][y], s.src[p][y], c->len)) || s.fresh[p]) bump(y, 1);
     }
-    return n;
+    int skip = s.built[pic][y] == s.ver[y] + 1;
+    s.built[pic][y] = s.ver[y] + 1;
+#ifdef VD_BREAK_PICTURE /* one picture, not two: a row is trusted one frame after it changed */
+    s.built[!pic][y] = s.ver[y] + 1;
+#endif
+    return skip;
 }
 
 void vd_overdrawn(int pic, uint32_t y0, uint32_t n) {

@@ -91,7 +91,8 @@ static uint32_t frame(long f, u32 planes, uint32_t* composited) {
             fprintf(stderr, "vdirty: plane %u on %u hbl %u mode %u stride %u\n", (unsigned)p, (on >> p) & 1,
                     (unsigned)r16(ZM_REG_FB_HBL_ID + 2 * p), region()[ZM_REG_FB_MODE + p], (unsigned)r16(ZM_REG_FB_STRIDE + 2 * p));
     int handler = vd_plan(&fr);
-    *composited = (uint32_t)vd_target(pic, g_skip);
+    *composited = 0;
+    for (uint32_t y = 0; y < VD_LINES; y++) *composited += !(g_skip[y] = (uint8_t)vd_line(pic, y));
     int first = 1;
     for (u32 p = 0; p < planes; p++) {
         int en = (on >> p) & 1;

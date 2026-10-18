@@ -2,8 +2,10 @@
  * inputs changed are composited again (vdirty.h decides which).
  *
  * In bmain.c's frame(), after cart.frame():
- *   vplan_frame      compare the inputs, wait for the swap, and point vseq_skip
- *                    at the lines the back picture already holds; returns 1 if
+ *   vplan_frame      compare the frame's inputs, wait for the swap, and hand vseq
+ *                    the line-by-line decision (vseq_decide: each line's rows are
+ *                    compared while the line before is composited, and a line the
+ *                    back picture already holds is skipped); returns 1 if
  *                    a plane has an HBL handler, and then bmain asks each plane
  *                    again where video.zig does (vplan_mask_moved if a handler
  *                    switched one: the plan is dropped, and every line is new);

@@ -38,8 +38,11 @@ typedef struct {
 extern vseq_clear_rec vseq_rec;
 /* NULL: vseq_plane and vseq_mix_only pass over every line; else they skip each
  * line y with vseq_skip[y] (the picture's row is already right, vplan.h). The
- * handlers are still called: a planned frame has none. */
+ * first layer of the frame asks vseq_decide(y) instead, once per line in order,
+ * which must also fill vseq_skip[y] for the layers above. Handlers are called
+ * on every line they cover whatever is skipped. */
 extern const uint8_t* vseq_skip;
+extern int (*vseq_decide)(int y);
 
 /* After host_boot: where the region and the two pictures are, then every
  * snooped word stored again (boot wrote them before the snoop knew the region). */

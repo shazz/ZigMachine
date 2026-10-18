@@ -57,11 +57,13 @@ void vd_mask_moved(void);
 /* Nothing can be compared this frame (a handler plane): every line is new, and
  * neither picture's rows are trusted again until rebuilt. */
 void vd_unknown(void);
-/* After vd_plan, picture `pic` (0 = FB0, 1 = FB1) is the one being built:
- * skip[y] = 1 where its row is already right. Every line is marked built from
- * this frame's inputs: the caller composites every line it does not skip.
- * Returns the number of lines to composite. */
-int vd_target(int pic, uint8_t skip[VD_LINES]);
+/* After vd_plan, once per line, in any order, before anything composites it:
+ * compare the bytes line y fetches with their copies, then whether the row of
+ * picture `pic` (0 = FB0, 1 = FB1, the one being built) is already right (1:
+ * skip it). The row is marked built from this frame's inputs: the caller
+ * composites every line it does not skip. Line by line so that the board can
+ * compare the next line while the compositor runs this one (vseq_decide). */
+int vd_line(int pic, uint32_t y);
 /* Rows [y0, y0 + n) of picture `pic` were drawn over after the composite. */
 void vd_overdrawn(int pic, uint32_t y0, uint32_t n);
 
