@@ -10,11 +10,13 @@ Two halves:
   the cache, and step 4 runs: without an invalidate the CPU reads stale pixels (the case is
   real), with bdi_range() it reads the new ones and an unrelated line stays cached, with the
   whole-cache invalidate (the old step 4) the unrelated line is refilled. The same sentinel
-  caught the wrong-path sweep bdinval.h's bdi_inval_all() guards against (its break test).
+  caught the wrong-path sweep dflush.h's nops guard against; a branch that skips
+  zmv_flush_dcache must leave a line cached and a taken one must drop it (and its break test).
 
 Needs zig, Verilator, riscv64-unknown-elf-gcc and build/vexgen/VexRiscv_I16w2D4SealFpu.v
 (cycles/board.mk FPU_CORE); each half skips without its tools. ZM_RTL_BREAK=1 breaks
-bdinval.h one rule at a time and requires the coverage check to fail.
+bdinval.h one rule at a time and requires the coverage check to fail, and drops dflush.h's
+wrong-path guard and requires the core to sweep behind a branch that skipped the flush.
 """
 
 import os
@@ -138,20 +140,44 @@ def test_the_range_drops_the_stale_lines_and_keeps_the_rest(core_tb: Path) -> No
     print(f"cycles (warm): 37x9 FILL {rep[6]}, 320x4 FILL {rep[7]}, 16x16 tile {rep[8]}, whole cache {rep[3]}")
 
 
-@pytest.mark.skipif(os.environ.get("ZM_RTL_BREAK") != "1", reason="set ZM_RTL_BREAK=1 to run the break tests")
+def test_a_skipped_flush_keeps_the_cache_and_a_taken_one_drops_it(core_tb: Path) -> None:
+    """dflush.h: `if (x) zmv_flush_dcache();` sweeps only when x (vboard.h, smain.c, bdinval.h)."""
+    code, rep, out = _core(core_tb, 1)
+    assert code == 0, out
+    assert rep[10] == 0, f"a flush the branch skipped still swept the cache (wrong path)\n{out}"
+    assert rep[11] > 0, f"a taken flush left the line cached: the sentinel proves nothing\n{out}"
+
+
+def _unguarded() -> Path:
+    """cycles/ with dflush.h's two nops removed: the flush as it was before the guard."""
+    work = BUILD / "mutants" / "flush_unguarded"
+    work.mkdir(parents=True, exist_ok=True)
+    text = (FPGA / "cycles/dflush.h").read_text()
+    old = '"nop\\n nop\\n .word(0x500F)\\n"'
+    assert text.count(old) == 1, "dflush.h's guarded flush is not where the break test expects it"
+    (work / "dflush.h").write_text(text.replace(old, '".word(0x500F)\\n"'))
+    shutil.copy(FPGA / "cycles/bdinval.h", work / "bdinval.h")
+    return work
+
+
+_BREAK = pytest.mark.skipif(os.environ.get("ZM_RTL_BREAK") != "1", reason="set ZM_RTL_BREAK=1 to run the break tests")
+
+
+@_BREAK
 def test_an_unguarded_fallback_flush_sweeps_on_the_wrong_path(core_tb: Path) -> None:
     """Without the nops, the fallback's flush, fetched past `if (!bdi_range())`, sweeps the cache."""
-    work = BUILD / "mutants" / "fallback_unguarded"
-    work.mkdir(parents=True, exist_ok=True)
-    text = (FPGA / "cycles/bdinval.h").read_text()
-    old = '"nop\\n nop\\n .word(0x500F)\\n"'
-    assert text.count(old) == 1
-    (work / "bdinval.h").write_text(text.replace(old, '".word(0x500F)\\n"'))
-    code, rep, out = _core(core_tb, 1, work)
+    code, rep, out = _core(core_tb, 1, _unguarded())
     assert code != 0 or rep[4] > 0, f"the unguarded flush went unnoticed\n{out}"
 
 
-@pytest.mark.skipif(os.environ.get("ZM_RTL_BREAK") != "1", reason="set ZM_RTL_BREAK=1 to run the break tests")
+@_BREAK
+def test_an_unguarded_skipped_flush_sweeps_on_the_wrong_path(core_tb: Path) -> None:
+    """Without the nops, a flush right behind a branch that skips it still drops the line."""
+    _, rep, out = _core(core_tb, 1, _unguarded())
+    assert rep[10] > 0, f"the unguarded flush behind a skipping branch went unnoticed\n{out}"
+
+
+@_BREAK
 @pytest.mark.parametrize(("name", "old", "new"), MUTANTS, ids=[m[0] for m in MUTANTS])
 def test_a_broken_range_misses_a_line(name: str, old: str, new: str, scripts: None) -> None:
     work = BUILD / "mutants" / name
@@ -159,5 +185,6 @@ def test_a_broken_range_misses_a_line(name: str, old: str, new: str, scripts: No
     text = (FPGA / "cycles/bdinval.h").read_text()
     assert text.count(old) == 1, f"{name}: the text to break is not unique"
     (work / "bdinval.h").write_text(text.replace(old, new))
+    shutil.copy(FPGA / "cycles/dflush.h", work / "dflush.h")
     results = _check(_check_exe(work, work))
     assert any(r.returncode != 0 for r in results.values()), f"{name} went unnoticed"

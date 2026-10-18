@@ -38,6 +38,7 @@ const Tables = struct {
     normals: [torus.FACES]P.V3,
     screen: P.ScreenBuf,
     polys: [torus.FACES]P.Poly,
+    order: [torus.FACES]u16,
 };
 
 var t: *Tables = undefined;
@@ -62,8 +63,8 @@ pub fn init(geometry: *const torus.Geometry, mesh: *const c3.Mesh) void {
 pub fn render(rot: *const Rotation, out: *shade.Grid) void {
     const m = P.rotation(rot.x, rot.y);
     @memset(shade.samples, 0);
-    const drawn = P.project(&lens, &m, &t.verts, &t.centroids, faces, &t.screen, &t.polys);
-    for (drawn) |p| fillQuad(p, redOf(&m, p.ink));
+    const drawn = P.project(&lens, &m, &t.verts, &t.centroids, faces, &t.screen, &t.polys, &t.order);
+    for (drawn) |i| fillQuad(t.polys[i], redOf(&m, t.polys[i].ink));
     shade.reduce(out);
 }
 

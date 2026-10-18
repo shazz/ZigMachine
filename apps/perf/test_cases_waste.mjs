@@ -33,8 +33,9 @@ export const WASTE_CASES = [
     { pattern: "lines_changed", metric: (r) => r.waste.lines, opts: P, // one row a frame vs every row
         withIs: (n) => n <= 3, withoutIs: (n) => n >= 150,
         with: [...counter, ...page(80, frameWord)], without: [...counter, ...page(16000, frameWord)] },
-    { pattern: "tiny_blits", waste: true, opts: P, // 20 4x4 fills vs one 320x200 fill
-        with: loop(1, 20, blit(4, 4, [...I.get(1), ...I.i32(8), ...I.mul])), without: blit(320, 200, I.i32(0)) },
+    { pattern: "tiny_blits", waste: true, opts: P, // 200 4x4 fills vs one 320x200 fill
+        with: loop(1, 200, blit(4, 4, [...I.get(1), ...I.i32(31), ...I.and, ...I.i32(8), ...I.mul])),
+        without: blit(320, 200, I.i32(0)) },
     { pattern: "scroll_band", waste: true, // a 20-row band moved 1 px left by the CPU, vs redrawn with new content
         opts: { ...P, boot: loop(1, BAND_LEN, [...I.get(1), ...I.get(1), ...I.i32(7), ...I.mul, ...I.store8(PLANE + BAND)]) },
         with: loop(1, BAND_LEN, [...I.get(1), ...I.get(1), ...I.load8(PLANE + BAND + 1), ...I.store8(PLANE + BAND)]),

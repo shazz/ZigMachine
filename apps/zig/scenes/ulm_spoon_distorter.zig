@@ -45,6 +45,7 @@ const ZigOS = zg.ZigOS;
 const LogicalFB = zg.LogicalFB;
 const Color = zg.Color;
 const blit = zg.blit;
+const Rows = @import("rowblit.zig").Rows;
 
 const MUSIC = "ulm_spoon_distorter_you.raw";
 const PLANE = 0;
@@ -270,26 +271,29 @@ pub const Demo = struct {
         const bounce_back: usize = @intCast((BOUNCE_BACK_AMP * sin_abs) >> 16);
         const bounce_front: usize = @intCast((BOUNCE_FRONT_AMP * sin_abs) >> 16);
 
+        // Two CHISEL passes of one blit a line, registers left loaded (rowblit.zig):
+        // the back row, then the scrolltext row over it (0 is transparent). The
+        // CPU used to store all 384 px of both rows itself: ~26,000 word stores
+        // (~30 cycles each on ZIGGY) plus a keyed byte loop, about 3.4 Mc a frame.
         const fb = &zigos.lfbs[PLANE];
-        const screen = fb.fb[0 .. PW * PH];
-        const view = blit.Dst.plane(fb).window(X0, Y0, SCREEN_W, SCREEN_H);
-        const scroll_img = blit.Image.init(scroll_canvas, SCROLL_W);
-        const back = back_canvas; // locals: the plane stores would otherwise reload them
-        const rows = front_row;
+        const back = @intFromPtr(back_canvas.ptr);
+        var rows = Rows.open(fb, 0, null);
         for (0..SCREEN_H) |line| {
-            const dst = screen[(Y0 + line) * PW + X0 ..][0..SCREEN_W];
-
             const back_wave = getWave(&back_intro, &back_main, self.wave_pos + line);
             const back_x: usize = @intCast(@mod(@divFloor(back_wave, 2), BACK_W)); // sums are >= 0
             const back_y = (line + BACK_ROW_OFFSET + bounce_back) % BACK_H;
-            @memcpy(dst, back[back_y * BACK_CANVAS_W + back_x ..][0..SCREEN_W]);
-
+            rows.blit(back + back_y * BACK_CANVAS_W + back_x, @intCast(X0), @intCast(Y0 + line), SCREEN_W, 1);
+        }
+        const scroll = @intFromPtr(scroll_canvas.ptr);
+        rows = Rows.open(fb, 0, 0);
+        for (0..SCREEN_H) |line| {
             // >= 0: letter_decal <= decal_x <= every row's front value. A start
             // past the canvas draws nothing; the canvas edge clips, as drawPart does.
-            const scroll_x: usize = @intCast(rows[line] - self.letter_decal);
+            const scroll_x: usize = @intCast(front_row[line] - self.letter_decal);
+            if (scroll_x >= SCROLL_W) continue;
             const font_y = (line + FONT_ROW_OFFSET + bounce_front) % FONT_H;
-            const row = blit.Rect{ .x = scroll_x, .y = font_y, .w = SCREEN_W, .h = 1 };
-            blit.blit(view, scroll_img, row, 0, @intCast(line), 0, .copy);
+            const w: u16 = @intCast(@min(SCREEN_W, SCROLL_W - scroll_x));
+            rows.blit(scroll + font_y * SCROLL_W + scroll_x, @intCast(X0), @intCast(Y0 + line), w, 1);
         }
         // anim() advances the clock AFTER drawing, so the frame just drawn used
         // the previous frame's iteration; keep that order.

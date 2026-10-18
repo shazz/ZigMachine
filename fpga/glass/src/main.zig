@@ -5,6 +5,7 @@
 //                                   --no-wait: do not wait for the firmware's RUNNING
 //                                   (for a firmware that does not report CART_STATE yet);
 //                                   --mouse-scale: pointer speed, 100 = a pixel a count
+//   glass ctl COMMAND...            the running glass's control channel (ctl.zig, `ctl help`)
 //   glass sim-load DISK OUT [WIN]   desktop: load DISK into a simulated glass + fake DDR of
 //                                   WIN bytes (default the board's), write the placed image
 //                                   to OUT, the placed disk to OUT.disk and its descriptor
@@ -24,6 +25,7 @@ const devmem = @import("devmem.zig");
 const evdev = @import("evdev.zig");
 const pad = @import("pad.zig");
 const mouse = @import("mouse.zig");
+const ctl_sock = @import("ctl_sock.zig");
 
 const linux = std.os.linux;
 const DEFAULT_SHELF = "/mnt/sd/zigmachine";
@@ -45,6 +47,15 @@ pub fn main(init: std.process.Init) !u8 {
         }
         return run(init, opt);
     }
+    if (std.mem.eql(u8, cmd, "ctl")) {
+        var words: [8][]const u8 = undefined;
+        var n: usize = 0;
+        while (args.next()) |a| : (n += 1) {
+            if (n == words.len) return usage();
+            words[n] = a;
+        }
+        return ctl_sock.client(words[0..n]);
+    }
     if (std.mem.eql(u8, cmd, "sim-load")) {
         const disk = args.next() orelse return usage();
         const out = args.next() orelse return usage();
@@ -60,7 +71,7 @@ pub fn main(init: std.process.Init) !u8 {
 }
 
 fn usage() u8 {
-    std.debug.print("usage: glass run [--no-wait] [--mouse-scale=PCT] [SHELF_DIR] | sim-load DISK OUT [WINDOW] | sim-menu SHELF_DIR [shelf|console|debug]\n", .{});
+    std.debug.print("usage: glass run [--no-wait] [--mouse-scale=PCT] [SHELF_DIR] | ctl COMMAND... | sim-load DISK OUT [WINDOW] | sim-menu SHELF_DIR [shelf|console|debug]\n", .{});
     return 2;
 }
 
@@ -125,6 +136,10 @@ fn run(init: std.process.Init, opt: RunOptions) !u8 {
     app.sd_writable = sdWritable;
     var inputs = evdev.Inputs{};
     defer inputs.closeAll();
+    inputs.extra = ctl_sock.listen(ctl_sock.PATH) catch |err| blk: {
+        std.log.warn("control channel {s}: {t} (glass ctl will not answer)", .{ ctl_sock.PATH, err });
+        break :blk -1;
+    };
     var buf: [64]evdev.Raw = undefined;
     // By the clock, not by poll: a moving mouse wakes poll() a thousand times a second.
     var next_scan: i64 = 0;
@@ -142,7 +157,12 @@ fn run(init: std.process.Init, opt: RunOptions) !u8 {
         }
         const n = inputs.poll(100, &buf);
         for (buf[0..n]) |r| dispatch(&app, &inputs, r);
+        if (inputs.extra_ready) ctl_sock.serve(inputs.extra, &app, ctlLine);
     }
+}
+
+fn ctlLine(ctx: *anyopaque, line: []const u8, w: *std.Io.Writer) void {
+    @import("app_ctl.zig").exec(@ptrCast(@alignCast(ctx)), line, w);
 }
 
 fn nowMs() i64 {

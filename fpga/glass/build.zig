@@ -6,7 +6,7 @@
 //                                                    the board binary (Zynq-7000: dual Cortex-A9)
 const std = @import("std");
 
-const VERSION = "0.2.0"; // 0.2: the console page (cold/warm reset, volume), debug page, shelf.txt
+const VERSION = "0.3.0"; // 0.3: the control channel (glass ctl); 0.2: console + debug pages, shelf.txt
 
 fn gitHash(b: *std.Build) []const u8 {
     var code: u8 = 0;

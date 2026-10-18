@@ -56,6 +56,8 @@ pub const Device = struct {
 pub const Inputs = struct {
     devs: [MAX_DEVICES]Device = undefined,
     n: usize = 0,
+    extra: i32 = -1,
+    extra_ready: bool = false,
 
     /// Drop unplugged devices, open new ones; devices still there stay open,
     /// so no key held across a rescan loses its release.
@@ -94,10 +96,13 @@ pub const Inputs = struct {
     }
 
     /// Wait up to `timeout_ms` for input, then read what is there into `out`.
+    /// `extra` (the control socket, -1 for none) wakes it too: `extra_ready` says so.
     pub fn poll(self: *Inputs, timeout_ms: i32, out: []Raw) usize {
-        var fds: [MAX_DEVICES]linux.pollfd = undefined;
+        var fds: [MAX_DEVICES + 1]linux.pollfd = undefined;
         for (self.devs[0..self.n], 0..) |d, i| fds[i] = .{ .fd = d.fd, .events = linux.POLL.IN, .revents = 0 };
-        _ = linux.poll(&fds, self.n, timeout_ms);
+        fds[self.n] = .{ .fd = self.extra, .events = linux.POLL.IN, .revents = 0 }; // fd -1: ignored
+        _ = linux.poll(&fds, self.n + 1, timeout_ms);
+        self.extra_ready = fds[self.n].revents != 0;
         var got: usize = 0;
         for (fds[0..self.n], 0..) |f, i| {
             if (f.revents == 0) continue;
