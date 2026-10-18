@@ -84,14 +84,17 @@ void vplan_mask_moved(void) {
 }
 
 void vplan_end(long f) {
+#ifndef ZM_BOARD /* the lines composited (a check or a hashed frame: would be), the plan's cost, the swap wait */
+    static uint32_t waited;
+    printf("ZM VD %ld %d %lu %lu\n", f, g_planned ? g_composited : (int)VD_LINES, (unsigned long)g_plan_cycles,
+           (unsigned long)(vseq.swap_wait - waited));
+    waited = vseq.swap_wait;
+#endif
     if (!g_planned) return;
     g_planned = 0;
     vseq_skip = NULL, vseq_decide = NULL;
     if (g_decided != VD_LINES) vd_mask_moved(); /* no layer asked for every line: trust no row */
     vplan.lines += VD_LINES, vplan.skipped += VD_LINES - (uint32_t)g_composited;
-#ifndef ZM_BOARD /* the lines the plan composites (a check or a hashed frame: would), and its cost */
-    printf("ZM VD %ld %d %lu\n", f, g_composited, (unsigned long)g_plan_cycles);
-#endif
 #ifdef ZM_VSEQ_CHECK
     check_end(f);
 #endif
