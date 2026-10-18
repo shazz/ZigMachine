@@ -9,29 +9,59 @@ const RenderTarget = zg.RenderTarget;
 pub const OVERSCAN_W: u16 = 400;
 pub const ZOOM: u16 = 8;
 
+pub const OVERSCAN_H: u16 = 280;
+
+/// The rows of the overscan page that hold anything but colour 0. The page is
+/// cleared and copied out only over this band (it used to be all 280 rows, twice
+/// a frame, as byte loops), which is where the picture is, plus where it was.
+pub const Dirty = struct {
+    lo: u16 = 0,
+    hi: u16 = OVERSCAN_H,
+
+    pub fn rows(lo: i32, hi: i32) Dirty {
+        return .{ .lo = @intCast(@max(lo, 0)), .hi = @intCast(@min(hi, OVERSCAN_H)) };
+    }
+    pub fn merge(a: Dirty, b: Dirty) Dirty {
+        return .{ .lo = @min(a.lo, b.lo), .hi = @max(a.hi, b.hi) };
+    }
+};
+
+/// Zero the rows of `prev` that the new frame does not repaint anyway (`band`
+/// is rewritten in full by zoomScroller).
+pub fn clearStale(page: []u8, prev: Dirty, band: Dirty) void {
+    if (prev.lo < prev.hi) {
+        const a = prev.lo;
+        const b = @min(prev.hi, @max(band.lo, a));
+        if (b > a) @memset(page[@as(u32, a) * OVERSCAN_W .. @as(u32, b) * OVERSCAN_W], 0);
+        const c = @max(prev.lo, band.hi);
+        if (prev.hi > c) @memset(page[@as(u32, c) * OVERSCAN_W .. @as(u32, prev.hi) * OVERSCAN_W], 0);
+    }
+}
+
 /// Blow the narrow scrolltext strip up by ZOOM in both axes into the overscan
 /// page, its top edge at `top`. The strip is rendered 50 px wide precisely so
-/// that 50*8 == 400 covers the opened borders as well.
+/// that 50*8 == 400 covers the opened borders as well. Each 8-row block is one
+/// line built with two u32 stores a pixel (page must be 4-aligned: it is a u32
+/// arena allocation) and seven 400-byte copies of it.
 pub fn zoomScroller(dst: RenderTarget, src: RenderTarget, top: u16, rows: u16) void {
     const strip = src.render_buffer;
     const page = dst.render_buffer;
-    const start = @as(u32, top) * OVERSCAN_W;
 
     var char_row: u32 = 0;
     while (char_row < rows) : (char_row += 1) {
-        const strip_row = char_row * strip.width;
-        const block = start + char_row * ZOOM * OVERSCAN_W;
-
-        var row: u32 = 0;
-        while (row < ZOOM) : (row += 1) {
-            const line = block + row * OVERSCAN_W;
-            var col: u32 = 0;
-            while (col < strip.width) : (col += 1) {
-                const pal_entry = strip.buffer[strip_row + col];
-                const out = line + col * ZOOM;
-                if (out + ZOOM > page.buffer.len) return;
-                @memset(page.buffer[out .. out + ZOOM], pal_entry);
-            }
+        const y0 = @as(u32, top) + char_row * ZOOM;
+        if (y0 >= OVERSCAN_H) return;
+        const line = page.buffer[y0 * OVERSCAN_W ..][0..OVERSCAN_W];
+        const words: [*]u32 = @ptrCast(@alignCast(line.ptr));
+        const strip_row = strip.buffer[char_row * strip.width ..][0..strip.width];
+        for (strip_row, 0..) |pal_entry, col| {
+            const v = @as(u32, pal_entry) * 0x01010101;
+            words[col * 2] = v;
+            words[col * 2 + 1] = v;
+        }
+        var row: u32 = 1;
+        while (row < ZOOM and y0 + row < OVERSCAN_H) : (row += 1) {
+            @memcpy(page.buffer[(y0 + row) * OVERSCAN_W ..][0..OVERSCAN_W], line);
         }
     }
 }
