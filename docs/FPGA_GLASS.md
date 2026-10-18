@@ -495,6 +495,44 @@ a newer block version as `? block v2`. The block is only read from a mailbox of 
 later (`ZM_MB_VERSION`), whose firmware zeroes the whole page at boot, so a cart with no
 music never shows the previous cart's; an older firmware shows `music ? firmware too old`.
 
+## The control channel (`ctl.zig`, `app_ctl.zig`, `ctl_sock.zig`)
+
+What Matt does with the OSD and a keyboard, a shell line on the serial console can do, so
+every cart can be measured on the board with nobody there (`fpga/tools/board_fps.py`).
+The running glass listens on a unix socket, `/tmp/glass.sock` (root only); `glass ctl
+WORDS...` sends one line, prints the reply, and exits 0, 1 on an `err` reply, 3 when no
+glass listens (S99glass restarts a dead one within a second), 4 after 60 s without an answer.
+The glass serves it from its main loop, between two input events, as it would a key.
+
+| Command | Does |
+|---|---|
+| `load <file.zmd> [PROGRAM]` | the OSD's load, by the shelf's file name (case ignored; the shelf is re-read once if it is not there); with PROGRAM, that program off the disk as GEM would ask for it (`progs/`, "Programs off a data disk") |
+| `key <key> [down\|up\|tap]` | a key as the keyboard sends it: the menu's while it is open, else the cart's. `1`, `a`, `A` (one character is itself), `space`, `enter`, `esc`, `up`..`right`, `f1`..`f10`, `shift`, `alt`, ..., or a raw code `0xE012`. `tap` (default) holds it 100 ms |
+| `joy <bits>` | the joypad bits held now: `0x20`, `up+fire`, `0` |
+| `stats [N]` | one `ZMSTAT` line over the last N seconds (default 5, up to 50) |
+| `osd open\|close` | F12 |
+| `quit-cart` | the cart CPU held in reset, the menu up |
+| `list`, `help` | the shelf (`file<TAB>title` a line), the commands |
+
+The `stats` line, one `key=value` a field, never a space in a value (`_` stands in), `-` for
+"none" or "not measured", `song` last:
+
+```
+ZMSTAT cart=demo-union.zmd fps=29.8 frame_ms=33.5 bard=10/20 player=BARD:SNDH_68k state=running
+       frames=149 secs=5.0 missed=151 beat=1234 trap=- err=- song=Wings_Of_Death
+```
+
+- `fps`, `frames`, `secs`: `CART_BEAT` over the window, from a ring of the watchdog's samples
+  (`beats.zig`, ten a second, 51 s). `frame_ms` is the mean **wall** time a frame (the firmware
+  does not publish the cart's own CPU time); `missed` the 60 Hz VBLs that showed no new frame.
+- `bard`: the sound CPU's load now/peak in % of real time (the debug page's `music` row); `-`
+  when BARD does not play. `player`: `<BARD|ZIGGY>:<player>`, `none` (no audio in the
+  firmware), `old_fw`, `BARD_down`.
+- `state`: `running`; `stalled` (RUNNING, but no frame for 2 s: a hang); `booting`;
+  `request` (a cart swap pending); `trapped`; `silent` (the load's boot never said RUNNING:
+  `CartSilent`); `failed` (`err=` says why); `quit` (`quit-cart`); `idle` (nothing loaded).
+  `cart` names the cart in the window, or the last one when none runs.
+
 ## Cart load sequence (`fpga/glass/src/loader.zig`)
 
 1. Read `ID`. If it is wrong, stop with `NoGlass`.

@@ -30,6 +30,26 @@ pub fn screen(g: rom.Gui, v: View) void {
     waveBox(g, v);
 }
 
+/// Redraw only what `v` changed against `old` (what is on the glass now). The
+/// panel and status strip depend on everything but the waveform; the waveform
+/// box on the sample, the transport and the playhead alone. A change in the
+/// first repaints all (the desktop fill wipes the box), a change in the second
+/// repaints the box, which paints its whole rectangle itself.
+pub fn changed(g: rom.Gui, old: View, v: View) void {
+    if (!panelSame(old, v)) return screen(g, v);
+    if (!waveSame(old, v)) waveBox(g, v);
+}
+
+fn panelSame(a: View, b: View) bool {
+    return a.rate == b.rate and a.looping == b.looping and a.marked == b.marked and
+        a.external == b.external and a.low == b.low and a.high == b.high and
+        a.bytes == b.bytes and a.free == b.free;
+}
+
+fn waveSame(a: View, b: View) bool {
+    return a.playing == b.playing and a.playhead == b.playhead and std.mem.eql(u8, a.sample, b.sample);
+}
+
 fn panelBox(g: rom.Gui, v: View) void {
     ui.panel(g, ui.PANEL);
     ui.centredIn(g, "ST Replay / Editor - ZigMachine", ui.PANEL, ui.TITLE_ROW);
