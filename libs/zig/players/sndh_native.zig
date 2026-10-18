@@ -39,7 +39,9 @@ pub var status: digi.Status = .musashi;
 /// Monty's play writes volume C over its drums (digi_monty_seq.zig); 4 = Wow
 /// Scroller's interrupt reads its byte through Beat Dis's `addi.b #$80`; 5 = a
 /// handler-only driver's steps frozen when it was armed (digi_irq.zig); 6 = the
-/// stream handler's registers 9 and 10 swapped (digi_tcb3.zig). Test only.
+/// stream handler's registers 9 and 10 swapped (digi_tcb3.zig); 7-9 belong to
+/// the Quartet and Swedish New Year branches; 10 = maxYMiser's 8-bit drum
+/// routine without its addi.b (digi_mym.zig). Test only.
 pub var mutant: u32 = 0;
 
 var driver: ?Driver = null; // what the image is, whatever the mode
@@ -58,6 +60,7 @@ const Bus68 = struct {
         m68k_write_memory_16(a, v);
     }
     pub const xbtimer = xbtimerSet; // XBIOS Xbtimer, as the SNDH player answers the trap
+    pub const mem = @import("sndh_player.zig").mem; // RAM directly (digi.Access)
     /// A6, which a handler that does not save it leaves changed (digi_mix3.zig).
     pub fn setA6(v: u32) void {
         m68k_set_reg(14, v); // M68K_REG_A6
@@ -131,6 +134,7 @@ pub fn interrupt(handler: u32) bool {
         .irq => {
             digi.irq.frozen = mutant == 5;
             digi.irq.swapped = mutant == 6;
+            digi.irq.no_offset = mutant == 10;
             return digi.irq.irq(Bus68, &driver.?.irq, handler);
         },
         .beat_dis => |bd| {

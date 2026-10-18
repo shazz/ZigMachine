@@ -35,6 +35,7 @@ pub const Status = enum(u32) {
     hippel_mix4 = 8, // handler native, digi_mix4.zig (Hippel's 4-voice mixer: Thalion Forever)
     mix3_timer_c = 12, // handler native, digi_mix3.zig (a 3-voice mixer on Timer C: snyd_90's part 6)
     tcb_streams = 13, // handler native, digi_tcb3.zig (three volume streams: TCB's Spreadpoint)
+    mym_drums = 14, // handler native, digi_mym.zig (maxYMiser's digidrums: crystallized)
 };
 
 pub const Driver = union(enum) {
@@ -105,26 +106,45 @@ pub fn pcRel(at: u32, disp: u16) u32 {
 }
 
 /// A 68000's long and word accesses on `Bus` (read8 / write16, the SNDH player's
-/// bus): a long is two words, high first, as Musashi does them.
+/// bus): a long is two words, high first, as Musashi does them. A Bus with `mem`
+/// (the 68000's RAM) is read and written there directly for an address in RAM:
+/// the bytes the bus functions would reach, without a call per byte, which on
+/// BARD was most of a native interrupt's cost.
 pub fn Access(comptime Bus: type) type {
     return struct {
+        /// The `n` bytes at `a` in RAM, or null (hardware, or a Bus without `mem`).
+        inline fn ram(a: u32, comptime n: u32) ?*[n]u8 {
+            if (comptime !@hasDecl(Bus, "mem")) return null;
+            const m = Bus.mem();
+            const x = a & 0xFFFFFF;
+            return if (x + n <= m.len) m[x..][0..n] else null;
+        }
         pub fn rd16(a: u32) u16 {
+            if (ram(a, 2)) |r| return std.mem.readInt(u16, r, .big);
             return (@as(u16, Bus.read8(a)) << 8) | Bus.read8(a +% 1);
         }
         pub fn rd32(a: u32) u32 {
+            if (ram(a, 4)) |r| return std.mem.readInt(u32, r, .big);
             return (@as(u32, rd16(a)) << 16) | rd16(a +% 2);
         }
         pub fn wr16(a: u32, v: u16) void {
+            if (ram(a, 2)) |r| return std.mem.writeInt(u16, r, v, .big);
             Bus.write16(a, v);
         }
         pub fn wr32(a: u32, v: u32) void {
+            if (ram(a, 4)) |r| return std.mem.writeInt(u32, r, v, .big);
             Bus.write16(a, @truncate(v >> 16));
             Bus.write16(a +% 2, @truncate(v));
         }
         pub fn rd8(a: u32) u8 {
+            if (ram(a, 1)) |r| return r[0];
             return Bus.read8(a);
         }
         pub fn wr8(a: u32, v: u8) void {
+            if (ram(a, 1)) |r| {
+                r[0] = v;
+                return;
+            }
             Bus.write8(a, v);
         }
         /// bset / bclr #bit on a byte in memory: a read, then a write.
