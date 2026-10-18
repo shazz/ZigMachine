@@ -49,10 +49,12 @@ pub fn reset() void {
     shadow_ok = false;
 }
 
+// Halfwords: a 230-byte ST line starts on any even address, so half of the lines are not word
+// aligned and a u32 compare would trap on the board at every one of its loads (~450 cycles).
 fn same(a: []const u8, b: []const u8) bool {
     var i: usize = 0;
-    while (i + 4 <= a.len) : (i += 4) {
-        if (std.mem.readInt(u32, a[i..][0..4], .little) != std.mem.readInt(u32, b[i..][0..4], .little)) return false;
+    while (i + 2 <= a.len) : (i += 2) {
+        if (std.mem.readInt(u16, a[i..][0..2], .little) != std.mem.readInt(u16, b[i..][0..2], .little)) return false;
     }
     while (i < a.len) : (i += 1) if (a[i] != b[i]) return false;
     return true;
