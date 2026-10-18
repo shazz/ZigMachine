@@ -63,9 +63,11 @@ fn allocRam() void {
 pub const Demo = struct {
     seq: timeline.Seq,
     vbl_us: u32, // microseconds towards the next VBL
+    dirty: bool, // the ST screen or palette changed since the plane was last expanded
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
         self.vbl_us = 0;
+        self.dirty = true;
         allocRam(); // before seq.reset, which clears the screens
         self.seq.reset();
         const fb = &zigos.lfbs[PLANE];
@@ -81,10 +83,14 @@ pub const Demo = struct {
         self.vbl_us += @intFromFloat(ms * 1000);
         var n: u32 = 0;
         while (self.vbl_us >= VBL_US) : (self.vbl_us -= VBL_US) {
-            if (n < MAX_VBLS_PER_FRAME) self.seq.tick();
+            if (n < MAX_VBLS_PER_FRAME) {
+                self.seq.tick();
+                self.dirty = true;
+            }
             n += 1;
             if (self.seq.finished) {
                 self.seq.reset(); // $1E00: from the top, music restarted
+                self.dirty = true;
                 zg.requestSong(MUSIC);
             }
         }
@@ -92,6 +98,10 @@ pub const Demo = struct {
 
     pub fn render(self: *Demo, zigos: *ZigOS, dt: f32) void {
         _ = dt;
+        // The plane keeps its pixels between frames and the screen only changes
+        // on a VBL (50 Hz against the host's rate), so expand it only then.
+        if (!self.dirty) return;
+        self.dirty = false;
         const fb = &zigos.lfbs[PLANE];
         for (self.seq.pal, 0..) |c, i| fb.palette[i] = st.stColor(c);
         st.toChunky(self.seq.shownBuf(), fb.fb[0 .. @as(usize, fb.stride) * fb.fb_h], fb.stride);

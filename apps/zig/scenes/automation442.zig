@@ -254,16 +254,17 @@ fn drawGlyph(text: *LogicalFB, glyph: u8, x: i32) void {
     const tile_x: usize = (@as(usize, glyph) % GLYPH_COLS) * @as(usize, GLYPH_W);
     const tile_y: usize = (@as(usize, glyph) / GLYPH_COLS) * @as(usize, GLYPH_H);
     const from: i32 = @max(0, -x);
-    const to: i32 = @min(GLYPH_W, @as(i32, zg.PHYSICAL_WIDTH) - x);
+    const to: i32 = @min(GLYPH_W, @as(i32, text.fb_w) - x);
     if (from >= to) return;
+    if (SCROLL_Y + GLYPH_H > text.fb_h) return;
 
+    // One copy a row (it was one setPixelValue call, bounds test and byte store a
+    // pixel: 15 glyphs x 1,024 = 15,000 a frame).
+    const n: usize = @intCast(to - from);
     var gy: u16 = 0;
     while (gy < GLYPH_H) : (gy += 1) {
-        const row = (tile_y + gy) * FONT_SHEET_W + tile_x;
-        var gx: i32 = from;
-        while (gx < to) : (gx += 1) {
-            const v = font_b[row + @as(usize, @intCast(gx))];
-            text.setPixelValue(@intCast(x + gx), SCROLL_Y + gy, v);
-        }
+        const row = (tile_y + gy) * FONT_SHEET_W + tile_x + @as(usize, @intCast(from));
+        const dst = (@as(usize, SCROLL_Y + gy) * text.stride) + @as(usize, @intCast(x + from));
+        @memcpy(text.fb[dst..][0..n], font_b[row..][0..n]);
     }
 }

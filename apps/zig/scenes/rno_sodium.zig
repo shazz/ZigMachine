@@ -79,12 +79,14 @@ pub const Demo = struct {
     part: usize, // the timeline entry whose pre-steps have run
     clock_us: u64, // elapsed time the host has reported
     vbls: u64, // VBLs run so far against that clock
+    dirty: bool, // a VBL has run since the plane was last presented
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
         self.m.init();
         self.part = 0;
         self.clock_us = 0;
         self.vbls = 0;
+        self.dirty = true;
         allocRam();
         prism.buildBlocks(); // $1388, which the original ran before the music
 
@@ -117,12 +119,17 @@ pub const Demo = struct {
     /// The Shifter: whatever the base register points at, this frame.
     pub fn render(self: *Demo, zigos: *ZigOS, dt: f32) void {
         _ = dt;
+        // The plane keeps its pixels between frames and the screen only changes
+        // on a VBL (50 Hz against the host's rate), so convert it only then.
+        if (!self.dirty) return;
+        self.dirty = false;
         st.present(&self.m, &zigos.lfbs[PLANE]);
     }
 
     /// $038C bumps f and C, then the main loop runs the next body — entering
     /// the next part first if C has passed the current one's limit.
     fn vbl(self: *Demo) void {
+        self.dirty = true;
         if (self.m.c >= timeline.END) self.restart();
         self.m.f +%= 1;
         self.m.c += 1;

@@ -45,6 +45,7 @@ const cubes = @import("vex/cubes.zig");
 const raster = @import("vex/raster.zig");
 const Title = @import("vex/title.zig").Title;
 const Intro = @import("vex/intro.zig");
+const rows = @import("vex/rows.zig");
 
 // !Cube / Aggression's tune, ripped straight out of the intro's DATA at $3906e
 // (the VBL's `jsr` lands on $39076, the SNDH play vector) — so this is the
@@ -149,7 +150,7 @@ pub const Demo = struct {
         // by hand would silence every bounds check on the recompose.
         const pixels = fb.fb[0 .. @as(usize, fb.stride) * fb.fb_h];
         self.publishPalette(fb);
-        self.buildRasterRows();
+        rows.build(&self.fade, &self.ramp, &self.cubes, self.settle);
         P.composeBand(pixels, fb.stride);
         P.composeSmall(pixels, fb.stride);
     }
@@ -169,23 +170,6 @@ pub const Demo = struct {
     fn publishPalette(self: *const Demo, fb: *LogicalFB) void {
         for (0..16) |i| fb.palette[i] = pal.rgba(self.fade.live[i]);
         fb.palette[0] = pal.rgba(self.fade.live[pal.TOP_BG]);
-    }
-
-    fn buildRasterRows(self: *const Demo) void {
-        const top = pal.rgba(self.fade.live[pal.TOP_BG]);
-        const flash = pal.rgba(self.fade.live[pal.SPLIT_BG]);
-        const body = pal.rgba(self.fade.live[pal.BODY_BG]);
-        const small_ink = pal.rgba(self.fade.live[pal.SMALL_INK]);
-        var b: usize = 0;
-        for (&raster.row_pal, 0..) |*row, y| {
-            const s = raster.splitOf(y);
-            row[0] = if (y < raster.SPLIT_TOP or y >= P.SMALL_TOP) top else if (y < raster.SPLIT_TOP + 2 or y >= raster.SPLIT_END) flash else body;
-            while (b + 1 < cubes.BAND_ROW.len and y >= cubes.BAND_ROW[b + 1]) b += 1;
-            const shades = self.cubes.band(if (self.settle > 0) 0 else b, &self.fade);
-            for (shades, 0..) |c, i| row[1 + i] = pal.rgba(c);
-            row[4] = if (y >= P.SMALL_TOP) small_ink else pal.rgba(self.ramp.colour(s));
-            row[5] = pal.rgba(if (self.settle > 0) self.fade.live[8] else A.be(A.scrollcol_b, s));
-        }
     }
 };
 

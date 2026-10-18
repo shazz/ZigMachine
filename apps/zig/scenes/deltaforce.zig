@@ -102,7 +102,8 @@ pub const Demo = struct {
         var fb: *LogicalFB = &zigos.lfbs[0];
         fb.is_enabled = true;
         fb.setPalette(logo_pal);
-        self.logo.init(fb.getRenderTarget(), logo_b, 0);        
+        self.logo.init(fb.getRenderTarget(), logo_b, 0);
+        self.logo.render(); // the logo never changes: drawn once, not every frame
         
         // HBL Handler for the raster effect
         fb.setFrameBufferHBLHandler(0, handler_logo);   
@@ -111,6 +112,7 @@ pub const Demo = struct {
         fb = &zigos.lfbs[1];
         fb.is_enabled = true; 
         fb.setPalette(font_pal);
+        fb.clearFrameBuffer(0); // once: render() only ever rewrites the four scroller bands
 
         // HBL Handler for the raster effect
         fb.setFrameBufferHBLHandler(0, handler_scroller);        
@@ -139,18 +141,19 @@ pub const Demo = struct {
 
     pub fn render(self: *Demo, zigos: *ZigOS, elapsed_time: f32) void {
 
-        self.logo.render();
-
-        var fb = &zigos.lfbs[1];
-        fb.clearFrameBuffer(0);
+        // The scroller strip (rows 52..82) is drawn, then copied to three more
+        // bands (+39, +78, +117 rows); every other row stays 0 from init. Word-wide
+        // @memset/@memcpy: the byte loops were ~90,000 stores a frame.
+        const fb = &zigos.lfbs[1];
+        const strip: usize = 52 * @as(usize, WIDTH);
+        const strip_len: usize = @as(usize, WIDTH) * SCROLL_CHAR_HEIGHT;
+        @memset(fb.fb[strip .. strip + strip_len], 0);
         self.scrolltext.render();
 
         // copy scrolltext 3 times
-        var i: u16 = 52 * WIDTH;
-        while(i < (52 * WIDTH) + (WIDTH*SCROLL_CHAR_HEIGHT)) : ( i += 1){
-            fb.fb[i + (39 * WIDTH)] = fb.fb[i];
-            fb.fb[i + (78 * WIDTH)] = fb.fb[i];
-            fb.fb[i + (117 * WIDTH)] = fb.fb[i];
+        inline for (.{ 39, 78, 117 }) |rows| {
+            const d = strip + rows * @as(usize, WIDTH);
+            @memcpy(fb.fb[d .. d + strip_len], fb.fb[strip .. strip + strip_len]);
         }
 
         _ = elapsed_time;

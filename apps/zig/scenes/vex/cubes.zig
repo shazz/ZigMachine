@@ -82,6 +82,17 @@ pub const Cubes = struct {
     }
 };
 
+/// cubes.raw as native words, byte-swapped once at compile time (the 68000's
+/// big-endian words cost a pair of byte loads and a shift each, 3,360 times a
+/// frame, when read through A.be). Same size as the raw file, which is no
+/// longer referenced and so is not shipped twice.
+const CUBE_WORDS: [A.cubes.len / 2]u16 = blk: {
+    @setEvalBranchQuota(200000);
+    var t: [A.cubes.len / 2]u16 = undefined;
+    for (&t, 0..) |*w, i| w.* = A.be(A.cubes, i);
+    break :blk t;
+};
+
 fn blitCube(frame: usize, col: usize, row: usize) void {
     var byte = BASE_BYTE + col * 16;
     var y = BASE_Y + row * 34;
@@ -92,10 +103,10 @@ fn blitCube(frame: usize, col: usize, row: usize) void {
     const g = byte / 8;
     var src = frame * A.CUBE_LINES * 8;
     for (0..A.CUBE_LINES) |line| {
-        P.cube_lo[y + line][g] = A.be(A.cubes, src / 2);
-        P.cube_hi[y + line][g] = A.be(A.cubes, src / 2 + 1);
-        P.cube_lo[y + line][g + 1] = A.be(A.cubes, src / 2 + 2);
-        P.cube_hi[y + line][g + 1] = A.be(A.cubes, src / 2 + 3);
+        P.cube_lo[y + line][g] = CUBE_WORDS[src / 2];
+        P.cube_hi[y + line][g] = CUBE_WORDS[src / 2 + 1];
+        P.cube_lo[y + line][g + 1] = CUBE_WORDS[src / 2 + 2];
+        P.cube_hi[y + line][g + 1] = CUBE_WORDS[src / 2 + 3];
         src += 8;
     }
 }

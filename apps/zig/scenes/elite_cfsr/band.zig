@@ -22,7 +22,7 @@ const A = @import("assets.zig");
 /// The XOR buffer, block-major so the FILL sweep is a flat walk.
 var plot: [A.BLOCKS][A.PLOT_ROWS]u32 = undefined;
 /// The 16 finished rows, one palette index a pixel, ready to memcpy.
-var rows: [A.BAND_ROWS][A.COLUMNS]u8 = undefined;
+var rows: [A.BAND_ROWS][A.COLUMNS]u8 align(4) = undefined;
 
 /// Rebuild this frame's 16-row pattern from `edges` (320 columns x 6 edges) and
 /// the frame counter, which is all the vertical wobble depends on.
@@ -78,14 +78,29 @@ fn wrap() void {
     }
 }
 
+/// NIBBLE[n]: nibble n's four bits as four byte lanes of 0 or 1, the top bit
+/// (leftmost pixel) in the lowest byte. Times an ink index it is four pixels.
+const NIBBLE: [16]u32 = blk: {
+    var t: [16]u32 = undefined;
+    for (&t, 0..) |*e, n| {
+        var v: u32 = 0;
+        for (0..4) |m| v |= @as(u32, (n >> (3 - m)) & 1) << (8 * m);
+        e.* = v;
+    }
+    break :blk t;
+};
+
+/// Bits to palette indices four pixels to a store (it was one bit test, shift
+/// and byte store a pixel: 5,120 a frame). The first 16 pixels of a block ink
+/// INK_HI, the last 16 INK_LO.
 fn expand() void {
     for (&rows, 0..) |*row, r| {
-        for (plot, 0..) |block, b| {
-            var bits = block[r];
-            for (0..32) |c| {
-                const set = (bits & 0x8000_0000) != 0;
-                bits <<= 1;
-                row[b * 32 + c] = if (!set) 0 else if (c < 16) A.INK_HI else A.INK_LO;
+        const words: *[A.COLUMNS / 4]u32 = @ptrCast(row);
+        for (&plot, 0..) |*block, b| {
+            const bits = block[r];
+            inline for (0..8) |j| {
+                const ink: u32 = if (j < 4) A.INK_HI else A.INK_LO;
+                words[b * 8 + j] = NIBBLE[(bits >> (28 - 4 * j)) & 15] * ink;
             }
         }
     }

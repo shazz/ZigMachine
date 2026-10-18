@@ -78,12 +78,51 @@ fn bandWord(out: *[16]u8, s: u16, c: u16, lo: u16, hi: u16) void {
     }
 }
 
+/// EXPAND[n]: the four bits of nibble n as four byte lanes holding 0 or 1, the
+/// leftmost pixel (the nibble's top bit) in the lowest byte. Built at compile
+/// time; it is what lets four pixels be composed with u32 maths.
+const EXPAND: [16]u32 = blk: {
+    var t: [16]u32 = undefined;
+    for (&t, 0..) |*e, n| {
+        var v: u32 = 0;
+        for (0..4) |m| v |= @as(u32, (n >> (3 - m)) & 1) << (8 * m);
+        e.* = v;
+    }
+    break :blk t;
+};
+const BG4: u32 = @as(u32, BG) * 0x01010101;
+const CUBE_BASE4: u32 = @as(u32, CUBE0 - 1) * 0x01010101;
+const PANEL4: u32 = @as(u32, PANEL_INK) * 0x01010101;
+const SCROLL4: u32 = @as(u32, SCROLL_INK) * 0x01010101;
+
+/// bandWord() four pixels at a time: the same priority (scroller over panel
+/// over cube shade), done as byte-lane select masks on a u32 (the byte loop
+/// did ~16 shifts, tests and a store per pixel; this is 4 stores a word).
+fn bandWord4(out: *align(4) [16]u8, s: u16, c: u16, lo: u16, hi: u16) void {
+    const dst: *[4]u32 = @ptrCast(out);
+    if ((s | c | lo | hi) == 0) {
+        dst.* = .{ BG4, BG4, BG4, BG4 };
+        return;
+    }
+    inline for (0..4) |j| {
+        const sh = 12 - 4 * j;
+        const cube = CUBE_BASE4 + EXPAND[(lo >> sh) & 15] + (EXPAND[(hi >> sh) & 15] << 1);
+        const cm = EXPAND[(c >> sh) & 15] * 255;
+        const sm = EXPAND[(s >> sh) & 15] * 255;
+        const panel = (cube & ~cm) | (PANEL4 & cm);
+        dst[j] = (panel & ~sm) | (SCROLL4 & sm);
+    }
+}
+
 /// The band that moves: cubes, credits panel and big scroller.
 pub fn composeBand(fb: []u8, stride: usize) void {
+    const wide = @intFromPtr(fb.ptr) & 3 == 0 and stride & 3 == 0;
     for (0..LIVE_ROWS) |r| {
         const row = fb[(LIVE_TOP + r) * stride ..][0 .. WORDS * 16];
-        for (&scroll[LIVE_TOP + r], &credits[r], &cube_lo[LIVE_TOP + r], &cube_hi[LIVE_TOP + r], 0..) |s, c, lo, hi, g|
-            bandWord(row[g * 16 ..][0..16], s, c, lo, hi);
+        for (&scroll[LIVE_TOP + r], &credits[r], &cube_lo[LIVE_TOP + r], &cube_hi[LIVE_TOP + r], 0..) |s, c, lo, hi, g| {
+            const out = row[g * 16 ..][0..16];
+            if (wide) bandWord4(@alignCast(out), s, c, lo, hi) else bandWord(out, s, c, lo, hi);
+        }
     }
 }
 

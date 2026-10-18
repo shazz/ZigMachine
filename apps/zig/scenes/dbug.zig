@@ -65,6 +65,8 @@ var start_raster_line: u16 = 0;
 // The 400x280 overscan compositing buffer, from the cart RAM arena (zg.mem) in
 // init: as a module-scope array it was 112,000 zero bytes of the data section.
 var off_buffer: *[400 * 280]u8 = undefined;
+// Rows of off_buffer (and so of the plane, after the last copy) that are not all 0.
+var dirty: draw.Dirty = .{};
 
 // The scroller is drawn 50 pixels wide and zoomed 8 times into the overscan
 // ((320 + 80) / 8). Small, so a static; cleared in init.
@@ -131,7 +133,8 @@ pub const Demo = struct {
         self.sync = .{};
 
         // big buffer to the siz of the overscan
-        off_buffer = zg.mem.mustAlloc(u8, 400 * 280)[0 .. 400 * 280]; // once per cart load
+        // (u32 units so the page is 4-aligned for zoomScroller's word stores)
+        off_buffer = @ptrCast(zg.mem.mustAlloc(u32, 400 * 280 / 4).ptr); // once per cart load
         overscan_render_buffer = .{ .buffer = off_buffer, .width = 400, .height = 280 };
         self.overscan_target = .{ .render_buffer = &overscan_render_buffer };
 
@@ -174,13 +177,17 @@ pub const Demo = struct {
 
     pub fn render(self: *Demo, zigos: *ZigOS, elapsed_time: f32) void {
 
-        self.scroller_target.clearFrameBuffer(0);
+        @memset(&scroller_pixels, 0);
         self.scrolltext.render();
 
-        // draw the zoomed scrolltext on a overscan buffer
-        self.overscan_target.clearFrameBuffer(0);
+        // draw the zoomed scrolltext on a overscan buffer: the zoom repaints its
+        // whole band, so only the rows the last frame touched outside it are cleared
+        const band = draw.Dirty.rows(start_raster_line, @as(i32, start_raster_line) + SCROLL_CHAR_HEIGHT * draw.ZOOM);
+        draw.clearStale(off_buffer, dirty, band);
         draw.zoomScroller(self.overscan_target, self.scroller_target, start_raster_line, SCROLL_CHAR_HEIGHT);
         self.logo.render(100);
+        const ly = LOGO_Y + self.sync.logo_dy;
+        const now = band.merge(draw.Dirty.rows(ly, ly + 38));
 
         // The credit panel paints only the cells that moved this frame, straight
         // into its own plane — everything already standing stays put.
@@ -190,7 +197,12 @@ pub const Demo = struct {
         // Blit the finished 400×280 overscan buffer into the plane (borders included;
         // renderPlaneOverscan shows the border rows only where the trick opened them).
         const fb = &zigos.lfbs[0];
-        @memcpy(fb.fb[0 .. 400 * 280], off_buffer[0 .. 400 * 280]);
+        // Only the rows that differ from what the plane holds: last frame's band and this one's.
+        const copy = dirty.merge(now);
+        const o = @as(u32, copy.lo) * 400;
+        const e = @as(u32, copy.hi) * 400;
+        @memcpy(fb.fb[o..e], off_buffer[o..e]);
+        dirty = now;
 
         _ = elapsed_time;
 
