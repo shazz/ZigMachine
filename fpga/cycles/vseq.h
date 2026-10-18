@@ -19,6 +19,7 @@
 #include <stdint.h>
 
 #include "host.h"
+#include "zm_memmap.h"
 
 typedef struct {
     uint32_t swap_wait; /* cycles spent waiting for the shown picture to swap */
@@ -26,6 +27,19 @@ typedef struct {
 } vseq_stats;
 
 extern vseq_stats vseq;
+
+/* What vseq_clear painted each line from: the dirty-line planner's (vplan.h)
+ * background inputs. fill: one CLEAR, bg[0] is every line's colour. */
+typedef struct {
+    int fill;
+    uint32_t bg[ZM_RASTER_HEIGHT];
+    uint8_t beam[ZM_RASTER_HEIGHT];
+} vseq_clear_rec;
+extern vseq_clear_rec vseq_rec;
+/* NULL: vseq_plane and vseq_mix_only pass over every line; else they skip each
+ * line y with vseq_skip[y] (the picture's row is already right, vplan.h). The
+ * handlers are still called: a planned frame has none. */
+extern const uint8_t* vseq_skip;
 
 /* After host_boot: where the region and the two pictures are, then every
  * snooped word stored again (boot wrote them before the snoop knew the region). */
@@ -36,6 +50,8 @@ void vseq_mix_only(void);
 /* ZM_LINE_MAJOR builds only: the mutant order (vseq.c). */
 void vseq_line_major(struct w2c_env* e, unsigned planes);
 void vseq_present(void);
+/* Until the picture shown is the last one presented: the other is free to build. */
+void vseq_wait_swap(void);
 /* Until no command is queued or running: every row is in memory. */
 void vseq_idle(void);
 /* Plane p's ZM_FB_MODE_* as the cart last set it (the pointer's pixel width). */

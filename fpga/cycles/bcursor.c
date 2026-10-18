@@ -1,12 +1,13 @@
 /* See bcursor.h. The arrow is TOS's ARROW mouse form (16x16, hot spot 0,0): the mask in
  * white, the data in black. A bit is one ST pixel: two raster pixels wide in low resolution
  * (320 pixels doubled across the raster's 640), one in medium, as TOS draws it in each.
- * The picture is rebuilt from the planes every frame, so nothing needs saving under it. */
+ * Nothing is saved under it: the rows it covers are composited again next time (vplan.h). */
 #include "bcursor.h"
 
 #include "glass_map.h" /* PTR_*: the pointer word */
 #include "host.h"      /* host_input: does this cart take the mouse */
 #include "vboard.h"    /* zmv_status, ZMV_BIT */
+#include "vplan.h"
 #include "vseq.h"
 #include "zm_memmap.h"
 #include "bmailbox.h" /* the two pictures */
@@ -44,4 +45,5 @@ void bcursor_draw(void) {
     uint32_t w = vseq_plane_mode(0) == ZM_FB_MODE_MEDIUM ? 1 : 2; /* GEM's desktop is plane 0 */
     for (uint32_t r = 0; r < 16 && y0 + r < ZM_RASTER_HEIGHT; r++)
         row(pic + (y0 + r) * ZM_RASTER_WIDTH, x0, w, MASK[r], DATA[r]);
+    vplan_overdrawn(back, y0, 16); /* rebuilt when this picture is next built */
 }

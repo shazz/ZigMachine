@@ -52,7 +52,7 @@ $(CARTS_DIR)/%/cart.bin: $(CARTS_DIR)/%/cart.elf
 # The system image of a variant: board.mk's firmware with the cart taken out (bsys.c binds it).
 define split_rules
 $(SPLIT)/$(1)$(ASUF)$(HSUF)/sys.elf: $(HCYC)/$(1)$(ASUF)$(HSUF)/common/fw.a $(HOST)/common/sys_env.c cycles/bsys.c \
-		cycles/bsys.h cycles/bsys_abi.h cycles/bmain.c cycles/vseq.c $(AUD_FW_DEPS) $(AUD_CART_OBJ_$(ZM_AUDIO)) \
+		cycles/bsys.h cycles/bsys_abi.h cycles/bmain.c cycles/vseq.c $(VPLAN_SRC) $(AUD_FW_DEPS) $(AUD_CART_OBJ_$(ZM_AUDIO)) \
 		$(CYC)/$(HV)/common/machine.o $(CYC)/$(HV)/common/rom.o gen/zm_sys_abi.h $(HFW_DEPS) FORCE
 	@mkdir -p $$(@D)/o
 	rm -f $$(@D)/o/*.o
@@ -60,6 +60,7 @@ $(SPLIT)/$(1)$(ASUF)$(HSUF)/sys.elf: $(HCYC)/$(1)$(ASUF)$(HSUF)/common/fw.a $(HO
 		$(RV_CC) $(SPL_CFLAGS) $(H_$(1)) -c $$$$s -o $$(@D)/o/s_$$$$(basename $$$$s .c).o || exit 1; done
 	$(RV_CC) $(SPL_CFLAGS) $(MICROS_$(1)) -c $(HOST)/common/sys_env.c -o $$(@D)/o/sys_env.o
 	$(RV_CC) $(SPL_CFLAGS) -c cycles/vseq.c -o $$(@D)/o/vseq.o
+	for s in $(VPLAN_SRC); do $(RV_CC) $(SPL_CFLAGS) $(H_$(1)) -c $$$$s -o $$(@D)/o/$$$$(basename $$$$s .c).o || exit 1; done
 	$(RV_CC) $(SPL_CFLAGS) -c cycles/bsys.c -o $$(@D)/o/bsys.o
 	$(RV_CC) $(SPL_CFLAGS) $(H_$(1)) -c cycles/bmain.c -o $$(@D)/o/main.o
 	$(RV_CC) $(HRV_LDFLAGS_$(ZM_AUDIO)) -o $$@ $$(@D)/o/*.o $(AUD_CART_OBJ_$(ZM_AUDIO)) \

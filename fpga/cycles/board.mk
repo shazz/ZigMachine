@@ -65,7 +65,12 @@ ZM_TRACE_FRAME ?= 0
 # ZM_SIM_POINTER=F:word,... (sim only): the mouse the same way (ZM_GLASS_POINTER).
 # ZM_MODES (sim only): several of a cart's modes in one hp sim (cycles/bmain.c).
 ZM_MODES ?=
-H_sim    = -DZM_FRAMES=$(ZM_FRAMES) -DZM_EVERY=$(ZM_EVERY) -DZM_WARP_MS=$(ZM_WARP_MS) -DZM_TRACE_FRAME=$(ZM_TRACE_FRAME) \
+# ZM_VSEQ_CHECK=1 (sim): composite every line, and check the rows the dirty-line plan would have
+# skipped against what the picture held (cycles/vplan.h, "ZM VCHK").
+ZM_VSEQ_CHECK ?=
+# The dirty-line planner (cycles/vplan.h), compiled with the image as vseq.c is: ZM_VSEQ_CHECK reaches it.
+VPLAN_SRC := cycles/vplan.c cycles/vdirty.c
+H_sim    = $(if $(ZM_VSEQ_CHECK),-DZM_VSEQ_CHECK) -DZM_FRAMES=$(ZM_FRAMES) -DZM_EVERY=$(ZM_EVERY) -DZM_WARP_MS=$(ZM_WARP_MS) -DZM_TRACE_FRAME=$(ZM_TRACE_FRAME) \
 	$(B_$(ZM_BLIT)) $(A_$(ZM_AUDIO)) $(if $(ZM_SIM_KEYS),'-DZM_SIM_KEYS="$(ZM_SIM_KEYS)"') \
 	$(if $(ZM_SIM_POINTER),'-DZM_SIM_POINTER="$(ZM_SIM_POINTER)"') $(if $(ZM_MODES),-DZM_MODES=$(ZM_MODES))
 # ZM_SYS_MHZ=<n>: a bitstream whose sys clock is not 100 MHz (the FPU test bitstream runs 80):
@@ -113,7 +118,7 @@ $(HCYC)/$(1)$(ASUF)$(HSUF)/common/fw.a: $(HFW_DEPS) $(HCYC)/$(1)$(ASUF)$(HSUF)/c
 		$(RV_CC) $(HRV_CFLAGS) $(H_$(1)) -c $$$$s -o $$(@D)/fw/$$$$(basename $$$$s).o || exit 1; done
 	rm -f $$@ && $(RV_AR) rcs $$@ $$(@D)/fw/*.o
 $(HCYC)/$(1)$(ASUF)$(HSUF)/%/fw.elf: $(CYC)/$(HV)/%/cart.o $(CYC)/$(HV)/common/machine.o $(CYC)/$(HV)/common/rom.o \
-		$(HCYC)/$(1)$(ASUF)$(HSUF)/common/fw.a $(HOST)/%/env.c host/boot.c cycles/bmain.c cycles/vseq.c \
+		$(HCYC)/$(1)$(ASUF)$(HSUF)/common/fw.a $(HOST)/%/env.c host/boot.c cycles/bmain.c cycles/vseq.c $(VPLAN_SRC) \
 		$(AUD_FW_DEPS) $(HCYC)/songs/%.c $(AUD_CART_OBJ_$(ZM_AUDIO)) FORCE
 	@mkdir -p $$(@D)
 	rm -f $$(@D)/aud_*.o
@@ -122,9 +127,10 @@ $(HCYC)/$(1)$(ASUF)$(HSUF)/%/fw.elf: $(CYC)/$(HV)/%/cart.o $(CYC)/$(HV)/common/m
 	$(RV_CC) $(HRV_CFLAGS) -I$(HOST)/$$* $(MICROS_$(1)) $(STREAM_$(ZM_AUDIO)) -c $(HOST)/$$*/env.c -o $$(@D)/env.o
 	$(RV_CC) $(HRV_CFLAGS) -I$(HOST)/$$* -c host/boot.c -o $$(@D)/boot.o
 	$(RV_CC) $(HRV_CFLAGS) -I$(HOST)/$$* -c cycles/vseq.c -o $$(@D)/vseq.o
+	for s in $(VPLAN_SRC); do $(RV_CC) $(HRV_CFLAGS) $(H_$(1)) -I$(HOST)/$$* -c $$$$s -o $$(@D)/vp_$$$$(basename $$$$s .c).o || exit 1; done
 	for s in $(HIN_SRC); do $(RV_CC) $(HRV_CFLAGS) $(H_$(1)) -I$(HOST)/$$* -c $$$$s -o $$(@D)/in_$$$$(basename $$$$s .c).o || exit 1; done
 	$(RV_CC) $(HRV_CFLAGS) $(H_$(1)) -I$(HOST)/$$* -DZM_CART='"$$*"' -c cycles/bmain.c -o $$(@D)/main.o
-	$(RV_CC) $(HRV_LDFLAGS_$(ZM_AUDIO)) -o $$@ $$(@D)/main.o $$(@D)/vseq.o $$(@D)/env.o $$(@D)/boot.o $$(@D)/in_*.o $$< \
+	$(RV_CC) $(HRV_LDFLAGS_$(ZM_AUDIO)) -o $$@ $$(@D)/main.o $$(@D)/vseq.o $$(@D)/vp_*.o $$(@D)/env.o $$(@D)/boot.o $$(@D)/in_*.o $$< \
 		$$(@D)/aud_*.o $(AUD_CART_OBJ_$(ZM_AUDIO)) \
 		$(CYC)/$(HV)/common/machine.o $(CYC)/$(HV)/common/rom.o $(HCYC)/$(1)$(ASUF)$(HSUF)/common/fw.a -lm
 # fw.bin is what lands at DDR_BASE (soc/zm_hp.py): the CPU's reset vector is its first word.

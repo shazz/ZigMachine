@@ -34,6 +34,7 @@
 #include "sha256.h"
 #include "trap.h"
 #include "vboard.h"
+#include "vplan.h"
 #include "vseq.h"
 #include "wasm-rt-exceptions.h"
 #include "wasm-rt-impl.h"
@@ -89,9 +90,16 @@ static void frame(sha256_ctx* h, u32 planes, u32 size, long f) {
     AUDIO(baudio_frame(e)); /* the song bridge, then the players up to the sound's lead */
     printf("ZM AF %ld %lu %lu\n", f, (unsigned long)(t1 - t0), (unsigned long)(board_cycles() - t1));
     uint32_t t2 = board_cycles();
+    /* Asked once, before any cart code can run between planes; again in video.zig's place when
+     * a plane has an HBL handler (vplan.h). Only the lines that changed are composited. */
+    unsigned on = 0;
+    for (u32 p = 0; p < planes; p++) on |= HOST_CART_PLANE_ON(e, p) ? 1u << p : 0u;
+    int handler = vplan_frame(e, on, h != NULL); /* a hashed frame composites every line: its PFB */
     int first = 1;
     for (u32 p = 0; p < planes; p++) {
-        if (!HOST_CART_PLANE_ON(e, p)) {
+        int en = (on >> p) & 1;
+        if (handler && en != !!HOST_CART_PLANE_ON(e, p)) en = !en, vplan_mask_moved();
+        if (!en) {
             char off[16];
             if (h) sha256_update(h, off, (size_t)snprintf(off, sizeof off, "off%u", (unsigned)p));
             continue;
@@ -101,6 +109,7 @@ static void frame(sha256_ctx* h, u32 planes, u32 size, long f) {
         if (h) hash_pfb(h, size);
     }
     if (first) vseq_mix_only();
+    vplan_end(f);
     uint32_t t3 = board_cycles();
     bcursor_draw(); /* the board has no host cursor: GEM's arrow over the picture */
     mb_presenting();
@@ -199,6 +208,7 @@ int main(void) {
            (unsigned long)ZMV_REG(FRAME), (unsigned long)vseq.undrained);
     printf("ZM MIS %lu %lu\n", (unsigned long)zm_misaligned[0], (unsigned long)zm_misaligned[1]);
     printf("ZM BLIT %lu %lu %lu\n", (unsigned long)bblit.calls, (unsigned long)bblit.hw, (unsigned long)bblit.cycles);
+    vplan_report();
     AUDIO(baudio_report());
     bdisk_report();
     board_finish(w2c_machine_hwRamAllocFailures(&g_env.machine) ? 1 : 0);
