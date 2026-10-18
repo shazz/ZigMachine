@@ -13,6 +13,7 @@ const ZigOS = zg.ZigOS;
 const LogicalFB = zg.LogicalFB;
 const Color = zg.Color;
 const Console = zg.Console;
+const Rows = @import("rowblit.zig").Rows;
 
 const RW: u16 = zg.RASTER_WIDTH; // 800
 const RH: u16 = zg.RASTER_HEIGHT; // 280
@@ -22,10 +23,11 @@ const VW: u16 = 640; // visible window
 const VH: u16 = 200;
 
 const PERIOD = 78;
-// RAINBOW[i] = the border colour at diagonal distance i (mod PERIOD), long enough
-// for any row's window.
-const RAINBOW: [PERIOD + RW]u8 = blk: {
-    var t: [PERIOD + RW]u8 = undefined;
+// RAINBOW[i] = the border colour at diagonal distance i (mod PERIOD). Long enough
+// that a pitch-1 blit (row y starts one pixel after row y-1) can read the whole
+// raster: first column = the phase (< PERIOD) + the last row (RH) + the row (RW).
+const RAINBOW: [PERIOD + RH + RW]u8 = blk: {
+    var t: [PERIOD + RH + RW]u8 = undefined;
     for (&t, 0..) |*v, i| v.* = @intCast(@divFloor(@as(i32, @intCast(i % PERIOD)), 6) + 3);
     break :blk t;
 };
@@ -45,6 +47,7 @@ pub const Demo = struct {
         fb.setPaletteEntry(2, .{ .r = 250, .g = 60, .b = 90, .a = 255 }); // frame
         var i: u16 = 3;
         while (i < 16) : (i += 1) fb.setPaletteEntry(@intCast(i), wheel(@intCast(i - 3), 13));
+        drawStatic(fb);
     }
 
     pub fn update(self: *Demo, os: *ZigOS, dt: f32) void {
@@ -54,36 +57,37 @@ pub const Demo = struct {
         self.paint(fb);
     }
 
-    // Redraw each frame so the border pattern animates (proving it's live content
-    // in the border area, not a static blank).
+    // The border is one diagonal rainbow, pixel (x,y) = RAINBOW[(y - phase) mod 78 + x],
+    // and the phase moves one pixel a frame. The dark window and the frame never
+    // change (init draws them once), so only the four border bands are redrawn,
+    // by ONE blit each from RAINBOW with a source pitch of 1: row y then starts at
+    // RAINBOW[s0 + y], the same colours the per-row 800-byte copy wrote, for
+    // 96,000 px of blitter instead of 224,000 + 128,000 CPU stores.
     fn paint(self: *Demo, fb: *LogicalFB) void {
-        // Every row is the same 78-px rainbow, rotated by (y - phase): copy a
-        // window of RAINBOW instead of 224,000 setPixelValue calls, then drop the
-        // dark visible window in with one @memset a row (bit-identical output).
-        const ph: i32 = @intCast(self.fc);
-        const w: usize = @min(@as(usize, RW), fb.fb_w);
-        var y: u16 = 0;
-        while (y < @min(RH, fb.fb_h)) : (y += 1) {
-            const row = fb.fb[@as(usize, y) * fb.stride ..][0..w];
-            const s: usize = @intCast(@mod(@as(i32, y) - ph, PERIOD));
-            @memcpy(row, RAINBOW[s..][0..w]);
-            if (y >= BY and y < BY + VH and BX < w) @memset(row[BX..@min(w, BX + VW)], 0);
-        }
-        // bright frame at the very physical edge (only overscan can reach it)
-        drawFrame(fb);
+        const s0: usize = @intCast(@mod(-@as(i32, @intCast(self.fc)), PERIOD));
+        var rows = Rows.open(fb, 1, null);
+        const x1: u16 = RW - 1; // the frame's own pixels stay
+        const y1: u16 = RH - 1;
+        band(&rows, s0, 1, 1, x1 - 1, BY - 1); // top
+        band(&rows, s0, 1, BY + VH, x1 - 1, y1 - (BY + VH)); // bottom
+        band(&rows, s0, 1, BY, BX - 1, VH); // left
+        band(&rows, s0, BX + VW, BY, x1 - (BX + VW), VH); // right
     }
 
-    fn drawFrame(fb: *LogicalFB) void {
-        var x: u16 = 0;
-        while (x < RW) : (x += 1) {
-            fb.setPixelValue(x, 0, 2);
-            fb.setPixelValue(x, RH - 1, 2);
-        }
-        var y: u16 = 0;
-        while (y < RH) : (y += 1) {
-            fb.setPixelValue(0, y, 2);
-            fb.setPixelValue(RW - 1, y, 2);
-        }
+    fn band(rows: *Rows, s0: usize, x: u16, y: u16, w: u16, h: u16) void {
+        rows.blit(@intFromPtr(&RAINBOW) + s0 + y + x, @intCast(x), @intCast(y), w, h);
+    }
+
+    // The dark visible window and the bright frame at the very physical edge
+    // (only overscan can reach it): constant, drawn once.
+    fn drawStatic(fb: *LogicalFB) void {
+        var bl: zg.Blitter = undefined;
+        bl.init();
+        bl.fill(fb, 0, 0, RW, RH, 0);
+        bl.fill(fb, 0, 0, RW, 1, 2);
+        bl.fill(fb, 0, RH - 1, RW, 1, 2);
+        bl.fill(fb, 0, 0, 1, RH, 2);
+        bl.fill(fb, RW - 1, 0, 1, RH, 2);
     }
 
     pub fn render(self: *Demo, os: *ZigOS, dt: f32) void {
