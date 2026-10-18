@@ -128,7 +128,9 @@ const Reg = struct {
     }
 };
 
-/// Every register a ZigOS CHISEL op writes, as the cart left it.
+/// Every register a ZigOS CHISEL op writes, as the cart left it. Inline, so the
+/// values stay in locals: a struct on the stack is a store per field, and every
+/// store is a blocking DDR write on the board.
 const Saved = struct {
     const B8 = [_]usize{ hw.BLIT_COMMAND, hw.BLIT_MINTERM, hw.BLIT_CON, hw.BLIT_COLOR, hw.BLIT_COLOR_KEY, hw.BLIT_CON2 };
     const B16 = [_]usize{ hw.BLIT_D_STRIDE, hw.BLIT_B_STRIDE };
@@ -137,7 +139,7 @@ const Saved = struct {
     b16: [B16.len]u16,
     b32: [B32.len]u32,
 
-    fn read(r: Reg) Saved {
+    inline fn read(r: Reg) Saved {
         var s: Saved = undefined;
         inline for (B8, 0..) |o, i| s.b8[i] = r.ptr(u8, o).*;
         inline for (B16, 0..) |o, i| s.b16[i] = r.ptr(u16, o).*;
@@ -147,7 +149,7 @@ const Saved = struct {
 
     /// Put back what changed. The current values all went out through stores of
     /// our own, so a register that already holds the cart's value needs none.
-    fn restore(s: Saved, r: Reg) void {
+    inline fn restore(s: Saved, r: Reg) void {
         inline for (B8, 0..) |o, i| if (r.ptr(u8, o).* != s.b8[i]) r.w8(o, s.b8[i]);
         inline for (B16, 0..) |o, i| if (r.ptr(u16, o).* != s.b16[i]) r.w16(o, s.b16[i]);
         inline for (B32, 0..) |o, i| if (r.ptr(u32, o).* != s.b32[i]) r.w32(o, s.b32[i]);
