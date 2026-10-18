@@ -30,6 +30,7 @@ the table in `../CYCLES.md` between its markers.
 | `prof.[ch]` | The owner stack: every counter delta goes to CART, MACH, BLIT or IDLE. |
 | `fcount.[ch]` | The `float` build: every soft-float routine wrapped (`ld --wrap`), counted and timed per class. |
 | `trap.[chS]` | Traps: misaligned loads/stores are emulated and counted, anything else is reported. |
+| `zm_string.c` | `memset`/`memcpy`/`memmove` that store words, linked ahead of picolibc's byte loops. Every store is a blocking DDR write on the board, so a wasm `memory.fill`/`memory.copy` (Zig `@memset`/`@memcpy`, a plane clear) cost 25 cycles a BYTE before it (empire: ~0.9 of a 1.8 Mc frame). The split system hands these to every lean cart through the table. |
 | `board.[ch]`, `main.c` | The UART as picolibc's stdio, the finish register, and the frame loop of `host/main.c` with owners. |
 
 The toolchain is the system `riscv64-unknown-elf-gcc` 13.2 with
