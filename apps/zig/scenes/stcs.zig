@@ -135,6 +135,7 @@ fn handler_scroller(fb: *LogicalFB, zigos: *ZigOS, line: u16, col: u16) void {
 
 // The scroller's off-screen strip: static, not init's stack frame (it outlives init).
 // align(16): strip.zig copies it 16 bytes at a time as words, and a misaligned word load TRAPS on the board (~450 cycles each)
+var chisel: zg.Blitter = .{};
 var scroller_pixels align(16) = [_]u8{0} ** (WIDTH * SCROLL_CHAR_HEIGHT);
 var scroller_buffer: RenderBuffer = .{ .buffer = &scroller_pixels, .width = WIDTH, .height = SCROLL_CHAR_HEIGHT };
 
@@ -221,7 +222,8 @@ pub const Demo = struct {
 
         // copy scrolltext to FB
         const fb = &zigos.lfbs[1];
-        @memset(fb.fb[0 .. @as(u32, fb.fb_h) * fb.stride], 0);
+        chisel.init();
+        chisel.fill(fb, 0, 0, @intCast(fb.fb_w), @intCast(fb.fb_h), 0); // CHISEL: the memset was 64,000 bytes of CPU stores
 
         // The big fonts bounce on 0..56 lines.
         if (scroller_period == .big_font or scroller_period == .interlaced_big_font) {
