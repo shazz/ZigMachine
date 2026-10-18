@@ -45,6 +45,8 @@ const A = @import("union_superscroller/assets.zig");
 const Motion = @import("union_superscroller/motion.zig").Motion;
 const compose = @import("union_superscroller/compose.zig");
 const inkmask = @import("union_superscroller/inkmask.zig");
+const layers = @import("union_superscroller/layers.zig");
+const rowpal = @import("union_superscroller/rowpal.zig");
 const hub_note = @import("union_demo/hub_note.zig").HubNote("union_superscroller");
 const TEXT_LEN = @import("union_superscroller/motion.zig").TEXT.len;
 
@@ -61,8 +63,11 @@ const HUB = "union_demo";
 // 140,601 bytes at 5 a line (1,400 a frame) depack in 101 frames; the remake's
 // panel lands its 437th letter after 94 (13,130 ms at 140 ms a frame).
 const DEPACK_BYTES_PER_LINE = 5;
+// The layer tables (layers.zig) build over the loading frames as their bytes
+// arrive (the overlay's rows from frame 46 on, the colours at frame 92 of 101),
+// this much a frame at most: 9 rows arrive a frame.
+const TABLE_UNITS_PER_FRAME = 12;
 const K_ESC: u32 = 0xE012;
-
 // Module scope: the runner needs a stable address.
 var depack: DepackFx = undefined;
 
@@ -77,6 +82,12 @@ pub const Demo = struct {
     palette: *compose.Palette,
     /// The row's colour-key cache (inkmask.zig): on zg.mem, not in the cart's data.
     cache: *inkmask.KeyCache,
+    /// The frame-independent entry images and colour tables (layers.zig), on zg.mem.
+    tables: *layers.Tables,
+    /// The per-row descriptors the HBL reads (rowpal.zig).
+    rows: rowpal.Ctx,
+    blitter: zg.Blitter,
+    tables_built: layers.Progress,
     /// The hub's note for this door, peeked at init; null: none, or another door's.
     note: ?hub_note.Note,
     leave: bool,
@@ -96,6 +107,11 @@ pub const Demo = struct {
         self.cache = &cache[0];
         self.cache.init();
         self.palette.init();
+        const tables = zg.mem.alloc(layers.Tables, 1) orelse return self.abandon("no free RAM for the layer tables");
+        self.tables = &tables[0];
+        self.tables.builder = .{};
+        self.tables_built = .more;
+        self.blitter.init();
         if (!depack.start(zigos, packed_assets.union_superscroller, self.buf, DEPACK_BYTES_PER_LINE))
             return self.abandon("packed image unreadable");
         self.phase = .loading;
@@ -104,7 +120,7 @@ pub const Demo = struct {
     pub fn update(self: *Demo, zigos: *ZigOS, dt: f32) void {
         _ = dt;
         if (self.phase == .loading) switch (depack.frame(zigos)) {
-            .more => return,
+            .more => return self.buildTables(TABLE_UNITS_PER_FRAME),
             .done => self.start(zigos), // and this frame is the screen's first
             .failed => return self.abandon("depack failed"),
         };
@@ -115,7 +131,16 @@ pub const Demo = struct {
     pub fn render(self: *Demo, zigos: *ZigOS, dt: f32) void {
         _ = dt;
         if (self.phase != .running) return;
-        compose.drawFrame(zg.blit.Dst.plane(&zigos.lfbs[0]), &self.images, self.cache, &self.motion, self.palette);
+        compose.drawFrame(.{
+            .fb = &zigos.lfbs[0],
+            .blitter = &self.blitter,
+            .img = &self.images,
+            .tables = self.tables,
+            .desc = &self.rows.desc,
+            .cache = self.cache,
+            .m = &self.motion,
+            .pal = self.palette,
+        });
     }
 
     /// Host input ids: 5 fire, 6 back.
@@ -139,12 +164,21 @@ pub const Demo = struct {
         return HUB;
     }
 
+    /// Some of the layer tables, as the bytes they read are depacked.
+    fn buildTables(self: *Demo, units: usize) void {
+        if (self.tables_built != .more) return;
+        self.images = A.Images.split(self.buf); // views; the colours it reads are final by the time F needs them
+        self.tables_built = self.tables.builder.step(self.tables, &self.images, depack.stream.written(), units);
+    }
+
     fn start(self: *Demo, zigos: *ZigOS) void {
-        self.images = A.Images.split(self.buf);
+        self.buildTables(layers.UNITS); // whatever the loading frames left
+        if (self.tables_built != .done) return self.abandon("a row holds more keys than the layer tables take");
+        self.rows = .{ .desc = @splat(.{}), .tables = self.tables, .pal = self.palette, .img = &self.images, .motion = &self.motion };
         const fb = &zigos.lfbs[0];
         fb.is_enabled = true;
         fb.setPaletteEntry(0, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
-        self.palette.install(fb);
+        rowpal.install(&self.rows, fb);
         zg.requestSongTune(MUSIC, MUSIC_TUNE); // onResetEvent
         self.phase = .running;
     }

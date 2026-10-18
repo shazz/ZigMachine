@@ -67,9 +67,12 @@ static void effects(struct w2c_env* e) {
     audio_effects(fx, k);
 }
 
+static uint32_t g_pending_rate; /* a stream start made before the players were up (audio_live) */
+
 int audio_bridge(struct w2c_env* e) {
     const host_song_bridge* b = &host_songs;
     int started = 0;
+    if (g_pending_rate) audio_stream_start(e, (float)g_pending_rate);
     if (b->poll && b->poll(HOST_CART(e))) {
         char name[NAME_MAX + 1];
         cart_name(e, b->name_ptr(HOST_CART(e)), b->name_len(HOST_CART(e)), name);
@@ -88,11 +91,14 @@ int audio_bridge(struct w2c_env* e) {
 void audio_stream_start(struct w2c_env* e, float rate) {
     (void)e;
     audio_fx f = {.op = FX_STREAM_START, .rate = rate > 0.0f ? (uint32_t)(rate + 0.5f) : 0u};
-    audio_effects(&f, 1);
+    /* The stream cart starts in its init, before the players (main.c, bmain.c boot them after the
+     * cart): held until they are, as the browser holds it until its AudioContext is (streamRate). */
+    g_pending_rate = audio_live() ? 0u : f.rate;
+    if (audio_live()) audio_effects(&f, 1);
 }
 
 void audio_stream_feed(struct w2c_env* e, uint32_t ptr, uint32_t len) {
-    if (!len) return;
+    if (!len || !audio_live()) return; /* nothing plays yet: the browser drops it too */
     if ((uint64_t)ptr + len > e->memory.size) {
         printf("ZM FX audioFeed out of the cart's memory\n");
         return;
@@ -103,6 +109,8 @@ void audio_stream_feed(struct w2c_env* e, uint32_t ptr, uint32_t len) {
 
 void audio_stream_stop(struct w2c_env* e) {
     (void)e;
+    g_pending_rate = 0;
+    if (!audio_live()) return;
     audio_fx f = {.op = FX_STREAM_STOP};
     audio_effects(&f, 1);
 }

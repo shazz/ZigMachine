@@ -22,6 +22,7 @@ static void drain_log(void);
 #define READY_WAIT 200000000u /* sys clocks: the sound CPU's boot is its wasm2c instantiation */
 
 void baudio_report_log(void) { drain_log(); }
+int audio_live(void) { return baudio.on; }
 
 static void drain_log(void) {
     uint32_t end = SND_REG(SND_S2C + S_LOG);

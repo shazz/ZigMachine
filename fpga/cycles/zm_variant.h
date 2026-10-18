@@ -51,4 +51,17 @@ static inline void* zm_memcpy(void* d, const void* s, size_t n) {
 #define wasm_rt_memcpy zm_memcpy
 #endif
 
+/* ZM_LOCAL_BASE: address wasm memory from the function-local copy of its base.
+ * wasm2c binds `wasm_rt_local_memory_base` at the top of every function but only
+ * USES it with WASM_RT_USE_MMAP (a reserved mapping never moves); with MMAP off it
+ * addresses every access as instance->w2c_env_memory->data[addr], and GCC must
+ * reload the two pointers after every store (a store through uint8_t* may alias
+ * them): 2 loads + 1 add per wasm access. Here the memory never moves either:
+ * every module's memory has initial == max, so memory.grow cannot succeed and the
+ * base taken at function entry stays valid for the whole call. */
+#ifdef ZM_LOCAL_BASE
+#undef MEM_ADDR_MEMOP
+#define MEM_ADDR_MEMOP(mem, addr, n) (&wasm_rt_local_memory_base[(addr)])
+#endif
+
 #endif
