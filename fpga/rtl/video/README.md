@@ -96,6 +96,18 @@ copy-back of the write-backs is four stores: an FSM would duplicate
 `renderPlane`'s mode dispatch in RTL and still have to interrupt the CPU per
 line. It costs the CPU the waits (below).
 
+**Dirty lines** (`fpga/cycles/vplan.h`, `vdirty.h`; board firmware only, not the
+video sim's `vmain.c`). A line whose inputs have not changed since the back
+picture was built (two frames ago: background or BEAM, enabled planes, each
+plane's geometry and palette, and the bytes each line fetches) is not passed
+over at all: its picture row already holds what a full composite would paint.
+The frame's first layer asks line by line, comparing line y+1's plane rows with
+their copies while line y's pass runs. A plane HBL handler's covered lines are
+always composited, and a handler below another plane, or an overscan plane,
+composites the whole frame. Proven natively against a full composite every
+frame on every cart (`fpga/tests/test_vdirty.py`); `ZM_VSEQ_CHECK=1` checks it
+on the RTL in the board-SoC sim.
+
 **The drain rule (Fable #5).** A handler's stores reach the compositor when they
 leave the CPU's posted-write buffer, not when the handler returns. Before every
 command the sequencer waits for `drained` (the snoop's queue and the store
