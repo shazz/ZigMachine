@@ -77,6 +77,9 @@ void audio_pcm_forget(void);
 void audio_stream_start(struct w2c_env* e, float rate);
 void audio_stream_feed(struct w2c_env* e, uint32_t ptr, uint32_t len);
 void audio_stream_stop(struct w2c_env* e);
+/* The players are up (host/audio.c: instantiated; cycles/bsound.c: BARD answered). A cart may
+ * start its stream in its init, before them: audio_bridge.c holds that start until they are. */
+int audio_live(void);
 
 /* Render `n` samples (any n: chunks of MAX_FRAMES), advancing zma_ts() by n. */
 void audio_render(uint32_t n);
