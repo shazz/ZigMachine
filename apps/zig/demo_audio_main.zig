@@ -153,7 +153,7 @@ export fn audioSndhCall(d0: u32) u32 {
     return @intFromBool(ok);
 }
 /// Which native replay plays the loaded SNDH instead of Musashi, or why none
-/// does (players/digi.zig Status: 0 Musashi, 1 Beat Dis, 2-3 near misses, 4 off).
+/// does (players/digi.zig Status: 0 Musashi, 1 Beat Dis, 2-3 near misses, 4 off, 5 Monty, 6 Wow Scroller).
 export fn audioSndhNative() u32 {
     return @intFromEnum(players.sndh.native.status);
 }

@@ -39,7 +39,9 @@ const ALLOW = {
     // +4 B (2026-10-15): the FastTracker 2 player's zero-initialised counters
     // (demo_audio_xm.zig, players/xm.zig). Its 16 KB of mixer buffers live in song
     // RAM (xm_chip.zig BUF_OFFSET), not in this segment.
-    "demo-audio.wasm": 590880,
+    // +12 B (2026-10-17): the Monty replay's d7, mutant and unknown-command count
+    // (digi_monty_fx.zig, _seq.zig, _cmd.zig); its state lives in the 68000's RAM.
+    "demo-audio.wasm": 590892,
 };
 
 function uleb(b, p) {

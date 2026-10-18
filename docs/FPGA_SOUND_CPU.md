@@ -271,6 +271,90 @@ to 1, 2 and 3.
 - **On the board too** (since 2026-10-10): the song bridge carries the effects queue, so keys 1-3 switch the
   mode there as in the browser. See "Effects".
 
+### Monty (Mad Max, Timer D digidrums)
+
+TEX NEO SHOW plays Mad Max's "Auf Weidersehen Monty - digidrums" (1987, ripped by Mr Styckx, converted by
+Grazey). Its driver starts MFP Timer D through XBIOS Xbtimer at 2457600 / 4 / 58 = **10,593 Hz from the
+first frame**: about 176 interrupts per 60 Hz frame, drum or no drum. On Musashi that put BARD over its
+budget, and the music played at about half speed on the board. Only this SNDH of the 5,897 in the
+collection has the driver, so it is a native replay of its own (`libs/zig/players/digi_monty*.zig`), held to
+Musashi like Beat Dis's.
+
+**The rip** (offsets are the file's; the driver was assembled at $46A86 = file $40E, its song at
+$60000 = $3A9E, its drums at $40500 = $F9E; `digi_monty_map.zig` names every state byte):
+
+| Where | What |
+|---|---|
+| $86 INIT | first time only (word $AA): save 19 MFP bytes and 5 vectors at $1CA ($146), relocate ($1FC); then the driver's INIT $40E |
+| $1FC | every long of the driver (word-stepped, to $F9E inclusive) in $46A86..$47616 moves; NOPs at driver +$500/$502/$572 (play's SR writes) and +$B48/$B4C (a `move.b #2,$484`); 20 drum pointers, 5 song pointers and every song long in $60000..$60D2A move |
+| $40E | the drum's end pointer cleared, Xbtimer(D, /4, 58, $44C), the song's setup $EDA (the YM's 13 registers zeroed and written, four voices of $40 bytes at $70C) |
+| $44C Timer D | if a drum plays (word $4D4 not $FFFF, pointer $448 not at end $444): one byte s onto volume C as `(s >> 1) + 8` (the samples are 4-bit); else it marks the drum idle. Software end of interrupt on ISRB |
+| $320 PLAY | every SPEED frames each voice reads a row ($B82: notes, commands $80..$93 through the table at $984, $B8+ speed, $C0+ arpeggio, $D0+ envelope, $E0+ length); every frame each voice's period, vibrato, slide, envelope and mixer ($CE6), then registers 12 down to 0, register 10 left out once command $92 gives channel C to the drums |
+| $9D4 (command $91 n) | drum n: start and end from the tables at $556 / $57E |
+| $A4 EXIT | the MFP and vectors put back, two writes to the FDC's $FF8606 / $FF8604 |
+
+The drums own channel C from frame ~2,305 (38.4 s); the song wraps at frame ~21,889 (6 min 5 s). Every row
+of the song uses only commands the table covers.
+
+**The proof:**
+- `fpga/tests/test_sndh_monty.py`: the audio core's writes, a digest a frame, native = Musashi over
+  23,000 frames (past the wrap, drums included), across a `sndhCall` and across mode switches 1/2 mid-drum.
+  Mutant 3 (volume C written over the drums) must fail; one byte changed in the driver plays on Musashi; the
+  board's queue stays under its depth at the general 4-frame lead.
+- `apps/monty_native_check.mjs` (gate `tex_neoshow_music`, and its `--break`): in the browser's own modules,
+  native = 68000 bit for bit over 50 s of samples, and 2-1-2-1-2 switching changes no sample. So the browser's
+  output is unchanged.
+- Mode 3 (PCM) has no Monty path: asked for it, the player answers 2.
+
+The movem save of the drum trigger ($516) holds the 68000's d7, which only goes back into a register: the
+native replay stores 0 above its low byte. Nothing reads it.
+
+**Cost on BARD** (`make snd-bench SONG=auf_weidersehen_monty_digi.sndh`, soc_hp_snd, 8 frames from the start,
+before the drums):
+
+| Monty | Mc per 60 Hz frame | of 1.67 Mc |
+|---|---|---|
+| Musashi (before) | 3.35-3.86, about 3.61 | 216 % |
+| **native** | **0.41-0.47, about 0.44** | **26 %** |
+
+No resync and no full queue. On x86 (the oracle, 20,000 frames) it went from 362 to 141 µs per frame; the
+host's software YM is most of what remains. Once the drums play, each interrupt does a few more bus accesses.
+The sim cannot reach frame 2,305, so that case was not measured on BARD.
+
+### Wow Scroller (MAN Cool, Timer A digi)
+
+The Union Demo's TCB2 WOW!-SCROLLER plays `union/wow_scroller.sndh`: Timer A at 2457600 / 4 / 81 = 7,585 Hz,
+about 126 interrupts per 60 Hz frame. The board measured it at 125 % of BARD (the OSD page). It is Beat Dis's
+sibling, also converted by Grazey: one byte per interrupt through **the same volume table**, but indexed by the
+raw byte (no `addi.b #$80`) and written with `movep.l` + `movep.w` (registers 8 and 9 through the PSG's
+$8804/$8806 mirrors, then 10). Its 15 rows (start, length) at $B78 become a playlist at $AF8, which the 50 Hz
+play moves along once the pointer is past the segment's end (the same overshoot as Beat Dis). Its init looks
+up the `_MCH` cookie and picks the handler with `cmpa.w #3,a0`, which compares the word's **address**, so the
+choice is always $202. `libs/zig/players/digi_wow.zig` is the native replay, Status 6.
+
+Mode 3 now works for any byte-per-tick driver (`digi.Pcm`, `sndh_pcm.zig`). Wow's bytes are Beat Dis's
+(unsigned, inverted), so the same `linear()` and the same 129/256 level apply. The TCB2 screen binds keys
+1/2/3 to the modes, as BEAT DIS does. The default is 2, so the browser's output is unchanged.
+
+**The proof:** `fpga/tests/test_sndh_wow.py`:
+- native = Musashi over 4,500 frames (the playlist wraps at about 2,005), across a `sndhCall` and 1/2 switches;
+- mode 3 differs only while it is on, follows the YM path, and the raw bytes do not;
+- the queue holds;
+- mutant 4 (Beat Dis's handler on Wow's bytes) fails.
+
+`apps/wow_native_check.mjs` (gate `union_superscroller_music`, with `--break`) checks the browser's modules:
+native = 68000 bit for bit over 40 s, and mode 3 correlates at 0.95 and hands back on the same sample.
+
+**Cost on BARD** (`make snd-bench SONG=union/wow_scroller.sndh [SND_MODE=3]`, soc_hp_snd, 8 frames):
+
+| Wow Scroller | Mc per 60 Hz frame | of 1.67 Mc |
+|---|---|---|
+| Musashi (before) | 2.65-2.69 | 160 % (the board's OSD showed 125 %) |
+| **native, mode 2** | **0.48-0.49** | **29 %** |
+| **native, mode 3** (PCM) | **0.24-0.25** | **15 %** |
+
+No resync and no full queue in any of the three.
+
 ## The gap, and the next lever
 
 The other 10 tunes with the same handler (Robocop, Sidewinder, Joe Blade 2, Dominator, Laser Dance, Tonic Tile,
