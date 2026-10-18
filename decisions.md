@@ -937,7 +937,7 @@ ABI rather than a Zig API, apps in any language sit on it.
 
 ## 2026-10-17 — `hostMicros` may pace a cart's audio feed (amends 2026-10-10)
 
-**Status:** accepted (amends "`hostMicros`: a host clock import, for benchmarks only"), pending Matt's review
+**Status:** accepted by Matt 2026-10-17 (amends "`hostMicros`: a host clock import, for benchmarks only"); alternatives to revisit are on the roadmap
 **Context:** ST Replay's INTERNAL output feeds the stream ring from the cart every frame (`apps/zig/scenes/st_replay_play.zig`). The speaker plays in real time, so the feed must follow real time. In the browser `dt` is real; on the board every host passes a constant 16.6 ms, and ST Replay runs ~15 fps there (hp_sim: 6.74 Mcycles a frame at 100 MHz). Paced by `dt`, the cart hands over a quarter of what the ring plays and the replay is mostly stale bytes. The 2026-10-10 entry forbids `hostMicros` for pacing.
 **Decision:** A cart may pace an AUDIO feed (bytes handed to the speaker, and a playhead that follows them) by `hostMicros` when it answers non-zero, and falls back to `dt` when it answers 0. Animation and choreography stay frame-locked, as before.
 **Alternatives considered:**
