@@ -3,6 +3,7 @@
 // (screen.js:143-157, 341) and the three balls that jump when a YM voice's
 // volume changes (the "bad volume equalizer", screen.js:163-176, 343-345).
 // --------------------------------------------------------------------------
+const std = @import("std");
 const zg = @import("zigos");
 const blit = zg.blit;
 const A = @import("assets.zig");
@@ -69,13 +70,34 @@ const FLOOR_Y = 192 / 2;
 const BALLS_X = 160 / 2; // balls at x 160, 256, 352: one ball width apart
 const BALLS_Y = 140 / 2;
 const LAST_FRAME = 15;
+/// The logo lives in rows 0..64, the floor and balls in 70..126 and the two bands
+/// in BOTTOM_Y.. (assets.zig): three windows that do not overlap, so each is
+/// cleared and redrawn only when what it shows has changed (the ST's "only
+/// modify what changes": the logo holds 135 frames, the balls follow the music).
+const SPLIT = 68;
 
-pub fn draw(dst: blit.Dst, img: *const A.Images, logo: *const Logo, voices: *const Voices) void {
-    blit.blit(dst, img.floor, null, FLOOR_X, FLOOR_Y, 0, .copy);
-    stretch.stretchY(dst, img.logo(logo.tile), 0, Logo.CENTRE_Q16, logo.height, null, .copy);
-    for (voices.level, 0..) |level, k| {
-        const frame: usize = LAST_FRAME - level;
-        const part = blit.Rect{ .x = frame * A.BALL_W, .y = 0, .w = A.BALL_W, .h = A.BALL_H };
-        blit.blit(dst, img.balls, part, @intCast(BALLS_X + k * A.BALL_W), BALLS_Y, 0, .copy);
+/// What each window was last painted from; null until painted.
+pub const Painted = struct {
+    logo: ?struct { height: f64, tile: u1 } = null,
+    levels: ?[3]u8 = null,
+};
+
+pub fn draw(dst: blit.Dst, img: *const A.Images, logo: *const Logo, voices: *const Voices, painted: *Painted) void {
+    const top = dst.window(0, 0, dst.w, SPLIT);
+    if (painted.logo == null or painted.logo.?.height != logo.height or painted.logo.?.tile != logo.tile) {
+        top.fill(0, 0, top.w, top.h, A.BLACK); // maincanvas.fill('#000000')
+        stretch.stretchY(top, img.logo(logo.tile), 0, Logo.CENTRE_Q16, logo.height, null, .copy);
+        painted.logo = .{ .height = logo.height, .tile = logo.tile };
+    }
+    const mid = dst.window(0, SPLIT, dst.w, A.BOTTOM_Y - SPLIT);
+    if (painted.levels == null or !std.mem.eql(u8, &painted.levels.?, &voices.level)) {
+        mid.fill(0, 0, mid.w, mid.h, A.BLACK);
+        blit.blit(mid, img.floor, null, FLOOR_X, FLOOR_Y - SPLIT, 0, .copy);
+        for (voices.level, 0..) |level, k| {
+            const frame: usize = LAST_FRAME - level;
+            const part = blit.Rect{ .x = frame * A.BALL_W, .y = 0, .w = A.BALL_W, .h = A.BALL_H };
+            blit.blit(mid, img.balls, part, @intCast(BALLS_X + k * A.BALL_W), BALLS_Y - SPLIT, 0, .copy);
+        }
+        painted.levels = voices.level;
     }
 }

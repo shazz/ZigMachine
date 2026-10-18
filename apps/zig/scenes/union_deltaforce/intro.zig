@@ -121,7 +121,7 @@ pub const Intro = struct {
         }
         var sweep = Sweep{ .wave = Wave.init(self.drawn_wave) };
         band.compose(&sweep, img.gold, gold_y);
-        band.draw(dst, @divFloor(self.pos, 2), CENTRE_Q16, @cos(twist));
+        band.draw(dst, @divFloor(self.pos, 2), CENTRE_Q16 - @as(i32, A.BOTTOM_Y) * 65536, @cos(twist)); // dst is the bottom window
     }
 };
 
