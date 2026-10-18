@@ -41,10 +41,22 @@ comptime {
 /// looks at its destination byte (it is 0 otherwise). Inline, so the picks and
 /// their ctx fold into the caller's loop and stay in registers.
 pub inline fn row(out: []u8, in: []const u8, ctx: anytype, comptime pick: anytype, comptime reads_dst: bool) void {
+    if (out.len < MIN_WORDS_ROW or overlaps(out, in)) return bytes(out, in, true, 0, out.len, ctx, pick, reads_dst);
+    words(out, in, true, ctx, pick, reads_dst);
+}
+
+/// row() with no source: pick makes each pixel from its ctx and column alone
+/// (its source byte is 0). For rows assembled from several sources, e.g. a
+/// line of text glyph after glyph.
+pub inline fn gen(out: []u8, ctx: anytype, comptime pick: anytype) void {
+    if (out.len < MIN_WORDS_ROW) return bytes(out, out, false, 0, out.len, ctx, pick, false);
+    words(out, out, false, ctx, pick, false);
+}
+
+inline fn words(out: []u8, in: []const u8, comptime has_src: bool, ctx: anytype, comptime pick: anytype, comptime reads_dst: bool) void {
     const n = out.len;
-    if (n < MIN_WORDS_ROW or overlaps(out, in)) return bytes(out, in, 0, n, ctx, pick, reads_dst);
     const head = (4 -% @intFromPtr(out.ptr)) & 3;
-    bytes(out, in, 0, head, ctx, pick, reads_dst);
+    bytes(out, in, has_src, 0, head, ctx, pick, reads_dst);
     var i: usize = head;
     while (i + 4 <= n) : (i += 4) {
         const wp: *u32 = @ptrCast(@alignCast(out.ptr + i));
@@ -53,7 +65,7 @@ pub inline fn row(out: []u8, in: []const u8, ctx: anytype, comptime pick: anytyp
         var m: u32 = 0;
         inline for (0..4) |b| {
             const d: u8 = if (reads_dst) @truncate(old >> (8 * b)) else 0;
-            const r: Px = pick(ctx, in[i + b], d, i + b);
+            const r: Px = pick(ctx, if (has_src) in[i + b] else 0, d, i + b);
             nw |= (r & 0xFF) << (8 * b); // skip is 0: adds nothing
             m |= ((r >> 8) * 0xFF) << (8 * b);
         }
@@ -64,13 +76,13 @@ pub inline fn row(out: []u8, in: []const u8, ctx: anytype, comptime pick: anytyp
             wp.* = (cur & ~m) | nw;
         }
     }
-    bytes(out, in, i, n, ctx, pick, reads_dst);
+    bytes(out, in, has_src, i, n, ctx, pick, reads_dst);
 }
 
-inline fn bytes(out: []u8, in: []const u8, from: usize, to: usize, ctx: anytype, comptime pick: anytype, comptime reads_dst: bool) void {
+inline fn bytes(out: []u8, in: []const u8, comptime has_src: bool, from: usize, to: usize, ctx: anytype, comptime pick: anytype, comptime reads_dst: bool) void {
     var i = from;
     while (i < to) : (i += 1) {
-        const r: Px = pick(ctx, in[i], if (reads_dst) out[i] else 0, i);
+        const r: Px = pick(ctx, if (has_src) in[i] else 0, if (reads_dst) out[i] else 0, i);
         if (r != skip) out[i] = @truncate(r);
     }
 }
