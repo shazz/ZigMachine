@@ -88,8 +88,9 @@ export class Waste {
 
     blit(profiles, b) {
         const P = profiles[b.mod], k = `${P?.tag ?? "?"}:${b.site}`;
-        const s = this.w.blits.get(k) ?? { mod: P?.tag ?? "?", site: b.site, fi: P?.plan.blits[b.site]?.fi ?? -1, ops: 0, tiny: 0, bytes: 0 };
-        s.ops++; s.bytes += b.bytes; s.tiny += b.bytes < TINY_BLIT;
+        const s = this.w.blits.get(k) ?? { mod: P?.tag ?? "?", site: b.site, fi: P?.plan.blits[b.site]?.fi ?? -1, ops: 0, tiny: 0, bytes: 0, tinyBytes: 0 };
+        s.ops++; s.bytes += b.bytes;
+        if (b.bytes < TINY_BLIT) { s.tiny++; s.tinyBytes += b.bytes; }
         this.w.blits.set(k, s);
     }
 }
