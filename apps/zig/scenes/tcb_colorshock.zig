@@ -272,7 +272,7 @@ pub const Demo = struct {
     pub fn render(self: *Demo, zigos: *ZigOS, dt: f32) void {
         _ = dt;
         const ink: *LogicalFB = &zigos.lfbs[1];
-        clearStrip(ink, self.erase_y);
+        clearStale(ink, self.erase_y, self.strip_y);
 
         // The original's order: the glyphs into the strip, then scroll_acc over
         // them. The strip clips at its own 300-wide edges, so a glyph leaving it
@@ -302,13 +302,17 @@ fn installRowPalette(bg: *LogicalFB, row: usize) void {
 }
 
 // Erase where the strip was — the exact band drawn last frame, so nothing ever
-// trails. The logo sits at plane rows 49..81 and the strip can only reach rows
+// trails — except the rows the new band covers: its glyphs sit edge to edge over
+// the whole 300 columns, zero texels included, so they overwrite those anyway.
+// The logo sits at plane rows 49..81 and the strip can only reach rows
 // 85..207 (movescroll's even entries are 91..283, halved, +OY, +STRIP_H), so the
 // logo is never touched and never needs redrawing.
-fn clearStrip(ink: *LogicalFB, y: u16) void {
+fn clearStale(ink: *LogicalFB, old_y: u16, new_y: u16) void {
     var row: u16 = 0;
     while (row < STRIP_H) : (row += 1) {
-        const at = @as(usize, y + row) * zg.PHYSICAL_WIDTH + STRIP_XU;
+        const y = old_y + row;
+        if (y >= new_y and y < new_y + STRIP_H) continue;
+        const at = @as(usize, y) * zg.PHYSICAL_WIDTH + STRIP_XU;
         @memset(ink.fb[at..][0..STRIP_WU], 0);
     }
 }
@@ -346,9 +350,7 @@ fn drawGlyph(ink: *LogicalFB, glyph: u8, x: i32, strip_y: u16) void {
     while (gy < GLYPH_H) : (gy += 1) {
         const src = (tile_y + gy) * FONT_SHEET_W + tile_x;
         const dst = @as(usize, strip_y + gy) * zg.PHYSICAL_WIDTH + STRIP_XU;
-        var gx: i32 = from;
-        while (gx < to) : (gx += 1) {
-            ink.fb[dst + @as(usize, @intCast(x + gx))] = font_b[src + @as(usize, @intCast(gx))];
-        }
+        const n: usize = @intCast(to - from);
+        @memcpy(ink.fb[dst + @as(usize, @intCast(x + from)) ..][0..n], font_b[src + @as(usize, @intCast(from)) ..][0..n]);
     }
 }
