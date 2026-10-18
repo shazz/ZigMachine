@@ -84,33 +84,51 @@ pub fn stripFill(scr: *[BYTES]u8) void {
 // The Shifter.
 // --------------------------------------------------------------------------
 
-/// One plane byte -> eight pixels, one byte lane each, MSB = leftmost pixel.
-/// Shifting the result left by p puts the bit at plane p's weight.
-const SPREAD: [256]u64 = blk: {
+/// One plane byte -> eight pixels, one byte lane each, MSB = leftmost pixel:
+/// SPREAD_LO holds pixels 0..3 (lowest lane = leftmost), SPREAD_HI pixels 4..7.
+/// Shifting the result left by p puts the bit at plane p's weight. Two u32
+/// tables, not one u64: ZIGGY is rv32, so the u64 form was two-word maths and
+/// byte stores (below).
+const SPREAD_LO: [256]u32 = spreadTable(0);
+const SPREAD_HI: [256]u32 = spreadTable(4);
+
+fn spreadTable(comptime first: usize) [256]u32 {
     @setEvalBranchQuota(4000);
-    var t: [256]u64 = undefined;
+    var t: [256]u32 = undefined;
     for (0..256) |b| {
-        var v: u64 = 0;
-        for (0..8) |k| v |= @as(u64, (b >> (7 - k)) & 1) << (8 * k);
+        var v: u32 = 0;
+        for (0..4) |k| v |= @as(u32, (b >> @intCast(7 - first - k)) & 1) << @intCast(8 * k);
         t[b] = v;
     }
-    break :blk t;
-};
+    return t;
+}
 
 /// The screen at the base register, as the plane's 320x200 palette indices.
+/// 8 pixels are two u32 stores (the u64 `writeInt` on a byte slice compiled to
+/// eight byte stores on the board: 64,000 bus writes a frame for the picture).
 pub fn present(m: *const Machine, fb: *zg.LogicalFB) void {
     for (0..16) |i| fb.palette[i] = stColor(A.paletteWord(m.palette, i));
     const scr = &screens[m.base];
     const pixels = fb.fb[0 .. @as(usize, fb.stride) * LINES];
+    const aligned = @intFromPtr(pixels.ptr) & 3 == 0 and fb.stride & 3 == 0;
     for (0..LINES) |y| {
         const src = scr[y * LINE ..][0..LINE];
         const dst = pixels[y * fb.stride ..][0..zg.WIDTH];
         // Two passes of 8 pixels per group: the high bytes, then the low.
         for (0..LINE / 4) |h| {
             const g = (h >> 1) * 8 + (h & 1);
-            const v = SPREAD[src[g]] | SPREAD[src[g + 2]] << 1 |
-                SPREAD[src[g + 4]] << 2 | SPREAD[src[g + 6]] << 3;
-            std.mem.writeInt(u64, dst[h * 8 ..][0..8], v, .little);
+            const lo = SPREAD_LO[src[g]] | SPREAD_LO[src[g + 2]] << 1 |
+                SPREAD_LO[src[g + 4]] << 2 | SPREAD_LO[src[g + 6]] << 3;
+            const hi = SPREAD_HI[src[g]] | SPREAD_HI[src[g + 2]] << 1 |
+                SPREAD_HI[src[g + 4]] << 2 | SPREAD_HI[src[g + 6]] << 3;
+            if (aligned) {
+                const w: [*]u32 = @ptrCast(@alignCast(dst.ptr));
+                w[h * 2] = lo;
+                w[h * 2 + 1] = hi;
+            } else {
+                std.mem.writeInt(u32, dst[h * 8 ..][0..4], lo, .little);
+                std.mem.writeInt(u32, dst[h * 8 + 4 ..][0..4], hi, .little);
+            }
         }
     }
 }
