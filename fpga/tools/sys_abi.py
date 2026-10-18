@@ -25,7 +25,7 @@ FPGA = Path(__file__).resolve().parent.parent
 ROOT = FPGA.parent
 MANIFEST = FPGA / "cycles/sys_abi.txt"
 sys.path.insert(0, str(FPGA / "tools"))
-from host_bridges import DISK_APP_BRIDGE, INPUT_BRIDGE, SONG_BRIDGE  # after the path insert
+from host_bridges import DISK_APP_BRIDGE, INPUT_BRIDGE, SONG_BRIDGE, STREAM  # after the path insert
 from host_gen import MACHINE_ENV
 from sys_abi_layout import CONSTS, HEADER, RUNTIME, TYPE_SOURCES, TYPES
 from sys_abi_break import run_breaks
@@ -38,7 +38,8 @@ def sig(ret: str, params: list[str]) -> str:
 
 
 def env_entries(root: Path = ROOT) -> dict[str, str]:
-    """name -> 'owner sig' for each env.* a cart can bind: rom.wasm's exports win, as `...rom` last."""
+    """name -> 'owner sig' for each env.* a cart can bind: rom.wasm's exports win, as `...rom` last;
+    then the host's (STREAM), which no module exports."""
     rom, _ = signatures((root / "docs/rom.wasm").read_bytes())
     machine, _ = signatures((root / "docs/machine-video.wasm").read_bytes())
     out = {n: f"machine {sig(*machine[n])}" for n in MACHINE_ENV if n in machine and n not in rom}
@@ -46,6 +47,8 @@ def env_entries(root: Path = ROOT) -> dict[str, str]:
     if missing:
         raise SystemExit(f"sys_abi: machine-video.wasm no longer exports {', '.join(missing)}")
     out.update({n: f"rom {sig(*s)}" for n, s in rom.items()})
+    # The host's own: the stream ring's imports (host/hstream.h), served by the system image (1.1).
+    out.update({n: f"host {sig(r, p)}" for n, (r, p, _) in STREAM.items()})
     return out
 
 
