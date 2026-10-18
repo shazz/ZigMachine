@@ -82,36 +82,91 @@ pub const Runner = struct {
         var g: usize = 4;
         while (g > 0) {
             g -= 1;
+            if (scale == 1.0) { // full speed (the main screen's whole life): the ghost is a ready picture
+                blitFixed(p1, f, g);
+                continue;
+            }
             const cx = CENTER_X + GHOST_CX[g] * scale;
             const z = 1.0 + (GHOST_Z[g] - 1.0) * scale;
-            blitStretch(p1, f, cx, Y0, z, GHOST_BASE + @as(u8, @intCast(g)) * 8);
+            blitStretch(p1, f, cx, Y0, z, g);
         }
         self.blitter.blitImage(p1, X0, Y0, sprites, @intCast(SW), @as(u16, @intCast(f)) * @as(u16, @intCast(FW)), 0, @intCast(FW), @intCast(FH), 0);
     }
 };
 
+// The sprite sheet once per ghost with its colours moved into the ghost's own
+// palette slots (non-zero idx -> base + idx), built at compile time, so a ghost
+// column is a plain keyed CHISEL copy (the CPU loop stored 28 bytes a column,
+// each a blocking DDR write on the board).
+const ghost_sheets: [4][sprites.len]u8 = blk: {
+    @setEvalBranchQuota(100_000);
+    var t: [4][sprites.len]u8 = undefined;
+    for (0..4) |g| for (sprites, 0..) |idx, i| {
+        t[g][i] = if (idx == 0) 0 else GHOST_BASE + @as(u8, @intCast(g)) * 8 + idx;
+    };
+    break :blk t;
+};
+
 // Blit sprite frame `f` centred at x=cx, stretched horizontally by `z` (the
-// ghost speed-streak); non-zero pixel idx -> palette (base + idx).
-fn blitStretch(fb: *LogicalFB, f: usize, cx: f32, y: i16, z: f32, base: u8) void {
+// ghost speed-streak): one source column per destination column, one keyed
+// 1-wide CHISEL blit each, clipped by the machine like the CPU loop was.
+fn blitStretch(fb: *LogicalFB, f: usize, cx: f32, y: i16, z: f32, g: usize) void {
     const pw: i16 = @intCast(fb.fb_w);
-    const ph: i16 = @intCast(fb.fb_h);
     const scaled: f32 = @as(f32, @floatFromInt(FW)) * z;
     const x0: i16 = @intFromFloat(cx - scaled * 0.5);
     const cols: i16 = @intFromFloat(@ceil(scaled));
-    const sx0: usize = f * @as(usize, @intCast(FW));
+    const sx0: u16 = @intCast(f * @as(usize, @intCast(FW)));
     var dc: i16 = 0;
     while (dc < cols) : (dc += 1) {
         const src: usize = @intFromFloat(@as(f32, @floatFromInt(dc)) / z);
         if (src >= @as(usize, @intCast(FW))) break;
         const px = x0 + dc;
         if (px < 0 or px >= pw) continue;
-        var ry: i16 = 0;
-        while (ry < FH) : (ry += 1) {
-            const py = y + ry;
-            if (py < 0 or py >= ph) continue;
-            const idx = sprites[@as(usize, @intCast(ry)) * SW + sx0 + src];
-            if (idx == 0) continue;
-            fb.fb[@as(usize, @intCast(py)) * fb.stride + @as(usize, @intCast(px))] = base + idx;
-        }
+        gpu.putTile(fb, px, y, &ghost_sheets[g], @intCast(SW), sx0 + @as(u16, @intCast(src)), 0, 1, @intCast(FH));
     }
+}
+
+// At full speed (scale 1) every ghost has the same size and place, so each of the 7 sprite frames
+// stretched for each of the 4 ghosts is made ONCE, here at compile time, with blitStretch's own f32
+// arithmetic and column map, and a frame's ghost is one keyed CHISEL copy (the 1-wide column
+// blits above are the fallback while the runner slows down or speeds up). 7 x 288 columns x 28
+// rows = 56 KB of the wasm data segment.
+const FRAMES = 7;
+const FWU: usize = 32; // FW, FH as usize
+const FHU: usize = 28;
+const FIXED_COLS = [4]usize{ ghostCols(0), ghostCols(1), ghostCols(2), ghostCols(3) };
+const FIXED_OFF = [4]usize{ 0, FRAMES * FHU * FIXED_COLS[0], FRAMES * FHU * (FIXED_COLS[0] + FIXED_COLS[1]), FRAMES * FHU * (FIXED_COLS[0] + FIXED_COLS[1] + FIXED_COLS[2]) };
+
+fn zoom(g: usize) f32 {
+    return 1.0 + (GHOST_Z[g] - 1.0) * @as(f32, 1.0);
+}
+fn ghostCols(g: usize) usize {
+    return @intFromFloat(@ceil(@as(f32, @floatFromInt(FWU)) * zoom(g)));
+}
+fn left(g: usize) i16 {
+    const cx = CENTER_X + GHOST_CX[g] * @as(f32, 1.0);
+    return @intFromFloat(cx - @as(f32, @floatFromInt(FWU)) * zoom(g) * 0.5);
+}
+
+/// Ghost g's sheet, FRAMES pictures side by side (row-major, FRAMES * cols wide), 0 where the stretch leaves a gap.
+const fixed_sheet: [FRAMES * FHU * (FIXED_COLS[0] + FIXED_COLS[1] + FIXED_COLS[2] + FIXED_COLS[3])]u8 = blk: {
+    @setEvalBranchQuota(2_000_000);
+    var t = [_]u8{0} ** (FRAMES * FHU * (FIXED_COLS[0] + FIXED_COLS[1] + FIXED_COLS[2] + FIXED_COLS[3]));
+    for (0..4) |g| {
+        const w = FIXED_COLS[g];
+        const z = zoom(g);
+        for (0..FRAMES) |f| for (0..w) |dc| {
+            const src: usize = @intFromFloat(@as(f32, @floatFromInt(dc)) / z);
+            if (src >= FWU) break;
+            for (0..FHU) |r| t[FIXED_OFF[g] + r * FRAMES * w + f * w + dc] = ghost_sheets[g][r * SW + f * FWU + src];
+        };
+    }
+    break :blk t;
+};
+
+fn blitFixed(fb: *LogicalFB, f: usize, g: usize) void {
+    if (f >= FRAMES) return; // nb can read exactly 7: the old code found no sheet column there either
+    const w = FIXED_COLS[g];
+    const img = fixed_sheet[FIXED_OFF[g]..][0 .. FRAMES * FHU * w];
+    gpu.putTile(fb, left(g), Y0, img, @intCast(FRAMES * w), @intCast(f * w), 0, @intCast(w), @intCast(FHU));
 }

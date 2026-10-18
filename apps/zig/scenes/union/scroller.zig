@@ -21,6 +21,7 @@ const LogicalFB = zg.LogicalFB;
 const convertU8ArraytoColors = zg.convertU8ArraytoColors;
 
 const st2 = zg.scrolltext2;
+const sg = @import("scroller_gpu.zig");
 
 const NUM_SLOTS: usize = 14;
 const GLYPH: u16 = 32;
@@ -28,9 +29,11 @@ const STRIP_W: u16 = 400; // == PHYSICAL_WIDTH; the strip spans the full plane
 const STRIP_H: u16 = 32;
 const BASE_Y: i16 = 217; // Codef scrollraster canvas y=424 -> plane y (half)
 const WAVE_AMP: f32 = 10.0; // half of orig 20
-const WAVE_COL: i16 = 3; // half of orig 6px column step
+const WAVE_COL: u16 = 3; // half of orig 6px column step
 const WAVE_INC: f32 = 0.03; // per-column phase step (unchanged, unitless)
 const WAVE_DRIFT: f32 = -0.03; // per-frame phase drift (unchanged)
+const BAND_TOP: i32 = BASE_Y - 10; // BASE_Y - WAVE_AMP
+const BAND_ROWS: i32 = 20 + STRIP_H + 1; // the wave's swing, the strip, and a row for the rounding
 const SCROLL_SPEED: i32 = 3; // half of EFMAIN_SCROLL_SPEED=6
 
 const fontsout = @embedFile("../../assets/screens/union_main/fontsout.raw");
@@ -63,19 +66,17 @@ fn handlerOverscan(fb: *LogicalFB, zigos: *ZigOS, line: u16, col: u16) void {
 
 const ScrollerFx = st2.Scroller(NUM_SLOTS);
 
-/// The flat text band, before the wave bends it: STRIP_H rows of STRIP_W, on
-/// zg.mem. Module scope, not a Scroller field: the hosts reset with
-/// `self.* = .{}` (union_intro.zig, doors.zig), which would clear a pointer
-/// field, and an array field there cost a 12.8 KB default blob per reset site.
-/// Taken once per cart load, however often the main screen is entered.
-var strip: []u8 = &.{};
-
 pub const Scroller = struct {
     fx: ScrollerFx = .{},
     wave_v: f32 = 0,
+    fresh: bool = true, // the plane has not been cleared whole yet
 
     pub fn init(self: *Scroller, zigos: *ZigOS) void {
-        if (strip.len == 0) strip = zg.mem.mustAlloc(u8, @as(usize, STRIP_H) * STRIP_W);
+        // The flat text band, before the wave bends it, lives in a scratch plane (the 4th, never
+        // enabled): a CHISEL blit writes video memory only. Set up again at every entry, like
+        // the planes: the host resets the VRAM pool first.
+        zigos.lfbs[3].setScrollPlane(STRIP_W, STRIP_H);
+        sg.init(fontsin_bits);
         const p2: *LogicalFB = &zigos.lfbs[2];
         p2.is_enabled = true;
         p2.setOverscanBuffer();
@@ -84,6 +85,7 @@ pub const Scroller = struct {
         p2.setPaletteEntry(0, Color{ .r = 0, .g = 0, .b = 0, .a = 0 }); // transparent
 
         self.wave_v = 0;
+        self.fresh = true;
         self.fx.init(.{
             .glyph_w = GLYPH,
             .glyph_h = GLYPH,
@@ -104,11 +106,14 @@ pub const Scroller = struct {
 
     pub fn draw(self: *Scroller, zigos: *ZigOS) void {
         const p2: *LogicalFB = &zigos.lfbs[2];
-        gpu.clear(p2, 0);
+        // The wave puts the strip on rows BASE_Y - amp .. BASE_Y + amp + STRIP_H - 1 and nothing else
+        // is ever drawn on this plane: after the first frame only that band is erased (a CHISEL fill).
+        if (self.fresh) gpu.clear(p2, 0) else gpu.fill(p2, 0, BAND_TOP, @intCast(p2.fb_w), BAND_ROWS, 0);
+        self.fresh = false;
 
-        @memset(strip, 0);
-        self.fx.draw(strip, STRIP_W, STRIP_W);
-
+        const strip = &zigos.lfbs[3];
+        gpu.fill(strip, 0, 0, STRIP_W, STRIP_H, 0);
+        sg.draw(&self.fx, strip, fontsout, rasters);
         compositeSiny(p2, strip, &self.wave_v);
     }
 };
@@ -117,9 +122,15 @@ pub const Scroller = struct {
 // plane, each column group offset vertically by sin(phase)*amp; phase advances
 // per column during the sweep but the *persisted* state only carries the
 // per-frame drift (mirrors Codef's oldvalue+offset reset after the loop).
-fn compositeSiny(p2: *LogicalFB, flat: []const u8, wave_v: *f32) void {
+// One keyed CHISEL copy a group (what zg.wave.siny did through the CPU's byte
+// copies; the same groups, offsets, clip and colour-0 key).
+fn compositeSiny(p2: *LogicalFB, strip: *LogicalFB, wave_v: *f32) void {
     const sum = zg.wave.SineSum(f32, 1){ .amp = .{WAVE_AMP}, .phase = .{wave_v.*}, .inc = .{WAVE_INC}, .rounding = .round };
     var it = sum.sweep(0);
-    zg.wave.siny(zg.blit.Dst.plane(p2), zg.blit.Image.init(flat, STRIP_W), null, 0, BASE_Y, WAVE_COL, &it, 0, .copy);
+    var x: u16 = 0;
+    while (x < STRIP_W) : (x += WAVE_COL) {
+        const off = it.next();
+        sg.group(p2, strip, x, @as(i32, BASE_Y) + off, @min(WAVE_COL, STRIP_W - x));
+    }
     wave_v.* += WAVE_DRIFT;
 }
