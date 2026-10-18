@@ -33,17 +33,27 @@ pub const Blitter = struct {
     }
 
     // --- register writers (region-relative offsets) ---
+    // A register is stored only when it changes: an op sets ~12 of them and a
+    // run of similar ops (bobs, rows of tiles) mostly rewrites the same values,
+    // while on the board every store is a blocking DDR write (~27 cycles) and a
+    // load of the block a cache hit. The block is plain memory everywhere: the
+    // machine reads it at hwBlit(), and on the board CHISEL's copy is fed by
+    // every store to it, synced from memory at boot (fpga/cycles/vseq.c), so a
+    // value already in memory is already in CHISEL. All offsets are aligned.
     inline fn w8(self: *Blitter, off: usize, v: u8) void {
-        @as(*u8, @ptrFromInt(self.base + off)).* = v;
+        const p: *volatile u8 = @ptrFromInt(self.base + off);
+        if (p.* != v) p.* = v;
     }
     inline fn w16(self: *Blitter, off: usize, v: u16) void {
-        std.mem.writeInt(u16, @as(*[2]u8, @ptrFromInt(self.base + off)), v, .little);
+        const p: *volatile u16 = @ptrFromInt(self.base + off);
+        if (p.* != v) p.* = v;
     }
     inline fn wi16(self: *Blitter, off: usize, v: i16) void {
-        std.mem.writeInt(i16, @as(*[2]u8, @ptrFromInt(self.base + off)), v, .little);
+        self.w16(off, @bitCast(v));
     }
     inline fn w32(self: *Blitter, off: usize, v: u32) void {
-        std.mem.writeInt(u32, @as(*[4]u8, @ptrFromInt(self.base + off)), v, .little);
+        const p: *volatile u32 = @ptrFromInt(self.base + off);
+        if (p.* != v) p.* = v;
     }
 
     // Byte offset of a plane's pixel buffer within the video region.

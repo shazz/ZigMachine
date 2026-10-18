@@ -8,7 +8,8 @@
 // before (`pick` sees the same source byte, destination byte and column), but
 // they are gathered four by four and each destination word gets ONE store: a
 // whole word when every byte is drawn, a merge with the bytes already there when
-// some are keyed out, and no store at all when none is drawn. The bytes in
+// some are keyed out, and no store at all when none is drawn or the word
+// already holds what would be stored (a band redrawn in place). The bytes in
 // memory end up exactly what the byte loop left (blit_rows_test.zig compares the
 // two on every alignment and every key pattern).
 //
@@ -69,11 +70,11 @@ inline fn words(out: []u8, in: []const u8, comptime has_src: bool, ctx: anytype,
             nw |= (r & 0xFF) << (8 * b); // skip is 0: adds nothing
             m |= ((r >> 8) * 0xFF) << (8 * b);
         }
-        if (m == 0xFFFF_FFFF) {
-            wp.* = nw;
-        } else if (m != 0) {
+        if (m != 0) {
+            // stored only when it changes: a load hits the cache, a store does not
             const cur: u32 = if (reads_dst) old else wp.*;
-            wp.* = (cur & ~m) | nw;
+            const v = (cur & ~m) | nw;
+            if (v != cur) wp.* = v;
         }
     }
     bytes(out, in, has_src, i, n, ctx, pick, reads_dst);
@@ -83,7 +84,7 @@ inline fn bytes(out: []u8, in: []const u8, comptime has_src: bool, from: usize, 
     var i = from;
     while (i < to) : (i += 1) {
         const r: Px = pick(ctx, if (has_src) in[i] else 0, if (reads_dst) out[i] else 0, i);
-        if (r != skip) out[i] = @truncate(r);
+        if (r != skip and out[i] != @as(u8, @truncate(r))) out[i] = @truncate(r);
     }
 }
 

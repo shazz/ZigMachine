@@ -146,6 +146,7 @@ NATIVE_TESTS="
     libs/zig/effects/charpanel_test.zig
     libs/zig/effects/blit_test.zig
     libs/zig/effects/blit_rows_test.zig
+    libs/zig/effects/chisel_clear_test.zig
     libs/zig/effects/sprite_draw_test.zig
     libs/zig/effects/scrolltext2_test.zig
     libs/zig/effects/parallax_test.zig
@@ -169,6 +170,8 @@ NATIVE_TESTS="
     libs/zig/effects/zig3d_sparse_test.zig
     libs/zig/effects/canvas_poly_test.zig
     libs/zig/effects/canvas_poly_fixed_test.zig
+    libs/zig/effects/canvas_poly_fixed_prev_test.zig
+    libs/zig/effects/span_fill_test.zig
     libs/zig/effects/colour_bank_test.zig
     libs/zig/effects/beam_test.zig
     machine/beam_test.zig

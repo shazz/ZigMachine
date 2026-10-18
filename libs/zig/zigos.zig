@@ -12,6 +12,7 @@
 // --------------------------------------------------------------------------
 const std = @import("std");
 const hw = @import("hardware"); // sealed video ABI header (named module)
+const chisel = @import("chisel.zig");
 
 // --------------------------------------------------------------------------
 // Re-exports so scenes (in the separate `apps` module) can reach the whole open
@@ -687,13 +688,11 @@ pub const LogicalFB = struct {
         }
     }
 
-    // One memset (wasm memory.fill), not a byte loop: the loop reloaded
-    // self.fb for every pixel (the store may alias it) and stored a byte at a
-    // time, about 2 Mc a 64000-pixel plane on ZIGGY; a scene clearing three
-    // planes spent half its frame here.
+    // CHISEL fills (chisel.zig), same bytes as the memset they replace:
+    // on the board a memset is ~60 cycles a word of blocking DDR stores, a
+    // CHISEL fill ~1.85 cycles a byte (64000 bytes: ~1 Mc -> ~0.12 Mc).
     pub fn clearFrameBuffer(self: *LogicalFB, pal_entry: u8) void {
-        const n: u32 = @as(u32, self.fb_h) * @as(u32, self.stride);
-        @memset(self.fb[0..n], pal_entry);
+        chisel.clear(g_base, self.fb, self.stride, self.fb_h, pal_entry);
     }
 
     pub fn setFrameBufferHBLHandler(self: *LogicalFB, position: u16, handler: *const fn (*LogicalFB, *ZigOS, u16, u16) void) void {
@@ -742,6 +741,18 @@ fn blitGlyphs(lfb: *LogicalFB, text: []const u8, x: i16, y: i16, ink: u8, paper:
     glyph_line.draw(.{ .fb = lfb.fb, .stride = lfb.stride, .w = lfb.fb_w, .h = lfb.fb_h }, text, x, y, ink, paper, font, fw, fh, .{ .x0 = clip.x0, .y0 = clip.y0, .x1 = clip.x1, .y1 = clip.y1 });
 }
 
+// blit.Dst.fill's CHISEL path (blit.chisel.fill).
+fn chiselFill(at: [*]u8, stride: usize, w: usize, h: usize, v: u8) bool {
+    if (stride > 0xFFFF or w > 0xFFFF or h > 0xFFFF) return false;
+    return chisel.fillRect(g_base, at, @intCast(stride), @intCast(w), @intCast(h), v);
+}
+
+// blit.blit's copy-ink CHISEL path (blit.chisel.copy).
+fn chiselCopy(at: [*]u8, stride: usize, from: [*]const u8, from_stride: usize, w: usize, h: usize, key: ?u8) bool {
+    if (stride > 0xFFFF or from_stride > 0xFFFF or w > 0xFFFF or h > 0xFFFF) return false;
+    return chisel.copyRect(g_base, at, @intCast(stride), from, @intCast(from_stride), @intCast(w), @intCast(h), key);
+}
+
 pub const ZigOS = struct {
     background_color: Color = Color{ .r = 0, .g = 0, .b = 0, .a = 0 },
     // View onto the shared physical framebuffer. Writing it is the out-of-ABI
@@ -777,6 +788,8 @@ pub const ZigOS = struct {
 
     pub fn init(self: *ZigOS) void {
         g_base = @intCast(hw.hwVideoBase());
+        blit.chisel.fill = chiselFill;
+        blit.chisel.copy = chiselCopy;
         Console.log("ZigOS: video hardware base @ {x}", .{g_base});
 
         self.physical_framebuffer = @ptrFromInt(g_base + hw.OFF_PFB);
