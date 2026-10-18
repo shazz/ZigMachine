@@ -48,7 +48,11 @@ void audio_sndh_call(const char* name, uint32_t d0);
 /* zg.sfxPlay / sfxStop / ymWrite / requestModVolume / requestSndhMode: one entry of the cart's
  * effects queue (libs/zig/sfx_queue.zig Entry), as docs/sealed-loader.js postSfx reads it. A
  * play's PCM is `pcm`, already a pointer this side can read (the cart's memory, bounds-checked). */
-enum { FX_PLAY = 1, FX_STOP = 2, FX_YM = 3, FX_GAIN = 4, FX_SNDH_MODE = 5 };
+enum { FX_PLAY = 1, FX_STOP = 2, FX_YM = 3, FX_GAIN = 4, FX_SNDH_MODE = 5, FX_SAMPLE = 6, FX_SAMPLE_STOP = 7 };
+/* The stream ring's calls (zg.audioStreamStart / audioFeed / audioStreamStop), carried as effects
+ * by this side (audio_bridge.c audio_stream_*): never on the cart's queue, so above its ops.
+ * Start's rate is in `rate` (Hz); a feed's bytes are `pcm`, `len`. */
+enum { FX_STREAM_START = 0x81, FX_STREAM_FEED = 0x82, FX_STREAM_STOP = 0x83 };
 typedef struct {
     uint8_t op, a, b; /* sfx_queue.zig: op; a (loop / loop only / register / mode); b (the YM value) */
     uintptr_t pcm;    /* play: the bytes */
@@ -59,6 +63,20 @@ typedef struct {
 /* The frame's effects, in the cart's order, applied as docs/audio-worklet-sealed.js applies
  * each message: after the frame's song request and sndhCalls (audio_bridge's order). */
 void audio_effects(const audio_fx* fx, uint32_t n);
+
+/* The stream ring (host/audio_pcm.c): a cart's own feed, or a whole sample refilled from here.
+ * audio_pcm_effect applies one FX_SAMPLE* / FX_STREAM_* effect (0 if `fx` is not one);
+ * audio_pcm_refill runs before the players render `n` samples; audio_pcm_forget drops the
+ * sample when a song takes song RAM. */
+int audio_pcm_effect(const audio_fx* fx);
+void audio_pcm_refill(uint32_t n);
+void audio_pcm_forget(void);
+
+/* The cart's stream imports (env.hostAudioStreamStart / hostAudioFeed / hostAudioStreamStop,
+ * host/hstream.h), applied at once as the browser's are: host/audio_bridge.c. */
+void audio_stream_start(struct w2c_env* e, float rate);
+void audio_stream_feed(struct w2c_env* e, uint32_t ptr, uint32_t len);
+void audio_stream_stop(struct w2c_env* e);
 
 /* Render `n` samples (any n: chunks of MAX_FRAMES), advancing zma_ts() by n. */
 void audio_render(uint32_t n);

@@ -5,7 +5,8 @@
 #define CODE(ev) ((ev) & KEY_CODE_MASK)
 
 static int is_arrow(uint32_t c) { return c >= KEY_ARROW_UP && c <= KEY_ARROW_RIGHT; }
-static int is_mod(uint32_t c) { return c >= KEY_CTRL_LEFT && c <= KEY_SHIFT_RIGHT; }
+/* Alt (0xE013) is a modifier too: the browser sends it once a press, never its auto-repeat. */
+static int is_mod(uint32_t c) { return c >= KEY_ALT && c <= KEY_SHIFT_RIGHT; }
 
 /* directionOf(): arrows always; WASD, Enter and Space only when the cart does
  * not own the keyboard. The browser compares evt.key, so 'W' is not 'w'. */

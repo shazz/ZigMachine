@@ -15,6 +15,7 @@ pub const KEY_ENTER = 28;
 pub const KEY_LEFTCTRL = 29;
 pub const KEY_LEFTSHIFT = 42;
 pub const KEY_RIGHTSHIFT = 54;
+pub const KEY_LEFTALT = 56;
 pub const KEY_SPACE = 57;
 pub const KEY_CAPSLOCK = 58;
 pub const KEY_F1 = 59; // F1..F10 = 59..68
@@ -22,6 +23,7 @@ pub const KEY_F11 = 87;
 pub const KEY_F12 = 88;
 pub const KEY_KPENTER = 96;
 pub const KEY_RIGHTCTRL = 97;
+pub const KEY_RIGHTALT = 100;
 pub const KEY_HOME = 102;
 pub const KEY_UP = 103;
 pub const KEY_PAGEUP = 104;
@@ -89,6 +91,7 @@ fn named(code: u16) ?u32 {
         KEY_RIGHTCTRL => map.KEY_CTRL_RIGHT,
         KEY_LEFTSHIFT => map.KEY_SHIFT_LEFT,
         KEY_RIGHTSHIFT => map.KEY_SHIFT_RIGHT,
+        KEY_LEFTALT, KEY_RIGHTALT => map.KEY_ALT, // the browser's evt.key "Alt": one code, either side
         else => null,
     };
 }
@@ -132,6 +135,8 @@ test "named keys use the browser's codes; unknown keys send nothing" {
     try std.testing.expectEqual(@as(?u32, map.KEY_ARROW_LEFT | map.KEY_DOWN), event(KEY_LEFT, 1, &m));
     try std.testing.expectEqual(@as(?u32, 13 | map.KEY_DOWN), event(KEY_KPENTER, 1, &m));
     try std.testing.expectEqual(@as(?u32, map.KEY_SHIFT_RIGHT | map.KEY_DOWN), event(KEY_RIGHTSHIFT, 1, &m));
+    try std.testing.expectEqual(@as(?u32, 0xE013 | map.KEY_DOWN), event(KEY_LEFTALT, 1, &m)); // ST Replay's Alt
+    try std.testing.expectEqual(@as(?u32, 0xE013 | map.KEY_DOWN), event(KEY_RIGHTALT, 1, &m));
     try std.testing.expectEqual(@as(?u32, null), event(KEY_F11, 1, &m)); // the browser has no F11 code
     try std.testing.expectEqual(@as(?u32, null), event(KEY_CAPSLOCK, 1, &m));
     try std.testing.expectEqual(@as(?u32, null), event(240, 1, &m));

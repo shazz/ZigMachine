@@ -97,6 +97,11 @@ $(HCYC)/gen/csr_addr.h: $(SOC_HP)/hp_sim.json build/soc_z7/csr.json tools/cycles
 # hashes compare (apps/zig/scenes/raytrace/bench.zig). Its rate in the sim is cycles/frame.
 MICROS_board := -include bmicros.h
 MICROS_sim   :=
+# The cart's stream imports (zg.audioStreamStart / audioFeed / audioStreamStop) reach the stream
+# ring wherever the players run (host/hstream.h); ZM_AUDIO=0 keeps the stub's no-op.
+STREAM_1   := -include host/hstream.h
+STREAM_snd := -include host/hstream.h
+STREAM_0   :=
 define hp_rules
 # The clock fw.a was built for: rewritten only when ZM_SYS_MHZ changes, so fw.a follows it.
 $(HCYC)/$(1)$(ASUF)$(HSUF)/common/sys_mhz: FORCE
@@ -114,7 +119,7 @@ $(HCYC)/$(1)$(ASUF)$(HSUF)/%/fw.elf: $(CYC)/$(HV)/%/cart.o $(CYC)/$(HV)/common/m
 	rm -f $$(@D)/aud_*.o
 	for s in $(AUD_CART_SRC_$(ZM_AUDIO)) $(HCYC)/songs/$$*.c; do \
 		$(RV_CC) $(HRV_CFLAGS) $(H_$(1)) -I$(HOST)/$$* -c $$$$s -o $$(@D)/aud_$$$$(basename $$$$s .c).o || exit 1; done
-	$(RV_CC) $(HRV_CFLAGS) -I$(HOST)/$$* $(MICROS_$(1)) -c $(HOST)/$$*/env.c -o $$(@D)/env.o
+	$(RV_CC) $(HRV_CFLAGS) -I$(HOST)/$$* $(MICROS_$(1)) $(STREAM_$(ZM_AUDIO)) -c $(HOST)/$$*/env.c -o $$(@D)/env.o
 	$(RV_CC) $(HRV_CFLAGS) -I$(HOST)/$$* -c host/boot.c -o $$(@D)/boot.o
 	$(RV_CC) $(HRV_CFLAGS) -I$(HOST)/$$* -c cycles/vseq.c -o $$(@D)/vseq.o
 	for s in $(HIN_SRC); do $(RV_CC) $(HRV_CFLAGS) $(H_$(1)) -I$(HOST)/$$* -c $$$$s -o $$(@D)/in_$$$$(basename $$$$s .c).o || exit 1; done

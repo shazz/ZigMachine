@@ -14,7 +14,8 @@ pub const View = struct {
     looping: bool,
     marked: bool,
     playing: bool,
-    playhead: f32,
+    external: bool, // Alt: the sample hardware plays it, not the cart CPU
+    playhead: u32, // on the sample view's axis, 0..sample.len
     low: u32,
     high: u32,
     bytes: u32,
@@ -70,11 +71,10 @@ fn statusBar(g: rom.Gui, v: View) void {
         std.fmt.bufPrint(buf[0..12], "LOW : {d:>5}", .{v.low}) catch "LOW :",
         if (v.marked) "MARKED" else "UNMARKED",
         std.fmt.bufPrint(buf[12..26], "SIZE: {d:>7}", .{v.bytes}) catch "SIZE:",
-        // The original toggles this cell to MONITOR while monitoring its audio
-        // INPUT. There is no input here and the Monitor key is gone, so the
-        // source is always the machine itself. The cell stays: the five-field
-        // strip is measured off the real 3.01 screen.
-        "INTERNAL",
+        // The output Alt (ALTernate O/P) selects: INTERNAL, the cart CPU feeding
+        // the speaker itself, or EXTERNAL, the sample hardware playing it on its
+        // own. The five-field strip is measured off the real 3.01 screen.
+        if (v.external) "EXTERNAL" else "INTERNAL",
         std.fmt.bufPrint(buf[26..40], "HIGH: {d:>7}", .{v.high}) catch "HIGH:",
     };
     for (fields, 0..) |f, i| {
@@ -100,7 +100,7 @@ fn waveBox(g: rom.Gui, v: View) void {
     }
     g.fill(c.x, ui.WAVE_MID, @intCast(c.w), 1, ui.RED); // centre line
     if (!v.playing) return;
-    const span = @as(f32, @floatFromInt(v.sample.len));
-    const hx = c.x + @as(i16, @intFromFloat(v.playhead / span * @as(f32, @floatFromInt(c.w))));
+    const span: u32 = @intCast(@max(v.sample.len, 1));
+    const hx = c.x + @as(i16, @intCast(@min(v.playhead, span) * @as(u32, @intCast(c.w)) / span));
     g.fill(hx, c.y, 1, @intCast(c.h), ui.RED); // playhead
 }

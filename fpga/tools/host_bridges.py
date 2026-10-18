@@ -56,3 +56,20 @@ def song_bridge(cart: dict[str, tuple[str, list[str]]]) -> str:
     """host_songs: each export the cart has (with the expected type), else NULL."""
     rows = [f"w2c_cart_{n}" if cart.get(n) == ("u32", p) else "0" for n, p in SONG_BRIDGE]
     return "const host_song_bridge host_songs = {" + ", ".join(rows) + "};\n"
+
+
+# The stream ring's imports (zg.audioStreamStart / audioFeed / audioStreamStop): a hook macro each,
+# a no-op by default as the JS stub; a host with the players (-include host/hstream.h: the board
+# firmware, host_audio) defines them to reach the ring as the browser's loader does.
+STREAM = {
+    "hostAudioStreamStart": ("void", ["f32"], "HOST_AUDIO_STREAM_START"),
+    "hostAudioFeed": ("void", ["u32", "u32"], "HOST_AUDIO_FEED"),
+    "hostAudioStreamStop": ("void", [], "HOST_AUDIO_STREAM_STOP"),
+}
+STREAM_DEFAULTS = """/* Stream hooks: the stub's no-op. host/hstream.h (-include) defines them where the players run. */
+#ifndef HOST_AUDIO_STREAM_START
+#define HOST_AUDIO_STREAM_START(e, rate) ((void)(e), (void)(rate))
+#define HOST_AUDIO_FEED(e, ptr, len) ((void)(e), (void)(ptr), (void)(len))
+#define HOST_AUDIO_STREAM_STOP(e) ((void)(e))
+#endif
+"""

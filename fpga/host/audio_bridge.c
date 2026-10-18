@@ -38,8 +38,9 @@ static void sndh_calls(struct w2c_env* e) {
 
 static uint32_t le32(const uint8_t* p) { return p[0] | p[1] << 8 | (uint32_t)p[2] << 16 | (uint32_t)p[3] << 24; }
 
-/* The effects queue: `n` 16-byte entries (libs/zig/sfx_queue.zig) at sfxEntriesPtr. A play's
- * bytes must lie in the cart's memory (the browser's Uint8Array would throw), else it is dropped. */
+/* The effects queue: `n` 16-byte entries (libs/zig/sfx_queue.zig) at sfxEntriesPtr. A play's or a
+ * sample's bytes must lie in the cart's memory (the browser's Uint8Array would throw), else it is
+ * dropped. */
 static void effects(struct w2c_env* e) {
     const host_song_bridge* b = &host_songs;
     uint32_t n = b->sfx_poll ? b->sfx_poll(HOST_CART(e)) : 0;
@@ -55,11 +56,12 @@ static void effects(struct w2c_env* e) {
         const uint8_t* q = e->memory.data + at + 16u * i;
         audio_fx f = {.op = q[0], .a = q[1], .b = q[2], .len = le32(q + 8), .rate = le32(q + 12)};
         uint32_t ptr = le32(q + 4);
-        if (f.op == FX_PLAY && (uint64_t)ptr + f.len > e->memory.size) {
-            printf("ZM FX sfxPlay out of the cart's memory\n");
+        int bytes = f.op == FX_PLAY || f.op == FX_SAMPLE;
+        if (bytes && (uint64_t)ptr + f.len > e->memory.size) {
+            printf("ZM FX %s out of the cart's memory\n", f.op == FX_PLAY ? "sfxPlay" : "samplePlay");
             continue;
         }
-        if (f.op == FX_PLAY) f.pcm = (uintptr_t)(e->memory.data + ptr);
+        if (bytes) f.pcm = (uintptr_t)(e->memory.data + ptr);
         fx[k++] = f;
     }
     audio_effects(fx, k);
@@ -79,3 +81,28 @@ int audio_bridge(struct w2c_env* e) {
     return started;
 }
 
+
+/* env.hostAudioStreamStart / hostAudioFeed / hostAudioStreamStop (host/hstream.h): applied at once,
+ * mid-frame, as the browser posts them; a feed's bytes are taken now (the cart may reuse its
+ * buffer for the next block in the same frame: apps/zig/scenes/stream.zig does). */
+void audio_stream_start(struct w2c_env* e, float rate) {
+    (void)e;
+    audio_fx f = {.op = FX_STREAM_START, .rate = rate > 0.0f ? (uint32_t)(rate + 0.5f) : 0u};
+    audio_effects(&f, 1);
+}
+
+void audio_stream_feed(struct w2c_env* e, uint32_t ptr, uint32_t len) {
+    if (!len) return;
+    if ((uint64_t)ptr + len > e->memory.size) {
+        printf("ZM FX audioFeed out of the cart's memory\n");
+        return;
+    }
+    audio_fx f = {.op = FX_STREAM_FEED, .pcm = (uintptr_t)(e->memory.data + ptr), .len = len};
+    audio_effects(&f, 1);
+}
+
+void audio_stream_stop(struct w2c_env* e) {
+    (void)e;
+    audio_fx f = {.op = FX_STREAM_STOP};
+    audio_effects(&f, 1);
+}

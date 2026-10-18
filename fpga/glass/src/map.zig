@@ -101,6 +101,7 @@ pub const KEY_DELETE: u32 = 0xE00C;
 pub const KEY_UNDO: u32 = 0xE010;
 pub const KEY_HELP: u32 = 0xE011;
 pub const KEY_ESCAPE: u32 = 0xE012;
+pub const KEY_ALT: u32 = 0xE013; // KEY_CODES.Alt in sealed-loader.js (ST Replay's ALTernate O/P)
 pub const KEY_CTRL_LEFT: u32 = 0xE014; // MOD_CODES in sealed-loader.js
 pub const KEY_SHIFT_LEFT: u32 = 0xE015;
 pub const KEY_CTRL_RIGHT: u32 = 0xE016;

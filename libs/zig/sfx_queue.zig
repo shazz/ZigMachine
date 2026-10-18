@@ -18,14 +18,20 @@
 // stay put until then (an @embedFile does).
 //
 // Each entry is 16 bytes, little-endian (the host reads them with a DataView):
-//   0 op    1 play, 2 stop, 3 ym, 4 gain, 5 sndh mode
-//   1 a     play: 1 = looped; stop: 1 = only a looped effect; ym: register;
+//   0 op    1 play, 2 stop, 3 ym, 4 gain, 5 sndh mode, 6 sample, 7 sample stop
+//   1 a     play, sample: 1 = looped; stop: 1 = only a looped effect; ym: register;
 //           sndh mode: 1 the 68000 on Musashi, 2 native, 3 native with PCM samples
 //   2 b     ym: the value
 //   3 -     0
-//   4 ptr   play: the PCM (signed 8-bit), a cart address
-//   8 len   play: its length in bytes; gain: the MOD's gain x 65536 (0..65536)
-//   12 rate play: the sample rate in Hz
+//   4 ptr   play, sample: the PCM (signed 8-bit), a cart address
+//   8 len   play, sample: its length in bytes; gain: the MOD's gain x 65536 (0..65536)
+//   12 rate play, sample: the sample rate in Hz
+//
+// A SAMPLE (zg.samplePlay) is not an effect over a song: it is the whole PCM
+// handed to the audio side, which plays it on its own (the stream ring, looping
+// or to its end) with no cart in the loop: the sound CPU on the board, the audio
+// thread in the browser. Unlike a play, its bytes are READ WHILE IT PLAYS, so
+// they must stay put until zg.sampleStop or its end.
 //
 // Generic over nothing: plain state, tested natively (sfx_queue_test.zig).
 // --------------------------------------------------------------------------
@@ -37,7 +43,10 @@ pub const PCM_MAX: usize = 64 * 1024;
 pub const RATE_MIN: u32 = 1000;
 pub const RATE_MAX: u32 = 50066;
 
-pub const Op = enum(u8) { play = 1, stop = 2, ym = 3, gain = 4, sndh_mode = 5 };
+/// The largest sample (zg.samplePlay): the cart's whole RAM window.
+pub const SAMPLE_MAX: usize = 2 * 1024 * 1024;
+
+pub const Op = enum(u8) { play = 1, stop = 2, ym = 3, gain = 4, sndh_mode = 5, sample = 6, sample_stop = 7 };
 pub const SNDH_MODES: u8 = 3; // sndh_native.zig Mode: 1..3
 /// A gain of 1.0 on the wire (entry.len).
 pub const GAIN_ONE: u32 = 65536;
@@ -97,6 +106,22 @@ pub const Queue = struct {
     pub fn sndhMode(self: *Queue, mode: u8) bool {
         if (mode < 1 or mode > SNDH_MODES) return self.refuse();
         return self.push(.{ .op = @intFromEnum(Op.sndh_mode), .a = mode });
+    }
+
+    /// Play all of `pcm` on the audio side, from its first byte (zg.samplePlay).
+    pub fn sample(self: *Queue, pcm: []const u8, rate: u32, loop: bool) bool {
+        if (pcm.len == 0 or pcm.len > SAMPLE_MAX or rate < RATE_MIN or rate > RATE_MAX) return self.refuse();
+        return self.push(.{
+            .op = @intFromEnum(Op.sample),
+            .a = @intFromBool(loop),
+            .ptr = @truncate(@intFromPtr(pcm.ptr)),
+            .len = @intCast(pcm.len),
+            .rate = rate,
+        });
+    }
+
+    pub fn sampleStop(self: *Queue) bool {
+        return self.push(.{ .op = @intFromEnum(Op.sample_stop) });
     }
 
     /// The host takes the frame's commands: how many, then entries[0..n].
