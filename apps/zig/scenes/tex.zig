@@ -6,6 +6,7 @@
 const std = @import("std");
 const zg = @import("zigos");
 const fx = @import("turns_fix.zig");
+const cookie = @import("cookie_gpu.zig");
 const convertU8ArraytoColors = zg.convertU8ArraytoColors;
 
 const ZigOS = zg.ZigOS;
@@ -111,10 +112,59 @@ const Letter = struct { x: i32, ch: u8 };
 const Box = struct { x: i32 = 0, y: i32 = 0, w: usize = 0, h: usize = 0 };
 const STAR_NONE: u32 = 0xFFFF_FFFF;
 
-// The font background's rows under the scroller band, as a word-aligned copy so
-// the font mask below ANDs a word at a time (the embedded file is byte-aligned).
+// ONE plane. The screen used to run four (stars, logo and sprites, the red font background, the
+// scroller), and FRESCO paints every enabled plane at ~1.09 Mc a frame. All four are opaque colours
+// over transparent index 0, so one plane drawn in the same order (stars, logo, sprites, background,
+// scroller) shows the same picture. Its palette: slot 0 clear, 1..15 the logo's colours (the logo
+// and sprite pictures keep their own indices), 16+i the background's colour i, 24+i the
+// scroller's colour i, 32/33 the two star greys.
+const SLOT_BACK = 16;
+const SLOT_BLUE = 24;
+const SLOT_STAR = 31; // + the star layer's colour 1 or 2
+const Q_PAL: [256]Color = blk: {
+    var pal = logo_pal;
+    pal[0] = .{ .r = 0, .g = 0, .b = 0, .a = 0 };
+    for (1..8) |i| {
+        pal[SLOT_BACK + i] = back_pal[i];
+        pal[SLOT_BLUE + i] = blue_back_pal[i];
+    }
+    pal[SLOT_STAR + 1] = .{ .r = 0x60, .g = 0x60, .b = 0x60, .a = 255 };
+    pal[SLOT_STAR + 2] = .{ .r = 0xE0, .g = 0xE0, .b = 0xE0, .a = 255 };
+    break :blk pal;
+};
+
+/// The logo with its clear marker (255, transparent in the old logo plane's palette) turned into 0:
+/// a keyed copy then leaves the stars under it, as the plane stacking did.
+const LOGO_Q: [logo_b.len]u8 = blk: {
+    @setEvalBranchQuota(100_000);
+    var t: [logo_b.len]u8 = undefined;
+    for (logo_b, 0..) |v, i| t[i] = if (v == 255) 0 else v;
+    break :blk t;
+};
+
+/// The red font background with its colours moved to their slots (0 stays clear).
+const BACK_Q: [back_b.len]u8 = blk: {
+    @setEvalBranchQuota(100_000);
+    var t: [back_b.len]u8 = undefined;
+    for (back_b, 0..) |v, i| t[i] = if (v == 0) 0 else SLOT_BACK + v;
+    break :blk t;
+};
+
+// The scroller's glyphs are 0 or 255 (fonts.raw), and the old plane ANDed the band with the
+// background's pixels under it: an ink pixel became the BACKGROUND's colour index there, shown
+// in the scroller palette. So an ink pixel is the background band's pixel in the scroller's slot,
+// which is one masked CHISEL copy (the glyph tile the mask, this band the picture). Every
+// background pixel in the band is non-zero, else an ink pixel would have been clear.
 const BAND_PIXELS: usize = @as(usize, WIDTH) * SCROLL_CHAR_H;
-const back_band: [BAND_PIXELS]u8 align(4) = back_b[(SCROLL_POS - BACK_POS) * WIDTH ..][0..BAND_PIXELS].*;
+const BLUE_BAND: [BAND_PIXELS]u8 = blk: {
+    @setEvalBranchQuota(100_000);
+    var t: [BAND_PIXELS]u8 = undefined;
+    for (back_b[(SCROLL_POS - BACK_POS) * WIDTH ..][0..BAND_PIXELS], 0..) |v, i| {
+        if (v == 0) @compileError("the scroller band's background has a clear pixel");
+        t[i] = SLOT_BLUE + v;
+    }
+    break :blk t;
+};
 
 comptime {
     std.debug.assert(SCROLL_TEXT.len >= NB_LETTERS);
@@ -123,9 +173,10 @@ comptime {
 // --------------------------------------------------------------------------
 // Demo
 // --------------------------------------------------------------------------
+var chisel: zg.Blitter = .{}; // every picture of the frame is a CHISEL copy or fill
+
 pub const Demo = struct {
     logo: Sprite = undefined,
-    back: Sprite = undefined,
     // u64 turns: exact to ~1e-19 of a revolution, so every phase stays on the
     // original's doubles however long the screen runs.
     logo_sinx: u64 = undefined,
@@ -136,12 +187,6 @@ pub const Demo = struct {
     sprite_y: [NB_SPRITES]i32 = undefined,
     stars: [NB_STARS]Star = undefined,
     star_drawn_x: [NB_STARS]i64 = undefined,
-    // The plane index each star's dot was written at last render (STAR_NONE: not
-    // drawn). Only these dots are erased, where the plane used to be cleared whole.
-    star_px: [NB_STARS]u32 = undefined,
-    // Where the logo and each sprite were drawn last render (a w == 0 box is
-    // nothing): only those boxes are cleared before the next draw.
-    dirty: [1 + NB_SPRITES]Box = undefined,
     letters: [NB_LETTERS]Letter = undefined,
     text_offset: usize = undefined,
 
@@ -151,24 +196,12 @@ pub const Demo = struct {
         // Nothing happens until the user turns sound on — the request just waits.
         zg.requestSong(MUSIC);
 
-        // first plane: the stars
-        var fb: *LogicalFB = &zigos.lfbs[0];
+        // the one plane (see Q_PAL)
+        const fb: *LogicalFB = &zigos.lfbs[0];
         fb.is_enabled = true;
-        fb.setPaletteEntry(0, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
-        fb.setPaletteEntry(2, Color{ .r = 0xE0, .g = 0xE0, .b = 0xE0, .a = 255 });
-        fb.setPaletteEntry(1, Color{ .r = 0x60, .g = 0x60, .b = 0x60, .a = 255 });
+        fb.setPalette(Q_PAL);
+        chisel.init();
         self.initStars();
-        fb.clearFrameBuffer(0);
-        @memset(&self.star_px, STAR_NONE);
-
-        // second plane: logo and sprites
-        fb = &zigos.lfbs[1];
-        fb.is_enabled = true;
-        fb.setPalette(logo_pal);
-        fb.setPaletteEntry(0, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
-        fb.setPaletteEntry(255, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
-        fb.clearFrameBuffer(0);
-        self.dirty = [_]Box{.{}} ** (1 + NB_SPRITES);
         self.logo.init(fb.getRenderTarget(), logo_b, 208, 97, 0, 0, null, null);
         self.logo_sinx = 0;
         self.logo_inc = 0;
@@ -179,24 +212,6 @@ pub const Demo = struct {
             self.sprite_y[i] = 0;
         }
 
-        // 3rd plane: the red font background
-        fb = &zigos.lfbs[2];
-        fb.is_enabled = true;
-        fb.setPalette(back_pal);
-        fb.setPaletteEntry(0, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
-        fb.setPaletteEntry(255, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
-        self.back.init(fb.getRenderTarget(), back_b, 320, 87, 0, BACK_POS, null, null);
-        // The red font background never moves and nothing else draws on this
-        // plane: it is drawn once, not every frame.
-        fb.clearFrameBuffer(0);
-        self.back.render(null);
-
-        // 4th plane: the scrolltext
-        fb = &zigos.lfbs[3];
-        fb.is_enabled = true;
-        fb.setPalette(blue_back_pal);
-        fb.setPaletteEntry(0, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
-        fb.clearFrameBuffer(0); // render() clears only the scroller's band
         for (&self.letters, 0..) |*letter, i| {
             letter.* = .{ .x = SCROLL_WIDE * SCROLL_TILE_W + @as(i32, @intCast(i)) * SCROLL_TILE_W, .ch = SCROLL_TEXT[i] };
         }
@@ -273,54 +288,45 @@ pub const Demo = struct {
 
     pub fn render(self: *Demo, zigos: *ZigOS, elapsed_time: f32) void {
         _ = elapsed_time;
-        self.renderStars(&zigos.lfbs[0]);
-        self.renderLogo(&zigos.lfbs[1]);
-        self.renderScroller(&zigos.lfbs[3]);
+        const fb = &zigos.lfbs[0];
+        // bottom to top, as the planes were stacked
+        chisel.fill(fb, 0, 0, WIDTH, zg.HEIGHT, 0);
+        self.renderStars(fb);
+        self.renderLogo(fb);
+        chisel.blitImage(fb, 0, BACK_POS, &BACK_Q, WIDTH, 0, 0, WIDTH, 87, 0);
+        self.renderScroller(fb);
     }
 
-    /// Erase last frame's boxes, then draw the logo and the sprites in order. The
-    /// logo is blitted with key 0, which is what Sprite.render did (palette 0 has
-    /// alpha 0, so index 0 is transparent).
+    /// The logo, then the sprites in order: keyed copies (index 0 clear), clipped by the machine.
     fn renderLogo(self: *Demo, fb: *LogicalFB) void {
-        for (self.dirty) |b| fb.fillRect(b.x, b.y, b.w, b.h, 0);
-        const dst = blit.Dst.plane(fb);
-        const logo_x = self.logo.x_position;
-        blit.blit(dst, logo_img, null, logo_x, 0, 0, .copy);
-        self.dirty[0] = .{ .x = logo_x, .y = 0, .w = logo_img.w, .h = logo_img.h };
-        for (sprite_imgs, self.sprite_x, self.sprite_y, self.dirty[1..]) |img, x, y, *box| {
-            blit.blit(dst, img, null, x, y, 0, .copy);
-            box.* = .{ .x = x, .y = y, .w = img.w, .h = img.h };
+        chisel.blitImage(fb, @intCast(self.logo.x_position), 0, &LOGO_Q, @intCast(logo_img.w), 0, 0, @intCast(logo_img.w), @intCast(logo_img.h), 0);
+        for (sprite_imgs, self.sprite_x, self.sprite_y) |img, x, y| {
+            chisel.blitImage(fb, @intCast(x), @intCast(y), img.data, @intCast(img.w), 0, 0, @intCast(img.w), @intCast(img.h), 0);
         }
     }
 
     /// A 2x2 canvas dot is one ST pixel: the one holding the dot's centre.
     /// Later stars cover earlier ones, as they do on the canvas.
     fn renderStars(self: *Demo, fb: *LogicalFB) void {
-        for (self.star_px) |at| {
-            if (at != STAR_NONE) fb.fb[at] = 0;
-        }
-        for (self.stars, self.star_drawn_x, &self.star_px) |star, drawn_x, *at| {
+        for (self.stars, self.star_drawn_x) |star, drawn_x| {
             const x: i32 = @intCast((drawn_x + Q32) >> 33);
             const y = star.row;
-            at.* = STAR_NONE;
             if (x < 0 or x >= WIDTH or y >= STAR_ROWS) continue;
-            at.* = @as(u32, @intCast(y)) * fb.stride + @as(u32, @intCast(x));
-            fb.fb[at.*] = star.color;
+            fb.fb[@as(usize, @intCast(y)) * fb.stride + @as(usize, @intCast(x))] = SLOT_STAR + star.color;
         }
     }
 
+    /// Each letter: its ink (the 255s of the font tile) takes the background band's pixel.
     fn renderScroller(self: *Demo, fb: *LogicalFB) void {
-        fb.fillRect(0, SCROLL_POS, WIDTH, SCROLL_CHAR_H, 0); // the only rows the letters touch
-        const dst = blit.Dst.plane(fb);
         for (self.letters) |letter| {
             const tile: usize = if (letter.ch >= SCROLL_FIRST_CHAR) letter.ch - SCROLL_FIRST_CHAR else 0;
-            const cell = blit.Rect{ .x = 0, .y = tile * SCROLL_CHAR_H, .w = SCROLL_CHAR_W, .h = SCROLL_CHAR_H };
-            blit.blit(dst, font_img, cell, @divFloor(letter.x, 2), SCROLL_POS, 0, .copy);
+            const x = @divFloor(letter.x, 2);
+            const dx0: i32 = @max(x, 0); // clip to the plane's columns
+            const skip: i32 = dx0 - x;
+            const n: i32 = @min(@as(i32, SCROLL_CHAR_W) - skip, @as(i32, WIDTH) - dx0);
+            if (n <= 0) continue;
+            const glyph = font_img.data[tile * SCROLL_CHAR_H * SCROLL_CHAR_W + @as(usize, @intCast(skip)) ..];
+            cookie.masked(fb, @intCast(dx0), SCROLL_POS, @intCast(n), SCROLL_CHAR_H, glyph.ptr, SCROLL_CHAR_W, @as([*]const u8, &BLUE_BAND) + @as(usize, @intCast(dx0)), WIDTH);
         }
-
-        // the font's colour mask against the font background, as before
-        const band: *[BAND_PIXELS / 4]u32 = @ptrCast(@alignCast(fb.fb[SCROLL_POS * WIDTH ..][0..BAND_PIXELS]));
-        const mask: *const [BAND_PIXELS / 4]u32 = @ptrCast(&back_band);
-        for (band, mask) |*d, m| d.* &= m;
     }
 };
