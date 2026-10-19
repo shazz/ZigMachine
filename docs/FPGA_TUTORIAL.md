@@ -337,3 +337,34 @@ A blue border with a black screen and no text means `boot` ran (the shared memor
 right) but the ROM gave no drawing context (`guiOpenPlane` returned 0), so plane 0 stays off. Nothing at
 all (black border too) with the cart reported running means `boot` did not write where the picture comes
 from.
+
+## 11. The ZIGGY bench (a native cart that measures the board)
+
+`fpga/cycles/native/bench/` is a native cart that times the board's memory and bus paths with the
+SoC's own cycle counter (ZMCycles, `soc/zm_cycles.py`), so the cost model in CLAUDE.md ("stores, not
+maths, are what's slow") is measured instead of fitted. `bench.h` says what each file does; each test
+file's header says what its figures test. Design: `decisions.md` (2026-10-18).
+
+```sh
+cd fpga
+make native-cart NAME=bench ZM_FPU=1        # build/hcycles/split/native_fpu/bench/{cart.bin,disk.zmd}
+uv run python tools/glass_sd.py --out build/glass/sd \
+    --system build/hcycles/split/board_snd_fpu/sys.bin --fw-dir build/hcycles/split/native_fpu
+# after the card is in and the board is up (nobody at it):
+uv run --with pyserial python tools/bench_collect.py --load demo-bench.zmd
+```
+
+- The cart runs in M-mode (the firmware never drops to U), takes no interrupts, and reads the
+  counters directly; each test is a body run 7 times, min and median kept, an empty body's cost
+  subtracted. One test a frame; then the frame tests (0-4 planes, static and redrawn); then the
+  results on screen, a page every 4 s or at a key.
+- **Results off the board:** ZIGGY has no console there, so the cart writes one
+  `ZMBENCH name=<test> size=<bytes> cyc=<min> med=<median> ops=<n> dwait=<n> dwr=<n>` line a test
+  into a log that is the first object of its `.bss`. `bench_collect.py` finds it from the cart
+  header's `bss_start` and reads it with busybox `devmem` over the serial shell (a few seconds), then
+  writes `build/bench/bench_<time>.{txt,csv}` with cycles an op and MB/s at 100 MHz. The screen's title
+  shows the log's DDR address too.
+- The same `cart.bin` runs on a bitstream with HP0's posted-write buffer (`soc/zm_hp_posted.py`) or
+  without it: nothing in the cart depends on it, which is the point of the A/B.
+- `fpga/tests/test_native_bench.py` holds the image, the log's placement (with a mis-linked image that
+  must fail), the kernels' instruction counts and the probe's window; `test_bench_collect.py` the reader.

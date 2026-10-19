@@ -5,17 +5,20 @@
 #
 #   make native-cart NAME=hello [ZM_FPU=1]      build/hcycles/split/native<fpu>/hello/{cart.bin,disk.zmd}
 #   make native-cart NAME=hello_asm             the same cart by hand (cycles/native/hello_asm.S)
+#   make native-cart NAME=bench ZM_FPU=1        the ZIGGY bench (cycles/native/bench/bench.h)
 #
 # cart.bin is checked as glass and bsys.c will (tools/native_cart.py check); disk.zmd is the
 # shelf disk glass_sd.py fattens with it (--fw-dir build/hcycles/split/native<fpu>): its wasm
 # boot cart only tells a browser the disk is KESTREL-only.
 NATIVE       := $(SPLIT)/native$(HSUF)
 NATIVE_FLAGS  = $(filter-out --specs=picolibc.specs,$(RV_ARCH)) $(L_$(HV)) -Os -ffreestanding -nostdlib \
-	-fno-tree-loop-distribute-patterns -Wall -Wextra -Werror -Icycles -Icycles/native -Igen -Ibuild/vdump
+	-fno-tree-loop-distribute-patterns -Wall -Wextra -Werror -Icycles -Icycles/native -Igen -Ibuild/vdump \
+	-I$(HCYC)/gen
 NATIVE_DEPS  := cycles/native/native.h cycles/native/native_check.c cycles/cart.ld gen/zm_sys_abi.h \
 	build/vdump/zm_memmap.h
 NATIVE_TITLE_hello     := HELLO WORLD (C)
 NATIVE_TITLE_hello_asm := HELLO WORLD (ASM)
+NATIVE_TITLE_bench     := ZIGGY BENCH
 
 # native_check.c first: the plain numbers the assembly uses, against the generated header.
 define native_link
@@ -28,6 +31,15 @@ $(NATIVE)/%/cart.elf: cycles/native/%.c $(NATIVE_DEPS)
 	$(native_link)
 $(NATIVE)/%/cart.elf: cycles/native/%.S $(NATIVE_DEPS)
 	$(native_link)
+# The bench is several files and calls libgcc (u64 divides, f64). log.c FIRST: its log is then
+# the first object of the image's .bss, at the address the header's bss_start gives the ARM.
+BENCH_DIR := cycles/native/bench
+BENCH_SRC := $(addprefix $(BENCH_DIR)/,log.c run.c main.c chisel.c screen.c planes.c tests_cpu.c tests_mem.c \
+	tests_chisel.c tests_misc.c tests_align.c kern_store.S kern_load.S kern_cpu.S)
+$(NATIVE)/bench/cart.elf: $(BENCH_SRC) $(BENCH_DIR)/bench.h $(NATIVE_DEPS)
+	@mkdir -p $(@D)
+	$(RV_CC) $(NATIVE_FLAGS) -fsyntax-only cycles/native/native_check.c
+	$(RV_CC) $(NATIVE_FLAGS) -I$(BENCH_DIR) $(CART_LDFLAGS) -Wl,-Map=$(@D)/cart.map -o $@ $(BENCH_SRC) -lgcc
 $(NATIVE)/%/cart.bin: $(NATIVE)/%/cart.elf tools/native_cart.py
 	$(RV_OBJCOPY) -O binary $< $@
 	truncate -s %8 $@

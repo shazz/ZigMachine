@@ -18,6 +18,17 @@
 #define GEM_BLACK 0
 #define GEM_WHITE 1
 
+/* The board SoC's registers a native cart may read (it runs in M-mode: bsys.c never drops
+ * to U). From the hp SoC's csr.json (build/hcycles/gen/csr_addr.h), checked by native_check.c
+ * when that header is built. ZMCycles: free-running counters, cycles first (soc/zm_cycles.py). */
+#define NATIVE_CSR_CYCLES 0xf0002000u
+#define NATIVE_CSR_ZMV_STATUS 0xf0001804u /* FRESCO's status: READY, PAINTED, DRAINED, PENDING... */
+#define NATIVE_CSR_ZMV_FRAME 0xf0001818u  /* VBLs since reset */
+#define NATIVE_ZMB_WINDOW 0x91000000u     /* CHISEL: word 0 = GO (a byte store) / STATUS (bit 31 BUSY) */
+/* The cart window as the ARM sees it (glass/src/map.zig): CPU address a is DDR a - CPU + DDR. */
+#define NATIVE_CART_CPU_BASE 0x40000000u
+#define NATIVE_DDR_CART_BASE 0x1e000000u
+
 /* For the assembly: zm_sys_table's fn[] index of each entry it calls (fn[] starts at byte 12),
  * and zm_cart_hdr's size (rv32: every field 4 bytes, the tag 16). */
 #define NATIVE_MAGIC 0x41434d5a   /* ZM_CART_HDR_MAGIC */

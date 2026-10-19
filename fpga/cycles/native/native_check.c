@@ -6,7 +6,11 @@
 
 #include "bsys_abi.h"
 #include "native.h"
+#include "glass_map.h"
 #include "zm_memmap.h"
+#if __has_include("csr_addr.h")
+#include "csr_addr.h"
+#endif
 
 _Static_assert(NATIVE_PAGES == ZM_SHARED_PAGES, "the header's page count is the system's (bsys.c)");
 _Static_assert(NATIVE_REG_BACKGROUND == ZM_REG_BACKGROUND, "memmap");
@@ -26,3 +30,9 @@ _Static_assert(NATIVE_IX_guiText == ZM_ENV_guiText, "table index");
 _Static_assert(NATIVE_IX_hwVideoBase == ZM_ENV_hwVideoBase, "table index");
 _Static_assert(NATIVE_IX_romInstallPalettePlane == ZM_ENV_romInstallPalettePlane, "table index");
 _Static_assert(sizeof native_none >= 10 * sizeof(void*), "the empty bridge covers the largest bridge");
+_Static_assert(NATIVE_CART_CPU_BASE == CART_CPU_BASE && NATIVE_DDR_CART_BASE == DDR_CART_BASE, "glass_map");
+#ifdef CSR_ZM_CYCLES_CYCLES_ADDR /* the hp SoC's csr.json (cycles/board.mk), when it was built */
+_Static_assert(NATIVE_CSR_CYCLES == CSR_ZM_CYCLES_CYCLES_ADDR, "ZMCycles moved: the bench times nothing");
+_Static_assert(NATIVE_CSR_ZMV_STATUS == CSR_ZMV_STATUS_ADDR && NATIVE_CSR_ZMV_FRAME == CSR_ZMV_FRAME_ADDR, "zmv");
+_Static_assert(NATIVE_ZMB_WINDOW == ZMB_WINDOW_ADDR, "CHISEL's window");
+#endif

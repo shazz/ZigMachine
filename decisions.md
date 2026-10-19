@@ -967,3 +967,16 @@ ABI rather than a Zig API, apps in any language sit on it.
 - Native carts are board only: the browser shows the stub's message, `scene_hash.mjs` has nothing to compare, and there is no pixel reference beyond the board itself.
 - The assembly cart hard-codes table indices; `native_check.c` makes a table change a build failure, not a wrong call. A major table bump means rebuilding these carts like every other.
 - A native cart is free to ignore wasm's sandbox (it can poke any address); the system does not protect itself from one any more than from a wasm2c cart.
+
+## 2026-10-18 — The ZIGGY bench: a native cart that measures the board, its results read from DDR
+
+**Status:** accepted (perf/ziggy-bench)
+**Context:** The board's cost model (every store a blocking ~27-cycle DDR write, `@memset` ~60 cycles a word, CHISEL ~1.85 cycles a byte, ~1.09 Mc an enabled plane) was fitted to 92 carts' frame rates, not measured. The posted-write buffer (`soc/zm_hp_posted.py`) is about to be A/B-tested and needs a measurement that runs unchanged on both bitstreams. ZIGGY has no console on the board (`cycles/bboard.c` prints nothing: the JTAG UART has no reader).
+**Decision:** A native cart (`fpga/cycles/native/bench/`, the 2026-10-17 convention) times each test with ZMCycles read directly: the firmware runs carts in M-mode, so the CSR is reachable (rdcycle is not: the core's `mcycle` is not readable). Its results go into a text log that is the first object of the cart's `.bss` (`log.c` is linked first), whose address the cart header already carries (`bss_start`); `fpga/tools/bench_collect.py` reads it with busybox `devmem` over the serial shell. No system, ABI, glass or RTL change.
+**Alternatives considered:**
+- A `glass ctl` command that dumps cart memory, or a cart→glass text channel (a table entry): faster to read and reusable, but a glass rebuild or an ABI 1.2 entry (`sys_abi.txt` is append-only) for one tool. Worth it if a second cart wants to report text.
+- `dd`/`hexdump` of `/dev/mem`: `read()` on a no-map reserved region is not reliable on ARM; `devmem` maps it as glass does.
+- `env.hostMicros` as the clock: 1 µs (100 cycles) resolution and a 64-bit divide per call.
+**Consequences:**
+- The bench relies on M-mode carts; if the firmware ever enters carts in U (the seal), the counter loads trap and the bench must time through a table entry instead.
+- The log costs ~2-5 s of `devmem` calls to read; the cart and the reader agree on its layout by hand (`log.c` / `bench_collect.py`), held by `test_bench_collect.py` and the placement test.
