@@ -101,6 +101,9 @@ static int cmpcpy(uint8_t* dst, const uint8_t* src, uint32_t n) {
 
 void vd_unknown(void) {
     vd.frames++, vd.unknown++;
+#ifdef VD_BREAK_UNKNOWN /* a frame composited without a plan leaves the versions as they were */
+    return;
+#endif
     s.rows_on = 0;
     bump(0, H);
     memset(s.built, 0, sizeof s.built);
@@ -130,6 +133,7 @@ static void plan_bg(const vd_frame* fr) {
 static void plan_plane(const vd_frame* fr, int p, const pcfg* c) {
     const uint8_t* pal = fr->mem + ZM_HW_VIDEO_BASE + ZM_OFF_PAL + (uint32_t)p * ZM_PAL_BYTES;
     int moved = cmpcpy((uint8_t*)s.pal[p], pal, ZM_PAL_BYTES);
+    vd.cmp_bytes += ZM_PAL_BYTES;
 #ifdef VD_BREAK_PAL
     moved = 0;
 #endif
@@ -186,6 +190,7 @@ int vd_line(int pic, uint32_t y) {
     for (int p = 0; p < (int)ZM_NB_PLANES; p++) {
         const pcfg* c = &s.cfg[p];
         if (!((s.rows_on >> p) & 1) || y < c->oy || y >= c->oy + c->rows) continue;
+        vd.cmp_bytes += c->len;
         if (ROW_MOVED(cmpcpy(s.rows[p][y], s.src[p][y], c->len)) || s.fresh[p]) bump(y, 1);
     }
     int skip = s.built[pic][y] == s.ver[y] + 1;

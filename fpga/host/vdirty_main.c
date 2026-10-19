@@ -11,6 +11,8 @@
  * after the global handler (the span hooks, host/vdirty_spans.h), the planes
  * asked once before the first is composited (again in video.zig's place when a
  * plane has a handler), the region after cart.frame().
+ * ZM_VD_ADAPT=1 runs the board's bypass (vadapt.h) on a cost model: a composited
+ * line costs 1000 a layer, a compared byte 2 (the sim's ratio, a row ~57 % of a pass).
  * ZM_VD_CURSOR=1 draws over 16 rows of each picture after the compare, as
  * cycles/bcursor.c does, and reports them (vd_overdrawn).
  *
@@ -22,6 +24,7 @@
 
 #include "boot.h"
 #include "host_io.h"
+#include "vadapt.h"
 #include "vdirty.h"
 #include "vdirty_spans.h"
 #include "wasm-rt-exceptions.h"
@@ -90,9 +93,18 @@ static uint32_t frame(long f, u32 planes, uint32_t* composited) {
         for (u32 p = 0; p < planes; p++)
             fprintf(stderr, "vdirty: plane %u on %u hbl %u mode %u stride %u\n", (unsigned)p, (on >> p) & 1,
                     (unsigned)r16(ZM_REG_FB_HBL_ID + 2 * p), region()[ZM_REG_FB_MODE + p], (unsigned)r16(ZM_REG_FB_STRIDE + 2 * p));
-    int handler = vd_plan(&fr);
-    *composited = 0;
-    for (uint32_t y = 0; y < VD_LINES; y++) *composited += !(g_skip[y] = (uint8_t)vd_line(pic, y));
+    const char* ad = getenv("ZM_VD_ADAPT");
+    int adapt = ad && *ad == '1', handler = 1;
+    uint32_t bytes0 = vd.cmp_bytes;
+    *composited = VD_LINES;
+    memset(g_skip, 0, sizeof g_skip);
+    if (!adapt || va_plans()) {
+        handler = vd_plan(&fr);
+        *composited = 0;
+        for (uint32_t y = 0; y < VD_LINES; y++) *composited += !(g_skip[y] = (uint8_t)vd_line(pic, y));
+    } else
+        vd_unknown();
+    if (adapt) va_frame(*composited * 1000u * (uint32_t)(__builtin_popcount(on) + !on) + 2 * (vd.cmp_bytes - bytes0));
     int first = 1;
     for (u32 p = 0; p < planes; p++) {
         int en = (on >> p) & 1;
@@ -139,8 +151,8 @@ int main(int argc, char** argv) {
         bad += frame(f, planes, &c);
         lines += VD_LINES, comp += c;
     }
-    printf("VDIRTY %s frames %ld lines %llu skipped %llu unknown %u moved %u mismatched %llu\n", pos[0], n,
+    printf("VDIRTY %s frames %ld lines %llu skipped %llu unknown %u moved %u bypassed %u mismatched %llu\n", pos[0], n,
            (unsigned long long)lines, (unsigned long long)(lines - comp), (unsigned)vd.unknown, (unsigned)vd.mask_moved,
-           (unsigned long long)bad);
+           (unsigned)va.off_frames, (unsigned long long)bad);
     return bad != 0;
 }
