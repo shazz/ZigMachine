@@ -154,14 +154,15 @@ host: $(HOST)/$(CART)/host
 # build/host/x/host_vdirty x 600 compares the skipping picture with a full composite every frame.
 # VD_BREAK=ROWS (PAL, BG, HANDLER, PICTURE, OVERDRAWN): build/host/x/host_vdirty_ROWS, the
 # planner with that input forgotten (tests/test_vdirty.py's break tests).
-VD_DEPS := host/vdirty_main.c host/vdirty_spans.h cycles/vdirty.c cycles/vdirty.h
+VD_DEPS := host/vdirty_main.c host/vdirty_spans.h cycles/vdirty.c cycles/vdirty.h cycles/vadapt.c cycles/vadapt.h
 VD_BIN  := host_vdirty$(if $(VD_BREAK),_$(VD_BREAK))
 $(HOST)/%/$(VD_BIN): $(HOST)/%/host.o $(HOST)/%/cart.o $(HOST_COMMON) $(VD_DEPS)
 	$(HOST_CC) $(HOST_CFLAGS) -I$(HOST)/$* -include host/vdirty_spans.h -c $(HOST)/$*/env.c -o $(HOST)/$*/env_vd.o
 	$(HOST_CC) $(HOST_CFLAGS) -Ibuild/vdump -Icycles -I$(HOST)/$* -c host/vdirty_main.c -o $(HOST)/$*/vdirty_main.o
 	$(HOST_CC) $(HOST_CFLAGS) $(if $(VD_BREAK),-DVD_BREAK_$(VD_BREAK)) -Ibuild/vdump -Icycles \
 		-c cycles/vdirty.c -o $(HOST)/$*/$(VD_BIN).o
-	$(HOST_CC) $(HOST)/$*/vdirty_main.o $(HOST)/$*/$(VD_BIN).o $(HOST)/$*/env_vd.o $(HOST)/$*/boot.o \
+	$(HOST_CC) $(HOST_CFLAGS) -Icycles -c cycles/vadapt.c -o $(HOST)/$*/vadapt.o
+	$(HOST_CC) $(HOST)/$*/vdirty_main.o $(HOST)/$*/$(VD_BIN).o $(HOST)/$*/vadapt.o $(HOST)/$*/env_vd.o $(HOST)/$*/boot.o \
 		$(HOST)/$*/host_io.o $(HOST)/$*/in_*.o $(HOST)/$*/cart.o $(HOST_COMMON) -lm -lpthread -o $@
 host-vdirty: memmap $(HOST)/$(CART)/$(VD_BIN)
 

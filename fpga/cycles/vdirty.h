@@ -45,6 +45,7 @@ typedef struct {
 typedef struct {
     uint32_t frames, unknown, bumped; /* frames planned, UNKNOWN ones, lines whose version moved */
     uint32_t mask_moved;              /* frames whose planes a handler switched */
+    uint32_t cmp_bytes;               /* bytes compared with their copies (the plan's cost, vadapt.h) */
 } vd_stats;
 extern vd_stats vd;
 

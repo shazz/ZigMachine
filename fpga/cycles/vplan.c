@@ -5,6 +5,7 @@
 #include <string.h>
 
 #include "bmailbox.h" /* the two pictures */
+#include "vadapt.h"
 #include "vboard.h"
 #include "vdirty.h"
 #include "vseq.h"
@@ -16,6 +17,8 @@ vplan_stats vplan;
 static uint8_t g_skip[VD_LINES];
 static int g_planned, g_full, g_pic, g_composited;
 static uint32_t g_decided, g_plan_cycles; /* g_plan_cycles: the frame's comparisons before the swap */
+static uint32_t g_t0, g_wait0; /* when the planes' phase began, and the swap wait so far (vadapt.h) */
+static int g_timed;
 
 #ifdef ZM_VSEQ_CHECK
 /* The rows the plan would have skipped, as the picture held them before this frame. */
@@ -61,9 +64,17 @@ static int decide(int y) {
 }
 
 int vplan_frame(struct w2c_env* e, unsigned enabled, int full) {
+    g_t0 = board_cycles(), g_wait0 = vseq.swap_wait, g_plan_cycles = 0;
 #ifdef ZM_NO_VPLAN /* the baseline: every line of every layer, the sequencer as it was */
     (void)e, (void)enabled, (void)full;
     return 1;
+#endif
+    g_timed = 1;
+#ifndef ZM_VSEQ_CHECK /* a check plans every frame: what it checks is the plan */
+    if (!va_plans()) { /* it does not pay here (vadapt.h): nothing compared, every line composited */
+        vd_unknown();
+        return 1;
+    }
 #endif
     vd_frame fr = {e->memory.data, (uint32_t)e->memory.size, enabled, vseq_rec.fill, vseq_rec.bg, vseq_rec.beam};
     zmv_flush_dcache(); /* plane rows the blitter wrote behind the D$, and the pictures' */
@@ -84,12 +95,13 @@ void vplan_mask_moved(void) {
 }
 
 void vplan_end(long f) {
+    uint32_t waited = vseq.swap_wait - g_wait0;
 #ifndef ZM_BOARD /* the lines composited (a check or a hashed frame: would be), the plan's cost, the swap wait */
-    static uint32_t waited;
-    printf("ZM VD %ld %d %lu %lu\n", f, g_planned ? g_composited : (int)VD_LINES, (unsigned long)g_plan_cycles,
-           (unsigned long)(vseq.swap_wait - waited));
-    waited = vseq.swap_wait;
+    printf("ZM VD %ld %d %lu %lu %d\n", f, g_planned ? g_composited : (int)VD_LINES, (unsigned long)g_plan_cycles,
+           (unsigned long)waited, va.mode);
 #endif
+    if (g_timed) va_frame(board_cycles() - g_t0 - waited);
+    g_timed = 0;
     if (!g_planned) return;
     g_planned = 0;
     vseq_skip = NULL, vseq_decide = NULL;
@@ -104,8 +116,9 @@ void vplan_end(long f) {
 void vplan_overdrawn(uint32_t back_addr, uint32_t y0, uint32_t n) { vd_overdrawn(back_addr == ZM_FB0_ADDR ? 0 : 1, y0, n); }
 
 void vplan_report(void) {
-    printf("ZM VPLAN %lu %lu %lu %lu %lu\n", (unsigned long)vplan.lines, (unsigned long)vplan.skipped,
-           (unsigned long)vd.frames, (unsigned long)vd.unknown, (unsigned long)vd.mask_moved);
+    printf("ZM VPLAN %lu %lu %lu %lu %lu %lu %lu\n", (unsigned long)vplan.lines, (unsigned long)vplan.skipped,
+           (unsigned long)vd.frames, (unsigned long)vd.unknown, (unsigned long)vd.mask_moved,
+           (unsigned long)va.off_frames, (unsigned long)va.switches);
 #ifdef ZM_VSEQ_CHECK
     printf("ZM VCHK total %lu %lu\n", (unsigned long)vplan.checked, (unsigned long)vplan.mismatched);
 #endif
