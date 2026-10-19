@@ -45,7 +45,7 @@ def word(image: bytes, at: int) -> int:
 def test_each_native_cart_builds_to_a_lean_image_this_system_runs(name: str) -> None:
     image = (build(name) / "cart.bin").read_bytes()
     assert native_cart.check(image) == name
-    assert split_image.check_pair(V1, image).bss_end > glass_cart.CART_IMG_AT + len(image) - 8
+    assert split_image.check_pair(native_cart.system_version(), image).bss_end > glass_cart.CART_IMG_AT + len(image) - 8
     assert word(image, 20) == native_cart.SHARED_PAGES and word(image, 28) == 16  # pages, a 16-byte instance
     assert word(image, 24) == 0x100100  # cart_high: the 256 bytes of the cart window it owns
     assert len(image) % 8 == 0 and len(image) < 1024
@@ -54,7 +54,8 @@ def test_each_native_cart_builds_to_a_lean_image_this_system_runs(name: str) -> 
 @needs_rv
 def test_the_assembly_cart_is_the_c_cart_by_hand() -> None:
     c, asm = ((build(n) / "cart.bin").read_bytes() for n in ("hello", "hello_asm"))
-    assert [word(c, i) for i in (0, 4, 8, 20, 24, 28)] == [word(asm, i) for i in (0, 4, 8, 20, 24, 28)]
+    assert [word(c, i) for i in (0, 8, 20, 24, 28)] == [word(asm, i) for i in (0, 8, 20, 24, 28)]
+    assert word(asm, 4) == V1 <= word(c, 4)  # the assembly needs table 1.0; the C cart the header's version
     assert len(asm) < len(c)
 
 
@@ -87,7 +88,7 @@ def test_the_shelf_stages_a_native_cart_from_its_own_disk(tmp_path: Path) -> Non
     for name in ("hello", "hello_asm"):
         build(name)
     sysbin = tmp_path / "sys.bin"
-    sysbin.write_bytes(b"system" * 8 + struct.pack("<3I", glass_cart.SYS_MAGIC, V1, 7) + bytes(16))
+    sysbin.write_bytes(b"system" * 8 + struct.pack("<3I", glass_cart.SYS_MAGIC, native_cart.system_version(), 7) + bytes(16))
     rows = dict(glass_shelf.build_shelf(tmp_path / "sd", NATIVE, tmp_path / "none.h", (), system=sysbin))
     assert rows["zigmachine/demo-hello.zmd"] == "fpga/build/hcycles/split/native_fpu/hello/disk.zmd + " \
         "build/hcycles/split/native_fpu/hello/cart.bin"  # fmt: skip
