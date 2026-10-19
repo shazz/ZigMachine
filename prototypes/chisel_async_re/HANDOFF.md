@@ -133,3 +133,10 @@ removes the table call and wrapper per op but not the latency.
   memory) and that the tap never takes COMMAND from a region store (zm_blit_soc.py: `o_sel & 0b1110`).
 - The held-start barrier relies on the in-order core stalling on the uncached load (VexRiscv: yes).
 - Every machine/ROM env entry now costs a load and a branch (~3 cycles) when nothing is pending.
+
+## Board result (2026-10-19, lead; lm8 bitstream, old order, glass --fw-opt=0)
+- Big ops overlap as designed: as.seq.alu.64K 133K -> lazy 68K (x1.97); as.seq.st.64K 122K -> 67K; 8K 17.8K -> 10.0K. as.kick.64K = 577 cycles, as.sync.idle = 277.
+- Small ops get SLOWER lazy: as.f8.x64 56.3K -> 62.6K (+98/op), as.f8w.x64 79.4K -> 85.5K (+96/op): the register replay costs more than the ~360 cycles of CPU work hides.
+- ch.fill8.x64 911 -> 944/op?? no: 64403 -> 60403 total (the new wrapper is ~60 cycles cheaper for sync callers).
+- fps: stniccc 41.1 -> 34.6 (REGRESSION, small spans), fuji_hobbytronic 60, tsl_hybridglenz 60, union_tnt1 60 (all unchanged).
+- Verdict: keep lazy only for big ops (clears / big copies); drop stniccc's opt-in; the many-small-ops case needs option 2 (command queue).
