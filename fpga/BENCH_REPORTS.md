@@ -188,3 +188,33 @@ The 60 Hz budget is 1.66 Mc a frame and 30 fps is 3.33 Mc.
 - The same cart on the **posted=8** bitstream (A/B of findings 1–3).
 - The same cart on the system image with **perf/chisel-burst** (finding 4: `ch.fill8.x64`,
   `ms.chisel.64`).
+
+---
+
+## 2026-10-18 (late): posted stores on ZIGGY (perf/ziggy-posted, bitstream md5 3ebb7381)
+
+- **Hardware:** HP0 `posted=8` (up to 8 writes in flight) plus IOFence. 15,045 LUT (85.5 %), sys WNS +0.011 ns.
+- **Firmware:** system.rv32 table 1.2 (integrate 04655ae1). It includes the CHISEL call fix.
+- **Raw logs:**
+  - `2026-10-18_v6fpu_posted0_chiselfix.txt`: same system, old bitstream (the A side).
+  - `2026-10-18_v6fpu_posted8.txt`: the B side.
+
+| Test | posted=0 | posted=8 | Gain |
+|---|---:|---:|---:|
+| st.sb / st.sw (any size) | 18.00 cyc | **2.25** | ×8.0 |
+| st.alu16 (16 ALU ops a store) | 18.00 | 17.50 | ALU-bound now |
+| ms.lib.64K / ms.word.1K | 4.50 c/B | **0.56** | ×8.0: faster than a CHISEL fill (1.03) |
+| mc.lib.64K | 6.10 c/B | 2.73 | ×2.2 (loads now dominate) |
+| raw.hit / raw.miss | 18.25 / 65.9 | 8.62 / 66.0 | reads still wait for the buffer to drain |
+| ld.miss.64K | 48.3 | 48.3 | unchanged |
+| ms.chisel.64 / ch.fill8.x64 | 12.2 / 976 | 11.3 / 911 | ×1.07 |
+| mis.lw.1 / mis.sw.1 (trap) | 693 / 698 | 213 / 198 | ×3.3 (the trap's register saves are stores) |
+| f64.div | 702 | 557 | ×1.26 |
+| fr.dirty.p1..p3 | 0.79 / 1.68 / 2.55 Mc | 0.78 / 1.66 / 2.53 Mc | ×1.0: compositor-bound (PLANES_PLAN) |
+
+**What changes:**
+- The CPU is now the fastest way to clear memory: 0.56 c/B against CHISEL's 1.03 plus ~900 cycles a call.
+- A CHISEL clear pays only where the CPU is busy elsewhere (they overlap) or for keyed/scaled blits.
+- The "draw once, store only what changes" rule still holds, but a store now costs 2.25 cycles, not 18.
+- The remaining per-frame wall is FRESCO's ~3.3k cycles per line-pass: the 64-bit row writes and line-major
+  compositing of PLANES_PLAN.md.
