@@ -59,7 +59,17 @@ SPAN_HOOKS = """/* Span hooks: empty in the native host. fpga/cycles/prof.h (-in
 #define HOST_SPAN_ENTER(kind) ((void)0)
 #define HOST_SPAN_LEAVE() ((void)0)
 #endif
+/* CHISEL's lazy wait (fpga/cycles/bchisel.h, -include'd on the board): empty in the native host. */
+#ifndef HOST_CHISEL_SYNC
+#define HOST_CHISEL_SYNC() ((void)0)
+#endif
 """
+
+# The board's hwBlit may return while CHISEL still runs (BLIT_ASYNC, cycles/bchisel.h). Every
+# other way into the machine or the ROM (which may draw with the CPU, or read what CHISEL writes)
+# waits for it first, and an HBL handler's lazy op is over before the compositor goes on: the cart
+# promised only its OWN code stays off the op's pixels. hwBlit waits inside (bchisel_run), later.
+NO_SYNC = {"hwBlit"}
 
 # Host-provided values with no wasm behind them: the import calls a hook macro,
 # and the default is the JS stub's 0, so a host that defines nothing behaves as
@@ -140,6 +150,7 @@ def forwarder(name: str, ret: str, params: list[str], target: str | None, export
             sys.exit(f"host_gen: env.{name} must be the drive's {DRIVE[name]}, not {ret}{params} via {target}")
         return (
             f"/* env.{name}: the drive, host/disk.h */\n{head} {{\n"
+            "    HOST_CHISEL_SYNC(); /* the block may land in a lazy op's source */\n"
             "    int64_t n = host_disk_read(&host_disk, a0, a1, e->memory.data, e->memory.size);\n"
             "    if (n < 0) wasm_rt_trap(WASM_RT_TRAP_OOB); /* the JS's RangeError */\n"
             "    return (u32)n;\n}\n"
@@ -154,11 +165,13 @@ def forwarder(name: str, ret: str, params: list[str], target: str | None, export
     if exports[target].get(name) != (ret, params):
         sys.exit(f"host_gen: env.{name} does not match {target}.{name}'s type")
     call = f"w2c_{target}_{name}(&e->{target}{''.join(f', a{i}' for i in range(len(params)))})"
+    sync = "" if name in NO_SYNC or target == "cart" else "HOST_CHISEL_SYNC(); "
     if name in SPANS:
         if ret != "void":
             sys.exit(f"host_gen: env.{name} is timed as a span and must return void, not {ret}")
-        return f"{head} {{ HOST_SPAN_ENTER({SPANS[name]}); {call}; HOST_SPAN_LEAVE(); }}\n"
-    return f"{head} {{ {'' if ret == 'void' else 'return '}{call}; }}\n"
+        after = "HOST_CHISEL_SYNC(); " if target == "cart" else ""
+        return f"{head} {{ {sync}HOST_SPAN_ENTER({SPANS[name]}); {call}; {after}HOST_SPAN_LEAVE(); }}\n"
+    return f"{head} {{ {sync}{'' if ret == 'void' else 'return '}{call}; }}\n"
 
 
 def main() -> None:

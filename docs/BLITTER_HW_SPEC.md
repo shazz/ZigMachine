@@ -241,6 +241,20 @@ estimate is fixed hardware, so budgets are portable.
 > against a per-frame cycle budget, exposing real "blitter didn't finish this
 > frame" behaviour and CPU/blitter overlap. Out of scope for v1.
 
+**KESTREL's lazy wait (2026-10-19, board only).** On the board `hwBlit()` spins until
+CHISEL is done: ~450 cycles of fixed latency even for an 8x8 op, plus ~1 cycle a byte.
+A cart may opt out of the spin with `BLIT_ASYNC` (region `0xE4`, u8; ZigOS
+`chisel_async.setAsync`, `Blitter.setAsync`, `ZigOS.blitAsync`): `hwBlit()` then returns
+as soon as CHISEL has started, and the wait moves to the next point that needs it: the
+next `hwBlit`, a sync (a NOP `hwBlit`: `chisel_async.sync`, `Blitter.sync`,
+`ZigOS.blitSync`), any machine or ROM call, the end of `frame()` and of each HBL handler
+(`fpga/cycles/bchisel.h`). The cart promises not to read or write an op's destination
+(or overwrite its source) before that sync, ZigOS's own CHISEL clears and copies
+included. `CYCLES` of a lazy op lands at its sync. The machine never reads `BLIT_ASYNC`
+(its blitter is synchronous), so the browser's pixels cannot change; on the board the
+registers a cart stores while CHISEL runs are dropped by the engine and replayed from
+memory before the next op starts (`tests/test_chisel_async.py`).
+
 ---
 
 ## 7. ZigOS wrapper (the open side)

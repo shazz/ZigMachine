@@ -22,6 +22,7 @@
 
 #include "baudio.h"
 #include "bblit.h"
+#include "bchisel.h"
 #include "bdisk.h"
 #include "bdiskapp.h"
 #include "bcursor.h"
@@ -87,10 +88,12 @@ static void frame(sha256_ctx* h, u32 planes, u32 size, long f) {
     binput_frame(e); /* the glass's keys, joypad and mouse, before the frame as the browser's */
     uint32_t t0 = board_cycles();
     HOST_CART_FRAME(e, f == 1 && ZM_WARP_MS ? (float)ZM_WARP_MS : 16.6f);
+    BCHISEL_SYNC(); /* the frame's lazy CHISEL op is in memory before anything reads the planes */
     bdiskapp_frame(e, f); /* GEM over a data disk: the browser's step after the frame */
     uint32_t t1 = board_cycles();
     AUDIO(baudio_frame(e)); /* the song bridge, then the players up to the sound's lead */
     printf("ZM AF %ld %lu %lu\n", f, (unsigned long)(t1 - t0), (unsigned long)(board_cycles() - t1));
+    BCHISEL_SYNC(); /* and one the bridges above started */
     uint32_t t2 = board_cycles();
     /* Asked once, before any cart code can run between planes; again in video.zig's place when
      * a plane has an HBL handler (vplan.h). Only the lines that changed are composited. */

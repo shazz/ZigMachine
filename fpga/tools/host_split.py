@@ -82,7 +82,7 @@ def hbl(params: list[str]) -> str:
     args = "".join(f", {t} a{i}" for i, t in enumerate(params))
     call = ", ".join(f"a{i}" for i in range(len(params)))
     return (f"void w2c_env_hblDispatch(struct w2c_env* e{args}) {{ HOST_SPAN_ENTER(HOST_SPAN_CART); "
-            f"zm_cart->hbl_dispatch(e->cart, {call}); HOST_SPAN_LEAVE(); }}\n")  # fmt: skip
+            f"zm_cart->hbl_dispatch(e->cart, {call}); HOST_CHISEL_SYNC(); HOST_SPAN_LEAVE(); }}\n")  # fmt: skip
 
 
 def system_tail(rows: dict, own: dict) -> str:
@@ -92,6 +92,7 @@ def system_tail(rows: dict, own: dict) -> str:
     return (
         "uint32_t zm_host_micros(void) { return HOST_MICROS(); }\n"
         "uint32_t zm_disk_read(struct w2c_env* e, uint32_t block, uint32_t dst) {\n"
+        "    HOST_CHISEL_SYNC(); /* the block may land in a lazy op's source */\n"
         "    int64_t n = host_disk_read(&host_disk, block, dst, e->memory.data, e->memory.size);\n"
         "    if (n < 0) wasm_rt_trap(WASM_RT_TRAP_OOB); /* the JS's RangeError */\n"
         "    return (uint32_t)n;\n}\n\n"

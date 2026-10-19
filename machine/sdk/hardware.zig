@@ -113,6 +113,7 @@ pub const BLIT_CLIP_W = memmap.BLIT_CLIP_W;
 pub const BLIT_CLIP_H = memmap.BLIT_CLIP_H;
 pub const BLIT_HALFTONE = memmap.BLIT_HALFTONE;
 pub const BLIT_CYCLES = memmap.BLIT_CYCLES;
+pub const BLIT_ASYNC = memmap.BLIT_ASYNC; // board only: hwBlit may return before the op ends
 pub const BLIT_CMD_NOP = memmap.BLIT_CMD_NOP;
 pub const BLIT_CMD_BLIT = memmap.BLIT_CMD_BLIT;
 pub const BLIT_CMD_FILL = memmap.BLIT_CMD_FILL;
