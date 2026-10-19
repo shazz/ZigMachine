@@ -101,6 +101,7 @@ const scene = switch (opts.index) {
     88 => @import("scenes/replicants_emlyn_f32.zig"), // Emlyn Hughes on the CODEF algorithm in f32 (62 is fixed point)
     89 => @import("scenes/polkadots_f32.zig"), // POLKA DOTS on the CODEF algorithm in f32 (65 is fixed point)
     90 => @import("scenes/xm_test.zig"), // XM TEST: one text plane, keys 1-3 play an XM (8 / 12 channels / local), 4 stops
+    91 => @import("scenes/sysinfo.zig"), // SYSINFO: what the machine reports about itself, after HWAM's SysInfo 8.34
     else => @compileError("bad cart index"),
 };
 

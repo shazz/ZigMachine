@@ -275,6 +275,11 @@
   "type": "atari st"
  },
  {
+  "tag": "sysinfo",
+  "title": "SYSINFO",
+  "type": "system"
+ },
+ {
   "tag": "tcb_colorshock",
   "title": "TCB COLORSHOCK 2",
   "type": "atari st"

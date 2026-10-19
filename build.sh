@@ -298,6 +298,8 @@ gate music node apps/music_debug_check.mjs   # MUSIC DEBUG: keys 1..6 (setShadeM
 gate music node apps/music_debug_check.mjs --break name   # ...and key 5 expected to ask for another file fails
 gate xm_test node apps/xm_test_check.mjs   # XM TEST: keys 1..4 (setShadeMode) ask for keygen_9000.xm / poppy_flower_girls.xm / local.xm / "none" by name; the bundled XMs are The Mod Archive's Public Domain files byte for byte (md5), 8 and 12 channels, and play (mode 1, not silent); local.xm never committed
 gate xm_test node apps/xm_test_check.mjs --break name   # ...and key 2 expected to ask for another file fails
+gate sysinfo node apps/sysinfo_check.mjs "$SHOTS/sysinfo"   # SYSINFO: every page's text is on the glass glyph for glyph; page 1's memory lines are hwRamFree/Base/Top/Size, the ROM window and hwVideoBase as the machine answers; plane 0's base is its register's; the disk lines are the .zmd descriptor's; player + YM lines follow the host live; idle frames draw nothing, a refresh only the changed span; no host clock = every speed test once, n/a; a clock = a time each, 6 ratios to the ST, f32 to the integer mul-add; Space opens the menu, a click on F4 shows the disk page whole; Q = request 4
+gate sysinfo node apps/sysinfo_check.mjs --break free   # ...and FREE expected 4 KB off hwRamFree() fails
 gate_timed c_music timeout 180 node apps/c_music_check.mjs   # a C cart's song request reaches the sealed YM (timeout: it once hung a gate)
 gate union_demo_music node apps/union_demo_music_check.mjs   # the Union Demo menu's and cracktro's SNDH tunes are requested by name and play
 gate union_demo_music node apps/union_demo_music_check.mjs --fail-proof   # ...and a wrong tune name fails that check
