@@ -102,6 +102,13 @@ const scene = switch (opts.index) {
     89 => @import("scenes/polkadots_f32.zig"), // POLKA DOTS on the CODEF algorithm in f32 (65 is fixed point)
     90 => @import("scenes/xm_test.zig"), // XM TEST: one text plane, keys 1-3 play an XM (8 / 12 channels / local), 4 stops
     91 => @import("scenes/sysinfo.zig"), // SYSINFO: what the machine reports about itself, after HWAM's SysInfo 8.34
+    92 => @import("scenes/lockbuster2.zig"), // LOCKBUSTER 2, "for DMA": the intro's six planar scroll engines (ported from the Go re-creation of the ST binary)
+    93 => @import("scenes/kickoff2.zig"), // KICK OFF 2, the friendly: the Go re-creation's 16.16 soccer engine on the 320x200 plane
+    94 => @import("scenes/grodan_kvack.zig"), // GRODAN & KVACK KVACK, The Carebears 1989: the six-layer scroll demo (ported from the Go re-creation)
+    95 => @import("scenes/larcociel5.zig"), // DMA INTRO 5 "LARCOCIEL", DMA 1990: the ribbon trail + perspective glyph raster + YM-volume Batmen (ported from the Go re-creation)
+    96 => @import("scenes/larcociel2.zig"), // DMA INTRO 2 "LARCOCIEL", DMA 1990: the animated background band + projected ball trail + slice-stream scrolltext (ported from the Go re-creation)
+    97 => @import("scenes/bubblebobble.zig"), // BUBBLE BOBBLE, Taito 1986: the Go remake's 25-round campaign, six enemy kinds, elements and the level editor, with the original YM tunes on the machine's own chip
+    98 => @import("scenes/chonchon.zig"), // CHONCHON (a Chon-Chon / DMA intro): the native motion's stars, ring scrollers and warped chrome logo, the YM-volume meters and the per-line raster (ported from the Go re-creation)
     else => @compileError("bad cart index"),
 };
 

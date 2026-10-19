@@ -1,0 +1,124 @@
+{
+  "store_latency": [
+    {
+      "config": "Blocking Store (Unloaded DDR, lat=24)",
+      "stores_per_frame": 125000,
+      "store_stall_cycles": 3000000,
+      "stall_time_ms": 30.0,
+      "frame_budget_pct_at_100mhz": 180.0,
+      "effective_fps_cap": 27.8
+    },
+    {
+      "config": "Blocking Store (Loaded DDR, lat=62)",
+      "stores_per_frame": 125000,
+      "store_stall_cycles": 7750000,
+      "stall_time_ms": 77.5,
+      "frame_budget_pct_at_100mhz": 465.0,
+      "effective_fps_cap": 12.0
+    },
+    {
+      "config": "Blocking Store (Saturated DDR, lat=120)",
+      "stores_per_frame": 125000,
+      "store_stall_cycles": 15000000,
+      "stall_time_ms": 150.0,
+      "frame_budget_pct_at_100mhz": 900.0,
+      "effective_fps_cap": 6.4
+    },
+    {
+      "config": "Posted Store Buffer 4-entry (drain=2)",
+      "stores_per_frame": 125000,
+      "store_stall_cycles": 80000,
+      "stall_time_ms": 0.8,
+      "frame_budget_pct_at_100mhz": 4.8,
+      "effective_fps_cap": 147.1
+    },
+    {
+      "config": "Posted Store Buffer 8-entry (drain=2)",
+      "stores_per_frame": 125000,
+      "store_stall_cycles": 5000,
+      "stall_time_ms": 0.05,
+      "frame_budget_pct_at_100mhz": 0.3,
+      "effective_fps_cap": 165.3
+    },
+    {
+      "config": "Posted Store Buffer 16-entry (drain=2)",
+      "stores_per_frame": 125000,
+      "store_stall_cycles": 0,
+      "stall_time_ms": 0.0,
+      "frame_budget_pct_at_100mhz": 0.0,
+      "effective_fps_cap": 166.7
+    }
+  ],
+  "sequencer_stalls": [
+    {
+      "planes": 1,
+      "lines": 280,
+      "comp_cycles_per_line": 1000,
+      "total_comp_cycles": 280000,
+      "sys_wait_cycles_at_100mhz": 224000,
+      "wait_time_ms": 2.24,
+      "frame_budget_pct_at_100mhz": 13.4
+    },
+    {
+      "planes": 2,
+      "lines": 560,
+      "comp_cycles_per_line": 1600,
+      "total_comp_cycles": 896000,
+      "sys_wait_cycles_at_100mhz": 716800,
+      "wait_time_ms": 7.17,
+      "frame_budget_pct_at_100mhz": 43.0
+    },
+    {
+      "planes": 3,
+      "lines": 840,
+      "comp_cycles_per_line": 2100,
+      "total_comp_cycles": 1764000,
+      "sys_wait_cycles_at_100mhz": 1411200,
+      "wait_time_ms": 14.11,
+      "frame_budget_pct_at_100mhz": 84.7
+    },
+    {
+      "planes": 4,
+      "lines": 1120,
+      "comp_cycles_per_line": 2600,
+      "total_comp_cycles": 2912000,
+      "sys_wait_cycles_at_100mhz": 2329600,
+      "wait_time_ms": 23.3,
+      "frame_budget_pct_at_100mhz": 139.8
+    }
+  ],
+  "scanout_margins": [
+    {
+      "ddr_state": "Idle DDR (no contention)",
+      "line_period_us": 26.4,
+      "fetch_latency_us": 10.0,
+      "slack_us": 16.4,
+      "margin_pct": 62.1,
+      "status": "PASS (Safe)"
+    },
+    {
+      "ddr_state": "Moderate Load (CPU + 1 plane)",
+      "line_period_us": 26.4,
+      "fetch_latency_us": 17.75,
+      "slack_us": 8.65,
+      "margin_pct": 32.8,
+      "status": "PASS (Safe)"
+    },
+    {
+      "ddr_state": "Heavy Load (CPU + 3 planes + Blitter)",
+      "line_period_us": 26.4,
+      "fetch_latency_us": 28.25,
+      "slack_us": -1.85,
+      "margin_pct": -7.0,
+      "status": "FAIL (Underrun!)"
+    },
+    {
+      "ddr_state": "Extreme Contention (Saturated DDR)",
+      "line_period_us": 26.4,
+      "fetch_latency_us": 46.5,
+      "slack_us": -20.1,
+      "margin_pct": -76.1,
+      "status": "FAIL (Underrun!)"
+    }
+  ]
+}

@@ -504,6 +504,13 @@ pub fn build(b: *std.Build) void {
         "demo-polkadots_f32", // 89 — cart 65 booting on its f32 side (F switches either cart live), for the FPU test
         "demo-xm_test", // 90 — XM TEST: the minimal XM player screen (one text plane), to hear an XM on the board
         "demo-sysinfo", // 91 — HWAM / SysInfo 8.34 (1992), the ST's system information tool, on this machine (a GEM app on the ROM: pages + speed tests)
+        "demo-lockbuster2", // 92 — LOCKBUSTER 2, "for DMA": the 1989 intro's six byte-copy scroll engines + title slides (ported from the Go re-creation of the ST binary)
+        "demo-kickoff2", // 93 — KICK OFF 2, the friendly: England v Spain, 1P v CPU (ported from the Go re-creation of the multi-game update of Dino Dini's soccer sim)
+        "demo-grodan_kvack", // 94 — GRODAN & KVACK KVACK, The Carebears (1989): layered rasters, big/vertical/small scrollers, swinging sprites (ported from the Go re-creation)
+        "demo-larcociel5", // 95 — DMA INTRO 5 "LARCOCIEL" (DMA 1990): the ribbon trail, the perspective glyph raster and the YM-volume Batmen (ported from the Go re-creation)
+        "demo-larcociel2", // 96 — DMA INTRO 2 "LARCOCIEL" (DMA 1990): the animated background band, projected ball trail and slice-stream scrolltext (ported from the Go re-creation)
+        "demo-bubblebobble", // 97 — BUBBLE BOBBLE (Taito 1986): the Go remake's 25-round campaign, six enemy kinds, bubbles, elements, power-ups and the level editor (ported from the Go re-creation)
+        "demo-chonchon", // 98 — CHONCHON (a Chon-Chon / DMA intro): the native motion's stars, ring scrollers and warped chrome logo, the YM-volume music meters and the per-line raster (ported from the Go re-creation)
     };
     for (cart_names, 0..) |name, idx| {
         if (name.len == 0) continue; // excluded cart (see note above)

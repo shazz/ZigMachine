@@ -1,0 +1,18 @@
+[
+  {
+    "candidate": "zm_video_mix",
+    "target_period_ns": 8.0,
+    "target_freq_mhz": 125.0,
+    "wns_ns": 0.753,
+    "achievable_fmax_mhz": 137.99,
+    "luts": 165,
+    "ffs": 137,
+    "bram_tiles": 3.0,
+    "dsps": 12,
+    "timing_met": true,
+    "critical_path_source": "l_r_reg[57]/C",
+    "critical_path_dest": "ch[3].ov_reg/A[7]",
+    "critical_path_delay_ns": 3.237,
+    "logic_levels": 2
+  }
+]

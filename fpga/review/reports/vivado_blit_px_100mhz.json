@@ -1,0 +1,18 @@
+[
+  {
+    "candidate": "zm_blit_px",
+    "target_period_ns": 10.0,
+    "target_freq_mhz": 100.0,
+    "wns_ns": 2.674,
+    "achievable_fmax_mhz": 136.5,
+    "luts": 726,
+    "ffs": 585,
+    "bram_tiles": 0.0,
+    "dsps": 0,
+    "timing_met": true,
+    "critical_path_source": "q/hp_reg[1]/C",
+    "critical_path_dest": "q/cv_reg/D",
+    "critical_path_delay_ns": 7.271,
+    "logic_levels": 6
+  }
+]
