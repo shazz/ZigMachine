@@ -154,6 +154,10 @@ pub const Demo = struct {
     pub fn render(self: *Demo, zigos: *ZigOS, elapsed_time: f32) void {
         _ = elapsed_time;
         const fb = &zigos.lfbs[PLANE];
+        // KESTREL's lazy wait (zg.chisel_async): every fill is CHISEL's (gpu.zig),
+        // so each returns while CHISEL still fills and the next span's edge walk
+        // overlaps it. Not while the message blinks: its text is CPU stores.
+        zigos.blitAsync(self.act != .message);
         switch (self.act) {
             .failed => return,
             .message => {

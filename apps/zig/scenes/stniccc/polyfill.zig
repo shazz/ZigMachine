@@ -20,6 +20,9 @@ pub const Target = struct {
     h: usize,
     ox: usize,
     rect: ?*const fn (x: usize, y: usize, w: usize, h: usize, color: u8) void = null,
+    /// When set, called before the CPU itself reads or writes `px` (the player's
+    /// keyframes): `rect`'s blitter may still be filling (gpu.zig, lazy wait).
+    sync: ?*const fn () void = null,
 };
 
 // One non-horizontal edge, walked a row at a time. Row y's centre crossing is

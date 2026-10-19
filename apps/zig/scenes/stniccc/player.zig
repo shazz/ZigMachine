@@ -77,6 +77,7 @@ pub const Player = struct {
         const s = self.snaps orelse return c;
         s.bind(snaps_mod.keyOf(view.target, view.w, view.h));
         const i = s.find(c, n) orelse return c;
+        if (view.target.sync) |wait| wait();
         s.restore(i, view.target);
         return s.frame(i) + 1;
     }
@@ -87,6 +88,7 @@ pub const Player = struct {
         const into = f - self.lastClear(f);
         if (into == 0 or into % snaps_mod.EVERY != 0) return;
         s.bind(snaps_mod.keyOf(view.target, view.w, view.h));
+        if (view.target.sync) |wait| wait();
         s.save(f, view.target);
     }
 

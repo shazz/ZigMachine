@@ -9,6 +9,7 @@
 const std = @import("std");
 const hw = @import("hardware");
 const polyfill = @import("polyfill.zig");
+const chisel_async = @import("zigos").chisel_async;
 
 var base: usize = 0;
 
@@ -28,7 +29,13 @@ pub fn begin(t: polyfill.Target) polyfill.Target {
     w8(hw.BLIT_CON2, 0); // never stale: no SRC_ABS, FILL_MT or halftone from an earlier user
     var out = t;
     out.rect = fillRect;
+    out.sync = sync;
     return out;
+}
+
+/// The CPU is about to read or write the plane: the last lazy fill is over.
+fn sync() void {
+    chisel_async.sync(base);
 }
 
 fn fillRect(x: usize, y: usize, w: usize, h: usize, color: u8) void {
