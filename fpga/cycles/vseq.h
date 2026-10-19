@@ -21,9 +21,15 @@
 #include "host.h"
 #include "zm_memmap.h"
 
+/* Free-running, mod 2^32: a reader takes differences. Under ZM_VSTAT (the board's images, never
+ * the video sim's mutants: a counter read after a handler would drain its stores) the waits and
+ * the handlers are timed too (cycles/vstat.h). */
 typedef struct {
     uint32_t swap_wait; /* cycles spent waiting for the shown picture to swap */
     uint32_t undrained; /* commands that found a CPU store still on its way */
+    uint32_t ready, drain, painted; /* ZM_VSTAT: cycles spent waiting for each status bit */
+    uint32_t hbl, plan;             /* ZM_VSTAT: in the HBL handlers; in vseq_decide (+ vplan.c's compare) */
+    uint32_t passes;                /* BG, PLANE and MIX passes issued */
 } vseq_stats;
 
 extern vseq_stats vseq;

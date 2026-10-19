@@ -25,13 +25,15 @@ HP_DEPS  := soc/hp_sim.py soc/zm_board_mem.py soc/zm_hp.py soc/zm_simaxi.py soc/
 	soc/zm_blit_soc.py soc/zm_blit_hp.py $(wildcard rtl/blitter/*.v) \
 	soc/zm_z7.py soc/zm_glass.py $(VID_DEPS) $(wildcard rtl/glass/*.v) \
 	soc/zm_audio_soc.py $(wildcard rtl/audio/*.v) rtl/sim/zm_audio_tap.v
-HRV_CFLAGS = $(subst -I$(CYC)/gen,-I$(HCYC)/gen,$(RV_CFLAGS)) -Ibuild/vdump $(V_$(HV)) -Iglass/firmware -Igen
+# ZM_VSTAT: the video probe (cycles/vstat.h) in every board-SoC image; the video sim's (video.mk)
+# never have it, so its no-drain mutants stay as sharp as they were.
+HRV_CFLAGS = $(subst -I$(CYC)/gen,-I$(HCYC)/gen,$(RV_CFLAGS)) -Ibuild/vdump $(V_$(HV)) -Iglass/firmware -Igen -DZM_VSTAT
 HFW_FILES := $(filter-out cycles/board.c,$(FW_FILES)) cycles/bboard.c cycles/bmailbox.c cycles/bdiag.c cycles/bblit.c cycles/bdisk.c \
 	host/glass_router.c
 # The glass's input into the cart, and GEM's data disk (bdiskapp.c): per cart, as env.c (they see
 # the cart's w2c_env through host.h).
 HIN_SRC := cycles/binput.c cycles/bcursor.c host/input_bridge.c cycles/bdiskapp.c
-HFW_DEPS  := $(FW_DEPS) cycles/bmicros.h cycles/bdisk.c cycles/bblit.c cycles/bblit.h cycles/bdinval.h cycles/bboard.c cycles/bboard.h cycles/bmailbox.c cycles/bmailbox.h cycles/bdiag.c cycles/bdiag.h cycles/vboard.h $(HCYC)/gen/csr_addr.h build/vdump/zm_memmap.h \
+HFW_DEPS  := $(FW_DEPS) cycles/bmicros.h cycles/bdisk.c cycles/bblit.c cycles/bblit.h cycles/bdinval.h cycles/bboard.c cycles/bboard.h cycles/bmailbox.c cycles/bmailbox.h cycles/bdiag.c cycles/bdiag.h cycles/vboard.h cycles/vstat.c cycles/vstat.h cycles/bvstat.h cycles/vseq_wait.h $(HCYC)/gen/csr_addr.h build/vdump/zm_memmap.h \
 	cycles/binput.c cycles/binput.h cycles/bcursor.c cycles/bcursor.h host/input_bridge.c host/input_bridge.h host/glass_router.c \
 	cycles/bdiskapp.c cycles/bdiskapp.h cycles/bcartreq.h host/disk_app.h host/zmd_dir.h host/zmd_dir_fat.h gen/glass_cart.h \
 	glass/firmware/glass_input.c glass/firmware/glass_input.h gen/glass_map.h
@@ -71,7 +73,7 @@ ZM_VSEQ_CHECK ?=
 # ZM_NO_VPLAN=1: no plan, every line composited (the baseline the plan is measured against).
 ZM_NO_VPLAN ?=
 # The dirty-line planner (cycles/vplan.h), compiled with the image as vseq.c is: ZM_VSEQ_CHECK reaches it.
-VPLAN_SRC := cycles/vplan.c cycles/vdirty.c cycles/vadapt.c
+VPLAN_SRC := cycles/vplan.c cycles/vdirty.c cycles/vadapt.c cycles/vstat.c cycles/vcal.c
 H_sim    = $(if $(ZM_VSEQ_CHECK),-DZM_VSEQ_CHECK) $(if $(ZM_NO_VPLAN),-DZM_NO_VPLAN) -DZM_FRAMES=$(ZM_FRAMES) -DZM_EVERY=$(ZM_EVERY) -DZM_WARP_MS=$(ZM_WARP_MS) -DZM_TRACE_FRAME=$(ZM_TRACE_FRAME) \
 	$(B_$(ZM_BLIT)) $(A_$(ZM_AUDIO)) $(if $(ZM_SIM_KEYS),'-DZM_SIM_KEYS="$(ZM_SIM_KEYS)"') \
 	$(if $(ZM_SIM_POINTER),'-DZM_SIM_POINTER="$(ZM_SIM_POINTER)"') $(if $(ZM_MODES),-DZM_MODES=$(ZM_MODES))

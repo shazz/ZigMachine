@@ -7,6 +7,8 @@ Over the board's Linux serial console (a root shell), through the running glass'
 (`glass ctl`, docs/FPGA_GLASS.md "The control channel"): `load` each disk, play its key script, wait
 --secs from the load, read `stats <--window>` (the ZMSTAT line), next. Writes <out>/fps_<time>.csv and
 .md, a row a cart as it goes, so a run cut short keeps what it measured.
+A firmware with the video probe (cycles/vstat.h) adds its fields (vs_n= ... cal_fill2=): the CSV
+keeps them, the .md adds a per-pass table (tools/board_fps_probe.py).
 
 Recovery: a cart that does not boot (CartSilent), traps, or hangs (state=stalled: RUNNING but no frame
 for 2 s) is recorded and the next cart loaded (a hung one gets `quit-cart` first). If the shell stops
@@ -29,9 +31,11 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
+import board_fps_probe as probe
 from linux_console import BoardSilent, LinuxConsole
 
 FIELDS = ("cart", "fps", "frame_ms", "frames", "missed", "bard", "player", "state", "err", "song")
+CSV_FIELDS = FIELDS + probe.FIELDS  # the video probe's, from a firmware that has it (board_fps_probe.py)
 BAD = ("stalled", "booting", "request")  # still in the window, going nowhere: stopped before the next
 NO_GLASS, GLASS_TIMEOUT = 3, 4  # `glass ctl` exit codes (ctl_sock.zig)
 
@@ -134,6 +138,7 @@ def shelf(g: Glass) -> list[str]:
 def write_md(path: Path, rows: list[dict[str, str]], note: str) -> None:
     lines = ["| " + " | ".join(FIELDS) + " |", "|" + "---|" * len(FIELDS)]
     lines += ["| " + " | ".join(r.get(f, "-") for f in FIELDS) + " |" for r in rows]
+    lines += probe.md_table(rows)
     path.write_text("\n".join(lines) + "\n" + (f"\n{note}\n" if note else ""))
 
 
@@ -144,7 +149,7 @@ def run(g: Glass, carts: list[str], keys: dict[str, list[Step]], args: argparse.
     rows: list[dict[str, str]] = []
     note, rc = "", 0
     with csv_path.open("w", newline="") as f:
-        w = csv.DictWriter(f, FIELDS, extrasaction="ignore", restval="-")
+        w = csv.DictWriter(f, CSV_FIELDS, extrasaction="ignore", restval="-")
         w.writeheader()
         for i, cart in enumerate(carts):
             try:

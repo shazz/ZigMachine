@@ -2,20 +2,23 @@
 // the F11 overlay and the debug page's music rows say, as one line a script parses:
 //
 //   ZMSTAT cart=<file> fps=<x.y> frame_ms=<x.y> bard=<now>/<peak> player=<who>:<player>
-//          state=<state> frames=<n> secs=<x.y> missed=<n> beat=<n> trap=<code> err=<name> song=<name>
+//          state=<state> frames=<n> secs=<x.y> missed=<n> beat=<n> trap=<code> err=<name>
+//          vs_n=<n> frame_c=<c> ... cal_fill2=<span>/<comp> song=<name>
 //
 // Every field is `key=value`, values never hold a space ('_' stands in), `-` is "none" or
 // "not measured". fps, frame_ms, frames and missed are over the window asked for
 // (beats.zig): frame_ms is the mean WALL time of a frame (the firmware does not publish
 // the cart's own CPU time), missed the 60 Hz VBLs that showed no new frame. bard is the
 // sound CPU's load in percent of real time (now/peak since the song started), `-` when
-// BARD does not play the music. song is last, so a parser may take the rest of the line.
+// BARD does not play the music. Then the video probe's fields (vstat.zig: vs_n= ... cal_fill2=,
+// `-` from a firmware without it). song is last, so a parser may take the rest of the line.
 const std = @import("std");
 const map = @import("map.zig");
 const mc = @import("map_cart.zig");
 const beats = @import("beats.zig");
 const snd_info = @import("snd_info.zig");
 const stats = @import("stats.zig");
+const vstat = @import("vstat.zig");
 
 pub const State = enum {
     idle, // nothing loaded yet
@@ -61,6 +64,7 @@ pub const Line = struct {
     beat: u32 = 0,
     trap: ?u32 = null,
     err: ?anyerror = null,
+    vs: vstat.Info = .{},
 };
 
 pub fn write(w: *std.Io.Writer, l: *const Line) std.Io.Writer.Error!void {
@@ -85,6 +89,7 @@ pub fn write(w: *std.Io.Writer, l: *const Line) std.Io.Writer.Error!void {
     try opt(w, l.trap);
     try w.writeAll(" err=");
     try token(w, if (l.err) |e| @errorName(e) else "-");
+    try vstat.write(w, &l.vs);
     try w.writeAll(" song=");
     const has = l.snd.state == .ok and l.snd.player != mc.PLAYER_NONE and l.snd.name_len > 0;
     try token(w, if (has) l.snd.name() else "-");

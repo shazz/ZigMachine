@@ -63,15 +63,15 @@ test "the ZMSTAT line: every field key=value, no spaces in a value" {
     @memcpy(snd.name_buf[0..9], "Wings Of\t");
     snd.name_len = 9;
     const l = zmstat.Line{ .cart = "demo-union.zmd", .state = .running, .rate = .{ .frames = 149, .ms = 5000, .missed = 151 }, .snd = snd, .beat = 1234 };
-    try std.testing.expectEqualStrings("ZMSTAT cart=demo-union.zmd fps=29.8 frame_ms=33.5 bard=10/20 player=BARD:SNDH_68k state=running frames=149 secs=5.0 missed=151 beat=1234 trap=- err=- song=Wings_Of_\n", try format(&l));
+    try std.testing.expectEqualStrings("ZMSTAT cart=demo-union.zmd fps=29.8 frame_ms=33.5 bard=10/20 player=BARD:SNDH_68k state=running frames=149 secs=5.0 missed=151 beat=1234 trap=- err=- vs_n=- frame_c=- cart_c=- seq_c=- wait_ready=- drain=- painted=- hbl=- plan=- passes=- comp_busy=- dma_busy=- swap=- underrun=- overflow=- probe_c=- cal_mix1=- cal_mix2=- cal_fill1=- cal_fill2=- song=Wings_Of_\n", try format(&l));
 }
 
 test "the ZMSTAT line with nothing measured, a ZIGGY player and a failed load" {
     const none = zmstat.Line{};
-    try std.testing.expectEqualStrings("ZMSTAT cart=- fps=- frame_ms=- bard=- player=- state=idle frames=- secs=- missed=- beat=0 trap=- err=- song=-\n", try format(&none));
+    try std.testing.expectEqualStrings("ZMSTAT cart=- fps=- frame_ms=- bard=- player=- state=idle frames=- secs=- missed=- beat=0 trap=- err=- vs_n=- frame_c=- cart_c=- seq_c=- wait_ready=- drain=- painted=- hbl=- plan=- passes=- comp_busy=- dma_busy=- swap=- underrun=- overflow=- probe_c=- cal_mix1=- cal_mix2=- cal_fill1=- cal_fill2=- song=-\n", try format(&none));
     const ziggy = snd_info.Info{ .state = .ok, .version = 1, .route = mc.ROUTE_ZIGGY, .player = mc.PLAYER_MOD, .started = true, .cycles = 1, .samples = 1 };
     const l = zmstat.Line{ .cart = "a b.zmd", .state = .silent, .snd = ziggy, .trap = 5, .err = error.CartSilent };
-    try std.testing.expectEqualStrings("ZMSTAT cart=a_b.zmd fps=- frame_ms=- bard=- player=ZIGGY:MOD state=silent frames=- secs=- missed=- beat=0 trap=5 err=CartSilent song=-\n", try format(&l));
+    try std.testing.expectEqualStrings("ZMSTAT cart=a_b.zmd fps=- frame_ms=- bard=- player=ZIGGY:MOD state=silent frames=- secs=- missed=- beat=0 trap=5 err=CartSilent vs_n=- frame_c=- cart_c=- seq_c=- wait_ready=- drain=- painted=- hbl=- plan=- passes=- comp_busy=- dma_busy=- swap=- underrun=- overflow=- probe_c=- cal_mix1=- cal_mix2=- cal_fill1=- cal_fill2=- song=-\n", try format(&l));
 }
 
 test "the state tells a hang, a trap and a silent boot apart" {

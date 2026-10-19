@@ -99,3 +99,55 @@ pub const NATIVE_BEAT_DIS: u32 = 1;
 pub const NATIVE_NEAR_SEQ: u32 = 2; // the digi handler with an unknown sequencer: on Musashi
 pub const NATIVE_NEAR_TABLES: u32 = 3; // the driver's tables out of range: on Musashi
 pub const NATIVE_OFF: u32 = 4; // native replays switched off: on Musashi
+
+// --- the video probe: where FRESCO's time goes (perf/fresco-probe) ------------------------
+// Mailbox words VSTAT_AT .. VSTAT_AT + VSTAT_WORDS - 1, unused before: mb_init zeroes them, so a
+// firmware without the probe leaves no magic there. ZIGGY's sequencer (cycles/vseq.c built with
+// ZM_VSTAT) times each phase of every frame; cycles/bvstat.h sums VSTAT_FRAMES frames (fewer once
+// they pass VSTAT_MAX_CYCLES) and publishes their PER-FRAME MEANS, bracketed by VS_SEQ odd then
+// even as the music block is. Cycles are the sys clock's (SND_CLOCK_HZ) except VS_COMP, which
+// counts the compositor's own clock (125 MHz on the board) while a pass runs.
+pub const VSTAT_AT: u32 = 16;
+pub const VSTAT_WORDS: u32 = 16;
+pub const VSTAT_MAGIC: u32 = 0x5356_4D5A; // "ZMVS"
+pub const VSTAT_FRAMES: u32 = 16;
+pub const VSTAT_MAX_CYCLES: u32 = 100_000_000; // a window of slow frames closes after ~1 s
+pub const VS_MAGIC: u32 = 0;
+pub const VS_SEQ: u32 = 1;
+pub const VS_N: u32 = 2; // frames in the window the means are over
+pub const VS_FLAGS: u32 = 3; // VSF_*, and bits 15:8 the cycles one counter read costs
+pub const VS_FRAME: u32 = 4; // the first mean: a whole frame, end to end
+pub const VS_CART: u32 = 5; // cart.frame() (+ the disk app's step)
+pub const VS_SEQC: u32 = 6; // the sequencer: clear, planner, every pass, PRESENT
+pub const VS_READY: u32 = 7; // waiting for READY: the last pass's mix and store
+pub const VS_DRAIN: u32 = 8; // waiting for DRAINED: the handler's stores reaching FRESCO
+pub const VS_PAINTED: u32 = 9; // command write to PAINTED (row load, fetch, paint), less VS_PLAN's
+pub const VS_HBL: u32 = 10; // inside the HBL handlers
+pub const VS_PLAN: u32 = 11; // the dirty-line planner: its frame compare and per-line decisions
+pub const VS_PASSES: u32 = 12; // BG, PLANE and MIX passes issued
+pub const VS_COMP: u32 = 13; // compositor clocks a pass was running (COMP_BUSY)
+pub const VS_DMA: u32 = 14; // sys cycles the video DMA held a request (DMA_BUSY, scanout included)
+pub const VS_SWAP: u32 = 15; // waiting for the shown picture to swap (the VBL)
+pub const VSF_UNDERRUN: u32 = 1 << 0; // the scanout's sticky `underrun` (since the PL's reset)
+pub const VSF_OVERFLOW: u32 = 1 << 1; // the plane fetch's sticky `overflow`
+pub const VSF_UNDERRUN_AT_BOOT: u32 = 1 << 2; // `underrun` was already set when this cart booted
+// The probe's boot calibration (cycles/vcal.c), at window end - VCAL_FROM_TOP (CPU 0x41FF_FD80,
+// between the request block and bdiag's control words): before the cart's first frame, VCAL_REPS
+// MIX passes of each kind on raster line 0, timed. Each kind is two words: the mean sys cycles
+// from the command's write to READY (what the sequencer sees), and the mean compositor clocks
+// it ran (COMP_BUSY). The kinds differ by one row read or write, so the row costs follow:
+//   MIX1  load PFB, mix, store picture              (R + mix + W)
+//   MIX2  load PFB + picture, mix, store picture    (2R + mix + W)
+//   FILL1 paint the CLEAR colour, mix, store both   (fill + mix + 2W)
+//   FILL2 paint, load picture, mix, store both      (fill + R + mix + 2W)
+// Written at each probe firmware's boot; a firmware without the probe leaves the last one's.
+pub const VCAL_FROM_TOP: u32 = 0x280;
+pub const VCAL_WORDS: u32 = 10;
+pub const VCAL_MAGIC: u32 = 0x4356_4D5A; // "ZMVC"
+pub const VCAL_REPS: u32 = 8;
+pub const VC_MAGIC: u32 = 0;
+pub const VC_REPS: u32 = 1;
+pub const VC_MIX1: u32 = 2; // {span, comp}
+pub const VC_MIX2: u32 = 4;
+pub const VC_FILL1: u32 = 6;
+pub const VC_FILL2: u32 = 8;
