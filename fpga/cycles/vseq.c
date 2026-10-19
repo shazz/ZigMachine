@@ -3,6 +3,7 @@
 #include "vseq.h"
 
 #include "vboard.h"
+#include "vseq_wait.h"
 #include "zm_memmap.h"
 
 vseq_stats vseq;
@@ -11,6 +12,7 @@ const uint8_t* vseq_skip;
 int (*vseq_decide)(int y);
 static uint8_t* g_r; /* the region: HW_VIDEO_BASE in the cart's linear memory */
 static int g_fill;  /* this frame's clear was one CLEAR: the first layer's passes paint its lines */
+static uint32_t g_tcmd; /* ZM_VSTAT: when the last pass's command was written */
 
 static inline uint32_t r32(uint32_t off) { return *(volatile uint32_t*)(g_r + off); }
 static inline uint16_t r16(uint32_t off) { return *(volatile uint16_t*)(g_r + off); }
@@ -18,30 +20,42 @@ static inline uint8_t r8(uint32_t off) { return *(volatile uint8_t*)(g_r + off);
 static inline void w32(uint32_t off, uint32_t v) { *(volatile uint32_t*)(g_r + off) = v; }
 static inline void w16(uint32_t off, uint16_t v) { *(volatile uint16_t*)(g_r + off) = v; }
 
-static void wait_bits(uint32_t bits) {
-    while ((zmv_status() & bits) != bits) {
-    }
-}
-
 /* Every store the handlers made has reached the compositor (Fable #5). */
-static void drain(void) {
+static inline uint32_t drain(void) {
     if (!(zmv_status() & ZMV_BIT(DRAINED))) vseq.undrained++; /* the race the rule closes was open */
 #ifndef ZM_NO_DRAIN
-    wait_bits(ZMV_BIT(DRAINED));
+    return wait_timed(ZMV_BIT(DRAINED));
+#else
+    return 0;
 #endif
 }
 
-/* Write one command once the previous one has finished and the stores have landed. */
+/* Write one command once the previous one has finished and the stores have landed. The
+ * bookkeeping comes after the write, while the pass runs. */
 static void issue(int op, int plane, int line, int mix, int first, int fill) {
-    wait_bits(ZMV_BIT(READY));
-    drain();
+    uint32_t ready = wait_timed(ZMV_BIT(READY));
+    uint32_t drained = drain();
     zmv_cmd(op, plane, line, mix, first, fill);
+#ifdef ZM_VSTAT
+    g_tcmd = board_cycles();
+#endif
+    vseq.ready += ready, vseq.drain += drained;
+    vseq.passes += op == ZMV_BG || op == ZMV_PLANE || op == ZMV_MIX;
 }
 
-/* A pass: issued, and run until it has read everything the next handler may change. */
+/* Run until the pass has read everything the next handler may change. ZM_VSTAT: the span from
+ * the command's write, i.e. the pass's row load, fetch and paint as the CPU sees them. */
+static inline void painted(void) {
+    wait_bits(ZMV_BIT(PAINTED));
+#ifdef ZM_VSTAT
+    vseq.painted += board_cycles() - g_tcmd;
+#endif
+}
+
+/* A pass: issued, and run until painted. */
 static void pass(int op, int plane, int line, int mix, int first, int fill) {
     issue(op, plane, line, mix, first, fill);
-    wait_bits(ZMV_BIT(PAINTED));
+    painted();
 }
 
 /* A one-clock command (LATCH, PRESENT, CLEAR): issued and taken. */
@@ -98,7 +112,7 @@ void vseq_clear(struct w2c_env* e) {
     }
 #endif
     for (uint32_t y = 0; y < ZM_RASTER_HEIGHT; y++) {
-        if (gid) w2c_env_hblDispatch(e, gid, 0, y, 0);
+        if (gid) hbl(e, gid, 0, y, 0);
         int beam = r16(ZM_REG_BEAM_COUNT) != 0;
         vseq_rec.bg[y] = r32(ZM_REG_BACKGROUND), vseq_rec.beam[y] = (uint8_t)beam;
         pass(ZMV_BG, 0, (int)y, 0, 0, 0);
@@ -136,13 +150,13 @@ void vseq_line_major(struct w2c_env* e, unsigned planes) {
     }
     uint16_t gid = r16(ZM_REG_GLOBAL_HBL_ID);
     for (uint32_t y = 0; y < ZM_RASTER_HEIGHT; y++) {
-        if (gid) w2c_env_hblDispatch(e, gid, 0, y, 0);
+        if (gid) hbl(e, gid, 0, y, 0);
         int beam = r16(ZM_REG_BEAM_COUNT) != 0;
         pass(ZMV_BG, 0, (int)y, 0, 0, 0);
         copy_back(beam, y == ZM_RASTER_HEIGHT - 1);
         for (int p = 0; p < 4; p++) {
             if (!((planes >> p) & 1)) continue;
-            if (hid[p] && y >= oy[p] && y < oy[p] + rows[p]) w2c_env_hblDispatch(e, hid[p], (u32)p, y - oy[p], hpos[p]);
+            if (hid[p] && y >= oy[p] && y < oy[p] + rows[p]) hbl(e, hid[p], (u32)p, y - oy[p], hpos[p]);
             pass(ZMV_PLANE, p, (int)y, 1, p == first, 0);
         }
     }
@@ -153,13 +167,13 @@ void vseq_line_major(struct w2c_env* e, unsigned planes) {
  * vseq_decide which lines to skip, the next line while this line's pass runs: the comparison is
  * CPU work the sequencer would otherwise spend waiting. Later layers read vseq_skip. */
 static void layer(struct w2c_env* e, int op, int p, int first, uint16_t hid, uint32_t oy, uint32_t rows, uint16_t hpos) {
-    int ask = first && vseq_decide, next = ask ? vseq_decide(0) : 0;
+    int ask = first && vseq_decide, next = ask ? decide(0) : 0;
     for (uint32_t y = 0; y < ZM_RASTER_HEIGHT; y++) {
-        if (hid && y >= oy && y < oy + rows) w2c_env_hblDispatch(e, hid, (u32)p, y - oy, hpos);
+        if (hid && y >= oy && y < oy + rows) hbl(e, hid, (u32)p, y - oy, hpos);
         int skip = ask ? next : vseq_skip && vseq_skip[y];
         if (!skip) issue(op, p, (int)y, 1, first, first && g_fill);
-        if (ask && y + 1 < ZM_RASTER_HEIGHT) next = vseq_decide((int)y + 1);
-        if (!skip) wait_bits(ZMV_BIT(PAINTED)); /* a pass(): it has read what the next handler may change */
+        if (ask && y + 1 < ZM_RASTER_HEIGHT) next = decide((int)y + 1);
+        if (!skip) painted(); /* a pass(): it has read what the next handler may change */
     }
 }
 

@@ -10,6 +10,7 @@ const loader = @import("loader.zig");
 const request = @import("app_request.zig");
 const snd_info = @import("snd_info.zig");
 const zmstat = @import("zmstat.zig");
+const vstat = @import("vstat.zig");
 const App = @import("app.zig").App;
 
 /// How long a `tap` holds its key: past a cart's next frame, so a cart that polls
@@ -129,6 +130,7 @@ pub fn statLine(app: *App, secs: u32) zmstat.Line {
         .beat = app.regs.read(map.REG_CART_BEAT),
         .trap = app.stats.last_trap,
         .err = app.stats.last_err,
+        .vs = if (app.current != null) vstat.read(app.ddr) else .{},
     };
 }
 

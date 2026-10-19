@@ -81,6 +81,7 @@ int vplan_frame(struct w2c_env* e, unsigned enabled, int full) {
     uint32_t t0 = board_cycles();
     int handler = vd_plan(&fr);
     g_plan_cycles = board_cycles() - t0;
+    vseq.plan += g_plan_cycles; /* the probe's planner time (vstat.h), with vseq_decide's */
     vseq_wait_swap(); /* the back picture is now the one this frame builds */
     g_pic = (zmv_status() & ZMV_BIT(FRONT)) ? 0 : 1;
     g_full = full, g_composited = 0, g_decided = 0, g_planned = 1;

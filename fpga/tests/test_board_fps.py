@@ -74,6 +74,23 @@ def test_parse_zmstat_takes_every_field_and_the_song_with_its_spaces() -> None:
     assert bf.parse_zmstat("ok a.zmd running") is None
 
 
+PROBE = (" vs_n=16 frame_c=3300000 cart_c=900000 seq_c=2300000 wait_ready=400000 drain=0 painted=1400000 hbl=0"
+         " plan=50000 passes=560 comp_busy=2600000 dma_busy=2200000 swap=10000 underrun=0 overflow=0 probe_c=6"
+         " cal_mix1=1700/2000 cal_mix2=2200/2600 cal_fill1=2600/3100 cal_fill2=3100/3700")
+
+
+def test_the_probe_fields_reach_the_csv_and_a_per_pass_table(tmp_path: Path) -> None:
+    line = zmstat("a.zmd", "running").replace(" song=", PROBE + " song=")
+    row = bf.parse_zmstat(line)
+    assert row is not None and row["passes"] == "560" and row["song"] == "Wings of Death"
+    bf.write_md(tmp_path / "x.md", [row, bf.parse_zmstat(zmstat("b.zmd", "running")) or {}], "")
+    md = (tmp_path / "x.md").read_text()
+    # seq 2.3 Mc over 560 passes; comp 2.6 M clocks at 125 MHz = 2.08 M sys cycles
+    assert "| a.zmd | 59.9 | 3300000 | 900000 | 2300000 | 560 | 4107 | 2500 | 714 | 3714 | 0 | 50000 | 10000 | 0 |" in md
+    assert "b.zmd | 59.9 | -" not in md  # a firmware without the probe has no row in that table
+    assert "cal_mix1=1700/2000" in md
+
+
 def test_parse_keys_orders_steps_and_rejects_a_malformed_one() -> None:
     keys = bf.parse_keys("# comment\ndemo-union.zmd 4:space 2:1:down  # trailing\n\njoust.zmd 1:joy=fire 1.5:joy=0\n")
     assert [(s.at, s.ctl) for s in keys["demo-union.zmd"]] == [(2.0, "key 1 down"), (4.0, "key space tap")]
@@ -90,7 +107,7 @@ def test_run_measures_every_cart_and_moves_past_a_silent_and_a_hung_one(tmp_path
     assert "glass ctl key 1 tap" in con.sent
     assert con.sent.count("glass ctl quit-cart") == 1  # only the hung cart
     csv_text = next(tmp_path.glob("*.csv")).read_text().splitlines()
-    assert csv_text[0] == ",".join(bf.FIELDS)
+    assert csv_text[0] == ",".join(bf.CSV_FIELDS)
     assert [ln.split(",")[7] for ln in csv_text[1:]] == ["running", "silent", "stalled", "running"]
     md = next(tmp_path.glob("*.md")).read_text()
     assert "| a.zmd | 59.9 | 16.6 | 299 | 1 | 12/30 | BARD:SNDH_68k | running | - | Wings of Death |" in md

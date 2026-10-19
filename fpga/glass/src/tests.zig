@@ -32,4 +32,5 @@ test {
     _ = @import("beats.zig");
     _ = @import("ctl_test.zig");
     _ = @import("app_ctl_test.zig");
+    _ = @import("vstat_test.zig");
 }

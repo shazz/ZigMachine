@@ -36,6 +36,7 @@
 #include "vboard.h"
 #include "vplan.h"
 #include "vseq.h"
+#include "vstat.h"
 #include "wasm-rt-exceptions.h"
 #include "wasm-rt-impl.h"
 #include "zm_memmap.h"
@@ -70,6 +71,7 @@
 
 static struct w2c_env g_env;
 static char g_hashes[SAMPLES][65];
+static uint32_t g_cart, g_seq; /* the last frame's cart.frame() and sequencer cycles (vstat.h) */
 
 /* The PFB after the plane's last row reached memory, past the CPU's stale cache. */
 static void hash_pfb(sha256_ctx* h, u32 size) {
@@ -114,6 +116,7 @@ static void frame(sha256_ctx* h, u32 planes, u32 size, long f) {
     bcursor_draw(); /* the board has no host cursor: GEM's arrow over the picture */
     mb_presenting();
     vseq_present();
+    g_cart = t1 - t0, g_seq = (t0 - tc) + (board_cycles() - t2);
     /* the sequencer's share (sim): BG passes, the planes' passes (and hashes), PRESENT */
 #ifndef ZM_BOARD /* nothing is printed there, but the formatting would still cost */
     printf("ZM QF %ld %lu %lu %lu\n", f, (unsigned long)(t0 - tc), (unsigned long)(t3 - t2),
@@ -149,7 +152,9 @@ static void run(void) {
         board_counters(c0);
         uint32_t t0 = board_cycles();
         if (sample) sha256_init(&h);
+        vstat_begin();
         frame(sample ? &h : NULL, planes, size, f);
+        vstat_end(f, g_cart, g_seq);
         board_beat((uint32_t)f);
         mb_frame_done((uint32_t)f);
         printf("ZM HF %ld %lu\n", f, (unsigned long)(board_cycles() - t0));
@@ -183,6 +188,7 @@ static void boot(void) {
     struct w2c_machine* m = &g_env.machine;
     uint32_t pfb = (uint32_t)(uintptr_t)(g_env.memory.data + w2c_machine_hwPhysicalPtr(m));
     mb_init(pfb, w2c_machine_hwPhysWidth(m), w2c_machine_hwPhysHeight(m));
+    vstat_boot(); /* its block of the page mb_init just zeroed */
     printf("ZM MB pfb %08lx %lu x %lu\n", (unsigned long)pfb, (unsigned long)w2c_machine_hwPhysWidth(m),
            (unsigned long)w2c_machine_hwPhysHeight(m));
     AUDIO(baudio_boot());
