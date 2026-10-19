@@ -6,6 +6,38 @@
 **Review Focus:** Performance, Memory Bandwidth Bottlenecks, Latency Pipelines & Stalls, Timing Closure  
 **Tooling & Artifacts:** Stored in [`fpga/review/`](file:///home/matt/projects/ZigMachine/fpga/review)
 
+
+## Status at a glance (lead's tracking, updated 2026-10-18 late)
+
+Every claim was checked against the RTL, the firmware and the board itself. The measurements come from the
+native bench cart (fpga/BENCH_REPORTS.md) and board_fps with the FRESCO probe; the full verdict is §8.
+
+### Accepted strategies
+
+| # | Strategy (review §) | Status | Measured result on the board |
+|---|---|---|---|
+| 1 | Posted stores on ZIGGY's HP0 (§2.1) | **DONE, merged** (perf/ziggy-posted, bitstream 3ebb7381; +157 LUT, 85.5 %) | A store goes from 18 to **2.25 cycles** (×8); memset 4.5 → 0.56 c/B; misaligned trap 693 → 213; **23 carts faster, none slower** |
+| 2 | Compositor row I/O is the per-plane cost (§2.2) | **Confirmed** by the FRESCO probe (vcal) | Row read ~400 sys cycles, row write ~1,040 (32-bit beats); a redrawn plane costs 1.17 Mc; the ~30-fps carts are compositor-bound (840 passes × ~3.3 k) |
+| 3 | 64-bit row writes on HP1 (not in the review; it came from §2.2's analysis) | **Prepared, not built** (perf/fresco-linemajor WIP; `glass run --fw-opt=2`) | Predicted −0.22 Mc per redrawn plane at 0 LUT. The 10-03 "lost words" was the openXC7 BRAM bug, not W64 |
+| 4 | Line-major compositing / fewer row stores (§2.2, "double-buffered row I/O" reworked) | **WIP, paused** (perf/fresco-linemajor: RTL bits + tests pass) | Exact only for planes below the first HBL handler. Most ~30-fps carts have a handler on every plane, so only leonard gains among them |
+| 5 | Blitter single-beat AXI (§2.5) | **Tested: bursts don't help** (perf/chisel-burst, kept OFF) | Fill is limited at 1 px/clock (1.03 c/B). The real cost was the **~1,100-cycle call**, now cut in firmware: 8x8 fill 1,222 → 911 cycles |
+| 6 | Scanout underrun (§2.4) | **Checked only** | Never seen on the board; the probe's sticky bit reads "boot" (set since PL reset), so a per-frame counter would be needed to say more |
+| 7 | CPU busy-wait in vseq (§2.3) | **Root cause corrected** | A status poll costs 5.4 cycles. The CPU waits on the pass's own hardware time (row I/O), not on polling. A HW sequencer saves ~3 % unless compositing overlaps the cart, which the semantics forbid |
+
+### Refused strategies, and why
+
+| Review claim / strategy | Why refused |
+|---|---|
+| §7 bandwidth/latency tools as evidence | **Invented inputs:** hardcoded cart profiles (e.g. union_beatdis "125 k stores/frame" predicts ≤ 27.8 fps; it runs 60 on the board). Replaced by the bench cart + probe |
+| §3.1 "Full SoC (Vivado) 9,840 LUT, +0.108 ns" | **Wrong:** contradicts the review's own 14,888 LUT. Only 2 OOC runs in reports/ are real |
+| §6 "an FPU is impossible at 84.6 %" | **Stale:** the f32 FPU already ships on the board |
+| "Pre-silicon / plan step 0" status | **Stale:** the SoC has run on the board since 10-09 |
+| §2.1 "blocking stores stall the pipeline, 1-line fix" | **Mechanism wrong:** ALU work between stores was already free (one store overlapped); the limit was throughput. The existing buffer pipelined, so it was a 1-line enable plus an IO fence for ordering |
+| §6 BARD → vexriscv_min | Slower core; Quartet is already at 117 % of BARD |
+| §6 Sound on ARM core 1 | Breaks the "every chip on the FPGA" machine concept (Matt's call; parked) |
+| §5 Plane geometry timing at 150 MHz | comp_clk is 125 MHz and closes; no need |
+| §6 LUT diet (blitter steppers −850, Paula time-mux, jt49 filter) | **Deferred:** posted + W64 + line-major fit in < 350 LUT; revisit only if room runs out |
+
 ---
 
 ## 1. Executive Summary & Hardware Context
