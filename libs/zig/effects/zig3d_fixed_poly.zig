@@ -82,7 +82,7 @@ fn push(a: *[2]i32, b: *[2]i32) void {
     const sx = shift(dx, 30 - have);
     const sy = shift(dy, 30 - have);
     const len: i64 = @intCast(fm.isqrt(@intCast(sx * sx + sy * sy)));
-    const inv = @divTrunc(@as(i64, 1) << (30 + fm.PX), len); // |s| <= len keeps s*inv in 2^(30+PX)
+    const inv = fm.pow2Over(30 + fm.PX, len); // |s| <= len keeps s*inv in 2^(30+PX)
     const ux: i32 = @intCast((sx * inv + (1 << 29)) >> 30);
     const uy: i32 = @intCast((sy * inv + (1 << 29)) >> 30);
     b[0] += ux;
@@ -95,11 +95,40 @@ fn shift(v: i64, by: i32) i64 {
     return if (by >= 0) v << @intCast(by) else v >> @intCast(-by);
 }
 
-/// Put `p` into `list` (whose last slot is free) keeping it far to near, after
-/// any face of equal depth: zig3d's stable insertion sort, done as the faces
-/// arrive, moving each 40-byte face once per place instead of swapping it.
-pub fn insert(list: []Poly, p: Poly) void {
-    var j = list.len - 1;
-    while (j > 0 and list[j - 1].depth < p.depth) : (j -= 1) list[j] = list[j - 1];
-    list[j] = p;
+/// Order `list` far to near, a face of equal depth staying after the ones
+/// that came before it: zig3d's stable insertion sort. The sort moves 2-byte
+/// indices, then each 40-byte face moves once into its place (every store is
+/// a blocking DDR write on the board: moving whole faces per shift cost ~0.8
+/// Mcycles a frame on TNT3's ball).
+pub fn sortFarToNear(list: []Poly) void {
+    if (list.len > MAX_SORT) return std.sort.insertion(Poly, list, {}, farther);
+    var order: [MAX_SORT]u16 = undefined;
+    for (list, 0..) |p, i| {
+        var j = i;
+        while (j > 0 and list[order[j - 1]].depth < p.depth) : (j -= 1) order[j] = order[j - 1];
+        order[j] = @intCast(i);
+    }
+    // list[j] = old list[order[j]], one cycle of the permutation at a time;
+    // order[cur] = cur marks a place filled
+    for (0..list.len) |j| {
+        if (order[j] == j) continue;
+        const tmp = list[j];
+        var cur = j;
+        while (true) {
+            const src = order[cur];
+            order[cur] = @intCast(cur);
+            if (src == j) {
+                list[cur] = tmp;
+                break;
+            }
+            list[cur] = list[src];
+            cur = src;
+        }
+    }
+}
+
+const MAX_SORT = 1024;
+
+fn farther(_: void, a: Poly, b: Poly) bool {
+    return a.depth > b.depth;
 }

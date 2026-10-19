@@ -111,7 +111,7 @@ pub const Demo = struct {
         // below land on top, as screen.js draws them.
         self.blitter.blitImage(fb, 0, 0, self.images.stars.data, A.STARS_W, 0, 0, A.STARS_W, A.STARS_H, null);
         self.show.draw(dst);
-        @memset(dst.buf[0 .. BAND_ROWS * dst.stride], A.BLACK); // quad(0,0,640,0,640,18,0,18)
+        self.blitter.fill(fb, 0, 0, @intCast(dst.w), BAND_ROWS, A.BLACK); // quad(0,0,640,0,640,18,0,18), on CHISEL
         self.scroller.draw(dst, self.images.font);
     }
 

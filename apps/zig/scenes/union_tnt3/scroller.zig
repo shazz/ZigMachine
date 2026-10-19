@@ -38,6 +38,16 @@ comptime {
     for (TEXT) |c| if (c != SEPARATOR and (c < FIRST_CHAR or c >= FIRST_CHAR + SHEET_COLS * 4)) @compileError("scrolltext character outside fonts.png");
 }
 
+/// The ST rows [y, y + h) of every letter of `line`, from glyph row `glyph_row`.
+fn drawRun(dst: blit.Dst, font: blit.Image, line: []const u8, glyph_row: usize, y: usize, h: usize) void {
+    const left: i32 = 160 - @as(i32, @intCast(line.len * GLYPH_W / 2));
+    for (line, 0..) |c, i| {
+        const g: usize = c - FIRST_CHAR;
+        const part = blit.Rect{ .x = g % SHEET_COLS * GLYPH_W, .y = g / SHEET_COLS * BAND_ROWS + glyph_row, .w = GLYPH_W, .h = h };
+        blit.blit(dst, font, part, left + @as(i32, @intCast(i * GLYPH_W)), @intCast(y), 0, .{ .flat = A.RED });
+    }
+}
+
 pub const Scroller = struct {
     delay: u32,
     dir: i32, // scrolldir
@@ -78,17 +88,19 @@ pub const Scroller = struct {
 
     /// The band (already black) gets the glyphs' ink; their black field
     /// changes nothing on it.
+    ///
+    /// ST row y shows canvas row 2y + pos, and pos keeps one parity, so the
+    /// rows that fall in one half of the canvas show CONSECUTIVE glyph rows:
+    /// each half's run is one blit a letter (at most two runs), not one a row.
     pub fn draw(self: *const Scroller, dst: blit.Dst, font: blit.Image) void {
-        for (0..BAND_ROWS) |y| {
+        var y: usize = 0;
+        while (y < BAND_ROWS) {
             const row: usize = 2 * y + @as(usize, @intCast(self.pos)); // 0..35 on the 640x36 canvas
-            const line = self.half[row / TILE_H_C];
-            const glyph_row = row % TILE_H_C / 2;
-            const left: i32 = 160 - @as(i32, @intCast(line.len * GLYPH_W / 2));
-            for (line, 0..) |c, i| {
-                const g: usize = c - FIRST_CHAR;
-                const part = blit.Rect{ .x = g % SHEET_COLS * GLYPH_W, .y = g / SHEET_COLS * BAND_ROWS + glyph_row, .w = GLYPH_W, .h = 1 };
-                blit.blit(dst, font, part, left + @as(i32, @intCast(i * GLYPH_W)), @intCast(y), 0, .{ .flat = A.RED });
-            }
+            const half = row / TILE_H_C;
+            var end = y + 1;
+            while (end < BAND_ROWS and (2 * end + @as(usize, @intCast(self.pos))) / TILE_H_C == half) end += 1;
+            drawRun(dst, font, self.half[half], row % TILE_H_C / 2, y, end - y);
+            y = end;
         }
     }
 };

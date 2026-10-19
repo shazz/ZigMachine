@@ -136,9 +136,37 @@ pub fn dotWide(row: [3]i32, x: i32, y: i32, z: i32) i64 {
     return @as(i64, row[0]) * x + @as(i64, row[1]) * y + @as(i64, row[2]) * z;
 }
 
-/// floor(sqrt(v)), bit by bit: no float, and exact.
+/// floor(sqrt(v)), exact. For the range zig3d_fixed_poly's push feeds it,
+/// 2^58 <= v < 2^62, the f32 FPU guesses within a few hundred, one Newton step
+/// (in f32 on the small residual) lands within one, and integer compares make it
+/// exact: ~100 cycles where std.math.sqrt's 31 bit-by-bit rounds of 64-bit
+/// arithmetic cost ~1,300 on the rv32 cart CPU. Anything else takes that path.
 pub fn isqrt(v: u64) u64 {
-    return std.math.sqrt(v);
+    if (v < 1 << 58 or v >= 1 << 62) return std.math.sqrt(v);
+    const hi: u32 = @intCast(v >> 30); // 2^28 <= hi < 2^32
+    const f = @sqrt(@as(f32, @floatFromInt(hi))); // 2^14 <= f < 2^16
+    const r0: i64 = @as(u32, @intFromFloat(f * 32768.0)); // ~sqrt(v), within ~200
+    const e = @as(i64, @intCast(v)) - r0 * r0; // |e| < 2^41
+    const step = @as(f32, @floatFromInt(@as(i32, @intCast(e >> 11)))) * 1024.0 / @as(f32, @floatFromInt(@as(u32, @intCast(r0))));
+    var r: i64 = r0 + @as(i32, @intFromFloat(step)); // within one or two
+    const sv: i64 = @intCast(v);
+    while (r * r > sv) r -= 1;
+    while ((r + 1) * (r + 1) <= sv) r += 1;
+    return @intCast(r);
+}
+
+/// floor(2^e / d) for d > 0, exact. When the quotient is small (d >= 2^(e-24),
+/// d < 2^31, as push's 2^44 / len) the f32 FPU's divide is within one of it
+/// and two integer compares settle it: no libgcc 64-bit divide (~250 cycles on
+/// the rv32 cart CPU). Anything else divides.
+pub fn pow2Over(comptime e: u6, d: i64) i64 {
+    const n: i64 = @as(i64, 1) << e;
+    if (d < (1 << (e - 24)) or d >= 1 << 31) return @divTrunc(n, d);
+    const df: f32 = @floatFromInt(@as(u32, @intCast(d)));
+    var q: i64 = @as(u32, @intFromFloat(@as(f32, @floatFromInt(n)) / df)); // < 2^25
+    while (q * d > n) q -= 1;
+    while ((q + 1) * d <= n) q += 1;
+    return q;
 }
 
 /// A canvas coordinate (1 px = ONE_PX) rounded half away from zero to a whole pixel and clamped

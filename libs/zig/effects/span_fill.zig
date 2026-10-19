@@ -13,7 +13,9 @@
 // word); the unaligned head and tail go a byte at a time, compared the same way.
 // --------------------------------------------------------------------------
 
-pub fn fill(out: []u8, v: u8) void {
+// Inline: canvas_poly_fixed's monotone fill keeps both edges in registers
+// across its spans.
+pub inline fn fill(out: []u8, v: u8) void {
     var i: usize = 0;
     const n = out.len;
     const head = @min(n, (4 -% @intFromPtr(out.ptr)) & 3);
