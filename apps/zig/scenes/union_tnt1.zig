@@ -10,14 +10,10 @@
 //     blue tiles on top of everything but the logo and the scroller;
 //   - the scroller at canvas row 384, speed 3, in the logo's dark red;
 //   - the same ballfield stepped AGAIN in red, landing 'source-atop' on a canvas
-//     holding only the logo and the scroller: red balls inside those shapes.
+//     holding only the logo and the scroller: red balls inside those shapes
+//     (union_tnt1/passes.zig).
 // ballsfield.draw() runs twice a draw(), so the red balls are one step (4 z
 // units, not 2) ahead of the blue ones, and every ball moves twice a frame.
-//
-// As palette work: the atop canvas's opaque pixels are exactly the ink (2) and
-// the red tiles' entries, so pass 1 draws blue only OUTSIDE that set and pass 2
-// draws red only INSIDE it (blit's .select ink). Drawing order within a pass is
-// the field's, later balls on top.
 //
 // Geometry: a 640x400 canvas, every PNG pixel-doubled on the (0,0) grid, so it
 // halves onto 320x200. The balls sit at fractional canvas positions, which
@@ -43,6 +39,7 @@ const ballfield = zg.ballfield;
 const DepackFx = @import("depackers").depack_fx.Runner(zg, null);
 const packed_assets = @import("packed_assets");
 const hub_note = @import("union_demo/hub_note.zig").HubNote("union_tnt1");
+const P = @import("union_tnt1/passes.zig");
 
 // The remake plays data/music/Pandora.ym ("U_STARBL.BIN"); this is Mad Max's
 // Union Demo Pandora from the SNDH archive (one subtune, FLAG ~y).
@@ -60,26 +57,20 @@ const TEXT = @embedFile("../assets/screens/union_tnt1/scrolltext.txt");
 /// 2 #800000 (logo, font), 3..10 blue balls, 11..17 red balls.
 const palette = zg.convertU8ArraytoColors(@embedFile("../assets/screens/union_tnt1/pal.dat"));
 const BG: u8 = 1;
-const INK: u8 = 2;
-const RED_FIRST: u8 = 11;
-const RED_LAST: u8 = 17;
-
-const LOGO_W = 78; // logo.png 156x80
-const LOGO_H = 40;
-const LOGO_X = 112; // logo.draw(maincanvas, 224, 8)
-const LOGO_Y = 4;
+const LOGO_W = P.LOGO_W;
+const LOGO_H = P.LOGO_H;
 const FONT_W = 256; // fonts.png 512x64, initTile(32,16,32)
 const FONT_H = 32;
 const GLYPH_W = 16;
 const GLYPH_H = 8;
 const FONT_COLS = 16;
 const FIRST_CHAR = 32;
-const SCROLL_Y = 192; // scrollcanvas.draw(ballcanvas, 0, 384)
+const SCROLL_Y = P.SCROLL_Y;
 const LETTERS = 22; // wide = ceil(640/32)+1 = 21, letters 0..wide
 const GLYPH_C: i32 = 32;
 const SPEED_C: i32 = 3; // scrolltext.init(scrollcanvas, font, 3)
-const SHEET_W = 272; // balls.png 544x32, initTile(32,32): 17 tiles
-const TILE = 16;
+const SHEET_W = P.SHEET_W;
+const TILE = P.TILE;
 const TILES = 17;
 const TOTAL = LOGO_W * LOGO_H + FONT_W * FONT_H + 2 * SHEET_W * TILE;
 
@@ -93,19 +84,8 @@ const FIELD = ballfield.Params{ .w = 640, .h = 400, .centx = 320, .centy = 200, 
 const Balls = ballfield.fixed.Field(FIELD); // whole-number speed and ratio: integers, no f64 per ball
 const SEED: u32 = 0x1D872B41; // apps/union_tnt1_replay.mjs SEED
 const START_BALLS = 60;
-const MAX_BALLS = 550;
-
-/// The ballcanvas pixels 'source-atop' keeps: logo and scroller ink, red balls.
-const atop_canvas: [256]bool = blk: {
-    var s = [_]bool{false} ** 256;
-    s[INK] = true;
-    for (RED_FIRST..RED_LAST + 1) |i| s[i] = true;
-    break :blk s;
-};
-
-/// One drawn tile, already on the ST grid.
-const Spot = struct { x: i16, y: i16, tile: u8 };
-const Pass = struct { spots: [MAX_BALLS]Spot, n: usize };
+const MAX_BALLS = P.MAX_BALLS;
+const Pass = P.Pass;
 /// The balls and their two draw lists, ~29 KB: on zg.mem next to the depacked
 /// images, since a module-scope array is written into the cart's data
 /// segment as zeros, `undefined` or not.
@@ -125,12 +105,14 @@ pub const Demo = struct {
     nb_balls: usize,
     wanted: usize, // a number key's count, applied by the next update
     ring: zg.scrollring.Ring(i32, LETTERS),
+    blitter: zg.Blitter,
     leave: bool,
     note: ?hub_note.Note, // the hub's note for this door, when it left one
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
         self.phase = .failed;
         self.leave = false;
+        self.blitter.init();
         self.random = ballfield.XorShift32.init(SEED);
         self.note = hub_note.accepted(TEXT.len);
         const offset: usize = if (self.note) |n| n.scroll else 0; // jsApp.mainscrollerPos
@@ -166,16 +148,21 @@ pub const Demo = struct {
     pub fn render(self: *Demo, zigos: *ZigOS, dt: f32) void {
         _ = dt;
         if (self.phase != .running) return;
-        const dst = blit.Dst.plane(&zigos.lfbs[0]);
-        @memset(dst.buf, BG);
-        blit.blit(dst, self.images.logo, null, LOGO_X, LOGO_Y, 0, .copy);
+        const fb = &zigos.lfbs[0];
+        const dst = blit.Dst.plane(fb);
+        // CHISEL clears and lays the logo (~1.85 clocks a byte, where a memset
+        // is ~15 a byte of blocking DDR stores); it returns when the pixels are
+        // in the plane, so the CPU draws on top in screen.js's order
+        self.blitter.clear(fb, BG);
+        const logo = self.images.logo;
+        self.blitter.blitImage(fb, P.LOGO_X, P.LOGO_Y, logo.data, LOGO_W, 0, 0, LOGO_W, LOGO_H, 0);
         for (self.ring.x, self.ring.c) |x, c| {
             const g: usize = c - FIRST_CHAR;
             const part = blit.Rect{ .x = g % FONT_COLS * GLYPH_W, .y = g / FONT_COLS * GLYPH_H, .w = GLYPH_W, .h = GLYPH_H };
             blit.blit(dst, self.images.font, part, @divFloor(x + 1, 2), SCROLL_Y, 0, .copy); // round(x/2)
         }
-        drawPass(dst, &self.work.passes[0], self.images.blue, false);
-        drawPass(dst, &self.work.passes[1], self.images.red, true);
+        P.drawBlue(&self.blitter, fb, dst, &self.work.passes[0], self.images.blue);
+        P.drawRed(dst, &self.work.passes[1], self.images.red);
     }
 
     /// Host input ids: 5 fire, 6 back.
@@ -238,14 +225,6 @@ pub const Demo = struct {
         }
     }
 };
-
-fn drawPass(dst: blit.Dst, pass: *const Pass, sheet: blit.Image, atop: bool) void {
-    const ink = blit.Ink{ .select = .{ .set = &atop_canvas, .inside = atop } };
-    for (pass.spots[0..pass.n]) |s| {
-        const part = blit.Rect{ .x = @as(usize, s.tile) * TILE, .y = 0, .w = TILE, .h = TILE };
-        blit.blit(dst, sheet, part, s.x, s.y, 0, ink);
-    }
-}
 
 fn split(buf: []const u8) Images {
     const font_at = LOGO_W * LOGO_H;
