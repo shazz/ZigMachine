@@ -137,6 +137,6 @@ removes the table call and wrapper per op but not the latency.
 ## Board result (2026-10-19, lead; lm8 bitstream, old order, glass --fw-opt=0)
 - Big ops overlap as designed: as.seq.alu.64K 133K -> lazy 68K (x1.97); as.seq.st.64K 122K -> 67K; 8K 17.8K -> 10.0K. as.kick.64K = 577 cycles, as.sync.idle = 277.
 - Small ops get SLOWER lazy: as.f8.x64 56.3K -> 62.6K (+98/op), as.f8w.x64 79.4K -> 85.5K (+96/op): the register replay costs more than the ~360 cycles of CPU work hides.
-- ch.fill8.x64 911 -> 944/op?? no: 64403 -> 60403 total (the new wrapper is ~60 cycles cheaper for sync callers).
+- ch.fill8.x64 64403 -> 60403 for 64 ops (sync callers: the new wrapper is ~60 cycles an op cheaper).
 - fps: stniccc 41.1 -> 34.6 (REGRESSION, small spans), fuji_hobbytronic 60, tsl_hybridglenz 60, union_tnt1 60 (all unchanged).
 - Verdict: keep lazy only for big ops (clears / big copies); drop stniccc's opt-in; the many-small-ops case needs option 2 (command queue).
