@@ -16,6 +16,9 @@ CMD_FIELDS = [
     ("mix", 1, "fold this pass into the picture"),
     ("first", 1, "... as the line's first layer"),
     ("fill", 1, "PLANE / MIX: paint the line in the CLEAR colour instead of loading the PFB row"),
+    ("hold", 1, "go on from the line's pass before: no row LOAD (a line-major group, cycles/vseq_group.c)"),
+    ("keep", 1, "the next pass goes on from this one: no STORE"),
+    ("nopfb", 1, "STORE the picture row only, not the PFB row (the board)"),
 ]
 STATUS_FIELDS = [
     ("ready", 1, "no command queued or running: one may be written"),

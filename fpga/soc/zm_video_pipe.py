@@ -180,6 +180,7 @@ class ZMVideo(ZMVideoCSRs, LiteXModule):
             "i_cpu_we": sn["we"], "i_cpu_waddr": sn["waddr"], "i_cpu_be": sn["be"], "i_cpu_wdata": sn["wdata"],
             "i_cpu_sel": sn["sel"], "i_cmd_op": f.op, "i_cmd_plane": f.plane, "i_cmd_line": f.line,
             "i_cmd_mix": f.mix, "i_cmd_first": f.first, "i_cmd_fill": f.fill,
+            "i_cmd_hold": f.hold, "i_cmd_keep": f.keep, "i_cmd_nopfb": f.nopfb,
         }  # fmt: skip
         for prefix, port in (("rd", self.rd_c), ("sc", self.sc_c)):
             ports |= {f"o_{prefix}_req_valid": port.req_valid, f"i_{prefix}_req_ready": port.req_ready}

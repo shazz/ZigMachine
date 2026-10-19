@@ -10,7 +10,9 @@
 // LAT clocks of first-beat latency and a beat a clock, skips the per-pass
 // read-back, and reports the clocks a pass, a line and a frame take. `--fuse`
 // clears as cycles/vseq.c does where it can: one CLEAR, the lines painted by
-// the first layer's `fill` passes (video_replay.h).
+// the first layer's `fill` passes (video_replay.h). `--line-major` runs every
+// enabled plane as one line-major group (`hold` / `keep`), `--nopfb` with no PFB
+// store, `--lm-break N` with a wrong bit on its held passes (1 fill, 2 first).
 // Exits non-zero on any difference.
 #include <cstdio>
 #include <cstdlib>
@@ -50,15 +52,21 @@ int run_frame(Rig& rig, vd::Replay<Rig>& r, const char* dir, const char* frame) 
 
 int main(int argc, char** argv) {
     int lat = -1, first_arg = 1;
-    bool fuse = false;
+    bool fuse = false, lm = false, nopfb = false;
+    int lm_break = 0;
     for (;;) {
-        if (argc > first_arg + 1 && !std::strcmp(argv[first_arg], "--timing"))
-            lat = std::atoi(argv[first_arg + 1]), first_arg += 2;
-        else if (argc > first_arg && !std::strcmp(argv[first_arg], "--fuse")) fuse = true, first_arg++;
+        const char* a = argc > first_arg ? argv[first_arg] : "";
+        if (argc > first_arg + 1 && !std::strcmp(a, "--timing")) lat = std::atoi(argv[first_arg + 1]), first_arg += 2;
+        else if (argc > first_arg + 1 && !std::strcmp(a, "--lm-break"))
+            lm_break = std::atoi(argv[first_arg + 1]), first_arg += 2;
+        else if (!std::strcmp(a, "--fuse")) fuse = true, first_arg++;
+        else if (!std::strcmp(a, "--line-major")) lm = true, first_arg++;
+        else if (!std::strcmp(a, "--nopfb")) nopfb = true, first_arg++;
         else break;
     }
     if (argc < first_arg + 2) {
-        std::fprintf(stderr, "usage: video_comp_tb [--timing LAT] [--fuse] <dump dir> <frame>...\n");
+        std::fprintf(stderr, "usage: video_comp_tb [--timing LAT] [--fuse] [--line-major [--nopfb] [--lm-break N]] "
+                             "<dump dir> <frame>...\n");
         return 2;
     }
     static Rig rig;  // the CXXRTL model is large: keep it off the stack
@@ -69,6 +77,7 @@ int main(int argc, char** argv) {
     static vd::Replay<Rig> r(rig);
     r.check_passes = lat < 0;
     r.fuse = fuse;
+    r.line_major = lm, r.nopfb = nopfb, r.lm_break = lm_break;
     int failed = 0;
     for (int i = first_arg + 1; i < argc; i++) {
         int verdict = run_frame(rig, r, argv[first_arg], argv[i]);

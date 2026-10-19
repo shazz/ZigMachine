@@ -19,7 +19,8 @@
 // marks a line's first fold of the frame; `cmd_fill` (PLANE / MIX) paints the
 // line in the CLEAR colour where the pass would load the PFB row BG left. The
 // PFB rows go back to the region, where the machine keeps its PFB, so the frame
-// is hashable as scene_hash does.
+// is hashable as scene_hash does. `cmd_hold` / `cmd_keep` / `cmd_nopfb` run a
+// line through several planes' passes without the rows leaving (zm_video_pass.v).
 //
 // Between passes is where the HBL handlers run: the sequencer (the cart CPU's
 // firmware, fpga/cycles/vseq.c) calls the handler, waits until its stores have
@@ -53,6 +54,9 @@ module zm_video_comp (
     input  wire        cmd_mix,          // fold this pass into the picture (zm_video_mix.v)
     input  wire        cmd_first,        // ... as the line's first layer of the frame
     input  wire        cmd_fill,         // ... over the CLEAR colour, not the PFB row
+    input  wire        cmd_hold,         // ... going on from the pass before (no row LOAD)
+    input  wire        cmd_keep,         // ... the next pass goes on from this one (no STORE)
+    input  wire        cmd_nopfb,        // ... STORE the picture row only
     output wire        painted,          // one clock: the pass has read all the CPU's state
     output wire        pass_done,        // one clock: the pass's rows are in memory
     output wire        present,          // one clock: a PRESENT command
@@ -137,7 +141,7 @@ module zm_video_comp (
     wire [31:0] pfb_addr, d_addr;
     zm_video_pass u_pass (
         .clk(clk), .rst(rst), .take(take), .op(cmd_op), .line(cmd_line), .mix(cmd_mix), .first(cmd_first),
-        .fill(cmd_fill),
+        .fill(cmd_fill), .hold(cmd_hold), .keep(cmd_keep), .nopfb(cmd_nopfb),
         .vbase(vbase), .dbase(dbase), .pfb_addr(pfb_addr), .d_addr(d_addr), .busy(busy), .fetching(fetching),
         .start_bg(start_bg), .start_pl(start_pl), .start_mix(start_mix), .mix_first(mix_first),
         .bg_done(bg_done), .pl_done(pl_done), .mix_done(mix_done), .ld_start(ld_start), .ld_pfb(ld_pfb),

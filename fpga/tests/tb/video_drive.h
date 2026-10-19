@@ -69,13 +69,18 @@ public:
 
     // Issue one command and wait until it is taken; then, for a pass, until
     // `pass_done` (its rows are in memory). Returns the pass's clocks.
-    long command(int op, int plane, int line, bool mix = false, bool first = false, bool fill = false) {
+    // ext: bit 0 hold, 1 keep, 2 nopfb (a line-major group, zm_video_pass.v).
+    long command(int op, int plane, int line, bool mix = false, bool first = false, bool fill = false,
+                 unsigned ext = 0) {
         top.p_cmd__op.template set<uint32_t>(uint32_t(op));
         top.p_cmd__plane.template set<uint32_t>(uint32_t(plane));
         top.p_cmd__line.template set<uint32_t>(uint32_t(line));
         top.p_cmd__mix.set(mix);
         top.p_cmd__first.set(first);
         top.p_cmd__fill.set(fill);
+        top.p_cmd__hold.set(bool(ext & 1));
+        top.p_cmd__keep.set(bool(ext & 2));
+        top.p_cmd__nopfb.set(bool(ext & 4));
         top.step();
         // A picture pass may wait for the shown picture to swap: up to a frame.
         wait_for([&] { return top.p_cmd__ready.template get<bool>(); }, "taken", op, line, 20000000);

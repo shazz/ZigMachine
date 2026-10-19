@@ -83,15 +83,18 @@ def build_tb(rtl_dir: Path = RTL, out_dir: Path = FPGA / "build" / "tests", out:
 
 
 def replay(
-    exe: Path, frames_dir: Path, frames: list[int], timing: int | None = None, fuse: bool = False
+    exe: Path, frames_dir: Path, frames: list[int], timing: int | None = None, fuse: bool = False,
+    extra: tuple[str, ...] = (),
 ) -> subprocess.CompletedProcess[str]:
     """Run the testbench; returncode 0 means every pixel of every pass, and of the
     browser's picture (written first by tools/video_mix.py), matched. `timing`:
     serve memory with that first-beat latency and no stalls, and skip the
     per-pass read-back (the clock figures). `fuse`: clear as cycles/vseq.c does,
-    one CLEAR and the first layer's `fill` passes, where the frame allows it."""
+    one CLEAR and the first layer's `fill` passes, where the frame allows it. `extra`: more
+    testbench flags (`--line-major`, `--nopfb`, `--lm-break N`: tests/tb/video_comp_tb.cpp)."""
     video_mix.mix(frames_dir, frames)
     args = [str(exe), *(["--timing", str(timing)] if timing is not None else []), *(["--fuse"] if fuse else [])]
+    args += list(extra)
     args += [str(frames_dir), *map(str, frames)]
     return subprocess.run(args, capture_output=True, text=True, timeout=1200, check=False)
 

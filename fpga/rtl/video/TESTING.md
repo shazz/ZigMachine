@@ -11,6 +11,9 @@ uv run python tools/video_rtl.py --out 5:2 build/vdump/tutorial/frames 300   # w
 make -C fpga video-sim                                      # the integration test (below), ~1 h
 ZM_CHROME=1 uv run pytest -q tests/test_video_mix.py       # the picture model vs headless Chrome
 uv run python tools/video_order.py union_main 300          # would line-major HBLs change the frame?
+uv run pytest -q tests/test_rtl_linemajor.py               # line-major groups (hold/keep/nopfb), ~5 min
+ZM_RTL_BREAK=1 uv run pytest -q tests/test_rtl_linemajor.py -k broken   # + its 7 break tests
+uv run pytest -q tests/test_video_order_group.py           # the board's group rule, state level, ~4 min
 ```
 
 1. **Record.** `tools/video_dump/vdump` is the native host (`fpga/host/`'s
@@ -77,6 +80,8 @@ in every pass, and a break test of that rule is caught.
 | BEAM lines: snapping, gap and x drops, more than 64 entries, carry into `BACKGROUND` | **proven** | `dhs_0pxl0reg` 300 and 900 (a static picture), synthetic `beam` |
 | unaligned `FB_BASE`, `FB_BASE`/`HSCROLL` rewritten mid-frame (must be ignored) | **proven, synthetic only** | every synthetic scenario |
 | a fetch stalled by the memory port | **proven** | random `ready` and latency on every replay (`ignore_ready` break test) |
+| line-major groups (`hold` / `keep`, sticky `dirty` / `filled`, `nopfb`) | **proven** | every corpus frame + leonard replayed with all its planes as one group, BG and fused, PFB and picture exact; `--timing 24`: fewer clocks; 7 break tests (`video_lm_mutants.json`) and 3 wrong-bit tests |
+| the board's group rule (runs of handler-free planes) | **proven, state level** | `tools/video_order_group.py` on the corpus; the rule ignored changes s:medium and s:overscan |
 | plane-major order: PFB rows to memory and back between planes | **proven** | every replay; `no_pfb_load`, `bg_rows_not_stored`, `mixed_rows_not_stored`, `row_address_3072` |
 | row write-back through a stalling port (skid buffer) | **proven** | random write `ready` on every replay; `skid_overrun` |
 | double-buffered picture, swap at VBL, no tearing | **proven** | `video_out_tb` on `dhs_0pxl0reg` and `s:worst` (2 frames each); `no_interlock`, `swap_without_vbl`, `scanout_shows_back` |

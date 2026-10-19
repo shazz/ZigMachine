@@ -16,6 +16,17 @@
 // With `fuse`, a frame whose clear cannot differ line to line (no global HBL
 // handler, no BEAM writes) is cleared as cycles/vseq.c does it: one CLEAR, then
 // the first layer's passes taken with `fill` paint each line over its colour.
+//
+// With `line_major`, every enabled plane is one line-major group, as
+// cycles/vseq_group.c runs the planes below the first handler plane: all of them
+// LATCHed, then per line each plane's pass, the later ones `hold`, all but the
+// last `keep`. Each pass still gets the state the machine consumed for it, so
+// any frame tests the RTL's side (the rows never leave the line buffer and the
+// accumulator); which planes may form a group is tools/video_order.py's
+// question. The PFB row is compared after the group's last pass (none with
+// `nopfb`, which stores the picture only), the picture as always. `lm_break`
+// sends a wrong bit on the held passes (1 `fill`, 2 `first`), or 3 compares the
+// PFB of a `nopfb` frame (a hashed frame left with it on): each must be caught.
 #pragma once
 #include <cstdio>
 #include <cstring>
@@ -36,6 +47,8 @@ template <typename RigT> struct Replay {
     bool check_passes = true;
     bool fuse = false;  // CLEAR + `fill` where the clear allows it (vseq.c)
     bool fused = false; // ... and this frame was
+    bool line_major = false, nopfb = false;  // every enabled plane as one group; no PFB store
+    int lm_break = 0;  // a wrong bit on the held passes (1 fill, 2 first), 3 nopfb on a compared frame
     uint32_t dbase = Mem::kFb0;  // the picture this frame builds (zm_video_comp alone)
     uint32_t pal[PAL_WORDS] = {}, beam[BEAM_WORDS] = {};  // what the RTL RAMs hold
     long bad_pixels = 0, bad_regs = 0, bad_picture = 0;
@@ -83,8 +96,8 @@ template <typename RigT> struct Replay {
         rig.command(5, 0, 0);
         if (f->end[0]) check_own(*f->end[0], LINES - 1);
     }
-    void pass(int op, int p, int y, bool first, bool fill = false) {
-        long c = rig.command(op, p, y, op != 0, first, fill);
+    void pass(int op, int p, int y, bool first, bool fill = false, unsigned ext = 0) {
+        long c = rig.command(op, p, y, op != 0, first, fill, ext);
         line_clocks[y] += c;
         if (c > max_pass) max_pass = c;
     }
@@ -104,6 +117,27 @@ template <typename RigT> struct Replay {
         apply_ram(s, PAL0 + p * ZM_PAL_ENTRIES, ZM_PAL_ENTRIES, pal + p * ZM_PAL_ENTRIES, ZM_OFF_PAL + p * ZM_PAL_BYTES);
         pass(1, p, y, first, fill);
         compare(k, y);
+    }
+    // The planes in g, line-major: g0 loads (or fills) and folds first, the others hold.
+    void group_frame(unsigned g, bool fill) {
+        int top = -1;
+        for (int p = 0; p < ZM_NB_PLANES; p++)
+            if ((g >> p) & 1) apply_regs(*f->start[p + 1]), rig.command(2, p, 0), top = p;
+        for (int y = 0; y < LINES; y++) {
+            bool g0 = true;
+            for (int p = 0; p <= top; p++) {
+                if (!((g >> p) & 1)) continue;
+                const State& s = *f->consumed(p + 1, y);
+                apply_regs(s);
+                apply_ram(s, PAL0 + p * ZM_PAL_ENTRIES, ZM_PAL_ENTRIES, pal + p * ZM_PAL_ENTRIES,
+                          ZM_OFF_PAL + p * ZM_PAL_BYTES);
+                unsigned ext = (g0 ? 0u : 1u) | (p != top ? 2u : 0u) | (p == top && nopfb ? 4u : 0u);
+                bool first = g0 || lm_break == 2, fl = fill && (g0 || lm_break == 1);
+                pass(1, p, y, first, fl, ext);
+                g0 = false;
+            }
+            if (!nopfb || lm_break == 3) compare(top + 1, y);
+        }
     }
     void check_picture() {
         for (int y = 0; y < LINES; y++)
@@ -125,15 +159,18 @@ template <typename RigT> struct Replay {
         if (fused) clear_fused();
         else
             for (int y = 0; y < LINES; y++) bg_line(y);
-        bool first = true;
+        unsigned g = line_major ? f->planes : 0;
+        if (g) group_frame(g, fused);
+        bool first = g == 0;
         StateP last = f->end[0];
         for (int p = 0; p < ZM_NB_PLANES; p++) {
             if (!((f->planes >> p) & 1)) continue;
+            if (f->end[p + 1]) last = f->end[p + 1];
+            if ((g >> p) & 1) continue;
             apply_regs(*f->start[p + 1]);
             rig.command(2, p, 0);
             for (int y = 0; y < LINES; y++) plane_line(p, y, first, first && fused);
             first = false;
-            if (f->end[p + 1]) last = f->end[p + 1];
         }
         if (first)  // no plane enabled: the loader shows the cleared PFB on canvas 0
             for (int y = 0; y < LINES; y++) {

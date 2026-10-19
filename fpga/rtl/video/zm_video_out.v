@@ -36,6 +36,9 @@ module zm_video_out (
     input  wire        cmd_mix,
     input  wire        cmd_first,
     input  wire        cmd_fill,
+    input  wire        cmd_hold,
+    input  wire        cmd_keep,
+    input  wire        cmd_nopfb,
     output wire        painted,
     output wire        pass_done,
     // the compositor's memory ports (zm_video_comp.v) ...
@@ -99,7 +102,7 @@ module zm_video_out (
         .cpu_rword(cpu_rword),
         .cpu_rdata(cpu_rdata), .cmd_valid(cmd_valid), .cmd_ready(cmd_ready), .cmd_op(cmd_op),
         .cmd_plane(cmd_plane), .cmd_line(cmd_line), .cmd_mix(cmd_mix), .cmd_first(cmd_first),
-        .cmd_fill(cmd_fill),
+        .cmd_fill(cmd_fill), .cmd_hold(cmd_hold), .cmd_keep(cmd_keep), .cmd_nopfb(cmd_nopfb),
         .painted(painted), .pass_done(pass_done), .present(present),
         .rd_req_valid(rd_req_valid), .rd_req_ready(rd_req_ready), .rd_req_addr(rd_req_addr),
         .rd_req_len(rd_req_len), .rd_rsp_valid(rd_rsp_valid), .rd_rsp_data(rd_rsp_data),

@@ -1,0 +1,62 @@
+[
+  {
+    "id": "hold_reloads_the_row",
+    "file": "zm_video_pass.v",
+    "old": "else if (hold && op == OP_PLANE)",
+    "new": "else if (1'b0)",
+    "catch": "union_main",
+    "args": ["--line-major"]
+  },
+  {
+    "id": "hold_reloads_fused",
+    "file": "zm_video_pass.v",
+    "old": "else if (hold && op == OP_PLANE)",
+    "new": "else if (1'b0)",
+    "catch": "union_main",
+    "args": ["--line-major"],
+    "fuse": true
+  },
+  {
+    "id": "dirty_not_sticky",
+    "file": "zm_video_pass.v",
+    "old": "if (take && !hold) dirty <= 1'b0;",
+    "new": "if (take) dirty <= 1'b0;",
+    "catch": "s:alpha",
+    "args": ["--line-major"]
+  },
+  {
+    "id": "filled_not_sticky",
+    "file": "zm_video_pass.v",
+    "old": "if (take && !hold) filled <=",
+    "new": "if (take) filled <=",
+    "catch": "leonard",
+    "args": ["--line-major"],
+    "fuse": true
+  },
+  {
+    "id": "keep_stores_anyway",
+    "file": "zm_video_pass.v",
+    "old": "if (p_keep) {st, busy, done} <= {IDLE, 2'b01};",
+    "new": "if (1'b0) {st, busy, done} <= {IDLE, 2'b01};",
+    "catch": "union_main",
+    "args": ["--line-major"],
+    "timing": true
+  },
+  {
+    "id": "nopfb_stores_anyway",
+    "file": "zm_video_pass.v",
+    "old": "wire      to_pfb = (dirty || filled) && !p_nopfb;",
+    "new": "wire      to_pfb = (dirty || filled);",
+    "catch": "union_main",
+    "args": ["--line-major", "--nopfb"],
+    "timing": true
+  },
+  {
+    "id": "hold_not_wired",
+    "file": "zm_video_comp.v",
+    "old": ".hold(cmd_hold)",
+    "new": ".hold(1'b0)",
+    "catch": "s:worst",
+    "args": ["--line-major"]
+  }
+]

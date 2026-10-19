@@ -14,6 +14,13 @@
 // colour (zm_video_bg) instead of loading the PFB row, and always stores it:
 // the BG pass of that line, folded into the first layer's.
 //
+// Line-major (a group of planes no handler runs between, cycles/vseq_group.c):
+// `hold` skips LOAD, so the line buffer and the accumulator go on from the
+// pass before on the same line; `keep` skips STORE (READY follows MIX); `nopfb`
+// stores the picture only (the board, when no later pass loads the PFB row).
+// `dirty` and `filled` are sticky across held passes: the group's last pass
+// stores the PFB row if any of its passes painted or filled it.
+//
 // MIX is a PLANE pass that paints nothing: the cleared PFB shown on its own when
 // no plane is enabled. `first`: the line's first fold of the frame, over the
 // tube, so the picture row is not loaded. `painted` pulses once the pass has
@@ -29,6 +36,8 @@ module zm_video_pass (
     input  wire [8:0]  line,
     input  wire        mix, first,
     input  wire        fill,           // PLANE / MIX: paint the CLEAR colour, not LOAD PFB
+    input  wire        hold, keep,     // no LOAD (the line goes on) / no STORE (the next pass goes on)
+    input  wire        nopfb,          // STORE the picture row only
     input  wire [31:0] vbase,          // bus address of region offset 0
     input  wire [31:0] dbase,          // bus address of the picture being built
     output reg  [31:0] pfb_addr, d_addr,
@@ -49,17 +58,19 @@ module zm_video_pass (
     localparam [2:0] IDLE = 3'd0, LOAD = 3'd1, PAINT = 3'd2, MIX = 3'd3, STORE = 3'd4, FILL = 3'd5;
     localparam [2:0] OP_BG = 3'd0, OP_PLANE = 3'd1, OP_MIX = 3'd3;
     reg [2:0] st = IDLE;
-    reg       is_bg, is_pl, p_mix, p_first, p_fill, dirty;
+    reg       is_bg, is_pl, p_mix, p_first, p_keep, p_nopfb, dirty, filled;
+    wire      to_pfb = (dirty || filled) && !p_nopfb;       // a plane / MIX pass's PFB row
     wire [31:0] row = {12'd0, line, 11'd0} + {13'd0, line, 10'd0} + {16'd0, line, 7'd0};  // y * 3200
 
     always @(posedge clk) begin
         {start_bg, start_pl, start_mix, ld_start, st_start, painted, done} <= 7'b0;
-        if (st == IDLE || take) dirty <= 1'b0;
+        if (take && !hold) dirty <= 1'b0;   // sticky across a group's held passes
         else if (lb_painted) dirty <= 1'b1;
+        if (take && !hold) filled <= fill && op != OP_BG;
         if (take) begin
             pfb_addr <= vbase + ZM_OFF_PFB + row;
             d_addr <= dbase + row;
-            {is_bg, is_pl, p_mix, p_first, p_fill} <= {op == OP_BG, op == OP_PLANE, mix, first, fill && op != OP_BG};
+            {is_bg, is_pl, p_mix, p_first, p_keep, p_nopfb} <= {op == OP_BG, op == OP_PLANE, mix, first, keep, nopfb};
             mix_first <= first;
         end
         if (rst) {st, busy, fetching} <= {IDLE, 2'b00};
@@ -68,6 +79,8 @@ module zm_video_pass (
                 busy <= 1'b1;
                 if (op == OP_BG) {st, start_bg} <= {PAINT, 1'b1};
                 else if (fill) {st, start_bg} <= {FILL, 1'b1};
+                else if (hold && op == OP_PLANE) {st, start_pl, fetching} <= {PAINT, 2'b11};
+                else if (hold) {st, painted, start_mix} <= {MIX, 1'b1, mix};
                 else {st, ld_start, ld_pfb, ld_d} <= {LOAD, 1'b1, 1'b1, mix && !first};
             end
             FILL: if (bg_done) {st, ld_start, ld_pfb, ld_d} <= {LOAD, 1'b1, 1'b0, p_mix && !p_first};
@@ -78,9 +91,13 @@ module zm_video_pass (
             PAINT: if (is_bg ? bg_done : pl_done) begin
                 {painted, fetching} <= 2'b10;
                 if (is_pl && p_mix) {st, start_mix} <= {MIX, 1'b1};
-                else {st, st_start, st_pfb, st_d} <= {STORE, 1'b1, is_bg || dirty || p_fill, 1'b0};
+                else if (p_keep && !is_bg) {st, busy, done} <= {IDLE, 2'b01};
+                else {st, st_start, st_pfb, st_d} <= {STORE, 1'b1, is_bg || to_pfb, 1'b0};
             end
-            MIX: if (mix_done || !p_mix) {st, st_start, st_pfb, st_d} <= {STORE, 1'b1, is_pl && dirty || p_fill, p_mix};
+            MIX: if (mix_done || !p_mix) begin
+                if (p_keep) {st, busy, done} <= {IDLE, 2'b01};
+                else {st, st_start, st_pfb, st_d} <= {STORE, 1'b1, is_pl && to_pfb || filled && !p_nopfb, p_mix};
+            end
             STORE: if (st_done) {st, busy, done} <= {IDLE, 2'b01};
             default: st <= IDLE;
         endcase
