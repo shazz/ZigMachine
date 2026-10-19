@@ -29,19 +29,26 @@ from migen import Cat, ClockSignal, Instance
 from soc.zm_cycles import ZMCycles
 from soc.zm_glass import ps7_gp0
 from soc.zm_hp import CPU_BASE, WINDOW, WINDOW_LOG2, WishboneHP, hp_interface, ps7_hp_ports
+from soc.zm_io_fence import fence_cpu_io
 
 # A LiteX SoC: untyped, its submodules are attributes made at runtime.
 SoC = Any
+# ZIGGY's posted stores (2026-10-18): a store costs ~2 cycles instead of a ~27-cycle DDR round trip
+# while the buffer has room. 8 = what HP0 accepts in flight (zm_hp_posted.INFLIGHT); BARD's depth too.
+POSTED = 8
 
 
-def add_cpu_memory(soc: SoC, hp0: axi.AXIInterface, posted: int = 0) -> None:
+def add_cpu_memory(soc: SoC, hp0: axi.AXIInterface, posted: int = POSTED, break_: str = "") -> None:
     """main_ram at CPU_BASE on HP0, and the firmware's cycle counter. `posted`: the bridge's
     store buffer (soc/zm_hp_posted.py), 0 = blocking stores; its `idle` drives the SoC's
-    `stores_idle`, which the video's `drained` and the blitter's start wait for."""
+    `stores_idle`, which the video's `drained` and the blitter's start wait for, and holds the
+    CPU's IO stores (soc/zm_io_fence.py; `break_` = "nofence" is that guard's break test)."""
     bus = wishbone.Interface(data_width=32, address_width=32, addressing="word")
     soc.main_ram_hp = WishboneHP(bus, hp0, posted)
     soc.comb += soc.stores_idle.eq(soc.main_ram_hp.idle)
     soc.bus.add_slave("main_ram", bus, SoCRegion(origin=CPU_BASE, size=WINDOW, mode="rwx"))
+    if posted:
+        fence_cpu_io(soc, soc.main_ram_hp.idle, break_)
     soc.zm_cycles = ZMCycles(soc.cpu.ibus, soc.cpu.dbus)
 
 

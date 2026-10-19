@@ -17,8 +17,9 @@ cart CPU's bus, its PCM memory on HP3, its samples out through HDMI (zm_hdmi_out
   byte a request as a single 8-byte HP3 read (four channels: four reads a sample,
   about 100 of the 2,268 clocks a sample at 100 MHz), the offset masked to 4 MiB
   and the address mapped into the cart CPU's 32 MiB window like every HP master
-  here (soc/zm_hp.py ddr_addr). No cache: the CPU's stores are write-through and
-  acknowledged by DDR (soc/zm_hp.py), so a byte the players wrote is the byte read.
+  here (soc/zm_hp.py ddr_addr). No cache: the CPU's stores are write-through, and a
+  write to AUDIO_WINDOW waits until every posted store before it is in DDR
+  (soc/zm_io_fence.py), so a byte the players wrote is the byte read.
 - **Held in reset while the CPU is** (CTRL.RUN low): silent, and no HP3 read starts,
   so a PL reload never cuts a burst (the AFI wedge, fpga/boards/.../README.md).
 """

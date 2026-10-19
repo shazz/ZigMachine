@@ -18,7 +18,8 @@
   (blocking: no store is posted, so `drained` needs no store-buffer term). With
   `posted=N` a store is acknowledged once it is in an N-entry buffer instead
   (soc/zm_hp_posted.py); every consumer of "an acknowledged store is in DDR" then
-  waits for `idle`. Off by default: the cart CPU's board path is unchanged.
+  waits for `idle`, and its IO stores wait for it too (soc/zm_io_fence.py). The board
+  and its sim build HP0 with `posted=8` (soc/zm_board_mem.py POSTED, 2026-10-18).
 - **HP1: the video DMA** (soc/zm_video_axi.py), bursts of up to 16 beats.
 
 **Reads 64-bit, writes 32-bit (WR32).** Each port's read channel runs 64-bit

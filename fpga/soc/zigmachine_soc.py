@@ -192,6 +192,9 @@ def main() -> None:
         "--sound-cpu", action="store_true",
         help="z7: the players on the sound CPU (soc/zm_sound_cpu.py), sharing HP3 with the core's PCM",
     )  # fmt: skip
+    p.add_argument(
+        "--posted", type=int, default=8, help="z7: ZIGGY's HP0 store buffer (soc/zm_hp_posted.py), 0 = blocking"
+    )
     p.add_argument("--sys-mhz", type=float, default=100.0, help="z7: the sys clock (CPU, bus)")
     p.add_argument("--comp-mhz", type=float, default=125.0, help="z7: the compositor's clock (soc/zm_video_cdc.py)")
     p.add_argument(

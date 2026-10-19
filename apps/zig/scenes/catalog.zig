@@ -105,6 +105,13 @@ pub const ENTRIES = [_]Entry{
     .{ .name = "POLKA DOTS F32", .tag = "polkadots_f32" }, // zigmachine
     .{ .name = "XM TEST", .tag = "xm_test" }, // zigmachine
     .{ .name = "SYSINFO", .tag = "sysinfo" }, // system
+    .{ .name = "LOCKBUSTER 2", .tag = "lockbuster2" }, // atari st
+    .{ .name = "KICK OFF 2", .tag = "kickoff2" }, // amiga
+    .{ .name = "GRODAN KVACK KVACK", .tag = "grodan_kvack" }, // atari st
+    .{ .name = "LARCOCIEL DMA INTRO 5", .tag = "larcociel5" }, // atari st
+    .{ .name = "LARCOCIEL DMA INTRO 2", .tag = "larcociel2" }, // atari st
+    .{ .name = "BUBBLE BOBBLE", .tag = "bubblebobble" }, // zigmachine
+    .{ .name = "CHONCHON", .tag = "chonchon" }, // atari st
     // The Union Demo's screens (union_multifake, union_textracker, ...) are NOT
     // listed: they are reached only through the UNION DEMO hub's doors (Matt,
     // 2026-09-13). Their carts stay in build.zig / cart.zig, so their disks build.

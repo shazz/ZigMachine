@@ -15,6 +15,7 @@
 #include "bsys.h"
 #include "bsys_abi.h"
 #include "glass_cart.h"
+#include "zm_memmap.h"
 #include "glass_map.h"
 
 extern const zm_sys_table zm_sys_table_v; /* tools/host_split.py's sys_env.c */
@@ -57,6 +58,12 @@ void host_boot(struct w2c_env* e) {
     zm_cart->instantiate(e->cart, e);
     w2c_machine_hwSetCartHigh(&e->machine, host_cart_high);
     w2c_machine_hwInit(&e->machine);
+#ifdef ZM_BOARD
+    /* hwInit leaves BACKGROUND at 0 (transparent black), which the board shows as grey in the
+     * borders of a cart that never sets it (Matt, 2026-10-18): start it opaque black. The browser and
+     * the sims keep the machine's reset value, so no scene_hash moves. */
+    *(volatile uint32_t*)(e->memory.data + ZM_HW_VIDEO_BASE + ZM_REG_BACKGROUND) = 0xFF000000u;
+#endif
     zm_cart->boot(e->cart);
     zm_cart->skip_boot(e->cart);
 }
