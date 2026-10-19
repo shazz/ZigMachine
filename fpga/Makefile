@@ -335,6 +335,7 @@ include cycles/audio.mk
 include cycles/board.mk
 include cycles/sound.mk
 include cycles/split.mk
+include cycles/native/native.mk
 
 # --- the edit -> board loop: release / dev (placement replay) builds, seed sweeps, hp-test (flow.mk) ---
 include flow.mk

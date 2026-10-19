@@ -947,3 +947,23 @@ ABI rather than a Zig API, apps in any language sit on it.
 **Consequences:**
 - The 0 fallback keeps scene_hash, the native host and every harness deterministic: they never see the clock.
 - The EXTERNAL output (zg.samplePlay) needs no clock to sound right (BARD paces itself); it uses the same clock only for its playhead.
+
+## 2026-10-17 — Native KESTREL carts use the wasm2c carts' calling convention, unchanged
+
+**Status:** accepted
+**Context:** Matt wants to see the bare machine: a "hello world" cart written for ZIGGY directly, once in C and once by hand in RV32 assembly, not compiled from wasm. The 2026-10-15 split already gives the board a lean cart image the system calls through a header (`zm_cart_hdr`) and that calls the machine and the ROM through a versioned table (`zm_sys_table`). Every lean cart so far is wasm2c output, so the header's entry points take wasm2c's arguments: the cart's instance (`struct w2c_cart*`, `inst_bytes` of it calloc'd by the system) and, at `instantiate`, the system's `struct w2c_env*`, which every table call into the machine or the ROM takes first.
+**Decision:** A native cart mimics that convention exactly; the system image, `sys_abi.txt` and glass do not change (the board's `system.rv32` stays byte-identical).
+- The cart defines its own `struct w2c_cart` (any layout: it is opaque to the system, which only allocates `inst_bytes` and passes the pointer back) and keeps the `env` pointer it is given at `instantiate`.
+- The shared memory (registers, palettes, planes, the cart window) is reached exactly as a wasm cart reaches it: the table's runtime entry `w2c_env_memory(env)->data` is byte 0, `hwVideoBase()` is the video registers' offset. The ROM reads text and buffers from that memory, so the cart copies its string into its own corner of the cart window (`CART_RAM_BASE`) and declares `cart_high` past it, as a wasm cart's statics do.
+- Bridges the cart does not use (songs, input, disk app, `--call` exports, song files) all point at one zeroed block: the system tests every bridge field for NULL and every list ends at a NULL name.
+- Build: `cycles/native/native.mk` (`make native-cart NAME=hello|hello_asm`), linked by the same `cycles/cart.ld` as the wasm2c carts. `tools/native_cart.py check` holds the image to glass's and `bsys.c`'s rules; `native_check.c` holds the assembly's plain numbers (table indices, header offsets) to the generated header, so a table change fails the build.
+- The disk: a native cart has no `docs/demo-<tag>.zmd`, so `native_cart.py disk` writes a v1 disk next to the image whose wasm boot cart only says "this disk runs on KESTREL only", and `glass_shelf.py` takes `<fw-dir>/<tag>/disk.zmd` before the docs shelf disk. `glass_sd.py --fw-dir build/hcycles/split/native_fpu` then stages it like any lean cart.
+
+**Alternatives considered:**
+- A "native" header flag or version and a simpler call path in `bsys.c` (no env, no instance): a few instructions fewer per call, but a new system image for every board, a second path to keep correct in `bsys.c`, glass and the tools, and a table bump; the wasm2c convention costs a native cart one saved pointer.
+- A wasm-free disk with no boot cart: the disk format and `zmdisk.js` want one, and a browser that mounted the disk would fail with a parse error instead of saying why.
+
+**Consequences:**
+- Native carts are board only: the browser shows the stub's message, `scene_hash.mjs` has nothing to compare, and there is no pixel reference beyond the board itself.
+- The assembly cart hard-codes table indices; `native_check.c` makes a table change a build failure, not a wrong call. A major table bump means rebuilding these carts like every other.
+- A native cart is free to ignore wasm's sandbox (it can poke any address); the system does not protect itself from one any more than from a wasm2c cart.

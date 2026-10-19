@@ -24,7 +24,8 @@ A **MicroPhase Z7-Lite** (Zynq XC7Z010, 512 MB DDR3 on the PS side).
   ([`docs/FPGA_GLASS.md`](FPGA_GLASS.md)) but is not what runs today.
 - **Carts stay wasm.** A scene is built to `docs/demo-<name>.wasm` exactly as for the browser; the
   FPGA flow translates it with wasm2c to C and compiles that for RISC-V together with the machine
-  and the ROM.
+  and the ROM. (One exception, for seeing the bare machine: a cart written for the RISC-V core
+  directly, in C or assembly, [section 10](#10-a-native-cart-kestrel-only).)
 
 ## 2. Prerequisites
 
@@ -281,3 +282,58 @@ correct). Re-measure with `make -C fpga cycles CARTS="..."`.
 - No step failed, so no workaround is needed. Note that `hp-sim` takes the same `CART`/`ZM_*` variables as
   `board-fw` but builds its own `sim` image (`build/hcycles/sim/<cart>/fw.bin`); it does not test the
   `board` image byte for byte (the board one is compiled with `-DZM_BOARD`: run forever, report to the glass).
+
+## 10. A native cart (KESTREL only)
+
+Every cart above is wasm. `fpga/cycles/native/` holds two that are not: the same "hello world" written
+for ZIGGY (the cart CPU) in C (`hello.c`) and by hand in RV32 assembly (`hello_asm.S`). The listings
+and how they talk to the machine are in the tutorial,
+[KESTREL only: hello world in native C and RV32 assembly](TUTORIAL.md#kestrel-only-hello-world-in-native-c-and-rv32-assembly);
+the design choice is `decisions.md` (2026-10-17). They run on the **split** board only (one
+`system.rv32` on the card, lean carts on the shelf, `decisions.md` 2026-10-15); the browser cannot run
+them, and there is no `scene_hash.mjs` reference: the board is the test.
+
+They are called exactly as a wasm2c lean cart is: same header (`zm_cart_hdr`), same entry points, same
+system table, so the board's `system.rv32` does not change.
+
+```sh
+cd fpga
+make native-cart NAME=hello ZM_FPU=1        # build/hcycles/split/native_fpu/hello/{cart.bin,disk.zmd}
+make native-cart NAME=hello_asm ZM_FPU=1
+uv run python tools/glass_sd.py --out build/glass/sd \
+    --system build/hcycles/split/board_snd_fpu/sys.bin --fw-dir build/hcycles/split/native_fpu
+```
+
+- `cart.bin` is linked by the lean carts' `cycles/cart.ld` at `CART_IMG_AT`, then checked by
+  `tools/native_cart.py check` against what glass and the firmware will check (the `ZMCA` magic, a
+  table version `sys_abi.txt` serves, the header size and page count, a `.bss` end past the image and
+  before the pictures, a tag). The assembly build also compiles `native_check.c`, which holds every
+  table index and header offset the assembly hard-codes to the generated `gen/zm_sys_abi.h`.
+- `disk.zmd` is the shelf disk the cart is fattened into: a v1 disk whose wasm boot cart only draws
+  "THIS DISK RUNS ON KESTREL ONLY" (`cycles/native/browser_stub.c`), titled `HELLO WORLD (C)` /
+  `HELLO WORLD (ASM)`. `glass_shelf.py` takes `<fw-dir>/<tag>/disk.zmd` instead of
+  `docs/demo-<tag>.zmd` when there is one, so `glass_sd.py` stages the carts as
+  `zigmachine/demo-hello.zmd` and `demo-hello_asm.zmd`.
+- `fpga/tests/test_native_cart.py` builds both, checks the headers and the disk, stages a card, and
+  holds the tutorial's listings to the sources.
+
+**What you should see (board).** In the OSD menu, `HELLO WORLD (C)` and `HELLO WORLD (ASM)`. Either one:
+a dark blue border, a black screen, `HELLO WORLD` in white in the middle, sliding 64 pixels left and
+right and back about every two seconds. No sound.
+
+**If it fails**, the OSD's status line says where:
+
+| OSD says | What it means |
+|---|---|
+| `needs system a.b, card c.d` | glass refused the cart's table version before touching DDR: the card's `system.rv32` is from another major |
+| `no system.rv32 on the card` | the card was staged without `--system` |
+| `demo-hello.zmd: BadCart` | the header's `.bss` end is not past the image (glass, `system.zig`) |
+| `demo-hello.zmd: SystemRefused` | the firmware refused the header (`TRAP_CART_ABI`): the size or page count differs from the system's |
+| `demo-hello.zmd: NoCart` | the firmware found no `ZMCA` at `CART_IMG_AT` (`TRAP_NO_CART`) |
+| `demo-hello.zmd: CartTrapped` / `cart trapped (code N)` | the cart faulted in boot / later (a bad table index or pointer) |
+| `demo-hello.zmd: CartSilent` | the cart never reached its first frame (stuck in `boot`) |
+
+A blue border with a black screen and no text means `boot` ran (the shared memory and `hwVideoBase` are
+right) but the ROM gave no drawing context (`guiOpenPlane` returned 0), so plane 0 stays off. Nothing at
+all (black border too) with the cart reported running means `boot` did not write where the picture comes
+from.
