@@ -3,8 +3,8 @@ Branch perf/chisel-async (from origin/main f635ed98), see prototypes/chisel_asyn
 No RTL change: the bitstream on the card stays (3ebb7381 recipe, or the linemajor / read-bypass
 ones: same CSR map). Table 1.2 unchanged, so every lean cart already on the card still runs.
 
-  sd/system.rv32               2b291e5acdb54a4abce2e8aafa63b7e4   (from fpga/build/hcycles/split/board_snd_fpu/sys.bin,
-                                                                  md5 3068d630ff7e2c8a8029efa9fcef3819; make board-split ZM_AUDIO=snd ZM_FPU=1)
+  sd/system.rv32               3e2a9df94777a9a645291f5dc8fb3f1a   (from fpga/build/hcycles/split/board_snd_fpu/sys.bin,
+                                                                  md5 570fcfc430faaf6aeb76a6a286338293; make board-split ZM_AUDIO=snd ZM_FPU=1)
   sd/demo-bench.zmd            a840bb0ad3b9110351b051531eeeadfb   (ZIGGY bench + the as.* lazy-wait rows; make native-cart NAME=bench ZM_FPU=1)
   sd/demo-fuji_hobbytronic.zmd ed9d71bea10ae927042d184899ab10fd   (lean cart, opts in)
   sd/demo-tsl_hybridglenz.zmd  ead417c1a7f751bbecddef855cc746c4   (lean cart, opts in)

@@ -45,9 +45,11 @@ not touch the ~370 of wrapper, and adds ~80-100 per lazy op (the replay: 24 load
 
 - `machine/sdk/memmap.zig`: `BLIT_ASYNC = OFF_BLIT + 0x64` (0xE4, u8). Outside the tap's 24 words
   (0x80..0xDF) and every snoop window; the machine never reads it, so the browser cannot change.
-- `fpga/cycles/bchisel.c/.h`: GO, one uncached load (closes the held-start race: a DDR store right after
-  GO could make the tap hold the start while later register stores still get in), then return when
-  `BLIT_ASYNC` is set. Sync = wait, `bdi_apply(plan taken at GO)`, CYCLES/STATUS, replay.
+- `fpga/cycles/bchisel.c/.h`: GO, then with `BLIT_ASYNC` one uncached load (closes the held-start race:
+  a DDR store right after GO could make the tap hold the start while later register stores still get
+  in), the op's D$ plan, and return. Sync = wait, `bdi_apply(that plan)`, CYCLES/STATUS, replay. A
+  waited op plans after the wait, as before, and the after-lazy path is out of line, so the common
+  path makes no call (test_blit_path's budget: a few bus writes a call).
 - `fpga/cycles/bdinval.h`: `bdi_range` split into `bdi_plan_op` + `bdi_apply` (same text for every
   break mutant of test_blit_dcache, all still caught).
 - `fpga/tools/host_gen.py` / `host_split.py`: `HOST_CHISEL_SYNC()` before every machine/ROM env entry
@@ -69,8 +71,8 @@ not touch the ~370 of wrapper, and adds ~80-100 per lazy op (the replay: 24 load
 
 Tests: `fpga/tests/test_chisel_async.py` (host model of engine + tap, writes dropped while BUSY; 7 rules;
 `ZM_RTL_BREAK=1`: no replay, plan at sync, no wait at the next op, always lazy: all caught),
-`test_blit_dcache.py` (with breaks, core tests on the board's VexRiscv), `test_host_gen.py` (new hook
-test), `test_native_bench.py`. Full gate green. `test_bench_collect.py` has 3 failures that are the same
+`test_blit_dcache.py` (with breaks, core tests on the board's VexRiscv), `test_blit_path.py` (now
+links bchisel.c; with its break), `test_host_gen.py` (new hook test), `test_native_bench.py`. Full gate green. `test_bench_collect.py` has 3 failures that are the same
 on the base (no devmem on this box).
 
 ## 4. Expected (predictions, not measured)
@@ -85,11 +87,22 @@ on the base (no devmem on this box).
 | as.kick.64K | - | ~350-450 (wrapper + plan + GO + barrier) |
 | as.sync.idle | - | ~100-150 (a NOP hwBlit) |
 
-Carts: **stniccc** is the one where fps can move (41 fps, cart_c ~1.33 Mc, hundreds of span fills a
-frame, each with a little CPU work and ~150 cycles of the next call before its sync): expect a few
-hundred K cycles a frame back, i.e. low-to-mid 40s -> high 40s / ~50 fps, if the span count is what I
-think. fuji_hobbytronic and tsl_hybridglenz are already at 60 fps: look at cart_c (fuji: the 64 KB clear,
-~66K, hidden behind the logo maths, plus part of every triangle's latency).
+Carts (op counts from `tools/perf_audit.sh <tag>`, the browser run of frames 121..180):
+- **stniccc**: **1014 blits a frame** (1001 under 256 B). Board today: 41.1 fps, cart_c 1.33 Mc. At
+  ~911 a call that is ~0.92 Mc in hwBlit, so the rest of the cart averages ~400 cycles of CPU per op.
+  Hidden per op ~ min(~450 latency, CPU before the next sync) - ~90 replay ~ up to ~360:
+  **~0.15-0.37 Mc a frame back**, frame ~1.94 -> ~1.6-1.8 Mc, i.e. **~44-50 fps** (the low end if the
+  spans of one polygon follow each other with little work between, which is likely for the big ones).
+- **fuji_hobbytronic**: 127 blits a frame (122 triangles under 256 B, the 64 KB clear). 60 fps already
+  (cart_c 0.83 Mc): expect cart_c down by the clear (~66K, behind the logo maths) plus part of each
+  triangle's latency, ~50-100K in all. No fps change (vsync-capped).
+- **tsl_hybridglenz**: a few dozen big ops (fills, glenz triangles, logo blits; perf_audit's model
+  gives the blitter 48 % of its estimate). 60 fps already (cart_c 0.18 Mc on the board): cart_c only.
+
+The synchronous path itself (every cart that does not opt in): on the board-core model of
+`tests/test_blit_path.py` (blocking stores, 16 cycles each) an 8x8 FILL through hwBlit is 341 cycles
+and 2 bus writes against 316 and 1 on the base: one saved register (`ra`) and the pending check. On
+the board with posted stores that is ~+5 cycles of ~911.
 
 Other candidates, not adopted (each needs its frame reordered or a CPU path proven off the op's pixels):
 union_tnt1 (32 fps: kick the clear in update() before the ball physics), gen4_3615 (19 fps, CHISEL and
