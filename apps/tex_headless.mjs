@@ -2,7 +2,7 @@
 // sit where screen.js puts them, frame by frame.
 //
 // This replays the original's JavaScript in canvas units, halves it the way the
-// scene documents, and rebuilds the expected index map of three planes:
+// scene documents, and rebuilds the expected index map of the original's layers:
 //   plane 0  starfield2D_dot (codef_starfield.js:99-121): 25 stars at -5.0 and 30
 //            at -1.2 on 640x190, seeded by the scene's xorshift32, plotted then
 //            moved, one ST pixel per 2x2 dot;
@@ -10,7 +10,10 @@
 //            under the eleven sprites at 305 + 306*sin(p), 86 + 84*cos(1.5p);
 //   plane 3  scrolltext_horizontal (codef_scrolltext.js:57-133) at 3 canvas px a
 //            frame, masked by the font background.
-// Each is checked pixel for pixel at several frames; on top of that the sprite
+// over the font background (the original's plane 2). The cart draws them all on ONE
+// plane since pass 3, so the layers are stacked here (stars < logo+sprites, background
+// < scrolltext, in their own palettes) and the composite is checked pixel for pixel
+// at several frames; on top of that the sprite
 // chain, the logo and the scroller must move between consecutive frames, the
 // star layers must keep their counts, and a frame must leave 60 fps headroom.
 //
@@ -131,15 +134,24 @@ function expectScroll(st, a) {
 }
 
 // ---- the cart ----------------------------------------------------------------
-/// Compare a plane with an expected index map: index 0 (and the plane's other
-/// transparent entries) must be clear, every other index its palette colour.
-function check(px, W, map, pal, clear, name, frame, errors) {
+/// The layers stacked: each [map, palette, transparent indices] in drawing order;
+/// a pixel is the colour of the topmost layer that is not transparent there (every
+/// opaque entry here has alpha 255), or null.
+function stack(layers) {
+    const out = new Array(320 * 200).fill(null);
+    for (const [map, pal, clear] of layers)
+        for (let i = 0; i < out.length; i++) if (!clear.includes(map[i])) out[i] = pal.subarray(map[i] * 4, map[i] * 4 + 3);
+    return out;
+}
+
+/// Compare the plane with the expected composite.
+function check(px, W, want, name, frame, errors) {
     let wrong = 0, ink = 0;
     for (let y = 0; y < 200; y++) for (let x = 0; x < 320; x++) {
-        const v = map[y * 320 + x], o = ((y + TOP) * W + LEFT + x * 2) * 4;
-        if (clear.includes(v)) { if (px[o + 3] !== 0) wrong++; continue; }
+        const c = want[y * 320 + x], o = ((y + TOP) * W + LEFT + x * 2) * 4;
+        if (c === null) { if (px[o + 3] !== 0) wrong++; continue; }
         ink++;
-        if (px[o + 3] === 0 || px[o] !== pal[v * 4] || px[o + 1] !== pal[v * 4 + 1] || px[o + 2] !== pal[v * 4 + 2]) wrong++;
+        if (px[o + 3] === 0 || px[o] !== c[0] || px[o + 1] !== c[1] || px[o + 2] !== c[2]) wrong++;
     }
     if (wrong) errors.push(`frame ${frame} ${name}: ${wrong} px off the screen.js replay (${ink} ink px expected)`);
     return ink;
@@ -150,7 +162,11 @@ const a = {
     logo: await readFile(`${ASSETS}logo.raw`), back: await readFile(`${ASSETS}back.raw`), font: await readFile(`${ASSETS}fonts.raw`),
     sprites: await Promise.all(SPRITES.map((n) => readFile(`${ASSETS}${n}.raw`))),
     logoPal: await readFile(`${ASSETS}logo_pal.dat`), bluePal: await readFile(`${ASSETS}blue_back_pal.dat`),
+    backPal: await readFile(`${ASSETS}back_pal.dat`),
 };
+// the background as the original's plane 2 drew it: back.raw at row BACK_POS, 0 clear
+const backMap = new Uint8Array(320 * 200);
+backMap.set(a.back, BACK_POS * 320);
 const starPal = new Uint8Array(1024);
 starPal.set([0x60, 0x60, 0x60, 255], 4); starPal.set([0xe0, 0xe0, 0xe0, 255], 8);
 const W = machine.hwPhysWidth(), H = machine.hwPhysHeight();
@@ -163,12 +179,12 @@ for (const target of FRAMES) {
         const t0 = performance.now(); demo.frame(1000 / 60); cartMs += performance.now() - t0;
         st.go();
     }
-    const maps = [expectStars(st), expectLogoSprites(st, a), null, expectScroll(st, a)];
-    const got = [];
-    for (const [p, pal, clear, name] of [[0, starPal, [0], "stars"], [1, a.logoPal, [0, 255], "logo+sprites"], [3, a.bluePal, [0], "scrolltext"]]) {
+    const maps = [expectStars(st), expectLogoSprites(st, a), backMap, expectScroll(st, a)];
+    const want = stack([[maps[0], starPal, [0]], [maps[1], a.logoPal, [0, 255]], [maps[2], a.backPal, [0]], [maps[3], a.bluePal, [0]]]);
+    for (const p of [0]) {
         machine.hwRenderPlane(p);
         const px = new Uint8Array(memory.buffer, machine.hwPhysicalPtr(), W * H * 4);
-        got[p] = check(px, W, maps[p], pal, clear, name, st.frame, errors);
+        check(px, W, want, "stars+logo+sprites+background+scrolltext", st.frame, errors);
         if (process.argv[2]) {
             const hdr = new TextEncoder().encode(`P6\n320 200\n255\n`);
             const buf = new Uint8Array(hdr.length + 320 * 200 * 3);
