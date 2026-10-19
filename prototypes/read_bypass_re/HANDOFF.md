@@ -51,6 +51,11 @@ Vivado usually packs tighter than yosys. The board is at 15,045 LUT (85.5 %).
 
 ## Tests (all in `fpga/`, `uv run pytest -q ...`)
 
+The brief asked for a Verilator unit bench in the style of `test_rtl_*.py`. The bridge is Migen
+with no Verilog of its own to drive, so these benches use Migen's simulator, in the style of the
+`test_hp_posted.py` and `test_io_fence.py` that already cover this module. The break tests use
+the same `ZM_RTL_BREAK=1` gate as `test_rtl_*.py`.
+
 - `tests/test_hp_bypass.py`: a model port (`tests/hp_port_model.py`) records every AR together
   with the stores still unanswered. The invariant is that no AR leaves for a line that has an
   unanswered store, whatever the RAM model's write timing (`zm_simaxi` writes at W-accept, so a
@@ -67,7 +72,7 @@ Vivado usually packs tighter than yosys. The board is at 15,045 LUT (85.5 %).
   - `classic_too`: a single read goes out with stores pending.
 - Bridge suite (bypass, rate, posted, posted_rate, io_fence, board_mem): 38 passed and 6 skipped
   without `ZM_RTL_BREAK`; 44 passed with `ZM_RTL_BREAK=1`. `test_prim_allowlist` and
-  `test_sound_regs` passed as well.
+  `test_sound_regs` (which build the SoC) pass on the final tree: 10 passed, 1 skipped.
 - Board gateware elaborates (`--target z7 --toolchain vivado --blit`, no toolchain run). There are
   `st_tag` registers in the Verilog, and none with `--no-read-bypass`.
 

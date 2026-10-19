@@ -11,7 +11,8 @@ write after another, several in flight (the HP port accepts 8 write commands).
 unanswered: every store the CPU has had acknowledged is then in DDR. Each consumer
 that used to rely on "an acknowledged store is in DDR" must also wait for it:
 - the bridge's own reads (a refill or a single read starts only while `idle`, so a
-  load sees the stores before it, and so does a refill of their line);
+  load sees the stores before it, and so does a refill of their line; with `read_bypass`
+  a refill waits only for stores to its own line: soc/zm_hp_bypass.py);
 - the video snoop's `drained` (soc/zigmachine_soc.py): the compositor must not read
   a line the CPU's stores have not reached;
 - the blitter's start (soc/zm_blit_soc.py): an op must not read pixels still in
