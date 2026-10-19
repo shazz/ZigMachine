@@ -9,6 +9,7 @@
  * planner trusts no row before its probe frames, vadapt.h), so nothing the cart sees changes. No
  * BG pass and no CLEAR: those would count a frame or write back BACKGROUND. */
 #include <stdint.h>
+#include <stdio.h>
 
 #include "glass_cart.h"
 #include "vboard.h"
@@ -46,4 +47,9 @@ void vcal_run(void) {
     kind(b + VC_FILL2, 0, 1);
     b[VC_REPS] = VCAL_REPS;
     b[VC_MAGIC] = VCAL_MAGIC; /* last: a reader that sees it sees the rest */
+#ifndef ZM_BOARD /* the sim's line: "ZM VCAL span comp" for MIX1, MIX2, FILL1, FILL2 */
+    printf("ZM VCAL");
+    for (uint32_t i = VC_MIX1; i < VCAL_WORDS; i++) printf(" %lu", (unsigned long)b[i]);
+    printf("\n");
+#endif
 }

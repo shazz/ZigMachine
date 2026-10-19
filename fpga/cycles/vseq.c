@@ -12,7 +12,6 @@ const uint8_t* vseq_skip;
 int (*vseq_decide)(int y);
 static uint8_t* g_r; /* the region: HW_VIDEO_BASE in the cart's linear memory */
 static int g_fill;  /* this frame's clear was one CLEAR: the first layer's passes paint its lines */
-static uint32_t g_tcmd; /* ZM_VSTAT: when the last pass's command was written */
 
 static inline uint32_t r32(uint32_t off) { return *(volatile uint32_t*)(g_r + off); }
 static inline uint16_t r16(uint32_t off) { return *(volatile uint16_t*)(g_r + off); }

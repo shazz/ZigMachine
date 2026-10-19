@@ -10,6 +10,11 @@
 #include "vboard.h"
 #include "vseq.h"
 
+/* ZM_VSTAT: when the last pass's command was written (vseq.c's issue), moved later by the
+ * planner's decisions that run inside that pass, so cmd -> PAINTED counts the pass, not the
+ * compare (a lower bound of the pass's front when a compare outlasts it). */
+static uint32_t g_tcmd;
+
 static inline void wait_bits(uint32_t bits) {
     while ((zmv_status() & bits) != bits) {
     }
@@ -45,7 +50,8 @@ static inline int decide(int y) {
 #ifdef ZM_VSTAT
     uint32_t t0 = board_cycles();
     int skip = vseq_decide(y);
-    vseq.plan += board_cycles() - t0;
+    uint32_t dt = board_cycles() - t0;
+    vseq.plan += dt, g_tcmd += dt;
     return skip;
 #else
     return vseq_decide(y);
