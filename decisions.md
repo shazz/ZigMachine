@@ -984,5 +984,7 @@ ABI rather than a Zig API, apps in any language sit on it.
 - Fencing IO loads too: no consumer needs it, and every poll loop would pay for the drain.
 **Consequences:**
 - Same CSR map: the firmware and every cart image are unchanged.
-- An IO store after a burst of DDR stores waits for them to drain. That is at most 8 writes, ~2 µs.
+- ZIGGY's I- and D-bus share the one HP0 bridge, so every read (a D$ or I$ miss, an uncached load) still waits for the buffer to drain. Only store runs between misses go faster.
+- Vivado: 15,045 LUT (+157), sys WNS +0.011 ns at 100 MHz.
+- An IO store after a burst of DDR stores waits for them to drain: at most 8 writes, which overlap, so about one write response plus the issue slots (tens of cycles).
 - `ZMCycles.dbus_wait` now counts that wait.
