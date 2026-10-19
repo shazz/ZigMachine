@@ -65,10 +65,16 @@ pub const Menu = struct {
             var y: i32 = 199;
             while (y < 225) : (y += 1) {
                 const srow = @divFloor(nb, 10) * 27 + @divFloor(2 * y - SCROLL_Y - 1, 2);
+                const img = &assets.font7;
+                if (srow < 0 or srow >= img.h) continue;
                 var x: i32 = @max(0, @divFloor(posx + 1, 2));
+                // the glyph's row, once: (x, y) -> source column partx + 2x - posx
+                const row: []const u8 = if (img.bits == 8) img.data[@as(usize, @intCast(srow)) * @as(usize, @intCast(img.w)) ..] else img.data[0..0];
                 while (x < 320 and 2 * x - posx < 95) : (x += 1) {
-                    const g = assets.font7.at(partx + 2 * x - posx, srow);
-                    if (g != image.NONE) frame.put(x, y, g);
+                    const sx = partx + 2 * x - posx;
+                    if (sx >= img.w) break;
+                    const i = if (img.bits == 8) row[@intCast(sx)] else img.local(@intCast(sx), @intCast(srow));
+                    if (i != 0) frame.put(x, y, img.lut[i]);
                 }
             }
         }

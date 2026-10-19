@@ -92,21 +92,19 @@ pub inline fn add(a: u32, d: i32) u32 {
 }
 
 /// ST colour word -> RGBA (a = 255), channel c * 255 / 7 as the other ST ports do.
-pub fn color(v: u16) u32 {
-    const r: u32 = (v >> 8) & 7;
-    const g: u32 = (v >> 4) & 7;
-    const bl: u32 = v & 7;
-    return 0xFF00_0000 | (bl * 255 / 7) << 16 | (g * 255 / 7) << 8 | (r * 255 / 7);
+/// A 512-entry table (3 bits a channel; the STE bit is ignored): a raster's 4,480
+/// colours a frame are loads, not 12 multiplies and divides each.
+pub inline fn color(v: u16) u32 {
+    return color_lut[((v >> 2) & 0x1C0) | ((v >> 1) & 0x38) | (v & 7)];
 }
 
-/// Byte -> eight pixel bytes (bit 7 = leftmost), as a little-endian u64.
-const spread: [256]u64 = blk: {
-    @setEvalBranchQuota(10000);
-    var t: [256]u64 = undefined;
-    for (0..256) |v| {
-        var x: u64 = 0;
-        for (0..8) |k| x |= @as(u64, (v >> (7 - k)) & 1) << @intCast(8 * k);
-        t[v] = x;
+const color_lut: [512]u32 = blk: {
+    var t: [512]u32 = undefined;
+    for (0..512) |i| {
+        const r: u32 = (i >> 6) & 7;
+        const g: u32 = (i >> 3) & 7;
+        const bl: u32 = i & 7;
+        t[i] = 0xFF00_0000 | (bl * 255 / 7) << 16 | (g * 255 / 7) << 8 | (r * 255 / 7);
     }
     break :blk t;
 };
@@ -116,12 +114,29 @@ pub fn lineToChunky(line: []const u8, out: *[320]u8) void {
     for (0..20) |g| groupToChunky(line[g * 8 ..][0..8], out[g * 16 ..][0..16]);
 }
 
+/// Nibble -> four pixel bytes (bit 3 = leftmost), as a little-endian u32: groupToChunky
+/// stays in 32-bit registers (a u64 shift/or is a libcall pair on ZIGGY).
+const spread4: [16]u32 = blk: {
+    var t: [16]u32 = undefined;
+    for (0..16) |v| {
+        var x: u32 = 0;
+        for (0..4) |k| x |= @as(u32, (v >> (3 - k)) & 1) << @intCast(8 * k);
+        t[v] = x;
+    }
+    break :blk t;
+};
+
 /// One 16-pixel group of four plane words -> 16 palette indices.
 pub fn groupToChunky(q: *const [8]u8, out: *[16]u8) void {
     inline for (0..2) |half| {
-        const v = spread[q[half]] | (spread[q[2 + half]] << 1) |
-            (spread[q[4 + half]] << 2) | (spread[q[6 + half]] << 3);
-        std.mem.writeInt(u64, out[half * 8 ..][0..8], v, .little);
+        const p0 = q[half];
+        const p1 = q[2 + half];
+        const p2 = q[4 + half];
+        const p3 = q[6 + half];
+        const hi = spread4[p0 >> 4] | (spread4[p1 >> 4] << 1) | (spread4[p2 >> 4] << 2) | (spread4[p3 >> 4] << 3);
+        const lo = spread4[p0 & 15] | (spread4[p1 & 15] << 1) | (spread4[p2 & 15] << 2) | (spread4[p3 & 15] << 3);
+        std.mem.writeInt(u32, out[half * 8 ..][0..4], hi, .little);
+        std.mem.writeInt(u32, out[half * 8 + 4 ..][0..4], lo, .little);
     }
 }
 
