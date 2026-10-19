@@ -6,7 +6,7 @@
 //   bank   142,800 B  frame.zig: each line's palette entries, as gids (the menu)
 //   part   PART_LEN   assets.zig: the part on screen's depacked pictures + scratch;
 //                     for SYNC, TCB and OMEGA, the real part's own memory (st.zig)
-//   chunky  64,000 B  st_show.zig: an ST part's frame, as palette indices
+//   src    62,720 B   st_show.zig: the source bytes each plane row was last converted from
 //   pal    2 x 17,920 B  st_show.zig: its 16 colours per physical line, shown / next
 //   plane  112,000 B  st_show.zig: an overscan frame (TCB #1, OMEGA), the whole 400x280
 // Hot loops read these pointers into locals first: a store through one pointer
@@ -15,6 +15,7 @@ const zg = @import("zigos");
 const frame = @import("frame.zig");
 const assets = @import("assets.zig");
 
+pub const SRC_ROW = 224; // 26 groups of 8 bytes: the most one 400-px row reads
 pub const Bank = [frame.PH][255]u16;
 pub const LinePal = [frame.PH][16]u32;
 
@@ -22,10 +23,10 @@ pub const Buffers = struct {
     px: *[frame.PH][frame.PW]u16,
     bank: *Bank,
     part: *align(4) [assets.PART_LEN]u8,
-    chunky: *[200][320]u8,
     pal: *LinePal,
     pal_next: *LinePal,
     plane: *[frame.PH][frame.PW]u8,
+    src: *[frame.PH][SRC_ROW]u8, // st_show.zig: the source bytes each plane row was last converted from
 };
 
 pub var buf: Buffers = undefined;
@@ -37,9 +38,9 @@ pub fn init() void {
         .px = zg.mem.mustAlloc([frame.PW]u16, frame.PH)[0..frame.PH],
         .bank = zg.mem.mustAlloc([255]u16, frame.PH)[0..frame.PH],
         .part = part[0..assets.PART_LEN],
-        .chunky = zg.mem.mustAlloc([320]u8, 200)[0..200],
         .pal = zg.mem.mustAlloc([16]u32, frame.PH)[0..frame.PH],
         .pal_next = zg.mem.mustAlloc([16]u32, frame.PH)[0..frame.PH],
         .plane = zg.mem.mustAlloc([frame.PW]u8, frame.PH)[0..frame.PH],
+        .src = zg.mem.mustAlloc([SRC_ROW]u8, frame.PH)[0..frame.PH],
     };
 }

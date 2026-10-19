@@ -42,7 +42,10 @@ const ALLOW = {
     // +12 B (2026-10-17): the Monty replay's d7, mutant and unknown-command count
     // (digi_monty_fx.zig, _seq.zig, _cmd.zig); its state lives in the 68000's RAM.
     // +4 B (2026-10-17): ST Replay's PCM stream state (audio_pcm / samplePlay), merged with the two above.
-    "demo-audio.wasm": 590896,
+    // +126 B (2026-10-18): the handler-only native drivers (players/digi_irq.zig): the step cache,
+    // the mutant flags, and digi.Driver grown by maxYMiser's and the games' address tables
+    // (digi_mym.zig, digi_sfx.zig). The tunes' state stays in the 68000's RAM.
+    "demo-audio.wasm": 591022,
 };
 
 function uleb(b, p) {

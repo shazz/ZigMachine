@@ -355,16 +355,116 @@ native = 68000 bit for bit over 40 s, and mode 3 correlates at 0.95 and hands ba
 
 No resync and no full queue in any of the three.
 
-## The gap, and the next lever
+### Quartet (SingSong, Timer A, the state in registers)
 
-The other 10 tunes with the same handler (Robocop, Sidewinder, Joe Blade 2, Dominator, Laser Dance, Tonic Tile,
-Dark Sat, Guardians, Mach 3) still play on Musashi until each gets its own sequencer module. So does every other
-digi SNDH. **On the sound CPU those cost 2-3× a frame, so they fall behind: the board's audio resyncs and drops
-frames.** This is a known gap, not a silent degradation: `ZM AUD ... resyncs` counts it.
+The Dune Gen4 Demo's title and F3 play `dune_gen4_quartet.sndh`: Audio Visual Research's SingSong replay
+(`prototypes/dune_gen4_re/quartet/`), four sample voices mixed by a Timer A interrupt at 2457600 / 4 / 38 =
+**16,168 Hz**, about 270 a 60 Hz frame, with the sequencer on Timer C (PLAY, TC200). The survey put it at
+11.8 k 68000 instructions and 273 Musashi calls a frame: **~374 % of BARD** (273 × 17.8 k + 11.8 k × 100
++ 0.2 M = 6.2 Mc), so the music played slow on the board.
 
-**The next lever is a cheaper Musashi interrupt entry.** The 14.6 k cycles per interrupt are mostly the glue around
-26 instructions: `m68k_execute`'s entry and exit, the instruction hook, and the render block and MFP
-bookkeeping per interrupt. Cutting that helps every digi SNDH at once, with no per-tune work.
+Its handler is small, but its state is not in RAM: d0-d3 are the four voices' positions (offset word,
+fraction word), a0-a3 their samples and a4 the PSG, left live in the registers between interrupts, and the
+sequencer starts a note by writing d_i and a_i itself. `libs/zig/players/digi_quartet.zig` (status 9,
+handler only, `digi_irq.zig`) therefore reads them from Musashi's register file at each interrupt and writes
+back what the 68000 leaves (`Bus.getReg` / `setReg`, 10 reads and 6 writes), so a PLAY in between sees
+exactly the 68000's registers. The Timer A vector is the SNDH glue's wrapper (it saves d0 to memory, since
+the engine's PLAY arrives with d0 = 0); the driver follows its `ta_orig` to SingSong's handler at arming,
+checks the handler and its wrap routine (relocated absolute addresses in the holes) and reads the table,
+the four step longs, the four loop longs and the silence buffer off the instruction stream. A loop long with
+a low word ($FFFFFFFF: no loop) sends a finished voice to 256 bytes of silence; a loop length is subtracted.
+
+**The proof:** `fpga/tests/test_sndh_irq.py`: all four subtunes native = Musashi over 4,000 frames each,
+across a `sndhCall` and 1/2 switches; mutant 7 (the sample index read unsigned) fails from frame 2;
+and the survey must show Musashi called at most 4 times a frame (the PLAYs), because a handler refused
+in RAM would pass the digest trivially. `apps/irq_native_check.mjs --song dune_gen4_quartet.sndh --status 9`
+(gate `dune_gen4_music`, with `--break --mutant 7`): the browser's modules, 40 s bit for bit, modes
+2-1-2-1-2 unbroken. Unit tests: `digi_quartet_test.zig`.
+
+**Cost on BARD**: the survey estimated 1.0-1.1 Mc (60-66 %) with ~2.5 k cycles a native interrupt; snd-bench
+(soc_hp_snd, 8 frames, subtune 1) measured **1.94-2.18 Mc, 117 %**, down from ~374 % but still over: a native
+interrupt costs ~6.9 k on BARD, not 2.5 k (see "Every cart's music"), and Quartet takes 270 a frame.
+
+## Every cart's music on BARD (2026-10-18)
+
+`fpga/tools/bard_load_survey.py` runs every subtune of every SNDH a cart names (the song literals of
+`docs/demo-*.wasm`, as `song_pack.py` finds them, plus the carts whose name is out of its reach) on Musashi in
+the counting oracle (`make sndh-survey`: the calls into the tune and the 68000 instructions, per frame;
+x86 time is no measure on this box, it moved 3x between two runs). It turns them into BARD Mc with a fit to
+snd-bench: ~17.8 k cycles a call, ~100 an instruction, 0.2 Mc a frame for the rest. A digi tune is its
+interrupts. Below, the worst half second of the worst subtune a cart can ask for; "board" is the OSD's
+now/peak on 2026-10-18 (cart started, no input: union_textracker was the only overload it saw).
+
+| Song (subtune) | Cart | Timer | Musashi est. | Board | Now |
+|---|---|---|---|---|---|
+| dune_gen4_quartet (1-4) | dune_gen4 | A 16,168 Hz + TC200 | 374 % | (by input) | handler native, status 9: **117 %** measured, still over |
+| union/beat_dis | union_beatdis | A 15,753 Hz | 334 % | | native (status 1) |
+| swedish_newyear_tcb_digi | swedish_newyear | A 15,753 Hz | 321 % | (by input) | handler native, status 10: 85 % measured |
+| north_south_digi (effects) | north_south | A 5-17 kHz, bursts | 242 % for ~10 frames | | handler native, status 15 |
+| union/thalion_forever | union_textracker | A 9,600 Hz | 225 % | **308/313 %** | handler native, status 8: **79 %** measured |
+| auf_weidersehen_monty_digi | tex_neoshow | D 10,593 Hz | 220 % | 17/20 % | native (status 5) |
+| digital/* (6 tunes), big/Labello | big_demo | A 9,600 Hz | 213 % | (by input) | handler native, status 7 |
+| crystallized | dbug, music | B 15,360 Hz, drums | 198 % peak, 47 % mean | 22/34 % | handler native, status 14 |
+| Swedish_New_Year_Demo_Sync | swedish_newyear | A 7,680 Hz | 181 % | (by input) | handler native, status 11 |
+| snyd90_f6 | snyd_90 | C 7,402 Hz | 166 % | (by input) | handler native, status 12 |
+| union/wow_scroller | union_superscroller | A 7,585 Hz | 160 % | 21/21 % | native (status 6) |
+| tcb_spreadpoint | tcb_spreadpoint | A 7,680 Hz | 159 % | (by input) | handler native, status 13 |
+| union/sharpness_buzztone | union_intro, union_main | A 6,826 Hz, drums | 91 % peak, 35 % mean | 11/17 % | Musashi |
+| rick_dangerous (effects) | rick_dangerous | A 4,915 Hz | 109 % for 1.5 s | 10/17 % | handler native, status 15 |
+| seven_gates_of_jambala (9) | replicants_emlyn | none in 9 | 15 % (subtune 2: 151 %, not asked for) | 14/25 % | Musashi |
+| union/chambers_of_shaolin (7) | union_tnt3 | none in 7 | 15 % (subtune 4: 204 %, not asked for) | 18/23 % | Musashi |
+| union/150_mph, alloy_run, elite_cfsr | | 2-3 kHz | 53-59 % | 30-41 % | Musashi |
+
+Every other SNDH a cart asks for (about 90 files: the B.I.G. Demo's 45 C64 conversions, the tutorials'
+default `sos.sndh`, every Union screen's) has no MFP timer and estimates 13-18 %; the board read them at
+0-32 % now, 13-48 % peak (the peak includes the song's load). MODs are ~1 %, SAP 9-36 %, XM 25-47 %. The
+measured points of the fit are under "Native players"; the model reads ~20 % high for Wow (160 % against the
+board's 125 %) and ~30 % low for Thalion (225 % against 308 %), whose interrupt is longer.
+
+### Handler-only drivers (`digi_irq.zig`)
+
+A digi tune pays Musashi's call once per sample, but its sequencer once a frame. So a handler-only driver
+replays only the timer interrupt in Zig and leaves INIT, PLAY and EXIT on Musashi; both keep the tune's state
+in the same 68000 RAM (and registers: Quartet's d0-d3/a0-a3, SYNC's d7, the Timer C mixer's a6). The
+handler is the converter's code, shared between his tunes, where a full replay needs each composer's
+sequencer ripped. These tunes copy, relocate and patch their handlers, so each is found in the image by a
+masked hash, checked again in RAM at its first interrupt after every INIT (its addresses read there), and its
+self-modified operands are read from the code at every interrupt. maxYMiser and Rick Dangerous move their
+routine, so those two match every address an interrupt arrives at, once per INIT. A handler that does not
+match plays on Musashi.
+
+| Status | Driver | Tunes |
+|---|---|---|
+| 7 | `digi_big.zig`, Mad Max's 3-voice mixer | the B.I.G. Demo's digital/ tunes, big/Labello |
+| 8 | `digi_mix4.zig`, Hippel's 4-voice mixer | Thalion Forever |
+| 9 | `digi_quartet.zig`, SingSong, state in registers | Dune Gen4's Quartet tunes |
+| 10 | `digi_tcb.zig`, one byte a tick (Wow's, with a software end of interrupt) | Swedish New Year TCB #1 |
+| 11 | `digi_sync4.zig`, a self-modifying 4-voice mixer | Swedish New Year SYNC |
+| 12 | `digi_mix3.zig`, a 3-voice mixer on Timer C | snyd_90 part 6 |
+| 13 | `digi_tcb3.zig`, three premixed volume streams | TCB's Spreadpoint |
+| 14 | `digi_mym.zig`, maxYMiser's two digidrum routines | crystallized |
+| 15 | `digi_sfx.zig`, two games' effect players | North & South, Rick Dangerous |
+
+**The proof**, as for Beat Dis: `fpga/tests/test_sndh_irq.py` holds every tune to Musashi, frame digest for
+frame digest (thousands of frames each, every subtune of the two games), across a `sndhCall` and 1/2 switches;
+the survey must show at most 4 Musashi calls a frame (a handler refused in RAM would pass the digest
+trivially); mutants 5-11 must fail. `apps/irq_native_check.mjs` does it in the browser's own modules, gated
+per cart with its `--break`. Unit tests: `digi_*_test.zig`.
+
+**Cost on BARD** (`make snd-bench`, soc_hp_snd, 8 frames):
+
+| Tune | Musashi (est.) | Handler native (measured) |
+|---|---|---|
+| Thalion Forever | 225 % est., 308 % on the board | 1.31 Mc, **79 %** |
+| the other handler-only tunes | 159-213 % | not measured (no sim run) |
+| Quartet (1) | 374 % | 1.94-2.18 Mc, **117 %**: still over |
+| Swedish New Year TCB #1 | 321 % | 1.35-1.53 Mc, **85 %**, but the write queue filled 196 times in 8 frames |
+
+A native interrupt still costs ~6.9 k cycles on BARD (Thalion: 160 a frame), not the ~2 k the glue alone
+would suggest: a third of the frame is bus waits, and forcing the 68000 accesses inline (+36 KB of code) made
+it slower (1.34 Mc), so it is the I-cache. Reading RAM directly instead of a bus call per byte cut 7 %
+(1.41 -> 1.31 Mc). The next lever is the player's per-interrupt path (`renderStereo`'s block, the MFP, the
+queue push) kept small and hot, which helps every digi tune at once.
 
 ## Phase B: Atari SAP tunes on the POKEY
 

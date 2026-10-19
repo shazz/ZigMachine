@@ -6,7 +6,7 @@ const AUDIO_PAGES = 48; // machine/sdk/audio.zig
 export const BLOCK = 882; // 50 blocks a second at 44.1 kHz
 
 /** The audio modules with `song` (under docs/music) loaded and started; native replays on or off. */
-async function start(song, native) {
+async function start(song, native, tune = 1) {
     const memory = new WebAssembly.Memory({ initial: AUDIO_PAGES, maximum: AUDIO_PAGES });
     const machine = (await WebAssembly.instantiate(await readFile("docs/machine-audio.wasm"), { env: { memory } })).instance.exports;
     const env = { memory };
@@ -17,13 +17,13 @@ async function start(song, native) {
     const bytes = new Uint8Array(await readFile(`docs/music/${song}`));
     new Uint8Array(memory.buffer, audio.audioSongPtr(), bytes.length).set(bytes);
     if (!audio.audioLoadSndh(bytes.length)) throw new Error(`${song}: audioLoadSndh refused it`);
-    audio.audioSndhPlay(1);
+    audio.audioSndhPlay(tune);
     return { memory, machine, audio };
 }
 
-/** `blocks` blocks, left channel, with `modes` {block: mode} asked before their block. */
-export async function render(song, native, blocks, modes = {}, mutant = 0) {
-    const { memory, machine, audio } = await start(song, native);
+/** `blocks` blocks of subtune `tune`, left channel, with `modes` {block: mode} asked before their block. */
+export async function render(song, native, blocks, modes = {}, mutant = 0, tune = 1) {
+    const { memory, machine, audio } = await start(song, native, tune);
     audio.audioSndhNativeMutant(mutant);
     const out = new Float32Array(blocks * BLOCK), got = [];
     for (let b = 0; b < blocks; b++) {

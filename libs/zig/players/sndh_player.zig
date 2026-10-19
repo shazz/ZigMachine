@@ -87,6 +87,12 @@ fn ram() [*]u8 {
     return @ptrFromInt(audio.SONG_BASE);
 }
 
+/// The 68000's RAM, for the native replays' direct reads and writes (digi.Access): the same
+/// bytes the bus functions below reach for an address under RAM_SIZE, without a call per byte.
+pub fn mem() []u8 {
+    return ram()[0..RAM_SIZE];
+}
+
 var psg_latch: u8 = 0;
 /// What we last wrote to each YM register, for the chip's read-back port.
 var ym_shadow: [16]u8 = [_]u8{0} ** 16;

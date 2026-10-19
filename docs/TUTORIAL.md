@@ -2671,6 +2671,306 @@ synthesised three-channel oscilloscope that switches on `audio_mode`.
 
 ---
 
+## KESTREL only: hello world in native C and RV32 assembly
+
+**Board only.** Everything above runs in your browser. This section does not:
+it is a cart written for ZIGGY, the RISC-V cart CPU of KESTREL (the FPGA
+console), with no wasm inside, so there is no Run button and no live demo
+here. If a browser mounts its disk, all it shows is "THIS DISK RUNS ON
+KESTREL ONLY". The board side (building, staging the SD card, what you
+should see and what a failure looks like) is in
+[`docs/FPGA_TUTORIAL.md`](FPGA_TUTORIAL.md#10-a-native-cart-kestrel-only).
+
+On the board, a cart is normally the same `.wasm` as in the browser,
+translated to C by wasm2c and compiled for RISC-V. The board keeps the
+firmware, the machine and the ROM in one **system image** and each cart in a
+small **cart image** of its own. The two meet in two places, both in the
+generated header `fpga/gen/zm_sys_abi.h`:
+
+- **The cart header** (`zm_cart_hdr`), the first bytes of the cart image:
+  the magic `ZMCA`, the table version the cart needs, its `.bss` range (the
+  system zeroes it), the size of its instance, and its entry points. The
+  system calls them as it calls a wasm2c cart: `bind(table)` once, then
+  `instantiate(cart, env)`, `boot(cart)`, `skip_boot(cart)`, and every frame
+  `frame(cart, dt)` and `plane_enabled(cart, plane)`. `cart` is the cart's own
+  struct (the system only allocates it); `env` is the system's.
+- **The system table** (`zm_sys_table`), handed to `bind`: function pointers
+  to everything a wasm cart may import from `env` (every ROM export, the
+  machine's `hw*` calls) plus a short runtime (`memcpy`, the libm calls, and
+  `w2c_env_memory`, which returns the shared memory). Each machine or ROM
+  entry takes `env` first, then the wasm import's own arguments.
+
+The shared memory is the one every wasm cart sees: `w2c_env_memory(env)->data`
+is its byte 0, and `hwVideoBase()` is where the video registers start in it.
+The ROM's `guiText` reads its string from that memory, not from the cart
+image, so the cart copies "HELLO WORLD" to the start of the cart window
+(`0x100000`) and says in its header that it owns the 256 bytes there.
+
+The C cart: an instance struct, the entry points, the header.
+
+```c
+/* KESTREL-only "hello world": a lean cart written for ZIGGY itself, not compiled from wasm
+ * (cycles/native/native.mk, decisions.md 2026-10-17). The browser cannot run it.
+ *
+ * It is called exactly as a wasm2c cart is (bsys.c): bind(table), instantiate(cart, env),
+ * boot(cart), skip_boot(cart), then frame(cart, dt) and plane_enabled(cart, p) every frame.
+ * `cart` is this file's own instance struct (the system calloc's inst_bytes of it); `env` is
+ * the system's, which every table call into the machine or the ROM takes first. The shared
+ * memory (registers, palettes, planes, the cart window) is the one the wasm carts see: the
+ * table's w2c_env_memory(env)->data is its byte 0, and the ROM reads text from it, so the
+ * string is copied there (to the cart window's base, the RAM this cart declares it owns). */
+#include <stdint.h>
+
+#include "native.h"
+
+typedef struct w2c_cart {
+    struct w2c_env* env;
+    uint8_t* mem;  /* the shared memory's byte 0 */
+    uint32_t gui;  /* the ROM's drawing context over plane 0 */
+    uint32_t frames;
+} hello;
+
+static const char MSG[] = "HELLO WORLD";
+#define MSG_LEN (sizeof MSG - 1)
+
+const zm_sys_table* zm_sys; /* .bss: the system zeroes it, then bind() fills it */
+
+static void bind(const zm_sys_table* t) { zm_sys = t; }
+
+static void instantiate(hello* c, struct w2c_env* e) {
+    c->env = e;
+    c->mem = *(uint8_t**)SYS(ZM_RT_w2c_env_memory, void* (*)(struct w2c_env*))(e); /* ->data: offset 0 */
+}
+
+static void boot(hello* c) {
+    struct w2c_env* e = c->env;
+    uint32_t video = SYS(ZM_ENV_hwVideoBase, uint32_t (*)(struct w2c_env*))(e);
+    *(volatile uint32_t*)(c->mem + video + NATIVE_REG_BACKGROUND) = NATIVE_BORDER_RGBA;
+    for (uint32_t i = 0; i < MSG_LEN; i++) c->mem[NATIVE_TEXT_AT + i] = (uint8_t)MSG[i];
+    c->gui = SYS(ZM_ENV_guiOpenPlane, uint32_t (*)(struct w2c_env*, uint32_t, uint32_t, uint32_t))(e, 0, 320, 200);
+    SYS(ZM_ENV_romInstallPalettePlane, void (*)(struct w2c_env*, uint32_t))(e, 0); /* GEM's 0 black, 1 white */
+}
+
+static void skip_boot(hello* c) { (void)c; }
+
+/* Plane 0 black, the text white, bouncing 64 px left and right so a frozen frame shows. */
+static void frame(hello* c, float dt) {
+    (void)dt;
+    struct w2c_env* e = c->env;
+    if (!c->gui) return; /* the ROM gave no context: plane 0 stays off */
+    uint32_t t = c->frames++ & 127u;
+    uint32_t x = 116u + (t < 64u ? t : 127u - t) - 32u;
+    SYS(ZM_ENV_guiRect, void (*)(struct w2c_env*, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t))(
+        e, c->gui, 0, 0, 320, 200, GEM_BLACK);
+    SYS(ZM_ENV_guiText, void (*)(struct w2c_env*, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t,
+                                 uint32_t))(e, c->gui, NATIVE_TEXT_AT, MSG_LEN, x, 96, GEM_WHITE, GEM_BLACK);
+}
+
+static uint32_t plane_enabled(hello* c, uint32_t p) { return p == 0 && c->gui != 0; }
+
+static void hbl_dispatch(hello* c, uint32_t id, uint32_t plane, uint32_t line, uint32_t x) {
+    (void)c, (void)id, (void)plane, (void)line, (void)x;
+}
+
+extern char __cart_bss_start[], __cart_bss_end[]; /* cycles/cart.ld */
+
+__attribute__((section(".zm_cart_hdr"), used)) const zm_cart_hdr zm_cart_header = {
+    .magic = ZM_CART_HDR_MAGIC, .version = ZM_SYS_ABI_VERSION, .hdr_bytes = sizeof(zm_cart_hdr),
+    .bss_start = __cart_bss_start, .bss_end = __cart_bss_end, .pages = NATIVE_PAGES,
+    .cart_high = NATIVE_CART_HIGH, .inst_bytes = sizeof(hello), .bind = bind, .instantiate = instantiate,
+    .boot = boot, .skip_boot = skip_boot, .frame = frame, .plane_enabled = plane_enabled,
+    .hbl_dispatch = hbl_dispatch, NATIVE_NO_BRIDGES, .tag = "hello",
+};
+```
+
+The same cart by hand. `zm_sys` holds the table; `SYSCALL n` loads entry `n`
+and calls it with the arguments already in `a0`..`a7` (the RISC-V calling
+convention: `guiText` takes eight, `env` first). The table indices come from
+`native.h`, and the build compiles `native_check.c`, which compares each one
+with the generated header, so a changed table fails the build instead of
+calling the wrong function.
+
+```asm
+/* KESTREL-only "hello world", by hand in RV32 assembly: hello.c instruction for instruction
+ * in spirit, the same header, calls and picture (cycles/native/native.mk, decisions.md
+ * 2026-10-17). The system calls it as it calls a wasm2c cart (cycles/bsys.c); a0 is always
+ * the instance (16 bytes the system calloc's: env, mem, gui, frames), and frame's float dt
+ * (fa0, or a1 on a soft-float system) is never read, so one image serves either ABI. Every
+ * table index and offset is native.h's, which native_check.c holds to the generated header. */
+#include "native.h"
+
+#define I_ENV 0     /* struct w2c_env*: every machine/ROM call takes it first */
+#define I_MEM 4     /* the shared memory's byte 0 */
+#define I_GUI 8     /* the ROM's drawing context over plane 0 (0 = none) */
+#define I_FRAMES 12
+#define INST_BYTES 16
+#define TEXT_LEN 11 /* "HELLO WORLD" */
+
+/* t0 = table entry IX (zm_sys->fn[IX]), then call it: a0.. already hold the arguments. */
+.macro SYSCALL ix
+    lui t0, %hi(zm_sys)
+    lw t0, %lo(zm_sys)(t0)
+    lw t0, NATIVE_TABLE_FN + 4 * \ix(t0)
+    jalr t0
+.endm
+
+    .section .zm_cart_hdr, "a"
+    .globl zm_cart_header
+    .balign 4
+zm_cart_header:
+    .word NATIVE_MAGIC                  /* "ZMCA" */
+    .word NATIVE_VERSION                /* the table version it needs */
+    .word NATIVE_HDR_BYTES
+    .word __cart_bss_start, __cart_bss_end
+    .word NATIVE_PAGES, NATIVE_CART_HIGH, INST_BYTES
+    .word c_bind, c_instantiate, c_boot, c_nothing, c_frame, c_plane_enabled, c_nothing
+    .word none, none, none, none, none  /* songs, input, dapp, exports, song files: all empty */
+    .asciz "hello_asm"
+    .org NATIVE_HDR_BYTES               /* the header is the section: fails if it overran */
+
+    .section .rodata
+    .balign 4
+none: .space 64                         /* every bridge all NULLs, every list ended at once */
+msg:  .ascii "HELLO WORLD"
+
+    .section .bss
+    .balign 4
+    .globl zm_sys
+zm_sys: .space 4                        /* zeroed by the system, then bind() fills it */
+
+    .text
+/* bind(table): keep the system's table. */
+c_bind:
+    lui t0, %hi(zm_sys)
+    sw a0, %lo(zm_sys)(t0)
+c_nothing:                              /* skip_boot, hbl_dispatch: nothing to do */
+    ret
+
+/* instantiate(cart, env): cart->env = env, cart->mem = w2c_env_memory(env)->data. */
+c_instantiate:
+    addi sp, sp, -16
+    sw ra, 12(sp)
+    sw s0, 8(sp)
+    mv s0, a0
+    sw a1, I_ENV(s0)
+    mv a0, a1
+    SYSCALL NATIVE_IX_w2c_env_memory
+    lw a0, 0(a0)                        /* wasm_rt_memory_t.data */
+    sw a0, I_MEM(s0)
+    lw s0, 8(sp)
+    lw ra, 12(sp)
+    addi sp, sp, 16
+    ret
+
+/* boot(cart): the border colour, the text into the shared memory, the ROM's context over
+ * plane 0 and GEM's palette entries. */
+c_boot:
+    addi sp, sp, -16
+    sw ra, 12(sp)
+    sw s0, 8(sp)
+    mv s0, a0
+    lw a0, I_ENV(s0)
+    SYSCALL NATIVE_IX_hwVideoBase       /* a0 = the video registers' offset */
+    lw t1, I_MEM(s0)
+    add t2, t1, a0
+    li t3, NATIVE_BORDER_RGBA
+    sw t3, NATIVE_REG_BACKGROUND(t2)
+    li t2, NATIVE_TEXT_AT               /* copy "HELLO WORLD" to mem + TEXT_AT */
+    add t2, t1, t2
+    lui t3, %hi(msg)
+    addi t3, t3, %lo(msg)
+    li t4, TEXT_LEN
+1:  lbu t5, 0(t3)
+    sb t5, 0(t2)
+    addi t3, t3, 1
+    addi t2, t2, 1
+    addi t4, t4, -1
+    bnez t4, 1b
+    lw a0, I_ENV(s0)                    /* guiOpenPlane(env, plane 0, 320, 200) */
+    li a1, 0
+    li a2, 320
+    li a3, 200
+    SYSCALL NATIVE_IX_guiOpenPlane
+    sw a0, I_GUI(s0)
+    lw a0, I_ENV(s0)                    /* romInstallPalettePlane(env, 0) */
+    li a1, 0
+    SYSCALL NATIVE_IX_romInstallPalettePlane
+    lw s0, 8(sp)
+    lw ra, 12(sp)
+    addi sp, sp, 16
+    ret
+
+/* frame(cart, dt): plane 0 black, the text white at x = 84 + bounce(frames & 127), y 96. */
+c_frame:
+    lw t0, I_GUI(a0)
+    beqz t0, 9f                         /* no context: plane 0 stays off */
+    addi sp, sp, -16
+    sw ra, 12(sp)
+    sw s0, 8(sp)
+    sw s1, 4(sp)
+    mv s0, a0
+    lw t1, I_FRAMES(s0)
+    addi t2, t1, 1
+    sw t2, I_FRAMES(s0)
+    andi t1, t1, 127
+    li t2, 64
+    bltu t1, t2, 1f
+    li t2, 127                          /* the way back: 127 - t */
+    sub t1, t2, t1
+1:  addi s1, t1, 84                     /* 116 - 32 + bounce, as hello.c */
+    lw a0, I_ENV(s0)                    /* guiRect(env, gui, 0, 0, 320, 200, black) */
+    lw a1, I_GUI(s0)
+    li a2, 0
+    li a3, 0
+    li a4, 320
+    li a5, 200
+    li a6, GEM_BLACK
+    SYSCALL NATIVE_IX_guiRect
+    lw a0, I_ENV(s0)                    /* guiText(env, gui, TEXT_AT, 11, x, 96, white, black) */
+    lw a1, I_GUI(s0)
+    li a2, NATIVE_TEXT_AT
+    li a3, TEXT_LEN
+    mv a4, s1
+    li a5, 96
+    li a6, GEM_WHITE
+    li a7, GEM_BLACK
+    SYSCALL NATIVE_IX_guiText
+    lw s1, 4(sp)
+    lw s0, 8(sp)
+    lw ra, 12(sp)
+    addi sp, sp, 16
+9:  ret
+
+/* plane_enabled(cart, p): plane 0 only, once the ROM gave a context. */
+c_plane_enabled:
+    lw t0, I_GUI(a0)
+    snez t0, t0
+    seqz a0, a1
+    and a0, a0, t0
+    ret
+```
+
+**Build and stage.** From `fpga/`, for the board's FPU variant:
+
+```sh
+make native-cart NAME=hello ZM_FPU=1        # build/hcycles/split/native_fpu/hello/{cart.bin,disk.zmd}
+make native-cart NAME=hello_asm ZM_FPU=1
+uv run python tools/glass_sd.py --out build/glass/sd \
+    --system build/hcycles/split/board_snd_fpu/sys.bin --fw-dir build/hcycles/split/native_fpu
+```
+
+`make native-cart` checks the image as the board will (the magic, a table
+version the system serves, the header size, the `.bss` end) and writes a disk
+whose boot cart is the browser stub. `glass_sd.py` then packs the cart into
+`zigmachine/demo-hello.zmd` and `demo-hello_asm.zmd` like any other cart. The
+C cart is 656 bytes and the assembly one 624: the system image
+holds everything else.
+
+**What you should see.** On the board, after picking `HELLO WORLD (C)` or
+`HELLO WORLD (ASM)` in the menu: a dark blue border, a black screen and
+`HELLO WORLD` in white in the middle, sliding 64 pixels left and right. The
+two carts look the same.
+
 ## Where next
 
 - [`docs/ZIGOS_API.md`](ZIGOS_API.md): the Zig library, including the copper,

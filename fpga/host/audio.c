@@ -30,6 +30,15 @@ static const char* const NATIVE[] = {
     "native replays off, on Musashi",
     "native monty",
     "native wow_scroller",
+    "native big_digital (handler)",
+    "native hippel_mix4 (handler)",
+    "native quartet_singsong (handler)",
+    "native tcb_digi (handler)",
+    "native sync_mix4 (handler)",
+    "native mix3_timer_c (handler)",
+    "native tcb_streams (handler)",
+    "native mym_drums (handler)",
+    "native game_sfx (handler)",
 };
 
 int audio_live(void) { return g_aud.memory.data != NULL; }

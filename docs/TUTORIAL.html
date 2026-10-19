@@ -3,9 +3,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ZigMachine — Tutorial</title>
 <meta name="description" content="Write your first ZigMachine screen, step by step, in Zig, C or Rust — running live on the real machine.">
-<link rel="stylesheet" href="css/docs.css?v=3f1bd301">
-<link rel="stylesheet" href="css/code.css?v=0edb2f47">
-<link rel="stylesheet" href="css/tutorial.css?v=1a7b2b87">
+<link rel="stylesheet" href="css/docs.css">
+<link rel="stylesheet" href="css/code.css">
+<link rel="stylesheet" href="css/tutorial.css">
 <script>
 (function () {
   var l = null;
@@ -42,6 +42,7 @@
 <a href="#step-11" data-slug="step-11"><span class="rn">11</span>loading and drawing a 3D object</a>
 <a href="#step-12" data-slug="step-12"><span class="rn">12</span>glenz vectors, the OR minterm</a>
 <a href="#step-13" data-slug="step-13"><span class="rn">13</span>seeing the sound — YM channels and a PCM spectrum</a>
+<a href="#kestrel-only-hello-world-in-native-c-and-rv32-assembly" data-slug="kestrel-only-hello-world-in-native-c-and-rv32-assembly"><span class="rn">·</span>KESTREL only: hello world in native C and RV32 assembly</a>
 <a href="#where-next" data-slug="where-next"><span class="rn">·</span>Where next</a></nav>
   <main>
     <section class="intro" id="intro">
@@ -2334,6 +2335,288 @@ synthesised three-channel oscilloscope that switches on <code>audio_mode</code>.
   unpacked. Expected; the next <code>audioState</code> message resumes it.</li>
 </ul>
 <hr /></div><div class="run-slot"></div></section>
+<section class="plain" id="kestrel-only-hello-world-in-native-c-and-rv32-assembly"><header class="step-h"><h2>KESTREL only: hello world in native C and RV32 assembly</h2></header><div class="shared"><p class="lead lead-note"><strong>Board only.</strong> Everything above runs in your browser. This section does not:
+it is a cart written for ZIGGY, the RISC-V cart CPU of KESTREL (the FPGA
+console), with no wasm inside, so there is no Run button and no live demo
+here. If a browser mounts its disk, all it shows is "THIS DISK RUNS ON
+KESTREL ONLY". The board side (building, staging the SD card, what you
+should see and what a failure looks like) is in
+<a href="FPGA_TUTORIAL.md#10-a-native-cart-kestrel-only"><code>docs/FPGA_TUTORIAL.md</code></a>.</p>
+<p>On the board, a cart is normally the same <code>.wasm</code> as in the browser,
+translated to C by wasm2c and compiled for RISC-V. The board keeps the
+firmware, the machine and the ROM in one <strong>system image</strong> and each cart in a
+small <strong>cart image</strong> of its own. The two meet in two places, both in the
+generated header <code>fpga/gen/zm_sys_abi.h</code>:</p>
+<ul>
+<li><strong>The cart header</strong> (<code>zm_cart_hdr</code>), the first bytes of the cart image:
+  the magic <code>ZMCA</code>, the table version the cart needs, its <code>.bss</code> range (the
+  system zeroes it), the size of its instance, and its entry points. The
+  system calls them as it calls a wasm2c cart: <code>bind(table)</code> once, then
+  <code>instantiate(cart, env)</code>, <code>boot(cart)</code>, <code>skip_boot(cart)</code>, and every frame
+  <code>frame(cart, dt)</code> and <code>plane_enabled(cart, plane)</code>. <code>cart</code> is the cart's own
+  struct (the system only allocates it); <code>env</code> is the system's.</li>
+<li><strong>The system table</strong> (<code>zm_sys_table</code>), handed to <code>bind</code>: function pointers
+  to everything a wasm cart may import from <code>env</code> (every ROM export, the
+  machine's <code>hw*</code> calls) plus a short runtime (<code>memcpy</code>, the libm calls, and
+  <code>w2c_env_memory</code>, which returns the shared memory). Each machine or ROM
+  entry takes <code>env</code> first, then the wasm import's own arguments.</li>
+</ul>
+<p>The shared memory is the one every wasm cart sees: <code>w2c_env_memory(env)-&gt;data</code>
+is its byte 0, and <code>hwVideoBase()</code> is where the video registers start in it.
+The ROM's <code>guiText</code> reads its string from that memory, not from the cart
+image, so the cart copies "HELLO WORLD" to the start of the cart window
+(<code>0x100000</code>) and says in its header that it owns the 256 bytes there.</p>
+<p>The C cart: an instance struct, the entry points, the header.</p>
+<figure class="cb" data-lang=c><figcaption><span class="cb-lang">c</span><span class="cb-n">72 lines</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code><span class="tok-cm">/* KESTREL-only &quot;hello world&quot;: a lean cart written for ZIGGY itself, not compiled from wasm
+ * (cycles/native/native.mk, decisions.md 2026-10-17). The browser cannot run it.
+ *
+ * It is called exactly as a wasm2c cart is (bsys.c): bind(table), instantiate(cart, env),
+ * boot(cart), skip_boot(cart), then frame(cart, dt) and plane_enabled(cart, p) every frame.
+ * `cart` is this file&#x27;s own instance struct (the system calloc&#x27;s inst_bytes of it); `env` is
+ * the system&#x27;s, which every table call into the machine or the ROM takes first. The shared
+ * memory (registers, palettes, planes, the cart window) is the one the wasm carts see: the
+ * table&#x27;s w2c_env_memory(env)-&gt;data is its byte 0, and the ROM reads text from it, so the
+ * string is copied there (to the cart window&#x27;s base, the RAM this cart declares it owns). */</span>
+<span class="tok-pp">#include</span> &lt;stdint.h&gt;
+
+<span class="tok-pp">#include</span> <span class="tok-str">&quot;native.h&quot;</span>
+
+<span class="tok-kw">typedef</span> <span class="tok-kw">struct</span> w2c_cart {
+    <span class="tok-kw">struct</span> w2c_env* env;
+    <span class="tok-kw">uint8_t</span>* mem;  <span class="tok-cm">/* the shared memory&#x27;s byte 0 */</span>
+    <span class="tok-kw">uint32_t</span> gui;  <span class="tok-cm">/* the ROM&#x27;s drawing context over plane 0 */</span>
+    <span class="tok-kw">uint32_t</span> frames;
+} hello;
+
+<span class="tok-kw">static</span> <span class="tok-kw">const</span> <span class="tok-kw">char</span> MSG[] = <span class="tok-str">&quot;HELLO WORLD&quot;</span>;
+<span class="tok-pp">#define</span> MSG_LEN (<span class="tok-kw">sizeof</span> MSG - <span class="tok-num">1</span>)
+
+<span class="tok-kw">const</span> zm_sys_table* zm_sys; <span class="tok-cm">/* .bss: the system zeroes it, then bind() fills it */</span>
+
+<span class="tok-kw">static</span> <span class="tok-kw">void</span> <span class="tok-fn">bind</span>(<span class="tok-kw">const</span> zm_sys_table* t) { zm_sys = t; }
+
+<span class="tok-kw">static</span> <span class="tok-kw">void</span> <span class="tok-fn">instantiate</span>(hello* c, <span class="tok-kw">struct</span> w2c_env* e) {
+    c-&gt;env = e;
+    c-&gt;mem = *(<span class="tok-kw">uint8_t</span>**)<span class="tok-fn">SYS</span>(ZM_RT_w2c_env_memory, <span class="tok-kw">void</span>* (*)(<span class="tok-kw">struct</span> w2c_env*))(e); <span class="tok-cm">/* -&gt;data: offset 0 */</span>
+}
+
+<span class="tok-kw">static</span> <span class="tok-kw">void</span> <span class="tok-fn">boot</span>(hello* c) {
+    <span class="tok-kw">struct</span> w2c_env* e = c-&gt;env;
+    <span class="tok-kw">uint32_t</span> video = <span class="tok-fn">SYS</span>(ZM_ENV_hwVideoBase, <span class="tok-kw">uint32_t</span> (*)(<span class="tok-kw">struct</span> w2c_env*))(e);
+    *(<span class="tok-kw">volatile</span> <span class="tok-kw">uint32_t</span>*)(c-&gt;mem + video + NATIVE_REG_BACKGROUND) = NATIVE_BORDER_RGBA;
+    <span class="tok-kw">for</span> (<span class="tok-kw">uint32_t</span> i = <span class="tok-num">0</span>; i &lt; MSG_LEN; i++) c-&gt;mem[NATIVE_TEXT_AT + i] = (<span class="tok-kw">uint8_t</span>)MSG[i];
+    c-&gt;gui = <span class="tok-fn">SYS</span>(ZM_ENV_guiOpenPlane, <span class="tok-kw">uint32_t</span> (*)(<span class="tok-kw">struct</span> w2c_env*, <span class="tok-kw">uint32_t</span>, <span class="tok-kw">uint32_t</span>, <span class="tok-kw">uint32_t</span>))(e, <span class="tok-num">0</span>, <span class="tok-num">320</span>, <span class="tok-num">200</span>);
+    <span class="tok-fn">SYS</span>(ZM_ENV_romInstallPalettePlane, <span class="tok-kw">void</span> (*)(<span class="tok-kw">struct</span> w2c_env*, <span class="tok-kw">uint32_t</span>))(e, <span class="tok-num">0</span>); <span class="tok-cm">/* GEM&#x27;s 0 black, 1 white */</span>
+}
+
+<span class="tok-kw">static</span> <span class="tok-kw">void</span> <span class="tok-fn">skip_boot</span>(hello* c) { (<span class="tok-kw">void</span>)c; }
+
+<span class="tok-cm">/* Plane 0 black, the text white, bouncing 64 px left and right so a frozen frame shows. */</span>
+<span class="tok-kw">static</span> <span class="tok-kw">void</span> <span class="tok-fn">frame</span>(hello* c, <span class="tok-kw">float</span> dt) {
+    (<span class="tok-kw">void</span>)dt;
+    <span class="tok-kw">struct</span> w2c_env* e = c-&gt;env;
+    <span class="tok-kw">if</span> (!c-&gt;gui) <span class="tok-kw">return</span>; <span class="tok-cm">/* the ROM gave no context: plane 0 stays off */</span>
+    <span class="tok-kw">uint32_t</span> t = c-&gt;frames++ &amp; 127u;
+    <span class="tok-kw">uint32_t</span> x = 116u + (t &lt; 64u ? t : 127u - t) - 32u;
+    <span class="tok-fn">SYS</span>(ZM_ENV_guiRect, <span class="tok-kw">void</span> (*)(<span class="tok-kw">struct</span> w2c_env*, <span class="tok-kw">uint32_t</span>, <span class="tok-kw">uint32_t</span>, <span class="tok-kw">uint32_t</span>, <span class="tok-kw">uint32_t</span>, <span class="tok-kw">uint32_t</span>, <span class="tok-kw">uint32_t</span>))(
+        e, c-&gt;gui, <span class="tok-num">0</span>, <span class="tok-num">0</span>, <span class="tok-num">320</span>, <span class="tok-num">200</span>, GEM_BLACK);
+    <span class="tok-fn">SYS</span>(ZM_ENV_guiText, <span class="tok-kw">void</span> (*)(<span class="tok-kw">struct</span> w2c_env*, <span class="tok-kw">uint32_t</span>, <span class="tok-kw">uint32_t</span>, <span class="tok-kw">uint32_t</span>, <span class="tok-kw">uint32_t</span>, <span class="tok-kw">uint32_t</span>, <span class="tok-kw">uint32_t</span>,
+                                 <span class="tok-kw">uint32_t</span>))(e, c-&gt;gui, NATIVE_TEXT_AT, MSG_LEN, x, <span class="tok-num">96</span>, GEM_WHITE, GEM_BLACK);
+}
+
+<span class="tok-kw">static</span> <span class="tok-kw">uint32_t</span> <span class="tok-fn">plane_enabled</span>(hello* c, <span class="tok-kw">uint32_t</span> p) { <span class="tok-kw">return</span> p == <span class="tok-num">0</span> &amp;&amp; c-&gt;gui != <span class="tok-num">0</span>; }
+
+<span class="tok-kw">static</span> <span class="tok-kw">void</span> <span class="tok-fn">hbl_dispatch</span>(hello* c, <span class="tok-kw">uint32_t</span> id, <span class="tok-kw">uint32_t</span> plane, <span class="tok-kw">uint32_t</span> line, <span class="tok-kw">uint32_t</span> x) {
+    (<span class="tok-kw">void</span>)c, (<span class="tok-kw">void</span>)id, (<span class="tok-kw">void</span>)plane, (<span class="tok-kw">void</span>)line, (<span class="tok-kw">void</span>)x;
+}
+
+<span class="tok-kw">extern</span> <span class="tok-kw">char</span> __cart_bss_start[], __cart_bss_end[]; <span class="tok-cm">/* cycles/cart.ld */</span>
+
+<span class="tok-fn">__attribute__</span>((<span class="tok-fn">section</span>(<span class="tok-str">&quot;.zm_cart_hdr&quot;</span>), used)) <span class="tok-kw">const</span> zm_cart_hdr zm_cart_header = {
+    .magic = ZM_CART_HDR_MAGIC, .version = ZM_SYS_ABI_VERSION, .hdr_bytes = <span class="tok-kw">sizeof</span>(zm_cart_hdr),
+    .bss_start = __cart_bss_start, .bss_end = __cart_bss_end, .pages = NATIVE_PAGES,
+    .cart_high = NATIVE_CART_HIGH, .inst_bytes = <span class="tok-kw">sizeof</span>(hello), .bind = bind, .instantiate = instantiate,
+    .boot = boot, .skip_boot = skip_boot, .frame = frame, .plane_enabled = plane_enabled,
+    .hbl_dispatch = hbl_dispatch, NATIVE_NO_BRIDGES, .tag = <span class="tok-str">&quot;hello&quot;</span>,
+};</code></pre></figure>
+<p>The same cart by hand. <code>zm_sys</code> holds the table; <code>SYSCALL n</code> loads entry <code>n</code>
+and calls it with the arguments already in <code>a0</code>..<code>a7</code> (the RISC-V calling
+convention: <code>guiText</code> takes eight, <code>env</code> first). The table indices come from
+<code>native.h</code>, and the build compiles <code>native_check.c</code>, which compares each one
+with the generated header, so a changed table fails the build instead of
+calling the wrong function.</p>
+<figure class="cb" data-lang=asm><figcaption><span class="cb-lang">asm</span><span class="cb-n">157 lines</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code>/* KESTREL-only &quot;hello world&quot;, by hand in RV32 assembly: hello.c instruction for instruction
+ * in spirit, the same header, calls and picture (cycles/native/native.mk, decisions.md
+ * 2026-10-17). The system calls it as it calls a wasm2c cart (cycles/bsys.c); a0 is always
+ * the instance (16 bytes the system calloc&#x27;s: env, mem, gui, frames), and frame&#x27;s float dt
+ * (fa0, or a1 on a soft-float system) is never read, so one image serves either ABI. Every
+ * table index and offset is native.h&#x27;s, which native_check.c holds to the generated header. */
+#include &quot;native.h&quot;
+
+#define I_ENV 0     /* struct w2c_env*: every machine/ROM call takes it first */
+#define I_MEM 4     /* the shared memory&#x27;s byte 0 */
+#define I_GUI 8     /* the ROM&#x27;s drawing context over plane 0 (0 = none) */
+#define I_FRAMES 12
+#define INST_BYTES 16
+#define TEXT_LEN 11 /* &quot;HELLO WORLD&quot; */
+
+/* t0 = table entry IX (zm_sys-&gt;fn[IX]), then call it: a0.. already hold the arguments. */
+.macro SYSCALL ix
+    lui t0, %hi(zm_sys)
+    lw t0, %lo(zm_sys)(t0)
+    lw t0, NATIVE_TABLE_FN + 4 * \ix(t0)
+    jalr t0
+.endm
+
+    .section .zm_cart_hdr, &quot;a&quot;
+    .globl zm_cart_header
+    .balign 4
+zm_cart_header:
+    .word NATIVE_MAGIC                  /* &quot;ZMCA&quot; */
+    .word NATIVE_VERSION                /* the table version it needs */
+    .word NATIVE_HDR_BYTES
+    .word __cart_bss_start, __cart_bss_end
+    .word NATIVE_PAGES, NATIVE_CART_HIGH, INST_BYTES
+    .word c_bind, c_instantiate, c_boot, c_nothing, c_frame, c_plane_enabled, c_nothing
+    .word none, none, none, none, none  /* songs, input, dapp, exports, song files: all empty */
+    .asciz &quot;hello_asm&quot;
+    .org NATIVE_HDR_BYTES               /* the header is the section: fails if it overran */
+
+    .section .rodata
+    .balign 4
+none: .space 64                         /* every bridge all NULLs, every list ended at once */
+msg:  .ascii &quot;HELLO WORLD&quot;
+
+    .section .bss
+    .balign 4
+    .globl zm_sys
+zm_sys: .space 4                        /* zeroed by the system, then bind() fills it */
+
+    .text
+/* bind(table): keep the system&#x27;s table. */
+c_bind:
+    lui t0, %hi(zm_sys)
+    sw a0, %lo(zm_sys)(t0)
+c_nothing:                              /* skip_boot, hbl_dispatch: nothing to do */
+    ret
+
+/* instantiate(cart, env): cart-&gt;env = env, cart-&gt;mem = w2c_env_memory(env)-&gt;data. */
+c_instantiate:
+    addi sp, sp, -16
+    sw ra, 12(sp)
+    sw s0, 8(sp)
+    mv s0, a0
+    sw a1, I_ENV(s0)
+    mv a0, a1
+    SYSCALL NATIVE_IX_w2c_env_memory
+    lw a0, 0(a0)                        /* wasm_rt_memory_t.data */
+    sw a0, I_MEM(s0)
+    lw s0, 8(sp)
+    lw ra, 12(sp)
+    addi sp, sp, 16
+    ret
+
+/* boot(cart): the border colour, the text into the shared memory, the ROM&#x27;s context over
+ * plane 0 and GEM&#x27;s palette entries. */
+c_boot:
+    addi sp, sp, -16
+    sw ra, 12(sp)
+    sw s0, 8(sp)
+    mv s0, a0
+    lw a0, I_ENV(s0)
+    SYSCALL NATIVE_IX_hwVideoBase       /* a0 = the video registers&#x27; offset */
+    lw t1, I_MEM(s0)
+    add t2, t1, a0
+    li t3, NATIVE_BORDER_RGBA
+    sw t3, NATIVE_REG_BACKGROUND(t2)
+    li t2, NATIVE_TEXT_AT               /* copy &quot;HELLO WORLD&quot; to mem + TEXT_AT */
+    add t2, t1, t2
+    lui t3, %hi(msg)
+    addi t3, t3, %lo(msg)
+    li t4, TEXT_LEN
+1:  lbu t5, 0(t3)
+    sb t5, 0(t2)
+    addi t3, t3, 1
+    addi t2, t2, 1
+    addi t4, t4, -1
+    bnez t4, 1b
+    lw a0, I_ENV(s0)                    /* guiOpenPlane(env, plane 0, 320, 200) */
+    li a1, 0
+    li a2, 320
+    li a3, 200
+    SYSCALL NATIVE_IX_guiOpenPlane
+    sw a0, I_GUI(s0)
+    lw a0, I_ENV(s0)                    /* romInstallPalettePlane(env, 0) */
+    li a1, 0
+    SYSCALL NATIVE_IX_romInstallPalettePlane
+    lw s0, 8(sp)
+    lw ra, 12(sp)
+    addi sp, sp, 16
+    ret
+
+/* frame(cart, dt): plane 0 black, the text white at x = 84 + bounce(frames &amp; 127), y 96. */
+c_frame:
+    lw t0, I_GUI(a0)
+    beqz t0, 9f                         /* no context: plane 0 stays off */
+    addi sp, sp, -16
+    sw ra, 12(sp)
+    sw s0, 8(sp)
+    sw s1, 4(sp)
+    mv s0, a0
+    lw t1, I_FRAMES(s0)
+    addi t2, t1, 1
+    sw t2, I_FRAMES(s0)
+    andi t1, t1, 127
+    li t2, 64
+    bltu t1, t2, 1f
+    li t2, 127                          /* the way back: 127 - t */
+    sub t1, t2, t1
+1:  addi s1, t1, 84                     /* 116 - 32 + bounce, as hello.c */
+    lw a0, I_ENV(s0)                    /* guiRect(env, gui, 0, 0, 320, 200, black) */
+    lw a1, I_GUI(s0)
+    li a2, 0
+    li a3, 0
+    li a4, 320
+    li a5, 200
+    li a6, GEM_BLACK
+    SYSCALL NATIVE_IX_guiRect
+    lw a0, I_ENV(s0)                    /* guiText(env, gui, TEXT_AT, 11, x, 96, white, black) */
+    lw a1, I_GUI(s0)
+    li a2, NATIVE_TEXT_AT
+    li a3, TEXT_LEN
+    mv a4, s1
+    li a5, 96
+    li a6, GEM_WHITE
+    li a7, GEM_BLACK
+    SYSCALL NATIVE_IX_guiText
+    lw s1, 4(sp)
+    lw s0, 8(sp)
+    lw ra, 12(sp)
+    addi sp, sp, 16
+9:  ret
+
+/* plane_enabled(cart, p): plane 0 only, once the ROM gave a context. */
+c_plane_enabled:
+    lw t0, I_GUI(a0)
+    snez t0, t0
+    seqz a0, a1
+    and a0, a0, t0
+    ret</code></pre></figure>
+<p class="lead lead-note"><strong>Build and stage.</strong> From <code>fpga/</code>, for the board's FPU variant:</p>
+<figure class="cb" data-lang=sh><figcaption><span class="cb-lang">sh</span><span class="cb-n">4 lines</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code>make native-cart NAME=hello ZM_FPU=<span class="tok-num">1</span>        <span class="tok-cm"># build/hcycles/split/native_fpu/hello/{cart.bin,disk.zmd}</span>
+make native-cart NAME=hello_asm ZM_FPU=<span class="tok-num">1</span>
+uv run python tools/glass_sd.py --out build/glass/sd \
+    --system build/hcycles/split/board_snd_fpu/sys.bin --fw-dir build/hcycles/split/native_fpu</code></pre></figure>
+<p><code>make native-cart</code> checks the image as the board will (the magic, a table
+version the system serves, the header size, the <code>.bss</code> end) and writes a disk
+whose boot cart is the browser stub. <code>glass_sd.py</code> then packs the cart into
+<code>zigmachine/demo-hello.zmd</code> and <code>demo-hello_asm.zmd</code> like any other cart. The
+C cart is 656 bytes and the assembly one 624: the system image
+holds everything else.</p>
+<p class="lead lead-see"><strong>What you should see.</strong> On the board, after picking <code>HELLO WORLD (C)</code> or
+<code>HELLO WORLD (ASM)</code> in the menu: a dark blue border, a black screen and
+<code>HELLO WORLD</code> in white in the middle, sliding 64 pixels left and right. The
+two carts look the same.</p></div><div class="shared after"></div><div class="run-slot"></div></section>
 <section class="plain" id="where-next"><header class="step-h"><h2>Where next</h2></header><div class="shared"><ul>
 <li><a href="ZIGOS_API.md"><code>docs/ZIGOS_API.md</code></a>: the Zig library, including the copper,
   <code>blit</code>, <code>scrollring</code> and wireframe helpers.</li>
@@ -2364,5 +2647,5 @@ synthesised three-channel oscilloscope that switches on <code>audio_mode</code>.
     </div>
   </aside>
 </div>
-<script src="tutorial.js?v=9cb35076"></script>
+<script src="tutorial.js"></script>
 </body></html>
