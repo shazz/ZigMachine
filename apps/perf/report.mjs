@@ -112,3 +112,18 @@ export function hintRegions(profiles, n) {
     }
     return all.sort((a, b) => b.hints - a.hints).slice(0, n);
 }
+
+/// The sites that really trapped (a misaligned address), by function, from the per-site counters
+/// of the whole run (warm-up included): where to look when MISALIGNED is large.
+export function misSites(mods, n) {
+    const all = [];
+    for (const m of mods) {
+        if (!m.mem || !m.plan?.mis) continue;
+        const w = new Uint32Array(m.mem.buffer);
+        for (const s of m.plan.mis) {
+            const k = w[s.word];
+            if (k) all.push({ mod: m.tag, func: funcName(m.plan.module, s.fi), at: hex(s.at), count: k });
+        }
+    }
+    return all.sort((a, b) => b.count - a.count).slice(0, n);
+}

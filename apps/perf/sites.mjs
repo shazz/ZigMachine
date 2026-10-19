@@ -40,11 +40,16 @@ export function hookFor(d, i, ctx) {
         return blitSiteHook(ctx.plan.blits.length - 1, orig);
     }
     if (imm && imm.mem === 0 && LOAD_BYTES[op] > 1) { // [addr] -> count a misaligned one, then the load
-        return [...LTEE(t.a), ...I32(imm.offset), 0x6a, ...I32(LOAD_BYTES[op] - 1), 0x71, 0x04, 0x40, ...inc(MIS_LOADS), 0x0b, ...LGET(t.a), ...orig];
+        const w = ctx.next++; // this site's own count, for the report of where the traps come from
+        ctx.plan.mis.push({ fi: d.fi, at, word: w });
+        const inner = ctx.probes ? probeFor(ctx.m, d, d.instrs[i], t, orig, ctx) : null;
+        return [...LTEE(t.a), ...I32(imm.offset), 0x6a, ...I32(Math.min(LOAD_BYTES[op], 4) - 1), 0x71, 0x04, 0x40, ...inc(MIS_LOADS), ...inc(w), 0x0b, ...LGET(t.a), ...(inner ?? orig)];
     }
     if (ctx.vlo !== null && WATCHED.has(op) && imm.mem === 0) {
         site(ctx.plan.watch);
-        const h = watchHook(ctx.next, op, imm.offset, ctx.pal, ctx.vlo, t, orig);
+        const w = ctx.next++;
+        ctx.plan.mis.push({ fi: d.fi, at, word: w });
+        const h = watchHook(ctx.next, op, imm.offset, ctx.pal, ctx.vlo, t, orig, w);
         ctx.next += WATCH_WORDS;
         return h;
     }

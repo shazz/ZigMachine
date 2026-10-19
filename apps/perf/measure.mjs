@@ -4,7 +4,7 @@ import { readFile } from "node:fs/promises";
 import { bootInstrumented, hostFrame } from "./run_cart.mjs";
 import { Profile } from "./profile.mjs";
 import { TRAP_CYCLES, HBL_CALL, SNOOP_OVERFLOW, DISK_BLOCK, FRESCO_PLANE, FRAME_MC, MHZ, icacheCycles } from "./cost_model.mjs";
-import { hotRegions, hintRegions, classTotals, causeTotals, libmCalls, paletteWrites } from "./report.mjs";
+import { hotRegions, hintRegions, misSites, classTotals, causeTotals, libmCalls, paletteWrites } from "./report.mjs";
 import { Waste } from "./waste.mjs";
 import { wasteReport } from "./waste_report.mjs";
 import { fitDump } from "./fit_dump.mjs";
@@ -76,5 +76,6 @@ function summarize(cartPath, opts, run, profiles, w) {
         classes: classTotals(profiles), libm: libmCalls(profiles), palette: paletteWrites(profiles),
         hot: hotRegions(profiles, opts.top),
         hints: hintRegions(profiles, 5),
+        misSites: misSites(run.mods, 5),
     };
 }

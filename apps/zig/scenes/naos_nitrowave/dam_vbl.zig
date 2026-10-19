@@ -58,12 +58,12 @@ fn logoRest(r: *const st.Ram) void {
 }
 
 fn logoLine(r: *const st.Ram, dst: u32, src: u32) void {
-    @memset(r.bytes(dst + 2, 6), 0);
+    r.zero6(dst + 2);
     for (1..10) |g| {
         const gg: u32 = @intCast(g);
         r.cp(dst + 8 * gg + 2, src + 6 * (gg - 1), 6);
     }
-    @memset(r.bytes(dst + 80 + 2, 6), 0);
+    r.zero6(dst + 80 + 2);
 }
 
 fn band(r: *const st.Ram, regs: *Regs, pair: u32, lines: usize) void {
@@ -119,6 +119,6 @@ fn scroller(r: *const st.Ram) void {
 fn clear(r: *const st.Ram) void {
     const a4 = r.l(0x30C9C);
     for (0..4) |line| {
-        for (0..26) |g| @memset(r.bytes(a4 + LINE * @as(u32, @intCast(line)) + 8 * @as(u32, @intCast(g)), 6), 0);
+        for (0..26) |g| r.zero6(a4 + LINE * @as(u32, @intCast(line)) + 8 * @as(u32, @intCast(g)));
     }
 }

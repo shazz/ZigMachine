@@ -117,7 +117,7 @@ export function instrument(buf, { pal = null, vlo = null, names = null, probes =
     const m = parseModule(buf);
     if (names && m.names.size === 0) m.names = names;
     const plan = { names: m.names, regions: [], segFunc: [], segRegion: [], segWord: [], segAt: [],
-        segInstr: [], segStores: [], segFetch: [], cls: [], fills: [], copies: [], watch: [], blits: [], probes: [], calls: [] };
+        segInstr: [], segStores: [], segFetch: [], cls: [], fills: [], copies: [], watch: [], mis: [], blits: [], probes: [], calls: [] };
     const ctx = { buf, m, plan, pal, vlo, probes, blit: blitImports(m), next: FIRST_COUNTER };
     const nSegGuess = m.bodies.length * 64;
     plan.cls = new Uint32Array(nSegGuess * NCLS);

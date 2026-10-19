@@ -70,7 +70,7 @@ pub fn present(r: *const st.Ram, base: u32, lines: Lines, px: []u8) void {
         const line = r.bytes(base + 160 + LINE * @as(u32, @intCast(y)), LINE);
         const kept = shadow[y * LINE ..][0..LINE];
         if (shadow_ok and same(line, kept)) continue;
-        @memcpy(kept, line);
+        st.copyBytes(kept, line); // library copy: the line is on any even address
         st.lineToChunky(line, FIRST_PX, px[(TOP + y) * PW ..][0..PW]);
     }
     if (!shadow_ok) @memset(px[(TOP + lines.end) * PW .. PH * PW], 0);

@@ -101,14 +101,18 @@ fn row(r: *const st.Ram, line: u16, pal: *[16]u16, b0: usize, out: []u8, dst: *R
         const wx = writeX(ws[k].cycle);
         if (wx > 0 and seg + 1 < MAX_SEG) {
             fill(dst, seg, pal);
-            for (out[x..@intCast(wx)]) |*p| p.* +%= 16 * seg;
+            if (seg != 0) for (out[x..@intCast(wx)]) |*p| { // (+ 0 changes nothing: and a store is a bus write)
+                p.* +%= 16 * seg;
+            };
             x = @intCast(wx);
             seg += 1;
         }
         pal[ws[k].colour] = ws[k].value;
     }
     fill(dst, seg, pal);
-    for (out[x..]) |*p| p.* +%= 16 * seg;
+    if (seg != 0) for (out[x..]) |*p| {
+        p.* +%= 16 * seg;
+    };
     dst.segs = seg + 1;
     for (ws[k..n]) |w| pal[w.colour] = w.value; // past the row's last pixel
     return b;

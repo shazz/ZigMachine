@@ -58,18 +58,18 @@ function vramBlock(word, op, offset, vlo, t) {
 }
 
 // A wide store at an address that is not a multiple of its width traps on the board.
-function misaligned(word, op, offset, t) {
+function misaligned(word, op, offset, t, site) {
     const w = STORES[op][0];
     if (w === 1) return [];
-    return [...LGET(t.a), ...I32(offset), 0x6a, ...I32(w - 1), 0x71, 0x04, 0x40, ...inc(word), 0x0b];
+    return [...LGET(t.a), ...I32(offset), 0x6a, ...I32(Math.min(w, 4) - 1), 0x71, 0x04, 0x40, ...inc(word), ...inc(site), 0x0b];
 }
 
 // [addr val] on the stack -> the checks, then the original store
-export function watchHook(word, op, offset, pal, vlo, t, original) {
+export function watchHook(word, op, offset, pal, vlo, t, original, misSite) {
     const wide = STORES[op][1];
     return [
         ...LSET(wide ? t.w : t.v), ...LSET(t.a), ...inc(STORE_TOTAL),
-        ...misaligned(MIS_STORES, op, offset, t),
+        ...misaligned(MIS_STORES, op, offset, t, misSite),
         ...palBlock(word, op, offset, pal, t), ...vramBlock(word, op, offset, vlo, t),
         ...LGET(t.a), ...LGET(wide ? t.w : t.v), ...original,
     ];
