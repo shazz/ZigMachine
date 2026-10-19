@@ -25,6 +25,8 @@ WishboneHP drives HP0.
     every earlier pixel's have come back), and tests/tb/blitter_tb.cpp holds it to that.
 - `enable` (glass CTRL.RUN): no new request is taken while it is low, so a blit cut by
   the ARM stopping the cart finishes its transactions instead of tearing an HP burst.
+- `burst` (0 = off, the board's bitstream): N > 0 coalesces consecutive words into INCR
+  write bursts of up to N beats (soc/zm_blit_wburst.py); reads are unchanged.
 - `break_` (tests/test_blit_soc.py only): "alias" lets a read pass the write it must
   wait for, "order" pairs a beat with the newest read's half instead of the oldest's.
 """
@@ -38,6 +40,7 @@ from litex.soc.interconnect import axi
 from migen import Array, Cat, If, Memory, Mux, Signal
 from migen import Constant as Const
 
+from soc.zm_blit_wburst import BurstWrites
 from soc.zm_hp import AW_CACHE, DDR_BASE, SIZE_4, WINDOW_LOG2, fixed_fields
 
 READS = 16  # reads in flight on the port (AR sent, beat not back); the AFI takes 8, the rest wait at AR
@@ -55,8 +58,10 @@ def _step(p: Signal, depth: int) -> Any:  # Any: a Migen expression
 
 
 class BlitHP(LiteXModule):
-    def __init__(self, hp: axi.AXIInterface, base: Signal, enable: Signal | None = None, break_: str = "") -> None:
-        self.hp, self.base, self.break_ = hp, base, break_
+    def __init__(
+        self, hp: axi.AXIInterface, base: Signal, enable: Signal | None = None, break_: str = "", burst: int = 0
+    ) -> None:
+        self.hp, self.base, self.break_, self.burst = hp, base, break_, burst
         self.enable = Signal(reset=1) if enable is None else enable
         self.rd_req_valid, self.rd_req_ready, self.rd_req_addr = Signal(), Signal(), Signal(32)
         self.rd_rsp_valid, self.rd_rsp_data = Signal(), Signal(32)
@@ -65,8 +70,21 @@ class BlitHP(LiteXModule):
         self.reads = Signal(max=RQ + READS + 1)  # reads taken whose data has not come back
         self.writes = Signal(max=WRITES + 1)  # writes taken whose B has not come back
         self.comb += [*fixed_fields(hp.ar), *fixed_fields(hp.aw), hp.r.ready.eq(1), hp.b.ready.eq(1)]
-        self.w_word, self.w_strb, self.w_live = self._write()
+        if burst:
+            self._burst_write()
+        else:
+            self.w_word, self.w_strb, self.w_live = self._write()
         self._read()
+
+    def _burst_write(self) -> None:
+        self.wb = wb = BurstWrites(self.hp, self.burst)
+        bus = Signal(32)
+        self.comb += [
+            bus.eq(self.base + self.wr_req_addr),
+            self.wr_req_ready.eq(self.enable & wb.room),
+            wb.take.eq(self.wr_req_valid & self.wr_req_ready), wb.word.eq(bus[2:WINDOW_LOG2]),
+            wb.data.eq(self.wr_req_data), wb.strb.eq(self.wr_req_strb), self.wr_pending.eq(wb.pending),
+        ]  # fmt: skip
 
     def _ring(self, width: int, depth: int) -> tuple[Any, Any]:
         """A LUTRAM ring: a write port and a combinational read port (soc/zm_hp_posted.py's note)."""
@@ -116,6 +134,8 @@ class BlitHP(LiteXModule):
         """A write in flight (taken, no B) covers the byte at bus address `addr`."""
         if self.break_ == "alias":
             return 0
+        if self.burst:
+            return self.wb.alias(addr[2:WINDOW_LOG2])
         hit = 0
         for k in range(WRITES):
             hit = hit | (self.w_live[k] & (self.w_word[k] == addr[2:WINDOW_LOG2]) & (self.w_strb[k] >> addr[:2])[0])
@@ -140,6 +160,8 @@ class BlitHP(LiteXModule):
             newest.eq(Mux(lt == 0, READS - 1, lt - 1)),
             l_head.adr.eq(newest if self.break_ == "order" else lb),
         ]  # fmt: skip
+        if self.burst and self.break_ != "alias":  # a read that waits for the open burst sends it now
+            self.comb += self.wb.flush.eq((level != 0) & self.wb.open_alias(head[2:WINDOW_LOG2]))
         self.sync += [
             If(take, qt.eq(_step(qt, RQ))),
             If(send,
