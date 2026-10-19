@@ -129,6 +129,13 @@ NATIVE_TESTS="
     libs/zig/players/digi_test.zig
     libs/zig/players/digi_monty_test.zig
     libs/zig/players/digi_wow_test.zig
+    libs/zig/players/digi_big_test.zig
+    libs/zig/players/digi_mix4_test.zig
+    libs/zig/players/digi_mix3_test.zig
+    libs/zig/players/digi_mym_test.zig
+    libs/zig/players/digi_tcb_test.zig
+    libs/zig/players/digi_sync4_test.zig
+    libs/zig/players/digi_quartet_test.zig
     machine/audio/pokey_test.zig
     libs/zig/players/cpu6502_test.zig
     libs/zig/players/sap_test.zig
@@ -424,6 +431,8 @@ gate dune_gen4 node apps/dune_gen4_headless.mjs --break lag "$SHOTS/dune_gen4_br
 gate dune_gen4 node apps/dune_gen4_headless.mjs --break music "$SHOTS/dune_gen4_break"    # ...and the menu playing the main part's tune is caught
 gate dune_gen4 node apps/dune_gen4_headless.mjs --break quartet "$SHOTS/dune_gen4_break"  # ...and the title asking for the wrong Quartet song is caught
 gate dune_gen4 node apps/dune_gen4_headless.mjs --break sound "$SHOTS/dune_gen4_break"    # ...and F3 opening on the wrong song is caught
+gate dune_gen4_music node apps/irq_native_check.mjs --song dune_gen4_quartet.sndh --status 9 --seconds 40   # the title's Quartet tune: SingSong's 4-voice interrupt, its state in d0-d3/a0-a3, natively = the 68000 bit for bit, modes 1/2 unbroken
+gate dune_gen4_music node apps/irq_native_check.mjs --song dune_gen4_quartet.sndh --status 9 --seconds 20 --break --mutant 7   # ...and the sample index read unsigned (mutant 7) is caught
 gate dune_gen4 node apps/sndh_headless.mjs docs/music/dune_gen4_quartet.sndh 4             # the Quartet SNDH (SingSong + SOUND2.SET + DUNE.PRG's songs) plays the title's song on the sealed YM
 gate dune_gen4 node apps/sndh_headless.mjs docs/music/dune_gen4_quartet.sndh 2             # ...and another subtune (F3's)
 gate c_fujiboink node apps/c_fujiboink_headless.mjs "$SHOTS/c_fujiboink"   # FUJIBOINK! (C, START 1986): nine Hatari captures of FUJIBOIN.PRG, six pixel for pixel and three within a one-VBL mid-frame sliver; the rainbow is Timer B's 73 register lines (every pixel an ST index, entry 4 rewritten per line); the thud SNDH lands with the fuji and decays; F-key freeze, Space and Escape leave
@@ -456,6 +465,24 @@ gate union_beatdis node apps/union_beatdis_headless.mjs --break hq   # ...and mo
 gate_timed union_superscroller node apps/union_superscroller_headless.mjs "$SHOTS"   # TCB2: TEX loader depack, screen.js with Chrome's filtering replayed pixel for pixel, the SNDH plays
 gate union_superscroller_music node apps/wow_native_check.mjs   # its tune (Wow Scroller, Timer A digi) natively = the 68000 bit for bit, modes 1/2 unbroken, mode 3 on PCM follows the YM path
 gate union_superscroller_music node apps/wow_native_check.mjs --break   # ...and Beat Dis's handler on Wow's bytes (mutant 4) is caught
+gate union_textracker_music node apps/irq_native_check.mjs --song union/thalion_forever.sndh --status 8 --seconds 60   # its tune's 4-voice mixer interrupt natively = the 68000 bit for bit, modes 1/2 unbroken
+gate union_textracker_music node apps/irq_native_check.mjs --song union/thalion_forever.sndh --status 8 --seconds 20 --break   # ...and the steps play patches frozen at arming (mutant 5) are caught
+gate big_demo_music node apps/irq_native_check.mjs --song digital/Ace_2.sndh --status 7 --seconds 40   # the digital screen's 3-voice mixer interrupt natively = the 68000 bit for bit, modes 1/2 unbroken
+gate big_demo_music node apps/irq_native_check.mjs --song digital/Ace_2.sndh --status 7 --seconds 20 --break   # ...and the steps play patches frozen at arming (mutant 5) are caught
+gate snyd_90_music node apps/irq_native_check.mjs --song snyd90_f6.sndh --status 12 --seconds 40   # part 6's Timer C 3-voice mixer interrupt natively = the 68000 bit for bit, modes 1/2 unbroken
+gate snyd_90_music node apps/irq_native_check.mjs --song snyd90_f6.sndh --status 12 --seconds 20 --break   # ...and the steps play patches frozen at arming (mutant 5) are caught
+gate tcb_spreadpoint_music node apps/irq_native_check.mjs --song tcb_spreadpoint.sndh --status 13 --seconds 40   # its three volume streams' interrupt natively = the 68000 bit for bit, modes 1/2 unbroken
+gate tcb_spreadpoint_music node apps/irq_native_check.mjs --song tcb_spreadpoint.sndh --status 13 --seconds 20 --break --mutant 6   # ...and registers 9 and 10 swapped (mutant 6) are caught
+gate dbug_music node apps/irq_native_check.mjs --song crystallized.sndh --status 14 --seconds 40   # maxYMiser's drum interrupts (from 12.8 s) natively = the 68000 bit for bit, modes 1/2 unbroken
+gate dbug_music node apps/irq_native_check.mjs --song crystallized.sndh --status 14 --seconds 20 --break --mutant 10   # ...and the 8-bit drum routine without its addi.b (mutant 10) is caught
+gate north_south_music node apps/irq_native_check.mjs --song north_south_digi.sndh --tune 33 --status 15 --seconds 8   # an effect's interrupt natively = the 68000 bit for bit (all 47 in test_sndh_irq.py)
+gate north_south_music node apps/irq_native_check.mjs --song north_south_digi.sndh --tune 33 --status 15 --seconds 8 --break --mutant 11   # ...and the pointer stored past the 0 byte (mutant 11) is caught
+gate rick_dangerous_music node apps/irq_native_check.mjs --song rick_dangerous.sndh --tune 9 --status 15 --seconds 8   # an effect's interrupt natively = the 68000 bit for bit (all 87 in test_sndh_irq.py)
+gate rick_dangerous_music node apps/irq_native_check.mjs --song rick_dangerous.sndh --tune 9 --status 15 --seconds 8 --break --mutant 11   # ...and the pointer stored past the 0 byte (mutant 11) is caught
+gate swedish_newyear_music node apps/irq_native_check.mjs --song swedish_newyear_tcb_digi.sndh --status 10 --seconds 40   # TCB #1's one-byte digi interrupt natively = the 68000 bit for bit, modes 1/2 unbroken
+gate swedish_newyear_music node apps/irq_native_check.mjs --song swedish_newyear_tcb_digi.sndh --status 10 --seconds 20 --break --mutant 8   # ...and the pointer kept in Zig past play's rewind (mutant 8) is caught
+gate swedish_newyear_music node apps/irq_native_check.mjs --song Swedish_New_Year_Demo_Sync.sndh --status 11 --seconds 40   # SYNC's self-modifying 4-voice mixer interrupt natively = the 68000 bit for bit, modes 1/2 unbroken
+gate swedish_newyear_music node apps/irq_native_check.mjs --song Swedish_New_Year_Demo_Sync.sndh --status 11 --seconds 20 --break   # ...and the ends play patches frozen at arming (mutant 5) are caught
 gate automation442 node apps/automation442_headless.mjs "$SHOTS/automation442"   # AUTOMATION 442: the panned overscan scroll plane through one bgcount cycle
 gate_timed big_demo node apps/big_demo_headless.mjs   # TEX B.I.G. DEMO: wait screen hands over at frame 201, TEX's own 118 rows ripped from RAM, cursor clamps [2,115], all 45 named SNDH present, bands cycle
 gate_timed big_demo node apps/big_demo_headless.mjs --break nav   # ...and a list that never moves fails the clamp checks

@@ -25,6 +25,8 @@ const xbtimerSet = @import("sndh_player.zig").xbtimerSet;
 extern fn m68k_read_memory_8(address: c_uint) c_uint;
 extern fn m68k_write_memory_8(address: c_uint, value: c_uint) void;
 extern fn m68k_write_memory_16(address: c_uint, value: c_uint) void;
+extern fn m68k_set_reg(reg: c_uint, value: c_uint) void;
+extern fn m68k_get_reg(context: ?*anyopaque, reg: c_uint) c_uint;
 
 pub const Mode = enum(u32) { st = 1, native = 2, pcm = 3 };
 
@@ -36,7 +38,13 @@ pub var status: digi.Status = .musashi;
 /// one: 1 = Beat Dis's segment end checked every interrupt, not every VBL; 2 =
 /// mode 3 plays the tune's bytes raw, not the shadow (the 2026-10-11 bug); 3 =
 /// Monty's play writes volume C over its drums (digi_monty_seq.zig); 4 = Wow
-/// Scroller's interrupt reads its byte through Beat Dis's `addi.b #$80`. Test only.
+/// Scroller's interrupt reads its byte through Beat Dis's `addi.b #$80`; 5 = a
+/// handler-only driver's steps frozen when it was armed (digi_irq.zig); 6 = the
+/// stream handler's registers 9 and 10 swapped (digi_tcb3.zig); 7 = SingSong's
+/// sample index read unsigned (digi_quartet.zig); 8 = the one-byte handler's pointer kept in Zig from
+/// arming (digi_tcb.zig); 10 = maxYMiser's 8-bit drum routine without its
+/// addi.b (digi_mym.zig); 11 = a game effect's pointer stored past its 0 byte
+/// (digi_sfx.zig). Test only.
 pub var mutant: u32 = 0;
 
 var driver: ?Driver = null; // what the image is, whatever the mode
@@ -55,6 +63,22 @@ const Bus68 = struct {
         m68k_write_memory_16(a, v);
     }
     pub const xbtimer = xbtimerSet; // XBIOS Xbtimer, as the SNDH player answers the trap
+    pub const mem = @import("sndh_player.zig").mem; // RAM directly (digi.Access)
+    /// A6, which a handler that does not save it leaves changed (digi_mix3.zig).
+    pub fn setA6(v: u32) void {
+        m68k_set_reg(14, v); // M68K_REG_A6
+    }
+    /// D7 as the interrupted code left it: a mixer whose first voice is off sums onto it (digi_sync4.zig).
+    pub fn d7() u32 {
+        return m68k_get_reg(null, 7); // M68K_REG_D7
+    }
+    /// A register the handler keeps its state in, d0-d7 then a0-a7 (digi_quartet.zig).
+    pub fn getReg(n: u4) u32 {
+        return m68k_get_reg(null, n);
+    }
+    pub fn setReg(n: u4, v: u32) void {
+        m68k_set_reg(n, v);
+    }
 };
 
 /// A tune was just loaded at 68000 address `base`: which driver, and the mode.
@@ -86,6 +110,10 @@ pub fn forget() void {
 /// One of INIT / EXIT / PLAY, natively if the mode says so. False: Musashi's.
 pub fn call(entry: u32) bool {
     const d = driver orelse return false;
+    if (d == .irq) { // its init, play and exit are the 68000's, in every mode
+        if (entry == sndh.INIT) digi.irq.reinit(); // which may move the handler: armed again
+        return false;
+    }
     if (mode == .st) return false;
     const p = digi.pcmOf(d);
     const was = if (p) |q| digi.Access(Bus68).rd32(q.cur) else 0;
@@ -96,6 +124,7 @@ pub fn call(entry: u32) bool {
             digi.monty.seq.mutant = mutant;
             digi.monty.call(Bus68, md, entry); // and Monty's
         },
+        .irq => unreachable, // answered above
     }
     if (entry == sndh.EXIT) {
         pcm.stop();
@@ -116,6 +145,10 @@ pub fn interrupt(handler: u32) bool {
         return true;
     }
     switch (d) {
+        .irq => {
+            digi.irq.setMutant(mutant);
+            return digi.irq.irq(Bus68, &driver.?.irq, handler);
+        },
         .beat_dis => |bd| {
             if (handler != bd.handler.addr) return false;
             digi.handler.irq(Bus68, bd.handler);
@@ -138,6 +171,7 @@ fn handlerOf(d: Driver) u32 {
         .beat_dis => |bd| bd.handler.addr,
         .wow => |wd| wd.base + digi.wow.HANDLER,
         .monty => |md| md.handlerAddr(),
+        .irq => |x| digi.irq.handlerAddr(x),
     };
 }
 

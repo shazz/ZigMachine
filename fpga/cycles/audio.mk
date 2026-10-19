@@ -58,6 +58,23 @@ $(HOST)/oracle/sndh_oracle: $(ORACLE_SRC) $(AUD_HDRS) host/audio_queue.h host/ha
 .PHONY: sndh-oracle
 sndh-oracle: memmap $(HOST)/oracle/sndh_oracle
 
+# The oracle that also counts the 68000 instructions Musashi runs and the calls it makes into the
+# tune (zm_survey_insns / zm_survey_calls, printed with ZM_SNDH_TIMERS): tools/bard_load_survey.py's
+# measure of a tune's work, which unlike x86 time does not move with the box's load. Each call of
+# the instruction hook is one instruction; a call (play, an interrupt) ends at the return stub.
+$(HOST)/oracle/aplayer_count.o: $(HOST)/common/aplayer.c
+	@mkdir -p $(@D)
+	sed 's/^\( *\)w2c_audio_zmSndhInstructionHook_0(instance, var_i0)/\1zm_survey_insns++, zm_survey_calls += var_i0 == zm_survey_ret, w2c_audio_zmSndhInstructionHook_0(instance, var_i0)/' \
+		$< >$(@D)/aplayer_count.c
+	sed -i '1i unsigned long long zm_survey_insns, zm_survey_calls; unsigned zm_survey_ret;' $(@D)/aplayer_count.c
+	grep -q 'zm_survey_insns++' $(@D)/aplayer_count.c || (echo "$@: the hook's call site moved"; exit 1)
+	$(HOST_CC) $(HOST_CFLAGS) -c $(@D)/aplayer_count.c -o $@
+$(HOST)/oracle/sndh_survey: $(HOST)/oracle/sndh_oracle $(HOST)/oracle/aplayer_count.o
+	$(HOST_CC) $(filter-out %/sndh_oracle.o,$(wildcard $(HOST)/oracle/o/*.o)) $(HOST)/oracle/o/sndh_oracle.o \
+		$(ORACLE_RT) $(HOST)/oracle/aplayer_count.o $(HOST)/common/maud.o -lm -lpthread -o $@
+.PHONY: sndh-survey
+sndh-survey: memmap $(HOST)/oracle/sndh_survey
+
 # --- the board firmware (cycles/board.mk links these): the players for rv32 (`aligned`, as the
 # cart), the shared audio side, the queue backend and the cart's songs (tools/song_pack.py: the
 # songs host_audio started in SONG_FRAMES frames, plus the cart's literal song names).
