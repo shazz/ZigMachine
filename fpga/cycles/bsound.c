@@ -3,15 +3,20 @@
  * players are not here. This side loads the sound image, starts it, forwards the cart's
  * song requests and effects as mailbox commands (cycles/snd_mailbox.h), and prints the
  * sound CPU's console between frames. The song bridge itself is host/audio_bridge.c's:
- * its audio_play / audio_sndh_call / audio_effects land here. */
+ * its audio_play / audio_sndh_call / audio_effects land here. After each frame, BARD's audio state
+ * goes the other way, into the cart's ZigOS fields (cycles/aud_state.h, cycles/bmirror.c). */
 #include <stdio.h>
 #include <string.h>
 
+#include "aud_state.h"
 #include "baudio.h"
+#include "bmirror.h"
 #include "bsndinfo.h"
 #include "haudio.h"
 #include "snd_mailbox.h"
 #include "vboard.h"
+
+_Static_assert(S_AS > S_DONE && S_AS + AS_WORDS <= 32, "the audio state is past the answers, in the S2C bank");
 
 /* The sound firmware's image, linked in as a blob (cycles/sound.mk: objcopy -I binary). */
 extern const uint8_t _binary_snd_bin_start[], _binary_snd_bin_end[];
@@ -122,6 +127,10 @@ void audio_effects(const audio_fx* fx, uint32_t n) {
 void baudio_frame(struct w2c_env* e) {
     if (!baudio.on) return;
     audio_bridge(e);
+#if ZM_MIRROR_ON /* BARD's audio state (cycles/aud_state.h), read past the D-cache: the S2C bank */
+    aud_state s;
+    if (aud_state_read(&SND_REG(SND_S2C), &s)) audio_mirror_frame(&s);
+#endif
     drain_log();
 }
 

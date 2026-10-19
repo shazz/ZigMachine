@@ -28,8 +28,9 @@ def test_the_stream_entries_are_appended_to_1_0_as_a_minor_bump() -> None:
     m = parse(sys_abi.MANIFEST.read_text())
     assert [v for v, _ in m.history][:2] == [(1, 0), (1, 1)] and m.version[0] == 1 and m.version[1] >= 1
     names = [n for n, *_ in env_rows(m)]
-    host = [n for n, owner, *_ in env_rows(m) if owner == "host"]
-    assert sorted(host) == sorted(STREAM) and names[-len(host) :] == sorted(host)  # last: 1.0's indices stand
+    host = [n for n, owner, *_ in env_rows(m) if owner == "host"][: len(STREAM)]  # 1.2 appends the mirror
+    assert sorted(host) == sorted(STREAM) and names[names.index(host[0]) :][: len(host)] == sorted(host)
+    assert names.index(host[0]) == len(names) - len([n for n, o, *_ in env_rows(m) if o == "host"])  # after 1.0's
     assert split_image.abi_ok(1 << 16, 1 << 16 | 1) and not split_image.abi_ok(1 << 16 | 1, 1 << 16)
 
 

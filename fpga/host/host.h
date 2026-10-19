@@ -100,6 +100,12 @@ typedef struct host_disk_app_bridge {
 
 extern const host_disk_app_bridge host_dapp;
 
+/* The cart's audio-state fields (getYmRegsPointer, getAudioModePointer, getSongMsPointer) to the
+ * HOST_AUDIO_MIRROR hook: the board firmware's mirror (cycles/bmirror.h), else the no-op. Generated
+ * by tools/host_gen.py; called by host/boot.c after the cart's instantiation. The lean cart
+ * image makes the same call through the system table (tools/host_split.py, table 1.2). */
+void host_audio_mirror_bind(struct w2c_env* e);
+
 #define HOST_MAX_ARGS 16
 
 /* ToInt32: what wasm receives for an i32 parameter given a JS Number. */

@@ -80,8 +80,8 @@ sndh-survey: memmap $(HOST)/oracle/sndh_survey
 # songs host_audio started in SONG_FRAMES frames, plus the cart's literal song names).
 SONG_FRAMES ?= 600
 HCYC        := build/hcycles
-AUD_FW_SRC  := $(AUD_SRC) cycles/baudio.c cycles/bsongs.c
-AUD_FW_DEPS := $(AUD_FW_SRC) $(AUD_HDRS) cycles/baudio.h cycles/bsndinfo.h gen/glass_cart.h $(CYC)/$(HV)/common/aplayer.o $(HOST)/common/aplayer.h
+AUD_FW_SRC  := $(AUD_SRC) cycles/baudio.c cycles/bsongs.c cycles/bmirror.c
+AUD_FW_DEPS := $(AUD_FW_SRC) $(AUD_HDRS) cycles/baudio.h cycles/bsndinfo.h cycles/aud_state.h cycles/bmirror.h gen/glass_cart.h $(CYC)/$(HV)/common/aplayer.o $(HOST)/common/aplayer.h
 # The players for rv32, in a cycles.mk variant: `aligned` (soft-float), `alignedf` (board.mk ZM_FPU=1).
 $(CYC)/%/common/aplayer.o: $(CYC)/src/aplayer.c
 	@mkdir -p $(@D)

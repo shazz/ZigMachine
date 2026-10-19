@@ -15,6 +15,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "aud_state.h"
 #include "audio_queue.h"
 #include "audio_regs.h"
 #include "baudio.h"
@@ -27,6 +28,7 @@
 #define SND_ROUTE ROUTE_BARD
 static inline uint32_t render_clock(void) { return SND_REG(SND_CYCLES); }
 #else
+#include "bmirror.h"
 #define SND_ROUTE ROUTE_ZIGGY
 static inline uint32_t render_clock(void) { return board_cycles(); }
 #endif
@@ -48,6 +50,13 @@ struct baudio baudio;
 static uint32_t g_credits;
 static uint32_t g_native; /* the last audio_backend_native: the debug page's player */
 static void mailbox(void);
+
+/* The players' state, for the cart's mirror (cycles/aud_state.h): the worklet's audioState. */
+static inline void state_now(aud_state* s) {
+    s->mode = w2c_audio_audioMode(&g_aud.player);
+    s->ms = w2c_audio_audioSndhPositionMs(&g_aud.player);
+    memcpy(s->ym, zma_ym_regs, sizeof s->ym);
+}
 
 void audio_backend_boot(void) {
     ZMA_REG(ZMA_PCM_BASE) = (uint32_t)(uintptr_t)g_aud.memory.data;
@@ -108,6 +117,9 @@ void baudio_boot(void) {
     g_credits = 0;
     sndinfo_boot(SND_ROUTE);
     audio_boot();
+#ifdef ZM_SND
+    aud_state_boot(&SND_REG(SND_S2C)); /* before READY: the cart CPU reads it once we answer */
+#endif
 }
 
 #ifndef ZM_SND /* the sound CPU's image has no cart, so no bridge: it calls baudio_pump itself */
@@ -115,6 +127,11 @@ void baudio_frame(struct w2c_env* e) {
     if (!baudio.on) return;
     audio_bridge(e);
     baudio_pump(1);
+#if ZM_MIRROR_ON
+    aud_state s;
+    state_now(&s);
+    audio_mirror_frame(&s);
+#endif
 }
 #endif
 
@@ -132,6 +149,11 @@ void baudio_pump(uint32_t min) {
         uint32_t n = (uint32_t)want < ZMA_MAX_RENDER ? (uint32_t)want : ZMA_MAX_RENDER, t0 = render_clock();
         audio_render(n);
         sndinfo_render(render_clock() - t0, n);
+#ifdef ZM_SND /* once a render: the words that changed, to the S2C bank */
+        aud_state s;
+        state_now(&s);
+        aud_state_publish(&SND_REG(SND_S2C), &s);
+#endif
     }
     mailbox();
 }

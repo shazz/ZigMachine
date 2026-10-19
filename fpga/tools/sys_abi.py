@@ -25,7 +25,7 @@ FPGA = Path(__file__).resolve().parent.parent
 ROOT = FPGA.parent
 MANIFEST = FPGA / "cycles/sys_abi.txt"
 sys.path.insert(0, str(FPGA / "tools"))
-from host_bridges import DISK_APP_BRIDGE, INPUT_BRIDGE, SONG_BRIDGE, STREAM  # after the path insert
+from host_bridges import DISK_APP_BRIDGE, INPUT_BRIDGE, MIRROR, SONG_BRIDGE, STREAM  # after the path insert
 from host_gen import MACHINE_ENV
 from sys_abi_layout import CONSTS, HEADER, RUNTIME, TYPE_SOURCES, TYPES
 from sys_abi_break import run_breaks
@@ -49,6 +49,8 @@ def env_entries(root: Path = ROOT) -> dict[str, str]:
     out.update({n: f"rom {sig(*s)}" for n, s in rom.items()})
     # The host's own: the stream ring's imports (host/hstream.h), served by the system image (1.1).
     out.update({n: f"host {sig(r, p)}" for n, (r, p, _) in STREAM.items()})
+    # The audio-state mirror (cycles/aud_state.h), called by the lean cart's glue, not its wasm (1.2).
+    out.update({n: f"host {sig(r, p)}" for n, (r, p, _) in MIRROR.items()})
     return out
 
 

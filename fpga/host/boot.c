@@ -21,6 +21,7 @@ void host_boot(struct w2c_env* e) {
     wasm2c_rom_instantiate(&e->rom, e);
     w2c_machine_hwSetRomHigh(&e->machine, host_rom_high);
     wasm2c_cart_instantiate(&e->cart, e);
+    host_audio_mirror_bind(e); /* env.c: where the cart keeps the audio state (a no-op here) */
     w2c_machine_hwSetCartHigh(&e->machine, host_cart_high);
     w2c_machine_hwInit(&e->machine);
     w2c_cart_boot(&e->cart);

@@ -73,3 +73,31 @@ STREAM_DEFAULTS = """/* Stream hooks: the stub's no-op. host/hstream.h (-include
 #define HOST_AUDIO_STREAM_STOP(e) ((void)(e))
 #endif
 """
+
+
+# The audio-state mirror (cycles/aud_state.h): the cart's ZigOS fields docs/sealed-loader.js
+# writes from the worklet's "audioState" (ym_regs, audio_mode, song_ms), as offsets in its memory,
+# handed to the HOST_AUDIO_MIRROR hook once, after the cart's instantiation. No wasm imports it:
+# the monolithic env.c calls the hook itself (host_audio_mirror_bind, from host/boot.c), the lean
+# cart calls the system table's host entry (tools/host_split.py, table 1.2), which runs the hook.
+MIRROR_FIELDS = ["getYmRegsPointer", "getAudioModePointer", "getSongMsPointer"]
+MIRROR = {"hostAudioMirror": ("void", ["u32", "u32", "u32"], "HOST_AUDIO_MIRROR")}
+MIRROR_DEFAULTS = """/* The audio-state hook: a no-op unless cycles/bmirror.h (-include, the board firmware) defines it. */
+#ifndef HOST_AUDIO_MIRROR
+#define HOST_AUDIO_MIRROR(e, ym, mode, ms) ((void)(e), (void)(ym), (void)(mode), (void)(ms))
+#endif
+"""
+# The system table's host entries (table 1.1: the stream ring; 1.2: the mirror), and their defaults.
+HOST_ENTRIES = {**STREAM, **MIRROR}
+HOST_DEFAULTS = STREAM_DEFAULTS + MIRROR_DEFAULTS
+
+
+def mirror_args(cart: dict[str, tuple[str, list[str]]], inst: str) -> str:
+    """The three offsets: each the cart's getter if it has one (with the expected type), else 0."""
+    return ", ".join(f"w2c_cart_{n}({inst})" if cart.get(n) == ("u32", []) else "0u" for n in MIRROR_FIELDS)
+
+
+def mirror_bind(cart: dict[str, tuple[str, list[str]]]) -> str:
+    """host_audio_mirror_bind for the monolithic env.c (host/host.h)."""
+    return (f"void host_audio_mirror_bind(struct w2c_env* e) {{ (void)e; "
+            f"HOST_AUDIO_MIRROR(e, {mirror_args(cart, '&e->cart')}); }}\n")  # fmt: skip

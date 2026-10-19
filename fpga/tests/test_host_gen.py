@@ -130,7 +130,7 @@ def test_the_stream_imports_call_their_hooks_whose_default_is_the_stubs_no_op() 
     start = host_gen.forwarder("hostAudioStreamStart", "void", ["f32"], None, EXPORTS)
     assert "HOST_AUDIO_STREAM_START(e, a0);" in start
     assert "HOST_AUDIO_STREAM_STOP(e);" in host_gen.forwarder("hostAudioStreamStop", "void", [], None, EXPORTS)
-    assert "#define HOST_AUDIO_FEED(e, ptr, len) ((void)(e), (void)(ptr), (void)(len))" in host_gen.STREAM_DEFAULTS
+    assert "#define HOST_AUDIO_FEED(e, ptr, len) ((void)(e), (void)(ptr), (void)(len))" in host_gen.HOST_DEFAULTS
 
 
 def test_a_stream_import_with_the_wrong_signature_is_refused() -> None:

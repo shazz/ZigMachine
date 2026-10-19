@@ -28,6 +28,8 @@ extern struct w2c_aud g_aud;
  * lands before (host/audio_imports.c). audio_render advances it. */
 uint32_t zma_ts(void);
 void zma_set_ts(uint32_t t);
+/* The YM registers as last written, for the cart's mirror (cycles/aud_state.h). */
+extern uint8_t zma_ym_regs[16];
 
 /* Instantiate the players and reset them (audioInit + audioReset, as the
  * worklet and the host's per-cart "reset" message do). */
