@@ -1017,7 +1017,7 @@ ABI rather than a Zig API, apps in any language sit on it.
 - Fencing IO loads too: no consumer needs it, and every poll loop would pay for the drain.
 **Consequences:**
 - Same CSR map: the firmware and every cart image are unchanged.
-- ZIGGY's I- and D-bus share the one HP0 bridge, so every read (a D$ or I$ miss, an uncached load) still waits for the buffer to drain. Only store runs between misses go faster.
+- ZIGGY's I- and D-bus share the one HP0 bridge, so every read (a D$ or I$ miss, an uncached load) still waits for the buffer to drain. Only store runs between misses go faster. (Since 2026-10-19 a refill only waits for stores to its own line: the read-bypass ADR below.)
 - Vivado: 15,045 LUT (+157), sys WNS +0.011 ns at 100 MHz.
 - An IO store after a burst of DDR stores waits for them to drain: at most 8 writes, which overlap, so about one write response plus the issue slots (tens of cycles).
 - `ZMCycles.dbus_wait` now counts that wait.
@@ -1089,3 +1089,25 @@ So a channel that has carried 32-bit writes and is then set 64-bit keeps a 32-bi
 **Decision:** the firmware interprets the disk's OWN sector bytes: `fpga/host/wint*.c` (integer MVP, f32/f64 bit moves, sign extension, memory.fill/copy, multi-value blocks; float arithmetic, call_indirect and tables refused at load) and `fpga/host/bootsec.c` (the browser's sector loop: hwInit, boot(), per frame hwClear/frame/pollCartRequest/planes). `cycles/bbootsec.c` runs that phase in `bmain.c` between `host_boot_machine` and `host_boot_cart` (the sector's data segments land in the cart's RAM window, so it must run before the cart is instantiated, as in the browser). Board images only (`ZM_BOOTSEC`); not for a program GEM launched off the disk (req 3), nor when the glass brings GEM back over it (req 4: `BOOTSEC_SKIP` word, map_cart.zig).
 **Alternatives considered:** wasm2c each disk's sector into a native blob on the fat disk (a third image kind on the card, a placement and an ABI in the glass, and native code off the card cannot be time-limited); a per-disk lean cart linking GEM + the sector (one GEM build per data disk). The interpreter needs no build step, works for any v2 disk, and is a sandbox: every opcode and immediate checked at load, every access bounds-checked, a fuel budget per call (16 M instructions for boot(), 1 M a frame), a 30 s frame cap, an HBL handler or a trap ends the phase and the cart boots anyway.
 **Consequences:** novirus' boot() is ~1.0 M interpreted instructions (its 64000-byte clear is a byte loop), replicants' 166 K (memory.fill); a frame is a few. The board shows the sector for its 120 / 240 frames before GEM / the screen. The sector's `beep` is silent on the board (the sound CPU starts with the cart). The system image grows 23 KB of code (linked after fw.a); .data/.bss do not move; code after bmain.o/bsys.o moves 152 B. Proof without the board: the interpreter equals node's WebAssembly on both sectors (whole memory, every frame) and on 24,844 opcode calls; the native host's `--bootsec` picture equals `scene_hash.mjs X.zmd` (`fpga/tests/test_board_bootsec.py`, 7 break mutants under ZM_RTL_BREAK=1).
+
+## 2026-10-19 — ZIGGY's cache-line refills overtake posted stores to other lines
+
+**Status:** accepted (pending the board measurement)
+**Context:** With `posted=8` a store costs 2.25 cycles on the board, but every read still waited for `idle`: the buffer empty and every write answered. memcpy went only from 6.1 to 2.73 c/B: per 32-byte line ~48 cycles of refill, ~18 of stores, ~20 waiting for the previous line's stores (`fpga/BENCH_REPORTS.md`, 2026-10-18 late).
+**Decision:**
+- `WishboneHP(read_bypass=True)` (`fpga/soc/zm_hp_bypass.py`): a burst read (a D$ or I$ refill) is sent unless a store to the same 32-byte line is still unanswered; then it waits as before.
+- A store is in DDR only at its B response (AWCACHE 0000, one ID, in order). The ring forgets an address when it is issued, so the tags live from push to B: 16 slots (8 buffered, 8 in flight), each with a 20-bit line tag compared to the read's line.
+- A single (classic) read keeps the full drain. IO loads never reach this bridge, and the IO-store fence (`idle`) is unchanged.
+- The compare is registered, off the AR path: with stores pending a refill starts one cycle after its request. This relies on the master holding the request until its ack and pushing no store meanwhile.
+- On for the board and its sim (`zm_board_mem.READ_BYPASS`). `--no-read-bypass` on the z7 build and on hp_sim turns it off. BARD keeps the drain.
+- AXI ordering: AR and AW/W are separate channels with no order between them. HP0 has one read outstanding on ID 0 and writes in order on ID 0. Only a read and a write to different lines ever overlap, which AXI allows and no load can observe. `hp_slice` registers each channel on its own, so it cannot reorder within one. A refill of code the CPU has just stored (the loader, then `fence.i`) goes through the same compare, because the I-bus shares the bridge.
+**Alternatives considered:**
+- Comparing only the 8 buffered entries: wrong. An issued store is still not in DDR until its B (break test `retire_on_issue`).
+- Letting single reads bypass too: nothing gains (the D$ and I$ only refill main RAM), and an uncached poll would lose its order (break test `classic_too`).
+- Narrower or hashed tags (12 bits: about -110 LUT in yosys): a false match only drains, so it stays correct. Not done until the LUT budget needs it.
+- One tag per run of same-line stores, so memcpy's 8 stores use one slot: fewer comparators, but more logic and more mutants. Deferred.
+**Consequences:**
+- Yosys `synth_xilinx` on the bridge alone (`prototypes/read_bypass_re/lut_estimate.py`): +294 LUT and +346 FF at 20-bit tags. The board was at 15,045 LUT (85.5 %) with sys WNS +0.011 ns. Vivado's number comes from the lead's bitstream.
+- Model memcpy (`tests/test_hp_bypass_rate.py`, calibrated to the board's 2.73 c/B with the drain): 2.78 to 2.25 c/B.
+- A load can now reach DDR before an earlier store to another address. That breaks only a Dekker-style protocol (store A, load B, with another master doing the reverse) over DDR. A grep of `fpga/cycles` finds no poll loop on DDR: every poll is on an IO register. Every cross-master handoff uses an IO doorbell (fenced) or data-then-flag stores (store order is unchanged).
+
