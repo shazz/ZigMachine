@@ -19,7 +19,13 @@
  * The machine's code runs instead (its CPU stores are snooped like any other) before
  * vseq_init sets VBASE (the tap has no region yet), and for an op whose destination
  * starts below OFF_VRAM: D may legally write the region's registers and palettes, and
- * zm_blit's writes go to DDR behind both snoops (its own and the compositor's). */
+ * zm_blit's writes go to DDR behind both snoops (its own and the compositor's).
+ *
+ * The board image (ZM_BOARD) keeps no statistics: nothing on the board reads them (the sim's
+ * "ZM BF"/"ZM BLIT" lines are their only readers), and they cost ~12 stores and 3 counter
+ * reads a call, every store a blocking DDR write (~18 cycles, the ZIGGY bench's st.sw): about
+ * half of what a small op costs through hwBlit. For the same reason CYCLES and STATUS are
+ * stored only when they change (a run of equal ops leaves both as they were). */
 #include "bblit.h"
 
 #include <stdio.h>
@@ -34,6 +40,10 @@ void __wrap_w2c_machine_hwBlit(struct w2c_machine* m);
 
 bblit_stats bblit;
 
+#ifndef ZM_BOARD
+#define BBLIT_STATS 1
+#endif
+
 #ifdef ZM_BLIT_HW
 #define BLIT_BUSY (1u << 31)
 #define BLIT_TIMEOUT 100000000u /* cycles: 1 s at 100 MHz; the biggest op is ~27 Mc a frame */
@@ -47,13 +57,19 @@ static void blit_rtl(volatile uint8_t* r) {
      * instead of hanging it: CART_STATE = 3 | 0xB1 << 24 | STATUS[15:0] << 8, read by the ARM
      * (zm_blit_core dbg: {op[2:0], st[2:0], px_idle, rd v/r, wr v/r, wr_pending, seq px_valid[3:0]}). */
     uint32_t t = board_cycles();
-    while (w[0] & BLIT_BUSY) {
+    while (w[0] & BLIT_BUSY) { /* the timeout every 64 polls: a tight poll sees BUSY fall sooner */
+        for (int i = 0; i < 64 && (w[0] & BLIT_BUSY); i++) {
+        }
         if (board_cycles() - t > BLIT_TIMEOUT) board_finish((int)(0xB10000u | (w[0] & 0xFFFFu)));
     }
     if (!bdi_range(r, cmd)) bdi_inval_all();
-    *(volatile uint32_t*)(r + ZM_BLIT_CYCLES) = w[ZM_BLIT_CYCLES / 4 - ZM_OFF_BLIT / 4];
-    r[ZM_BLIT_STATUS] = 0;
+    volatile uint32_t* cyc = (volatile uint32_t*)(r + ZM_BLIT_CYCLES);
+    uint32_t c = w[ZM_BLIT_CYCLES / 4 - ZM_OFF_BLIT / 4];
+    if (*cyc != c) *cyc = c;
+    if (r[ZM_BLIT_STATUS] != 0) r[ZM_BLIT_STATUS] = 0;
+#ifdef BBLIT_STATS
     bblit.hw++;
+#endif
 }
 #endif
 
@@ -63,6 +79,18 @@ void bblit_frame_reset(void) {
     bblit.t_last = board_cycles();
 }
 
+#ifndef BBLIT_STATS
+void __wrap_w2c_machine_hwBlit(struct w2c_machine* m) {
+    volatile uint8_t* r = (volatile uint8_t*)(uintptr_t)ZMV_REG(VBASE);
+#ifdef ZM_BLIT_HW
+    if (r && *(volatile uint32_t*)(r + ZM_BLIT_D_BASE) >= ZM_OFF_VRAM) {
+        blit_rtl(r);
+        return;
+    }
+#endif
+    __real_w2c_machine_hwBlit(m);
+}
+#else
 void __wrap_w2c_machine_hwBlit(struct w2c_machine* m) {
     uint32_t t0 = board_cycles();
     volatile uint8_t* r = (volatile uint8_t*)(uintptr_t)ZMV_REG(VBASE);
@@ -90,6 +118,7 @@ void __wrap_w2c_machine_hwBlit(struct w2c_machine* m) {
     }
     bblit.t_last = board_cycles();
 }
+#endif
 
 /* Per frame (sim): "ZM BF f" then calls/cpu-cycles/units for BLIT FILL LINE TRIANGLE (bblit.h),
  * and "ZM WF f ibus_wait dbus_rd dbus_wr dbus_wait" (soc/zm_cycles.py) over the whole frame. */
