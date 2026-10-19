@@ -6,12 +6,11 @@
  *   the op at once. A DDR store issued right behind GO could make the tap HOLD the start (its
  *   `fire = held & stores_idle`), and a register store reaching the tap meanwhile would be taken
  *   into the op about to run. The load stalls this in-order CPU until the tap has decided.
- * - The lazy op's lines are worked out at GO (bdi_plan_op): by the time it ends the cart may have
- *   written the next op's registers.
+ * - The lazy op's lines are worked out right after GO (bdi_plan_op): by the time it ends the cart
+ *   may have written the next op's registers.
  * - Registers stored while an op runs are DROPPED (zm_blit_regs.v: no write while BUSY); memory has
  *   them, as the machine's does. So after a lazy op every word of the block is stored back through
- *   the tap (replay): the block in zm_blit is then memory's again, whichever stores were lost.
- * - The next op's own lines are worked out before the wait, so that much overlaps the lazy op. */
+ *   the tap (replay): the block in zm_blit is then memory's again, whichever stores were lost. */
 #include "bchisel.h"
 
 #include "bdinval.h"
@@ -37,7 +36,9 @@ static bdi_plan g_plan;       /* and its lines, taken at GO */
 /* An op that never ends (a lost AXI response on HP2, a stuck sequencer) traps the cart instead of
  * hanging it: CART_STATE = 3 | 0xB1 << 24 | STATUS[15:0] << 8, read by the ARM (zm_blit_core dbg:
  * {op[2:0], st[2:0], px_idle, rd v/r, wr v/r, wr_pending, seq px_valid[3:0]}). */
-static void wait_idle(void) {
+#define HOT static inline __attribute__((always_inline))
+
+HOT void wait_idle(void) {
     uint32_t t = board_cycles();
     while (BCHISEL_RD(0) & BLIT_BUSY) { /* the timeout every 64 polls: a tight poll sees BUSY fall sooner */
         for (int i = 0; i < 64 && (BCHISEL_RD(0) & BLIT_BUSY); i++) {
@@ -48,7 +49,7 @@ static void wait_idle(void) {
 
 /* The op is over: its lines out of the D$, CYCLES and STATUS where the machine leaves them (stored
  * only when they change: a run of equal ops leaves both as they were). */
-static void finish(volatile uint8_t* r, const bdi_plan* p) {
+HOT void finish(volatile uint8_t* r, const bdi_plan* p) {
     if (p->how == BDI_ALL) bdi_inval_all();
     else bdi_apply(p);
     volatile uint32_t* cyc = (volatile uint32_t*)(r + ZM_BLIT_CYCLES);
@@ -69,20 +70,38 @@ void bchisel_sync(void) {
     bchisel_pending = 0;
 }
 
-void bchisel_run(volatile uint8_t* r) {
-    uint8_t cmd = r[ZM_BLIT_COMMAND];
-    bdi_plan p = {0};
-    if (cmd) bdi_plan_op(r, cmd, &p);
-    if (bchisel_pending) bchisel_sync();
-    if (cmd == 0) return; /* NOP: the machine leaves STATUS and CYCLES alone */
+/* GO, then either return (lazy: its lines planned now, while CHISEL runs) or wait and finish.
+ * The plan of a waited op comes after the wait, as bdi_range always did: kept across the spin
+ * its fields would push the hot path into saving registers to the stack, and every store is a
+ * bus write (tests/test_blit_path.py holds hwBlit to a few a call). */
+HOT void go(volatile uint8_t* r, uint8_t cmd) {
     BCHISEL_GO(cmd);
-    (void)BCHISEL_RD(0); /* the tap has started the op before any later store reaches it (above) */
-    if (r[ZM_BLIT_ASYNC]) {
-        g_r = r, g_plan = p, bchisel_pending = 1;
+    if (r[ZM_BLIT_ASYNC]) { /* a load: it cannot race the start (the wait's first poll is the barrier) */
+        (void)BCHISEL_RD(0); /* the tap has started the op before any later store reaches it (above) */
+        bdi_plan_op(r, cmd, &g_plan);
+        g_r = r, bchisel_pending = 1;
         return;
     }
     wait_idle();
+    bdi_plan p;
+    bdi_plan_op(r, cmd, &p);
     finish(r, &p);
+}
+
+/* After a lazy op: out of line, so the common path below makes no call. */
+static __attribute__((noinline)) void run_after_lazy(volatile uint8_t* r) {
+    bchisel_sync();
+    uint8_t cmd = r[ZM_BLIT_COMMAND];
+    if (cmd) go(r, cmd); /* NOP: the machine leaves STATUS and CYCLES alone */
+}
+
+void bchisel_run(volatile uint8_t* r) {
+    if (bchisel_pending) {
+        run_after_lazy(r);
+        return;
+    }
+    uint8_t cmd = r[ZM_BLIT_COMMAND];
+    if (cmd) go(r, cmd); /* NOP: the machine leaves STATUS and CYCLES alone */
 }
 #else
 void bchisel_sync(void) { bchisel_pending = 0; }

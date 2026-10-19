@@ -37,7 +37,8 @@ def _elf(src: Path, out: Path, defs: tuple[str, ...] = ("-DZM_BOARD",)) -> Path:
     cmd += ["-nostdlib", "-nostartfiles", "-ffunction-sections", "-Wl,--gc-sections", *defs, "-DZM_BLIT_HW"]
     cmd += [f"-I{here}", f"-I{FPGA / 'cycles'}"]
     cmd += [f"-I{video_dump.memmap_header().parent}", "-T", str(FPGA / "tests/dcache/link.ld")]
-    cmd += [str(FPGA / "tests/dcache/start.S"), str(here / "blitpath.c"), str(src), "-lgcc", "-o", str(out)]
+    chisel = FPGA / "cycles/bchisel.c"  # GO, the wait and the lazy wait (bblit.c calls it)
+    cmd += [str(FPGA / "tests/dcache/start.S"), str(here / "blitpath.c"), str(src), str(chisel), "-lgcc", "-o", str(out)]
     out.parent.mkdir(parents=True, exist_ok=True)
     subprocess.run(cmd, check=True, capture_output=True)
     return out

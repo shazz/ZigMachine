@@ -33,7 +33,7 @@ MUTANTS = [
     ("no_replay", "replay(g_r);", "", "replay_restores_dropped_registers"),
     ("box_at_sync", "finish(g_r, &g_plan);", "bdi_plan_op(g_r, g_r[ZM_BLIT_COMMAND], &g_plan); finish(g_r, &g_plan);",
      "lazy_invalidates_the_first_ops_box"),
-    ("no_wait_at_next_op", "    if (bchisel_pending) bchisel_sync();\n    if (cmd == 0)", "    if (cmd == 0)", "nop_syncs"),
+    ("no_wait_at_next_op", "    bchisel_sync();\n    uint8_t cmd", "    uint8_t cmd", "nop_syncs"),
     ("always_lazy", "if (r[ZM_BLIT_ASYNC]) {", "if (1) {", "sync_waits"),
 ]  # fmt: skip
 needs_cc = pytest.mark.skipif(shutil.which("cc") is None, reason="needs a host C compiler")

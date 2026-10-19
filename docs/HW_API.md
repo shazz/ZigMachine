@@ -186,7 +186,9 @@ plane — so each plane is rendered and blitted individually.
 ## 4b. Blitter (2D coprocessor — exports of `machine-video.wasm`)
 
 A fixed-function chunky-8bpp blitter living in the video module. The open layer
-sets a register block, then calls `hwBlit()` to execute it (synchronous, v1).
+sets a register block, then calls `hwBlit()` to execute it (synchronous, v1;
+on the board a cart may opt into a lazy wait with `BLIT_ASYNC` at `OFF_BLIT + 0x64`,
+see `docs/BLITTER_HW_SPEC.md` §6: the machine itself stays synchronous).
 Full model in `docs/BLITTER_HW_SPEC.md`; drive it via `zigos/blitter.zig`
 (`Blitter.fill/clear/line/triangle/triangleEx/bob/blitCopy/blitImage/setHalftone`).
 

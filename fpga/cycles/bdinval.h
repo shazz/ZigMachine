@@ -101,7 +101,11 @@ typedef struct {
     int how;
 } bdi_plan;
 
-static inline void bdi_plan_op(const volatile uint8_t* r, uint8_t cmd, bdi_plan* p) {
+/* Always inlined: out of line, the plan goes through the stack, and every store is a bus write
+ * (tests/test_blit_path.py holds hwBlit to a few a call). */
+#define BDI_HOT static inline __attribute__((always_inline))
+
+BDI_HOT void bdi_plan_op(const volatile uint8_t* r, uint8_t cmd, bdi_plan* p) {
     uint16_t ds = bdi_u16(r, ZM_BLIT_D_STRIDE);
     uint32_t d_base = *(const volatile uint32_t*)(r + ZM_BLIT_D_BASE);
     bdi_box b;
@@ -126,7 +130,7 @@ static inline void bdi_plan_op(const volatile uint8_t* r, uint8_t cmd, bdi_plan*
 }
 
 /* Drop the plan's lines; BDI_ALL is the caller's (bdi_inval_all, behind its branch). */
-static inline void bdi_apply(const bdi_plan* p) {
+BDI_HOT void bdi_apply(const bdi_plan* p) {
     uintptr_t first = p->first;
     uint32_t ds = p->ds, w = p->w, rows = p->rows;
     if (p->how == BDI_SPAN) bdi_span(first, p->end);
