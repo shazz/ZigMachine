@@ -20,6 +20,7 @@ cycles an op and MB/s at 100 MHz). Exit 2 if the cart is not running or never fi
 from __future__ import annotations
 
 import argparse
+import re
 import csv
 import struct
 import sys
@@ -50,13 +51,21 @@ def cart_phys(cpu: int) -> int:
     return cpu - glass_map.CART_CPU_BASE + glass_map.DDR_CART_BASE
 
 
+def _devmem_cmd(part: list[int]) -> str:
+    """A short shell line: the tty's line buffer truncates a long address list."""
+    if all(b - a == 4 for a, b in zip(part, part[1:])):
+        return f"i=0; while [ $i -lt {len(part)} ]; do devmem $((0x{part[0]:08x}+4*i)); i=$((i+1)); done"
+    return "for a in " + " ".join(f"0x{a:08x}" for a in part) + "; do devmem $a; done"
+
+
 def read_words(sh: Shell, addrs: list[int]) -> list[int]:
     """One `devmem` a word, CHUNK words a command; every word must come back."""
     out: list[int] = []
     for i in range(0, len(addrs), CHUNK):
         part = addrs[i : i + CHUNK]
-        rc, text = sh.run("for a in " + " ".join(f"0x{a:08x}" for a in part) + "; do devmem $a; done", 30.0)
-        got = [int(t, 16) for t in text.split() if t.lower().startswith("0x")]
+        rc, text = sh.run(_devmem_cmd(part), 30.0)
+        # Only lines that are a lone hex word: the console echoes the command, addresses included.
+        got = [int(ln, 16) for ln in (x.strip() for x in text.splitlines()) if re.fullmatch(r"0[xX][0-9a-fA-F]+", ln)]
         if rc != 0 or len(got) != len(part):
             raise NotRunning(f"devmem read {len(got)} of {len(part)} words (rc {rc}): {text[-120:]!r}")
         out += got
