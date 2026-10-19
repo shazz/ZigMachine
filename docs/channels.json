@@ -20,6 +20,16 @@
   "type": "zigmachine"
  },
  {
+  "tag": "bubblebobble",
+  "title": "BUBBLE BOBBLE",
+  "type": "zigmachine"
+ },
+ {
+  "tag": "chonchon",
+  "title": "CHONCHON",
+  "type": "atari st"
+ },
+ {
   "tag": "dbug",
   "title": "D-BUG",
   "type": "atari st"
@@ -90,6 +100,11 @@
   "type": "zigmachine"
  },
  {
+  "tag": "grodan_kvack",
+  "title": "GRODAN KVACK KVACK",
+  "type": "atari st"
+ },
+ {
   "tag": "ics",
   "title": "ICS BUMPY'S",
   "type": "atari st"
@@ -97,6 +112,26 @@
  {
   "tag": "joust",
   "title": "JOUST",
+  "type": "atari st"
+ },
+ {
+  "tag": "kickoff2",
+  "title": "KICK OFF 2",
+  "type": "amiga"
+ },
+ {
+  "tag": "larcociel2",
+  "title": "LARCOCIEL DMA INTRO 2",
+  "type": "atari st"
+ },
+ {
+  "tag": "larcociel5",
+  "title": "LARCOCIEL DMA INTRO 5",
+  "type": "atari st"
+ },
+ {
+  "tag": "lockbuster2",
+  "title": "LOCKBUSTER 2",
   "type": "atari st"
  },
  {

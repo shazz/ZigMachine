@@ -496,6 +496,13 @@ pub fn build(b: *std.Build) void {
         "demo-fuji_hobbytronic", // 87 — FUJI HOBBYTRONIC: fixed-point 3D Fuji, blitter-filled, HBL rasters, Hobbytronic '92 on the POKEY
         "demo-replicants_emlyn_f32", // 88 — cart 62's CODEF algorithm kept in f32 (62 is fixed point now), for the FPU test
         "demo-polkadots_f32", // 89 — cart 65's CODEF algorithm kept in f32 (65 is fixed point now), for the FPU test
+        "demo-lockbuster2", // 90 — LOCKBUSTER 2, "for DMA": the 1989 intro's six byte-copy scroll engines + title slides (ported from the Go re-creation of the ST binary)
+        "demo-kickoff2", // 91 — KICK OFF 2, the friendly: England v Spain, 1P v CPU (ported from the Go re-creation of the multi-game update of Dino Dini's soccer sim)
+        "demo-grodan_kvack", // 92 — GRODAN & KVACK KVACK, The Carebears (1989): layered rasters, big/vertical/small scrollers, swinging sprites (ported from the Go re-creation)
+        "demo-larcociel5", // 93 — DMA INTRO 5 "LARCOCIEL" (DMA 1990): the ribbon trail, the perspective glyph raster and the YM-volume Batmen (ported from the Go re-creation)
+        "demo-larcociel2", // 94 — DMA INTRO 2 "LARCOCIEL" (DMA 1990): the animated background band, projected ball trail and slice-stream scrolltext (ported from the Go re-creation)
+        "demo-bubblebobble", // 95 — BUBBLE BOBBLE (Taito 1986): the Go remake's 25-round campaign, six enemy kinds, bubbles, elements, power-ups and the level editor (ported from the Go re-creation)
+        "demo-chonchon", // 96 — CHONCHON (a Chon-Chon / DMA intro): the native motion's stars, ring scrollers and warped chrome logo, the YM-volume music meters and the per-line raster (ported from the Go re-creation)
     };
     for (cart_names, 0..) |name, idx| {
         if (name.len == 0) continue; // excluded cart (see note above)
