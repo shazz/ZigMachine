@@ -20,6 +20,7 @@
   - zigmachine.bit 6261127d
   - system.rv32 6ada2908
   - glass dfb8afa6
+  - fw_tutorial_bdiag.bin f2584bca (monolithic, for bdiag)
 
 ## Worktree setup a later agent will need
 - Copy the submodule sources (rsync without .git) from the main checkout: third_party/jt49, fx68k, hdmi, neorv32.
@@ -30,7 +31,7 @@
 1. Board: install per stage/INSTALL.txt. Read the OSD fps with no switches, then `--fw-opt=0x30` (the old order) on the same bitstream.
 2. W64:
    - hp-test on HP1 (build/hp_test4/gateware/zm_hp_test.bit: `mw.l 0xf8009014 0xf00`, the HP1 bridge row write with CACHE=2 and its check).
-   - `board_run.py --diag 3 --w64`.
+   - `board_run.py --bit stage/zigmachine.bit --fw stage/fw_tutorial_bdiag.bin --blit --diag 3 --w64` (fw md5 f2584bca).
    - Then `glass run --fw-opt=2` and read vcal's W.
 3. Not run: the ZM_LM_CHECK board-SoC sim (leonard, 2 frames, "ZM LMCHK 2 same"). Do it when sims are allowed again.
 
