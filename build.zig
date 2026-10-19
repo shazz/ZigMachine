@@ -503,7 +503,7 @@ pub fn build(b: *std.Build) void {
         "demo-replicants_emlyn_f32", // 88 — cart 62 booting on its f32 side (F switches either cart live), for the FPU test
         "demo-polkadots_f32", // 89 — cart 65 booting on its f32 side (F switches either cart live), for the FPU test
         "demo-xm_test", // 90 — XM TEST: the minimal XM player screen (one text plane), to hear an XM on the board
-        "demo-sysinfo", // 91 — SYSINFO: HWAM's SysInfo for the ST, on this machine (a GEM app on the ROM: pages + speed tests)
+        "demo-sysinfo", // 91 — HWAM / SysInfo 8.34 (1992), the ST's system information tool, on this machine (a GEM app on the ROM: pages + speed tests)
     };
     for (cart_names, 0..) |name, idx| {
         if (name.len == 0) continue; // excluded cart (see note above)

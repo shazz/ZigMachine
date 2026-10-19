@@ -38,7 +38,8 @@ CSR_MAP = FPGA / "build/hcycles/gen/csr_addr.h"
 # data disk: its fat disk carries GEM's image, and its own firmware is the program GEM launches.
 SHELF = (
     "blitter", "fuji_hobbytronic", "gem", "music", "polkadots", "raytrace", "raytrace_f32", "replicants_emlyn",
-    "sap_test", "skystrike", "st_replay", "stniccc", "tsl_hybridglenz", "tutorial", "ulm_dsots", "union_beatdis",
+    "sap_test", "skystrike", "st_replay", "stniccc", "sysinfo", "tsl_hybridglenz", "tutorial", "ulm_dsots",
+    "union_beatdis",
 )  # fmt: skip
 OS_CART = "gem"  # what the browser boots for a data disk
 SYS_FILE = "system.rv32"  # glass/src/system.zig FILE
