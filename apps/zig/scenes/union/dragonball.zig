@@ -29,24 +29,30 @@ const PAL_DISC_ON_BACK: u8 = 192; // precomputed disc(a=0.5) over PAL_BACK, opaq
 
 var ball_buf: [BS * BS]u8 = undefined; // module-level scratch (heap-free)
 
-// The disc never changes size (the squash is applied at blit time), so which
-// texels it covers is computed once, with the same f32 test as before, instead
-// of 8,192 divides a frame.
-var disc_mask: [BS * BS]bool = undefined;
-var disc_ready = false;
-
-fn discMask() *const [BS * BS]bool {
-    if (disc_ready) return &disc_mask;
+// The disc never changes size (the squash is applied at blit time), so which texels it covers is
+// worked out at compile time, with the same f32 test as before: one run [lo, hi) of columns a row
+// (a disc is convex; the comptime check pins it).
+const DISC_SPAN: [BS][2]u8 = blk: {
+    @setEvalBranchQuota(100_000);
+    var t: [BS][2]u8 = undefined;
     for (0..BS) |y| {
         const dy = (@as(f32, @floatFromInt(y)) + 0.5 - gm.CENTER) / DISC_R;
+        var lo: usize = BS;
+        var hi: usize = 0;
+        var n: usize = 0;
         for (0..BS) |x| {
             const dx = (@as(f32, @floatFromInt(x)) + 0.5 - gm.CENTER) / DISC_R;
-            disc_mask[y * BS + x] = dx * dx + dy * dy <= 1.0;
+            if (dx * dx + dy * dy <= 1.0) {
+                lo = @min(lo, x);
+                hi = x + 1;
+                n += 1;
+            }
         }
+        if (n != 0 and hi - lo != n) @compileError("the disc's row is not one run");
+        t[y] = .{ @intCast(if (n == 0) 0 else lo), @intCast(if (n == 0) 0 else hi) };
     }
-    disc_ready = true;
-    return &disc_mask;
-}
+    break :blk t;
+};
 
 pub const Dragonballs = struct {
     rotx: f32 = 0, // shared star rotation.x (all 5 phases share one accumulator)
@@ -122,14 +128,11 @@ pub const Dragonballs = struct {
     }
 
     fn drawDisc() void {
-        const mask = discMask();
-        for (&ball_buf, mask) |*px, inside| {
-            if (!inside) continue;
-            px.* = switch (px.*) {
-                PAL_BACK => PAL_DISC_ON_BACK,
-                0 => PAL_DISC,
-                else => px.*,
-            };
+        for (DISC_SPAN, 0..) |span, y| {
+            for (ball_buf[y * BS + span[0] ..][0 .. span[1] - span[0]]) |*px| {
+                // a store only where the pixel changes (the star's own pixels stay)
+                if (px.* == PAL_BACK) px.* = PAL_DISC_ON_BACK else if (px.* == 0) px.* = PAL_DISC;
+            }
         }
     }
 };

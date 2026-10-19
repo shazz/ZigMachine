@@ -52,16 +52,36 @@ pub fn zoomScroller(dst: RenderTarget, src: RenderTarget, top: u16, rows: u16) v
         const y0 = @as(u32, top) + char_row * ZOOM;
         if (y0 >= OVERSCAN_H) return;
         const line = page.buffer[y0 * OVERSCAN_W ..][0..OVERSCAN_W];
-        const words: [*]u32 = @ptrCast(@alignCast(line.ptr));
-        const strip_row = strip.buffer[char_row * strip.width ..][0..strip.width];
-        for (strip_row, 0..) |pal_entry, col| {
-            const v = @as(u32, pal_entry) * 0x01010101;
-            words[col * 2] = v;
-            words[col * 2 + 1] = v;
-        }
+        buildLine(line, strip.buffer[char_row * strip.width ..][0..strip.width]);
         var row: u32 = 1;
         while (row < ZOOM and y0 + row < OVERSCAN_H) : (row += 1) {
             @memcpy(page.buffer[(y0 + row) * OVERSCAN_W ..][0..OVERSCAN_W], line);
         }
+    }
+}
+
+/// One zoomed line: each strip pixel as 8 equal pixels, two u32 stores a pixel.
+fn buildLine(line: []u8, strip_row: []const u8) void {
+    const words: [*]u32 = @ptrCast(@alignCast(line.ptr));
+    for (strip_row, 0..) |pal_entry, col| {
+        const v = @as(u32, pal_entry) * 0x01010101;
+        words[col * 2] = v;
+        words[col * 2 + 1] = v;
+    }
+}
+
+/// zoomScroller on the plane itself, the seven copies of each line made by CHISEL: a blit whose
+/// source row has stride 0 repeats the line over its seven rows (the CPU copied 400 bytes x 7
+/// x 30 lines of blocking stores a frame). Same pixels.
+pub fn zoomScrollerGpu(fb: *zg.LogicalFB, blitter: *zg.Blitter, src: RenderTarget, top: u16, rows: u16) void {
+    const strip = src.render_buffer;
+    var char_row: u32 = 0;
+    while (char_row < rows) : (char_row += 1) {
+        const y0 = @as(u32, top) + char_row * ZOOM;
+        if (y0 >= OVERSCAN_H) return;
+        const line = fb.fb[y0 * OVERSCAN_W ..][0..OVERSCAN_W];
+        buildLine(line, strip.buffer[char_row * strip.width ..][0..strip.width]);
+        const copies: u16 = @intCast(@min(@as(u32, ZOOM) - 1, OVERSCAN_H - 1 - y0));
+        if (copies > 0) blitter.blitRow(fb, 0, @intCast(y0 + 1), line, copies, null);
     }
 }

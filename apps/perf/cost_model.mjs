@@ -55,6 +55,12 @@ export const DISK_BLOCK = 0;  // cycles per 512-byte disk block read (the board'
 // (soc/zm_video_snoop.py). First fitted at 1,900 to the old stcs alone (1 fps on the
 // board); the 2026-10-18 board table REFUTES that: snyd_90 makes 1,556 such stores a frame
 // and runs 60 fps. The fit puts the cost at ~240 cycles; the old stcs stays unexplained.
+// A misaligned lw/sw on the board's `aligned` build traps (fpga/cycles/trap.S: 30 registers saved
+// and restored on the write-through stack, then the access redone byte by byte). A fit to the
+// board fps of naos_nitrowave (24,662 misaligned a frame, 129 ms) and ics (12,207, 105 ms).
+// MEASURED 2026-10-18 by the native bench cart (perf/ziggy-bench, mis.lw/sw.1..3): 693-699 cycles
+// a trapped access, vs 11 with byte loads. The fits (450 naos, 700 ics) bracket it.
+export const TRAP_CYCLES = 693;
 export const SNOOP_QUEUE = 16;
 export const SNOOP_OVERFLOW = 240; // cycles per palette store beyond the queue, within one handler
 // memset/memcpy (wasm memory.fill/copy -> picolibc) cost per 32-bit word ON THE BOARD:
@@ -78,13 +84,18 @@ export const DMISS = 10;
 // core traps and trap.S/trap.c emulate it byte by byte after saving 31 registers (each a
 // blocking DDR store). Fitted to ics on the board (08655fd's grid copy: ~12,000 misaligned
 // loads a frame took it from the model's 5.2 Mc to the board's ~13 Mc).
-export const MISALIGNED = 700;
+export const MISALIGNED = TRAP_CYCLES; // one measured value for both probes
 export const MHZ = 100;
 export const FRAME_MC = MHZ / 60; // 1.667 Mc: a 60 Hz frame
 
 // op class names, in report order
 export const CLASSES = ["narrow_store", "store32", "store64", "f64", "f32_divsqrt", "f32", "i32_div",
-    "i64_mul", "i64_div", "i64_shift", "i64_other", "load", "call", "libm_call"];
+    "i64_mul", "i64_div", "i64_shift", "i64_other", "load", "call", "libm_call", "unaligned"];
+// "unaligned" is a COUNT, not a cost (no cycles in the estimate): loads/stores wider than a byte
+// whose memarg alignment hint is below their width. The board's `aligned` build turns every one
+// into a single lw/sw, and a MISALIGNED address traps (fpga/cycles/trap.c: ~1,000 cycles each,
+// registers saved to the write-through stack). Zig emits the hint from the pointer type, so a
+// u32 read out of a byte buffer (an emulated 68000's RAM) shows here; a u32 array does not.
 
 const C = Object.fromEntries(CLASSES.map((c, i) => [c, i]));
 export const CLS = C;

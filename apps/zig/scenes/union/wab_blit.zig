@@ -1,16 +1,19 @@
 // --------------------------------------------------------------------------
-// Union intro — the WAB part's turned-tile blit (wab.zig), in Q32 fixed point.
+// Union intro — the WAB part's turned-tile blit (wab.zig), in Q24 fixed point.
 //
 // The tile's texture coordinates (u,v) are linear in the plane pixel, so they
-// step by a constant per pixel and per row: two i64 adds a pixel on the board's
+// step by a constant per pixel and per row: two i32 adds a pixel on the board's
 // rv32 instead of six soft-float f64 operations and two floors (the f64 version
-// cost tens of Mc a frame on KESTREL, which has no f64 unit).
+// cost tens of Mc a frame on KESTREL, which has no f64 unit; the Q32 i64 version
+// that followed still paid 64-bit adds and shifts, ~85 cycles a pixel).
 //
 // Pixel-exact with the f64 version it replaces: every decision the blit makes
-// (inside the tile, which texel) changes only where u or v crosses an INTEGER,
-// and the stepped values are within ~1e-8 of the true ones. So where u and v are
-// both at least EPS from an integer the integer answer is the f64 answer; on the
-// rare pixel closer than that, the f64 expression is evaluated exactly as before.
+// (inside the tile, which texel) changes only where u or v crosses an INTEGER.
+// Q24 holds |u| < 128 (the span reaches ~90) and each step rounds by at most
+// 2^-25; over a span (<= 26 columns, <= 26 rows) the stepped value is within
+// ~1.6e-6 of the true one, so with EPS = 2^-18 (3.8e-6) away from an integer
+// the integer answer is the f64 answer; on the rare pixel closer than that the
+// f64 expression is evaluated exactly as before.
 // Per tile the setup (cos/sin, the span) stays f64, as in the remake.
 // --------------------------------------------------------------------------
 const std = @import("std");
@@ -21,9 +24,11 @@ pub const TILE: f64 = 33;
 pub const HALF_TILE: f64 = TILE / 2;
 pub const LOGO: usize = 132; // wab.raw is 132x132
 const LOGO_F: f64 = LOGO;
-const TILE_I: i64 = 33;
-const ONE: f64 = 4294967296.0; // Q32
-const EPS: u32 = 1 << 12; // ~1e-6: far above the stepping error, rare enough to cost nothing
+const TILE_I: i32 = 33;
+const FRAC = 24;
+const ONE: f64 = 16777216.0; // Q24
+const FRAC_MASK: u32 = (1 << FRAC) - 1;
+const EPS: u32 = 1 << 6; // 2^-18: 2.5x the stepping error, still ~1.5e-5 of the pixels
 
 pub const Tile = struct {
     tx: f64, // the tile's column and row in the logo grid
@@ -52,9 +57,9 @@ fn texelF64(t: Tile, sp: Span, px: i32, py: i32) ?usize {
 
 /// The texel for a fixed-point (u,v) at least EPS from any integer, as texelF64
 /// would find it: u <= -1 is floor(u) <= -2, floor((33tx+u)/2) is (33tx+floor(u))>>1.
-inline fn texelFixed(tx: i64, ty: i64, u: i64, v: i64) ?usize {
-    const ui = u >> 32;
-    const vi = v >> 32;
+inline fn texelFixed(tx: i32, ty: i32, u: i32, v: i32) ?usize {
+    const ui = u >> FRAC;
+    const vi = v >> FRAC;
     if (ui < -1 or ui > TILE_I or vi < -1 or vi > TILE_I) return null;
     const sx = (tx * TILE_I + ui) >> 1;
     const sy = (ty * TILE_I + vi) >> 1;
@@ -62,12 +67,12 @@ inline fn texelFixed(tx: i64, ty: i64, u: i64, v: i64) ?usize {
     return @as(usize, @intCast(sy)) * LOGO + @as(usize, @intCast(sx));
 }
 
-inline fn nearInt(q: i64) bool {
-    const frac: u32 = @truncate(@as(u64, @bitCast(q)));
-    return frac +% EPS < 2 * EPS;
+inline fn nearInt(q: i32) bool {
+    const frac: u32 = @as(u32, @bitCast(q)) & FRAC_MASK;
+    return ((frac +% EPS) & FRAC_MASK) < 2 * EPS;
 }
 
-fn q32(x: f64) i64 {
+fn q24(x: f64) i32 {
     return @intFromFloat(@round(x * ONE));
 }
 
@@ -77,25 +82,30 @@ pub fn blitTurned(fb: *LogicalFB, t: Tile, sp: Span, wab_raw: []const u8, shade:
     // (u,v) at the span's first pixel, and its steps: qx and qy grow by 2 a pixel.
     const qx0 = 2 * (@as(f64, @floatFromInt(sp.x0)) - sp.ox) + 1 - t.cx;
     const qy0 = 2 * (@as(f64, @floatFromInt(sp.y0)) - sp.oy) + 1 - t.cy;
-    var u_row = q32(t.cs * qx0 + t.sn * qy0 + HALF_TILE);
-    var v_row = q32(-t.sn * qx0 + t.cs * qy0 + HALF_TILE);
-    const du_x = q32(2 * t.cs);
-    const dv_x = q32(-2 * t.sn);
-    const du_y = q32(2 * t.sn);
-    const dv_y = q32(2 * t.cs);
-    const tx: i64 = @intFromFloat(t.tx);
-    const ty: i64 = @intFromFloat(t.ty);
+    var u_row = q24(t.cs * qx0 + t.sn * qy0 + HALF_TILE);
+    var v_row = q24(-t.sn * qx0 + t.cs * qy0 + HALF_TILE);
+    const du_x = q24(2 * t.cs);
+    const dv_x = q24(-2 * t.sn);
+    const du_y = q24(2 * t.sn);
+    const dv_y = q24(2 * t.cs);
+    const tx: i32 = @intFromFloat(t.tx);
+    const ty: i32 = @intFromFloat(t.ty);
     var py = sp.y0;
     while (py < sp.y1) : (py += 1) {
         const row = @as(usize, @intCast(py)) * @as(usize, fb.stride);
         var u = u_row;
         var v = v_row;
         var px = sp.x0;
+        var inside = false; // the tile is convex: once a row has left it, the rest of the row is outside
         while (px < sp.x1) : (px += 1) {
             const texel = if (nearInt(u) or nearInt(v)) texelF64(t, sp, px, py) else texelFixed(tx, ty, u, v);
             u += du_x;
             v += dv_x;
-            const at = texel orelse continue;
+            const at = texel orelse {
+                if (inside) break;
+                continue;
+            };
+            inside = true;
             const idx = wab_raw[at];
             if (idx == 0) continue;
             fb.fb[row + @as(usize, @intCast(px))] = if (shade) |s| s[idx] else idx;

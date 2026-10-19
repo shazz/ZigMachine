@@ -98,3 +98,32 @@ export function paletteWrites(profiles) {
     sites.sort((a, b) => b.unchanged - a.unchanged);
     return { writes: Math.round(writes), unchanged: Math.round(same), sites: sites.slice(0, 5) };
 }
+
+// Where the wide accesses of unproven alignment run (the memarg hint is below the width):
+// the places a misaligned address can come from when the audit counts traps.
+export function hintRegions(profiles, n) {
+    const all = [], u = CLASSES.indexOf("unaligned");
+    for (const P of profiles) {
+        const F = Math.max(1, P.frames);
+        P.plan.regions.forEach((reg, r) => {
+            const k = P.sum.cls[r * NCLS + u] / F;
+            if (k >= 1) all.push({ mod: P.tag, func: reg.name, loop: reg.loop, at: hex(reg.at), hints: Math.round(k) });
+        });
+    }
+    return all.sort((a, b) => b.hints - a.hints).slice(0, n);
+}
+
+/// The sites that really trapped (a misaligned address), by function, from the per-site counters
+/// of the whole run (warm-up included): where to look when MISALIGNED is large.
+export function misSites(mods, n) {
+    const all = [];
+    for (const m of mods) {
+        if (!m.mem || !m.plan?.mis) continue;
+        const w = new Uint32Array(m.mem.buffer);
+        for (const s of m.plan.mis) {
+            const k = w[s.word];
+            if (k) all.push({ mod: m.tag, func: funcName(m.plan.module, s.fi), at: hex(s.at), count: k });
+        }
+    }
+    return all.sort((a, b) => b.count - a.count).slice(0, n);
+}

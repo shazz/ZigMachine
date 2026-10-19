@@ -24,13 +24,10 @@ const layer_b2 = @embedFile("../../assets/screens/union_main/layer_b2.raw");
 const clouds1 = @embedFile("../../assets/screens/union_main/clouds1.raw");
 const clouds2 = @embedFile("../../assets/screens/union_main/clouds2.raw");
 const clouds3 = @embedFile("../../assets/screens/union_main/clouds3.raw");
-const tileset_raw = @embedFile("../../assets/screens/union_main/tileset.raw");
-const gradtiles_raw = @embedFile("../../assets/screens/union_main/gradtiles.raw");
-const world_dat = @embedFile("../../assets/screens/union_main/world.dat");
-const anim_dat = @embedFile("../../assets/screens/union_main/anim.dat");
-const clouds_dat = @embedFile("../../assets/screens/union_main/clouds.dat");
 
 // Spare palette entries (p0.pal uses 1..36) for the solid ground bands.
+const WORLD_TOP: i16 = 35; // first row anything but the sky is drawn on
+const FLOOR_TOP: i16 = 163; // from here the bands and parallax cover every pixel
 const FLOOR: u8 = 40; // pink band under the walkway
 const BOTTOM: u8 = 41; // white band to the screen bottom
 
@@ -40,17 +37,8 @@ const RED_A = [5]u8{ 224, 192, 128, 64, 0 };
 const RED_B = [5]u8{ 255, 192, 128, 64, 0 };
 const GRAD_RED_A: u8 = 35;
 const GRAD_RED_B: u8 = 36;
-const WORLD_W: usize = 802;
 const SCROLL_WRAP: f32 = 778; // pinpinPos wraps here (map tail repeats the head)
 
-// Tile world: tileset (17x7 of 16x16) for world+clouds; gradTiles (8-wide) for
-// the animated rows. Faithful to efmain.js scroll (0.3 tiles/frame) + rows.
-const Tile = zg.tilemap;
-const tileset = Tile.TileSheet{ .raw = tileset_raw, .sheet_w = 272, .tw = 16, .th = 16, .cols = 17 };
-const grad = Tile.TileSheet{ .raw = gradtiles_raw, .sheet_w = 128, .tw = 16, .th = 16, .cols = 8 };
-const world_layer = Tile.Layer{ .sheet = &tileset, .map = world_dat, .map_w = WORLD_W, .rows = 9, .id_base = 1, .dst_y = 35 };
-const anim_layer = Tile.Layer{ .sheet = &grad, .map = anim_dat, .map_w = WORLD_W, .rows = 5, .id_base = 120, .dst_y = 83 };
-const clouds_layer = Tile.Layer{ .sheet = &tileset, .map = clouds_dat, .map_w = WORLD_W, .rows = 1, .id_base = 1, .dst_y = 131 };
 
 // Sky gradient: background.png horizontal bands (efmain.js). Physical row ->
 // original row = (r-5)*2; the machine re-reads palette[0] per scanline via an
@@ -99,6 +87,7 @@ fn skyHandler(fb: *LogicalFB, zigos: *ZigOS, line: u16, x: u16) void {
     fb.flickerBorder();
 }
 
+const wd = @import("world_draw.zig");
 const Parallax5 = zg.parallax.Parallax(5);
 const Runner = @import("runner.zig").Runner;
 const Dragonballs = @import("dragonball.zig").Dragonballs;
@@ -114,6 +103,7 @@ pub const Demo = struct {
     pos: f32 = 0, // world scroll in tiles
     speed: f32 = 0.3, // scroll tiles/frame; host may slow it (0.3 = nominal)
     frame: u32 = 0,
+    fresh: bool = true, // the plane has not been cleared whole yet
     grad_idx: u8 = 0, // gradTiles palette-animation step
     grad_inc: i8 = 1,
     // This scene OWNS its playlist (host holds none): tunes under docs/music/.
@@ -160,6 +150,7 @@ pub const Demo = struct {
         gpu.init();
         self.pos = 0;
         self.frame = 0;
+        self.fresh = true;
         self.grad_idx = 0;
         self.grad_inc = 1;
         autoplay(); // track 1, unless the cracktro already started a tune
@@ -207,18 +198,20 @@ pub const Demo = struct {
     pub fn render(self: *Demo, zigos: *ZigOS, dt: f32) void {
         _ = dt;
         const p0: *LogicalFB = &zigos.lfbs[0];
-        gpu.clear(p0, 0); // index 0 = sky, recoloured per scanline by the HBL (CHISEL: the CPU loop was 112,000 byte stores)
-        self.px.draw(p0, 0, @intCast(PW));
+        // Index 0 = sky, recoloured per scanline by the HBL. Rows 0..34 are never drawn
+        // on and rows 163.. are covered whole by the floor, the parallax and the bottom
+        // band, so after the first frame only the rows between are erased (a CHISEL fill).
+        if (self.fresh) gpu.clear(p0, 0) else gpu.fill(p0, 0, WORLD_TOP, @intCast(p0.fb_w), FLOOR_TOP - WORLD_TOP, 0);
+        self.fresh = false;
+        wd.parallax(&self.px, p0, @intCast(PW)); // CHISEL strips (zg.parallax's CPU copies were a megacycle)
         // Ground: floorback is a 16px pink strip (behind world row 8); the
         // scrolling layer_b1/b2 parallax fills 179..211 below it; bottomback
         // white to the screen bottom. (Don't over-fill and hide the floor
         // parallax.)
-        fill(p0, 163, 179, FLOOR);
+        fill(p0, FLOOR_TOP, 179, FLOOR);
         fill(p0, 211, @intCast(PH), BOTTOM);
         // Tile world: clouds (behind) -> animated rows -> world tiles (on top).
-        clouds_layer.draw(p0, self.pos);
-        anim_layer.draw(p0, self.pos);
-        world_layer.draw(p0, self.pos);
+        wd.world(p0, self.pos); // clouds -> animated rows -> world, pre-composited cells (world_cells.zig)
         self.runner.draw(zigos, self.speed / 0.3); // ghost trail scales with speed
         self.balls.draw(zigos); // dragonballs on plane 1, after the runner
         self.credits.draw(zigos); // credits pages on plane 1 (top area)

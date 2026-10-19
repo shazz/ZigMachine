@@ -51,6 +51,7 @@ const raster = @import("tcb_spreadpoint/raster.zig");
 const logo = @import("tcb_spreadpoint/logo.zig");
 const dna = @import("tcb_spreadpoint/dna.zig");
 const texts = @import("tcb_spreadpoint/texts.zig");
+const scroll = @import("tcb_spreadpoint/scroll.zig");
 
 const ZigOS = zg.ZigOS;
 const Color = zg.Color;
@@ -90,8 +91,7 @@ const FONT_H = 6;
 const FONT_COLS = 10; // font.png is 80 wide
 const FIRST_CHAR = 32;
 
-const font = blit.Image.init(font_b, FONT_COLS * FONT_W);
-const ball = blit.Image.init(ball_b, BALL_W);
+var chisel: zg.Blitter = .{}; // the scroller's, the balls' and the plane's CHISEL ops
 
 comptime {
     if (intro_b.len != PICTURES * INTRO_H * INTRO_ROW_BYTES) @compileError("intro.1bpp is not four 320x108 pictures");
@@ -130,6 +130,8 @@ pub const Demo = struct {
         self.next_iteration = 0;
         self.shown = NOTHING_SHOWN;
 
+        chisel.init();
+        scroll.init(font_b);
         logo.init();
         dna.init();
 
@@ -185,14 +187,14 @@ pub const Demo = struct {
         };
         if (want != MAIN_SHOWN and self.shown == want) return;
         self.shown = want;
-        @memset(fb.fb[0 .. W * H], 0);
+        chisel.fill(fb, 0, 0, @intCast(W), @intCast(H), 0);
         switch (self.view) {
             .picture => drawPicture(screen, self.picture),
             .black => {},
             .main => {
                 const it = self.iteration;
-                if (it >= SCROLL_FROM) drawScroll(screen, it - SCROLL_FROM);
-                if (it >= BALLS_FROM) drawBalls(screen, it - BALLS_FROM);
+                if (it >= SCROLL_FROM) drawScroll(fb, it - SCROLL_FROM);
+                if (it >= BALLS_FROM) drawBalls(fb, it - BALLS_FROM);
                 logo.draw(screen.window(LOGO_X, 0, logo.CANVAS, logo.CANVAS), it);
                 if (it >= DNA_FROM) dna.draw(screen.window(0, raster.DNA_TOP, dna.W, 2 * dna.STRIP_H), it - DNA_FROM + 1);
             },
@@ -235,17 +237,11 @@ fn drawPicture(screen: blit.Dst, picture: usize) void {
 /// draw_scroll: line `line` shows text pixel speed*ite - 320 + X at column X --
 /// arriving from the right until it has moved 320 px, then wrapping through the
 /// text (the canvas repeats its first 320 px after the end to make the wrap).
-fn drawScroll(screen: blit.Dst, ite: u64) void {
+/// scroll.zig lays the text out once; a line is one CHISEL copy of its window.
+fn drawScroll(fb: *zg.LogicalFB, ite: u64) void {
     for (SPEED, 0..) |speed, line| {
         const first: i64 = @as(i64, @intCast(speed * ite)) - @as(i64, W); // text pixel at column 0
-        var k: i64 = @divFloor(@max(first, 0), FONT_W);
-        while (true) : (k += 1) {
-            const x = k * FONT_W - first;
-            if (x >= W) break;
-            const tile: usize = texts.scroll[@intCast(@mod(k, texts.scroll.len))] - FIRST_CHAR;
-            const part = blit.Rect{ .x = (tile % FONT_COLS) * FONT_W, .y = (tile / FONT_COLS) * FONT_H, .w = FONT_W, .h = FONT_H };
-            blit.blit(screen, font, part, @intCast(x), @intCast(line * FONT_H), 0, .copy);
-        }
+        scroll.line(&chisel, fb, @intCast(W), first, @intCast(line * FONT_H));
     }
 }
 
@@ -258,12 +254,12 @@ const BALL_X_J = fx.turns(5.0 / 47.0);
 const BALL_Y_ITE = fx.turns(8.0 / 71.0);
 const BALL_Y_J = fx.turns(8.0 / 47.0);
 
-fn drawBalls(screen: blit.Dst, ite: u64) void {
+fn drawBalls(fb: *zg.LogicalFB, ite: u64) void {
     for (0..BALL_COUNT) |j| {
         const ax = ite *% BALL_X_ITE +% @as(u64, j) *% BALL_X_J;
         const ay = ite *% BALL_Y_ITE +% @as(u64, j) *% BALL_Y_J;
         const x = 151 + fx.roundQ30(0, 151, fx.sin(fx.hi(ax)));
         const y = 50 + fx.roundQ30(0, 50, fx.sin(fx.hi(ay)));
-        blit.blit(screen, ball, null, x, y, 0, .copy);
+        chisel.blitImage(fb, @intCast(x), @intCast(y), ball_b, BALL_W, 0, 0, BALL_W, 16, 0);
     }
 }

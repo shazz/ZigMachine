@@ -3,7 +3,8 @@
 // its counters in memory 1 and an entry in the plan, with the segment it sits in (so its
 // counts land in the right loop).
 import { OP, isLoad, isStore, LOAD_WIDTH, STORE_WIDTH } from "./wasm_ops.mjs";
-import { fillHook, copyHook, blitSiteHook } from "./hooks.mjs";
+const LOAD_BYTES = LOAD_WIDTH;
+import { fillHook, copyHook, blitSiteHook, inc, I32, LGET, LTEE, MIS_LOADS } from "./hooks.mjs";
 import { watchHook, WATCHED, WATCH_WORDS } from "./watch_hook.mjs";
 import { encU32 } from "./wasm_bin.mjs";
 import { probeFor } from "./probe_sites.mjs";
@@ -55,10 +56,18 @@ function innerHook(d, i, ctx) {
         ctx.plan.blits.push({ fi: d.fi, at, seg: ctx.seg });
         return blitSiteHook(ctx.plan.blits.length - 1, orig);
     }
+    if (imm && imm.mem === 0 && LOAD_BYTES[op] > 1) { // [addr] -> count a misaligned one, then the load
+        const w = ctx.next++; // this site's own count, for the report of where the traps come from
+        ctx.plan.mis.push({ fi: d.fi, at, word: w });
+        const inner = ctx.probes ? probeFor(ctx.m, d, d.instrs[i], t, orig, ctx) : null;
+        return [...LTEE(t.a), ...I32(imm.offset), 0x6a, ...I32(Math.min(LOAD_BYTES[op], 4) - 1), 0x71, 0x04, 0x40, ...inc(MIS_LOADS), ...inc(w), 0x0b, ...LGET(t.a), ...(inner ?? orig)];
+    }
     if (ctx.vlo !== null && WATCHED.has(op) && imm.mem === 0) {
-        site(ctx.plan.watch);
-        const h = watchHook(ctx.next, op, imm.offset, ctx.pal, ctx.vlo, t, orig);
-        ctx.next += WATCH_WORDS;
+        site(ctx.plan.watch); // records the site's counter words at ctx.next
+        const w = ctx.next + WATCH_WORDS; // this store's own misaligned count follows them
+        ctx.plan.mis.push({ fi: d.fi, at, word: w });
+        const h = watchHook(ctx.next, op, imm.offset, ctx.pal, ctx.vlo, t, orig, w);
+        ctx.next += WATCH_WORDS + 1;
         return h;
     }
     return ctx.probes ? probeFor(ctx.m, d, d.instrs[i], t, orig, ctx) : null;

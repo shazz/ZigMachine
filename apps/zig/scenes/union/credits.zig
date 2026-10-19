@@ -11,6 +11,7 @@ const ZigOS = zg.ZigOS;
 const Color = zg.Color;
 const LogicalFB = zg.LogicalFB;
 const cf = @import("creditfont.zig");
+const gpu = @import("../union_common/gpu.zig");
 
 const LINE_PITCH: i16 = 16;
 const OX: i16 = 38; // page origin (phys) — Codef (60,36) halved
@@ -69,13 +70,32 @@ pub const Credits = struct {
     pub fn draw(self: *const Credits, zigos: *ZigOS) void {
         if (self.alpha <= 0.0) return;
         const p1: *LogicalFB = &zigos.lfbs[1];
-        for (PAGES[self.page], 0..) |line, i| {
-            const y = OY + @as(i16, @intCast(i)) * LINE_PITCH;
-            cf.drawLine(p1, line, OX + SHADOW_DX, y + SHADOW_DY, SHADOW);
-            cf.drawLine(p1, line, OX, y, FACE);
-        }
+        gpu.putTile(p1, OX, OY, pageImage(self.page), PAGE_W, 0, 0, PAGE_W, PAGE_H);
     }
 };
+
+// The page's 5 lines, shadow then face, line by line as they were drawn on the plane,
+// in a picture of their own (colour 0 clear). Built when the page changes (every 800
+// frames), so a frame is one keyed CHISEL copy. Module scope: the host resets the
+// struct with `.{}`, and the picture is 28 KB, taken from zg.mem once per cart load.
+const PAGE_W: u16 = 328; // 40 glyphs at pitch 8, + the 9 px glyph, + the shadow
+const PAGE_H: u16 = 80; // 4 lines of pitch 16 + 10 rows + the shadow
+var page_buf: []u8 = &.{};
+var page_built: usize = PAGES.len; // which page page_buf holds; none yet
+
+fn pageImage(page: usize) []const u8 {
+    if (page_buf.len == 0) page_buf = zg.mem.mustAlloc(u8, @as(usize, PAGE_W) * PAGE_H);
+    if (page_built != page) {
+        @memset(page_buf, 0);
+        for (PAGES[page], 0..) |line, i| {
+            const y = @as(i16, @intCast(i)) * LINE_PITCH;
+            cf.drawLine(page_buf, PAGE_W, PAGE_H, line, SHADOW_DX, y + SHADOW_DY, SHADOW);
+            cf.drawLine(page_buf, PAGE_W, PAGE_H, line, 0, y, FACE);
+        }
+        page_built = page;
+    }
+    return page_buf;
+}
 
 fn setAlpha(zigos: *ZigOS, a: u8) void {
     const p1: *LogicalFB = &zigos.lfbs[1];

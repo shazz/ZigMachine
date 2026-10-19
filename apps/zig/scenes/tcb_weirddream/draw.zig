@@ -54,8 +54,12 @@ pub fn splash(fb: *LogicalFB, n: u32) void {
     }
 }
 
+var chisel: zg.Blitter = .{};
+
+/// One CHISEL fill: the row-by-row memset was 64,000 bytes of CPU stores a frame.
 pub fn clear(fb: *LogicalFB) void {
-    for (0..H) |y| @memset(fb.fb[y * fb.stride ..][0..W], 0);
+    chisel.init();
+    chisel.fill(fb, 0, 0, @intCast(W), @intCast(H), 0);
 }
 
 // --------------------------------------------------------------------------
@@ -126,21 +130,29 @@ pub fn scroller(fb: *LogicalFB, l: motion.Layout) void {
         const row_at = l.text_at + motion.scroll_off[(l.table_at + j) % motion.SCROLL_LEN];
         for (l.col_y, 0..) |top, c| {
             const dst = fb.fb[(@as(usize, top) + j) * fb.stride + c * 8 ..][0..8];
-            for (dst, 0..) |*p, i| {
-                if (glyphPixel(row_at + @as(i64, @intCast(c * 8 + i)), j)) |v| p.* = v;
-            }
+            block(dst, row_at + @as(i64, @intCast(c * 8)), j);
         }
     }
 }
 
-fn glyphPixel(at: i64, row: usize) ?u8 {
-    if (at < 0) return null;
-    const s: usize = @intCast(@mod(at, STREAM));
-    const ch = TEXT[s / GLYPH_W];
-    if (ch < 32 or ch > 91) return null; // outside the 60 tiles: drawTile draws nothing
-    const g: usize = ch - 32;
-    const y = (g / GLYPH_COLS) * GLYPH_H + row;
-    return font_b[y * FONT_W + (g % GLYPH_COLS) * GLYPH_W + s % GLYPH_W];
+/// The 8 pixels of one block, glyph run by glyph run: a run is the rest of the stream's
+/// current 32-px glyph (at most 8), copied whole from the font row. The old code looked
+/// every pixel up again (an i64 modulo and two divides each). Pixels before the text, and
+/// glyphs outside the 60 tiles, stay as they are.
+fn block(dst: []u8, at: i64, row: usize) void {
+    var done: usize = 0;
+    while (done < 8) {
+        const here = at + @as(i64, @intCast(done));
+        const s: usize = if (here < 0) 0 else @intCast(@mod(here, STREAM));
+        const n = if (here < 0) @min(8 - done, @as(usize, @intCast(-here))) else @min(8 - done, GLYPH_W - s % GLYPH_W);
+        defer done += n;
+        if (here < 0) continue;
+        const ch = TEXT[s / GLYPH_W];
+        if (ch < 32 or ch > 91) continue;
+        const g: usize = ch - 32;
+        const from = ((g / GLYPH_COLS) * GLYPH_H + row) * FONT_W + (g % GLYPH_COLS) * GLYPH_W + s % GLYPH_W;
+        @memcpy(dst[done..][0..n], font_b[from..][0..n]);
+    }
 }
 
 const SPRITE_W: u16 = 48;

@@ -16,6 +16,7 @@
 // Geometry: capture (x, row) = physical (x + 8, row - 11); line 0 is capture
 // row 29, pixel 0 capture x 48 (ric_show.py) -> physical row 40, x 40.
 // --------------------------------------------------------------------------
+const std = @import("std");
 const zg = @import("zigos");
 const st = @import("st.zig");
 const scroll = @import("ric_scroll.zig");
@@ -66,35 +67,66 @@ pub const Regs = struct {
 
 const Row = [16]u32;
 var rows: []Row = &.{};
+/// Which of a row's colours differ from the row above's (all, on row 0): the HBL loads those only.
+var masks: []u16 = &.{};
+/// The planar line each row was last converted from, so a line the VBL did not touch is not
+/// converted (and its borders not repainted) again: the plane keeps its pixels between frames.
+/// `reset()` (a new part) and the title forget them and repaint everything.
+var shadow: []u8 = &.{};
+var shadow_ok = false;
 
-fn fill(dst: *Row, p: *const [16]u16) void {
-    for (dst, p) |*c, w| c.* = st.color(w).toRGBA();
+pub fn reset() void {
+    shadow_ok = false;
+}
+
+fn fill(dst: *Row, p: *const [16]u16, above: ?*const Row) u16 {
+    var m: u16 = if (above == null) 0xFFFF else 0;
+    for (dst, p, 0..) |*c, w, i| {
+        const v = st.rgba(w);
+        if (c.* != v) c.* = v; // a store is a bus write; the row mostly holds the colours already
+        if (above) |ab| if (ab[i] != v) {
+            m |= @as(u16, 1) << @intCast(i);
+        };
+    }
+    return m;
 }
 
 fn rowsReady() void {
-    if (rows.len == 0) rows = zg.mem.mustAlloc(Row, PH);
+    if (rows.len == 0) {
+        rows = zg.mem.mustAlloc(Row, PH);
+        masks = zg.mem.mustAlloc(u16, PH);
+        shadow = zg.mem.mustAlloc(u8, (PH - TOP) * 160);
+    }
 }
 
 /// The frame shown from `base` with the registers as the VBL left them.
 pub fn present(r: *const st.Ram, base: u32, start: Regs, px: []u8) void {
     rowsReady();
     var g = start;
-    @memset(px[0 .. TOP * PW], 0);
-    for (0..TOP) |y| fill(&rows[y], &g.p);
+    if (!shadow_ok) @memset(px[0 .. TOP * PW], 0);
+    for (0..TOP) |y| masks[y] = fill(&rows[y], &g.p, if (y > 0) &rows[y - 1] else null);
     for (0..PH - TOP) |li| {
         const line: u16 = @intCast(li);
         if (line >= 1) g.hbl(r, line);
         const y = TOP + li;
-        screenRow(r.bytes(base + 160 * @as(u32, line), 160), px[y * PW ..][0..PW]);
-        fill(&rows[y], &g.p);
+        const planar = r.bytes(base + 160 * @as(u32, line), 160);
+        const kept = shadow[li * 160 ..][0..160];
+        if (!shadow_ok or !st.same(planar, kept)) {
+            st.copyBytes(kept, planar);
+            screenRow(planar, px[y * PW ..][0..PW], !shadow_ok);
+        }
+        masks[y] = fill(&rows[y], &g.p, &rows[y - 1]);
     }
+    shadow_ok = true;
 }
 
-/// One line: colour 0 in the borders, the 320 pixels between.
-fn screenRow(line: []const u8, out: []u8) void {
-    @memset(out[0..LEFT], 0);
+/// One line: colour 0 in the borders (`borders`: they need painting), the 320 pixels between.
+fn screenRow(line: []const u8, out: []u8, borders: bool) void {
+    if (borders) {
+        @memset(out[0..LEFT], 0);
+        @memset(out[LEFT + 320 ..], 0);
+    }
     st.lineToChunky(line, 0, out[LEFT..][0..320]);
-    @memset(out[LEFT + 320 ..], 0);
 }
 
 /// The title: a plain 200-line screen (no Timer B yet) in its own palette.
@@ -103,17 +135,23 @@ pub fn presentTitle(r: *const st.Ram, px: []u8) void {
     var p: [16]u16 = undefined;
     for (&p, 0..) |*c, i| c.* = r.w(font.TITLE + 2 + 2 * @as(u32, @intCast(i)));
     for (0..PH) |y| {
-        fill(&rows[y], &p);
+        masks[y] = fill(&rows[y], &p, if (y > 0) &rows[y - 1] else null);
         const out = px[y * PW ..][0..PW];
         if (y < TOP or y >= TOP + 200) {
             @memset(out, 0);
-        } else screenRow(r.bytes(font.TITLE_SCREEN + 160 * @as(u32, @intCast(y - TOP)), 160), out);
+        } else screenRow(r.bytes(font.TITLE_SCREEN + 160 * @as(u32, @intCast(y - TOP)), 160), out, true);
     }
+    shadow_ok = false;
 }
 
 /// The plane's HBL: open the borders, load this row's colour registers.
 pub fn hbl(fb: *zg.LogicalFB, _: *zg.ZigOS, line: u16, _: u16) void {
     fb.flickerBorder();
     if (line >= rows.len) return;
-    for (rows[line], 0..) |c, i| fb.palette[i] = c;
+    var m = masks[line];
+    while (m != 0) : (m &= m - 1) {
+        const i = @ctz(m);
+        const slot = &fb.palette[i];
+        if (slot.* != rows[line][i]) slot.* = rows[line][i]; // a raster coder never rewrites a register that holds the colour
+    }
 }

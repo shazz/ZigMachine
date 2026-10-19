@@ -32,8 +32,18 @@ pub const Ram = struct {
     pub inline fn w(self: *const Ram, a: u32) u16 {
         return std.mem.readInt(u16, self.m[self.at(a, 2)..][0..2], .big);
     }
+    // A long sits on any EVEN address, so half of them are not word aligned. The board's
+    // build turns a 32-bit access into one lw/sw and a misaligned one TRAPS (about a
+    // thousand cycles, fpga/cycles/trap.c): the menu's VBL reads and writes thousands of
+    // longs a frame. Two aligned halfwords instead for those.
+    // volatile halfwords: left alone, LLVM merges two adjacent halfword loads into one unaligned
+    // word load (and two stores into one word store), which is the very access that traps.
     pub inline fn l(self: *const Ram, a: u32) u32 {
-        return std.mem.readInt(u32, self.m[self.at(a, 4)..][0..4], .big);
+        const o = self.at(a, 4);
+        if ((@intFromPtr(self.m.ptr) + o) & 3 == 0) return std.mem.readInt(u32, self.m[o..][0..4], .big);
+        const hi: *align(1) const volatile u16 = @ptrCast(&self.m[o]);
+        const lo: *align(1) const volatile u16 = @ptrCast(&self.m[o + 2]);
+        return @as(u32, @byteSwap(hi.*)) << 16 | @byteSwap(lo.*);
     }
     pub inline fn sb(self: *const Ram, a: u32, v: u8) void {
         self.m[self.at(a, 1)] = v;
@@ -42,16 +52,61 @@ pub const Ram = struct {
         std.mem.writeInt(u16, self.m[self.at(a, 2)..][0..2], v, .big);
     }
     pub inline fn sl(self: *const Ram, a: u32, v: u32) void {
-        std.mem.writeInt(u32, self.m[self.at(a, 4)..][0..4], v, .big);
+        const o = self.at(a, 4);
+        if ((@intFromPtr(self.m.ptr) + o) & 3 == 0) return std.mem.writeInt(u32, self.m[o..][0..4], v, .big);
+        const hi: *align(1) volatile u16 = @ptrCast(&self.m[o]);
+        const lo: *align(1) volatile u16 = @ptrCast(&self.m[o + 2]);
+        hi.* = @byteSwap(@as(u16, @truncate(v >> 16)));
+        lo.* = @byteSwap(@as(u16, @truncate(v)));
+    }
+    /// Six bytes cleared as three halfwords (volatile, so they stay three halfword stores): a
+    /// constant memset becomes a word and a halfword store, and the run starts on any even
+    /// address, where the word store traps on the board.
+    pub inline fn zero6(self: *const Ram, a: u32) void {
+        const o = self.at(a, 6);
+        inline for (0..3) |i| {
+            const h: *align(1) volatile u16 = @ptrCast(&self.m[o + 2 * i]);
+            h.* = 0;
+        }
+    }
+    /// Six bytes copied as three halfwords (volatile: they stay halfword accesses, which never
+    /// trap; a library call for six bytes costs more than the six bytes).
+    pub inline fn cp6(self: *const Ram, dst: u32, src: u32) void {
+        const o = self.at(dst, 6);
+        const i = self.at(src, 6);
+        inline for (0..3) |k| {
+            const from: *align(1) const volatile u16 = @ptrCast(&self.m[i + 2 * k]);
+            const to: *align(1) volatile u16 = @ptrCast(&self.m[o + 2 * k]);
+            to.* = from.*;
+        }
     }
     pub inline fn bytes(self: *const Ram, a: u32, n: usize) []u8 {
         return self.m[self.at(a, n)..][0..n];
     }
     /// A forward copy, as move.l (a2)+,(a3)+ makes one (never overlapping here).
     pub inline fn cp(self: *const Ram, dst: u32, src: u32, n: usize) void {
-        @memcpy(self.bytes(dst, n), self.bytes(src, n));
+        copyBytes(self.bytes(dst, n), self.bytes(src, n));
     }
 };
+
+/// memory.copy through the library routine, which copies a misaligned run bytewise. With the
+/// length known the compiler expands a copy into word loads and stores, and the 68000's
+/// buffers sit on any even address: each misaligned one traps on the board (~450 cycles).
+pub noinline fn copyBytes(dst: []u8, src: []const u8) void {
+    @memcpy(dst, src);
+}
+
+/// Two ST lines equal? Halfwords: a line starts on any even address, so a word compare (what
+/// std.mem.eql turns into) would trap on the board at half of them (~450 cycles a misaligned load).
+pub fn same(a: []const u8, b: []const u8) bool {
+    var i: usize = 0;
+    while (i + 2 <= a.len) : (i += 2) {
+        const x: *align(1) const volatile u16 = @ptrCast(&a[i]);
+        const y: *align(1) const volatile u16 = @ptrCast(&b[i]);
+        if (x.* != y.*) return false;
+    }
+    return true;
+}
 
 /// ST colour word -> Color, channel c * 255 / 7 as the other ST ports do.
 /// (A table of the 8 levels: rows load 16 colours each, 247 rows a frame.)
@@ -60,6 +115,18 @@ const LEVEL: [8]u8 = blk: {
     for (&t, 0..) |*v, c| v.* = @intCast(c * 255 / 7);
     break :blk t;
 };
+
+/// color(v).toRGBA() for every 9-bit ST colour: a palette load is 16 colours a segment.
+const RGBA: [512]u32 = blk: {
+    @setEvalBranchQuota(100_000);
+    var t: [512]u32 = undefined;
+    for (&t, 0..) |*x, i| x.* = color(@intCast((i >> 6 << 8) | ((i >> 3 & 7) << 4) | (i & 7))).toRGBA();
+    break :blk t;
+};
+
+pub inline fn rgba(v: u16) u32 {
+    return RGBA[((v >> 8) & 7) << 6 | ((v >> 4) & 7) << 3 | (v & 7)];
+}
 
 pub fn color(v: u16) zg.Color {
     return .{ .r = LEVEL[(v >> 8) & 7], .g = LEVEL[(v >> 4) & 7], .b = LEVEL[v & 7], .a = 255 };

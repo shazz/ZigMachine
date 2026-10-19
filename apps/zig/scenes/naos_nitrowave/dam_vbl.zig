@@ -58,47 +58,64 @@ fn logoRest(r: *const st.Ram) void {
 }
 
 fn logoLine(r: *const st.Ram, dst: u32, src: u32) void {
-    @memset(r.bytes(dst + 2, 6), 0);
+    r.zero6(dst + 2);
     for (1..10) |g| {
         const gg: u32 = @intCast(g);
-        r.cp(dst + 8 * gg + 2, src + 6 * (gg - 1), 6);
+        r.cp6(dst + 8 * gg + 2, src + 6 * (gg - 1));
     }
-    @memset(r.bytes(dst + 80 + 2, 6), 0);
+    r.zero6(dst + 80 + 2);
 }
 
+/// A band is the same routine pair for every one of its lines, so each routine is decoded ONCE
+/// (a 68000 straight-line run of move.l to d(a5) and lea) into its moves and register steps, and
+/// the lines replay that. Same moves in the same order as running the code line by line.
+const Move = struct { dst: u32, src: u32 };
+const Routine = struct { moves: [64]Move = undefined, n: usize = 0, da5: u32 = 0, da6: u32 = 0 };
+
 fn band(r: *const st.Ram, regs: *Regs, pair: u32, lines: usize) void {
+    const first = decode(r, r.l(pair));
+    const second = decode(r, r.l(pair + 4));
     for (0..lines) |_| {
-        routine(r, regs, r.l(pair));
-        routine(r, regs, r.l(pair + 4));
+        play(r, regs, &first);
+        play(r, regs, &second);
     }
+}
+
+fn play(r: *const st.Ram, regs: *Regs, rt: *const Routine) void {
+    for (rt.moves[0..rt.n]) |m| r.sl(regs.a5 +% m.dst, r.l(regs.a6 +% m.src));
+    regs.a5 +%= rt.da5;
+    regs.a6 +%= rt.da6;
 }
 
 /// One band routine, instruction by instruction: it is only ever these.
-fn routine(r: *const st.Ram, regs: *Regs, at: u32) void {
+fn decode(r: *const st.Ram, at: u32) Routine {
+    var rt = Routine{};
     var pc = at;
     var guard: usize = 0;
     while (guard < 64) : (guard += 1) {
         const op = r.w(pc);
         const d: u32 = @bitCast(@as(i32, @as(i16, @bitCast(r.w(pc + 2)))));
         switch (op) {
-            0x4E75 => return, // rts
+            0x4E75 => return rt, // rts
             0x4E71 => pc += 2, // nop
             0x2B5E, 0x2B56 => { // move.l (a6)+ / (a6), d(a5)
-                r.sl(regs.a5 +% d, r.l(regs.a6));
-                if (op == 0x2B5E) regs.a6 += 4;
+                rt.moves[rt.n] = .{ .dst = rt.da5 +% d, .src = rt.da6 };
+                rt.n += 1;
+                if (op == 0x2B5E) rt.da6 +%= 4;
                 pc += 4;
             },
             0x4DEE => { // lea d(a6), a6
-                regs.a6 +%= d;
+                rt.da6 +%= d;
                 pc += 4;
             },
             0x4BED => { // lea d(a5), a5
-                regs.a5 +%= d;
+                rt.da5 +%= d;
                 pc += 4;
             },
-            else => return, // never met: the routines hold nothing else
+            else => return rt, // never met: the routines hold nothing else
         }
     }
+    return rt;
 }
 
 fn scroller(r: *const st.Ram) void {
@@ -107,7 +124,7 @@ fn scroller(r: *const st.Ram) void {
         var src = r.l(0x30C6E + 4 * @as(u32, @intCast(c)));
         for (0..16) |row| {
             for (0..3) |g| {
-                r.cp(a4 + LINE * @as(u32, @intCast(row)) + 8 * @as(u32, @intCast(g)), src, 6);
+                r.cp6(a4 + LINE * @as(u32, @intCast(row)) + 8 * @as(u32, @intCast(g)), src);
                 src += 6;
             }
         }
@@ -119,6 +136,6 @@ fn scroller(r: *const st.Ram) void {
 fn clear(r: *const st.Ram) void {
     const a4 = r.l(0x30C9C);
     for (0..4) |line| {
-        for (0..26) |g| @memset(r.bytes(a4 + LINE * @as(u32, @intCast(line)) + 8 * @as(u32, @intCast(g)), 6), 0);
+        for (0..26) |g| r.zero6(a4 + LINE * @as(u32, @intCast(line)) + 8 * @as(u32, @intCast(g)));
     }
 }

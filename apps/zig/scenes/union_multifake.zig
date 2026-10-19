@@ -32,6 +32,7 @@ const packed_assets = @import("packed_assets");
 
 const A = @import("union_multifake/assets.zig");
 const layers = @import("union_multifake/layers.zig");
+const gpu = @import("union_common/gpu.zig");
 const Scroller = @import("union_multifake/scroller.zig").Scroller;
 
 // The remake plays data/music/Thundercats.ym ("TCB Scroller (UNION DEMO)", Mad
@@ -97,10 +98,10 @@ pub const Demo = struct {
         const dst = blit.Dst.plane(fb);
         // maincanvas.fill('#000000'): every other row is overwritten by opaque mountains
         const M = layers.Mountains;
-        @memset(dst.buf[M.GAP_TOP * dst.stride .. M.GAP_BOTTOM * dst.stride], A.BLACK);
-        self.mountains.draw(dst, self.images.mountains);
+        gpu.fill(fb, 0, M.GAP_TOP, @intCast(dst.stride), M.GAP_BOTTOM - M.GAP_TOP, A.BLACK); // CHISEL, not a memset
+        self.mountains.draw(fb, self.images.mountains);
         self.the.draw(dst, self.images.the);
-        self.carebears.draw(dst, self.images.logo);
+        self.carebears.draw(fb, self.images.logo);
         self.scroller.draw(dst, self.images.font, self.images.rasters);
     }
 
@@ -126,6 +127,7 @@ pub const Demo = struct {
 
     fn start(self: *Demo, zigos: *ZigOS) void {
         const fb = &zigos.lfbs[0];
+        gpu.init();
         fb.is_enabled = true;
         fb.setPalette(A.palette);
         fb.setPaletteEntry(0, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });

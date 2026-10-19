@@ -7,7 +7,7 @@ import { cartRam, romRam } from "../../docs/wasm_hiwater.js";
 import { makeDrive } from "../scene_hash_disk.mjs";
 import { instrument } from "./instrument.mjs";
 import { blitCycles } from "./cost_model.mjs";
-import { BLIT_SITE, STORE_TOTAL, PAL_TOTAL } from "./hooks.mjs";
+import { BLIT_SITE, STORE_TOTAL, PAL_TOTAL, MIS_LOADS, MIS_STORES } from "./hooks.mjs";
 import { SNOOP_QUEUE } from "./cost_model.mjs";
 
 const PAGES = 112;          // SHARED_PAGES in machine/sdk/memmap.zig
@@ -56,7 +56,7 @@ function hbl(hw, mods, call) {
 // Returns { memory, machine, demo, hw, mods: [{tag, plan, mem}], vlo }.
 export async function bootInstrumented(cartBytes, { machineDir = "docs", disk = null, pal = true, names = {} } = {}) {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
-    const hw = { blits: 0, blitUnits: 0, blitCycles: 0, hbls: 0, hblStores: 0, snoopOverflow: 0, diskBlocks: 0, cmd: [0, 0, 0, 0, 0], blitLog: [] };
+    const hw = { blits: 0, blitUnits: 0, blitCycles: 0, hbls: 0, hblStores: 0, snoopOverflow: 0, diskBlocks: 0, misaligned: 0, cmd: [0, 0, 0, 0, 0], blitLog: [] };
     const mods = [{ tag: "cart" }, { tag: "rom" }];
     let demo;
     const machine = (await WebAssembly.instantiate(await readFile(`${machineDir}/machine-video.wasm`), {
@@ -91,13 +91,18 @@ export async function bootInstrumented(cartBytes, { machineDir = "docs", disk = 
     machine.hwInit();
     demo.boot();
     demo.skipBoot();
-    return { memory, machine, demo, hw, mods, vlo };
+    // misaligned wide loads and stores so far, both modules (each traps on the board)
+    const misaligned = () => mods.reduce((a, x) => {
+        const w = x.mem ? new Uint32Array(x.mem.buffer) : null;
+        return a + (w ? w[MIS_LOADS] + w[MIS_STORES] : 0);
+    }, 0);
+    return { memory, machine, demo, hw, mods, vlo, misaligned };
 }
 
 // One host frame, exactly scene_hash.mjs's loop body.
 export function hostFrame({ machine, demo }) {
     machine.hwClear();
-    demo.frame(16.6);
+    demo.frame(Number(process.env.PERF_DT ?? 16.6)); // PERF_DT: a slower host frame (a cart that runs ST VBLs per elapsed ms does more work per frame)
     const planes = machine.hwPlanesNumber();
     for (let p = 0; p < planes; p++) if (demo.isPlaneEnabled(p)) machine.hwRenderPlane(p);
 }

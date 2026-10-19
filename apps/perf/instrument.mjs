@@ -4,7 +4,7 @@
 // of every segment, so a segment's count x its contents = exact dynamic op counts.
 import { parseModule, encU32, encName, section, funcName } from "./wasm_bin.mjs";
 import { decodeFunction } from "./wasm_body.mjs";
-import { OP } from "./wasm_ops.mjs";
+import { OP, isLoad, isStore, LOAD_WIDTH, STORE_WIDTH } from "./wasm_ops.mjs";
 import { opCost, isLibm, CLASSES, CLS, CONST_DIV } from "./cost_model.mjs";
 import { producers, source } from "./flow.mjs";
 import { inc, FIRST_COUNTER } from "./hooks.mjs";
@@ -28,6 +28,7 @@ function segStatics(m, d, args, seg, plan, s) {
         fetch += Math.min(c, 3); // inline rv32 instructions: a soft-float op is a call into shared libgcc
         if (cls >= 0) { plan.cls[s * NCLS + cls]++; plan.clsCyc[s * NCLS + cls] += c; }
         if (op === OP.call && isLibm(funcName(m, imm))) plan.cls[s * NCLS + CLS.libm_call]++;
+        if ((isLoad(op) || isStore(op)) && (1 << imm.align) < (LOAD_WIDTH[op] ?? STORE_WIDTH[op])) plan.cls[s * NCLS + CLS.unaligned]++;
     }
     plan.segInstr[s] = instr; plan.segStores[s] = stores; plan.segFetch[s] = fetch;
 }
@@ -116,7 +117,7 @@ export function instrument(buf, { pal = null, vlo = null, names = null, probes =
     const m = parseModule(buf);
     if (names && m.names.size === 0) m.names = names;
     const plan = { names: m.names, regions: [], segFunc: [], segRegion: [], segWord: [], segAt: [],
-        segInstr: [], segStores: [], segFetch: [], cls: [], fills: [], copies: [], watch: [], blits: [], probes: [], calls: [] };
+        segInstr: [], segStores: [], segFetch: [], cls: [], fills: [], copies: [], watch: [], mis: [], blits: [], probes: [], calls: [] };
     const ctx = { buf, m, plan, pal, vlo, probes, blit: blitImports(m), next: FIRST_COUNTER };
     const nSegGuess = m.bodies.length * 64;
     plan.cls = new Uint32Array(nSegGuess * NCLS);

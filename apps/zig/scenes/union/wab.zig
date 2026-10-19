@@ -131,7 +131,7 @@ pub const Part = struct {
     pub fn render(self: *Part, zigos: *ZigOS, dt: f32) void {
         _ = dt;
         const p0: *LogicalFB = &zigos.lfbs[0];
-        p0.clearFrameBuffer(0);
+        self.blitter.clear(p0, 0); // a CHISEL fill (the plane is 400 x 280)
         switch (self.phase) {
             .entry => for (0..NT) |i| self.drawTile(p0, i),
             .fade => self.blitter.blitImage(p0, LOGO_X, LOGO_Y, wab_raw, LOGO, 0, 0, LOGO, LOGO, 0),
@@ -139,7 +139,7 @@ pub const Part = struct {
     }
 
     /// animatedTile.draw on this.frame's render, after its advance().
-    fn drawTile(self: *const Part, fb: *LogicalFB, i: usize) void {
+    fn drawTile(self: *Part, fb: *LogicalFB, i: usize) void {
         const t = self.tiles[i];
         if (wab_tiles[i] == 0 or self.frame < t.startvbl) return; // draws once vbl > startvbl
         const speed: f64 = @floatFromInt(ENDVBL - t.startvbl);
@@ -155,12 +155,29 @@ pub const Part = struct {
         const final_y = ty * TILE + (CANVAS_H - IMAGE) / 2;
         // At rest the tile sits at its place, unturned (720 degrees): the identity, exactly.
         const flying = moves < speed;
+        if (!flying) return drawRestPart(&self.blitter, fb, i % GRID, i / GRID);
         const x = if (flying) t.start_x + (final_x - t.start_x) / speed * moves else final_x;
         const y = if (flying) t.start_y + (final_y - t.start_y) / speed * moves else final_y;
         const rad = if (flying) TURNS_DEG / speed * moves * std.math.pi / 180.0 else 0;
         blitTurned(fb, tx, ty, x + HALF_TILE, y + HALF_TILE, @cos(rad), @sin(rad), level);
     }
 };
+
+/// A tile that has landed (unturned, full alpha) is the logo's own pixels over the plane
+/// span where u and v, which then depend on the column and the row alone, lie in [0, TILE].
+/// With the tile at its place u = 2 (px - ORIGIN_X) + 1 - final_x, and the texel it shows is
+/// floor((33 tx + u) / 2) = px - LOGO_X (likewise for the rows), so the whole tile is one keyed
+/// CHISEL copy of a rectangle of wab_raw: the same pixels blitTurned's per-pixel loop left.
+fn drawRestPart(blitter: *zg.Blitter, fb: *LogicalFB, tx: usize, ty: usize) void {
+    const fx: i32 = @as(i32, @intCast(tx)) * 33 + 252; // (CANVAS_W - IMAGE) / 2
+    const fy: i32 = @as(i32, @intCast(ty)) * 33 + 138; // (CANVAS_H - IMAGE) / 2
+    const px0 = @max(@as(i32, LOGO_X), 8 + @divFloor(fx, 2)); // ceil((fx - 1) / 2) = floor(fx / 2) for the odd and even fx
+    const px1 = @min(@as(i32, LOGO_X) + LOGO - 1, 8 + @divFloor(fx + 32, 2));
+    const py0 = @max(@as(i32, LOGO_Y), 5 + @divFloor(fy, 2));
+    const py1 = @min(@as(i32, LOGO_Y) + LOGO - 1, 5 + @divFloor(fy + 32, 2));
+    if (px1 < px0 or py1 < py0) return;
+    blitter.blitImage(fb, @intCast(px0), @intCast(py0), wab_raw, LOGO, @intCast(px0 - LOGO_X), @intCast(py0 - LOGO_Y), @intCast(px1 - px0 + 1), @intCast(py1 - py0 + 1), 0);
+}
 
 /// Tile (tx,ty) centred on canvas (cx,cy), turned by (cs,sn), in halved logo texels.
 fn blitTurned(fb: *LogicalFB, tx: f64, ty: f64, cx: f64, cy: f64, cs: f64, sn: f64, level: usize) void {

@@ -49,15 +49,6 @@ pub fn reset() void {
     shadow_ok = false;
 }
 
-fn same(a: []const u8, b: []const u8) bool {
-    var i: usize = 0;
-    while (i + 4 <= a.len) : (i += 4) {
-        if (std.mem.readInt(u32, a[i..][0..4], .little) != std.mem.readInt(u32, b[i..][0..4], .little)) return false;
-    }
-    while (i < a.len) : (i += 1) if (a[i] != b[i]) return false;
-    return true;
-}
-
 /// The frame the shifter shows from `base` into the plane's 400x280 indices.
 /// The plane keeps its pixels between frames (only menuStars() adds to it, the
 /// same pixels each time), so only the lines whose planar bytes changed are redone.
@@ -67,8 +58,8 @@ pub fn present(r: *const st.Ram, base: u32, lines: Lines, px: []u8) void {
     for (lines.first..lines.end) |y| {
         const line = r.bytes(base + 160 + LINE * @as(u32, @intCast(y)), LINE);
         const kept = shadow[y * LINE ..][0..LINE];
-        if (shadow_ok and same(line, kept)) continue;
-        @memcpy(kept, line);
+        if (shadow_ok and st.same(line, kept)) continue;
+        st.copyBytes(kept, line); // library copy: the line is on any even address
         st.lineToChunky(line, FIRST_PX, px[(TOP + y) * PW ..][0..PW]);
     }
     if (!shadow_ok) @memset(px[(TOP + lines.end) * PW .. PH * PW], 0);

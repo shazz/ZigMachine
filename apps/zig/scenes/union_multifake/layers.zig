@@ -5,7 +5,9 @@
 // Canvas coordinates that land between ST pixels are rounded the way the
 // headless harness replays them: halve(c) = floor(round(c) / 2).
 // --------------------------------------------------------------------------
-const blit = @import("zigos").blit;
+const zg = @import("zigos");
+const blit = zg.blit;
+const gpu = @import("../union_common/gpu.zig");
 const stretch = @import("../union_common/stretch.zig");
 const sintab = @import("../union_common/sintab.zig");
 
@@ -49,12 +51,13 @@ pub const Mountains = struct {
 
     /// Tile row i drawn at x = bgpos: ST column X shows mountain column
     /// X - bgpos/2, rounded half up (bgpos/2 moves in quarter ST pixels).
-    pub fn draw(self: *const Mountains, dst: blit.Dst, img: blit.Image) void {
+    /// One CHISEL copy a band (32 a frame; the CPU's row copies were 50 KB of stores).
+    pub fn draw(self: *const Mountains, fb: *zg.LogicalFB, img: blit.Image) void {
         for (self.pos, 0..) |p, i| {
             const shift: usize = @intCast((2 - p) >> 2);
             const gap: usize = if (i < TOP_BANDS) 0 else BOTTOM_GAP;
             const top = i * BAND_H + gap;
-            blit.blit(dst, img, .{ .x = shift, .y = i * BAND_H, .w = dst.w, .h = BAND_H }, 0, @intCast(top), null, .copy);
+            gpu.put(fb, img, .{ .x = shift, .y = i * BAND_H, .w = fb.fb_w, .h = BAND_H }, 0, @intCast(top), null);
         }
     }
 };
@@ -108,13 +111,13 @@ pub const Carebears = struct {
         self.phase = self.drawn + STEP; // logosinx = oldlogosinx + 0.1
     }
 
-    pub fn draw(self: *const Carebears, dst: blit.Dst, img: blit.Image) void {
+    pub fn draw(self: *const Carebears, fb: *zg.LogicalFB, img: blit.Image) void {
         const sin = Sin.init(self.drawn); // two libm calls a frame, not 25
         var i: usize = 0;
         while (i < CANVAS_ROWS) : (i += 2) {
             const row = i / 2;
             const x = @divFloor(sin.round(i, X, AMP), 2); // halve(X + sin * AMP)
-            blit.blit(dst, img, .{ .x = 0, .y = row, .w = img.w, .h = 1 }, x, @intCast(TOP + row), 0, .copy);
+            gpu.put(fb, img, .{ .x = 0, .y = row, .w = img.w, .h = 1 }, x, @intCast(TOP + row), 0);
         }
     }
 };

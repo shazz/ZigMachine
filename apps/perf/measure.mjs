@@ -3,8 +3,8 @@
 import { readFile } from "node:fs/promises";
 import { bootInstrumented, hostFrame } from "./run_cart.mjs";
 import { Profile } from "./profile.mjs";
-import { HBL_CALL, SNOOP_OVERFLOW, DISK_BLOCK, FRESCO_PLANE, FRAME_MC, MHZ, icacheCycles } from "./cost_model.mjs";
-import { hotRegions, classTotals, causeTotals, libmCalls, paletteWrites } from "./report.mjs";
+import { TRAP_CYCLES, HBL_CALL, SNOOP_OVERFLOW, DISK_BLOCK, FRESCO_PLANE, FRAME_MC, MHZ, icacheCycles } from "./cost_model.mjs";
+import { hotRegions, hintRegions, misSites, classTotals, causeTotals, libmCalls, paletteWrites } from "./report.mjs";
 import { Waste } from "./waste.mjs";
 import { wasteReport } from "./waste_report.mjs";
 import { fitDump } from "./fit_dump.mjs";
@@ -16,6 +16,9 @@ const Mc = (c) => Math.round(c / 1e4) / 100;
 function stepFrame(run, profiles, acc, hw0) {
     hostFrame(run);
     const cyc = profiles.map((P) => P.frame(acc));
+    const mis = run.misaligned();
+    run.hw.misaligned = mis;
+    cyc[0] += (mis - hw0.misaligned) * TRAP_CYCLES; // each one traps into trap.c on the board
     const blit = run.hw.blitCycles - hw0.blitCycles;
     const hbl = (run.hw.hbls - hw0.hbls) * HBL_CALL + (run.hw.snoopOverflow - hw0.snoopOverflow) * SNOOP_OVERFLOW;
     let planes = 0;
@@ -66,11 +69,13 @@ function summarize(cartPath, opts, run, profiles, w) {
         fps: Math.min(60, Math.round((10 * MHZ * 1e6) / Math.max(1, avg)) / 10),
         budget: Math.round((100 * avg) / (FRAME_MC * 1e6)),
         split: Object.fromEntries(Object.entries(w.split).map(([k, v]) => [k, Mc(v / F)])),
-        blits: per(run.hw.blits - w.hw.blits), hbls: per(run.hw.hbls - w.hw.hbls), hblStores: per(run.hw.hblStores - w.hw.hblStores), snoopOverflow: per(run.hw.snoopOverflow - w.hw.snoopOverflow),
+        blits: per(run.hw.blits - w.hw.blits), hbls: per(run.hw.hbls - w.hw.hbls), hblStores: per(run.hw.hblStores - w.hw.hblStores), snoopOverflow: per(run.hw.snoopOverflow - w.hw.snoopOverflow), misaligned: per(run.hw.misaligned - w.hw.misaligned),
         blitUnits: run.hw.cmd.map((u, i) => per(u - w.hw.cmd[i])),
         codeKB: Math.round(w.code / F / 1024),
         causes: Object.fromEntries(Object.entries(causes).map(([k, v]) => [k, Math.round((100 * v) / avg)])),
         classes: classTotals(profiles), libm: libmCalls(profiles), palette: paletteWrites(profiles),
         hot: hotRegions(profiles, opts.top),
+        hints: hintRegions(profiles, 5),
+        misSites: misSites(run.mods, 5),
     };
 }
