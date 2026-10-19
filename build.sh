@@ -489,6 +489,7 @@ gate perf_audit node apps/perf_audit_test.mjs --break cache      # ...and a 256-
 gate perf_audit node apps/perf_audit_test.mjs --break call       # ...and a per-iteration call swapped for the inline add fails call_in_loop
 gate perf_audit node apps/perf_audit_test.mjs --break i64fit     # ...and i64 maths that always fits swapped for maths that never does fails i64_fits_i32
 gate perf_audit node apps/perf_audit_test.mjs --break branch     # ...and a frame-constant test swapped for an alternating one fails invariant_branch
+gate perf_audit node apps/perf_audit_test.mjs --break misaligned # ...and i32 loads from an odd address swapped for aligned ones fails misaligned (each traps on ZIGGY)
 gate perf_report sh tools/perf_audit.sh --report --jobs 2   # REPORT, never fails the gate: the shelf ranked by ESTIMATED Mc/frame on ZIGGY with each cart's first hot finding (JSON: zig-out/perf_audit.json)
 run_gates
 echo "shots in $SHOTS"

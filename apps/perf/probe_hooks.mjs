@@ -6,11 +6,12 @@
 //           [same operands, same 2nd operand, lastA lo/hi, lastB lo/hi]
 //   fit:    an i64 result that fits in an i32 -> [fits]
 //   branch: an in-loop condition that flips -> [changes, last]
+//   align:  a load/store the compiler could not prove aligned -> [accesses really misaligned]
 import { I32, LGET, LSET, LTEE, inc, DTAGS } from "./hooks.mjs";
 import { encU32 } from "./wasm_bin.mjs";
 
-export const PROBE_WORDS = { load: 3, value: 6, fit: 1, branch: 2 };
-export const PROBE_COUNTERS = { load: 2, value: 2, fit: 1, branch: 1 }; // the cumulative ones (first words)
+export const PROBE_WORDS = { load: 3, value: 6, fit: 1, branch: 2, align: 1 };
+export const PROBE_COUNTERS = { load: 2, value: 2, fit: 1, branch: 1, align: 1 }; // the cumulative ones (first words)
 const m1 = (op, align, byteOff) => [op, 0x40 | align, 0x01, ...encU32(byteOff)];
 const ld32 = (w) => [...I32(0), ...m1(0x28, 2, 4 * w)];
 const st32 = (w, v) => [...I32(0), ...v, ...m1(0x36, 2, 4 * w)];
@@ -69,3 +70,13 @@ export const branchProbe = (word, t, original) => [
     ...st32(word + 1, [...LGET(t.p1), 0x45, 0x45]),
     ...LGET(t.p1), ...original,
 ];
+
+// A wasm access of `need` bytes' alignment (min(width, 4): rv32 moves 8 bytes as two words)
+// at an address the compiler could not prove aligned. ZIGGY's ALIGNED translation turns it
+// into one lw/sw, which TRAPS when the address really is misaligned (fpga/cycles/trap.S).
+// load: [addr] on the stack; store: [addr value], the value held in local `store`.
+export function alignProbe(word, offset, need, t, store, original) {
+    const check = inc(word, [...LGET(t.c), ...I32(offset), 0x6a, ...I32(need - 1), 0x71, ...I32(0), 0x47]);
+    if (!store) return [...LTEE(t.c), ...check, ...original];
+    return [...LSET(store), ...LTEE(t.c), ...check, ...LGET(store), ...original];
+}
