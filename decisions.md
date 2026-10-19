@@ -967,3 +967,22 @@ ABI rather than a Zig API, apps in any language sit on it.
 - Native carts are board only: the browser shows the stub's message, `scene_hash.mjs` has nothing to compare, and there is no pixel reference beyond the board itself.
 - The assembly cart hard-codes table indices; `native_check.c` makes a table change a build failure, not a wrong call. A major table bump means rebuilding these carts like every other.
 - A native cart is free to ignore wasm's sandbox (it can poke any address); the system does not protect itself from one any more than from a wasm2c cart.
+
+## 2026-10-18 — ZIGGY's stores are posted on the board, with a fence before every IO store
+
+**Status:** accepted (pending the board measurement)
+**Context:** The bench cart measured every ZIGGY store at 18 cycles on the board: one HP0 write, waited for to its B response, whatever the width or stride; memset is 18 cycles a word. BARD already posts its stores through `soc/zm_hp_posted.py`, which keeps up to 8 writes in flight and never waits for a B response before issuing the next.
+**Decision:**
+- HP0 is built with `posted=8` (`soc/zm_board_mem.py POSTED`, `--posted N` on the z7 build and hp_sim, 0 = blocking). A model port with an 18-cycle B response takes a store stream at 3 cycles a store with 7 writes in flight, against 23 blocking (`tests/test_hp_posted_rate.py`).
+- Every consumer of "an acknowledged store is in DDR" was checked:
+  - The bridge's own reads, the video's `drained` and the CHISEL start already waited for `idle`.
+  - A master that reads DDR when the cart rings an IO register did not: BARD's mailbox (song and PCM bytes over HP3), CHORUS's PCM without BARD, and any CSR doorbell.
+  - `soc/zm_io_fence.py` now holds every ZIGGY store to the IO space (byte bit 31) until `idle`. That is release ordering for device writes; loads are not held.
+- DDR-only protocols (the debug mailbox, the cart request block: data first, magic last) keep their order: one AXI ID, AWCACHE 0000, the buffer drains in program order.
+**Alternatives considered:**
+- Write-combining consecutive stores into bursts: deferred until the board shows how close posting alone comes to CHISEL's ~4 cycles a word.
+- Fencing IO loads too: no consumer needs it, and every poll loop would pay for the drain.
+**Consequences:**
+- Same CSR map: the firmware and every cart image are unchanged.
+- An IO store after a burst of DDR stores waits for them to drain. That is at most 8 writes, ~2 µs.
+- `ZMCycles.dbus_wait` now counts that wait.
