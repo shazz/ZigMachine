@@ -79,7 +79,7 @@ def make_soc(
     blit_break: str = "",
     audio_break: str = "",
     core: Path = BOARD_CORE,
-    posted: int = 0,
+    posted: int = zm_board_mem.POSTED,
     sound: bool = False,
     hp_probe: bool = False,
 ) -> ZigMachineSoC:
@@ -112,7 +112,9 @@ def main() -> None:
     ap.add_argument("--blit-break", choices=["", "drop", "base"], default="", help="a blitter mutant (zm_blit_soc.py)")
     ap.add_argument("--audio-break", choices=["", "drop", "base"], default="", help="an audio mutant (zm_audio_soc.py)")
     ap.add_argument("--core", type=Path, default=BOARD_CORE, help="the CPU netlist (vexgen/gen.sh)")
-    ap.add_argument("--posted", type=int, default=0, help="the CPU bridge's store buffer (soc/zm_hp_posted.py)")
+    ap.add_argument(
+        "--posted", type=int, default=zm_board_mem.POSTED, help="the CPU bridge's store buffer, 0 = blocking stores"
+    )
     ap.add_argument("--hp-probe", action="store_true", help="the read path's probe, as a z7 --hp-probe bitstream")
     ap.add_argument("--sound-cpu", action="store_true", help="the players on the sound CPU (soc/zm_sound_cpu.py)")
     a = ap.parse_args()

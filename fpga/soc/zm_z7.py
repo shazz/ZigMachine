@@ -104,6 +104,7 @@ def make_z7(args: argparse.Namespace) -> tuple[ZigMachineSoC, object]:
         audio,
         sound,
         getattr(args, "hp_probe", False),
+        getattr(args, "posted", zm_board_mem.POSTED),
     )
     soc.crg = crg = Z7CRG(platform, (args.osc, args.osc_hz), sys_hz, comp_hz)
     soc.csr_bridge_register = True
@@ -128,6 +129,7 @@ def _board_soc(
     audio: bool = True,
     sound: bool = False,
     hp_probe: bool = False,
+    posted: int = zm_board_mem.POSTED,
 ) -> ZigMachineSoC:
     """With the glass: the cart CPU's RAM and the video DMA in PS DDR over HP0/HP1, the CPU
     reset into it (soc/zm_board_mem.py), with `blit` the blitter on HP2 (soc/zm_blit_soc.py),
@@ -145,7 +147,7 @@ def _board_soc(
         rom_size=0, main_ram_size=0, cpu_reset_address=CPU_BASE, audio=None if hp3 is None else {"hp": hp3, "sound": sound},
         hp_probe=hp_probe,
     )  # fmt: skip
-    zm_board_mem.add_cpu_memory(soc, hp0)
+    zm_board_mem.add_cpu_memory(soc, hp0, posted)  # ZIGGY's stores posted (soc/zm_io_fence.py), 0 = blocking
     hp2 = hp_interface() if blit else None
     if hp2 is not None:
         add_blitter(soc, platform, hp2)

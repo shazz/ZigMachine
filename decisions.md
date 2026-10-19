@@ -1000,3 +1000,24 @@ ABI rather than a Zig API, apps in any language sit on it.
 - A cart that reads the state now looks on the board as in the browser with sound on. Its frames therefore differ from a no-audio reference once music plays, which is why the sim keeps the mirror off.
 - The cost is a few stores a frame on each CPU while a tune plays: the position word every frame, plus the YM registers that changed (`tests/test_audio_mirror.py` pins "unchanged costs nothing").
 - MOD and sample scopes stay flat on the board.
+
+## 2026-10-18 — ZIGGY's stores are posted on the board, with a fence before every IO store
+
+**Status:** accepted (pending the board measurement)
+**Context:** The bench cart measured every ZIGGY store at 18 cycles on the board: one HP0 write, waited for to its B response, whatever the width or stride; memset is 18 cycles a word. BARD already posts its stores through `soc/zm_hp_posted.py`, which keeps up to 8 writes in flight and never waits for a B response before issuing the next.
+**Decision:**
+- HP0 is built with `posted=8` (`soc/zm_board_mem.py POSTED`, `--posted N` on the z7 build and hp_sim, 0 = blocking). A model port with an 18-cycle B response takes a store stream at 3 cycles a store with 7 writes in flight, against 23 blocking (`tests/test_hp_posted_rate.py`).
+- Every consumer of "an acknowledged store is in DDR" was checked:
+  - The bridge's own reads, the video's `drained` and the CHISEL start already waited for `idle`.
+  - A master that reads DDR when the cart rings an IO register did not: BARD's mailbox (song and PCM bytes over HP3), CHORUS's PCM without BARD, and any CSR doorbell.
+  - `soc/zm_io_fence.py` now holds every ZIGGY store to the IO space (byte bit 31) until `idle`. That is release ordering for device writes; loads are not held.
+- DDR-only protocols (the debug mailbox, the cart request block: data first, magic last) keep their order: one AXI ID, AWCACHE 0000, the buffer drains in program order.
+**Alternatives considered:**
+- Write-combining consecutive stores into bursts: deferred until the board shows how close posting alone comes to CHISEL's ~4 cycles a word.
+- Fencing IO loads too: no consumer needs it, and every poll loop would pay for the drain.
+**Consequences:**
+- Same CSR map: the firmware and every cart image are unchanged.
+- ZIGGY's I- and D-bus share the one HP0 bridge, so every read (a D$ or I$ miss, an uncached load) still waits for the buffer to drain. Only store runs between misses go faster.
+- Vivado: 15,045 LUT (+157), sys WNS +0.011 ns at 100 MHz.
+- An IO store after a burst of DDR stores waits for them to drain: at most 8 writes, which overlap, so about one write response plus the issue slots (tens of cycles).
+- `ZMCycles.dbus_wait` now counts that wait.
