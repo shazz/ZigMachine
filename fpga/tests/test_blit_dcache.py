@@ -112,6 +112,7 @@ def core_tb() -> Path:
     if CORE_TOOLS or not CORE.exists():
         pytest.skip(f"needs {', '.join(CORE_TOOLS) or CORE}")
     obj = BUILD / "obj"
+    obj.mkdir(parents=True, exist_ok=True)
     cmd = ["verilator", "--cc", "--exe", "--build", "-j", "4", "-O2", "-Wno-fatal", "-Wno-lint", "-Wno-style"]
     cmd += ["--top-module", "VexRiscv", f"-I{FPGA / 'rtl/seal'}", "--Mdir", str(obj), "-o", "dcache_tb"]
     cmd += [str(CORE), str(FPGA / "rtl/seal/zm_seal.v"), str(FPGA / "tests/tb/dcache_tb.cpp")]
