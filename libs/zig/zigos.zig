@@ -799,7 +799,7 @@ pub const ZigOS = struct {
 
         // default registers
         writeU8(hw.REG_RESOLUTION, hw.RES_PLANES);
-        self.background_color = Color{ .r = 20, .g = 20, .b = 20, .a = 255 };
+        self.background_color = Color{ .r = 0, .g = 0, .b = 0, .a = 255 }; // black borders unless the scene sets one (Matt, 2026-10-18)
         writeU32(hw.REG_BACKGROUND, self.background_color.toRGBA());
 
         // Allocate each plane a normal (320×200) framebuffer from the VRAM pool.
@@ -822,7 +822,7 @@ pub const ZigOS = struct {
         self.removeHBLHandler();
 
         writeU8(hw.REG_RESOLUTION, hw.RES_PLANES);
-        self.background_color = Color{ .r = 20, .g = 20, .b = 20, .a = 255 };
+        self.background_color = Color{ .r = 0, .g = 0, .b = 0, .a = 255 }; // black borders unless the scene sets one (Matt, 2026-10-18)
         writeU32(hw.REG_BACKGROUND, self.background_color.toRGBA());
 
         vram_top = hw.OFF_VRAM;
