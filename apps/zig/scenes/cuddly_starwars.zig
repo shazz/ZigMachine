@@ -197,13 +197,19 @@ inline fn greyIndex(v: u32) u8 {
 var star_x: *[STARS]i16 = undefined;
 var star_y: *[STARS]i16 = undefined;
 var raster_line: [H]Color = undefined;
-var scroll_canvas: *[SCROLL_H * W]u8 = undefined;
-var text_canvas: *[motion.TEXT_ROWS * W]u8 = undefined;
+// The text is laid out ONCE per starwars line (every SW_PITCH_Y frames) on a canvas
+// SW_PITCH_Y rows taller than the view; between those, the 1-row-a-frame scroll is just
+// `text_off`, the view's first row on the canvas (the old code redrew all 30 lines of
+// glyphs every frame to move them up one row).
+const TALL_ROWS: usize = motion.TEXT_ROWS + @as(usize, @intCast(SW_PITCH_Y));
+var text_canvas: *[TALL_ROWS * W]u8 = undefined;
+var text_off: i32 = 0;
+var text_laid: usize = std.math.maxInt(usize); // the sw_line the canvas holds (none yet)
 // Leftmost and rightmost inked column of each text row; an empty row has
 // left > right. Most starwars lines are padded with spaces, so the perspective
 // only samples the span between them.
-var text_row_left: [motion.TEXT_ROWS]u16 = undefined;
-var text_row_right: [motion.TEXT_ROWS]u16 = undefined;
+var text_row_left: [TALL_ROWS]u16 = undefined;
+var text_row_right: [TALL_ROWS]u16 = undefined;
 var band_alpha: *[motion.BAND_ROWS * W]u32 = undefined; // Q16 coverage
 // The columns of each band row the perspective visited this frame (lo > hi: none).
 // Everything outside is still 0, so only these spans are cleared and composited.
@@ -213,8 +219,7 @@ var band_hi: [motion.BAND_ROWS]u16 = undefined;
 fn allocBuffers() void {
     star_x = zg.mem.mustAlloc(i16, STARS)[0..STARS];
     star_y = zg.mem.mustAlloc(i16, STARS)[0..STARS];
-    scroll_canvas = zg.mem.mustAlloc(u8, SCROLL_H * W)[0 .. SCROLL_H * W];
-    text_canvas = zg.mem.mustAlloc(u8, motion.TEXT_ROWS * W)[0 .. motion.TEXT_ROWS * W];
+    text_canvas = zg.mem.mustAlloc(u8, TALL_ROWS * W)[0 .. TALL_ROWS * W];
     band_alpha = zg.mem.mustAlloc(u32, motion.BAND_ROWS * W)[0 .. motion.BAND_ROWS * W];
 }
 
@@ -277,6 +282,7 @@ pub const Demo = struct {
         @memset(text_canvas, 0);
         @memset(&text_row_left, W);
         @memset(&text_row_right, 0);
+        text_laid = std.math.maxInt(usize);
         @memset(band_alpha, 0);
         @memset(&band_lo, W);
         @memset(&band_hi, 0);
@@ -346,12 +352,12 @@ pub const Demo = struct {
         _ = dt;
         const fb = &zigos.lfbs[PLANE];
         const screen = fb.fb[0 .. W * H];
-        @memset(screen, BLACK);
+        self.blitter.fill(fb, 0, 0, W, H, BLACK); // CHISEL: a CPU memset is ~60 cycles a word
         self.drawLogoFlash(fb);
         self.drawStars(screen);
         self.drawStarwars(screen);
         self.buildRasterLines();
-        self.drawScroller(screen);
+        self.drawScroller(fb);
         self.drawSprites(screen);
     }
 
@@ -390,11 +396,7 @@ pub const Demo = struct {
         self.layoutText();
 
         // the perspective into a 100-row alpha band ('source-over' accumulation)
-        for (0..motion.BAND_ROWS) |r| {
-            if (band_lo[r] <= band_hi[r]) @memset(band_alpha[r * W + band_lo[r] ..][0 .. @as(usize, band_hi[r]) + 1 - band_lo[r]], 0);
-            band_lo[r] = W;
-            band_hi[r] = 0;
-        }
+        // (band_alpha is all 0 here: the composite below zeroes what it reads)
         for (motion.perspective) |p| {
             const upper_row = inkedRow(p.src_row);
             const lower_row = inkedRow(p.src_row + 1);
@@ -403,21 +405,28 @@ pub const Demo = struct {
             const band = band_alpha[@as(usize, p.band_row) * W ..][0..W];
             var x = firstInkedColumn(p, ink.left);
             const x_start = x;
-            var fx: i64 = p.fx_base + p.fx_step * @as(i64, @intCast(x)); // Q24 source x
+            // The Q24 source x is walked as integer xi + 24-bit fraction fr (carry on overflow):
+            // the loop is 32-bit only (a wasm i64 op is a libcall on ZIGGY).
+            const fx0: i64 = p.fx_base + p.fx_step * @as(i64, @intCast(x));
+            var xi: i32 = @intCast(fx0 >> 24);
+            var fr: u32 = @intCast(fx0 & 0xffffff);
+            const step_i: i32 = p.step_i;
+            const step_f: u32 = p.step_f;
             const one = fixed.ONE;
-            while (x <= p.x_last) : ({
-                x += 1;
-                fx += p.fx_step;
-            }) {
-                const xi: i32 = @intCast(fx >> 24);
+            const sf_inv = one - p.sf;
+            while (x <= p.x_last) : (x += 1) {
                 // sourceX never decreases with x: every column from here samples zeros
                 if (xi > ink.right) break;
-                const tx: u32 = @intCast((fx >> 8) & 0xffff);
+                const tx: u32 = fr >> 8;
                 const upper = sampleRow(upper_row, xi, tx);
                 const lower = sampleRow(lower_row, xi, tx);
-                const mix = (@as(u64, upper) * (one - p.sf) + @as(u64, lower) * p.sf) >> 16;
-                const a: u32 = @intCast((mix * p.cov) >> 16);
-                if (a > 0) band[x] = a + @as(u32, @intCast((@as(u64, band[x]) * (one - a)) >> 16));
+                fr += step_f;
+                xi += step_i + @as(i32, @intCast(fr >> 24));
+                fr &= 0xffffff;
+                if ((upper | lower) == 0) continue; // no ink under this column: alpha 0
+                const mix = mulShr16(upper, sf_inv, lower, p.sf);
+                const a: u32 = if (mix == one and p.cov == one) one else (mix * p.cov) >> 16;
+                if (a > 0) band[x] = a + ((band[x] * (one - a)) >> 16);
             }
             if (x > x_start) { // columns x_start .. x - 1 were visited
                 band_lo[p.band_row] = @min(band_lo[p.band_row], @as(u16, @intCast(x_start)));
@@ -432,15 +441,23 @@ pub const Demo = struct {
             const hi: usize = @as(usize, band_hi[r]) + 1;
             const band = band_alpha[r * W + lo ..][0 .. hi - lo];
             const dst = screen[(SW_BAND_Y + r) * W + lo ..][0 .. hi - lo];
-            for (band, dst) |a, *d| {
-                if (a > 0) d.* = greyIndex(255 * a + @as(u32, grey_lut[d.*]) * (fixed.ONE - a));
+            for (band, dst) |*ap, *d| {
+                const a = ap.*;
+                if (a == 0) continue;
+                d.* = greyIndex(255 * a + @as(u32, grey_lut[d.*]) * (fixed.ONE - a));
+                ap.* = 0;
             }
+            band_lo[r] = W;
+            band_hi[r] = 0;
         }
     }
 
     /// print() of 30 lines of the starwars text onto the (flat) text canvas.
     fn layoutText(self: *Demo) void {
-        for (0..motion.TEXT_ROWS) |r| { // only the spans the last frame inked
+        text_off = -self.sw_offset;
+        if (text_laid == self.sw_line) return;
+        text_laid = self.sw_line;
+        for (0..TALL_ROWS) |r| { // only the spans the last layout inked
             if (text_row_left[r] <= text_row_right[r]) {
                 @memset(text_canvas[r * W + text_row_left[r] ..][0 .. text_row_right[r] - text_row_left[r] + 1], 0);
             }
@@ -448,8 +465,8 @@ pub const Demo = struct {
             text_row_right[r] = 0;
         }
         for (0..SW_LINES) |j| {
-            const top = @as(i32, @intCast(j)) * SW_PITCH_Y + self.sw_offset;
-            if (top >= motion.TEXT_ROWS) break;
+            const top = @as(i32, @intCast(j)) * SW_PITCH_Y;
+            if (top >= @as(i32, @intCast(TALL_ROWS))) break;
             for (tables.starwars_lines[j + self.sw_line], 0..) |c, i| {
                 blitTextGlyph(c - FIRST_CHAR, SW_X + i * SW_PITCH_X, top);
             }
@@ -478,23 +495,28 @@ pub const Demo = struct {
         }
     }
 
-    fn drawScroller(self: *Demo, screen: []u8) void {
-        @memset(scroll_canvas, 0);
+    /// The glyph ring through the wave: each letter is cut at the 16-px column
+    /// boundaries and keyed-blitted (CHISEL) straight onto the plane at that
+    /// column's height. Letters are GLYPH_W apart, so none overlaps another and the
+    /// result equals drawing them all on a canvas and copying the columns across.
+    fn drawScroller(self: *Demo, fb: *LogicalFB) void {
+        const CW: i32 = COLUMN_W;
         for (self.letter_x, self.letter_char) |x, c| {
             if (x >= W) continue; // letters waiting at the back of the ring
-            blitScrollGlyph(c - FIRST_CHAR, x);
-        }
-        for (0..COLUMNS) |col| {
-            const top = @as(i32, motion.dist[self.dist_index + col]) + COLUMN_Y;
-            const x0 = col * COLUMN_W;
-            for (0..SCROLL_H) |r| {
-                const y = top + @as(i32, @intCast(r));
-                if (y < 0 or y >= H) continue;
-                const src = scroll_canvas[r * W + x0 ..][0..COLUMN_W];
-                const dst = screen[@as(usize, @intCast(y)) * W + x0 ..][0..COLUMN_W];
-                for (src, dst) |s, *d| {
-                    if (s != 0) d.* = s;
-                }
+            const nb = c - FIRST_CHAR;
+            const tx = (nb % FONT_COLS) * GLYPH_W;
+            const ty = (nb / FONT_COLS) * GLYPH_H;
+            const x0: i32 = @max(0, x);
+            const x1: i32 = @min(@as(i32, W), x + @as(i32, GLYPH_W));
+            var col: i32 = @divFloor(x0, CW);
+            while (col * CW < x1) : (col += 1) {
+                const xs = @max(x0, col * CW);
+                const xe = @min(x1, (col + 1) * CW);
+                const top = @as(i32, motion.dist[self.dist_index + @as(usize, @intCast(col))]) + COLUMN_Y;
+                const r0 = @max(0, -top);
+                const r1 = @min(@as(i32, SCROLL_H), @as(i32, H) - top);
+                if (r0 >= r1) continue;
+                self.blitter.blitImage(fb, @intCast(xs), @intCast(top + r0), font_b, FONT_W, @intCast(@as(i32, @intCast(tx)) + xs - x), @intCast(@as(i32, @intCast(ty)) + r0), @intCast(xe - xs), @intCast(r1 - r0), 0);
             }
         }
     }
@@ -558,13 +580,15 @@ fn plotStar(screen: []u8, x: i64, y: i64, grey: u32) void {
 }
 
 fn rowInked(row: i32) bool {
-    return row >= 0 and row < motion.TEXT_ROWS and text_row_left[@intCast(row)] <= text_row_right[@intCast(row)];
+    if (row < 0 or row >= motion.TEXT_ROWS) return false;
+    const t: usize = @intCast(row + text_off);
+    return text_row_left[t] <= text_row_right[t];
 }
 
 /// A text-canvas row, or null when it is off the canvas or holds no ink.
 fn inkedRow(row: i32) ?*const [W]u8 {
     if (!rowInked(row)) return null;
-    return text_canvas[@as(usize, @intCast(row)) * W ..][0..W];
+    return text_canvas[@as(usize, @intCast(row + text_off)) * W ..][0..W];
 }
 
 /// The inked columns of the bilinear pair `row`, `row + 1`, inclusive.
@@ -574,8 +598,8 @@ fn inkSpan(row: i32) struct { left: i32, right: i32 } {
     var right: i32 = -1;
     for ([_]i32{ row, row + 1 }) |r| {
         if (!rowInked(r)) continue;
-        left = @min(left, text_row_left[@intCast(r)]);
-        right = @max(right, text_row_right[@intCast(r)]);
+        left = @min(left, text_row_left[@intCast(r + text_off)]);
+        right = @max(right, text_row_right[@intCast(r + text_off)]);
     }
     return .{ .left = left, .right = right };
 }
@@ -594,9 +618,18 @@ fn firstInkedColumn(p: motion.PerspectiveRow, ink_left: i32) usize {
     return if (xi_before + 1 < ink_left) start else first;
 }
 
+/// (a * wa + b * wb) >> 16 for Q16 a, b <= 65536 and weights wa + wb = 65536, in u32:
+/// the sum is a weighted mean times 65536, so it reaches 2^32 only for a = b = 65536
+/// (wrapped to 0 here, hence the fix-up). Bit-identical to the u64 form.
+fn mulShr16(a: u32, wa: u32, b: u32, wb: u32) u32 {
+    const sum = a *% wa +% b *% wb;
+    if (sum == 0 and a == fixed.ONE) return fixed.ONE;
+    return sum >> 16;
+}
+
 /// One row of the text canvas (ink is 0 or 1), linearly filtered between columns
 /// xi and xi+1 by tx (Q16); the result is Q16.
-fn sampleRow(row: ?*const [W]u8, xi: i32, tx: u32) u32 {
+inline fn sampleRow(row: ?*const [W]u8, xi: i32, tx: u32) u32 {
     const line = row orelse return 0;
     const left: u32 = if (xi >= 0 and xi < W) line[@intCast(xi)] else 0;
     const right: u32 = if (xi + 1 >= 0 and xi + 1 < W) line[@intCast(xi + 1)] else 0;
@@ -608,7 +641,7 @@ fn blitTextGlyph(nb: usize, x: usize, top: i32) void {
     const ty = (nb / SW_COLS) * SW_GLYPH_H;
     for (0..SW_GLYPH_H) |r| {
         const y = top + @as(i32, @intCast(r));
-        if (y < 0 or y >= motion.TEXT_ROWS) continue;
+        if (y < 0 or y >= TALL_ROWS) continue;
         const row: usize = @intCast(y);
         const src = swfont_b[(ty + r) * SW_FONT_W + tx ..][0..SW_GLYPH_W];
         const dst = text_canvas[row * W + x ..][0..SW_GLYPH_W];
@@ -618,20 +651,6 @@ fn blitTextGlyph(nb: usize, x: usize, top: i32) void {
             const col: u16 = @intCast(x + c);
             text_row_left[row] = @min(text_row_left[row], col);
             text_row_right[row] = @max(text_row_right[row], col);
-        }
-    }
-}
-
-fn blitScrollGlyph(nb: usize, x: i32) void {
-    const tx = (nb % FONT_COLS) * GLYPH_W;
-    const ty = (nb / FONT_COLS) * GLYPH_H;
-    const c0: usize = @intCast(@max(0, -x));
-    const c1: usize = @intCast(@min(@as(i32, GLYPH_W), @as(i32, W) - x));
-    const canvas = scroll_canvas;
-    for (0..SCROLL_H) |r| {
-        const src = font_b[(ty + r) * FONT_W + tx ..][0..GLYPH_W];
-        for (c0..c1) |c| {
-            if (src[c] != 0) canvas[r * W + @as(usize, @intCast(x + @as(i32, @intCast(c))))] = src[c];
         }
     }
 }

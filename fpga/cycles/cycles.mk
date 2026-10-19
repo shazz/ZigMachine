@@ -75,7 +75,9 @@ $(CYC)/src/%/cart.c: $(HOST)/%/cart.c cycles/zm_variant.h
 
 # The firmware around the modules: board, owners, traps, float counters, the
 # STOCK wasm2c runtime (through cycles/shim) and the native host's sha256.
-FW_FILES := $(addprefix cycles/,board.c prof.c trap.c trap.S fcount.c) host/sha256.c \
+# zm_string.c: word-storing memset/memcpy/memmove ahead of picolibc's byte loops (every
+# store is a blocking DDR write on ZIGGY; the file says what it saved).
+FW_FILES := $(addprefix cycles/,board.c prof.c trap.c trap.S fcount.c zm_string.c) host/sha256.c \
 	$(addprefix $(W2C_RT)/,wasm-rt-impl.c wasm-rt-mem-impl.c wasm-rt-exceptions-impl.c)
 FW_DEPS  := $(FW_FILES) host/disk.h $(wildcard cycles/*.h cycles/shim/*.h cycles/shim/sys/*.h)
 

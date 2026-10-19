@@ -1,7 +1,7 @@
 // Turn per-frame counter deltas into op counts and estimated cycles (cost_model.mjs).
 // One Profile per instrumented module; frame() is called after every host frame and
 // returns that frame's cycles, accumulate=true adds the frame to the window sums.
-import { CLASSES, regionCycles, fillCycles, copyCycles, DMISS } from "./cost_model.mjs";
+import { CLASSES, regionCycles, fillCycles, copyCycles, DMISS, MISALIGNED } from "./cost_model.mjs";
 import { PROBE_COUNTERS } from "./probe_hooks.mjs";
 import { LOG_COUNT, LOG_BASE, BUCKETS, FIRST_COUNTER, KIND_COPY, VRAM_BYTES, BUCKET_SHIFT } from "./hooks.mjs";
 import { WATCH_WORDS } from "./watch_hook.mjs";
@@ -59,6 +59,7 @@ export class Profile {
         let misses = 0;
         p.probes.forEach((q, i) => {
             if (q.kind === "load" && d[q.word]) { this.rExtra[p.segRegion[q.seg]] += d[q.word] * DMISS; misses += d[q.word]; }
+            if (q.kind === "align" && d[q.word]) this.rExtra[p.segRegion[q.seg]] += d[q.word] * MISALIGNED;
             if (accumulate) for (let k = 0; k < PROBE_COUNTERS[q.kind]; k++) S.probe[2 * i + k] += d[q.word + k];
         });
         this.misses = misses;

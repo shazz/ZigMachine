@@ -45,6 +45,13 @@ pub var st_mode: bool = false;
 /// Most entries one line needed, and pixels that found none (must stay 0).
 pub var peak: u8 = 0;
 pub var overflow: u32 = 0;
+/// What last drew the framebuffer: 0 the menu's present(), 2 st_show's plane. st_show
+/// copies only its changed rows while it still owns the framebuffer.
+pub var fb_owner: u8 = 0;
+// The colours this plane's registers hold on the line being drawn (what the HBL
+// last wrote): an HBL writes only the entries that change, as a raster coder does.
+// 0 is no colour (alpha 0), so every entry is written once per frame.
+var hw: [256]u32 = undefined;
 
 pub fn init(zigos: *ZigOS) void {
     ram.init();
@@ -60,6 +67,7 @@ pub fn init(zigos: *ZigOS) void {
     st_mode = false;
     peak = 0;
     overflow = 0;
+    fb_owner = 0;
     fb.setFrameBufferHBLHandler(zg.OVERSCAN_MAGIC_X, planeHbl);
     zigos.setHBLHandler(borderHbl);
 }
@@ -101,6 +109,7 @@ pub fn present(fb: *LogicalFB) void {
 /// on that row's gids alone, so rows left alone keep exactly what an earlier
 /// present() made of them.
 pub fn presentRows(fb: *LogicalFB, y0: usize, y1: usize) void {
+    fb_owner = 0;
     const px = ram.buf.px;
     const bank = ram.buf.bank;
     for (y0..y1) |y| {
@@ -144,11 +153,27 @@ fn planeHbl(fb: *LogicalFB, _: *ZigOS, line: u16, _: u16) void {
     if (flick) fb.flickerBorder();
     if (line >= PH) return;
     if (st_mode) { // a real part: its 16 colour registers, as they stand on this line
-        for (ram.buf.pal[line], 0..) |c, i| fb.palette[i] = c;
+        // the registers still hold the line above's colours: write what differs from them
+        const now = &ram.buf.pal[line];
+        if (line == 0) {
+            for (now, 0..) |c, i| fb.palette[i] = c;
+        } else {
+            const above = &ram.buf.pal[line - 1];
+            for (now, above, 0..) |c, a, i| if (c != a) {
+                fb.palette[i] = c;
+            };
+        }
         return;
     }
-    fb.palette[0] = c0_now[line];
-    for (ram.buf.bank[line][0..used[line]], 1..) |g, i| fb.palette[i] = gen.colours[g];
+    if (line == 0) @memset(&hw, 0);
+    setEntry(fb, 0, c0_now[line]);
+    for (ram.buf.bank[line][0..used[line]], 1..) |g, i| setEntry(fb, i, gen.colours[g]);
+}
+
+inline fn setEntry(fb: *LogicalFB, i: usize, c: u32) void {
+    if (hw[i] == c) return;
+    hw[i] = c;
+    fb.palette[i] = c;
 }
 
 /// Global HBL, physical line: a closed border shows colour 0.

@@ -52,6 +52,7 @@ const A = @import("gen4_3615/assets.zig");
 const rasters = @import("gen4_3615/rasters.zig");
 const Fate = @import("gen4_3615/fate.zig").Fate;
 const scroller_mod = @import("gen4_3615/scroller.zig");
+const draw = @import("gen4_3615/draw.zig");
 const Scroller = scroller_mod.Scroller;
 
 // The remake's own SNDH (ICE-packed; prototypes/sndh_lf/The_Fate/3615_Gen4_Demo.sndh
@@ -73,8 +74,8 @@ const ULM_BOTTOM = 130; // logo row 120; row 0 is never drawn, 122 is outside th
 const MOCHE_SPEED: f64 = 0.04;
 const MOCHE_X = 70;
 const MOCHE_Y = 233;
-const MOCHE_W = 236;
-const MOCHE_LINES = 32;
+const MOCHE_W = draw.MOCHE_W;
+const MOCHE_LINES = draw.MOCHE_LINES;
 // vueMeters: bars 192 wide at vuPos = [0, 448, 224] from x 58; levels[0] is voice 3
 const VU_X = [3]i32{ 29, 29 + 224, 29 + 112 };
 const VU_W = 96;
@@ -91,17 +92,25 @@ const placement = [_]Placed{
 };
 
 /// A canvas rectangle the frame redraws; everything outside the DYNAMIC ones is
-/// static (the black and the potiches), drawn once in init.
+/// static (the black and the potiches), drawn once in init. The scroller's box
+/// is dynamic too, but it writes every one of its pixels and no potiche
+/// reaches it (scroller.zig); the motif writes all of its rectangle as well.
 const Rect = struct { x: i32, y: i32, w: usize, h: usize };
 const BOX = Rect{ .x = scroller_mod.BOX_X, .y = scroller_mod.BOX_Y, .w = scroller_mod.BOX_W, .h = scroller_mod.BOX_H };
 const MOCHE_RECT = Rect{ .x = MOCHE_X, .y = MOCHE_Y, .w = MOCHE_W, .h = MOCHE_LINES };
-const DYNAMIC_FIXED = [_]Rect{
-    BOX,
-    MOCHE_RECT,
+const VU_RECTS = [3]Rect{
     .{ .x = VU_X[0], .y = rasters.VU_TOP, .w = VU_W, .h = rasters.VU_ROWS },
     .{ .x = VU_X[1], .y = rasters.VU_TOP, .w = VU_W, .h = rasters.VU_ROWS },
     .{ .x = VU_X[2], .y = rasters.VU_TOP, .w = VU_W, .h = rasters.VU_ROWS },
 };
+comptime {
+    for (placement) |p| std.debug.assert(!overlaps(BOX, .{ .x = p.x, .y = p.y, .w = p.img.w, .h = p.img.h }));
+}
+
+fn overlaps(a: Rect, b: Rect) bool {
+    return a.x < b.x + @as(i32, @intCast(b.w)) and b.x < a.x + @as(i32, @intCast(a.w)) and
+        a.y < b.y + @as(i32, @intCast(b.h)) and b.y < a.y + @as(i32, @intCast(a.h));
+}
 
 /// The columns the ULM logo's rows can reach (drawUlm's x over the whole table).
 fn ulmRect() Rect {
@@ -139,6 +148,7 @@ pub const Demo = struct {
     last_vol: [3]f64, // sc68_vumeter.js _lastVol1..3
     levels: [3]i32,
     ulm_rect: Rect,
+    blitter: zg.Blitter,
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
         // A cart's Demo arrives zeroed: every field is set here.
@@ -164,6 +174,8 @@ pub const Demo = struct {
         rasters.build(fb, CANVAS_Y);
         fb.clearFrameBuffer(0);
         self.ulm_rect = ulmRect();
+        self.blitter.init();
+        draw.initMoche();
         const canvas = blit.Dst.plane(fb).window(CANVAS_X, CANVAS_Y, CANVAS_W, CANVAS_H);
         for (placement) |p| blit.blit(canvas, p.img, null, p.x, p.y, 0, .copy);
     }
@@ -190,21 +202,19 @@ pub const Demo = struct {
     pub fn render(self: *Demo, zigos: *ZigOS, dt: f32) void {
         _ = dt;
         const fb = &zigos.lfbs[PLANE];
-        const canvas = blit.Dst.plane(fb).window(CANVAS_X, CANVAS_Y, CANVAS_W, CANVAS_H);
-        // Only what moves is cleared and redrawn: the black outside it and the
-        // potiches there were drawn in init. The potiches go back over each
-        // dynamic rectangle (clipped to it), after everything dynamic, as before.
-        var dynamic: [DYNAMIC_FIXED.len + 1]Rect = undefined;
-        dynamic[0..DYNAMIC_FIXED.len].* = DYNAMIC_FIXED;
-        dynamic[DYNAMIC_FIXED.len] = self.ulm_rect;
-        for (dynamic) |r| canvas.fill(r.x, r.y, r.w, r.h, 0);
-        self.scroller.render(canvas, &self.fate);
-        self.drawVu(canvas);
-        self.drawUlm(canvas);
-        self.drawMoche(canvas);
-        for (dynamic) |r| {
-            const view = canvas.window(@intCast(r.x), @intCast(r.y), r.w, r.h);
-            for (placement) |p| blit.blit(view, p.img, null, p.x - r.x, p.y - r.y, 0, .copy);
+        const c = draw.Canvas{ .fb = fb, .bl = &self.blitter, .x = CANVAS_X, .y = CANVAS_Y, .w = CANVAS_W, .h = CANVAS_H };
+        // Only what moves is cleared and redrawn, all of it by CHISEL but the
+        // scroller's box: the black outside it and the potiches there were drawn
+        // in init. The potiches go back over each dynamic rectangle (clipped to
+        // it), after everything dynamic, as before.
+        const dynamic = VU_RECTS ++ [_]Rect{self.ulm_rect};
+        for (dynamic) |r| c.fill(r.x, r.y, r.w, r.h, 0);
+        self.scroller.render(fb, &self.blitter, CANVAS_X, CANVAS_Y, &self.fate);
+        draw.vu(c, self.levels, VU_X, VU_W, rasters.VU_TOP, rasters.VU_ROWS);
+        draw.ulm(c, self.ulm_drawn, ULM_TOP, ULM_BOTTOM);
+        draw.moche(c, self.moche_drawn, self.moche_y, MOCHE_X, MOCHE_Y);
+        for (dynamic ++ [_]Rect{MOCHE_RECT}) |r| {
+            for (placement) |p| c.imageIn(p.img, p.x, p.y, r.x, r.y, r.w, r.h);
         }
     }
 
@@ -218,47 +228,6 @@ pub const Demo = struct {
         for (&self.levels, VU_VOICE) |*level, voice| {
             const v: i32 = @intFromFloat(@trunc(self.last_vol[voice] * 1.8));
             level.* = if (level.* < v) v else @max(level.* - 6, 0);
-        }
-    }
-
-    /// fillRect(x, 180, 192, -level) on the meter canvas: a bar grows up from
-    /// its row 179. Every lit line is VU_INK; the copper colours it.
-    fn drawVu(self: *const Demo, canvas: blit.Dst) void {
-        for (self.levels, VU_X) |level, x| {
-            for (0..rasters.VU_ROWS) |k| {
-                if (@as(i32, @intCast(2 * k)) < 180 - level) continue;
-                const row = (rasters.VU_TOP + k) * canvas.stride + @as(usize, @intCast(x));
-                @memset(canvas.buf[row..][0..VU_W], A.VU_INK);
-            }
-        }
-    }
-
-    /// Canvas row 140 + r shows logo row r at x = ulmDistTable[ulmCtr + r]:
-    /// halved, logo column (2X - x) >> 1 = X - ceil(x / 2).
-    fn drawUlm(self: *const Demo, canvas: blit.Dst) void {
-        for (ULM_TOP..ULM_BOTTOM + 1) |Y| {
-            const r = 2 * Y - 140;
-            const x = A.ulmDist(self.ulm_drawn + r);
-            const part = blit.Rect{ .x = 0, .y = r >> 1, .w = A.ulm.w, .h = 1 };
-            blit.blit(canvas, A.ulm, part, @divFloor(x + 1, 2), @intCast(Y), 0, .copy);
-        }
-    }
-
-    /// Strip k (ST line 233 + k) samples the pattern at source row
-    /// floor(y + 2k + 0.5) and column 2X - 140 + round(mocheDist[ctr - k]).
-    fn drawMoche(self: *const Demo, canvas: blit.Dst) void {
-        for (0..MOCHE_LINES) |k| {
-            // mocheDistCtr reaches mocheDist.length - 32 (the wrap test is >), so
-            // strip 0 reads one past the table once a lap: undefined in the JS,
-            // and drawImage given NaN draws nothing. Skip it the same way.
-            const at = self.moche_drawn + MOCHE_LINES - k;
-            if (at >= A.moche_dist.len) continue;
-            const fk: f64 = @floatFromInt(2 * k);
-            const v: usize = @intFromFloat(@floor(self.moche_y + fk + 0.5));
-            const src = A.moche.data[((v % 24) >> 1) * A.moche.w ..][0..A.moche.w];
-            const shift: usize = A.moche_dist[at];
-            const out = canvas.buf[(MOCHE_Y + k) * canvas.stride + MOCHE_X ..][0..MOCHE_W];
-            for (out, 0..) |*p, i| p.* = src[((2 * i + shift) % 24) >> 1];
         }
     }
 };

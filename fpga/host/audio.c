@@ -32,6 +32,8 @@ static const char* const NATIVE[] = {
     "native wow_scroller",
 };
 
+int audio_live(void) { return g_aud.memory.data != NULL; }
+
 void audio_boot(void) {
     wasm_rt_allocate_memory(&g_aud.memory, AUDIO_PAGES, AUDIO_PAGES, false, WASM_DEFAULT_PAGE_SIZE);
     audio_backend_boot(); /* the soft chips first: their data segments are the low MiB */

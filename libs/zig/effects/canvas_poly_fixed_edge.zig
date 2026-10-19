@@ -11,6 +11,7 @@
 // remainder, exactly the numbers a divide per row would give.
 // --------------------------------------------------------------------------
 const std = @import("std");
+const span_fill = @import("span_fill.zig");
 const PX = @import("zig3d_fixed_math.zig").PX;
 const HALF: i64 = 1 << (PX - 1); // 0.5 canvas px
 const TWO: i64 = 2 << PX; // 2 canvas px: one ST pixel
@@ -97,12 +98,9 @@ pub fn clampK(k: i32, limit: i32) usize {
     return @intCast(std.math.clamp(k, 0, limit));
 }
 
-/// line[a..b] = ink with aligned 32-bit stores between the odd ends: every
-/// store is a blocking DDR write on the board, so four bytes go in one.
+/// line[a..b] = ink, aligned 32-bit words between the odd ends, each byte or
+/// word stored only where it changes (span_fill.zig): every store is a blocking
+/// DDR write on the board, so four bytes go in one, and none when already there.
 pub inline fn span(line: [*]u8, a: usize, b: usize, ink: u8) void {
-    var i = a;
-    while (i < b and (@intFromPtr(line + i) & 3) != 0) : (i += 1) line[i] = ink;
-    const word: u32 = @as(u32, ink) * 0x01010101;
-    while (i + 4 <= b) : (i += 4) @as(*u32, @ptrCast(@alignCast(line + i))).* = word;
-    while (i < b) : (i += 1) line[i] = ink;
+    span_fill.fill(line[a..b], ink);
 }

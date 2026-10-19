@@ -95,6 +95,8 @@ pub const PerspectiveRow = struct {
     // sourceX(x) = fx_base + x * fx_step, Q24: the text-canvas x a column's centre samples
     fx_base: i64,
     fx_step: i64,
+    step_i: i32, // fx_step split: whole source columns per screen column ...
+    step_f: u32, // ... and the Q24 fraction (fx_step = step_i * 2^24 + step_f)
     x_first: u16, // screen columns whose centres fall inside the stretched row
     x_last: u16,
 };
@@ -128,6 +130,7 @@ fn buildPerspective() struct { rows: [MAX_ROWS]PerspectiveRow, len: usize } {
             if (coverage <= 0 or band < 0 or band >= BAND_ROWS) continue;
             const sy = @as(f64, @floatFromInt(src_top)) + (row + 0.5 - top) - 0.5;
             const inv = 1.0 / zoom;
+            const step: i64 = @intFromFloat(@round(inv * 16777216.0));
             rows[len] = .{
                 .band_row = @intCast(band),
                 .src_row = @intFromFloat(@floor(sy)),
@@ -135,7 +138,9 @@ fn buildPerspective() struct { rows: [MAX_ROWS]PerspectiveRow, len: usize } {
                 .sf = @intFromFloat(@round((sy - @floor(sy)) * 65536.0)),
                 .zoom_q16 = @intFromFloat(@round(zoom * 65536.0)),
                 .fx_base = @intFromFloat(@floor((159.5 - 159.5 * inv) * 16777216.0)),
-                .fx_step = @intFromFloat(@round(inv * 16777216.0)),
+                .fx_step = step,
+                .step_i = @intCast(step >> 24),
+                .step_f = @intCast(step & 0xffffff),
                 .x_first = x_first,
                 .x_last = x_last,
             };
