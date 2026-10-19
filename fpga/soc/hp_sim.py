@@ -82,6 +82,7 @@ def make_soc(
     posted: int = zm_board_mem.POSTED,
     sound: bool = False,
     hp_probe: bool = False,
+    read_bypass: bool = zm_board_mem.READ_BYPASS,
 ) -> ZigMachineSoC:
     platform = SimPlatform("SIM", [*SIM_IO, ("pix_clk", 0, Pins(1)), ("comp_clk", 0, Pins(1))])
     hp0, hp1, hp2, hp3 = hp_interface(), hp_interface(), hp_interface(), hp_interface()
@@ -92,7 +93,7 @@ def make_soc(
         rom_size=0, main_ram_size=0, cpu_reset_address=CPU_BASE, audio=audio,
         hp_probe=hp_probe,
     )  # fmt: skip
-    zm_board_mem.add_cpu_memory(soc, hp0, posted)
+    zm_board_mem.add_cpu_memory(soc, hp0, posted, read_bypass=read_bypass)
     zm_timing.use_core(soc, platform, core)
     # No OSD without a wire; and its `inside` net is a SystemVerilog keyword to Verilator.
     platform.sources = [s for s in platform.sources if not s[0].endswith("zm_glass_osd.v")]
@@ -115,12 +116,15 @@ def main() -> None:
     ap.add_argument(
         "--posted", type=int, default=zm_board_mem.POSTED, help="the CPU bridge's store buffer, 0 = blocking stores"
     )
+    ap.add_argument("--no-read-bypass", action="store_true", help="every CPU read drains the stores (zm_hp_bypass.py)")
     ap.add_argument("--hp-probe", action="store_true", help="the read path's probe, as a z7 --hp-probe bitstream")
     ap.add_argument("--sound-cpu", action="store_true", help="the players on the sound CPU (soc/zm_sound_cpu.py)")
     a = ap.parse_args()
     out = a.out if a.out.is_absolute() else FPGA / a.out
     litex_compat.install()
-    soc = make_soc(a.blit_break, a.audio_break, a.core.resolve(), a.posted, a.sound_cpu, a.hp_probe)
+    soc = make_soc(
+        a.blit_break, a.audio_break, a.core.resolve(), a.posted, a.sound_cpu, a.hp_probe, not a.no_read_bypass
+    )
     sim_config = SimConfig()
     for name, hz in (("sys_clk", SYS_CLK), ("pix_clk", PIX_CLK), ("comp_clk", COMP_CLK)):
         sim_config.add_clocker(name, freq_hz=hz)

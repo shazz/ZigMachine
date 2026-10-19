@@ -19,7 +19,8 @@
   `posted=N` a store is acknowledged once it is in an N-entry buffer instead
   (soc/zm_hp_posted.py); every consumer of "an acknowledged store is in DDR" then
   waits for `idle`, and its IO stores wait for it too (soc/zm_io_fence.py). The board
-  and its sim build HP0 with `posted=8` (soc/zm_board_mem.py POSTED, 2026-10-18).
+  and its sim build HP0 with `posted=8` (soc/zm_board_mem.py POSTED, 2026-10-18), and
+  `read_bypass`: a refill waits only for stores to its own line (soc/zm_hp_bypass.py).
 - **HP1: the video DMA** (soc/zm_video_axi.py), bursts of up to 16 beats.
 
 **Reads 64-bit, writes 32-bit (WR32).** Each port's read channel runs 64-bit
@@ -43,6 +44,7 @@ from litex.gen import LiteXModule
 from litex.soc.interconnect import axi
 from migen import Array, Cat, Constant as Const, If, Mux, Signal
 
+from soc.zm_hp_bypass import StoreTags
 from soc.zm_hp_posted import PostedStores
 
 CPU_BASE = 0x40000000
@@ -84,7 +86,11 @@ def fixed_fields(ch: Any) -> list[Any]:
 class WishboneHP(LiteXModule):
     """`bus` (32-bit, word-addressed Wishbone slave) -> `hp` (64-bit AXI3 master)."""
 
-    def __init__(self, bus: Bus, hp: axi.AXIInterface, posted: int = 0) -> None:
+    def __init__(self, bus: Bus, hp: axi.AXIInterface, posted: int = 0, read_bypass: bool = False,
+                 break_: str = "") -> None:  # fmt: skip
+        """`read_bypass` (needs `posted`): soc/zm_hp_bypass.py; `break_`: its break test's mutant."""
+        if read_bypass and not posted:
+            raise ValueError("zm_hp: read_bypass needs posted stores")
         self.bus, self.hp = bus, hp
         self.idle = Signal(reset=1)  # every acknowledged store is in DDR (always, without `posted`)
         self.ack = ack = Signal()
@@ -93,10 +99,12 @@ class WishboneHP(LiteXModule):
         self.line = bus.adr[3:]  # 32-byte line
         self.lane_hi = bus.adr[0]  # the upper 32 bits of the beat
         self.rbusy, self.wbusy = Signal(), Signal()  # an AXI read / write is in flight
+        self.rwait = Signal()  # what a read miss waits for: the drain, or (bypass) a same-line store
         self.comb += [bus.ack.eq(ack), *fixed_fields(hp.ar), *fixed_fields(hp.aw)]
         self._line_buffer()
         self._read()
         self._posted(posted) if posted else self._write()
+        self.comb += self.rwait.eq(self._bypass(posted, break_) if read_bypass else self.wbusy)
 
     def _posted(self, depth: int) -> None:
         """Stores into PostedStores' buffer; a read waits until it has drained (`wbusy`)."""
@@ -104,6 +112,19 @@ class WishboneHP(LiteXModule):
                                    cache=AW_CACHE)  # fmt: skip
         self.comb += [self.idle.eq(self.stores.idle), self.wbusy.eq(~self.stores.idle)]
         self.sync += If(self.stores.push, self.ack.eq(1))
+
+    def _bypass(self, depth: int, break_: str) -> Any:  # Any: a Migen expression, what a read miss waits for
+        """A burst (a refill) waits only for a pending store to its line; a single read, for the drain.
+        The compare is registered (sys WNS +0.011 ns): with stores pending a refill starts a cycle late,
+        on its own request's compare (held until its ack, no store meanwhile: zm_hp_bypass.py)."""
+        hp = self.hp
+        self.tags = StoreTags(depth, self.stores.push, self.line, hp.b.valid & hp.b.ready, self.stores.issue,
+                              break_)  # fmt: skip
+        clash, waited = Signal(), Signal()  # last cycle's compare, and this request was already there
+        self.comb += self.tags.probe.eq(self.line)
+        self.sync += [clash.eq(self.tags.clash), waited.eq(self.req & ~self.bus.we)]
+        single = 0 if break_ == "classic_too" else self.bus.cti == CTI_CLASSIC
+        return self.wbusy & (single | (0 if break_ == "nowait" else ~waited) | clash)
 
     def _line_buffer(self) -> None:
         """The beats of the line being refilled, valid until its burst ends."""
@@ -126,7 +147,7 @@ class WishboneHP(LiteXModule):
         bus, hp = self.bus, self.hp
         busy, fill = self.rbusy, Signal(2)
         burst = bus.cti != CTI_CLASSIC
-        start = self.req & ~bus.we & ~self.hit & ~busy & ~self.wbusy
+        start = self.req & ~bus.we & ~self.hit & ~busy & ~self.rwait
         first = Mux(burst, Cat(Const(0, 2), self.line), self.beat)
         self.sync += [
             If(start,
