@@ -114,3 +114,10 @@ the same `ZM_RTL_BREAK=1` gate as `test_rtl_*.py`.
 The lead builds the bitstream (Vivado LUT/WNS), then the bench cart A/B: `mc.lib.64K`,
 `raw.miss`, `ld.miss`, and fr.* unchanged. If timing fails, `--no-read-bypass` restores today's
 build exactly.
+
+## Bitstream (2026-10-19, built in this worktree, Vivado 2026.1, maxThreads 2)
+- fpga/build/board_bypass, recipe of 3ebb7381 (--blit --sound-cpu --posted 8, SealFpu core), bypass ON, 20-bit tags.
+- 15,153 LUT (86.10 %; baseline 15,045 = 85.5 %, so +108, far under the yosys +294), 15,640 FF, 41.5 BRAM.
+- sys WNS +0.074 ns (baseline +0.011), comp +0.781, others +1.2/+0.573. All constraints met, so the 12-bit-tag fallback was not needed.
+- CSR map byte-identical to the linemajor board_lm8 build (itself identical to 3ebb7381's); cycles_csr.py --hp --hp-check --need-blit passes. The board's current system.rv32 stays valid.
+- Staged in prototypes/read_bypass_re/stage/ (zigmachine.bit md5 6b265e6f21916774f191a8c3b2fe18f0); INSTALL.txt there. Not run on the board.
