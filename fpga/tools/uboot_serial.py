@@ -29,6 +29,8 @@ AFI_WIDTHS = (
     "mw.l 0xf800b000 0; mw.l 0xf800b014 0xf01"
 )
 AFI_HP2_WIDTH = "mw.l 0xf800a000 0; mw.l 0xf800a014 0xf01"  # the blitter's port, --blit bitstreams only
+# W64 (the video DMA's 8-byte write beats, hp_cfg bit 1): HP1's write channel 64-bit, after AFI_WIDTHS.
+AFI_HP1_W64 = "mw.l 0xf8009014 0xf00"
 CRC = re.compile(r"==>\s*([0-9a-f]{8})\s*$", re.MULTILINE)
 
 
@@ -134,8 +136,11 @@ def quiesce(con: UBoot) -> None:
     time.sleep(PAUSE)
 
 
-def set_afi(con: UBoot, hp2: bool = False) -> None:
-    """HP0/HP1 (+ HP2 for a --blit bitstream) widths; only after the PL is loaded (the AFI registers hang the ARM otherwise)."""
+def set_afi(con: UBoot, hp2: bool = False, hp1_w64: bool = False) -> None:
+    """HP0/HP1 (+ HP2 for a --blit bitstream) widths; only after the PL is loaded (the AFI registers hang the ARM otherwise).
+    hp1_w64: HP1's write channel 64-bit, for a firmware that sets hp_cfg W64 (8-byte beats); never one without the other."""
     con.cmd(AFI_WIDTHS)
     if hp2:
         con.cmd(AFI_HP2_WIDTH)
+    if hp1_w64:
+        con.cmd(AFI_HP1_W64)

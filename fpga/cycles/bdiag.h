@@ -13,11 +13,15 @@
 #define DIAG_PIC_DDR 0x05f80000u   /* mode 3: the picture (both buffers): row 0 */
 #define DIAG_PROBE_DDR 0x05f80c00u /* mode 4: the read-path probe's 8 words */
 #define DIAG_BG 0x55667788u        /* mode 3: REG_BACKGROUND */
-#define DIAG_CFG_TAG 0xc0f0u       /* word +8: 0xc0f0000c sets the video's hp_cfg to c */
+#define DIAG_CFG_TAG 0xc0f0u       /* word +8: 0xc0f0_00cc sets the video's hp_cfg to cc & 3, and: */
+#define DIAG_OPT_PLANE_MAJOR 0x10u /*   no line-major groups (cycles/vseq_group.c) */
+#define DIAG_OPT_KEEP_PFB 0x20u    /*   the top layer stores its PFB rows too (board_shot --what pfb) */
 
 /* Runs the diagnostic and never returns if one was asked for; else 0. */
 int diag_maybe(void);
-/* hp_cfg from the control word's +8, if tagged (also for the cart). */
+/* hp_cfg from the control word's +8, if tagged (also for the cart: glass run --fw-opt writes it). */
 void diag_apply_cfg(void);
+/* The word's low 16 bits when tagged, else 0: the system's A/B switches above. */
+extern uint32_t diag_opt;
 
 #endif

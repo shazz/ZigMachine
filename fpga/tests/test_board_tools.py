@@ -68,7 +68,7 @@ def test_preflight_missing_prompt(board: FakeUBoot, monkeypatch: pytest.MonkeyPa
 
 def args(fw: Path, **kw: object) -> argparse.Namespace:
     base = {"bit": "x.bit", "fw": str(fw), "diag": None, "hp_cfg": 0, "shot": None, "preflight": False, "secs": 0.5,
-            "blit": False}  # fmt: skip
+            "blit": False, "w64": False}  # fmt: skip
     return argparse.Namespace(**{**base, **kw})
 
 
@@ -111,6 +111,22 @@ def test_run_sets_hp2_afi_only_for_a_blit_bitstream(
     assert bool(hp2) == blit
     if blit:  # after the HP0/HP1 widths, so after the PL load (the AFI registers hang the ARM before)
         assert hp2[0] > next(i for i, line in enumerate(board.log) if "0xf8009014" in line)
+
+
+@pytest.mark.parametrize("w64", [False, True])
+def test_w64_sets_hp1_64_bit_and_the_dma_together(
+    board: FakeUBoot, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, w64: bool
+) -> None:
+    _, loadx = fake_loadx(board)
+    monkeypatch.setattr(us.UBoot, "loadx", loadx)
+    ok, log = board_run.board_run(con_for(board), args(fw_file(tmp_path), diag=3, w64=w64))
+    assert ok, log
+    wide = [i for i, line in enumerate(board.log) if "0xf8009014 0xf00" in line]
+    assert bool(wide) == w64
+    if w64:  # after the 32-bit default, and before the cart CPU runs
+        assert wide[0] > next(i for i, line in enumerate(board.log) if "0xf8009014 0xf01" in line)
+        assert wide[0] < max(i for i, line in enumerate(board.log) if line == "mw.l 43c00008 1")
+    assert board.mem[0x05FFFE08] == 0xC0F00000 | (2 if w64 else 0)
 
 
 def test_preflight_four_ports_tests_hp2_and_hp3(board: FakeUBoot) -> None:

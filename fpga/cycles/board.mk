@@ -75,12 +75,17 @@ ZM_AUDIO_MIRROR ?=
 ZM_VSEQ_CHECK ?=
 # ZM_NO_VPLAN=1: no plan, every line composited (the baseline the plan is measured against).
 ZM_NO_VPLAN ?=
+# ZM_LINEMAJOR=1 (sim): the board's line-major groups on the frames that are not hashed (cycles/bplanes.h);
+# ZM_LM_CHECK=1 adds, on each hashed frame a group covers whole, the same frame composited line-major
+# first, its picture's hash against the plane-major composite's ("ZM LMCHK").
+ZM_LINEMAJOR ?=
+ZM_LM_CHECK ?=
 # The dirty-line planner (cycles/vplan.h), compiled with the image as vseq.c is: ZM_VSEQ_CHECK reaches it.
-VPLAN_SRC := cycles/vplan.c cycles/vdirty.c cycles/vadapt.c cycles/vstat.c cycles/vcal.c
+VPLAN_SRC := cycles/vplan.c cycles/vdirty.c cycles/vadapt.c cycles/vstat.c cycles/vcal.c cycles/vseq_group.c cycles/bplanes.c
 H_sim    = $(if $(ZM_VSEQ_CHECK),-DZM_VSEQ_CHECK) $(if $(ZM_NO_VPLAN),-DZM_NO_VPLAN) -DZM_FRAMES=$(ZM_FRAMES) -DZM_EVERY=$(ZM_EVERY) -DZM_WARP_MS=$(ZM_WARP_MS) -DZM_TRACE_FRAME=$(ZM_TRACE_FRAME) \
 	$(B_$(ZM_BLIT)) $(A_$(ZM_AUDIO)) $(if $(ZM_SIM_KEYS),'-DZM_SIM_KEYS="$(ZM_SIM_KEYS)"') \
 	$(if $(ZM_SIM_POINTER),'-DZM_SIM_POINTER="$(ZM_SIM_POINTER)"') $(if $(ZM_MODES),-DZM_MODES=$(ZM_MODES)) \
-	$(if $(ZM_AUDIO_MIRROR),-DZM_AUDIO_MIRROR)
+	$(if $(ZM_AUDIO_MIRROR),-DZM_AUDIO_MIRROR) $(if $(ZM_LINEMAJOR),-DZM_LINEMAJOR) $(if $(ZM_LM_CHECK),-DZM_LINEMAJOR -DZM_LM_CHECK)
 # ZM_SYS_MHZ=<n>: a bitstream whose sys clock is not 100 MHz (the FPU test bitstream runs 80):
 # board_micros() (bboard.c, the cart's hostMicros) is the one place the firmware reads the clock.
 ZM_SYS_MHZ ?=

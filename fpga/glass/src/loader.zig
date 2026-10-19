@@ -37,6 +37,9 @@ pub const Options = struct {
     disk_magic: u32 = map.DISK_MAGIC,
     /// The card's system image (system.zig, read once at start-up): what a lean cart runs on.
     system: ?system.System = null,
+    /// glass run --fw-opt: the system's A/B switches (map_cart.zig FW_OPT_*), written for the
+    /// firmware after the window is verified. null: the word stays zero (every switch off).
+    fw_opt: ?u32 = null,
 };
 
 fn noIdle() void {}
@@ -88,6 +91,7 @@ pub fn load(gpa: std.mem.Allocator, regs: bus.Regs, ddr: bus.Ddr, disk: []const 
     try hold(regs);
     ddr.placeParts(&parts);
     if (opt.verify and ddr.verifyParts(&parts) != null) return error.DdrMismatch;
+    if (opt.fw_opt) |o| ddr.words[(ddr.bytes() - mc.FW_OPT_FROM_TOP) / 4] = mc.FW_OPT_TAG | (o & mc.FW_OPT_MASK);
     regs.write(map.REG_LOAD_BASE, map.DDR_CART_BASE);
     regs.write(map.REG_LOAD_SIZE, p.imageEnd());
     // Keys typed for the previous cart (or the menu) must not reach this one.

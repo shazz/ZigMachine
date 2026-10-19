@@ -10,15 +10,21 @@ const std = @import("std");
 const linux = std.os.linux;
 const map = @import("map.zig");
 const bus = @import("bus.zig");
+const afi = @import("afi.zig");
 
 pub const Error = error{ DevMemOpen, DevMemMap };
 
 pub const Board = struct {
     regs_words: []volatile u32,
     ddr_words: []volatile u32,
+    afi_words: []volatile u32, // HP1's AFI registers (afi.zig): the PL is loaded, or there is no glass
 
     pub fn regs(self: Board) bus.Regs {
         return bus.Regs.mapped(self.regs_words);
+    }
+
+    pub fn afi(self: Board) bus.Regs {
+        return bus.Regs.mapped(self.afi_words);
     }
 
     pub fn ddr(self: Board) bus.Ddr {
@@ -47,7 +53,14 @@ pub fn open() Error!Board {
     return .{
         .regs_words = try mapWindow(fd, map.GP0_BASE, map.WINDOW_BYTES),
         .ddr_words = try mapWindow(fd, map.DDR_CART_BASE, map.DDR_CART_BYTES),
+        .afi_words = try mapWindow(fd, afi.HP1_PAGE, afi.PAGE_BYTES),
     };
+}
+
+/// A second's pause: the video DMA's last burst, before an AFI width changes (afi.zig).
+pub fn napSec() void {
+    const ts = linux.timespec{ .sec = 1, .nsec = 0 };
+    _ = linux.nanosleep(&ts, null);
 }
 
 /// A millisecond's nap between polls of the PL (loader.Options.idle).

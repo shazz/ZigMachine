@@ -19,9 +19,18 @@ enum { ZMV_BG = 0, ZMV_PLANE = 1, ZMV_LATCH = 2, ZMV_MIX = 3, ZMV_PRESENT = 4, Z
 
 static inline uint32_t zmv_status(void) { return ZMV_REG(STATUS); }
 
-static inline void zmv_cmd(int op, int plane, int line, int mix, int first, int fill) {
+/* A line-major group's pass bits (zm_video_pass.v): no LOAD, no STORE, no PFB row stored. */
+enum { ZMV_HOLD = 1, ZMV_KEEP = 2, ZMV_NOPFB = 4 };
+
+static inline void zmv_cmdx(int op, int plane, int line, int mix, int first, int fill, int ext) {
     ZMV_REG(CMD) = ZMV_FIELD(CMD, OP, op) | ZMV_FIELD(CMD, PLANE, plane) | ZMV_FIELD(CMD, LINE, line) |
-                   ZMV_FIELD(CMD, MIX, mix) | ZMV_FIELD(CMD, FIRST, first) | ZMV_FIELD(CMD, FILL, fill);
+                   ZMV_FIELD(CMD, MIX, mix) | ZMV_FIELD(CMD, FIRST, first) | ZMV_FIELD(CMD, FILL, fill) |
+                   ZMV_FIELD(CMD, HOLD, ext & ZMV_HOLD) | ZMV_FIELD(CMD, KEEP, (ext & ZMV_KEEP) != 0) |
+                   ZMV_FIELD(CMD, NOPFB, (ext & ZMV_NOPFB) != 0);
+}
+
+static inline void zmv_cmd(int op, int plane, int line, int mix, int first, int fill) {
+    zmv_cmdx(op, plane, line, mix, first, fill, 0);
 }
 
 /* The compositor's own copy of register word `w` (offset / 4). */

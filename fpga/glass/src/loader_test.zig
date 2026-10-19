@@ -6,6 +6,7 @@ const bus = @import("bus.zig");
 const sim = @import("sim.zig");
 const zmd = @import("zmd.zig");
 const loader = @import("loader.zig");
+const mc = @import("map_cart.zig");
 
 const gpa = std.testing.allocator;
 const WINDOW_WORDS = 4096; // 16 KiB: the real 32 MiB adds nothing but time
@@ -189,4 +190,18 @@ test "a disk that does not fit below the descriptor is refused before the cart C
     try std.testing.expectEqual(@as(u32, 0xA5A5_A5A5), rig.words[0]);
     try std.testing.expectError(error.DiskTooBig, loader.diskAt(0x10, map.DISK_END, 32 << 20)); // past the pictures
     try std.testing.expectEqual(@as(u32, 0x0020_0000), try loader.diskAt(0x1F_F001, map.DISK_END - 0x20_0000, 32 << 20)); // exactly fills
+}
+
+test "--fw-opt's word lands for the firmware after the window is verified, and only with it" {
+    var raw: [3000]u8 = undefined;
+    fakeImage(&raw);
+    const disk = try diskWith(&raw);
+    defer gpa.free(disk);
+    const at = (WINDOW_WORDS * 4 - mc.FW_OPT_FROM_TOP) / 4;
+    var rig = Rig{};
+    _ = try loader.load(gpa, rig.glass.regs(), rig.ddr(), disk, .{ .fw_opt = mc.FW_OPT_W64 | 0x100 });
+    try std.testing.expectEqual(mc.FW_OPT_TAG | mc.FW_OPT_W64, rig.words[at]); // unknown bits dropped
+    var plain = Rig{};
+    _ = try loader.load(gpa, plain.glass.regs(), plain.ddr(), disk, .{});
+    try std.testing.expectEqual(@as(u32, 0), plain.words[at]);
 }

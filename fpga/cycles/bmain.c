@@ -29,6 +29,7 @@
 #include "bboard.h"
 #include "bdiag.h"
 #include "bmailbox.h"
+#include "bplanes.h"
 #include "boot.h"
 #include "bsys.h"
 #include "sha256.h"
@@ -73,11 +74,20 @@ static struct w2c_env g_env;
 static char g_hashes[SAMPLES][65];
 static uint32_t g_cart, g_seq; /* the last frame's cart.frame() and sequencer cycles (vstat.h) */
 
-/* The PFB after the plane's last row reached memory, past the CPU's stale cache. */
-static void hash_pfb(sha256_ctx* h, u32 size) {
+/* The hashed frame's sha256 and PFB size, for hash_plane. */
+static sha256_ctx* g_h;
+static u32 g_pfb_size;
+
+/* After plane p: the PFB once its last row reached memory, past the CPU's stale cache; or "off". */
+static void hash_plane(unsigned p, int on) {
+    if (!on) {
+        char off[16];
+        sha256_update(g_h, off, (size_t)snprintf(off, sizeof off, "off%u", p));
+        return;
+    }
     vseq_idle();
     zmv_flush_dcache();
-    sha256_update(h, g_env.memory.data + w2c_machine_hwPhysicalPtr(&g_env.machine), size);
+    sha256_update(g_h, g_env.memory.data + w2c_machine_hwPhysicalPtr(&g_env.machine), g_pfb_size);
 }
 
 static void frame(sha256_ctx* h, u32 planes, u32 size, long f) {
@@ -97,20 +107,10 @@ static void frame(sha256_ctx* h, u32 planes, u32 size, long f) {
     unsigned on = 0;
     for (u32 p = 0; p < planes; p++) on |= HOST_CART_PLANE_ON(e, p) ? 1u << p : 0u;
     int handler = vplan_frame(e, on, h != NULL); /* a hashed frame composites every line: its PFB */
-    int first = 1;
-    for (u32 p = 0; p < planes; p++) {
-        int en = (on >> p) & 1;
-        if (handler && en != !!HOST_CART_PLANE_ON(e, p)) en = !en, vplan_mask_moved();
-        if (!en) {
-            char off[16];
-            if (h) sha256_update(h, off, (size_t)snprintf(off, sizeof off, "off%u", (unsigned)p));
-            continue;
-        }
-        vseq_plane(e, (int)p, first);
-        first = 0;
-        if (h) hash_pfb(h, size);
-    }
-    if (first) vseq_mix_only();
+    if (h) bplanes_check_pre(e, on, planes, handler);
+    g_h = h, g_pfb_size = size; /* a hashed frame is plane-major: its PFB after each plane */
+    if (bplanes_run(e, on, planes, handler, !h && bplanes_lm(), h ? hash_plane : NULL)) vseq_mix_only();
+    if (h) bplanes_check_post(f);
     vplan_end(f);
     uint32_t t3 = board_cycles();
     bcursor_draw(); /* the board has no host cursor: GEM's arrow over the picture */
@@ -215,6 +215,7 @@ int main(void) {
     printf("ZM MIS %lu %lu\n", (unsigned long)zm_misaligned[0], (unsigned long)zm_misaligned[1]);
     printf("ZM BLIT %lu %lu %lu\n", (unsigned long)bblit.calls, (unsigned long)bblit.hw, (unsigned long)bblit.cycles);
     vplan_report();
+    bplanes_report();
     AUDIO(baudio_report());
     bdisk_report();
     board_finish(w2c_machine_hwRamAllocFailures(&g_env.machine) ? 1 : 0);

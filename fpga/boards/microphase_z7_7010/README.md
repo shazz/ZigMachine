@@ -130,7 +130,11 @@ scanout's.
 firmware at reset from DDR `0x05fffe08` when it reads `c0f0000c`): `c` = 0 4-byte
 beats, AWCACHE 0, the AFI expands them (the default); 1 the same with AWCACHE
 0b0011 (the AFI may upsize: what corrupted the rows on 2026-10-03); 2 whole
-8-byte beats, for a **64-bit** write channel (`WRCHAN_CTRL = 0xf00`). The write-path
+8-byte beats, for a **64-bit** write channel (`WRCHAN_CTRL = 0xf00`). Both halves change
+together or every other word is lost: `board_run.py --w64` sets HP1 to 0xf00 and `hp_cfg` 2 for
+a diag run, and under Linux `glass run --fw-opt=2` holds the cart, sets HP1's width (read back)
+and writes the tag word for every cart it loads (`fpga/glass/src/afi.zig`; a glass run without
+it, or a reboot, puts 0xf01 back). The write-path
 diagnostic (`cycles/bdiag.h`, magic `47414944` at `0x05fffe00`, mode at `+4`) runs
 in place of the cart: 1 CPU stores, 2 CPU loads, 3 BG + MIX passes, 4 a MIX pass
 from a PFB row the ARM wrote.

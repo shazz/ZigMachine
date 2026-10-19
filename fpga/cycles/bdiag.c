@@ -8,13 +8,16 @@
  *   3 video DMA over HP1: one BG pass (the PFB row) and one MIX pass (a picture row)
  *   4 video DMA over HP1: one MIX pass from a PFB row the ARM wrote (a known varying pattern)
  * Word +8 = 0xc0f0000c (c = the video's hp_cfg: bit 0 UPSIZE, bit 1 W64) sets how the DMA
- * writes, for the cart too; anything else leaves the default 0 (4-byte beats, expanded).
+ * writes, for the cart too; anything else leaves the default 0 (4-byte beats, expanded). W64
+ * needs HP1's AFI write channel 64-bit (WRCHAN_CTRL 0xf00), set by the ARM with the PL idle.
+ * Its bits 4-5 are the system's other A/B switches (bdiag.h DIAG_OPT_*).
  * CART_STATE = 0x44 | mode << 8 when done (0x43c00010), CART_BEAT = the mode's result. */
 #include "bdiag.h"
 
 #include <stdio.h>
 
 #include "bboard.h"
+#include "glass_cart.h"
 #include "vboard.h"
 #include "zm_memmap.h"
 
@@ -85,10 +88,20 @@ static uint32_t mode_4_mix(void) {
     return 4;
 }
 
+/* The word glass run --fw-opt writes (glass/src/map_cart.zig FW_OPT_*): the same word, the same bits. */
+_Static_assert(DIAG_CTL_DDR + 8u == 0x06000000u - FW_OPT_FROM_TOP, "the switch word moved");
+_Static_assert(FW_OPT_TAG >> 16 == DIAG_CFG_TAG && FW_OPT_PLANE_MAJOR == DIAG_OPT_PLANE_MAJOR &&
+                   FW_OPT_KEEP_PFB == DIAG_OPT_KEEP_PFB && FW_OPT_W64 == 2u,
+               "the switch bits differ");
+
+uint32_t diag_opt;
+
 void diag_apply_cfg(void) {
     zmv_flush_dcache();
     uint32_t w = CTL[2];
-    if ((w >> 16) == DIAG_CFG_TAG) ZMV_REG(HP_CFG) = w & 3u;
+    if ((w >> 16) != DIAG_CFG_TAG) return;
+    ZMV_REG(HP_CFG) = w & 3u;
+    diag_opt = w & 0xffffu;
 }
 
 int diag_maybe(void) {

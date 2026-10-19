@@ -151,3 +151,12 @@ pub const VC_MIX1: u32 = 2; // {span, comp}
 pub const VC_MIX2: u32 = 4;
 pub const VC_FILL1: u32 = 6;
 pub const VC_FILL2: u32 = 8;
+// The system's A/B switches (glass run --fw-opt, src/afi.zig): the word at window end -
+// FW_OPT_FROM_TOP (CPU 0x41FF_FE08, cycles/bdiag.h's control word +8), written by every load after
+// the window is verified, read once by the firmware at boot. FW_OPT_TAG | bits; untagged = all off.
+pub const FW_OPT_FROM_TOP: u32 = 0x1F8;
+pub const FW_OPT_TAG: u32 = 0xC0F0_0000;
+pub const FW_OPT_W64: u32 = 1 << 1; // the video DMA's 8-byte write beats (hp_cfg W64): HP1's AFI 64-bit
+pub const FW_OPT_PLANE_MAJOR: u32 = 1 << 4; // no line-major groups (cycles/bplanes.h)
+pub const FW_OPT_KEEP_PFB: u32 = 1 << 5; // the top layer stores its PFB rows too
+pub const FW_OPT_MASK: u32 = FW_OPT_W64 | FW_OPT_PLANE_MAJOR | FW_OPT_KEEP_PFB;

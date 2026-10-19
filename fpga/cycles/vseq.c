@@ -30,11 +30,11 @@ static inline uint32_t drain(void) {
 }
 
 /* Write one command once the previous one has finished and the stores have landed. The
- * bookkeeping comes after the write, while the pass runs. */
-static void issue(int op, int plane, int line, int mix, int first, int fill) {
+ * bookkeeping comes after the write, while the pass runs. ext: a line-major group's bits. */
+void vseq_issue(int op, int plane, int line, int mix, int first, int fill, int ext) {
     uint32_t ready = wait_timed(ZMV_BIT(READY));
     uint32_t drained = drain();
-    zmv_cmd(op, plane, line, mix, first, fill);
+    zmv_cmdx(op, plane, line, mix, first, fill, ext);
 #ifdef ZM_VSTAT
     g_tcmd = board_cycles();
 #endif
@@ -53,15 +53,19 @@ static inline void painted(void) {
 
 /* A pass: issued, and run until painted. */
 static void pass(int op, int plane, int line, int mix, int first, int fill) {
-    issue(op, plane, line, mix, first, fill);
+    vseq_issue(op, plane, line, mix, first, fill, 0);
     painted();
 }
 
 /* A one-clock command (LATCH, PRESENT, CLEAR): issued and taken. */
 static void instant(int op, int plane) {
-    issue(op, plane, 0, 0, 0, 0);
+    vseq_issue(op, plane, 0, 0, 0, 0, 0);
     wait_bits(ZMV_BIT(READY));
 }
+
+void vseq_latch(int p) { instant(ZMV_LATCH, p); }
+
+int vseq_fill(void) { return g_fill; }
 
 /* The back picture is free once the previous one is on screen (the swap at VBL). */
 void vseq_wait_swap(void) {
@@ -121,6 +125,8 @@ void vseq_clear(struct w2c_env* e) {
 
 uint8_t vseq_plane_mode(int p) { return r8(ZM_REG_FB_MODE + (uint32_t)p); }
 
+int vseq_plane_handler(int p) { return r16(ZM_REG_FB_HBL_ID + 2u * (uint32_t)p) != 0; }
+
 /* The raster lines a plane's handler runs on, and its first (video.zig renderPlane*). */
 static void plane_lines(int p, uint32_t* oy, uint32_t* rows) {
     uint8_t mode = r8(ZM_REG_FB_MODE + (uint32_t)p);
@@ -170,7 +176,7 @@ static void layer(struct w2c_env* e, int op, int p, int first, uint16_t hid, uin
     for (uint32_t y = 0; y < ZM_RASTER_HEIGHT; y++) {
         if (hid && y >= oy && y < oy + rows) hbl(e, hid, (u32)p, y - oy, hpos);
         int skip = ask ? next : vseq_skip && vseq_skip[y];
-        if (!skip) issue(op, p, (int)y, 1, first, first && g_fill);
+        if (!skip) vseq_issue(op, p, (int)y, 1, first, first && g_fill, 0);
         if (ask && y + 1 < ZM_RASTER_HEIGHT) next = decide((int)y + 1);
         if (!skip) painted(); /* a pass(): it has read what the next handler may change */
     }

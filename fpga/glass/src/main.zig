@@ -1,10 +1,11 @@
 // glass: the ZigMachine console's ARM-side program (docs/FPGA_GLASS.md).
 //
-//   glass run [--no-wait] [--mouse-scale=PCT] [SHELF_DIR]
+//   glass run [--no-wait] [--mouse-scale=PCT] [--fw-opt=N] [SHELF_DIR]
 //                                   the board: /dev/mem windows, evdev input, the OSD menu;
 //                                   --no-wait: do not wait for the firmware's RUNNING
 //                                   (for a firmware that does not report CART_STATE yet);
-//                                   --mouse-scale: pointer speed, 100 = a pixel a count
+//                                   --mouse-scale: pointer speed, 100 = a pixel a count;
+//                                   --fw-opt: the system's A/B switches (afi.zig) for every cart
 //   glass ctl COMMAND...            the running glass's control channel (ctl.zig, `ctl help`)
 //   glass sim-load DISK OUT [WIN]   desktop: load DISK into a simulated glass + fake DDR of
 //                                   WIN bytes (default the board's), write the placed image
@@ -26,6 +27,7 @@ const evdev = @import("evdev.zig");
 const pad = @import("pad.zig");
 const mouse = @import("mouse.zig");
 const ctl_sock = @import("ctl_sock.zig");
+const afi = @import("afi.zig");
 
 const linux = std.os.linux;
 const DEFAULT_SHELF = "/mnt/sd/zigmachine";
@@ -43,6 +45,8 @@ pub fn main(init: std.process.Init) !u8 {
                 const pct = std.fmt.parseInt(i32, a["--mouse-scale=".len..], 10) catch return usage();
                 if (pct < 1 or pct > 10_000) return usage();
                 opt.mouse_scale = @divTrunc(pct * mouse.SCALE_ONE, 100);
+            } else if (std.mem.startsWith(u8, a, "--fw-opt=")) {
+                opt.fw_opt = afi.parseOpt(a["--fw-opt=".len..]) orelse return usage();
             } else opt.dir = a;
         }
         return run(init, opt);
@@ -71,7 +75,7 @@ pub fn main(init: std.process.Init) !u8 {
 }
 
 fn usage() u8 {
-    std.debug.print("usage: glass run [--no-wait] [--mouse-scale=PCT] [SHELF_DIR] | ctl COMMAND... | sim-load DISK OUT [WINDOW] | sim-menu SHELF_DIR [shelf|console|debug]\n", .{});
+    std.debug.print("usage: glass run [--no-wait] [--mouse-scale=PCT] [--fw-opt=N] [SHELF_DIR] | ctl COMMAND... | sim-load DISK OUT [WINDOW] | sim-menu SHELF_DIR [shelf|console|debug]\n", .{});
     return 2;
 }
 
@@ -122,12 +126,14 @@ fn simMenu(init: std.process.Init, dir: []const u8, page: menu.Page) !u8 {
     return 0;
 }
 
-const RunOptions = struct { dir: []const u8 = DEFAULT_SHELF, wait: bool = true, mouse_scale: i32 = mouse.SCALE_ONE };
+const RunOptions = struct { dir: []const u8 = DEFAULT_SHELF, wait: bool = true, mouse_scale: i32 = mouse.SCALE_ONE, fw_opt: ?u32 = null };
 
 fn run(init: std.process.Init, opt: RunOptions) !u8 {
     const board = try devmem.open();
+    try afi.forRun(board.regs(), board.afi(), opt.fw_opt, devmem.napSec);
     var app = try App.init(init.gpa, init.io, board.regs(), board.ddr(), opt.dir);
     defer app.deinit();
+    app.opt.fw_opt = opt.fw_opt;
     app.opt.idle = devmem.napMs;
     app.opt.wait_boot = opt.wait;
     app.mouse.scale = @max(1, opt.mouse_scale);

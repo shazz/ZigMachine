@@ -1,5 +1,12 @@
 # FRESCO: cutting the cost of compositing planes (design study, 2026-10-18)
 
+> **Status (perf/fresco-linemajor):** ranks 1 and 2 are built. W64 is a run-time switch
+> (`glass run --fw-opt=2`, decisions.md 2026-10-18), off until the board proves it. Line-major
+> groups follow a wider rule than §3's: every run of consecutive handler-free planes, not only
+> the planes below the first handler plane, since the carts this plan targets have a handler on
+> their lowest plane (overscan flicker, rasters) and §3's group is empty there. Option 3 applies
+> when a group is the top layer.
+
 Read-only study on `integrate/2026-10-17` (04655ae1, perf/fresco-probe merged). Inputs:
 `BENCH_REPORTS.md` (board v6, posted=0), `review/PERFORMANCE_REVIEW.md` §8, the RTL in
 `rtl/video/`, `soc/zm_video_axi.py`, `cycles/vseq.c` / `vplan.c` / `vdirty.c`, `machine/video.zig`,

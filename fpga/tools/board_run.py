@@ -2,7 +2,7 @@
 
     sg dialout -c "uv run --with pyserial --with xmodem python fpga/tools/board_run.py \\
         --bit fpga/build/board_hp/zm_hp_gated_s1_sys80.bit --fw fpga/build/board_hp/fw_tutorial_diag5.bin \\
-        [--blit] [--diag 3|4] [--hp-cfg N] [--shot name] [--preflight] [--secs 5]"
+        [--blit] [--diag 3|4] [--hp-cfg N] [--w64] [--shot name] [--preflight] [--secs 5]"
 
 Order, always: CTRL 0 + 1 s, load the PL, AFI widths, firmware to 0x04000000 (skipped when the crc
 already in DDR matches), crc32 against the file's own (mismatch aborts), then cart or diag, then the
@@ -60,7 +60,7 @@ def board_run(con: UBoot, a: argparse.Namespace) -> tuple[bool, list[str]]:
     us.quiesce(con)
     us.load_pl(a.bit)
     con.cmd("dcache off")
-    us.set_afi(con, hp2=a.blit)
+    us.set_afi(con, hp2=a.blit, hp1_w64=a.w64)
     con.mw(bd.CTRL, 0)
     log.append(ensure_firmware(con, a.fw))
     return run_payload(con, a, log)
@@ -68,7 +68,7 @@ def board_run(con: UBoot, a: argparse.Namespace) -> tuple[bool, list[str]]:
 
 def run_payload(con: UBoot, a: argparse.Namespace, log: list[str]) -> tuple[bool, list[str]]:
     if a.diag:
-        bd.start_diag(con, a.diag, a.hp_cfg)
+        bd.start_diag(con, a.diag, a.hp_cfg | (2 if a.w64 else 0))
         ok, note = bd.poll_diag(con, a.diag, a.secs)
         bad = bd.compare_rows(con, a.diag) if ok else []
         log += [f"diag {a.diag}: {note}", *(f"MISMATCH {b}" for b in bad)]
@@ -88,6 +88,7 @@ def main() -> int:
     ap.add_argument("--fw", required=True)
     ap.add_argument("--diag", type=int, choices=[3, 4])
     ap.add_argument("--hp-cfg", type=lambda s: int(s, 0), default=0, help="video_hp_cfg nibble (diag)")
+    ap.add_argument("--w64", action="store_true", help="HP1's write channel 64-bit and the DMA's hp_cfg W64, together")
     ap.add_argument("--shot", help="board_shot name under fpga/build/shots/")
     ap.add_argument("--preflight", action="store_true", help="run the hp-test preflight first")
     ap.add_argument("--secs", type=float, default=5.0, help="how long to poll")

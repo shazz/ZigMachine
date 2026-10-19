@@ -56,6 +56,18 @@ void vseq_init(struct w2c_env* e, uint32_t fb0, uint32_t fb1);
 void vseq_clear(struct w2c_env* e);
 void vseq_plane(struct w2c_env* e, int p, int first);
 void vseq_mix_only(void);
+/* Line-major (vseq_group.c): the planes in g, which no cart code may run between (none of them
+ * has an HBL handler and they follow each other in the plane order), one line at a time through
+ * all of them: their LATCHes first, then per line the lowest's pass loads the line (or fills it,
+ * as the frame's first layer), the others `hold`, all but the top `keep`. nopfb: the top's
+ * passes store the picture only (nothing loads this frame's PFB rows after them). */
+void vseq_group(struct w2c_env* e, unsigned g, int first, int nopfb);
+/* Plane p has an HBL handler (FB_HBL_ID): it cannot be in a group. */
+int vseq_plane_handler(int p);
+/* vseq_group's parts in vseq.c: a command with its line-major bits, a LATCH, the clear's fusion. */
+void vseq_issue(int op, int plane, int line, int mix, int first, int fill, int ext);
+void vseq_latch(int p);
+int vseq_fill(void);
 /* ZM_LINE_MAJOR builds only: the mutant order (vseq.c). */
 void vseq_line_major(struct w2c_env* e, unsigned planes);
 void vseq_present(void);
