@@ -32,7 +32,7 @@ const back_pal = convertU8ArraytoColors(@embedFile(DIR ++ "back_pal.dat"));
 const blue_back_pal = convertU8ArraytoColors(@embedFile(DIR ++ "blue_back_pal.dat"));
 
 const logo_b = @embedFile(DIR ++ "logo.raw");
-const logo_img = blit.Image.init(logo_b, 208);
+const LOGO_W = 208;
 const back_b = @embedFile(DIR ++ "back.raw");
 const BACK_POS: u16 = 200 - 87;
 
@@ -106,15 +106,36 @@ const SCROLL_FIRST_CHAR = 32;
 const SCROLL_CHAR_W = 32;
 const SCROLL_CHAR_H = 17;
 const SCROLL_POS: u16 = 142;
-const font_img = blit.Image.init(@embedFile(DIR ++ "fonts.raw"), SCROLL_CHAR_W); // one 32x17 tile per ASCII code
+const font_b = @embedFile(DIR ++ "fonts.raw"); // one 32x17 tile per ASCII code, ink 255
 const Letter = struct { x: i32, ch: u8 };
 const Box = struct { x: i32 = 0, y: i32 = 0, w: usize = 0, h: usize = 0 };
 const STAR_NONE: u32 = 0xFFFF_FFFF;
 
-// The font background's rows under the scroller band, as a word-aligned copy so
-// the font mask below ANDs a word at a time (the embedded file is byte-aligned).
-const BAND_PIXELS: usize = @as(usize, WIDTH) * SCROLL_CHAR_H;
-const back_band: [BAND_PIXELS]u8 align(4) = back_b[(SCROLL_POS - BACK_POS) * WIDTH ..][0..BAND_PIXELS].*;
+// --------------------------------------------------------------------------
+// One plane, not four. The cart stacked stars < logo+sprites < red font background
+// < scrolltext; FRESCO paints every enabled plane (~1.09 Mc each). The stars, logo
+// and sprites live in rows 0..96, the background and the scroller in rows 113..199,
+// so the layers only ever cover each other inside those two groups:
+//   rows 0..96:    stars drawn, then the logo and the sprites keyed over them
+//   rows 113..199: the background (drawn once); in the scroller band the font's ink
+//                  shows the background's colour from blue_back_pal (the old plane
+//                  ANDed the ink with the background's indices)
+// Palette: 1..15 the logo's, 16/17 the stars', 32+b the background's colour b,
+// 40+b its blue twin, so an ink pixel is its background pixel | 8.
+// --------------------------------------------------------------------------
+const STAR_IDX = [3]u8{ 0, 16, 17 };
+const BACK = 32;
+const INK = 8;
+/// `raw` with index `from` moved to `to` and every other non-zero index up by `base`.
+fn remap(comptime raw: []const u8, comptime from: u8, comptime to: u8, comptime base: u8) [raw.len]u8 {
+    @setEvalBranchQuota(1_000_000);
+    var out: [raw.len]u8 = undefined;
+    for (raw, 0..) |v, i| out[i] = if (v == from) to else if (v == 0) 0 else v + base;
+    return out;
+}
+// the logo's field (255) was transparent too: it becomes the key, 0
+const logo_m = remap(logo_b, 255, 0, 0);
+const back_m = remap(back_b, 0, 0, BACK);
 
 comptime {
     std.debug.assert(SCROLL_TEXT.len >= NB_LETTERS);
@@ -144,6 +165,7 @@ pub const Demo = struct {
     dirty: [1 + NB_SPRITES]Box = undefined,
     letters: [NB_LETTERS]Letter = undefined,
     text_offset: usize = undefined,
+    blitter: zg.Blitter = .{},
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
         Console.log("Demo init", .{});
@@ -151,23 +173,21 @@ pub const Demo = struct {
         // Nothing happens until the user turns sound on — the request just waits.
         zg.requestSong(MUSIC);
 
-        // first plane: the stars
-        var fb: *LogicalFB = &zigos.lfbs[0];
-        fb.is_enabled = true;
-        fb.setPaletteEntry(0, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
-        fb.setPaletteEntry(2, Color{ .r = 0xE0, .g = 0xE0, .b = 0xE0, .a = 255 });
-        fb.setPaletteEntry(1, Color{ .r = 0x60, .g = 0x60, .b = 0x60, .a = 255 });
-        self.initStars();
-        fb.clearFrameBuffer(0);
-        @memset(&self.star_px, STAR_NONE);
-
-        // second plane: logo and sprites
-        fb = &zigos.lfbs[1];
+        self.blitter.init();
+        const fb: *LogicalFB = &zigos.lfbs[0];
         fb.is_enabled = true;
         fb.setPalette(logo_pal);
         fb.setPaletteEntry(0, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
         fb.setPaletteEntry(255, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
+        fb.setPaletteEntry(STAR_IDX[2], Color{ .r = 0xE0, .g = 0xE0, .b = 0xE0, .a = 255 });
+        fb.setPaletteEntry(STAR_IDX[1], Color{ .r = 0x60, .g = 0x60, .b = 0x60, .a = 255 });
+        for (1..8) |b| {
+            fb.setPaletteEntry(@intCast(BACK + b), back_pal[b]);
+            fb.setPaletteEntry(@intCast(BACK + INK + b), blue_back_pal[b]);
+        }
+        self.initStars();
         fb.clearFrameBuffer(0);
+        @memset(&self.star_px, STAR_NONE);
         self.dirty = [_]Box{.{}} ** (1 + NB_SPRITES);
         self.logo.init(fb.getRenderTarget(), logo_b, 208, 97, 0, 0, null, null);
         self.logo_sinx = 0;
@@ -178,25 +198,9 @@ pub const Demo = struct {
             self.sprite_x[i] = 0;
             self.sprite_y[i] = 0;
         }
+        // The red font background never moves: drawn once, not every frame.
+        @memcpy(fb.fb[@as(usize, BACK_POS) * WIDTH ..][0..back_m.len], &back_m);
 
-        // 3rd plane: the red font background
-        fb = &zigos.lfbs[2];
-        fb.is_enabled = true;
-        fb.setPalette(back_pal);
-        fb.setPaletteEntry(0, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
-        fb.setPaletteEntry(255, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
-        self.back.init(fb.getRenderTarget(), back_b, 320, 87, 0, BACK_POS, null, null);
-        // The red font background never moves and nothing else draws on this
-        // plane: it is drawn once, not every frame.
-        fb.clearFrameBuffer(0);
-        self.back.render(null);
-
-        // 4th plane: the scrolltext
-        fb = &zigos.lfbs[3];
-        fb.is_enabled = true;
-        fb.setPalette(blue_back_pal);
-        fb.setPaletteEntry(0, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
-        fb.clearFrameBuffer(0); // render() clears only the scroller's band
         for (&self.letters, 0..) |*letter, i| {
             letter.* = .{ .x = SCROLL_WIDE * SCROLL_TILE_W + @as(i32, @intCast(i)) * SCROLL_TILE_W, .ch = SCROLL_TEXT[i] };
         }
@@ -273,31 +277,51 @@ pub const Demo = struct {
 
     pub fn render(self: *Demo, zigos: *ZigOS, elapsed_time: f32) void {
         _ = elapsed_time;
-        self.renderStars(&zigos.lfbs[0]);
-        self.renderLogo(&zigos.lfbs[1]);
-        self.renderScroller(&zigos.lfbs[3]);
+        const fb = &zigos.lfbs[0];
+        self.eraseBoxes(fb);
+        self.renderStars(fb);
+        self.renderLogo(fb);
+        self.renderScroller(fb);
     }
 
-    /// Erase last frame's boxes, then draw the logo and the sprites in order. The
-    /// logo is blitted with key 0, which is what Sprite.render did (palette 0 has
-    /// alpha 0, so index 0 is transparent).
+    /// x..x+w clipped to the screen: (first column, source skip, width).
+    fn clipX(x: i32, w: usize) ?struct { at: u16, skip: u16, n: u16 } {
+        const lo = @max(x, 0);
+        const hi = @min(x + @as(i32, @intCast(w)), @as(i32, WIDTH));
+        if (hi <= lo) return null;
+        return .{ .at = @intCast(lo), .skip = @intCast(lo - x), .n = @intCast(hi - lo) };
+    }
+
+    /// Last frame's logo and sprite boxes back to 0 (CHISEL), before the stars.
+    fn eraseBoxes(self: *Demo, fb: *LogicalFB) void {
+        for (self.dirty) |b| {
+            const cx = clipX(b.x, b.w) orelse continue;
+            self.blitter.fill(fb, @intCast(cx.at), @intCast(b.y), cx.n, @intCast(b.h), 0);
+        }
+    }
+
+    /// The logo, then the sprites in order, keyed over the stars by CHISEL (key 0:
+    /// palette 0 and the logo's field both had alpha 0).
     fn renderLogo(self: *Demo, fb: *LogicalFB) void {
-        for (self.dirty) |b| fb.fillRect(b.x, b.y, b.w, b.h, 0);
-        const dst = blit.Dst.plane(fb);
         const logo_x = self.logo.x_position;
-        blit.blit(dst, logo_img, null, logo_x, 0, 0, .copy);
-        self.dirty[0] = .{ .x = logo_x, .y = 0, .w = logo_img.w, .h = logo_img.h };
+        self.blitKeyed(fb, &logo_m, LOGO_W, logo_x, 0, 97);
+        self.dirty[0] = .{ .x = logo_x, .y = 0, .w = LOGO_W, .h = 97 };
         for (sprite_imgs, self.sprite_x, self.sprite_y, self.dirty[1..]) |img, x, y, *box| {
-            blit.blit(dst, img, null, x, y, 0, .copy);
+            self.blitKeyed(fb, img.data, SPRITE_W, x, y, img.h);
             box.* = .{ .x = x, .y = y, .w = img.w, .h = img.h };
         }
+    }
+
+    fn blitKeyed(self: *Demo, fb: *LogicalFB, data: []const u8, w: usize, x: i32, y: i32, h: usize) void {
+        const cx = clipX(x, w) orelse return;
+        self.blitter.blitImage(fb, @intCast(cx.at), @intCast(y), data, @intCast(w), cx.skip, 0, cx.n, @intCast(h), 0);
     }
 
     /// A 2x2 canvas dot is one ST pixel: the one holding the dot's centre.
     /// Later stars cover earlier ones, as they do on the canvas.
     fn renderStars(self: *Demo, fb: *LogicalFB) void {
         for (self.star_px) |at| {
-            if (at != STAR_NONE) fb.fb[at] = 0;
+            if (at != STAR_NONE and fb.fb[at] != 0) fb.fb[at] = 0; // a box erase may have done it
         }
         for (self.stars, self.star_drawn_x, &self.star_px) |star, drawn_x, *at| {
             const x: i32 = @intCast((drawn_x + Q32) >> 33);
@@ -305,22 +329,26 @@ pub const Demo = struct {
             at.* = STAR_NONE;
             if (x < 0 or x >= WIDTH or y >= STAR_ROWS) continue;
             at.* = @as(u32, @intCast(y)) * fb.stride + @as(u32, @intCast(x));
-            fb.fb[at.*] = star.color;
+            fb.fb[at.*] = STAR_IDX[star.color];
         }
     }
 
+    /// The band back to the background (CHISEL), then each letter's ink as its
+    /// background pixel's blue twin. Letters are 32 px apart and never overlap.
     fn renderScroller(self: *Demo, fb: *LogicalFB) void {
-        fb.fillRect(0, SCROLL_POS, WIDTH, SCROLL_CHAR_H, 0); // the only rows the letters touch
-        const dst = blit.Dst.plane(fb);
+        const band_row = SCROLL_POS - BACK_POS;
+        self.blitter.blitImage(fb, 0, SCROLL_POS, &back_m, WIDTH, 0, band_row, WIDTH, SCROLL_CHAR_H, null);
         for (self.letters) |letter| {
             const tile: usize = if (letter.ch >= SCROLL_FIRST_CHAR) letter.ch - SCROLL_FIRST_CHAR else 0;
-            const cell = blit.Rect{ .x = 0, .y = tile * SCROLL_CHAR_H, .w = SCROLL_CHAR_W, .h = SCROLL_CHAR_H };
-            blit.blit(dst, font_img, cell, @divFloor(letter.x, 2), SCROLL_POS, 0, .copy);
+            const cx = clipX(@divFloor(letter.x, 2), SCROLL_CHAR_W) orelse continue;
+            for (0..SCROLL_CHAR_H) |r| {
+                const src = font_b[(tile * SCROLL_CHAR_H + r) * SCROLL_CHAR_W + cx.skip ..][0..cx.n];
+                const at = (band_row + r) * WIDTH + cx.at;
+                const dst = fb.fb[(SCROLL_POS + r) * WIDTH + cx.at ..][0..cx.n];
+                for (src, dst, back_m[at..][0..cx.n]) |ink, *d, b| {
+                    if (ink != 0) d.* = b | INK;
+                }
+            }
         }
-
-        // the font's colour mask against the font background, as before
-        const band: *[BAND_PIXELS / 4]u32 = @ptrCast(@alignCast(fb.fb[SCROLL_POS * WIDTH ..][0..BAND_PIXELS]));
-        const mask: *const [BAND_PIXELS / 4]u32 = @ptrCast(&back_band);
-        for (band, mask) |*d, m| d.* &= m;
     }
 };
