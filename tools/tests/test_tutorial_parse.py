@@ -19,10 +19,10 @@ class ParseRealFile(unittest.TestCase):
     def setUpClass(cls) -> None:
         cls.t = parse(REAL)
 
-    def test_thirteen_steps_and_two_framing_sections(self) -> None:
+    def test_thirteen_steps_and_three_framing_sections(self) -> None:
         self.assertEqual(len(self.t.steps), 13)
         plain = [s.slug for s in self.t.sections if not s.is_step]
-        self.assertEqual(plain, ["before-you-start", "where-next"])
+        self.assertEqual(plain, ["before-you-start", "kestrel-only-hello-world-in-native-c-and-rv32-assembly", "where-next"])
 
     # Steps 1-7 are the buildable core: every one ships Zig, C and Rust, and
     # apps/tutorial_steps_check.mjs fingerprints their carts (LAST_STEP = 7).
