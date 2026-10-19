@@ -84,6 +84,7 @@ pub const convertU8ArraytoColors = @import("utils/loaders.zig").convertU8Arrayto
 pub const readU16Array = @import("utils/loaders.zig").readU16Array;
 pub const readI16Array = @import("utils/loaders.zig").readI16Array;
 pub const Blitter = @import("blitter.zig").Blitter;
+pub const chisel_async = @import("chisel_async.zig"); // KESTREL: hwBlit returns before CHISEL ends (opt-in)
 pub const BlitVec2 = @import("blitter.zig").Vec2;
 pub const Minterm = @import("blitter.zig").Minterm;
 pub const obj = @import("utils/obj_loader.zig");
@@ -784,6 +785,16 @@ pub const ZigOS = struct {
     pub fn initTextOnly(self: *ZigOS) void {
         self.system_font = SYSTEM_FONT;
         self.system_font_6 = SYSTEM_FONT_6;
+    }
+
+    // KESTREL's lazy CHISEL wait (chisel_async.zig): with async on, hwBlit and
+    // ZigOS's own CHISEL clears/copies return while CHISEL still draws; keep the
+    // CPU off those pixels until blitSync(). No effect in the browser.
+    pub fn blitAsync(_: *ZigOS, on: bool) void {
+        chisel_async.setAsync(g_base, on);
+    }
+    pub fn blitSync(_: *ZigOS) void {
+        chisel_async.sync(g_base);
     }
 
     pub fn init(self: *ZigOS) void {

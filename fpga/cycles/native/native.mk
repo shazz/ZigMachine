@@ -35,7 +35,7 @@ $(NATIVE)/%/cart.elf: cycles/native/%.S $(NATIVE_DEPS)
 # the first object of the image's .bss, at the address the header's bss_start gives the ARM.
 BENCH_DIR := cycles/native/bench
 BENCH_SRC := $(addprefix $(BENCH_DIR)/,log.c run.c main.c chisel.c screen.c planes.c tests_cpu.c tests_mem.c \
-	tests_chisel.c tests_misc.c tests_align.c kern_store.S kern_load.S kern_cpu.S)
+	tests_chisel.c tests_async.c tests_misc.c tests_align.c kern_store.S kern_load.S kern_cpu.S)
 $(NATIVE)/bench/cart.elf: $(BENCH_SRC) $(BENCH_DIR)/bench.h $(NATIVE_DEPS)
 	@mkdir -p $(@D)
 	$(RV_CC) $(NATIVE_FLAGS) -fsyntax-only cycles/native/native_check.c

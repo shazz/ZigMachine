@@ -25,7 +25,7 @@ BENCH = FPGA / "cycles/native/bench"
 SPLIT = FPGA / "build/hcycles/split"
 needs_rv = pytest.mark.skipif(shutil.which("riscv64-unknown-elf-gcc") is None, reason="the rv32 toolchain builds it")
 MAX_RESULTS, NAME_COLS = 128, 16  # bench.h BENCH_MAX_RESULTS; screen.c's name column
-EXTRA_RESULTS = 1 + 7 + 9  # calib.empty, the contention series, the frame tests
+EXTRA_RESULTS = 1 + 7 + 3 + 9  # calib.empty, the contention series, the async calls, the frame tests
 
 
 def build(fpu: bool) -> Path:

@@ -3,7 +3,7 @@
  * Called as every lean cart is (cycles/bsys.c, the hello carts): bind, instantiate, boot, then
  * frame and plane_enabled every frame. frame() runs one step a frame, so the glass keeps seeing
  * frames (it calls a cart stalled after 2 s without one) and no step holds the CPU for long:
- *   SETTLE frames idle, the calibration, each case of the four tables, the contention series,
+ *   SETTLE frames idle, the calibration, each case of the tables, the contention and async-call series,
  *   the frame tests (planes.c, many frames), then the results, a page every PAGE_FRAMES
  *   (or at a key). The log is complete (done = 1) once the pages show. */
 #include "bench.h"
@@ -18,7 +18,7 @@ typedef struct w2c_cart {
 const zm_sys_table* zm_sys; /* .bss: the system zeroes it, then bind() fills it */
 
 static const bench_case* const TABLES[] = {bench_cpu_cases, bench_mem_cases, bench_chisel_cases, bench_misc_cases,
-    bench_align_cases};
+    bench_align_cases, bench_async_cases};
 #define NTABLES (int)(sizeof TABLES / sizeof TABLES[0])
 
 static struct {
@@ -95,7 +95,7 @@ static void frame(bench_inst* c, float dt) {
         if (next_case()) screen_progress(++run.done, run.total);
         else run.at = S_CONTEND;
         break;
-    case S_CONTEND: bench_contention(), run.at = S_PLANES; break;
+    case S_CONTEND: bench_contention(), bench_async_calls(), run.at = S_PLANES; break;
     case S_PLANES:
         if (planes_frame()) break;
         log_done();

@@ -77,6 +77,8 @@ extern const bench_case bench_chisel_cases[];
 extern const bench_case bench_misc_cases[];
 extern const bench_case bench_align_cases[];
 void bench_contention(void); /* test 7: timed inside its bodies (tests_chisel.c) */
+extern const bench_case bench_async_cases[];
+void bench_async_calls(void); /* test 8: an async kick and an idle sync, timed alone (tests_async.c) */
 
 /* log.c: the ZMBENCH lines, readable by the ARM at a fixed DDR address. */
 void log_begin(void);
@@ -92,6 +94,8 @@ void chisel_fill(uint32_t off, uint32_t stride, uint32_t w, uint32_t h);
 void chisel_copy(uint32_t off, uint32_t src_abs, uint32_t stride, uint32_t w, uint32_t h);
 void chisel_go_fill(uint32_t off, uint32_t stride, uint32_t w, uint32_t h); /* no wait */
 void chisel_wait(void);
+void chisel_sync(void);       /* a NOP hwBlit: waits for a lazy op */
+void chisel_async(int on);    /* BLIT_ASYNC (off syncs first) */
 
 /* planes.c: the frame tests, one frame each, driven from main.c's frame(). */
 int planes_frame(void); /* 1 while it still needs frames */

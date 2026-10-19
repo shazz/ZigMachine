@@ -62,6 +62,18 @@ void chisel_copy(uint32_t off, uint32_t src_abs, uint32_t stride, uint32_t w, ui
     hw_blit();
 }
 
+/* hwBlit's lazy wait (cycles/bchisel.h): BLIT_ASYNC on, every hwBlit returns once CHISEL has
+ * started; off syncs first (a NOP hwBlit), as libs/zig/chisel_async.zig does. */
+void chisel_sync(void) {
+    w8(ZM_BLIT_COMMAND, ZM_BLIT_CMD_NOP);
+    hw_blit();
+}
+
+void chisel_async(int on) {
+    if (!on) chisel_sync();
+    w8(ZM_BLIT_ASYNC, (uint8_t)(on != 0));
+}
+
 void chisel_go_fill(uint32_t off, uint32_t stride, uint32_t w, uint32_t h) {
     fill_regs(off, stride, w, h);
     *(volatile uint8_t*)NATIVE_ZMB_WINDOW = ZM_BLIT_CMD_FILL; /* GO: after every register store */
