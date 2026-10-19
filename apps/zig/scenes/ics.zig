@@ -55,7 +55,14 @@ const logo_pal = convertU8ArraytoColors(@embedFile("../assets/screens/ics/ics_lo
 const grid_pal = convertU8ArraytoColors(@embedFile("../assets/screens/ics/grid_large_pal.dat"));
 
 // rasters
-const rasters_b = convertU8ArraytoColors(@embedFile("../assets/screens/ics/raster_pal.dat"));
+// As RGBA words: a [256]Color is byte-aligned in the data segment, so reading one
+// entry as a word is a misaligned load (a trap on ZIGGY) on every HBL line.
+const rasters_rgba: [256]u32 = blk: {
+    const colors = convertU8ArraytoColors(@embedFile("../assets/screens/ics/raster_pal.dat"));
+    var out: [256]u32 = undefined;
+    for (colors, 0..) |c, i| out[i] = c.toRGBA();
+    break :blk out;
+};
 
 // logo
 const logo_b = @embedFile("../assets/screens/ics/ics_logo.raw");
@@ -144,7 +151,7 @@ fn buildScroll() void {
 fn handler_scroller(fb: *LogicalFB, zigos: *ZigOS, line: u16, col: u16) void {
     // LOGICAL lines 0..199. The raster colours the scroller's ink; from LOGO_TOP down
     // the band covers it (the old plane blanked the entry at 165, under the logo).
-    if (line < LOGO_TOP) fb.setPaletteEntry(RASTER_IDX, rasters_b[line]);
+    if (line < LOGO_TOP) fb.palette[RASTER_IDX] = rasters_rgba[line];
     _ = zigos;
     _ = col;
 }

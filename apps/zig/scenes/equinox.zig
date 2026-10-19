@@ -7,15 +7,19 @@
 // 200..227 — the lower scroller background and the scrolltext — sit in the
 // bottom border at physical 240..267.
 //
-// Planes, in go()'s drawing order:
-//   0 roads       black fill, road2 on the odd bands, road1 on the even
-//   1 backdrop    backtop, backscroll, the fading logo (palette ALPHA)
-//   2 dragons     seven sprites sharing one morph frame
-//   3 scrolltext
+// Layers, in go()'s drawing order (one plane since pass 3, equinox_plane.zig):
+//   roads       black fill, road2 on the odd bands, road1 on the even
+//   backdrop    backtop, backscroll, the fading logo (palette ALPHA)
+//   dragons     seven sprites sharing one morph frame
+//   scrolltext
+// The picture is drawn by CHISEL: changed road rows and the scroll band are copied
+// from a BASE buffer (the plane without dragons and letters, in the never-enabled
+// plane 1) that also restores what the dragons covered.
 // --------------------------------------------------------------------------
 const std = @import("std");
 const zg = @import("zigos");
 const blit = zg.blit;
+const merged = @import("equinox_plane.zig");
 
 const ZigOS = zg.ZigOS;
 const LogicalFB = zg.LogicalFB;
@@ -35,20 +39,29 @@ const SCREEN_H: usize = 228; // 400+(28*2) halved
 const SCREEN_X: usize = 40; // ST column 0 in the 400-wide overscan buffer
 const SCREEN_Y: usize = 40; // ST row 0 = the first normally-visible row
 
+const VIS = 0; // the plane on screen
+const BASE = 1; // never enabled: the screen without dragons and letters
+
 fn screenView(fb: *LogicalFB) blit.Dst {
     return blit.Dst.plane(fb).window(SCREEN_X, SCREEN_Y, SCREEN_W, SCREEN_H);
 }
 
+/// [x, x + w) clipped to the screen's columns: (first column, source skip, width).
+fn clipX(x: i32, w: usize) ?struct { at: usize, skip: usize, n: usize } {
+    const lo = @max(x, 0);
+    const hi = @min(x + @as(i32, @intCast(w)), @as(i32, SCREEN_W));
+    if (hi <= lo) return null;
+    return .{ .at = @intCast(lo), .skip = @intCast(lo - x), .n = @intCast(hi - lo) };
+}
+
+// The band's two pictures (road1 / road2 under the backdrop and the logo), built in init.
+var band: [2][merged.BAND_ROWS * SCREEN_W]u8 = undefined;
+
 // --------------------------------------------------------------------------
 // Plane 0: roads (screen.js:270-289)
 // --------------------------------------------------------------------------
-const road_pal = zg.convertU8ArraytoColors(@embedFile(DIR ++ "road_pal.dat"));
-const road1_img = blit.Image.init(@embedFile(DIR ++ "road1.raw"), SCREEN_W);
-const road2_img = blit.Image.init(@embedFile(DIR ++ "road2.raw"), SCREEN_W);
-const ROAD_Y: usize = 113; // offset_y 226
+const ROAD_Y: usize = merged.BAND_Y; // offset_y 226
 const ROAD_FRAMES = 18;
-const ROAD_CLEAR: u8 = 255; // outside the screen: transparent
-const BLACK: u8 = 5; // road_pal[5] is opaque black: mycanvas.fill('#000000')
 
 // Both tables are in canvas rows; every value is even, so halving is exact.
 const road_offsets = [ROAD_FRAMES][9]u8{
@@ -77,7 +90,7 @@ const road_sum = [ROAD_FRAMES][10]u8{
 // The bands of every frame tile the same ROAD_ROWS rows exactly (each offsets row
 // sums to 170 canvas rows), so the road area is rewritten whole by the bands and
 // the black fill under it never shows: the plane is cleared and filled once.
-const ROAD_ROWS = 85;
+const ROAD_ROWS = merged.BAND_ROWS;
 comptime {
     for (road_offsets) |row| {
         var sum: usize = 0;
@@ -97,42 +110,18 @@ fn roadWanted(i: usize) [ROAD_ROWS]u8 {
 }
 
 // --------------------------------------------------------------------------
-// Plane 1: backtop, backscroll and the logo (screen.js:190-214, 292-297)
+// The logo (screen.js:190-214, 292-297)
 // --------------------------------------------------------------------------
-const backtop_pal = zg.convertU8ArraytoColors(@embedFile(DIR ++ "backtop_pal.dat"));
-const logo_pal = zg.convertU8ArraytoColors(@embedFile(DIR ++ "logo_pal.dat"));
-const backtop_img = blit.Image.init(@embedFile(DIR ++ "backtop.raw"), SCREEN_W);
-const backscroll_img = blit.Image.init(@embedFile(DIR ++ "backscroll.raw"), SCREEN_W);
-const logo_img = blit.Image.init(@embedFile(DIR ++ "logo.raw"), 203);
-const BACKDROP_CLEAR: u8 = 5; // backtop_pal's transparent entry
-// backscroll.png is 640x79 drawn at canvas y 377: its row 0 is a lone row, then
-// pairs, so halved row 0 lands on ST row 188 and the art ends on row 226.
-const BACKSCROLL_Y: i32 = 188;
-const LOGO_X: i32 = 55; // logocanvas.drawPart(mycanvas, 110, 290, ...)
-const LOGO_Y: i32 = 145;
-const LOGO_FIELD: u8 = 1;
-const LOGO_BASE: u8 = 32; // logo colours live after backtop's 24 entries
-const LOGO_COLOURS = 5;
 const LOGO_PERIOD = 400; // `if(frames % 400 == 0) timeToShowLogo = 1`
 const LOGO_STEP_FRAMES = 10; // alphaTime == 10
-const LOGO_ALPHA_BYTE = blk: {
-    var t: [11]u8 = undefined;
-    for (&t, 0..) |*b, k| b.* = @intCast((255 * k + 5) / 10);
-    break :blk t;
-};
 
 // --------------------------------------------------------------------------
-// Plane 2: the dragons (screen.js:152-185, 216-268, 301-306)
+// The dragons (screen.js:152-185, 216-268, 301-306)
 // --------------------------------------------------------------------------
-const bob_pal = zg.convertU8ArraytoColors(@embedFile(DIR ++ "bobs_pal.dat"));
 const NB_DRAGONS = 7;
 const DRAGON_W = 32;
+const DRAGON_H = 26;
 // dragon1..dragon8 (64x52, halved); frame 7 is the egg, frame 0 the full dragon
-const dragon_frames = [8][]const u8{
-    @embedFile(DIR ++ "bob1.raw"), @embedFile(DIR ++ "bob2.raw"), @embedFile(DIR ++ "bob3.raw"),
-    @embedFile(DIR ++ "bob4.raw"), @embedFile(DIR ++ "bob5.raw"), @embedFile(DIR ++ "bob6.raw"),
-    @embedFile(DIR ++ "bob7.raw"), @embedFile(DIR ++ "bob8.raw"),
-};
 const EGG_FRAME = 7;
 
 // The precalculated trajectory. Each dragon trails the previous one by 18
@@ -185,10 +174,9 @@ const ALIVE_TOP_FRAME = 3; // alive ping-pongs frames 0..3
 // --------------------------------------------------------------------------
 // Plane 3: scrolltext_horizontal (codef_scrolltext.js:47-175)
 // --------------------------------------------------------------------------
-const font_pal = zg.convertU8ArraytoColors(@embedFile(DIR ++ "fonts_pal.dat"));
 // fonts.raw is NOT the 320x156 sheet: it is a STRIP of the 60 glyphs, 32x26
 // each, in tile order (glyph k = sheet tile k = character 32 + k).
-const font_strip = @embedFile(DIR ++ "fonts.raw");
+const font_strip = &merged.font_strip;
 const SCROLL_TEXT = @embedFile(DIR ++ "scrolltext.txt"); // scrtxt, verbatim
 // esfont.initTile(32*2, 26*2, 32), scrolltext.init(mycanvas, esfont, 13).
 // Letter x is kept in CANVAS pixels (1 fractional bit of an ST pixel), so the
@@ -232,8 +220,10 @@ pub const Demo = struct {
     // The road image (1/2) each road row holds now, 0 = not drawn yet: a row is
     // copied again only when the band over it changed parity.
     road_src: [ROAD_ROWS]u8 = undefined,
-    // Where each dragon was drawn last render, to erase just those boxes.
+    // Where each dragon was drawn last render, to restore just those boxes.
     dragon_box: [NB_DRAGONS]Box = undefined,
+    pairs_tenths: u8 = 0xff, // the alpha step the logo's palette entries hold
+    blitter: zg.Blitter = .{},
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
         zg.requestSong(MUSIC);
@@ -258,34 +248,30 @@ pub const Demo = struct {
             self.scroffset += 1;
         }
 
-        var fb: *LogicalFB = &zigos.lfbs[0];
-        openPlane(fb, road_pal);
-        fb.setPaletteEntry(ROAD_CLEAR, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
-        @memset(blit.Dst.plane(fb).buf, ROAD_CLEAR);
-        const road_view = screenView(fb);
-        @memset(road_view.buf[0 .. (road_view.h - 1) * road_view.stride + road_view.w], BLACK);
-
-        fb = &zigos.lfbs[1];
-        openPlane(fb, backtop_pal);
-        fb.setPaletteEntry(BACKDROP_CLEAR, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
-        self.setLogoAlpha(fb);
-        drawBackdrop(fb); // all of it static (the logo fades by palette alpha): drawn once
-
-        fb = &zigos.lfbs[2];
-        openPlane(fb, bob_pal);
-        fb.setPaletteEntry(0, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
-        fb.clearFrameBuffer(0);
-
-        fb = &zigos.lfbs[3];
-        openPlane(fb, font_pal);
-        fb.setPaletteEntry(0, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
-        fb.clearFrameBuffer(0);
+        self.blitter.init();
+        self.pairs_tenths = 0xff;
+        const vis = &zigos.lfbs[VIS];
+        vis.is_enabled = true;
+        vis.openBorders(.top_bottom);
+        merged.setPalette(vis.palette);
+        self.setLogoAlpha(vis);
+        const base = &zigos.lfbs[BASE];
+        base.setOverscanBuffer(); // the same 400x280 geometry, never enabled
+        buildBase(base);
+        self.blitter.blitCopy(vis, 0, 0, base, 0, 0, @intCast(base.fb_w), @intCast(base.fb_h));
     }
 
-    fn openPlane(fb: *LogicalFB, palette: [256]Color) void {
-        fb.is_enabled = true;
-        fb.openBorders(.top_bottom);
-        fb.setPalette(palette);
+    // The screen's static picture into BASE (the band as road1: its rows are all
+    // rewritten by the first frame, road_src being 0), and the band's two pictures.
+    fn buildBase(base: *LogicalFB) void {
+        @memset(blit.Dst.plane(base).buf, merged.CLEAR);
+        const view = screenView(base);
+        for (0..SCREEN_H) |y| for (0..SCREEN_W) |x| {
+            view.buf[y * view.stride + x] = merged.pixel(x, y, 0);
+        };
+        for (0..2) |r| for (0..ROAD_ROWS) |y| for (0..SCREEN_W) |x| {
+            band[r][y * SCREEN_W + x] = merged.pixel(x, ROAD_Y + y, r);
+        };
     }
 
     // go(), screen.js:276-316, minus the drawing
@@ -294,7 +280,7 @@ pub const Demo = struct {
         self.road_frame = (self.road_frame + 1) % ROAD_FRAMES;
         if (self.frames % LOGO_PERIOD == 0) self.logo_showing = true;
         self.tickLogo();
-        self.setLogoAlpha(&zigos.lfbs[1]);
+        self.setLogoAlpha(&zigos.lfbs[VIS]);
         if (self.frames % MORPH_TICK == 0) self.tickMorph();
         self.drawn_tabpos = self.tabpos;
         self.tabpos += 1;
@@ -304,15 +290,17 @@ pub const Demo = struct {
 
     pub fn render(self: *Demo, zigos: *ZigOS, dt: f32) void {
         _ = dt;
-        self.drawRoads(&zigos.lfbs[0]);
-        self.drawDragons(&zigos.lfbs[2]);
-        self.drawScrolltext(&zigos.lfbs[3]);
+        const vis = &zigos.lfbs[VIS];
+        const base = &zigos.lfbs[BASE];
+        self.drawRoads(vis, base);
+        self.drawDragons(vis, base);
+        self.drawScrolltext(vis, base);
     }
 
     // screen.js:280-289: road2 on the odd bands, road1 on the even ones. Only the
-    // runs of rows whose road image changed since the last frame are copied.
-    fn drawRoads(self: *Demo, fb: *LogicalFB) void {
-        const view = screenView(fb);
+    // runs of rows whose road image changed since the last frame are copied, into
+    // BASE and onto the screen.
+    fn drawRoads(self: *Demo, vis: *LogicalFB, base: *LogicalFB) void {
         const want = roadWanted(self.road_frame);
         var r: usize = 0;
         while (r < ROAD_ROWS) {
@@ -322,20 +310,14 @@ pub const Demo = struct {
             }
             var end = r + 1;
             while (end < ROAD_ROWS and want[end] == want[r] and self.road_src[end] != want[r]) end += 1;
-            const road = if (want[r] == 2) road2_img else road1_img;
-            const part = blit.Rect{ .x = 0, .y = r, .w = SCREEN_W, .h = end - r };
-            blit.blit(view, road, part, 0, @intCast(ROAD_Y + r), null, .copy);
+            const src: []const u8 = &band[want[r] - 1];
+            const y: i16 = @intCast(SCREEN_Y + ROAD_Y + r);
+            const n: u16 = @intCast(end - r);
+            self.blitter.blitImage(base, SCREEN_X, y, src, SCREEN_W, 0, @intCast(r), SCREEN_W, n, null);
+            self.blitter.blitImage(vis, SCREEN_X, y, src, SCREEN_W, 0, @intCast(r), SCREEN_W, n, null);
             @memset(self.road_src[r..end], want[r]);
             r = end;
         }
-    }
-
-    fn drawBackdrop(fb: *LogicalFB) void {
-        @memset(blit.Dst.plane(fb).buf, BACKDROP_CLEAR);
-        const view = screenView(fb);
-        blit.blit(view, backtop_img, null, 0, 0, null, .copy);
-        blit.blit(view, backscroll_img, null, 0, BACKSCROLL_Y, null, .copy);
-        blit.blit(view, logo_img, null, LOGO_X, LOGO_Y, LOGO_FIELD, .{ .offset = LOGO_BASE });
     }
 
     // showLogo(), screen.js:190-214
@@ -356,17 +338,13 @@ pub const Demo = struct {
         self.logo_ticks = 0;
     }
 
-    // The logo is drawn every frame with globalAlpha = alpha. Plane 1 is its own
-    // canvas layer, so the same composite is the palette ALPHA of the logo's
-    // entries, blended by the host over the road beneath.
+    // The logo is drawn every frame with globalAlpha = alpha. On the merged plane the
+    // blend over the road is in the palette (equinox_plane.zig): rewritten when the
+    // alpha steps, not every frame.
     fn setLogoAlpha(self: *Demo, fb: *LogicalFB) void {
-        const a: u8 = LOGO_ALPHA_BYTE[self.logo_alpha]; // round(tenths / 10 * 255), ties up as the 1e-8 nudge did
-        for (0..LOGO_COLOURS) |i| {
-            if (i == LOGO_FIELD) continue;
-            var c = logo_pal[i];
-            c.a = a;
-            fb.setPaletteEntry(LOGO_BASE + @as(u8, @intCast(i)), c);
-        }
+        if (self.pairs_tenths == self.logo_alpha) return;
+        merged.setLogoPairs(fb.palette, self.logo_alpha);
+        self.pairs_tenths = self.logo_alpha;
     }
 
     // morphSprite(), screen.js:216-268: egg (frame 7) for 60 ticks, hatch
@@ -399,18 +377,34 @@ pub const Demo = struct {
         self.state_ticks = 0;
     }
 
-    // screen.js:301-304: seven dragons, one morph frame, 18 trajectory entries apart
-    fn drawDragons(self: *Demo, fb: *LogicalFB) void {
-        const view = screenView(fb);
-        for (self.dragon_box) |b| view.fill(b.x, b.y, b.w, b.h, 0);
-        const img = blit.Image.init(dragon_frames[self.morph_frame], DRAGON_W);
+    // screen.js:301-304: seven dragons, one morph frame, 18 trajectory entries apart.
+    // Last frame's boxes are restored from BASE first, then all seven drawn keyed.
+    fn drawDragons(self: *Demo, vis: *LogicalFB, base: *LogicalFB) void {
+        for (self.dragon_box) |b| {
+            const cx = clipX(b.x, b.w) orelse continue;
+            const top: usize = @intCast(@max(b.y, 0));
+            const bot: usize = @intCast(@min(b.y + @as(i32, @intCast(b.h)), @as(i32, SCREEN_H)));
+            if (bot <= top) continue;
+            const sx: i16 = @intCast(SCREEN_X + cx.at);
+            const sy: i16 = @intCast(SCREEN_Y + top);
+            self.blitter.blitCopy(vis, sx, sy, base, sx, sy, @intCast(cx.n), @intCast(bot - top));
+        }
+        const img: []const u8 = &merged.dragon_frames[self.morph_frame];
         for (0..NB_DRAGONS) |n| {
             const idx = self.drawn_tabpos + n * TRAIL;
             const x = trajectory.x[idx % X_WRAP];
             const y = trajectory.y[idx % Y_WRAP];
-            blit.blit(view, img, null, x, y, 0, .copy);
-            self.dragon_box[n] = .{ .x = x, .y = y, .w = img.w, .h = img.h };
+            self.blitDragon(vis, img, x, y);
+            self.dragon_box[n] = .{ .x = x, .y = y, .w = DRAGON_W, .h = DRAGON_H };
         }
+    }
+
+    fn blitDragon(self: *Demo, vis: *LogicalFB, img: []const u8, x: i32, y: i32) void {
+        const cx = clipX(x, DRAGON_W) orelse return;
+        const top = @max(y, 0);
+        const bot = @min(y + DRAGON_H, @as(i32, SCREEN_H));
+        if (bot <= top) return;
+        self.blitter.blitImage(vis, @intCast(SCREEN_X + cx.at), @intCast(SCREEN_Y + @as(usize, @intCast(top))), img, DRAGON_W, @intCast(cx.skip), @intCast(top - y), @intCast(cx.n), @intCast(bot - top), 0);
     }
 
     // scrolltext_horizontal.draw's movement: a letter that has left recycles to
@@ -427,17 +421,17 @@ pub const Demo = struct {
     }
 
     // drawTile(dst, ltr - 32, posx, posy): letters are 64 canvas px apart, so
-    // they never overlap and the draw order by posx does not matter. Their 32 px
-    // tiles are contiguous and run past both ends of the view, so copying them
-    // WHOLE (transparent index 0 included) rewrites every pixel of the band the
-    // old clear + keyed draw did, and nothing outside the view is ever touched.
-    fn drawScrolltext(self: *Demo, fb: *LogicalFB) void {
-        const view = screenView(fb);
+    // they never overlap and the draw order by posx does not matter. The band is
+    // restored from BASE (the backscroll under it), then each tile drawn keyed and
+    // clipped to the screen's columns, as the old plane's view clipped it.
+    fn drawScrolltext(self: *Demo, vis: *LogicalFB, base: *LogicalFB) void {
+        const y: i16 = @intCast(SCREEN_Y + SCROLL_Y);
+        self.blitter.blitCopy(vis, SCREEN_X, y, base, SCREEN_X, y, SCREEN_W, FONT_H);
         const glyph_size = GLYPH_W * FONT_H;
         for (self.letters) |l| {
             const nb: usize = l.char - FONT_FIRST;
-            const glyph = blit.Image.init(font_strip[nb * glyph_size ..][0..glyph_size], GLYPH_W);
-            blit.blit(view, glyph, null, @divFloor(l.x, 2), SCROLL_Y, null, .copy);
+            const cx = clipX(@divFloor(l.x, 2), GLYPH_W) orelse continue;
+            self.blitter.blitImage(vis, @intCast(SCREEN_X + cx.at), y, font_strip[nb * glyph_size ..][0..glyph_size], GLYPH_W, @intCast(cx.skip), 0, @intCast(cx.n), FONT_H, 0);
         }
     }
 };
