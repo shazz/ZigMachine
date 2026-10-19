@@ -42,7 +42,8 @@ enum { C_FX = 8, C_FX_WORDS = 4 };
 /* S2C: the answer and the sound CPU's counters (the cart prints them in the sim's report). */
 enum { S_ACK = 0, S_READY = 1, S_PUSHED = 2, S_APPLIED = 3, S_STATUS = 4, S_RESYNCS = 5, S_ANCHORS = 6,
        S_RENDERS = 7, S_RENDER_CYCLES = 8, S_RENDER_MAX = 9, S_LOG = 10, S_DONE = 11 };
-/* S_DONE: 0 while the sound firmware runs, else its exit code + 1 (the bench's end, a trap). */
+/* S_DONE: 0 while the sound firmware runs, else its exit code + 1 (the bench's end, a trap).
+ * S2C[12..18]: the players' audio state for the cart's mirror (cycles/aud_state.h S_AS). */
 #define S_READY_VALUE 0x52534D5Au /* 'ZMSR': the sound firmware is up and polling */
 
 #endif

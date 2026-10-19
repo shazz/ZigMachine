@@ -2,8 +2,10 @@
 // The player-adaptive oscilloscope: three YM voices drawn from the PSG
 // registers (YM dump, SNDH), or the MOD/sample channels' captured samples,
 // with an "electron flow" gradient band sweeping right->left every
-// FLOW_PERIOD frames. The host mirrors the audio state into zigos (the
-// browser does; the board's firmware leaves audio_mode at 0, no scope).
+// FLOW_PERIOD frames. The host mirrors the audio state into zigos: the
+// browser's loader, and on the board the firmware from BARD's state
+// (fpga/cycles/aud_state.h, mode + YM registers; the board has no per-channel
+// captures, Paula is RTL, so MOD/sample curves stay flat there).
 // --------------------------------------------------------------------------
 const std = @import("std");
 const zg = @import("zigos");

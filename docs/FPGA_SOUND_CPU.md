@@ -70,6 +70,29 @@ Each bank has one writer, so no word ever has two masters.
   EFFECTS is the third op: see "Effects".
 - **Between commands** the sound CPU renders whenever a frame (735 samples) is due. Its stdout goes to a 64 KiB
   ring at 0x41FEF000, which the cart prints between frames.
+- **The audio state, back to the cart** (`fpga/cycles/aud_state.h`, sys table 1.2). In the browser the loader
+  writes the worklet's `audioState` into the cart's ZigOS: `audio_mode`, `song_ms` (ms into the SNDH) and the
+  YM registers 0..13. D-BUG's scroller and logo move on `song_ms`; music_debug's oscillograph, sap_test and xm_test
+  read the mode; gen4_3615, swedish_newyear and union_deltaforce read the registers. Before 1.2 the board wrote
+  none of them, so those carts sat still there (2026-10-18). Now:
+
+  | S2C word | What |
+  |---|---|
+  | 12 | `'ZMS1'` (0x31534D5A): the block is there. Written at BARD's boot, after the words below are zeroed |
+  | 13 | `audioMode()` |
+  | 14 | `audioSndhPositionMs()` |
+  | 15-18 | the 16 YM registers as last written (`host/audio_imports.c` `zma_ym_regs`), little-endian |
+
+  BARD publishes after each render, so once a frame, and stores a word only when it changed (it reads the bank
+  back, no DDR). ZIGGY (`cycles/bsound.c`) reads the words after the cart's frame: they are registers, so its
+  D-cache never holds them and no invalidate is needed. `cycles/bmirror.c` then writes into the cart only the
+  bytes that differ. A playing SNDH costs a few stores a frame on each side. The cart's field offsets come from its
+  `getYmRegsPointer` / `getAudioModePointer` / `getSongMsPointer`. A lean cart hands them over once, right after
+  its instantiation, through the table's `hostAudioMirror` entry; the monolithic image does it in `host/boot.c`.
+  A 1.1 cart runs on a 1.2 system without the mirror. The mirror runs on the board only (`ZM_BOARD`, or a sim built
+  with `ZM_AUDIO_MIRROR=1`), because a sim's frames are hashed against `scene_hash.mjs`, which plays no audio.
+  The per-channel scopes (`zigos.scopes`) are not mirrored: Paula is RTL on the board and no CPU has the mixed
+  samples, so music_debug's MOD and sample curves stay flat there.
 
 ### Which songs a cart image holds
 

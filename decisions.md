@@ -980,3 +980,23 @@ ABI rather than a Zig API, apps in any language sit on it.
 **Consequences:**
 - The bench relies on M-mode carts; if the firmware ever enters carts in U (the seal), the counter loads trap and the bench must time through a table entry instead.
 - The log costs ~2-5 s of `devmem` calls to read; the cart and the reader agree on its layout by hand (`log.c` / `bench_collect.py`), held by `test_bench_collect.py` and the placement test.
+
+## 2026-10-18 — BARD's audio state reaches the cart through its S2C register bank (sys table 1.2)
+
+**Status:** accepted
+**Context:** In the browser the loader writes the worklet's `audioState` into the running cart (`ym_regs`, `audio_mode`, `song_ms`, `scopes`, through the cart's `get*Pointer` exports). The board never did: D-BUG's scroller and logo are clocked by `song_ms` and sat in their intro, music_debug's oscillograph saw mode 0 and drew nothing, and the YM VU meters (gen4_3615, swedish_newyear, union_deltaforce) stayed flat. With the music on BARD only the sound CPU knows the state; the system image also had no way to learn where a lean cart keeps those fields, since the cart header is fixed at 1.x.
+**Decision:**
+- BARD publishes mode, SNDH position and the 16 YM registers in S2C words 12..18 (`fpga/cycles/aud_state.h`) after each render, storing a word only when it changed. ZIGGY reads them after the cart's frame and `cycles/bmirror.c` writes into the cart only the bytes that differ.
+- The cart's field offsets go to the system once, right after instantiation: a lean cart calls a new host entry, `hostAudioMirror`, appended to the table (1.1 -> 1.2, a minor bump: every 1.1 index stands, a 1.1 cart runs unmirrored). The monolithic image calls the same hook from `host/boot.c`.
+- On the board only (`ZM_BOARD`; `ZM_AUDIO_MIRROR=1` for a sim), because sims are hashed against `scene_hash.mjs`, which has no audio.
+
+**Alternatives considered:**
+- A versioned block in DDR that BARD writes and ZIGGY reads after a D-cache range invalidate: every BARD write is a blocking DDR store (~27 cycles), and the reader must invalidate. The S2C bank is LUTRAM already shared by both CPUs, uncached on both sides, with 20 free words: the same versioned block, no DDR traffic, no invalidate, no RTL change.
+- A pointer bridge in the cart header: a header layout change, so a major bump and every cart rebuilt.
+- A new cart import (`zg.audioState()`), polled by ZigOS each frame: every cart's wasm and the browser loader change, and so does every harness's import list.
+- Mirroring `scopes`: no CPU has the mixed Paula samples on the board (Paula is RTL), so there is nothing to mirror.
+
+**Consequences:**
+- A cart that reads the state now looks on the board as in the browser with sound on. Its frames therefore differ from a no-audio reference once music plays, which is why the sim keeps the mirror off.
+- The cost is a few stores a frame on each CPU while a tune plays: the position word every frame, plus the YM registers that changed (`tests/test_audio_mirror.py` pins "unchanged costs nothing").
+- MOD and sample scopes stay flat on the board.

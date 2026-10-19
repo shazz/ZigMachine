@@ -51,7 +51,7 @@ ZM_AUDIO ?= 1
 A_0      := -DZM_NO_AUDIO
 AUD_CART_SRC_1   := $(AUD_FW_SRC)
 AUD_CART_SRC_0   := $(AUD_FW_SRC)
-AUD_CART_SRC_snd := host/audio_bridge.c cycles/bsound.c
+AUD_CART_SRC_snd := host/audio_bridge.c cycles/bsound.c cycles/bmirror.c
 AUD_CART_OBJ_1   := $(CYC)/$(HV)/common/aplayer.o
 AUD_CART_OBJ_0   := $(CYC)/$(HV)/common/aplayer.o
 AUD_CART_OBJ_snd := $(HCYC)/snd/play/snd_img.o
@@ -67,6 +67,9 @@ ZM_TRACE_FRAME ?= 0
 # ZM_SIM_POINTER=F:word,... (sim only): the mouse the same way (ZM_GLASS_POINTER).
 # ZM_MODES (sim only): several of a cart's modes in one hp sim (cycles/bmain.c).
 ZM_MODES ?=
+# ZM_AUDIO_MIRROR=1 (sim): the players' state into the cart, as on the board (cycles/aud_state.h);
+# off by default, since the browser's hashes it is compared with have no audio.
+ZM_AUDIO_MIRROR ?=
 # ZM_VSEQ_CHECK=1 (sim): composite every line, and check the rows the dirty-line plan would have
 # skipped against what the picture held (cycles/vplan.h, "ZM VCHK").
 ZM_VSEQ_CHECK ?=
@@ -76,7 +79,8 @@ ZM_NO_VPLAN ?=
 VPLAN_SRC := cycles/vplan.c cycles/vdirty.c cycles/vadapt.c cycles/vstat.c cycles/vcal.c
 H_sim    = $(if $(ZM_VSEQ_CHECK),-DZM_VSEQ_CHECK) $(if $(ZM_NO_VPLAN),-DZM_NO_VPLAN) -DZM_FRAMES=$(ZM_FRAMES) -DZM_EVERY=$(ZM_EVERY) -DZM_WARP_MS=$(ZM_WARP_MS) -DZM_TRACE_FRAME=$(ZM_TRACE_FRAME) \
 	$(B_$(ZM_BLIT)) $(A_$(ZM_AUDIO)) $(if $(ZM_SIM_KEYS),'-DZM_SIM_KEYS="$(ZM_SIM_KEYS)"') \
-	$(if $(ZM_SIM_POINTER),'-DZM_SIM_POINTER="$(ZM_SIM_POINTER)"') $(if $(ZM_MODES),-DZM_MODES=$(ZM_MODES))
+	$(if $(ZM_SIM_POINTER),'-DZM_SIM_POINTER="$(ZM_SIM_POINTER)"') $(if $(ZM_MODES),-DZM_MODES=$(ZM_MODES)) \
+	$(if $(ZM_AUDIO_MIRROR),-DZM_AUDIO_MIRROR)
 # ZM_SYS_MHZ=<n>: a bitstream whose sys clock is not 100 MHz (the FPU test bitstream runs 80):
 # board_micros() (bboard.c, the cart's hostMicros) is the one place the firmware reads the clock.
 ZM_SYS_MHZ ?=
@@ -107,9 +111,11 @@ $(HCYC)/gen/csr_addr.h: $(SOC_HP)/hp_sim.json build/soc_z7/csr.json tools/cycles
 MICROS_board := -include bmicros.h
 MICROS_sim   :=
 # The cart's stream imports (zg.audioStreamStart / audioFeed / audioStreamStop) reach the stream
-# ring wherever the players run (host/hstream.h); ZM_AUDIO=0 keeps the stub's no-op.
-STREAM_1   := -include host/hstream.h
-STREAM_snd := -include host/hstream.h
+# ring wherever the players run (host/hstream.h), and the players' state reaches the cart's ZigOS
+# fields (cycles/bmirror.h: on the board only, or a sim with ZM_AUDIO_MIRROR=1); ZM_AUDIO=0 keeps
+# the stub's no-ops.
+STREAM_1   := -include host/hstream.h -include cycles/bmirror.h
+STREAM_snd := -include host/hstream.h -include cycles/bmirror.h
 STREAM_0   :=
 define hp_rules
 # The clock fw.a was built for: rewritten only when ZM_SYS_MHZ changes, so fw.a follows it.

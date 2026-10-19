@@ -10,6 +10,8 @@
  * start before any). That is exact for the players here: the SNDH player and
  * the MOD player render the YM and Paula over the same piece before changing
  * either again; the SAP player renders the POKEY up to each write's sample. */
+#include <string.h>
+
 #include "haudio.h"
 #include "audio_regs.h"
 
@@ -23,6 +25,17 @@ extern w2c_maud g_maud;
 
 static uint32_t g_base, g_pos; /* the block's first sample; the stamp */
 
+/* The YM registers as the players last wrote them: the machine's engine.ym.regs, which the
+ * worklet mirrors into the cart (machine-audio.wasm is not on the board to hold them, the
+ * audio core is). Read by cycles/aud_state.h's publisher; stored only when a value changes,
+ * so a digi player's kHz volume writes cost a compare, not a DDR store. */
+uint8_t zma_ym_regs[16];
+static void ym_regs_clear(void) { memset(zma_ym_regs, 0, sizeof zma_ym_regs); } /* engine.init */
+static void ym_regs_reset(void) { /* machine_audio.zig machineAudioReset: the mixer off, A..C silent */
+    zma_ym_regs[7] = 0x3F;
+    zma_ym_regs[8] = zma_ym_regs[9] = zma_ym_regs[10] = 0;
+}
+
 uint32_t zma_ts(void) { return g_pos; }
 void zma_set_ts(uint32_t t) { g_base = g_pos = t; }
 
@@ -33,8 +46,8 @@ static void rendered(uint32_t off, uint32_t len) {
 
 wasm_rt_memory_t* w2c_aud_memory(struct w2c_aud* a) { return &a->memory; }
 
-void w2c_aud_machineAudioInit(struct w2c_aud* a) { (void)a; zma_init(); SOFT(w2c_maud_machineAudioInit(&g_maud)); }
-void w2c_aud_machineAudioReset(struct w2c_aud* a) { (void)a; zma_reset(); SOFT(w2c_maud_machineAudioReset(&g_maud)); }
+void w2c_aud_machineAudioInit(struct w2c_aud* a) { (void)a; zma_init(); ym_regs_clear(); SOFT(w2c_maud_machineAudioInit(&g_maud)); }
+void w2c_aud_machineAudioReset(struct w2c_aud* a) { (void)a; zma_reset(); ym_regs_reset(); SOFT(w2c_maud_machineAudioReset(&g_maud)); }
 void w2c_aud_machinePaulaClearScopes(struct w2c_aud* a) { (void)a; SOFT(w2c_maud_machinePaulaClearScopes(&g_maud)); }
 void w2c_aud_machineClear(struct w2c_aud* a, u32 n) { (void)a; SOFT(w2c_maud_machineClear(&g_maud, n)); (void)n; }
 void w2c_aud_machineClamp(struct w2c_aud* a, u32 n) { (void)a; SOFT(w2c_maud_machineClamp(&g_maud, n)); (void)n; }
@@ -72,6 +85,7 @@ void w2c_aud_machineMixPaula(struct w2c_aud* a, u32 off, u32 len) {
 void w2c_aud_machineYmWrite(struct w2c_aud* a, u32 reg, u32 val) {
     (void)a;
     zma_ym(reg, val);
+    if (zma_ym_regs[reg & 15u] != (uint8_t)val) zma_ym_regs[reg & 15u] = (uint8_t)val; /* ym.zig writeReg */
     SOFT(w2c_maud_machineYmWrite(&g_maud, reg, val));
 }
 

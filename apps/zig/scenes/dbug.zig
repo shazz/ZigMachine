@@ -170,8 +170,9 @@ pub const Demo = struct {
         // The scroller and the logo are driven by the TUNE, not by a sine: the
         // intro is still, the scroller falls on cue and then bumps once per
         // beat. zigos.song_ms is the playback position the host mirrors over
-        // from the audio worklet; it stays 0 until the viewer enables sound,
-        // which simply holds the intro. See dbug_sync.zig.
+        // from the audio worklet (on the board, from BARD: fpga/cycles/aud_state.h);
+        // it stays 0 until the viewer enables sound, which simply holds the
+        // intro. See dbug_sync.zig.
         self.sync.update(zigos.song_ms);
         start_raster_line = self.sync.y;
         self.logo.update(null, LOGO_Y + self.sync.logo_dy, null, null);
