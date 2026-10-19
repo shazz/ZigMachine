@@ -55,7 +55,7 @@ fn clipX(x: i32, w: usize) ?struct { at: usize, skip: usize, n: usize } {
 }
 
 // The band's two pictures (road1 / road2 under the backdrop and the logo), built in init.
-var band: [2][merged.BAND_ROWS * SCREEN_W]u8 = undefined;
+var band_pics: [2][merged.BAND_ROWS * SCREEN_W]u8 = undefined;
 
 // --------------------------------------------------------------------------
 // Plane 0: roads (screen.js:270-289)
@@ -266,11 +266,15 @@ pub const Demo = struct {
     fn buildBase(base: *LogicalFB) void {
         @memset(blit.Dst.plane(base).buf, merged.CLEAR);
         const view = screenView(base);
+        // The road plane's black fill ran from the screen's first pixel to its last
+        // at the overscan stride, so it also blackened the side columns between
+        // (shown in the open bottom band): the same span here.
+        @memset(view.buf[0 .. (view.h - 1) * view.stride + view.w], merged.ROAD_BLACK);
         for (0..SCREEN_H) |y| for (0..SCREEN_W) |x| {
             view.buf[y * view.stride + x] = merged.pixel(x, y, 0);
         };
         for (0..2) |r| for (0..ROAD_ROWS) |y| for (0..SCREEN_W) |x| {
-            band[r][y * SCREEN_W + x] = merged.pixel(x, ROAD_Y + y, r);
+            band_pics[r][y * SCREEN_W + x] = merged.pixel(x, ROAD_Y + y, r);
         };
     }
 
@@ -310,7 +314,7 @@ pub const Demo = struct {
             }
             var end = r + 1;
             while (end < ROAD_ROWS and want[end] == want[r] and self.road_src[end] != want[r]) end += 1;
-            const src: []const u8 = &band[want[r] - 1];
+            const src: []const u8 = &band_pics[want[r] - 1];
             const y: i16 = @intCast(SCREEN_Y + ROAD_Y + r);
             const n: u16 = @intCast(end - r);
             self.blitter.blitImage(base, SCREEN_X, y, src, SCREEN_W, 0, @intCast(r), SCREEN_W, n, null);

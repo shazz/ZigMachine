@@ -1,5 +1,5 @@
 // Headless EQUINOX check: the whole 320x228 screen of CODEF wab screen 015,
-// re-derived independently from its screen.js and compared plane by plane.
+// re-derived independently from its screen.js and compared with the screen.
 //
 // Nothing errors when this screen goes wrong, and it has: the dragons never
 // morphed, the logo never showed, the roads were drawn in swapped order, the
@@ -12,6 +12,9 @@
 //            alpha of showLogo() (190-214), on schedule
 //   plane 2  seven dragons on the trajectory with morphSprite()'s frame
 //   plane 3  scrolltext_horizontal at speed 13 on the 640 canvas
+// The cart draws all four on ONE plane since pass 3 (the logo's fade is palette
+// entries blended over the road), so the four reference layers are stacked here the
+// way the canvases composite (source-over, rounded once) and the plane must equal it.
 // plus, measured from pixels alone: the scroller moves 13 ST px every 2 frames
 // (6.5 px/frame) and 130 px in 20, and the bottom border rows 200..227 are open.
 //
@@ -185,6 +188,22 @@ function scroller(frame) {
     return img;
 }
 
+// the layers stacked source-over, bottom first, as the canvases (and look_hash) do
+function compose(layers) {
+    const out = blank();
+    for (let i = 0; i < SW * SH * 4; i += 4) {
+        const acc = [0, 0, 0, 0];
+        for (const l of layers) {
+            const a = l[i + 3] / 255, ia = 1 - a;
+            for (let c = 0; c < 3; c++) acc[c] = l[i + c] * a + acc[c] * ia;
+            acc[3] = a + acc[3] * ia;
+        }
+        for (let c = 0; c < 3; c++) out[i + c] = Math.round(acc[c]);
+        out[i + 3] = Math.round(acc[3] * 255);
+    }
+    return out;
+}
+
 // ---- the machine ----------------------------------------------------------
 const outdir = process.argv[2];
 const { memory, machine, demo } = await boot(process.argv[3] || "docs/demo-equinox.wasm");
@@ -213,35 +232,36 @@ const shots = {};
 let f = 0;
 for (const frame of frames) {
     while (f < frame) { machine.hwClear(); demo.frame(1000 / 60); f++; }
-    const planes = [];
-    for (let p = 0; p < 4; p++) {
-        machine.hwRenderPlane(p);
-        planes.push(planeAt(new Uint8Array(memory.buffer, machine.hwPhysicalPtr(), size)));
-    }
-    shots[frame] = planes;
-    const refs = [roads(frame, false), backdrop(frame), dragons(frame), scroller(frame)];
-    const names = ["roads", "backdrop+logo", "dragons", "scrolltext"];
-    refs.forEach((r, p) => {
-        const n = differ(planes[p], r);
-        if (n) errors.push(`frame ${frame} plane ${p} (${names[p]}): ${n} px differ from screen.js`);
-    });
-    if (frame === MORPH[1][0] && differ(planes[0], roads(frame, true)) === 0)
-        errors.push(`frame ${frame}: the roads also match the SWAPPED band order (check is blind)`);
-    if (outdir) await shot(`${outdir}/equinox-${frame}.ppm`, planes);
+    machine.hwRenderPlane(0);
+    const screen = planeAt(new Uint8Array(memory.buffer, machine.hwPhysicalPtr(), size));
+    const under = [roads(frame, false), backdrop(frame), dragons(frame)];
+    const bare = compose(under); // everything but the letters: their ink is where the screen differs
+    const ink = new Uint8Array(SW * SH * 4);
+    for (let i = 0; i < SW * SH * 4; i += 4) if (screen[i] !== bare[i] || screen[i + 1] !== bare[i + 1] || screen[i + 2] !== bare[i + 2]) ink[i + 3] = 255;
+    shots[frame] = { screen, ink };
+    const n = differ(screen, compose([...under, scroller(frame)]));
+    if (n) errors.push(`frame ${frame}: ${n} px differ from screen.js (roads < backdrop+logo < dragons < scrolltext)`);
+    if (frame === MORPH[1][0] && differ(screen, compose([roads(frame, true), ...under.slice(1), scroller(frame)])) === 0)
+        errors.push(`frame ${frame}: the screen also matches the SWAPPED band order (check is blind)`);
+    if (outdir) await shot(`${outdir}/equinox-${frame}.ppm`, [screen]);
 }
 
 // the schedules the tables claim, against the reference
 for (const [frame, want] of MORPH) if (morphFrameAt(frame) !== want) errors.push(`frame ${frame}: reference morph frame ${morphFrameAt(frame)}, table says ${want}`);
 for (const [frame, want] of LOGO) {
     if (logoAlpha(frame) !== want) errors.push(`frame ${frame}: reference logo alpha ${logoAlpha(frame)}, table says ${want}`);
-    // measured: the highest alpha over the logo's own (non-field) pixels on plane 1
-    let got = 0;
-    for (let i = 0; i < A.logo.length; i++) if (A.logo[i] !== 1) {
-        const o = ((145 + Math.floor(i / 203)) * SW + 55 + (i % 203)) * 4;
-        const px = shots[frame][1];
-        if (px[o] === A.logoPal[A.logo[i] * 4] && px[o + 1] === A.logoPal[A.logo[i] * 4 + 1]) got = Math.max(got, px[o + 3]);
+    // measured: the logo's alpha recovered from its main colour's pixels (index 0, grey
+    // 75) blended over the road, a = (screen - road) / (logo - road) on the red channel
+    // (a pixel no dragon covers, the road furthest from the logo's grey there)
+    let got = -1, best = 0;
+    const road = roads(frame, false), over = dragons(frame), L = A.logoPal[0];
+    for (let i = 0; i < A.logo.length; i++) if (A.logo[i] === 0) {
+        const o = ((145 + Math.floor(i / 203)) * SW + 55 + (i % 203)) * 4, R = road[o];
+        if (over[o + 3] || Math.abs(L - R) <= best) continue; // not under a dragon
+        best = Math.abs(L - R);
+        got = Math.round(((shots[frame].screen[o] - R) / (L - R)) * 255);
     }
-    if (got !== want) errors.push(`frame ${frame}: logo alpha on screen ${got}, want ${want}`);
+    if (Math.abs(got - want) > 3) errors.push(`frame ${frame}: logo alpha on screen ~${got}, want ${want}`);
 }
 // the scroll speed, from pixels alone: the ink moves left by 13 px every 2 frames
 function inkShift(a, b) { // the unique s with b[x] == a[x + s] on the scroller rows
@@ -254,14 +274,14 @@ function inkShift(a, b) { // the unique s with b[x] == a[x + s] on the scroller 
     }
     return hits.length === 1 ? hits[0] : `${hits.length} candidates`;
 }
-const s01 = inkShift(shots[600][3], shots[601][3]), s12 = inkShift(shots[601][3], shots[602][3]);
-const s02 = inkShift(shots[600][3], shots[602][3]), s20 = inkShift(shots[600][3], shots[620][3]);
+const s01 = inkShift(shots[600].ink, shots[601].ink), s12 = inkShift(shots[601].ink, shots[602].ink);
+const s02 = inkShift(shots[600].ink, shots[602].ink), s20 = inkShift(shots[600].ink, shots[620].ink);
 if (s02 !== 13 || s20 !== 130 || s01 + s12 !== 13 || ![6, 7].includes(s01))
     errors.push(`scroll shifts ${s01}+${s12} per frame, ${s02} in 2 frames, ${s20} in 20 (want 6/7, 13, 130)`);
 // the bottom border is open: rows 200..227 carry the backscroll and the letters
 let border = 0;
-for (let y = 200; y < SH; y++) for (let x = 0; x < SW; x++) if (shots[600][1][(y * SW + x) * 4 + 3]) border++;
-if (border < 8000) errors.push(`bottom border rows 200..227 of plane 1 carry only ${border} px`);
+for (let y = 200; y < SH; y++) for (let x = 0; x < SW; x++) if (shots[600].screen[(y * SW + x) * 4 + 3]) border++;
+if (border < 8000) errors.push(`bottom border rows 200..227 carry only ${border} px`);
 
 // the 320x228 screen, planes alpha-blended bottom first
 async function shot(file, planes) {
@@ -279,4 +299,4 @@ if (errors.length) {
     console.error(`equinox: WRONG\n  ${errors.slice(0, 20).join("\n  ")}`);
     process.exit(1);
 }
-console.log(`equinox: 4 planes match screen.js at ${frames.length} frames; dragons morph, logo fades on schedule, scroll ${s01}+${s12} px/frame (130 px in 20), bottom border open`);
+console.log(`equinox: the screen matches screen.js's 4 layers at ${frames.length} frames; dragons morph, logo fades on schedule, scroll ${s01}+${s12} px/frame (130 px in 20), bottom border open`);

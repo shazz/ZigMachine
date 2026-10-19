@@ -3,7 +3,9 @@
 // roads < backdrop (with the fading logo) < dragons < scrolltext, and FRESCO paints
 // every enabled plane (~1.09 Mc each), so they are composited into ONE palette:
 //
-//   0..5     road_pal 0..5 (road1/road2 and the black field, BLACK = 5)
+//   0        backtop_pal 0 (opaque black): the machine paints an open border band's
+//            sides with the plane's entry 0, and the backdrop plane's was on top
+//   1..6     road_pal 0..5 (road1/road2 and the black field, BLACK = 5)
 //   8+b      backtop_pal b, b != 5 (backtop and backscroll; 5 was the clear: road shows)
 //   32+8k+p  the logo's colour k blended over road colour p at the logo's alpha, the
 //            way the canvases stack (source-over); rewritten when the alpha steps
@@ -23,7 +25,9 @@ pub const W: usize = 320;
 pub const H: usize = 228;
 pub const BAND_Y: usize = 113; // ROAD_Y
 pub const BAND_ROWS: usize = 85; // ROAD_ROWS
-pub const BLACK: u8 = 5;
+pub const BLACK: u8 = 5; // road_pal's opaque black field
+const ROAD = 1; // road colour p is entry ROAD + p
+pub const ROAD_BLACK: u8 = ROAD + BLACK;
 pub const CLEAR: u8 = 255;
 
 const road_pal = zg.convertU8ArraytoColors(@embedFile(DIR ++ "road_pal.dat"));
@@ -60,12 +64,13 @@ pub fn pixel(x: usize, y: usize, road: usize) u8 {
         const k = logo[(y - LOGO_Y) * LOGO_W + x - LOGO_X];
         if (k != LOGO_FIELD) return PAIR + 8 * k + p;
     }
-    return p;
+    return ROAD + p;
 }
 
 pub fn setPalette(pal: [*]u32) void {
     for (0..256) |i| pal[i] = 0; // CLEAR and every unused entry: transparent
-    for (0..6) |p| pal[p] = road_pal[p].toRGBA();
+    pal[0] = backtop_pal[0].toRGBA();
+    for (0..6) |p| pal[ROAD + p] = road_pal[p].toRGBA();
     for (0..24) |b| if (b != BACK_CLEAR) {
         pal[8 + b] = backtop_pal[b].toRGBA();
     };
@@ -107,7 +112,7 @@ fn mix(l: u8, r: u8, a: f64, ia: f64) u8 {
 
 /// `raw` with every non-zero index moved up by `base` (0 stays the key).
 fn shifted(comptime raw: []const u8, comptime base: u8) [raw.len]u8 {
-    @setEvalBranchQuota(raw.len * 4);
+    @setEvalBranchQuota(1_000_000);
     var out: [raw.len]u8 = undefined;
     for (raw, 0..) |v, i| out[i] = if (v == 0) 0 else v + base;
     return out;
