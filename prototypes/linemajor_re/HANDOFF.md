@@ -1,27 +1,38 @@
-# perf/fresco-linemajor: handoff (paused 2026-10-18)
+# perf/fresco-linemajor: handoff (staged for the board 2026-10-19)
 
 ## Done
 - 124f9f99: the RTL `hold` / `keep` / `nopfb` bits and the sticky `dirty` / `filled` (zm_video_pass.v), the cmd CSR fields, the replay testbench's line-major mode.
-  - tests/test_rtl_linemajor.py: 66 pass. All 7 RTL break tests are caught (`ZM_RTL_BREAK=1 ... -k broken`).
-  - tests/test_video_order_group.py: 26 pass.
-- WIP commit (compiled for the host only; the RISC-V firmware has never been compiled):
-  - Firmware: cycles/bplanes.c, cycles/vseq_group.c, the FW_OPT switch bits in bdiag, the ZM_LINEMAJOR / ZM_LM_CHECK sim flags.
-  - glass `run --fw-opt=N` (src/afi.zig sets HP1's WRCHAN). `zig build test` passes 106/106, and the ARM cross-build compiles.
-  - `board_run.py --w64` (test_board_tools: 18 pass; test_run_happy[4] fails here only because build/board_hp/diag4_prefill.txt is missing in this worktree).
-  - Docs: the decisions.md ADR, the PLANES_PLAN status, TESTING.md, the board README.
-- Rule widened from the plan: every run of consecutive handler-free planes forms a group. The plan's literal rule gives an empty group for automation442, supplex_fs2, union_main, replicants, stcs and ancool, because each has a handler on plane 0.
+- 8e9f541a: the firmware groups (cycles/bplanes.c, cycles/vseq_group.c), the FW_OPT switch bits in bdiag, glass `run --fw-opt=N`, `board_run.py --w64`, docs.
+- ac507c7e: merged origin/main (f635ed98: perf/ziggy-posted, posted=8 is the board default). decisions.md keeps both ADRs.
+- Tests on the merged tree (2026-10-19, logs in prototypes/linemajor_re/logs/):
+  - tests/test_rtl_video.py: 78 pass (52 break tests skipped). Break run `ZM_RTL_BREAK=1 -k broken`: 52 of 52 mutants caught.
+  - tests/test_rtl_linemajor.py + tests/test_video_order_group.py: 92 pass. Break run: 7 of 7 caught.
+  - glass `zig build test`: 106/106.
+  - The first full run failed 12 `test_recorded_frames_are_the_reference_hosts` cases: build/host/<tag>/host was never built in this worktree, and build/vdump/<tag> held frames recorded from the pre-merge carts. Fixed by `make host CART=<tag>` and deleting those dumps so they re-record. Not an RTL failure.
+- The RISC-V firmware compiles: `make -o build/soc_hp/hp_sim.json board-split ZM_AUDIO=snd ZM_FPU=1` (table 1.2). bplanes.c and vseq_group.c are also clean under `-Wall -Wextra`.
+  - `-o hp_sim.json` skips the Verilator compile of the board-SoC model (no SoC sims today). The sim's csr.json was elaborated from this tree. The `--hp-check` against the bitstream's map proves the addresses match.
+- Vivado (build/board_lm8): the same tcl and xdc as 3ebb7381's board_posted8 (`--blit --sound-cpu --posted 8 --cpu-netlist build/vexgen/VexRiscv_I16w2D4SealFpu.v`, `set_param general.maxThreads 2` added by hand).
+  - 15,035 LUT (85.43 %; posted baseline 15,045).
+  - sys WNS +0.043 ns (baseline +0.011), comp +0.519. All clocks met.
+  - CSR map identical to 3ebb7381's.
+- `cycles_csr.py --hp-check build/board_lm8/csr.json --need-blit` passes, and its csr_addr.h is byte-identical to the firmware's.
+- Staged in /home/matt/projects/ZigMachine/prototypes/linemajor_re/stage/ (INSTALL.txt has the md5s and steps):
+  - zigmachine.bit 6261127d
+  - system.rv32 6ada2908
+  - glass dfb8afa6
 
-## Left
-1. Re-run tests/test_rtl_video.py in full, plus its 49 break tests with ZM_RTL_BREAK=1. Both runs were killed at the pause. Three mutants were retargeted: bg_rows_not_stored, mixed_rows_not_stored and fill_mix_row_not_stored.
-2. Merge perf/ziggy-posted. decisions.md conflicts: the two branches append different ADRs, so keep both.
-3. Build soc.hp_sim with `--out <own dir>` (and --posted 8 if the merge makes that the default). Then build the sim image for leonard with ZM_LM_CHECK=1 and run 2 frames under sim-a.lock. Expect "ZM LMCHK 2 same" and the scene_hash verdict.
-4. Run Vivado with the board recipe (--blit --sound-cpu, the FPU netlist). Then run `cycles_csr.py --hp-check` against that build's csr.json (with --need-blit).
-5. Build the board_snd_fpu system.rv32 (`make board-split ZM_AUDIO=snd ZM_FPU=1`), the glass ARM binary and a monolithic fw.bin for bdiag. Stage them with md5s and install steps.
-6. W64 board test (U-Boot):
-   - hp-test, using build/hp_test4/gateware/zm_hp_test.bit (current for the HP1 bridge): `mw.l 0xf8009014 0xf00`, then the HP1 bridge row write with CACHE=2 and its check.
+## Worktree setup a later agent will need
+- Copy the submodule sources (rsync without .git) from the main checkout: third_party/jt49, fx68k, hdmi, neorv32.
+- Copy boards/microphase_z7_7010/board.xdc (ignored by git).
+- Copy build/vexgen/VexRiscv_SndNd.v from agent-ab658730c7d2f9a7a (same vexgen/ tree).
+
+## Left (the lead)
+1. Board: install per stage/INSTALL.txt. Read the OSD fps with no switches, then `--fw-opt=0x30` (the old order) on the same bitstream.
+2. W64:
+   - hp-test on HP1 (build/hp_test4/gateware/zm_hp_test.bit: `mw.l 0xf8009014 0xf00`, the HP1 bridge row write with CACHE=2 and its check).
    - `board_run.py --diag 3 --w64`.
-   - Under Linux: `glass run --fw-opt=2`, then read vcal's W.
-   - Rollback: reboot, or `glass run` without `--fw-opt`.
+   - Then `glass run --fw-opt=2` and read vcal's W.
+3. Not run: the ZM_LM_CHECK board-SoC sim (leonard, 2 frames, "ZM LMCHK 2 same"). Do it when sims are allowed again.
 
 ## Running
-Nothing. No Vivado, no sim; the background pytest runs were stopped.
+Nothing.

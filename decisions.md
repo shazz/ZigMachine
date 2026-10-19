@@ -1042,3 +1042,4 @@ ABI rather than a Zig API, apps in any language sit on it.
 - On the board the PFB in DDR is stale after a frame whose top layer is a group: `board_shot.py --what pfb` needs `--fw-opt=0x20`.
 - The carts with a handler on every plane gain only from W64 (and nothing from the group rule); leonard-like carts (handler-free planes) lose a row load and a row store per extra plane and line.
 - vstat's `painted` share no longer counts a group's passes (they are not waited on one by one).
+- Vivado (board recipe, posted 8, FPU core): 15,035 LUT (85.4 %, -10 against posted alone), sys WNS +0.043 ns; the CSR map is unchanged.
