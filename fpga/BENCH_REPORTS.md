@@ -54,6 +54,33 @@ appends a section here and its raw log goes in `fpga/bench_results/`.
    f64 is soft-float at 207 / 417 / 702 cycles (add/mul/div), so avoid it per frame. An i32 divide
    costs 36.
 
+### Surprises
+
+Things the models or our intuition got wrong:
+
+1. **A byte store costs the same as a word store**, so a byte loop is 4× slower than a word loop. Width
+   doesn't matter; the number of bus writes does.
+2. **Stores are already partly posted.** 16 ALU ops between two stores cost nothing. The CPU never
+   waited on a store's latency, only on the bus taking ONE write at a time. Both our cost model
+   ("27 cycles, blocking") and the Gemini review ("stalls the pipeline") described this wrongly.
+3. **`@memset` is no faster than a word loop** (4.5 c/B each). Word-wise memset/memcpy gained what they
+   did by fixing picolibc's byte loops; past that, the DDR write path is the floor.
+4. **CHISEL's real cost was the call, not the bus.** Single-beat AXI writes already sustain ~1 byte per
+   cycle, so bursts don't help. But a 64-byte fill through the system was 3.5× SLOWER than the CPU,
+   because ~560 cycles of the call went to statistics only the simulator reads.
+5. **A misaligned access is 63× a byte-wise one** (693 vs 11 cycles). wasm's `align=1` loads look free
+   in the browser, and LLVM happily merges byte loads into one. On ZIGGY that is a trap that saves 31
+   registers, each save itself an 18-cycle store.
+6. **A redrawn plane costs 3.5× a static one** (1.17 vs 0.33 Mc). So FRESCO's cost is not "per enabled
+   plane" but per composited line, ~4.2 K cycles each. The dirty-line planner already saves most of it
+   on static planes, and the remaining 0.33 Mc is planner overhead (row compares in software).
+7. **A D$ line miss is cheap (~48 cycles, under 3 stores' worth)**, and so is a status-register read
+   (5.4). vseq's polling loops are not the problem; what they wait for is.
+8. **The FPU is real, f64 is the trap.** f32 maths costs about a cached load; one f64 divide costs
+   about 39 stores.
+9. **CHISEL and the CPU barely get in each other's way.** CPU stores don't slow down while CHISEL fills.
+   Overlapping a big clear with CPU work is free.
+
 ### Stores (`kern_store.S`)
 
 | Test | Bytes | cycles/op | MB/s |
