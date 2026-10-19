@@ -69,6 +69,17 @@ pub const Ram = struct {
             h.* = 0;
         }
     }
+    /// Six bytes copied as three halfwords (volatile: they stay halfword accesses, which never
+    /// trap; a library call for six bytes costs more than the six bytes).
+    pub inline fn cp6(self: *const Ram, dst: u32, src: u32) void {
+        const o = self.at(dst, 6);
+        const i = self.at(src, 6);
+        inline for (0..3) |k| {
+            const from: *align(1) const volatile u16 = @ptrCast(&self.m[i + 2 * k]);
+            const to: *align(1) volatile u16 = @ptrCast(&self.m[o + 2 * k]);
+            to.* = from.*;
+        }
+    }
     pub inline fn bytes(self: *const Ram, a: u32, n: usize) []u8 {
         return self.m[self.at(a, n)..][0..n];
     }
@@ -85,6 +96,18 @@ pub noinline fn copyBytes(dst: []u8, src: []const u8) void {
     @memcpy(dst, src);
 }
 
+/// Two ST lines equal? Halfwords: a line starts on any even address, so a word compare (what
+/// std.mem.eql turns into) would trap on the board at half of them (~450 cycles a misaligned load).
+pub fn same(a: []const u8, b: []const u8) bool {
+    var i: usize = 0;
+    while (i + 2 <= a.len) : (i += 2) {
+        const x: *align(1) const volatile u16 = @ptrCast(&a[i]);
+        const y: *align(1) const volatile u16 = @ptrCast(&b[i]);
+        if (x.* != y.*) return false;
+    }
+    return true;
+}
+
 /// ST colour word -> Color, channel c * 255 / 7 as the other ST ports do.
 /// (A table of the 8 levels: rows load 16 colours each, 247 rows a frame.)
 const LEVEL: [8]u8 = blk: {
@@ -92,6 +115,18 @@ const LEVEL: [8]u8 = blk: {
     for (&t, 0..) |*v, c| v.* = @intCast(c * 255 / 7);
     break :blk t;
 };
+
+/// color(v).toRGBA() for every 9-bit ST colour: a palette load is 16 colours a segment.
+const RGBA: [512]u32 = blk: {
+    @setEvalBranchQuota(100_000);
+    var t: [512]u32 = undefined;
+    for (&t, 0..) |*x, i| x.* = color(@intCast((i >> 6 << 8) | ((i >> 3 & 7) << 4) | (i & 7))).toRGBA();
+    break :blk t;
+};
+
+pub inline fn rgba(v: u16) u32 {
+    return RGBA[((v >> 8) & 7) << 6 | ((v >> 4) & 7) << 3 | (v & 7)];
+}
 
 pub fn color(v: u16) zg.Color {
     return .{ .r = LEVEL[(v >> 8) & 7], .g = LEVEL[(v >> 4) & 7], .b = LEVEL[v & 7], .a = 255 };

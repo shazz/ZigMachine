@@ -58,12 +58,22 @@ const blocks = [_]Write{
 };
 
 /// Per physical row: how many palettes it shows and their colours.
-const Row = struct { segs: u8, colours: [MAX_SEG][16]u32 };
+/// `mask0`: which of segment 0's 16 colours differ from the row above's (all, on row 0): the
+/// HBL loads those only, the rest of the registers already hold them.
+const Row = struct { segs: u8, mask0: u16, colours: [MAX_SEG][16]u32 };
 var rows: []Row = &.{};
 
 /// The physical x a write at `cycle` shows from (negative: before the row).
 fn writeX(cycle: u16) i32 {
     return @as(i32, cycle) + K - CAPTURE_X;
+}
+
+/// The black rows (above and below the picture) are painted once; `reset()` (a new part) paints
+/// them again. The plane keeps its pixels between frames.
+var black_ok = false;
+
+pub fn reset() void {
+    black_ok = false;
 }
 
 /// The frame shown from `base` into the plane, and each row's palettes.
@@ -77,30 +87,37 @@ pub fn present(r: *const st.Ram, base: u32, px: []u8) void {
     for (0..PH) |y| {
         const out = px[y * PW ..][0..PW];
         if (y < TOP or y >= TOP + LINES) {
-            @memset(out, 0);
-            rows[y].segs = 1;
-            @memset(&rows[y].colours[0], st.color(0).toRGBA());
+            if (!black_ok) { // black rows never change
+                @memset(out, 0);
+                rows[y].segs = 1;
+                rows[y].mask0 = if (y == 0) 0xFFFF else 0;
+                @memset(&rows[y].colours[0], st.rgba(0));
+            }
             continue;
         }
         const line: u16 = @intCast(y - TOP);
-        st.lineToChunky(r.bytes(base + 160 + LINE * @as(u32, line), LINE), FIRST_PX, out);
-        b = row(r, line, &pal, b, out, &rows[y]);
+        b = row(r, base, line, &pal, b, out, y);
     }
+    // the first black row below the picture differs from the picture's last row
+    if (TOP + LINES < PH) rows[TOP + LINES].mask0 = diff(&rows[TOP + LINES].colours[0], &rows[TOP + LINES - 1].colours[0]);
+    black_ok = true;
 }
 
-/// One line: apply its writes in order, opening a palette segment at each
-/// that lands inside the row.
-fn row(r: *const st.Ram, line: u16, pal: *[16]u16, b0: usize, out: []u8, dst: *Row) usize {
+/// One line: apply its writes in order, opening a palette segment at each that lands inside the
+/// row, then convert its pixels (+16 per segment past the first).
+fn row(r: *const st.Ram, base: u32, line: u16, pal: *[16]u16, b0: usize, out: []u8, y: usize) usize {
     var ws: [2 + 16]Write = undefined;
     var b = b0;
     const n = lineWrites(r, line, &b, &ws);
+    const dst = &rows[y];
+    st.lineToChunky(r.bytes(base + 160 + LINE * @as(u32, line), LINE), FIRST_PX, out);
     var seg: u8 = 0;
     var x: usize = 0;
     var k: usize = 0;
     while (k < n and writeX(ws[k].cycle) < PW) : (k += 1) {
         const wx = writeX(ws[k].cycle);
         if (wx > 0 and seg + 1 < MAX_SEG) {
-            fill(dst, seg, pal);
+            fill(dst, seg, pal, if (seg == 0 and y > 0) &rows[y - 1].colours[0] else null);
             if (seg != 0) for (out[x..@intCast(wx)]) |*p| { // (+ 0 changes nothing: and a store is a bus write)
                 p.* +%= 16 * seg;
             };
@@ -109,7 +126,7 @@ fn row(r: *const st.Ram, line: u16, pal: *[16]u16, b0: usize, out: []u8, dst: *R
         }
         pal[ws[k].colour] = ws[k].value;
     }
-    fill(dst, seg, pal);
+    fill(dst, seg, pal, if (seg == 0 and y > 0) &rows[y - 1].colours[0] else null);
     if (seg != 0) for (out[x..]) |*p| {
         p.* +%= 16 * seg;
     };
@@ -137,8 +154,25 @@ fn byCycle(_: void, a: Write, b: Write) bool {
     return a.cycle < b.cycle;
 }
 
-fn fill(dst: *Row, seg: u8, pal: *const [16]u16) void {
-    for (&dst.colours[seg], pal) |*c, w| c.* = st.color(w).toRGBA();
+fn fill(dst: *Row, seg: u8, pal: *const [16]u16, above: ?*const [16]u32) void {
+    var m: u16 = 0xFFFF;
+    if (above != null) m = 0;
+    for (&dst.colours[seg], pal, 0..) |*c, w, i| {
+        const v = st.rgba(w);
+        if (c.* != v) c.* = v; // the row mostly holds the colours already
+        if (above) |ab| if (ab[i] != v) {
+            m |= @as(u16, 1) << @intCast(i);
+        };
+    }
+    if (seg == 0) dst.mask0 = m;
+}
+
+fn diff(a: *const [16]u32, b: *const [16]u32) u16 {
+    var m: u16 = 0;
+    for (a, b, 0..) |x, y, i| if (x != y) {
+        m |= @as(u16, 1) << @intCast(i);
+    };
+    return m;
 }
 
 /// The plane's HBL: open the borders, load this row's palettes.
@@ -146,7 +180,16 @@ pub fn hbl(fb: *zg.LogicalFB, _: *zg.ZigOS, line: u16, _: u16) void {
     fb.flickerBorder();
     if (line >= rows.len) return;
     const rw = &rows[line];
-    for (0..rw.segs) |s| {
-        for (rw.colours[s], 0..) |c, i| fb.palette[16 * s + i] = c;
+    var m = rw.mask0; // segment 0: only the colours that changed since the row above
+    while (m != 0) : (m &= m - 1) {
+        const i = @ctz(m);
+        const slot = &fb.palette[i];
+        if (slot.* != rw.colours[0][i]) slot.* = rw.colours[0][i];
+    }
+    for (1..rw.segs) |s| {
+        for (rw.colours[s], 0..) |c, i| {
+            const slot = &fb.palette[16 * s + i];
+            if (slot.* != c) slot.* = c; // a raster coder never rewrites a register that holds the colour
+        }
     }
 }

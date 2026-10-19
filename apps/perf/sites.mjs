@@ -46,11 +46,11 @@ export function hookFor(d, i, ctx) {
         return [...LTEE(t.a), ...I32(imm.offset), 0x6a, ...I32(Math.min(LOAD_BYTES[op], 4) - 1), 0x71, 0x04, 0x40, ...inc(MIS_LOADS), ...inc(w), 0x0b, ...LGET(t.a), ...(inner ?? orig)];
     }
     if (ctx.vlo !== null && WATCHED.has(op) && imm.mem === 0) {
-        site(ctx.plan.watch);
-        const w = ctx.next++;
+        site(ctx.plan.watch); // records the site's counter words at ctx.next
+        const w = ctx.next + WATCH_WORDS; // this store's own misaligned count follows them
         ctx.plan.mis.push({ fi: d.fi, at, word: w });
         const h = watchHook(ctx.next, op, imm.offset, ctx.pal, ctx.vlo, t, orig, w);
-        ctx.next += WATCH_WORDS;
+        ctx.next += WATCH_WORDS + 1;
         return h;
     }
     return ctx.probes ? probeFor(ctx.m, d, d.instrs[i], t, orig, ctx) : null;
