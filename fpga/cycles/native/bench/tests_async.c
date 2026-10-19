@@ -2,7 +2,8 @@
  * does not touch its pixels, one after the other (seq: hwBlit waits) and overlapped (lazy: hwBlit
  * returns once CHISEL has started, the sync after the work waits for what is left). lazy ~ the
  * longer of the two is the overlap; lazy ~ seq would mean none. The CPU work is ALU ops (k_alu,
- * ~1.4 cycles each) or word stores to cart RAM (k_st_sw), sized to about the fill's own time.
+ * ~1.4 cycles each) or word stores to cart RAM (k_st_sw), sized to about the fill's own time;
+ * the fill alone is ms.chisel.64K / .8K (tests_mem.c, the same hwBlit FILL).
  * The small-op rows: 64 8x8 fills back to back (nothing to overlap but the call itself: the
  * replay of the block after each lazy op is the price), and the same with ~350 cycles of ALU
  * work between them (each op's ~500-cycle latency hidden behind the next op's work). */
@@ -19,7 +20,6 @@ static void cpu_work(const bench_case* c) {
 static uint32_t rows_of(const bench_case* c) { return c->size / BIG_W; }
 
 static void work(const bench_case* c) { cpu_work(c); }
-static void fill(const bench_case* c) { fill_rows(rows_of(c)); }
 static void seq(const bench_case* c) {
     fill_rows(rows_of(c));
     cpu_work(c);
@@ -47,14 +47,12 @@ static void tiles_lazy(const bench_case* c) { tiles(c, 1); }
 #define ALU(n) ((n) << 1)
 #define ST(n) (((n) << 1) | 1u)
 const bench_case bench_async_cases[] = {
-    {"as.fill.64K", fill, 0, 65536, 1, 0},
     {"as.alu.64K", work, 0, 0, 1, ALU(48000)},
     {"as.seq.alu.64K", seq, 0, 65536, 1, ALU(48000)},
     {"as.lazy.alu.64K", lazy, 0, 65536, 1, ALU(48000)},
     {"as.st.64K", work, 0, 0, 1, ST(24576)},
     {"as.seq.st.64K", seq, 0, 65536, 1, ST(24576)},
     {"as.lazy.st.64K", lazy, 0, 65536, 1, ST(24576)},
-    {"as.fill.8K", fill, 0, 8192, 1, 0},
     {"as.seq.alu.8K", seq, 0, 8192, 1, ALU(6000)},
     {"as.lazy.alu.8K", lazy, 0, 8192, 1, ALU(6000)},
     {"as.seq.f8.x64", tiles_seq, 0, 4096, 64, 0},
