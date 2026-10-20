@@ -52,6 +52,21 @@ const logo_b = @embedFile("../assets/screens/df/top_logo.raw");
 // --------------------------------------------------------------------------
 var raster_index: u8 = 0;
 
+// The scroller strip, in cart RAM (zg.mem, once per cart load; u32 elements so
+// the clear is word stores). It must NOT live in the plane it is copied to: CHISEL
+// tests a copy's source span against the destination span from the PLANE's base
+// (zm_blit_chk.v), so a source inside the plane counts as an overlap and the copy
+// runs ORDERED, each read waiting for the previous write. Three such in-plane
+// copies of the strip took the board from 60 to 40 fps (553ffd60).
+const STRIP_LEN: usize = @as(usize, WIDTH) * SCROLL_CHAR_HEIGHT;
+var strip_owned: ?[]u32 = null;
+fn stripWords() []u32 {
+    if (strip_owned) |w| return w;
+    const w = zg.mem.mustAlloc(u32, STRIP_LEN / 4);
+    strip_owned = w;
+    return w;
+}
+
 // --------------------------------------------------------------------------
 // Demo
 // --------------------------------------------------------------------------
@@ -144,18 +159,16 @@ pub const Demo = struct {
 
     pub fn render(self: *Demo, zigos: *ZigOS, elapsed_time: f32) void {
 
-        // The scroller strip (rows 52..82) is drawn ONCE, then CHISEL copies it to
-        // three more bands (+39, +78, +117 rows); every other row stays 0 from init.
-        // The CPU only writes the letters: CHISEL clears the strip (one FILL) and
-        // places the copies (one BLIT each, the bands never overlap), where ZIGGY
-        // used to @memset 9,600 B and @memcpy 28,800 B a frame, each word a
-        // blocking DDR store.
+        // The scroller strip is drawn ONCE, in cart RAM, then CHISEL places it four
+        // times (rows 52, +39, +78, +117; every other row stays 0 from init): the
+        // CPU used to @memcpy 28,800 B of copies a frame into the plane.
+        const words = stripWords();
+        for (words) |*w| w.* = 0;
+        const strip: []u8 = std.mem.sliceAsBytes(words);
+        letter_rows.draw(&self.scrolltext, strip.ptr, WIDTH, WIDTH, SCROLL_CHAR_WIDTH, SCROLL_CHAR_HEIGHT);
         const fb = &zigos.lfbs[1];
-        const top: i16 = 52;
-        self.blitter.fill(fb, 0, top, WIDTH, SCROLL_CHAR_HEIGHT, 0);
-        letter_rows.draw(&self.scrolltext, fb.fb + @as(usize, @intCast(top)) * WIDTH, WIDTH, WIDTH, SCROLL_CHAR_WIDTH, SCROLL_CHAR_HEIGHT);
-        inline for (.{ 39, 78, 117 }) |rows| {
-            self.blitter.blitCopy(fb, 0, top + rows, fb, 0, top, WIDTH, SCROLL_CHAR_HEIGHT);
+        inline for (.{ 0, 39, 78, 117 }) |rows| {
+            self.blitter.blitImage(fb, 0, 52 + rows, strip, WIDTH, 0, 0, WIDTH, SCROLL_CHAR_HEIGHT, null);
         }
 
         _ = elapsed_time;
