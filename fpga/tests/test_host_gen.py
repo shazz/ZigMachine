@@ -101,8 +101,22 @@ def test_forwarder_wraps_the_hbl_dispatch_and_the_blitter_in_span_hooks() -> Non
     blit = host_gen.forwarder("hwBlit", "void", [], "machine", exports)
     hbl = host_gen.forwarder("hblDispatch", "void", ["u32"], "cart", exports)
     assert "HOST_SPAN_ENTER(HOST_SPAN_BLIT); w2c_machine_hwBlit(&e->machine); HOST_SPAN_LEAVE();" in blit
-    assert "HOST_SPAN_ENTER(HOST_SPAN_CART); w2c_cart_hblDispatch(&e->cart, a0); HOST_SPAN_LEAVE();" in hbl
+    assert "HOST_SPAN_ENTER(HOST_SPAN_CART); w2c_cart_hblDispatch(&e->cart, a0); HOST_CHISEL_SYNC(); HOST_SPAN_LEAVE();" in hbl
     assert "HOST_SPAN" not in host_gen.forwarder("guiText", "void", ["u32"], "rom", EXPORTS)
+
+
+def test_every_machine_and_rom_entry_waits_for_a_lazy_chisel_op_but_hwblit() -> None:
+    """cycles/bchisel.h: the ROM may draw with the CPU, the machine may read CHISEL's pixels, the
+    drive may overwrite a lazy op's source; hwBlit waits inside, after its own setup."""
+    exports = {"machine": {"hwBlit": ("void", []), "hwVideoBase": ("u32", [])}, "cart": {}, "rom": {"guiText": ("void", ["u32"])}}
+    rom = host_gen.forwarder("guiText", "void", ["u32"], "rom", exports)
+    mach = host_gen.forwarder("hwVideoBase", "u32", [], "machine", exports)
+    drive = host_gen.forwarder("diskReadBlock", "u32", ["u32", "u32"], None, exports)
+    assert "{ HOST_CHISEL_SYNC(); w2c_rom_guiText(&e->rom, a0); }" in rom
+    assert "{ HOST_CHISEL_SYNC(); return w2c_machine_hwVideoBase(&e->machine); }" in mach
+    assert drive.index("HOST_CHISEL_SYNC();") < drive.index("host_disk_read(")
+    assert "HOST_CHISEL_SYNC" not in host_gen.forwarder("hwBlit", "void", [], "machine", exports)
+    assert "#define HOST_CHISEL_SYNC() ((void)0)" in host_gen.SPAN_HOOKS, "the native host needs the no-op"
 
 
 def test_forwarder_refuses_a_span_that_returns_a_value() -> None:

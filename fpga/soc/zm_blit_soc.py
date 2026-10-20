@@ -14,6 +14,13 @@ register port fed from the CPU's stores, its memory on HP2 (soc/zm_blit_hp.py).
   order, with no fence. With the CPU's stores POSTED (soc/zm_hp_posted.py, `stores_idle`
   low while any is not yet in DDR), a start waits in the tap until they have drained, so
   an op never reads pixels still in the bridge's buffer; STATUS reads BUSY meanwhile.
+- **The QUEUE ring** (memmap OFF_BLIT_QUEUE, 2 KiB) is tapped the same way: each store to it
+  reaches zm_blit's ring port, in program order with the block's stores and the GO, so a list
+  is in CHISEL's copy before the kick that runs it. The firmware packs Q_START / Q_COUNT into
+  the GO word (cycles/bchisel.c); the tap forwards the whole word and only masks the lanes.
+- **A kick copies the block** (zm_blit_q.v, ~24 clocks): a read of BLIT_WINDOW is not answered
+  while a store is still in the tap or the copy runs (`copying`), so the firmware's load after
+  GO is the barrier that keeps the cart's next stores out of the op it just started.
 - **BLIT_WINDOW is M-only**: it sits outside every seal window (rtl/seal/zm_seal_map.vh),
   so the cart reaches nothing it could not before; it can only ask through hwBlit.
   Reads: word 0 = STATUS (bit 31 BUSY, also while a store is still in the tap), word 24
@@ -39,6 +46,8 @@ BLIT_WINDOW = 0x91000000  # uncached (bit 31), outside the seal's video window (
 BLIT_WINDOW_BYTES = 0x1000
 REG_W0, REG_WORDS = mm.OFF_BLIT // 4, 24  # the region words zm_blit stores (CYCLES is its own)
 assert mm.OFF_BLIT % 128 == 0, "the tap takes the word index as the offset's low 5 bits"
+RING_W0 = mm.OFF_BLIT_QUEUE // 4  # the QUEUE ring's first word: aligned, so a hit is its top bits
+assert mm.OFF_BLIT_QUEUE % mm.BLIT_QUEUE_BYTES == 0 and mm.BLIT_QUEUE_WORDS == 512, "ring index = off[:9]"
 
 # LiteX buses and SoCs: untyped, their signals and submodules are attributes made at runtime.
 Bus = Any
@@ -52,6 +61,7 @@ class ZMBlitTap(LiteXModule):
 
     def __init__(self, dbus: Bus, vbase: Signal, break_: str = "", stores_idle: Signal | int = 1) -> None:
         self.we, self.waddr, self.be, self.wdata = Signal(), Signal(5), Signal(4), Signal(32)
+        self.q_we, self.q_waddr, self.q_be, self.q_wdata = Signal(), Signal(9), Signal(4), Signal(32)
         self.pending = Signal()  # a store is still in the tap: it may be a start
         t_store, t_adr, t_sel, t_dat = Signal(), Signal(30), Signal(4), Signal(32)
         o_store, off, go, o_sel, o_dat = Signal(), Signal(30), Signal(), Signal(4), Signal(32)
@@ -78,6 +88,12 @@ class ZMBlitTap(LiteXModule):
             If(start & ~stores_idle, held.eq(1), h_sel.eq(o_sel), h_dat.eq(o_dat)),
             If(fire, held.eq(0)),
         ]  # fmt: skip
+        ring = off[9:] == RING_W0 >> 9
+        if break_ == "ring":  # the break test: the ring's stores never reach CHISEL
+            ring = 0
+        self.sync += [
+            self.q_we.eq(o_store & ring), self.q_waddr.eq(off[:9]), self.q_be.eq(o_sel), self.q_wdata.eq(o_dat),
+        ]  # fmt: skip
         self.comb += self.pending.eq(t_store | o_store | self.we | held)
 
 
@@ -92,27 +108,34 @@ class ZMBlit(LiteXModule):
         skew = 8 if break_ == "base" else 0  # the break test: the DDR map off by one beat
         self.sync += base.eq(vbase - mm.HW_VIDEO_BASE + skew)
         self.mem = mem = BlitHP(hp, base, enable)
-        raddr, rdata, busy = Signal(5), Signal(32), Signal()
+        raddr, rdata, busy, copying = Signal(5), Signal(32), Signal(), Signal()
         self.specials += Instance(
             "zm_blit", i_clk=ClockSignal("sys"), i_rst=ResetSignal("sys"),
             i_cpu_we=self.tap.we, i_cpu_waddr=self.tap.waddr, i_cpu_be=self.tap.be, i_cpu_wdata=self.tap.wdata,
-            i_cpu_raddr=raddr, o_cpu_rdata=rdata, o_busy=busy,
+            i_cpu_raddr=raddr, o_cpu_rdata=rdata, o_busy=busy, o_copying=copying,
+            i_q_we=self.tap.q_we, i_q_waddr=self.tap.q_waddr, i_q_be=self.tap.q_be, i_q_wdata=self.tap.q_wdata,
             o_rd_req_valid=mem.rd_req_valid, i_rd_req_ready=mem.rd_req_ready, o_rd_req_addr=mem.rd_req_addr,
             i_rd_rsp_valid=mem.rd_rsp_valid, i_rd_rsp_data=mem.rd_rsp_data,
             o_wr_req_valid=mem.wr_req_valid, i_wr_req_ready=mem.wr_req_ready, o_wr_req_addr=mem.wr_req_addr,
             o_wr_req_data=mem.wr_req_data, o_wr_req_strb=mem.wr_req_strb, i_wr_pending=mem.wr_pending,
         )  # fmt: skip
         self.busy = busy
-        self._window(raddr, rdata)
+        self.window = BlitWindow(self.bus, rdata, busy | self.tap.pending, self.tap.pending | copying, break_)
+        self.comb += raddr.eq(self.bus.adr[:5])
         _add_sources(platform)
 
-    def _window(self, raddr: Signal, rdata: Signal) -> None:
-        """BLIT_WINDOW: writes are acked (the tap takes them); reads are STATUS and CYCLES."""
-        bus = self.bus
-        busy = self.busy | self.tap.pending
-        self.comb += raddr.eq(bus.adr[:5])
+
+class BlitWindow(LiteXModule):
+    """BLIT_WINDOW's slave: writes are acked at once (the tap takes them, GO included); reads are
+    STATUS and CYCLES, answered only once `hold` is low (no store in the tap, no kick copying
+    the block), which makes the firmware's load after GO wait until its op has its registers."""
+
+    def __init__(self, bus: Bus, rdata: Signal, busy: Signal, hold: Signal, break_: str = "") -> None:
+        if break_ == "nohold":  # the break test: a read answered while the kick still copies
+            hold = 0
+        raddr = bus.adr[:5]
         self.sync += [
-            bus.ack.eq(bus.cyc & bus.stb & ~bus.ack),
+            bus.ack.eq(bus.cyc & bus.stb & ~bus.ack & (bus.we | ~hold)),
             bus.dat_r.eq(rdata | Cat(Signal(31), busy & (raddr == 0))),
         ]
 

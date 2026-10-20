@@ -8,7 +8,7 @@ The **sealed machine** ABI: everything a coder gets of the hardware is the two
 > the entry points, not the schematics. The constraints *are* the console.
 > Everything here is stable ABI — additive changes bump minor, layout changes
 > bump major. Version is exported as `hwVersion()` / `audioVersion()`
-> (`0x0001_0700` = 1.7.0).
+> (`0x0001_0800` = 1.8.0).
 
 The single source of truth for the numbers below is `hw/sdk/memmap.zig` (video)
 and `hw/sdk/audio.zig` (audio).
@@ -158,7 +158,7 @@ hwPhysicalPtr() i32      // pointer to the PFB, for the host to blit
 hwPlanesNumber() u8      // 4
 hwPhysWidth() u32        // 400
 hwPhysHeight() u32       // 280
-hwVersion() u32          // 0x0001_0700 (1.7.0)
+hwVersion() u32          // 0x0001_0800 (1.8.0)
 ```
 
 **Import it requires** (provided by the host, routed to the open demo module):
@@ -186,7 +186,9 @@ plane — so each plane is rendered and blitted individually.
 ## 4b. Blitter (2D coprocessor — exports of `machine-video.wasm`)
 
 A fixed-function chunky-8bpp blitter living in the video module. The open layer
-sets a register block, then calls `hwBlit()` to execute it (synchronous, v1).
+sets a register block, then calls `hwBlit()` to execute it (synchronous, v1;
+on the board a cart may opt into a lazy wait with `BLIT_ASYNC` at `OFF_BLIT + 0x64`,
+see `docs/BLITTER_HW_SPEC.md` §6: the machine itself stays synchronous).
 Full model in `docs/BLITTER_HW_SPEC.md`; drive it via `zigos/blitter.zig`
 (`Blitter.fill/clear/line/triangle/triangleEx/bob/blitCopy/blitImage/setHalftone`).
 
@@ -217,8 +219,17 @@ Full model in `docs/BLITTER_HW_SPEC.md`; drive it via `zigos/blitter.zig`
   "no halftone". Both are opt-in: with the bits clear FILL writes `COLOR`
   straight and the pattern is sniffed, so pre-1.5.0 carts are unchanged.
   ZigOS: `Blitter.fillEx(fb, x, y, w, h, color, .{ .bg = …, .mt = …, .halftone = … })`.
-- **Deferred (v2):** raw area fill (`CON.IFE`/`EFE`) and an async/DMA
-  cycle-budgeted mode.
+- **QUEUE: many small ops for one `hwBlit()` — since 1.8.0.** `COMMAND` 5 runs a
+  list of op descriptors from the QUEUE ring (`OFF_BLIT_QUEUE`, 512 u32 words), word
+  `Q_START` (`OFF_BLIT + 0x68`, u16) for `Q_COUNT` words (`+ 0x6A`, u16). A descriptor:
+  a header (bits 0..23 the mask of block words that follow, bits 24..31 the op's
+  `COMMAND`), then those words, lowest first, into a working copy of the block taken at
+  the call; the block is left as it was and `CYCLES` is the sum of the ops' costs.
+  Refused (`CYCLES` 0) for an empty list or one past the ring's end. On KESTREL the list
+  runs while the cart goes on: a queued op's pixels are only drawn for sure after a
+  sync. ZigOS: `zg.blit_queue.Queue` (`fill`, `op`, `set`, `kick`, `flush`). Full rules
+  in `docs/BLITTER_HW_SPEC.md` §6.
+- **Deferred (v2):** raw area fill (`CON.IFE`/`EFE`) and a cycle-budgeted mode.
 
 ```
 demo.frame(dt): set blitter regs → hwBlit() (per primitive) → hwRenderPlane(i)

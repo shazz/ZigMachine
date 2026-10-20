@@ -84,6 +84,9 @@ pub const convertU8ArraytoColors = @import("utils/loaders.zig").convertU8Arrayto
 pub const readU16Array = @import("utils/loaders.zig").readU16Array;
 pub const readI16Array = @import("utils/loaders.zig").readI16Array;
 pub const Blitter = @import("blitter.zig").Blitter;
+pub const chisel_async = @import("chisel_async.zig"); // KESTREL: hwBlit returns before CHISEL ends (opt-in)
+pub const blit_queue = @import("blit_queue.zig"); // HW 1.8.0 QUEUE: many small blitter ops for one hwBlit
+pub const chisel_copy = @import("chisel_copy.zig"); // a copy into VRAM: the CPU below 8 KB, CHISEL above
 pub const BlitVec2 = @import("blitter.zig").Vec2;
 pub const Minterm = @import("blitter.zig").Minterm;
 pub const obj = @import("utils/obj_loader.zig");
@@ -784,6 +787,22 @@ pub const ZigOS = struct {
     pub fn initTextOnly(self: *ZigOS) void {
         self.system_font = SYSTEM_FONT;
         self.system_font_6 = SYSTEM_FONT_6;
+    }
+
+    // KESTREL's lazy CHISEL wait (chisel_async.zig): with async on, hwBlit and
+    // ZigOS's own CHISEL clears/copies return while CHISEL still draws; keep the
+    // CPU off those pixels until blitSync(). No effect in the browser.
+    pub fn blitAsync(_: *ZigOS, on: bool) void {
+        chisel_async.setAsync(g_base, on);
+    }
+    pub fn blitSync(_: *ZigOS) void {
+        chisel_async.sync(g_base);
+    }
+
+    // dst = src, the CPU below chisel_copy.COPY_MIN bytes and CHISEL above when dst is
+    // in VRAM (KESTREL: ~2.7 vs ~1.3 cycles a byte). Same bytes either way.
+    pub fn copyMem(_: *ZigOS, dst: []u8, src: []const u8) void {
+        chisel_copy.copy(g_base, dst, src);
     }
 
     pub fn init(self: *ZigOS) void {

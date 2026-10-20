@@ -201,6 +201,7 @@ pub const Demo = struct {
         const n: u32 = @intFromFloat(self.pos);
         if (self.player.shown == n) return;
         try self.player.show(n, self.view(fb));
+        gpu.flush(); // the queued fills have drawn (the browser draws them at the kick, KESTREL by now)
         applyPalette(fb, self.player.palette(n));
     }
 

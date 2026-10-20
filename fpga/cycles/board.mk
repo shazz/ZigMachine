@@ -28,12 +28,12 @@ HP_DEPS  := soc/hp_sim.py soc/zm_board_mem.py soc/zm_hp.py soc/zm_simaxi.py soc/
 # ZM_VSTAT: the video probe (cycles/vstat.h) in every board-SoC image; the video sim's (video.mk)
 # never have it, so its no-drain mutants stay as sharp as they were.
 HRV_CFLAGS = $(subst -I$(CYC)/gen,-I$(HCYC)/gen,$(RV_CFLAGS)) -Ibuild/vdump $(V_$(HV)) -Iglass/firmware -Igen -DZM_VSTAT
-HFW_FILES := $(filter-out cycles/board.c,$(FW_FILES)) cycles/bboard.c cycles/bmailbox.c cycles/bdiag.c cycles/bblit.c cycles/bdisk.c \
+HFW_FILES := $(filter-out cycles/board.c,$(FW_FILES)) cycles/bboard.c cycles/bmailbox.c cycles/bdiag.c cycles/bblit.c cycles/bchisel.c cycles/bdisk.c \
 	host/glass_router.c
 # The glass's input into the cart, and GEM's data disk (bdiskapp.c): per cart, as env.c (they see
 # the cart's w2c_env through host.h).
 HIN_SRC := cycles/binput.c cycles/bcursor.c host/input_bridge.c cycles/bdiskapp.c
-HFW_DEPS  := $(FW_DEPS) cycles/bmicros.h cycles/bdisk.c cycles/bblit.c cycles/bblit.h cycles/bdinval.h cycles/bboard.c cycles/bboard.h cycles/bmailbox.c cycles/bmailbox.h cycles/bdiag.c cycles/bdiag.h cycles/vboard.h cycles/vstat.c cycles/vstat.h cycles/bvstat.h cycles/vseq_wait.h $(HCYC)/gen/csr_addr.h build/vdump/zm_memmap.h \
+HFW_DEPS  := $(FW_DEPS) cycles/bmicros.h cycles/bdisk.c cycles/bblit.c cycles/bblit.h cycles/bchisel.c cycles/bchisel.h cycles/bdinval.h cycles/bboard.c cycles/bboard.h cycles/bmailbox.c cycles/bmailbox.h cycles/bdiag.c cycles/bdiag.h cycles/vboard.h cycles/vstat.c cycles/vstat.h cycles/bvstat.h cycles/vseq_wait.h $(HCYC)/gen/csr_addr.h build/vdump/zm_memmap.h \
 	cycles/binput.c cycles/binput.h cycles/bcursor.c cycles/bcursor.h host/input_bridge.c host/input_bridge.h host/glass_router.c \
 	cycles/bdiskapp.c cycles/bdiskapp.h cycles/bcartreq.h host/disk_app.h host/zmd_dir.h host/zmd_dir_fat.h gen/glass_cart.h \
 	glass/firmware/glass_input.c glass/firmware/glass_input.h gen/glass_map.h
@@ -115,6 +115,9 @@ $(HCYC)/gen/csr_addr.h: $(SOC_HP)/hp_sim.json build/soc_z7/csr.json tools/cycles
 # hashes compare (apps/zig/scenes/raytrace/bench.zig). Its rate in the sim is cycles/frame.
 MICROS_board := -include bmicros.h
 MICROS_sim   :=
+# CHISEL's lazy wait (cycles/bchisel.h): every machine and ROM entry of the generated env waits
+# for a lazy op first (tools/host_gen.py HOST_CHISEL_SYNC), in the sim's images as the board's.
+CHISEL_SYNC  := -include bchisel.h
 # The cart's stream imports (zg.audioStreamStart / audioFeed / audioStreamStop) reach the stream
 # ring wherever the players run (host/hstream.h), and the players' state reaches the cart's ZigOS
 # fields (cycles/bmirror.h: on the board only, or a sim with ZM_AUDIO_MIRROR=1); ZM_AUDIO=0 keeps
@@ -139,7 +142,7 @@ $(HCYC)/$(1)$(ASUF)$(HSUF)/%/fw.elf: $(CYC)/$(HV)/%/cart.o $(CYC)/$(HV)/common/m
 	rm -f $$(@D)/aud_*.o
 	for s in $(AUD_CART_SRC_$(ZM_AUDIO)) $(HCYC)/songs/$$*.c; do \
 		$(RV_CC) $(HRV_CFLAGS) $(H_$(1)) -I$(HOST)/$$* -c $$$$s -o $$(@D)/aud_$$$$(basename $$$$s .c).o || exit 1; done
-	$(RV_CC) $(HRV_CFLAGS) -I$(HOST)/$$* $(MICROS_$(1)) $(STREAM_$(ZM_AUDIO)) -c $(HOST)/$$*/env.c -o $$(@D)/env.o
+	$(RV_CC) $(HRV_CFLAGS) -I$(HOST)/$$* $(MICROS_$(1)) $(CHISEL_SYNC) $(STREAM_$(ZM_AUDIO)) -c $(HOST)/$$*/env.c -o $$(@D)/env.o
 	$(RV_CC) $(HRV_CFLAGS) -I$(HOST)/$$* -c host/boot.c -o $$(@D)/boot.o
 	$(RV_CC) $(HRV_CFLAGS) -I$(HOST)/$$* -c cycles/vseq.c -o $$(@D)/vseq.o
 	for s in $(VPLAN_SRC); do $(RV_CC) $(HRV_CFLAGS) $(H_$(1)) -I$(HOST)/$$* -c $$$$s -o $$(@D)/vp_$$$$(basename $$$$s .c).o || exit 1; done

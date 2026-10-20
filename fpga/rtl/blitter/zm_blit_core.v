@@ -48,9 +48,9 @@ module zm_blit_core (
     wire [22:0] b_lin = abs_src ? f_b_base[22:0] : ZM_HW_VIDEO_BASE + f_b_base[22:0];
     wire ht_on = f_con2[2] || f_ht != 256'd0;
     wire fill_mt = f_con2[1];
-    // Registered decodes and clip box: both are functions of registers that cannot change while
-    // BUSY (writes are dropped), so a copy one clock behind is exact by the time CHK reads it: the
-    // COMMAND store that starts an op comes at least a clock after the stores that set them up.
+    // Registered decodes and clip box: both are functions of the op bank, which cannot change while
+    // BUSY (only the sequencer loads it, between ops), so a copy one clock behind is exact by the
+    // time CHK reads it: zm_blit_q starts an op at least a clock after its last word is in.
     // Without the copies the pixel unit's inputs were 11 to 15 logic levels from the register
     // block, -1.5 ns at 100 MHz on the board (Vivado, 2026-10-10).
     reg is_blit, is_fill, is_line;

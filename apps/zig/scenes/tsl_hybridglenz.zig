@@ -130,6 +130,11 @@ pub const Demo = struct {
         const fb = &zigos.lfbs[PLANE];
         const bl = &self.blitter;
         const s = timeline.State.at(self.clock);
+        // KESTREL's lazy wait (zg.chisel_async): every op of the stage and the
+        // objects is CHISEL's, so each returns while CHISEL still draws and the
+        // next one's maths overlaps it. The scrolltext is CPU stores: it waits.
+        bl.setAsync(true);
+        defer bl.setAsync(false);
         if (!s.running) {
             self.painted = false;
             stage.background(fb, bl);
@@ -169,6 +174,7 @@ pub const Demo = struct {
         self.painted = true;
         const bar_y: i16 = @intFromFloat(timeline.BAR_TO / 2);
         stage.bar(fb, bl, bar_y);
+        bl.setAsync(false); // the scrolltext writes the bar's pixels with the CPU
         self.scroller.draw(fb, self.images.font, bar_y + stage.TEXT_DY, stage.PLANE_W);
     }
 };

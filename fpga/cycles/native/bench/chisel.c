@@ -25,7 +25,8 @@ static void w32(uint32_t off, uint32_t v) {
     if (*p != v) *p = v;
 }
 
-static void hw_blit(void) { SYS(ZM_ENV_hwBlit, void (*)(struct w2c_env*))(g.env); }
+void chisel_hwblit(void) { SYS(ZM_ENV_hwBlit, void (*)(struct w2c_env*))(g.env); }
+#define hw_blit chisel_hwblit
 
 /* D, its stride, X0 = Y0 = 0, W x H, and the halftone off (a sniffed pattern would dither). */
 static void dest(uint32_t off, uint32_t stride, uint32_t w, uint32_t h) {
@@ -60,6 +61,18 @@ void chisel_copy(uint32_t off, uint32_t src_abs, uint32_t stride, uint32_t w, ui
     w16(ZM_BLIT_B_STRIDE, (uint16_t)stride);
     w8(ZM_BLIT_COMMAND, ZM_BLIT_CMD_BLIT);
     hw_blit();
+}
+
+/* hwBlit's lazy wait (cycles/bchisel.h): BLIT_ASYNC on, every hwBlit returns once CHISEL has
+ * started; off syncs first (a NOP hwBlit), as libs/zig/chisel_async.zig does. */
+void chisel_sync(void) {
+    w8(ZM_BLIT_COMMAND, ZM_BLIT_CMD_NOP);
+    hw_blit();
+}
+
+void chisel_async(int on) {
+    if (!on) chisel_sync();
+    w8(ZM_BLIT_ASYNC, (uint8_t)(on != 0));
 }
 
 void chisel_go_fill(uint32_t off, uint32_t stride, uint32_t w, uint32_t h) {

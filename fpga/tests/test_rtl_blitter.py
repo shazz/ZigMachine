@@ -22,13 +22,19 @@ FPGA = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(FPGA / "tests"))
 import test_rtl  # after the path insert: reuses its CXXRTL include path
 from blitter_edges import edge_script
+from blitter_queue import make_queue_script
 from blitter_random import make_script
 
 BUILD = FPGA / "build" / "tests" / "blitter"
 ZIG = os.environ.get("ZIG", str(Path.home() / ".local/zig/0.16.0/zig"))
 FILES = sorted(p.name for p in (FPGA / "rtl/blitter").glob("zm_blit*"))  # the .v files and the .vh they include
 RTL = [f for f in FILES if f.endswith(".v")]
-SCRIPTS = {"edges": edge_script, "random1": lambda: make_script(1, 400), "random2": lambda: make_script(2, 400)}
+SCRIPTS = {
+    "edges": edge_script,
+    "random1": lambda: make_script(1, 400),
+    "random2": lambda: make_script(2, 400),
+    "queue1": lambda: make_queue_script(3, 40),
+}
 # (name, file, the text, its broken form): each rule of the blitter, broken one at a time.
 MUTANTS = [
     ("minterm_index_swapped", "zm_blit_pxq.v", "mt[{h_a[i], bval[i], h_c[i]}]", "mt[{h_c[i], bval[i], h_a[i]}]"),
@@ -46,7 +52,19 @@ MUTANTS = [
     ("region_check_off_by_one", "zm_blit_chk.v", "+ dlast_q <= ZM_REGION_BYTES", "+ dlast_q < ZM_REGION_BYTES"),
     ("window_top_off_by_one", "zm_blit_chk.v", "hi <= ZM_ROM_RAM_TOP", "hi < ZM_ROM_RAM_TOP"),
     ("src_abs_ignored", "zm_blit_core.v", "wire abs_src = f_con2[0];", "wire abs_src = 1'b0;"),
-    ("writes_accepted_while_busy", "zm_blit_regs.v", "cpu_we && !busy && !start", "cpu_we"),
+    # the two banks and the sequencer (zm_blit_regs, zm_blit_q): no store dropped, none seen early
+    ("store_dropped_while_busy", "zm_blit_regs.v", "always @(posedge clk) if (cpu_we) begin", "always @(posedge clk) if (cpu_we && !busy) begin"),
+    ("op_bank_not_loaded_at_a_kick", "zm_blit_q.v", "ld_we <= 1'b1; ld_word <= idx;", "ld_word <= idx;"),
+    ("queue_starts_from_the_last_op", "zm_blit_q.v", "if (idx == 5'd23) st <= is_q ? HDR : SET;", "st <= is_q ? HDR : SET;"),
+    ("descriptor_of_a_blit_skipped", "zm_blit_q.v", "st <= ocmd != 8'd0 && (", "st <= ocmd > 8'd1 && ("),
+    ("queued_op_below_vram_runs", "zm_blit_q.v", "(!is_q || d_base >= ZM_OFF_VRAM)", "1'b1"),
+    ("two_ops_at_once", "zm_blit_q.v", "WAIT: if (!core_busy)", "WAIT: if (1'b1)"),
+    ("words_highest_first", "zm_blit_q.v", "for (k = 23; k >= 0; k = k - 1)", "for (k = 0; k < 24; k = k + 1)"),
+    ("idle_before_the_list_ends", "zm_blit.v", "core_busy || q_busy || kick", "core_busy || kick"),
+    ("count_off_by_one", "zm_blit_q.v", "left <= kick_data[26:17];", "left <= kick_data[26:17] + 10'd1;"),
+    ("list_read_past_its_count", "zm_blit_q.v", "SET : left == 10'd0 ? IDLE : WRD2;", "SET : WRD2;"),
+    ("queue_cost_not_summed", "zm_blit_regs.v", "cycles <= cycles + cyc_val;", "cycles <= cyc_val;"),
+    ("word0_drops_con", "zm_blit_q.v", "ld_be <= mask[0] ? 4'b0110 : 4'b1111;", "ld_be <= mask[0] ? 4'b0010 : 4'b1111;"),
     ("write_lane_wrong", "zm_blit_pxq.v", "c_strb <= 4'b0001 << h_dst[1:0];", "c_strb <= 4'b0001 << h_dst[3:2];"),
     ("halftone_declared_ignored", "zm_blit_core.v", "f_con2[2] || f_ht != 256'd0", "f_ht != 256'd0"),
     ("clip_right_off_by_one", "zm_blit_clip.v", "rx < sds ? rx : sds", "rx < sds ? rx + 18'sd1 : sds"),
@@ -135,6 +153,8 @@ def test_the_scripts_exercise_every_op(oracle: dict[str, Path]) -> None:
     """A script that stops drawing proves nothing: each op must draw, in each script's trace."""
     ran = {"edges": 80, "random1": 380, "random2": 380}
     for name, trace in oracle.items():
+        if name not in ran:
+            continue
         script = [line.split() for line in (BUILD / f"{name}.txt").read_text().splitlines() if line.startswith("run")]
         rows = _trace(trace)
         assert len(rows) >= ran[name]
@@ -142,6 +162,15 @@ def test_the_scripts_exercise_every_op(oracle: dict[str, Path]) -> None:
             drew = sum(1 for (_, c), r in zip(script, rows, strict=True) if c == cmd and int(r[2]) > 0)
             assert drew >= 10, f"{name}: only {drew} ops of command {cmd} drew anything"
         assert any(r[2] == "0" for r in rows), f"{name}: no op was refused"
+
+
+def test_the_queue_script_runs_lists_that_draw_and_lists_refused(oracle: dict[str, Path]) -> None:
+    script = [line.split() for line in (BUILD / "queue1.txt").read_text().splitlines() if line.startswith("run")]
+    rows = _trace(oracle["queue1"])
+    lists = [r for (_, c), r in zip(script, rows, strict=True) if c == "5"]
+    assert len(lists) == 40
+    assert sum(int(r[2]) > 0 for r in lists) >= 30, "most lists must draw"
+    assert any(r[2] == "0" for r in lists), "no list was refused or drew nothing"
 
 
 @pytest.mark.parametrize("mode", ["fast", "random", "deep"])
@@ -169,6 +198,6 @@ def test_a_broken_rule_is_caught(name: str, file: str, old: str, new: str, oracl
     caught = any(
         _run([str(exe), f"{n}.txt", str(oracle[n]), mode, "11"]).returncode != 0
         for mode in ("random", "deep")
-        for n in ("edges", "random1", "random2")
+        for n in ("edges", "random1", "random2", "queue1")
     )
     assert caught, f"{name} went unnoticed"

@@ -91,28 +91,60 @@ static inline void bdi_span(uintptr_t first, uintptr_t end) { /* [first, end), e
     for (uintptr_t a = first & ~(uintptr_t)(BDI_LINE - 1); a < end; a += BDI_LINE) BDI_INVAL_LINE(a);
 }
 
-/* Invalidate the lines op `cmd` (registers in the region r) can have written. 1 when that is done
- * (an empty box: nothing to do); 0 when the caller must invalidate the whole cache instead. */
-static inline int bdi_range(const volatile uint8_t* r, uint8_t cmd) {
+/* The lines op `cmd` (registers in the region r) can write, worked out from the registers as they
+ * are now: bblit.c's lazy wait (BLIT_ASYNC) takes it at GO and applies it once the op is over, when
+ * the cart may already have rewritten the registers for the next op. */
+enum { BDI_ALL, BDI_NONE, BDI_SPAN, BDI_ROWS }; /* the whole cache, nothing, [first, end), rows */
+typedef struct {
+    uintptr_t first, end;
+    uint32_t ds, w, rows;
+    int how;
+} bdi_plan;
+
+/* Always inlined: out of line, the plan goes through the stack, and every store is a bus write
+ * (tests/test_blit_path.py holds hwBlit to a few a call). */
+#define BDI_HOT static inline __attribute__((always_inline))
+
+BDI_HOT void bdi_plan_op(const volatile uint8_t* r, uint8_t cmd, bdi_plan* p) {
     uint16_t ds = bdi_u16(r, ZM_BLIT_D_STRIDE);
     uint32_t d_base = *(const volatile uint32_t*)(r + ZM_BLIT_D_BASE);
     bdi_box b;
-    if (!bdi_op_box(r, cmd, bdi_clip(r, ds), &b)) return 0;
-    if (b.x1 <= b.x0 || b.y1 <= b.y0) return 1; /* writes nothing (machine: destInRegion's empty box) */
+    p->how = BDI_ALL;
+    if (!bdi_op_box(r, cmd, bdi_clip(r, ds), &b)) return;
+    p->how = BDI_NONE;
+    if (b.x1 <= b.x0 || b.y1 <= b.y0) return; /* writes nothing (machine: destInRegion's empty box) */
     uint64_t last = (uint64_t)(uint32_t)(b.y1 - 1) * ds + (uint32_t)b.x1; /* one past the last byte */
-    if ((uint64_t)d_base + last > ZM_REGION_BYTES) return 0; /* refused: writes nothing */
+    p->how = BDI_ALL;
+    if ((uint64_t)d_base + last > ZM_REGION_BYTES) return; /* refused: writes nothing */
     uint32_t w = (uint32_t)(b.x1 - b.x0), rows = (uint32_t)(b.y1 - b.y0);
     uintptr_t first = (uintptr_t)r + d_base + (uint32_t)b.y0 * ds + (uint32_t)b.x0;
     uintptr_t end = (uintptr_t)r + d_base + (uintptr_t)last;
     uint32_t span_lines = (uint32_t)(((end - 1) >> 5) - (first >> 5) + 1);
     uint32_t row_lines = rows * ((w + BDI_LINE - 2) / BDI_LINE + 1); /* w bytes at any offset: at most */
+    *p = (bdi_plan){first, end, ds, w, rows, BDI_ALL};
     if (span_lines <= row_lines) {
-        if (span_lines > BDI_LINES) return 0;
-        bdi_span(first, end);
-    } else {
-        if (row_lines > BDI_LINES) return 0;
-        for (uint32_t j = 0; j < rows; j++, first += ds) bdi_span(first, first + w);
+        if (span_lines <= BDI_LINES) p->how = BDI_SPAN;
+    } else if (row_lines <= BDI_LINES) {
+        p->how = BDI_ROWS;
     }
+}
+
+/* Drop the plan's lines; BDI_ALL is the caller's (bdi_inval_all, behind its branch). */
+BDI_HOT void bdi_apply(const bdi_plan* p) {
+    uintptr_t first = p->first;
+    uint32_t ds = p->ds, w = p->w, rows = p->rows;
+    if (p->how == BDI_SPAN) bdi_span(first, p->end);
+    if (p->how != BDI_ROWS) return;
+    for (uint32_t j = 0; j < rows; j++, first += ds) bdi_span(first, first + w);
+}
+
+/* Invalidate the lines op `cmd` (registers in the region r) can have written. 1 when that is done
+ * (an empty box: nothing to do); 0 when the caller must invalidate the whole cache instead. */
+static inline int bdi_range(const volatile uint8_t* r, uint8_t cmd) {
+    bdi_plan p;
+    bdi_plan_op(r, cmd, &p);
+    if (p.how == BDI_ALL) return 0;
+    bdi_apply(&p);
     return 1;
 }
 
