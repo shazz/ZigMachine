@@ -18,7 +18,7 @@
 //           bottom margins (outside the 352x272 canvas) stay black, and the
 //           frame carries more colours than four static palette entries can;
 //   go shot at the SCOOPEX frame the production's own screenshot-2.png is
-//           matched structurally (text mask IoU and every raster row);
+//           matched structurally (the text and shadow masks, each by IoU, and every raster row);
 //   music   the cart asks for the production's own "madness took me" MOD once;
 //   keys    Escape leaves; F (Ebitengine fullscreen in the Go) does not;
 //   soak    no zg.mem allocation refused; ms/frame reported, not budgeted.
