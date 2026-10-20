@@ -140,7 +140,8 @@ def manifest(out: Path, rows: list[tuple[str, str]]) -> str:
 def main() -> None:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--out", type=Path, default=FPGA / "build/glass/sd")
-    p.add_argument("--buildroot", type=Path, help="Buildroot's output directory (has images/)")
+    br = FPGA / "build/buildroot"  # without one the card gets boot.cmd's HP1 0xF00 and no rootfs: say MISSING
+    p.add_argument("--buildroot", type=Path, default=br if br.is_dir() else None, help="Buildroot's output (images/)")
     p.add_argument("--fw-dir", type=Path, default=BOARD_FW, help="the board firmwares (<cart>/fw.bin)")
     p.add_argument("--bit", type=Path, default=BITSTREAM, help="the board bitstream the firmwares were built for")
     p.add_argument("--shelf", action="store_true", help="print the shelf's carts and stop")

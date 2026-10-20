@@ -41,6 +41,8 @@
   Backups on the card: boot.scr.bb67385d (HP1 0xf01), rootfs.cpio.uboot.31eeb461, glass.a896da36.
   Proof: prototypes/w64_re/proof_default.txt, default_boot_console.txt, bench_default/, fps_default/.
   A/B now: `/tmp/gopt.sh 0` (W32 arm, one way until reboot), a reboot brings W64 back.
+  Rollback: restore boot.scr AND rootfs together (never the old rootfs alone); if Linux will not boot,
+  `prototypes/w64_re/trial_boot.py rootfs.cpio.uboot.31eeb461 0xf01` from U-Boot over serial.
 
 ## Left (the lead)
 1. Board: install per stage/INSTALL.txt. Read the OSD fps with no switches, then `--fw-opt=0x30` (the old order) on the same bitstream.
