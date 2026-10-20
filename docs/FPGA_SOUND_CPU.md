@@ -426,7 +426,7 @@ now/peak on 2026-10-18 (cart started, no input: union_textracker was the only ov
 | north_south_digi (effects) | north_south | A 5-17 kHz, bursts | 242 % for ~10 frames | | handler native, status 15 |
 | union/thalion_forever | union_textracker | A 9,600 Hz | 225 % | **308/313 %** | handler native, status 8: **79 %** measured |
 | auf_weidersehen_monty_digi | tex_neoshow | D 10,593 Hz | 220 % | 17/20 % | native (status 5) |
-| digital/* (6 tunes), big/Labello | big_demo | A 9,600 Hz | 213 % | (by input) | handler native, status 7 |
+| digital/* (6 tunes), big/Labello | big_demo | A 9,600 Hz | 213 % | (by input) | native (status 16): PLAY + handler, **72 %** measured |
 | crystallized | dbug, music | B 15,360 Hz, drums | 198 % peak, 47 % mean | 22/34 % | handler native, status 14 |
 | Swedish_New_Year_Demo_Sync | swedish_newyear | A 7,680 Hz | 181 % | (by input) | handler native, status 11 |
 | snyd90_f6 | snyd_90 | C 7,402 Hz | 166 % | (by input) | handler native, status 12 |
@@ -458,7 +458,8 @@ match plays on Musashi.
 
 | Status | Driver | Tunes |
 |---|---|---|
-| 7 | `digi_big.zig`, Mad Max's 3-voice mixer | the B.I.G. Demo's digital/ tunes, big/Labello |
+| 7 | `digi_big.zig`, Mad Max's 3-voice mixer | (a tune with the mixer but not his sequencer: none known) |
+| 16 | `digi_big.zig` + `digi_big_play.zig`, the mixer and Mad Max's sequencer, PLAY native too | the B.I.G. Demo's digital/ tunes, big/Labello |
 | 8 | `digi_mix4.zig`, Hippel's 4-voice mixer | Thalion Forever |
 | 9 | `digi_quartet.zig`, SingSong, state in registers | Dune Gen4's Quartet tunes |
 | 10 | `digi_tcb.zig`, one byte a tick (Wow's, with a software end of interrupt) | Swedish New Year TCB #1 |
@@ -479,7 +480,9 @@ per cart with its `--break`. Unit tests: `digi_*_test.zig`.
 | Tune | Musashi (est.) | Handler native (measured) |
 |---|---|---|
 | Thalion Forever | 225 % est., 308 % on the board | 1.31 Mc, **79 %** |
-| the other handler-only tunes | 159-213 % | not measured (no sim run) |
+| B.I.G. digital Ace 2 (status 7, PLAY on Musashi) | 213 % | 1.25 Mc a frame with a PLAY, 1.12 without: **75 %** |
+| the same, status 16 (PLAY native) | | 1.19-1.21 Mc, **72 %** |
+| the other handler-only tunes | 159-181 % | not measured (no sim run) |
 | Quartet (1) | 374 % | 1.94-2.18 Mc, **117 %**: still over |
 | Swedish New Year TCB #1 | 321 % | 1.35-1.53 Mc, **85 %**, but the write queue filled 196 times in 8 frames |
 
@@ -488,6 +491,31 @@ would suggest: a third of the frame is bus waits, and forcing the 68000 accesses
 it slower (1.34 Mc), so it is the I-cache. Reading RAM directly instead of a bus call per byte cut 7 %
 (1.41 -> 1.31 Mc). The next lever is the player's per-interrupt path (`renderStereo`'s block, the MFP, the
 queue push) kept small and hot, which helps every digi tune at once.
+
+### The B.I.G. digi tunes: PLAY native too (status 16, 2026-10-19)
+
+The six files the B.I.G. Demo's digital screen plays (and big/Labello) carry one driver: Mad Max's sequencer
+for his mixer, the screen's own program, assembled at a different address in each. From PLAY on the code is
+byte for byte the same outside the 75 longs relocation moves (`prototypes/big_digi_re/`). PLAY writes no
+hardware: it leaves each voice's sample pointer at $380/$386/$38C and the step the handler adds (the
+handler's own `addi.l` immediates). `digi_big_play.zig`, `digi_big_note.zig` and `digi_big_env.zig` are it,
+access for access; `digi_big_map.zig` finds it behind the header's PLAY bra by a masked hash and, at the first
+PLAY after each INIT, checks it in RAM (Grazey's two patches included) and reads every variable from the
+operand of an instruction that uses it. INIT and EXIT stay on Musashi. A command past the table (the 68000
+would jump into code) goes back to Musashi rather than being guessed; none of the six has one.
+
+**The proof:** `fpga/tests/test_sndh_irq.py` holds all six (seven subtunes) to Musashi past each tune's FRMS
+(21,000-84,000 frames), the survey must show no Musashi call at all, and mutant 12 (note lengths a frame
+short) must fail. `apps/irq_native_check.mjs` at status 16 with the breaks for mutants 5 and 12 (gate
+`big_demo_music`). Unit tests: `digi_big_play_test.zig`.
+
+**Cost on BARD** (`make snd-bench SONG=digital/Ace_2.sndh TUNE=1 ZM_FRAMES=6`, soc_hp_snd): 1.25 Mc with a
+PLAY and 1.12 without before (75 %); 1.19-1.21 Mc after (72 %), no resync, no full queue. The saving is
+smaller than the 0.13 Mc a Musashi PLAY cost, and the frame without one got dearer (1.12 -> 1.19 Mc, its
+instruction-bus waits halved but its data waits up): the build moved code, and on this I-cache that is
+worth several percent either way. The remaining ~1.1 Mc is the 160 native interrupts a frame (~7 k cycles
+each): the per-interrupt path above is the lever, not the sequencer. The song's load is long too (98-140 Mc
+in the bench, Musashi copying 68 KB of samples in INIT): about a second of BARD before the first frame.
 
 ## Phase B: Atari SAP tunes on the POKEY
 
