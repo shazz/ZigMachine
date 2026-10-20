@@ -21,7 +21,7 @@ pub const Target = struct {
     ox: usize,
     rect: ?*const fn (x: usize, y: usize, w: usize, h: usize, color: u8) void = null,
     /// When set, called before the CPU itself reads or writes `px` (the player's
-    /// keyframes): `rect`'s blitter may still be filling (gpu.zig, lazy wait).
+    /// keyframes): `rect`'s fills may still be queued or drawing (gpu.zig, the QUEUE).
     sync: ?*const fn () void = null,
 };
 

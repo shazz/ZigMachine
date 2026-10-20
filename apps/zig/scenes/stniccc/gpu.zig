@@ -2,54 +2,48 @@
 // STNICCC fills on the CHISEL blitter. The CPU filler spent a byte store per
 // pixel (@memset, ~3 cycles each) on a 400x280 plane, which is what dropped
 // the fullscreen act to ~10 fps; a FILL is one setup and then ~1 clock a pixel.
-// The destination registers (base, stride, CON) are written once per frame in
-// begin(); a span then only rewrites colour, x, y, w, h and the command.
 // Pixel-identical to the memset: both write the same [x, x+w) of the same row.
+//
+// The spans go through the blitter's QUEUE (zg.blit_queue, HW 1.8.0): a frame
+// is ~1000 small fills, and a hwBlit() each cost the board ~900 cycles while a
+// queued fill is a few ring stores; CHISEL draws one list while the edge walk
+// builds the next. The destination is set in the list (begin()), never in the
+// block, so a list never draws with a later begin()'s plane. flush() before the
+// CPU touches the plane (keyframes, the message's text) and at the frame's end.
 // --------------------------------------------------------------------------
-const std = @import("std");
 const hw = @import("hardware");
 const polyfill = @import("polyfill.zig");
-const chisel_async = @import("zigos").chisel_async;
+const Queue = @import("zigos").blit_queue.Queue;
 
-var base: usize = 0;
-
-inline fn w8(off: usize, v: u8) void {
-    @as(*u8, @ptrFromInt(base + off)).* = v;
-}
-inline fn w16(off: usize, v: u16) void {
-    std.mem.writeInt(u16, @as(*[2]u8, @ptrFromInt(base + off)), v, .little);
-}
+var q: Queue = .{};
 
 /// Point the blitter at `t`'s window and return the target with fills routed to it.
 pub fn begin(t: polyfill.Target) polyfill.Target {
-    base = @intCast(hw.hwVideoBase());
-    std.mem.writeInt(u32, @as(*[4]u8, @ptrFromInt(base + hw.BLIT_D_BASE)), @intCast(@intFromPtr(t.px.ptr) - base), .little);
-    w16(hw.BLIT_D_STRIDE, @intCast(t.stride));
-    w8(hw.BLIT_CON, 0);
-    w8(hw.BLIT_CON2, 0); // never stale: no SRC_ABS, FILL_MT or halftone from an earlier user
+    const base: usize = @intCast(hw.hwVideoBase());
+    if (q.base != base) q.init(base);
+    q.set(&.{ // MINTERM and CON 0; the fills clear CON2 (no SRC_ABS, FILL_MT or halftone)
+        .{ .k = 0, .v = 0 },
+        .{ .k = 8, .v = @intCast(@intFromPtr(t.px.ptr) - base) },
+        .{ .k = 9, .v = @intCast(t.stride) },
+    });
     var out = t;
     out.rect = fillRect;
-    out.sync = sync;
+    out.sync = flush;
     return out;
 }
 
-/// The CPU is about to read or write the plane: the last lazy fill is over.
-fn sync() void {
-    chisel_async.sync(base);
+/// Every fill queued so far has drawn: the CPU may touch the plane.
+pub fn flush() void {
+    q.flush();
 }
 
 fn fillRect(x: usize, y: usize, w: usize, h: usize, color: u8) void {
-    w8(hw.BLIT_COLOR, color);
-    w16(hw.BLIT_X0, @intCast(x));
-    w16(hw.BLIT_Y0, @intCast(y));
-    w16(hw.BLIT_W, @intCast(w));
-    w16(hw.BLIT_H, @intCast(h));
-    w8(hw.BLIT_COMMAND, hw.BLIT_CMD_FILL);
-    hw.hwBlit();
+    q.fill(@intCast(x), @intCast(y), @intCast(w), @intCast(h), color);
 }
 
 /// Clear a whole plane (stride x rows, as LogicalFB.clearFrameBuffer does, but not a byte loop).
 pub fn clearPlane(px: []u8, stride: usize, rows: usize, color: u8) void {
     const t = begin(.{ .px = px, .stride = stride, .w = stride, .h = rows, .ox = 0 });
     t.rect.?(0, 0, stride, rows, color);
+    flush();
 }
