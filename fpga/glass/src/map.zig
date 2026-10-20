@@ -112,6 +112,15 @@ pub const KEY_ARROW_UP: u32 = 0xE020;
 pub const KEY_ARROW_DOWN: u32 = 0xE021;
 pub const KEY_ARROW_LEFT: u32 = 0xE022;
 pub const KEY_ARROW_RIGHT: u32 = 0xE023;
+// Page Up/Down page the OSD's shelf (Matt, 2026-10-20). The ST has no such keys and no
+// cart has a code for them, so the glass never forwards them (App.keyEvent drops them).
+pub const KEY_PAGE_UP: u32 = 0xE024;
+pub const KEY_PAGE_DOWN: u32 = 0xE025;
+
+/// Keys only the OSD uses: never pushed to the cart.
+pub fn osdOnly(code: u32) bool {
+    return code == KEY_PAGE_UP or code == KEY_PAGE_DOWN;
+}
 
 // --- joypad (REG_JOY): the demo.input() directions, as held bits -------------
 pub const JOY_UP: u32 = 1 << 0;

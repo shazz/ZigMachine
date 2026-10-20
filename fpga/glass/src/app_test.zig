@@ -43,6 +43,9 @@ test "keys reach the cart only while the OSD is closed, and are released when it
     try std.testing.expect(r.glass.ctrl & map.CTRL_OSD == 0);
     a.padEvent(pad.EV_ABS, pad.ABS_HAT0X, 1, .{}, .{}, "pad");
     try std.testing.expectEqual(map.JOY_RIGHT, r.glass.joy);
+    a.key(keymap.KEY_PAGEDOWN, 1); // the OSD's own key: a cart never sees it
+    a.key(keymap.KEY_PAGEDOWN, 0);
+    try std.testing.expectEqual(@as(?u32, null), r.glass.pop());
 }
 
 test "a disk without a board image says so and nothing runs" {

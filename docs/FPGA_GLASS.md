@@ -351,6 +351,9 @@ below the cart window.
     over before the first load).
 - **F11** toggles the frame-rate overlay while the menu is closed (below). Like
   F12 it never reaches a cart; with the menu open it does nothing.
+- **Page Up / Page Down** move the shelf's cursor a screenful (9 carts), stopping
+  on the first and last cart. They are the glass's own keys (`map.osdOnly`): with
+  the menu closed they are dropped, never sent to a cart.
 - **Shift+F12** reads the shelf again (`app_shelf.zig`): the `.zmd` files and
   `shelf.txt`, so a cart copied to the card since `glass` started is listed
   without a restart (which would kill the running cart). The list is sorted by

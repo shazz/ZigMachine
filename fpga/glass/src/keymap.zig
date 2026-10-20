@@ -81,6 +81,8 @@ fn named(code: u16) ?u32 {
         KEY_ENTER, KEY_KPENTER => map.KEY_ENTER,
         KEY_UP => map.KEY_ARROW_UP,
         KEY_DOWN => map.KEY_ARROW_DOWN,
+        KEY_PAGEUP => map.KEY_PAGE_UP,
+        KEY_PAGEDOWN => map.KEY_PAGE_DOWN,
         KEY_LEFT => map.KEY_ARROW_LEFT,
         KEY_RIGHT => map.KEY_ARROW_RIGHT,
         KEY_INSERT => map.KEY_INSERT,

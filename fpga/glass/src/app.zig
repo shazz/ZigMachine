@@ -116,6 +116,7 @@ pub const App = struct {
     /// A key event (map.zig KEY_*), keyboard or control channel: the menu's while open.
     pub fn keyEvent(self: *App, ev: u32) void {
         if (self.open) return cart.act(self, self.menu.key(ev));
+        if (map.osdOnly(ev & map.KEY_CODE_MASK)) return;
         self.track(ev);
         self.regs.write(map.REG_KEY_PUSH, ev);
     }

@@ -34,6 +34,11 @@ pub const State = struct {
             map.KEY_ARROW_DOWN => if (self.cursor + 1 < n) {
                 self.cursor += 1;
             },
+            // A screenful at a time, stopping on the first/last cart.
+            map.KEY_PAGE_UP => self.cursor -|= SHOWN,
+            map.KEY_PAGE_DOWN => if (n > 0) {
+                self.cursor = @min(self.cursor + SHOWN, n - 1);
+            },
             map.KEY_ARROW_RIGHT => return .console,
             map.KEY_ESCAPE => return .close,
             map.KEY_ENTER, ' ' => return if (n > 0) .load else .none,

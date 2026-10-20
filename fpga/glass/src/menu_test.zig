@@ -27,6 +27,24 @@ fn disks(comptime titles: []const []const u8) [titles.len]shelf.Disk {
     return out;
 }
 
+test "Page Up/Down move the shelf's cursor a screenful, stopping at the ends" {
+    const d = disks(&.{ "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n" });
+    var m = menu.Menu{ .disks = &d };
+    _ = m.key(down(map.KEY_PAGE_DOWN));
+    try std.testing.expectEqual(@as(usize, page_shelf.SHOWN), m.list.cursor);
+    try std.testing.expectEqual(@as(usize, 1), m.list.top); // the cursor's row is the last shown
+    _ = m.key(down(map.KEY_PAGE_DOWN));
+    try std.testing.expectEqual(@as(usize, 13), m.list.cursor); // the last cart, not past it
+    _ = m.key(down(map.KEY_PAGE_UP));
+    try std.testing.expectEqual(@as(usize, 13 - page_shelf.SHOWN), m.list.cursor);
+    _ = m.key(down(map.KEY_PAGE_UP));
+    try std.testing.expectEqual(@as(usize, 0), m.list.cursor);
+    try std.testing.expectEqual(@as(usize, 0), m.list.top);
+    var empty = menu.Menu{ .disks = &.{} };
+    _ = empty.key(down(map.KEY_PAGE_DOWN)); // an empty shelf: nothing to move to
+    try std.testing.expectEqual(@as(usize, 0), empty.list.cursor);
+}
+
 test "the shelf's cursor moves, scrolls and loads" {
     const d = disks(&.{ "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m", "n" });
     var m = menu.Menu{ .disks = &d };
