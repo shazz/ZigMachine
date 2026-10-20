@@ -11,7 +11,6 @@ const ZigOS = zg.ZigOS;
 const LogicalFB = zg.LogicalFB;
 const Color = zg.Color;
 const RenderTarget = zg.RenderTarget;
-const RenderBuffer = zg.RenderBuffer;
 
 const Scrolltext = zg.Scrolltext;
 const Background = zg.Background;
@@ -38,15 +37,8 @@ const SCROLL_SPEED = 8;
 const SCROLL_CHARS = " ! #$%&'()*+,-./0123456789:;<=>? ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 pub const NB_FONTS: u8 = (WIDTH/SCROLL_CHAR_WIDTH) + 1;
 const SCROLL_TOP_POS = 84;
-
-// palettes
-const font_pal1 = convertU8ArraytoColors(@embedFile("../assets/screens/stcs/font40x34_c1_pal.dat"));
-const font_pal2 = convertU8ArraytoColors(@embedFile("../assets/screens/stcs/font40x34_c2_pal.dat"));
-const font_pal3 = convertU8ArraytoColors(@embedFile("../assets/screens/stcs/font40x34_c3_pal.dat"));
-const logo_pal = convertU8ArraytoColors(@embedFile("../assets/screens/stcs/logo_pal.dat"));
-
-// rasters
-const rasters_b = convertU8ArraytoColors(@embedFile("../assets/screens/stcs/rasters.dat"));
+// The highest line any period writes on plane 1 (interlaced_mirror, group 19: 88 - 19).
+const BAND_TOP: i16 = 69;
 
 // logo
 const logo_b = @embedFile("../assets/screens/stcs/logo.raw");
@@ -56,88 +48,16 @@ const logo_b = @embedFile("../assets/screens/stcs/logo.raw");
 // Variables
 // --------------------------------------------------------------------------
 const strip = @import("stcs_strip.zig");
-const letter_rows = @import("scrolltext_rows.zig");
+const scratch = @import("stcs_scratch.zig");
+const hbl = @import("stcs_hbl.zig"); // the rasters and the band palettes
 const ScrollerPeriods = strip.Period;
-var scroller_period: ScrollerPeriods = .threelines;
 
 // --------------------------------------------------------------------------
 // Demo
 // --------------------------------------------------------------------------
-fn handler_hbl(zigos: *ZigOS, line: u16) void {
-
-    const back_color: Color = Color{ .r = 0, .g = 0, .b = 0, .a = 0 };
-
-    // GLOBAL HBL — fires on PHYSICAL lines 0..279 (borders included). The raster
-    // gradient runs 107..239, then HOLDS its last colour on into the low border
-    // (240..279) instead of going black. Above the raster stays black.
-    if (line > 40 + 66) {
-        const idx: usize = line - 40 - 66; // 1..
-        zigos.setBackgroundColor(rasters_b[@min(idx, 133)]);
-    } else {
-        zigos.setBackgroundColor(back_color);
-    }
-}
-
-
-fn handler(fb: *LogicalFB, zigos: *ZigOS, line: u16, col: u16) void {
-    const back_color: Color = Color{ .r = 0, .g = 0, .b = 0, .a = 0 };
-
-    // Per-plane HBL: sealed machine fires it on LOGICAL lines 0..199 (was physical
-    // 40..239), so drop the +40. Rasters cover visible rows 66..199.
-    if (line > 66 and line < 200) {
-        fb.setPaletteEntry(0, rasters_b[line - 66]);
-    } else {
-        fb.setPaletteEntry(0, back_color);
-    }
-
-    _ = zigos;
-    _ = col;
-}
-
-// The palette a line of the scroller plane wants. The HBL used to copy all 256
-// entries on EVERY line (51,200 stores a frame, each a bus write on the board);
-// the bands change it at most 3 times a frame, so it is installed only on a change.
-fn scrollerPalette(line: u16) *const [256]Color {
-    return switch (scroller_period) {
-        .threelines => switch (line) {
-            84...84 + SCROLL_CHAR_HEIGHT + 5 => &font_pal1,
-            84 + SCROLL_CHAR_HEIGHT + 5 + 1...84 + 2 * (SCROLL_CHAR_HEIGHT + 5) => &font_pal2,
-            84 + 2 * (SCROLL_CHAR_HEIGHT + 5) + 1...200 => &font_pal3,
-            else => &font_pal1,
-        },
-        .inverted_mirror => switch (line) {
-            84...117 => &font_pal1,
-            118...150 => &font_pal2,
-            151...200 => &font_pal3,
-            else => &font_pal1,
-        },
-        .inverted => switch (line) {
-            84...140 => &font_pal1,
-            141...200 => &font_pal2,
-            else => &font_pal1,
-        },
-        else => &font_pal1,
-    };
-}
-
-// The palette plane 1 holds now (null: not one of the three, as after init).
-var scroller_pal: ?*const [256]Color = null;
-
-fn handler_scroller(fb: *LogicalFB, zigos: *ZigOS, line: u16, col: u16) void {
-    const pal = scrollerPalette(line);
-    if (scroller_pal != pal) {
-        fb.setPalette(pal.*);
-        scroller_pal = pal;
-    }
-    _ = zigos;
-    _ = col;
-}
-
-// The scroller's off-screen strip: static, not init's stack frame (it outlives init).
-// align(16): strip.zig copies it 16 bytes at a time as words, and a misaligned word load TRAPS on the board (~450 cycles each)
+// The scroller's source strips live in the two disabled planes (stcs_scratch.zig).
 var chisel: zg.Blitter = .{};
-var scroller_pixels align(16) = [_]u8{0} ** (WIDTH * SCROLL_CHAR_HEIGHT);
-var scroller_buffer: RenderBuffer = .{ .buffer = &scroller_pixels, .width = WIDTH, .height = SCROLL_CHAR_HEIGHT };
+var strips = scratch.scratch(fonts_b);
 
 pub const Demo = struct {
   
@@ -156,29 +76,30 @@ pub const Demo = struct {
         // Nothing happens until the user turns sound on — the request just waits.
         zg.requestSong(MUSIC);
 
-        zigos.setHBLHandler(handler_hbl);
+        hbl.reset();
+        zigos.setHBLHandler(hbl.global);
 
         // first plane
         var fb: *LogicalFB = &zigos.lfbs[0];
         fb.is_enabled = true;
-        fb.setPalette(logo_pal);
+        fb.setPalette(hbl.logo_pal);
         self.logo.init(fb.getRenderTarget(), logo_b, 0);
         self.logo_drawn = false;
         
         // HBL Handler for the raster effect
-        fb.setFrameBufferHBLHandler(0, handler);   
+        fb.setFrameBufferHBLHandler(0, hbl.logo);   
 
         fb = &zigos.lfbs[1];
         fb.is_enabled = true; 
-        fb.setPalette(font_pal1);    
+        fb.setPalette(hbl.font_pal1);    
         fb.setPaletteEntry(0, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
-        scroller_pal = null; // entry 0 is not font_pal1's: the first line installs it
 
-        @memset(&scroller_pixels, 0);
-        self.scroller_target = .{ .render_buffer = &scroller_buffer };  
+        self.scroller_target = fb.getRenderTarget(); // never drawn through: the letters are blitted
+        chisel.init();
+        strips.init(&chisel, zigos);
 
         self.scrolltext = Scrolltext(NB_FONTS).init(self.scroller_target, fonts_b, SCROLL_CHARS, SCROLL_CHAR_WIDTH, SCROLL_CHAR_HEIGHT, SCROLL_TEXT, SCROLL_SPEED, 0, null, null, null);
-        fb.setFrameBufferHBLHandler(0, handler_scroller);   
+        fb.setFrameBufferHBLHandler(0, hbl.scroller);   
         self.scroller_y_pos = 0;
         self.scroller_y_dir = 1;
 
@@ -192,17 +113,17 @@ pub const Demo = struct {
 
         self.frame_counter += 1;
 
-        // scroller_period = ScrollerPeriods.threelines;
+        // hbl.period = ScrollerPeriods.threelines;
         switch (self.frame_counter) {
-            60*0...(60*10) - 1 => scroller_period = ScrollerPeriods.threelines,
-            60*10...(60*13) - 1 => scroller_period = ScrollerPeriods.big_font,
-            60*13...(60*30) - 1 => scroller_period = ScrollerPeriods.threelines,
-            60*30...(60*50) - 1 => scroller_period = ScrollerPeriods.big_font,
-            60*50...(60*80) - 1 => scroller_period = ScrollerPeriods.interlaced_mirror,
-            60*80...(60*106) - 1 => scroller_period = ScrollerPeriods.interlaced_big_font,
-            60*106...(60*116) - 1 => scroller_period = ScrollerPeriods.inverted,
-            60*116...(60*137) - 1 => scroller_period = ScrollerPeriods.interlaced_steam,
-            60*137...(60*157) - 1 => scroller_period = ScrollerPeriods.inverted_mirror,
+            60*0...(60*10) - 1 => hbl.period = ScrollerPeriods.threelines,
+            60*10...(60*13) - 1 => hbl.period = ScrollerPeriods.big_font,
+            60*13...(60*30) - 1 => hbl.period = ScrollerPeriods.threelines,
+            60*30...(60*50) - 1 => hbl.period = ScrollerPeriods.big_font,
+            60*50...(60*80) - 1 => hbl.period = ScrollerPeriods.interlaced_mirror,
+            60*80...(60*106) - 1 => hbl.period = ScrollerPeriods.interlaced_big_font,
+            60*106...(60*116) - 1 => hbl.period = ScrollerPeriods.inverted,
+            60*116...(60*137) - 1 => hbl.period = ScrollerPeriods.interlaced_steam,
+            60*137...(60*157) - 1 => hbl.period = ScrollerPeriods.inverted_mirror,
             else => self.frame_counter = 0
         }
 
@@ -215,23 +136,21 @@ pub const Demo = struct {
         if (!self.logo_drawn) self.logo.render();
         self.logo_drawn = true;
 
-        // Letters as whole-row copies: the library Sprite walked every pixel with
-        // a per-pixel clamp and divide (10,934 a frame). Word stores for the clear.
-        @memset(&scroller_pixels, 0);
-        letter_rows.draw(&self.scrolltext, &scroller_pixels, WIDTH, WIDTH, SCROLL_CHAR_WIDTH, SCROLL_CHAR_HEIGHT);
-
-        // copy scrolltext to FB
+        // CHISEL only: clear the band the strips can reach (lines 69..199; the
+        // plane is all 0 above it since init), rebuild the source strips this
+        // period copies from, then copy them in its shape (stcs_strip.zig).
         const fb = &zigos.lfbs[1];
         chisel.init();
-        chisel.fill(fb, 0, 0, @intCast(fb.fb_w), @intCast(fb.fb_h), 0); // CHISEL: the memset was 64,000 bytes of CPU stores
+        chisel.fill(fb, 0, BAND_TOP, WIDTH, HEIGHT - BAND_TOP, 0);
+        for (strip.needs(hbl.period)) |k| strips.build(&chisel, &self.scrolltext, k);
 
         // The big fonts bounce on 0..56 lines.
-        if (scroller_period == .big_font or scroller_period == .interlaced_big_font) {
+        if (hbl.period == .big_font or hbl.period == .interlaced_big_font) {
             self.scroller_y_pos += self.scroller_y_dir;
             if (self.scroller_y_pos > 55) self.scroller_y_dir = -1;
             if (self.scroller_y_pos <= 0) self.scroller_y_dir = 1;
         }
-        strip.draw(fb.fb, &scroller_pixels, scroller_period, self.scroller_y_pos);
+        strip.draw(&chisel, fb, &strips, hbl.period, self.scroller_y_pos);
 
         _ = elapsed_time;
 

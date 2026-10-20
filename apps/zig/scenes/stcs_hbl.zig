@@ -1,0 +1,126 @@
+// --------------------------------------------------------------------------
+// STCS STARGOOSE — the HBL handlers: the raster (the global border colour and
+// plane 0's colour 0, per line) and plane 1's font palette per band.
+// Each writes a register only when its value changes (a raster coder never
+// rewrites one), and from RGBA word tables: a [256]Color is byte-aligned, and
+// its 4-byte loads in the HBLs TRAPPED on the board (~700 cycles each).
+// --------------------------------------------------------------------------
+const zg = @import("zigos");
+const strip = @import("stcs_strip.zig");
+const scratch = @import("stcs_scratch.zig");
+
+const ZigOS = zg.ZigOS;
+const LogicalFB = zg.LogicalFB;
+const Color = zg.Color;
+const convertU8ArraytoColors = zg.convertU8ArraytoColors;
+const SCROLL_CHAR_HEIGHT = scratch.GH;
+
+/// The scroller's shape this frame (stcs.zig's schedule sets it).
+pub var period: strip.Period = .threelines;
+
+// palettes (init); the HBLs use their RGBA words (font_words)
+pub const font_pal1: [256]Color = convertU8ArraytoColors(@embedFile("../assets/screens/stcs/font40x34_c1_pal.dat"));
+const font_pal2: [256]Color = convertU8ArraytoColors(@embedFile("../assets/screens/stcs/font40x34_c2_pal.dat"));
+const font_pal3: [256]Color = convertU8ArraytoColors(@embedFile("../assets/screens/stcs/font40x34_c3_pal.dat"));
+pub const logo_pal: [256]Color = convertU8ArraytoColors(@embedFile("../assets/screens/stcs/logo_pal.dat"));
+
+// rasters, as the RGBA words the HBLs store: a [256]Color is byte-aligned
+// whatever it is declared with, and its 4-byte loads trapped on the board.
+const rasters_b: [256]u32 = words(convertU8ArraytoColors(@embedFile("../assets/screens/stcs/rasters.dat")));
+
+const BLACK: u32 = 0; // Color{ 0, 0, 0, 0 }
+
+// What the global HBL and plane 0's HBL last wrote (RGBA; null after init): a
+// raster coder never rewrites a register that already holds the right colour,
+// and below line 239 both hold the last raster colour for 40-odd lines.
+var last_bg: ?u32 = null;
+var last_pal0: ?u32 = null;
+
+/// At scene init: nothing is known to be in the registers yet.
+pub fn reset() void {
+    last_bg = null;
+    last_pal0 = null;
+    scroller_pal = null; // plane 1's entry 0 is not font_pal1's: the first line installs it
+}
+
+pub fn global(zigos: *ZigOS, line: u16) void {
+    // GLOBAL HBL — fires on PHYSICAL lines 0..279 (borders included). The raster
+    // gradient runs 107..239, then HOLDS its last colour on into the low border
+    // (240..279) instead of going black. Above the raster stays black.
+    const c: u32 = if (line > 40 + 66) rasters_b[@min(line - 40 - 66, 133)] else BLACK;
+    if (last_bg != c) {
+        zigos.setBackgroundColor(Color.fromRGBA(c));
+        last_bg = c;
+    }
+}
+
+pub fn logo(fb: *LogicalFB, zigos: *ZigOS, line: u16, col: u16) void {
+    // Per-plane HBL: sealed machine fires it on LOGICAL lines 0..199 (was physical
+    // 40..239), so drop the +40. Rasters cover visible rows 66..199.
+    const c: u32 = if (line > 66 and line < 200) rasters_b[line - 66] else BLACK;
+    if (last_pal0 != c) {
+        fb.palette[0] = c;
+        last_pal0 = c;
+    }
+    _ = zigos;
+    _ = col;
+}
+
+// The palette a line of the scroller plane wants. The HBL used to copy all 256
+// entries on EVERY line (51,200 stores a frame, each a bus write on the board);
+// the bands change it at most 3 times a frame, so it is installed only on a change.
+fn scrollerPalette(line: u16) u2 {
+    return switch (period) {
+        .threelines => switch (line) {
+            84...84 + SCROLL_CHAR_HEIGHT + 5 => 0,
+            84 + SCROLL_CHAR_HEIGHT + 5 + 1...84 + 2 * (SCROLL_CHAR_HEIGHT + 5) => 1,
+            84 + 2 * (SCROLL_CHAR_HEIGHT + 5) + 1...200 => 2,
+            else => 0,
+        },
+        .inverted_mirror => switch (line) {
+            84...117 => 0,
+            118...150 => 1,
+            151...200 => 2,
+            else => 0,
+        },
+        .inverted => switch (line) {
+            84...140 => 0,
+            141...200 => 1,
+            else => 0,
+        },
+        else => 0,
+    };
+}
+
+// font_pal1..3 as the RGBA words the palette holds. A [256]Color is byte-aligned
+// and its 4-byte loads in the HBLs TRAPPED on the board (~700 cycles each).
+const font_words: [3][256]u32 = .{ words(font_pal1), words(font_pal2), words(font_pal3) };
+fn words(comptime pal: [256]Color) [256]u32 {
+    @setEvalBranchQuota(10_000);
+    var out: [256]u32 = undefined;
+    for (pal, 0..) |c, i| out[i] = c.toRGBA();
+    return out;
+}
+
+// The font palette plane 1 holds now (null: none of the three, as after init).
+var scroller_pal: ?u2 = null;
+
+pub fn scroller(fb: *LogicalFB, zigos: *ZigOS, line: u16, col: u16) void {
+    const want = scrollerPalette(line);
+    if (scroller_pal != want) {
+        // Store only the entries that change, and only the 16 the plane's pixels
+        // can hold (scratch.COLORS: the font's; the three palettes differ in 246
+        // entries, all above 15, that no pixel of plane 1 ever shows). Once a
+        // font palette is in, the plane holds its words, so compare those (cart
+        // RAM) instead of reading the palette back; after init, the palette itself.
+        const to = font_words[want][0..scratch.COLORS];
+        if (scroller_pal) |held| {
+            for (to, font_words[held][0..scratch.COLORS], 0..) |v, was, i| if (v != was) { fb.palette[i] = v; };
+        } else {
+            for (to, 0..) |v, i| if (fb.palette[i] != v) { fb.palette[i] = v; };
+        }
+        scroller_pal = want;
+    }
+    _ = zigos;
+    _ = col;
+}
