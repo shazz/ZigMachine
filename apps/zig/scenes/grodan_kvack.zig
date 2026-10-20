@@ -34,14 +34,12 @@
 // the sprite's cyan and white. All eight are the Go PNGs' literal colours, every
 // channel a multiple of 32 (an ST colour register) -- no DAC expansion.
 //
-// MUSIC: none, BY DESIGN. The production plays assets/music.ym through
-// stsound; that file is an LHA archive (-lh5-) holding SEVEN13.YM, a YM chip
-// dump, which is exactly what this port's brief excludes (samples only, and no
-// chip tune unless the demo IS a music player -- this one is a picture). The
-// tune's own SNDH exists and this is the one-line change if it is ever wanted:
-//   zg.requestSongTune("Blaizer/Grodan_And_Kvack_Kvack.sndh", 1);
-// (the SNDH archive's title match: "So Watt - Grodan & Kvack Kvack"; its
-//  Nexus_6/Seventh.sndh is the same "Seventh" tune the YM rip carries).
+// MUSIC: ronken.mod, a 4-channel ProTracker module (M.K., 71,710 bytes, title
+// "ronken"): the tune of So Watt's "Grodan and Kvack" demo, RONKEN.MOD from
+// fujiology.org's MUSIC/FT/TUNEZ/DEMOS/ST/SOWATT/GRODAN (Matt found it). It
+// replaces the earlier silence (the Go demo's own music.ym is an LHA-packed YM
+// chip dump, which this project no longer uses) and is a MOD, not an SNDH: the
+// ST demo played it as samples. The MOD player mixes it to DMA, as on the board.
 //
 // Escape hands the screen back to the menu (demo_main.zig's default: this cart
 // declares no key(), so the host's Escape is the way out).
@@ -51,6 +49,8 @@ const ZigOS = zg.ZigOS;
 const copper = zg.copper;
 const model = @import("grodan_kvack/model.zig");
 const assets = @import("grodan_kvack/assets.zig");
+
+const MUSIC = "ronken.mod";
 
 const PLANE = 0;
 const W: usize = zg.WIDTH; // 320
@@ -89,6 +89,7 @@ pub const Demo = struct {
         model.fillRasters(copper.visible(fb, 0), copper.visible(fb, 1), copper.visible(fb, 2));
 
         state.compose(fb.fb[0 .. W * H]);
+        zg.requestSong(MUSIC);
         self.ready = true;
     }
 
