@@ -130,13 +130,13 @@ const RunOptions = struct { dir: []const u8 = DEFAULT_SHELF, wait: bool = true, 
 
 fn run(init: std.process.Init, opt: RunOptions) !u8 {
     const board = try devmem.open();
-    afi.forRun(board.regs(), board.afi(), opt.fw_opt, devmem.napSec) catch |err| {
+    const fw_opt = afi.forRun(board.regs(), board.afi(), opt.fw_opt, devmem.napSec) catch |err| {
         if (err == error.W64NeedsBoot) std.log.err("--fw-opt W64 needs HP1 64-bit since boot (boot.cmd 0xF00): reboot", .{});
         return err;
     };
     var app = try App.init(init.gpa, init.io, board.regs(), board.ddr(), opt.dir);
     defer app.deinit();
-    app.opt.fw_opt = opt.fw_opt;
+    app.opt.fw_opt = fw_opt;
     app.opt.idle = devmem.napMs;
     app.opt.wait_boot = opt.wait;
     app.mouse.scale = @max(1, opt.mouse_scale);

@@ -156,8 +156,18 @@ def test_boot_script_reaches_uboot_without_comments_or_single_quotes() -> None:
 
 def test_boot_script_sets_every_hp_ports_write_width_including_the_sound_cpus() -> None:
     text = glass_sd.script_text(glass_sd.BOOT_CMD.read_bytes()).decode()
-    for base in ("f8008", "f8009", "f800a", "f800b"):  # HP0..HP3
+    for base in ("f8008", "f800a", "f800b"):  # HP0, HP2, HP3: 32-bit writes
         assert f"mw.l 0x{base}014 0xf01" in text
+
+
+def test_boot_script_sets_hp1_64_bit_once_right_after_the_bitstream() -> None:
+    # W64 is the default (decisions.md 2026-10-19): HP1 0xf00 before any HP1 traffic, never 0xf01 first.
+    lines = glass_sd.script_text(glass_sd.BOOT_CMD.read_bytes()).decode().splitlines()
+    hp1 = [i for i, ln in enumerate(lines) if "0xf8009014" in ln]
+    assert len(hp1) == 1 and "mw.l 0xf8009014 0xf00" in lines[hp1[0]]
+    assert "0xf8009014 0xf01" not in "\n".join(lines)
+    assert lines[hp1[0] - 2].startswith("fpga loadb")
+    assert hp1[0] < lines.index("if fatload mmc 0 0x2000000 zImage; then")
 
 
 def test_uboot_tool_sets_hp3_on_every_bitstream() -> None:

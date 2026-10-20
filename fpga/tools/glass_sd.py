@@ -13,7 +13,8 @@ On the card:
     BOOT.BIN                 zeST's (FSBL + U-Boot): DDR, clocks and MIO without Vivado
     boot.scr                 fpga/glass/boot/boot.cmd, compiled
     zigmachine.bit           the board SoC (--bit; default the blitter one, build/board_hp/zm_blit_vivado_100.bit)
-    zImage, zigmachine.dtb, rootfs.cpio.uboot    plan A: our Buildroot Linux (--buildroot)
+    zImage, zigmachine.dtb, rootfs.cpio.uboot    plan A: our Buildroot Linux (--buildroot); the rootfs gets
+                             this glass at /usr/bin/glass (S99glass runs it; tools/rootfs_glass.py)
     uImage, rootfs.ub, glass                     plan B: zeST's Linux + our ARM binary
     zigmachine/*.zmd         the shelf: fat disks (wasm cart + rv32 BOARD image, build/hcycles/board/<cart>/fw.bin;
                              a data disk carries GEM's: tools/glass_shelf.py)
@@ -26,6 +27,7 @@ On the card:
 from __future__ import annotations
 
 import argparse
+import hashlib
 import shutil
 import struct
 import sys
@@ -37,6 +39,7 @@ from pathlib import Path
 FPGA = Path(__file__).resolve().parent.parent
 ROOT = FPGA.parent
 sys.path.insert(0, str(FPGA / "tools"))
+import rootfs_glass  # after the path insert
 from glass_shelf import BOARD_FW, SHELF, build_shelf, zx0pack  # after the path insert; re-exported
 
 ZEST = FPGA / "boards/microphase_z7_7010/vendor/zest-bin"
@@ -89,6 +92,20 @@ def _newest_glass_source() -> float:
     return max(p.stat().st_mtime for p in srcs)
 
 
+def _rootfs(buildroot: Path | None, out: Path, epoch: int) -> tuple[str, str]:
+    """Buildroot's rootfs with THIS glass at /usr/bin/glass: S99glass runs that copy at every boot, and
+    boot.cmd's HP1 0xF00 needs a glass that knows afi.zig (tools/rootfs_glass.py)."""
+    if buildroot is None or not (buildroot / "images/rootfs.cpio").exists() or not GLASS_ARM.exists():
+        src = buildroot / "images/rootfs.cpio.uboot" if buildroot else None
+        name, how = _copy(src, out, "rootfs.cpio.uboot", "plan A needs --buildroot (Buildroot output)")
+        stale = "STALE: Buildroot's own glass, but boot.cmd sets HP1 0xF00: build the ARM glass and images/rootfs.cpio"
+        return name, how if how.startswith("MISSING") else f"{stale} ({how})"
+    images = buildroot / "images"
+    strip = rootfs_glass.buildroot_strip(buildroot)
+    body = rootfs_glass.build(images / "rootfs.cpio", GLASS_ARM, out / "rootfs.cpio.uboot", strip, epoch)
+    return "rootfs.cpio.uboot", f"{images / 'rootfs.cpio'} + glass md5 {hashlib.md5(body).hexdigest()}"
+
+
 def stage(
     out: Path, buildroot: Path | None, fw_dir: Path = BOARD_FW, bit: Path = BITSTREAM, system: Path | None = None
 ) -> list[tuple[str, str]]:
@@ -103,9 +120,9 @@ def stage(
     if bit.exists() and bit.stat().st_mtime < _newest_glass_source():
         rows[-1] = ("zigmachine.bit", f"STALE: {bit.name} predates the glass RTL; rebuild the SoC")
     images = buildroot / "images" if buildroot else None
-    for src, name in (("zImage", "zImage"), ("zigmachine-z7lite.dtb", "zigmachine.dtb"),
-                      ("rootfs.cpio.uboot", "rootfs.cpio.uboot")):  # fmt: skip
+    for src, name in (("zImage", "zImage"), ("zigmachine-z7lite.dtb", "zigmachine.dtb")):
         rows.append(_copy(images / src if images else None, out, name, "plan A needs --buildroot (Buildroot output)"))
+    rows.append(_rootfs(buildroot, out, epoch))
     rows += _zest_linux(out)
     rows.append(_copy(GLASS_ARM, out, "glass", "cd fpga/glass && zig build -Dtarget=arm-linux-musleabihf ..."))
     return rows + build_shelf(out / "zigmachine", fw_dir, system=system)

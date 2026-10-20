@@ -8,12 +8,15 @@ setenv bootargs console=ttyPS0,921600 earlycon rootwait
 # menu cannot run (no glass block at GP0), so say so on the UART.
 if fatload mmc 0 0x1000000 zigmachine.bit; then
     fpga loadb 0 0x1000000 ${filesize}
-    # The HP ports' AFI widths, as fpga/tools/board_run.py sets them: 64-bit reads,
-    # 32-bit writes (a 64-bit write channel drops the upper half of every beat: every
-    # odd picture column black, 2026-10-03), HP0 the CPU, HP1 the video, HP2 the
-    # blitter. Only after `fpga loadb`: without the PL these registers hang the ARM.
+    # The HP ports' AFI widths: 64-bit reads, 32-bit writes, HP0 the CPU, HP1 the
+    # video, HP2 the blitter. Only after `fpga loadb`: without the PL these registers
+    # hang the ARM. HP1 writes 64-bit (0xf00, W64: the video DMA's 8-byte beats), set
+    # HERE before any HP1 traffic and never 0xf01 first: a channel that carried 32-bit
+    # writes and is then set 64-bit loses words 1 and 2 of every 16 bytes (the board,
+    # decisions.md 2026-10-19). The rootfs glass (afi.zig) sees 0xf00 and runs W64;
+    # its --fw-opt without W64 goes back to 0xf01 at run time, which is safe.
     mw.l 0xf8008000 0; mw.l 0xf8008014 0xf01
-    mw.l 0xf8009000 0; mw.l 0xf8009014 0xf01
+    mw.l 0xf8009000 0; mw.l 0xf8009014 0xf00
     mw.l 0xf800a000 0; mw.l 0xf800a014 0xf01
     # HP3: the sound CPU's memory (--sound-cpu), and the PCM reader's, which only reads.
     mw.l 0xf800b000 0; mw.l 0xf800b014 0xf01

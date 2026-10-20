@@ -6,15 +6,48 @@ const sim = @import("sim.zig");
 const afi = @import("afi.zig");
 const mc = @import("map_cart.zig");
 
-test "the width follows --fw-opt, and a run without it goes back to 32-bit writes" {
-    try std.testing.expectEqual(@as(?u32, null), try afi.want(mc.FW_OPT_W64, afi.WR64));
-    try std.testing.expectEqual(@as(?u32, afi.WR32), try afi.want(mc.FW_OPT_PLANE_MAJOR, afi.WR64));
-    try std.testing.expectEqual(@as(?u32, afi.WR32), try afi.want(null, afi.WR64));
-    try std.testing.expectEqual(@as(?u32, null), try afi.want(null, afi.WR32));
+fn plan(width: ?u32, opt: ?u32) afi.Plan {
+    return .{ .width = width, .opt = opt };
+}
+
+test "without --fw-opt the channel decides: 0xF00 from boot runs W64, 0xF01 runs as before" {
+    try std.testing.expectEqual(plan(null, mc.FW_OPT_W64), try afi.resolve(null, afi.WR64));
+    try std.testing.expectEqual(plan(null, null), try afi.resolve(null, afi.WR32));
+    try std.testing.expectEqual(plan(afi.WR32, null), try afi.resolve(null, 0)); // never set: 32-bit
+}
+
+test "--fw-opt overrides the default: W64 keeps 0xF00, the W32 arm goes 64 -> 32" {
+    try std.testing.expectEqual(plan(null, mc.FW_OPT_W64), try afi.resolve(mc.FW_OPT_W64, afi.WR64));
+    try std.testing.expectEqual(plan(afi.WR32, 0), try afi.resolve(0, afi.WR64));
+    const old_order = mc.FW_OPT_PLANE_MAJOR | mc.FW_OPT_KEEP_PFB; // 0x30: never gains W64
+    try std.testing.expectEqual(plan(afi.WR32, old_order), try afi.resolve(old_order, afi.WR64));
+    try std.testing.expectEqual(plan(null, old_order), try afi.resolve(old_order, afi.WR32));
+}
+
+test "a default run on a 0xF00 channel leaves it and hands every load the W64 word" {
+    var glass = sim.Glass{};
+    glass.ctrl = map.CTRL_RUN;
+    var a = Afi{};
+    a.words[afi.WRCHAN_CTRL / 4] = afi.WR64;
+    paused = false;
+    try std.testing.expectEqual(@as(?u32, mc.FW_OPT_W64), try afi.forRun(glass.regs(), a.regs(), null, pause));
+    try std.testing.expectEqual(afi.WR64, a.words[afi.WRCHAN_CTRL / 4]);
+    try std.testing.expect(glass.ctrl & map.CTRL_RUN != 0 and !paused); // nothing held, nothing switched
+}
+
+test "the W32 arm on a 0xF00 channel holds the CPU and sets 0xF01, and a later default run stays W32" {
+    var glass = sim.Glass{};
+    glass.ctrl = map.CTRL_RUN;
+    var a = Afi{};
+    a.words[afi.WRCHAN_CTRL / 4] = afi.WR64;
+    try std.testing.expectEqual(@as(?u32, 0), try afi.forRun(glass.regs(), a.regs(), 0, pause));
+    try std.testing.expectEqual(afi.WR32, a.words[afi.WRCHAN_CTRL / 4]);
+    try std.testing.expectEqual(@as(?u32, null), try afi.forRun(glass.regs(), a.regs(), null, pause));
+    try std.testing.expectEqual(afi.WR32, a.words[afi.WRCHAN_CTRL / 4]);
 }
 
 test "W64 on a channel that is 32-bit now is refused, never switched 32 -> 64 at run time" {
-    try std.testing.expectError(error.W64NeedsBoot, afi.want(mc.FW_OPT_W64, afi.WR32));
+    try std.testing.expectError(error.W64NeedsBoot, afi.resolve(mc.FW_OPT_W64, afi.WR32));
     var glass = sim.Glass{};
     glass.ctrl = map.CTRL_RUN;
     var a = Afi{};

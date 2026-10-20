@@ -14,8 +14,12 @@
 // and a 64 -> 32 switch at run time writes correctly too. So W64 needs a channel still 64-bit since
 // boot, and a W64 run on a 32-bit channel is refused (reboot) rather than switched.
 //
-// --fw-opt=N (N & FW_OPT_MASK): 2 W64, 0x10 plane-major (no line-major groups), 0x20 the top layer
-// keeps its PFB store. Every cart the run loads gets the word; a run without --fw-opt writes none.
+// W64 is the default since boot.cmd sets HP1 0xF00 (2026-10-19): a run without --fw-opt on a channel
+// that reads 0xF00 runs W64 (every load writes the W64 word); on 0xF01 (an older boot.scr) it writes
+// no word and leaves the width. --fw-opt=N (N & FW_OPT_MASK): 2 W64, 0x10 plane-major (no line-major
+// groups), 0x20 the top layer keeps its PFB store; every cart the run loads gets the word. An
+// explicit N without W64 on 0xF00 is the A/B's W32 arm: 64 -> 32 at run time is correct, but it is
+// one way, so every later run of this boot (the S99glass loop's too) is W32 until a reboot.
 const std = @import("std");
 const bus = @import("bus.zig");
 const loader = @import("loader.zig");
@@ -29,14 +33,17 @@ pub const WR64: u32 = 0xF00;
 
 pub const Error = loader.Error || error{ AfiReadback, W64NeedsBoot };
 
-/// The width to set, or null to leave it: --fw-opt decides; without W64 a 64-bit channel goes
-/// to 32-bit (no firmware will write 8-byte beats now). W64 on a 32-bit channel is an error:
-/// a run-time 32 -> 64 switch drops half the words (header).
-pub fn want(fw_opt: ?u32, now: u32) error{W64NeedsBoot}!?u32 {
-    const w64 = if (fw_opt) |o| o & mc.FW_OPT_W64 != 0 else false;
+/// What a run does: the width to set (null: leave it) and the word every load writes (null: none).
+pub const Plan = struct { width: ?u32, opt: ?u32 };
+
+/// --fw-opt decides; without it the channel does (0xF00 from boot: W64). W64 on a channel that is
+/// not 0xF00 is an error: a run-time 32 -> 64 switch drops half the words (header).
+pub fn resolve(fw_opt: ?u32, now: u32) error{W64NeedsBoot}!Plan {
+    const opt = fw_opt orelse if (now == WR64) mc.FW_OPT_W64 else null;
+    const w64 = if (opt) |o| o & mc.FW_OPT_W64 != 0 else false;
     if (w64 and now != WR64) return error.W64NeedsBoot;
     const v: u32 = if (w64) WR64 else WR32;
-    return if (v == now) null else v;
+    return .{ .width = if (v == now) null else v, .opt = opt };
 }
 
 /// Hold the cart CPU, let HP1 drain, set the width and read it back.
@@ -53,10 +60,16 @@ pub fn parseOpt(text: []const u8) ?u32 {
     return if (v & ~mc.FW_OPT_MASK != 0) null else v;
 }
 
-/// At glass run's start: our PL answers (checkGlass), then HP1's width as the run asks.
-pub fn forRun(regs: bus.Regs, afi: bus.Regs, fw_opt: ?u32, pause: *const fn () void) Error!void {
+/// At glass run's start: our PL answers (checkGlass), then HP1's width as the run asks. Returns the
+/// word every load of this run writes (App.opt.fw_opt).
+pub fn forRun(regs: bus.Regs, afi: bus.Regs, fw_opt: ?u32, pause: *const fn () void) Error!?u32 {
     try loader.checkGlass(regs); // the AFI registers hang the ARM unless the PL is loaded
-    const width = try want(fw_opt, afi.read(WRCHAN_CTRL)) orelse return;
-    try setHp1(regs, afi, width, pause);
-    std.log.info("HP1 write channel set to 0x{X}", .{width});
+    const now = afi.read(WRCHAN_CTRL);
+    const p = try resolve(fw_opt, now);
+    if (p.width) |width| {
+        try setHp1(regs, afi, width, pause);
+        if (now == WR64) std.log.warn("HP1 set 64 -> 32-bit: W64 is off until the next reboot", .{});
+    }
+    std.log.info("HP1 write channel 0x{X}, fw-opt {s}0x{X}", .{ p.width orelse now, if (p.opt == null) "none " else "", p.opt orelse 0 });
+    return p.opt;
 }
