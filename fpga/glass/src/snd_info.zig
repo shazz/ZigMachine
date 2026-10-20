@@ -102,6 +102,11 @@ pub fn musicLine(buf: *[COLS]u8, i: *const Info) []const u8 {
 
 /// "<who> <player> <load now>%/<peak>%": the debug page's music row and the F11 overlay's.
 pub fn ok(w: *std.Io.Writer, i: *const Info) void {
+    okLoad(w, i, true);
+}
+
+/// The same row; `peak` false leaves out "/peak%" (the F11 overlay shows the load now only).
+pub fn okLoad(w: *std.Io.Writer, i: *const Info, peak: bool) void {
     switch (i.route) {
         mc.ROUTE_BARD_DOWN => return w.writeAll("none: BARD down") catch {},
         mc.ROUTE_ZIGGY => w.writeAll("ZIGGY ") catch {},
@@ -113,6 +118,7 @@ pub fn ok(w: *std.Io.Writer, i: *const Info) void {
     if (!i.started) return w.writeAll(" not started") catch {};
     const cur = loadPct(i.cycles, i.samples) orelse return;
     w.print(" {d}%", .{cur}) catch {};
+    if (!peak) return;
     if (loadPct(i.peak_cycles, i.peak_samples)) |pk| w.print("/{d}%", .{pk}) catch {};
 }
 

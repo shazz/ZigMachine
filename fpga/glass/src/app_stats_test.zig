@@ -55,8 +55,9 @@ test "F11 shows the frame rate in the corner over a running cart, and F11 again 
     try std.testing.expectEqual(OVERLAY, r.glass.ctrl & OVERLAY);
     try std.testing.expect(r.glass.ctrl & map.CTRL_RUN != 0); // the cart keeps running
     try std.testing.expectEqual(overlay.CORNER, r.glass.osd_pos);
-    try expectRow0(r, "FPS --.-"); // no whole second measured yet
-    try expectRow(r, 1, "BARD ?"); // the rig's DDR has no mailbox: a firmware that cannot say
+    // No whole second measured yet; the rig's DDR has no mailbox: a firmware that cannot say.
+    try expectRow0(r, "FPS --.-  BARD ?");
+    try expectRow(r, 1, ""); // one line only (Matt, 2026-10-20)
     for (2..map.OSD_ROWS) |n| try std.testing.expectEqualStrings(&([_]u8{' '} ** map.OSD_COLS), &row(r, n));
     for (r.glass.text) |w| try std.testing.expect(w & map.OSD_INVERSE == 0); // nothing opaque but the text
     try std.testing.expectEqual(keys, r.glass.key_len); // F11 never reaches the cart
@@ -65,7 +66,7 @@ test "F11 shows the frame rate in the corner over a running cart, and F11 again 
     r.glass.cart_beat += 381; // the tick's own poll counts one more frame: 382 in 10 s
     now_ms = 11_000;
     a.tick();
-    try expectRow0(r, "FPS 38.2");
+    try expectRow0(r, "FPS 38.2  BARD ?");
     press(&a, keymap.STATS_HOTKEY);
     try std.testing.expect(r.glass.ctrl & OVERLAY == 0);
     try std.testing.expectEqual(map.OSD_POS_RESET, r.glass.osd_pos);
@@ -89,7 +90,7 @@ test "the menu takes the window back centred and opaque, and gives the overlay b
     press(&a, keymap.OSD_HOTKEY); // closed again: the overlay is back
     try std.testing.expectEqual(OVERLAY, r.glass.ctrl & OVERLAY);
     try std.testing.expectEqual(overlay.CORNER, r.glass.osd_pos);
-    try expectRow0(r, "FPS --.-");
+    try expectRow0(r, "FPS --.-  BARD ?");
 }
 
 test "the overlay is a glass.cfg setting: the next start brings it back" {
@@ -106,7 +107,7 @@ test "the overlay is a glass.cfg setting: the next start brings it back" {
     var b = try running(r);
     defer b.deinit();
     try std.testing.expectEqual(OVERLAY, r.glass.ctrl & OVERLAY);
-    try expectRow0(r, "FPS --.-");
+    try expectRow0(r, "FPS --.-  BARD ?");
 }
 
 test "a PL before 1.4.0 has no overlay: F11 does nothing, and nothing else changes" {
@@ -152,19 +153,19 @@ fn music(r: *Rig, native: u32, mode: u32, cycles: u32, peak: u32) void {
     b[mc.SI_PEAK_SAMPLES] = 735;
 }
 
-test "under the rate, BARD's player, mode and load now/peak, read again once a second" {
+test "after the rate, on the same line, BARD's player, mode and load now, read again once a second" {
     const r = try Rig.init();
     defer r.deinit();
     var a = try running(r);
     defer a.deinit();
     music(r, mc.NATIVE_BEAT_DIS, 0, 720_000, 850_000);
     press(&a, keymap.STATS_HOTKEY);
-    try expectRow(r, 1, "BARD SNDH nat 43%/51%");
+    try expectRow0(r, "FPS --.-  BARD SNDH nat 43%");
     music(r, mc.NATIVE_BEAT_DIS, 3, 400_000, 850_000); // zg.requestSndhMode(3)
     for (1..overlay.BARD_TICKS) |_| a.tick();
-    try expectRow(r, 1, "BARD SNDH nat 43%/51%"); // not yet: the load would flicker
+    try expectRow0(r, "FPS --.-  BARD SNDH nat 43%"); // not yet: the load would flicker
     a.tick();
-    try expectRow(r, 1, "BARD SNDH HQ 24%/51%");
+    try expectRow0(r, "FPS --.-  BARD SNDH HQ 24%");
     for (r.glass.text) |w| try std.testing.expect(w & map.OSD_INVERSE == 0); // still see-through
 }
 
@@ -174,7 +175,7 @@ test "the BARD line's text" {
     var i = snd_info.Info{ .state = .ok, .route = mc.ROUTE_BARD, .player = mc.PLAYER_NONE };
     try std.testing.expectEqualStrings("BARD idle", overlay.bardText(&i, &buf)); // nothing asked
     i = .{ .state = .ok, .route = mc.ROUTE_BARD, .player = mc.PLAYER_SNDH, .started = true, .cycles = 5_133_334, .samples = 735, .peak_cycles = 5_216_667, .peak_samples = 735 };
-    try std.testing.expectEqualStrings("BARD SNDH 68k 308%/313%", overlay.bardText(&i, &buf)); // overloaded
+    try std.testing.expectEqualStrings("BARD SNDH 68k 308%", overlay.bardText(&i, &buf)); // overloaded
     i = .{ .state = .ok, .route = mc.ROUTE_ZIGGY, .player = mc.PLAYER_MOD, .started = true, .cycles = 500_000, .samples = 2205 };
     try std.testing.expectEqualStrings("ZIGGY MOD 10%", overlay.bardText(&i, &buf)); // a ZM_AUDIO=1 image
     try std.testing.expectEqualStrings("BARD ?", overlay.bardText(&.{ .state = .old_fw }, &buf));

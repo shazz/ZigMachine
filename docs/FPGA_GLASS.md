@@ -372,10 +372,11 @@ picture. It is the same OSD, put in another mode rather than a second block:
   ARM's clock, `--.-` until a whole window has been seen (after a load, a reset).
   `glass` redraws it on every tick (ten a second); only changed cells cross the
   bus, so that is one write burst a second.
-- **Row 1 is the sound CPU**, the debug page's music row without its `music `:
-  `BARD SNDH nat 43%/51%` (who plays it, the player and its mode, the load now/peak
-  since the song started), `BARD idle` with no music or no cart, `BARD ?` from a
-  firmware without the music block. It is read once a second (`BARD_TICKS`): the load
+- **The same line then shows the sound CPU** (Matt, 2026-10-20: one line, no peak),
+  the debug page's music row without its `music ` and its peak: `FPS 38.2  BARD SNDH
+  nat 43%` (who plays it, the player and its mode, the load now), `BARD idle` with no
+  music or no cart, `BARD ?` from a firmware without the music block. The debug page
+  keeps the peak. It is read once a second (`BARD_TICKS`): the load
   is the last render's, and a faster line flickers between renders.
 - **Opening the menu** (F12, or a trapped cart) puts the window back centred and
   opaque; **closing it** brings the overlay back if it was on.
