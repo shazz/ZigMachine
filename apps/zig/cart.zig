@@ -110,6 +110,7 @@ const scene = switch (opts.index) {
     97 => @import("scenes/bubblebobble.zig"), // BUBBLE BOBBLE, Taito 1986: the Go remake's 25-round campaign, six enemy kinds, elements and the level editor, with the original YM tunes on the machine's own chip
     98 => @import("scenes/chonchon.zig"), // CHONCHON (a Chon-Chon / DMA intro): the native motion's stars, ring scrollers and warped chrome logo, the YM-volume meters and the per-line raster (ported from the Go re-creation)
     99 => @import("scenes/ikplus.zig"), // THE REPLICANTS / "INTERNATIONAL KARATE PLUS" (IK+) cracktro: four-size scrolltext, logo, stars, two real per-scanline rasters (ported from the Go re-creation)
+    100 => @import("scenes/chonchon2.zig"), // CHONCHON 2: sliding DMA panels, two animated sprite paths, ribbon, music meters and per-line raster (ported from the Go re-creation)
     else => @compileError("bad cart index"),
 };
 

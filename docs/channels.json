@@ -25,6 +25,11 @@
   "type": "zigmachine"
  },
  {
+  "tag": "chonchon2",
+  "title": "CHONCHON 2",
+  "type": "atari st"
+ },
+ {
   "tag": "dbug",
   "title": "D-BUG",
   "type": "atari st"
