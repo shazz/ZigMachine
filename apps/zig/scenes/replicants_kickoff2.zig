@@ -203,8 +203,10 @@ fn drawHalved(dst: blit.Dst, img: blit.Image, cell: blit.Rect, step_x: usize, st
     blit.blit(dst, img, part, @divFloor(cx, 2), @divFloor(cy, 2), TRANSPARENT, .copy);
 }
 
+// One CHISEL fill (Dst.fill), not a CPU @memset a row: go() repaints the whole
+// 320x240 window black every frame, 76,800 B of blocking DDR stores on ZIGGY.
 fn fillRows(dst: blit.Dst, first: usize, end: usize, index: u8) void {
-    for (first..end) |k| @memset(dst.buf[k * dst.stride ..][0..dst.w], index);
+    dst.fill(0, @intCast(first), dst.w, end - first, index);
 }
 
 // --------------------------------------------------------------------------

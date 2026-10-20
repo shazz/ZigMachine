@@ -44,7 +44,14 @@ const font_pal = convertU8ArraytoColors(@embedFile("../assets/screens/df2/fonts_
 const rasterbars_pal = convertU8ArraytoColors(@embedFile("../assets/screens/df2/rasterbars_pal.dat"));
 
 // rasters
-const scroll_rasters_b = convertU8ArraytoColors(@embedFile("../assets/screens/df2/scrollrasters.dat"));
+// As RGBA words (the ics.zig fix): a [256]Color is byte-aligned in the data
+// segment, so the HBL handler's one-word read of an entry was a misaligned load,
+// a ~700-cycle trap on ZIGGY, on every line.
+const scroll_rasters_rgba: [256]u32 = blk: {
+    var out: [256]u32 = undefined;
+    for (convertU8ArraytoColors(@embedFile("../assets/screens/df2/scrollrasters.dat")), 0..) |c, i| out[i] = c.toRGBA();
+    break :blk out;
+};
 
 // The background ramp: ten palette indices ACROSS (rasterbars.png is 10x1),
 // repeated over every row and slid one pixel per frame. See the note above
@@ -88,7 +95,7 @@ fn handler_scroller(fb: *LogicalFB, zigos: *ZigOS, line: u16, col: u16) void {
     // Per-plane HBL (medium-res plane too fires on logical lines): sealed machine fires on
     // LOGICAL lines 0..199 (was physical 40..239), so drop the +40.
     if (line > 0 and line < 200 ) {
-        fb.setPaletteEntry(1, scroll_rasters_b[line]);
+        fb.palette[1] = scroll_rasters_rgba[line];
     }
     if (line == 200) {
         fb.setPaletteEntry(1, back_color);

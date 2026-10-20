@@ -52,6 +52,21 @@ const logo_b = @embedFile("../assets/screens/df/top_logo.raw");
 // --------------------------------------------------------------------------
 var raster_index: u8 = 0;
 
+// The scroller strip, in cart RAM (zg.mem, once per cart load; u32 elements so
+// the clear is word stores). It must NOT live in the plane it is copied to: CHISEL
+// tests a copy's source span against the destination span from the PLANE's base
+// (zm_blit_chk.v), so a source inside the plane counts as an overlap and the copy
+// runs ORDERED, each read waiting for the previous write. Three such in-plane
+// copies of the strip took the board from 60 to 40 fps (553ffd60).
+const STRIP_LEN: usize = @as(usize, WIDTH) * SCROLL_CHAR_HEIGHT;
+var strip_owned: ?[]u32 = null;
+fn stripWords() []u32 {
+    if (strip_owned) |w| return w;
+    const w = zg.mem.mustAlloc(u32, STRIP_LEN / 4);
+    strip_owned = w;
+    return w;
+}
+
 // --------------------------------------------------------------------------
 // Demo
 // --------------------------------------------------------------------------
@@ -92,6 +107,7 @@ pub const Demo = struct {
     frame_counter: u32 = 0,
     scrolltext: Scrolltext(NB_FONTS) = undefined,
     logo: Background = undefined,
+    blitter: zg.Blitter = .{},
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
         Console.log("Demo init", .{});
@@ -113,6 +129,7 @@ pub const Demo = struct {
         fb = &zigos.lfbs[1];
         fb.is_enabled = true; 
         fb.setPalette(font_pal);
+        self.blitter.init();
         fb.clearFrameBuffer(0); // once: render() only ever rewrites the four scroller bands
 
         // HBL Handler for the raster effect
@@ -142,19 +159,16 @@ pub const Demo = struct {
 
     pub fn render(self: *Demo, zigos: *ZigOS, elapsed_time: f32) void {
 
-        // The scroller strip (rows 52..82) is drawn, then copied to three more
-        // bands (+39, +78, +117 rows); every other row stays 0 from init. Word-wide
-        // @memset/@memcpy: the byte loops were ~90,000 stores a frame.
+        // The scroller strip is drawn ONCE, in cart RAM, then CHISEL places it four
+        // times (rows 52, +39, +78, +117; every other row stays 0 from init): the
+        // CPU used to @memcpy 28,800 B of copies a frame into the plane.
+        const words = stripWords();
+        for (words) |*w| w.* = 0;
+        const strip: []u8 = std.mem.sliceAsBytes(words);
+        letter_rows.draw(&self.scrolltext, strip.ptr, WIDTH, WIDTH, SCROLL_CHAR_WIDTH, SCROLL_CHAR_HEIGHT);
         const fb = &zigos.lfbs[1];
-        const strip: usize = 52 * @as(usize, WIDTH);
-        const strip_len: usize = @as(usize, WIDTH) * SCROLL_CHAR_HEIGHT;
-        @memset(fb.fb[strip .. strip + strip_len], 0);
-        letter_rows.draw(&self.scrolltext, fb.fb + strip, WIDTH, WIDTH, SCROLL_CHAR_WIDTH, SCROLL_CHAR_HEIGHT);
-
-        // copy scrolltext 3 times
-        inline for (.{ 39, 78, 117 }) |rows| {
-            const d = strip + rows * @as(usize, WIDTH);
-            @memcpy(fb.fb[d .. d + strip_len], fb.fb[strip .. strip + strip_len]);
+        inline for (.{ 0, 39, 78, 117 }) |rows| {
+            self.blitter.blitImage(fb, 0, 52 + rows, strip, WIDTH, 0, 0, WIDTH, SCROLL_CHAR_HEIGHT, null);
         }
 
         _ = elapsed_time;
