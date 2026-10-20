@@ -18,6 +18,8 @@
 // --------------------------------------------------------------------------
 const digi = @import("digi.zig");
 pub const big = @import("digi_big.zig");
+pub const big_play = @import("digi_big_play.zig");
+const big_map = @import("digi_big_map.zig");
 pub const mix4 = @import("digi_mix4.zig");
 pub const mix3 = @import("digi_mix3.zig");
 pub const tcb3 = @import("digi_tcb3.zig");
@@ -40,7 +42,11 @@ pub const Driver = union(enum) {
 };
 
 /// What the next interrupt must do first: check the handler in RAM (after a load or an INIT).
-var state: enum { unarmed, armed, refused } = .unarmed;
+const Arm = enum { unarmed, armed, refused };
+var state: Arm = .unarmed;
+/// The B.I.G. digi PLAY (digi_big_play.zig), checked in RAM at its first call after each INIT, as the handler is.
+var play_state: Arm = .unarmed;
+var play_at: big_map.At = undefined;
 
 /// Mutant 5 (sndh_native.zig, test only): every voice's step as it was when the handler was armed,
 /// as if the code play patches were constant. The self-modification it misses must be caught.
@@ -62,6 +68,7 @@ var cache: [4]u32 = .{0} ** 4;
 /// sndh_native.zig's mutant, as the flags above.
 pub fn setMutant(n: u32) void {
     frozen = n == 5;
+    big_play.short_note = n == 12;
     swapped = n == 6;
     unsigned_index = n == 7;
     pointer_kept = n == 8;
@@ -76,6 +83,7 @@ pub fn step(comptime Bus: type, at: u32, i: usize) u32 {
 
 pub fn recognise(image: []const u8, base: u32) ?Driver {
     state = .unarmed;
+    play_state = .unarmed;
     if (big.match(image, base)) |d| return .{ .big = d };
     if (mix4.match(image, base)) |d| return .{ .mix4 = d };
     if (mix3.match(image, base)) |d| return .{ .mix3 = d };
@@ -90,7 +98,7 @@ pub fn recognise(image: []const u8, base: u32) ?Driver {
 
 pub fn status(d: Driver) digi.Status {
     return switch (d) {
-        .big => .big_digital,
+        .big => |x| if (x.play != 0) .big_native else .big_digital,
         .mix4 => .hippel_mix4,
         .mix3 => .mix3_timer_c,
         .tcb3 => .tcb_streams,
@@ -111,6 +119,7 @@ pub fn handlerAddr(d: Driver) u32 {
 /// INIT is about to run on Musashi: it may move or rewrite the handler.
 pub fn reinit() void {
     state = .unarmed;
+    play_state = .unarmed;
 }
 
 /// Is the handler refused in RAM (it plays on Musashi until the next INIT)?
@@ -137,6 +146,26 @@ pub fn irq(comptime Bus: type, d: *Driver, handler: u32) bool {
         .mym => |*x| return mym.irq(Bus, x, handler),
         .sfx => |*x| return sfx.irq(Bus, x, handler),
         inline else => |x, tag| @field(@This(), @tagName(tag)).irq(Bus, x),
+    }
+    return true;
+}
+
+/// PLAY, natively if the driver has a native one (the B.I.G. digi tunes'). False: Musashi's.
+/// A command past the sequencer's table ends it on Musashi too, as the 68000 would have
+/// jumped into code: not seen in any of the six tunes.
+pub fn play(comptime Bus: type, d: *const Driver) bool {
+    if (d.* != .big or d.big.play == 0 or play_state == .refused) return false;
+    if (play_state == .unarmed) {
+        play_at = big_map.arm(Bus, d.big.play, d.big.addr) orelse {
+            play_state = .refused;
+            return false;
+        };
+        play_state = .armed;
+    }
+    big_play.play(Bus, &play_at);
+    if (big_play.lost) {
+        big_play.lost = false;
+        play_state = .refused;
     }
     return true;
 }

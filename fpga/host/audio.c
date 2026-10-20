@@ -39,6 +39,7 @@ static const char* const NATIVE[] = {
     "native tcb_streams (handler)",
     "native mym_drums (handler)",
     "native game_sfx (handler)",
+    "native big_digi (play + handler)",
 };
 
 int audio_live(void) { return g_aud.memory.data != NULL; }

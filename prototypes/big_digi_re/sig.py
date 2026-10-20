@@ -4,7 +4,7 @@ import re
 LEN = 0x5A6
 src = open("../../libs/zig/players/digi_big_map.zig").read()
 longs = [int(x, 16) for x in re.search(r"const LONGS = \[_\]u32\{([^}]*)\}", src).group(1).replace(" ", "").split(",")]
-holes = [(a, a + 4) for a in longs] + [(0x152, 0x153), (0x452, 0x458)]
+holes = [(a, a + 4) for a in longs] + [(0x152, 0x153), (0x452, 0x458), (0x4BC, 0x4CE)]
 
 
 def masked(b):
