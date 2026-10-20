@@ -62,6 +62,10 @@ console.log("boot ok");
 const errors = [];
 const ok = (cond, msg) => { console.log(`  ${cond ? "ok  " : "FAIL"} ${msg}`); if (!cond) errors.push(msg); };
 
+// The screen's own tune: So Watt's ronken.mod (a ProTracker module, no SNDH/YM).
+ok(new TextDecoder().decode(new Uint8Array(memory.buffer, demo.songNamePtr(), demo.songNameLen())) === "ronken.mod",
+   "it asks for the screen's own ProTracker module (ronken.mod)");
+
 // ---------------- the machine's composited window ---------------------------
 const pw = machine.hwPhysWidth(); // 800: low res is x-doubled
 const ph = machine.hwPhysHeight(); // 280
