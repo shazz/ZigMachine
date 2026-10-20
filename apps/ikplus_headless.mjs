@@ -13,7 +13,7 @@
 //           to edge), with the palette read back per physical line -- which
 //           validates the HBL, both colour tables and the flicker trick together
 //   raster  the window carries more colours than the six palette words alone
-//   music   the cart asks for so_watt_no_crew.sndh #1 once, at start
+//   music   the cart asks for eliminator_jmp.sndh #1 once, at start
 //   keys    F1 / F2 step spinc; Escape and Back hand the screen back
 //   soak    no zg.mem allocation refused; ms/frame reported, not budgeted
 //
@@ -334,7 +334,7 @@ const pixelErr = (msg, got, want, i) => {
     const pending = demo.pollSongRequest();
     const name = new TextDecoder().decode(new Uint8Array(memory.buffer, demo.songNamePtr(), demo.songNameLen()));
     // F1/F2 below change spinc, so pin the request before touching keys.
-    ok(pending === 1 && name === "so_watt_no_crew.sndh" && demo.songTune() === 1,
+    ok(pending === 1 && name === "eliminator_jmp.sndh" && demo.songTune() === 1,
         pending === 1 ? `music: asked for ${name} #${demo.songTune()}` : "music: no song requested at start");
 }
 

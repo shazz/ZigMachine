@@ -37,12 +37,12 @@
 // 2x units, because the two raster tables are kept at their 2x row counts and
 // indexed by 2*t -- see rasters.zig).
 //
-// MUSIC. The remake plays assets/eliminator.ym, an LHA-packed YM5 register dump
-// whose header names "Eliminator" / "Jochen Hippel (Jeroen Tel)". The project
-// ships SNDH only, so the dump was matched against the archive by YM register
-// comparison: Mad_Max/Demos/So_Watt/So_Watt_No_Crew.sndh (subtune 1) is
-// bit-identical over 4000 frames, zero mismatches. It is already in docs/music/
-// (shared with naos_nitrowave, which reused the same tune).
+// MUSIC (Matt, 2026-10-20). The cracktro plays "Eliminator" by John Michael
+// Phillips (Hewson, 1988): Phillips_John_Michael/Eliminator.sndh subtune 1 (its
+// title tune), shipped as docs/music/eliminator_jmp.sndh. The remake's
+// assets/eliminator.ym is NOT that tune: its YM header says "Jochen Hippel (Jeroen
+// Tel)" and its registers are So_Watt_No_Crew.sndh #1, bit for bit -- a
+// mislabelled dump, which this cart played until Matt caught it by ear.
 //
 // KEYS. F1 / F2 step the scroll speed through {0.25, 0.5, 1, 2, 3, 4} x, exactly
 // the remake's spinc. Escape (and Back) hand the screen back to the menu.
@@ -59,7 +59,7 @@ const stars = @import("stars.zig");
 
 pub const PLANE = 0;
 
-const MUSIC = "so_watt_no_crew.sndh";
+const MUSIC = "eliminator_jmp.sndh";
 const MUSIC_TUNE: u8 = 1;
 
 const K_F1: u32 = 0xE001;
