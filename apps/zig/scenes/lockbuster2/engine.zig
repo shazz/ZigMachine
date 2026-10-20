@@ -49,13 +49,13 @@ pub const BUFFER_BYTES: usize = 131072; // x2: the two feeding buffers
 // The copied-in artwork. tools/private_tools/lockbuster2_assets.py re-derives
 // these from the PRG (the Go extractor's decode, re-expressed); each file is
 // byte-identical to the Go tree's assets/original/ release of them.
-const font_bin = @embedFile("../../assets/screens/lockbuster2/font.bin");
-const raster_banks = [2][]const u8{
+pub const font_bin = @embedFile("../../assets/screens/lockbuster2/font.bin");
+pub const raster_banks = [2][]const u8{
     @embedFile("../../assets/screens/lockbuster2/raster-old.bin"), // 139 HBL words
     @embedFile("../../assets/screens/lockbuster2/raster-new.bin"), // 118, an alternate bar set
 };
 pub const RASTER_BANK_LEN: usize = 2;
-const messages = [10][]const u8{
+pub const messages = [10][]const u8{
     @embedFile("../../assets/screens/lockbuster2/message-0.bin"),
     @embedFile("../../assets/screens/lockbuster2/message-1.bin"),
     @embedFile("../../assets/screens/lockbuster2/message-2.bin"),
@@ -93,7 +93,7 @@ fn copyMap(comptime mode: usize) [40]Copy {
     return out;
 }
 
-const maps: [6][40]Copy = blk: {
+pub const maps: [6][40]Copy = blk: {
     var m: [6][40]Copy = undefined;
     for (0..6) |i| m[i] = copyMap(i);
     break :blk m;
@@ -101,7 +101,7 @@ const maps: [6][40]Copy = blk: {
 
 /// Go:
 ///   mode := [8]int{0, 1, 2, 3, 4, 5, 5, 5}[phase]
-const mode_of_phase = [MAX_PHASES]u3{ 0, 1, 2, 3, 4, 5, 5, 5 };
+pub const mode_of_phase = [MAX_PHASES]u3{ 0, 1, 2, 3, 4, 5, 5, 5 };
 
 /// The longest scroll text: message-8, 519 chars -> len*400 + 416 bytes, is
 /// the COMPILED_BYTES constant above.
@@ -170,7 +170,12 @@ pub const Engine = struct {
     /// = 25 rows), so each word gets a band of its own and the slide window
     /// walks the words in sequence.
     fn buildHeader(self: *Engine, bank: usize) void {
-        const h = self.headers[bank];
+        renderHeader(bank, self.headers[bank]);
+    }
+
+    /// buildHeader's bank image on its own (no engine), so chunky_tables.zig
+    /// expands the very same bytes at comptime.
+    pub fn renderHeader(bank: usize, h: []u8) void {
         @memset(h, 0);
         var position: usize = 320;
         var line: usize = 0;

@@ -90,17 +90,67 @@ const stateFlags = () => {
     };
 };
 
-const engineScreen = () => {
-    const ptr = demo.lb2Screen();
-    if (!ptr) throw new Error("the engine window export is not ready");
-    return new Uint8Array(memory.buffer, ptr, 32000);
+// The cart's engine runs on CHISEL in chunky pixels (lockbuster2/chunky.zig);
+// the shown plane IS the original's screen memory, expanded. Packing it back
+// (the exact inverse: 4 planes, 16 indices) gives the 32000 planar bytes the
+// Go tree's checkpoints hash.
+const planeIndices = () => {
+    const ptr = demo.lb2Plane();
+    if (!ptr) throw new Error("the plane export is not ready");
+    return new Uint8Array(memory.buffer, ptr, W * H);
 };
+const engineScreen = () => {
+    const px = planeIndices();
+    const out = new Uint8Array(32000);
+    for (let y = 0; y < H; y++)
+        for (let x = 0; x < W; x++) {
+            const v = px[y * W + x];
+            if (v > 15) throw new Error(`plane pixel (${x},${y}) is index ${v}, not a 4-plane colour`);
+            const at = y * 160 + (x >> 4) * 8 + ((x & 8) >> 3);
+            const bit = 7 - (x & 7);
+            for (let p = 0; p < 4; p++) out[at + p * 2] |= ((v >> p) & 1) << bit;
+        }
+    return out;
+};
+
+// LOCKSTEP: the cart also carries engine.zig, the planar reference model the
+// checkpoints pin (lockbuster2/reference.zig, harness only). After every
+// frame the shown plane must equal expand(reference screen) at the same tick,
+// pixel for pixel: the proof on the REAL blitter, not only the native test's.
+// SPREAD[b] = the 8 pixels of planar byte b as two little-endian words.
+const SPREAD = [new Uint32Array(256), new Uint32Array(256)];
+for (let b = 0; b < 256; b++)
+    for (let k = 0; k < 8; k++)
+        SPREAD[k >> 2][b] |= ((b >> (7 - k)) & 1) << ((k & 3) * 8);
+let lockstepFrames = 0;
+let lockstep = true;
+function checkLockstep() {
+    const rp = demo.lb2RefScreen();
+    if (!rp) throw new Error("lockstep: the reference engine is not available");
+    const ref = new Uint8Array(memory.buffer, rp, 32000);
+    const pp = demo.lb2Plane();
+    if (pp % 4) throw new Error("lockstep: the plane is not word aligned");
+    const px = new Uint32Array(memory.buffer, pp, (W * H) / 4);
+    for (let i = 0; i < 32000; i += 8) // one 16-px chunk: 4 plane words
+        for (let half = 0; half < 2; half++)
+            for (let w = 0; w < 2; w++) {
+                const s = SPREAD[w];
+                const want = s[ref[i + half]] | s[ref[i + half + 2]] << 1 | s[ref[i + half + 4]] << 2 | s[ref[i + half + 6]] << 3;
+                const at = (i >> 3) * 4 + half * 2 + w;
+                if (px[at] !== want) {
+                    const x = (at * 4) % W, y = ((at * 4) / W) | 0;
+                    throw new Error(`lockstep: tick ${demo.lb2Tick()} pixels (${x}..${x + 3},${y}) are not the planar engine's`);
+                }
+            }
+    lockstepFrames++;
+}
 
 let framesRendered = 0;
 const stepFrame = () => {
     machine.hwClear();
     demo.frame(VBL_MS);
     framesRendered++;
+    if (lockstep) checkLockstep();
 };
 const runTo = (tick) => {
     while (demo.lb2Tick() < tick) stepFrame();
@@ -313,6 +363,11 @@ demo.key(32);
     const r = demo.pollCartRequest();
     check(r === -1, `Space hands back to the menu (pollCartRequest ${r})`);
 }
+
+// The lockstep ran on every frame so far: both title slides, all eight phases
+// twice over (a text cycle is 10714 ticks), and the key toggles.
+check(lockstepFrames >= 22000, `lockstep: ${lockstepFrames} frames, the plane == the planar reference engine on every one`);
+lockstep = false; // the soak times the cart, not the check
 
 // Soak + shots: honest ms/frame, no allocation refused.
 {
