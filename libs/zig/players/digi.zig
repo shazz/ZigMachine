@@ -40,6 +40,7 @@ pub const Status = enum(u32) {
     tcb_streams = 13, // handler native, digi_tcb3.zig (three volume streams: TCB's Spreadpoint)
     mym_drums = 14, // handler native, digi_mym.zig (maxYMiser's digidrums: crystallized)
     game_sfx = 15, // handler native, digi_sfx.zig (North & South's and Rick Dangerous's sampled effects)
+    big_native = 16, // native, digi_big_play.zig + digi_big.zig (the B.I.G. digi tunes: Mad Max's sequencer and his 3-voice mixer)
 };
 
 pub const Driver = union(enum) {

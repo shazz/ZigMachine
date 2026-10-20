@@ -130,6 +130,7 @@ NATIVE_TESTS="
     libs/zig/players/digi_monty_test.zig
     libs/zig/players/digi_wow_test.zig
     libs/zig/players/digi_big_test.zig
+    libs/zig/players/digi_big_play_test.zig
     libs/zig/players/digi_mix4_test.zig
     libs/zig/players/digi_mix3_test.zig
     libs/zig/players/digi_mym_test.zig
@@ -479,8 +480,9 @@ gate union_superscroller_music node apps/wow_native_check.mjs   # its tune (Wow 
 gate union_superscroller_music node apps/wow_native_check.mjs --break   # ...and Beat Dis's handler on Wow's bytes (mutant 4) is caught
 gate union_textracker_music node apps/irq_native_check.mjs --song union/thalion_forever.sndh --status 8 --seconds 60   # its tune's 4-voice mixer interrupt natively = the 68000 bit for bit, modes 1/2 unbroken
 gate union_textracker_music node apps/irq_native_check.mjs --song union/thalion_forever.sndh --status 8 --seconds 20 --break   # ...and the steps play patches frozen at arming (mutant 5) are caught
-gate big_demo_music node apps/irq_native_check.mjs --song digital/Ace_2.sndh --status 7 --seconds 40   # the digital screen's 3-voice mixer interrupt natively = the 68000 bit for bit, modes 1/2 unbroken
-gate big_demo_music node apps/irq_native_check.mjs --song digital/Ace_2.sndh --status 7 --seconds 20 --break   # ...and the steps play patches frozen at arming (mutant 5) are caught
+gate big_demo_music node apps/irq_native_check.mjs --song digital/Ace_2.sndh --status 16 --seconds 40   # the digital screen's PLAY (Mad Max's sequencer) and 3-voice mixer interrupt natively = the 68000 bit for bit, modes 1/2 unbroken
+gate big_demo_music node apps/irq_native_check.mjs --song digital/Ace_2.sndh --status 16 --seconds 20 --break   # ...and the steps play patches frozen at arming (mutant 5) are caught
+gate big_demo_music node apps/irq_native_check.mjs --song digital/Ace_2.sndh --status 16 --seconds 20 --break --mutant 12   # ...and the native PLAY's note lengths a frame short (mutant 12) are caught
 gate snyd_90_music node apps/irq_native_check.mjs --song snyd90_f6.sndh --status 12 --seconds 40   # part 6's Timer C 3-voice mixer interrupt natively = the 68000 bit for bit, modes 1/2 unbroken
 gate snyd_90_music node apps/irq_native_check.mjs --song snyd90_f6.sndh --status 12 --seconds 20 --break   # ...and the steps play patches frozen at arming (mutant 5) are caught
 gate tcb_spreadpoint_music node apps/irq_native_check.mjs --song tcb_spreadpoint.sndh --status 13 --seconds 40   # its three volume streams' interrupt natively = the 68000 bit for bit, modes 1/2 unbroken

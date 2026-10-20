@@ -3,8 +3,9 @@
 // B.I.G. Demo's "digital" tunes (Ace 2, Labello, Phantom of the Asteroid,
 // Sanxion, Starpaws) and big/Labello. A Timer A interrupt at 2457600 / 4 / 64
 // = 9600 Hz adds three voices' sample bytes and plays the sum through a
-// volume table, 160 times a 60 Hz frame. Only the handler is native: init and
-// the 50 Hz play stay on Musashi (digi_irq.zig).
+// volume table, 160 times a 60 Hz frame. The handler is native, and so is the
+// 50 Hz play when it is Mad Max's sequencer (all six are: digi_big_play.zig);
+// init and exit stay on Musashi (digi_irq.zig).
 //
 // Offsets from the handler (the init copies it, then relocates it):
 //   $0A  addi.l #step1,$382.w   the step is patched by play (self-modifying)
@@ -44,8 +45,9 @@ const FIRST: u32 = 0x2F082F00; // move.l a0,-(a7); move.l d0,-(a7): the quick re
 
 pub const Voice = struct { ptr: u32, flag: u32, loop: u32 };
 /// The handler's address, then its voices, read from RAM once the tune's init
-/// has relocated it (digi_irq.zig `arm`).
-pub const Driver = struct { addr: u32, v: [3]Voice = undefined };
+/// has relocated it (digi_irq.zig `arm`). `play`: the tune's PLAY, when it is
+/// Mad Max's sequencer (digi_big_map.zig), which then runs natively too; 0 if not.
+pub const Driver = struct { addr: u32, v: [3]Voice = undefined, play: u32 = 0 };
 
 /// Is the handler at image offset `off`?
 pub fn matchAt(image: []const u8, off: usize) bool {
@@ -56,7 +58,9 @@ pub fn matchAt(image: []const u8, off: usize) bool {
 pub fn match(image: []const u8, base: u32) ?Driver {
     var off: usize = 0;
     while (off + LEN <= image.len) : (off += 2) {
-        if (matchAt(image, off)) return .{ .addr = base + @as(u32, @intCast(off)) };
+        if (!matchAt(image, off)) continue;
+        const play = @import("digi_big_map.zig").playOf(image);
+        return .{ .addr = base + @as(u32, @intCast(off)), .play = if (play) |p| base + p else 0 };
     }
     return null;
 }

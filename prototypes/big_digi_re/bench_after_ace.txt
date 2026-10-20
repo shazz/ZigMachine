@@ -1,0 +1,24 @@
+[clocker] loaded
+[serial2console] loaded (0x576a70cb62f0)
+[clocker] sys_clk: freq_hz=100000000, phase_deg=0
+[clocker] pix_clk: freq_hz=40000000, phase_deg=0
+[clocker] comp_clk: freq_hz=125000000, phase_deg=0
+ZM SNDH native big_digi (play + handler) digital/Ace_2.sndh
+ZM SONG 25245 26 digital/Ace_2.sndh
+LOAD 140205990
+F 0 2402012
+FW 0 43383 294933
+F 1 1210112
+FW 1 29178 270386
+F 2 1204362
+FW 2 27387 268197
+F 3 1203566
+FW 3 27746 266890
+F 4 1202834
+FW 4 27530 266615
+F 5 1192235
+FW 5 25368 266062
+ZM AUD pushed 1894 applied 1894 status 1 level 0 now 77668 ts 29655 resyncs 0 anchors 1 dropped 1026 full 0
+ZM SND END 0
+ZM END 0
+- /home/matt/projects/ZigMachine/.claude/worktrees/agent-aaa10146a7061e117/fpga/build/soc_hp_snd/gateware/sim.v:9576: Verilog $finish

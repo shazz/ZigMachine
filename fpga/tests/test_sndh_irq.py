@@ -1,12 +1,13 @@
 """The handler-only native drivers (libs/zig/players/digi_irq.zig) against Musashi, the oracle:
-each tune's timer interrupt in Zig, its init and play on Musashi. The audio core's writes,
-digested a frame at a time (host/sndh_oracle.c), must be the same over the length given, across
-a mid-tune sndhCall and mode switches 1/2; mutant 5 (the steps play patches into the handler
-frozen when it was armed), 6 (the stream handler's registers 9 and 10 swapped), 7 (SingSong's sample
-index unsigned), 8 (the one-byte handler's pointer kept past play's rewind) and 10 (maxYMiser's 8-bit
-drum routine without its addi.b) must fail. A handler refused in RAM plays on Musashi and passes the
-digest trivially, so the survey (host/sndh_survey) must also show Musashi called only for PLAY. The
-helpers are test_sndh_native.py's. Needs `make sndh-oracle sndh-survey` and docs/demo-audio.wasm."""
+each tune's timer interrupt in Zig, its init and play on Musashi (the B.I.G. digi tunes' play is
+native too: digi_big_play.zig, status 16). The audio core's writes, digested a frame at a time
+(host/sndh_oracle.c), must be the same over the length given, across a mid-tune sndhCall and mode
+switches 1/2; mutant 5 (the steps play patches into the handler frozen when it was armed), 6 (the
+stream handler's registers 9 and 10 swapped), 7 (SingSong's sample index unsigned), 8 (the one-byte
+handler's pointer kept past play's rewind), 10 (maxYMiser's 8-bit drum routine without its addi.b)
+and 12 (the B.I.G. PLAY's note lengths a frame short) must fail. A handler refused in RAM plays on
+Musashi and passes the digest trivially, so the survey (host/sndh_survey) must also show Musashi
+called only for PLAY, and never for status 16. The helpers are test_sndh_native.py's. Needs `make sndh-oracle sndh-survey` and docs/demo-audio.wasm."""
 
 from __future__ import annotations
 
@@ -22,13 +23,15 @@ SURVEY = FPGA / "build/host/oracle/sndh_survey"
 # song, tune, frames (past each tune's first wrap where it has one), the status it must be.
 TUNES = [
     ("union/thalion_forever.sndh", 1, 6_000, 8),  # the Union Demo's TEX tracker screen
-    ("digital/Ace_2.sndh", 1, 3_000, 7),  # the B.I.G. Demo's digital screen, and the rest of it
-    ("digital/Labello.sndh", 1, 3_000, 7),
-    ("digital/Phantom_Of_The_Asteroid.sndh", 1, 3_000, 7),
-    ("digital/Phantom_Of_The_Asteroid.sndh", 2, 3_000, 7),
-    ("digital/Sanxion.sndh", 1, 3_000, 7),
-    ("digital/Starpaws.sndh", 1, 3_000, 7),
-    ("big/Labello.sndh", 1, 3_000, 7),
+    # the B.I.G. Demo's digital screen and big/Labello: PLAY and handler native, each past its FRMS (50 Hz frames
+    # x 1.2: these are 60 Hz frames) and its wrap
+    ("digital/Ace_2.sndh", 1, 72_000, 16),
+    ("digital/Labello.sndh", 1, 33_000, 16),
+    ("digital/Phantom_Of_The_Asteroid.sndh", 1, 37_000, 16),
+    ("digital/Phantom_Of_The_Asteroid.sndh", 2, 26_000, 16),
+    ("digital/Sanxion.sndh", 1, 21_000, 16),
+    ("digital/Starpaws.sndh", 1, 84_000, 16),
+    ("big/Labello.sndh", 1, 33_000, 16),
     ("snyd90_f6.sndh", 1, 6_000, 12),  # snyd_90's part 6: a 3-voice mixer on Timer C
     ("tcb_spreadpoint.sndh", 1, 6_000, 13),  # TCB's Spreadpoint screen: three volume streams
     ("crystallized.sndh", 1, 6_000, 14),  # D-Bug and music: maxYMiser's drums, from frame 769
@@ -43,9 +46,9 @@ TUNES = [
 ]
 # song, the mutant that must be caught (sndh_native.zig): 5 = steps frozen at arming, 6 = registers 9/10 swapped,
 # 7 = SingSong's sample index unsigned, 8 = the one-byte handler's pointer kept in Zig past play's rewind,
-# 10 = maxYMiser's drum routine without its addi.b.
+# 10 = maxYMiser's drum routine without its addi.b, 12 = the B.I.G. digi PLAY's note lengths a frame short.
 MUTANTS = [("union/thalion_forever.sndh", 5), ("digital/Ace_2.sndh", 5), ("snyd90_f6.sndh", 5),
-           ("tcb_spreadpoint.sndh", 6), ("crystallized.sndh", 10), ("swedish_newyear_tcb_digi.sndh", 8),
+           ("digital/Labello.sndh", 12), ("tcb_spreadpoint.sndh", 6), ("crystallized.sndh", 10), ("swedish_newyear_tcb_digi.sndh", 8),
            ("Swedish_New_Year_Demo_Sync.sndh", 5), ("dune_gen4_quartet.sndh", 7)]
 
 
@@ -91,7 +94,8 @@ def test_the_handler_is_taken_natively_so_musashi_runs_only_the_plays(tmp_path: 
                          text=True).stdout
     counts = [line.split() for line in out.splitlines() if line.startswith("ZM COUNT ")]
     calls = [int(c[4]) for c in counts[10:]]  # "ZM COUNT f insns calls", past the frames that arm
-    assert native_status(out) == status and calls and max(calls) <= 4  # a 200 Hz play at most: no interrupt
+    most = 0 if status == 16 else 4  # a 200 Hz play at most: no interrupt; the B.I.G. digi PLAY is native too
+    assert native_status(out) == status and calls and max(calls) <= most
 
 
 @pytest.mark.parametrize("song", [m[0] for m in MUTANTS])

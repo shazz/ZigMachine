@@ -44,7 +44,8 @@ pub var status: digi.Status = .musashi;
 /// sample index read unsigned (digi_quartet.zig); 8 = the one-byte handler's pointer kept in Zig from
 /// arming (digi_tcb.zig); 10 = maxYMiser's 8-bit drum routine without its
 /// addi.b (digi_mym.zig); 11 = a game effect's pointer stored past its 0 byte
-/// (digi_sfx.zig). Test only.
+/// (digi_sfx.zig); 12 = the B.I.G. digi PLAY's note lengths a frame short
+/// (digi_big_play.zig). Test only.
 pub var mutant: u32 = 0;
 
 var driver: ?Driver = null; // what the image is, whatever the mode
@@ -110,9 +111,10 @@ pub fn forget() void {
 /// One of INIT / EXIT / PLAY, natively if the mode says so. False: Musashi's.
 pub fn call(entry: u32) bool {
     const d = driver orelse return false;
-    if (d == .irq) { // its init, play and exit are the 68000's, in every mode
+    if (d == .irq) { // its init and exit are the 68000's, in every mode, and most plays
         if (entry == sndh.INIT) digi.irq.reinit(); // which may move the handler: armed again
-        return false;
+        if (entry != sndh.PLAY or mode == .st) return false;
+        return digi.irq.play(Bus68, &driver.?.irq); // the B.I.G. digi tunes' sequencer
     }
     if (mode == .st) return false;
     const p = digi.pcmOf(d);
