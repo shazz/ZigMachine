@@ -34,8 +34,9 @@ BOARD_FW = FPGA / "build/hcycles/board"
 CSR_MAP = FPGA / "build/hcycles/gen/csr_addr.h"
 # The carts the card carries: `make -C fpga board-shelf` builds a board firmware for each, and the
 # staging names any of them without one (MISSING) instead of leaving it off the card unnoticed. A
-# firmware in --fw-dir that is not listed is staged too (a cart being tried out). st_replay is a
-# data disk: its fat disk carries GEM's image, and its own firmware is the program GEM launches.
+# firmware in --fw-dir that is not listed is staged too (a cart being tried out). st_replay and
+# sysinfo are data disks: each fat disk carries GEM's image, and the cart's own firmware is the
+# program GEM launches (progs/demo-<tag>/BOOT.WSM.zmd).
 SHELF = (
     "blitter", "fuji_hobbytronic", "gem", "music", "polkadots", "raytrace", "raytrace_f32", "replicants_emlyn",
     "sap_test", "skystrike", "st_replay", "stniccc", "sysinfo", "tsl_hybridglenz", "tutorial", "ulm_dsots",

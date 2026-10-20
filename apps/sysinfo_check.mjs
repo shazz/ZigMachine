@@ -15,6 +15,7 @@
 import { mkdir } from "node:fs/promises";
 import { boot, frames, page, field, glassMismatches, glass, K } from "./sysinfo_machine.mjs";
 import { grab, png } from "./skystrike_zig_frame.mjs";
+import { parseDisk } from "../docs/zmdisk.js";
 
 const BROKE = process.argv.includes("--break");
 const OUT = process.argv.slice(2).find((a) => !a.startsWith("--") && a !== "free");
@@ -80,7 +81,8 @@ async function videoSoundDisk(s) {
     const d = new DataView(s.disk.buffer), title = new TextDecoder().decode(s.disk.subarray(0x200, 0x240)).replace(/\0.*$/s, "");
     const date = String(d.getUint32(0x2e0, true));
     expect(field(rows, "TITLE") === title && field(rows, "DATE") === `${date.slice(0, 4)}-${date.slice(4, 6)}-${date.slice(6)}`, `the disk's title and date are its descriptor's (${title})`);
-    expect(field(rows, "CART SIZE") === `${d.getUint32(0x12, true)} Bytes` && field(rows, "BOOT SECTOR") === "BOOTABLE ($1234)", "boot length and kind are the boot sector's");
+    const kind = parseDisk(s.disk, "demo-sysinfo.zmd").bootable ? "BOOTABLE ($1234)" : "DATA DISK"; // a data disk since it became a GEM program
+    expect(field(rows, "CART SIZE") === `${d.getUint32(0x12, true)} Bytes` && field(rows, "BOOT SECTOR") === kind, `boot length and kind are the boot sector's (${kind})`);
 }
 
 async function speed(s, clocked) {

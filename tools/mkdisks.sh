@@ -113,6 +113,11 @@ for w in "$OUT"/demo-*.wasm; do
         # GEM, which opens the app and reads its sample off the same disk.
         st_replay) pack "$OUT/demo-$tag.zmd" "$tag" "$w" --no-boot \
                         --file "SAMPLE.RAW=$OUT/music/smp1.raw" ;;
+        # SysInfo is a GEM program the same way: its disk is a data disk, GEM opens
+        # it and runs BOOT.WSM, and Q (request 4) quits back to the desktop. As a
+        # bootable disk it had no OS to return to, which is why it could not quit
+        # on the board.
+        sysinfo)   pack "$OUT/demo-$tag.zmd" "$tag" "$w" --no-boot ;;
         # STNICCC 2000 streams its polygon data off the disk, 64 KB at a time.
         stniccc)   pack "$OUT/demo-$tag.zmd" "$tag" "$w" \
                         --file "SCENE1.BIN=apps/zig/assets/screens/stniccc/scene1.bin" ;;

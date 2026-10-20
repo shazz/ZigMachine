@@ -833,7 +833,8 @@ image with the shelf disk and the descriptor where ZWINDOW puts them, and
 ## GEM over a data disk
 
 A disk whose boot sector does not sum to `$1234` (`docs/zmdisk.js`: a *data*
-disk; today only `demo-st_replay.zmd`, with `BOOT.WSM` and `SAMPLE.RAW`) is not a
+disk: `demo-st_replay.zmd`, with `BOOT.WSM` and `SAMPLE.RAW`, and `demo-sysinfo.zmd`,
+with `BOOT.WSM` alone) is not a
 cart. The browser boots GEM for it, and after every `demo.frame()` it
 (`docs/sealed-loader.js`):
 

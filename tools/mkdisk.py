@@ -40,10 +40,11 @@ def _uleb128(n: int) -> bytes:
             return bytes(out)
 
 
-def _place_files(main_name: str, main: bytes, files: list, data_start: int) -> tuple:
-    """Data area: main blob, then each extra file, each block-aligned.
-    A single-cart disk keeps an EMPTY FAT (boot pointer only); a multi-file disk
-    lists the executable + its files. Returns (data, fat)."""
+def _place_files(main_name: str, main: bytes, files: list, data_start: int,
+                 list_main: bool = False) -> tuple:
+    """Data area: main blob, then each extra file, each block-aligned. A bootable
+    single-cart disk keeps an EMPTY FAT; a multi-file or DATA disk (`list_main`: GEM
+    runs its program as a FAT file) lists the executable too. Returns (data, fat)."""
     data = bytearray()
     fat = []                                  # (name, abs_start, length, type)
     def place(name, blob, ftype, in_fat):
@@ -52,7 +53,7 @@ def _place_files(main_name: str, main: bytes, files: list, data_start: int) -> t
         data.extend(b"\x00" * ((-len(blob)) % BLOCK))
         if in_fat:
             fat.append((name, start, len(blob), ftype))
-    place(main_name, main, 0, bool(files))    # the executable (type 0 = wasm cart)
+    place(main_name, main, 0, bool(files) or list_main)  # the executable (type 0 = wasm cart)
     for name, blob, ftype in files:
         place(name, blob, ftype, True)
     if len(fat) > 24:
@@ -74,7 +75,7 @@ def build(wasm: bytes, title: str, author: str, desc: str, date: int,
           files: list | None = None, boot_name: str = "BOOT.WSM",
           bootable: bool = True) -> bytes:
     boot_block = DATA_START // BLOCK          # 3
-    data, fat = _place_files(boot_name, wasm, files or [], DATA_START)
+    data, fat = _place_files(boot_name, wasm, files or [], DATA_START, list_main=not bootable)
     total_blocks = (DATA_START + len(data)) // BLOCK
 
     # --- boot sector (512 B) ---

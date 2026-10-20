@@ -68,7 +68,8 @@ last word is the adjustment; `mkdisk` writes it (`--no-boot` for a data disk), a
 the machine verifies it before booting — homage + a real integrity/kind check. This
 is how the **ST Replay** disk works: a non-bootable data disk whose FAT carries the
 app + a `SAMPLE.RAW`; inserting it brings up GEM, which runs ST Replay reading the
-sample off the disk.
+sample off the disk. SysInfo's disk is the same with the app alone: a data disk
+always lists its program in the FAT (`BOOT.WSM`), since nothing boots it.
 
 **Simplest disk (our demo carts):** boot sector → 1 KB descriptor (FAT empty, file
 count 0) → the cart wasm as one contiguous data run. The machine reads block 0, checks
