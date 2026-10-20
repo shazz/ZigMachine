@@ -112,6 +112,7 @@ const scene = switch (opts.index) {
     99 => @import("scenes/ikplus.zig"), // THE REPLICANTS / "INTERNATIONAL KARATE PLUS" (IK+) cracktro: four-size scrolltext, logo, stars, two real per-scanline rasters (ported from the Go re-creation)
     100 => @import("scenes/chonchon2.zig"), // CHONCHON 2: sliding DMA panels, two animated sprite paths, ribbon, music meters and per-line raster (ported from the Go re-creation)
     101 => @import("scenes/lockbuster3.zig"), // LOCKBUSTER 3, "Lockbuster DMA": letters, panels, two-lane text and YM-volume meters, 320x240 with the bottom border open (ported from the Go re-creation)
+    102 => @import("scenes/phenomena.zig"), // PHENOMENA "ENIGMA" (1991) intro: text pages, logo/white mask, photon, the DNA scrolltext, two per-scanline rasters and the live HSL photon (ported from the Go re-creation)
     else => @compileError("bad cart index"),
 };
 
