@@ -14,7 +14,7 @@
 #include "bench.h"
 
 #define LOG_MAGIC 0x4c424d5au /* "ZMBL" */
-#define LOG_BYTES 16384u
+#define LOG_BYTES 24576u /* ~100 bytes a line, BENCH_MAX_RESULTS lines and the info */
 
 /* Read by the ARM: keep the layout (bench_collect.py LOG_*). */
 struct zmb_log {

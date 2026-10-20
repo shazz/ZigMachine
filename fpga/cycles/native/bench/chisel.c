@@ -25,7 +25,8 @@ static void w32(uint32_t off, uint32_t v) {
     if (*p != v) *p = v;
 }
 
-static void hw_blit(void) { SYS(ZM_ENV_hwBlit, void (*)(struct w2c_env*))(g.env); }
+void chisel_hwblit(void) { SYS(ZM_ENV_hwBlit, void (*)(struct w2c_env*))(g.env); }
+#define hw_blit chisel_hwblit
 
 /* D, its stride, X0 = Y0 = 0, W x H, and the halftone off (a sniffed pattern would dither). */
 static void dest(uint32_t off, uint32_t stride, uint32_t w, uint32_t h) {
