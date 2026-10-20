@@ -14,7 +14,7 @@
 //   clock    c2Tick()/c2Field()/c2Pose() equal the model's words every frame,
 //            and the glyph, ribbon and 32000-byte screen hashes match too
 //   music    the first request is Jinks.sndh #1; F1..F7 select the production's
-//            seven tracks (three matched SNDHs, four .ymraw dumps), and the
+//            seven tracks (five SNDHs, two .ymraw dumps with no SNDH), and the
 //            cart's embedded YM mirror equals the model's every frame
 //   raster   the window carries more than the 16 static palette colours
 //   leave    Space and Escape both hand the screen back to the menu
@@ -390,8 +390,8 @@ function ribbonHash() {
 // ==========================================================================
 const TRACKS = [
     ["Jinks.sndh", 1], ["lockbuster2_rollout.sndh", 1], ["lockbuster2_rollout.sndh", 2],
-    ["chonchon2_music-4.ymraw", 0], ["chonchon2_music-5.ymraw", 0],
-    ["chonchon2_music-6.ymraw", 0], ["chonchon2_music-7.ymraw", 0],
+    ["so_watt_no_crew.sndh", 1], ["chonchon2_music-5.ymraw", 0],
+    ["chonchon2_music-6.ymraw", 0], ["union/alloy_run.sndh", 1],
 ];
 const EVERY = 1200; // compare every single frame up to here (24 s at 50 Hz)
 const LAST = 2400; // past track 1's 2304-frame loop point

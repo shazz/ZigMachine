@@ -23,9 +23,18 @@
 //
 // MUSIC: the production ships seven replacement YM dumps (Mad Max / Jochen
 // Hippel). Tracks 1..3 were matched register-for-register against SNDHs in
-// docs/music (Jinks #1, lockbuster2_rollout #1/#2) and are requested by name.
-// Tracks 4..7 have no SNDH match and request the production's own unpacked YM
-// dumps (chonchon2_music-4..7.ymraw). The host player owns the chip in every
+// docs/music (Jinks #1, lockbuster2_rollout #1/#2), and so was track 4,
+// "Eliminator": so_watt_no_crew.sndh #1 equals its registers 0..10 on every one
+// of 6000 frames. Track 7 is titled "Union Demo MENU" in its YM header, which is
+// Mad Max's Alloy Run, the tune union_demo plays as union/alloy_run.sndh (the
+// archive's Union_Demo/SID version; Matt's rule for Union Demo tunes is to pick
+// them by name -- the dump's volumes equal the C64-Conversions Alloy_Run.sndh
+// #1 on all 1500 frames compared, its periods 67-81% of audible frames).
+// Tracks 5 ("Great Giana Sisters (ingame2)") and 6 (untitled, 2 digidrums)
+// have NO SNDH in the archive: an exact-register scan of all 5897 files, every
+// subtune, scores best 5.7% (Great_Giana_Sisters.sndh #5) and 1.7%
+// (Wings_Of_Death.sndh #1), so they stay the last-resort .ymraw dumps
+// (chonchon2_music-5/6.ymraw). The host player owns the chip in every
 // case, so the cart advances its own embedded delta mirror for the meters and
 // never calls zg.ymWrite.
 //
@@ -54,16 +63,16 @@ const K_ESC: u32 = 0xE012;
 const K_SPACE: u32 = 32;
 
 const Track = struct { file: []const u8, tune: u8 };
-/// F1..F7. The three matched SNDHs first; the four remaining production dumps
-/// are requested as .ymraw (see the header).
+/// F1..F7. Five SNDHs; the two tunes with no SNDH anywhere are requested as
+/// .ymraw (see the header).
 const TRACKS = [7]Track{
     .{ .file = "Jinks.sndh", .tune = 1 },
     .{ .file = "lockbuster2_rollout.sndh", .tune = 1 },
     .{ .file = "lockbuster2_rollout.sndh", .tune = 2 },
-    .{ .file = "chonchon2_music-4.ymraw", .tune = 0 },
+    .{ .file = "so_watt_no_crew.sndh", .tune = 1 },
     .{ .file = "chonchon2_music-5.ymraw", .tune = 0 },
     .{ .file = "chonchon2_music-6.ymraw", .tune = 0 },
-    .{ .file = "chonchon2_music-7.ymraw", .tune = 0 },
+    .{ .file = "union/alloy_run.sndh", .tune = 1 },
 };
 
 // --- module-scope state (the harness's window into the very words drawn) ----
