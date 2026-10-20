@@ -7,11 +7,21 @@ const afi = @import("afi.zig");
 const mc = @import("map_cart.zig");
 
 test "the width follows --fw-opt, and a run without it goes back to 32-bit writes" {
-    try std.testing.expectEqual(@as(?u32, afi.WR64), afi.want(mc.FW_OPT_W64, afi.WR32));
-    try std.testing.expectEqual(@as(?u32, null), afi.want(mc.FW_OPT_W64, afi.WR64));
-    try std.testing.expectEqual(@as(?u32, afi.WR32), afi.want(mc.FW_OPT_PLANE_MAJOR, afi.WR64));
-    try std.testing.expectEqual(@as(?u32, afi.WR32), afi.want(null, afi.WR64));
-    try std.testing.expectEqual(@as(?u32, null), afi.want(null, afi.WR32));
+    try std.testing.expectEqual(@as(?u32, null), try afi.want(mc.FW_OPT_W64, afi.WR64));
+    try std.testing.expectEqual(@as(?u32, afi.WR32), try afi.want(mc.FW_OPT_PLANE_MAJOR, afi.WR64));
+    try std.testing.expectEqual(@as(?u32, afi.WR32), try afi.want(null, afi.WR64));
+    try std.testing.expectEqual(@as(?u32, null), try afi.want(null, afi.WR32));
+}
+
+test "W64 on a channel that is 32-bit now is refused, never switched 32 -> 64 at run time" {
+    try std.testing.expectError(error.W64NeedsBoot, afi.want(mc.FW_OPT_W64, afi.WR32));
+    var glass = sim.Glass{};
+    glass.ctrl = map.CTRL_RUN;
+    var a = Afi{};
+    a.words[afi.WRCHAN_CTRL / 4] = afi.WR32;
+    try std.testing.expectError(error.W64NeedsBoot, afi.forRun(glass.regs(), a.regs(), mc.FW_OPT_W64, pause));
+    try std.testing.expectEqual(afi.WR32, a.words[afi.WRCHAN_CTRL / 4]);
+    try std.testing.expect(glass.ctrl & map.CTRL_RUN != 0); // not even held
 }
 
 const Afi = struct {

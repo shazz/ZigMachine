@@ -1,11 +1,18 @@
 // HP1's AFI write width: the board half of the W64 switch (glass run --fw-opt, map_cart.zig
-// FW_OPT_W64). The video DMA writes 4-byte beats into a 32-bit write channel (WRCHAN_CTRL 0xF01,
-// boot/boot.cmd) unless the firmware sets hp_cfg W64, whose 8-byte beats need the channel 64-bit
-// (0xF00). The two change together or every other word is lost: 8-byte beats into a 32-bit channel
-// keep their low half (UG585 5.3.6), 4-byte beats into a 64-bit one land in the low lane only
-// (HP3, 2026-10-10). The width may only change while nothing runs on HP1: CTRL.RUN low (the video
-// DMA finishes the burst it has, then grants nothing, the scanout included: soc/zm_video_axi.py
-// `enable`) and a pause for that burst (fpga/boards/microphase_z7_7010/README.md "Lessons").
+// FW_OPT_W64). The video DMA writes 4-byte beats into a 32-bit write channel (WRCHAN_CTRL 0xF01)
+// unless the firmware sets hp_cfg W64, whose 8-byte beats need the channel 64-bit (0xF00). The two
+// change together or every other word is lost: 8-byte beats into a 32-bit channel keep their low
+// half (UG585 5.3.6), 4-byte beats into a 64-bit one land in the low lane only (HP3, 2026-10-10).
+// The width may only change while nothing runs on HP1: CTRL.RUN low (the video DMA finishes the
+// burst it has, then grants nothing, the scanout included: soc/zm_video_axi.py `enable`) and a
+// pause for that burst (fpga/boards/microphase_z7_7010/README.md "Lessons").
+//
+// Only 64 -> 32 may happen at run time. A channel that has carried 32-bit writes and is then set
+// 64-bit reads back 0xF00 but writes each 8-byte beat's low lane on even beats and its high lane on
+// odd ones (words 0 and 3 of every 16 bytes; 1 and 2 never written): the board, 2026-10-19,
+// prototypes/w64_re/. Set 64-bit from boot (boot.cmd, before any HP1 traffic) it writes every word,
+// and a 64 -> 32 switch at run time writes correctly too. So W64 needs a channel still 64-bit since
+// boot, and a W64 run on a 32-bit channel is refused (reboot) rather than switched.
 //
 // --fw-opt=N (N & FW_OPT_MASK): 2 W64, 0x10 plane-major (no line-major groups), 0x20 the top layer
 // keeps its PFB store. Every cart the run loads gets the word; a run without --fw-opt writes none.
@@ -20,12 +27,15 @@ pub const WRCHAN_CTRL: u32 = 0x14;
 pub const WR32: u32 = 0xF01;
 pub const WR64: u32 = 0xF00;
 
-pub const Error = loader.Error || error{AfiReadback};
+pub const Error = loader.Error || error{ AfiReadback, W64NeedsBoot };
 
-/// The width to set, or null to leave it: --fw-opt decides; without it, a channel a W64 run
-/// left 64-bit goes back to boot.cmd's 32-bit, since no firmware will write 8-byte beats now.
-pub fn want(fw_opt: ?u32, now: u32) ?u32 {
-    const v: u32 = if (fw_opt) |o| (if (o & mc.FW_OPT_W64 != 0) WR64 else WR32) else WR32;
+/// The width to set, or null to leave it: --fw-opt decides; without W64 a 64-bit channel goes
+/// to 32-bit (no firmware will write 8-byte beats now). W64 on a 32-bit channel is an error:
+/// a run-time 32 -> 64 switch drops half the words (header).
+pub fn want(fw_opt: ?u32, now: u32) error{W64NeedsBoot}!?u32 {
+    const w64 = if (fw_opt) |o| o & mc.FW_OPT_W64 != 0 else false;
+    if (w64 and now != WR64) return error.W64NeedsBoot;
+    const v: u32 = if (w64) WR64 else WR32;
     return if (v == now) null else v;
 }
 
@@ -46,7 +56,7 @@ pub fn parseOpt(text: []const u8) ?u32 {
 /// At glass run's start: our PL answers (checkGlass), then HP1's width as the run asks.
 pub fn forRun(regs: bus.Regs, afi: bus.Regs, fw_opt: ?u32, pause: *const fn () void) Error!void {
     try loader.checkGlass(regs); // the AFI registers hang the ARM unless the PL is loaded
-    const width = want(fw_opt, afi.read(WRCHAN_CTRL)) orelse return;
+    const width = try want(fw_opt, afi.read(WRCHAN_CTRL)) orelse return;
     try setHp1(regs, afi, width, pause);
     std.log.info("HP1 write channel set to 0x{X}", .{width});
 }

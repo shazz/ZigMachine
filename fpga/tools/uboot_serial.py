@@ -29,8 +29,13 @@ AFI_WIDTHS = (
     "mw.l 0xf800b000 0; mw.l 0xf800b014 0xf01"
 )
 AFI_HP2_WIDTH = "mw.l 0xf800a000 0; mw.l 0xf800a014 0xf01"  # the blitter's port, --blit bitstreams only
-# W64 (the video DMA's 8-byte write beats, hp_cfg bit 1): HP1's write channel 64-bit, after AFI_WIDTHS.
+# W64 (the video DMA's 8-byte write beats, hp_cfg bit 1): HP1's write channel 64-bit IN PLACE of
+# AFI_WIDTHS' 0xf01, never after it: a channel set 32-bit and then 64-bit writes words 0 and 3 of
+# every 16 bytes only (the board, 2026-10-19, fpga/glass/src/afi.zig); 64-bit from the first write on
+# writes every word.
+AFI_HP1_W32 = "mw.l 0xf8009014 0xf01"
 AFI_HP1_W64 = "mw.l 0xf8009014 0xf00"
+assert AFI_HP1_W32 in AFI_WIDTHS
 CRC = re.compile(r"==>\s*([0-9a-f]{8})\s*$", re.MULTILINE)
 
 
@@ -139,8 +144,6 @@ def quiesce(con: UBoot) -> None:
 def set_afi(con: UBoot, hp2: bool = False, hp1_w64: bool = False) -> None:
     """HP0/HP1 (+ HP2 for a --blit bitstream) widths; only after the PL is loaded (the AFI registers hang the ARM otherwise).
     hp1_w64: HP1's write channel 64-bit, for a firmware that sets hp_cfg W64 (8-byte beats); never one without the other."""
-    con.cmd(AFI_WIDTHS)
+    con.cmd(AFI_WIDTHS.replace(AFI_HP1_W32, AFI_HP1_W64) if hp1_w64 else AFI_WIDTHS)
     if hp2:
         con.cmd(AFI_HP2_WIDTH)
-    if hp1_w64:
-        con.cmd(AFI_HP1_W64)

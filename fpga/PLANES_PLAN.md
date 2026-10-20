@@ -1,7 +1,8 @@
 # FRESCO: cutting the cost of compositing planes (design study, 2026-10-18)
 
-> **Status (perf/fresco-linemajor):** ranks 1 and 2 are built. W64 is a run-time switch
-> (`glass run --fw-opt=2`, decisions.md 2026-10-18), off until the board proves it. Line-major
+> **Status (perf/fresco-linemajor):** ranks 1 and 2 are built. W64 is proven on the board
+> (2026-10-19) with HP1's write channel 64-bit FROM BOOT, never switched there at run time
+> (decisions.md 2026-10-19): fr.dirty.p4 1.13 -> 1.00 Mc, automation442 30 -> 60 fps. Line-major
 > groups follow a wider rule than §3's: every run of consecutive handler-free planes, not only
 > the planes below the first handler plane, since the carts this plan targets have a handler on
 > their lowest plane (overscan flicker, rasters) and §3's group is empty there. Option 3 applies

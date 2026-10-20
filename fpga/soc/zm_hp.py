@@ -26,9 +26,11 @@
 (AFI_RDCHAN_CTRL 32BitEn = 0): 8-byte beats, AxSIZE 3. Its write channel runs
 32-bit (AFI_WRCHAN_CTRL 32BitEn = 1): 4-byte beats on WDATA[31:0] / WSTRB[3:0],
 AxSIZE 2; the AFI upsizes even, 64-bit aligned INCR bursts to the DDR's 64 bits
-(UG585 5.3.6). On the board the upper half of every 64-bit WRITE beat was
-lost (2026-10-03: every odd picture column black, never written; reads of both
-halves fine), so no write uses WDATA[63:32] any more. U-Boot sets the AFI
+(UG585 5.3.6). The video DMA's W64 mode (8-byte beats, `hp_cfg` bit 1) needs
+HP1's write channel 64-bit FROM BOOT: a channel that carried 32-bit writes and is
+then set 64-bit writes only words 0 and 3 of every 16 bytes (2026-10-03's and
+2026-10-19's "odd columns" on the board; decisions.md 2026-10-19), while one set
+64-bit before its first write writes every word. U-Boot sets the AFI
 registers after the PL is loaded (they hang the ARM without the PL's HP clock):
 fpga/boards/microphase_z7_7010/README.md, "Running a cart from U-Boot".
 """

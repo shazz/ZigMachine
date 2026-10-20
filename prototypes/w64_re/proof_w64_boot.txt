@@ -1,0 +1,44 @@
+ok demo-leonard.zmd running, loaded in 2064 ms
+sleep 3; /tmp/fbpeek 0x1FFFFF00 140 /tmp/w64_leonard.bin mark
+fbpeek 800x280 front=1 hash=1dfae599 nonzero even=112000 odd=112000 oddsame=112000
+by word of a beat pair: marker 0 0 0 0  zero 0 0 0 0
+ok demo-automation442.zmd running, loaded in 1889 ms
+sleep 3; /tmp/fbpeek 0x1FFFFF00 140 /tmp/w64_automation442.bin mark
+fbpeek 800x280 front=0 hash=e2bcbcf7 nonzero even=24273 odd=24273 oddsame=112000
+by word of a beat pair: marker 0 0 0 0  zero 43817 43817 43910 43910
+ok demo-deltaforce.zmd running, loaded in 1870 ms
+sleep 3; /tmp/fbpeek 0x1FFFFF00 140 /tmp/w64_deltaforce.bin mark
+fbpeek 800x280 front=0 hash=636b1bc5 nonzero even=80968 odd=80968 oddsame=112000
+by word of a beat pair: marker 0 0 0 0  zero 15512 15512 15520 15520
+ok demo-stcs.zmd running, loaded in 1874 ms
+sleep 3; /tmp/fbpeek 0x1FFFFF00 140 /tmp/w64_stcs.bin mark
+fbpeek 800x280 front=1 hash=050fe295 nonzero even=112000 odd=112000 oddsame=112000
+by word of a beat pair: marker 0 0 0 0  zero 0 0 0 0
+ok demo-union_l16.zmd running, loaded in 1882 ms
+sleep 3; /tmp/fbpeek 0x1FFFFF00 140 /tmp/w64_union_l16.bin mark
+fbpeek 800x280 front=1 hash=4f7aea49 nonzero even=83825 odd=83825 oddsame=112000
+by word of a beat pair: marker 0 0 0 0  zero 13969 13969 14206 14206
+ok demo-ancool.zmd running, loaded in 1875 ms
+sleep 3; /tmp/fbpeek 0x1FFFFF00 140 /tmp/w64_ancool.bin mark
+fbpeek 800x280 front=0 hash=07f8684d nonzero even=112000 odd=112000 oddsame=112000
+by word of a beat pair: marker 0 0 0 0  zero 0 0 0 0
+ok demo-fallen_angels.zmd running, loaded in 1871 ms
+sleep 3; /tmp/fbpeek 0x1FFFFF00 140 /tmp/w64_fallen_angels.bin mark
+fbpeek 800x280 front=0 hash=e5f3200b nonzero even=112000 odd=112000 oddsame=112000
+by word of a beat pair: marker 0 0 0 0  zero 0 0 0 0
+ok demo-union_main.zmd running, loaded in 1925 ms
+sleep 3; /tmp/fbpeek 0x1FFFFF00 140 /tmp/w64_union_main.bin mark
+fbpeek 800x280 front=1 hash=74786799 nonzero even=103417 odd=103417 oddsame=112000
+by word of a beat pair: marker 0 0 0 0  zero 4282 4282 4301 4301
+ok demo-dbug.zmd running, loaded in 1875 ms
+sleep 3; /tmp/fbpeek 0x1FFFFF00 140 /tmp/w64_dbug.bin mark
+fbpeek 800x280 front=1 hash=3621bb57 nonzero even=112000 odd=112000 oddsame=112000
+by word of a beat pair: marker 0 0 0 0  zero 0 0 0 0
+ok demo-gem.zmd running, loaded in 1864 ms
+sleep 3; /tmp/fbpeek 0x1FFFFF00 140 /tmp/w64_gem.bin mark
+fbpeek 800x280 front=0 hash=ca88023d nonzero even=110576 odd=110576 oddsame=112000
+by word of a beat pair: marker 0 0 0 0  zero 735 735 689 689
+ok demo-medium_overscan.zmd running, loaded in 1872 ms
+sleep 3; /tmp/fbpeek 0x1FFFFF00 140 /tmp/w64_medium_overscan.bin mark
+fbpeek 800x280 front=1 hash=e48df784 nonzero even=112000 odd=112000 oddsame=102631
+by word of a beat pair: marker 0 0 0 0  zero 0 0 0 0

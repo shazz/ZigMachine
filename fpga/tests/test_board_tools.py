@@ -123,8 +123,8 @@ def test_w64_sets_hp1_64_bit_and_the_dma_together(
     assert ok, log
     wide = [i for i, line in enumerate(board.log) if "0xf8009014 0xf00" in line]
     assert bool(wide) == w64
-    if w64:  # after the 32-bit default, and before the cart CPU runs
-        assert wide[0] > next(i for i, line in enumerate(board.log) if "0xf8009014 0xf01" in line)
+    if w64:  # 64-bit from its first setting (never 32 then 64: that drops words), before the cart CPU runs
+        assert not any("0xf8009014 0xf01" in line for line in board.log)
         assert wide[0] < max(i for i, line in enumerate(board.log) if line == "mw.l 43c00008 1")
     assert board.mem[0x05FFFE08] == 0xC0F00000 | (2 if w64 else 0)
 

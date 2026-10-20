@@ -27,9 +27,19 @@
 - Copy boards/microphase_z7_7010/board.xdc (ignored by git).
 - Copy build/vexgen/VexRiscv_SndNd.v from agent-ab658730c7d2f9a7a (same vexgen/ tree).
 
+## W64 root cause (2026-10-19 night, decisions.md 2026-10-19)
+- Not the RTL. HP1's AFI switched 32 -> 64 at run time (glass --fw-opt=2 after boot.cmd's 0xF01 and traffic)
+  writes words 0 and 3 of every 16 bytes only; 64-bit from boot writes every word. 64 -> 32 at run time is fine.
+- Fix: glass refuses W64 on a 32-bit channel (error.W64NeedsBoot); uboot_serial sets HP1 0xF00 in one write.
+- Proof tools in prototypes/w64_re/: fbpeek.c (marker fill + per-word counts, on the board's Linux),
+  fbcmp.c (picture vs picture), boot_w64.py (reboot + boot.cmd replayed with HP1 0xF00, serial only).
+- Valid A/B: fpga/bench_results/2026-10-19_README.md (w64boot vs w32same).
+- To run W64 after a normal reboot: `boot_w64.py` (or boot.cmd HP1 0xF00 + a rootfs glass that knows afi.zig),
+  then `cp /mnt/sd/glass /usr/bin/glass` and `/tmp/gopt.sh 2`.
+
 ## Left (the lead)
 1. Board: install per stage/INSTALL.txt. Read the OSD fps with no switches, then `--fw-opt=0x30` (the old order) on the same bitstream.
-2. W64:
+2. W64 (DONE 10-19 night, see above; the items below are superseded):
    - hp-test on HP1 (build/hp_test4/gateware/zm_hp_test.bit: `mw.l 0xf8009014 0xf00`, the HP1 bridge row write with CACHE=2 and its check).
    - `board_run.py --bit stage/zigmachine.bit --fw stage/fw_tutorial_bdiag.bin --blit --diag 3 --w64` (fw md5 f2584bca).
    - Then `glass run --fw-opt=2` and read vcal's W.

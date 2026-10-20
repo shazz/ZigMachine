@@ -1043,3 +1043,18 @@ ABI rather than a Zig API, apps in any language sit on it.
 - The carts with a handler on every plane gain only from W64 (and nothing from the group rule); leonard-like carts (handler-free planes) lose a row load and a row store per extra plane and line.
 - vstat's `painted` share no longer counts a group's passes (they are not waited on one by one).
 - Vivado (board recipe, posted 8, FPU core): 15,035 LUT (85.4 %, -10 against posted alone), sys WNS +0.043 ns; the CSR map is unchanged.
+
+## 2026-10-19 — W64 needs HP1's write channel 64-bit from boot; glass refuses a run-time 32 -> 64 switch
+
+**Status:** accepted (perf/fresco-linemajor; supersedes the "glass sets 0xF00 at run start" half of the 2026-10-18 ADR)
+**Context:** `glass run --fw-opt=2` showed every other picture column missing (Matt, 19 Oct). The RTL was right: the lm8 netlist drives SAXIHP1WDATA[63:0] = the whole beat, WSTRB 0xFF, AWSIZE 3, AWLEN n-1 when `hp_cfg` bit 1 is set, and the bench's W beats halved (fr.dirty.p1 545 -> 422 Kc). A marker fill of both pictures (`prototypes/w64_re/fbpeek.c`, 0xDEADBEEF, then 300 ms of compositing) showed which words are written: words 0 and 3 of every 16 bytes, words 1 and 2 never, with the right data in the written ones (beat 0's low lane, beat 1's high lane). That is not "the upper lane dropped". On the same bitstream and firmware:
+- HP1 set 0xF00 by U-Boot right after `fpga loadb`, before any HP1 traffic (`prototypes/w64_re/boot_w64.py`): W64 writes every word on 11 carts (marker left 0 / 0 / 0 / 0), and GEM's picture is identical to the W32 one (224,000 of 224,000 pixels, same hash).
+- the same boot, then a run-time 64 -> 32 switch (glass `--fw-opt=0`): WR32 correct.
+- then a run-time 32 -> 64 switch (`--fw-opt=2`): words 0 and 3 only again. WRCHAN_CTRL reads back 0xF00 every time.
+So a channel that has carried 32-bit writes and is then set 64-bit keeps a 32-bit lane walk; the 10-03 "odd columns black" and the 10-19 "odd columns missing" are this, not the openXC7 BRAM and not the RTL. Whether an AFI reset (SLCR FPGA_AXDS) would clear it is unverified.
+**Decision:**
+- W64 is a boot-time choice: HP1 WRCHAN_CTRL 0xF00 from the first write. `uboot_serial.set_afi(hp1_w64=True)` writes 0xF00 in place of 0xF01 (never 0xF01 then 0xF00).
+- glass (`afi.zig` `want`): `--fw-opt` with W64 on a channel that is not 0xF00 is `error.W64NeedsBoot` (glass exits with a message: reboot with boot.cmd's 0xF00); without W64, a 64-bit channel still goes to 0xF01 at run time (proven correct).
+- boot.cmd keeps 0xF01 for now: the rootfs's own glass predates `afi.zig` and would run the menu's WR32 beats on a 64-bit channel. Making W64 the default needs boot.cmd HP1 0xF00 and a rootfs glass that sets 0xF01 for a non-W64 run, together.
+**Alternatives considered:** an RTL change (nothing in the PL is wrong); switching at run time through an AFI reset pulse (unverified, and a wedged AFI needs the RST KEY); keeping the run-time switch with a warning (it silently halves the picture).
+**Consequences:** W64's numbers from 10-19 hold (the broken run already sent 8-byte beats): fr.dirty.p4 1.133 -> 0.995 Mc, fr.dirty.p2 0.727 -> 0.611. Board fps, same bitstream (lm8 6261127d) and boot, fw-opt 0 -> 2: automation442 30.1 -> 60.2, deltaforce 40.3 -> 60.2, stcs 31.3 -> 48.2, union_l16 30.3 -> 41.1, ancool 30.1 -> 40.0, fallen_angels 40.3 -> 51.6, union_main 22.1 -> 26.2, dbug 25.4 -> 28.2, leonard 59.4 -> 59.4 (`prototypes/w64_re/fps_*`). A board rebooted the usual way (boot.scr 0xF01) cannot run W64 until the next boot.

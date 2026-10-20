@@ -184,6 +184,11 @@ mw.l 0x43c00114 0x40; mw.l 0x43c00100 0xb; mw.l 0x43c00100 0x1d   # HP0: Wishbon
   (CTRL.RUN off: the SoC's video DMA then takes no new request and finishes the one in flight,
   `soc/zm_video_axi.py` `enable`), wait a moment (`sleep 1`), then load. An hp-test run must
   be idle too (`md.l 0x43c00X20` STATUS bit 0 clear).
+- **A write channel's width can go 64 -> 32 at run time, never 32 -> 64** (2026-10-19). A channel
+  that has carried 32-bit writes and is then set 0xf00 reads back 0xf00 but writes only words 0 and
+  3 of every 16 bytes; set 0xf00 before its first write it writes every word. W64 therefore needs
+  HP1 0xf00 from boot (`prototypes/w64_re/boot_w64.py` replays boot.cmd that way), and glass
+  refuses `--fw-opt=2` on a 32-bit channel.
 - **A wedged HP AFI survives PL reloads.** A burst cut by a reload leaves the AFI (PS side)
   waiting for its data: every later write on that port hangs (no WREADY/B), on any bitstream,
   while the other port works (2026-10-03: HP1 hung on hp-test's raw engine, HP0 fine). **RST
