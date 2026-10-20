@@ -175,8 +175,11 @@ machine); its sync sweeps the whole D$ once per list (a list may touch the whole
 sweeps anyway past 128 lines) — correct by construction (a superset of the union). The next kick
 waits for the previous list (double buffer by ring halves).
 
-**ZigOS:** `zg.blit_queue.Queue` (op/set/fill/kick/flush): each list starts from the block (read when
-it starts), a word goes in the ring only when the list does not hold it, the block is never written.
+**ZigOS:** `zg.blit_queue.Queue` (op/set/fill/kick/flush) over `effects/blit_list.zig` (pure, tested
+natively): a word goes in the ring only when the list's working copy does not hold it, the block is
+never written, and the words the queue's ops set (`owned`) are restated at the head of every new list
+(after an auto-kick or a flush), since every list runs on a copy of the block, which never saw them.
+A direct hwBlit made while a list is being built runs before it (both machines): flush first.
 Contract: a queued op's pixels are only drawn for sure after flush(). Plus `zg.chisel_copy`
 (copy/copyQueued, ZigOS.copyMem): CPU below COPY_MIN = 4 KiB, CHISEL above (dest VRAM, source in a
 readable window, no overlap), the lead's 19 Oct crossover table in its comment. The system libc
@@ -184,8 +187,16 @@ memcpy is NOT switched (it would have the firmware write the cart's block behind
 inside machine-internal copies).
 
 **stniccc:** begin() puts D_BASE/D_STRIDE/MINTERM/CON into the list; each span is a queued fill;
-keyframes and clearPlane flush; drawFrame flushes before the CPU's text. --only stniccc gate green,
-scene hashes unchanged.
+keyframes and clearPlane flush; drawFrame flushes before the CPU's text. --only stniccc gate green.
+
+**Pixel proof, and a gate hole found on the way.** The stniccc gate job (apps/stniccc_headless.mjs)
+takes PPM shots and times frames; it hashes nothing, so it cannot catch a wrong pixel. The first
+library version passed it while drawing wrong: it reseeded each list from the block, so after a
+mid-frame auto-kick, or the keyframe flush during the rewind, the spans lost the destination set()
+had given (frames 754..865 differed). Proof used instead: scene_hash.mjs every frame for 2400 frames
+(small, rewind, message, zoom, fullscreen) of this cart against the pre-queue cart (1304c861):
+IDENTICAL (84c2f7961a191a7b). blit_list_test.zig pins the fix (in build.sh). Worth a golden
+scene_hash for stniccc in the gate.
 
 ### Vivado (board recipe, main's RTL, fpga/build/board_queue)
 - 15,188 LUT (86.30 %), 15,437 FF, 42 BRAM tiles (+0.5: the ring). zm_blit 3,662 LUT vs 3,436 in
@@ -207,7 +218,9 @@ scene hashes unchanged.
   pass (8x8 FILL through hwBlit 344 cycles on the core model, was 341). test_native_bench: 13 pass.
 - apps/blitter_queue_check.mjs (in build.sh): 3 x 60-op lists draw what their ops draw one by one,
   block restored, CYCLES = sum; the edges. chisel_copy_test.zig (in build.sh).
-- --only stniccc gate green (EXIT 0, 5 harness jobs).
+- --only stniccc gate green (EXIT 0, 5 harness jobs). test_blit_hp_order, test_blit_wburst,
+  test_prim_allowlist, test_sound_regs: 34 pass. bench_contention's raw GO path stores no block
+  register between GO and its wait (checked): its rows do not move.
 
 ### Predictions (to be measured on the board)
 | Row | sync | queued (predicted) |

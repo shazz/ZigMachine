@@ -156,6 +156,7 @@ NATIVE_TESTS="
     libs/zig/effects/blit_rows_test.zig
     libs/zig/effects/chisel_clear_test.zig
     libs/zig/effects/chisel_copy_test.zig
+    libs/zig/effects/blit_list_test.zig
     libs/zig/effects/sprite_draw_test.zig
     libs/zig/effects/scrolltext2_test.zig
     libs/zig/effects/parallax_test.zig
