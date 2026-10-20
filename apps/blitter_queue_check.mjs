@@ -134,6 +134,11 @@ await check("COMMAND 0 only sets words, and they stay for the next op", async ()
     const px = m.u8()[VIDEO + P0 + 5 * STRIDE + 5];
     return cyc === 6 && px === 9 ? null : `CYCLES ${cyc}, pixel ${px}`;
 });
+await check("a queued op below OFF_VRAM (the palettes) is refused: no draw, no cost", async () => {
+    const m = await machine(), pal = m.u8().slice(VIDEO + 0x100, VIDEO + 0x1100);
+    const cyc = kick(m, encode([[0, { 0: 0xcc00, 8: 0x100, 9: STRIDE }], fill(0, 0, 8, 8, 3)]), 0);
+    return cyc === 0 && same(m.u8().slice(VIDEO + 0x100, VIDEO + 0x1100), pal) ? null : `CYCLES ${cyc}`;
+});
 await check("a QUEUE inside a list is an unknown op: no draw, no cost", async () => {
     const { cyc, drew } = await edge([prelude, [QUEUE, { 1: 3, 10: xy(8, 8), 11: xy(0, 0) }]], 0, undefined);
     return cyc === 0 && !drew ? null : `CYCLES ${cyc}, drew ${drew}`;

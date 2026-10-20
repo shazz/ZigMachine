@@ -15,9 +15,8 @@
 // cart goes on: a cart that keeps the contract draws the same bytes on both.
 //
 // Each list runs on a working copy of the register block taken at its kick;
-// a word is stored into the ring only when it changes that copy, and never
-// into the block, so the block, and any other code driving the blitter, is
-// left alone. The words set() and the ops gave are kept from list to list,
+// the queue never writes the block, so the block, and any other code driving
+// the blitter, is left alone. The words set() and the ops gave are kept from list to list,
 // across auto-kicks and flushes (effects/blit_list.zig): a later op sees them
 // whatever the block holds; the words the queue never set are the block's.
 //
@@ -44,7 +43,7 @@ pub const Queue = struct {
     }
 
     /// One op: COMMAND `cmd` (NOP: only set the words) after `words`, which must
-    /// come in rising k. Only the words the list does not hold yet go in the ring.
+    /// come in rising k and stay the queue's for the ops after it.
     pub fn op(self: *Queue, cmd: u8, words: []const Word) void {
         if (!self.l.fits(words.len)) self.kick();
         self.l.op(cmd, words);
@@ -55,13 +54,12 @@ pub const Queue = struct {
     }
 
     /// A plain FILL (no halftone, CON2 cleared) of [x, x+w) x [y, y+h) on the
-    /// destination the list holds (set() words 8 and 9, or the block's).
-    pub fn fill(self: *Queue, x: u16, y: u16, w: u16, h: u16, color: u8) void {
-        self.op(hw.BLIT_CMD_FILL, &.{
-            .{ .k = 1, .v = color },
-            .{ .k = 10, .v = @as(u32, w) | @as(u32, h) << 16 },
-            .{ .k = 11, .v = @as(u32, x) | @as(u32, y) << 16 },
-        });
+    /// destination the queue holds (set() words 8 and 9, or the block's): a
+    /// header and three words, ~4 posted stores, the hot path of a polygon filler.
+    pub inline fn fill(self: *Queue, x: u16, y: u16, w: u16, h: u16, color: u8) void {
+        if (!self.l.fits(3)) self.kick();
+        const hdr: u32 = @as(u32, hw.BLIT_CMD_FILL) << 24 | 1 << 1 | 1 << 10 | 1 << 11;
+        self.l.whole3(hdr, color, @as(u32, w) | @as(u32, h) << 16, @as(u32, x) | @as(u32, y) << 16);
     }
 
     /// Run the list built so far (the board returns at once; the next kick, a

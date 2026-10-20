@@ -16,17 +16,16 @@
 #define SRC (BENCH_RAM_AT + 0x40000u) /* cart RAM, a linear address: the copies' source */
 #define DEST (BENCH_BLIT_OFF + TILES)
 
-static uint32_t q_half, q_n, q_shadow[24], q_known, q_at, q_mask; /* .bss: a lean cart has no .data */
+static uint32_t q_first, q_n; /* .bss: a lean cart has no .data */
 
 static volatile uint32_t* ring(void) { return (volatile uint32_t*)(g.vreg + ZM_OFF_BLIT_QUEUE); }
-static void q_put(uint32_t v) { ring()[q_half * HALF + q_n++] = v; }
 
 static void q_kick(void) {
     if (!q_n) return;
-    *(volatile uint32_t*)(g.vreg + ZM_BLIT_Q_START) = q_half * HALF | q_n << 16;
+    *(volatile uint32_t*)(g.vreg + ZM_BLIT_Q_START) = q_first | q_n << 16;
     g.vreg[ZM_BLIT_COMMAND] = ZM_BLIT_CMD_QUEUE;
     chisel_hwblit();
-    q_half ^= 1u, q_n = 0, q_known = 0; /* the next list starts from the block: nothing known */
+    q_first = HALF - q_first, q_n = 0;
 }
 
 static void q_flush(void) {
@@ -34,44 +33,44 @@ static void q_flush(void) {
     chisel_sync();
 }
 
-/* A descriptor of up to `n` words: its header's place, the words the list does not hold yet
- * (rising k), then the header. */
-static void q_begin(uint32_t n) {
-    if (q_n + 1u + n > HALF) q_kick();
-    q_at = q_n++, q_mask = 0;
+/* Room for `n` words, and a new list opens with the destination (the queue's own words, as
+ * blit_list.zig restates them: here always, D_BASE and D_STRIDE). */
+static volatile uint32_t* q_room(uint32_t n) {
+    if (q_n + 3u + n > HALF) q_kick();
+    volatile uint32_t* p = ring() + q_first + q_n;
+    if (q_n == 0) {
+        p[0] = 1u << 8 | 1u << 9, p[1] = DEST, p[2] = STRIDE;
+        p += 3, q_n = 3;
+    }
+    q_n += n;
+    return p;
 }
-static void q_word(uint32_t k, uint32_t v) {
-    if ((q_known >> k & 1u) && q_shadow[k] == v) return;
-    q_shadow[k] = v, q_known |= 1u << k, q_mask |= 1u << k;
-    q_put(v);
-}
-static void q_end(uint32_t cmd) { ring()[q_half * HALF + q_at] = q_mask | cmd << 24; }
 
+/* As blit_queue.zig's fill: a header and three words, stored as given. */
 static void q_fill(uint32_t x, uint32_t y, uint32_t w, uint32_t h) {
-    q_begin(5);
-    q_word(1, 0x5A); /* COLOR, CON2 0 */
-    q_word(8, DEST), q_word(9, STRIDE);
-    q_word(10, w | h << 16), q_word(11, x | y << 16);
-    q_end(ZM_BLIT_CMD_FILL);
+    volatile uint32_t* p = q_room(4);
+    p[0] = (uint32_t)ZM_BLIT_CMD_FILL << 24 | 1u << 1 | 1u << 10 | 1u << 11;
+    p[1] = 0x5A, p[2] = w | h << 16, p[3] = x | y << 16;
 }
 
+/* As chisel_copy.zig's queueRect: a header and every word the BLIT needs. */
 static void q_copy(uint32_t x, uint32_t y, uint32_t w, uint32_t h) {
-    q_begin(8);
-    q_word(0, ZM_MT_B << 8 | ZM_CON_USEB << 16), q_word(1, (uint32_t)ZM_CON2_SRC_ABS << 24);
-    q_word(4, SRC), q_word(5, STRIDE), q_word(8, DEST), q_word(9, STRIDE);
-    q_word(10, w | h << 16), q_word(11, x | y << 16);
-    q_end(ZM_BLIT_CMD_BLIT);
+    volatile uint32_t* p = q_room(7);
+    p[0] = (uint32_t)ZM_BLIT_CMD_BLIT << 24 | 1u << 0 | 1u << 1 | 1u << 4 | 1u << 5 | 1u << 10 | 1u << 11;
+    p[1] = ZM_MT_B << 8 | ZM_CON_USEB << 16, p[2] = (uint32_t)ZM_CON2_SRC_ABS << 24, p[3] = SRC, p[4] = STRIDE;
+    p[5] = w | h << 16, p[6] = x | y << 16;
 }
 
 static void prep(const bench_case* c) { /* the block: CON, CON2 and the halftone cleared, as a cart leaves them */
     (void)c;
     chisel_fill(DEST, STRIDE, 8, 8);
-    q_half = 0, q_n = 0, q_known = 0;
+    q_first = 0, q_n = 0;
 }
 
 /* size: the side (8 or 16); arg bit 0: copies; arg >> 1: ALU ops between. */
-static void tile_xy(uint32_t side, uint32_t i, uint32_t* x, uint32_t* y) {
-    *x = (i % (STRIDE / side)) * side, *y = (i / (STRIDE / side)) * side;
+static void tile_xy(uint32_t side, uint32_t i, uint32_t* x, uint32_t* y) { /* side 8 or 16: no divide */
+    uint32_t sh = side == 8u ? 3u : 4u, per = STRIDE >> sh;
+    *x = (i & (per - 1u)) << sh, *y = (i >> (9u - sh)) << sh;
 }
 static void tiles_sync(const bench_case* c) {
     for (uint32_t i = 0, x, y; i < c->ops; i++) {

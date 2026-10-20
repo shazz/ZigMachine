@@ -12,8 +12,8 @@
  *   may have written the next op's registers.
  * - A QUEUE (COMMAND 5) is always lazy: its ops' pixels are the cart's to wait for (the ZigOS
  *   queue's flush). Its range goes in the GO word; the firmware refuses a bad one as the machine
- *   does (CYCLES 0). Its lines are not worked out (a list may touch the whole plane): the sync
- *   drops the whole D$, once per list (write-through: nothing is lost). */
+ *   does (CYCLES 0). Its lines are not worked out (a list may touch the whole plane): a sync drops
+ *   the whole D$ (write-through: nothing is lost), but not between two lists (run_after_lazy). */
 #include "bchisel.h"
 
 #include "bdinval.h"
@@ -33,6 +33,7 @@ uint8_t bchisel_pending;
 
 static volatile uint8_t* g_r; /* the lazy op's block */
 static bdi_plan g_plan;       /* and its lines, taken at GO */
+static uint8_t g_list;        /* the pending op is a QUEUE */
 
 /* An op that never ends (a lost AXI response on HP2, a stuck sequencer) traps the cart instead of
  * hanging it: CART_STATE = 3 | 0xB1 << 24 | STATUS[15:0] << 8, read by the ARM (zm_blit_core dbg:
@@ -62,7 +63,7 @@ HOT void finish(volatile uint8_t* r, const bdi_plan* p) {
 void bchisel_sync(void) {
     wait_idle();
     finish(g_r, &g_plan);
-    bchisel_pending = 0;
+    bchisel_pending = 0, g_list = 0;
 }
 
 /* The pending op's block and lines, once CHISEL has started it (the barrier load). */
@@ -92,13 +93,14 @@ HOT void go(volatile uint8_t* r, uint8_t cmd) {
 static __attribute__((noinline)) void run_queue(volatile uint8_t* r) {
     uint32_t start = *(volatile uint16_t*)(r + ZM_BLIT_Q_START), count = *(volatile uint16_t*)(r + ZM_BLIT_Q_COUNT);
     if (count == 0 || start + count > ZM_BLIT_QUEUE_WORDS) {
+        bdi_inval_all(); /* a list whose sweep was deferred to this one (run_after_lazy) */
         *(volatile uint32_t*)(r + ZM_BLIT_CYCLES) = 0;
         if (r[ZM_BLIT_STATUS] != 0) r[ZM_BLIT_STATUS] = 0;
         return;
     }
     BCHISEL_GO(ZM_BLIT_CMD_QUEUE | start << 8 | count << 17);
     pend(r);
-    g_plan.how = BDI_ALL;
+    g_plan.how = BDI_ALL, g_list = 1;
 }
 
 HOT void dispatch(volatile uint8_t* r) {
@@ -107,9 +109,16 @@ HOT void dispatch(volatile uint8_t* r) {
     else if (cmd) go(r, cmd); /* NOP: the machine leaves STATUS and CYCLES alone */
 }
 
-/* After a lazy op: out of line, so the common path below makes no call. */
+/* After a lazy op: out of line, so the common path below makes no call. A list followed by the
+ * next list (the ZigOS queue's half was full) only waits: by the queue's contract the cart reads
+ * none of its pixels before the flush, whose sync (or any other) then drops the whole D$, once. */
 static __attribute__((noinline)) void run_after_lazy(volatile uint8_t* r) {
-    bchisel_sync();
+    if (g_list && r[ZM_BLIT_COMMAND] == ZM_BLIT_CMD_QUEUE) {
+        wait_idle();
+        bchisel_pending = 0, g_list = 0;
+    } else {
+        bchisel_sync();
+    }
     dispatch(r);
 }
 

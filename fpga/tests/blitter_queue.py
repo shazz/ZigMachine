@@ -35,6 +35,8 @@ class QueueScript(RandomScript):
         if self.desc is None:
             super().run()
             return
+        if self.r.random() < 0.06:  # a destination below OFF_VRAM: a queued op there is refused
+            self.w(32, mm.BLIT_D_BASE, self.r.randrange(0, mm.OFF_VRAM))
         mask = sum(1 << k for k in self.marked)
         cmd = self.cmd if self.r.random() < 0.9 else self.r.choice([0, 0, mm.BLIT_CMD_QUEUE, 9])
         words = [self.get(mm.OFF_BLIT + 4 * k, 32) for k in sorted(self.marked)]

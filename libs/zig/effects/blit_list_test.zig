@@ -71,7 +71,7 @@ test "a list only restates what the block does not hold" {
     for (0..200) |i| fill(&l, @intCast(i));
     const before = nran;
     run(l.close().?);
-    // the second list opened with the words its fills carry over: COLOR, D_STRIDE, W/H, X0/Y0, not D_BASE
+    // the second list opened with the op() words the block does not hold: COLOR, D_STRIDE, W/H, X0/Y0
     try expect(before > 0 and ring[HALF] == (1 << 1 | 1 << 9 | 1 << 10 | 1 << 11) and ring[HALF + 2] == 400);
 }
 
@@ -88,7 +88,7 @@ test "a closed list (a flush) does not lose the words set() gave; unset words fo
 
 test "a word set to the block's own value is still the queue's when the block moves" {
     var l = fresh();
-    queue(&l, 0, &.{.{ .k = 8, .v = 0x1100 }}); // what the block holds: no descriptor yet
+    queue(&l, 0, &.{.{ .k = 8, .v = 0x1100 }}); // what the block holds
     fill(&l, 0);
     run(l.close().?);
     block[8] = 0x5000;
@@ -97,8 +97,17 @@ test "a word set to the block's own value is still the queue's when the block mo
     try expect(nran == 2 and ran[1].w[8] == 0x1100);
 }
 
-test "an op that changes nothing and draws nothing leaves no descriptor" {
+test "whole3 fills state their own words: not restated, and they give up an older op's" {
     var l = fresh();
-    queue(&l, 0, &.{.{ .k = 8, .v = 0x1100 }}); // the block's own value
-    try expect(l.close() == null);
+    queue(&l, 0, &.{ .{ .k = 1, .v = 3 }, .{ .k = 8, .v = 0x9000 } });
+    var i: u32 = 0;
+    while (i < 300) : (i += 1) {
+        if (!l.fits(3)) run(l.close().?);
+        l.whole3(2 << 24 | 1 << 1 | 1 << 10 | 1 << 11, 7, 8 | 1 << 16, i);
+    }
+    const first_of_second = ring[HALF];
+    run(l.close().?);
+    try expect(nran == 300);
+    for (ran[0..nran], 0..) |o, k| try expect(o.w[8] == 0x9000 and o.w[1] == 7 and o.w[11] == k);
+    try expect(first_of_second == 1 << 8); // only D_BASE restated: COLOR went with the fills
 }

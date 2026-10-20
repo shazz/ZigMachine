@@ -13,8 +13,9 @@
 //      8 K        22.5 K       11.6 K
 //     64 K       179.5 K       84.3 K   (2.74 vs 1.29 c/B)
 //
-// The crossover lies between 1 K and 8 K; COPY_MIN is 4 K, where CHISEL is
-// already ahead by the bench's fit (cp.sw.* rows check it on the board).
+// The cp.* bench rows on the board (19 Oct, VRAM destination) put the crossover
+// near 8 K: 2 K CPU 2270 / CHISEL 4173, 4 K 4443 / 7325, 8 K CHISEL 11.8 K
+// (CPU ~22.5 K). COPY_MIN is 8 K.
 //
 // CHISEL writes only the video region (at or above OFF_VRAM, a plane's
 // worth of rows per op: chisel.zig's run) and reads only the machine's
@@ -27,7 +28,7 @@ const chisel = @import("chisel.zig");
 const Queue = @import("blit_queue.zig").Queue;
 const plan = @import("effects/chisel_copy_plan.zig");
 
-pub const COPY_MIN: usize = 4096; // bytes: below it the CPU copies (the table above)
+pub const COPY_MIN: usize = 8192; // bytes: below it the CPU copies (the tables above)
 const COPY_W: u16 = 4096; // a row: the stride of both sides of the 2-D copy
 const MAP = plan.Map{
     .vram = hw.OFF_VRAM,

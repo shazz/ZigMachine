@@ -31,17 +31,23 @@ SOURCES = ("bchisel.c", "bchisel.h", "bdinval.h")
 CASES = ("sync_waits", "sync_invalidates_its_box", "lazy_returns_at_once", "lazy_invalidates_the_first_ops_box",
          "next_op_runs_with_the_stores_made_while_busy", "nop_syncs", "queue_kick_carries_the_range",
          "queue_is_lazy", "queue_sync_sweeps_the_dcache", "queue_refused_like_the_machine",
-         "queue_up_to_the_rings_end_runs", "env_hook_syncs")  # fmt: skip
+         "queue_up_to_the_rings_end_runs", "list_after_list_defers_the_sweep_to_the_flush",
+         "lazy_op_then_list_drops_the_ops_lines", "env_hook_syncs")  # fmt: skip
 # (id, text in bchisel.c, broken text, the case that must then fail)
 MUTANTS = [
     ("box_at_sync", "finish(g_r, &g_plan);", "bdi_plan_op(g_r, g_r[ZM_BLIT_COMMAND], &g_plan); finish(g_r, &g_plan);",
      "lazy_invalidates_the_first_ops_box"),
-    ("no_wait_at_next_op", "    bchisel_sync();\n    dispatch(r);", "    dispatch(r);", "nop_syncs"),
+    ("no_wait_at_next_op", "    } else {\n        bchisel_sync();\n    }", "    }", "nop_syncs"),
     ("always_lazy", "if (r[ZM_BLIT_ASYNC]) {", "if (1) {", "sync_waits"),
     ("queue_range_misplaced", "start << 8 | count << 17", "start << 9 | count << 17", "queue_kick_carries_the_range"),
-    ("queue_waits", "    pend(r);\n    g_plan.how = BDI_ALL;", "    g_plan.how = BDI_ALL;\n    wait_idle();",
+    ("queue_waits", "    pend(r);\n    g_plan.how = BDI_ALL, g_list = 1;", "    g_plan.how = BDI_ALL;\n    wait_idle();",
      "queue_is_lazy"),
-    ("queue_keeps_the_dcache", "g_plan.how = BDI_ALL;", "g_plan.how = BDI_NONE;", "queue_sync_sweeps_the_dcache"),
+    ("list_after_list_sweeps", "if (g_list && r[ZM_BLIT_COMMAND] == ZM_BLIT_CMD_QUEUE) {", "if (0) {",
+     "list_after_list_defers_the_sweep_to_the_flush"),
+    ("any_lazy_op_defers", "if (g_list && r[ZM_BLIT_COMMAND] == ZM_BLIT_CMD_QUEUE) {",
+     "if (r[ZM_BLIT_COMMAND] == ZM_BLIT_CMD_QUEUE) {", "lazy_op_then_list_drops_the_ops_lines"),
+    ("queue_keeps_the_dcache", "g_plan.how = BDI_ALL, g_list = 1;", "g_plan.how = BDI_NONE, g_list = 1;",
+     "queue_sync_sweeps_the_dcache"),
     ("queue_past_the_ring_runs", "start + count > ZM_BLIT_QUEUE_WORDS", "start + count > ZM_BLIT_QUEUE_WORDS + 1",
      "queue_refused_like_the_machine"),
     ("queue_to_the_rings_end_refused", "start + count > ZM_BLIT_QUEUE_WORDS", "start + count >= ZM_BLIT_QUEUE_WORDS",

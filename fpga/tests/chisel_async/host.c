@@ -117,6 +117,23 @@ static void queue_mode(void) {
     bchisel_run(region);
     check(swept && !go_while_busy, "queue_sync_sweeps_the_dcache", "the next op did not wait or the D$ kept the list's lines");
     nop();
+    cart_queue(0, 9); /* two lists back to back (a full half): the second only waits */
+    bchisel_run(region);
+    swept = 0, n_lines = 0;
+    cart_queue(256, 9);
+    bchisel_run(region);
+    int deferred = !swept && !go_while_busy && bchisel_pending;
+    nop();
+    check(deferred && swept, "list_after_list_defers_the_sweep_to_the_flush",
+          "a list right after a list swept the D$, or the flush did not");
+    region[ZM_BLIT_ASYNC] = 1, swept = 0;
+    cart_fill(0, 0, 64, 64); /* a lazy op, then a list: the op's lines go at the list's kick */
+    bchisel_run(region);
+    cart_queue(0, 9);
+    bchisel_run(region);
+    check(n_lines > 0 || swept, "lazy_op_then_list_drops_the_ops_lines", "a lazy op's lines were left in the D$");
+    nop();
+    region[ZM_BLIT_ASYNC] = 0;
     uint32_t before = gos;
     *(uint32_t*)(region + ZM_BLIT_CYCLES) = 77;
     cart_queue(0, 0);

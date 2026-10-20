@@ -213,7 +213,8 @@ pub const BLIT_ASYNC: usize = OFF_BLIT + 0x64; // u8  (board) 1 = hwBlit may ret
 // after it. COMMAND 0 only sets words. The block itself is left as it was: CYCLES
 // becomes the SUM of the ops' costs. Refused (CYCLES 0, nothing drawn) unless
 // 1 <= Q_COUNT and Q_START + Q_COUNT <= BLIT_QUEUE_WORDS; a descriptor cut short by
-// Q_COUNT ends the list unrun. COMMAND 5 inside a descriptor is an unknown op.
+// Q_COUNT ends the list unrun. COMMAND 5 inside a descriptor is an unknown op, and
+// an op whose D_BASE is below OFF_VRAM is refused (cost 0): a list draws into planes.
 pub const BLIT_Q_START: usize = OFF_BLIT + 0x68; // u16 first ring word of the list
 pub const BLIT_Q_COUNT: usize = OFF_BLIT + 0x6A; // u16 words in the list
 

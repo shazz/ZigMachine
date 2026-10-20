@@ -253,3 +253,67 @@ if CHISEL turned out slower per op than predicted: still one kick per half-ring,
 - The read hold on BLIT_WINDOW also delays STATUS polls during a kick's 24-clock copy (harmless).
 - Byte-enable BRAM (the ring) is "suspect" under openXC7 only; the board flow is Vivado.
 - Not run: hp_sim of a queued cart (no SoC sims today). First board run is the proof.
+
+## 7. Board results for stage_queue (lead, 2026-10-19 23:10) and the diagnosis (WIP, not merged)
+
+Raw: `.claude/worktrees/int127/fpga/build/bench_lm/queue/bench_20261019_231027.txt` (bitstream e237ff42,
+system e1a6e84a, glass --fw-opt=0). NB: the staged sd/demo-bench.zmd was the 2 KB browser stub; the lead
+rebuilt it (`make native-cart NAME=bench ZM_FPU=1` + glass_sd fattening). Fix the staging next time:
+take the bench disk from glass_sd's output, not build/hcycles/split/native_fpu/bench/disk.zmd.
+
+| Row | Board | Predicted | Sync on the board |
+|---|---:|---:|---:|
+| qu.list.f8.x64 | 31.6K | ~10-13K | as.seq.f8 58.4K |
+| qu.list.f8w.x64 | 54.8K | ~25-28K | as.seq.f8w 81.5K |
+| qu.list.f16.x64 | 43.9K | ~25K | qu.sync.f16 92.3K |
+| qu.list.c8 / c16 | 37.7K / 53.0K | ~16K / ~30K | 78.4K / 104.2K |
+| qu.list.span.256 | 142.6K | ~50-55K | qu.sync.span 279.9K |
+| qu.kick.f8.x64 (build + kick, CPU) | 29.0K | ~3K | |
+| qu.wait.f8.x64 (CHISEL after the kick) | 7.0K (~110/op) | | |
+| as.lazy.f8.x64 (no replay now) | 55.2K | <= seq | 58.4K |
+| cp.lib.4K / cp.chisel.4K / cp.sw.4K | 4,443 / 7,325 / 7,354 | sw = the smaller | |
+| stniccc fps | **21.1** | 55-60 | 41.1 |
+| fuji / tsl / gen4_3615 fps | 60.4 / 60.2 / 60.4 | 60 | unchanged |
+
+### Diagnosis
+1. **stniccc's lists ran on the CPU, not on CHISEL (the regression, fixed in the WIP commit).**
+   `cycles/bblit.c` hands an op to CHISEL only when the BLOCK's D_BASE >= OFF_VRAM, else to the
+   machine's software blitter (wasm2c'd, CPU stores). The ZigOS queue never writes the block (the
+   destination is set in the list), so stniccc's block D_BASE stayed 0 and every QUEUE ran in software
+   on ZIGGY. The bench passed because its prep leaves a VRAM D_BASE in the block. Fix: a QUEUE goes to
+   CHISEL whatever the block holds (`chisel_takes`); to keep that safe, a queued op whose own D_BASE is
+   below OFF_VRAM is refused (cost 0) by BOTH the machine (blitter_queue.zig) and the RTL (zm_blit_q.v:
+   SET skips it), since CHISEL's writes there would bypass the compositor's register/palette snoop.
+   test_blit_path has a case and a break test for the routing (a QUEUE with a low block D_BASE must not
+   reach __real); test_rtl_blitter a `queued_op_below_vram_runs` mutant (the queue script now draws
+   some ops below OFF_VRAM). **The RTL change needs a new bitstream** (not built: no Vivado tonight).
+   Without it, the refusal is missing on silicon but stniccc never queues below OFF_VRAM, so the new
+   firmware on the e237ff42 bitstream would already show the stniccc fix.
+2. **The CPU side was instruction-bound, not store-bound.** qu.kick.f8.x64 = ~450 cycles an op. The bench's
+   C helpers did ~250 instructions an op (5 non-inlined calls comparing a shadow) plus two variable divides
+   (tile_xy, ~80 cycles, also in the sync rows: qu.sync.f16 1,442/op vs ~1,170 expected). The ring stores
+   are ordinary posted DDR stores (the region is in the linear window, not IO). Fixes in the WIP commit:
+   no compares (a posted store is cheaper than the compare that saves it), a fill = header + 3 words
+   stored as given (`List.whole3`, ~4 stores), only set()/op() words carried to the next list; the bench
+   mirrors it (q_room/q_fill, no divides). Expected qu.kick.f8.x64 ~3-5K, qu.list.f8.x64 ~10-15K.
+3. **D$ sweeps:** a list kicked right behind another (a full half) now only waits; the whole-D$ sweep is
+   deferred to the flush/any other sync (by the queue's contract the cart reads none of its pixels before
+   the flush). stniccc per frame (browser count): 17-21 kicks, 1-2 flushes, ~3.8-5.2K ring words, ~1014
+   descriptors; so ~20 sweeps a frame become 1-2.
+4. **chisel_copy:** COPY_MIN 4096 -> 8192 (cp.lib.4K 4,443 < cp.chisel.4K 7,325); rows cp.lib.8K and
+   cp.sw.16K added to settle it on the board.
+
+### State of the WIP commit
+- Tests passing: test_rtl_blitter (14, including the queue script with low-D ops), test_chisel_async (13
+  cases; ZM_RTL_BREAK 10 mutants caught, 2 new: list-after-list sweeps, any lazy op defers),
+  test_blit_path + its 2 break tests, test_native_bench, blit_list_test.zig, blitter_queue_check.mjs
+  (+ the below-OFF_VRAM refusal). stniccc scene_hash: IDENTICAL to the pre-queue cart, every frame,
+  2400 frames (84c2f7961a191a7b).
+- Not done tonight: the RTL break run for the queue mutants was started (see logs/), the --only stniccc
+  gate was not re-run after these changes, no restage, no Vivado.
+
+### Next steps
+1. `flock build.lock ./build.sh --only stniccc`; re-run `ZM_RTL_BREAK=1 test_rtl_blitter.py -k broken`.
+2. Vivado (zm_blit_q.v changed: one compare), restage bit + system.rv32 + stniccc + the FAT bench disk.
+3. Board: stniccc fps, qu.kick.f8.x64 (expect ~3-5K), qu.list.*, cp.lib.8K vs cp.sw.8K.
+4. A golden scene_hash for stniccc in the gate (its harness hashes nothing; it missed a wrong-pixel bug).

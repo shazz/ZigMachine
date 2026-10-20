@@ -9,7 +9,9 @@
 // The ring is a block RAM copy of memory's QUEUE ring (memmap OFF_BLIT_QUEUE), fed by the
 // CPU's stores like the tap bank; the kick's word carries the list: start in [16:8], count in
 // [26:17]. The list ends at its count, also in the middle of a descriptor (that one never
-// runs). BUSY covers all of it. machine/blitter_queue.zig is the same list run at once.
+// runs). A queued op whose D_BASE is below OFF_VRAM is refused (no op, cost 0): a list draws
+// into planes, never the registers and palettes the compositor snoops. BUSY covers all of it.
+// machine/blitter_queue.zig is the same list run at once.
 `default_nettype none
 `include "memmap.vh"
 
@@ -30,6 +32,7 @@ module zm_blit_q (
     output reg  [31:0]  ld_data,
     output wire         core_start,
     input  wire         core_busy,
+    input  wire [31:0]  d_base,          // the op bank's D_BASE: a queued op below OFF_VRAM is refused
     output wire         busy,
     output wire         copying          // the tap bank is being read: no store may reach it now
 );
@@ -97,7 +100,7 @@ module zm_blit_q (
             end
             SET: begin
                 ld_we <= 1'b1; ld_word <= 5'd0; ld_be <= 4'b0001; ld_data <= {24'd0, ocmd};
-                st <= ocmd != 8'd0 ? SETTLE : is_q ? HDR : IDLE;
+                st <= ocmd != 8'd0 && (!is_q || d_base >= ZM_OFF_VRAM) ? SETTLE : is_q ? HDR : IDLE;
             end
             SETTLE: st <= GO;  // the op bank has the op's last word: the engine starts a clock later
             GO: st <= WAIT1;

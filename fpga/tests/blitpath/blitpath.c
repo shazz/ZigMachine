@@ -84,5 +84,11 @@ int main(void) {
     set32(ZM_BLIT_D_BASE, ZM_OFF_VRAM - 1); /* D may write the registers: the machine's code */
     __wrap_w2c_machine_hwBlit(0);
     if (real_calls != 2) return 5;
+    REGION[ZM_BLIT_COMMAND] = ZM_BLIT_CMD_QUEUE; /* a QUEUE: CHISEL's, whatever the block's D_BASE */
+    set32(ZM_BLIT_Q_START, 4u << 16);
+    __wrap_w2c_machine_hwBlit(0);
+    if (real_calls != 2) return 6;
+    REGION[ZM_BLIT_COMMAND] = ZM_BLIT_CMD_NOP;
+    __wrap_w2c_machine_hwBlit(0); /* its sync (a NOP with this D_BASE: the machine's, after the wait) */
     return 0;
 }

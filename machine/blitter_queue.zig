@@ -8,7 +8,9 @@
 // runOp(), and the block is put back as the program left it at the end. On the
 // board CHISEL runs the same list from its own copy of the ring and of the block
 // (rtl/blitter/zm_blit_q.v) while the cart goes on; only the pixels may differ
-// in WHEN they appear, never in what they are.
+// in WHEN they appear, never in what they are. A queued op draws into the
+// planes only: one whose D_BASE is below OFF_VRAM (the registers, the palettes,
+// which the compositor keeps its own copy of) is refused, costing 0.
 // --------------------------------------------------------------------------
 const std = @import("std");
 const memmap = @import("sdk/memmap.zig");
@@ -64,6 +66,7 @@ pub fn run() void {
         const cmd: u8 = @truncate(hdr >> 24);
         block[0] = cmd;
         if (cmd == memmap.BLIT_CMD_NOP) continue;
+        if (std.mem.littleToNative(u32, at(memmap.BLIT_D_BASE).*) < memmap.OFF_VRAM) continue; // refused: planes only
         blitter.runOp(cmd);
         total +%= std.mem.littleToNative(u32, at(memmap.BLIT_CYCLES).*);
     }

@@ -51,11 +51,17 @@ void bblit_frame_reset(void) {
     bblit.t_last = board_cycles();
 }
 
+/* CHISEL's op: one into the planes, or a QUEUE (whose descriptors set their own D_BASE; CHISEL
+ * refuses a queued op below OFF_VRAM as the machine does, so the block's D_BASE says nothing). */
+static inline int chisel_takes(volatile uint8_t* r) {
+    return r && (*(volatile uint32_t*)(r + ZM_BLIT_D_BASE) >= ZM_OFF_VRAM || r[ZM_BLIT_COMMAND] == ZM_BLIT_CMD_QUEUE);
+}
+
 #ifndef BBLIT_STATS
 void __wrap_w2c_machine_hwBlit(struct w2c_machine* m) {
     volatile uint8_t* r = (volatile uint8_t*)(uintptr_t)ZMV_REG(VBASE);
 #ifdef ZM_BLIT_HW
-    if (r && *(volatile uint32_t*)(r + ZM_BLIT_D_BASE) >= ZM_OFF_VRAM) {
+    if (chisel_takes(r)) {
         bchisel_run(r);
         return;
     }
@@ -69,7 +75,7 @@ void __wrap_w2c_machine_hwBlit(struct w2c_machine* m) {
     volatile uint8_t* r = (volatile uint8_t*)(uintptr_t)ZMV_REG(VBASE);
     uint8_t cmd = r ? r[ZM_BLIT_COMMAND] : 0;
 #ifdef ZM_BLIT_HW
-    if (r && *(volatile uint32_t*)(r + ZM_BLIT_D_BASE) >= ZM_OFF_VRAM) {
+    if (chisel_takes(r)) {
         bchisel_run(r);
         if (cmd) bblit.hw++;
     } else {

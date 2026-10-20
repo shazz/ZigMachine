@@ -49,7 +49,7 @@ module zm_blit (
         .t_rdata(t_rdata), .ld_we(ld_we), .ld_word(ld_word), .ld_be(ld_be), .ld_data(ld_data), .rf(rf));
     zm_blit_q seq (.clk(clk), .rst(rst), .kick(kick), .kick_data(kick_data), .q_we(q_we), .q_waddr(q_waddr),
         .q_be(q_be), .q_wdata(q_wdata), .t_raddr(t_raddr), .t_rdata(t_rdata), .ld_we(ld_we), .ld_word(ld_word),
-        .ld_be(ld_be), .ld_data(ld_data), .core_start(core_start), .core_busy(core_busy), .busy(q_busy),
+        .ld_be(ld_be), .ld_data(ld_data), .core_start(core_start), .core_busy(core_busy), .d_base(rf[287:256]), .busy(q_busy),
         .copying(q_copying));
     zm_blit_core core (.clk(clk), .rst(rst), .start(core_start), .rf(rf), .busy(core_busy), .cyc_we(cyc_we),
         .cyc_val(cyc_val), .rd_req_valid(rd_req_valid), .rd_req_ready(rd_req_ready), .rd_req_addr(rd_req_addr),
