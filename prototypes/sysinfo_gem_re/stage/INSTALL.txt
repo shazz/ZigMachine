@@ -1,0 +1,22 @@
+feat/sysinfo-gem-app: board stage (2026-10-19)
+Branch feat/sysinfo-gem-app (1068da54 + handoff), see prototypes/sysinfo_gem_re/HANDOFF.md.
+SysInfo becomes a GEM program on a DATA disk (as ST Replay): the shelf entry boots GEM, BOOT.WSM runs SysInfo, Q returns to GEM.
+
+  93270de398b9a6853e11b3647857746d  zigmachine/demo-sysinfo.zmd                 -> /mnt/sd/zigmachine/demo-sysinfo.zmd (REPLACES the bootable one)
+  961c13fc414c78a0921390c217a1e67c  zigmachine/progs/demo-sysinfo/BOOT.WSM.zmd  -> /mnt/sd/zigmachine/progs/demo-sysinfo/BOOT.WSM.zmd (NEW dir)
+
+demo-sysinfo.zmd carries GEM's lean cart (CART.RV32 = carts_fpu/gem/cart.bin, md5 f18cf504...);
+BOOT.WSM.zmd carries SysInfo's lean cart (carts_fpu/sysinfo/cart.bin, md5 aeeebc00...).
+Built: make split-cart CART=<sysinfo|gem> ZM_AUDIO=snd ZM_FPU=1 (lean, table 1.2), staged by
+tools/glass_shelf.build_shelf (the glass_sd.py path) with --system build/hcycles/split/board_snd_fpu/sys.bin.
+
+Keep as they are: zigmachine.bit, system.rv32 (table 1.2 on main == the card's 1.2, so no new system),
+glass, shelf.txt (it already has the sysinfo line; the 2-cart shelf.txt this staging made is NOT shipped),
+demo-gem.zmd (GEM unchanged).
+
+After copying: md5sum both files on the card against the above, then `killall glass` (OSD rescan; stops the running cart).
+Test: OSD -> SYSINFO -> GEM desktop comes up -> double-click FLOPPY DISK -> double-click BOOT.WSM ->
+SysInfo page 1; F1-F5/Space work; Q -> back to the GEM desktop, disk still in (FLOPPY opens BOOT.WSM again).
+Serial (ttyUSB0 921600): expect `cart request: ...` lines; `CartSilent` on BOOT.WSM = a stale progs/ file.
+Rollback: the previous demo-sysinfo.zmd; delete progs/demo-sysinfo/.
+Not proven on the board: the request-3/4 swap is host- and sim-tested only (FPGA_GLASS.md "Programs off a data disk").
