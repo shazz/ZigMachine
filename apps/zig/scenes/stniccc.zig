@@ -13,7 +13,7 @@
 // (stniccc/snaps.zig: a replay is up to ~100 frames, seconds on the board).
 //
 // Data: scene1.bin, the demo's own stream (MIT notice in
-// assets/screens/stniccc/LICENSE.txt). Music: "STNICCC 2000++" by Dolby (SNDH).
+// assets/screens/stniccc/LICENSE.txt). Music: see MUSIC below.
 // Credit for the scene belongs to Oxygene.
 // --------------------------------------------------------------------------
 const zg = @import("zigos");
@@ -28,7 +28,13 @@ const LogicalFB = zg.LogicalFB;
 
 const PLANE: usize = 0;
 const SCENE_FILE = "SCENE1.BIN";
-const MUSIC = "stniccc_2000.sndh";
+// Music source: chcknbnk.mod (found by Matt, 2026-10-19), an Amiga ProTracker module, so no
+// SNDH was looked for. The original STNICCC 2000 streamed its music from disk as a packed
+// sample stream (the AIFF); Matt accepts this module in its place. It replaces the earlier
+// stand-in "STNICCC 2000++" by Dolby (SNDH). The disk carries no audio stream (SCENE1.BIN
+// only). The choreography counts VBLs, never audio time, so the tune's length moves no
+// sync point (the music loops under the flight).
+const MUSIC = "chcknbnk.mod";
 const SMALL_OX: usize = (zg.WIDTH - player_mod.SRC_W) / 2; // centred on the 320-wide screen
 
 const BLACK: u8 = 16; // outside the scene's 16 colours
