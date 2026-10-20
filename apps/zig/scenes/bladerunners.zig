@@ -41,8 +41,16 @@ const SCROLL_CHARS = " ! #$%&'()*+,-./0123456789:;<=>? ABCDEFGHIJKLMNOPQRSTUVWXY
 const font_pal = convertU8ArraytoColors(@embedFile("../assets/screens/bladerunners/fonts_pal.dat"));
 
 // rasters
-const font_rasters_b = convertU8ArraytoColors(@embedFile("../assets/screens/bladerunners/raster_font_pal.dat"));
-const back_rasters_b = convertU8ArraytoColors(@embedFile("../assets/screens/bladerunners/raster_back_pal.dat"));
+// As RGBA words (the ics.zig fix): a [256]Color is byte-aligned in the data
+// segment, so the HBL handlers' one-word read of an entry was a misaligned load,
+// a ~700-cycle trap on ZIGGY, 600 a frame over the three handlers.
+fn rgbaTable(comptime pal: [256]Color) [256]u32 {
+    var out: [256]u32 = undefined;
+    for (pal, 0..) |c, i| out[i] = c.toRGBA();
+    return out;
+}
+const font_rasters_rgba = rgbaTable(convertU8ArraytoColors(@embedFile("../assets/screens/bladerunners/raster_font_pal.dat")));
+const back_rasters_rgba = rgbaTable(convertU8ArraytoColors(@embedFile("../assets/screens/bladerunners/raster_back_pal.dat")));
 
 
 // --------------------------------------------------------------------------
@@ -56,7 +64,7 @@ var raster_index: u8 = 0;
 fn handler_hbl(zigos: *ZigOS, line: u16) void {
 
     if(line >= 40 and line < 240) {
-        zigos.setBackgroundColor(back_rasters_b[(line + 12 + raster_index) % 255]);
+        zigos.setBackgroundColor(Color.fromRGBA(back_rasters_rgba[(line + 12 + raster_index) % 255]));
     }
     else {
         zigos.setBackgroundColor(Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
@@ -68,7 +76,7 @@ fn handler_back(fb: *LogicalFB, zigos: *ZigOS, line: u16, col: u16) void {
 
     // Per-plane HBL: sealed machine fires on LOGICAL lines 0..199 (was physical 40..239), so drop the +40.
     if(line < 200) {
-        fb.setPaletteEntry(0, back_rasters_b[(line + raster_index) % 255]);
+        fb.palette[0] = back_rasters_rgba[(line + raster_index) % 255];
     }
 
     _ = zigos;
@@ -80,7 +88,7 @@ fn handler_scroller(fb: *LogicalFB, zigos: *ZigOS, line: u16, col: u16) void {
 
     // Per-plane HBL: sealed machine fires on LOGICAL lines 0..199 (was physical 40..239), so drop the +40.
     if (line < 200 ) {
-        fb.setPaletteEntry(1, font_rasters_b[line % 200]);
+        fb.palette[1] = font_rasters_rgba[line % 200];
     }
     if (line == 200) {
         fb.setPaletteEntry(1, back_color);
