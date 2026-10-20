@@ -92,6 +92,7 @@ pub const Demo = struct {
     frame_counter: u32 = 0,
     scrolltext: Scrolltext(NB_FONTS) = undefined,
     logo: Background = undefined,
+    blitter: zg.Blitter = .{},
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
         Console.log("Demo init", .{});
@@ -113,6 +114,7 @@ pub const Demo = struct {
         fb = &zigos.lfbs[1];
         fb.is_enabled = true; 
         fb.setPalette(font_pal);
+        self.blitter.init();
         fb.clearFrameBuffer(0); // once: render() only ever rewrites the four scroller bands
 
         // HBL Handler for the raster effect
@@ -142,19 +144,18 @@ pub const Demo = struct {
 
     pub fn render(self: *Demo, zigos: *ZigOS, elapsed_time: f32) void {
 
-        // The scroller strip (rows 52..82) is drawn, then copied to three more
-        // bands (+39, +78, +117 rows); every other row stays 0 from init. Word-wide
-        // @memset/@memcpy: the byte loops were ~90,000 stores a frame.
+        // The scroller strip (rows 52..82) is drawn ONCE, then CHISEL copies it to
+        // three more bands (+39, +78, +117 rows); every other row stays 0 from init.
+        // The CPU only writes the letters: CHISEL clears the strip (one FILL) and
+        // places the copies (one BLIT each, the bands never overlap), where ZIGGY
+        // used to @memset 9,600 B and @memcpy 28,800 B a frame, each word a
+        // blocking DDR store.
         const fb = &zigos.lfbs[1];
-        const strip: usize = 52 * @as(usize, WIDTH);
-        const strip_len: usize = @as(usize, WIDTH) * SCROLL_CHAR_HEIGHT;
-        @memset(fb.fb[strip .. strip + strip_len], 0);
-        letter_rows.draw(&self.scrolltext, fb.fb + strip, WIDTH, WIDTH, SCROLL_CHAR_WIDTH, SCROLL_CHAR_HEIGHT);
-
-        // copy scrolltext 3 times
+        const top: i16 = 52;
+        self.blitter.fill(fb, 0, top, WIDTH, SCROLL_CHAR_HEIGHT, 0);
+        letter_rows.draw(&self.scrolltext, fb.fb + @as(usize, @intCast(top)) * WIDTH, WIDTH, WIDTH, SCROLL_CHAR_WIDTH, SCROLL_CHAR_HEIGHT);
         inline for (.{ 39, 78, 117 }) |rows| {
-            const d = strip + rows * @as(usize, WIDTH);
-            @memcpy(fb.fb[d .. d + strip_len], fb.fb[strip .. strip + strip_len]);
+            self.blitter.blitCopy(fb, 0, top + rows, fb, 0, top, WIDTH, SCROLL_CHAR_HEIGHT);
         }
 
         _ = elapsed_time;
