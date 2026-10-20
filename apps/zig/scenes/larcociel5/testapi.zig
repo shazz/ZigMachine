@@ -2,12 +2,11 @@
 // The headless harness's door into the intro (apps/larcociel5_headless.mjs):
 // the ribbon clock's every word (so the Go tree's native-ribbon-149.json
 // checkpoint and the JS model can both be pinned against the live cart), the
-// three Batman meter levels, and the cart's own YM register mirror plus its
-// refused-write count. Pulled in only when this scene IS the cart (larcociel5.zig
+// three Batman meter levels, and the YM registers they read on the last tick.
+// Pulled in only when this scene IS the cart (larcociel5.zig
 // checks cart.Cart), so the exports never leak into another cart's build.
 // --------------------------------------------------------------------------
 const scene = @import("../larcociel5.zig");
-const ymod = @import("ym.zig");
 
 export fn lcTick() u32 {
     return scene.clock.tick;
@@ -38,11 +37,7 @@ export fn lcMeters(i: u32) u32 {
 }
 
 export fn lcYmReg(i: u32) u32 {
-    return scene.ym.regs[i % 14];
-}
-
-export fn lcYmRefused() u32 {
-    return ymod.refused;
+    return scene.ym_regs[i % 14];
 }
 
 /// The colour bank at (row, entry), for the harness's raster check.

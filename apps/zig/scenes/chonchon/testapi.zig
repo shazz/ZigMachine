@@ -2,13 +2,12 @@
 // The headless harness's door into the intro (apps/chonchon_headless.mjs): the
 // native motion's every word (so the JS model and the Go tree's scroll-bank
 // checkpoints can be pinned against the live cart), the two 3432-byte scroll
-// banks, the three music-meter levels, and the cart's own YM register mirror
-// plus its refused-write count. Pulled in only when this scene IS the cart
+// banks, the three music-meter levels, and the YM registers the meters read on
+// the last tick. Pulled in only when this scene IS the cart
 // (chonchon.zig checks cart.Cart), so the exports never leak into another
 // cart's build.
 // --------------------------------------------------------------------------
 const scene = @import("../chonchon.zig");
-const ymod = @import("ym.zig");
 
 export fn chTick() u32 {
     return scene.clock.tick;
@@ -44,9 +43,5 @@ export fn chMeters(i: u32) u32 {
 }
 
 export fn chYmReg(i: u32) u32 {
-    return scene.ym.regs[i % 14];
-}
-
-export fn chYmRefused() u32 {
-    return ymod.refused;
+    return scene.ym_regs[i % 14];
 }

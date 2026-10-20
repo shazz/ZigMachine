@@ -2,14 +2,12 @@
 // The headless harness's door into the intro (apps/larcociel2_headless.mjs):
 // the trail clock's every word (so the Go tree's native-motion-49.json
 // checkpoint and the JS model can both be pinned against the live cart), the
-// six projected ball slots, the scrolling slice window, the two raster words
-// and the cart's own YM register mirror plus its refused-write count. Pulled in
-// only when this scene IS the cart (larcociel2.zig checks cart.Cart), so the
+// six projected ball slots, the scrolling slice window and the two raster
+// words. Pulled in only when this scene IS the cart (larcociel2.zig checks cart.Cart), so the
 // exports never leak into another cart's build.
 // --------------------------------------------------------------------------
 const scene = @import("../larcociel2.zig");
 const textmod = @import("text.zig");
-const ymod = @import("ym.zig");
 
 export fn lcTick() u32 {
     return scene.clock.tick;
@@ -68,14 +66,6 @@ export fn lcPal(i: u32) u32 {
 
 export fn lcRast(i: u32) u32 {
     return scene.rast[i % 20];
-}
-
-export fn lcYmReg(i: u32) u32 {
-    return scene.ym.regs[i % 14];
-}
-
-export fn lcYmRefused() u32 {
-    return ymod.refused;
 }
 
 /// Whether the balls and text are being composited yet (false only at boot).

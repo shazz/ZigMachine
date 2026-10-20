@@ -25,10 +25,15 @@
 // raster, not a fake one (CLAUDE.md) -- so `planeHbl` rewrites entry 8 on lines
 // 0..15 and entry 4 on lines 49..92, and restores both below them.
 //
-// MUSIC: the production's own assets/original/music.ym (YM6 by LeOnArD, 18695
-// frames) replayed through the MACHINE's YM2149 via zg.ymWrite -- the faithful
-// path here, because the source ships a replayable YM stream. Not samples, no
-// host player. (The Go also lets the arrow keys move the projection centre;
+// MUSIC (CLAUDE.md: an SNDH, not a YM dump). The Go's music.ym is a 1999 YM6
+// recording (LeOnArD) of the intro playing David Whittaker's "Dogs of War"
+// (1989): the real DMA_2.PRG (fujiology DMA_CONC/DMA_2.ZIP) holds the same
+// replay and song bytes as Whittaker_David/Dogs_of_War.sndh (51% of its
+// 16-byte chunks; the next file 26%), and subtune 1 reproduces the YM6's
+// registers 0..10 EXACTLY on every one of 6000 frames (2 minutes; a 4-frame
+// start offset), the other subtunes 0%. docs/music/dogs_of_war.sndh is that
+// file. The 68000 replay runs on the sound CPU (BARD on the board), not on the
+// cart CPU. (The Go also lets the arrow keys move the projection centre;
 // that is an interactive extra, not part of the captured demo, so it is not
 // reproduced.)
 //
@@ -42,7 +47,6 @@ const Color = zg.Color;
 const assets = @import("larcociel2/assets.zig");
 const clockmod = @import("larcociel2/clock.zig");
 const textmod = @import("larcociel2/text.zig");
-const ymod = @import("larcociel2/ym.zig");
 
 const PLANE = 0;
 const W: usize = zg.WIDTH; // 320
@@ -54,9 +58,11 @@ const BAND_FRAMES = assets.BAND_FRAMES;
 
 /// One 50 Hz frame. dt arrives in MILLISECONDS from the host.
 const TICK_MS: f32 = 20.0;
-/// A stalled tab steps at most this many 50 Hz ticks in one host frame, which
-/// also bounds the music writes handed to the sfx queue.
+/// A stalled tab steps at most this many 50 Hz ticks in one host frame.
 const MAX_TICKS: u32 = 2;
+
+const MUSIC = "dogs_of_war.sndh";
+const MUSIC_TUNE: u8 = 1;
 
 const K_ESC: u32 = 0xE012;
 const K_SPACE: u32 = 32;
@@ -64,7 +70,6 @@ const K_SPACE: u32 = 32;
 // --- module-scope state (the harness's window into the very words drawn) ----
 pub var clock: clockmod.Clock = undefined;
 pub var stream: textmod.Stream = undefined;
-pub var ym: ymod.Stream = undefined;
 /// False only for the boot frame (the Go's tick 0: no balls, no text).
 pub var shown_live: bool = false;
 
@@ -210,7 +215,6 @@ pub const Demo = struct {
         for (0..20) |i| rast[i] = assets.rgbw(assets.beWord(assets.raster_words, i * 2));
         clock = clockmod.Clock.init();
         stream.init();
-        ym.init();
         shown_live = false;
 
         const fb = &zigos.lfbs[PLANE];
@@ -221,6 +225,7 @@ pub const Demo = struct {
         fb.setFrameBufferHBLHandler(0, planeHbl);
 
         present(fb, false);
+        zg.requestSongTune(MUSIC, MUSIC_TUNE);
         self.ok = true;
     }
 
@@ -228,7 +233,6 @@ pub const Demo = struct {
         _ = self;
         clock.step();
         stream.step();
-        ym.advanceTo(clock.tick - 1);
         shown_live = true;
     }
 

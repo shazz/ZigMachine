@@ -17,10 +17,10 @@
 //   clock    chTick()/chField() equal the model's words every frame and, after
 //            100 steps, chRing() equals the Go tree's own native scroll-bank
 //            checkpoints (testdata/scroll-bank-{0,1}-100.bin.gz)
-//   ymusic   the (register, value) writes the cart hands the sfx queue equal
-//            the Go's music.ym frame for frame, and the cart's own mirror equals
-//            the model's; the three meters track registers 8/9/10; the error
-//            counter stays 0 and no write is refused
+//   music    the cart asks for rollout.sndh subtune 2 once (the SNDH of the
+//            Go's ROLLOUT2.YM; the sound CPU plays it) and writes no YM register
+//            itself; the harness plays the host, pushing the Go's music.ym frame
+//            into the machine's YM mirror, and the meters track registers 8/9/10
 //   raster   the window carries more than the 16 static palette colours
 //   leave    Space and Escape both hand the screen back to the menu
 //   soak     no zg.mem allocation refused; ms/frame reported, not budgeted
@@ -370,7 +370,9 @@ const CHECK = new Set([1400, 2000, 3000, 5000, 8000, 10500, 10649, 10650, 10651,
 
 const ym = new YM();
 const t0 = performance.now();
-let compared = 0, goCompared = 0, distinctMax = 0, ymWrites = 0;
+let compared = 0, goCompared = 0, distinctMax = 0;
+const songRequests = [];
+const ymMirror = new Uint8Array(memory.buffer, demo.getYmRegsPointer(), 14);
 const ringWant = [
     gunzipSync(await readFile("tools/chonchon/scroll-bank-0-100.bin.gz")),
     gunzipSync(await readFile("tools/chonchon/scroll-bank-1-100.bin.gz")),
@@ -395,26 +397,22 @@ for (let f = 0; f <= LAST; f++) {
     const frame = f + 1; // the cart's frame after this one 50 Hz tick
     machine.hwClear();
 
-    // The model's expected writes for the frame's single YM step (= frame f).
-    const expect = [];
-    ym.applyOne((r, v) => expect.push([r, v]));
+    // The host's side of the music: the audio thread's YM registers land in
+    // the machine's mirror before the frame. Here they are the Go's music.ym
+    // frame f, the frame the Go's Update reads on this tick.
+    ym.applyOne();
+    ymMirror.set(ym.regs);
     stepClock();
 
     demo.frame(TICK_MS);
 
-    // --- the music: the writes the cart handed the sfx queue this frame ---
+    // --- the music: one song request, and no YM write from the cart ---
     const n = demo.pollSfx();
-    const dv = new DataView(memory.buffer, demo.sfxEntriesPtr(), 16 * Math.max(n, 1));
-    if (n !== expect.length)
-        throw new Error(`frame ${frame}: ${n} sfx entries, model says ${expect.length}`);
-    for (let i = 0; i < n; i++) {
-        if (dv.getUint8(16 * i) !== 3)
-            throw new Error(`frame ${frame}: sfx entry ${i} is not a YM write (op ${dv.getUint8(16 * i)})`);
-        if (dv.getUint8(16 * i + 1) !== expect[i][0] || dv.getUint8(16 * i + 2) !== expect[i][1])
-            throw new Error(`frame ${frame}: ym write ${i} is ${dv.getUint8(16 * i + 1)}=${dv.getUint8(16 * i + 2)}, model says ${expect[i][0]}=${expect[i][1]}`);
+    if (n !== 0) throw new Error(`frame ${frame}: the cart queued ${n} sfx/YM writes (the SNDH drives the chip)`);
+    if (demo.pollSongRequest() !== 0) {
+        const name = Buffer.from(memory.buffer.slice(demo.songNamePtr(), demo.songNamePtr() + demo.songNameLen())).toString();
+        songRequests.push(`${name}#${demo.songTune()}@${frame}`);
     }
-    ymWrites += n;
-    if (demo.pollSongRequest() !== 0) throw new Error(`frame ${frame}: the cart requested a song (it must not)`);
 
     // --- the clock words, every frame ---
     if (demo.chTick() !== clock.tick) throw new Error(`frame ${frame}: chTick ${demo.chTick()} != ${clock.tick}`);
@@ -430,10 +428,10 @@ for (let f = 0; f <= LAST; f++) {
         });
     }
 
-    // --- the cart's own YM mirror and the three meters ---
+    // --- the registers the meters read, and the three meters ---
     for (let i = 0; i < 14; i++)
         if (demo.chYmReg(i) !== ym.regs[i])
-            throw new Error(`frame ${frame}: YM reg ${i} is ${demo.chYmReg(i)} but the model says ${ym.regs[i]}`);
+            throw new Error(`frame ${frame}: the meters read YM reg ${i} = ${demo.chYmReg(i)} but the mirror holds ${ym.regs[i]}`);
     for (let i = 0; i < 3; i++)
         if (demo.chMeters(i) !== (ym.regs[8 + i] & 15))
             throw new Error(`frame ${frame}: meter ${i} is ${demo.chMeters(i)} but the model says ${ym.regs[8 + i] & 15}`);
@@ -460,7 +458,8 @@ for (let f = 0; f <= LAST; f++) {
 }
 const ms = performance.now() - t0;
 
-ok(demo.chYmRefused() === 0, `the cart's ${ymWrites} YM writes were all accepted (chYmRefused 0)`);
+ok(songRequests.length === 1 && songRequests[0] === "rollout.sndh#2@1",
+    `the cart asks for rollout.sndh #2 once, on its first frame (got ${songRequests.join(", ") || "none"})`);
 ok(compared >= EVERY + CHECK.size, `${compared} frames compared pixel for pixel (the boot frame, every frame to ${EVERY}, plus the loop and soak checkpoints)`);
 ok(goCompared === GO_FRAMES.length, `${goCompared} frames compared to the Go re-creation's own captured PNGs (0..1199)`);
 ok(ringOK === true, "after 100 steps both scroll banks equal the Go tree's own native scroll-bank checkpoints");

@@ -19,7 +19,8 @@
 //                      verbatim originals (the ST colour words, the feed)
 //   initial-motion.bin / initial-history.bin
 //                      verbatim: the trail clock's seed and 66-point history
-//   music.seq          the YM6 register stream as per-frame deltas (see ym.zig)
+//   (music.seq, the YM6 register stream as per-frame deltas, is NOT embedded:
+//   the cart plays an SNDH; only the headless harness reads it)
 // --------------------------------------------------------------------------
 const zg = @import("zigos");
 
@@ -35,7 +36,6 @@ pub const message = @embedFile(DIR ++ "message.txt");
 pub const font_order = @embedFile(DIR ++ "font-order.txt");
 pub const initial_motion = @embedFile(DIR ++ "initial-motion.bin");
 pub const initial_history = @embedFile(DIR ++ "initial-history.bin");
-pub const music = @embedFile(DIR ++ "music.seq");
 
 /// The band the 36 backgrounds animate; rows above it are static all run long.
 pub const BAND_TOP = 143;

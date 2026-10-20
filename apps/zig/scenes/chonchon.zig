@@ -23,11 +23,15 @@
 //     lines 144..199 is entries 8..15 rewritten per line (CLAUDE.md: not a fake
 //     raster), which is why the window carries more than the 16 static words.
 //
-// MUSIC: the production's own assets/original/music.ym (an LHa archive holding
-// ROLLOUT2.YM, a YM6 chip dump by Jochen Hippel, 10650 frames) replayed through
-// the MACHINE's YM2149 via zg.ymWrite -- the faithful path here, because the
-// source ships a replayable YM stream and the meters visualise that chip's
-// registers. Not samples, no host player.
+// MUSIC (CLAUDE.md: an SNDH, not a YM dump). The production's music.ym is an
+// LHa archive holding ROLLOUT2.YM, a YM6 dump of Jochen Hippel's (= Mad Max's)
+// "Rollout" tune 2. The archive's Mad_Max/Games/Rollout.sndh subtune 2 plays
+// the same tune: its tone periods over the first 1500 frames are the dump's 79
+// distinct periods exactly (subtune 1: 0.30). docs/music/rollout.sndh is that
+// file (md5 0e9aa3d6), already shipped for tcb_weirddream. The 68000 replay
+// runs on the sound CPU (BARD on the board), not on the cart CPU. The three
+// meters read the machine's live YM mirror (zigos.ym_regs), as gen4_3615's VU
+// meters do.
 //
 // The Go quits on Space or Escape; this cart hands the screen back to the menu
 // on either (demo_main's pollCart contract).
@@ -39,7 +43,6 @@ const Color = zg.Color;
 const assets = @import("chonchon/assets.zig");
 const clockmod = @import("chonchon/clock.zig");
 const metermod = @import("chonchon/meter.zig");
-const ymod = @import("chonchon/ym.zig");
 
 const PLANE = 0;
 const W: usize = zg.WIDTH; // 320
@@ -47,16 +50,19 @@ const H: usize = zg.HEIGHT; // 200
 
 /// One 50 Hz frame. dt arrives in MILLISECONDS from the host.
 const TICK_MS: f32 = 20.0;
-/// A stalled tab steps at most this many 50 Hz ticks in one host frame, which
-/// also bounds the music writes handed to the sfx queue (<= 28 of its 32).
+/// A stalled tab steps at most this many 50 Hz ticks in one host frame.
 const MAX_TICKS: u32 = 2;
+
+const MUSIC = "rollout.sndh";
+const MUSIC_TUNE: u8 = 2;
 
 const K_ESC: u32 = 0xE012;
 const K_SPACE: u32 = 32;
 
 // --- module-scope state (the harness's window into the very words drawn) ----
 pub var clock: clockmod.Clock = undefined;
-pub var ym: ymod.Stream = undefined;
+/// The YM registers the meters read on the last tick (the harness pins them).
+pub var ym_regs: [14]u8 = [_]u8{0} ** 14;
 pub var meters: [3]u8 = .{ 0, 0, 0 };
 
 var static_pal: [16]u32 = undefined; // the 16 ST words, Color.toRGBA order
@@ -145,7 +151,7 @@ pub const Demo = struct {
         for (0..16) |i| static_pal[i] = assets.rgbw(assets.beWord(assets.palette_words, i * 2));
         for (0..28) |i| rast[i] = assets.rgbw(assets.beWord(assets.raster_words, i * 2));
         clock = clockmod.Clock.init();
-        ym.init();
+        ym_regs = [_]u8{0} ** 14;
         meters = .{ 0, 0, 0 };
 
         const fb = &zigos.lfbs[PLANE];
@@ -156,18 +162,19 @@ pub const Demo = struct {
         fb.setFrameBufferHBLHandler(0, planeHbl);
 
         @memset(fb.fb[0 .. W * H], 0); // the Go's boot frame: the index image is empty
+        zg.requestSongTune(MUSIC, MUSIC_TUNE);
         self.ok = true;
     }
 
-    fn tick50(self: *Demo) void {
+    fn tick50(self: *Demo, zigos: *const ZigOS) void {
         clock.step();
-        ym.advanceTo(clock.tick - 1);
-        metermod.apply(clock.screen[0..], ym.regs);
-        meters = .{ ym.regs[8] & 15, ym.regs[9] & 15, ym.regs[10] & 15 };
+        ym_regs = zigos.ym_regs[0..14].*;
+        metermod.apply(clock.screen[0..], ym_regs);
+        meters = .{ ym_regs[8] & 15, ym_regs[9] & 15, ym_regs[10] & 15 };
         self.drawn = true;
     }
 
-    pub fn update(self: *Demo, _: *ZigOS, dt_ms: f32) void {
+    pub fn update(self: *Demo, zigos: *ZigOS, dt_ms: f32) void {
         if (!self.ok) return;
         // dt is HOST MILLISECONDS: keep it fractional (16.67 ms at 60 Hz) and
         // accumulate, or a 60 Hz host would run the 50 Hz demo slow.
@@ -176,7 +183,7 @@ pub const Demo = struct {
         while (self.acc >= TICK_MS and n < MAX_TICKS) {
             self.acc -= TICK_MS;
             n += 1;
-            self.tick50();
+            self.tick50(zigos);
         }
     }
 

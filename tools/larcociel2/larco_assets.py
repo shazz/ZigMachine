@@ -22,7 +22,6 @@ an extraction of assets/original/:
                      verbatim originals (the ST colour words, the stencil feed)
   initial-motion.bin / initial-history.bin
                      verbatim: the trail clock's seed and its 66-point history
-  music.seq          the YM6 register stream as per-frame deltas (see ym.zig)
 
 A source mismatch is a hard error; the extracted files are then re-rendered by
 tools/larcociel2/larco_model.py and compared to every captured Go frame.
@@ -137,24 +136,8 @@ def main():
               "initial-motion.bin", "initial-history.bin"]:
         (OUT / n).write_bytes(rd(n))
 
-    ym = rd("music.ym")
-    frames = struct.unpack(">I", ym[12:16])[0]
-    attr = struct.unpack(">I", ym[16:20])[0]
-    if attr != 1: sys.exit(f"music.ym: unexpected attributes {attr}")
-    data = len(ym) - 16 * frames  # three NUL-terminated strings then register-major data
-    assert data > 0 and data + 16 * frames == len(ym), "music.ym: bad register data length"
-    seq = bytearray(struct.pack("<I", frames))
-    prev = [0] * 14
-    for f in range(frames):
-        mask = 0; vals = []
-        for r in range(14):
-            v = ym[data + r * frames + f]
-            if f == 0 or v != prev[r]:
-                mask |= 1 << r; vals.append(v)
-            prev[r] = v
-        seq += struct.pack("<H", mask); seq += bytes(vals)
-    (OUT / "music.seq").write_bytes(bytes(seq))
-    print(f"music.seq: {frames} frames -> {len(seq)} bytes ({(len(seq) - 4) / frames:.2f} B/frame)")
+    # music.ym is not converted: the cart plays dogs_of_war.sndh, the SNDH of
+    # the tune the YM6 recorded (apps/zig/scenes/larcociel2.zig MUSIC).
 
     sizes = {"bg-static.bin": 143 * 320 // 4, "bg-band.bin": 36 * 57 * 320 // 4,
              "balls.bin": 16 * 1024 // 4, "font.bin": 31 * 512 // 8,

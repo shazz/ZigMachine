@@ -21,8 +21,9 @@ captured frames (see cmd/chonchon -capture):
   volume-curve.bin the YM volume -> meter height curve
   meter-raw.bin    the meter bar mask (plane-0 words, 160 bytes/row)
   logo.idx         96 x 1071 logo-bank.png indices (R=idx*17, alpha 0 = 0)
-  music.seq        the YM6 register stream as per-frame deltas (see the cart
-                   header): u32 frame count, then per frame a u16 mask of the
+  music.seq        the YM6 register stream as per-frame deltas, read only by
+                   the HARNESS model (the cart plays rollout.sndh #2): u32
+                   frame count, then per frame a u16 mask of the
                    registers that changed and their new values in ascending
                    order. Frame 0 is a full 14-register write, so a loop resets
                    the chip to the song's opening state.

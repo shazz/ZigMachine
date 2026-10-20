@@ -105,13 +105,13 @@ pub const ENTRIES = [_]Entry{
     .{ .name = "POLKA DOTS F32", .tag = "polkadots_f32" }, // zigmachine
     .{ .name = "XM TEST", .tag = "xm_test" }, // zigmachine
     .{ .name = "SYSINFO", .tag = "sysinfo" }, // system
-    .{ .name = "LOCKBUSTER 2", .tag = "lockbuster2" }, // atari st
+    .{ .name = "DMA SHRINKING SPHERE", .tag = "lockbuster2" }, // atari st — DMA "Incredible Shrinking Sphere Cracktro" (demozoo 79466)
     .{ .name = "KICK OFF 2", .tag = "kickoff2" }, // amiga
     .{ .name = "GRODAN KVACK KVACK", .tag = "grodan_kvack" }, // atari st
-    .{ .name = "LARCOCIEL DMA INTRO 5", .tag = "larcociel5" }, // atari st
-    .{ .name = "LARCOCIEL DMA INTRO 2", .tag = "larcociel2" }, // atari st
+    .{ .name = "DMA INTRO 5", .tag = "larcociel5" }, // atari st — Douai Main Association (demozoo 79464)
+    .{ .name = "DMA INTRO 2", .tag = "larcociel2" }, // atari st — Douai Main Association (demozoo 79461)
     .{ .name = "BUBBLE BOBBLE", .tag = "bubblebobble" }, // zigmachine
-    .{ .name = "CHONCHON", .tag = "chonchon" }, // atari st
+    .{ .name = "DMA CHONCHON INTRO", .tag = "chonchon" }, // atari st — Douai Main Association "Chonchon Intro" (demozoo 79458)
     .{ .name = "REPLICANTS IK+", .tag = "ikplus" }, // atari st — The Replicants' "International Karate Plus" cracktro
     // The Union Demo's screens (union_multifake, union_textracker, ...) are NOT
     // listed: they are reached only through the UNION DEMO hub's doors (Matt,

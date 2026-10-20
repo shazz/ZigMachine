@@ -26,10 +26,16 @@
 //   i = bg;  ribbon.a>0 -> i=(i/4)*4+ribbon;  y<32 -> i=i%4+bat4
 //   y>=100 && i>0 -> colourBank[y-100][i];  i==4 && y<64 -> Raster[y];  else Palette[i]
 //
-// MUSIC: the production's own assets/original/music.ym (YM6 by LeOnArD, 19737
-// frames) replayed through the MACHINE's YM2149 via zg.ymWrite -- the faithful
-// path here, because the source ships a replayable YM stream and the Batmen are
-// a visualisation of that chip's registers. Not samples, no host player.
+// MUSIC (CLAUDE.md: an SNDH, not a YM dump). The Go's music.ym is a 1999 YM6
+// recording (LeOnArD) of the intro playing Jochen Hippel's (Mad Max's)
+// "Cybernoid 2" (1989): the real DMA_5.PRG (fujiology DMA_CONC/DMA_5.ZIP) runs
+// a Mad Max replay (shirazmcp identify_music, 0.82) and holds 57% of the 16-byte
+// chunks of Mad_Max/Games/Cybernoid_2.sndh (the next file 26%), and subtune 1
+// reproduces the YM6's registers 0..10 EXACTLY on every one of 6000 frames (2
+// minutes; a 2-frame start offset), subtune 2 0%. docs/music/cybernoid2.sndh is
+// that file, already shipped for equinox. The 68000 replay runs on the sound
+// CPU (BARD on the board), not on the cart CPU. The Batmen read the machine's
+// live YM mirror (zigos.ym_regs), as gen4_3615's VU meters do.
 //
 // The Go quits on Space or Escape; this cart hands the screen back to the menu
 // on either (demo_main's pollCart contract).
@@ -41,7 +47,6 @@ const Color = zg.Color;
 const assets = @import("larcociel5/assets.zig");
 const clockmod = @import("larcociel5/clock.zig");
 const colorbank = @import("larcociel5/colorbank.zig");
-const ymod = @import("larcociel5/ym.zig");
 
 const PLANE = 0;
 const W: usize = zg.WIDTH; // 320
@@ -49,9 +54,11 @@ const H: usize = zg.HEIGHT; // 200
 
 /// One 50 Hz frame. dt arrives in MILLISECONDS from the host.
 const TICK_MS: f32 = 20.0;
-/// A stalled tab steps at most this many 50 Hz ticks in one host frame, which
-/// also bounds the music writes handed to the sfx queue (<= 22 of its 32).
+/// A stalled tab steps at most this many 50 Hz ticks in one host frame.
 const MAX_TICKS: u32 = 2;
+
+const MUSIC = "cybernoid2.sndh";
+const MUSIC_TUNE: u8 = 1;
 
 const K_ESC: u32 = 0xE012;
 const K_SPACE: u32 = 32;
@@ -59,7 +66,8 @@ const K_SPACE: u32 = 32;
 // --- module-scope state (the harness's window into the very words drawn) ----
 pub var clock: clockmod.Clock = undefined;
 pub var bank: colorbank.Bank = undefined;
-pub var ym: ymod.Stream = undefined;
+/// The YM registers the Batmen read on the last tick (the harness pins them).
+pub var ym_regs: [14]u8 = [_]u8{0} ** 14;
 pub var meters: [3]u8 = .{ 1, 1, 1 };
 pub var shown_bats: bool = false;
 
@@ -166,7 +174,7 @@ pub const Demo = struct {
             rast[i] = assets.rgbw(w);
         }
         clock = clockmod.Clock.init(assets.initial_motion, assets.initial_history);
-        ym.init();
+        ym_regs = [_]u8{0} ** 14;
         bank.clear(); // frame 0: the Go's Update never ran, the colour bank is empty
         @memset(body, 0);
         meters = .{ 1, 1, 1 };
@@ -180,25 +188,26 @@ pub const Demo = struct {
         fb.setFrameBufferHBLHandler(0, planeHbl);
 
         present(fb, false);
+        zg.requestSongTune(MUSIC, MUSIC_TUNE);
         self.ok = true;
     }
 
-    fn tick50(self: *Demo) void {
+    fn tick50(self: *Demo, zigos: *const ZigOS) void {
         _ = self;
         clock.step();
-        ym.advanceTo(clock.tick - 1);
+        ym_regs = zigos.ym_regs[0..14].*;
         bank.build(clock.tick);
         meters = .{
-            @max(1, ym.regs[8] & 15),
-            @max(1, ym.regs[10] & 15),
-            @max(1, ym.regs[9] & 15),
+            @max(1, ym_regs[8] & 15),
+            @max(1, ym_regs[10] & 15),
+            @max(1, ym_regs[9] & 15),
         };
         @memset(body, 0);
         buildBody();
         shown_bats = true;
     }
 
-    pub fn update(self: *Demo, _: *ZigOS, dt_ms: f32) void {
+    pub fn update(self: *Demo, zigos: *ZigOS, dt_ms: f32) void {
         if (!self.ok) return;
         // dt is HOST MILLISECONDS: keep it fractional (16.67 ms at 60 Hz) and
         // accumulate, or a 60 Hz host would run the 50 Hz demo slow.
@@ -207,7 +216,7 @@ pub const Demo = struct {
         while (self.acc >= TICK_MS and n < MAX_TICKS) {
             self.acc -= TICK_MS;
             n += 1;
-            self.tick50();
+            self.tick50(zigos);
         }
     }
 

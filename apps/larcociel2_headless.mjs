@@ -18,9 +18,9 @@
 //   slots    the six projected ball poses equal the model's every frame
 //   text     the scrolling slice window (head, glyph, column) equals the model's
 //            every frame
-//   ymusic   the (register, value) writes the cart hands the sfx queue equal
-//            the Go's music.ym frame for frame, and the cart's own mirror equals
-//            the model's; the error counter stays 0 and no write is refused
+//   music    the cart asks for dogs_of_war.sndh subtune 1 once (the SNDH of
+//            the tune the Go's music.ym recorded; the sound CPU plays it) and
+//            writes no YM register itself
 //   raster   the window carries more than the 16 static palette colours
 //   leave    Space and Escape both hand the screen back to the menu
 //   soak     no zg.mem allocation refused; ms/frame reported, not budgeted
@@ -149,7 +149,6 @@ const msg = await readFile(A + "message.txt");
 const order = await readFile(A + "font-order.txt");
 const motion = await readFile(A + "initial-motion.bin");
 const hist0 = await readFile(A + "initial-history.bin");
-const seq = await readFile(A + "music.seq");
 
 const BE16 = (b, o) => (b[o] << 8) | b[o + 1];
 const rgbw = (w) => [((w >> 8) & 7) * 34, ((w >> 4) & 7) * 34, (w & 7) * 34];
@@ -270,33 +269,6 @@ function renderFrame(tick, clock, stream) {
 }
 const render0 = () => compose(BAND_FRAMES - 1, new Map(), new Set());
 
-// ---- the YM delta stream ----------------------------------------------------
-const ymFrames = seq.readUInt32LE(0);
-const ymOff = new Array(ymFrames);
-{
-    let o = 4;
-    const pop = (m) => { let n = 0; while (m) { n += m & 1; m >>= 1; } return n; };
-    for (let f = 0; f < ymFrames; f++) {
-        const mask = seq[o] | (seq[o + 1] << 8); o += 2;
-        ymOff[f] = { voff: o, mask }; o += pop(mask);
-    }
-}
-class YM {
-    constructor() { this.regs = new Uint8Array(14); this.applied = 0; this.next = 0; }
-    applyOne(sink) {
-        const fr = ymOff[this.next];
-        let o = fr.voff;
-        for (let r = 0; r < 14; r++)
-            if (fr.mask & (1 << r)) {
-                const v = seq[o++];
-                this.regs[r] = v;
-                if (sink) sink(r, v);
-            }
-        this.next = (this.next + 1) % ymFrames;
-        this.applied++;
-    }
-}
-
 // ---- the Go re-creation's own captured PNGs, decoded here -------------------
 function decodePNG(buf) {
     if (buf.readUInt32BE(0) !== 0x89504e47) throw new Error("not a PNG");
@@ -355,14 +327,14 @@ for (const n of GO_FRAMES) {
 
 // ---------------- run ---------------------------------------------------------
 const EVERY = 1200; // compare every single frame up to here (24 s at 50 Hz)
-const LAST = 18700; // the song is 18695 frames at 50 Hz; run past its loop point
+const LAST = 18700; // the Go's music.ym is 18695 frames at 50 Hz: soak past its loop point
 const CHECK = new Set([1500, 2000, 3000, 5000, 8000, 12000, 18693, 18694, 18695, 18696, LAST]);
 
 const clock = newClock();
 const stream = new SliceStream();
-const ym = new YM();
 const t0 = performance.now();
-let compared = 0, goCompared = 0, distinctMax = 0, ymWrites = 0;
+let compared = 0, goCompared = 0, distinctMax = 0;
+const songRequests = [];
 let at49 = null; // the cart's own clock words at step 49 (the native checkpoint)
 
 // The boot frame: init() draws the Go's 0-update frame (band frame 35, no balls,
@@ -385,27 +357,18 @@ for (let f = 0; f <= LAST; f++) {
     const frame = f + 1; // the cart's frame after this one 50 Hz tick
     machine.hwClear();
 
-    // The model's expected writes for the frame's single YM step (= frame f).
-    const expect = [];
-    ym.applyOne((r, v) => expect.push([r, v]));
     stepClock(clock);
     stream.step();
 
     demo.frame(TICK_MS);
 
-    // --- the music: the writes the cart handed the sfx queue this frame ---
+    // --- the music: one song request, and no YM write from the cart ---
     const n = demo.pollSfx();
-    const dv = new DataView(memory.buffer, demo.sfxEntriesPtr(), 16 * Math.max(n, 1));
-    if (n !== expect.length)
-        throw new Error(`frame ${frame}: ${n} sfx entries, model says ${expect.length}`);
-    for (let i = 0; i < n; i++) {
-        if (dv.getUint8(16 * i) !== 3)
-            throw new Error(`frame ${frame}: sfx entry ${i} is not a YM write (op ${dv.getUint8(16 * i)})`);
-        if (dv.getUint8(16 * i + 1) !== expect[i][0] || dv.getUint8(16 * i + 2) !== expect[i][1])
-            throw new Error(`frame ${frame}: ym write ${i} is ${dv.getUint8(16 * i + 1)}=${dv.getUint8(16 * i + 2)}, model says ${expect[i][0]}=${expect[i][1]}`);
+    if (n !== 0) throw new Error(`frame ${frame}: the cart queued ${n} sfx/YM writes (the SNDH drives the chip)`);
+    if (demo.pollSongRequest() !== 0) {
+        const name = Buffer.from(memory.buffer.slice(demo.songNamePtr(), demo.songNamePtr() + demo.songNameLen())).toString();
+        songRequests.push(`${name}#${demo.songTune()}@${frame}`);
     }
-    ymWrites += n;
-    if (demo.pollSongRequest() !== 0) throw new Error(`frame ${frame}: the cart requested a song (it must not)`);
 
     // --- the clock words, every frame ---
     if (demo.lcTick() !== clock.tick) throw new Error(`frame ${frame}: lcTick ${demo.lcTick()} != ${clock.tick}`);
@@ -443,11 +406,6 @@ for (let f = 0; f <= LAST; f++) {
                 throw new Error(`frame ${frame}: slot ${k} field ${i} is ${got[i]} but the model says ${want[i]}`);
     }
 
-    // --- the cart's own YM mirror ---
-    for (let i = 0; i < 14; i++)
-        if (demo.lcYmReg(i) !== ym.regs[i])
-            throw new Error(`frame ${frame}: YM reg ${i} is ${demo.lcYmReg(i)} but the model says ${ym.regs[i]}`);
-
     // --- the pixels ---
     if (frame <= EVERY || CHECK.has(frame)) {
         const want = renderFrame(frame, clock, stream);
@@ -469,7 +427,8 @@ for (let f = 0; f <= LAST; f++) {
 }
 const ms = performance.now() - t0;
 
-ok(demo.lcYmRefused() === 0, `the cart's ${ymWrites} YM writes were all accepted (lcYmRefused 0)`);
+ok(songRequests.length === 1 && songRequests[0] === "dogs_of_war.sndh#1@1",
+    `the cart asks for dogs_of_war.sndh #1 once, on its first frame (got ${songRequests.join(", ") || "none"})`);
 ok(compared >= EVERY + CHECK.size, `${compared} frames compared pixel for pixel (the boot frame, every frame to ${EVERY}, plus the loop and soak checkpoints)`);
 ok(goCompared === GO_FRAMES.length, `${goCompared} frames compared to the Go re-creation's own captured PNGs (0..1199)`);
 

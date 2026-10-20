@@ -12,7 +12,8 @@
 //   font-colors.bin   30 glyphs x 17 rows x 15 cols of ST colour words
 //   message.txt       the stencil's character feed
 //   initial-motion.bin / initial-history.bin  the clock's seed and 50-row trail
-//   music.seq         the YM6 register stream as per-frame deltas (see ym.zig)
+//   (music.seq, the YM6 register stream as per-frame deltas, is NOT embedded:
+//   the cart plays an SNDH; only the headless harness reads it)
 // --------------------------------------------------------------------------
 const zg = @import("zigos");
 
@@ -27,7 +28,6 @@ pub const font_colors = @embedFile(DIR ++ "font-colors.bin");
 pub const message = @embedFile(DIR ++ "message.txt");
 pub const initial_motion = @embedFile(DIR ++ "initial-motion.bin");
 pub const initial_history = @embedFile(DIR ++ "initial-history.bin");
-pub const music = @embedFile(DIR ++ "music.seq");
 
 /// An ST colour word exactly as the Go's rgb() renders it: 3 bits a channel,
 /// each *34. Packed in Color.toRGBA's order (a<<24 | b<<16 | g<<8 | r).

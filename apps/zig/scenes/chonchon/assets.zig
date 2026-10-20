@@ -17,7 +17,8 @@
 //   volume-curve.bin the YM volume -> meter height curve
 //   meter-raw.bin    the meter bar mask (plane-0 words, 160 bytes/row)
 //   logo.idx         96 x 1071 logo-bank.png indices (R=idx*17, alpha 0 = 0)
-//   music.seq        the YM6 register stream as per-frame deltas (see ym.zig)
+//   (music.seq, the YM6 register stream as per-frame deltas, is NOT embedded:
+//   the cart plays rollout.sndh; only apps/chonchon_headless.mjs reads it)
 // --------------------------------------------------------------------------
 const zg = @import("zigos");
 
@@ -36,7 +37,6 @@ pub const raster_words = @embedFile(DIR ++ "raster.bin");
 pub const volume_curve = @embedFile(DIR ++ "volume-curve.bin");
 pub const meter_raw = @embedFile(DIR ++ "meter-raw.bin");
 pub const logo = @embedFile(DIR ++ "logo.idx");
-pub const music = @embedFile(DIR ++ "music.seq");
 
 /// An ST colour word exactly as the Go's rgb() renders it: 3 bits a channel,
 /// each *34. Packed in Color.toRGBA's order (a<<24 | b<<16 | g<<8 | r).
