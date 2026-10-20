@@ -15,12 +15,11 @@ const ZigOS = zg.ZigOS;
 const Color = zg.Color;
 const LogicalFB = zg.LogicalFB;
 const gm = @import("dragonball_math.zig");
+const sq = @import("dragonball_squash.zig");
 
 const TWO_PI: f32 = std.math.pi * 2.0;
 const BS = gm.BALL_SIZE; // 64
 const DISC_R: f32 = 26.0; // codef_dragonball.js mycircle radius 52, halved
-// The widest squashed ball: 64 * (1 + 1/6) = 74.7, plus the floor/ceil pixel.
-const MAX_SPAN: usize = 80;
 
 const PAL_DISC: u8 = 64; // translucent disc over background
 const PAL_FRONT: u8 = 128; // star front (kolor 0xD94345), opaque
@@ -28,6 +27,7 @@ const PAL_BACK: u8 = 129; // star back, opaque, dimmer (drawn under the disc)
 const PAL_DISC_ON_BACK: u8 = 192; // precomputed disc(a=0.5) over PAL_BACK, opaque
 
 var ball_buf: [BS * BS]u8 = undefined; // module-level scratch (heap-free)
+var sprite: sq.Sprite = undefined; // the squashed ball, stamped 6 times by CHISEL
 
 // The disc never changes size (the squash is applied at blit time), so which texels it covers is
 // worked out at compile time, with the same f32 test as before: one run [lo, hi) of columns a row
@@ -59,9 +59,11 @@ pub const Dragonballs = struct {
     roty: f32 = 0, // shared star rotation.y
     u: f32 = 0, // disc squash phase
     angle: f32 = 0, // bounce phase
+    blitter: zg.Blitter = .{},
 
     pub fn init(self: *Dragonballs, zigos: *ZigOS) void {
         self.* = .{};
+        self.blitter.init();
         const p1: *LogicalFB = &zigos.lfbs[1];
         p1.setPaletteEntry(PAL_DISC, Color{ .r = 224, .g = 160, .b = 160, .a = 128 });
         p1.setPaletteEntry(PAL_FRONT, Color{ .r = 217, .g = 67, .b = 69, .a = 255 });
@@ -84,13 +86,15 @@ pub const Dragonballs = struct {
         // outside the disc when it shrinks.
         const sx = 1.0 + @sin(self.u) / 6.0;
         const sy = 1.0 + @sin(self.u + 10.0) / 6.0;
+        sprite.build(&ball_buf, sx, sy); // one resample for all six balls
         const p1: *LogicalFB = &zigos.lfbs[1];
         var i: usize = 0;
         while (i < 6) : (i += 1) {
             const fi: f32 = @floatFromInt(i);
-            const cx = 40.0 + 64.0 * fi;
-            const cy = 307.0 - 64.0 * @abs(@sin(self.angle + 0.25 * fi));
-            blitBall(p1, cx, cy, sx, sy);
+            const cx: i16 = 40 + 64 * @as(i16, @intCast(i));
+            // the bounce height lands on a whole pixel, so all six share the sprite
+            const cy: i16 = @intFromFloat(@round(307.0 - 64.0 * @abs(@sin(self.angle + 0.25 * fi))));
+            self.blitter.blitImage(p1, cx + sprite.ox, cy + sprite.oy, sprite.pixels(), sprite.w, 0, 0, sprite.w, sprite.h, 0);
         }
     }
 
@@ -136,43 +140,3 @@ pub const Dragonballs = struct {
         }
     }
 };
-
-// Blit the BSxBS ball sprite centred at (cx,cy), scaled by (sx,sy) about its
-// centre (the squash), onto `fb`, clipped to bounds; index 0 is transparent.
-// Inverse-mapped (iterate dest, sample source) so there are no gaps.
-fn blitBall(fb: *LogicalFB, cx: f32, cy: f32, sx: f32, sy: f32) void {
-    const pw: i32 = @intCast(fb.fb_w);
-    const ph: i32 = @intCast(fb.fb_h);
-    const hw_ = gm.CENTER * sx; // scaled half-width
-    const hh_ = gm.CENTER * sy;
-    const px0: i32 = @intFromFloat(@floor(cx - hw_));
-    const px1: i32 = @intFromFloat(@ceil(cx + hw_));
-    const py0: i32 = @intFromFloat(@floor(cy - hh_));
-    const py1: i32 = @intFromFloat(@ceil(cy + hh_));
-    // The source column depends on px only: one divide a column, not a pixel.
-    // cols[k] is the texel column for px0 + k, or -1 when off the plane or the ball.
-    var cols: [MAX_SPAN]i16 = undefined;
-    const span: usize = @intCast(@max(0, @min(px1 - px0, MAX_SPAN)));
-    for (0..span) |k| {
-        const px = px0 + @as(i32, @intCast(k));
-        cols[k] = -1;
-        if (px < 0 or px >= pw) continue;
-        const svx = gm.CENTER + (@as(f32, @floatFromInt(px)) + 0.5 - cx) / sx;
-        if (svx < 0 or svx >= @as(f32, BS)) continue;
-        cols[k] = @intFromFloat(svx);
-    }
-    var py: i32 = py0;
-    while (py < py1) : (py += 1) {
-        if (py < 0 or py >= ph) continue;
-        const svy = gm.CENTER + (@as(f32, @floatFromInt(py)) + 0.5 - cy) / sy;
-        if (svy < 0 or svy >= @as(f32, BS)) continue;
-        const srow = @as(usize, @intFromFloat(svy)) * BS;
-        const drow = @as(usize, @intCast(py)) * fb.stride;
-        for (cols[0..span], 0..) |c, k| {
-            if (c < 0) continue;
-            const idx = ball_buf[srow + @as(usize, @intCast(c))];
-            if (idx == 0) continue;
-            fb.fb[drow + @as(usize, @intCast(px0 + @as(i32, @intCast(k))))] = idx;
-        }
-    }
-}
