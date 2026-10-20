@@ -28,11 +28,11 @@
 // ring, flame V) — a separate part of the program at $804 — which resolves out
 // of white, holds, flashes back out at frame 250 and hands over at 300.  See
 // vex/title.zig.
+// Z toggles ZIG MODE, both scrollers through the open side borders: zig_mode.zig.
 // --------------------------------------------------------------------------
 const zg = @import("zigos");
 const ZigOS = zg.ZigOS;
 const LogicalFB = zg.LogicalFB;
-const Color = zg.Color;
 const Console = zg.Console;
 
 const A = @import("vex/assets.zig");
@@ -46,15 +46,16 @@ const raster = @import("vex/raster.zig");
 const Title = @import("vex/title.zig").Title;
 const Intro = @import("vex/intro.zig");
 const rows = @import("vex/rows.zig");
+const zm = @import("vex/zig_mode.zig");
 
 // !Cube / Aggression's tune, ripped straight out of the intro's DATA at $3906e
 // (the VBL's `jsr` lands on $39076, the SNDH play vector) — so this is the
 // screen's own music, not a match. FLAG ~y, one subtune, peak 0.0493.
 const MUSIC = "vex.sndh";
+const K_ESC: u32 = 0xE012; // host KEY_CODES.Escape, which a cart with key() owns
 
 // The palette entries the raster drives live with the layers they colour.
 const BG = P.BG;
-const DRIVEN = P.DRIVEN;
 
 pub const Demo = struct {
     // demo_main holds the cart as `undefined`: every field is set in init().
@@ -71,12 +72,19 @@ pub const Demo = struct {
     /// $30dc4: the VBL counts 100 frames before it lets any effect run, and
     /// $e9ba gates colours 1-3 and 8-15 on the same counter.
     settle: u16,
+    /// demo_main's pollCartRequest: back to the menu. A cart with key() gets
+    /// Escape too, so it has to say so itself.
+    wants_quit: bool,
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
         Console.log("vex: vEctRoniX 2025 — GTA VI cracktro (SLiPPY/Jade/!Cube/Metallinos)", .{});
 
         const fb: *LogicalFB = &zigos.lfbs[0];
         fb.is_enabled = true;
+        // An overscan plane whose borders stay closed until ZIG MODE opens the
+        // sides; closed, it composites exactly as a normal 320x200 plane.
+        fb.setOverscanScrollPlane(P.BUF_W, zg.PHYSICAL_HEIGHT);
+        fb.setScroll(P.SCROLL_X, 0);
         fb.clearFrameBuffer(BG);
         P.alloc();
         P.clear();
@@ -88,13 +96,20 @@ pub const Demo = struct {
         self.credits.init();
         self.cubes.init();
         self.settle = 100;
+        self.wants_quit = false;
+        zm.reset();
 
         self.intro.init(fb); // the script screen runs first; it starts the title
         zigos.setHBLHandler(raster.borderHbl); // colour 0 drives the border throughout
-        fb.setFrameBufferHBLHandler(0, raster.preTitleHbl); // ...and the plane, while the script runs
+        fb.setFrameBufferHBLHandler(zg.OVERSCAN_MAGIC_X, raster.preTitleHbl); // ...and the plane, while the script runs
         raster.band_top = Intro.BAND_TOP;
         raster.band_rows = Intro.BAND_ROWS;
         zg.requestSong(MUSIC); // the tune plays under the title too ($843b8)
+    }
+
+    pub fn key(self: *Demo, cp: u32) void {
+        if (cp == K_ESC) self.wants_quit = true;
+        if (zm.isToggle(cp)) zm.wanted = !zm.wanted; // applied by zm.sync()
     }
 
     pub fn update(self: *Demo, zigos: *ZigOS, dt: f32) void {
@@ -110,6 +125,7 @@ pub const Demo = struct {
             if (self.title.done()) self.startIntro(fb);
             return;
         }
+        zm.sync();
         self.fade.step(); // $ab86
         self.ramp.advance(); // $e81e's ramp pointer
         if (self.settle > 0) {
@@ -117,7 +133,7 @@ pub const Demo = struct {
             return;
         }
         self.scroller.update(); // $e3a0
-        self.scroller.draw(); // $e602
+        self.scroller.draw(zm.live); // $e602
         self.small.update(); // $dca6
         self.credits.update(); // $dece / $df02
         self.cubes.fadeColours(); // $b78e -> $d24
@@ -153,6 +169,7 @@ pub const Demo = struct {
         rows.build(&self.fade, &self.ramp, &self.cubes, self.settle);
         P.composeBand(pixels, fb.stride);
         P.composeSmall(pixels, fb.stride);
+        zm.compose(pixels, fb.stride, &self.scroller);
     }
 
     /// $12c: the title is over. Clear it away, put the logo up and let the
@@ -160,9 +177,10 @@ pub const Demo = struct {
     fn startIntro(self: *Demo, fb: *LogicalFB) void {
         fb.clearFrameBuffer(BG);
         P.clear();
+        self.small.init(); // P.clear() wiped the bits it shifts in ahead of the window
         drawLogo(fb);
         self.publishPalette(fb);
-        fb.setFrameBufferHBLHandler(0, raster.rasterHbl);
+        fb.setFrameBufferHBLHandler(zg.OVERSCAN_MAGIC_X, raster.rasterHbl);
         raster.band_rows = 0; // back to the Timer-B table
     }
 
@@ -174,8 +192,9 @@ pub const Demo = struct {
 };
 
 fn drawLogo(fb: *LogicalFB) void {
+    const win = P.window(fb);
     for (0..A.LOGO_H) |y| {
         const src = A.logo[y * zg.WIDTH ..][0..zg.WIDTH];
-        @memcpy(fb.fb[y * fb.stride ..][0..zg.WIDTH], src);
+        @memcpy(win[y * fb.stride ..][0..zg.WIDTH], src);
     }
 }

@@ -7,7 +7,13 @@
 // credits page wipe and come back?" are questions about frame N, which here is
 // just a number. It also times the frame, since the recompose is per pixel.
 //
+// Two copies of the cart run in lockstep. The first stays in ORIGINAL mode and
+// its shots are pinned by hash: that mode is the ST's screen and must not move.
+// The second is switched into ZIG MODE with Z (both scrollers through the open
+// side borders) and back, and is checked against the first on every frame.
+//
 //   node apps/vex_headless.mjs [outdir]
+import { createHash } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { cartRam, romRam } from "../docs/wasm_hiwater.js";
 
@@ -127,13 +133,89 @@ class Screen {
         }
         const pct = (100 * lit) / (200 * 160);
         if (pct < floor) throw new Error(`${path}: only ${pct.toFixed(2)}% of the screen is lit (floor ${floor}%) — a layer stopped drawing`);
-        console.log(`  shot: ${path} (frame ${this.frames}, ${pct.toFixed(2)}% lit)`);
+        const hash = createHash("sha256").update(out).digest("hex").slice(0, 16);
+        console.log(`  shot: ${path} (frame ${this.frames}, ${pct.toFixed(2)}% lit, ${hash})`);
+        return hash;
     }
 }
 
+
 const out = process.argv[2] || "/tmp/vex";
 await mkdir(out, { recursive: true });
-const screen = await boot();
+const screen = await boot(); // ORIGINAL throughout: the pinned run
+const zig = await boot();    // the same cart, switched with Z along the way
+
+// ORIGINAL's frames, by hash. Taken before ZIG MODE existed (the plane was a
+// plain 320x200 one then) and unchanged by it: if one of these moves, the
+// faithful screen changed. Re-pin only for a deliberate change to the port.
+const PINS = {
+    "00-pretitle": "c15f6a4806e84681", "01-pretitle-lit": "a4ab479ec97e410b",
+    "02-title-white": "a84c9f5272b5c652", "03-title": "e7241566737cc94f",
+    "04-first": "f49ca607c5f85f33", "05-faded": "1d1f33e07cfd0362",
+    "06-running": "c6fe3fc8ad93cee3", "07-mid-page": "75fca4c2853452c5",
+    "08-wiping": "5a7624f71ab250d9", "09-page1": "152e89f3c34636b7",
+    "10-page2": "288cd83b2ba5f0b0",
+};
+const fails = [];
+async function shot(name, floor) {
+    const hash = await screen.shot(`${out}/${name}.ppm`, floor);
+    if (hash !== PINS[name]) fails.push(`${name}: ORIGINAL frame hash ${hash}, pinned ${PINS[name]}`);
+}
+
+// The rows ZIG MODE opens, derived the way the cart derives them: the big
+// scroller's ink rows from wave.dat's range (scroller.zig INK_TOP/INK_END) and
+// Metallinos' eight (planes.zig SMALL_TOP).
+const wave = await readFile("apps/zig/assets/screens/vex/wave.dat");
+const INK_TOP = 12 + Math.min(...wave), INK_END = 12 + Math.max(...wave) + 32;
+const SMALL_TOP = 191, SMALL_END = 199;
+const opened = (y) => (y >= INK_TOP && y < INK_END) || (y >= SMALL_TOP && y < SMALL_END);
+
+// The PFB is the 800x280 raster (x doubled): the window is x 80..720, y 40..240.
+const PW = 800, BX = 80, BY = 40;
+const px = (s, x, y) => s.readUInt32LE((y * PW + x) * 4);
+const ink = { big: [0, 0], small: [0, 0], edge: [0, 0] }; // [left, right] pixel counts
+let requested = false; // Z pressed an odd number of times
+
+// One frame of each. While ZIG MODE is off the two must be byte-identical, Z
+// pending through the pre-title and title included (only the intro has
+// scrollers). While it is on: the window is still identical, closed lines are
+// identical, and an opened line's border shows only the ORIGINAL's border
+// colour or ONE other (the scroller's ink) -- a missed flicker paints noise
+// out of the whole palette, which this rejects.
+function lockstep(n) {
+    for (let i = 0; i < n; i++) {
+        screen.run(1);
+        zig.run(1);
+        const a = Buffer.from(screen.snaps[0].buffer), b = Buffer.from(zig.snaps[0].buffer);
+        const f = screen.frames;
+        if (!requested) {
+            if (!a.equals(b)) throw new Error(`frame ${f}: ORIGINAL mode differs from the never-switched run`);
+            continue;
+        }
+        for (let y = 0; y < zig.h; y++) {
+            const row = y * PW * 4;
+            if (a.compare(b, row + BX * 4, row + (PW - BX) * 4, row + BX * 4, row + (PW - BX) * 4) !== 0)
+                throw new Error(`frame ${f}: ZIG MODE changed the window on raster line ${y}`);
+            const wy = y - BY, open = wy >= 0 && wy < 200 && opened(wy);
+            let other = null;
+            for (let x = 0; x < PW; x += 2) {
+                if (x === BX) x = PW - BX;
+                const pa = px(a, x, y), pb = px(b, x, y);
+                if (pa === pb) continue;
+                if (!open) throw new Error(`frame ${f}: raster line ${y} x ${x / 2} drawn in a border ZIG MODE never opens`);
+                if (other !== null && pb !== other) throw new Error(`frame ${f}: raster line ${y} border shows garbage (a missed flicker): x ${x / 2} ${pb.toString(16)} vs ${other.toString(16)}, ORIGINAL ${pa.toString(16)}`);
+                other = pb;
+                const side = x < BX ? 0 : 1;
+                (wy >= SMALL_TOP ? ink.small : ink.big)[side]++;
+                if (x < 16 || x >= PW - 16) ink.edge[side]++;
+            }
+        }
+    }
+}
+function press() {
+    zig.demo.key("Z".charCodeAt(0));
+    requested = !requested;
+}
 
 // Two screens run before the intro proper, and every shot below is offset past
 // them so the names keep meaning what they say — without the offset the shots
@@ -148,36 +230,57 @@ const screen = await boot();
 const PRETITLE = 865;
 const TITLE = 300;
 
-screen.run(1);
-await screen.shot(`${out}/00-pretitle.ppm`);    // page 1 up, white surround behind it
-screen.run(120);
-await screen.shot(`${out}/01-pretitle-lit.ppm`); // still page 1, ink faded up
-screen.run(PRETITLE - 121 + 1); // one past the handover, inside the white
-await screen.shot(`${out}/02-title-white.ppm`); // $80a's white, before the fade
-screen.run(59);
-await screen.shot(`${out}/03-title.ppm`);       // 60: the V has resolved out of it
-screen.run(TITLE - 60);
-await screen.shot(`${out}/04-first.ppm`);       // PRETITLE+TITLE: the handover, the intro's own first
-screen.run(59);
-await screen.shot(`${out}/05-faded.ppm`);       // +60: the 21-word crossfade has landed
-screen.run(240);
-await screen.shot(`${out}/06-running.ppm`);     // scroller on its wave, cubes rolling
-screen.run(700);
-await screen.shot(`${out}/07-mid-page.ppm`);    // still page 0, deep into the 1000-frame hold
-screen.run(360);
-await screen.shot(`${out}/08-wiping.ppm`);      // intro 1060: the panel erases a line a frame
-screen.run(180);
-await screen.shot(`${out}/09-page1.ppm`);       // intro 1240: page 1 is back
-screen.run(1240);
-await screen.shot(`${out}/10-page2.ppm`);
+lockstep(1);
+await shot("00-pretitle");    // page 1 up, white surround behind it
+lockstep(9);
+press();                      // Z during the pre-title: held until the intro
+lockstep(111);
+await shot("01-pretitle-lit"); // still page 1, ink faded up
+lockstep(PRETITLE - 121 + 1); // one past the handover, inside the white
+await shot("02-title-white"); // $80a's white, before the fade
+lockstep(59);
+await shot("03-title");       // 60: the V has resolved out of it
+lockstep(TITLE - 60);
+await shot("04-first");       // PRETITLE+TITLE: the handover, the intro's own first
+lockstep(59);
+await shot("05-faded");       // +60: the 21-word crossfade has landed
+lockstep(240);
+await shot("06-running");     // scroller on its wave, cubes rolling
+await zig.shot(`${out}/zig-06-running.ppm`); // ...and through the open borders
+lockstep(700);
+await shot("07-mid-page");    // still page 0, deep into the 1000-frame hold
+press();                      // back to ORIGINAL: identical from the next frame
+lockstep(360);
+await shot("08-wiping");      // intro 1060: the panel erases a line a frame
+press();                      // ZIG again: the side words start from blank
+lockstep(180);
+await shot("09-page1");       // intro 1240: page 1 is back
+await zig.shot(`${out}/zig-09-page1.ppm`);
+press();
+lockstep(1240);
+await shot("10-page2");
+
+const need = 50; // a few columns' worth: each side, each scroller, and the raster's very edge
+for (const [what, [l, r]] of Object.entries(ink)) {
+    console.log(`  zig: ${what} ink in the side borders: left ${l} px, right ${r} px`);
+    if (l < need || r < need) fails.push(`ZIG MODE: the ${what} ink does not reach both side borders (${l} / ${r} px)`);
+}
 
 const t0 = performance.now();
 screen.run(3000);
 console.log(`  soak: ${screen.frames} frames clean, ` +
     `${((performance.now() - t0) / 3000).toFixed(2)} ms/frame (update + render + 1 plane composite)`);
+press();
+const t1 = performance.now();
+zig.run(3000);
+console.log(`  soak: ZIG MODE ${((performance.now() - t1) / 3000).toFixed(2)} ms/frame`);
 // The layers and the credit pages come from zg.mem, once per cart load.
-const refused = screen.machine.hwRamAllocFailures();
-if (refused) {
-    console.log(`vex: FAILED -- ${refused} zg.mem allocation(s) refused`);
+for (const s of [screen, zig]) {
+    const refused = s.machine.hwRamAllocFailures();
+    if (refused) fails.push(`${refused} zg.mem allocation(s) refused`);
+}
+if (fails.length) {
+    for (const f of fails) console.log(`vex: FAILED -- ${f}`);
     process.exit(1);
 }
+console.log("vex: OK -- ORIGINAL pinned on 11 frames, ZIG MODE checked on every frame it ran");

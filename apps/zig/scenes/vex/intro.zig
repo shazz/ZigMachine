@@ -23,6 +23,7 @@ const LogicalFB = zg.LogicalFB;
 
 const A = @import("assets.zig");
 const pal = @import("palette.zig");
+const P = @import("planes.zig");
 
 pub const BAND: u8 = 0; // colour 0 -- the raster paints it, see below
 pub const INK: u8 = 1; // $b6a0 writes plane 0 only, so the text is index 1
@@ -118,20 +119,22 @@ fn draw(fb: *LogicalFB, text: u8, row: u16) void {
 
 fn blit(fb: *LogicalFB, ch: u8, x: usize, y: usize) void {
     const g = (@as(usize, ch) - 0x20) * 8;
+    const win = P.window(fb);
     for (0..8) |r| {
         if (y + r >= zg.HEIGHT) return;
         const bits = A.introfont[g + r];
         for (0..8) |c| {
             if (x + c >= zg.WIDTH) break;
-            if (bits >> @intCast(7 - c) & 1 != 0) fb.fb[(y + r) * fb.stride + x + c] = INK;
+            if (bits >> @intCast(7 - c) & 1 != 0) win[(y + r) * fb.stride + x + c] = INK;
         }
     }
 }
 
 /// op 4: 8004 bytes = 50 lines of 160. It only wipes the last page's text.
 fn clearRows(fb: *LogicalFB, row: u16) void {
+    const win = P.window(fb);
     var y: usize = row;
     while (y < @min(row + CLEAR_ROWS, zg.HEIGHT)) : (y += 1) {
-        @memset(fb.fb[y * fb.stride ..][0..zg.WIDTH], BAND);
+        @memset(win[y * fb.stride ..][0..zg.WIDTH], BAND);
     }
 }

@@ -11,6 +11,7 @@ const LogicalFB = zg.LogicalFB;
 const Color = zg.Color;
 
 const P = @import("planes.zig");
+const zm = @import("zig_mode.zig");
 
 pub const SPLITS: usize = 71; // $30dee ships as $47
 pub const SPLIT_TOP: usize = 47; // the two lines $e90a paints before the chain
@@ -34,24 +35,44 @@ pub var band_rows: u16 = 0;
 pub var band_in: u32 = 0;
 pub var band_out: u32 = 0;
 
+/// ZIG MODE's open side borders, per window row: the colour borderHbl gave that
+/// line. The global HBL runs as the frame is cleared, before this frame's
+/// row_pal is built, so the closed border is LAST frame's colour 0; a side
+/// pixel painted with this frame's would show a seam for a frame on every fade.
+pub var side_bg: [P.ROWS]u32 = undefined;
+
 pub fn borderHbl(zigos: *ZigOS, line: u16) void {
     const y: usize = if (line < VBORDER) 0 else @min(line - VBORDER, P.ROWS - 1);
     if (band_rows != 0) {
         const inside = y >= band_top and y < band_top + band_rows;
         return zigos.setBackgroundColor(Color.fromRGBA(if (inside) band_in else band_out));
     }
-    zigos.setBackgroundColor(Color.fromRGBA(row_pal[y][0]));
+    const c = row_pal[y][0];
+    if (zm.live and line >= VBORDER and line < VBORDER + P.ROWS) side_bg[y] = c;
+    zigos.setBackgroundColor(Color.fromRGBA(c));
+}
+
+/// The plane is an overscan plane, so its HBLs fire at OVERSCAN_MAGIC_X on
+/// PHYSICAL lines 0..279; only the window's 200 carry anything.
+fn windowRow(line: u16) ?usize {
+    if (line < VBORDER or line >= VBORDER + P.ROWS) return null;
+    return line - VBORDER;
 }
 
 pub fn rasterHbl(fb: *LogicalFB, _: *ZigOS, line: u16, _: u16) void {
-    if (line >= P.ROWS) return;
-    for (row_pal[line], 0..) |c, i| fb.palette[P.BG + i] = c;
+    const y = windowRow(line) orelse return;
+    for (row_pal[y], 0..) |c, i| fb.palette[P.BG + i] = c;
+    if (zm.live and zm.sideRow(y)) { // ZIG MODE: open the sides
+        fb.palette[P.SIDE_BG] = side_bg[y];
+        fb.flickerBorder();
+    }
 }
 
 /// The pre-title's split: colour 0 is black down the band and white outside,
 /// on the PLANE as well as the border, because on the ST they are one colour.
 pub fn preTitleHbl(fb: *LogicalFB, _: *ZigOS, line: u16, _: u16) void {
-    const inside = line >= band_top and line < band_top + band_rows;
+    const y = windowRow(line) orelse return;
+    const inside = y >= band_top and y < band_top + band_rows;
     fb.palette[0] = if (inside) band_in else band_out;
 }
 

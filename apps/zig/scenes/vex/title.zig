@@ -19,6 +19,7 @@ const LogicalFB = zg.LogicalFB;
 
 const A = @import("assets.zig");
 const pal = @import("palette.zig");
+const P = @import("planes.zig");
 
 const WHITE: u16 = 0x0777; // $80a's fill, and the target again past HOLD
 const COLOURS: usize = 16; // d7 = $f
@@ -32,9 +33,10 @@ pub const Title = struct {
     pub fn init(self: *Title, fb: *LogicalFB) void {
         self.t = 0;
         for (&self.live) |*c| c.* = WHITE;
+        const win = P.window(fb);
         for (0..A.VTITLE_H) |y| {
             const src = A.vtitle[y * zg.WIDTH ..][0..zg.WIDTH];
-            @memcpy(fb.fb[y * fb.stride ..][0..zg.WIDTH], src);
+            @memcpy(win[y * fb.stride ..][0..zg.WIDTH], src);
         }
         self.publish(fb);
     }

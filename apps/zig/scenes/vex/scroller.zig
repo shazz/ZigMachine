@@ -18,14 +18,21 @@
 //
 // Each column is then drawn at 12 + wave[i] rows down, doubled vertically to 32
 // lines, with 4 blank rows above and 8 below to erase last frame ($e602).
+//
+// The rings hold 26 columns, not 20: three either side of the window, so ZIG
+// MODE can run the scroller on through the open side borders.  The right
+// border shows columns the window has not reached yet, so init() cuts AHEAD
+// columns per ring up front: the window still shows the ST's 20 columns, the
+// cutter simply runs three of a ring's columns ahead of it.
 // --------------------------------------------------------------------------
 const A = @import("assets.zig");
 const P = @import("planes.zig");
 
-const SLOTS: usize = 20; // $95058..$952d8 is 20 columns of 16 words
+const SLOTS: usize = P.BUF_WORDS; // $95058..$952d8 held the window's 20 of them
+const AHEAD: usize = SLOTS - P.WIN_WORD - P.WORDS; // 3: the right border's columns
 const ROWS: usize = 16;
 const TOP: usize = 12; // screen + $786 is row 12, plane 3
-const WAVE_LEN: usize = 180; // entries 180..199 duplicate 0..19 for the window
+const WAVE_LEN: usize = 180; // entries 180..199 let the window read wave[wave + k] without wrapping
 
 pub const Scroller = struct {
     ring: [2][SLOTS][ROWS]u16,
@@ -35,6 +42,9 @@ pub const Scroller = struct {
     prev: u8, // ...and the one state 0 spans out of
     text: usize,
     wave: usize,
+    /// Where draw() last put each side-border column (buffer words 0..2 then
+    /// 23..25), so ZIG MODE recomposes only the rows that changed.
+    side_y0: [2 * P.WIN_WORD]usize,
 
     pub fn init(self: *Scroller) void {
         for (&self.ring) |*r| for (r) |*s| @memset(s, 0);
@@ -44,6 +54,9 @@ pub const Scroller = struct {
         self.prev = space();
         self.text = 0;
         self.wave = 0;
+        // An even count keeps each ring on its own parity of frames.
+        for (0..2 * AHEAD) |_| self.push();
+        for (&self.side_y0) |*y| y.* = REACH_TOP + 4;
     }
 
     fn space() u8 {
@@ -79,7 +92,8 @@ pub const Scroller = struct {
         };
     }
 
-    pub fn update(self: *Scroller) void {
+    /// One cut: a column into the ring of this state's parity.
+    fn push(self: *Scroller) void {
         if (self.state == 0) {
             self.prev = self.glyph;
             self.glyph = self.nextGlyph();
@@ -89,21 +103,41 @@ pub const Scroller = struct {
         for (slot, 0..) |*w, i| w.* = self.column(i);
         self.write[r] = (self.write[r] + 1) % SLOTS;
         self.state +%= 1;
+    }
 
+    pub fn update(self: *Scroller) void {
+        self.push();
         self.wave += 1;
         if (self.wave >= WAVE_LEN) self.wave = 0;
     }
 
-    /// Paint the ring just written into plane 3, oldest column at screen x 0.
-    pub fn draw(self: *const Scroller) void {
+    /// Paint the ring just written into plane 3, oldest column at window x 0;
+    /// `sides` also paints the three columns either side, for the open borders.
+    pub fn draw(self: *Scroller, sides: bool) void {
         const r: usize = (self.state +% 3) & 1; // the ring update() just pushed
-        var c: usize = 0;
-        while (c < SLOTS) : (c += 1) {
+        const first: usize = if (sides) 0 else P.WIN_WORD;
+        const end: usize = if (sides) SLOTS else P.WIN_WORD + P.WORDS;
+        var c: usize = first;
+        while (c < end) : (c += 1) {
             const slot = &self.ring[r][(self.write[r] + c) % SLOTS];
-            drawColumn(slot, c, TOP + A.wave[self.wave + c]);
+            const y0 = TOP + A.wave[waveIndex(self.wave, c)];
+            drawColumn(slot, c, y0);
+            if (c < P.WIN_WORD) self.side_y0[c] = y0;
+            if (c >= P.WIN_WORD + P.WORDS) self.side_y0[c - P.WORDS] = y0;
         }
     }
 };
+
+/// The window's column k reads wave[wave + k], exactly as $e602 did (180 + 20
+/// entries, so it never wraps). The side columns, k = -3..-1 and 20..22, step
+/// past either end of that and are folded back by the 180-entry period.
+fn waveIndex(wave: usize, c: usize) usize {
+    var i = wave + c;
+    if (i < P.WIN_WORD) i += WAVE_LEN;
+    i -= P.WIN_WORD;
+    if (i >= A.wave.len) i -= WAVE_LEN;
+    return i;
+}
 
 fn drawColumn(slot: *const [ROWS]u16, c: usize, y0: usize) void {
     var k: usize = 0;
@@ -116,19 +150,35 @@ fn drawColumn(slot: *const [ROWS]u16, c: usize, y0: usize) void {
     while (k < 8) : (k += 1) P.scroll[y0 + 32 + k][c] = 0;
 }
 
+/// The rows a column's ink can reach (wave.dat's range): ZIG MODE opens the
+/// side borders on these lines and no others.
+pub const INK_TOP: usize = TOP + waveMin();
+pub const INK_END: usize = TOP + waveMax() + 2 * ROWS;
+/// drawColumn() paints from 4 rows above a column's y0 to 8 below its ink.
+pub const REACH_TOP: usize = INK_TOP - 4;
+pub const REACH_END: usize = INK_END + 8;
+pub const COLUMN_ROWS: usize = 4 + 2 * ROWS + 8;
+
+fn waveMin() usize {
+    @setEvalBranchQuota(8000);
+    var lo: usize = 255;
+    for (A.wave) |w| lo = @min(lo, w);
+    return lo;
+}
+fn waveMax() usize {
+    @setEvalBranchQuota(8000);
+    var hi: usize = 0;
+    for (A.wave) |w| hi = @max(hi, w);
+    return hi;
+}
+
 comptime {
-    if (WAVE_LEN + SLOTS > A.wave.len) @compileError("the wave window reads past wave.dat");
+    if (WAVE_LEN + P.WORDS > A.wave.len) @compileError("the wave window reads past wave.dat");
+    if (WAVE_LEN + P.BUF_WORDS - P.WIN_WORD > A.wave.len + WAVE_LEN) @compileError("a side column folds twice");
     if (A.ascii_to_glyph[' '] == 0xff) @compileError("the big font has no space cell");
     // wave[] holds rows 60..120, so the band lives in 68..171 and never leaves
     // the plane or the recomposed band.  Checked here because drawColumn does
     // not clamp -- exactly as $e602 did not.
-    @setEvalBranchQuota(8000);
-    var lo: usize = 255;
-    var hi: usize = 0;
-    for (A.wave) |w| {
-        if (w < lo) lo = w;
-        if (w > hi) hi = w;
-    }
-    if (TOP + lo < 4 + P.LIVE_TOP) @compileError("the scroller's blank rows run above the recomposed band");
-    if (TOP + hi + 40 > P.LIVE_TOP + P.LIVE_ROWS) @compileError("the scroller runs below the recomposed band");
+    if (REACH_TOP < P.LIVE_TOP) @compileError("the scroller's blank rows run above the recomposed band");
+    if (REACH_END > P.LIVE_TOP + P.LIVE_ROWS) @compileError("the scroller runs below the recomposed band");
 }
