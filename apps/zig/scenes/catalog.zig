@@ -112,6 +112,7 @@ pub const ENTRIES = [_]Entry{
     .{ .name = "LARCOCIEL DMA INTRO 2", .tag = "larcociel2" }, // atari st
     .{ .name = "BUBBLE BOBBLE", .tag = "bubblebobble" }, // zigmachine
     .{ .name = "CHONCHON", .tag = "chonchon" }, // atari st
+    .{ .name = "REPLICANTS IK+", .tag = "ikplus" }, // atari st — The Replicants' "International Karate Plus" cracktro
     // The Union Demo's screens (union_multifake, union_textracker, ...) are NOT
     // listed: they are reached only through the UNION DEMO hub's doors (Matt,
     // 2026-09-13). Their carts stay in build.zig / cart.zig, so their disks build.

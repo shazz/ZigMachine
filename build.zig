@@ -511,6 +511,7 @@ pub fn build(b: *std.Build) void {
         "demo-larcociel2", // 96 — DMA INTRO 2 "LARCOCIEL" (DMA 1990): the animated background band, projected ball trail and slice-stream scrolltext (ported from the Go re-creation)
         "demo-bubblebobble", // 97 — BUBBLE BOBBLE (Taito 1986): the Go remake's 25-round campaign, six enemy kinds, bubbles, elements, power-ups and the level editor (ported from the Go re-creation)
         "demo-chonchon", // 98 — CHONCHON (a Chon-Chon / DMA intro): the native motion's stars, ring scrollers and warped chrome logo, the YM-volume music meters and the per-line raster (ported from the Go re-creation)
+        "demo-ikplus", // 99 — THE REPLICANTS / "INTERNATIONAL KARATE PLUS" (IK+) cracktro: a four-size scrolltext, the logo outline, eight stars and two REAL per-scanline raster bars (ported from the Go re-creation of the ST binary)
     };
     for (cart_names, 0..) |name, idx| {
         if (name.len == 0) continue; // excluded cart (see note above)

@@ -45,7 +45,11 @@ pub inline fn build(comptime img: []const u8, comptime w: usize, comptime key: u
 }
 
 fn make(comptime img: []const u8, comptime w: usize, comptime key: u8) Runs(count(img, w, key), img.len / w) {
-    @setEvalBranchQuota(4 * img.len + 1000);
+    // A logo of many SHORT runs (text outlines) walks the pixel loop far more
+    // times per byte than a mostly-solid one, so the budget goes with pixels, not
+    // runs.  4x was enough for the solid logos; ikplus's IK+ outline text needed
+    // more, and the limit only ever costs compile time, never correctness.
+    @setEvalBranchQuota(16 * img.len + 4000);
     const h = img.len / w;
     var out: Runs(count(img, w, key), h) = undefined;
     out.w = w;
@@ -74,7 +78,7 @@ pub fn count(comptime img: []const u8, comptime w: usize, comptime key: u8) usiz
     if (w == 0) @compileError("spans: zero width");
     if (img.len % w != 0) @compileError("spans: image length is not a multiple of its width");
     if (w > 0xFFFF) @compileError("spans: rows wider than 65535 pixels");
-    @setEvalBranchQuota(2 * img.len + 1000);
+    @setEvalBranchQuota(16 * img.len + 4000);
     var n: usize = 0;
     for (img, 0..) |px, i| {
         if (px != key and (i % w == 0 or img[i - 1] == key)) n += 1;
