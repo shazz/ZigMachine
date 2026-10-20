@@ -38,6 +38,7 @@ ORDER = "menu"
 EXCLUDE = {
     "gem": "the GEM desktop OS, not a screen",
     "st_replay": "a data disk that boots GEM + an app",
+    "sysinfo": "a data disk that boots GEM + an app (SysInfo, launched from the floppy)",
     # Hidden from the public page for now (Matt, 2026-09-12); still in the menu.
     "replicants": "REPS OLD, the pre-CODEF Replicants kept only for side-by-side comparison",
     "badflicker": "deliberately broken overscan test",

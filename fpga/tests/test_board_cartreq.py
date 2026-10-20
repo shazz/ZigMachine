@@ -78,6 +78,17 @@ def test_the_shelf_prebuilds_boot_wsm_as_the_st_replay_carts_image(tmp_path: Pat
     assert not list((tmp_path / "sd").glob("progs/**/SAMPLE.RAW*"))  # a data file is no program
 
 
+def test_sysinfo_is_a_data_disk_whose_boot_wsm_is_the_sysinfo_carts_image(tmp_path: Path) -> None:
+    fws = tmp_path / "board"
+    _fw(fws, "gem")
+    _fw(fws, "sysinfo")
+    rows = dict(glass_shelf.build_shelf(tmp_path / "sd", fws, tmp_path / "none.h", ("sysinfo",)))
+    assert rows["zigmachine/demo-sysinfo.zmd"].endswith("gem/fw.bin (a data disk: GEM boots)")  # Q has a GEM to go back to
+    assert rows["zigmachine/progs/demo-sysinfo/BOOT.WSM.zmd"].endswith("sysinfo/fw.bin (BOOT.WSM)")
+    fat = (tmp_path / "sd/progs/demo-sysinfo/BOOT.WSM.zmd").read_bytes()
+    assert [f[0] for f in zmd_fat.files(fat)] == ["BOOT.WSM", "CART.RV32"]
+
+
 def test_a_program_without_its_carts_firmware_is_missing(tmp_path: Path) -> None:
     fws = tmp_path / "board"
     _fw(fws, "gem")

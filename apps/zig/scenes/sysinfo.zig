@@ -6,8 +6,8 @@
 // system & memory, video, sound, disk, and speed tests against a stock ST.
 //
 // Like ST Replay it is an application on the ROM's GEM toolkit (rom_sdk): the
-// drawing, the dialog and the alert are the ROM's, through handles. Unlike
-// ST Replay it boots from its own disk; quitting goes back to the OS (GEM).
+// drawing, the dialog and the alert are the ROM's, through handles. Like it,
+// it is a GEM program: BOOT.WSM on a data disk; Q goes back to the desktop.
 // Input is sysinfo/control.zig's. It reads the machine only through what a cart is given (sysinfo/probe.zig),
 // so the same cart links lean for the KESTREL board; what is not given reads
 // n/a. On the board every store is a blocking DDR write, so the glass is
@@ -61,7 +61,7 @@ pub const App = struct {
     pub fn init(self: *App, os: *ZigOS) void {
         self.os = os;
         const fb = &os.lfbs[PLANE];
-        // A standalone cart: the plane is ours to bring up, BEFORE the ROM binds
+        // A fresh cart over GEM: the plane is ours to bring up, BEFORE the ROM binds
         // a context to it (it reads the plane's registers), as ST Replay does.
         fb.is_enabled = true;
         fb.setMediumPlane();

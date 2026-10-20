@@ -58,7 +58,7 @@ select it in <code>apps/floppy.zig</code>.
 screen step by step in Zig, C and Rust, and runs each step on the real machine.
 This page is the reference you reach for afterwards.</p>
 </div>
-      <p class="stamp">Generated 2026-10-18 by tools/gen_docs.py from machine/sdk, libs/zig, rom/gem and docs/*.md</p>
+      <p class="stamp">Generated 2026-10-19 by tools/gen_docs.py from machine/sdk, libs/zig, rom/gem and docs/*.md</p>
     </section>
     <section class="ref" id="examples">
       <header class="sec-h"><span class="eyebrow">Start</span><h2>Examples<small>six scenes, in Zig</small></h2></header>
@@ -489,7 +489,8 @@ last word is the adjustment; <code>mkdisk</code> writes it (<code>--no-boot</cod
 the machine verifies it before booting — homage + a real integrity/kind check. This
 is how the <strong>ST Replay</strong> disk works: a non-bootable data disk whose FAT carries the
 app + a <code>SAMPLE.RAW</code>; inserting it brings up GEM, which runs ST Replay reading the
-sample off the disk.</p>
+sample off the disk. SysInfo's disk is the same with the app alone: a data disk
+always lists its program in the FAT (<code>BOOT.WSM</code>), since nothing boots it.</p>
 <p><strong>Simplest disk (our demo carts):</strong> boot sector → 1 KB descriptor (FAT empty, file
 count 0) → the cart wasm as one contiguous data run. The machine reads block 0, checks
 <code>$1234</code>, and loads <code>boot length</code> bytes from <code>boot block</code>. No FAT walk, no directory.</p>
