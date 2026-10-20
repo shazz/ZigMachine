@@ -1051,7 +1051,7 @@ ABI rather than a Zig API, apps in any language sit on it.
 - HP1 set 0xF00 by U-Boot right after `fpga loadb`, before any HP1 traffic (`prototypes/w64_re/boot_w64.py`): W64 writes every word on 11 carts (marker left 0 / 0 / 0 / 0), and GEM's picture is identical to the W32 one (224,000 of 224,000 pixels, same hash).
 - the same boot, then a run-time 64 -> 32 switch (glass `--fw-opt=0`): WR32 correct.
 - then a run-time 32 -> 64 switch (`--fw-opt=2`): words 0 and 3 only again. WRCHAN_CTRL reads back 0xF00 every time.
-So a channel that has carried 32-bit writes and is then set 64-bit keeps a 32-bit lane walk; the 10-03 "odd columns black" and the 10-19 "odd columns missing" are this, not the openXC7 BRAM and not the RTL. Whether an AFI reset (SLCR FPGA_AXDS) would clear it is unverified.
+So a channel that has carried 32-bit writes and is then set 64-bit keeps a 32-bit lane walk (0xF01 then 0xF00 with no traffic between is untested, so every path now sets the final width once); the 10-03 "odd columns black" and the 10-19 "odd columns missing" are this, not the openXC7 BRAM and not the RTL. Whether an AFI reset (SLCR FPGA_AXDS) would clear it is unverified.
 **Decision:**
 - W64 is a boot-time choice: HP1 WRCHAN_CTRL 0xF00 from the first write. `uboot_serial.set_afi(hp1_w64=True)` writes 0xF00 in place of 0xF01 (never 0xF01 then 0xF00).
 - glass (`afi.zig` `want`): `--fw-opt` with W64 on a channel that is not 0xF00 is `error.W64NeedsBoot` (glass exits with a message: reboot with boot.cmd's 0xF00); without W64, a 64-bit channel still goes to 0xF01 at run time (proven correct).

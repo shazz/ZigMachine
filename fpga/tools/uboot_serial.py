@@ -30,9 +30,9 @@ AFI_WIDTHS = (
 )
 AFI_HP2_WIDTH = "mw.l 0xf800a000 0; mw.l 0xf800a014 0xf01"  # the blitter's port, --blit bitstreams only
 # W64 (the video DMA's 8-byte write beats, hp_cfg bit 1): HP1's write channel 64-bit IN PLACE of
-# AFI_WIDTHS' 0xf01, never after it: a channel set 32-bit and then 64-bit writes words 0 and 3 of
-# every 16 bytes only (the board, 2026-10-19, fpga/glass/src/afi.zig); 64-bit from the first write on
-# writes every word.
+# AFI_WIDTHS' 0xf01, never after it: a channel that carried 32-bit writes and was then set 64-bit
+# writes words 0 and 3 of every 16 bytes only (the board, 2026-10-19, fpga/glass/src/afi.zig); 64-bit
+# from the first write on writes every word. 0xf01 then 0xf00 with no traffic between is untested.
 AFI_HP1_W32 = "mw.l 0xf8009014 0xf01"
 AFI_HP1_W64 = "mw.l 0xf8009014 0xf00"
 assert AFI_HP1_W32 in AFI_WIDTHS
