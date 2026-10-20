@@ -1,16 +1,19 @@
-/* CHISEL (rtl/blitter's zm_blit, soc/zm_blit_soc.py) under hwBlit: bblit.c's steps 2-4, and the
- * lazy wait (bchisel.h). Why each step is where it is:
+/* CHISEL (rtl/blitter's zm_blit, soc/zm_blit_soc.py) under hwBlit: bblit.c's steps 2-4, the
+ * lazy wait (bchisel.h) and the QUEUE. Why each step is where it is:
  *
  * - GO, then one load of BLIT_WINDOW before anything else. GO is an IO store, so IOFence holds it
  *   until every posted DDR store is in DDR, and the tap sees it with `stores_idle` high and starts
- *   the op at once. A DDR store issued right behind GO could make the tap HOLD the start (its
- *   `fire = held & stores_idle`), and a register store reaching the tap meanwhile would be taken
- *   into the op about to run. The load stalls this in-order CPU until the tap has decided.
+ *   the op at once. The kick then copies the block into the engine's own bank (zm_blit_q.v, ~24
+ *   clocks), and the window does not answer a read until that copy is over: the load stalls this
+ *   in-order CPU until then, so no store of the cart's next op can reach the op just started.
+ *   Registers stored while an op runs are no longer dropped (zm_blit_regs.v keeps two banks):
+ *   there is nothing to replay.
  * - The lazy op's lines are worked out right after GO (bdi_plan_op): by the time it ends the cart
  *   may have written the next op's registers.
- * - Registers stored while an op runs are DROPPED (zm_blit_regs.v: no write while BUSY); memory has
- *   them, as the machine's does. So after a lazy op every word of the block is stored back through
- *   the tap (replay): the block in zm_blit is then memory's again, whichever stores were lost. */
+ * - A QUEUE (COMMAND 5) is always lazy: its ops' pixels are the cart's to wait for (the ZigOS
+ *   queue's flush). Its range goes in the GO word; the firmware refuses a bad one as the machine
+ *   does (CYCLES 0). Its lines are not worked out (a list may touch the whole plane): the sync
+ *   drops the whole D$, once per list (write-through: nothing is lost). */
 #include "bchisel.h"
 
 #include "bdinval.h"
@@ -23,11 +26,9 @@ uint8_t bchisel_pending;
 #ifdef ZM_BLIT_HW
 #define BLIT_BUSY (1u << 31)
 #define BLIT_TIMEOUT 100000000u /* cycles: 1 s at 100 MHz; the biggest op is ~27 Mc a frame */
-#define BLIT_WORDS 24u          /* the block's words zm_blit stores (zm_blit_soc.py REG_WORDS) */
 #ifndef BCHISEL_RD /* tests/test_chisel_async.py models CHISEL and its tap instead */
 #define BCHISEL_RD(i) (((volatile uint32_t*)ZMB_WINDOW_ADDR)[i])
-#define BCHISEL_GO(cmd) (*(volatile uint8_t*)ZMB_WINDOW_ADDR = (cmd))
-#define BCHISEL_PUT(w, i) ((w)[i] = (w)[i]) /* a store of memory's own word: the tap takes it */
+#define BCHISEL_GO(word) (*(volatile uint32_t*)ZMB_WINDOW_ADDR = (word)) /* COMMAND in [7:0] */
 #endif
 
 static volatile uint8_t* g_r; /* the lazy op's block */
@@ -58,16 +59,16 @@ HOT void finish(volatile uint8_t* r, const bdi_plan* p) {
     if (r[ZM_BLIT_STATUS] != 0) r[ZM_BLIT_STATUS] = 0;
 }
 
-static void replay(volatile uint8_t* r) {
-    volatile uint32_t* w = (volatile uint32_t*)(r + ZM_OFF_BLIT);
-    for (uint32_t i = 0; i < BLIT_WORDS; i++) BCHISEL_PUT(w, i); /* word 0: the tap never takes COMMAND */
-}
-
 void bchisel_sync(void) {
     wait_idle();
     finish(g_r, &g_plan);
-    replay(g_r);
     bchisel_pending = 0;
+}
+
+/* The pending op's block and lines, once CHISEL has started it (the barrier load). */
+HOT void pend(volatile uint8_t* r) {
+    (void)BCHISEL_RD(0);
+    g_r = r, bchisel_pending = 1;
 }
 
 /* GO, then either return (lazy: its lines planned now, while CHISEL runs) or wait and finish.
@@ -77,9 +78,8 @@ void bchisel_sync(void) {
 HOT void go(volatile uint8_t* r, uint8_t cmd) {
     BCHISEL_GO(cmd);
     if (r[ZM_BLIT_ASYNC]) { /* a load: it cannot race the start (the wait's first poll is the barrier) */
-        (void)BCHISEL_RD(0); /* the tap has started the op before any later store reaches it (above) */
+        pend(r);
         bdi_plan_op(r, cmd, &g_plan);
-        g_r = r, bchisel_pending = 1;
         return;
     }
     wait_idle();
@@ -88,11 +88,29 @@ HOT void go(volatile uint8_t* r, uint8_t cmd) {
     finish(r, &p);
 }
 
+/* A QUEUE: the list's range into the GO word, or refused as machine/blitter_queue.zig refuses it. */
+static __attribute__((noinline)) void run_queue(volatile uint8_t* r) {
+    uint32_t start = *(volatile uint16_t*)(r + ZM_BLIT_Q_START), count = *(volatile uint16_t*)(r + ZM_BLIT_Q_COUNT);
+    if (count == 0 || start + count > ZM_BLIT_QUEUE_WORDS) {
+        *(volatile uint32_t*)(r + ZM_BLIT_CYCLES) = 0;
+        if (r[ZM_BLIT_STATUS] != 0) r[ZM_BLIT_STATUS] = 0;
+        return;
+    }
+    BCHISEL_GO(ZM_BLIT_CMD_QUEUE | start << 8 | count << 17);
+    pend(r);
+    g_plan.how = BDI_ALL;
+}
+
+HOT void dispatch(volatile uint8_t* r) {
+    uint8_t cmd = r[ZM_BLIT_COMMAND];
+    if (cmd == ZM_BLIT_CMD_QUEUE) run_queue(r);
+    else if (cmd) go(r, cmd); /* NOP: the machine leaves STATUS and CYCLES alone */
+}
+
 /* After a lazy op: out of line, so the common path below makes no call. */
 static __attribute__((noinline)) void run_after_lazy(volatile uint8_t* r) {
     bchisel_sync();
-    uint8_t cmd = r[ZM_BLIT_COMMAND];
-    if (cmd) go(r, cmd); /* NOP: the machine leaves STATUS and CYCLES alone */
+    dispatch(r);
 }
 
 void bchisel_run(volatile uint8_t* r) {
@@ -100,8 +118,7 @@ void bchisel_run(volatile uint8_t* r) {
         run_after_lazy(r);
         return;
     }
-    uint8_t cmd = r[ZM_BLIT_COMMAND];
-    if (cmd) go(r, cmd); /* NOP: the machine leaves STATUS and CYCLES alone */
+    dispatch(r);
 }
 #else
 void bchisel_sync(void) { bchisel_pending = 0; }

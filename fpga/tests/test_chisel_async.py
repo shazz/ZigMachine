@@ -1,11 +1,13 @@
-"""CHISEL's lazy wait (cycles/bchisel.c, BLIT_ASYNC): the driver on the host over a model of the
-engine and its tap (tests/chisel_async/host.c), where a register store that reaches the tap while
-the engine is BUSY is dropped, as rtl/blitter/zm_blit_regs.v drops it.
+"""CHISEL's lazy wait and QUEUE (cycles/bchisel.c, BLIT_ASYNC, BLIT_CMD_QUEUE): the driver on the
+host over a model of the engine and its tap (tests/chisel_async/host.c), where a register store
+reaches the tap bank even while the engine is BUSY, as rtl/blitter/zm_blit_regs.v keeps it.
 
 - A synchronous hwBlit returns with CHISEL idle and its box's D$ lines dropped (as before).
 - An async one returns while CHISEL runs, invalidates nothing yet; the next op waits for it, drops
   the FIRST op's lines (taken at its GO, though the cart has since rewritten the registers), and
-  runs with the registers the cart stored meanwhile (the replay puts back what the tap dropped).
+  runs with the registers the cart stored meanwhile (no replay: the tap never dropped them).
+- A QUEUE is always lazy, carries its range in the GO word, is refused as the machine refuses it,
+  and its sync drops the whole D$.
 - A NOP hwBlit (zg.chisel_async.sync) and the env hook (HOST_CHISEL_SYNC) both wait.
 
 ZM_RTL_BREAK=1 breaks each rule in a copy of bchisel.c and requires the model to notice.
@@ -27,14 +29,23 @@ HERE = FPGA / "tests/chisel_async"
 BUILD = FPGA / "build/tests/chisel_async"
 SOURCES = ("bchisel.c", "bchisel.h", "bdinval.h")
 CASES = ("sync_waits", "sync_invalidates_its_box", "lazy_returns_at_once", "lazy_invalidates_the_first_ops_box",
-         "replay_restores_dropped_registers", "nop_syncs", "env_hook_syncs")  # fmt: skip
+         "next_op_runs_with_the_stores_made_while_busy", "nop_syncs", "queue_kick_carries_the_range",
+         "queue_is_lazy", "queue_sync_sweeps_the_dcache", "queue_refused_like_the_machine",
+         "queue_up_to_the_rings_end_runs", "env_hook_syncs")  # fmt: skip
 # (id, text in bchisel.c, broken text, the case that must then fail)
 MUTANTS = [
-    ("no_replay", "replay(g_r);", "", "replay_restores_dropped_registers"),
     ("box_at_sync", "finish(g_r, &g_plan);", "bdi_plan_op(g_r, g_r[ZM_BLIT_COMMAND], &g_plan); finish(g_r, &g_plan);",
      "lazy_invalidates_the_first_ops_box"),
-    ("no_wait_at_next_op", "    bchisel_sync();\n    uint8_t cmd", "    uint8_t cmd", "nop_syncs"),
+    ("no_wait_at_next_op", "    bchisel_sync();\n    dispatch(r);", "    dispatch(r);", "nop_syncs"),
     ("always_lazy", "if (r[ZM_BLIT_ASYNC]) {", "if (1) {", "sync_waits"),
+    ("queue_range_misplaced", "start << 8 | count << 17", "start << 9 | count << 17", "queue_kick_carries_the_range"),
+    ("queue_waits", "    pend(r);\n    g_plan.how = BDI_ALL;", "    g_plan.how = BDI_ALL;\n    wait_idle();",
+     "queue_is_lazy"),
+    ("queue_keeps_the_dcache", "g_plan.how = BDI_ALL;", "g_plan.how = BDI_NONE;", "queue_sync_sweeps_the_dcache"),
+    ("queue_past_the_ring_runs", "start + count > ZM_BLIT_QUEUE_WORDS", "start + count > ZM_BLIT_QUEUE_WORDS + 1",
+     "queue_refused_like_the_machine"),
+    ("queue_to_the_rings_end_refused", "start + count > ZM_BLIT_QUEUE_WORDS", "start + count >= ZM_BLIT_QUEUE_WORDS",
+     "queue_up_to_the_rings_end_runs"),
 ]  # fmt: skip
 needs_cc = pytest.mark.skipif(shutil.which("cc") is None, reason="needs a host C compiler")
 
