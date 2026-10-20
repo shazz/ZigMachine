@@ -1,6 +1,6 @@
 e237ff42edd11856e992990529e135bf  zigmachine.bit
 d2d72ea6bdd5ad07d423562ca86c074f  sd/demo-bench.zmd
 ed9d71bea10ae927042d184899ab10fd  sd/demo-fuji_hobbytronic.zmd
-8046495e62e52cb6ff5db16b8ac14bce  sd/demo-stniccc.zmd
+04454b65e6e55d80e5a0e68423a1cd53  sd/demo-stniccc.zmd
 ead417c1a7f751bbecddef855cc746c4  sd/demo-tsl_hybridglenz.zmd
 e1a6e84a0ebb28a99a604a07c15d8c13  sd/system.rv32

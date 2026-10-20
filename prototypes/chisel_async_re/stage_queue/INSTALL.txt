@@ -9,7 +9,8 @@ on an older bitstream fuji/tsl's lazy ops would draw wrong. Rollback = the previ
                                                                    NOT line-major, NOT read-bypass. CSR map byte-identical
                                                                    to board_lm8's, so table 1.2 and every lean cart still run)
   sd/system.rv32               e1a6e84a0ebb28a99a604a07c15d8c13  (make build/hcycles/split/board_snd_fpu/sys.bin ZM_AUDIO=snd ZM_FPU=1)
-  sd/demo-stniccc.zmd          8046495e62e52cb6ff5db16b8ac14bce  (spans through the QUEUE; async opt-in dropped)
+  sd/demo-stniccc.zmd          04454b65e6e55d80e5a0e68423a1cd53  (spans through the QUEUE; async opt-in dropped; byte-identical to the
+                                                                   pre-queue cart over 2400 frames, scene_hash every frame)
   sd/demo-fuji_hobbytronic.zmd ed9d71bea10ae927042d184899ab10fd  (unchanged cart, lazy wait: now without replay)
   sd/demo-tsl_hybridglenz.zmd  ead417c1a7f751bbecddef855cc746c4  (unchanged cart, lazy wait: now without replay)
   sd/demo-bench.zmd            d2d72ea6bdd5ad07d423562ca86c074f  (make native-cart NAME=bench ZM_FPU=1: + qu.*, cp.* rows)
