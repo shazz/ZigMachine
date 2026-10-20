@@ -45,7 +45,9 @@ const ALLOW = {
     // +126 B (2026-10-18): the handler-only native drivers (players/digi_irq.zig): the step cache,
     // the mutant flags, and digi.Driver grown by maxYMiser's and the games' address tables
     // (digi_mym.zig, digi_sfx.zig). The tunes' state stays in the 68000's RAM.
-    "demo-audio.wasm": 591022,
+    // +120 B (2026-10-19): the B.I.G. digi PLAY's addresses, read at arming (digi_big_map.zig At),
+    // its arming state and two flags (digi_irq.zig, digi_big_play.zig); its state lives in the 68000's RAM.
+    "demo-audio.wasm": 591142,
 };
 
 function uleb(b, p) {
