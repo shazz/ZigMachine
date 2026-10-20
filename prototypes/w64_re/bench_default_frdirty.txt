@@ -1,0 +1,4 @@
+ZMBENCH name=fr.dirty.p1 size=0 cyc=421634 med=422717 ops=1 dwait=0 dwr=0
+ZMBENCH name=fr.dirty.p2 size=0 cyc=611243 med=612390 ops=1 dwait=0 dwr=0
+ZMBENCH name=fr.dirty.p3 size=0 cyc=799580 med=800499 ops=1 dwait=0 dwr=0
+ZMBENCH name=fr.dirty.p4 size=0 cyc=992678 med=995556 ops=1 dwait=0 dwr=0

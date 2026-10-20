@@ -1,0 +1,48 @@
+/etc/init.d/S99glass stop; sleep 2; rm -f /tmp/glass.stop; (while [ ! -e /tmp/
+glass.stop ]; do /usr/bin/glass run --fw-opt=0 /mnt/sd/zigmachine >/tmp/glass.lo
+g 2>&1; sleep 1; done) &
+Terminated
+glass: exited (143), restarting
+# 
+sleep 3; head -3 /tmp/glass.log; devmem 0xf8009014
+warning: HP1 set 64 -> 32-bit: W64 is off until the next reboot
+info: HP1 write channel 0xF01, fw-opt 0x0
+info: /mnt/sd/zigmachine/system.rv32: table 1.2, 1781112 bytes
+0x00000F01
+# 
+glass ctl load demo-gem.zmd
+ok demo-gem.zmd running, loaded in 1878 ms
+# 
+sleep 3; devmem 0x1FFFFE08; /tmp/fbpeek 0x1FFFFF00 140 /tmp/w32_gem.bin mark
+0xC0F00000
+fbpeek 800x280 front=0 hash=4e75150d nonzero even=111946 odd=111946 oddsame=112000
+by word of a beat pair: marker 52800 52800 52800 52800  zero 24 24 30 30
+row 140: 00a4a001 00a4a001 00a4a001 00a4a001 00a4a001 00a4a001 00a4a001 00a4a001 00a4a001 00a4a001 00a4a001 00a4a001
+# 
+glass ctl load demo-leonard.zmd
+ok demo-leonard.zmd running, loaded in 1883 ms
+# 
+sleep 3; /tmp/fbpeek 0x1FFFFF00 140 /tmp/w32_leonard.bin mark
+fbpeek 800x280 front=0 hash=ce0fb3a3 nonzero even=112000 odd=112000 oddsame=112000
+by word of a beat pair: marker 0 0 0 0  zero 0 0 0 0
+row 140: 00cf8864 00cf8864 008c441d 008c441d 00002244 00002244 00002244 00002244 00002244 00002244 00002244 00002244
+# 
+touch /tmp/glass.stop; killall glass; sleep 2; rm -f /tmp/glass.stop; (while [
+ ! -e /tmp/glass.stop ]; do /usr/bin/glass run /mnt/sd/zigmachine >/tmp/glass.lo
+g 2>&1; sleep 1; done) &
+[1]-  Done                       (while [ ! -e /tmp/glass.stop ]; do /usr/bin/glass run --fw-opt=0 /mnt/sd/zigmachine 1>/tmp/glass.log 2>&1; sleep 1; done)
+# 
+sleep 3; head -3 /tmp/glass.log; devmem 0xf8009014
+info: HP1 write channel 0xF01, fw-opt none 0x0
+info: /mnt/sd/zigmachine/system.rv32: table 1.2, 1781112 bytes
+0x00000F01
+# 
+glass ctl load demo-gem.zmd
+ok demo-gem.zmd running, loaded in 1876 ms
+# 
+sleep 3; devmem 0x1FFFFE08; /tmp/fbpeek 0x1FFFFF00 140 /tmp/w32b_gem.bin mark
+0x00000000
+fbpeek 800x280 front=0 hash=4e75150d nonzero even=111946 odd=111946 oddsame=112000
+by word of a beat pair: marker 52800 52800 52800 52800  zero 24 24 30 30
+row 140: 00a4a001 00a4a001 00a4a001 00a4a001 00a4a001 00a4a001 00a4a001 00a4a001 00a4a001 00a4a001 00a4a001 00a4a001
+# 

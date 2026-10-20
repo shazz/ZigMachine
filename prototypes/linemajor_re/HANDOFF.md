@@ -34,8 +34,13 @@
 - Proof tools in prototypes/w64_re/: fbpeek.c (marker fill + per-word counts, on the board's Linux),
   fbcmp.c (picture vs picture), boot_w64.py (reboot + boot.cmd replayed with HP1 0xF00, serial only).
 - Valid A/B: fpga/bench_results/2026-10-19_README.md (w64boot vs w32same).
-- To run W64 after a normal reboot: `boot_w64.py` (or boot.cmd HP1 0xF00 + a rootfs glass that knows afi.zig),
-  then `cp /mnt/sd/glass /usr/bin/glass` and `/tmp/gopt.sh 2`.
+- W64 IS THE DEFAULT since 2026-10-19 late (418fdebc, decisions.md "W64 is the board default"): boot.cmd sets
+  HP1 0xF00, a plain `glass run` on 0xF00 runs W64, and the card's rootfs carries that glass
+  (tools/rootfs_glass.py). A plain reboot needs no `cp` and no `gopt.sh`. Card now: boot.scr 96e29243,
+  rootfs.cpio.uboot 2011585d (its /usr/bin/glass 82376563 = glass 0d23f3f6 stripped), glass 0d23f3f6.
+  Backups on the card: boot.scr.bb67385d (HP1 0xf01), rootfs.cpio.uboot.31eeb461, glass.a896da36.
+  Proof: prototypes/w64_re/proof_default.txt, default_boot_console.txt, bench_default/, fps_default/.
+  A/B now: `/tmp/gopt.sh 0` (W32 arm, one way until reboot), a reboot brings W64 back.
 
 ## Left (the lead)
 1. Board: install per stage/INSTALL.txt. Read the OSD fps with no switches, then `--fw-opt=0x30` (the old order) on the same bitstream.

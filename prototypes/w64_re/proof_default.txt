@@ -1,0 +1,65 @@
+chmod +x /tmp/fbpeek; uptime; devmem 0xf8009014; ps | grep -v grep | grep 'gla
+ss run'; md5sum /usr/bin/glass /mnt/sd/glass /mnt/sd/boot.scr /mnt/sd/rootfs.cpi
+o.uboot
+ 00:02:03 up 2 min,  load average: 0.14, 0.10, 0.04
+0x00000F00
+  127 root     /usr/bin/glass run /mnt/sd/zigmachine
+82376563b4ca2b38b6ea2e0d134479ad  /usr/bin/glass
+0d23f3f61fa63d5ab85a573bafd516ae  /mnt/sd/glass
+96e2924333e3e830f363d1838f061f14  /mnt/sd/boot.scr
+2011585dbe17451267d783ab43b26c47  /mnt/sd/rootfs.cpio.uboot
+# 
+glass ctl load demo-gem.zmd
+info: /mnt/sd/zigmachine/demo-gem.zmd: 54136 bytes (12059 packed), up after 483 polls
+ok demo-gem.zmd running, loaded in 2053 ms
+# 
+sleep 3; devmem 0x1FFFFE08; /tmp/fbpeek 0x1FFFFF00 140 /tmp/w64_gem.bin mark
+0xC0F00002
+fbpeek 800x280 front=0 hash=ca88023d nonzero even=110576 odd=110576 oddsame=112000
+by word of a beat pair: marker 0 0 0 0  zero 735 735 689 689
+row 140: 00a4a001 00a4a001 00a4a001 00a4a001 00a4a001 00a4a001 00a4a001 00a4a001 00a4a001 00a4a001 00a4a001 00a4a001
+# 
+glass ctl load demo-leonard.zmd
+info: /mnt/sd/zigmachine/demo-leonard.zmd: 163040 bytes (35347 packed), up after 340 polls
+ok demo-leonard.zmd running, loaded in 1884 ms
+# 
+sleep 3; devmem 0x1FFFFE08; /tmp/fbpeek 0x1FFFFF00 140 /tmp/w64_leonard.bin ma
+rk
+0xC0F00002
+fbpeek 800x280 front=0 hash=b1b7c21d nonzero even=112000 odd=112000 oddsame=112000
+by word of a beat pair: marker 0 0 0 0  zero 0 0 0 0
+row 140: 00002244 00002244 00002244 00002244 00002244 00002244 00002244 00002244 00002244 00002244 00002244 00002244
+# 
+glass ctl load demo-automation442.zmd
+info: /mnt/sd/zigmachine/demo-automation442.zmd: 182184 bytes (25124 packed), up after 340 polls
+ok demo-automation442.zmd running, loaded in 1882 ms
+# 
+sleep 3; devmem 0x1FFFFE08; /tmp/fbpeek 0x1FFFFF00 140 /tmp/w64_automation442.
+bin mark
+0xC0F00002
+fbpeek 800x280 front=0 hash=f9fc30fd nonzero even=24705 odd=24705 oddsame=112000
+by word of a beat pair: marker 0 0 0 0  zero 43632 43632 43663 43663
+row 140: 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000 00000000
+# 
+glass ctl load demo-medium_overscan.zmd
+info: /mnt/sd/zigmachine/demo-medium_overscan.zmd: 57144 bytes (13661 packed), up after 332 polls
+ok demo-medium_overscan.zmd running, loaded in 1871 ms
+# 
+sleep 3; devmem 0x1FFFFE08; /tmp/fbpeek 0x1FFFFF00 140 /tmp/w64_medium_oversca
+n.bin mark
+0xC0F00002
+fbpeek 800x280 front=1 hash=e27df065 nonzero even=112000 odd=112000 oddsame=102630
+by word of a beat pair: marker 0 0 0 0  zero 0 0 0 0
+row 140: 00281414 00281414 00281414 00281414 00281414 00281414 00281414 00281414 00281414 00281414 00281414 00281414
+# 
+glass ctl load demo-st_replay.zmd
+info: /mnt/sd/zigmachine/demo-st_replay.zmd: 54136 bytes (12059 packed), up after 330 polls
+ok demo-st_replay.zmd running, loaded in 1933 ms
+# 
+sleep 3; devmem 0x1FFFFE08; /tmp/fbpeek 0x1FFFFF00 140 /tmp/w64_st_replay.bin 
+mark
+0xC0F00002
+fbpeek 800x280 front=0 hash=ca88023d nonzero even=110576 odd=110576 oddsame=112000
+by word of a beat pair: marker 0 0 0 0  zero 735 735 689 689
+row 140: 00a4a001 00a4a001 00a4a001 00a4a001 00a4a001 00a4a001 00a4a001 00a4a001 00a4a001 00a4a001 00a4a001 00a4a001
+# 

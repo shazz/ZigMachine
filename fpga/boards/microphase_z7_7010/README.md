@@ -133,10 +133,15 @@ beats, AWCACHE 0, the AFI expands them (the default); 1 the same with AWCACHE
 8-byte beats, for a **64-bit** write channel (`WRCHAN_CTRL = 0xf00`). Both halves change
 together or every other word is lost, and HP1 must be 0xf00 FROM BOOT (a channel switched to
 0xf00 after 32-bit traffic writes words 0 and 3 of every 16 bytes only: Lessons below).
-`board_run.py --w64` sets HP1 to 0xf00 (in place of 0xf01) and `hp_cfg` 2 for a diag run; under
-Linux `glass run --fw-opt=2` needs HP1 already 0xf00 (boot with `prototypes/w64_re/boot_w64.py`),
-refuses to run otherwise (`W64NeedsBoot`), and writes the tag word for every cart it loads
-(`fpga/glass/src/afi.zig`). A glass run without it puts 0xf01 back, which is safe at run time. The write-path
+**W64 is the board default since 2026-10-19:** the card's boot.scr (`fpga/glass/boot/boot.cmd`)
+sets HP1 0xf00 right after `fpga loadb`, and `glass run` with no `--fw-opt` sees 0xf00 and writes
+`c0f00002` for every cart it loads (`fpga/glass/src/afi.zig`; the S99glass console line says
+`HP1 write channel 0xF00, fw-opt 0x2`). The rootfs carries that glass (`fpga/tools/rootfs_glass.py`,
+staged by `glass_sd.py`), so a plain reboot needs no `cp`. A/B: `--fw-opt=2` (W64) is the default
+made explicit; `--fw-opt` without bit 1 (`0`, `0x30`) sets HP1 0xf01 at run time, which is correct,
+but one way: every later run of that boot is W32 until a reboot. W64 on a 0xf01 channel (an older
+boot.scr) is refused (`W64NeedsBoot`). `board_run.py --w64` (bare-metal diag, no glass) still sets
+HP1 0xf00 in place of 0xf01 and `hp_cfg` 2 itself; its default stays W32. The write-path
 diagnostic (`cycles/bdiag.h`, magic `47414944` at `0x05fffe00`, mode at `+4`) runs
 in place of the cart: 1 CPU stores, 2 CPU loads, 3 BG + MIX passes, 4 a MIX pass
 from a PFB row the ARM wrote.
@@ -190,8 +195,8 @@ mw.l 0x43c00114 0x40; mw.l 0x43c00100 0xb; mw.l 0x43c00100 0x1d   # HP0: Wishbon
   that has carried 32-bit writes and is then set 0xf00 reads back 0xf00 but writes only words 0 and
   3 of every 16 bytes; set 0xf00 before its first write it writes every word. (0xf01 then 0xf00 with
   no traffic between is untested: set the final width once.) W64 therefore needs
-  HP1 0xf00 from boot (`prototypes/w64_re/boot_w64.py` replays boot.cmd that way), and glass
-  refuses `--fw-opt=2` on a 32-bit channel.
+  HP1 0xf00 from boot (boot.cmd does it since 2026-10-19), and glass refuses `--fw-opt=2` on a
+  32-bit channel.
 - **A wedged HP AFI survives PL reloads.** A burst cut by a reload leaves the AFI (PS side)
   waiting for its data: every later write on that port hangs (no WREADY/B), on any bitstream,
   while the other port works (2026-10-03: HP1 hung on hp-test's raw engine, HP0 fine). **RST

@@ -311,7 +311,9 @@ below the cart window.
    starts U-Boot. zeST's PS7 configuration already enables GP0 and HP0.
 2. **U-Boot** runs distro boot and finds `boot.scr` (`fpga/glass/boot/boot.cmd`):
    - `fpga loadb` with `zigmachine.bit`, which replaces whatever `BOOT.BIN` left
-     in the PL;
+     in the PL, then the HP ports' AFI widths: HP1 writes 64-bit (0xf00) from
+     here on, so the video DMA's 8-byte rows (W64) are the default
+     (decisions.md 2026-10-19);
    - **Plan A:** `bootz` with our zImage, `zigmachine.dtb` and
      `rootfs.cpio.uboot` (Buildroot, `fpga/glass/boot/buildroot`);
    - **Plan B** (the stopgap): zeST's `uImage` and `rootfs.ub`, with its device
@@ -319,7 +321,10 @@ below the cart window.
      `init=/bin/sh`.
 3. **Linux.** In plan A, `S99glass` mounts the SD card's FAT partition
    read-only on `/mnt/sd` and keeps `glass run /mnt/sd/zigmachine` running,
-   restarting it if it dies. In plan B, you type that at the shell, from
+   restarting it if it dies. That is the rootfs's own `/usr/bin/glass`, put
+   there by `fpga/tools/rootfs_glass.py` when `glass_sd.py` stages the card, so
+   it is the card's `glass` (it must know `afi.zig`: it reads HP1's 0xf00 and
+   runs W64). In plan B, you type that at the shell, from
    `/mnt/glass`.
 4. **`glass`** maps GP0 and the cart window, checks `ID`, sets the OSD colours,
    scans the shelf and shows the menu over a cart CPU still held in reset.
