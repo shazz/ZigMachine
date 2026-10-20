@@ -35,6 +35,9 @@ int main(void) {
     sndinfo_song(ROUTE_BARD, "none", 0); dump();
     sndinfo_song(ROUTE_BARD, "odd.xyz", 0); dump();
     sndinfo_song(ROUTE_BARD, "a_name_longer_than_the_block_holds_0123456789_0123456789_0123456789.mod", 0); dump();
+    sndinfo_song(ROUTE_BARD, "b.sndh", 1); sndinfo_started(NATIVE_BEAT_DIS); sndinfo_mode(3); dump();
+    sndinfo_mode(1); dump();
+    sndinfo_song(ROUTE_BARD, "c.sndh", 1); dump();
     return 0;
 }
 """
@@ -96,3 +99,15 @@ def test_players_by_extension_and_a_new_song_clears_the_cost(steps: list[list[in
     assert head(none)[2] == mc.PLAYER_NONE
     assert head(odd)[2] == mc.PLAYER_UNKNOWN
     assert head(long)[2] == mc.PLAYER_MOD and len(name(long)) == mc.SND_NAME_MAX
+
+
+def mode(w: list[int]) -> int:
+    return w[mc.SI_FLAGS] >> mc.SIF_MODE_SHIFT & mc.SIF_MODE_MASK
+
+
+def test_a_mode_switch_is_published_and_a_new_song_clears_it(steps: list[list[int]]) -> None:
+    hq, st, fresh = steps[9], steps[10], steps[11]
+    assert mode(hq) == 3 and hq[mc.SI_FLAGS] & mc.SIF_STARTED  # the started bit kept
+    assert mode(st) == 1 and st[mc.SI_FLAGS] & mc.SIF_STARTED and st[mc.SI_SEQ] > hq[mc.SI_SEQ]
+    assert mode(fresh) == 0 and fresh[mc.SI_FLAGS] == 0  # the reader derives it from native again
+    assert all(s[mc.SI_SEQ] % 2 == 0 for s in steps)

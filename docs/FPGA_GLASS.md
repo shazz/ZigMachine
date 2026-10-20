@@ -365,13 +365,18 @@ below the cart window.
 picture. It is the same OSD, put in another mode rather than a second block:
 
 - `glass` writes `OSD_POS` = (16, 16), sets `CTRL.OSD | CTRL.OSD_STATS`, and
-  writes row 0 only; every other cell is a plain space, which `OSD_STATS` makes
+  writes rows 0 and 1 only; every other cell is a plain space, which `OSD_STATS` makes
   transparent. The text keeps its paper (`OSD_BG`), so it stays legible over any
   picture.
 - The number is `stats.zig`'s: `CART_BEAT` frames over a one-second window of the
   ARM's clock, `--.-` until a whole window has been seen (after a load, a reset).
   `glass` redraws it on every tick (ten a second); only changed cells cross the
   bus, so that is one write burst a second.
+- **Row 1 is the sound CPU**, the debug page's music row without its `music `:
+  `BARD SNDH nat 43%/51%` (who plays it, the player and its mode, the load now/peak
+  since the song started), `BARD idle` with no music or no cart, `BARD ?` from a
+  firmware without the music block. It is read once a second (`BARD_TICKS`): the load
+  is the last render's, and a faster line flickers between renders.
 - **Opening the menu** (F12, or a trapped cart) puts the window back centred and
   opaque; **closing it** brings the overlay back if it was on.
 - The toggle is saved in `glass.cfg` (`fps=1`), so it survives a restart.
@@ -482,7 +487,7 @@ Nothing new in the PL: the glass already maps the window. The layout is
 | 1 | SEQ: odd while the writer is mid-update; the glass takes a copy only if SEQ is even and unchanged |
 | 2 | block version (7:0, now 1) \| route (15:8) \| player (23:16) \| native driver (31:24) |
 | 3 | the request's tune (an SNDH subtune, a MOD's start BPM) |
-| 4 | bit 0: the player started (clear: no such file, or the player refused it) |
+| 4 | bit 0: the player started (clear: no such file, or the player refused it); bits 9:8: the SNDH mode after the song's last `zg.requestSndhMode` (1 Musashi, 2 native, 3 native + samples on PCM), 0 = none since the load |
 | 5, 6 | the last render: its cycles, and how many 44.1 kHz samples it made |
 | 7, 8 | the dearest render per sample since the song started: cycles, samples |
 | 9..23 | the song's name, NUL-padded (59 bytes at most) |
@@ -491,11 +496,16 @@ Nothing new in the PL: the glass already maps the window. The layout is
 - **Player**: by the name's extension, as `host/audio.c` `audio_play` picks it: 1 SNDH, 2 SAP,
   3 MOD, 4 XM, 5 YM dump (`.ymraw`), 6 raw PCM, 255 an extension no player takes, 0 none.
 - **Native** (SNDH): `audioSndhNative()`: 0 Musashi, 1 Beat Dis native, 2 and 3 near misses
-  (on Musashi, shown `68k~`), 4 native replays off.
+  (on Musashi, shown `68k~`), 4 native replays off, 5..16 the other native drivers
+  (`players/digi.zig` Status).
+- **Mode** (SNDH): `68k`, `nat` or `HQ` (mode 3). Only a switch is written (`host/audio.c`
+  `audio_backend_mode`, `sndinfo_mode`); with bits 9:8 at 0 the glass takes what a load
+  leaves: native for a known driver, else Musashi. A firmware before the field never sets
+  them, so it shows `68k`/`nat` and misses only a mode 3 switch.
 - **Load** = cycles × 44100 / (samples × 100 MHz): the share of real time the render took.
   Over 100 % on BARD, the music falls behind and plays slow; on ZIGGY it is cart time lost.
 
-A code the glass doesn't know is printed by number (`player#9`, `SNDH n#7`, `route#5`), and
+A code the glass doesn't know is printed by number (`player#9`, `SNDH n#17`, `route#5`), and
 a newer block version as `? block v2`. The block is only read from a mailbox of version 2 or
 later (`ZM_MB_VERSION`), whose firmware zeroes the whole page at boot, so a cart with no
 music never shows the previous cart's; an older firmware shows `music ? firmware too old`.

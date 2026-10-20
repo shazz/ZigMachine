@@ -101,4 +101,9 @@ void audio_song_loaded(const char* name);
  * native host ignores it. Nothing it does reaches the sound. */
 void audio_backend_song(const char* name, uint32_t tune);
 
+/* The backend's hook after a zg.requestSndhMode the player took: `mode` (1-3) is the mode now
+ * in force, for the board's debug page and F11 overlay (cycles/bsndinfo.h sndinfo_mode); the
+ * native host ignores it. Nothing it does reaches the sound. */
+void audio_backend_mode(uint32_t mode);
+
 #endif

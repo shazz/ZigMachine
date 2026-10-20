@@ -75,6 +75,13 @@ pub const SI_PEAK_SAMPLES: u32 = 8;
 pub const SI_NAME: u32 = 9; // the song's name, NUL-padded, to the block's end
 pub const SND_NAME_MAX: u32 = (SND_INFO_WORDS - SI_NAME) * 4 - 1; // 59 bytes and a NUL
 pub const SIF_STARTED: u32 = 1 << 0; // its player started (else: no such file, or refused)
+// SI_FLAGS bits 9:8: the SNDH mode in force after the song's last zg.requestSndhMode (1 the
+// tune's 68000 code on Musashi, 2 native, 3 native with the samples on PCM). 0 = none asked
+// since the load, or a firmware before this field: the reader derives 1 or 2 from SI_HEAD's
+// native, which is what a load leaves (sndh_native.zig recognise). Only a switch is written,
+// and a new song clears it with the rest of SI_FLAGS.
+pub const SIF_MODE_SHIFT: u32 = 8;
+pub const SIF_MODE_MASK: u32 = 3;
 // The render's clock: both CPUs run at the sys clock, so a 60 Hz frame's 735 samples have
 // 1.67 Mc of it: load = cycles * SND_RATE_HZ / (samples * SND_CLOCK_HZ).
 pub const SND_CLOCK_HZ: u32 = 100_000_000;
@@ -99,6 +106,8 @@ pub const NATIVE_BEAT_DIS: u32 = 1;
 pub const NATIVE_NEAR_SEQ: u32 = 2; // the digi handler with an unknown sequencer: on Musashi
 pub const NATIVE_NEAR_TABLES: u32 = 3; // the driver's tables out of range: on Musashi
 pub const NATIVE_OFF: u32 = 4; // native replays switched off: on Musashi
+// 5 .. NATIVE_LAST: more native drivers (players/digi.zig Status: Monty ... B.I.G. native).
+pub const NATIVE_LAST: u32 = 16;
 
 // --- the video probe: where FRESCO's time goes (perf/fresco-probe) ------------------------
 // Mailbox words VSTAT_AT .. VSTAT_AT + VSTAT_WORDS - 1, unused before: mb_init zeroes them, so a

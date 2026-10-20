@@ -6,6 +6,8 @@ const keymap = @import("keymap.zig");
 const config = @import("config.zig");
 const overlay = @import("app_stats.zig");
 const App = @import("app.zig").App;
+const mc = @import("map_cart.zig");
+const snd_info = @import("snd_info.zig");
 const test_rig = @import("test_rig.zig");
 const Rig = test_rig.Rig;
 const press = test_rig.press;
@@ -33,7 +35,11 @@ fn row(r: *const Rig, n: usize) [map.OSD_COLS]u8 {
 }
 
 fn expectRow0(r: *const Rig, want: []const u8) !void {
-    const got = row(r, 0);
+    return expectRow(r, 0, want);
+}
+
+fn expectRow(r: *const Rig, n: usize, want: []const u8) !void {
+    const got = row(r, n);
     try std.testing.expectEqualStrings(want, got[0..want.len]);
     for (got[want.len..]) |c| try std.testing.expectEqual(@as(u8, ' '), c);
 }
@@ -50,7 +56,8 @@ test "F11 shows the frame rate in the corner over a running cart, and F11 again 
     try std.testing.expect(r.glass.ctrl & map.CTRL_RUN != 0); // the cart keeps running
     try std.testing.expectEqual(overlay.CORNER, r.glass.osd_pos);
     try expectRow0(r, "FPS --.-"); // no whole second measured yet
-    for (1..map.OSD_ROWS) |n| try std.testing.expectEqualStrings(&([_]u8{' '} ** map.OSD_COLS), &row(r, n));
+    try expectRow(r, 1, "BARD ?"); // the rig's DDR has no mailbox: a firmware that cannot say
+    for (2..map.OSD_ROWS) |n| try std.testing.expectEqualStrings(&([_]u8{' '} ** map.OSD_COLS), &row(r, n));
     for (r.glass.text) |w| try std.testing.expect(w & map.OSD_INVERSE == 0); // nothing opaque but the text
     try std.testing.expectEqual(keys, r.glass.key_len); // F11 never reaches the cart
     now_ms = 1000;
@@ -127,4 +134,49 @@ test "the overlay's text" {
     try std.testing.expectEqualStrings("FPS 50.0", overlay.text(500, &buf));
     try std.testing.expectEqualStrings("FPS 38.2", overlay.text(382, &buf));
     try std.testing.expectEqualStrings("FPS 9999.0", overlay.text(1_000_000, &buf)); // clamped, never clipped
+}
+
+/// The music block at the rig's window end (cycles/bsndinfo.h's layout), BARD playing an SNDH.
+fn music(r: *Rig, native: u32, mode: u32, cycles: u32, peak: u32) void {
+    const mb = r.words[r.words.len - mc.MB_BYTES / 4 ..];
+    mb[0] = mc.MB_MAGIC;
+    mb[1] = mc.MB_VERSION_SND_INFO;
+    const b = r.words[r.words.len - mc.SND_INFO_FROM_TOP / 4 ..];
+    b[mc.SI_MAGIC] = mc.SND_INFO_MAGIC;
+    b[mc.SI_SEQ] +%= 2;
+    b[mc.SI_HEAD] = mc.SND_INFO_VERSION | mc.ROUTE_BARD << 8 | mc.PLAYER_SNDH << 16 | native << 24;
+    b[mc.SI_FLAGS] = mc.SIF_STARTED | mode << mc.SIF_MODE_SHIFT;
+    b[mc.SI_CYCLES] = cycles;
+    b[mc.SI_SAMPLES] = 735; // a 60 Hz frame: 1.67 Mc = 100 %
+    b[mc.SI_PEAK_CYCLES] = peak;
+    b[mc.SI_PEAK_SAMPLES] = 735;
+}
+
+test "under the rate, BARD's player, mode and load now/peak, read again once a second" {
+    const r = try Rig.init();
+    defer r.deinit();
+    var a = try running(r);
+    defer a.deinit();
+    music(r, mc.NATIVE_BEAT_DIS, 0, 720_000, 850_000);
+    press(&a, keymap.STATS_HOTKEY);
+    try expectRow(r, 1, "BARD SNDH nat 43%/51%");
+    music(r, mc.NATIVE_BEAT_DIS, 3, 400_000, 850_000); // zg.requestSndhMode(3)
+    for (1..overlay.BARD_TICKS) |_| a.tick();
+    try expectRow(r, 1, "BARD SNDH nat 43%/51%"); // not yet: the load would flicker
+    a.tick();
+    try expectRow(r, 1, "BARD SNDH HQ 24%/51%");
+    for (r.glass.text) |w| try std.testing.expect(w & map.OSD_INVERSE == 0); // still see-through
+}
+
+test "the BARD line's text" {
+    var buf: [map.OSD_COLS]u8 = undefined;
+    try std.testing.expectEqualStrings("BARD idle", overlay.bardText(&.{}, &buf)); // no cart
+    var i = snd_info.Info{ .state = .ok, .route = mc.ROUTE_BARD, .player = mc.PLAYER_NONE };
+    try std.testing.expectEqualStrings("BARD idle", overlay.bardText(&i, &buf)); // nothing asked
+    i = .{ .state = .ok, .route = mc.ROUTE_BARD, .player = mc.PLAYER_SNDH, .started = true, .cycles = 5_133_334, .samples = 735, .peak_cycles = 5_216_667, .peak_samples = 735 };
+    try std.testing.expectEqualStrings("BARD SNDH 68k 308%/313%", overlay.bardText(&i, &buf)); // overloaded
+    i = .{ .state = .ok, .route = mc.ROUTE_ZIGGY, .player = mc.PLAYER_MOD, .started = true, .cycles = 500_000, .samples = 2205 };
+    try std.testing.expectEqualStrings("ZIGGY MOD 10%", overlay.bardText(&i, &buf)); // a ZM_AUDIO=1 image
+    try std.testing.expectEqualStrings("BARD ?", overlay.bardText(&.{ .state = .old_fw }, &buf));
+    try std.testing.expectEqualStrings("BARD off: no audio in fw", overlay.bardText(&.{ .state = .off }, &buf));
 }

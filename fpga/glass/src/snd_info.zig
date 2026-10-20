@@ -23,6 +23,7 @@ pub const Info = struct {
     native: u32 = 0,
     tune: u32 = 0,
     started: bool = false,
+    mode: u32 = 0, // SIF_MODE_*: the last zg.requestSndhMode's mode, 0 = none since the load
     cycles: u32 = 0,
     samples: u32 = 0,
     peak_cycles: u32 = 0,
@@ -63,6 +64,7 @@ pub fn decode(w: *const [mc.SND_INFO_WORDS]u32) Info {
     info.native = head >> 24;
     info.tune = w[mc.SI_TUNE];
     info.started = w[mc.SI_FLAGS] & mc.SIF_STARTED != 0;
+    info.mode = w[mc.SI_FLAGS] >> mc.SIF_MODE_SHIFT & mc.SIF_MODE_MASK;
     info.cycles = w[mc.SI_CYCLES];
     info.samples = w[mc.SI_SAMPLES];
     info.peak_cycles = w[mc.SI_PEAK_CYCLES];
@@ -98,7 +100,8 @@ pub fn musicLine(buf: *[COLS]u8, i: *const Info) []const u8 {
     return w.buffered();
 }
 
-fn ok(w: *std.Io.Writer, i: *const Info) void {
+/// "<who> <player> <load now>%/<peak>%": the debug page's music row and the F11 overlay's.
+pub fn ok(w: *std.Io.Writer, i: *const Info) void {
     switch (i.route) {
         mc.ROUTE_BARD_DOWN => return w.writeAll("none: BARD down") catch {},
         mc.ROUTE_ZIGGY => w.writeAll("ZIGGY ") catch {},
@@ -116,7 +119,7 @@ fn ok(w: *std.Io.Writer, i: *const Info) void {
 /// The player's name, as the debug page shows it (the control channel's ZMSTAT too).
 pub fn player(w: *std.Io.Writer, i: *const Info) void {
     const label: []const u8 = switch (i.player) {
-        mc.PLAYER_SNDH => return sndh(w, i.native),
+        mc.PLAYER_SNDH => return sndh(w, i),
         mc.PLAYER_SAP => "SAP 6502",
         mc.PLAYER_MOD => "MOD",
         mc.PLAYER_XM => "XM",
@@ -128,12 +131,21 @@ pub fn player(w: *std.Io.Writer, i: *const Info) void {
     w.writeAll(label) catch {};
 }
 
-fn sndh(w: *std.Io.Writer, native: u32) void {
-    const label: []const u8 = switch (native) {
-        mc.NATIVE_MUSASHI, mc.NATIVE_OFF => "SNDH 68k",
-        mc.NATIVE_BEAT_DIS => "SNDH nat",
-        mc.NATIVE_NEAR_SEQ, mc.NATIVE_NEAR_TABLES => "SNDH 68k~", // a near miss
-        else => return w.print("SNDH n#{d}", .{native}) catch {},
+/// The mode (zg.requestSndhMode): "68k" (1), "nat" (2), "HQ" (3, the samples on PCM).
+/// With no switch since the load the native status says it: a load plays a known driver
+/// natively, anything else on Musashi (sndh_native.zig recognise).
+fn sndh(w: *std.Io.Writer, i: *const Info) void {
+    const near = i.native == mc.NATIVE_NEAR_SEQ or i.native == mc.NATIVE_NEAR_TABLES;
+    const label: []const u8 = switch (i.mode) {
+        1 => if (near) "SNDH 68k~" else "SNDH 68k", // ~: a near miss
+        2 => "SNDH nat",
+        3 => "SNDH HQ",
+        else => switch (i.native) {
+            mc.NATIVE_MUSASHI, mc.NATIVE_OFF => "SNDH 68k",
+            mc.NATIVE_BEAT_DIS, mc.NATIVE_OFF + 1...mc.NATIVE_LAST => "SNDH nat",
+            mc.NATIVE_NEAR_SEQ, mc.NATIVE_NEAR_TABLES => "SNDH 68k~",
+            else => return w.print("SNDH n#{d}", .{i.native}) catch {},
+        },
     };
     w.writeAll(label) catch {};
 }

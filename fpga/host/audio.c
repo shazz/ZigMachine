@@ -175,6 +175,7 @@ static void effect(const audio_fx* fx) {
         /* The stamp: tools/bard_fx_run.py replays the switch at this sample from the song's start. */
         uint32_t got = w2c_audio_audioSndhMode(p, fx->a);
         printf("ZM SNDH mode asked %u got %u at %lu\n", (unsigned)fx->a, (unsigned)got, (unsigned long)zma_ts());
+        if (got) audio_backend_mode(got); /* 0: refused, nothing changed */
     } else {
         printf("ZM FX bad op %u\n", (unsigned)fx->op);
     }

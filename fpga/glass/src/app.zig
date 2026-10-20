@@ -57,6 +57,7 @@ pub const App = struct {
     inputs: usize = 0, // evdev nodes open (main.zig)
     ticks: u32 = 0,
     pl_stats: bool = false, // the PL can draw the F11 overlay (app_stats.supported)
+    bard: overlay.Bard = .{}, // the F11 overlay's BARD line, read once a second
     req_done: bool = false, // the running cart's cart-swap request was handled (app_request.zig)
     req_polls: u32 = 0, // polls of a request whose block did not check yet
     ctl: @import("app_ctl.zig").State = .{}, // the control channel's held tap (app_ctl.zig)

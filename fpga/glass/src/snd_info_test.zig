@@ -15,6 +15,7 @@ const Song = struct {
     player: u32 = mc.PLAYER_SNDH,
     native: u32 = mc.NATIVE_MUSASHI,
     started: bool = true,
+    mode: u32 = 0, // SIF_MODE_*: 0 = no zg.requestSndhMode since the load
     cycles: u32 = 0,
     samples: u32 = 0,
     peak_cycles: u32 = 0,
@@ -32,7 +33,7 @@ fn page(words: *[PAGE]u32, s: ?Song) bus.Ddr {
     b[mc.SI_MAGIC] = mc.SND_INFO_MAGIC;
     b[mc.SI_SEQ] = 6;
     b[mc.SI_HEAD] = mc.SND_INFO_VERSION | song.route << 8 | song.player << 16 | song.native << 24;
-    b[mc.SI_FLAGS] = if (song.started) mc.SIF_STARTED else 0;
+    b[mc.SI_FLAGS] = (if (song.started) mc.SIF_STARTED else 0) | song.mode << mc.SIF_MODE_SHIFT;
     b[mc.SI_CYCLES] = song.cycles;
     b[mc.SI_SAMPLES] = song.samples;
     b[mc.SI_PEAK_CYCLES] = song.peak_cycles;
@@ -87,7 +88,7 @@ test "codes this glass does not know are named by number, never guessed" {
     var w: [PAGE]u32 = undefined;
     try expectPage(page(&w, .{ .player = 9, .name = "tune.xyz" }), &.{"music BARD player#9"});
     try expectPage(page(&w, .{ .player = mc.PLAYER_UNKNOWN, .name = "tune.xyz" }), &.{"music BARD unknown"});
-    try expectPage(page(&w, .{ .native = 7 }), &.{"music BARD SNDH n#7"});
+    try expectPage(page(&w, .{ .native = mc.NATIVE_LAST + 1 }), &.{"music BARD SNDH n#17"});
     try expectPage(page(&w, .{ .route = 5 }), &.{"music route#5 SNDH 68k"});
     _ = page(&w, .{});
     w[AT + mc.SI_HEAD] = 2; // a block version from a newer firmware
@@ -110,4 +111,18 @@ test "the load is the render's share of real time" {
     try std.testing.expectEqual(@as(?u64, 100), snd_info.loadPct(1_666_667, 735)); // a whole 60 Hz frame of the sys clock
     try std.testing.expectEqual(@as(?u64, 50), snd_info.loadPct(1_666_667, 1470));
     try std.testing.expectEqual(@as(?u64, null), snd_info.loadPct(5, 0));
+}
+
+test "the SNDH mode: a switch the firmware published, else what the load left" {
+    var w: [PAGE]u32 = undefined;
+    const beat = Song{ .native = mc.NATIVE_BEAT_DIS, .cycles = 400_000, .samples = 735 }; // 24 %
+    try expectPage(page(&w, beat), &.{"music BARD SNDH nat 24%"});
+    var hq = beat;
+    hq.mode = 3; // zg.requestSndhMode(3): the samples on a PCM channel
+    try expectPage(page(&w, hq), &.{"music BARD SNDH HQ 24%"});
+    hq.mode = 1; // back on Musashi, the driver still known
+    try expectPage(page(&w, hq), &.{"music BARD SNDH 68k 24%"});
+    try expectPage(page(&w, .{ .native = 5 }), &.{"music BARD SNDH nat"}); // Monty: native at load
+    try expectPage(page(&w, .{ .native = mc.NATIVE_NEAR_SEQ, .mode = 1 }), &.{"music BARD SNDH 68k~"});
+    try expectPage(page(&w, .{ .native = mc.NATIVE_LAST + 1, .mode = 2 }), &.{"music BARD SNDH nat"});
 }

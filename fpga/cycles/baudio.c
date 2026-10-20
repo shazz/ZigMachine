@@ -74,6 +74,9 @@ void audio_backend_native(uint32_t native) {
 /* A song request (host/audio.c): the debug page's song until its player starts. */
 void audio_backend_song(const char* name, uint32_t tune) { sndinfo_song(SND_ROUTE, name, tune); }
 
+/* A zg.requestSndhMode took effect: the debug page's and the F11 overlay's mode. */
+void audio_backend_mode(uint32_t mode) { sndinfo_mode(mode); }
+
 /* A song was just staged and loaded: that can take a few Mcycles (an SNDH's depack and its
  * 1 MiB of 68000 RAM zeroed), past the sound's lead. Its first write then starts a full lead
  * ahead again, so the song plays from its start, on time (counted in `anchors`). */

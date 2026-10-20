@@ -73,6 +73,14 @@ static inline void sndinfo_started(uint32_t native) {
     sndinfo_close();
 }
 
+/* A zg.requestSndhMode took effect: `mode` (1-3) is the mode now in force (map_cart.zig SIF_MODE_*). */
+static inline void sndinfo_mode(uint32_t mode) {
+    uint32_t flags = ZM_SND_INFO[SI_FLAGS] & ~(SIF_MODE_MASK << SIF_MODE_SHIFT);
+    sndinfo_open();
+    ZM_SND_INFO[SI_FLAGS] = flags | (mode & SIF_MODE_MASK) << SIF_MODE_SHIFT;
+    sndinfo_close();
+}
+
 /* One render: `cycles` for `samples`; the peak is the dearest per sample (cross-multiplied). */
 static inline void sndinfo_render(uint32_t cycles, uint32_t samples) {
     if (!samples) return;
