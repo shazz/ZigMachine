@@ -513,6 +513,7 @@ pub fn build(b: *std.Build) void {
         "demo-chonchon", // 98 — DMA "CHONCHON INTRO" (demozoo 79458): the native motion's stars, ring scrollers and warped chrome logo, the YM-volume music meters and the per-line raster (ported from the Go re-creation)
         "demo-ikplus", // 99 — THE REPLICANTS / "INTERNATIONAL KARATE PLUS" (IK+) cracktro: a four-size scrolltext, the logo outline, eight stars and two REAL per-scanline raster bars (ported from the Go re-creation of the ST binary)
         "demo-chonchon2", // 100 — CHONCHON 2, the Go re-creation's sliding panels, two sprite paths, multicoloured ribbon and YM meters, with the produced replacement tracks
+        "demo-lockbuster3", // 101 — LOCKBUSTER 3, "Lockbuster DMA" (1989): the letters, panels, two-lane text and YM-volume meters on a 320x240 canvas (go-lockbuster3), the raster on real scanlines and the lower band in the opened bottom border
     };
     for (cart_names, 0..) |name, idx| {
         if (name.len == 0) continue; // excluded cart (see note above)
