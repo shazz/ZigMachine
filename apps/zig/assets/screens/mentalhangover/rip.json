@@ -1,0 +1,47 @@
+{
+  "source": "github.com/olivierh59500/go-mentalhangover",
+  "greetings_sha256": "b5c3548c9795f19590fcdfa4d070ede144c8bb695775c90f6149bfc0953eeb9c",
+  "music_sha256": "a64be22f2f10bd8d7005aa7e77b6cc0b8960bdcf931d42d012e817a0bf0f262d",
+  "text_bytes": 213,
+  "glyphs": 59,
+  "glyph_nonempty": 31,
+  "max_contours": 2,
+  "max_points": 13,
+  "mountain_bits": 11412,
+  "mountain_nonzero_bytes": 1527,
+  "colors": 49,
+  "wave": [
+    -99,
+    99
+  ],
+  "profile": [
+    -127,
+    127
+  ],
+  "files": {
+    "wave.bin": {
+      "bytes": 256,
+      "sha256": "2e2a8dbebd689e28932c628fdb62d0dd1436e15c86b1ea52993ec14008e516c1"
+    },
+    "profile.bin": {
+      "bytes": 256,
+      "sha256": "1885ef9bfed6a049e11f790aeb8ec720c1eac35b27161fde0fdebab93379f614"
+    },
+    "colors.bin": {
+      "bytes": 98,
+      "sha256": "2928c78cf6ab5da3b3a8d7cbecd40820b9d55e9a09438322543323257f693a4c"
+    },
+    "mountain.bin": {
+      "bytes": 8800,
+      "sha256": "06645b3289d67e092df53ca00c9768517570ab2dc3509ca5bd2ac22f8a77cfb3"
+    },
+    "text.bin": {
+      "bytes": 213,
+      "sha256": "a2e83851cb6b4d32a72617e17095c185a7b00f1df3a99c0f56fd554c47f48898"
+    },
+    "glyphs.bin": {
+      "bytes": 782,
+      "sha256": "b503045290cb2468e0c1d177de4c98f86f20092bd442ac07a809d507306e3a8c"
+    }
+  }
+}

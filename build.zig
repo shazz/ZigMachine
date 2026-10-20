@@ -515,6 +515,7 @@ pub fn build(b: *std.Build) void {
         "demo-chonchon2", // 100 — CHONCHON 2, the Go re-creation's sliding panels, two sprite paths, multicoloured ribbon and YM meters, with the produced replacement tracks
         "demo-lockbuster3", // 101 — LOCKBUSTER 3, "Lockbuster DMA" (1989): the letters, panels, two-lane text and YM-volume meters on a 320x240 canvas (go-lockbuster3), the raster on real scanlines and the lower band in the opened bottom border
         "demo-phenomena", // 102 — PHENOMENA "ENIGMA" (1991) intro: the two text pages, the logo/white mask, the photon drop, the DNA scrolltext on a sine, two purple raster bars and the live HSL photon (ported from the Go re-creation)
+        "demo-mentalhangover", // 103 — MENTAL HANGOVER (Scoopex, Amiga): circular outline text over the mountain, 49-band per-scanline copper raster (ported from the Go re-creation)
     };
     for (cart_names, 0..) |name, idx| {
         if (name.len == 0) continue; // excluded cart (see note above)

@@ -113,6 +113,7 @@ const scene = switch (opts.index) {
     100 => @import("scenes/chonchon2.zig"), // CHONCHON 2: sliding DMA panels, two animated sprite paths, ribbon, music meters and per-line raster (ported from the Go re-creation)
     101 => @import("scenes/lockbuster3.zig"), // LOCKBUSTER 3, "Lockbuster DMA": letters, panels, two-lane text and YM-volume meters, 320x240 with the bottom border open (ported from the Go re-creation)
     102 => @import("scenes/phenomena.zig"), // PHENOMENA "ENIGMA" (1991) intro: text pages, logo/white mask, photon, the DNA scrolltext, two per-scanline rasters and the live HSL photon (ported from the Go re-creation)
+    103 => @import("scenes/mentalhangover.zig"), // MENTAL HANGOVER (Scoopex, Amiga): circular outline text over the mountain, 49-band per-scanline copper raster (ported from the Go re-creation)
     else => @compileError("bad cart index"),
 };
 
