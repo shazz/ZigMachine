@@ -24,5 +24,11 @@
 #define ZMV_CMD_FIRST_MASK 0x1u
 #define ZMV_CMD_FILL_SHIFT 16u
 #define ZMV_CMD_FILL_MASK 0x1u
+#define ZMV_CMD_HOLD_SHIFT 17u
+#define ZMV_CMD_HOLD_MASK 0x1u
+#define ZMV_CMD_KEEP_SHIFT 18u
+#define ZMV_CMD_KEEP_MASK 0x1u
+#define ZMV_CMD_NOPFB_SHIFT 19u
+#define ZMV_CMD_NOPFB_MASK 0x1u
 
 #endif
