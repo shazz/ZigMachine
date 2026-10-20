@@ -70,6 +70,8 @@ pub fn forRun(regs: bus.Regs, afi: bus.Regs, fw_opt: ?u32, pause: *const fn () v
         try setHp1(regs, afi, width, pause);
         if (now == WR64) std.log.warn("HP1 set 64 -> 32-bit: W64 is off until the next reboot", .{});
     }
-    std.log.info("HP1 write channel 0x{X}, fw-opt {s}0x{X}", .{ p.width orelse now, if (p.opt == null) "none " else "", p.opt orelse 0 });
+    if (p.opt) |o| {
+        std.log.info("HP1 write channel 0x{X}, fw-opt 0x{X}", .{ p.width orelse now, o });
+    } else std.log.info("HP1 write channel 0x{X}, no fw-opt word", .{p.width orelse now});
     return p.opt;
 }
