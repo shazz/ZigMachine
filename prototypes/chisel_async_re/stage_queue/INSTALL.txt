@@ -1,0 +1,31 @@
+perf/chisel-async: CHISEL command QUEUE, board stage (2026-10-19)
+See prototypes/chisel_async_re/HANDOFF.md section 6. NEW BITSTREAM + NEW system.rv32: install BOTH.
+The new firmware has no register replay, which is only correct on this RTL (two register banks):
+on an older bitstream fuji/tsl's lazy ops would draw wrong. Rollback = the previous bit AND system.rv32.
+
+  zigmachine.bit               e237ff42edd11856e992990529e135bf  (fpga/build/board_queue: main's RTL + the QUEUE;
+                                                                   recipe of 3ebb7381: --blit --sound-cpu --posted 8,
+                                                                   VexRiscv_I16w2D4SealFpu, Vivado 2026.1, maxThreads 2.
+                                                                   NOT line-major, NOT read-bypass. CSR map byte-identical
+                                                                   to board_lm8's, so table 1.2 and every lean cart still run)
+  sd/system.rv32               e1a6e84a0ebb28a99a604a07c15d8c13  (make build/hcycles/split/board_snd_fpu/sys.bin ZM_AUDIO=snd ZM_FPU=1)
+  sd/demo-stniccc.zmd          8046495e62e52cb6ff5db16b8ac14bce  (spans through the QUEUE; async opt-in dropped)
+  sd/demo-fuji_hobbytronic.zmd ed9d71bea10ae927042d184899ab10fd  (unchanged cart, lazy wait: now without replay)
+  sd/demo-tsl_hybridglenz.zmd  ead417c1a7f751bbecddef855cc746c4  (unchanged cart, lazy wait: now without replay)
+  sd/demo-bench.zmd            d2d72ea6bdd5ad07d423562ca86c074f  (make native-cart NAME=bench ZM_FPU=1: + qu.*, cp.* rows)
+
+Install (tools/glass_sd.py layout):
+  zigmachine.bit -> /mnt/sd/zigmachine.bit
+  sd/system.rv32 -> /mnt/sd/zigmachine/system.rv32
+  sd/demo-*.zmd  -> /mnt/sd/zigmachine/      (replace the disks of the same name; keep the card's shelf.txt)
+  reboot (new bitstream), then killall glass after any later upload.
+
+Measure:
+  1. bench (bench_collect.py --load demo-bench.zmd): qu.list.* vs as.seq.f8(.w).x64 / qu.sync.*,
+     qu.sync.span.256 vs qu.list.span.256, qu.kick.f8.x64 / qu.wait.f8.x64; cp.lib/cp.chisel/cp.sw at 2/4/8K;
+     as.lazy.f8.x64 (no replay now: should be <= as.seq.f8.x64); ch.fill8.x64 unchanged-ish (one more compare).
+  2. OSD fps / ZMSTAT cart_c: stniccc (41.1 before the lazy wait; predicted 55-60), fuji_hobbytronic and
+     tsl_hybridglenz (60: cart_c only).
+  3. Wrong pixels in stniccc (a queue bug draws wrong on the board only: browser + scene_hash unchanged).
+Not proven on silicon: no hp_sim run (rule of the day); the RTL is proven against the machine in CXXRTL
+(test_rtl_blitter.py, queue script + 55 break mutants), the SoC glue in Migen, the firmware on a host model.

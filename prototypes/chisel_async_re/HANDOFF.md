@@ -140,3 +140,103 @@ removes the table call and wrapper per op but not the latency.
 - ch.fill8.x64 64403 -> 60403 for 64 ops (sync callers: the new wrapper is ~60 cycles an op cheaper).
 - fps: stniccc 41.1 -> 34.6 (REGRESSION, small spans), fuji_hobbytronic 60, tsl_hybridglenz 60, union_tnt1 60 (all unchanged).
 - Verdict: keep lazy only for big ops (clears / big copies); drop stniccc's opt-in; the many-small-ops case needs option 2 (command queue).
+
+## 6. Option 2 built: the CHISEL command QUEUE (HW 1.8.0), 2026-10-19 evening
+
+Commits on perf/chisel-async: 1304c861 (stniccc async opt-in dropped) .. ae20c9ea. Stage:
+`prototypes/chisel_async_re/stage_queue/` (INSTALL.txt, MD5SUMS.txt). NEW bitstream + NEW system.rv32:
+install both (the firmware no longer replays registers; only right on this RTL).
+
+**Choice: a snooped on-chip ring, not a DDR list.** The cart stores descriptors into a 512-word ring
+in the region (OFF_BLIT_QUEUE = 0x1DC000, above the BEAM table, outside REGION_BYTES); CHISEL's tap
+copies every store into a RAMB18 the same way it copies the block. Correct by construction: the ring
+stores and the GO go through the same in-order tap, so a list is in CHISEL before its kick; CHISEL
+can only read what the cart stored into its own ring (no bounds check, no M-only DDR leak); no
+read-port arbiter against the pixel unit and no AXI round trips per descriptor (~2 clocks a word
+from BRAM vs ~45-90 a descriptor from DDR, which would have made CHISEL the bottleneck at ~1000 ops).
+Cost: one BRAM tile, a 21-bit compare in the tap. The DDR list's only edge (unbounded length) does
+not matter: lists are kicked per half-ring (256 words).
+
+**Registers are never dropped any more.** zm_blit_regs: a TAP bank (LUT RAM, 4 byte lanes, every
+store, also while BUSY = memory's block) and the OP bank the engine reads. zm_blit_q copies tap->op
+at every kick (24 clocks) and then runs one op or the list (header = mask of block words + COMMAND,
+words lowest first, each op to its end before the next header). BLIT_WINDOW holds a READ while a
+store is in the tap or the copy runs, so the firmware's load after GO is the barrier. No replay
+anywhere (the lazy single-op path loses its +98 cycles too).
+
+**Semantics (machine = browser = native host, machine/blitter_queue.zig):** COMMAND 5 with
+Q_START/Q_COUNT (block 0xE8/0xEA); ops on a working copy of the block taken at the call; the block
+left as it was; CYCLES = sum; refused (CYCLES 0) for an empty list or one past the ring; a descriptor
+cut short ends the list unrun; COMMAND 0 only sets words; a nested 5 is an unknown op. ZM_HW_VERSION
+1.8.0. docs/BLITTER_HW_SPEC.md §6/§10.1, HW_API.md, guide regenerated.
+
+**Firmware (bchisel.c):** a QUEUE is always lazy (GO word = 5 | start<<8 | count<<17, refused like the
+machine); its sync sweeps the whole D$ once per list (a list may touch the whole plane; a 4 KiB D$
+sweeps anyway past 128 lines) — correct by construction (a superset of the union). The next kick
+waits for the previous list (double buffer by ring halves).
+
+**ZigOS:** `zg.blit_queue.Queue` (op/set/fill/kick/flush): each list starts from the block (read when
+it starts), a word goes in the ring only when the list does not hold it, the block is never written.
+Contract: a queued op's pixels are only drawn for sure after flush(). Plus `zg.chisel_copy`
+(copy/copyQueued, ZigOS.copyMem): CPU below COPY_MIN = 4 KiB, CHISEL above (dest VRAM, source in a
+readable window, no overlap), the lead's 19 Oct crossover table in its comment. The system libc
+memcpy is NOT switched (it would have the firmware write the cart's block behind its back and wait
+inside machine-internal copies).
+
+**stniccc:** begin() puts D_BASE/D_STRIDE/MINTERM/CON into the list; each span is a queued fill;
+keyframes and clearPlane flush; drawFrame flushes before the CPU's text. --only stniccc gate green,
+scene hashes unchanged.
+
+### Vivado (board recipe, main's RTL, fpga/build/board_queue)
+- 15,188 LUT (86.30 %), 15,437 FF, 42 BRAM tiles (+0.5: the ring). zm_blit 3,662 LUT vs 3,436 in
+  board_lm8 (+226, of which ~32 LUT RAM for the tap bank). Baseline posted build 15,045.
+- All constraints met: sys (clkout0) WNS +0.133 ns, comp (clkout1) +0.069 ns, others +1.178/+0.574.
+- CSR map byte-identical to board_lm8 (itself identical to 3ebb7381): table 1.2, every lean cart runs.
+- Line-major NOT merged: `git merge-tree` with 600e6cbd conflicts only in decisions.md, but it brings
+  its own firmware/glass (fw-opt) unproven on silicon; this bitstream is main's RTL + the queue.
+
+### Tests
+- test_rtl_blitter.py: 14 pass (fast/random/deep x edges, random1/2, queue1 vs the machine; random
+  mode now stores the next op's registers early while BUSY). ZM_RTL_BREAK=1: 55/55 mutants caught
+  (11 new: store dropped while busy, op bank not loaded, list from the last op, BLIT descriptor
+  skipped, two ops at once, words highest first, idle before the list ends, count off by one, read
+  past the count, cost not summed, word 0 drops CON).
+- test_blit_queue_soc.py (Migen, new) + test_blit_soc.py: 12 pass (ring forwarding, GO word range,
+  read hold; `ring` and `nohold` mutants).
+- test_chisel_async.py: 12 cases, 8 mutants caught. test_blit_path / test_blit_dcache with breaks:
+  pass (8x8 FILL through hwBlit 344 cycles on the core model, was 341). test_native_bench: 13 pass.
+- apps/blitter_queue_check.mjs (in build.sh): 3 x 60-op lists draw what their ops draw one by one,
+  block restored, CYCLES = sum; the edges. chisel_copy_test.zig (in build.sh).
+- --only stniccc gate green (EXIT 0, 5 harness jobs).
+
+### Predictions (to be measured on the board)
+| Row | sync | queued (predicted) |
+|---|---:|---:|
+| 64 x 8x8 fill | as.seq.f8.x64 56.3K | qu.list.f8.x64 ~10-13K (CHISEL ~150/op in a list) |
+| same, 256 ALU between | as.seq.f8w.x64 79.4K | qu.list.f8w.x64 ~25-28K (CPU-bound: ~360+40/op) |
+| 64 x 16x16 fill | qu.sync.f16.x64 ~75K | qu.list.f16.x64 ~25K |
+| 64 x 8x8 / 16x16 copy | qu.sync.c8/c16 ~65K/~85K | qu.list.c8/c16 ~16K/~30K |
+| 256 spans + 140 ALU | qu.sync.span.256 ~280K | qu.list.span.256 ~50-55K |
+| build+kick 64 fills | - | qu.kick.f8.x64 ~3K (the CPU's price: ~40/op + ~600/kick) |
+| switched copy | cp.lib.2K ~2K, cp.chisel.4K ~6K | cp.sw.2K = cp.lib.2K, cp.sw.4K/8K = cp.chisel |
+| lazy small ops | as.lazy.f8.x64 was 62.6K | ~as.seq.f8.x64 or below (no replay) |
+
+stniccc: ~1014 spans at ~911 cycles (~0.92 Mc of cart_c 1.33 Mc) become ~40-60 cycles of ring stores
+each plus ~12 kicks (+ a D$ sweep and refills each, ~20K): cart_c ~0.45-0.5 Mc, CHISEL ~0.15-0.2 Mc
+of its own behind the edge walk. **55-60 fps predicted** (41.1 before; vsync-capped at 60). The floor,
+if CHISEL turned out slower per op than predicted: still one kick per half-ring, ~0.6 Mc, ~50 fps.
+
+### Which other carts should take the queue
+- gen4_3615 (19 fps; CHISEL and CPU interleaved, many small D = A & B ops): biggest candidate.
+- fuji_hobbytronic (122 small triangles/frame) and tsl_hybridglenz (glenz triangles): cart_c only
+  (60 fps already).
+- union_tnt1 (32 fps) only if its ops are small; polkadots no (reads CYCLES after every op);
+  bob/tile carts through Blitter.bob / blitImage once a queued variant exists (not built).
+
+### Risks
+- A cart that touches a queued op's pixels before flush() draws wrong on the board only.
+- QUEUE is always lazy: every machine/ROM call in the cart's build loop waits (a call per span would
+  serialise; stniccc calls hwVideoBase once per begin()).
+- The read hold on BLIT_WINDOW also delays STATUS polls during a kick's 24-clock copy (harmless).
+- Byte-enable BRAM (the ring) is "suspect" under openXC7 only; the board flow is Vivado.
+- Not run: hp_sim of a queued cart (no SoC sims today). First board run is the proof.
