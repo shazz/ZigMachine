@@ -3,9 +3,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ZigMachine — Programmer's Guide</title>
 <meta name="description" content="The ZigMachine reference: video and blitter registers, the sealed HW ABI, the disk and music formats, and the ZigOS / GEM library, generated from the sources.">
-<link rel="stylesheet" href="css/docs.css?v=3f1bd301">
-<link rel="stylesheet" href="css/code.css?v=0edb2f47">
-<link rel="stylesheet" href="css/guide.css?v=ece899e9">
+<link rel="stylesheet" href="css/docs.css">
+<link rel="stylesheet" href="css/code.css">
+<link rel="stylesheet" href="css/guide.css">
 </head>
 <body>
 <header class="topbar">
@@ -43,7 +43,7 @@
   <main>
     <section class="hero" id="top">
       <h1>Programmer's guide</h1>
-      <ul class="stats"><li><a href="#hw-abi-machine-exports"><b>26</b>ABI exports</a></li><li><a href="#zigos-logicalfb-a-plane"><b>103</b>library methods</a></li><li><a href="#geometry-resolution"><b>93</b>constants / registers</a></li></ul>
+      <ul class="stats"><li><a href="#hw-abi-machine-exports"><b>26</b>ABI exports</a></li><li><a href="#zigos-logicalfb-a-plane"><b>103</b>library methods</a></li><li><a href="#geometry-resolution"><b>98</b>constants / registers</a></li></ul>
       <div class="intro">
 ZigMachine is a fantasy console: a <b>sealed hardware</b> core (compiled to two
 <code>machine-*.wasm</code> binaries you never edit) plus an <b>open library</b>
@@ -179,7 +179,9 @@ fb.<span class="tok-fn">setFrameBufferHBLHandler</span>(<span class="tok-num">0<
 <tr><td><code>REG_RAM_ARENA_TOP</code></td><td><code>0x6C</code></td><td><span class="type">u32</span></td><td class="meaning">first byte above the arena; 0 = empty (0x6C..0x6F)</td></tr>
 <tr><td><code>REG_RAM_ALLOC_FAILS</code></td><td><code>0x70</code></td><td><span class="type">u32<span class="ro">ro</span></span></td><td class="meaning">refused hwRamAlloc/hwRamRelease calls (0x70..0x73; 0x74..0x7F free below OFF_BLIT)</td></tr>
 </tbody></table></section>
-<section class="ref" id="blitter-registers"><header class="sec-h"><span class="eyebrow">Machine</span><h2>Blitter registers<small>OFF_BLIT + …</small></h2><span class="count">24 entries</span></header><table class="regs"><thead><tr><th>Name</th><th>Value</th><th>Type</th><th>Meaning</th></tr></thead><tbody>
+<section class="ref" id="blitter-registers"><header class="sec-h"><span class="eyebrow">Machine</span><h2>Blitter registers<small>OFF_BLIT + …</small></h2><span class="count">28 entries</span></header><table class="regs"><thead><tr><th>Name</th><th>Value</th><th>Type</th><th>Meaning</th></tr></thead><tbody>
+<tr><td><code>BLIT_QUEUE_WORDS</code></td><td><code>512</code></td><td></td><td class="meaning"></td></tr>
+<tr><td><code>BLIT_QUEUE_BYTES</code></td><td><code>BLIT_QUEUE_WORDS * 4</code></td><td></td><td class="meaning"></td></tr>
 <tr><td><code>BLIT_COMMAND</code></td><td><code>OFF_BLIT + 0x00</code></td><td><span class="type">u8</span></td><td class="meaning">0 NOP 1 BLIT 2 FILL 3 LINE 4 TRIANGLE</td></tr>
 <tr><td><code>BLIT_MINTERM</code></td><td><code>OFF_BLIT + 0x01</code></td><td><span class="type">u8</span></td><td class="meaning">LF truth table of A,B,C (index = A&lt;&lt;2|B&lt;&lt;1|C)</td></tr>
 <tr><td><code>BLIT_CON</code></td><td><code>OFF_BLIT + 0x02</code></td><td><span class="type">u8</span></td><td class="meaning">control bits (see CON_* below)</td></tr>
@@ -204,13 +206,16 @@ fb.<span class="tok-fn">setFrameBufferHBLHandler</span>(<span class="tok-num">0<
 <tr><td><code>BLIT_HALFTONE</code></td><td><code>OFF_BLIT + 0x40</code></td><td><span class="type">u16 &times;16</span></td><td class="meaning">1-bit halftone pattern</td></tr>
 <tr><td><code>BLIT_CYCLES</code></td><td><code>OFF_BLIT + 0x60</code></td><td><span class="type">u32<span class="ro">ro</span></span></td><td class="meaning">estimated cost of last op</td></tr>
 <tr><td><code>BLIT_ASYNC</code></td><td><code>OFF_BLIT + 0x64</code></td><td><span class="type">u8</span></td><td class="meaning">(board) 1 = hwBlit may return before the op ends</td></tr>
+<tr><td><code>BLIT_Q_START</code></td><td><code>OFF_BLIT + 0x68</code></td><td><span class="type">u16</span></td><td class="meaning">first ring word of the list</td></tr>
+<tr><td><code>BLIT_Q_COUNT</code></td><td><code>OFF_BLIT + 0x6A</code></td><td><span class="type">u16</span></td><td class="meaning">words in the list</td></tr>
 </tbody></table></section>
-<section class="ref" id="blitter-commands-control-minterms"><header class="sec-h"><span class="eyebrow">Machine</span><h2>Blitter control<small>commands, CON_* bits, minterms</small></h2><span class="count">22 entries</span></header><table class="regs"><thead><tr><th>Name</th><th>Value</th><th>Meaning</th></tr></thead><tbody>
+<section class="ref" id="blitter-commands-control-minterms"><header class="sec-h"><span class="eyebrow">Machine</span><h2>Blitter control<small>commands, CON_* bits, minterms</small></h2><span class="count">23 entries</span></header><table class="regs"><thead><tr><th>Name</th><th>Value</th><th>Meaning</th></tr></thead><tbody>
 <tr><td><code>BLIT_CMD_NOP</code></td><td><code>0</code></td><td class="meaning"></td></tr>
 <tr><td><code>BLIT_CMD_BLIT</code></td><td><code>1</code></td><td class="meaning"></td></tr>
 <tr><td><code>BLIT_CMD_FILL</code></td><td><code>2</code></td><td class="meaning"></td></tr>
 <tr><td><code>BLIT_CMD_LINE</code></td><td><code>3</code></td><td class="meaning"></td></tr>
 <tr><td><code>BLIT_CMD_TRIANGLE</code></td><td><code>4</code></td><td class="meaning"></td></tr>
+<tr><td><code>BLIT_CMD_QUEUE</code></td><td><code>5</code></td><td class="meaning">1.8.0: run the descriptors at BLIT_Q_START/COUNT (see above)</td></tr>
 <tr><td><code>CON_USEA</code></td><td><code>1 &lt;&lt; 0</code></td><td class="meaning">channel A enabled</td></tr>
 <tr><td><code>CON_USEB</code></td><td><code>1 &lt;&lt; 1</code></td><td class="meaning">channel B enabled</td></tr>
 <tr><td><code>CON_USEC</code></td><td><code>1 &lt;&lt; 2</code></td><td class="meaning">channel C enabled</td></tr>
@@ -1281,5 +1286,5 @@ the song: keep it off anything you publish.</p>
 <article class="api" id="Desktop.input"><code class="sig"><b class="fn">input</b>(self: *Desktop, dir: u32) <span class="ret">void</span></code><a class="anchor" href="#Desktop.input" aria-label="Link to input">#</a><p class="doc">Directional input from the host (0=up 1=down 2=left 3=right). The desktop only uses left/right, and only to walk the caret in the name field of an open INFORMATION / NEW FOLDER box.</p></article></section>
   </main>
 </div>
-<script src="guide.js?v=3eb64558"></script>
+<script src="guide.js"></script>
 </body></html>

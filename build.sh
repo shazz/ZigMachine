@@ -113,6 +113,7 @@ early rom_abi node apps/rom_abi_check.mjs   # the ROM survives hostile arguments
 python3 fpga/tools/sys_abi.py --check   # the board's system table (fpga/cycles/sys_abi.txt) is today's ROM/machine exports, under the version that says so
 python3 fpga/tools/sys_abi.py --break   # ...and a table changed without a version bump is caught (lean carts would bind to the wrong entries)
 node apps/blitter_check.mjs   # blitter sources: plane offsets, cart RAM (SRC_ABS), refusals
+node apps/blitter_queue_check.mjs   # QUEUE (1.8.0): a descriptor list draws what its ops draw one by one; the edges
 node apps/beam_check.mjs      # BEAM (1.6.0): mid-line colour-0 cells across the whole line, persistence, no drops
 node apps/beam_check.mjs --break   # ...and writes 4 px apart (faster than a move.w) are caught and counted as drops
 

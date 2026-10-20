@@ -14,6 +14,7 @@
 // --------------------------------------------------------------------------
 const std = @import("std");
 const memmap = @import("sdk/memmap.zig");
+const queue = @import("blitter_queue.zig");
 
 inline fn region() [*]u8 {
     return @ptrFromInt(memmap.HW_VIDEO_BASE);
@@ -392,6 +393,13 @@ inline fn halftoneBit(x: i32, y: i32) bool {
 // --------------------------------------------------------------------------
 pub fn execute() void {
     const cmd = r8(memmap.BLIT_COMMAND);
+    if (cmd == memmap.BLIT_CMD_QUEUE) return queue.run();
+    runOp(cmd);
+}
+
+// One op of COMMAND `cmd` on the block as it is (QUEUE runs each descriptor's op
+// here, so a QUEUE inside a list is an unknown command, not a recursion).
+pub fn runOp(cmd: u8) void {
     if (cmd == memmap.BLIT_CMD_NOP) return;
     w8(memmap.BLIT_STATUS, memmap.BLIT_STATUS_BUSY);
 
