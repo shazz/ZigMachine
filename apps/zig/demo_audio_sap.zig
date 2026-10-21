@@ -12,6 +12,14 @@ pub var sap: players.SapPlayer = .{};
 /// The staged file is a SAP of a kind this player runs (TYPE B or C, mono).
 /// False otherwise, with the reason in audioSapStatus.
 export fn audioLoadSap(len: u32) bool {
+    // The SAP was just staged over an SNDH's image (song RAM is the 68000's RAM). Left
+    // active, the SNDH would go on rendering first and audioSapPlay's stopAll would run its
+    // EXIT on the SAP's bytes. Abandon it unrun, as the YM, MOD and XM loads do.
+    if (m.sndh.active) {
+        m.sndh.abandon();
+        m.sfx.reset();
+        if (m.current_mode == 4) m.current_mode = 0;
+    }
     return sap.load(len);
 }
 
