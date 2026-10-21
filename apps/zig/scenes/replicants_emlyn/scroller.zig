@@ -42,6 +42,7 @@
 // `.multiply` form, value + inc*x) because the glyphs are blitted one at a
 // time, not walked as one strip.
 // --------------------------------------------------------------------------
+const std = @import("std");
 const zg = @import("zigos");
 const blit = zg.blit;
 const A = @import("assets.zig");
@@ -152,22 +153,36 @@ pub fn Scroller(comptime Curve: type, comptime Mode: type) type {
 /// the sweep exactly as siny does, drawn or not) and then reads each glyph row
 /// once, left to right. Every column writes its own x, so the order the
 /// pixels go down in changes nothing.
+///
+/// No row is ever off the plane (the comptime block below: the curve moves a
+/// column REACH rows at most, and the band fits the raster), so the per-pixel
+/// row test the general siny needs is gone, and each column's first pixel is
+/// one precomputed buffer offset that a row just adds a stride to (the
+/// scrolllab port's column loop, 2026-10-20; same pixels, a third fewer
+/// instructions a pixel). The clamp only guards that proof.
 fn bent(dst: blit.Dst, font: blit.Image, cell: blit.Rect, dx: i32, sweep: anytype) void {
-    var top: [TILE]i32 = undefined; // the plane row of each column's first pixel
-    for (&top) |*t| t.* = ROW + sweep.next();
+    var at: [TILE]usize = undefined; // the buffer offset of each column's first pixel
     const w: i32 = @intCast(dst.w);
-    const h: i32 = @intCast(dst.h);
+    const lowest: i32 = @as(i32, @intCast(dst.h)) - TILE;
+    for (&at, 0..) |*a, c| {
+        const top = std.math.clamp(ROW + sweep.next(), 0, lowest);
+        a.* = @as(usize, @intCast(top)) * dst.stride +% @as(usize, @bitCast(@as(isize, dx) + @as(isize, @intCast(c))));
+    }
     const c0: usize = @intCast(@min(TILE, @max(0, -dx))); // the columns on the plane
     const c1: usize = @intCast(@max(0, @min(TILE, w - dx)));
     if (c0 >= c1) return;
+    var line: usize = 0; // r * stride
     for (0..TILE) |r| {
         const in = font.data[(cell.y + r) * font.w + cell.x ..][0..TILE];
         for (c0..c1) |c| {
             const p = in[c];
-            if (p == A.TRANSPARENT) continue;
-            const y = top[c] + @as(i32, @intCast(r));
-            if (y < 0 or y >= h) continue;
-            dst.buf[@as(usize, @intCast(y)) * dst.stride + @as(usize, @intCast(dx + @as(i32, @intCast(c))))] = p;
+            if (p != A.TRANSPARENT) dst.buf[at[c] + line] = p;
         }
+        line += dst.stride;
     }
+}
+
+comptime {
+    // bent() never tests a row: every one it can reach is on the raster
+    if (ROW - REACH < 0 or ROW + TILE + REACH > RASTER_H) @compileError("the bent band leaves the raster");
 }
