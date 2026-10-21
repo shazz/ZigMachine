@@ -1,0 +1,5 @@
+b263271bd69b71e4aeb9997fc4031026  zigmachine.bit
+34fa6c4b54843eff864bc0f336397673  sd/demo-bench.zmd
+0d6e10020ee5ac3ac99191af84b61c9e  sd/demo-stniccc.zmd
+df3b58d49f55af2befb9280523a2b432  sd/shelf.txt
+d536048c081077001e365183953f269e  sd/system.rv32

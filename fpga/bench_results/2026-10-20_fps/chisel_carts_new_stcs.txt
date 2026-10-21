@@ -1,0 +1,18 @@
+demo-stcs.zmd ok demo-stcs.zmd running, loaded in 1873 ms
+t=  11.5 fps=59.9 frame_c=1648959 cart_c=134669 state=running bard=0/46 song=thrust.sndh
+t=  21.0 fps=60.3 frame_c=1648391 cart_c=135145 state=running bard=21/46 song=thrust.sndh
+t=  30.6 fps=60.2 frame_c=1648494 cart_c=135122 state=running bard=0/47 song=thrust.sndh
+t=  40.1 fps=60.2 frame_c=1648489 cart_c=142977 state=running bard=36/50 song=thrust.sndh
+t=  49.7 fps=60.2 frame_c=1648713 cart_c=143113 state=running bard=0/50 song=thrust.sndh
+t=  59.2 fps=55.2 frame_c=1855674 cart_c=256303 state=running bard=20/50 song=thrust.sndh
+t=  68.8 fps=53.5 frame_c=1855379 cart_c=255856 state=running bard=0/50 song=thrust.sndh
+t=  78.3 fps=53.5 frame_c=1855678 cart_c=255944 state=running bard=19/50 song=thrust.sndh
+t=  87.9 fps=55.2 frame_c=1648569 cart_c=117234 state=running bard=0/50 song=thrust.sndh
+t=  97.4 fps=60.2 frame_c=1648557 cart_c=117685 state=running bard=20/50 song=thrust.sndh
+t= 107.0 fps=60.2 frame_c=1648425 cart_c=117493 state=running bard=0/50 song=thrust.sndh
+t= 116.5 fps=57.3 frame_c=1841214 cart_c=240277 state=running bard=20/50 song=thrust.sndh
+t= 126.1 fps=55.7 frame_c=1747171 cart_c=210813 state=running bard=0/50 song=thrust.sndh
+t= 135.6 fps=57.1 frame_c=1675374 cart_c=209932 state=running bard=29/50 song=thrust.sndh
+t= 145.2 fps=56.8 frame_c=1933587 cart_c=265940 state=running bard=0/50 song=thrust.sndh
+t= 154.7 fps=52.7 frame_c=1933368 cart_c=265996 state=running bard=19/50 song=thrust.sndh
+demo-stcs.zmd: min 52.7 avg 57.4 max 60.3 over 16 windows

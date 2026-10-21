@@ -7,7 +7,7 @@
 **Tooling & Artifacts:** Stored in [`fpga/review/`](file:///home/matt/projects/ZigMachine/fpga/review)
 
 
-## Status at a glance (lead's tracking, updated 2026-10-18 late)
+## Status at a glance (lead's tracking, updated 2026-10-20)
 
 Every claim was checked against the RTL, the firmware and the board itself. The measurements come from the
 native bench cart (fpga/BENCH_REPORTS.md) and board_fps with the FRESCO probe; the full verdict is §8.
@@ -18,11 +18,13 @@ native bench cart (fpga/BENCH_REPORTS.md) and board_fps with the FRESCO probe; t
 |---|---|---|---|
 | 1 | Posted stores on ZIGGY's HP0 (§2.1) | **DONE, merged** (perf/ziggy-posted, bitstream 3ebb7381; +157 LUT, 85.5 %) | A store goes from 18 to **2.25 cycles** (×8); memset 4.5 → 0.56 c/B; misaligned trap 693 → 213; **23 carts faster, none slower** |
 | 2 | Compositor row I/O is the per-plane cost (§2.2) | **Confirmed** by the FRESCO probe (vcal) | Row read ~400 sys cycles, row write ~1,040 (32-bit beats); a redrawn plane costs 1.17 Mc; the ~30-fps carts are compositor-bound (840 passes × ~3.3 k) |
-| 3 | 64-bit row writes on HP1 (not in the review; it came from §2.2's analysis) | **Prepared, not built** (perf/fresco-linemajor WIP; `glass run --fw-opt=2`) | Predicted −0.22 Mc per redrawn plane at 0 LUT. The 10-03 "lost words" was the openXC7 BRAM bug, not W64 |
-| 4 | Line-major compositing / fewer row stores (§2.2, "double-buffered row I/O" reworked) | **WIP, paused** (perf/fresco-linemajor: RTL bits + tests pass) | Exact only for planes below the first HBL handler. Most ~30-fps carts have a handler on every plane, so only leonard gains among them |
+| 3 | 64-bit row writes on HP1 (not in the review; it came from §2.2's analysis) | **DONE, board default** (HP1 0xF00 from boot.scr; decisions.md 2026-10-19) | fr.dirty.p4 1.13 -> 0.99 Mc; automation442 30 -> 60, deltaforce 40 -> 60, stcs 31 -> 48 fps. A run-time 32 -> 64 switch drops words 1-2 of every 16 B, so it is set at boot only |
+| 4 | Line-major compositing / fewer row stores (§2.2, "double-buffered row I/O" reworked) | **DONE, merged** (lm8 6261127d, 15,035 LUT) | fr.dirty.p4 3.42 -> 1.13 Mc (line-major alone); leonard 30 -> 59. Same-day baseline 2026-10-20 (lm8 + main's system.rv32, W64): 103/103 carts run, 77 at >= 59 fps, stniccc 45.1 (bench_results/2026-10-20_README.md) |
 | 5 | Blitter single-beat AXI (§2.5) | **Tested: bursts don't help** (perf/chisel-burst, kept OFF) | Fill is limited at 1 px/clock (1.03 c/B). The real cost was the **~1,100-cycle call**, now cut in firmware: 8x8 fill 1,222 → 911 cycles |
 | 6 | Scanout underrun (§2.4) | **Checked only** | Never seen on the board; the probe's sticky bit reads "boot" (set since PL reset), so a per-frame counter would be needed to say more |
 | 7 | CPU busy-wait in vseq (§2.3) | **Root cause corrected** | A status poll costs 5.4 cycles. The CPU waits on the pass's own hardware time (row I/O), not on polling. A HW sequencer saves ~3 % unless compositing overlaps the cart, which the semantics forbid |
+| 8 | CHISEL lazy wait, then a CHISEL command QUEUE (not in the review; option 2 of perf/chisel-async) | Lazy: kept for big ops only (stniccc regressed 41.1 -> 34.6). QUEUE (HW 1.8.0): first board run 21 fps (stniccc's lists ran on the CPU: routing bug, fixed) | Fix on perf/chisel-queue-v2 (on top of main, not merged); not yet re-measured on the board (bench_results/2026-10-20_README.md) |
+| 9 | One combined bitstream: queue + line-major + W64 | **Built** (b263271b, perf/chisel-queue-v2): 15,292 LUT (86.9 %), sys WNS +0.041, comp +0.358, every clock met, CSR map = lm8's | Board run pending (stage prototypes/chisel_queue_re/stage_combo/); stniccc predicted 45.1 -> 55-60 |
 
 ### Refused strategies, and why
 
