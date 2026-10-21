@@ -12,6 +12,9 @@
 // from the frame buffer's picture row before the sweep, and writes it back
 // after (zm_video_rowio.v); between sweeps it is the picture's row y.
 //
+// TUBE is the browser's for every replay; the board builds it black (soc/zm_video_pipe.py
+// TUBE_BOARD): #121010 behind the planes showed dark grey inside black borders on HDMI.
+//
 // A sweep reads one pair (two pixels) a clock, 400 clocks, from pair 0 up. The
 // accumulator's other ports (`ld_*` writes, `st_*` reads) belong to the row
 // I/O while no sweep runs.

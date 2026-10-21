@@ -33,12 +33,14 @@ def build_vmix() -> Path:
     return exe
 
 
-def mix(frames_dir: Path, frames: list[int], layers: bool = False) -> None:
-    """Write f<N>.mix (and f<N>.layers if asked) next to each recorded frame."""
+def mix(frames_dir: Path, frames: list[int], layers: bool = False, tube: str | None = None) -> None:
+    """Write f<N>.mix (and f<N>.layers if asked) next to each recorded frame; `tube`
+    (RRGGBB) composes over that tube instead of the browser's #121010."""
     exe = build_vmix()
+    over = ["--tube", tube] if tube is not None else []
     for f in frames:
         extra = ["--layers"] if layers else []
-        subprocess.run([str(exe), "frame", str(frames_dir), str(f), *extra], check=True)
+        subprocess.run([str(exe), *over, "frame", str(frames_dir), str(f), *extra], check=True)
 
 
 def playwright_dir() -> str | None:
