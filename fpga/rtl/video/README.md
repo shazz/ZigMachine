@@ -212,6 +212,16 @@ loaded into the accumulator. Canvas `k` re-shows lower planes' pixels it does
 not cover, so every pass folds the whole row: a PLANE pass runs on all 280
 lines, painting only those the plane covers.
 
+**The tube is a parameter** (`TUBE`, `{B, G, R}`, on `zm_video_out` down to the
+mixer). `video.zig` REPLACES PFB pixels with a plane's palette entry, so where
+every enabled plane draws alpha 0 the picture is the tube, not `BACKGROUND`, even
+over an opaque one. The browser's `#121010` sits under the CSS scanline veil and
+reads as black; on the board's HDMI it was a dark grey box inside black borders
+(ancool, 2026-10-20). So the board SoC builds it black (`soc/zm_video_pipe.py`
+`TUBE_BOARD`); the replays and the video sim keep the browser's, and
+`tests/test_rtl_video_tube.py` replays the board's build against the same model
+over a black tube (`vmix --tube`).
+
 **The pictures** (`zm_video_out`): two frame buffers of 800×280 `{0, B, G, R}`
 words (`fb0_base`, `fb1_base`, 875 KiB each). The compositor builds the back one;
 PRESENT marks it complete and it becomes the front one at the next VBL. Until

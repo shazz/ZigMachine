@@ -13,7 +13,9 @@
 // line, 2,112 pixel clocks), and `underrun` sticks if it ever misses it.
 `default_nettype none
 
-module zm_video_out (
+module zm_video_out #(
+    parameter [23:0] TUBE = 24'h101012     // behind every plane: zm_video_comp.v
+) (
     input  wire        clk,
     input  wire        rst,
     input  wire        pix_clk,
@@ -96,7 +98,7 @@ module zm_video_out (
         end
     end
 
-    zm_video_comp u_comp (
+    zm_video_comp #(.TUBE(TUBE)) u_comp (
         .clk(clk), .rst(rst), .vbase(vbase), .dbase(front ? fb0_base : fb1_base), .d_ok(!pending),
         .cpu_we(cpu_we), .cpu_waddr(cpu_waddr), .cpu_be(cpu_be), .cpu_wdata(cpu_wdata), .cpu_sel(cpu_sel),
         .cpu_rword(cpu_rword),
