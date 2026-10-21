@@ -1,0 +1,9 @@
+demo-rno_natrium.zmd ok demo-rno_natrium.zmd running, loaded in 1897 ms
+t=  11.5 fps=56.0 frame_c=1962712 cart_c=1452314 state=running bard=23/45 song=rno_natrium.sndh
+t=  21.1 fps=51.6 frame_c=1912362 cart_c=1308589 state=running bard=30/54 song=rno_natrium.sndh
+t=  30.6 fps=51.5 frame_c=1931243 cart_c=1364861 state=running bard=29/54 song=rno_natrium.sndh
+t=  40.2 fps=57.1 frame_c=1707167 cart_c=1275512 state=running bard=42/54 song=rno_natrium.sndh
+t=  49.7 fps=59.8 frame_c=1681749 cart_c=1191956 state=running bard=32/54 song=rno_natrium.sndh
+t=  59.3 fps=54.4 frame_c=1917411 cart_c=1302600 state=running bard=29/54 song=rno_natrium.sndh
+t=  68.8 fps=55.3 frame_c=1648771 cart_c=550955 state=running bard=33/54 song=rno_natrium.sndh
+demo-rno_natrium.zmd: min 51.5 avg 55.1 max 59.8 over 7 windows

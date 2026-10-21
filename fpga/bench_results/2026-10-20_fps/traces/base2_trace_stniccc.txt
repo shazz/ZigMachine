@@ -1,0 +1,10 @@
+demo-stniccc.zmd 21175 packed), up after 466 polls
+ok demo-stniccc.zmd running, loaded in 2118 ms
+t=  11.7 fps=45.2 frame_c=2420213 cart_c=1998750 state=running bard=1/1 song=chcknbnk.mod
+t=  21.3 fps=46.2 frame_c=1861551 cart_c=749374 state=running bard=0/1 song=chcknbnk.mod
+t=  30.8 fps=43.2 frame_c=2574623 cart_c=1959998 state=running bard=0/1 song=chcknbnk.mod
+t=  40.4 fps=34.8 frame_c=3453139 cart_c=2838980 state=running bard=0/1 song=chcknbnk.mod
+t=  49.9 fps=29.5 frame_c=5031930 cart_c=4416350 state=running bard=1/1 song=chcknbnk.mod
+t=  59.5 fps=38.6 frame_c=2698963 cart_c=2084655 state=running bard=0/1 song=chcknbnk.mod
+t=  69.0 fps=39.1 frame_c=3754387 cart_c=3140207 state=running bard=0/1 song=chcknbnk.mod
+demo-stniccc.zmd: min 29.5 avg 39.5 max 46.2 over 7 windows

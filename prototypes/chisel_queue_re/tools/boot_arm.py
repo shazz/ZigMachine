@@ -3,7 +3,7 @@
 the AFI widths as the card's boot.scr sets them (HP1 0xF00 = W64 from the first write), then the
 card's own zImage/dtb/rootfs, as boot.scr does. Then glass is stopped, ready for run_glass.py.
 
-    uv run --with pyserial --with xmodem python boot_arm.py card|LOCAL.bit [LOG]
+    uv run --with pyserial --with xmodem python boot_arm.py card|LOCAL.bit|jtag:LOCAL.bit [LOG]
 """
 import sys
 import time
@@ -38,6 +38,14 @@ def load_pl(con: us.UBoot, bit: str, log: list[str]) -> None:
     if bit == "card":
         log.append(con.cmd(f"fatload mmc 0 {BIT_AT:#x} zigmachine.bit", timeout=60).strip()[-120:])
         log.append(con.cmd(f"fpga loadb 0 {BIT_AT:#x} ${{filesize}}", timeout=60).strip()[-120:])
+        return
+    if bit.startswith("jtag:"):  # loadx of 2 MB failed twice: the card's PL first (a GP0 slave, so CTRL 0
+        load_pl(con, "card", log)  # cannot hang the ARM), CTRL 0 + 1 s, then the new PL over JTAG
+        con.cmd("mw.l 0x43c00008 0")
+        time.sleep(1.0)
+        t0 = time.monotonic()
+        us.load_pl(bit[5:])
+        log.append(f"jtag {bit[5:]}: loaded in {time.monotonic() - t0:.0f} s")
         return
     data = Path(bit).read_bytes()
     t0 = time.monotonic()
