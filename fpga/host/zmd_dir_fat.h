@@ -62,7 +62,9 @@ static inline int zmd_dir_parse(const uint8_t* b, uint32_t size, zmd_dir_t* d) {
     if (b[0] == 0x00 && b[1] == 0x61 && b[2] == 0x73 && b[3] == 0x6d) { /* v2: a wasm boot sector */
         if (memcmp(b + 0x400, "ZMDISK", 6) != 0) return ZMD_DIR_MAGIC;
         d->v2 = 1;
-        d->bootable = zmd_be_sum(b, 512) == 0x1234;
+        /* $1234 over a descriptor naming NO cart (length 0 at $40C) is a data disk with a boot
+         * sector (sysinfo's "No virus"): it runs, then GEM. zmdisk.js osAfterBoot, zmd_fat.bootable. */
+        d->bootable = zmd_be_sum(b, 512) == 0x1234 && zmd_le32(b + 0x40c) != 0;
         d->date = zmd_le32(b + 0x4f0);
         return zmd_read_fat(d, b, size, 0x800, (uint32_t)(b[0x4f4] | b[0x4f5] << 8));
     }

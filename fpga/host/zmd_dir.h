@@ -6,7 +6,7 @@
  *  - docs/zmdisk.js parseDisk: v1 ("ZMDISK" at 0, FAT at 0x300, count at 0x2e4, no date;
  *    boot-sector BE word sum 0x1234 = bootable, 0 = data disk, else corrupt) or v2 (a wasm
  *    boot sector, "ZMDISK" at 0x400, FAT at 0x800, count at 0x4f4, date at 0x4f0; bootable
- *    iff the 1 KB sum is 0x1234). Under 0x600 bytes, no magic or a corrupt v1 sum: throws.
+ *    iff the 1 KB sum is 0x1234 and the descriptor names a cart: length at 0x40c != 0). Under 0x600 bytes, no magic or a corrupt v1 sum: throws.
  *  - readFat: 32-byte entries name[16] start[4] len[4] type[1] into an OBJECT keyed by
  *    name, so a repeated name keeps its first place and takes the last entry's values, and
  *    Object.keys lists array-index names ("0", "17", ...) first in numeric order ("__proto__"
