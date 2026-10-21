@@ -33,6 +33,9 @@ const MAX_MEAN = 2, MAX_BAD = 0.18, BAD_DIFF = 64, LIT = 32;
 // alpha 1 (the second's 1.005 is ignored); its third, 1.005 - 0.005, truncates below.
 const LOGO_FROM = 110, LOGO_TO = ENTRY_FRAMES + 1;
 const LOGO = 132, LOGO_X = 134, LOGO_Y = 74;
+// The part as the f64 port drew it (before its flight and fade became comptime tables,
+// wab_table.zig / wab_fade.zig, 2026-10-20): those must keep every frame byte for byte.
+const PART_PIN = "16e8bf050c73d9330721d8985ffa53f9cc4493f1753353f0a5a457c75c5c5ccd";
 const PAGES = 112; // SHARED_PAGES in machine/sdk/memmap.zig
 let failed = false;
 const verdict = (ok, msg) => { console.log(`  ${ok ? "ok  " : "FAIL"} ${msg}`); if (!ok) failed = true; };
@@ -157,6 +160,8 @@ async function checkCart(ref, cart, baseline, at) {
     const frames = Buffer.alloc(PART_FRAMES * SIZE);
     const part = await runCart(cart, start + PART_FRAMES, (t) => t >= start, (t, rgb) => frames.set(rgb, (t - start) * SIZE));
     console.log(`  worst cart update+render during the part: ${part.cost.toFixed(3)} ms`);
+    const pin = createHash("sha256").update(frames).digest("hex");
+    verdict(pin === PART_PIN, `all ${PART_FRAMES} part frames are the f64 port's pixels: sha256 ${pin === PART_PIN ? pin.slice(0, 16) : `${pin}, pinned ${PART_PIN}`}`);
     if (ref) checkPart(ref, frames);
     if (!baseline) return;
     const base = await runCart(baseline, ticks, () => false);

@@ -203,6 +203,7 @@ NATIVE_TESTS="
     apps/zig/scenes/stniccc/stream.zig
     apps/zig/scenes/stniccc/polyfill.zig
     apps/zig/scenes/stniccc/player_test.zig
+    apps/zig/scenes/union/wab_table_test.zig
     apps/zig/scenes/blitter_demo/wobble.zig
     apps/zig/scenes/blitter_demo/soft.zig
     apps/zig/scenes/music_debug/fsin.zig
