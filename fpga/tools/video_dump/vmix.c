@@ -5,12 +5,12 @@
  *   vmix frame <dir> <frame> [--layers] -> <dir>/f<frame>.mix     (800x280 RGB)
  *                                          <dir>/f<frame>.layers  (the 4 canvases, RGBA, if asked)
  *   vmix layers <layers.rgba> <mask> <out.rgb>   compose arbitrary canvases
- *   vmix --tube RRGGBB ...                       over another tube (the board's is black)
+ *   vmix --tube RRGGBB ...                       over another tube (both machines' is black)
  *
  * What the loader does: canvas i (stacked in DOM order, 0 at the bottom) gets
  * the PFB as it is after hwRenderPlane(i), for each enabled plane i; when no
  * plane is enabled, canvas 0 gets the PFB after hwClear. Canvases of disabled
- * planes are blank. The tube behind them is #121010 (docs/css/crt.css).
+ * planes are blank. The tube behind them is black (docs/css/crt.css .container).
  *
  * What Chrome does (measured by tools/mix_chrome.mjs, exact on every one of
  * 65,536 colour x alpha pairs and on random 4-canvas stacks): putImageData
@@ -29,7 +29,7 @@
 #define PX (W * H)
 #define CANVASES ZM_NB_PLANES
 
-static uint8_t k_tube[3] = {0x12, 0x10, 0x10};
+static uint8_t k_tube[3] = {0x00, 0x00, 0x00};
 
 static unsigned div255(unsigned x) { return (x + 128 + ((x + 128) >> 8)) >> 8; }
 

@@ -175,10 +175,10 @@
     "catch": "s:overscan"
   },
   {
-    "id": "mix_tube_black",
+    "id": "mix_tube_grey",
     "file": "zm_video_comp.v",
-    "old": "parameter [23:0] TUBE = 24'h101012",
-    "new": "parameter [23:0] TUBE = 24'h000000",
+    "old": "parameter [23:0] TUBE = 24'h000000",
+    "new": "parameter [23:0] TUBE = 24'h101012",
     "catch": "gen4_3615"
   },
   {

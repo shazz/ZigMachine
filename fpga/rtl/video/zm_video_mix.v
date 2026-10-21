@@ -2,7 +2,7 @@
 //
 // The browser stacks one canvas per enabled plane (docs/sealed-loader.js);
 // canvas k holds the PFB as it is after plane k's pass, and Chrome draws them
-// bottom first, source-over, onto the tube's #121010. In premultiplied 8-bit
+// bottom first, source-over, onto the (black) tube. In premultiplied 8-bit
 // arithmetic, exactly as Skia does it (tools/video_dump/vmix.c is the oracle):
 //     P = round(c * a / 255)            putImageData premultiplies
 //     D = P + (D * (256 - a) >> 8)      each canvas drawn over the last
@@ -12,8 +12,8 @@
 // from the frame buffer's picture row before the sweep, and writes it back
 // after (zm_video_rowio.v); between sweeps it is the picture's row y.
 //
-// TUBE is the browser's for every replay; the board builds it black (soc/zm_video_pipe.py
-// TUBE_BOARD): #121010 behind the planes showed dark grey inside black borders on HDMI.
+// TUBE is black on the board and in the browser alike (Matt, 2026-10-20): the old #121010
+// behind the planes showed dark grey inside black borders on HDMI (ancool).
 //
 // A sweep reads one pair (two pixels) a clock, 400 clocks, from pair 0 up. The
 // accumulator's other ports (`ld_*` writes, `st_*` reads) belong to the row
@@ -21,7 +21,7 @@
 `default_nettype none
 
 module zm_video_mix #(
-    parameter [23:0] TUBE = 24'h101012     // #121010 (docs/css/crt.css), {B, G, R}
+    parameter [23:0] TUBE = 24'h000000     // black (docs/css/crt.css .container), {B, G, R}
 ) (
     input  wire        clk,
     input  wire        rst,

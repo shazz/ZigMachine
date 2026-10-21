@@ -196,7 +196,7 @@ wire, with break tests: see [`TESTING.md`](TESTING.md), with the coverage table.
 
 **What the browser shows** (`docs/sealed-loader.js`, `docs/css/crt.css`): canvas
 `i` holds the PFB after `hwRenderPlane(i)` for each enabled plane (the cleared
-PFB on canvas 0 when none is), stacked in DOM order on the tube's `#121010`.
+PFB on canvas 0 when none is), stacked in DOM order on the tube (black, `.container`).
 Chrome's software compositor gives, per canvas: `P = round(c·a/255)` (the
 premultiply in `putImageData`), then `D = P + (D·(256−a) >> 8)`. That is exact on
 all 65,536 colour × alpha pairs and on random 4-canvas stacks, checked against
@@ -215,12 +215,13 @@ lines, painting only those the plane covers.
 **The tube is a parameter** (`TUBE`, `{B, G, R}`, on `zm_video_out` down to the
 mixer). `video.zig` REPLACES PFB pixels with a plane's palette entry, so where
 every enabled plane draws alpha 0 the picture is the tube, not `BACKGROUND`, even
-over an opaque one. The browser's `#121010` sits under the CSS scanline veil and
-reads as black; on the board's HDMI it was a dark grey box inside black borders
-(ancool, 2026-10-20). So the board SoC builds it black (`soc/zm_video_pipe.py`
-`TUBE_BOARD`); the replays and the video sim keep the browser's, and
-`tests/test_rtl_video_tube.py` replays the board's build against the same model
-over a black tube (`vmix --tube`).
+over an opaque one. It was the browser's `#121010`, which reads as black under the
+CSS scanline veil but was a dark grey box inside black borders on the board's HDMI
+(ancool, 2026-10-20). Since then the tube is black on both machines (Matt: the board
+and the browser must match pixel for pixel): `crt.css` `.container`, `vmix.c`, the
+RTL defaults and `soc/zm_video_pipe.py` (`TUBE_BOARD`, passed explicitly by the board
+SoC). `tests/test_rtl_video_tube.py` checks the board's build against the browser's
+model and keeps the parameter's path down to the mixer under break tests.
 
 **The pictures** (`zm_video_out`): two frame buffers of 800×280 `{0, B, G, R}`
 words (`fb0_base`, `fb1_base`, 875 KiB each). The compositor builds the back one;

@@ -14,7 +14,7 @@
 `default_nettype none
 
 module zm_video_out #(
-    parameter [23:0] TUBE = 24'h101012     // behind every plane: zm_video_comp.v
+    parameter [23:0] TUBE = 24'h000000     // behind every plane: zm_video_comp.v
 ) (
     input  wire        clk,
     input  wire        rst,

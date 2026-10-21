@@ -135,8 +135,8 @@ class ZigMachineSoC(SoCCore):
             self.comb += self.cpu.reset.eq(~self.glass.cpu_run)
             overlay = self.glass.overlay if hdmi else None  # the OSD only exists on the wire
         run = self.glass.cpu_run if glass else None  # the HP DMA runs only while CTRL.RUN (soc/zm_video_axi.py)
-        # TUBE_BOARD: the browser's #121010 tube behind a transparent pixel showed dark grey on the
-        # TV, against black borders (ancool, Matt 2026-10-20); the board's tube is black.
+        # TUBE_BOARD: black. The old #121010 tube behind a transparent pixel showed dark grey on the
+        # TV, against black borders (ancool, Matt 2026-10-20); the browser's is black too now.
         self.video = ZMVideo(
             platform, None if audio else pads, overlay=overlay, hp=hp, hp_enable=run, probe=hp_probe, tube=TUBE_BOARD
         )

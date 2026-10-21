@@ -1,8 +1,9 @@
-"""The tube reaches zm_video_out's TUBE parameter: the browser's for the sims, black on the
-board (soc/zm_video_pipe.py; the RTL side is tests/test_rtl_video_tube.py). Elaborates
+"""The tube reaches zm_video_out's TUBE parameter: black, the board's and the browser's alike
+(soc/zm_video_pipe.py; the RTL side is tests/test_rtl_video_tube.py). Elaborates
 ZMVideo only, with a platform that takes no sources: no toolchain."""
 
 import inspect
+from pathlib import Path
 
 from migen import Instance
 
@@ -23,9 +24,16 @@ def _tube(video: ZMVideo) -> int:
     return params["TUBE"].value
 
 
-def test_the_sims_pipeline_keeps_the_browsers_tube() -> None:
-    assert TUBE_BROWSER == 0x101012  # #121010 as {B, G, R}: docs/css/crt.css, vmix.c, zm_video_mix.v
+def test_the_sims_pipeline_shows_the_browsers_tube() -> None:
+    assert TUBE_BROWSER == 0  # black: docs/css/crt.css .container, vmix.c, zm_video_mix.v
     assert _tube(ZMVideo(_Platform(), None, max_burst=0)) == TUBE_BROWSER
+
+
+def test_the_browsers_tube_is_the_css_one() -> None:
+    """The page's tube is the model's: crt.css paints .container (and its border) black."""
+    css = (Path(__file__).resolve().parents[2] / "docs/css/crt.css").read_text()
+    block = css[css.index(".container {") : css.index("}", css.index(".container {"))]
+    assert "background: #000000;" in block and "#121010" not in block
 
 
 def test_a_board_pipeline_shows_black_behind_the_planes() -> None:

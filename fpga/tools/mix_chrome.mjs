@@ -6,7 +6,7 @@
 //     mask         which canvases are drawn (bit i = canvas i); the rest stay blank
 //     out.rgb      the 800x280 composite as RGB, from a screenshot of the tube
 //
-// The page is docs/index.html's tube: .container (its #121010 background) holding
+// The page is docs/index.html's tube: .container (its black background) holding
 // the four .canvas elements, styled by the real docs/css/crt.css and given their
 // pixels by putImageData, as docs/sealed-loader.js does. The CRT scanline veil
 // (.container::before) is hidden: it is a cosmetic filter over the whole tube,

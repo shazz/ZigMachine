@@ -70,7 +70,7 @@ static void fold(int first) {
     const uint8_t* pfb = g_env.memory.data + w2c_machine_hwPhysicalPtr(&g_env.machine);
     for (uint32_t i = 0; i < VD_LINES * W; i++) {
         const uint8_t* c = pfb + 4 * i;
-        uint32_t a = c[3], d = first ? 0x101012u : (&g_ref[0][0])[i], o = 0;
+        uint32_t a = c[3], d = first ? 0x000000u : (&g_ref[0][0])[i], o = 0;
         for (int k = 0; k < 3; k++) {
             uint32_t r = c[k] * a + 128, p = (r + (r >> 8)) >> 8;
             uint32_t ov = ((d >> (8 * k)) & 255) * (256 - a);

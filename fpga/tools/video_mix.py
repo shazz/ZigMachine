@@ -35,7 +35,7 @@ def build_vmix() -> Path:
 
 def mix(frames_dir: Path, frames: list[int], layers: bool = False, tube: str | None = None) -> None:
     """Write f<N>.mix (and f<N>.layers if asked) next to each recorded frame; `tube`
-    (RRGGBB) composes over that tube instead of the browser's #121010."""
+    (RRGGBB) composes over that tube instead of the default black one."""
     exe = build_vmix()
     over = ["--tube", tube] if tube is not None else []
     for f in frames:
