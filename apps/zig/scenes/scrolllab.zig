@@ -6,13 +6,11 @@
 // each other rather than against eight different screens. LEFT and RIGHT dial
 // the curve's TRAVEL — pixels a frame the whole curve slides, 0 meaning it is
 // pinned in screen space and the letters ride through it, which is the
-// rollercoaster question in one knob. The mode's number, name and the travel
-// sit in the top-left corner at half the font's size, so a screenshot says
-// which one it is.
+// rollercoaster question in one knob. The mode, its name and the travel sit
+// under the band at half the font's size, so a screenshot says which one it is.
 //
 // The band is rendered ONCE a frame into a strip and every mode is a filter over
-// it (emlyn/../scrolllab/modes.zig) — screen 345's decoupling of "make the text"
-// from "distort it", which is what a lab wants.
+// it (scrolllab/modes.zig): screen 345's "make the text, then distort it".
 //
 // No rasters, logo or music: they would get in the way of looking at the text.
 // It borrows the REPLICANTS font (emlyn.bin's second half): the lab owns no art.
@@ -20,8 +18,7 @@
 // The scroller itself is CODEF's scrolltext_horizontal ring, the same one
 // screen 17 uses: ceil(320/32) + 1 = 11, and the loop runs `i <= wide`, so
 // TWELVE letters, each starting at 352 + 32i and moving 2 ST pixels a frame.
-// That is the original's speed 4 on its doubled canvas, and it does not change
-// with the mode.
+// That is the original's speed 4 on its doubled canvas, whatever the mode.
 //
 // Keys: 1..9, 0 pick a mode, Space cycles, Left/Right dial travel, Escape
 // leaves (declaring key() takes Escape from the host: wants_quit is ours).
