@@ -29,6 +29,7 @@ const blit = zg.blit;
 const path = @import("path.zig"); // mode 9: a 2D track, loop included
 const table345 = @import("table345.zig"); // mode 10: screen 345's own playlist
 const sines = @import("sines.zig"); // the term walk, in integers
+const filters = @import("filters.zig"); // modes 2-8: siny, sinx, zoomy
 const Param = sines.Param;
 const MAX_TERMS = sines.MAX_TERMS;
 
@@ -46,10 +47,10 @@ pub const NAMES = [_][]const u8{
     "0 345 TABLE SHAKE",
 };
 
-pub const TILE = 32; // the font's cell, and one letter of the ring
+pub const TILE = filters.TILE; // the font's cell, and one letter of the ring
 /// Longer than the screen: mode 9's track is a squiggle whose arc length is
 /// twice the width, and the text fills all of it. Modes 1-8 clip past 320.
-pub const W = 704;
+pub const W = filters.W;
 // V8 Populous (apps/rust/scenes/v8_populous/scroll.rs:124): one sine, amp 40
 // canvas = 20 ST, stepped per LETTER — the baseline Matt called too nice. `inc`
 // is PER COLUMN, identical to p_column's, and siny multiplies it by the stride,
@@ -92,7 +93,7 @@ const PIPE_BASE = 1.0;
 var p_pipe = [_]Param{.{ .value = 0, .amp = 0.75, .inc = 0.04, .offset = -0.06 }};
 /// The one text source: the band, flat, before anything distorts it.
 /// 22,528 B on zg.mem, taken once by init() (once per cart load).
-var strip: *[TILE][W]u8 = undefined;
+var strip: *filters.Strip = undefined;
 
 pub const Glyph = struct { x: i32, cell: blit.Rect };
 pub fn init() void {
@@ -102,10 +103,44 @@ pub fn init() void {
     for ([_][]Param{ &p_letter, &p_column, &p_484, &p_484_static, &p_coaster, &p_rubber, &p_pipe }) |ps| sines.prepare(ps, TILE);
 }
 
+/// Work out what depends on the destination view alone (mode 9's sample map)
+/// once, before the first frame.
+pub fn prepare(dst: blit.Dst) void {
+    path.prepare(dst);
+}
+
+/// The ring's cells sit exactly TILE apart and cover [0, W) (the lab lays
+/// them end to end and wraps each one by the ring's length), so copying every
+/// cell WHOLE, zeros included, writes each strip byte once and gives the same
+/// strip as clearing it and copying keyed: no 22,528-byte clear a frame. When
+/// the cells do not tile the strip (`tiles` is false) it falls back to that.
 pub fn fillStrip(font: blit.Image, glyphs: []const Glyph) void {
-    for (strip) |*r| @memset(r, 0);
     const dst = blit.Dst.buffer(std.mem.asBytes(strip), W);
+    if (tiles(glyphs)) {
+        for (glyphs) |g| blit.blit(dst, font, g.cell, g.x, 0, null, .copy);
+        return;
+    }
+    for (strip) |*r| @memset(r, 0);
     for (glyphs) |g| blit.blit(dst, font, g.cell, g.x, 0, 0, .copy);
+}
+
+/// One cell in each TILE slot from the leftmost (which starts in (-TILE, 0]),
+/// none twice, and enough of them to reach W.
+fn tiles(glyphs: []const Glyph) bool {
+    if (glyphs.len == 0 or glyphs.len > 32) return false;
+    var lo: i32 = glyphs[0].x;
+    for (glyphs) |g| lo = @min(lo, g.x);
+    if (lo > 0 or lo <= -TILE or lo + @as(i32, @intCast(glyphs.len * TILE)) < W) return false;
+    var seen: u32 = 0;
+    for (glyphs) |g| {
+        if (g.cell.w != TILE or g.cell.h != TILE or @mod(g.x - lo, TILE) != 0) return false;
+        const at = @divExact(g.x - lo, TILE);
+        if (at >= glyphs.len) return false;
+        const slot: u5 = @intCast(at);
+        if (seen & (@as(u32, 1) << slot) != 0) return false;
+        seen |= @as(u32, 1) << slot;
+    }
+    return true;
 }
 
 fn paramsOf(mode: Mode) []Param {
@@ -134,65 +169,9 @@ pub fn draw(mode: Mode, dst: blit.Dst, row: i32, align_x: usize, steps: i32, fra
         .flat => blit.blit(dst, src, null, 0, row, 0, .copy),
         .path => path.draw(dst, strip, @as(i64, steps) * frame),
         .table345 => table345.draw(dst, src, row, frame),
-        .rubber => sinx(dst, src, p, row, travel),
-        .pipe => zoomy(dst, src, p, row, travel),
-        .sine_letter => siny(dst, src, p, row, travel, TILE, align_x),
-        else => siny(dst, src, p, row, travel, 1, 0),
+        .rubber => filters.sinx(dst, src, p, row, travel),
+        .pipe => filters.zoomy(dst, strip, p, row, travel),
+        .sine_letter => filters.siny(dst, strip, p, row, travel, TILE, align_x),
+        else => filters.siny(dst, strip, p, row, travel, 1, 0),
     }
-}
-
-/// codef_fx.siny: column i goes to (i, sum + posy); `stride` columns share one
-/// phase step — 1 per column, TILE per letter.
-fn siny(dst: blit.Dst, src: blit.Image, params: []Param, posy: i32, travel: f64, stride: usize, align_x: usize) void {
-    var w = sines.begin(params);
-    for (0..src.w) |i| {
-        const cell = blit.Rect{ .x = i, .y = 0, .w = 1, .h = src.h };
-        blit.blit(dst, src, cell, @intCast(i), posy + sines.roundQ38(sines.sumQ38(params, &w)), 0, .copy);
-        // the LAST column of each aligned block: every column of a letter
-        // shares one phase, and the step lands on the boundary between letters
-        if (i % stride == (align_x + stride - 1) % stride) sines.step(params, &w, stride != 1);
-    }
-    sines.advance(params, travel);
-}
-
-/// codef_fx.sinx: source ROW i goes to (sum + posx, i).
-fn sinx(dst: blit.Dst, src: blit.Image, params: []Param, posy: i32, travel: f64) void {
-    var w = sines.begin(params);
-    for (0..src.h) |i| {
-        const cell = blit.Rect{ .x = 0, .y = i, .w = src.w, .h = 1 };
-        blit.blit(dst, src, cell, sines.roundQ38(sines.sumQ38(params, &w)), posy + @as(i32, @intCast(i)), 0, .copy);
-        sines.step(params, &w, false);
-    }
-    sines.advance(params, travel);
-}
-
-/// codef_fx.zoomy: the sum is a vertical SCALE, the column growing downward
-/// from posy. Written out: nothing here scales a single column. The source row
-/// of output row r is round(r / zoom), walked as r * (1 / zoom) in Q24: one f32
-/// divide a column, none a pixel.
-fn zoomy(dst: blit.Dst, src: blit.Image, params: []Param, posy: i32, travel: f64) void {
-    var w = sines.begin(params);
-    const band = strip; // one load of the arena pointer, not one a pixel
-    const h: i32 = @intCast(src.h);
-    for (0..src.w) |i| {
-        const zoom_q16: i32 = 65536 + @as(i32, @intCast((sines.sumQ38(params, &w) + (1 << 21)) >> 22));
-        sines.step(params, &w, false);
-        if (zoom_q16 <= 0 or i >= dst.w) continue;
-        const rows = (h * zoom_q16 + 32768) >> 16; // round(src.h * zoom)
-        const inv = 65536.0 / @as(f32, @floatFromInt(zoom_q16)); // 1 / zoom
-        const inv_q24: i32 = @intFromFloat(inv * 16777216.0);
-        var acc: i32 = 0;
-        var r: i32 = 0;
-        while (r < rows) : ({
-            r += 1;
-            acc += inv_q24;
-        }) {
-            const sr = (acc + (1 << 23)) >> 24;
-            const y = posy + r;
-            if (sr < 0 or sr >= h or y < 0 or y >= dst.h) continue;
-            const p = band[@intCast(sr)][i];
-            if (p != 0) dst.buf[@as(usize, @intCast(y)) * dst.stride + i] = p;
-        }
-    }
-    sines.advance(params, travel);
 }

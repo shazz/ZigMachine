@@ -3,6 +3,7 @@ const zg = @import("zigos");
 const blit = zg.blit;
 const TILE = @import("modes.zig").TILE;
 const W = @import("modes.zig").W;
+const map = @import("path_map.zig"); // where each point's samples land
 
 // --------------------------------------------------------------------------
 // Mode 9: a 2D PARAMETRIC PATH, not a height field.
@@ -30,7 +31,7 @@ const PATH = [_][2]f64{
     .{ 252, 62 },  .{ 262, 96 }, .{ 272, 126 }, // the drop, near vertical
     .{ 300, 132 }, .{ 340, 128 }, .{ 380, 132 }, // and away to the right
 };
-const MAX_PTS = 896;
+const MAX_PTS = map.MAX_PTS;
 /// 7,168 B on zg.mem, taken once by buildPath() (modes.init, once per cart load).
 var path: *[MAX_PTS][2]f32 = undefined;
 /// The unit normal at each point, worked out once: the frame has no sqrt or divide.
@@ -42,6 +43,7 @@ pub fn buildPath() void {
     const STEP = 400;
     path = zg.mem.mustAlloc([2]f32, MAX_PTS)[0..MAX_PTS];
     normal = zg.mem.mustAlloc([2]f32, MAX_PTS)[0..MAX_PTS];
+    map.alloc();
     var prev = sample(0, 0);
     var acc: f64 = 0;
     path[0] = .{ @floatCast(prev[0]), @floatCast(prev[1]) };
@@ -81,23 +83,65 @@ fn sample(i: usize, f: f64) [2]f64 {
     return out;
 }
 
+/// Fill the sample map for `dst` now (init), not on mode 9's first frame.
+pub fn prepare(dst: blit.Dst) void {
+    if (path_len >= 4) _ = map.ensure(dst, path[0..path_len], normal[0..path_len]);
+}
+
 /// Half-pixel steps along the path AND across the column, so the outside of a
 /// tight bend does not open gaps. Where the track crosses itself the later
 /// column simply draws over the earlier one: no depth model, by choice.
+///
+/// Where each of a point's 2*TILE samples lands depends on the point alone, so
+/// buildMap() works them out once (path_map.zig) and the frame is integer: a
+/// strip byte, a table offset, a store. Two exact cuts of repeated work:
+/// - a sub-column on the SAME path point as the one before (same strip column,
+///   half the subs at travel 0) would repeat its whole write sequence verbatim,
+///   which cannot change the picture: skipped;
+/// - the map drops a sample landing where its row's other sample just wrote.
 pub fn draw(dst: blit.Dst, strip: *const [TILE][W]u8, drift_q4: i64) void {
     if (path_len < 4) return;
+    if (!map.ensure(dst, path[0..path_len], normal[0..path_len])) return drawSlow(dst, strip, drift_q4);
     // Arc position in QUARTER pixels: half-pixel steps plus a drift that is a
-    // whole number of quarters, so the modulo is exact integer arithmetic.
+    // whole number of quarters. The drift is reduced once a frame; each sub
+    // then steps 2 quarters with a wrap, the same as @mod(2*sub + drift, n4).
+    const n4: i32 = @intCast(path_len * 4);
+    var s4: i32 = @intCast(@mod(drift_q4, n4));
+    var prev: usize = std.math.maxInt(usize);
+    for (0..2 * W) |sub| {
+        defer {
+            s4 += 2;
+            if (s4 >= n4) s4 -= n4;
+        }
+        const col = sub / 2;
+        const at = if (s4 < 4) s4 + n4 - 8 else s4;
+        const i: usize = @intCast(at >> 2);
+        const repeat = sub % 2 == 1 and i == prev;
+        prev = i;
+        if (repeat or map.empty[i]) continue;
+        const offs = &map.offs[i];
+        for (0..TILE) |r| {
+            const ink = strip[r][col];
+            if (ink == 0) continue;
+            const o0 = offs[2 * r];
+            const o1 = offs[2 * r + 1];
+            if (o0 != map.NONE) dst.buf[o0] = ink;
+            if (o1 != map.NONE) dst.buf[o1] = ink;
+        }
+    }
+}
+
+/// The frame as it was before path_map.zig, per sample in f32: what the map
+/// reproduces, and the fallback for a view too big for its u16 offsets.
+fn drawSlow(dst: blit.Dst, strip: *const [TILE][W]u8, drift_q4: i64) void {
     const n4: i64 = @as(i64, @intCast(path_len)) * 4;
-    const pts = path; // one load of the arena pointer, not three a column
-    const nrm = normal;
     for (0..2 * W) |sub| {
         const col = sub / 2;
         var s4 = @mod(@as(i64, @intCast(sub)) * 2 + drift_q4, n4);
         if (s4 < 4) s4 += n4 - 8;
         const i: usize = @intCast(s4 >> 2);
-        const p = pts[i];
-        const nv = nrm[i];
+        const p = path[i];
+        const nv = normal[i];
         if (nv[0] == 0 and nv[1] == 0) continue;
         for (0..2 * TILE) |k| {
             const ink = strip[k / 2][col];
@@ -115,4 +159,3 @@ fn plot(dst: blit.Dst, x: f32, y: f32, ink: u8) void {
     if (ix >= dst.w or iy >= dst.h) return;
     dst.buf[iy * dst.stride + ix] = ink;
 }
-

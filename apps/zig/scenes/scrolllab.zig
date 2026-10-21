@@ -14,9 +14,8 @@
 // it (emlyn/../scrolllab/modes.zig) — screen 345's decoupling of "make the text"
 // from "distort it", which is what a lab wants.
 //
-// No rasters, no logo, no music: they would all get in the way of looking at
-// the text. It borrows the REPLICANTS font (emlyn.bin's second half) rather
-// than shipping an asset of its own — the lab owns no art.
+// No rasters, logo or music: they would get in the way of looking at the text.
+// It borrows the REPLICANTS font (emlyn.bin's second half): the lab owns no art.
 //
 // The scroller itself is CODEF's scrolltext_horizontal ring, the same one
 // screen 17 uses: ceil(320/32) + 1 = 11, and the loop runs `i <= wide`, so
@@ -24,9 +23,8 @@
 // That is the original's speed 4 on its doubled canvas, and it does not change
 // with the mode.
 //
-// Keys: 1..8 pick a mode, Space cycles, Left/Right dial travel, Escape leaves.
-// Declaring key() takes
-// Escape away from the host, so this scene sets wants_quit itself.
+// Keys: 1..9, 0 pick a mode, Space cycles, Left/Right dial travel, Escape
+// leaves (declaring key() takes Escape from the host: wants_quit is ours).
 // --------------------------------------------------------------------------
 const zg = @import("zigos");
 const ZigOS = zg.ZigOS;
@@ -73,6 +71,7 @@ pub const Demo = struct {
     offset: usize,
     travel: i32, // in TRAVEL_STEP units; 0 = the curve stands still
     frame: u32,
+    shown: ?struct { mode: Mode, travel: i32 }, // what the label rows hold
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
         self.ok = false;
@@ -101,6 +100,8 @@ pub const Demo = struct {
         fb.is_enabled = true;
         fb.setPalette(A.palette);
         fb.setPaletteEntry(A.TRANSPARENT, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
+        self.shown = null;
+        modes.prepare(band(blit.Dst.plane(fb)));
         self.ok = true;
     }
 
@@ -138,7 +139,11 @@ pub const Demo = struct {
         _ = dt;
         if (!self.ok) return;
         const dst = blit.Dst.plane(&zigos.lfbs[PLANE]);
-        @memset(dst.buf, A.BLACK);
+        // Only the band is redrawn a frame, cleared by CHISEL (a CPU @memset of
+        // the plane was ~1 Mc of DDR stores). The modes draw through band(),
+        // which cannot reach the label rows: those change only with the label.
+        const view = band(dst);
+        view.fill(0, 0, view.w, view.h, A.BLACK);
         var glyphs: [LETTERS]modes.Glyph = undefined;
         var align_x: usize = 0;
         for (&glyphs, self.posx, self.ltr) |*g, x, c| {
@@ -146,7 +151,15 @@ pub const Demo = struct {
             align_x = @intCast(@mod(x, TILE)); // every letter shares this phase
         }
         modes.fillStrip(self.font, &glyphs);
-        modes.draw(self.mode, dst, ROW, align_x, self.travel, self.frame);
+        modes.draw(self.mode, view, ROW, align_x, self.travel, self.frame);
+        self.drawLabel(dst);
+    }
+
+    /// The mode's name and the travel, redrawn only when one of them changed.
+    fn drawLabel(self: *Demo, dst: blit.Dst) void {
+        if (self.shown) |s| if (s.mode == self.mode and s.travel == self.travel) return;
+        self.shown = .{ .mode = self.mode, .travel = self.travel };
+        if (dst.h > LABEL_Y) dst.fill(0, LABEL_Y, dst.w, dst.h - LABEL_Y, A.BLACK);
         label(dst, self.font, modes.NAMES[@intFromEnum(self.mode)], LABEL_Y);
         var line: [12]u8 = "TRAVEL     ".* ++ [_]u8{0};
         line[7] = if (self.travel < 0) '-' else ' '; // the font sheet has no '+'
@@ -178,6 +191,11 @@ fn label(dst: blit.Dst, font: blit.Image, text: []const u8, top: usize) void {
             if (dx < dst.w and dy < dst.h) dst.buf[dy * dst.stride + dx] = p;
         };
     }
+}
+
+/// The rows the distortions draw in: everything above the label.
+fn band(dst: blit.Dst) blit.Dst {
+    return dst.window(0, 0, dst.w, LABEL_Y);
 }
 
 fn fail(why: []const u8) void {

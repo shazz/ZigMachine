@@ -2,11 +2,20 @@
 // screen, so the checks are minimal: every mode renders text, every distortion
 // actually differs from FLAT, and Escape still leaves.
 //
-//   node apps/scrolllab_headless.mjs [outdir]
+// Since perf/scrolllab-modes it also PINS the pictures: every mode at three
+// travels (0, +3, -5 steps) is hashed and compared with scrolllab_hashes.json,
+// recorded from the cart before the speed-up (--record F writes it; --cart picks
+// the wasm), so a faster mode that draws different pixels fails the gate.
+//
+//   node apps/scrolllab_headless.mjs [outdir] [--cart X.wasm] [--record F.json]
 import { readFile, writeFile, mkdir } from "node:fs/promises";
+import { createHash } from "node:crypto";
 import { cartRam, romRam } from "../docs/wasm_hiwater.js";
 
-const PAGES = 112, MODES = 10, K_ESC = 0xe012;
+const PAGES = 112, MODES = 10, K_ESC = 0xe012, DIR_LEFT = 2, DIR_RIGHT = 3;
+const argv = process.argv.slice(2), opt = (n) => { const i = argv.indexOf(n); return i < 0 ? null : argv.splice(i, 2)[1]; };
+const CART = opt("--cart") ?? "docs/demo-scrolllab.wasm", RECORD = opt("--record");
+const HASHES = new URL("./scrolllab_hashes.json", import.meta.url);
 let failures = 0;
 function check(name, got, want) {
     const ok = got === want;
@@ -24,7 +33,7 @@ const rom = (await WebAssembly.instantiate(romBytes, {
     env: { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit },
 })).instance.exports;
 machine.hwSetRomHigh(romRam(romBytes).high ?? 0);
-const cartBytes = await readFile("docs/demo-scrolllab.wasm"), env = { memory, ...rom };
+const cartBytes = await readFile(CART), env = { memory, ...rom };
 for (const k of Object.keys(machine)) if (k.startsWith("hw")) env[k] = machine[k];
 for (const imp of WebAssembly.Module.imports(new WebAssembly.Module(cartBytes)))
     if (imp.module === "env" && !(imp.name in env)) env[imp.name] = () => {};
@@ -59,7 +68,7 @@ async function shot(out, name) {
     await writeFile(`${out}/${name}.ppm`, buf);
 }
 
-const out = process.argv[2] || "/tmp/scrolllab";
+const out = argv[0] || "/tmp/scrolllab";
 await mkdir(out, { recursive: true });
 for (let i = 0; i < 200; i++) demo.frame(16.6); // let the text reach the screen
 const shapes = [];
@@ -72,6 +81,23 @@ for (let m = 1; m <= MODES; m++) {
     check(`mode ${m} draws text`, px.length > 500, true);
 }
 for (let m = 2; m <= MODES; m++) check(`mode ${m} is not FLAT`, shapes[m - 1] !== shapes[0], true);
+
+// The pixels themselves: each mode after 40 frames, at travel 0, +3 and -5.
+const sha = () => createHash("sha256").update(indices()).digest("hex").slice(0, 16);
+const pinned = {};
+for (const [travel, press, n] of [[0, DIR_RIGHT, 0], [3, DIR_RIGHT, 3], [-5, DIR_LEFT, 8]]) {
+    for (let i = 0; i < n; i++) demo.input(press);
+    for (let m = 1; m <= MODES; m++) {
+        demo.key(m === 10 ? 0x30 : 48 + m);
+        for (let i = 0; i < 40; i++) demo.frame(16.6);
+        pinned[`travel ${travel} mode ${m}`] = sha();
+    }
+}
+if (RECORD) await writeFile(RECORD, JSON.stringify(pinned, null, 1) + "\n");
+else {
+    const want = JSON.parse(await readFile(HASHES, "utf8"));
+    for (const [k, h] of Object.entries(pinned)) check(`${k} picture`, h, want[k]);
+}
 demo.key(K_ESC);
 check("Escape leaves for the menu", demo.pollCartRequest(), -1);
 check("no zg.mem allocation was refused", machine.hwRamAllocFailures(), 0);
