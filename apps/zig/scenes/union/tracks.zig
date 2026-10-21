@@ -28,14 +28,15 @@
 //     arrangement (7% of frames, audible periods 11-25%). The whole archive
 //     (5,897 files, every subtune) scanned by periods in order (offsets
 //     -60..400: best 23%, 505/TK_Machine) and out of order (the false hits,
-//     e.g. Scy/TSCC_Mod_Compil_5, are 0% in order). So it stays the last-resort
-//     YM dump until Matt picks otherwise.
+//     e.g. Scy/TSCC_Mod_Compil_5, are 0% in order). Matt (2026-10-20): play
+//     505's own Drooling.sndh anyway (docs/music/union/drooling_505.sndh), and
+//     implement STE DMA sound later: until then key 4 loads it and is SILENT.
 // --------------------------------------------------------------------------
 pub const TRACKS = [_][]const u8{
     "union/sharpness_buzztone.sndh",
     "union/150_mph.sndh",
     "union/androids.sndh",
-    "union/Drooling.ymraw",
+    "union/drooling_505.sndh", // STE DMA (~ey): silent until the machine has DMA sound
     "union/lap_33.sndh",
     "union/reality.sndh",
 };
