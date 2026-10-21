@@ -8,6 +8,7 @@
 const trig = @import("zigos").fixtrig;
 const balls = @import("balls_fixed.zig");
 const fill = @import("fill_fixed.zig");
+const rasters = @import("rasters.zig");
 const POINTS = @import("balls_f32.zig").POINTS;
 
 pub const Mode = @import("mode.zig").Mode;
@@ -29,6 +30,6 @@ pub const Bars = struct {
 
     pub fn build(self: *const Bars, mode: *const Mode) void {
         var parts: [POINTS.len]balls.Part = undefined;
-        fill.build(balls.project(self.rotation, &parts), mode.theta);
+        fill.build(balls.project(self.rotation, &parts), mode.theta, rasters.rows(mode.bordersOpen()));
     }
 };

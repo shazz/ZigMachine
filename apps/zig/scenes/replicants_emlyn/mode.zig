@@ -9,6 +9,7 @@
 // a float that merely approaches it. The bend is a frame count 0..20.
 // --------------------------------------------------------------------------
 const trig = @import("zigos").fixtrig;
+const Switches = @import("switches.zig").Switches;
 
 const THETA_STEP = trig.angle(0.02);
 const RETURN_STEP = trig.angle(8 * 0.02);
@@ -18,20 +19,26 @@ pub const BEND_FRAMES = 20;
 pub const Mode = struct {
     theta: trig.Angle,
     bend: u8, // 0 = dead flat .. BEND_FRAMES = the full 484 curve
-    zig: bool,
+    sw: Switches, // ZIG or not, and its two styles (switches.zig)
 
     pub fn init(self: *Mode) void {
         self.theta = 0;
         self.bend = 0;
-        self.zig = false;
+        self.sw.init();
     }
 
     pub fn flat(self: *const Mode) bool {
         return self.bend == 0;
     }
 
+    /// The top and bottom borders carry the rasters: in ZIG, and on the way
+    /// home until the bars are horizontal again, so no tilted bar is cut.
+    pub fn bordersOpen(self: *const Mode) bool {
+        return self.sw.zig or self.theta != 0;
+    }
+
     pub fn toggle(self: *Mode) void {
-        self.zig = !self.zig;
+        self.sw.toggle();
     }
 
     pub fn update(self: *Mode) void {
@@ -40,7 +47,7 @@ pub const Mode = struct {
     }
 
     fn turnBars(self: *Mode) void {
-        if (self.zig) {
+        if (self.sw.sweeps()) {
             self.theta +%= THETA_STEP;
             return;
         }
@@ -55,7 +62,7 @@ pub const Mode = struct {
     }
 
     fn bendText(self: *Mode) void {
-        if (self.zig) {
+        if (self.sw.bends()) {
             if (self.bend < BEND_FRAMES) self.bend += 1;
         } else if (self.bend > 0) self.bend -= 1;
     }

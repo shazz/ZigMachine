@@ -17,7 +17,9 @@
 // demo-replicants_emlyn_f32.wasm (the CODEF algorithm in f32, kept for the FPU
 // test). Both must show the same screen.
 import { readFile, writeFile, mkdir } from "node:fs/promises";
+import { createHash } from "node:crypto";
 import { cartRam, romRam } from "../docs/wasm_hiwater.js";
+import { makeZigChecks } from "./replicants_emlyn_zig.mjs";
 
 const PAGES = 112, AUDIO_PAGES = 48; // SHARED_PAGES / AUDIO_PAGES in machine/sdk
 const OFF_PAL = 0x0100, REG_FB_STRIDE = 0x34, REG_FB_BASE = 0x44; // memmap.zig
@@ -30,6 +32,13 @@ const K_ESC = 0xe012, DIR_FIRE = 5;
 const WANT_MUSIC = "seven_gates_of_jambala.sndh", WANT_TUNE = 9;
 const SPIN_FRAMES = 40; // theta = 0.02 * 40 = 0.80 rad; the bend is full by 20
 const RETURN_FRAMES = 21; // 0.80 rad home at 0.16 a frame: 5, and 20 from the far side
+// SHA-256 prefixes of ORIGINAL's frame 1 and 120 shots, recorded from the build
+// before ZIG mode opened the top and bottom borders (a9a032eb); the f32 cart
+// draws the same two frames
+const ORIGINAL_SHA = "e4f109ade24cde34 d81bc2133c86cde2";
+// ... and of ZIG + 40's content window (rows 20..259), which opening the top
+// and bottom borders must not change either: the fixed and f32 carts differ
+const ZIG_WINDOW_SHA = { "docs/demo-replicants_emlyn.wasm": "4ccc3af1126cdfa6", "docs/demo-replicants_emlyn_f32.wasm": "a415ece9acb38ae6" };
 
 // --break <what> SABOTAGES one measurement and passes only if the check it
 // belongs to notices: a check nobody can fail is not a check.
@@ -116,13 +125,20 @@ function bucketsAt(line) {
 ///   side     non-black raster pixels in the LEFT and RIGHT border columns
 ///   logoSide logo pixels there, and fontSide scrolltext pixels: the logo and
 ///            the scrolltext are drawn to the whole raster too
+///   tbLit    TOP and BOTTOM border lines (physical 0..19, 260..279) whose used
+///            buckets are not all black: only ZIG mode fills them
+///   lines    every line's used bucket colours, for the seam checks
 function census() {
     const lfb = indices();
     const n = { bucket: 0, bar: 0, art: 0, other: 0 };
     let count = 1, tilted = 0, changes = 0, prev = "", side = 0, logoSide = 0, fontSide = 0;
-    let fontTop = 1e9, fontBottom = -1, lowest = -1;
+    let fontTop = 1e9, fontBottom = -1, lowest = -1, tbLit = 0;
+    const all = [];
     for (let y = 0; y < H; y++) {
-        const b = bucketsAt(broke === "rasters" ? CONTENT_Y : y); // sabotage: one static palette
+        let b = bucketsAt(broke === "rasters" ? CONTENT_Y : y); // sabotage: one static palette
+        const tb = y < CONTENT_Y || y >= CONTENT_Y + CONTENT_H;
+        if (tb && broke === "topbottom") b = b.map(() => BLACK_RGBA); // sabotage: borders closed
+        all.push(b);
         const key = b.join(",");
         if (y && key !== prev) changes++;
         prev = key;
@@ -149,15 +165,24 @@ function census() {
             } else n.other++;
             if (i !== 0) lowest = Math.max(lowest, y);
         }
-        const used = b.slice(0, count);
-        if (used.some((c) => c !== used[0])) tilted++;
     }
-    return { ...n, count, tilted, changes, side, logoSide, fontSide, fontTop, fontBottom, lowest };
+    const lines = all.map((b) => b.slice(0, count));
+    for (const [y, used] of lines.entries()) {
+        if (used.some((c) => c !== used[0])) tilted++;
+        if ((y < CONTENT_Y || y >= CONTENT_Y + CONTENT_H) && used.some((c) => c !== BLACK_RGBA)) tbLit++;
+    }
+    return { ...n, count, tilted, changes, side, logoSide, fontSide, fontTop, fontBottom, lowest, tbLit, lines };
 }
 
+/// SHA-256 prefixes of the shot, whole (`all`) and of the content window's
+/// rows 20..259 (`win`): ORIGINAL's frames and ZIG's window are pinned by them.
 async function shot(path) {
-    await shotOf({ memory, machine }, path);
-    console.log(`        (go() call ${frames})`);
+    const buf = await shotOf({ memory, machine }, path);
+    const sha = (b) => createHash("sha256").update(b).digest("hex").slice(0, 16);
+    const hdr = buf.length - PW * H * 3;
+    const r = { all: sha(buf), win: sha(buf.subarray(hdr + CONTENT_Y * PW * 3, hdr + (CONTENT_Y + CONTENT_H) * PW * 3)) };
+    console.log(`        (go() call ${frames}, sha ${r.all}, window ${r.win})`);
+    return r;
 }
 
 /// A PPM of the composited plane, one pixel per plane column, of any instance.
@@ -173,6 +198,7 @@ async function shotOf(m, path) {
             for (let c = 0; c < 3; c++) buf[hdr.length + (y * PW + x) * 3 + c] = px[(y * w + x * 2) * 4 + c];
     await writeFile(path, buf);
     console.log(`  shot: ${path}`);
+    return buf;
 }
 
 function run(n) {
@@ -187,7 +213,7 @@ if (W !== 800 || PW !== 400) console.log(`  note: physical ${W}x${H}, plane stri
 // Frame 1 is go()'s first call: rotation 0.04, logo at posx 0, ORIGINAL mode,
 // and the ring's leftmost letter still at canvas x 700 — off the 640 canvas.
 run(1);
-await shot(`${out}/0001.ppm`);
+const sha1 = await shot(`${out}/0001.ppm`);
 let c = census();
 console.log(`  frame 1: ${c.count} bucket(s), ${c.bucket} bucket px, ${c.art} art px, bar-as-pixel ${c.bar}, palette changes on ${c.changes} lines, border raster ${c.side} logo ${c.logoSide}`);
 check("bar.png's colours are never pixels — the bars are only ever palette", c.bar, 0);
@@ -202,23 +228,31 @@ check("the logo depacked and draws over the rasters", c.art > 0, true);
 // 16 frames at 4 canvas pixels bring letter 0's left edge to canvas 640; by 120
 // the 32-tall tiles are well inside their band. drawTile's y is the TOP.
 run(119);
-await shot(`${out}/0120.ppm`);
+const sha120 = await shot(`${out}/0120.ppm`);
 c = census();
 console.log(`  frame 120: ${c.count} bucket(s), scroller rows ${c.fontTop}..${c.fontBottom}, in the border ${c.fontSide}`);
 check("ORIGINAL keeps the scroller flat, inside ST rows 195..226", c.fontTop >= SCROLL_TOP && c.fontBottom <= SCROLL_BOTTOM, true);
 check("the scrolltext runs into the LEFT and RIGHT borders too", c.fontSide > 0, true);
+// ORIGINAL is pinned to the screen it was before ZIG opened the top and bottom
+// borders (the shots of the build before, 2026-10-20), and its border lines
+// are black: only ZIG fills them.
+const zc = makeZigChecks({ check, census, run, demo, fire: () => demo.input(DIR_FIRE), broke });
+check("ORIGINAL frames 1 and 120 are the screen pinned before ZIG's borders opened", `${sha1.all} ${sha120.all}`, ORIGINAL_SHA);
+zc.closed(c, "ORIGINAL frame 120");
 
 // Space switches ORIGINAL -> ZIG (the host sends it as input(5): the cart does
 // not own the keyboard). Sabotage: never press it.
 if (broke !== "spin") demo.input(DIR_FIRE);
 run(SPIN_FRAMES);
-await shot(`${out}/0160-zig.ppm`);
+const sha160 = await shot(`${out}/0160-zig.ppm`);
 c = census();
 console.log(`  ZIG + ${SPIN_FRAMES}: ${c.count} buckets, ${c.tilted} tilted lines, bar-as-pixel ${c.bar}`);
 check("ZIG mode tilts the bars off horizontal", c.tilted > 200, true);
 check("... and bends the scrolltext off flat with them", c.fontBottom - c.fontTop > 40, true);
 check("... and pays for it with a finer ramp", c.count > 50, true);
 check("a tilted bar is still only ever palette entries", c.bar, 0);
+zc.borders(c, `ZIG + ${SPIN_FRAMES}`);
+check(`ZIG + ${SPIN_FRAMES}: the content window is the one pinned before the borders opened`, sha160.win, ZIG_WINDOW_SHA[CART]);
 
 // Space again switches back, and it has to answer the key PROMPTLY: the short
 // way round at eight times the sweep is at most 20 frames.
@@ -228,6 +262,8 @@ c = census();
 console.log(`  ORIGINAL + ${RETURN_FRAMES}: ${c.count} buckets, ${c.tilted} tilted lines`);
 check("Space switches back to ORIGINAL within 20 frames", c.count === 1 && c.tilted === 0, true);
 check("... and the scrolltext is dead flat again with it", c.fontBottom - c.fontTop < 32, true);
+zc.closed(c, `ORIGINAL + ${RETURN_FRAMES}`);
+zc.keys(SPIN_FRAMES, RETURN_FRAMES);
 
 // The cart declares key() (for F), so Escape is its own: wants_quit -> menu.
 demo.key(K_ESC);
@@ -371,6 +407,20 @@ if (CART === DEFAULT_CART) {
     r = lockstep(await boot(CART), await boot(F32_CART), (n) => [n === 200 ? fkey : [], []]);
     console.log(`  F at frame 200 (mid-sweep) vs the f32 cart: at most ${r.worst} pixels differ (frame ${r.worstAt})`);
     check("F mid-sweep carries the screen across (under 1% from the f32 cart)", r.worst < PW * H / 100, true);
+
+    // ORIGINAL ignores ZIG's style keys: 1 and 2 at frame 50, and 200 frames
+    // later not one pixel differs from a cart that never got them.
+    const [p, q] = [await boot(CART), await boot(CART)];
+    let off = 0;
+    for (let n = 1; n <= 200; n++) {
+        if (n === 50) { p.demo.key(0x31); p.demo.key(0x32); }
+        p.demo.frame(16.6);
+        q.demo.frame(16.6);
+        if (n % 10) continue;
+        const pp = pixels(p), pq = pixels(q);
+        off = Math.max(off, pp.reduce((d, v, i) => d + (v !== pq[i] ? 1 : 0), 0));
+    }
+    check("ORIGINAL: 1 and 2 change not one pixel", off, 0);
 }
 
 // Warm frame cost in ZIG mode, which is the expensive one: 600 frames sweep

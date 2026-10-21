@@ -104,6 +104,10 @@ pub fn Demo(comptime start_fpu: bool) type {
         pub fn key(self: *Self, cp: u32) void {
             if (cp == K_ESC) self.wants_quit = true;
             if (cp == 'f' or cp == 'F') self.switchNumbers();
+            // ZIG's styles (switches.zig); in ORIGINAL they change nothing
+            const sw = if (self.fpu) &self.float.mode.sw else &self.fixed.mode.sw;
+            if (cp == '1') sw.cycleScroller();
+            if (cp == '2') sw.cycleRasters();
         }
 
         fn switchNumbers(self: *Self) void {

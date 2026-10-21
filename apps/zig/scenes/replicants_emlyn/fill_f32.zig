@@ -18,9 +18,9 @@ const CYCLES_PER_ENTRY: f32 = @as(f32, R.CYCLES_PER_ENTRY_X2) / 2.0;
 /// Bands that fall inside one bucket, per particle (rasters.zig: MERGING).
 var merge: [16]usize = undefined;
 
-/// The colours every scanline of the content window shows this frame.
-/// `particles` come far to near.
-pub fn build(particles: []const Particle, theta: f32) void {
+/// The colours every scanline in `rows` shows this frame (rasters.rows(): the
+/// content window, or the whole raster in ZIG mode). `particles` come far to near.
+pub fn build(particles: []const Particle, theta: f32, rows: R.Rows) void {
     const sin = @sin(theta);
     const cos = @cos(theta);
     const band = typicalBand(particles); // one colour band, in canvas pixels
@@ -29,12 +29,14 @@ pub fn build(particles: []const Particle, theta: f32) void {
     setMerge(particles, @abs(width * sin));
     const du = width * sin;
     const t = R.table; // one load of the arena pointer, not one a row
-    for (0..A.CONTENT_H) |y| {
-        // the ST row's canvas pixel centre, as the sprite port sampled it
+    for (rows.first..rows.first + rows.n) |line| {
+        // content row y (negative or past 239 in an opened border), at the ST
+        // row's canvas pixel centre, as the sprite port sampled it
+        const y = @as(i32, @intCast(line)) - @as(i32, A.CONTENT_Y);
         const yc = 2.0 * @as(f32, @floatFromInt(y)) + 0.5;
         // plane column 0 is CONTENT_X to the left of canvas 0
         var u = (-2.0 * @as(f32, A.CONTENT_X) + 0.5 - CX) * sin + (yc - CY) * cos + CY;
-        for (t[A.CONTENT_Y + y][0..R.count]) |*b| {
+        for (t[line][0..R.count]) |*b| {
             b.* = inkAt(particles, u);
             u += du;
         }

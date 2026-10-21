@@ -7,8 +7,8 @@
 // is nearest at that point: up to 12 bars x 149 buckets x 240 lines, each try a
 // float divide and a floor. But the colour at a point depends on one number
 // only, u = (x - CX) sin + (y - CY) cos + CY, the position along the axis the
-// balls are strung on. So the bars are painted into a strip indexed by u, far
-// to near so nearer ones overwrite (the search's answer, with no searching),
+// balls are strung on. So the bars are painted into a strip indexed by u, near
+// to far, each entry kept by the first bar to claim it (the search's answer, no searching),
 // at 1/16 canvas pixel — far finer than a bucket, so no band moves by more
 // than a thirty-second of a pixel. Each line is then a walk along the strip from
 // its own start, one add and one load a bucket: the raster coder's
@@ -29,12 +29,13 @@ const RES = 4; // the strip has 2^RES entries per canvas pixel
 const STEP = 16 - RES; // a Q16 u >> STEP is a strip index
 
 /// The bars along u, 1/16 px an entry; the frame's u span is at most
-/// 800 |sin| + 480 |cos| < 934 canvas pixels, so 14,944 entries.
-var strip: [16384]u8 = undefined;
+/// 800 |sin| + 560 |cos| < 977 canvas pixels (all 280 lines in ZIG mode),
+/// so 15,632 entries.
+var strip: [16384]u8 align(4) = undefined;
 
-/// The colours every scanline of the content window shows this frame.
-/// `parts` come far to near.
-pub fn build(parts: []const Part, theta: trig.Angle) void {
+/// The colours every scanline in `rows` shows this frame (rasters.rows(): the
+/// content window, or the whole raster in ZIG mode). `parts` come far to near.
+pub fn build(parts: []const Part, theta: trig.Angle, rows: R.Rows) void {
     const sn = trig.sin(theta);
     const cs = trig.cos(theta);
     R.setCount(bucketCount(@abs(sn), @abs(cs), typicalBand(parts)));
@@ -43,17 +44,31 @@ pub fn build(parts: []const Part, theta: trig.Angle) void {
     const dy = 2 * cs; // per line
     // plane column 0 of content row 0, as a canvas u: (-2*CONTENT_X + 0.5 - CX)
     // * sin + (0.5 - CY) * cos + CY, the ST row's pixel centre as the port sampled it
-    const u_origin = ((1 - 4 * @as(i32, A.CONTENT_X) - 2 * R.CX) * sn + (1 - 2 * R.CY) * cs >> 1) + R.CY * ONE;
-    if (du == 0) return horizontal(parts, u_origin, dy);
+    const u_content = ((1 - 4 * @as(i32, A.CONTENT_X) - 2 * R.CX) * sn + (1 - 2 * R.CY) * cs >> 1) + R.CY * ONE;
+    // ... and of the first row filled: a border row is content row -20..-1 or
+    // 240..259 on the same lines, so the bars cross the edge without a seam
+    const u_origin = u_content + (@as(i32, @intCast(rows.first)) - @as(i32, A.CONTENT_Y)) * dy;
+    if (du == 0) return horizontal(parts, u_origin, dy, rows);
     // u is linear in the bucket and the line, so its extremes are corners
     const across = @as(i32, @intCast(R.count - 1)) * du;
-    const down = @as(i32, A.CONTENT_H - 1) * dy;
-    const u_min = u_origin + @min(0, across) + @min(0, down);
+    const down = @as(i32, @intCast(rows.n - 1)) * dy;
     const u_max = u_origin + @max(0, across) + @max(0, down);
+    // The strip's grid is anchored on the CONTENT window's lowest u, as it was
+    // before the borders opened, and grown below it by whole entries only: an
+    // anchor 20 lines off would move every entry's sampling point by a
+    // fraction of an entry, and band edges in the window would shift.
+    const window = @as(i32, A.CONTENT_H - 1) * dy;
+    const anchor = u_content + @min(0, across) + @min(0, window);
+    const grow = anchor - (u_origin + @min(0, across) + @min(0, down)); // >= 0
+    const u_min = anchor - (((grow + (1 << STEP) - 1) >> STEP) << STEP);
     const n: usize = @intCast(((u_max - u_min) >> STEP) + 1);
-    @memset(strip[0..n], R.BLACK);
-    for (parts) |p| paint(p, u_min, n, du);
-    walk(u_origin - u_min, du, dy); // u >= 0 on every line and bucket
+    blacken(n);
+    var i = parts.len; // NEAR to far: the first bar to claim an entry keeps it
+    while (i > 0) {
+        i -= 1;
+        paint(parts[i], u_min, n, du);
+    }
+    walk(u_origin - u_min, du, dy, rows); // u >= 0 on every line and bucket
 }
 
 /// The table from the strip: bucket i of content line y reads the strip at
@@ -64,13 +79,13 @@ pub fn build(parts: []const Part, theta: trig.Angle) void {
 /// entries, and share cache lines. Four buckets make ONE word store (the
 /// D-cache writes through: every store is a bus write); the last count % 4
 /// one at a time, never past `count`, whose u would leave the strip.
-fn walk(u_first: i32, du: i32, dy: i32) void {
+fn walk(u_first: i32, du: i32, dy: i32, rows: R.Rows) void {
     const t = R.table; // one load of the arena pointer, not one a row
     const groups = R.count / 4;
     for (0..groups) |g| {
         var u: [4]i32 = undefined;
         for (&u, 0..) |*v, k| v.* = u_first + @as(i32, @intCast(4 * g + k)) * du;
-        for (t[A.CONTENT_Y..][0..A.CONTENT_H]) |*line| {
+        for (t[rows.first..][0..rows.n]) |*line| {
             var v: u32 = 0;
             inline for (0..4) |k| {
                 v |= @as(u32, strip[@intCast(u[k] >> STEP)]) << (8 * k);
@@ -82,7 +97,7 @@ fn walk(u_first: i32, du: i32, dy: i32) void {
     }
     for (groups * 4..R.count) |i| {
         var u = u_first + @as(i32, @intCast(i)) * du;
-        for (t[A.CONTENT_Y..][0..A.CONTENT_H]) |*line| {
+        for (t[rows.first..][0..rows.n]) |*line| {
             line[i] = strip[@intCast(u >> STEP)];
             u += dy;
         }
@@ -93,10 +108,10 @@ fn walk(u_first: i32, du: i32, dy: i32) void {
 /// classic raster bar), so each line asks the bars directly, exactly, near to
 /// far — twelve multiplies a line, and no strip whose 1/8 px grid could move
 /// a band edge onto the neighbouring line.
-fn horizontal(parts: []const Part, u_origin: i32, dy: i32) void {
+fn horizontal(parts: []const Part, u_origin: i32, dy: i32, rows: R.Rows) void {
     const t = R.table;
     var u = u_origin;
-    for (0..A.CONTENT_H) |y| {
+    for (rows.first..rows.first + rows.n) |y| {
         var ink: u8 = R.BLACK;
         var i = parts.len;
         while (i > 0) {
@@ -106,13 +121,16 @@ fn horizontal(parts: []const Part, u_origin: i32, dy: i32) void {
             ink = @intCast(row >> 1); // nothing merges when nothing is tilted
             break;
         }
-        t[A.CONTENT_Y + y][0] = ink;
+        t[y][0] = ink;
         u += dy;
     }
 }
 
 /// One bar into the strip: bar.png's row at the centre of every entry it
-/// covers, merged as rasters.zig's MERGING says (bands per bucket, round(B/2)).
+/// covers that no NEARER bar has claimed, merged as rasters.zig's MERGING says
+/// (bands per bucket, round(B/2)). Painted near to far with that test, each
+/// entry is stored once — far to near overwriting, as the search's answer was
+/// first built, stored every overlap again (a blocking DDR write each).
 fn paint(p: Part, u_min: i32, n: usize, du: i32) void {
     var map: [R.BANDS]u8 = undefined;
     const k: u8 = @intCast(@max(1, @min(R.BANDS, (@as(i64, @abs(trig.mul(du, p.inv))) + ONE) >> 17)));
@@ -133,7 +151,9 @@ fn paint(p: Part, u_min: i32, n: usize, du: i32) void {
     var i = lo;
     while (i <= hi) : (i += 1) {
         const row = @as(i32, @intCast(prod >> 32)) + HALF_ROWS;
-        if (row >= 0 and row < R.BAR_ROWS) strip[@intCast(i)] = map[@intCast(row >> 1)];
+        const e = &strip[@intCast(i)];
+        // a band is 0..31, never BLACK, so BLACK means no nearer bar has it
+        if (row >= 0 and row < R.BAR_ROWS and e.* == R.BLACK) e.* = map[@intCast(row >> 1)];
         prod -= dprod;
     }
 }
@@ -158,4 +178,13 @@ fn typicalBand(parts: []const Part) i32 {
     var sum: i32 = 0;
     for (parts) |p| sum += 2 * p.sy;
     return @divFloor(sum, @as(i32, @intCast(parts.len)));
+}
+
+/// strip[0..n] (rounded up to a word) to BLACK, a u32 store a word. Not a
+/// @memset: that is a wasm memory.fill, which the board's libc runs at ~60
+/// cycles a word against ~27 for a plain store. Volatile, so LLVM cannot turn
+/// the loop back into the memset it replaces.
+fn blacken(n: usize) void {
+    const words: [*]volatile u32 = @ptrCast(&strip);
+    for (0..(n + 3) / 4) |w| words[w] = @as(u32, R.BLACK) * 0x0101_0101;
 }

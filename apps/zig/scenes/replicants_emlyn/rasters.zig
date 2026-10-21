@@ -101,26 +101,27 @@ pub fn install(fb: *zg.LogicalFB) void {
     table = @ptrCast(zg.mem.mustAlloc(u32, zg.PHYSICAL_HEIGHT * WORDS).ptr);
     for (&ink, 0..) |*c, i| c.* = if (i == BLACK) A.BLACK_RGBA else A.bar_rgba[i];
     for (table) |*r| @memset(r, BLACK);
+    lit = false;
     for (0..MAX_BUCKETS) |b| fb.palette[A.FIRST_BUCKET + b] = A.BLACK_RGBA;
     setCount(1);
     fb.setFrameBufferHBLHandler(zg.OVERSCAN_MAGIC_X, hbl);
 }
 
 /// This plane is OVERSCAN, so `line` is PHYSICAL 0..279 (machine/video.zig's
-/// renderPlaneOverscan) — the table is indexed by it directly.
+/// renderPlaneOverscan) — the table is indexed by it directly, the top and
+/// bottom border lines included: they are open, and ZIG mode fills them too.
 fn hbl(fb: *zg.LogicalFB, _: *zg.ZigOS, line: u16, _: u16) void {
     // zigos's flickerAllHbl, which openBorders(.all) installed and this handler
-    // replaces: EVERY line, so the sides reopen on the visible ones and the
-    // rasters run edge to edge. That per-line cost is the trick's real price.
+    // replaces: EVERY line, so every border opens and the rasters run edge to
+    // edge. That per-line cost is the trick's real price.
     fb.flickerBorder();
     if (line >= zg.PHYSICAL_HEIGHT) return;
+    if (line == 0) return loadFirstLine(fb); // render() did it: nothing left
     // Only the entries whose colour CHANGED since the line above are written —
     // the raster coder's rule, and the budget bucketCount() was sized on. The
-    // palette always holds the line above: line 0 follows line 279 of the last
-    // frame, and both are BLACK in every bucket, as install() left them.
-    const above = if (line == 0) zg.PHYSICAL_HEIGHT - 1 else line - 1;
+    // palette always holds the line above (line 0's: loadFirstLine).
     const now: *const [ROW]u8 = &table[line];
-    const was: *const [ROW]u8 = &table[above];
+    const was: *const [ROW]u8 = &table[line - 1];
     const now_w: *const [WORDS]u32 = @ptrCast(@alignCast(now)); // ROW is whole words
     const was_w: *const [WORDS]u32 = @ptrCast(@alignCast(was));
     const pal = fb.palette + A.FIRST_BUCKET;
@@ -130,6 +131,35 @@ fn hbl(fb: *zg.LogicalFB, _: *zg.ZigOS, line: u16, _: u16) void {
             if (now[i] != was[i]) pal[i] = ink[now[i]];
         }
     }
+}
+
+/// Line 0's colours, written only where the palette holds another: the VBL's
+/// palette load on an ST, before the beam starts. render() calls it once the
+/// table is built, so line 0's HBL (which calls it again, for a frame that is
+/// composited twice) finds nothing to write. With the top border closed, line
+/// 0 is BLACK, as line 279 left the palette, and nothing is written at all.
+pub fn loadFirstLine(fb: *zg.LogicalFB) void {
+    const pal = fb.palette + A.FIRST_BUCKET;
+    for (table[0][0..count], 0..) |b, i| {
+        if (pal[i] != ink[b]) pal[i] = ink[b];
+    }
+}
+
+/// The physical rows a frame fills: the content window's 240, or with the top
+/// and bottom borders `open` (ZIG mode) all 280, so the bars run on through
+/// them from the same u as the window's lines. Closing puts them back to
+/// BLACK, once.
+pub const Rows = struct { first: usize, n: usize };
+var lit = false; // the border rows hold rasters
+
+pub fn rows(open: bool) Rows {
+    if (lit and !open) {
+        for (table[0..A.CONTENT_Y]) |*r| @memset(r, BLACK);
+        for (table[A.CONTENT_Y + A.CONTENT_H ..]) |*r| @memset(r, BLACK);
+    }
+    lit = open;
+    if (open) return .{ .first = 0, .n = zg.PHYSICAL_HEIGHT };
+    return .{ .first = A.CONTENT_Y, .n = A.CONTENT_H };
 }
 
 pub fn setCount(n: usize) void {

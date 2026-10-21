@@ -11,6 +11,7 @@ const A = @import("assets.zig");
 const Logo = @import("logo.zig").Logo;
 const scroller = @import("scroller.zig");
 const dirty = @import("dirty.zig");
+const rasters = @import("rasters.zig");
 
 pub fn Motion(comptime B: type) type {
     return struct {
@@ -40,6 +41,7 @@ pub fn Motion(comptime B: type) type {
             // my3d.draw(), split in two: the projection is still three.js's,
             // but what it feeds is the HBL's colour table, not a blit.
             self.bars.build(&self.mode);
+            rasters.loadFirstLine(fb); // the VBL palette load: line 0 is set
             // Rasters, then the logo, then the scrolltext — the remake's order.
             // All three take the WHOLE raster now: nothing stops at an edge
             // this screen no longer has. The ramp is only put back where last

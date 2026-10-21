@@ -19,6 +19,7 @@
 // This is replicants_emlyn_f32's Mode, on f32 for the FPU test. The default
 // cart's (mode.zig) is the same machine on an integer angle and a frame count.
 // --------------------------------------------------------------------------
+const Switches = @import("switches.zig").Switches;
 const THETA_STEP = 0.02;
 const RETURN_STEP = 8 * THETA_STEP;
 const BEND_STEP: f32 = 1.0 / 20.0; // the same 20 frames
@@ -28,12 +29,12 @@ const TAU = 2 * PI;
 pub const Mode = struct {
     theta: f32,
     bend: f32,
-    zig: bool,
+    sw: Switches, // ZIG or not, and its two styles (switches.zig)
 
     pub fn init(self: *Mode) void {
         self.theta = 0;
         self.bend = 0;
-        self.zig = false;
+        self.sw.init();
     }
 
     /// The scrolltext is dead flat: draw it with the original's plain blit.
@@ -41,8 +42,13 @@ pub const Mode = struct {
         return self.bend <= 0;
     }
 
+    /// mode.zig's: ZIG, or bars not yet home.
+    pub fn bordersOpen(self: *const Mode) bool {
+        return self.sw.zig or self.theta != 0;
+    }
+
     pub fn toggle(self: *Mode) void {
-        self.zig = !self.zig;
+        self.sw.toggle();
     }
 
     pub fn update(self: *Mode) void {
@@ -53,7 +59,7 @@ pub const Mode = struct {
     /// ZIG sweeps the angle; ORIGINAL turns it home whichever way is nearer.
     /// Still a turn, never a snap — but it starts on the frame the key arrives.
     fn turnBars(self: *Mode) void {
-        if (self.zig) {
+        if (self.sw.sweeps()) {
             self.theta += THETA_STEP;
             if (self.theta >= TAU) self.theta -= TAU;
             return;
@@ -68,7 +74,7 @@ pub const Mode = struct {
     }
 
     fn bendText(self: *Mode) void {
-        if (self.zig) {
+        if (self.sw.bends()) {
             self.bend = if (self.bend + BEND_STEP >= 1) 1 else self.bend + BEND_STEP;
         } else {
             self.bend = if (self.bend <= BEND_STEP) 0 else self.bend - BEND_STEP;

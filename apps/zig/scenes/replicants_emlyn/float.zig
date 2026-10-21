@@ -8,6 +8,7 @@
 // --------------------------------------------------------------------------
 const balls = @import("balls_f32.zig");
 const fill = @import("fill_f32.zig");
+const rasters = @import("rasters.zig");
 
 pub const Mode = @import("mode_f32.zig").Mode;
 pub const Bob = @import("logo.zig").BobF32;
@@ -28,6 +29,6 @@ pub const Bars = struct {
 
     pub fn build(self: *const Bars, mode: *const Mode) void {
         var parts: [balls.POINTS.len]balls.Particle = undefined;
-        fill.build(balls.project(self.rotation, &parts), mode.theta);
+        fill.build(balls.project(self.rotation, &parts), mode.theta, rasters.rows(mode.bordersOpen()));
     }
 };

@@ -28,7 +28,7 @@ pub fn toFloat(src: *const Fixed, dst: *Float) void {
     for (&dst.scroller.curve.phase, src.scroller.curve.phase) |*d, s| d.* = radians(s);
     dst.mode.theta = radians(src.mode.theta);
     dst.mode.bend = @as(f32, @floatFromInt(src.mode.bend)) / BEND_FRAMES;
-    dst.mode.zig = src.mode.zig;
+    dst.mode.sw = src.mode.sw;
 }
 
 pub fn toFixed(src: *const Float, dst: *Fixed) void {
@@ -38,7 +38,7 @@ pub fn toFixed(src: *const Float, dst: *Fixed) void {
     for (&dst.scroller.curve.phase, src.scroller.curve.phase) |*d, s| d.* = angle(s);
     dst.mode.theta = angle(src.mode.theta);
     dst.mode.bend = @intFromFloat(std.math.clamp(@round(src.mode.bend * BEND_FRAMES), 0, BEND_FRAMES));
-    dst.mode.zig = src.mode.zig;
+    dst.mode.sw = src.mode.sw;
 }
 
 /// The integer state, the same in both: the logo's sweep, the scroll ring.
