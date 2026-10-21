@@ -1,0 +1,22 @@
+fix/board-black-tube: board stage (2026-10-20). Not yet run on the board.
+
+What it is: origin/main d3645ad3's RTL (line-major + W64, NO CHISEL queue) + fix/board-gray-background
+(728f111a, 53bc13c2) + b6e9ec69 (the tube is black everywhere: board and browser). Branch fix/board-black-tube.
+An alpha-0 picture pixel (every enabled plane transparent) now shows black on HDMI, not #121010's dark grey
+(ancool's grey box). Generated Verilog: zm_video_out #(.TUBE(0)); Vivado elaboration binds TUBE = 24'b0 in
+zm_video_out, zm_video_comp and zm_video_mix.
+
+Files (MD5SUMS.txt):
+  d649cd0eb99226476e25d001cbf908df  zigmachine.bit   fpga/build/board_tube/gateware/platform_z7.bit
+  a33ec0e096942dd01247544e502c195b  csr.json         reference only: byte-identical to lm8's (6261127d) and the card's
+
+Bitstream: the board recipe (--blit --sound-cpu --posted 8, VexRiscv_I16w2D4SealFpu f7caf972, Vivado 2026.1,
+maxThreads 2). 15,040 LUT (85.45 %), 15,244 FF, 41.5 BRAM tiles (lm8: 15,035 LUT). All constraints met:
+sys (clkout0) WNS +0.038 ns, comp (clkout1) +0.656, clkout2 +1.200, clkout3 +0.625; inter-clock worst +0.689
+(clkout2 -> clkout3); WHS +0.023.
+
+Install (SD FAT root): zigmachine.bit -> /mnt/sd/zigmachine.bit. Nothing else changes: the CSR map is the same,
+so system.rv32 (cbfdb6f4 now) and every lean cart on the card stay valid; boot.scr unchanged (HP1 0xF00).
+Rollback: the previous /mnt/sd/zigmachine.bit, 6261127d391e2946c3648f2b4910f052.
+What to look at: ancool, dbug, maxi, gen4_3615 -- picture area black where nothing draws, borders black,
+nothing else different.
