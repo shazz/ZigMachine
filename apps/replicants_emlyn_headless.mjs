@@ -128,7 +128,6 @@ function bucketsAt(line) {
 ///   tbLit    TOP and BOTTOM border lines (physical 0..19, 260..279) whose used
 ///            buckets are not all black: only ZIG mode fills them
 ///   lines    every line's used bucket colours, for the seam checks
-///   palettes every line's whole bucket palette, for counting its writes
 function census() {
     const lfb = indices();
     const n = { bucket: 0, bar: 0, art: 0, other: 0 };
@@ -172,7 +171,7 @@ function census() {
         if (used.some((c) => c !== used[0])) tilted++;
         if ((y < CONTENT_Y || y >= CONTENT_Y + CONTENT_H) && used.some((c) => c !== BLACK_RGBA)) tbLit++;
     }
-    return { ...n, count, tilted, changes, side, logoSide, fontSide, fontTop, fontBottom, lowest, tbLit, lines, palettes: all };
+    return { ...n, count, tilted, changes, side, logoSide, fontSide, fontTop, fontBottom, lowest, tbLit, lines };
 }
 
 /// SHA-256 prefixes of the shot, whole (`all`) and of the content window's
@@ -409,28 +408,19 @@ if (CART === DEFAULT_CART) {
     console.log(`  F at frame 200 (mid-sweep) vs the f32 cart: at most ${r.worst} pixels differ (frame ${r.worstAt})`);
     check("F mid-sweep carries the screen across (under 1% from the f32 cart)", r.worst < PW * H / 100, true);
 
-    // ORIGINAL ignores ZIG's style keys: 1, 2 and 3 at frame 50, and 200
-    // frames later not one pixel differs from a cart that never got them.
-    // And in ZIG, 3 pressed twice (at 50 and 120) leaves no trace: from frame
-    // 130 on the screen is the one of a cart that never got it.
-    const keyed = async (zig, keys, from) => {
-        const [p, q] = [await boot(CART), await boot(CART)];
-        if (zig) { p.demo.input(DIR_FIRE); q.demo.input(DIR_FIRE); }
-        let off = 0;
-        for (let n = 1; n <= 200; n++) {
-            for (const k of keys(n)) p.demo.key(k);
-            p.demo.frame(16.6);
-            q.demo.frame(16.6);
-            if (n % 10 || n < from) continue;
-            const pp = pixels(p), pq = pixels(q);
-            off = Math.max(off, pp.reduce((d, v, i) => d + (v !== pq[i] ? 1 : 0), 0));
-        }
-        return off;
-    };
-    check("ORIGINAL: 1, 2 and 3 change not one pixel", await keyed(false, (n) => (n === 50 ? [0x31, 0x32, 0x33] : []), 0), 0);
-    const twice = broke === "keys" ? [] : [0x33];
-    check("ZIG: 3 twice is back to the gradient, pixel for pixel",
-        await keyed(true, (n) => (n === 50 || n === 120 ? twice : []), 130), 0);
+    // ORIGINAL ignores ZIG's style keys: 1 and 2 at frame 50, and 200 frames
+    // later not one pixel differs from a cart that never got them.
+    const [p, q] = [await boot(CART), await boot(CART)];
+    let off = 0;
+    for (let n = 1; n <= 200; n++) {
+        if (n === 50) { p.demo.key(0x31); p.demo.key(0x32); }
+        p.demo.frame(16.6);
+        q.demo.frame(16.6);
+        if (n % 10) continue;
+        const pp = pixels(p), pq = pixels(q);
+        off = Math.max(off, pp.reduce((d, v, i) => d + (v !== pq[i] ? 1 : 0), 0));
+    }
+    check("ORIGINAL: 1 and 2 change not one pixel", off, 0);
 }
 
 // Warm frame cost in ZIG mode, which is the expensive one: 600 frames sweep

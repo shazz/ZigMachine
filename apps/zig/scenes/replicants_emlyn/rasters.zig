@@ -66,7 +66,6 @@
 // --------------------------------------------------------------------------
 const zg = @import("zigos");
 const A = @import("assets.zig");
-const cap16 = @import("cap16.zig");
 
 pub const PLANE_W: usize = zg.PHYSICAL_WIDTH; // 400: the ramp covers the side borders too
 pub const CX = 320; // the canvas centre, where the group's origin projects
@@ -89,7 +88,7 @@ pub const WORDS = ROW / 4;
 /// The ink of every bucket of every PHYSICAL row: a band 0..31, or BLACK.
 /// 42,560 B on zg.mem, taken by install() before the HBL that reads it goes in.
 pub var table: *align(4) [zg.PHYSICAL_HEIGHT][ROW]u8 = undefined;
-pub var ink: [BANDS + 1]u32 = undefined;
+var ink: [BANDS + 1]u32 = undefined;
 /// The background pattern, painted under everything: plane column x shows
 /// bucket x * count / 400, and all the motion is in the palette.
 pub var row: [PLANE_W]u8 = undefined;
@@ -117,11 +116,7 @@ fn hbl(fb: *zg.LogicalFB, _: *zg.ZigOS, line: u16, _: u16) void {
     // edge. That per-line cost is the trick's real price.
     fb.flickerBorder();
     if (line >= zg.PHYSICAL_HEIGHT) return;
-    if (line == 0) {
-        cap16.reset();
-        return loadFirstLine(fb); // render() did it: nothing left
-    }
-    if (cap16.on) return cap16.line(fb, line); // key 3: 16 writes a line
+    if (line == 0) return loadFirstLine(fb); // render() did it: nothing left
     // Only the entries whose colour CHANGED since the line above are written —
     // the raster coder's rule, and the budget bucketCount() was sized on. The
     // palette always holds the line above (line 0's: loadFirstLine).

@@ -108,7 +108,6 @@ pub fn Demo(comptime start_fpu: bool) type {
             const sw = if (self.fpu) &self.float.mode.sw else &self.fixed.mode.sw;
             if (cp == '1') sw.cycleScroller();
             if (cp == '2') sw.cycleRasters();
-            if (cp == '3') sw.cycleColours();
         }
 
         fn switchNumbers(self: *Self) void {

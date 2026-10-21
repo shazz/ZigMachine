@@ -7,7 +7,6 @@
 // --------------------------------------------------------------------------
 const std = @import("std");
 const R = @import("rasters.zig");
-const cap16 = @import("cap16.zig");
 const A = @import("assets.zig");
 const Particle = @import("balls_f32.zig").Particle;
 
@@ -49,12 +48,8 @@ pub fn build(particles: []const Particle, theta: f32, rows: R.Rows) void {
 fn bucketCount(sin: f32, cos: f32, band: f32) usize {
     const need = 2.0 * PLANE_WF * sin / band;
     const churn = @min(1.0, 2.0 * cos / band); // entries changing per line
-    const budget = if (churn <= 0)
-        @as(f32, R.MAX_BUCKETS)
-    else
-        R.LINE_CYCLES / (CYCLES_PER_ENTRY * churn);
-    const fit = if (cap16.on and churn > 0) cap16.bucketsF32(need, churn) else @min(need, budget); // key 3
-    return @intFromFloat(std.math.clamp(@round(fit), 1, @as(f32, R.MAX_BUCKETS)));
+    const budget = if (churn <= 0) @as(f32, R.MAX_BUCKETS) else R.LINE_CYCLES / (CYCLES_PER_ENTRY * churn);
+    return @intFromFloat(std.math.clamp(@round(@min(need, budget)), 1, @as(f32, R.MAX_BUCKETS)));
 }
 
 /// The mean colour band, in canvas pixels: a bar's 32 bands over 64*sy rows.

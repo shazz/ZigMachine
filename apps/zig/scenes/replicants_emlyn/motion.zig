@@ -12,7 +12,6 @@ const Logo = @import("logo.zig").Logo;
 const scroller = @import("scroller.zig");
 const dirty = @import("dirty.zig");
 const rasters = @import("rasters.zig");
-const cap16 = @import("cap16.zig");
 
 pub fn Motion(comptime B: type) type {
     return struct {
@@ -41,7 +40,6 @@ pub fn Motion(comptime B: type) type {
         pub fn render(self: *Self, bl: *zg.Blitter, ramp: *dirty.Ramp, fb: *zg.LogicalFB, images: *const A.Images) void {
             // my3d.draw(), split in two: the projection is still three.js's,
             // but what it feeds is the HBL's colour table, not a blit.
-            cap16.on = self.mode.sw.capped(); // key 3, read by the fill and the HBL
             self.bars.build(&self.mode);
             rasters.loadFirstLine(fb); // the VBL palette load: line 0 is set
             // Rasters, then the logo, then the scrolltext — the remake's order.
