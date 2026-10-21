@@ -13,7 +13,8 @@
 // none). Keys arrive the way docs/sealed-loader.js sends them to a cart that does
 // not own the keyboard: key n -> setShadeMode(n - 1). Requires, in order:
 //   - track 1, at or before the first TRSI frame;
-//   - key 3 during TRSI -> Androids.ymraw; key 5 -> lap_33.sndh; key 5 again -> nothing;
+//   - key 3 during TRSI -> androids.sndh; key 4 -> Drooling.ymraw; key 5 -> lap_33.sndh;
+//     key 5 again -> nothing;
 //   - the main screen is reached, and asks for nothing: Lap 33 keeps playing.
 //
 //   node apps/union_intro_music_check.mjs              # the check
@@ -24,8 +25,8 @@ import { cartRam, romRam } from "../docs/wasm_hiwater.js";
 const PAGES = 112, FRAMES = 1200; // main starts around frame 960
 const FAIL_PROOF = process.argv.includes("--fail-proof");
 const FIRST = FAIL_PROOF ? "union/150_mph.sndh" : "union/sharpness_buzztone.sndh";
-const KEYS = [[30, 3], [60, 5], [90, 5]]; // [frames after the first TRSI frame, key]
-const WANT = [FIRST, "union/Androids.ymraw", "union/lap_33.sndh"]; // every request, in order
+const KEYS = [[30, 3], [45, 4], [60, 5], [90, 5]]; // [frames after the first TRSI frame, key]
+const WANT = [FIRST, "union/androids.sndh", "union/Drooling.ymraw", "union/lap_33.sndh"]; // every request, in order
 const TRSI_PLANE = 0, MAIN_PLANE = 2;
 
 async function bootCart(cartPath) {
@@ -86,9 +87,9 @@ const [first] = seen.requests;
 const checks = [
     [!!first && first.name === FIRST, `the first request is "${FIRST}"`],
     [seen.trsi >= 0 && !!first && first.f <= seen.trsi, "it comes at or before the first TRSI frame"],
-    [seen.keys.length === KEYS.length && seen.keys.every((k) => k.inTrsi && !k.owns), "keys 3, 5, 5 reach the cart during the intro"],
+    [seen.keys.length === KEYS.length && seen.keys.every((k) => k.inTrsi && !k.owns), "keys 3, 4, 5, 5 reach the cart during the intro"],
     [seen.requests.length === WANT.length && seen.requests.every((r, i) => r.name === WANT[i]),
-        "key 3 -> Androids, key 5 -> Lap 33, key 5 again -> nothing"],
+        "key 3 -> Androids, key 4 -> Drooling, key 5 -> Lap 33, key 5 again -> nothing"],
     [seen.main > 0 && seen.requests.every((r) => r.f < seen.main), "the main screen is reached and requests nothing"],
     [seen.refused === 0, `no zg.mem allocation was refused (TRSI depack, scroller strip): ${seen.refused}`],
 ];

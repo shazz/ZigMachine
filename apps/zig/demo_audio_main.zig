@@ -103,6 +103,14 @@ export fn audioMode() u8 {
 
 // --- YM player ---
 export fn audioLoadYm(len: u32) bool {
+    // The dump was just staged over an SNDH's image (song RAM is the 68000's RAM). Left
+    // active, the SNDH comes first in audioRender: the dump never played and PLAY ran
+    // over the dump's bytes until RUNAWAY_CYCLES (8 M) gave up: seconds of Musashi on
+    // BARD, the Union cracktro's "keys 3+ crash" after its autoplayed SNDH. As MOD/XM do.
+    if (sndh.active) {
+        sndh.abandon();
+        if (current_mode == 4) current_mode = 0;
+    }
     return ym.load(songSlice(len));
 }
 export fn audioYmPlay() void {
