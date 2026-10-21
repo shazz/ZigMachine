@@ -40,7 +40,8 @@
 //     borders (the raster table fills all 280 lines from the same u, so there
 //     is no seam at the window edge); ORIGINAL leaves those lines black, as
 //     before. In ZIG, 1 toggles the scrolltext (curve <-> flat) and 2 the bars
-//     (turning <-> horizontal): emlyn/switches.zig.
+//     (turning <-> horizontal), 3 the ramp (the full gradient <-> one held to
+//     16 palette writes a line, the board's cheap budget): emlyn/switches.zig.
 //
 // ONE plane, one palette: 107 entries of art (unquantized) + up to 149 raster
 // buckets. Per frame: a colour table, the 400-byte ramp pattern put back where

@@ -20,6 +20,7 @@
 const zg = @import("zigos");
 const trig = zg.fixtrig;
 const R = @import("rasters.zig");
+const cap16 = @import("cap16.zig");
 const A = @import("assets.zig");
 const Part = @import("balls_fixed.zig").Part;
 
@@ -168,7 +169,8 @@ fn bucketCount(sin: u32, cos: u32, band: i32) usize {
         @as(i64, R.MAX_BUCKETS) << 16
     else
         @divFloor(@as(i64, 2 * R.LINE_CYCLES) << 32, R.CYCLES_PER_ENTRY_X2 * churn);
-    const n = (@min(need, budget) + (ONE >> 1)) >> 16;
+    const fit = if (cap16.on and churn > 0) cap16.buckets(need, churn) else @min(need, budget); // key 3
+    const n = (fit + (ONE >> 1)) >> 16;
     return @intCast(@max(1, @min(n, R.MAX_BUCKETS)));
 }
 
