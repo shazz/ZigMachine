@@ -58,7 +58,7 @@ select it in <code>apps/floppy.zig</code>.
 screen step by step in Zig, C and Rust, and runs each step on the real machine.
 This page is the reference you reach for afterwards.</p>
 </div>
-      <p class="stamp">Generated 2026-10-19 by tools/gen_docs.py from machine/sdk, libs/zig, rom/gem and docs/*.md</p>
+      <p class="stamp">Generated 2026-10-20 by tools/gen_docs.py from machine/sdk, libs/zig, rom/gem and docs/*.md</p>
     </section>
     <section class="ref" id="examples">
       <header class="sec-h"><span class="eyebrow">Start</span><h2>Examples<small>six scenes, in Zig</small></h2></header>
@@ -489,8 +489,9 @@ last word is the adjustment; <code>mkdisk</code> writes it (<code>--no-boot</cod
 the machine verifies it before booting — homage + a real integrity/kind check. This
 is how the <strong>ST Replay</strong> disk works: a non-bootable data disk whose FAT carries the
 app + a <code>SAMPLE.RAW</code>; inserting it brings up GEM, which runs ST Replay reading the
-sample off the disk. SysInfo's disk is the same with the app alone: a data disk
-always lists its program in the FAT (<code>BOOT.WSM</code>), since nothing boots it.</p>
+sample off the disk. SysInfo's disk is the same, with three sound files its SOUND page
+plays and, since it became v2, the "No virus" boot sector (see "Boot flow (v2)", step 6): a
+data disk always lists its program in the FAT (<code>BOOT.WSM</code>), since nothing boots it.</p>
 <p><strong>Simplest disk (our demo carts):</strong> boot sector → 1 KB descriptor (FAT empty, file
 count 0) → the cart wasm as one contiguous data run. The machine reads block 0, checks
 <code>$1234</code>, and loads <code>boot length</code> bytes from <code>boot block</code>. No FAT walk, no directory.</p>
@@ -754,6 +755,13 @@ sector (since the boot sector is now code):</p>
 <li>Host <strong>chainloads</strong>: reads the descriptor's <code>cart block</code>/<code>cart length</code>, instantiates
    those bytes as the new <code>demo</code>, <code>hwInit()</code>, <code>boot()</code>, and the loop continues on the cart.</li>
 <li><code>!= $1234</code> → <strong>data disk</strong>: POST → GEM (disk mounted for GEM to open), as v1.</li>
+<li><code>== $1234</code> but the descriptor names <strong>no cart</strong> (<code>cart block</code> and <code>cart length</code> 0) → a
+   <strong>data disk with a boot sector</strong>, as an ST data disk carrying an antivirus boot sector: the
+   sector runs, and its request 2 has no cart to chainload, so the host boots GEM with the disk
+   in the drive (the way request 4 brings GEM back). The program GEM launches is a FAT file,
+   <code>BOOT.WSM</code>. <code>mkdisk --boot-wasm &lt;sector&gt; --no-boot</code> writes it; SysInfo's disk carries
+   <code>boot-novirus.wasm</code> this way (tools/mkdisks.sh). The board has no wasm boot sector to run:
+   it stages such a disk as a data disk, GEM's image on it (fpga/tools/zmd_fat.py <code>bootable</code>).</li>
 </ol>
 <p>The host thus keeps exactly two boot primitives — <em>instantiate block 0</em> and <em>chainload the
 descriptor's cart</em> — and the disk owns everything else. <code>chainload</code> reuses the existing
@@ -921,6 +929,15 @@ zg.<span class="tok-fn">requestSong</span>(<span class="tok-str">&quot;rings_of_
 zg.<span class="tok-fn">requestSongTune</span>(<span class="tok-str">&quot;leavin_teramis.sndh&quot;</span>, <span class="tok-num">9</span>);    <span class="tok-cm">// subtune 9 (counts from 1)</span></code></pre></figure>
 <p><code>apps/zig/demo_main.zig</code> already exports the four functions the host polls.
 Request once, in <code>init()</code>: each request replaces the tune playing.</p>
+<p>A tune that is not a file under <code>docs/music/</code> (one a program read off its own disk through the
+drive, as a GEM program reads its data files) plays from the cart's memory instead:</p>
+<figure class="cb" data-lang=zig><figcaption><span class="cb-lang">zig</span><span class="cb-n">3 lines</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code><span class="tok-kw">const</span> n = zg.disk.<span class="tok-fn">read</span>(entry, buf);                         <span class="tok-cm">// the file, a block at a time</span>
+_ = zg.<span class="tok-fn">requestSongBytes</span>(buf[<span class="tok-num">0</span>..n], .sndh, <span class="tok-num">0</span>);               <span class="tok-cm">// or .sap; the host copies it this frame</span>
+zg.<span class="tok-fn">stopSong</span>();                                              <span class="tok-cm">// stops it, as it stops a named one</span></code></pre></figure>
+<p>It rides the effects queue (<code>libs/zig/sfx_queue.zig</code>, op 8): a <code>requestSong</code> made in the same
+frame is applied first. SysInfo's SOUND page plays the SNDH, the SAP and the PCM on its disk
+this way (<code>apps/zig/scenes/sysinfo/sound_play.zig</code>). On the board the sound CPU's bridge has no
+op 8 yet: it is dropped there until it does.</p>
 <h4 id="music-sndh-player-zig-c-rust-c">C</h4>
 <figure class="cb" data-lang=c><figcaption><span class="cb-lang">c</span><span class="cb-n">6 lines</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code><span class="tok-pp">#include</span> <span class="tok-str">&quot;../zigmachine_music.h&quot;</span>   <span class="tok-cm">// from exactly ONE .c file per cart: it DEFINES the exports</span>
 

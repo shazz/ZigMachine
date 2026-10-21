@@ -8,8 +8,11 @@
 //   v2  magic $400, cart block $408, cart length $40C, title $410,
 //       author $450, date $4F0, file count $4F4 (block 0 is a boot program)
 //
-// Either way the 256 big-endian words of block 0 sum to $1234 on a bootable
-// disk; anything else is a data disk (GEM boots and the disk is its to open).
+// The boot sector's big-endian words (v1: block 0's 256; v2: the 512 of blocks
+// 0-1) sum to $1234 on a bootable disk; anything else is a data disk (GEM boots
+// and the disk is its to open). A v2 sector that sums to $1234 over a descriptor
+// naming NO cart (length 0) runs, then GEM follows: a data disk with a boot
+// sector, as an ST data disk carrying an antivirus sector.
 // --------------------------------------------------------------------------
 const std = @import("std");
 
@@ -19,7 +22,8 @@ pub const BOOT_SUM: u16 = 0x1234;
 
 pub const Info = struct {
     version: u8, // 1 or 2
-    bootable: bool,
+    bootable: bool, // the boot sector sums to $1234
+    os_after_boot: bool, // ...and names no cart: GEM boots after it (v2 only)
     total_blocks: u32, // v1 only (0: the v2 descriptor does not carry it)
     cart_block: u32,
     cart_len: u32,
@@ -36,7 +40,7 @@ pub const Info = struct {
     }
 };
 
-/// The sum of block 0's big-endian words: $1234 = an executable boot sector.
+/// The sum of a block's big-endian words: $1234 over the boot sector = executable.
 pub fn bootSum(b0: *const [BLOCK]u8) u16 {
     var s: u16 = 0;
     var i: usize = 0;
@@ -46,9 +50,8 @@ pub fn bootSum(b0: *const [BLOCK]u8) u16 {
 
 /// Parse the disk from its first three blocks (0, 1, 2), or null: no ZigMachine disk.
 pub fn parse(b0: *const [BLOCK]u8, b1: *const [BLOCK]u8, b2: *const [BLOCK]u8) ?Info {
-    const boot = bootSum(b0) == BOOT_SUM;
-    if (std.mem.eql(u8, b2[0..MAGIC.len], MAGIC)) return v2(b2, boot);
-    if (std.mem.eql(u8, b0[0..MAGIC.len], MAGIC)) return v1(b0, b1, boot);
+    if (std.mem.eql(u8, b2[0..MAGIC.len], MAGIC)) return v2(b2, bootSum(b0) +% bootSum(b1) == BOOT_SUM);
+    if (std.mem.eql(u8, b0[0..MAGIC.len], MAGIC)) return v1(b0, b1, bootSum(b0) == BOOT_SUM);
     return null;
 }
 
@@ -56,6 +59,7 @@ fn v1(b0: *const [BLOCK]u8, b1: *const [BLOCK]u8, boot: bool) Info {
     var i = Info{
         .version = 1,
         .bootable = boot,
+        .os_after_boot = false,
         .total_blocks = u32At(b0, 0x0A),
         .cart_block = u32At(b0, 0x0E),
         .cart_len = u32At(b0, 0x12),
@@ -73,6 +77,7 @@ fn v2(b2: *const [BLOCK]u8, boot: bool) Info {
     var i = Info{
         .version = 2,
         .bootable = boot,
+        .os_after_boot = boot and u32At(b2, 0x0C) == 0,
         .total_blocks = 0,
         .cart_block = u32At(b2, 0x08),
         .cart_len = u32At(b2, 0x0C),
@@ -138,6 +143,22 @@ test "a disk whose boot sector does not sum to $1234 is a data disk" {
     @memcpy(b0[0..6], MAGIC);
     b0[0x100] = 1; // the sum is no longer $1234
     try std.testing.expect(!parse(&b0, &b1, &b2).?.bootable);
+}
+
+test "a v2 sector that sums to $1234 over its two blocks, naming no cart, runs then GEM" {
+    var b0 = blank();
+    var b1 = blank();
+    var b2 = blank();
+    @memcpy(b2[0..6], MAGIC);
+    b0[0] = 0x55; // the sum is spread over BOTH blocks: block 0 alone is not $1234
+    std.mem.writeInt(u16, b1[BLOCK - 2 ..][0..2], BOOT_SUM -% bootSum(&b0), .big);
+    const i = parse(&b0, &b1, &b2).?;
+    try std.testing.expect(i.bootable and i.os_after_boot);
+    std.mem.writeInt(u32, b2[0x0C..0x10], 9000, .little); // a cart named: it chainloads
+    try std.testing.expect(!parse(&b0, &b1, &b2).?.os_after_boot);
+    b1[0] = 1; // off $1234: a plain data disk
+    const d = parse(&b0, &b1, &b2).?;
+    try std.testing.expect(!d.bootable and !d.os_after_boot);
 }
 
 test "a v2 disk is read from its descriptor at block 2" {

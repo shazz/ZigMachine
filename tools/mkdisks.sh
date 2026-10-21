@@ -117,7 +117,17 @@ for w in "$OUT"/demo-*.wasm; do
         # it and runs BOOT.WSM, and Q (request 4) quits back to the desktop. As a
         # bootable disk it had no OS to return to, which is why it could not quit
         # on the board.
-        sysinfo)   pack "$OUT/demo-$tag.zmd" "$tag" "$w" --no-boot ;;
+        # It also carries the "No virus in ZigMachine" boot sector, as an ST data
+        # disk carries an antivirus one: a v2 disk whose descriptor names NO cart,
+        # so the sector runs, then GEM follows (docs/FLOPPY_DISK.md). And three
+        # sound files its SOUND page reads off the disk and plays: an SNDH (YM
+        # only), a SAP (POKEY) and a second of signed 8-bit PCM (ST Replay's).
+        sysinfo)   BOOTSEC="$OUT/boot-novirus.wasm"
+                   [ -f "$BOOTSEC" ] || { echo "mkdisks: $BOOTSEC is missing: run zig build first"; exit 1; }
+                   pack "$OUT/demo-$tag.zmd" "$tag" "$w" --no-boot --boot-wasm "$BOOTSEC" \
+                        --file "JINKS.SND=$OUT/music/Jinks.sndh" \
+                        --file "GAUNTLET.SAP=$OUT/music/Gauntlet.sap" \
+                        --file "SAMPLE.RAW=$OUT/music/smp1_short.raw" ;;
         # STNICCC 2000 streams its polygon data off the disk, 64 KB at a time.
         stniccc)   pack "$OUT/demo-$tag.zmd" "$tag" "$w" \
                         --file "SCENE1.BIN=apps/zig/assets/screens/stniccc/scene1.bin" ;;

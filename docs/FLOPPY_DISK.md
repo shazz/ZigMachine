@@ -68,8 +68,9 @@ last word is the adjustment; `mkdisk` writes it (`--no-boot` for a data disk), a
 the machine verifies it before booting — homage + a real integrity/kind check. This
 is how the **ST Replay** disk works: a non-bootable data disk whose FAT carries the
 app + a `SAMPLE.RAW`; inserting it brings up GEM, which runs ST Replay reading the
-sample off the disk. SysInfo's disk is the same with the app alone: a data disk
-always lists its program in the FAT (`BOOT.WSM`), since nothing boots it.
+sample off the disk. SysInfo's disk is the same, with three sound files its SOUND page
+plays and, since it became v2, the "No virus" boot sector (see "Boot flow (v2)", step 6): a
+data disk always lists its program in the FAT (`BOOT.WSM`), since nothing boots it.
 
 **Simplest disk (our demo carts):** boot sector → 1 KB descriptor (FAT empty, file
 count 0) → the cart wasm as one contiguous data run. The machine reads block 0, checks
@@ -251,6 +252,13 @@ FAT (`[2K..3K)`) is v1's table verbatim (24 × 32 B entries), addressing files i
 4. Host **chainloads**: reads the descriptor's `cart block`/`cart length`, instantiates
    those bytes as the new `demo`, `hwInit()`, `boot()`, and the loop continues on the cart.
 5. `!= $1234` → **data disk**: POST → GEM (disk mounted for GEM to open), as v1.
+6. `== $1234` but the descriptor names **no cart** (`cart block` and `cart length` 0) → a
+   **data disk with a boot sector**, as an ST data disk carrying an antivirus boot sector: the
+   sector runs, and its request 2 has no cart to chainload, so the host boots GEM with the disk
+   in the drive (the way request 4 brings GEM back). The program GEM launches is a FAT file,
+   `BOOT.WSM`. `mkdisk --boot-wasm <sector> --no-boot` writes it; SysInfo's disk carries
+   `boot-novirus.wasm` this way (tools/mkdisks.sh). The board has no wasm boot sector to run:
+   it stages such a disk as a data disk, GEM's image on it (fpga/tools/zmd_fat.py `bootable`).
 
 The host thus keeps exactly two boot primitives — *instantiate block 0* and *chainload the
 descriptor's cart* — and the disk owns everything else. `chainload` reuses the existing

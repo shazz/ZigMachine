@@ -18,13 +18,14 @@
 // stay put until then (an @embedFile does).
 //
 // Each entry is 16 bytes, little-endian (the host reads them with a DataView):
-//   0 op    1 play, 2 stop, 3 ym, 4 gain, 5 sndh mode, 6 sample, 7 sample stop
+//   0 op    1 play, 2 stop, 3 ym, 4 gain, 5 sndh mode, 6 sample, 7 sample stop, 8 song
 //   1 a     play, sample: 1 = looped; stop: 1 = only a looped effect; ym: register;
-//           sndh mode: 1 the 68000 on Musashi, 2 native, 3 native with PCM samples
-//   2 b     ym: the value
+//           sndh mode: 1 the 68000 on Musashi, 2 native, 3 native with PCM samples;
+//           song: the image's kind (SongKind: 1 SNDH, 2 SAP)
+//   2 b     ym: the value; song: the subtune (from 1; 0 = the image's default)
 //   3 -     0
-//   4 ptr   play, sample: the PCM (signed 8-bit), a cart address
-//   8 len   play, sample: its length in bytes; gain: the MOD's gain x 65536 (0..65536)
+//   4 ptr   play, sample: the PCM (signed 8-bit); song: the image; a cart address
+//   8 len   play, sample, song: its length in bytes; gain: the MOD's gain x 65536 (0..65536)
 //   12 rate play, sample: the sample rate in Hz
 //
 // A SAMPLE (zg.samplePlay) is not an effect over a song: it is the whole PCM
@@ -32,6 +33,11 @@
 // or to its end) with no cart in the loop: the sound CPU on the board, the audio
 // thread in the browser. Unlike a play, its bytes are READ WHILE IT PLAYS, so
 // they must stay put until zg.sampleStop or its end.
+//
+// A SONG (zg.requestSongBytes) is a song image the cart holds in its own RAM,
+// e.g. read off its disk through the drive: the host copies the bytes when it
+// drains the queue and loads them as it loads a file the song bridge fetched by
+// name. It is a song LOAD, not an effect: it replaces whatever plays.
 //
 // Generic over nothing: plain state, tested natively (sfx_queue_test.zig).
 // --------------------------------------------------------------------------
@@ -46,7 +52,11 @@ pub const RATE_MAX: u32 = 50066;
 /// The largest sample (zg.samplePlay): the cart's whole RAM window.
 pub const SAMPLE_MAX: usize = 2 * 1024 * 1024;
 
-pub const Op = enum(u8) { play = 1, stop = 2, ym = 3, gain = 4, sndh_mode = 5, sample = 6, sample_stop = 7 };
+pub const Op = enum(u8) { play = 1, stop = 2, ym = 3, gain = 4, sndh_mode = 5, sample = 6, sample_stop = 7, song = 8 };
+/// What a song image is (entry.a of a song): the player the host loads it into.
+pub const SongKind = enum(u8) { sndh = 1, sap = 2 };
+/// The largest song image the queue takes (a big SNDH is ~100 KB).
+pub const SONG_MAX: usize = 256 * 1024;
 pub const SNDH_MODES: u8 = 3; // sndh_native.zig Mode: 1..3
 /// A gain of 1.0 on the wire (entry.len).
 pub const GAIN_ONE: u32 = 65536;
@@ -117,6 +127,18 @@ pub const Queue = struct {
             .ptr = @truncate(@intFromPtr(pcm.ptr)),
             .len = @intCast(pcm.len),
             .rate = rate,
+        });
+    }
+
+    /// Load the song image `bytes` (zg.requestSongBytes); `tune` counts from 1.
+    pub fn song(self: *Queue, bytes: []const u8, kind: SongKind, tune: u8) bool {
+        if (bytes.len == 0 or bytes.len > SONG_MAX) return self.refuse();
+        return self.push(.{
+            .op = @intFromEnum(Op.song),
+            .a = @intFromEnum(kind),
+            .b = tune,
+            .ptr = @truncate(@intFromPtr(bytes.ptr)),
+            .len = @intCast(bytes.len),
         });
     }
 

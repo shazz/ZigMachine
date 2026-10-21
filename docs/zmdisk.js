@@ -68,13 +68,16 @@ export function parseDisk(buf, name) {
 
 // v2: the 1 KB boot sector runs first and chainloads the cart (swapCart req 2),
 // whose pointer is in the descriptor. Not executable -> a data disk (GEM).
+// Executable but the descriptor names NO cart (length 0) -> a data disk with a
+// boot sector (`osAfterBoot`): the sector runs, then GEM follows, the disk in
+// the drive (an ST data disk carrying an antivirus boot sector).
 function parseV2(buf, dv) {
     if (!hasMagic(buf, 0x400)) throw new Error("v2 disk: bad descriptor magic");
     const bootable = beSum(buf, 512) === 0x1234;
     const nFiles = dv.getUint16(0x4f4, true);
     const chainCart = { start: dv.getUint32(0x408, true) * 512, len: dv.getUint32(0x40c, true) };
     return {
-        bootable, v2: true, title: cstr(buf, 0x410, 64), nFiles,
+        bootable, v2: true, osAfterBoot: bootable && chainCart.len === 0, title: cstr(buf, 0x410, 64), nFiles,
         cart: bootable ? buf.buffer.slice(0, 1024) : null,
         mounted: { buf, files: readFat(buf, dv, 0x800, nFiles), date: dv.getUint32(0x4f0, true), v2: true, chainCart },
     };

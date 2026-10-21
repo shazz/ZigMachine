@@ -131,14 +131,21 @@ def boot_sector_v2(boot_wasm: bytes) -> bytes:
 
 
 def build_v2(boot_wasm: bytes, cart: bytes, title: str, author: str, desc: str,
-             date: int, files: list | None = None, cart_name: str = "CART.WSM") -> bytes:
-    data, fat = _place_files(cart_name, cart, files or [], V2_DATA_START)
+             date: int, files: list | None = None, cart_name: str = "CART.WSM",
+             chain: bool = True) -> bytes:
+    """`chain` False: a DATA disk that still carries an executable boot sector, as an
+    ST data disk with an antivirus boot sector does. The sector runs, then the OS
+    (GEM) follows with the disk in the drive: the descriptor names NO cart (block 0,
+    length 0) and the program is a FAT file GEM launches (BOOT.WSM)."""
+    data, fat = _place_files(cart_name, cart, files or [], V2_DATA_START, list_main=not chain)
     # --- descriptor (1 KB), offsets relative to $400 ---
     d = bytearray(KB)
     d[0:6] = b"ZMDISK"
     struct.pack_into("<H", d, 0x06, 2)                       # format version
-    struct.pack_into("<I", d, 0x08, V2_DATA_START // BLOCK)  # cart block (6)
-    struct.pack_into("<I", d, 0x0C, len(cart))               # cart length
+    if chain:
+        struct.pack_into("<I", d, 0x08, V2_DATA_START // BLOCK)  # cart block (6)
+        struct.pack_into("<I", d, 0x0C, len(cart))               # cart length
+    # else both stay 0: no cart to chainload, the OS boots after the sector
     _put_str(d, 0x10, title, 64)      # $410
     _put_str(d, 0x50, author, 32)     # $450
     _put_str(d, 0x70, desc, 128)      # $470
@@ -181,7 +188,8 @@ def main() -> None:
     ap.add_argument("--file", action="append", default=[], metavar="NAME=PATH",
                     help="add an extra file to the FAT (repeatable), e.g. SAMPLE.RAW=docs/music/smp1.raw")
     ap.add_argument("--no-boot", action="store_true",
-                    help="make a non-executable DATA disk (the machine boots the OS/GEM, not this disk)")
+                    help="make a DATA disk (the machine boots the OS/GEM, not this disk). With "
+                         "--boot-wasm the boot sector still runs first, then GEM follows")
     ap.add_argument("--boot-wasm", metavar="FILE",
                     help="format v2: FILE is the executable boot-sector wasm (<= 1015 B); "
                          "the positional wasm becomes the chainloaded cart")
@@ -199,9 +207,12 @@ def main() -> None:
     if a.boot_wasm:
         with open(a.boot_wasm, "rb") as f:
             boot = f.read()
-        img = build_v2(boot, wasm, a.title, a.author, a.desc, a.date, files=files)
+        img = build_v2(boot, wasm, a.title, a.author, a.desc, a.date, files=files,
+                       cart_name="BOOT.WSM" if a.no_boot else "CART.WSM", chain=not a.no_boot)
         boot_len, cart_block = KB, V2_DATA_START // BLOCK
         extra = f", boot wasm {len(boot)} B (+{KB - 9 - len(boot)} B headroom)"
+        if a.no_boot:
+            extra += ", NO boot cart: GEM follows the boot sector"
     else:
         img = build(wasm, a.title, a.author, a.desc, a.date, files=files, bootable=not a.no_boot)
         boot_len, cart_block, extra = BOOT, DATA_START // BLOCK, ""

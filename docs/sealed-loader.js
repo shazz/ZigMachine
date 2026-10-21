@@ -81,7 +81,8 @@ function mountDiskBytes(buf, name) {
     const d = globalThis.ZMDisk.parseDisk(buf, name);
     mountedDisk = d.mounted;
     if (d.v2) {
-        console.log(`Mounted v2 "${d.title}" — ${d.bootable ? "executable boot sector" : "data disk"}, ${d.nFiles} FAT file(s)`);
+        const kind = d.osAfterBoot ? "executable boot sector, then GEM (data disk)" : d.bootable ? "executable boot sector" : "data disk";
+        console.log(`Mounted v2 "${d.title}" — ${kind}, ${d.nFiles} FAT file(s)`);
         return { bootable: d.bootable, v2: true, cart: d.cart };
     }
     console.log(`Mounted "${d.title}" — ${d.bootable ? "bootable" : "DATA disk"}, ${d.nFiles} FAT file(s)`);
@@ -126,6 +127,13 @@ async function swapCart(req, channelTag) {
     try {
         // req 2 = CHAINLOAD (format v2): the boot sector is done — instantiate this
         // disk's cart (pointer in the descriptor, already parsed) over the same memory.
+        // A v2 DATA disk (its descriptor names no cart) is one whose executable boot
+        // sector runs and then hands over to the OS, as an ST antivirus sector RTSes
+        // to TOS: GEM comes up with the disk in the drive, as req 4 brings it back.
+        if (req === 2 && mountedDisk && mountedDisk.chainCart && mountedDisk.chainCart.len === 0) {
+            beepStop();
+            req = 4;
+        }
         if (req === 2 && mountedDisk && mountedDisk.chainCart) {
             beepStop(); // silence the boot-sector tone before the cart takes over
             const { start, len } = mountedDisk.chainCart;
@@ -193,7 +201,7 @@ async function swapCart(req, channelTag) {
         demo.boot();
         // Channel change: snow first (a disk packed before tuneIn existed just starts).
         if (channelTag && demo.tuneIn) demo.tuneIn(TUNE_FRAMES);
-        else if (req === 1) demo.skipBoot(); // scene or data-disk→GEM: straight in (no boot ROM)
+        else if (req === 1 && demo.skipBoot) demo.skipBoot(); // scene or data-disk→GEM: straight in (no boot ROM)
         // The deck's name card, over the picture this cart is about to draw. Only
         // for a real cart: a data disk brings up GEM, and req -1 is the menu.
         if (req === 1 && bootable && window.armCartOsd) window.armCartOsd(tag);
@@ -1259,6 +1267,15 @@ function postSfx(mem, at, n) {
             msgs.push({ type: "samplePlay", bytes, rate: dv.getUint32(o + 12, true), loop: a });
             sndhResident = null; // the stream ring is written over the SNDH's 68000 RAM
         } else if (op === 7) msgs.push({ type: "sampleStop" });
+        else if (op === 8) { // zg.requestSongBytes: a song image from the cart's own RAM (its disk)
+            const ptr = dv.getUint32(o + 4, true), len = dv.getUint32(o + 8, true);
+            const bytes = new Uint8Array(mem.buffer, ptr, len).slice().buffer;
+            const type = a === 1 ? "loadSndh" : a === 2 ? "loadSap" : null;
+            if (!type) { console.warn(`requestSongBytes: unknown song kind ${a}, dropped`); continue; }
+            ++songGen;           // a song still being fetched by name must not start over this one
+            sndhResident = null; // not a named image: zg.sndhCall cannot reach it
+            msgs.push({ type, bytes, tune: dv.getUint8(o + 2) });
+        }
     }
     const after = songPosted;
     sfxChain = sfxChain.then(() => after).then(() => {

@@ -86,11 +86,13 @@ def v1(entries: list[tuple[bytes, int, int, int]], count: int | None = None, siz
     return bytes(img) if size is None else bytes(img[:size]).ljust(size, b"\0")
 
 
-def v2(entries: list[tuple[bytes, int, int, int]], date: int, bootable: bool = False) -> bytes:
-    """A v2 disk: a wasm boot sector, "ZMDISK" at 0x400, the date at 0x4f0, the FAT at 0x800."""
+def v2(entries: list[tuple[bytes, int, int, int]], date: int, bootable: bool = False, cart_len: int = 1) -> bytes:
+    """A v2 disk: a wasm boot sector, "ZMDISK" at 0x400, the date at 0x4f0, the FAT at 0x800;
+    `cart_len` 0 = the descriptor names no cart (a data disk even with an executable sector)."""
     img = bytearray(0x800 + 32 * max(len(entries), 32))
     img[0:4] = b"\0asm"
     img[0x400:0x406] = b"ZMDISK"
+    struct.pack_into("<I", img, 0x40C, cart_len)
     struct.pack_into("<IH", img, 0x4F0, date, len(entries))
     img[0x800 : 0x800 + 32 * len(entries)] = fat(entries)
     img[0x3FE:0x400] = (((0x1234 if bootable else 0x4321) - _be_sum(img, 512)) & 0xFFFF).to_bytes(2, "big")

@@ -58,8 +58,12 @@ def files(img: bytes) -> list[tuple[str, int, int, int]]:
 
 def bootable(img: bytes) -> bool:
     """docs/zmdisk.js parseDisk's rule: a v1 boot sector (512 B) or a v2 one (1 KB) whose
-    big-endian words sum to $1234. Anything else is a data disk, which boots GEM."""
+    big-endian words sum to $1234. Anything else is a data disk, which boots GEM. So is a v2
+    disk whose descriptor names no cart (length 0 at $40C): its boot sector runs, then GEM
+    follows (sysinfo's "No virus" sector), and the board has no wasm boot sector to run."""
     version, _, _ = _layout(img)
+    if version == 2 and struct.unpack_from("<I", img, 0x40C)[0] == 0:
+        return False
     return _be_sum(img[: BLOCK * version]) == 0x1234
 
 

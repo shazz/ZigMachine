@@ -28,6 +28,9 @@ def test_bootable_is_the_browsers_boot_sector_rule() -> None:
     assert zmd_fat.bootable((ROOT / "docs/demo-gem.zmd").read_bytes())
     assert zmd_fat.bootable(v1(E, sum_=0x1234)) and not zmd_fat.bootable(v1(E))
     assert zmd_fat.bootable(v2(E, 0, bootable=True)) and not zmd_fat.bootable(v2(E, 0))
+    # An executable boot sector over a descriptor that names no cart: it runs, then GEM (sysinfo's)
+    assert not zmd_fat.bootable(v2(E, 0, bootable=True, cart_len=0))
+    assert not zmd_fat.bootable((ROOT / "docs/demo-sysinfo.zmd").read_bytes())
     with pytest.raises(SystemExit, match="not a .zmd"):
         zmd_fat.bootable(b"PK\3\4" + bytes(4096))
 

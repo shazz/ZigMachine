@@ -114,3 +114,24 @@ test "an empty sample, one over the RAM window or a rate out of range is refused
     try std.testing.expectEqual(@as(u32, 4), s.dropped);
     try std.testing.expectEqual(@as(usize, 0), s.take());
 }
+
+test "a song image goes on the wire with its kind in `a` and its subtune in `b`" {
+    var s: q.Queue = .{};
+    const img = "SNDH image bytes";
+    try std.testing.expect(s.song(img, .sap, 2));
+    try std.testing.expectEqual(@as(usize, 1), s.take());
+    const e = s.entries[0];
+    try std.testing.expectEqual(@as(u8, 8), e.op);
+    try std.testing.expectEqual(@as(u8, 2), e.a);
+    try std.testing.expectEqual(@as(u8, 2), e.b);
+    try std.testing.expectEqual(@as(u32, img.len), e.len);
+    try std.testing.expectEqual(@as(u32, @truncate(@intFromPtr(img.ptr))), e.ptr);
+}
+
+test "an empty song image or one over SONG_MAX is refused and counted" {
+    var s: q.Queue = .{};
+    try std.testing.expect(!s.song(&.{}, .sndh, 0));
+    try std.testing.expect(!s.song(@as([*]const u8, &pcm)[0 .. q.SONG_MAX + 1], .sndh, 0));
+    try std.testing.expectEqual(@as(u32, 2), s.dropped);
+    try std.testing.expectEqual(@as(usize, 0), s.take());
+}

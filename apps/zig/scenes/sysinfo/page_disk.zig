@@ -25,14 +25,26 @@ pub fn fill(g: *grid.Grid, c: *const pages.Ctx) void {
 fn drive(g: *grid.Grid, d: *const diskinfo.Info) void {
     var b: [16]u8 = undefined;
     g.fieldf(3, L, "DISK", "ZMDISK V{d}", .{d.version});
-    g.field(4, L, "BOOT SECTOR", if (d.bootable) "BOOTABLE ($1234)" else "DATA DISK");
+    g.field(4, L, "BOOT SECTOR", bootKind(d));
     g.field(5, L, "TITLE", d.titleText());
     g.field(6, L, "AUTHOR", d.authorText());
     g.field(7, L, "DATE", pages.date(&b, d.date));
-    g.fieldf(8, L, "BOOT CART", "BLOCK {d}", .{d.cart_block});
-    g.fieldf(9, L, "CART SIZE", "{d} Bytes", .{d.cart_len});
+    if (d.os_after_boot) {
+        g.field(8, L, "BOOT CART", "NONE, GEM BOOTS");
+        g.field(9, L, "CART SIZE", N_A);
+    } else {
+        g.fieldf(8, L, "BOOT CART", "BLOCK {d}", .{d.cart_block});
+        g.fieldf(9, L, "CART SIZE", "{d} Bytes", .{d.cart_len});
+    }
     if (d.total_blocks == 0) g.field(10, L, "DISK SIZE", N_A) else g.fieldf(10, L, "DISK SIZE", "{d} Kbytes", .{d.total_blocks / 2});
     g.fieldf(11, L, "FILES", "{d}", .{d.files});
+}
+
+/// A data disk with a boot sector (v2, no cart) runs it, then GEM: it is
+/// still a data disk, so the line starts so.
+fn bootKind(d: *const diskinfo.Info) []const u8 {
+    if (d.os_after_boot) return "DATA DISK + $1234";
+    return if (d.bootable) "BOOTABLE ($1234)" else "DATA DISK";
 }
 
 fn files(g: *grid.Grid, c: *const pages.Ctx) void {

@@ -49,6 +49,20 @@ zg.requestSongTune("leavin_teramis.sndh", 9);    // subtune 9 (counts from 1)
 `apps/zig/demo_main.zig` already exports the four functions the host polls.
 Request once, in `init()`: each request replaces the tune playing.
 
+A tune that is not a file under `docs/music/` (one a program read off its own disk through the
+drive, as a GEM program reads its data files) plays from the cart's memory instead:
+
+```zig
+const n = zg.disk.read(entry, buf);                         // the file, a block at a time
+_ = zg.requestSongBytes(buf[0..n], .sndh, 0);               // or .sap; the host copies it this frame
+zg.stopSong();                                              // stops it, as it stops a named one
+```
+
+It rides the effects queue (`libs/zig/sfx_queue.zig`, op 8): a `requestSong` made in the same
+frame is applied first. SysInfo's SOUND page plays the SNDH, the SAP and the PCM on its disk
+this way (`apps/zig/scenes/sysinfo/sound_play.zig`). On the board the sound CPU's bridge has no
+op 8 yet: it is dropped there until it does.
+
 ## C
 
 ```c

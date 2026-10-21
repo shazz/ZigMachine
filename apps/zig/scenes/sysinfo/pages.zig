@@ -14,6 +14,7 @@ const grid = @import("grid.zig");
 const probe = @import("probe.zig");
 const diskinfo = @import("diskinfo.zig");
 const Bench = @import("bench.zig").Bench;
+const sound_list = @import("sound_list.zig");
 
 pub const N_A = "n/a";
 pub const VERSION = "1.0";
@@ -32,6 +33,7 @@ pub const Ctx = struct {
     blit: probe.Blit,
     disk: ?diskinfo.Info,
     files: []const File,
+    snd: *const sound_list.List, // the SOUND page's files: which is selected, which plays
     gem_ok: bool, // the ROM handed out a GEM context
     dialog_ok: bool, // ... and a dialog
     frame_us: u32, // measured frame period (hostMicros), 0 = no clock

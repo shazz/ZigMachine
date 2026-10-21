@@ -7,6 +7,7 @@
 //   Space / Return / a click   open the SysInfo Menu (HWAM: right button or Space)
 //   F1..F5, 1..5               a page;  Left / Right walk the pages
 //   Help                       Program Info;  R  run the speed tests again;  Q  quit
+//   on the SOUND page          Up / Down select a file on the disk, P (or Fire) plays it, S stops
 // --------------------------------------------------------------------------
 const App = @import("../sysinfo.zig").App;
 const pages = @import("pages.zig");
@@ -22,6 +23,10 @@ pub fn key(app: *App, cp: u32) void {
     }
     if (cp == ' ' or cp == 13) return openMenu(app);
     if (cp >= '1' and cp < '1' + pages.COUNT) return show(app, @enumFromInt(cp - '1'));
+    if (app.page == .sound and app.snd.key(cp)) {
+        app.dirty = true;
+        return;
+    }
     const a = menu.key(cp) orelse return;
     if (a != .cancel) act(app, a);
 }
@@ -29,6 +34,10 @@ pub fn key(app: *App, cp: u32) void {
 /// Left / Right walk the pages, as the board's pad can.
 pub fn input(app: *App, dir: u32) void {
     if (app.dialog.active() or app.menu_open) return;
+    if (app.page == .sound and app.snd.input(dir)) {
+        app.dirty = true;
+        return;
+    }
     const p: u8 = @intFromEnum(app.page);
     switch (dir) {
         2 => show(app, @enumFromInt((p + pages.COUNT - 1) % pages.COUNT)),

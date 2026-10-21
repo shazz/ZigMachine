@@ -10,6 +10,7 @@ test {
     _ = @import("scenes/sysinfo/grid.zig");
     _ = @import("scenes/sysinfo/stref.zig");
     _ = @import("scenes/sysinfo/diskinfo.zig");
+    _ = @import("scenes/sysinfo/sound_list.zig");
     _ = @import("scenes/dbug_sync.zig");
     _ = @import("scenes/stniccc/rewind_test.zig");
     _ = @import("scenes/union_demo/charly_test.zig");

@@ -2,10 +2,13 @@
 // its disk boots GEM, GEM's FLOPPY window lists BOOT.WSM, a double-click runs it (request 3)
 // and Q goes back to the desktop (request 4), over and over. GEM is apps/gem_headless.mjs's,
 // which services the swap protocol the way docs/sealed-loader.js does.
-//   disk     docs/demo-sysinfo.zmd is a data disk (boot sector sums to $0000) whose only
-//            program is BOOT.WSM, and BOOT.WSM depacks (romDepack, as the loader does) to
+//   disk     docs/demo-sysinfo.zmd is a data disk whose only program is BOOT.WSM (beside its
+//            three sound files), and BOOT.WSM depacks (romDepack, as the loader does) to
 //            docs/demo-sysinfo.wasm byte for byte: what tools/glass_shelf.py matches the board
 //            image by
+//   sector   it carries the "No virus in ZigMachine" boot sector (docs/boot-novirus.wasm, a v2
+//            sector summing to $1234) over a descriptor naming NO cart: the sector runs, asks
+//            for request 2 when it is done, and the loader then boots GEM (no cart to chain)
 //   launch   double-clicking BOOT.WSM in the floppy window runs SysInfo: page 1 is on the glass
 //   quit     Q brings GEM back: the desktop's own screen, not SysInfo's
 //   reuse    LAUNCHES round trips, more than the ROM's MAX_GUI: SysInfo opens a Gui and a Dialog
@@ -41,11 +44,30 @@ async function depacked(entry) {
     return new Uint8Array(memory.buffer.slice(machine.hwRamBase(), machine.hwRamBase() + n));
 }
 
+/// The boot sector, run as the loader runs a v2 sector: it must ask for request 2 within ~2 s.
+async function checkSector() {
+    const novirus = new Uint8Array(await readFile("docs/boot-novirus.wasm"));
+    const sector = zmd.subarray(0, 1024);
+    expect(disk.v2 && disk.bootable && novirus.every((b, i) => b === sector[i]), "block 0 is the No virus boot sector, executable ($1234)");
+    const { machine, memory } = await bootGem();
+    const env = { memory, hwVideoBase: machine.hwVideoBase, beep: () => {} };
+    const bs = (await WebAssembly.instantiate(sector.slice(), { env })).instance.exports;
+    machine.hwInit();
+    bs.boot();
+    let f = 0;
+    for (; f < 240 && bs.pollCartRequest() === 0; f++) bs.frame(1 / 60);
+    expect(bs.pollCartRequest() === 2 && disk.mounted.chainCart.len === 0,
+        `it asks for request 2 after ${f} frames, and the descriptor names no cart: GEM boots after it`);
+}
+
 async function checkDisk() {
-    expect(disk.bootable === BREAK, `the disk is a data disk: GEM boots for it (${disk.bootable ? "$1234" : "$0000"})`);
+    const data = !disk.bootable || disk.osAfterBoot;
+    expect(data !== BREAK, `the disk is a data disk: GEM boots for it (${disk.osAfterBoot ? "$1234 sector, no cart" : disk.bootable ? "$1234" : "$0000"})`);
+    await checkSector();
     const names = Object.keys(disk.mounted.files);
     const prog = disk.mounted.files["BOOT.WSM"];
-    expect(names.length === 1 && prog && prog.type === 0, `its FAT holds one program, BOOT.WSM (${names.join(" ")})`);
+    const progs = names.filter((n) => disk.mounted.files[n].type === 0);
+    expect(progs.length === 1 && prog && prog.type === 0 && names.length === 4, `its FAT holds one program, BOOT.WSM, and three sound files (${names.join(" ")})`);
     if (!prog) return null;
     const bytes = await depacked(prog);
     expect(bytes.length === cart.length && bytes.every((b, i) => b === cart[i]), "BOOT.WSM is demo-sysinfo.wasm, byte for byte");

@@ -14,6 +14,7 @@ const zg = @import("zigos");
 const hw = @import("hardware");
 const rom = @import("rom_sdk");
 const diskinfo = @import("diskinfo.zig");
+const pages = @import("pages.zig");
 
 pub fn base() usize {
     return @intCast(hw.hwVideoBase());
@@ -107,6 +108,19 @@ pub fn readDisk() ?diskinfo.Info {
         if (zg.readBlock(@intCast(i), blk) < diskinfo.BLOCK) return null;
     }
     return diskinfo.parse(&b[0], &b[1], &b[2]);
+}
+
+/// The mounted disk's FAT, through the drive, into `out`; how many entries.
+pub fn readFiles(out: []pages.File) u8 {
+    const lay = zg.disk.mount() orelse return 0;
+    var n: u8 = 0;
+    var i: u16 = 0;
+    while (i < lay.count and n < out.len) : (i += 1) {
+        const e = zg.disk.entryAt(lay, i) orelse continue;
+        out[n] = .{ .name = e.name, .len = e.e.len, .kind = e.e.kind };
+        n += 1;
+    }
+    return n;
 }
 
 /// romScratchLen() == 0 means an old rom.wasm without the scratch exports.

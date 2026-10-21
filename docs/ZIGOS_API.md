@@ -251,7 +251,11 @@ C and Rust carts use `apps/c/zigmachine_music.h` / `apps/rust/zigmachine_music.r
 export the same four functions the host polls. A request LOADS the tune (the chip is
 silenced, the 68000 RAM cleared); for a game's sound effects `zg.sndhCall(name, d0)` runs
 the playing SNDH's INIT again with `d0` instead, nothing reloaded, every call of a frame
-in order (`zm_sndh_call` / `sndh_call` in C / Rust). The full guide, with formats, rules and the
+in order (`zm_sndh_call` / `sndh_call` in C / Rust). A song the cart holds in its OWN memory (a
+file it read off its disk through the drive, `zg.disk.read`) plays with
+`zg.requestSongBytes(bytes, .sndh | .sap, tune)`: the host copies the image when it drains the
+frame (sfx queue op 8) and loads it as it loads a named one; `zg.stopSong()` stops it (SysInfo's
+SOUND page, `apps/zig/scenes/sysinfo/sound_play.zig`). The full guide, with formats, rules and the
 headless checks, is `docs/MUSIC.md` (also rendered into `docs/ZIGMACHINE_GUIDE.html`).
 
 ## 9. Build & run

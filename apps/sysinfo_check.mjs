@@ -10,15 +10,18 @@
 //            time, six a ratio to the ST, f32 a ratio to the integer multiply-add
 //   menu     Space opens the GEM dialog over the page, a click on F4 shows the disk page, and the
 //            page comes back whole; Q asks the host to go back to the OS (request 4)
-//   node apps/sysinfo_check.mjs [<shots dir>] [--break free]
+//   sound    page 3's sound files are the disk's, each plays off the disk (apps/sysinfo_sound.mjs)
+//   node apps/sysinfo_check.mjs [<shots dir>] [--break free|sound]
 //     free: the FREE line expected 4 KB off what hwRamFree() says, so the check must fail
+//     sound: the drive serves JINKS.SND with one byte changed, so the bytes check must fail
 import { mkdir } from "node:fs/promises";
 import { boot, frames, page, field, glassMismatches, glass, K } from "./sysinfo_machine.mjs";
 import { grab, png } from "./skystrike_zig_frame.mjs";
 import { parseDisk } from "../docs/zmdisk.js";
+import { soundPage } from "./sysinfo_sound.mjs";
 
-const BROKE = process.argv.includes("--break");
-const OUT = process.argv.slice(2).find((a) => !a.startsWith("--") && a !== "free");
+const BROKE = process.argv.includes("--break") ? (process.argv.includes("sound") ? "sound" : "free") : null;
+const OUT = process.argv.slice(2).find((a) => !a.startsWith("--") && a !== "free" && a !== "sound");
 const errors = [];
 const expect = (ok, what) => { console.log(`  ${ok ? "ok  " : "FAIL"} ${what}`); if (!ok) errors.push(what); };
 const hex = (v) => "$" + v.toString(16).toUpperCase().padStart(6, "0");
@@ -45,7 +48,7 @@ async function show(s, n, name, settle = 2) {
 async function memoryPage(s) {
     const rows = await show(s, 1, "system");
     const m = s.machine;
-    const free = m.hwRamFree() + (BROKE ? 4096 : 0);
+    const free = m.hwRamFree() + (BROKE === "free" ? 4096 : 0);
     expect(field(rows, "FREE") === `${String(free).padStart(9)} Bytes`, `FREE is hwRamFree() (${field(rows, "FREE")})`);
     expect(field(rows, "CART WINDOW") === `${hex(m.hwRamBase())}-${hex(m.hwRamTop())}`, "CART WINDOW is hwRamBase()-hwRamTop()");
     expect(field(rows, "WINDOW SIZE") === kb(m.hwRamSize()), "WINDOW SIZE is hwRamSize()");
@@ -78,11 +81,16 @@ async function videoSoundDisk(s) {
     rows = page(s);
     expect(field(rows, "PLAYER") === "4 SNDH (68000)" && rows.some((r) => r.includes("R07: $38")), "the player and the YM mirror follow the host, live");
     rows = await show(s, 4, "disk");
-    const d = new DataView(s.disk.buffer), title = new TextDecoder().decode(s.disk.subarray(0x200, 0x240)).replace(/\0.*$/s, "");
-    const date = String(d.getUint32(0x2e0, true));
+    const pd = parseDisk(s.disk, "demo-sysinfo.zmd");
+    const at = pd.v2 ? 0x400 : 0; // the descriptor: v2's at $400 (title $410, date $4F0), v1's at $0 ($200, $2E0)
+    const d = new DataView(s.disk.buffer), title = new TextDecoder().decode(s.disk.subarray(at + (pd.v2 ? 0x10 : 0x200), at + (pd.v2 ? 0x50 : 0x240))).replace(/\0.*$/s, "");
+    const date = String(d.getUint32(pd.v2 ? 0x4f0 : 0x2e0, true));
     expect(field(rows, "TITLE") === title && field(rows, "DATE") === `${date.slice(0, 4)}-${date.slice(4, 6)}-${date.slice(6)}`, `the disk's title and date are its descriptor's (${title})`);
-    const kind = parseDisk(s.disk, "demo-sysinfo.zmd").bootable ? "BOOTABLE ($1234)" : "DATA DISK"; // a data disk since it became a GEM program
-    expect(field(rows, "CART SIZE") === `${d.getUint32(0x12, true)} Bytes` && field(rows, "BOOT SECTOR") === kind, `boot length and kind are the boot sector's (${kind})`);
+    // A data disk since it became a GEM program; since it carries the "No virus" sector, one whose
+    // $1234 sector runs and then GEM boots: the descriptor names no cart.
+    const kind = pd.osAfterBoot ? "DATA DISK + $1234" : pd.bootable ? "BOOTABLE ($1234)" : "DATA DISK";
+    const size = pd.osAfterBoot ? "n/a" : `${d.getUint32(0x12, true)} Bytes`;
+    expect(field(rows, "CART SIZE") === size && field(rows, "BOOT SECTOR") === kind, `boot length and kind are the boot sector's (${kind}, cart ${size})`);
 }
 
 async function speed(s, clocked) {
@@ -120,11 +128,12 @@ async function menu(s) {
 }
 
 if (OUT) await mkdir(OUT, { recursive: true });
-let s = await boot("none");
+let s = await boot("none", BROKE === "sound" ? "JINKS.SND" : null);
 frames(s, 2);
 await memoryPage(s);
 await idle(s);
 await videoSoundDisk(s);
+await soundPage(s, expect);
 await speed(s, false);
 await menu(s);
 s = await boot("host");
@@ -133,8 +142,8 @@ await speed(s, true);
 
 // exitCode, never process.exit() (see apps/mod_sfx_check.mjs: node 24 deadlocks at exit).
 if (BROKE) {
-    const hit = errors.find((e) => e.startsWith("FREE"));
-    console.log(hit ? `sysinfo_check: PASS (--break free caught: ${hit})` : "sysinfo_check: FAILED -- --break free not caught");
+    const hit = errors.find((e) => e.startsWith(BROKE === "free" ? "FREE" : "JINKS.SND: the bytes"));
+    console.log(hit ? `sysinfo_check: PASS (--break ${BROKE} caught: ${hit})` : `sysinfo_check: FAILED -- --break ${BROKE} not caught`);
     process.exitCode = hit ? 0 : 1;
 } else {
     console.log(errors.length ? `sysinfo_check: FAILED -- ${errors.join("; ")}` : "sysinfo_check: all pass");

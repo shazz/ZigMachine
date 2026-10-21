@@ -29,6 +29,7 @@ const control = @import("sysinfo/control.zig");
 const bench = @import("sysinfo/bench.zig");
 const k = @import("sysinfo/kernels.zig");
 const diskinfo = @import("sysinfo/diskinfo.zig");
+const sound = @import("sysinfo/sound_play.zig");
 
 const PLANE: u32 = 0;
 const SPARE_PLANE: usize = 3; // the blitter probe's 8 pixels: never enabled
@@ -47,6 +48,7 @@ pub const App = struct {
     disk: ?diskinfo.Info,
     files: [pages.MAX_FILES]pages.File,
     nfiles: u8,
+    snd: sound.Player, // the SOUND page's files, read off the disk and played
     blit_probe: probe.Blit,
     menu_open: bool,
     menu_drawn: bool,
@@ -75,7 +77,9 @@ pub const App = struct {
         self.blit = .{};
         self.blit.init();
         self.blit_probe = probe.blitterTest(&self.blit, &os.lfbs[SPARE_PLANE]);
-        self.readDisk();
+        self.disk = probe.readDisk(); // the mounted disk, once: its descriptor and its FAT
+        self.nfiles = probe.readFiles(&self.files);
+        self.snd.init(self.files[0..self.nfiles]);
         self.scratch = zg.mem.mustAlloc(u8, k.SCATTER_BYTES)[0..k.SCATTER_BYTES];
         self.bench.reset();
         self.bench.warmUp(self.target());
@@ -93,19 +97,6 @@ pub const App = struct {
         self.last_frames = 0;
         self.frame_us = 0;
         self.wants_quit = false;
-    }
-
-    /// The mounted disk, once: its descriptor and its FAT, through the drive.
-    fn readDisk(self: *App) void {
-        self.disk = probe.readDisk();
-        self.nfiles = 0;
-        const lay = zg.disk.mount() orelse return;
-        var i: u16 = 0;
-        while (i < lay.count and self.nfiles < pages.MAX_FILES) : (i += 1) {
-            const e = zg.disk.entryAt(lay, i) orelse continue;
-            self.files[self.nfiles] = .{ .name = e.name, .len = e.e.len, .kind = e.e.kind };
-            self.nfiles += 1;
-        }
     }
 
     pub fn ownsKeyboard(self: *App) u32 {
@@ -191,6 +182,7 @@ pub const App = struct {
             .blit = self.blit_probe,
             .disk = self.disk,
             .files = self.files[0..self.nfiles],
+            .snd = &self.snd.files,
             .gem_ok = self.g.h != 0,
             .dialog_ok = self.dialog.h != 0,
             .frame_us = self.frame_us,

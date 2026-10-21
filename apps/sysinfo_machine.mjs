@@ -9,6 +9,7 @@
 // system font the ROM draws with.
 import { readFile } from "node:fs/promises";
 import { cartRam, romRam } from "../docs/wasm_hiwater.js";
+import { parseDisk } from "../docs/zmdisk.js";
 
 const PAGES = 112, BLOCK = 512, COLS = 80, ROWS = 25, CELL = 8, W = 640;
 const TITLE = "SYSINFO FOR ZIGMACHINE, VERSION ";
@@ -16,8 +17,14 @@ const DRAWS = ["guiText", "guiTextAlign", "guiFill", "guiRect", "guiFrame", "gui
 export const K = { F1: 0xe001, HELP: 0xe011, ESC: 0xe012 };
 
 /// Boot SYSINFO. clock: "none" (hostMicros answers 0, as the gate's other carts get) or "host".
-export async function boot(clock = "none") {
+/// corrupt: a FAT file the DRIVE serves with one byte changed (the harness keeps the real image).
+export async function boot(clock = "none", corrupt = null) {
     const disk = new Uint8Array(await readFile("docs/demo-sysinfo.zmd"));
+    const served = disk.slice();
+    if (corrupt) {
+        const f = parseDisk(disk, "demo-sysinfo.zmd").mounted.files[corrupt];
+        served[f.start + f.len - 1] ^= 0xff; // the last byte: past every header the cart checks
+    }
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
     let demo;
     const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), {
@@ -34,7 +41,7 @@ export async function boot(clock = "none") {
     for (const k of Object.keys(machine)) if (k.startsWith("hw")) env[k] = machine[k];
     env.hostMicros = clock === "host" ? () => (Math.floor(performance.now() * 1000) >>> 0) || 1 : () => 0;
     env.diskReadBlock = (block, dst) => {
-        const src = disk.subarray(block * BLOCK, block * BLOCK + BLOCK);
+        const src = served.subarray(block * BLOCK, block * BLOCK + BLOCK);
         new Uint8Array(memory.buffer, dst, src.length).set(src);
         return src.length;
     };

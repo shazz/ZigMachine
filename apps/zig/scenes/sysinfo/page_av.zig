@@ -9,10 +9,15 @@
 // Sound: a cart can read the player the host mirrors in (ZigOS.audio_mode;
 // the board's firmware leaves it at 0), the song clock, the YM registers'
 // mirror and its own queues' drop counts. Which chips are fitted, BARD and
-// the audio module's version are not readable from a cart: n/a.
+// the audio module's version are not readable from a cart: n/a. Under them,
+// the sound files on the disk (sysinfo/sound_list.zig): the selected one in
+// inverse, as a GEM list shows its selection, and the one playing marked.
 // --------------------------------------------------------------------------
+const std = @import("std");
 const zg = @import("zigos");
 const hw = @import("hardware");
+const sound_list = @import("sound_list.zig");
+const sound_play = @import("sound_play.zig");
 const grid = @import("grid.zig");
 const pages = @import("pages.zig");
 const probe = @import("probe.zig");
@@ -72,6 +77,46 @@ pub fn sound(g: *grid.Grid, c: *const pages.Ctx) void {
     g.put(11, L, "THE PLAYER IS WHAT THE HOST MIRRORS IN;", .plain);
     g.put(12, L, "THE BOARD'S FIRMWARE LEAVES IT AT 0.", .plain);
     ymRegs(g, c);
+    soundFiles(g, c.snd);
+}
+
+const FILES_ROW: usize = 14;
+const ROW_W: usize = 64; // a file's line, the inverse bar's width
+
+/// The disk's sound files, the status of the last play, and the keys.
+fn soundFiles(g: *grid.Grid, l: *const sound_list.List) void {
+    pages.heading(g, FILES_ROW, L, "SOUND FILES ON DRIVE A:");
+    if (l.n == 0) g.put(FILES_ROW + 1, L, "NO SOUND FILES ON THE DISK", .plain);
+    for (l.items[0..l.n], 0..) |*e, idx| {
+        const i: u8 = @intCast(idx);
+        var b: [ROW_W]u8 = undefined;
+        @memset(&b, ' ');
+        const mark = if (l.playing == i) "PLAYING" else "";
+        _ = std.fmt.bufPrint(&b, " {s:<14} {d:>6} BYTES  {s:<22} {s}", .{ sound_list.List.nameOf(e), e.len, kindName(e.kind), mark }) catch {};
+        g.put(FILES_ROW + 1 + i, L, &b, if (l.sel == i) .inverse else .plain);
+    }
+    const row = FILES_ROW + 2 + sound_list.MAX;
+    if (l.playing) |i| g.fieldf(row, L, "STATUS", "PLAYING {s}", .{sound_list.List.nameOf(&l.items[i])}) else g.field(row, L, "STATUS", statusName(l.status));
+    g.put(row + 1, L, "UP/DOWN: SELECT   P OR FIRE: PLAY   S: STOP", .plain);
+}
+
+fn kindName(k: sound_list.Kind) []const u8 {
+    return switch (k) {
+        .sndh => "SNDH (68000 + YM)",
+        .sap => "SAP (6502 + POKEY)",
+        .pcm => std.fmt.comptimePrint("PCM {d} HZ", .{sound_play.PCM_HZ}),
+    };
+}
+
+fn statusName(s: sound_list.Status) []const u8 {
+    return switch (s) {
+        .idle, .playing => "READY",
+        .stopped => "STOPPED",
+        .not_found => "NOT READ OFF THE DISK",
+        .too_big => "TOO BIG FOR THE BUFFER",
+        .bad_image => "NOT WHAT ITS NAME SAYS",
+        .refused => "REFUSED BY THE HOST",
+    };
 }
 
 /// What ZigOS.audio_mode means (apps/zig/demo_audio_*.zig set it).

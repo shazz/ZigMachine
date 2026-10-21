@@ -23,6 +23,17 @@ function beSum(b, words) {
     return s;
 }
 
+// The bytes of FAT file `name` (32-byte entries: name[16] start[4] len[4] type[1]), or null.
+function fatFile(buf, dv, fat, n, name) {
+    for (let i = 0; i < n; i++) {
+        const e = fat + i * 32;
+        if (str(buf, e, 16) !== name) continue;
+        const start = dv.getUint32(e + 0x10, true);
+        return buf.slice(start, start + dv.getUint32(e + 0x14, true));
+    }
+    return null;
+}
+
 // Returns {fmt, title, bootable, cart, files} — cart null for a data disk, which
 // boots GEM instead (so GEM is what we instantiate for it).
 function mount(buf) {
@@ -33,6 +44,14 @@ function mount(buf) {
         if (sum !== 0x1234) throw new Error(`v2 boot sector not executable (sum 0x${sum.toString(16)})`);
         const start = dv.getUint32(0x408, true) * 512, len = dv.getUint32(0x40c, true);
         const n = dv.getUint16(0x4f4, true);
+        if (len === 0) {
+            // A DATA disk with an executable boot sector: the sector runs, then GEM
+            // boots and launches the program in the FAT (BOOT.WSM), as on v1.
+            const app = fatFile(buf, dv, 0x800, n, "BOOT.WSM");
+            if (!app) throw new Error("v2 data disk: no BOOT.WSM in the FAT for GEM to launch");
+            return { fmt: "v2", title: str(buf, 0x410, 64), bootable: false, osAfterBoot: true,
+                     boot: buf.slice(0, 1024), cart: null, appCart: app, nFiles: n };
+        }
         return { fmt: "v2", title: str(buf, 0x410, 64), bootable: true,
                  boot: buf.slice(0, 1024), cart: buf.slice(start, start + len), nFiles: n };
     }
@@ -118,6 +137,14 @@ for (const path of disks) {
             if (appRam.over) throw new Error(`the data disk's app overruns the RAM window`);
             await WebAssembly.instantiate(app, { env });
         }
+        // A v2 boot sector is a module of its own, run before the cart (or GEM): it
+        // must link against the host too (memory, hwVideoBase, beep).
+        if (d.boot) {
+            const bs = await WebAssembly.instantiate(d.boot, { env });
+            for (const fn of ["boot", "frame", "isPlaneEnabled", "pollCartRequest"])
+                if (typeof bs.instance.exports[fn] !== "function")
+                    throw new Error(`the boot sector does not export ${fn}()`);
+        }
         const cart = d.cart ? unpack(d.cart, path) : null;
         const wasm = cart ?? gem;
         const what = d.cart ? (cart.length !== d.cart.length ? `cart (packed ${(d.cart.length / 1024) | 0}KB)` : "cart") : "GEM (data disk)";
@@ -127,7 +154,8 @@ for (const path of disks) {
         for (const fn of ["boot", "frame", "hblDispatch"])
             if (typeof inst.instance.exports[fn] !== "function")
                 throw new Error(`${what} does not export ${fn}()`);
-        console.log(`ok    ${path.padEnd(32)} ${d.fmt} ${d.bootable ? "bootable" : "data    "} ` +
+        const kind = d.osAfterBoot ? "boot+data" : d.bootable ? "bootable" : "data    ";
+        console.log(`ok    ${path.padEnd(32)} ${d.fmt} ${kind} ` +
                     `${String(d.nFiles).padStart(2)} file(s)  ${what} ${(ram.free / 1024) | 0}KB free`);
     } catch (e) {
         console.log(`FAIL  ${path.padEnd(32)} ${e.message}`);
