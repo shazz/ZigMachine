@@ -9,7 +9,8 @@
 //   node apps/perf_audit_test.mjs --break f64        byte-loop clear / f64 loop was planted:
 //                                                    passes only if the checks catch it; the same
 //   for redundant | clear | static | lines | tiny | scroll (the waste detectors) and
-//   div | recompute | cache | call | i64fit | branch (the cycle-waste probes)
+//   div | recompute | cache | call | i64fit | branch (the cycle-waste probes), and budget
+//   (frame_cost --budget's FRESCO passes)
 import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { CASES } from "./perf/test_cases.mjs";
@@ -17,13 +18,14 @@ import { cart } from "./perf/fixture.mjs";
 import { lintModule } from "./perf/lint.mjs";
 import { parseArgs } from "./frame_cost.mjs";
 import { auditCart } from "./perf_audit.mjs";
+import { COMP_PASS, FRAME_MC } from "./perf/cost_model.mjs";
 
 const bi = process.argv.indexOf("--break");
 const broke = bi > 0 ? process.argv[bi + 1] : null;
 const BREAKS = { bytefill: "byte_fill", f64: "f64_loop", redundant: "redundant_store", clear: "clear_then_redraw",
     static: "static_plane", lines: "lines_changed", tiny: "tiny_blits", scroll: "scroll_band",
     div: "div_loop", recompute: "recompute", cache: "cache_hostile", call: "call_in_loop", i64fit: "i64_fits_i32",
-    branch: "invariant_branch", misaligned: "misaligned" };
+    branch: "invariant_branch", misaligned: "misaligned", budget: "budget" };
 if (broke && !BREAKS[broke]) throw new Error(`--break ${Object.keys(BREAKS).join(" | ")}`);
 
 const dir = mkdtempSync(`${tmpdir()}/perf_audit_test-`);
@@ -72,6 +74,18 @@ for (const c of CASES) {
         check("deterministic: same counts twice", JSON.stringify(twice.classes) === JSON.stringify(a.classes)
             && twice.mc.avg === a.mc.avg, "the counts moved between two runs");
     }
+}
+// frame_cost --budget: plane 0 enabled costs FRESCO one first layer of 280 narrow passes, no
+// plane costs nothing, and the cart is allowed the rest of the frame. --break budget: plane 0 off.
+{
+    const one = (await audit("budget_plane", cart([], { plane: broke !== "budget" }))).frameBudget;
+    const none = (await audit("budget_none", cart([]))).frameBudget;
+    const want = Math.round((280 * COMP_PASS.narrow[0]) / 1e4) / 100;
+    check("budget: one normal plane, 280 passes, no BG pass", one.planes.length === 1 && one.planes[0].passes === 280
+        && one.planes[0].mode === "normal" && one.bg.passes === 0, JSON.stringify(one.planes));
+    check(`budget: FRESCO ${want} Mc (280 x ${COMP_PASS.narrow[0]})`, Math.abs(one.compMc - want) < 0.011, `${one.compMc} Mc`);
+    check("budget: allowed = frame - FRESCO", Math.abs(one.allowedMc - (FRAME_MC - one.compMc)) < 0.011, `${one.allowedMc} Mc`);
+    check("budget: no plane, no FRESCO", none.planes.length === 0 && none.compMc === 0, JSON.stringify(none));
 }
 rmSync(dir, { recursive: true, force: true });
 

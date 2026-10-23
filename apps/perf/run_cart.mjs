@@ -13,6 +13,7 @@ import { SNOOP_QUEUE } from "./cost_model.mjs";
 const PAGES = 112;          // SHARED_PAGES in machine/sdk/memmap.zig
 // machine/sdk/memmap.zig: palettes, VRAM pool, blitter block
 export const OFF_PAL = 0x100, PAL_BYTES = 4 * 1024, OFF_VRAM = 0x1100;
+export const REG_GLOBAL_HBL_ID = 0x10, REG_FB_HBL_ID = 0x20, REG_FB_MODE = 0x54;
 const BLIT_COMMAND = 0x80, BLIT_W = 0xa8, BLIT_H = 0xaa, BLIT_CYCLES = 0xe0;
 
 function envFor(machine, extra) {
@@ -44,11 +45,12 @@ function blitter(machine, memory, base, hw, mods) {
 // line passes, which wait for them to drain (docs/FPGA_STEPS.md, the sequencer).
 // Palette stores are SNOOPED to the compositor through a 16-entry queue; one handler's
 // stores beyond it are counted apart (cost_model.mjs SNOOP_OVERFLOW).
-function hbl(hw, mods, call) {
+// `by`: calls per plane 0..3, and [4] the global (border/background) handler's.
+function hbl(hw, mods, call, by) {
     const total = (w) => mods.reduce((a, x) => a + (x.mem ? new Uint32Array(x.mem.buffer)[w] : 0), 0);
     const stores = total(STORE_TOTAL), pal = total(PAL_TOTAL);
     call();
-    hw.hbls++; hw.hblStores += total(STORE_TOTAL) - stores;
+    hw.hbls++; hw.hblBy[by]++; hw.hblStores += total(STORE_TOTAL) - stores;
     hw.snoopOverflow += Math.max(0, total(PAL_TOTAL) - pal - SNOOP_QUEUE);
 }
 
@@ -56,13 +58,14 @@ function hbl(hw, mods, call) {
 // Returns { memory, machine, demo, hw, mods: [{tag, plan, mem}], vlo }.
 export async function bootInstrumented(cartBytes, { machineDir = "docs", disk = null, pal = true, names = {} } = {}) {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
-    const hw = { blits: 0, blitUnits: 0, blitCycles: 0, hbls: 0, hblStores: 0, snoopOverflow: 0, diskBlocks: 0, misaligned: 0, cmd: [0, 0, 0, 0, 0], blitLog: [] };
+    const hw = { blits: 0, blitUnits: 0, blitCycles: 0, hbls: 0, hblBy: [0, 0, 0, 0, 0], hblStores: 0, snoopOverflow: 0, diskBlocks: 0, misaligned: 0, cmd: [0, 0, 0, 0, 0], blitLog: [] };
     const mods = [{ tag: "cart" }, { tag: "rom" }];
-    let demo;
+    let demo, globalId = () => 0;
     const machine = (await WebAssembly.instantiate(await readFile(`${machineDir}/machine-video.wasm`), {
-        env: { memory, hblDispatch: (id, p, l, x) => hbl(hw, mods, () => demo.hblDispatch(id, p, l, x)) },
+        env: { memory, hblDispatch: (id, p, l, x) => hbl(hw, mods, () => demo.hblDispatch(id, p, l, x), id === globalId() ? 4 : p) },
     })).instance.exports;
     const base = machine.hwVideoBase(), vlo = base + OFF_VRAM;
+    globalId = () => new DataView(memory.buffer).getUint16(base + REG_GLOBAL_HBL_ID, true); // the global handler dispatches as plane 0
     const hwBlit = blitter(machine, memory, base, hw, mods);
     const palWin = pal ? [base + OFF_PAL, base + OFF_PAL + PAL_BYTES] : null;
 

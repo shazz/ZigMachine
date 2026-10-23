@@ -8,6 +8,7 @@
 //   node apps/frame_cost.mjs <cart.wasm> [--frames 60] [--warmup 120] [--top 10]
 //        [--call F:export:args]... [--disk X.zmd | --no-disk] [--json] [--no-pal] [--names DIR]
 //        [--machine DIR]  (machine-video.wasm + rom.wasm; default $MACHINE_DIR or docs)
+//        [--budget]       the frame budget instead: cart Mc of what FRESCO's line passes leave, per plane
 //   node apps/frame_cost.mjs --all [--jobs 4] [--json] [--top-n 20] [--out F.json]
 //        every docs/demo-<tag>.wasm with a disk, ranked by est. Mc/frame (other options forwarded)
 //
@@ -19,6 +20,7 @@ import { pathToFileURL, fileURLToPath } from "node:url";
 import { measure } from "./perf/measure.mjs";
 import { twinNames, DEFAULT_NAMES_DIR } from "./perf/names.mjs";
 import { printOne } from "./perf/print.mjs";
+import { printBudget } from "./perf/budget.mjs";
 import { runAll } from "./perf/run_all.mjs";
 
 // option -> [takes a value, set(o, value), forwarded to each cart's child under --all]
@@ -33,6 +35,7 @@ const OPTIONS = {
     "--machine": [true, (o, v) => { o.machineDir = v; }, true],
     "--no-pal": [false, (o) => { o.pal = false; }, true],
     "--json": [false, (o) => { o.json = true; }, false],
+    "--budget": [false, (o) => { o.budget = true; }, false],
     "--all": [false, (o) => { o.all = true; }, false],
     "--jobs": [true, (o, v) => { o.jobs = Number(v); }, false],
     "--top-n": [true, (o, v) => { o.topN = Number(v); }, false],
@@ -88,6 +91,7 @@ async function main() {
     if (o.pos.length !== 1) throw new Error("usage: node apps/frame_cost.mjs <cart.wasm> [options] | --all");
     const r = await costOf(o.pos[0], o);
     if (o.json) console.log(JSON.stringify(r));
+    else if (o.budget) printBudget(r);
     else printOne(r);
 }
 

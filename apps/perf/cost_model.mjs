@@ -56,6 +56,17 @@ export const FRESCO_PLANE = 0.594e6;
 // Per frame whatever the cart does (frame loop, vseq clear): fitted 0.11 Mc; the bench's empty frame
 // (fr.static.p0) measures 0.10.
 export const FRAME_BASE = 0.11e6;
+// FRESCO by LINE PASS (apps/perf/budget.mjs, frame_cost --budget): sys cycles the CPU waits for
+// the compositor, a pass of an enabled plane's layer and a BG pass of a global handler's clear,
+// fitted to the board probe's comp_busy (fpga/review/reports/frame_budget_2026-10-23.md).
+// A plane pass costs by the plane's WIDTH (a normal 320-pixel row, or a 400-pixel overscan /
+// fullscreen / medium row) and by whether its layer is the FIRST (it paints over the clear) or a
+// later one (it mixes into what is there).
+export const COMP_BASE = 0;
+// Fitted 2026-10-23 (71 carts): comp_busy to a 1 % median error, p90 26 %. A first layer paints
+// over the clear, a later one mixes into it; a wide row is 400 pixels.
+export const COMP_PASS = { narrow: [1327, 1578], wide: [1911, 2583] }; // [first layer, later layers]
+export const COMP_BG_PASS = 868;
 export const HBL_CALL = 0;     // per hblDispatch beyond the handler's own instructions (board fit: ~0)
 export const DISK_BLOCK = 0;  // cycles per 512-byte disk block read (the board's firmware copies it out of DDR)
 // Palette stores past the compositor's 16-entry snoop queue within one HBL handler

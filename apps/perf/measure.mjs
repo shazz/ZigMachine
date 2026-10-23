@@ -8,6 +8,7 @@ import { hotRegions, hintRegions, misSites, classTotals, causeTotals, libmCalls,
 import { Waste } from "./waste.mjs";
 import { wasteReport } from "./waste_report.mjs";
 import { fitDump } from "./fit_dump.mjs";
+import { Budget } from "./budget.mjs";
 
 const pct = (xs, q) => { const s = [...xs].sort((a, b) => a - b); return s[Math.min(s.length - 1, Math.floor(q * s.length))]; };
 const Mc = (c) => Math.round(c / 1e4) / 100;
@@ -35,17 +36,18 @@ export async function measure(cartPath, opts) {
     const profiles = run.mods.map((m) => new Profile(m.tag, m.plan, m.mem));
     const keys = ["cart", "rom", "icache", "blit", "hbl", "fresco", "disk"];
     const w = { series: [], split: Object.fromEntries(keys.map((k) => [k, 0])), code: 0, hw: null, planes: 0 };
-    const waste = new Waste(run);
+    const waste = new Waste(run), budget = new Budget(run);
     for (let f = 1; f <= opts.warmup + opts.frames; f++) {
         for (const [name, args] of opts.calls.get(f) ?? []) {
             if (typeof run.demo[name] !== "function") throw new Error(`cart has no export ${name}`);
             run.demo[name](...args);
         }
-        const acc = f > opts.warmup, hw0 = { ...run.hw, cmd: [...run.hw.cmd] };
+        const acc = f > opts.warmup, hw0 = { ...run.hw, cmd: [...run.hw.cmd], hblBy: [...run.hw.hblBy] };
         if (acc && !w.hw) w.hw = hw0;
         waste.before(profiles);
         const { parts, code, planes } = stepFrame(run, profiles, acc, hw0);
         waste.after(profiles, acc);
+        budget.frame(acc);
         if (!acc) continue;
         w.planes += planes;
         keys.forEach((k, i) => { w.split[k] += parts[i]; });
@@ -55,6 +57,9 @@ export async function measure(cartPath, opts) {
     const r = summarize(cartPath, opts, run, profiles, w);
     r.waste = wasteReport(waste.w, profiles, w.planes / w.series.length, r.snoopOverflow);
     r.fit = fitDump(profiles, w, run);
+    const F = w.series.length, s = w.split;
+    r.frameBudget = budget.summary((s.cart + s.rom + s.icache + s.blit + s.hbl) / F, w.hw.hblBy, run.hw.hblBy);
+    Object.assign(r.fit, { passes: r.frameBudget.planes.reduce((a, x) => a + x.passes, 0), bgPasses: r.frameBudget.bg.passes });
     return { ...r, profiles };
 }
 

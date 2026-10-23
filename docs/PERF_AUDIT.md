@@ -144,6 +144,17 @@ Known misses: polkadots_f32 still estimates 28 % low (music, also f32-heavy, 6 %
 f32 latency is not refitted on it); mandelbrot/raytrace finish their picture in the node window
 but not on the board at 12 s; stniccc streams its disk (DISK_BLOCK is 0).
 
+## The frame budget (`--budget`, 2026-10-23)
+
+`node apps/frame_cost.mjs <cart.wasm> --budget`: the cart's Mc of what FRESCO leaves of a frame, with N planes,
+~fps, and each plane's line passes and Mc (the costliest marked). FRESCO is counted the way the board's
+sequencer issues it (fpga/cycles/vseq.c): 280 passes per enabled plane, plus 280 BG passes when a global handler
+prevents the one-command clear, each costed by row width (320 / 400) and first vs later layer (`COMP_PASS`,
+`COMP_BG_PASS`, fitted to the board's comp_busy to a 1 % median). The frame is cart + FRESCO, serial: with the
+board's measured parts that sum is right about 60 fps for 70 of 71 carts. The dirty-line planner's skips are not
+modelled (passes are every line new). Refit: `node apps/perf/budget_fit.mjs calib.json fps.csv`. Report:
+fpga/review/reports/frame_budget_2026-10-23.md.
+
 ## History: the 2026-10-18 fit
 
 Before posted stores, the model was fitted to 92 carts' board frame times: CPI 1.0,
