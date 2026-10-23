@@ -15,7 +15,7 @@ import { cartRam, romRam } from "../docs/wasm_hiwater.js";
 import { makeDrive } from "./scene_hash_disk.mjs";
 
 const PAGES = 112; // SHARED_PAGES in machine/sdk/memmap.zig
-const TUBE = [0x12, 0x10, 0x10]; // #121010, zm_video_mix.v TUBE
+const TUBE = [0, 0, 0]; // black, zm_video_mix.v TUBE (since 2026-10-20)
 
 async function boot(cartPath, machineDir, diskPath) {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
