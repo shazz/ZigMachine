@@ -19,15 +19,26 @@ const zg = @import("zigos");
 
 const DIR = "../../assets/screens/larcociel5/";
 
-pub const bg = @embedFile(DIR ++ "bg.idx");
-pub const ribbon = @embedFile(DIR ++ "ribbon.bin");
-pub const bats = @embedFile(DIR ++ "bats.bin");
-pub const palette_words = @embedFile(DIR ++ "palette.bin");
-pub const raster_words = @embedFile(DIR ++ "raster.bin");
-pub const font_colors = @embedFile(DIR ++ "font-colors.bin");
-pub const message = @embedFile(DIR ++ "message.txt");
-pub const initial_motion = @embedFile(DIR ++ "initial-motion.bin");
-pub const initial_history = @embedFile(DIR ++ "initial-history.bin");
+
+/// An asset 4-byte aligned in the data segment. The big-endian word reads
+/// compile to wide loads, and a wide load off an odd address TRAPS on the
+/// board (~700 cycles each: 3,300 a frame from the colour bank's font reads).
+fn embed4(comptime name: []const u8) *const [@embedFile(DIR ++ name).len]u8 {
+    const S = struct {
+        const data: [@embedFile(DIR ++ name).len]u8 align(4) = @embedFile(DIR ++ name).*;
+    };
+    return &S.data;
+}
+
+pub const bg = embed4("bg.idx");
+pub const ribbon = embed4("ribbon.bin");
+pub const bats = embed4("bats.bin");
+pub const palette_words = embed4("palette.bin");
+pub const raster_words = embed4("raster.bin");
+pub const font_colors = embed4("font-colors.bin");
+pub const message = embed4("message.txt");
+pub const initial_motion = embed4("initial-motion.bin");
+pub const initial_history = embed4("initial-history.bin");
 
 /// An ST colour word exactly as the Go's rgb() renders it: 3 bits a channel,
 /// each *34. Packed in Color.toRGBA's order (a<<24 | b<<16 | g<<8 | r).

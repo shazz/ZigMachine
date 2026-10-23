@@ -10,6 +10,9 @@
 //   * body        -- an authored 112x50 ribbon of ST indices 1..3, redrawn every
 //                    tick along the clock's 50-row trail (its X history), and
 //                    OR'd into the background's low two plane bits.
+//                    larcociel5/compose.zig builds the picture once a tick
+//                    with CHISEL: only the ribbon rows and lit bat words are
+//                    computed, over a background plane copied in one blit.
 //   * bats        -- three 64x32 1-bit "Batman" logos at the top, one per
 //                    screen third, each picked by a YM2149 volume register
 //                    (8/10/9) of the music the cart itself is playing.
@@ -47,6 +50,8 @@ const Color = zg.Color;
 const assets = @import("larcociel5/assets.zig");
 const clockmod = @import("larcociel5/clock.zig");
 const colorbank = @import("larcociel5/colorbank.zig");
+const compose = @import("larcociel5/compose.zig");
+const gpu = @import("chonchon/gpu.zig");
 
 const PLANE = 0;
 const W: usize = zg.WIDTH; // 320
@@ -71,9 +76,10 @@ pub var ym_regs: [14]u8 = [_]u8{0} ** 14;
 pub var meters: [3]u8 = .{ 1, 1, 1 };
 pub var shown_bats: bool = false;
 
-// Ribbon overlay indices (0 = transparent). 64 KB, so it lives in the machine's
-// RAM arena rather than the cart's data section (the zero-segment gate).
-var body: []u8 = &[_]u8{};
+var g_gpu: gpu.Chisel = undefined;
+/// What the HBL last wrote to entries 0..15: a register is written only when
+/// its colour changes (the bank's rows repeat a colour over many lines).
+var cur: [16]u32 = undefined;
 var static_pal: [16]u32 = undefined; // the 16 ST words, Color.toRGBA order
 var rast: [64]u32 = undefined; // Raster[y] for entries' lines 0..63
 
@@ -86,79 +92,39 @@ fn planeHbl(fb: *zg.LogicalFB, zigos: *ZigOS, line: u16, x: u16) void {
     _ = x;
     const y: usize = line;
     // The shader reads Palette[i] on every line ABOVE the colour bank, but the
-    // bank's 100 lines rewrite entries 1..15. Restore them at line 0, or the
-    // next render/frame would show the previous bank row behind the ribbon and
-    // bats (entries 1..15 are stale). Entry 4 is then re-armed by the raster.
+    // bank's 100 lines rewrite entries 1..15. Restore them at line 0 (every
+    // one, unconditionally: line 0 re-syncs `cur` with the registers each
+    // frame). Entry 4 is then re-armed by the raster.
     if (y == 0) {
         var i: usize = 1;
-        while (i < 16) : (i += 1) fb.palette[i] = static_pal[i];
+        while (i < 16) : (i += 1) {
+            fb.palette[i] = static_pal[i];
+            cur[i] = static_pal[i];
+        }
     }
     if (y < 64) {
-        fb.palette[4] = rast[y]; // i==4 && y<64 -> Raster[y]
+        set(fb, 4, rast[y]); // i==4 && y<64 -> Raster[y]
     } else if (y == 64) {
-        fb.palette[4] = static_pal[4]; // back to the static word below the raster
+        set(fb, 4, static_pal[4]); // back to the static word below the raster
     } else if (y >= 100) {
         const row = (y - 100) * 16;
         var i: usize = 1;
-        while (i < 16) : (i += 1) fb.palette[i] = bank.colors[row + i];
+        while (i < 16) : (i += 1) set(fb, i, bank.colors[row + i]);
     }
 }
 
-// --------------------------------------------------------------------------
-// The ribbon body: 50 one-row sprites, row r at (History[r], Y + r).
-// --------------------------------------------------------------------------
-fn buildBody() void {
-    const hist = clock.history;
-    const y0: i32 = clock.y;
-    var r: usize = 0;
-    while (r < 50) : (r += 1) {
-        const yy = y0 + @as(i32, @intCast(r));
-        if (yy < 0 or yy >= H) continue;
-        const row = r * 112;
-        var x: usize = 0;
-        while (x < 112) : (x += 1) {
-            const v = assets.ribbon[row + x];
-            if (v == 0) continue;
-            const dx: i32 = @as(i32, @intCast(x)) + @as(i32, hist[r]);
-            if (dx < 0 or dx >= W) continue;
-            body[@as(usize, @intCast(yy)) * W + @as(usize, @intCast(dx))] = v & 3;
-        }
-    }
-}
-
-// --------------------------------------------------------------------------
-// present: the shader's index math (background, ribbon, bats), one plane byte
-// per pixel. Colour is the HBL's job.
-// --------------------------------------------------------------------------
-fn present(fb: *zg.LogicalFB, with_bats: bool) void {
-    const px = fb.fb[0 .. W * H];
-    const bg = assets.bg;
-    var y: usize = 0;
-    while (y < H) : (y += 1) {
-        const base = y * W;
-        const bat_row = y < 32;
-        var x: usize = 0;
-        while (x < W) : (x += 1) {
-            var i: u8 = bg[base + x];
-            const b = body[base + x];
-            if (b != 0) i = (i & ~@as(u8, 3)) | b;
-            if (bat_row) {
-                var hit = false;
-                if (with_bats) {
-                    const rx = x & 127;
-                    if (rx < 64) hit = assets.batBit(15 - meters[x >> 7], rx, y) != 0;
-                }
-                i = (i & 3) | (if (hit) @as(u8, 4) else 0);
-            }
-            px[base + x] = i;
-        }
-    }
+inline fn set(fb: *zg.LogicalFB, i: usize, v: u32) void {
+    if (cur[i] == v) return;
+    fb.palette[i] = v;
+    cur[i] = v;
 }
 
 // --------------------------------------------------------------------------
 pub const Demo = struct {
     acc: f32,
     ok: bool,
+    /// A tick moved the picture since the last render (render composes then).
+    fresh: bool,
     /// Space/Escape hand the screen back to the menu (the Go terminates on them).
     wants_quit: bool,
 
@@ -166,8 +132,8 @@ pub const Demo = struct {
         self.acc = 0;
         self.ok = false;
         self.wants_quit = false;
+        self.fresh = false;
 
-        body = zg.mem.alloc(u8, W * H) orelse return; // counted by the machine
         for (0..16) |i| static_pal[i] = assets.rgbw(assets.beWord(assets.palette_words, i * 2));
         for (0..64) |i| {
             const w: u16 = if (i < assets.raster_words.len / 2) assets.beWord(assets.raster_words, i * 2) else 0x700;
@@ -176,24 +142,27 @@ pub const Demo = struct {
         clock = clockmod.Clock.init(assets.initial_motion, assets.initial_history);
         ym_regs = [_]u8{0} ** 14;
         bank.clear(); // frame 0: the Go's Update never ran, the colour bank is empty
-        @memset(body, 0);
         meters = .{ 1, 1, 1 };
         shown_bats = false;
 
         const fb = &zigos.lfbs[PLANE];
+        zigos.lfbs[gpu.BG].is_enabled = false; // surfaces: drawn, never composited
+        zigos.lfbs[gpu.WORK].is_enabled = false;
+        g_gpu.init(.{ fb, &zigos.lfbs[gpu.BG], &zigos.lfbs[gpu.WORK] });
+        compose.initSurfaces(gpu.Chisel, &g_gpu);
         fb.is_enabled = true;
         for (0..16) |i| fb.palette[i] = static_pal[i];
+        cur = static_pal;
         for (16..256) |i| fb.palette[i] = 0; // unused: transparent, never shown
         zigos.setBackgroundColor(Color.fromRGBA(static_pal[0]));
         fb.setFrameBufferHBLHandler(0, planeHbl);
 
-        present(fb, false);
+        g_gpu.copy(gpu.SHOWN, gpu.BG); // boot frame: no ribbon, no bat lit yet
         zg.requestSongTune(MUSIC, MUSIC_TUNE);
         self.ok = true;
     }
 
     fn tick50(self: *Demo, zigos: *const ZigOS) void {
-        _ = self;
         clock.step();
         ym_regs = zigos.ym_regs[0..14].*;
         bank.build(clock.tick);
@@ -202,9 +171,8 @@ pub const Demo = struct {
             @max(1, ym_regs[10] & 15),
             @max(1, ym_regs[9] & 15),
         };
-        @memset(body, 0);
-        buildBody();
         shown_bats = true;
+        self.fresh = true;
     }
 
     pub fn update(self: *Demo, zigos: *ZigOS, dt_ms: f32) void {
@@ -222,7 +190,10 @@ pub const Demo = struct {
 
     pub fn render(self: *Demo, zigos: *ZigOS, _: f32) void {
         if (!self.ok) return;
-        present(&zigos.lfbs[PLANE], shown_bats);
+        _ = zigos;
+        if (!self.fresh) return; // only a tick changes the picture
+        compose.render(gpu.Chisel, &g_gpu, &clock, meters);
+        self.fresh = false;
     }
 
     pub fn key(self: *Demo, cp: u32) void {
