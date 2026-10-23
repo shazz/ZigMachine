@@ -173,6 +173,19 @@ comptime {
     if (@hasDecl(Cart, "pointer")) @export(&pointer, .{ .name = "pointer" });
 }
 
+// Does the cart DRAW its own mouse pointer (the tracker's mice)? Then neither host
+// draws one over it: the browser hides its cursor over the screen, the board firmware
+// skips GEM's arrow (host/input_bridge.c input_arrow). A cart declares
+// `pub const drawsOwnPointer = true;` and only then is this exported: every other
+// cart's wasm is unchanged, and an old cart has no export, so it keeps the arrow.
+fn drawsOwnPointer() callconv(.c) u32 {
+    return 1;
+}
+comptime {
+    if (@hasDecl(Cart, "drawsOwnPointer") and Cart.drawsOwnPointer)
+        @export(&drawsOwnPointer, .{ .name = "drawsOwnPointer" });
+}
+
 // f32 @sin/@cos call sinf/cosf/sincosf. compiler-rt's (weak) versions compute
 // in f64, which is soft-float on the board's single-precision FPU; these strong
 // pure-f32 ones (libs/zig/libm_f32.zig) win the link. A cart whose harness

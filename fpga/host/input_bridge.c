@@ -43,6 +43,18 @@ int input_pointer(w2c_cart* cart, uint32_t ptr, uint32_t* seen) {
     return glass_pointer(ptr, seen, host_input.pointer ? pointer : NULL, cart);
 }
 
+int input_arrow(void) {
+    static const host_export* seen; /* the export table looked at last: a lean cart's own, per cart */
+    static int own;
+    if (!host_input.pointer) return 0;
+    if (seen != host_exports) {
+        seen = host_exports;
+        own = 0;
+        for (const host_export* x = seen; x->name; x++) own |= !strcmp(x->name, "drawsOwnPointer");
+    }
+    return !own;
+}
+
 int input_pointer_script(const char** at, long f, uint32_t* ptr) {
     while (**at) {
         char* end;

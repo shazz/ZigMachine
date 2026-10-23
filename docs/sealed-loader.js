@@ -622,6 +622,7 @@ function start() {
         // The VHS name card: fires once the booting cart is really running (past
         // the boot ROM / the channel snow). A no-op when nothing is armed.
         if (window.pollCartOsd) window.pollCartOsd();
+        if (window.syncCartCursor) window.syncCartCursor(); // a cart that draws its own pointer hides ours
 
         // Cartridge swap: the menu boots a scene's floppy; a scene returns to the
         // menu. Async (fetch the disk) — the loop keeps running the current cart.
@@ -889,6 +890,16 @@ document.addEventListener('visibilitychange', () => { if (document.hidden) relea
     surface.style.userSelect = "none";      // no text selection while dragging windows
     surface.draggable = false;              // stop the browser "grab the image" drag-ghost
     surface.addEventListener('dragstart', function (e) { e.preventDefault(); });
+    // A cart that draws its own pointer (its drawsOwnPointer export, apps/zig/demo_main.zig)
+    // gets no host cursor over the screen, as the board firmware skips its arrow for it.
+    // Checked every frame (a property read): any swap path may change the cart.
+    let hidden = false;
+    window.syncCartCursor = function () {
+        const hide = !!(demo && demo.drawsOwnPointer && demo.drawsOwnPointer() !== 0);
+        if (hide === hidden) return;
+        hidden = hide;
+        surface.style.cursor = hide ? "none" : "";
+    };
     let buttons = 0;
     // Send PHYSICAL-VISIBLE coordinates (0..RASTER_VIS_WIDTH / 0..RASTER_VIS_HEIGHT):
     // for a medium screen those ARE the logical coords; a low-res scene halves x.

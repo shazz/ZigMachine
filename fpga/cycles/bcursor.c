@@ -5,7 +5,7 @@
 #include "bcursor.h"
 
 #include "glass_map.h" /* PTR_*: the pointer word */
-#include "host.h"      /* host_input: does this cart take the mouse */
+#include "input_bridge.h" /* input_arrow: the cart takes the mouse and draws no pointer */
 #include "vboard.h"    /* zmv_status, ZMV_BIT */
 #include "vplan.h"
 #include "vseq.h"
@@ -36,7 +36,7 @@ static void row(volatile uint32_t* line, uint32_t x0, uint32_t w, uint16_t mask,
 }
 
 void bcursor_draw(void) {
-    if (!host_input.pointer) return;
+    if (!input_arrow()) return;
     vseq_idle(); /* every row of the picture is in memory before the arrow goes over it */
     /* FRONT is the picture on screen; the one being completed is the other (mb_presenting). */
     uint32_t back = (zmv_status() & ZMV_BIT(FRONT)) ? ZM_FB0_ADDR : ZM_FB1_ADDR;

@@ -223,6 +223,9 @@ pub const Demo = struct {
         zg.requestSongTune(MUSIC, MUSIC_TUNE); // onResetEvent: me.audio.playTrack("zik_feedMe3")
     }
 
+    /// The screen's mice ARE its pointer: no host arrow over them (apps/zig/demo_main.zig).
+    pub const drawsOwnPointer = true;
+
     // The mousemove listener (screen.js:52-57): canvas coordinates, so the
     // position never leaves the picture.
     pub fn pointer(self: *Demo, x: i32, y: i32, buttons: u32) void {

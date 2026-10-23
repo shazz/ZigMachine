@@ -184,6 +184,14 @@ poll, so the PL keeps it:
   never be acked before the cart has seen it. An ack that drops a latched button
   the ARM no longer holds adds one to `SEQ`, so the release is delivered on the
   next poll. This is the browser's one-frame deferred release.
+- **The arrow.** The board has no host cursor, so the firmware lays GEM's TOS
+  arrow over the finished picture of a cart that takes the mouse
+  (`cycles/bcursor.c`). A cart that draws its own pointer (the tracker's mice)
+  declares `pub const drawsOwnPointer = true;`; only then does it export
+  `drawsOwnPointer`, and `host/input_bridge.c input_arrow` skips the arrow for
+  it, as the browser hides its cursor over the screen for it. No table entry:
+  the firmware finds the export in the cart's `--call` table, so an older cart
+  (no export) keeps the arrow.
 
 **On the ARM** (`mouse.zig`): `REL_X`/`REL_Y` are summed, scaled by
 `--mouse-scale=PCT` (100 = one pixel a count, kept to 1/256 pixel), into an
