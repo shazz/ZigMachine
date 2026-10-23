@@ -46,9 +46,11 @@ const renderer = @import("render.zig");
 pub const PLANE = 0;
 pub const MUSIC = "mentalhangover.mod";
 
-/// One 50 Hz frame, in host milliseconds.
-const TICK_MS: f32 = 20.0;
+/// One 50 Hz frame, in host MICROseconds: the accumulator is an integer (the
+/// host's f32 dt is converted once a frame, never accumulated in float).
+const TICK_US: u32 = 20_000;
 const MAX_TICKS: u32 = 2;
+const MAX_DT_US: u32 = 200_000;
 
 const K_ESC: u32 = 0xE012;
 
@@ -56,13 +58,16 @@ const K_ESC: u32 = 0xE012;
 pub var clock: clockmod.Clock = undefined;
 pub var ok: bool = false;
 pub var wants_quit: bool = false;
+/// The black end screen is on the plane: nothing more to draw.
+var settled: bool = false;
 
 pub const Demo = struct {
-    acc: f32,
+    acc_us: u32,
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
-        self.acc = 0;
+        self.acc_us = 0;
         ok = false;
+        settled = false;
         wants_quit = false;
         clock = clockmod.Clock.init();
         renderer.raster_level = 0;
@@ -78,6 +83,7 @@ pub const Demo = struct {
         fb.setPaletteEntry(renderer.IDX_SHADOW, Color.fromRGBA(A.SHADOW_RGBA));
         fb.setPaletteEntry(renderer.IDX_MOUNTAIN, Color.fromRGBA(A.MOUNTAIN_RGBA));
         fb.clearFrameBuffer(0);
+        renderer.reset(); // the plane is all black now: compose every row next frame
 
         zg.requestSong(MUSIC);
         ok = true;
@@ -89,12 +95,14 @@ pub const Demo = struct {
 
     pub fn update(self: *Demo, _: *ZigOS, dt_ms: f32) void {
         if (!ok) return;
+        // dt > 0 is false for NaN; the cap stops a stalled tab replaying minutes.
         if (dt_ms > 0) {
-            self.acc = @min(self.acc + @min(dt_ms, 200.0), TICK_MS * @as(f32, @floatFromInt(MAX_TICKS)));
+            const dt_us: u32 = if (dt_ms >= 200.0) MAX_DT_US else @intFromFloat(dt_ms * 1000.0 + 0.5);
+            self.acc_us = @min(self.acc_us + dt_us, TICK_US * MAX_TICKS);
         }
         var n: u32 = 0;
-        while (self.acc >= TICK_MS and n < MAX_TICKS) {
-            self.acc -= TICK_MS;
+        while (self.acc_us >= TICK_US and n < MAX_TICKS) {
+            self.acc_us -= TICK_US;
             n += 1;
             tick50();
         }
@@ -108,13 +116,12 @@ pub const Demo = struct {
             // The Go's Draw returns before any layer once done: black, no
             // raster, no mountain.  level 0 makes every copper word black.
             renderer.raster_level = 0;
-            @memset(fb.fb[0 .. renderer.PHYS_W * renderer.PHYS_H], 0);
+            if (!settled) renderer.drawFrame(fb, &clock, false, false);
+            settled = true;
             return;
         }
         renderer.raster_level = clock.level;
-        @memset(fb.fb[0 .. renderer.PHYS_W * renderer.PHYS_H], 0);
-        if (clock.active) renderer.drawText(fb, &clock);
-        renderer.drawMountain(fb);
+        renderer.drawFrame(fb, &clock, clock.active, true);
     }
 
     pub fn key(self: *Demo, cp: u32) void {
