@@ -543,6 +543,7 @@ pub fn build(b: *std.Build) void {
         "demo-hmdfac", // 105 — HMD "HMDFAC" (Team Factory tribute): a Falcon 030 intro's flat boot-palette roll, color0 flash, exact-68k-integer perspective frustum and wave scroller (ported from the depacked original)
         "demo-replicants_arkanoid2", // 106 — The Replicants / Arkanoid II crack intro (CODEF screen 33): name sprites on mycurve, waving bg2-coloured scrolltext
         "demo-anima", // 107 — ANIMA: a new ZigMachine one-screen demo (copper drum through every open border, breathing logo, glenz objects, sine scroller; Tao's Breath 2000)
+        "demo-leonard_spirit", // 108 — LEONARD'S SPIRIT: the leonard cart's 312-sprite record redone Leonard's way (generated-code MOVE balls, compile-time tables, one CHISEL clear, one plane), as many balls as one frame holds
     };
     for (cart_names, 0..) |name, idx| {
         if (name.len == 0) continue; // excluded cart (see note above)

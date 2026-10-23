@@ -118,6 +118,7 @@ const scene = switch (opts.index) {
     105 => @import("scenes/hmdfac.zig"), // HMD "HMDFAC" (Team Factory tribute): the Falcon 030 intro's color0 flash, the 68k-integer frustum and the wave scroller (ported from the depacked original)
     106 => @import("scenes/replicants_arkanoid2.zig"), // The Replicants / Arkanoid II crack intro (CODEF screen 33)
     107 => @import("scenes/anima.zig"), // ANIMA: a new ZigMachine one-screen demo (2026-10-23): copper drum through every open border, breathing logo, glenz, sine scroller
+    108 => @import("scenes/leonard_spirit.zig"), // LEONARD'S SPIRIT: the 312-sprite record redone Leonard's way, as many generated-code balls as one frame holds
     else => @compileError("bad cart index"),
 };
 

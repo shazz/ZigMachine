@@ -210,6 +210,7 @@ NATIVE_TESTS="
     apps/zig/scenes/blitter_demo/wobble.zig
     apps/zig/scenes/blitter_demo/soft.zig
     apps/zig/scenes/music_debug/fsin.zig
+    apps/zig/scenes/leonard_spirit/ball_test.zig
 "
 # Compiled and run GATE_TEST_JOBS (default 4) at a time -- the zig cache is
 # safe to share, and a zig test is CPU, not RAM, bound -- then
@@ -431,6 +432,10 @@ gate anima node apps/anima_headless.mjs --no-cost --break raster "$SHOTS/anima_b
 gate anima node apps/anima_headless.mjs --no-cost --break music "$SHOTS/anima_break"   # ...and a wrong tune in the sequence is caught
 gate anima node apps/anima_headless.mjs --no-cost --break noise "$SHOTS/anima_break"   # ...and a gag without noise is caught
 gate anima node apps/anima_headless.mjs --break cost "$SHOTS/anima_break"   # ...and a part over the cost ceiling is caught
+gate leonard_spirit node apps/leonard_spirit_headless.mjs   # LEONARD'S SPIRIT (cart 108): 8 x 312 = 2,496 generated-code balls a frame on ONE plane; every frame of a whole scrolltext lap (3,148 frames, > 8 path periods) plane 0 = the model byte for byte (back.raw, the eight snakes in painter's order, the 6x6 ink at y 194); over 2,000 distinct ball positions in frame 0; only plane 0 enabled; sos.sndh requested
+gate leonard_spirit node apps/leonard_spirit_headless.mjs --break pixels   # ...and one wrong ball pixel is caught
+gate leonard_spirit node apps/leonard_spirit_headless.mjs --break count   # ...and a 2,497th ball is caught
+gate leonard_spirit node apps/leonard_spirit_headless.mjs --break music   # ...and the wrong tune name is caught
 gate joust node apps/joust_headless.mjs --break clock "$SHOTS/joust"   # ...and 4 extra CPU cycles once fail them
 gate rick_dangerous node apps/rick_dangerous_headless.mjs "$SHOTS/rick_dangerous"   # RICK DANGEROUS (the game): 18 recorded runs (10,890 frames: the level walks, deaths, GAME OVER, the name entries, the menus, the bots through all 4 levels) replayed in lockstep with the original's ACIA / Timer A bytes: every frame takes the original's VBLs and leaves its RAM + both screens + palette with the reference model's CRC, makes its play_sound requests (dropped or not) and the SNDH load / zg.sndhCall requests they imply, in order; live: title + tune, FIRE -> select -> intro -> level 1, the plane is the ST screen, 50 Hz time on a 60 Hz host, P, Escape; rick_dangerous.sndh's own driver RAM = the cart's for all 87 subtunes, and with later requests sndhCall-ed on the RUNNING driver (every id, the paired shot, dynamite x2)
 gate rick_dangerous node apps/rick_dangerous_headless.mjs --break joy "$SHOTS/rick_dangerous"   # ...and one wrong stick byte fails the state CRC
