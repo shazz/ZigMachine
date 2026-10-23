@@ -83,16 +83,23 @@ fn walk(u_first: i32, du: i32, dy: i32, rows: R.Rows) void {
     const t = R.table; // one load of the arena pointer, not one a row
     const groups = R.count / 4;
     for (0..groups) |g| {
-        var u: [4]i32 = undefined;
-        for (&u, 0..) |*v, k| v.* = u_first + @as(i32, @intCast(4 * g + k)) * du;
-        for (t[rows.first..][0..rows.n]) |*line| {
-            var v: u32 = 0;
-            inline for (0..4) |k| {
-                v |= @as(u32, strip[@intCast(u[k] >> STEP)]) << (8 * k);
-                u[k] += dy;
-            }
+        // four scalars, not an array: kept in registers, not on the stack
+        var u_a = u_first + @as(i32, @intCast(4 * g)) * du;
+        var u_b = u_a + du;
+        var u_c = u_b + du;
+        var u_d = u_c + du;
+        var word: [*]u32 = @as([*]u32, @ptrCast(@alignCast(&t[rows.first]))) + g; // rows are whole words
+        for (0..rows.n) |_| {
             // little-endian: bucket 4g is the low byte, as the HBL reads it
-            @as(*[R.WORDS]u32, @ptrCast(@alignCast(line)))[g] = v; // rows are whole words
+            word[0] = @as(u32, strip[@intCast(u_a >> STEP)]) |
+                @as(u32, strip[@intCast(u_b >> STEP)]) << 8 |
+                @as(u32, strip[@intCast(u_c >> STEP)]) << 16 |
+                @as(u32, strip[@intCast(u_d >> STEP)]) << 24;
+            u_a += dy;
+            u_b += dy;
+            u_c += dy;
+            u_d += dy;
+            word += R.WORDS;
         }
     }
     for (groups * 4..R.count) |i| {
@@ -145,16 +152,25 @@ fn paint(p: Part, u_min: i32, n: usize, du: i32) void {
     // word: |(y - u) * inv| >> 16 stays far inside an i32 within the bar). u
     // moves one entry at a time, so the product moves by a constant: one 64-bit
     // subtract an entry instead of a 64-bit multiply.
+    // ... kept as its two words: the step is a subtract with borrow and the row
+    // IS the top word (rv32 has no i64 registers: ~40 cycles an entry before).
     const u_lo = u_min + (lo << STEP) + (1 << (STEP - 1)); // entry lo's centre
-    var prod: i64 = @as(i64, p.y - u_lo) * p.inv;
-    const dprod: i64 = @as(i64, p.inv) << STEP;
-    var i = lo;
-    while (i <= hi) : (i += 1) {
-        const row = @as(i32, @intCast(prod >> 32)) + HALF_ROWS;
-        const e = &strip[@intCast(i)];
+    const prod: u64 = @bitCast(@as(i64, p.y - u_lo) * p.inv);
+    const dprod: u64 = @bitCast(@as(i64, p.inv) << STEP);
+    var top: u32 = @truncate(prod >> 32);
+    var low: u32 = @truncate(prod);
+    const dtop: u32 = @truncate(dprod >> 32);
+    const dlow: u32 = @truncate(dprod);
+    var e: [*]u8 = strip[@intCast(lo)..].ptr;
+    var left: usize = @intCast(@max(0, hi - lo + 1));
+    while (left > 0) : (left -= 1) {
+        const row = top +% HALF_ROWS; // in 0..63: one unsigned compare
         // a band is 0..31, never BLACK, so BLACK means no nearer bar has it
-        if (row >= 0 and row < R.BAR_ROWS and e.* == R.BLACK) e.* = map[@intCast(row >> 1)];
-        prod -= dprod;
+        if (row < R.BAR_ROWS and e[0] == R.BLACK) e[0] = map[row >> 1];
+        const next = low -% dlow;
+        top = top -% dtop -% @intFromBool(next > low);
+        low = next;
+        e += 1;
     }
 }
 

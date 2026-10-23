@@ -125,10 +125,21 @@ fn hbl(fb: *zg.LogicalFB, _: *zg.ZigOS, line: u16, _: u16) void {
     const now_w: *const [WORDS]u32 = @ptrCast(@alignCast(now)); // ROW is whole words
     const was_w: *const [WORDS]u32 = @ptrCast(@alignCast(was));
     const pal = fb.palette + A.FIRST_BUCKET;
-    for (0..(count + 3) / 4) |w| {
-        if (now_w[w] == was_w[w]) continue;
-        for (w * 4..@min(w * 4 + 4, count)) |i| {
-            if (now[i] != was[i]) pal[i] = ink[now[i]];
+    const words = (count + 3) / 4;
+    // the last word's bytes past `count` may hold an older frame's buckets
+    const tail: u32 = if (count % 4 == 0) 0xFFFF_FFFF else (@as(u32, 1) << @intCast(8 * (count % 4))) - 1;
+    for (0..words) |w| {
+        const n = now_w[w];
+        // a nonzero byte is a bucket that changed: one compare a word, then
+        // only the changed bytes, taken from the word already loaded
+        var diff = (n ^ was_w[w]) & (if (w + 1 == words) tail else 0xFFFF_FFFF);
+        var i = w * 4;
+        while (diff != 0) : (i += 1) {
+            const sh: u5 = @intCast(8 * (i - w * 4));
+            if ((diff >> sh) & 0xFF != 0) {
+                pal[i] = ink[(n >> sh) & 0xFF];
+                diff &= ~(@as(u32, 0xFF) << sh);
+            }
         }
     }
 }
