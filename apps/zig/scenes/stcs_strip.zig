@@ -20,6 +20,7 @@
 // --------------------------------------------------------------------------
 const zg = @import("zigos");
 const sc = @import("stcs_scratch.zig");
+const logo = @import("stcs_logo.zig");
 
 const LogicalFB = zg.LogicalFB;
 const Blitter = zg.Blitter;
@@ -52,6 +53,12 @@ const Copy = struct {
         const src = &self.s.src[@intFromEnum(k)];
         if (k == .g or k == .fg) {
             self.c.bob(self.dst, x, line + y0, src, x, y0, w, @intCast(h), sc.KEY);
+        } else if (line + y0 < logo.ROWS) {
+            // Over the logo's last rows (stcs_logo.zig): its pixels show where
+            // the strip's are 0. Only interlaced_mirror's write k0 of groups
+            // 16..19 gets here, the first write to those pixels this frame, onto
+            // a band holding only the logo and 0: keying 0 changes nothing else.
+            self.c.bob(self.dst, x, line + y0, src, x, y0, w, @intCast(h), 0);
         } else {
             self.c.blitCopy(self.dst, x, line + y0, src, x, y0, w, @intCast(h));
         }

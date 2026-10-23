@@ -13,7 +13,6 @@ const Color = zg.Color;
 const RenderTarget = zg.RenderTarget;
 
 const Scrolltext = zg.Scrolltext;
-const Background = zg.Background;
 
 const Console = zg.Console;
 
@@ -40,8 +39,8 @@ const SCROLL_TOP_POS = 84;
 // The highest line any period writes on plane 1 (interlaced_mirror, group 19: 88 - 19).
 const BAND_TOP: i16 = 69;
 
-// logo
-const logo_b = @embedFile("../assets/screens/stcs/logo.raw");
+// The logo (stcs_logo.zig) shares plane 1 with the scroller: rows 0..72.
+const logo = @import("stcs_logo.zig");
 
 
 // --------------------------------------------------------------------------
@@ -65,8 +64,7 @@ pub const Demo = struct {
     frame_counter: u32 = 0,
     scrolltext: Scrolltext(NB_FONTS) = undefined,
     scroller_target: RenderTarget = undefined,
-    logo: Background = undefined,
-    logo_drawn: bool = false, // the logo plane never changes: drawn once
+    logo_drawn: bool = false, // the logo's rows above the band never change: drawn once
     scroller_y_pos: i16 = 0,
     scroller_y_dir: i16 = 1,
 
@@ -79,27 +77,25 @@ pub const Demo = struct {
         hbl.reset();
         zigos.setHBLHandler(hbl.global);
 
-        // first plane
-        var fb: *LogicalFB = &zigos.lfbs[0];
-        fb.is_enabled = true;
-        fb.setPalette(hbl.logo_pal);
-        self.logo.init(fb.getRenderTarget(), logo_b, 0);
+        // The logo used to be plane 0, under the scroller's plane 1. It is now
+        // drawn INTO plane 1 (its colours moved to 17..31, stcs_logo.zig) and
+        // plane 0 stays disabled: FRESCO composites one plane, not two, and the
+        // composed picture is the same (apps/stcs_headless.mjs).
+        zigos.lfbs[0].is_enabled = false;
         self.logo_drawn = false;
-        
-        // HBL Handler for the raster effect
-        fb.setFrameBufferHBLHandler(0, hbl.logo);   
 
-        fb = &zigos.lfbs[1];
+        const fb: *LogicalFB = &zigos.lfbs[1];
         fb.is_enabled = true; 
         fb.setPalette(hbl.font_pal1);    
         fb.setPaletteEntry(0, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
+        for (1..logo.COLORS) |i| fb.setPaletteEntry(@intCast(logo.BASE + i), hbl.logo_pal[i]);
 
         self.scroller_target = fb.getRenderTarget(); // never drawn through: the letters are blitted
         chisel.init();
         strips.init(&chisel, zigos);
 
         self.scrolltext = Scrolltext(NB_FONTS).init(self.scroller_target, fonts_b, SCROLL_CHARS, SCROLL_CHAR_WIDTH, SCROLL_CHAR_HEIGHT, SCROLL_TEXT, SCROLL_SPEED, 0, null, null, null);
-        fb.setFrameBufferHBLHandler(0, hbl.scroller);   
+        fb.setFrameBufferHBLHandler(0, hbl.plane); // the band palettes + the logo's raster (entry 0)
         self.scroller_y_pos = 0;
         self.scroller_y_dir = 1;
 
@@ -109,7 +105,6 @@ pub const Demo = struct {
     pub fn update(self: *Demo, zigos: *ZigOS, elapsed_time: f32) void {
 
         self.scrolltext.update();
-        self.logo.update();
 
         self.frame_counter += 1;
 
@@ -133,15 +128,15 @@ pub const Demo = struct {
 
     pub fn render(self: *Demo, zigos: *ZigOS, elapsed_time: f32) void {
 
-        if (!self.logo_drawn) self.logo.render();
-        self.logo_drawn = true;
-
-        // CHISEL only: clear the band the strips can reach (lines 69..199; the
-        // plane is all 0 above it since init), rebuild the source strips this
-        // period copies from, then copy them in its shape (stcs_strip.zig).
+        // CHISEL only: the logo's rows above the band once; then each frame the
+        // band the strips can reach (lines 69..199) back to what is under the
+        // scroller (the logo's last rows, 69..72, then 0), the source strips this
+        // period copies from rebuilt, and copied in its shape (stcs_strip.zig).
         const fb = &zigos.lfbs[1];
         chisel.init();
-        chisel.fill(fb, 0, BAND_TOP, WIDTH, HEIGHT - BAND_TOP, 0);
+        if (!self.logo_drawn) logo.drawTop(&chisel, fb, BAND_TOP);
+        self.logo_drawn = true;
+        logo.restoreBand(&chisel, fb, BAND_TOP);
         for (strip.needs(hbl.period)) |k| strips.build(&chisel, &self.scrolltext, k);
 
         // The big fonts bounce on 0..56 lines.

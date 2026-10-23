@@ -54,7 +54,17 @@ pub fn global(zigos: *ZigOS, line: u16) void {
     }
 }
 
-pub fn logo(fb: *LogicalFB, zigos: *ZigOS, line: u16, col: u16) void {
+/// Plane 1's HBL: the scroller's band palettes (entries 1..15), and in entry 0
+/// the raster the logo's plane 0 held before the logo moved into plane 1
+/// (stcs_logo.zig): plane 1's entry 0 was transparent and showed it.
+pub fn plane(fb: *LogicalFB, zigos: *ZigOS, line: u16, col: u16) void {
+    scroller(fb, line);
+    logoRaster(fb, line);
+    _ = zigos;
+    _ = col;
+}
+
+fn logoRaster(fb: *LogicalFB, line: u16) void {
     // Per-plane HBL: sealed machine fires it on LOGICAL lines 0..199 (was physical
     // 40..239), so drop the +40. Rasters cover visible rows 66..199.
     const c: u32 = if (line > 66 and line < 200) rasters_b[line - 66] else BLACK;
@@ -62,8 +72,6 @@ pub fn logo(fb: *LogicalFB, zigos: *ZigOS, line: u16, col: u16) void {
         fb.palette[0] = c;
         last_pal0 = c;
     }
-    _ = zigos;
-    _ = col;
 }
 
 // The palette a line of the scroller plane wants. The HBL used to copy all 256
@@ -105,7 +113,7 @@ fn words(comptime pal: [256]Color) [256]u32 {
 // The font palette plane 1 holds now (null: none of the three, as after init).
 var scroller_pal: ?u2 = null;
 
-pub fn scroller(fb: *LogicalFB, zigos: *ZigOS, line: u16, col: u16) void {
+fn scroller(fb: *LogicalFB, line: u16) void {
     const want = scrollerPalette(line);
     if (scroller_pal != want) {
         // Store only the entries that change, and only the 16 the plane's pixels
@@ -113,14 +121,18 @@ pub fn scroller(fb: *LogicalFB, zigos: *ZigOS, line: u16, col: u16) void {
         // entries, all above 15, that no pixel of plane 1 ever shows). Once a
         // font palette is in, the plane holds its words, so compare those (cart
         // RAM) instead of reading the palette back; after init, the palette itself.
-        const to = font_words[want][0..scratch.COLORS];
+        // Entry 0 is the raster's (logoRaster); every font palette has it
+        // transparent, which is what let the logo's plane show through it.
+        const to = font_words[want][1..scratch.COLORS];
         if (scroller_pal) |held| {
-            for (to, font_words[held][0..scratch.COLORS], 0..) |v, was, i| if (v != was) { fb.palette[i] = v; };
+            for (to, font_words[held][1..scratch.COLORS], 1..) |v, was, i| if (v != was) { fb.palette[i] = v; };
         } else {
-            for (to, 0..) |v, i| if (fb.palette[i] != v) { fb.palette[i] = v; };
+            for (to, 1..) |v, i| if (fb.palette[i] != v) { fb.palette[i] = v; };
         }
         scroller_pal = want;
     }
-    _ = zigos;
-    _ = col;
+}
+
+comptime {
+    for (font_words) |pal| if (pal[0] != 0) @compileError("a font palette's entry 0 is not transparent");
 }

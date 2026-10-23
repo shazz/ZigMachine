@@ -2,12 +2,18 @@
 // whole choreography cycle (9420 VBLs, all seven scroller shapes: three lines,
 // big font, interlaced mirror, interlaced big font, inverted, interlaced steam,
 // inverted mirror, then the wrap back to three lines) is the reference picture,
-// byte for byte, both planes rendered with their HBLs (the per-line rasters, the
-// per-band font palettes, the border colour per physical line).
+// byte for byte: the COMPOSED screen (scene_hash --composite: the physical
+// picture after every enabled plane, rendered with its HBLs: the per-line
+// rasters, the per-band font palettes, the border colour per physical line).
+// The composite, not each plane: the logo moved from plane 0 into the scroller's
+// plane 1 (2026-10-23, one plane less for FRESCO), so the planes changed and the
+// picture must not.
 // The reference is apps/stcs_expected.json: per period, the SHA-256 of the
-// frames' apps/scene_hash.mjs hashes, taken from the cart as it was BEFORE the
-// scroller moved onto CHISEL (CPU strip + row copies, 2026-10-20), so the
-// CHISEL path is proven to draw the same frames.
+// frames' composite hashes, taken from the cart as it was BEFORE the scroller
+// moved onto CHISEL (CPU strip + row copies, two planes, bfc3a61f^), so the
+// CHISEL path and the merged plane are proven to draw the same frames. (The
+// per-plane reference it replaces was taken from that same cart; the CHISEL cart
+// of bfc3a61f..cecc6dd0 passed both.)
 //
 //   node apps/stcs_headless.mjs [--break skip] [--cart X.wasm --disk X.zmd] [--write]
 //     --break skip   one extra VBL at frame 4000: the later periods must fail
@@ -34,7 +40,7 @@ if (brk && brk !== "skip") throw new Error(`--break takes skip, not ${brk}`);
 const cart = opt("--cart", "docs/demo-stcs.wasm");
 const disk = opt("--disk", "docs/demo-stcs.zmd");
 
-const args = ["apps/scene_hash.mjs", cart, String(FRAMES), "1", "--disk", disk];
+const args = ["apps/scene_hash.mjs", cart, String(FRAMES), "1", "--disk", disk, "--composite"];
 if (brk === "skip") args.push("--call", "4000:frame:16.6");
 const run = JSON.parse(execFileSync(process.execPath, args, { maxBuffer: 64 << 20 }).toString());
 const byFrame = new Map(run.samples.map((s) => [s.frame, s.hash]));
