@@ -36,13 +36,12 @@ const draw = @import("ulm_dsots/draw.zig");
 const Controls = @import("ulm_dsots/controls.zig").Controls;
 const testapi = @import("ulm_dsots/testapi.zig");
 
-// The remake names no tune (its YMPlayer line loads "Cuddly - main menu.ym",
-// commented out: a leftover of the Union remake it was built from). The SNDH
-// archive's The_Fate/Shaolin_Remix.sndh is TITL "Shaolin Remix (DSOTS 512k
-// Main menu)", The Fate 1991, FLAG ~y: the demo's own menu tune, and the only
-// SNDH tagged as a DSOTS menu (sndh_index.py "Dark Side of the Spoon", "ULM",
-// "Cuddly", "main menu").
-const MUSIC = "shaolin_remix.sndh";
+// MUSIC (Matt, 2026-10-23): the real Dark Side of the Spoon main menu plays a
+// 4-channel ProTracker MOD, HOUSI4.MOD (fujiology MUSIC/FT/TUNEZ/C/CHRIS/
+// 4CHANNEL/DARKSIDE/MAINMENU/HOUSI4.MOD, "M.K.", 306,304 bytes), shipped as
+// docs/music/dsots_housi4.mod. The SNDH used before, The_Fate/Shaolin_Remix
+// ("DSOTS 512k Main menu"), was the wrong tune for this menu.
+const MUSIC = "dsots_housi4.mod";
 
 /// DoorEntity demo_name -> the cart it launches.
 const Route = struct { demo_name: []const u8, tag: []const u8 };
