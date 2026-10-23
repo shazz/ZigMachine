@@ -44,6 +44,32 @@ comptime { // the table was built for this tile mask and this plane
 }
 
 const Phase = enum { entry, fade };
+/// Plane 0's picture: the last part's, the whole logo, or entry frame n's tiles.
+const Shown = union(enum) { other, logo, flight: u32 };
+
+/// Plane pixels [x0, x1) x [y0, y1).
+const Rect = struct {
+    x0: i16,
+    y0: i16,
+    x1: i16,
+    y1: i16,
+
+    fn of(e: wt.Entry) Rect {
+        return .{ .x0 = e.x0, .y0 = e.y0, .x1 = e.x0 + e.w, .y1 = e.y0 + e.h };
+    }
+
+    fn join(a: Rect, b: Rect) Rect {
+        return .{ .x0 = @min(a.x0, b.x0), .y0 = @min(a.y0, b.y0), .x1 = @max(a.x1, b.x1), .y1 = @max(a.y1, b.y1) };
+    }
+
+    fn area(r: Rect) usize {
+        return @as(usize, @intCast(r.x1 - r.x0)) * @as(usize, @intCast(r.y1 - r.y0));
+    }
+
+    fn fill(r: Rect, bl: *zg.Blitter, p0: *LogicalFB) void {
+        bl.fill(p0, r.x0, r.y0, @intCast(r.x1 - r.x0), @intCast(r.y1 - r.y0), 0);
+    }
+};
 
 // union_intro.zig starts a part as `.{}`, hence the defaults; init() assigns all.
 pub const Part = struct {
@@ -51,6 +77,7 @@ pub const Part = struct {
     phase: Phase = .entry,
     frame: u32 = 0, // frames into the current phase
     fade_k: u32 = fade.NONE, // the scale the palette holds (wab_fade.zig)
+    shown: Shown = .other, // what plane 0 holds (only what changes is redrawn)
 
     pub fn init(self: *Part, zigos: *ZigOS) void {
         self.blitter = .{};
@@ -58,6 +85,7 @@ pub const Part = struct {
         self.phase = .entry;
         self.frame = 0;
         self.fade_k = fade.NONE;
+        self.shown = .other;
         zigos.setBackgroundColor(BG);
         const p0: *LogicalFB = &zigos.lfbs[0];
         p0.is_enabled = true;
@@ -87,15 +115,43 @@ pub const Part = struct {
     pub fn render(self: *Part, zigos: *ZigOS, dt: f32) void {
         _ = dt;
         const p0: *LogicalFB = &zigos.lfbs[0];
-        self.blitter.clear(p0, 0); // a CHISEL fill (the plane is 400 x 280)
         // From ENDVBL every tile is at rest, unturned, at full alpha: the whole logo,
         // exactly (apps/union_intro_wab_check.mjs proves those frames are wab.raw).
-        if (self.phase == .fade or self.frame >= wt.ENDVBL)
-            return self.blitter.blitImage(p0, LOGO_X, LOGO_Y, wab_raw, LOGO, 0, 0, LOGO, LOGO, 0);
+        // It is drawn ONCE; the fade after it only scales the palette.
+        if (self.phase == .fade or self.frame >= wt.ENDVBL) {
+            if (self.shown == .logo) return;
+            self.erase(p0);
+            self.blitter.blitImage(p0, LOGO_X, LOGO_Y, wab_raw, LOGO, 0, 0, LOGO, LOGO, 0);
+            self.shown = .logo;
+            return;
+        }
+        self.erase(p0);
         // animatedTile.draw for every tile on this frame's render, in tile order.
         for (wt.ENTRIES[wt.FIRST[self.frame]..wt.FIRST[self.frame + 1]]) |e| {
             const shade = if (e.level < LEVELS) wab_shade[(@as(usize, e.level) - 1) * 256 ..][0..256] else null;
             turn.blit(p0.fb, p0.stride, e, wab_raw, shade);
         }
+        self.shown = .{ .flight = self.frame };
+    }
+
+    /// Back to black only where the plane is not: under the tiles of the frame it
+    /// shows (each tile's span, or their bounding box when that is fewer blitter
+    /// clocks), or all of it when it holds another part's picture. A CHISEL fill.
+    fn erase(self: *Part, p0: *LogicalFB) void {
+        const f = switch (self.shown) {
+            .other, .logo => return self.blitter.clear(p0, 0),
+            .flight => |f| f,
+        };
+        const tiles = wt.ENTRIES[wt.FIRST[f]..wt.FIRST[f + 1]];
+        if (tiles.len == 0) return;
+        var box = Rect.of(tiles[0]);
+        var area: usize = 0;
+        for (tiles) |e| {
+            box = box.join(Rect.of(e));
+            area += @as(usize, e.w) * e.h;
+        }
+        // a fill costs ~BLIT_CALL clocks to start, then ~1.85 a pixel (cost_model.mjs)
+        if (box.area() * 185 + 18_000 <= area * 185 + tiles.len * 18_000) return box.fill(&self.blitter, p0);
+        for (tiles) |e| Rect.of(e).fill(&self.blitter, p0);
     }
 };
