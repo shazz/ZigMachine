@@ -44,8 +44,20 @@
 // Tel)" and its registers are So_Watt_No_Crew.sndh #1, bit for bit -- a
 // mislabelled dump, which this cart played until Matt caught it by ear.
 //
-// KEYS. F1 / F2 step the scroll speed through {0.25, 0.5, 1, 2, 3, 4} x, exactly
-// the remake's spinc. Escape (and Back) hand the screen back to the menu.
+// KEYS (2026-10-23). The scrolltext itself says "PRESS F1-F5 AND SEE (IF YOU
+// CAN !!!!) AND LIST[EN]", and Eliminator.sndh carries exactly five subtunes
+// (##05; FRMS 4096 / 3072 / 130 / 120 / 272 frames: the title tune, the in-game
+// tune and three jingles), so Fn plays subtune n of the same file:
+//
+//   F1 -> eliminator_jmp.sndh #1     F4 -> eliminator_jmp.sndh #4
+//   F2 -> eliminator_jmp.sndh #2     F5 -> eliminator_jmp.sndh #5
+//   F3 -> eliminator_jmp.sndh #3
+//
+// A key for the tune already playing asks for nothing (auto-repeat would
+// otherwise restart it every repeat). The remake had put its spinc on F1 / F2;
+// that is not the ST's binding, so the scroll speed steps through
+// {0.25, 0.5, 1, 2, 3, 4} x on Up / Down instead. Escape (and Back) hand the
+// screen back to the menu.
 // --------------------------------------------------------------------------
 const zg = @import("zigos");
 const ZigOS = zg.ZigOS;
@@ -60,10 +72,14 @@ const stars = @import("stars.zig");
 pub const PLANE = 0;
 
 const MUSIC = "eliminator_jmp.sndh";
-const MUSIC_TUNE: u8 = 1;
+/// The subtune F1..F5 last asked for (1-based, zg.requestSongTune's count).
+pub var tune: u8 = 1;
+const TUNES: u8 = 5; // Eliminator.sndh's ##05
 
 const K_F1: u32 = 0xE001;
-const K_F2: u32 = 0xE002;
+const K_F5: u32 = 0xE005;
+const DIR_UP: u8 = 0;
+const DIR_DOWN: u8 = 1;
 const K_ESC: u32 = 0xE012;
 const DIR_BACK: u8 = 6;
 
@@ -84,7 +100,7 @@ const BAND_COUNT = [4]i32{ 11, 6, 3, 1 };
 /// ScrollText.speed = base * spinc, base {8,4,2,1} at 2x -> {4,2,1,0.5} at 1x,
 /// in Q16.16.
 const BASE_SPEED = [4]i64{ 4 << 16, 2 << 16, 1 << 16, 1 << 15 };
-/// game.go's spinc, F1/F2 steps it through this list; the index is our state.
+/// game.go's spinc (the remake stepped it on F1/F2; here Up/Down); the index is our state.
 const SPINC = [6]i64{ 1 << 14, 1 << 15, 1 << 16, 2 << 16, 3 << 16, 4 << 16 };
 
 const FONT = spans.build(A.font, A.FONT_W, 0);
@@ -219,6 +235,13 @@ fn drawLogo(fb: *zg.LogicalFB) void {
     }
 }
 
+/// Fn's song: subtune n of the one file, asked for only when it changes.
+fn pickTune(n: u8) void {
+    if (n == 0 or n > TUNES or n == tune) return;
+    tune = n;
+    zg.requestSongTune(MUSIC, n);
+}
+
 // --------------------------------------------------------------------------
 // The scene entry points (demo_main.zig's contract).
 // --------------------------------------------------------------------------
@@ -229,6 +252,7 @@ pub const Demo = struct {
         off1 = 320 << 16;
         act_size = 0;
         spinc = 2;
+        tune = 1;
         pos_y = 0;
         pos_y2 = 200;
         wants_quit = false;
@@ -250,7 +274,7 @@ pub const Demo = struct {
         fb.openBorders(.all); // a raster runs edge to edge, so every border opens
         rasters.install(fb); // ... and the HBL repaints entries 0 and 1 per line
         fb.clearFrameBuffer(0);
-        zg.requestSongTune(MUSIC, MUSIC_TUNE);
+        zg.requestSongTune(MUSIC, tune);
         ok = true;
     }
 
@@ -283,17 +307,12 @@ pub const Demo = struct {
         field.draw(fb);
     }
 
-    /// F1 / F2 are the remake's spinc steps; Escape and the host's Back return
-    /// to the menu (declaring key() owns EVERY key, demo_main.zig's contract).
+    /// F1..F5 pick Eliminator's five subtunes; Escape returns to the menu
+    /// (declaring key() owns EVERY key, demo_main.zig's contract).
     pub fn key(self: *Demo, cp: u32) void {
         _ = self;
         switch (cp) {
-            K_F1 => if (spinc + 1 < SPINC.len) {
-                spinc += 1;
-            },
-            K_F2 => if (spinc > 0) {
-                spinc -= 1;
-            },
+            K_F1...K_F5 => pickTune(@intCast(cp - K_F1 + 1)),
             K_ESC => wants_quit = true,
             else => {},
         }
@@ -301,7 +320,16 @@ pub const Demo = struct {
 
     pub fn input(self: *Demo, dir: u8) void {
         _ = self;
-        if (dir == DIR_BACK) wants_quit = true;
+        switch (dir) {
+            DIR_UP => if (spinc + 1 < SPINC.len) {
+                spinc += 1;
+            },
+            DIR_DOWN => if (spinc > 0) {
+                spinc -= 1;
+            },
+            DIR_BACK => wants_quit = true,
+            else => {},
+        }
     }
 
     pub fn pollCart(self: *Demo) i32 {

@@ -26,6 +26,11 @@ export fn ikSpinc() u32 {
     return app.spinc;
 }
 
+/// The Eliminator subtune F1..F5 last picked (1-based).
+export fn ikTune() u32 {
+    return app.tune;
+}
+
 export fn ikPosY() u32 {
     return app.pos_y;
 }

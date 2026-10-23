@@ -14,11 +14,14 @@
 //           validates the HBL, both colour tables and the flicker trick together
 //   raster  the window carries more colours than the six palette words alone
 //   music   the cart asks for eliminator_jmp.sndh #1 once, at start
-//   keys    F1 / F2 step spinc; Escape and Back hand the screen back
+//   songs   F1..F5 each ask for eliminator_jmp.sndh #1..#5 (the scrolltext's
+//           "PRESS F1-F5 ... AND LIST[EN]"; the SNDH's five subtunes), the cart's
+//           own tune follows, and a repeated key asks for nothing
+//   keys    Up / Down step spinc; Escape and Back hand the screen back
 //   soak    no zg.mem allocation refused; ms/frame reported, not budgeted
 //
 //   node apps/ikplus_headless.mjs [outdir]
-//   node apps/ikplus_headless.mjs --break raster|state|text   (each must FAIL)
+//   node apps/ikplus_headless.mjs --break raster|state|text|song   (each must FAIL)
 //
 // The model is written from the remake's source, not from the Zig: it walks the
 // font/logo/star bytes one pixel at a time (the cart walks comptime runs), and it
@@ -31,7 +34,7 @@ const PAGES = 112; // must match SHARED_PAGES in machine/sdk/memmap.zig
 const OUT = process.argv[2] && !process.argv[2].startsWith("--") ? process.argv[2] : "/tmp/ikplus";
 const TICK_MS = 20.0; // the cart steps once a frame; one 50 Hz VBL a frame
 
-const BREAKS = ["raster", "state", "text"];
+const BREAKS = ["raster", "state", "text", "song"];
 const bi = process.argv.indexOf("--break");
 const broke = bi > 0 ? process.argv[bi + 1] : null;
 if (bi > 0 && !BREAKS.includes(broke)) throw new Error(`--break ${BREAKS.join(" | ")}`);
@@ -333,7 +336,7 @@ const pixelErr = (msg, got, want, i) => {
 {
     const pending = demo.pollSongRequest();
     const name = new TextDecoder().decode(new Uint8Array(memory.buffer, demo.songNamePtr(), demo.songNameLen()));
-    // F1/F2 below change spinc, so pin the request before touching keys.
+    // F1..F5 below request songs, so pin the start request before touching keys.
     ok(pending === 1 && name === "eliminator_jmp.sndh" && demo.songTune() === 1,
         pending === 1 ? `music: asked for ${name} #${demo.songTune()}` : "music: no song requested at start");
 }
@@ -408,20 +411,54 @@ else {
     ok(machine.hwRamAllocFailures() === 0, "no zg.mem allocation refused");
     console.log(`  ${(ms / LAST).toFixed(3)} ms/frame over ${LAST} frames (update + render + composite + model)`);
 
-    // ---------------- 4. keys -----------------------------------------------
+    // ---------------- 4. songs: Fn -> Eliminator subtune n --------------------
     {
-        // F1 steps up, F2 back down again.
+        // The table the harness holds the cart to. Evidence: the scrolltext's
+        // "PRESS F1-F5 AND SEE ... AND LIST[EN]", Eliminator.sndh's ##05, and
+        // `node apps/sndh_headless.mjs docs/music/eliminator_jmp.sndh N` driving
+        // the YM with five different register sets for N = 1..5.
+        const SONGS = [
+            { key: "F1", cp: 0xE001, file: "eliminator_jmp.sndh", tune: 1 },
+            { key: "F2", cp: 0xE002, file: "eliminator_jmp.sndh", tune: 2 },
+            { key: "F3", cp: 0xE003, file: "eliminator_jmp.sndh", tune: 3 },
+            { key: "F4", cp: 0xE004, file: "eliminator_jmp.sndh", tune: 4 },
+            { key: "F5", cp: 0xE005, file: "eliminator_jmp.sndh", tune: 5 },
+        ];
+        const songName = () => new TextDecoder().decode(new Uint8Array(memory.buffer, demo.songNamePtr(), demo.songNameLen()));
+        // Start from #5 so that F1 (= the tune already playing at start) is a real change.
+        demo.key(0xE005); demo.frame(TICK_MS); demo.pollSongRequest();
+        const seen = [];
+        for (const s of SONGS) {
+            demo.key(s.cp);
+            demo.frame(TICK_MS);
+            const pending = demo.pollSongRequest();
+            const got = { pending, name: songName(), tune: demo.songTune(), cart: demo.ikTune() };
+            if (broke === "song" && s.key === "F3") got.tune = 4; // the request the --break pretends went out
+            const good = pending === 1 && got.name === s.file && got.tune === s.tune && got.cart === s.tune;
+            if (!good) ok(false, `songs: ${s.key} asked for ${got.name} #${got.tune} (pending ${pending}, cart tune ${got.cart}), want ${s.file} #${s.tune}`);
+            seen.push(`${s.key}=#${got.tune}`);
+            // The same key again (auto-repeat) must not restart the tune.
+            demo.key(s.cp);
+            demo.frame(TICK_MS);
+            if (demo.pollSongRequest() !== 0) ok(false, `songs: ${s.key} pressed again asked for its tune a second time`);
+        }
+        if (!errors.some((e) => e.startsWith("songs:"))) ok(true, `songs: ${seen.join(" ")} of eliminator_jmp.sndh, a repeated key asks for nothing`);
+    }
+
+    // ---------------- 5. keys -----------------------------------------------
+    {
+        // Up steps spinc up, Down back down again (directions 0 / 1).
         const base = demo.ikSpinc();
-        demo.key(0xE001);
+        demo.input(0);
         demo.frame(TICK_MS);
         const up = demo.ikSpinc();
-        demo.key(0xE002);
+        demo.input(1);
         demo.frame(TICK_MS);
         const back = demo.ikSpinc();
-        demo.key(0xE002);
+        demo.input(1);
         demo.frame(TICK_MS);
         ok(up === base + 1 && back === base && demo.ikSpinc() === base - 1,
-            `keys: F1 steps spinc ${base} -> ${up}, F2 back to ${back} and down to ${demo.ikSpinc()}`);
+            `keys: Up steps spinc ${base} -> ${up}, Down back to ${back} and down to ${demo.ikSpinc()}`);
 
         demo.key(0xE012); // Escape
         demo.frame(TICK_MS);

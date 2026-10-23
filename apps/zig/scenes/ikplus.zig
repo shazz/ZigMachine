@@ -7,7 +7,8 @@
 // two rast*.png are real per-scanline colour registers here and not sprites.
 //
 // One overscan plane, six palette entries, a scrolltext in four sizes, the logo
-// outline and eight stars. F1/F2 step the scroll speed; Escape leaves.
+// outline and eight stars. F1-F5 pick Eliminator's five subtunes, Up/Down
+// step the scroll speed; Escape leaves.
 // --------------------------------------------------------------------------
 const app = @import("ikplus/app.zig");
 
