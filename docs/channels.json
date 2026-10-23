@@ -240,6 +240,11 @@
   "type": "zigmachine"
  },
  {
+  "tag": "replicants_arkanoid2",
+  "title": "REPLICANTS ARKANOID 2",
+  "type": "atari st"
+ },
+ {
   "tag": "replicants_emlyn",
   "title": "REPLICANTS EMLYN",
   "type": "atari st"
