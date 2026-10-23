@@ -82,6 +82,11 @@ const ADDRESS_MASK: u32 = 0x00FFFFFF; // a 68000 has 24 address lines
 /// way. An 8 MHz 68000 has ~160k cycles per 50 Hz frame; no replay routine
 /// wants a whole second of them.
 const RUNAWAY_CYCLES: u32 = 8_000_000;
+/// INIT gets more: it runs once, and some replays build their tables there. Tao's
+/// TSD STe driver (MS3.0, 24 tunes in the archive) computes 15 volume levels of
+/// 5,120 samples with a muls + divs each, ~19 M cycles (2.4 s on a real ST): the
+/// 8 M limit stopped them as runaways, mode 0, silence. 64 M is 8 s of ST time.
+const INIT_RUNAWAY_CYCLES: u32 = 64_000_000;
 
 fn ram() [*]u8 {
     return @ptrFromInt(audio.SONG_BASE);
@@ -387,9 +392,13 @@ fn deliverPending() bool {
 }
 
 fn runUntilReturn() bool {
+    return runUntilReturnWithin(RUNAWAY_CYCLES);
+}
+
+fn runUntilReturnWithin(budget: u32) bool {
     returned = false;
     var spent: u32 = 0;
-    while (spent < RUNAWAY_CYCLES) {
+    while (spent < budget) {
         const used = m68k_execute(20_000);
         spent += if (used > 0) @intCast(used) else 1;
         if (returned) return true;
@@ -615,7 +624,7 @@ pub const SndhPlayer = struct {
         m68k_set_reg(REG_D0, d0);
         m68k_set_reg(REG_PC, IMAGE_BASE + entry); // sndh.INIT/EXIT/PLAY are image offsets
 
-        return runUntilReturn();
+        return runUntilReturnWithin(if (entry == sndh.INIT) INIT_RUNAWAY_CYCLES else RUNAWAY_CYCLES);
     }
 };
 

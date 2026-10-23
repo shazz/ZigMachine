@@ -47,7 +47,9 @@ const ALLOW = {
     // (digi_mym.zig, digi_sfx.zig). The tunes' state stays in the 68000's RAM.
     // +120 B (2026-10-19): the B.I.G. digi PLAY's addresses, read at arming (digi_big_map.zig At),
     // its arming state and two flags (digi_irq.zig, digi_big_play.zig); its state lives in the 68000's RAM.
-    "demo-audio.wasm": 591142,
+    // +20 B (2026-10-23): the STE DMA chip's frame-end count and flag and the LMC1992's three
+    // volumes (ste_dma.zig), and Timer A's event counter (mfp.zig).
+    "demo-audio.wasm": 591162,
 };
 
 function uleb(b, p) {
