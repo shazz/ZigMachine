@@ -25,6 +25,12 @@ export fn gkScroll(layer: u32) i32 {
     };
 }
 
+/// CHISEL blits the last frame issued (draw.zig); 0 means the CPU composer ran
+/// (cart RAM could not hold the chunky art).
+export fn gkBlits() u32 {
+    return @import("draw.zig").blits_last_frame;
+}
+
 /// The state words by selector, for the harness's sanity assertions:
 /// 0 moveY, 1 moveX, 2 X, 3 Y, 4 bgcount, 5 ychange (tenths), 6 swing, 7 swingy.
 export fn gkState(sel: u32) i32 {

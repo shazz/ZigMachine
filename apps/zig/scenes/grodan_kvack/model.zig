@@ -42,7 +42,7 @@ const PHASE: [12][2]i32 = blk: {
 };
 
 /// The six x positions the Go draws its vertical-text canvas at (halved).
-const VERT_X = [6]i32{ 0, 32, 64, 240, 272, 304 };
+pub const VERT_X = [6]i32{ 0, 32, 64, 240, 272, 304 };
 
 /// The Go's ScrollText, integer state.
 pub const Scroll = struct {
@@ -168,21 +168,27 @@ pub const State = struct {
         self.drawSmall(fb, &self.s4, 32);
     }
 
-    fn drawSprites(self: *const State, fb: []u8) void {
+    /// Sprite i's top-left corner, in screen pixels.
+    pub fn spriteAt(self: *const State, i: usize) [2]i32 {
         const cosSwing = fixtrig.cos(self.swing);
         const sinSwing = fixtrig.sin(self.swing);
         const sinY = fixtrig.sin(self.swingy);
         const cosY = fixtrig.cos(self.swingy);
+        const cs = fixtrig.mul(cosSwing, PHASE[i][0]) + fixtrig.mul(sinSwing, PHASE[i][1]);
+        const ssy = fixtrig.mul(sinY, PHASE[i][0]) - fixtrig.mul(cosY, PHASE[i][1]);
+        // our x = 152 + 145*cosSwing; our y = 50 + ychange*(ssy+sinY)/2,
+        // ychange in tenths: ychange10*S/20 in Q16.16.
+        const xq: i32 = (152 << 16) + 145 * cs;
+        const yq: i32 = (50 << 16) + @divFloor(self.ychange10 * (ssy + sinY), 20);
+        return .{ roundq16(xq), roundq16(yq) };
+    }
+
+    fn drawSprites(self: *const State, fb: []u8) void {
         var i: usize = 0;
         while (i < 12) : (i += 1) {
-            const cs = fixtrig.mul(cosSwing, PHASE[i][0]) + fixtrig.mul(sinSwing, PHASE[i][1]);
-            const ssy = fixtrig.mul(sinY, PHASE[i][0]) - fixtrig.mul(cosY, PHASE[i][1]);
-            // our x = 152 + 145*cosSwing; our y = 50 + ychange*(ssy+sinY)/2,
-            // ychange in tenths: ychange10*S/20 in Q16.16.
-            const xq: i32 = (152 << 16) + 145 * cs;
-            const yq: i32 = (50 << 16) + @divFloor(self.ychange10 * (ssy + sinY), 20);
-            const x0 = roundq16(xq);
-            const y0 = roundq16(yq);
+            const at = self.spriteAt(i);
+            const x0 = at[0];
+            const y0 = at[1];
             var sy: usize = 0;
             while (sy < assets.SPRITE_H) : (sy += 1) {
                 const y = y0 + @as(i32, @intCast(sy));

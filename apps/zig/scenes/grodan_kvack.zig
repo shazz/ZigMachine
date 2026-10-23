@@ -49,6 +49,8 @@ const ZigOS = zg.ZigOS;
 const copper = zg.copper;
 const model = @import("grodan_kvack/model.zig");
 const assets = @import("grodan_kvack/assets.zig");
+const chunky = @import("grodan_kvack/chunky.zig");
+const draw = @import("grodan_kvack/draw.zig");
 
 const MUSIC = "ronken.mod";
 
@@ -71,10 +73,15 @@ var copper_tables: [3]copper.Table = undefined;
 pub const Demo = struct {
     acc: f32,
     ready: bool,
+    blitter: zg.Blitter,
+    art: ?*const chunky.Art,
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
         self.acc = 0;
         self.ready = false;
+        self.blitter = .{};
+        self.blitter.init();
+        self.art = chunky.get();
         state = model.State.init();
         tick = 0;
 
@@ -106,7 +113,10 @@ pub const Demo = struct {
 
     pub fn render(self: *Demo, zigos: *ZigOS, _: f32) void {
         if (!self.ready) return;
-        state.compose(zigos.lfbs[PLANE].fb[0 .. W * H]);
+        const fb = &zigos.lfbs[PLANE];
+        // CHISEL from the chunky art (draw.zig); the CPU composer only if
+        // cart RAM could not hold that art.
+        if (self.art) |a| draw.frame(&state, fb, &self.blitter, a) else state.compose(fb.fb[0 .. W * H]);
     }
 };
 

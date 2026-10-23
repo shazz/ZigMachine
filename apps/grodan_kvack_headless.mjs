@@ -23,6 +23,7 @@
 //   node apps/grodan_kvack_headless.mjs [outdir]
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { performance } from "node:perf_hooks";
+import { cartRam } from "../docs/wasm_hiwater.js";
 
 const PAGES = 112; // must match SHARED_PAGES in machine/sdk/memmap.zig
 const W = 320, H = 200;
@@ -52,6 +53,9 @@ const env = {
 for (const imp of WebAssembly.Module.imports(new WebAssembly.Module(cartBytes)))
     if (imp.module === "env" && !(imp.name in env)) env[imp.name] = noop;
 demo = (await WebAssembly.instantiate(cartBytes, { env })).instance.exports;
+// The cart RAM window starts above the cart's statics, as sealed-loader.js sets
+// it: the CHISEL renderer keeps its chunky art in zg.mem (draw.zig/chunky.zig).
+machine.hwSetCartHigh(cartRam(cartBytes).high ?? 0);
 machine.hwInit();
 demo.boot();
 demo.skipBoot();
@@ -328,7 +332,7 @@ const LAST = 7600;
 
 const st = makeState();
 const t0 = performance.now();
-let compared = 0, distinctMax = 0;
+let compared = 0, distinctMax = 0, blitsMin = Infinity, blitsMax = 0;
 
 // The boot frame: init() composes once before any tick, and that picture is the
 // Go's frame 0 at half scale (the spec's 0-update draw). Pin it explicitly --
@@ -349,6 +353,8 @@ for (let f = 0; f <= LAST; f++) {
     machine.hwClear();
     demo.frame(TICK_MS); // exactly one 60 Hz tick (see below)
     update(st);
+    blitsMin = Math.min(blitsMin, demo.gkBlits());
+    blitsMax = Math.max(blitsMax, demo.gkBlits());
 
     // The counter words, every frame: a pixel-perfect picture with a drifting
     // clock would not hide here.
@@ -382,6 +388,9 @@ for (let f = 0; f <= LAST; f++) {
     }
 }
 const ms = performance.now() - t0;
+// Those pixels came from CHISEL (draw.zig), not the CPU fallback, in few blits:
+// 1 fill + <= 12 tile + 12 sprite + <= 5 big + 6 vertical + 2 small.
+ok(blitsMin > 0 && blitsMax <= 40, `every frame drawn by CHISEL in ${blitsMin}..${blitsMax} blits (ceiling 40)`);
 ok(compared >= 1200, `${compared} frames compared pixel for pixel (the boot frame, every frame to ${EVERY}, plus the resets)`);
 
 // A raster, not a static palette: the window carries more colours than the
