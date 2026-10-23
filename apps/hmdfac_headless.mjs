@@ -220,6 +220,9 @@ function ppm(px) {
         pending === 1 ? `music: asked for ${name} #${demo.songTune()} (want ${want} #1)` : "music: no song requested at start");
     const ends = [0, 1, 2, 3, 4].map((i) => demo.hmPhaseEnd(i)).join();
     ok(ends === [BOOT_END, FLASH_END, CUBE1_END, CUBE2_END, CUBE_END].join(), `timeline: phase ends ${ends} (200 dark, 12 flash, 120+250+128 cube)`);
+    // Shipped for provenance only (THE FONT BLOCKER), not embedded: pin their sizes here instead.
+    const fm = (await readFile(A + "font_machine.bin")).length, cm = (await readFile(A + "charmap.bin")).length;
+    ok(fm === 50 * 64 && cm === 256, `provenance rips: font_machine.bin ${fm} B (50 glyphs x 64), charmap.bin ${cm} B`);
 }
 
 // ---------------- 2. state every frame, pixels ------------------------------
