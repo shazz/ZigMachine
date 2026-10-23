@@ -165,6 +165,7 @@ bridge carried only songs and `sndhCall`s, so on KESTREL with BARD, Beat Dis's k
 | `requestModVolume` | `audioModGain(q16)` |
 | `samplePlay` | `audioStreamStart(rate)`, then `host/audio_pcm.c` refills the stream ring from the cart's bytes before every render, 4 KiB ahead of the channel, looping or to its end (then `audioStreamStop`); the worklet's `refillSample` is the same |
 | `sampleStop` | `audioStreamStop()`, if a sample plays |
+| `requestSongBytes` (op 8) | the image (bounds-checked against the cart's memory, like a play) is copied into song RAM and loaded as the worklet's `loadSndh` / `loadSap` (kind 1 / 2, its tune), logged `ZM SONG bytes bytes.sndh <len> mode 4`. ZIGGY waits for the ACK, so it waits out BARD's whole load (an SNDH's depack): a frame's hitch when a cart starts a song off its disk |
 | the stream imports | `zg.audioStreamStart` / `audioFeed` / `audioStreamStop` are env imports, not queue entries. `tools/host_gen.py` routes them through `host/hstream.h` to `host/audio_bridge.c`, which applies each at once (mid-frame, as the browser posts them) as an effect `0x81..0x83`. A feed's bytes are copied while BARD runs its command (ZIGGY waits for the ACK), since a cart may reuse its buffer within the frame |
 
   A refusal is logged with the count, as the browser's console does (`ZM FX ymWrite refused (n so far)`).
