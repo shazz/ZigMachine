@@ -46,6 +46,9 @@ RTL = FPGA / "rtl" / "video"
 # Every RTL file but the testbench-only ones; the top picks what it uses.
 SOURCES = sorted(p for p in RTL.glob("zm_*.v"))
 WINDOW_BYTES = 1 << 7  # the register block: 32 words
+# What a fully transparent picture pixel shows ({B, G, R}, zm_video_mix.v): black on the board
+# and in the browser (docs/css/crt.css .container), Matt 2026-10-20; the board passes it explicitly.
+TUBE_BROWSER = TUBE_BOARD = 0x000000
 # LiteX platforms are untyped Python classes with no common base worth naming.
 Platform = Any
 Picture = dict[str, Signal]
@@ -67,9 +70,12 @@ class ZMVideo(ZMVideoCSRs, LiteXModule):
         hp: axi.AXIInterface | None = None,
         hp_enable: Signal | None = None,
         probe: bool = False,
+        tube: int = TUBE_BROWSER,
     ) -> None:
         """probe: the read path's debug probe (soc/zm_hp_probe.py, with `hp`); off unless a
-        board-debug build asks (soc/zm_z7.py --hp-probe): it is ~100 LUT and 512 FF."""
+        board-debug build asks (soc/zm_z7.py --hp-probe): it is ~100 LUT and 512 FF.
+        tube: the colour behind every plane (TUBE_BROWSER, or TUBE_BOARD)."""
+        self.tube = tube
         self.bus = wishbone.Interface(data_width=32)
         self.drained = Signal()  # the SoC: no CPU store is still on its way to the snoop
         self._csrs()
@@ -88,7 +94,7 @@ class ZMVideo(ZMVideoCSRs, LiteXModule):
         self, platform: Platform, p: Picture, pads: Picture | None, overlay: Overlay, cds: tuple[str, ...]
     ) -> None:
         cd_pix, cd_pix5x, cd_comp = cds
-        self.specials += Instance("zm_video_out", **self._out_ports(p, cd_pix, cd_comp))
+        self.specials += Instance("zm_video_out", p_TUBE=self.tube, **self._out_ports(p, cd_pix, cd_comp))
         # GLASS HOOK (docs/FPGA_GLASS.md): the OSD sits on the finished picture,
         # between the scanout and DVI, so it never touches the machine's pixels.
         self.pic = {k: p[k] for k in ("r", "g", "b", "de", "hsync", "vsync")}

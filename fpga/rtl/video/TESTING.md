@@ -88,7 +88,8 @@ in every pass, and a break test of that rule is caught.
 | scanout fetch starved | **proven** | `--starve 16` must underrun (`test_a_starved_scanout_fetch_underruns`) |
 | the CPU, the sequencer and the RTL together, against scene_hash | **proven** | the integration test, 5 carts (`fpga/rtl/video/README.md` "Integration") |
 | HBL handlers that write VRAM mid-render | **not yet** | The replay serves the pre-render image. `vram_changed` is 0 on every corpus frame. |
-| the plane mixer: transparent, blended, no plane, 4 canvases | **proven** | `union_main`, `gen4_3615`, `dhs_0pxl0reg`; synthetic `alpha`, `bgalpha`, `worst`; picture model = Chrome's |
+| the plane mixer: transparent, blended, no plane, 4 canvases | **proven** | `union_main`, `gen4_3615`, `dhs_0pxl0reg`, `ancool`; synthetic `alpha`, `bgalpha`, `worst`; picture model = Chrome's |
+| the black tube (`TUBE`, every plane alpha 0 over an opaque background), board = browser | **proven** | `ancool`, `gen4_3615` built as the board builds it = the browser's model, per pass and on the wire; a grey-tube build passes its parameter down (`tests/test_rtl_video_tube.py`; 2 break tests drop it); `mix_tube_grey` mutant |
 | picture rows loaded back for the next plane's fold | **proven** | `--timing 24` replays of 7 multi-plane keys; `no_picture_load`, `loads_swapped`, `picture_halves_swapped` |
 | scanout: 800x600 stream, bars, two clocks (5:2, 15:4, 2:1) | **proven** | `video_out_tb` on `union_main`, `dhs_0pxl0reg` (2 frames), `worst`; 2:1 on `worst` must underrun |
 | TMDS encoding | **proven** | 2 M symbols equal to a spec encoder, decode and DC balance (worst disparity 8) |

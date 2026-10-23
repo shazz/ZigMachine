@@ -31,7 +31,11 @@
 // (zm_video_rowio.v), both bursts of 64-bit beats at bus addresses.
 `default_nettype none
 
-module zm_video_comp (
+module zm_video_comp #(
+    // What a fully transparent picture pixel shows (zm_video_mix.v): black, the browser's
+    // tube too (docs/css/crt.css); soc/zm_video_pipe.py passes it down explicitly.
+    parameter [23:0] TUBE = 24'h000000
+) (
     input  wire        clk,
     input  wire        rst,
     input  wire [31:0] vbase,            // bus address of region offset 0 (HW_VIDEO_BASE)
@@ -185,7 +189,7 @@ module zm_video_comp (
         .st_done(st_done), .wr_req_valid(wr_req_valid), .wr_req_ready(wr_req_ready), .wr_req_addr(wr_req_addr),
         .wr_req_len(wr_req_len), .wr_dat_valid(wr_dat_valid), .wr_dat_ready(wr_dat_ready), .wr_dat(wr_dat),
         .wr_busy(wr_busy), .st_raddr(st_raddr), .st_lb_rdata(lb_rdata), .st_acc_rdata(acc_rdata));
-    zm_video_mix u_mix (
+    zm_video_mix #(.TUBE(TUBE)) u_mix (
         .clk(clk), .rst(rst), .start(start_mix), .first(mix_first), .busy(mix_busy), .done(mix_done),
         .lb_raddr(mix_raddr), .lb_rdata(lb_rdata), .ld_we(ld_acc_we), .ld_addr(ld_addr), .ld_data(ld_acc_data),
         .st_raddr(st_raddr), .st_rdata(acc_rdata));

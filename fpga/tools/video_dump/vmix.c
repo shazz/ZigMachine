@@ -5,11 +5,12 @@
  *   vmix frame <dir> <frame> [--layers] -> <dir>/f<frame>.mix     (800x280 RGB)
  *                                          <dir>/f<frame>.layers  (the 4 canvases, RGBA, if asked)
  *   vmix layers <layers.rgba> <mask> <out.rgb>   compose arbitrary canvases
+ *   vmix --tube RRGGBB ...                       over another tube (both machines' is black)
  *
  * What the loader does: canvas i (stacked in DOM order, 0 at the bottom) gets
  * the PFB as it is after hwRenderPlane(i), for each enabled plane i; when no
  * plane is enabled, canvas 0 gets the PFB after hwClear. Canvases of disabled
- * planes are blank. The tube behind them is #121010 (docs/css/crt.css).
+ * planes are blank. The tube behind them is black (docs/css/crt.css .container).
  *
  * What Chrome does (measured by tools/mix_chrome.mjs, exact on every one of
  * 65,536 colour x alpha pairs and on random 4-canvas stacks): putImageData
@@ -28,7 +29,7 @@
 #define PX (W * H)
 #define CANVASES ZM_NB_PLANES
 
-static const uint8_t k_tube[3] = {0x12, 0x10, 0x10};
+static uint8_t k_tube[3] = {0x00, 0x00, 0x00};
 
 static unsigned div255(unsigned x) { return (x + 128 + ((x + 128) >> 8)) >> 8; }
 
@@ -97,6 +98,16 @@ int main(int argc, char** argv) {
     static uint8_t canvases[(size_t)CANVASES * PX * 4], out[(size_t)PX * 3];
     char path[1024];
     unsigned mask;
+    if (argc > 2 && !strcmp(argv[1], "--tube")) {
+        char* end;
+        unsigned long rgb = strtoul(argv[2], &end, 16);
+        if (*end || end - argv[2] != 6) {
+            fprintf(stderr, "vmix: --tube wants RRGGBB in hex, not %s\n", argv[2]);
+            return 2;
+        }
+        for (int c = 0; c < 3; c++) k_tube[c] = (uint8_t)(rgb >> (16 - 8 * c));
+        argc -= 2, argv += 2;
+    }
     if ((argc == 4 || (argc == 5 && !strcmp(argv[4], "--layers"))) && !strcmp(argv[1], "frame")) {
         mask = frame_canvases(argv[2], argv[3], canvases);
         snprintf(path, sizeof path, "%s/f%s.layers", argv[2], argv[3]);
@@ -109,7 +120,8 @@ int main(int argc, char** argv) {
         mask = (unsigned)strtoul(argv[3], NULL, 0);
         snprintf(path, sizeof path, "%s", argv[4]);
     } else {
-        fprintf(stderr, "usage: vmix frame <dir> <frame> [--layers] | vmix layers <layers.rgba> <mask> <out.rgb>\n");
+        fprintf(stderr, "usage: vmix [--tube RRGGBB] frame <dir> <frame> [--layers]\n"
+                        "       vmix [--tube RRGGBB] layers <layers.rgba> <mask> <out.rgb>\n");
         return 2;
     }
     if (compose(canvases, mask, out)) {

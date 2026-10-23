@@ -52,20 +52,27 @@ OUT_SOURCES = [
 ]
 
 
-def cxxrtl(rtl_dir: Path, out_dir: Path, top: str = "zm_video_comp", sources: list[str] = SOURCES) -> Path:
-    """`top` as CXXRTL C++ in out_dir/<top>.cc."""
+def cxxrtl(
+    rtl_dir: Path, out_dir: Path, top: str = "zm_video_comp", sources: list[str] = SOURCES, tube: int | None = None
+) -> Path:
+    """`top` as CXXRTL C++ in out_dir/<top>.cc; `tube` overrides its TUBE ({B, G, R}, the board's)."""
     out_dir.mkdir(parents=True, exist_ok=True)
     out = out_dir / f"{top}.cc"
     reads = " ".join(str(rtl_dir / s) for s in sources)
-    script = f"read_verilog -I{FPGA / 'gen'} -I{rtl_dir} {reads}; hierarchy -check -top {top}; proc; write_cxxrtl {out}"
+    chparam = f"chparam -set TUBE {tube} {top}; " if tube is not None else ""
+    script = f"read_verilog -I{FPGA / 'gen'} -I{rtl_dir} {reads}; {chparam}hierarchy -check -top {top}; proc; "
+    script += f"write_cxxrtl {out}"
     if yowasp_yosys.run_yosys(["-q", "-p", script]) != 0:
         raise RuntimeError(f"yosys failed on {rtl_dir}")
     return out
 
 
-def build_tb(rtl_dir: Path = RTL, out_dir: Path = FPGA / "build" / "tests", out: bool = False) -> Path:
+def build_tb(
+    rtl_dir: Path = RTL, out_dir: Path = FPGA / "build" / "tests", out: bool = False, tube: int | None = None
+) -> Path:
     """The replay testbench (`out`: the whole-frame one) linked against the RTL in
-    rtl_dir, as out_dir/video_comp_tb (video_out_tb).
+    rtl_dir, as out_dir/video_comp_tb (video_out_tb). `tube`: built with that TUBE
+    ({B, G, R}), as the board's SoC builds it, and named ..._tube<hex>.
 
     It is built in a private directory and renamed into place, because two pytest
     sessions can build it at once (`make test` collects this test file too), and
@@ -73,10 +80,10 @@ def build_tb(rtl_dir: Path = RTL, out_dir: Path = FPGA / "build" / "tests", out:
     """
     tb, top, sources = (OUT_TB, "zm_video_out", OUT_SOURCES) if out else (TB, "zm_video_comp", SOURCES)
     work = out_dir / f".build-{os.getpid()}-{top}"
-    cc = cxxrtl(rtl_dir, work, top, sources)
+    cc = cxxrtl(rtl_dir, work, top, sources, tube)
     inc = [f"-I{CXXRTL_INCLUDE}", f"-I{cc.parent}", f"-I{FPGA / 'build' / 'vdump'}", f"-I{TB.parent}"]
     subprocess.run(["clang++", "-std=c++17", "-O2", *inc, str(tb), "-o", str(work / "tb")], check=True)
-    exe = out_dir / tb.stem
+    exe = out_dir / (tb.stem + (f"_tube{tube:06x}" if tube is not None else ""))
     os.replace(work / "tb", exe)
     shutil.rmtree(work)
     return exe
@@ -84,15 +91,16 @@ def build_tb(rtl_dir: Path = RTL, out_dir: Path = FPGA / "build" / "tests", out:
 
 def replay(
     exe: Path, frames_dir: Path, frames: list[int], timing: int | None = None, fuse: bool = False,
-    extra: tuple[str, ...] = (),
+    extra: tuple[str, ...] = (), tube: str | None = None,
 ) -> subprocess.CompletedProcess[str]:
     """Run the testbench; returncode 0 means every pixel of every pass, and of the
     browser's picture (written first by tools/video_mix.py), matched. `timing`:
     serve memory with that first-beat latency and no stalls, and skip the
     per-pass read-back (the clock figures). `fuse`: clear as cycles/vseq.c does,
     one CLEAR and the first layer's `fill` passes, where the frame allows it. `extra`: more
-    testbench flags (`--line-major`, `--nopfb`, `--lm-break N`: tests/tb/video_comp_tb.cpp)."""
-    video_mix.mix(frames_dir, frames)
+    testbench flags (`--line-major`, `--nopfb`, `--lm-break N`: tests/tb/video_comp_tb.cpp).
+    `tube`: the picture to match is over that tube (RRGGBB, video_mix.mix)."""
+    video_mix.mix(frames_dir, frames, tube=tube)
     args = [str(exe), *(["--timing", str(timing)] if timing is not None else []), *(["--fuse"] if fuse else [])]
     args += list(extra)
     args += [str(frames_dir), *map(str, frames)]
@@ -100,12 +108,13 @@ def replay(
 
 
 def wire(
-    exe: Path, ratio: tuple[int, int], frames_dir: Path, frames: list[int], starve: int = 1
+    exe: Path, ratio: tuple[int, int], frames_dir: Path, frames: list[int], starve: int = 1,
+    tube: str | None = None,
 ) -> subprocess.CompletedProcess[str]:
     """Run the whole-frame testbench with the compositor clocked at ratio[0]/ratio[1]
     times the pixel clock; returncode 0 means every pixel and sync on the wire matched.
-    `starve`: the scanout fetch gets a beat at most every that many clocks."""
-    video_mix.mix(frames_dir, frames)
+    `starve`: the scanout fetch gets a beat at most every that many clocks. `tube`: as replay's."""
+    video_mix.mix(frames_dir, frames, tube=tube)
     args = [str(exe), *(["--starve", str(starve)] if starve > 1 else []), str(ratio[0]), str(ratio[1])]
     args += [str(frames_dir), *map(str, frames)]
     return subprocess.run(args, capture_output=True, text=True, timeout=1200, check=False)

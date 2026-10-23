@@ -65,7 +65,7 @@ body {
 }
 
 .container {
-  background: #121010;
+  background: #000000;
   width: 800px;
   height: 560px;
   margin-top: 10px;
@@ -73,7 +73,7 @@ body {
   top: 80px;
   left: 114px;
   overflow: hidden;
-  border: 2px solid #121010;
+  border: 2px solid #000000;
   z-index: 2;
 }
 .container::after {
