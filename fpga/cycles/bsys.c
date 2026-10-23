@@ -17,6 +17,7 @@
 #include "glass_cart.h"
 #include "zm_memmap.h"
 #include "glass_map.h"
+#include "mem_place.h"
 
 extern const zm_sys_table zm_sys_table_v; /* tools/host_split.py's sys_env.c */
 const zm_cart_hdr* zm_cart;
@@ -47,9 +48,14 @@ void bsys_link(void) {
            (unsigned long)(h->version & 0xFFFFu));
 }
 
+/* The shared memory at a measured offset in its 4 KiB page (host/mem_place.h). */
+#ifndef ZIGGY_MEM_SET
+#define ZIGGY_MEM_SET 0x5c8u
+#endif
+
 /* host/boot.c's order (scene_hash.mjs boot()), the cart instance calloc'd at its own size. */
 void host_boot(struct w2c_env* e) {
-    wasm_rt_allocate_memory(&e->memory, host_pages, host_pages, false, WASM_DEFAULT_PAGE_SIZE);
+    zm_mem_place(&e->memory, host_pages, ZIGGY_MEM_SET);
     wasm2c_machine_instantiate(&e->machine, e);
     wasm2c_rom_instantiate(&e->rom, e);
     w2c_machine_hwSetRomHigh(&e->machine, host_rom_high);
