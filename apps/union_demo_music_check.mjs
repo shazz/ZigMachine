@@ -129,7 +129,15 @@ async function plays(req, voices = 3) {
 
 async function checkMenu() {
     const cart = await bootCart("docs/demo-union_demo.wasm");
-    const req = firstRequest(cart, 400); // the song starts with the street, after the ~100-frame loader panel
+    // The hub opens on its intro splash (Ikari Union); Space ends it (a stop request), and the
+    // street's song starts after the ~100-frame loader panel.
+    const intro = firstRequest(cart, 100);
+    if (intro?.name !== "ikari_union.sndh") console.log(`union_demo: the intro asks for ${JSON.stringify(intro?.name)}, not ikari_union.sndh`);
+    cart.demo.input(5);
+    cart.demo.key(32);
+    const stop = firstRequest(cart, 10);
+    if (stop?.name !== "none") console.log(`union_demo: Space on the intro asks for ${JSON.stringify(stop?.name)}, not the stop "none"`);
+    const req = intro?.name === "ikari_union.sndh" && stop?.name === "none" ? firstRequest(cart, 400) : null;
     const again = cart.demo.pollSongRequest();
     console.log(`union_demo request: ${req ? `"${req.name}" tune ${req.tune}` : "none"} (polled twice: ${again ? "STILL pending" : "cleared"})`);
     return !!req && req.name === MENU_WANT && req.tune === MENU_TUNE && !again && (await plays(req));

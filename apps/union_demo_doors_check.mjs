@@ -5,8 +5,9 @@
 // presses fire, polls the cart-request bridge the way docs/sealed-loader.js's
 // loop does (pollCartRequest -> getCartTagPtr/Len), and requires every tagged
 // door to ask for its cart, with that cart's disk present and kept off the
-// channel list. A hub door is also walked to with the browser's key events, and the
-// cracktro's door screen (union_intro) must open the same screens from its 18 doors.
+// channel list. A hub door is also walked to with the browser's key events. The
+// cracktro (union_intro, the CODEF one) reaches its own door street, whose doors are
+// decorative: Space there asks for no cart.
 //
 //   node apps/union_demo_doors_check.mjs
 import { readFile, access } from "node:fs/promises";
@@ -43,24 +44,32 @@ async function boot(cartPath) {
     return { memory, machine, demo };
 }
 
-// The hub first depacks its graphics behind menuloader.js's TEX panel; the
-// street (and its music request) starts when that is done.
-function untilLoaded(demo) {
-    for (let f = 0; f < 400; f++) {
+// A fresh hub opens on the intro splash (union_demo/opening.zig): Space (as the host sends
+// it: input fire + key 32), 30 frames after the splash's tune is asked for, ends it; the
+// graphics depack behind menuloader.js's TEX panel, and the street starts with its own tune.
+// No cart swap on the way. Returns the frame Space was pressed and the street's first frame.
+const dec = new TextDecoder();
+function untilLoaded(demo, memory) {
+    let space = -1;
+    for (let f = 0; f < 1200; f++) {
+        if (f === space) { demo.input(DIR.fire); demo.key(32); }
         demo.frame(16.6);
-        if (demo.pollSongRequest()) return f + 1;
+        if (demo.pollCartRequest() !== 0) throw new Error(`the hub asked for a cart swap at frame ${f}, before its street`);
+        if (!demo.pollSongRequest()) continue;
+        const name = dec.decode(new Uint8Array(memory.buffer, demo.songNamePtr(), demo.songNameLen()));
+        if (name === "ikari_union.sndh" && space < 0) space = f + 30; // the splash is up
+        if (name.includes("alloy_run")) return { space, street: f + 1 };
     }
-    throw new Error("the hub never finished loading");
+    throw new Error("the hub never reached its street");
 }
 
 // The remake's teleport keys (entities.js:99-152, controls.zig): '1'..'9' are
 // doors 0..8, '0' door 9, 'H' door 10, in TMX object order (menu_map.zig DOORS).
 const TELEPORT = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "H"];
-const dec = new TextDecoder();
 const launched = []; // [door key, tag] for every door that asked for a cart
 for (const k of TELEPORT) {
     const { memory, demo } = await boot("docs/demo-union_demo.wasm");
-    untilLoaded(demo);
+    untilLoaded(demo, memory);
     demo.key(k.charCodeAt(0));
     for (let f = 0; f < 10; f++) demo.frame(16.6); // teleport, settle on the street
     let tag = null;
@@ -83,25 +92,23 @@ for (const tag of WANT) {
     try { await access(`docs/demo-${tag}.zmd`); } catch { problems.push(`no disk docs/demo-${tag}.zmd`); }
     if (channels.includes(tag)) problems.push(`${tag} is a +/- channel; it must be hub-only`);
 }
-// The Union Demo opens on its intro (Matt, 2026-09-13): the +/- channel and the
-// UNION DEMO menu entry boot union_intro_screen, not the street.
-for (const tag of ["union_intro_screen", "union_intro"])
+// The Union Demo is ONE cart opening on its intro (Matt, 2026-09-13 and 10-23): the +/-
+// channel and the UNION DEMO menu entry boot union_demo, whose splash leads to the street.
+for (const tag of ["union_demo", "union_intro"])
     if (!channels.includes(tag)) problems.push(`${tag} is missing from the channel list`);
-if (channels.includes("union_demo")) problems.push("union_demo is a +/- channel; the demo's channel is its intro");
+if (channels.includes("union_intro_screen")) problems.push("union_intro_screen is still a channel; the splash lives in union_demo");
 const catalog = await readFile("apps/zig/scenes/catalog.zig", "utf8");
 const menu = catalog.match(/\.name = "UNION DEMO", \.tag = "([^"]*)"/);
-if (!menu || menu[1] !== "union_intro_screen") problems.push(`the UNION DEMO menu entry boots "${menu?.[1]}", not union_intro_screen`);
+if (!menu || menu[1] !== "union_demo") problems.push(`the UNION DEMO menu entry boots "${menu?.[1]}", not union_demo`);
 
-// The cracktro (union_intro) flows from its parts into its door screen with no cart swap,
-// and each of the 18 door columns (efmain.js posDoors) opens a real Union screen: the hub's
-// eleven in their door order, round again (union/doors.zig DOOR_TAGS). Space is held down
-// (fire every frame, as the host sends it) from boot, for one lap of the street.
-const MAIN_PLANE = 1; // the parts draw on plane 0; the door screen enables plane 1
-const RUNNER_DOORS = 18;
+// The cracktro (union_intro) flows from its parts into its door street with no cart swap, and
+// its 18 doors (efmain.js posDoors) are decorative (Matt, 2026-10-23): Space held down (fire
+// every frame, as the host sends it) from boot for a whole lap asks for nothing.
+const MAIN_PLANE = 1; // the parts draw on plane 0; the door street enables plane 1
 {
-    const { memory, machine, demo } = await boot("docs/demo-union_intro.wasm");
+    const { machine, demo } = await boot("docs/demo-union_intro.wasm");
     let main = -1;
-    const entered = []; // [frame, tag], consecutive repeats of one door dropped
+    const asked = [];
     const LAP = Math.floor(778 / 0.3); // frames for one lap of the street (main.zig SCROLL_WRAP, 0.3 tiles a frame)
     for (let f = 0; f < 6000 && (main < 0 || f < main + LAP); f++) {
         machine.hwClear(); // the host loop: rendered planes, or the HBL-driven depack never runs
@@ -110,24 +117,18 @@ const RUNNER_DOORS = 18;
         if (main < 0 && demo.isPlaneEnabled(MAIN_PLANE)) main = f;
         demo.input(DIR.fire);
         const req = demo.pollCartRequest();
-        if (req === -1) { problems.push(`union_intro asked for the menu at frame ${f}`); break; }
-        if (req !== 1) continue;
-        const tag = dec.decode(new Uint8Array(memory.buffer, demo.getCartTagPtr(), demo.getCartTagLen()));
-        if (entered.length === 0 || entered[entered.length - 1][1] !== tag) entered.push([f, tag]);
+        if (req !== 0) asked.push(`${req} at frame ${f}`);
     }
-    const want = Array.from({ length: RUNNER_DOORS }, (_, i) => WANT[i % WANT.length]);
-    const got = entered.map((e) => e[1]);
-    if (main < 0) problems.push("union_intro never reached its door screen");
-    else if (entered.length && entered[0][0] < main) problems.push(`union_intro asked for "${entered[0][1]}" at frame ${entered[0][0]}, before its door screen (${main})`);
-    if (JSON.stringify(got) !== JSON.stringify(want)) problems.push(`union_intro's doors launched [${got.join(", ")}], want [${want.join(", ")}]`);
-    console.log(`union_intro: parts -> door screen at frame ${main}, no swap; ${got.length} doors entered in one lap`);
+    if (main < 0) problems.push("union_intro never reached its door street");
+    if (asked.length) problems.push(`union_intro asked for a cart: ${asked.slice(0, 3).join(", ")} (its doors are decorative)`);
+    console.log(`union_intro: parts -> door street at frame ${main}, no swap; Space for a lap asked for nothing`);
 }
 
 // A hub door entered the way a player does with the browser's keys (docs/sealed-loader.js):
 // Up and Right held (auto-repeat keydowns), Space tapped (keydown, keyup) -- not a teleport.
 {
     const { memory, demo } = await boot("docs/demo-union_demo.wasm");
-    untilLoaded(demo);
+    untilLoaded(demo, memory);
     let tag = null;
     for (let f = 0; f < 600 && tag === null; f++) {
         if (f % 2 === 0) demo.input(3);
@@ -140,21 +141,14 @@ const RUNNER_DOORS = 18;
     if (tag !== WANT[0]) problems.push(`walking up and right with Space tapped asks for "${tag}", not ${WANT[0]} (the first door)`);
 }
 
-// Space on the intro opens FIRST_LOADER's panel; Space once it has landed goes
-// on to the street.
+// The opening is ONE intro screen: the splash, then a single TEX panel (the street's
+// loader: its depack takes ~96 frames), then the street, in one cart with no swap.
 {
-    const { memory, demo } = await boot("docs/demo-union_intro_screen.wasm");
-    let started = false;
-    for (let f = 0; f < 400 && !started; f++) { demo.frame(16.6); started = demo.pollSongRequest() !== 0; }
-    demo.frame(16.6);
-    demo.key(32);
-    const early = demo.pollCartRequest();
-    for (let f = 0; f < 110; f++) demo.frame(16.6);
-    demo.key(32);
-    const req = demo.pollCartRequest();
-    const tag = req === 1 ? dec.decode(new Uint8Array(memory.buffer, demo.getCartTagPtr(), demo.getCartTagLen())) : null;
-    if (!started || early !== 0 || tag !== "union_demo")
-        problems.push(`the intro: first Space asks for ${early} (want 0, the loader panel), Space after the panel asks for ${req} "${tag}", not 1 "union_demo"`);
+    const { memory, demo } = await boot("docs/demo-union_demo.wasm");
+    const { space, street } = untilLoaded(demo, memory);
+    if (space < 0 || street - space > 130)
+        problems.push(`the opening: Space at frame ${space}, street at ${street}: more than one loader panel between them`);
+    console.log(`union_demo: splash -> Space (frame ${space}) -> one loader panel -> street (frame ${street}), no swap`);
 }
 // The hub and the intro depack into zg.mem blocks: a refusal is a screen that never loaded.
 const refused = machines.reduce((n, m) => n + m.hwRamAllocFailures(), 0);

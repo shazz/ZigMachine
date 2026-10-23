@@ -52,7 +52,7 @@ OVERRIDES = {
     "union_textracker": ("TEX SAMPLE-MON ST", "The Union Demo", ""),  # "The Union Demo hidden screen, TEX's ..."
 }
 # Hub-only carts (catalog.zig's note: reached only through a hub's doors): tag prefix -> the hub's tag.
-HUBS = {"union_": "union_intro_screen"}
+HUBS = {"union_": "union_demo"}
 
 
 def ascii_text(s: str) -> str:

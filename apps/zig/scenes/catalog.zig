@@ -65,7 +65,7 @@ pub const ENTRIES = [_]Entry{
     .{ .name = "MAD VISION FRED (C)", .tag = "c-screen34" }, // atari st
     .{ .name = "V8 POPULOUS (RUST)", .tag = "rust-v8_populous" }, // atari st
     .{ .name = "ELITE JIMMY WHITE", .tag = "elite_snooker" }, // atari st
-    .{ .name = "UNION DEMO", .tag = "union_intro_screen" }, // atari st — the demo opens on its intro splash; Space goes on to the street (union_demo)
+    .{ .name = "UNION DEMO", .tag = "union_demo" }, // atari st — the demo opens on its intro splash, then the street's loader panel and the street (one cart)
     .{ .name = "TUTORIAL", .tag = "tutorial" }, // zigmachine
     .{ .name = "MPP TRUECOLOR", .tag = "mpp_truecolor" }, // zigmachine
     .{ .name = "AUTOMATION 442", .tag = "automation442" }, // atari st

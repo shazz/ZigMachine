@@ -99,11 +99,17 @@ async function boot(loaded = true) {
 // The hub's graphics depack behind menuloader.js's TEX panel on EVERY start, a
 // return from a screen included; its first street step runs on the frame the
 // depack ends, which is also when it asks for its music. Returns the frame count.
+// A first start opens on the intro splash (union_demo/opening.zig): Space, sent the
+// frame its tune is asked for, ends it (its stop request "none" follows).
 async function ready(m, onFrame = () => {}) {
+    const dec = new TextDecoder();
     for (let f = 1; f <= 400; f++) {
         step(m);
         await onFrame(f);
         if (m.demo.pollSongRequest()) {
+            const name = dec.decode(new Uint8Array(m.memory.buffer, m.demo.songNamePtr(), m.demo.songNameLen()));
+            if (name === "ikari_union.sndh") { m.demo.input(DIR.fire); m.demo.key(32); continue; }
+            if (name === "none") continue;
             // the graphics depack into a zg.mem block: a refusal is a hub that never loaded
             const refused = m.machine.hwRamAllocFailures();
             if (refused) throw new Error(`the hub had ${refused} zg.mem allocation(s) refused`);

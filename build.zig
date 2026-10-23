@@ -459,7 +459,7 @@ pub fn build(b: *std.Build) void {
         "demo-mpp_truecolor", // 43 — truecolor picture via per-line palettes on 1 and 4 planes (MPP)
         "demo-union_multifake", // 44 — The Union Demo / TCB3 MULTIFAKE scroller (melonJS remake)
         "demo-union_textracker", // 45 — The Union Demo hidden screen, TEX's Sample-Mon ST (melonJS remake)
-        "demo-union_intro_screen", // 46 — The Union Demo intro screen (melonJS remake, screens/intro): hub-only
+        "", // 46 — was demo-union_intro_screen: the splash now opens union_demo itself (one intro screen, no swap; Matt, 2026-10-23)
         "demo-union_deltaforce", // 47 — The Union Demo / DELTA FORCE Sphericool screen (melonJS remake)
         "demo-union_texcopier", // 48 — The Union Demo / COPIER TEX, TEX's copy program (melonJS remake)
         "demo-union_tnt3", // 49 — The Union Demo / TNT3, the TNT Crew's vector screen (melonJS remake)

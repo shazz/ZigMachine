@@ -35,6 +35,7 @@ const Controls = @import("union_demo/controls.zig").Controls;
 const world = @import("union_demo/world.zig");
 const doors = @import("union_demo/doors.zig");
 const menu_loader = @import("union_demo/loading.zig"); // menuloader.js before the street
+const Opening = @import("union_demo/opening.zig").Opening; // the intro splash, first entry only
 const raster = @import("union_demo/raster.zig");
 const gpu = @import("union_common/gpu.zig");
 const hud = @import("union_demo/hud.zig");
@@ -80,6 +81,7 @@ pub const Demo = struct {
     wants_quit: bool,
     launch: ?[]const u8, // the cart a door asked for (read by cartTag)
     launch_pending: bool, // reported to the host once, as menu.zig does
+    opening: Opening, // the intro splash before the street's loader (first entry)
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
         self.charly.init(A.map.START_X, A.map.START_Y);
@@ -97,11 +99,16 @@ pub const Demo = struct {
         self.launch_pending = false;
 
         gpu.init();
+        if (!self.opening.start(zigos)) startLoader(zigos);
+    }
+
+    /// The street's loader panel: the HUD and the music wait for the graphics.
+    fn startLoader(zigos: *ZigOS) void {
         const fb = &zigos.lfbs[0];
         fb.is_enabled = true;
         fb.setPalette(A.palette);
         fb.setPaletteEntry(0, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
-        menu_loader.start(zigos); // the HUD and the music wait for the graphics
+        menu_loader.start(zigos);
     }
 
     /// The remake updates on setInterval at me.sys.fps = 60 whatever the display
@@ -111,6 +118,10 @@ pub const Demo = struct {
     /// time is carried, so a 60 Hz display gets exactly one step every frame (dt
     /// jitter included) and a 144 Hz one gets 60 a second, not 144.
     pub fn update(self: *Demo, zigos: *ZigOS, dt: f32) void {
+        if (self.opening.on) {
+            if (!self.opening.update(zigos, dt)) startLoader(zigos);
+            return;
+        }
         switch (menu_loader.step(zigos)) {
             .loading => return,
             .failed => {
@@ -160,7 +171,7 @@ pub const Demo = struct {
     }
 
     pub fn render(self: *Demo, zigos: *ZigOS, dt: f32) void {
-        _ = dt;
+        if (self.opening.on) return self.opening.render(zigos, dt);
         if (menu_loader.blocking()) return; // the loader panel owns the plane
         const fb = &zigos.lfbs[0];
         world.drawRasters(fb, self.rasters_y, raster.doorInk(fb));
@@ -175,6 +186,7 @@ pub const Demo = struct {
     /// street is the demo's HUB, and Back used to throw the session away from
     /// it (see key()).
     pub fn input(self: *Demo, dir: u8) void {
+        if (self.opening.on) return self.opening.input(dir);
         if (dir != 6) self.controls.input(dir);
     }
 
@@ -202,6 +214,7 @@ pub const Demo = struct {
     /// through a door, and the cracktro door runner that launched it
     /// (union/doors.zig) still owns Escape.
     pub fn key(self: *Demo, cp: u32) void {
+        if (self.opening.on) return self.opening.key(cp);
         if (cp != K_ESC) self.controls.key(cp);
     }
 

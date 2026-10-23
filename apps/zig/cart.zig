@@ -56,7 +56,7 @@ const scene = switch (opts.index) {
     43 => @import("scenes/mpp_truecolor.zig"), // more than 256 colours: per-line palettes (MPP)
     44 => @import("scenes/union_multifake.zig"),
     45 => @import("scenes/union_textracker.zig"),
-    46 => @import("scenes/union_demo_intro.zig"),
+    // 46: union_intro_screen, excluded in build.zig (its splash opens union_demo now).
     47 => @import("scenes/union_deltaforce.zig"),
     48 => @import("scenes/union_texcopier.zig"),
     49 => @import("scenes/union_tnt3.zig"),

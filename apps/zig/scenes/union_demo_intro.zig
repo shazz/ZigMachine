@@ -4,8 +4,11 @@
 // to The Union (The Carebears: Nick, Jas, ES; music Mad Max).
 //
 // In the remake this is the splash the demo opens on (main.js:262-265): Space
-// leaves it for the first TEX loader, then the menu. Here Space, Escape, Fire
-// or Back boots the menu cart (union_demo).
+// leaves it for the first TEX loader (demoLoader's credits panel), then the menu
+// loader's panel, then the street. Here it opens the union_demo cart itself, and
+// Space, Escape, Fire or Back go on to the ONE loader panel before the street,
+// the menu loader's (Matt, 2026-10-23: one intro screen, no double panel, no
+// cart swap -- the board's firmware swaps no cart). union_demo.zig drives it.
 //
 // Three things on a black 640x400 canvas, halved onto one 320x200 plane:
 //   background  bg2.png, a 96-row tile scrolling down 3 canvas rows a frame,
@@ -29,20 +32,12 @@
 // before the first frame: nothing loads before the remake's introScreen
 // (main.js:262-265 clears the canvas black and changes state straight to it).
 // --------------------------------------------------------------------------
-//
-// Space then leads to the remake's FIRST_LOADER, demoLoader (demoloader.js): a
-// TEX loader panel of credits ("THIS SCREEN WAS DONE BY THE CAREBEARS ... PRESS
-// ANY KEY TO CONTINUE") assembling on black, 140 ms of tween clock a frame
-// (loader.js:184, ticked after each draw). Only Space once no tween is active,
-// i.e. every letter landed, goes on (demoloader.js update), to the street.
-// --------------------------------------------------------------------------
 const std = @import("std");
 const zg = @import("zigos");
 const ZigOS = zg.ZigOS;
 const Color = zg.Color;
 const blit = zg.blit;
 const depackers = @import("depackers");
-const tex = depackers.tex_loader;
 const DepackFx = depackers.depack_fx.Runner(zg, null); // fx none: no tvnoise
 const fx = @import("turns_fix.zig");
 const packed_intro = @import("packed_assets").union_demo_intro;
@@ -52,7 +47,6 @@ const packed_intro = @import("packed_assets").union_demo_intro;
 // at 95.7% (registers 0-5 exact, 8-10 masked to 5 bits, 800 frames, offset 0;
 // 95.0% over 1800); the next best of 532 subtunes scored 26.5%.
 const MUSIC = "ikari_union.sndh";
-const MENU_TAG = "union_demo";
 
 // The whole 61,568-byte blob in one frame (280 lines x 220 = 61,600 bytes).
 const DEPACK_BYTES_PER_LINE = 220;
@@ -96,28 +90,6 @@ const TILES_Y = 14; // for (y = 0; y < 224; y += 16)
 const SWING_X = 32;
 const SWING_Y = 16;
 
-// demoLoader's panel, loaderText[0..22] (demoloader.js), as zx0pack reads it.
-const CREDITS_COLS = 21;
-const CREDITS_ROWS = 23;
-const CREDITS_PANEL: [CREDITS_COLS * CREDITS_ROWS]u8 = blk: {
-    const txt = @embedFile("../assets/screens/union_demo_intro/loader_demo.txt");
-    var out: [CREDITS_COLS * CREDITS_ROWS]u8 = undefined;
-    var rows: usize = 0;
-    var it = std.mem.splitScalar(u8, txt, '\n');
-    while (it.next()) |line| {
-        if (line.len == 0 or line[0] != '"') continue;
-        const row = line[1..std.mem.lastIndexOfScalar(u8, line, '"').?];
-        if (row.len != CREDITS_COLS or rows == CREDITS_ROWS) @compileError("loader_demo.txt is not 23 rows of 21");
-        @memcpy(out[rows * CREDITS_COLS ..][0..CREDITS_COLS], row);
-        rows += 1;
-    }
-    if (rows != CREDITS_ROWS) @compileError("loader_demo.txt is not 23 rows of 21");
-    break :blk out;
-};
-const TWEEN_TICK_MS = 140; // createjs.Tween.tick(140) (loader.js:184)
-const CREDITS_LANDED_MS = tex.timelineEnd(CREDITS_COLS * CREDITS_ROWS);
-const CREDITS_INK: u8 = 44; // first palette entry past intro_pal.dat's 43 colours
-
 const K_ESC: u32 = 0xE012;
 const K_SPACE: u32 = ' ';
 const DIR_FIRE: u8 = 5;
@@ -132,10 +104,7 @@ pub const Demo = struct {
     logo_inc: u64, // logoInc
     logo_sin: u64, // logosin1
     letters: u64, // sinlettersx == sinlettersy after update()
-    credits: bool, // FIRST_LOADER (demoloader.js) is on screen
-    credits_ticks: u32, // Tween.tick calls so far
-    credits_clock: u32, // ms of tween clock for this frame's draw
-    leaving: bool,
+    done: bool, // Space (or Escape) was pressed: the street's loader takes over
     wants_quit: bool, // no way to run at all: back to the menu
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
@@ -143,10 +112,7 @@ pub const Demo = struct {
         self.logo_inc = 0;
         self.logo_sin = 0;
         self.letters = 0;
-        self.credits = false;
-        self.credits_ticks = 0;
-        self.credits_clock = 0;
-        self.leaving = false;
+        self.done = false;
         self.wants_quit = false;
         self.depacking = false;
         // On zg.mem, taken once: init runs once per cart load.
@@ -171,7 +137,6 @@ pub const Demo = struct {
         fb.is_enabled = true;
         fb.setPalette(palette);
         fb.setPaletteEntry(0, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
-        fb.setPaletteEntry(CREDITS_INK, Color{ .r = tex.INK.r, .g = tex.INK.g, .b = tex.INK.b, .a = 255 });
         zg.requestSong(MUSIC);
     }
 
@@ -184,12 +149,7 @@ pub const Demo = struct {
                 .failed => return self.fail("depack failed"),
             }
         }
-        if (self.wants_quit) return;
-        if (self.credits) { // this frame draws at the clock so far, then ticks
-            self.credits_clock = self.credits_ticks * TWEEN_TICK_MS;
-            self.credits_ticks += 1;
-            return;
-        }
+        if (self.wants_quit or self.done) return;
         self.logo_inc +%= LOGO_INC;
         self.bg_pos += BG_STEP;
         if (self.bg_pos >= 0) self.bg_pos = BG_TOP;
@@ -201,7 +161,6 @@ pub const Demo = struct {
         _ = dt;
         if (self.depacking or self.wants_quit) return;
         const fb = &zigos.lfbs[0];
-        if (self.credits) return tex.draw(fb, &CREDITS_PANEL, CREDITS_COLS, self.credits_clock, CREDITS_INK);
         self.drawBackground(fb);
         self.drawLogo(fb);
         self.drawLetters(fb);
@@ -254,40 +213,20 @@ pub const Demo = struct {
         }
     }
 
-    // Escape and Back leave at any time. Space and Fire (the remake's Space) go
-    // from the intro to FIRST_LOADER's panel, and from the panel, once every
-    // letter has landed (no active tween), on to the street.
+    // Escape, Back, Space and Fire (the remake's Space) end the intro: the street's
+    // loader panel comes next. demoLoader stopped the intro tune; the panel stays
+    // silent until the street asks for its own (Matt: silence for now).
     pub fn key(self: *Demo, cp: u32) void {
-        if (cp == K_ESC) self.leaving = true else if (cp == K_SPACE) self.next();
+        if (cp == K_ESC or cp == K_SPACE) self.next();
     }
 
     pub fn input(self: *Demo, dir: u8) void {
-        if (dir == DIR_BACK) self.leaving = true else if (dir == DIR_FIRE) self.next();
+        if (dir == DIR_BACK or dir == DIR_FIRE) self.next();
     }
 
     fn next(self: *Demo) void {
-        if (self.depacking or self.wants_quit) return;
-        if (!self.credits) {
-            self.credits = true; // onDestroyEvent of the intro, onResetEvent of demoLoader
-            // demoLoader stops the intro tune for zik_loader.ogg; Matt: silence for now.
-            zg.stopSong();
-            self.credits_ticks = 0;
-            self.credits_clock = 0;
-        } else if (self.credits_ticks * TWEEN_TICK_MS >= CREDITS_LANDED_MS) {
-            self.leaving = true;
-        }
-    }
-
-    // Cartridge swap (demo_main forwards these to the host): 1 boots MENU_TAG.
-    pub fn pollCart(self: *Demo) i32 {
-        if (self.wants_quit) return -1;
-        if (!self.leaving) return 0;
-        self.leaving = false;
-        return 1;
-    }
-
-    pub fn cartTag(self: *Demo) []const u8 {
-        _ = self;
-        return MENU_TAG;
+        if (self.depacking or self.wants_quit or self.done) return;
+        zg.stopSong();
+        self.done = true;
     }
 };

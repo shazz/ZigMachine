@@ -11,7 +11,9 @@
 //      by the rules the scene documents, and every one of the 64,000 pixels of
 //      the plane must equal it at each sampled frame;
 //   3. consecutive frames move (background 1.5 px, letters, logo);
-//   4. the screen asks for ikari_union.sndh, Space boots union_demo;
+//   4. the screen asks for ikari_union.sndh; Space stops it and the street's ONE
+//      loader panel (menuloader.js) assembles, then the street starts, in the same
+//      cart (union_demo opens on this splash: no swap, no second panel);
 //   5. a frame leaves 60 fps headroom.
 //
 //   node apps/union_demo_intro_headless.mjs [outdir] [cart.wasm]
@@ -140,7 +142,7 @@ function png(rgba, w, h) {
     return Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk("IHDR", ihdr), chunk("IDAT", deflateSync(raw)), chunk("IEND", Buffer.alloc(0))]);
 }
 
-const { memory, machine, demo } = await boot(process.argv[3] || "docs/demo-union_intro_screen.wasm");
+const { memory, machine, demo } = await boot(process.argv[3] || "docs/demo-union_demo.wasm");
 const W = machine.hwPhysWidth(), H = machine.hwPhysHeight();
 const shot = () => { machine.hwRenderPlane(0); return window320(new Uint8Array(memory.buffer, machine.hwPhysicalPtr(), W * H * 4), W); };
 const errors = [];
@@ -186,46 +188,30 @@ const moved = (a, b) => seen.get(a).rgba.some((v, i) => v !== seen.get(b).rgba[i
 if (!moved(32, 33) || !moved(300, 301)) errors.push("consecutive frames are identical: nothing moves");
 if (seen.get(32).bg !== -96 || seen.get(33).bg !== -93) errors.push(`bgposy at 32/33 is ${seen.get(32).bg}/${seen.get(33).bg}, not -96/-93`);
 
-// 4. Space: FIRST_LOADER's panel (demoloader.js) assembles, 140 ms of tween
-//    clock a frame; Space before every letter lands is ignored; after, it boots
-//    union_demo. The landed panel must hold exactly its glyphs' ink.
-const PANEL = (await readFile(`${ASSETS}loader_demo.txt`, "utf8")).split("\n").filter((l) => l.startsWith('"')).map((l) => l.slice(1, l.lastIndexOf('"')));
-const FONT_RAW = await readFile("libs/zig/depackers/tex_loader/loader.raw"); // 80x48, 10 glyphs a row of 8x8
-const glyphInk = (c) => { const g = c.charCodeAt(0) - 0x20; let n = 0; for (let y = 0; y < 8; y++) for (let x = 0; x < 8; x++) n += FONT_RAW[((Math.floor(g / 10) * 8 + y) * 80) + (g % 10) * 8 + x]; return n; };
-const expectedInk = PANEL.join("").split("").reduce((n, c) => n + glyphInk(c), 0);
-const LANDED_MS = (PANEL.length * PANEL[0].length - 1) * 30 + 50; // tex_loader timelineEnd
-const landedTicks = Math.ceil(LANDED_MS / 140);
+// 4. Space: the intro tune stops (the reserved stop name, which the host turns into an
+//    audio reset), the street's loader panel assembles in TEX ink while the menu
+//    graphics depack, and the street starts with its own tune. No cart is asked for:
+//    the splash, the one panel and the street are one cart (union_demo/opening.zig).
+demo.input(5);
 demo.key(32);
-if (demo.pollCartRequest() !== 0) errors.push("Space on the intro left at once; FIRST_LOADER's panel must come first");
-// demoLoader stops the intro tune (Matt: silence for now): the cart asks for the
-// reserved stop name, which the host turns into an audio reset.
-let stopReq = null; // polled on the panel's first frame, below
-let creditsMid = 0, creditsFrames = 0;
-for (let f = 1; f <= landedTicks; f++) {
+let stopReq = null, panelMid = 0, panelFrames = 0, streetSong = null, swap = 0;
+for (let f = 1; f <= 200 && !streetSong; f++) {
     demo.frame(1000 / 60);
-    creditsFrames = f;
-    if (f === 1) {
-        if (demo.pollSongRequest()) stopReq = dec.decode(new Uint8Array(memory.buffer, demo.songNamePtr(), demo.songNameLen()));
-        if (stopReq !== "none") errors.push(`the credits panel asks for song ${JSON.stringify(stopReq)}, not the stop request "none"`);
+    if (demo.pollCartRequest() !== 0) swap++;
+    if (demo.pollSongRequest()) {
+        const name = dec.decode(new Uint8Array(memory.buffer, demo.songNamePtr(), demo.songNameLen()));
+        if (stopReq === null) stopReq = name; else streetSong = name;
     }
     const r = shot();
-    if (f === 2 && inkPixels(r) !== 0) errors.push("the credits panel does not start on black");
-    if (f === 60) { creditsMid = inkPixels(r); if (out) await writeFile(`${out}/union_intro-credits-60.png`, png(r, 320, 200)); }
-    if (f === landedTicks - 1) {
-        demo.key(32);
-        if (demo.pollCartRequest() !== 0) errors.push(`Space at panel frame ${f} left before every letter landed`);
-    }
+    if (!streetSong) panelFrames = f;
+    if (f === 50) { panelMid = inkPixels(r); if (out) await writeFile(`${out}/union_intro-panel-50.png`, png(r, 320, 200)); }
 }
-demo.frame(1000 / 60);
-const landed = shot();
-const landedInk = inkPixels(landed);
-if (out) await writeFile(`${out}/union_intro-credits-landed.png`, png(landed, 320, 200));
-if (!(creditsMid > 0 && creditsMid < landedInk)) errors.push(`the credits panel does not assemble (${creditsMid} ink px at frame 60, ${landedInk} landed)`);
-if (landedInk !== expectedInk) errors.push(`the landed credits panel has ${landedInk} ink px, its glyphs ${expectedInk}`);
-demo.key(32);
-const req = demo.pollCartRequest();
-const tag = dec.decode(new Uint8Array(memory.buffer, demo.getCartTagPtr(), demo.getCartTagLen()));
-if (req !== 1 || tag !== "union_demo") errors.push(`Space on the landed panel asks for cart ${req} "${tag}", not 1 "union_demo"`);
+if (stopReq !== "none") errors.push(`Space asks for song ${JSON.stringify(stopReq)}, not the stop request "none"`);
+if (!(panelMid > 0)) errors.push("no loader panel ink at frame 50 after Space");
+if (swap) errors.push(`the opening asked for ${swap} cart swap(s); the splash, panel and street are one cart`);
+if (!(streetSong && streetSong.includes("alloy_run"))) errors.push(`the street never started (song ${streetSong}) within 200 frames of Space`);
+if (panelFrames > 130) errors.push(`${panelFrames} frames between Space and the street: more than one loader panel`);
+const landedTicks = panelFrames, landedInk = panelMid;
 
 // 5. budget
 const perFrame = cartMs / (FRAMES.at(-1) - 1);
@@ -267,4 +253,4 @@ if (errors.length) {
     console.error(`union_demo_intro: WRONG\n  ${errors.slice(0, 12).join("\n  ")}`);
     process.exit(1);
 }
-console.log(`union_demo_intro: depack ${depackFrames} frames, no panel (${midInk} TEX ink px); all 64000 px equal the screen.js replay at frames ${FRAMES.join(",")}; song ${song} (peak ${peak.toFixed(2)}); Space -> stop request "none", silent after (peak ${played.afterStop.toFixed(4)}) -> demoloader.js panel, landed after ${landedTicks} frames (${landedInk} ink px = its glyphs) -> Space -> union_demo; ${perFrame.toFixed(3)} ms/frame`);
+console.log(`union_demo_intro: depack ${depackFrames} frames, no panel (${midInk} TEX ink px); all 64000 px equal the screen.js replay at frames ${FRAMES.join(",")}; song ${song} (peak ${peak.toFixed(2)}); Space -> stop request "none", silent after (peak ${played.afterStop.toFixed(4)}) -> the street's loader panel (${landedInk} TEX ink px at frame 50) -> the street after ${landedTicks} frames, no swap; ${perFrame.toFixed(3)} ms/frame`);

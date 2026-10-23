@@ -716,7 +716,7 @@ second time):
   Demo's screens, `HUBS` in `shelf_meta.py`): its TITLE is its matrix comment
   after the group, up to a comma or parenthesis, cut at a word to 22 characters
   (`The Union Demo / TNT3, the TNT Crew's vector screen` gives `TNT3`), and its
-  TYPE is its hub's (`union_intro_screen`, atari st). `union_textracker`'s comment
+  TYPE is its hub's (`union_demo`, atari st). `union_textracker`'s comment
   names no title, so it has an override (`TEX SAMPLE-MON ST`).
 
 Text is folded to ASCII (the OSD draws the ST's 8-bit font). A field nobody
