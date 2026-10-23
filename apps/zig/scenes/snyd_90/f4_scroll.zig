@@ -51,13 +51,12 @@ fn show(r: *const st.Ram, screen: u32) void {
     r.sw(PHASE, phase);
     var code: u32 = if (phase & 1 != 0) 0x14388 else 0x124C8;
     code += @as(u32, phase >> 1) * 192;
-    const keep = r.w(code + 0xF00);
-    r.sw(code + 0xF00, 0x4E75);
+    // The original patches an rts at code + $F00 for the run and puts the
+    // word back after: the replay stops there instead (memory ends the same).
     var regs = blit.Regs{};
     regs.a0 = r.l(BUF) + 4 + r.w(POS) - phase;
     regs.a1 = screen + 0x7304 - @as(u32, phase & 0xFFFE) * 4;
-    blit.run(r, code, &regs);
-    r.sw(code + 0xF00, keep);
+    blit.run(r, code, code + 0xF00, &regs);
 }
 
 fn advance(r: *const st.Ram) void {

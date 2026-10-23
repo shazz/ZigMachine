@@ -25,6 +25,12 @@ pub const Ram = struct {
     base: u32,
     m: []u8,
 
+    // The long accessors and cp/zero are NOT `inline`: each long is ~25 rv32
+    // instructions (bounds, alignment, the byte swap ZIGGY has no instruction
+    // for), and inlined at every one of a part's hundreds of accesses they made
+    // one VBL function 16-22 KB of code a frame (F4, TCB #2) against ZIGGY's
+    // 16 KB I$. Bytes and words stay inline: they are short, and the most frequent.
+
     /// The offset of `n` bytes at `a`. The routines chase pointers they read
     /// from this memory, so an address is data: one outside the part traps
     /// where safety is on (the tests), and in ReleaseSmall -- no bounds checks
@@ -54,7 +60,7 @@ pub const Ram = struct {
     /// A long: one 32-bit load where the address allows. On KESTREL a misaligned
     /// word access TRAPS (~700 cycles, emulated), and the 68000 reads a long at
     /// any even address (SYNC's 230-byte overscan lines put half of them at 2 mod 4).
-    pub inline fn l(self: *const Ram, a: u32) u32 {
+    pub fn l(self: *const Ram, a: u32) u32 {
         const p = self.m[self.at(a, 4)..][0..4];
         if (@intFromPtr(p) & 3 == 0) return std.mem.readInt(u32, @as(*align(4) const [4]u8, @alignCast(p)), .big);
         return @byteSwap(al.le32Split(p));
@@ -69,7 +75,7 @@ pub const Ram = struct {
     }
 
     /// A long store, split like l() where a 32-bit store would trap.
-    pub inline fn sl(self: *const Ram, a: u32, v: u32) void {
+    pub fn sl(self: *const Ram, a: u32, v: u32) void {
         const p = self.m[self.at(a, 4)..][0..4];
         if (@intFromPtr(p) & 3 == 0) return std.mem.writeInt(u32, @as(*align(4) [4]u8, @alignCast(p)), v, .big);
         al.setLe32Split(p, @byteSwap(v));
@@ -83,13 +89,13 @@ pub const Ram = struct {
     /// movem / move.l copies: never overlapping in these routines.
     /// Word-aligned ends copy as LLVM likes; others (TCB's 6-byte plane runs at 2 mod 4)
     /// by halves, where LLVM's 4-byte pieces would trap on KESTREL.
-    pub inline fn cp(self: *const Ram, dst: u32, src: u32, n: usize) void {
+    pub fn cp(self: *const Ram, dst: u32, src: u32, n: usize) void {
         const d = self.bytes(dst, n);
         const s = self.bytes(src, n);
         if ((@intFromPtr(d.ptr) | @intFromPtr(s.ptr)) & 3 == 0) @memcpy(d, s) else al.copySplit(d, s);
     }
 
-    pub inline fn zero(self: *const Ram, a: u32, n: usize) void {
+    pub fn zero(self: *const Ram, a: u32, n: usize) void {
         const d = self.bytes(a, n);
         if (@intFromPtr(d.ptr) & 3 == 0) @memset(d, 0) else al.zeroSplit(d);
     }

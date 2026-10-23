@@ -31,7 +31,7 @@ pub fn clear(r: *const st.Ram) void {
     for (CLEARS) |c| {
         if (r.l(c.box) == 0) continue;
         var regs = blit.Regs{ .a2 = r.l(c.box) };
-        blit.run(r, c.run, &regs);
+        blit.run(r, c.run, 0, &regs);
     }
 }
 
@@ -68,7 +68,7 @@ pub fn draw(r: *const st.Ram) void {
         regs.d[0] = edge << 16 | edge;
         regs.d[1] = ~regs.d[0];
         regs.d[3] = shift;
-        if (l.mask != 0) blit.run(r, l.mask, &regs);
-        blit.run(r, l.draw, &regs);
+        if (l.mask != 0) blit.run(r, l.mask, 0, &regs);
+        blit.run(r, l.draw, 0, &regs);
     }
 }

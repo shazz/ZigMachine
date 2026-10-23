@@ -7,6 +7,7 @@
 //   f5  SYNC's giant scroller   full overscan, sync-scrolled (raster.captureFull)
 //   f6  SYNC's vector balls     raster lines + the bottom border (f6_screen)
 // --------------------------------------------------------------------------
+const zg = @import("zigos");
 const st = @import("../swedish_newyear/st.zig");
 const shifter = @import("shifter.zig");
 const palette = @import("palette.zig");
@@ -16,8 +17,12 @@ const f4 = @import("f4.zig");
 const f5 = @import("f5.zig");
 const f6 = @import("f6.zig");
 const f6_screen = @import("f6_screen.zig");
+const f4_blit = @import("f4_blit.zig");
 
 pub const Id = enum { f3, f4, f5, f6 };
+
+/// F4's decode table (f4_blit.zig), taken once per cart load, cleared per entry.
+var f4_table: []f4_blit.Op = &.{};
 
 /// One frame's colour registers, line by line.
 var lines: [f3.LINES][16]u16 = undefined;
@@ -37,7 +42,10 @@ pub fn ram(id: Id, mem: []u8) st.Ram {
 pub fn enter(id: Id, r: *const st.Ram) void {
     switch (id) {
         .f3 => f3.enter(),
-        .f4 => {},
+        .f4 => {
+            if (f4_table.len == 0) f4_table = zg.mem.mustAlloc(f4_blit.Op, f4_blit.SLOTS);
+            f4_blit.attach(f4_table);
+        },
         .f5 => f5.enter(r),
         .f6 => f6.enter(r),
     }

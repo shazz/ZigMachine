@@ -11,52 +11,49 @@
 //   move.b d16(a0),d16(a1)                        $1368
 // Anything else ends the run (the clears' sections end on a cmpi); with
 // safety on (the tests) an unknown word is a panic, so a misread is seen. So
-// does running off the part's end: past it every read repeats its last word,
-// which could be a store forever.
+// does running off the code (CODE_LO..CODE_HI: where every run lies).
+//
+// The code never changes once the part is loaded, so each instruction is
+// DECODED ONCE, the first time a run reaches it, into a table indexed by its
+// address (f4_ops.zig): a frame walks ~4,300 decoded entries instead of
+// re-reading and re-parsing the 68000 words.
 // --------------------------------------------------------------------------
 const std = @import("std");
 const st = @import("../swedish_newyear/st.zig");
+const ops = @import("f4_ops.zig");
 
 pub const Regs = struct { d: [8]u32 = .{0} ** 8, a0: u32 = 0, a1: u32 = 0, a2: u32 = 0 };
+pub const Op = ops.Op;
+pub const SLOTS = ops.SLOTS;
 
-const RTS: u16 = 0x4E75;
-const CMPI_L: u16 = 0x0CB9;
+var table: []Op = &.{};
 
-/// Replay the run at `pc` on `regs` until rts (or the cmpi that ends a
-/// section of the clears).
-pub fn run(r: *const st.Ram, pc: u32, regs: *Regs) void {
-    var p = pc;
-    while (r.holds(p)) {
-        const op = r.w(p);
-        if (op == RTS or op == CMPI_L) return;
-        if (op == 0x1368) { // two displacements
-            r.sb(st.add(regs.a1, st.sx(r.w(p + 4))), r.b(st.add(regs.a0, st.sx(r.w(p + 2)))));
-            p += 6;
-            continue;
-        }
-        if (!step(r, op, r.w(p + 2), regs)) {
-            if (std.debug.runtime_safety) std.debug.panic("f4_blit: ${X} at ${X}", .{ op, p });
-            return;
-        }
-        p += if ((op & 0xF1FF) == 0x2011) 2 else 4;
-    }
-    if (std.debug.runtime_safety) std.debug.panic("f4_blit: the run from ${X} leaves the part", .{pc});
+/// Each time the part is loaded: `buf` (SLOTS entries) becomes the decode
+/// table, every entry not yet decoded.
+pub fn attach(buf: []Op) void {
+    std.debug.assert(buf.len == SLOTS);
+    @memset(buf, .{});
+    table = buf;
 }
 
-/// One instruction of the long forms.
-fn step(r: *const st.Ram, op: u16, ext: u16, regs: *Regs) bool {
-    const n: u3 = @truncate(op >> 9);
-    const at = st.add(regs.a2, st.sx(ext));
-    switch (op & 0xF1FF) {
-        0x2011 => regs.d[n] = r.l(regs.a1),
-        0x2029 => regs.d[n] = r.l(st.add(regs.a1, st.sx(ext))),
-        0x2028 => regs.d[n] = r.l(st.add(regs.a0, st.sx(ext))),
-        0x81AA => r.sl(at, r.l(at) | regs.d[n]),
-        0xC1AA => r.sl(at, r.l(at) & regs.d[n]),
-        else => switch (op) {
-            0x2540...0x2547 => r.sl(at, regs.d[op & 7]),
-            else => return false,
-        },
+/// Replay the run at `pc` on `regs` until rts (or the cmpi that ends a
+/// section of the clears), or until `end` (the scroller's run stops where
+/// the original patches in an rts; 0: no such stop).
+pub fn run(r: *const st.Ram, pc: u32, end: u32, regs: *Regs) void {
+    var p = pc;
+    while (p != end) {
+        const o = ops.at(r, table, p) orelse return;
+        switch (o.kind) {
+            .stop => return,
+            .move_b => r.sb(st.add(regs.a1, o.d2), r.b(st.add(regs.a0, o.d1))),
+            .ld_a1 => regs.d[o.n] = r.l(regs.a1),
+            .ld_a1_d => regs.d[o.n] = r.l(st.add(regs.a1, o.d1)),
+            .ld_a0_d => regs.d[o.n] = r.l(st.add(regs.a0, o.d1)),
+            .or_l => r.sl(st.add(regs.a2, o.d1), r.l(st.add(regs.a2, o.d1)) | regs.d[o.n]),
+            .and_l => r.sl(st.add(regs.a2, o.d1), r.l(st.add(regs.a2, o.d1)) & regs.d[o.n]),
+            .st_l => r.sl(st.add(regs.a2, o.d1), regs.d[o.n]),
+            .none => unreachable,
+        }
+        p += o.len;
     }
-    return true;
 }

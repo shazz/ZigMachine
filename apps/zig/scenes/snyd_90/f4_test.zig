@@ -10,10 +10,12 @@
 const std = @import("std");
 const st = @import("../swedish_newyear/st.zig");
 const f4 = @import("f4.zig");
+const f4_blit = @import("f4_blit.zig");
 
 const IMAGE = @embedFile("../../assets/screens/snyd_90/f4.raw");
 
 var mem: [f4.TOP - f4.BASE]u8 = undefined;
+var table: [f4_blit.SLOTS]f4_blit.Op = undefined;
 
 const Expect = struct { vbl: u32, mem: u32 };
 const EXPECT = [_]Expect{
@@ -40,6 +42,7 @@ fn kept(r: *const st.Ram) u32 {
 
 test "F4 matches the original code's memory after 1, 5, 300 and 1200 passes" {
     @memcpy(&mem, IMAGE);
+    f4_blit.attach(&table);
     const r = st.Ram{ .base = f4.BASE, .m = &mem };
     var done: u32 = 0;
     for (EXPECT) |e| {
@@ -50,6 +53,7 @@ test "F4 matches the original code's memory after 1, 5, 300 and 1200 passes" {
 
 test "F4's screens alternate and its scroller's colours start at line 183" {
     @memcpy(&mem, IMAGE);
+    f4_blit.attach(&table);
     const r = st.Ram{ .base = f4.BASE, .m = &mem };
     const a = f4.vbl(&r);
     const b = f4.vbl(&r);
