@@ -15,7 +15,6 @@ const Resolution = zg.Resolution;
 const Color = zg.Color;
 
 const Scrolltext = zg.Scrolltext;
-const Sprite = zg.Sprite;
 
 const Console = zg.Console;
 
@@ -38,8 +37,7 @@ const SCROLL_SPEED = 1;
 const SCROLL_CHARS = " ! #$%&'()*+,-./0123456789:;<=>? ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 pub const NB_FONTS: u8 = WIDTH / SCROLL_CHAR_WIDTH + 1;
 
-// credit panel (see dbug_credits.zig for the geometry and the four texts)
-const text_fonts_b = @embedFile("../assets/screens/dbug/fonts_16x14.raw");
+// credit panel: dbug_credits.zig (geometry, texts), dbug_layers.zig (its font)
 
 // music — the screen's own tune, played by its own 68000 (docs/music/)
 const MUSIC = "crystallized.sndh";
@@ -52,21 +50,15 @@ const font_pal = convertU8ArraytoColors(@embedFile("../assets/screens/dbug/fonts
 const text_font_pal = convertU8ArraytoColors(@embedFile("../assets/screens/dbug/fonts_16x14_pal.dat"));
 const logo_pal = convertU8ArraytoColors(@embedFile("../assets/screens/dbug/logo_pal.dat"));
 
-// rasters
-const rasters_b = convertU8ArraytoColors(@embedFile("../assets/screens/dbug/rasters.dat"));
-
-// logo
-const  logo_b = @embedFile("../assets/screens/dbug/logo.raw");
+// The rasters, the logo and the credit panel: dbug_layers.zig.
+const layers = @import("dbug_layers.zig");
 
 // --------------------------------------------------------------------------
 // Variables
 // --------------------------------------------------------------------------
-var start_raster_line: u16 = 0;
-// The 400x280 overscan page: the plane's own framebuffer. It used to be drawn in
-// a RAM copy and memcpy'd to the plane (every store of a ZIGGY frame is a blocking
-// DDR write, so that doubled the cost of the 77 KB zoomed band).
-var off_buffer: []u8 = undefined;
-// Rows of the plane that are not all 0.
+// The 400x280 overscan page is the plane's own framebuffer (it used to be drawn
+// in a RAM copy and memcpy'd to the plane: every store of a ZIGGY frame is a
+// blocking DDR write). Rows of it that are not all 0:
 var dirty: draw.Dirty = .{};
 var chisel: zg.Blitter = .{}; // the zoomed lines' copies; init() points it at the video region
 
@@ -74,37 +66,19 @@ var chisel: zg.Blitter = .{}; // the zoomed lines' copies; init() points it at t
 // ((320 + 80) / 8). Small, so a static; cleared in init.
 var scroller_pixels: [50 * SCROLL_CHAR_HEIGHT]u8 = undefined;
 
-// The RenderTargets hold POINTERS to these, and live for the whole cart, so the
-// buffers must too: as init() locals they were dangling stack pointers.
+// The RenderTarget holds a POINTER to this, and lives for the whole cart, so the
+// buffer must too: as an init() local it was a dangling stack pointer.
 var scroller_render_buffer: RenderBuffer = undefined;
-var overscan_render_buffer: RenderBuffer = undefined;
 
 // --------------------------------------------------------------------------
 // Demo
 // --------------------------------------------------------------------------
-fn handler_scroller(fb: *LogicalFB, zigos: *ZigOS, line: u16, col: u16) void {
-    _ = zigos;
-    _ = col;
-
-    // Overscan plane: this per-plane HBL fires on PHYSICAL lines 0..279. The zoomed
-    // scroller fills the whole 400-wide buffer, so open ALL borders by flickering the
-    // resolution register every line (the authentic trick; see docs/HW_API.md).
-    fb.flickerBorder();
-
-    // Raster bars behind the scroller (physical line numbering — unchanged).
-    if (line > start_raster_line and line < start_raster_line + 192) {
-        fb.setPaletteEntry(7, rasters_b[(line - start_raster_line)]);
-    }
-}
-
 pub const Demo = struct {
-  
+
     name: u8 = 0,
     frame_counter: u32 = 0,
     scrolltext: Scrolltext(NB_FONTS) = undefined,
-    logo: Sprite = undefined,
     scroller_target: RenderTarget = undefined,
-    overscan_target: RenderTarget = undefined,
     panel: zg.charpanel.Panel(credits.MAX_LIVE) = undefined,
     sync: Sync = .{},
 
@@ -125,7 +99,8 @@ pub const Demo = struct {
         fb.setPaletteEntry(7, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
 
         // HBL: open the borders + raster bars (must fire at the magic column)
-        fb.setFrameBufferHBLHandler(zg.OVERSCAN_MAGIC_X, handler_scroller);
+        layers.reset();
+        fb.setFrameBufferHBLHandler(zg.OVERSCAN_MAGIC_X, layers.hbl);
 
         chisel.init();
         @memset(&scroller_pixels, 0);
@@ -135,26 +110,20 @@ pub const Demo = struct {
         self.scrolltext = Scrolltext(NB_FONTS).init(self.scroller_target, fonts_b, SCROLL_CHARS, SCROLL_CHAR_WIDTH, SCROLL_CHAR_HEIGHT, SCROLL_TEXT, SCROLL_SPEED, 0, null, null, null);
         self.sync = .{};
 
-        // draw straight into the overscan plane (VRAM is word-aligned for zoomScroller's word stores)
-        off_buffer = fb.fb[0 .. 400 * 280];
-        overscan_render_buffer = .{ .buffer = off_buffer, .width = 400, .height = 280 };
-        self.overscan_target = .{ .render_buffer = &overscan_render_buffer };
-
-        // copy logo palette starting at 100
+        // copy logo palette starting at 100, the panel's at 201
         fb.setPaletteEntry(100, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
         fb.setPaletteEntry(101, logo_pal[1]);
         fb.setPaletteEntry(102, logo_pal[2]);
         fb.setPaletteEntry(103, logo_pal[3]);
-        self.logo.init(self.overscan_target, logo_b, 253, 38, zg.PHYSICAL_WIDTH / 2 - 126, LOGO_Y, null, null); // centre in the 400-wide overscan
+        layers.panelPalette(fb, text_font_pal);
 
-        // credit panel — it writes itself into this plane one cell per frame and
-        // never redraws a settled letter, so the plane is cleared ONCE, here.
+        // credit panel — it writes itself into plane 1's memory one cell per frame
+        // and never redraws a settled letter, so that is cleared ONCE, here. Plane 1
+        // stays DISABLED: the panel is blitted onto plane 0 (dbug_layers.zig).
         fb = &zigos.lfbs[1];
-        fb.is_enabled = true;
-        fb.setPalette(text_font_pal);
-        fb.setPaletteEntry(0, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
+        fb.is_enabled = false;
         fb.clearFrameBuffer(0);
-        self.panel.init(credits.config(text_fonts_b));
+        self.panel.init(credits.config(&layers.panel_font));
 
         Console.log("demo init done!", .{});
 
@@ -174,33 +143,34 @@ pub const Demo = struct {
         // it stays 0 until the viewer enables sound, which simply holds the
         // intro. See dbug_sync.zig.
         self.sync.update(zigos.song_ms);
-        start_raster_line = self.sync.y;
-        self.logo.update(null, LOGO_Y + self.sync.logo_dy, null, null);
+        layers.start_raster_line = self.sync.y;
     }
 
     pub fn render(self: *Demo, zigos: *ZigOS, elapsed_time: f32) void {
-
+        _ = elapsed_time;
         @memset(&scroller_pixels, 0);
         self.scrolltext.render();
 
-        // draw the zoomed scrolltext on a overscan buffer: the zoom repaints its
-        // whole band, so only the rows the last frame touched outside it are cleared
-        const band = draw.Dirty.rows(start_raster_line, @as(i32, start_raster_line) + SCROLL_CHAR_HEIGHT * draw.ZOOM);
-        draw.clearStale(off_buffer, dirty, band);
-        draw.zoomScrollerGpu(&zigos.lfbs[0], &chisel, self.scroller_target, start_raster_line, SCROLL_CHAR_HEIGHT);
-        self.logo.render(100);
+        // draw the zoomed scrolltext straight into the overscan plane: the zoom
+        // repaints its whole band, so only the rows the last frame touched outside
+        // it are cleared (by CHISEL: a memset is ~60 cycles a word on the board)
+        const fb = &zigos.lfbs[0];
+        const top = layers.start_raster_line;
+        const band = draw.Dirty.rows(top, @as(i32, top) + SCROLL_CHAR_HEIGHT * draw.ZOOM);
+        for (draw.staleRuns(dirty, band)) |r| {
+            if (r.hi > r.lo) chisel.fill(fb, 0, @intCast(r.lo), draw.OVERSCAN_W, r.hi - r.lo, 0);
+        }
+        draw.zoomScrollerGpu(fb, &chisel, self.scroller_target, top, SCROLL_CHAR_HEIGHT);
         const ly = LOGO_Y + self.sync.logo_dy;
-        const now = band.merge(draw.Dirty.rows(ly, ly + 38));
+        layers.drawLogo(&chisel, fb, ly);
 
-        // (the page is the plane: nothing to copy out, the compositor sees the rows as they change)
-        // The credit panel paints only the cells that moved this frame, straight
-        // into its own plane — everything already standing stays put.
+        // The credit panel paints only the cells that moved this frame into plane
+        // 1's memory; all of it then goes on top of plane 0, whose panel rows were
+        // all just repainted or cleared (they are always dirty).
         const text_fb = &zigos.lfbs[1];
         self.panel.render(text_fb.fb[0 .. @as(u32, WIDTH) * HEIGHT], WIDTH, credits.X, credits.Y);
+        layers.composePanel(&chisel, fb, text_fb);
 
-        dirty = now;
-
-        _ = elapsed_time;
-
+        dirty = band.merge(layers.logoRows(ly)).merge(layers.panelRows());
     }
 };

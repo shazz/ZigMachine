@@ -12,7 +12,7 @@ import { readFile, writeFile } from "node:fs/promises";
 import { cartRam, romRam } from "../docs/wasm_hiwater.js";
 
 const PAGES = 112; // must match SHARED_PAGES in machine/sdk/memmap.zig
-const PLANES = 2; // the screen composites the overscan scroller + the credit panel
+const PLANES = 4; // only the enabled ones are composited: the overscan plane (the credit panel rides it)
 
 async function boot(cart = "docs/demo-dbug.wasm") {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
@@ -77,17 +77,24 @@ class Screen {
         this.frames += n;
     }
 
-    // Composite every plane and write the WHOLE physical screen, borders and all
-    // — the opened borders are half the point of this screen.
+    // Composite every ENABLED plane as the browser stacks their canvases (the
+    // topmost pixel that is not transparent) and write the WHOLE physical screen,
+    // borders and all — the opened borders are half the point of this screen.
     async shot(path) {
-        for (let p = 0; p < PLANES; p++) this.machine.hwRenderPlane(p);
+        const comp = new Uint8Array(this.w * this.h * 4);
+        for (let p = 0; p < PLANES; p++) {
+            if (!this.demo.isPlaneEnabled(p)) continue;
+            this.machine.hwRenderPlane(p);
+            for (let i = 0; i < this.w * this.h; i++)
+                if (this.pfb[i * 4 + 3]) comp.set(this.pfb.subarray(i * 4, i * 4 + 4), i * 4);
+        }
         const hdr = new TextEncoder().encode(`P6\n${this.w} ${this.h}\n255\n`);
         const out = new Uint8Array(hdr.length + this.w * this.h * 3);
         out.set(hdr);
         for (let i = 0; i < this.w * this.h; i++) {
-            out[hdr.length + i * 3] = this.pfb[i * 4];
-            out[hdr.length + i * 3 + 1] = this.pfb[i * 4 + 1];
-            out[hdr.length + i * 3 + 2] = this.pfb[i * 4 + 2];
+            out[hdr.length + i * 3] = comp[i * 4];
+            out[hdr.length + i * 3 + 1] = comp[i * 4 + 1];
+            out[hdr.length + i * 3 + 2] = comp[i * 4 + 2];
         }
         await writeFile(path, out);
         console.log(`  shot: ${path} (frame ${this.frames})`);

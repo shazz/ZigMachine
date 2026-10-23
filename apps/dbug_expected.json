@@ -1,0 +1,35 @@
+{
+ "frames": 6000,
+ "parts": [
+  {
+   "name": "intro",
+   "from": 1,
+   "to": 768,
+   "sha": "085c853c0f8fc8c2cfabf0f8d9b32e0a4a9b9480d6d0fb9248bda98423038540"
+  },
+  {
+   "name": "fall and first beats",
+   "from": 769,
+   "to": 1500,
+   "sha": "c61f9be07989e04becae9ea8f8e44486637f581449ee68807b7caf42d685b7c0"
+  },
+  {
+   "name": "beats",
+   "from": 1501,
+   "to": 2999,
+   "sha": "13a74cee5c7afe22e71f9345e6680f3c61a32ad8f8b3d9f3229b0aff8433d4f3"
+  },
+  {
+   "name": "beats (later)",
+   "from": 3000,
+   "to": 5376,
+   "sha": "006b41df057d0e71e537b5cb2446b92da963ea03312563cbd98e19fe2ba597b6"
+  },
+  {
+   "name": "settle and rest",
+   "from": 5377,
+   "to": 6000,
+   "sha": "02967e11cf8cc714354d9a30e59f3833aa1c1fd3b202127b0d5091b1a570709a"
+  }
+ ]
+}

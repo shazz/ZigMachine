@@ -26,15 +26,21 @@ pub const Dirty = struct {
     }
 };
 
-/// Zero the rows of `prev` that the new frame does not repaint anyway (`band`
-/// is rewritten in full by zoomScroller).
+/// The rows of `prev` that the new frame does not repaint anyway (`band` is
+/// rewritten in full by zoomScroller): at most two runs, empty ones lo >= hi.
+pub fn staleRuns(prev: Dirty, band: Dirty) [2]Dirty {
+    if (prev.lo >= prev.hi) return .{ .{ .lo = 0, .hi = 0 }, .{ .lo = 0, .hi = 0 } };
+    const a = prev.lo;
+    const b = @min(prev.hi, @max(band.lo, a));
+    const c = @max(prev.lo, band.hi);
+    return .{ .{ .lo = a, .hi = b }, .{ .lo = c, .hi = prev.hi } };
+}
+
+/// Zero the stale rows on the CPU (the native test's reference; the cart fills
+/// them with CHISEL).
 pub fn clearStale(page: []u8, prev: Dirty, band: Dirty) void {
-    if (prev.lo < prev.hi) {
-        const a = prev.lo;
-        const b = @min(prev.hi, @max(band.lo, a));
-        if (b > a) @memset(page[@as(u32, a) * OVERSCAN_W .. @as(u32, b) * OVERSCAN_W], 0);
-        const c = @max(prev.lo, band.hi);
-        if (prev.hi > c) @memset(page[@as(u32, c) * OVERSCAN_W .. @as(u32, prev.hi) * OVERSCAN_W], 0);
+    for (staleRuns(prev, band)) |r| {
+        if (r.hi > r.lo) @memset(page[@as(u32, r.lo) * OVERSCAN_W .. @as(u32, r.hi) * OVERSCAN_W], 0);
     }
 }
 
