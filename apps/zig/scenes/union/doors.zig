@@ -5,15 +5,15 @@
 // ESC bubbles wants_quit to the outer menu. Hold Left to slow the world (and the
 // runner's ghost trail) so a door is easy to catch; release re-accelerates.
 // Faithful hook: efmain.js's posDoors (18 door columns); runner col = pos + 13.
-// This cracktro is the Union Demo's PREAMBLE: every door boots the Union Demo,
-// which opens on its intro splash (Matt, 2026-09-13: "the demo opens on it";
-// the remake's main.js:262-265), cart union_intro_screen.
+// Each door opens one of the real Union Demo's screens (Matt, 2026-10-23; it
+// used to boot the demo's intro splash from every door, 2026-09-13): the
+// street hub's eleven, in its door order, round the 18 columns (DOOR_TAGS).
 // --------------------------------------------------------------------------
 const zg = @import("zigos");
 const ZigOS = zg.ZigOS;
-const Color = zg.Color;
 const MainScreen = @import("main.zig").Demo;
 const maps = @import("../../assets/screens/union_main/union_maps.zig");
+const hub = @import("../union_demo/doors.zig"); // the street's doors: title + cart per screen
 
 const RUNNER_TILE: f32 = 13.0; // sprite centre, in tiles into the window
 const RUNNER_X: f32 = 216.0; // its physical x (main.zig CENTER_X)
@@ -33,14 +33,17 @@ const HOLD: u32 = 24;
 const RAMP: f32 = 0.15;
 const K_ESC: u32 = 0xE012; // host KEY_CODES.Escape
 
-/// The cart every door boots: the Union Demo, starting on its intro splash.
-pub const DOOR_CART = "union_intro_screen";
+// A door stays enterable until it is this many tiles BEHIND the runner's centre: the door
+// he is standing in front of (d = 0) is the one Space should open.
+const BEHIND: f32 = 1.0;
 
-// posDoors index (0..17) -> whether it is a door, and the title it had.
-const Entry = struct { door: bool = true, name: []const u8 = "" };
-const DOORS = [18]Entry{
-    .{ .name = "BLADE RUNNERS" }, .{ .name = "DELTA FORCE" }, .{}, .{}, .{ .name = "FALLEN ANGELS" }, .{ .name = "ANCOOL" },
-    .{}, .{ .name = "LEONARD" }, .{ .name = "EMPIRE" }, .{}, .{}, .{}, .{}, .{}, .{}, .{}, .{}, .{},
+/// posDoors column i -> the cart its door launches: the hub's doors in their (TMX) order,
+/// TCB1, DELTA FORCE, TNT3, TCB2, TNT1, REPS, TNT2, L16, TCB3, COPIER TEX, HIDDEN SCREEN,
+/// then round again (18 columns, 11 screens). Every hub door has a ported cart.
+pub const DOOR_TAGS: [maps.POS_DOORS.len][]const u8 = blk: {
+    var t: [maps.POS_DOORS.len][]const u8 = undefined;
+    for (&t, 0..) |*tag, i| tag.* = hub.DOORS[i % hub.DOORS.len].tag orelse @compileError("a hub door has no cart");
+    break :blk t;
 };
 
 pub const Doors = struct {
@@ -49,7 +52,8 @@ pub const Doors = struct {
     title_alpha: f32 = 0,
     title_cx: i16 = 0, // door centre on screen (px)
     slow: u32 = 0, // frames of "hold Left" slowdown remaining
-    launch_pending: bool = false, // a door was entered: ask the host for DOOR_CART
+    entered: i32 = -1, // the door Space entered (index into DOOR_TAGS)
+    launch_pending: bool = false, // a door was entered: ask the host for its cart
     wants_quit: bool = false,
 
     pub fn init(self: *Doors, zigos: *ZigOS) void {
@@ -68,15 +72,15 @@ pub const Doors = struct {
         self.pickTitle();
     }
 
-    // Find the mapped door in the fade window and set title state for this frame.
+    // Find the door Space would enter this frame (ahead in the fade window, or the one the
+    // runner is in front of) and its title state.
     fn pickTitle(self: *Doors) void {
         self.titled = -1;
         self.title_alpha = 0;
         for (maps.POS_DOORS, 0..) |p, i| {
-            if (!DOORS[i].door) continue;
             const d = @as(f32, @floatFromInt(p)) - self.main.pos - RUNNER_TILE;
+            if (d <= -BEHIND or d >= FAR) continue;
             const a = titleAlpha(d);
-            if (a <= 0) continue;
             self.titled = @intCast(i);
             self.title_alpha = a;
             self.title_cx = @intFromFloat(RUNNER_X + d * TW);
@@ -94,7 +98,10 @@ pub const Doors = struct {
     // Host input: 0-3 dirs, 5 Fire (Space), 6 Back (see demo_main.zig Direction).
     pub fn input(self: *Doors, dir: u8) void {
         if (dir == 2) self.slow = HOLD; // hold Left to slow down (auto-repeat re-arms)
-        if (dir == 5 and self.titled >= 0) self.launch_pending = true; // Space enters
+        if (dir == 5 and self.titled >= 0) { // Space enters the door in front
+            self.entered = self.titled;
+            self.launch_pending = true;
+        }
         if (dir == 6) self.wants_quit = true; // Back on the main screen -> outer menu
     }
 
@@ -111,7 +118,7 @@ pub const Doors = struct {
         return self.main.pollSong();
     }
 
-    /// Cartridge swap (demo_main.pollCartRequest): -1 the menu, 1 DOOR_CART.
+    /// Cartridge swap (demo_main.pollCartRequest): -1 the menu, 1 the entered door's cart.
     pub fn pollCart(self: *Doors) i32 {
         if (self.wants_quit) return -1;
         if (!self.launch_pending) return 0;
@@ -120,8 +127,7 @@ pub const Doors = struct {
     }
 
     pub fn cartTag(self: *Doors) []const u8 {
-        _ = self;
-        return DOOR_CART;
+        return DOOR_TAGS[@intCast(@max(self.entered, 0))];
     }
 };
 

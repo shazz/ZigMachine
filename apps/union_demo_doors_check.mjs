@@ -5,7 +5,8 @@
 // presses fire, polls the cart-request bridge the way docs/sealed-loader.js's
 // loop does (pollCartRequest -> getCartTagPtr/Len), and requires every tagged
 // door to ask for its cart, with that cart's disk present and kept off the
-// channel list.
+// channel list. A hub door is also walked to with the browser's key events, and the
+// cracktro's door screen (union_intro) must open the same screens from its 18 doors.
 //
 //   node apps/union_demo_doors_check.mjs
 import { readFile, access } from "node:fs/promises";
@@ -91,25 +92,52 @@ const catalog = await readFile("apps/zig/scenes/catalog.zig", "utf8");
 const menu = catalog.match(/\.name = "UNION DEMO", \.tag = "([^"]*)"/);
 if (!menu || menu[1] !== "union_intro_screen") problems.push(`the UNION DEMO menu entry boots "${menu?.[1]}", not union_intro_screen`);
 
-// Every cracktro door (at the end of union_intro, on its main screen) boots the intro.
-async function doorRequest(cart, maxFrames) {
-    const { memory, machine, demo } = await boot(cart);
-    for (let f = 0; f < maxFrames; f++) {
-        // The host loop: render the enabled planes, or HBL-driven state (union_intro's
-        // rasters depack) never runs.
-        machine.hwClear();
+// The cracktro (union_intro) flows from its parts into its door screen with no cart swap,
+// and each of the 18 door columns (efmain.js posDoors) opens a real Union screen: the hub's
+// eleven in their door order, round again (union/doors.zig DOOR_TAGS). Space is held down
+// (fire every frame, as the host sends it) from boot, for one lap of the street.
+const MAIN_PLANE = 1; // the parts draw on plane 0; the door screen enables plane 1
+const RUNNER_DOORS = 18;
+{
+    const { memory, machine, demo } = await boot("docs/demo-union_intro.wasm");
+    let main = -1;
+    const entered = []; // [frame, tag], consecutive repeats of one door dropped
+    const LAP = Math.floor(778 / 0.3); // frames for one lap of the street (main.zig SCROLL_WRAP, 0.3 tiles a frame)
+    for (let f = 0; f < 6000 && (main < 0 || f < main + LAP); f++) {
+        machine.hwClear(); // the host loop: rendered planes, or the HBL-driven depack never runs
         demo.frame(16.6);
         for (let p = 0; p < machine.hwPlanesNumber(); p++) if (demo.isPlaneEnabled(p)) machine.hwRenderPlane(p);
-        if (f % 4 === 0) demo.input(DIR.fire);
+        if (main < 0 && demo.isPlaneEnabled(MAIN_PLANE)) main = f;
+        demo.input(DIR.fire);
         const req = demo.pollCartRequest();
-        if (req === 1) return dec.decode(new Uint8Array(memory.buffer, demo.getCartTagPtr(), demo.getCartTagLen()));
-        if (req === -1) return "menu";
+        if (req === -1) { problems.push(`union_intro asked for the menu at frame ${f}`); break; }
+        if (req !== 1) continue;
+        const tag = dec.decode(new Uint8Array(memory.buffer, demo.getCartTagPtr(), demo.getCartTagLen()));
+        if (entered.length === 0 || entered[entered.length - 1][1] !== tag) entered.push([f, tag]);
     }
-    return null;
+    const want = Array.from({ length: RUNNER_DOORS }, (_, i) => WANT[i % WANT.length]);
+    const got = entered.map((e) => e[1]);
+    if (main < 0) problems.push("union_intro never reached its door screen");
+    else if (entered.length && entered[0][0] < main) problems.push(`union_intro asked for "${entered[0][1]}" at frame ${entered[0][0]}, before its door screen (${main})`);
+    if (JSON.stringify(got) !== JSON.stringify(want)) problems.push(`union_intro's doors launched [${got.join(", ")}], want [${want.join(", ")}]`);
+    console.log(`union_intro: parts -> door screen at frame ${main}, no swap; ${got.length} doors entered in one lap`);
 }
-for (const cart of ["union_intro"]) {
-    const got = await doorRequest(`docs/demo-${cart}.wasm`, 6000);
-    if (got !== "union_intro_screen") problems.push(`a ${cart} door asks for "${got}", not union_intro_screen`);
+
+// A hub door entered the way a player does with the browser's keys (docs/sealed-loader.js):
+// Up and Right held (auto-repeat keydowns), Space tapped (keydown, keyup) -- not a teleport.
+{
+    const { memory, demo } = await boot("docs/demo-union_demo.wasm");
+    untilLoaded(demo);
+    let tag = null;
+    for (let f = 0; f < 600 && tag === null; f++) {
+        if (f % 2 === 0) demo.input(3);
+        if (f % 2 === 1 && f < 300) demo.input(0);
+        if (f % 30 === 0) { demo.input(DIR.fire); demo.key(32); }
+        if (f % 30 === 3) demo.inputRelease(DIR.fire);
+        demo.frame(16.6);
+        if (demo.pollCartRequest() === 1) tag = dec.decode(new Uint8Array(memory.buffer, demo.getCartTagPtr(), demo.getCartTagLen()));
+    }
+    if (tag !== WANT[0]) problems.push(`walking up and right with Space tapped asks for "${tag}", not ${WANT[0]} (the first door)`);
 }
 
 // Space on the intro opens FIRST_LOADER's panel; Space once it has landed goes
