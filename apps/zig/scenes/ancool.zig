@@ -116,9 +116,11 @@ pub const Demo = struct {
         self.scrolltext.update();
 
         // The letters' own transform: scale, then one Euler X/Y/Z matrix, both
-        // built once a frame (wf.Rot), not per vertex. Still f32: the angles
-        // grow without bound, so the letters are not periodic bit for bit and a
-        // table would drift from the original after a while (~0.02 Mc a frame).
+        // built once a frame (wf.Rot), not per vertex. Still float (f32 vertices,
+        // libm sin/cos): the angles grow without bound, so the letters are not
+        // periodic bit for bit, and a 720-frame table (the exact periodic motion)
+        // would leave the original's pixels after frame 720. The remaining f32
+        // is ~4,200 ops a frame (frame_cost), a few hundredths of a Mc.
         const zoom_spin = wf.Rot.chain(&.{
             Mat4.fromScale(Vec3.new(self.zoom, self.zoom, self.zoom)),
             Mat4.fromEulerAngles(Vec3.new(self.angle_x, self.angle_y, self.angle_z)),
