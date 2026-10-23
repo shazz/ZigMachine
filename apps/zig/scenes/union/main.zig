@@ -30,6 +30,8 @@ const WORLD_TOP: i16 = 35; // first row anything but the sky is drawn on
 const FLOOR_TOP: i16 = 163; // from here the bands and parallax cover every pixel
 const FLOOR: u8 = 40; // pink band under the walkway
 const BOTTOM: u8 = 41; // white band to the screen bottom
+const BOTTOM_TOP: i16 = sq.DISC_TOP; // its first row: the dragonballs' discs are blended over it
+const BOTTOM_RGB = Color{ .r = 224, .g = 224, .b = 224, .a = 255 };
 
 // gradTiles red pixels are palette-animated (RED_A idx 35, RED_B idx 36), a
 // 5-step ping-pong every 12 frames (efmain.js: 224->192->128->64->0).
@@ -40,59 +42,15 @@ const GRAD_RED_B: u8 = 36;
 const SCROLL_WRAP: f32 = 778; // pinpinPos wraps here (map tail repeats the head)
 
 
-// Sky gradient: background.png horizontal bands (efmain.js). Physical row ->
-// original row = (r-5)*2; the machine re-reads palette[0] per scanline via an
-// HBL handler, so the gradient costs zero pixels.
-const Band = struct { max_orig: i32, r: u8, g: u8, b: u8 };
-const BANDS = [_]Band{
-    .{ .max_orig = 21, .r = 0, .g = 0, .b = 0 },     .{ .max_orig = 23, .r = 0, .g = 0, .b = 32 },
-    .{ .max_orig = 25, .r = 0, .g = 0, .b = 0 },     .{ .max_orig = 59, .r = 0, .g = 0, .b = 32 },
-    .{ .max_orig = 61, .r = 0, .g = 0, .b = 64 },    .{ .max_orig = 63, .r = 0, .g = 0, .b = 32 },
-    .{ .max_orig = 91, .r = 0, .g = 0, .b = 64 },    .{ .max_orig = 93, .r = 0, .g = 0, .b = 96 },
-    .{ .max_orig = 95, .r = 0, .g = 0, .b = 64 },    .{ .max_orig = 123, .r = 0, .g = 0, .b = 96 },
-    .{ .max_orig = 125, .r = 0, .g = 0, .b = 128 },  .{ .max_orig = 127, .r = 0, .g = 0, .b = 96 },
-    .{ .max_orig = 155, .r = 0, .g = 0, .b = 128 },  .{ .max_orig = 157, .r = 0, .g = 32, .b = 160 },
-    .{ .max_orig = 159, .r = 0, .g = 0, .b = 128 },  .{ .max_orig = 187, .r = 0, .g = 32, .b = 160 },
-    .{ .max_orig = 189, .r = 0, .g = 64, .b = 192 }, .{ .max_orig = 191, .r = 0, .g = 32, .b = 160 },
-    .{ .max_orig = 219, .r = 0, .g = 64, .b = 192 }, .{ .max_orig = 221, .r = 0, .g = 96, .b = 224 },
-    .{ .max_orig = 223, .r = 0, .g = 64, .b = 192 }, .{ .max_orig = 283, .r = 0, .g = 96, .b = 224 },
-};
-
-// Per-physical-row sky colour, resolved at comptime from BANDS.
-const SKY: [PH]Color = blk: {
-    @setEvalBranchQuota(20000);
-    var t: [PH]Color = undefined;
-    for (0..PH) |r| {
-        var orig: i32 = (@as(i32, @intCast(r)) - 5) * 2;
-        if (orig < 0) orig = 0;
-        for (BANDS) |b| {
-            if (orig <= b.max_orig) {
-                t[r] = Color{ .r = b.r, .g = b.g, .b = b.b, .a = 255 };
-                break;
-            }
-        } else t[r] = Color{ .r = 0, .g = 96, .b = 224, .a = 255 };
-    }
-    break :blk t;
-};
-
-// Merged with the overscan trick: the parallax/tile world spans the full
-// 400-wide plane, so borders must stay open every line too. Both effects are
-// per-scanline palette/latch writes with no pixel-column sensitivity, so they
-// share one HBL handler registered at OVERSCAN_MAGIC_X (a single per-plane
-// handler slot — see docs/HW_API.md "Opening the borders").
-fn skyHandler(fb: *LogicalFB, zigos: *ZigOS, line: u16, x: u16) void {
-    _ = zigos;
-    _ = x;
-    if (line < PH) fb.setPaletteEntry(0, SKY[line]);
-    fb.flickerBorder();
-}
-
 const wd = @import("world_draw.zig");
+const sky = @import("sky.zig"); // P0's HBL: the sky raster + its borders open
 const Parallax5 = zg.parallax.Parallax(5);
 const Runner = @import("runner.zig").Runner;
 const Dragonballs = @import("dragonball.zig").Dragonballs;
 const Scroller = @import("scroller.zig").Scroller;
 const Credits = @import("credits.zig").Credits;
+const sq = @import("dragonball_squash.zig");
+const split = @import("p1_split.zig");
 
 pub const Demo = struct {
     px: Parallax5 = undefined,
@@ -103,7 +61,8 @@ pub const Demo = struct {
     pos: f32 = 0, // world scroll in tiles
     speed: f32 = 0.3, // scroll tiles/frame; host may slow it (0.3 = nominal)
     frame: u32 = 0,
-    fresh: bool = true, // the plane has not been cleared whole yet
+    fresh: bool = true, // the planes have not been cleared whole yet
+    credits_shown: bool = false, // a credits page is on P1 from the last frame
     grad_idx: u8 = 0, // gradTiles palette-animation step
     grad_inc: i8 = 1,
     // Keys 1-6: the playlist and its SNDH proofs live in tracks.zig.
@@ -114,6 +73,7 @@ pub const Demo = struct {
         self.pos = 0;
         self.frame = 0;
         self.fresh = true;
+        self.credits_shown = false;
         self.grad_idx = 0;
         self.grad_inc = 1;
         autoplay(); // track 1, unless the cracktro already started a tune
@@ -121,14 +81,15 @@ pub const Demo = struct {
         p0.is_enabled = true;
         p0.setOverscanBuffer();
         p0.setPalette(p0_pal);
-        p0.setPaletteEntry(0, SKY[0]);
+        p0.palette[0] = sky.SKY[0];
         p0.setPaletteEntry(FLOOR, Color{ .r = 192, .g = 96, .b = 128, .a = 255 });
-        p0.setPaletteEntry(BOTTOM, Color{ .r = 224, .g = 224, .b = 224, .a = 255 });
-        p0.setFrameBufferHBLHandler(zg.OVERSCAN_MAGIC_X, skyHandler); // sky gradient + overscan flicker
+        p0.setPaletteEntry(BOTTOM, BOTTOM_RGB);
+        p0.setFrameBufferHBLHandler(zg.OVERSCAN_MAGIC_X, sky.handler); // sky gradient + overscan flicker
         self.runner.init(zigos); // sets up plane 1 (actors)
-        self.balls.init(zigos); // dragonballs share plane 1, own palette slots
+        split.init(&zigos.lfbs[1]); // P1's palette split: actors above, scrolltext below
+        self.balls.init(zigos, BOTTOM_RGB); // dragonballs on plane 0, over the bottom band
         self.credits.init(zigos); // credits pages on plane 1 (top, faded)
-        self.scroller.init(zigos); // sets up plane 2 (scrolltext)
+        self.scroller.init(zigos); // scrolltext on plane 1, under the split
         self.px = .{ .layers = .{
             .{ .raw = layer_b1, .w = 384, .h = 16, .y = 195, .speed = 11 },
             .{ .raw = layer_b2, .w = 384, .h = 16, .y = 179, .speed = 7 },
@@ -165,20 +126,22 @@ pub const Demo = struct {
         // on and rows 163.. are covered whole by the floor, the parallax and the bottom
         // band, so after the first frame only the rows between are erased (a CHISEL fill).
         if (self.fresh) gpu.clear(p0, 0) else gpu.fill(p0, 0, WORLD_TOP, @intCast(p0.fb_w), FLOOR_TOP - WORLD_TOP, 0);
-        self.fresh = false;
         wd.parallax(&self.px, p0, @intCast(PW)); // CHISEL strips (zg.parallax's CPU copies were a megacycle)
         // Ground: floorback is a 16px pink strip (behind world row 8); the
         // scrolling layer_b1/b2 parallax fills 179..211 below it; bottomback
         // white to the screen bottom. (Don't over-fill and hide the floor
         // parallax.)
         fill(p0, FLOOR_TOP, 179, FLOOR);
-        fill(p0, 211, @intCast(PH), BOTTOM);
+        fill(p0, BOTTOM_TOP, @intCast(PH), BOTTOM);
         // Tile world: clouds (behind) -> animated rows -> world tiles (on top).
         wd.world(p0, self.pos); // clouds -> animated rows -> world, pre-composited cells (world_cells.zig)
+        self.balls.draw(zigos); // dragonballs on plane 0, last
+        split.erase(&zigos.lfbs[1], self.fresh, self.credits_shown);
+        self.fresh = false;
         self.runner.draw(zigos, self.speed / 0.3); // ghost trail scales with speed
-        self.balls.draw(zigos); // dragonballs on plane 1, after the runner
+        self.credits_shown = self.credits.alpha > 0.0;
         self.credits.draw(zigos); // credits pages on plane 1 (top area)
-        self.scroller.draw(zigos); // plane 2 (scrolltext) on top
+        self.scroller.draw(zigos); // scrolltext on plane 1, under the split
     }
 
     // Keys 1-6 switch the YM tune — request the track BY NAME (host plays it).

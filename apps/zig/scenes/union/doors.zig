@@ -18,7 +18,6 @@ const maps = @import("../../assets/screens/union_main/union_maps.zig");
 const RUNNER_TILE: f32 = 13.0; // sprite centre, in tiles into the window
 const RUNNER_X: f32 = 216.0; // its physical x (main.zig CENTER_X)
 const TW: f32 = 16.0; // tile size (px)
-const TITLE_IDX: u8 = 0x3A; // dedicated P1 slot for the door-title glyphs
 
 // Title fade zones, in tiles the door is *ahead* of the runner (d = col-pos-13):
 // appears at FAR, fades to full by HI, holds to LO, fades out to 0 as it nears.
@@ -56,7 +55,6 @@ pub const Doors = struct {
     pub fn init(self: *Doors, zigos: *ZigOS) void {
         self.* = .{};
         self.main.init(zigos);
-        setupOverlay(zigos);
         self.pickTitle(); // so an immediate Space (before the first update) still enters
     }
 
@@ -136,6 +134,3 @@ fn titleAlpha(d: f32) f32 {
     return d / LO;
 }
 
-fn setupOverlay(zigos: *ZigOS) void {
-    zigos.lfbs[1].setPaletteEntry(TITLE_IDX, Color{ .r = 255, .g = 255, .b = 255, .a = 0 });
-}

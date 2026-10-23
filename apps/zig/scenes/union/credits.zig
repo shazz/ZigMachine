@@ -12,6 +12,7 @@ const Color = zg.Color;
 const LogicalFB = zg.LogicalFB;
 const cf = @import("creditfont.zig");
 const gpu = @import("../union_common/gpu.zig");
+const split = @import("p1_split.zig");
 
 const LINE_PITCH: i16 = 16;
 const OX: i16 = 38; // page origin (phys) — Codef (60,36) halved
@@ -80,6 +81,7 @@ pub const Credits = struct {
 // struct with `.{}`, and the picture is 28 KB, taken from zg.mem once per cart load.
 const PAGE_W: u16 = 328; // 40 glyphs at pitch 8, + the 9 px glyph, + the shadow
 const PAGE_H: u16 = 80; // 4 lines of pitch 16 + 10 rows + the shadow
+pub const ROWS = .{ OY, OY + @as(i16, PAGE_H) }; // the rows a page is drawn on
 var page_buf: []u8 = &.{};
 var page_built: usize = PAGES.len; // which page page_buf holds; none yet
 
@@ -97,8 +99,9 @@ fn pageImage(page: usize) []const u8 {
     return page_buf;
 }
 
+// Into P1's bank A (p1_split.zig): the slots hold the scrolltext's colours below the split.
 fn setAlpha(zigos: *ZigOS, a: u8) void {
-    const p1: *LogicalFB = &zigos.lfbs[1];
-    p1.setPaletteEntry(FACE, Color{ .r = 255, .g = 255, .b = 255, .a = a });
-    p1.setPaletteEntry(SHADOW, Color{ .r = 33, .g = 32, .b = 82, .a = a });
+    _ = zigos;
+    split.setA(FACE, Color{ .r = 255, .g = 255, .b = 255, .a = a });
+    split.setA(SHADOW, Color{ .r = 33, .g = 32, .b = 82, .a = a });
 }

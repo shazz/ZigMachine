@@ -1,6 +1,6 @@
 // --------------------------------------------------------------------------
-// Union main — the boring-but-oldschool bottom SCROLLTEXT (efmain.js). Plane 2
-// (P2), fullscreen. Faithful to efmain.js/codef_scrolltext.js/codef_fx_optim.js:
+// Union main — the boring-but-oldschool bottom SCROLLTEXT (efmain.js). On plane
+// 1, below the actors, with its own palette from the split (p1_split.zig). Faithful to efmain.js/codef_scrolltext.js/codef_fx_optim.js:
 //   - EFMAIN_SCROLL_SPEED=6 orig -> 3 px/frame half; glyph pitch 64 -> 32 half.
 //   - ^P<digit>/^S<digit> control codes: pause 60*digit frames / set speed.
 //   - FX.siny(0,20,6): the flat strip is displaced vertically per 3px column
@@ -15,10 +15,8 @@
 const std = @import("std");
 const zg = @import("zigos");
 const ZigOS = zg.ZigOS;
-const Color = zg.Color;
 const gpu = @import("../union_common/gpu.zig");
 const LogicalFB = zg.LogicalFB;
-const convertU8ArraytoColors = zg.convertU8ArraytoColors;
 
 const st2 = zg.scrolltext2;
 const sg = @import("scroller_gpu.zig");
@@ -32,14 +30,13 @@ const WAVE_AMP: f32 = 10.0; // half of orig 20
 const WAVE_COL: u16 = 3; // half of orig 6px column step
 const WAVE_INC: f32 = 0.03; // per-column phase step (unchanged, unitless)
 const WAVE_DRIFT: f32 = -0.03; // per-frame phase drift (unchanged)
-const BAND_TOP: i32 = BASE_Y - 10; // BASE_Y - WAVE_AMP
-const BAND_ROWS: i32 = 20 + STRIP_H + 1; // the wave's swing, the strip, and a row for the rounding
+pub const BAND_TOP: i32 = BASE_Y - 10; // BASE_Y - WAVE_AMP
+pub const BAND_ROWS: i32 = 20 + STRIP_H + 1; // the wave's swing, the strip, and a row for the rounding
 const SCROLL_SPEED: i32 = 3; // half of EFMAIN_SCROLL_SPEED=6
 
 const fontsout = @embedFile("../../assets/screens/union_main/fontsout.raw");
 const fontsin_bits = @embedFile("../../assets/screens/union_main/fontsin.bits");
 const rasters = @embedFile("../../assets/screens/union_main/rasters.raw");
-const p2_pal = convertU8ArraytoColors(@embedFile("../../assets/screens/union_main/p2.pal"));
 
 // The scrolltext verbatim (efmain.js this.efmain_text, all 5 authors' greetz
 // concatenated exactly as in the original source, including its ^P/^S codes).
@@ -54,38 +51,20 @@ const SCROLL_TEXT =
     ".....AND HERE WE GO! MELLOWMAN HERE ON THE KEYS, AND LET ME SAY HOW SPECIAL IT IS TO BE PART OF THIS UNION DEMO CODEF REMAKE! PARTICULARLY BECAUSE IT WAS THE FIRST MULTI-SCREEN DEMO I EVER SAW ON THE ATARI ST.... UP UNTIL THEN, I'D ONLY SEEN DEMO'S LIKE THE B.I.G. DEMO, AND SOME OF THE TCB INTROS, AND THE UNION DEMO BLEW ME AWAY! EVEN AS MORE OF THESE MULTI-SCREEN DEMO'S APPEARED.... THE UNION DEMO WAS ALWAYS MY FAVOURITE.... ESPECIALLY ONE PARTICULAR SCREEN.... THE LEVEL 16 FULLSCREEN! ALTHOUGH THE FULLSCREEN WAS COOL, THAT WASN'T THE REASON WHY I LOVED IT SO MUCH... IT WAS BECAUSE OF THAT SIMPLE MELODY THAT ACCOMPANIED THE SCREEN, I NEVER FORGOT IT..... WHICH WAS WHY WHEN I FIRST STARTED TO MAKE CODEF SCREENS, I REALLY WANTED TO REMAKE THE LEVEL 16 SCREEN, JUST SO I COULD ENJOY THAT MUSIC AGAIN.... AND OBVIOUSLY THIS LED ME TO WORK WITH SHAZZ ON THE REMAKE, AND THAT LED TO WHERE WE ARE TODAY, GETTING READY TO ENJOY THIS GREAT DEMO, ALL OVER AGAIN!!  NOW I WAS TEMPTED TO DO SOME MASSIVE OVERBLOWN LONG SCROLLTEXT LIKE WE OFTEN USED TO SEE BACK IN THE DAY.... BUT THESE DAYS IT'S ALL TOO EASY FOR YOU TO CLICK SOMEWHERE ON YOUR BROWSER AND GOTO A DIFFERENT PAGE, WHEREAS BACK IN THE OLD DAYS, YOU HAD TO WAIT FOR THE DISK TO LOAD !!! .....WELL I THINK I'VE USED ABOUT ALL THE SPACE SHAZZ WILL ALLOW ME, IF NOT MORE, SO I'D BETTER LEAVE YOU GUYS IN PEACE... UNTIL WE SEE YOU AGAIN, TAKE CARE..... AND REMEMBER TO CHECK OUT MY OTHER CODEF SCREENS WHICH CAN BE SEEN AT CODEF.NAMWOLLEM.CO.UK !! LATERZ......    " ++
     "BEFORE WRAPPING (OR NOT] THIS SCROLLER, SOME DETAILS ON THIS INTRO, THE CHIPTUNES YOU'RE LISTENING TO ARE : '150 MPH' AND 'ANDROIDS' BY TAO/ACF, 'DROOLING' BY 505/CHECKPOINT, 'BMT SCREEN' BY LAP/NEXT, 'REALITY' BY BIG ALEC/DF AND OF COURSE 'SHARPNESS BUZZTONE' BY JESS/OVR. THE GAME LIKE IS A RIP OF THE SO COOL 20TH ANNIVERSARY MEGADEMO ORGANIZED BY DHS, ALL GFX DONE BY C-REM/MJJ PROD..... SPECIAL DEDIDACE A CHUCK/DUNE, LA DRAGONBALL C'EST POUR TOI !!!!  ...........  OH I FORGOT THE TYPICAL SPEECH ON WHO WE ARE, BUT IS IT STILL NECESSARY TO PRESENT TRSI IN 2013 ???? I HOPE NO.... SO ENOUGH CRAP FOR TODAY, LET'S WRAP...............";
 
-// The scrolltext spans the full 400-wide plane (STRIP_W), spilling into the
-// side borders, so they must stay open for every line — flicker at
-// OVERSCAN_MAGIC_X (see docs/HW_API.md "Opening the borders").
-fn handlerOverscan(fb: *LogicalFB, zigos: *ZigOS, line: u16, col: u16) void {
-    _ = zigos;
-    _ = line;
-    _ = col;
-    fb.flickerBorder();
-}
-
 const ScrollerFx = st2.Scroller(NUM_SLOTS);
 
 pub const Scroller = struct {
     fx: ScrollerFx = .{},
     wave_v: f32 = 0,
-    fresh: bool = true, // the plane has not been cleared whole yet
 
     pub fn init(self: *Scroller, zigos: *ZigOS) void {
         // The flat text band, before the wave bends it, lives in a scratch plane (the 4th, never
         // enabled): a CHISEL blit writes video memory only. Set up again at every entry, like
         // the planes: the host resets the VRAM pool first.
         zigos.lfbs[3].setScrollPlane(STRIP_W, STRIP_H);
-        sg.init(fontsin_bits);
-        const p2: *LogicalFB = &zigos.lfbs[2];
-        p2.is_enabled = true;
-        p2.setOverscanBuffer();
-        p2.setFrameBufferHBLHandler(zg.OVERSCAN_MAGIC_X, handlerOverscan);
-        p2.setPalette(p2_pal);
-        p2.setPaletteEntry(0, Color{ .r = 0, .g = 0, .b = 0, .a = 0 }); // transparent
+        sg.init(fontsin_bits); // the text is drawn on P1, in p2.pal's colours (p1_split.zig)
 
         self.wave_v = 0;
-        self.fresh = true;
         self.fx.init(.{
             .glyph_w = GLYPH,
             .glyph_h = GLYPH,
@@ -104,17 +83,14 @@ pub const Scroller = struct {
         self.fx.update();
     }
 
+    /// Over P1, last: the wave puts the strip on rows BAND_TOP .. BAND_TOP + BAND_ROWS - 1 (the
+    /// caller erases them).
     pub fn draw(self: *Scroller, zigos: *ZigOS) void {
-        const p2: *LogicalFB = &zigos.lfbs[2];
-        // The wave puts the strip on rows BASE_Y - amp .. BASE_Y + amp + STRIP_H - 1 and nothing else
-        // is ever drawn on this plane: after the first frame only that band is erased (a CHISEL fill).
-        if (self.fresh) gpu.clear(p2, 0) else gpu.fill(p2, 0, BAND_TOP, @intCast(p2.fb_w), BAND_ROWS, 0);
-        self.fresh = false;
-
+        const p1: *LogicalFB = &zigos.lfbs[1];
         const strip = &zigos.lfbs[3];
         gpu.fill(strip, 0, 0, STRIP_W, STRIP_H, 0);
         sg.draw(&self.fx, strip, fontsout, rasters);
-        compositeSiny(p2, strip, &self.wave_v);
+        compositeSiny(p1, strip, &self.wave_v);
     }
 };
 
@@ -124,13 +100,13 @@ pub const Scroller = struct {
 // per-frame drift (mirrors Codef's oldvalue+offset reset after the loop).
 // One keyed CHISEL copy a group (what zg.wave.siny did through the CPU's byte
 // copies; the same groups, offsets, clip and colour-0 key).
-fn compositeSiny(p2: *LogicalFB, strip: *LogicalFB, wave_v: *f32) void {
+fn compositeSiny(dst: *LogicalFB, strip: *LogicalFB, wave_v: *f32) void {
     const sum = zg.wave.SineSum(f32, 1){ .amp = .{WAVE_AMP}, .phase = .{wave_v.*}, .inc = .{WAVE_INC}, .rounding = .round };
     var it = sum.sweep(0);
     var x: u16 = 0;
     while (x < STRIP_W) : (x += WAVE_COL) {
         const off = it.next();
-        sg.group(p2, strip, x, @as(i32, BASE_Y) + off, @min(WAVE_COL, STRIP_W - x));
+        sg.group(dst, strip, x, @as(i32, BASE_Y) + off, @min(WAVE_COL, STRIP_W - x));
     }
     wave_v.* += WAVE_DRIFT;
 }

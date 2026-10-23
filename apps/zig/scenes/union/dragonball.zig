@@ -1,10 +1,12 @@
 // --------------------------------------------------------------------------
 // Union main-screen DRAGONBALLS (efmain.js "dragonball" object + codef_3d.js).
-// 6 bouncing balls along the bottom of P1: each shows a flat-shaded spinning
-// 5-point star (5 overlapping copies at 72deg phase offsets, per the JS) over
-// a translucent squashing disc. Self-contained: caller must set up P1
-// (fullscreen + palette) first — see runner.zig's init for the pattern this
-// module deliberately does NOT repeat (no setFullscreen/setPalette here).
+// 6 bouncing balls along the bottom of the screen: each shows a flat-shaded
+// spinning 5-point star (5 overlapping copies at 72deg phase offsets, per the
+// JS) over a translucent squashing disc. Drawn on P0, the background, last:
+// the disc only ever lies over the plain bottom band (dragonball_squash.zig's
+// test pins it), so its translucency is one pre-blended colour and the balls
+// need no plane of their own over the background (a FRESCO pass per line,
+// ~1.1 Mc a frame on the board). Caller sets up P0 (overscan) first.
 //
 // Geometry/animation constants faithful to codef_dragonball.js + efmain.js
 // (:207-210, :317-324) — see dragonball_math.zig for the vertex/triangle data.
@@ -19,40 +21,26 @@ const sq = @import("dragonball_squash.zig");
 
 const TWO_PI: f32 = std.math.pi * 2.0;
 const BS = gm.BALL_SIZE; // 64
-const DISC_R: f32 = 26.0; // codef_dragonball.js mycircle radius 52, halved
 
-const PAL_DISC: u8 = 64; // translucent disc over background
+const PAL_DISC: u8 = 64; // the translucent disc, pre-blended over the bottom band
 const PAL_FRONT: u8 = 128; // star front (kolor 0xD94345), opaque
 const PAL_BACK: u8 = 129; // star back, opaque, dimmer (drawn under the disc)
 const PAL_DISC_ON_BACK: u8 = 192; // precomputed disc(a=0.5) over PAL_BACK, opaque
 
+// The disc as it was on its own plane (a = 128) over an opaque colour, as the board's mixer
+// (fpga/rtl/video/zm_video_mix.v) and the browser's canvases fold it: P = round(c * a / 255),
+// D = P + (D * (256 - a) >> 8). Over the bottom band's (224,224,224): (224,192,192).
+const DISC = Color{ .r = 224, .g = 160, .b = 160, .a = 128 };
+fn over(c: Color, d: Color) Color {
+    return .{ .r = mix(c.r, c.a, d.r), .g = mix(c.g, c.a, d.g), .b = mix(c.b, c.a, d.b), .a = 255 };
+}
+fn mix(c: u8, a: u8, d: u8) u8 {
+    const r: u32 = @as(u32, c) * a + 128;
+    return @intCast(((r + (r >> 8)) >> 8) + ((@as(u32, d) * (256 - @as(u32, a))) >> 8));
+}
+
 var ball_buf: [BS * BS]u8 = undefined; // module-level scratch (heap-free)
 var sprite: sq.Sprite = undefined; // the squashed ball, stamped 6 times by CHISEL
-
-// The disc never changes size (the squash is applied at blit time), so which texels it covers is
-// worked out at compile time, with the same f32 test as before: one run [lo, hi) of columns a row
-// (a disc is convex; the comptime check pins it).
-const DISC_SPAN: [BS][2]u8 = blk: {
-    @setEvalBranchQuota(100_000);
-    var t: [BS][2]u8 = undefined;
-    for (0..BS) |y| {
-        const dy = (@as(f32, @floatFromInt(y)) + 0.5 - gm.CENTER) / DISC_R;
-        var lo: usize = BS;
-        var hi: usize = 0;
-        var n: usize = 0;
-        for (0..BS) |x| {
-            const dx = (@as(f32, @floatFromInt(x)) + 0.5 - gm.CENTER) / DISC_R;
-            if (dx * dx + dy * dy <= 1.0) {
-                lo = @min(lo, x);
-                hi = x + 1;
-                n += 1;
-            }
-        }
-        if (n != 0 and hi - lo != n) @compileError("the disc's row is not one run");
-        t[y] = .{ @intCast(if (n == 0) 0 else lo), @intCast(if (n == 0) 0 else hi) };
-    }
-    break :blk t;
-};
 
 pub const Dragonballs = struct {
     rotx: f32 = 0, // shared star rotation.x (all 5 phases share one accumulator)
@@ -61,15 +49,16 @@ pub const Dragonballs = struct {
     angle: f32 = 0, // bounce phase
     blitter: zg.Blitter = .{},
 
-    pub fn init(self: *Dragonballs, zigos: *ZigOS) void {
+    /// `under`: the opaque colour of the band the discs lie on (main.zig's bottom band).
+    pub fn init(self: *Dragonballs, zigos: *ZigOS, under: Color) void {
         self.* = .{};
         self.blitter.init();
-        const p1: *LogicalFB = &zigos.lfbs[1];
-        p1.setPaletteEntry(PAL_DISC, Color{ .r = 224, .g = 160, .b = 160, .a = 128 });
-        p1.setPaletteEntry(PAL_FRONT, Color{ .r = 217, .g = 67, .b = 69, .a = 255 });
-        p1.setPaletteEntry(PAL_BACK, Color{ .r = 160, .g = 50, .b = 52, .a = 255 });
+        const p0: *LogicalFB = &zigos.lfbs[0];
+        p0.setPaletteEntry(PAL_DISC, over(DISC, under));
+        p0.setPaletteEntry(PAL_FRONT, Color{ .r = 217, .g = 67, .b = 69, .a = 255 });
+        p0.setPaletteEntry(PAL_BACK, Color{ .r = 160, .g = 50, .b = 52, .a = 255 });
         // disc(224,160,160,a=0.502) over PAL_BACK(160,50,52), pre-blended opaque.
-        p1.setPaletteEntry(PAL_DISC_ON_BACK, Color{ .r = 192, .g = 105, .b = 106, .a = 255 });
+        p0.setPaletteEntry(PAL_DISC_ON_BACK, Color{ .r = 192, .g = 105, .b = 106, .a = 255 });
     }
 
     pub fn update(self: *Dragonballs) void {
@@ -87,14 +76,14 @@ pub const Dragonballs = struct {
         const sx = 1.0 + @sin(self.u) / 6.0;
         const sy = 1.0 + @sin(self.u + 10.0) / 6.0;
         sprite.build(&ball_buf, sx, sy); // one resample for all six balls
-        const p1: *LogicalFB = &zigos.lfbs[1];
+        const p0: *LogicalFB = &zigos.lfbs[0];
         var i: usize = 0;
         while (i < 6) : (i += 1) {
             const fi: f32 = @floatFromInt(i);
             const cx: i16 = 40 + 64 * @as(i16, @intCast(i));
             // the bounce height lands on a whole pixel, so all six share the sprite
-            const cy: i16 = @intFromFloat(@round(307.0 - 64.0 * @abs(@sin(self.angle + 0.25 * fi))));
-            self.blitter.blitImage(p1, cx + sprite.ox, cy + sprite.oy, sprite.pixels(), sprite.w, 0, 0, sprite.w, sprite.h, 0);
+            const cy: i16 = sq.centreY(self.angle, fi);
+            self.blitter.blitImage(p0, cx + sprite.ox, cy + sprite.oy, sprite.pixels(), sprite.w, 0, 0, sprite.w, sprite.h, 0);
         }
     }
 
@@ -132,7 +121,7 @@ pub const Dragonballs = struct {
     }
 
     fn drawDisc() void {
-        for (DISC_SPAN, 0..) |span, y| {
+        for (gm.DISC_SPAN, 0..) |span, y| {
             for (ball_buf[y * BS + span[0] ..][0 .. span[1] - span[0]]) |*px| {
                 // a store only where the pixel changes (the star's own pixels stay)
                 if (px.* == PAL_BACK) px.* = PAL_DISC_ON_BACK else if (px.* == 0) px.* = PAL_DISC;

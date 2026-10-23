@@ -116,3 +116,30 @@ pub fn fillTriangle(buf: *[BALL_SIZE * BALL_SIZE]u8, v0: Vec2, v1: Vec2, v2: Vec
         while (x <= r) : (x += 1) buf[row + @as(usize, @intCast(x))] = color;
     }
 }
+
+const DISC_R: f32 = 26.0; // codef_dragonball.js mycircle radius 52, halved
+
+// The disc never changes size (the squash is applied at blit time), so which texels it covers is
+// worked out at compile time, with the same f32 test as before: one run [lo, hi) of columns a row
+// (a disc is convex; the comptime check pins it).
+pub const DISC_SPAN: [BALL_SIZE][2]u8 = blk: {
+    @setEvalBranchQuota(100_000);
+    var t: [BALL_SIZE][2]u8 = undefined;
+    for (0..BALL_SIZE) |y| {
+        const dy = (@as(f32, @floatFromInt(y)) + 0.5 - CENTER) / DISC_R;
+        var lo: usize = BALL_SIZE;
+        var hi: usize = 0;
+        var n: usize = 0;
+        for (0..BALL_SIZE) |x| {
+            const dx = (@as(f32, @floatFromInt(x)) + 0.5 - CENTER) / DISC_R;
+            if (dx * dx + dy * dy <= 1.0) {
+                lo = @min(lo, x);
+                hi = x + 1;
+                n += 1;
+            }
+        }
+        if (n != 0 and hi - lo != n) @compileError("the disc's row is not one run");
+        t[y] = .{ @intCast(if (n == 0) 0 else lo), @intCast(if (n == 0) 0 else hi) };
+    }
+    break :blk t;
+};

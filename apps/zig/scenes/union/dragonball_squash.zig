@@ -54,3 +54,44 @@ fn texel(o: f32, k: usize, s: f32) i16 {
     if (v < 0 or v >= @as(f32, BS)) return -1;
     return @intFromFloat(v);
 }
+
+/// Ball `fi`'s centre row at bounce phase `angle`: a whole pixel, so all six share the sprite.
+pub fn centreY(angle: f32, fi: f32) i16 {
+    return @intFromFloat(@round(307.0 - 64.0 * @abs(@sin(angle + 0.25 * fi))));
+}
+
+/// The first row the disc may cover: main.zig's bottom band starts here, and its colour is
+/// what dragonball.zig pre-blends the disc over.
+pub const DISC_TOP: i16 = 211;
+
+// The disc is pre-blended over the bottom band, so it must never reach above it: every squash
+// the f32 accumulator takes as update() runs it, then a fine sweep of the whole range, at the
+// highest centre any ball reaches.
+test "the disc never leaves the bottom band" {
+    const std = @import("std");
+    var ball = [_]u8{0} ** (BS * BS);
+    for (gm.DISC_SPAN, 0..) |span, y| @memset(ball[y * BS + span[0] ..][0 .. span[1] - span[0]], 1);
+    var top: i16 = 1000;
+    var angle: f32 = 0;
+    for (0..20_000) |_| {
+        angle = @mod(angle + 0.05, std.math.pi * 2.0);
+        for (0..6) |i| top = @min(top, centreY(angle, @floatFromInt(i)));
+    }
+    try std.testing.expectEqual(@as(i16, 243), top);
+    var s: Sprite = .{};
+    var u: f32 = 0;
+    for (0..40_000) |k| {
+        u = @mod(u + 0.2, std.math.pi * 2.0);
+        const sweep = 5.0 / 6.0 + @as(f32, @floatFromInt(k -| 20_000)) / 60_000.0;
+        const sy = if (k < 20_000) 1.0 + @sin(u + 10.0) / 6.0 else sweep;
+        s.build(&ball, 7.0 / 6.0, sy);
+        var first: usize = s.h;
+        for (0..s.h) |r| {
+            if (std.mem.indexOfScalar(u8, s.pixels()[r * s.w ..][0..s.w], 1) != null) {
+                first = r;
+                break;
+            }
+        }
+        try std.testing.expect(top + s.oy + @as(i16, @intCast(first)) >= DISC_TOP);
+    }
+}
