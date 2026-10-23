@@ -151,7 +151,7 @@ pub const Demo = struct {
         if (cp == 0xE012) self.wants_quit = true; // host KEY_CODES.Escape
     }
 
-    /// Cartridge swap: -1 the menu, 1 the door's cart (union/doors.zig DOOR_CART).
+    /// Cartridge swap: -1 the menu; the cracktro's doors are decorative (union/doors.zig).
     pub fn pollCart(self: *Demo) i32 {
         if (self.wants_quit) return -1;
         return if (self.in_main) self.main.pollCart() else 0;
