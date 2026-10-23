@@ -21,7 +21,11 @@
 #include "vboard.h"
 #include "zm_memmap.h"
 
-uint8_t bchisel_pending;
+/* Alone in its D$ line (32 B): every machine and ROM entry loads it, and a load from a line with
+ * a posted store in flight waits for that store; its old neighbours (g_r, g_wait, the timing
+ * statics) are written all the time. */
+uint8_t bchisel_pending __attribute__((aligned(32), section(".bss.bchisel_pending")));
+static uint8_t bchisel_pending_pad[31] __attribute__((used, section(".bss.bchisel_pending")));
 
 #ifdef ZM_BLIT_HW
 #define BLIT_BUSY (1u << 31)
@@ -65,6 +69,7 @@ void bchisel_sync(void) {
     finish(g_r, &g_plan);
     bchisel_pending = 0, g_list = 0;
 }
+
 
 /* The pending op's block and lines, once CHISEL has started it (the barrier load). */
 HOT void pend(volatile uint8_t* r) {
@@ -132,4 +137,26 @@ void bchisel_run(volatile uint8_t* r) {
 #else
 void bchisel_sync(void) { bchisel_pending = 0; }
 void bchisel_run(volatile uint8_t* r) { (void)r; }
+#endif
+
+#ifdef __riscv
+/* HOST_CHISEL_SYNC's rare path (bchisel.h): called with `jal t0`, so the caller saved nothing.
+ * Keeps ra, t1-t6 and a0-a7 for it around bchisel_sync, then returns through t0. */
+__asm__(".text\n"
+        ".globl bchisel_sync_saved\n"
+        ".type bchisel_sync_saved, @function\n"
+        "bchisel_sync_saved:\n"
+        "    addi sp, sp, -64\n"
+        "    sw ra, 0(sp)\n  sw t1, 4(sp)\n  sw t2, 8(sp)\n  sw t3, 12(sp)\n"
+        "    sw t4, 16(sp)\n sw t5, 20(sp)\n sw t6, 24(sp)\n sw a0, 28(sp)\n"
+        "    sw a1, 32(sp)\n sw a2, 36(sp)\n sw a3, 40(sp)\n sw a4, 44(sp)\n"
+        "    sw a5, 48(sp)\n sw a6, 52(sp)\n sw a7, 56(sp)\n"
+        "    call bchisel_sync\n"
+        "    lw ra, 0(sp)\n  lw t1, 4(sp)\n  lw t2, 8(sp)\n  lw t3, 12(sp)\n"
+        "    lw t4, 16(sp)\n lw t5, 20(sp)\n lw t6, 24(sp)\n lw a0, 28(sp)\n"
+        "    lw a1, 32(sp)\n lw a2, 36(sp)\n lw a3, 40(sp)\n lw a4, 44(sp)\n"
+        "    lw a5, 48(sp)\n lw a6, 52(sp)\n lw a7, 56(sp)\n"
+        "    addi sp, sp, 64\n"
+        "    jr t0\n"
+        ".size bchisel_sync_saved, .-bchisel_sync_saved\n");
 #endif
