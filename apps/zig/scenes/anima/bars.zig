@@ -142,14 +142,14 @@ pub fn build(t: u32, logo_top: usize, logo_rows: usize, font_top: usize, font_ro
             const m: i32 = 2 * @as(i32, HORIZON) - 1 - @as(i32, @intCast(r)) + w;
             v = P.dim(skyAt(@intCast(@max(0, m))), 9);
         }
-        if (R.bg[r] != v) R.bg[r] = v;
+        if (R.lines[r][0] != v) R.lines[r][0] = v;
     }
     for (logo_top..logo_top + logo_rows) |r| {
         const v = CHROME[(r - logo_top + 64 * 4 - (t >> 1) % 64) % 64];
-        if (R.logo[r] != v) R.logo[r] = v;
+        if (R.lines[r][1] != v) R.lines[r][1] = v;
     }
     for (font_top..font_top + font_rows) |r| {
         const v = RAINBOW[(r + t) % 48];
-        if (R.font[r] != v) R.font[r] = v;
+        if (R.lines[r][2] != v) R.lines[r][2] = v;
     }
 }

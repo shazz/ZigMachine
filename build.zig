@@ -249,10 +249,12 @@ pub fn build(b: *std.Build) void {
     _ = packed_files.addCopyFile(emlyn_zx0, "replicants_emlyn.zx0");
     _ = packed_files.addCopyFile(tsl_zx0, "tsl_hybridglenz.zx0");
     _ = packed_files.addCopyFile(supplex_zx0, "supplex_fs2_main.zx0");
-    // ANIMA's logo and scroller font, BUILT from the 16x16 font by a host tool
-    // beside the scene (apps/zig/scenes/anima/gen_anima.zig, art.zig): Zig's
-    // compile-time interpreter took minutes for their ~100K pixels, the host 4 ms.
-    // Not packed: the cart blits them straight out of its RAM.
+    // ANIMA's tables (logo, font, tunnel map and texture...), BUILT by a host
+    // tool beside the scene (apps/zig/scenes/anima/gen_anima.zig): Zig's
+    // compile-time interpreter took minutes for ~100K pixels, the host
+    // milliseconds. It writes the .bin files and the module that embeds them,
+    // so a new table needs no change here. Not packed: the cart reads them
+    // (and CHISEL blits them) straight out of its RAM.
     const gen_anima = b.addExecutable(.{
         .name = "gen_anima",
         .root_module = b.createModule(.{
@@ -263,8 +265,12 @@ pub fn build(b: *std.Build) void {
     });
     const run_anima = b.addRunArtifact(gen_anima);
     run_anima.addFileArg(b.path("apps/zig/assets/fonts/font16.raw"));
-    _ = packed_files.addCopyFile(run_anima.addOutputFileArg("anima_logo.bin"), "anima_logo.bin");
-    _ = packed_files.addCopyFile(run_anima.addOutputFileArg("anima_font.bin"), "anima_font.bin");
+    const anima_dir = run_anima.addOutputDirectoryArg("anima_art");
+    const anima_art_mod = b.createModule(.{
+        .root_source_file = anima_dir.path(b, "anima_art.zig"),
+        .target = wasm_target,
+        .optimize = optimize,
+    });
     // MPP TRUECOLOR's gallery: one blob per picture and mode (tools/mpp_convert.py).
     // Unpacked they overflow the cart window, so the scene depacks only the one on
     // screen. MPP_PICTURES follows the converter's PICTURES list.
@@ -302,8 +308,6 @@ pub fn build(b: *std.Build) void {
             \\pub const replicants_emlyn = @embedFile("replicants_emlyn.zx0");
             \\pub const tsl_hybridglenz = @embedFile("tsl_hybridglenz.zx0");
             \\pub const supplex_fs2_main = @embedFile("supplex_fs2_main.zx0");
-            \\pub const anima_logo = @embedFile("anima_logo.bin");
-            \\pub const anima_font = @embedFile("anima_font.bin");
             \\{s}{s}{s}{s}}};
             \\
         , .{ swedish_decl, snyd90_decl, naos_decl, mpp_decl })),
@@ -562,6 +566,7 @@ pub fn build(b: *std.Build) void {
                 // Run-time depackers + the assets build.zig packs (see zx0pack above).
                 .{ .name = "depackers", .module = depackers_mod },
                 .{ .name = "packed_assets", .module = packed_assets_mod },
+                .{ .name = "anima_art", .module = anima_art_mod }, // ANIMA's generated tables
             },
         });
         const exe = b.addExecutable(.{

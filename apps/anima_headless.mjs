@@ -1,27 +1,24 @@
-// Headless ANIMA driver (cart 107): boots the sealed machine + demo-anima.wasm the way
-// docs/sealed-loader.js does (hwClear, frame, hwRenderPlane per enabled plane, every
-// frame: the HBL runs inside hwRenderPlane, so the raster and the borders are live) and
-// checks what the screen is about:
-//   1. music: breath_2000.sndh requested at start
-//   2. borders: closed in DARK (the border columns show the machine background), sides
-//      opening from the middle line out during OPEN, every line open once the screen runs
-//   3. REAL raster: entry 0 changes per line; wherever the plane holds index 0, the
-//      composed pixel IS that line's raster colour, in BOTH side borders too (x 0 and 799)
-//   4. frames pinned by SHA-256 of the composed 800x280 picture at points in every phase
-//   5. CHISEL ops per frame under a ceiling (each hwBlit costs ~1,000 cycles on the board)
-//   6. est. board cost (apps/frame_cost.mjs) under CEILING_MC in every phase
-//   node apps/anima_headless.mjs [outdir] [--pin] [--no-cost] [--break hash|border|raster|music|cost]
-// --pin prints the hashes to paste into PINS. --break plants one fault and PASSES only if caught.
-import { readFile, writeFile, mkdir } from "node:fs/promises";
-import { createHash } from "node:crypto";
-import { cartRam, romRam } from "../docs/wasm_hiwater.js";
+// Headless ANIMA (cart 107): one continuous run through every part (apps/anima_lib.mjs boots it
+// as the browser does) and checks what each part is about:
+//   music     cuddly_reset.sndh at boot, silence ("none") at the gag's freeze, breath_2000.sndh
+//             at the tunnel: the request sequence, nothing else
+//   DARK      every line closed: the border columns show the machine background
+//   OPEN      the sides opening from line 140 out, the bands still closed
+//   OLDSCHOOL every line open; a REAL raster: each index-0 border pixel is its line's entry 0
+//   GAG       mistimed flicker: the borders show noise, not the raster
+//   NEWSCHOOL every line open, the picture covering the borders
+//   pins      the composed 800x280 picture hashed at a frame of every part
+//   CHISEL    ops a frame under MAX_BLITS (each costs ~800 cycles on the board)
+//   cost      est. board Mc/frame (apps/frame_cost.mjs) of every part under CEILING_MC
+//   node apps/anima_headless.mjs [outdir] [--pin] [--no-cost] [--break hash|border|raster|music|cost|noise]
+// --pin prints the hashes for PINS. --break plants one fault and PASSES only if it is caught.
+import { mkdir } from "node:fs/promises";
 import { costOf, parseArgs } from "./frame_cost.mjs";
+import { CART, boot, step, shot, borderMisses, background } from "./anima_lib.mjs";
 
-const CART = "docs/demo-anima.wasm";
-const PAGES = 112;
-const CEILING_MC = 1.75; // the board knee: above it the frame drops below 60 fps (lead, 2026-10-23)
+const CEILING_MC = 1.75; // the board's knee: above it the frame drops below 60 fps (lead, 2026-10-23)
 const MAX_BLITS = 200;
-const BREAKS = ["hash", "border", "raster", "music", "cost"];
+const BREAKS = ["hash", "border", "raster", "music", "cost", "noise"];
 const argv = process.argv.slice(2);
 const bi = argv.indexOf("--break");
 const broke = bi >= 0 ? argv[bi + 1] : null;
@@ -30,146 +27,89 @@ const PIN = argv.includes("--pin");
 const NO_COST = argv.includes("--no-cost");
 const out = argv.find((a, i) => !a.startsWith("--") && argv[i - 1] !== "--break") ?? "/tmp/anima";
 
-// frame -> sha256 of the composed picture (DARK, OPEN, BREATHE, SCROLL, four GLENZ objects)
+// part -> [tick to measure the cost at, frame to pin]
+const PARTS = {
+    dark: [20, 60], open: [150, 170], breathe: [260, 330], cube: [700, 700], octa: [1300, 1300],
+    slip: [1760, 1790], freeze: [1860, 1860], terminal: [1950, 2000], tunnel: [2500, 2500],
+};
 const PINS = {
     60: "2ffcc7dae0b41e2cfd6d545cfaadb1ac73019dbbece3491845294ce2bfc7896c",
     170: "9d50fdc7a502806abdc5711004b6090b849874696be74f2c23c734c06ae1266b",
     330: "ee448db17f829187c73577f669147127cd3894c038a0cd32a2eb4e776efa19c3",
     700: "1c2f26edf1e254cfff6d61bc5c457297cbb6fc013dead7faba682e5dd0544be5",
-    1400: "e6ccdee070a3e5569cfae2ed5907acdb3afa81c7f59215593060636f086c8bd4",
-    2100: "3a450d3df2c1bfcaa57a546d220286d007734a195949455003f4ba7bee70de63",
+    1300: "d91f8cb26310f9fdf34190175a5369cec811e6f73360c7e374df284979106650",
+    1790: "6444b23bc770d6eacdb6ca9c001c0207a4a4df62dec7aff17fa6f00756dcd076",
+    1860: "7c74d3fb43ac7bce9b73aeca31f514bb12cc0bf63eb4535d333f65c6962a13ea",
+    2000: "4b8f2f7d12f38707a27f791b0afb74572328fc69e9ba77c2b4903dac3aadd177",
+    2500: "d38c6b2cbd581443f60ebad9b452cd0fd3371f2856efb269122711d05dc237b3",
 };
-const SHOTS = [60, 170, 330, 700, 1400, 2100];
-
-async function boot() {
-    const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
-    let demo;
-    const machine = (await WebAssembly.instantiate(await readFile("docs/machine-video.wasm"), {
-        env: { memory, hblDispatch: (id, p, l, x) => demo.hblDispatch(id, p, l, x) },
-    })).instance.exports;
-    const romBytes = await readFile("docs/rom.wasm");
-    const rom = (await WebAssembly.instantiate(romBytes, {
-        env: { memory, hwVideoBase: machine.hwVideoBase, hwBlit: machine.hwBlit },
-    })).instance.exports;
-    machine.hwSetRomHigh(romRam(romBytes).high ?? 0);
-    const counter = { blits: 0 };
-    const cartBytes = await readFile(CART);
-    const env = { memory, ...rom };
-    for (const k of Object.keys(machine)) if (k.startsWith("hw")) env[k] = machine[k];
-    env.hwBlit = () => { counter.blits++; machine.hwBlit(); };
-    for (const imp of WebAssembly.Module.imports(new WebAssembly.Module(cartBytes)))
-        if (imp.module === "env" && !(imp.name in env)) env[imp.name] = () => 0;
-    demo = (await WebAssembly.instantiate(cartBytes, { env })).instance.exports;
-    machine.hwSetCartHigh(cartRam(cartBytes).high ?? 0);
-    machine.hwInit();
-    demo.boot();
-    demo.skipBoot();
-    return { memory, machine, demo, counter };
-}
+const SONGS = ["cuddly_reset.sndh", "none", "breath_2000.sndh"];
 
 const errors = [];
 let injected = false;
 const ok = (cond, msg) => { if (!cond) errors.push(msg); };
+const catchIf = (when, cond, msg) => { ok(cond, msg); if (broke === when && !cond) injected = true; };
 await mkdir(out, { recursive: true });
-const { memory, machine, demo, counter } = await boot();
-const W = machine.hwPhysWidth(), H = machine.hwPhysHeight();
-const pfb = () => new Uint32Array(memory.buffer, machine.hwPhysicalPtr(), W * H);
-const bg = () => new Uint32Array(memory.buffer, machine.hwVideoBase() + 4, 1)[0];
+const m = await boot();
+const { demo } = m;
+const raster = (r) => ((demo.animaRasterAt(r) ^ (broke === "raster" && r === 150 ? 0xffffff : 0)) >>> 0);
+const lines = () => Array.from({ length: 280 }, (_, r) => demo.animaLineOpen(r) === 1);
 
-// ---- 1. music: the request is made in init, before the first frame
-{
-    const pending = demo.pollSongRequest();
-    const name = new TextDecoder().decode(new Uint8Array(memory.buffer, demo.songNamePtr(), demo.songNameLen()));
-    const want = broke === "music" ? "not_the_tune.sndh" : "breath_2000.sndh";
-    if (broke === "music" && name === "breath_2000.sndh") injected = true;
-    ok(pending === 1 && name === want, `music: asked for '${name}' (pending ${pending}), want ${want}`);
-}
-
-let maxBlits = 0;
-let frame = 0;
-function step() {
-    frame++;
-    machine.hwClear();
-    counter.blits = 0;
-    demo.frame(16.6);
-    maxBlits = Math.max(maxBlits, frame > 1 ? counter.blits : 0);
-    machine.hwRenderPlane(0);
-}
-
-// ---- 2 + 3. borders and the raster, on the composed picture of this frame
-function checkLines(where, wantOpen) {
-    const px = pfb(), back = bg();
-    const fb = new Uint8Array(memory.buffer, demo.animaFb(), 400 * 280);
-    let rasterRows = 0, borderBad = 0, rasterBad = 0;
-    const colours = new Set();
-    for (let r = 0; r < H; r++) {
-        const open = demo.animaLineOpen(r) === 1;
-        const want = wantOpen(r);
-        if (open !== want) borderBad++;
-        let rc = demo.animaRasterAt(r) >>> 0;
-        if (broke === "raster" && r === 150) rc ^= 0x00ffffff;
-        colours.add(rc);
-        if (r < 40 || r >= 240) continue; // bands: checked through the side columns below only
-        for (const [x, lx] of [[0, 0], [W - 1, 399]]) {
-            const p = px[r * W + x];
-            if (!open) { if (p !== back) borderBad++; continue; }
-            if (fb[r * 400 + lx] !== 0) continue; // something drawn there: not the raster
-            rasterRows++;
-            if (p !== rc) { rasterBad++; if (process.env.ANIMA_DEBUG && rasterBad < 6) console.log(where, r, x, p.toString(16), rc.toString(16)); }
-        }
-    }
-    if (broke === "border" && where === "dark") borderBad += demo.animaLineOpen(140) === 0 ? 1 : 0;
-    ok(borderBad === 0, `${where}: ${borderBad} border mismatches (closed must show the background, open the plane)`);
-    ok(rasterBad === 0, `${where}: ${rasterBad} border pixels are not their line's raster colour`);
-    if (where === "main") {
-        ok(rasterRows > 300, `${where}: only ${rasterRows} raster samples in the side borders`);
-        ok(colours.size >= 30, `${where}: only ${colours.size} raster colours over 280 lines`);
-    }
-    if (broke === "raster" && rasterBad > 0) injected = true;
-    if (broke === "border" && borderBad > 0) injected = true;
-}
-
-const hashes = {};
-async function shot(f) {
-    const px = new Uint8Array(pfb().buffer, machine.hwPhysicalPtr(), W * H * 4);
-    const h = createHash("sha256");
-    if (broke === "hash" && f === SHOTS[2]) { const c = px.slice(); c[1000] ^= 1; h.update(c); } else h.update(px);
-    hashes[f] = h.digest("hex");
-    const rgb = Buffer.alloc(W * H * 3);
-    for (let i = 0; i < W * H; i++) for (let c = 0; c < 3; c++) rgb[i * 3 + c] = px[i * 4 + c];
-    await writeFile(`${out}/anima-${String(f).padStart(4, "0")}.ppm`, Buffer.concat([Buffer.from(`P6\n${W} ${H}\n255\n`), rgb]));
-}
-
-const last = SHOTS[SHOTS.length - 1];
-while (frame < last) {
-    step();
-    if (frame === 30) checkLines("dark", () => false);
-    if (frame === 120) {
-        // timeline.zig: sides open from line 140 out over 60 ticks from tick 90, bands later
+const checks = {
+    30() { // DARK
+        const open = lines().filter(Boolean).length + (broke === "border" ? 1 : 0);
+        const b = borderMisses(m, () => background(m));
+        catchIf("border", open === 0 && b.miss === 0, `dark: ${open} lines open, ${b.miss} border pixels not the background`);
+    },
+    120() { // OPEN: timeline.zig, sides from line 140 out over 60 ticks from tick 90
         const t = demo.animaTick();
         const sides = Math.floor(Math.floor((t - 90) * 256 / 60) * 100 / 256);
-        ok(t > 90 && t < 150, `open: tick ${t} is not in the sides' minute`);
-        checkLines("open", (r) => r >= 40 && r < 240 && Math.abs(r - 140) <= sides);
-    }
-    if (frame === 600) checkLines("main", () => true);
-    if (SHOTS.includes(frame)) await shot(frame);
+        const bad = lines().filter((o, r) => o !== (r >= 40 && r < 240 && Math.abs(r - 140) <= sides)).length;
+        ok(t > 90 && t < 150 && bad === 0, `open: tick ${t}, ${bad} lines open or closed out of turn`);
+    },
+    600() { // OLDSCHOOL: the real raster in both side borders
+        const b = borderMisses(m, raster);
+        const colours = new Set(Array.from({ length: 280 }, (_, r) => raster(r))).size;
+        ok(lines().every(Boolean), "oldschool: a line is closed");
+        catchIf("raster", b.miss === 0, `oldschool: ${b.miss} border pixels are not their line's raster colour`);
+        ok(b.seen > 300 && colours >= 30, `oldschool: ${b.seen} raster samples, ${colours} colours`);
+    },
+    1860() { // GAG: the freeze, every flicker mistimed
+        const b = borderMisses(m, raster);
+        ok(demo.animaPhase() === 5 && b.miss > b.seen * 0.8, `gag: ${b.miss}/${b.seen} border pixels show noise`);
+    },
+    2500() { // NEWSCHOOL: every line open, the tunnel over the borders
+        const b = borderMisses(m, () => background(m));
+        ok(lines().every(Boolean) && b.seen === 0, `tunnel: borders not covered (${b.seen} index-0 samples)`);
+    },
+};
+if (broke === "noise") checks[1860] = () => catchIf("noise", borderMisses(m, raster).miss === 0, "noise: the freeze shows noise");
+
+const pins = Object.fromEntries(Object.values(PARTS).map(([, f]) => [f, null]));
+const hashes = {};
+const last = Math.max(...Object.keys(pins).map(Number));
+while (m.frame < last) {
+    step(m);
+    checks[m.frame]?.();
+    if (m.frame in pins) hashes[m.frame] = await shot(m, `${out}/anima-${String(m.frame).padStart(4, "0")}.ppm`, broke === "hash" && m.frame === 330);
 }
-ok(maxBlits <= MAX_BLITS, `CHISEL: ${maxBlits} ops in one frame (ceiling ${MAX_BLITS})`);
-console.log(`  CHISEL ops: at most ${maxBlits} a frame`);
+ok(m.maxBlits <= MAX_BLITS, `CHISEL: ${m.maxBlits} ops in one frame (ceiling ${MAX_BLITS})`);
+console.log(`  CHISEL ops: at most ${m.maxBlits} a frame`);
+const songs = m.songs.map((s) => s.name);
+if (broke === "music") songs[1] = "breath_2000.sndh";
+catchIf("music", JSON.stringify(songs) === JSON.stringify(SONGS), `music: ${JSON.stringify(m.songs)}`);
 if (PIN) console.log(JSON.stringify(hashes, null, 4));
-for (const f of SHOTS) {
+for (const f of Object.keys(pins)) {
     if (PINS[f] === undefined) { ok(PIN, `frame ${f}: no pinned hash`); continue; }
-    if (hashes[f] !== PINS[f]) { ok(false, `frame ${f}: picture hash ${hashes[f].slice(0, 16)} != pinned ${PINS[f].slice(0, 16)}`); if (broke === "hash") injected = true; }
+    catchIf("hash", hashes[f] === PINS[f], `frame ${f}: picture hash ${hashes[f].slice(0, 16)} != pinned ${PINS[f].slice(0, 16)}`);
 }
 
-// ---- 6. the board cost per phase (jump the timeline, measure 30 frames)
 if (!NO_COST) {
     const ceiling = broke === "cost" ? 0.5 : CEILING_MC;
-    for (const [name, t] of [["dark", 20], ["open", 150], ["breathe", 260], ["scroll", 400], ["cube", 700], ["octa", 1400], ["ico", 2100], ["star", 2800]]) {
-        const o = parseArgs([CART, "--frames", "30", "--warmup", "5", "--call", `1:animaJump:${t}`]);
-        const r = await costOf(CART, o);
-        console.log(`  cost ${name.padEnd(8)} tick ${t}: est. ${r.mc.avg} Mc/frame avg, ${r.mc.max} max (split ${JSON.stringify(r.split)})`);
-        if (r.mc.max > ceiling) { ok(false, `cost ${name}: ${r.mc.max} Mc > ${ceiling}`); if (broke === "cost") injected = true; }
+    for (const [name, [t]] of Object.entries(PARTS)) {
+        const r = await costOf(CART, parseArgs([CART, "--frames", "30", "--warmup", "5", "--call", `1:animaJump:${t}`]));
+        console.log(`  cost ${name.padEnd(9)} tick ${String(t).padStart(4)}: est. ${r.mc.avg} Mc/frame avg, ${r.mc.max} max (cart ${r.split.cart}, CHISEL ${r.split.blit}, FRESCO ${r.split.fresco})`);
+        catchIf("cost", r.mc.max <= ceiling, `cost ${name}: ${r.mc.max} Mc > ${ceiling}`);
     }
 }
 
@@ -178,5 +118,5 @@ if (broke) {
     process.exit(injected ? 0 : 1);
 }
 for (const e of errors) console.log(`  FAIL ${e}`);
-console.log(errors.length ? `anima: FAILED (${errors.length})` : "anima: PASS (music, borders closed/opening/open, real raster in both side borders, pinned frames, CHISEL ops, est. cost per phase)");
+console.log(errors.length ? `anima: FAILED (${errors.length})` : "anima: PASS (music sequence, borders closed/opening/open, real raster, gag noise, newschool covering the borders, pinned frames of every part, CHISEL ops, est. cost of every part)");
 process.exit(errors.length ? 1 : 0);

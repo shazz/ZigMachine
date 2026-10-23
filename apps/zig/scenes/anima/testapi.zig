@@ -40,5 +40,5 @@ export fn animaLogoBlits() u32 {
 
 /// The raster's colour for physical line r (entry 0's per-line table).
 export fn animaRasterAt(r: u32) u32 {
-    return if (r < raster.ROWS) raster.bg[r] else 0;
+    return if (r < raster.ROWS) raster.lines[r][0] else 0;
 }

@@ -44,13 +44,12 @@ const P = @import("palette.zig");
 const T = @import("timeline.zig");
 const raster = @import("raster.zig");
 const bars = @import("bars.zig");
-const logo = @import("logo.zig");
-const glenz = @import("glenz.zig");
-const stars = @import("stars.zig");
-const scroller = @import("scroller.zig");
+const parts = @import("parts.zig");
+const grade = @import("grade.zig");
+const music = @import("music.zig");
 
 pub const PLANE = 0;
-pub const MUSIC = "breath_2000.sndh";
+pub const MUSIC = music.OLD; // the first tune (music.zig has both)
 
 const TICK_MS: f32 = 1000.0 / 60.0;
 const MAX_TICKS: u32 = 3;
@@ -60,7 +59,9 @@ const K_ESC: u32 = 0xE012;
 pub var tick: u32 = 0;
 pub var ok: bool = false;
 pub var wants_quit: bool = false;
+pub var os: ?*ZigOS = null; // for the terminal's printText (gag.zig)
 var drawn_tick: ?u32 = null; // the tick the plane shows; null = redraw from scratch
+var shown: T.Part = .old;
 
 comptime {
     // the default planes plus one overscan buffer must fit the VRAM pool
@@ -86,7 +87,9 @@ pub const Demo = struct {
         P.install(fb.palette);
         raster.install(fb); // overscan buffer + the HBL (cleared to 0)
         plane = fb.fb;
-        zg.requestSong(MUSIC);
+        os = zigos;
+        music.reset();
+        music.follow(0);
         ok = true;
     }
 
@@ -104,26 +107,16 @@ pub const Demo = struct {
         if (!ok) return;
         const fb = &zigos.lfbs[PLANE];
         const bl = &self.blitter;
-        const t = tick;
+        const t = tick % T.LOOP;
         pulse(zigos);
-        // a first frame or a timeline jump: start from a clear plane
-        const fresh = if (drawn_tick) |d| t < d or t > d + MAX_TICKS else true;
-        if (fresh) {
-            bl.clear(fb, P.BG);
-            logo.reset(fb, bl);
-            glenz.reset();
-            stars.reset();
-            scroller.reset();
-        } else stars.erase(fb);
-        raster.openAt(t);
-        bars.build(t, logo.TOP, logo.BAND, scroller.TOP, scroller.BAND);
-        logo.draw(fb, bl, t);
-        glenz.draw(fb, bl, t);
-        scroller.draw(fb, bl, t);
-        if (t >= T.SCROLL) {
-            const n = @min(stars.N, (t - T.SCROLL) * 2);
-            stars.draw(fb, n, drawn_tick != t);
-        }
+        music.follow(t);
+        const p = T.part(t);
+        // a first frame, a new part or a timeline jump: the part starts afresh
+        const jumped = if (drawn_tick) |d| t < d or t > d + MAX_TICKS else true;
+        const fresh = jumped or p != shown;
+        if (fresh) parts.enter(p, fb, bl, t, jumped);
+        parts.draw(p, fb, bl, t, fresh, drawn_tick != t);
+        shown = p;
         drawn_tick = t;
     }
 
@@ -153,6 +146,7 @@ fn pulse(zigos: *const ZigOS) void {
     if (v >= last_vol + 3) kick = 12 else if (kick > 0) kick -= 1;
     last_vol = v;
     bars.beat = kick / 4;
+    grade.beat = @intCast(kick / 4);
 }
 
 /// Plane 0's pixels (the harness reads them).
@@ -161,5 +155,5 @@ pub fn planePtr() [*]u8 {
 }
 
 pub fn phase() T.Phase {
-    return T.phase(tick);
+    return T.phase(tick % T.LOOP);
 }

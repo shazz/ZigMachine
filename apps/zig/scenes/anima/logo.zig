@@ -29,7 +29,7 @@ const X0: i16 = (zg.PHYSICAL_WIDTH - LW) / 2;
 const WAMP: i32 = 10; // wobble amplitude, px (< art.WOB)
 
 /// The finished logo, LH rows of LW palette indices (0 = the raster shows).
-pub const PIXELS: *const [LH * LW]u8 = @import("packed_assets").anima_logo;
+pub const PIXELS: *const [LH * LW]u8 = &@import("anima_art").logo;
 
 comptime {
     if (WAMP >= art.WOB) @compileError("logo: the wobble must stay inside the blank margin");
@@ -40,6 +40,15 @@ const BLANK: i16 = -1;
 var last_src: [BAND]i16 = @splat(BLANK);
 var last_dx: [BAND]i16 = @splat(0);
 pub var blits: u32 = 0; // CHISEL ops this frame (the harness counts them too)
+/// The gag's tearing: 0..5 px of random shift a row (WAMP + tear < art.WOB, so
+/// the padded rows still cover what they drew).
+pub var tear: u32 = 0;
+
+fn jitter(t: u32, y: usize) i16 {
+    var h = t *% 0x9E37_79B1 ^ @as(u32, @intCast(y)) *% 0x85EB_CA6B;
+    h ^= h >> 13;
+    return @as(i16, @intCast(h % (2 * tear + 1))) - @as(i16, @intCast(tear));
+}
 
 /// Forget what the band holds (after init or a timeline jump): every row is
 /// redrawn, and the band is cleared once.
@@ -47,6 +56,7 @@ pub fn reset(fb: *zg.LogicalFB, bl: *zg.Blitter) void {
     bl.fill(fb, 0, TOP, zg.PHYSICAL_WIDTH, BAND, P.BG);
     last_src = @splat(BLANK);
     last_dx = @splat(0);
+    tear = 0;
 }
 
 /// The breath: the logo's height scale at tick t, Q8 (256 = natural size).
@@ -71,6 +81,7 @@ pub fn draw(fb: *zg.LogicalFB, bl: *zg.Blitter, t: u32) void {
             const sr = (off >> 16) + LH / 2;
             if (sr >= 0 and sr < LH) src = @intCast(sr);
             dx = @intCast((WAMP * trig.sin(phase +% @as(u32, @intCast(y)) *% (1 << 26))) >> 16);
+            if (tear > 0) dx += jitter(t, y);
         }
         const same = y < BAND and src == last_src[y] and (src == BLANK or dx == last_dx[y]);
         // blank runs that were not blank: one fill each

@@ -38,7 +38,7 @@ const TEXT =
     "GREETINGS TO EVERY ST AND AMIGA SCENER WHO EVER OPENED A BORDER OR CHASED A RASTER...   " ++
     "THE SOUL OF THE MACHINE IS IN ITS TIMING.   ";
 
-const STRIP: *const [CELL_H * STRIP_W]u8 = @import("packed_assets").anima_font;
+const STRIP: *const [CELL_H * STRIP_W]u8 = &@import("anima_art").font;
 
 pub var blits: u32 = 0;
 var cleared = false;

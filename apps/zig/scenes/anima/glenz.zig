@@ -26,6 +26,7 @@ const CY: f32 = 153;
 const FOCAL: f32 = 720; // px at distance 1, a long lens: a vertex is at most 720 / (NEAR - 1) = 62 px from the
 const NEAR: f32 = 12.7; // centre and 57 at rest, so the box stays in rows 90..216, between the logo (..87) and scroller (218..)
 const FAR: f32 = 60;
+const OLD_OBJECTS = 2; // cube, octahedron
 
 comptime {
     // the erase box must never reach the logo's or the scroller's band: those
@@ -57,10 +58,11 @@ fn erase(fb: *zg.LogicalFB, bl: *zg.Blitter) void {
     last = .{};
 }
 
-/// The distance at local tick l of an object's stay: in, rest, out.
-fn distance(l: u32) f32 {
+/// The distance at local tick l of an object's stay: in, rest, out (the last
+/// object stays: the gag breaks the screen around it).
+fn distance(l: u32, stays: bool) f32 {
     const z = T.ZOOM_TICKS;
-    const k: u32 = if (l < z) z - l else if (l + z > T.OBJECT_TICKS) l + z - T.OBJECT_TICKS else 0;
+    const k: u32 = if (l < z) z - l else if (!stays and l + z > T.OBJECT_TICKS) l + z - T.OBJECT_TICKS else 0;
     const f = @as(f32, @floatFromInt(k * k)) * (1.0 / @as(f32, @floatFromInt(z * z)));
     return NEAR + (FAR - NEAR) * f;
 }
@@ -70,7 +72,7 @@ pub fn draw(fb: *zg.LogicalFB, bl: *zg.Blitter, t: u32) void {
     erase(fb, bl);
     if (t < T.GLENZ) return;
     const e = t - T.GLENZ;
-    const n = (e / T.OBJECT_TICKS) % O.ALL.len;
+    const n: usize = @min(e / T.OBJECT_TICKS, OLD_OBJECTS - 1); // the oldschool shows two
     if (n != scheme) {
         scheme = n;
         P.glenz(fb.palette, n);
@@ -81,7 +83,7 @@ pub fn draw(fb: *zg.LogicalFB, bl: *zg.Blitter, t: u32) void {
     const ay: u32 = e *% (5 << 23);
     const az: u32 = e *% (7 << 22);
     const m = matrix(ax, ay, az);
-    const d = distance(e % T.OBJECT_TICKS);
+    const d = distance(e - @as(u32, @intCast(n)) * T.OBJECT_TICKS, n == OLD_OBJECTS - 1);
     const cx = CX + SWING * q16(trig.sin(e *% (1 << 23)));
     const cy = CY + 2.0 * q16(trig.sin(e *% (7 << 22)));
     var pts: [O.MAX_V]zg.BlitVec2 = undefined;
