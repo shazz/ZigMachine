@@ -2,8 +2,8 @@
 // The live picture, built in the chunky domain (the board's 64,000 per-pixel
 // stores a frame were more than its whole frame budget):
 //
-//   tick:   restore(clock.screen) under the last tick's dirty groups from an
-//           aligned copy of the background, then Clock.advance + meter.apply
+//   tick:   restore(clock.screen) under the last tick's dirty groups from the
+//           (4-aligned) background, then Clock.advance + meter.apply
 //           (the planar engine itself, minus its 32000-byte memcpy);
 //   render: WORK <- BG (one CHISEL copy), the dirty groups expanded from
 //           clock.screen into WORK (4 u32 stores each), the 63 logo rows as
@@ -18,17 +18,14 @@ const Clock = @import("clock.zig").Clock;
 const dirty = @import("dirty.zig");
 const gpu = @import("gpu.zig");
 
-/// The background, 4-aligned, so a group restores as two u32 stores.
-pub var bg_aligned: [32000]u8 align(4) = undefined;
-
 pub fn initBackground(comptime G: type, g: *G) void {
-    @memcpy(&bg_aligned, assets.background);
-    gpu.expandScreen(g.words(gpu.BG), &bg_aligned);
+    gpu.expandScreen(g.words(gpu.BG), assets.background);
 }
 
 fn restoreGroup(screen: *[32000]u8, group: usize) void {
     const d: *[2]u32 = @ptrCast(@alignCast(screen[group * 8 ..][0..8]));
-    const s: *const [2]u32 = @ptrCast(@alignCast(bg_aligned[group * 8 ..][0..8]));
+    // assets.background is 4-aligned (assets.embed4): two u32 loads, two stores.
+    const s: *const [2]u32 = @ptrCast(@alignCast(assets.background[group * 8 ..][0..8]));
     d[0] = s[0];
     d[1] = s[1];
 }

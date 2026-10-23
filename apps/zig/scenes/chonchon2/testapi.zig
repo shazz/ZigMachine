@@ -11,11 +11,19 @@
 const app = @import("app.zig");
 const rastermod = @import("raster.zig");
 const reference = @import("reference.zig");
+const clockmod = @import("clock.zig");
+const zg = @import("zigos");
 
 /// The Go's planar screen, from a planar Clock kept at the live tick (the
 /// live cart composes in the chunky domain and keeps no planar screen).
+/// zg.mem, not a static: a 40 KB `undefined` static lands in the data
+/// section as zeros (apps/zero_segments.mjs).
+var shadow: ?*clockmod.Clock = null;
+
 fn screen() *const [32000]u8 {
-    return reference.shadowScreen(app.clock.tick, app.ym.regs);
+    const fresh = shadow == null;
+    if (fresh) shadow = &(zg.mem.alloc(clockmod.Clock, 1) orelse @panic("chonchon2: no RAM for the reference clock"))[0];
+    return reference.shadowScreen(shadow.?, fresh, app.clock.tick, app.ym.regs);
 }
 
 fn fnv(bytes: []const u8) u32 {

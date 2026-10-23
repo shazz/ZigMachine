@@ -55,19 +55,13 @@ fn drawSprite(px: []u8, image: []const u8, w: usize, h: usize, pose: clockmod.Po
     }
 }
 
-/// A planar Clock kept at the live clock's tick (deterministic: the motion
-/// reads no input), for the harness's screen exports. Stepped only when
-/// asked, so it costs the cart nothing outside the harness. Two plain
-/// statics, not a struct with a default: a big `= .{}` is a data segment.
-var shadow_clock: clockmod.Clock = undefined;
-var shadow_ok: bool = false;
-
-pub fn shadowScreen(tick: u32, regs: [14]u8) *const [32000]u8 {
-    if (!shadow_ok or shadow_clock.tick > tick) {
-        shadow_clock = clockmod.Clock.init();
-        shadow_ok = true;
-    }
-    while (shadow_clock.tick < tick) shadow_clock.step();
-    if (tick > 0) metermod.apply(shadow_clock.screen[0..], regs);
-    return &shadow_clock.screen;
+/// Step the planar Clock `shadow` (initialised when `fresh`) to the live
+/// clock's tick -- deterministic: the motion reads no input -- for the
+/// harness's screen exports. testapi.zig owns the storage (zg.mem, at the
+/// first call), so it costs the cart nothing outside the harness.
+pub fn shadowScreen(shadow: *clockmod.Clock, fresh: bool, tick: u32, regs: [14]u8) *const [32000]u8 {
+    if (fresh or shadow.tick > tick) shadow.* = clockmod.Clock.init();
+    while (shadow.tick < tick) shadow.step();
+    if (tick > 0) metermod.apply(shadow.screen[0..], regs);
+    return &shadow.screen;
 }
