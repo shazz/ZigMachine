@@ -249,6 +249,22 @@ pub fn build(b: *std.Build) void {
     _ = packed_files.addCopyFile(emlyn_zx0, "replicants_emlyn.zx0");
     _ = packed_files.addCopyFile(tsl_zx0, "tsl_hybridglenz.zx0");
     _ = packed_files.addCopyFile(supplex_zx0, "supplex_fs2_main.zx0");
+    // ANIMA's logo and scroller font, BUILT from the 16x16 font by a host tool
+    // beside the scene (apps/zig/scenes/anima/gen_anima.zig, art.zig): Zig's
+    // compile-time interpreter took minutes for their ~100K pixels, the host 4 ms.
+    // Not packed: the cart blits them straight out of its RAM.
+    const gen_anima = b.addExecutable(.{
+        .name = "gen_anima",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("apps/zig/scenes/anima/gen_anima.zig"),
+            .target = b.graph.host,
+            .optimize = .ReleaseFast,
+        }),
+    });
+    const run_anima = b.addRunArtifact(gen_anima);
+    run_anima.addFileArg(b.path("apps/zig/assets/fonts/font16.raw"));
+    _ = packed_files.addCopyFile(run_anima.addOutputFileArg("anima_logo.bin"), "anima_logo.bin");
+    _ = packed_files.addCopyFile(run_anima.addOutputFileArg("anima_font.bin"), "anima_font.bin");
     // MPP TRUECOLOR's gallery: one blob per picture and mode (tools/mpp_convert.py).
     // Unpacked they overflow the cart window, so the scene depacks only the one on
     // screen. MPP_PICTURES follows the converter's PICTURES list.
@@ -286,6 +302,8 @@ pub fn build(b: *std.Build) void {
             \\pub const replicants_emlyn = @embedFile("replicants_emlyn.zx0");
             \\pub const tsl_hybridglenz = @embedFile("tsl_hybridglenz.zx0");
             \\pub const supplex_fs2_main = @embedFile("supplex_fs2_main.zx0");
+            \\pub const anima_logo = @embedFile("anima_logo.bin");
+            \\pub const anima_font = @embedFile("anima_font.bin");
             \\{s}{s}{s}{s}}};
             \\
         , .{ swedish_decl, snyd90_decl, naos_decl, mpp_decl })),
@@ -520,6 +538,7 @@ pub fn build(b: *std.Build) void {
         "demo-gnomes", // 104 — THE GNOMES GROUP "BB25" (Buxton Bytes 2025 cracktro intro): the full-overscan rainbow bands, SpongeBob, the cyan TTY panel and the big scroller (ported from the original ST binary)
         "demo-hmdfac", // 105 — HMD "HMDFAC" (Team Factory tribute): a Falcon 030 intro's flat boot-palette roll, color0 flash, exact-68k-integer perspective frustum and wave scroller (ported from the depacked original)
         "demo-replicants_arkanoid2", // 106 — The Replicants / Arkanoid II crack intro (CODEF screen 33): name sprites on mycurve, waving bg2-coloured scrolltext
+        "demo-anima", // 107 — ANIMA: a new ZigMachine one-screen demo (copper drum through every open border, breathing logo, glenz objects, sine scroller; Tao's Breath 2000)
     };
     for (cart_names, 0..) |name, idx| {
         if (name.len == 0) continue; // excluded cart (see note above)

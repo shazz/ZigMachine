@@ -117,6 +117,7 @@ const scene = switch (opts.index) {
     104 => @import("scenes/gnomes.zig"), // THE GNOMES GROUP "BB25" (Buxton Bytes 2025 Fantasy Cracktro Challenge) intro: the 128-word rainbow overscan, SpongeBob, the cyan TTY and the big scroller (ported from the original ST binary)
     105 => @import("scenes/hmdfac.zig"), // HMD "HMDFAC" (Team Factory tribute): the Falcon 030 intro's color0 flash, the 68k-integer frustum and the wave scroller (ported from the depacked original)
     106 => @import("scenes/replicants_arkanoid2.zig"), // The Replicants / Arkanoid II crack intro (CODEF screen 33)
+    107 => @import("scenes/anima.zig"), // ANIMA: a new ZigMachine one-screen demo (2026-10-23): copper drum through every open border, breathing logo, glenz, sine scroller
     else => @compileError("bad cart index"),
 };
 
