@@ -61,6 +61,11 @@ pub const Ram = struct {
     /// word access TRAPS (~700 cycles, emulated), and the 68000 reads a long at
     /// any even address (SYNC's 230-byte overscan lines put half of them at 2 mod 4).
     pub fn l(self: *const Ram, a: u32) u32 {
+        return self.lHot(a);
+    }
+
+    /// l(), inlined: for the few loops that run it thousands of times a frame.
+    pub inline fn lHot(self: *const Ram, a: u32) u32 {
         const p = self.m[self.at(a, 4)..][0..4];
         if (@intFromPtr(p) & 3 == 0) return std.mem.readInt(u32, @as(*align(4) const [4]u8, @alignCast(p)), .big);
         return @byteSwap(al.le32Split(p));
@@ -76,6 +81,11 @@ pub const Ram = struct {
 
     /// A long store, split like l() where a 32-bit store would trap.
     pub fn sl(self: *const Ram, a: u32, v: u32) void {
+        self.slHot(a, v);
+    }
+
+    /// sl(), inlined: for the few loops that run it thousands of times a frame.
+    pub inline fn slHot(self: *const Ram, a: u32, v: u32) void {
         const p = self.m[self.at(a, 4)..][0..4];
         if (@intFromPtr(p) & 3 == 0) return std.mem.writeInt(u32, @as(*align(4) [4]u8, @alignCast(p)), v, .big);
         al.setLe32Split(p, @byteSwap(v));

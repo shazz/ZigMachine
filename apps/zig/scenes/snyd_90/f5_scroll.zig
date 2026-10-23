@@ -111,7 +111,7 @@ fn copy(r: *const st.Ram, to: u32) void {
     var a3 = to;
     for (0..15) |k| {
         const src = r.l(PTRS + 4 * @as(u32, @intCast(k)));
-        for (0..17) |i| r.sl(a3 + 0xE6 * @as(u32, @intCast(i)), r.l(src + 4 * @as(u32, @intCast(i))));
+        for (0..17) |i| r.slHot(a3 + 0xE6 * @as(u32, @intCast(i)), r.lHot(src + 4 * @as(u32, @intCast(i))));
         a3 += 0xF46;
     }
 }
@@ -120,7 +120,7 @@ fn copy(r: *const st.Ram, to: u32) void {
 pub fn clear(r: *const st.Ram, screen: u32) void {
     const a0 = screen + r.l(SCROLL) + 0x132;
     for (0..245) |k| {
-        r.sl(a0 + 0xE6 * @as(u32, @intCast(k)), 0);
-        r.sl(a0 + 0xE6 * @as(u32, @intCast(k)) + 4, 0);
+        r.slHot(a0 + 0xE6 * @as(u32, @intCast(k)), 0);
+        r.slHot(a0 + 0xE6 * @as(u32, @intCast(k)) + 4, 0);
     }
 }

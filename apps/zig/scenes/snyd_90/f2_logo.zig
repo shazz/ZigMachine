@@ -152,7 +152,7 @@ fn draw(r: *const st.Ram) void {
         a5 += 2;
         const src = r.l(SHIFTS + 4 * @as(u32, s & 15)) +% r.w(a3) +% r.l(LOGO) -% ((s & 0xFFF0) >> 1);
         a3 += 2;
-        for (0..40) |j| movep(r, st.add(a4, st.sx(r.w(drawPatch(j)))), r.l(src + 4 * @as(u32, @intCast(j))));
+        for (0..40) |j| movep(r, st.add(a4, st.sx(r.w(drawPatch(j)))), r.lHot(src + 4 * @as(u32, @intCast(j)))); // 2,480 a frame
         a4 += st.LINE;
     }
 }

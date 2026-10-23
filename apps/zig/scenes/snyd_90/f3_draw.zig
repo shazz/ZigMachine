@@ -31,12 +31,12 @@ const REFL_MASK = [8]u8{ 0, 2, 3, 4, 4, 4, 3, 1 };
 pub fn erase(r: *const st.Ram, list: u32) void {
     var a = list;
     for (0..32) |_| {
-        const ball = r.l(a);
+        const ball = r.lHot(a);
         for (0..16) |y| {
-            r.sl(ball + @as(u32, @intCast(y)) * LINE, 0);
-            r.sl(ball + @as(u32, @intCast(y)) * LINE + 8, 0);
+            r.slHot(ball + @as(u32, @intCast(y)) * LINE, 0);
+            r.slHot(ball + @as(u32, @intCast(y)) * LINE + 8, 0);
         }
-        const refl = r.l(a + 4);
+        const refl = r.lHot(a + 4);
         for (0..8) |y| {
             r.sw(refl + @as(u32, @intCast(y)) * LINE, 0xFFFF);
             r.sw(refl + @as(u32, @intCast(y)) * LINE + 8, 0xFFFF);
@@ -142,12 +142,12 @@ fn draw(r: *const st.Ram, ball: u32, refl: u32, shift: u32) void {
     for (0..16) |y| {
         const at = ball + @as(u32, @intCast(y)) * LINE;
         const src = s + 8 * @as(u32, @intCast(y));
-        r.sl(at, r.l(at) | r.l(src));
-        r.sl(at + 8, r.l(at + 8) | r.l(src + 4));
+        r.slHot(at, r.lHot(at) | r.lHot(src));
+        r.slHot(at + 8, r.lHot(at + 8) | r.lHot(src + 4));
     }
 }
 
 fn andRow(r: *const st.Ram, at: u32, mask: u32) void {
-    r.sl(at, r.l(at) & r.l(mask));
-    r.sl(at + 8, r.l(at + 8) & r.l(mask + 4));
+    r.slHot(at, r.lHot(at) & r.lHot(mask));
+    r.slHot(at + 8, r.lHot(at + 8) & r.lHot(mask + 4));
 }

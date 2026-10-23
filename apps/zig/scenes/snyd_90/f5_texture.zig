@@ -66,7 +66,7 @@ pub fn draw(r: *const st.Ram) void {
         for (regs[0..8], 0..) |*v, k| v.* = r.l(a3 +% 4 * @as(u32, @intCast(k)));
         a3 +%= 32;
         const list = if (pass < 7) block1[0..n1] else block2[0..n2];
-        for (list) |s| r.sl(st.add(a2, s.disp), regs[s.reg]);
+        for (list) |s| r.slHot(st.add(a2, s.disp), regs[s.reg]); // ~5,100 a frame
         if (pass < 7) a2 +%= 0x398;
     }
 }
