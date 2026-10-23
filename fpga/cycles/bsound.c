@@ -95,8 +95,9 @@ static void post(uint32_t op, const char* name, uint32_t arg) {
 void audio_play(const char* name, uint32_t tune) { post(OP_PLAY, name, tune); }
 void audio_sndh_call(const char* name, uint32_t d0) { post(OP_SNDH_CALL, name, d0); }
 
-/* The frame's effects, C_FX_MAX a command. A play's or a stream feed's bytes are read by the sound
- * CPU from the cart's memory while it runs the command, so a command holding one is waited for:
+/* The frame's effects, C_FX_MAX a command. A play's, a stream feed's or a song image's
+ * (zg.requestSongBytes: BARD copies it into its song RAM) bytes are read by the sound CPU from the
+ * cart's memory while it runs the command, so a command holding one is waited for:
  * the browser copies them as it drains the queue, and the cart may reuse the buffer next frame (a
  * feed's, within the frame). A sample's (FX_SAMPLE) are read as it plays: the cart keeps them. */
 void audio_effects(const audio_fx* fx, uint32_t n) {
@@ -115,7 +116,7 @@ void audio_effects(const audio_fx* fx, uint32_t n) {
             w[1] = (uint32_t)f->pcm;
             w[2] = f->len;
             w[3] = f->rate;
-            plays += f->op == FX_PLAY || f->op == FX_STREAM_FEED;
+            plays += f->op == FX_PLAY || f->op == FX_STREAM_FEED || f->op == FX_SONG;
         }
         SND_REG(SND_C2S + C_OP) = OP_EFFECTS;
         SND_REG(SND_C2S + C_ARG) = k;

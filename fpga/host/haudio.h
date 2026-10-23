@@ -50,7 +50,11 @@ void audio_sndh_call(const char* name, uint32_t d0);
 /* zg.sfxPlay / sfxStop / ymWrite / requestModVolume / requestSndhMode: one entry of the cart's
  * effects queue (libs/zig/sfx_queue.zig Entry), as docs/sealed-loader.js postSfx reads it. A
  * play's PCM is `pcm`, already a pointer this side can read (the cart's memory, bounds-checked). */
-enum { FX_PLAY = 1, FX_STOP = 2, FX_YM = 3, FX_GAIN = 4, FX_SNDH_MODE = 5, FX_SAMPLE = 6, FX_SAMPLE_STOP = 7 };
+enum { FX_PLAY = 1, FX_STOP = 2, FX_YM = 3, FX_GAIN = 4, FX_SNDH_MODE = 5, FX_SAMPLE = 6, FX_SAMPLE_STOP = 7,
+       FX_SONG = 8 };
+/* FX_SONG (zg.requestSongBytes): a song image in the cart's memory, `pcm` / `len`, loaded as the
+ * worklet's loadSndh / loadSap: `a` its kind (1 SNDH, 2 SAP), `b` its tune (0 = the image's own). */
+enum { FX_SONG_SNDH = 1, FX_SONG_SAP = 2 };
 /* The stream ring's calls (zg.audioStreamStart / audioFeed / audioStreamStop), carried as effects
  * by this side (audio_bridge.c audio_stream_*): never on the cart's queue, so above its ops.
  * Start's rate is in `rate` (Hz); a feed's bytes are `pcm`, `len`. */

@@ -38,9 +38,13 @@ static void sndh_calls(struct w2c_env* e) {
 
 static uint32_t le32(const uint8_t* p) { return p[0] | p[1] << 8 | (uint32_t)p[2] << 16 | (uint32_t)p[3] << 24; }
 
-/* The effects queue: `n` 16-byte entries (libs/zig/sfx_queue.zig) at sfxEntriesPtr. A play's or a
- * sample's bytes must lie in the cart's memory (the browser's Uint8Array would throw), else it is
- * dropped. */
+/* The effects queue: `n` 16-byte entries (libs/zig/sfx_queue.zig) at sfxEntriesPtr. A play's, a
+ * sample's or a song image's bytes must lie in the cart's memory (the browser's Uint8Array would
+ * throw), else it is dropped. */
+static const char* fx_name(uint8_t op) {
+    return op == FX_PLAY ? "sfxPlay" : op == FX_SAMPLE ? "samplePlay" : "requestSongBytes";
+}
+
 static void effects(struct w2c_env* e) {
     const host_song_bridge* b = &host_songs;
     uint32_t n = b->sfx_poll ? b->sfx_poll(HOST_CART(e)) : 0;
@@ -56,9 +60,9 @@ static void effects(struct w2c_env* e) {
         const uint8_t* q = e->memory.data + at + 16u * i;
         audio_fx f = {.op = q[0], .a = q[1], .b = q[2], .len = le32(q + 8), .rate = le32(q + 12)};
         uint32_t ptr = le32(q + 4);
-        int bytes = f.op == FX_PLAY || f.op == FX_SAMPLE;
+        int bytes = f.op == FX_PLAY || f.op == FX_SAMPLE || f.op == FX_SONG;
         if (bytes && (uint64_t)ptr + f.len > e->memory.size) {
-            printf("ZM FX %s out of the cart's memory\n", f.op == FX_PLAY ? "sfxPlay" : "samplePlay");
+            printf("ZM FX %s out of the cart's memory\n", fx_name(f.op));
             continue;
         }
         if (bytes) f.pcm = (uintptr_t)(e->memory.data + ptr);
