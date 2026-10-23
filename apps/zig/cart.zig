@@ -114,6 +114,8 @@ const scene = switch (opts.index) {
     101 => @import("scenes/lockbuster3.zig"), // LOCKBUSTER 3, "Lockbuster DMA": letters, panels, two-lane text and YM-volume meters, 320x240 with the bottom border open (ported from the Go re-creation)
     102 => @import("scenes/phenomena.zig"), // PHENOMENA "ENIGMA" (1991) intro: text pages, logo/white mask, photon, the DNA scrolltext, two per-scanline rasters and the live HSL photon (ported from the Go re-creation)
     103 => @import("scenes/mentalhangover.zig"), // MENTAL HANGOVER (Scoopex, Amiga): circular outline text over the mountain, 49-band per-scanline copper raster (ported from the Go re-creation)
+    104 => @import("scenes/gnomes.zig"), // THE GNOMES GROUP "BB25" (Buxton Bytes 2025 Fantasy Cracktro Challenge) intro: the 128-word rainbow overscan, SpongeBob, the cyan TTY and the big scroller (ported from the original ST binary)
+    105 => @import("scenes/hmdfac.zig"), // HMD "HMDFAC" (Team Factory tribute): the Falcon 030 intro's color0 flash, the 68k-integer frustum and the wave scroller (ported from the depacked original)
     else => @compileError("bad cart index"),
 };
 

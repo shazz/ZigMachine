@@ -125,6 +125,11 @@
   "type": "atari st"
  },
  {
+  "tag": "hmdfac",
+  "title": "HMD FAC",
+  "type": "atari falcon"
+ },
+ {
   "tag": "ics",
   "title": "ICS BUMPY'S",
   "type": "atari st"
@@ -367,6 +372,11 @@
  {
   "tag": "tex_neoshow",
   "title": "TEX SUPER NEO SHOW",
+  "type": "atari st"
+ },
+ {
+  "tag": "gnomes",
+  "title": "TGG BUXTON BYTES 25",
   "type": "atari st"
  },
  {
