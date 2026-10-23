@@ -15,7 +15,7 @@ compositor (tools/video_rtl.py): the plane-major rebuild must match the machine
 (the control: it proves the split), and the line-major one counts the pixels,
 per pass and in the browser's picture, that would change on hardware.
 
-    uv run python tools/video_order.py union_main 300
+    uv run python tools/video_order.py union_intro 1300
 
 Writes are replayed as the values the machine stored. A handler that READS
 video state and derives what it writes, or that talks to another through cart

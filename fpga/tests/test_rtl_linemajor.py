@@ -28,7 +28,7 @@ import video_dump
 import video_rtl
 
 LEONARD = ("leonard", [300])
-MULTI = ["leonard", "union_main", "tcb_colorshock", "union_l16"]
+MULTI = ["leonard", "union_intro", "tcb_colorshock", "union_l16"]
 MULTI += ["s:" + s for s in ("alpha", "fullscreen", "layers", "medium", "overscan", "scroll", "worst")]
 KEYS = rv.KEYS + ["leonard"]
 MUTANTS = json.loads((FPGA / "tests" / "tb" / "video_lm_mutants.json").read_text())
@@ -83,7 +83,7 @@ def _frame_clocks(out: str) -> int:
     return sum(int(c) for c in re.findall(r"(\d+) clocks/frame", out))
 
 
-@pytest.mark.parametrize("key", ["leonard", "union_main", "s:worst"])
+@pytest.mark.parametrize("key", ["leonard", "union_intro", "s:worst"])
 def test_a_group_moves_fewer_rows(tb: Path, key: str) -> None:
     """Against a port with the HP's first-beat latency: the group loads and stores a line once."""
     pm, _ = _replay(tb, key, (), True, rv.HP_LATENCY)
@@ -100,7 +100,7 @@ def test_a_group_moves_fewer_rows(tb: Path, key: str) -> None:
 )
 def test_a_wrong_bit_on_a_held_pass_is_caught(tb: Path, args: tuple[str, ...], fuse: bool) -> None:
     extra = ("--line-major", *(("--nopfb",) if args[0] == "3" else ()), "--lm-break", args[0])
-    r, _ = _replay(tb, "union_main", extra, fuse)
+    r, _ = _replay(tb, "union_intro", extra, fuse)
     assert r.returncode != 0, r.stdout
 
 

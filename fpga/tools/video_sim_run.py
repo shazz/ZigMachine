@@ -33,7 +33,9 @@ import video_sim_report
 
 VCYC = FPGA / "build/vcycles"
 SOC = FPGA / "build/soc_video"
-CARTS = ["tutorial", "union_main", "badflicker", "equinox", "dhs_0pxl0reg"]
+# union_intro reaches its (2-plane) main screen only at frame ~949: a sim run of it
+# covers its first part unless --frames reaches that far (the union_main cart is gone).
+CARTS = ["tutorial", "union_intro", "badflicker", "equinox", "dhs_0pxl0reg"]
 # The sequencer's mutants: no drain (with and without the handler probes, and
 # the probe-free control), no copy of the compositor's write-backs, and the
 # line-major order a beam-racing compositor would impose.

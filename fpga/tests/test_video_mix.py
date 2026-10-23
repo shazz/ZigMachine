@@ -21,7 +21,7 @@ pytestmark = pytest.mark.skipif(
 )
 
 
-@pytest.mark.parametrize("key", ["union_main", "gen4_3615", "dhs_0pxl0reg", "s:alpha", "s:bgalpha", "s:worst"])
+@pytest.mark.parametrize("key", ["union_intro", "gen4_3615", "dhs_0pxl0reg", "s:alpha", "s:bgalpha", "s:worst"])
 def test_browser_model_is_chromes_picture_of_a_recorded_frame(key: str) -> None:
     frames_dir, frames, _ = _source(key)
     for f in frames:

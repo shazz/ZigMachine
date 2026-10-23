@@ -1,7 +1,7 @@
 """The browser's picture of a recorded frame: the oracle of the RTL plane mixer.
 
-    uv run python tools/video_mix.py build/vdump/union_main/frames 300          # -> f300.mix
-    uv run python tools/video_mix.py --chrome build/vdump/union_main/frames 300  # + check it against Chrome
+    uv run python tools/video_mix.py build/vdump/union_intro/frames 1300         # -> f300.mix
+    uv run python tools/video_mix.py --chrome build/vdump/union_intro/frames 1300 # + check it against Chrome
 
 `vmix` (tools/video_dump/vmix.c) stacks the plane canvases as docs/sealed-loader.js
 fills them and composes them as Chrome does. `--chrome` proves that claim on the

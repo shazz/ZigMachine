@@ -34,8 +34,8 @@ import video_rtl
 # (cart, frames, what those frames must exercise)
 CARTS = [
     ("tutorial", [300], {"mode_normal", "palette_per_line"}),
-    ("union_intro", [100], {"mode_normal"}),
-    ("union_main", [300], {"layered", "mode_overscan", "flicker_hit", "palette_per_line", "alpha_partial"}),
+    # union_intro: a part at 100; its main screen (from frame ~949; the union_main cart is gone) at 1300
+    ("union_intro", [100, 1300], {"mode_normal", "layered", "mode_overscan", "flicker_hit", "palette_per_line", "alpha_partial"}),
     ("replicants_emlyn", [300], {"mode_overscan", "flicker_hit", "palette_per_line"}),
     ("gen4_3615", [300], {"mode_overscan", "palette_per_line", "alpha_zero"}),
     ("maxi", [300], {"mode_overscan", "flicker_hit"}),
@@ -66,7 +66,7 @@ SYNTH = [
 # Multi-plane frames replayed again against a memory with the HP port's first-beat
 # latency (CYCLES.md "Memory path": +24 clocks) and no stalls: the clock figures
 # of rtl/video/README.md "Throughput", and the picture must still match.
-TIMING = ["union_main", "tcb_colorshock", "s:layers", "s:alpha", "s:overscan", "s:medium", "s:worst"]
+TIMING = ["union_intro", "tcb_colorshock", "s:layers", "s:alpha", "s:overscan", "s:medium", "s:worst"]
 HP_LATENCY = 24
 # One rule of the RTL broken at a time, and the dump that must catch it.
 MUTANTS = json.loads((FPGA / "tests" / "tb" / "video_mutants.json").read_text())
@@ -157,7 +157,7 @@ def test_frames_against_hp_latency(tb: Path, key: str, fuse: bool) -> None:
 # sys clock) against the 40 MHz pixel clock: 5:2. dhs_0pxl0reg's two frames and
 # s:worst's two go through both pictures of the double buffer.
 WIRE = (5, 2)
-WIRE_KEYS = ["union_main", "dhs_0pxl0reg", "s:worst"]
+WIRE_KEYS = ["union_intro", "dhs_0pxl0reg", "s:worst"]
 
 
 @pytest.fixture(scope="session")
@@ -178,7 +178,7 @@ def test_a_starved_scanout_fetch_underruns(out_tb: Path) -> None:
     """The compositor has no deadline any more; the scanout fetch does (a raster
     line). Given a beat every 16 clocks, 400 beats miss a 5,280-clock line: the
     scanout must say so."""
-    frames_dir, _, _ = _source("union_main")
+    frames_dir, _, _ = _source("union_intro")
     result = video_rtl.wire(out_tb, WIRE, frames_dir, [300], starve=16)
     assert result.returncode != 0
     assert "underrun 1" in result.stdout

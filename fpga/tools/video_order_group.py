@@ -8,8 +8,8 @@ line), and every other plane plane-major. The rebuild is replayed through the RT
 (plane-major passes, each fed its rebuilt state) and must match the machine where the order is
 exact.
 
-    uv run python tools/video_order_group.py union_main 300          # the board's rule
-    uv run python tools/video_order_group.py union_main 300 --all    # every plane in one group
+    uv run python tools/video_order_group.py union_intro 1300         # the board's rule
+    uv run python tools/video_order_group.py union_intro 1300--all    # every plane in one group
 
 The board's rule: a group is a run of consecutive enabled planes with no HBL handler. Their
 passes see no write in either order, so the rebuild equals the machine by construction; `--all`

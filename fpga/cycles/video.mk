@@ -4,7 +4,7 @@
 # cycles/cycles.mk, whose wasm2c objects (`aligned`) it reuses: only what
 # includes the SoC's CSR addresses (board, prof, env.c) is rebuilt.
 #
-#   make video-sim CARTS="tutorial union_main"     sims + report (tools/video_sim_run.py)
+#   make video-sim CARTS="tutorial union_intro"     sims + report (tools/video_sim_run.py)
 #   make video-fw CART=tutorial                     one image (and its no-drain mutant)
 VCYC      := build/vcycles
 SOC_VID   := build/soc_video

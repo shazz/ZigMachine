@@ -4,7 +4,7 @@
     "file": "zm_video_pass.v",
     "old": "else if (hold && op == OP_PLANE)",
     "new": "else if (1'b0)",
-    "catch": "union_main",
+    "catch": "union_intro",
     "args": ["--line-major"]
   },
   {
@@ -12,7 +12,7 @@
     "file": "zm_video_pass.v",
     "old": "else if (hold && op == OP_PLANE)",
     "new": "else if (1'b0)",
-    "catch": "union_main",
+    "catch": "union_intro",
     "args": ["--line-major"],
     "fuse": true
   },
@@ -38,7 +38,7 @@
     "file": "zm_video_pass.v",
     "old": "if (p_keep) {st, busy, done} <= {IDLE, 2'b01};",
     "new": "if (1'b0) {st, busy, done} <= {IDLE, 2'b01};",
-    "catch": "union_main",
+    "catch": "union_intro",
     "args": ["--line-major"],
     "timing": true
   },
@@ -47,7 +47,7 @@
     "file": "zm_video_pass.v",
     "old": "wire      to_pfb = (dirty || filled) && !p_nopfb;",
     "new": "wire      to_pfb = (dirty || filled);",
-    "catch": "union_main",
+    "catch": "union_intro",
     "args": ["--line-major", "--nopfb"],
     "timing": true
   },

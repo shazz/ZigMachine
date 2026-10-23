@@ -186,14 +186,14 @@
     "file": "zm_video_mix.v",
     "old": "{1'b0, pm} + 17'd128",
     "new": "{1'b0, pm} + 17'd0",
-    "catch": "union_main"
+    "catch": "union_intro"
   },
   {
     "id": "mix_over_255",
     "file": "zm_video_mix.v",
     "old": "d * (9'd256 - {1'b0, a})",
     "new": "d * (9'd255 - {1'b0, a})",
-    "catch": "union_main"
+    "catch": "union_intro"
   },
   {
     "id": "mix_alpha_of_pixel0",
@@ -214,14 +214,14 @@
     "file": "zm_video_comp.v",
     "old": ".first(mix_first)",
     "new": ".first(1'b1)",
-    "catch": "union_main"
+    "catch": "union_intro"
   },
   {
     "id": "scan_rgb_misaligned",
     "file": "zm_video_scan.v",
     "old": "{de_o, hs_o, vs_o} <= {de1, hs1, vs1};",
     "new": "{de_o, hs_o, vs_o} <= {de, hsync, vsync};",
-    "catch": "union_main",
+    "catch": "union_intro",
     "tb": "out"
   },
   {
@@ -229,7 +229,7 @@
     "file": "zm_video_scan.v",
     "old": "assign dp_raddr = {zm_line[0], zm_x[9:1]};",
     "new": "assign dp_raddr = {1'b0, zm_x[9:1]};",
-    "catch": "union_main",
+    "catch": "union_intro",
     "tb": "out"
   },
   {
@@ -237,7 +237,7 @@
     "file": "zm_video_scan.v",
     "old": "freed[!zm_hbl_line[0]] <= 1'b1;",
     "new": "freed[zm_hbl_line[0]] <= 1'b1;",
-    "catch": "union_main",
+    "catch": "union_intro",
     "tb": "out"
   },
   {
@@ -245,7 +245,7 @@
     "file": "zm_video_scan.v",
     "old": "zm_active && ok, zm_x[0]}",
     "new": "ok, zm_x[0]}",
-    "catch": "union_main",
+    "catch": "union_intro",
     "tb": "out"
   },
   {
@@ -253,7 +253,7 @@
     "file": "zm_video_out.v",
     "old": "if (pub_c[1]) pub_line[17:9] <= ready_line;",
     "new": "if (pub_c[1]) pub_line[8:0] <= ready_line;",
-    "catch": "union_main",
+    "catch": "union_intro",
     "tb": "out"
   },
   {
@@ -275,7 +275,7 @@
     "file": "zm_video_pass.v",
     "old": "{LOAD, 1'b1, 1'b1, mix && !first}",
     "new": "{LOAD, 1'b1, 1'b1, 1'b0}",
-    "catch": "union_main"
+    "catch": "union_intro"
   },
   {
     "id": "bg_rows_not_stored",
@@ -303,7 +303,7 @@
     "file": "zm_video_rowio.v",
     "old": "assign rd_req_addr = lq[0] ? pfb_addr : d_addr;",
     "new": "assign rd_req_addr = lq[0] ? d_addr : pfb_addr;",
-    "catch": "union_main"
+    "catch": "union_intro"
   },
   {
     "id": "picture_halves_swapped",
@@ -340,7 +340,7 @@
     "file": "zm_video_out.v",
     "old": ".base(front_n ? fb1_base : fb0_base)",
     "new": ".base(front_n ? fb0_base : fb1_base)",
-    "catch": "union_main",
+    "catch": "union_intro",
     "tb": "out"
   },
   {
@@ -348,7 +348,7 @@
     "file": "zm_video_scanfetch.v",
     "old": "FREE: if (dp_free[y[0]]) st <= ASK;",
     "new": "FREE: st <= ASK;",
-    "catch": "union_main",
+    "catch": "union_intro",
     "tb": "out"
   },
   {
