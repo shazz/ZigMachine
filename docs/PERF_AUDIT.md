@@ -29,7 +29,7 @@ Options (both tools): `--warmup 120 --frames 60` (the steady-state window), `--c
    of it (`aligned` build): locals are registers, an f64 op is a libgcc soft-float call, a divide
    by a constant is a multiply. Each loop costs max(instructions x CPI, stores x the store buffer's
    drain) -- a tight store loop runs at the drain rate. Plus the I$ working set, CHISEL's time by
-   op (the CPU spins on BUSY), FRESCO's per-plane pass (0.8 Mc an enabled plane).
+   op (the CPU spins on BUSY), FRESCO's per-plane pass (0.59 Mc an enabled plane, plus 0.11 Mc a frame).
 3. **Detect** (`apps/perf/lint.mjs`, static, per loop): narrow stores of a constant (`byte_fill`)
    or of a byte just loaded (`byte_copy`), `f64_loop`, `libm_loop`, `table_rebuild`, `div_loop`
    (non-constant divisor), `i64_loop`, `pixel_call` (a call to a small byte-storing function
@@ -64,7 +64,7 @@ Mc/frame**: the estimated cycles that would go if only what changes were written
 | `palette_rewrite` | colour writes of the value already there | write only changes |
 
 **Cycle wastes (round 3).** Probes measure the CPU's own streams: every load runs through
-a D$ model (4 KiB, direct-mapped, 32-byte lines; its misses now cost `DMISS` = 40 cycles in
+a D$ model (4 KiB, direct-mapped, 32-byte lines; its misses now cost `DMISS` = 48 cycles in
 every estimate), costly ops (divides, f64, f32 div/sqrt, libm calls) compare their operands
 with their previous execution, i64 arithmetic checks whether its result fits in an i32, and
 every branch inside a loop body counts how often it flips.
@@ -82,45 +82,62 @@ A static op-class finding (`div_loop`, `f64_loop`, `i64_loop`) is now charged wh
 cost, not the whole loop's time: leonard's Sprite.render loop runs 87K times a frame but its
 divide only 1.2K times.
 
-**memset/memcpy on the board (calibrated 2026-10-18).** The board fps of empire (3.7 Mc) and
-maxi (5.3 Mc) against the round-2 model (2.48, 2.59) agree on ~86 cycles a 32-bit word of
-memory.fill/memory.copy (`FILL_WORD_CYCLES`): a memset is only ~1.5x a byte loop (~31 a
-byte store), and a CHISEL fill (~1.85 a byte) is far better. The tutorial board-SoC sim
-(0.48 Mc) disagrees (its 51 KB memset would cost ~1.1 Mc at 86): the sim's memory path is
-the optimistic one; the board wins.
+**Posted stores (recalibrated 2026-10-23).** Since W64 + posted stores the board stores at
+~2.26 cycles, whatever the target (VRAM, palette, cart RAM; bench `st.sw/st.sb/st.pal` 256 KB).
+A memset runs at that rate a WORD (`FILL_WORD_CYCLES` 2.26), so a byte loop costs its
+instructions, not its stores; a memcpy is bound by its loads' D$ misses (`COPY_WORD_CYCLES`
+10.95, bench `mc.lib.64K`). CHISEL's ~800 cycles an op (`BLIT_START`) now pay off only on big
+fills and copies. The pre-posted numbers (27 a store, 60 a memset word, 693 a misaligned trap)
+are history: [the 2026-10-18 fit](#history-the-2026-10-18-fit).
 
-Waste figures are estimates on top of an estimate: a region's waste is its cycles times the
-share of its stores that were redundant.
+**The snoop-queue term is gone.** `SNOOP_OVERFLOW` fits to 0: a palette store costs what any
+store costs (bench `st.pal` 2.16), however many one HBL handler makes.
 
-**The snoop-queue term (a hypothesis).** stcs before perf/board-slow-carts ran 1 fps on the
-board; the model said ~13. stcs was the only cart writing far more palette entries in ONE
-HBL call (256, every line) than the compositor's 16-entry snoop queue holds, and FRESCO
-waits for that queue before each line's pass. `SNOOP_OVERFLOW` (cycles per palette store
-past the queue within one handler) is fitted to that single point (1,900): the old stcs
-now estimates 1 fps. No other measurement constrains it. It predicts snyd_90 (~7 fps) and
-swedish_newyear (~7 fps) are slow for the same reason; a 6-frame board-SoC sim of the old
-stcs, or snyd_90 on the board, confirms or refutes it.
+## Fitted to the board (2026-10-23)
 
-## Fitted to the board (2026-10-18)
-
-The model's parameters are fitted to MEASURED frame times of 92 carts on the board
-(glass-ctl ZMSTAT, 12-17 s after load), each cart estimated over the same window of its
-board build:
+Per-op constants come from the native bench cart (`fpga/tools`, ZMBENCH) run in the SAME board
+session as the fps table: prototypes/chisel_queue_re/arms/base/ (2026-10-20, main firmware +
+bitstream, W64, posted stores, FPU). Only what the bench cannot measure is fitted, in two stages:
 
 ```sh
 PERF_NO_CART_ARGS=1 node apps/frame_cost.mjs --all --warmup 720 --frames 300 \
-    --machine <the board's docs/> --out calib.json
-node apps/perf_fit.mjs calib.json fps.csv            # fit; --fixed: the current model's errors
+    --machine <that day's docs/> --out calib.json
+node apps/perf_fit.mjs calib.json fps.csv --bench --exclude <carts rebuilt since>
 ```
 
-Result: median error 4%, 63 carts within 10%, 77 within 20%, 85 within 50%; 23 of the 30
-carts the board runs at 60 fps predicted at 60. Fitted: CPI 1.0 (weakly identified: the
-loss is flat from 0.6 to 1.35), STORE_DRAIN 27, FILL_WORD_CYCLES 60, FRESCO_PLANE 1.09 Mc;
-DMISS and HBL_CALL at their floor; SNOOP_OVERFLOW 240 (snyd_90's 60 fps refutes the 1,900
-the old stcs suggested). Still off by 2x or more: naos_nitrowave (129 ms on the board, 18
-predicted), union_superscroller (1,638 vs 451), st_replay (16.5 vs 38: its ROM/GEM work),
-union_intro (21 vs 41), stniccc (41 vs 21) -- most likely a different phase on the board at
-12 s, or an unmodelled cost; the loss caps each cart at a 2x miss so they cannot drag the fit.
+1. **Cart side**, fitted to the board's measured `cart_c` (cart CPU cycles a frame, uncensored:
+   a 60 fps cart tells how long its cart ran too): CPI 1.06, SNOOP_OVERFLOW 0.
+2. **Frame**, fitted to frame time with the cart side held: FRESCO_PLANE 0.59 Mc an enabled
+   plane, FRAME_BASE 0.11 Mc. The board's compositor probe agrees (`comp_busy` ~2k sys cycles a
+   line pass, 280 passes a plane); the bench's `fr.static` (+0.19 Mc a plane) is a static plane,
+   which the dirty-line planner skips.
+
+| constant | bench (2026-10-20) | 2026-10-18 fit |
+|---|---|---|
+| STORE_DRAIN | 2.26 | 27 |
+| FILL_WORD_CYCLES / COPY_WORD_CYCLES | 2.26 / 10.95 | 60 / 60 |
+| DMISS | 48 | 10 |
+| TRAP_CYCLES | 210 | 693 |
+| f32 add/sub, mul, div | 9, 10, 21 | 3, 3, 18 |
+| f64 add, mul, div | 143, 272, 557 | 90, 110, 450 |
+| BLIT_START | 800 | 150 |
+
+Result, 71 carts (rebuilt carts excluded): the 13 carts under 60 fps went from a 38 % median
+error (p90 108 %) to 20 % (p90 53 %); the cart side against `cart_c`, 56 carts, from 33 % to
+18 %. **The 60 fps knee is now ~1.75 Mc estimated** (60 fps carts: p90 1.62; under 60: median
+2.16), against ~2.8 Mc under the old model (the "~3.6 Mc" folklore). Per-cart table:
+fpga/review/reports/cost_model_recal_2026-10-23.md.
+
+Known misses: the frame time quantizes to whole VBLs (a cart at 1.8-2.5 Mc runs 30 fps, the
+estimate says ~40); polkadots_f32 still estimates 28 % low (music, also f32-heavy, 6 % high, so
+f32 latency is not refitted on it); mandelbrot/raytrace finish their picture in the node window
+but not on the board at 12 s; stniccc streams its disk (DISK_BLOCK is 0).
+
+## History: the 2026-10-18 fit
+
+Before posted stores, the model was fitted to 92 carts' board frame times: CPI 1.0,
+STORE_DRAIN 27, FILL_WORD_CYCLES 60, FRESCO_PLANE 1.09 Mc, SNOOP_OVERFLOW 240 (snyd_90's 60 fps
+refuted the 1,900 the old stcs suggested), median error 4 %.
 
 ## It is an estimate
 
@@ -145,7 +162,7 @@ working-set estimate, DDR contention, BARD (music runs there, not in the cart). 
 
 `apps/perf_audit_test.mjs` plants every pattern in a tiny hand-assembled cart
 (`apps/perf/fixture.mjs`, `test_cases.mjs`) and its clean twin in another: static and
-real-run checks, the byte-loop clear first at 1.5-2.5 Mc, the f64 loop first, determinism.
+real-run checks, the byte-loop clear first at 0.3-0.7 Mc (instruction-bound since posted stores), the f64 loop first, determinism.
 `--break bytefill` / `--break f64` swap the planted pattern for its twin and pass only if the
 checks catch it. `perf_report` prints the shelf's ranking into the gate log and never fails
 the gate (the estimate has no threshold stable enough to fail on).

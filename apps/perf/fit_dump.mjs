@@ -2,7 +2,7 @@
 // its parameters against board fps without re-running any cart: per loop the modelled
 // instructions and bus stores (the roofline needs them apart), and the totals the other
 // parameters scale (memset/memcpy bytes, D$ misses, HBL calls, snoop-queue overflow,
-// enabled planes). Blitter and I$ cycles ride along as already costed.
+// misaligned traps, enabled planes). Blitter and I$ cycles ride along as already costed.
 import { PROBE_COUNTERS } from "./probe_hooks.mjs";
 
 const MIN_REGION = 200; // modelled instructions a frame: smaller loops are lumped together
@@ -26,5 +26,5 @@ export function fitDump(profiles, w, run) {
     const hw = (k) => (run.hw[k] - w.hw[k]) / F;
     return { regions, fill: Math.round(fill), copy: Math.round(copy), misses: Math.round(misses),
         blit: Math.round(w.split.blit / F), icache: Math.round(w.split.icache / F), hbls: hw("hbls"),
-        overflow: hw("snoopOverflow"), disk: hw("diskBlocks"), planes: w.planes / F };
+        overflow: hw("snoopOverflow"), disk: hw("diskBlocks"), misaligned: hw("misaligned"), planes: w.planes / F };
 }

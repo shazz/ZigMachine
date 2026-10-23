@@ -2,7 +2,7 @@
 // estimated WASTED Mc/frame: the cycles that would go if only what changes were written.
 import { paletteWrites } from "./report.mjs";
 import { cycleReport } from "./cycle_report.mjs";
-import { SNOOP_OVERFLOW, STORE_DRAIN, BLIT_DFLUSH, BLIT_CALL, BLIT_UNIT, FRESCO_PLANE, fillCycles, copyCycles } from "./cost_model.mjs";
+import { CPI, SNOOP_OVERFLOW, STORE_DRAIN, BLIT_DFLUSH, BLIT_CALL, FRESCO_PLANE, fillCycles, copyCycles } from "./cost_model.mjs";
 import { WATCH_WORDS } from "./watch_hook.mjs";
 import { funcName } from "./wasm_bin.mjs";
 import { PFB_H } from "./frame_diff.mjs";
@@ -13,10 +13,10 @@ export const WASTE_HINTS = {
     static_plane: "draw it once (it never changes); the dirty-line compositor (perf/vseq-dirty) then skips it",
     palette_rewrite: "write only the colour registers that change (a raster coder never rewrites one)",
     tiny_blits: "batch tiny ops into one blit, or do them with CPU word stores",
-    scroll_band: "pan it (REG_HSCROLL / FB_BASE) or blit-shift the band and draw only the new column",
+    scroll_band: "pan it (REG_HSCROLL / FB_BASE) and draw only the new column",
 };
 const MIN_BYTES = 1024;            // per frame: below this, nothing worth reporting
-const Mc = (c) => Math.round(c / 1e4) / 100;
+const Mc = (c) => Math.round(c / 1e3) / 1000; // 3 decimals: at ~2 cycles a posted store, small wastes are kCycles
 const hex = (n) => "0x" + n.toString(16);
 
 function regionFinding(P, r, f, F) {
@@ -99,7 +99,9 @@ function scrollFindings(W, F) {
     return [...W.scroll.values()].filter((s) => s.frames >= F / 2 && s.rows / s.frames >= 4).map((s) => {
         const rows = s.rows / s.frames, band = rows * s.width, stored = s.stored / F;
         const k = [...s.k.entries()].sort((a, b) => b[1] - a[1])[0][0];
-        const waste = Math.max(0, (stored / 4) * STORE_DRAIN - (band * BLIT_UNIT[1] + BLIT_CALL));
+        // the CPU's shift, word moves at best (a load + a store + addressing); a pan makes the band free.
+        // A blit-shift is no longer the fix: at ~2 cycles a posted store it costs more than the CPU's words.
+        const waste = (stored / 4) * Math.max(STORE_DRAIN, 4 * CPI);
         return { pattern: "scroll_band", mod: "cart", func: `plane ${s.p}`, loop: -1, at: "-", waste: Mc(waste),
             detail: `${Math.round(rows)} rows a frame are the last frame's shifted ${k} px, ${Math.round(stored)} B stored by the CPU there`,
             hint: WASTE_HINTS.scroll_band };

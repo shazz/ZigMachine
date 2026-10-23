@@ -3,7 +3,7 @@
 import { readFile } from "node:fs/promises";
 import { bootInstrumented, hostFrame } from "./run_cart.mjs";
 import { Profile } from "./profile.mjs";
-import { TRAP_CYCLES, HBL_CALL, SNOOP_OVERFLOW, DISK_BLOCK, FRESCO_PLANE, FRAME_MC, MHZ, icacheCycles } from "./cost_model.mjs";
+import { TRAP_CYCLES, HBL_CALL, SNOOP_OVERFLOW, DISK_BLOCK, FRESCO_PLANE, FRAME_BASE, FRAME_MC, MHZ, icacheCycles } from "./cost_model.mjs";
 import { hotRegions, hintRegions, misSites, classTotals, causeTotals, libmCalls, paletteWrites } from "./report.mjs";
 import { Waste } from "./waste.mjs";
 import { wasteReport } from "./waste_report.mjs";
@@ -26,7 +26,7 @@ function stepFrame(run, profiles, acc, hw0) {
     const code = profiles.reduce((a, P) => a + P.last.code, 0);
     const ic = icacheCycles(profiles.reduce((a, P) => a + P.last.fetch, 0), code);
     const disk = (run.hw.diskBlocks - hw0.diskBlocks) * DISK_BLOCK;
-    return { parts: [cyc[0], cyc[1], ic, blit, hbl, planes * FRESCO_PLANE, disk], code, planes };
+    return { parts: [cyc[0], cyc[1], ic, blit, hbl, FRAME_BASE + planes * FRESCO_PLANE, disk], code, planes };
 }
 
 // opts: { frames, warmup, calls: Map(frame -> [[name, args]]), disk, top, pal, names: {cart, rom} }

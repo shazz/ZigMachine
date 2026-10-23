@@ -14,7 +14,7 @@ const i32Loop = [...loop(1, 2000, [...I.get(2), ...I.i32(3), ...I.mul, ...I.i32(
 const counter = [...I.i32(0), ...I.i32(0), ...I.load(BUF2 + 64), ...I.i32(1), ...I.add, ...I.tee(4), ...I.store(BUF2 + 64)];
 
 export const CASES = [
-    { pattern: "byte_fill", dynamic: "byte_fill", first: true, mc: [1.5, 2.5], // 64,000 byte stores: empire's clear
+    { pattern: "byte_fill", dynamic: "byte_fill", first: true, mc: [0.3, 0.7], // 64,000 byte stores: empire's clear (~0.46 Mc: instruction-bound since posted stores; 1.5-2.5 at 27 a store)
         with: loop(1, 64000, [...I.get(1), ...I.i32(0), ...I.store8(BUF)]),
         without: fill(BUF, 0, 64000) },
     { pattern: "byte_copy", dynamic: "byte_copy",

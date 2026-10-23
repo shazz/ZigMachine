@@ -6,12 +6,13 @@
 // the model cannot see: cache misses (D$ 4 KiB, I$ 16 KiB 2-way), GCC folding a compare
 // into its branch, spills. Those are absorbed by CPI below, calibrated on board numbers.
 //
-// FITTED 2026-10-18 to MEASURED board frame times of 92 carts (glass-ctl ZMSTAT, 12-17 s
-// after load; apps/perf_fit.mjs over the same window of each cart's board build):
-// median error 4%, p90 ~35%. CPI is only weakly identified (the fit's loss is flat from
-// 0.6 to 1.35: it trades against STORE_DRAIN through the roofline) and is pinned at 1.0;
-// DMISS and HBL_CALL fall to their floor: the board shows no cost for them beyond what the
-// instructions already carry. FRESCO_PLANE, FILL_WORD_CYCLES and STORE_DRAIN are well set.
+// RECALIBRATED 2026-10-23 for the POSTED-STORE board (W64, posted stores, rv32imf FPU; the
+// main firmware + bitstream of 2026-10-20, prototypes/chisel_queue_re/arms/base/). The per-op
+// constants come from the native bench cart run in the same session as the fps table
+// (bench_20261020_180710: sustained 256 KB rows, not the 1 KB ones); CPI, FRAME_BASE,
+// FRESCO_PLANE and SNOOP_OVERFLOW are then fitted to that table (apps/perf_fit.mjs --bench).
+// The 2026-10-18 fit (store 27, memset 60 a word, 1.09 Mc a plane, trap 693) described the
+// board BEFORE posted stores: the same board now stores at ~2.26 cycles, any target.
 //
 // Earlier calibration points (2026-10-17 board tour, 100 MHz, 1.67 Mc per 60 Hz frame):
 //   - empire's LogicalFB.clearFrameBuffer byte loop: ~2 Mc per 64,000-byte plane, i.e.
@@ -27,13 +28,13 @@
 //     op (docs/BLITTER_HW_SPEC.md 10.5: FILL 1.03, keyed BLIT 0.9-2.2, TRIANGLE 4.6-6.1);
 //     the CPU spins on BUSY, so blitter time is cart time.
 
-export const CPI = 1.0;           // cycles per modelled rv32 instruction (board fit: weakly identified)
-export const STORE_DRAIN = 27;    // cycles per store while the store buffer is full (board fit; empire's old clear said ~31)
+export const CPI = 1.06;          // cycles per modelled rv32 instruction (fitted 2026-10-23 to the board's cart_c, 56 carts)
+export const STORE_DRAIN = 2.26;  // cycles a store, sustained (bench st.sw/st.sb/st.pal 256 KB: posted stores; was 27 before them)
 // CPU cycles per hwBlit beyond the blitter's own time: start + spin, and the FULL D$
 // invalidate fpga/cycles/bblit.c does after every op (128 lines of a 4 KiB D$, and the
 // cart's working set misses again after it). BLIT_DFLUSH is the part a range flush
 // (perf/blit-dcache-range) would remove; tiny_blits charges it as the waste of a tiny op.
-export const BLIT_START = 150;
+export const BLIT_START = 800;   // bench ms.chisel.64 / ch.fill8.x64: ~800-1,000 cycles an op through the system
 export const BLIT_DFLUSH = 30;    // since 7993ff78 bblit.c invalidates only the op's lines (was ~250: the whole D$)
 export const BLIT_CALL = BLIT_START + BLIT_DFLUSH;
 // clocks per CYCLES unit by COMMAND (1 BLIT, 2 FILL, 3 LINE, 4 TRIANGLE), plain vs
@@ -48,7 +49,13 @@ export const blitCycles = (cmd, units, minterm) =>
 // FRESCO paints each ENABLED plane in a pass the CPU waits for (cycles/bmain.c: the plane
 // passes follow cart.frame): 0.77-0.82 Mc a plane in the board-SoC sim logs (ZM QF); the
 // board fit says ~1.09 Mc. Empty planes cost the same.
-export const FRESCO_PLANE = 1.09e6;
+// Fitted 2026-10-23 to board frame time with the cart side held: 0.59 Mc an enabled plane. The board's
+// own compositor probe agrees (comp_busy ~2k sys cycles a line pass, 280 passes a plane: 0.37-0.56 Mc);
+// the bench's fr.static (+0.19 a plane) is a STATIC plane, which the dirty-line planner skips.
+export const FRESCO_PLANE = 0.594e6;
+// Per frame whatever the cart does (frame loop, vseq clear): fitted 0.11 Mc; the bench's empty frame
+// (fr.static.p0) measures 0.10.
+export const FRAME_BASE = 0.11e6;
 export const HBL_CALL = 0;     // per hblDispatch beyond the handler's own instructions (board fit: ~0)
 export const DISK_BLOCK = 0;  // cycles per 512-byte disk block read (the board's firmware copies it out of DDR)
 // Palette stores past the compositor's 16-entry snoop queue within one HBL handler
@@ -60,14 +67,17 @@ export const DISK_BLOCK = 0;  // cycles per 512-byte disk block read (the board'
 // board fps of naos_nitrowave (24,662 misaligned a frame, 129 ms) and ics (12,207, 105 ms).
 // MEASURED 2026-10-18 by the native bench cart (perf/ziggy-bench, mis.lw/sw.1..3): 693-699 cycles
 // a trapped access, vs 11 with byte loads. The fits (450 naos, 700 ics) bracket it.
-export const TRAP_CYCLES = 693;
+export const TRAP_CYCLES = 210;  // bench 10-20 mis.lw.1..3 213, mis.sw.1..3 198 (693 before posted stores)
 export const SNOOP_QUEUE = 16;
-export const SNOOP_OVERFLOW = 240; // cycles per palette store beyond the queue, within one handler
-// memset/memcpy (wasm memory.fill/copy -> picolibc) cost per 32-bit word ON THE BOARD:
-// first fitted to empire and maxi alone (~86 a word), then to the 92-cart board table: ~60
-// a word, against ~27 a store for a byte loop. A memset is ~2x a byte loop on ZIGGY; a
-// CHISEL fill is ~1.85 clocks a byte.
-export const FILL_WORD_CYCLES = 60;
+export const SNOOP_OVERFLOW = 0; // cycles per palette store beyond the queue, within one handler (board fit; bench st.pal = any store)
+// memset/memcpy (wasm memory.fill/copy -> picolibc) cost per 32-bit word ON THE BOARD.
+// Before posted stores: ~60 a word (the 92-cart fit of 2026-10-18). Now a memset runs at the
+// store rate, 4x a byte loop's bytes a cycle; a CHISEL fill (~1 clock a byte + ~800 an op)
+// only wins on big fills.
+export const FILL_WORD_CYCLES = 2.26; // bench ms.lib.64K: 2.26 a word (posted stores; was 60)
+// memcpy is bound by its LOADS (D$ line misses), not its stores: bench mc.lib.64K 10.95 a word,
+// ~4 in cache (mc.lib.1K). Big copies dominate what carts copy.
+export const COPY_WORD_CYCLES = 10.95;
 // I$ (16 KiB, 2-way): when the rv32 code a frame runs is bigger, a share of its
 // instruction fetches miss; a miss refills a 32-byte line (8 instructions) in ~40 cycles.
 // Joust (~24 KB a frame) is where this shows: without it the model is ~2x under its sim.
@@ -79,7 +89,7 @@ export const CONST_DIV = 5;      // i32 divide by a constant (mulhu + shifts); i
 // probe_hooks.mjs): a line refill from DDR over HP0, the first word ~24-62 cycles late
 // (fpga/CYCLES.md "Memory path") plus the burst. The board fit puts it at its floor (10):
 // the misses the model sees are already paid for inside CPI.
-export const DMISS = 10;
+export const DMISS = 48;       // bench ld.miss.64K: 48 cycles a line (ld.seq.64K: 7.2 a word)
 // A wasm access that really is misaligned: ZIGGY's ALIGNED translation emits one lw/sw, the
 // core traps and trap.S/trap.c emulate it byte by byte after saving 31 registers (each a
 // blocking DDR store). Fitted to ics on the board (08655fd's grid copy: ~12,000 misaligned
@@ -118,9 +128,9 @@ function table() {
     set([0x7c, 0x7d], 4, C.i64_other); set([0x83, 0x84, 0x85], 2, C.i64_other); set(0x7e, 8, C.i64_mul);
     set(range(0x7f, 0x82), 250, C.i64_div); set(range(0x86, 0x8a), 7, C.i64_shift);
     set(range(0x5b, 0x60), 2, C.f32); set([0x8b, 0x8c, 0x98], 1, C.f32); set(range(0x8d, 0x90), 12, C.f32);
-    set([0x92, 0x93, 0x94], 3, C.f32); set([0x96, 0x97], 2, C.f32); set(0x95, 18, C.f32_divsqrt); set(0x91, 30, C.f32_divsqrt);
+    set([0x92, 0x93], 9, C.f32); set(0x94, 10, C.f32); // bench f32.add/mul: 9/10 (a dependent chain: the rv32imf FPU's latency) set([0x96, 0x97], 2, C.f32); set(0x95, 21, C.f32_divsqrt); set(0x91, 30, C.f32_divsqrt);
     set(range(0x61, 0x66), 40, C.f64); set([0x99, 0x9a, 0xa6], 3, C.f64); set(range(0x9b, 0x9e), 70, C.f64);
-    set([0xa0, 0xa1], 90, C.f64); set(0xa2, 110, C.f64); set(0xa3, 450, C.f64); set(0x9f, 700, C.f64);
+    set([0xa0, 0xa1], 143, C.f64); set(0xa2, 272, C.f64); set(0xa3, 557, C.f64); // bench f64.add/mul/div (libgcc) set(0x9f, 700, C.f64);
     set([0xa4, 0xa5], 40, C.f64);
     set(0xa7, 0.5); set([0xac, 0xad], 1, C.i64_other); set([0xa8, 0xa9, 0xb2, 0xb3], 3, C.f32);
     set([0xae, 0xaf, 0xb4, 0xb5], 70, C.f32); set([0xaa, 0xab, 0xb7, 0xb8, 0xb6, 0xbb], 50, C.f64);
@@ -142,7 +152,7 @@ export function opCost(op) {
 
 // Run-time bytes of memory.fill / memory.copy, as cycles (word loop, bus-bound on stores).
 export const fillCycles = (bytes) => (bytes / 4) * FILL_WORD_CYCLES;
-export const copyCycles = (bytes) => (bytes / 4) * FILL_WORD_CYCLES;
+export const copyCycles = (bytes) => (bytes / 4) * COPY_WORD_CYCLES;
 
 // A region's cycles for one frame: its instructions, or its store stream if that is
 // the slower of the two (the roofline of a loop against the store buffer's drain).
