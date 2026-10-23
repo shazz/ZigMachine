@@ -430,7 +430,8 @@ pub fn build(b: *std.Build) void {
     // branch for sibling carts landing separately.
     const cart_names = [_][]const u8{
         "demo",              "demo-union_intro",
-        "demo-union_main",   "demo-music",
+        "", // 2 — was demo-union_main: its main screen runs at the end of union_intro (Matt, 2026-10-23)
+        "demo-music",
         "demo-blitter",      "demo-scroll",      "demo-obj",        "demo-gem",
         "demo-st_replay",    "demo-ancool",      "demo-bladerunners", "demo-dbug",
         "demo-deltaforce",   "demo-deltaforce2", "demo-empire",     "demo-equinox",

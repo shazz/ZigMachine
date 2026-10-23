@@ -43,9 +43,6 @@ EXCLUDE = {
     "replicants": "REPS OLD, the pre-CODEF Replicants kept only for side-by-side comparison",
     "badflicker": "deliberately broken overscan test",
     "stream": "audio block-streaming test",
-    # The full Union cracktro (union_intro) already flows into this main screen
-    # (Matt, 2026-09-13); still in the menu.
-    "union_main": "the Union main screen alone; union_intro already plays it",
     # Still in the menu, so a newcomer can boot the screen docs/TUTORIAL.md builds.
     "tutorial": "the docs/TUTORIAL.md teaching screen, not a demo",
 }

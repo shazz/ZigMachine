@@ -12,7 +12,7 @@ const opts = @import("cart_opts");
 const scene = switch (opts.index) {
     0 => @import("scenes/menu.zig"), // the launcher (demo.wasm)
     1 => @import("scenes/union_intro.zig"),
-    2 => @import("scenes/union/doors.zig"),
+    // 2: union_main, excluded in build.zig (union/doors.zig runs inside union_intro).
     3 => @import("scenes/music_debug.zig"),
     4 => @import("scenes/blitter_demo.zig"),
     5 => @import("scenes/scroll_demo.zig"),

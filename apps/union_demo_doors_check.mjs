@@ -91,7 +91,7 @@ const catalog = await readFile("apps/zig/scenes/catalog.zig", "utf8");
 const menu = catalog.match(/\.name = "UNION DEMO", \.tag = "([^"]*)"/);
 if (!menu || menu[1] !== "union_intro_screen") problems.push(`the UNION DEMO menu entry boots "${menu?.[1]}", not union_intro_screen`);
 
-// Every cracktro door (union_main alone, and at the end of union_intro) boots the intro.
+// Every cracktro door (at the end of union_intro, on its main screen) boots the intro.
 async function doorRequest(cart, maxFrames) {
     const { memory, machine, demo } = await boot(cart);
     for (let f = 0; f < maxFrames; f++) {
@@ -107,8 +107,8 @@ async function doorRequest(cart, maxFrames) {
     }
     return null;
 }
-for (const cart of ["union_main", "union_intro"]) {
-    const got = await doorRequest(`docs/demo-${cart}.wasm`, cart === "union_main" ? 3000 : 6000);
+for (const cart of ["union_intro"]) {
+    const got = await doorRequest(`docs/demo-${cart}.wasm`, 6000);
     if (got !== "union_intro_screen") problems.push(`a ${cart} door asks for "${got}", not union_intro_screen`);
 }
 

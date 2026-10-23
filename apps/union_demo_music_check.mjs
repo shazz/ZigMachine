@@ -4,7 +4,8 @@
 // songNameLen/songTune), then hands the requested file to the real audio modules
 // the way the worklet does for a .sndh (audioLoadSndh + audioSndhPlay(tune)).
 //   - union_demo: the menu's Alloy Run.
-//   - union_main: track 1 autoplays; keys 2, 5 and 6 (setShadeMode(1)/(4)/(5))
+//   - union_intro (the cracktro, which flows into the main screen; the union_main
+//     cart is gone): track 1 autoplays; keys 2, 5 and 6 (setShadeMode(1)/(4)/(5))
 //     ask for 150 mph, Lap 33 and Reality BY THEIR SNDH names; the .ymraw dumps
 //     they replaced must never come back. 150 mph and Reality are SID tunes.
 //
@@ -59,10 +60,14 @@ async function bootCart(cartPath) {
     return { memory, machine, demo };
 }
 
-function firstRequest({ memory, demo }, frames) {
+function firstRequest({ memory, demo, machine }, frames) {
     const dec = new TextDecoder();
     for (let f = 0; f < frames; f++) {
+        // The host loop: the enabled planes rendered, or HBL-driven state (the cracktro's
+        // RASTERS depack, before its first tune) never runs.
+        machine.hwClear();
         demo.frame(16.6);
+        for (let p = 0; p < machine.hwPlanesNumber(); p++) if (demo.isPlaneEnabled(p)) machine.hwRenderPlane(p);
         if (demo.pollSongRequest())
             return {
                 name: dec.decode(new Uint8Array(memory.buffer, demo.songNamePtr(), demo.songNameLen())),
@@ -131,17 +136,17 @@ async function checkMenu() {
 }
 
 async function checkMain() {
-    const cart = await bootCart("docs/demo-union_main.wasm");
+    const cart = await bootCart("docs/demo-union_intro.wasm");
     let ok = true;
     for (const [mode, want, voices] of MAIN_WANT) {
         if (mode > 0) cart.demo.setShadeMode(mode);
-        const req = firstRequest(cart, 10);
-        console.log(`union_main track ${mode + 1} request: ${req ? `"${req.name}" tune ${req.tune}` : "none"} (want "${want}")`);
+        const req = firstRequest(cart, mode > 0 ? 10 : 1500); // track 1 comes with the TRSI logo, after the RASTERS depack
+        console.log(`union_intro track ${mode + 1} request: ${req ? `"${req.name}" tune ${req.tune}` : "none"} (want "${want}")`);
         ok = !!req && req.name === want && (await plays(req, voices)) && ok;
     }
-    // union_main takes its scroller strip from zg.mem: a refusal left it on a bad pointer.
+    // the cracktro takes buffers from zg.mem: a refusal left it on a bad pointer.
     const refused = cart.machine.hwRamAllocFailures();
-    console.log(`union_main zg.mem allocations refused: ${refused} (want 0)`);
+    console.log(`union_intro zg.mem allocations refused: ${refused} (want 0)`);
     return refused === 0 && ok;
 }
 
@@ -150,10 +155,10 @@ const main = await checkMain();
 if (FAIL_PROOF) {
     const refused = !menu && !main; // BOTH screens must reject their old file name
     console.log(refused ? "=> PASS ✅ fail proof: wrong tune names are refused on both screens"
-        : `=> FAIL ❌ the fail proof passed on ${menu ? "union_demo" : ""} ${main ? "union_main" : ""}: the check cannot tell a wrong tune`);
+        : `=> FAIL ❌ the fail proof passed on ${menu ? "union_demo" : ""} ${main ? "union_intro" : ""}: the check cannot tell a wrong tune`);
     process.exit(refused ? 0 : 1);
 }
 const ok = menu && main;
 console.log(ok ? "=> PASS ✅ the Union SNDH tunes play on the sealed YM, all three voices"
-    : `=> FAIL ❌ union_demo ${menu ? "ok" : "BROKEN"}, union_main ${main ? "ok" : "BROKEN"}`);
+    : `=> FAIL ❌ union_demo ${menu ? "ok" : "BROKEN"}, union_intro ${main ? "ok" : "BROKEN"}`);
 process.exit(ok ? 0 : 1);

@@ -25,7 +25,6 @@ pub const Entry = struct { name: []const u8, tag: []const u8 };
 
 pub const ENTRIES = [_]Entry{
     .{ .name = "UNION INTRO", .tag = "union_intro" }, // atari st
-    .{ .name = "UNION MAIN", .tag = "union_main" }, // atari st
     .{ .name = "MUSIC DEBUG", .tag = "music" }, // zigmachine
     .{ .name = "BLITTER DEMO", .tag = "blitter" }, // zigmachine
     .{ .name = "SCROLL DEMO", .tag = "scroll" }, // zigmachine
