@@ -13,9 +13,9 @@
 // --------------------------------------------------------------------------
 const zg = @import("zigos");
 const blit = zg.blit;
-const wave = zg.wave;
 const A = @import("assets.zig");
 const stretch = @import("../union_common/stretch.zig");
+const sintab = @import("../union_common/sintab.zig");
 
 pub const STRIP_ROWS = A.GLYPH_ROWS[1];
 pub const MERGE_ROWS = 55; // new canvas(..., 110)
@@ -24,6 +24,7 @@ pub const Band = struct {
     w: usize,
     strips: [2][]u8, // the text canvas, halved at parity 0 and 1
     merge: []u8,
+    text: ?usize = null, // which text the strips hold, for a caller that redraws it only on change
 
     pub fn bytes(w: usize) usize {
         return w * (2 * STRIP_ROWS + MERGE_ROWS);
@@ -31,6 +32,7 @@ pub const Band = struct {
 
     /// `buf` must be bytes(w) long.
     pub fn init(buf: []u8, w: usize) Band {
+        @memset(buf, 0); // once: the intro never clears its text canvas again (intro.zig)
         const s = w * STRIP_ROWS;
         return .{ .w = w, .strips = .{ buf[0..s], buf[s .. 2 * s] }, .merge = buf[2 * s ..][0 .. w * MERGE_ROWS] };
     }
@@ -49,24 +51,37 @@ pub const Band = struct {
         }
     }
 
-    /// Clear the merge canvas, FX.siny the text into it with `sweep` (canvas y
-    /// per canvas column), then recolour it with the gold backdrop, which sits
-    /// in the raster canvas at goldY - 118, goldY, goldY + 118 (and repeats every
-    /// 640 canvas columns: the intro draws it twice).
-    pub fn compose(self: *Band, sweep: anytype, gold: blit.Image, gold_y: u32) void {
-        @memset(self.merge, 0);
+    /// Columns [c0, c1) of the merge canvas, the only ones `draw` will show: clear them,
+    /// FX.siny the text into them with `sweep` (canvas y per canvas column, already at
+    /// column c0: wave.sinyHalved's walk from there), then recolour them with the gold
+    /// backdrop, which sits in the raster canvas at goldY - 118, goldY, goldY + 118 (and
+    /// repeats every 640 canvas columns: the intro draws it twice). The columns outside
+    /// are never read (the plane clips them), so they are left as they are.
+    pub fn compose(self: *Band, sweep: anytype, gold: blit.Image, gold_y: u32, c0: usize, c1: usize) void {
+        if (c1 <= c0) return;
+        for (0..MERGE_ROWS) |row| @memset(self.merge[row * self.w ..][c0..c1], 0);
         const halves = [2]blit.Image{ blit.Image.init(self.strips[0], self.w), blit.Image.init(self.strips[1], self.w) };
-        wave.sinyHalved(blit.Dst.buffer(self.merge, self.w), &halves, 0, sweep, null, .copy);
+        const dst = blit.Dst.buffer(self.merge, self.w);
+        if (@TypeOf(sweep.*) == sintab.Flat) {
+            // One y for every column: the 1-wide column copies are one copy of the whole span.
+            const y = sweep.next();
+            const half = halves[@intCast(y & 1)];
+            blit.blit(dst, half, .{ .x = c0, .y = 0, .w = c1 - c0, .h = half.h }, @intCast(c0), @divFloor(y, 2), null, .copy);
+        } else for (c0..c1) |i| {
+            const y = sweep.next();
+            _ = sweep.next(); // canvas column 2i+1: under the same ST column
+            const half = halves[@intCast(y & 1)];
+            blit.blit(dst, half, .{ .x = i, .y = 0, .w = 1, .h = half.h }, @intCast(i), @divFloor(y, 2), null, .copy);
+        }
         const shift = gold_y / 2; // goldY is even: the texture stays on its 2x grid
         for (0..MERGE_ROWS) |row| {
             const tex = gold.data[((row + gold.h - shift) % gold.h) * gold.w ..][0..gold.w];
             const line = self.merge[row * self.w ..][0..self.w];
-            var x: usize = 0;
-            while (x < self.w) : (x += gold.w) {
-                const n = @min(gold.w, self.w - x);
-                for (line[x..][0..n], tex[0..n]) |*m, g| {
-                    if (m.* != 0) m.* = A.textColour(g, m.*);
-                }
+            var tx = c0 % gold.w; // the texture column under merge column x, walked (no divide a pixel)
+            for (line[c0..c1]) |*m| {
+                if (m.* != 0) m.* = A.textColour(tex[tx], m.*);
+                tx += 1;
+                if (tx == gold.w) tx = 0;
             }
         }
     }

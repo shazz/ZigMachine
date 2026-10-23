@@ -35,6 +35,12 @@ const WORDS = [_]Word{
     .{ .left = "  HELLO   ", .right = "          ", .hold = 4 },
 };
 
+comptime { // draw() rewrites the whole text canvas only if every letter has a glyph
+    for (WORDS) |w| for (w.left.* ++ w.right.*) |c| {
+        if (A.glyph(c, 0) == null or A.glyph(c, 1) == null) @compileError("intro letter without a glyph");
+    };
+}
+
 /// C_STATES: introTime 0, 1 and 2.
 pub const Part = enum(u8) { intro_only, intro_and_outro, outro };
 
@@ -112,16 +118,27 @@ pub const Intro = struct {
 
     pub fn draw(self: *const Intro, dst: blit.Dst, band: *Band, img: *const A.Images, gold_y: u32, twist: f64) void {
         if (!self.visible) return;
-        const w = WORDS[@min(self.word, WORDS.len - 1)];
-        band.clear();
-        for (w.left, w.right, 0..) |l, r, i| {
-            const x: i32 = @intCast(i * GLYPH_C);
-            band.letter(&img.font, l, x);
-            band.letter(&img.font, r, 640 + x);
+        // The text canvas holds the word pair until it changes (every 4-42 frames): only this
+        // band draws into it. No clear: the 20 letters, 32 columns apart and 32 wide, rewrite
+        // every column of it (a parity-0 glyph's 16 rows leave row 16 of its strip as Band.init
+        // cleared it), so a clear would store the same zeros again.
+        const word = @min(self.word, WORDS.len - 1);
+        if (band.text != word) {
+            const w = WORDS[word];
+            for (w.left, w.right, 0..) |l, r, i| {
+                const x: i32 = @intCast(i * GLYPH_C);
+                band.letter(&img.font, l, x);
+                band.letter(&img.font, r, 640 + x);
+            }
+            band.text = word;
         }
-        var sweep = Sweep{ .wave = Wave.init(self.drawn_wave) };
-        band.compose(&sweep, img.gold, gold_y);
-        band.draw(dst, @divFloor(self.pos, 2), CENTRE_Q16 - @as(i32, A.BOTTOM_Y) * 65536, @cos(twist)); // dst is the bottom window
+        const dx = @divFloor(self.pos, 2);
+        // Only the merge canvas columns the bottom window shows (dx is -320..0).
+        const c0: usize = @intCast(std.math.clamp(-dx, 0, @as(i32, @intCast(band.w))));
+        const c1: usize = @intCast(std.math.clamp(@as(i32, @intCast(dst.w)) - dx, 0, @as(i32, @intCast(band.w))));
+        var sweep = Sweep{ .wave = Wave.init(self.drawn_wave), .j = 2 * c0 };
+        band.compose(&sweep, img.gold, gold_y, c0, c1);
+        band.draw(dst, dx, CENTRE_Q16 - @as(i32, A.BOTTOM_Y) * 65536, @cos(twist)); // dst is the bottom window
     }
 };
 

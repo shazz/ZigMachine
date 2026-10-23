@@ -116,7 +116,7 @@ pub const Scroller = struct {
         band.clear();
         for (self.ring.x, self.ring.c) |x, c| band.letter(&img.font, c, x);
         var sweep = sintab.Flat{ .y = @intFromFloat(@round(self.text_y)) }; // amp 0: one y for every column
-        band.compose(&sweep, img.gold, gold_y);
+        band.compose(&sweep, img.gold, gold_y, 0, band.w);
         band.draw(dst, 0, CENTRE_Q16 - @as(i32, A.BOTTOM_Y) * 65536, @cos(self.twist)); // dst is the bottom window
     }
 };
