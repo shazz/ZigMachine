@@ -54,19 +54,31 @@ pub fn global(zigos: *ZigOS, line: u16) void {
     }
 }
 
+/// ZIG MODE's open side borders (stcs_zig.zig key 1): flicker every visible line.
+pub var open_sides = false;
+
 /// Plane 1's HBL: the scroller's band palettes (entries 1..15), and in entry 0
 /// the raster the logo's plane 0 held before the logo moved into plane 1
 /// (stcs_logo.zig): plane 1's entry 0 was transparent and showed it.
-pub fn plane(fb: *LogicalFB, zigos: *ZigOS, line: u16, col: u16) void {
-    scroller(fb, line);
-    logoRaster(fb, line);
+/// Plane 1 is an OVERSCAN plane (for ZIG MODE), so this fires at
+/// OVERSCAN_MAGIC_X on PHYSICAL lines 0..279; the window's lines 40..239 are
+/// the logical 0..199 it used to get, and the border bands are left alone
+/// (closed, they show none of the plane), so ORIGINAL is unchanged.
+pub fn plane(fb: *LogicalFB, zigos: *ZigOS, phys: u16, col: u16) void {
     _ = zigos;
     _ = col;
+    if (phys < zg.VERTICAL_BORDERS_HEIGHT or phys >= zg.VERTICAL_BORDERS_HEIGHT + zg.HEIGHT) return;
+    const line = phys - zg.VERTICAL_BORDERS_HEIGHT;
+    scroller(fb, line);
+    logoRaster(fb, line);
+    // the open sides show this line's entry 0 where nothing is drawn: the
+    // raster's colour, which is the closed border's (global), so it runs on
+    if (open_sides) fb.flickerBorder();
 }
 
 fn logoRaster(fb: *LogicalFB, line: u16) void {
-    // Per-plane HBL: sealed machine fires it on LOGICAL lines 0..199 (was physical
-    // 40..239), so drop the +40. Rasters cover visible rows 66..199.
+    // `line` is the window's (0..199; plane() dropped the border's 40).
+    // Rasters cover visible rows 66..199.
     const c: u32 = if (line > 66 and line < 200) rasters_b[line - 66] else BLACK;
     if (last_pal0 != c) {
         fb.palette[0] = c;

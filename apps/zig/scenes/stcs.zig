@@ -49,6 +49,14 @@ const logo = @import("stcs_logo.zig");
 const strip = @import("stcs_strip.zig");
 const scratch = @import("stcs_scratch.zig");
 const hbl = @import("stcs_hbl.zig"); // the rasters and the band palettes
+const zm = @import("stcs_zig.zig"); // ZIG MODE: Z, then 1 2 3
+const stars = @import("stcs_stars.zig");
+const K_ESC: u32 = 0xE012; // host KEY_CODES.Escape: a cart with key() owns it
+// Plane 1 is an overscan plane (400x280) whose side borders open only in ZIG
+// MODE; every draw goes through `view`: its first window line, from screen x
+// -40, so screen x is view x - 40 (stcs_scratch.XO).
+const VIEW_ROW: usize = zg.VERTICAL_BORDERS_HEIGHT;
+var view: LogicalFB = .{};
 const ScrollerPeriods = strip.Period;
 
 // --------------------------------------------------------------------------
@@ -67,6 +75,13 @@ pub const Demo = struct {
     logo_drawn: bool = false, // the logo's rows above the band never change: drawn once
     scroller_y_pos: i16 = 0,
     scroller_y_dir: i16 = 1,
+    /// demo_main's pollCartRequest: back to the menu (key() owns Escape).
+    wants_quit: bool = false,
+
+    pub fn key(self: *Demo, cp: u32) void {
+        if (cp == K_ESC) self.wants_quit = true;
+        _ = zm.key(cp);
+    }
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
         Console.log("Demo init", .{});
@@ -85,17 +100,26 @@ pub const Demo = struct {
         self.logo_drawn = false;
 
         const fb: *LogicalFB = &zigos.lfbs[1];
+        fb.setOverscanBuffer(); // borders closed: the 320x200 window, as before
+        view = fb.*;
+        view.fb = fb.fb + VIEW_ROW * fb.stride;
+        view.fb_h = zg.HEIGHT;
         fb.is_enabled = true; 
         fb.setPalette(hbl.font_pal1);    
         fb.setPaletteEntry(0, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
         for (1..logo.COLORS) |i| fb.setPaletteEntry(@intCast(logo.BASE + i), hbl.logo_pal[i]);
+        for (stars.colours, 0..) |c, i| fb.setPaletteEntry(@intCast(stars.BASE + i), c);
+        zm.reset();
+        stars.reset();
+        hbl.open_sides = false;
+        self.wants_quit = false;
 
         self.scroller_target = fb.getRenderTarget(); // never drawn through: the letters are blitted
         chisel.init();
         strips.init(&chisel, zigos);
 
         self.scrolltext = Scrolltext(NB_FONTS).init(self.scroller_target, fonts_b, SCROLL_CHARS, SCROLL_CHAR_WIDTH, SCROLL_CHAR_HEIGHT, SCROLL_TEXT, SCROLL_SPEED, 0, null, null, null);
-        fb.setFrameBufferHBLHandler(0, hbl.plane); // the band palettes + the logo's raster (entry 0)
+        fb.setFrameBufferHBLHandler(zg.OVERSCAN_MAGIC_X, hbl.plane); // the band palettes + the logo's raster (entry 0), and ZIG's open sides
         self.scroller_y_pos = 0;
         self.scroller_y_dir = 1;
 
@@ -132,12 +156,14 @@ pub const Demo = struct {
         // band the strips can reach (lines 69..199) back to what is under the
         // scroller (the logo's last rows, 69..72, then 0), the source strips this
         // period copies from rebuilt, and copied in its shape (stcs_strip.zig).
-        const fb = &zigos.lfbs[1];
+        const fb = &view;
         chisel.init();
+        const fx = applyZig(&zigos.lfbs[1]);
         if (!self.logo_drawn) logo.drawTop(&chisel, fb, BAND_TOP);
         self.logo_drawn = true;
-        logo.restoreBand(&chisel, fb, BAND_TOP);
-        for (strip.needs(hbl.period)) |k| strips.build(&chisel, &self.scrolltext, k);
+        logo.restoreBand(&chisel, fb, BAND_TOP, fx.borders);
+        if (fx.stars) stars.draw(fb.fb, fx.borders);
+        for (strip.needs(hbl.period)) |k| strips.build(&chisel, &self.scrolltext, k, fx.borders);
 
         // The big fonts bounce on 0..56 lines.
         if (hbl.period == .big_font or hbl.period == .interlaced_big_font) {
@@ -145,9 +171,24 @@ pub const Demo = struct {
             if (self.scroller_y_pos > 55) self.scroller_y_dir = -1;
             if (self.scroller_y_pos <= 0) self.scroller_y_dir = 1;
         }
-        strip.draw(&chisel, fb, &strips, hbl.period, self.scroller_y_pos);
+        strip.draw(&chisel, fb, &strips, hbl.period, self.scroller_y_pos, .{ .wide = fx.borders, .keyed = fx.stars });
 
         _ = elapsed_time;
 
     }
 };
+
+/// ZIG MODE's keys, acted on at the top of a frame (stcs_zig.zig): what the
+/// stars and the open sides need set up or put back when they change.
+fn applyZig(plane: *LogicalFB) zm.Fx {
+    const was = zm.live;
+    const now = zm.wanted;
+    if (now.stars != was.stars) {
+        strips.setKeyRows(&chisel, if (now.stars) 0 else scratch.KEY);
+        if (!now.stars) stars.eraseAll(view.fb);
+    }
+    hbl.open_sides = now.borders;
+    zm.live = now;
+    zm.fade(plane);
+    return now;
+}

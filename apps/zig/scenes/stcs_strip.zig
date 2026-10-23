@@ -17,8 +17,8 @@
 // 19, line 138: a tie, k = 1 wins), `interlaced_steam` (k = 1 always later) and
 // `inverted_mirror` overlap; the last one changes winner at line 117/118, so the
 // rows of write 0 below line 118 are copied again after write 1. Lines past
-// 199 (the big font's lowest, wave included) are clipped by CHISEL: the CPU wrote them into the
-// next plane's memory, which nothing shows.
+// 199 (the big font's lowest, wave included: 212) land in the overscan plane's
+// bottom border rows, which stay closed in both modes and show nothing.
 // --------------------------------------------------------------------------
 const zg = @import("zigos");
 const sc = @import("stcs_scratch.zig");
@@ -28,6 +28,7 @@ const wave = @import("stcs_wave.zig");
 const LogicalFB = zg.LogicalFB;
 const Blitter = zg.Blitter;
 const GROUPS: i16 = sc.W / 16;
+const XO: i16 = sc.XO;
 const H: i16 = sc.GH;
 
 pub const Period = enum { threelines, big_font, interlaced_mirror, interlaced_big_font, inverted, interlaced_steam, inverted_mirror };
@@ -43,22 +44,46 @@ pub fn needs(period: Period) []const sc.Kind {
     };
 }
 
+/// How ZIG MODE (stcs_zig.zig) changes the copies: `wide` adds the groups in
+/// the open side borders (-3..-1, 20..22: screen x -40..359), `keyed` keys
+/// every copy on 0 so the stars drawn first show between the letters (where
+/// two writes overlap, the letters then add up instead of the later one's 0s
+/// winning; the G/FG KEY rows are 0 then, sc.Scratch.setKeyRows).
+pub const Opts = struct { wide: bool = false, keyed: bool = false };
+
 const Copy = struct {
     c: *Blitter,
     dst: *LogicalFB,
     s: *sc.Scratch,
+    o: Opts,
+
+    fn first(self: *const Copy) i16 {
+        return if (self.o.wide) wave.WIDE_G0 else 0;
+    }
+    fn last(self: *const Copy) i16 { // exclusive
+        return if (self.o.wide) wave.WIDE_G0 + wave.WIDE_GROUPS else GROUPS;
+    }
 
     /// Strip `k` rows y0..y0+h of group g (or all groups: g = null) onto line `line` + y0.
-    fn rows(self: Copy, k: sc.Kind, g: ?i16, line: i16, y0: i16, h: i16) void {
-        self.span(k, g orelse 0, if (g != null) 1 else GROUPS, line, y0, h);
+    fn rows(self: *const Copy, k: sc.Kind, g: ?i16, line: i16, y0: i16, h: i16) void {
+        if (g) |gg| return self.span(k, gg, 1, line, y0, h);
+        self.span(k, self.first(), self.last() - self.first(), line, y0, h);
     }
-    /// The same for groups g .. g + n - 1 at once.
-    fn span(self: Copy, k: sc.Kind, g: i16, n: i16, line: i16, y0: i16, h: i16) void {
+    /// The same for groups g .. g + n - 1 at once, clipped to what shows:
+    /// the window, or with `wide` the window and its side borders.
+    fn span(self: *const Copy, k: sc.Kind, g: i16, n: i16, line: i16, y0: i16, h: i16) void {
         if (h <= 0) return;
-        const x: i16 = g * 16;
-        const w: u16 = @intCast(n * 16);
+        const lo: i16 = if (self.o.wide) -XO else 0;
+        const hi: i16 = if (self.o.wide) sc.W + XO else sc.W;
+        const x0: i16 = @max(g * 16, lo);
+        const x1: i16 = @min((g + n) * 16, hi);
+        if (x0 >= x1) return;
+        const x: i16 = x0 + XO; // strip and plane view x (both start at screen x -40)
+        const w: u16 = @intCast(x1 - x0);
         const src = &self.s.src[@intFromEnum(k)];
-        if (k == .g or k == .fg) {
+        if (self.o.keyed) {
+            self.c.bob(self.dst, x, line + y0, src, x, y0, w, @intCast(h), 0);
+        } else if (k == .g or k == .fg) {
             self.c.bob(self.dst, x, line + y0, src, x, y0, w, @intCast(h), sc.KEY);
         } else if (line + y0 < logo.ROWS) {
             // Over the logo's last rows (stcs_logo.zig): its pixels show where
@@ -70,45 +95,48 @@ const Copy = struct {
             self.c.blitCopy(self.dst, x, line + y0, src, x, y0, w, @intCast(h));
         }
     }
-    fn all(self: Copy, k: sc.Kind, g: ?i16, line: i16) void {
+    fn all(self: *const Copy, k: sc.Kind, g: ?i16, line: i16) void {
         const h: i16 = if (k == .g or k == .fg) 2 * H - 1 else H;
         self.rows(k, g, line, 0, h);
     }
 };
 
 /// Draw the strips onto `dst` as `period` does; `yp` is the big fonts' bounce.
-pub fn draw(c: *Blitter, dst: *LogicalFB, s: *sc.Scratch, period: Period, yp: i16) void {
-    const cp = Copy{ .c = c, .dst = dst, .s = s };
-    var g: i16 = 0;
+/// `dst` is the plane from screen x -40 (stcs.zig's view): x + XO everywhere.
+pub fn draw(c: *Blitter, dst: *LogicalFB, s: *sc.Scratch, period: Period, yp: i16, o: Opts) void {
+    const cp = Copy{ .c = c, .dst = dst, .s = s, .o = o };
+    var g: i16 = cp.first();
+    const end = cp.last();
+    const runs = if (o.wide) wave.runs_wide else wave.runs;
     switch (period) {
         // lines 84 + y, + 78, + 39
         .threelines => for ([_]i16{ 84, 84 + 2 * H + 10, 84 + H + 5 }) |l| cp.all(.n, null, l),
         // 78 + yp + wave[g] + 2y + k: G at 2y, k = 0 and 1; one blit per run of
         // groups with the same wave offset (stcs_wave.zig). k0 and k1 fill
         // opposite lines of a group and groups never meet: order cannot matter.
-        .big_font => for (wave.runs) |r| {
+        .big_font => for (runs) |r| {
             cp.span(.g, r.g, r.n, 78 + yp + r.off, 0, 2 * H - 1);
             cp.span(.g, r.g, r.n, 79 + yp + r.off, 0, 2 * H - 1);
         },
         // the interlaced font steps two lines per wave step (CONFO.S `160*2`)
-        .interlaced_big_font => for (wave.runs) |r| cp.span(.g, r.g, r.n, 78 + yp + 2 * r.off, 0, 2 * H - 1),
+        .interlaced_big_font => for (runs) |r| cp.span(.g, r.g, r.n, 78 + yp + 2 * r.off, 0, 2 * H - 1),
         // k0: 88 + y - g; k1: 88 + 39 + 2H - 2y - g = (129 - g) + 2(33 - y): FG
-        .interlaced_mirror => while (g < GROUPS) : (g += 1) {
+        .interlaced_mirror => while (g < end) : (g += 1) {
             cp.all(.n, g, 88 - g);
             cp.all(.fg, g, 129 - g);
         },
         // k0: 164 + y; k1: 76 + 2y + 2g (G), always later than k0 where they meet
         .interlaced_steam => {
             cp.all(.n, null, 164);
-            while (g < GROUPS) : (g += 1) cp.all(.g, g, 76 + 2 * g);
+            while (g < end) : (g += 1) cp.all(.g, g, 76 + 2 * g);
         },
         // k0: 86 + y + g; k1: 156 + H - y - g = (157 - g) + (33 - y): F
-        .inverted => while (g < GROUPS) : (g += 1) {
+        .inverted => while (g < end) : (g += 1) {
             cp.all(.n, g, 86 + g);
             cp.all(.f, g, 157 - g);
         },
         .inverted_mirror => {
-            while (g < GROUPS) : (g += 1) invertedMirror(cp, g);
+            while (g < end) : (g += 1) invertedMirror(&cp, g);
             cp.all(.n, null, 160); // k2: 160 + y
         },
     }
@@ -118,7 +146,7 @@ pub fn draw(c: *Blitter, dst: *LogicalFB, s: *sc.Scratch, period: Period, yp: i1
 // right (h = g - 10):   k0 80 + y + h, k1 120 + (H - y) - h = (121 - h) + (33 - y)
 // Where k0 and k1 share a line L, the larger strip row wins (k1 on a tie): that is
 // k1 for L <= 117 and k0 for L >= 118, on both sides.
-fn invertedMirror(cp: Copy, g: i16) void {
+fn invertedMirror(cp: *const Copy, g: i16) void {
     const left = g < 10;
     const h = if (left) g else g - 10;
     const l0: i16 = if (left) 90 - h else 80 + h;

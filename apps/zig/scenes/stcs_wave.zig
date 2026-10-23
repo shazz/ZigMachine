@@ -20,34 +20,56 @@ const std = @import("std");
 pub const GROUPS = 20; // 320 / 16
 
 /// Line offset of each column group (left to right), in type-1 steps.
-pub const wave: [GROUPS]i16 = blk: {
-    var t: [GROUPS]i16 = undefined;
+pub const wave: [GROUPS]i16 = table(0, GROUPS);
+
+/// ZIG MODE's open side borders (stcs_zig.zig) add groups -3..-1 and 20..22
+/// (screen x -48..367, clipped to -40..359): the same rule, run on outwards
+/// (d0 > 19 and d0 < 0 both step +1, as d0 = 19..15 and 5..0 do).
+pub const WIDE_G0 = -3;
+pub const WIDE_GROUPS = GROUPS + 6;
+pub const wave_wide: [WIDE_GROUPS]i16 = table(WIDE_G0, WIDE_GROUPS);
+
+fn table(comptime g0: i16, comptime n: usize) [n]i16 {
+    var t: [n]i16 = undefined;
     var off: i16 = 0;
-    for (0..GROUPS) |g| {
-        t[g] = off;
-        const d0 = GROUPS - 1 - g;
-        off += if (d0 == 14 or d0 == 6) 0 else if (d0 > 5 and d0 < 14) -1 else 1;
+    // walk from group 0 both ways so group 0 stays at 0 in both tables
+    var g: i16 = 0;
+    while (g < g0 + @as(i16, n)) : (g += 1) {
+        if (g >= g0) t[g - g0] = off;
+        off += step(GROUPS - 1 - g);
     }
-    break :blk t;
-};
+    off = 0;
+    g = -1;
+    while (g >= g0) : (g -= 1) {
+        off -= step(GROUPS - 1 - g);
+        t[g - g0] = off;
+    }
+    return t;
+}
+fn step(d0: i16) i16 {
+    return if (d0 == 14 or d0 == 6) 0 else if (d0 > 5 and d0 < 14) -1 else 1;
+}
 
 /// Neighbouring groups with the same offset: one blit each (w = 16 * n).
 pub const Run = struct { g: i16, n: i16, off: i16 };
 
-pub const runs: []const Run = blk: {
-    var out: [GROUPS]Run = undefined;
+pub const runs: []const Run = merge(0, &wave);
+pub const runs_wide: []const Run = merge(WIDE_G0, &wave_wide);
+
+fn merge(comptime g0: i16, comptime t: []const i16) []const Run {
+    var out: [t.len]Run = undefined;
     var len: usize = 0;
-    for (0..GROUPS) |g| {
-        if (len > 0 and out[len - 1].off == wave[g]) {
+    for (t, 0..) |off, i| {
+        if (len > 0 and out[len - 1].off == off) {
             out[len - 1].n += 1;
         } else {
-            out[len] = .{ .g = g, .n = 1, .off = wave[g] };
+            out[len] = .{ .g = g0 + @as(i16, @intCast(i)), .n = 1, .off = off };
             len += 1;
         }
     }
     const fixed = out[0..len].*;
-    break :blk &fixed;
-};
+    return &fixed;
+}
 
 test "the wave is CONFO.S's triangle" {
     const want = [GROUPS]i16{ 0, 1, 2, 3, 4, 5, 5, 4, 3, 2, 1, 0, -1, -2, -2, -1, 0, 1, 2, 3 };
@@ -79,4 +101,13 @@ test "the wave is not flat: 17 group edges step, 7 lines from top to bottom" {
     try std.testing.expectEqual(@as(i16, 7), hi - lo); // 14 lines in interlaced_big_font
     // the lowest line any big font reaches stays below the logo (stcs_logo.ROWS = 73)
     try std.testing.expect(78 + 2 * lo >= 73);
+}
+
+test "the wide wave is the window's wave, run on into the borders" {
+    try std.testing.expectEqualSlices(i16, &wave, wave_wide[3 .. 3 + GROUPS]);
+    const want_left = [3]i16{ -3, -2, -1 };
+    const want_right = [3]i16{ 4, 5, 6 };
+    try std.testing.expectEqualSlices(i16, &want_left, wave_wide[0..3]);
+    try std.testing.expectEqualSlices(i16, &want_right, wave_wide[3 + GROUPS ..]);
+    try std.testing.expectEqual(@as(usize, 24), runs_wide.len); // every border group steps
 }

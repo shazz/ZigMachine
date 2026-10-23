@@ -464,6 +464,10 @@ gate tcb_spreadpoint node apps/tcb_spreadpoint_headless.mjs --break hbl "$SHOTS/
 gate tcb_spreadpoint node apps/tcb_spreadpoint_headless.mjs --break step "$SHOTS/tcb_spreadpoint"   # ...and one frame out of step with screen.js is caught
 gate stcs node apps/stcs_headless.mjs   # STCS STARGOOSE: every frame of a whole 9420-VBL cycle (all seven scroller shapes, rasters and band palettes included) is the pre-CHISEL CPU scroller's COMPOSED picture, byte for byte (the logo now rides the scroller plane)
 gate stcs node apps/stcs_headless.mjs --break skip   # ...and one extra VBL is caught (in the periods after it only)
+gate stcs node apps/stcs_zig_headless.mjs   # STCS ZIG MODE (Z): over the whole cycle, beside an untouched copy: 1/2/3 do nothing in ORIGINAL; in ZIG the letters run through the opened side borders in all seven shapes, the logo fades, stars scroll right to left behind logo and letters; 1, 2, 3 each turn their effect off (sides, logo, stars back to ORIGINAL's); Z again is ORIGINAL pixel for pixel
+gate stcs node apps/stcs_zig_headless.mjs --break nokeys   # ...and a cart that ignores Z is caught
+gate stcs node apps/stcs_zig_headless.mjs --break key1   # ...and borders that never close on 1 are caught
+gate stcs node apps/stcs_zig_headless.mjs --break key3   # ...and stars that never leave on 3 are caught
 gate stcs_css3 node apps/stcs_css3_headless.mjs "$SHOTS/stcs_css3"   # STCS 3RD CSS CONVENTION (original ST binary): at 149 sampled VBLs over 6000 (black pre-roll, picture, star release, warp, main loop, scroller and its pauses, the letters turning round) the whole displayed frame, border colour per physical row included, is the reference model's (itself byte-exact against Hatari); the Timer B bands and the bar run through both borders; thrust.sndh starts with the picture; Space and Escape leave
 gate stcs_css3 node apps/stcs_css3_headless.mjs --break noclear "$SHOTS/stcs_css3"   # ...and a border never painted per line is caught
 gate stcs_css3 node apps/stcs_css3_headless.mjs --break timerb "$SHOTS/stcs_css3"   # ...and a plane whose Timer B HBL never runs (one palette for all lines) is caught
