@@ -275,6 +275,10 @@ always tunein node apps/tunein_check.mjs    # C/Rust channels tune in through Zi
 always tunein node apps/tunein_check.mjs --fail-proof docs/demo-c.wasm docs/demo-rust.wasm   # ...and a cart without tuneIn fails it
 gate gem node apps/gem_headless.mjs "$SHOTS"
 gate sndh node apps/sndh_headless.mjs
+gate sndh node apps/ste_dma_check.mjs   # the STE DMA chip as DMA replays drive it: start/end latched at the FRAME END (a double buffer written from play), the frame end clocking Timer A's event count (TACR 8), the LMC1992 master volume; each hand-assembled tune starts silent
+gate sndh node apps/ste_dma_check.mjs --break latch    # ...and a tune that never writes its next frame fails the latch check
+gate sndh node apps/ste_dma_check.mjs --break event    # ...and Timer A on the clock instead of the frame end fails the event check
+gate sndh node apps/ste_dma_check.mjs --break volume   # ...and no Microwire command fails the volume check
 gate sndh_relocate node apps/sndh_relocate_check.mjs   # a tune that installs its own MFP vectors (Alloy Run) plays: images load at $10002
 gate sndh_call node apps/sndh_call_check.mjs   # zg.sndhCall: INIT on the RUNNING tune leaves the untouched channel, Timer A's phase and the position exactly as an untouched run's
 gate sndh_call node apps/sndh_call_check.mjs --break   # ...and a reload in its place is caught

@@ -24,19 +24,21 @@
 //   6 REALITY.YM (Big Alec, conv. Oedipus) == Big_Alec/Reality.sndh: periods
 //     100%; over 6000 frames every volume miss is a voice the SNDH reads as 0.
 //   4 SONG_025.YM "Drooling" (505, conv. aldn) has NO SNDH: the only one titled
-//     so, 505/Drooling.sndh, is an STE DMA replay (~ey: silent here) of another
+//     so, 505/Drooling.sndh, is another
 //     arrangement (7% of frames, audible periods 11-25%). The whole archive
 //     (5,897 files, every subtune) scanned by periods in order (offsets
 //     -60..400: best 23%, 505/TK_Machine) and out of order (the false hits,
 //     e.g. Scy/TSCC_Mod_Compil_5, are 0% in order). Matt (2026-10-20): play
 //     505's own Drooling.sndh anyway (docs/music/union/drooling_505.sndh), and
-//     implement STE DMA sound later: until then key 4 loads it and is SILENT.
+//     (2026-10-23) it PLAYS: it is not a DMA replay at all (no $FF89xx in it; its
+//     FLAG ~e is wrong): a YM tracker + a Timer A YM digi that opens with ~4 s
+//     of silence, which a one-second check took for a dead tune.
 // --------------------------------------------------------------------------
 pub const TRACKS = [_][]const u8{
     "union/sharpness_buzztone.sndh",
     "union/150_mph.sndh",
     "union/androids.sndh",
-    "union/drooling_505.sndh", // STE DMA (~ey): silent until the machine has DMA sound
+    "union/drooling_505.sndh", // YM + Timer A digi (its FLAG ~ey is wrong); ~4 s of silence first
     "union/lap_33.sndh",
     "union/reality.sndh",
 };

@@ -48,6 +48,14 @@ const PRESCALE = [8]u16{ 0, 4, 10, 16, 50, 64, 100, 200 };
 /// registers, 0..7 the B registers; a higher channel has the higher priority,
 /// so this order — A, B, C, D — is also the order pending ones are delivered.
 pub const CHANNEL = [4]u8{ 13, 8, 5, 4 };
+/// General-purpose input 7, as an interrupt "timer" index past D: on an STE the
+/// DMA sound chip's frame-end signal reaches it (and Timer A's event input, see
+/// `dmaFrameEnd`). Channel 15, the highest priority of all.
+pub const GPI7: usize = 4;
+const GPI7_CHANNEL: u8 = 15;
+fn channelOf(t: usize) u8 {
+    return if (t == GPI7) GPI7_CHANNEL else CHANNEL[t];
+}
 /// Refuse to emulate a timer faster than this: a tune that programs a silly
 /// rate must not be able to hang the audio thread.
 const MAX_TIMER_HZ: f32 = 40000.0;
@@ -75,11 +83,15 @@ const VR_TOS_DEFAULT: u8 = 0x40;
 
 pub const Mfp = struct {
     regs: [SIZE]u8,
+    /// Timer A's counter in EVENT-COUNT mode (TACR = 8): events still to come
+    /// before it times out, 0 = reload from TADR on the next one.
+    events_left: u16 = 0,
 
     /// The MFP as TOS hands it to a program: vector base $40, the interrupt
     /// controller as TOS set it, and every timer stopped.
     pub fn reset(self: *Mfp) void {
         @memset(&self.regs, 0);
+        self.events_left = 0;
         self.regs[VR] = VR_TOS_DEFAULT;
         self.regs[IERA] = IERA_TOS;
         self.regs[IERB] = IERB_TOS;
@@ -102,6 +114,12 @@ pub const Mfp = struct {
                 self.regs[off + (IPRA - IERA)] &= value;
             },
             IPRA, IPRB, ISRA, ISRB => self.regs[off] &= value,
+            // A stopped timer loads its counter from a data write; a running one
+            // only at its next timeout.
+            TADR => {
+                self.regs[off] = value;
+                if (self.regs[TACR] & 0x0F == 0) self.events_left = 0;
+            },
             else => self.regs[off] = value,
         }
     }
@@ -109,7 +127,7 @@ pub const Mfp = struct {
     /// Timer `t` (0=A..3=D) counted down to zero. Its channel goes pending if
     /// it is ENABLED; a disabled channel's timeout is lost, as on the chip.
     pub fn timeout(self: *Mfp, t: usize) void {
-        const reg, const bit = channelBit(CHANNEL[t]);
+        const reg, const bit = channelBit(channelOf(t));
         if (self.regs[IERA + reg] & bit != 0) self.regs[IPRA + reg] |= bit;
     }
 
@@ -117,6 +135,13 @@ pub const Mfp = struct {
     /// pending bit cleared — the interrupt the 68000 takes next — or null.
     /// A masked channel stays pending and is delivered once it is unmasked.
     pub fn nextInterrupt(self: *Mfp) ?usize {
+        {
+            const reg, const bit = channelBit(GPI7_CHANNEL);
+            if (self.regs[IPRA + reg] & self.regs[IMRA + reg] & bit != 0) {
+                self.regs[IPRA + reg] &= ~bit;
+                return GPI7;
+            }
+        }
         for (CHANNEL, 0..) |ch, t| {
             const reg, const bit = channelBit(ch);
             if (self.regs[IPRA + reg] & self.regs[IMRA + reg] & bit != 0) {
@@ -179,7 +204,21 @@ pub const Mfp = struct {
 
     /// Where timer `t`'s vector lives: the vector base plus its channel, x4.
     pub fn vectorSlot(self: *const Mfp, t: usize) u32 {
-        return ((@as(u32, self.regs[VR]) & 0xF0) | CHANNEL[t]) * 4;
+        return ((@as(u32, self.regs[VR]) & 0xF0) | channelOf(t)) * 4;
+    }
+
+    /// The STE DMA sound chip finished a frame. On the STE that one signal is
+    /// wired to two inputs: Timer A's event input (a tune sets TACR = 8,
+    /// TADR = 1 and gets an interrupt per frame, to refill a double buffer) and
+    /// GPIP 7. Not modelled: the active edge (AER) of GPIP 7 -- every frame end
+    /// counts as an edge -- and the mono-monitor detect XORed onto the same pin.
+    pub fn dmaFrameEnd(self: *Mfp) void {
+        if (self.regs[TACR] & 0x0F == 8) {
+            if (self.events_left == 0) self.events_left = if (self.regs[TADR] == 0) 256 else self.regs[TADR];
+            self.events_left -= 1;
+            if (self.events_left == 0) self.timeout(0);
+        }
+        self.timeout(GPI7);
     }
 };
 

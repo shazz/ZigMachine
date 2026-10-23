@@ -205,6 +205,11 @@ export fn audioDmaWrites() u32 {
 export fn audioDmaStarts() u32 {
     return @import("players").ste_dma.starts;
 }
+/// DMA frames played to their end: each one latched the next frame and told the
+/// MFP (a double-buffered replay that never sees one never refills).
+export fn audioDmaFrameEnds() u32 {
+    return @import("players").ste_dma.frame_ends;
+}
 /// The i'th distinct hardware address the tune wrote that nothing answers.
 export fn audioUnhandled(i: u32) u32 {
     const u = &@import("players").sndh.unhandled;

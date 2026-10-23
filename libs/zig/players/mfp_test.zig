@@ -165,3 +165,42 @@ test "register reads return what was written" {
         try std.testing.expectEqual(@as(u8, 0x5A), mfp.read(r));
     }
 }
+
+test "Timer A in event-count mode times out on every TADR-th DMA frame end" {
+    var mfp = fresh();
+    enableA(&mfp);
+    mfp.write(m.TADR, 2);
+    mfp.write(m.TACR, 8);
+    try std.testing.expectEqual(@as(f32, 0), mfp.timerHz(A)); // it counts frames, not the clock
+    mfp.dmaFrameEnd();
+    try std.testing.expectEqual(@as(?usize, null), mfp.nextInterrupt());
+    mfp.dmaFrameEnd();
+    try std.testing.expectEqual(@as(?usize, A), mfp.nextInterrupt());
+    mfp.dmaFrameEnd();
+    mfp.dmaFrameEnd();
+    try std.testing.expectEqual(@as(?usize, A), mfp.nextInterrupt());
+}
+
+test "a DMA frame end does not touch Timer A when it is not counting events" {
+    var mfp = fresh();
+    enableA(&mfp);
+    mfp.write(m.TADR, 1);
+    mfp.write(m.TACR, 1); // a clock timer
+    mfp.dmaFrameEnd();
+    try std.testing.expectEqual(@as(?usize, null), mfp.nextInterrupt());
+}
+
+test "GPIP 7 interrupts at a DMA frame end, first, through vector 15, only when enabled" {
+    var mfp = fresh();
+    mfp.dmaFrameEnd();
+    try std.testing.expectEqual(@as(?usize, null), mfp.nextInterrupt()); // TOS leaves it off
+    mfp.write(m.IERA, mfp.read(m.IERA) | 0x80);
+    mfp.write(m.IMRA, mfp.read(m.IMRA) | 0x80);
+    enableA(&mfp);
+    mfp.write(m.TADR, 1);
+    mfp.write(m.TACR, 8);
+    mfp.dmaFrameEnd();
+    try std.testing.expectEqual(@as(?usize, m.GPI7), mfp.nextInterrupt()); // channel 15 beats Timer A's 13
+    try std.testing.expectEqual(@as(?usize, A), mfp.nextInterrupt());
+    try std.testing.expectEqual(@as(u32, (0x40 | 15) * 4), mfp.vectorSlot(m.GPI7));
+}

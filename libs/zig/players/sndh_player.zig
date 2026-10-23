@@ -518,11 +518,15 @@ pub const SndhPlayer = struct {
             for (self.timer_acc) |acc| if (acc != NEVER) {
                 block = @min(block, acc >> 16); // whole samples until it is due
             };
+            // ...or the DMA chip's frame end, where it latches its next frame and
+            // tells the MFP (Timer A's event input, GPIP 7).
+            block = @min(block, dma.samplesToFrameEnd());
             audio.machineRenderYm(@intCast(off), block);
             // The DMA chip's samples are mixed by the machine's own sample
             // channels, so the block that rendered the YM must mix them too.
             audio.machineMixPaula(@intCast(off), block);
             dma.advance(block);
+            if (dma.takeFrameEnd()) mfp.dmaFrameEnd(); // delivered by the next fireDue
             self.advance(block);
             off += block;
         }

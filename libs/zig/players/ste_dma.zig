@@ -18,19 +18,31 @@
 // frame. Each then reads every other byte, which is exactly de-interleaving,
 // with no copy and no scratch buffer.
 //
+// FRAME END (2026-10-23). The real chip LATCHES start/end at the end of every
+// frame: a looping tune writes the next half of its double buffer while the
+// chip plays the current one, and the chip moves on to it by itself. That is
+// what most DMA tracker replays do (Crazy Q, 505, Excellence in Art), and with
+// start/end latched only at the go bit they looped their first, still-empty
+// buffer for ever: silence. The player now renders up to the frame end
+// (`samplesToFrameEnd`), the chip re-latches there, and the end is signalled to
+// the MFP (`takeFrameEnd` -> Timer A's event input + GPIP 7), which is how the
+// rest of the replays (SpaSTiba: TACR = 8, TADR = 1) refill their buffer.
+//
+// MICROWIRE (2026-10-23). The LMC1992's master and left/right volume commands
+// are applied to the DMA channels (a 2 dB step each, as on the chip). Not
+// applied: bass, treble and the mixer command (YM on/off): the YM is not routed
+// through here, so its level stays the machine's.
+//
 // WHAT IS NOT HERE, named rather than silently missing:
-//   * the frame-end interrupt (MFP GPIP 7). Nothing we play polls it; tunes
-//     poll the go bit, which is cleared below when a one-shot runs out.
-//   * the Microwire volume and tone SETTINGS ($FF8922/$FF8924): the master
-//     volume and tone a tune sends are not applied. The TRANSFER is emulated,
+//   * the Microwire tone settings (see above). The TRANSFER is emulated,
 //     because tunes wait on it: writing the data register shifts 16 bits out,
 //     and while it does the mask register reads back rotated one bit per shift,
 //     returning to the written mask after 16. maxYMiser's STE path writes $7FF
 //     to the mask, the command to the data, then spins until the mask reads
 //     something else and again until it reads $7FF: a mask that only ever read
 //     back $7FF hung those tunes in their init (crystallized.sndh, D-Bug).
-//   * the real chip latches start/end at the END of a frame. Here they are
-//     latched when the go bit is set, which is a frame early at worst.
+//   * a frame end lands on an output sample, not on the chip's own clock: up to
+//     one 44.1 kHz sample late.
 const std = @import("std");
 const audio = @import("audio_hw");
 
@@ -70,12 +82,25 @@ var span: u32 = 0; // frame length in bytes
 /// does not work — these two numbers tell those apart.
 pub var writes: u32 = 0;
 pub var starts: u32 = 0;
+/// Frames the chip has played to their end (loop or one-shot): a double-buffered
+/// replay that never sees one has never been told to refill.
+pub var frame_ends: u32 = 0;
+var frame_end_due: bool = false;
+
+/// LMC1992 volumes, in dB: master 0..-80, left/right 0..-40.
+var mw_master_db: f32 = 0;
+var mw_left_db: f32 = 0;
+var mw_right_db: f32 = 0;
 
 pub fn reset() void {
     regs = [_]u8{0} ** SIZE;
     mw_left = 0;
     playing = false;
     pos = 0;
+    frame_end_due = false;
+    mw_master_db = 0;
+    mw_left_db = 0;
+    mw_right_db = 0;
     audio.machinePaulaSetActive(CH_L, 0);
     audio.machinePaulaSetActive(CH_R, 0);
 }
@@ -115,6 +140,7 @@ pub fn write(addr: u32, value: u8) void {
     const was = regs[CTRL] & 1;
     regs[r] = value;
     if (r == MW_DATA or r == MW_DATA + 1) mw_left = 16; // a transfer starts
+    if (r == MW_DATA + 1) microwireCommand(); // a word write ends on its low byte
     if (r != CTRL) return;
     if (value & 1 != 0) {
         if (was == 0) begin();
@@ -125,21 +151,79 @@ pub fn write(addr: u32, value: u8) void {
     }
 }
 
-/// Consume `frames` output frames of the current DMA frame. A one-shot that
-/// runs out clears its own go bit, which is how a tune knows it finished.
+/// Output samples until the current frame ends (the player renders up to it),
+/// or maxInt when the chip is idle.
+pub fn samplesToFrameEnd() u32 {
+    if (!playing or step == 0) return std.math.maxInt(u32);
+    const total = @as(u64, span) << 16;
+    if (pos >= total) return 0;
+    return @intCast(@min((total - pos + step - 1) / step, std.math.maxInt(u32) - 1));
+}
+
+/// Consume `frames` output frames of the current DMA frame. At its end the
+/// chip latches the start/end the tune has written since (loop), or stops and
+/// clears its own go bit (one-shot); either way the end is due to the MFP.
 pub fn advance(frames: u32) void {
     if (!playing) return;
     pos += @as(u64, step) * frames;
     const total = @as(u64, span) << 16;
     if (pos < total) return;
+    frame_ends +%= 1;
+    frame_end_due = true;
     if (regs[CTRL] & 2 != 0) {
-        pos -= total * (pos / total); // the channels loop themselves
+        const over = (pos - total) % total;
+        begin(); // the next frame, from the registers as they are NOW
+        pos = over;
         return;
     }
     playing = false;
     regs[CTRL] &= ~@as(u8, 1);
     audio.machinePaulaSetActive(CH_L, 0);
     audio.machinePaulaSetActive(CH_R, 0);
+}
+
+/// True once per frame end since the last call: the player tells the MFP.
+pub fn takeFrameEnd() bool {
+    defer frame_end_due = false;
+    return frame_end_due;
+}
+
+/// An LMC1992 command, shifted out through the Microwire: the bits the mask
+/// selects, high first, are %10 (the LMC's address), 3 command bits, 6 data.
+fn microwireCommand() void {
+    const data: u16 = (@as(u16, regs[MW_DATA]) << 8) | regs[MW_DATA + 1];
+    const mask: u16 = (@as(u16, regs[MW_MASK]) << 8) | regs[MW_MASK + 1];
+    var bits: u16 = 0;
+    var n: u4 = 0;
+    var i: u5 = 16;
+    while (i > 0) {
+        i -= 1;
+        if (mask & (@as(u16, 1) << @intCast(i)) == 0) continue;
+        bits = (bits << 1) | ((data >> @intCast(i)) & 1);
+        n +%= 1;
+    }
+    if (n != 11 or bits >> 9 != 2) return; // not an LMC1992 command
+    const val: f32 = @floatFromInt(bits & 0x3F);
+    switch ((bits >> 6) & 7) {
+        3 => mw_master_db = (@min(val, 40) - 40) * 2,
+        5 => mw_left_db = (@min(val, 20) - 20) * 2,
+        4 => mw_right_db = (@min(val, 20) - 20) * 2,
+        else => return, // bass, treble, mixer: see the header
+    }
+    if (playing) applyVolume();
+}
+
+fn gain(db: f32) f32 {
+    return std.math.pow(f32, 10, db / 20);
+}
+
+fn applyVolume() void {
+    if (stereo) {
+        audio.machinePaulaSetVolume(CH_L, gain(mw_master_db + mw_left_db));
+        audio.machinePaulaSetVolume(CH_R, gain(mw_master_db + mw_right_db));
+    } else {
+        audio.machinePaulaSetVolume(CH_L, gain(mw_master_db + (mw_left_db + mw_right_db) / 2));
+    }
 }
 
 /// A 24-bit pointer out of its three registers, which sit two apart.
@@ -166,12 +250,11 @@ fn begin() void {
     const loop: u32 = if (regs[CTRL] & 2 != 0) span else 0;
     audio.machinePaulaTrigger(CH_L, audio.songAddr(from), span, 0, loop, if (stereo) -1.0 else 0.0);
     audio.machinePaulaSetStep(CH_L, step);
-    audio.machinePaulaSetVolume(CH_L, 1.0);
-    if (!stereo) {
+    if (stereo) {
+        audio.machinePaulaTrigger(CH_R, audio.songAddr(from + 1), span, 0, loop, 1.0);
+        audio.machinePaulaSetStep(CH_R, step);
+    } else {
         audio.machinePaulaSetActive(CH_R, 0);
-        return;
     }
-    audio.machinePaulaTrigger(CH_R, audio.songAddr(from + 1), span, 0, loop, 1.0);
-    audio.machinePaulaSetStep(CH_R, step);
-    audio.machinePaulaSetVolume(CH_R, 1.0);
+    applyVolume();
 }

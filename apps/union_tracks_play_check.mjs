@@ -11,7 +11,10 @@
 import { readFile } from "node:fs/promises";
 
 const TRACKS = ["sharpness_buzztone.sndh", "150_mph.sndh", "androids.sndh", "drooling_505.sndh", "lap_33.sndh", "reality.sndh"];
-const BLOCK = 1024, BLOCKS = 43; // one second a tune
+const BLOCK = 1024, BLOCKS_PER_S = 43; // one second a tune...
+// ...but 505's Drooling opens with ~4 s of silence before its first note (it is a YM tracker
+// + a Timer A YM digi; its FLAG ~e is wrong, it never touches the DMA chip): six seconds.
+const SECONDS = { "drooling_505.sndh": 6 };
 
 const memory = new WebAssembly.Memory({ initial: 48, maximum: 48 }); // AUDIO_PAGES
 const machine = (await WebAssembly.instantiate(await readFile("docs/machine-audio.wasm"), { env: { memory } })).instance.exports;
@@ -31,12 +34,9 @@ for (const [i, name] of TRACKS.entries()) {
     const stuckBefore = d.audioSndhStuckPc();
     const left = new Float32Array(memory.buffer, machine.audioLeftPtr(), BLOCK);
     let peak = 0;
-    for (let b = 0; b < BLOCKS; b++) { d.audioRender(BLOCK); for (const v of left) peak = Math.max(peak, Math.abs(v)); }
+    for (let b = 0; b < (SECONDS[name] ?? 1) * BLOCKS_PER_S; b++) { d.audioRender(BLOCK); for (const v of left) peak = Math.max(peak, Math.abs(v)); }
     const want = ym ? 2 : 4, ran = d.audioSndhStuckPc() !== stuckBefore;
-    // 505's Drooling is an STE DMA replay (FLAG ~ey): the machine has no DMA sound yet, so
-    // it loads and runs (mode 4, no runaway) but is silent. Matt's choice, 2026-10-20.
-    const silentOk = name === "drooling_505.sndh";
-    const good = !!ok && d.audioMode() === want && !ran && (silentOk || peak > 0.01);
+    const good = !!ok && d.audioMode() === want && !ran && peak > 0.01;
     console.log(`  ${good ? "ok  " : "FAIL"} key ${i + 1} ${name}: loaded ${!!ok}, mode ${d.audioMode()} (want ${want}), ` +
         `${ran ? `68000 RAN AWAY at $${d.audioSndhStuckPc().toString(16)}, ` : ""}peak ${peak.toFixed(3)}`);
     if (!good) failed = true;
