@@ -24,7 +24,7 @@ SND_CORE   := build/vexgen/VexRiscv_SndNd.v
 # The core has no divider (vexgen `nodiv`: DIV/REM trap), so everything it runs is Zmmul: MUL in
 # hardware, division through libgcc (__divsi3...), the libs from the rv32i multilib. Later -march wins.
 SND_ARCH   := -march=rv32i_zmmul -mabi=ilp32
-V_alignedz := $(V_aligned) $(SND_ARCH)
+V_alignedz := $(V_aligned) -DZM_LOCAL_BASE $(SND_ARCH)
 RV_OBJDUMP ?= riscv64-unknown-elf-objdump
 SND_LDFLAGS := $(RV_ARCH) $(SND_ARCH) -Wl,--defsym=__flash=0x40E00000,--defsym=__flash_size=0x00200000 \
 	-Wl,--defsym=__ram=0x41C00000,--defsym=__ram_size=0x003EF000,--defsym=__stack_size=0x00040000 \

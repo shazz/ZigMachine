@@ -23,8 +23,21 @@ void audio_backend_native(uint32_t native); /* the player audioSndhNative() name
 
 int audio_live(void) { return g_aud.memory.data != NULL; }
 
+#ifdef ZM_SND
+/* BARD: the module's memory at a measured offset in its 4 KiB page (host/mem_place.h). */
+#include "mem_place.h"
+#ifndef BARD_MEM_SET
+#define BARD_MEM_SET 0x640u
+#endif
+static void audio_memory(wasm_rt_memory_t* m) { zm_mem_place(m, AUDIO_PAGES, BARD_MEM_SET); }
+#else
+static void audio_memory(wasm_rt_memory_t* m) {
+    wasm_rt_allocate_memory(m, AUDIO_PAGES, AUDIO_PAGES, false, WASM_DEFAULT_PAGE_SIZE);
+}
+#endif
+
 void audio_boot(void) {
-    wasm_rt_allocate_memory(&g_aud.memory, AUDIO_PAGES, AUDIO_PAGES, false, WASM_DEFAULT_PAGE_SIZE);
+    audio_memory(&g_aud.memory);
     audio_backend_boot(); /* the soft chips first: their data segments are the low MiB */
     wasm2c_audio_instantiate(&g_aud.player, &g_aud);
     audio_backend_start(); /* the first write is next: the backend sets the stamp */
