@@ -4,7 +4,7 @@
 // frames. It exists to prove that a library migration is byte-identical: take
 // a fingerprint before the change, rebuild, take one after, compare.
 //
-//   node apps/scene_hash.mjs <cart.wasm> [frames=1200] [every=10] [--call F:export:arg,...] [--disk X.zmd]
+//   node apps/scene_hash.mjs <cart.wasm> [frames=1200] [every=10] [--call F:export:arg,...] [--disk X.zmd] [--composite] [--song-clock]
 //                            [--data-disk X.zmd [--program]]
 //   node apps/scene_hash.mjs --compare a.json b.json
 //
@@ -16,6 +16,12 @@
 // does for GEM over one (insertDisk, the FAT listing; scene_hash_disk.mjs); `--program`: the
 // cart is a program GEM launched off it (swapCart req 3), which the browser hands no listing.
 // `--compare` exits 1 on the first differing frame.
+// `--composite` hashes only the COMPOSED picture (each enabled plane's physical
+// render, borders included, stacked as the browser's canvases are: stackOver),
+// not each plane: it proves a change that moves pixels between planes (merging
+// two into one) shows the same frames.
+// `--song-clock` sets zigos.song_ms (what the host mirrors from the playing tune)
+// to frame * 1000 / 60 before each frame, for carts that sync to the music.
 import { readFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { cartRam, romRam } from "../docs/wasm_hiwater.js";
@@ -64,6 +70,13 @@ async function boot(cartPath, machineDir, diskPath, dataDiskPath, program) {
     return { memory, machine, demo, dataDisk };
 }
 
+// The browser shows each enabled plane's PFB snapshot on its own canvas, stacked
+// in plane order: a pixel is the topmost snapshot's that is not transparent
+// (alpha 0), else the page behind (left 0 here).
+function stackOver(comp, snap) {
+    for (let i = 0; i < snap.length; i++) if (snap[i] >>> 24) comp[i] = snap[i];
+}
+
 function parseCalls(list) {
     const calls = new Map();
     for (const spec of list) {
@@ -77,9 +90,11 @@ function parseCalls(list) {
 
 async function fingerprint(argv) {
     const pos = [], callSpecs = [];
-    let disk = null, dataDisk = null, program = false;
+    let disk = null, dataDisk = null, program = false, composite = false, songClock = false;
     for (let i = 0; i < argv.length; i++) {
         if (argv[i] === "--call") callSpecs.push(argv[++i]);
+        else if (argv[i] === "--composite") composite = true;
+        else if (argv[i] === "--song-clock") songClock = true;
         else if (argv[i] === "--disk") disk = argv[++i];
         else if (argv[i] === "--data-disk") dataDisk = argv[++i];
         else if (argv[i] === "--program") program = true;
@@ -93,6 +108,7 @@ async function fingerprint(argv) {
     const planes = machine.hwPlanesNumber();
     const total = createHash("sha256");
     const samples = [];
+    const comp = new Uint32Array(size >> 2);
     for (let f = 1; f <= N; f++) {
         for (const [name, args] of calls.get(f) ?? []) {
             if (typeof demo[name] !== "function") throw new Error(`cart has no export ${name}`);
@@ -103,14 +119,18 @@ async function fingerprint(argv) {
         // hwRenderPlane, so sampling-only rendering would starve HBL-driven state.
         const sample = f % K === 0;
         const h = sample ? createHash("sha256") : null;
+        if (songClock) new Uint32Array(memory.buffer, demo.getSongMsPointer(), 1)[0] = Math.floor((f * 1000) / 60);
         machine.hwClear();
         demo.frame(16.6);
         step?.(demo); // --data-disk: the browser's step after the frame
+        if (composite) comp.fill(0);
         for (let p = 0; p < planes; p++) {
-            if (!demo.isPlaneEnabled(p)) { h?.update(`off${p}`); continue; }
+            if (!demo.isPlaneEnabled(p)) { if (!composite) h?.update(`off${p}`); continue; }
             machine.hwRenderPlane(p);
-            h?.update(new Uint8Array(memory.buffer, machine.hwPhysicalPtr(), size));
+            if (composite) stackOver(comp, new Uint32Array(memory.buffer, machine.hwPhysicalPtr(), size >> 2));
+            else h?.update(new Uint8Array(memory.buffer, machine.hwPhysicalPtr(), size));
         }
+        if (composite) h?.update(new Uint8Array(comp.buffer));
         if (!sample) continue;
         const hash = h.digest("hex");
         total.update(hash);
