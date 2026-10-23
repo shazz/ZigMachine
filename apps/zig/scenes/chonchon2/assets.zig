@@ -26,21 +26,33 @@ const zg = @import("zigos");
 
 const DIR = "../../assets/screens/chonchon2/";
 
-pub const background = @embedFile(DIR ++ "background.bin");
-pub const font = @embedFile(DIR ++ "font.bin");
-pub const message = @embedFile(DIR ++ "message.bin");
-pub const profile = @embedFile(DIR ++ "scroll-profile.bin");
-pub const panel = @embedFile(DIR ++ "panel-script.bin");
-pub const panel_pattern = @embedFile(DIR ++ "panel-pattern.bin");
-pub const path_a = @embedFile(DIR ++ "sprite-a-path.bin");
-pub const path_b = @embedFile(DIR ++ "sprite-b-path.bin");
-pub const palette_words = @embedFile(DIR ++ "palette.bin");
-pub const raster_bg = @embedFile(DIR ++ "raster-background.bin");
-pub const raster_program = @embedFile(DIR ++ "raster-program.bin");
-pub const raster_base = @embedFile(DIR ++ "raster-base.bin");
-pub const raster_scroll = @embedFile(DIR ++ "raster-scroll.bin");
-pub const sprite_a = @embedFile(DIR ++ "sprite-a.idx");
-pub const sprite_b = @embedFile(DIR ++ "sprite-b.idx");
+
+/// An asset 4-byte aligned in the data segment. The big-endian word reads
+/// below compile to wide loads, and a wide load off an odd/2-mod-4 address
+/// TRAPS on the board (~700 cycles each); aligned, the ones at aligned
+/// offsets are plain loads.
+fn embed4(comptime name: []const u8) *const [@embedFile(DIR ++ name).len]u8 {
+    const S = struct {
+        const data: [@embedFile(DIR ++ name).len]u8 align(4) = @embedFile(DIR ++ name).*;
+    };
+    return &S.data;
+}
+
+pub const background = embed4("background.bin");
+pub const font = embed4("font.bin");
+pub const message = embed4("message.bin");
+pub const profile = embed4("scroll-profile.bin");
+pub const panel = embed4("panel-script.bin");
+pub const panel_pattern = embed4("panel-pattern.bin");
+pub const path_a = embed4("sprite-a-path.bin");
+pub const path_b = embed4("sprite-b-path.bin");
+pub const palette_words = embed4("palette.bin");
+pub const raster_bg = embed4("raster-background.bin");
+pub const raster_program = embed4("raster-program.bin");
+pub const raster_base = embed4("raster-base.bin");
+pub const raster_scroll = embed4("raster-scroll.bin");
+pub const sprite_a = embed4("sprite-a.idx");
+pub const sprite_b = embed4("sprite-b.idx");
 
 pub const sprite_a_w: usize = 80;
 pub const sprite_a_h: usize = 34;

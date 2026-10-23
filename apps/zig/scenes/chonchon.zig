@@ -18,7 +18,11 @@
 //   * the native motion (background + 100 authored star paths + the two-bank
 //     ring scroller + the 63-row warped chrome logo) is `clock.zig`;
 //   * the three music meters OR plane-3 bits into the screen (meter.zig);
-//   * the index image is written straight onto plane 0, and the final colour
+//   * the index image is composed in the chunky domain with CHISEL
+//     (chonchon/compose.zig: the background plane, only the planar groups a
+//     tick changed, the logo rows as keyed blits, one copy to plane 0 a
+//     tick; chonchon/chunky_test.zig proves it equals the per-pixel decode
+//     of the planar screen on every tick), and the final colour
 //     rule is a REAL per-scanline palette rewrite -- the shader's Raster on
 //     lines 144..199 is entries 8..15 rewritten per line (CLAUDE.md: not a fake
 //     raster), which is why the window carries more than the 16 static words.
@@ -43,6 +47,9 @@ const Color = zg.Color;
 const assets = @import("chonchon/assets.zig");
 const clockmod = @import("chonchon/clock.zig");
 const metermod = @import("chonchon/meter.zig");
+const compose = @import("chonchon/compose.zig");
+const dirty = @import("chonchon/dirty.zig");
+const gpu = @import("chonchon/gpu.zig");
 
 const PLANE = 0;
 const W: usize = zg.WIDTH; // 320
@@ -64,6 +71,9 @@ pub var clock: clockmod.Clock = undefined;
 /// The YM registers the meters read on the last tick (the harness pins them).
 pub var ym_regs: [14]u8 = [_]u8{0} ** 14;
 pub var meters: [3]u8 = .{ 0, 0, 0 };
+/// The bar heights the last tick drew (its dirty meter groups).
+var meter_h: [3]u8 = .{ 0, 0, 0 };
+var g_gpu: gpu.Chisel = undefined;
 
 var static_pal: [16]u32 = undefined; // the 16 ST words, Color.toRGBA order
 var rast: [28]u32 = undefined; // Raster[(y-144)/2] for lines 144..199
@@ -78,59 +88,17 @@ fn planeHbl(fb: *zg.LogicalFB, zigos: *ZigOS, line: u16, x: u16) void {
     _ = zigos;
     _ = x;
     const y: usize = line;
+    // Only writes that change a register: entries 0..7 never change after
+    // init, 8..15 go back to the static words on line 0, and a raster word
+    // holds for two lines.
     if (y == 0) {
-        var i: usize = 0;
+        var i: usize = 8;
         while (i < 16) : (i += 1) fb.palette[i] = static_pal[i];
     }
-    if (y >= 144 and y < 200) {
+    if (y >= 144 and y < 200 and (y - 144) % 2 == 0) {
         const row = (y - 144) / 2;
         var i: usize = 8;
         while (i < 16) : (i += 1) fb.palette[i] = rast[row];
-    }
-}
-
-// --------------------------------------------------------------------------
-// The index image: the 4-plane decode of clock.screen (the Go's Pixels), and
-// the 63-row chrome logo drawn over it where logo.idx is opaque (the Go's
-// ImageSlots).
-// --------------------------------------------------------------------------
-fn present(fb: *zg.LogicalFB, with_logo: bool) void {
-    const scr = clock.screen[0..];
-    const px = fb.fb[0 .. W * H];
-    var y: usize = 0;
-    while (y < H) : (y += 1) {
-        const sbase = y * 160;
-        const obase = y * W;
-        var x: usize = 0;
-        while (x < W) : (x += 1) {
-            const sb = sbase + (x >> 4) * 8;
-            const bit: u4 = @intCast(15 - (x & 15));
-            const w0 = assets.beWord(scr, sb);
-            const w1 = assets.beWord(scr, sb + 2);
-            const w2 = assets.beWord(scr, sb + 4);
-            const w3 = assets.beWord(scr, sb + 6);
-            const i: u8 = @intCast(((w0 >> bit) & 1) | (((w1 >> bit) & 1) << 1) |
-                (((w2 >> bit) & 1) << 2) | (((w3 >> bit) & 1) << 3));
-            px[obase + x] = i;
-        }
-    }
-    if (with_logo) drawLogo(px);
-}
-
-fn drawLogo(px: []u8) void {
-    var row: usize = 0;
-    while (row < 63) : (row += 1) {
-        const lr = clock.logoRow(row);
-        if (lr.y < 0 or lr.y >= H) continue;
-        const sr = (@as(usize, @intCast(row)) * 17 + lr.phase) * 96;
-        var dx: usize = 0;
-        while (dx < 96) : (dx += 1) {
-            const idx = assets.logo[sr + dx];
-            if (idx == 0) continue;
-            const pxx = lr.x + @as(i32, @intCast(dx));
-            if (pxx < 0 or pxx >= W) continue;
-            px[@as(usize, @intCast(lr.y)) * W + @as(usize, @intCast(pxx))] = idx;
-        }
     }
 }
 
@@ -139,6 +107,8 @@ pub const Demo = struct {
     acc: f32,
     ok: bool,
     drawn: bool, // false only for the Go's empty boot frame
+    /// A tick moved the picture since the last render (render composes then).
+    fresh: bool,
     /// Space/Escape hand the screen back to the menu (the Go terminates on them).
     wants_quit: bool,
 
@@ -146,6 +116,7 @@ pub const Demo = struct {
         self.acc = 0;
         self.ok = false;
         self.drawn = false;
+        self.fresh = false;
         self.wants_quit = false;
 
         for (0..16) |i| static_pal[i] = assets.rgbw(assets.beWord(assets.palette_words, i * 2));
@@ -153,23 +124,29 @@ pub const Demo = struct {
         clock = clockmod.Clock.init();
         ym_regs = [_]u8{0} ** 14;
         meters = .{ 0, 0, 0 };
+        meter_h = .{ 0, 0, 0 };
 
         const fb = &zigos.lfbs[PLANE];
+        zigos.lfbs[gpu.BG].is_enabled = false; // surfaces: drawn, never composited
+        zigos.lfbs[gpu.WORK].is_enabled = false;
+        g_gpu.init(.{ fb, &zigos.lfbs[gpu.BG], &zigos.lfbs[gpu.WORK] });
+        compose.initBackground(gpu.Chisel, &g_gpu);
         fb.is_enabled = true;
         for (0..16) |i| fb.palette[i] = static_pal[i];
         for (16..256) |i| fb.palette[i] = 0; // unused: transparent, never shown
         zigos.setBackgroundColor(Color.fromRGBA(static_pal[0]));
         fb.setFrameBufferHBLHandler(0, planeHbl);
 
-        @memset(fb.fb[0 .. W * H], 0); // the Go's boot frame: the index image is empty
+        g_gpu.fill(gpu.SHOWN, 0, 0, W, H, 0); // the Go's boot frame: the index image is empty
         zg.requestSongTune(MUSIC, MUSIC_TUNE);
         self.ok = true;
     }
 
     fn tick50(self: *Demo, zigos: *const ZigOS) void {
-        clock.step();
         ym_regs = zigos.ym_regs[0..14].*;
-        metermod.apply(clock.screen[0..], ym_regs);
+        compose.tick(&clock, meter_h, ym_regs, metermod.apply);
+        meter_h = dirty.meterHeights(ym_regs);
+        self.fresh = true;
         meters = .{ ym_regs[8] & 15, ym_regs[9] & 15, ym_regs[10] & 15 };
         self.drawn = true;
     }
@@ -189,12 +166,12 @@ pub const Demo = struct {
 
     pub fn render(self: *Demo, zigos: *ZigOS, _: f32) void {
         if (!self.ok) return;
-        const fb = &zigos.lfbs[PLANE];
-        if (!self.drawn) {
-            @memset(fb.fb[0 .. W * H], 0); // Go frame 0: empty index image
-            return;
-        }
-        present(fb, true);
+        _ = zigos;
+        // Before the first tick SHOWN keeps init's empty index image (Go frame
+        // 0); after it, only a tick changes the picture.
+        if (!self.drawn or !self.fresh) return;
+        compose.render(gpu.Chisel, &g_gpu, &clock, meter_h);
+        self.fresh = false;
     }
 
     pub fn key(self: *Demo, cp: u32) void {

@@ -21,6 +21,8 @@ test {
     _ = @import("scenes/rno_natrium/verify_test.zig");
     _ = @import("scenes/lockbuster2/engine_test.zig");
     _ = @import("scenes/lockbuster2/chunky_test.zig");
+    _ = @import("scenes/chonchon/chunky_test.zig");
+    _ = @import("scenes/chonchon2/chunky_test.zig");
     _ = @import("scenes/swedish_newyear/sync_test.zig");
     _ = @import("scenes/swedish_newyear/tcb1_test.zig");
     _ = @import("scenes/swedish_newyear/tcb2_test.zig");

@@ -8,7 +8,7 @@
 // --------------------------------------------------------------------------
 const assets = @import("assets.zig");
 
-const RING_LEN: usize = 3432;
+const RING_LEN = 3432;
 
 pub const Clock = struct {
     tick: u32 = 0,
@@ -21,7 +21,7 @@ pub const Clock = struct {
     ring: [2][RING_LEN]u8 = undefined,
     write: [2]i32 = .{ 2808, 2808 },
     read: [2]i32 = .{ 0, 0 },
-    screen: [32000]u8 = undefined,
+    screen: [32000]u8 align(4) = undefined,
     star_base: [100]i32 = undefined,
     star_cursor: [100]i32 = undefined,
 
@@ -51,9 +51,16 @@ pub const Clock = struct {
         return .{ .x = @as(i32, offset / 8) * 16, .phase = phase, .y = self.logo_y + @as(i32, @intCast(row)) };
     }
 
+    /// The Go's Step: the background, then everything that moves over it.
     pub fn step(self: *Clock) void {
-        self.tick +%= 1;
         @memcpy(&self.screen, assets.background);
+        self.advance();
+    }
+
+    /// Step without the background copy: the live cart restores only the
+    /// groups the last tick wrote (chonchon/dirty.zig) and then calls this.
+    pub fn advance(self: *Clock) void {
+        self.tick +%= 1;
         self.logo_phase += 12;
         if (assets.sWord(assets.logo_path, @intCast(self.logo_phase + 63 * 6)) < 0)
             self.logo_phase = 0;
@@ -77,11 +84,10 @@ pub const Clock = struct {
             const off: i32 = assets.beWord(assets.star_paths, @intCast(p));
             if (off + 4 <= @as(i32, @intCast(self.screen.len))) {
                 const uo: usize = @intCast(off);
-                const v = assets.beLong(&self.screen, uo) | assets.beLong(assets.star_paths, @intCast(p + 2));
-                self.screen[uo] = @truncate(v >> 24);
-                self.screen[uo + 1] = @truncate(v >> 16);
-                self.screen[uo + 2] = @truncate(v >> 8);
-                self.screen[uo + 3] = @truncate(v);
+                // The Go's big-endian long OR, a byte at a time: `off` is odd
+                // or 2 mod 4 for most stars, where a u32 load would trap.
+                const src: usize = @intCast(p + 2);
+                for (0..4) |k| self.screen[uo + k] |= assets.star_paths[src + k];
             }
         }
 
@@ -134,17 +140,11 @@ pub const Clock = struct {
             assets.sWord(assets.scroll_y, @intCast(self.scroll_phase * 2)) < 0)
             self.scroll_phase = 0;
         self.read[bank] = @mod(self.read[bank] + 156, RING_LEN);
-        const nwave: usize = assets.scroll_y.len / 2;
         var col: usize = 0;
         while (col < 18) : (col += 1) {
-            var p: usize = @intCast(self.scroll_phase + @as(i32, @intCast(col)) * 2);
-            var tries: u8 = 0;
-            while ((p >= nwave or assets.sWord(assets.scroll_y, p * 2) < 0) and tries < 8) : (tries += 1) p = 0;
-            var p2: usize = p + 1;
-            tries = 0;
-            while ((p2 >= nwave or assets.sWord(assets.scroll_y, p2 * 2) < 0) and tries < 8) : (tries += 1) p2 = 0;
-            const y1: i32 = @divTrunc(@as(i32, assets.beWord(assets.scroll_y, p * 2)), 160);
-            const y2: i32 = @divTrunc(@as(i32, assets.beWord(assets.scroll_y, p2 * 2)), 160);
+            const ys = self.columnYs(col);
+            const y1 = ys[0];
+            const y2 = ys[1];
             var row: usize = 0;
             while (row < 26) : (row += 1) {
                 const r: usize = @intCast(@mod(self.read[bank] + @as(i32, @intCast(col)) * 156 + @as(i32, @intCast(row)) * 6, RING_LEN));
@@ -159,5 +159,26 @@ pub const Clock = struct {
                 }
             }
         }
+    }
+
+    /// The two wave rows (hi bytes, lo bytes) scroller column `col` lands on.
+    pub fn columnYs(self: *const Clock, col: usize) [2]i32 {
+        const nwave: usize = assets.scroll_y.len / 2;
+        var p: usize = @intCast(self.scroll_phase + @as(i32, @intCast(col)) * 2);
+        var tries: u8 = 0;
+        while ((p >= nwave or assets.sWord(assets.scroll_y, p * 2) < 0) and tries < 8) : (tries += 1) p = 0;
+        var p2: usize = p + 1;
+        tries = 0;
+        while ((p2 >= nwave or assets.sWord(assets.scroll_y, p2 * 2) < 0) and tries < 8) : (tries += 1) p2 = 0;
+        const y1: i32 = @divTrunc(@as(i32, assets.beWord(assets.scroll_y, p * 2)), 160);
+        const y2: i32 = @divTrunc(@as(i32, assets.beWord(assets.scroll_y, p2 * 2)), 160);
+        return .{ y1, y2 };
+    }
+
+    /// Where star `i`'s last long went (its path entry after the step), or
+    /// null when the step wrote nothing for it.
+    pub fn starOffset(self: *const Clock, i: usize) ?usize {
+        const off: usize = assets.beWord(assets.star_paths, @intCast(self.star_base[i] + self.star_cursor[i]));
+        return if (off + 4 <= self.screen.len) off else null;
     }
 };

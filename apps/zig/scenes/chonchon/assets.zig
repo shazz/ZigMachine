@@ -24,19 +24,31 @@ const zg = @import("zigos");
 
 const DIR = "../../assets/screens/chonchon/";
 
-pub const background = @embedFile(DIR ++ "background.bin");
-pub const font = @embedFile(DIR ++ "font-source.bin");
-pub const logo_path = @embedFile(DIR ++ "logo-path.bin");
-pub const logo_y = @embedFile(DIR ++ "logo-y.bin");
-pub const scroll_y = @embedFile(DIR ++ "scroll-y.bin");
-pub const message = @embedFile(DIR ++ "message.bin");
-pub const star_paths = @embedFile(DIR ++ "star-paths.bin");
-pub const star_index = @embedFile(DIR ++ "star-index.bin");
-pub const palette_words = @embedFile(DIR ++ "palette.bin");
-pub const raster_words = @embedFile(DIR ++ "raster.bin");
-pub const volume_curve = @embedFile(DIR ++ "volume-curve.bin");
-pub const meter_raw = @embedFile(DIR ++ "meter-raw.bin");
-pub const logo = @embedFile(DIR ++ "logo.idx");
+
+/// An asset 4-byte aligned in the data segment. The big-endian word reads
+/// below compile to wide loads, and a wide load off an odd/2-mod-4 address
+/// TRAPS on the board (~700 cycles each); aligned, the ones at aligned
+/// offsets are plain loads.
+fn embed4(comptime name: []const u8) *const [@embedFile(DIR ++ name).len]u8 {
+    const S = struct {
+        const data: [@embedFile(DIR ++ name).len]u8 align(4) = @embedFile(DIR ++ name).*;
+    };
+    return &S.data;
+}
+
+pub const background = embed4("background.bin");
+pub const font = embed4("font-source.bin");
+pub const logo_path = embed4("logo-path.bin");
+pub const logo_y = embed4("logo-y.bin");
+pub const scroll_y = embed4("scroll-y.bin");
+pub const message = embed4("message.bin");
+pub const star_paths = embed4("star-paths.bin");
+pub const star_index = embed4("star-index.bin");
+pub const palette_words = embed4("palette.bin");
+pub const raster_words = embed4("raster.bin");
+pub const volume_curve = embed4("volume-curve.bin");
+pub const meter_raw = embed4("meter-raw.bin");
+pub const logo = embed4("logo.idx");
 
 /// An ST colour word exactly as the Go's rgb() renders it: 3 bits a channel,
 /// each *34. Packed in Color.toRGBA's order (a<<24 | b<<16 | g<<8 | r).

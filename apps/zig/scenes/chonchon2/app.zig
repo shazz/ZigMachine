@@ -14,7 +14,10 @@
 //
 // This cart runs that on the ST's own hardware:
 //   * clock.zig is the production's authored motion, statement for statement;
-//   * meter.zig ORs planes 2/3 into the screen exactly where the Go does;
+//   * meter.zig sets the meter cells' plane-0/1 words exactly where the Go does;
+//   * compose.zig draws all of it in the chunky domain with CHISEL (BG and WORK
+//     planes, one copy to the shown plane a tick); the planar screen lives on
+//     only as the reference (reference.zig, the harness's screen exports);
 //   * raster.zig rebuilds the two 200-word tables each tick, and the plane HBL
 //     rewrites palette entries 0 and 2 on every one of the 200 visible lines --
 //     a REAL raster, not a static palette;
@@ -46,7 +49,8 @@ const Color = zg.Color;
 
 const assets = @import("assets.zig");
 const clockmod = @import("clock.zig");
-const metermod = @import("meter.zig");
+const compose = @import("compose.zig");
+const gpu = @import("../chonchon/gpu.zig");
 const rastermod = @import("raster.zig");
 const ymod = @import("ym.zig");
 
@@ -76,7 +80,8 @@ const TRACKS = [7]Track{
 };
 
 // --- module-scope state (the harness's window into the very words drawn) ----
-pub var clock: clockmod.Clock = undefined;
+pub var clock: clockmod.Live = undefined;
+var g_gpu: gpu.Chisel = undefined;
 pub var ym: ymod.Stream = undefined;
 pub var meters: [3]u8 = .{ 0, 0, 0 };
 pub var static_pal: [16]u32 = undefined; // the 16 ST words, Color.toRGBA order
@@ -101,58 +106,12 @@ fn planeHbl(fb: *zg.LogicalFB, zigos: *ZigOS, line: u16, x: u16) void {
 }
 
 // --------------------------------------------------------------------------
-// The 4-plane decode of clock.screen (the Go's Pixels), then the two opaque
-// 80-wide sprite rectangles (the Go's ImageSlots).
-// --------------------------------------------------------------------------
-fn present(fb: *zg.LogicalFB, live: bool) void {
-    if (live) metermod.apply(clock.screen[0..], ym.regs);
-    const px = fb.fb[0 .. W * H];
-    const scr = clock.screen[0..];
-    var group: usize = 0;
-    while (group < 4000) : (group += 1) {
-        const at = group * 8;
-        const p0 = assets.beWord(scr, at);
-        const p1 = assets.beWord(scr, at + 2);
-        const p2 = assets.beWord(scr, at + 4);
-        const p3 = assets.beWord(scr, at + 6);
-        var x: usize = 0;
-        while (x < 16) : (x += 1) {
-            const shift: u4 = @intCast(15 - x);
-            const v: u8 = @intCast(((p0 >> shift) & 1) |
-                (((p1 >> shift) & 1) << 1) |
-                (((p2 >> shift) & 1) << 2) |
-                (((p3 >> shift) & 1) << 3));
-            px[group * 16 + x] = v;
-        }
-    }
-    if (!live) return;
-    drawSprite(px, assets.sprite_a, assets.sprite_a_w, assets.sprite_a_h, clock.poses[0], clock.tick, false);
-    drawSprite(px, assets.sprite_b, assets.sprite_b_w, assets.sprite_b_h, clock.poses[1], clock.tick, true);
-}
-
-fn drawSprite(px: []u8, image: []const u8, w: usize, h: usize, pose: clockmod.Pose, tick: u32, wrap: bool) void {
-    var row: usize = 0;
-    while (row < h) : (row += 1) {
-        const source_y = if (wrap and row >= 2 and row < 32)
-            2 + (tick + @as(u32, @intCast(row)) - 2) % 192
-        else
-            row;
-        const y = pose.y + @as(i32, @intCast(row));
-        if (y < 0 or y >= H) continue;
-        var dx: usize = 0;
-        while (dx < w) : (dx += 1) {
-            const x = pose.x + @as(i32, @intCast(dx));
-            if (x < 0 or x >= W) continue;
-            px[@as(usize, @intCast(y)) * W + @as(usize, @intCast(x))] = image[source_y * w + dx];
-        }
-    }
-}
-
-// --------------------------------------------------------------------------
 pub const Demo = struct {
     acc: f32,
     ok: bool,
     drawn: bool, // false only for the Go's never-drawn pre-first-Update state
+    /// A tick moved the picture since the last render (render composes then).
+    fresh: bool,
     /// Space/Escape hand the screen back to the menu (the Go terminates on them).
     wants_quit: bool,
 
@@ -160,22 +119,27 @@ pub const Demo = struct {
         self.acc = 0;
         self.ok = false;
         self.drawn = false;
+        self.fresh = false;
         self.wants_quit = false;
 
         for (0..16) |i| static_pal[i] = assets.rgbw(assets.beWord(assets.palette_words, i * 2));
-        clock = clockmod.Clock.init();
+        clock = clockmod.Live.init();
         ym.init();
         track = 0;
         meters = .{ 0, 0, 0 };
         rastermod.update(clock.tick, clock.old_y);
 
         const fb = &zigos.lfbs[PLANE];
+        zigos.lfbs[gpu.BG].is_enabled = false; // surfaces: drawn, never composited
+        zigos.lfbs[gpu.WORK].is_enabled = false;
+        g_gpu.init(.{ fb, &zigos.lfbs[gpu.BG], &zigos.lfbs[gpu.WORK] });
+        compose.initSurfaces(gpu.Chisel, &g_gpu);
         fb.is_enabled = true;
         for (0..16) |i| fb.palette[i] = static_pal[i];
         for (16..256) |i| fb.palette[i] = 0; // unused: transparent, never shown
         zigos.setBackgroundColor(Color.fromRGBA(static_pal[0]));
         fb.setFrameBufferHBLHandler(0, planeHbl);
-        @memset(fb.fb[0 .. W * H], 0); // nothing shown before the first Update
+        g_gpu.fill(gpu.SHOWN, 0, 0, W, H, 0); // nothing shown before the first Update
 
         zg.requestSongTune(TRACKS[0].file, TRACKS[0].tune);
         self.ok = true;
@@ -185,9 +149,9 @@ pub const Demo = struct {
         clock.step();
         rastermod.update(clock.tick, clock.old_y);
         ym.step();
-        metermod.apply(clock.screen[0..], ym.regs);
         meters = .{ ym.regs[8] & 15, ym.regs[9] & 15, ym.regs[10] & 15 };
         self.drawn = true;
+        self.fresh = true;
     }
 
     pub fn selectTrack(self: *Demo, i: usize) void {
@@ -214,12 +178,13 @@ pub const Demo = struct {
 
     pub fn render(self: *Demo, zigos: *ZigOS, _: f32) void {
         if (!self.ok) return;
-        const fb = &zigos.lfbs[PLANE];
-        if (!self.drawn) {
-            @memset(fb.fb[0 .. W * H], 0);
-            return;
-        }
-        present(fb, true);
+        _ = zigos;
+        // Before the first tick SHOWN keeps init's empty plane; after it, only
+        // a tick changes the picture (a track switch zeroes the YM mirror, and
+        // volume 0 is meter cell 0, which every frame already shows).
+        if (!self.drawn or !self.fresh) return;
+        compose.render(gpu.Chisel, &g_gpu, &clock, ym.regs);
+        self.fresh = false;
     }
 
     pub fn key(self: *Demo, cp: u32) void {

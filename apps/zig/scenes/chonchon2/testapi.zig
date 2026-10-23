@@ -4,11 +4,19 @@
 // cart.Cart), so the exports never leak into another cart's build.
 //
 // The harness compares these live words against an independent JS model every
-// frame: the clock counters, both poses, the entire 32000-byte screen, the
-// glyph and ribbon, the two 200-line rasters, and the cart's own YM mirror.
+// frame: the clock counters, both poses, the entire 32000-byte screen (of
+// the planar reference Clock stepped to the live tick: reference.shadowScreen), the
+// glyph and ribbon (read through the live ring), the two 200-line rasters, and the cart's own YM mirror.
 // --------------------------------------------------------------------------
 const app = @import("app.zig");
 const rastermod = @import("raster.zig");
+const reference = @import("reference.zig");
+
+/// The Go's planar screen, from a planar Clock kept at the live tick (the
+/// live cart composes in the chunky domain and keeps no planar screen).
+fn screen() *const [32000]u8 {
+    return reference.shadowScreen(app.clock.tick, app.ym.regs);
+}
 
 fn fnv(bytes: []const u8) u32 {
     var h: u32 = 0x811c9dc5;
@@ -53,11 +61,11 @@ export fn c2Pose(i: u32, field: u32) i32 {
 }
 
 export fn c2ScreenByte(i: u32) u32 {
-    return app.clock.screen[i % app.clock.screen.len];
+    return screen()[i % 32000];
 }
 
 export fn c2ScreenHash() u32 {
-    return fnv(app.clock.screen[0..]);
+    return fnv(screen()[0..]);
 }
 
 export fn c2GlyphByte(i: u32) u32 {
@@ -69,13 +77,13 @@ export fn c2GlyphHash() u32 {
 }
 
 export fn c2RibbonByte(row: u32, col: u32) u32 {
-    return app.clock.ribbon[row % 23][col % 320];
+    return app.clock.ribbonByte(row % 23, col % 320);
 }
 
 export fn c2RibbonHash() u32 {
     var h: u32 = 0x811c9dc5;
-    for (app.clock.ribbon) |line| {
-        for (line) |b| h = (h ^ b) *% 0x01000193;
+    for (0..23) |row| {
+        for (0..320) |col| h = (h ^ app.clock.ribbonByte(row, col)) *% 0x01000193;
     }
     return h;
 }
