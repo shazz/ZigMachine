@@ -11,7 +11,7 @@
    "name": "big_font",
    "from": 600,
    "to": 779,
-   "sha": "a98e8a9f4e85d3a9d8ecfa5296876d07bd2d36b0cd899b07f1c82729d01c8aac"
+   "sha": "787afc2a33e567d79b617ecd5a7d6f19ce31834b40426ba80a6fe436764973eb"
   },
   {
    "name": "threelines",
@@ -23,7 +23,7 @@
    "name": "big_font",
    "from": 1800,
    "to": 2999,
-   "sha": "149837f6fe6cb87ed4e84417a9dcdfc31e7126c0d0602117c814e7cc5eede7b2"
+   "sha": "9edd595fd1ddd993c42e856b4bbd7ff0b4db414b6d4ef20dc556bdd3c356c013"
   },
   {
    "name": "interlaced_mirror",
@@ -35,7 +35,7 @@
    "name": "interlaced_big_font",
    "from": 4800,
    "to": 6359,
-   "sha": "3938d87747d591582f867cb92f1e52a80f780dae57f0cdb549f14f2c2e50a662"
+   "sha": "34aa65df1abb4a254a161e8c0094b38b1c1f35ba5511d2aee6280e7d82c017d1"
   },
   {
    "name": "inverted",

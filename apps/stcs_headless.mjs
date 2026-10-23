@@ -14,6 +14,10 @@
 // CHISEL path and the merged plane are proven to draw the same frames. (The
 // per-plane reference it replaces was taken from that same cart; the CHISEL cart
 // of bfc3a61f..cecc6dd0 passed both.)
+// Except the big-font periods (big_font x2, interlaced_big_font): since the
+// letter-distortion wave (stcs_wave.zig, CONFO.S sinus1/sinus2) their digests
+// come from the CHISEL cart, and the CPU strip of b920acf0 (the wave's first
+// port, never merged) draws the same composite in all ten periods.
 //
 //   node apps/stcs_headless.mjs [--break skip] [--cart X.wasm --disk X.zmd] [--write]
 //     --break skip   one extra VBL at frame 4000: the later periods must fail

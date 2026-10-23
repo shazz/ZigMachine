@@ -6,7 +6,9 @@
 // DDR write on the board); CHISEL now copies each (write, column group) as ONE
 // rectangle from a source strip in a disabled plane (stcs_scratch.zig): straight
 // (N), upside down (F), or one line in two (G, FG: keyed, the KEY rows between
-// skipped). A shape whose lines do not depend on the group is one full-width blit.
+// skipped). A shape whose lines do not depend on the group is one full-width blit;
+// the big fonts' second wave (stcs_wave.zig) makes theirs one blit per run of
+// groups at the same offset (18 runs: 36 blits in big_font, 18 interlaced).
 //
 // Byte-identical to the row loops: a plane address is one (line, x) pair, so
 // only writes of the same column group meet, and where two writes of a group
@@ -15,12 +17,13 @@
 // 19, line 138: a tie, k = 1 wins), `interlaced_steam` (k = 1 always later) and
 // `inverted_mirror` overlap; the last one changes winner at line 117/118, so the
 // rows of write 0 below line 118 are copied again after write 1. Lines past
-// 199 (the big font's lowest) are clipped by CHISEL: the CPU wrote them into the
+// 199 (the big font's lowest, wave included) are clipped by CHISEL: the CPU wrote them into the
 // next plane's memory, which nothing shows.
 // --------------------------------------------------------------------------
 const zg = @import("zigos");
 const sc = @import("stcs_scratch.zig");
 const logo = @import("stcs_logo.zig");
+const wave = @import("stcs_wave.zig");
 
 const LogicalFB = zg.LogicalFB;
 const Blitter = zg.Blitter;
@@ -47,9 +50,13 @@ const Copy = struct {
 
     /// Strip `k` rows y0..y0+h of group g (or all groups: g = null) onto line `line` + y0.
     fn rows(self: Copy, k: sc.Kind, g: ?i16, line: i16, y0: i16, h: i16) void {
+        self.span(k, g orelse 0, if (g != null) 1 else GROUPS, line, y0, h);
+    }
+    /// The same for groups g .. g + n - 1 at once.
+    fn span(self: Copy, k: sc.Kind, g: i16, n: i16, line: i16, y0: i16, h: i16) void {
         if (h <= 0) return;
-        const x: i16 = if (g) |gg| gg * 16 else 0;
-        const w: u16 = if (g != null) 16 else sc.W;
+        const x: i16 = g * 16;
+        const w: u16 = @intCast(n * 16);
         const src = &self.s.src[@intFromEnum(k)];
         if (k == .g or k == .fg) {
             self.c.bob(self.dst, x, line + y0, src, x, y0, w, @intCast(h), sc.KEY);
@@ -76,12 +83,15 @@ pub fn draw(c: *Blitter, dst: *LogicalFB, s: *sc.Scratch, period: Period, yp: i1
     switch (period) {
         // lines 84 + y, + 78, + 39
         .threelines => for ([_]i16{ 84, 84 + 2 * H + 10, 84 + H + 5 }) |l| cp.all(.n, null, l),
-        // 78 + yp + 2y + k: G at 2y, k = 0 and 1
-        .big_font => {
-            cp.all(.g, null, 78 + yp);
-            cp.all(.g, null, 79 + yp);
+        // 78 + yp + wave[g] + 2y + k: G at 2y, k = 0 and 1; one blit per run of
+        // groups with the same wave offset (stcs_wave.zig). k0 and k1 fill
+        // opposite lines of a group and groups never meet: order cannot matter.
+        .big_font => for (wave.runs) |r| {
+            cp.span(.g, r.g, r.n, 78 + yp + r.off, 0, 2 * H - 1);
+            cp.span(.g, r.g, r.n, 79 + yp + r.off, 0, 2 * H - 1);
         },
-        .interlaced_big_font => cp.all(.g, null, 78 + yp),
+        // the interlaced font steps two lines per wave step (CONFO.S `160*2`)
+        .interlaced_big_font => for (wave.runs) |r| cp.span(.g, r.g, r.n, 78 + yp + 2 * r.off, 0, 2 * H - 1),
         // k0: 88 + y - g; k1: 88 + 39 + 2H - 2y - g = (129 - g) + 2(33 - y): FG
         .interlaced_mirror => while (g < GROUPS) : (g += 1) {
             cp.all(.n, g, 88 - g);
