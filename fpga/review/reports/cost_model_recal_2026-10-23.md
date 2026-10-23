@@ -231,3 +231,34 @@ Error = predicted / board frame time (x1.00 = exact).
 | xm_test | 16.5 | 0.00 | 0.00 | 0.00 | 0.37 | 280 |  |
 | fullscreen | 16.5 | 0.00 | 0.03 | 0.01 | 0.55 | 280 |  |
 | mandelbrot | 22.9 | 0.00 | 0.03 | 0.01 | 0.55 | 280 |  |
+
+## VBL overrun against the estimate (2026-10-23, feat/cost-model-vbl)
+
+The board shows a frame for whole VBLs; `missed` / (frames + missed) is the share of VBLs that
+held a late frame. Fitted carts estimated >= 1.4 Mc:
+
+| est Mc | overrun | board ms | cart |
+|---|---|---|---|
+| 1.4 | 0 % | 16.5 | skystrike |
+| 1.42 | 0 % | 16.5 | rick_dangerous |
+| 1.46 | 0 % | 16.5 | deltaforce |
+| 1.5 | 0 % | 16.5 | ulm_spoon_distorter |
+| 1.56 | 0 % | 16.5 | rno_natrium |
+| 1.62 | 0 % | 16.5 | noextra |
+| 1.67 | 0 % | 16.5 | naos_nitrowave |
+| 1.75 | 0 % | 16.6 | bubblebobble |
+| 1.8 | 8 % | 18.1 | big_demo |
+| 1.93 | 0 % | 16.6 | deltaforce2 |
+| 1.94 | 11 % | 18.6 | polkadots |
+| 1.94 | 25 % | 22.2 | swedish_newyear |
+| 2.09 | 50 % | 33.1 | tcb_colorshock |
+| 2.16 | 50 % | 33.1 | replicants |
+| 2.32 | 0 % | 16.5 | rno_sodium |
+| 2.36 | 29 % | 23.3 | cuddly_starwars |
+| 2.49 | 50 % | 33.2 | supplex_fs2 |
+| 2.55 | 46 % | 30.7 | polkadots_f32 |
+| 2.57 | 0 % | 16.5 | mpp_truecolor |
+| 2.6 | 1 % | 16.8 | leonard |
+| 2.62 | 34 % | 25.0 | ancool |
+| 2.86 | 35 % | 25.4 | music |
+| 2.99 | 14 % | 19.2 | fallen_angels |

@@ -128,8 +128,19 @@ error (p90 108 %) to 20 % (p90 53 %); the cart side against `cart_c`, 56 carts, 
 2.16), against ~2.8 Mc under the old model (the "~3.6 Mc" folklore). Per-cart table:
 fpga/review/reports/cost_model_recal_2026-10-23.md.
 
-Known misses: the frame time quantizes to whole VBLs (a cart at 1.8-2.5 Mc runs 30 fps, the
-estimate says ~40); polkadots_f32 still estimates 28 % low (music, also f32-heavy, 6 % high, so
+**The knee is a band, not a line: 1.75-2.1 Mc estimated.** The board shows each frame for whole
+VBLs (its probe proves it: frame_ms = 16.6 x (frames + missed) / frames on every cart, within
+0.6 %), and in this table no cart missed more than every other VBL (overrun <= 50 %). Under
+~1.75 Mc no fitted cart overruns; from ~2.1 Mc most run near 30 fps; between, the probe's `missed`
+column decides. Modelling the ceil itself was tried (feat/cost-model-vbl, 2026-10-23) and made
+the estimate WORSE: a hard ceil took the sub-60 median error from 20 % to 33 % (misclassified
+60/not-60: 7 -> 11), a ceil under a fitted lognormal jitter (sigma 0.21) to 24 % (9), and the
+refit's FRESCO_PLANE moved 0.59 -> 0.035 / 0.16 Mc with it: unidentified. A per-frame estimate
+good to 20-30 % cannot place a frame on the right side of a cliff; the mean-only model's FRESCO
+term absorbs the average overrun instead. Carts the model over-prices near the knee (rno_sodium
+2.32, mpp_truecolor 2.57, leonard 2.60 Mc, all 60 fps) are the ones to study next.
+
+Known misses: polkadots_f32 still estimates 28 % low (music, also f32-heavy, 6 % high, so
 f32 latency is not refitted on it); mandelbrot/raytrace finish their picture in the node window
 but not on the board at 12 s; stniccc streams its disk (DISK_BLOCK is 0).
 
