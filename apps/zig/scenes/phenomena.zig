@@ -1,13 +1,10 @@
 // --------------------------------------------------------------------------
-// PHENOMENA — "ENIGMA" (1991) intro.
+// PHENOMENA intro (Amiga): "THIS IS IMPOSSIBLE!" -- code Photon, rasta music
+// Firefox, graphics Terminator. Ported from the CODEF remake at
+// wab.com/?screen=560 (prototypes/codef/560/screen.js); phenomena/app.zig
+// carries the port notes, geom.zig the 640x480 -> 640x240 mapping.
 //
-// Ported from the Go/Ebitengine remake github.com/olivierh59500/phenomena-dna-scroll-intro
-// (vendored at prototypes/go-phenomena/).  phenomena/app.zig carries the port
-// notes, the 640x480 -> 320x240 halving and the music evidence; dna.zig has the
-// filmstrip maths; rasters.zig has the two real per-scanline registers.
-//
-// One 400x280 overscan plane, sixteen colours, twelve states. Space/Enter
-// starts the outro, Escape/Back leaves.
+// One 800x280 medium overscan plane. Escape/Back leaves.
 // --------------------------------------------------------------------------
 const app = @import("phenomena/app.zig");
 

@@ -115,7 +115,7 @@ pub const ENTRIES = [_]Entry{
     .{ .name = "REPLICANTS IK+", .tag = "ikplus" }, // atari st — The Replicants' "International Karate Plus" cracktro
     .{ .name = "CHONCHON 2", .tag = "chonchon2" }, // atari st
     .{ .name = "LOCKBUSTER 3", .tag = "lockbuster3" }, // atari st
-    .{ .name = "PHENOMENA ENIGMA", .tag = "phenomena" }, // atari st — Phenomena's "Enigma" DNA-scroll intro, 1991
+    .{ .name = "PHENOMENA INTRO", .tag = "phenomena" }, // amiga — Photon's "THIS IS IMPOSSIBLE!" rotating scroller intro (CODEF 560)
     .{ .name = "MENTAL HANGOVER", .tag = "mentalhangover" }, // amiga — Scoopex's circular outline greeting
     .{ .name = "TGG BUXTON BYTES 25", .tag = "gnomes" }, // atari st — The Gnomes Group's "BB25" Buxton Bytes 2025 cracktro intro
     .{ .name = "HMD FAC", .tag = "hmdfac" }, // atari falcon — HMD's "HMDFAC" Team Factory tribute intro

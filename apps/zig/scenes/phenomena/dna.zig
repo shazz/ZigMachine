@@ -1,265 +1,158 @@
 // --------------------------------------------------------------------------
-// The DNA scrolltext: 240 two-pixel slices, each a 2x33 strip of one glyph
-// frame from the remake's 30-frame filmstrip, drawn along a sine.
+// The scroller's state, screen.js's chr/frm/slc arrays and scrollMessage /
+// renderNextFrames, transcribed. Each array element is one 2-pixel slice of a
+// glyph: chr = glyph, frm = which of the 30 rotation frames, slc = which slice.
 //
-// The remake builds a 480 x 45*33 image at startup (main.go
-// initCharacterFrames), then draws 240 textured quads of 2 source pixels by
-// 33 source rows, scaled 2x horizontally and 1.5x vertically.  At our 1x that
-// is a 2-pixel-wide, 24.75-row strip: exactly one source column pair and 33
-// source rows sampled to 25 destination rows.  So instead of ripping 10,800
-// little strips, we keep the 45 glyph bitmaps and compose each destination
-// pixel from the same three layers the filmstrip baked in:
+// The arrays are a QUEUE, not a fixed 240: shiftLeft drops the head, and a new
+// character pushes all 8 of its slices at once, so the queue runs 240..247
+// long. renderNextFrames only turns the first 240, so a fresh character's
+// hidden slices wait unturned. That is kept: it is what the remake does.
 //
-//   back  : the glyph rotated 180 degrees, purple   (PURPLE[frame row])
-//   core  : the red bar, frame rows 12..20           (RED[frame row-12])
-//   front : the glyph, 7 rows down in the 33-row cell, silver (SILVER[row])
-//
-// in that z-order: purple, red over it, silver over both (main.go's Draw calls
-// on cnvFrames).  The gradients are indexed by the SOURCE row, exactly as the
-// remake paints them before scaling; the vertical 33 -> 25 sample and the
-// per-cell posY are the two roundings the Go leaves to Ebitengine's nearest
-// filter, reproduced here in integers:
-//
-//   frame row f  = (4d + 2) / 3                    (25 dest rows)
-//   front cell   = floor(f + 0.5 - (33 - 2.25k))   (posY in quarter pixels)
-//   back cell    = floor(f + 0.5 - posYback(k))
-//
-// The sine: ypos = 80*cos(52.5 + t/6 + i/36) once t passes 250 - 0.0033i,
-// else 80 (main.go drawScroller).  t is Q16.16 frames*0.3, the phase step is
-// exactly 1/36 rad, and both the cart and the harness read the same 4096-entry
-// Q16 sin/cos table (assets/screens/phenomena/wave.dat).
+// frm is in twentieths (0.35 = 7, 1 = 20), exact where the remake's doubles
+// drift: `> 29` resets to 0, `< 0` adds 30.
 // --------------------------------------------------------------------------
-const std = @import("std");
-const zg = @import("zigos");
 const A = @import("assets.zig");
-const P = @import("palette.zig");
-const text = @import("text.zig");
 
-pub const CELLS: usize = 240;
-pub const VISIBLE: usize = 160; // 320 px / 2
-pub const FRAMES: usize = 30;
-pub const STRIP_H: usize = 25; // 33 * 1.5 / 2, rounded up
-pub const ONE: i32 = 1 << 16;
-pub const TAU_Q16: i64 = 411775; // 2*pi * 65536
+pub const VISIBLE: usize = 240;
+pub const ONE: i16 = 20; // frm units per frame
+pub const RUN_SPEED: i16 = 7; // rotSpeed 0.35
+const WRAP: i16 = 30 * ONE;
+const TOP: i16 = 29 * ONE; // frm > 29 resets to 0
 
-pub const Cell = struct { glyph: u8 = 0, frame: u8 = 0, slice: u8 = 0 };
+// Control characters (screen.js ctrlchars): a pause, with the rotation it sets.
+const CTRL_UP: u8 = 0xF0; // '^' 275 frames, rotSpeed -1
+const CTRL_DOWN: u8 = 0xF1; // '&' 275 frames, rotSpeed +1
+const CTRL_HASH: u8 = 0xF2; // '#' 250 frames, rotSpeed -1
+const CTRL_PCT: u8 = 0xF3; // '%' 225 frames, rotSpeed unchanged
 
-pub var cells: [CELLS]Cell = [_]Cell{.{}} ** CELLS;
-pub var head: usize = 0;
-pub var rotation: i32 = 0; // Q16.16, 0..30
+/// The message as glyph numbers, control characters as CTRL_*.
+const CODES: [A.MESSAGE.len]u8 = blk: {
+    @setEvalBranchQuota(200_000);
+    var t: [A.MESSAGE.len]u8 = undefined;
+    for (A.MESSAGE, 0..) |ch, i| t[i] = switch (ch) {
+        '^' => CTRL_UP,
+        '&' => CTRL_DOWN,
+        '#' => CTRL_HASH,
+        '%' => CTRL_PCT,
+        else => A.glyphOf(ch),
+    };
+    break :blk t;
+};
+const RESTART: u16 = 90; // msgIndex past the end -> 90
 
-pub var msg_index: usize = 0;
-pub var slice_count: usize = 0;
-pub var pause: bool = false;
-pub var pause_time: i32 = 250;
-pub var rot_speed: i32 = 22938; // 0.35 * 65536
-pub var scroll_speed: usize = 1;
+pub var chr: [256]u8 = undefined;
+pub var frm: [256]i16 = undefined;
+pub var slc: [256]u8 = undefined;
+pub var head: u8 = 0; // queue element 0 is [head]
+pub var len: u16 = 0;
+pub var msg_index: u16 = 0;
+pub var slice_count: u8 = 0;
+pub var pause: bool = true;
+pub var pause_time: i32 = 0;
+pub var scroll_speed: u8 = 0;
+pub var rot_speed: i16 = 0;
 
-pub const SPEED_PAUSE: i32 = ONE; // +1 / -1 while a control char holds
-pub const SPEED_RUN: i32 = 22938;
-
-fn isCtrl(ch: u8) bool {
-    return ch == '^' or ch == '&' or ch == '#' or ch == '%';
+pub inline fn cell(i: usize) u8 {
+    return head +% @as(u8, @intCast(i));
 }
 
+/// screen.js init(): 240 blank slices, then 320 steps to bring the message in.
 pub fn reset() void {
-    cells = [_]Cell{.{}} ** CELLS;
+    for (0..256) |i| {
+        chr[i] = 0;
+        frm[i] = 0;
+        slc[i] = 0;
+    }
     head = 0;
-    rotation = 0;
+    len = VISIBLE;
     msg_index = 0;
     slice_count = 0;
-    pause = false;
+    pause = true;
     pause_time = 250;
-    rot_speed = SPEED_RUN;
-    scroll_speed = 1;
-}
-
-/// Init()'s 320-step warmup: bring the message into the buffer and settle the
-/// frames before the first visible frame.
-pub fn warmup() void {
-    var i: usize = 0;
-    while (i < 320) : (i += 1) {
+    scroll_speed = 0;
+    rot_speed = RUN_SPEED;
+    for (0..320) |_| {
         scroll(1);
-        renderFrames(rot_speed);
+        turn(rot_speed);
     }
 }
 
 fn shiftLeft() void {
-    head += 1;
-    if (head == CELLS) head = 0;
+    head +%= 1;
+    len -= 1;
 }
 
-fn addSlice(ch: u8) void {
-    const previous = if (head >= 2) head - 2 else head + CELLS - 2;
-    const tail = if (head == 0) CELLS - 1 else head - 1;
-    cells[tail] = .{
-        .glyph = text.fontIndex(ch),
-        .frame = cells[previous].frame,
-        .slice = @intCast(slice_count),
-    };
+fn addSlicesOfChar(g: u8) void {
+    const f = frm[cell(len - 1)];
+    for (0..8) |s| {
+        const c = cell(len);
+        chr[c] = g;
+        frm[c] = f;
+        slc[c] = @intCast(s);
+        len += 1;
+    }
 }
 
-pub fn scroll(speed: usize) void {
-    var n: usize = 0;
-    while (n < speed) : (n += 1) {
-        const ch = text.MESSAGE[msg_index];
-        if (isCtrl(ch) and slice_count == 0) {
-            switch (ch) {
-                '^' => {
-                    pause = true;
-                    pause_time = 275;
-                    rot_speed = -SPEED_PAUSE;
-                },
-                '&' => {
-                    pause = true;
-                    pause_time = 275;
-                    rot_speed = SPEED_PAUSE;
-                },
-                '#' => {
-                    pause = true;
-                    pause_time = 250;
-                    rot_speed = -SPEED_PAUSE;
-                },
-                '%' => {
-                    pause = true;
-                    pause_time = 225;
-                    rot_speed = -SPEED_PAUSE;
-                },
-                else => {},
+pub fn scroll(speed: u8) void {
+    var i: u8 = 0;
+    while (i < speed) : (i += 1) {
+        if (slice_count == 0) {
+            const code = CODES[msg_index];
+            if (code >= CTRL_UP) {
+                control(code);
+            } else {
+                shiftLeft();
+                addSlicesOfChar(code);
+                slice_count = 1;
             }
             msg_index += 1;
-            if (msg_index >= text.LEN) msg_index = 90;
+            if (msg_index > CODES.len - 1) msg_index = RESTART;
         } else {
             shiftLeft();
-            addSlice(ch);
-            slice_count += 1;
-            if (slice_count > 7) {
-                slice_count = 0;
-                msg_index += 1;
-                if (msg_index >= text.LEN) msg_index = 90;
-            }
+            slice_count = (slice_count + 1) & 7;
         }
     }
 }
 
-pub fn renderFrames(speed: i32) void {
-    rotation += speed;
-    if (rotation >= 30 * ONE) rotation -= 30 * ONE;
-    if (rotation < 0) rotation += 30 * ONE;
-
-    var i: usize = 0;
-    while (i < CELLS) : (i += 1) {
-        var idx = head + i;
-        if (idx >= CELLS) idx -= CELLS;
-        var f = rotation + P.SINE[i];
-        if (f >= 30 * ONE) {
-            f -= 30 * ONE;
-        } else if (f < 0) {
-            f += 30 * ONE;
-        }
-        cells[idx].frame = @intCast(@divTrunc(f, ONE));
+fn control(code: u8) void {
+    pause = true;
+    switch (code) {
+        CTRL_UP => {
+            pause_time = 275;
+            rot_speed = -ONE;
+        },
+        CTRL_DOWN => {
+            pause_time = 275;
+            rot_speed = ONE;
+        },
+        CTRL_HASH => {
+            pause_time = 250;
+            rot_speed = -ONE;
+        },
+        else => pause_time = 225,
     }
 }
 
-inline fn ink(g: u8, x: usize, y: usize) bool {
-    return (A.glyphRow(g, y) & (@as(u16, 1) << @intCast(x))) != 0;
+/// renderNextFrames: turn the first 240 slices.
+pub fn turn(speed: i16) void {
+    for (0..VISIBLE) |i| {
+        const c = cell(i);
+        var v = frm[c] + speed;
+        if (v > TOP) v = 0 else if (v < 0) v += WRAP;
+        frm[c] = v;
+    }
 }
 
-/// The table cos at radian phase (Q16.16), as an index into wave.dat.
-inline fn cosAt(phase: i64) i32 {
-    const p = @mod(phase, TAU_Q16);
-    const idx: usize = @intCast(@divTrunc(p * 4096, TAU_Q16));
-    return A.wave(idx).cos;
-}
-
-/// main.go drawScroller at 1x: the strip top row (content) for slice i, from
-/// the wave clock t (Q16.16).  ypos is 80 before the wave starts, then 80*cos
-/// of 52.5 + t/6 + i/36; the strip is 24.75 rows tall, rounded to 25.
-pub fn stripTop(i: usize, t_q16: i64) i32 {
-    const angle0: i64 = 3440640 + @divTrunc(t_q16, 6); // 52.5 rad, Q16
-    const t2 = t_q16 + @divTrunc(@as(i64, @intCast(i)) * 65536, 6);
-    const threshold = (250 * 65536) - @as(i64, @intCast(i)) * 216;
-    const cos_q16: i32 = if (t2 > threshold) cosAt(angle0 + @as(i64, @intCast(i)) * 1820) else 65536;
-    const ypos_q16: i64 = @as(i64, 80) * cos_q16;
-    const y_q16: i64 = 8404992 + @divTrunc(3 * ypos_q16, 4); // 128.25 + 0.75*ypos
-    return @intCast(@divFloor(y_q16 + 32768, 65536));
-}
-
-/// main.go drawScroller at 1x: the strip top row and the two pixel columns of
-/// each 2-px slice, for content x = 2*i.
-pub fn draw(fb: *zg.LogicalFB, t_q16: i64) void {
-    const base = fb.fb;
-
-    var i: usize = 0;
-    while (i < VISIBLE) : (i += 1) {
-        const top = stripTop(i, t_q16);
-
-        var idx = head + i;
-        if (idx >= CELLS) idx -= CELLS;
-        const cell = cells[idx];
-        const g = cell.glyph;
-        const k: i32 = cell.frame;
-        const s: usize = cell.slice;
-
-        const front4: i32 = 132 - 9 * k; // 4 * (33 - 2.25k)
-        const back4: i32 = if (k < 15) 9 * k else -132 + 9 * (k - 15);
-
-        var d: usize = 0;
-        while (d < STRIP_H) : (d += 1) {
-            const f: i32 = @intCast(@divTrunc(4 * @as(i32, @intCast(d)) + 2, 3));
-            const fcol: u8 = P.SILVER[@intCast(f)];
-            const bcol: u8 = P.PURPLE[@intCast(f)];
-
-            // Purple back: cnvFont2 row r is glyph row 18-r (the remake's
-            // Scale(-1,-1) then Translate(16, 26) clips the glyph's last 7
-            // rows above the cell), columns mirrored.
-            const bc = @divFloor(4 * f + 2 - back4, 4);
-            const back_on = bc >= 0 and bc <= 18;
-            const bg = if (back_on) @as(usize, @intCast(18 - bc)) else 0;
-
-            var c0: u8 = 0;
-            var c1: u8 = 0;
-            var painted0 = false;
-            var painted1 = false;
-            if (back_on) {
-                if (ink(g, 15 - 2 * s, bg)) {
-                    c0 = bcol;
-                    painted0 = true;
-                }
-                if (ink(g, 14 - 2 * s, bg)) {
-                    c1 = bcol;
-                    painted1 = true;
-                }
-            }
-
-            // Red core, frame rows 12..20, opaque over the back.
-            if (f >= 12 and f <= 20) {
-                const rc = P.RED[@intCast(f - 12)];
-                c0 = rc;
-                c1 = rc;
-                painted0 = true;
-                painted1 = true;
-            }
-
-            // Silver front on top.
-            const fc = @divFloor(4 * f + 2 - front4, 4);
-            if (fc >= 7 and fc <= 32) {
-                const gy: usize = @intCast(fc - 7);
-                if (ink(g, 2 * s, gy)) {
-                    c0 = fcol;
-                    painted0 = true;
-                }
-                if (ink(g, 2 * s + 1, gy)) {
-                    c1 = fcol;
-                    painted1 = true;
-                }
-            }
-
-            const y = top + @as(i32, @intCast(d));
-            if (y < 0 or y >= 240) continue;
-            const row = (@as(usize, A.CONTENT_Y) + @as(usize, @intCast(y))) * fb.stride + A.CONTENT_X + 2 * i;
-            if (painted0) base[row] = c0;
-            if (painted1) base[row + 1] = c1;
+/// drawGraphics' scroll step: scroll, or count the pause down.
+pub fn tick() void {
+    if (!pause) {
+        scroll(scroll_speed);
+    } else {
+        pause_time -= 1;
+        if (pause_time == 0) {
+            pause = false;
+            rot_speed = RUN_SPEED;
+            scroll_speed = 1;
         }
     }
 }
