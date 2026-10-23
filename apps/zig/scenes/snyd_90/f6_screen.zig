@@ -30,20 +30,23 @@ pub fn capture(r: *const st.Ram, screen: u32) void {
     const balls = palette(r, 0x12B76);
     const logo = palette(r, 0x12B96);
     for (0..sh.PH) |py| {
-        const out = sh.physRow(py);
-        @memset(out, 0);
         if (py < sh.OY or py >= sh.OY + LINES) {
+            sh.blankRow(py);
             sh.setRegs(py, balls[0..1]);
             sh.setOpen(py, false);
             continue;
         }
         const y = py - sh.OY;
-        chunky.lineToChunky(r.bytes(screen + @as(u32, @intCast(y)) * st.LINE, st.LINE), out[sh.OX..][0..320]);
+        const addr = screen + @as(u32, @intCast(y)) * st.LINE;
         var regs: [sh.MAXC]u32 = undefined;
         regs[0..16].* = if (y < LOGO_LINE) balls else logo;
         var n: usize = 16;
         var open = y >= OPEN_FROM;
+        if (y != RULES[0].y and y != RULES[1].y) sh.window(r, py, addr);
         for (RULES) |rule| if (rule.y == y) {
+            const out = sh.customRow(py); // the whole line: its colour 0 is the raster
+            @memset(out, 0);
+            chunky.lineToChunky(r.bytes(addr, st.LINE), out[sh.OX..][0..320]);
             rasterLine(r, out, &regs, rule);
             n = sh.MAXC;
             open = true;

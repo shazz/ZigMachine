@@ -7,7 +7,6 @@
 // --------------------------------------------------------------------------
 const std = @import("std");
 const st = @import("../swedish_newyear/st.zig");
-const chunky = @import("chunky.zig");
 const sh = @import("shifter.zig");
 
 /// A low-res screen at `screen` under per-line registers: ST line y (the
@@ -20,8 +19,6 @@ pub fn capture(r: *const st.Ram, screen: u32, pals: []const [16]u16, open_from: 
     var regs: [16]u32 = undefined;
     var have = false;
     for (0..sh.PH) |py| {
-        const out = sh.physRow(py);
-        @memset(out, 0);
         const y = py -% sh.OY;
         const k = if (py < sh.OY) 0 else @min(y, pals.len - 1);
         if (!have or !std.mem.eql(u16, &last, &pals[k])) {
@@ -31,18 +28,16 @@ pub fn capture(r: *const st.Ram, screen: u32, pals: []const [16]u16, open_from: 
         }
         sh.setRegs(py, &regs);
         sh.setOpen(py, py >= sh.OY and y < pals.len and y >= open_from);
-        if (py < sh.OY or y >= pals.len) continue;
-        const line = r.bytes(screen + @as(u32, @intCast(y)) * st.LINE, st.LINE);
-        chunky.lineToChunky(line, out[sh.OX..][0..320]);
+        if (py < sh.OY or y >= pals.len) {
+            sh.blankRow(py);
+            continue;
+        }
+        sh.window(r, py, screen + @as(u32, @intCast(y)) * st.LINE);
     }
 }
 
 /// Bytes of a line with the left and right borders open.
 pub const FULL_LINE = 230;
-/// A full-overscan line's pixel 0 sits this far left of the plane's x 0
-/// (the open left border reaches 52 pixels past the window, the plane 40).
-const FULL_SKIP = 12;
-
 /// A full-overscan picture: `lines` lines of 230 bytes from `start`, its
 /// line 0 on ST line `first` (negative: in the opened top border), every
 /// border open there (flickered), under one palette; the rest is border.
@@ -51,15 +46,9 @@ pub fn captureFull(r: *const st.Ram, start: u32, lines: usize, comptime first: i
     const regs = sh.rgba(pal);
     const edge = sh.rgba([_]u16{border} ** 16);
     for (0..sh.PH) |py| {
-        const out = sh.physRow(py);
-        @memset(out, 0);
         const inside = py >= top and py < top + lines;
         sh.setRegs(py, if (inside) &regs else &edge);
         sh.setOpen(py, inside);
-        if (!inside) continue;
-        var px: [416]u8 = undefined;
-        const line = r.bytes(start + @as(u32, @intCast(py - top)) * FULL_LINE, 26 * 8);
-        for (0..26) |g| chunky.groupToChunky(line[g * 8 ..][0..8], px[g * 16 ..][0..16]);
-        @memcpy(out, px[FULL_SKIP..][0..sh.PW]);
+        if (inside) sh.full(r, py, start + @as(u32, @intCast(py - top)) * FULL_LINE) else sh.blankRow(py);
     }
 }

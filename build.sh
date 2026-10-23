@@ -495,6 +495,8 @@ gate snyd_90 node apps/snyd_90_headless.mjs --break f3 "$SHOTS/snyd_90_break"   
 gate snyd_90 node apps/snyd_90_headless.mjs --break f4 "$SHOTS/snyd_90_break"     # ...and an F4 that never runs a VBL is caught (motion, look)
 gate snyd_90 node apps/snyd_90_headless.mjs --break f5 "$SHOTS/snyd_90_break"     # ...and an F5 that never runs a VBL is caught (motion, look, its full overscan)
 gate snyd_90 node apps/snyd_90_headless.mjs --break f6 "$SHOTS/snyd_90_break"     # ...and an F6 that never runs a VBL is caught (motion, look, its open bottom border)
+gate snyd_90 node apps/snyd_90_pins.mjs   # every frame (60 Hz host) of the intro, the menu and F1..F6 (F3 with panel keys) = the cart before the incremental shifter: plane indices + physical RGB, 3660 frames
+gate snyd_90 node apps/snyd_90_pins.mjs --break   # ...and one plane pixel altered is caught
 gate swedish_newyear node apps/swedish_newyear_headless.mjs --break step "$SHOTS/swedish_newyear"   # ...and one extra cart frame is caught
 gate swedish_newyear node apps/swedish_newyear_headless.mjs --break tune "$SHOTS/swedish_newyear"   # ...and a wrong subtune is caught
 gate swedish_newyear node apps/swedish_newyear_headless.mjs --break border "$SHOTS/swedish_newyear"   # ...and a border left with last frame's colour 0 is caught
