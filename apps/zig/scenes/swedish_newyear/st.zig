@@ -14,6 +14,7 @@
 // at a time); `base` is the 68000 address of its first byte.
 // --------------------------------------------------------------------------
 const std = @import("std");
+const al = @import("st_align.zig");
 
 pub const LINE = 160; // bytes a low-res line
 pub const SCREEN = 32000; // bytes a low-res screen
@@ -50,8 +51,13 @@ pub const Ram = struct {
         return std.mem.readInt(u16, self.m[self.at(a, 2)..][0..2], .big);
     }
 
+    /// A long: one 32-bit load where the address allows. On KESTREL a misaligned
+    /// word access TRAPS (~700 cycles, emulated), and the 68000 reads a long at
+    /// any even address (SYNC's 230-byte overscan lines put half of them at 2 mod 4).
     pub inline fn l(self: *const Ram, a: u32) u32 {
-        return std.mem.readInt(u32, self.m[self.at(a, 4)..][0..4], .big);
+        const p = self.m[self.at(a, 4)..][0..4];
+        if (@intFromPtr(p) & 3 == 0) return std.mem.readInt(u32, @as(*align(4) const [4]u8, @alignCast(p)), .big);
+        return @byteSwap(al.le32Split(p));
     }
 
     pub inline fn sb(self: *const Ram, a: u32, v: u8) void {
@@ -62,8 +68,11 @@ pub const Ram = struct {
         std.mem.writeInt(u16, self.m[self.at(a, 2)..][0..2], v, .big);
     }
 
+    /// A long store, split like l() where a 32-bit store would trap.
     pub inline fn sl(self: *const Ram, a: u32, v: u32) void {
-        std.mem.writeInt(u32, self.m[self.at(a, 4)..][0..4], v, .big);
+        const p = self.m[self.at(a, 4)..][0..4];
+        if (@intFromPtr(p) & 3 == 0) return std.mem.writeInt(u32, @as(*align(4) [4]u8, @alignCast(p)), v, .big);
+        al.setLe32Split(p, @byteSwap(v));
     }
 
     /// `n` bytes at `a`.
@@ -72,14 +81,21 @@ pub const Ram = struct {
     }
 
     /// movem / move.l copies: never overlapping in these routines.
+    /// Word-aligned ends copy as LLVM likes; others (TCB's 6-byte plane runs at 2 mod 4)
+    /// by halves, where LLVM's 4-byte pieces would trap on KESTREL.
     pub inline fn cp(self: *const Ram, dst: u32, src: u32, n: usize) void {
-        @memcpy(self.bytes(dst, n), self.bytes(src, n));
+        const d = self.bytes(dst, n);
+        const s = self.bytes(src, n);
+        if ((@intFromPtr(d.ptr) | @intFromPtr(s.ptr)) & 3 == 0) @memcpy(d, s) else al.copySplit(d, s);
     }
 
     pub inline fn zero(self: *const Ram, a: u32, n: usize) void {
-        @memset(self.bytes(a, n), 0);
+        const d = self.bytes(a, n);
+        if (@intFromPtr(d.ptr) & 3 == 0) @memset(d, 0) else al.zeroSplit(d);
     }
 };
+
+pub const le32 = al.le32;
 
 /// A 68000 word as the signed displacement `(a0,d0.w)` / `lea d(a0)` make of it.
 pub inline fn sx(v: u16) i32 {

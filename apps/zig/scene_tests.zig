@@ -29,6 +29,7 @@ test {
     _ = @import("scenes/swedish_newyear/tcb2_test.zig");
     _ = @import("scenes/swedish_newyear/omega_test.zig");
     _ = @import("scenes/swedish_newyear/st.zig");
+    _ = @import("scenes/swedish_newyear/st_align.zig");
     _ = @import("scenes/ulm_dsots/view.zig");
     _ = @import("scenes/ulm_dsots/level.zig");
     _ = @import("scenes/ulm_dsots/griffin_test.zig");
@@ -39,6 +40,7 @@ test {
     _ = @import("scenes/snyd_90/f4_test.zig");
     _ = @import("scenes/snyd_90/f5_test.zig");
     _ = @import("scenes/snyd_90/f6_test.zig");
+    _ = @import("scenes/snyd_90/chunky.zig");
     _ = @import("scenes/dune_gen4/bounce.zig");
     _ = @import("scenes/dune_gen4/fade.zig");
     _ = @import("scenes/dune_gen4/tny.zig");

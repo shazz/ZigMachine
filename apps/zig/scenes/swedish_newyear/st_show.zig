@@ -90,22 +90,19 @@ inline fn setColor(c: *u32, w: u16) void {
 // only reconverts the 16-pixel groups whose 8 source bytes changed (an ST screen
 // changes in a few places a frame: 98% of OMEGA's pixels are the same as the frame
 // before), and only rows that changed are copied to the framebuffer.
-var keys: [frame.PH]?Row = [_]?Row{null} ** frame.PH;
+// keys[py] is meaningful only while keyed[py]. Rows are read through pointers and keys
+// copied field by field: copying a ?Row by value moved its tail as a 16-bit access at
+// an odd offset, which traps on KESTREL (~700 cycles, once a row a frame).
+var keys: [frame.PH]Row = undefined;
+var keyed: [frame.PH]bool = [_]bool{false} ** frame.PH;
 var dirty: [frame.PH]bool = [_]bool{true} ** frame.PH;
 var blank: [frame.PH]bool = [_]bool{false} ** frame.PH;
 
-fn sameRow(a: ?Row, b: ?Row) bool {
-    const x = a orelse return b == null;
-    const y = b orelse return false;
-    // not addr: where the bytes are read from may flip every frame (double buffering); what the
-    // cached bytes say is compared group by group in lineAt
-    return x.x0 == y.x0 and x.lo == y.lo and x.hi == y.hi;
-}
-
 fn convertRows(r: *const st.Ram, rows: *const Rows) void {
-    for (ram.buf.plane, rows, 0..) |*out, row, py| {
-        if (row == null) {
-            keys[py] = null;
+    for (ram.buf.plane, 0..) |*out, py| {
+        const row = &rows[py];
+        if (row.* == null) {
+            if (keyed[py]) keyed[py] = false;
             if (!blank[py]) {
                 @memset(out, 0);
                 blank[py] = true;
@@ -113,14 +110,18 @@ fn convertRows(r: *const st.Ram, rows: *const Rows) void {
             }
             continue;
         }
-        const ln = row.?;
-        if (!sameRow(keys[py], row)) {
+        const ln = &row.*.?;
+        const k = &keys[py];
+        // not addr: where the bytes are read from may flip every frame (double buffering);
+        // what the cached bytes say is compared group by group in lineAt
+        if (!keyed[py] or k.x0 != ln.x0 or k.lo != ln.lo or k.hi != ln.hi) {
             @memset(out, 0);
             blank[py] = false;
-            keys[py] = row;
+            k.* = .{ .addr = ln.addr, .x0 = ln.x0, .lo = ln.lo, .hi = ln.hi };
+            keyed[py] = true;
             dirty[py] = true;
-            _ = lineAt(r, ln, out, &ram.buf.src[py], false);
-        } else if (lineAt(r, ln, out, &ram.buf.src[py], true)) {
+            _ = lineAt(r, ln.*, out, &ram.buf.src[py], false);
+        } else if (lineAt(r, ln.*, out, &ram.buf.src[py], true)) {
             dirty[py] = true;
         }
     }
@@ -138,8 +139,8 @@ fn lineAt(r: *const st.Ram, ln: Row, out: *[frame.PW]u8, cache: *[ram.SRC_ROW]u8
     for (g0..g1 + 1) |g| {
         const src = r.bytes(ln.addr + 8 * @as(u32, @intCast(g)), 8)[0..8];
         const c = cache[(g - g0) * 8 ..][0..8];
-        const a0 = std.mem.readInt(u32, src[0..4], .little);
-        const a1 = std.mem.readInt(u32, src[4..8], .little);
+        const a0 = st.le32(src[0..4]); // a 230-byte line's groups sit at 2 mod 4: no lw there
+        const a1 = st.le32(src[4..8]);
         const c0 = std.mem.readInt(u32, c[0..4], .little);
         const c1 = std.mem.readInt(u32, c[4..8], .little);
         if (only_changed and a0 == c0 and a1 == c1) continue;

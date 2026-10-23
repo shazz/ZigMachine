@@ -81,9 +81,11 @@ pub fn window(r: *const st.Ram, py: usize, addr: u32) void {
 /// Physical row `py` shows the 26 groups of a full-overscan line from `addr`,
 /// its first pixel 12 left of the plane (the open left border reaches 52
 /// pixels past the window, the plane 40).
+/// The part rewrites the whole picture every VBL (F5): converted whole at
+/// present(), straight from its memory.
 pub fn full(r: *const st.Ram, py: usize, addr: u32) void {
     captured = true;
-    rows.planar(r, py, addr, -12, 26);
+    rows.live(py, r.bytes(addr, 26 * 8).ptr, -12, 26);
 }
 
 /// Physical row `py` all colour 0.

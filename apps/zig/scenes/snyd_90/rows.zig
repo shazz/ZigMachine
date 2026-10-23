@@ -12,6 +12,11 @@
 //   planar  `ng` groups of four plane words from an ST address, group g's
 //           first pixel at plane x `x0 + 16 g` (the window: 40, 20 groups; a
 //           full-overscan line: -12, 26), colour 0 outside them
+//   live    like planar, for a part that rewrites its whole picture every VBL
+//           (F5's texture): no copy, no compare at capture -- present()
+//           converts every group from the part's memory, which nothing writes
+//           between a capture and the next present() (a new part's entry
+//           captures every row again)
 //   custom  palette indices the part computes itself (the intro's Spectrum
 //           512 slots, F6's raster lines), copied word by word on change
 // --------------------------------------------------------------------------
@@ -25,7 +30,7 @@ pub const PH: usize = zg.PHYSICAL_HEIGHT; // 280
 const MAXG = 26; // groups of a full-overscan line
 const WPR = PW / 4; // plane words a row
 
-pub const Kind = enum(u8) { blank, planar, custom };
+pub const Kind = enum(u8) { blank, planar, live, custom };
 pub const Key = packed struct(u32) { kind: Kind, ng: u8 = 0, x0: i16 = 0 };
 
 var next: [PH]Key = undefined; // what each row is to show (the last capture)
@@ -33,6 +38,7 @@ var shown: [PH]Key = undefined; // what the plane holds
 var dirty: [PH]u32 = undefined; // planar: the groups changed since present(); custom: != 0
 var cache: *[PH][MAXG * 4]u16 = undefined; // planar: the plane words last read, as loaded
 var custom: *[PH][PW]u8 = undefined;
+var live_src: [PH][*]const u8 = undefined; // live: the row's first group in the part's memory
 
 /// Once per cart load: the plane was just cleared.
 pub fn init() void {
@@ -70,6 +76,14 @@ pub fn planar(r: *const st.Ram, py: usize, addr: u32, x0: i16, ng: u8) void {
     if (mask != dirty[py]) dirty[py] = mask;
 }
 
+/// Row `py` shows `ng` groups at `src` (a part's memory), converted whole at present().
+pub fn live(py: usize, src: [*]const u8, x0: i16, ng: u8) void {
+    const key = Key{ .kind = .live, .ng = ng, .x0 = x0 };
+    if (next[py] != key) next[py] = key;
+    live_src[py] = src;
+    dirty[py] = 1;
+}
+
 /// Row `py` as indices the caller writes; zeroed when the row was not custom.
 pub fn customRow(py: usize) *[PW]u8 {
     if (next[py].kind != .custom) {
@@ -95,6 +109,7 @@ pub fn present(fb: [*]u8) void {
                 for (row, src) |*w, v| put(w, v);
             },
             .planar => presentPlanar(row, py, key, fresh),
+            .live => presentLive(row, live_src[py], key, fresh),
         }
         if (fresh) shown[py] = key;
         dirty[py] = 0;
@@ -102,15 +117,28 @@ pub fn present(fb: [*]u8) void {
 }
 
 fn presentPlanar(row: *[WPR]u32, py: usize, key: Key, fresh: bool) void {
-    const w0: i32 = @divExact(@as(i32, key.x0), 4); // the row's first word (may be left of the plane)
-    if (fresh) { // colour 0 outside the groups
-        for (row, 0..) |*w, i| {
-            const k = @as(i32, @intCast(i)) - w0;
-            if (k < 0 or k >= 4 * @as(i32, key.ng)) put(w, 0);
-        }
-    }
+    if (fresh) edges(row, key);
     const mask = if (fresh) (@as(u32, 1) << @intCast(key.ng)) - 1 else dirty[py];
-    const bytes: *const [MAXG * 8]u8 = @ptrCast(&cache[py]);
+    convert(row, @ptrCast(&cache[py]), key, mask);
+}
+
+fn presentLive(row: *[WPR]u32, src: [*]const u8, key: Key, fresh: bool) void {
+    if (fresh) edges(row, key);
+    convert(row, src, key, (@as(u32, 1) << @intCast(key.ng)) - 1);
+}
+
+/// Colour 0 outside the row's groups.
+fn edges(row: *[WPR]u32, key: Key) void {
+    const w0: i32 = @divExact(@as(i32, key.x0), 4);
+    for (row, 0..) |*w, i| {
+        const k = @as(i32, @intCast(i)) - w0;
+        if (k < 0 or k >= 4 * @as(i32, key.ng)) put(w, 0);
+    }
+}
+
+/// The groups in `mask` of plane words at `bytes` into the row (the words inside the plane).
+fn convert(row: *[WPR]u32, bytes: [*]const u8, key: Key, mask: u32) void {
+    const w0: i32 = @divExact(@as(i32, key.x0), 4); // the row's first word (may be left of the plane)
     for (0..key.ng) |g| {
         if (mask & (@as(u32, 1) << @intCast(g)) == 0) continue;
         const words = chunky.groupWords(bytes[8 * g ..][0..8]);
