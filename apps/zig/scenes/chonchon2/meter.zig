@@ -3,7 +3,9 @@
 //
 // For each channel, volume = YM register 8+channel & 15. Every meter row is
 // seven scanlines high, and cells 0..volume are filled; one cell is 16 pixels
-// wide and its word is 0x0000ffff (planes 2 and 3, i.e. index 12).
+// wide, and its first 4 bytes are 00 00 ff ff: the PLANE-0 word 0 and the
+// PLANE-1 word ffff (planes 2/3 untouched), so a cell's index becomes
+// (index & 12) | 2 -- the shader's Foreground raster colour, entry 2.
 //
 //   channel 0: rows 167..173, x = 16 + cell*16
 //   channel 1: rows 176..182, same x
