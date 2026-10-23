@@ -518,6 +518,7 @@ pub fn build(b: *std.Build) void {
         "demo-mentalhangover", // 103 — MENTAL HANGOVER (Scoopex, Amiga): circular outline text over the mountain, 49-band per-scanline copper raster (ported from the Go re-creation)
         "demo-gnomes", // 104 — THE GNOMES GROUP "BB25" (Buxton Bytes 2025 cracktro intro): the full-overscan rainbow bands, SpongeBob, the cyan TTY panel and the big scroller (ported from the original ST binary)
         "demo-hmdfac", // 105 — HMD "HMDFAC" (Team Factory tribute): a Falcon 030 intro's flat boot-palette roll, color0 flash, exact-68k-integer perspective frustum and wave scroller (ported from the depacked original)
+        "demo-replicants_arkanoid2", // 106 — The Replicants / Arkanoid II crack intro (CODEF screen 33): name sprites on mycurve, waving bg2-coloured scrolltext
     };
     for (cart_names, 0..) |name, idx| {
         if (name.len == 0) continue; // excluded cart (see note above)

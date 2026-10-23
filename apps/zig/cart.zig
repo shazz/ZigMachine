@@ -116,6 +116,7 @@ const scene = switch (opts.index) {
     103 => @import("scenes/mentalhangover.zig"), // MENTAL HANGOVER (Scoopex, Amiga): circular outline text over the mountain, 49-band per-scanline copper raster (ported from the Go re-creation)
     104 => @import("scenes/gnomes.zig"), // THE GNOMES GROUP "BB25" (Buxton Bytes 2025 Fantasy Cracktro Challenge) intro: the 128-word rainbow overscan, SpongeBob, the cyan TTY and the big scroller (ported from the original ST binary)
     105 => @import("scenes/hmdfac.zig"), // HMD "HMDFAC" (Team Factory tribute): the Falcon 030 intro's color0 flash, the 68k-integer frustum and the wave scroller (ported from the depacked original)
+    106 => @import("scenes/replicants_arkanoid2.zig"), // The Replicants / Arkanoid II crack intro (CODEF screen 33)
     else => @compileError("bad cart index"),
 };
 
