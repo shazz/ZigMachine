@@ -339,6 +339,8 @@ gate_timed tsl_hybridglenz node apps/tsl_hybridglenz_headless.mjs "$SHOTS/tsl_hy
 gate_timed tsl_hybridglenz node apps/tsl_hybridglenz_headless.mjs --break spin "$SHOTS/tsl_hybridglenz"   # ...and objects that never turn is caught
 gate mandelbrot node apps/mandelbrot_headless.mjs   # MANDELBROT: the f32 default draws a real fractal top to bottom, F switches the escape loop LIVE to Q5.27 integers (a picture a rounding apart from the f32 one), F twice is the f32 picture again
 gate mandelbrot node apps/mandelbrot_headless.mjs --break fkey   # ...and an F that never arrived is caught
+gate bladerunners node apps/bladerunners_headless.mjs   # BLADERUNNERS DUNGEON: 10,500 frames (the whole scroll text and its wrap): every visible line of the composed picture is ONE raster colour from the left border through the picture to the right border (back[(line-40+R)%255], the ink font[line]), the top/bottom bands transparent; the picture area hashes to the pre-fix two-plane cart's (ring strip + one plane, same scroller)
+gate bladerunners node apps/bladerunners_headless.mjs --break shift   # ...and a border HBL one table line off the picture's is caught
 gate blitter node apps/blitter_headless.mjs "$SHOTS/blitter"   # BLITTER DEMO: key B draws all seven effects on the CPU with the blitter's exact pixels and palette, not one hwBlit() issued; the corner says BLITTER/CPU; B again returns, Escape asks for the menu
 gate blitter node apps/blitter_headless.mjs "$SHOTS/blitter" --break pixel   # ...and a CPU frame one pixel off is caught
 gate blitter node apps/blitter_headless.mjs "$SHOTS/blitter" --break nokey   # ...and a B that never arrived is caught

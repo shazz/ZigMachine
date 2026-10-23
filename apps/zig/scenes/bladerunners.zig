@@ -14,9 +14,11 @@ const RenderTarget = zg.RenderTarget;
 const RenderBuffer = zg.RenderBuffer;
 
 const Scrolltext = zg.Scrolltext;
-const Background = zg.Background;
 
 const Console = zg.Console;
+
+const Strip = @import("bladerunners/strip.zig").Strip;
+const STRIDE = @import("bladerunners/strip.zig").STRIDE;
 
 // --------------------------------------------------------------------------
 // Constants
@@ -57,143 +59,118 @@ const back_rasters_rgba = rgbaTable(convertU8ArraytoColors(@embedFile("../assets
 // Variables
 // --------------------------------------------------------------------------
 var raster_index: u8 = 0;
+var tick_counter: u8 = 0;
 
 // --------------------------------------------------------------------------
-// Demo
+// Rasters: ONE colour per line, border to border
 // --------------------------------------------------------------------------
+// On the ST the background raster is colour 0, one register changed per
+// scanline, and the border is painted from that same register. Here the border
+// is BACKGROUND (the global HBL, PHYSICAL lines 0..279) and the picture is the
+// plane's entry 0 (its own HBL, LOGICAL lines 0..199 = physical 40..239), so
+// both index the table with the same logical line and the same raster_index.
+// The border used to read (line + 12) against the picture's (line - 40), a
+// 52-line shift, one table period plus one line: the "three colours on one
+// line" Matt saw on the board (2026-10-23). And the border is painted BEFORE
+// frame() runs, so the raster's tick now happens here, at line 0 (the ST's
+// VBL), not in update(): border and picture see the same index on every frame.
 fn handler_hbl(zigos: *ZigOS, line: u16) void {
-
-    if(line >= 40 and line < 240) {
-        zigos.setBackgroundColor(Color.fromRGBA(back_rasters_rgba[(line + 12 + raster_index) % 255]));
+    if (line == 0) {
+        tick_counter += 1;
+        if (tick_counter == 2) {
+            raster_index +%= 1;
+            tick_counter = 0;
+        }
     }
-    else {
+    if (line >= 40 and line < 240) {
+        zigos.setBackgroundColor(Color.fromRGBA(back_rasters_rgba[(line - 40 + raster_index) % 255]));
+    } else if (line == 0 or line == 240) {
+        // the top and bottom bands stay transparent (the tube): one write each
         zigos.setBackgroundColor(Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
-    }        
-}
-
-
-fn handler_back(fb: *LogicalFB, zigos: *ZigOS, line: u16, col: u16) void {
-
-    // Per-plane HBL: sealed machine fires on LOGICAL lines 0..199 (was physical 40..239), so drop the +40.
-    if(line < 200) {
-        fb.palette[0] = back_rasters_rgba[(line + raster_index) % 255];
     }
-
-    _ = zigos;
-    _ = col;
 }
 
+// The one plane: entry 0 is the background raster (was a second plane of
+// nothing but colour 0, 1.09 Mc of FRESCO a frame), entry 1 the font raster.
 fn handler_scroller(fb: *LogicalFB, zigos: *ZigOS, line: u16, col: u16) void {
-    const back_color: Color = Color{ .r = 0, .g = 0, .b = 0, .a = 0 };
-
-    // Per-plane HBL: sealed machine fires on LOGICAL lines 0..199 (was physical 40..239), so drop the +40.
-    if (line < 200 ) {
-        fb.palette[1] = font_rasters_rgba[line % 200];
+    if (line < 200) {
+        fb.palette[0] = back_rasters_rgba[(line + raster_index) % 255];
+        fb.palette[1] = font_rasters_rgba[line];
     }
-    if (line == 200) {
-        fb.setPaletteEntry(1, back_color);
-    }
-
     _ = zigos;
     _ = col;
 }
 
 pub const Demo = struct {
-  
     name: u8 = 0,
-    frame_counter: u32 = 0,
     scrolltext: Scrolltext(NB_FONTS) = undefined,
-    logo: Background = undefined,
     offset_table: [320]u16 = undefined,
     scroller_offset: u16 = 0,
-    scroller_target: RenderTarget = undefined,
-    // Backing store for scroller_target's render_buffer view. Was previously a
-    // stack-local in init() (dangling pointer once init() returned) — must live
-    // as long as the Demo instance, so it is a struct field now.
-    scroller_buffer: [WIDTH * SCROLL_CHAR_HEIGHT]u8 align(4) = undefined,
+    // The letters write into a scratch target nobody shows: only their
+    // positions are read, by the strip (strip.zig).
+    scratch_buffer: [SCROLL_CHAR_WIDTH * SCROLL_CHAR_HEIGHT]u8 align(4) = undefined,
+    scratch_render_buffer: RenderBuffer = undefined,
+    strip: Strip = .{},
     blitter: zg.Blitter = .{},
-    scroller_render_buffer: RenderBuffer = undefined,
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
         Console.log("Demo init", .{});
 
         // Nothing happens until the user turns sound on — the request just waits.
         zg.requestSong(MUSIC);
-
-        // first plane
         self.blitter.init();
-        var fb: *LogicalFB = &zigos.lfbs[0];
+
+        // ONE plane (plane 1, the scroller's): plane 0 stays off
+        const fb: *LogicalFB = &zigos.lfbs[1];
         fb.is_enabled = true;
-  
-        // HBL Handler for the raster effect
-        fb.setFrameBufferHBLHandler(0, handler_back); 
-        fb.setPaletteEntry(0, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
-
-        // second plane
-        fb = &zigos.lfbs[1];
-        fb.is_enabled = true; 
         fb.setPalette(font_pal);
+        fb.setFrameBufferHBLHandler(0, handler_scroller);
+        zigos.setHBLHandler(handler_hbl);
 
-        // HBL Handler for the raster effect
-        fb.setFrameBufferHBLHandler(0, handler_scroller);      
-        zigos.setHBLHandler(handler_hbl);     
-
+        // Init-time float: the sine wave table, built once.
         var i: usize = 0;
-        var counter : f32 = 0;
-        while(i < 320) : ( i += 1) {
-            const f_sin: f32 = @abs(@sin(counter)) * 14; 
+        var counter: f32 = 0;
+        while (i < 320) : (i += 1) {
+            const f_sin: f32 = @abs(@sin(counter)) * 14;
             self.offset_table[i] = @as(u16, @intFromFloat(f_sin));
             counter += 0.04;
         }
 
-        self.scroller_buffer = [_]u8{0} ** (WIDTH * SCROLL_CHAR_HEIGHT);
-        self.scroller_render_buffer = .{ .buffer = &self.scroller_buffer, .width = WIDTH, .height = SCROLL_CHAR_HEIGHT };
-        self.scroller_target = .{ .render_buffer = &self.scroller_render_buffer };
-
-        self.scrolltext = Scrolltext(NB_FONTS).init(self.scroller_target, fonts_b, SCROLL_CHARS, SCROLL_CHAR_WIDTH, SCROLL_CHAR_HEIGHT, SCROLL_TEXT, SCROLL_SPEED, 0, null, null, null);
+        self.scratch_render_buffer = .{ .buffer = &self.scratch_buffer, .width = SCROLL_CHAR_WIDTH, .height = SCROLL_CHAR_HEIGHT };
+        const target: RenderTarget = .{ .render_buffer = &self.scratch_render_buffer };
+        self.scrolltext = Scrolltext(NB_FONTS).init(target, fonts_b, SCROLL_CHARS, SCROLL_CHAR_WIDTH, SCROLL_CHAR_HEIGHT, SCROLL_TEXT, SCROLL_SPEED, 0, null, null, null);
+        self.strip.fill(&self.scrolltext);
         self.scroller_offset = 0;
-        
+
         Console.log("demo init done!", .{});
     }
 
     pub fn update(self: *Demo, zigos: *ZigOS, elapsed_time: f32) void {
-
         self.scrolltext.update();
-
-        self.frame_counter += 1;
-        if (self.frame_counter == 2) {
-            raster_index += 1;
-            self.frame_counter = 0;
-        }
+        self.strip.advance(&self.scrolltext, SCROLL_SPEED);
 
         self.scroller_offset += 1;
-        if(self.scroller_offset == self.offset_table.len) self.scroller_offset = 0;
+        if (self.scroller_offset == self.offset_table.len) self.scroller_offset = 0;
 
         _ = zigos;
         _ = elapsed_time;
     }
 
     pub fn render(self: *Demo, zigos: *ZigOS, elapsed_time: f32) void {
-
-        const fb = &zigos.lfbs[1];
-        // 32-bit stores: a quarter of the byte-clear's iterations.
-        const words: []u32 = @as([*]u32, @ptrCast(&self.scroller_buffer))[0 .. self.scroller_buffer.len / 4];
-        for (words) |*w| w.* = 0;
-        self.scrolltext.render();
-
         // The strip repeats every 32 rows, shifted up by the sine: CHISEL copies
-        // it from the cart-RAM buffer, so no row needs a CPU copy (and the
+        // its window from the cart-RAM ring, so no row needs a CPU copy (and the
         // segments tile the whole plane, so the plane is not cleared first).
+        const fb = &zigos.lfbs[1];
         const sine_offset: u16 = self.offset_table[self.scroller_offset];
-        const src: []const u8 = &self.scroller_buffer;
-        self.blitter.blitImage(fb, 0, 0, src, WIDTH, 0, sine_offset, WIDTH, SCROLL_CHAR_HEIGHT - sine_offset, null);
+        const src: []const u8 = &self.strip.ring;
+        const sx = self.strip.windowX();
+        self.blitter.blitImage(fb, 0, 0, src, STRIDE, sx, sine_offset, WIDTH, SCROLL_CHAR_HEIGHT - sine_offset, null);
         var k: u16 = 1;
         while (k <= 6) : (k += 1) {
             const y: u16 = k * 32 - sine_offset;
             const h: u16 = @min(SCROLL_CHAR_HEIGHT, 200 - y);
-            self.blitter.blitImage(fb, 0, @intCast(y), src, WIDTH, 0, 0, WIDTH, h, null);
+            self.blitter.blitImage(fb, 0, @intCast(y), src, STRIDE, sx, 0, WIDTH, h, null);
         }
-
         _ = elapsed_time;
     }
 };
