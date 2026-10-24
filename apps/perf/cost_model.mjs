@@ -139,7 +139,8 @@ function table() {
     set([0x7c, 0x7d], 4, C.i64_other); set([0x83, 0x84, 0x85], 2, C.i64_other); set(0x7e, 8, C.i64_mul);
     set(range(0x7f, 0x82), 250, C.i64_div); set(range(0x86, 0x8a), 7, C.i64_shift);
     set(range(0x5b, 0x60), 2, C.f32); set([0x8b, 0x8c, 0x98], 1, C.f32); set(range(0x8d, 0x90), 12, C.f32);
-    set([0x92, 0x93], 9, C.f32); set(0x94, 10, C.f32); // bench f32.add/mul: 9/10 (a dependent chain: the rv32imf FPU's latency) set([0x96, 0x97], 2, C.f32); set(0x95, 21, C.f32_divsqrt); set(0x91, 30, C.f32_divsqrt);
+    // bench f32.add/mul: 9/10 (a dependent chain: the rv32imf FPU's latency); div 21 (bench), sqrt 30
+    set([0x92, 0x93], 9, C.f32); set(0x94, 10, C.f32); set([0x96, 0x97], 2, C.f32); set(0x95, 21, C.f32_divsqrt); set(0x91, 30, C.f32_divsqrt);
     set(range(0x61, 0x66), 40, C.f64); set([0x99, 0x9a, 0xa6], 3, C.f64); set(range(0x9b, 0x9e), 70, C.f64);
     set([0xa0, 0xa1], 143, C.f64); set(0xa2, 272, C.f64); set(0xa3, 557, C.f64); // bench f64.add/mul/div (libgcc) set(0x9f, 700, C.f64);
     set([0xa4, 0xa5], 40, C.f64);
