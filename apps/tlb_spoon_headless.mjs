@@ -7,8 +7,20 @@
 // DOUBLED, hence the /2 below. hwRenderPlane OVERWRITES the shared physical
 // framebuffer, so the plane is rendered and read in the same breath.
 //
-//   node apps/tlb_spoon_headless.mjs [outdir]
+//   node apps/tlb_spoon_headless.mjs [outdir] [--break]
+//
+// THE PIN: after the shots, a fresh boot runs to PIN_FRAMES and SHA-256es the
+// composed 320x200 picture at each one (intro, the switch, early main, deep
+// main), against the hashes of the fixed-point picture. Any change to what the
+// screen shows fails it. `--break` runs ONE extra frame first and passes only
+// if the pin catches it, so the pin itself is proved not blind.
+//
+// 2026-10-24: the letters are sampled in fixed point (no per-frame float on ZIGGY);
+// edge pixels may differ by 1 px from the old f32 sampling. (The starballs are
+// projected in fixed point too.) This driver pins no hash or pixel value, so
+// nothing here needed re-pinning: it dumps the phase shots for a person to look at.
 import { readFile, writeFile, mkdir } from "node:fs/promises";
+import { createHash } from "node:crypto";
 import { cartRam, romRam } from "../docs/wasm_hiwater.js";
 
 const PAGES = 112; // must match SHARED_PAGES in machine/sdk/memmap.zig
@@ -97,7 +109,9 @@ class Screen {
 // starball/logo/scroller part starts at counter 1330 (screen.js:203). run(n)
 // leaves the screen showing counter n-1, so each total below is one more than
 // the CODEF frame it is checked against.
-const out = process.argv[2] || "/tmp/tlb_spoon";
+const args = process.argv.slice(2);
+const BREAK = args.includes("--break");
+const out = args.find((a) => !a.startsWith("--")) || "/tmp/tlb_spoon";
 await mkdir(out, { recursive: true });
 const screen = await boot();
 screen.run(1);
@@ -112,3 +126,43 @@ screen.run(100);
 await screen.shot(`${out}/04-main.ppm`);
 screen.run(480);
 await screen.shot(`${out}/05-main-late.ppm`);
+
+// ---- the pin --------------------------------------------------------------
+// run(n) leaves counter n-1 on screen: these are frames 599, 1299 (intro, 30
+// before the switch), 1339 (just after), 2399, 9999 and 49999. Pinned 2026-10-24
+// on the fixed-point picture (perf/tlb_spoon-fixed).
+const PINS = [
+    [600, "6afb71128df564c1"],
+    [1300, "ea6d444f72d45d26"],
+    [1340, "a822d94285fba1fa"],
+    [2400, "97cb69f2b2679821"],
+    [10000, "4799caf8fc21277e"],
+    [50000, "bee528e6ecd326bb"],
+];
+function pictureHash(s) {
+    s.machine.hwClear();
+    s.machine.hwRenderPlane(0);
+    const h = createHash("sha256");
+    for (let y = 0; y < 200; y++) {
+        const row = ((y + 40) * s.w + 80) * 4;
+        for (let x = 0; x < 320; x++) h.update(s.pfb.subarray(row + x * 8, row + x * 8 + 3));
+    }
+    return h.digest("hex").slice(0, 16);
+}
+const pin = await boot();
+if (BREAK) pin.demo.frame(16.6); // one uncounted extra frame: the perturbation the pin must catch
+let bad = 0;
+for (const [frame, want] of PINS) {
+    pin.run(frame - pin.frames);
+    const got = pictureHash(pin);
+    const ok = got === want;
+    if (!ok) bad++;
+    console.log(`  pin ${ok ? "ok  " : "DIFF"} frame ${frame}: ${got}${ok ? "" : ` (want ${want})`}`);
+}
+if (BREAK) {
+    if (bad === 0) { console.log("FAIL --break: one extra frame and the pin did not notice"); process.exit(1); }
+    console.log(`PASS --break: the pin caught the extra frame (${bad} of ${PINS.length} differ, as they must)`);
+} else {
+    if (bad) { console.log(`FAIL: ${bad} of ${PINS.length} pinned pictures changed`); process.exit(1); }
+    console.log(`PASS: all ${PINS.length} pinned pictures match`);
+}

@@ -38,6 +38,11 @@
 //  4. NO HARDWARE SCROLL. Assessed and rejected — see the note above scroller().
 //  5. Star positions come from a xorshift, because the original seeds them from
 //     Math.random() (screen.js:187-190); nothing else here is random.
+//  6. FIXED POINT, no float per frame (2026-10-24). The remake's doubles are
+//     not the original's maths: the starballs project and the letters are
+//     placed and sampled in Q16.16 (tlb_spoon/balls.zig, place.zig, letter.zig),
+//     angles from Q30 rotors and a comptime tilt table. Against the earlier f32
+//     version, edge pixels of letters and balls move by about 1 px.
 //
 // Everything else is the original's own numbers: the 0.02/0.03/0.015/0.004
 // increments, the 50-pixel bend amplitudes, the three 15-entry star-drift
@@ -53,6 +58,8 @@ const Console = zg.Console;
 const convertU8ArraytoColors = zg.convertU8ArraytoColors;
 const trig = @import("tlb_spoon/trig.zig");
 const letter = @import("tlb_spoon/letter.zig");
+const place = @import("tlb_spoon/place.zig");
+const balls = @import("tlb_spoon/balls.zig");
 
 const W = zg.WIDTH; // 320
 const H = zg.HEIGHT; // 200
@@ -68,8 +75,7 @@ const BALL_BASE: u8 = 1;
 const LOGO_INK: u8 = 4;
 // RASTER_BASE (6) is used by tlb_spoon/letter.zig, the only code that writes it.
 
-const ball_b = @embedFile("../assets/screens/tlb_spoon/ball.raw");
-const BALL_SIZE = 8;
+// The ball sprite and its projection: tlb_spoon/balls.zig.
 
 const logo_runs = @import("tlb_spoon/logo_runs.zig");
 const LOGO_W = logo_runs.LOGO_W;
@@ -115,9 +121,6 @@ const SCROLL_TEXT = "             " ++
 // --------------------------------------------------------------------------
 // Starfield (screen.js:96-130)
 // --------------------------------------------------------------------------
-const FIELD_X: f32 = 320;
-const FIELD_Y: f32 = 200;
-const FIELD_Z: f32 = 200;
 const STAR_NR: usize = 200;
 
 // The drift state is Q40 fixed point in i64: the remake's f64 accumulators step
@@ -167,7 +170,6 @@ const JUMP_STEP = trig.Step.of(44 * 0.008);
 const THETA_STEP = trig.Step.of(-0.015);
 const LOGO1_STEP = trig.Step.of(0.03);
 const LOGO2_STEP = trig.Step.of(0.06);
-const LETTER_ANGLE_SCALE: f32 = -50.0 * 0.5 * (std.math.pi / 180.0);
 const DRIFT_FREEZE: usize = 15;
 
 // --------------------------------------------------------------------------
@@ -191,10 +193,11 @@ const NB_LETTERS: usize = 14;
 // --------------------------------------------------------------------------
 // Per-frame placements, computed in update() and painted in render()
 // --------------------------------------------------------------------------
-const Ball = struct { x: f32, y: f32, s: f32 };
+const Ball = balls.Ball;
 
 const Letter = letter.Letter;
 const Frame = letter.Frame;
+const NO_LETTER = Letter{ .tile = GLYPH_TILES, .ox = 0, .oy = 0, .cb = 1 << 16, .sb = 0 };
 
 pub const Demo = struct {
     counter: u32,
@@ -259,7 +262,7 @@ pub const Demo = struct {
         for (0..STAR_NR) |i| {
             self.starx[i] = @intFromFloat(@floor(self.random() * 320.0)); // init-time float
             self.stary[i] = @intFromFloat(@floor(self.random() * 200.0));
-            self.balls[i] = .{ .x = 0, .y = 0, .s = 0 };
+            self.balls[i] = balls.none;
         }
         self.startimer = 0;
         self.nextdata = 0;
@@ -283,8 +286,8 @@ pub const Demo = struct {
         self.ph = trig.Rotor.at(@as(f64, INTRO_FRAMES) * 0.03 + 0.004); // init-time float
         self.th = trig.Rotor.at(std.math.pi / 180.0 - @as(f64, INTRO_FRAMES) * 0.015);
         self.letternext = 0;
-        self.letters = [_]Letter{.{ .tile = GLYPH_TILES, .ox = 0, .oy = 0, .cb = 1, .sb = 0 }} ** NB_LETTERS;
-        self.frame = .{ .ct = 1, .st = 0, .cx = 0, .cy = 0, .sx = 0, .sy = 0 };
+        self.letters = [_]Letter{NO_LETTER} ** NB_LETTERS;
+        self.frame = place.identity;
         self.first_main = true;
 
         zg.requestSongTune(MUSIC, MUSIC_TUNE);
@@ -395,18 +398,7 @@ pub const Demo = struct {
             const px = wrapQ16((@as(i64, self.starx[i]) << 16) + (self.xaddspeed >> 24), 320);
             const py = wrapQ16((@as(i64, self.stary[i]) << 16) + (self.yaddspeed >> 24), 200);
             const pz = wrapQ16((@as(i64, @intCast(i)) << 16) - (self.zaddspeed >> 24), 200);
-            if (pz == 0) {
-                self.balls[i] = .{ .x = 1.0e6, .y = 1.0e6, .s = 1 }; // z = 0 projects to infinity
-                continue;
-            }
-
-            const pzf = q16f(pz);
-            const k = 128 / pzf;
-            self.balls[i] = .{
-                .x = clampPlot((q16f(px) - FIELD_X / 2) * k + FIELD_X / 2),
-                .y = clampPlot((q16f(py) - FIELD_Y / 2) * k + FIELD_Y / 2),
-                .s = 1 - pzf / FIELD_Z,
-            };
+            self.balls[i] = balls.project(px, py, pz);
         }
         // The speeds only matter modulo the field (stars start on whole units),
         // and an unbounded Q40 would overflow after hours.
@@ -416,10 +408,7 @@ pub const Demo = struct {
     }
 
     fn drawStars(self: *Demo, fb: *LogicalFB) void {
-        for (self.balls) |b| {
-            if (!(b.s > 0)) continue; // also rejects the NaN a zero z produces
-            drawScaledBall(fb, b);
-        }
+        for (self.balls) |b| balls.draw(fb, b);
     }
 
     // ----------------------------------------------------------------------
@@ -482,38 +471,19 @@ pub const Demo = struct {
         // the note above NB_LETTERS). Before there is one, the letters go up 1:1 at
         // (-40,0) — the identity testcanvas the remake starts with.
         const first = self.first_main;
-        const ct: f32 = if (first) 1 else self.th.cosF();
-        const st: f32 = if (first) 0 else self.th.sinF();
-        self.frame = if (first)
-            Frame{ .ct = 1, .st = 0, .cx = -40, .cy = 0, .sx = 0, .sy = 0 }
-        else
-            Frame{ .ct = ct, .st = st, .cx = 160, .cy = 100, .sx = 200, .sy = 120 };
+        self.frame = if (first) place.identity else place.shownThrough(self.th);
         self.first_main = false;
 
         var phase = self.ph;
         for (&self.letters, 0..) |*slot, i| {
             if (i > 0) phase.turn(LETTER_STEP);
-            slot.* = .{ .tile = GLYPH_TILES, .ox = 0, .oy = 0, .cb = 1, .sb = 0 };
+            slot.* = NO_LETTER;
             const idx = i + self.letternext;
             if (idx >= SCROLL_TEXT.len) continue; // charAt() past the end draws nothing
             const ch = SCROLL_TEXT[idx];
             if (ch < GLYPH_FIRST or ch - GLYPH_FIRST >= GLYPH_TILES) continue;
-
-            const scx: f32 = @floatFromInt(self.sm + 32 * @as(i32, @intCast(i)));
-            const scy: f32 = 50 * phase.cosF() + 90;
-            const la = trig.sinCosSmall(phase.sinF() * LETTER_ANGLE_SCALE);
-
-            // Glyph point g lands at O + R(theta + letter_angle) * g, where O is
-            // the image of the glyph's own (scx,scy) origin.
-            const dx = scx - self.frame.sx;
-            const dy = scy - self.frame.sy;
-            slot.* = .{
-                .tile = ch - GLYPH_FIRST,
-                .ox = self.frame.cx + ct * dx - st * dy,
-                .oy = self.frame.cy + st * dx + ct * dy,
-                .cb = ct * la.c - st * la.s,
-                .sb = st * la.c + ct * la.s,
-            };
+            const scx = self.sm + 32 * @as(i32, @intCast(i));
+            slot.* = place.place(ch - GLYPH_FIRST, scx, phase, self.frame);
         }
         self.ph.turn(FRAME_STEP);
         if (!first) self.th.turn(THETA_STEP);
@@ -549,17 +519,6 @@ fn wrapQ40(v: i64, size_q16: i64) i64 {
     return r;
 }
 
-inline fn q16f(v: i32) f32 {
-    return @as(f32, @floatFromInt(v)) * (1.0 / 65536.0);
-}
-
-// A star at z -> 0 projects arbitrarily far away; keep the value representable
-// so the blit's bounding box arithmetic cannot overflow.
-fn clampPlot(v: f32) f32 {
-    if (!(v > -1.0e6) or !(v < 1.0e6)) return 1.0e6;
-    return v;
-}
-
 // One column of the intro's virtual strip: strip x -> glyph column of the sheet.
 fn drawStripColumn(fb: *LogicalFB, src_x: i32, dst_x: i32, dst_y: i32) void {
     if (dst_x < 0 or dst_x >= W) return;
@@ -578,41 +537,6 @@ fn drawStripColumn(fb: *LogicalFB, src_x: i32, dst_x: i32, dst_y: i32) void {
     }
 }
 
-// `ballimage.draw(org, x, y, 1, 0, s, s)` puts the 8x8 sprite's top-left at
-// (x,y) and scales it by s about that corner, so it covers [x, x+8s) x [y, y+8s).
-// Point-sampled: the remake gets Chrome's bilinear blur, an ST would not.
-fn drawScaledBall(fb: *LogicalFB, b: Ball) void {
-    const span = @as(f32, BALL_SIZE) * b.s;
-    const x0 = @max(0, @as(i32, @intFromFloat(@ceil(b.x - 0.5))));
-    const y0 = @max(0, @as(i32, @intFromFloat(@ceil(b.y - 0.5))));
-    const x1 = @min(W, @as(i32, @intFromFloat(@ceil(b.x + span - 0.5))));
-    const y1 = @min(H, @as(i32, @intFromFloat(@ceil(b.y + span - 0.5))));
-    if (x0 >= x1 or y0 >= y1) return;
-
-    // A ball is at most 8 px wide: its source columns are worked out once, not per row.
-    const inv = 1.0 / b.s;
-    var cols: [BALL_SIZE + 1]u8 = undefined;
-    const nx: usize = @intCast(@min(BALL_SIZE + 1, x1 - x0));
-    for (0..nx) |i| cols[i] = sampleIndex(@as(f32, @floatFromInt(x0 + @as(i32, @intCast(i)))) + 0.5 - b.x, inv);
-
-    var y = y0;
-    while (y < y1) : (y += 1) {
-        const sy = sampleIndex(@as(f32, @floatFromInt(y)) + 0.5 - b.y, inv);
-        const src = ball_b[sy * BALL_SIZE ..];
-        const dst = fb.fb[@as(usize, @intCast(y)) * W + @as(usize, @intCast(x0)) ..];
-        for (cols[0..nx], 0..) |c, i| {
-            const v = src[c];
-            if (v != 0) dst[i] = v;
-        }
-    }
-}
-
-fn sampleIndex(offset: f32, inv_scale: f32) u8 {
-    const i = @as(i32, @intFromFloat(@floor(offset * inv_scale)));
-    return @intCast(@min(BALL_SIZE - 1, @max(0, i)));
-}
-
 comptime {
-    if (ball_b.len != BALL_SIZE * BALL_SIZE) @compileError("ball.raw is not 8x8");
     if (introfont_b.len != INTRO_SHEET_W * 200) @compileError("introfont.raw is not 320x200");
 }

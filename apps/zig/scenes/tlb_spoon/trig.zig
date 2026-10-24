@@ -35,21 +35,4 @@ pub const Rotor = struct {
         self.c = @intCast((c * st.c - s * st.s + half) >> 30);
         self.s = @intCast((s * st.c + c * st.s + half) >> 30);
     }
-
-    pub fn cosF(self: Rotor) f32 {
-        return @as(f32, @floatFromInt(self.c)) * (1.0 / 1073741824.0);
-    }
-
-    pub fn sinF(self: Rotor) f32 {
-        return @as(f32, @floatFromInt(self.s)) * (1.0 / 1073741824.0);
-    }
 };
-
-/// sin and cos of a small angle (|x| <= 0.5 rad, error < 1e-8), f32 hardware
-/// multiplies only: the Taylor series stopped at x^7 / x^8.
-pub fn sinCosSmall(x: f32) struct { s: f32, c: f32 } {
-    const x2 = x * x;
-    const s = x * (1.0 + x2 * (-1.0 / 6.0 + x2 * (1.0 / 120.0 + x2 * (-1.0 / 5040.0 + x2 * (1.0 / 362880.0)))));
-    const c = 1.0 + x2 * (-0.5 + x2 * (1.0 / 24.0 + x2 * (-1.0 / 720.0 + x2 * (1.0 / 40320.0))));
-    return .{ .s = s, .c = c };
-}
