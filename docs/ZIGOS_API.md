@@ -92,6 +92,8 @@ pub fn setFramebufferBackgroundColor(self, pal_entry: u8) void
 pub fn getRenderTarget(self) RenderTarget  // pass to effects that draw into a target
 pub fn setFrameBufferHBLHandler(self, position: u16, handler) void   // per-plane HBL (see §6)
 pub fn setFrameBufferHBLHandlerPure(self, position: u16, handler) void // the same, handler declared pure (1.8.0): own palette and/or flickerBorder() only; the board composites the plane line by line with its neighbours
+pub fn copperList(self, words: usize) ?[]u32                         // 1.9.0: this plane's copper list buffer in VRAM, published (machine/copper.zig)
+pub fn copperBuffer(self) ?[]u32                                     // the published list, or null (a handler installed since replaced it)
 ```
 
 `RenderTarget` is a small union (`.fb` | `.render_buffer`) with `setPixelValue`

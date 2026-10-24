@@ -8,7 +8,7 @@ The **sealed machine** ABI: everything a coder gets of the hardware is the two
 > the entry points, not the schematics. The constraints *are* the console.
 > Everything here is stable ABI — additive changes bump minor, layout changes
 > bump major. Version is exported as `hwVersion()` / `audioVersion()`
-> (`0x0001_0800` = 1.8.0).
+> (`0x0001_0900` = 1.9.0).
 
 The single source of truth for the numbers below is `hw/sdk/memmap.zig` (video)
 and `hw/sdk/audio.zig` (audio).
@@ -78,6 +78,7 @@ memory.
 | `0x6C` | `RAM_ARENA_TOP` | u32 | **1.7.0** first byte above the cart's RAM arena; `0` = empty. Survives `hwInit`; `hwSetCartHigh` (a new cart) empties it. See §4c |
 | `0x70` | `RAM_ALLOC_FAILS` | u32 (ro) | **1.7.0** refused `hwRamAlloc`/`hwRamRelease` calls since this cart was declared |
 | `0x74` | `FB_HBL_PURE` | u8 ×4 | **1.8.0** 1 = plane p's HBL handler is pure: it writes only that plane's palette and/or calls `flickerBorder()`, reading tables, what `frame()` wrote and the line. The machine ignores it (its plane-major order is the reference); the board's compositor runs such handlers between other planes' passes of the line and moves each line once. ZigOS sets it in `openBorders`, `copper.install`, `linepal.install` and `setFrameBufferHBLHandlerPure`; `setFrameBufferHBLHandler` clears it (but for the library's flicker handlers). A wrong claim changes the board's picture, which the gate checks (`fpga/tools/video_order_pure.py`) |
+| `0x78` | `FB_COPPER` | u16 ×4 | **1.9.0** plane p's copper list at region offset `OFF_VRAM + 16 v` (`0` = none): per-line records the machine applies after the plane's HBL handler and before the line (PAL, PALREF from a VRAM table, REG HSCROLL, FLICK). Format and rules: `machine/copper.zig`, `fpga/review/COPPER_LIST.md`. ZigOS's `copper` builds it for you; `fb.copperList(words)` / `zg.vramWords(n)` for a hand-built list |
 
 **BEAM — mid-line colour-0 writes (1.6.0).** For zero-bitplane screens, where the
 picture is colour 0 rewritten mid-line. From the **global** HBL for physical line
@@ -159,7 +160,7 @@ hwPhysicalPtr() i32      // pointer to the PFB, for the host to blit
 hwPlanesNumber() u8      // 4
 hwPhysWidth() u32        // 400
 hwPhysHeight() u32       // 280
-hwVersion() u32          // 0x0001_0800 (1.8.0)
+hwVersion() u32          // 0x0001_0900 (1.9.0)
 ```
 
 **Import it requires** (provided by the host, routed to the open demo module):

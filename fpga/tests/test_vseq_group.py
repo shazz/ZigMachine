@@ -23,8 +23,11 @@ import video_dump  # tools/ is on the path only from here
 
 FAKES = {
     "host.h": "#pragma once\n#include <stdint.h>\nstruct w2c_env { int unused; };\ntypedef uint32_t u32;\n",
-    "vboard.h": "#pragma once\nenum { ZMV_BG, ZMV_PLANE, ZMV_LATCH, ZMV_MIX, ZMV_PRESENT, ZMV_CLEAR };\n"
-    "enum { ZMV_HOLD = 1, ZMV_KEEP = 2, ZMV_NOPFB = 4 };\n",
+    "vboard.h": "#pragma once\n#include <stdint.h>\n"
+    "enum { ZMV_BG, ZMV_PLANE, ZMV_LATCH, ZMV_MIX, ZMV_PRESENT, ZMV_CLEAR, ZMV_WB };\n"
+    "enum { ZMV_HOLD = 1, ZMV_KEEP = 2, ZMV_NOPFB = 4 };\n"
+    "static inline uint32_t zmv_reg(int w) { (void)w; return 0; }\n"
+    "static inline void zmv_flush_dcache(void) {}\n",
     "vseq_wait.h": '#pragma once\n#include "host.h"\n#include "vseq.h"\n'
     "void t_hbl(uint16_t id, u32 p, u32 y, u32 pos);\n"
     "static inline void hbl(struct w2c_env* e, uint16_t id, u32 p, u32 y, u32 pos) { (void)e; t_hbl(id, p, y, pos); }\n"
@@ -62,6 +65,7 @@ void vseq_latch(int p) { seen[p] = flick(); printf("L %d\n", p); }
 int vseq_fill(void) { return 1; }
 void vseq_wait_painted(void) { painted_waits++; }
 void vseq_wait_swap(void) {}
+void vseq_idle(void) {}
 int vseq_plane_handler(int p) { return vseq_r16(ZM_REG_FB_HBL_ID + 2u * (uint32_t)p) != 0; }
 uint8_t vseq_plane_mode(int p) { return (uint8_t)mode[p]; }
 void vseq_plane_lines(int p, uint32_t* oy, uint32_t* rows) { (void)p; *oy = 0, *rows = H; }

@@ -159,6 +159,16 @@ fn vramAlloc(bytes: usize) usize {
     return off;
 }
 
+/// Words in VRAM for a copper list's PALREF tables (HW 1.9.0, machine/copper.zig): `off` is the
+/// region offset a PALREF names. Null when the pool has no room (the caller keeps its handler).
+pub const VramWords = struct { words: []u32, off: u32 };
+pub fn vramWords(n: usize) ?VramWords {
+    const off = (vram_top + 3) & ~@as(usize, 3);
+    if (off + n * 4 > hw.OFF_VRAM + VRAM_BYTES) return null;
+    vram_top = off + n * 4;
+    return .{ .words = @as([*]u32, @ptrFromInt(g_base + off))[0..n], .off = @intCast(off) };
+}
+
 inline fn writeU8(off: usize, v: u8) void {
     @as(*u8, @ptrFromInt(g_base + off)).* = v;
 }
@@ -473,6 +483,9 @@ pub const LogicalFB = struct {
     fb_hbl_handler_position: u16 = 0,
     is_enabled: bool = false,
     zigos: *ZigOS = undefined,
+    // This plane's copper list buffer in VRAM (copperList), and its REG_FB_COPPER value.
+    copper_words: []u32 = &.{},
+    copper_v: u16 = 0,
 
     // Point this plane's pixel view at `fb_off` (a byte offset into the region,
     // from the VRAM allocator) and publish it to the machine's FB_BASE register.
@@ -491,6 +504,34 @@ pub const LogicalFB = struct {
         self.clearFrameBuffer(0);
         self.zigos = zigos;
         self.is_enabled = false;
+        self.copper_words = &.{}; // the VRAM pool was reset: no list until one is asked for
+        writeU16(hw.REG_FB_COPPER + @as(usize, self.id) * 2, 0);
+    }
+
+    // A buffer of `words` u32 for this plane's copper list (HW 1.9.0, machine/copper.zig), in VRAM
+    // and published in REG_FB_COPPER, allocated once a scene; null when VRAM is full (the caller
+    // then plays its table from an HBL handler instead). No version test: the hosts do not hand a
+    // cart hwVersion (it reads 0), so a 1.9.0 cart needs a 1.9.0 machine, the board's system too.
+    pub fn copperList(self: *LogicalFB, words: usize) ?[]u32 {
+        if (self.copper_words.len < words) {
+            const off = (vram_top + 15) & ~@as(usize, 15);
+            if (off + words * 4 > hw.OFF_VRAM + VRAM_BYTES) return null;
+            vram_top = off + words * 4;
+            self.copper_words = @as([*]u32, @ptrFromInt(g_base + off))[0..words];
+            self.copper_v = @intCast((off - hw.OFF_VRAM) / 16);
+        }
+        writeU16(hw.REG_FB_COPPER + @as(usize, self.id) * 2, self.copper_v);
+        return self.copper_words;
+    }
+
+    pub fn clearCopperList(self: *LogicalFB) void {
+        writeU16(hw.REG_FB_COPPER + @as(usize, self.id) * 2, 0);
+    }
+
+    // The published list's buffer, or null (none, or a handler installed since replaced it).
+    pub fn copperBuffer(self: *const LogicalFB) ?[]u32 {
+        const v = std.mem.readInt(u16, @as(*const [2]u8, @ptrFromInt(g_base + hw.REG_FB_COPPER + @as(usize, self.id) * 2)), .little);
+        return if (v != 0 and v == self.copper_v) self.copper_words else null;
     }
 
     // Turn this plane into an OVERSCAN plane: a 400×280 buffer in PHYSICAL coords
@@ -731,6 +772,7 @@ pub const LogicalFB = struct {
         writeU16(hw.REG_FB_HBL_ID + @as(usize, self.id) * 2, @as(u16, self.id) + 1);
         writeU16(hw.REG_FB_HBL_POS + @as(usize, self.id) * 2, position);
         writeU8(hw.REG_FB_HBL_PURE + @as(usize, self.id), @intFromBool(pure));
+        self.clearCopperList(); // a handler replaces a copper list, as it replaced copper's handler
     }
 
     pub fn clearFrameBufferHBLHandler(self: *LogicalFB) void {

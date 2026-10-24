@@ -47,6 +47,25 @@ int vseq_plane_pure(int p) {
 #endif
 }
 
+int vseq_copper_on(unsigned on) {
+    int any = 0;
+    for (int p = 0; p < (int)ZM_NB_PLANES; p++)
+        any |= ((on >> p) & 1) && vseq_r16(ZM_REG_FB_COPPER + 2u * (uint32_t)p) != 0;
+    return any;
+}
+
+void vseq_copper_end(unsigned on) {
+    if (!vseq_copper_on(on)) return;
+    vseq_issue(ZMV_WB, 0, 0, 0, 0, 0, 0);
+    vseq_idle();
+    zmv_flush_dcache(); /* the compositor wrote the palettes behind the D$ */
+    for (uint32_t w = ZM_REG_HSCROLL / 4; w < ZM_REG_HSCROLL / 4 + 2; w++) {
+        uint32_t v = zmv_reg((int)w);
+        vseq_w16(w * 4, (uint16_t)v);
+        vseq_w16(w * 4 + 2, (uint16_t)(v >> 16));
+    }
+}
+
 int vseq_group_ok(unsigned g) {
     int hbl = 0, medium = 0;
     for (int p = 0; p < (int)ZM_NB_PLANES; p++)

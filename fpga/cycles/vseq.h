@@ -62,6 +62,11 @@ void vseq_mix_only(void);
  * as the frame's first layer), the others `hold`, all but the top `keep`. nopfb: the top's
  * passes store the picture only (nothing loads this frame's PFB rows after them). */
 void vseq_group(struct w2c_env* e, unsigned g, int first, int nopfb);
+/* An enabled plane of `on` has a copper list (REG_FB_COPPER, HW 1.9.0). */
+int vseq_copper_on(unsigned on);
+/* After the planes, before PRESENT: with a copper list on, the palettes WRITTEN BACK to the region
+ * and the compositor's HSCROLL copied there, where the browser's machine leaves them. */
+void vseq_copper_end(unsigned on);
 /* Plane p has an HBL handler (FB_HBL_ID). */
 int vseq_plane_handler(int p);
 /* Plane p may be in a group: no handler, or a pure one (vseq_group.c). */

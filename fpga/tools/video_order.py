@@ -46,6 +46,9 @@ class Split:
     wb: dict[int, dict[int, int]] = field(default_factory=dict)  # BG(y)'s own write-backs
     frame: dict[int, int] = field(default_factory=dict)  # frame()
     h: dict[tuple[int, int], dict[int, int]] = field(default_factory=dict)  # (pass, y)
+    # what changed after a plane pass's last handler: its copper list's writes (HW 1.9.0)
+    end: dict[int, dict[int, int]] = field(default_factory=dict)
+    pre: dict[tuple[int, int], dict[int, int]] = field(default_factory=dict)  # (pass, y): ditto, before y's handler
 
 
 def split(frames_dir: Path, frame: int) -> Split:
@@ -67,6 +70,10 @@ def split(frames_dir: Path, frame: int) -> Split:
             s.frame.update(delta)  # only the first plane pass sees a change: frame()'s
         elif pas > 0 and kind == POST:
             s.h[(pas, line)] = delta
+        elif pas > 0 and kind == PRE:
+            s.pre[(pas, line)] = delta
+        elif pas > 0 and kind == END:
+            s.end[pas] = delta
     return s
 
 
@@ -105,9 +112,11 @@ def plane_major(s: Split) -> bytes:
         w.emit(START, k, 0)
         for y in range(LINES):
             if (k, y) in s.h:
+                w.apply(s.pre.get((k, y), {}))
                 w.emit(PRE, k, y)
                 w.apply(s.h[(k, y)])
                 w.emit(POST, k, y)
+        w.apply(s.end.get(k, {}))
         w.emit(END, k, 0)
     return bytes(w.out)
 

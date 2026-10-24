@@ -114,6 +114,7 @@ static void frame(sha256_ctx* h, u32 planes, u32 size, long f) {
     vplan_end(f);
     uint32_t t3 = board_cycles();
     bcursor_draw(); /* the board has no host cursor: GEM's arrow over the picture */
+    vseq_copper_end(on);
     mb_presenting();
     vseq_present();
     g_cart = t1 - t0, g_seq = (t0 - tc) + (board_cycles() - t2);

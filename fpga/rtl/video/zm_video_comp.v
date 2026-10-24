@@ -10,6 +10,8 @@
 //   2 LATCH    latch plane `cmd_plane`'s frame registers         (top of renderPlane)
 //   3 MIX      fold the PFB row alone into the picture           (no plane enabled)
 //   4 PRESENT  the picture is complete: show it from the next VBL (zm_video_out.v)
+//   6 WRITEBACK the four palettes out to the region (zm_video_palwb.v): after a frame whose
+//              copper lists wrote entries the CPU never stored (HW 1.9.0)
 //   5 CLEAR    hwClear in one clock, when no line of it can differ (no global HBL
 //              handler, no BEAM writes): latch BACKGROUND as the fill colour and
 //              count the frame as BG line 279 does. The lines are painted later,
@@ -89,9 +91,9 @@ module zm_video_comp #(
     wire [20:0] pal_idx = cpu_waddr - PAL_W, beam_idx = cpu_waddr - BEAM_W;
 
     // --- command taking: a pass that folds into the picture waits for `d_ok` ---
-    wire busy, cop_busy;
+    wire busy, cop_busy, wb_busy;
     reg [1:0] plane;
-    assign cmd_ready = !busy && !cop_busy && (!cmd_mix || d_ok);
+    assign cmd_ready = !busy && !cop_busy && !wb_busy && (!cmd_mix || d_ok);
     wire take = cmd_valid && cmd_ready;
     wire latch = take && cmd_op == 3'd2;
     assign present = take && cmd_op == 3'd4;
@@ -122,14 +124,14 @@ module zm_video_comp #(
     wire [5:0] beam_raddr;
     wire [31:0] pal_rdata, beam_rdata, cop_pal_wdata;
     wire [63:0] fb_rdata, fb_wdata;
-    wire [9:0] cop_pal_waddr;
+    wire [9:0] cop_pal_waddr, wb_pal_raddr;
     wire fb_we, cop_fb_we, cop_pal_we;
     // The palette's one write port: the copper's record (it runs only between a take and the
     // pass's `painted`, when the sequencer's drain rule keeps the CPU's stores away), else the snoop.
     zm_video_sdpram #(.AW(10), .DW(32)) u_pal (.clk(clk),
         .we(cop_pal_we ? 4'hF : cpu_we && pal_sel ? cpu_be : 4'd0),
         .waddr(cop_pal_we ? cop_pal_waddr : pal_idx[9:0]), .wdata(cop_pal_we ? cop_pal_wdata : cpu_wdata),
-        .raddr({plane, pal_raddr}), .rdata(pal_rdata));
+        .raddr(wb_busy ? wb_pal_raddr : {plane, pal_raddr}), .rdata(pal_rdata));
     reg cop_collision = 1'b0;   // sticky: a CPU palette store met a copper write (the break test's)
     always @(posedge clk) if (cop_pal_we && cpu_we && pal_sel) cop_collision <= 1'b1;
     zm_video_sdpram #(.AW(6), .DW(32)) u_beam (.clk(clk), .we(cpu_we && beam_sel ? cpu_be : 4'd0),
@@ -214,14 +216,31 @@ module zm_video_comp #(
         .lb_data(pt_data), .overflow(overflow));
 
     // --- row I/O and the plane mixer ---
+    // --- WRITEBACK: the palettes out through the write port, which nothing else uses then ---
+    wire wb_req_valid, wb_dat_valid, rw_req_valid, rw_dat_valid;
+    wire [31:0] wb_req_addr, rw_req_addr;
+    wire [9:0] wb_req_len, rw_req_len;
+    wire [63:0] wb_dat, rw_dat;
+    zm_video_palwb u_wb (
+        .clk(clk), .rst(rst), .start(take && cmd_op == 3'd6), .vbase(vbase), .busy(wb_busy),
+        .pal_raddr(wb_pal_raddr), .pal_rdata(pal_rdata), .wr_req_valid(wb_req_valid),
+        .wr_req_ready(wb_busy && wr_req_ready), .wr_req_addr(wb_req_addr), .wr_req_len(wb_req_len),
+        .wr_dat_valid(wb_dat_valid), .wr_dat_ready(wb_busy && wr_dat_ready), .wr_dat(wb_dat), .wr_busy(wr_busy));
+    assign wr_req_valid = wb_busy ? wb_req_valid : rw_req_valid;
+    assign wr_req_addr = wb_busy ? wb_req_addr : rw_req_addr;
+    assign wr_req_len = wb_busy ? wb_req_len : rw_req_len;
+    assign wr_dat_valid = wb_busy ? wb_dat_valid : rw_dat_valid;
+    assign wr_dat = wb_busy ? wb_dat : rw_dat;
+
     zm_video_rowio u_row (
         .clk(clk), .rst(rst), .pfb_addr(pfb_addr), .d_addr(d_addr), .ld_start(ld_start), .ld_pfb(ld_pfb),
         .ld_d(ld_d), .ld_done(ld_done), .rd_req_valid(rw_rd_valid), .rd_req_ready(!cop_busy && !fetching && rd_req_ready),
         .rd_req_addr(rw_rd_addr), .rd_req_len(rw_rd_len), .rd_rsp_valid(!cop_busy && !fetching && rd_rsp_valid),
         .rd_rsp_data(rd_rsp_data), .lb_we(ld_lb_we), .acc_we(ld_acc_we), .ld_addr(ld_addr),
         .ld_lb_data(ld_lb_data), .ld_acc_data(ld_acc_data), .st_start(st_start), .st_pfb(st_pfb), .st_d(st_d),
-        .st_done(st_done), .wr_req_valid(wr_req_valid), .wr_req_ready(wr_req_ready), .wr_req_addr(wr_req_addr),
-        .wr_req_len(wr_req_len), .wr_dat_valid(wr_dat_valid), .wr_dat_ready(wr_dat_ready), .wr_dat(wr_dat),
+        .st_done(st_done), .wr_req_valid(rw_req_valid), .wr_req_ready(!wb_busy && wr_req_ready),
+        .wr_req_addr(rw_req_addr), .wr_req_len(rw_req_len), .wr_dat_valid(rw_dat_valid),
+        .wr_dat_ready(!wb_busy && wr_dat_ready), .wr_dat(rw_dat),
         .wr_busy(wr_busy), .st_raddr(st_raddr), .st_lb_rdata(lb_rdata), .st_acc_rdata(acc_rdata));
     zm_video_mix #(.TUBE(TUBE)) u_mix (
         .clk(clk), .rst(rst), .start(start_mix), .first(mix_first), .busy(mix_busy), .done(mix_done),

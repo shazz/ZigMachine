@@ -39,6 +39,7 @@ SOURCES = [
     "zm_video_mix.v",
     "zm_video_rowio.v",
     "zm_video_copper.v",
+    "zm_video_palwb.v",
     "zm_video_pass.v",
     "zm_video_comp.v",
 ]

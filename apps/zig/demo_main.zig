@@ -90,6 +90,7 @@ export fn frame(elapsed_time: f32) void {
     }
     cart.update(&zigos, elapsed_time);
     cart.render(&zigos, elapsed_time);
+    zg.copper.endFrame(&zigos); // copper lists (HW 1.9.0): this frame's tables, for the machine to apply
 }
 
 // Has the RAM cart been inserted and started? The host needs an HONEST readiness

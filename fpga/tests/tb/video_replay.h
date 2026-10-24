@@ -151,6 +151,21 @@ template <typename RigT> struct Replay {
             if (!nopfb || lm_break == 3) compare(top + 1, y);
         }
     }
+    // WRITEBACK (HW 1.9.0): the palettes the compositor holds at the frame's end, out to the region,
+    // must be the machine's (its copper lists wrote them in memory as it went).
+    void check_writeback(const State& end) {
+        // A plane no pass reads gets its palette here, as the snoop would have given it on the board.
+        for (int p = 0; p < ZM_NB_PLANES; p++)
+            if (!((f->planes >> p) & 1))
+                apply_ram(end, PAL0 + p * ZM_PAL_ENTRIES, ZM_PAL_ENTRIES, pal + p * ZM_PAL_ENTRIES,
+                          ZM_OFF_PAL + p * ZM_PAL_BYTES);
+        rig.command(6, 0, 0);
+        for (int i = 0; i < PAL_WORDS; i++) {
+            uint32_t got = rig.mem.word_at(uint32_t(ZM_OFF_PAL + i * 4)), want = end[size_t(PAL0 + i)];
+            if (got == want || ++bad_regs > 10) continue;
+            std::printf("FAIL writeback palette word %d = %08x, machine %08x\n", i, got, want);
+        }
+    }
     void check_picture() {
         for (int y = 0; y < LINES; y++)
             for (int x = 0; x < ROW; x++) {
@@ -192,6 +207,7 @@ template <typename RigT> struct Replay {
             }
         rig.command(4, 0, 0);
         if (last) check_own(*last, LINES - 1);  // the passes after the clear wrote none of them
+        if (last) check_writeback(*last);
         frame_clocks = rig.cycles - t0;
         for (long c : line_clocks) max_line = c > max_line ? c : max_line;
     }

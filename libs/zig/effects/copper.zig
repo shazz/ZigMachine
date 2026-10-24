@@ -33,7 +33,9 @@ pub const Geometry = struct {
 };
 
 /// `FB` needs: `id: u8`, `palette: [*]u32`, `flickerBorder()`,
-/// `hblLinesArePhysical() bool` and `setFrameBufferHBLHandlerPure(pos, handler)` (copper.hbl is pure: own palette + flicker).
+/// `hblLinesArePhysical() bool`, `setFrameBufferHBLHandlerPure(pos, handler)` (copper.hbl is pure:
+/// own palette + flicker), `clearFrameBufferHBLHandler()`, `copperList(words) ?[]u32` and
+/// `copperBuffer() ?[]u32` (HW 1.9.0: the list the machine applies itself; endFrame builds it).
 pub fn Copper(comptime FB: type, comptime OS: type, comptime g: Geometry) type {
     if (g.visible_top + g.visible_rows > g.rows) @compileError("copper: visible band outside the raster");
     return struct {
@@ -70,7 +72,51 @@ pub fn Copper(comptime FB: type, comptime OS: type, comptime g: Geometry) type {
                 @memset(&storage[s], fb.palette[e]);
             }
             used[id] = palette_entries.len;
+            // A list the machine applies itself (HW 1.9.0), built by endFrame(); else the handler.
             fb.setFrameBufferHBLHandlerPure(if (opts.flicker) g.magic_x else 0, hbl);
+            if (fb.copperList(LIST_WORDS) != null) fb.clearFrameBufferHBLHandler();
+        }
+
+        // A list: per row a HEAD, a FLICK, and a PAL op + its word per slot that changed.
+        pub const LIST_WORDS = g.rows * (2 + 2 * MAX_SLOTS) + 1;
+
+        /// After the scene's frame (demo_main.zig): each plane with a published list gets this
+        /// frame's tables as copper records (machine/copper.zig): its first covered row writes every
+        /// slot, the others the slots whose colour changed from the row above (what hbl's dedupe
+        /// leaves the palette holding), FLICK on every row with .flicker. Only words that differ
+        /// from last frame's list are stored: on the board every store is a bus write.
+        pub fn endFrame(os: *OS) void {
+            for (&os.lfbs) |*fb| {
+                const l = fb.copperBuffer() orelse continue;
+                if (used[fb.id] != 0) build(fb, l);
+            }
+        }
+
+        fn build(fb: *FB, l: []u32) void {
+            const id = fb.id;
+            const phys = fb.hblLinesArePhysical();
+            const lo: usize = if (phys) 0 else g.visible_top;
+            const hi: usize = if (phys) g.rows else g.visible_top + g.visible_rows;
+            var w: usize = 0;
+            var row = lo;
+            while (row < hi) : (row += 1) {
+                var n: u32 = @intFromBool(flicker[id]);
+                for (0..used[id]) |s| n += 2 * @as(u32, @intFromBool(row == lo or bank[id][s][row] != bank[id][s][row - 1]));
+                if (n == 0) continue;
+                put(l, &w, 0xF000_0000 | @as(u32, @intCast(row)) << 19 | n);
+                if (flicker[id]) put(l, &w, 0x3000_0000);
+                for (0..used[id]) |s| {
+                    if (row != lo and bank[id][s][row] == bank[id][s][row - 1]) continue;
+                    put(l, &w, 0x1000_0000 | @as(u32, entries[id][s]) << 20 | 1 << 12);
+                    put(l, &w, bank[id][s][row]);
+                }
+            }
+            put(l, &w, 0xF000_0000 | 511 << 19);
+        }
+
+        inline fn put(l: []u32, w: *usize, v: u32) void {
+            if (l[w.*] != v) l[w.*] = v;
+            w.* += 1;
         }
 
         /// Slot `slot`'s colours (RGBA as the palette stores them), one per

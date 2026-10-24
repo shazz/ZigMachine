@@ -58,6 +58,7 @@ def _emit_group(w: vo.Writer, s: vo.Split, group: list[int], fw: bool = False) -
         for k in group:
             if not handlers:
                 continue  # nothing runs between the passes: nothing to record
+            w.apply(s.pre.get((k, y), {}))  # a copper list's writes on the line before
             w.emit(vo.PRE, k, y)
             delta = s.h.get((k, y), {})
             w.apply(delta)
@@ -70,6 +71,7 @@ def _emit_group(w: vo.Writer, s: vo.Split, group: list[int], fw: bool = False) -
     if fw and handlers:
         _flicker(w, true)
     for k in group:
+        w.apply(s.end.get(k, {}))  # a copper list's writes, as the machine left them
         w.emit(vo.END, k, 0)
 
 
@@ -77,9 +79,11 @@ def _emit_plane(w: vo.Writer, s: vo.Split, k: int) -> None:
     w.emit(vo.START, k, 0)
     for y in range(vo.LINES):
         if (k, y) in s.h:
+            w.apply(s.pre.get((k, y), {}))
             w.emit(vo.PRE, k, y)
             w.apply(s.h[(k, y)])
             w.emit(vo.POST, k, y)
+    w.apply(s.end.get(k, {}))
     w.emit(vo.END, k, 0)
 
 

@@ -4,13 +4,27 @@
 const std = @import("std");
 const expectEqual = std.testing.expectEqual;
 
-const FakeOS = struct {};
 const FakeFB = struct {
     id: u8,
     palette: [*]u32,
     physical: bool = false,
     flickers: u32 = 0,
     hbl_pos: u16 = 0xFFFF,
+    list: ?[]u32 = null, // a machine with copper lists (HW 1.9.0) gives this buffer
+    published: bool = false,
+
+    pub fn copperList(self: *FakeFB, words: usize) ?[]u32 {
+        const l = self.list orelse return null;
+        if (l.len < words) return null;
+        self.published = true;
+        return l;
+    }
+    pub fn copperBuffer(self: *const FakeFB) ?[]u32 {
+        return if (self.published) self.list else null;
+    }
+    pub fn clearFrameBufferHBLHandler(self: *FakeFB) void {
+        self.hbl_pos = 0xFFFF;
+    }
 
     pub fn flickerBorder(self: *FakeFB) void {
         self.flickers += 1;
@@ -24,6 +38,7 @@ const FakeFB = struct {
     }
 };
 
+const FakeOS = struct { lfbs: [2]FakeFB };
 const C = @import("copper.zig").Copper(FakeFB, FakeOS, .{
     .nb_planes = 2,
     .rows = 280,
@@ -32,7 +47,7 @@ const C = @import("copper.zig").Copper(FakeFB, FakeOS, .{
     .magic_x = 13,
 });
 
-var os: FakeOS = .{};
+var os: FakeOS = undefined;
 
 test "install seeds every row with the entry's current colour" {
     var pal = [_]u32{0} ** 256;
@@ -112,4 +127,38 @@ test "a slot past the installed entries is scratch: written, never played" {
     try expectEqual(@as(u32, 0), store[0][60]); // the real table is untouched
     C.hbl(&fb, &os, 20, 0); // physical row 60
     try expectEqual(@as(u32, 0), pal[2]);
+}
+
+test "with copper lists: no handler, and endFrame writes the rows that change, FLICK on every row" {
+    var pal = [_]u32{0} ** 256;
+    var buf = [_]u32{0} ** C.LIST_WORDS;
+    var o = FakeOS{ .lfbs = .{
+        FakeFB{ .id = 0, .palette = &pal, .physical = true, .list = &buf },
+        FakeFB{ .id = 1, .palette = &pal },
+    } };
+    var store: [1]C.Table = undefined;
+    C.install(&o.lfbs[0], &.{9}, &store, .{ .flicker = true });
+    try expectEqual(@as(u16, 0xFFFF), o.lfbs[0].hbl_pos); // the handler was taken away again
+    @memset(&store[0], 0x55);
+    store[0][100] = 0x77;
+    C.endFrame(&o);
+    const head0: u32 = 0xF000_0000 | 3; // row 0: FLICK + PAL 9 + its word
+    try expectEqual(head0, buf[0]);
+    try expectEqual(@as(u32, 0x3000_0000), buf[1]);
+    try expectEqual(@as(u32, 0x1090_1000), buf[2]);
+    try expectEqual(@as(u32, 0x55), buf[3]);
+    try expectEqual(@as(u32, 0xF000_0000 | 1 << 19 | 1), buf[4]); // row 1: FLICK only
+    try expectEqual(@as(u32, 0x3000_0000), buf[5]);
+    const row100 = 4 + 2 * 99; // rows 1..99 are 2 words each
+    try expectEqual(@as(u32, 0xF000_0000 | 100 << 19 | 3), buf[row100]);
+    try expectEqual(@as(u32, 0x77), buf[row100 + 3]);
+    try expectEqual(@as(u32, 0xF000_0000 | 101 << 19 | 3), buf[row100 + 4]); // back to 0x55
+}
+
+test "no list on this machine: the handler stays" {
+    var pal = [_]u32{0} ** 256;
+    var fb = FakeFB{ .id = 1, .palette = &pal };
+    var store: [1]C.Table = undefined;
+    C.install(&fb, &.{2}, &store, .{});
+    try expectEqual(@as(u16, 0), fb.hbl_pos);
 }

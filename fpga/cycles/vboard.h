@@ -15,7 +15,7 @@
 #define ZMV_BIT(name) (ZMV_STATUS_##name##_MASK << ZMV_STATUS_##name##_SHIFT)
 
 /* rtl/video/zm_video_comp.v's commands. */
-enum { ZMV_BG = 0, ZMV_PLANE = 1, ZMV_LATCH = 2, ZMV_MIX = 3, ZMV_PRESENT = 4, ZMV_CLEAR = 5 };
+enum { ZMV_BG = 0, ZMV_PLANE = 1, ZMV_LATCH = 2, ZMV_MIX = 3, ZMV_PRESENT = 4, ZMV_CLEAR = 5, ZMV_WB = 6 };
 
 static inline uint32_t zmv_status(void) { return ZMV_REG(STATUS); }
 

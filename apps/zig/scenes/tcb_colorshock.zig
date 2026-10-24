@@ -49,6 +49,7 @@ const field = @import("tcb_colorshock/field.zig");
 const inkpal = @import("tcb_colorshock/inkpal.zig");
 const strip = @import("tcb_colorshock/strip.zig");
 const hbl = @import("tcb_colorshock/hbl.zig");
+const cop = @import("tcb_colorshock/cop.zig");
 
 const movescroll_b = @embedFile("../assets/screens/tcb_colorshock/movescroll.dat");
 
@@ -128,6 +129,7 @@ pub const Demo = struct {
         for (inkpal.logo_colours, 0..) |c, i| bg.palette[inkpal.LOGO_FIRST + i] = c;
         hbl.strip_pal.reset();
         bg.setFrameBufferHBLHandlerPure(zg.OVERSCAN_MAGIC_X, hbl.panHbl);
+        _ = cop.install(bg); // the machine applies the raster itself (HW 1.9.0): no handler then
         zigos.lfbs[1].is_enabled = false;
 
         self.gpu = .{};
@@ -175,6 +177,7 @@ pub const Demo = struct {
         v = field.rowView(bg, row + self.strip_y);
         self.gpu.blitImage(&v, @intCast(x + STRIP_X), 0, &strip.pixels, strip.STRIP_W, 0, 0, strip.STRIP_W, strip.STRIP_H, 0);
         self.drawn = .{ .x = x, .row = row, .strip_y = self.strip_y };
+        cop.build(bg); // this frame's raster as a copper list (cop.zig), when installed
     }
 };
 

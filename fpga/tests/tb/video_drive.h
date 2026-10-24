@@ -88,6 +88,10 @@ public:
         cycle();
         top.p_cmd__valid.set(false);
         if (op == 2 || op == 4 || op == 5) return 0;
+        if (op == 6) {  // WRITEBACK: done when the compositor takes commands again
+            wait_for([&] { return top.p_cmd__ready.template get<bool>(); }, "written back", op, line, 200000);
+            return 0;
+        }
         long t0 = cycles;
         wait_for([&] { return top.p_pass__done.template get<bool>(); }, "finished", op, line, 2000000);
         cycle();

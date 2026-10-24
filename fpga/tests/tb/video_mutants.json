@@ -2,8 +2,8 @@
   {
     "id": "palette_of_plane0",
     "file": "zm_video_comp.v",
-    "old": ".raddr({plane, pal_raddr})",
-    "new": ".raddr({2'd0, pal_raddr})",
+    "old": "wb_pal_raddr : {plane, pal_raddr})",
+    "new": "wb_pal_raddr : {2'd0, pal_raddr})",
     "catch": "s:layers"
   },
   {
@@ -415,6 +415,13 @@
     "file": "zm_video_copper.v",
     "old": "if (op == 4'h2) hs_we <= 1'b1;",
     "new": "if (op == 4'h2) hs_we <= 1'b0;",
+    "catch": "s:copper"
+  },
+  {
+    "id": "writeback_halves_swapped",
+    "file": "zm_video_palwb.v",
+    "old": "assign wr_dat = {hi, lo};",
+    "new": "assign wr_dat = {lo, hi};",
     "catch": "s:copper"
   }
 ]
