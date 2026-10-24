@@ -15,11 +15,10 @@
 const std = @import("std");
 const zg = @import("zigos");
 const ZigOS = zg.ZigOS;
-const gpu = @import("../union_common/gpu.zig");
 const LogicalFB = zg.LogicalFB;
 
 const st2 = zg.scrolltext2;
-const sg = @import("scroller_gpu.zig");
+const ss = @import("scroll_strip.zig"); // the strip and the wave, by the CPU
 
 const NUM_SLOTS: usize = 14;
 const GLYPH: u16 = 32;
@@ -34,7 +33,6 @@ pub const BAND_TOP: i32 = BASE_Y - 10; // BASE_Y - WAVE_AMP
 pub const BAND_ROWS: i32 = 20 + STRIP_H + 1; // the wave's swing, the strip, and a row for the rounding
 const SCROLL_SPEED: i32 = 3; // half of EFMAIN_SCROLL_SPEED=6
 
-const fontsout = @embedFile("../../assets/screens/union_main/fontsout.raw");
 const fontsin_bits = @embedFile("../../assets/screens/union_main/fontsin.bits");
 const rasters = @embedFile("../../assets/screens/union_main/rasters.raw");
 
@@ -58,12 +56,8 @@ pub const Scroller = struct {
     wave_v: f32 = 0,
 
     pub fn init(self: *Scroller, zigos: *ZigOS) void {
-        // The flat text band, before the wave bends it, lives in a scratch plane (the 4th, never
-        // enabled): a CHISEL blit writes video memory only. Set up again at every entry, like
-        // the planes: the host resets the VRAM pool first.
-        zigos.lfbs[3].setScrollPlane(STRIP_W, STRIP_H);
-        sg.init(fontsin_bits); // the text is drawn on P1, in p2.pal's colours (p1_split.zig)
-
+        // the text is drawn on P1, in p2.pal's colours (p1_split.zig)
+        ss.init(&zigos.lfbs[3]); // the flat strip, before the wave bends it: plane 3, never enabled
         self.wave_v = 0;
         self.fx.init(.{
             .glyph_w = GLYPH,
@@ -71,7 +65,7 @@ pub const Scroller = struct {
             .cols = 10,
             .ascii_base = 32,
             .font_out_sheet_w = 320,
-            .font_out = fontsout,
+            .font_out = &ss.CLASS, // scrolltext2 only scrolls the slots here; ss draws them
             .font_in_bits = fontsin_bits,
             .raster = rasters,
             .raster_w = 384,
@@ -83,30 +77,23 @@ pub const Scroller = struct {
         self.fx.update();
     }
 
-    /// Over P1, last: the wave puts the strip on rows BAND_TOP .. BAND_TOP + BAND_ROWS - 1 (the
-    /// caller erases them).
+    /// Over P1, last: the band rows BAND_TOP .. BAND_TOP + BAND_ROWS - 1 are written whole
+    /// (the text where the wave puts it, 0 elsewhere), so nobody erases them.
     pub fn draw(self: *Scroller, zigos: *ZigOS) void {
-        const p1: *LogicalFB = &zigos.lfbs[1];
-        const strip = &zigos.lfbs[3];
-        gpu.fill(strip, 0, 0, STRIP_W, STRIP_H, 0);
-        sg.draw(&self.fx, strip, fontsout, rasters);
-        compositeSiny(p1, strip, &self.wave_v);
+        ss.draw(&zigos.lfbs[3], &self.fx, rasters);
+        // FX.siny(0,20,6): column groups of WAVE_COL px, each offset vertically by
+        // sin(phase)*amp; the phase advances per group during the sweep but the persisted
+        // state only carries the per-frame drift (Codef's oldvalue+offset reset after the loop).
+        const sum = zg.wave.SineSum(f32, 1){ .amp = .{WAVE_AMP}, .phase = .{self.wave_v}, .inc = .{WAVE_INC}, .rounding = .round };
+        var it = sum.sweep(0);
+        var top: [GROUPS]i32 = undefined; // band row of text row 0, per group
+        for (&top) |*t| t.* = @as(i32, BASE_Y) + it.next() - BAND_TOP;
+        self.wave_v += WAVE_DRIFT;
+        ss.wave(&zigos.lfbs[1], &zigos.lfbs[3], @intCast(BAND_TOP), @intCast(BAND_ROWS), &top, WAVE_COL);
     }
 };
 
-// FX.siny(0,20,6): copy the strip column-by-column (WAVE_COL wide) into the
-// plane, each column group offset vertically by sin(phase)*amp; phase advances
-// per column during the sweep but the *persisted* state only carries the
-// per-frame drift (mirrors Codef's oldvalue+offset reset after the loop).
-// One keyed CHISEL copy a group (what zg.wave.siny did through the CPU's byte
-// copies; the same groups, offsets, clip and colour-0 key).
-fn compositeSiny(dst: *LogicalFB, strip: *LogicalFB, wave_v: *f32) void {
-    const sum = zg.wave.SineSum(f32, 1){ .amp = .{WAVE_AMP}, .phase = .{wave_v.*}, .inc = .{WAVE_INC}, .rounding = .round };
-    var it = sum.sweep(0);
-    var x: u16 = 0;
-    while (x < STRIP_W) : (x += WAVE_COL) {
-        const off = it.next();
-        sg.group(dst, strip, x, @as(i32, BASE_Y) + off, @min(WAVE_COL, STRIP_W - x));
-    }
-    wave_v.* += WAVE_DRIFT;
+const GROUPS = (STRIP_W + WAVE_COL - 1) / WAVE_COL; // 134 column groups
+comptime {
+    if (STRIP_W != ss.W or 2 * (BASE_Y - BAND_TOP) != ss.PAD or BAND_ROWS != ss.PAD + STRIP_H + 1) @compileError("scroll_strip's geometry");
 }

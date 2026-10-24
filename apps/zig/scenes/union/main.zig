@@ -28,6 +28,10 @@ const clouds3 = @embedFile("../../assets/screens/union_main/clouds3.raw");
 // Spare palette entries (p0.pal uses 1..36) for the solid ground bands.
 const WORLD_TOP: i16 = 35; // first row anything but the sky is drawn on
 const FLOOR_TOP: i16 = 163; // from here the bands and parallax cover every pixel
+// The three cloud strips tile rows 35..83 exactly (16 rows each, wrapped across the plane), and
+// their colour 0 is the sky's: drawn as plain copies they repaint those rows whole, so only
+// rows CLOUDS_END.. are erased (each strip's "transparent" 0 lands on sky 0 either way).
+const CLOUDS_END: i16 = 83;
 const FLOOR: u8 = 40; // pink band under the walkway
 const BOTTOM: u8 = 41; // white band to the screen bottom
 const BOTTOM_TOP: i16 = sq.DISC_TOP; // its first row: the dragonballs' discs are blended over it
@@ -62,7 +66,6 @@ pub const Demo = struct {
     speed: f32 = 0.3, // scroll tiles/frame; host may slow it (0.3 = nominal)
     frame: u32 = 0,
     fresh: bool = true, // the planes have not been cleared whole yet
-    credits_shown: bool = false, // a credits page is on P1 from the last frame
     grad_idx: u8 = 0, // gradTiles palette-animation step
     grad_inc: i8 = 1,
     // Keys 1-6: the playlist and its SNDH proofs live in tracks.zig.
@@ -73,7 +76,6 @@ pub const Demo = struct {
         self.pos = 0;
         self.frame = 0;
         self.fresh = true;
-        self.credits_shown = false;
         self.grad_idx = 0;
         self.grad_inc = 1;
         autoplay(); // track 1, unless the cracktro already started a tune
@@ -93,9 +95,9 @@ pub const Demo = struct {
         self.px = .{ .layers = .{
             .{ .raw = layer_b1, .w = 384, .h = 16, .y = 195, .speed = 11 },
             .{ .raw = layer_b2, .w = 384, .h = 16, .y = 179, .speed = 7 },
-            .{ .raw = clouds1, .w = 320, .h = 16, .y = 67, .speed = 1, .transparent = true },
-            .{ .raw = clouds2, .w = 320, .h = 16, .y = 51, .speed = 1.5, .transparent = true },
-            .{ .raw = clouds3, .w = 320, .h = 16, .y = 35, .speed = 2, .transparent = true },
+            .{ .raw = clouds1, .w = 320, .h = 16, .y = 67, .speed = 1 },
+            .{ .raw = clouds2, .w = 320, .h = 16, .y = 51, .speed = 1.5 },
+            .{ .raw = clouds3, .w = 320, .h = 16, .y = 35, .speed = 2 },
         } };
     }
 
@@ -125,7 +127,7 @@ pub const Demo = struct {
         // Index 0 = sky, recoloured per scanline by the HBL. Rows 0..34 are never drawn
         // on and rows 163.. are covered whole by the floor, the parallax and the bottom
         // band, so after the first frame only the rows between are erased (a CHISEL fill).
-        if (self.fresh) gpu.clear(p0, 0) else gpu.fill(p0, 0, WORLD_TOP, @intCast(p0.fb_w), FLOOR_TOP - WORLD_TOP, 0);
+        if (self.fresh) gpu.clear(p0, 0) else gpu.fill(p0, 0, CLOUDS_END, @intCast(p0.fb_w), FLOOR_TOP - CLOUDS_END, 0);
         wd.parallax(&self.px, p0, @intCast(PW)); // CHISEL strips (zg.parallax's CPU copies were a megacycle)
         // Ground: floorback is a 16px pink strip (behind world row 8); the
         // scrolling layer_b1/b2 parallax fills 179..211 below it; bottomback
@@ -136,10 +138,9 @@ pub const Demo = struct {
         // Tile world: clouds (behind) -> animated rows -> world tiles (on top).
         wd.world(p0, self.pos); // clouds -> animated rows -> world, pre-composited cells (world_cells.zig)
         self.balls.draw(zigos); // dragonballs on plane 0, last
-        split.erase(&zigos.lfbs[1], self.fresh, self.credits_shown);
+        split.erase(&zigos.lfbs[1], self.fresh);
         self.fresh = false;
         self.runner.draw(zigos, self.speed / 0.3); // ghost trail scales with speed
-        self.credits_shown = self.credits.alpha > 0.0;
         self.credits.draw(zigos); // credits pages on plane 1 (top area)
         self.scroller.draw(zigos); // scrolltext on plane 1, under the split
     }
@@ -171,3 +172,7 @@ pub const Demo = struct {
         gpu.fill(fb, 0, y0, @min(PW, @as(i16, @intCast(fb.fb_w))), y1 - y0, idx);
     }
 };
+
+comptime { // the cloud strips (Demo.init) cover WORLD_TOP..CLOUDS_END, one after the other
+    if (WORLD_TOP + 3 * 16 != CLOUDS_END) @compileError("the cloud strips no longer tile WORLD_TOP..CLOUDS_END");
+}

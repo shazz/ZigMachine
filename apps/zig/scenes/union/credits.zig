@@ -47,6 +47,7 @@ pub const Credits = struct {
     timer: u32 = 0,
     page: usize = 0,
     alpha: f32 = 0,
+    on_plane: ?usize = null, // the page drawn on P1 now (P1 starts cleared)
 
     pub fn init(self: *Credits, zigos: *ZigOS) void {
         self.* = .{};
@@ -68,10 +69,15 @@ pub const Credits = struct {
         setAlpha(zigos, @intFromFloat(self.alpha * 255.0));
     }
 
-    pub fn draw(self: *const Credits, zigos: *ZigOS) void {
-        if (self.alpha <= 0.0) return;
+    /// The page is drawn once when it starts to show and erased (its box) once it is gone:
+    /// while it shows only its palette alpha changes (split.setA), so its pixels stay.
+    pub fn draw(self: *Credits, zigos: *ZigOS) void {
+        const want: ?usize = if (self.alpha > 0.0) self.page else null;
+        if (want == self.on_plane) return;
         const p1: *LogicalFB = &zigos.lfbs[1];
-        gpu.putTile(p1, OX, OY, pageImage(self.page), PAGE_W, 0, 0, PAGE_W, PAGE_H);
+        if (self.on_plane != null) gpu.fill(p1, OX, OY, PAGE_W, PAGE_H, 0);
+        if (want) |page| gpu.putTile(p1, OX, OY, pageImage(page), PAGE_W, 0, 0, PAGE_W, PAGE_H);
+        self.on_plane = want;
     }
 };
 

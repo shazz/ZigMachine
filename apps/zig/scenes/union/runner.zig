@@ -18,6 +18,10 @@ const FH: i16 = 28; // frame h
 const X0: i16 = 200; // fixed top-left on the fullscreen plane (centre 216,133)
 const Y0: i16 = 119;
 pub const ROWS = .{ Y0, Y0 + FH }; // the rows the runner and its ghosts are drawn on
+/// The columns they are drawn in at any speed scale s in [0, 1]: the widest ghost (g 3) spans
+/// CENTER_X + GHOST_CX*s -+ FW*(1 + (GHOST_Z-1)*s)/2 = [200 - 57s, 232 + 7s], within [143, 239];
+/// the runner 200..232. A margin each side (the comptime check below pins full speed).
+pub const BOX = .{ 128, 256 };
 
 const sprites = @embedFile("../../assets/screens/union_main/sprites.raw");
 const p1_pal = convertU8ArraytoColors(@embedFile("../../assets/screens/union_main/p1.pal"));
@@ -134,6 +138,11 @@ fn ghostCols(g: usize) usize {
 fn left(g: usize) i16 {
     const cx = CENTER_X + GHOST_CX[g] * @as(f32, 1.0);
     return @intFromFloat(cx - @as(f32, @floatFromInt(FWU)) * zoom(g) * 0.5);
+}
+
+comptime { // main.zig erases only BOX: every full-speed ghost and the runner lie inside it
+    for (0..4) |g| if (left(g) < BOX[0] or @as(i32, left(g)) + @as(i32, FIXED_COLS[g]) > BOX[1]) @compileError("a ghost leaves runner.BOX");
+    if (X0 < BOX[0] or X0 + FW > BOX[1]) @compileError("the runner leaves runner.BOX");
 }
 
 /// Ghost g's sheet, FRAMES pictures side by side (row-major, FRAMES * cols wide), 0 where the stretch leaves a gap.

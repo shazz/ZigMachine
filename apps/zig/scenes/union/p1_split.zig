@@ -91,19 +91,19 @@ fn write(fb: *LogicalFB, bank: *const [A_SLOTS.len]u32) void {
 
 // What P1 draws where: the bank each needs holds on its rows.
 const credits_rows = @import("credits.zig").ROWS;
-const runner_rows = @import("runner.zig").ROWS;
+const runner = @import("runner.zig");
+const runner_rows = runner.ROWS;
 const band = @import("scroller.zig");
 comptime {
     if (credits_rows[1] > SPLIT or runner_rows[1] > SPLIT or band.BAND_TOP < SPLIT)
         @compileError("p1_split: an actor reaches below SPLIT or the text above it");
 }
 
-/// Erase what P1 drew last frame: the whole plane the first time, then only the actors' rows
-/// (the credits' only when a page was shown) and the text's band.
-pub fn erase(p1: *LogicalFB, whole: bool, credits_shown: bool) void {
+/// Erase what P1 drew last frame: the whole plane the first time, then only the runner's
+/// box. The credits page stays drawn while it shows (credits.zig erases its own box) and the
+/// text's band is rewritten whole every frame (scroller.zig).
+pub fn erase(p1: *LogicalFB, whole: bool) void {
     if (whole) return gpu.clear(p1, 0);
-    const w: i32 = @intCast(p1.fb_w);
-    if (credits_shown) gpu.fill(p1, 0, credits_rows[0], w, credits_rows[1] - credits_rows[0], 0);
-    gpu.fill(p1, 0, runner_rows[0], w, runner_rows[1] - runner_rows[0], 0);
-    gpu.fill(p1, 0, band.BAND_TOP, w, band.BAND_ROWS, 0);
+    const box = runner.BOX;
+    gpu.fill(p1, box[0], runner_rows[0], box[1] - box[0], runner_rows[1] - runner_rows[0], 0);
 }
