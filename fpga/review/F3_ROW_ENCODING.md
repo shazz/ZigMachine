@@ -1,5 +1,7 @@
 # F3: a narrower row encoding for FRESCO? (study, 2026-10-24)
 
+**Decision: not now (2026-10-24, lead): only 24-bit packed is exact, ~0.03 Mc a frame for 150-250 LUT at 89 %.**
+
 SOC_REVIEW.md F3 proposed RGB565 rows to halve the compositor's DDR traffic. This is the study the lead
 asked for after 3a/3b (FRESCO_OPTIONS.md): which encodings stay pixel-exact, what each saves on the
 board as it is now, what it costs, and whether to build one. Study only: no RTL.

@@ -58,9 +58,17 @@ def test_copper_list_frames_skip_only_what_is_unchanged(cart: str) -> None:
     assert (skipped == 0) == (cart == "tcb_colorshock")
 
 
+def test_a_redrawn_plane_skips_its_borders_uncompared() -> None:
+    """fallen_angels redraws its plane every frame: it goes hot (vdirty.c plan_plane), its covered
+    lines are new without being compared, and its 80 border lines a frame are still skipped."""
+    lines, skipped, moved, bad, _ = proof("fallen_angels")
+    assert bad == 0 and moved == 0
+    assert skipped >= 80 * (int(FRAMES) - 10)
+
+
 BREAKS = [("ROWS", "scroll"), ("PAL", "joust"), ("BG", "union_intro"), ("BG", "dhs_0pxl0reg"),
           ("HANDLER", "ancool"), ("PICTURE", "scroll"), ("OVERDRAWN", "gem"),
-          ("COPPER", "tutorial")]  # fmt: skip
+          ("COPPER", "tutorial"), ("HOT", "scroll")]  # fmt: skip
 
 
 @pytest.mark.skipif(os.environ.get("ZM_RTL_BREAK") != "1", reason="set ZM_RTL_BREAK=1 to run the break tests")

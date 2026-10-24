@@ -9,6 +9,7 @@
 
 #define H VD_LINES
 #define ROWMAX ZM_RASTER_WIDTH /* the longest fetch a comparable line makes (medium overscan) */
+#define VD_HOT 60 /* frames a fully redrawn plane's lines go uncompared (plan_plane) */
 /* The break mutants (fpga/tests/test_vdirty.py, ZM_RTL_BREAK=1): each forgets one input,
  * and the native proof must then find a skipped row a full composite paints differently. */
 #ifdef VD_BREAK_ROWS
@@ -36,6 +37,9 @@ typedef struct {
     uint8_t row_ok[ZM_NB_PLANES]; /* rows[p] and pal[p] hold plane p's last frame */
     uint8_t fresh[ZM_NB_PLANES];  /* this frame: rows[p] are refilled, every covered line is new */
     unsigned rows_on;             /* this frame: the planes whose rows vd_line compares */
+    uint16_t moved_rows[ZM_NB_PLANES]; /* the last compared frame: covered rows that changed */
+    uint8_t counted[ZM_NB_PLANES];     /* ... and it was one (not a refill) */
+    uint8_t hot[ZM_NB_PLANES];         /* frames left in which plane p's covered lines are new, uncompared */
     const uint8_t* src[ZM_NB_PLANES][H]; /* this frame: where each line's fetch starts */
 } vd_state;
 
@@ -139,8 +143,23 @@ static void plan_plane(const vd_frame* fr, int p, const pcfg* c) {
 #ifdef VD_BREAK_PAL
     moved = 0;
 #endif
+    /* A plane at least 3/4 of whose covered rows moved in its last compared frame is redrawn
+     * whole: for
+     * VD_HOT frames its covered lines are new without comparing them (the cost that kept the plan
+     * OFF), as a handler plane's are, and its border lines can still be skipped. Then one refill and
+     * one compared frame decide again. */
+    if (s.counted[p] && s.moved_rows[p] * 4u >= c->rows * 3u) s.hot[p] = VD_HOT;
+    s.moved_rows[p] = 0, s.counted[p] = 0;
+    if (s.hot[p]) {
+        s.hot[p]--, s.row_ok[p] = 0;
+#ifndef VD_BREAK_HOT
+        bump(c->oy, c->rows);
+#endif
+        return;
+    }
     if (moved || !s.row_ok[p]) bump(c->oy, c->rows);
     s.fresh[p] = !s.row_ok[p], s.row_ok[p] = 1, s.rows_on |= 1u << p;
+    s.counted[p] = !s.fresh[p];
 }
 
 /* The last enabled plane, if it has an HBL handler: its stores land between its
@@ -195,7 +214,9 @@ int vd_line(int pic, uint32_t y) {
         const pcfg* c = &s.cfg[p];
         if (!((s.rows_on >> p) & 1) || y < c->oy || y >= c->oy + c->rows) continue;
         vd.cmp_bytes += c->len;
-        if (ROW_MOVED(cmpcpy(s.rows[p][y], s.src[p][y], c->len)) || s.fresh[p]) bump(y, 1);
+        int moved = ROW_MOVED(cmpcpy(s.rows[p][y], s.src[p][y], c->len));
+        s.moved_rows[p] += (uint16_t)moved;
+        if (moved || s.fresh[p]) bump(y, 1);
     }
     int skip = s.built[pic][y] == s.ver[y] + 1;
     s.built[pic][y] = s.ver[y] + 1;
