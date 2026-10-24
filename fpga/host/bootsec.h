@@ -5,10 +5,13 @@
  *
  * The browser's, step by step: docs/zmdisk.js parseV2 calls block 0 executable when the disk
  * is v2 (wasm at 0, "ZMDISK" at 0x400) and the 1 KB's big-endian words sum to $1234; the
- * loader instantiates those 1024 bytes with its env (memory, hwVideoBase, beep, every other
- * import a stub answering 0), runs hwInit then boot(); each frame hwClear, frame(dt),
- * pollCartRequest() (2 = chainload: the disk's cart, or GEM when the descriptor names none),
- * then every plane isPlaneEnabled says, rendered.
+ * loader instantiates those 1024 bytes with its env, runs hwInit then boot(); each frame
+ * hwClear, frame(dt), pollCartRequest() (2 = chainload: the disk's cart, or GEM when the
+ * descriptor names none), then every plane isPlaneEnabled says, rendered.
+ *
+ * The board serves the sector hwVideoBase and beep; every other env function is a stub
+ * answering 0 (the browser serves its whole env: hwBlit, hwRam*, the ROM). The shipped
+ * sectors import only those two.
  *
  * What the sandbox adds (the sector comes off a card and must not break the console): a
  * sector wint refuses or that traps is left out and the cart boots as if there were none;

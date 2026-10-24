@@ -74,6 +74,9 @@ ZM_TRACE_FRAME ?= 0
 # ZM_SIM_POINTER=F:word,... (sim only): the mouse the same way (ZM_GLASS_POINTER).
 # ZM_MODES (sim only): several of a cart's modes in one hp sim (cycles/bmain.c).
 ZM_MODES ?=
+# ZM_BOOTSEC=1 (sim): run the disk's boot sector before the cart, as the board's images always do
+# (cycles/bbootsec.h); off by default: a sector holds 120-240 frames, and the hashes start after it.
+ZM_BOOTSEC ?=
 # ZM_AUDIO_MIRROR=1 (sim): the players' state into the cart, as on the board (cycles/aud_state.h);
 # off by default, since the browser's hashes it is compared with have no audio.
 ZM_AUDIO_MIRROR ?=
@@ -92,7 +95,7 @@ VPLAN_SRC := cycles/vplan.c cycles/vdirty.c cycles/vadapt.c cycles/vstat.c cycle
 H_sim    = $(if $(ZM_VSEQ_CHECK),-DZM_VSEQ_CHECK) $(if $(ZM_NO_VPLAN),-DZM_NO_VPLAN) -DZM_FRAMES=$(ZM_FRAMES) -DZM_EVERY=$(ZM_EVERY) -DZM_WARP_MS=$(ZM_WARP_MS) -DZM_TRACE_FRAME=$(ZM_TRACE_FRAME) \
 	$(B_$(ZM_BLIT)) $(A_$(ZM_AUDIO)) $(if $(ZM_SIM_KEYS),'-DZM_SIM_KEYS="$(ZM_SIM_KEYS)"') \
 	$(if $(ZM_SIM_POINTER),'-DZM_SIM_POINTER="$(ZM_SIM_POINTER)"') $(if $(ZM_MODES),-DZM_MODES=$(ZM_MODES)) \
-	$(if $(ZM_AUDIO_MIRROR),-DZM_AUDIO_MIRROR) $(if $(ZM_LINEMAJOR),-DZM_LINEMAJOR) $(if $(ZM_LM_CHECK),-DZM_LINEMAJOR -DZM_LM_CHECK)
+	$(if $(ZM_AUDIO_MIRROR),-DZM_AUDIO_MIRROR) $(if $(ZM_BOOTSEC),-DZM_BOOTSEC) $(if $(ZM_LINEMAJOR),-DZM_LINEMAJOR) $(if $(ZM_LM_CHECK),-DZM_LINEMAJOR -DZM_LM_CHECK)
 # ZM_SYS_MHZ=<n>: a bitstream whose sys clock is not 100 MHz (the FPU test bitstream runs 80):
 # board_micros() (bboard.c, the cart's hostMicros) is the one place the firmware reads the clock.
 ZM_SYS_MHZ ?=

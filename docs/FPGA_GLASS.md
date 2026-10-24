@@ -968,6 +968,9 @@ instructions, a frame on 1 M, and the phase ends after 30 s whatever the sector 
 sector that is refused, traps, runs out of fuel or sets an HBL handler (it has no
 `hblDispatch`; the browser's frame would throw) ends the phase, and the cart boots as if
 there were none. The sector's `beep` is silent here (the sound CPU starts with the cart).
+Imports: the board serves a sector `hwVideoBase` and `beep`; any other `env` function is a
+stub answering 0, where the browser serves its whole env (`hwBlit`, `hwRam*`, the ROM). The
+two shipped sectors import only those two; a sector that calls more draws differently here.
 
 **The glass** (`app_request.zig`). A program quitting back to the OS (request 4) reloads
 the same fat disk; that load writes `BOOTSEC_SKIP` (`map_cart.zig`, window end - 0x3E0)
