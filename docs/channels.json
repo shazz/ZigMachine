@@ -150,6 +150,11 @@
   "type": "amiga"
  },
  {
+  "tag": "leonard_spirit",
+  "title": "LEONARD'S SPIRIT",
+  "type": "zigmachine"
+ },
+ {
   "tag": "lockbuster3",
   "title": "LOCKBUSTER 3",
   "type": "atari st"
