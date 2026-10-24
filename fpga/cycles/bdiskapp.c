@@ -21,8 +21,10 @@ _Static_assert(CART_REQ_NAME_MAX >= ZMD_DIR_KEY, "a FAT name must fit the block"
 static zmd_dir_t g_dir; /* 15 KB: the parsed FAT, in .bss */
 static disk_app_t g_dapp;
 static int g_on;
+static int g_asked; /* a bootable cart's swap was signalled: no more polls (the browser's `swapping`) */
 
 void bdiskapp_boot(void) {
+    g_asked = 0;
     if (!host_disk.data) return; /* no disk: nothing to tell GEM, as the browser with none */
     int rc = zmd_dir_parse(host_disk.data, host_disk.size, &g_dir);
     if (rc || g_dir.bootable) { /* a bootable disk runs its own cart: the browser's diskApp = false */
@@ -46,8 +48,30 @@ static void bdiskapp_signal(uint32_t req, const uint8_t* name, uint32_t len) {
     board_state(CART_REQUEST | req << ZM_CART_ARG_SHIFT);
 }
 
+/* A bootable cart's pollCartRequest (the browser polls every cart): 1 = boot the shelf disk
+ * demo-<tag>.zmd (getCartTagPtr/Len), -1 = back to the cart that loaded this one. */
+static void bdiskapp_cart(struct w2c_env* e, long f) {
+    if (g_asked || !host_dapp.poll) return;
+    uint32_t req = host_dapp.poll(HOST_CART(e));
+    if (req == 1 && host_dapp.tag_ptr && host_dapp.tag_len) {
+        uint32_t len = host_dapp.tag_len(HOST_CART(e));
+        const uint8_t* tag = disk_app_mem(e, host_dapp.tag_ptr(HOST_CART(e)), len);
+        printf("ZM CARTREQ %ld 1 %.*s 1\n", f, (int)(len < CART_REQ_NAME_MAX ? len : CART_REQ_NAME_MAX), (const char*)tag);
+        bdiskapp_signal(REQ_LOAD_CART, tag, len);
+        g_asked = 1;
+    } else if (req == 0xFFFFFFFFu) {
+        printf("ZM CARTREQ %ld -1 - 1\n", f);
+        bdiskapp_signal(REQ_BACK, 0, 0);
+        g_asked = 1;
+    }
+}
+
 void bdiskapp_frame(struct w2c_env* e, long f) {
-    if (!g_on || !disk_app_frame(e, &g_dapp)) return;
+    if (!g_on) {
+        bdiskapp_cart(e, f);
+        return;
+    }
+    if (!disk_app_frame(e, &g_dapp)) return;
     uint32_t n = g_dapp.name_len < ZMD_FIND_MAX ? g_dapp.name_len : ZMD_FIND_MAX;
     printf("ZM CARTREQ %ld %lu %.*s %d\n", f, (unsigned long)g_dapp.req, (int)n, (const char*)g_dapp.name,
            g_dapp.file != 0);

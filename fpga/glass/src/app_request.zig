@@ -26,7 +26,7 @@ pub const PROGS_DIR = "progs";
 pub const BLOCK_POLLS = 5;
 
 pub const Request = struct { req: u32, name: []const u8 };
-pub const Error = error{ BadRequestBlock, BadProgramName, UnknownRequest, NotAProgram };
+pub const Error = error{ BadRequestBlock, BadProgramName, UnknownRequest, NotAProgram, BadCartTag, NoSuchCart };
 
 /// The request block, if its check holds; `buf` holds the name.
 pub fn readBlock(ddr: bus.Ddr, buf: *[mc.CART_REQ_NAME_MAX]u8) ?Request {
@@ -68,8 +68,38 @@ pub fn poll(app: *App, state: u32) void {
     switch (r.req) {
         mc.REQ_RUN_PROGRAM => runProgram(app, i, r.name) catch |err| failed(app, r.name, err),
         mc.REQ_BACK_TO_OS => cart.load(app, i),
+        mc.REQ_LOAD_CART => loadTag(app, i, r.name) catch |err| failed(app, r.name, err),
+        mc.REQ_BACK => back(app),
         else => failed(app, "request", error.UnknownRequest),
     }
+}
+
+/// A cart tag the glass may put in a file name: 1..40 of [a-z0-9_] (the shelf's demo-<tag>.zmd).
+pub fn validTag(tag: []const u8) bool {
+    if (tag.len == 0 or tag.len > 40) return false;
+    for (tag) |c| if (!(std.ascii.isLower(c) or std.ascii.isDigit(c) or c == '_')) return false;
+    return true;
+}
+
+/// REQ_LOAD_CART: the shelf's demo-<tag>.zmd, booted as if picked in the menu; the running
+/// cart is remembered for REQ_BACK (sealed-loader.js swapCart req 1).
+pub fn loadTag(app: *App, from: usize, tag: []const u8) !void {
+    if (!validTag(tag)) return error.BadCartTag;
+    var buf: [64]u8 = undefined;
+    const file = std.fmt.bufPrint(&buf, "demo-{s}.zmd", .{tag}) catch return error.BadCartTag;
+    for (app.disks.disks, 0..) |d, k| if (std.mem.eql(u8, d.file, file)) {
+        app.prev_cart = from;
+        return cart.load(app, k);
+    };
+    return error.NoSuchCart;
+}
+
+/// REQ_BACK: the cart that loaded this one, or the menu when none did (the browser's req -1
+/// goes back to its menu disk).
+fn back(app: *App) void {
+    const p = app.prev_cart orelse return app.setOpen(true);
+    app.prev_cart = null;
+    cart.load(app, p);
 }
 
 /// Program `name` off disk `i` (also the control channel's `load DISK PROGRAM`, app_ctl.zig).

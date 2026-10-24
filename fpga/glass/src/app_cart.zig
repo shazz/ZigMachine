@@ -25,7 +25,10 @@ pub fn act(app: *App, action: menu.Action) void {
     switch (action) {
         .none => {},
         .close => if (app.current != null) app.setOpen(false),
-        .load => |i| load(app, i),
+        .load => |i| {
+            app.prev_cart = null; // picked in the menu: no cart to go back to
+            load(app, i);
+        },
         .cold => if (app.menu.loaded) |i| load(app, i) else app.menu.setStatus("no cart to reset", .{}),
         .warm => warm(app),
         .settings => applySettings(app),

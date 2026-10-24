@@ -12,6 +12,11 @@
 pub const CART_REQUEST: u32 = 4;
 pub const REQ_RUN_PROGRAM: u32 = 3;
 pub const REQ_BACK_TO_OS: u32 = 4;
+// A bootable cart's swaps (swapCart's req 1 and -1): REQ_LOAD_CART boots the shelf disk
+// demo-<tag>.zmd, the tag in the request block (the Union Demo's street doors);
+// REQ_BACK (the cart's -1, which 31:8 cannot hold) goes back to the cart that loaded it.
+pub const REQ_LOAD_CART: u32 = 1;
+pub const REQ_BACK: u32 = 0xFF;
 
 // --- the request block, at window end - CART_REQ_FROM_TOP (CPU 0x41FF_FD00) --------
 // Four words, CART_REQ_MAGIC, the request, the name's bytes, ~(magic ^ request ^

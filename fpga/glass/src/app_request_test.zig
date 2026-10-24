@@ -178,3 +178,52 @@ test "names and paths: only a FAT name, under progs/<disk>" {
     defer gpa.free(p);
     try std.testing.expectEqualStrings("/mnt/sd/zigmachine/progs/demo-st_replay/BOOT.WSM.zmd", p);
 }
+
+fn index(a: *const App, file: []const u8) usize {
+    for (a.disks.disks, 0..) |d, k| if (std.mem.eql(u8, d.file, file)) return k;
+    unreachable;
+}
+
+test "a cart boots another off the shelf by tag (a Union Demo door), and -1 goes back to it" {
+    const r = try Rig.init();
+    defer r.deinit();
+    try r.fat("demo-union_demo.zmd", "the street");
+    try r.fat("demo-union_tnt1.zmd", "a door's screen");
+    var a = try App.init(gpa, io, r.glass.regs(), r.ddr(), r.dir);
+    defer a.deinit();
+    const street = index(&a, "demo-union_demo.zmd");
+    a.menu.list.cursor = street;
+    press(&a, keymap.KEY_ENTER);
+    try std.testing.expectEqual(@as(?usize, street), a.current);
+    r.ask(mc.REQ_LOAD_CART, "union_tnt1");
+    a.tick();
+    try std.testing.expectEqual(@as(?usize, index(&a, "demo-union_tnt1.zmd")), a.current);
+    try std.testing.expectEqual(@as(?usize, null), try r.holds("demo-union_tnt1.zmd", map.DISK_MAGIC));
+    r.glass.request = 0;
+    a.tick(); // the door's screen runs: no request
+    r.ask(mc.REQ_BACK, "");
+    a.tick();
+    try std.testing.expectEqual(@as(?usize, street), a.current);
+    try std.testing.expectEqual(@as(?usize, null), try r.holds("demo-union_demo.zmd", map.DISK_MAGIC));
+    r.glass.request = 0;
+    a.tick();
+    r.ask(mc.REQ_BACK, ""); // nothing loaded the street: back is the menu, the cart keeps running
+    a.tick();
+    try std.testing.expect(a.open);
+    try std.testing.expectEqual(@as(?usize, street), a.current);
+}
+
+test "a tag that is not a shelf disk, or not a tag, leaves the cart running and says why" {
+    const r = try Rig.init();
+    defer r.deinit();
+    var a = try started(r);
+    defer a.deinit();
+    r.ask(mc.REQ_LOAD_CART, "../etc");
+    try refused(r, &a, "BadCartTag");
+    r.glass.request = 0;
+    a.tick();
+    r.ask(mc.REQ_LOAD_CART, "union_nope");
+    try refused(r, &a, "NoSuchCart");
+    for ([_][]const u8{ "union_tnt1", "union_superscroller", "a1_b2" }) |t| try std.testing.expect(request.validTag(t));
+    for ([_][]const u8{ "", "UNION", "a/b", "a.b", "x" ** 41 }) |t| try std.testing.expect(!request.validTag(t));
+}

@@ -61,6 +61,7 @@ pub const App = struct {
     bard: overlay.Bard = .{}, // the F11 overlay's BARD line, read once a second
     frame_budget: @import("budget.zig").Smooth = .{}, // the probe, a tick a sample (app_budget.zig)
     req_done: bool = false, // the running cart's cart-swap request was handled (app_request.zig)
+    prev_cart: ?usize = null, // the cart that asked for this one (REQ_LOAD_CART), for REQ_BACK
     req_polls: u32 = 0, // polls of a request whose block did not check yet
     ctl: @import("app_ctl.zig").State = .{}, // the control channel's held tap (app_ctl.zig)
 

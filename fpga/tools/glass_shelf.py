@@ -41,6 +41,10 @@ SHELF = (
     "blitter", "fuji_hobbytronic", "gem", "music", "polkadots", "raytrace", "raytrace_f32", "replicants_emlyn",
     "sap_test", "skystrike", "st_replay", "stniccc", "sysinfo", "tsl_hybridglenz", "tutorial", "ulm_dsots",
     "union_beatdis",
+    # The Union Demo's street and the carts its doors boot (apps/zig/scenes/union_demo/doors.zig): on the
+    # board a door is a REQ_LOAD_CART for its shelf disk, and the screen's -1 comes back (app_request.zig).
+    "union_demo", "union_deltaforce", "union_tnt3", "union_superscroller", "union_tnt1", "union_reps",
+    "union_tnt2", "union_l16", "union_multifake", "union_texcopier", "union_textracker",
 )  # fmt: skip
 OS_CART = "gem"  # what the browser boots for a data disk
 SYS_FILE = "system.rv32"  # glass/src/system.zig FILE
