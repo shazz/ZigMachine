@@ -101,7 +101,7 @@ sampler once already.
 
 Root cause: `.{}` on a large aggregate is a comptime constant, and the linker
 cannot fold it into the existing segment. The fix is field-by-field assignment
-in `init()` (`noextra.zig:241` shows the pattern and carries the note).
+in `init()` (`noextra/app.zig` shows the pattern and carries the note).
 
 Related: `= undefined` on a module-scope array is not free either — with
 `--import-memory` the linker cannot assume zeroed memory and emits an explicit

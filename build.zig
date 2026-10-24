@@ -465,7 +465,7 @@ pub fn build(b: *std.Build) void {
         "demo-stcs",         "demo-tex",
         "demo-badflicker", // 26 — overscan trick done wrong (raw pokes, off-column)
         "demo-stream", // 27 — block-streams a sample off the disk
-        "demo-noextra", // 28 — NoExtra Team / DHS Megademo 2005 (CODEF screen 198)
+        "demo-noextra", // 28 — NoExtra Team "RASTERS" / DHS compo 2005 (from the original RASTERS.PRG)
         "demo-replicants_dd2", // 29 — Replicants / Double Dragon II (CODEF screen 515)
         "demo-supplex_fs2", // 30 — Supplex / Flight Simulator II NDD (CODEF screen 525)
         "demo-replicants_garfield", // 31 — The Replicants / Garfield (CODEF screen 28)
