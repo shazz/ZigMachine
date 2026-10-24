@@ -64,6 +64,9 @@ fn startCart() void {
     if (booted) return;
     zigos.resetForScene(); // clean machine state (planes/palette/registers/HBL) for the cart
     cart.init(&zigos);
+    // The tables init() filled are on the first picture too (a host composites right after init,
+    // before any frame): a list built only at frame end would leave that one without its rasters.
+    zg.copper.endFrame(&zigos);
     booted = true;
 }
 

@@ -33,11 +33,12 @@
 // only if a check notices.
 import { readFile, writeFile, mkdir, access } from "node:fs/promises";
 import { cartRam, romRam } from "../docs/wasm_hiwater.js";
+import { copperRecords, copperColour } from "./copper_lines.mjs";
 import { Replay, loadAssets, W, H, ulmDistTable, mocheDistTable } from "./gen4_3615_replay.mjs";
 
 const PAGES = 112, AUDIO_PAGES = 48; // SHARED_PAGES / AUDIO_PAGES in machine/sdk
 const OFF_PAL = 0x0100, REG_FB_STRIDE = 0x34, REG_FB_BASE = 0x44; // memmap.zig
-const MAGIC_X = 40, HBL_PLANE_ID = 0; // OVERSCAN_MAGIC_X, plane 0's handler
+const HBL_PLANE_ID = 0; // the raster plane (its copper list)
 const CANVAS_X = 8, CANVAS_Y = 10; // the scene's placement of the 384x270 canvas
 const VU_INK = 64, SKY_INK = 65, CHECK_DARK = 66, CHECK_LIGHT = 67; // gen4_3615/assets.zig
 const WANT_MUSIC = "3615_gen4_demo.sndh";
@@ -157,10 +158,13 @@ for (const f of FRAMES) {
 const hex3 = (c) => [...c].map((d) => parseInt(d, 16) * 16); // the register grid, as the replay
 const rgba = ([r, g, b]) => ((255 << 24) | (b << 16) | (g << 8) | r) >>> 0;
 const sky = "00E.02E.04E.06E.08E.0AE.0CE.2EE.4EE.6EE.8EE.AEE.CEE.CCE.ECE.CCC.EEC.ECC.ECA.EEA.CEA.CE8.AE8.CE6.CE0.EE0.EE4.EE6.EEC.EE6.EE2.EE0.CE0.CE2.AE4.CE6.CEA.EEA.EC8.E88.E66.E40.A20.600.600".split(".");
+// zg.copper plays them as the plane's copper list (HW 1.9.0): read the words the machine applies.
+const cop = copperRecords(memory, VB, HBL_PLANE_ID);
+check("the rasters are a copper list on plane 0", cop !== null && cop.length > 0, true);
+const inkOn = (Y, ink) => copperColour(cop ?? [], Y + CANVAS_Y, ink, palette()[ink]);
 let rasterBad = 0, skyChanges = 0, prevSky = -1;
 for (let Y = 135; Y < 180; Y++) {
-    demo.hblDispatch(HBL_PLANE_ID, 0, Y + CANVAS_Y, MAGIC_X);
-    const got = palette()[SKY_INK];
+    const got = inkOn(Y, SKY_INK);
     const want = rgba(hex3(sky[(broke === "raster" ? Y - 134 : Y - 135) % 45]));
     if (got !== want) rasterBad++;
     if (prevSky >= 0 && got !== prevSky) skyChanges++;
@@ -174,7 +178,7 @@ check("the sky is one index in the framebuffer (drawn on sky lines only)", inkRo
 check("the floor is two indices (on floor lines only)", inkRows(CHECK_DARK) > 0 && inkRows(CHECK_LIGHT) <= 42, true);
 check("the VU bars are one index (on meter lines only)", inkRows(VU_INK) > 0 && inkRows(VU_INK) <= 90, true);
 const darkCols = new Set();
-for (let Y = 180; Y < 222; Y++) { demo.hblDispatch(HBL_PLANE_ID, 0, Y + CANVAS_Y, MAGIC_X); darkCols.add(palette()[CHECK_DARK]); }
+for (let Y = 180; Y < 222; Y++) darkCols.add(inkOn(Y, CHECK_DARK));
 check("floor: CHECK_DARK takes 10 colours down the floor (9 shadow bands + plain)", darkCols.size, 10);
 
 // 3. borders
