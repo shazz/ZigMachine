@@ -23,7 +23,14 @@
 //   else Palette[i]
 // The two Raster rules are a colour register rewritten per scanline -- a REAL
 // raster, not a fake one (CLAUDE.md) -- so `planeHbl` rewrites entry 8 on lines
-// 0..15 and entry 4 on lines 49..92, and restores both below them.
+// 0..15 and entry 4 on lines 49..92 (on the lines whose colour changes), and
+// restores both below them.
+//
+// The plane is written incrementally (larcociel2/present.zig): a 50 Hz tick
+// stores only the band words that changed, the old balls' boxes and the text
+// rows; a host frame without a tick stores nothing. The full redraw it
+// replaced (reference.zig) is pinned against it on every tick by
+// present_test.zig.
 //
 // MUSIC (CLAUDE.md: an SNDH, not a YM dump). The Go's music.ym is a 1999 YM6
 // recording (LeOnArD) of the intro playing David Whittaker's "Dogs of War"
@@ -47,14 +54,9 @@ const Color = zg.Color;
 const assets = @import("larcociel2/assets.zig");
 const clockmod = @import("larcociel2/clock.zig");
 const textmod = @import("larcociel2/text.zig");
+const presentmod = @import("larcociel2/present.zig");
 
 const PLANE = 0;
-const W: usize = zg.WIDTH; // 320
-const H: usize = zg.HEIGHT; // 200
-
-const BAND_TOP = assets.BAND_TOP;
-const BAND_ROWS = assets.BAND_ROWS;
-const BAND_FRAMES = assets.BAND_FRAMES;
 
 /// One 50 Hz frame. dt arrives in MILLISECONDS from the host.
 const TICK_MS: f32 = 20.0;
@@ -72,6 +74,9 @@ pub var clock: clockmod.Clock = undefined;
 pub var stream: textmod.Stream = undefined;
 /// False only for the boot frame (the Go's tick 0: no balls, no text).
 pub var shown_live: bool = false;
+/// What the plane holds, and whether a tick has moved anything since.
+var presenter: presentmod.Presenter = .{};
+var pending: bool = false;
 
 pub var static_pal: [16]u32 = undefined; // the 16 ST words, Color.toRGBA order
 pub var rast: [20]u32 = undefined; // Raster[0..19], the two per-line ramps
@@ -85,118 +90,31 @@ fn planeHbl(fb: *zg.LogicalFB, zigos: *ZigOS, line: u16, x: u16) void {
     _ = x;
     const y: usize = line;
     // i==8 && y<16 -> Raster[y/2], on entry 8.
+    // Each ramp word holds 2 (entry 8) or 4 (entry 4) lines: the register is
+    // written on the line its colour changes, never with the value it holds.
     if (y < 16) {
-        fb.palette[8] = rast[y >> 1];
+        if (y & 1 == 0) fb.palette[8] = rast[y >> 1];
     } else if (y == 16) {
         fb.palette[8] = static_pal[8];
     }
     // i==4 && 49<=y<93 -> Raster[9+(y-49)/4], on entry 4.
     if (y >= 49 and y < 93) {
-        fb.palette[4] = rast[9 + ((y - 49) >> 2)];
+        if ((y - 49) & 3 == 0) fb.palette[4] = rast[9 + ((y - 49) >> 2)];
     } else if (y == 93) {
         fb.palette[4] = static_pal[4];
     }
 }
 
-// --------------------------------------------------------------------------
-// The projected ball slots: geometry.ProjectWordPoint, word for word.
-// --------------------------------------------------------------------------
-pub const Projection = struct { x: i16, y: i16, image: usize, visible: bool };
-fn divide(n: i32, depth: i16) i16 {
-    // Go: q := int64(n)/int64(depth); out of int16 range keeps the LOW word.
-    const q = @divTrunc(@as(i64, n), @as(i64, depth));
-    if (q < -32768 or q > 32767) return @bitCast(@as(u16, @truncate(@as(u32, @bitCast(n)))));
-    return @intCast(q);
-}
-
-fn project(hx: i16, hy: i16, hz: i16) Projection {
-    const x: i32 = @as(i16, hx -% 160); // WrappedPoint X - centre
-    const y: i32 = @as(i16, hy -% 80);
-    const px: i32 = 205 * x; // pose.Matrix[0] = 205
-    const py: i32 = 205 * y; // pose.Matrix[4] = 205
-    const depth: i16 = hz +% 205; // pz(=z)>>0 + DepthBias(205) + pose.Depth(0)
-    if (depth == 0) return .{ .x = 0, .y = 0, .image = 0, .visible = false };
-    const a = divide(px, depth);
-    const b = divide(py, depth);
-    const zs: i32 = hz >> 5;
-    const img: usize = @intCast(@max(0, @min(15, zs)));
-    return .{
-        .x = a +% 160, // Center[0]
-        .y = b +% 80, // Center[1]
-        .image = img,
-        .visible = true,
-    };
-}
+pub const Projection = presentmod.Projection;
 
 /// The projected pose of ball slot `i` from the live clock (the harness's door).
 pub fn slotInfo(i: usize) Projection {
     const p = clock.history[(i % 6) * 11];
-    return project(p[0], p[1], p[2]);
+    return presentmod.project(p[0], p[1], p[2]);
 }
 
-fn drawBall(px: []u8, slot: usize) void {
-    const p = clock.history[slot * 11];
-    const pr = project(p[0], p[1], p[2]);
-    if (!pr.visible) return;
-    const bbase = pr.image * 1024;
-    var yy: usize = 0;
-    while (yy < 32) : (yy += 1) {
-        const sy: i32 = @as(i32, pr.y) + @as(i32, @intCast(yy));
-        if (sy < 0 or sy >= H) continue;
-        var xx: usize = 0;
-        while (xx < 32) : (xx += 1) {
-            const shade = assets.p2(assets.balls, bbase + yy * 32 + xx);
-            if (shade == 0) continue;
-            const sx: i32 = @as(i32, pr.x) + @as(i32, @intCast(xx));
-            if (sx < 0 or sx >= W) continue;
-            const o = @as(usize, @intCast(sy)) * W + @as(usize, @intCast(sx));
-            px[o] = (px[o] & ~@as(u8, 3)) | shade; // i = (i/4)*4 + shade
-        }
-    }
-}
-
-fn drawGlyph(px: []u8, slot: usize) void {
-    const s = stream.slot(slot);
-    if (s.glyph < 0) return;
-    const g: usize = @intCast(s.glyph);
-    const x0: usize = 16 + 8 * slot;
-    var yy: usize = 0;
-    while (yy < 16) : (yy += 1) {
-        const gbase = g * 512 + yy * 32 + @as(usize, s.index) * 8;
-        var k: usize = 0;
-        while (k < 8) : (k += 1) {
-            if (assets.bit(assets.font, gbase + k) != 0) {
-                const o = yy * W + x0 + k;
-                px[o] = (px[o] & 7) | 8; // text.a>0 -> i = i%8 + 8
-            }
-        }
-    }
-}
-
-// --------------------------------------------------------------------------
-// present: the shader's index math (background, balls, text), one plane byte
-// per pixel. Colour is the HBL's job.
-// --------------------------------------------------------------------------
-fn present(fb: *zg.LogicalFB, live: bool) void {
-    const px = fb.fb[0 .. W * H];
-    const frame: usize = (clock.tick + (BAND_FRAMES - 1)) % BAND_FRAMES;
-    var y: usize = 0;
-    while (y < H) : (y += 1) {
-        const base = y * W;
-        if (y < BAND_TOP) {
-            var x: usize = 0;
-            while (x < W) : (x += 1) px[base + x] = assets.p2(assets.bg_static, base + x) * 4;
-        } else {
-            const bbase = frame * (BAND_ROWS * W) + (y - BAND_TOP) * W;
-            var x: usize = 0;
-            while (x < W) : (x += 1) px[base + x] = assets.p2(assets.bg_band, bbase + x) * 4;
-        }
-    }
-    if (!live) return;
-    var i: usize = 0;
-    while (i < 6) : (i += 1) drawBall(px, i);
-    i = 0;
-    while (i < textmod.CAP) : (i += 1) drawGlyph(px, i);
+fn planeWords(zigos: *ZigOS) [*]u32 {
+    return @ptrCast(@alignCast(zigos.lfbs[PLANE].fb));
 }
 
 // --------------------------------------------------------------------------
@@ -224,7 +142,8 @@ pub const Demo = struct {
         zigos.setBackgroundColor(Color.fromRGBA(static_pal[0]));
         fb.setFrameBufferHBLHandler(0, planeHbl);
 
-        present(fb, false);
+        presenter.full(planeWords(zigos), &clock, &stream, false);
+        pending = false;
         zg.requestSongTune(MUSIC, MUSIC_TUNE);
         self.ok = true;
     }
@@ -234,6 +153,7 @@ pub const Demo = struct {
         clock.step();
         stream.step();
         shown_live = true;
+        pending = true;
     }
 
     pub fn update(self: *Demo, _: *ZigOS, dt_ms: f32) void {
@@ -251,7 +171,9 @@ pub const Demo = struct {
 
     pub fn render(self: *Demo, zigos: *ZigOS, _: f32) void {
         if (!self.ok) return;
-        present(&zigos.lfbs[PLANE], shown_live);
+        if (!pending) return; // no tick since the last present: the plane is current
+        presenter.update(planeWords(zigos), &clock, &stream, shown_live);
+        pending = false;
     }
 
     pub fn key(self: *Demo, cp: u32) void {

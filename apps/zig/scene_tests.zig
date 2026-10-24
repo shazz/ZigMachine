@@ -24,6 +24,7 @@ test {
     _ = @import("scenes/chonchon/chunky_test.zig");
     _ = @import("scenes/chonchon2/chunky_test.zig");
     _ = @import("scenes/larcociel5/chunky_test.zig");
+    _ = @import("scenes/larcociel2/present_test.zig");
     _ = @import("scenes/swedish_newyear/sync_test.zig");
     _ = @import("scenes/swedish_newyear/tcb1_test.zig");
     _ = @import("scenes/swedish_newyear/tcb2_test.zig");

@@ -27,7 +27,7 @@ const zg = @import("zigos");
 const DIR = "../../assets/screens/larcociel2/";
 
 pub const bg_static = @embedFile(DIR ++ "bg-static.bin");
-pub const bg_band = @embedFile(DIR ++ "bg-band.bin");
+pub const bg_band = embed4("bg-band.bin");
 pub const balls = @embedFile(DIR ++ "balls.bin");
 pub const font = @embedFile(DIR ++ "font.bin");
 pub const palette_words = @embedFile(DIR ++ "palette.bin");
@@ -36,6 +36,15 @@ pub const message = @embedFile(DIR ++ "message.txt");
 pub const font_order = @embedFile(DIR ++ "font-order.txt");
 pub const initial_motion = @embedFile(DIR ++ "initial-motion.bin");
 pub const initial_history = @embedFile(DIR ++ "initial-history.bin");
+
+/// 4-aligned: present.zig compares the band frames a u32 at a time, and a wide
+/// load off an odd address TRAPS on the board (~700 cycles).
+fn embed4(comptime name: []const u8) *const [@embedFile(DIR ++ name).len]u8 {
+    const S = struct {
+        const data: [@embedFile(DIR ++ name).len]u8 align(4) = @embedFile(DIR ++ name).*;
+    };
+    return &S.data;
+}
 
 /// The band the 36 backgrounds animate; rows above it are static all run long.
 pub const BAND_TOP = 143;
