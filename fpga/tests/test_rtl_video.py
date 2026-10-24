@@ -46,9 +46,12 @@ CARTS = [
     ("dhs_0pxl0reg", [300, 900], {"beam", "no_plane"}),
     ("tcb_colorshock", [300], {"layered", "mode_overscan", "palette_per_line"}),
     ("union_l16", [300], {"layered", "mode_overscan"}),
-    # opaque black BACKGROUND, every plane alpha 0 where it draws nothing, partial-alpha stars,
-    # a raster on the top plane: the board showed its tube there (tests/test_rtl_video_tube.py)
-    ("ancool", [120], {"layered", "alpha_zero", "alpha_partial", "palette_per_line"}),
+    # opaque black BACKGROUND, the plane alpha 0 where it draws nothing, partial-alpha stars, a
+    # raster: the board showed its tube there (tests/test_rtl_video_tube.py). One plane since its
+    # rebuild (2026-10-23), so its layers are replicants' below.
+    ("ancool", [120], {"alpha_zero", "alpha_partial", "palette_per_line"}),
+    # three normal planes, alpha 0 where they draw nothing, rasters on two of them
+    ("replicants", [300], {"layered", "mode_normal", "alpha_zero", "palette_per_line"}),
 ]
 # (vsynth scenario, frames, what they must exercise)
 SYNTH = [
