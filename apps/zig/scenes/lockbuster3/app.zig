@@ -19,8 +19,10 @@
 // are shown by opening the BOTTOM border and keeping the top and sides closed.
 // The Raster is a REAL per-scanline rewrite of palette entries 12 and 14 in the
 // plane's HBL -- never a pre-coloured image. Text's LSB replacement happens
-// while the index row is copied into the overscan buffer, in the same order as
-// the shader (text first, raster selection afterwards).
+// as the index rows go into the overscan page, in the same order as the shader
+// (text first, raster selection afterwards). The plane holds one page per
+// double buffer and flips between them; each page takes only what changed
+// (screen.zig).
 //
 // MUSIC: the Go streams assets/original/music.ym, an LHA holding ROLLOUT2.YM
 // ("Rollout tune 2", Jochen Hippel / Mad Max, YM6, 10650 frames). The matching
@@ -30,21 +32,21 @@
 //
 // CONTROLS: Escape or Space leaves (the Go terminates on either).
 // --------------------------------------------------------------------------
+const std = @import("std");
 const zg = @import("zigos");
 const ZigOS = zg.ZigOS;
 const assets = @import("assets.zig");
+const screen = @import("screen.zig");
 
 const W: usize = 320; // the Go's Width
 const H: usize = 240; // the Go's Height (320x240, not 320x200)
 const VISIBLE: usize = 200; // the machine's window
 const PLANE = 0;
-const PHYS_W: usize = 400;
-const PHYS_H: usize = 280;
-const BORDER_X: usize = 40;
-const BORDER_Y: usize = 40;
+const PHYS_W = screen.PHYS_W;
+const PHYS_H = screen.PHYS_H;
+const BORDER_Y = screen.BORDER_Y;
 const RASTER_ROW: usize = 159; // shader RasterRange.x
 pub const RASTER_LINES: usize = 39;
-const TEXT_ROW: usize = 160; // shader's text band
 
 const TICK_MS: f32 = 20.0;
 const MAX_TICKS: u32 = 2;
@@ -104,7 +106,6 @@ const ScrollState = struct {
 // --- state the harness reads (module scope, like chonchon) -----------------
 pub var bg: []u8 = &.{};
 pub var buffers: [2][]u8 = .{ &.{}, &.{} };
-pub var text_bits: []u8 = &.{};
 pub var front: u2 = 1;
 pub var tick: u32 = 0;
 pub var volumes: [3]u8 = .{ 0, 0, 0 };
@@ -186,6 +187,10 @@ fn drawPanel(dst: []u8, bank: usize, frame: usize, x: i32, y: i32) void {
     }
 }
 
+// The meter art, word-aligned so its 32-byte rows copy without misaligned
+// words (an @embedFile is byte-aligned; a misaligned word traps on the board).
+const bars: [assets.bars.len]u8 align(4) = assets.bars.*;
+
 fn drawBars(dst: []u8) void {
     for (volumes, 0..) |v0, i| {
         const v: usize = v0;
@@ -193,9 +198,13 @@ fn drawBars(dst: []u8) void {
         const sy: usize = if (v < 10) 0 else 25;
         const x = 80 + i * 64;
         for (0..25) |dy| {
-            @memcpy(dst[(210 + dy) * W + x ..][0..32], assets.bars[(sy + dy) * 320 + sx ..][0..32]);
+            @memcpy(dst[(210 + dy) * W + x ..][0..32], bars[(sy + dy) * 320 + sx ..][0..32]);
         }
     }
+}
+
+fn markBars(target: usize) void {
+    for (0..3) |i| screen.mark(target, @intCast(80 + i * 64), 210, 32, 25);
 }
 
 fn drawLetters(target: usize) void {
@@ -205,38 +214,7 @@ fn drawLetters(target: usize) void {
         const y: i32 = letters[i][1];
         drawLetter(dst, i, x, y);
         history[target][i] = .{ .x = x & ~@as(i32, 15), .y = y };
-    }
-}
-
-fn initialBit(lane: usize, slot: usize, dx: usize, dy: usize) u8 {
-    return assets.background[(lane * 20 + dy) * W + slot * 8 + dx] & 1;
-}
-
-fn fontBit(bank: usize, glyph: usize, column: usize, dx: usize, dy: usize) u8 {
-    const x = glyph % 16 * 32 + column * 8 + dx;
-    const y = glyph / 16 * 20 + dy;
-    const b = assets.fonts[bank & 1][y * 64 + (x >> 3)];
-    return (b >> @intCast(7 - (x & 7))) & 1;
-}
-
-/// Go's drawText(): both lanes of 40 glyph cells, IdentityState, End 40,
-/// Y = 160 + lane*20. The layer is cleared first, so every pixel outside the
-/// glyphs is a 0 bit (it CLEARS bit 0 when composited).
-fn drawText() void {
-    @memset(text_bits, 0);
-    for (0..2) |lane| {
-        for (0..40) |slot| {
-            const c = scroll.columns[lane][slot];
-            for (0..20) |dy| {
-                for (0..8) |dx| {
-                    const bit = if (c.initial != 0)
-                        initialBit(lane, slot, dx, dy)
-                    else
-                        fontBit(c.font, c.glyph, c.column, dx, dy);
-                    text_bits[(lane * 20 + dy) * W + slot * 8 + dx] = bit;
-                }
-            }
-        }
+        screen.mark(target, x & ~@as(i32, 15), y, 64, 35); // covers the 48-wide letter
     }
 }
 
@@ -395,7 +373,11 @@ fn step(zigos: *ZigOS) void {
     for (0..3) |i| volumes[i] = zigos.ym_regs[8 + i] & 15;
 
     const target: usize = 1 - @as(usize, front);
-    for (0..3) |i| restoreRect(buffers[target], history[target][i]);
+    for (0..3) |i| {
+        const r = history[target][i];
+        restoreRect(buffers[target], r);
+        screen.mark(target, r.x, r.y, 64, 35);
+    }
 
     panelStep(&panel);
     if (panel.draw) {
@@ -403,6 +385,7 @@ fn step(zigos: *ZigOS) void {
         const x: i32 = @as(i32, @intCast(px.cell % 5)) * 64;
         const y: i32 = @as(i32, @intCast(px.cell / 5)) * 40;
         drawPanel(buffers[target], px.bank, px.frame, x, y);
+        screen.mark(target, x, y, 64, 40);
         if (panel.commit) {
             drawPanel(bg, @intCast(@divTrunc(panel.base, 25600)), 19, x, y);
         }
@@ -412,8 +395,9 @@ fn step(zigos: *ZigOS) void {
     drawLetters(target);
 
     scrollStep(&scroll);
-    drawText();
+    screen.markTick(); // the text band follows the scroll clock
     drawBars(buffers[target]);
+    markBars(target);
     front = @intCast(target);
 }
 
@@ -433,24 +417,6 @@ fn planeHbl(fb: *zg.LogicalFB, _: *ZigOS, line: u16, _: u16) void {
     fb.palette[14] = assets.wordColor(c14).toRGBA();
 }
 
-/// Compose the Go 320x240 index canvas into the 400x280 overscan buffer:
-/// rows 0..199 at physical 40..239 (sides closed), rows 200..239 at physical
-/// 240..279 (the opened bottom border, black in its own 40-column sides).
-fn compose(fb: *zg.LogicalFB) void {
-    const dst = fb.fb[0 .. PHYS_H * PHYS_W];
-    const src = buffers[front];
-    for (0..H) |gy| {
-        const drow = dst[(BORDER_Y + gy) * PHYS_W + BORDER_X ..][0..W];
-        const srow = src[gy * W ..][0..W];
-        if (gy >= TEXT_ROW and gy < VISIBLE) {
-            const trow = text_bits[(gy - TEXT_ROW) * W ..][0..W];
-            for (0..W) |x| drow[x] = (srow[x] & 0xFE) | trow[x];
-        } else {
-            @memcpy(drow, srow);
-        }
-    }
-}
-
 pub const Demo = struct {
     acc: f32,
     ok: bool,
@@ -465,10 +431,11 @@ pub const Demo = struct {
         front = 1;
         volumes = .{ 0, 0, 0 };
 
-        bg = zg.mem.mustAlloc(u8, W * H);
-        buffers[0] = zg.mem.mustAlloc(u8, W * H);
-        buffers[1] = zg.mem.mustAlloc(u8, W * H);
-        text_bits = zg.mem.mustAlloc(u8, W * 40);
+        // word-aligned (every copy row starts on a 16-pixel column), and
+        // screen.zig reads the text band a u32 at a time
+        bg = std.mem.sliceAsBytes(zg.mem.mustAlloc(u32, W * H / 4));
+        buffers[0] = std.mem.sliceAsBytes(zg.mem.mustAlloc(u32, W * H / 4));
+        buffers[1] = std.mem.sliceAsBytes(zg.mem.mustAlloc(u32, W * H / 4));
 
         for (0..16) |i| palette_words[i] = assets.beWord(assets.palette, i * 2);
         for (0..RASTER_LINES) |i| raster_words[i] = assets.beWord(assets.raster, i * 2);
@@ -510,12 +477,11 @@ pub const Demo = struct {
         scroll.row = 0;
         scroll.changes = 0;
         scroll.remaining = assets.message.len;
-        drawText();
+        screen.reset(); // both pages copy their whole buffer on first show
 
         const fb = &zigos.lfbs[PLANE];
         fb.is_enabled = true;
-        fb.setOverscanBuffer();
-        @memset(fb.fb[0 .. PHYS_H * PHYS_W], 0);
+        fb.setOverscanScrollPlane(PHYS_W, 2 * PHYS_H); // one 400x280 page per buffer (cleared)
         for (0..16) |i| fb.palette[i] = assets.wordColor(palette_words[i]).toRGBA();
         for (16..256) |i| fb.palette[i] = 0;
         zigos.setBackgroundColor(assets.wordColor(0));
@@ -539,7 +505,7 @@ pub const Demo = struct {
 
     pub fn render(self: *Demo, zigos: *ZigOS, _: f32) void {
         if (!self.ok) return;
-        compose(&zigos.lfbs[PLANE]);
+        screen.present(&zigos.lfbs[PLANE], @as(usize, front), buffers[front], &scroll.columns);
     }
 
     pub fn key(self: *Demo, cp: u32) void {
