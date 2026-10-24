@@ -3,9 +3,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ZigMachine — Tutorial</title>
 <meta name="description" content="Write your first ZigMachine screen, step by step, in Zig, C or Rust — running live on the real machine.">
-<link rel="stylesheet" href="css/docs.css?v=3f1bd301">
-<link rel="stylesheet" href="css/code.css?v=0edb2f47">
-<link rel="stylesheet" href="css/tutorial.css?v=1a7b2b87">
+<link rel="stylesheet" href="css/docs.css">
+<link rel="stylesheet" href="css/code.css">
+<link rel="stylesheet" href="css/tutorial.css">
 <script>
 (function () {
   var l = null;
@@ -1726,10 +1726,11 @@ calls and the same mesh is a wireframe; swap it for <code>b.triangleEx(...,
 that only the arrays you name reach the cart:</p>
 <figure class="cb" data-lang=zig><figcaption><span class="cb-lang">zig</span><span class="cb-n">2 lines</span><button class="cb-copy" type="button">Copy</button></figcaption><pre><code><span class="tok-kw">const</span> logo = obj.<span class="tok-fn">parseWire</span>(@<span class="tok-fn">embedFile</span>(<span class="tok-str">&quot;../assets/obj/empire_logo.obj&quot;</span>));
 <span class="tok-kw">var</span> verts = zg.wireframe.<span class="tok-fn">vec4s</span>(logo.verts.len, logo.verts);</code></pre></figure>
-<p><code>apps/zig/scenes/obj_demo.zig</code> is this step finished, with four renderers
-(hardware flat, glenz, hardware wireframe and a CPU scanline fill of the same
-mesh) on keys 1-4 so you can watch the same geometry go through hardware and
-software side by side.</p></section></div><div class="shared after"><p class="lead lead-see"><strong>What you should see.</strong> A solid icosahedron turning on two axes, its faces
+<p><code>apps/zig/scenes/obj_demo.zig</code> is this step finished, in fixed point, with six
+renderers on key S (hardware flat, glenz, hardware wireframe, a CPU scanline
+fill of the same mesh, CPU Gouraud and hidden-line) so you can watch the same
+geometry go through hardware and software side by side. Keys 1-3 pick the
+object (icosahedron, gem, a procedural sphere whose resolution + and - change).</p></section></div><div class="shared after"><p class="lead lead-see"><strong>What you should see.</strong> A solid icosahedron turning on two axes, its faces
 shading from teal to white as they face the light, with no seams or popping
 where faces meet. Swap in <code>gem.obj</code> and nothing about the code changes — the
 loader normalises it to the same size.</p>
@@ -1955,8 +1956,8 @@ only video memory — so plane 0's destination is <code>OFF_VRAM</code>.</p>
 with the overlaps picking up their own colours as it turns — six hues where a
 single face is in the way, brighter mixes where two or three are. The silhouette
 stays crisp: each face is still a hardware-filled triangle, so there are no soft
-edges anywhere. Key 2 of <code>apps/zig/scenes/obj_demo.zig</code> is this, on the same
-mesh as step 11's flat shading, so you can flip between them.</p>
+edges anywhere. GLENZ (key S) in <code>apps/zig/scenes/obj_demo.zig</code> is this, on the
+same mesh as step 11's flat shading, so you can flip between them.</p>
 <p class="lead lead-mistakes"><strong>Common mistakes.</strong></p>
 <ul>
 <li><em>The object is one flat colour with no overlaps visible.</em> The inks are not
@@ -2647,5 +2648,5 @@ two carts look the same.</p></div><div class="shared after"></div><div class="ru
     </div>
   </aside>
 </div>
-<script src="tutorial.js?v=9cb35076"></script>
+<script src="tutorial.js"></script>
 </body></html>

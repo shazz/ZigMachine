@@ -2061,10 +2061,11 @@ const logo = obj.parseWire(@embedFile("../assets/obj/empire_logo.obj"));
 var verts = zg.wireframe.vec4s(logo.verts.len, logo.verts);
 ```
 
-`apps/zig/scenes/obj_demo.zig` is this step finished, with four renderers
-(hardware flat, glenz, hardware wireframe and a CPU scanline fill of the same
-mesh) on keys 1-4 so you can watch the same geometry go through hardware and
-software side by side.
+`apps/zig/scenes/obj_demo.zig` is this step finished, in fixed point, with six
+renderers on key S (hardware flat, glenz, hardware wireframe, a CPU scanline
+fill of the same mesh, CPU Gouraud and hidden-line) so you can watch the same
+geometry go through hardware and software side by side. Keys 1-3 pick the
+object (icosahedron, gem, a procedural sphere whose resolution + and - change).
 
 **What you should see.** A solid icosahedron turning on two axes, its faces
 shading from teal to white as they face the light, with no seams or popping
@@ -2314,8 +2315,8 @@ fn chan(v: f32) -> u32 {
 with the overlaps picking up their own colours as it turns — six hues where a
 single face is in the way, brighter mixes where two or three are. The silhouette
 stays crisp: each face is still a hardware-filled triangle, so there are no soft
-edges anywhere. Key 2 of `apps/zig/scenes/obj_demo.zig` is this, on the same
-mesh as step 11's flat shading, so you can flip between them.
+edges anywhere. GLENZ (key S) in `apps/zig/scenes/obj_demo.zig` is this, on the
+same mesh as step 11's flat shading, so you can flip between them.
 
 **Common mistakes.**
 
