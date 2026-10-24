@@ -49,7 +49,10 @@ const ALLOW = {
     // its arming state and two flags (digi_irq.zig, digi_big_play.zig); its state lives in the 68000's RAM.
     // +20 B (2026-10-23): the STE DMA chip's frame-end count and flag and the LMC1992's three
     // volumes (ste_dma.zig), and Timer A's event counter (mfp.zig).
-    "demo-audio.wasm": 591162,
+    // +164 B (2026-10-24): the Hippel player and its Paula (hip_player.zig, paula.zig): four
+    // voices' registers and latch shadows, DMACON/INTENA/INTREQ, the start/latch counters.
+    // The module itself (code, song, samples) lives in the 68000's RAM, not here.
+    "demo-audio.wasm": 591326,
 };
 
 function uleb(b, p) {
