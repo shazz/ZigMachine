@@ -73,7 +73,8 @@ const LAST_FRAME = 15;
 /// The logo lives in rows 0..64, the floor and balls in 70..126 and the two bands
 /// in BOTTOM_Y.. (assets.zig): three windows that do not overlap, so each is
 /// cleared and redrawn only when what it shows has changed (the ST's "only
-/// modify what changes": the logo holds 135 frames, the balls follow the music).
+/// modify what changes": the logo holds 135 frames, the balls follow the music,
+/// a ball at a time).
 const SPLIT = 68;
 
 /// What each window was last painted from; null until painted.
@@ -90,14 +91,44 @@ pub fn draw(dst: blit.Dst, img: *const A.Images, logo: *const Logo, voices: *con
         painted.logo = .{ .height = logo.height, .tile = logo.tile };
     }
     const mid = dst.window(0, SPLIT, dst.w, A.BOTTOM_Y - SPLIT);
-    if (painted.levels == null or !std.mem.eql(u8, &painted.levels.?, &voices.level)) {
+    if (painted.levels) |was| {
+        // Only the run of balls whose frame changed is redrawn (the music changes a voice
+        // most frames, rarely all three, and the floor never moves).
+        var k0: usize = 3;
+        var k1: usize = 0;
+        for (was, voices.level, 0..) |a, b, k| if (a != b) {
+            k0 = @min(k0, k);
+            k1 = k + 1;
+        };
+        if (k1 > k0) redrawBalls(mid, img, voices, k0, k1);
+    } else {
         mid.fill(0, 0, mid.w, mid.h, A.BLACK);
         blit.blit(mid, img.floor, null, FLOOR_X, FLOOR_Y - SPLIT, 0, .copy);
-        for (voices.level, 0..) |level, k| {
-            const frame: usize = LAST_FRAME - level;
-            const part = blit.Rect{ .x = frame * A.BALL_W, .y = 0, .w = A.BALL_W, .h = A.BALL_H };
-            blit.blit(mid, img.balls, part, @intCast(BALLS_X + k * A.BALL_W), BALLS_Y - SPLIT, 0, .copy);
-        }
-        painted.levels = voices.level;
+        drawBalls(mid, img, voices, 0, 3);
+    }
+    painted.levels = voices.level;
+}
+
+comptime { // the balls' box lies inside the floor's columns and holds all the floor's rows
+    std.debug.assert(BALLS_X >= FLOOR_X and BALLS_X + 3 * A.BALL_W <= FLOOR_X + A.FLOOR_W);
+    std.debug.assert(BALLS_Y <= FLOOR_Y and FLOOR_Y + A.FLOOR_H <= BALLS_Y + A.BALL_H);
+}
+
+/// The window's paint over balls k0..k1-1's box, which only the black field, the floor
+/// and those balls (side by side, never overlapping) cover: the same pixels as a full repaint.
+fn redrawBalls(mid: blit.Dst, img: *const A.Images, voices: *const Voices, k0: usize, k1: usize) void {
+    const x0 = BALLS_X + k0 * A.BALL_W;
+    const w = (k1 - k0) * A.BALL_W;
+    mid.fill(@intCast(x0), BALLS_Y - SPLIT, w, A.BALL_H, A.BLACK);
+    const under = blit.Rect{ .x = x0 - FLOOR_X, .y = 0, .w = w, .h = A.FLOOR_H };
+    blit.blit(mid, img.floor, under, @intCast(x0), FLOOR_Y - SPLIT, 0, .copy);
+    drawBalls(mid, img, voices, k0, k1);
+}
+
+fn drawBalls(mid: blit.Dst, img: *const A.Images, voices: *const Voices, k0: usize, k1: usize) void {
+    for (voices.level[k0..k1], k0..) |level, k| {
+        const frame: usize = LAST_FRAME - level;
+        const part = blit.Rect{ .x = frame * A.BALL_W, .y = 0, .w = A.BALL_W, .h = A.BALL_H };
+        blit.blit(mid, img.balls, part, @intCast(BALLS_X + k * A.BALL_W), BALLS_Y - SPLIT, 0, .copy);
     }
 }

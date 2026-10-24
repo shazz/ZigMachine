@@ -40,7 +40,8 @@ const packed_assets = @import("packed_assets");
 
 const A = @import("union_deltaforce/assets.zig");
 const stage = @import("union_deltaforce/stage.zig");
-const Band = @import("union_deltaforce/band.zig").Band;
+const band = @import("union_deltaforce/band.zig");
+const Band = band.Band;
 const Intro = @import("union_deltaforce/intro.zig").Intro;
 const Scroller = @import("union_deltaforce/scroller.zig").Scroller;
 
@@ -56,6 +57,7 @@ const INTRO_W = 640; // introcanvas 1280 wide, halved
 const SCROLL_W = 320; // scrollcanvas 640 wide, halved
 const GOLD_STEP = 6; // goldY += 6; if (goldY >= 118) goldY = 0
 const GOLD_WRAP = 118;
+const GOLD_IMAGE = blit.Image{ .data = &.{}, .w = A.GOLD_W, .h = A.GOLD_H }; // its size, for GoldCols.bytes
 
 // Module scope: the runner needs a stable address.
 var depack: DepackFx = undefined;
@@ -73,6 +75,8 @@ pub const Demo = struct {
     scroller: Scroller,
     intro_band: Band,
     scroll_band: Band,
+    gold_cols: band.GoldCols, // the gold texture by columns, for the credits band's wave
+    gold_buf: []u8,
     skip_intro: bool,
     leave: bool,
 
@@ -87,11 +91,13 @@ pub const Demo = struct {
         self.intro.init();
         self.scroller.init();
         const intro_len = Band.bytes(INTRO_W);
+        const gold_len = band.GoldCols.bytes(GOLD_IMAGE);
         // On zg.mem, taken once: init runs once per cart load.
-        const buf = zg.mem.alloc(u8, A.TOTAL + intro_len + Band.bytes(SCROLL_W)) orelse return fail("no free RAM to depack into");
+        const buf = zg.mem.alloc(u8, A.TOTAL + intro_len + Band.bytes(SCROLL_W) + gold_len) orelse return fail("no free RAM to depack into");
         const data = buf[0..A.TOTAL];
-        self.intro_band = Band.init(buf[A.TOTAL..][0..intro_len], INTRO_W);
-        self.scroll_band = Band.init(buf[A.TOTAL + intro_len ..], SCROLL_W);
+        self.intro_band = Band.init(buf[A.TOTAL..][0..intro_len], INTRO_W, true);
+        self.scroll_band = Band.init(buf[A.TOTAL + intro_len ..][0..Band.bytes(SCROLL_W)], SCROLL_W, false);
+        self.gold_buf = buf[buf.len - gold_len ..];
         if (!depack.start(zigos, packed_assets.union_deltaforce, data, DEPACK_BYTES_PER_LINE))
             return fail("packed image unreadable");
         self.images = A.Images.split(data);
@@ -134,7 +140,7 @@ pub const Demo = struct {
         const low = dst.window(0, A.BOTTOM_Y, dst.w, dst.h - A.BOTTOM_Y);
         low.fill(0, 0, low.w, low.h, A.BLACK);
         self.scroller.draw(low, &self.scroll_band, &self.images, self.gold_y);
-        self.intro.draw(low, &self.intro_band, &self.images, self.gold_y, self.scroller.twist);
+        self.intro.draw(low, &self.intro_band, &self.images, self.gold_cols, self.gold_y, self.scroller.twist);
     }
 
     /// Host input ids: 5 fire, 6 back.
@@ -160,6 +166,7 @@ pub const Demo = struct {
 
     fn start(self: *Demo, zigos: *ZigOS) void {
         const fb = &zigos.lfbs[0];
+        self.gold_cols = band.GoldCols.build(self.images.gold, self.gold_buf); // the art is in
         fb.is_enabled = true;
         fb.setPalette(A.palette);
         fb.setPaletteEntry(0, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });

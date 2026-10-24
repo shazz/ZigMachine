@@ -19,7 +19,6 @@ const zg = @import("zigos");
 const blit = zg.blit;
 const A = @import("assets.zig");
 const Band = @import("band.zig").Band;
-const sintab = @import("../union_common/sintab.zig");
 
 pub const TEXT = @embedFile("../../assets/screens/union_deltaforce/scrolltext.txt"); // screen.js:112, verbatim
 
@@ -113,10 +112,13 @@ pub const Scroller = struct {
 
     pub fn draw(self: *const Scroller, dst: blit.Dst, band: *Band, img: *const A.Images, gold_y: u32) void {
         if (!self.visible) return;
-        band.clear();
-        for (self.ring.x, self.ring.c) |x, c| band.letter(&img.font, c, x);
-        var sweep = sintab.Flat{ .y = @intFromFloat(@round(self.text_y)) }; // amp 0: one y for every column
-        band.compose(&sweep, img.gold, gold_y, 0, band.w);
-        band.draw(dst, 0, CENTRE_Q16 - @as(i32, A.BOTTOM_Y) * 65536, @cos(self.twist)); // dst is the bottom window
+        // siny of amplitude 0: one y for every column, so only the halving of its parity is read.
+        const y: i32 = @intFromFloat(@round(self.text_y));
+        const parity: u1 = @intCast(y & 1);
+        band.clearStrip(parity);
+        for (self.ring.x, self.ring.c) |x, c| band.letterOn(parity, &img.font, c, x);
+        const scale = @cos(self.twist);
+        band.composeFlat(y, img.gold, gold_y, 0, band.w, scale == -1.0);
+        band.draw(dst, 0, CENTRE_Q16 - @as(i32, A.BOTTOM_Y) * 65536, scale); // dst is the bottom window
     }
 };

@@ -13,7 +13,8 @@ const std = @import("std");
 const zg = @import("zigos");
 const blit = zg.blit;
 const A = @import("assets.zig");
-const Band = @import("band.zig").Band;
+const band_mod = @import("band.zig");
+const Band = band_mod.Band;
 const sintab = @import("../union_common/sintab.zig");
 const Wave = sintab.SinTab(1280, 0.004); // 0.004 a canvas column, 1280 of them
 
@@ -116,7 +117,7 @@ pub const Intro = struct {
         self.wave = self.drawn_wave + WAVE_OFFSET;
     }
 
-    pub fn draw(self: *const Intro, dst: blit.Dst, band: *Band, img: *const A.Images, gold_y: u32, twist: f64) void {
+    pub fn draw(self: *const Intro, dst: blit.Dst, band: *Band, img: *const A.Images, gold: band_mod.GoldCols, gold_y: u32, twist: f64) void {
         if (!self.visible) return;
         // The text canvas holds the word pair until it changes (every 4-42 frames): only this
         // band draws into it. No clear: the 20 letters, 32 columns apart and 32 wide, rewrite
@@ -137,18 +138,20 @@ pub const Intro = struct {
         const c0: usize = @intCast(std.math.clamp(-dx, 0, @as(i32, @intCast(band.w))));
         const c1: usize = @intCast(std.math.clamp(@as(i32, @intCast(dst.w)) - dx, 0, @as(i32, @intCast(band.w))));
         var sweep = Sweep{ .wave = Wave.init(self.drawn_wave), .j = 2 * c0 };
-        band.compose(&sweep, img.gold, gold_y, c0, c1);
-        band.draw(dst, dx, CENTRE_Q16 - @as(i32, A.BOTTOM_Y) * 65536, @cos(twist)); // dst is the bottom window
+        const scale = @cos(twist);
+        band.composeWave(&sweep, gold, gold_y, c0, c1, scale == -1.0);
+        band.draw(dst, dx, CENTRE_Q16 - @as(i32, A.BOTTOM_Y) * 65536, scale); // dst is the bottom window
     }
 };
 
-/// FX.siny's value per canvas column: round(WAVE_Y + WAVE_AMP * sin(phase + 0.004 j)).
+/// FX.siny's value per ST column: round(WAVE_Y + WAVE_AMP * sin(phase + 0.004 j)) at
+/// its first canvas column j (the second, j + 1, falls under the same ST column).
 const Sweep = struct {
     wave: Wave,
     j: usize = 0,
 
     pub fn next(it: *Sweep) i32 {
-        defer it.j += 1;
+        defer it.j += 2;
         return it.wave.round(it.j, WAVE_Y, WAVE_AMP);
     }
 };
