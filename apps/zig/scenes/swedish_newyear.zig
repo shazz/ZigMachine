@@ -23,6 +23,7 @@
 // --------------------------------------------------------------------------
 const zg = @import("zigos");
 const frame = @import("swedish_newyear/frame.zig");
+const border = @import("swedish_newyear/border.zig");
 const Menu = @import("swedish_newyear/menu.zig").Menu;
 const Sync = @import("swedish_newyear/sync.zig").Sync;
 const Tcb = @import("swedish_newyear/tcb.zig").Tcb;
@@ -63,6 +64,7 @@ pub const Demo = struct {
     pub fn update(_: *Demo, _: *ZigOS, _: f32) void {}
 
     pub fn render(self: *Demo, zigos: *ZigOS, dt: f32) void {
+        defer border.sync(); // c0_next is final: the next frame's borders
         const fb = &zigos.lfbs[0];
         switch (self.part) {
             .sync1, .sync2, .tcb1, .tcb2, .omega => return self.renderSt(fb, dt),
@@ -79,7 +81,7 @@ pub const Demo = struct {
             frame.clear();
         }
         if (shown and self.menu_cached) {
-            frame.presentRows(fb, Menu.FIRST_ROW, Menu.END_ROW);
+            frame.presentRows(fb, Menu.FIRST_ROW, Menu.END_ROW, Menu.FIRST_COL, Menu.END_COL);
         } else {
             frame.present(fb);
         }
@@ -141,6 +143,7 @@ pub const Demo = struct {
     }
 
     pub fn key(self: *Demo, cp: u32) void {
+        defer border.sync(); // a part's entry or the menu's return set c0_next
         if (cp == K_ESC) {
             self.wants_quit = true;
             return;

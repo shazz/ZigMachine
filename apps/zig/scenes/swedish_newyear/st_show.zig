@@ -12,6 +12,8 @@ const std = @import("std");
 const st = @import("st.zig");
 const frame = @import("frame.zig");
 const ram = @import("ram.zig");
+const rows_ = @import("st_rows.zig");
+const conv = @import("st_convert.zig");
 
 pub const LINES = 200;
 /// Colour registers 0..15 of each ST line, as ST words.
@@ -28,16 +30,15 @@ pub fn capture(r: *const st.Ram, screen: u32, pal: *const Palettes, top: u16, bo
         const addr = screen + @as(u32, @intCast(y)) * st.LINE;
         rows[y + @as(usize, @intCast(frame.OY))] = .{ .addr = addr, .x0 = frame.OX, .lo = @intCast(frame.OX), .hi = @intCast(frame.OX + 320) };
     }
-    convertRows(r, &rows);
-    for (ram.buf.pal_next, 0..) |*line, py| {
+    conv.convertRows(r, &rows);
+    const above_w: [16]u16 = @splat(top);
+    const below_w: [16]u16 = @splat(bottom);
+    var prev: ?*const [16]u16 = null;
+    for (0..frame.PH) |py| {
         const y = @as(i32, @intCast(py)) - frame.OY;
-        if (y >= 0 and y < LINES) {
-            for (line, pal[@intCast(y)]) |*c, w| setColor(c, w);
-        } else {
-            const w = if (y < 0) top else bottom;
-            for (line) |*c| setColor(c, w);
-        }
-        frame.c0_next[py] = line[0];
+        const words = if (y < 0) &above_w else if (y < LINES) &pal[@intCast(y)] else &below_w;
+        putLine(py, words, prev);
+        prev = words;
     }
 }
 
@@ -54,140 +55,84 @@ pub fn present(fb: []u8) void {
 // the line's first byte on, whatever the address mod 8 -- which is why 230-byte
 // lines rotate the plane order from one line to the next.
 
-/// One physical line of an overscan frame: pixels in [lo, hi) show the screen,
-/// read from `addr` with its first pixel at physical x `x0`; the rest is colour 0.
-pub const Row = struct { addr: u32, x0: i32, lo: u16, hi: u16 };
-pub const Rows = [frame.PH]?Row;
+/// One physical line of an overscan frame (st_rows.zig).
+pub const Row = rows_.Row;
+pub const Rows = rows_.Rows;
+comptime {
+    if (rows_.PW != frame.PW or rows_.PH != frame.PH) @compileError("st_rows.zig: not the frame's size");
+}
 
 /// Colour registers 0..15 of each physical line, as ST words.
 pub const LinePalettes = [frame.PH][16]u16;
 
-/// Like capture(), for a whole overscan plane under ONE palette.
-pub fn captureOverscan(r: *const st.Ram, rows: *const Rows, pal: *const [16]u16) void {
-    var pals: LinePalettes = undefined;
-    for (&pals) |*line| line.* = pal.*;
-    captureLines(r, rows, &pals);
-}
-
 /// Like capture(), for a whole plane of physical rows, each line under its
 /// own registers (OMEGA: the bottom border's palette from line 200).
 pub fn captureLines(r: *const st.Ram, rows: *const Rows, pals: *const LinePalettes) void {
-    convertRows(r, rows);
-    for (ram.buf.pal_next, pals, 0..) |*line, pal, py| {
-        for (line, pal) |*c, w| setColor(c, w);
-        frame.c0_next[py] = line[0];
-    }
+    conv.convertRows(r, rows);
+    capturePalettes(pals);
 }
 
-/// A store to cart RAM costs ~27 cycles, a load almost nothing, and the colours of a
-/// line are mostly what they were two frames ago (these buffers swap): store changes only.
-inline fn setColor(c: *u32, w: u16) void {
-    const v = st.color(w);
-    if (c.* != v) c.* = v;
+fn capturePalettes(pals: *const LinePalettes) void {
+    for (pals, 0..) |*words, py| putLine(py, words, if (py == 0) null else &pals[py - 1]);
 }
 
-// What each plane row was last converted from. A row whose descriptor is unchanged
-// only reconverts the 16-pixel groups whose 8 source bytes changed (an ST screen
-// changes in a few places a frame: 98% of OMEGA's pixels are the same as the frame
-// before), and only rows that changed are copied to the framebuffer.
-// keys[py] is meaningful only while keyed[py]. Rows are read through pointers and keys
-// copied field by field: copying a ?Row by value moved its tail as a 16-bit access at
-// an odd offset, which traps on KESTREL (~700 cycles, once a row a frame).
-var keys: [frame.PH]Row = undefined;
-var keyed: [frame.PH]bool = [_]bool{false} ** frame.PH;
-var dirty: [frame.PH]bool = [_]bool{true} ** frame.PH;
-var blank: [frame.PH]bool = [_]bool{false} ** frame.PH;
-
-fn convertRows(r: *const st.Ram, rows: *const Rows) void {
-    for (ram.buf.plane, 0..) |*out, py| {
-        const row = &rows[py];
-        if (row.* == null) {
-            if (keyed[py]) keyed[py] = false;
-            if (!blank[py]) {
-                @memset(out, 0);
-                blank[py] = true;
-                dirty[py] = true;
-            }
-            continue;
-        }
-        const ln = &row.*.?;
-        const k = &keys[py];
-        // not addr: where the bytes are read from may flip every frame (double buffering);
-        // what the cached bytes say is compared group by group in lineAt
-        if (!keyed[py] or k.x0 != ln.x0 or k.lo != ln.lo or k.hi != ln.hi) {
-            @memset(out, 0);
-            blank[py] = false;
-            k.* = .{ .addr = ln.addr, .x0 = ln.x0, .lo = ln.lo, .hi = ln.hi };
-            keyed[py] = true;
-            dirty[py] = true;
-            _ = lineAt(r, ln.*, out, &ram.buf.src[py], false);
-        } else if (lineAt(r, ln.*, out, &ram.buf.src[py], true)) {
-            dirty[py] = true;
-        }
-    }
+/// The colour half of captureLines() for a plane converted elsewhere (tcb1_mirror.zig),
+/// under ONE palette: every line is line 0's.
+pub fn capturePalette(pal: *const [16]u16) void {
+    putLine(0, pal, null);
+    @memset(ram.buf.same_next[1..], true);
+    @memset(frame.c0_next[1..], frame.c0_next[0]);
 }
 
-/// Convert the groups of `ln` into `out`; with `only_changed`, just those whose source
-/// bytes differ from `cache` (returns whether any did). Pixels outside [lo, hi) and
-/// left of the row's first byte stay as they are (colour 0).
-fn lineAt(r: *const st.Ram, ln: Row, out: *[frame.PW]u8, cache: *[ram.SRC_ROW]u8, only_changed: bool) bool {
-    if (ln.hi <= ln.lo or @as(i32, ln.hi) <= ln.x0) return false;
-    const k0: i32 = @max(0, @as(i32, ln.lo) - ln.x0);
-    const g0: usize = @intCast(@divFloor(k0, 16));
-    const g1: usize = @intCast(@divFloor(@as(i32, ln.hi) - 1 - ln.x0, 16));
-    var changed = false;
-    for (g0..g1 + 1) |g| {
-        const src = r.bytes(ln.addr + 8 * @as(u32, @intCast(g)), 8)[0..8];
-        const c = cache[(g - g0) * 8 ..][0..8];
-        const a0 = st.le32(src[0..4]); // a 230-byte line's groups sit at 2 mod 4: no lw there
-        const a1 = st.le32(src[4..8]);
-        const c0 = std.mem.readInt(u32, c[0..4], .little);
-        const c1 = std.mem.readInt(u32, c[4..8], .little);
-        if (only_changed and a0 == c0 and a1 == c1) continue;
-        std.mem.writeInt(u32, c[0..4], a0, .little);
-        std.mem.writeInt(u32, c[4..8], a1, .little);
-        changed = true;
-        putGroup(ln, g, src, out);
-    }
-    return changed;
-}
-
-fn putGroup(ln: Row, g: usize, src: *const [8]u8, out: *[frame.PW]u8) void {
-    const xb = ln.x0 + 16 * @as(i32, @intCast(g));
-    if (xb >= ln.lo and xb + 16 <= ln.hi) {
-        st.groupToChunky(src, out[@intCast(xb)..][0..16]);
+/// Line py's colours from its 16 ST words. A line whose words are the line above's
+/// is only marked `same` (its colours are NOT stored): the plane's HBL has nothing to
+/// write there (frame.zig), and colour 0 is the line above's.
+inline fn putLine(py: usize, words: *const [16]u16, above: ?*const [16]u16) void {
+    const same = if (above) |a| std.mem.eql(u16, words, a) else false;
+    ram.buf.same_next[py] = same;
+    if (same) {
+        frame.c0_next[py] = frame.c0_next[py - 1];
         return;
     }
-    var group: [16]u8 = undefined;
-    st.groupToChunky(src, &group);
-    for (0..16) |i| {
-        const x = xb + @as(i32, @intCast(i));
-        if (x >= ln.lo and x < ln.hi) out[@intCast(x)] = group[i];
-    }
+    const line = &ram.buf.pal_next[py];
+    for (line, words) |*c, w| c.* = st.color(w);
+    frame.c0_next[py] = line[0];
 }
 
-/// Word by word, storing only the words that differ: a load is cheap and a store to
-/// the framebuffer is not, and most of a changed row is what it was.
-fn copyRow(dst: []u8, src: *const [frame.PW]u8) void {
+/// Words [w0, w1) of a row. Stored whether they differ or not: on the posted-store
+/// board a store (~2.3 cycles) is cheaper than reading the framebuffer back to compare.
+fn copyRow(dst: []u8, src: *const [frame.PW]u8, w0: usize, w1: usize) void {
     const d: [*]u32 = @ptrCast(@alignCast(dst.ptr));
     const s: [*]const u32 = @ptrCast(@alignCast(src));
-    for (0..frame.PW / 4) |i| {
-        if (d[i] != s[i]) d[i] = s[i];
-    }
+    for (w0..w1) |i| d[i] = s[i];
 }
 
-/// The captured frame into the plane: only the rows that changed since the last one
+/// The captured frame into the plane: only the spans that changed since the last one
 /// (the whole plane after another screen drew into it), then the colours.
 pub fn presentOverscan(fb: []u8) void {
     const all = frame.fb_owner != 2;
     for (ram.buf.plane, 0..) |*row, py| {
-        if (all or dirty[py]) copyRow(fb[py * frame.PW ..][0..frame.PW], row);
-        dirty[py] = false;
+        const dst = fb[py * frame.PW ..][0..frame.PW];
+        if (all) {
+            copyRow(dst, row, 0, frame.PW / 4);
+        } else if (conv.span_lo[py] < conv.span_hi[py]) {
+            copyRow(dst, row, conv.span_lo[py] / 4, (@as(usize, conv.span_hi[py]) + 3) / 4);
+        }
+        conv.span_lo[py] = frame.PW;
+        conv.span_hi[py] = 0;
     }
     frame.fb_owner = 2;
+    flip();
+}
+
+/// The captured colours become the shown ones.
+pub fn flip() void {
     const t = ram.buf.pal;
     ram.buf.pal = ram.buf.pal_next;
     ram.buf.pal_next = t;
+    const u = ram.buf.same;
+    ram.buf.same = ram.buf.same_next;
+    ram.buf.same_next = u;
     frame.c0_now = frame.c0_next;
 }
 

@@ -27,6 +27,7 @@ test {
     _ = @import("scenes/larcociel2/present_test.zig");
     _ = @import("scenes/swedish_newyear/sync_test.zig");
     _ = @import("scenes/swedish_newyear/tcb1_test.zig");
+    _ = @import("scenes/swedish_newyear/tcb1_mirror_test.zig");
     _ = @import("scenes/swedish_newyear/tcb2_test.zig");
     _ = @import("scenes/swedish_newyear/omega_test.zig");
     _ = @import("scenes/swedish_newyear/st.zig");

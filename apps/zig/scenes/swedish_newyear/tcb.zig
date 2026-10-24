@@ -15,6 +15,7 @@ const show = @import("st_show.zig");
 const fr = @import("frame.zig");
 const tcb1 = @import("tcb1.zig");
 const tcb1_show = @import("tcb1_show.zig");
+const tcb1_mirror = @import("tcb1_mirror.zig");
 const tcb2 = @import("tcb2.zig");
 const assets = @import("assets.zig");
 const ram = @import("ram.zig");
@@ -32,6 +33,9 @@ pub const Tcb = struct {
     running: bool, // TCB #2's frames have started
     shown: tcb2.Shown,
     overscan: bool, // what was captured: TCB #1's fullscreen plane
+    mirrored: bool, // ... and it is in `mirror`, not st_show's plane
+    mirror: tcb1_mirror.Mirror,
+    had: [fr.PH]bool, // the plane rows the mirror's last present gave a line
     borders: fr.Borders, // ... and the borders it needs
     acc: f32,
 
@@ -40,6 +44,7 @@ pub const Tcb = struct {
         const part = ram.buf.part[0..assets.TCB_RAM];
         @memset(part[assets.TCB_IMAGE..], 0);
         self.r = .{ .base = tcb1.BASE, .m = part };
+        self.mirror.init(ram.tcbMirror()); // a fresh load: converted whole on the first capture
         self.one.init(&self.r);
         self.second = false;
         self.acc = 0;
@@ -60,7 +65,13 @@ pub const Tcb = struct {
     /// frame runs.
     pub fn frame(self: *Tcb, fb: []u8, dt: f32) ?u8 {
         fr.setBorders(self.borders);
-        if (self.overscan) show.presentOverscan(fb) else show.present(fb);
+        if (!self.overscan) {
+            show.present(fb);
+        } else if (self.mirrored) {
+            self.mirror.present(@alignCast(fb), fr.fb_owner != 3, &self.had);
+            fr.fb_owner = 3;
+            show.flip();
+        } else show.presentOverscan(fb);
         var tune: ?u8 = null;
         self.acc += dt;
         while (self.acc >= st.VBL_MS) : (self.acc -= st.VBL_MS) {
@@ -79,7 +90,10 @@ pub const Tcb = struct {
     /// One VBL; true on TCB #2's first frame.
     fn vbl(self: *Tcb) bool {
         if (!self.second) {
+            const erased = self.r.l(tcb1.LAST_DRAW); // the box this VBL erases, then the one it draws
             self.one.vbl(&self.r);
+            self.mirror.touchBox(&self.r, erased);
+            self.mirror.touchBox(&self.r, self.r.l(tcb1.LAST_DRAW));
             return false;
         }
         if (self.setup > 0) {
@@ -94,12 +108,13 @@ pub const Tcb = struct {
 
     fn capture(self: *Tcb) void {
         if (!self.second) {
-            tcb1_show.capture(&self.one, &self.r);
+            self.mirrored = tcb1_show.capture(&self.one, &self.r, &self.mirror);
             self.overscan = true;
             self.borders = self.one.borders();
             return;
         }
         self.overscan = false;
+        self.mirrored = false;
         self.borders = .closed;
         var pal: show.Palettes = undefined;
         var top: u16 = 0;

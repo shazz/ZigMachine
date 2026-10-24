@@ -12,12 +12,14 @@
 //               x 411: exact
 //   row 229 on  the bottom border, colour 0
 // A capture row r is physical line r+11 here and capture x is physical x+8.
-// The intro phase is a plain 320x200 screen from the same base.
+// The intro phase is a plain 320x200 screen from the same base. Both are shown
+// from tcb1_mirror.zig, which keeps the whole noise region converted.
 // --------------------------------------------------------------------------
 const st = @import("st.zig");
 const show = @import("st_show.zig");
 const frame = @import("frame.zig");
 const T = @import("tcb1.zig");
+const mirror = @import("tcb1_mirror.zig");
 
 const CAPTURE_TOP = 11; // physical line of capture row 0
 const CAPTURE_X = 8; // capture x = physical x + 8
@@ -46,12 +48,22 @@ fn normalRows(base: u32, rows: *show.Rows) void {
     }
 }
 
-/// Freeze the frame the last VBL set up (st_show: shown one host frame later).
-pub fn capture(t: *const T.Tcb1, r: *const st.Ram) void {
-    var rows: show.Rows = [_]?show.Row{null} ** frame.PH;
-    if (t.fullscreen()) fullRows(t.shown, &rows) else normalRows(t.shown, &rows);
+/// Freeze the frame the last VBL set up (st_show: shown one host frame later),
+/// into `m` when its region holds the frame (true), else through st_show.
+pub fn capture(t: *const T.Tcb1, r: *const st.Ram, m: *mirror.Mirror) bool {
+    const rows = &m.rows;
+    rows.* = [_]?show.Row{null} ** frame.PH;
+    if (t.fullscreen()) fullRows(t.shown, rows) else normalRows(t.shown, rows);
     var pal: [16]u16 = undefined;
     for (&pal, 0..) |*c, i| c.* = r.w(T.PALETTE + 2 * @as(u32, @intCast(i)));
     pal[0] = 0; // colour 0 is written 0 every VBL
-    show.captureOverscan(r, &rows, &pal);
+    if (!mirror.Mirror.covers(rows)) {
+        var pals: show.LinePalettes = undefined;
+        for (&pals) |*line| line.* = pal;
+        show.captureLines(r, rows, &pals);
+        return false;
+    }
+    m.sync(r);
+    show.capturePalette(&pal);
+    return true;
 }
