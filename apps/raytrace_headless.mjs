@@ -30,18 +30,30 @@
 // Across the two carts: the fixed-point picture matches the f32 one (mean RGB
 // error under 2.5 levels; dither and Q16 rounding are the only differences).
 //
+// The f32 cart then REFINES (refine.zig): PASSES - 1 more samples a pixel, one
+// pass per 110 frames with no clock, so the tap's pass counter (row 199, x 232)
+// reaches 16 at exactly frame 16 x 110 (x 220 with the fake clock), and it
+// stops there. Its first picture is the one pinned above; the converged one
+// has its own pin, the same under all three clocks, and must differ the ways
+// refinement promises (raytrace_refine_lib.mjs): a penumbra appears on the
+// floor, silhouettes and tile edges become coverage dithers,
+// and every pixel is still a palette colour.
+//
 //   node apps/raytrace_headless.mjs [outdir]            outdir gets PPMs of both
 //   node apps/raytrace_headless.mjs --break pixel       one wrong pixel: caught
 //   node apps/raytrace_headless.mjs --break clock       a clock that never moves: caught
+//   node apps/raytrace_headless.mjs --break smooth      refinement that changes nothing: caught
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { cartRam, romRam } from "../docs/wasm_hiwater.js";
+import { checkRefined } from "./raytrace_refine_lib.mjs";
 
 const PAGES = 112; // SHARED_PAGES in machine/sdk/memmap.zig
 const W = 320, H = 200, IMG_H = 176, HORIZON = 62;
 const FRAMES_TO_DONE = { none: 110, fake: 220 };
 const FAKE_RATE = 32000; // px/s: 256 px per 8000 fake us
-const MAX_FRAMES = 4000;
+const MAX_FRAMES = 6000;
+const PASSES = { "demo-raytrace": 1, "demo-raytrace_f32": 16 };
 // Pinned fingerprints of the finished PICTURE, rows 0..175 of the RGB frame
 // (printed by every run). The HUD below it carries each run's own counters and
 // rate, so it is read off the tap strip instead of being hashed.
@@ -49,6 +61,7 @@ const PINNED = {
     "demo-raytrace": "e03b7477be51699b0b2b50536f63293844e3fe1a7dd8d3e0e5d2f906a4a15646",
     "demo-raytrace_f32": "4f7e751848b5f65f1db89f0782dee3cb0aaee0084d923fbb0c09995d3a399d89",
 };
+// (The f32 cart's converged picture is pinned in raytrace_refine_lib.mjs.)
 
 const brk = process.argv.includes("--break") ? process.argv[process.argv.indexOf("--break") + 1] : null;
 const outdir = process.argv.slice(2).find((a, i, v) => !a.startsWith("--") && v[i - 1] !== "--break") || "/tmp/raytrace";
@@ -100,7 +113,8 @@ function frame({ memory, machine, demo }) {
 
 const px = (rgb, x, y) => { const i = (y * W + x) * 3; return [rgb[i], rgb[i + 1], rgb[i + 2]]; };
 const bits = (rgb, x0, n) => { let v = 0; for (let i = 0; i < n; i++) v = v * 2 + (px(rgb, x0 + i, 199)[0] > 30 ? 1 : 0); return v; };
-const readTap = (rgb) => ({ frames: bits(rgb, 255, 16), rays: bits(rgb, 271, 24), done: bits(rgb, 295, 1), rate: bits(rgb, 296, 24) });
+const readTap = (rgb) => ({ frames: bits(rgb, 255, 16), rays: bits(rgb, 271, 24), done: bits(rgb, 295, 1), rate: bits(rgb, 296, 24), pass: bits(rgb, 232, 6) });
+const sha = (rgb) => createHash("sha256").update(rgb.subarray(0, W * IMG_H * 3)).digest("hex");
 const drawn = (rgb) => { let n = 0; for (let y = 0; y < IMG_H; y++) for (let x = 0; x < W; x++) { const p = px(rgb, x, y); if (p[0] !== 12 || p[1] !== 12 || p[2] !== 28) n++; } return n / (W * IMG_H); };
 
 // Fraction of 8x8 blocks that are one flat colour: ~1 in the level-0 preview.
@@ -161,8 +175,9 @@ function clockFor(mode) {
 async function runCart(name, mode) {
     console.log(`${name} (clock ${mode}):`);
     const m = await boot(name, clockFor(mode));
-    let last = 0, ms = 0, tap = null, rgb = null, doneAt = 0;
-    for (let f = 1; f <= MAX_FRAMES && !doneAt; f++) {
+    const passes = PASSES[name];
+    let last = 0, ms = 0, tap = null, rgb = null, doneAt = 0, convAt = 0, lastPass = 0, first = null;
+    for (let f = 1; f <= MAX_FRAMES && !convAt; f++) {
         const r = frame(m);
         ms = Math.max(ms, r.ms); rgb = r.rgb;
         tap = readTap(rgb);
@@ -170,33 +185,43 @@ async function runCart(name, mode) {
         if (mode === "none" && f === 1) check(d > 0.2 && d < 0.9, `${name}: frame 1 should be a partial preview (drawn ${d.toFixed(3)})`);
         if (mode === "none" && f === 2) check(blocky(rgb) > 0.9, `${name}: frame 2 should be the 8x8-block preview (blocky ${blocky(rgb).toFixed(2)})`);
         check(d + 1e-9 >= last, `${name}: drawn fraction fell at frame ${f}`);
-        last = d;
-        if (tap.done) doneAt = f;
+        check(tap.pass === lastPass || tap.pass === lastPass + 1, `${name}: pass counter ${lastPass} -> ${tap.pass} at frame ${f}`);
+        last = d; lastPass = tap.pass;
+        if (tap.done && !doneAt) { doneAt = f; first = { rgb, tap }; check(tap.pass === 1, `${name}: first picture done at pass ${tap.pass}`); }
+        if (tap.pass >= passes) convAt = f;
     }
-    // A done cart traces nothing more: the frame after must leave the tap alone.
-    const after = readTap(frame(m).rgb);
-    check(after.frames === tap.frames, `${name}: frame counter moved after DONE (${tap.frames} -> ${after.frames})`);
+    // A converged cart traces nothing more: the frame after leaves tap and picture alone.
+    const after = frame(m).rgb;
+    check(readTap(after).frames === tap.frames, `${name}: frame counter moved after the last pass (${tap.frames} -> ${readTap(after).frames})`);
+    check(sha(after) === sha(rgb), `${name}: the picture changed after the last pass`);
+    const conv = brk === "smooth" && first ? first.rgb : rgb;
+    if (first) ({ rgb, tap } = first);
     const nsPx = tap.rate ? (1e9 / tap.rate).toFixed(0) : "-";
     console.log(`  done at frame ${doneAt}, tap frames=${tap.frames} rays=${tap.rays} rate=${tap.rate} px/s (${nsPx} ns/px), worst cart frame ${ms.toFixed(2)} ms`);
     check(doneAt > 0, `${name}: never completed in ${MAX_FRAMES} frames`);
     check(blocky(rgb) < 0.5, `${name}: the final frame is still blocky`);
     if (FRAMES_TO_DONE[mode]) check(doneAt === FRAMES_TO_DONE[mode], `${name}: completes at frame ${doneAt}, expected ${FRAMES_TO_DONE[mode]}`);
+    if (FRAMES_TO_DONE[mode]) check(convAt === passes * FRAMES_TO_DONE[mode], `${name}: pass ${passes} ends at frame ${convAt}, expected ${passes * FRAMES_TO_DONE[mode]}`);
     check(tap.frames === doneAt, `${name}: frame counter ${tap.frames}, done at ${doneAt}`);
     if (mode === "none") check(tap.rate === 0, `${name}: no clock, yet a rate of ${tap.rate} px/s`);
     if (mode === "fake") check(tap.rate === FAKE_RATE, `${name}: fake-clock rate ${tap.rate} px/s, expected ${FAKE_RATE}`);
     if (mode === "real") check(tap.rate > 0, `${name}: the real clock measured no rate`);
     check(tap.rays > 56320 * 1.3 && tap.rays < 56320 * 2.5, `${name}: ray count ${tap.rays} implausible`);
     check(ms < 16.6, `${name}: a frame took ${ms.toFixed(2)} ms, over the 60 fps budget`);
-    if (brk === "pixel") rgb[(40 * W + 40) * 3] ^= 0x40;
+    if (brk === "pixel") { rgb[(40 * W + 40) * 3] ^= 0x40; conv[(40 * W + 40) * 3] ^= 0x40; }
     checkPicture(name, rgb);
     checkChrome(name, rgb);
-    const hash = createHash("sha256").update(rgb.subarray(0, W * IMG_H * 3)).digest("hex");
+    const hash = sha(rgb);
     console.log(`  fingerprint ${hash}`);
     if (PINNED[name]) check(hash === PINNED[name], `${name}: fingerprint ${hash.slice(0, 16)} != pinned ${PINNED[name].slice(0, 16)}`);
+    if (passes > 1) checkRefined({ check, sha, checkPicture, checkChrome }, name, rgb, conv, convAt);
     if (mode === "fake") checkRestart(name, m);
-    if (mode === "none") await writeFile(`${outdir}/${name}.ppm`, Buffer.concat([Buffer.from(`P6\n${W} ${H}\n255\n`), rgb]));
+    if (mode === "none") await writeFile(`${outdir}/${name}.ppm`, ppm(rgb));
+    if (mode === "none" && passes > 1) await writeFile(`${outdir}/${name}-converged.ppm`, ppm(conv));
     return { rgb, tap, doneAt };
 }
+
+const ppm = (rgb) => Buffer.concat([Buffer.from(`P6\n${W} ${H}\n255\n`), rgb]);
 
 // Fire (input 5) restarts the run on the next frame: counter 1, picture cleared.
 function checkRestart(name, m) {

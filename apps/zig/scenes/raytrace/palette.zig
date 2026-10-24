@@ -1,28 +1,27 @@
-// The 256-entry palette and the dithered quantiser that fills it.
-//
-// Layout (index ranges):
-//   0..3     HUD: panel, text, bar, dim bar
-//   4..43    sky ramp, 40 levels, deep blue (top) -> peach (horizon)
-//   44..123  floor: 2 tones x 5 fog levels x 8 shade levels
-//   124..233 five sphere ramps of 22 levels (shadow -> colour -> white-hot)
-// A ramp holds one colour per intensity step, so the picture is as smooth as
-// the ordered dither (4x4 Bayer) can make 8..40 levels: the tracer quantises
-// each pixel's 0..256 intensity against the Bayer threshold for its position.
+// The 256-entry palette's colours. Its layout and the dithered quantiser that
+// indexes it are in dither.zig, re-exported here.
 const zg = @import("zigos");
 const LogicalFB = zg.LogicalFB;
 
-pub const PANEL: u8 = 0;
-pub const TEXT: u8 = 1;
-pub const BAR: u8 = 2;
-pub const BAR_DIM: u8 = 3;
-
-pub const SKY_BASE: u8 = 4;
-pub const SKY_LV = 40;
-pub const FLOOR_BASE: u8 = 44;
-pub const FOG_LV = 5;
-pub const SHADE_LV = 8;
-pub const MAT_BASE: u8 = 124;
-pub const MAT_LV = 22;
+const D = @import("dither.zig");
+pub const PANEL = D.PANEL;
+pub const TEXT = D.TEXT;
+pub const BAR = D.BAR;
+pub const BAR_DIM = D.BAR_DIM;
+pub const SKY_BASE = D.SKY_BASE;
+pub const SKY_LV = D.SKY_LV;
+pub const FLOOR_BASE = D.FLOOR_BASE;
+pub const FOG_LV = D.FOG_LV;
+pub const SHADE_LV = D.SHADE_LV;
+pub const MAT_BASE = D.MAT_BASE;
+pub const MAT_LV = D.MAT_LV;
+pub const bayer = D.bayer;
+pub const quant = D.quant;
+pub const Shade = D.Shade;
+pub const CLS_SKY = D.CLS_SKY;
+pub const CLS_FLOOR = D.CLS_FLOOR;
+pub const CLS_MAT = D.CLS_MAT;
+pub const index = D.index;
 
 const Rgb = [3]u8;
 const HORIZON: Rgb = .{ 255, 168, 112 };
@@ -30,19 +29,6 @@ const MIDSKY: Rgb = .{ 168, 92, 150 };
 const ZENITH: Rgb = .{ 36, 56, 170 };
 const TONES = [2]Rgb{ .{ 236, 226, 204 }, .{ 128, 28, 48 } };
 const MATS = [5]Rgb{ .{ 200, 208, 226 }, .{ 226, 36, 36 }, .{ 240, 178, 36 }, .{ 40, 96, 240 }, .{ 40, 200, 90 } };
-
-/// Ordered-dither threshold 0..255 for a pixel position.
-pub fn bayer(x: u32, y: u32) u32 {
-    const m = [16]u8{ 0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5 };
-    return @as(u32, m[(y & 3) * 4 + (x & 3)]) * 16 + 8;
-}
-
-/// Quantise intensity q8 (0..256) onto `lv` levels, rounding up when the
-/// fractional part beats the pixel's Bayer threshold.
-pub fn quant(q8: u32, comptime lv: u32, bay: u32) u8 {
-    const v = q8 * (lv - 1);
-    return @intCast((v >> 8) + @intFromBool((v & 255) > bay));
-}
 
 fn mix(a: Rgb, b: Rgb, num: u32, den: u32) Rgb {
     var o: Rgb = undefined;

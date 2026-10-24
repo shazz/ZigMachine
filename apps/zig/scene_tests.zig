@@ -26,6 +26,7 @@ test {
     _ = @import("scenes/larcociel5/chunky_test.zig");
     _ = @import("scenes/larcociel2/present_test.zig");
     _ = @import("scenes/noextra_band_test.zig");
+    _ = @import("scenes/raytrace/acc_test.zig");
     _ = @import("scenes/swedish_newyear/sync_test.zig");
     _ = @import("scenes/swedish_newyear/tcb1_test.zig");
     _ = @import("scenes/swedish_newyear/tcb1_mirror_test.zig");

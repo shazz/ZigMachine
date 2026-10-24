@@ -35,3 +35,4 @@ pub fn toQ8(a: T) u32 {
     if (v >= 256.0) return 256;
     return @intFromFloat(v);
 }
+pub const REFINE = true; // progressive refinement after the first picture (refine.zig)

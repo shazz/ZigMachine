@@ -18,6 +18,12 @@ pub const BUDGET_US: u32 = 8000; // half a 60 Hz tick: the rest is the machine's
 pub const CHECK_EVERY: u32 = 16;
 pub const FIXED_PIXELS: u32 = 512; // a frame's work when the host has no clock
 
+/// Whether a frame begun at `t0` has used its budget, booking nothing (the
+/// f32 cart's refinement passes, which are not part of the benchmark).
+pub fn over(t0: u32) bool {
+    return hostMicros() -% t0 >= BUDGET_US;
+}
+
 pub const Bench = struct {
     clocked: bool, // the host's clock has answered non-zero at least once
     trace_us: u64,
