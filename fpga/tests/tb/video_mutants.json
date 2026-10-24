@@ -303,7 +303,7 @@
     "file": "zm_video_rowio.v",
     "old": "assign rd_req_addr = lq[0] ? pfb_addr : d_addr;",
     "new": "assign rd_req_addr = lq[0] ? d_addr : pfb_addr;",
-    "catch": "union_intro"
+    "catch": "replicants"
   },
   {
     "id": "picture_halves_swapped",
