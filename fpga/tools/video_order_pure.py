@@ -8,7 +8,7 @@ RTL compositor (tools/video_order_group.py --fw) and fails unless every frame eq
 and unless at least one frame really groups a handler plane with another plane (a cart that lost
 its flag would pass by testing nothing).
 
-    uv run python tools/video_order_pure.py union_main supplex_fs2 ...   [--frames 300,600]
+    uv run python tools/video_order_pure.py replicants union_intro@3000 ...   [--frames 300,600]
     uv run python tools/video_order_pure.py --break [carts]   # also: the synthetic overscan frames
                                                               # grouped with no RES_FLICKER store must DIFFER
 
@@ -126,10 +126,12 @@ def main(args: list[str]) -> int:
         sys.exit(__doc__)
     # The native hosts of today's docs/demo-<tag>.wasm, one make at a time (they share
     # build/host/common); then the carts' dumps and replays side by side.
-    for t in args:
+    # cart@f1,f2: that cart's own frames (a screen that only starts later, union_intro's main).
+    picks = [(a.split("@")[0], [int(x) for x in a.split("@")[1].split(",")] if "@" in a else frames) for a in args]
+    for t, _ in picks:
         subprocess.run(["make", "-s", "-j4", "-C", str(FPGA), "host", f"CART={t}"], check=True, capture_output=True)
     with ThreadPoolExecutor(max_workers=4) as pool:
-        results = list(pool.map(lambda t: (t, *check(t, frames, exe)), args))
+        results = list(pool.map(lambda tf: (tf[0], *check(tf[0], tf[1], exe)), picks))
     for _, _, lines in results:
         print("\n".join(lines))
     bad = [t for t, good, _ in results if not good]
