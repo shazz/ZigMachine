@@ -24,72 +24,38 @@
 // backend is UADE, which agrees. Halved, the design is 360 wide and 283 tall:
 // wider than the 320 visible window (the text panel alone is 320 wide starting
 // at x=28, so cropping to 320 would eat a column of glyphs) and taller than it.
-// So this port EARNS THE BORDERS: all three planes are 400x280 overscan buffers
-// with the resolution-flicker trick run on every scanline, the Amiga screen is
+// So this port EARNS THE BORDERS: the screen is a 400x280 overscan plane with
+// the resolution-flicker trick run on every scanline, the Amiga screen is
 // centred at x=20, and the bottom 3 Amiga lines (280..282, black — the lowest
 // content is the red rule at y=273) are dropped. Nothing else is cropped or
 // squashed; every coordinate below is the original's, halved.
+//
+// ONE PLANE (2026-10-23; it was three). The remake's three canvases need no
+// plane of their own on this machine: nothing is hardware-scrolled, the only
+// HBL is the border flicker (it races nothing), and the three layers' colours
+// fit one palette (supplex_fs2/panel.zig). So they are painter's order in one
+// plane, and every enabled plane costs FRESCO ~0.6 Mc a frame:
+//
+//   effect                         before            after
+//   background (logo, red rules)   plane 0, 10 col   plane 0, entries 0..9
+//   text panel + raster gradient   plane 1, 160 col  plane 0, entries 10..169
+//   grey sine scroller             plane 2, 1 col    plane 0, entry 170
+//   save-under of panel+background -                 plane 1, DISABLED
+//
+// The static picture (background + panel) is drawn once into plane 0 and
+// copied once into plane 1, which is never enabled (no FRESCO, no HBL). Each
+// frame the scroller's band is restored from it by ONE CHISEL copy (another
+// plane, never within one) and the scroller is drawn over it.
 // --------------------------------------------------------------------------
-const std = @import("std");
 const zg = @import("zigos");
-const convertU8ArraytoColors = zg.convertU8ArraytoColors;
-const zx0 = @import("depackers").zx0;
-const packed_assets = @import("packed_assets");
+const panel = @import("supplex_fs2/panel.zig");
+const scroller = @import("supplex_fs2/scroller.zig");
 
 const ZigOS = zg.ZigOS;
 const LogicalFB = zg.LogicalFB;
-const Color = zg.Color;
 const Console = zg.Console;
 
-// --------------------------------------------------------------------------
-// Constants
-// --------------------------------------------------------------------------
-const PW: i32 = zg.PHYSICAL_WIDTH; // 400
-const PH: i32 = zg.PHYSICAL_HEIGHT; // 280
-const X_OFF: i32 = 20; // the 360-wide Amiga screen, centred in the plane
-
-// background: main.png halved and already placed at X_OFF by the asset tool
-// (assets/screens/supplex_fs2/main.raw). It ships ZX0-packed (build.zig): 73 KB
-// of it is one black run, which raw was that many zeros in the cart binary.
-const main_zx0 = packed_assets.supplex_fs2_main;
-const MAIN_BYTES: usize = @intCast(PW * PH);
-const main_pal = convertU8ArraytoColors(@embedFile("../assets/screens/supplex_fs2/main_pal.dat"));
-
-// font: 20x3 tiles of 16x16 (CODEF initTile(32,32,32)), 1 = ink, 0 = field.
-// The CODEF PNG's ink is the OPAQUE BLACK and the field is white with alpha 0 —
-// the reverse of the usual P-mode font, checked before the mask was built.
-const font_b = @embedFile("../assets/screens/supplex_fs2/font.raw");
-const FONT_SHEET_W: usize = 320;
-const FONT_COLS: usize = 20;
-const GW: i32 = 16;
-const GH: i32 = 16;
-const FIRST_CHAR: u8 = 32;
-const LAST_CHAR: u8 = 91; // 60 tiles, ' '..'['
-
-// the raster gradient (raster.png, horizontally uniform), halved: 731 x RGB
-const raster_b = @embedFile("../assets/screens/supplex_fs2/raster.dat");
-const RASTER_LINES: i32 = 731;
-
-// the text panel: CODEF prints at x=56, y=216 stepping 32 — halved, x=28+X_OFF
-// and y=108 stepping 16. Ten lines of 20 chars = a 320x160 block.
-const TEXT_X: i32 = 28 + X_OFF;
-const TEXT_TOP: i32 = 108;
-const TEXT_STEP: i32 = 16;
-const TEXT_H: i32 = 160;
-const TEXT_LINES = [_][]const u8{
-    "      PRESENTS      ",
-    " FLIGHT SIMULATOR II",
-    "    NEW DATA DISK   ",
-    "   CALL OUR HQ AT   ",
-    "  0039 40 57 54 24  ",
-    "********************",
-    "      SUPPLEX       ",
-    "   POSTE RESTANTE   ",
-    "    8450 HAMMEL     ",
-    "      DENMARK       ",
-};
-
-// the raster scroll: CODEF rasterY starts at 0, -= 2 a frame, and snaps back to
+// The raster scroll: CODEF rasterY starts at 0, -= 2 a frame, and snaps back to
 // -44 once it reaches -741 (so it reaches -742, being always even). Halved: -1
 // a frame, from 0 down to -371, back to -22. The gradient does NOT repeat over
 // that window (checked: raster.png only repeats at its full 1462 rows), so the
@@ -97,56 +63,6 @@ const TEXT_LINES = [_][]const u8{
 const RASTER_RESET: i32 = -371;
 const RASTER_BACK: i32 = -22;
 
-// the scroller. CODEF: 640x32 strip, tiles 32 wide, speed 4, wide=21 and the
-// loop runs i <= wide, so 22 letters, laid out at wide*fontw + i*fontw. Halved.
-const STRIP_W: i32 = 320;
-const STRIP_H: i32 = 16;
-const NB_LETTERS: usize = 22;
-const SCROLL_SPEED: i32 = 2; // whole pixels, so the integer ring is bit-exact
-const SCROLL_START: i32 = 21 * 16; // wide*fontw, halved
-
-// FX.siny(0, 340) over the strip: every source COLUMN is drawn at
-// y = 340 + sin(v0)*30 + sin(v1)*100, v0/v1 advancing 0.03/0.01 per doubled
-// column and drifting -0.05/-0.04 per frame. Halved: amplitudes and the base y
-// halve, the per-column incs double (an ST column is two CODEF columns), the
-// per-frame drift is a phase and does not change.
-// Phases are u32 turns (zg.fixtrig), the sine a table: no float per column.
-const SINY_AMP_A: i32 = 15;
-const SINY_AMP_B: i32 = 50;
-const SINY_INC_A = zg.fixtrig.angle(0.06);
-const SINY_INC_B = zg.fixtrig.angle(0.02);
-const SINY_OFF_A = zg.fixtrig.angle(-0.05);
-const SINY_OFF_B = zg.fixtrig.angle(-0.04);
-const SINY_Y: i32 = 170; // CODEF posy 340
-
-/// wave.SineSum(2) in integers: yields SINY_Y + 15 sin(a) + 50 sin(b) per
-/// column (truncated), the phases advancing by their incs.
-const SinySweep = struct {
-    a: zg.fixtrig.Angle,
-    b: zg.fixtrig.Angle,
-    pub fn next(it: *SinySweep) i32 {
-        const q = SINY_Y * zg.fixtrig.ONE + SINY_AMP_A * zg.fixtrig.sin(it.a) + SINY_AMP_B * zg.fixtrig.sin(it.b);
-        it.a +%= SINY_INC_A;
-        it.b +%= SINY_INC_B;
-        return @divTrunc(q, zg.fixtrig.ONE);
-    }
-};
-const SCROLL_X: i32 = 28 + X_OFF; // distcanvas is blitted at CODEF x=56
-
-// The screen's own scrolltext, verbatim from screen.js.
-const SCROLL_TEXT =
-    "            ***   S U P P L E X   ***       IS PROUD TO PRESENT THEIR LATEST RELEASE CALLED    *** FLIGHT SIMULATOR II NEW DATA DISK ***      " ++
-    "RELEASED ON 26/02/90              TO CONTACT US WRITE TO : (ONLY THESE 4 LINES) SUPPLEX, POSTE RESTANTE, 8450 HAMMEL, DENMARK   " ++
-    "OR CALL OUR BBS IN ITALY AT 0039 40 57 54 24 OR CALL SUPPLEX WHQ AT 704 254 9142                GREETINGS TO ALL CONTACTS!!!    " ++
-    "THEREFORE SEE YOU SOON AT THE CE-BIT !!!!!!!!     ---------------------------               ...CODEF REMAKE BY MELLOW MAN....          ";
-
-// The scroll strip (CODEF's scrollcanvas), rebuilt every frame. Module scope:
-// a buffer this size inside the Demo struct costs a duplicate data segment.
-var strip = [_]u8{0} ** @as(usize, STRIP_W * STRIP_H);
-
-// --------------------------------------------------------------------------
-// Demo
-// --------------------------------------------------------------------------
 // Open every border: the Amiga screen fills all 400x280, so the trick runs on
 // every scanline, at the magic column (see docs/HW_API.md).
 fn handler_overscan(fb: *LogicalFB, zigos: *ZigOS, line: u16, col: u16) void {
@@ -160,7 +76,7 @@ pub const Demo = struct {
     raster_y: i32 = 0,
     siny_a: zg.fixtrig.Angle = 0,
     siny_b: zg.fixtrig.Angle = 0,
-    ring: zg.scrollring.Ring(i32, NB_LETTERS) = undefined,
+    ring: scroller.Ring = undefined,
     blitter: zg.Blitter = .{},
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
@@ -171,13 +87,15 @@ pub const Demo = struct {
         self.siny_a = 0;
         self.siny_b = 0;
 
-        setupPlanes(zigos);
         self.blitter.init();
-        self.blitter.clear(&zigos.lfbs[2], 0);
-        drawBackground(&zigos.lfbs[0]);
-        drawTextPanel(&zigos.lfbs[1]);
+        const shown: *LogicalFB = &zigos.lfbs[0];
+        const saved: *LogicalFB = &zigos.lfbs[1];
+        setupPlanes(shown, saved);
+        panel.drawBackground(shown);
+        panel.drawTextPanel(shown);
+        self.blitter.blitCopy(saved, 0, 0, shown, 0, 0, @intCast(panel.PW), @intCast(panel.PH));
 
-        self.ring = zg.scrollring.Ring(i32, NB_LETTERS).init(SCROLL_TEXT, SCROLL_START, GW);
+        self.ring = scroller.Ring.init(scroller.SCROLL_TEXT, scroller.SCROLL_START, panel.GW);
         // No music: the screen plays "shaolin title.hip" through UADE, an Amiga
         // Hippel/TFMX player binary the machine has no player for. See report.
     }
@@ -189,151 +107,40 @@ pub const Demo = struct {
         self.raster_y -= 1;
         if (self.raster_y <= RASTER_RESET) self.raster_y = RASTER_BACK;
 
-        self.siny_a +%= SINY_OFF_A;
-        self.siny_b +%= SINY_OFF_B;
+        self.siny_a +%= scroller.SINY_OFF_A;
+        self.siny_b +%= scroller.SINY_OFF_B;
 
-        _ = self.ring.step(SCROLL_SPEED);
+        _ = self.ring.step(scroller.SCROLL_SPEED);
     }
 
     pub fn render(self: *Demo, zigos: *ZigOS, elapsed_time: f32) void {
         _ = elapsed_time;
+        const shown: *LogicalFB = &zigos.lfbs[0];
 
         // The panel's pixels never move: only its per-line colours do, so the
         // 'source-atop' raster is exactly a palette animation here.
-        self.shiftRaster(&zigos.lfbs[1]);
+        panel.shiftRaster(shown, self.raster_y);
 
-        const scroll: *LogicalFB = &zigos.lfbs[2];
-        // Only the band the sine can reach is wiped, by CHISEL: columns SCROLL_X..+320,
-        // rows SINY_Y +-65 (+ the 16-row strip) with a margin. The rest of the
-        // plane is zero from init and nothing else writes it. It was a 112,000-byte
-        // CPU memset (~0.9 Mc a frame).
-        self.blitter.fill(scroll, SCROLL_X, SINY_Y - 74, STRIP_W, 2 * 74 + STRIP_H, 0);
-        self.buildStrip();
-        self.blitStrip(scroll);
-    }
-
-    // raster.draw(textcanvas, 0, rasterY, ...) under 'source-atop': screen line
-    // y takes gradient line y - rasterY. Panel line r uses palette entry r+1.
-    fn shiftRaster(self: *Demo, fb: *LogicalFB) void {
-        var r: i32 = 0;
-        while (r < TEXT_H) : (r += 1) {
-            const src = std.math.clamp(TEXT_TOP + r - self.raster_y, 0, RASTER_LINES - 1);
-            const o: usize = @intCast(src * 3);
-            fb.setPaletteEntry(@intCast(r + 1), .{
-                .r = raster_b[o],
-                .g = raster_b[o + 1],
-                .b = raster_b[o + 2],
-                .a = 255,
-            });
-        }
-    }
-
-    // scrolltext_horizontal.draw(0) into the 640x32 (here 320x16) strip.
-    fn buildStrip(self: *Demo) void {
-        @memset(&strip, 0);
-        var i: usize = 0;
-        while (i < NB_LETTERS) : (i += 1) {
-            const c = self.ring.c[i];
-            if (c < FIRST_CHAR or c > LAST_CHAR) continue;
-            const x0: i32 = self.ring.x[i];
-            blitGlyphToStrip(c, x0);
-        }
-    }
-
-    // FX.siny + the flat grey fill: source column i goes to (SCROLL_X + i,
-    // SINY_Y + sin(a)*15 + sin(b)*50), and every drawn pixel is index 1.
-    fn blitStrip(self: *Demo, fb: *LogicalFB) void {
-        var it = SinySweep{ .a = self.siny_a, .b = self.siny_b };
-        zg.wave.siny(zg.blit.Dst.plane(fb), zg.blit.Image.init(&strip, @intCast(STRIP_W)), null, SCROLL_X, 0, 1, &it, 0, .{ .flat = 1 });
+        // Erase last frame's scroller: the band the sine can reach, restored
+        // from the disabled copy of the static picture by one CHISEL copy.
+        const x: i16 = @intCast(scroller.SCROLL_X);
+        const y: i16 = @intCast(scroller.BAND_TOP);
+        self.blitter.blitCopy(shown, x, y, &zigos.lfbs[1], x, y, @intCast(scroller.STRIP_W), @intCast(scroller.BAND_H));
+        scroller.buildStrip(&self.ring);
+        scroller.blitStrip(shown, self.siny_a, self.siny_b);
     }
 };
 
-// --------------------------------------------------------------------------
-// Helpers
-// --------------------------------------------------------------------------
-// Three stacked overscan planes: background, raster-coloured text panel, and
-// the grey scroller on top. Only the background's index 0 is opaque.
-fn setupPlanes(zigos: *ZigOS) void {
-    const transparent = Color{ .r = 0, .g = 0, .b = 0, .a = 0 };
-
-    var fb: *LogicalFB = &zigos.lfbs[0];
-    fb.is_enabled = true;
-    fb.setOverscanBuffer();
-    fb.setPalette(main_pal);
-    fb.setFrameBufferHBLHandler(zg.OVERSCAN_MAGIC_X, handler_overscan);
-
-    // Every plane needs its OWN flicker handler: the machine replays a plane's
-    // HBLs while rendering THAT plane, so a plane with no handler is drawn with
-    // its borders closed and loses everything outside the 320x200 window
-    // (measured: the panel's last two lines vanished below physical row 239).
-    fb = &zigos.lfbs[1];
-    fb.is_enabled = true;
-    fb.setOverscanBuffer();
-    fb.setPaletteEntry(0, transparent);
-    fb.setFrameBufferHBLHandler(zg.OVERSCAN_MAGIC_X, handler_overscan);
-
-    fb = &zigos.lfbs[2];
-    fb.is_enabled = true;
-    fb.setOverscanBuffer();
-    fb.setPaletteEntry(0, transparent);
-    fb.setFrameBufferHBLHandler(zg.OVERSCAN_MAGIC_X, handler_overscan);
+// Plane 0 is the screen; plane 1 holds the static picture for the save-under
+// and is never enabled, so it needs neither a palette nor an HBL.
+fn setupPlanes(shown: *LogicalFB, saved: *LogicalFB) void {
+    shown.is_enabled = true;
+    shown.setOverscanBuffer();
+    shown.setPalette(panel.main_pal);
+    shown.setFrameBufferHBLHandler(zg.OVERSCAN_MAGIC_X, handler_overscan);
     // distcanvas.fill('#AAAAAA') under 'source-atop': the scroller is flat grey.
-    fb.setPaletteEntry(1, .{ .r = 0xAA, .g = 0xAA, .b = 0xAA, .a = 255 });
-}
+    shown.setPaletteEntry(panel.GREY, .{ .r = 0xAA, .g = 0xAA, .b = 0xAA, .a = 255 });
 
-// The background is drawn once, so it depacks straight into the plane: no
-// working buffer at all. The pack is built from the asset at build time, so a
-// failure here is a broken build, never a condition to run on through.
-fn drawBackground(fb: *LogicalFB) void {
-    if (zx0.depackedLen(main_zx0) != MAIN_BYTES) @panic("supplex_fs2: main.raw is not 400x280");
-    if (zx0.depack(main_zx0, fb.fb[0..MAIN_BYTES]) == null) @panic("supplex_fs2: main.raw depack failed");
-}
-
-// font.print(textcanvas, line, 56, 216 + 32*n): the panel is drawn once, each
-// of its 160 lines taking its own palette entry (line + 1) so that the raster
-// gradient can be scrolled through it as a palette animation.
-fn drawTextPanel(fb: *LogicalFB) void {
-    for (TEXT_LINES, 0..) |line, n| {
-        const y = TEXT_TOP + @as(i32, @intCast(n)) * TEXT_STEP;
-        for (line, 0..) |c, col| {
-            if (c < FIRST_CHAR or c > LAST_CHAR) continue;
-            drawGlyph(fb, c, TEXT_X + @as(i32, @intCast(col)) * GW, y);
-        }
-    }
-}
-
-fn drawGlyph(fb: *LogicalFB, c: u8, x: i32, y: i32) void {
-    const tile: usize = c - FIRST_CHAR;
-    const sx0: usize = (tile % FONT_COLS) * @as(usize, GW);
-    const sy0: usize = (tile / FONT_COLS) * @as(usize, GH);
-    var gy: i32 = 0;
-    while (gy < GH) : (gy += 1) {
-        const dy = y + gy;
-        if (dy < 0 or dy >= PH) continue;
-        var gx: i32 = 0;
-        while (gx < GW) : (gx += 1) {
-            const dx = x + gx;
-            if (dx < 0 or dx >= PW) continue;
-            const si = (sy0 + @as(usize, @intCast(gy))) * FONT_SHEET_W + sx0 + @as(usize, @intCast(gx));
-            if (font_b[si] == 0) continue;
-            fb.setPixelValue(@intCast(dx), @intCast(dy), @intCast(dy - TEXT_TOP + 1));
-        }
-    }
-}
-
-fn blitGlyphToStrip(c: u8, x: i32) void {
-    const tile: usize = c - FIRST_CHAR;
-    const sx0: usize = (tile % FONT_COLS) * @as(usize, GW);
-    const sy0: usize = (tile / FONT_COLS) * @as(usize, GH);
-    var gy: i32 = 0;
-    while (gy < GH) : (gy += 1) {
-        var gx: i32 = 0;
-        while (gx < GW) : (gx += 1) {
-            const dx = x + gx;
-            if (dx < 0 or dx >= STRIP_W) continue;
-            const si = (sy0 + @as(usize, @intCast(gy))) * FONT_SHEET_W + sx0 + @as(usize, @intCast(gx));
-            if (font_b[si] == 0) continue;
-            strip[@intCast(gy * STRIP_W + dx)] = 1;
-        }
-    }
+    saved.is_enabled = false;
+    saved.setOverscanBuffer();
 }
