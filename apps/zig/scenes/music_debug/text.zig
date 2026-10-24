@@ -25,6 +25,18 @@ fn waveColumns(off: []i32, x0: i32, phase: f32, amp: f32) void {
     }
 }
 
+/// sin(px * 0.05 + phase) for every physical column, once a frame: the scroller's
+/// wave, and the menu line whose phase offset is 0 evaluates the very same f32
+/// expression for its columns, so it reads them here instead of again.
+pub const Sines = [zg.PHYSICAL_WIDTH]f32;
+pub fn sines(out: *Sines, phase: f32) void {
+    for (out, 0..) |*o, px| o.* = fsin.sin(@as(f32, @floatFromInt(px)) * 0.05 + phase);
+}
+
+fn waveFrom(off: []i32, s: []const f32, amp: f32) void {
+    for (off, s[0..off.len]) |*o, v| o.* = @intFromFloat(v * amp);
+}
+
 // A font as comptime column bitmasks: masks[glyph][column], bit gy = ink at row gy.
 // Read from the 320-wide sheet, a glyph's column walk missed the 4 KB D-cache on
 // every pixel; a mask is one load a column. ASCII from space; an unknown char is
@@ -33,7 +45,10 @@ fn Font(comptime sheet: []const u8, comptime per_row: usize, comptime cell: usiz
     const count = per_row * ((sheet.len / 320) / cell);
     return struct {
         const n = count;
-        const masks: [count][cell]M = blk: {
+        // Read by pointer (drawGlyph): a by-value copy of a glyph's masks was one
+        // i64 load off a 2-aligned address, which TRAPS on the board (~700 cycles,
+        // 139 a frame). align(8) keeps any such wide read aligned.
+        const masks: [count][cell]M align(8) = blk: {
             @setEvalBranchQuota(count * cell * cell * 8);
             var t: [count][cell]M = undefined;
             for (0..count) |g| {
@@ -58,11 +73,19 @@ const Font16 = Font(font16_raw, 20, 16, u16);
 // to the plane.
 fn drawGlyph(fb: *LogicalFB, comptime F: type, char: u8, x0: i32, y0: i32, color: u8, wave: []const i32, wave_x0: i32) void {
     const idx: usize = if (char >= 32 and char < 32 + F.n) char - 32 else 0;
-    for (F.masks[idx], 0..) |mask, gx| {
+    for (&F.masks[idx], 0..) |mask, gx| { // by pointer: a by-value copy was one wide load
         const px = x0 + @as(i32, @intCast(gx));
         if (mask == 0 or px < 0 or px >= fb.fb_w) continue;
         const top = y0 + wave[@intCast(px - wave_x0)];
         var m = mask;
+        if (top >= 0 and top + @bitSizeOf(@TypeOf(mask)) <= fb.fb_h) { // the whole column on the plane
+            var p: [*]u8 = fb.fb + @as(usize, @intCast(top)) * fb.stride + @as(usize, @intCast(px));
+            while (m != 0) : (m >>= 1) {
+                if (m & 1 != 0) p[0] = color;
+                p += fb.stride;
+            }
+            continue;
+        }
         var py = top;
         while (m != 0) : ({
             m >>= 1;
@@ -74,18 +97,19 @@ fn drawGlyph(fb: *LogicalFB, comptime F: type, char: u8, x0: i32, y0: i32, color
     }
 }
 
-pub fn drawText8(fb: *LogicalFB, text: []const u8, x: i32, y: i32, color: u8, amp: f32, phase: f32) void {
+/// `pre`: this frame's Sines when `phase` is exactly their phase (else null).
+pub fn drawText8(fb: *LogicalFB, text: []const u8, x: i32, y: i32, color: u8, amp: f32, phase: f32, pre: ?*const Sines) void {
     var wave: [MAX_LINE * 8]i32 = undefined;
     const n: usize = @min(text.len, MAX_LINE); // usize: @min would narrow to u6, and n * 8 overflow
-    waveColumns(wave[0 .. n * 8], x, phase, amp);
+    if (pre) |s| waveFrom(wave[0 .. n * 8], s[@intCast(x)..], amp) else waveColumns(wave[0 .. n * 8], x, phase, amp);
     for (text[0..n], 0..) |c, i| drawGlyph(fb, Font8, c, x + @as(i32, @intCast(i * 8)), y, color, &wave, x);
 }
 
 // The scroller across the full physical width (the overscan plane is 400x280, so the
 // glyph clip is the physical one); `base_x` is the message's left edge.
-pub fn drawScroller(fb: *LogicalFB, message: []const u8, base_x: i32, y0: i32, color: u8, amp: f32, phase: f32) void {
+pub fn drawScroller(fb: *LogicalFB, message: []const u8, base_x: i32, y0: i32, color: u8, amp: f32, s: *const Sines) void {
     var wave: [zg.PHYSICAL_WIDTH]i32 = undefined;
-    waveColumns(&wave, 0, phase, amp);
+    waveFrom(&wave, s, amp);
     for (message, 0..) |char, i| {
         const cx: i32 = base_x + @as(i32, @intCast(i * 16));
         if (cx <= -16 or cx >= PW) continue;

@@ -31,12 +31,12 @@ const C1: f32 = 0.0416666233237390631894;
 const C2: f32 = -0.00138867637746099294692;
 const C3: f32 = 0.0000243904487962774090654;
 
-fn kSin(r: f32) f32 {
+inline fn kSin(r: f32) f32 {
     const z = r * r;
     return r + r * z * (S1 + z * (S2 + z * (S3 + z * S4)));
 }
 
-fn kCos(r: f32) f32 {
+inline fn kCos(r: f32) f32 {
     const z = r * r;
     return 1.0 + z * (C0 + z * (C1 + z * (C2 + z * C3)));
 }

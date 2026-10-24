@@ -11,7 +11,8 @@
 // gives the same picture (the stars stay translucent over the black background).
 //
 // Board speed (ZIGGY's f32 FPU): the waves use music_debug/fsin.zig, one sine a
-// column; CHISEL clears the window and the scroller's band each frame.
+// column (the scroller and the first menu line share theirs: the same f32
+// expression); CHISEL clears the window and the scroller's band each frame.
 //
 // Keys 1..6 play MOD / YM / sample / SNDH / XM / a local XM. The host only forwards a digit to
 // setShadeMode (docs/sealed-loader.js in the browser, fpga/glass/firmware/glass_input.c on
@@ -181,16 +182,19 @@ pub const Demo = struct {
         // back to front, as the planes were stacked
         view.drawStars(v, &self.starfield);
         self.scope.draw(zigos, v, self.flow_frame, self.phase);
+        var sines: text.Sines = undefined;
+        text.sines(&sines, self.phase);
         for (MENU) |line| {
-            text.drawText8(p0, line.text, MENU_X, MENU_Y + line.dy, WHITE, MENU_WAVE_AMP, self.phase + line.dphase);
+            const pre: ?*const text.Sines = if (line.dphase == 0) &sines else null; // phase + 0 == phase
+            text.drawText8(p0, line.text, MENU_X, MENU_Y + line.dy, WHITE, MENU_WAVE_AMP, self.phase + line.dphase, pre);
         }
         // the scroller across the full physical width: visible-space x -> physical
         const base_x: i32 = @as(i32, @intFromFloat(self.scroll_x)) + HBORD;
-        text.drawScroller(p0, MESSAGE, base_x, SCROLL_Y, SCROLL, SCROLL_WAVE_AMP, self.phase);
+        text.drawScroller(p0, MESSAGE, base_x, SCROLL_Y, SCROLL, SCROLL_WAVE_AMP, &sines);
         // the logo with a 3-frame darkening trail (oldest/darkest first)
-        logo.draw(v, self.logo_phase - 2.4, logo.BASE + 96);
-        logo.draw(v, self.logo_phase - 1.6, logo.BASE + 64);
-        logo.draw(v, self.logo_phase - 0.8, logo.BASE + 32);
-        logo.draw(v, self.logo_phase, logo.BASE);
+        logo.draw(v, self.logo_phase - 2.4, 3);
+        logo.draw(v, self.logo_phase - 1.6, 2);
+        logo.draw(v, self.logo_phase - 0.8, 1);
+        logo.draw(v, self.logo_phase, 0);
     }
 };

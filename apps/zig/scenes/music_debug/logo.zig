@@ -85,9 +85,20 @@ comptime {
     if (START_X - hmax < 0 or START_X + @as(i32, W) + hmax > WIDTH) @compileError("logo row wave leaves the plane");
 }
 
-// Draw the logo at distortion phase `lphase`, palette entries offset by
-// `pal_base` (BASE = full colour, BASE + 32/64/96 = the dimmer trail copies).
-pub fn draw(v: View, lphase: f32, pal_base: u8) void {
+// The runs' colours already offset by each copy's palette base (comptime): copy t
+// uses BASE + 32 t + ink, so the inner loop is two loads, an add and a store.
+const INK: [4][N_INK]u8 = blk: {
+    @setEvalBranchQuota(N_INK * 8);
+    var t: [4][N_INK]u8 = undefined;
+    for (0..4) |c| {
+        for (runs.ink, 0..) |k, i| t[c][i] = BASE + 32 * c + k;
+    }
+    break :blk t;
+};
+
+// Draw copy `trail` of the logo at distortion phase `lphase`: 0 = full colour
+// (BASE), 1..3 = the dimmer trail copies (BASE + 32/64/96).
+pub fn draw(v: View, lphase: f32, trail: usize) void {
     const stride: i32 = v.stride;
     // horizontal distortion amplitude breathes over time (progress/regress)
     const hamp: f32 = (fsin.sin(lphase * 0.7) * 0.5 + 0.5) * HAMP_MAX;
@@ -96,19 +107,27 @@ pub fn draw(v: View, lphase: f32, pal_base: u8) void {
         const hoff: i32 = @intFromFloat(fsin.sin(@as(f32, @floatFromInt(r)) * 0.06 + lphase * 1.3) * hamp);
         rowoff[r] = @as(i32, @intCast(r)) * stride + START_X + hoff;
     }
+    const inks = &INK[trail];
     for (0..W) |px| {
+        const col = runs.run[runs.first[px]..runs.first[px + 1]];
+        if (col.len == 0) continue; // no ink: its wave offset is never used
         const dy: i32 = @intFromFloat(fsin.sin(@as(f32, @floatFromInt(px)) * 0.03 + lphase) * AMP);
         const top = BASE_Y + dy; // screen row of source row 0
         const lo: usize = @intCast(@max(0, -top));
         const hi: usize = @intCast(@min(@as(i32, H), HEIGHT - top));
         const base: i32 = top * stride + @as(i32, @intCast(px));
-        for (runs.run[runs.first[px]..runs.first[px + 1]]) |run| {
+        for (col) |run| {
             const y1 = @min(hi, @as(usize, run.y0) + run.len);
-            var py: usize = @max(lo, run.y0);
-            const ink = runs.ink[run.ink..][0..run.len];
-            while (py < y1) : (py += 1) {
-                v.px[@intCast(base + rowoff[py])] = pal_base + ink[py - run.y0];
-            }
+            const y0 = @max(lo, run.y0);
+            if (y0 >= y1) continue;
+            // walking pointers: two loads, an add and a store a pixel (31k pixels a frame)
+            var ip: [*]const u8 = inks[run.ink + (y0 - run.y0) ..].ptr;
+            const ie = ip + (y1 - y0);
+            var rp: [*]const i32 = rowoff[y0..].ptr;
+            while (ip != ie) : ({
+                ip += 1;
+                rp += 1;
+            }) v.px[@intCast(base + rp[0])] = ip[0];
         }
     }
 }
