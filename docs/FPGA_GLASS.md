@@ -359,6 +359,8 @@ below the cart window.
     over before the first load).
 - **F11** toggles the frame-rate overlay while the menu is closed (below). Like
   F12 it never reaches a cart; with the menu open it does nothing.
+- **Shift+F11** opens the frame-budget page straight from the game (`app_budget.zig`,
+  below), and closes it when it is showing. It never reaches a cart either.
 - **Page Up / Page Down** move the shelf's cursor a screenful (9 carts), stopping
   on the first and last cart. They are the glass's own keys (`map.osdOnly`): with
   the menu closed they are dropped, never sent to a cart.
@@ -369,6 +371,19 @@ below the cart window.
   `shelf: N carts`. The running cart, the `*` mark and the cursor follow their
   file names; the settings are untouched. A running cart whose disk vanished
   stays listed until another is loaded (R then says `FileNotFound`).
+
+### The frame-budget page (Shift+F11, `page_budget.zig`)
+
+Shift+F11, or `>` from the debug page. Read-only, redrawn twice a second; numbers averaged
+over one second of 100 ms samples of the video probe, the peak over the last three:
+
+- row 1, a bar of the frame in cells of 1/16 of a 60 fps frame (104 Kc): `C` cart, `F`
+  FRESCO, `H` HBL handlers + the dirty-line planner, `o` other (the audio bridge, the
+  disk app), `.` the VBL wait. Row 2 marks where 60 fps (16 cells) and 30 fps (32) end.
+- frame Mc and % of the 60 fps frame (peak), cart Mc (peak), FRESCO Mc and planes,
+  handlers + planner Mc and passes, other and idle, fps and missed VBLs of the last second;
+- the headroom: `cart may spend ~X Mc at 60 fps with N planes` = 1.67 Mc - FRESCO -
+  handlers - other, or `60 fps: over by X Mc`.
 
 ### The frame-rate overlay (F11, `app_stats.zig`)
 
@@ -389,6 +404,12 @@ picture. It is the same OSD, put in another mode rather than a second block:
   music or no cart, `BARD ?` from a firmware without the music block. The debug page
   keeps the peak. It is read once a second (`BARD_TICKS`): the load
   is the last render's, and a faster line flickers between renders.
+- **Row 1 is the frame budget** (Matt, 2026-10-23), from the firmware's video probe
+  (`budget.zig`, the same block as ZMSTAT's `frame_c`..`swap`), averaged over the last
+  second: `cart 0.69 FR 0.41 1.0p 66% m0/60` = the cart's Mc a frame, FRESCO's (the
+  sequencer less its VBL wait, handlers and planner), planes composed (passes / 280
+  lines), the share of the 1.67 Mc 60 fps frame used, and VBLs missed out of the last
+  second's. Empty until the probe has a window (no cart, or a firmware without it).
 - **Opening the menu** (F12, or a trapped cart) puts the window back centred and
   opaque; **closing it** brings the overlay back if it was on.
 - The toggle is saved in `glass.cfg` (`fps=1`), so it survives a restart.

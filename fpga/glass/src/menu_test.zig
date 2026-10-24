@@ -7,6 +7,7 @@ const menu = @import("menu.zig");
 const page_shelf = @import("page_shelf.zig");
 const page_console = @import("page_console.zig");
 const View = @import("page_debug.zig").View;
+const BView = @import("page_budget.zig").View;
 const Action = menu.Action;
 
 fn down(code: u32) u32 {
@@ -67,13 +68,13 @@ test "the shelf shows titles, the loaded mark, and the selected cart's details" 
     var m = menu.Menu{ .disks = &d, .loaded = 0 };
     m.list.cursor = 1;
     var o = osd.Osd{};
-    m.draw(&o, &View{});
+    m.draw(&o, &View{}, &BView{});
     try std.testing.expectEqualStrings(" ZIGMACHINE  SHELF     2/3   >", row(&o, 0));
     m.fps_x10 = 382; // a cart running: its frame rate replaces SHELF
-    m.draw(&o, &View{});
+    m.draw(&o, &View{}, &BView{});
     try std.testing.expectEqualStrings(" ZIGMACHINE  38.2 FPS   2/3  >", row(&o, 0));
     m.fps_x10 = null;
-    m.draw(&o, &View{});
+    m.draw(&o, &View{}, &BView{});
     try std.testing.expectEqualStrings("*UNION DEMO", row(&o, page_shelf.FIRST));
     try std.testing.expect(o.text[(page_shelf.FIRST + 1) * osd.COLS] & map.OSD_INVERSE != 0);
     try std.testing.expectEqualStrings(" A TITLE FAR TOO LONG FOR THE O~", row(&o, page_shelf.FIRST + 2));
@@ -83,7 +84,7 @@ test "the shelf shows titles, the loaded mark, and the selected cart's details" 
     try std.testing.expectEqualStrings(menu.HINT, row(&o, osd.ROWS - 1));
     m.list.cursor = 2; // selected, the long title scrolls instead of being cut
     m.list.phase = 4;
-    m.draw(&o, &View{});
+    m.draw(&o, &View{}, &BView{});
     try std.testing.expectEqualStrings(" TITLE FAR TOO LONG FOR THE OSD", row(&o, page_shelf.FIRST + 2));
     try std.testing.expectEqualStrings("no shelf.txt entry", row(&o, page_shelf.DETAIL)); // an unknown cart
     try std.testing.expectEqualStrings("x.zmd", row(&o, page_shelf.DETAIL + 1));
@@ -107,7 +108,7 @@ test "the console page resets, changes the volume and mute, and goes back" {
     try std.testing.expectEqual(Action.settings, m.key(down(map.KEY_ENTER)));
     try std.testing.expect(m.settings.mute);
     var o = osd.Osd{};
-    m.draw(&o, &View{});
+    m.draw(&o, &View{}, &BView{});
     try std.testing.expectEqualStrings(" Volume  ----------------   0%", row(&o, page_console.FIRST + 2));
     try std.testing.expectEqualStrings(" Mute    on", row(&o, page_console.FIRST + 3));
     try std.testing.expectEqual(Action.save, m.key(down(map.KEY_ESCAPE)));

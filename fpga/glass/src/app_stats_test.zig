@@ -181,3 +181,22 @@ test "the BARD line's text" {
     try std.testing.expectEqualStrings("BARD ?", overlay.bardText(&.{ .state = .old_fw }, &buf));
     try std.testing.expectEqualStrings("BARD off: no audio in fw", overlay.bardText(&.{ .state = .off }, &buf));
 }
+
+test "Shift+F11 opens the budget page straight from the game and closes it; the cart never sees F11" {
+    const r = try Rig.init();
+    defer r.deinit();
+    var a = try running(r);
+    defer a.deinit();
+    const keys = r.glass.key_len;
+    a.mods.shift_l = true;
+    press(&a, keymap.STATS_HOTKEY);
+    try std.testing.expect(a.open);
+    try std.testing.expectEqual(@import("menu.zig").Page.budget, a.menu.page);
+    try expectRow(r, 0, " FRAME BUDGET   live  Esc");
+    press(&a, keymap.STATS_HOTKEY);
+    try std.testing.expect(!a.open);
+    a.mods.shift_l = false;
+    press(&a, keymap.STATS_HOTKEY); // plain F11: the overlay, as before
+    try std.testing.expectEqual(OVERLAY, r.glass.ctrl & OVERLAY);
+    try std.testing.expectEqual(keys, r.glass.key_len); // no F11 reached the cart
+}

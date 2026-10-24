@@ -2,7 +2,8 @@
 // While the menu is closed, the OSD window moves to the top-left corner under
 // CTRL_OSD_STATS, where every plain-space cell is transparent: only one line,
 // "FPS 38.2  BARD SNDH nat 43%" (the rate, then who plays the music, the player and
-// its mode and its load now; snd_info.zig), covers the picture (Matt: one line, no peak). Opening the menu brings back the centred, opaque window;
+// its mode and its load now; snd_info.zig), covers the picture (Matt: one line, no peak), and
+// under it the frame budget, "cart 0.69 FR 0.95 1.0p 99% m0/60" (app_budget.zig). Opening the menu brings back the centred, opaque window;
 // closing it brings the overlay back if it was on. The toggle is a setting
 // (glass.cfg `fps`), so it survives a restart.
 //
@@ -78,6 +79,8 @@ pub fn draw(app: *App) void {
     const at: u32 = @intCast(rate.len + 2);
     const room = map.OSD_COLS - at;
     app.osd.put(at, 0, app.bard.buf[0..@min(app.bard.len, room)], false);
+    var line: [map.OSD_COLS]u8 = undefined;
+    app.osd.put(0, 1, @import("app_budget.zig").overlayLine(app, &line), false); // the frame budget
     _ = app.osd.flush(app.regs);
 }
 

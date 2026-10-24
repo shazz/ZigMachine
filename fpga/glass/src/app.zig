@@ -19,6 +19,7 @@ const system = @import("system.zig");
 const stats = @import("stats.zig");
 const cart = @import("app_cart.zig");
 const overlay = @import("app_stats.zig");
+const budget_page = @import("app_budget.zig");
 
 const HELD_MAX = 16;
 pub const OSD_FG: u32 = 0xE0E0E0;
@@ -58,6 +59,7 @@ pub const App = struct {
     ticks: u32 = 0,
     pl_stats: bool = false, // the PL can draw the F11 overlay (app_stats.supported)
     bard: overlay.Bard = .{}, // the F11 overlay's BARD line, read once a second
+    frame_budget: @import("budget.zig").Smooth = .{}, // the probe, a tick a sample (app_budget.zig)
     req_done: bool = false, // the running cart's cart-swap request was handled (app_request.zig)
     req_polls: u32 = 0, // polls of a request whose block did not check yet
     ctl: @import("app_ctl.zig").State = .{}, // the control channel's held tap (app_ctl.zig)
@@ -95,7 +97,8 @@ pub const App = struct {
         self.menu.disks = self.disks.disks;
         self.menu.fps_x10 = if (self.current != null) self.stats.fps_x10 else null;
         const view = if (self.menu.page == .debug) cart.debugView(self) else @import("page_debug.zig").View{};
-        self.menu.draw(&self.osd, &view);
+        const bview = if (self.menu.page == .budget) budget_page.view(self) else @import("page_budget.zig").View{};
+        self.menu.draw(&self.osd, &view, &bview);
         _ = self.osd.flush(self.regs);
     }
 
@@ -106,7 +109,8 @@ pub const App = struct {
             if (value == 1) self.setOpen(!self.open);
             return;
         }
-        if (code == keymap.STATS_HOTKEY) {
+        if (code == keymap.STATS_HOTKEY) { // swallowed: the cart never sees F11
+            if (value == 1 and (self.mods.shift_l or self.mods.shift_r)) return budget_page.toggle(self);
             if (value == 1) overlay.toggle(self);
             return;
         }
@@ -190,9 +194,10 @@ pub const App = struct {
         cart.watch(self);
         @import("app_ctl.zig").tick(self);
         self.ticks +%= 1;
+        budget_page.sample(self);
         if (!self.open) return overlay.draw(self);
         switch (self.menu.page) {
-            .debug => if (self.ticks % 5 == 0) self.redraw(),
+            .debug, .budget => if (self.ticks % 5 == 0) self.redraw(),
             .shelf => if (self.ticks % 3 == 0) {
                 self.menu.list.phase +%= 1;
                 self.redraw();

@@ -5,6 +5,7 @@
 //   shelf    the carts, the selected one's details      (page_shelf.zig)
 //     > console   cold/warm reset, volume, mute, debug   (page_console.zig)
 //         > debug   versions, live stats, the board      (page_debug.zig)
+//             > budget  where the frame goes; Shift+F11 too   (page_budget.zig)
 const std = @import("std");
 const map = @import("map.zig");
 const osd = @import("osd.zig");
@@ -13,14 +14,15 @@ const config = @import("config.zig");
 const page_shelf = @import("page_shelf.zig");
 const page_console = @import("page_console.zig");
 const page_debug = @import("page_debug.zig");
+const page_budget = @import("page_budget.zig");
 
 /// `settings`: volume or mute changed (apply it now); `save`: leaving the
 /// console page (persist what changed).
 pub const Action = union(enum) { none, close, load: usize, cold, warm, settings, save };
-pub const Page = enum { shelf, console, debug };
+pub const Page = enum { shelf, console, debug, budget };
 
 pub const HINT = "ENTER load  > console  F12 close";
-const hints = [_][]const u8{ HINT, "ENTER do  <> change  Esc back", "read-only, live      Esc back" };
+const hints = [_][]const u8{ HINT, "ENTER do  <> change  Esc back", "live  > budget       Esc back", "Shift+F11 close  < debug  Esc" };
 
 pub const Menu = struct {
     disks: []const shelf.Disk,
@@ -41,6 +43,7 @@ pub const Menu = struct {
             .shelf => self.shelfKey(code),
             .console => self.consoleKey(code),
             .debug => self.debugKey(code),
+            .budget => self.budgetKey(code),
         };
     }
 
@@ -72,6 +75,14 @@ pub const Menu = struct {
     fn debugKey(self: *Menu, code: u32) Action {
         switch (code) {
             map.KEY_ESCAPE, map.KEY_BACKSPACE, map.KEY_ENTER, ' ', map.KEY_ARROW_LEFT => return self.go(.console),
+            map.KEY_ARROW_RIGHT => return self.go(.budget),
+            else => return .none,
+        }
+    }
+
+    fn budgetKey(self: *Menu, code: u32) Action {
+        switch (code) {
+            map.KEY_ESCAPE, map.KEY_BACKSPACE, map.KEY_ENTER, ' ', map.KEY_ARROW_LEFT => return self.go(.debug),
             else => return .none,
         }
     }
@@ -87,13 +98,14 @@ pub const Menu = struct {
         self.status = w.buffered();
     }
 
-    /// `view` is read only on the debug page (the app fills it just before).
-    pub fn draw(self: *const Menu, o: *osd.Osd, view: *const page_debug.View) void {
+    /// `view` / `bview` are read only on the debug / budget page (the app fills them just before).
+    pub fn draw(self: *const Menu, o: *osd.Osd, view: *const page_debug.View, bview: *const page_budget.View) void {
         o.clear();
         switch (self.page) {
             .shelf => self.list.draw(o, self.disks, self.loaded, self.fps_x10),
             .console => self.console.draw(o, self.settings),
             .debug => page_debug.draw(o, view),
+            .budget => page_budget.draw(o, bview),
         }
         o.line(osd.ROWS - 1, self.status orelse hints[@intFromEnum(self.page)], false);
     }
