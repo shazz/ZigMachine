@@ -9,10 +9,12 @@ spot: it hands the same canvases to headless Chrome (tools/mix_chrome.mjs) and
 requires the screenshot to equal vmix's picture byte for byte.
 """
 
+import fcntl
 import os
 import random
 import subprocess
 import sys
+import threading
 from pathlib import Path
 
 FPGA = Path(__file__).resolve().parent.parent
@@ -24,12 +26,21 @@ NPX = Path.home() / ".npm" / "_npx"
 
 
 def build_vmix() -> Path:
-    """vmix, compiled against build/vdump/zm_memmap.h (tools/video_dump.py memmap_header)."""
+    """vmix, compiled against build/vdump/zm_memmap.h (tools/video_dump.py memmap_header).
+
+    Callers run in parallel (video_order_pure.py's carts in threads, two gate jobs): the build
+    holds build/vdump/.vmix.lock and links to a temporary name that is renamed into place, so
+    nobody execs a vmix that is still being written (ETXTBSY) or half-written."""
     exe = OUT / "vmix"
     src = SRC / "vmix.c"
-    if not exe.exists() or exe.stat().st_mtime < src.stat().st_mtime:
-        cmd = ["clang", "-std=c11", "-O2", "-Wall", "-Werror", f"-I{OUT}", str(src), "-o", str(exe)]
-        subprocess.run(cmd, check=True)
+    OUT.mkdir(parents=True, exist_ok=True)
+    with open(OUT / ".vmix.lock", "w") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        if not exe.exists() or exe.stat().st_mtime < src.stat().st_mtime:
+            tmp = OUT / f".vmix.{os.getpid()}.{threading.get_ident()}"
+            cmd = ["clang", "-std=c11", "-O2", "-Wall", "-Werror", f"-I{OUT}", str(src), "-o", str(tmp)]
+            subprocess.run(cmd, check=True)
+            os.replace(tmp, exe)
     return exe
 
 

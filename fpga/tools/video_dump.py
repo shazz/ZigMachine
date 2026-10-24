@@ -9,9 +9,11 @@ recompiles only env.c, with the machine's hblDispatch forwarder renamed so that
 vdump's own forwarder can bracket each HBL with state records.
 """
 
+import os
 import shutil
 import subprocess
 import sys
+import threading
 from pathlib import Path
 
 FPGA = Path(__file__).resolve().parent.parent
@@ -47,8 +49,10 @@ def memmap_header() -> Path:
         if sep and name.isupper():
             lines.append(f"#define ZM_{name} {value}u")
     text = "\n".join(lines) + "\n"
-    if not out.exists() or out.read_text() != text:
-        out.write_text(text)
+    if not out.exists() or out.read_text() != text:  # atomically: a parallel compile may be reading it
+        tmp = out.with_name(f".{out.name}.{os.getpid()}.{threading.get_ident()}")
+        tmp.write_text(text)
+        os.replace(tmp, out)
     return out
 
 

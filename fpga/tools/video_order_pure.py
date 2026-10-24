@@ -18,6 +18,7 @@ cart RAM is beyond it, which is why only handlers ZigOS documents as pure may ca
 
 from __future__ import annotations
 
+import fcntl
 import os
 import subprocess
 import sys
@@ -30,6 +31,7 @@ if not (FPGA / "gen" / "memmap.py").exists():
     subprocess.run(["make", "-s", "-C", str(FPGA), "memmap"], check=True, capture_output=True)
 
 import video_dump  # noqa: E402  (after gen/ exists)
+import video_mix  # noqa: E402
 import video_order as vo  # noqa: E402
 import video_order_group as vog  # noqa: E402
 import video_rtl  # noqa: E402
@@ -134,6 +136,7 @@ def main(args: list[str]) -> int:
     picks = [(a.split("@")[0], [int(x) for x in a.split("@")[1].split(",")] if "@" in a else frames) for a in args]
     for t, _ in picks:
         subprocess.run(["make", "-s", "-j4", "-C", str(FPGA), "host", f"CART={t}"], check=True, capture_output=True)
+    video_mix.build_vmix()  # once, before the threads that all mix (it is also locked and atomic)
     with ThreadPoolExecutor(max_workers=4) as pool:
         results = list(pool.map(lambda tf: (tf[0], *check(tf[0], tf[1], exe)), picks))
     for _, _, lines in results:
@@ -149,4 +152,9 @@ def main(args: list[str]) -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main(sys.argv[1:]))
+    # One run at a time per tree: two runs (two gate jobs, or the gate beside a hand run) dump the
+    # same carts into the same build/vdump/<tag>/frames and would read each other's half-written files.
+    (FPGA / "build" / "vdump").mkdir(parents=True, exist_ok=True)
+    with open(FPGA / "build" / "vdump" / ".pure.lock", "w") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        sys.exit(main(sys.argv[1:]))
