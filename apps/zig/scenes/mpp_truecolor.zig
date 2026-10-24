@@ -23,11 +23,14 @@
 //
 // Each picture and mode is a ZX0-packed blob (build.zig: packed_assets.mpp_truecolor).
 // Unpacked they overflow the 2 MB cart window, so the one on screen is depacked into
-// one working buffer per switch (mpp_truecolor/blob.zig); the HBL stores only the entries that change.
+// one working buffer per switch (mpp_truecolor/blob.zig). On a 1.9.0 machine the per-line palettes
+// are copper lists the machine applies (mpp_truecolor/cop.zig): no CPU store a frame; else the HBL
+// handler loads them, storing only the records that change.
 // --------------------------------------------------------------------------
 const std = @import("std");
 const zg = @import("zigos");
 const blob = @import("mpp_truecolor/blob.zig");
+const cop = @import("mpp_truecolor/cop.zig");
 const ZigOS = zg.ZigOS;
 const LogicalFB = zg.LogicalFB;
 
@@ -69,6 +72,8 @@ var view: blob.View = .{ .map = &.{}, .idx = &.{}, .pal = &.{} };
 // 180 lines) needs no copy at all. apply() forgets them, as it rewrites entries itself.
 const NONE = blob.Rec{ .off = std.math.maxInt(u32), .span = 0 };
 var loaded: [PLANES]blob.Rec = .{NONE} ** PLANES;
+// The machine applies the palettes from copper lists (cop.install succeeded): no handler.
+var lists = false;
 
 // Load this line's palette run for this plane: a straight word copy. A new record changes
 // ~all of its entries (PER-LINE and 4 PLANES: 0 of 52,660 stores a frame rewrote a colour),
@@ -105,6 +110,7 @@ pub const Demo = struct {
         const len = workLen() orelse return self.fail("a packed picture is unreadable");
         const words = zg.mem.alloc(u32, (len + 3) / 4) orelse return self.fail("no free RAM to depack into");
         self.work = std.mem.sliceAsBytes(words);
+        lists = cop.install(zigos, mostColours() orelse return self.fail("a packed picture is unreadable"));
         self.apply();
     }
 
@@ -161,6 +167,7 @@ pub const Demo = struct {
             splitPlanes(lfbs, view.idx);
         }
         self.caption(&lfbs[0]);
+        if (lists) cop.load(self.os, view, m.planes);
     }
 
     fn caption(self: *Demo, fb: *LogicalFB) void {
@@ -178,6 +185,7 @@ pub const Demo = struct {
     fn fail(self: *Demo, why: []const u8) void {
         zg.Console.log("mpp_truecolor: {s}", .{why});
         view = .{ .map = &.{}, .idx = &.{}, .pal = &.{} };
+        if (lists) cop.load(self.os, view, 0); // empty lists: no stale palette over the message
         const lfbs = &self.os.lfbs;
         for (lfbs, 0..) |*fb, p| fb.is_enabled = p == 0;
         @memset(lfbs[0].fb[0 .. W * H], 0);
@@ -192,6 +200,15 @@ fn workLen() ?usize {
     var most: usize = 0;
     for (PACKED) |modes| for (modes, MODES) |image, m| {
         most = @max(most, blob.need(image, m.planes) orelse return null);
+    };
+    return most;
+}
+
+/// The largest palette of any blob: the VRAM table every switch reuses.
+fn mostColours() ?usize {
+    var most: usize = 0;
+    for (PACKED) |modes| for (modes, MODES) |image, m| {
+        most = @max(most, blob.paletteWords(image, m.planes) orelse return null);
     };
     return most;
 }

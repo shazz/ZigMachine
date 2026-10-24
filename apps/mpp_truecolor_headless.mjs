@@ -12,11 +12,15 @@
 // A handler that missed lines, a plane split that left a pixel opaque in two planes
 // or in none, or a palette decoded wrong changes a count or a hash; nothing would error.
 // Each switch depacks one packed blob; the slowest switch is reported.
+// The palettes are copper lists (HW 1.9.0, scenes/mpp_truecolor/cop.zig): each mode's lists are read
+// back and must load exactly the converter's records (apps/mpp_truecolor_lists.mjs).
 //
-//   node apps/mpp_truecolor_headless.mjs [outdir] [cart.wasm]
+//   node apps/mpp_truecolor_headless.mjs [--break k1tail] [outdir] [cart.wasm]
+//   (--break k1tail: every 256-entry line loses its entry-255 PALREF: a check must fail)
 //   (outdir: writes mpp-<picture>-mode<N>.ppm, the picture area at 320x180)
 import { readFile, writeFile } from "node:fs/promises";
 import { cartRam, romRam } from "../docs/wasm_hiwater.js";
+import { checkLists, dropTails } from "./mpp_truecolor_lists.mjs";
 
 const PAGES = 112; // SHARED_PAGES in machine/sdk/memmap.zig
 const TOP = 40, LEFT = 80; // first visible physical row / column (low res is doubled)
@@ -106,7 +110,10 @@ function fnv1a(bytes) {
     return h;
 }
 
-const [outdir, cart = "docs/demo-mpp_truecolor.wasm"] = process.argv.slice(2);
+const argv = process.argv.slice(2), bi = argv.indexOf("--break");
+const broke = bi >= 0 ? argv.splice(bi, 2)[1] : "";
+if (broke && broke !== "k1tail") throw new Error(`--break ${broke}: only k1tail`);
+const [outdir, cart = "docs/demo-mpp_truecolor.wasm"] = argv;
 const { memory, machine, demo } = await boot(cart);
 // The working buffer is taken from zg.mem once, in init; no switch may take another.
 const arenaAfterInit = machine.hwRamMark();
@@ -123,6 +130,7 @@ let slowest = 0;
 function shoot(action) {
     const t = performance.now();
     action();
+    if (broke) dropTails(memory, machine.hwVideoBase());
     slowest = Math.max(slowest, performance.now() - t);
     for (let f = 0; f < WARMUP; f++) hostFrame(memory, machine, demo, null); // JIT warm-up
     let ms = 0;
@@ -143,6 +151,7 @@ for (let p = 0; p < PICTURES.length; p++) {
         measured.push(distinct(rgb));
         if (p === 0) firstPass.push(fnv1a(layer));
         if (measured[m] !== counts[m + 1]) errors.push(`${name} ${NAMES[m]}: ${measured[m]} colours on screen, caption claims ${counts[m + 1]}`);
+        errors.push(...(await checkLists(memory, machine.hwVideoBase(), ASSETS, p, m)));
         if (m === 2 && fnv1a(rgb) !== counts[4]) errors.push(`${name} 4 PLANES: not the source picture (hash mismatch)`);
         if (outdir) {
             const hdr = new TextEncoder().encode(`P6\n${IMG_W} ${IMG_H}\n255\n`);
@@ -163,6 +172,11 @@ if (fnv1a(layer) !== firstPass[0]) errors.push("wrap to spheres: GLOBAL frame di
 console.log(`mpp_truecolor: ${PICTURES.length} pictures, 4 PLANES lossless, wrap identical; slowest switch (depack) ${slowest.toFixed(1)} ms`);
 if (machine.hwRamAllocFailures()) errors.push(`${machine.hwRamAllocFailures()} zg.mem allocation(s) refused: the pictures never loaded`);
 if (machine.hwRamMark() !== arenaAfterInit) errors.push(`a switch allocated again: zg.mem grew ${machine.hwRamMark() - arenaAfterInit} B after init`);
+if (broke) {
+    if (!errors.length) { console.error(`--break ${broke}: NO check noticed`); process.exit(1); }
+    console.log(`--break ${broke}: ${errors.length} check(s) failed, as they must (first: ${errors[0]})`);
+    process.exit(0);
+}
 if (errors.length) {
     console.error(`mpp_truecolor: FAILED\n  ${errors.join("\n  ")}`);
     process.exit(1);

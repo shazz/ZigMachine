@@ -44,6 +44,14 @@ pub fn need(image: []const u8, planes: usize) ?usize {
     return len + (len - head) / 3;
 }
 
+/// Palette words this blob decodes to (the VRAM table copper lists name, cop.zig).
+pub fn paletteWords(image: []const u8, planes: usize) ?usize {
+    const len: usize = zx0.depackedLen(image) orelse return null;
+    const head = MAP_LEN + idxLen(planes);
+    if (len < head or (len - head) % 3 != 0) return null;
+    return (len - head) / 3;
+}
+
 /// Depack into `work` and decode the palette. Null when the image is unreadable or
 /// a map record points outside the palette (the HBL would copy out of bounds).
 pub fn load(image: []const u8, planes: usize, work: []align(4) u8) ?View {
