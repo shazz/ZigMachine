@@ -941,6 +941,46 @@ opening), `9f51b9ac…`, `9f51b9ac…` (the listing, `BOOT.WSM` double-clicked),
 `fdeb2e45…` = `scene_hash.mjs --data-disk` = the native host, byte for byte. The
 UART says `ZM GEMDISK data 2` at boot and `ZM CARTREQ 9 3 BOOT.WSM 1` at frame 9.
 
+## A disk's boot sector
+
+A v2 disk's first 1 KB is a wasm module; when it sums to `$1234` the browser runs it before
+the disk's cart (`docs/FLOPPY_DISK.md`, "Boot flow (v2)"): sysinfo's "No virus in
+ZigMachine" (120 frames, then GEM over the disk) and replicants_emlyn's crew note (240
+frames, then the screen). The board runs the same bytes: nothing is built per disk.
+
+**In the firmware** (`cycles/bbootsec.c`, `host/bootsec.c`, `host/wint*.c`). `bmain.c`'s boot
+asks `bbootsec_wanted()` after the drive found its disk: a board image (`ZM_BOOTSEC`), a disk
+booted for itself (not `DISK_MAGIC_PROGRAM`), no `BOOTSEC_SKIP` word, an executable sector.
+Then `host_boot_machine` (memory, machine, ROM), the compositor brought up, CART_STATE
+RUNNING (the glass waits 10 s for it), `hwInit`, the sector instantiated by the wint
+interpreter over the shared memory and its `boot()` run, and frames as `frame()` runs them
+(clear, `frame(16.6)`, `pollCartRequest()`, each enabled plane composited whole, present)
+until it returns 2. Then `host_boot_cart`: the cart instantiated over the same memory,
+`hwInit`, `boot()`, `skipBoot()`, as the browser's request 2. The pictures keep the
+sector's last frame until the cart's first. Keys typed meanwhile are dropped (the sector
+has no key export). Lines (sim): `ZM BOOTSEC start <status> <steps>`, `ZM BOOTSEC end
+<frames> <status> <steps>`.
+
+**The sandbox.** Every opcode and immediate is checked at load (float arithmetic,
+call_indirect, tables, a memory of its own: refused), every load/store/fill/copy against the
+memory, the value, label and call stacks against their arrays; `boot()` runs on 16 M
+instructions, a frame on 1 M, and the phase ends after 30 s whatever the sector says. A
+sector that is refused, traps, runs out of fuel or sets an HBL handler (it has no
+`hblDispatch`; the browser's frame would throw) ends the phase, and the cart boots as if
+there were none. The sector's `beep` is silent here (the sound CPU starts with the cart).
+
+**The glass** (`app_request.zig`). A program quitting back to the OS (request 4) reloads
+the same fat disk; that load writes `BOOTSEC_SKIP` (`map_cart.zig`, window end - 0x3E0)
+after the window is verified, so the sector does not run a second time (the browser's req 4
+brings GEM back without it). Every other load rewrites the window whole, the word zero.
+
+**Proof** (`tests/test_board_bootsec.py`). The interpreter against node's WebAssembly (the
+browser's engine): on both shipped sectors the whole 7 MiB memory after `boot()` and after
+every frame, the chainload at frame 120 / 240; 24,844 calls of every opcode it runs on edge
+and random operands, traps included. The picture: the native host's `--bootsec X.zmd` (the
+interpreter over the wasm2c'd machine) equals `apps/scene_hash.mjs X.zmd` (the sector in
+node), every plane every 10 frames over 250. Seven break mutants (`ZM_RTL_BREAK=1`).
+
 ## Programs off a data disk
 
 Double-clicking `BOOT.WSM` in GEM's floppy window makes `pollCartRequest()`

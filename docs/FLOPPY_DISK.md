@@ -257,8 +257,10 @@ FAT (`[2K..3K)`) is v1's table verbatim (24 × 32 B entries), addressing files i
    sector runs, and its request 2 has no cart to chainload, so the host boots GEM with the disk
    in the drive (the way request 4 brings GEM back). The program GEM launches is a FAT file,
    `BOOT.WSM`. `mkdisk --boot-wasm <sector> --no-boot` writes it; SysInfo's disk carries
-   `boot-novirus.wasm` this way (tools/mkdisks.sh). The board has no wasm boot sector to run:
-   it stages such a disk as a data disk, GEM's image on it (fpga/tools/zmd_fat.py `bootable`).
+   `boot-novirus.wasm` this way (tools/mkdisks.sh). The board stages such a disk as a data
+   disk, GEM's image on it (fpga/tools/zmd_fat.py `bootable`), and its firmware runs the
+   sector's own bytes first through an interpreter (docs/FPGA_GLASS.md, "A disk's boot
+   sector"), as it does for a bootable v2 disk before its cart.
 
 The host thus keeps exactly two boot primitives — *instantiate block 0* and *chainload the
 descriptor's cart* — and the disk owns everything else. `chainload` reuses the existing

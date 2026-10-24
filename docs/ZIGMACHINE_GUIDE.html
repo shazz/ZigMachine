@@ -3,9 +3,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ZigMachine — Programmer's Guide</title>
 <meta name="description" content="The ZigMachine reference: video and blitter registers, the sealed HW ABI, the disk and music formats, and the ZigOS / GEM library, generated from the sources.">
-<link rel="stylesheet" href="css/docs.css?v=3f1bd301">
-<link rel="stylesheet" href="css/code.css?v=0edb2f47">
-<link rel="stylesheet" href="css/guide.css?v=ece899e9">
+<link rel="stylesheet" href="css/docs.css">
+<link rel="stylesheet" href="css/code.css">
+<link rel="stylesheet" href="css/guide.css">
 </head>
 <body>
 <header class="topbar">
@@ -762,8 +762,10 @@ sector (since the boot sector is now code):</p>
    sector runs, and its request 2 has no cart to chainload, so the host boots GEM with the disk
    in the drive (the way request 4 brings GEM back). The program GEM launches is a FAT file,
    <code>BOOT.WSM</code>. <code>mkdisk --boot-wasm &lt;sector&gt; --no-boot</code> writes it; SysInfo's disk carries
-   <code>boot-novirus.wasm</code> this way (tools/mkdisks.sh). The board has no wasm boot sector to run:
-   it stages such a disk as a data disk, GEM's image on it (fpga/tools/zmd_fat.py <code>bootable</code>).</li>
+   <code>boot-novirus.wasm</code> this way (tools/mkdisks.sh). The board stages such a disk as a data
+   disk, GEM's image on it (fpga/tools/zmd_fat.py <code>bootable</code>), and its firmware runs the
+   sector's own bytes first through an interpreter (docs/FPGA_GLASS.md, "A disk's boot
+   sector"), as it does for a bootable v2 disk before its cart.</li>
 </ol>
 <p>The host thus keeps exactly two boot primitives — <em>instantiate block 0</em> and <em>chainload the
 descriptor's cart</em> — and the disk owns everything else. <code>chainload</code> reuses the existing
@@ -1335,5 +1337,5 @@ the song: keep it off anything you publish.</p>
 <article class="api" id="Desktop.input"><code class="sig"><b class="fn">input</b>(self: *Desktop, dir: u32) <span class="ret">void</span></code><a class="anchor" href="#Desktop.input" aria-label="Link to input">#</a><p class="doc">Directional input from the host (0=up 1=down 2=left 3=right). The desktop only uses left/right, and only to walk the caret in the name field of an open INFORMATION / NEW FOLDER box.</p></article></section>
   </main>
 </div>
-<script src="guide.js?v=3eb64558"></script>
+<script src="guide.js"></script>
 </body></html>
