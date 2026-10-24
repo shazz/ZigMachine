@@ -158,18 +158,37 @@ def _board_soc(
     return soc
 
 
-# --vivado-explore: Vivado's harder place/phys-opt/route passes (about 2x the build time). The
-# --blit SoC at 100 MHz is about 62 % LUTs, and its last misses were placement, not logic.
-EXPLORE = {
-    "vivado_place_directive": "ExtraTimingOpt",
-    "vivado_post_place_phys_opt_directive": "AggressiveExplore",
-    "vivado_route_directive": "AggressiveExplore",
-    "vivado_post_route_phys_opt_directive": "AggressiveExplore",
+# Named place/route directive sets (--vivado-directives); `explore` is also --vivado-explore.
+# explore: Vivado's harder passes (about 2x the build time); the --blit SoC at 100 MHz was ~62 % LUTs
+# and its last misses were placement, not logic.
+# closure: what closed the 89 % LUT board build with the copper engine (bitstream c72c58ca,
+# 2026-10-24): the default directives missed sys by -0.258 ns (a blitter path) or comp by -0.24 ns,
+# ExtraTimingOpt failed to place; spreading the logic met every clock (sys +0.068, comp +0.353).
+DIRECTIVES = {
+    "default": {},
+    "explore": {
+        "vivado_place_directive": "ExtraTimingOpt",
+        "vivado_post_place_phys_opt_directive": "AggressiveExplore",
+        "vivado_route_directive": "AggressiveExplore",
+        "vivado_post_route_phys_opt_directive": "AggressiveExplore",
+    },
+    "closure": {
+        "vivado_place_directive": "AltSpreadLogic_high",
+        "vivado_post_place_phys_opt_directive": "AggressiveExplore",
+        "vivado_route_directive": "Explore",
+        "vivado_post_route_phys_opt_directive": "AggressiveExplore",
+    },
 }
+EXPLORE = DIRECTIVES["explore"]
+# Vivado's threads: each costs memory, and a full board run beside a sim has been OOM-killed (~8 GB).
+VIVADO_THREADS = 2
 
 
-def _vivado_directives(args: argparse.Namespace) -> dict[str, str]:
-    return EXPLORE if args.toolchain == "vivado" and getattr(args, "vivado_explore", False) else {}
+def _vivado_directives(args: argparse.Namespace) -> dict:
+    if args.toolchain != "vivado":
+        return {}
+    name = "explore" if getattr(args, "vivado_explore", False) else getattr(args, "vivado_directives", "default")
+    return {**DIRECTIVES[name], "vivado_max_threads": getattr(args, "vivado_threads", VIVADO_THREADS)}
 
 
 def build_z7(args: argparse.Namespace) -> None:

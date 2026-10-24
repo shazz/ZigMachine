@@ -206,7 +206,12 @@ def main() -> None:
     )
     p.add_argument("--out", help="z7: the build directory (default fpga/build/soc_z7)")
     p.add_argument("--hp-probe", action="store_true", help="z7: the read path's debug probe (cycles/bdiag.c mode 4)")
-    p.add_argument("--vivado-explore", action="store_true", help="z7, vivado: harder place/route directives (~2x time)")
+    p.add_argument("--vivado-explore", action="store_true", help="z7, vivado: --vivado-directives explore")
+    p.add_argument(
+        "--vivado-directives", choices=("default", "explore", "closure"), default="default",
+        help="z7, vivado: place/route directive set (soc/zm_z7.py DIRECTIVES; closure = bitstream c72c58ca's)",
+    )  # fmt: skip
+    p.add_argument("--vivado-threads", type=int, default=2, help="z7, vivado: general.maxThreads (memory)")
     args = p.parse_args()
     (build_sim if args.target == "sim" else build_z7)(args)
 
