@@ -144,6 +144,19 @@ Known misses: polkadots_f32 still estimates 28 % low (music, also f32-heavy, 6 %
 f32 latency is not refitted on it); mandelbrot/raytrace finish their picture in the node window
 but not on the board at 12 s; stniccc streams its disk (DISK_BLOCK is 0).
 
+**A per-cart CPI miss: branchy byte loops (union_deltaforce, 2026-10-24).** The board measured
+union_deltaforce's cart at 1.56 Mc (cart_c, 50.8 fps) where the budget said 0.91: x1.7, the same
+factor as on its older code (x0.59 the other way, model 2.3 vs board 3.93 Mc, excluded from the
+2026-10-23 fit). Not the phase (0.8-0.9 Mc in every window 100-1000), not a stale card; the live YM
+the headless run lacks adds only ~0.08 Mc. Compiled as the board builds it (wasm2c, rv32imf), its hot
+recolour loop is 13-23 instructions a pixel with three load-to-use chains (wasm2c reloads the memory
+base after each byte store) and a data-dependent forward branch taken ~70 % of the time (the static
+predictor misses it); 5,768 one-byte memory.copy calls a frame are priced ~24 cycles with no per-call
+floor for picolibc's memmove. Those bracket ~0.25-0.3 Mc; ~0.3 Mc stays unexplained. So: on byte loops
+with data-dependent branches and store/load interleaving, read the estimate as ~1.7x low; and price a
+tiny memory.copy at a real call's floor. The optimized cart (d4c53589, est 0.38) is the test: a board
+cart_c near 0.65 Mc confirms the factor is the code shape.
+
 ## The frame budget (`--budget`, 2026-10-23)
 
 `node apps/frame_cost.mjs <cart.wasm> --budget`: the cart's Mc of what FRESCO leaves of a frame, with N planes,
