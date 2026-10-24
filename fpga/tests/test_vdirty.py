@@ -49,10 +49,13 @@ def test_a_skipped_row_is_what_a_full_composite_paints(cart: str) -> None:
     assert skipped > 0  # every one of these carts has lines to skip: the proof is not vacuous
 
 
-def test_a_copper_list_frame_is_composited_whole() -> None:
-    """tutorial's sky is a copper list (HW 1.9.0): the planner skips none of its lines."""
-    lines, skipped, moved, bad, _ = proof("tutorial")
-    assert bad == 0 and skipped == 0 and lines > 0
+@pytest.mark.parametrize("cart", ["tutorial", "fallen_angels", "union_l16", "tcb_colorshock"])
+def test_copper_list_frames_skip_only_what_is_unchanged(cart: str) -> None:
+    """Copper lists (HW 1.9.0, cycles/vdlist.h): a list compared word for word with last frame's;
+    tcb_colorshock's PALREFs always count as changed, the others skip what did not change."""
+    lines, skipped, moved, bad, _ = proof(cart)
+    assert bad == 0 and moved == 0 and lines > 0
+    assert (skipped == 0) == (cart == "tcb_colorshock")
 
 
 BREAKS = [("ROWS", "scroll"), ("PAL", "joust"), ("BG", "union_intro"), ("BG", "dhs_0pxl0reg"),

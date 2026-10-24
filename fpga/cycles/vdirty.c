@@ -5,6 +5,8 @@
 
 #include <string.h>
 
+#include "vdlist.h"
+
 #define H VD_LINES
 #define ROWMAX ZM_RASTER_WIDTH /* the longest fetch a comparable line makes (medium overscan) */
 /* The break mutants (fpga/tests/test_vdirty.py, ZM_RTL_BREAK=1): each forgets one input,
@@ -161,12 +163,6 @@ int vd_plan(const vd_frame* fr) {
     s.rows_on = 0;
     int h = handler_plane(fr);
     if (h == -2) return vd_unknown(), 1;
-    /* A copper list (HW 1.9.0) changes its plane's palette line by line where the planner does not
-     * look: every line of such a frame is composited (comparing the lists is the next step). */
-#ifndef VD_BREAK_COPPER /* tests/test_vdirty.py's mutant: the lists ignored */
-    for (int p = 0; p < (int)ZM_NB_PLANES; p++)
-        if (((fr->enabled >> p) & 1) && rd(fr, ZM_REG_FB_COPPER + 2u * (uint32_t)p, 2)) return vd_unknown(), h >= 0;
-#endif
     for (int p = 0; p < (int)ZM_NB_PLANES; p++) {
         if (!((fr->enabled >> p) & 1)) continue;
         int ok = geom(fr, p, &cur[p]);
@@ -187,6 +183,8 @@ int vd_plan(const vd_frame* fr) {
 #ifndef VD_BREAK_HANDLER
     if (h >= 0) bump(cur[h].oy, cur[h].rows);
 #endif
+    for (int p = 0; p < (int)ZM_NB_PLANES; p++) /* a copper list that changed (vdlist.h) */
+        if (((fr->enabled >> p) & 1) && vdl_moved(fr, p)) bump(cur[p].oy, cur[p].rows);
     memcpy(s.cfg, cur, sizeof cur);
     s.enabled = fr->enabled, s.fill = fr->fill, s.valid = 1;
     return h >= 0;
