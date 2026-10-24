@@ -91,6 +91,11 @@ for (const [m, s] of brk ? [] : TUNES) {
         `play: ${m}.hip song ${s}: ${r.error ?? `peak to peak ${r.span.toFixed(2)}, ${r.voices} voices, ${r.bad} bad pointers/writes${dup ? `, SAME as ${dup}` : ""}`}`);
 }
 
+// the copper list is $02C2's length ($1900..$7D5C), and only planes 0 and 1 run
+ok(demo.hipCopperLen() === (0x7D5C - 0x1900) / 2 && demo.hipCopperWord(70) === 0x008E && demo.hipCopperWord(71) === 0x4081,
+    `copper: the rebuilt list is ${demo.hipCopperLen()} words, DIWSTRT $4081 after the top bar`);
+ok([0, 1, 2, 3].reduce((m, p) => m | (demo.isPlaneEnabled(p) ? 1 << p : 0), 0) === 3, "planes: only 0 (COLOR00) and 1 (the text) enabled");
+
 // ---------------- 2. pixels and pacing, frame by frame -----------------------
 const FRAMES = 600;
 let bad = 0, first = null, paceBad = 0;
