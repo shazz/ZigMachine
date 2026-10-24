@@ -28,7 +28,7 @@ import video_dump
 import video_rtl
 
 LEONARD = ("leonard", [300])
-MULTI = ["leonard", "union_intro", "tcb_colorshock", "union_l16"]
+MULTI = ["leonard", "union_intro", "replicants"]  # tcb_colorshock, union_l16: one plane since main merged them
 MULTI += ["s:" + s for s in ("alpha", "fullscreen", "layers", "medium", "overscan", "scroll", "worst")]
 KEYS = rv.KEYS + ["leonard"]
 MUTANTS = json.loads((FPGA / "tests" / "tb" / "video_lm_mutants.json").read_text())

@@ -183,8 +183,8 @@ def test_a_starved_scanout_fetch_underruns(out_tb: Path) -> None:
     """The compositor has no deadline any more; the scanout fetch does (a raster
     line). Given a beat every 16 clocks, 400 beats miss a 5,280-clock line: the
     scanout must say so."""
-    frames_dir, _, _ = _source("union_intro")
-    result = video_rtl.wire(out_tb, WIRE, frames_dir, [300], starve=16)
+    frames_dir, frames, _ = _source("union_intro")
+    result = video_rtl.wire(out_tb, WIRE, frames_dir, frames[:1], starve=16)
     assert result.returncode != 0
     assert "underrun 1" in result.stdout
 
