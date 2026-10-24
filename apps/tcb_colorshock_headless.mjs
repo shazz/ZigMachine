@@ -12,7 +12,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { cartRam, romRam } from "../docs/wasm_hiwater.js";
 
 const PAGES = 112; // must match SHARED_PAGES in machine/sdk/memmap.zig
-const PLANES = 2; // 0 = the panned field, 1 = logo + scroll strip
+const PLANES = 1; // the panned field, with the logo and the scroll strip drawn into it
 
 // Machine registers this driver reads directly (machine/sdk/memmap.zig). The pan
 // is a READ-POINTER move, so "did the window stay inside the pan buffer?" is a
@@ -104,7 +104,7 @@ class Screen {
 
     // The machine composites plane 0 as buf[(base - origin) + y*stride + x] for
     // y < 280, x < 400, with no bounds check anywhere. Past the buffer it would
-    // scribble over the next VRAM allocation — the ink plane — so assert the
+    // scribble over whatever VRAM follows the buffer, so assert the
     // last byte it can touch this frame is still inside.
     checkPan() {
         const off = this.reg32(REG_FB_BASE) - this.origin;
@@ -171,4 +171,4 @@ await screen.shot(`${out}/04-strip-low.ppm`);   // ...and down at the top of its
 const t0 = performance.now();
 screen.run(4000);
 console.log(`  soak: ${screen.frames} frames clean, ` +
-    `${((performance.now() - t0) / 4000).toFixed(2)} ms/frame (update + render + 2 plane composites)`);
+    `${((performance.now() - t0) / 4000).toFixed(2)} ms/frame (update + render + 1 plane composite)`);

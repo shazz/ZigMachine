@@ -65,7 +65,7 @@ in every pass, and a break test of that rule is caught.
 | Mode or effect | Status | Evidence |
 |---|---|---|
 | normal mode, static palette | **proven** | `tutorial` 300, `union_intro` 100 |
-| 2–4 planes layered over the background | **proven** | `union_main` (3 planes), `tcb_colorshock`, `union_l16`, synthetic `layers` (4 modes stacked) |
+| 2–4 planes layered over the background | **proven** | `union_main` (3 planes), `tcb_colorshock` (two planes until 2026-10-23), `union_l16`, synthetic `layers` (4 modes stacked) |
 | fullscreen (`FB_MODE_FULLSCREEN`), fine scroll latched, odd stride, `hs > stride` | **proven, synthetic only** | synthetic `fullscreen`. ZigOS no longer sets mode 1, so no cart reaches it. |
 | legacy fullscreen (mode 0, stride 400) | **proven, synthetic only** | synthetic `fullscreen`, plane 2 |
 | overscan, borders opened on time | **proven** | `union_main`, `replicants_emlyn`, `gen4_3615`, `maxi`, `fullscreen` (cart) |
