@@ -8,7 +8,7 @@
 // --------------------------------------------------------------------------
 const zg = @import("zigos");
 const LogicalFB = zg.LogicalFB;
-const fsin = @import("fsin.zig");
+const wave = @import("wave.zig");
 
 const font16_raw = @embedFile("../../assets/fonts/font16.raw"); // 320x48, 20x3 cells of 16x16
 const font8_raw = @embedFile("../../assets/fonts/font8.raw"); // 320x16, 40x2 cells of 8x8
@@ -16,25 +16,16 @@ const font8_raw = @embedFile("../../assets/fonts/font8.raw"); // 320x16, 40x2 ce
 const PW: i32 = zg.PHYSICAL_WIDTH; // 400
 const MAX_LINE: usize = 40; // longest menu line, in 8px cells
 
+const COL_STEP = wave.rad(0.05); // the wave's phase step a column
+
 // Column offsets of one wave: off[i] = trunc(sin((x0 + i) * 0.05 + phase) * amp),
-// the same f32 expression the per-pixel version evaluated.
-fn waveColumns(off: []i32, x0: i32, phase: f32, amp: f32) void {
-    for (off, 0..) |*o, i| {
-        const px = x0 + @as(i32, @intCast(i));
-        o.* = @intFromFloat(fsin.sin(@as(f32, @floatFromInt(px)) * 0.05 + phase) * amp);
+// amp in Q8, phase an Angle: one table lookup a column.
+fn waveColumns(off: []i32, x0: i32, phase: wave.Angle, amp8: i32) void {
+    var a = phase +% @as(u32, @bitCast(x0)) *% COL_STEP;
+    for (off) |*o| {
+        o.* = wave.offset(a, amp8);
+        a +%= COL_STEP;
     }
-}
-
-/// sin(px * 0.05 + phase) for every physical column, once a frame: the scroller's
-/// wave, and the menu line whose phase offset is 0 evaluates the very same f32
-/// expression for its columns, so it reads them here instead of again.
-pub const Sines = [zg.PHYSICAL_WIDTH]f32;
-pub fn sines(out: *Sines, phase: f32) void {
-    for (out, 0..) |*o, px| o.* = fsin.sin(@as(f32, @floatFromInt(px)) * 0.05 + phase);
-}
-
-fn waveFrom(off: []i32, s: []const f32, amp: f32) void {
-    for (off, s[0..off.len]) |*o, v| o.* = @intFromFloat(v * amp);
 }
 
 // A font as comptime column bitmasks: masks[glyph][column], bit gy = ink at row gy.
@@ -69,21 +60,33 @@ fn Font(comptime sheet: []const u8, comptime per_row: usize, comptime cell: usiz
 const Font8 = Font(font8_raw, 40, 8, u8);
 const Font16 = Font(font16_raw, 20, 16, u16);
 
-// One glyph's ink in `color`, each column shifted down by wave[px - wave_x0], clipped
+/// The lowest set bit's index of a byte (comptime): rv32im has no ctz instruction,
+/// and @ctz became a library call.
+const LOW_BIT: [256]u8 = blk: {
+    var t: [256]u8 = undefined;
+    t[0] = 0;
+    for (1..256) |b| t[b] = @ctz(@as(u8, @intCast(b)));
+    break :blk t;
+};
+
+inline fn lowBit(m: anytype) usize {
+    if (@TypeOf(m) == u8) return LOW_BIT[m];
+    const lo: u8 = @truncate(m);
+    return if (lo != 0) LOW_BIT[lo] else 8 + @as(usize, LOW_BIT[@as(u8, @truncate(m >> 8))]);
+}
+
+// One glyph's ink in `color`, each column shifted down by offs[px - wave_x0], clipped
 // to the plane.
-fn drawGlyph(fb: *LogicalFB, comptime F: type, char: u8, x0: i32, y0: i32, color: u8, wave: []const i32, wave_x0: i32) void {
+fn drawGlyph(fb: *LogicalFB, comptime F: type, char: u8, x0: i32, y0: i32, color: u8, offs: []const i32, wave_x0: i32) void {
     const idx: usize = if (char >= 32 and char < 32 + F.n) char - 32 else 0;
     for (&F.masks[idx], 0..) |mask, gx| { // by pointer: a by-value copy was one wide load
         const px = x0 + @as(i32, @intCast(gx));
         if (mask == 0 or px < 0 or px >= fb.fb_w) continue;
-        const top = y0 + wave[@intCast(px - wave_x0)];
+        const top = y0 + offs[@intCast(px - wave_x0)];
         var m = mask;
         if (top >= 0 and top + @bitSizeOf(@TypeOf(mask)) <= fb.fb_h) { // the whole column on the plane
-            var p: [*]u8 = fb.fb + @as(usize, @intCast(top)) * fb.stride + @as(usize, @intCast(px));
-            while (m != 0) : (m >>= 1) {
-                if (m & 1 != 0) p[0] = color;
-                p += fb.stride;
-            }
+            const p: [*]u8 = fb.fb + @as(usize, @intCast(top)) * fb.stride + @as(usize, @intCast(px));
+            while (m != 0) : (m &= m - 1) p[lowBit(m) * fb.stride] = color; // set bits only
             continue;
         }
         var py = top;
@@ -97,22 +100,21 @@ fn drawGlyph(fb: *LogicalFB, comptime F: type, char: u8, x0: i32, y0: i32, color
     }
 }
 
-/// `pre`: this frame's Sines when `phase` is exactly their phase (else null).
-pub fn drawText8(fb: *LogicalFB, text: []const u8, x: i32, y: i32, color: u8, amp: f32, phase: f32, pre: ?*const Sines) void {
-    var wave: [MAX_LINE * 8]i32 = undefined;
+pub fn drawText8(fb: *LogicalFB, text: []const u8, x: i32, y: i32, color: u8, amp8: i32, phase: wave.Angle) void {
+    var off: [MAX_LINE * 8]i32 = undefined;
     const n: usize = @min(text.len, MAX_LINE); // usize: @min would narrow to u6, and n * 8 overflow
-    if (pre) |s| waveFrom(wave[0 .. n * 8], s[@intCast(x)..], amp) else waveColumns(wave[0 .. n * 8], x, phase, amp);
-    for (text[0..n], 0..) |c, i| drawGlyph(fb, Font8, c, x + @as(i32, @intCast(i * 8)), y, color, &wave, x);
+    waveColumns(off[0 .. n * 8], x, phase, amp8);
+    for (text[0..n], 0..) |c, i| drawGlyph(fb, Font8, c, x + @as(i32, @intCast(i * 8)), y, color, &off, x);
 }
 
 // The scroller across the full physical width (the overscan plane is 400x280, so the
 // glyph clip is the physical one); `base_x` is the message's left edge.
-pub fn drawScroller(fb: *LogicalFB, message: []const u8, base_x: i32, y0: i32, color: u8, amp: f32, s: *const Sines) void {
-    var wave: [zg.PHYSICAL_WIDTH]i32 = undefined;
-    waveFrom(&wave, s, amp);
+pub fn drawScroller(fb: *LogicalFB, message: []const u8, base_x: i32, y0: i32, color: u8, amp8: i32, phase: wave.Angle) void {
+    var off: [zg.PHYSICAL_WIDTH]i32 = undefined;
+    waveColumns(&off, 0, phase, amp8);
     for (message, 0..) |char, i| {
         const cx: i32 = base_x + @as(i32, @intCast(i * 16));
         if (cx <= -16 or cx >= PW) continue;
-        drawGlyph(fb, Font16, char, cx, y0, color, &wave, 0);
+        drawGlyph(fb, Font16, char, cx, y0, color, &off, 0);
     }
 }

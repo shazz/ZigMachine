@@ -7,6 +7,7 @@
 //
 //   node apps/frame_cost.mjs <cart.wasm> [--frames 60] [--warmup 120] [--top 10]
 //        [--call F:export:args]... [--disk X.zmd | --no-disk] [--json] [--no-pal] [--names DIR]
+//        (--call F:set8@ptrExport:bytes pokes bytes at the address ptrExport returns, see scene_hash)
 //        [--machine DIR]  (machine-video.wasm + rom.wasm; default $MACHINE_DIR or docs)
 //        [--budget]       the frame budget instead: cart Mc of what FRESCO's line passes leave, per plane
 //   node apps/frame_cost.mjs --all [--jobs 4] [--json] [--top-n 20] [--out F.json]

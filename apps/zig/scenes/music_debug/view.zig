@@ -24,16 +24,3 @@ pub const View = struct {
         self.px[@intCast(y * self.stride + x)] = c;
     }
 };
-
-// Starfield3D.render() (not line mode), drawn into the window: a star whose previous
-// projection was on screen is plotted at its current one, in its depth's grey.
-pub fn drawStars(v: View, sf: anytype) void {
-    const steps: f32 = 29; // the library's GRADIENT_STEPS - 1
-    for (&sf.starfield_table) |*s| {
-        if (!(s.prev_proj_x > 0 and s.prev_proj_x < sf.width and s.prev_proj_y > 0 and s.prev_proj_y < sf.height)) continue;
-        const pal_index = 1 + sf.color_ratio * s.z * 1.2 * steps;
-        const x: u16 = @intFromFloat(s.proj_x);
-        const y: u16 = @intFromFloat(s.proj_y);
-        v.put(x, y, @intFromFloat(pal_index));
-    }
-}

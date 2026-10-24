@@ -209,7 +209,6 @@ NATIVE_TESTS="
     apps/zig/scenes/union/dragonball_squash.zig
     apps/zig/scenes/blitter_demo/wobble.zig
     apps/zig/scenes/blitter_demo/soft.zig
-    apps/zig/scenes/music_debug/fsin.zig
     apps/zig/scenes/leonard_spirit/ball_test.zig
 "
 # Compiled and run GATE_TEST_JOBS (default 4) at a time -- the zig cache is
@@ -306,6 +305,7 @@ gate xm node apps/xm_check.mjs --break refuse   # ...and a 13-channel file expec
 gate xm node apps/xm_check.mjs --break pin      # ...and a wrong pin fails
 gate music node apps/music_debug_check.mjs   # MUSIC DEBUG: keys 1..6 (setShadeMode, as the loader and the board's glass send them) ask for MOD / YM / sample / SNDH / XM / local XM by name; every committed name is a git-tracked file in docs/music/ (the board's song table is built from them), local.xm never is; key 5's XM plays as mode 1
 gate music node apps/music_debug_check.mjs --break name   # ...and key 5 expected to ask for another file fails
+gate music node apps/music_debug_pin.mjs   # ...and its composited picture (borders, rasters, HBL), every 60 frames to 1200, silent and with a YM tune's registers mirrored in (scope on), equals the pin apps/music_debug_pin.json (re-blessed 2026-10-24 when the screen went fixed point); the picture moves and the scope changes it
 gate xm_test node apps/xm_test_check.mjs   # XM TEST: keys 1..4 (setShadeMode) ask for keygen_9000.xm / poppy_flower_girls.xm / local.xm / "none" by name; the bundled XMs are The Mod Archive's Public Domain files byte for byte (md5), 8 and 12 channels, and play (mode 1, not silent); local.xm never committed
 gate xm_test node apps/xm_test_check.mjs --break name   # ...and key 2 expected to ask for another file fails
 gate sysinfo node apps/sysinfo_check.mjs "$SHOTS/sysinfo"   # SYSINFO: every page's text is on the glass glyph for glyph; page 1's memory lines are hwRamFree/Base/Top/Size, the ROM window and hwVideoBase as the machine answers; plane 0's base is its register's; the disk lines are the .zmd descriptor's; player + YM lines follow the host live; idle frames draw nothing, a refresh only the changed span; no host clock = every speed test once, n/a; a clock = a time each, 6 ratios to the ST, f32 to the integer mul-add; Space opens the menu, a click on F4 shows the disk page whole; Q = request 4; page 3 lists the disk's JINKS.SND / GAUNTLET.SAP / SAMPLE.RAW, P reads each through the drive (the bytes handed over = the FAT file's), an SNDH / SAP goes out as requestSongBytes and the loader's postSfx + the audio module play it in mode 4 / 5, the PCM is samplePlay at 12500 Hz; S stops each

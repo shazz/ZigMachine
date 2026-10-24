@@ -10,7 +10,9 @@
 //
 // Writes JSON to stdout: { cart, frames, every, samples: [{frame, hash}], total }.
 // `--call 300:key:32` invokes demo.key(32) before frame 300 (repeatable, for
-// scenes that wait on input). `--disk X.zmd` mounts X in the drive, as the
+// scenes that wait on input). `--call 1:set8@getAudioModePointer:2` instead writes the
+// bytes 2 (comma list) at the address that export returns, as the browser's loader
+// mirrors the audio state (mode, YM registers) into the cart. `--disk X.zmd` mounts X in the drive, as the
 // browser does; without it diskReadBlock is a stub answering 0 (no disk).
 // `--data-disk X.zmd` mounts a data disk and, after each frame, does what the browser
 // does for GEM over one (insertDisk, the FAT listing; scene_hash_disk.mjs); `--program`: the
@@ -111,6 +113,10 @@ async function fingerprint(argv) {
     const comp = new Uint32Array(size >> 2);
     for (let f = 1; f <= N; f++) {
         for (const [name, args] of calls.get(f) ?? []) {
+            if (name.startsWith("set8@")) { // the bytes `args` at the address export `name` returns
+                new Uint8Array(memory.buffer).set(args, demo[name.slice(5)]());
+                continue;
+            }
             if (typeof demo[name] !== "function") throw new Error(`cart has no export ${name}`);
             demo[name](...args);
         }

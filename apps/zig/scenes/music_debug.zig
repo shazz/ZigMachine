@@ -10,9 +10,10 @@
 // the stars is opaque or index 0, so painting them in plane order on one plane
 // gives the same picture (the stars stay translucent over the black background).
 //
-// Board speed (ZIGGY's f32 FPU): the waves use music_debug/fsin.zig, one sine a
-// column (the scroller and the first menu line share theirs: the same f32
-// expression); CHISEL clears the window and the scroller's band each frame.
+// Board speed: no float per frame (Matt, 2026-10-24). Every wave phase is a
+// fixtrig Angle and every sine a table lookup (music_debug/wave.zig), the stars
+// run in Q4 (stars.zig), the scope in Q8; CHISEL clears the window and the
+// scroller's band each frame.
 //
 // Keys 1..6 play MOD / YM / sample / SNDH / XM / a local XM. The host only forwards a digit to
 // setShadeMode (docs/sealed-loader.js in the browser, fpga/glass/firmware/glass_input.c on
@@ -26,7 +27,6 @@ const ZigOS = zg.ZigOS;
 const LogicalFB = zg.LogicalFB;
 const Color = zg.Color;
 const Console = zg.Console;
-const Starfield3D = zg.Starfield3D;
 const NB_STARS = 200;
 
 const WIDTH: u16 = zg.WIDTH;
@@ -41,6 +41,8 @@ const text = @import("music_debug/text.zig");
 const logo = @import("music_debug/logo.zig");
 const scope = @import("music_debug/scope.zig");
 const view = @import("music_debug/view.zig");
+const wave = @import("music_debug/wave.zig");
+const stars = @import("music_debug/stars.zig");
 
 // Palette of the one plane: 0 the black background, 1..30 the stars (Starfield3D's
 // greys; 31..39 stay transparent, it can index up to 35), 40.. text, 42.. the scope
@@ -49,15 +51,19 @@ const WHITE: u8 = 40;
 const SCROLL: u8 = 41; // scrolltext colour, raster-cycled per scanline
 const BGCOL = Color{ .r = 0, .g = 0, .b = 0, .a = 255 };
 
-const RASTER_SPEED: f32 = 0.6; // scrolltext raster cycle speed (lower = slower)
-const SCROLL_SPEED: f32 = 2.0;
-const SCROLL_WAVE_AMP: f32 = 6.0; // vertical wobble of the scrolltext
-const MENU_WAVE_AMP: f32 = 2.5;
+const RASTER_TENTHS: u32 = 6; // scrolltext raster cycle speed, in tenths of a line a frame
+const SCROLL_SPEED: i32 = 2;
+const SCROLL_WAVE_AMP8: i32 = 6 * 256; // vertical wobble of the scrolltext, Q8
+const MENU_WAVE_AMP8: i32 = 640; // 2.5 px, Q8
+const PHASE_STEP = wave.rad(0.15); // the text waves' phase a frame
+// The logo copies behind the newest, each 0.8 rad of logo phase older and dimmer: two
+// since 2026-10-24 (the third, at 14 % brightness, cost ~0.16 Mc a frame for 60 fps).
+const TRAILS = 2;
 const MENU_X: i32 = 44 + HBORD; // = 84
 const MENU_Y: i32 = 92 + VBORD; // first menu line; PRESS 1 TO 6 sits at +88
 const SCROLL_Y: i32 = (HEIGHT - 28) + VBORD; // physical baseline
-// dphase literals, not k * 0.4: in f32, 0.4 * 3 is not the 1.2 the waves were tuned on.
-const MenuLine = struct { text: []const u8, dy: i32, dphase: f32 };
+// Each line's wave runs dphase radians ahead of the first.
+const MenuLine = struct { text: []const u8, dy: i32, dphase: f64 };
 const MENU = [_]MenuLine{
     .{ .text = "1  MOD     LOLLAPALOOZA", .dy = 0, .dphase = 0 },
     .{ .text = "2  YM2149  CONCERTO", .dy = 14, .dphase = 0.4 },
@@ -83,7 +89,7 @@ const MESSAGE =
     "AND NOW... LET IT WRAP !                   ";
 
 var raster_offset: u16 = 0;
-var raster_phase: f32 = 0.0;
+var raster_tenths: u32 = 0; // raster_offset in tenths of a line, wraps at 4096 lines
 
 // Per-scanline HBL handler on the plane: cycles the scrolltext colour
 // through the copper gradient so the letters are raster-filled. Merged with
@@ -99,20 +105,21 @@ fn scrollRasterHandler(fb: *LogicalFB, zigos: *ZigOS, line: u16, col: u16) void 
 }
 
 pub const Demo = struct {
-    scroll_x: f32 = @floatFromInt(WIDTH),
-    phase: f32 = 0.0,
-    logo_phase: f32 = 0.0, // slow, drives the logo distortion
+    scroll_x: i32 = WIDTH,
+    phase: wave.Angle = 0, // the text waves
+    logo_phase: logo.Phase = .{}, // slow, drives the logo distortion
     flow_frame: u32 = 0, // scope electron-flow timer
     scope: scope.Scope = .{},
     blit: zg.Blitter = .{}, // CHISEL: the per-frame clears
-    starfield: Starfield3D(NB_STARS) = undefined,
+    starfield: stars.Stars(NB_STARS) = undefined,
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
         Console.log("music debug init", .{});
-        self.scroll_x = @floatFromInt(WIDTH);
-        self.phase = 0.0;
+        self.scroll_x = WIDTH;
+        self.phase = 0;
+        self.logo_phase = .{};
         raster_offset = 0;
-        raster_phase = 0.0;
+        raster_tenths = 0;
         zigos.setBackgroundColor(BGCOL); // black borders
         self.blit.init();
 
@@ -122,8 +129,7 @@ pub const Demo = struct {
         const p0: *LogicalFB = &zigos.lfbs[0];
         p0.is_enabled = true;
         p0.setOverscanBuffer();
-        // Starfield3D.init sets the stars' greys (1..30) on its target.
-        self.starfield = Starfield3D(NB_STARS).init(p0.getRenderTarget(), WIDTH, HEIGHT, 2, false);
+        self.starfield = stars.Stars(NB_STARS).init(p0); // also sets the stars' greys (1..30)
         p0.setPaletteEntry(0, BGCOL); // black background
         p0.setPaletteEntry(WHITE, Color{ .r = 245, .g = 245, .b = 250, .a = 255 });
         p0.setPaletteEntry(SCROLL, COPPER[0]);
@@ -134,18 +140,15 @@ pub const Demo = struct {
         for (zigos.lfbs[1..]) |*p| p.is_enabled = false;
     }
 
-    pub fn update(self: *Demo, zigos: *ZigOS, time_elapsed: f32) void {
-        _ = zigos;
-        _ = time_elapsed;
+    pub fn update(self: *Demo, _: *ZigOS, _: f32) void {
         self.scroll_x -= SCROLL_SPEED;
-        const total: f32 = @floatFromInt(MESSAGE.len * 16);
-        if (self.scroll_x < -total) self.scroll_x = @floatFromInt(WIDTH);
-        self.phase += 0.15;
-        self.logo_phase += 0.045; // slower logo movement
+        if (self.scroll_x < -@as(i32, MESSAGE.len * 16)) self.scroll_x = WIDTH;
+        self.phase +%= PHASE_STEP;
+        self.logo_phase.step(); // slower logo movement
         self.flow_frame +%= 1;
-        raster_phase += RASTER_SPEED;
-        if (raster_phase >= 4096.0) raster_phase -= 4096.0;
-        raster_offset = @intFromFloat(raster_phase);
+        raster_tenths += RASTER_TENTHS;
+        if (raster_tenths >= 40960) raster_tenths -= 40960;
+        raster_offset = @intCast(raster_tenths / 10);
         self.starfield.update();
     }
 
@@ -180,21 +183,18 @@ pub const Demo = struct {
         self.blit.fill(p0, 0, BAND_Y, p0.fb_w, BAND_H, 0);
 
         // back to front, as the planes were stacked
-        view.drawStars(v, &self.starfield);
+        self.starfield.draw(v);
         self.scope.draw(zigos, v, self.flow_frame, self.phase);
-        var sines: text.Sines = undefined;
-        text.sines(&sines, self.phase);
-        for (MENU) |line| {
-            const pre: ?*const text.Sines = if (line.dphase == 0) &sines else null; // phase + 0 == phase
-            text.drawText8(p0, line.text, MENU_X, MENU_Y + line.dy, WHITE, MENU_WAVE_AMP, self.phase + line.dphase, pre);
+        inline for (MENU) |line| {
+            text.drawText8(p0, line.text, MENU_X, MENU_Y + line.dy, WHITE, MENU_WAVE_AMP8, self.phase +% wave.rad(line.dphase));
         }
         // the scroller across the full physical width: visible-space x -> physical
-        const base_x: i32 = @as(i32, @intFromFloat(self.scroll_x)) + HBORD;
-        text.drawScroller(p0, MESSAGE, base_x, SCROLL_Y, SCROLL, SCROLL_WAVE_AMP, &sines);
-        // the logo with a 3-frame darkening trail (oldest/darkest first)
-        logo.draw(v, self.logo_phase - 2.4, 3);
-        logo.draw(v, self.logo_phase - 1.6, 2);
-        logo.draw(v, self.logo_phase - 0.8, 1);
+        text.drawScroller(p0, MESSAGE, self.scroll_x + HBORD, SCROLL_Y, SCROLL, SCROLL_WAVE_AMP8, self.phase);
+        // the logo with its darkening trail (oldest/darkest first)
+        inline for (0..TRAILS) |k| {
+            const t = TRAILS - k;
+            logo.draw(v, self.logo_phase.back(0.8 * @as(f64, @floatFromInt(t))), t);
+        }
         logo.draw(v, self.logo_phase, 0);
     }
 };

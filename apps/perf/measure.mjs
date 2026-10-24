@@ -39,6 +39,10 @@ export async function measure(cartPath, opts) {
     const waste = new Waste(run), budget = new Budget(run);
     for (let f = 1; f <= opts.warmup + opts.frames; f++) {
         for (const [name, args] of opts.calls.get(f) ?? []) {
+            if (name.startsWith("set8@")) { // the bytes `args` at the address export `name` returns (scene_hash's --call)
+                new Uint8Array(run.memory.buffer).set(args, run.demo[name.slice(5)]());
+                continue;
+            }
             if (typeof run.demo[name] !== "function") throw new Error(`cart has no export ${name}`);
             run.demo[name](...args);
         }
