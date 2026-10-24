@@ -1,5 +1,5 @@
 // Every frame of STNICCC 2000 (apps/zig/scenes/stniccc.zig) pinned to the cart as it
-// was before the KESTREL speed-up (perf/stniccc-cpu-spans: CPU word-store spans instead
+// was before the KESTREL speed-up (c77c6c2e; the speed-up: CPU word-store spans instead
 // of ~2,000 CHISEL fills a frame, a two-chain filler, word-compared keyframes, no
 // whole-plane clear in the zoom): the small act, the slow-down, the rewind (keyframe
 // seeks), the blinking message, the zoom and the whole fullscreen flight, disk
