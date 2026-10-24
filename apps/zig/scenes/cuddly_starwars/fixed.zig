@@ -57,3 +57,14 @@ pub inline fn levelOf(v: u32, comptime levels: u32) u32 {
     const den: u32 = 255 * ONE;
     return (v * (levels - 1) + den / 2) / den;
 }
+
+// The screen's greys: palette indices GREY_BASE.. hold a 128-level ramp, so the stars'
+// area blend and the starwars text's coverage blend land on an exact level.
+pub const GREY_BASE: u8 = 128;
+pub const GREY_LEVELS: usize = 128;
+pub const grey_lut = greyLut(GREY_BASE, GREY_LEVELS);
+
+/// The palette index of a Q16 grey (0..255 << 16), rounded to the 128 levels.
+pub inline fn greyIndex(v: u32) u8 {
+    return GREY_BASE + @as(u8, @intCast(levelOf(v, GREY_LEVELS)));
+}

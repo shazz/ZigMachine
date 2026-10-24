@@ -23,7 +23,7 @@
 //      by area. Greys live on a 128-level ramp so that blend is exact.
 //   3. The starwars scroller: 30 lines of 17x11 glyphs on a text canvas, pushed
 //      through the perspective table (motion.zig) into rows 100..199 as grey
-//      coverage over the stars.
+//      coverage over the stars (cuddly_starwars/starwars.zig).
 //   4. The distorted scroller, 20 columns of 16 each shifted by dist1: fontr
 //      recoloured by the raster ('source-in'), then fontg on the SAME positions.
 //      The two fonts' inks never overlap, so they are one merged font; the red
@@ -36,6 +36,7 @@ const zg = @import("zigos");
 const convertU8ArraytoColors = zg.convertU8ArraytoColors;
 const tables = @import("cuddly_starwars/tables.zig");
 const motion = @import("cuddly_starwars/motion.zig");
+const starwars = @import("cuddly_starwars/starwars.zig");
 const fixed = @import("cuddly_starwars/fixed.zig");
 const assert = std.debug.assert;
 
@@ -57,8 +58,8 @@ const RASTER_INK: u8 = 1;
 const BG_ORANGE: u8 = 8;
 const BG_GREY: u8 = 9;
 const LOGO_FLASH_ENTRIES = [_]u8{ BG_ORANGE, BG_GREY };
-const GREY_BASE: u8 = 128;
-const GREY_LEVELS: usize = 128;
+const GREY_BASE = fixed.GREY_BASE;
+const GREY_LEVELS = fixed.GREY_LEVELS;
 
 // logo flash
 const FLASH_WRAP: u32 = 300;
@@ -82,19 +83,6 @@ const STAR_GREYS = [3]u32{ 0xff, 0xaa, 0x55 }; // near .. far
 const ROT_START: f64 = 180;
 const ROT_STEP_C = fixed.q30(@cos(0.02));
 const ROT_STEP_S = fixed.q30(@sin(-0.02)); // rot -= 0.02
-
-// starwars scroller
-const SW_GLYPH_W: usize = 17;
-const SW_GLYPH_H: usize = 11;
-const SW_FONT_W: usize = 170;
-const SW_FONT_H: usize = 69;
-const SW_COLS: usize = 10;
-const SW_LINES: usize = 30;
-const SW_PITCH_X: usize = 20;
-const SW_PITCH_Y: i32 = 17;
-const SW_LINE_CHARS: usize = 12;
-const SW_X: usize = (300 - SW_LINE_CHARS * 16) / 2 - 8; // letterpos = 46
-const SW_BAND_Y: usize = 100;
 
 // distorted scroller
 const GLYPH_W: usize = 32;
@@ -143,33 +131,28 @@ const ROTOR_ZERO = fixed.Rotor{ .c = 1 << 30, .s = 0 };
 // Assets
 // --------------------------------------------------------------------------
 const font_b = @embedFile("../assets/screens/cuddly_starwars/font.raw");
-const swfont_b = @embedFile("../assets/screens/cuddly_starwars/swfont.raw");
 const sprite_b = @embedFile("../assets/screens/cuddly_starwars/sprite.raw");
 const bg_b = @embedFile("../assets/screens/cuddly_starwars/bg.raw");
-const raster = convertU8ArraytoColors(@embedFile("../assets/screens/cuddly_starwars/raster.dat"));
-const base_pal = convertU8ArraytoColors(@embedFile("../assets/screens/cuddly_starwars/screen_pal.dat"));
+// align(4): a Color is 4 bytes of align 1, read as one word; at an odd address that
+// load traps on the board (~210 cycles). Their place in the data segment is luck otherwise.
+const raster align(4) = convertU8ArraytoColors(@embedFile("../assets/screens/cuddly_starwars/raster.dat"));
+const base_pal align(4) = convertU8ArraytoColors(@embedFile("../assets/screens/cuddly_starwars/screen_pal.dat"));
 
 comptime {
     @setEvalBranchQuota(100_000); // the 2899-character scrolltext is checked glyph by glyph
     assert(font_b.len == FONT_W * FONT_H);
-    assert(swfont_b.len == SW_FONT_W * SW_FONT_H);
     assert(sprite_b.len == SPRITE_STRIP_W * SPRITE_H);
     assert(bg_b.len == BG_W * BG_H);
     assert(tables.sprite_x.len == tables.sprite_y.len);
     for (tables.scroll_text) |c| assert(c >= FIRST_CHAR and c - FIRST_CHAR < FONT_COLS * (FONT_H / GLYPH_H));
-    for (tables.starwars_lines) |line| {
-        // letterpos is only the integer 46 for full lines; empty lines draw nothing
-        assert(line.len == 0 or line.len == SW_LINE_CHARS);
-        for (line) |c| assert(c >= FIRST_CHAR and (c - FIRST_CHAR) / SW_COLS * SW_GLYPH_H + SW_GLYPH_H <= SW_FONT_H);
-    }
-    assert(SW_X + (SW_LINE_CHARS - 1) * SW_PITCH_X + SW_GLYPH_W <= W);
     // dcount + 19 never runs past the table
     assert(motion.DIST_LIMIT + COLUMNS - 1 < motion.dist.len);
     // the 1-wide raster reaches row 199 - rastc, and rastc never passes -72.5
     assert(RASTER_PERIOD * 4 >= H + 73);
 }
 
-const grey_lut = fixed.greyLut(GREY_BASE, GREY_LEVELS);
+const grey_lut = fixed.grey_lut;
+const greyIndex = fixed.greyIndex;
 
 const palette: [256]Color = blk: {
     var p = base_pal;
@@ -179,11 +162,6 @@ const palette: [256]Color = blk: {
     }
     break :blk p;
 };
-
-/// The palette index of a Q16 grey (0..255 << 16), rounded to the 128 levels.
-inline fn greyIndex(v: u32) u8 {
-    return GREY_BASE + @as(u8, @intCast(fixed.levelOf(v, GREY_LEVELS)));
-}
 
 // --------------------------------------------------------------------------
 // Module-scope state: scratch canvases and what the HBL reads. All of it is
@@ -197,30 +175,11 @@ inline fn greyIndex(v: u32) u8 {
 var star_x: *[STARS]i16 = undefined;
 var star_y: *[STARS]i16 = undefined;
 var raster_line: [H]Color = undefined;
-// The text is laid out ONCE per starwars line (every SW_PITCH_Y frames) on a canvas
-// SW_PITCH_Y rows taller than the view; between those, the 1-row-a-frame scroll is just
-// `text_off`, the view's first row on the canvas (the old code redrew all 30 lines of
-// glyphs every frame to move them up one row).
-const TALL_ROWS: usize = motion.TEXT_ROWS + @as(usize, @intCast(SW_PITCH_Y));
-var text_canvas: *[TALL_ROWS * W]u8 = undefined;
-var text_off: i32 = 0;
-var text_laid: usize = std.math.maxInt(usize); // the sw_line the canvas holds (none yet)
-// Leftmost and rightmost inked column of each text row; an empty row has
-// left > right. Most starwars lines are padded with spaces, so the perspective
-// only samples the span between them.
-var text_row_left: [TALL_ROWS]u16 = undefined;
-var text_row_right: [TALL_ROWS]u16 = undefined;
-var band_alpha: *[motion.BAND_ROWS * W]u32 = undefined; // Q16 coverage
-// The columns of each band row the perspective visited this frame (lo > hi: none).
-// Everything outside is still 0, so only these spans are cleared and composited.
-var band_lo: [motion.BAND_ROWS]u16 = undefined;
-var band_hi: [motion.BAND_ROWS]u16 = undefined;
 
 fn allocBuffers() void {
     star_x = zg.mem.mustAlloc(i16, STARS)[0..STARS];
     star_y = zg.mem.mustAlloc(i16, STARS)[0..STARS];
-    text_canvas = zg.mem.mustAlloc(u8, TALL_ROWS * W)[0 .. TALL_ROWS * W];
-    band_alpha = zg.mem.mustAlloc(u32, motion.BAND_ROWS * W)[0 .. motion.BAND_ROWS * W];
+    starwars.init();
 }
 
 // A normal plane's HBL gets LOGICAL lines 0..199.
@@ -279,13 +238,6 @@ pub const Demo = struct {
             star_y[i] = @intCast((@as(u64, nextRandom(&seed)) * 200) >> 32);
         }
         @memset(&raster_line, raster[0]);
-        @memset(text_canvas, 0);
-        @memset(&text_row_left, W);
-        @memset(&text_row_right, 0);
-        text_laid = std.math.maxInt(usize);
-        @memset(band_alpha, 0);
-        @memset(&band_lo, W);
-        @memset(&band_hi, 0);
 
         zg.requestSong(MUSIC);
 
@@ -310,10 +262,10 @@ pub const Demo = struct {
         self.star_rot.turn(ROT_STEP_C, ROT_STEP_S);
 
         self.sw_offset -= 1;
-        if (self.sw_offset < -(SW_PITCH_Y - 1)) {
+        if (self.sw_offset < -(starwars.PITCH_Y - 1)) {
             self.sw_offset = 0;
             self.sw_line += 1;
-            if (self.sw_line > tables.starwars_lines.len - SW_LINES) self.sw_line = 0;
+            if (self.sw_line > tables.starwars_lines.len - starwars.LINES) self.sw_line = 0;
         }
 
         self.raster2 -= RASTER_STEP2;
@@ -355,7 +307,7 @@ pub const Demo = struct {
         self.blitter.fill(fb, 0, 0, W, H, BLACK); // CHISEL: a CPU memset is ~60 cycles a word
         self.drawLogoFlash(fb);
         self.drawStars(screen);
-        self.drawStarwars(screen);
+        starwars.draw(screen, self.sw_line, self.sw_offset);
         self.buildRasterLines();
         self.drawScroller(fb);
         self.drawSprites(screen);
@@ -389,87 +341,6 @@ pub const Demo = struct {
                 if (z * 3 > STAR_Z_UNITS * @as(i32, @intCast(c))) grey = STAR_GREYS[c];
             }
             plotStar(screen, sx, sy, grey);
-        }
-    }
-
-    fn drawStarwars(self: *Demo, screen: []u8) void {
-        self.layoutText();
-
-        // the perspective into a 100-row alpha band ('source-over' accumulation)
-        // (band_alpha is all 0 here: the composite below zeroes what it reads)
-        for (motion.perspective) |p| {
-            const upper_row = inkedRow(p.src_row);
-            const lower_row = inkedRow(p.src_row + 1);
-            if (upper_row == null and lower_row == null) continue;
-            const ink = inkSpan(p.src_row);
-            const band = band_alpha[@as(usize, p.band_row) * W ..][0..W];
-            var x = firstInkedColumn(p, ink.left);
-            const x_start = x;
-            // The Q24 source x is walked as integer xi + 24-bit fraction fr (carry on overflow):
-            // the loop is 32-bit only (a wasm i64 op is a libcall on ZIGGY).
-            const fx0: i64 = p.fx_base + p.fx_step * @as(i64, @intCast(x));
-            var xi: i32 = @intCast(fx0 >> 24);
-            var fr: u32 = @intCast(fx0 & 0xffffff);
-            const step_i: i32 = p.step_i;
-            const step_f: u32 = p.step_f;
-            const one = fixed.ONE;
-            const sf_inv = one - p.sf;
-            while (x <= p.x_last) : (x += 1) {
-                // sourceX never decreases with x: every column from here samples zeros
-                if (xi > ink.right) break;
-                const tx: u32 = fr >> 8;
-                const upper = sampleRow(upper_row, xi, tx);
-                const lower = sampleRow(lower_row, xi, tx);
-                fr += step_f;
-                xi += step_i + @as(i32, @intCast(fr >> 24));
-                fr &= 0xffffff;
-                if ((upper | lower) == 0) continue; // no ink under this column: alpha 0
-                const mix = mulShr16(upper, sf_inv, lower, p.sf);
-                const a: u32 = if (mix == one and p.cov == one) one else (mix * p.cov) >> 16;
-                if (a > 0) band[x] = a + ((band[x] * (one - a)) >> 16);
-            }
-            if (x > x_start) { // columns x_start .. x - 1 were visited
-                band_lo[p.band_row] = @min(band_lo[p.band_row], @as(u16, @intCast(x_start)));
-                band_hi[p.band_row] = @max(band_hi[p.band_row], @as(u16, @intCast(@min(x, W) - 1)));
-            }
-        }
-
-        // white text over what is already there (only stars reach these rows)
-        for (0..motion.BAND_ROWS) |r| {
-            if (band_lo[r] > band_hi[r]) continue;
-            const lo: usize = band_lo[r];
-            const hi: usize = @as(usize, band_hi[r]) + 1;
-            const band = band_alpha[r * W + lo ..][0 .. hi - lo];
-            const dst = screen[(SW_BAND_Y + r) * W + lo ..][0 .. hi - lo];
-            for (band, dst) |*ap, *d| {
-                const a = ap.*;
-                if (a == 0) continue;
-                d.* = greyIndex(255 * a + @as(u32, grey_lut[d.*]) * (fixed.ONE - a));
-                ap.* = 0;
-            }
-            band_lo[r] = W;
-            band_hi[r] = 0;
-        }
-    }
-
-    /// print() of 30 lines of the starwars text onto the (flat) text canvas.
-    fn layoutText(self: *Demo) void {
-        text_off = -self.sw_offset;
-        if (text_laid == self.sw_line) return;
-        text_laid = self.sw_line;
-        for (0..TALL_ROWS) |r| { // only the spans the last layout inked
-            if (text_row_left[r] <= text_row_right[r]) {
-                @memset(text_canvas[r * W + text_row_left[r] ..][0 .. text_row_right[r] - text_row_left[r] + 1], 0);
-            }
-            text_row_left[r] = W;
-            text_row_right[r] = 0;
-        }
-        for (0..SW_LINES) |j| {
-            const top = @as(i32, @intCast(j)) * SW_PITCH_Y;
-            if (top >= @as(i32, @intCast(TALL_ROWS))) break;
-            for (tables.starwars_lines[j + self.sw_line], 0..) |c, i| {
-                blitTextGlyph(c - FIRST_CHAR, SW_X + i * SW_PITCH_X, top);
-            }
         }
     }
 
@@ -575,82 +446,6 @@ fn plotStar(screen: []u8, x: i64, y: i64, grey: u32) void {
                 continue;
             }
             d.* = greyIndex(grey * cover + @as(u32, grey_lut[d.*]) * (one - cover));
-        }
-    }
-}
-
-fn rowInked(row: i32) bool {
-    if (row < 0 or row >= motion.TEXT_ROWS) return false;
-    const t: usize = @intCast(row + text_off);
-    return text_row_left[t] <= text_row_right[t];
-}
-
-/// A text-canvas row, or null when it is off the canvas or holds no ink.
-fn inkedRow(row: i32) ?*const [W]u8 {
-    if (!rowInked(row)) return null;
-    return text_canvas[@as(usize, @intCast(row + text_off)) * W ..][0..W];
-}
-
-/// The inked columns of the bilinear pair `row`, `row + 1`, inclusive.
-/// At least one of the two rows must be inked.
-fn inkSpan(row: i32) struct { left: i32, right: i32 } {
-    var left: i32 = W;
-    var right: i32 = -1;
-    for ([_]i32{ row, row + 1 }) |r| {
-        if (!rowInked(r)) continue;
-        left = @min(left, text_row_left[@intCast(r + text_off)]);
-        right = @max(right, text_row_right[@intCast(r + text_off)]);
-    }
-    return .{ .left = left, .right = right };
-}
-
-/// The first screen column of `p` worth sampling: every column before it reads
-/// columns xi, xi+1 both left of `ink_left`, so its alpha is exactly 0. The
-/// inverse stretch is only a guess; it is kept only if the column just before
-/// it really does sample clear of the ink, otherwise the scan starts at x_first.
-fn firstInkedColumn(p: motion.PerspectiveRow, ink_left: i32) usize {
-    const first: usize = p.x_first;
-    // (ink_left - 1 + 0.5 - 160) * zoom + 160 - 0.5 - 2, Q16
-    const guess = @divTrunc((2 * @as(i64, ink_left) - 321) * p.zoom_q16, 2) + 10321920;
-    if (guess < (@as(i64, @intCast(first)) + 1) * fixed.ONE) return first;
-    const start: usize = @intCast(guess >> 16);
-    const xi_before = (p.fx_base + p.fx_step * @as(i64, @intCast(start - 1))) >> 24;
-    return if (xi_before + 1 < ink_left) start else first;
-}
-
-/// (a * wa + b * wb) >> 16 for Q16 a, b <= 65536 and weights wa + wb = 65536, in u32:
-/// the sum is a weighted mean times 65536, so it reaches 2^32 only for a = b = 65536
-/// (wrapped to 0 here, hence the fix-up). Bit-identical to the u64 form.
-fn mulShr16(a: u32, wa: u32, b: u32, wb: u32) u32 {
-    const sum = a *% wa +% b *% wb;
-    if (sum == 0 and a == fixed.ONE) return fixed.ONE;
-    return sum >> 16;
-}
-
-/// One row of the text canvas (ink is 0 or 1), linearly filtered between columns
-/// xi and xi+1 by tx (Q16); the result is Q16.
-inline fn sampleRow(row: ?*const [W]u8, xi: i32, tx: u32) u32 {
-    const line = row orelse return 0;
-    const left: u32 = if (xi >= 0 and xi < W) line[@intCast(xi)] else 0;
-    const right: u32 = if (xi + 1 >= 0 and xi + 1 < W) line[@intCast(xi + 1)] else 0;
-    return left * (fixed.ONE - tx) + right * tx;
-}
-
-fn blitTextGlyph(nb: usize, x: usize, top: i32) void {
-    const tx = (nb % SW_COLS) * SW_GLYPH_W;
-    const ty = (nb / SW_COLS) * SW_GLYPH_H;
-    for (0..SW_GLYPH_H) |r| {
-        const y = top + @as(i32, @intCast(r));
-        if (y < 0 or y >= TALL_ROWS) continue;
-        const row: usize = @intCast(y);
-        const src = swfont_b[(ty + r) * SW_FONT_W + tx ..][0..SW_GLYPH_W];
-        const dst = text_canvas[row * W + x ..][0..SW_GLYPH_W];
-        for (src, dst, 0..) |s, *d, c| {
-            if (s == 0) continue;
-            d.* = 1;
-            const col: u16 = @intCast(x + c);
-            text_row_left[row] = @min(text_row_left[row], col);
-            text_row_right[row] = @max(text_row_right[row], col);
         }
     }
 }
