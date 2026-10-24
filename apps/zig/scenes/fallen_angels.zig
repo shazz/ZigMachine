@@ -1,21 +1,15 @@
-// --------------------------------------------------------------------------
-// Imports
-// --------------------------------------------------------------------------
+// FALLEN ANGELS (The Empire / Golden Axe intro): a raster scroller, the logo
+// and a rippling 3D grid, all on plane 0 (fallen_angels/layer.zig).
 const std = @import("std");
 const zg = @import("zigos");
-const readU16Array = zg.readU16Array;
-const readI16Array = zg.readI16Array;
 const convertU8ArraytoColors = zg.convertU8ArraytoColors;
 
 const ZigOS = zg.ZigOS;
 const LogicalFB = zg.LogicalFB;
-const RenderTarget = zg.RenderTarget;
 const RenderBuffer = zg.RenderBuffer;
 const Color = zg.Color;
 
 const Scrolltext = zg.Scrolltext;
-const Sprite = zg.Sprite;
-const Background = zg.Background;
 
 const za = zg.za;
 const shapes = zg.shapes;
@@ -23,18 +17,14 @@ const Coord = shapes.Coord;
 
 const Console = zg.Console;
 const Rows = @import("rowblit.zig").Rows;
+const layer = @import("fallen_angels/layer.zig");
 
-// --------------------------------------------------------------------------
-// Constants
-// --------------------------------------------------------------------------
 const HEIGHT: u16 = zg.HEIGHT;
 const WIDTH: u16 = zg.WIDTH;
 
 // music — the screen's own tune, played by its own 68000 (docs/music/).
 // "Count Zero 2" from the Ultimatum demo (ripped by Mug UK).
 const MUSIC = "count_zero_2.sndh";
-
-// scrolltext
 
 const fonts_b = @embedFile("../assets/screens/fallen_angels/fonts.raw");
 const SCROLL_TEXT = "                                                                                                               THE EMPIRE PRESENTS : GOLDEN AXE,CRACKED,FILES,PACKED AND TRAINED BY ILLEGAL FROM THE FALLEN ANGELS ... DIS GREAT INTRO WAS CODED FOR ME BY -PROTEUS- HEHE !. THE EMPIRE IS COMPOSED OF  THE FALLEN ANGELS,THE MARVELLOUS V8,NOKTURNAL (HI RICK) AND MY GREETINGS ARE SENT TO : INNERCIRCLE ( GREAT MUZAK ! ),THE UNION,AUTOMATION ( GREAT PACKS ! ),HOTLINE ( LOTUS KEEP IT ON ! ),EQUINOX,MCODER,ST CONNEXION,RFA ALLIANCE,PHALANX,ZAE. ENJOY THIS GAME.FRENCH MESSAGE TO STEPRATE : OREILIEN FILS DE RIEN,PETIT FILS DE RIEN ETC....                                                       ?!?                                  AS YOU WANNA STAY,HERE IS A GAME FOR YOU , DECODE IT : 4954204953204F4256494F55532054484154204C414D4552532048494444454E20494E2054484520464F4C4C4F57494E4720574F524453204F4620544845205343524F4C4C5445585420284F4E4C5920534F4D45204D454D42455253204C494B45204652454444592C4D415A4F555420414E4420434F2E2E2E29  ( I THINK I DID NOT MISS THE CODES ),HEY REPLICANTS,ARE YOU SLEEPING ?.                                                          ";
@@ -44,23 +34,10 @@ const SCROLL_SPEED = 3;
 const SCROLL_CHARS = " ! #$%&'()*+,-./0123456789:;<=>? ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 pub const NB_FONTS: u8 = WIDTH*2 / SCROLL_CHAR_WIDTH + 1;
 
-// palettes
-const logo_pal = convertU8ArraytoColors(@embedFile("../assets/screens/fallen_angels/logo_pal.dat"));
+// palettes (the logo's and the grid's colours: fallen_angels/layer.zig)
 const fonts_pal = convertU8ArraytoColors(@embedFile("../assets/screens/fallen_angels/fonts_pal.dat"));
 
-// rasters
 const rasters_b = convertU8ArraytoColors(@embedFile("../assets/screens/fallen_angels/rasters.dat"));
-
-// logo
-const logo_b = @embedFile("../assets/screens/fallen_angels/logo.raw");
-
-// --------------------------------------------------------------------------
-// Variables
-// --------------------------------------------------------------------------
-
-// --------------------------------------------------------------------------
-// Demo
-// --------------------------------------------------------------------------
 
 const Vec3 = za.Vec3;
 const Vec4 = za.Vec4;
@@ -70,6 +47,7 @@ const wf = zg.wireframe;
 // the flat base; update() rewrites every z with the ripple before projecting.
 const grid = zg.obj.parseWire(@embedFile("../assets/obj/fallen_angels_grid.obj"));
 var grid_vertices = wf.vec4s(grid.verts.len, grid.verts);
+const grid_edges = layer.uniqueEdges(&grid.edges);
 
 
 // Rasters: the scroller ink (plane 0, entry 1) takes rasters_b[line] on visible
@@ -78,7 +56,7 @@ var grid_vertices = wf.vec4s(grid.verts.len, grid.verts);
 // hand-written handler tested physical 40..239, so the top 40 lines kept a
 // stale colour and the last five bands never showed.
 const copper = zg.copper;
-const SCROLL_INK: u8 = 1;
+const SCROLL_INK = layer.SCROLL_INK;
 var raster_tables: [1]copper.Table = undefined;
 
 // The scroller's 640x7 strip. Module scope: init() used to point the scroller at
@@ -90,8 +68,8 @@ pub const Demo = struct {
   
     name: u8 = 0,
     scrolltext: Scrolltext(NB_FONTS) = undefined,
-    logo: Sprite = undefined,
-    scroller_target: RenderTarget = undefined,
+    logo_x: i32 = WIDTH / 2 - 45,
+    scroller_target: zg.RenderTarget = undefined,
     sin_counter: f32 = undefined,
     logo_sinx: f32 = 0,
     scroll_sinx: f32 = 0,
@@ -104,9 +82,6 @@ pub const Demo = struct {
     time_counter: f32 = 0.0,
     distort: f32 = 0.0,
     blitter: zg.Blitter = .{},
-    drawn_logo_x: i16 = WIDTH / 2 - 45, // where the logo was last drawn (init's place)
-    drawn_grid: [grid.verts.len]Coord = undefined, // the grid as last drawn
-    grid_drawn: bool = false,
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
         Console.log("Demo init", .{});
@@ -117,7 +92,7 @@ pub const Demo = struct {
         self.blitter.init();
 
         // first plane
-        var fb: *LogicalFB = &zigos.lfbs[0];
+        const fb: *LogicalFB = &zigos.lfbs[0]; // the only plane
         fb.is_enabled = true;
         self.blitter.clear(fb, 0); // the scroller's gap rows are never drawn again
         fb.setPalette(fonts_pal);
@@ -134,23 +109,10 @@ pub const Demo = struct {
         self.scroll_sinx = 20;
         self.scroll_sinx_incr = 20;
 
-        // second plane
-        fb = &zigos.lfbs[1];
-        fb.is_enabled = true; 
-
-        fb.setPalette(logo_pal);
-        fb.setPaletteEntry(1, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });      
-
-        self.blitter.clear(fb, 1); // the logo's background; render() restores it under the logo only
-        self.logo.init(fb.getRenderTarget(), logo_b, 89, 16, WIDTH/2-45, HEIGHT-16, null, null); 
+        // The logo and the grid draw on this plane too, over the scroller
+        // (fallen_angels/layer.zig): planes 1 and 2 stay disabled.
+        layer.setPalette(fb);
         self.sin_counter = 0;
-
-        // third plane
-        fb = &zigos.lfbs[2];
-        fb.is_enabled = false; // nothing is drawn on it until the grid starts (render): FRESCO skips a disabled plane
-        // set lines colors
-        fb.setPaletteEntry(0, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
-        fb.setPaletteEntry(1, Color{ .r = 0xff, .g = 0x00, .b = 0x00, .a = 255 });
 
         self.cam = .{
             .projection = za.perspective(40.0, 200.0 / 320.0, 1, 1000),
@@ -166,7 +128,7 @@ pub const Demo = struct {
         self.logo_sinx += 0.05;
 
         const x_pos: f32 = @sin(self.logo_sinx) * 116;
-        self.logo.update(160 - 45 + @as(i16, @intFromFloat(x_pos)), HEIGHT-16, null, null);
+        self.logo_x = 160 - 45 + @as(i16, @intFromFloat(x_pos));
 
         if(self.time_counter > 7*16*50) {
             self.scroll_sinx += 0.1;
@@ -206,12 +168,11 @@ pub const Demo = struct {
 
     pub fn render(self: *Demo, zigos: *ZigOS, elapsed_time: f32) void {
 
-        // Only what moved is redrawn. The scroller plane is 25 CHISEL blits (a line
-        // of 7 rows each, straight off the 640-wide strip; the gap rows are zero
-        // from init), the logo plane restores the background under the logo's
-        // OLD place, and the grid is erased by redrawing last frame's edges in
-        // colour 0. Each was a whole-plane CPU rewrite (64,000 blocking stores).
-        var fb: *LogicalFB = &zigos.lfbs[0];
+        // One plane, back to front (fallen_angels/layer.zig): the gap rows
+        // cleared, the scroller as 25 CHISEL blits (a line of 7 rows each,
+        // straight off the 640-wide strip), the logo keyed, the grid.
+        const fb: *LogicalFB = &zigos.lfbs[0];
+        layer.clearGapRows(fb);
 
         self.scroller_target.clearFrameBuffer(0);
         self.scrolltext.render();
@@ -230,23 +191,8 @@ pub const Demo = struct {
             rows.blit(strip + offset_x, 0, @intCast(i * 8), WIDTH, SCROLL_CHAR_HEIGHT);
         }
 
-        fb = &zigos.lfbs[1];
-        self.blitter.fill(fb, self.drawn_logo_x, HEIGHT - 16, 89, 16, 1);
-        self.drawn_logo_x = @intCast(self.logo.x_position);
-        self.logo.render(null);
-
-        if(self.time_counter > 16*60*6) {
-            fb = &zigos.lfbs[2];
-            fb.is_enabled = true;
-            if (self.grid_drawn) {
-                wf.drawEdges(fb.getRenderTarget(), &grid.edges, &self.drawn_grid, 0, shapes.drawLine);
-            } else {
-                self.blitter.clear(fb, 0);
-            }
-            wf.drawEdges(fb.getRenderTarget(), &grid.edges, &self.grid_projected_vertices, 1, shapes.drawLine);
-            self.drawn_grid = self.grid_projected_vertices;
-            self.grid_drawn = true;
-        }
+        layer.drawLogo(fb, self.logo_x, HEIGHT - layer.LOGO_H);
+        if (self.time_counter > 16*60*6) layer.drawGrid(fb, grid_edges, &self.grid_projected_vertices);
 
         _ = elapsed_time;
     }

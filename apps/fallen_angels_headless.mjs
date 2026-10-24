@@ -6,7 +6,10 @@
 // normal plane's handler receives LOGICAL lines 0..199: the top 40 lines kept a
 // stale (black) ink and the last five bands never showed. Nothing errors when
 // that happens, so this asserts it on plane 0 alone:
-//   - every opaque pixel on visible line L has rasters.dat[L]'s colour,
+//   - every opaque pixel on visible line L has rasters.dat[L]'s colour, but the
+//     logo's greys and the grid's red, drawn over the scroller on the same plane
+//     since the three planes became one (fallen_angels/layer.zig; no raster
+//     line is one of those colours),
 //   - the top 40 lines carry ink at all (a blank top would pass the first test),
 //   - row 7 of each 8-row text line is empty (it once read past the 7-row strip).
 //
@@ -17,6 +20,7 @@ import { cartRam, romRam } from "../docs/wasm_hiwater.js";
 const PAGES = 112; // SHARED_PAGES in machine/sdk/memmap.zig
 const TOP = 40; // first visible physical row
 const FRAME = 1200; // text fills the top lines and the 3D grid is up
+const OVERLAY = new Set([0xc0c0c0, 0xe0e0e0, 0xa0a0a0, 0xff0000]); // logo_pal.dat 0, 2, 3; the grid
 
 async function boot(cart) {
     const memory = new WebAssembly.Memory({ initial: PAGES, maximum: PAGES });
@@ -71,7 +75,7 @@ for (let line = 0; line < 200; line++) {
     let wrong = 0, ink = 0;
     for (let x = 0; x < W; x++) {
         const i = ((line + TOP) * W + x) * 4;
-        if (px[i + 3] === 0) continue;
+        if (px[i + 3] === 0 || OVERLAY.has((px[i] << 16) | (px[i + 1] << 8) | px[i + 2])) continue;
         ink++;
         if (px[i] !== want[0] || px[i + 1] !== want[1] || px[i + 2] !== want[2]) wrong++;
     }
