@@ -27,7 +27,7 @@ HP_DEPS  := soc/hp_sim.py soc/zm_board_mem.py soc/zm_hp.py soc/zm_simaxi.py soc/
 	soc/zm_audio_soc.py $(wildcard rtl/audio/*.v) rtl/sim/zm_audio_tap.v
 # ZM_VSTAT: the video probe (cycles/vstat.h) in every board-SoC image; the video sim's (video.mk)
 # never have it, so its no-drain mutants stay as sharp as they were.
-HRV_CFLAGS = $(subst -I$(CYC)/gen,-I$(HCYC)/gen,$(RV_CFLAGS)) -Ibuild/vdump $(V_$(HV)) -Iglass/firmware -Igen -DZM_VSTAT
+HRV_CFLAGS = $(subst -I$(CYC)/gen,-I$(HCYC)/gen,$(RV_CFLAGS)) -Ibuild/vdump $(V_$(HV)) -Iglass/firmware -Igen -DZM_VSTAT $(HRV_CFLAGS_EXTRA)
 HFW_FILES := $(filter-out cycles/board.c,$(FW_FILES)) cycles/bboard.c cycles/bmailbox.c cycles/bdiag.c cycles/bblit.c cycles/bdisk.c \
 	host/glass_router.c
 # The glass's input into the cart, and GEM's data disk (bdiskapp.c): per cart, as env.c (they see

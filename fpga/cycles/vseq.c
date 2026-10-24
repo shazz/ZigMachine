@@ -65,6 +65,12 @@ static void instant(int op, int plane) {
 
 void vseq_latch(int p) { instant(ZMV_LATCH, p); }
 
+void vseq_wait_painted(void) { painted(); }
+
+uint16_t vseq_r16(uint32_t off) { return r16(off); }
+
+void vseq_w16(uint32_t off, uint16_t v) { w16(off, v); }
+
 int vseq_fill(void) { return g_fill; }
 
 /* The back picture is free once the previous one is on screen (the swap at VBL). */
@@ -127,8 +133,8 @@ uint8_t vseq_plane_mode(int p) { return r8(ZM_REG_FB_MODE + (uint32_t)p); }
 
 int vseq_plane_handler(int p) { return r16(ZM_REG_FB_HBL_ID + 2u * (uint32_t)p) != 0; }
 
-/* The raster lines a plane's handler runs on, and its first (video.zig renderPlane*). */
-static void plane_lines(int p, uint32_t* oy, uint32_t* rows) {
+/* The raster lines a plane's handler runs on, and its first (video.zig renderPlane*): vseq.h. */
+void vseq_plane_lines(int p, uint32_t* oy, uint32_t* rows) {
     uint8_t mode = r8(ZM_REG_FB_MODE + (uint32_t)p);
     uint16_t stride = r16(ZM_REG_FB_STRIDE + 2u * (uint32_t)p);
     int whole = mode == ZM_FB_MODE_FULLSCREEN || mode == ZM_FB_MODE_OVERSCAN;
@@ -148,7 +154,7 @@ void vseq_line_major(struct w2c_env* e, unsigned planes) {
     int first = -1;
     for (int p = 0; p < 4; p++) {
         if (!((planes >> p) & 1)) continue;
-        plane_lines(p, &oy[p], &rows[p]);
+        vseq_plane_lines(p, &oy[p], &rows[p]);
         hid[p] = r16(ZM_REG_FB_HBL_ID + 2u * (uint32_t)p), hpos[p] = r16(ZM_REG_FB_HBL_POS + 2u * (uint32_t)p);
         if (first < 0) first = p, vseq_wait_swap();
         instant(ZMV_LATCH, p);
@@ -184,7 +190,7 @@ static void layer(struct w2c_env* e, int op, int p, int first, uint16_t hid, uin
 
 void vseq_plane(struct w2c_env* e, int p, int first) {
     uint32_t oy, rows;
-    plane_lines(p, &oy, &rows);
+    vseq_plane_lines(p, &oy, &rows);
     uint16_t hid = r16(ZM_REG_FB_HBL_ID + 2u * (uint32_t)p), hpos = r16(ZM_REG_FB_HBL_POS + 2u * (uint32_t)p);
     if (first) vseq_wait_swap();
     instant(ZMV_LATCH, p);

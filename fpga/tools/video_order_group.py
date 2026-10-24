@@ -39,17 +39,36 @@ def rule_groups(s: vo.Split) -> list[list[int]]:
     return groups + ([run] if run else [])
 
 
-def _emit_group(w: vo.Writer, s: vo.Split, group: list[int]) -> None:
+FLICK = vo.vc.mm.REG_RES_FLICKER // 4  # RES_FLICKER: the low half of this word
+
+
+def _flicker(w: vo.Writer, value: int) -> None:
+    w.apply({FLICK: (w.state.get(FLICK, 0) & ~0xFFFF) | (value & 0xFFFF)})
+
+
+def _emit_group(w: vo.Writer, s: vo.Split, group: list[int], fw: bool = False) -> None:
+    """fw: RES_FLICKER as cycles/vseq_group.c stores it before each pass of a group with a handler:
+    what the plane's pass before saw, plus one if its own handler bumped it; the true count after."""
     for k in group:
         w.emit(vo.START, k, 0)  # every plane of the group LATCHed before its line 0
     handlers = any((k, y) in s.h for k in group for y in range(vo.LINES))
+    seen = {k: w.state.get(FLICK, 0) & 0xFFFF for k in group}
+    true = seen[group[0]] if group else 0
     for y in range(vo.LINES):
         for k in group:
             if not handlers:
                 continue  # nothing runs between the passes: nothing to record
             w.emit(vo.PRE, k, y)
-            w.apply(s.h.get((k, y), {}))
+            delta = s.h.get((k, y), {})
+            w.apply(delta)
+            if fw:
+                bumped = FLICK in delta
+                true += bumped
+                seen[k] = (seen[k] + bumped) & 0xFFFF
+                _flicker(w, seen[k])
             w.emit(vo.POST, k, y)
+    if fw and handlers:
+        _flicker(w, true)
     for k in group:
         w.emit(vo.END, k, 0)
 
@@ -64,7 +83,7 @@ def _emit_plane(w: vo.Writer, s: vo.Split, k: int) -> None:
     w.emit(vo.END, k, 0)
 
 
-def grouped(s: vo.Split, groups: list[list[int]]) -> bytes:
+def grouped(s: vo.Split, groups: list[list[int]], fw: bool = False) -> bytes:
     """The clear and frame() as plane_major() records them, then the planes, the groups line-major."""
     w = vo.Writer()
     w.apply(s.init)
@@ -81,17 +100,18 @@ def grouped(s: vo.Split, groups: list[list[int]]) -> bytes:
     in_group = {k for g in groups for k in g}
     for k in s.planes:
         if k in first_of:
-            _emit_group(w, s, first_of[k])
+            _emit_group(w, s, first_of[k], fw)
         elif k not in in_group:
             _emit_plane(w, s, k)
     return bytes(w.out)
 
 
-def analyse(frames_dir: Path, frame: int, exe: Path, every: bool = False) -> tuple[bool, str]:
-    """(matched, the replay's verdict line) for the rule's groups, or one group of every plane."""
+def analyse(frames_dir: Path, frame: int, exe: Path, every: bool = False, fw: bool = False) -> tuple[bool, str]:
+    """(matched, the replay's verdict line) for the rule's groups, or one group of every plane;
+    fw: with the firmware's RES_FLICKER (_emit_group)."""
     s = vo.split(frames_dir, frame)
     groups = [list(s.planes)] if every else rule_groups(s)
-    d = vo.rebuild(frames_dir, frame, grouped(s, groups), "all" if every else "rule")
+    d = vo.rebuild(frames_dir, frame, grouped(s, groups, fw), ("all" if every else "rule") + ("_fw" if fw else ""))
     r = video_rtl.replay(exe, d, [frame])
     last = (r.stdout.strip().splitlines() or ["(no output)"])[-1]
     return r.returncode == 0 and "-> MATCH" in last, f"groups {groups}: {last.split(': ', 1)[-1]}"
@@ -99,8 +119,8 @@ def analyse(frames_dir: Path, frame: int, exe: Path, every: bool = False) -> tup
 
 if __name__ == "__main__":
     if len(sys.argv) < 3:
-        sys.exit("usage: video_order_group.py <cart tag> <frame> [--all] [<frames dir>]")
-    tag, f, every = sys.argv[1], int(sys.argv[2]), "--all" in sys.argv
-    rest = [a for a in sys.argv[3:] if a != "--all"]
+        sys.exit("usage: video_order_group.py <cart tag> <frame> [--all] [--fw] [<frames dir>]")
+    tag, f, every, fw = sys.argv[1], int(sys.argv[2]), "--all" in sys.argv, "--fw" in sys.argv
+    rest = [a for a in sys.argv[3:] if a not in ("--all", "--fw")]
     d = Path(rest[0]) if rest else video_rtl.FPGA / "build" / "vdump" / tag / "frames"
-    print(tag, f, analyse(d, f, video_rtl.build_tb(), every)[1])
+    print(tag, f, analyse(d, f, video_rtl.build_tb(), every, fw)[1])

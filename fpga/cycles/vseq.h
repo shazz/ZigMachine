@@ -62,12 +62,22 @@ void vseq_mix_only(void);
  * as the frame's first layer), the others `hold`, all but the top `keep`. nopfb: the top's
  * passes store the picture only (nothing loads this frame's PFB rows after them). */
 void vseq_group(struct w2c_env* e, unsigned g, int first, int nopfb);
-/* Plane p has an HBL handler (FB_HBL_ID): it cannot be in a group. */
+/* Plane p has an HBL handler (FB_HBL_ID). */
 int vseq_plane_handler(int p);
-/* vseq_group's parts in vseq.c: a command with its line-major bits, a LATCH, the clear's fusion. */
+/* Plane p may be in a group: no handler, or a pure one (vseq_group.c). */
+int vseq_plane_pure(int p);
+/* The planes in g may form a group: no medium plane beside a handler (RESOLUTION, vseq_group.c). */
+int vseq_group_ok(unsigned g);
+/* vseq_group's parts in vseq.c: a command with its line-major bits, a LATCH, the clear's fusion,
+ * the wait until the last pass has read what a handler may change, the region's halfwords, and the
+ * raster lines plane p's handler runs on (the first, and how many). */
 void vseq_issue(int op, int plane, int line, int mix, int first, int fill, int ext);
 void vseq_latch(int p);
 int vseq_fill(void);
+void vseq_wait_painted(void);
+uint16_t vseq_r16(uint32_t off);
+void vseq_w16(uint32_t off, uint16_t v);
+void vseq_plane_lines(int p, uint32_t* oy, uint32_t* rows);
 /* ZM_LINE_MAJOR builds only: the mutant order (vseq.c). */
 void vseq_line_major(struct w2c_env* e, unsigned planes);
 void vseq_present(void);

@@ -2,8 +2,10 @@
  * machine/video.zig's order, its handler between its passes (vseq_plane), or, where that is exact,
  * line-major (vseq_group): every run of enabled planes that follow each other with no HBL handler
  * among them, since no cart code runs between their passes in either order (decisions.md
- * 2026-10-18, "Line-major groups"). A handler plane is always plane-major: its handler may write
- * what a lower plane's pass reads (RESOLUTION, RES_FLICKER, a palette, the LFB) at line y.
+ * 2026-10-18, "Line-major groups"). A handler plane is plane-major (its handler may write what a
+ * lower plane's pass reads: RESOLUTION, RES_FLICKER, a palette, the LFB at line y) unless its
+ * handler is PURE (vseq_plane_pure: own palette and RES_FLICKER bumps only, vseq_group.c), which
+ * only the ZM_GROUP_HBL_ALL experiment claims today (fpga/review/FRESCO_OPTIONS.md).
  *
  * Line-major runs on the board (ZM_BOARD) unless the ARM's switch word says plane-major
  * (bdiag.h DIAG_OPT_PLANE_MAJOR), and in a sim only with ZM_LINEMAJOR: a hashed frame is always

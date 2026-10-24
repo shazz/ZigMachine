@@ -35,25 +35,29 @@ int bplanes_run(struct w2c_env* e, unsigned on, unsigned planes, int handler, in
             if (hash) hash(p, 0);
             continue;
         }
-        if (!lm || vseq_plane_handler((int)p)) {
+        if (!lm || !vseq_plane_pure((int)p)) {
             vseq_plane(e, (int)p, first);
             first = 0;
             if (hash) hash(p, 1);
             continue;
         }
-        /* The run of handler-free planes from p, up to the next handler plane (asked already: no
-         * cart code runs between here and its turn, so the answer is the one video.zig gets). */
+        /* The run of planes from p with no handler or a pure one, up to the next other handler
+         * plane (asked already: no cart code but pure handlers runs between here and its turn,
+         * and they enable nothing, so the answer is the one video.zig gets). */
         unsigned g = 1u << p, q = p + 1;
         int next = -1;
         for (; q < planes; q++) {
             if (!plane_on(e, on, q, handler)) continue;
-            if (vseq_plane_handler((int)q)) {
+            if (!vseq_plane_pure((int)q)) {
                 next = (int)q;
                 break;
             }
             g |= 1u << q;
         }
-        vseq_group(e, g, first, drop && next < 0); /* nothing above it: the top layer */
+        if (vseq_group_ok(g)) vseq_group(e, g, first, drop && next < 0); /* nothing above it: the top layer */
+        else
+            for (int r = (int)p; r < (int)q; r++)
+                if ((g >> r) & 1) vseq_plane(e, r, first), first = 0;
         first = 0;
         if (next >= 0) vseq_plane(e, next, 0);
         p = q;
