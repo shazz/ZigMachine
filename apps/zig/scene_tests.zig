@@ -7,6 +7,7 @@
 //   zig test apps/zig/scene_tests.zig
 test {
     _ = @import("scenes/fuji_hobbytronic/fixed.zig");
+    _ = @import("scenes/obj/tests.zig");
     _ = @import("scenes/sysinfo/grid.zig");
     _ = @import("scenes/sysinfo/stref.zig");
     _ = @import("scenes/sysinfo/diskinfo.zig");
