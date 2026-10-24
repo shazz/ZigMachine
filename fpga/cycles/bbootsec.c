@@ -48,16 +48,17 @@ static void drop_keys(void) {
 
 /* bmain.c's frame() for the sector: the clear, frame(dt) and pollCartRequest, then every plane
  * it enables composited whole (no dirty-line plan: the cart's starts fresh). 1 = it asked for
- * its cart (this frame is shown), 0 = go on, -1 = stop before showing anything. */
+ * its cart (this frame is shown), 0 = go on, -1 = the phase ends: the sector trapped, ran out,
+ * set a handler or hit the cap. That frame still closes as every frame does (the CLEAR is
+ * issued: the clear alone is shown, no plane of a sector that failed). */
 static int frame(struct w2c_env* e, bootsec_t* b, unsigned planes) {
     drop_keys();
     vseq_clear(e);
     int rc = bootsec_frame(b, 16.6f);
     unsigned on = 0;
     for (unsigned p = 0; rc >= 0 && p < planes; p++) on |= bootsec_plane_on(b, p) ? 1u << p : 0u;
-    if (rc < 0 || b->st || hbl_set(e, planes)) return -1;
-    vseq_wait_swap(); /* the back picture is free */
-    if (bplanes_run(e, on, planes, 0, bplanes_lm(), NULL)) vseq_mix_only();
+    if (rc < 0 || b->st || hbl_set(e, planes)) on = 0, rc = -1;
+    if (bplanes_run(e, on, planes, 0, bplanes_lm(), NULL)) vseq_mix_only(); /* each waits for the swap */
     vseq_copper_end(on);
     mb_presenting();
     vseq_present();
