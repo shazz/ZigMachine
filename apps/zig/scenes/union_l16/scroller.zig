@@ -5,19 +5,35 @@
 // the picture's pipe-shaped hole.
 //
 // At 1.8 px a frame every letter sits at a fractional y, and Chrome resamples its
-// rows (chrome_draw.zig). One frame's column holds at most 141 distinct blends
-// (the whole 287,120-frame text cycle, checked against the Chrome model), so
-// they are the bottom plane's entries from SCROLL_FIRST up, handed out per frame
-// by a colour bank.
+// rows (chrome_draw.zig). A frame's column shows up to 140 distinct blends, too
+// many beside the picture's 174 colours, but a ROW of it at most 16: each row
+// gets its own entries, which the plane's HBL loads (lines.zig). A row's blends
+// are told apart by their two font inks (the row's weight is the same for all),
+// and only the column's pixels the picture leaves see-through are drawn.
 //
 // Letters are drawn in ring order, not sorted by y as draw() does: their snapped
 // rectangles never overlap or leave a gap over the whole cycle, so the order
-// changes no pixel.
+// changes no pixel (and a row drawn twice is handed out afresh the second time).
 // --------------------------------------------------------------------------
 const zg = @import("zigos");
-const blit = zg.blit;
 const cd = zg.chrome_draw;
 const A = @import("assets.zig");
+const L = @import("lines.zig");
+
+/// font.png's inks packed 0x00BBGGRR (index 0 is clear, black once premultiplied).
+const INKS = blk: {
+    var out: [16]u32 = undefined;
+    for (&out, 0..) |*c, i| {
+        const k = A.fontInk(i);
+        c.* = @as(u32, k[0]) | @as(u32, k[1]) << 8 | @as(u32, k[2]) << 16;
+    }
+    break :blk out;
+};
+
+// The row being drawn: ink pair (a << 4 | b) -> its entry, valid where stamp == row_gen.
+var pair_entry: [256]u8 = undefined;
+var pair_stamp = [_]u32{0} ** 256;
+var row_gen: u32 = 0;
 
 /// jsApp.scrolltext (main.js:50), the hub's text, byte for byte: the hub's note
 /// offsets index it. The hub packs its copy as the last 16,128 bytes of
@@ -46,12 +62,12 @@ pub const Scroller = struct {
     posy: [LETTERS]f64,
     ltr: [LETTERS]u8,
     next: usize, // scroffset
-    bank: zg.colour_bank.ColourBank,
-    lost: u32, // pixels drawn black because the bank ran out (never, per the scan)
+    frame: u32, // draw() calls: a row whose `drawn` is not this got no letter
+    drawn: [A.H]u32,
 
     /// scrolltext.init(..., jsApp.mainscrollerPos): `offset` is the hub scroller's
     /// next character (0 when the hub left no note, or one past the text).
-    pub fn init(self: *Scroller, first_entry: u8, offset: usize) void {
+    pub fn init(self: *Scroller, offset: usize) void {
         self.next = if (offset < TEXT.len) offset else 0;
         for (&self.posy, &self.ltr, 0..) |*y, *c, i| {
             y.* = @ceil(WIDE + @as(f64, @floatFromInt(i)) * GLYPH);
@@ -59,8 +75,8 @@ pub const Scroller = struct {
             c.* = TEXT[self.next];
             self.next = (self.next + 1) % TEXT.len;
         }
-        self.bank.init(first_entry);
-        self.lost = 0;
+        self.frame = 0;
+        @memset(&self.drawn, 0);
     }
 
     /// The move at the top of draw().
@@ -76,33 +92,60 @@ pub const Scroller = struct {
         }
     }
 
-    /// Paint the column (plane columns planeX(736)..+16) and its palette entries.
-    pub fn draw(self: *Scroller, column: blit.Dst, font: []const u8, palette: [*]u32, black: u8) void {
-        self.bank.begin();
-        // row by row: the window's buffer runs on past its 16 columns to the plane's edge
-        for (0..column.h) |y| @memset(column.buf[y * column.stride ..][0..column.w], black);
+    /// Paint the column's see-through pixels (`holes`, lines.compose) in the
+    /// plane window `column` (plane columns planeX(736)..+16), and each row's
+    /// entries into `rows`.
+    pub fn draw(self: *Scroller, column: zg.blit.Dst, font: []const u8, holes: *const [A.H]u16, rows: *L.RowPalettes) void {
+        self.frame +%= 1;
         for (self.posy, self.ltr) |posy, ltr| {
             const g: usize = ltr - FIRST_CHAR;
             const sx = g % SHEET_COLS * (A.FONT_W / SHEET_COLS);
             const sy = g / SHEET_COLS * GLYPH_ROWS;
             const fy = cd.fyOf(posy);
-            const rows = planeRows(fy, column.h);
-            for (rows.start..rows.end) |y| {
+            const span = planeRows(fy, A.H);
+            for (span.start..span.end) |y| {
+                if (holes[y] == 0) continue;
                 const t = cd.partTapsFy(fy, @intCast(sy), GLYPH_ROWS, A.FONT_H, A.canvasRow(y)) orelse continue;
-                const row_a = font[@as(usize, t.top) * A.FONT_W + sx ..][0..column.w];
-                const row_b = font[@as(usize, t.bottom) * A.FONT_W + sx ..][0..column.w];
-                const out = column.buf[y * column.stride ..][0..column.w];
-                for (row_a, row_b, out) |ia, ib, *d| {
-                    const rgb = cd.mixRgb(A.fontInk(ia), A.fontInk(ib), t.w);
-                    d.* = self.bank.entry(palette, rgb) orelse blk: {
-                        self.lost += 1;
-                        break :blk black;
-                    };
-                }
+                self.drawn[y] = self.frame;
+                const a = font[@as(usize, t.top) * A.FONT_W + sx ..][0..L.SLOTS];
+                const b = font[@as(usize, t.bottom) * A.FONT_W + sx ..][0..L.SLOTS];
+                drawRow(column.buf[y * column.stride ..][0..L.SLOTS], a, b, holes[y], t.w, rows, y);
             }
         }
+        // A see-through row no letter reached shows the column's black.
+        for (holes, self.drawn, 0..) |mask, d, y| if (mask != 0 and d != self.frame) {
+            rows.used[y] = 0;
+            var m = mask;
+            while (m != 0) : (m &= m - 1) column.buf[y * column.stride + @ctz(m)] = L.BLACK;
+        };
     }
 };
+
+/// One row of the column: each see-through pixel takes its ink pair's entry; the
+/// pair's first pixel writes the blend (cd.mixRgb's, packed) into the row's palette.
+fn drawRow(out: *[L.SLOTS]u8, a: *const [L.SLOTS]u8, b: *const [L.SLOTS]u8, mask: u16, w: u8, rows: *L.RowPalettes, y: usize) void {
+    row_gen +%= 1;
+    if (row_gen == 0) { // stamps wrapped: clear them once
+        @memset(&pair_stamp, 0);
+        row_gen = 1;
+    }
+    var used: u8 = 0;
+    var m = mask;
+    while (m != 0) : (m &= m - 1) {
+        const c = @ctz(m);
+        const ia = a[c] & 15; // font.png has 15 inks
+        const ib = b[c] & 15;
+        const pair = ia << 4 | ib;
+        if (pair_stamp[pair] != row_gen) {
+            pair_stamp[pair] = row_gen;
+            pair_entry[pair] = L.SCROLL_FIRST + used;
+            rows.colours[y][used] = 0xFF00_0000 | L.mixPacked(INKS[ia], INKS[ib], w);
+            used += 1; // at most one per see-through pixel: never past SLOTS
+        }
+        out[c] = pair_entry[pair];
+    }
+    rows.used[y] = used;
+}
 
 /// The plane rows whose canvas rows a letter's 32 drawn rows may cover: from
 /// round(y), y as Chrome's float32 in Q32 (chrome_draw.fyOf), all in integers.

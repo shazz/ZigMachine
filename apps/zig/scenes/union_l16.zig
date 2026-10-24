@@ -9,15 +9,15 @@
 //   (down 1.5); the Union scrolltext in a 32 px column at x 736 (up 1.8); the
 //   picture, whose holes show those three; the Union bob on its CurveRipper path.
 //
-// Geometry: an 832x572 canvas = a 416x286 ST fullscreen, doubled. Both planes are
+// Geometry: an 832x572 canvas = a 416x286 ST fullscreen, doubled. The plane is
 // overscan (400x280, borders opened by the flicker trick); 8 ST columns and 3 ST
 // rows are cropped off each side, a centred crop Matt chose (union_l16/assets.zig).
 //
-// Two planes, because the original composites two layers and they need two
-// palettes. The top plane is the picture and the bob (173 colours). The bottom
-// plane is maincanvas before the picture: black, the two rasters as copper
-// entries, and the scroller, whose fractional position Chrome resamples into up
-// to 141 blends a frame (union_l16/scroller.zig).
+// One plane, in painter's order: the picture with its holes filled once with
+// what shows through them (black, the two rasters as copper entries), the
+// scroller in the column's holes, the bob. The scroller's Chrome blends get
+// their palette entries per row from the HBL (union_l16/lines.zig): with the
+// picture's 174 colours they would not fit one palette a frame.
 //
 // jsApp.mainscrollerPos: the scroller starts at the hub scroller's next character,
 // from the note the hub leaves in the ROM, and writes its own offset back into
@@ -33,13 +33,13 @@
 const std = @import("std");
 const zg = @import("zigos");
 const ZigOS = zg.ZigOS;
-const Color = zg.Color;
 const blit = zg.blit;
 const DepackFx = @import("depackers").depack_fx.Runner(zg, null);
 const packed_assets = @import("packed_assets");
 const hub_note = @import("union_demo/hub_note.zig").HubNote("union_l16");
 
 const A = @import("union_l16/assets.zig");
+const L = @import("union_l16/lines.zig");
 const R = @import("union_l16/rasters.zig");
 const S = @import("union_l16/scroller.zig");
 
@@ -51,12 +51,6 @@ const HUB = "union_demo";
 // frames (13,820 ms) the remake's panel takes to write itself.
 const DEPACK_BYTES_PER_LINE = 5;
 const K_ESC: u32 = 0xE012;
-
-// The bottom plane's entries.
-const BLACK: u8 = 0;
-const RASTER: u8 = 1;
-const WATER: u8 = 2;
-const SCROLL_FIRST: u8 = 3;
 
 // The bob: canvas (70 + 2x, 20 + 2y) (screen.js:48-52), mid-handled at
 // (parseInt(32/2), parseInt(33/2)) = (16, 16).
@@ -73,26 +67,30 @@ const Phase = enum { loading, running, failed };
 pub const Demo = struct {
     phase: Phase,
     images: A.Images,
+    canvas: []u8, // the picture, its holes filled (lines.compose): what restore() puts back
+    holes: [A.H]u16, // per row, the scroller column's see-through pixels
+    row_palettes: *L.RowPalettes,
     rasters: R.Rasters,
     scroller: S.Scroller,
     sprite_pos: usize,
-    /// Where the bob was last drawn on the top plane: the picture under it is put back before the next one.
+    /// Where the bob was last drawn: the composed picture under it is put back before the next one.
     bob_at: ?struct { x: i32, y: i32 },
     note: ?hub_note.Note, // the hub's note for this door with a scroll inside the text, rewritten on leaving
-    warned: bool,
     leave: bool,
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
         self.phase = .failed;
         self.leave = false;
-        self.warned = false;
         self.sprite_pos = 0;
         self.bob_at = null;
         self.rasters.init();
         self.note = hub_note.accepted(S.TEXT.len);
-        self.scroller.init(SCROLL_FIRST, if (self.note) |n| n.scroll else 0); // jsApp.mainscrollerPos
+        self.scroller.init(if (self.note) |n| n.scroll else 0); // jsApp.mainscrollerPos
         // On zg.mem, taken once: init runs once per cart load.
+        const rows = zg.mem.alloc(L.RowPalettes, 1) orelse return fail("no free RAM for the row palettes");
+        self.row_palettes = &rows[0];
         const buf = zg.mem.alloc(u8, A.TOTAL) orelse return fail("no free RAM to depack into");
+        self.canvas = buf[0 .. A.W * A.H];
         if (!depack.start(zigos, packed_assets.union_l16, buf, DEPACK_BYTES_PER_LINE))
             return fail("packed image unreadable");
         self.images = A.Images.split(buf);
@@ -118,23 +116,20 @@ pub const Demo = struct {
     pub fn render(self: *Demo, zigos: *ZigOS, dt: f32) void {
         _ = dt;
         if (self.phase != .running) return;
-        const bottom = &zigos.lfbs[0];
-        const top = blit.Dst.plane(&zigos.lfbs[1]);
-        self.rasters.fill(zg.copper.table(bottom, 0), zg.copper.table(bottom, 1), self.images);
-        const column = blit.Dst.plane(bottom).window(@intCast(A.planeX(S.COLUMN_X)), 0, S.COLUMN_W / 2, A.H);
-        self.scroller.draw(column, self.images.font, bottom.palette, BLACK);
-        if (self.scroller.lost > 0 and !self.warned) {
-            self.warned = true;
-            fail("scroller blends outran the palette");
-        }
-        // The picture was copied into the plane once, at start: only the bob moves,
-        // so put the picture back under its last position and draw it at the next
-        // (the ST's erase-at-the-old-position, not a 64,000-byte copy a frame).
-        if (self.bob_at) |at| restore(top, self.images.picture, at.x, at.y, self.images.bob);
+        const fb = &zigos.lfbs[0];
+        const plane = blit.Dst.plane(fb);
+        self.rasters.fill(zg.copper.table(fb, 0), zg.copper.table(fb, 1));
+        // The picture was copied into the plane once, at start: only the bob and
+        // the scroller move. Put the picture back under the bob's last position
+        // (the ST's erase-at-the-old-position, not a 112,000-byte copy a frame),
+        // repaint the scroller in its holes, then the bob, back to front.
+        if (self.bob_at) |at| restore(plane, self.canvas, at.x, at.y, self.images.bob);
+        const column = plane.window(@intCast(A.planeX(S.COLUMN_X)), 0, L.SLOTS, A.H);
+        self.scroller.draw(column, self.images.font, &self.holes, self.row_palettes);
         const i = self.sprite_pos % A.CURVE_LEN;
         const x = A.planeX(SPRITE_X0 + 2 * A.curve_x[i] - BOB_HANDLE);
         const y = @divExact(SPRITE_Y0 + 2 * A.curve_y[i] - BOB_HANDLE - A.CROP_Y, 2);
-        blit.blit(top, self.images.bob, null, x, y, 0, .copy);
+        blit.blit(plane, self.images.bob, null, x, y, 0, .copy);
         self.bob_at = .{ .x = x, .y = y };
     }
 
@@ -160,43 +155,21 @@ pub const Demo = struct {
     }
 
     fn start(self: *Demo, zigos: *ZigOS) void {
-        const bottom = &zigos.lfbs[0];
-        bottom.is_enabled = true;
-        bottom.setOverscanBuffer();
-        bottom.setPaletteEntry(BLACK, Color{ .r = 0, .g = 0, .b = 0, .a = 255 });
-        zg.copper.install(bottom, &.{ RASTER, WATER }, &copper_tables, .{ .flicker = true });
-        const dst = blit.Dst.plane(bottom);
-        @memset(dst.buf, BLACK);
-        fillColumns(dst, R.RASTER_X, R.RASTER_W, RASTER);
-        fillColumns(dst, R.WATER_X, R.WATER_W, WATER);
-
-        const top = &zigos.lfbs[1];
-        top.is_enabled = true;
-        top.openBorders(.all);
-        top.setPalette(A.picture_palette);
-        top.setPaletteEntry(0, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
-        @memcpy(blit.Dst.plane(top).buf[0 .. A.W * A.H], self.images.picture);
-
+        self.rasters.bind(self.images);
+        L.open(&zigos.lfbs[0], self.canvas, &self.holes, self.row_palettes, &copper_tables);
         zg.requestSong(MUSIC); // onResetEvent
         self.phase = .running;
     }
 };
 
 /// The picture's pixels under a `bob` drawn at (x, y), clipped to the plane.
-fn restore(top: blit.Dst, picture: []const u8, x: i32, y: i32, bob: blit.Image) void {
+fn restore(plane: blit.Dst, picture: []const u8, x: i32, y: i32, bob: blit.Image) void {
     const x0: usize = @intCast(@max(x, 0));
     const y0: usize = @intCast(@max(y, 0));
     const x1: usize = @intCast(std.math.clamp(x + @as(i32, @intCast(bob.w)), 0, @as(i32, A.W)));
     const y1: usize = @intCast(std.math.clamp(y + @as(i32, @intCast(bob.h)), 0, @as(i32, A.H)));
     if (x1 <= x0 or y1 <= y0) return;
-    for (y0..y1) |row| @memcpy(top.buf[row * top.stride + x0 ..][0 .. x1 - x0], picture[row * A.W + x0 ..][0 .. x1 - x0]);
-}
-
-/// A gradient's canvas columns, all rows: its colour comes from the copper.
-fn fillColumns(dst: blit.Dst, canvas_x: i32, canvas_w: i32, entry: u8) void {
-    const x: usize = @intCast(A.planeX(canvas_x));
-    const w: usize = @intCast(@divExact(canvas_w, 2));
-    for (0..dst.h) |y| @memset(dst.buf[y * dst.stride + x ..][0..w], entry);
+    for (y0..y1) |row| @memcpy(plane.buf[row * plane.stride + x0 ..][0 .. x1 - x0], picture[row * A.W + x0 ..][0 .. x1 - x0]);
 }
 
 fn fail(why: []const u8) void {

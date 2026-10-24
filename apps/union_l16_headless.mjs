@@ -1,12 +1,12 @@
-// Headless Union Demo LEVEL 16 FULLSCREEN check: the loader really depacks, both
-// overscan planes then match screen.js pixel for pixel, the scroller starts where
+// Headless Union Demo LEVEL 16 FULLSCREEN check: the loader really depacks, the
+// overscan plane then matches screen.js pixel for pixel, the scroller starts where
 // the hub's note says, the tune plays, Escape goes home.
 //
 // 1. Loader. The TEX loader panel's ink (#C0A000) shows while the data depacks,
 //    for the frames its pacing gives; the screen starts (song request) as it ends.
 // 2. Screen. union_l16_replay.mjs replays screens/L16/screen.js from its own
-//    numbers with Chrome's measured canvas resampling, on the port's grid; both
-//    planes composited, over the full 800x280 overscan frame.
+//    numbers with Chrome's measured canvas resampling, on the port's grid; the
+//    enabled planes composited, over the full 800x280 overscan frame.
 // 3. jsApp.mainscrollerPos. A note for L16's door with a scroll inside the text
 //    starts the text there and is rewritten with the scroller's offset on
 //    leaving; a note for another door, or with a scroll past the text, is
@@ -170,6 +170,6 @@ if (errors.length) {
     process.exit(1);
 }
 console.log(`union_l16: loader depacked in ${M.startFrame} frames (ink on ${M.inkFrames}, up to ${M.maxInk} px); ` +
-    `both planes = screen.js replay at frames ${SCREEN_FRAMES.join(",")}; hub note: door ${L16_DOOR} scroll 500 starts at 500 and is rewritten with the scroller's offset, ` +
+    `composited picture = screen.js replay at frames ${SCREEN_FRAMES.join(",")}; hub note: door ${L16_DOOR} scroll 500 starts at 500 and is rewritten with the scroller's offset, ` +
     `door ${L16_DOOR} scroll ${A.text.length} (past the text) and another door's note start at 0 and are left untouched; ${M.song} plays (${music.subtunes} subtune, peak ${music.peak.toFixed(3)}, ` +
     `${music.voices} voices); Esc -> union_demo; ${perFrame.toFixed(3)} ms/frame mean, ${warm.toFixed(3)} ms warm median`);
