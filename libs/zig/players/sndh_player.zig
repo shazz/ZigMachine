@@ -59,6 +59,7 @@ extern fn m68k_execute(num_cycles: c_int) c_int;
 extern fn m68k_end_timeslice() void;
 extern fn m68k_set_reg(reg: c_uint, value: c_uint) void;
 extern fn m68k_get_reg(context: ?*anyopaque, reg: c_uint) c_uint;
+extern fn m68k_cycles_run() c_int;
 
 // --- the 68000's world -----------------------------------------------------
 const RAM_SIZE: u32 = @intCast(audio.SONG_CAP);
@@ -410,12 +411,23 @@ fn runUntilReturn() bool {
     return runUntilReturnWithin(RUNAWAY_CYCLES);
 }
 
+/// Cycles run by the current call in its finished timeslices.
+var call_spent: u32 = 0;
+
+/// 68000 cycles since the running call began, to the instruction now executing:
+/// the clock an Amiga module's beam counter is read off (paula.zig, amiga_beam.zig).
+/// Only meaningful while the CPU runs (from a bus access).
+pub fn cyclesIntoCall() u32 {
+    const run = m68k_cycles_run();
+    return call_spent +% if (run > 0) @as(u32, @intCast(run)) else 0;
+}
+
 fn runUntilReturnWithin(budget: u32) bool {
     returned = false;
-    var spent: u32 = 0;
-    while (spent < budget) {
+    call_spent = 0;
+    while (call_spent < budget) {
         const used = m68k_execute(20_000);
-        spent += if (used > 0) @intCast(used) else 1;
+        call_spent += if (used > 0) @intCast(used) else 1;
         if (returned) return true;
     }
     stuck_pc = m68k_get_reg(null, REG_PC);

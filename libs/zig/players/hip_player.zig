@@ -55,6 +55,7 @@ pub const HipPlayer = struct {
         if (!self.loaded) return;
         self.tune = if (tune == 0) 1 else tune;
         paula.reset(true);
+        paula.clock = &cpu.cyclesIntoCall; // INIT and each PLAY start at the vertical blank
         self.active = cpu.callImage(INIT, self.tune, true);
         if (!self.active) paula.reset(false);
         self.frame_acc = 0;

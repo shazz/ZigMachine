@@ -29,16 +29,24 @@
 //     any register not modelled here is refused, so the bus counts it in the
 //     SNDH player's unhandled-address list (audioUnhandled*), never silent.
 //   * the LED low-pass filter (CIA-A PRA bit 1): the bit is kept, not applied.
+//   * the beam (VPOSR/VHPOSR, amiga_beam.zig) counts the 68000's cycles from the
+//     start of the replay call, which the player makes at the vertical blank: a
+//     replay's beam wait ends after as many cycles as on an Amiga. No DMA steals
+//     cycles from the CPU here, so a wait timed against the display is a little
+//     short; the frame (VBL) rate itself is the player's 50 Hz.
 //   * a re-latch lands on an output sample: the cycle's sub-sample phase (under
 //     one 44.1 kHz sample) is dropped when the pointer moves.
 const audio = @import("audio_hw");
 const mod = @import("mod.zig");
+const beam = @import("amiga_beam.zig");
 
 pub const BASE: u32 = 0xDFF000;
 pub const SIZE: u32 = 0x200;
 pub const CIAA_PRA: u32 = 0xBFE001;
 
 const DMACONR: u32 = 0x002;
+const VPOSR: u32 = 0x004;
+const VHPOSR: u32 = 0x006;
 const INTENAR: u32 = 0x01C;
 const INTREQR: u32 = 0x01E;
 const DMACON: u32 = 0x096;
@@ -69,8 +77,16 @@ const Voice = struct {
 /// that writes there is counted as unhandled, as it always was.
 pub var enabled: bool = false;
 /// Test only: 1 = DMACON's switch-on edge is ignored, so no voice ever starts;
-/// 2 = LC/LEN written to a playing voice are taken at once, not at its wrap.
+/// 2 = LC/LEN written to a playing voice are taken at once, not at its wrap;
+/// 3 = the beam counter never moves (VHPOSR reads 0: a beam wait hangs).
 pub var mutant: u32 = 0;
+/// 68000 cycles since the vertical blank, the beam counter's clock: the player
+/// calls PLAY from the VBL and sets this to the cycles into that call.
+pub var clock: *const fn () u32 = &noClock;
+
+fn noClock() u32 {
+    return 0;
+}
 
 var voices: [4]Voice = [_]Voice{.{}} ** 4;
 var dmacon: u16 = 0;
@@ -107,6 +123,8 @@ pub fn read16(addr: u32) u16 {
     if (addr == CIAA_PRA) return ciaa_pra;
     return switch (addr - BASE) {
         DMACONR => dmacon,
+        VPOSR => beam.vposr(clock()),
+        VHPOSR => if (mutant == 3) 0 else beam.vhposr(clock()),
         INTENAR => intena,
         INTREQR => intreq,
         else => 0,

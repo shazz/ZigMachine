@@ -294,6 +294,7 @@ The Amiga modules (`.hip`), each modland's file byte for byte, renamed without s
 | File | Title, artist | Size | Source | md5 |
 |---|---|---|---|---|
 | `shaolin_title.hip` | "Chambers of Shaolin" title tune (Thalion, Amiga), Jochen Hippel: the Supplex FS2 screen's (CODEF 525) | 36,032 B | https://ftp.modland.com/pub/modules/Hippel/Jochen%20Hippel/shaolin%20title.hip | `48e2ebc6c7588bee78796281b677facc` |
+| `rings_of_medusa.hip` | "Rings of Medusa" (Starbyte, Amiga), Jochen Hippel; 2 songs. Its replay waits on the beam (VHPOSR) | 69,540 B | https://ftp.modland.com/pub/modules/Hippel/Jochen%20Hippel/rings%20of%20medusa.hip | `024e14d61ff6c311a1d7df52a7d40700` |
 
 The game's ST SNDH is a different arrangement (Matt listened), so the screen plays the
 Amiga module, not the SNDH.

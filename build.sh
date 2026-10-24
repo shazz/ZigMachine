@@ -141,6 +141,7 @@ NATIVE_TESTS="
     libs/zig/players/cpu6502_test.zig
     libs/zig/players/sap_test.zig
     libs/zig/players/hip_format_test.zig
+    libs/zig/players/amiga_beam_test.zig
     libs/zig/players/mod_format_test.zig
     libs/zig/players/xm_format_test.zig
     libs/zig/players/xm_instr_test.zig
@@ -299,6 +300,8 @@ gate supplex_fs2 node apps/supplex_fs2_headless.mjs   # SUPPLEX FS2: shaolin_tit
 gate supplex_fs2 node apps/supplex_fs2_headless.mjs --break silent   # ...and a Paula that ignores DMACON's switch-on (silence) is caught
 gate supplex_fs2 node apps/supplex_fs2_headless.mjs --break latch    # ...and a pointer taken at once instead of at the voice's wrap is caught
 gate supplex_fs2 node apps/supplex_fs2_headless.mjs --break song     # ...and the request's old spaced name is caught
+gate hip node apps/hip_check.mjs   # .hip: every Hippel module in docs/music/ (shaolin_title, rings_of_medusa songs 1-2) on its own 68000 replay for 10 s: no runaway, loud, a Paula voice started, no bad pointer, no unanswered write; Rings of Medusa's replay waits on the beam (VHPOSR)
+gate hip node apps/hip_check.mjs --break beam   # ...and a beam counter stuck at 0 (the RoM replay hangs) is caught
 gate mod_sfx node apps/mod_sfx_check.mjs   # zg.sfxPlay over a MOD: the effect takes the song's fewest-notes channel on exactly its bytes at full volume and that channel's pan, the song writes nothing there and goes on elsewhere, gets it back at the effect's end; a loop holds it until a loop-only stop (4 s timeout); YM writes mixed under a MOD, refused under an SNDH; SNDH -> MOD leaves the MOD alone; no MOD, no effect (counted); 6CHN/8CHN/32CH/untagged/short MODs refused and counted, the four ProTracker tags load; zg.requestModVolume scales the song's channels at once (the output exactly x gain), never the effect's, 1.0 again on a new MOD, over 1.0 / no MOD refused
 gate mod_sfx node apps/mod_sfx_check.mjs --break bytes     # ...and the effect compared with another sample fails
 gate mod_sfx node apps/mod_sfx_check.mjs --break release   # ...and the channel expected held after the effect's end fails
