@@ -93,13 +93,23 @@ Board A/B, same card, same carts, firmware A = this branch as main behaves, B = 
 | deltaforce | 60.2 -> 60.2 | 1.14 -> 0.54 | swap wait 0.25 -> 0.83 Mc |
 | stniccc | 41.7 -> 41.9 | 0.37 -> 0.37 | no handler: unchanged (control) |
 
-A one-plane pure handler cart also loses its PFB row store (a group on top: `nopfb`), ~0.11 Mc.
+Once its handler is flagged pure, a one-plane handler cart would also lose its PFB row store (a group on top:
+`nopfb`), ~0.11 Mc (B does this for every such cart; production does not until the flag exists).
 Cost: 0 LUT, 0 BRAM, no bitstream; ~1 KB of firmware. Timing risk: none.
 Exactness: the RTL replay of the group order with the firmware's RES_FLICKER (`tools/video_order_group.py
 --all --fw`) MATCHes the machine on union_main, supplex_fs2, union_l16, tcb_colorshock, automation442,
 replicants and deltaforce (frames 300 and 600), and on the synthetic `overscan` frames whose four planes
 flicker on different lines, which DIFFER without the store (the break). `tests/test_vseq_group.py` runs
 vseq_group.c itself against an RTL model of the flicker test (and its break, ZM_RTL_BREAK=1).
+
+**Open before the ABI lands: the pixels of B on the board.** The proofs above run the tool's model of the
+store, or the C against a model of the RTL; nothing has replayed the firmware's own stores through the
+compositor, and the A/B measured speed only. The override relies on the `before`/`now` loads seeing the
+handler's posted store through the write-through D$ (the first load caches the line, so the store hits
+it: reasoning, not evidence). Proof to run: one hp_sim slot, <= 6 frames, supplex_fs2 with
+`ZM_GROUP_HBL_ALL` and a picture hash of a line-major frame against vmix (bplanes_check_pre refuses
+handler planes, so the pure case needs its own hook: pure handlers may run twice), or a board_shot
+picture diff A vs B on a static frame.
 
 What is NOT done, and needs a decision: the firmware must KNOW a handler is pure. B trusts every handler,
 which is wrong for carts whose handlers talk (bladerunners, vex: global <-> plane; mpp_truecolor and
