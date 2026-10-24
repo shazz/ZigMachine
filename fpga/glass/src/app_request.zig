@@ -67,7 +67,7 @@ pub fn poll(app: *App, state: u32) void {
     if (r.req != state >> map.CART_ARG_SHIFT) return failed(app, "request", error.BadRequestBlock);
     switch (r.req) {
         mc.REQ_RUN_PROGRAM => runProgram(app, i, r.name) catch |err| failed(app, r.name, err),
-        mc.REQ_BACK_TO_OS => cart.load(app, i),
+        mc.REQ_BACK_TO_OS => cart.backToOs(app, i),
         mc.REQ_LOAD_CART => loadTag(app, i, r.name) catch |err| failed(app, r.name, err),
         mc.REQ_BACK => back(app),
         else => failed(app, "request", error.UnknownRequest),

@@ -60,6 +60,15 @@ pub fn load(app: *App, i: usize) void {
     app.setOpen(false);
 }
 
+/// REQ_BACK_TO_OS: disk `i` again, its boot sector not run a second time (map_cart.zig
+/// BOOTSEC_SKIP): the browser's req 4 brings GEM back with the disk still in the drive.
+pub fn backToOs(app: *App, i: usize) void {
+    const keep = app.opt;
+    defer app.opt = keep;
+    app.opt.skip_boot_sector = true;
+    load(app, i);
+}
+
 // A disk refused before the CPU was stopped leaves the old cart running and in
 // the window (loader.zig, steps 1 to 3). Past that, the CPU is held; once the
 // window was written it holds disk `i`, which is what R and W must then reset.

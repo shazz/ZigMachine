@@ -28,6 +28,15 @@ pub const CART_REQ_MAGIC: u32 = 0x5152_4D5A; // "ZMRQ"
 pub const CART_REQ_HEAD_WORDS: u32 = 4;
 pub const CART_REQ_NAME_MAX: u32 = 48;
 
+// --- the boot sector's skip word, at window end - BOOTSEC_SKIP_FROM_TOP (CPU 0x41FF_FC20) ----
+// A disk's executable boot sector (fpga/cycles/bbootsec.c) runs when the disk goes in, as in
+// the browser; not when a program quits back to the OS over the same disk (swapCart req 4),
+// which on the board is a load of the same fat disk. That load writes BOOTSEC_SKIP here, after
+// the window is verified; every other load leaves it zero (the window is rewritten whole), so
+// a stale one never survives. Between the descriptor and the request block, both unused here.
+pub const BOOTSEC_SKIP_FROM_TOP: u32 = 0x3E0;
+pub const BOOTSEC_SKIP: u32 = 0x5342_4D5A; // "ZMBS"
+
 // --- the disk descriptor's other magic -----------------------------------------
 // map.zig's DISK_MAGIC: the cart was booted for this disk (GEM over a data disk
 // hands it the listing). DISK_MAGIC_PROGRAM: the cart is a program GEM launched off

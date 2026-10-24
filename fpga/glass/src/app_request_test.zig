@@ -101,6 +101,11 @@ test "GEM runs BOOT.WSM off the disk, and the program goes back to GEM over it" 
     a.tick(); // the program runs: no request
     r.ask(mc.REQ_BACK_TO_OS, "");
     a.tick();
+    // GEM's load again, plus the word that keeps the disk's boot sector from running twice
+    const skip = (WORDS * 4 - mc.BOOTSEC_SKIP_FROM_TOP) / 4;
+    try std.testing.expectEqual(@as(?usize, skip), try r.holds("demo-dd.zmd", map.DISK_MAGIC));
+    try std.testing.expectEqual(mc.BOOTSEC_SKIP, r.words[skip]);
+    r.words[skip] = 0;
     try std.testing.expectEqual(@as(?usize, null), try r.holds("demo-dd.zmd", map.DISK_MAGIC));
     try std.testing.expect(r.glass.ctrl & map.CTRL_RUN != 0);
 }

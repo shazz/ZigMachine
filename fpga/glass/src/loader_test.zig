@@ -205,3 +205,16 @@ test "--fw-opt's word lands for the firmware after the window is verified, and o
     _ = try loader.load(gpa, plain.glass.regs(), plain.ddr(), disk, .{});
     try std.testing.expectEqual(@as(u32, 0), plain.words[at]);
 }
+
+test "the boot-sector skip word lands only for a load that asks for it" {
+    var raw: [3000]u8 = undefined;
+    fakeImage(&raw);
+    const disk = try diskWith(&raw);
+    defer gpa.free(disk);
+    const at = (WINDOW_WORDS * 4 - mc.BOOTSEC_SKIP_FROM_TOP) / 4;
+    var rig = Rig{};
+    _ = try loader.load(gpa, rig.glass.regs(), rig.ddr(), disk, .{ .skip_boot_sector = true });
+    try std.testing.expectEqual(mc.BOOTSEC_SKIP, rig.words[at]);
+    _ = try loader.load(gpa, rig.glass.regs(), rig.ddr(), disk, .{}); // the next load rewrites the window whole
+    try std.testing.expectEqual(@as(u32, 0), rig.words[at]);
+}
