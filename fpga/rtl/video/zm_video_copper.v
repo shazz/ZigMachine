@@ -74,9 +74,9 @@ module zm_video_copper (
     // so no path runs from the LUT RAMs through the adders into the burst.
     reg [8:0] c_hy;
     reg [7:0] c_hn;
-    reg c_big, c_cov;
+    reg c_big;
+    reg d_wait, d_stop;                   // DONE's decision, made in SEL: not this line yet / stop
     reg [17:0] c_at, h_at;
-    reg [18:0] h_end;
     reg ref_ok_r;
     reg [18:0] t_word_r;
 
@@ -146,8 +146,8 @@ module zm_video_copper (
             end
             SEL: begin                     // the body's first word, and the word past the next HEAD
                 h_at <= c_at + 18'd1;
-                h_end <= {1'b0, c_at} + {11'd0, c_hn} + 19'd2;
-                c_cov <= covers;
+                d_wait <= c_hy == 9'd511 || c_hy > line;
+                d_stop <= c_hy < line || !covers || c_big || {1'b0, c_at} + {11'd0, c_hn} + 19'd2 > VWORDS;
                 st <= DONE;
             end
             HEAD: if (rd_rsp_valid) begin  // 16-aligned: the beat's low word
@@ -159,8 +159,8 @@ module zm_video_copper (
             end
             DONE: begin                    // the pass's line `line` against the next record
                 n <= c_hn;
-                if (c_hy == 9'd511 || c_hy > line) st <= IDLE;
-                else if (c_hy < line || !c_cov || c_big || h_end > VWORDS) begin
+                if (d_wait) st <= IDLE;
+                else if (d_stop) begin
                     live[p] <= 1'b0;
                     st <= IDLE;
                 end else begin

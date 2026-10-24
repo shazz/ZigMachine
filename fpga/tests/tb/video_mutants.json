@@ -378,8 +378,8 @@
   {
     "id": "copper_record_late",
     "file": "zm_video_copper.v",
-    "old": "if (c_hy == 9'd511 || c_hy > line) st <= IDLE;",
-    "new": "if (c_hy == 9'd511 || c_hy >= line) st <= IDLE;",
+    "old": "d_wait <= c_hy == 9'd511 || c_hy > line;",
+    "new": "d_wait <= c_hy == 9'd511 || c_hy >= line;",
     "catch": "s:copper"
   },
   {
