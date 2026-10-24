@@ -90,14 +90,21 @@ fn flatLit(c: Ctx, soft: bool) void {
 }
 
 /// GLENZ: every face ORs its own bit (face index mod 6), see-through, no cull.
-/// All CHISEL, whatever the face size, unless the split is the all-CPU one:
-/// the CPU's OR is a read-modify-write of every pixel, dearer than CHISEL's
-/// start even on the smallest faces (frame_cost: sphere L5 1.33 Mc on CHISEL,
-/// 1.52 on the CPU), and one path a frame means no CPU read of bytes CHISEL
-/// has just written (that would lean on the board's wait + D$ invalidate).
+/// One path for the whole frame, so the CPU never reads bytes CHISEL has just
+/// written in it (that would lean on the board's wait + D$ invalidate): the
+/// CPU's OR reads every pixel it writes, so CHISEL is cheaper until the faces
+/// average under GLENZ_CPU_AREA pixels of the object's box (frame_cost: sphere
+/// L9 2.38 Mc either way, L10 2.93 CHISEL / 2.83 CPU, L13 6.14 / 4.96). The
+/// all-CHISEL and all-CPU splits force their path.
+pub const GLENZ_CPU_AREA = 10; // the sphere box is ~98 px square: L8 averages 11.4 px a face, L9 8.8
+
 fn glenzAll(c: Ctx) void {
     var cc = c;
-    if (c.split.rows < SPLITS[SPLITS.len - 1].rows) cc.split.rows = -1;
+    const box = c.fr.box;
+    const area = (box[2] - box[0] + 1) * (box[3] - box[1] + 1);
+    const small = area < GLENZ_CPU_AREA * @as(i32, c.m.nfaces);
+    const all_cpu = c.split.rows >= SPLITS[SPLITS.len - 1].rows;
+    cc.split.rows = if (all_cpu or (small and c.split.rows >= 0)) 9999 else -1;
     for (c.m.faces[0..c.m.nfaces], 0..) |f, i| {
         const bit: u8 = @as(u8, 1) << @intCast(i % 6);
         fillTri(cc, cc.pts(f), bit, .glenz);
