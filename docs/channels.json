@@ -140,6 +140,11 @@
   "type": "atari st"
  },
  {
+  "tag": "hippel_musicdisk",
+  "title": "J. HIPPEL MUSIC DEMO",
+  "type": "amiga"
+ },
+ {
   "tag": "joust",
   "title": "JOUST",
   "type": "atari st"

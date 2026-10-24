@@ -121,6 +121,7 @@ pub const ENTRIES = [_]Entry{
     .{ .name = "REPLICANTS ARKANOID 2", .tag = "replicants_arkanoid2" }, // atari st
     .{ .name = "ANIMA", .tag = "anima" }, // zigmachine — a new one-screen demo written for the machine
     .{ .name = "LEONARD'S SPIRIT", .tag = "leonard_spirit" }, // zigmachine — Oxygene's 312-sprite record (leonard) redone Leonard's way, for many more balls
+    .{ .name = "J. HIPPEL MUSIC DEMO", .tag = "hippel_musicdisk" }, // amiga — Feinbein Software & Supplex musicdisk, 1990 (demozoo 135994)
     // The Union Demo's screens (union_multifake, union_textracker, ...) are NOT
     // listed: they are reached only through the UNION DEMO hub's doors (Matt,
     // 2026-09-13). Their carts stay in build.zig / cart.zig, so their disks build.

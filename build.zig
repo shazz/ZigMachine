@@ -546,6 +546,7 @@ pub fn build(b: *std.Build) void {
         "demo-replicants_arkanoid2", // 106 — The Replicants / Arkanoid II crack intro (CODEF screen 33): name sprites on mycurve, waving bg2-coloured scrolltext
         "demo-anima", // 107 — ANIMA: a new ZigMachine one-screen demo (copper drum through every open border, breathing logo, glenz objects, sine scroller; Tao's Breath 2000)
         "demo-leonard_spirit", // 108 — LEONARD'S SPIRIT: the leonard cart's 312-sprite record redone Leonard's way (generated-code MOVE balls, compile-time tables, one CHISEL clear, one plane), as many balls as one frame holds
+        "demo-hippel_musicdisk", // 109 — JOCHEN HIPPEL MUSIC DEMO (Feinbein Software & Supplex, Amiga 1990): the musicdisk's screen from its own copper list (two rotating COLOR00 bars, a 32-column COLOR01 rainbow scrolled a line a frame, the dual-playfield shadow), ten Hippel tunes on keys a..j
     };
     for (cart_names, 0..) |name, idx| {
         if (name.len == 0) continue; // excluded cart (see note above)
