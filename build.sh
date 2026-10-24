@@ -627,7 +627,14 @@ gate perf_audit node apps/perf_audit_test.mjs --break misaligned # ...and i32 lo
 gate perf_audit node apps/perf_audit_test.mjs --break budget     # ...and the plane left disabled fails frame_cost --budget's 280-pass FRESCO check
 gate perf_report sh tools/perf_audit.sh --report --jobs 2   # REPORT, never fails the gate: the shelf ranked by ESTIMATED Mc/frame on ZIGGY with each cart's first hot finding (JSON: zig-out/perf_audit.json)
 run_gates
-echo "shots in $SHOTS"
+# A green gate's shots go: each run leaves ~240 MB, and a busy night of gates
+# filled / (2026-10-24: pushes died with ENOSPC). A red gate never reaches here
+# (set -e), so its shots stay for the post-mortem. KEEP_SHOTS=1 keeps them.
+if [ -n "${KEEP_SHOTS:-}" ]; then
+    echo "shots in $SHOTS"
+else
+    rm -rf "$SHOTS"
+fi
 
 # Green stamp: only a FULL gate, only if the tree was clean at the start and is
 # still clean now (a rebuilt docs/ file that differs from HEAD makes it dirty).
