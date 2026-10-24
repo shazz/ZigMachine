@@ -9,6 +9,7 @@
 // (screen.js:187-222). Positions start at 704 and move by even steps, so a
 // letter's ST column is exactly posx / 2.
 // --------------------------------------------------------------------------
+const std = @import("std");
 const zg = @import("zigos");
 const blit = zg.blit;
 const A = @import("assets.zig");
@@ -20,12 +21,12 @@ pub const TEXT = @embedFile("../../assets/screens/union_reps/scrolltext.txt");
 
 const FIRST_CHAR = 32; // initTile(64,64,32)
 const GLYPH_C: i32 = 64;
-const GLYPH = 32; // halved
+pub const GLYPH = 32; // halved
 const SHEET_COLS = 16; // 1024 / 64
 const LETTERS = 12; // wide = ceil(640/64)+1 = 11, letters 0..wide
 const START_C: i32 = 11 * GLYPH_C;
-const RED_Y = 7; // scrolltextRedcanvas.draw(maincanvas, 0, 14)
-const BLUE_Y = 163; // scrolltextBluecanvas.draw(maincanvas, 0, 326)
+pub const RED_Y = 7; // scrolltextRedcanvas.draw(maincanvas, 0, 14)
+pub const BLUE_Y = 163; // scrolltextBluecanvas.draw(maincanvas, 0, 326)
 const SPEEDS_C = [_]i32{ 2, 4, 8, 16, 32 };
 const DEFAULT_SPEED_C: i32 = 4;
 const NUDGE = 0.025;
@@ -74,13 +75,38 @@ pub const Scroller = struct {
         return DEFAULT_SPEED_C;
     }
 
-    pub fn draw(self: *const Scroller, dst: blit.Dst, font: blit.Image) void {
+    /// Each letter from the font pre-inked in its scroller's colour (bands.zig): a
+    /// keyed copy, on CHISEL.
+    pub fn draw(self: *const Scroller, dst: blit.Dst, red_font: blit.Image, blue_font: blit.Image) void {
         for (self.ring.x, self.ring.c) |x, ch| {
-            const g: usize = ch - FIRST_CHAR;
-            const part = blit.Rect{ .x = g % SHEET_COLS * GLYPH, .y = g / SHEET_COLS * GLYPH, .w = GLYPH, .h = GLYPH };
+            const part = glyph(ch);
             const sx = @divFloor(x, 2);
-            blit.blit(dst, font, part, sx, RED_Y, 0, .{ .flat = A.RED_INK });
-            blit.blit(dst, font, part, sx, BLUE_Y, 0, .{ .flat = A.BLUE_INK });
+            blit.blit(dst, red_font, part, sx, RED_Y, 0, .copy);
+            blit.blit(dst, blue_font, part, sx, BLUE_Y, 0, .copy);
+        }
+    }
+
+    /// For each plane column, the font index of the top row of the letter column
+    /// on it, or NO_LETTER: both bands' letters stand on the same columns. The
+    /// ring keeps its letters exactly GLYPH_C apart (it wraps by start +
+    /// glyph_w = LETTERS * GLYPH_C) and they are GLYPH wide, so no column has two.
+    pub fn columns(self: *const Scroller, out: *[A.W]u32) void {
+        @memset(out, NO_LETTER);
+        for (self.ring.x, self.ring.c) |x, ch| {
+            const part = glyph(ch);
+            const sx = @divFloor(x, 2);
+            for (0..GLYPH) |i| {
+                const col = sx + @as(i32, @intCast(i));
+                if (col < 0 or col >= A.W) continue;
+                out[@intCast(col)] = @intCast(part.y * A.FONT_W + part.x + i);
+            }
         }
     }
 };
+
+pub const NO_LETTER = std.math.maxInt(u32);
+
+fn glyph(ch: u8) blit.Rect {
+    const g: usize = ch - FIRST_CHAR;
+    return .{ .x = g % SHEET_COLS * GLYPH, .y = g / SHEET_COLS * GLYPH, .w = GLYPH, .h = GLYPH };
+}

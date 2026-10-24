@@ -13,7 +13,6 @@ const blit = zg.blit;
 const A = @import("assets.zig");
 const sintab = @import("../union_common/sintab.zig");
 
-
 /// Six 640-wide raster images, three over each window, bouncing 2 canvas px a
 /// frame inside [94,160] and [204,270] (screen.js:77-91, 152-168).
 pub const Bars = struct {
@@ -68,7 +67,7 @@ pub const Bars = struct {
 pub const Rasters = struct {
     pos: i32, // posColorRasterY1
 
-    const Y = 73;
+    pub const Y = 73;
     const PERIOD = 168; // rasters.png height
 
     pub fn init(self: *Rasters) void {
@@ -80,14 +79,14 @@ pub const Rasters = struct {
         if (self.pos >= PERIOD) self.pos = -PERIOD;
     }
 
-    /// The mask in MASK_INK, and that ink's colour for each of its lines.
-    pub fn draw(self: *const Rasters, dst: blit.Dst, mask: blit.Image, rasters: []const u8, ink: *[zg.HEIGHT]u32) void {
-        for (0..mask.h) |r| {
+    /// MASK_INK's colour for each of the mask's lines. The mask itself is in the
+    /// still picture (bands.zig): its shape never moves.
+    pub fn paint(self: *const Rasters, rasters: []const u8, ink: *[zg.HEIGHT]u32) void {
+        for (0..A.MASK_H) |r| {
             const canvas_row = 2 * @as(i32, @intCast(r)) + 1;
             const src_row: usize = @intCast(@mod(canvas_row - self.pos, PERIOD));
             ink[Y + r] = A.rgba(rasters[src_row / 2]);
         }
-        blit.blit(dst, mask, null, 0, Y, 0, .{ .flat = A.MASK_INK });
     }
 };
 
@@ -132,23 +131,20 @@ const UNDER_RANK: [256]u8 = blk: {
     break :blk t;
 };
 
-/// theunion.png over the scrollers (screen.js:284-285): opaque pixels copy, a
-/// soft pixel takes its blend with the index under it. Only BLEND_UNDER can be
-/// under one (the harness checks every soft pixel against that).
-pub fn drawUnion(dst: blit.Dst, img: blit.Image, y0: usize) void {
-    drawUnionRows(dst, img, y0, 0, dst.h);
+/// What theunion.png's pixel `s` leaves over the index `d` (screen.js:284-285):
+/// clear shows d, opaque copies, a soft pixel takes its blend with d. Only
+/// BLEND_UNDER can be under one (the harness checks every soft pixel against that).
+pub fn unionOver(s: u8, d: u8) u8 {
+    if (s == 0) return d;
+    return if (s >= A.BLEND_BASE and s < A.BLEND_END) s + UNDER_RANK[d] else s;
 }
 
-/// drawUnion, only on the plane rows lo..hi.
-pub fn drawUnionRows(dst: blit.Dst, img: blit.Image, y0: usize, lo: usize, hi: usize) void {
+/// theunion.png over the plane (or the still picture) from row y0.
+pub fn drawUnion(dst: blit.Dst, img: blit.Image, y0: usize) void {
     if (img.w != dst.w or y0 + img.h > dst.h) return;
     for (0..img.h) |r| {
-        if (y0 + r < lo or y0 + r >= hi) continue;
         const src = img.data[r * img.w ..][0..img.w];
         const out = dst.buf[(y0 + r) * dst.stride ..][0..img.w];
-        for (src, out) |s, *d| {
-            if (s == 0) continue;
-            d.* = if (s >= A.BLEND_BASE and s < A.BLEND_END) s + UNDER_RANK[d.*] else s;
-        }
+        for (src, out) |s, *d| d.* = unionOver(s, d.*);
     }
 }
