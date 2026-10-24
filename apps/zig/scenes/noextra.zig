@@ -47,6 +47,8 @@
 const std = @import("std");
 const zg = @import("zigos");
 const fx = @import("turns_fix.zig");
+const band = @import("noextra_band.zig");
+const scroll = @import("noextra_scroll.zig");
 const convertU8ArraytoColors = zg.convertU8ArraytoColors;
 
 const ZigOS = zg.ZigOS;
@@ -235,6 +237,7 @@ pub const Demo = struct {
     shown: Shown = .nothing,
     logo_x: i32 = 0, // where the intro's D.H.S. logo was drawn
     logo_y: i32 = 0,
+    main_top: i32 = 0, // the layout top the logos were last drawn at, in `main`
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
         Console.log("NOEXTRA init", .{});
@@ -267,6 +270,7 @@ pub const Demo = struct {
         self.shown = .nothing;
         self.logo_x = 0;
         self.logo_y = 0;
+        self.main_top = 0;
     }
 
     pub fn update(self: *Demo, zigos: *ZigOS, elapsed_time: f32) void {
@@ -333,21 +337,14 @@ pub const Demo = struct {
         const fb: *LogicalFB = &zigos.lfbs[0];
 
         if (self.phase == .main) {
-            // The band repaints its own rows edge to edge; the CHISEL blackens the rest
-            // (a CPU memset of the whole plane was 0.84 Mc, the fills are ~0.15).
-            const band_top: i32 = std.math.clamp(top + BAND_TOP, 0, PH);
-            const band_end: i32 = std.math.clamp(top + BAND_TOP + BAND_H, 0, PH);
-            self.fillRows(fb, 0, band_top);
-            self.fillRows(fb, band_end, PH);
-            self.shown = .main;
-            // CODEF's own order: raster, gradient bars, logos, then the scroller
-            // on top of everything.
             self.showFade(fb, 1.0);
+            // CODEF's own order is raster, gradient bars, logos, scroller. The logos
+            // (layout rows 0..45 and 171..238) share no row with the band, its bars
+            // and the scroller (50..169), so they can go first, and only when they move.
+            self.renderLogos(fb, top);
             self.renderBand(fb, top);
             self.blitter.blitImage(fb, @intCast(BX), @intCast(top + GRAD_TOP), gradbar_b, 320, 0, 0, 320, 1, 0);
             self.blitter.blitImage(fb, @intCast(BX), @intCast(top + GRAD_BOTTOM), gradbar_b, 320, 0, 0, 320, 1, 0);
-            self.blitter.blitImage(fb, @intCast(BX + TOP_X), @intCast(top + TOP_Y), toplogo_b, @intCast(TOP_W), 0, 0, @intCast(TOP_W), @intCast(TOP_H), 0);
-            self.blitter.blitImage(fb, @intCast(BX + BOT_X), @intCast(top + BOT_Y), bottomlogo_b, @intCast(BOT_W), 0, 0, @intCast(BOT_W), @intCast(BOT_H), 0);
             self.renderScroll(fb, top);
         } else {
             // intro: the D.H.S. logo alone on black, mid-handled at x = 160.
@@ -360,6 +357,41 @@ pub const Demo = struct {
 
     fn fillRows(self: *Demo, fb: *LogicalFB, from: i32, to: i32) void {
         if (to > from) self.blitter.fill(fb, 0, @intCast(from), @intCast(PW), @intCast(to - from), 0);
+    }
+
+    /// Black where a rect (layout rows y..y+h, columns x..x+w) was at `old` and is
+    /// not at `top`: the rows the move uncovered, clipped to the plane.
+    fn eraseVacated(self: *Demo, fb: *LogicalFB, x: i32, y: i32, w: i32, h: i32, old: i32, top: i32) void {
+        const from = if (top > old) old + y else @max(top + y + h, old + y);
+        const to = if (top > old) @min(old + y + h, top + y) else old + y + h;
+        const y0 = std.math.clamp(from, 0, PH);
+        const y1 = std.math.clamp(to, 0, PH);
+        if (y1 > y0) self.blitter.fill(fb, @intCast(x), @intCast(y0), @intCast(w), @intCast(y1 - y0), 0);
+    }
+
+    // Outside the band the plane holds only black and the two logos (the band
+    // repaints its own rows edge to edge every frame). On entering `main` the
+    // CHISEL blackens every row the band does not cover; afterwards, when the bob
+    // moves the layout, it blackens only the rows the logos and the band left.
+    // The logos are then copied UNKEYED: their own black (index 0, the key they
+    // were drawn with) lands on a ground that is black or the old logo, so the
+    // bytes are the keyed draw's. When the layout does not move, nothing is drawn.
+    fn renderLogos(self: *Demo, fb: *LogicalFB, top: i32) void {
+        if (self.shown != .main) {
+            self.fillRows(fb, 0, std.math.clamp(top + BAND_TOP, 0, PH));
+            self.fillRows(fb, std.math.clamp(top + BAND_TOP + BAND_H, 0, PH), PH);
+            self.shown = .main;
+        } else if (top == self.main_top) {
+            return;
+        } else {
+            const old = self.main_top;
+            self.eraseVacated(fb, BX + TOP_X, TOP_Y, TOP_W, TOP_H, old, top);
+            self.eraseVacated(fb, BX + BOT_X, BOT_Y, BOT_W, BOT_H, old, top);
+            self.eraseVacated(fb, 0, BAND_TOP, PW, BAND_H, old, top);
+        }
+        self.main_top = top;
+        self.blitter.blitImage(fb, @intCast(BX + TOP_X), @intCast(top + TOP_Y), toplogo_b, @intCast(TOP_W), 0, 0, @intCast(TOP_W), @intCast(TOP_H), null);
+        self.blitter.blitImage(fb, @intCast(BX + BOT_X), @intCast(top + BOT_Y), bottomlogo_b, @intCast(BOT_W), 0, 0, @intCast(BOT_W), @intCast(BOT_H), null);
     }
 
     /// The logo is keyed on black: moving it means blackening where it was, not the plane.
@@ -388,7 +420,7 @@ pub const Demo = struct {
     // myfx1.sinx: every line of the rainbow is shifted horizontally by the sum
     // of two sines, then the whole band is placed at x = -250 with a 0.9 x-zoom.
     // Written straight into the plane's buffer, row base hoisted, source column
-    // stepped in 16.16 fixed point — see the frame-cost note in the report.
+    // stepped in 16.16 fixed point; the colour is computed, not looked up (noextra_band.zig).
     fn renderBand(self: *Demo, fb: *LogicalFB, top: i32) void {
         var r: i32 = 0;
         while (r < BAND_H) : (r += 1) {
@@ -397,23 +429,9 @@ pub const Demo = struct {
             const ur: u64 = @intCast(r);
             const shift = DIST_AMP_A * fx.sin(fx.hi(self.dist_a +% DIST_INC_A *% ur)) +
                 DIST_AMP_B * fx.sin(fx.hi(self.dist_b +% DIST_INC_B *% ur));
-            // four pixels a store: the plane is bus-bound on the board, one byte store each cost
-            // as much as a word. 400 columns and every row start are multiples of 4.
+            // 400 columns and every row start are multiples of 4
             const words: [*]u32 = @ptrCast(@alignCast(fb.fb + @as(usize, @intCast(py)) * @as(usize, @intCast(PW))));
-            var u: i32 = srcStartFx(shift);
-            var g: usize = 0;
-            while (g < @as(usize, @intCast(PW)) / 4) : (g += 1) {
-                var w: u32 = 0;
-                inline for (0..4) |k| {
-                    // Widening past the original's 320 runs off the ends of the
-                    // 640-wide source; hold the edge pixel rather than punch a
-                    // moving black wedge into the side border (see the report).
-                    const c: i32 = @min(@max(u >> 16, 0), RASTER_W - 1);
-                    w |= @as(u32, raster_b[@intCast(c)]) << (8 * k);
-                    u += SRC_STEP_FX;
-                }
-                words[g] = w;
-            }
+            band.row(words[0 .. @as(usize, @intCast(PW)) / 4], srcStartFx(shift), SRC_STEP_FX, raster_b);
         }
     }
 
@@ -423,6 +441,9 @@ pub const Demo = struct {
     fn renderScroll(self: *Demo, fb: *LogicalFB, top: i32) void {
         const font_img = zg.blit.Image.init(font_b, FONT_SHEET_W);
         const dst = zg.blit.Dst.plane(fb);
+        // the wave's phase is measured from the ORIGINAL screen's left edge,
+        // so the visible window is untouched and the borders simply continue it
+        const sum = zg.wave.SineSum(f32, 1){ .base = WAVE_MID, .amp = .{WAVE_AMP}, .phase = .{self.wave}, .inc = .{WAVE_INC}, .step = .multiply };
         var i: usize = 0;
         while (i < NB_LETTERS) : (i += 1) {
             const c = self.ring.c[i];
@@ -431,11 +452,7 @@ pub const Demo = struct {
             const sx0: usize = (tile % FONT_COLS) * @as(usize, GW);
             const sy0: usize = (tile / FONT_COLS) * @as(usize, GH);
             const x0: i32 = @intFromFloat(@floor(self.ring.x[i]));
-            // the wave's phase is measured from the ORIGINAL screen's left edge,
-            // so the visible window is untouched and the borders simply continue it
-            const sum = zg.wave.SineSum(f32, 1){ .base = WAVE_MID, .amp = .{WAVE_AMP}, .phase = .{self.wave}, .inc = .{WAVE_INC}, .step = .multiply };
-            var it = sum.sweep(x0 - BX);
-            zg.wave.siny(dst, font_img, .{ .x = sx0, .y = sy0, .w = @intCast(GW), .h = @intCast(GH) }, x0, top, 1, &it, 0, .{ .flat = INK });
+            scroll.letter(zg.blit, dst, font_img, sx0, sy0, GW, @intCast(GH), x0, top, &sum, x0 - BX, INK);
         }
     }
 };
