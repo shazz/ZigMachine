@@ -81,8 +81,9 @@ pub fn initMoche() void {
 }
 
 /// Strip k (ST line y0 + k) samples the pattern at source row
-/// floor(y + 2k + 0.5) and column 2X - 140 + round(mocheDist[ctr - k]).
-pub fn moche(c: Canvas, drawn: usize, y: f64, x0: i32, y0: i32) void {
+/// floor(y + 2k + 0.5) = v0 + 2k (v0 = floor(y + 0.5)) and column
+/// 2X - 140 + round(mocheDist[ctr - k]).
+pub fn moche(c: Canvas, drawn: usize, v0: usize, x0: i32, y0: i32) void {
     comptime std.debug.assert(A.moche.w == MOTIF and A.moche.h == MOTIF);
     for (0..MOCHE_LINES) |k| {
         const ky = y0 + @as(i32, @intCast(k));
@@ -94,8 +95,7 @@ pub fn moche(c: Canvas, drawn: usize, y: f64, x0: i32, y0: i32) void {
             c.fill(x0, ky, MOCHE_W, 1, 0);
             continue;
         }
-        const fk: f64 = @floatFromInt(2 * k);
-        const v: usize = @intFromFloat(@floor(y + fk + 0.5));
+        const v = v0 + 2 * k;
         const row = (v % 24) >> 1;
         const col = (@as(usize, A.moche_dist[at]) >> 1) % MOTIF;
         c.bl.blitImage(c.fb, c.x + @as(i16, @intCast(x0)), c.y + @as(i16, @intCast(ky)), rep, REP_W, //

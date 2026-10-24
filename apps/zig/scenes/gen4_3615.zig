@@ -53,6 +53,8 @@ const rasters = @import("gen4_3615/rasters.zig");
 const Fate = @import("gen4_3615/fate.zig").Fate;
 const scroller_mod = @import("gen4_3615/scroller.zig");
 const draw = @import("gen4_3615/draw.zig");
+const vu = @import("gen4_3615/vu.zig");
+const trig = @import("gen4_3615/trig.zig");
 const Scroller = scroller_mod.Scroller;
 
 // The remake's own SNDH (ICE-packed; prototypes/sndh_lf/The_Fate/3615_Gen4_Demo.sndh
@@ -71,7 +73,7 @@ const ULM_H = 122;
 const ULM_TOP = 71; // ST line of logo row 2, the first on an even canvas row
 const ULM_BOTTOM = 130; // logo row 120; row 0 is never drawn, 122 is outside the image
 // motifMoche: mocheSpeed, 32 strips of 2 rows at (140, 466), 472 wide
-const MOCHE_SPEED: f64 = 0.04;
+const MOCHE_STEP = trig.phase(0.04); // mocheSpeed, as a u64 phase
 const MOCHE_X = 70;
 const MOCHE_Y = 233;
 const MOCHE_W = draw.MOCHE_W;
@@ -141,11 +143,11 @@ pub const Demo = struct {
     fate: Fate,
     ulm_ctr: usize,
     ulm_drawn: usize,
-    moche_ctr: f64,
-    moche_y: f64,
+    moche_ctr: u64, // 2^64 = one turn
+    moche_v: usize, // floor(mocheY + 0.5), mocheY = (84 + 84 sin(mocheCtr)) % 24
     moche_dist_ctr: usize,
     moche_drawn: usize,
-    last_vol: [3]f64, // sc68_vumeter.js _lastVol1..3
+    meter: vu.Meter,
     levels: [3]i32,
     ulm_rect: Rect,
     blitter: zg.Blitter,
@@ -157,10 +159,10 @@ pub const Demo = struct {
         self.ulm_ctr = 0;
         self.ulm_drawn = 0;
         self.moche_ctr = 0;
-        self.moche_y = 0;
+        self.moche_v = 0;
         self.moche_dist_ctr = 0;
         self.moche_drawn = 0;
-        self.last_vol = @splat(0);
+        self.meter.init();
         self.levels = @splat(0);
 
         zg.requestSong(MUSIC);
@@ -186,15 +188,17 @@ pub const Demo = struct {
         self.scroller.stepFloor();
         self.fate.step();
         self.scroller.step(&self.fate);
-        self.stepVu(&zigos.ym_regs);
+        self.meter.step(&zigos.ym_regs, VU_VOICE, &self.levels);
 
         self.ulm_drawn = self.ulm_ctr;
         self.ulm_ctr += 2;
         if (self.ulm_ctr > A.ULM_DIST_LEN - ULM_H) self.ulm_ctr = 0;
 
-        self.moche_y = @rem(84 + 84 * @sin(self.moche_ctr), 24);
+        // in Q30: 84 (1 + sin) mod 24, + 0.5, floored
+        const my = 84 * ((@as(i64, 1) << 30) + trig.sincos(trig.angle(self.moche_ctr)).s);
+        self.moche_v = @intCast((@mod(my, 24 << 30) + (1 << 29)) >> 30);
         self.moche_drawn = self.moche_dist_ctr;
-        self.moche_ctr += MOCHE_SPEED;
+        self.moche_ctr +%= MOCHE_STEP;
         self.moche_dist_ctr += 1;
         if (self.moche_dist_ctr > A.moche_dist.len - MOCHE_LINES) self.moche_dist_ctr = 0;
     }
@@ -212,22 +216,9 @@ pub const Demo = struct {
         self.scroller.render(fb, &self.blitter, CANVAS_X, CANVAS_Y, &self.fate);
         draw.vu(c, self.levels, VU_X, VU_W, rasters.VU_TOP, rasters.VU_ROWS);
         draw.ulm(c, self.ulm_drawn, ULM_TOP, ULM_BOTTOM);
-        draw.moche(c, self.moche_drawn, self.moche_y, MOCHE_X, MOCHE_Y);
+        draw.moche(c, self.moche_drawn, self.moche_v, MOCHE_X, MOCHE_Y);
         for (dynamic ++ [_]Rect{MOCHE_RECT}) |r| {
             for (placement) |p| c.imageIn(p.img, p.x, p.y, r.x, r.y, r.w, r.h);
-        }
-    }
-
-    /// getVolumeVoiceN: max(vol * 100 / 15, last * 0.9), the volume register's
-    /// low nibble; then levels fall 6 a frame (screen.js:351-365).
-    fn stepVu(self: *Demo, regs: *const [16]u8) void {
-        for (&self.last_vol, regs[8..11]) |*last, reg| {
-            const v: f64 = @floatFromInt(reg & 0xf);
-            last.* = @max(v * 100 / 0xf, last.* * 0.9);
-        }
-        for (&self.levels, VU_VOICE) |*level, voice| {
-            const v: i32 = @intFromFloat(@trunc(self.last_vol[voice] * 1.8));
-            level.* = if (level.* < v) v else @max(level.* - 6, 0);
         }
     }
 };

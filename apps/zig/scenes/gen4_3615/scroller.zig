@@ -18,6 +18,7 @@ const A = @import("assets.zig");
 const Fate = @import("fate.zig").Fate;
 const floor = @import("floor.zig");
 const chisel = @import("chisel.zig");
+const trig = @import("trig.zig");
 
 // the scroll canvas at (24, 268), 704x176, in ST pixels
 pub const BOX_X = 12;
@@ -28,9 +29,9 @@ pub const BOX_H = 88;
 pub const SKY_TOP = 135; // fillRect(24, 270, 704, 90): the sky pattern's rows 0..44
 pub const FLOOR_TOP = 180; // the floor's 90 canvas rows from 360
 const FLOOR_W = 704; // drawPart's partw
-const DAMIER_AMPL: f64 = 400;
-const PI: f64 = std.math.pi; // Math.PI: typed, so PI / 250 rounds in f64 as the JS does
-const DAMIER_SPEED: f64 = PI / 250;
+const DAMIER_AMPL = 400;
+const PI: f64 = std.math.pi;
+const DAMIER_STEP = trig.phase(PI / 250); // damierSpeed, as a u64 phase
 
 // scrolltext_horizontal.init(scrollCan, font, 12), in canvas pixels
 const GLYPH = 192;
@@ -49,7 +50,7 @@ var glyph_px: *align(4) [LETTERS][A.FONT_W * A.FONT_H]u8 = undefined;
 pub const Scroller = struct {
     ring: Ring,
     cached: [LETTERS]u8, // the character glyph_px[i] holds, 0 = none
-    damier_ctr: f64,
+    damier_ctr: u64, // damierCtr, 2^64 = one turn
     tx: i32, // the chessboard pattern's translation this frame
     ty: i32,
     dirty: Fate.Rows, // the box rows the logo painted over last frame
@@ -72,9 +73,10 @@ pub const Scroller = struct {
 
     /// damier()'s part of go(): the pattern offset it draws with, then the step.
     pub fn stepFloor(self: *Scroller) void {
-        self.tx = trunc(-DAMIER_AMPL - DAMIER_AMPL * @cos(self.damier_ctr));
-        self.ty = trunc(-DAMIER_AMPL - DAMIER_AMPL * @sin(2 * self.damier_ctr));
-        self.damier_ctr += DAMIER_SPEED;
+        // trunc(-400 - 400 cos a) = -floor(400 (1 + cos a)): in Q30, no float
+        self.tx = sway(trig.sincos(trig.angle(self.damier_ctr)).c);
+        self.ty = sway(trig.sincos(trig.angle(self.damier_ctr *% 2)).s);
+        self.damier_ctr +%= DAMIER_STEP;
     }
 
     /// scrolltext.draw(0)'s move. A letter reaching -192 over a ^C command runs
@@ -170,6 +172,7 @@ const nibble_mask: [16]u32 = blk: {
     break :blk t;
 };
 
-fn trunc(v: f64) i32 {
-    return @intFromFloat(@trunc(v));
+/// trunc(-AMPL - AMPL * v) for v in Q30.
+fn sway(v: i32) i32 {
+    return -@as(i32, @intCast((DAMIER_AMPL * ((@as(i64, 1) << 30) + v)) >> 30));
 }

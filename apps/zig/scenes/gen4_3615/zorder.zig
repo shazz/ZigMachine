@@ -13,14 +13,19 @@ const std = @import("std");
 /// order[k] = the index of the entry drawn k-th: z ascending, stable.
 /// `pos` is an array of anything with an f64 field `z`.
 pub fn sort(comptime n: usize, pos: anytype, order: *[n]u8) void {
-    comptime std.debug.assert(n <= 256);
     var keys: [n]u64 = undefined;
-    for (&keys, pos, 0..) |*k, p, i| {
+    for (&keys, pos) |*k, p| {
         const bits: u64 = @bitCast(p.z + 0.0); // + 0.0: -0.0 becomes +0.0, as == sees them
         k.* = if (bits >> 63 != 0) ~bits else bits | (1 << 63);
-        order[i] = @intCast(i);
     }
-    std.sort.pdq(u8, order, &keys, Less(n).less);
+    sortKeys(n, &keys, order);
+}
+
+/// order[k] = the index of the k-th smallest key, ties to the earlier index.
+pub fn sortKeys(comptime n: usize, keys: *const [n]u64, order: *[n]u8) void {
+    comptime std.debug.assert(n <= 256);
+    for (order, 0..) |*o, i| o.* = @intCast(i);
+    std.sort.pdq(u8, order, keys, Less(n).less);
 }
 
 fn Less(comptime n: usize) type {

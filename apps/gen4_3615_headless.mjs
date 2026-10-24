@@ -19,6 +19,15 @@
 //   4. music: the cart asks for 3615_gen4_demo.sndh, which is in docs/music/
 //      and plays through the sealed YM (FLAG ~y).
 //
+//   2026-10-24: the FATE logo is placed in fixed point (no per-frame float on
+//   ZIGGY); edge pixels may differ by 1 px from the old f64 placement. The
+//   floor's sway, the motif's bounce and the VU levels went fixed point too.
+//   Against the old f64 cart, 211 of 40,000 frames differ: 44 by a logo slice
+//   1 px off (gen4_3615/fate_test.zig bounds every slice to 1 px), 167 by the
+//   floor 1 px off where -400 - 400 cos (or sin) is exactly -400 and the JS's
+//   doubles round it either side. The twelve frames below match the replay
+//   exactly, so the pins stand; the --break modes still fail them.
+//
 //   node apps/gen4_3615_headless.mjs [outdir] [--break sky|floor|fate|ulm|vu|raster]
 // --break sabotages the replay (or, for raster, the expected table) and passes
 // only if a check notices.
