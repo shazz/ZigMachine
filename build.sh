@@ -555,6 +555,7 @@ gate st_replay_outputs node apps/st_replay_outputs_check.mjs   # ST Replay's Alt
 gate st_replay_outputs node apps/st_replay_outputs_check.mjs --break refill   # ...and a worklet that never refills the ring is caught
 gate_timed union_deltaforce node apps/union_deltaforce_headless.mjs "$SHOTS"   # DELTA FORCE: TEX loader depack, screen.js replayed pixel for pixel, the SNDH plays
 gate_timed union_texcopier node apps/union_texcopier_headless.mjs "$SHOTS"   # COPIER TEX: loader depack, screen.js replay incl. Chrome's blends, Scoop plays
+gate union_texcopier node apps/depack_align_check.mjs   # the depack loaders (TEX, Union: texcopier, tnt2, multifake, deltaforce) make no misaligned wide access while they load: each traps on the board (~210 cycles); the TEX loader's glyph copy made ~440 a frame until 2026-10-24
 gate_timed union_tnt3 node apps/union_tnt3_headless.mjs "$SHOTS"   # TNT3: loader depack, then screen.js + three.js r49 replayed pixel for pixel
 gate_timed union_l16 node apps/union_l16_headless.mjs "$SHOTS"   # L16: loader depack, both overscan planes = screen.js replay, SNDH plays, Esc
 gate_timed union_tnt1 node apps/union_tnt1_headless.mjs "$SHOTS"   # TNT1 Starballs: TEX loader depack, screen.js replay (keys 5, 0), Pandora plays

@@ -89,7 +89,11 @@ pub fn draw(fb: anytype, chars: []const u8, cols: u8, t: u32, ink: u8) void {
         const c = chars[(rows - 1 - below) * cols + col];
         const top = letterTop(num, @intCast(below), t);
         const x = ox + LEFT + col * GLYPH;
-        for (font[c - zx0.PANEL_FIRST_CHAR], 0..) |bits, gy| {
+        // Through a pointer: a glyph indexed BY VALUE was copied out in one i64 load from a table
+        // at a 2-mod-4 address, two lw that TRAP on the board (~440 a loading frame, every Union
+        // loader); byte loads through the pointer cannot.
+        const glyph = &font[c - zx0.PANEL_FIRST_CHAR];
+        for (glyph, 0..) |bits, gy| {
             const y = top + @as(i32, @intCast(gy));
             if (y < 0 or y >= 200 or bits == 0) continue;
             const line = fb.fb[(oy + @as(usize, @intCast(y))) * fb.stride + x ..][0..GLYPH];
