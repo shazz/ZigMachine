@@ -31,6 +31,7 @@ const std = @import("std");
 const zg = @import("zigos");
 const blob = @import("mpp_truecolor/blob.zig");
 const cop = @import("mpp_truecolor/cop.zig");
+const gallery = @import("mpp_truecolor/gallery.zig");
 const ZigOS = zg.ZigOS;
 const LogicalFB = zg.LogicalFB;
 
@@ -41,29 +42,11 @@ const IMAGE_H: i16 = 180; // rows 180..199 are the caption band (converter's IMA
 const CYCLE_FRAMES: u32 = 8 * 60;
 const INK: u8 = 1; // caption palette: 0 black, 1 white
 const FIRE: u8 = 5; // demo_main Direction.Fire: the host sends it for Space (and Enter)
-const DIR = "../assets/screens/mpp_truecolor/";
 
-const Mode = struct { planes: usize, title: []const u8 };
-const MODES = [_]Mode{
-    .{ .planes = 1, .title = "1 GLOBAL: ONE 256-COLOUR PALETTE" },
-    .{ .planes = 1, .title = "2 PER-LINE: 256 COLOURS EACH LINE" },
-    .{ .planes = PLANES, .title = "3 4 PLANES: 4x255 COLOURS A LINE" },
-};
-
-// In the converter's PICTURES order; the packed blobs are [picture][mode].
-const NAMES = [_][]const u8{ "SPHERES", "PARROT", "SUNSET", "HALO", "HILLS" };
-const PACKED: [NAMES.len][MODES.len][]const u8 = @import("packed_assets").mpp_truecolor;
-
-// p<P>_counts.bin: source, mode 1, mode 2, mode 3 distinct colours in the image area
-// (then the source's hash, which only the headless harness reads).
-const COUNTS = blk: {
-    var c: [NAMES.len][]const u8 = undefined;
-    for (&c, 0..) |*f, p| f.* = @embedFile(DIR ++ std.fmt.comptimePrint("p{d}_counts.bin", .{p}));
-    break :blk c;
-};
-fn count(picture: usize, i: usize) u32 {
-    return std.mem.readInt(u32, COUNTS[picture][i * 4 ..][0..4], .little);
-}
+const MODES = gallery.MODES;
+const NAMES = gallery.NAMES;
+const PACKED = gallery.PACKED;
+const count = gallery.count;
 
 // HBL handlers take no user pointer: the depacked view lives at module scope (empty: nothing loaded).
 var view: blob.View = .{ .map = &.{}, .idx = &.{}, .pal = &.{} };
@@ -107,10 +90,10 @@ pub const Demo = struct {
         for (&zigos.lfbs) |*fb| fb.setFrameBufferHBLHandler(0, hbl);
         // On zg.mem, taken once at the largest blob's size: every switch reuses it.
         // u32 words, so the map and palette views blob.load takes are aligned.
-        const len = workLen() orelse return self.fail("a packed picture is unreadable");
+        const len = gallery.workLen() orelse return self.fail("a packed picture is unreadable");
         const words = zg.mem.alloc(u32, (len + 3) / 4) orelse return self.fail("no free RAM to depack into");
         self.work = std.mem.sliceAsBytes(words);
-        lists = cop.install(zigos, mostColours() orelse return self.fail("a packed picture is unreadable"));
+        lists = cop.install(zigos, gallery.mostColours() orelse return self.fail("a packed picture is unreadable"));
         self.apply();
     }
 
@@ -194,24 +177,6 @@ pub const Demo = struct {
         self.os.printText(&lfbs[0], "MPP TRUECOLOR: DEPACK FAILED", 4, IMAGE_H + 2, INK, 0);
     }
 };
-
-/// The largest blob once depacked and widened: the one buffer every switch reuses.
-fn workLen() ?usize {
-    var most: usize = 0;
-    for (PACKED) |modes| for (modes, MODES) |image, m| {
-        most = @max(most, blob.need(image, m.planes) orelse return null);
-    };
-    return most;
-}
-
-/// The largest palette of any blob: the VRAM table every switch reuses.
-fn mostColours() ?usize {
-    var most: usize = 0;
-    for (PACKED) |modes| for (modes, MODES) |image, m| {
-        most = @max(most, blob.paletteWords(image, m.planes) orelse return null);
-    };
-    return most;
-}
 
 // Mode 3: index bytes, then plane bytes (blob.load checked < PLANES); 0 in the other planes.
 fn splitPlanes(lfbs: *[PLANES]LogicalFB, idx: []const u8) void {
