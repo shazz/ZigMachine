@@ -51,6 +51,7 @@ pub const REG_BEAM_COUNT = memmap.REG_BEAM_COUNT; // 1.6.0 BEAM: mid-line colour
 pub const REG_BEAM_DROPPED = memmap.REG_BEAM_DROPPED;
 pub const REG_RAM_ARENA_TOP = memmap.REG_RAM_ARENA_TOP; // 1.7.0 RAM arena (hwRamAlloc)
 pub const REG_RAM_ALLOC_FAILS = memmap.REG_RAM_ALLOC_FAILS;
+pub const REG_FB_HBL_PURE = memmap.REG_FB_HBL_PURE; // 1.8.0 the plane's HBL handler is pure
 pub const OFF_BEAM_TABLE = memmap.OFF_BEAM_TABLE;
 pub const BEAM_MAX = memmap.BEAM_MAX;
 pub const BEAM_GRID = memmap.BEAM_GRID;

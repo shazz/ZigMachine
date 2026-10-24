@@ -147,7 +147,7 @@ fn setupPlanes(shown: *LogicalFB, saved: *LogicalFB) void {
     shown.is_enabled = true;
     shown.setOverscanBuffer();
     shown.setPalette(panel.main_pal);
-    shown.setFrameBufferHBLHandler(zg.OVERSCAN_MAGIC_X, handler_overscan);
+    shown.setFrameBufferHBLHandlerPure(zg.OVERSCAN_MAGIC_X, handler_overscan);
     // distcanvas.fill('#AAAAAA') under 'source-atop': the scroller is flat grey.
     shown.setPaletteEntry(panel.GREY, .{ .r = 0xAA, .g = 0xAA, .b = 0xAA, .a = 255 });
 

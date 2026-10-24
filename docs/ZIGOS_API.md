@@ -91,6 +91,7 @@ pub fn setFramebufferBackgroundColor(self, pal_entry: u8) void
 
 pub fn getRenderTarget(self) RenderTarget  // pass to effects that draw into a target
 pub fn setFrameBufferHBLHandler(self, position: u16, handler) void   // per-plane HBL (see §6)
+pub fn setFrameBufferHBLHandlerPure(self, position: u16, handler) void // the same, handler declared pure (1.8.0): own palette and/or flickerBorder() only; the board composites the plane line by line with its neighbours
 ```
 
 `RenderTarget` is a small union (`.fb` | `.render_buffer`) with `setPixelValue`

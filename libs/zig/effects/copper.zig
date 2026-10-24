@@ -33,7 +33,7 @@ pub const Geometry = struct {
 };
 
 /// `FB` needs: `id: u8`, `palette: [*]u32`, `flickerBorder()`,
-/// `hblLinesArePhysical() bool` and `setFrameBufferHBLHandler(pos, handler)`.
+/// `hblLinesArePhysical() bool` and `setFrameBufferHBLHandlerPure(pos, handler)` (copper.hbl is pure: own palette + flicker).
 pub fn Copper(comptime FB: type, comptime OS: type, comptime g: Geometry) type {
     if (g.visible_top + g.visible_rows > g.rows) @compileError("copper: visible band outside the raster");
     return struct {
@@ -70,7 +70,7 @@ pub fn Copper(comptime FB: type, comptime OS: type, comptime g: Geometry) type {
                 @memset(&storage[s], fb.palette[e]);
             }
             used[id] = palette_entries.len;
-            fb.setFrameBufferHBLHandler(if (opts.flicker) g.magic_x else 0, hbl);
+            fb.setFrameBufferHBLHandlerPure(if (opts.flicker) g.magic_x else 0, hbl);
         }
 
         /// Slot `slot`'s colours (RGBA as the palette stores them), one per

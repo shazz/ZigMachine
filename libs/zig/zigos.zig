@@ -557,7 +557,7 @@ pub const LogicalFB = struct {
     // plane's HBLs while rendering THAT plane.
     pub fn openBorders(self: *LogicalFB, which: Borders) void {
         self.setOverscanBuffer();
-        self.setFrameBufferHBLHandler(OVERSCAN_MAGIC_X, switch (which) {
+        self.setFrameBufferHBLHandlerPure(OVERSCAN_MAGIC_X, switch (which) {
             .all => flickerAllHbl,
             .top_bottom => flickerBandsHbl,
         });
@@ -708,16 +708,35 @@ pub const LogicalFB = struct {
     }
 
     pub fn setFrameBufferHBLHandler(self: *LogicalFB, position: u16, handler: *const fn (*LogicalFB, *ZigOS, u16, u16) void) void {
+        // The library's own flicker handlers are pure whoever installs them.
+        self.publishHBL(position, handler, handler == &flickerAllHbl or handler == &flickerBandsHbl);
+    }
+
+    // A PURE handler (memmap REG_FB_HBL_PURE, 1.8.0): it writes only THIS plane's palette
+    // and/or calls flickerBorder(), and reads only tables, what frame() wrote and the line.
+    // No other state: no other plane's palette or registers, no HSCROLL or RESOLUTION of
+    // its own, no pixels, no variable another handler or frame() reads. The board then runs
+    // it between other planes' passes of the same line (fpga/cycles/vseq_group.c), which
+    // moves each line once for the whole run of planes; the browser ignores the flag.
+    // A wrong claim changes the board's picture: the gate replays every flagged cart in
+    // that order (fpga/tools/video_order_pure.py).
+    pub fn setFrameBufferHBLHandlerPure(self: *LogicalFB, position: u16, handler: *const fn (*LogicalFB, *ZigOS, u16, u16) void) void {
+        self.publishHBL(position, handler, true);
+    }
+
+    fn publishHBL(self: *LogicalFB, position: u16, handler: *const fn (*LogicalFB, *ZigOS, u16, u16) void, pure: bool) void {
         self.fb_hbl_handler = handler;
         self.fb_hbl_handler_position = position;
         // Publish to the machine: a non-zero id (plane+1) + the x position.
         writeU16(hw.REG_FB_HBL_ID + @as(usize, self.id) * 2, @as(u16, self.id) + 1);
         writeU16(hw.REG_FB_HBL_POS + @as(usize, self.id) * 2, position);
+        writeU8(hw.REG_FB_HBL_PURE + @as(usize, self.id), @intFromBool(pure));
     }
 
     pub fn clearFrameBufferHBLHandler(self: *LogicalFB) void {
         self.fb_hbl_handler = null;
         writeU16(hw.REG_FB_HBL_ID + @as(usize, self.id) * 2, 0);
+        writeU8(hw.REG_FB_HBL_PURE + @as(usize, self.id), 0);
     }
 
     // Fill a rectangle (signed, clipped to the plane) with one index: a @memset

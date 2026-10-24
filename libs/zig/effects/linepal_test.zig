@@ -13,7 +13,7 @@ const FakeFB = struct {
     pub fn hblLinesArePhysical(self: *const FakeFB) bool {
         return self.physical;
     }
-    pub fn setFrameBufferHBLHandler(self: *FakeFB, pos: u16, handler: anytype) void {
+    pub fn setFrameBufferHBLHandlerPure(self: *FakeFB, pos: u16, handler: anytype) void {
         _ = handler;
         self.hbl_pos = pos;
     }

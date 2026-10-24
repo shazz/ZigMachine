@@ -68,7 +68,7 @@ pub const Placement = struct {
         const p0: *LogicalFB = &zigos.lfbs[0];
         p0.is_enabled = true;
         p0.setOverscanBuffer();
-        p0.setFrameBufferHBLHandler(zg.OVERSCAN_MAGIC_X, handlerOverscan);
+        p0.setFrameBufferHBLHandlerPure(zg.OVERSCAN_MAGIC_X, handlerOverscan);
         p0.setPalette(placement_pal);
         p0.clearFrameBuffer(0);
     }

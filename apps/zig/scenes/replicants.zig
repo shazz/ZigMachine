@@ -184,7 +184,7 @@ pub const Demo = struct {
         self.back_bottom.render(null);
 
         // HBL Handler for the raster effect
-        fb.setFrameBufferHBLHandler(0, handler_rasterbars); 
+        fb.setFrameBufferHBLHandlerPure(0, handler_rasterbars); 
 
 
 
@@ -212,7 +212,7 @@ pub const Demo = struct {
         self.logo.init(fb.getRenderTarget(), logo_b, 268, 105, (320-268)/2, 35, &self.logo_offset_table, null); 
 
         // HBL Handler for the raster effect
-        fb.setFrameBufferHBLHandler(0, handler_logo);      
+        fb.setFrameBufferHBLHandlerPure(0, handler_logo);      
 
         fb = &zigos.lfbs[2];
         fb.is_enabled = true; 

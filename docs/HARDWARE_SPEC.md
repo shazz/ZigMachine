@@ -92,6 +92,7 @@ ZigOS wraps them so effects use names, not raw addresses.
 | 0x68 | `BEAM_DROPPED` | u32 | 1.6.0: running count of BEAM writes the machine refused; only `hwInit` zeroes it (the program reads and clears it) |
 | 0x6C | `RAM_ARENA_TOP` | u32 | 1.7.0: first byte above the cart's RAM arena (`hwRamAlloc`); 0 = empty. Survives `hwInit`; `hwSetCartHigh` empties it |
 | 0x70 | `RAM_ALLOC_FAILS` | u32 (ro) | 1.7.0: refused `hwRamAlloc`/`hwRamRelease` calls since the cart was declared |
+| 0x74 | `FB_HBL_PURE` | u8 ×4 | 1.8.0: 1 = plane p's HBL handler is pure (writes only its own palette and/or flickers the border). The machine ignores it; the board composites such planes line by line (`fpga/cycles/vseq_group.c`). Set by ZigOS (`openBorders`, `copper`, `linepal`, `setFrameBufferHBLHandlerPure`) |
 
 ### BEAM — mid-line colour-0 writes (1.6.0)
 

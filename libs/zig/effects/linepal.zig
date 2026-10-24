@@ -57,7 +57,7 @@ pub fn LinePalette(comptime FB: type, comptime OS: type, comptime g: Geometry, c
         /// Replay this table on `fb` from now on.
         pub fn install(self: *const Self, fb: *FB) void {
             active = self;
-            fb.setFrameBufferHBLHandler(0, hbl);
+            fb.setFrameBufferHBLHandlerPure(0, hbl); // own palette only: pure (memmap REG_FB_HBL_PURE)
         }
 
         /// Start handing out entries for visible line `line`.

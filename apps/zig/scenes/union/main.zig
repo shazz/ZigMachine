@@ -86,7 +86,7 @@ pub const Demo = struct {
         p0.palette[0] = sky.SKY[0];
         p0.setPaletteEntry(FLOOR, Color{ .r = 192, .g = 96, .b = 128, .a = 255 });
         p0.setPaletteEntry(BOTTOM, BOTTOM_RGB);
-        p0.setFrameBufferHBLHandler(zg.OVERSCAN_MAGIC_X, sky.handler); // sky gradient + overscan flicker
+        p0.setFrameBufferHBLHandlerPure(zg.OVERSCAN_MAGIC_X, sky.handler); // sky gradient + overscan flicker
         self.runner.init(zigos); // sets up plane 1 (actors)
         split.init(&zigos.lfbs[1]); // P1's palette split: actors above, scrolltext below
         self.balls.init(zigos, BOTTOM_RGB); // dragonballs on plane 0, over the bottom band

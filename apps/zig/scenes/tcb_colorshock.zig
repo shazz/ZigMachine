@@ -127,7 +127,7 @@ pub const Demo = struct {
         field.installRowPalette(bg, 0);
         for (inkpal.logo_colours, 0..) |c, i| bg.palette[inkpal.LOGO_FIRST + i] = c;
         hbl.strip_pal.reset();
-        bg.setFrameBufferHBLHandler(zg.OVERSCAN_MAGIC_X, hbl.panHbl);
+        bg.setFrameBufferHBLHandlerPure(zg.OVERSCAN_MAGIC_X, hbl.panHbl);
         zigos.lfbs[1].is_enabled = false;
 
         self.gpu = .{};

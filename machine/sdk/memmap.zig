@@ -114,7 +114,15 @@ pub const REG_BEAM_DROPPED: usize = 0x68; // u32  running count of rejected writ
 // survive hwInit() like CART_HIGH, and hwSetCartHigh() -- the host declaring a
 // NEW cart, at every boot or swap -- empties the arena and zeroes the counter.
 pub const REG_RAM_ARENA_TOP: usize = 0x6C; // u32  first byte above the arena; 0 = empty (0x6C..0x6F)
-pub const REG_RAM_ALLOC_FAILS: usize = 0x70; // u32  (ro) refused hwRamAlloc/hwRamRelease calls (0x70..0x73; 0x74..0x7F free below OFF_BLIT)
+pub const REG_RAM_ALLOC_FAILS: usize = 0x70; // u32  (ro) refused hwRamAlloc/hwRamRelease calls (0x70..0x73)
+// --- PURE HBL (1.8.0) -----------------------------------------------------------
+// A plane's HBL handler that writes ONLY its own plane's palette and/or flickers the
+// border (flickerBorder: RESOLUTION and RES_FLICKER), reading tables and what frame()
+// wrote, may be run between the passes of OTHER planes on the same line: the board's
+// compositor then moves each line once for a run of such planes (fpga/cycles/vseq_group.c).
+// The cart (ZigOS: openBorders, copper, linepal, setFrameBufferHBLHandlerPure) sets the
+// byte; the browser machine ignores it: its plane-major order is the reference.
+pub const REG_FB_HBL_PURE: usize = 0x74; // u8 x4  1 = plane p's HBL handler is pure (0x74..0x77; 0x78..0x7F free below OFF_BLIT)
 // The table is 256 bytes, too big for the register block, so it sits directly
 // ABOVE the physical framebuffer: outside REGION_BYTES, which is the window the
 // blitter reads and writes — a blit can never scribble a line's writes.
@@ -293,7 +301,7 @@ pub const ROM_RAM_BYTES: usize = ROM_RAM_TOP - ROM_RAM_BASE; // 2 MiB
 // tools/mkdisks.sh; node apps/disk_check.mjs is what catches it.
 pub const SHARED_PAGES: u32 = 112;
 
-pub const ZM_HW_VERSION: u32 = 0x0001_0700; // 1.7.0 — RAM arena: hwRamAlloc/Mark/Release/AllocFailures (REG_RAM_*)
+pub const ZM_HW_VERSION: u32 = 0x0001_0800; // 1.8.0 — REG_FB_HBL_PURE (1.7.0: RAM arena, REG_RAM_*)
 
 // Register-block overlaps are SILENT (two names, one byte), so the BEAM and RAM
 // ARENA layouts prove at compile time that they clear their neighbours.
@@ -302,7 +310,8 @@ comptime {
     if (REG_BEAM_COUNT + 2 > REG_BEAM_DROPPED) @compileError("memmap: BEAM_COUNT overlaps BEAM_DROPPED");
     if (REG_BEAM_DROPPED + 4 > REG_RAM_ARENA_TOP) @compileError("memmap: BEAM_DROPPED overlaps RAM_ARENA_TOP");
     if (REG_RAM_ARENA_TOP + 4 > REG_RAM_ALLOC_FAILS) @compileError("memmap: RAM_ARENA_TOP overlaps RAM_ALLOC_FAILS");
-    if (REG_RAM_ALLOC_FAILS + 4 > OFF_BLIT) @compileError("memmap: RAM_ALLOC_FAILS overlaps the blitter block");
+    if (REG_RAM_ALLOC_FAILS + 4 > REG_FB_HBL_PURE) @compileError("memmap: RAM_ALLOC_FAILS overlaps FB_HBL_PURE");
+    if (REG_FB_HBL_PURE + NB_PLANES > OFF_BLIT) @compileError("memmap: FB_HBL_PURE overlaps the blitter block");
     if (REG_RAM_ARENA_TOP % 4 != 0 or REG_RAM_ALLOC_FAILS % 4 != 0) @compileError("memmap: RAM arena registers must be u32-aligned");
     if (OFF_BEAM_TABLE % 4 != 0) @compileError("memmap: BEAM table must be u32-aligned");
     if (OFF_BEAM_TABLE < REGION_BYTES) @compileError("memmap: BEAM table inside the blitter's window");

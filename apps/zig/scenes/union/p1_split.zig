@@ -63,7 +63,7 @@ pub fn init(p1: *LogicalFB) void {
         if (isA(@intCast(s))) continue;
         p1.palette[s] = p2_pal[s].toRGBA();
     }
-    p1.setFrameBufferHBLHandler(zg.OVERSCAN_MAGIC_X, handler);
+    p1.setFrameBufferHBLHandlerPure(zg.OVERSCAN_MAGIC_X, handler);
 }
 
 fn isA(slot: u8) bool {

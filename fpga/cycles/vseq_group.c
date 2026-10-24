@@ -34,12 +34,16 @@ static int g_hbl;       /* the group has a handler: RES_FLICKER is the sequencer
 static int g_passed;    /* a pass was issued since the LATCHes: PAINTED speaks for it */
 static uint16_t g_true; /* RES_FLICKER as video.zig has it: the handlers' own bumps */
 
+/* No handler, or one the cart declared pure (memmap REG_FB_HBL_PURE, 1.8.0: ZigOS's openBorders,
+ * copper, linepal and setFrameBufferHBLHandlerPure set it; the gate replays every flagged cart in
+ * this order, fpga/tools/video_order_pure.py). */
 int vseq_plane_pure(int p) {
 #ifdef ZM_GROUP_HBL_ALL /* the experiment: every handler trusted (fpga/review/FRESCO_OPTIONS.md) */
     (void)p;
     return 1;
 #else
-    return !vseq_plane_handler(p);
+    uint16_t two = vseq_r16(ZM_REG_FB_HBL_PURE + ((uint32_t)p & ~1u));
+    return !vseq_plane_handler(p) || ((two >> (8 * (p & 1))) & 0xFF) != 0;
 #endif
 }
 

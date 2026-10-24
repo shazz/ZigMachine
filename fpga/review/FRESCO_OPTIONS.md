@@ -151,3 +151,16 @@ Reproduce: `uv run python tools/video_phase.py <cart> <frame> --timing 0 [--fuse
 `make ZM_AUDIO=snd ZM_FPU=1 [HRV_CFLAGS_EXTRA=-DZM_GROUP_HBL_ALL] build/hcycles/split/board_snd_fpu/sys.bin`,
 stage with `glass_shelf.stage_system`, bind-mount over `/mnt/sd/zigmachine/system.rv32`, `killall glass`,
 `tools/board_fps.py --tty /dev/ttyUSB1` (prototypes/fresco_re/).
+
+## Decision 2026-10-24
+
+Lead and Fable (Matt delegated): **stay frame-serial.** Land 3a (pixel proof on the board first:
+done, the board's pictures equal the browser's on 20 frames of the five carts), then 3b, then
+SOC_REVIEW F3 (RGB565 + alpha rows) and F2 (scanout underrun counter) for bandwidth. Idea 1 is not
+opened: the board build is at 94 % LUT with sys WNS +0.04 ns, a slow line would be on-screen garbage,
+and it loses the scene_hash oracle. If double-buffering is ever paid for, it is for idea 2.
+For 3b: a list word format with room for non-palette registers (RES_FLICKER, HSCROLL) so it never
+needs rewriting; palettes written back to the region at frame end (copper.hbl reads them); the list
+fetch hidden under LOAD on first-layer passes; OOC synth and comp-domain timing before any bitstream.
+After 3a + 3b: count the carts still FRESCO-bound on the board (cart_c <= 1.67 Mc and cart_c + seq_c
+> 1.67 Mc), and run F3's AXI beat counters and F2's underrun counter on one 3-plane frame.
