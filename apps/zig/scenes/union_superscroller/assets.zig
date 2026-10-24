@@ -7,10 +7,12 @@
 //   overlay   320x200, 0 or 1..4     (overlay.png halved; 0 = transparent)
 //   rasters   168, colour 0..41      (rasters.png: one colour a CANVAS row)
 //   colours   RGB x (4 + 4 + 42 + 1): back, overlay, rasters, the font's ink
-//   font      fonts2.png's 60 tiles as runs of ink on their even rows (spanfont)
+//   font      fonts2.png's 60 tiles as runs of ink on their even rows (spanfont;
+//             its u16 tables sit at odd offsets: font.zig copies them aligned)
 // --------------------------------------------------------------------------
 const std = @import("std");
 const zg = @import("zigos");
+const F = @import("font.zig");
 
 pub const W: usize = zg.WIDTH; // usize: TOTAL (2 * W * H) overflows u16
 pub const H: usize = zg.HEIGHT;
@@ -21,8 +23,8 @@ pub const RASTER_ROWS = 168; // rasters.png 640x168
 pub const GLYPHS = 60; // fonts2.png 3840x2280: initTile(384,380,32)
 pub const FIRST_CHAR = 32;
 pub const SAMPLED_ROWS = 187; // canvas rows 0, 2 .. 372 of the 374-row scroll canvas
-const FONT_ROWS = 127; // unique rows, as the asset script reports them
-const FONT_SPANS = 201;
+pub const FONT_ROWS = 127; // unique rows, as the asset script reports them
+pub const FONT_SPANS = 201;
 const COLOURS = BACK_COLOURS + OVER_COLOURS + RASTER_COLOURS + 1;
 
 /// The images and colours: once this many bytes are depacked, the layer tables
@@ -38,7 +40,9 @@ pub const Images = struct {
     over_rgb: [OVER_COLOURS + 1]u32, // [0] unused: 0 is transparent
     raster_rgb: [RASTER_COLOURS]u32,
     ink: u32,
-    font: zg.spanfont.SpanFont,
+    font_bytes: F.Bytes,
+    /// font_bytes' tables, aligned (font.zig): set by useFont() once depacked.
+    font: F.Font,
 
     /// Views into the depacked image; `buf` must be TOTAL bytes.
     pub fn split(buf: []const u8) Images {
@@ -54,15 +58,22 @@ pub const Images = struct {
         for (img.over_rgb[1..], 0..) |*c, i| c.* = colour(rgb, BACK_COLOURS + i);
         for (&img.raster_rgb, 0..) |*c, i| c.* = colour(rgb, BACK_COLOURS + OVER_COLOURS + i);
         img.ink = colour(rgb, COLOURS - 1);
-        img.font = .{
+        img.font_bytes = .{
             .row_ids = take(buf, &at, GLYPHS * SAMPLED_ROWS),
             .first = take(buf, &at, 2 * (FONT_ROWS + 1)),
             .spans = take(buf, &at, 4 * FONT_SPANS),
-            .rows_per_glyph = SAMPLED_ROWS,
         };
+        img.font = .{ .row_ids = &.{}, .first = &.{}, .spans = &.{}, .rows_per_glyph = SAMPLED_ROWS };
         return img;
     }
+
+    /// The font's tables copied into `store`, once the whole image is depacked.
+    pub fn useFont(self: *Images, store: *FontStore) void {
+        self.font = F.build(FontStore, store, self.font_bytes, SAMPLED_ROWS);
+    }
 };
+
+pub const FontStore = F.Store(FONT_ROWS, FONT_SPANS);
 
 fn take(buf: []const u8, at: *usize, n: usize) []const u8 {
     defer at.* += n;

@@ -84,6 +84,7 @@ pub const Demo = struct {
     cache: *inkmask.KeyCache,
     /// The frame-independent entry images and colour tables (layers.zig), on zg.mem.
     tables: *layers.Tables,
+    font_store: *A.FontStore, // the font's u16 tables, aligned (font.zig), on zg.mem
     /// The per-row descriptors the HBL reads (rowpal.zig).
     rows: rowpal.Ctx,
     blitter: zg.Blitter,
@@ -110,6 +111,7 @@ pub const Demo = struct {
         const tables = zg.mem.alloc(layers.Tables, 1) orelse return self.abandon("no free RAM for the layer tables");
         self.tables = &tables[0];
         self.tables.builder = .{};
+        self.font_store = &(zg.mem.alloc(A.FontStore, 1) orelse return self.abandon("no free RAM for the font"))[0];
         self.tables_built = .more;
         self.blitter.init();
         if (!depack.start(zigos, packed_assets.union_superscroller, self.buf, DEPACK_BYTES_PER_LINE))
@@ -174,6 +176,7 @@ pub const Demo = struct {
     fn start(self: *Demo, zigos: *ZigOS) void {
         self.buildTables(layers.UNITS); // whatever the loading frames left
         if (self.tables_built != .done) return self.abandon("a row holds more keys than the layer tables take");
+        self.images.useFont(self.font_store);
         self.rows = .{ .desc = @splat(.{}), .tables = self.tables, .pal = self.palette, .img = &self.images, .motion = &self.motion };
         const fb = &zigos.lfbs[0];
         fb.is_enabled = true;

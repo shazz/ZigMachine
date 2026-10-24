@@ -16,8 +16,7 @@ const W_I: i32 = A.W;
 pub fn row(dst: *[A.W]u8, src: *const [A.W]u8, img: *const A.Images, m: *const M.Motion, glyph_row: u8) void {
     for (m.ring.x, m.ring.c) |pos, ch| {
         if (pos >= 2 * W_I or pos + M.TILE_W <= 0) continue;
-        var runs = img.font.runs(ch - A.FIRST_CHAR, glyph_row);
-        while (runs.next()) |run| {
+        for (img.font.runs(ch - A.FIRST_CHAR, glyph_row)) |run| {
             const cols = zg.spanfont.halfColumns(pos, run);
             const x0: usize = @intCast(std.math.clamp(cols[0], 0, W_I));
             const x1: usize = @intCast(std.math.clamp(cols[1], 0, W_I));
