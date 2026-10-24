@@ -52,6 +52,7 @@ const Color = zg.Color;
 const Console = zg.Console;
 const convertU8ArraytoColors = zg.convertU8ArraytoColors;
 const trig = @import("tlb_spoon/trig.zig");
+const letter = @import("tlb_spoon/letter.zig");
 
 const W = zg.WIDTH; // 320
 const H = zg.HEIGHT; // 200
@@ -65,20 +66,17 @@ const H = zg.HEIGHT; // 200
 const pal = convertU8ArraytoColors(@embedFile("../assets/screens/tlb_spoon/pal.dat"));
 const BALL_BASE: u8 = 1;
 const LOGO_INK: u8 = 4;
-const RASTER_BASE: u8 = 6;
+// RASTER_BASE (6) is used by tlb_spoon/letter.zig, the only code that writes it.
 
 const ball_b = @embedFile("../assets/screens/tlb_spoon/ball.raw");
 const BALL_SIZE = 8;
 
-const logo_b = @embedFile("../assets/screens/tlb_spoon/logo.raw");
-const LOGO_W = 158;
-const LOGO_H = 91;
+const logo_runs = @import("tlb_spoon/logo_runs.zig");
+const LOGO_W = logo_runs.LOGO_W;
+const LOGO_H = logo_runs.LOGO_H;
 
 // scrollimage.initTile(25,25,25): 25x25 tiles, tile index = charcode - 25.
-const font_b = @embedFile("../assets/screens/tlb_spoon/font.raw");
-const FONT_SHEET_W: usize = 250;
-const GLYPH = 25;
-const GLYPH_COLS: u16 = 10;
+// The glyphs are drawn by tlb_spoon/letter.zig, which embeds font.raw.
 const GLYPH_TILES: u16 = 70; // 10x7
 const GLYPH_FIRST: u8 = 25;
 
@@ -187,8 +185,7 @@ const DRIFT_FREEZE: usize = 15;
 // ONE FRAME OF LAG, and it is real: `scrollcanvas.draw(testcanvas,0,0,1,0)`
 // copies the letters BEFORE the frame's own transform is installed, so what
 // reaches the screen at frame n is frame n's letters under frame n-1's theta.
-const SCROLL_W: f64 = 400;
-const SCROLL_H: f64 = 200;
+// The 400x200 scroll canvas bounds live in tlb_spoon/letter.zig.
 const NB_LETTERS: usize = 14;
 
 // --------------------------------------------------------------------------
@@ -196,24 +193,8 @@ const NB_LETTERS: usize = 14;
 // --------------------------------------------------------------------------
 const Ball = struct { x: f32, y: f32, s: f32 };
 
-const Letter = struct {
-    tile: u16, // GLYPH_TILES = "nothing to draw"
-    ox: f32, // where the glyph's (0,0) lands on screen
-    oy: f32,
-    cb: f32, // R(theta + letter angle): glyph space -> screen
-    sb: f32,
-};
-
-// The scroll canvas -> screen affine, and its inverse (used to clip a pixel
-// against the 400x200 canvas exactly as the remake's canvas bounds do).
-const Frame = struct {
-    ct: f32,
-    st: f32,
-    cx: f32,
-    cy: f32,
-    sx: f32,
-    sy: f32,
-};
+const Letter = letter.Letter;
+const Frame = letter.Frame;
 
 pub const Demo = struct {
     counter: u32,
@@ -411,9 +392,9 @@ pub const Demo = struct {
             self.yaddspeed += self.yadd;
             self.zaddspeed += self.zadd;
 
-            const px = wrapQ16((@as(i64, self.starx[i]) << 16) + (self.xaddspeed >> 24), FIELD_X_Q16);
-            const py = wrapQ16((@as(i64, self.stary[i]) << 16) + (self.yaddspeed >> 24), FIELD_Y_Q16);
-            const pz = wrapQ16((@as(i64, @intCast(i)) << 16) - (self.zaddspeed >> 24), FIELD_Z_Q16);
+            const px = wrapQ16((@as(i64, self.starx[i]) << 16) + (self.xaddspeed >> 24), 320);
+            const py = wrapQ16((@as(i64, self.stary[i]) << 16) + (self.yaddspeed >> 24), 200);
+            const pz = wrapQ16((@as(i64, @intCast(i)) << 16) - (self.zaddspeed >> 24), 200);
             if (pz == 0) {
                 self.balls[i] = .{ .x = 1.0e6, .y = 1.0e6, .s = 1 }; // z = 0 projects to infinity
                 continue;
@@ -452,21 +433,24 @@ pub const Demo = struct {
         self.logo_y = @intCast((((@as(i64, 55) << 30) - @as(i64, 50) * self.lo2.c) + (1 << 29)) >> 30);
     }
 
+    // The logo's ink as comptime runs (tlb_spoon/logo_runs.zig): the same pixels
+    // the byte-by-byte test painted, without testing the 80 % that are holes.
     fn drawLogo(self: *Demo, fb: *LogicalFB) void {
         // Every row is clipped the same way, so the x range is found once.
         const x0 = @max(0, -self.logo_x);
         const x1 = @min(LOGO_W, W - self.logo_x);
+        const t = &logo_runs.table;
         var y: i32 = 0;
         while (y < LOGO_H) : (y += 1) {
             const dy = self.logo_y + y;
             if (dy < 0 or dy >= H) continue;
-            const row = @as(usize, @intCast(y)) * LOGO_W;
             const dst = fb.fb[@as(usize, @intCast(dy)) * W ..];
-            var x = x0;
-            while (x < x1) : (x += 1) {
-                if (logo_b[row + @as(usize, @intCast(x))] != 0) {
-                    dst[@intCast(self.logo_x + x)] = LOGO_INK;
-                }
+            const ry: usize = @intCast(y);
+            for (t.runs[t.row_start[ry]..t.row_start[ry + 1]]) |run| {
+                const a = @max(x0, @as(i32, run.x));
+                const b = @min(x1, @as(i32, run.x) + run.len);
+                if (a >= b) continue;
+                @memset(dst[@intCast(self.logo_x + a)..@intCast(self.logo_x + b)], LOGO_INK);
             }
         }
     }
@@ -495,7 +479,7 @@ pub const Demo = struct {
         self.sm -= 1;
 
         // The transform the frame is SHOWN through is the previous frame's (see
-        // the note by SCROLL_W). Before there is one, the letters go up 1:1 at
+        // the note above NB_LETTERS). Before there is one, the letters go up 1:1 at
         // (-40,0) — the identity testcanvas the remake starts with.
         const first = self.first_main;
         const ct: f32 = if (first) 1 else self.th.cosF();
@@ -538,7 +522,7 @@ pub const Demo = struct {
     fn drawScroller(self: *Demo, fb: *LogicalFB) void {
         for (self.letters) |slot| {
             if (slot.tile >= GLYPH_TILES) continue;
-            drawLetter(fb, slot, self.frame);
+            letter.draw(fb, slot, self.frame);
         }
     }
 };
@@ -547,13 +531,14 @@ pub const Demo = struct {
 // Helpers
 // --------------------------------------------------------------------------
 // `if(p>size) p-=size*floor(p/size); if(p<0) p-=size*floor(p/size);` on a Q16
-// value that is at most a few units out of range: a conditional add/subtract
-// does the modulo with no divide.
-fn wrapQ16(p: i64, size: i64) i32 {
-    var v = p;
-    while (v >= size) v -= size;
-    while (v < 0) v += size;
-    return @intCast(v);
+// value. The speeds are wrapped into [0, size) every frame and drift at most a
+// few units inside one (200 steps of |add| <= 0.02), so p lies in about
+// (-size, 2 * size) Q16: it fits an i32. A floored modulo by a COMPTIME size is
+// the old add/subtract loops' exact result, and it lowers to a multiply; the
+// loops on an i64 with a run-time size had become a soft i64 divide (0.37 Mc).
+inline fn wrapQ16(p: i64, comptime size: i32) i32 {
+    const v: i32 = @intCast(p);
+    return @mod(v, size << 16);
 }
 
 fn wrapQ40(v: i64, size_q16: i64) i64 {
@@ -627,66 +612,7 @@ fn sampleIndex(offset: f32, inv_scale: f32) u8 {
     return @intCast(@min(BALL_SIZE - 1, @max(0, i)));
 }
 
-// One scroller letter: walk its screen bounding box, map each pixel back to
-// glyph space through R(-(theta+letter_angle)), and — exactly as the remake's
-// 400x200 canvas does — reject anything that falls outside the scroll canvas.
-// A glyph pixel does not paint the font's ink: it PUNCHES a hole, and the hole
-// shows the raster band for that screen row.
-fn drawLetter(fb: *LogicalFB, slot: Letter, f: Frame) void {
-    var min_x: f32 = 1.0e9;
-    var min_y: f32 = 1.0e9;
-    var max_x: f32 = -1.0e9;
-    var max_y: f32 = -1.0e9;
-    const g: f32 = @floatFromInt(GLYPH);
-    for ([_][2]f32{ .{ 0, 0 }, .{ g, 0 }, .{ 0, g }, .{ g, g } }) |corner| {
-        const cx = slot.ox + slot.cb * corner[0] - slot.sb * corner[1];
-        const cy = slot.oy + slot.sb * corner[0] + slot.cb * corner[1];
-        min_x = @min(min_x, cx);
-        max_x = @max(max_x, cx);
-        min_y = @min(min_y, cy);
-        max_y = @max(max_y, cy);
-    }
-    const x0 = @max(0, @as(i32, @intFromFloat(@floor(min_x))));
-    const y0 = @max(0, @as(i32, @intFromFloat(@floor(min_y))));
-    const x1 = @min(W, @as(i32, @intFromFloat(@ceil(max_x))) + 1);
-    const y1 = @min(H, @as(i32, @intFromFloat(@ceil(max_y))) + 1);
-    if (x0 >= x1 or y0 >= y1) return;
-
-    const tile_x = @as(usize, slot.tile % GLYPH_COLS) * GLYPH;
-    const tile_y = @as(usize, slot.tile / GLYPH_COLS) * GLYPH;
-
-    var y = y0;
-    while (y < y1) : (y += 1) {
-        const py = @as(f32, @floatFromInt(y)) + 0.5;
-        // Screen -> glyph, and screen -> scroll canvas; both advance by a
-        // constant vector along the row, so each row costs two rotations.
-        var gx = slot.cb * (@as(f32, @floatFromInt(x0)) + 0.5 - slot.ox) + slot.sb * (py - slot.oy);
-        var gy = -slot.sb * (@as(f32, @floatFromInt(x0)) + 0.5 - slot.ox) + slot.cb * (py - slot.oy);
-        var canvas_x = f.sx + f.ct * (@as(f32, @floatFromInt(x0)) + 0.5 - f.cx) + f.st * (py - f.cy);
-        var canvas_y = f.sy - f.st * (@as(f32, @floatFromInt(x0)) + 0.5 - f.cx) + f.ct * (py - f.cy);
-        const ink = RASTER_BASE + @as(u8, @intCast(@divTrunc(y, 8)));
-        const dst = fb.fb[@as(usize, @intCast(y)) * W ..];
-
-        var x = x0;
-        while (x < x1) : ({
-            x += 1;
-            gx += slot.cb;
-            gy -= slot.sb;
-            canvas_x += f.ct;
-            canvas_y -= f.st;
-        }) {
-            if (gx < 0 or gy < 0 or gx >= g or gy >= g) continue;
-            if (canvas_x < 0 or canvas_y < 0 or canvas_x >= SCROLL_W or canvas_y >= SCROLL_H) continue;
-            const sxi = tile_x + @as(usize, @intFromFloat(gx));
-            const syi = tile_y + @as(usize, @intFromFloat(gy));
-            if (font_b[syi * FONT_SHEET_W + sxi] != 0) dst[@intCast(x)] = ink;
-        }
-    }
-}
-
 comptime {
     if (ball_b.len != BALL_SIZE * BALL_SIZE) @compileError("ball.raw is not 8x8");
-    if (logo_b.len != LOGO_W * LOGO_H) @compileError("logo.raw is not 158x91");
-    if (font_b.len != FONT_SHEET_W * 7 * GLYPH) @compileError("font.raw is not a 10x7 grid of 25x25");
     if (introfont_b.len != INTRO_SHEET_W * 200) @compileError("introfont.raw is not 320x200");
 }
