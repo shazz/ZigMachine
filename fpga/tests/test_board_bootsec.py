@@ -7,6 +7,8 @@ browser's engine, line for line:
   and after every frame, pollCartRequest's chainload at the frame the browser sees it (120, 240);
 - every opcode wint runs, on edge and random operands (tests/bootsec_util.py's WAT module),
   traps included (division, out-of-bounds, unreachable);
+- the PICTURE: the native host running the sector through the interpreter over the wasm2c'd
+  machine (host --bootsec) against apps/scene_hash.mjs given the same .zmd;
 - what the sandbox refuses or cuts short: float arithmetic, a truncated sector, a loop that
   never ends (fuel), a disk whose sector is not executable.
 
@@ -15,6 +17,7 @@ the differential tests must catch it."""
 
 from __future__ import annotations
 
+import json
 import os
 import shutil
 import subprocess
@@ -74,6 +77,23 @@ def test_every_opcode_wint_runs_answers_as_the_browsers_engine(exe: Path, ops: P
     bad = [(c, a, b) for c, a, b in zip(calls.splitlines(), ours, theirs, strict=True) if a != b]
     assert not bad, f"{len(bad)} calls differ, first: {bad[:5]}"
     assert {"div 0", "oob 0", "unreachable 0"} <= set(ours)  # the traps were reached, not only the values
+
+
+@pytest.mark.parametrize("disk", [SYSINFO, REPLICANTS])
+def test_the_native_host_draws_the_boot_screen_scene_hash_draws(disk: Path) -> None:
+    """The picture check: the interpreter over the wasm2c'd machine (host --bootsec, what the
+    board firmware runs) against scene_hash.mjs booting the same sector in node, every plane's
+    PFB every 10 frames, past the chainload frame."""
+    host = FPGA / "build/host/sysinfo/host"  # any cart's host: --bootsec runs the disk's sector instead
+    if not host.exists() or not shutil.which("node"):
+        pytest.skip("no native host (make -C fpga build/host/sysinfo/host) or no node")
+    ours = subprocess.run([str(host), disk.name, "250", "10", "--bootsec", str(disk)], capture_output=True, text=True,
+                          check=True).stdout  # fmt: skip
+    theirs = subprocess.run(["node", "apps/scene_hash.mjs", str(disk), "250", "10"], cwd=ROOT, capture_output=True,
+                            text=True, check=True).stdout  # fmt: skip
+    a, b = json.loads(ours)["samples"], json.loads(theirs)["samples"]
+    assert a == b and len(a) == 25
+    assert len({s["hash"] for s in a}) == 1  # a still screen: the same picture every frame
 
 
 def _module(tmp: Path, body: str, name: str) -> Path:

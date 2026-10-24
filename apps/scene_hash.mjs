@@ -18,6 +18,9 @@
 // does for GEM over one (insertDisk, the FAT listing; scene_hash_disk.mjs); `--program`: the
 // cart is a program GEM launched off it (swapCart req 3), which the browser hands no listing.
 // `--compare` exits 1 on the first differing frame.
+// A .zmd in the cart's place runs its executable BOOT SECTOR (format v2: the disk's first 1 KB,
+// as docs/zmdisk.js slices it), as the browser runs it before the disk's cart; the board runs
+// the same bytes through its interpreter (fpga/host/bootsec.h, `host --bootsec X.zmd`).
 // `--composite` hashes only the COMPOSED picture (each enabled plane's physical
 // render, borders included, stacked as the browser's canvases are: stackOver),
 // not each plane: it proves a change that moves pixels between planes (merging
@@ -44,7 +47,8 @@ async function boot(cartPath, machineDir, diskPath, dataDiskPath, program) {
     machine.hwSetRomHigh(romRam(romBytes).high ?? 0);
 
     const noop = () => {};
-    const cartBytes = await readFile(cartPath);
+    const file = await readFile(cartPath);
+    const cartBytes = cartPath.endsWith(".zmd") ? file.subarray(0, 1024) : file;
     // Stub every host import the cart declares that we don't provide explicitly.
     const env = {
         memory,
@@ -67,7 +71,7 @@ async function boot(cartPath, machineDir, diskPath, dataDiskPath, program) {
     machine.hwSetCartHigh(cartRam(cartBytes).high ?? 0);
     machine.hwInit();
     demo.boot();
-    demo.skipBoot();
+    demo.skipBoot?.(); // a boot sector has none: the browser boots it as it is
     const dataDisk = mounted ? makeDataDisk(memory, rom, mounted, program) : null;
     return { memory, machine, demo, dataDisk };
 }

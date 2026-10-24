@@ -33,9 +33,9 @@ $(HOST)/common/maud.h: $(HOST)/common/maud.c
 HOST_AUD_CFLAGS = $(HOST_CFLAGS) -DZM_AUDIO_SOFT -DHOST_AUDIO -DHOST_MUSIC_DIR='"$(ROOT)/docs/music"' -include host/hstream.h
 $(HOST)/%/host_audio: $(HOST)/%/env.c $(HOST)/%/cart.o $(HOST_COMMON) $(HOST)/common/aplayer.o \
 		$(HOST)/common/maud.o $(AUD_SRC) $(AUD_HDRS) host/audio_soft.c host/haudio_soft.h host/main.c host/boot.c \
-		$(HOST_IO) $(INPUT_DEPS)
+		$(HOST_IO) $(INPUT_DEPS) $(HOST_BOOTSEC)
 	@mkdir -p $(@D)/aud
-	for s in $(HOST)/$*/env.c host/boot.c host/main.c host/host_io.c $(AUD_SRC) host/audio_soft.c $(INPUT_SRC); do \
+	for s in $(HOST)/$*/env.c host/boot.c host/main.c host/host_io.c $(AUD_SRC) host/audio_soft.c $(INPUT_SRC) $(HOST_BOOTSEC); do \
 		$(HOST_CC) $(HOST_AUD_CFLAGS) $(INPUT_CFLAGS) -I$(HOST)/$* -c $$s -o $(@D)/aud/$$(basename $$s .c).o || exit 1; done
 	$(HOST_CC) $(@D)/aud/*.o $(HOST)/$*/cart.o $(HOST_COMMON) $(HOST)/common/aplayer.o $(HOST)/common/maud.o \
 		-lm -lpthread -o $@

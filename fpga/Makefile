@@ -137,16 +137,20 @@ INPUT_DEPS := $(INPUT_SRC) host/input_bridge.h glass/firmware/glass_input.c glas
 INPUT_CFLAGS := -Iglass/firmware -Igen
 # The native host's scripted inputs (--call, --disk, ZM_GLASS_KEYS / ZM_GLASS_POINTER).
 HOST_IO := host/host_io.c host/host_io.h
+# --bootsec (host/bootsec_host.c): the board's boot-sector interpreter, linked into every host.
+HOST_BOOTSEC := host/bootsec_host.c host/bootsec.c $(addprefix host/wint_,load.c link.c scan.c num.c flow.c exec.c)
 $(HOST)/%/host.o: $(HOST)/%/env.c host/main.c host/boot.c host/host.h host/boot.h host/disk.h $(HOST_IO) $(INPUT_DEPS) \
-		host/disk_app.h host/zmd_dir.h host/zmd_dir_fat.h
+		host/disk_app.h host/zmd_dir.h host/zmd_dir_fat.h $(HOST_BOOTSEC) host/bootsec_host.h host/bootsec.h host/wint.h \
+		host/wint_leb.h host/wint_exec.h
 	$(HOST_CC) $(HOST_CFLAGS) -I$(HOST)/$* -c $(HOST)/$*/env.c -o $(HOST)/$*/env.o
 	$(HOST_CC) $(HOST_CFLAGS) -I$(HOST)/$* -c host/boot.c -o $(HOST)/$*/boot.o
 	$(HOST_CC) $(HOST_CFLAGS) $(INPUT_CFLAGS) -I$(HOST)/$* -c host/host_io.c -o $(HOST)/$*/host_io.o
 	for s in $(INPUT_SRC); do $(HOST_CC) $(HOST_CFLAGS) $(INPUT_CFLAGS) -I$(HOST)/$* -c $$s -o $(HOST)/$*/in_$$(basename $$s .c).o || exit 1; done
+	for s in $(HOST_BOOTSEC); do $(HOST_CC) $(HOST_CFLAGS) -I$(HOST)/$* -c $$s -o $(HOST)/$*/bs_$$(basename $$s .c).o || exit 1; done
 	$(HOST_CC) $(HOST_CFLAGS) $(HOST_WALLCLOCK) $(INPUT_CFLAGS) -I$(HOST)/$* -c host/main.c -o $@
 $(HOST)/%/host: $(HOST)/%/host.o $(HOST)/%/cart.o $(HOST_COMMON)
 	$(HOST_CC) $(HOST)/$*/host.o $(HOST)/$*/env.o $(HOST)/$*/boot.o $(HOST)/$*/host_io.o $(HOST)/$*/in_*.o \
-		$(HOST)/$*/cart.o $(HOST_COMMON) -lm -lpthread -o $@
+		$(HOST)/$*/bs_*.o $(HOST)/$*/cart.o $(HOST_COMMON) -lm -lpthread -o $@
 
 host: $(HOST)/$(CART)/host
 
