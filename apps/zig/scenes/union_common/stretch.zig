@@ -14,6 +14,12 @@
 //
 // A scale under 2^-8 (a cos at a quarter turn) is a sliver of a row: it takes
 // the f64 path. Centres are Q16: every Union screen's is a half-integer.
+//
+// RUNS (2026-10-24). Destination rows that take consecutive source rows (the
+// whole image at scale +1, stretches of it near +1) go out as ONE blit of the
+// run instead of one a row: the same rows, keyed the same, so the same bytes,
+// for one CHISEL op's ~800 cycles of fixed cost instead of one a row. A flip,
+// or a scale that repeats or skips source rows, breaks the run.
 // --------------------------------------------------------------------------
 const std = @import("std");
 const blit = @import("zigos").blit;
@@ -47,10 +53,14 @@ pub fn stretchY(dst: blit.Dst, src: blit.Image, dx: i32, centre_q16: i32, sy: f6
     var r = num0 - q * den;
     const qd = @divFloor(step, den);
     const rd = step - qd * den;
+    var run = Run{};
     var y: i64 = lo;
     while (y < hi) : (y += 1) {
         if (q >= 0 and q < h) {
-            blit.blit(dst, src, .{ .x = 0, .y = @intCast(q), .w = src.w, .h = 1 }, dx, @intCast(y), key, ink);
+            if (!run.extend(q, y)) {
+                run.flush(dst, src, dx, key, ink);
+                run = .{ .q0 = q, .y0 = y, .n = 1 };
+            }
         }
         q += qd;
         r += rd;
@@ -59,4 +69,23 @@ pub fn stretchY(dst: blit.Dst, src: blit.Image, dx: i32, centre_q16: i32, sy: f6
             q += 1;
         }
     }
+    run.flush(dst, src, dx, key, ink);
 }
+
+/// A run of destination rows y0.. that take source rows q0, q0 + 1, ...
+const Run = struct {
+    q0: i128 = 0,
+    y0: i64 = 0,
+    n: i64 = 0,
+
+    fn extend(self: *Run, q: i128, y: i64) bool {
+        if (self.n == 0 or q != self.q0 + self.n or y != self.y0 + self.n) return false;
+        self.n += 1;
+        return true;
+    }
+
+    fn flush(self: *const Run, dst: blit.Dst, src: blit.Image, dx: i32, key: ?u8, ink: blit.Ink) void {
+        if (self.n == 0) return;
+        blit.blit(dst, src, .{ .x = 0, .y = @intCast(self.q0), .w = src.w, .h = @intCast(self.n) }, dx, @intCast(self.y0), key, ink);
+    }
+};
