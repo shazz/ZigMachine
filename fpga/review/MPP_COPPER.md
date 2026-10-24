@@ -130,3 +130,26 @@ for 256 entries) would save one record word on mode 1/2 lines and is not worth a
 
 Cart-only: mpp_truecolor.zig (install/switch: table copy + list build, ~60 lines, a `cop.zig` beside
 it as tcb_colorshock has), the harness check, one board A/B. About half a day with the gate.
+
+## 9. Built and measured (2026-10-24, review/mpp-copper, board c72c58ca + card_190 system)
+
+Cart-only, as designed (`apps/zig/scenes/mpp_truecolor/cop.zig`). One correction to section 5's
+list: a list names RASTER lines, so a normal plane's line y is HEAD line 40 + y. Proof: scene_hash
+IDENTICAL over 7400 frames (every picture, mode and switch); the harness reads every mode's lists
+back against the converter's records; `--break k1tail` caught; board_pic equal at 600/1000/1200.
+
+Board, bind-mounted disk, windows placed INSIDE each mode (load + 2 s, then 8 s a mode). Section 1's
+windows straddled a switch, and a switch's ZX0 depack costs dozens of frames: PER-LINE's "53.1" was
+the depack, not the handler (re-measured inside the mode, the handler cart runs 60 too).
+
+| mode | card (handler) | lists | lists: passes, comp/pass, hbl, swap |
+|---|---|---|---|
+| 1 GLOBAL (5-10 s) | 60.2 | 60.2 | 280, 1698, 0, 1.13 Mc |
+| 2 PER-LINE (13-17 s) | 60.2 | 60.4 | 280, 1655, 0, 1.14 Mc |
+| 3 4 PLANES (20-25 s) | 30.1 (147 missed) | 57.7 (11 missed) | 1120, 937, 0, 0.47 Mc |
+
+4 PLANES' FRESCO cost is 1.05 M comp clocks (0.84 Mc), as predicted (0.85). Its remaining misses
+are the dirty-line planner's probes (vadapt: 4 PROBE frames every 120; the 25 s sample caught one,
+frame 2.06 M with plan 0.35 Mc): every PALREF line counts as changed (vdlist.h), so a probe compares
+the whole frame and can never pay. Follow-up (firmware, not done here): do not probe a frame whose
+lists name PALREF on most of their lines; that should take 4 PLANES to 60.
