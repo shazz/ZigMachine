@@ -34,8 +34,9 @@ import video_rtl
 # (cart, frames, what those frames must exercise)
 CARTS = [
     ("tutorial", [300], {"mode_normal", "palette_per_line"}),
-    # union_intro: a part at 100; its main screen (from frame ~949; the union_main cart is gone) at 1300
-    ("union_intro", [100, 1300], {"mode_normal", "layered", "mode_overscan", "flicker_hit", "palette_per_line", "alpha_partial"}),
+    # union_intro's main screen (from frame ~949; the union_main cart is gone). Every frame listed must
+    # exercise the whole set: its part at 100 is one normal plane, which tutorial covers.
+    ("union_intro", [1300], {"layered", "mode_overscan", "flicker_hit", "palette_per_line", "alpha_partial"}),
     ("replicants_emlyn", [300], {"mode_overscan", "flicker_hit", "palette_per_line"}),
     ("gen4_3615", [300], {"mode_overscan", "palette_per_line", "alpha_zero"}),
     ("maxi", [300], {"mode_overscan", "flicker_hit"}),
@@ -44,8 +45,9 @@ CARTS = [
     ("medium_overscan", [300], {"mode_medium_overscan"}),
     ("scroll", [300], {"mode_scroll"}),
     ("dhs_0pxl0reg", [300, 900], {"beam", "no_plane"}),
-    ("tcb_colorshock", [300], {"layered", "mode_overscan", "palette_per_line"}),
-    ("union_l16", [300], {"layered", "mode_overscan"}),
+    # one plane each since main merged their planes (2026-10-24): the layers are union_intro's
+    ("tcb_colorshock", [300], {"mode_overscan", "palette_per_line"}),
+    ("union_l16", [300], {"mode_overscan"}),
     # opaque black BACKGROUND, the plane alpha 0 where it draws nothing, partial-alpha stars, a
     # raster: the board showed its tube there (tests/test_rtl_video_tube.py). One plane since its
     # rebuild (2026-10-23), so its layers are replicants' below.
