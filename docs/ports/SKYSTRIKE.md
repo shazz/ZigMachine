@@ -395,6 +395,12 @@ How depends on what it holds. The game's code says so as it changes
     opaque as drawn.
   - A text pixel shows where the physic screen holds it, so the APPEAR that brings the
     table in brings it in 1:1 too.
+  - The frame is drawn whole once (a new picture, or after anything else drew on the
+    overlay); from then on a text cell is redrawn only when PRINT wrote it again or the
+    physic screen's 8 x 8 pixels under it changed (compared a word at a time with a
+    copy). A pixel outside every written cell is the scaled picture whatever the physic
+    screen holds. Byte-identical to the whole redraw; est. 2.39 -> 0.79 Mc a frame
+    (APPEAR 0.87).
   - In the name entry Z is a letter, as before.
 - **Anything else** (the newspaper, the error trap, a screen being built behind a fade):
   1:1 at 40,40, the borders in the colour most of the picture's own edge is.

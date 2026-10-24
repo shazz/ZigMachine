@@ -41,12 +41,20 @@ pub fn alloc() void {
     hall.alloc();
 }
 
+/// Whoever else draws on the overlay (or leaves it undrawn) calls this: the
+/// next screen is drawn whole.
+pub fn invalidate() void {
+    intro.invalidate();
+    hall.invalidate();
+}
+
 /// The screen off the world into the overlay's 400 x 280 indices.
 pub fn draw(ov: []u8) void {
     const p = scr.get(.physic);
     if (p.len == 0) return;
     switch (hooks.screen) {
         .scene => {
+            hall.invalidate();
             intro.draw(ov);
             scroller.draw(ov, intro.H, mostly(p, scr.H - 1), intro.fresh);
         },
@@ -55,7 +63,7 @@ pub fn draw(ov: []u8) void {
             hall.draw(ov);
         },
         .picture => {
-            intro.invalidate();
+            invalidate();
             picture(ov, p);
         },
     }

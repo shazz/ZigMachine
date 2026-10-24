@@ -24,7 +24,7 @@ const hud = @import("zig_hud.zig");
 const tracers = @import("zig_tracers.zig");
 const help = @import("zig_help.zig");
 const screens = @import("zig_screens.zig");
-const intro = @import("zig_intro.zig");
+const hall = @import("zig_hall.zig");
 const scroller = @import("zig_scroller.zig");
 const set = @import("zig_settings.zig");
 
@@ -46,7 +46,7 @@ pub fn render(zigos: *zg.ZigOS) void {
     colours(zigos);
     hud.tickNotice(zigos);
     if (!hooks.flightView()) return original(zigos);
-    intro.invalidate(); // the flight draws over the overlay: the next scene is drawn whole
+    screens.invalidate(); // the flight draws over the overlay: the next screen is drawn whole
     zigos.lfbs[PLANE0].is_enabled = false;
     zigos.lfbs[scroll.WORLD_PLANE].is_enabled = true;
     zigos.lfbs[scroll.OVERLAY_PLANE].is_enabled = true;
@@ -92,9 +92,15 @@ fn original(zigos: *zg.ZigOS) void {
     zigos.lfbs[scroll.OVERLAY_PLANE].is_enabled = full;
     const p0 = &zigos.lfbs[PLANE0];
     p0.is_enabled = !full;
-    if (!full) return machine.present(p0);
+    if (!full) {
+        screens.invalidate(); // the overlay is not kept up while plane 0 shows
+        return machine.present(p0);
+    }
     screens.draw(scroll.over_px);
-    @import("zig_credits.zig").draw(scroll.over_px);
+    const credits = @import("zig_credits.zig");
+    credits.draw(scroll.over_px);
+    // Its line is over the hall's picture too: the hall is drawn whole next.
+    if (credits.shown) hall.invalidate();
 }
 
 /// The camera after sprite 1: the plane, or the pilot under his chute.

@@ -15,6 +15,7 @@
 // to so9 + 203; kept as one array, so the overlap is the original's). PEEK
 // and POKE take the addresses the BASIC computes: START(n) is n << 16 here.
 // --------------------------------------------------------------------------
+const std = @import("std");
 const zg = @import("zigos");
 const assets = @import("assets.zig");
 
@@ -42,7 +43,9 @@ pub var oob: u32 = 0;
 
 pub fn alloc() void {
     if (pix[0].len != 0) return;
-    for (&pix) |*p| p.* = zg.mem.mustAlloc(u8, PIX);
+    // Word-aligned: ZIG's hall compares the physic screen a word at a time
+    // (zig_hall.zig), and a misaligned word traps on the board.
+    for (&pix) |*p| p.* = std.mem.sliceAsBytes(zg.mem.mustAlloc(u32, PIX / 4));
 }
 
 pub fn get(id: Id) []u8 {
