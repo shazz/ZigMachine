@@ -140,8 +140,7 @@ fn scale(p: st.Point, view: View) polyfill.Point {
 }
 
 fn clear(t: polyfill.Target) void {
-    if (t.rect) |rect| return rect(t.ox, 0, t.w, t.h, 0);
-    for (0..t.h) |y| @memset(t.px[y * t.stride + t.ox ..][0..t.w], 0);
+    polyfill.rect(t, 0, 0, t.w, t.h, 0);
 }
 
 comptime {

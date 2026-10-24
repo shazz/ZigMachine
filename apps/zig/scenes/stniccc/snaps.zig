@@ -79,8 +79,7 @@ pub const Snaps = struct {
             var x: usize = 0;
             while (x < row.len) {
                 const v = row[x];
-                var e = x + 1;
-                while (e < row.len and e - x < 256 and row[e] == v) e += 1;
+                const e = runEnd(row, x);
                 if (at + 2 > self.pool.len) return self.markFull();
                 self.pool[at] = @intCast(e - x - 1);
                 self.pool[at + 1] = v;
@@ -92,6 +91,24 @@ pub const Snaps = struct {
         self.starts[self.n] = @intCast(self.used);
         self.n += 1;
         self.used = at;
+    }
+
+    // One past the run of row[x]'s value from x, at most 256 long. Compared a
+    // word at a time where it can be: a byte compare per pixel was 0.9 Mc of a
+    // keyframe (51,200 pixels, every 2nd frame of the small act), the runs are
+    // long (flat polygons), and the end found is the byte loop's own.
+    fn runEnd(row: []const u8, x: usize) usize {
+        const v = row[x];
+        const lim = @min(row.len, x + 256);
+        const base = @intFromPtr(row.ptr);
+        var e = x + 1;
+        while (e < lim and (base + e) & 3 != 0 and row[e] == v) e += 1;
+        if ((base + e) & 3 == 0) {
+            const rep = @as(u32, v) * 0x0101_0101;
+            while (e + 4 <= lim and @as(*const u32, @ptrFromInt(base + e)).* == rep) e += 4;
+        }
+        while (e < lim and row[e] == v) e += 1;
+        return e;
     }
 
     fn markFull(self: *Snaps) void {
@@ -153,4 +170,18 @@ test "find picks the latest kept frame in range; a new view or a full pool keeps
     s.bind(keyOf(target(&px), 400, 280));
     try expectEqual(@as(?usize, null), s.find(0, 100));
     try std.testing.expect(!s.full);
+}
+
+test "the word-at-a-time run end is the byte loop's, at every alignment" {
+    var prng = std.Random.DefaultPrng.init(0x5a95);
+    const rnd = prng.random();
+    var buf: [700]u8 align(4) = undefined;
+    for (0..3000) |_| {
+        for (&buf) |*b| b.* = if (rnd.uintLessThan(u8, 40) == 0) rnd.uintLessThan(u8, 3) else buf[0];
+        const row = buf[rnd.uintLessThan(usize, 8)..][0 .. 600 + rnd.uintLessThan(usize, 90)];
+        const x = rnd.uintLessThan(usize, row.len);
+        var e = x + 1;
+        while (e < row.len and e - x < 256 and row[e] == row[x]) e += 1;
+        try expectEqual(e, Snaps.runEnd(row, x));
+    }
 }

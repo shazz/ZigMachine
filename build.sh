@@ -201,7 +201,8 @@ NATIVE_TESTS="
     rom/gem/desktop/deskinf.zig
     rom/gem/gui/grid.zig
     apps/zig/scenes/stniccc/stream.zig
-    apps/zig/scenes/stniccc/polyfill.zig
+    apps/zig/scenes/stniccc/polyfill_test.zig
+    apps/zig/scenes/stniccc/span.zig
     apps/zig/scenes/stniccc/player_test.zig
     apps/zig/scenes/union/wab_table_test.zig
     apps/zig/scenes/ancool/stars_test.zig
@@ -589,6 +590,8 @@ gate_timed digital_solution node apps/digital_solution_headless.mjs --break rout
 gate_timed digital_solution node apps/digital_solution_headless.mjs --break drift   # ...and one frame of scrolltext drift is caught (so a restart would be too)
 gate_timed digital_solution node apps/digital_solution_headless.mjs --break cycle   # ...and the text one cycle step out of phase is caught
 gate stniccc node apps/stniccc_headless.mjs "$SHOTS/stniccc"   # STNICCC 2000 (Oxygene): the frame-replay flight, small -> rewind -> fullscreen
+gate stniccc node apps/stniccc_pins.mjs   # every frame (3300, 60 Hz host: small, rewind, message, zoom, fullscreen, disk streaming) = the cart before the CPU spans (perf/stniccc-cpu-spans), physical RGB hashed
+gate stniccc node apps/stniccc_pins.mjs --break   # ...and one altered pixel is caught
 gate cuddly_starwars node apps/cuddly_starwars_headless.mjs "$SHOTS/cuddly_starwars"   # CUDDLY STAR WARS: the harness existed but no gate ran it; fails on a refused zg.mem allocation
 gate ulm_spoon_distorter node apps/ulm_spoon_distorter_headless.mjs "$SHOTS/ulm_spoon_distorter"   # ULM SPOON DISTORTER: the harness existed but no gate ran it; fails on a refused zg.mem allocation
 gate tlb_spoon node apps/tlb_spoon_headless.mjs "$SHOTS/tlb_spoon"   # TLB TWIDDLE: the sine intro, then starballs + logo + the rotating-letter scroller

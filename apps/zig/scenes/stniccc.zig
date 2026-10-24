@@ -21,6 +21,7 @@ const st = @import("stniccc/stream.zig");
 const player_mod = @import("stniccc/player.zig");
 const snaps_mod = @import("stniccc/snaps.zig");
 const gpu = @import("stniccc/gpu.zig");
+const palette_mod = @import("stniccc/palette.zig");
 
 const ZigOS = zg.ZigOS;
 const Color = zg.Color;
@@ -51,8 +52,6 @@ const BLINK: u32 = 30; // the message blinks every half second
 const MESSAGE = "LET'S GO FULLSCREEN!";
 const ZOOM_FRAMES: u32 = 90; // 1.5 s easing the 256x200 window out to the whole 400x280 plane
 
-const ST_LEVEL = [8]u8{ 0, 36, 73, 109, 146, 182, 219, 255 }; // ST 3-bit gun -> 8 bit
-
 // Smoothstep. A linear zoom starts and stops abruptly; easing both ends is what
 // reads as a camera pull rather than a jump cut. Clamped, so the last frame is
 // exactly the full plane and the centring subtractions below cannot underflow.
@@ -82,6 +81,7 @@ pub const Demo = struct {
     pos: f32, // the stream frame to show, fractional while speeding and slowing
     speed: f32,
     wide: bool, // the plane has been switched to the overscan screen
+    pal: palette_mod.Palette, // entries 0..15 as shown
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
         // The Demo arrives as stale bytes on a re-entry from the menu: assign all.
@@ -90,6 +90,7 @@ pub const Demo = struct {
         self.pos = 0;
         self.speed = 1;
         self.wide = false;
+        self.pal.reset(); // the loop below paints every entry black
         self.block = zg.mem.mustAlloc(u8, st.BLOCK)[0..st.BLOCK];
         self.index = &zg.mem.mustAlloc(player_mod.Index, 1)[0];
         // The ST's border is colour 0: black, so the closed borders of the small
@@ -170,7 +171,9 @@ pub const Demo = struct {
             },
             .zooming => {
                 if (!self.wide) self.goFullscreen(fb); // borders open FIRST: the margin is black anyway
-                gpu.clearPlane(fb.fb[0 .. @as(usize, fb.stride) * fb.fb_h], fb.stride, fb.fb_h, 0); // the view is smaller than the plane until the last frame
+                // No whole-plane clear a frame: the view only GROWS (eased, centred), so last
+                // frame's rect lies inside this one, and frame 0 clears its own rect (its
+                // flags byte is $07). Outside it the plane is still goFullscreen's black.
                 self.player.shown = null; // the rect moved, so frame 0 is redrawn every frame
                 self.drawFrame(fb) catch self.fail(fb);
             },
@@ -201,13 +204,13 @@ pub const Demo = struct {
         const n: u32 = @intFromFloat(self.pos);
         if (self.player.shown == n) return;
         try self.player.show(n, self.view(fb));
-        applyPalette(fb, self.player.palette(n));
+        self.pal.apply(fb, self.player.palette(n));
     }
 
     fn view(self: *const Demo, fb: *LogicalFB) player_mod.View {
         const px = fb.fb[0 .. @as(usize, fb.stride) * fb.fb_h];
         if (self.act == .zooming) return self.zoomView(fb);
-        // Every fill goes to the blitter (stniccc/gpu.zig): the CPU memset was the cost.
+        // Fills are CPU word stores (stniccc/span.zig); gpu.begin hooks CHISEL in for big ones.
         if (self.wide) return .{ .target = gpu.begin(.{ .px = px, .stride = fb.stride, .w = fb.fb_w, .h = fb.fb_h, .ox = 0 }), .w = fb.fb_w, .h = fb.fb_h };
         return .{
             .target = gpu.begin(.{ .px = px, .stride = fb.stride, .w = player_mod.SRC_W, .h = player_mod.SRC_H, .ox = SMALL_OX }),
@@ -241,12 +244,3 @@ pub const Demo = struct {
         gpu.clearPlane(fb.fb[0 .. @as(usize, fb.stride) * fb.fb_h], fb.stride, fb.fb_h, RED);
     }
 };
-
-fn applyPalette(fb: *LogicalFB, pal: *const [16]u16) void {
-    for (pal, 0..) |w, i| fb.setPaletteEntry(@intCast(i), Color{
-        .r = ST_LEVEL[(w >> 8) & 7],
-        .g = ST_LEVEL[(w >> 4) & 7],
-        .b = ST_LEVEL[w & 7],
-        .a = 255,
-    });
-}
