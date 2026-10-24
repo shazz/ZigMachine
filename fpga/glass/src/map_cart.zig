@@ -104,6 +104,7 @@ pub const PLAYER_MOD: u32 = 3;
 pub const PLAYER_XM: u32 = 4; // FT2
 pub const PLAYER_YM: u32 = 5; // a .ymraw register dump
 pub const PLAYER_PCM: u32 = 6; // .raw
+pub const PLAYER_HIP: u32 = 7; // a Hippel Amiga module's own 68000 replay on Musashi + Paula
 pub const PLAYER_UNKNOWN: u32 = 0xFF; // an extension no player takes
 // SI_HEAD's native (PLAYER_SNDH only): demo-audio's audioSndhNative() (players/digi.zig Status).
 pub const NATIVE_MUSASHI: u32 = 0;

@@ -69,6 +69,7 @@ test "ZIGGY playing a MOD, and a native SNDH driver on BARD" {
     try expectPage(page(&w, .{ .route = mc.ROUTE_ZIGGY, .player = mc.PLAYER_MOD, .cycles = 500_000, .samples = 2205, .name = "lollapalooza.mod" }), &.{ "music ZIGGY MOD 10%", "song  lollapalooza.mod" });
     try expectPage(page(&w, .{ .native = mc.NATIVE_BEAT_DIS, .cycles = 720_000, .samples = 735, .peak_cycles = 720_000, .peak_samples = 735, .name = "union/beat_dis.sndh" }), &.{"music BARD SNDH nat 43%/43%"});
     try expectPage(page(&w, .{ .player = mc.PLAYER_SAP, .name = "Warhawk.sap" }), &.{"music BARD SAP 6502"});
+    try expectPage(page(&w, .{ .player = mc.PLAYER_HIP, .name = "shaolin_title.hip" }), &.{"music BARD HIP 68k"});
 }
 
 test "no music: a firmware without audio, BARD that never answered, nothing asked, a song that never started" {
