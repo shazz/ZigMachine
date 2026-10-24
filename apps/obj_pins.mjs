@@ -23,7 +23,7 @@ export const PINS_OLD = {
 // a flat-lit one at the top level, a hidden-line one with no back edges.
 export const PINS_SPHERE = {
     gouraud_level5: { level: 4, mode: 4, frames: 60, hash: "1da6c88d8a9461c6" },
-    flat_level13: { level: 12, mode: 0, frames: 30, hash: "ffbe60dd78f08d05" },
+    flat_level13: { level: 12, mode: 0, frames: 30, hash: "31df108a704edccc" },
     hidden_level7: { level: 6, mode: 5, frames: 45, hash: "25a9d40184c7ad63" },
     glenz_level4: { level: 3, mode: 1, frames: 40, hash: "9ba3c94efaae661f" },
 };

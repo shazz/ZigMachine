@@ -10,6 +10,7 @@
 //               see-through), WIRE (every edge), SOFT (CPU scanline fill),
 //               GOURAUD (CPU, per-vertex light), HIDDEN (hidden-line wire)
 //   + / -       the sphere's resolution (13 levels, 36 to 3968 faces)
+//   C           where faces/edges go: CHISEL, the CPU below 8/16/24/48 rows, or the CPU
 //   Esc         back to the menu
 // The cart owns the keyboard (so + / - reach it, not the host's channel
 // change), and digits come through key() too.
@@ -51,6 +52,7 @@ pub const Demo = struct {
     object: u8 = 0,
     mode: draw.Mode = .flat,
     level: u8 = 0, // the sphere's
+    split: u8 = draw.DEFAULT_SPLIT, // CPU / CHISEL split preset (key C)
     ang: [3]fx.Angle = .{ 0, 0, 0 },
     drawn: [4]i32 = .{ 0, 0, -1, -1 }, // last frame's box, x0 y0 x1 y1
     full_clear: bool = true,
@@ -58,6 +60,7 @@ pub const Demo = struct {
 
     pub fn init(self: *Demo, zigos: *zg.ZigOS) void {
         zg.Console.log("obj_demo init", .{});
+        self.* = .{}; // the cart is `undefined` (zeroed), not default-initialised
         self.loader = &zg.mem.mustAlloc(zg.obj.Mesh, 1)[0];
         self.mesh = &zg.mem.mustAlloc(fmesh.Mesh, 1)[0];
         self.frame = &zg.mem.mustAlloc(xform.Frame, 1)[0];
@@ -83,7 +86,7 @@ pub const Demo = struct {
         src.load(text);
         const m = self.mesh;
         m.nverts = src.nverts;
-        for (src.verts[0..src.nverts], 0..) |v, i| m.verts[i] = .{ fmesh.q14(v.x), fmesh.q14(v.y), fmesh.q14(v.z) };
+        for (src.verts[0..src.nverts], 0..) |v, i| m.verts[i] = .{ fmesh.q14(v.x), fmesh.q14(v.y), fmesh.q14(v.z), 0 };
         m.nfaces = src.nfaces;
         for (src.faces[0..src.nfaces], 0..) |f, i| m.faces[i] = .{ .a = f.a, .b = f.b, .c = f.c };
         m.finish();
@@ -102,6 +105,7 @@ pub const Demo = struct {
                 self.mode = @enumFromInt((@intFromEnum(self.mode) + 1) % draw.NAMES.len);
                 pal.program(&self.os.lfbs[0], self.mode);
             },
+            'c', 'C' => self.split = (self.split + 1) % @as(u8, draw.SPLITS.len),
             '+', '=' => self.resolution(1),
             '-', '_' => self.resolution(-1),
             else => {},
@@ -127,17 +131,18 @@ pub const Demo = struct {
         self.hud.workStart();
         for (0..3) |k| self.ang[k] +%= STEP[k];
         const m = fx.rotation(self.ang[0], self.ang[1], self.ang[2]);
-        self.frame.transform(self.mesh, m, self.mode == .gouraud);
+        self.frame.transform(self.mesh, &m, self.mode == .gouraud);
     }
 
     pub fn render(self: *Demo, zigos: *zg.ZigOS, dt: f32) void {
         _ = dt;
         const fb = &zigos.lfbs[0];
         self.erase(fb);
-        draw.draw(.{ .fb = fb, .b = &self.blitter, .m = self.mesh, .fr = self.frame }, self.mode);
+        const split = draw.SPLITS[self.split];
+        draw.draw(.{ .fb = fb, .b = &self.blitter, .m = self.mesh, .fr = self.frame, .split = split }, self.mode);
         self.drawn = self.frame.box;
         const level: ?u8 = if (self.object == SPHERE) self.level else null;
-        self.hud.draw(zigos, fb, draw.NAMES[@intFromEnum(self.mode)], OBJECTS[self.object], level, self.mesh.nverts, self.mesh.nfaces);
+        self.hud.draw(zigos, fb, .{ .mode = draw.NAMES[@intFromEnum(self.mode)], .object = OBJECTS[self.object], .level = level, .split = split.name, .v = self.mesh.nverts, .f = self.mesh.nfaces });
         self.hud.workEnd();
     }
 

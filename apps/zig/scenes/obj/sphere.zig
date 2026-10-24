@@ -43,7 +43,7 @@ fn q14(v16: i32) i16 {
 
 /// Vertex 0 is the north pole (+y), then the rings top-down, then the south pole.
 fn ring(m: *fmesh.Mesh, l: Level) void {
-    m.verts[0] = .{ 0, fx.ONE, 0 };
+    m.verts[0] = .{ 0, fx.ONE, 0, 0 };
     var n: u16 = 1;
     for (1..l.lat) |i| {
         const th = turnFrac(@intCast(i), 2 * @as(u32, l.lat)); // i / lat of a half turn
@@ -51,11 +51,11 @@ fn ring(m: *fmesh.Mesh, l: Level) void {
         const y = q14(fx.cos16(th));
         for (0..l.lon) |j| {
             const ph = turnFrac(@intCast(j), l.lon);
-            m.verts[n] = .{ q14(@truncate((@as(i64, r) * fx.cos16(ph)) >> 16)), y, q14(@truncate((@as(i64, r) * fx.sin16(ph)) >> 16)) };
+            m.verts[n] = .{ q14(@truncate((@as(i64, r) * fx.cos16(ph)) >> 16)), y, q14(@truncate((@as(i64, r) * fx.sin16(ph)) >> 16)), 0 };
             n += 1;
         }
     }
-    m.verts[n] = .{ 0, -fx.ONE, 0 };
+    m.verts[n] = .{ 0, -fx.ONE, 0, 0 };
     m.nverts = n + 1;
 }
 

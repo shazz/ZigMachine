@@ -16,6 +16,9 @@ pub const ONE: i32 = 1 << Q;
 pub const Angle = u32;
 pub const Vec3 = [3]i32;
 pub const Mat = [3][3]i32; // rows, Q14
+/// A stored vertex or normal: Q14 x, y, z and a pad, 8 bytes so arrays of them
+/// stay word-aligned (a misaligned word access traps on the board).
+pub const V = [4]i16;
 
 pub const DIST: i32 = 52429; // 3.2 in Q14: the eye sits at z = -DIST
 pub const FOV: u32 = 150;
@@ -86,20 +89,20 @@ pub fn rotation(ax: Angle, ay: Angle, az: Angle) Mat {
 }
 
 /// m * v, both Q14 (|v| <= 2 so no product overflows).
-pub fn apply(m: Mat, v: [3]i16) Vec3 {
+pub inline fn apply(m: *const Mat, v: V) Vec3 {
     var r: Vec3 = undefined;
     for (0..3) |k| r[k] = (m[k][0] * v[0] + m[k][1] * v[1] + m[k][2] * v[2]) >> Q;
     return r;
 }
 
 /// The light in object space: mᵀ L, so a face's light is n · (mᵀ L), 3 muls.
-pub fn lightInObject(m: Mat, l: Vec3) Vec3 {
+pub fn lightInObject(m: *const Mat, l: Vec3) Vec3 {
     var r: Vec3 = undefined;
     for (0..3) |k| r[k] = (m[0][k] * l[0] + m[1][k] * l[1] + m[2][k] * l[2]) >> Q;
     return r;
 }
 
-pub fn dot(a: [3]i16, b: Vec3) i32 {
+pub inline fn dot(a: V, b: Vec3) i32 {
     return (a[0] * b[0] + a[1] * b[1] + a[2] * b[2]) >> Q;
 }
 
@@ -107,18 +110,17 @@ pub fn dot(a: [3]i16, b: Vec3) i32 {
 pub const LIGHT = Vec3{ 5898, 7864, -13107 };
 
 /// Screen point of a rotated vertex: floor(centre + p * FOV / (z + DIST)),
-/// through one u32 reciprocal (FOV << 24 / depth) and two 64-bit products.
-pub fn project(p: Vec3) [2]i16 {
-    const depth: u32 = @intCast(@max(p[2] + DIST, 1024));
-    const inv: i64 = (@as(u32, FOV) << 24) / depth;
-    const x = CX + @as(i32, @intCast((@as(i64, p[0]) * inv) >> 24));
-    const y = CY + @as(i32, @intCast((@as(i64, p[1]) * inv) >> 24));
-    return .{ @intCast(std.math.clamp(x, -4000, 4000)), @intCast(std.math.clamp(y, -4000, 4000)) };
+/// through one u32 reciprocal (FOV << 23 / depth) and two 32-bit products
+/// (|p| <= 16400 and inv <= 76800 while depth >= 1.0: no overflow).
+pub inline fn project(p: Vec3) [2]i16 {
+    const depth: u32 = @intCast(@max(p[2] + DIST, ONE));
+    const inv: i32 = @intCast((@as(u32, FOV) << 23) / depth);
+    return .{ @intCast(CX + ((p[0] * inv) >> 23)), @intCast(CY + ((p[1] * inv) >> 23)) };
 }
 
 /// Twice the signed screen area of a triangle; > 0 when it faces the eye
 /// (for a face wound counter-clockwise seen from outside; screen y grows down).
-pub fn area2(a: [2]i16, b: [2]i16, c: [2]i16) i32 {
+pub inline fn area2(a: [2]i16, b: [2]i16, c: [2]i16) i32 {
     const abx: i32 = @as(i32, b[0]) - a[0];
     const aby: i32 = @as(i32, b[1]) - a[1];
     const acx: i32 = @as(i32, c[0]) - a[0];

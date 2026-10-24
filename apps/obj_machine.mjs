@@ -4,6 +4,7 @@
 import { readFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { cartRam, romRam } from "../docs/wasm_hiwater.js";
+import { png } from "./skystrike_zig_frame.mjs";
 
 const PAGES = 112; // SHARED_PAGES in machine/sdk/memmap.zig
 const OFF_PAL = 0x0100, REG_FB_STRIDE = 0x34, REG_FB_BASE = 0x44; // memmap.zig
@@ -51,7 +52,12 @@ export async function bootObj(cartPath = "docs/demo-obj.wasm", onLog = () => {})
     const hash = (y0 = OBJ_Y0, y1 = OBJ_Y1) => hashOf(rows(y0, y1));
     // Zero rows y0..y1-1 of the plane (what a full clear would leave there).
     const clearRows = (y0 = OBJ_Y0, y1 = OBJ_Y1) => { const s = stride(); indices().fill(0, y0 * s, y1 * s); };
-    return { memory, machine, demo, frame, pixel, rows, hash, hashOf, clearRows, indices, pal, stride };
+    // The plane as the browser shows it (index 0 = the background colour), 2x, as a PNG.
+    const shot = (path) => {
+        const p = pal(), idx = rows(0, H);
+        return png(path, Uint32Array.from(idx, (v) => (v && p[v] >>> 24 ? p[v] : 0xff120806)), W, H);
+    };
+    return { memory, machine, demo, frame, pixel, rows, hash, hashOf, clearRows, indices, pal, stride, shot };
 }
 
 export const key = (S, ch) => S.demo.key(typeof ch === "number" ? ch : ch.charCodeAt(0));

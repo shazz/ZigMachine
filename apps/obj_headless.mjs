@@ -1,7 +1,8 @@
 // Headless OBJ DEMO driver (apps/zig/scenes/obj_demo.zig): boots the cart as
 // docs/ loads it (apps/obj_machine.mjs) and checks the keys and the pictures.
 //
-//   node apps/obj_headless.mjs [--break res|shade|erase|pin]
+//   node apps/obj_headless.mjs [<shot dir>] [--break res|shade|erase|pin]
+// (with a shot dir: a PNG of each sphere pin and of the icosahedron in FLAT)
 //
 // Checked:
 //   1. the OLD PICTURES: the icosahedron and the gem in FLAT, GLENZ, WIRE and SOFT
@@ -16,17 +17,21 @@
 //      pixels than WIRE;
 //   4. the ERASE: only last frame's box is cleared, and every frame is the
 //      same as one drawn on cleared rows (no stale pixel left), in every mode;
-//   5. pins of three sphere states (PINS_SPHERE), the HUD lines change with
-//      the resolution, and Escape leaves.
+//   5. pins of four sphere states (PINS_SPHERE), the same under each of the six
+//      CPU/CHISEL splits (key C), the HUD lines change with the resolution,
+//      and Escape leaves.
 // --break res: + and - are not sent. --break shade: S is not sent. --break
 // erase: a stray pixel is left in the object rows. --break pin: one pixel of
 // the pinned rows flips. Each must be caught (then the run PASSes, exit 0).
 import { bootObj, key, OBJ_Y0, OBJ_Y1, W } from "./obj_machine.mjs";
 import { PINS_OLD, PINS_SPHERE } from "./obj_pins.mjs";
+import { mkdir } from "node:fs/promises";
 
 const argv = process.argv.slice(2);
 const BREAK = argv.includes("--break") ? argv[argv.indexOf("--break") + 1] : null;
 if (BREAK !== null && !["res", "shade", "erase", "pin"].includes(BREAK)) { console.error(`obj: unknown --break ${BREAK}`); process.exit(1); }
+const OUT = argv[0] && !argv[0].startsWith("--") ? argv[0] : null;
+if (OUT) await mkdir(OUT, { recursive: true });
 const errors = [];
 const fail = (m) => errors.push(m);
 const K_ESC = 0xE012;
@@ -62,6 +67,7 @@ for (const [name, pins] of Object.entries(PINS_OLD)) {
     for (let i = 0; i < Number(s); i++) press(S, "s");
     const got = [];
     for (let f = 1; f <= 240; f++) { S.frame(); if (f % 30 === 0) got.push(pinHash(S)); }
+    if (OUT && name === "m0s0") await S.shot(`${OUT}/obj_icosahedron_flat.png`);
     const bad = got.findIndex((h, i) => h !== pins[i]);
     if (bad >= 0) fail(`${name}: frame ${(bad + 1) * 30} rows ${OBJ_Y0}..${OBJ_Y1 - 1} hash ${got[bad]}, pinned ${pins[bad]}`);
 }
@@ -87,7 +93,7 @@ for (const [name, pins] of Object.entries(PINS_OLD)) {
     if (JSON.stringify(lastVF()) !== "[12,20]") fail(`1 does not pick the icosahedron: ${lastVF()}`);
 }
 
-await import("./obj_modes.mjs").then((m) => m.checkModes({ boot, press, fail, BREAK, LEVELS, PINS_SPHERE, pinHash, K_ESC }));
+await import("./obj_modes.mjs").then((m) => m.checkModes({ boot, press, fail, BREAK, LEVELS, PINS_SPHERE, pinHash, K_ESC, OUT }));
 
 if (BREAK) { // a break must be caught, and by the check it aims at
     const WANT = { res: "V/F", shade: "m0s1", erase: "stale", pin: "pinned" }[BREAK];

@@ -57,15 +57,21 @@ async function erase({ boot, press, fail, BREAK }) {
 }
 
 // 5: the sphere pins, the HUD, Escape.
-async function pins({ boot, press, fail, PINS_SPHERE, pinHash, K_ESC }) {
+async function pins({ boot, press, fail, PINS_SPHERE, pinHash, K_ESC, OUT }) {
     for (const [name, { level, mode, frames, hash }] of Object.entries(PINS_SPHERE)) {
-        const S = await boot();
-        press(S, "3");
-        for (let i = 0; i < level; i++) press(S, "+");
-        for (let i = 0; i < mode; i++) press(S, "s");
-        for (let f = 0; f < frames; f++) S.frame();
-        const got = pinHash(S);
-        if (got !== hash) fail(`${name}: hash ${got}, pinned ${hash}`);
+        // every CPU/CHISEL split (key C) must give the pinned picture: the CPU
+        // rasterisers follow CHISEL's rules, so where a face goes never shows
+        for (let split = 0; split < 6; split++) {
+            const S = await boot();
+            press(S, "3");
+            for (let i = 0; i < level; i++) press(S, "+");
+            for (let i = 0; i < mode; i++) press(S, "s");
+            for (let i = 0; i < split; i++) key(S, "c");
+            for (let f = 0; f < frames; f++) S.frame();
+            const got = pinHash(S);
+            if (got !== hash) { fail(`${name}, split preset ${split}: hash ${got}, pinned ${hash}`); break; }
+            if (OUT && split === 0) await S.shot(`${OUT}/obj_sphere_${name}.png`);
+        }
     }
     const S = await boot();
     S.frame();

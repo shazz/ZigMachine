@@ -20,7 +20,7 @@ pub const INK: u8 = 200;
 const COLS = 38;
 const Line = [COLS]u8;
 const ROWS = [3]i16{ 8, 16, 184 };
-pub const HELP = "1 ICO 2 GEM 3 SPHERE  S SHADE  +- RES";
+pub const HELP = "1-3 OBJECT  S SHADE  +/- RES  C SPLIT";
 
 pub const Hud = struct {
     shown: [3]Line = .{ [_]u8{0} ** COLS, [_]u8{0} ** COLS, [_]u8{0} ** COLS },
@@ -51,20 +51,22 @@ pub const Hud = struct {
         self.t_window = now;
     }
 
-    pub fn draw(self: *Hud, os: *zg.ZigOS, fb: *zg.LogicalFB, mode: []const u8, object: []const u8, level: ?u8, v: u16, f: u16) void {
+    pub const Info = struct { mode: []const u8, object: []const u8, level: ?u8, split: []const u8, v: u16, f: u16 };
+
+    pub fn draw(self: *Hud, os: *zg.ZigOS, fb: *zg.LogicalFB, i: Info) void {
         var l: [3]Line = undefined;
         var obuf: [COLS]u8 = undefined;
-        const obj = if (level) |lv| std.fmt.bufPrint(&obuf, "{s:<8} {s} {}/{}", .{ mode, object, lv + 1, LEVELS }) catch "" else std.fmt.bufPrint(&obuf, "{s:<8} {s}", .{ mode, object }) catch "";
+        const obj = if (i.level) |lv| std.fmt.bufPrint(&obuf, "{s:<8} {s} {}/{} {s}", .{ i.mode, i.object, lv + 1, LEVELS, i.split }) catch "" else std.fmt.bufPrint(&obuf, "{s:<8} {s} {s}", .{ i.mode, i.object, i.split }) catch "";
         pad(&l[0], obj);
         var cbuf: [28]u8 = undefined;
         const clock = if (self.fps10 == 0) "" else std.fmt.bufPrint(&cbuf, "  FPS {}.{} CPU {}US", .{ self.fps10 / 10, self.fps10 % 10, self.cpu_us }) catch "";
         var vf: [COLS]u8 = undefined;
-        pad(&l[1], std.fmt.bufPrint(&vf, "V {} F {}{s}", .{ v, f, clock }) catch "");
+        pad(&l[1], std.fmt.bufPrint(&vf, "V {} F {}{s}", .{ i.v, i.f, clock }) catch "");
         pad(&l[2], HELP);
-        for (0..3) |i| {
-            if (std.mem.eql(u8, &l[i], &self.shown[i])) continue;
-            self.shown[i] = l[i];
-            os.printText(fb, &l[i], if (i == 2) 8 else 10, ROWS[i], INK, 0);
+        for (0..3) |k| {
+            if (std.mem.eql(u8, &l[k], &self.shown[k])) continue;
+            self.shown[k] = l[k];
+            os.printText(fb, &l[k], if (k == 2) 8 else 10, ROWS[k], INK, 0);
         }
     }
 };

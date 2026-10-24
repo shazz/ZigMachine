@@ -11,6 +11,8 @@
 // fixed on the board); render.zig picks. Gouraud has no CHISEL op: always here.
 // No ZigOS import: obj/tests.zig tests it natively.
 // --------------------------------------------------------------------------
+const fdiv = @import("fdiv.zig");
+
 pub const Target = struct { px: [*]u8, stride: u32, w: i32, h: i32 };
 pub const P = [2]i16;
 
@@ -25,14 +27,13 @@ const Edge = struct {
     fn init(a: P, b: P, y: i32) Edge {
         const dy: i32 = @as(i32, b[1]) - a[1];
         const dx: i32 = @as(i32, b[0]) - a[0];
-        const q = @divFloor(dx, dy);
-        var e = Edge{ .x = a[0], .err = 0, .q = q, .r = dx - q * dy, .dy = dy };
+        const qr = fdiv.floorDivRem(dx, dy);
+        var e = Edge{ .x = a[0], .err = 0, .q = qr.q, .r = qr.r, .dy = dy };
         const k = y - a[1];
-        if (k > 0) {
-            const num = dx * k;
-            const s = @divFloor(num, dy);
-            e.x += s;
-            e.err = num - s * dy;
+        if (k > 0) { // clipped at the top: dx k / dy = q k + r k / dy
+            const s = fdiv.floorDivRem(qr.r * k, dy);
+            e.x += qr.q * k + s.q;
+            e.err = s.r;
         }
         return e;
     }
@@ -88,7 +89,15 @@ fn flatSpan(c: Flat, y: i32, xl: i32, xr: i32) void {
     const r = @min(xr, c.t.w - 1);
     if (r < l) return;
     const row = c.t.px + @as(usize, @intCast(y)) * c.t.stride;
-    @memset(row[@intCast(l)..@intCast(r + 1)], c.color);
+    fill(row[@intCast(l)..@intCast(r + 1)], c.color);
+}
+
+/// Short spans (most of a fine mesh's) in a byte loop, long ones by memset:
+/// its call costs more than the few stores of a short one.
+inline fn fill(span: []u8, v: u8) void {
+    if (span.len <= 12) {
+        for (span) |*p| p.* = v;
+    } else @memset(span, v);
 }
 
 /// A flat triangle: CHISEL's TRIANGLE with the copy minterm, on the CPU.
@@ -101,7 +110,7 @@ fn softSpan(c: Flat, y: i32, xl: i32, xr: i32) void {
     const r = @min(xr, c.t.w - 1); // exclusive, as LogicalFB.drawScanline drew it
     if (r <= l) return;
     const row = c.t.px + @as(usize, @intCast(y)) * c.t.stride;
-    @memset(row[@intCast(l)..@intCast(r)], c.color);
+    fill(row[@intCast(l)..@intCast(r)], c.color);
 }
 
 /// The old SOFT mode's own rasteriser (obj_demo's softTriangle): CHISEL's rows
