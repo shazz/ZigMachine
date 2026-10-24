@@ -24,12 +24,16 @@ import sys
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-import video_dump
-import video_order as vo
-import video_order_group as vog
-import video_rtl
-
 FPGA = Path(__file__).resolve().parent.parent
+# A clean tree has no gen/ (the gate's fresh worktree): the memmap the tools import, made first.
+if not (FPGA / "gen" / "memmap.py").exists():
+    subprocess.run(["make", "-s", "-C", str(FPGA), "memmap"], check=True, capture_output=True)
+
+import video_dump  # noqa: E402  (after gen/ exists)
+import video_order as vo  # noqa: E402
+import video_order_group as vog  # noqa: E402
+import video_rtl  # noqa: E402
+
 mm = vo.vc.mm
 
 
