@@ -65,11 +65,21 @@ SPAN_HOOKS = """/* Span hooks: empty in the native host. fpga/cycles/prof.h (-in
 #endif
 """
 
-# The board's hwBlit may return while CHISEL still runs (BLIT_ASYNC, cycles/bchisel.h). Every
-# other way into the machine or the ROM (which may draw with the CPU, or read what CHISEL writes)
-# waits for it first, and an HBL handler's lazy op is over before the compositor goes on: the cart
-# promised only its OWN code stays off the op's pixels. hwBlit waits inside (bchisel_run), later.
-NO_SYNC = {"hwBlit"}
+# The board's hwBlit may return while CHISEL still runs (BLIT_ASYNC, a QUEUE: cycles/bchisel.h).
+# The lazy-wait contract (decisions.md 2026-10-23): an entry waits for it first when it can touch
+# memory a lazy op reads or writes -- the ROM (it draws and reads with the CPU), the drive (it may
+# land a block in a lazy op's source), the arena's alloc/mark/release (alloc zeroes memory a
+# released source may still be) -- and an HBL handler's lazy op is over before the compositor goes
+# on. An entry that only returns a value touches no such memory and does not wait: the machine's
+# region and arena getters, the ROM's constants and pointers. A per-call check cost rno_natrium
+# 60 -> 54 fps on the board (a cart calling getters in its inner loops). hwBlit waits inside
+# (bchisel_run), after its own setup.
+GETTERS = {
+    "hwVideoBase", "hwRamBase", "hwRamTop", "hwRamSize", "hwRamUsed", "hwRamFree", "hwRamAllocFailures",
+    "hwRomRamBase", "hwRomRamTop", "hwRomRamSize", "hwRomRamUsed", "hwRomRamFree",
+    "romScratchLen", "romScratchPtr", "deskDirEntryBytes", "deskDirMaxFiles", "deskDirCap", "deskDirPtr",
+}  # fmt: skip
+NO_SYNC = {"hwBlit"} | GETTERS
 
 # Host-provided values with no wasm behind them: the import calls a hook macro,
 # and the default is the JS stub's 0, so a host that defines nothing behaves as

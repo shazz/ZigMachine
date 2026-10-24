@@ -1089,3 +1089,14 @@ So a channel that has carried 32-bit writes and is then set 64-bit keeps a 32-bi
 - A lazy op costs ~80-100 cycles more CPU (the replay); it pays when the CPU has more than that to do before the next sync.
 - A cart that touches a lazy op's pixels before syncing draws wrong on the board only: the contract is the cart's, and only carts whose code was read for it opt in.
 
+
+## 2026-10-23 — The lazy CHISEL wait: only entries that can touch memory wait; getters do not
+
+**Status:** accepted (perf/chisel-queue-v2; supersedes "every machine/ROM env entry" in the 2026-10-19 lazy-wait ADR)
+**Context:** 7740706e put `HOST_CHISEL_SYNC` in front of every machine and ROM env entry. On the board that turned each wrapper from a two-instruction tail jump into a framed function, and its flag shared a D$ line with statics written all the time; with the 72 bytes of new statics moving the shared memory's place in ZIGGY's 4 KiB direct-mapped D$, rno_natrium fell 60 -> 54 fps and union_l16 36 -> 31 (firmware bisect, prototypes/chisel_queue_re/bisect).
+**Decision:**
+- An entry waits for a lazy op when it can touch memory a lazy op reads or writes: every ROM entry (it draws and reads with the CPU), the drive, the RAM arena's alloc/mark/release (alloc zeroes memory), the end of each HBL handler and of `frame()`. The getters (`tools/host_gen.py` `GETTERS`: `hwVideoBase`, the `hwRam*`/`hwRomRam*` sizes, `romScratchLen/Ptr`, `deskDir*`) return a value, touch nothing, and do not wait. hwBlit waits inside, as before.
+- The wait's rare path is a `jal t0` into `bchisel_sync_saved`, which saves the caller-saved integer registers itself, so a waiting entry keeps its tail jump and gets no frame; `bchisel_pending` has its own 32-byte line.
+- The shared memory sits at a measured offset in a 4 KiB page (`host/mem_place.h`, fix/bard-local-base), so the next static added to the firmware does not move it.
+**Alternatives considered:** keep the wait everywhere and only make it frameless (union_l16 came back, rno_natrium did not); drop the per-entry wait altogether (a ROM call over a lazy op's pixels would read stale ones).
+**Consequences:** board (card bitstream, firmware only): rno_natrium 60.2, union_l16 38.5, polkadots 54.9 (main 60.3 / 38.5 / 52.5); gen4_3615, fuji_hobbytronic, tsl_hybridglenz, union_tnt1 unchanged at 60. A new machine or ROM entry waits unless it is added to `GETTERS`, which the tests hold to value-returning entries. stniccc's queue was not re-measured with this firmware (its bitstream must be JTAG-loaded).

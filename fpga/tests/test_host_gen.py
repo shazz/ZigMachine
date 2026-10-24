@@ -105,18 +105,41 @@ def test_forwarder_wraps_the_hbl_dispatch_and_the_blitter_in_span_hooks() -> Non
     assert "HOST_SPAN" not in host_gen.forwarder("guiText", "void", ["u32"], "rom", EXPORTS)
 
 
-def test_every_machine_and_rom_entry_waits_for_a_lazy_chisel_op_but_hwblit() -> None:
-    """cycles/bchisel.h: the ROM may draw with the CPU, the machine may read CHISEL's pixels, the
-    drive may overwrite a lazy op's source; hwBlit waits inside, after its own setup."""
-    exports = {"machine": {"hwBlit": ("void", []), "hwVideoBase": ("u32", [])}, "cart": {}, "rom": {"guiText": ("void", ["u32"])}}
+def test_every_entry_that_can_touch_lazy_memory_waits_for_a_lazy_chisel_op() -> None:
+    """cycles/bchisel.h: the ROM may draw with the CPU, the drive may overwrite a lazy op's source,
+    the arena's alloc zeroes memory; hwBlit waits inside, after its own setup."""
+    exports = {
+        "machine": {"hwBlit": ("void", []), "hwRamAlloc": ("u32", ["u32", "u32"])},
+        "cart": {},
+        "rom": {"guiText": ("void", ["u32"]), "romDepack": ("u32", ["u32", "u32"])},
+    }
     rom = host_gen.forwarder("guiText", "void", ["u32"], "rom", exports)
-    mach = host_gen.forwarder("hwVideoBase", "u32", [], "machine", exports)
+    depack = host_gen.forwarder("romDepack", "u32", ["u32", "u32"], "rom", exports)
+    alloc = host_gen.forwarder("hwRamAlloc", "u32", ["u32", "u32"], "machine", exports)
     drive = host_gen.forwarder("diskReadBlock", "u32", ["u32", "u32"], None, exports)
     assert "{ HOST_CHISEL_SYNC(); w2c_rom_guiText(&e->rom, a0); }" in rom
-    assert "{ HOST_CHISEL_SYNC(); return w2c_machine_hwVideoBase(&e->machine); }" in mach
+    assert "HOST_CHISEL_SYNC(); return w2c_rom_romDepack(" in depack
+    assert "HOST_CHISEL_SYNC(); return w2c_machine_hwRamAlloc(" in alloc
     assert drive.index("HOST_CHISEL_SYNC();") < drive.index("host_disk_read(")
     assert "HOST_CHISEL_SYNC" not in host_gen.forwarder("hwBlit", "void", [], "machine", exports)
     assert "#define HOST_CHISEL_SYNC() ((void)0)" in host_gen.SPAN_HOOKS, "the native host needs the no-op"
+
+
+def test_a_getter_does_not_wait_for_a_lazy_chisel_op() -> None:
+    """A getter returns a value and touches no memory: no check, so the wrapper stays a tail jump."""
+    exports = {"machine": {"hwVideoBase": ("u32", [])}, "cart": {}, "rom": {"romScratchPtr": ("u32", [])}}
+    mach = host_gen.forwarder("hwVideoBase", "u32", [], "machine", exports)
+    rom = host_gen.forwarder("romScratchPtr", "u32", [], "rom", exports)
+    assert mach.endswith("{ return w2c_machine_hwVideoBase(&e->machine); }\n")
+    assert rom.endswith("{ return w2c_rom_romScratchPtr(&e->rom); }\n")
+
+
+def test_every_getter_is_a_value_returning_entry_without_side_effects() -> None:
+    """The list is the contract: no entry that draws, depacks, allocates or resets may be in it."""
+    doers = {"hwBlit", "hwRamAlloc", "hwRamMark", "hwRamRelease", "romDepack", "romReset", "romInstallPalettePlane"}
+    for name in host_gen.GETTERS:
+        assert name in host_gen.MACHINE_ENV or name.startswith(("rom", "desk")), name
+        assert not name.startswith(("gui", "dialog", "fileSel")) and name not in doers, name
 
 
 def test_forwarder_refuses_a_span_that_returns_a_value() -> None:

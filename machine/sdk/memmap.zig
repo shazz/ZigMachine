@@ -198,8 +198,9 @@ pub const BLIT_HALFTONE: usize = OFF_BLIT + 0x40; // u16 x16 1-bit halftone patt
 pub const BLIT_CYCLES: usize = OFF_BLIT + 0x60; // u32 (ro) estimated cost of last op
 // ASYNC (KESTREL only, no machine behaviour): non-zero lets the board's hwBlit() return
 // while CHISEL still runs. The cart promises not to touch an op's source or destination
-// pixels until it syncs (a NOP hwBlit); the next hwBlit, any machine or ROM call and the
-// frame's end wait too (fpga/cycles/bchisel.h). The machine's blitter is synchronous, so
+// pixels until it syncs (a NOP hwBlit); the next hwBlit, any ROM call, a disk read, the RAM
+// arena's alloc/mark/release and the frame's end wait too, the getters (hwVideoBase...) do
+// not (fpga/cycles/bchisel.h, fpga/tools/host_gen.py GETTERS). The machine's blitter is synchronous, so
 // it never reads this byte: the browser's pixels cannot change. Outside the 24 words
 // CHISEL's tap copies (0x80..0xDF) and every video snoop window: plain memory.
 pub const BLIT_ASYNC: usize = OFF_BLIT + 0x64; // u8  (board) 1 = hwBlit may return before the op ends

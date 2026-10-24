@@ -6,7 +6,8 @@
  * The lazy wait: with BLIT_ASYNC set, hwBlit() returns once CHISEL has STARTED, not finished. The
  * cart promises not to touch the op's source or destination pixels until it syncs (a NOP hwBlit,
  * libs/zig/chisel_async.zig); everything else the firmware owns waits here first: the next
- * hwBlit, any machine or ROM call, the end of cart.frame() and of each HBL handler.
+ * hwBlit, any ROM call, a disk read, the RAM arena's alloc/mark/release, the end of cart.frame()
+ * and of each HBL handler -- not the getters (tools/host_gen.py GETTERS: they touch no memory).
  *
  * A QUEUE (COMMAND 5, memmap BLIT_CMD_QUEUE) is always lazy: CHISEL runs the cart's descriptor
  * list from its own copy of the ring while the cart goes on, and the same waits apply. */

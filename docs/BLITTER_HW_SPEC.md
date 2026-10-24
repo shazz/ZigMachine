@@ -247,8 +247,11 @@ A cart may opt out of the spin with `BLIT_ASYNC` (region `0xE4`, u8; ZigOS
 `chisel_async.setAsync`, `Blitter.setAsync`, `ZigOS.blitAsync`): `hwBlit()` then returns
 as soon as CHISEL has started, and the wait moves to the next point that needs it: the
 next `hwBlit`, a sync (a NOP `hwBlit`: `chisel_async.sync`, `Blitter.sync`,
-`ZigOS.blitSync`), any machine or ROM call, the end of `frame()` and of each HBL handler
-(`fpga/cycles/bchisel.h`). The cart promises not to read or write an op's destination
+`ZigOS.blitSync`), any ROM call, a disk read, the RAM arena's alloc/mark/release, the end
+of `frame()` and of each HBL handler (`fpga/cycles/bchisel.h`, `fpga/tools/host_gen.py`
+`GETTERS`). The getters do not wait: `hwVideoBase`, the `hwRam*`/`hwRomRam*` sizes,
+`romScratchLen/Ptr`, `deskDir*` touch no memory, and a check on every call cost a cart
+that calls them in its inner loops 10 % of its frame rate on the board. The cart promises not to read or write an op's destination
 (or overwrite its source) before that sync, ZigOS's own CHISEL clears and copies
 included. `CYCLES` of a lazy op lands at its sync. The machine never reads `BLIT_ASYNC`
 (its blitter is synchronous), so the browser's pixels cannot change; on the board the
