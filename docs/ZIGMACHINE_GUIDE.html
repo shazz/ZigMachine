@@ -3,9 +3,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ZigMachine — Programmer's Guide</title>
 <meta name="description" content="The ZigMachine reference: video and blitter registers, the sealed HW ABI, the disk and music formats, and the ZigOS / GEM library, generated from the sources.">
-<link rel="stylesheet" href="css/docs.css?v=3f1bd301">
-<link rel="stylesheet" href="css/code.css?v=0edb2f47">
-<link rel="stylesheet" href="css/guide.css?v=ece899e9">
+<link rel="stylesheet" href="css/docs.css">
+<link rel="stylesheet" href="css/code.css">
+<link rel="stylesheet" href="css/guide.css">
 </head>
 <body>
 <header class="topbar">
@@ -58,7 +58,7 @@ select it in <code>apps/floppy.zig</code>.
 screen step by step in Zig, C and Rust, and runs each step on the real machine.
 This page is the reference you reach for afterwards.</p>
 </div>
-      <p class="stamp">Generated 2026-10-20 by tools/gen_docs.py from machine/sdk, libs/zig, rom/gem and docs/*.md</p>
+      <p class="stamp">Generated 2026-10-24 by tools/gen_docs.py from machine/sdk, libs/zig, rom/gem and docs/*.md</p>
     </section>
     <section class="ref" id="examples">
       <header class="sec-h"><span class="eyebrow">Start</span><h2>Examples<small>six scenes, in Zig</small></h2></header>
@@ -913,6 +913,11 @@ requestSong(&quot;sos.sndh&quot;) ──►  polls pollSongRequest() every frame
 <td>an Atari 8-bit tune's own 6502 code on the machine's POKEY (<code>libs/zig/players/sap_player.zig</code>): TYPE B and C, mono; D/S/R and STEREO are refused, with the reason on the console</td>
 <td>yes: <code>tune</code> counts from 1, 0 = the file's DEFSONG</td>
 </tr>
+<tr>
+<td><code>.hip</code></td>
+<td>a Jochen Hippel <strong>Amiga</strong> module as UADE plays it: the module's own 68000 replay on the SNDH player's Musashi, poking an emulated Paula (<code>libs/zig/players/hip_player.zig</code>, <code>paula.zig</code>) on the four sample channels. A file that is not a <code>bra</code> jump table plus a <code>TFMX</code> song is refused</td>
+<td>yes: <code>tune</code> counts from 1, 0 = the first song</td>
+</tr>
 </tbody>
 </table>
 <p><strong>The YM dump player is deprecated: use SNDH.</strong> A dump records the chip only
@@ -1143,6 +1148,29 @@ archive's file byte for byte (<code>apps/xm_test_check.mjs</code> holds the md5s
 <p>What the player leaves out of them (<code>xm.zig</code>'s ignored list): the volume column's
 vibrato in both, and in Poppy Flower Girls the 8xx panning, the Hxx global volume
 slide and the volume column's panning slide.</p>
+<p>The Amiga modules (<code>.hip</code>), each modland's file byte for byte, renamed without spaces:</p>
+<table>
+<thead>
+<tr>
+<th>File</th>
+<th>Title, artist</th>
+<th>Size</th>
+<th>Source</th>
+<th>md5</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>shaolin_title.hip</code></td>
+<td>"Chambers of Shaolin" title tune (Thalion, Amiga), Jochen Hippel: the Supplex FS2 screen's (CODEF 525)</td>
+<td>36,032 B</td>
+<td>https://ftp.modland.com/pub/modules/Hippel/Jochen%20Hippel/shaolin%20title.hip</td>
+<td><code>48e2ebc6c7588bee78796281b677facc</code></td>
+</tr>
+</tbody>
+</table>
+<p>The game's ST SNDH is a different arrangement (Matt listened), so the screen plays the
+Amiga module, not the SNDH.</p>
 <p><strong>A song you may only keep for yourself</strong> goes in <code>docs/music/local.xm</code>, which
 git ignores. The music debug screen plays it on key 6, XM TEST on key 3. In the browser it is fetched like any other song. On the
 board, songs are linked into the firmware, so build <code>make board-fw CART=music</code>
@@ -1294,5 +1322,5 @@ the song: keep it off anything you publish.</p>
 <article class="api" id="Desktop.input"><code class="sig"><b class="fn">input</b>(self: *Desktop, dir: u32) <span class="ret">void</span></code><a class="anchor" href="#Desktop.input" aria-label="Link to input">#</a><p class="doc">Directional input from the host (0=up 1=down 2=left 3=right). The desktop only uses left/right, and only to walk the caret in the name field of an open INFORMATION / NEW FOLDER box.</p></article></section>
   </main>
 </div>
-<script src="guide.js?v=3eb64558"></script>
+<script src="guide.js"></script>
 </body></html>
