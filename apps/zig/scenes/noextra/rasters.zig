@@ -55,7 +55,7 @@ const TOP_COLOURS = blk: {
 };
 const BLACK = A.rgba(0);
 
-/// What the HBL replays this frame: written by Band.frame(), read per line.
+/// What the HBL replays this frame: written by frame(), read per line.
 var g_on = false;
 var g_bob: u16 = 0;
 var g_off: [BAND_ROWS]u8 = undefined;
@@ -81,7 +81,7 @@ pub fn hbl(fb: *zg.LogicalFB, _: *zg.ZigOS, line: u16, _: u16) void {
         if (g_bob > 0) setRange(fb, A.TOP + 1, &([_]u32{BLACK} ** 15));
         return;
     }
-    if (line == FIRST_SHOWN) return setRange(fb, A.TOP + 1, &TOP_COLOURS);
+    if (line == FIRST_SHOWN) setRange(fb, A.TOP + 1, &TOP_COLOURS);
     const r = @as(i32, line) + g_bob - (PAD + BAND_FIRST);
     if (r < 0 or r >= BAND_ROWS) return;
     const ur: usize = @intCast(r);
@@ -91,7 +91,7 @@ pub fn hbl(fb: *zg.LogicalFB, _: *zg.ZigOS, line: u16, _: u16) void {
 
 /// Store only the entries that change: a raster coder never rewrites a register
 /// that already holds the colour, and on the board every store is a bus write.
-fn setRange(fb: *zg.LogicalFB, first: u8, colours: []const u32) void {
+pub fn setRange(fb: *zg.LogicalFB, first: u8, colours: []const u32) void {
     for (colours, first..) |c, i| {
         if (fb.palette[i] != c) fb.palette[i] = c;
     }

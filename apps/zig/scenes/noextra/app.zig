@@ -26,11 +26,20 @@ const LogicalFB = zg.LogicalFB;
 /// bytes of code identical to the archive's Powapixel/Mega_4_Disk_Mag.sndh), init d0 = 1.
 const MUSIC = "mega4_disk_mag.sndh";
 const BUF_H = 340; // 59 (deepest bob) + 280 rows of window, rounded
-const BOB_MAX = 59;
+const BOB_MAX = T.BOB_MAX;
 const NORMAL_TOP = 29; // the intro's 320x200 screen, in capture rows
 const DHS_ROW = NORMAL_TOP + R.PAD + BOB_MAX;
 const DHS_X = 64; // $D5A8: lea $20(a6) -> 32 bytes = 64 px in
 const LOW_VIEW = 200;
+const BLACK_PAL = [_]u32{A.rgba(0)} ** 256;
+
+// A pan past BUF_H - 280 reads outside the buffer without trapping, and the
+// blitter clips a 400-stride destination at row 280: pin what the layout needs.
+comptime {
+    const H = zg.PHYSICAL_HEIGHT;
+    if (BUF_H < H + BOB_MAX or DHS_ROW + A.DHS_H > H) @compileError("noextra: buffer too short");
+    if (R.PAD + 227 + A.BOTTOM_H > BUF_H or R.PAD + 227 - LOW_VIEW + A.BOTTOM_H > H) @compileError("noextra: ZORRO 2 out of reach");
+}
 
 // NOTE: demo_main.zig holds the cart as `var cart: Cart = undefined`, so field
 // defaults are NEVER applied: init() sets every field.
@@ -73,7 +82,7 @@ pub const Demo = struct {
             .hold => self.intro(fb, A.bob[0]),
             .bounce => self.intro(fb, T.introY(self.f - T.HOLD_FRAMES)),
             .still => {},
-            .cut => setPalette(fb, &[_]u32{A.rgba(0)} ** 256), // $D4B6: black, no wait
+            .cut => setPalette(fb, &BLACK_PAL), // $D4B6: black, no wait
             .main => self.main(fb, self.f - T.MAIN_START),
         }
         self.f +%= 1;
@@ -122,7 +131,5 @@ fn dhsPalette() [256]u32 {
 }
 
 fn setPalette(fb: *LogicalFB, p: *const [256]u32) void {
-    for (p, 0..) |c, i| {
-        if (fb.palette[i] != c) fb.palette[i] = c;
-    }
+    R.setRange(fb, 0, p);
 }

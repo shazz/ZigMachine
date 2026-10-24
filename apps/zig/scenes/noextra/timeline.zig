@@ -28,6 +28,11 @@ pub const BOUNCE_FRAMES = 255;
 pub const STILL_FRAMES = 239;
 pub const MAIN_START = HOLD_FRAMES + BOUNCE_FRAMES + STILL_FRAMES + 1; // 749
 pub const BOB_WAIT: i16 = 767;
+pub const BOB_MAX = 59; // bob.bin's largest value: the pan's range (checked at comptime)
+
+comptime {
+    for (A.bob) |v| if (v > BOB_MAX) @compileError("noextra: a bob value past BOB_MAX would pan outside the buffer");
+}
 
 pub const Stage = enum { hold, bounce, still, cut, main };
 
@@ -97,17 +102,33 @@ pub fn glyphOf(n: u32) u8 {
 
 /// Byte `b` of the strip, glyph row `y` (0..15): 8 pixels, MSB leftmost. Blank before the start.
 pub fn stripByte(b: i32, y: u32) u8 {
-    if (b < 0) return 0;
+    const o = byteBase(b) orelse return 0;
+    return A.font[o + 2 * y];
+}
+
+/// Where byte `b` of the strip starts in font.bin (row y is 2 * y further), null before the start.
+pub fn byteBase(b: i32) ?usize {
+    if (b < 0) return null;
     const ub: u32 = @intCast(b);
-    const g: u32 = glyphOf(ub >> 2);
+    const g: usize = glyphOf(ub >> 2);
     const q = ub & 3;
-    return A.font[g * 64 + (q >> 1) * 32 + 2 * y + (q & 1)];
+    return g * 64 + (q >> 1) * 32 + (q & 1);
 }
 
 /// Column c's top line in the 160-stride screen at call f: line 50 + the wave (lines * 160).
 pub fn columnLine(f: u32, c: u32) u32 {
-    return 50 + A.wave[((f + 1) % 180) + c] / 160;
+    return 50 + @as(u32, WAVE_LINES[((f + 1) % 180) + c]);
 }
+
+/// wave.bin in lines (the 68000 adds it as bytes, lines * 160; every entry is exact).
+const WAVE_LINES = blk: {
+    var t: [A.wave.len]u8 = undefined;
+    for (&t, A.wave) |*l, w| {
+        if (w % 160 != 0) @compileError("noextra: a wave entry is not whole lines");
+        l.* = w / 160;
+    }
+    break :blk t;
+};
 
 test "noextra timeline: the intro ends where the main bob starts" {
     const std = @import("std");

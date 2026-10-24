@@ -1,6 +1,6 @@
 // Headless NOEXTRA ("RASTERS", NoExtra Team / DHS 2005) driver. Boots the sealed
 // machine as apps/composite_hash.mjs does and runs the cart 2,400 frames (the
-// whole intro, the main screen, and 130 frames into the bob), and checks:
+// whole intro, the main screen, and ~880 frames of the bob, 12 passes of its table), and checks:
 //   frames  every 10th frame, the WHOLE 400x280 physical picture (borders
 //           included) equals a model built here straight from the ripped assets
 //           (apps/zig/assets/screens/noextra/, out of the original RASTERS.PRG):
@@ -127,7 +127,7 @@ async function shot(px, path) {
 await mkdir(outdir, { recursive: true });
 const { memory, machine, demo } = await boot();
 const songs = [], rampSet = new Set(ramp.map(rgba));
-let bad = 0, checked = 0, badBand = 0;
+let bad = 0, checked = 0, badBand = 0, extraPlanes = 0;
 for (let f = 0; f < FRAMES; f++) {
     machine.hwClear();
     demo.frame(20);
@@ -136,7 +136,8 @@ for (let f = 0; f < FRAMES; f++) {
         songs.push(name);
     }
     if (demo.isPlaneEnabled(0)) machine.hwRenderPlane(0);
-    if (f % EVERY && f !== 998 && f !== 1567) continue;
+    for (let p = 1; p < 4; p++) if (demo.isPlaneEnabled(p)) extraPlanes++; // ONE plane, as the cart says
+    if (f % EVERY && f !== 994 && f !== 1564) continue;
     const got = physical(memory, machine);
     const want = f < MAIN ? introFrame(f) : mainFrame(f - MAIN);
     checked++;
@@ -152,7 +153,7 @@ for (let f = 0; f < FRAMES; f++) {
         for (let p = PAD + 78 - bob; p < PAD + 224 - bob; p++)
             for (let x = 0; x < W; x++) if (!rampSet.has(got[p * W + x]) && got[p * W + x] !== INK) { badBand++; break; }
     }
-    if (f === 600 || f === 998 || f === 1567) await shot(got, `${outdir}/noextra-${f}.ppm`);
+    if (f === 600 || f === 994 || f === 1564) await shot(got, `${outdir}/noextra-${f}.ppm`);
 }
 console.log(`  frames: ${checked - bad}/${checked} identical to the model built from the rip`);
 console.log(`  music: ${songs.join(", ") || "(none)"}`);
@@ -162,6 +163,7 @@ if (broke) {
 }
 const errors = [];
 if (bad) errors.push(`${bad} frames differ from the model`);
+if (extraPlanes) errors.push(`a second plane was enabled on ${extraPlanes} frame-planes`);
 if (badBand) errors.push(`${badBand} band lines hold a colour that is not a raster's`);
 if (JSON.stringify(songs) !== JSON.stringify(["mega4_disk_mag.sndh"])) errors.push(`music requests ${JSON.stringify(songs)}`);
 if (machine.hwRamAllocFailures()) errors.push(`${machine.hwRamAllocFailures()} zg.mem allocation(s) refused`);

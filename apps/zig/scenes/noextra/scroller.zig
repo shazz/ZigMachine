@@ -53,9 +53,17 @@ pub fn draw(fb: *zg.LogicalFB, f: u32) void {
 fn column(fb: *zg.LogicalFB, c: usize, line: u32, b: i32) void {
     const stride: usize = fb.stride;
     const x = R.SX + 16 * c;
+    // the column's two strip bytes are fixed: find their glyph rows once
+    const left = T.byteBase(b);
+    const right = T.byteBase(b + 1);
     var row: usize = R.PAD + line - CLEAR;
     for (0..16 + 2 * CLEAR) |n| {
-        const bits: u32 = if (n < CLEAR or n >= 16 + CLEAR) 0 else glyphRow(b, @intCast(n - CLEAR));
+        var bits: u32 = 0;
+        if (n >= CLEAR and n < 16 + CLEAR) {
+            const y = 2 * (n - CLEAR);
+            if (left) |o| bits |= @as(u32, A.font[o + y]) << 8;
+            if (right) |o| bits |= A.font[o + y];
+        }
         const words: [*]u32 = @ptrCast(@alignCast(fb.fb + row * stride + x));
         inline for (0..4) |j| {
             const m = EXPAND[(bits >> (12 - 4 * j)) & 0xF];
@@ -65,7 +73,6 @@ fn column(fb: *zg.LogicalFB, c: usize, line: u32, b: i32) void {
     }
 }
 
-/// 16 pixels of strip bytes b and b + 1, glyph row y.
-fn glyphRow(b: i32, y: u32) u32 {
-    return (@as(u32, T.stripByte(b, y)) << 8) | T.stripByte(b + 1, y);
+comptime { // the u32 stores above need 4-aligned columns (vramAlloc aligns the buffer)
+    if (R.SX % 4 != 0 or R.PW % 4 != 0) @compileError("noextra: scroller columns must be 4-aligned");
 }
