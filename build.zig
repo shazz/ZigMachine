@@ -106,12 +106,14 @@ pub fn build(b: *std.Build) void {
     const pack_intro = b.addRunArtifact(zx0pack);
     pack_intro.addFileArg(b.path("apps/zig/assets/screens/union_demo_intro/intro.bin"));
     const intro_zx0 = pack_intro.addOutputFileArg("union_demo_intro.zx0");
-    // The Union Demo main menu's graphics depack behind menuloader.js's TEX panel,
-    // as the remake's mainMenuLoader stands before the street on every entry
-    // (main.js:347, and every screen's return to MENU_LOADER).
+    // The Union Demo main menu's graphics depack behind ONE TEX panel, before the
+    // street on every entry (the remake's mainMenuLoader, main.js:347): the Union
+    // Demo's first loader text, The Carebears' credits (demoloader.js; Matt, 2026-10-24:
+    // one intro screen, with the TCB text). menuloader.js's own text is
+    // apps/zig/assets/screens/union_demo/loader_main_menu.txt.
     const pack_menu = b.addRunArtifact(zx0pack);
     pack_menu.addArgs(&.{ "--fx", "tex_loader", "--panel" });
-    pack_menu.addFileArg(b.path("apps/zig/assets/screens/union_demo/loader_main_menu.txt"));
+    pack_menu.addFileArg(b.path("apps/zig/assets/screens/union_demo_intro/loader_demo.txt"));
     pack_menu.addFileArg(b.path("apps/zig/assets/screens/union_demo/menu_assets.bin"));
     const menu_zx0 = pack_menu.addOutputFileArg("union_demo_menu.zx0");
     // The Union Demo hidden screen: its picture and mice depack behind the TEX

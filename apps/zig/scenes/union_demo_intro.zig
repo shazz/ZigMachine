@@ -6,8 +6,9 @@
 // In the remake this is the splash the demo opens on (main.js:262-265): Space
 // leaves it for the first TEX loader (demoLoader's credits panel), then the menu
 // loader's panel, then the street. Here it opens the union_demo cart itself, and
-// Space, Escape, Fire or Back go on to the ONE loader panel before the street,
-// the menu loader's (Matt, 2026-10-23: one intro screen, no double panel, no
+// Space, Escape, Fire or Back go on to the ONE loader panel before the street:
+// The Carebears' credits (demoLoader's text) assembling while the menu depacks,
+// held until a key (Matt, 2026-10-23/24: one intro screen, no double panel, no
 // cart swap -- the board's firmware swaps no cart). union_demo.zig drives it.
 //
 // Three things on a black 640x400 canvas, halved onto one 320x200 plane:

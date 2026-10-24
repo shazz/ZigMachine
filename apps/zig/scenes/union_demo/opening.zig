@@ -1,10 +1,11 @@
 // --------------------------------------------------------------------------
 // The Union Demo's opening, inside the hub cart: on the demo's FIRST entry the
 // intro splash (union_demo_intro.zig, screens/intro) plays until Space, then
-// the street's own loader panel (loading.zig) depacks the menu and the street
-// starts. One intro screen, one panel, no cart swap (Matt, 2026-10-23: the
-// splash, demoLoader's credits panel and the menu loader's panel had been two
-// carts and two panels; and the board's firmware swaps no cart).
+// ONE loader panel (loading.zig): The Carebears' credits, demoLoader's text,
+// assemble while the menu depacks and hold until a key; then the street. One
+// intro screen, one panel, no cart swap (Matt, 2026-10-23/24: the splash,
+// demoLoader's credits panel and the menu loader's panel had been two carts and
+// two panels; and the board's firmware swaps no cart).
 //
 // Coming back from a door's screen (a return note in the ROM's scratch, which
 // only a door writes) skips the splash: the remake's MENU_LOADER goes straight

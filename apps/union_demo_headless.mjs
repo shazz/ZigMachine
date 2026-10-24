@@ -100,10 +100,12 @@ async function boot(loaded = true) {
 // return from a screen included; its first street step runs on the frame the
 // depack ends, which is also when it asks for its music. Returns the frame count.
 // A first start opens on the intro splash (union_demo/opening.zig): Space, sent the
-// frame its tune is asked for, ends it (its stop request "none" follows).
+// frame its tune is asked for, ends it (its stop request "none" follows); the panel
+// then holds once landed until fire, sent every frame (the loader swallows it before).
 async function ready(m, onFrame = () => {}) {
     const dec = new TextDecoder();
     for (let f = 1; f <= 400; f++) {
+        m.demo.input(DIR.fire); // the landed panel's key; swallowed while the loader blocks
         step(m);
         await onFrame(f);
         if (m.demo.pollSongRequest()) {

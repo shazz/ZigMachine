@@ -137,7 +137,12 @@ async function checkMenu() {
     cart.demo.key(32);
     const stop = firstRequest(cart, 10);
     if (stop?.name !== "none") console.log(`union_demo: Space on the intro asks for ${JSON.stringify(stop?.name)}, not the stop "none"`);
-    const req = intro?.name === "ikari_union.sndh" && stop?.name === "none" ? firstRequest(cart, 400) : null;
+    // The one panel (The Carebears' credits) holds once landed until a key: fire every 10 frames.
+    let req = null;
+    for (let i = 0; i < 40 && !req && intro?.name === "ikari_union.sndh" && stop?.name === "none"; i++) {
+        req = firstRequest(cart, 10);
+        cart.demo.input(5);
+    }
     const again = cart.demo.pollSongRequest();
     console.log(`union_demo request: ${req ? `"${req.name}" tune ${req.tune}` : "none"} (polled twice: ${again ? "STILL pending" : "cleared"})`);
     return !!req && req.name === MENU_WANT && req.tune === MENU_TUNE && !again && (await plays(req));

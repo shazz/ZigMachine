@@ -46,13 +46,14 @@ async function boot(cartPath) {
 
 // A fresh hub opens on the intro splash (union_demo/opening.zig): Space (as the host sends
 // it: input fire + key 32), 30 frames after the splash's tune is asked for, ends it; the
-// graphics depack behind menuloader.js's TEX panel, and the street starts with its own tune.
-// No cart swap on the way. Returns the frame Space was pressed and the street's first frame.
+// graphics depack behind the ONE TEX panel (The Carebears' credits), which holds once landed
+// until Space again (pressed every 30 frames from then on); then the street starts with its
+// own tune. No cart swap on the way. Returns the first Space and the street's first frame.
 const dec = new TextDecoder();
 function untilLoaded(demo, memory) {
     let space = -1;
     for (let f = 0; f < 1200; f++) {
-        if (f === space) { demo.input(DIR.fire); demo.key(32); }
+        if (space >= 0 && f >= space && (f - space) % 30 === 0) { demo.input(DIR.fire); demo.key(32); }
         demo.frame(16.6);
         if (demo.pollCartRequest() !== 0) throw new Error(`the hub asked for a cart swap at frame ${f}, before its street`);
         if (!demo.pollSongRequest()) continue;
@@ -146,7 +147,7 @@ const MAIN_PLANE = 1; // the parts draw on plane 0; the door street enables plan
 {
     const { memory, demo } = await boot("docs/demo-union_demo.wasm");
     const { space, street } = untilLoaded(demo, memory);
-    if (space < 0 || street - space > 130)
+    if (space < 0 || street - space > 160)
         problems.push(`the opening: Space at frame ${space}, street at ${street}: more than one loader panel between them`);
     console.log(`union_demo: splash -> Space (frame ${space}) -> one loader panel -> street (frame ${street}), no swap`);
 }

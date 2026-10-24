@@ -99,16 +99,21 @@ pub const Demo = struct {
         self.launch_pending = false;
 
         gpu.init();
-        if (!self.opening.start(zigos)) startLoader(zigos);
+        if (!self.opening.start(zigos)) startLoader(zigos, false);
     }
 
-    /// The street's loader panel: the HUD and the music wait for the graphics.
-    fn startLoader(zigos: *ZigOS) void {
+    /// The street's loader panel: the HUD and the music wait for the graphics. `first`:
+    /// the demo's first entry, whose panel holds for a key (loading.zig).
+    fn startLoader(zigos: *ZigOS, first: bool) void {
+        streetColours(zigos);
+        menu_loader.start(zigos, first);
+    }
+
+    fn streetColours(zigos: *ZigOS) void {
         const fb = &zigos.lfbs[0];
         fb.is_enabled = true;
         fb.setPalette(A.palette);
         fb.setPaletteEntry(0, Color{ .r = 0, .g = 0, .b = 0, .a = 0 });
-        menu_loader.start(zigos);
     }
 
     /// The remake updates on setInterval at me.sys.fps = 60 whatever the display
@@ -119,7 +124,7 @@ pub const Demo = struct {
     /// jitter included) and a 144 Hz one gets 60 a second, not 144.
     pub fn update(self: *Demo, zigos: *ZigOS, dt: f32) void {
         if (self.opening.on) {
-            if (!self.opening.update(zigos, dt)) startLoader(zigos);
+            if (!self.opening.update(zigos, dt)) startLoader(zigos, true);
             return;
         }
         switch (menu_loader.step(zigos)) {
@@ -129,6 +134,7 @@ pub const Demo = struct {
                 return;
             },
             .ready => { // PlayScreen.onResetEvent: the HUD, then the menu music
+                streetColours(zigos); // the landed panel held its ink in entry 1
                 self.hud.init();
                 raster.install(zigos, &zigos.lfbs[0], hud.BAND_Y, hud.band());
                 self.comeBack(); // back from a door's screen: where Charly and the scroller were
@@ -187,6 +193,7 @@ pub const Demo = struct {
     /// it (see key()).
     pub fn input(self: *Demo, dir: u8) void {
         if (self.opening.on) return self.opening.input(dir);
+        if (menu_loader.blocking()) return if (dir == 5) menu_loader.press();
         if (dir != 6) self.controls.input(dir);
     }
 
@@ -215,6 +222,7 @@ pub const Demo = struct {
     /// (union/doors.zig) still owns Escape.
     pub fn key(self: *Demo, cp: u32) void {
         if (self.opening.on) return self.opening.key(cp);
+        if (menu_loader.blocking()) return if (cp == ' ' or cp == 13) menu_loader.press();
         if (cp != K_ESC) self.controls.key(cp);
     }
 
