@@ -13,10 +13,12 @@
 //           balls in order, snake k with a2 += k 2^27, b2 += k 2^26 (x = 152 + ((76 cos a1 + 76 sin a2) >> 15),
 //           y = 92 + ((44 cos b1 + 44 sin b2) >> 15), Q15 sine of 1,024 steps,
 //           u32 turns), then the 6x6 scroller's ink at y 194, 2 pixels a frame
-//   planes  only plane 0 is enabled; its palette is the three merged ones
+//   planes  only plane 0 is enabled; every 500 frames the plane as the machine
+//           composes it shows the merged palette of the plane's indices: 0-3
+//           back_pal, 4-6 ball_pal 1-3, 7 font_pal 1 (the RGBA words)
 //   music   sos.sndh requested at start
 //
-//   node apps/leonard_spirit_headless.mjs [--break pixels|count|music] [--ppm F]
+//   node apps/leonard_spirit_headless.mjs [--break pixels|count|music|palette] [--ppm F]
 //     each --break must be caught (the model is wrong on purpose)
 import { readFileSync, writeFileSync } from "node:fs";
 import { cartRam } from "../docs/wasm_hiwater.js";
@@ -28,7 +30,7 @@ const A = "apps/zig/assets/screens/leonard/";
 const argv = process.argv.slice(2);
 const opt = (n) => { const i = argv.indexOf(n); return i < 0 ? null : argv[i + 1]; };
 const brk = opt("--break");
-if (brk && !["pixels", "count", "music"].includes(brk)) throw new Error("--break pixels|count|music");
+if (brk && !["pixels", "count", "music", "palette"].includes(brk)) throw new Error("--break pixels|count|music|palette");
 const ppm = opt("--ppm");
 
 // ---------------- boot -------------------------------------------------------
@@ -59,6 +61,7 @@ const SIN = Int16Array.from({ length: 1024 }, (_, i) => Math.round(32767 * Math.
 const DEG = Uint32Array.from({ length: 360 }, (_, d) => Number((BigInt(d) << 32n) / 360n));
 const sin = (a) => SIN[a >>> 22], cos = (a) => SIN[((a >>> 22) + 256) & 1023];
 const nModel = brk === "count" ? NB + 1 : NB;
+const MERGED = mergedPalette();
 const STEP = DEG[1]; // t = 1 degree, as in 2005
 
 // --break count: the last snake is one ball longer
@@ -122,7 +125,7 @@ const FULL = TEXT + TEXT_NOW;
 // ---------------- 2. every frame ---------------------------------------------
 const FRAMES = LAP() + 400; // a whole lap of the text, its wrap, and > 2 path periods
 const want = new Uint8Array(W * H);
-let bad = 0, first = null, minVis = Infinity, maxVis = 0, distinct0 = 0;
+let bad = 0, palBad = 0, first = null, minVis = Infinity, maxVis = 0, distinct0 = 0;
 for (let n = 0; n < FRAMES; n++) {
     const f = demo.lsState(1), t = demo.lsState(2);
     demo.frame(16.6);
@@ -141,15 +144,37 @@ for (let n = 0; n < FRAMES; n++) {
     for (let i = 0; i < W * H; i++) if (got[i] !== want[i]) { diff = i; break; }
     if (diff >= 0) { bad++; first ??= `frame ${n} (path ${f}, tick ${t}): x ${diff % W} y ${Math.floor(diff / W)} cart ${got[diff]} model ${want[diff]}`; }
     if (ppm && n === 100) writePpm(ppm, got);
+    if (n % 500 === 0) palBad += paletteErrors(got);
     if (n === 1) {
         let planes = 0;
         for (let p = 0; p < 4; p++) planes += demo.isPlaneEnabled(p) ? 1 << p : 0;
         ok(planes === 1, `planes: only plane 0 enabled (mask ${planes})`);
     }
 }
+ok(palBad === 0, `palette: the composed plane shows the merged palette (${palBad} wrong pixels on ${Math.ceil(FRAMES / 500)} frames)`);
 ok(bad === 0, `pixels: plane 0 = model on ${FRAMES - bad}/${FRAMES} frames${first ? `; first: ${first}` : ""}`);
 ok(distinct0 > 2000, `count: ${distinct0} distinct ball positions in frame 0 of ${nModel} (not one chain redrawn over itself)`);
 console.log(`  info balls with a visible pixel (rows above the scroller), sampled: ${minVis}..${maxVis} of ${nModel}`);
+
+// the merged palette as the machine stores it (a<<24 | b<<16 | g<<8 | r);
+// --break palette swaps two ball shades
+function mergedPalette() {
+    const word = (f, i) => readFileSync(A + f).readUInt32LE(i * 4);
+    const e = [0, 1, 2, 3].map((i) => word("back_pal.dat", i))
+        .concat([1, 2, 3].map((i) => word("ball_pal.dat", i)), [word("font_pal.dat", 1)]);
+    if (brk === "palette") [e[4], e[5]] = [e[5], e[4]];
+    return e;
+}
+
+// plane pixel (x, y) is physical (80 + 2x, 40 + y) of the 800x280 raster
+function paletteErrors(plane) {
+    machine.hwRenderPlane(0);
+    const snap = new Uint32Array(memory.buffer, machine.hwPhysicalPtr(), 800 * 280);
+    let n = 0;
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++)
+        if (snap[(40 + y) * 800 + 80 + 2 * x] >>> 0 !== MERGED[plane[y * W + x]]) n++;
+    return n;
+}
 
 function writePpm(file, plane) {
     const pal = readFileSync(A + "back_pal.dat"), bp = readFileSync(A + "ball_pal.dat"), fp = readFileSync(A + "font_pal.dat");
