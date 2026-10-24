@@ -43,12 +43,24 @@
 // which is what CODEF does too (one canvas), and which matters because the
 // host copies and uploads a whole 800x280 RGBA canvas PER ENABLED PLANE every
 // frame. That per-plane upload, not the cart, was the 20fps.
+//
+// NO FLOAT PER FRAME (2026-10-24): the scroller wave runs in fixed point (no
+// per-frame float on ZIGGY); edge pixels may differ by 1 px from the old f32
+// wave. The wave's phase is now u64 turns advanced by exactly 0.02 rad a frame
+// (the original's JS doubles), where the old f32 accumulator had drifted
+// 0.06 rad by frame 20,000, so late in a long run the letters sit further
+// from where the f32 cart put them: <= 1 px up to frame ~17,000 (4.7 min),
+// 2-3 px by frame 20,000, and growing with the old drift. The sines
+// (wave and band) are zg.fixtrig's table, the ring counts half pixels (exact),
+// and the intro fades are f32 replayed at comptime (noextra_fade.zig, exact).
 // --------------------------------------------------------------------------
 const std = @import("std");
 const zg = @import("zigos");
 const fx = @import("turns_fix.zig");
 const band = @import("noextra_band.zig");
 const scroll = @import("noextra_scroll.zig");
+const fade = @import("noextra_fade.zig");
+const trig = zg.fixtrig;
 const convertU8ArraytoColors = zg.convertU8ArraytoColors;
 
 const ZigOS = zg.ZigOS;
@@ -122,8 +134,11 @@ const LAST_CHAR: u8 = 91; // the sheet holds 60 tiles, ' '..'['
 // formula is the original's, so spacing and wrap are unchanged.
 const WIDE: i32 = @divTrunc(PW + GW - 1, GW) + 1; // 14
 const NB_LETTERS: usize = @intCast(WIDE + 1); // 15
-const SCROLL_SPEED: f32 = 4.5; // CODEF 9 px/frame at 640
-const SCROLL_START: f32 = @floatFromInt(WIDE * GW);
+// The ring runs in HALF pixels (integers): CODEF's 9 px/frame at 640 is 4.5 here,
+// and every position the f32 ring held was a multiple of 0.5, so this is exact.
+const SCROLL_SPEED_H: i32 = 9;
+const SCROLL_START_H: i32 = 2 * WIDE * GW;
+const Ring = zg.scrollring.Ring(i32, NB_LETTERS);
 
 // The screen's own scrolltext, verbatim. ']' is the marker that starts the
 // vertical bob; it is also outside the font sheet, so it draws as a gap —
@@ -141,9 +156,9 @@ const SCROLL_TEXT =
 // --- the original's tables, halved where they are pixel amplitudes ---------
 // myfxparam1: {amp 150, inc 0.04, offset -0.05} + {amp -100, inc 0.01, offset 0.08}
 // The inc is per 640-space ROW, so a halved row costs two of them.
-// The phases are u64 turns and the two sines Q30 (turns_fix.zig): no libm per row.
-const DIST_AMP_A: i64 = 75;
-const DIST_AMP_B: i64 = -50;
+// The phases are u64 turns (turns_fix.zig) and the two sines zg.fixtrig Q16.16: no libm per row.
+const DIST_AMP_A: i32 = 75;
+const DIST_AMP_B: i32 = -50;
 const DIST_INC_A = fx.turns(0.08);
 const DIST_INC_B = fx.turns(0.02);
 const DIST_OFF_A = fx.turns(-0.05);
@@ -152,10 +167,11 @@ const DIST_OFF_B = fx.turns(0.08);
 // scrollfxparam: {amp 100, inc 0.0005, offset 0.02} — inc is per 640-space
 // COLUMN, so 0.001 per ST column. posy 100 + the scrollcanvas' own 100 = 100
 // in the halved layout.
-const WAVE_AMP: f32 = 50.0;
-const WAVE_INC: f32 = 0.001;
-const WAVE_OFF: f32 = 0.02;
-const WAVE_MID: f32 = 100.0;
+// In u64 turns and zg.fixtrig (Q16.16), like the band: no float per frame.
+const WAVE_AMP: i32 = 50;
+const WAVE_INC = fx.turns(0.001);
+const WAVE_OFF = fx.turns(0.02);
+const WAVE_MID: i32 = 100;
 
 // distcanvas2 is drawn at CODEF x=-250 with an x zoom of 0.9, so a destination
 // column maps back to source column (2*x + 250) / 0.9, i.e. (2*x + 250) / 1.8
@@ -163,10 +179,10 @@ const WAVE_MID: f32 = 100.0;
 // edge, so the side borders are simply x < 0 and x >= 320 — the mapping extends
 // into them unchanged. Stepped in 16.16 fixed point (see renderBand).
 const SRC_STEP_FX: i32 = @intFromFloat(2.0 / 1.8 * 65536.0);
-/// Q16 start column for a row whose sine sum is `shift_q30` (Q30 source pixels).
+/// Q16 start column for a row whose sine sum is `shift` (Q16 source pixels).
 const SRC_START_FX: i32 = @intFromFloat((((2.0 * @as(f32, -BX)) + 250.0) / 1.8) * 65536.0);
-fn srcStartFx(shift_q30: i64) i32 {
-    return SRC_START_FX - @as(i32, @intCast(shift_q30 >> 14));
+fn srcStartFx(shift: i32) i32 {
+    return SRC_START_FX - shift;
 }
 
 // --- the intro (prego1..prego3), in halved coordinates --------------------
@@ -174,12 +190,13 @@ const DHS_Y_MIN: i32 = 60; // CODEF 120
 const DHS_Y_MAX: i32 = 160; // CODEF 320
 const DHS_Y_MARK: i32 = 110; // CODEF 220 — counted crossing
 const DHS_CROSSINGS: u8 = 6; // CODEF flag >= 6
-const FADE_STEP: f32 = 0.01;
 
 // --- the bob (fx == 1) ----------------------------------------------------
 // kept doubled (half pixels): the 1.5 step is whole there
 const BOB_LIMIT: i32 = 80; // 40 px, CODEF 80
 const BOB_STEP: i32 = 3; // 1.5 px, CODEF 3
+
+const NO_FADE: u32 = 0xFFFF_FFFF; // no Q23 factor is this: the first fade always writes
 
 const Shown = enum { nothing, intro, main };
 const Phase = enum { fade_in, bounce, fade_out, main };
@@ -217,18 +234,18 @@ pub const Demo = struct {
     phase: Phase = .fade_in,
 
     // intro
-    fade: f32 = 0.0,
-    fade_shown: f32 = -1.0, // last value written to the palette
+    fade_n: u16 = 0, // updates into the current fade (noextra_fade.zig's tables)
+    fade_shown: u32 = NO_FADE, // last Q23 factor written to the palette
     dhs_y: i32 = DHS_Y_MIN,
     dhs_inc: i32 = 1, // CODEF yinc = 2
     crossings: u8 = 0,
 
-    // main. The distorter phases are u64 turns: the old f32 accumulators drifted (~9e-4 rad by
-    // frame 900, growing), so the frames differ from the f32 cart from frame 910 by <= 0.15 source px.
+    // main. The distorter and wave phases are u64 turns: f32 accumulators drift (the old
+    // distorter's ~9e-4 rad by frame 900, the old wave's 0.06 rad by frame 20,000).
     dist_a: u64 = 0,
     dist_b: u64 = 0,
-    wave: f32 = 0.0,
-    ring: zg.scrollring.Ring(f32, NB_LETTERS) = undefined,
+    wave: u64 = 0, // u64 turns, as the distorter's
+    ring: Ring = undefined,
     bob_on: bool = false,
     bob_y: i32 = 0, // doubled
     bob_inc: i32 = -BOB_STEP, // CODEF yyinc = -3: it rises first
@@ -249,21 +266,21 @@ pub const Demo = struct {
         // "Mega 4" — nothing plays until the user turns sound on.
         zg.requestSong(MUSIC);
 
-        self.ring = zg.scrollring.Ring(f32, NB_LETTERS).init(SCROLL_TEXT, SCROLL_START, @as(f32, GW));
+        self.ring = Ring.init(SCROLL_TEXT, SCROLL_START_H, 2 * GW);
     }
 
     // Field-by-field (see the note above the struct; and `self.* = .{}` on a
     // struct this size emits a duplicate data segment).
     fn resetState(self: *Demo) void {
         self.phase = .fade_in;
-        self.fade = 0.0;
-        self.fade_shown = -1.0;
+        self.fade_n = 0;
+        self.fade_shown = NO_FADE;
         self.dhs_y = DHS_Y_MIN;
         self.dhs_inc = 1;
         self.crossings = 0;
         self.dist_a = 0;
         self.dist_b = 0;
-        self.wave = 0.0;
+        self.wave = 0;
         self.bob_on = false;
         self.bob_y = 0;
         self.bob_inc = -BOB_STEP;
@@ -279,19 +296,16 @@ pub const Demo = struct {
 
         switch (self.phase) {
             .fade_in => {
-                self.fade += FADE_STEP;
-                if (self.fade > 2.0) {
-                    self.fade = 1.0;
+                self.fade_n += 1;
+                if (self.fade_n >= fade.IN.len) {
+                    self.fade_n = 0;
                     self.phase = .bounce;
                 }
             },
             .bounce => self.updateBounce(),
             .fade_out => {
-                self.fade -= FADE_STEP;
-                if (self.fade < 0.0) {
-                    self.fade = 0.0;
-                    self.phase = .main;
-                }
+                self.fade_n += 1;
+                if (self.fade_n >= fade.OUT.len) self.phase = .main;
             },
             .main => self.updateMain(),
         }
@@ -313,9 +327,9 @@ pub const Demo = struct {
         // the two distorter phases and the scroll wave advance once per frame
         self.dist_a +%= DIST_OFF_A;
         self.dist_b +%= DIST_OFF_B;
-        self.wave += WAVE_OFF;
+        self.wave +%= WAVE_OFF;
 
-        _ = self.ring.step(SCROLL_SPEED);
+        _ = self.ring.step(SCROLL_SPEED_H);
 
         // the marker: once the next character to come up is ']', the whole
         // screen bobs — and never stops (CODEF sets fx = 1 and leaves it).
@@ -337,7 +351,7 @@ pub const Demo = struct {
         const fb: *LogicalFB = &zigos.lfbs[0];
 
         if (self.phase == .main) {
-            self.showFade(fb, 1.0);
+            self.showFade(fb, fade.ONE);
             // CODEF's own order is raster, gradient bars, logos, scroller. The logos
             // (layout rows 0..45 and 171..238) share no row with the band, its bars
             // and the scroller (50..169), so they can go first, and only when they move.
@@ -350,7 +364,11 @@ pub const Demo = struct {
             // intro: the D.H.S. logo alone on black, mid-handled at x = 160.
             // The canvas alpha is reproduced by scaling the palette, which over
             // a black ground is the same composite.
-            self.showFade(fb, @min(self.fade, 1.0));
+            self.showFade(fb, switch (self.phase) {
+                .fade_in => fade.IN[self.fade_n],
+                .fade_out => fade.OUT[self.fade_n],
+                else => fade.ONE,
+            });
             self.drawLogo(fb, BX + 160 - @divTrunc(DHS_W, 2), top + self.dhs_y - @divTrunc(DHS_H, 2));
         }
     }
@@ -411,7 +429,7 @@ pub const Demo = struct {
 
     // Re-writing the palette is pointless once the fade has settled, and `main`
     // holds it at 1.0 forever.
-    fn showFade(self: *Demo, fb: *LogicalFB, k: f32) void {
+    fn showFade(self: *Demo, fb: *LogicalFB, k: u32) void {
         if (k == self.fade_shown) return;
         self.fade_shown = k;
         fadePalette(fb, k);
@@ -422,13 +440,17 @@ pub const Demo = struct {
     // Written straight into the plane's buffer, row base hoisted, source column
     // stepped in 16.16 fixed point; the colour is computed, not looked up (noextra_band.zig).
     fn renderBand(self: *Demo, fb: *LogicalFB, top: i32) void {
+        var pa = self.dist_a; // row r's phases: dist + r * inc, stepped
+        var pb = self.dist_b;
         var r: i32 = 0;
-        while (r < BAND_H) : (r += 1) {
+        while (r < BAND_H) : ({
+            r += 1;
+            pa +%= DIST_INC_A;
+            pb +%= DIST_INC_B;
+        }) {
             const py = top + BAND_TOP + r;
             if (py < 0 or py >= PH) continue;
-            const ur: u64 = @intCast(r);
-            const shift = DIST_AMP_A * fx.sin(fx.hi(self.dist_a +% DIST_INC_A *% ur)) +
-                DIST_AMP_B * fx.sin(fx.hi(self.dist_b +% DIST_INC_B *% ur));
+            const shift = DIST_AMP_A * trig.sin(fx.hi(pa)) + DIST_AMP_B * trig.sin(fx.hi(pb)); // Q16 px
             // 400 columns and every row start are multiples of 4
             const words: [*]u32 = @ptrCast(@alignCast(fb.fb + @as(usize, @intCast(py)) * @as(usize, @intCast(PW))));
             band.row(words[0 .. @as(usize, @intCast(PW)) / 4], srcStartFx(shift), SRC_STEP_FX, raster_b);
@@ -441,9 +463,6 @@ pub const Demo = struct {
     fn renderScroll(self: *Demo, fb: *LogicalFB, top: i32) void {
         const font_img = zg.blit.Image.init(font_b, FONT_SHEET_W);
         const dst = zg.blit.Dst.plane(fb);
-        // the wave's phase is measured from the ORIGINAL screen's left edge,
-        // so the visible window is untouched and the borders simply continue it
-        const sum = zg.wave.SineSum(f32, 1){ .base = WAVE_MID, .amp = .{WAVE_AMP}, .phase = .{self.wave}, .inc = .{WAVE_INC}, .step = .multiply };
         var i: usize = 0;
         while (i < NB_LETTERS) : (i += 1) {
             const c = self.ring.c[i];
@@ -451,8 +470,11 @@ pub const Demo = struct {
             const tile: usize = c - FIRST_CHAR;
             const sx0: usize = (tile % FONT_COLS) * @as(usize, GW);
             const sy0: usize = (tile / FONT_COLS) * @as(usize, GH);
-            const x0: i32 = @intFromFloat(@floor(self.ring.x[i]));
-            scroll.letter(zg.blit, dst, font_img, sx0, sy0, GW, @intCast(GH), x0, top, &sum, x0 - BX, INK);
+            const x0: i32 = self.ring.x[i] >> 1; // floor of the half-pixel position
+            // the wave's phase is measured from the ORIGINAL screen's left edge,
+            // so the visible window is untouched and the borders simply continue it
+            const wave = scroll.Wave{ .phase = self.wave +% WAVE_INC *% @as(u64, @bitCast(@as(i64, x0 - BX))), .inc = WAVE_INC, .mid = WAVE_MID, .amp = WAVE_AMP };
+            scroll.letter(zg.blit, dst, font_img, sx0, sy0, GW, @intCast(GH), x0, top, wave, INK);
         }
     }
 };
@@ -480,6 +502,6 @@ fn setupPlanes(zigos: *ZigOS) void {
 // over black the equivalent is scaling the palette's RGB. Only the logos' slice
 // of the shared palette is touched — the rainbow is not on screen during the
 // intro, and entry 0 stays the black ground.
-fn fadePalette(fb: *LogicalFB, k: f32) void {
-    zg.palette.scaleRange(fb, screen_pal, @intCast(LOGO_FIRST), @intCast(LOGO_LAST), k, .{});
+fn fadePalette(fb: *LogicalFB, k: u32) void {
+    for (LOGO_FIRST..LOGO_LAST + 1) |i| fb.setPaletteEntry(@intCast(i), fade.scale(screen_pal[i], k));
 }
