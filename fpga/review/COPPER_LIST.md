@@ -1,4 +1,4 @@
-# FRESCO copper list (3b): design (2026-10-24)
+# FRESCO copper list (3b): design and status (2026-10-24)
 
 Matt's decision (2026-10-23) and Fable's review (FRESCO_OPTIONS.md, "Decision 2026-10-24"): a
 per-plane list of per-line register writes that FRESCO applies as it composites each line, so the CPU
@@ -91,3 +91,15 @@ reads that plane's palette in a recorded frame.
 - Board: tools/board_pic.py on tcb_colorshock, swedish_newyear, union_intro@3000 and two zg.copper
   carts (A/B pictures equal the browser's), then board_fps A/B.
 - One hp_sim slot (<= 6 frames) on tcb_colorshock with a list, for the drain/collision path.
+
+## Status (perf/fresco-copper @ 46b45c97, on main f33ce327)
+
+Built as designed, with these changes: FLICK is a per-line flag (RES_FLICKER stays the handlers'); a
+record's body is at most 253 words (record + next HEAD in the fetch buffer's low half); ZigOS uses no
+hwVersion test (hosts hand carts none), so 1.9.0 carts need the 1.9.0 system. linepal keeps its pure
+handler (no cart uses it). Proofs: machine/copper_test.zig; s:copper and the list frames of tutorial,
+tcb_colorshock, gen4_3615, fallen_angels replay equal to the machine, palettes in memory included; 7 break
+mutants; scene_hash IDENTICAL handlers vs lists on 17 carts; test_vdirty with a COPPER mutant.
+Cost: zm_video_comp OOC routed 1,649 -> 2,305 LUT (WNS +0.235 ns at 8 ns); on the board build
+zm_video_copper 548 LUT + zm_video_palwb 69, 15,684 LUT total (89.1 %), all constraints met with
+AltSpreadLogic_high placement (prototypes/fresco_re/copper_stage). Board A/B pending.

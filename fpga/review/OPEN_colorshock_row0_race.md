@@ -33,3 +33,13 @@ Expect frames 150 and 600 to say DIFFER. Reboot the glass (`killall glass`) and 
 board's md5 changes. Then, with a 3a system.rv32 bind-mounted, all four frames equal the browser.
 Next steps: the same with ZM_NO_FUSE (no CLEAR fusion), and a ZM_VSTAT count of `undrained` on this
 cart; an hp_sim run (<= 6 frames) of tcb_colorshock with ZM_VSEQ_CHECK if the board cannot tell.
+
+## 2026-10-24, card update from main f33ce327 (3a in, colorshock now one plane)
+
+tcb_colorshock is one plane since main merged its planes, and its handler is flagged pure (3a), so its
+passes run as a one-plane line-major group. `board_pic.py --frames 150,300,600,900 tcb_colorshock` on
+the updated card: frame 150 DIFFERED on 1 of 3 runs (equal on the other two), the rest equal. So the
+race is not plane-major's: it shows whenever panHbl's ~86 palette stores a line race the frame's first
+passes. With 3b (perf/fresco-copper) colorshock makes no palette store at all (its raster is a PALREF
+list): run the same check on that bitstream; if it is clean there, the race is in the CPU store path to
+the palette (the snoop / drain), not in the compositor.
