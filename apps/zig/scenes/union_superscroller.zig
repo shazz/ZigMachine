@@ -84,7 +84,7 @@ pub const Demo = struct {
     cache: *inkmask.KeyCache,
     /// The frame-independent entry images and colour tables (layers.zig), on zg.mem.
     tables: *layers.Tables,
-    font_store: *A.FontStore, // the font's u16 tables, aligned (font.zig), on zg.mem
+    font_store: *A.FontStore, // the font's u16 tables, aligned (spanfont.aligned), on zg.mem
     /// The per-row descriptors the HBL reads (rowpal.zig).
     rows: rowpal.Ctx,
     blitter: zg.Blitter,

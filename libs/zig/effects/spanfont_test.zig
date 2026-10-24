@@ -44,3 +44,24 @@ test "halfColumns takes the columns whose canvas column 2x is in the run" {
     const empty = sf.halfColumns(0, .{ .x0 = 5, .x1 = 6 }); // only canvas column 5: odd
     try std.testing.expect(empty[1] <= empty[0]);
 }
+
+test "aligned(): the same runs as the byte iterator, from tables at ODD offsets" {
+    // the same font, its u16 tables one byte into a buffer, as superscroller.bin lays them
+    const first_at = 1 + 4; // after one pad byte and the 4 row ids
+    var raw: [first_at + font.first.len + font.spans.len]u8 = undefined;
+    raw[0] = 0xAA;
+    @memcpy(raw[1..first_at], font.row_ids);
+    @memcpy(raw[first_at..][0..font.first.len], font.first);
+    @memcpy(raw[first_at + font.first.len ..], font.spans);
+    const odd = sf.SpanFont{ .row_ids = raw[1..first_at], .first = raw[first_at..][0..font.first.len],
+        .spans = raw[first_at + font.first.len ..], .rows_per_glyph = 2 };
+    try std.testing.expect(@intFromPtr(odd.first.ptr) % 2 == 1);
+    var store: sf.Store(3, 3) = undefined;
+    const a = sf.aligned(sf.Store(3, 3), &store, odd);
+    var buf: [4]sf.Run = undefined;
+    for (0..3) |g| for (0..3) |row| {
+        const n = collect(g, row, &buf);
+        try std.testing.expectEqualSlices(sf.Run, buf[0..n], a.runs(g, row));
+    };
+    try expectEqual(@as(usize, 0), sf.Aligned.empty.runs(0, 0).len);
+}

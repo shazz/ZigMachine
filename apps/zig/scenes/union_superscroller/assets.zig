@@ -8,11 +8,10 @@
 //   rasters   168, colour 0..41      (rasters.png: one colour a CANVAS row)
 //   colours   RGB x (4 + 4 + 42 + 1): back, overlay, rasters, the font's ink
 //   font      fonts2.png's 60 tiles as runs of ink on their even rows (spanfont;
-//             its u16 tables sit at odd offsets: font.zig copies them aligned)
+//             its u16 tables sit at odd offsets: spanfont.aligned copies them)
 // --------------------------------------------------------------------------
 const std = @import("std");
 const zg = @import("zigos");
-const F = @import("font.zig");
 
 pub const W: usize = zg.WIDTH; // usize: TOTAL (2 * W * H) overflows u16
 pub const H: usize = zg.HEIGHT;
@@ -40,9 +39,9 @@ pub const Images = struct {
     over_rgb: [OVER_COLOURS + 1]u32, // [0] unused: 0 is transparent
     raster_rgb: [RASTER_COLOURS]u32,
     ink: u32,
-    font_bytes: F.Bytes,
-    /// font_bytes' tables, aligned (font.zig): set by useFont() once depacked.
-    font: F.Font,
+    font_bytes: zg.spanfont.SpanFont,
+    /// font_bytes' tables, aligned (spanfont.aligned): set by useFont() once depacked.
+    font: zg.spanfont.Aligned,
 
     /// Views into the depacked image; `buf` must be TOTAL bytes.
     pub fn split(buf: []const u8) Images {
@@ -62,18 +61,19 @@ pub const Images = struct {
             .row_ids = take(buf, &at, GLYPHS * SAMPLED_ROWS),
             .first = take(buf, &at, 2 * (FONT_ROWS + 1)),
             .spans = take(buf, &at, 4 * FONT_SPANS),
+            .rows_per_glyph = SAMPLED_ROWS,
         };
-        img.font = .{ .row_ids = &.{}, .first = &.{}, .spans = &.{}, .rows_per_glyph = SAMPLED_ROWS };
+        img.font = zg.spanfont.Aligned.empty;
         return img;
     }
 
     /// The font's tables copied into `store`, once the whole image is depacked.
     pub fn useFont(self: *Images, store: *FontStore) void {
-        self.font = F.build(FontStore, store, self.font_bytes, SAMPLED_ROWS);
+        self.font = zg.spanfont.aligned(FontStore, store, self.font_bytes);
     }
 };
 
-pub const FontStore = F.Store(FONT_ROWS, FONT_SPANS);
+pub const FontStore = zg.spanfont.Store(FONT_ROWS, FONT_SPANS);
 
 fn take(buf: []const u8, at: *usize, n: usize) []const u8 {
     defer at.* += n;
