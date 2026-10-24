@@ -12,6 +12,7 @@ import { readFile } from "node:fs/promises";
 const SNDH = "docs/music/union/150_mph.sndh";
 const KINDS = [
     { file: "docs/music/Gauntlet.sap", mode: 5, load: (d, n) => d.audioLoadSap(n), play: (d) => d.audioSapPlay(0) },
+    { file: "docs/music/shaolin_title.hip", mode: 1, load: (d, n) => d.audioLoadHip(n), play: (d) => d.audioHipPlay(1) },
     { file: "docs/music/union/Drooling.ymraw", mode: 2, load: (d, n) => d.audioLoadYm(n), play: (d) => d.audioYmPlay() },
 ];
 const BLOCK = 1024, SECOND = 43;
