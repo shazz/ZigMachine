@@ -154,7 +154,7 @@ host: $(HOST)/$(CART)/host
 # build/host/x/host_vdirty x 600 compares the skipping picture with a full composite every frame.
 # VD_BREAK=ROWS (PAL, BG, HANDLER, PICTURE, OVERDRAWN, COPPER, HOT): build/host/x/host_vdirty_ROWS, the
 # planner with that input forgotten (tests/test_vdirty.py's break tests).
-VD_DEPS := host/vdirty_main.c host/vdirty_spans.h cycles/vdirty.c cycles/vdirty.h cycles/vdlist.h cycles/vadapt.c cycles/vadapt.h
+VD_DEPS := host/vdirty_main.c host/vdirty_spans.h cycles/vdirty.c cycles/vdirty.h cycles/vdlist.h cycles/vdrow.h cycles/vadapt.c cycles/vadapt.h
 VD_BIN  := host_vdirty$(if $(VD_BREAK),_$(VD_BREAK))
 $(HOST)/%/$(VD_BIN): $(HOST)/%/host.o $(HOST)/%/cart.o $(HOST_COMMON) $(VD_DEPS)
 	$(HOST_CC) $(HOST_CFLAGS) -I$(HOST)/$* -include host/vdirty_spans.h -c $(HOST)/$*/env.c -o $(HOST)/$*/env_vd.o
