@@ -70,12 +70,6 @@ int vplan_frame(struct w2c_env* e, unsigned enabled, int full) {
     return 1;
 #endif
     g_timed = 1;
-    /* A copper list (HW 1.9.0) changes its plane's palette line by line where the planner cannot
-     * see it: every line of the frame is composited (comparing the lists is the next step). */
-    if (vseq_copper_on(enabled)) {
-        vd_unknown();
-        return 1;
-    }
 #ifndef ZM_VSEQ_CHECK /* a check plans every frame: what it checks is the plan */
     if (!va_plans()) { /* it does not pay here (vadapt.h): nothing compared, every line composited */
         vd_unknown();

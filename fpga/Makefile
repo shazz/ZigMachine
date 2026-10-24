@@ -152,7 +152,7 @@ host: $(HOST)/$(CART)/host
 
 # The dirty-line proof (host/vdirty_main.c, cycles/vdirty.h): make host-vdirty CART=x, then
 # build/host/x/host_vdirty x 600 compares the skipping picture with a full composite every frame.
-# VD_BREAK=ROWS (PAL, BG, HANDLER, PICTURE, OVERDRAWN): build/host/x/host_vdirty_ROWS, the
+# VD_BREAK=ROWS (PAL, BG, HANDLER, PICTURE, OVERDRAWN, COPPER): build/host/x/host_vdirty_ROWS, the
 # planner with that input forgotten (tests/test_vdirty.py's break tests).
 VD_DEPS := host/vdirty_main.c host/vdirty_spans.h cycles/vdirty.c cycles/vdirty.h cycles/vadapt.c cycles/vadapt.h
 VD_BIN  := host_vdirty$(if $(VD_BREAK),_$(VD_BREAK))

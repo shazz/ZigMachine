@@ -33,7 +33,7 @@ import video_rtl
 
 # (cart, frames, what those frames must exercise)
 CARTS = [
-    ("tutorial", [300], {"mode_normal", "palette_per_line"}),
+    ("tutorial", [300], {"mode_normal", "copper"}),  # its sky gradient: a zg.copper list (HW 1.9.0)
     # union_intro's main screen (from frame ~949; the union_main cart is gone). Every frame listed must
     # exercise the whole set: its part at 100 is one normal plane, which tutorial covers.
     ("union_intro", [1300], {"layered", "mode_overscan", "flicker_hit", "palette_per_line", "alpha_partial"}),
@@ -46,7 +46,7 @@ CARTS = [
     ("scroll", [300], {"mode_scroll"}),
     ("dhs_0pxl0reg", [300, 900], {"beam", "no_plane"}),
     # one plane each since main merged their planes (2026-10-24): the layers are union_intro's
-    ("tcb_colorshock", [300], {"mode_overscan", "palette_per_line"}),
+    ("tcb_colorshock", [300], {"mode_overscan", "copper"}),  # its row palettes: PALREFs (HW 1.9.0)
     ("union_l16", [300], {"mode_overscan"}),
     # opaque black BACKGROUND, the plane alpha 0 where it draws nothing, partial-alpha stars, a
     # raster: the board showed its tube there (tests/test_rtl_video_tube.py). One plane since its

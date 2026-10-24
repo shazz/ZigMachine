@@ -161,6 +161,12 @@ int vd_plan(const vd_frame* fr) {
     s.rows_on = 0;
     int h = handler_plane(fr);
     if (h == -2) return vd_unknown(), 1;
+    /* A copper list (HW 1.9.0) changes its plane's palette line by line where the planner does not
+     * look: every line of such a frame is composited (comparing the lists is the next step). */
+#ifndef VD_BREAK_COPPER /* tests/test_vdirty.py's mutant: the lists ignored */
+    for (int p = 0; p < (int)ZM_NB_PLANES; p++)
+        if (((fr->enabled >> p) & 1) && rd(fr, ZM_REG_FB_COPPER + 2u * (uint32_t)p, 2)) return vd_unknown(), h >= 0;
+#endif
     for (int p = 0; p < (int)ZM_NB_PLANES; p++) {
         if (!((fr->enabled >> p) & 1)) continue;
         int ok = geom(fr, p, &cur[p]);

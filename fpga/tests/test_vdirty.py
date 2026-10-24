@@ -24,7 +24,7 @@ import pytest
 
 FPGA = Path(__file__).resolve().parent.parent
 FRAMES = "300"
-CARTS = ["scroll", "joust", "union_intro", "dhs_0pxl0reg", "tutorial", "empire", "gem"]
+CARTS = ["scroll", "joust", "union_intro", "dhs_0pxl0reg", "ancool", "empire", "gem"]
 LINE = re.compile(
     r"VDIRTY \S+ frames \d+ lines (\d+) skipped (\d+) unknown \d+ moved (\d+) bypassed (\d+) mismatched (\d+)"
 )
@@ -49,8 +49,15 @@ def test_a_skipped_row_is_what_a_full_composite_paints(cart: str) -> None:
     assert skipped > 0  # every one of these carts has lines to skip: the proof is not vacuous
 
 
+def test_a_copper_list_frame_is_composited_whole() -> None:
+    """tutorial's sky is a copper list (HW 1.9.0): the planner skips none of its lines."""
+    lines, skipped, moved, bad, _ = proof("tutorial")
+    assert bad == 0 and skipped == 0 and lines > 0
+
+
 BREAKS = [("ROWS", "scroll"), ("PAL", "joust"), ("BG", "union_intro"), ("BG", "dhs_0pxl0reg"),
-          ("HANDLER", "tutorial"), ("PICTURE", "scroll"), ("OVERDRAWN", "gem")]  # fmt: skip
+          ("HANDLER", "ancool"), ("PICTURE", "scroll"), ("OVERDRAWN", "gem"),
+          ("COPPER", "tutorial")]  # fmt: skip
 
 
 @pytest.mark.skipif(os.environ.get("ZM_RTL_BREAK") != "1", reason="set ZM_RTL_BREAK=1 to run the break tests")
