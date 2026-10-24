@@ -52,7 +52,9 @@ const ALLOW = {
     // +164 B (2026-10-24): the Hippel player and its Paula (hip_player.zig, paula.zig): four
     // voices' registers and latch shadows, DMACON/INTENA/INTREQ, the start/latch counters.
     // The module itself (code, song, samples) lives in the 68000's RAM, not here.
-    "demo-audio.wasm": 591326,
+    // +1 B (2026-10-24): the 68000's cycles into the running call, the Amiga beam counter's
+    // clock (sndh_player.zig call_spent, amiga_beam.zig), joining the run.
+    "demo-audio.wasm": 591327,
 };
 
 function uleb(b, p) {
