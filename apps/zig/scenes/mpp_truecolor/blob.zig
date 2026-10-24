@@ -14,13 +14,21 @@ pub const H: usize = 200;
 pub const PLANES: usize = 4;
 pub const MAP_REC: usize = 8; // u32 offset, u16 first, u16 count
 pub const MAP_LEN: usize = PLANES * H * MAP_REC;
+
+/// One map record as the converter writes it (little-endian, like wasm and rv32):
+/// `off` a byte offset into the RGBA palette, `span` = first | count << 16.
+pub const Rec = extern struct { off: u32, span: u32 };
+comptime {
+    std.debug.assert(@sizeOf(Rec) == MAP_REC);
+}
 const PAL_ENTRIES: usize = 256;
 
 /// The depacked views the HBL handler and the plane split read.
+/// Word views, so the HBL's loads are aligned u32 loads (a misaligned one traps on the board).
 pub const View = struct {
-    map: []const u8,
+    map: []const Rec, // [plane * H + line]
     idx: []const u8,
-    pal: []const u8, // RGBA, the plane palette's byte order
+    pal: []const u32, // RGBA, the plane palette's byte order
 };
 
 /// Mode 1 and 2 carry a u8 index per pixel; mode 3 an index byte and a plane byte.
@@ -38,7 +46,7 @@ pub fn need(image: []const u8, planes: usize) ?usize {
 
 /// Depack into `work` and decode the palette. Null when the image is unreadable or
 /// a map record points outside the palette (the HBL would copy out of bounds).
-pub fn load(image: []const u8, planes: usize, work: []u8) ?View {
+pub fn load(image: []const u8, planes: usize, work: []align(4) u8) ?View {
     const size = need(image, planes) orelse return null;
     if (work.len < size) return null;
     const len: usize = zx0.depack(image, work) orelse return null;
@@ -56,17 +64,22 @@ pub fn load(image: []const u8, planes: usize, work: []u8) ?View {
         pal[4 * j + 1] = pal[3 * j + 1];
         pal[4 * j] = pal[3 * j];
     }
-    const view = View{ .map = work[0..MAP_LEN], .idx = work[MAP_LEN..head], .pal = pal };
+    // head is a multiple of 4 (MAP_LEN and idxLen are), so both word views stay aligned.
+    const view = View{
+        .map = std.mem.bytesAsSlice(Rec, work[0..MAP_LEN]),
+        .idx = work[MAP_LEN..head],
+        .pal = std.mem.bytesAsSlice(u32, @as([]align(4) u8, @alignCast(pal))),
+    };
     return if (mapFits(view) and (planes == 1 or planesFit(view.idx))) view else null;
 }
 
 fn mapFits(v: View) bool {
-    var r: usize = 0;
-    while (r < MAP_LEN) : (r += MAP_REC) {
-        const off: usize = std.mem.readInt(u32, v.map[r..][0..4], .little);
-        const first: usize = std.mem.readInt(u16, v.map[r + 4 ..][0..2], .little);
-        const n: usize = std.mem.readInt(u16, v.map[r + 6 ..][0..2], .little);
-        if (n > 0 and (first + n > PAL_ENTRIES or off > v.pal.len or n * 4 > v.pal.len - off)) return false;
+    for (v.map) |r| {
+        const off: usize = r.off;
+        const first: usize = r.span & 0xffff;
+        const n: usize = r.span >> 16;
+        if (n == 0) continue;
+        if (off % 4 != 0 or first + n > PAL_ENTRIES or off / 4 > v.pal.len or n > v.pal.len - off / 4) return false;
     }
     return true;
 }

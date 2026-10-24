@@ -34,7 +34,6 @@ const LogicalFB = zg.LogicalFB;
 const W = blob.W;
 const H = blob.H;
 const PLANES = blob.PLANES;
-const MAP_REC = blob.MAP_REC;
 const IMAGE_H: i16 = 180; // rows 180..199 are the caption band (converter's IMAGE_H)
 const CYCLE_FRAMES: u32 = 8 * 60;
 const INK: u8 = 1; // caption palette: 0 black, 1 white
@@ -67,28 +66,23 @@ fn count(picture: usize, i: usize) u32 {
 var view: blob.View = .{ .map = &.{}, .idx = &.{}, .pal = &.{} };
 
 // The record last loaded into each plane's palette: the same record again (GLOBAL mode: all
-// 180 lines) needs no compare at all. apply() forgets them, as it rewrites entries itself.
-var loaded: [PLANES]u64 = .{std.math.maxInt(u64)} ** PLANES;
+// 180 lines) needs no copy at all. apply() forgets them, as it rewrites entries itself.
+const NONE = blob.Rec{ .off = std.math.maxInt(u32), .span = 0 };
+var loaded: [PLANES]blob.Rec = .{NONE} ** PLANES;
 
-// Load this line's palette run for this plane, storing only the entries that change.
+// Load this line's palette run for this plane: a straight word copy. A new record changes
+// ~all of its entries (PER-LINE and 4 PLANES: 0 of 52,660 stores a frame rewrote a colour),
+// so comparing first would only add a load per entry; the repeated record is skipped whole.
 fn hbl(fb: *LogicalFB, _: *ZigOS, line: u16, _: u16) void {
     if (line >= H or view.map.len == 0) return;
-    const rec = view.map[(@as(usize, fb.id) * H + line) * MAP_REC ..][0..MAP_REC];
-    const n: usize = std.mem.readInt(u16, rec[6..8], .little);
+    const p: usize = fb.id;
+    const r = view.map[p * H + line];
+    const n: usize = r.span >> 16;
     if (n == 0) return;
-    const id: u64 = std.mem.readInt(u64, rec[0..8], .little);
-    if (loaded[fb.id] == id) return;
-    loaded[fb.id] = id;
-    const off: usize = std.mem.readInt(u32, rec[0..4], .little);
-    const first: usize = std.mem.readInt(u16, rec[4..6], .little);
-    // Only the entries that differ from what the palette holds: on the board every store
-    // is a bus write and a load is not, and GLOBAL mode reloads one palette on all 180 lines.
-    const src = view.pal[off..][0 .. n * 4];
-    const dst = fb.palette[first..][0..n];
-    for (dst, 0..) |*d, i| {
-        const v = std.mem.readInt(u32, src[i * 4 ..][0..4], .little);
-        if (d.* != v) d.* = v;
-    }
+    if (loaded[p].off == r.off and loaded[p].span == r.span) return;
+    loaded[p] = r;
+    const first: usize = r.span & 0xffff;
+    @memcpy(fb.palette[first..][0..n], view.pal[r.off / 4 ..][0..n]);
 }
 
 pub const Demo = struct {
@@ -96,7 +90,7 @@ pub const Demo = struct {
     picture: u8,
     mode: u8,
     frames: u32,
-    work: []u8,
+    work: []align(4) u8,
 
     pub fn init(self: *Demo, zigos: *ZigOS) void {
         self.os = zigos;
@@ -107,8 +101,10 @@ pub const Demo = struct {
         zigos.setBackgroundColor(.{ .r = 0, .g = 0, .b = 0, .a = 255 });
         for (&zigos.lfbs) |*fb| fb.setFrameBufferHBLHandler(0, hbl);
         // On zg.mem, taken once at the largest blob's size: every switch reuses it.
-        self.work = zg.mem.alloc(u8, workLen() orelse return self.fail("a packed picture is unreadable")) orelse
-            return self.fail("no free RAM to depack into");
+        // u32 words, so the map and palette views blob.load takes are aligned.
+        const len = workLen() orelse return self.fail("a packed picture is unreadable");
+        const words = zg.mem.alloc(u32, (len + 3) / 4) orelse return self.fail("no free RAM to depack into");
+        self.work = std.mem.sliceAsBytes(words);
         self.apply();
     }
 
@@ -154,7 +150,7 @@ pub const Demo = struct {
         view = blob.load(PACKED[self.picture][self.mode], m.planes, self.work) orelse
             return self.fail("depack failed");
         const lfbs = &self.os.lfbs;
-        loaded = .{std.math.maxInt(u64)} ** PLANES;
+        loaded = .{NONE} ** PLANES;
         for (lfbs, 0..) |*fb, p| {
             fb.is_enabled = p < m.planes;
             fb.setPaletteEntry(0, .{ .r = 0, .g = 0, .b = 0, .a = 0 });
