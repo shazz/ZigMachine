@@ -13,6 +13,9 @@ module zm_video_planepath (
     input  wire [1:0]    plane,
     input  wire [8:0]    py,
     input  wire [1023:0] regs,
+    input  wire          cop_flick,
+    output wire [7:0]    lmode,            // the plane's latched mode and stride (zm_video_copper.v)
+    output wire [15:0]   lstride,
     output wire          done,
     output wire          rd_req_valid,
     input  wire          rd_req_ready,
@@ -35,6 +38,8 @@ module zm_video_planepath (
 `include "zm_video_memmap.vh"
 
     wire [7:0] mode, seed;
+    assign lmode = mode;
+    assign lstride = stride;
     wire [31:0] base;
     wire [15:0] stride, hpos, hs, seen, upd_seen;
     wire top_open, bot_open, upd, upd_top, upd_bot;
@@ -55,7 +60,7 @@ module zm_video_planepath (
         .clk(clk), .rst(rst), .start(start), .py(py), .mode(mode), .base(base), .stride(stride),
         .hpos(hpos), .hs(hs), .seen(seen), .seed(seed), .top_open(top_open), .bot_open(bot_open),
         .res(regs[ZM_REG_RESOLUTION * 8 +: 8]), .hs_live(regs[(ZM_REG_HSCROLL + plane * 2) * 8 +: 16]),
-        .flicker(regs[ZM_REG_RES_FLICKER * 8 +: 16]), .upd(upd), .upd_top(upd_top), .upd_bot(upd_bot),
+        .flicker(regs[ZM_REG_RES_FLICKER * 8 +: 16]), .cop_flick(cop_flick), .upd(upd), .upd_top(upd_top), .upd_bot(upd_bot),
         .fetch_start(fetch_start), .fetch_addr(fetch_addr), .fetch_len(fetch_len), .fetch_done(fetch_done),
         .paint_start(paint_start), .ncols(ncols), .dst0(dst0), .single(single), .wrap(wrap), .ov(ov),
         .band(band), .band_open(band_open), .hit(hit), .flick(flick), .s0(s0), .nbase(nbase),

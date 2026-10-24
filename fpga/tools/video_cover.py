@@ -98,6 +98,8 @@ def cover(frames_dir: Path, frame: int) -> set[str]:
         state.update(delta)
         if kind == 3 and pas > 0 and (planes >> (pas - 1)) & 1:
             found.add("mode_" + mode_of(state, pas - 1))
+            if _byte(state, mm.REG_FB_COPPER + 2 * (pas - 1), 2):
+                found.add("copper")  # a list (HW 1.9.0), applied by the compositor itself
         if kind == 1:
             pre = dict(state)
         if kind == 2:

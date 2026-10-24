@@ -26,6 +26,7 @@ module zm_video_plane (
     input  wire [7:0]  res,            // live: REG_RESOLUTION
     input  wire [15:0] hs_live,        // live: this plane's HSCROLL
     input  wire [15:0] flicker,        // live: REG_RES_FLICKER
+    input  wire        cop_flick,      // this line's copper record FLICKs (zm_video_copper.v)
     output reg         upd,
     output reg         upd_top, upd_bot,
     output reg         fetch_start,
@@ -46,6 +47,8 @@ module zm_video_plane (
     // registers' muxes end in a flip-flop before any arithmetic.
     reg [31:0] base_i;
     reg [15:0] stride_i, hpos_i, seen_i, hs_live_i, flicker_i;
+    reg        cop_flick_i;
+    always @(posedge clk) cop_flick_i <= cop_flick;
     reg [8:0]  py_i;
     reg [7:0]  mode_i, seed_i, res_i;
     reg        top_open_i, bot_open_i;
@@ -66,7 +69,7 @@ module zm_video_plane (
     wire [10:0] fs_len = stride_i > 16'd1021 ? 11'h7FF : stride_i[10:0];
     wire [10:0] len = m == FS ? fs_len : m == OVS ? 11'd400 : m == MED ? med_len : 11'd320;
     // Overscan: did this line's HBL flicker, and on the magic column?
-    wire flk = flicker_i != seen_i;
+    wire flk = flicker_i != seen_i || cop_flick_i;
     wire [15:0] dx = hpos_i > ZM_OVERSCAN_MAGIC_X ? hpos_i - ZM_OVERSCAN_MAGIC_X : ZM_OVERSCAN_MAGIC_X - hpos_i;
     wire hit_now = flk && dx <= ZM_OVERSCAN_X_TOL;
     wire top = py_i < ZM_RASTER_BORDER_Y, bot = !top && !vis;
@@ -119,8 +122,9 @@ module zm_video_plane (
     reg       pend = 1'b0;
     wire      go = (start || pend) && !moved && held == 2'd2;
     always @(posedge clk) begin
-        moved <= {base, stride, hpos, seen, hs_live, flicker, py, mode, seed, res, top_open, bot_open}
-            != {base_i, stride_i, hpos_i, seen_i, hs_live_i, flicker_i, py_i, mode_i, seed_i, res_i, top_open_i, bot_open_i};
+        moved <= {base, stride, hpos, seen, hs_live, flicker, cop_flick, py, mode, seed, res, top_open, bot_open}
+            != {base_i, stride_i, hpos_i, seen_i, hs_live_i, flicker_i, cop_flick_i, py_i, mode_i, seed_i, res_i,
+                top_open_i, bot_open_i};
         held <= moved ? 2'd0 : held == 2'd2 ? held : held + 2'd1;
         pend <= !rst && st == IDLE && (start || pend) && !go;
     end

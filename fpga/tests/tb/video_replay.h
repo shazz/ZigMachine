@@ -37,7 +37,7 @@
 namespace vd {
 
 // The register words the compositor stores (zm_video_regs.v IMPL).
-const int kRegWords[] = {0, 1, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 25, 26};
+const int kRegWords[] = {0, 1, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 25, 26, 30, 31};
 // ... and the ones it writes itself.
 const int kOwnWords[] = {ZM_REG_BACKGROUND / 4, ZM_REG_BEAM_COUNT / 4, ZM_REG_BEAM_DROPPED / 4, ZM_REG_FRAME / 4};
 
@@ -57,9 +57,21 @@ template <typename RigT> struct Replay {
 
     explicit Replay(RigT& r) : rig(r) {}
 
+    // A register word goes to the RTL when the machine's value differs from what the replay last
+    // wrote (or from the RTL's own, for the words it writes back): as the CPU, which stores only what
+    // it changes. Not against the RTL's current value: the copper list (zm_video_copper.v) writes
+    // HSCROLL itself, and the machine's state does not show it on a line with no handler.
+    uint32_t reg_sent[REG_WORDS] = {};
+    bool reg_fresh = true;  // the frame's first apply writes every word
     void apply_regs(const State& s) {
-        for (int w : kRegWords)
-            if (rig.reg_read(w) != s[size_t(w)]) rig.cpu_write(uint32_t(w) * 4, s[size_t(w)]);
+        for (int w : kRegWords) {
+            bool own = false;
+            for (int o : kOwnWords) own |= o == w;
+            uint32_t want = s[size_t(w)], was = own ? rig.reg_read(w) : reg_sent[w];
+            if (reg_fresh || was != want) rig.cpu_write(uint32_t(w) * 4, want);
+            reg_sent[w] = want;
+        }
+        reg_fresh = false;
     }
     void apply_ram(const State& s, int first, int n, uint32_t* shadow, uint32_t off) {
         for (int i = 0; i < n; i++) {
@@ -154,6 +166,7 @@ template <typename RigT> struct Replay {
         // The dump holds this frame's cleared PFB: poison it, so every row must come from a pass.
         std::memset(rig.mem.bytes.data() + ZM_OFF_PFB, 0xA5, ZM_PFB_BYTES);
         std::memset(line_clocks, 0, sizeof line_clocks);
+        reg_fresh = true;
         long t0 = rig.cycles;
         fused = fuse && clearable();
         if (fused) clear_fused();

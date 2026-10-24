@@ -17,6 +17,10 @@ module zm_video_regs (
     input  wire [4:0]    cpu_word,       // word index in the block (offset / 4)
     input  wire [3:0]    cpu_be,
     input  wire [31:0]   cpu_wdata,
+    input  wire          cop_we,         // the copper list (zm_video_copper.v): a plane's HSCROLL
+    input  wire [4:0]    cop_word,
+    input  wire [3:0]    cop_be,
+    input  wire [31:0]   cop_wdata,
     input  wire [4:0]    cpu_rword,
     output wire [31:0]   cpu_rdata,      // combinational read-back
     input  wire          beam_upd,       // a BEAM line ended
@@ -35,7 +39,8 @@ module zm_video_regs (
     localparam [31:0] IMPL = (32'd1 << W_RES) | (32'd1 << W_BG) | (32'd1 << W_FRAME)
         | (32'd1 << W_FLICK) | (32'd1 << W_BCOUNT) | (32'd1 << W_BDROP) | (32'd1 << W_MODE)
         | (32'd3 << (ZM_REG_FB_HBL_POS / 4)) | (32'd3 << (ZM_REG_FB_STRIDE / 4))
-        | (32'd3 << (ZM_REG_HSCROLL / 4)) | (32'd15 << (ZM_REG_FB_BASE / 4));
+        | (32'd3 << (ZM_REG_HSCROLL / 4)) | (32'd15 << (ZM_REG_FB_BASE / 4))
+        | (32'd3 << (ZM_REG_FB_COPPER / 4));
     // BEAM_COUNT is the low half of its word (0x66..0x67 is free).
     localparam integer BCOUNT_LSB = (ZM_REG_BEAM_COUNT % 4) * 8;
 
@@ -49,6 +54,9 @@ module zm_video_regs (
                     if (cpu_we && cpu_word == g)
                         for (b = 0; b < 4; b = b + 1)
                             if (cpu_be[b]) q[b*8 +: 8] <= cpu_wdata[b*8 +: 8];
+                    if (cop_we && cop_word == g && (g == ZM_REG_HSCROLL / 4 || g == ZM_REG_HSCROLL / 4 + 1))
+                        for (b = 0; b < 4; b = b + 1)
+                            if (cop_be[b]) q[b*8 +: 8] <= cop_wdata[b*8 +: 8];
                     if (beam_upd && g == W_BG) q <= beam_bg;
                     if (beam_upd && g == W_BDROP) q <= q + beam_drops;
                     if (beam_upd && g == W_BCOUNT) q[BCOUNT_LSB +: 16] <= 16'd0;

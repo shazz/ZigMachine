@@ -186,6 +186,11 @@ static void worst_hbl(uint32_t id, uint32_t plane, uint32_t line) {
     vs_w16(ZM_REG_BEAM_COUNT, ZM_BEAM_MAX);
 }
 
+/* vsynth_copper.c: copper lists on three planes (HW 1.9.0) */
+void vs_copper_setup(void);
+void vs_copper_frame(int f);
+void vs_copper_hbl(uint32_t id, uint32_t plane, uint32_t line);
+
 const vs_scenario vs_scenarios[] = {
     {"fullscreen", 2, 0x7, fs_setup, reset_bases, fs_hbl},
     {"scroll", 2, 0x7, scroll_setup, reset_bases, scroll_hbl},
@@ -197,5 +202,6 @@ const vs_scenario vs_scenarios[] = {
     {"bgalpha", 2, 0x0, bgalpha_setup, reset_bases, alpha_hbl},
     {"plain", 2, 0x0, plain_setup, reset_bases, alpha_hbl},
     {"worst", 2, 0xF, worst_setup, reset_bases, worst_hbl},
+    {"copper", 2, 0x7, vs_copper_setup, vs_copper_frame, vs_copper_hbl},
     {0, 0, 0, 0, 0, 0},
 };

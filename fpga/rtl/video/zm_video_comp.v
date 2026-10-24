@@ -89,9 +89,9 @@ module zm_video_comp #(
     wire [20:0] pal_idx = cpu_waddr - PAL_W, beam_idx = cpu_waddr - BEAM_W;
 
     // --- command taking: a pass that folds into the picture waits for `d_ok` ---
-    wire busy;
+    wire busy, cop_busy;
     reg [1:0] plane;
-    assign cmd_ready = !busy && (!cmd_mix || d_ok);
+    assign cmd_ready = !busy && !cop_busy && (!cmd_mix || d_ok);
     wire take = cmd_valid && cmd_ready;
     wire latch = take && cmd_op == 3'd2;
     assign present = take && cmd_op == 3'd4;
@@ -106,24 +106,37 @@ module zm_video_comp #(
     wire beam_upd, bg_frame_inc;
     wire frame_inc = bg_frame_inc || clear;
     wire [31:0] beam_bg, beam_drops;
+    wire cop_hs_we;
+    wire [4:0] cop_hs_word;
+    wire [3:0] cop_hs_be;
+    wire [31:0] cop_hs_wdata;
     zm_video_regs u_regs (
         .clk(clk), .cpu_we(cpu_we && reg_sel), .cpu_word(cpu_waddr[4:0]), .cpu_be(cpu_be),
-        .cpu_wdata(cpu_wdata), .cpu_rword(cpu_rword), .cpu_rdata(cpu_rdata), .beam_upd(beam_upd),
+        .cpu_wdata(cpu_wdata), .cop_we(cop_hs_we), .cop_word(cop_hs_word), .cop_be(cop_hs_be),
+        .cop_wdata(cop_hs_wdata), .cpu_rword(cpu_rword), .cpu_rdata(cpu_rdata), .beam_upd(beam_upd),
         .beam_bg(beam_bg), .beam_drops(beam_drops), .frame_inc(frame_inc), .regs(regs));
     always @(posedge clk) if (clear) fill_bg <= regs[ZM_REG_BACKGROUND * 8 +: 32];
 
     // --- memories: palettes, BEAM table, fetch buffer (64-bit beats), line buffer (two halves) ---
-    wire [7:0] pal_raddr, fb_raddr, fb_waddr;
+    wire [7:0] pal_raddr, fb_raddr, fb_waddr, cop_fb_raddr, cop_fb_waddr;
     wire [5:0] beam_raddr;
-    wire [31:0] pal_rdata, beam_rdata;
+    wire [31:0] pal_rdata, beam_rdata, cop_pal_wdata;
     wire [63:0] fb_rdata, fb_wdata;
-    wire fb_we;
-    zm_video_sdpram #(.AW(10), .DW(32)) u_pal (.clk(clk), .we(cpu_we && pal_sel ? cpu_be : 4'd0),
-        .waddr(pal_idx[9:0]), .wdata(cpu_wdata), .raddr({plane, pal_raddr}), .rdata(pal_rdata));
+    wire [9:0] cop_pal_waddr;
+    wire fb_we, cop_fb_we, cop_pal_we;
+    // The palette's one write port: the copper's record (it runs only between a take and the
+    // pass's `painted`, when the sequencer's drain rule keeps the CPU's stores away), else the snoop.
+    zm_video_sdpram #(.AW(10), .DW(32)) u_pal (.clk(clk),
+        .we(cop_pal_we ? 4'hF : cpu_we && pal_sel ? cpu_be : 4'd0),
+        .waddr(cop_pal_we ? cop_pal_waddr : pal_idx[9:0]), .wdata(cop_pal_we ? cop_pal_wdata : cpu_wdata),
+        .raddr({plane, pal_raddr}), .rdata(pal_rdata));
+    reg cop_collision = 1'b0;   // sticky: a CPU palette store met a copper write (the break test's)
+    always @(posedge clk) if (cop_pal_we && cpu_we && pal_sel) cop_collision <= 1'b1;
     zm_video_sdpram #(.AW(6), .DW(32)) u_beam (.clk(clk), .we(cpu_we && beam_sel ? cpu_be : 4'd0),
         .waddr(beam_idx[5:0]), .wdata(cpu_wdata), .raddr(beam_raddr), .rdata(beam_rdata));
-    zm_video_sdpram #(.AW(8), .DW(64)) u_fbuf (.clk(clk), .we({8{fb_we}}), .waddr(fb_waddr),
-        .wdata(fb_wdata), .raddr(fb_raddr), .rdata(fb_rdata));
+    zm_video_sdpram #(.AW(8), .DW(64)) u_fbuf (.clk(clk), .we({8{fb_we || cop_fb_we}}),
+        .waddr(cop_busy ? cop_fb_waddr : fb_waddr), .wdata(rd_rsp_data),   // both fill it from the port
+        .raddr(cop_busy ? cop_fb_raddr : fb_raddr), .rdata(fb_rdata));
 
     wire bg_we, pt_lo, pt_hi, ld_lb_we, ld_acc_we;
     wire [8:0] bg_addr, pt_addr, ld_addr, mix_raddr, st_raddr;
@@ -163,18 +176,39 @@ module zm_video_comp #(
         .lb_data(bg_data), .done(bg_done), .beam_upd(beam_upd), .beam_bg(beam_bg),
         .beam_drops(beam_drops), .frame_inc(bg_frame_inc));
 
-    // --- plane pass: its fetch and the row loads share the read port, by phase ---
+    // --- the copper list: before a PLANE pass paints, it owns the read port (zm_video_copper.v) ---
+    wire cop_rd_valid, cop_flick;
+    wire [7:0] pl_mode;
+    wire [15:0] pl_stride;
+    wire [20:0] cop_rd_off;
+    wire [9:0] cop_rd_len;
+    zm_video_copper u_cop (
+        .clk(clk), .rst(rst), .latch(latch), .start(take && cmd_op == 3'd1), .plane(take ? cmd_plane : plane),
+        .line(line), .regs(regs), .mode(pl_mode), .stride(pl_stride), .busy(cop_busy), .flick(cop_flick),
+        .rd_req_valid(cop_rd_valid), .rd_req_ready(cop_busy && rd_req_ready), .rd_req_off(cop_rd_off),
+        .rd_req_len(cop_rd_len), .rd_rsp_valid(cop_busy && rd_rsp_valid), .rd_rsp_data(rd_rsp_data),
+        .fb_we(cop_fb_we), .fb_waddr(cop_fb_waddr), .fb_raddr(cop_fb_raddr),
+        .fb_rdata(fb_rdata), .pal_we(cop_pal_we), .pal_waddr(cop_pal_waddr), .pal_wdata(cop_pal_wdata),
+        .hs_we(cop_hs_we), .hs_word(cop_hs_word), .hs_be(cop_hs_be), .hs_wdata(cop_hs_wdata));
+    // The plane's paint waits for the copper: a start held while it runs.
+    reg pl_pend = 1'b0;
+    wire pl_go = (start_pl || pl_pend) && !cop_busy;
+    always @(posedge clk) pl_pend <= !rst && (start_pl || pl_pend) && cop_busy;
+
+    // --- plane pass: its fetch and the row loads share the read port, by phase (the copper first) ---
     wire pl_rd_valid, rw_rd_valid;
     wire [31:0] pl_rd_addr, rw_rd_addr;
     wire [9:0] pl_rd_len, rw_rd_len;
-    assign rd_req_valid = fetching ? pl_rd_valid : rw_rd_valid;
-    assign rd_req_addr = fetching ? vbase + pl_rd_addr : rw_rd_addr;
-    assign rd_req_len = fetching ? pl_rd_len : rw_rd_len;
+    assign rd_req_valid = cop_busy ? cop_rd_valid : fetching ? pl_rd_valid : rw_rd_valid;
+    // One vbase adder for the two region-relative clients.
+    wire [31:0] rd_off = cop_busy ? {11'd0, cop_rd_off} : pl_rd_addr;
+    assign rd_req_addr = cop_busy || fetching ? vbase + rd_off : rw_rd_addr;
+    assign rd_req_len = cop_busy ? cop_rd_len : fetching ? pl_rd_len : rw_rd_len;
     zm_video_planepath u_pp (
-        .clk(clk), .rst(rst), .latch(latch), .start(start_pl), .plane(take ? cmd_plane : plane),
-        .py(line), .regs(regs), .done(pl_done),
-        .rd_req_valid(pl_rd_valid), .rd_req_ready(fetching && rd_req_ready), .rd_req_addr(pl_rd_addr),
-        .rd_req_len(pl_rd_len), .rd_rsp_valid(fetching && rd_rsp_valid), .rd_rsp_data(rd_rsp_data),
+        .clk(clk), .rst(rst), .latch(latch), .start(pl_go), .plane(take ? cmd_plane : plane),
+        .py(line), .regs(regs), .cop_flick(cop_flick), .lmode(pl_mode), .lstride(pl_stride), .done(pl_done),
+        .rd_req_valid(pl_rd_valid), .rd_req_ready(!cop_busy && fetching && rd_req_ready), .rd_req_addr(pl_rd_addr),
+        .rd_req_len(pl_rd_len), .rd_rsp_valid(!cop_busy && fetching && rd_rsp_valid), .rd_rsp_data(rd_rsp_data),
         .fb_we(fb_we), .fb_waddr(fb_waddr), .fb_wdata(fb_wdata), .fb_raddr(fb_raddr), .fb_rdata(fb_rdata),
         .pal_raddr(pal_raddr), .pal_rdata(pal_rdata), .lb_we_lo(pt_lo), .lb_we_hi(pt_hi), .lb_addr(pt_addr),
         .lb_data(pt_data), .overflow(overflow));
@@ -182,8 +216,8 @@ module zm_video_comp #(
     // --- row I/O and the plane mixer ---
     zm_video_rowio u_row (
         .clk(clk), .rst(rst), .pfb_addr(pfb_addr), .d_addr(d_addr), .ld_start(ld_start), .ld_pfb(ld_pfb),
-        .ld_d(ld_d), .ld_done(ld_done), .rd_req_valid(rw_rd_valid), .rd_req_ready(!fetching && rd_req_ready),
-        .rd_req_addr(rw_rd_addr), .rd_req_len(rw_rd_len), .rd_rsp_valid(!fetching && rd_rsp_valid),
+        .ld_d(ld_d), .ld_done(ld_done), .rd_req_valid(rw_rd_valid), .rd_req_ready(!cop_busy && !fetching && rd_req_ready),
+        .rd_req_addr(rw_rd_addr), .rd_req_len(rw_rd_len), .rd_rsp_valid(!cop_busy && !fetching && rd_rsp_valid),
         .rd_rsp_data(rd_rsp_data), .lb_we(ld_lb_we), .acc_we(ld_acc_we), .ld_addr(ld_addr),
         .ld_lb_data(ld_lb_data), .ld_acc_data(ld_acc_data), .st_start(st_start), .st_pfb(st_pfb), .st_d(st_d),
         .st_done(st_done), .wr_req_valid(wr_req_valid), .wr_req_ready(wr_req_ready), .wr_req_addr(wr_req_addr),

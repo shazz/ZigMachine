@@ -186,6 +186,7 @@ NATIVE_TESTS="
     libs/zig/effects/colour_bank_test.zig
     libs/zig/effects/beam_test.zig
     machine/beam_test.zig
+    machine/copper_test.zig
     machine/audio/ym_test.zig
     machine/audio/ym_env_test.zig
     machine/audio/ym_dac_test.zig

@@ -18,6 +18,7 @@ const std = @import("std");
 const memmap = @import("sdk/memmap.zig");
 const beam = @import("beam.zig");
 const arena = @import("arena.zig");
+const copper = @import("copper.zig");
 
 // The one host import the sealed machine needs: route an HBL point to the demo.
 extern fn hblDispatch(id: u32, plane: u32, line: u32, x: u32) void;
@@ -270,7 +271,7 @@ fn renderPlaneFullscreen(fb_id: usize) void {
     const hs: usize = @intCast(hscroll(fb_id)); // fine horizontal scroll (wraps within the row)
     var y: usize = 0;
     while (y < RH) : (y += 1) {
-        if (hid != 0) hblDispatch(hid, @intCast(fb_id), @intCast(y), @intCast(hpos));
+        _ = lineStart(fb_id, hid, y, hpos, y);
         const srow = y * stride;
         var lx: usize = 0;
         while (lx < memmap.PHYSICAL_WIDTH) : (lx += 1) // 400 logical -> 800 physical (doubled)
@@ -336,8 +337,8 @@ fn renderPlaneOverscan(fb_id: usize) void {
     var y: usize = 0;
     while (y < RH) : (y += 1) {
         const before = r16(memmap.REG_RES_FLICKER);
-        if (hid != 0) hblDispatch(hid, @intCast(fb_id), @intCast(y), @intCast(hpos));
-        const flick = r16(memmap.REG_RES_FLICKER) != before;
+        const cop_flick = lineStart(fb_id, hid, y, hpos, y);
+        const flick = r16(memmap.REG_RES_FLICKER) != before or cop_flick;
         const hit = flick and overscanHit(hpos);
         const srow = y * stride;
         if (y < BY) {
@@ -364,7 +365,7 @@ fn renderPlaneNormal(fb_id: usize) void {
     var ly: usize = 0;
     while (ly < memmap.HEIGHT) : (ly += 1) {
         const py = BY + ly;
-        if (hid != 0) hblDispatch(hid, @intCast(fb_id), @intCast(ly), @intCast(hpos));
+        _ = lineStart(fb_id, hid, ly, hpos, py);
         const srow = ly * stride;
         var lx: usize = 0;
         while (lx < memmap.WIDTH) : (lx += 1) put2(out, py, BX + lx * 2, palette[buf[srow + lx]]);
@@ -394,7 +395,7 @@ fn renderPlaneMedium(fb_id: usize) void {
     var ly: usize = 0;
     while (ly < rows) : (ly += 1) {
         const py = oy + ly;
-        if (hid != 0) hblDispatch(hid, @intCast(fb_id), @intCast(ly), @intCast(hpos));
+        _ = lineStart(fb_id, hid, ly, hpos, py);
         const srow = ly * stride;
         if (r8(memmap.REG_RESOLUTION) == memmap.RES_MEDIUM) {
             const orow = py * RW + ox;
@@ -422,7 +423,7 @@ fn renderPlaneScroll(fb_id: usize) void {
     var vy: usize = 0;
     while (vy < memmap.HEIGHT) : (vy += 1) {
         const py = BY + vy;
-        if (hid != 0) hblDispatch(hid, @intCast(fb_id), @intCast(vy), @intCast(hpos));
+        _ = lineStart(fb_id, hid, vy, hpos, py);
         const hs: usize = @intCast(hscroll(fb_id)); // read AFTER the HBL so a per-line handler distorts
         const srow = vy * stride + hs;
         var vx: usize = 0;
@@ -430,7 +431,29 @@ fn renderPlaneScroll(fb_id: usize) void {
     }
 }
 
+// The copper list of the plane being rendered (machine/copper.zig): its frame starts here.
+var cop: copper.Cursor = .{};
+
+const PalWrites = struct {
+    palette: [*]u32,
+    pub fn pal(self: PalWrites, index: u8, rgba: u32) void {
+        self.palette[index] = rgba;
+    }
+};
+
+// A line plane fb_id covers (raster line py): its HBL handler (with its own line numbering), then
+// its copper record. True when the record FLICKs: an overscan line then flickers as if its handler
+// had bumped RES_FLICKER (the register itself is the handlers' alone, on both machines).
+fn lineStart(fb_id: usize, hid: u16, hline: usize, hpos: u16, py: usize) bool {
+    if (hid != 0) hblDispatch(hid, @intCast(fb_id), @intCast(hline), @intCast(hpos));
+    if (!cop.live) return false;
+    const fx = copper.line(region()[0..memmap.OFF_PFB], &cop, fb_id, @intCast(py), PalWrites{ .palette = pal(fb_id) });
+    if (fx.hscroll) |h| w16(memmap.REG_HSCROLL + fb_id * 2, h);
+    return fx.flick;
+}
+
 pub fn renderPlane(fb_id: usize) void {
+    cop = copper.begin(region()[0..memmap.OFF_PFB], r16(memmap.REG_FB_COPPER + fb_id * 2));
     switch (fbMode(fb_id)) {
         memmap.FB_MODE_SCROLL => return renderPlaneScroll(fb_id),
         memmap.FB_MODE_FULLSCREEN => return renderPlaneFullscreen(fb_id),

@@ -374,5 +374,47 @@
     "new": ".last_line(line",
     "catch": "tutorial",
     "fuse": true
+  },
+  {
+    "id": "copper_record_late",
+    "file": "zm_video_copper.v",
+    "old": "if (c_hy == 9'd511 || c_hy > line) st <= IDLE;",
+    "new": "if (c_hy == 9'd511 || c_hy >= line) st <= IDLE;",
+    "catch": "s:copper"
+  },
+  {
+    "id": "copper_flick_ignored",
+    "file": "zm_video_plane.v",
+    "old": "wire flk = flicker_i != seen_i || cop_flick_i;",
+    "new": "wire flk = flicker_i != seen_i;",
+    "catch": "s:copper"
+  },
+  {
+    "id": "copper_next_head_lost",
+    "file": "zm_video_copper.v",
+    "old": "hy[p] <= wq[27:19];",
+    "new": "hy[p] <= hy[p];",
+    "catch": "s:copper"
+  },
+  {
+    "id": "copper_reserved_op_skipped",
+    "file": "zm_video_copper.v",
+    "old": "if (op == 4'h0 || op == 4'h3 ||",
+    "new": "if (op == 4'h0 || op == 4'h3 || op == 4'h5 ||",
+    "catch": "s:copper"
+  },
+  {
+    "id": "copper_palref_offset",
+    "file": "zm_video_copper.v",
+    "old": "rword <= 10'd256 + {9'd0, t_word_r[0]};",
+    "new": "rword <= 10'd256;",
+    "catch": "s:copper"
+  },
+  {
+    "id": "copper_hscroll_ignored",
+    "file": "zm_video_copper.v",
+    "old": "if (op == 4'h2) hs_we <= 1'b1;",
+    "new": "if (op == 4'h2) hs_we <= 1'b0;",
+    "catch": "s:copper"
   }
 ]
