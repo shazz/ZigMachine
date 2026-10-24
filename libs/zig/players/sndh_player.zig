@@ -32,6 +32,9 @@
 //                      controller in front of them. The timer that drives
 //                      `play` is NOT run from it: we call `play` ourselves, at
 //                      the rate the SNDH header asks for.
+//   $DFF000..$DFF1FF   the Amiga's custom chips (paula.zig), decoded ONLY while
+//   $BFE001            an Amiga module (.hip, hip_player.zig) runs on this CPU:
+//                      Paula's four DMA voices, DMACON, and CIA-A's filter bit.
 //   everything else    reads 0, ignores writes.
 // --------------------------------------------------------------------------
 const std = @import("std");
@@ -40,6 +43,7 @@ const depackers = @import("depackers");
 const sndh = @import("sndh.zig");
 const dma = @import("ste_dma.zig");
 const mfp_chip = @import("mfp.zig");
+const paula = @import("paula.zig");
 pub const native = @import("sndh_native.zig");
 
 // --- Musashi ---------------------------------------------------------------
@@ -114,6 +118,7 @@ export fn m68k_read_memory_8(address: c_uint) c_uint {
     if (addr >= PSG_BASE and addr < PSG_BASE + PSG_SPAN and addr & 3 == 0) return ym_shadow[psg_latch];
     if (addr >= MFP_BASE and addr < MFP_BASE + MFP_SIZE) return mfpRead(addr);
     if (addr >= dma.BASE and addr < dma.BASE + dma.SIZE) return dma.read(addr);
+    if (paula.claims(addr)) return paula.read8(addr);
     return 0;
 }
 
@@ -125,6 +130,7 @@ export fn m68k_read_memory_8(address: c_uint) c_uint {
 export fn m68k_read_memory_16(address: c_uint) c_uint {
     const addr = @as(u32, @intCast(address)) & ADDRESS_MASK;
     if (addr + 1 < RAM_SIZE) return (@as(c_uint, ram()[addr]) << 8) | ram()[addr + 1];
+    if (paula.claims(addr)) return paula.read16(addr);
     return (m68k_read_memory_8(addr) << 8) | m68k_read_memory_8(addr +% 1);
 }
 
@@ -152,6 +158,10 @@ export fn m68k_write_memory_16(address: c_uint, value: c_uint) void {
     if (addr + 1 < RAM_SIZE) {
         ram()[addr] = @truncate(value >> 8);
         ram()[addr + 1] = @truncate(value);
+    } else if (paula.claims(addr)) {
+        // Paula's registers are WORDS (DMACON's set/clear flag is bit 15): a
+        // word write must reach them whole, not split into bytes as below.
+        if (!paula.write16(addr, @truncate(value))) noteUnhandled(addr);
     } else {
         // Only the EVEN byte of a word reaches the PSG (see psgWrite); the MFP
         // and the DMA chip are byte-wide on odd addresses, so a word write
@@ -213,6 +223,11 @@ fn hwWrite(addr: u32, value: u8) void {
     if (addr >= PSG_BASE and addr < PSG_BASE + PSG_SPAN) return psgWrite(addr, value);
     if (addr >= MFP_BASE and addr < MFP_BASE + MFP_SIZE) return mfpWrite(addr, value);
     if (addr >= dma.BASE and addr < dma.BASE + dma.SIZE) return dma.write(addr, value);
+    if (paula.claims(addr) and paula.write8(addr, value)) return;
+    noteUnhandled(addr);
+}
+
+fn noteUnhandled(addr: u32) void {
     for (unhandled[0..@min(unhandled_n, unhandled.len)]) |a| if (a == addr) return;
     if (unhandled_n < unhandled.len) unhandled[unhandled_n] = addr;
     unhandled_n +%= 1;
@@ -619,14 +634,40 @@ pub const SndhPlayer = struct {
     fn call(self: *SndhPlayer, entry: u32, d0: u32) bool {
         _ = self;
         if (native.call(entry)) return true; // sndh_native.zig: modes 2 and 3
-        writeLong(STACK_TOP - 4, RETURN_PC);
-        m68k_set_reg(REG_SP, STACK_TOP - 4);
-        m68k_set_reg(REG_D0, d0);
-        m68k_set_reg(REG_PC, IMAGE_BASE + entry); // sndh.INIT/EXIT/PLAY are image offsets
-
-        return runUntilReturnWithin(if (entry == sndh.INIT) INIT_RUNAWAY_CYCLES else RUNAWAY_CYCLES);
+        return callImage(entry, d0, entry == sndh.INIT); // sndh.INIT/EXIT/PLAY are image offsets
     }
 };
+
+/// Run the image's code at IMAGE_BASE + `entry` as a subroutine with `d0` until it
+/// returns to the planted stub: an SNDH's entry points, and an Amiga module's
+/// (hip_player.zig), which shares this CPU and this bus. `init` gets INIT's longer
+/// runaway budget. False if it never returned.
+pub fn callImage(entry: u32, d0: u32, init: bool) bool {
+    writeLong(STACK_TOP - 4, RETURN_PC);
+    m68k_set_reg(REG_SP, STACK_TOP - 4);
+    m68k_set_reg(REG_D0, d0);
+    m68k_set_reg(REG_PC, IMAGE_BASE + entry);
+    return runUntilReturnWithin(if (init) INIT_RUNAWAY_CYCLES else RUNAWAY_CYCLES);
+}
+
+/// Move a staged, unpacked image of `len` bytes from $0 up to IMAGE_BASE, zero
+/// the rest of the 68000's RAM and reset the CPU: an image that is not an SNDH
+/// (hip_player.zig). False when it would not leave room for the stack.
+pub fn placeForeignImage(len: u32) bool {
+    native.forget(); // the last SNDH's native driver must not answer for this code
+    if (len == 0 or len > MAX_IMAGE) return false;
+    _ = place(len);
+    writeWord(RETURN_PC, NOP);
+    m68k_init();
+    m68k_set_cpu_type(CPU_TYPE_68000);
+    m68k_pulse_reset();
+    stuck_pc = 0;
+    unhandled_n = 0;
+    return true;
+}
+
+/// Where the image sits in the 68000's address space (= its offset in song RAM).
+pub const image_base: u32 = IMAGE_BASE;
 
 /// Most SNDH tunes in the wild are crunched. Depacking is done HERE, in the
 /// 68000's own RAM, because that is where a real ST would do it: the packed

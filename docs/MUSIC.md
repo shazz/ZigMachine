@@ -28,6 +28,7 @@ The file extension picks the player. Files live under `docs/music/`.
 | `.xm` | FastTracker 2, up to 12 channels, mixed in software onto the four Paula channels (two voices a channel up to 8 channels, three a channel for 9..12; `libs/zig/players/xm.zig`, see [XM](#xm-fasttracker-2) below) | no |
 | `.raw` | 8-bit PCM at 12517 Hz | no |
 | `.sap` | an Atari 8-bit tune's own 6502 code on the machine's POKEY (`libs/zig/players/sap_player.zig`): TYPE B and C, mono; D/S/R and STEREO are refused, with the reason on the console | yes: `tune` counts from 1, 0 = the file's DEFSONG |
+| `.hip` | a Jochen Hippel **Amiga** module as UADE plays it: the module's own 68000 replay on the SNDH player's Musashi, poking an emulated Paula (`libs/zig/players/hip_player.zig`, `paula.zig`) on the four sample channels. A file that is not a `bra` jump table plus a `TFMX` song is refused | yes: `tune` counts from 1, 0 = the first song |
 
 **The YM dump player is deprecated: use SNDH.** A dump records the chip only
 once per frame, so SID voices, digidrums and samples played through the YM
@@ -287,6 +288,15 @@ archive's file byte for byte (`apps/xm_test_check.mjs` holds the md5s):
 What the player leaves out of them (`xm.zig`'s ignored list): the volume column's
 vibrato in both, and in Poppy Flower Girls the 8xx panning, the Hxx global volume
 slide and the volume column's panning slide.
+
+The Amiga modules (`.hip`), each modland's file byte for byte, renamed without spaces:
+
+| File | Title, artist | Size | Source | md5 |
+|---|---|---|---|---|
+| `shaolin_title.hip` | "Chambers of Shaolin" title tune (Thalion, Amiga), Jochen Hippel: the Supplex FS2 screen's (CODEF 525) | 36,032 B | https://ftp.modland.com/pub/modules/Hippel/Jochen%20Hippel/shaolin%20title.hip | `48e2ebc6c7588bee78796281b677facc` |
+
+The game's ST SNDH is a different arrangement (Matt listened), so the screen plays the
+Amiga module, not the SNDH.
 
 **A song you may only keep for yourself** goes in `docs/music/local.xm`, which
 git ignores. The music debug screen plays it on key 6, XM TEST on key 3. In the browser it is fetched like any other song. On the

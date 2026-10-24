@@ -21,7 +21,7 @@ pub var sfx: sfx_voice.SfxVoice = .{};
 pub var ym: YmPlayer = .{};
 pub var sndh: SndhPlayer = .{};
 pub var xm: XmPlayer = .{};
-// Active player: 0 none, 1 MOD, 2 YM, 3 raw sample, 4 SNDH, 5 SAP. Drives the scope view type.
+// Active player: 0 none, 1 MOD (and XM, HIP: the same four Paula channels), 2 YM, 3 raw sample, 4 SNDH, 5 SAP. Drives the scope view type.
 pub var current_mode: u8 = 0;
 
 // The MOD player's and the sound effects' exports (audioLoadMod, audioSfx*),
@@ -32,6 +32,7 @@ comptime {
     _ = @import("demo_audio_xm.zig");
 }
 pub const sap_exports = @import("demo_audio_sap.zig");
+pub const hip_exports = @import("demo_audio_hip.zig");
 
 /// Every player stopped, before one starts: they share song RAM (a SAP's Atari
 /// lives in it), so one left "active" under another would read garbage.
@@ -42,6 +43,7 @@ pub fn stopAll() void {
     sndh.stop();
     xm.stop();
     sap_exports.sap.stop();
+    hip_exports.hip.abandon(); // the module's code is not run on the way out
 }
 
 /// The stream's ring at SONG_BASE (demo_audio_raw.zig). The host and the
@@ -59,6 +61,7 @@ export fn audioInit() void {
     ym = .{};
     sndh = .{};
     sap_exports.sap = .{};
+    hip_exports.hip.abandon();
     sfx = .{};
     current_mode = 0;
 }
@@ -67,6 +70,8 @@ export fn audioRender(frames: u32) void {
     const n: usize = @intCast(frames);
     if (sndh.active) {
         sndh.renderStereo(n);
+    } else if (hip_exports.hip.active) {
+        hip_exports.hip.renderStereo(n);
     } else if (sap_exports.sap.active) {
         sap_exports.sap.renderStereo(n);
     } else if (ym.active) {
@@ -111,6 +116,7 @@ export fn audioLoadYm(len: u32) bool {
         sndh.abandon();
         if (current_mode == 4) current_mode = 0;
     }
+    hip_exports.hip.abandon(); // its 68000 image was just overwritten too
     return ym.load(songSlice(len));
 }
 export fn audioYmPlay() void {
@@ -129,6 +135,7 @@ export fn audioYmStop() void {
 
 // --- SNDH player (the tune's own 68000 code, on Musashi, driving the PSG) ---
 export fn audioLoadSndh(len: u32) bool {
+    hip_exports.hip.abandon(); // the SNDH takes the 68000 and its RAM
     return sndh.load(len);
 }
 export fn audioSndhPlay(tune: u8) void {

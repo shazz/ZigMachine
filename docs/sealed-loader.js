@@ -1064,6 +1064,12 @@ function startAudio() {
                     else console.log(`SAP playing (${msg.len} bytes, ${msg.songs} songs)` +
                         (msg.unknown ? `; ${msg.unknown} writes to hardware nothing answers` : ""));
                 }
+                else if (msg.type === "hipLoaded") {
+                    if (!msg.ok) console.error(`HIP REJECTED (${msg.len} bytes): not a Hippel module (bra table + TFMX song)`);
+                    else if (!msg.active) console.error(`HIP STOPPED: its INIT never returned, stuckPc=$${(msg.stuckPc >>> 0).toString(16)}`);
+                    else console.log(`HIP playing (${msg.len} bytes)` +
+                        (msg.unknown ? `; ${msg.unknown} writes to hardware nothing answers` : ""));
+                }
                 else if (msg.type === "modLoaded" && !msg.ok) {
                     // Only 4-channel ProTracker plays (libs/zig/players/mod_format.zig).
                     const why = ["", "shorter than a MOD header", `not a 4-channel ProTracker MOD (tag "${msg.tag}")`,
@@ -1197,6 +1203,17 @@ async function playSap(url, tune, gen) {
     const b = document.querySelector('.sound_button'); if (b) b.textContent = "Sound off";
 }
 
+// A Jochen Hippel Amiga module (.hip): its own 68000 replay on an emulated Paula
+// (libs/zig/players/hip_player.zig). `tune` counts from 1, 0 = the first song.
+async function playHip(url, tune, gen) {
+    await startAudio();
+    if (!audioNode) return; // no audio in this context
+    const bytes = await fetch(url).then(r => r.arrayBuffer());
+    if (gen !== undefined && gen !== songGen) return; // a newer song request (or a stop) won
+    audioNode.port.postMessage({ type: "loadHip", bytes: bytes, tune: tune || 0 }, [bytes]);
+    const b = document.querySelector('.sound_button'); if (b) b.textContent = "Sound off";
+}
+
 // Stop a raw sample by (re)loading a tiny silent buffer onto the channel — the
 // sealed chip has no raw-stop, so this overwrites it with silence.
 function stopRaw() {
@@ -1233,6 +1250,7 @@ function playSongByName(name, tune) {
     // Only an SNDH has subtunes; `tune` counts from 1, 0 = the image's default.
     else if (name.endsWith(".sndh")) sndhResident = { name, gen, ready: playSndh(url, tune, gen) };
     else if (name.endsWith(".sap")) playSap(url, tune, gen);
+    else if (name.endsWith(".hip")) playHip(url, tune, gen);
     else if (name.endsWith(".raw")) playRaw(url, 12517, false, gen);
 }
 // zg.sndhCall(name, d0): INIT(d0) on the SNDH already playing, no fetch and no

@@ -20,6 +20,7 @@ export fn audioLoadSap(len: u32) bool {
         m.sfx.reset();
         if (m.current_mode == 4) m.current_mode = 0;
     }
+    m.hip_exports.hip.abandon();
     return sap.load(len);
 }
 

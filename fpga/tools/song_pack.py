@@ -26,7 +26,7 @@ from pathlib import Path
 
 FPGA = Path(__file__).resolve().parent.parent
 # The players' extensions: tests/test_audio_soc.py holds this to host/audio.c's audio_play.
-SONG_EXTS = ("sndh", "mod", "xm", "ymraw", "raw", "sap")
+SONG_EXTS = ("sndh", "mod", "xm", "ymraw", "raw", "sap", "hip")
 NAME = re.compile(rb"[A-Za-z0-9_][A-Za-z0-9_./-]{0,62}\.(?:" + "|".join(SONG_EXTS).encode() + rb")(?![A-Za-z0-9])")
 # Songs that may be absent: kept on the owner's machine only (gitignored), never committed.
 LOCAL_SONGS = frozenset({"local.xm"})

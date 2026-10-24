@@ -138,6 +138,8 @@ void audio_play(const char* name, uint32_t tune) {
         w2c_audio_audioXmPlay(p, tune); /* an XM's tune field is its start BPM too (0 = the song's own) */
     } else if (ends_with(name, ".ymraw") && w2c_audio_audioLoadYm(p, (uint32_t)len)) {
         w2c_audio_audioYmPlay(p);
+    } else if (ends_with(name, ".hip") && w2c_audio_audioLoadHip(p, (uint32_t)len)) {
+        w2c_audio_audioHipPlay(p, tune); /* a Hippel module's own 68000 replay on Paula; songs from 1 */
     } else if (ends_with(name, ".sap")) {
         load_sap(name, stage(name), tune); /* staged again, as it always was: the same writes and stamps */
     } else if (ends_with(name, ".raw")) {

@@ -127,6 +127,14 @@ class ZigAudioSealedProcessor extends AudioWorkletProcessor {
                 this.port.postMessage({ type: "sapLoaded", ok: !!ok, len: len, status: d.audioSapStatus(),
                                         stopPc: d.audioSapStopPc(), songs: d.audioSapSongs(),
                                         unknown: d.audioSapUnknownWrites() });
+            } else if (msg.type === "loadHip") {
+                // A Jochen Hippel Amiga module: its own 68000 replay on Musashi, poking an
+                // emulated Paula (libs/zig/players/hip_player.zig). Songs count from 1.
+                const len = writeSong(msg.bytes);
+                const ok = d.audioLoadHip(len);
+                if (ok) d.audioHipPlay(msg.tune || 0);
+                this.port.postMessage({ type: "hipLoaded", ok: !!ok, len: len, active: !!d.audioHipActive(),
+                                        stuckPc: d.audioSndhStuckPc(), unknown: d.audioUnhandledCount() });
             } else if (msg.type === "loadSndh") {
                 // An SNDH is 68000 code; the cart depacks it (Pack-Ice) and runs
                 // it on its own CPU. Subtune numbers count from 1.

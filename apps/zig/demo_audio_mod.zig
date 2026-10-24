@@ -27,6 +27,7 @@ export fn audioLoadMod(len: u32) bool {
         m.sfx.reset();
         if (m.current_mode == 4) m.current_mode = 0;
     }
+    m.hip_exports.hip.abandon(); // and an Amiga module's 68000 image
     m.xm.stop(); // the MOD's image is in the song RAM an XM would be playing from
     m.mod.load(m.songSlice(len)) catch |e| {
         mod_rejected +%= 1;

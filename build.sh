@@ -140,6 +140,7 @@ NATIVE_TESTS="
     machine/audio/pokey_test.zig
     libs/zig/players/cpu6502_test.zig
     libs/zig/players/sap_test.zig
+    libs/zig/players/hip_format_test.zig
     libs/zig/players/mod_format_test.zig
     libs/zig/players/xm_format_test.zig
     libs/zig/players/xm_instr_test.zig
@@ -294,6 +295,10 @@ gate fuji_hobbytronic node apps/fuji_hobbytronic_headless.mjs "$SHOTS/fuji_hobby
 gate fuji_hobbytronic node apps/fuji_hobbytronic_headless.mjs --break raster   # ...and an HBL never dispatched (one flat colour) is caught
 gate fuji_hobbytronic node apps/fuji_hobbytronic_headless.mjs --break still    # ...and a picture that does not move is caught
 gate fuji_hobbytronic node apps/fuji_hobbytronic_headless.mjs --break song     # ...and a request read as song 0 (DEFSONG) is caught
+gate supplex_fs2 node apps/supplex_fs2_headless.mjs   # SUPPLEX FS2: shaolin_title.hip song 1 requested at start, modland's file (md5) in docs/music/; Hippel's own 68000 replay on the emulated Paula for 20 s: never runs away, both sides loud, 3+ voices started by DMACON, 100+ pointers re-latched at a voice's wrap, no bad pointer, no audio IRQ, no unanswered hardware write
+gate supplex_fs2 node apps/supplex_fs2_headless.mjs --break silent   # ...and a Paula that ignores DMACON's switch-on (silence) is caught
+gate supplex_fs2 node apps/supplex_fs2_headless.mjs --break latch    # ...and a pointer taken at once instead of at the voice's wrap is caught
+gate supplex_fs2 node apps/supplex_fs2_headless.mjs --break song     # ...and the request's old spaced name is caught
 gate mod_sfx node apps/mod_sfx_check.mjs   # zg.sfxPlay over a MOD: the effect takes the song's fewest-notes channel on exactly its bytes at full volume and that channel's pan, the song writes nothing there and goes on elsewhere, gets it back at the effect's end; a loop holds it until a loop-only stop (4 s timeout); YM writes mixed under a MOD, refused under an SNDH; SNDH -> MOD leaves the MOD alone; no MOD, no effect (counted); 6CHN/8CHN/32CH/untagged/short MODs refused and counted, the four ProTracker tags load; zg.requestModVolume scales the song's channels at once (the output exactly x gain), never the effect's, 1.0 again on a new MOD, over 1.0 / no MOD refused
 gate mod_sfx node apps/mod_sfx_check.mjs --break bytes     # ...and the effect compared with another sample fails
 gate mod_sfx node apps/mod_sfx_check.mjs --break release   # ...and the channel expected held after the effect's end fails

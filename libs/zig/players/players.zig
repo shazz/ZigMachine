@@ -11,6 +11,8 @@ pub const SapPlayer = @import("sap_player.zig").SapPlayer;
 pub const XmPlayer = @import("xm.zig").XmPlayer;
 pub const xm_format = @import("xm_format.zig");
 pub const sap_bus = @import("sap_bus.zig");
+pub const HipPlayer = @import("hip_player.zig").HipPlayer;
+pub const paula = @import("paula.zig");
 
 /// Diagnosis for a tune that will not run: the 68000 PC where a replay call
 /// gave up (0 if none has), and the last trap the little TOS could not answer.

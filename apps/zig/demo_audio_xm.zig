@@ -21,6 +21,7 @@ export fn audioLoadXm(len: u32) bool {
     m.ym.stop();
     m.sap_exports.sap.stop();
     if (m.sndh.active) m.sndh.abandon();
+    m.hip_exports.hip.abandon();
     const p: [*]u8 = @ptrFromInt(audio.SONG_BASE);
     m.xm.load(p[0..len]) catch |e| {
         xm_rejected +%= 1;
