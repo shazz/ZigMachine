@@ -151,6 +151,14 @@ int vd_plan(const vd_frame* fr) {
     return h >= 0;
 }
 
+int vd_unplannable(const vd_frame* fr) {
+    if (!fr->enabled) return 0;
+    for (int p = 0; p < (int)ZM_NB_PLANES; p++)
+        if (((fr->enabled >> p) & 1) && !vdl_palref_first(fr, p)) return 0;
+    vd.palref++;
+    return 1;
+}
+
 int vd_line(int pic, uint32_t y) {
     for (int p = 0; p < (int)ZM_NB_PLANES; p++) {
         const pcfg* c = &s.cfg[p];

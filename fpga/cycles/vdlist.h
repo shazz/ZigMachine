@@ -71,4 +71,24 @@ static int vdl_moved(const vd_frame* fr, int p) {
     return moved;
 }
 
+/* Whether plane p's list opens with a PALREF record (its first line's body holds one): a list
+ * whose lines name their palettes in VRAM, which vdl_moved always counts as changed. A cheap look
+ * (the first record only), made before planning: it decides only whether to plan, never what is
+ * skipped, so a list whose PALREFs come later just keeps being planned. */
+static int vdl_palref_first(const vd_frame* fr, int p) {
+#ifdef VD_BREAK_PALREF /* tests/test_vdirty.py's mutant: never seen */
+    (void)fr, (void)p;
+    return 0;
+#endif
+    uint32_t v = (uint32_t)(fr->mem[ZM_HW_VIDEO_BASE + ZM_REG_FB_COPPER + 2u * (uint32_t)p] |
+                            fr->mem[ZM_HW_VIDEO_BASE + ZM_REG_FB_COPPER + 2u * (uint32_t)p + 1] << 8);
+    uint32_t at = ZM_OFF_VRAM + 16u * v, end = ZM_OFF_VRAM + ZM_VRAM_BYTES;
+    if (!v || at + 4 > end) return 0;
+    uint32_t head = vdl_word(fr, at), n = head & 0x3FFu;
+    if (head >> 28 != 0xFu || ((head >> 19) & 0x1FFu) == 511u || n > 253u || at + 4 + 4 * n > end) return 0;
+    for (uint32_t i = 0; i < n; i++)
+        if (vdl_word(fr, at + 4 + 4 * i) >> 28 == 4u) return 1;
+    return 0;
+}
+
 #endif

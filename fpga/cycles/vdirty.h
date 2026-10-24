@@ -46,6 +46,7 @@ typedef struct {
     uint32_t frames, unknown, bumped; /* frames planned, UNKNOWN ones, lines whose version moved */
     uint32_t mask_moved;              /* frames whose planes a handler switched */
     uint32_t cmp_bytes;               /* bytes compared with their copies (the plan's cost, vadapt.h) */
+    uint32_t palref;                  /* frames not planned: every plane's list names its palettes (vd_unplannable) */
 } vd_stats;
 extern vd_stats vd;
 
@@ -55,6 +56,11 @@ extern vd_stats vd;
  * from fr->enabled (a handler switched a plane; the plan no longer holds). */
 int vd_plan(const vd_frame* fr);
 void vd_mask_moved(void);
+/* Before planning: 1 if no line of this frame can be skipped because every enabled plane's list
+ * opens with a PALREF (vdlist.h: such a list always counts as changed, and its plane's lines with
+ * it). The caller then plans nothing (vd_unknown) and keeps the frame out of vadapt.h's timing:
+ * its probes would compare a whole frame that cannot pay (mpp_truecolor 4 PLANES lost a frame each). */
+int vd_unplannable(const vd_frame* fr);
 /* Nothing can be compared this frame (a handler plane): every line is new, and
  * neither picture's rows are trusted again until rebuilt. */
 void vd_unknown(void);
