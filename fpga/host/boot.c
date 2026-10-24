@@ -13,13 +13,21 @@ wasm_rt_memory_t* w2c_env_memory(struct w2c_env* e) { return &e->memory; }
 /* The order is scene_hash.mjs's, and it matters: instantiation runs each
  * module's data segments into the shared memory, and hwSetRomHigh lands between
  * the rom and the cart. */
-void host_boot(struct w2c_env* e) {
+void host_boot_machine(struct w2c_env* e) {
     /* Calloc'd and bounds-checked (WASM_RT_USE_MMAP=0): zeroed like a fresh
      * wasm memory, and no guard pages so it runs on a bare rv32 too. */
     wasm_rt_allocate_memory(&e->memory, host_pages, host_pages, false, WASM_DEFAULT_PAGE_SIZE);
     wasm2c_machine_instantiate(&e->machine, e);
     wasm2c_rom_instantiate(&e->rom, e);
     w2c_machine_hwSetRomHigh(&e->machine, host_rom_high);
+}
+
+void host_boot(struct w2c_env* e) {
+    host_boot_machine(e);
+    host_boot_cart(e);
+}
+
+void host_boot_cart(struct w2c_env* e) {
     wasm2c_cart_instantiate(&e->cart, e);
     host_audio_mirror_bind(e); /* env.c: where the cart keeps the audio state (a no-op here) */
     w2c_machine_hwSetCartHigh(&e->machine, host_cart_high);

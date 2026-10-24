@@ -54,11 +54,19 @@ void bsys_link(void) {
 #endif
 
 /* host/boot.c's order (scene_hash.mjs boot()), the cart instance calloc'd at its own size. */
-void host_boot(struct w2c_env* e) {
+void host_boot_machine(struct w2c_env* e) {
     zm_mem_place(&e->memory, host_pages, ZIGGY_MEM_SET);
     wasm2c_machine_instantiate(&e->machine, e);
     wasm2c_rom_instantiate(&e->rom, e);
     w2c_machine_hwSetRomHigh(&e->machine, host_rom_high);
+}
+
+void host_boot(struct w2c_env* e) {
+    host_boot_machine(e);
+    host_boot_cart(e);
+}
+
+void host_boot_cart(struct w2c_env* e) {
     e->cart = calloc(1, zm_cart->inst_bytes);
     if (!e->cart) wasm_rt_trap(WASM_RT_TRAP_OOB);
     zm_cart->instantiate(e->cart, e);

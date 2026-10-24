@@ -37,6 +37,13 @@ HFW_DEPS  := $(FW_DEPS) cycles/bmicros.h cycles/bdisk.c cycles/bblit.c cycles/bb
 	cycles/binput.c cycles/binput.h cycles/bcursor.c cycles/bcursor.h host/input_bridge.c host/input_bridge.h host/glass_router.c \
 	cycles/bdiskapp.c cycles/bdiskapp.h cycles/bcartreq.h host/disk_app.h host/zmd_dir.h host/zmd_dir_fat.h gen/glass_cart.h \
 	glass/firmware/glass_input.c glass/firmware/glass_input.h gen/glass_map.h
+# A disk's boot sector before its cart (cycles/bbootsec.h): the interpreter in its own archive and
+# cycles/bbootsec.c (per image: it sees the cart's w2c_env, as bmain.c does) both linked AFTER fw.a,
+# so the code and constants already in the image keep their places (the I$ and D$ sets the hot code
+# and data fall in); it adds no .data or .bss. Only the board's images run it (ZM_BOOTSEC).
+BOOTSEC_SRC := host/bootsec.c $(addprefix host/wint_,load.c link.c scan.c num.c flow.c exec.c)
+BOOTSEC_DEPS := $(BOOTSEC_SRC) cycles/bbootsec.c cycles/bbootsec.h host/bootsec.h host/wint.h host/wint_leb.h \
+	host/wint_exec.h
 # The link of cycles.mk with the top 4 KiB of the window kept free for the debug
 # mailbox (cycles/bmailbox.h): the stack starts below it.
 HRV_LDFLAGS := $(subst __ram_size=0x01000000,__ram_size=0x00fff000,$(RV_LDFLAGS)) -Wl,--wrap=w2c_machine_hwBlit $(L_$(HV))
@@ -89,7 +96,7 @@ H_sim    = $(if $(ZM_VSEQ_CHECK),-DZM_VSEQ_CHECK) $(if $(ZM_NO_VPLAN),-DZM_NO_VP
 # ZM_SYS_MHZ=<n>: a bitstream whose sys clock is not 100 MHz (the FPU test bitstream runs 80):
 # board_micros() (bboard.c, the cart's hostMicros) is the one place the firmware reads the clock.
 ZM_SYS_MHZ ?=
-H_board  = -DZM_BOARD -DZM_FRAMES=0 -DZM_EVERY=1 $(B_$(ZM_BLIT)) $(A_$(ZM_AUDIO)) $(if $(ZM_SYS_MHZ),-DZM_SYS_MHZ=$(ZM_SYS_MHZ)u)
+H_board  = -DZM_BOARD -DZM_BOOTSEC -DZM_FRAMES=0 -DZM_EVERY=1 $(B_$(ZM_BLIT)) $(A_$(ZM_AUDIO)) $(if $(ZM_SYS_MHZ),-DZM_SYS_MHZ=$(ZM_SYS_MHZ)u)
 
 $(SOC_HP)/hp_sim.json: $(HP_DEPS)
 	systemd-run --user --scope -q -p MemoryMax=6G -p MemorySwapMax=0 \
@@ -132,8 +139,14 @@ $(HCYC)/$(1)$(ASUF)$(HSUF)/common/fw.a: $(HFW_DEPS) $(HCYC)/$(1)$(ASUF)$(HSUF)/c
 	for s in $(HFW_FILES); do \
 		$(RV_CC) $(HRV_CFLAGS) $(H_$(1)) -c $$$$s -o $$(@D)/fw/$$$$(basename $$$$s).o || exit 1; done
 	rm -f $$@ && $(RV_AR) rcs $$@ $$(@D)/fw/*.o
+$(HCYC)/$(1)$(ASUF)$(HSUF)/common/bootsec.a: $(BOOTSEC_DEPS) $(HCYC)/$(1)$(ASUF)$(HSUF)/common/sys_mhz
+	@mkdir -p $$(@D)/bootsec
+	for s in $(BOOTSEC_SRC); do \
+		$(RV_CC) $(HRV_CFLAGS) $(H_$(1)) -c $$$$s -o $$(@D)/bootsec/$$$$(basename $$$$s).o || exit 1; done
+	rm -f $$@ && $(RV_AR) rcs $$@ $$(@D)/bootsec/*.o
 $(HCYC)/$(1)$(ASUF)$(HSUF)/%/fw.elf: $(CYC)/$(HV)/%/cart.o $(CYC)/$(HV)/common/machine.o $(CYC)/$(HV)/common/rom.o \
-		$(HCYC)/$(1)$(ASUF)$(HSUF)/common/fw.a $(HOST)/%/env.c host/boot.c cycles/bmain.c cycles/vseq.c $(VPLAN_SRC) \
+		$(HCYC)/$(1)$(ASUF)$(HSUF)/common/fw.a $(HCYC)/$(1)$(ASUF)$(HSUF)/common/bootsec.a $(HOST)/%/env.c host/boot.c \
+		cycles/bmain.c cycles/vseq.c $(VPLAN_SRC) \
 		$(AUD_FW_DEPS) $(HCYC)/songs/%.c $(AUD_CART_OBJ_$(ZM_AUDIO)) FORCE
 	@mkdir -p $$(@D)
 	rm -f $$(@D)/aud_*.o
@@ -145,9 +158,12 @@ $(HCYC)/$(1)$(ASUF)$(HSUF)/%/fw.elf: $(CYC)/$(HV)/%/cart.o $(CYC)/$(HV)/common/m
 	for s in $(VPLAN_SRC); do $(RV_CC) $(HRV_CFLAGS) $(H_$(1)) -I$(HOST)/$$* -c $$$$s -o $$(@D)/vp_$$$$(basename $$$$s .c).o || exit 1; done
 	for s in $(HIN_SRC); do $(RV_CC) $(HRV_CFLAGS) $(H_$(1)) -I$(HOST)/$$* -c $$$$s -o $$(@D)/in_$$$$(basename $$$$s .c).o || exit 1; done
 	$(RV_CC) $(HRV_CFLAGS) $(H_$(1)) -I$(HOST)/$$* -DZM_CART='"$$*"' -c cycles/bmain.c -o $$(@D)/main.o
+	@mkdir -p $$(@D)/bb
+	$(RV_CC) $(HRV_CFLAGS) $(H_$(1)) -I$(HOST)/$$* -c cycles/bbootsec.c -o $$(@D)/bb/bbootsec.o
 	$(RV_CC) $(HRV_LDFLAGS_$(ZM_AUDIO)) -o $$@ $$(@D)/main.o $$(@D)/vseq.o $$(@D)/vp_*.o $$(@D)/env.o $$(@D)/boot.o $$(@D)/in_*.o $$< \
 		$$(@D)/aud_*.o $(AUD_CART_OBJ_$(ZM_AUDIO)) \
-		$(CYC)/$(HV)/common/machine.o $(CYC)/$(HV)/common/rom.o $(HCYC)/$(1)$(ASUF)$(HSUF)/common/fw.a -lm
+		$(CYC)/$(HV)/common/machine.o $(CYC)/$(HV)/common/rom.o $(HCYC)/$(1)$(ASUF)$(HSUF)/common/fw.a \
+		$$(@D)/bb/bbootsec.o $(HCYC)/$(1)$(ASUF)$(HSUF)/common/bootsec.a -lm
 # fw.bin is what lands at DDR_BASE (soc/zm_hp.py): the CPU's reset vector is its first word.
 $(HCYC)/$(1)$(ASUF)$(HSUF)/%/fw.bin: $(HCYC)/$(1)$(ASUF)$(HSUF)/%/fw.elf
 	$(RV_OBJCOPY) -O binary $$< $$@

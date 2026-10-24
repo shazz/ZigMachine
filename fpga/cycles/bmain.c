@@ -16,12 +16,14 @@
  * of each blitter op and "ZM WF f" + the bus counters (report_frame), and with ZM_TRACE_FRAME = f
  * that frame's ops one by one ("ZM BT"). ZM_WARP_MS starts the cart's timeline late.
  * The drive (bdisk.h): "ZM DISK ..." at boot, before the cart's init can read it, and at the end;
- * GEM over a data disk (bdiskapp.h): "ZM GEMDISK ..." at boot, "ZM CARTREQ ..." on a request. */
+ * GEM over a data disk (bdiskapp.h): "ZM GEMDISK ..." at boot, "ZM CARTREQ ..." on a request.
+ * A disk's boot sector (bbootsec.h, board images): "ZM BOOTSEC ..." before the cart boots. */
 #include <stdio.h>
 #include <stdlib.h>
 
 #include "baudio.h"
 #include "bblit.h"
+#include "bbootsec.h"
 #include "bdisk.h"
 #include "bdiskapp.h"
 #include "bcursor.h"
@@ -178,7 +180,9 @@ static void boot(void) {
     bsys_link(); /* the lean cart image first (bsys.h): its header says where the disk may start */
 #endif
     bdisk_boot(); /* host_boot runs the cart's init, which may already read the disk */
-    host_boot(&g_env);
+    int sector = bbootsec_wanted(); /* the disk's boot sector runs before its cart (bbootsec.h) */
+    if (sector) host_boot_machine(&g_env);
+    else host_boot(&g_env);
     bdiskapp_boot(); /* after bdisk_boot: the disk it found decides */
     /* The pictures at fixed addresses (bmailbox.h), black until the first swap. */
     for (uint32_t i = 0; i < PICTURE_BYTES / 4; i++) {
@@ -192,6 +196,7 @@ static void boot(void) {
     vstat_boot(); /* its block of the page mb_init just zeroed */
     printf("ZM MB pfb %08lx %lu x %lu\n", (unsigned long)pfb, (unsigned long)w2c_machine_hwPhysWidth(m),
            (unsigned long)w2c_machine_hwPhysHeight(m));
+    if (sector) bbootsec_run(&g_env), host_boot_cart(&g_env); /* the compositor snoops the cart's boot */
     AUDIO(baudio_boot());
     printf("ZM BOOT %lu\n", (unsigned long)(board_cycles() - t0));
 }
