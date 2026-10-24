@@ -47,9 +47,9 @@ pub fn reset() void {
     cleared = false;
 }
 
-fn glyphAt(tx: i32) u32 {
-    const n: i32 = TEXT.len;
-    const c = TEXT[@intCast(@mod(@divFloor(tx, CELL_W), n))];
+fn glyphAt(text: []const u8, tx: i32) u32 {
+    const n: i32 = @intCast(text.len);
+    const c = text[@intCast(@mod(@divFloor(tx, CELL_W), n))];
     return if (c >= 32 and c < 32 + art.GLYPHS) c - 32 else 0;
 }
 
@@ -59,17 +59,23 @@ fn waveAt(x: i32, t: u32) i32 {
     return (AMP1 * trig.sin(a) + AMP2 * trig.sin(b)) >> 16;
 }
 
+/// The oldschool scroller at tick t (it starts at T.SCROLL).
 pub fn draw(fb: *zg.LogicalFB, bl: *zg.Blitter, t: u32) void {
+    run(fb, bl, if (t < T.SCROLL) null else t - T.SCROLL, t, TEXT);
+}
+
+/// `st` ticks into `text` (null: not started, the band kept clear); t drives the wave.
+pub fn run(fb: *zg.LogicalFB, bl: *zg.Blitter, st: ?u32, t: u32, text: []const u8) void {
     blits = 0;
-    if (t < T.SCROLL) {
+    const s = st orelse {
         if (!cleared) bl.fill(fb, 0, TOP, zg.PHYSICAL_WIDTH, BAND, P.BG);
         cleared = true;
         return;
-    }
+    };
     cleared = false;
     bl.fill(fb, 0, TOP, zg.PHYSICAL_WIDTH, BAND, P.BG);
     blits += 1;
-    const pos: i32 = @intCast((t - T.SCROLL) * SPEED);
+    const pos: i32 = @intCast(s * SPEED);
     const base = pos - @mod(pos, COL) - zg.PHYSICAL_WIDTH; // the text enters from the right
     var k: i32 = 0;
     var run_x: i32 = 0;
@@ -80,7 +86,7 @@ pub fn draw(fb: *zg.LogicalFB, bl: *zg.Blitter, t: u32) void {
         const tx = base + k * COL;
         const x = k * COL - @mod(pos, COL);
         const y = TOP + 1 + AMP1 + AMP2 + waveAt(x, t);
-        const g = if (tx < 0) 0 else glyphAt(tx);
+        const g = if (tx < 0) 0 else glyphAt(text, tx);
         const sx = g * CELL_W + @as(u32, @intCast(@mod(tx, CELL_W)));
         const blank = g == 0; // before the text, or a space: nothing to blit
         if (run_w > 0 and !blank and y == run_y and sx == run_sx + run_w) {

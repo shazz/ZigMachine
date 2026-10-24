@@ -1,5 +1,5 @@
 // --------------------------------------------------------------------------
-// ANIMA -- a new one-screen demo written for the ZigMachine (2026-10-23), in
+// ANIMA -- a new multipart demo written for the ZigMachine (2026-10-23), in
 // the spirit of the Atari ST / Amiga scenes: no port, no original to follow.
 //
 // anima/app.zig carries the screen notes (timeline, budget, machine features,

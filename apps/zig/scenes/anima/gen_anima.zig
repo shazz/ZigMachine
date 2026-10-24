@@ -13,11 +13,13 @@ const std = @import("std");
 const art = @import("art.zig");
 const gen = @import("gen.zig");
 const tun = @import("gen_tunnel.zig");
+const roto = @import("gen_roto.zig");
 
 var logo: [art.LH * art.LW]u8 = undefined;
 var strip: [art.CELL_H * art.STRIP_W]u8 = undefined;
 var map: [tun.VW * tun.HALF]u16 = undefined;
 var tex: [tun.TEX_N * tun.TEX_N]u8 = undefined;
+var roto_tex: [roto.N * roto.N]u8 = undefined;
 
 pub fn main(init: std.process.Init) !void {
     const io = init.io;
@@ -34,12 +36,14 @@ pub fn main(init: std.process.Init) !void {
     art.buildFont(sheet, &strip);
     tun.buildMap(&map);
     tun.buildTex(&tex);
+    roto.build(sheet, &roto_tex);
 
     const files = [_]struct { name: []const u8, data: []const u8 }{
         .{ .name = "logo", .data = &logo },
         .{ .name = "font", .data = &strip },
         .{ .name = "tunnel_map", .data = std.mem.sliceAsBytes(&map) },
         .{ .name = "tunnel_tex", .data = &tex },
+        .{ .name = "roto_tex", .data = &roto_tex },
     };
     try cwd.createDirPath(io, out_path);
     const dir = try cwd.openDir(io, out_path, .{});

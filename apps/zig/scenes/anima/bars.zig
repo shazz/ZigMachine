@@ -133,6 +133,12 @@ fn skyAt(r: usize) u32 {
 }
 
 pub fn build(t: u32, logo_top: usize, logo_rows: usize, font_top: usize, font_rows: usize) void {
+    drum(t);
+    bodies(t, logo_top, logo_rows, font_top, font_rows);
+}
+
+/// Entry 0: the drum of bars over the sea.
+fn drum(t: u32) void {
     placeBars(t);
     const wob = t *% (1 << 25);
     for (0..R.ROWS) |r| {
@@ -144,6 +150,10 @@ pub fn build(t: u32, logo_top: usize, logo_rows: usize, font_top: usize, font_ro
         }
         if (R.lines[r][0] != v) R.lines[r][0] = v;
     }
+}
+
+/// The logo's chrome (slot 1) and the font's rainbow (slot 2) on their rows.
+pub fn bodies(t: u32, logo_top: usize, logo_rows: usize, font_top: usize, font_rows: usize) void {
     for (logo_top..logo_top + logo_rows) |r| {
         const v = CHROME[(r - logo_top + 64 * 4 - (t >> 1) % 64) % 64];
         if (R.lines[r][1] != v) R.lines[r][1] = v;

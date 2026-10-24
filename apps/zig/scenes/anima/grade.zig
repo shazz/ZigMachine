@@ -25,6 +25,17 @@ pub fn surge(lt: u32) u32 {
     return @as(u32, beat) * (lt & 3);
 }
 
+/// One STE colour lit by (light+1)/16 plus the beat, mixed toward white by white/16.
+pub fn lit(rgb: *const [3]u8, light: u32, white: u32) u32 {
+    var c: u32 = 0xFF00_0000;
+    for (0..3) |g| {
+        const base: u32 = @as(u32, rgb[g]) * 17 * (light + 1 + @as(u32, beat) * 2) / 16;
+        const v: u32 = @min(base, 255);
+        c |= (v + (255 - v) * white / 16) << @intCast(8 * g);
+    }
+    return c;
+}
+
 /// pal[light << 4 | level] = ramp[level] lit by (light+1)/16, lifted by the
 /// beat, then mixed toward white by white/16.
 pub fn build(pal: [*]u32, ramp: *const [16][3]u8, white: u32) void {
@@ -33,8 +44,8 @@ pub fn build(pal: [*]u32, ramp: *const [16][3]u8, white: u32) void {
         var c: u32 = 0xFF00_0000;
         for (0..3) |g| {
             const base: u32 = @as(u32, ramp[level][g]) * 17 * (@as(u32, @intCast(light)) + 1 + lift) / 16;
-            const lit: u32 = @min(base, 255);
-            const v = lit + (255 - lit) * white / 16;
+            const clip: u32 = @min(base, 255);
+            const v = clip + (255 - clip) * white / 16;
             c |= v << @intCast(8 * g);
         }
         pal[light << 4 | level] = c;

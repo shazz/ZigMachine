@@ -67,12 +67,24 @@ fn distance(l: u32, stays: bool) f32 {
     return NEAR + (FAR - NEAR) * f;
 }
 
+/// The oldschool's glenz at tick t: a cube, then an octahedron that stays.
 pub fn draw(fb: *zg.LogicalFB, bl: *zg.Blitter, t: u32) void {
     tris = 0;
     erase(fb, bl);
     if (t < T.GLENZ) return;
     const e = t - T.GLENZ;
     const n: usize = @min(e / T.OBJECT_TICKS, OLD_OBJECTS - 1); // the oldschool shows two
+    object(fb, n, e, e - @as(u32, @intCast(n)) * T.OBJECT_TICKS, n == OLD_OBJECTS - 1, bl);
+}
+
+/// The finale's glenz: object n, e ticks of motion, l ticks into its stay.
+pub fn finale(fb: *zg.LogicalFB, bl: *zg.Blitter, n: usize, e: u32, l: u32) void {
+    tris = 0;
+    erase(fb, bl);
+    object(fb, n, e, l, false, bl);
+}
+
+fn object(fb: *zg.LogicalFB, n: usize, e: u32, l: u32, stays: bool, bl: *zg.Blitter) void {
     if (n != scheme) {
         scheme = n;
         P.glenz(fb.palette, n);
@@ -83,7 +95,7 @@ pub fn draw(fb: *zg.LogicalFB, bl: *zg.Blitter, t: u32) void {
     const ay: u32 = e *% (5 << 23);
     const az: u32 = e *% (7 << 22);
     const m = matrix(ax, ay, az);
-    const d = distance(e - @as(u32, @intCast(n)) * T.OBJECT_TICKS, n == OLD_OBJECTS - 1);
+    const d = distance(l, stays);
     const cx = CX + SWING * q16(trig.sin(e *% (1 << 23)));
     const cy = CY + 2.0 * q16(trig.sin(e *% (7 << 22)));
     var pts: [O.MAX_V]zg.BlitVec2 = undefined;

@@ -38,6 +38,11 @@ export fn animaLogoBlits() u32 {
     return @import("logo.zig").blits;
 }
 
+/// The colour the HBL writes into slot s on physical line r.
+export fn animaLineColour(r: u32, s: u32) u32 {
+    return if (r < raster.ROWS and s < raster.MAX) raster.lines[r][s] else 0;
+}
+
 /// The raster's colour for physical line r (entry 0's per-line table).
 export fn animaRasterAt(r: u32) u32 {
     return if (r < raster.ROWS) raster.lines[r][0] else 0;

@@ -17,7 +17,7 @@
 //   3000  ROTO     the ANIMA tile rotozoomed and melted, a palette per line
 //   3960  TORUS    a lit FPU torus knot in a raster sky
 //   4920  END      the ending card
-//   6120  the demo starts over
+//   6420  the demo starts over
 // --------------------------------------------------------------------------
 pub const OPEN: u32 = 90;
 pub const SIDES_TICKS: u32 = 60; // sides: the middle line to all 200
@@ -34,7 +34,7 @@ pub const TUNNEL: u32 = GAG + 360;
 pub const ROTO: u32 = TUNNEL + 960;
 pub const TORUS: u32 = ROTO + 960;
 pub const END: u32 = TORUS + 960;
-pub const LOOP: u32 = END + 1200;
+pub const LOOP: u32 = END + 1500;
 
 pub const Phase = enum(u8) { dark, open, breathe, scroll, glenz, gag, tunnel, roto, torus, end };
 

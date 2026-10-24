@@ -1,40 +1,37 @@
 // --------------------------------------------------------------------------
-// ANIMA -- "the soul": a new ZigMachine one-screen demo (cart 107, 2026-10-23).
+// ANIMA -- "the soul": a new ZigMachine multipart demo (cart 107, 2026-10-23).
 //
-// THE SCREEN.  One overscan plane, 400x280, every border earned by the
-// flicker trick (raster.zig).  Back to front:
-//   - six copper bars turning round a drum, reflected in the sea under the
-//     horizon: a REAL raster, entry 0 rewritten per physical line from the HBL,
-//     so it runs through every open border (bars.zig);
-//   - a 3D starfield where nothing else is drawn (stars.zig);
-//   - the ANIMA logo, composed at compile time from a 16x16 font (EPX-smoothed
-//     twice, bevelled, outlined, drop-shadowed: logo_gen.zig), BREATHING: each
-//     of its rows is one CHISEL blit whose source row (a vertical stretch) and
-//     x (a sine wobble) change every frame (logo.zig); its body is a chrome
-//     copper ramp per line;
-//   - glenz objects (cube, octahedron, icosahedron, a spiked star): rotated on
-//     ZIGGY's FPU in f32 (a few hundred ops a frame), drawn as CHISEL triangles
-//     ORed into the plane: overlapping faces mix (glenz.zig, objects.zig);
-//   - a 32-pixel sine scroller in the bottom border, 8-pixel columns blitted
-//     straight from the comptime font in cart RAM, rainbow copper body
-//     (scroller.zig, font_gen.zig).
-// The timeline (timeline.zig) earns the screen: DARK, OPEN, BREATHE, SCROLL,
-// GLENZ.
+// THE DRAMATURGY.  An honest ST screen first, then the classic gag -- "oh...
+// the KESTREL can do more than that!" -- then what an ST could never do, at
+// 60 fps on the board.  Every part on ONE overscan plane, 400x280, every
+// border earned by flickerBorder() from the HBL (raster.zig).
 //
-// BOARD BUDGET (est. with apps/frame_cost.mjs): FRESCO 1.09 Mc for the one
-// enabled plane; the rest is CHISEL time (~150 blits) and a few thousand
-// stores.  Nothing clears the plane: each part erases only what it drew
-// (stars by pixel, the glenz by its last box, the scroller by its band; the
-// logo's rows are padded so each blit overwrites its own last row).
+//   OLDSCHOOL (old.zig)  the borders opening line by line; six copper bars on a
+//       drum reflected in the sea (a REAL raster on entry 0, bars.zig); a
+//       breathing chrome logo blitted row by row (logo.zig); stars; a sine
+//       scroller in the bottom border; glenz vectors (glenz.zig)
+//   THE GAG (gag.zig)  the timing slips: rasters scramble, the logo tears, the
+//       flicker misses the magic column and the borders fill with noise; the
+//       ST freezes; a terminal types its verdict
+//   TUNNEL (tunnel.zig)  a full-overscan textured, twisting tunnel, 2x2 pixels
+//   THE MELT (roto.zig)  a rotozoomed, melting tile with A PALETTE PER LINE
+//   THE KNOT (knot.zig)  a lit trefoil knot on the FPU, CHISEL triangles, in
+//       a synthwave sunset that is a real raster
+//   THE END (end.zig)  the logo over a copper plasma, the glenz finale, the
+//       credits; it burns to white and starts over
+// timeline.zig sequences them on one tick; parts.zig dispatches.
 //
-// MUSIC.  "Breath 2000" by Tao (SNDH archive: Tao/Breath_2000.sndh, flags
-// ~ady, no STE DMA), the 68000 replay on BARD.  ANIMA is the breath: the tune
-// is the screen's namesake.  SNDH archive tunes are distributed freely for
-// the scene; credited here and in the scroller.
+// BOARD BUDGET (apps/frame_cost.mjs, the recalibrated model): every part under
+// the 1.75 Mc knee, the busiest (the melt) at ~1.6.  FRESCO is 0.7 for the one
+// plane; nothing clears the plane that a part can redraw in place.
 //
-// ASSETS.  The only bitmap is apps/zig/assets/fonts/16X16-F5 (font16.raw,
-// the bitmap font Matt supplied for music_debug's scroller, ZigMachine shelf);
-// the logo and the 32-pixel font are built from it at compile time.
+// MUSIC (music.zig).  Mad Max's Cuddly Demos "Reset" for the ST screen, silence
+// at the crash, Tao's "Breath 2000" for the newschool, all on BARD.
+//
+// ASSETS.  Generated at build time (gen_anima.zig): the logo and the scroller
+// font from apps/zig/assets/fonts/font16.raw (the 16X16-F5 font Matt supplied
+// for music_debug), the tunnel map and texture, the rotozoom tile.  No other
+// bitmap.
 //
 // KEYS.  Escape leaves.
 // --------------------------------------------------------------------------
@@ -114,7 +111,7 @@ pub const Demo = struct {
         // a first frame, a new part or a timeline jump: the part starts afresh
         const jumped = if (drawn_tick) |d| t < d or t > d + MAX_TICKS else true;
         const fresh = jumped or p != shown;
-        if (fresh) parts.enter(p, fb, bl, t, jumped);
+        if (fresh) parts.enter(p, fb, bl, jumped);
         parts.draw(p, fb, bl, t, fresh, drawn_tick != t);
         shown = p;
         drawn_tick = t;

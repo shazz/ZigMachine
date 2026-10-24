@@ -17,7 +17,7 @@ import { costOf, parseArgs } from "./frame_cost.mjs";
 import { CART, boot, step, shot, borderMisses, background } from "./anima_lib.mjs";
 
 const CEILING_MC = 1.75; // the board's knee: above it the frame drops below 60 fps (lead, 2026-10-23)
-const MAX_BLITS = 200;
+const MAX_BLITS = 260;
 const BREAKS = ["hash", "border", "raster", "music", "cost", "noise"];
 const argv = process.argv.slice(2);
 const bi = argv.indexOf("--break");
@@ -31,6 +31,7 @@ const out = argv.find((a, i) => !a.startsWith("--") && argv[i - 1] !== "--break"
 const PARTS = {
     dark: [20, 60], open: [150, 170], breathe: [260, 330], cube: [700, 700], octa: [1300, 1300],
     slip: [1760, 1790], freeze: [1860, 1860], terminal: [1950, 2000], tunnel: [2500, 2500],
+    roto: [3500, 3300], knot: [4400, 4400], ico: [5300, 5300], star: [5800, 5800], burn: [6400, 6400],
 };
 const PINS = {
     60: "2ffcc7dae0b41e2cfd6d545cfaadb1ac73019dbbece3491845294ce2bfc7896c",
@@ -42,6 +43,11 @@ const PINS = {
     1860: "7c74d3fb43ac7bce9b73aeca31f514bb12cc0bf63eb4535d333f65c6962a13ea",
     2000: "4b8f2f7d12f38707a27f791b0afb74572328fc69e9ba77c2b4903dac3aadd177",
     2500: "d38c6b2cbd581443f60ebad9b452cd0fd3371f2856efb269122711d05dc237b3",
+    3300: "a779d0d38ae2adfbc6fc5f6ab0db5157a7615c0b67914786887907bf819d4cd9",
+    4400: "e351b6b3fc5582f6feb8f83e059b50038ea9ccfdbb64a96bb4f395b0e2defbbc",
+    5300: "68bf6129d397a8b89bc5f68525f5e603f06c46b35861059daf6508c9b1d283c8",
+    5800: "4ff03d84a12f39640f6977fb4c4eb2fbee27daa09a1ff17e1f206df6e959e315",
+    6400: "cbf830ab04a2497c713310d395cb3f777941940900cf67f1669ef2cc6b4a8606",
 };
 const SONGS = ["cuddly_reset.sndh", "none", "breath_2000.sndh"];
 
@@ -81,6 +87,14 @@ const checks = {
     2500() { // NEWSCHOOL: every line open, the tunnel over the borders
         const b = borderMisses(m, () => background(m));
         ok(lines().every(Boolean) && b.seen === 0, `tunnel: borders not covered (${b.seen} index-0 samples)`);
+    },
+    3300() { // THE MELT: a palette per line (slot 8 = light level 8 takes a hue a line)
+        const hues = new Set(Array.from({ length: 280 }, (_, r) => demo.animaLineColour(r, 8) >>> 0)).size;
+        ok(demo.animaPhase() === 7 && hues >= 24, `roto: ${hues} different level-8 colours over 280 lines`);
+    },
+    4400() { // THE KNOT: the sunset sky is a real raster again, through both borders
+        const b = borderMisses(m, raster);
+        ok(lines().every(Boolean) && b.miss === 0 && b.seen > 200, `knot: ${b.miss}/${b.seen} border pixels off the raster`);
     },
 };
 if (broke === "noise") checks[1860] = () => catchIf("noise", borderMisses(m, raster).miss === 0, "noise: the freeze shows noise");
