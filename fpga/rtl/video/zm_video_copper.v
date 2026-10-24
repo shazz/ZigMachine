@@ -63,6 +63,7 @@ module zm_video_copper (
     reg asked;
     reg [7:0] left;
     reg [7:0] n, i, k, j, first;          // body words, word index, block size and index, entry
+    reg [7:0] room;                       // n - i: the body words from i on (for the checks)
     reg ref;                              // the block is a PALREF's (its words in the high half)
     reg [9:0] rword;                      // the buffer word read
     reg [9:0] wbase;                      // buffer word of body word 0
@@ -108,7 +109,8 @@ module zm_video_copper (
                   && t_word + {11'd0, k} <= VWORDS;
     // At a LATCH: the plane's list.
     wire [15:0] l_v = regs[(ZM_REG_FB_COPPER + plane * 2) * 8 +: 16];
-    wire [7:0] i_next = i + (ref ? 8'd2 : k + 8'd1);               // after a block
+    wire [7:0] step = ref ? 8'd2 : k + 8'd1;                       // a block's words
+    wire [7:0] i_next = i + step;                                    // after a block
     wire [8:0] rec_beats = ({1'b0, c_hn} + 9'd2 + {8'd0, h_at[0]}) >> 1;
     wire [8:0] ref_beats = ({1'b0, k} + 9'd1 + {8'd0, t_word_r[0]}) >> 1;
 
@@ -169,6 +171,7 @@ module zm_video_copper (
                     fb_waddr <= 8'd0;
                     wbase <= {9'd0, h_at[0]};
                     i <= 8'd0;
+                    room <= c_hn;
                     k <= 8'd0;
                     ref <= 1'b0;
                     st <= REC;
@@ -187,11 +190,12 @@ module zm_video_copper (
                     if (op == 4'h3) flick <= 1'b1;
                     if (op == 4'h2) hs_we <= 1'b1;
                     i <= i + 8'd1;
+                    room <= room - 8'd1;
                     rword <= rword + 10'd1;
-                    after <= i + 8'd1 == n;
+                    after <= room == 8'd1;
                     st <= RD1;
-                end else if ((op == 4'h1 && !bad_blk && {1'b0, i} + wk < {1'b0, n})
-                             || (op == 4'h4 && !bad_blk && i + 8'd1 < n)) begin
+                end else if ((op == 4'h1 && !bad_blk && wk < {1'b0, room})
+                             || (op == 4'h4 && !bad_blk && room > 8'd1)) begin
                     first <= wq[27:20];
                     k <= wq[19:12];
                     ref <= op == 4'h4;     // a PALREF's next word is its table's offset
@@ -222,8 +226,9 @@ module zm_video_copper (
                     rword <= rword + 10'd1;
                 end else begin
                     i <= i_next;
+                    room <= room - step;
                     rword <= wbase + {2'b00, i_next};
-                    after <= i_next == n;
+                    after <= room == step;
                     k <= 8'd0;
                     ref <= 1'b0;
                 end
