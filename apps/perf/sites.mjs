@@ -51,7 +51,11 @@ function innerHook(d, i, ctx) {
     const orig = [...ctx.buf.subarray(at, next)];
     const t = tempsFor(d), site = (list) => list.push({ fi: d.fi, at, word: ctx.next, seg: ctx.seg }) - 1;
     if (op === OP.memory_fill) { const s = site(ctx.plan.fills); return fillHook(ctx.next++, s, t, ctx.vlo, orig); }
-    if (op === OP.memory_copy) { const s = site(ctx.plan.copies); return copyHook(ctx.next++, s, t, ctx.vlo, orig); }
+    if (op === OP.memory_copy) { // two words: bytes copied, bytes copied from a misaligned source
+        const s = site(ctx.plan.copies), w = ctx.next;
+        ctx.next += 2;
+        return copyHook(w, s, t, ctx.vlo, orig);
+    }
     if (op === OP.call && ctx.blit.has(imm)) {
         ctx.plan.blits.push({ fi: d.fi, at, seg: ctx.seg });
         return blitSiteHook(ctx.plan.blits.length - 1, orig);

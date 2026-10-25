@@ -32,6 +32,9 @@ export const CYCLE_CASES = [
     { pattern: "misaligned", // i32 loads 4 apart from an odd address, vs the same loads from an aligned one
         with: loop(1, N, [...I.get(2), ...I.get(1), ...I.i32(2), ...I.shl, ...I.load1(BUF + 1), ...I.add, ...I.set(2)]),
         without: loop(1, N, [...I.get(2), ...I.get(1), ...I.i32(2), ...I.shl, ...I.load1(BUF), ...I.add, ...I.set(2)]) },
+    { pattern: "misaligned_memcpy", // 4 KB a frame copied from a source at +1 against its destination, vs aligned
+        with: [...I.i32(BUF), ...I.i32(BUF2 + 1), ...I.i32(4096), ...I.copy],
+        without: [...I.i32(BUF), ...I.i32(BUF2), ...I.i32(4096), ...I.copy] },
     { pattern: "invariant_branch", // a flag fixed for the frame tested per pixel, vs a test that alternates
         with: [...I.i32(0), ...I.load(BUF2 + 128), ...I.set(4), ...branchy(I.get(4))],
         without: branchy([...I.get(1), ...I.i32(1), ...I.and]) },

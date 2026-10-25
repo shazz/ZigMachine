@@ -30,7 +30,7 @@ export const BENCH_FRAME = ["FRESCO_PLANE", "FRAME_BASE"];
 export function cycles(p, f) {
     let c = 0;
     for (const [i, s] of f.regions) c += Math.max(i * p.CPI, s * p.STORE_DRAIN);
-    return c + (f.fill / 4) * p.FILL_WORD_CYCLES + (f.copy / 4) * p.COPY_WORD_CYCLES + f.misses * p.DMISS + f.blit
+    return c + (f.fill / 4) * p.FILL_WORD_CYCLES + (f.copy / 4) * p.COPY_WORD_CYCLES + ((f.copyMis ?? 0) / 4) * CM.COPY_MISALIGNED_WORD + f.misses * p.DMISS + f.blit
         + f.icache + f.hbls * p.HBL_CALL + f.overflow * p.SNOOP_OVERFLOW + p.FRAME_BASE + f.planes * p.FRESCO_PLANE
         + (f.disk ?? 0) * p.DISK_BLOCK + (f.misaligned ?? 0) * p.TRAP_CYCLES;
 }

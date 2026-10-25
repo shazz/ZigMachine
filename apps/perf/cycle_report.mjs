@@ -1,7 +1,7 @@
 // Cycle-waste findings from the round-3 probes (probe_hooks.mjs): divides, recomputed
 // values, cache-hostile walks, per-iteration calls, i64 that fits in i32, branches that
 // never flip inside a frame. Each with an estimated WASTED Mc/frame and a fix.
-import { opCost, CPI, DMISS, MISALIGNED } from "./cost_model.mjs";
+import { opCost, CPI, DMISS, MISALIGNED, misCopyCycles } from "./cost_model.mjs";
 import { funcName } from "./wasm_bin.mjs";
 import { DIV_OPS } from "./probe_sites.mjs";
 
@@ -12,11 +12,13 @@ export const CYCLE_HINTS = {
     call_in_loop: "inline it (inline fn / comptime) or work on the whole span in one call",
     i64_fits_i32: "use i32/u32: every value seen fits, and i64 is two registers and libgcc sequences on rv32",
     invariant_branch: "the condition never changes inside the frame: test it once, outside the loop (two loops)",
-    misaligned: "each one TRAPS on ZIGGY (~700 cycles): keep word accesses 4-aligned (combine two aligned words with shifts), or let CHISEL read the odd address",
+    misaligned: "each one TRAPS on ZIGGY (~210 cycles): keep word accesses 4-aligned (combine two aligned words with shifts), or let CHISEL read the odd address",
+    misaligned_memcpy: "give the source the destination's alignment (align(4)/align(8) on the buffer or @embedFile copy): the board's memcpy builds each word from four byte loads when they differ",
 };
 export const CALL_OVERHEAD = 12;      // cycles: jal/ret, prologue/epilogue, argument moves
 const MIN_EXECS = 2000;               // a site run fewer times a frame is not worth a finding
-const MIN_MISALIGNED = 20;            // misaligned accesses a frame: each costs what ~350 integer ops do
+const MIN_MISALIGNED = 20;
+const MIN_MIS_COPY = 256;             // misaligned memcpy bytes a frame: ~576 cycles            // misaligned accesses a frame: each costs what ~350 integer ops do
 const Mc = (c) => Math.round(c / 1e4) / 100;
 const hex = (n) => "0x" + n.toString(16);
 
@@ -87,6 +89,11 @@ export function cycleReport(profiles, frames) {
             if (n >= MIN_EXECS) out.push(finding(P, c, "call_in_loop", n * CALL_OVERHEAD,
                 `${Math.round(n)} calls a frame to ${funcName(P.plan.module, c.callee)} from inside the loop`));
         }
+        P.plan.copies.forEach((c, i) => {
+            const mis = P.sum.copyMis[i] / F;
+            if (mis >= MIN_MIS_COPY) out.push(finding(P, c, "misaligned_memcpy", misCopyCycles(mis),
+                `${Math.round(mis)} B a frame copied from a source misaligned against its destination (of ${Math.round(P.sum.copy[i] / F)} B)`));
+        });
         cacheFindings(P, F, out);
     }
     return out.filter((f) => f.waste > 0);

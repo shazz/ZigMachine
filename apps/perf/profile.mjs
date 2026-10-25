@@ -1,7 +1,7 @@
 // Turn per-frame counter deltas into op counts and estimated cycles (cost_model.mjs).
 // One Profile per instrumented module; frame() is called after every host frame and
 // returns that frame's cycles, accumulate=true adds the frame to the window sums.
-import { CLASSES, regionCycles, fillCycles, copyCycles, DMISS, MISALIGNED } from "./cost_model.mjs";
+import { CLASSES, regionCycles, fillCycles, copyCycles, misCopyCycles, DMISS, MISALIGNED } from "./cost_model.mjs";
 import { PROBE_COUNTERS } from "./probe_hooks.mjs";
 import { LOG_COUNT, LOG_BASE, BUCKETS, FIRST_COUNTER, KIND_COPY, VRAM_BYTES, BUCKET_SHIFT } from "./hooks.mjs";
 import { WATCH_WORDS } from "./watch_hook.mjs";
@@ -17,7 +17,7 @@ export class Profile {
         this.rInstr = new Float64Array(nR); this.rStores = new Float64Array(nR); this.rExtra = new Float64Array(nR);
         this.sum = { cycles: new Float64Array(nR), iters: new Float64Array(nR), cls: new Float64Array(nR * NCLS), clsCyc: new Float64Array(nR * NCLS),
             instr: new Float64Array(nR), stores: new Float64Array(nR), seg: new Float64Array(nS),
-            fill: new Float64Array(plan.fills.length), copy: new Float64Array(plan.copies.length),
+            fill: new Float64Array(plan.fills.length), copy: new Float64Array(plan.copies.length), copyMis: new Float64Array(plan.copies.length),
             watch: new Float64Array(plan.watch.length * WATCH_WORDS), probe: new Float64Array(plan.probes.length * 2) };
         this.headSeg = new Int32Array(nR).fill(-1);
         for (let s = 0; s < nS; s++) if (this.headSeg[plan.segRegion[s]] < 0) this.headSeg[plan.segRegion[s]] = s;
@@ -83,7 +83,11 @@ export class Profile {
             }
         }
         p.fills.forEach((f, i) => { const b = d[f.word]; this.rExtra[p.segRegion[f.seg]] += fillCycles(b); if (accumulate) S.fill[i] += b; });
-        p.copies.forEach((f, i) => { const b = d[f.word]; this.rExtra[p.segRegion[f.seg]] += copyCycles(b); if (accumulate) S.copy[i] += b; });
+        p.copies.forEach((f, i) => {
+            const b = d[f.word], mis = d[f.word + 1];
+            this.rExtra[p.segRegion[f.seg]] += copyCycles(b) + misCopyCycles(mis);
+            if (accumulate) { S.copy[i] += b; S.copyMis[i] += mis; }
+        });
         if (accumulate) p.watch.forEach((f, i) => { for (let k = 0; k < WATCH_WORDS; k++) S.watch[i * WATCH_WORDS + k] += d[f.word + k]; });
         this.probeFrame(d, accumulate);
         let total = 0;

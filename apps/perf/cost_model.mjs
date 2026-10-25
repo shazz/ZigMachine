@@ -89,6 +89,11 @@ export const FILL_WORD_CYCLES = 2.26; // bench ms.lib.64K: 2.26 a word (posted s
 // memcpy is bound by its LOADS (D$ line misses), not its stores: bench mc.lib.64K 10.95 a word,
 // ~4 in cache (mc.lib.1K). Big copies dominate what carts copy.
 export const COPY_WORD_CYCLES = 10.95;
+// ...plus this for each word whose source is misaligned against its destination: zm_string.c's
+// copy_fwd then builds the word from four lbu and shifts (bench 10-20: mis.lw.bytes 10.7 cycles a
+// word against mis.lw.0's 1.7). big_demo's board +20 Kc cross-checks it: c82b653f put a 70 KB/frame
+// copy source at 3 mod 4, ~+0.1 Mc on the board (~6 a word, net of the miss stalls it overlaps).
+export const COPY_MISALIGNED_WORD = 9;
 // I$ (16 KiB, 2-way): when the rv32 code a frame runs is bigger, a share of its
 // instruction fetches miss; a miss refills a 32-byte line (8 instructions) in ~40 cycles.
 // Joust (~24 KB a frame) is where this shows: without it the model is ~2x under its sim.
@@ -165,6 +170,7 @@ export function opCost(op) {
 // Run-time bytes of memory.fill / memory.copy, as cycles (word loop, bus-bound on stores).
 export const fillCycles = (bytes) => (bytes / 4) * FILL_WORD_CYCLES;
 export const copyCycles = (bytes) => (bytes / 4) * COPY_WORD_CYCLES;
+export const misCopyCycles = (bytes) => (bytes / 4) * COPY_MISALIGNED_WORD;
 
 // A region's cycles for one frame: its instructions, or its store stream if that is
 // the slower of the two (the roofline of a loop against the store buffer's drain).

@@ -9,7 +9,7 @@ const MIN_REGION = 200; // modelled instructions a frame: smaller loops are lump
 
 export function fitDump(profiles, w, run) {
     const F = Math.max(1, w.series.length), regions = [];
-    let small = 0, fill = 0, copy = 0, misses = 0;
+    let small = 0, fill = 0, copy = 0, copyMis = 0, misses = 0;
     for (const P of profiles) {
         const S = P.sum;
         for (let r = 0; r < S.instr.length; r++) {
@@ -20,11 +20,12 @@ export function fitDump(profiles, w, run) {
         }
         fill += S.fill.reduce((a, b) => a + b, 0) / F;
         copy += S.copy.reduce((a, b) => a + b, 0) / F;
+        copyMis += S.copyMis.reduce((a, b) => a + b, 0) / F;
         P.plan.probes.forEach((q, k) => { if (q.kind === "load" && PROBE_COUNTERS.load) misses += S.probe[2 * k] / F; });
     }
     regions.push([Math.round(small), 0]);
     const hw = (k) => (run.hw[k] - w.hw[k]) / F;
-    return { regions, fill: Math.round(fill), copy: Math.round(copy), misses: Math.round(misses),
+    return { regions, fill: Math.round(fill), copy: Math.round(copy), copyMis: Math.round(copyMis), misses: Math.round(misses),
         blit: Math.round(w.split.blit / F), icache: Math.round(w.split.icache / F), hbls: hw("hbls"),
         overflow: hw("snoopOverflow"), disk: hw("diskBlocks"), misaligned: hw("misaligned"), planes: w.planes / F };
 }

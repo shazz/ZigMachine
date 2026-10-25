@@ -77,6 +77,7 @@ every branch inside a loop body counts how often it flips.
 | `call_in_loop` | a small function called per iteration | inline it, or one call per span |
 | `i64_fits_i32` | i64 arithmetic whose every result fits in an i32 | u32/i32 |
 | `invariant_branch` | a test inside a loop body that never flips during the frame | test once outside: two loops |
+| `misaligned_memcpy` | a memory.copy whose source is misaligned against its destination: the board's memcpy (zm_string.c copy_fwd) builds every word from four byte loads (+9 cycles a word, bench `mis.lw.bytes`; big_demo's 70 KB/frame copy cost the board ~0.1 Mc) | align the source like the destination (`align(4)`/`align(8)` on the buffer or the `@embedFile` copy) |
 
 A static op-class finding (`div_loop`, `f64_loop`, `i64_loop`) is now charged what its ops
 cost, not the whole loop's time: leonard's Sprite.render loop runs 87K times a frame but its

@@ -58,9 +58,14 @@ export const fillHook = (word, site, t, vlo, original) => [
     ...LGET(t.d), ...LGET(t.v), ...LGET(t.n), ...original,
 ];
 
-// memory.copy: [d s n] on the stack (t.v holds s). Adds n to its byte counter, logs, copies.
+// memory.copy: [d s n] on the stack (t.v holds s). Adds n to its byte counter (`word`) and,
+// when the source is misaligned against the destination ((d ^ s) & 3 != 0, n >= 8: the board's
+// zm_string.c copy_fwd then builds every word from four byte loads), n to `word + 1`; logs, copies.
 export const copyHook = (word, site, t, vlo, original) => [
-    ...LSET(t.n), ...LSET(t.v), ...LSET(t.d), ...inc(word, LGET(t.n)), ...logEntry((KIND_COPY << 28) | site, t, vlo, t.v),
+    ...LSET(t.n), ...LSET(t.v), ...LSET(t.d), ...inc(word, LGET(t.n)),
+    ...inc(word + 1, [...LGET(t.n), ...I32(0), ...LGET(t.d), ...LGET(t.v), 0x73, ...I32(3), 0x71, 0x45, 0x45,
+        ...LGET(t.n), ...I32(8), 0x4f, 0x71, 0x1b]), // select(n, 0, misaligned && n >= 8)
+    ...logEntry((KIND_COPY << 28) | site, t, vlo, t.v),
     ...LGET(t.d), ...LGET(t.v), ...LGET(t.n), ...original,
 ];
 

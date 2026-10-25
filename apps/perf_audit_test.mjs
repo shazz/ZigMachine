@@ -25,7 +25,7 @@ const broke = bi > 0 ? process.argv[bi + 1] : null;
 const BREAKS = { bytefill: "byte_fill", f64: "f64_loop", redundant: "redundant_store", clear: "clear_then_redraw",
     static: "static_plane", lines: "lines_changed", tiny: "tiny_blits", scroll: "scroll_band",
     div: "div_loop", recompute: "recompute", cache: "cache_hostile", call: "call_in_loop", i64fit: "i64_fits_i32",
-    branch: "invariant_branch", misaligned: "misaligned", budget: "budget" };
+    branch: "invariant_branch", misaligned: "misaligned", mcopy: "misaligned_memcpy", budget: "budget" };
 if (broke && !BREAKS[broke]) throw new Error(`--break ${Object.keys(BREAKS).join(" | ")}`);
 
 const dir = mkdtempSync(`${tmpdir()}/perf_audit_test-`);
