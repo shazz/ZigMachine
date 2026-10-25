@@ -227,7 +227,7 @@ fn edgeRun(row: []const u8, from_left: bool) usize {
 }
 
 /// frame.raw with the tube rows handed to the raster: index 0 there.
-const frame_px: [@as(usize, WIDTH) * HEIGHT]u8 = blk: {
+const frame_px: [@as(usize, WIDTH) * HEIGHT]u8 align(8) = blk: { // aligned like the plane: a word memcpy, not four byte loads a word
     @setEvalBranchQuota(1_000_000);
     var f: [@as(usize, WIDTH) * HEIGHT]u8 = frame_b[0 .. @as(usize, WIDTH) * HEIGHT].*;
     for (0..HEIGHT) |y| {
