@@ -54,6 +54,14 @@ pub fn wipe(scr: *[st.BYTES]u8, t: u32) void {
 
 fn restoreLine(scr: *[st.BYTES]u8, line: i32) void {
     if (line < 0 or line >= st.LINES) return;
-    const row = scr[@as(usize, @intCast(line)) * st.LINE + CELL ..];
-    for (0..WIPE_GROUPS) |g| row[g * 8 ..][0..4].* = @splat(0xFF);
+    // Planes 1-2 of a group are bytes 2..5, which CELL puts at 2 mod 4: a u32
+    // store there traps on the board, and LLVM merges two u16 stores back into
+    // one. So OR $FFFF into the halves of the two aligned u32s that hold them
+    // (little-endian: the high half of the first, the low half of the second).
+    const at = @as(usize, @intCast(line)) * st.LINE + CELL - 2;
+    const w: [*]u32 = @ptrCast(@alignCast(scr[at..].ptr));
+    for (0..WIPE_GROUPS) |g| {
+        w[g * 2] |= 0xFFFF_0000;
+        w[g * 2 + 1] |= 0x0000_FFFF;
+    }
 }

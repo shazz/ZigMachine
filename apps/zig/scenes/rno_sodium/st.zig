@@ -23,7 +23,12 @@ pub const STRIP_BYTES: usize = LINE - STRIP; // 96: 12 groups
 
 /// scrA/scrB ($078A/$078E, live $22B00/$2AB00): 64 KB from zg.mem, taken once
 /// per cart load by allocRam() (a static would be 64 KB of zeros in the cart).
-pub var screens: *[2][BYTES]u8 = undefined;
+/// 4-aligned (taken as u32s): the effects store u16 words into them, and present()
+/// reads them as u32s; a [N]u8 from zg.mem can land on an odd address, and a
+/// misaligned word access traps on the board.
+pub var screens: *align(4) [2][BYTES]u8 = undefined;
+/// The planar bytes present() last turned into the plane's pixels, 4-aligned too.
+pub var shown: *align(4) [BYTES]u8 = undefined;
 
 pub const Machine = struct {
     f: u16, // $2542, the frame word
@@ -103,33 +108,73 @@ fn spreadTable(comptime first: usize) [256]u32 {
     return t;
 }
 
+/// What the plane holds: `shown` is meaningful once a full present has run, and
+/// the palette the plane's 16 registers were last loaded from.
+var shown_valid = false;
+var shown_palette: ?A.Palette = null;
+
+/// The plane's pixels are not known (cart init): the next present() is a full one.
+pub fn invalidate() void {
+    shown_valid = false;
+    shown_palette = null;
+}
+
 /// The screen at the base register, as the plane's 320x200 palette indices.
-/// 8 pixels are two u32 stores (the u64 `writeInt` on a byte slice compiled to
-/// eight byte stores on the board: 64,000 bus writes a frame for the picture).
+/// Only the 16-pixel groups whose 8 planar bytes differ from what the plane
+/// already shows are converted ("only modify what needs to be modified": a
+/// curtain frame changes ~300 bytes of 32,000), and the palette registers are
+/// written only when the palette changes. 8 pixels are two u32 stores (the u64
+/// `writeInt` on a byte slice compiled to eight byte stores on the board).
 pub fn present(m: *const Machine, fb: *zg.LogicalFB) void {
-    for (0..16) |i| fb.palette[i] = stColor(A.paletteWord(m.palette, i));
-    const scr = &screens[m.base];
+    if (shown_palette != m.palette) {
+        for (0..16) |i| fb.palette[i] = stColor(A.paletteWord(m.palette, i));
+        shown_palette = m.palette;
+    }
     const pixels = fb.fb[0 .. @as(usize, fb.stride) * LINES];
-    const aligned = @intFromPtr(pixels.ptr) & 3 == 0 and fb.stride & 3 == 0;
+    if (@intFromPtr(pixels.ptr) & 3 == 0 and fb.stride & 3 == 0) {
+        presentInto(true, &screens[m.base], pixels, fb.stride);
+    } else {
+        presentInto(false, &screens[m.base], pixels, fb.stride);
+    }
+    shown_valid = true;
+}
+
+fn presentInto(comptime aligned: bool, scr: *align(4) const [BYTES]u8, pixels: []u8, stride: usize) void {
+    const src: *const [BYTES / 4]u32 = @ptrCast(scr);
+    const old: *[BYTES / 4]u32 = @ptrCast(shown);
     for (0..LINES) |y| {
-        const src = scr[y * LINE ..][0..LINE];
-        const dst = pixels[y * fb.stride ..][0..zg.WIDTH];
-        // Two passes of 8 pixels per group: the high bytes, then the low.
-        for (0..LINE / 4) |h| {
-            const g = (h >> 1) * 8 + (h & 1);
-            const lo = SPREAD_LO[src[g]] | SPREAD_LO[src[g + 2]] << 1 |
-                SPREAD_LO[src[g + 4]] << 2 | SPREAD_LO[src[g + 6]] << 3;
-            const hi = SPREAD_HI[src[g]] | SPREAD_HI[src[g + 2]] << 1 |
-                SPREAD_HI[src[g + 4]] << 2 | SPREAD_HI[src[g + 6]] << 3;
-            if (aligned) {
-                const w: [*]u32 = @ptrCast(@alignCast(dst.ptr));
-                w[h * 2] = lo;
-                w[h * 2 + 1] = hi;
-            } else {
-                std.mem.writeInt(u32, dst[h * 8 ..][0..4], lo, .little);
-                std.mem.writeInt(u32, dst[h * 8 + 4 ..][0..4], hi, .little);
-            }
+        const dst = pixels[y * stride ..][0..zg.WIDTH];
+        for (0..LINE / 8) |gi| {
+            const k = y * (LINE / 4) + gi * 2;
+            const w0 = src[k];
+            const w1 = src[k + 1];
+            if (shown_valid and w0 == old[k] and w1 == old[k + 1]) continue;
+            old[k] = w0;
+            old[k + 1] = w1;
+            // Memory order: plane 0 hi, lo, plane 1 hi, lo | plane 2 ..., plane 3 ...
+            // The high bytes are pixels 0..7 of the group, the low bytes 8..15.
+            const px = dst[gi * 16 ..][0..16];
+            store(aligned, px[0..8], w0, w1, 0);
+            store(aligned, px[8..16], w0, w1, 8);
         }
+    }
+}
+
+/// Eight pixels from the four plane bytes at bit `sh` (0: high bytes, 8: low).
+fn store(comptime aligned: bool, px: *[8]u8, w0: u32, w1: u32, comptime sh: u5) void {
+    const b0 = (w0 >> sh) & 0xFF;
+    const b1 = (w0 >> (sh + 16)) & 0xFF;
+    const b2 = (w1 >> sh) & 0xFF;
+    const b3 = (w1 >> (sh + 16)) & 0xFF;
+    const lo = SPREAD_LO[b0] | SPREAD_LO[b1] << 1 | SPREAD_LO[b2] << 2 | SPREAD_LO[b3] << 3;
+    const hi = SPREAD_HI[b0] | SPREAD_HI[b1] << 1 | SPREAD_HI[b2] << 2 | SPREAD_HI[b3] << 3;
+    if (aligned) {
+        const w: *[2]u32 = @ptrCast(@alignCast(px));
+        w[0] = lo;
+        w[1] = hi;
+    } else {
+        std.mem.writeInt(u32, px[0..4], lo, .little);
+        std.mem.writeInt(u32, px[4..8], hi, .little);
     }
 }
 

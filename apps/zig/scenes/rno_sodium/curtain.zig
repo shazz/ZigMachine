@@ -29,7 +29,7 @@ const VAR_TYPED: usize = 0x254A - 0x1F42; // the typer's counter
 const VARS_END: usize = VAR_TYPED + 2;
 
 pub fn draw(scr: *[st.BYTES]u8, m: *const st.Machine) void {
-    var scratch: [ROW]u8 = undefined;
+    var scratch: [ROW]u8 align(4) = undefined;
     for (m.list, 0..) |off, y| {
         const src = row(off, m, &scratch);
         const dst = scr[y * st.LINE + st.STRIP ..];
@@ -52,7 +52,7 @@ pub fn rows(f: u16, list: *[st.LINES]u16) void {
 
 /// The 24 bytes at $1F42 + off. Every list any effect writes stays inside
 /// curtain_tail.bin (assets.zig checks the size against the largest).
-fn row(off: u16, m: *const st.Machine, scratch: *[ROW]u8) *const [ROW]u8 {
+fn row(off: u16, m: *const st.Machine, scratch: *align(4) [ROW]u8) *const [ROW]u8 {
     const at: usize = @min(off, A.curtain_tail.len - ROW);
     const src = A.curtain_tail[at..][0..ROW];
     if (at + ROW <= VAR_F or at >= VARS_END) return src;

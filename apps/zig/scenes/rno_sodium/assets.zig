@@ -15,29 +15,48 @@ const DIR = "../../assets/screens/rno_sodium/";
 /// round(256 sin) — it is off by one here and there — so it is shipped, never
 /// regenerated. Entries 1024.. repeat 0.., which is how $099A reads as cos.
 const sine = @embedFile(DIR ++ "sine.bin");
+/// sine.bin decoded once at comptime into native words, 4-aligned: an @embedFile
+/// has alignment 1, and its u16 reads at an odd address trapped on the board
+/// (~210 cycles each, ~400 a curtain frame).
+const SINE: [1280]i16 align(4) = decodeSine();
+fn decodeSine() [1280]i16 {
+    @setEvalBranchQuota(10_000);
+    var t: [1280]i16 = undefined;
+    for (&t, 0..) |*v, i| v.* = @bitCast(std.mem.readInt(u16, sine[i * 2 ..][0..2], .big));
+    return t;
+}
 /// ILBM #2's BODY ($13F6E): PO·RNO, 256x256, one bitplane, 32 bytes a row.
-pub const porno = @embedFile(DIR ++ "porno.bin");
+pub const porno = aligned("porno.bin");
 /// ILBM #3's BODY ($15FE2): 512x16, 4 planes, 256 bytes a row, glyph g = byte g.
 pub const font = @embedFile(DIR ++ "font.bin");
 /// $254E: three 240-character pages, 12 rows of 20.
 pub const text_pages = @embedFile(DIR ++ "text_pages.bin");
 /// $1AE2 / $1CC2: 240 words each, the byte offset of every character cell.
-const text_x = @embedFile(DIR ++ "text_x.bin");
-const text_y = @embedFile(DIR ++ "text_y.bin");
+const text_x = aligned("text_x.bin");
+const text_y = aligned("text_y.bin");
 /// $16FE2: the prism texture, 64x64 chunky bytes 0..7 (the raw tail of TEXT).
 pub const prism_tex = @embedFile(DIR ++ "prism_tex.bin");
 /// $16B6: 33 rows of 8, the fog/shade ramp from far (all 7) to near (identity).
 pub const prism_shade = @embedFile(DIR ++ "prism_shade.bin");
 /// ILBM #0 converted at init to ST interleave ($5E0E4): 192x256, 96 bytes a row.
-pub const pic0 = @embedFile(DIR ++ "pic0.bin");
+pub const pic0 = aligned("pic0.bin");
 /// ILBM #1 converted at init ($640E4): the eye + RNO picture, a whole screen.
-pub const pic1 = @embedFile(DIR ++ "pic1.bin");
+pub const pic1 = aligned("pic1.bin");
 /// $1F42 onwards as RAM holds it after init: the curtain table (inverted by
 /// $0620) followed by the program's own bytes, which the curtain reads on the
 /// one frame its row list is stale (curtain.zig).
-pub const curtain_tail = @embedFile(DIR ++ "curtain_tail.bin");
+pub const curtain_tail = aligned("curtain_tail.bin");
 /// $1EA2..$1F41: the five 16-word palettes, in address order.
-const palettes = @embedFile(DIR ++ "palettes.bin");
+const palettes = aligned("palettes.bin");
+
+/// An embed as a 4-aligned array: the strip effects copy these as u16 / u32
+/// words into the (4-aligned) screens, and a word load at an odd address traps.
+fn aligned(comptime name: []const u8) *align(4) const [@embedFile(DIR ++ name).len]u8 {
+    const S = struct {
+        const data: [@embedFile(DIR ++ name).len]u8 align(4) = @embedFile(DIR ++ name).*;
+    };
+    return &S.data;
+}
 
 pub const CURTAIN_ROWS: usize = 64;
 pub const CURTAIN_ROW_BYTES: usize = 24; // 192 px, one plane
@@ -59,13 +78,14 @@ pub fn paletteWord(p: Palette, i: usize) u16 {
 }
 
 /// sw(a): the sine word at BYTE offset `a` of $079A, as every walker reads it.
+/// Every walker offset is and.w #$7FE, so it is even: entry a / 2.
 pub fn sw(a: u32) i32 {
-    return @as(i16, @bitCast(be16(sine, a)));
+    return SINE[a >> 1];
 }
 
 /// The entry at WORD index `i` (0..1279), for the $099A cos reads.
 pub fn sineEntry(i: usize) i32 {
-    return @as(i16, @bitCast(be16(sine, i * 2)));
+    return SINE[i];
 }
 
 /// The walkers' seeds: `mulu.w #k` / `muls.w #k` of the frame word, and.w #$7FE.
