@@ -80,7 +80,7 @@ pub const Scroller = struct {
     /// Over P1, last: the band rows BAND_TOP .. BAND_TOP + BAND_ROWS - 1 are written whole
     /// (the text where the wave puts it, 0 elsewhere), so nobody erases them.
     pub fn draw(self: *Scroller, zigos: *ZigOS) void {
-        ss.draw(&zigos.lfbs[3], &self.fx, rasters);
+        ss.draw(&zigos.lfbs[3], &self.fx);
         // FX.siny(0,20,6): column groups of WAVE_COL px, each offset vertically by
         // sin(phase)*amp; the phase advances per group during the sweep but the persisted
         // state only carries the per-frame drift (Codef's oldvalue+offset reset after the loop).

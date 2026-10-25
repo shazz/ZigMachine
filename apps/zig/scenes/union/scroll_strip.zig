@@ -7,8 +7,8 @@
 // the CPU, ~25 cycles a pixel for either, was worse. Now:
 //   - CLASS (comptime, from fontsout + fontsin): per sheet pixel the outline
 //     colour, RASTER (0xFF) where the interior bit is set under no outline, else 0;
-//   - the strip's text rows take the raster whole (2 plain copies, it is 384
-//     wide), then each glyph slot ONE copy of CLASS keyed on RASTER: outline and
+//   - the strip's text rows take the raster whole (one plain copy of raster_w,
+//     the 384-wide raster laid twice across 400 at compile time), then each glyph slot ONE copy of CLASS keyed on RASTER: outline and
 //     0 land, the raster stays under RASTER -- scrolltext2's drawGlyph pixel
 //     (the outline, else the raster where the bit is set, else 0); a blank slot
 //     is a fill of 0. The 14 slots tile the strip (32 px apart, 448 px, the
@@ -61,11 +61,22 @@ fn isBlank(c: u8) bool { // scrolltext2's
     return c >= 92 or c == '/';
 }
 
-/// Every slot of `fx` into the strip's text rows.
-pub fn draw(strip: *LogicalFB, fx: anytype, raster: []const u8) void {
+/// The raster across the strip's W columns, as its two copies laid it (columns 0..383, then
+/// 0..15 again): one copy a frame instead of two.
+const raster_w: [W * GLYPH]u8 = blk: {
+    @setEvalBranchQuota(100_000);
+    const raw = @embedFile("../../assets/screens/union_main/rasters.raw");
+    var t: [W * GLYPH]u8 = undefined;
+    for (0..GLYPH) |y| for (0..W) |x| {
+        t[y * W + x] = raw[y * RASTER_W + x % RASTER_W];
+    };
+    break :blk t;
+};
+
+/// Every slot of `fx` into the strip's text rows, over the raster.
+pub fn draw(strip: *LogicalFB, fx: anytype) void {
     const top: i16 = PAD;
-    chisel.blitImage(strip, 0, top, raster, RASTER_W, 0, 0, RASTER_W, GLYPH, null);
-    chisel.blitImage(strip, RASTER_W, top, raster, RASTER_W, 0, 0, W - RASTER_W, GLYPH, null);
+    chisel.blitImage(strip, 0, top, &raster_w, W, 0, 0, W, GLYPH, null);
     for (fx.slot_x, fx.slot_ch) |x, ch| {
         const gx0: i32 = @max(0, -x);
         const gx1: i32 = @max(0, @min(@as(i32, GLYPH), @as(i32, W) - x));
