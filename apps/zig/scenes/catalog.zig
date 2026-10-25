@@ -117,7 +117,7 @@ pub const ENTRIES = [_]Entry{
     .{ .name = "PHENOMENA INTRO", .tag = "phenomena" }, // amiga — Photon's "THIS IS IMPOSSIBLE!" rotating scroller intro (CODEF 560)
     .{ .name = "MENTAL HANGOVER", .tag = "mentalhangover" }, // amiga — Scoopex's circular outline greeting
     .{ .name = "TGG BUXTON BYTES 25", .tag = "gnomes" }, // atari st — The Gnomes Group's "BB25" Buxton Bytes 2025 cracktro intro
-    .{ .name = "HMD FAC", .tag = "hmdfac" }, // atari falcon — HMD's "HMDFAC" Team Factory tribute intro
+    .{ .name = "HMD FAC", .tag = "hmdfac" }, // atari st — HMD's "Factory Cracktro" (STe, Buxton Bytes 2025), a Team Factory tribute
     .{ .name = "REPLICANTS ARKANOID 2", .tag = "replicants_arkanoid2" }, // atari st
     .{ .name = "ANIMA", .tag = "anima" }, // zigmachine — a new one-screen demo written for the machine
     .{ .name = "LEONARD'S SPIRIT", .tag = "leonard_spirit" }, // zigmachine — Oxygene's 312-sprite record (leonard) redone Leonard's way, for many more balls

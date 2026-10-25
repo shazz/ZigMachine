@@ -1,5 +1,5 @@
-// Headless HMDFAC driver (cart 105): HMD's "HMDFAC" Team Factory tribute, a
-// Falcon 030 intro ported from the depacked original. This harness holds the
+// Headless HMDFAC driver (cart 105): Hemoroids' "Factory Cracktro" (HMDFAC.PRG),
+// a Team Factory tribute for the Atari STe, ported from the depacked original. This harness holds the
 // cart to its OWN model of the machine, written from the port's documented
 // timeline (apps/zig/scenes/hmdfac.zig) and the ripped tables, not from the Zig:
 //

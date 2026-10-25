@@ -542,7 +542,7 @@ pub fn build(b: *std.Build) void {
         "demo-phenomena", // 102 — PHENOMENA intro (Amiga, code Photon, music Firefox): the two text pages, the logo fade, two purple raster bars, the photon drop, the rotating scroller on a cosine and rasta man.mod (ported from CODEF screen 560)
         "demo-mentalhangover", // 103 — MENTAL HANGOVER (Scoopex, Amiga): circular outline text over the mountain, 49-band per-scanline copper raster (ported from the Go re-creation)
         "demo-gnomes", // 104 — THE GNOMES GROUP "BB25" (Buxton Bytes 2025 cracktro intro): the real logo with its sway/shear and colour sweep, the moving raster bars, SpongeBob, the 13 TTY pages, the VU meters and the 32 px scroller (re-ported from the running original, 2026-10-24)
-        "demo-hmdfac", // 105 — HMD "HMDFAC" (Team Factory tribute): a Falcon 030 intro's flat boot-palette roll, color0 flash, exact-68k-integer perspective frustum and wave scroller (ported from the depacked original)
+        "demo-hmdfac", // 105 — HMD "Factory Cracktro" (STe, Team Factory tribute): the chrome logo, color0 flash, exact-68k-integer perspective frustum and wave scroller (ported from the depacked original)
         "demo-replicants_arkanoid2", // 106 — The Replicants / Arkanoid II crack intro (CODEF screen 33): name sprites on mycurve, waving bg2-coloured scrolltext
         "demo-anima", // 107 — ANIMA: a new ZigMachine one-screen demo (copper drum through every open border, breathing logo, glenz objects, sine scroller; Tao's Breath 2000)
         "demo-leonard_spirit", // 108 — LEONARD'S SPIRIT: the leonard cart's 312-sprite record redone Leonard's way (generated-code MOVE balls, compile-time tables, one CHISEL clear, one plane), as many balls as one frame holds

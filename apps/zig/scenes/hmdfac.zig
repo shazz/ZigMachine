@@ -1,6 +1,11 @@
 // --------------------------------------------------------------------------
-// HMD — "HMDFAC" (Team Factory tribute), fujiology.org/ST/H/HMD/HMDFAC.ZIP
-// (a Falcon 030 intro; the ZIP's PRG unpacked to /tmp work as
+// Hemoroids (HMD) — "Factory Cracktro" (HMDFAC.PRG), a Team Factory tribute,
+// Buxton Bytes 2025 "Fantasy Cracktro Challenge"; code Ayoros, graphics
+// Pandafox, music AD. fujiology.org/ST/H/HMD/HMDFAC.ZIP. An Atari STe
+// cracktro (Pouet 103795 / Demozoo 369835 say STe, and it runs on Hatari
+// STe: no Falcon hardware, STe 4-bit palette words; an earlier version of
+// this header called it a Falcon 030 intro, wrongly). The ZIP's PRG (UPX
+// 3.91) was unpacked to /tmp work as
 // HMDFAC_DEPACKED.PRG — every rip below is a byte-exact copy from that
 // depacked image and the offsets in this file are its own offsets; note
 // stutils.load strips the PRG's 28-byte header, so they are also the
@@ -72,8 +77,7 @@
 // DELIBERATE DEPARTURES (all documented):
 //   1. color0 story = the machine's literal flow: $0011 flat through the
 //      boot, the flash ramp two frames per word, then $ccc standing
-//      through ALL cube phases (on the Falcon the art's zero pixels really
-//      are light grey there), then PAL4 with #$11 rewritten every phase-4
+//      through ALL cube phases, then PAL4 with #$11 rewritten every phase-4
 //      frame ($3e8). (An earlier session modelled $0011 through the cube;
 //      the $1d0 dbra re-entry proved the $ccc reading.)
 //   2. $5444 — the machine's per-frame undo of the previous frame's cube
