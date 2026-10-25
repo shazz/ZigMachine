@@ -2,7 +2,12 @@
 
 KOS = the KESTREL Operating System (Matt, 25 Oct): ZigGEM grown into a small OS in ROM. "ZigTOS" below is the same thing.
 
-Status: **design, 25 Oct 2026**, decisions in §11, nothing built yet. Matt's brief: at reset the boot program
+**KOS** (Matt, 25 Oct): the OS is named KOS, the KESTREL Operating System; "ZigTOS" below means
+the same thing. Code, UART lines and the POST say KOS.
+
+Status: **v1 built, 25 Oct 2026** (branch `feat/zigtos-boot`; how it is built and proved:
+docs/FPGA_GLASS.md, "KOS: power-on and drive A"; what v1 does differently from this design: §12).
+v2 and v3 are designs. Decisions in §11. Matt's brief: at reset the boot program
 initialises KESTREL, looks for a cart, checks its boot sector and runs it, or else loads GEM.
 "It doesn't have to be exactly like the TOS", but it is the foundation for making ZigGEM a
 real small OS in ROM.
@@ -183,7 +188,7 @@ and reset". Today's "boot the menu cart" becomes "the desktop with the menu disk
 
 | Version | What | Visible result |
 |---|---|---|
-| **v1** | stages 0-1, 3-4, 7-9, 12-13; GEM in the ROM (§4.2); the drive as insert/eject (§4.1); `glass.cfg drive_a=`; the system variables block (§5); browser parity (§7) | power on → POST → the disk in drive A boots, or the desktop |
+| **v1** (built, §12) | stages 0-1, 3-4, 7-9, 12-13; GEM in the ROM (§4.2); the drive as insert/eject (§4.1); `glass.cfg drive_a=`; the system variables block (§5); browser parity (§7) | power on → POST → the disk in drive A boots, or the desktop |
 | **v2** | cartridge slot: diagnostic, application and tool cartridges, the debugger first (§4.4); AUTO and COMMAND (§4.5) | a freezer/debugger on a hot key; the board self-tests at power-on; a disk configures the OS |
 | **v3** | resident programs (§4.6); hard disk C: from SD folders (roadmap idea); desk accessories | the ROM is a small real OS |
 
@@ -216,3 +221,43 @@ desktop (≤ 6 frames after boot); then the board.
    cartridge port held monitors, debuggers and freezers (the Action Replay / Ultimate Ripper
    family, ShirazMCP's model). A KESTREL **tool cartridge** runs beside the program instead of
    before it: see §4.4.
+
+## 12. v1 as built (25 Oct)
+
+| Stage | Where it is | Proof |
+|---|---|---|
+| 0 | glass `app_drive.zig powerOn`: ZIGGY starts over `drive_a=`, the OSD closed | glass zig tests |
+| 1 | `kosSetBoot` (rom/kos/kos.zig): boot kind from the glass's KOS boot words (W sets warm) | the sysvars read back in `apps/kos_boot_check.mjs` |
+| 3-4 | the POST in the ROM (`kosPostStart`/`kosPostFrame`), driven by `docs/kos-boot.js`, `fpga/host/kos_host.c`, `fpga/cycles/bkos.c`; `?post=N` / `post=0` / a key (browser) or Shift (board) skips | browser = node = native host, frame for frame; the board SoC sim |
+| 7-9, 12 | each host: the boot sector, the bootable disk's cart, or the desktop over a data disk / empty drive | five drives, `fpga/tests/test_kos_boot.py`, `apps/kos_boot_check.mjs` |
+| 13 | program quit = request 4, now "the desktop over drive A, no POST" (glass `backToOs`) | glass zig tests |
+| 4.1 | Insert / Eject / Enter on the shelf, `insertDisk` media change to the running cart | glass zig tests (the window's words); the firmware side needs the board |
+| 5 | the system variables block, `kosSysVarsPtr` (apps: `rom_sdk.kos.vars()`), sys_abi 1.3 | `sys_abi.py --check` |
+
+**Where v1 differs from the design above, and why:**
+
+- **§4.2 "GEM moves into the ROM".** The desktop's code was already in `rom.wasm`; what a host
+  runs each frame is a cart module (frame, planes, HBL dispatch, input, requests are the cart's
+  exports in all three hosts), so the desktop still runs as its small shell cart, `gem`. What
+  moved is where it comes from: the system, not the disk. The browser fetches `demo-gem.wasm`
+  as part of the page, and the SD card carries GEM's board image once, as
+  `zigmachine/kos/desktop.rv32`, beside `system.rv32`; data disks are staged as plain files and
+  `gem` left the shelf. Making the ROM a frame-loop owner (so the desktop runs with no cart) is
+  a host contract change for all three hosts, and is not needed for anything v1 shows.
+- **§4.3 "the boot program in `rom/boot/`".** The shared, pixel-making half is `rom/kos/` (the
+  POST and the variables); the stages are in each host (`docs/kos-boot.js` + `sealed-loader.js`,
+  `fpga/host/kos_host.c`, `fpga/cycles/bkos.c`), because only a host can instantiate the next
+  module. All three are held equal frame for frame.
+- **Carts still link `machine/boot.zig`** (their own boot screen): every host now skips it after
+  the ROM's POST. Dropping it changes every cart and repacks every disk: a later cleanup.
+- **Cold and warm.** `boot_kind` is the glass's (W writes the warm flag). The ZMME arena-keeping
+  warm boot (`glass/firmware/glass_boot.c`) is still a stub no firmware links: on the board a W
+  restarts the cart over a re-instantiated machine, as before KOS.
+- **Desktop quit -> reset (stage 13).** TOS 1.00's desktop has no Quit and ours has none; adding
+  a menu item changes GEM's pixels and every GEM reference. Not done; a host hook for it is a
+  few lines once the desktop asks for it (request -1).
+- **The browser** keeps powering on like the TV it sits in: with no `?disk`, a channel's disk is
+  in drive A; `?disk=none` is the empty drive. The page's own insert / eject buttons are not
+  built: `window.kosInsert(url)` / `kosEject()` do it, as the board's I / E do.
+- **A held key** skips the POST: any key during it in the browser, Shift at the reset on the board
+  (glass knows the modifiers; Enter itself is a key, so "any key" could not work there).

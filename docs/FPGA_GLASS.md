@@ -39,6 +39,7 @@ none of MiSTer's code (GPL) or zeST's code (GPL-3) is used.
 | Load path, end to end | **done** | the 9 board images `fpga/cycles` links land byte for byte in the fake DDR |
 | Disk streaming: ZWINDOW places the shelf disk in DDR, ZIGGY serves `diskReadBlock` from it | **done in the sim** (2026-10-11): no RTL change, no new CSR | every `docs/` shelf disk comes back byte for byte from its fat disk; the drive answers as the browser's own function on every case (`tests/test_board_disk.py`); stniccc streams SCENE1.BIN in the board SoC sim with the browser's hashes (below, "The disk in DDR") |
 | GEM over a data disk: the firmware tells GEM the disk is in and hands it the FAT listing, from the disk in DDR | **done in the sim** (2026-10-11): no RTL change, no new CSR, no descriptor flag | the listing is the browser's byte for byte (`tests/test_board_gemdisk.py`); GEM opens ST Replay's floppy in the board SoC sim with the browser's hashes (below, "GEM over a data disk") |
+| KOS's power-on and drive A (docs/ZIGTOS_BOOT.md v1): glass starts ZIGGY at once over glass.cfg's `drive_a=`, the ROM's POST, then the disk's cart or the desktop (`kos/desktop.rv32`) over a data disk or an empty drive; Enter = insert + reset, I / E = a media change | **built, host-tested** (2026-10-25): no RTL change, no new CSR | the browser's loader = scene_hash.mjs `--kos` = the native host `--kos` on five drives; glass's state machine in its zig tests; the board SoC sim of power-on, POST, desktop (below, "KOS: power-on and drive A"); the media change needs the board |
 | Programs off a data disk: ZIGGY asks (request block + `CART_STATE`), ZWINDOW loads the program's prebuilt image over the same disk, and GEM again on request 4 | **built, host-tested** (2026-10-11): no RTL change, no new CSR | firmware block = glass's reader; the glass's swap in its zig tests; the request in the board SoC sim (below, "Programs off a data disk"); the swap itself needs the board |
 | Cart-side input routing (`glass/firmware/glass_input.c`) | **done, linked into every board firmware** (2026-10-10): once a frame, before `cart.frame()`, `cycles/binput.c` drains the key FIFO (32 a frame at most), then the joypad and the mouse, through `host/input_bridge.c` into the cart's exports (`host_input`, generated per cart by `tools/host_gen.py`: NULL where a cart has no such export) | 19 key cases + 7 pointer polls against `sealed-loader.js`'s rules; 3 break tests caught. `tests/test_board_input.py`: the native host plays a key-FIFO script (`ZM_GLASS_KEYS`) through the same router, and SPACE on union_beatdis gives the browser's own `key(32)` hashes, a mutant router is caught |
 | SD card staging (`tools/glass_sd.py`), U-Boot script, DTS, Buildroot tree | **written** | `boot.scr` is byte-identical to `mkimage`'s; the DTS compiles against a stub dtsi |
@@ -335,7 +336,9 @@ below the cart window.
    runs W64). In plan B, you type that at the shell, from
    `/mnt/glass`.
 4. **`glass`** maps GP0 and the cart window, checks `ID`, sets the OSD colours,
-   scans the shelf and shows the menu over a cart CPU still held in reset.
+   scans the shelf and powers KOS on: ZIGGY starts at once over what drive A holds
+   (`drive_a=` in glass.cfg), the OSD closed (below, "KOS: power-on and drive A").
+   If nothing can boot (no desktop on the card, say), the menu opens with why.
 
 ## The OSD
 
@@ -684,9 +687,13 @@ page.
 volume=200
 mute=0
 fps=0
+drive_a=demo-stniccc.zmd
+post=1
 ```
 
-`fps=1`: the F11 frame-rate overlay is on. F11 saves it at once.
+`fps=1`: the F11 frame-rate overlay is on. F11 saves it at once. `drive_a=`: the disk in
+KOS's drive A, a shelf file name (`[A-Za-z0-9._-]`, at most 64, never a path; empty = no disk),
+saved when Enter / I / E change it. `post=0`: no POST at any reset (fast demo work).
 
 - **Missing** means "never saved": the defaults (255, not muted), and nothing
   is reported, as nothing is wrong.
@@ -895,11 +902,14 @@ cart. The browser boots GEM for it, and after every `demo.frame()` it
    name, the type at +16, the size u32 LE at +17, a v2 disk's date u32 LE at +21)
    and calls `setDiskFileCount(n)`, once.
 
-**On the shelf** (`tools/glass_shelf.py`). `st_replay` is in `SHELF`. A data
-disk's fat disk carries GEM's board image (`board/gem/fw.bin`), not its own, and
-nothing else marks it: ZWINDOW places the disk in DDR exactly as for any cart
-("The disk in DDR"), and the firmware decides from the disk's boot sector, as
-the browser does. No descriptor flag, no register. `make board-shelf` also
+**On the shelf** (`tools/glass_shelf.py`). `st_replay` is in `SHELF`. Since KOS
+(2026-10-25) a data disk is staged as it is, just files; GEM's board image is on the
+card once, as `zigmachine/kos/desktop.rv32`, and the glass places it with the disk in
+DDR when drive A holds a data disk ("KOS: power-on and drive A"). Nothing else marks
+it: ZWINDOW places the disk in DDR exactly as for any cart ("The disk in DDR"), and the
+firmware decides from the disk's boot sector, as the browser does. No descriptor flag,
+no register. (Before KOS each data disk's fat disk carried GEM's image; such a card still
+boots: a disk with a board image runs it.) `make board-shelf` also
 builds `board/st_replay/fw.bin`: the program GEM launches (next section).
 
 **In the firmware** (`cycles/bdiskapp.c`, `host/disk_app.h`, `host/zmd_dir.h`).
@@ -983,6 +993,81 @@ every frame, the chainload at frame 120 / 240; 24,844 calls of every opcode it r
 and random operands, traps included. The picture: the native host's `--bootsec X.zmd` (the
 interpreter over the wasm2c'd machine) equals `apps/scene_hash.mjs X.zmd` (the sector in
 node), every plane every 10 frames over 250. Seven break mutants (`ZM_RTL_BREAK=1`).
+
+## KOS: power-on and drive A
+
+KOS, the KESTREL Operating System (docs/ZIGTOS_BOOT.md, where it is called ZigTOS), v1,
+2026-10-25. The shelf stops being a launcher: it is the box of disks beside **drive A**, and
+the console boots like an ST. No RTL change, no new CSR: words in the cart window's top 4 KiB
+and ROM exports.
+
+**Power-on** (`glass/src/app_drive.zig powerOn`, from `main.zig` once the App is up). glass
+reads `drive_a=` from glass.cfg and resets at once: ZIGGY starts, the OSD stays closed. What a
+reset boots, as the browser's KOS does (stages 7 to 12):
+
+| Drive A holds | What is placed in DDR | What runs |
+|---|---|---|
+| a disk with a board image (a bootable disk, or a data disk of a card staged before KOS) | its fat disk, as before | its cart (after its executable boot sector, if any) |
+| a data disk with none (`st_replay`, `sysinfo`) | `kos/desktop.rv32` + the disk as it is (`plan.planDesktop`) | the desktop over it (after sysinfo's "No virus" sector) |
+| nothing (or `drive_a=` names a file not on the card) | `kos/desktop.rv32`, no disk, no descriptor | the desktop, FLOPPY saying `Drive A: is empty` |
+| a bootable disk with no board image | nothing (refused before DDR) | the old cart keeps running: `NoBoardImage` |
+
+**The POST** (`rom/kos/kos.zig`: machine/boot.zig's look plus `KOS 1.0`, drawn by the ROM on
+plane 0 for 180 frames). A reset writes the **KOS boot words** after the window is verified
+(`map_cart.zig KOS_BOOT_*`, window end - 0x3D8: `KOS_BOOT_MAGIC`, then the warm flag and the
+POST's frames in bits 23:8): 180, or 0 with `post=0` in glass.cfg or a Shift key held at the
+reset. The firmware (`cycles/bkos.c`) sets the system variables (`kosSetBoot`: cold/warm, what
+boots, drive A full or not, the RAM free), then runs the POST's frames as `bbootsec.c` runs a
+sector's (plane 0 composited whole, keys dropped, CART_STATE RUNNING first), then the boot
+sector, then the cart. A load that is no reset (a program off the disk, back to the desktop,
+a door's cart, `glass ctl load`) writes no words: no POST, as the browser's swaps show none.
+The sim has no glass: `ZM_KOS_POST=n` stands in for the words.
+
+**The keys on the shelf.** Enter: insert the disk under the cursor and reset (cold, with the
+POST). I / E: insert / eject with no reset. R / W: reset cold / warm over what drive A holds
+(R used to reload the cart in the window: after a door's cart, R now boots the drive's disk,
+the ST's answer). The drive's disk is marked `A` in the list, the one in the window `*`;
+`drive_a=` is saved when the OSD closes.
+
+**A media change** (`glass/src/app_media.zig`, `cycles/bdiskapp.c bdiskapp_media`). I or E
+under a running cart: the new disk is read and placed on paper first (one that does not fit
+after the running image, `Plan.disk_from`, changes nothing: `drive A: DiskTooBig`); then the
+descriptor is zeroed, the disk written after the running image, the descriptor written, and
+the media word bumped (`KOS_MEDIA_*`, window end - 0x3D0). Each frame the firmware drops its
+D$ line of that word and reads it; on a new count it drops the whole D$, reads the descriptor
+again (`bdisk_media`), and, if the cart was booted as the desktop, re-parses the disk (a data
+disk: `insertDisk(1)` and the listing again; none: `insertDisk(0)`); KOS counts the change
+(`kosMediaChange`, sysvars `drive_a`). A cart booted for its own disk just reads the new one.
+UART: `ZM KOS media f present`.
+
+**The system variables** (`rom/kos/kos.zig SysVars`, apps: `rom_sdk.kos.vars()`): magic
+"KOSV", layout 1, KOS's version (1.0), boot kind, boot device (desktop / drive A / cartridge),
+RAM total and free, frames since the reset (`kosTick` from every host's frame), drive A
+(present + media changes since power-on), the cartridge slot (v2). Appended ROM exports:
+`fpga/cycles/sys_abi.txt` 1.2 -> 1.3, so every lean cart on a card keeps running.
+
+**Proof.**
+- `apps/kos_boot_check.mjs` (build.sh, with its `--break`): the REAL `docs/sealed-loader.js` +
+  `docs/kos-boot.js` in a vm, its canvases hashed as scene_hash.mjs hashes the machine's, equal
+  `scene_hash.mjs --kos` frame for frame on five drives: empty, ST Replay's data disk, sysinfo's
+  sector then the desktop, replicants_emlyn's sector then its cart, the tutorial's bootable disk;
+  a media change reaches the ROM's variables. A POST on the wrong planes is caught.
+- `fpga/tests/test_kos_boot.py`: the native host's `--kos` = `scene_hash.mjs --kos` on the same
+  drives: the POST animates and is the same whatever the drive holds; after it the desktop opens
+  the floppy on ST Replay's listing (and asks for BOOT.WSM, request 3, at frame 212 in both) or
+  says the drive is empty; `--post-frames 0` gives the same desktop three frames earlier; the
+  sector cases; scene_hash refuses a cart that is not the bootable disk's.
+- `glass/src/app_drive_test.zig` (`zig build test`, against the simulated glass and DDR):
+  power-on empty / data disk / bootable disk (the window holds exactly each plan), the KOS
+  words (POST, post=0, Shift, W's warm flag over the kept memory), Enter saving `drive_a=`,
+  insert + eject (the media words, the disk where a reset would place it, no reset), a media
+  change under a program (after the program's image), one that does not fit (nothing written),
+  no desktop, a missing `drive_a=`, a bootable disk with no image. 132 tests.
+- **The board SoC sim** of power-on, POST, desktop: `make -C fpga build/hcycles/sim/gem/zm_ddr.init ZM_KOS_POST=3 ZM_FRAMES=3 ZM_EVERY=1`, `tools/hp_sim_run.py gem --no-build --frames 3 --every 1 --run-id kos` (sim-b, 2026-10-25, 1 h 02 min, the SoC model built from this tree): `ZM KOS boot 0 1 1 3` (cold, drive A's disk boots, a disk in, 3 POST frames), the POST's `ZM KOSHASH` 1 / 2 / 3 `d2acb176…`, `d2acb176…`, `c71f0eb0…` = `scene_hash.mjs --kos docs/demo-gem.zmd --post-frames 3` = the native host's samples 1-3, `ZM KOS post 3`, then the desktop's frames 1-3 `71dbd6ea…` (total `e36de1d4…`) = the references; `ok`, no underrun (`ZM VSTAT 0 0`). The disk in DDR is `demo-gem.zmd`, bootable, so `ZM GEMDISK off`: the same desktop pixels as an empty drive.
+
+**Not proved without the board:** the ARM's media-change writes as ZIGGY's D$ sees them through
+HP0 while it runs (the order of the disk, descriptor and media word, which is why the firmware
+re-reads after dropping the whole cache), POST timing on the real clock, and the evdev Shift.
 
 ## Programs off a data disk
 
@@ -1087,7 +1172,11 @@ why the glass waits for the check), and the swap's timing.
 | Mouse events faster than the cart polls | — | the newest position wins; a press shorter than a poll is latched | nothing to repair |
 | A file on the shelf is not a disk | header parse | listed as `?name` | — |
 | Warm reset with no memory to keep | `CART_STATE` = trapped, `TRAP_WARM_LOST` | `warm reset: memory lost, use R` | CPU held; R reloads |
-| Reset with no cart loaded | — | `no cart to reset` | nothing touched |
+| Warm reset with no cart loaded | — | `no cart to reset` | nothing touched |
+| A reset with no desktop on the card (an empty drive, a data disk) | `kos/desktop.rv32` read | `no kos/desktop.rv32 on the card` | the old cart keeps running; at power-on the menu opens |
+| `drive_a=` names a disk not on the card | shelf lookup | `drive A: no <file> on the card` | the drive is empty: the desktop boots |
+| A bootable disk with no board image in drive A | its FAT and boot sector | `<file>: NoBoardImage` | the old cart keeps running |
+| A media change that does not fit after the running image | `plan.diskAt`, before anything is written | `drive A: DiskTooBig` | drive A keeps its disk, the window is untouched |
 | Cold reset of a disk since removed from the card | file read | `<file>: FileNotFound` | the cart keeps running |
 | A cart's swap request it cannot serve (a bad block, a name with a path, no `progs/` disk, not a program, an unknown request) | `app_request.zig` | `<name>: <Error>` on the status line | the cart keeps running; not retried until it stops asking |
 | `glass.cfg` bad line | parse | `glass.cfg: bad line N` | that key's default, the rest applied |
