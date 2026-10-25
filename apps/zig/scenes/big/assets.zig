@@ -152,12 +152,18 @@ pub const DIGITAL_CYCLE_STEP: f64 = 0.2;
 /// align(8): screen.expandBand copies its 32-byte rows as u64s, and an
 /// @embedFile is align 1 (a misaligned access traps on the board).
 pub const cycle: [8 * CYCLE_H * CYCLE_W]u8 align(8) = @embedFile("../../assets/screens/big_demo/cycle.raw").*; // 8 tiles of 32x5, tile-major
-pub const main_img = @embedFile("../../assets/screens/big_demo/main.raw"); // 320x270, 0 = hole
-pub const wait_img = @embedFile("../../assets/screens/big_demo/wait.raw"); // 320x270, opaque
-pub const fontin = @embedFile("../../assets/screens/big_demo/fontin.raw"); // 70 x 32x16 MASK
-pub const fontout = @embedFile("../../assets/screens/big_demo/fontout.raw"); // 70 x 32x16 indices
-pub const fontp = @embedFile("../../assets/screens/big_demo/fontp.raw"); // 64 x 8x8 MASK
-pub const shadow_lut = @embedFile("../../assets/screens/big_demo/shadow.dat"); // 2 x 256
+/// The pictures and fonts are aligned too, for the board's memcpy (fpga/cycles/zm_string.c):
+/// it stores by word, but reads a source that is not word-aligned WITH its destination one
+/// byte at a time (4 lbu + shifts a word). Every plane row starts 8-aligned, so an align-1
+/// picture lands wherever the linker packs it: when c82b653f moved cycle.raw out of the
+/// pack, main.raw went from 4-aligned to 3 mod 4 (+~0.1 Mc a frame of byte reads, the
+/// board's +20 Kc after the 84 Kc of traps were gone).
+pub const main_img: [@as(usize, W) * H]u8 align(8) = @embedFile("../../assets/screens/big_demo/main.raw").*; // 320x270, 0 = hole
+pub const wait_img: [@as(usize, W) * H]u8 align(8) = @embedFile("../../assets/screens/big_demo/wait.raw").*; // 320x270, opaque
+pub const fontin: [GLYPHS * GW * GH]u8 align(8) = @embedFile("../../assets/screens/big_demo/fontin.raw").*; // 70 x 32x16 MASK
+pub const fontout: [GLYPHS * GW * GH]u8 align(8) = @embedFile("../../assets/screens/big_demo/fontout.raw").*; // 70 x 32x16 indices
+pub const fontp: [P_GLYPHS * PW * PH]u8 align(8) = @embedFile("../../assets/screens/big_demo/fontp.raw").*; // 64 x 8x8 MASK
+pub const shadow_lut: [2 * 256]u8 align(8) = @embedFile("../../assets/screens/big_demo/shadow.dat").*; // 2 x 256
 pub const scrolltext = @embedFile("../../assets/screens/big_demo/scrolltext.txt"); // 41859 bytes
 /// One shared 256-colour palette: main/wait greys, the 8 cycle colours, the 8
 /// fontbg stripes, the outline greys, the three list colours, fade[]'s 16 greys,

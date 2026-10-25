@@ -87,7 +87,8 @@ const K_1: u32 = '1';
 /// The screen at ST scale: 320x200 indices, one per pixel. Even-sampled from
 /// the capture — lossless, the doubling being exact — with the 16 scroller rows
 /// blanked to the panel grey, because the scroller draws them live.
-const PICTURE = @embedFile("../../assets/screens/digital_solution/screen.raw");
+/// align(8): copied by row into the plane every frame (see assets.main_img for why).
+const PICTURE: [@as(usize, zg.WIDTH) * zg.HEIGHT]u8 align(8) = @embedFile("../../assets/screens/digital_solution/screen.raw").*;
 /// big_demo's OWN 256-entry palette with this screen's 7 colours APPENDED past
 /// its last used index. Sharing one palette is what lets the jukebox's scroller
 /// keep its fontbg and outline colours while this screen is up, and means
