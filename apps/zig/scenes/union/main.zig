@@ -142,7 +142,7 @@ pub const Demo = struct {
         // Tile world: clouds (behind) -> animated rows -> world tiles (on top).
         wd.world(p0, self.pos, &self.ring); // clouds -> animated rows -> world, pre-composited cells (world_cells.zig)
         self.balls.draw(zigos); // dragonballs on plane 0, last
-        split.erase(&zigos.lfbs[1], self.fresh);
+        split.erase(&zigos.lfbs[1], self.fresh, !self.runner.paintsBox(self.speed / 0.3));
         self.fresh = false;
         self.runner.draw(zigos, self.speed / 0.3); // ghost trail scales with speed
         self.credits.draw(zigos); // credits pages on plane 1 (top area)

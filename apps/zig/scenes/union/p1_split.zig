@@ -100,10 +100,12 @@ comptime {
 }
 
 /// Erase what P1 drew last frame: the whole plane the first time, then only the runner's
-/// box. The credits page stays drawn while it shows (credits.zig erases its own box) and the
-/// text's band is rewritten whole every frame (scroller.zig).
-pub fn erase(p1: *LogicalFB, whole: bool) void {
+/// box, unless the runner repaints it whole (`box_too` false: runner.paintsBox). The credits page
+/// stays drawn while it shows (credits.zig erases its own box) and the text's band is
+/// rewritten whole every frame (scroller.zig).
+pub fn erase(p1: *LogicalFB, whole: bool, box_too: bool) void {
     if (whole) return gpu.clear(p1, 0);
+    if (!box_too) return;
     const box = runner.BOX;
     gpu.fill(p1, box[0], runner_rows[0], box[1] - box[0], runner_rows[1] - runner_rows[0], 0);
 }
